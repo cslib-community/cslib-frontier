@@ -127,8 +127,7 @@ private theorem gaussianReal_prod_map_affine (ρ c : ℝ) :
   have h2 := Measure.map_prod_map (gaussianReal 0 1) (gaussianReal 0 1) (f := id)
     (g := fun x : ℝ => c * x) measurable_id (by fun_prop)
   rw [Measure.map_id] at h2
-  rw [h, h2, Measure.map_map (by fun_prop) (by fun_prop)]
-  rfl
+  rw [h, h2, Measure.map_map (by fun_prop) (by fun_prop)]; rfl
 
 variable {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E] [FiniteDimensional ℝ E]
   [MeasurableSpace E] [BorelSpace E]
@@ -155,32 +154,26 @@ theorem stdGaussian_map_inner_prod_eq_correlatedGaussian {u v : E} (hu : ‖u‖
     funext x
     simp only [Function.comp_apply, hw, inner_sub_left, real_inner_smul_left]
     ring_nf
-  have h1 : ‖u‖₊ ^ 2 = 1 := by
-    ext
-    simp only [NNReal.coe_pow, coe_nnNorm, hu, one_pow, NNReal.coe_one]
-  have h2 : ‖w‖₊ ^ 2 = .mk (√(1 - ρ ^ 2) ^ 2) (sq_nonneg _) := by
-    ext
-    simp only [NNReal.coe_pow, coe_nnNorm, NNReal.coe_mk]
-    rw [sq_sqrt (by nlinarith [sq_nonneg ‖w‖]), hww]
+  have h1 : ‖u‖₊ ^ 2 = 1 := NNReal.eq (by simp [hu])
+  have h2 : ‖w‖₊ ^ 2 = .mk (√(1 - ρ ^ 2) ^ 2) (sq_nonneg _) := NNReal.eq <| by
+    simp only [NNReal.coe_pow, coe_nnNorm, NNReal.coe_mk, hww]
+    exact (sq_sqrt (by nlinarith [sq_nonneg ‖w‖])).symm
   rw [hpair, ← Measure.map_map (by fun_prop) (by fun_prop), stdGaussian_map_inner_prod huw, h1,
     h2, correlatedGaussian, gaussianReal_prod_map_affine]
 
 /-- For `-1 ≤ ρ ≤ 1` there are unit vectors of the plane with inner product `ρ`. -/
 private theorem exists_norm_eq_one_inner_eq {ρ : ℝ} (hρ : |ρ| ≤ 1) :
     ∃ u v : EuclideanSpace ℝ (Fin 2), ‖u‖ = 1 ∧ ‖v‖ = 1 ∧ ⟪u, v⟫ = ρ := by
-  have hρ2 : ρ ^ 2 ≤ 1 := by nlinarith [abs_le.1 hρ]
   refine ⟨EuclideanSpace.single 0 1, WithLp.toLp 2 ![ρ, √(1 - ρ ^ 2)], by simp, ?_, ?_⟩
   · rw [EuclideanSpace.norm_eq, Fin.sum_univ_two]
-    simp only [Matrix.cons_val_zero, Matrix.cons_val_one, Real.norm_eq_abs,
-      sq_abs, sq_sqrt (sub_nonneg.2 hρ2), add_sub_cancel, sqrt_one]
-  · rw [EuclideanSpace.inner_single_left]
-    simp only [map_one, one_mul, Matrix.cons_val_zero]
+    simp [sq_sqrt (show 0 ≤ 1 - ρ ^ 2 by nlinarith [abs_le.1 hρ])]
+  · simp [EuclideanSpace.inner_single_left]
 
 /-- The first coordinate of a correlated pair is a standard Gaussian. -/
 theorem correlatedGaussian_map_fst (ρ : ℝ) :
     (correlatedGaussian ρ).map Prod.fst = gaussianReal 0 1 := by
   rw [correlatedGaussian, Measure.map_map measurable_fst (by fun_prop)]
-  exact (Measure.map_fst_prod).trans (by rw [measure_univ, one_smul])
+  exact Measure.map_fst_prod.trans (by rw [measure_univ, one_smul])
 
 /-- The second coordinate of a `ρ`-correlated pair is a standard Gaussian when `|ρ| ≤ 1`. -/
 theorem correlatedGaussian_map_snd {ρ : ℝ} (hρ : |ρ| ≤ 1) :
@@ -188,10 +181,8 @@ theorem correlatedGaussian_map_snd {ρ : ℝ} (hρ : |ρ| ≤ 1) :
   obtain ⟨u, v, hu, hv, rfl⟩ := exists_norm_eq_one_inner_eq hρ
   rw [← stdGaussian_map_inner_prod_eq_correlatedGaussian hu hv,
     Measure.map_map measurable_snd (by fun_prop)]
-  refine (stdGaussian_map_inner v).trans ?_
-  congr
-  ext
-  simp only [NNReal.coe_pow, coe_nnNorm, hv, one_pow, NNReal.coe_one]
+  refine (stdGaussian_map_inner v).trans (congrArg _ (NNReal.eq ?_))
+  simp [hv]
 
 /-- A `ρ`-correlated pair is symmetric: `(z', z)` has the same law as `(z, z')`. -/
 theorem correlatedGaussian_map_swap {ρ : ℝ} (hρ : |ρ| ≤ 1) :
@@ -210,9 +201,8 @@ theorem correlatedGaussian_map_neg {ρ : ℝ} (hρ : |ρ| ≤ 1) :
   conv_lhs => rw [← stdGaussian_map_inner_prod_eq_correlatedGaussian hu hv,
     Measure.map_map (by fun_prop) (by fun_prop)]
   have hcomp : (fun p : ℝ × ℝ => -p) ∘ (fun x => (⟪u, x⟫, ⟪v, x⟫)) =
-      fun x => (⟪-u, x⟫, ⟪-v, x⟫) := by
-    funext x
-    simp only [Function.comp_apply, Prod.neg_mk, inner_neg_left]
+      fun x => (⟪-u, x⟫, ⟪-v, x⟫) :=
+    funext fun x => by simp [Prod.neg_mk, inner_neg_left]
   rw [hcomp, stdGaussian_map_inner_prod_eq_correlatedGaussian (by rw [norm_neg, hu])
     (by rw [norm_neg, hv]), inner_neg_neg]
 
@@ -247,35 +237,28 @@ private theorem integral_dual_variance_dual {ν : Measure (ℝ × ℝ)} [IsGauss
     ν[L] = 0 ∧ Var[L; ν] = L (1, 0) ^ 2 + 2 * ρ * L (1, 0) * L (0, 1) + L (0, 1) ^ 2 := by
   set a := L (1, 0)
   set b := L (0, 1)
-  have hL : ⇑L = fun p : ℝ × ℝ => a * p.1 + b * p.2 := by
-    funext p
-    have : p = p.1 • ((1 : ℝ), (0 : ℝ)) + p.2 • ((0 : ℝ), (1 : ℝ)) := by ext <;> simp
-    conv_lhs => rw [this]
+  have hL : ⇑L = fun p : ℝ × ℝ => a * p.1 + b * p.2 := funext fun p => by
+    have hp : p = p.1 • ((1 : ℝ), (0 : ℝ)) + p.2 • ((0 : ℝ), (1 : ℝ)) := by ext <;> simp
+    conv_lhs => rw [hp]
     rw [map_add, map_smul, map_smul, smul_eq_mul, smul_eq_mul, mul_comm a, mul_comm b]
   have m1 : MemLp (fun p : ℝ × ℝ => p.1) 2 ν :=
     IsGaussian.memLp_dual ν (ContinuousLinearMap.fst ℝ ℝ ℝ) 2 (by simp)
   have m2 : MemLp (fun p : ℝ × ℝ => p.2) 2 ν :=
     IsGaussian.memLp_dual ν (ContinuousLinearMap.snd ℝ ℝ ℝ) 2 (by simp)
-  have i1 : Integrable (fun p : ℝ × ℝ => p.1) ν := m1.integrable (by simp)
-  have i2 : Integrable (fun p : ℝ × ℝ => p.2) ν := m2.integrable (by simp)
-  have i11 : Integrable (fun p : ℝ × ℝ => p.1 ^ 2) ν :=
-    m1.integrable_sq
-  have i22 : Integrable (fun p : ℝ × ℝ => p.2 ^ 2) ν :=
-    m2.integrable_sq
-  have i12 : Integrable (fun p : ℝ × ℝ => p.1 * p.2) ν := m1.integrable_mul m2
   have hmean : ν[L] = 0 := by
-    rw [hL, integral_add (i1.const_mul a) (i2.const_mul b), integral_const_mul,
-      integral_const_mul, h1, h2]
+    rw [hL, integral_add ((m1.integrable (by simp)).const_mul a)
+      ((m2.integrable (by simp)).const_mul b), integral_const_mul, integral_const_mul, h1, h2]
     ring
   refine ⟨hmean, ?_⟩
-  rw [variance_of_integral_eq_zero (by fun_prop) hmean, hL]
-  have hsq : (fun p : ℝ × ℝ => (a * p.1 + b * p.2) ^ 2) =
-      fun p => a ^ 2 * p.1 ^ 2 + 2 * a * b * (p.1 * p.2) + b ^ 2 * p.2 ^ 2 := by
-    funext p
-    ring
+  have i12 : Integrable (fun p : ℝ × ℝ => p.1 * p.2) ν := m1.integrable_mul m2
   have j : Integrable (fun p : ℝ × ℝ => a ^ 2 * p.1 ^ 2 + 2 * a * b * (p.1 * p.2)) ν :=
-    (i11.const_mul _).add (i12.const_mul _)
-  rw [hsq, integral_add j (i22.const_mul _), integral_add (i11.const_mul _) (i12.const_mul _),
+    (m1.integrable_sq.const_mul _).add (i12.const_mul _)
+  have hsq : (fun p : ℝ × ℝ => (a * p.1 + b * p.2) ^ 2) =
+      fun p => a ^ 2 * p.1 ^ 2 + 2 * a * b * (p.1 * p.2) + b ^ 2 * p.2 ^ 2 :=
+    funext fun _ => by ring
+  rw [variance_of_integral_eq_zero (by fun_prop) hmean, hL, hsq,
+    integral_add j (m2.integrable_sq.const_mul _),
+    integral_add (m1.integrable_sq.const_mul _) (i12.const_mul _),
     integral_const_mul, integral_const_mul, integral_const_mul, h11, h12, h22]
   ring
 
@@ -292,15 +275,15 @@ theorem eq_correlatedGaussian {ν : Measure (ℝ × ℝ)} [IsGaussian ν] {ρ : 
   have hsnd {f : ℝ → ℝ} (hf : Measurable f) :
       ∫ p, f p.2 ∂correlatedGaussian ρ = ∫ x, f x ∂gaussianReal 0 1 := by
     rw [← correlatedGaussian_map_snd hρ, integral_map (by fun_prop) hf.aestronglyMeasurable]
-  have hm : ∫ x, x ∂gaussianReal 0 1 = 0 := integral_id_gaussianReal
   have hv : ∫ x, x ^ 2 ∂gaussianReal 0 1 = 1 := by
     have := variance_fun_id_gaussianReal (μ := 0) (v := 1)
-    rw [variance_of_integral_eq_zero (by fun_prop) hm] at this
+    rw [variance_of_integral_eq_zero (by fun_prop) integral_id_gaussianReal] at this
     exact_mod_cast this
   refine Measure.ext_of_charFunDual (funext fun L => ?_)
   obtain ⟨e1, v1⟩ := integral_dual_variance_dual h1 h2 h11 h22 h12 L
   obtain ⟨e2, v2⟩ := integral_dual_variance_dual (ν := correlatedGaussian ρ)
-    ((hfst measurable_id).trans hm) ((hsnd measurable_id).trans hm)
+    ((hfst measurable_id).trans integral_id_gaussianReal)
+    ((hsnd measurable_id).trans integral_id_gaussianReal)
     ((hfst (measurable_id.pow_const 2)).trans hv)
     ((hsnd (measurable_id.pow_const 2)).trans hv) (integral_correlatedGaussian_fst_mul_snd hρ) L
   rw [IsGaussian.charFunDual_eq, IsGaussian.charFunDual_eq, integral_complex_ofReal,
@@ -386,9 +369,8 @@ theorem correlatedGaussian_map_neg_snd (ρ : ℝ) :
 theorem correlatedGaussian_one :
     correlatedGaussian 1 = (gaussianReal 0 1).map fun x => (x, x) := by
   have h : (fun g : ℝ × ℝ => (g.1, 1 * g.1 + √(1 - 1 ^ 2) * g.2)) =
-      (fun x => (x, x)) ∘ Prod.fst := by
-    funext g
-    simp only [one_mul, one_pow, sub_self, sqrt_zero, zero_mul, add_zero, Function.comp_apply]
+      (fun x => (x, x)) ∘ Prod.fst :=
+    funext fun _ => by simp
   rw [correlatedGaussian, h, ← Measure.map_map (by fun_prop) measurable_fst,
     Measure.map_fst_prod, measure_univ, one_smul]
 
@@ -413,39 +395,35 @@ indicator `f` of `(-∞, 0]` has `E[f z f z'] = 1 / 2 - arccos ρ / (2π)`. -/
 theorem integral_correlatedGaussian_indicator_Iic_mul {ρ : ℝ} (hρ : |ρ| ≤ 1) :
     ∫ p, (Iic (0 : ℝ)).indicator 1 p.1 * (Iic (0 : ℝ)).indicator 1 p.2 ∂correlatedGaussian ρ =
       1 / 2 - arccos ρ / (2 * π) := by
-  have hpt : ∀ p : ℝ × ℝ, (Iic (0 : ℝ)).indicator 1 p.1 * (Iic (0 : ℝ)).indicator 1 p.2 =
-      1 / 4 * (1 - signPos p.1 - signPos p.2 + signPos p.1 * signPos p.2) := fun p => by
-    rw [signPos_eq, signPos_eq]
-    ring
-  have hint : ∀ {g : ℝ × ℝ → ℝ}, Measurable g → (∀ p, ‖g p‖ ≤ 1) →
-      Integrable g (correlatedGaussian ρ) := fun hg hb =>
+  have hint {g : ℝ × ℝ → ℝ} (hg : Measurable g) (hb : ∀ p, ‖g p‖ ≤ 1) :
+      Integrable g (correlatedGaussian ρ) :=
     Integrable.of_bound hg.aestronglyMeasurable 1 (ae_of_all _ hb)
-  have h1 : Integrable (fun p : ℝ × ℝ => signPos p.1) (correlatedGaussian ρ) :=
-    hint (by fun_prop) fun p => norm_signPos_le p.1
-  have h2 : Integrable (fun p : ℝ × ℝ => signPos p.2) (correlatedGaussian ρ) :=
-    hint (by fun_prop) fun p => norm_signPos_le p.2
-  have h12 : Integrable (fun p : ℝ × ℝ => signPos p.1 * signPos p.2) (correlatedGaussian ρ) :=
-    hint (by fun_prop) fun p => by
-      rw [norm_mul]
-      exact (mul_le_mul (norm_signPos_le _) (norm_signPos_le _) (norm_nonneg _)
-        zero_le_one).trans_eq (one_mul 1)
+  have h1 := hint (g := fun p => signPos p.1) (by fun_prop) fun p => norm_signPos_le p.1
+  have h2 := hint (g := fun p => signPos p.2) (by fun_prop) fun p => norm_signPos_le p.2
+  have h12 : Integrable (fun p : ℝ × ℝ => signPos p.1 * signPos p.2) (correlatedGaussian ρ) := by
+    refine hint (by fun_prop) fun p => ?_
+    rw [norm_mul]
+    exact (mul_le_mul (norm_signPos_le _) (norm_signPos_le _) (norm_nonneg _)
+      zero_le_one).trans_eq (one_mul 1)
+  have hpt (p : ℝ × ℝ) : (Iic (0 : ℝ)).indicator 1 p.1 * (Iic (0 : ℝ)).indicator 1 p.2 =
+      1 / 4 * (1 - signPos p.1 - signPos p.2 + signPos p.1 * signPos p.2) := by
+    rw [signPos_eq, signPos_eq]; ring
   have hfst : ∫ p, signPos p.1 ∂correlatedGaussian ρ = 0 := by
     rw [← integral_gaussianReal_signPos, ← correlatedGaussian_map_fst ρ,
       integral_map (by fun_prop) (by fun_prop)]
   have hsnd : ∫ p, signPos p.2 ∂correlatedGaussian ρ = 0 := by
     rw [← integral_gaussianReal_signPos, ← correlatedGaussian_map_snd hρ,
       integral_map (by fun_prop) (by fun_prop)]
-  have hstab := integral_correlatedGaussian_ite_pos_mul_ite_pos hρ
-  change ∫ p, signPos p.1 * signPos p.2 ∂correlatedGaussian ρ = _ at hstab
+  have hstab : ∫ p, signPos p.1 * signPos p.2 ∂correlatedGaussian ρ = 1 - 2 / π * arccos ρ :=
+    integral_correlatedGaussian_ite_pos_mul_ite_pos hρ
   simp only [hpt]
   rw [integral_const_mul,
     integral_add (f := fun p : ℝ × ℝ => 1 - signPos p.1 - signPos p.2)
       (((integrable_const _).sub h1).sub h2) h12,
     integral_sub (f := fun p : ℝ × ℝ => 1 - signPos p.1) ((integrable_const _).sub h1) h2,
-    integral_sub (integrable_const _) h1,
-    integral_const, probReal_univ, smul_eq_mul, mul_one, hfst, hsnd, hstab]
-  field_simp
-  ring
+    integral_sub (integrable_const _) h1, integral_const, probReal_univ, smul_eq_mul, mul_one,
+    hfst, hsnd, hstab]
+  field_simp; ring
 
 /-! ### `n`-dimensional correlated Gaussians and noise stability -/
 
@@ -495,9 +473,8 @@ theorem correlatedGaussianPi_one :
     correlatedGaussianPi ι 1 =
       (Measure.pi fun _ : ι => gaussianReal 0 1).map fun z => (z, z) := by
   have h : (fun q : (ι → ℝ) × (ι → ℝ) => (q.1, fun i => 1 * q.1 i + √(1 - 1 ^ 2) * q.2 i)) =
-      (fun z => (z, z)) ∘ Prod.fst := by
-    funext q
-    simp only [one_mul, one_pow, sub_self, sqrt_zero, zero_mul, add_zero, Function.comp_apply]
+      (fun z => (z, z)) ∘ Prod.fst :=
+    funext fun _ => by simp
   rw [correlatedGaussianPi_eq_map, h, ← Measure.map_map (by fun_prop) measurable_fst,
     Measure.map_fst_prod, measure_univ, one_smul]
 
@@ -511,15 +488,15 @@ theorem correlatedGaussianPi_map_eval (ρ : ℝ) (i : ι) :
 theorem correlatedGaussianPi_map_fst (ρ : ℝ) :
     (correlatedGaussianPi ι ρ).map Prod.fst = Measure.pi fun _ : ι => gaussianReal 0 1 := by
   rw [correlatedGaussianPi, Measure.map_map measurable_fst (by fun_prop)]
-  refine (Measure.pi_map_pi (f := fun _ => Prod.fst) fun _ => measurable_fst.aemeasurable).trans ?_
-  simp only [correlatedGaussian_map_fst]
+  exact (Measure.pi_map_pi (f := fun _ => Prod.fst) fun _ => measurable_fst.aemeasurable).trans
+    (by simp only [correlatedGaussian_map_fst])
 
 /-- The second vector of a `ρ`-correlated pair is a standard Gaussian vector when `|ρ| ≤ 1`. -/
 theorem correlatedGaussianPi_map_snd {ρ : ℝ} (hρ : |ρ| ≤ 1) :
     (correlatedGaussianPi ι ρ).map Prod.snd = Measure.pi fun _ : ι => gaussianReal 0 1 := by
   rw [correlatedGaussianPi, Measure.map_map measurable_snd (by fun_prop)]
-  refine (Measure.pi_map_pi (f := fun _ => Prod.snd) fun _ => measurable_snd.aemeasurable).trans ?_
-  simp only [correlatedGaussian_map_snd hρ]
+  exact (Measure.pi_map_pi (f := fun _ => Prod.snd) fun _ => measurable_snd.aemeasurable).trans
+    (by simp only [correlatedGaussian_map_snd hρ])
 
 /-- The first projection carries `ρ`-correlated vectors to a standard Gaussian vector. -/
 theorem measurePreserving_fst_correlatedGaussianPi (ρ : ℝ) :

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.Params
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # The balanced layer schedule
@@ -66,9 +67,9 @@ private theorem pos_add_two_le {r r' : ℕ} (h : r < r') :
 
 /-- Every differentiated layer is followed by a layer. -/
 private theorem pos_add_two_le_n {r : ℕ} (h : r < p.k) : 2 * r + r * p.s / p.k + 2 ≤ p.n := by
-  have h₁ : r * p.s / p.k ≤ p.s :=
-    Nat.div_le_of_le_mul (Nat.mul_le_mul_right p.s h.le)
-  have := p.hkm; have := p.hks
+  have := Nat.div_le_of_le_mul (Nat.mul_le_mul_right p.s h.le)
+  have := p.hkm
+  have := p.hks
   omega
 
 /-- The differentiated layers that satisfy `Q` correspond to their indices. -/
@@ -79,18 +80,20 @@ private theorem card_filter_isV (Q : ℕ → Prop) [DecidablePred Q] :
   refine Finset.card_bij
     (fun r hr => ⟨2 * r + r * p.s / p.k, by
       have := pos_add_two_le_n (Finset.mem_range.1 (Finset.mem_filter.1 hr).1); omega⟩)
-    (fun r hr => ?_) (fun r hr r' hr' h => ?_) (fun t ht => ?_)
-  · simp only [Finset.mem_filter, Finset.mem_range] at hr
-    simpa [isV] using ⟨hr.2, r, hr.1, rfl⟩
-  · have h := congrArg Fin.val h
-    simp only at h
-    rcases lt_trichotomy r r' with h' | h' | h'
-    · have := pos_add_two_le (p := p) h'; omega
-    · exact h'
-    · have := pos_add_two_le (p := p) h'; omega
-  · simp only [Finset.mem_filter, Finset.mem_univ, true_and, isV, decide_eq_true_eq] at ht
-    obtain ⟨hQ, r, hr, ht⟩ := ht
-    exact ⟨r, by simpa [hr, ← ht] using hQ, Fin.ext ht.symm⟩
+    (fun r hr => by
+      simp only [Finset.mem_filter, Finset.mem_range] at hr
+      simpa [isV] using ⟨hr.2, r, hr.1, rfl⟩)
+    (fun r _ r' _ h => by
+      have h := congrArg Fin.val h
+      simp only at h
+      rcases lt_trichotomy r r' with h' | rfl | h'
+      · exact absurd h (by have := pos_add_two_le (p := p) h'; omega)
+      · rfl
+      · exact absurd h (by have := pos_add_two_le (p := p) h'; omega))
+    fun t ht => by
+      obtain ⟨hQ, r, hr, ht⟩ := by
+        simpa only [Finset.mem_filter, Finset.mem_univ, true_and, isV, decide_eq_true_eq] using ht
+      exact ⟨r, by simpa [hr, ← ht] using hQ, Fin.ext ht.symm⟩
 
 /-- The balanced schedule differentiates exactly `k` layers. -/
 theorem card_isV : (Finset.univ.filter fun t : Fin p.n => p.isV t).card = p.k := by
@@ -101,11 +104,8 @@ theorem isV_zero (hk : 0 < p.k) (t : Fin p.n) (ht : (t : ℕ) = 0) : p.isV t := 
   simpa [isV] using ⟨0, hk, by simpa using ht⟩
 
 /-- The last layer is multiplied. -/
-theorem not_isV_last (t : Fin p.n) (ht : (t : ℕ) + 1 = p.n) : p.isV t = false := by
-  simp only [isV, decide_eq_false_iff_not, not_exists, not_and]
-  intro r hr h
-  have := pos_add_two_le_n hr
-  omega
+theorem not_isV_last (t : Fin p.n) (ht : (t : ℕ) + 1 = p.n) : p.isV t = false :=
+  decide_eq_false fun ⟨_, hr, _⟩ => by have := pos_add_two_le_n hr; omega
 
 /-- No two differentiated layers are adjacent. -/
 theorem not_isV_succ {t t' : Fin p.n} (ht : p.isV t) (h : (t : ℕ) + 1 = t') :
@@ -184,13 +184,12 @@ theorem discrepancy_le (i j : ℕ) :
       fun t => absurd t.isLt (by omega)
     simp [ρ, hk, ha]
   · have hm' : (0 : ℝ) < p.m := by exact_mod_cast hm
-    have h' : (p.n : ℝ) * a ≤ p.k * (a + u) + p.n := by exact_mod_cast h
     have hn : (p.n : ℝ) = p.k + p.m := by exact_mod_cast p.hkm.symm
     rw [ρ, ← sub_nonneg]
     have : 1 + (p.k : ℝ) / p.m - (a - p.k / p.m * u) =
         (p.k * (a + u) + p.n - p.n * a) / p.m := by
       rw [hn]; field_simp; ring
     rw [this]
-    exact div_nonneg (by linarith) hm'.le
+    exact div_nonneg (by cast_linarith [h]) hm'.le
 
 end Cslib.Circuits.DepthFive.Params

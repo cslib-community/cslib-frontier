@@ -384,8 +384,7 @@ private theorem allReqs_lookup (k n : ℕ) (gates : List (ℕ × ℕ × List Boo
     by_cases hlt : p < ((List.range m).map step).flatten.length
     · obtain ⟨g, hg, idx, hidx, hxor, hp_eq, hval⟩ := ih hmlt.le hlt
       refine ⟨g, Nat.lt_succ_of_lt hg, idx, hidx, hxor, hp_eq, ?_⟩
-      rw [List.getElem_append_left hlt]
-      exact hval
+      rwa [List.getElem_append_left hlt]
     · have hge : ((List.range m).map step).flatten.length ≤ p := Nat.le_of_not_lt hlt
       have hstep_eq : step m = gateReqs k n m labels ws gates[m] := by
         simp [step, List.getD_eq_getElem?_getD, hmlt]
@@ -402,10 +401,8 @@ private theorem allReqs_lookup (k n : ℕ) (gates : List (ℕ × ℕ × List Boo
         omega
       refine ⟨m, Nat.lt_succ_self m, p - 8 * nonXorRank free m, hp', hxor,
         by omega, ?_⟩
-      have hsub : p - ((List.range m).map step).flatten.length = p - 8 * nonXorRank free m := by
-        rw [hpre]
       rw [List.getElem_append_right hge]
-      simp only [hsub, hstep_eq]
+      simp only [hpre, hstep_eq]
       exact gateReqs_getElem hxor hp' _
 
 end Helpers
@@ -501,9 +498,8 @@ private theorem isCostBounded_iterate_replyStep (k : ℕ) (reqs : List (List Boo
     · by_cases hprev : ∃ i < m, ∃ hi : i < reqs.length,
           (reqs[i].drop (k + 2)).take k = List.ofFn t
       · obtain ⟨i, hi_m, hi_len, hti⟩ := hprev
-        have hm_ne : ¬ (reqs[m].drop (k + 2)).take k = List.ofFn t := by
-          intro htm
-          exact (htw i hi_len m hmlt).2 (by omega) (hti.trans htm.symm)
+        have hm_ne : ¬ (reqs[m].drop (k + 2)).take k = List.ofFn t := fun htm =>
+          (htw i hi_len m hmlt).2 (by omega) (hti.trans htm.symm)
         have hnext : ∃ i < m + 1, ∃ hi : i < reqs.length,
             (reqs[i].drop (k + 2)).take k = List.ofFn t := ⟨i, by omega, hi_len, hti⟩
         simp only [show ∃ i < m, ∃ hi : i < reqs.length,
@@ -828,10 +824,8 @@ private theorem slotReq_eq_encodeQuery {k : ℕ} {f : ValidCircuit} {x : List Bo
         (Fin.cast harity.symm 1))]
       congr 2; symm
       cases hb : flipped A (garbledRowOf (toCircuit f).topology g hg i) (Fin.cast harity.symm 0)
-      · exact decide_eq_true fun j hj => by
-          have hj0 : j = Fin.cast harity.symm 0 :=
-            Fin.ext (Nat.lt_one_iff.mp (Fin.lt_def.mp hj))
-          exact hj0 ▸ hb
+      · exact decide_eq_true fun j hj =>
+          (Fin.ext (Nat.lt_one_iff.mp (Fin.lt_def.mp hj)) : j = Fin.cast harity.symm 0) ▸ hb
       · exact decide_eq_false fun hp => Bool.noConfusion
           (hb.symm.trans (hp _ (Fin.lt_def.mpr (show (0 : ℕ) < 1 by decide))))
   erw [htw, hkey, hbit]
@@ -890,8 +884,7 @@ private theorem redGate_eq (hash : List Bool → List Bool → List Bool) {k : �
     List.flatten_cons, List.flatten_cons, List.flatten_cons, List.flatten_cons, List.flatten_nil]
   simp only [Fin.val_zero, Fin.val_succ, Fin.val_cast, ↓reduceIte, hfree_eq, List.append_nil]
   by_cases hg : freeCircuit f g = true
-  · have his : isXorGate f.1 (g.cast (size_toCircuit f)) = true := hg
-    simp [hg, his]
+  · simp [hg, show isXorGate f.1 (g.cast (size_toCircuit f)) = true from hg]
   · have hg' : freeCircuit f g = false := Bool.eq_false_iff.mpr hg
     simp only [hg', Bool.false_eq_true, ↓reduceDIte, ↓reduceIte, List.singleton_append,
       List.append_assoc]
@@ -978,7 +971,6 @@ private theorem redGate_eq (hash : List Bool → List Bool → List Bool) {k : �
         erw [ofFn_slotTweak_garbledRowOf f k g hg' hi (Fin.cast harity.symm s),
           ← simPropWords_getD_input k f coins g s]
         rfl
-      have h1ne : (1 : Fin 2) ≠ 0 := by decide
       dsimp only [redRow]
       rw [reductionTable]
       dsimp only [GarbledRow.gate]
@@ -988,10 +980,9 @@ private theorem redGate_eq (hash : List Bool → List Bool → List Bool) {k : �
       exact congrArg (List.zipWith xor (labelBits (A (.gate g))) ·)
         (congrArg₂ (List.zipWith xor)
           (by simpa only [Fin.val_zero, Nat.add_zero, ↓reduceIte, Fin.isValue] using hslot_side 0)
-          (by simpa only [Fin.val_one, h1ne, ↓reduceIte, Fin.isValue] using hslot_side 1))
-    have his : isXorGate f.1 (g.cast (size_toCircuit f)) = false := hg'
-    simp only [his, Nat.reduceAdd, Nat.add_one_ne_zero, ↓reduceIte, List.nil_append,
-      List.cons_append]
+          (by simpa only [Fin.val_one, one_ne_zero, ↓reduceIte, Fin.isValue] using hslot_side 1))
+    simp only [show isXorGate f.1 (g.cast (size_toCircuit f)) = false from hg', Nat.reduceAdd,
+      Nat.add_one_ne_zero, ↓reduceIte, List.nil_append, List.cons_append]
     rw [List.ofFn_succ, List.ofFn_succ, List.ofFn_succ, List.ofFn_succ, List.ofFn_zero,
       List.flatten_cons, List.flatten_cons, List.flatten_cons, List.flatten_cons,
       List.flatten_nil, List.append_nil]

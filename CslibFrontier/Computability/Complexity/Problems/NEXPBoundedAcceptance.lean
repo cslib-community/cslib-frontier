@@ -153,12 +153,8 @@ theorem accepts_desc_iff {k : ℕ} {State : Type} [Fintype State] (eS : State �
     (⟨desc eS eBit tm, x, T⟩ : NEXPBoundedAcceptanceInstance).Accepts c ↔
       (tm.runFrom (tm.initCfg (encPair encBits encBits (x, c))) T).Halted ∧
         (tm.runFrom (tm.initCfg (encPair encBits encBits (x, c))) T).output = [true] := by
-  rw [Accepts, universal_desc, Prod.mk.injEq, Cfg.Halted, Option.isNone_iff_eq_none]
-  constructor
-  · rintro ⟨hout, hhalt⟩
-    exact ⟨hhalt, List.map_injective_iff.mpr eBit.injective (hout.trans List.map_singleton.symm)⟩
-  · rintro ⟨hhalt, hout⟩
-    exact ⟨by rw [hout, List.map_singleton], hhalt⟩
+  rw [Accepts, universal_desc, Prod.mk.injEq, Cfg.Halted, Option.isNone_iff_eq_none, and_comm,
+    ← List.map_singleton (f := eBit), (List.map_injective_iff.mpr eBit.injective).eq_iff]
 
 end NEXPBoundedAcceptanceInstance
 
@@ -224,14 +220,10 @@ theorem computableInPolyTime_verifier :
   have hinput : ComputableInPolyTime
       (fun q : NEXPBoundedAcceptanceInstance × List Bool =>
         (encPair encBits encBits (q.1.input, unframe q.2)).map eBit)
-      (encPair encNEXPBoundedAcceptanceInstance encBits) (encList encUnary) := by
-    have hin : ComputableInPolyTime
-        (fun q : NEXPBoundedAcceptanceInstance × List Bool =>
-          encPair encBits encBits (q.1.input, unframe q.2))
-        (encPair encNEXPBoundedAcceptanceInstance encBits) encBits :=
-      hpair.comp ((encNEXPBoundedAcceptanceInstance_input_polyTime (.fst _ _)).prod
-        (ComputableInPolyTime.unframe.comp (.snd _ _)))
-    exact computableInPolyTime_map_eBit.comp hin
+      (encPair encNEXPBoundedAcceptanceInstance encBits) (encList encUnary) :=
+    computableInPolyTime_map_eBit.comp
+      (hpair.comp ((encNEXPBoundedAcceptanceInstance_input_polyTime (.fst _ _)).prod
+        (ComputableInPolyTime.unframe.comp (.snd _ _))))
   have hmin : ComputableInPolyTime
       (fun q : NEXPBoundedAcceptanceInstance × List Bool => min q.2.length q.1.steps)
       (encPair encNEXPBoundedAcceptanceInstance encBits) encUnary :=
@@ -334,9 +326,8 @@ theorem polyTimeReducible {α : Type} {enc : α ↪ List Bool} {A : Set α} {p :
   have htV (q : List Bool × List Bool) :
       tV q ≤ cV * ((encPair encBits encBits q).length + 1) := le_rfl
   refine ⟨fun a => ⟨desc eSV eBit tm, enc a, stepBound a⟩, ?_, fun a => ?_⟩
-  · have henc : ComputableInPolyTime (fun a => enc a) enc encBits := .of_eq fun _ => rfl
-    have hlen : ComputableInPolyTime (fun a => (enc a).length) enc encUnary := by fun_prop
-    have hp_comp : ComputableInPolyTime (fun a => p (enc a).length) enc encUnary := hp.comp hlen
+  · have hp_comp : ComputableInPolyTime (fun a => p (enc a).length) enc encUnary :=
+      hp.comp (by fun_prop)
     have hexp : ComputableInPolyTime (fun a => p (enc a).length + (enc a).length + C)
         enc encUnary := by fun_prop
     have hsteps : ComputableInPolyTime stepBound enc encNat :=
@@ -348,70 +339,36 @@ theorem polyTimeReducible {α : Type} {enc : α ↪ List Bool} {A : Set α} {p :
       obtain ⟨c, hc_len, hc_acc⟩ :=
         (hdec.mem_iff_exists_checkChoices (a := a)
           (L := M * (c₁ * 2 ^ p (enc a).length + c₂)) le_rfl).mp ha
-      have hpow_pos : 1 ≤ 2 ^ (p (enc a).length + (enc a).length) := Nat.one_le_two_pow
-      have hpow_p : 2 ^ p (enc a).length ≤ 2 ^ (p (enc a).length + (enc a).length) :=
-        Nat.pow_le_pow_right (by omega) (by omega)
-      have hn_le : (enc a).length ≤ 2 ^ (p (enc a).length + (enc a).length) :=
+      set E := 2 ^ (p (enc a).length + (enc a).length) with hE
+      have hE1 : 1 ≤ E := Nat.one_le_two_pow
+      have hnE : (enc a).length ≤ E :=
         Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_right (by omega) (by omega))
-      have hC_pow : C ≤ 2 ^ C := Nat.lt_two_pow_self.le
-      have h1 : c₁ * 2 ^ p (enc a).length + c₂ ≤
-          (c₁ + c₂) * 2 ^ (p (enc a).length + (enc a).length) := by
-        calc c₁ * 2 ^ p (enc a).length + c₂
-          _ ≤ c₁ * 2 ^ (p (enc a).length + (enc a).length) +
-              c₂ * 2 ^ (p (enc a).length + (enc a).length) :=
-            Nat.add_le_add (Nat.mul_le_mul_left _ hpow_p) (Nat.le_mul_of_pos_right _ hpow_pos)
-          _ = (c₁ + c₂) * 2 ^ (p (enc a).length + (enc a).length) := by ring
-      have hc_le_M : c.length ≤ M * (c₁ + c₂) * 2 ^ (p (enc a).length + (enc a).length) := by
-        calc c.length
-          _ = M * (c₁ * 2 ^ p (enc a).length + c₂) := hc_len
-          _ ≤ M * ((c₁ + c₂) * 2 ^ (p (enc a).length + (enc a).length)) :=
-            Nat.mul_le_mul_left M h1
-          _ = M * (c₁ + c₂) * 2 ^ (p (enc a).length + (enc a).length) := by ring
-      have hM_le_C : M * (c₁ + c₂) ≤ C := by
-        have hM1 : M * (c₁ + c₂) ≤ (M + 1) * (c₁ + c₂ + 4) :=
-          Nat.mul_le_mul (by omega) (by omega)
-        calc M * (c₁ + c₂)
-          _ ≤ 1 * ((M + 1) * (c₁ + c₂ + 4)) := by omega
-          _ ≤ (cV + 1) * ((M + 1) * (c₁ + c₂ + 4)) :=
-            Nat.mul_le_mul_right _ (by omega)
-          _ = C := by ring
-      have hc_step : c.length ≤ stepBound a := by
-        calc c.length
-          _ ≤ M * (c₁ + c₂) * 2 ^ (p (enc a).length + (enc a).length) := hc_le_M
-          _ ≤ C * 2 ^ (p (enc a).length + (enc a).length) :=
-            Nat.mul_le_mul_right _ hM_le_C
-          _ ≤ 2 ^ C * 2 ^ (p (enc a).length + (enc a).length) :=
-            Nat.mul_le_mul_right _ hC_pow
-          _ = stepBound a := by rw [← Nat.pow_add, Nat.add_comm C]
+      -- `|c| + 2 n + 2 ≤ (M + 1) (c₁ + c₂ + 4) E` and `(cV + 1)` times this is below the clock.
+      have h1 : c₁ * 2 ^ p (enc a).length + c₂ ≤ (c₁ + c₂) * E := by
+        rw [add_mul]
+        exact Nat.add_le_add (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by omega) (by omega)))
+          (Nat.le_mul_of_pos_right _ hE1)
+      have hbound : c.length + 2 * (enc a).length + 2 ≤ (M + 1) * (c₁ + c₂ + 4) * E := by
+        rw [hc_len]
+        linarith [Nat.mul_le_mul_left M h1, Nat.zero_le (M * E), Nat.zero_le (c₁ * E),
+          Nat.zero_le (c₂ * E)]
+      have hCE : (cV + 1) * ((M + 1) * (c₁ + c₂ + 4) * E) ≤ stepBound a := by
+        rw [show stepBound a = 2 ^ C * E by rw [hE, ← Nat.pow_add, Nat.add_comm C], ← mul_assoc,
+          ← mul_assoc]
+        exact Nat.mul_le_mul_right _ Nat.lt_two_pow_self.le
+      have hB := (Nat.le_mul_of_pos_left ((M + 1) * (c₁ + c₂ + 4) * E) (Nat.succ_pos cV)).trans hCE
+      have hc_step : c.length ≤ stepBound a := by omega
       have htV_step : tV (enc a, c) ≤ stepBound a := by
         have hlen_pair : (encPair encBits encBits (enc a, c)).length + 1 =
             2 * (enc a).length + c.length + 2 := by
           simp only [length_encPair, encBits, Function.Embedding.refl_apply]
           omega
-        have h2 : 2 * (enc a).length + c.length + 2 ≤
-            (M + 1) * (c₁ + c₂ + 4) * 2 ^ (p (enc a).length + (enc a).length) := by
-          have : 4 + M * (c₁ + c₂) ≤ (M + 1) * (c₁ + c₂ + 4) := by nlinarith
-          nlinarith
-        have htV_bound : tV (enc a, c) ≤ C * 2 ^ (p (enc a).length + (enc a).length) := by
-          calc tV (enc a, c)
-            _ ≤ cV * ((encPair encBits encBits (enc a, c)).length + 1) := htV (enc a, c)
-            _ = cV * (2 * (enc a).length + c.length + 2) := by rw [hlen_pair]
-            _ ≤ (cV + 1) * ((M + 1) * (c₁ + c₂ + 4) *
-                  2 ^ (p (enc a).length + (enc a).length)) :=
-              Nat.mul_le_mul (by omega) h2
-            _ = C * 2 ^ (p (enc a).length + (enc a).length) := by ring
-        calc tV (enc a, c)
-          _ ≤ C * 2 ^ (p (enc a).length + (enc a).length) := htV_bound
-          _ ≤ 2 ^ C * 2 ^ (p (enc a).length + (enc a).length) :=
-            Nat.mul_le_mul_right _ hC_pow
-          _ = stepBound a := by rw [← Nat.pow_add, Nat.add_comm C]
+        exact ((htV _).trans (Nat.mul_le_mul (Nat.le_succ cV) (by omega))).trans hCE
       obtain ⟨hhalt, hout⟩ := (htm (enc a, c)).runFrom_of_le htV_step
       change (tm.runFrom (tm.initCfg (encPair encBits encBits (enc a, c))) (stepBound a)).output =
         [ntm.checkChoices encBits (enc a, c)] at hout
-      have hcheck : ntm.checkChoices encBits (enc a, c) = true := hc_acc
-      refine ⟨c, hc_step, ?_⟩
-      rw [NEXPBoundedAcceptanceInstance.accepts_desc_iff, hout, hcheck]
-      exact ⟨hhalt, rfl⟩
+      exact ⟨c, hc_step, (NEXPBoundedAcceptanceInstance.accepts_desc_iff eSV tm (enc a)
+        (stepBound a) c).mpr ⟨hhalt, hout.trans (congrArg List.singleton hc_acc)⟩⟩
     · rintro ⟨c, -, hacc⟩
       rw [NEXPBoundedAcceptanceInstance.accepts_desc_iff] at hacc
       rcases hacc with ⟨hhalt, hout⟩

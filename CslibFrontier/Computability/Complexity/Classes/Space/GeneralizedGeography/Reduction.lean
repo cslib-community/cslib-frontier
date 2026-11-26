@@ -155,22 +155,16 @@ theorem mem_formulaArcs :
     · rintro (⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩)
       exacts [Or.inl ⟨rfl, _, rfl⟩, Or.inl ⟨rfl, _, rfl⟩, Or.inr (Or.inl ⟨_, rfl, rfl⟩),
         Or.inr (Or.inl ⟨_, rfl, rfl⟩), Or.inr (Or.inr ⟨rfl, rfl⟩)]
-    · rintro (⟨rfl, b, rfl⟩ | ⟨b, rfl, rfl⟩ | ⟨rfl, rfl⟩)
-      · cases b <;> simp
-      · cases b <;> simp
-      · simp
+    · rintro (⟨rfl, (_ | _), rfl⟩ | ⟨(_ | _), rfl, rfl⟩ | ⟨rfl, rfl⟩) <;> simp
   have hc : (∃ i < ψ.length, (chooserNode, clauseNode i) = (u, w)) ↔
       ∃ i < ψ.length, u = chooserNode ∧ w = clauseNode i := by
-    simp only [Prod.mk.injEq]
-    exact exists_congr fun i => and_congr_right fun _ => ⟨fun ⟨h₁, h₂⟩ => ⟨h₁.symm, h₂.symm⟩,
-      fun ⟨h₁, h₂⟩ => ⟨h₁.symm, h₂.symm⟩⟩
+    simp [Prod.mk.injEq, eq_comm]
   have hl : (∃ c ∈ ψ.zipIdx, (u, w) ∈ literalArcs xs c.2 c.1) ↔ ∃ i, ∃ h : i < ψ.length,
       ∃ l ∈ ψ[i], l.1 ∈ xs ∧ u = clauseNode i ∧ w = valueNode (lastIdx xs l.1) (!l.2) := by
     constructor
     · rintro ⟨⟨c, i⟩, hci, hlit⟩
-      obtain ⟨hi, rfl⟩ : ∃ h : i < ψ.length, ψ[i] = c := by
-        rw [List.mem_zipIdx_iff_getElem?] at hci
-        simpa using List.getElem?_eq_some_iff.1 hci
+      obtain ⟨hi, rfl⟩ : ∃ h : i < ψ.length, ψ[i] = c :=
+        List.getElem?_eq_some_iff.1 (List.mem_zipIdx_iff_getElem?.1 hci)
       simp only [literalArcs, List.mem_map, List.mem_filter, decide_eq_true_eq, Prod.mk.injEq]
         at hlit
       obtain ⟨l, ⟨hl, hlx⟩, rfl, rfl⟩ := hlit
@@ -208,19 +202,10 @@ theorem mk_chooserNode_mem_formulaArcs_iff :
 theorem mk_clauseNode_mem_formulaArcs_iff {i : ℕ} :
     (clauseNode i, w) ∈ formulaArcs xs ψ ↔
       ∃ h : i < ψ.length, ∃ l ∈ ψ[i], l.1 ∈ xs ∧ w = valueNode (lastIdx xs l.1) (!l.2) := by
-  rw [mem_formulaArcs]
-  constructor
-  · rintro (⟨j, -, ⟨h, -⟩ | ⟨b, h, -⟩ | ⟨h, -⟩⟩ | ⟨h, -⟩ | ⟨i', -, h, -⟩ |
-        ⟨i', hi', l, hl, hlx, h, rfl⟩)
-    · simp [clauseNode, topNode, Nat.pair_eq_pair] at h
-    · simp [clauseNode, valueNode, Nat.pair_eq_pair] at h
-    · simp [clauseNode, bottomNode, Nat.pair_eq_pair] at h
-    · simp [clauseNode, topNode, Nat.pair_eq_pair] at h
-    · simp [clauseNode, chooserNode, Nat.pair_eq_pair] at h
-    · obtain rfl : i = i' := (Nat.pair_eq_pair.1 h).2
-      exact ⟨hi', l, hl, hlx, rfl⟩
-  · rintro ⟨hi, l, hl, hlx, rfl⟩
-    exact Or.inr (Or.inr (Or.inr ⟨i, hi, l, hl, hlx, rfl, rfl⟩))
+  simp only [mem_formulaArcs, clauseNode, topNode, valueNode, bottomNode, chooserNode,
+    Nat.pair_eq_pair, Nat.reduceEqDiff, false_and, and_false, exists_false, false_or, true_and]
+  exact ⟨fun ⟨_, hi, l, hl, hlx, h, hw⟩ => h ▸ ⟨hi, l, hl, hlx, hw⟩,
+    fun ⟨hi, l, hl, hlx, hw⟩ => ⟨i, hi, l, hl, hlx, rfl, hw⟩⟩
 
 end Arcs
 
@@ -237,20 +222,16 @@ def visOf (z : List Bool) : List ℕ :=
     (List.range z.length).map fun j => valueNode j (z.getD j false)
 
 private theorem topNode_mem_visOf : topNode j ∈ visOf z ↔ j ≤ z.length := by
-  simp only [visOf, List.mem_append, List.mem_map, List.mem_range]
-  simp [topNode, bottomNode, valueNode, Nat.pair_eq_pair]
+  simp [visOf, topNode, bottomNode, valueNode, Nat.pair_eq_pair]
 
 private theorem bottomNode_mem_visOf : bottomNode j ∈ visOf z ↔ j < z.length := by
-  simp only [visOf, List.mem_append, List.mem_map, List.mem_range]
-  simp [topNode, bottomNode, valueNode, Nat.pair_eq_pair]
+  simp [visOf, topNode, bottomNode, valueNode, Nat.pair_eq_pair]
 
 private theorem chooserNode_notMem_visOf : chooserNode ∉ visOf z := by
-  simp only [visOf, List.mem_append, List.mem_map, List.mem_range]
-  simp [topNode, bottomNode, valueNode, chooserNode, Nat.pair_eq_pair]
+  simp [visOf, topNode, bottomNode, valueNode, chooserNode, Nat.pair_eq_pair]
 
 private theorem clauseNode_notMem_visOf {i : ℕ} : clauseNode i ∉ visOf z := by
-  simp only [visOf, List.mem_append, List.mem_map, List.mem_range]
-  simp [topNode, bottomNode, valueNode, clauseNode, Nat.pair_eq_pair]
+  simp [visOf, topNode, bottomNode, valueNode, clauseNode, Nat.pair_eq_pair]
 
 /-- Every vertex of `visOf z` is a top, a bottom or a value node. -/
 private theorem mem_visOf {u : ℕ} : u ∈ visOf z ↔
@@ -281,33 +262,14 @@ private theorem valueNode_mem_visOf {b : Bool} :
 private theorem mem_visOf_append {b : Bool} {u : ℕ} :
     u ∈ visOf (z ++ [b]) ↔
       u ∈ topNode (z.length + 1) :: bottomNode z.length :: valueNode z.length b :: visOf z := by
-  have hget (j : ℕ) (hj : j < z.length + 1) :
-      (z ++ [b]).getD j false = if j < z.length then z.getD j false else b := by
-    split_ifs with h
-    · exact List.getD_append _ _ _ _ h
-    · rw [List.getD_append_right _ _ _ _ (by omega), show j - z.length = 0 by omega]
-      rfl
-  simp only [mem_visOf, List.mem_cons, List.length_append, List.length_singleton]
-  constructor
-  · rintro (⟨i, hi, rfl⟩ | ⟨i, hi, rfl⟩ | ⟨i, hi, rfl⟩)
-    · rcases Nat.lt_or_ge i (z.length + 1) with h | h
-      · exact Or.inr (Or.inr (Or.inr (Or.inl ⟨i, by omega, rfl⟩)))
-      · exact Or.inl (by rw [show i = z.length + 1 by omega])
-    · rcases Nat.lt_or_ge i z.length with h | h
-      · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨i, h, rfl⟩))))
-      · exact Or.inr (Or.inl (by rw [show i = z.length by omega]))
-    · rw [hget i hi]
-      split_ifs with h
-      · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr ⟨i, h, rfl⟩))))
-      · exact Or.inr (Or.inr (Or.inl (by rw [show i = z.length by omega])))
-  · rintro (rfl | rfl | rfl | ⟨i, hi, rfl⟩ | ⟨i, hi, rfl⟩ | ⟨i, hi, rfl⟩)
-    · exact Or.inl ⟨_, le_rfl, rfl⟩
-    · exact Or.inr (Or.inl ⟨_, by omega, rfl⟩)
-    · exact Or.inr (Or.inr ⟨z.length, by omega, by
-        rw [hget z.length (by omega), ite_eq_right (lt_irrefl _)]⟩)
-    · exact Or.inl ⟨i, by omega, rfl⟩
-    · exact Or.inr (Or.inl ⟨i, by omega, rfl⟩)
-    · exact Or.inr (Or.inr ⟨i, by omega, by rw [hget i (by omega), ite_eq_left hi]⟩)
+  have hval : (List.range z.length).map (fun j => valueNode j ((z ++ [b]).getD j false)) =
+      (List.range z.length).map (fun j => valueNode j (z.getD j false)) :=
+    List.map_congr_left fun j hj => by rw [List.getD_append _ _ _ _ (List.mem_range.1 hj)]
+  have hlast : (z ++ [b]).getD z.length false = b := by
+    rw [List.getD_append_right _ _ _ _ le_rfl, Nat.sub_self]; rfl
+  simp only [visOf, List.length_append, List.length_singleton, List.range_succ, List.map_append,
+    List.map_singleton, hval, hlast, List.mem_append, List.mem_cons, List.not_mem_nil, or_false]
+  exact iff_of_eq (by ac_rfl)
 
 end Visited
 
@@ -366,21 +328,12 @@ theorem geographyWins_topNode_length {z : List Bool} (hz : z.length = xs.length)
         Clause.eval (fun x => z.getD (lastIdx xs x) false) ψ[i] = true := by
     rw [geographyWins_clauseNode hi fun j hj => List.mem_cons_of_mem _ (List.mem_cons_of_mem _
       (bottomNode_mem_visOf.2 (hz ▸ hj))), Clause.eval_eq_true_iff]
-    refine exists_congr fun l => and_congr_right fun hl => ?_
-    have hlx := hvars _ (List.getElem_mem hi) l hl
-    simp only [List.mem_cons, valueNode_mem_visOf, not_or]
-    have hne₁ : valueNode (lastIdx xs l.1) (!l.2) ≠ clauseNode i := by
-      simp [valueNode, clauseNode, Nat.pair_eq_pair]
-    have hne₂ : valueNode (lastIdx xs l.1) (!l.2) ≠ chooserNode := by
-      simp [valueNode, chooserNode, Nat.pair_eq_pair]
-    have hlt := hz ▸ lastIdx_lt hlx
-    constructor
-    · rintro ⟨-, -, -, h⟩
-      cases h' : z.getD (lastIdx xs l.1) false <;> cases hb : l.2 <;> simp_all
-    · intro h
-      refine ⟨hlx, hne₁, hne₂, fun ⟨_, h'⟩ => ?_⟩
-      rw [h] at h'
-      cases l.2 <;> simp at h'
+    refine exists_congr fun ⟨x, b⟩ => and_congr_right fun hl => ?_
+    have hlx : x ∈ xs := hvars _ (List.getElem_mem hi) (x, b) hl
+    have hlt : lastIdx xs x < z.length := hz ▸ lastIdx_lt hlx
+    simp only [List.mem_cons, valueNode_mem_visOf, not_or, hlx, hlt, true_and]
+    cases z.getD (lastIdx xs x) false <;> cases b <;>
+      simp [valueNode, clauseNode, chooserNode, Nat.pair_eq_pair]
   rw [geographyWins_formulaGraph_iff]
   constructor
   · rintro ⟨w, hw, -, hlose⟩
@@ -416,9 +369,8 @@ theorem geographyWins_topNode_lt {z : List Bool} (hj : z.length < xs.length) :
     rw [geographyWins_formulaGraph_iff]
     simp only [mk_bottomNode_mem_formulaArcs_iff hj, exists_eq_left]
     have hb : bottomNode z.length ∉ valueNode z.length b :: visOf z := by
-      simp only [List.mem_cons, not_or]
-      exact ⟨by simp [bottomNode, valueNode, Nat.pair_eq_pair],
-        fun h => lt_irrefl _ (bottomNode_mem_visOf.1 h)⟩
+      simp only [List.mem_cons, bottomNode_mem_visOf, lt_irrefl, or_false]
+      simp [bottomNode, valueNode, Nat.pair_eq_pair]
     have ht : topNode (z.length + 1) ∉ bottomNode z.length :: valueNode z.length b :: visOf z := by
       simp only [List.mem_cons, not_or]
       exact ⟨by simp [bottomNode, topNode, Nat.pair_eq_pair],
@@ -446,7 +398,8 @@ private theorem geographyWins_topNode (heven : Even xs.length)
           fun z' => ψ.eval (fun x => (z ++ z').getD (lastIdx xs x) false) = true))
   | 0, z, hz => by
     have hz' : z.length = xs.length := by omega
-    have hpar : (z.length % 2 == 0) = true := by grind
+    obtain ⟨m, hm⟩ := heven
+    have hpar : (z.length % 2 == 0) = true := by simp [show z.length % 2 = 0 by omega]
     rw [hpar, iff_true_left rfl, List.replicate_zero, alternation_nil, List.append_nil, hz']
     exact geographyWins_topNode_length hz' hvars
   | k + 1, z, hz => by
@@ -457,18 +410,13 @@ private theorem geographyWins_topNode (heven : Even xs.length)
     rw [geographyWins_topNode_lt (by omega), List.replicate_succ]
     rcases Nat.mod_two_eq_zero_or_one z.length with h | h
     · have h' : (z.length + 1) % 2 = 1 := by omega
-      simp only [h, h'] at ih ⊢
-      simp only [beq_self_eq_true, true_iff, alternation_true_one_cons]
-      refine exists_congr fun b => ?_
-      rw [ih b]
-      simp
+      simp only [h, h', beq_self_eq_true, true_iff, alternation_true_one_cons] at ih ⊢
+      exact exists_congr fun b => by simp [ih b]
     · have h' : (z.length + 1) % 2 = 0 := by omega
-      simp only [h, h'] at ih ⊢
+      simp only [h, h', beq_self_eq_true] at ih ⊢
       rw [show (1 == 0) = false from rfl, iff_false_left Bool.false_ne_true,
         alternation_false_one_cons, not_forall]
-      refine exists_congr fun b => ?_
-      rw [ih b]
-      simp
+      exact exists_congr fun b => by simp [ih b]
 
 /-- **The first player wins on the graph of a formula** exactly when the existential player wins
 the game of single-bit moves in which the moves choose the values of the quantified variables,
@@ -506,7 +454,9 @@ theorem updates_eq_getD_lastIdx (σ : ℕ → Bool) :
           omega, List.getD_cons_succ]
     · obtain rfl : x = v := by simpa [hxs] using hx
       rw [QBF.updates_of_notMem hxs, Function.update_self]
-      have hidx : (x :: vs).reverse.idxOf x = vs.length := by grind
+      have hidx : (x :: vs).reverse.idxOf x = vs.length := by
+        rw [List.reverse_cons, List.idxOf_append_of_notMem (by simpa using hxs)]
+        simp
       rw [lastIdx, hidx, List.length_cons, show vs.length + 1 - 1 - vs.length = 0 by omega]
       rfl
 

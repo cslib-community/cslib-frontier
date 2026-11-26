@@ -90,17 +90,12 @@ theorem mem_replacementCycles_iff (templates : Src → CSP Rel (Bool × ℕ))
         ∃ i : Fin F.length, ∃ block ∈ auxiliaryBlocks F[i.val].rel,
           shiftBlock (occurrencePrefix templates F i.val) block = word := by
   simp only [replacementCycles, List.mem_append, List.mem_map, List.mem_flatMap]
-  apply or_congr Iff.rfl
-  constructor
-  · rintro ⟨⟨row, i⟩, he, block, hb, hword⟩
-    obtain ⟨hi, hrow⟩ := List.getElem?_eq_some_iff.mp (List.mem_zipIdx_iff_getElem?.mp he)
-    change i < F.length at hi
-    change F[i] = row at hrow
-    subst row
-    exact ⟨⟨i, hi⟩, block, hb, hword⟩
-  · rintro ⟨i, block, hb, hword⟩
-    exact ⟨(F[i.val], i.val), List.mem_zipIdx_iff_getElem?.mpr
-      (List.getElem?_eq_some_iff.mpr ⟨i.isLt, rfl⟩), block, hb, hword⟩
+  refine or_congr Iff.rfl ⟨?_, fun ⟨i, block, hb, hword⟩ => ⟨(F[i.val], i.val),
+    List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_some_iff.mpr ⟨i.isLt, rfl⟩),
+    block, hb, hword⟩⟩
+  rintro ⟨⟨row, i⟩, he, block, hb, hword⟩
+  obtain ⟨hi, hrow⟩ := List.getElem?_eq_some_iff.mp (List.mem_zipIdx_iff_getElem?.mp he)
+  exact ⟨⟨i, hi⟩, block, (show F[i] = row from hrow) ▸ hb, hword⟩
 
 /-- Successor pairs for each actual target occurrence. The second entry always follows
 its original target constraint's cyclic argument order. -/
@@ -117,8 +112,7 @@ its original target constraint's cyclic argument order. -/
 theorem length_certificate (F : CSP Rel ℕ) (cycles : List (List ℕ)) :
     (certificate F cycles).successor.length = 2 * F.occurrences.length := by
   change (Graph.incidenceVertices ⟨[], successorPairs F cycles⟩).length = _
-  rw [Graph.incidenceVertices_length]
-  simp [successorPairs]
+  simp [Graph.incidenceVertices_length, successorPairs]
 
 /-- The emitted constraint-side rotation has exactly the target's literal argument order,
 independently of the candidate variable cycles. This is an executed checker equality. -/
@@ -129,14 +123,10 @@ theorem verifyArgumentOrder_certificate (F : CSP Rel ℕ) (cycles : List (List �
   obtain ⟨hi, hentry⟩ := List.getElem?_eq_some_iff.mp
     (List.mem_zipIdx_iff_getElem?.mp he)
   apply decide_eq_true
-  change (Graph.incidenceVertices ⟨[], successorPairs F cycles⟩).getD
-    (2 * entry.2 + 1) 0 = _
-  rw [Graph.getD_incidenceVertices_odd]
-  have hp : entry.2 < (successorPairs F cycles).length := by
-    simpa only [successorPairs, List.length_map, List.length_zipIdx] using hi
-  rw [List.getD_eq_getElem _ _ hp]
-  simp only [successorPairs, List.getElem_map, List.getElem_zipIdx]
-  rw [hentry]
+  change (Graph.incidenceVertices ⟨[], successorPairs F cycles⟩).getD (2 * entry.2 + 1) 0 = _
+  rw [Graph.getD_incidenceVertices_odd, List.getD_eq_getElem _ _
+    (by simpa only [successorPairs, List.length_map, List.length_zipIdx] using hi)]
+  simp [successorPairs, hentry]
 
 private theorem getD_successorPairs_occurrence (F : CSP Rel ℕ) (cycles : List (List ℕ))
     (o : F.Occurrence) :
@@ -150,8 +140,7 @@ private theorem getD_successorPairs_occurrence (F : CSP Rel ℕ) (cycles : List 
   unfold incidenceEdgeIndex
   rw [List.getElem_idxOf (List.idxOf_lt_length_of_mem (CSP.mem_occurrences.mpr ⟨o, rfl⟩))]
   change (_, 2 * argumentNextIndex F o.1 o.2 + 1) = _
-  rw [argumentNextIndex_occurrence]
-  rfl
+  rw [argumentNextIndex_occurrence]; rfl
 
 /-- Every emitted raw successor is its exact variable-cycle or original argument successor.
 This inspects the actual indexed body, retaining duplicate rows and repeated variable names. -/
@@ -163,12 +152,10 @@ theorem getD_certificate_incidenceDart (F : CSP Rel ℕ) (cycles : List (List �
   cases side
   · change (Graph.incidenceVertices ⟨[], successorPairs F cycles⟩).getD
       (2 * incidenceEdgeIndex o) 0 = _
-    rw [Graph.getD_incidenceVertices_even, getD_successorPairs_occurrence]
-    rfl
+    rw [Graph.getD_incidenceVertices_even, getD_successorPairs_occurrence]; rfl
   · change (Graph.incidenceVertices ⟨[], successorPairs F cycles⟩).getD
       (2 * incidenceEdgeIndex o + 1) 0 = _
-    rw [Graph.getD_incidenceVertices_odd, getD_successorPairs_occurrence]
-    rfl
+    rw [Graph.getD_incidenceVertices_odd, getD_successorPairs_occurrence]; rfl
 
 /-- The candidate certificate is computed from the literal replacement body and positional
 source/template blocks. No rotation search is performed. -/

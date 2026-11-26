@@ -26,6 +26,7 @@ import Mathlib.Data.List.GetD
   all have length `M`.
 * `List.take_succ_finRange`: extend a prefix `(finRange n).take k` by one element `⟨k, hk⟩`.
 * `List.mul_add_lt_sq`: row-major index `a * n + b < n * n` for `a < n` and `b < n`.
+* `List.fin_mul_add_inj`: row-major flat-index injectivity for `Fin M × Fin N`.
 -/
 
 public section
@@ -96,5 +97,11 @@ theorem take_succ_finRange {n k : ℕ} (hk : k < n) :
 theorem mul_add_lt_sq {n a b : ℕ} (ha : a < n) (hb : b < n) : a * n + b < n * n := by
   rw [Nat.mul_comm]
   exact Nat.mul_add_lt_mul_of_lt_of_lt ha hb
+
+/-- Row-major flat-index injectivity for `Fin M × Fin N`. -/
+theorem fin_mul_add_inj {M N : ℕ} {x₁ x₂ : Fin M} {y₁ y₂ : Fin N}
+    (h : x₁.1 * N + y₁.1 = x₂.1 * N + y₂.1) : x₁ = x₂ ∧ y₁ = y₂ :=
+  Prod.mk.inj <| finProdFinEquiv.injective <| Fin.ext <| by
+    simpa [finProdFinEquiv, Nat.mul_comm, Nat.add_comm] using h
 
 end List

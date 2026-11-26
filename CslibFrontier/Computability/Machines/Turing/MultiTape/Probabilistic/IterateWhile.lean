@@ -70,10 +70,8 @@ open Turing.MultiTapeTM.IterateWhile
 theorem words_injective : Function.Injective (fun p : List Bool × List Bool =>
     words (k := k) p.1 p.2) := by
   rintro ⟨vc, vn⟩ ⟨vc', vn'⟩ h
-  have hcur := congrFun h (curTape k)
-  have hnext := congrFun h (nextTape k)
-  simp only [words_cur, words_next] at hcur hnext
-  rw [hcur, hnext]
+  exact Prod.ext (by simpa only [words_cur] using congrFun h (curTape k))
+    (by simpa only [words_next] using congrFun h (nextTape k))
 
 /-! ### The deterministic phases -/
 
@@ -168,13 +166,8 @@ theorem RunsWords.iterateWhileRound {tm : MultiTapePTM k Bool State Operation} (
       (fun _ => []) := by
   have h₁ := RunsWords.of_transformsTapes (Operation := Operation) (x := x) (out₀ := out₀)
     (Turing.MultiTapePTM.IterateWhile.transformsTapes_prepareRound (k := k) mark vp v)
-    rfl (ws' := words v []) (emitted := [])
-    (fun _ _ hQ => hQ)
-  have h₂ : (tm.onWords mark).RunsWords x (words v []) (out₀ ++ []) (t + l + 6) program
-      (fun v' => words v v') (fun _ => []) := by
-    rw [words_nil_next]
-    exact h.onWords_of_le mark hl (out₀ ++ [])
-  exact h₁.seq_pure_left h₂
+    rfl (ws' := words v []) (emitted := []) (fun _ _ hQ => hQ)
+  exact h₁.seq_pure_left (words_nil_next v ▸ h.onWords_of_le mark hl (out₀ ++ []))
 
 namespace IterateWhile
 
@@ -208,8 +201,7 @@ private theorem lifted_preserve {r L : ℕ}
           liftedInvariant invariant L (n + 1) p' ∧ p'.2 ≠ [] := by
   intro n hn p hp _ oracle st st' p' hp'
   simp only [liftedStep, ProbOracleComp.runWith_map, PMF.mem_support_map_iff] at hp'
-  obtain ⟨⟨w', st''⟩, hw', heq⟩ := hp'
-  rcases Prod.mk.inj heq with ⟨rfl, rfl⟩
+  obtain ⟨⟨w', st''⟩, hw', ⟨⟩⟩ := hp'
   obtain ⟨hinv, hne⟩ := hpreserve n hn p.2 hp.1 _ oracle st st'' w' hw'
   exact ⟨⟨hinv, hlength n hn.le p.2 hp.1⟩, hne⟩
 
@@ -253,10 +245,9 @@ private theorem runsWords_liftedRound {tm : MultiTapePTM k Bool State Operation}
       (w', s') ∈ (ProbOracleComp.runWith oracle program s).support → w'.length ≤ L)
     (hp : p.1.length ≤ L) (hv : p.2.length ≤ L) (out : List Bool) :
     (tm.iterateWhileRound mark).RunsWords x (words p.1 p.2) out (t + 10 * L + 22)
-      ((fun v' => (p.2, v')) <$> program) (fun q => words q.1 q.2) (fun _ => []) := by
-  have hround := (RunsWords.iterateWhileRound (x := x) mark (vp := p.1) h hl out).of_map
-    (fun v' => (p.2, v')) (fun q => words q.1 q.2) (fun _ => [])
-  exact hround.mono (by omega)
+      ((fun v' => (p.2, v')) <$> program) (fun q => words q.1 q.2) (fun _ => []) :=
+  ((RunsWords.iterateWhileRound (x := x) mark (vp := p.1) h hl out).of_map
+    (fun v' => (p.2, v')) (fun q => words q.1 q.2) (fun _ => [])).mono (by omega)
 
 private theorem runsWords_liftedLast {tm : MultiTapePTM k Bool State Operation} (mark : Bool)
     {p : List Bool × List Bool} {t L : ℕ}
@@ -264,11 +255,10 @@ private theorem runsWords_liftedLast {tm : MultiTapePTM k Bool State Operation} 
     (hp : p.1.length ≤ L) (hv : p.2.length ≤ L) (out : List Bool) :
     (tm.iterateWhileRound mark).RunsWords x (words p.1 p.2) out (t + 10 * L + 22)
       (liftedLast p) (fun q => words q.1 q.2) (fun _ => []) := by
-  have hround := runsWords_liftedRound (x := x) mark h
+  simpa only [map_pure, liftedLast] using runsWords_liftedRound (x := x) mark h
     (fun _ _ _ w' _ hw' => by
       simp only [ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hw'
       simp [hw'.1]) hp hv out
-  simpa only [map_pure, liftedLast] using hround
 
 omit [DecidableEq Operation] in
 private theorem liftedLast_stops (p : List Bool × List Bool)
@@ -389,9 +379,7 @@ public theorem RunsInSpace.iterateWhile {tm : MultiTapePTM k Bool State Empty} (
         (transformsTapes_finish (k := k) mark p.1)
         (hP := congrArg (words p.1) hnil) (hQ := fun _ _ h => h)
         (ws' := fun _ => []) (emitted := p.1)).mono (time' := 5 * L + 11) (by omega))
-  exact hbound.mono (by
-    have : max (3 * L + 6) (max (t + 10 * L + 22) (5 * L + 11)) = t + 10 * L + 22 := by omega
-    rw [this])
+  exact hbound.mono (Nat.mul_le_mul_left _ (by omega))
 
 open scoped ENNReal in
 open IterateWhile RepeatUntilBlank in
@@ -435,11 +423,9 @@ public theorem tsum_toOuterMeasure_compl_iterateWhile_le {tm : MultiTapePTM k Bo
     refine (RunsWords.iterateWhileRound (x := w₀) mark hp (l := L) (fun _ _ s w' s' hw' => ?_)
       []).mono ?_
     · rw [ProbOracleComp.runWith_sample, PMF.mem_support_map_iff] at hw'
-      obtain ⟨w'', hw'', heq⟩ := hw'
-      cases heq
+      obtain ⟨w'', hw'', ⟨⟩⟩ := hw'
       exact hpl _ hw''
-    · have := (hlength v hv).2
-      omega
+    · have := (hlength v hv).2; omega
   -- a round from an answer word ends the loop
   have hstop (vp v : List Bool) (hvp : vp.length ≤ L) (hv : v ∈ answer) (m : ℕ) :
       (ProbComp.eval (U.runClosedConfigFrom (R + (1 + m)) (startU vp v))).toOuterMeasure
@@ -473,9 +459,7 @@ public theorem tsum_toOuterMeasure_compl_iterateWhile_le {tm : MultiTapePTM k Bo
             · have hne := (hlength v' (hsupport v hv v' hv')).1
               rw [List.nil_append, eval_runClosedConfigFrom_check_ne_nil _ _ (by rwa [words_next])]
               by_cases ha : v' ∈ answer
-              · have h0 := hstop v v' hvL ha (n * (R + 1) + j)
-                rw [show R + (1 + (n * (R + 1) + j)) = R + 1 + (n * (R + 1) + j) by omega] at h0
-                rw [h0, mul_zero]
+              · rw [add_assoc R 1, hstop v v' hvL ha, mul_zero]
                 exact zero_le
               · have hr : v' ∈ retry := (hsupport v hv v' hv').resolve_right ha
                 rw [Set.indicator_of_mem hr]
@@ -548,10 +532,7 @@ public theorem tsum_toOuterMeasure_compl_iterateWhile_le {tm : MultiTapePTM k Bo
       · exact mul_le_of_le_one_right' (PMF.toOuterMeasure_le_one _ _)
       · rw [mul_one]
   refine (tsum_le_add_of_shift _ (fun _ => PMF.toOuterMeasure_le_one _ _) hshift).trans ?_
-  have hcast : (((3 * L + 6) + (5 * L + 11) : ℕ) : ℝ≥0∞) = ((8 * L + 17 : ℕ) : ℝ≥0∞) := by
-    congr 1
-    omega
-  rw [hcast]
-  exact add_le_add le_rfl hU
+  have h8 : 3 * L + 6 + (5 * L + 11) = 8 * L + 17 := by omega
+  exact h8 ▸ add_le_add le_rfl hU
 
 end Turing.MultiTapePTM

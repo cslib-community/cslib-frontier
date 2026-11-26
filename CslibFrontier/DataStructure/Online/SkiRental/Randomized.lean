@@ -167,10 +167,8 @@ private theorem sum_buy_aux (m n : ℕ) (hn : n ≤ m + 1) :
   induction n with
   | zero => rw [Finset.sum_range_zero, zero_add, pow_zero, one_mul, Nat.sub_zero]
   | succ n ih =>
-    rw [Finset.sum_range_succ, add_right_comm, ih (by omega)]
-    obtain ⟨j, rfl⟩ : ∃ j, m = n + j := ⟨m - n, by omega⟩
-    rw [show n + j - n = j by omega, show n + j + 1 - n = j + 1 by omega,
-      show n + j + 1 - (n + 1) = j by omega]
+    rw [Finset.sum_range_succ, add_right_comm, ih (by omega),
+      show m + 1 - (n + 1) = m - n by omega, show m + 1 - n = m - n + 1 by omega]
     ring
 
 private theorem sum_buy_mul_aux (m n : ℕ) (hn : n ≤ m + 1) :
@@ -179,10 +177,8 @@ private theorem sum_buy_mul_aux (m n : ℕ) (hn : n ≤ m + 1) :
   induction n with
   | zero => rw [Finset.sum_range_zero, zero_mul]
   | succ n ih =>
-    rw [Finset.sum_range_succ, ih (by omega)]
-    obtain ⟨j, rfl⟩ : ∃ j, m = n + j := ⟨m - n, by omega⟩
-    rw [show n + j - n = j by omega, show n + j + 1 - n = j + 1 by omega,
-      show n + j + 1 - (n + 1) = j by omega]
+    rw [Finset.sum_range_succ, ih (by omega),
+      show m + 1 - (n + 1) = m - n by omega, show m + 1 - n = m - n + 1 by omega]
     ring
 
 private theorem sum_Ico_buy_aux (m n : ℕ) (hn : n ≤ m + 1) :
@@ -216,11 +212,8 @@ private theorem sum_adv_aux (m n : ℕ) (hn : n ≤ m) :
   induction n with
   | zero => rw [Finset.sum_range_zero, zero_add, pow_zero, one_mul, Nat.sub_zero]
   | succ n ih =>
-    rw [← ih (by omega), Finset.sum_range_succ, add_assoc]
-    congr 1
-    obtain ⟨j, rfl⟩ : ∃ j, m = n + 1 + j := ⟨m - n - 1, by omega⟩
-    rw [show n + 1 + j - 1 - n = j by omega, show n + 1 + j - (n + 1) = j by omega,
-      show n + 1 + j - n = j + 1 by omega]
+    rw [← ih (by omega), Finset.sum_range_succ, show m - (n + 1) = m - 1 - n by omega,
+      show m - n = m - 1 - n + 1 by omega]
     ring
 
 private theorem sum_adv_mul_aux (m n : ℕ) (hn : n ≤ m) :
@@ -229,11 +222,8 @@ private theorem sum_adv_mul_aux (m n : ℕ) (hn : n ≤ m) :
   induction n with
   | zero => rw [Finset.sum_range_zero, Nat.sub_zero]; ring
   | succ n ih =>
-    rw [← ih (by omega), Finset.sum_range_succ, add_assoc]
-    congr 1
-    obtain ⟨j, rfl⟩ : ∃ j, m = n + 1 + j := ⟨m - n - 1, by omega⟩
-    rw [show n + 1 + j - 1 - n = j by omega, show n + 1 + j - (n + 1) = j by omega,
-      show n + 1 + j - n = j + 1 by omega]
+    rw [← ih (by omega), Finset.sum_range_succ, show m - (n + 1) = m - 1 - n by omega,
+      show m - n = m - 1 - n + 1 by omega]
     ring
 
 /-- Mean cost bound for the equalizing adversary: against the threshold strategy that rents for
@@ -344,11 +334,8 @@ theorem expectedCost_randomRentThenBuy (B : ℕ) [NeZero B] (reqs : List Unit) :
     RandStrategy.expectedCost (randomRentThenBuy B) false reqs =
       ENNReal.ofReal (randomizedRatio B) * (min reqs.length B : ℕ) := by
   have hB : 1 ≤ B := NeZero.pos B
-  have hcost : ∀ t : Fin B, ((rentThenBuy B t).cost false reqs : ℝ≥0∞) =
-      ((if reqs.length ≤ (t : ℕ) then reqs.length else t + B : ℕ) : ℝ≥0∞) := fun t => by
-    rw [cost_rentThenBuy]
   rw [randomRentThenBuy, RandStrategy.expectedCost_map]
-  simp only [rentDays_apply, hcost]
+  simp only [rentDays_apply, cost_rentThenBuy]
   rw [tsum_natCast_div_mul, Fin.sum_univ_eq_sum_range
     (fun t => buyWeight B t * (if reqs.length ≤ t then reqs.length else t + B)) B]
   have hsum : ∑ t ∈ range B, buyWeight B t * (if reqs.length ≤ t then reqs.length else t + B) =
@@ -421,11 +408,9 @@ private theorem sum_adv_eq (m : ℕ) (g : ℕ → ℕ) :
 theorem sum_advWeight (B : ℕ) [NeZero B] : ∑ o, advWeight B o = B ^ (B - 1) := by
   obtain ⟨m, rfl⟩ : ∃ m, B = m + 1 := ⟨B - 1, by have := NeZero.pos B; omega⟩
   have h := sum_adv_eq m (fun _ => 1)
-  simp only [mul_one] at h
   have h2 := sum_adv_aux m m le_rfl
-  rw [Nat.sub_self, pow_zero, mul_one] at h2
-  rw [h, Nat.add_sub_cancel]
-  omega
+  simp only [mul_one, Nat.sub_self, pow_zero] at h h2
+  rw [h, Nat.add_sub_cancel]; omega
 
 /-- Weighted offline optimum under the adversary: `∑ advWeight * min days B = B^B - (B-1)^B`. -/
 theorem sum_advWeight_mul_min (B : ℕ) [NeZero B] :
@@ -450,11 +435,7 @@ theorem le_sum_advWeight_mul_cost (B : ℕ) [NeZero B] (A : DetStrategy (problem
     B ^ B ≤ ∑ o, advWeight B o * A.cost false (List.replicate (advDays B o) ()) := by
   obtain ⟨t, ht⟩ := exists_rentThenBuy_cost_eq A (2 * B - 1)
   have hle : ∀ o, advDays B o ≤ 2 * B - 1 := by
-    rintro (_ | k)
-    · exact le_rfl
-    · have := k.isLt
-      simp only [advDays]
-      omega
+    rintro (_ | k) <;> simp only [advDays] <;> omega
   have hcost : ∀ o, A.cost false (List.replicate (advDays B o) ()) =
       if advDays B o ≤ t then advDays B o else t + B := fun o => by
     rw [ht _ (hle o), cost_rentThenBuy, List.length_replicate]
@@ -466,9 +447,7 @@ theorem le_sum_advWeight_mul_cost (B : ℕ) [NeZero B] (A : DetStrategy (problem
 private theorem one_le_min_advDays (B : ℕ) [NeZero B] (o : Option (Fin (B - 1))) :
     1 ≤ min (advDays B o) B := by
   have := NeZero.pos B
-  cases o with
-  | none => simp only [advDays]; omega
-  | some k => simp only [advDays]; omega
+  cases o <;> simp only [advDays] <;> omega
 
 /-- The oblivious adversary distribution on ski-day counts, with probabilities
 `advWeight B o / B^(B-1)`. -/
@@ -531,14 +510,10 @@ theorem not_isCompetitive_of_lt {B : ℕ} (μ : RandStrategy (problem B)) {c : �
     (hc : c < ENNReal.ofReal (randomizedRatio B)) : ¬ RandStrategy.IsCompetitive μ c 0 := by
   intro h
   obtain ⟨reqs, states, hv, hpos, hle⟩ := exists_randomized_witness B μ
-  have h1 := h false rfl reqs states hv
-  rw [add_zero] at h1
+  have h1 := (h false rfl reqs states hv).trans_eq (add_zero _)
   have hne : ((problem B).scheduleCost false reqs states : ℝ≥0∞) ≠ 0 := by
     exact_mod_cast (Nat.one_le_iff_ne_zero.mp hpos)
-  have hlt : c * ((problem B).scheduleCost false reqs states : ℝ≥0∞) <
-      ENNReal.ofReal (randomizedRatio B) * (problem B).scheduleCost false reqs states := by
-    rw [mul_comm c, mul_comm (ENNReal.ofReal _)]
-    exact ENNReal.mul_lt_mul_right hne (ENNReal.natCast_ne_top _) hc
-  exact absurd (hle.trans h1) (not_le.mpr hlt)
+  refine absurd (hle.trans h1) (not_le.mpr ?_)
+  simpa only [mul_comm] using ENNReal.mul_lt_mul_right hne (ENNReal.natCast_ne_top _) hc
 
 end Cslib.DataStructure.Online.SkiRental

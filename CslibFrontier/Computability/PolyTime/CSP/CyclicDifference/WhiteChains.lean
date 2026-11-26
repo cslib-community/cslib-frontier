@@ -34,10 +34,7 @@ theorem whiteConstraints_cons (edges : ℕ) (scope : List ℕ) (scopes : List (L
       parityChain edges scope ++ whiteConstraints (edges + (scope.length - 3)) scopes := by
   simp only [whiteConstraints, List.zipIdx_cons', List.flatMap_cons, List.flatMap_map,
     auxiliaryPrefix, List.take_zero, List.map_nil, List.sum_nil, Nat.add_zero]
-  congr 1
-  apply List.flatMap_congr
-  intro entry he
-  rcases entry with ⟨s, i⟩
+  refine congrArg _ (List.flatMap_congr fun ⟨s, i⟩ _ => ?_)
   change parityChain (edges + ((scope :: scopes).take (i + 1) |>.map
     (fun s => s.length - 3)).sum) s = _
   simp only [List.take_succ_cons, List.map_cons, List.sum_cons, Nat.add_assoc]
@@ -50,13 +47,11 @@ theorem whiteConstraints_sound (edges : ℕ) (scopes : List (List ℕ)) (σ : �
   | nil => simp
   | cons scope scopes ih =>
     rw [whiteConstraints_cons] at h
-    have hh : (parityChain edges scope).eval sem σ = true ∧
-        (whiteConstraints (edges + (scope.length - 3)) scopes).eval sem σ = true := by
-      simpa only [CSP.eval, List.all_append, Bool.and_eq_true] using h
+    simp only [CSP.eval, List.all_append, Bool.and_eq_true] at h
     intro s hs
     rcases List.mem_cons.mp hs with rfl | hs
-    · exact parityChain_sound edges _ σ hh.1
-    · exact ih _ hh.2 s hs
+    · exact parityChain_sound edges _ σ h.1
+    · exact ih _ h.2 s hs
 
 /-- Even boundary assignments extend to the whole actual expansion, preserving every reserved
 name. Allocation is performed face by face with the exact prefix-sum offsets. -/
@@ -71,23 +66,18 @@ theorem whiteConstraints_complete (edges : ℕ) (scopes : List (List ℕ)) (σ :
     obtain ⟨σ', hkeep, heval⟩ := parityChain_complete edges scope σ
       (hbound scope (by simp)) (hparity scope (by simp))
     have hread (v : ℕ) (hv : v < edges) : σ' v = σ v := hkeep v (.inl hv)
-    have hbound' : ∀ s ∈ scopes, ∀ v ∈ s, v < edges + (scope.length - 3) := by
-      intro s hs v hv
-      exact (hbound s (List.mem_cons_of_mem _ hs) v hv).trans_le (Nat.le_add_right _ _)
-    have hparity' : ∀ s ∈ scopes, wordParity (s.map σ') = false := by
-      intro s hs
-      have he : s.map σ' = s.map σ := List.map_congr_left
-        (fun v hv => hread v (hbound s (List.mem_cons_of_mem _ hs) v hv))
-      rw [he]
-      exact hparity s (List.mem_cons_of_mem _ hs)
-    obtain ⟨τ, hτ, hrest⟩ := ih _ σ' hbound' hparity'
+    obtain ⟨τ, hτ, hrest⟩ := ih (edges + (scope.length - 3)) σ'
+      (fun s hs v hv =>
+        (hbound s (List.mem_cons_of_mem _ hs) v hv).trans_le (Nat.le_add_right _ _))
+      (fun s hs => by
+        rw [List.map_congr_left fun v hv => hread v (hbound s (List.mem_cons_of_mem _ hs) v hv)]
+        exact hparity s (List.mem_cons_of_mem _ hs))
     refine ⟨τ, fun v hv => (hτ v (hv.trans_le (Nat.le_add_right _ _))).trans (hread v hv), ?_⟩
     rw [whiteConstraints_cons]
     have hfirst : (parityChain edges scope).eval sem τ = true := by
-      rw [CSP.eval_congr (fun v hv => hτ v
-        (parityChain_names_lt edges scope (hbound scope (by simp)) v hv))]
-      exact heval
-    simpa only [CSP.eval, List.all_append, Bool.and_eq_true] using And.intro hfirst hrest
+      rwa [CSP.eval_congr fun v hv => hτ v
+        (parityChain_names_lt edges scope (hbound scope (by simp)) v hv)]
+    simpa only [CSP.eval, List.all_append, Bool.and_eq_true] using ⟨hfirst, hrest⟩
 
 /-- Complete occurrence accounting for consecutive parity-chain blocks. -/
 theorem count_vars_whiteConstraints (edges : ℕ) (scopes : List (List ℕ)) (v : ℕ) :
@@ -96,15 +86,13 @@ theorem count_vars_whiteConstraints (edges : ℕ) (scopes : List (List ℕ)) (v 
   induction scopes generalizing edges with
   | nil => simp [whiteConstraints, CSP.vars, auxiliaryPrefix]
   | cons scope scopes ih =>
-    rw [whiteConstraints_cons]
-    rw [show (parityChain edges scope ++
-      whiteConstraints (edges + (scope.length - 3)) scopes).vars =
-      (parityChain edges scope).vars ++
-      (whiteConstraints (edges + (scope.length - 3)) scopes).vars by
-        simp only [CSP.vars, List.flatMap_append]]
-    rw [List.count_append, count_vars_parityChain, ih]
-    simp only [List.flatten_cons, List.count_append, List.length_cons,
-      auxiliaryPrefix_cons]
+    have hvars : (parityChain edges scope ++
+          whiteConstraints (edges + (scope.length - 3)) scopes).vars =
+        (parityChain edges scope).vars ++
+          (whiteConstraints (edges + (scope.length - 3)) scopes).vars := by
+      simp only [CSP.vars, List.flatMap_append]
+    rw [whiteConstraints_cons, hvars, List.count_append, count_vars_parityChain, ih]
+    simp only [List.flatten_cons, List.count_append, List.length_cons, auxiliaryPrefix_cons]
     split_ifs <;> omega
 
 /-- Every expanded white constraint has a duplicate-free scope when the original white
@@ -121,8 +109,8 @@ theorem whiteConstraints_scopes_nodup (edges : ℕ) (scopes : List (List ℕ))
     rcases List.mem_append.mp hc with hc | hc
     · exact parityChain_scopes_nodup edges scope (hnd scope (by simp))
         (hbound scope (by simp)) constraint hc
-    · apply ih _ (fun s hs => hnd s (List.mem_cons_of_mem scope hs)) ?_ hc
-      intro s hs v hv
-      exact (hbound s (List.mem_cons_of_mem scope hs) v hv).trans_le (Nat.le_add_right _ _)
+    · exact ih _ (fun s hs => hnd s (List.mem_cons_of_mem scope hs))
+        (fun s hs v hv =>
+          (hbound s (List.mem_cons_of_mem scope hs) v hv).trans_le (Nat.le_add_right _ _)) hc
 
 end Cslib.Complexity.CSP.CyclicCompiler

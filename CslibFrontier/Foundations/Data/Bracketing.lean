@@ -77,11 +77,9 @@ theorem subtrees_subset_of_mem : ∀ {t s : Bracketing σ}, s ∈ t.subtrees →
   | node l r, s, hs => by
     rcases List.mem_cons.1 hs with rfl | hs
     · exact List.Subset.refl _
-    · rcases List.mem_append.1 hs with h | h
-      · exact fun x hx => List.mem_cons_of_mem _
-          (List.mem_append_left _ (subtrees_subset_of_mem h hx))
-      · exact fun x hx => List.mem_cons_of_mem _
-          (List.mem_append_right _ (subtrees_subset_of_mem h hx))
+    · rcases List.mem_append.1 hs with h | h <;> intro x hx <;> apply List.mem_cons_of_mem
+      · exact List.mem_append_left _ (subtrees_subset_of_mem h hx)
+      · exact List.mem_append_right _ (subtrees_subset_of_mem h hx)
 
 /-- The two halves of a subtree are subtrees. -/
 theorem mem_subtrees_of_node {t l r : Bracketing σ} (h : node l r ∈ t.subtrees) :
@@ -95,8 +93,8 @@ theorem mem_subtrees_of_node {t l r : Bracketing σ} (h : node l r ∈ t.subtree
 theorem length_subtrees : ∀ t : Bracketing σ, t.subtrees.length + 1 = 2 * t.leaves.length
   | leaf _ => rfl
   | node l r => by
-    have hl := l.length_subtrees
-    have hr := r.length_subtrees
+    have := l.length_subtrees
+    have := r.length_subtrees
     simp only [subtrees, leaves, List.length_cons, List.length_append]
     omega
 
@@ -116,22 +114,19 @@ theorem sublist_leaves_of_mem_subtrees : ∀ {t s : Bracketing σ}, s ∈ t.subt
 theorem exists_leaves_eq (l : List σ) (hl : l ≠ []) :
     ∃ t : Bracketing σ, t.leaves = l ∧ t.height ≤ Nat.clog 2 l.length := by
   rcases Nat.lt_or_ge l.length 2 with h2 | h2
-  · obtain ⟨i, rfl⟩ : ∃ i, l = [i] := List.length_eq_one_iff.1 (by
-      have := List.length_pos_iff.2 hl
-      omega)
+  · have hlen := List.length_pos_iff.2 hl
+    obtain ⟨i, rfl⟩ : ∃ i, l = [i] := List.length_eq_one_iff.1 (by omega)
     exact ⟨leaf i, rfl, Nat.zero_le _⟩
   · set k := (l.length + 1) / 2 with hk
     have hk1 : k < l.length := by omega
-    have hk0 : 0 < k := by omega
     have htake : (l.take k).length = k := List.length_take_of_le hk1.le
     have hdrop : (l.drop k).length = l.length - k := List.length_drop
-    obtain ⟨t₁, ht₁, hh₁⟩ := exists_leaves_eq (l.take k) (List.ne_nil_of_length_pos (by omega))
-    obtain ⟨t₂, ht₂, hh₂⟩ := exists_leaves_eq (l.drop k) (List.ne_nil_of_length_pos (by omega))
+    obtain ⟨t₁, ht₁, hh₁⟩ :=
+      exists_leaves_eq (l.take k) (List.ne_nil_of_length_pos (by rw [htake]; omega))
+    obtain ⟨t₂, ht₂, hh₂⟩ :=
+      exists_leaves_eq (l.drop k) (List.ne_nil_of_length_pos (by rw [hdrop]; omega))
     refine ⟨node t₁ t₂, by rw [leaves, ht₁, ht₂, List.take_append_drop], ?_⟩
-    have hclog : Nat.clog 2 l.length = Nat.clog 2 k + 1 := by
-      rw [Nat.clog_of_two_le (le_refl 2) h2, hk]
-      rfl
-    rw [height, hclog]
+    rw [height, show Nat.clog 2 l.length = Nat.clog 2 k + 1 from Nat.clog_of_two_le (le_refl 2) h2]
     exact Nat.succ_le_succ (max_le (htake ▸ hh₁) (hh₂.trans (Nat.clog_mono_right 2 (by omega))))
 termination_by l.length
 

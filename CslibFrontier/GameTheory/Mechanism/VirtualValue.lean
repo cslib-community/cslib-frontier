@@ -115,15 +115,13 @@ namespace HasValueDensity
 
 variable {μ : Measure ℝ} {f : ℝ → NNReal} {h : ℝ}
 
-theorem absolutelyContinuous (hμ : HasValueDensity μ f h) : μ ≪ volume := by
-  rw [hμ.eq_withDensity]
-  exact (withDensity_absolutelyContinuous _ _).trans
+theorem absolutelyContinuous (hμ : HasValueDensity μ f h) : μ ≪ volume :=
+  hμ.eq_withDensity ▸ (withDensity_absolutelyContinuous _ _).trans
     (Measure.absolutelyContinuous_of_le Measure.restrict_le_self)
 
 /-- Almost every valuation lies in `[0, h]`. -/
-theorem ae_mem (hμ : HasValueDensity μ f h) : ∀ᵐ v ∂μ, v ∈ Icc 0 h := by
-  rw [hμ.eq_withDensity]
-  exact (withDensity_absolutelyContinuous _ _) (ae_restrict_mem measurableSet_Icc)
+theorem ae_mem (hμ : HasValueDensity μ f h) : ∀ᵐ v ∂μ, v ∈ Icc 0 h :=
+  hμ.eq_withDensity ▸ (withDensity_absolutelyContinuous _ _) (ae_restrict_mem measurableSet_Icc)
 
 /-- A distribution with a density has no atoms. -/
 theorem nullSingletonClass (hμ : HasValueDensity μ f h) : NullSingletonClass μ :=
@@ -160,17 +158,14 @@ theorem integrable_div_mul (hμ : HasValueDensity μ f h) {t g : ℝ → ℝ} (h
     (hg : Measurable g) {C : ℝ} (hC : ∀ v ∈ Icc 0 h, |t v * g v| ≤ C) :
     Integrable (fun v => t v / f v * g v) μ := by
   rw [hμ.eq_withDensity, integrable_withDensity_iff_integrable_smul hμ.measurable]
-  refine Integrable.of_bound ?_ C ?_
-  · exact ((hμ.measurable.coe_nnreal_real).smul
-      ((ht.div hμ.measurable.coe_nnreal_real).mul hg)).aestronglyMeasurable
-  · refine (ae_restrict_mem measurableSet_Icc).mono fun v hv => ?_
-    rw [NNReal.smul_def, smul_eq_mul, Real.norm_eq_abs]
-    by_cases hf : (f v : ℝ) = 0
-    · rw [hf, zero_mul, abs_zero]
-      exact (abs_nonneg _).trans (hC v hv)
-    · have : (f v : ℝ) * (t v / f v * g v) = t v * g v := by field_simp
-      rw [this]
-      exact hC v hv
+  refine Integrable.of_bound ((hμ.measurable.coe_nnreal_real).smul
+    ((ht.div hμ.measurable.coe_nnreal_real).mul hg)).aestronglyMeasurable C ?_
+  refine (ae_restrict_mem measurableSet_Icc).mono fun v hv => ?_
+  rw [NNReal.smul_def, smul_eq_mul, Real.norm_eq_abs]
+  by_cases hf : (f v : ℝ) = 0
+  · simpa [hf] using (abs_nonneg _).trans (hC v hv)
+  · have hmul : (f v : ℝ) * (t v / f v * g v) = t v * g v := by field_simp
+    simpa only [hmul] using hC v hv
 
 theorem measurable_virtualValue [IsFiniteMeasure μ] (hμ : HasValueDensity μ f h) :
     Measurable (virtualValue μ f) :=
@@ -179,17 +174,14 @@ theorem measurable_virtualValue [IsFiniteMeasure μ] (hμ : HasValueDensity μ f
 /-- Virtual valuations are integrable. -/
 theorem integrable_virtualValue [IsFiniteMeasure μ] (hμ : HasValueDensity μ f h) :
     Integrable (virtualValue μ f) μ := by
-  have h1 : Integrable (fun v : ℝ => v) μ := by
-    refine Integrable.of_bound measurable_id.aestronglyMeasurable h ?_
-    filter_upwards [hμ.ae_mem] with v hv
+  refine (Integrable.of_bound measurable_id'.aestronglyMeasurable h ?_).sub ?_
+  · filter_upwards [hμ.ae_mem] with v hv
     rw [Real.norm_eq_abs, abs_of_nonneg hv.1]
     exact hv.2
-  have h3 := hμ.integrable_div_mul (measurable_measureReal_Ioi μ)
-    (measurable_const (a := (1 : ℝ))) (C := μ.real univ) fun v _ => by
-      rw [mul_one, abs_of_nonneg measureReal_nonneg]
-      exact measureReal_mono (subset_univ _)
-  simp only [mul_one] at h3
-  exact h1.sub h3
+  · simpa only [mul_one] using hμ.integrable_div_mul (measurable_measureReal_Ioi μ)
+      (measurable_const (a := (1 : ℝ))) (C := μ.real univ) fun v _ => by
+        rw [mul_one, abs_of_nonneg measureReal_nonneg]
+        exact measureReal_mono (subset_univ _)
 
 /-- **One-dimensional revenue identity** ([Roughgarden2013CS364A], Lecture 5, §2, Steps 1–4,
 eq. (4)). For an allocation curve `g` that is measurable and bounded on `[0, h]`, the expected
@@ -200,10 +192,8 @@ theorem integral_payment_eq_integral_virtualValue_mul [IsFiniteMeasure μ]
     ∫ v, (v * g v - ∫ z in (0 : ℝ)..v, g z) ∂μ = ∫ v, virtualValue μ f v * g v ∂μ := by
   have := hμ.nullSingletonClass
   have hae := hμ.ae_mem
-  have hB0 : ∀ v ∈ Icc 0 h, 0 ≤ B := fun v hv => (abs_nonneg _).trans (hB v hv)
-  have hgI : IntegrableOn g (Ioc 0 h) := by
-    refine Integrable.of_bound hg.aestronglyMeasurable B ?_
-    exact (ae_restrict_mem measurableSet_Ioc).mono fun v hv => hB v (Ioc_subset_Icc_self hv)
+  have hgI : IntegrableOn g (Ioc 0 h) := Integrable.of_bound hg.aestronglyMeasurable B
+    ((ae_restrict_mem measurableSet_Ioc).mono fun v hv => hB v (Ioc_subset_Icc_self hv))
   have h1 : Integrable (fun v => v * g v) μ := by
     refine Integrable.of_bound (measurable_id.mul hg).aestronglyMeasurable (h * B) ?_
     filter_upwards [hae] with v hv
@@ -218,13 +208,12 @@ theorem integral_payment_eq_integral_virtualValue_mul [IsFiniteMeasure μ]
     · rw [uIoc_of_le hv.1] at hz
       exact hB z ⟨hz.1.le, hz.2.trans hv.2⟩
     · rw [sub_zero, abs_of_nonneg hv.1, mul_comm]
-      exact mul_le_mul_of_nonneg_right hv.2 (hB0 v hv)
-  have h3 : Integrable (fun v => μ.real (Ioi v) / f v * g v) μ := by
-    refine hμ.integrable_div_mul (measurable_measureReal_Ioi μ) hg (C := μ.real univ * B)
-      fun v hv => ?_
-    rw [abs_mul, abs_of_nonneg measureReal_nonneg]
-    exact mul_le_mul (measureReal_mono (subset_univ _)) (hB v hv) (abs_nonneg _)
-      measureReal_nonneg
+      exact mul_le_mul_of_nonneg_right hv.2 ((abs_nonneg _).trans (hB v hv))
+  have h3 : Integrable (fun v => μ.real (Ioi v) / f v * g v) μ :=
+    hμ.integrable_div_mul (measurable_measureReal_Ioi μ) hg (C := μ.real univ * B) fun v hv => by
+      rw [abs_mul, abs_of_nonneg measureReal_nonneg]
+      exact mul_le_mul (measureReal_mono (subset_univ _)) (hB v hv) (abs_nonneg _)
+        measureReal_nonneg
   have hφ : (fun v => virtualValue μ f v * g v) =
       fun v => v * g v - μ.real (Ioi v) / f v * g v := by
     funext v
@@ -233,8 +222,8 @@ theorem integral_payment_eq_integral_virtualValue_mul [IsFiniteMeasure μ]
   rw [integral_sub h1 h2, hφ, integral_sub h1 h3,
     integral_intervalIntegral_eq_integral_measureReal_Ici_mul hae hg hgI, hμ.integral_div_mul]
   congr 1
-  refine setIntegral_congr_fun measurableSet_Ioc fun z _ => ?_
-  rw [measureReal_congr (Ioi_ae_eq_Ici (μ := μ) (a := z))]
+  exact setIntegral_congr_fun measurableSet_Ioc fun z _ => by
+    rw [measureReal_congr (Ioi_ae_eq_Ici (μ := μ) (a := z))]
 
 end HasValueDensity
 
@@ -266,11 +255,7 @@ theorem virtualValue_uniform {v : ℝ} (hv : v ∈ Icc (0 : ℝ) 1) :
   have hset : Ioi v ∩ Icc (0 : ℝ) 1 = Ioc v 1 := by
     ext w
     simp only [mem_inter_iff, mem_Ioi, mem_Icc, mem_Ioc]
-    constructor
-    · rintro ⟨h1, -, h3⟩
-      exact ⟨h1, h3⟩
-    · rintro ⟨h1, h3⟩
-      exact ⟨h1, hv.1.trans h1.le, h3⟩
+    exact ⟨fun ⟨h1, _, h3⟩ => ⟨h1, h3⟩, fun ⟨h1, h3⟩ => ⟨h1, hv.1.trans h1.le, h3⟩⟩
   rw [virtualValue, measureReal_def, Measure.restrict_apply measurableSet_Ioi, hset,
     Real.volume_Ioc, ENNReal.toReal_ofReal (sub_nonneg.2 hv.2), NNReal.coe_one, div_one]
   ring

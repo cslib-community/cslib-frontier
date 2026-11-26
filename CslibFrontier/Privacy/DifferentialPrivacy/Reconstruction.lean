@@ -142,19 +142,12 @@ theorem hammingDist_le_of_subsetCountsWithin {r : Finset ι → ℝ} {c d : ι �
       congrArg Finset.card (Finset.filter_true_of_mem fun i hi => ?_)⟩
     · simp only [(Finset.mem_filter.mp hi).2.1, Bool.false_eq_true, not_false_eq_true]
     · exact (Finset.mem_filter.mp hi).2.2
-  have h1 := hc P
-  have h2 := hd P
-  have h3 := hc N
-  have h4 := hd N
-  rw [hP.1] at h1
-  rw [hP.2] at h2
-  rw [hN.1] at h3
-  rw [hN.2] at h4
-  rw [hdist]
-  push_cast
-  rw [abs_le] at h1 h2 h3 h4
-  push_cast at h1 h2 h3 h4
-  linarith [h1.1, h1.2, h2.1, h2.2, h3.1, h3.2, h4.1, h4.2]
+  have h1 := hP.1 ▸ abs_le.1 (hc P)
+  have h2 := Nat.cast_zero (R := ℝ) ▸ hP.2 ▸ abs_le.1 (hd P)
+  have h3 := Nat.cast_zero (R := ℝ) ▸ hN.1 ▸ abs_le.1 (hc N)
+  have h4 := hN.2 ▸ abs_le.1 (hd N)
+  rw [hdist, Nat.cast_add]
+  linarith
 
 open Classical in
 /-- The reconstruction adversary of [DworkRoth2014, Theorem 8.1]: given answers `r` to all
@@ -189,15 +182,12 @@ theorem mul_sum_toOuterMeasure_apply_eq_le [DecidableEq ι]
   set a : (ι → Bool) → ℝ≥0∞ := fun d => (G d).toOuterMeasure {c | c i = d i}
   set e := ENNReal.ofReal (Real.exp ε)
   -- The event of a wrong guess on `d` is the event of a right guess on `f d`.
-  have hcompl : ∀ d, {c : ι → Bool | c i = d i}ᶜ = {c | c i = f d i} := by
-    intro d
+  have hcompl (d) : {c : ι → Bool | c i = d i}ᶜ = {c | c i = f d i} := by
     ext c
     simp only [Set.mem_compl_iff, Set.mem_ofPred_eq, f, BitString.flipOn_singleton_self]
     cases c i <;> cases d i <;> decide
-  have hadj : ∀ d, HammingAdjacent d (f d) := by
-    intro d
-    rw [show f d = Function.update d i (!d i) from BitString.flipOn_singleton i d]
-    exact hammingAdjacent_update d i _
+  have hadj (d) : HammingAdjacent d (f d) :=
+    (show f d = _ from BitString.flipOn_singleton i d).symm ▸ hammingAdjacent_update d i (!d i)
   -- Privacy on the pair `(d, f d)` for the event `{c | c i = d i}`.
   have hpair : ∀ d, a d + e * a (f d) ≤ e + δ := by
     intro d
@@ -296,8 +286,8 @@ theorem mul_card_sub_mul_le_real (h : DifferentiallyPrivate HammingAdjacent G ε
     obtain ⟨d⟩ : Nonempty (ι → Bool) := inferInstance
     have hempty : {c : ι → Bool | (hammingDist c d : ℝ) ≤ r} = ∅ :=
       Set.eq_empty_of_forall_notMem fun c hc => (Nat.cast_nonneg _).not_gt (hc.trans_lt hr)
-    have hq' := hq d
-    rw [hempty, MeasureTheory.measure_empty, nonpos_iff_eq_zero, ENNReal.ofReal_eq_zero] at hq'
+    have hq' : q ≤ 0 := by
+      simpa [hempty, ENNReal.ofReal_eq_zero] using hq d
     rw [le_antisymm hq' hq0, mul_zero]
     positivity
   set t := ⌊r⌋₊
@@ -311,8 +301,7 @@ theorem mul_card_sub_mul_le_real (h : DifferentiallyPrivate HammingAdjacent G ε
     · rw [Nat.cast_sub htn]
       linarith
     · rw [Nat.sub_eq_zero_of_le htn, Nat.cast_zero]
-      have : (Fintype.card ι : ℝ) ≤ t := by exact_mod_cast htn
-      linarith
+      linarith [show (Fintype.card ι : ℝ) ≤ t from mod_cast htn]
   have h1 : (0 : ℝ) ≤ 1 + Real.exp ε := by positivity
   gcongr
 

@@ -66,24 +66,14 @@ private theorem subset_kernel (S E : Finset ι) :
   · have hbij :
         (∑ U ∈ E.powerset.filter (S ⊆ ·), (-1 : R) ^ (#E - #U)) =
           ∑ Z ∈ (E \ S).powerset, (-1 : R) ^ #Z := by
-      refine sum_bij (fun U _ => E \ U) ?_ ?_ ?_ ?_
-      · intro U hU
-        exact mem_powerset.mpr (Finset.sdiff_subset_sdiff_right E (mem_filter.mp hU).2)
-      · intro U hU V hV h
-        have hU' := mem_powerset.mp (mem_filter.mp hU).1
-        have hV' := mem_powerset.mp (mem_filter.mp hV).1
-        simpa [Finset.sdiff_sdiff_eq_self hU', Finset.sdiff_sdiff_eq_self hV'] using
-          congrArg (E \ ·) h
-      · intro Z hZ
-        have hZE := (mem_powerset.mp hZ).trans sdiff_subset
-        refine ⟨E \ Z, mem_filter.mpr ⟨mem_powerset.mpr sdiff_subset, ?_⟩,
-          Finset.sdiff_sdiff_eq_self hZE⟩
-        intro i hi
-        refine mem_sdiff.mpr ⟨hSE hi, ?_⟩
-        intro hiZ
-        exact (mem_sdiff.mp (mem_powerset.mp hZ hiZ)).2 hi
-      · intro U hU
-        rw [card_sdiff_of_subset (mem_powerset.mp (mem_filter.mp hU).1)]
+      refine sum_nbij' (E \ ·) (E \ ·) (fun U hU => ?_) (fun Z hZ => ?_)
+        (fun U hU => ?_) (fun Z hZ => ?_) fun U hU => ?_
+      · exact mem_powerset.mpr (Finset.sdiff_subset_sdiff_right E (mem_filter.mp hU).2)
+      · refine mem_filter.mpr ⟨mem_powerset.mpr sdiff_subset, fun i hi => ?_⟩
+        exact mem_sdiff.mpr ⟨hSE hi, fun hiZ => (mem_sdiff.mp (mem_powerset.mp hZ hiZ)).2 hi⟩
+      · exact Finset.sdiff_sdiff_eq_self (mem_powerset.mp (mem_filter.mp hU).1)
+      · exact Finset.sdiff_sdiff_eq_self ((mem_powerset.mp hZ).trans sdiff_subset)
+      · rw [card_sdiff_of_subset (mem_powerset.mp (mem_filter.mp hU).1)]
     have hcancel : (∑ Z ∈ (E \ S).powerset, (-1 : R) ^ #Z) =
         if E \ S = ∅ then 1 else 0 := by
       have h := congrArg (Int.castRingHom R)
@@ -95,13 +85,9 @@ private theorem subset_kernel (S E : Finset ι) :
     congr 1
     exact propext ⟨fun h => hSE.antisymm (sdiff_eq_empty_iff_subset.mp h),
       fun h => by simp [h]⟩
-  · have hnone : ∀ U ∈ E.powerset, ¬S ⊆ U := fun U hU hSU =>
-        hSE (hSU.trans (mem_powerset.mp hU))
-    have hne : S ≠ E := by
-      rintro rfl
-      exact hSE (Subset.refl _)
-    simp only [ite_eq_right hne]
-    exact sum_eq_zero fun U hU => by simp [hnone U hU]
+  · rw [ite_eq_right fun h : S = E => hSE h.subset]
+    exact sum_eq_zero fun U hU =>
+      mul_eq_zero_of_right _ (ite_eq_right fun hSU => hSE (hSU.trans (mem_powerset.mp hU)))
 
 /-! ### The Möbius transform on the subsets of a set -/
 
@@ -131,26 +117,20 @@ public theorem subsetMobius_add (f g : Finset ι → M) (S : Finset ι) :
 private theorem sum_neg_one_pow_superset [DecidableEq ι] {U T : Finset ι} (hUT : U ⊆ T) :
     (∑ S ∈ T.powerset with U ⊆ S, (-1 : ℤ) ^ (#S - #U)) = if U = T then 1 else 0 := by
   have hbij : (∑ S ∈ T.powerset with U ⊆ S, (-1 : ℤ) ^ (#S - #U)) =
-      ∑ Z ∈ (T \ U).powerset, (-1 : ℤ) ^ #Z := by
-    refine sum_nbij' (fun S => S \ U) (fun Z => Z ∪ U) ?_ ?_ ?_ ?_ ?_
-    · intro S hS
-      simp only [mem_filter, mem_powerset] at hS ⊢
-      exact sdiff_subset_sdiff hS.1 subset_rfl
-    · intro Z hZ
-      simp only [mem_filter, mem_powerset] at hZ ⊢
-      exact ⟨union_subset (hZ.trans sdiff_subset) hUT, subset_union_right⟩
-    · intro S hS
-      exact sdiff_union_of_subset (mem_filter.mp hS).2
-    · intro Z hZ
-      have hZ' : Disjoint Z U := disjoint_of_subset_left (mem_powerset.mp hZ) sdiff_disjoint
-      exact union_sdiff_cancel_right hZ'
-    · intro S hS
-      rw [card_sdiff_of_subset (mem_filter.mp hS).2]
+      ∑ Z ∈ (T \ U).powerset, (-1 : ℤ) ^ #Z :=
+    sum_nbij' (· \ U) (· ∪ U)
+      (fun S hS => mem_powerset.mpr
+        (sdiff_subset_sdiff (mem_powerset.mp (mem_filter.mp hS).1) subset_rfl))
+      (fun Z hZ => mem_filter.mpr
+        ⟨mem_powerset.mpr (union_subset ((mem_powerset.mp hZ).trans sdiff_subset) hUT),
+          subset_union_right⟩)
+      (fun S hS => sdiff_union_of_subset (mem_filter.mp hS).2)
+      (fun Z hZ => union_sdiff_cancel_right
+        (disjoint_of_subset_left (mem_powerset.mp hZ) sdiff_disjoint))
+      fun S hS => by rw [card_sdiff_of_subset (mem_filter.mp hS).2]
   rw [hbij, sum_powerset_neg_one_pow_card]
-  by_cases h : U = T
-  · simp [h]
-  · have hne : T \ U ≠ ∅ := fun he => h (hUT.antisymm (sdiff_eq_empty_iff_subset.mp he))
-    simp only [h, hne, ↓reduceIte]
+  exact if_congr ⟨fun he => hUT.antisymm (sdiff_eq_empty_iff_subset.mp he), fun h => by simp [h]⟩
+    rfl rfl
 
 /-- **Möbius inversion on the subsets of a set**: summing the subset Möbius transform of `f` over
 the subsets of `T` gives back `f T`. -/
@@ -164,8 +144,7 @@ public theorem sum_powerset_subsetMobius (f : Finset ι → M) (T : Finset ι) :
     · rw [sum_neg_one_pow_superset subset_rfl, ite_eq_left rfl, one_smul]
     · intro U hU hUT
       rw [sum_neg_one_pow_superset (mem_powerset.mp hU), ite_eq_right hUT, zero_smul]
-    · intro h
-      exact absurd (mem_powerset_self T) h
+    · exact (absurd (mem_powerset_self T) ·)
   · intro S U
     simp only [mem_powerset, mem_filter]
     exact ⟨fun h => ⟨⟨h.1, h.2⟩, h.2.trans h.1⟩, fun h => h.1⟩
@@ -176,15 +155,7 @@ public theorem subsetMobius_monomial [DecidableEq ι] (U S : Finset ι) :
     subsetMobius (fun T => monomial R U fun i => decide (i ∈ T)) S = if U = S then 1 else 0 := by
   convert subset_kernel (R := R) U S using 1
   · rw [subsetMobius]
-    refine sum_congr rfl fun T _ => ?_
-    rw [monomial_apply, zsmul_eq_mul, Int.cast_pow, Int.cast_neg, Int.cast_one]
-    congr 1
-    simp only [decide_eq_true_eq]
-    split_ifs with h₁ h₂ h₂
-    · rfl
-    · exact absurd (fun i hi => h₁ i hi) h₂
-    · exact absurd (fun i hi => h₂ hi) h₁
-    · rfl
+    exact sum_congr rfl fun T _ => by simp [monomial_apply, ← subset_iff, zsmul_eq_mul]
   · split_ifs <;> rfl
 
 /-- **The subset Möbius transform vanishes above the degree**: for a function of degree at most
@@ -231,43 +202,25 @@ public theorem subsetMobius_bitVal_mul [DecidableEq ι] (i : ι) (f : Finset ι 
     (S : Finset ι) :
     subsetMobius (fun T => bitVal R (decide (i ∈ T)) * f T) S =
       if i ∈ S then subsetMobius f S + subsetMobius f (S.erase i) else 0 := by
+  have hzero {X : Finset ι} (hiX : i ∉ X) (k : ℕ) :
+      ∑ T ∈ X.powerset, (-1 : ℤ) ^ (k - #T) • (bitVal R (decide (i ∈ T)) * f T) = 0 :=
+    sum_eq_zero fun T hT => by
+      rw [decide_eq_false (fun h => hiX (mem_powerset.1 hT h)), bitVal_false, zero_mul, smul_zero]
   split_ifs with hi
   · set S' := S.erase i with hS'
     have hiS' : i ∉ S' := notMem_erase i S
-    rw [(insert_erase hi).symm]
-    simp only [subsetMobius]
-    rw [sum_powerset_insert hiS', sum_powerset_insert hiS', card_insert_of_notMem hiS']
-    have h0 : ∑ T ∈ S'.powerset,
-        (-1 : ℤ) ^ (#S' + 1 - #T) • (bitVal R (decide (i ∈ T)) * f T) = 0 := by
-      refine sum_eq_zero fun T hT => ?_
-      have : i ∉ T := fun h => hiS' (mem_powerset.1 hT h)
-      rw [decide_eq_false this, bitVal_false, zero_mul, smul_zero]
-    have h1 : ∀ T ∈ S'.powerset, (-1 : ℤ) ^ (#S' + 1 - #(insert i T)) •
-        (bitVal R (decide (i ∈ insert i T)) * f (insert i T)) =
-          (-1 : ℤ) ^ (#S' - #T) • f (insert i T) := by
-      intro T hT
-      have hiT : i ∉ T := fun h => hiS' (mem_powerset.1 hT h)
-      rw [card_insert_of_notMem hiT, Nat.add_sub_add_right,
-        decide_eq_true (mem_insert_self i T), bitVal_true, one_mul]
-    have h2 : ∀ T ∈ S'.powerset, (-1 : ℤ) ^ (#S' + 1 - #T) • f T +
-        (-1 : ℤ) ^ (#S' - #T) • f T = 0 := by
-      intro T hT
-      have hT' : #T ≤ #S' := card_le_card (mem_powerset.1 hT)
-      rw [show #S' + 1 - #T = (#S' - #T) + 1 by omega, pow_succ, mul_neg_one, neg_smul,
-        neg_add_cancel]
-    have h4 : ∀ T ∈ S'.powerset, (-1 : ℤ) ^ (#S' + 1 - #(insert i T)) • f (insert i T) =
-        (-1 : ℤ) ^ (#S' - #T) • f (insert i T) := by
-      intro T hT
-      have hiT : i ∉ T := fun h => hiS' (mem_powerset.1 hT h)
-      rw [card_insert_of_notMem hiT, Nat.add_sub_add_right]
-    rw [h0, zero_add, sum_congr rfl h1, sum_congr rfl h4]
-    have h3 := sum_congr rfl h2
-    rw [sum_add_distrib, sum_const_zero] at h3
+    rw [(insert_erase hi).symm, ← hS']
+    simp only [subsetMobius, sum_powerset_insert hiS', card_insert_of_notMem hiS',
+      mem_insert_self, decide_true, bitVal_true, one_mul, hzero hiS', zero_add]
+    have h3 : ∑ T ∈ S'.powerset, ((-1 : ℤ) ^ (#S' + 1 - #T) • f T +
+        (-1 : ℤ) ^ (#S' - #T) • f T) = 0 :=
+      sum_eq_zero fun T hT => by
+        have := card_le_card (mem_powerset.1 hT)
+        rw [show #S' + 1 - #T = (#S' - #T) + 1 by omega, pow_succ, mul_neg_one, neg_smul,
+          neg_add_cancel]
+    rw [sum_add_distrib] at h3
     linear_combination -h3
-  · simp only [subsetMobius]
-    refine sum_eq_zero fun T hT => ?_
-    have : i ∉ T := fun h => hi (mem_powerset.1 hT h)
-    rw [decide_eq_false this, bitVal_false, zero_mul, smul_zero]
+  · exact hzero hi #S
 
 end SubsetMobius
 
@@ -286,13 +239,10 @@ public theorem eq_sum_subsetMobius_of_local {I : Finset ι} {g : (ι → Bool) �
   have hgx : g x = g fun v => decide (v ∈ W) :=
     hg _ _ fun v hv => by simp only [W, mem_filter, hv, true_and, Bool.decide_eq_true]
   rw [hgx, ← sum_powerset_subsetMobius (fun T => g fun v => decide (v ∈ T)) W]
-  simp only [mul_ite, mul_one, mul_zero]
-  rw [← sum_filter]
+  simp only [mul_ite, mul_one, mul_zero, ← sum_filter]
   refine sum_congr ?_ fun _ _ => rfl
   ext S
-  simp only [mem_powerset, mem_filter, W, subset_iff]
-  exact ⟨fun h => ⟨fun v hv => (h hv).1, fun v hv => (h hv).2⟩,
-    fun h v hv => ⟨h.1 hv, h.2 v hv⟩⟩
+  simp [W, subset_iff, forall_and]
 
 /-- **Monomial expansion on the cube.** Every function on a finite cube is the combination of the
 monomials with coefficients the subset Möbius transform of its values at indicators of sets: the
@@ -354,8 +304,7 @@ private theorem reconstruction_apply [Fintype ι] (q : ℕ) (x : ι → Bool)
         else 0 := by
   unfold reconstruction
   simp only [LinearMap.sum_apply]
-  apply sum_congr rfl
-  intro E _
+  refine sum_congr rfl fun E _ => ?_
   split_ifs <;> simp only [LinearMap.sum_apply, LinearMap.smul_apply,
     LinearMap.proj_apply, smul_eq_mul, LinearMap.zero_apply]
 
@@ -404,9 +353,7 @@ public theorem eval_mem_lowDegree (p : MvPolynomial ι R) {q : ℕ}
     (hp : p.totalDegree ≤ q) :
     (fun x : ι → Bool => MvPolynomial.eval (fun i => bitVal R (x i)) p) ∈ lowDegree R ι q := by
   rw [lowDegree_eq_map_restrictTotalDegree]
-  refine ⟨p, (MvPolynomial.mem_restrictTotalDegree _ _ _).mpr hp, ?_⟩
-  funext x
-  exact aeval_bit_apply p x
+  exact ⟨p, (MvPolynomial.mem_restrictTotalDegree _ _ _).mpr hp, funext (aeval_bit_apply p)⟩
 
 open Classical in
 /-- Boolean Möbius reconstruction for an assignment-dependent polynomial family, over any
@@ -425,17 +372,12 @@ public theorem sum_eval_eq_restricted_subsets [Fintype ι] (q : ℕ)
           if ∀ i ∈ E, x i = true then
             ∑ U ∈ E.powerset, (-1 : R) ^ (#E - #U) *
               MvPolynomial.eval (fun i => bitVal R (decide (i ∈ U))) (p x)
-          else 0 := by
-      apply sum_congr rfl
-      intro x _
-      exact lowDegree_reconstruction (eval_mem_lowDegree (p x) (hp x)) x
+          else 0 :=
+      sum_congr rfl fun x _ => lowDegree_reconstruction (eval_mem_lowDegree (p x) (hp x)) x
     _ = _ := by
       rw [sum_comm]
-      apply sum_congr rfl
-      intro E _
+      refine sum_congr rfl fun E _ => ?_
       rw [← sum_filter, sum_comm]
-      apply sum_congr rfl
-      intro U _
-      rw [mul_sum]
+      exact sum_congr rfl fun U _ => (mul_sum _ _ _).symm
 
 end Cslib.BitString

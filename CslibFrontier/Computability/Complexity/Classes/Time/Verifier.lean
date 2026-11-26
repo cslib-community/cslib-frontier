@@ -76,22 +76,18 @@ theorem setOf_exists_mem_NTIME {V : α × List Bool → Bool} {ℓ : α → ℕ}
   obtain ⟨c₁, c₂, k, State, hfinite, machine, hmachine⟩ := exists_machine_sampleVerify hℓ hV ht
   refine ⟨c₁, c₂, k, State, hfinite, machine.toNTM, fun a => ?_⟩
   -- the nondeterministic reading accepts exactly when some sampled string is accepted
-  have htime : machine.toNTM.RunsInTime (enc a) (c₁ * t (enc a).length + c₂) :=
-    machine.runsInTime_toNTM (hmachine a).1
+  have htime := machine.runsInTime_toNTM (hmachine a).1
+  have hiff : (∃ final ∈ (ProbComp.eval (machine.runClosedConfigFrom (c₁ * t (enc a).length + c₂)
+      (machine.initialConfig (enc a)))).support, final.tapes.output = [true]) ↔
+      [true] ∈ (ProbComp.eval
+        (machine.runClosed (c₁ * t (enc a).length + c₂) (enc a))).support := by
+    rw [MultiTapePTM.runClosed_eq_map, ProbComp.eval_map, PMF.mem_support_map_iff]
   refine ⟨htime, ?_⟩
   rw [MultiTapeNTM.accepts_iff_exists_time_eq htime,
-    machine.exists_computationPath_toNTM_iff (P := fun cfg => cfg.output = [true])]
-  set T := c₁ * t (enc a).length + c₂
-  have hiff : (∃ final ∈ (ProbComp.eval (machine.runClosedConfigFrom T
-      (machine.initialConfig (enc a)))).support, final.tapes.output = [true]) ↔
-      [true] ∈ (ProbComp.eval (machine.runClosed T (enc a))).support := by
-    rw [MultiTapePTM.runClosed_eq_map, ProbComp.eval_map, PMF.mem_support_map_iff]
-  rw [hiff, (hmachine a).2, PMF.mem_support_map_iff]
-  constructor
-  · rintro ⟨w, hw, hVw⟩
-    exact ⟨w, BitString.mem_support_uniformList_iff.mpr hw, by rw [hVw]⟩
-  · rintro ⟨w, hw, hVw⟩
-    exact ⟨w, BitString.mem_support_uniformList_iff.mp hw, by simpa using hVw⟩
+    machine.exists_computationPath_toNTM_iff (P := fun cfg => cfg.output = [true]),
+    hiff, (hmachine a).2, PMF.mem_support_map_iff]
+  exact ⟨fun ⟨w, hw, hVw⟩ => ⟨w, BitString.mem_support_uniformList_iff.mpr hw, by rw [hVw]⟩,
+    fun ⟨w, hw, hVw⟩ => ⟨w, BitString.mem_support_uniformList_iff.mp hw, by simpa using hVw⟩⟩
 
 /-- **A linear-time verifier for nondeterministic time.** A problem in `NTIME enc t` has a
 verifier computable in linear time on encoded pairs. For a constant `c`, every certificate length
@@ -110,10 +106,7 @@ theorem exists_verifier_of_mem_NTIME {A : Set α} {t : ℕ → ℕ} (hA : A ∈ 
     hdec.mem_iff_exists_checkChoices ?_⟩
   · -- replay the certificate with the choice table, then compare the output with `[true]`
     exact MultiTapePTM.computableInO_decide_runClosedCoins ntm.choiceTable
-  · have hmul : M * (c₁ * t (enc a).length + c₂) ≤
-        M * (c₁ + c₂) * t (enc a).length + M * (c₁ + c₂) := by
-      rw [Nat.mul_assoc, ← Nat.mul_add]
-      exact Nat.mul_le_mul_left M (by nlinarith)
-    exact hmul.trans hL
+  · rw [Nat.mul_assoc, ← Nat.mul_add] at hL
+    exact (Nat.mul_le_mul_left M (by nlinarith)).trans hL
 
 end Cslib.Complexity

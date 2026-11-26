@@ -184,33 +184,19 @@ private theorem false_of_same_object_critical [Fintype P]
               (π.next a (cstar.proc a).state) (π.decideVal a (cstar.proc a).state) cstar) := by
       have hb' : (π.step a cstar).Active b := (π.active_step_of_ne hba).mpr hb
       rw [step_eq_applyAt π hb', π.step_proc_of_ne cstar hba, ← step_eq_applyAt π ha]
-    have hgen : ∀ (i₁ i₂ : I) (_ : i₁ = i₂)
-        (op_p : Op i₁) (next_p : Resp i₁ → S) (dec_p : Resp i₁ → Option Bool)
-        (op_q : Op i₂) (next_q : Resp i₂ → S) (dec_q : Resp i₂ → Option Bool),
-        Acc π.StepRel (applyAt objs p i₁ op_p next_p dec_p cstar) →
-        Acc π.StepRel (applyAt objs q i₂ op_q next_q dec_q cstar) →
-        π.IsUnivalent (applyAt objs p i₁ op_p next_p dec_p cstar) false →
-        π.IsUnivalent (applyAt objs q i₂ op_q next_q dec_q cstar) true →
-        π.lts.CanReach (applyAt objs p i₁ op_p next_p dec_p cstar)
-          (applyAt objs q i₂ op_q next_q dec_q (applyAt objs p i₁ op_p next_p dec_p cstar)) →
-        π.lts.CanReach (applyAt objs q i₂ op_q next_q dec_q cstar)
-          (applyAt objs p i₁ op_p next_p dec_p (applyAt objs q i₂ op_q next_q dec_q cstar)) →
-        False := by
-      rintro i₁ i₂ rfl op_p next_p dec_p op_q next_q dec_q hap haq huf hut hr_pq hr_qp
-      exact hsame cstar p q hpq i₁ op_p next_p dec_p op_q next_q dec_q hap haq huf hut hr_pq hr_qp
-    refine hgen (π.target p (cstar.proc p).state) (π.target q (cstar.proc q).state) htarget
-      (π.op p (cstar.proc p).state) (π.next p (cstar.proc p).state)
-      (π.decideVal p (cstar.proc p).state)
-      (π.op q (cstar.proc q).state) (π.next q (cstar.proc q).state)
-      (π.decideVal q (cstar.proc q).state) ?_ ?_ ?_ ?_ ?_ ?_
-    · rwa [← step_eq_applyAt π hp_act]
-    · rwa [← step_eq_applyAt π hq_act]
-    · rwa [← step_eq_applyAt π hp_act]
-    · rwa [← step_eq_applyAt π hq_act]
-    · rw [← htwo hp_act hq_act hqp, ← step_eq_applyAt π hp_act]
-      exact π.canReach_step q (π.step p cstar)
-    · rw [← htwo hq_act hp_act hpq, ← step_eq_applyAt π hq_act]
-      exact π.canReach_step p (π.step q cstar)
+    have hr_pq := π.canReach_step q (π.step p cstar)
+    have hr_qp := π.canReach_step p (π.step q cstar)
+    rw [htwo hp_act hq_act hqp, step_eq_applyAt π hp_act] at hr_pq
+    rw [htwo hq_act hp_act hpq, step_eq_applyAt π hq_act] at hr_qp
+    rw [step_eq_applyAt π hp_act] at ha_p hup
+    rw [step_eq_applyAt π hq_act] at ha_q huq
+    generalize π.target p (cstar.proc p).state = i₁, π.op p (cstar.proc p).state = op_p,
+      π.next p (cstar.proc p).state = next_p, π.decideVal p (cstar.proc p).state = dec_p,
+      π.target q (cstar.proc q).state = i₂, π.op q (cstar.proc q).state = op_q,
+      π.next q (cstar.proc q).state = next_q, π.decideVal q (cstar.proc q).state = dec_q
+      at htarget ha_p ha_q hup huq hr_pq hr_qp
+    subst htarget
+    exact hsame cstar p q hpq i₁ op_p next_p dec_p op_q next_q dec_q ha_p ha_q hup huq hr_pq hr_qp
   · have hcomm := π.step_comm_of_ne_target hp_act hq_act hpq htarget
     exact Protocol.not_univalent_of_indistinguishable p ha_p ha_q hup huq
       (π.canReach_step q (π.step p cstar)) (π.canReach_step p (π.step q cstar))
@@ -241,11 +227,9 @@ private theorem waitFree_of_decides_in_one_step [Finite P]
       fun hm => hnot_act (Finset.mem_filter.mp hm).2⟩
   · intro q hq
     rw [Finset.mem_filter] at hq ⊢
-    refine ⟨hq.1, ?_⟩
-    by_cases hqp : q = p
-    · subst hqp
-      exact absurd hq.2 hnot_act
-    · exact (π.active_step_of_ne hqp).mp hq.2
+    rcases eq_or_ne q p with rfl | hqp
+    · exact absurd hq.2 hnot_act
+    · exact ⟨hq.1, (π.active_step_of_ne hqp).mp hq.2⟩
 
 end Helpers
 
@@ -305,19 +289,14 @@ theorem solvesWaitFreeConsensus_one {P I V : Type*} {Op Resp ObjState : I → Ty
       refine ⟨rfl, fun v hv => ?_⟩
       simp only [Protocol.initConfig, reduceCtorEq] at hv
     · intro c₁ q hinit hact_q p
-      by_cases hpq : p = q
-      · subst hpq
-        rw [π.step_of_active hact_q]
+      rcases eq_or_ne p q with rfl | hpq
+      · rw [π.step_of_active hact_q]
         simp only [π, oneProcProtocol, Function.update_self, Option.some.injEq]
         exact ⟨(hinit p).1, fun v hv => hv.symm.trans (hinit p).1⟩
-      · rw [π.step_proc_of_ne c₁ hpq]
-        exact hinit p
+      · simpa only [π.step_proc_of_ne c₁ hpq] using hinit p
   refine ⟨hwf, ?_, ?_⟩
   · rintro inp c hr v₁ v₂ ⟨p₁, hp₁⟩ ⟨p₂, hp₂⟩
-    have h₁ := (hinv inp c hr p₁).2 v₁ hp₁
-    have h₂ := (hinv inp c hr p₂).2 v₂ hp₂
-    have hp_eq : p₁ = p₂ := Subsingleton.elim p₁ p₂
-    rw [h₁, h₂, hp_eq]
+    rw [(hinv inp c hr p₁).2 v₁ hp₁, (hinv inp c hr p₂).2 v₂ hp₂, Subsingleton.elim p₁ p₂]
   · rintro inp c v hr ⟨p, hp⟩
     exact ⟨p, ((hinv inp c hr p).2 v hp).symm⟩
 
@@ -398,11 +377,7 @@ def IsCommutingOrOverwriting {Op Resp ObjState : Type*}
 theorem isCommutingOrOverwriting_registerObj {α : Type*} (init : α) :
     IsCommutingOrOverwriting (registerObj init) := by
   intro op₁ op₂ s
-  cases op₁ <;> cases op₂
-  · exact Or.inl rfl
-  · exact Or.inl rfl
-  · exact Or.inl rfl
-  · exact Or.inr (Or.inl rfl)
+  cases op₁ <;> cases op₂ <;> first | exact Or.inl rfl | exact Or.inr (Or.inl rfl)
 
 /-- Atomic `TestAndSet` object: starts at `false`; every invocation sets the state to `true` and
 returns the previous boolean value (`false` for the unique winner, `true` for all subsequent
@@ -585,19 +560,9 @@ private theorem waitFree_testAndSetProtocol {P R : Type*} {V : Type u}
     simp only [Function.update_self]
     have hdec_none : (c.proc p).decided = none := hact
     simp only [tasProcRank, hdec_none]
-    cases hs : (c.proc p).state with
-    | writeProp v =>
-      simp only [π, testAndSetProtocol, tasStageRank]
-      omega
-    | invokeTAS =>
-      simp only [π, testAndSetProtocol, tasStageRank]
-      omega
-    | readWinner r =>
-      simp only [π, testAndSetProtocol, tasObjFamily, tasKind, TASRegKind.toObjSpec, registerObj]
-      omega
-    | done =>
-      simp only [π, testAndSetProtocol]
-      omega
+    cases (c.proc p).state <;>
+      simp only [π, testAndSetProtocol, tasStageRank, tasObjFamily, tasKind,
+        TASRegKind.toObjSpec, registerObj] <;> omega
   have heq_other : ∑ q ∈ Finset.univ.erase p, tasProcRank ((π.step p c).proc q) =
       ∑ q ∈ Finset.univ.erase p, tasProcRank (c.proc q) :=
     Finset.sum_congr rfl fun q hq => by rw [π.step_proc_of_ne c (Finset.ne_of_mem_erase hq)]
@@ -776,18 +741,9 @@ private theorem exists_other_of_card_le_two {P : Type*} [Fintype P]
   let r := Classical.choose hex
   have hrp : r ≠ p := Classical.choose_spec hex
   by_contra hrq
-  have hmem_sub : ({p, q, r} : Finset P) ⊆ Finset.univ := Finset.subset_univ _
-  have hp_notin : p ∉ ({q, r} : Finset P) := by
-    simp only [Finset.mem_insert, Finset.mem_singleton, not_or]
-    exact ⟨hpq, hrp.symm⟩
-  have hq_notin : q ∉ ({r} : Finset P) := by
-    simp only [Finset.mem_singleton]
-    exact fun h => hrq h.symm
-  have hcard3 : ({p, q, r} : Finset P).card = 3 := by
-    rw [Finset.card_insert_of_notMem hp_notin, Finset.card_insert_of_notMem hq_notin,
-      Finset.card_singleton]
-  have hle := Finset.card_le_card hmem_sub
-  rw [hcard3, Finset.card_univ] at hle
+  have hcard3 : ({p, q, r} : Finset P).card = 3 :=
+    Finset.card_eq_three.mpr ⟨p, q, r, hpq, hrp.symm, Ne.symm hrq, rfl⟩
+  have hle := Finset.card_le_univ ({p, q, r} : Finset P)
   omega
 
 /-- **2-process `TestAndSet` sufficiency (`test&set` instance of [Herlihy1991], §3.2, Figure 7,
@@ -814,15 +770,11 @@ theorem not_waitFreeConsensus_rmw_of_three_le {P I S : Type*} {Op Resp ObjState 
   intro hcons
   refine false_of_same_object_critical π hcons (by omega) ?_
   intro cstar p q _ i op_p next_p dec_p op_q next_q dec_q ha_p ha_q huf hut hr_pq hr_qp
-  have hex_w : ∃ w : P, w ≠ p ∧ w ≠ q := by
-    have hlt : ({p, q} : Finset P).card < (Finset.univ : Finset P).card := by
-      have hle2 : ({p, q} : Finset P).card ≤ 2 := Finset.card_le_two (a := p) (b := q)
-      rw [Finset.card_univ]
-      omega
-    obtain ⟨w, _, hw_notin⟩ := Finset.exists_mem_notMem_of_card_lt_card hlt
-    simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hw_notin
-    exact ⟨w, hw_notin⟩
-  obtain ⟨w, hwp, hwq⟩ := hex_w
+  obtain ⟨w, hwp, hwq⟩ : ∃ w : P, w ≠ p ∧ w ≠ q := by
+    have hle2 : ({p, q} : Finset P).card ≤ 2 := Finset.card_le_two
+    obtain ⟨w, -, hw_notin⟩ := Finset.exists_mem_notMem_of_card_lt_card
+      (t := Finset.univ) (s := {p, q}) (by rw [Finset.card_univ]; omega)
+    exact ⟨w, by simpa only [Finset.mem_insert, Finset.mem_singleton, not_or] using hw_notin⟩
   rcases hobj i op_p op_q (cstar.mem i) with hcomm | hover_q | hover_p
   · refine Protocol.not_univalent_of_indistinguishable w ha_p ha_q huf hut hr_pq hr_qp ?_ ?_
     · simp only [applyAt, Function.update_self, Function.update_idem, hcomm]
@@ -885,11 +837,7 @@ theorem not_isCommutingOrOverwriting_casObj {α : Type*} [DecidableEq α] (init 
     ¬ IsCommutingOrOverwriting (casObj init) := by
   intro hco
   have h := hco ⟨a, b⟩ ⟨a, c⟩ a
-  simp only [casObj, ↓reduceIte, hab.symm, hac.symm] at h
-  rcases h with h₁ | h₂ | h₃
-  · exact hbc h₁
-  · exact hbc h₂
-  · exact hbc h₃.symm
+  simp [casObj, hab.symm, hac.symm, hbc, hbc.symm] at h
 
 /-- `casObj` over `Option V` (for any `[Nontrivial V]`, including `Option Bool`) is not
 commuting-or-overwriting. -/
@@ -938,72 +886,48 @@ theorem solvesWaitFreeConsensus_cas {P V : Type*} [Finite P] [DecidableEq P] [De
     · refine ⟨fun _ => rfl, ⟨fun _ _ => rfl, fun w hw => ?_⟩⟩
       simp only [Protocol.initConfig, casObj, reduceCtorEq] at hw
     · intro c₁ q ⟨hst, hnone, hsome⟩ hact_q
-      have hsq : (c₁.proc q).state = inp q := hst q
-      cases hmem : c₁.mem () with
-      | none =>
-        have hstep_c : π.step q c₁ =
-            { mem := Function.update c₁.mem () (some (inp q))
-              proc := Function.update c₁.proc q
-                { state := inp q, decided := some (inp q) } } := by
-          rw [π.step_of_active hact_q]
-          simp only [π, casConsensusProtocol, casObj, hsq, hmem, ↓reduceIte]
-        rw [hstep_c]
-        refine ⟨fun p => ?_, ⟨fun hn => ?_, fun w hw => ?_⟩⟩
-        · by_cases hpq : p = q
-          · subst hpq; simp only [Function.update_self]
-          · simp only [Function.update_of_ne hpq]; exact hst p
-        · simp only [Function.update_self, reduceCtorEq] at hn
-        · simp only [Function.update_self, Option.some.injEq] at hw
-          subst hw
-          refine ⟨⟨q, rfl⟩, fun p v hpv => ?_⟩
-          by_cases hpq : p = q
-          · subst hpq
-            simp only [Function.update_self, Option.some.injEq] at hpv
-            exact hpv.symm
-          · simp only [Function.update_of_ne hpq] at hpv
-            rw [hnone hmem p] at hpv
-            exact nomatch hpv
-      | some w₀ =>
-        obtain ⟨hw_valid, hw_dec⟩ := hsome w₀ hmem
-        have hstep_c : π.step q c₁ =
-            { mem := Function.update c₁.mem () (some w₀)
-              proc := Function.update c₁.proc q
-                { state := inp q, decided := some w₀ } } := by
-          rw [π.step_of_active hact_q]
-          simp only [π, casConsensusProtocol, casObj, hsq, hmem, reduceCtorEq, ↓reduceIte]
-        rw [hstep_c]
-        refine ⟨fun p => ?_, ⟨fun hn => ?_, fun w hw => ?_⟩⟩
-        · by_cases hpq : p = q
-          · subst hpq; simp only [Function.update_self]
-          · simp only [Function.update_of_ne hpq]; exact hst p
-        · simp only [Function.update_self, reduceCtorEq] at hn
-        · simp only [Function.update_self, Option.some.injEq] at hw
-          subst hw
-          refine ⟨hw_valid, fun p v hpv => ?_⟩
-          by_cases hpq : p = q
-          · subst hpq
-            simp only [Function.update_self, Option.some.injEq] at hpv
-            exact hpv.symm
-          · simp only [Function.update_of_ne hpq] at hpv
-            exact hw_dec p v hpv
-  refine ⟨hwf, ?_, ?_⟩
-  · rintro inp c hr v₁ v₂ ⟨p₁, hp₁⟩ ⟨p₂, hp₂⟩
-    obtain ⟨_, hnone, hsome⟩ := hinv inp c hr
-    cases hm : c.mem () with
-    | none =>
-      rw [hnone hm p₁] at hp₁
-      exact nomatch hp₁
-    | some w =>
-      obtain ⟨_, hdec⟩ := hsome w hm
-      rw [hdec p₁ v₁ hp₁, hdec p₂ v₂ hp₂]
-  · rintro inp c v hr ⟨p, hp⟩
+      -- Both `CAS` outcomes install some winner `w'` and let `q` decide it.
+      obtain ⟨w', hw_valid, hw_dec, hstep_c⟩ : ∃ w', (∃ q, inp q = w') ∧
+          (∀ p v, (c₁.proc p).decided = some v → v = w') ∧
+          π.step q c₁ =
+            { mem := Function.update c₁.mem () (some w')
+              proc := Function.update c₁.proc q { state := inp q, decided := some w' } } := by
+        rw [π.step_of_active hact_q]
+        cases hmem : c₁.mem () with
+        | none =>
+          refine ⟨inp q, ⟨q, rfl⟩, fun p v hpv => ?_, ?_⟩
+          · rw [hnone hmem p] at hpv; exact nomatch hpv
+          · simp only [π, casConsensusProtocol, casObj, hst q, ↓reduceIte]
+        | some w₀ =>
+          refine ⟨w₀, (hsome w₀ hmem).1, (hsome w₀ hmem).2, ?_⟩
+          simp only [π, casConsensusProtocol, casObj, hst q, reduceCtorEq, ↓reduceIte]
+      rw [hstep_c]
+      refine ⟨fun p => ?_, ⟨fun hn => ?_, fun w hw => ?_⟩⟩
+      · rcases eq_or_ne p q with rfl | hpq
+        · simp only [Function.update_self]
+        · simpa only [Function.update_of_ne hpq] using hst p
+      · simp only [Function.update_self, reduceCtorEq] at hn
+      · simp only [Function.update_self, Option.some.injEq] at hw
+        subst hw
+        refine ⟨hw_valid, fun p v hpv => ?_⟩
+        rcases eq_or_ne p q with rfl | hpq
+        · simp only [Function.update_self, Option.some.injEq] at hpv
+          exact hpv.symm
+        · simp only [Function.update_of_ne hpq] at hpv
+          exact hw_dec p v hpv
+  have hdec_of {inp c p v} (hr : π.Reachable inp c) (hp : (c.proc p).decided = some v) :
+      c.mem () = some v ∧ ∃ q, inp q = v := by
     obtain ⟨_, hnone, hsome⟩ := hinv inp c hr
     cases hm : c.mem () with
     | none =>
       rw [hnone hm p] at hp
       exact nomatch hp
     | some w =>
-      obtain ⟨⟨q, hq⟩, hdec⟩ := hsome w hm
-      exact ⟨q, hq.trans (hdec p v hp).symm⟩
+      obtain ⟨hq, hdec⟩ := hsome w hm
+      obtain rfl := hdec p v hp
+      exact ⟨rfl, hq⟩
+  refine ⟨hwf, fun inp c hr v₁ v₂ ⟨p₁, hp₁⟩ ⟨p₂, hp₂⟩ => ?_,
+    fun inp c v hr ⟨p, hp⟩ => (hdec_of hr hp).2⟩
+  exact Option.some.inj ((hdec_of hr hp₁).1.symm.trans (hdec_of hr hp₂).1)
 
 end Cslib.Distributed.SharedMemory

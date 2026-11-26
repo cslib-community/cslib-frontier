@@ -42,23 +42,17 @@ theorem vertexParity_eq_sum_incidenceWord
       (hd : d.vertex = (incidenceDart o false).vertex) : d.2 = false := by
     obtain ⟨p, hp⟩ := exists_incidenceDart d
     exact ((vertex_incidenceDart_eq_iff p o d.2 false).mp (hp ▸ hd)).1
-  refine Finset.sum_bij (fun d _ => d.1.val) ?_ ?_ ?_ ?_
-  · intro d hd
-    obtain ⟨p, hp⟩ := exists_incidenceDart d
-    have hv := (vertex_incidenceDart_eq_iff p o d.2 false).mp
-      (hp ▸ (Finset.mem_filter.mp hd).2)
-    apply List.mem_toFinset.mpr
-    exact (hw _).mpr ⟨p, congrArg (fun d => d.1.val) hp, by
-      simpa only [hv.1, Bool.false_eq_true, ite_false] using hv.2⟩
-  · intro d hd e he hde
-    exact Prod.ext (Fin.ext hde)
-      ((hside d (Finset.mem_filter.mp hd).2).trans (hside e (Finset.mem_filter.mp he).2).symm)
-  · intro i hi
-    obtain ⟨p, hp, hv⟩ := (hw i).mp (List.mem_toFinset.mp hi)
-    refine ⟨incidenceDart p false, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩, hp⟩
-    exact (vertex_incidenceDart_eq_iff p o false false).mpr ⟨rfl, hv⟩
-  · intro d _
-    exact (List.getD_ofFn x d.1 false).symm
+  refine Finset.sum_bij (fun d _ => d.1.val) (fun d hd => ?_)
+    (fun d hd e he hde => Prod.ext (Fin.ext hde)
+      ((hside d (Finset.mem_filter.mp hd).2).trans (hside e (Finset.mem_filter.mp he).2).symm))
+    (fun i hi => ?_) fun d _ => (List.getD_ofFn x d.1 false).symm
+  · obtain ⟨p, hp⟩ := exists_incidenceDart d
+    have hv := (vertex_incidenceDart_eq_iff p o d.2 false).mp (hp ▸ (Finset.mem_filter.mp hd).2)
+    exact List.mem_toFinset.mpr ((hw _).mpr ⟨p, congrArg (·.1.val) hp,
+      by simpa only [hv.1, Bool.false_eq_true, ite_false] using hv.2⟩)
+  · obtain ⟨p, hp, hv⟩ := (hw i).mp (List.mem_toFinset.mp hi)
+    exact ⟨incidenceDart p false, Finset.mem_filter.mpr ⟨Finset.mem_univ _,
+      (vertex_incidenceDart_eq_iff p o false false).mpr ⟨rfl, hv⟩⟩, hp⟩
 
 /-- Every exact variable-fiber word of a vertex-even labeling has zero sum. Empty
 fibers are included, without requiring that their label occurs in the body. -/
@@ -71,26 +65,17 @@ theorem sum_eq_false_of_vertexEven_word
   · simp [he, Bool.zero_eq_false]
   obtain ⟨i, hi⟩ := List.exists_mem_of_ne_nil word he
   have hlen : (incidenceGraph F).edges.length = F.vars.length := by
-    simp only [incidenceGraph_edges, List.length_map, ← CSP.map_occurrences, List.length_map]
-  have hb : i < (incidenceGraph F).edges.length := by
-    simpa only [hlen] using ((hf i).mp hi).1
-  obtain ⟨o, ho⟩ := exists_incidenceEdgeIndex (F := F) i hb
-  have hvar : o.var = label := by
-    rw [← getD_vars_incidenceEdgeIndex o fallback, ho]
-    exact ((hf i).mp hi).2
+    simp only [incidenceGraph_edges, List.length_map, ← CSP.map_occurrences]
+  obtain ⟨o, ho⟩ := exists_incidenceEdgeIndex (F := F) i (hlen ▸ ((hf i).mp hi).1)
+  have hvar : o.var = label :=
+    (getD_vars_incidenceEdgeIndex o fallback).symm.trans (ho ▸ ((hf i).mp hi).2)
   have hw (j : ℕ) : j ∈ word ↔ ∃ p : F.Occurrence,
       incidenceEdgeIndex p = j ∧ p.var = o.var := by
     rw [hf]
-    constructor
-    · rintro ⟨hj, hread⟩
-      have hj' : j < (incidenceGraph F).edges.length := by
-        simpa only [hlen] using hj
-      obtain ⟨p, hp⟩ := exists_incidenceEdgeIndex (F := F) j hj'
-      refine ⟨p, hp, ?_⟩
-      rw [← getD_vars_incidenceEdgeIndex p fallback, hp, hread, hvar]
-    · rintro ⟨p, rfl, hp⟩
-      exact ⟨incidenceEdgeIndex_lt_vars p, (getD_vars_incidenceEdgeIndex p fallback).trans
-        (hp.trans hvar)⟩
+    refine ⟨fun ⟨hj, hread⟩ => ?_, fun ⟨p, hpeq, hp⟩ => ⟨hpeq ▸ incidenceEdgeIndex_lt_vars p,
+      (hpeq ▸ getD_vars_incidenceEdgeIndex p fallback).trans (hp.trans hvar)⟩⟩
+    obtain ⟨p, hp⟩ := exists_incidenceEdgeIndex (F := F) j (hlen ▸ hj)
+    exact ⟨p, hp, by rw [← getD_vars_incidenceEdgeIndex p fallback, hp, hread, hvar]⟩
   rw [← vertexParity_eq_sum_incidenceWord x o word hn hw]
   exact hx _
 
@@ -111,18 +96,13 @@ theorem vertexParity_incidenceDart (x : Fin (incidenceGraph F).edges.length → 
       d ∈ selected.map (fun p => incidenceDart p side) ↔
         d.vertex = (incidenceDart o side).vertex := by
     obtain ⟨p, hp⟩ := exists_incidenceDart d
-    constructor
-    · intro hd
-      obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hd
-      apply (vertex_incidenceDart_eq_iff q o side side).mpr
-      exact ⟨rfl, of_decide_eq_true (List.mem_filter.mp hq).2⟩
-    · intro hd
-      have hv := (vertex_incidenceDart_eq_iff p o d.2 side).mp (hp ▸ hd)
-      refine List.mem_map.mpr ⟨p, ?_, ?_⟩
-      · exact List.mem_filter.mpr ⟨CSP.mem_incidenceList p, decide_eq_true (hv.1 ▸ hv.2)⟩
-      · rw [← hv.1]
-        exact hp
-  rw [(incidenceGraph F).vertexParity_eq_sum_word x _ _ hn hw, List.map_map]
-  rfl
+    refine ⟨fun hd => ?_, fun hd => ?_⟩
+    · obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hd
+      exact (vertex_incidenceDart_eq_iff q o side side).mpr
+        ⟨rfl, of_decide_eq_true (List.mem_filter.mp hq).2⟩
+    · have hv := (vertex_incidenceDart_eq_iff p o d.2 side).mp (hp ▸ hd)
+      exact List.mem_map.mpr ⟨p,
+        List.mem_filter.mpr ⟨CSP.mem_incidenceList p, decide_eq_true (hv.1 ▸ hv.2)⟩, hv.1 ▸ hp⟩
+  rw [(incidenceGraph F).vertexParity_eq_sum_word x _ _ hn hw, List.map_map]; rfl
 
 end Cslib.Complexity.CSP

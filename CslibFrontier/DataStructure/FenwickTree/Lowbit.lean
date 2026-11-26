@@ -79,13 +79,11 @@ termination_by n
 
 @[simp]
 theorem lowbit_zero : lowbit 0 = 0 := by
-  rw [lowbit]
-  simp only [↓reduceIte]
+  rw [lowbit]; simp only [↓reduceIte]
 
 @[simp]
 theorem lowbit_one : lowbit 1 = 1 := by
-  rw [lowbit]
-  simp only [Nat.one_ne_zero, ↓reduceIte]
+  rw [lowbit]; simp only [Nat.one_ne_zero, ↓reduceIte]
 
 theorem lowbit_pos {n : ℕ} (hn : 0 < n) : 0 < lowbit n := by
   fun_induction lowbit n with
@@ -120,24 +118,14 @@ theorem exists_odd_mul_lowbit {n : ℕ} (hn : 0 < n) :
 theorem lowbit_odd_mul_pow_two (q k : ℕ) : lowbit ((2 * q + 1) * 2 ^ k) = 2 ^ k := by
   induction k with
   | zero =>
-    simp only [Nat.pow_zero, Nat.mul_one]
-    rw [lowbit]
-    have hne : 2 * q + 1 ≠ 0 := by omega
-    have hodd : (2 * q + 1) % 2 = 1 := by omega
-    simp only [hne, hodd, ↓reduceIte]
+    rw [Nat.pow_zero, Nat.mul_one, lowbit]
+    simp only [show 2 * q + 1 ≠ 0 by omega, show (2 * q + 1) % 2 = 1 by omega, ↓reduceIte]
   | succ k ih =>
-    set m := (2 * q + 1) * 2 ^ k
-    have heq : (2 * q + 1) * 2 ^ (k + 1) = 2 * m := by
-      dsimp only [m]
-      ring
-    rw [heq]
-    conv_lhs => rw [lowbit]
-    have hm_pos : 0 < m := Nat.mul_pos (by omega) (Nat.two_pow_pos k)
-    have hne : 2 * m ≠ 0 := by omega
-    have heven : ¬ ((2 * m) % 2 = 1) := by omega
-    have hdiv : (2 * m) / 2 = m := by omega
-    simp only [hne, heven, ↓reduceIte, hdiv, ih]
-    ring
+    have hm_pos : 0 < (2 * q + 1) * 2 ^ k := Nat.mul_pos (by omega) (Nat.two_pow_pos k)
+    rw [pow_succ', mul_left_comm, lowbit]
+    generalize (2 * q + 1) * 2 ^ k = m at hm_pos ih ⊢
+    simp only [show 2 * m ≠ 0 by omega, show ¬(2 * m % 2 = 1) by omega, ↓reduceIte,
+      show 2 * m / 2 = m by omega, ih]
 
 theorem lowbit_pow_two (k : ℕ) : lowbit (2 ^ k) = 2 ^ k := by
   simpa only [Nat.mul_zero, Nat.zero_add, Nat.one_mul] using lowbit_odd_mul_pow_two 0 k
@@ -149,47 +137,28 @@ theorem two_pow_le_lowbit_of_dvd {n k : ℕ} (hn : 0 < n) (hdvd : 2 ^ k ∣ n) :
   rw [hlb]
   rcases le_or_gt k j with hle | hgt
   · exact Nat.pow_le_pow_right (by omega) hle
-  · exfalso
-    obtain ⟨c, hc⟩ := hdvd
-    have hsplit : 2 ^ k = 2 ^ (k - j) * 2 ^ j := by
-      rw [← Nat.pow_add, Nat.sub_add_cancel (Nat.le_of_lt hgt)]
-    rw [hfact, hsplit] at hc
-    have hmul : (2 * q + 1) * 2 ^ j = (2 ^ (k - j) * c) * 2 ^ j := by
-      calc (2 * q + 1) * 2 ^ j = 2 ^ (k - j) * 2 ^ j * c := hc
-        _ = (2 ^ (k - j) * c) * 2 ^ j := by ring
-    have heq : 2 * q + 1 = 2 ^ (k - j) * c :=
-      Nat.eq_of_mul_eq_mul_right (Nat.two_pow_pos j) hmul
-    have heven : 2 ^ (k - j) = 2 * 2 ^ (k - j - 1) := by
-      conv_lhs => rw [show k - j = (k - j - 1) + 1 by omega]
-      ring
-    rw [heven, Nat.mul_assoc] at heq
+  · have h := (Nat.pow_dvd_pow 2 (hgt : j + 1 ≤ k)).trans hdvd
+    rw [hfact, pow_succ, mul_comm (2 * q + 1)] at h
+    have := Nat.dvd_of_mul_dvd_mul_left (Nat.two_pow_pos j) h
     omega
 
 /-- Stepping downward `m ↦ m - lowbit m` at least doubles `lowbit` whenever `m - lowbit m > 0`. -/
 theorem two_mul_lowbit_le_lowbit_sub {m : ℕ} (hsub : 0 < m - lowbit m) :
     2 * lowbit m ≤ lowbit (m - lowbit m) := by
-  have hm : 0 < m := by omega
-  obtain ⟨q, k, hlb, hfact⟩ := exists_odd_mul_lowbit hm
-  have hdiff : m - lowbit m = q * 2 ^ (k + 1) := by
-    rw [hlb, hfact]
-    have hsum : (2 * q + 1) * 2 ^ k = q * 2 ^ (k + 1) + 2 ^ k := by ring
-    rw [hsum, Nat.add_sub_cancel]
-  have hdvd : 2 ^ (k + 1) ∣ m - lowbit m := ⟨q, by rw [hdiff]; ring⟩
-  have hle := two_pow_le_lowbit_of_dvd hsub hdvd
-  have hpow : 2 * lowbit m = 2 ^ (k + 1) := by rw [hlb]; ring
-  exact hpow ▸ hle
+  obtain ⟨q, k, hlb, hfact⟩ := exists_odd_mul_lowbit (by omega : 0 < m)
+  have hdvd : 2 ^ (k + 1) ∣ m - lowbit m := ⟨q, by
+    rw [hlb, hfact, show (2 * q + 1) * 2 ^ k = q * 2 ^ (k + 1) + 2 ^ k by ring,
+      Nat.add_sub_cancel, mul_comm]⟩
+  exact (by rw [hlb, pow_succ'] : 2 * lowbit m = 2 ^ (k + 1)) ▸
+    two_pow_le_lowbit_of_dvd hsub hdvd
 
 /-- Stepping upward `m ↦ m + lowbit m` at least doubles `lowbit` for all `m > 0`. -/
 theorem two_mul_lowbit_le_lowbit_add {m : ℕ} (hm : 0 < m) :
     2 * lowbit m ≤ lowbit (m + lowbit m) := by
   obtain ⟨q, k, hlb, hfact⟩ := exists_odd_mul_lowbit hm
-  have hsum : m + lowbit m = (q + 1) * 2 ^ (k + 1) := by
-    rw [hlb, hfact]
-    ring
-  have hdvd : 2 ^ (k + 1) ∣ m + lowbit m := ⟨q + 1, by rw [hsum]; ring⟩
-  have hle := two_pow_le_lowbit_of_dvd (by omega) hdvd
-  have hpow : 2 * lowbit m = 2 ^ (k + 1) := by rw [hlb]; ring
-  exact hpow ▸ hle
+  have hdvd : 2 ^ (k + 1) ∣ m + lowbit m := ⟨q + 1, by rw [hlb, hfact]; ring⟩
+  exact (by rw [hlb, pow_succ'] : 2 * lowbit m = 2 ^ (k + 1)) ▸
+    two_pow_le_lowbit_of_dvd (by omega) hdvd
 
 /-! ## Parent-interval bridge -/
 
@@ -197,11 +166,9 @@ private theorem not_dvd_two_pow_succ_between {r j x : ℕ}
     (hdvd : 2 ^ (j + 1) ∣ x)
     (hlo : 2 * r * 2 ^ j < x) (hhi : x ≤ (2 * r + 1) * 2 ^ j) : False := by
   obtain ⟨c, rfl⟩ := hdvd
-  have hpow : 0 < 2 ^ j := Nat.two_pow_pos j
-  have hrew : 2 ^ (j + 1) * c = (2 * c) * 2 ^ j := by ring
-  rw [hrew] at hlo hhi
-  have hlt' : 2 * r < 2 * c := Nat.lt_of_mul_lt_mul_right hlo
-  have hle' : 2 * c ≤ 2 * r + 1 := Nat.le_of_mul_le_mul_right hhi hpow
+  rw [show 2 ^ (j + 1) * c = 2 * c * 2 ^ j by ring] at hlo hhi
+  have := Nat.lt_of_mul_lt_mul_right hlo
+  have := Nat.le_of_mul_le_mul_right hhi (Nat.two_pow_pos j)
   omega
 
 /-- Fundamental Fenwick parent-interval bridge: for `0 < m < idx`, `idx`'s interval
@@ -212,65 +179,40 @@ theorem fenwick_parent_bridge {m idx : ℕ} (hm : 0 < m) (hlt : m < idx) :
   obtain ⟨q, k, hlb_m, hm_eq⟩ := exists_odd_mul_lowbit hm
   obtain ⟨r, j, hlb_i, hi_eq⟩ := exists_odd_mul_lowbit (Nat.lt_trans hm hlt)
   have hisub : idx - lowbit idx = 2 * r * 2 ^ j := by
-    rw [hlb_i, hi_eq]
-    have hsum : (2 * r + 1) * 2 ^ j = 2 * r * 2 ^ j + 2 ^ j := by ring
-    rw [hsum, Nat.add_sub_cancel]
-  have hmadd : m + lowbit m = (2 * q + 2) * 2 ^ k := by
-    rw [hlb_m, hm_eq]
-    ring
+    rw [hlb_i, hi_eq, add_one_mul, Nat.add_sub_cancel]
+  have hmadd : m + lowbit m = (2 * q + 2) * 2 ^ k := by rw [hlb_m, hm_eq]; ring
+  have hp (hkj : k < j) : 2 ^ j = 2 * 2 ^ (j - 1 - k) * 2 ^ k := by
+    rw [← pow_succ', ← pow_add]; congr 1; omega
   constructor
   · intro hlo
     refine ⟨by omega, ?_⟩
     rcases lt_trichotomy j k with hjk | rfl | hkj
-    · exfalso
-      have hdvd : 2 ^ (j + 1) ∣ m := by
-        refine ⟨(2 * q + 1) * 2 ^ (k - (j + 1)), ?_⟩
-        have hp : 2 ^ k = 2 ^ (j + 1) * 2 ^ (k - (j + 1)) := by
-          rw [← Nat.pow_add, Nat.add_sub_cancel' (by omega)]
-        rw [hm_eq, hp]
-        ring
-      exact not_dvd_two_pow_succ_between hdvd (hisub ▸ hlo) (hi_eq ▸ Nat.le_of_lt hlt)
-    · exfalso
-      rw [hisub, hm_eq] at hlo
+    · refine (not_dvd_two_pow_succ_between ⟨(2 * q + 1) * 2 ^ (k - (j + 1)), ?_⟩
+        (hisub ▸ hlo) (hi_eq ▸ hlt.le)).elim
+      rw [hm_eq, mul_left_comm, ← pow_add, Nat.add_sub_cancel' (by omega)]
+    · rw [hisub, hm_eq] at hlo
       rw [hm_eq, hi_eq] at hlt
-      have h1 : 2 * r < 2 * q + 1 := Nat.lt_of_mul_lt_mul_right hlo
-      have h2 : 2 * q + 1 < 2 * r + 1 := Nat.lt_of_mul_lt_mul_right hlt
+      have := Nat.lt_of_mul_lt_mul_right hlo
+      have := Nat.lt_of_mul_lt_mul_right hlt
       omega
-    · have hp : 2 ^ j = 2 * 2 ^ (j - 1 - k) * 2 ^ k := by
-        have hj : j = 1 + (j - 1 - k) + k := by omega
-        conv_lhs => rw [hj, Nat.pow_add, Nat.pow_add, Nat.pow_one]
-      have hi_k : idx = (2 * ((2 * r + 1) * 2 ^ (j - 1 - k))) * 2 ^ k := by
-        rw [hi_eq, hp]
-        ring
-      have hlt_k : 2 * q + 1 < 2 * ((2 * r + 1) * 2 ^ (j - 1 - k)) := by
-        rw [hm_eq, hi_k] at hlt
-        exact Nat.lt_of_mul_lt_mul_right hlt
+    · have hi_k : idx = 2 * ((2 * r + 1) * 2 ^ (j - 1 - k)) * 2 ^ k := by
+        rw [hi_eq, hp hkj]; ring
+      rw [hm_eq, hi_k] at hlt
       rw [hmadd, hi_k]
-      exact Nat.mul_le_mul_right (2 ^ k) (by omega)
+      exact Nat.mul_le_mul_right _ (by have := Nat.lt_of_mul_lt_mul_right hlt; omega)
   · rintro ⟨hlo, hhi⟩
     rcases le_or_gt j k with hjk | hkj
-    · exfalso
-      have hdvd : 2 ^ (j + 1) ∣ m + lowbit m := by
-        refine ⟨(q + 1) * 2 ^ (k - j), ?_⟩
-        have hp : 2 ^ (k + 1) = 2 ^ (j + 1) * 2 ^ (k - j) := by
-          rw [← Nat.pow_add]
-          congr 1
-          omega
-        have h2q : (2 * q + 2) * 2 ^ k = (q + 1) * 2 ^ (k + 1) := by ring
-        rw [hmadd, h2q, hp]
-        ring
-      exact not_dvd_two_pow_succ_between hdvd (hisub ▸ hlo) (hi_eq ▸ hhi)
-    · have hp : 2 ^ j = 2 * 2 ^ (j - 1 - k) * 2 ^ k := by
-        have hj : j = 1 + (j - 1 - k) + k := by omega
-        conv_lhs => rw [hj, Nat.pow_add, Nat.pow_add, Nat.pow_one]
-      have hisub_k : idx - lowbit idx = (2 * (2 * r * 2 ^ (j - 1 - k))) * 2 ^ k := by
-        rw [hisub, hp]
-        ring
-      have hlt_k : 2 * (2 * r * 2 ^ (j - 1 - k)) < 2 * q + 2 := by
-        rw [hisub_k, hmadd] at hlo
-        exact Nat.lt_of_mul_lt_mul_right hlo
+    · refine (not_dvd_two_pow_succ_between ⟨(q + 1) * 2 ^ (k - j), ?_⟩
+        (hisub ▸ hlo) (hi_eq ▸ hhi)).elim
+      rw [hmadd, show (2 * q + 2) * 2 ^ k = (q + 1) * 2 ^ (k + 1) by ring, mul_left_comm,
+        ← pow_add]
+      congr 2; omega
+    · have hisub_k : idx - lowbit idx = 2 * (2 * r * 2 ^ (j - 1 - k)) * 2 ^ k := by
+        rw [hisub, hp hkj]; ring
+      rw [hisub_k, hmadd] at hlo
       rw [hisub_k, hm_eq]
-      exact Nat.mul_lt_mul_of_pos_right (by omega) (Nat.two_pow_pos k)
+      exact Nat.mul_lt_mul_of_pos_right (by have := Nat.lt_of_mul_lt_mul_right hlo; omega)
+        (Nat.two_pow_pos k)
 
 /-! ## Downward and upward traversal chains -/
 
@@ -294,11 +236,8 @@ theorem downChain_zero : downChain 0 = [] := by
   simp only [Nat.lt_irrefl, ↓reduceDIte]
 
 private theorem two_pow_exponent_lt_of_two_mul_le {k k' : ℕ}
-    (hle : 2 * 2 ^ k ≤ 2 ^ k') : k + 1 ≤ k' := by
-  have h1 : 2 ^ (k + 1) ≤ 2 ^ k' := by
-    have hpow : 2 ^ (k + 1) = 2 * 2 ^ k := by ring
-    exact hpow ▸ hle
-  exact (Nat.pow_le_pow_iff_right (by omega : 1 < 2)).mp h1
+    (hle : 2 * 2 ^ k ≤ 2 ^ k') : k + 1 ≤ k' :=
+  (Nat.pow_le_pow_iff_right Nat.one_lt_two).mp (by rwa [pow_succ'])
 
 private theorem length_downChain_add_exp_le {m k : ℕ} (hm : 0 < m) (hlb : lowbit m = 2 ^ k) :
     (downChain m).length + k ≤ Nat.log 2 m + 1 := by
@@ -310,10 +249,8 @@ private theorem length_downChain_add_exp_le {m k : ℕ} (hm : 0 < m) (hlb : lowb
     · rw [h0, downChain_zero, List.length_nil]
       omega
     · obtain ⟨_, k', hlb', _⟩ := exists_odd_mul_lowbit hpos
-      have hk_step : k + 1 ≤ k' := by
-        have h2 := two_mul_lowbit_le_lowbit_sub hpos
-        rw [hlb', hlb] at h2
-        exact two_pow_exponent_lt_of_two_mul_le h2
+      have hk_step : k + 1 ≤ k' :=
+        two_pow_exponent_lt_of_two_mul_le (hlb ▸ hlb' ▸ two_mul_lowbit_le_lowbit_sub hpos)
       have hsub := ih hpos hlb'
       have hlog_mono : Nat.log 2 (m - lowbit m) ≤ Nat.log 2 m := Nat.log_mono_right (by omega)
       omega
@@ -332,10 +269,9 @@ theorem length_downChain_le_clog {m n : ℕ} (hmn : m ≤ n) :
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · simp only [downChain_zero, List.length_nil, Nat.zero_le]
   · have hlog := length_downChain_le_log hm
-    have hpow : 2 ^ Nat.log 2 m < n + 1 :=
-      Nat.lt_succ_of_le ((Nat.pow_log_le_self 2 (Nat.ne_of_gt hm)).trans hmn)
     have hclog : Nat.log 2 m < Nat.clog 2 (n + 1) :=
-      (Nat.lt_clog_iff_pow_lt Nat.one_lt_two).mpr hpow
+      (Nat.lt_clog_iff_pow_lt Nat.one_lt_two).mpr
+        (Nat.lt_succ_of_le ((Nat.pow_log_le_self 2 hm.ne').trans hmn))
     omega
 
 private theorem length_upChain_add_exp_le {n m k : ℕ}
@@ -348,10 +284,8 @@ private theorem length_upChain_add_exp_le {n m k : ℕ}
       Nat.le_log_of_pow_le (by omega) ((hlb ▸ lowbit_le m).trans hmn)
     by_cases hnext : m + lowbit m ≤ n
     · obtain ⟨_, k', hlb', _⟩ := exists_odd_mul_lowbit (by omega : 0 < m + lowbit m)
-      have hk_step : k + 1 ≤ k' := by
-        have h2 := two_mul_lowbit_le_lowbit_add hm
-        rw [hlb', hlb] at h2
-        exact two_pow_exponent_lt_of_two_mul_le h2
+      have hk_step : k + 1 ≤ k' :=
+        two_pow_exponent_lt_of_two_mul_le (hlb ▸ hlb' ▸ two_mul_lowbit_le_lowbit_add hm)
       have hsub := ih (by omega) hnext hlb'
       omega
     · rw [upChain]
@@ -371,11 +305,9 @@ theorem length_upChain_le_clog (n m : ℕ) :
     (upChain n m).length ≤ Nat.clog 2 (n + 1) := by
   by_cases h : 0 < m ∧ m ≤ n
   · have hlog := length_upChain_le_log h.1 h.2
-    have hn : 0 < n := Nat.lt_of_lt_of_le h.1 h.2
-    have hpow : 2 ^ Nat.log 2 n < n + 1 :=
-      Nat.lt_succ_of_le (Nat.pow_log_le_self 2 (Nat.ne_of_gt hn))
     have hclog : Nat.log 2 n < Nat.clog 2 (n + 1) :=
-      (Nat.lt_clog_iff_pow_lt Nat.one_lt_two).mpr hpow
+      (Nat.lt_clog_iff_pow_lt Nat.one_lt_two).mpr
+        (Nat.lt_succ_of_le (Nat.pow_log_le_self 2 (h.1.trans_le h.2).ne'))
     omega
   · rw [upChain]
     simp only [h, ↓reduceDIte, List.length_nil, Nat.zero_le]
@@ -411,24 +343,14 @@ theorem mem_upChain_iff {n m idx : ℕ} (hm : 0 < m) :
     simp only [List.mem_cons]
     have hlb_pos : 0 < lowbit m := lowbit_pos hm
     rcases lt_trichotomy idx m with hlt | rfl | hgt
-    · constructor
-      · rintro (rfl | htail)
-        · omega
-        · have hge := ge_of_mem_upChain htail
-          omega
+    · refine ⟨?_, by omega⟩
+      rintro (rfl | htail)
       · omega
+      · have := ge_of_mem_upChain htail; omega
     · simp only [true_or, Nat.le_refl, hguard.2, true_and, true_iff]
       omega
-    · have hneq : idx ≠ m := Nat.ne_of_gt hgt
-      simp only [hneq, false_or]
-      rw [ih (by omega)]
-      have hbridge := fenwick_parent_bridge hm hgt
-      constructor
-      · rintro ⟨hle, hin, hsub⟩
-        exact ⟨Nat.le_of_lt hgt, hin, hbridge.mpr ⟨hsub, hle⟩⟩
-      · rintro ⟨_, hin, hsub⟩
-        obtain ⟨hsub', hle'⟩ := hbridge.mp hsub
-        exact ⟨hle', hin, hsub'⟩
+    · rw [or_iff_right (Nat.ne_of_gt hgt), ih (by omega), fenwick_parent_bridge hm hgt]
+      omega
   | case2 m hguard => -- otherwise: []
     simp only [List.not_mem_nil, false_iff]
     rintro ⟨hle, hin, _⟩
@@ -448,12 +370,12 @@ private theorem exists_child_of_mem_upChain {idx m : ℕ}
   fun_induction upChain idx m with
   | case1 m _ ih => -- 0 < m ∧ m ≤ idx: m :: upChain idx (m + lowbit m)
     rcases List.mem_cons.mp hmem with rfl | htail
-    · exact False.elim (Nat.lt_irrefl _ hlt)
+    · omega
     · have hm'_le : m + lowbit m ≤ idx := ge_of_mem_upChain htail
       rcases Nat.eq_or_lt_of_le hm'_le with heq | hlt'
       · refine ⟨m, ?_, List.mem_cons_self⟩
         simp only [fenwickChildren, Finset.mem_filter, Finset.mem_Icc]
-        exact ⟨⟨hm, by omega⟩, heq⟩
+        omega
       · obtain ⟨c, hc_child, hc_mem⟩ := ih (by omega) hlt' htail
         exact ⟨c, hc_child, List.mem_cons_of_mem _ hc_mem⟩
   | case2 => simp only [List.not_mem_nil] at hmem -- otherwise: []
@@ -468,17 +390,9 @@ theorem pairwiseDisjoint_fenwickChildren (idx : ℕ) :
   intro i hi₁ hi₂
   simp only [Finset.mem_Ico] at hi₁ hi₂
   rcases lt_trichotomy c₁ c₂ with hlt | rfl | hgt
-  · have hsep : c₁ ≤ c₂ - lowbit c₂ := by
-      by_contra hnot
-      have hbridge := (fenwick_parent_bridge hc₁.1.1 hlt).mp (by omega)
-      omega
-    omega
+  · have := fenwick_parent_bridge hc₁.1.1 hlt; omega
   · exact hne rfl
-  · have hsep : c₂ ≤ c₁ - lowbit c₁ := by
-      by_contra hnot
-      have hbridge := (fenwick_parent_bridge hc₂.1.1 hgt).mp (by omega)
-      omega
-    omega
+  · have := fenwick_parent_bridge hc₂.1.1 hgt; omega
 
 /-- `{idx - 1}` is disjoint from all immediate-child intervals `[c - lowbit c, c)`. -/
 theorem notMem_biUnion_fenwickChildren (idx : ℕ) :
@@ -508,13 +422,10 @@ theorem insert_biUnion_fenwickChildren {idx : ℕ} (hidx : 0 < idx) :
   · rintro ⟨hlo, hhi⟩
     rcases Nat.eq_or_lt_of_le (by omega : i ≤ idx - 1) with rfl | hilt
     · exact Or.inl rfl
-    · right
-      have hm_pos : 0 < i + 1 := by omega
-      have hm_lt : i + 1 < idx := by omega
-      have hmem : idx ∈ upChain idx (i + 1) :=
-        (mem_upChain_iff hm_pos).mpr ⟨Nat.le_of_lt hm_lt, Nat.le_refl idx, by omega⟩
-      obtain ⟨c, hc_child, hc_mem⟩ := exists_child_of_mem_upChain hm_pos hm_lt hmem
-      obtain ⟨hc_ge, _, hc_sub⟩ := (mem_upChain_iff hm_pos).mp hc_mem
-      exact ⟨c, hc_child, by omega, by omega⟩
+    · have hmem : idx ∈ upChain idx (i + 1) :=
+        (mem_upChain_iff i.succ_pos).mpr ⟨by omega, le_rfl, by omega⟩
+      obtain ⟨c, hc_child, hc_mem⟩ := exists_child_of_mem_upChain i.succ_pos (by omega) hmem
+      obtain ⟨hc_ge, _, hc_sub⟩ := (mem_upChain_iff i.succ_pos).mp hc_mem
+      exact Or.inr ⟨c, hc_child, by omega, by omega⟩
 
 end Cslib.DataStructure.FenwickTree

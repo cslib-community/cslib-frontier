@@ -70,10 +70,8 @@ namespace Turing.MultiTapeTM.BinaryGcd
 theorem gcd_product_halving {a b : ℕ} (ha : 0 < a) (hab : a ≤ b) :
     2 * (a * (b % a)) ≤ a * b := by
   have hr := Nat.mod_lt b ha
-  have hq : 1 ≤ b / a := (Nat.one_le_div_iff ha).mpr hab
   have hid := Nat.mod_add_div b a
-  have hmul := Nat.mul_le_mul_left a hq
-  have hhalf : 2 * (b % a) ≤ b := by lia
+  have hmul := Nat.mul_le_mul_left a ((Nat.one_le_div_iff ha).mpr hab)
   nlinarith
 
 /-- One step of Euclid's algorithm: replace `(a, b)` by `(b, a % b)` while `b ≠ 0`. -/
@@ -167,10 +165,9 @@ lemma snd_iterate_gcdStep_gcdCount (p : ℕ × ℕ) :
     exact Nat.mul_lt_mul'' h₁ h₂
   by_contra hne
   have hpos : 1 ≤ (gcdStep^[k] (gcdStep p)).1 * (gcdStep^[k] (gcdStep p)).2 := by
-    have : 1 ≤ (gcdStep^[k] (gcdStep p)).2 := Nat.pos_of_ne_zero hne
+    have := Nat.pos_of_ne_zero hne
     nlinarith
-  have hge : 2 ^ k ≤ 2 ^ k * ((gcdStep^[k] (gcdStep p)).1 * (gcdStep^[k] (gcdStep p)).2) :=
-    Nat.le_mul_of_pos_right (2 ^ k) hpos
+  have := Nat.le_mul_of_pos_right (2 ^ k) hpos
   lia
 
 /-- Iterating `gcdStep` for `gcdCount p` steps reaches `(Nat.gcd p.1 p.2, 0)`. -/
@@ -186,12 +183,10 @@ theorem iterate_gcdStep_eq (p : ℕ × ℕ) :
 theorem length_encPair_iterate_gcdStep_le (p : ℕ × ℕ) (i : ℕ) :
     (encPair encNat encNat (gcdStep^[i] p)).length ≤ 3 * (encPair encNat encNat p).length := by
   have hmax := max_iterate_gcdStep_le p i
-  have h₁ : (gcdStep^[i] p).1 ≤ max p.1 p.2 := (le_max_left _ _).trans hmax
-  have h₂ : (gcdStep^[i] p).2 ≤ max p.1 p.2 := (le_max_right _ _).trans hmax
+  have hs₁ := Nat.size_le_size ((le_max_left _ _).trans hmax)
+  have hs₂ := Nat.size_le_size ((le_max_right _ _).trans hmax)
   have hm : (max p.1 p.2).size ≤ p.1.size + p.2.size := by grind
-  have hs₁ : ((gcdStep^[i] p).1).size ≤ p.1.size + p.2.size := (Nat.size_le_size h₁).trans hm
-  have hs₂ : ((gcdStep^[i] p).2).size ≤ p.1.size + p.2.size := (Nat.size_le_size h₂).trans hm
-  simp only [length_encPair, encNat_apply, Nat.size_eq_bits_len] at hs₁ hs₂ ⊢
+  simp only [length_encPair, encNat_apply, Nat.size_eq_bits_len] at hs₁ hs₂ hm ⊢
   lia
 
 /-- Initial state `((m, a), (0, if m ≤ 1 then 0 else 1))` for the unsigned extended-Euclidean
@@ -203,25 +198,35 @@ def modInvInit (a m : ℕ) : (ℕ × ℕ) × (ℕ × ℕ) :=
 def modInvNext (m q t₀ t₁ : ℕ) : ℕ :=
   (t₀ + m - (q * t₁) % m) % m
 
+/-- First remainder `s.1.1` of the extended-Euclidean state `((r₀, r₁), (t₀, t₁))`. -/
+abbrev modInvRem0 (s : (ℕ × ℕ) × (ℕ × ℕ)) : ℕ := s.1.1
+
+/-- Second remainder `s.1.2` of the extended-Euclidean state `((r₀, r₁), (t₀, t₁))`. -/
+abbrev modInvRem1 (s : (ℕ × ℕ) × (ℕ × ℕ)) : ℕ := s.1.2
+
+/-- First Bézout coefficient `s.2.1` of the extended-Euclidean state `((r₀, r₁), (t₀, t₁))`. -/
+abbrev modInvCoeff0 (s : (ℕ × ℕ) × (ℕ × ℕ)) : ℕ := s.2.1
+
+/-- Second Bézout coefficient `s.2.2` of the extended-Euclidean state `((r₀, r₁), (t₀, t₁))`. -/
+abbrev modInvCoeff1 (s : (ℕ × ℕ) × (ℕ × ℕ)) : ℕ := s.2.2
+
 /-- One step of the unsigned extended-Euclidean loop modulo `m`: advance the remainder pair
 `(r₀, r₁)` by `gcdStep` and update `(t₀, t₁)` to `(t₁, modInvNext m (r₀ / r₁) t₀ t₁)`
 while `r₁ ≠ 0`. -/
 def modInvStep (m : ℕ) (s : (ℕ × ℕ) × (ℕ × ℕ)) : (ℕ × ℕ) × (ℕ × ℕ) :=
-  let r := s.1
-  let t := s.2
-  if r.2 = 0 then s
-  else ((r.2, r.1 % r.2), (t.2, modInvNext m (r.1 / r.2) t.1 t.2))
+  if modInvRem1 s = 0 then s
+  else ((modInvRem1 s, modInvRem0 s % modInvRem1 s),
+    (modInvCoeff1 s, modInvNext m (modInvRem0 s / modInvRem1 s) (modInvCoeff0 s) (modInvCoeff1 s)))
 
 /-- Unsigned modular inverse of `a` modulo `m`, computed by the extended Euclidean algorithm.
 When `0 < m`, `a * modInv a m ≡ Nat.gcd m a [MOD m]` and `modInv a m < m`; when
 `Nat.Coprime a m`, `a * modInv a m ≡ 1 [MOD m]`. -/
 def modInv (a m : ℕ) : ℕ :=
-  let t := ((modInvStep m)^[gcdCount (m, a)] (modInvInit a m)).2
-  t.1
+  modInvCoeff0 ((modInvStep m)^[gcdCount (m, a)] (modInvInit a m))
 
 private lemma fst_modInvStep (m : ℕ) (s : (ℕ × ℕ) × (ℕ × ℕ)) :
     (modInvStep m s).1 = gcdStep s.1 := by
-  dsimp only [modInvStep, gcdStep]
+  dsimp only [modInvStep, modInvRem0, modInvRem1, gcdStep]
   split_ifs <;> rfl
 
 private lemma fst_iterate_modInvStep (m : ℕ) (s : (ℕ × ℕ) × (ℕ × ℕ)) (i : ℕ) :
@@ -233,14 +238,12 @@ private lemma fst_iterate_modInvStep (m : ℕ) (s : (ℕ × ℕ) × (ℕ × ℕ)
 
 private lemma snd_modInvStep_le (m : ℕ) (s : (ℕ × ℕ) × (ℕ × ℕ)) (h₁ : s.2.1 ≤ m) (h₂ : s.2.2 ≤ m) :
     (modInvStep m s).2.1 ≤ m ∧ (modInvStep m s).2.2 ≤ m := by
-  dsimp only [modInvStep, modInvNext]
+  dsimp only [modInvStep, modInvRem0, modInvRem1, modInvCoeff0, modInvCoeff1, modInvNext]
   split_ifs with hr
   · exact ⟨h₁, h₂⟩
   · refine ⟨h₂, ?_⟩
     rcases Nat.eq_zero_or_pos m with rfl | hm
-    · have hs₁ : s.2.1 = 0 := by lia
-      have hs₂ : s.2.2 = 0 := by lia
-      simp [hs₁, hs₂]
+    · simp [Nat.le_zero.mp h₁, Nat.le_zero.mp h₂]
     · exact (Nat.mod_lt _ hm).le
 
 private lemma snd_iterate_modInvStep_le (m : ℕ) (s : (ℕ × ℕ) × (ℕ × ℕ))
@@ -250,8 +253,7 @@ private lemma snd_iterate_modInvStep_le (m : ℕ) (s : (ℕ × ℕ) × (ℕ × �
   | zero => exact ⟨h₁, h₂⟩
   | succ i ih =>
     rw [Function.iterate_succ_apply]
-    obtain ⟨h₁', h₂'⟩ := snd_modInvStep_le m s h₁ h₂
-    exact ih (modInvStep m s) h₁' h₂'
+    exact ih _ (snd_modInvStep_le m s h₁ h₂).1 (snd_modInvStep_le m s h₁ h₂).2
 
 private lemma snd_modInvInit_le (a m : ℕ) :
     (modInvInit a m).2.1 ≤ m ∧ (modInvInit a m).2.2 ≤ m := by
@@ -261,7 +263,7 @@ private lemma snd_modInvInit_le (a m : ℕ) :
 private lemma snd_modInvStep_lt {m : ℕ} (hm : 0 < m) (s : (ℕ × ℕ) × (ℕ × ℕ))
     (h₁ : s.2.1 < m) (h₂ : s.2.2 < m) :
     (modInvStep m s).2.1 < m ∧ (modInvStep m s).2.2 < m := by
-  dsimp only [modInvStep, modInvNext]
+  dsimp only [modInvStep, modInvRem0, modInvRem1, modInvCoeff0, modInvCoeff1, modInvNext]
   split_ifs with hr
   · exact ⟨h₁, h₂⟩
   · exact ⟨h₂, Nat.mod_lt _ hm⟩
@@ -273,8 +275,7 @@ private lemma snd_iterate_modInvStep_lt {m : ℕ} (hm : 0 < m) (s : (ℕ × ℕ)
   | zero => exact ⟨h₁, h₂⟩
   | succ i ih =>
     rw [Function.iterate_succ_apply]
-    obtain ⟨h₁', h₂'⟩ := snd_modInvStep_lt hm s h₁ h₂
-    exact ih (modInvStep m s) h₁' h₂'
+    exact ih _ (snd_modInvStep_lt hm s h₁ h₂).1 (snd_modInvStep_lt hm s h₁ h₂).2
 
 /-- When `0 < m`, `modInv a m < m`. -/
 theorem modInv_lt {a m : ℕ} (hm : 0 < m) : modInv a m < m := by
@@ -292,43 +293,15 @@ private lemma modEq_modInvStep {a m : ℕ} (hm : 0 < m) (s : (ℕ × ℕ) × (�
     (hm₁ : a * s.2.1 ≡ s.1.1 [MOD m]) (hm₂ : a * s.2.2 ≡ s.1.2 [MOD m]) :
     a * (modInvStep m s).2.1 ≡ (modInvStep m s).1.1 [MOD m] ∧
       a * (modInvStep m s).2.2 ≡ (modInvStep m s).1.2 [MOD m] := by
-  dsimp only [modInvStep, modInvNext]
+  dsimp only [modInvStep, modInvRem0, modInvRem1, modInvCoeff0, modInvCoeff1, modInvNext]
   split_ifs with hr
   · exact ⟨hm₁, hm₂⟩
-  · refine ⟨hm₂, ?_⟩
-    set q := s.1.1 / s.1.2
-    set u := (q * s.2.2) % m
-    set t' := (s.2.1 + m - u) % m
-    have hu_lt : u < m := Nat.mod_lt _ hm
-    have hsub : (s.2.1 + m - u) + u = s.2.1 + m := Nat.sub_add_cancel (by lia)
-    have ht' : t' ≡ s.2.1 + m - u [MOD m] := Nat.mod_modEq _ m
-    have hu : u ≡ q * s.2.2 [MOD m] := Nat.mod_modEq _ m
-    have hsum : a * t' + a * (q * s.2.2) ≡ a * (s.2.1 + m) [MOD m] := by
-      calc a * t' + a * (q * s.2.2)
-          ≡ a * (s.2.1 + m - u) + a * u [MOD m] :=
-            (ht'.mul_left a).add (hu.symm.mul_left a)
-        _ = a * ((s.2.1 + m - u) + u) := (Nat.mul_add a _ _).symm
-        _ = a * (s.2.1 + m) := by rw [hsub]
-    have hmul_q : a * (q * s.2.2) ≡ s.1.2 * q [MOD m] := by
-      calc a * (q * s.2.2)
-          = q * (a * s.2.2) := by ring
-        _ ≡ q * s.1.2 [MOD m] := hm₂.mul_left q
-        _ = s.1.2 * q := Nat.mul_comm q s.1.2
-    have hrhs : a * (s.2.1 + m) ≡ s.1.1 % s.1.2 + s.1.2 * q [MOD m] := by
-      have ham : a * m ≡ 0 [MOD m] :=
-        Nat.modEq_zero_iff_dvd.mpr (dvd_mul_left m a)
-      calc a * (s.2.1 + m)
-          = a * s.2.1 + a * m := Nat.mul_add a s.2.1 m
-        _ ≡ s.1.1 + 0 [MOD m] := hm₁.add ham
-        _ = s.1.1 := Nat.add_zero s.1.1
-        _ = s.1.1 % s.1.2 + s.1.2 * q := (Nat.mod_add_div s.1.1 s.1.2).symm
-    have hboth : a * t' + s.1.2 * q ≡ s.1.1 % s.1.2 + s.1.2 * q [MOD m] := by
-      calc a * t' + s.1.2 * q
-          ≡ a * t' + a * (q * s.2.2) [MOD m] :=
-            (Nat.ModEq.refl (a * t')).add hmul_q.symm
-        _ ≡ a * (s.2.1 + m) [MOD m] := hsum
-        _ ≡ s.1.1 % s.1.2 + s.1.2 * q [MOD m] := hrhs
-    exact Nat.ModEq.add_right_cancel' (s.1.2 * q) hboth
+  · refine ⟨hm₂, (ZMod.natCast_eq_natCast_iff _ _ _).1 ?_⟩
+    have hu : s.1.1 / s.1.2 * s.2.2 % m ≤ s.2.1 + m := (Nat.mod_lt _ hm).le.trans (by lia)
+    have hd := congrArg (Nat.cast : ℕ → ZMod m) (Nat.mod_add_div s.1.1 s.1.2)
+    rw [← ZMod.natCast_eq_natCast_iff] at hm₁ hm₂
+    push_cast [ZMod.natCast_mod, Nat.cast_sub hu, ZMod.natCast_self] at hm₁ hm₂ hd ⊢
+    linear_combination hm₁ - ((s.1.1 / s.1.2 : ℕ) : ZMod m) * hm₂ - hd
 
 private lemma modEq_iterate_modInvStep {a m : ℕ} (hm : 0 < m) (s : (ℕ × ℕ) × (ℕ × ℕ))
     (hm₁ : a * s.2.1 ≡ s.1.1 [MOD m]) (hm₂ : a * s.2.2 ≡ s.1.2 [MOD m]) (i : ℕ) :
@@ -338,37 +311,29 @@ private lemma modEq_iterate_modInvStep {a m : ℕ} (hm : 0 < m) (s : (ℕ × ℕ
   | zero => exact ⟨hm₁, hm₂⟩
   | succ i ih =>
     rw [Function.iterate_succ_apply]
-    obtain ⟨hm₁', hm₂'⟩ := modEq_modInvStep hm s hm₁ hm₂
-    exact ih (modInvStep m s) hm₁' hm₂'
+    exact ih _ (modEq_modInvStep hm s hm₁ hm₂).1 (modEq_modInvStep hm s hm₁ hm₂).2
 
 /-- Extended Euclidean correctness modulo `m`: `a * modInv a m ≡ Nat.gcd m a [MOD m]`. -/
 theorem mul_modInv_modEq_gcd (a : ℕ) {m : ℕ} (hm : 0 < m) :
     a * modInv a m ≡ Nat.gcd m a [MOD m] := by
   have hm₁ : a * (modInvInit a m).2.1 ≡ (modInvInit a m).1.1 [MOD m] := by
     change a * 0 ≡ m [MOD m]
-    rw [Nat.mul_zero]
-    exact (Nat.modEq_zero_iff_dvd.mpr (dvd_refl m)).symm
+    simp [Nat.ModEq]
   have hm₂ : a * (modInvInit a m).2.2 ≡ (modInvInit a m).1.2 [MOD m] := by
     change a * (if m ≤ 1 then 0 else 1) ≡ a [MOD m]
     split_ifs with hle
-    · have hm1 : m = 1 := by lia
-      subst hm1
+    · obtain rfl : m = 1 := by lia
       exact Nat.modEq_one
     · rw [Nat.mul_one]
   have hiter := (modEq_iterate_modInvStep hm (modInvInit a m) hm₁ hm₂ (gcdCount (m, a))).1
   have hfst : ((modInvStep m)^[gcdCount (m, a)] (modInvInit a m)).1.1 = Nat.gcd m a := by
-    rw [fst_iterate_modInvStep]
-    change (gcdStep^[gcdCount (m, a)] (m, a)).1 = Nat.gcd m a
-    rw [iterate_gcdStep_eq]
-  simpa [modInv, hfst] using hiter
+    rw [fst_iterate_modInvStep, show (modInvInit a m).1 = (m, a) from rfl, iterate_gcdStep_eq]
+  simpa [modInv, modInvCoeff0, hfst] using hiter
 
 /-- Modular inverse correctness: when `Nat.Coprime a m`, `a * modInv a m ≡ 1 [MOD m]`. -/
 theorem mul_modInv_modEq_one {a m : ℕ} (hm : 0 < m) (hcop : Nat.Coprime a m) :
     a * modInv a m ≡ 1 [MOD m] := by
-  have hgcd : Nat.gcd m a = 1 := by
-    rw [Nat.gcd_comm]
-    exact hcop
-  simpa [hgcd] using mul_modInv_modEq_gcd a hm
+  simpa [Nat.gcd_comm, hcop.gcd_eq_one] using mul_modInv_modEq_gcd a hm
 
 /-- When `0 < m` and `Nat.Coprime a m`, `modInv a m` equals the canonical natural-number
 representative `((a : ZMod m)⁻¹).val` of the modular inverse in `ZMod m`. -/
@@ -379,15 +344,11 @@ theorem modInv_eq_zmod_inv_val {a m : ℕ} (hm : 0 < m) (hcop : Nat.Coprime a m)
   · have hlt := modInv_lt (a := a) zero_lt_one
     have hval := ZMod.val_lt ((a : ZMod 1)⁻¹)
     lia
-  · have hm1 : 1 < m + 2 := by lia
-    have : Fact (1 < m + 2) := ⟨hm1⟩
+  · have : Fact (1 < m + 2) := ⟨by lia⟩
     have hmul : (a : ZMod (m + 2)) * (modInv a (m + 2) : ZMod (m + 2)) = 1 := by
-      have hmod := (ZMod.natCast_eq_natCast_iff (a * modInv a (m + 2)) 1 (m + 2)).mpr
+      simpa using (ZMod.natCast_eq_natCast_iff (a * modInv a (m + 2)) 1 (m + 2)).mpr
         (mul_modInv_modEq_one (by lia) hcop)
-      simpa using hmod
-    have hinv := ZMod.inv_eq_of_mul_eq_one (m + 2) (a : ZMod (m + 2))
-      (modInv a (m + 2) : ZMod (m + 2)) hmul
-    rw [hinv, ZMod.val_natCast_of_lt (modInv_lt (by lia))]
+    rw [ZMod.inv_eq_of_mul_eq_one (m + 2) _ _ hmul, ZMod.val_natCast_of_lt (modInv_lt (by lia))]
 
 /-- At every extended-Euclidean step, the encoded state has length at most
 `9 * (encPair encNat encNat (a, m)).length`. -/
@@ -397,17 +358,15 @@ private theorem length_encPair_iterate_modInvStep_le (a m i : ℕ) :
       9 * (encPair encNat encNat (a, m)).length := by
   set s := (modInvStep m)^[i] (modInvInit a m)
   have hfst : s.1 = gcdStep^[i] (m, a) := fst_iterate_modInvStep m (modInvInit a m) i
-  have hmax := max_iterate_gcdStep_le (m, a) i
-  have hr₁ : s.1.1 ≤ max m a := by rw [hfst]; exact (le_max_left _ _).trans hmax
-  have hr₂ : s.1.2 ≤ max m a := by rw [hfst]; exact (le_max_right _ _).trans hmax
+  have hmax := hfst ▸ max_iterate_gcdStep_le (m, a) i
+  have hsr₁ := Nat.size_le_size ((le_max_left _ _).trans hmax)
+  have hsr₂ := Nat.size_le_size ((le_max_right _ _).trans hmax)
   have hm : (max m a).size ≤ m.size + a.size := by grind
-  have hsr₁ : s.1.1.size ≤ m.size + a.size := (Nat.size_le_size hr₁).trans hm
-  have hsr₂ : s.1.2.size ≤ m.size + a.size := (Nat.size_le_size hr₂).trans hm
   obtain ⟨hinit₁, hinit₂⟩ := snd_modInvInit_le a m
   obtain ⟨ht₁, ht₂⟩ := snd_iterate_modInvStep_le m (modInvInit a m) hinit₁ hinit₂ i
-  have hst₁ : s.2.1.size ≤ m.size := Nat.size_le_size ht₁
-  have hst₂ : s.2.2.size ≤ m.size := Nat.size_le_size ht₂
-  simp only [length_encPair, encNat_apply, Nat.size_eq_bits_len] at hsr₁ hsr₂ hst₁ hst₂ ⊢
+  have hst₁ := Nat.size_le_size ht₁
+  have hst₂ := Nat.size_le_size ht₂
+  simp only [length_encPair, encNat_apply, Nat.size_eq_bits_len] at hsr₁ hsr₂ hm hst₁ hst₂ ⊢
   lia
 
 attribute [irreducible] modInv
@@ -465,9 +424,7 @@ private theorem computableInPolyTime_modInvNext {α : Type} {enc : α ↪ List B
 theorem binary_modInv : ComputableInPolyTime (fun p : ℕ × ℕ => BinaryGcd.modInv p.1 p.2)
     (encPair encNat encNat) encNat := by
   have hnext := @computableInPolyTime_modInvNext
-  have hpar : ComputableInPolyTime (fun p : ℕ × ℕ => p.2)
-      (encPair encNat encNat) encNat := by
-    fun_prop
+  have hpar := snd encNat encNat
   have hcount : ComputableInPolyTime (fun p : ℕ × ℕ => BinaryGcd.gcdCount (p.2, p.1))
       (encPair encNat encNat) encUnary := by
     unfold BinaryGcd.gcdCount

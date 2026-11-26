@@ -239,10 +239,8 @@ theorem reproducible_take_copyLen (W : ℕ) (h r : List α) :
 /-- Every reproducible prefix of `r` is at most `copyLen` long. -/
 theorem le_copyLen {W : ℕ} {h r u : List α} (hu : Reproducible W h u) (hur : u <+: r) :
     u.length ≤ copyLen W h r := by
-  have htake : r.take u.length = u := (List.prefix_iff_eq_take.1 hur).symm
   refine Nat.le_findGreatest hur.length_le ?_
-  rw [htake]
-  exact hu
+  rwa [← List.prefix_iff_eq_take.1 hur]
 
 private theorem parseAux_nil (W n : ℕ) (h : List α) : parseAux W n h [] = [] := by
   cases n <;> rfl
@@ -285,10 +283,8 @@ private theorem isExhaustive_parseAux (W : ℕ) :
   | n + 1, h, a :: r => by
     rw [parseAux, isExhaustive_cons]
     refine ⟨fun hne hrep => ?_, isExhaustive_parseAux W n _ _⟩
-    have hlt : copyLen W h (a :: r) + 1 < (a :: r).length := by
-      by_contra hge
-      apply hne
-      rw [List.drop_eq_nil_of_le (by omega), parseAux_nil]
+    have hlt : copyLen W h (a :: r) + 1 < (a :: r).length :=
+      lt_of_not_ge fun hge => hne (by rw [List.drop_eq_nil_of_le hge, parseAux_nil])
     have := le_copyLen hrep (List.take_prefix _ _)
     rw [List.length_take] at this
     omega
@@ -306,17 +302,13 @@ theorem length_add_length_le {W : ℕ} {h h' r u s : List α} (heq : h ++ r = h'
     h'.length + u.length ≤ h.length + min (copyLen W h r + 1) r.length := by
   have hlen := congrArg List.length heq
   simp only [List.length_append] at hlen
-  rcases Nat.lt_or_ge h.length (h'.length + u.length) with hlt | hle
-  swap
+  obtain hle | hlt := le_or_gt (h'.length + u.length) h.length
   · omega
-  obtain ⟨k, hk⟩ : ∃ k, k = h.length - h'.length := ⟨_, rfl⟩
+  generalize hk : h.length - h'.length = k
   have hku : k < u.length := by omega
-  have hsplit : h = h' ++ u.take k ∧ r = u.drop k ++ s := by
-    have h1 : h' ++ (u ++ s) = (h' ++ u.take k) ++ (u.drop k ++ s) := by
-      rw [List.append_assoc, ← List.append_assoc (u.take k), List.take_append_drop]
-    rw [h1] at heq
+  obtain ⟨rfl, rfl⟩ : h = h' ++ u.take k ∧ r = u.drop k ++ s := by
+    rw [← List.take_append_drop k u, List.append_assoc (u.take k), ← List.append_assoc h'] at heq
     exact List.append_inj heq (by simp only [List.length_append, List.length_take]; omega)
-  obtain ⟨rfl, rfl⟩ := hsplit
   have htk : u.dropLast.take k = u.take k := by
     rw [List.dropLast_eq_take, List.take_take, Nat.min_eq_left (by omega)]
   have hrep' := hrep.drop k
@@ -338,9 +330,7 @@ private theorem length_parseAux_le (W : ℕ) :
     rw [List.eq_nil_of_length_eq_zero (by omega : r.length = 0), parseAux_nil]
   | u :: ws, 0, h, h', r, _, _, _, _ => by simp [parseAux]
   | u :: ws, n + 1, h, h', [], _, _, _, _ => by simp [parseAux]
-  | u :: ws, n + 1, h, h', a :: r, hr, heq, hh, hhist => by
-    rw [isHistory_cons] at hhist
-    obtain ⟨_, hrep, hws⟩ := hhist
+  | u :: ws, n + 1, h, h', a :: r, hr, heq, hh, ⟨_, hrep, hws⟩ => by
     rw [List.flatten_cons] at heq
     have hstep := length_add_length_le heq hh hrep
     rw [parseAux, List.length_cons, List.length_cons]
@@ -365,19 +355,14 @@ private theorem parseAux_eq_of_isExhaustive (W : ℕ) :
     ∀ (ws : List (List α)) (n : ℕ) (h : List α), ws.flatten.length ≤ n →
       IsHistory W h ws → IsExhaustive W h ws → parseAux W n h ws.flatten = ws
   | [], n, h, _, _, _ => parseAux_nil W n h
-  | u :: ws, n, h, hn, hhist, hex => by
-    rw [isHistory_cons] at hhist
-    rw [isExhaustive_cons] at hex
-    obtain ⟨hne, hrep, hws⟩ := hhist
-    obtain ⟨hnr, hex⟩ := hex
+  | u :: ws, n, h, hn, ⟨hne, hrep, hws⟩, ⟨hnr, hex⟩ => by
     obtain ⟨a, u', rfl⟩ := List.exists_cons_of_ne_nil hne
     obtain ⟨n, rfl⟩ : ∃ m, n = m + 1 :=
       ⟨n - 1, by simp only [List.flatten_cons, List.length_append, List.length_cons] at hn; omega⟩
     rw [List.flatten_cons, List.cons_append, parseAux, ← List.cons_append]
     have hlow : (a :: u').length - 1 ≤ copyLen W h ((a :: u') ++ ws.flatten) := by
-      have := le_copyLen (r := (a :: u') ++ ws.flatten) hrep
-        ((List.dropLast_prefix _).trans (List.prefix_append _ _))
-      rwa [List.length_dropLast] at this
+      simpa only [List.length_dropLast] using
+        le_copyLen hrep ((List.dropLast_prefix _).trans (List.prefix_append _ _))
     have htake : ((a :: u') ++ ws.flatten).take (copyLen W h ((a :: u') ++ ws.flatten) + 1) =
         a :: u' := by
       rcases eq_or_ne ws [] with rfl | hws0
@@ -393,11 +378,8 @@ private theorem parseAux_eq_of_isExhaustive (W : ℕ) :
           simp only [List.length_cons] at hlow hup ⊢; omega]
         exact List.take_left
     have hdrop : ((a :: u') ++ ws.flatten).drop (copyLen W h ((a :: u') ++ ws.flatten) + 1) =
-        ws.flatten := by
-      have := List.take_append_drop (copyLen W h ((a :: u') ++ ws.flatten) + 1)
-        ((a :: u') ++ ws.flatten)
-      rw [htake] at this
-      exact List.append_cancel_left this
+        ws.flatten :=
+      List.append_cancel_left (htake ▸ List.take_append_drop _ ((a :: u') ++ ws.flatten))
     rw [htake, hdrop, parseAux_eq_of_isExhaustive W ws n _
       (by simp only [List.flatten_cons, List.length_append, List.length_cons] at hn; omega) hws hex]
 
@@ -469,9 +451,7 @@ private theorem foldl_decodeStep_encodeAux {W : ℕ} :
     ∀ (h : List α) (ws : List (List α)), IsHistory W h ws →
       (encodeAux W h ws).foldl decodeStep h = h ++ ws.flatten
   | h, [], _ => by simp [encodeAux]
-  | h, u :: ws, hhist => by
-    rw [isHistory_cons] at hhist
-    obtain ⟨hne, hrep, hws⟩ := hhist
+  | h, u :: ws, ⟨hne, hrep, hws⟩ => by
     rw [encodeAux, List.getLast?_eq_some_getLast hne, List.foldl_cons, decodeStep_phrase hne hrep,
       foldl_decodeStep_encodeAux (h ++ u) ws hws, List.flatten_cons, List.append_assoc]
 
@@ -490,21 +470,16 @@ private theorem length_encodeAux {W : ℕ} :
   intro h ws h1
   fun_induction encodeAux W h ws <;> simp_all
 
+omit [DecidableEq α] in
+private theorem ne_nil_of_isHistory {W : ℕ} :
+    ∀ {h : List α} {ws : List (List α)}, IsHistory W h ws → ∀ u ∈ ws, u ≠ []
+  | _, [], _, _, hu => nomatch hu
+  | _, _ :: _, ⟨hne, _, hws⟩, _, hu =>
+    (List.mem_cons.1 hu).elim (· ▸ hne) (ne_nil_of_isHistory hws _)
+
 /-- The phrases of the greedy parse are nonempty. -/
-theorem ne_nil_of_mem_parse {W : ℕ} {x u : List α} (hu : u ∈ parse W x) : u ≠ [] := by
-  have key : ∀ (n : ℕ) (h r : List α), ∀ u ∈ parseAux W n h r, u ≠ [] := by
-    intro n
-    induction n with
-    | zero => intro h r u hu; simp [parseAux] at hu
-    | succ n ih =>
-      intro h r u hu
-      rcases r with _ | ⟨a, r⟩
-      · simp [parseAux] at hu
-      · rw [parseAux, List.mem_cons] at hu
-        rcases hu with rfl | hu
-        · simp
-        · exact ih _ _ u hu
-  exact key _ _ _ u hu
+theorem ne_nil_of_mem_parse {W : ℕ} {x u : List α} (hu : u ∈ parse W x) : u ≠ [] :=
+  ne_nil_of_isHistory (isHistory_parse W x) u hu
 
 /-- The code has one triple per phrase. -/
 theorem length_encode (W : ℕ) (x : List α) : (encode W x).length = (parse W x).length :=

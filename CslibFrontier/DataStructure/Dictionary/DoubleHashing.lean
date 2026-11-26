@@ -201,18 +201,17 @@ theorem OrderedTableRep.tableInsert {U m : ℕ} (hm : 0 < m) {π : Fin U → Equ
     by_cases hw_dom : w ∈ Dictionary.dom s
     · rw [hrep.toTableRep.missedProbes_tableInsert_of_isSome hm u v hO
         (Dictionary.mem_dom_iff_isSome.mp hw_dom)] at hi
-      obtain ⟨y, hy_erase, vy, hTwi, hlt_rank⟩ := hrank w hw_dom i hi
-      obtain ⟨hyw, hy_dom⟩ := Finset.mem_erase.mp hy_erase
+      obtain ⟨y, hy, vy, hTwi, hlt_rank⟩ := hrank w hw_dom i hi
       obtain ⟨vy', h⟩ := hval hTwi
-      exact ⟨y, by simp [hyw, hy_dom], vy', h, by simpa [hy_dom, hw_dom] using hlt_rank⟩
+      exact ⟨y, Finset.erase_subset_erase w (Finset.subset_insert u _) hy, vy', h,
+        by simpa [Finset.mem_of_mem_erase hy, hw_dom] using hlt_rank⟩
     · obtain rfl : w = u := by simpa [hw_dom] using hw
       rw [otherOccupiedSlots_tableInsert_self hm hrep.toTableRep w v hO] at hi
       obtain ⟨y, vy, hTwi, hyw⟩ := mem_otherOccupiedSlots_iff.mp (mem_of_lt_probeSlotIndex hO hi)
-      have hy_dom : y ∈ Dictionary.dom s :=
-        Dictionary.mem_dom_iff.mpr ⟨vy, (hrep.toTableRep.slot_spec _ y vy hTwi).1⟩
+      have hy_dom := Dictionary.mem_dom_iff.mpr ⟨vy, (hrep.toTableRep.slot_spec _ y vy hTwi).1⟩
       obtain ⟨vy', h⟩ := hval hTwi
-      exact ⟨y, by simp [hyw, hy_dom], vy', h, by
-        simpa [hy_dom, hw_dom, Nat.lt_succ_iff] using Finset.le_sup hy_dom⟩
+      exact ⟨y, by simp [hyw, hy_dom], vy', h,
+        by simpa [hy_dom, hw_dom, Nat.lt_succ_iff] using Finset.le_sup hy_dom⟩
 
 /-- Convenience wrapper for `OrderedTableRep.tableInsert` when `(Dictionary.dom s).card < m`. -/
 theorem OrderedTableRep.tableInsert_of_card_lt {U m : ℕ} {π : Fin U → Equiv.Perm (Fin m)}
@@ -348,11 +347,11 @@ private theorem extRank_blocker_spec {U m : ℕ} {π : Fin U → Equiv.Perm (Fin
     ∃ y ∈ (Dictionary.dom s).erase x, ∃ vy : ℕ,
       T (π x i) = some (y, vy) ∧ extRank s rank u y < extRank s rank u x := by
   classical
-  have hmem_eq : ∀ {z : Fin U}, z ∈ Dictionary.dom s → extRank s rank u z = rank z :=
-    fun {z} hz => by
-      unfold extRank
-      split_ifs with hu
-      exacts [rfl, Function.update_of_ne (fun h : z = u => hu (h ▸ hz)) _ _]
+  have hmem_eq {z : Fin U} (hz : z ∈ Dictionary.dom s) : extRank s rank u z = rank z := by
+    unfold extRank
+    split_ifs with hu
+    · rfl
+    · exact Function.update_of_ne (fun h : z = u => hu (h ▸ hz)) _ _
   by_cases hx_dom : x ∈ Dictionary.dom s
   · obtain ⟨y, hy, vy, hT, hlt⟩ := hrank x hx_dom i hi
     exact ⟨y, hy, vy, hT, by rwa [hmem_eq (Finset.mem_erase.mp hy).2, hmem_eq hx_dom]⟩
@@ -649,11 +648,9 @@ private theorem dichotomy_partialDepSet {U m : ℕ} {π : Fin U → Equiv.Perm (
     obtain ⟨z, hz_erase, hlt_z, hsub_step⟩ := partialDepSet_succ_subset_union hrep hrank u
       hx₀_ins (r := Nat.find hex_r - 1) (by omega)
     rw [Nat.sub_add_cancel hr₀_pos] at hsub_step
-    have hz_ins := Finset.mem_insert_of_mem (b := u) (Finset.mem_erase.mp hz_erase).2
-    have hz_lt := (key z hz_ins <| by
-      by_contra hge_z
-      exact (hmin_x₀ z (Finset.mem_filter.mpr
-        ⟨hz_ins, (hlt_z.trans_le hx₀_le_u).le, not_lt.mp hge_z⟩)).not_gt hlt_z).2
+    have hz_ins := Finset.mem_insert_of_mem (b := u) (Finset.mem_of_mem_erase hz_erase)
+    have hz_lt := (key z hz_ins <| not_le.mp fun hge_z => (hmin_x₀ z (Finset.mem_filter.mpr
+      ⟨hz_ins, (hlt_z.trans_le hx₀_le_u).le, hge_z⟩)).not_gt hlt_z).2
     have hdep_z := card_depSet_eq T π (extRank s rank u) z
     have hle_union := (Finset.card_le_card hsub_step).trans (Finset.card_union_le _ _)
     exact ⟨x₀, hx₀_ins, hx₀_le_u, _, hr₀_pos, hr₀_le, hr₀_ge, by omega⟩
@@ -944,12 +941,9 @@ private theorem rawQueue_spec {U m : ℕ} (hm : 0 < m)
       have hW_sub_C : W ⊆ C := fun w hw => by
         obtain ⟨y, hy_dir, hwy⟩ := Finset.mem_biUnion.mp hw
         exact depSet_subset_of_directBlockers_closed T π r_ext hclosed_C (hdir0_C hy_dir) hwy
-      have hcard : W.card ≤ q'.toFinset.card := by
-        rw [← Finset.card_image_of_injOn ((landingSlot_injOn_dom hm hrep).mono hW_dom)]
-        exact Finset.card_le_card fun j hj => by
-          obtain ⟨y, hyW, rfl⟩ := Finset.mem_image.mp hj
-          exact List.mem_toFinset.mpr (Finset.mem_filter.mp (hW_sub_C hyW)).2
-      have := List.toFinset_card_le q'
+      have hcard := (Finset.card_le_card_of_injOn (landingSlot hm T π)
+        (fun y hy => List.mem_toFinset.mpr (Finset.mem_filter.mp (hW_sub_C hy)).2)
+        ((landingSlot_injOn_dom hm hrep).mono hW_dom)).trans (List.toFinset_card_le q')
       omega
 
 /-- **BFS Spanning-Tree Witness Extraction ([SchmidtSiegel1990], Appendix A, Lemma A)**:
@@ -982,9 +976,7 @@ private theorem hasBFSWitness_of_partialDepSet {U m : ℕ} (hm : 0 < m)
       (missedProbes (otherOccupiedSlots T (x b)) (π (x b)))).filter
         (· ∉ rawQueue hm T π x₀ r₀ b.val)).length
   have hlen_lt (b : Fin w) : b.val < (rawQueue hm T π x₀ r₀ b.val).length := by
-    have := (hspec b.val b.isLt.le).2
-    have := b.isLt
-    omega
+    have := (hspec b.val b.isLt.le).2; have := b.isLt; omega
   have hxb_spec : ∀ b : Fin w, x b ∈ W ∧
       landingSlot hm T π (x b) = (rawQueue hm T π x₀ r₀ b.val).getD b.val ⟨0, hm⟩ := fun b =>
     keyAt_getD_mem_of_toFinset_subset hm hrep x₀ hW_dom (hspec b.val b.isLt.le).1 (hlen_lt b)
@@ -1034,9 +1026,8 @@ private theorem hasBFSWitness_of_partialDepSet {U m : ℕ} (hm : 0 < m)
       (List.length_filter_le _ _).trans (length_probePrefix hm _ _).le
     rcases eq_or_lt_of_le hhb_le with hhb_eq_kb | hhb_lt_kb
     · exact .inl (by rw [hhb_eq_kb, hslot_eq])
-    · obtain ⟨j, hj_pref, hj_q⟩ := List.length_filter_lt_length_iff_exists.mp
-        (show ((probePrefix hm (π (x b)) k_b).filter (· ∉ q)).length <
-          (probePrefix hm (π (x b)) k_b).length by rwa [length_probePrefix])
+    · rw [← length_probePrefix hm (π (x b)) k_b] at hhb_lt_kb
+      obtain ⟨j, hj_pref, hj_q⟩ := List.length_filter_lt_length_iff_exists.mp hhb_lt_kb
       obtain ⟨j₁, hj₁_lt, rfl⟩ := List.mem_map.mp hj_pref
       rw [List.mem_range] at hj₁_lt
       exact .inr ⟨⟨k_b, hk_lt b⟩, ⟨j₁, hj₁_lt.trans (hk_lt b)⟩, hj₁_lt,
@@ -1062,8 +1053,7 @@ private theorem probeCount_le_sum_hasBFSWitness {U m n_max : ℕ} (hm : 0 < m)
             if HasBFSWitness hm π ((Dictionary.dom s).erase u) x₀ w then 1 else 0) := by
   have hpc_eq : probeCount T u (π u) = 1 + missedProbes (otherOccupiedSlots T u) (π u) := rfl
   rcases Nat.eq_zero_or_pos (missedProbes (otherOccupiedSlots T u) (π u)) with hk0 | hk_pos
-  · rw [hpc_eq, hk0]
-    omega
+  · omega
   · obtain ⟨rank, hrank⟩ := hrep.exists_rank
     rcases dichotomy_partialDepSet hrep.toTableRep hrank u hL with
       ⟨hku_lt, hcard_lt⟩ | ⟨x₀, hx₀_ins, hx₀_le, r₀, hr₀_pos, hr₀_le_min, hw_ge_L, hw_lt_2L⟩
@@ -1074,7 +1064,6 @@ private theorem probeCount_le_sum_hasBFSWitness {U m n_max : ℕ} (hm : 0 < m)
         (fun _ _ => Nat.zero_le _) (Finset.mem_Ico.mpr ⟨by omega, hcard_lt⟩)
       rw [ite_eq_left (hasBFSWitness_of_partialDepSet hm hrep.toTableRep hrank u
         (Finset.mem_insert_self u _) le_rfl hk_pos le_rfl)] at hle_sum
-      rw [hpc_eq]
       omega
     · have hle_inner := Finset.single_le_sum
         (f := fun w' => if HasBFSWitness hm π ((Dictionary.dom s).erase u) x₀ w' then 1 else 0)
@@ -1235,27 +1224,23 @@ private noncomputable def validTuples (M w : ℕ) (h : Fin (w + 1) → ℕ) :
         let d_b := h ⟨b + 1, Nat.succ_lt_succ hb⟩
         (stepFiber M w q slot_b d_b).map
           ⟨fun p_last => Fin.snoc ps p_last, fun p₁ p₂ hp => by
-            have := congrFun hp (Fin.last (b + 1))
-            simpa [Fin.snoc_last] using this⟩
+            simpa [Fin.snoc_last] using congrFun hp (Fin.last (b + 1))⟩
 
 private theorem card_validTuples_le (M : ℕ) {w : ℕ} (hw : w ≤ 2 ^ M)
     (h : Fin (w + 1) → ℕ) (hsum : (∑ a : Fin (w + 1), h a) = w) :
     ∀ (b : ℕ) (hb : b ≤ w),
       (validTuples M w h b hb).card ≤
         (2 ^ M * 2 ^ (M - 1)) * (2 ^ (M - 1) + w ^ 4) ^ b
-  | 0, _ => by
-      simp [validTuples, Fintype.card_pi]
+  | 0, _ => by simp [validTuples, Fintype.card_pi]
   | b + 1, hb => by
       have ih := card_validTuples_le M hw h hsum b (Nat.le_of_succ_le hb)
       calc (validTuples M w h (b + 1) hb).card
           ≤ (validTuples M w h b (Nat.le_of_succ_le hb)).card * (2 ^ (M - 1) + w ^ 4) :=
-            Finset.card_biUnion_le_card_mul _ _ _ fun ps _ => by
-              rw [Finset.card_map]
-              exact card_stepFiber_le M hw _
+            Finset.card_biUnion_le_card_mul _ _ _ fun ps _ =>
+              (Finset.card_map _).trans_le <| card_stepFiber_le M hw _
                 (card_toFinset_tupleQueue_le M w h hsum (Nat.le_of_succ_le hb) ps) _ _
         _ ≤ (2 ^ M * 2 ^ (M - 1)) * (2 ^ (M - 1) + w ^ 4) ^ (b + 1) := by
-            rw [pow_succ (2 ^ (M - 1) + w ^ 4), ← mul_assoc]
-            gcongr
+            rw [pow_succ (2 ^ (M - 1) + w ^ 4), ← mul_assoc]; gcongr
 
 private def restrictTuple {α : Type*} {w : ℕ} (f : Fin (w + 1) → α) (b : ℕ) (hb : b ≤ w) :
     Fin (b + 1) → α :=
@@ -1392,10 +1377,7 @@ private theorem card_degSeqFinset_le_four_pow (w : ℕ) :
       have hle := (Finset.sum_le_univ_sum_of_nonneg (f := fun a => (f a).val)
         (s := Finset.univ.filter fun a : Fin (w + 1) => a.val ≤ b.val)
         fun _ => Nat.zero_le _).trans (Finset.mem_filter.mp hf).2.le
-      have hlt : degPrefSum w f b.val < 2 * w := by
-        have := b.isLt
-        dsimp only [degPrefSum]
-        omega
+      have hlt : degPrefSum w f b.val < 2 * w := by have := b.isLt; dsimp only [degPrefSum]; omega
       simp only [g, hlt, ↓reduceDIte]
     have hg_mono : ∀ f ∈ degSeqFinset w, StrictMono (g f) := fun f hf b₁ b₂ hb => by
       rw [Fin.lt_def] at hb ⊢
@@ -1450,9 +1432,7 @@ private theorem four_pow_mul_card_hasBFSWitness_le
     4 ^ w * (Finset.univ.filter fun θ : Θ₁ × Θ₂ =>
       HasBFSWitness (Nat.two_pow_pos M) (oddStridePerm (h₁ θ.1) (h₂ θ.2)) D x₀ w).card ≤
       Fintype.card (Θ₁ × Θ₂) := by
-  have hwM : w ≤ 2 ^ M := by
-    have := Nat.le_self_pow (show 4 ≠ 0 by norm_num) w
-    omega
+  have hwM : w ≤ 2 ^ M := (Nat.le_self_pow (n := 4) (by norm_num) w).trans (by omega)
   let X_set : Finset (Fin w → Fin U) :=
     (Fintype.piFinset fun _ : Fin w => D.erase x₀).filter Function.Injective
   have hX_card : X_set.card ≤ n_max ^ w := (Finset.card_filter_le _ _).trans <| by
@@ -1546,14 +1526,10 @@ private theorem sum_Ico_le_of_two_pow_mul_le {a b B : ℕ} {f : ℕ → ℕ}
 private theorem four_mul_n_max_sq_le_four_pow_maxProbeCutoff (n_max : ℕ) :
     4 * n_max * (n_max + 1) ≤ 4 ^ maxProbeCutoff n_max := by
   have hclog := Nat.le_pow_clog (b := 2) (by decide) (max n_max 4)
-  have h1 := le_max_left n_max 4
-  have h2 := le_max_right n_max 4
   calc 4 * n_max * (n_max + 1)
       ≤ (16 * 2 ^ Nat.clog 2 (max n_max 4)) * (16 * 2 ^ Nat.clog 2 (max n_max 4)) :=
         Nat.mul_le_mul (by omega) (by omega)
-    _ = (2 * 2) ^ maxProbeCutoff n_max := by
-        rw [mul_pow, maxProbeCutoff, pow_add]
-        ring
+    _ = (2 * 2) ^ maxProbeCutoff n_max := by rw [mul_pow, maxProbeCutoff, pow_add]; ring
 
 open scoped Classical in
 /-- **Seed-Sum Probe-Count Bound under `(2 * L + 1)`-Wise Independence**:
@@ -1596,8 +1572,7 @@ theorem sum_probeCount_oddStride_le_of_kWiseIndependent
     refine sum_Ico_le_of_two_pow_mul_le fun w hw => ?_
     obtain ⟨hw1, hwL⟩ := Finset.mem_Ico.mp hw
     calc 2 ^ (w - 1 + 1) * (2 * (w * C u w)) = (w * 2 ^ (w + 1)) * C u w := by
-          rw [Nat.sub_add_cancel hw1]
-          ring
+          rw [Nat.sub_add_cancel hw1]; ring
       _ ≤ 4 ^ w * C u w := Nat.mul_le_mul_right _ (mul_two_pow_succ_le_four_pow w)
       _ ≤ Fintype.card (Θ₁ × Θ₂) := hC_bound u (by omega)
   have hov_x₀ (x₀ : Fin U) :
@@ -1606,9 +1581,7 @@ theorem sum_probeCount_oddStride_le_of_kWiseIndependent
     refine sum_Ico_le_of_two_pow_mul_le fun w hw => ?_
     obtain ⟨hwL, hw2L⟩ := Finset.mem_Ico.mp hw
     calc 2 ^ (w - L + 1) * (4 ^ L * C x₀ w) = 2 * ((2 ^ (w - L) * 4 ^ L) * C x₀ w) := by ring
-      _ ≤ 2 * ((4 ^ (w - L) * 4 ^ L) * C x₀ w) := by
-          gcongr
-          decide
+      _ ≤ 2 * ((4 ^ (w - L) * 4 ^ L) * C x₀ w) := by gcongr; decide
       _ = 2 * (4 ^ w * C x₀ w) := by rw [← pow_add, Nat.sub_add_cancel hwL]
       _ ≤ 2 * Fintype.card (Θ₁ × Θ₂) := Nat.mul_le_mul_left 2 (hC_bound x₀ hw2L)
   have hov_two :
@@ -1617,11 +1590,9 @@ theorem sum_probeCount_oddStride_le_of_kWiseIndependent
     have hsum_4L := (Finset.sum_le_card_nsmul _ _ _ fun x₀ _ => hov_x₀ x₀).trans
       (Nat.mul_le_mul_right _ ((Finset.card_insert_le u _).trans (Nat.add_le_add_right hdom 1)))
     rw [← Finset.mul_sum] at hsum_4L
-    have h4L : 4 * n_max * (n_max + 1) ≤ 4 ^ L :=
-      four_mul_n_max_sq_le_four_pow_maxProbeCutoff n_max
     refine Nat.le_of_mul_le_mul_left ?_ (Nat.pow_pos (n := L) (show 0 < 4 by decide))
-    linarith [Nat.mul_le_mul_left (2 * n_max) hsum_4L,
-      Nat.mul_le_mul_right (Fintype.card (Θ₁ × Θ₂)) h4L]
+    linarith [Nat.mul_le_mul_left (2 * n_max) hsum_4L, Nat.mul_le_mul_right (Fintype.card (Θ₁ × Θ₂))
+      (four_mul_n_max_sq_le_four_pow_maxProbeCutoff n_max)]
   have hpt :
       (∑ θ : Θ₁ × Θ₂, probeCount (T θ) u (oddStridePerm (h₁ θ.1) (h₂ θ.2) u)) ≤
         Fintype.card (Θ₁ × Θ₂) +
@@ -1635,9 +1606,8 @@ theorem sum_probeCount_oddStride_le_of_kWiseIndependent
     · rw [Finset.sum_comm]
       exact Finset.sum_congr rfl fun w _ => hC_sum u w w
     · rw [Finset.sum_comm]
-      refine Finset.sum_congr rfl fun x₀ _ => ?_
-      rw [Finset.sum_comm]
-      exact Finset.sum_congr rfl fun w _ => (hC_sum x₀ w 1).trans (one_mul _)
+      exact Finset.sum_congr rfl fun x₀ _ => Finset.sum_comm.trans
+        (Finset.sum_congr rfl fun w _ => (hC_sum x₀ w 1).trans (one_mul _))
   omega
 
 /-- **Expected Probe-Count Bound under `(2 * L + 1)`-Wise Independence**:
@@ -1939,8 +1909,8 @@ theorem expect_probeCount_oddStride_unconditional_le
   by_cases hge : doubleTabThreshold c_exp ≤ n_max
   · exact (expect_probeCount_oddStride_doubleTab_le hge hU hm hrep hdom u).trans
       (le_max_right _ 3)
-  · have hle : (n_max + 1 : ℝ≥0∞) ≤ (doubleTabThreshold c_exp : ℝ≥0∞) := by
-      exact_mod_cast (by omega : n_max + 1 ≤ doubleTabThreshold c_exp)
+  · have hle : (n_max + 1 : ℝ≥0∞) ≤ (doubleTabThreshold c_exp : ℝ≥0∞) :=
+      mod_cast (by omega : n_max + 1 ≤ doubleTabThreshold c_exp)
     exact ((expect_probeCount_le_add_one (fun θ => (hrep θ).toTableRep) hdom u).trans hle).trans
       (le_max_left _ 3)
 

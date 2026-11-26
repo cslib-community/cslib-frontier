@@ -84,22 +84,19 @@ private theorem two_ne_zero_of_ne_zero_one {q : ℕ} [Fact q.Prime] {α : ZMod q
   by_cases hq2 : q = 2
   · subst hq2
     have hu : IsUnit α := isUnit_iff_ne_zero.mpr h0
-    have hα1 : α = 1 :=
-      (IsUnit.unit_spec hu).symm.trans (congrArg Units.val (Subsingleton.elim hu.unit 1))
-    exact absurd hα1 h1
-  · exact Ring.two_ne_zero (by rw [ZMod.ringChar_zmod_n]; exact hq2)
+    exact absurd ((IsUnit.unit_spec hu).symm.trans
+      (congrArg Units.val (Subsingleton.elim hu.unit 1))) h1
+  · exact Ring.two_ne_zero (by rwa [ZMod.ringChar_zmod_n])
 
 private theorem inv_sub_one_sub_inv_add_one {K : Type*} [Field K]
     {α : K} (hsub : α - 1 ≠ 0) (hadd : α + 1 ≠ 0) :
     (α - 1)⁻¹ - (α + 1)⁻¹ = 2 * ((α - 1) * (α + 1))⁻¹ := by
-  field_simp
-  ring
+  field_simp; ring
 
 private theorem two_mul_inv_sub_inv_add_one {K : Type*} [Field K] (h2 : (2 : K) ≠ 0)
     {α : K} (hsub : α - 1 ≠ 0) (hadd : α + 1 ≠ 0) :
     2 * ((α - 1)⁻¹ - (α + 1)⁻¹)⁻¹ + 1 = α ^ 2 := by
-  rw [inv_sub_one_sub_inv_add_one hsub hadd, mul_inv, inv_inv, ← mul_assoc,
-    mul_inv_cancel₀ h2, one_mul]
+  rw [inv_sub_one_sub_inv_add_one hsub hadd, mul_inv, inv_inv, ← mul_assoc, mul_inv_cancel₀ h2]
   ring
 
 private theorem inv_sub_inv_ne_zero {K : Type*} [Field K] (h2 : (2 : K) ≠ 0)
@@ -150,12 +147,10 @@ for odd prime `q`, evaluates `(4 : ZMod q)⁻¹ • (sq (u + v) - sq (u - v))` i
 theorem isQueryBounded_cdhFromSqProg [DecidableEq G] (u v : G) :
     OracleComp.IsQueryBounded (cdhFromSqProg q u v) 2 := by
   unfold cdhFromSqProg
-  by_cases hq : q = 2
-  · simp [hq, OracleComp.IsQueryBounded, OracleComp.IsCostBounded.pure]
-  · simp only [hq, ↓reduceIte]
-    exact ((OracleComp.IsCostBounded.query (cost := fun _ => 1) (u + v)).bind fun _ =>
-      (OracleComp.IsCostBounded.query (cost := fun _ => 1) (u - v)).bind fun _ =>
-        OracleComp.IsCostBounded.pure _ 0).mono (by decide)
+  split_ifs <;> try exact .pure _ _
+  exact ((OracleComp.IsCostBounded.query (cost := fun _ => 1) (u + v)).bind fun _ =>
+    (OracleComp.IsCostBounded.query (cost := fun _ => 1) (u - v)).bind fun _ =>
+      .pure _ 0).mono (by decide : 1 + (1 + 0) ≤ 2)
 
 /-- Correctness of `(a) CDH ≤ (b) Square-DH`, a step toward [BonehShoup2023], Exercise 10.17
 (p. 429), not the cited result, which also bounds the reduction's running time (only solver calls
@@ -165,30 +160,23 @@ theorem solvesCDH_evalPure_cdhFromSqProg [DecidableEq G] [Fact q.Prime] {sq : G 
     (hsq : SolvesSqDH q g sq) :
     SolvesCDH q g fun p => OracleComp.evalPure sq (cdhFromSqProg q p.1 p.2) := by
   intro α β
-  dsimp only
-  unfold cdhFromSqProg
+  dsimp only [cdhFromSqProg]
   by_cases hq : q = 2
   · subst hq
     simp only [↓reduceIte, OracleComp.evalPure_pure]
     rcases eq_or_ne g 0 with rfl | hg
     · simp
-    · by_cases hα0 : α = 0
-      · simp [hα0]
+    · rcases eq_or_ne α 0 with rfl | hα0
+      · simp
       · rcases eq_or_ne α 1 with rfl | hα1
         · simp [hg]
-        · exact False.elim
-            ((two_ne_zero_of_ne_zero_one hα0 hα1) (by simpa using ZMod.natCast_self 2))
+        · exact ((two_ne_zero_of_ne_zero_one hα0 hα1) (by simpa using ZMod.natCast_self 2)).elim
   · simp only [hq, ↓reduceIte, OracleComp.evalPure_bind, OracleComp.evalPure_query,
       OracleComp.evalPure_pure]
-    rw [← add_smul, ← sub_smul, hsq (α + β), hsq (α - β)]
-    have hdiff : ((α + β) ^ 2) • g - ((α - β) ^ 2) • g = (4 * (α * β)) • g := by
-      rw [← sub_smul]
-      congr 1
-      ring
-    have h4 : (4 : ZMod q) ≠ 0 := by
-      have h2 : (2 : ZMod q) ≠ 0 := Ring.two_ne_zero (by rw [ZMod.ringChar_zmod_n]; exact hq)
-      exact (by ring : (4 : ZMod q) = 2 * 2) ▸ mul_ne_zero h2 h2
-    rw [hdiff, smul_smul, ← mul_assoc, inv_mul_cancel₀ h4, one_mul]
+    have h2 : (2 : ZMod q) ≠ 0 := Ring.two_ne_zero (by rwa [ZMod.ringChar_zmod_n])
+    rw [← add_smul, ← sub_smul, hsq (α + β), hsq (α - β), ← sub_smul,
+      show (α + β) ^ 2 - (α - β) ^ 2 = (2 * 2) * (α * β) by ring, smul_smul, ← mul_assoc,
+      show (4 : ZMod q) = 2 * 2 by ring, inv_mul_cancel₀ (mul_ne_zero h2 h2), one_mul]
 
 end CDHFromSq
 
@@ -235,37 +223,28 @@ every execution path against arbitrary oracle responses. -/
 theorem isQueryBounded_sqFromInvProg [DecidableEq G] (u : G) :
     OracleComp.IsQueryBounded (sqFromInvProg g u) 3 := by
   unfold sqFromInvProg
+  split_ifs <;> try exact .pure _ _
+  refine ((OracleComp.IsCostBounded.query (cost := fun _ => 1) (u - g)).bind fun r₁ =>
+    (OracleComp.IsCostBounded.query (cost := fun _ => 1) (u + g)).bind fun r₂ => ?_).mono
+      (by decide : 1 + (1 + 1) ≤ 3)
   split_ifs
   · exact .pure _ _
-  · exact .pure _ _
-  · refine ((OracleComp.IsCostBounded.query (cost := fun _ => 1) (u - g)).bind fun r₁ =>
-      (OracleComp.IsCostBounded.query (cost := fun _ => 1) (u + g)).bind fun r₂ => ?_).mono
-        (by decide : 1 + (1 + 1) ≤ 3)
-    split_ifs
-    · exact .pure _ _
-    · exact (OracleComp.IsCostBounded.query (cost := fun _ => 1) (r₁ - r₂)).bind fun _ =>
-        .pure _ 0
+  · exact (OracleComp.IsCostBounded.query (cost := fun _ => 1) (r₁ - r₂)).bind fun _ => .pure _ 0
 
 /-- Every query emitted by `sqFromInvProg` is nonzero, on every execution path against any
 oracle responses. -/
 theorem queriesSatisfy_sqFromInvProg [DecidableEq G] (u : G) :
     OracleComp.QueriesSatisfy (fun qx : G => qx ≠ 0) (sqFromInvProg g u) := by
   unfold sqFromInvProg
-  by_cases hu0 : u = 0
-  · simp [hu0, OracleComp.QueriesSatisfy.pure]
-  · simp only [hu0, ↓reduceIte]
-    by_cases hug : u = g ∨ u = -g
-    · simp [hug, OracleComp.QueriesSatisfy.pure]
-    · simp only [hug, ↓reduceIte]
-      have hsub : u - g ≠ 0 := sub_ne_zero.mpr (fun h => hug (Or.inl h))
-      have hadd : u + g ≠ 0 := fun h => hug (Or.inr (eq_neg_of_add_eq_zero_left h))
-      refine (OracleComp.QueriesSatisfy.query (p := fun qx : G => qx ≠ 0) hsub).bind fun r₁ =>
-        (OracleComp.QueriesSatisfy.query (p := fun qx : G => qx ≠ 0) hadd).bind fun r₂ => ?_
-      by_cases hr : r₁ = r₂
-      · simp [hr, OracleComp.QueriesSatisfy.pure]
-      · simp only [hr, ↓reduceIte]
-        exact (OracleComp.QueriesSatisfy.query (p := fun qx : G => qx ≠ 0)
-          (sub_ne_zero.mpr hr)).bind fun _ => OracleComp.QueriesSatisfy.pure _
+  split_ifs with hu0 hug <;> try exact .pure _
+  refine (OracleComp.QueriesSatisfy.query (p := fun qx : G => qx ≠ 0)
+      (sub_ne_zero.mpr fun h => hug (.inl h))).bind fun r₁ =>
+    (OracleComp.QueriesSatisfy.query (p := fun qx : G => qx ≠ 0)
+      fun h => hug (.inr (eq_neg_of_add_eq_zero_left h))).bind fun r₂ => ?_
+  split_ifs with hr
+  · exact .pure _
+  · exact (OracleComp.QueriesSatisfy.query (p := fun qx : G => qx ≠ 0)
+      (sub_ne_zero.mpr hr)).bind fun _ => .pure _
 
 /-- Correctness of `(b) Square-DH ≤ (c) Inverse-DH`, a step toward [BonehShoup2023],
 Exercise 10.17 (p. 429), not the cited result, which also bounds the reduction's running time
@@ -275,37 +254,30 @@ theorem solvesSqDH_evalPure_sqFromInvProg [DecidableEq G] [Fact q.Prime] {inv : 
     (hinv : SolvesInvDH q g inv) :
     SolvesSqDH q g fun u => OracleComp.evalPure inv (sqFromInvProg g u) := by
   intro α
-  dsimp only
-  unfold sqFromInvProg
+  dsimp only [sqFromInvProg]
   rcases eq_or_ne g 0 with rfl | hg
   · simp
-  · have hinj : Function.Injective (fun c : ZMod q => c • g) := smul_left_injective (ZMod q) hg
-    by_cases hα0 : α = 0
-    · subst hα0
-      simp
-    · have hu0 : α • g ≠ 0 := (smul_eq_zero_iff_left hg).not.mpr hα0
-      simp only [hu0, ↓reduceIte]
-      by_cases hα1 : α = 1
-      · subst hα1
-        simp
-      · by_cases hαneg1 : α = -1
-        · subst hαneg1
-          simp
-        · have hug : α • g ≠ g := fun h => hα1 (hinj (by simpa [one_smul] using h))
-          have huneg : α • g ≠ -g := fun h => hαneg1 (hinj (by simpa [neg_one_smul] using h))
-          have hnot : ¬ (α • g = g ∨ α • g = -g) := by tauto
-          simp only [hnot, ↓reduceIte, OracleComp.evalPure_bind, OracleComp.evalPure_query]
+  · rcases eq_or_ne α 0 with rfl | hα0
+    · simp
+    · rcases eq_or_ne α 1 with rfl | hα1
+      · simp [hg]
+      · rcases eq_or_ne α (-1) with rfl | hαneg1
+        · simp [hg]
+        · have hinj : Function.Injective (fun c : ZMod q => c • g) :=
+            smul_left_injective (ZMod q) hg
+          have hu0 : α • g ≠ 0 := (smul_eq_zero_iff_left hg).not.mpr hα0
+          have hnot : ¬ (α • g = g ∨ α • g = -g) := fun h => h.elim
+            (fun h => hα1 (hinj (by simpa [one_smul] using h)))
+            (fun h => hαneg1 (hinj (by simpa [neg_one_smul] using h)))
           have hsub : α - 1 ≠ 0 := sub_ne_zero.mpr hα1
           have hadd : α + 1 ≠ 0 := fun h => hαneg1 (eq_neg_of_add_eq_zero_left h)
-          have hu_sub : α • g - g = (α - 1) • g := by rw [sub_smul, one_smul]
-          have hu_add : α • g + g = (α + 1) • g := by rw [add_smul, one_smul]
-          rw [hu_sub, hu_add]
-          simp only [hinv (α - 1) hsub, hinv (α + 1) hadd]
           have h2 : (2 : ZMod q) ≠ 0 := two_ne_zero_of_ne_zero_one hα0 hα1
           have hinv_ne : (α - 1)⁻¹ - (α + 1)⁻¹ ≠ 0 := inv_sub_inv_ne_zero h2 hsub hadd
           have hr_ne : (α - 1)⁻¹ • g ≠ (α + 1)⁻¹ • g := fun h => hinv_ne (sub_eq_zero.mpr (hinj h))
-          simp only [hr_ne, ↓reduceIte, OracleComp.evalPure_bind, OracleComp.evalPure_query,
-            OracleComp.evalPure_pure]
+          simp only [hu0, hnot, ↓reduceIte, OracleComp.evalPure_bind, OracleComp.evalPure_query,
+            show α • g - g = (α - 1) • g by rw [sub_smul, one_smul],
+            show α • g + g = (α + 1) • g by rw [add_smul, one_smul],
+            hinv (α - 1) hsub, hinv (α + 1) hadd, hr_ne, OracleComp.evalPure_pure]
           rw [← sub_smul, hinv _ hinv_ne, ← Nat.cast_smul_eq_nsmul (ZMod q), smul_smul,
             Nat.cast_ofNat]
           calc (2 * ((α - 1)⁻¹ - (α + 1)⁻¹)⁻¹) • g + g
@@ -325,17 +297,17 @@ section InvFromDiv
 theorem isQueryBounded_invFromDivProg [DecidableEq G] (u : G) :
     OracleComp.IsQueryBounded (invFromDivProg g u) 1 := by
   unfold invFromDivProg
-  by_cases hu : u = 0
-  · simp [hu, OracleComp.IsQueryBounded, OracleComp.IsCostBounded.pure]
-  · simp [hu, OracleComp.IsQueryBounded, OracleComp.IsCostBounded.query]
+  split_ifs
+  · exact .pure _ _
+  · exact .query _
 
 /-- Every query emitted by `invFromDivProg` has nonzero second coordinate. -/
 theorem queriesSatisfy_invFromDivProg [DecidableEq G] (u : G) :
     OracleComp.QueriesSatisfy (fun qp : G × G => qp.2 ≠ 0) (invFromDivProg g u) := by
   unfold invFromDivProg
-  by_cases hu : u = 0
-  · simp [hu, OracleComp.QueriesSatisfy.pure]
-  · simp [hu, OracleComp.QueriesSatisfy.query]
+  split_ifs with hu
+  · exact .pure _
+  · exact .query hu
 
 /-- Correctness of `(c) Inverse-DH ≤ (d) Divisible-DH`, a step toward [BonehShoup2023],
 Exercise 10.17 (p. 429), not the cited result, which also bounds the reduction's running time
@@ -345,11 +317,9 @@ theorem solvesInvDH_evalPure_invFromDivProg [DecidableEq G] [Fact q.Prime] {div 
     (hdiv : SolvesDivDH q g div) :
     SolvesInvDH q g fun u => OracleComp.evalPure div (invFromDivProg g u) := by
   intro α hα
-  dsimp only
   rcases eq_or_ne g 0 with rfl | hg
   · simp [invFromDivProg]
-  · have hne : α • g ≠ 0 := (smul_eq_zero_iff_left hg).not.mpr hα
-    simpa [invFromDivProg, hne, one_smul] using hdiv 1 α hα
+  · simpa [invFromDivProg, (smul_eq_zero_iff_left hg).not.mpr hα, one_smul] using hdiv 1 α hα
 
 end InvFromDiv
 
@@ -371,22 +341,16 @@ omit [AddCommGroup G] in
 private theorem isCostBounded_invFromCDHStep (u acc : G) (bit : Bool) :
     OracleComp.IsCostBounded (fun _ => 1) (invFromCDHStep u acc bit) 2 := by
   unfold invFromCDHStep
-  have htail (sq : G) :
-      OracleComp.IsCostBounded (fun _ => 1)
-        (if bit then OracleComp.query (spec := fun _ : G × G => G) (sq, u) else pure sq) 1 := by
-    cases bit
-    · simp [OracleComp.IsCostBounded.pure]
-    · simp [OracleComp.IsCostBounded.query]
-  exact ((OracleComp.IsCostBounded.query (cost := fun _ => 1) (acc, acc)).bind htail).mono
-    (by decide)
+  refine ((OracleComp.IsCostBounded.query (cost := fun _ => 1) (acc, acc)).bind
+    (m := 1) fun sq => ?_).mono (by decide : 1 + 1 ≤ 2)
+  cases bit <;> simp [OracleComp.IsCostBounded.pure, OracleComp.IsCostBounded.query]
 
 omit [AddCommGroup G] [Module (ZMod q) G] in
 /-- `invFromCDHProg` makes at most `2 * (q - 2).bits.length` oracle calls. -/
 theorem isQueryBounded_invFromCDHProg (u : G) :
     OracleComp.IsQueryBounded (invFromCDHProg q g u) (2 * (q - 2).bits.length) := by
-  unfold invFromCDHProg
-  have h := OracleComp.IsCostBounded.foldlM (isCostBounded_invFromCDHStep u) g (q - 2).bits.reverse
-  rwa [List.length_reverse, Nat.mul_comm] at h
+  simpa [invFromCDHProg, Nat.mul_comm] using
+    OracleComp.IsCostBounded.foldlM (isCostBounded_invFromCDHStep u) g (q - 2).bits.reverse
 
 private theorem evalPure_foldlM_invFromCDHStep {cdh : G × G → G} (hcdh : SolvesCDH q g cdh)
     (α : ZMod q) (word : List Bool) :
@@ -424,9 +388,7 @@ theorem solvesInvDH_evalPure_invFromCDHProg [Fact q.Prime] {cdh : G × G → G}
     Cslib.BitString.binaryValue_reverse_bits]
   have h2le : 2 ≤ q := (Fact.out : q.Prime).two_le
   have hmul : α ^ (q - 2) * α = 1 := by
-    calc α ^ (q - 2) * α = α ^ ((q - 2) + 1) := (pow_succ α (q - 2)).symm
-      _ = α ^ (q - 1) := by congr 1; omega
-      _ = 1 := ZMod.pow_card_sub_one_eq_one hα
+    rw [← pow_succ, show q - 2 + 1 = q - 1 by omega, ZMod.pow_card_sub_one_eq_one hα]
   rw [eq_inv_of_mul_eq_one_left hmul]
 
 end InvFromCDH
@@ -455,10 +417,9 @@ theorem solvesDivDH_evalPure_divFromCDHProg [Fact q.Prime] {cdh : G × G → G}
     (hcdh : SolvesCDH q g cdh) :
     SolvesDivDH q g fun p => OracleComp.evalPure cdh (divFromCDHProg q g p.1 p.2) := by
   intro α β hβ
-  simp only [divFromCDHProg, OracleComp.evalPure_bind, OracleComp.evalPure_query]
   have hinv := solvesInvDH_evalPure_invFromCDHProg q g hcdh β hβ
   dsimp only at hinv
-  rw [hinv]
+  simp only [divFromCDHProg, OracleComp.evalPure_bind, OracleComp.evalPure_query, hinv]
   exact hcdh α β⁻¹
 
 end DivFromCDH

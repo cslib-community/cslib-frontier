@@ -104,17 +104,14 @@ theorem selected_queryStateBound_le (k s : ℕ) : ∃ C, ∀ contextBits supplie
 theorem assignment_limit_size (d B : ℕ) :
     ((2 ^ chunkWidth d B) ^ (d * chunkCount d B)).size =
       d * (chunkCount d B * chunkWidth d B) + 1 := by
-  rw [← pow_mul, Nat.size_pow]
-  congr 1
-  ring
+  rw [← pow_mul, Nat.size_pow, Nat.mul_comm (chunkWidth d B), Nat.mul_assoc]
 
 /-- Capacity bits are linear in the value width; the number of assignments is never charged. -/
 theorem assignment_limit_size_le {d B : ℕ} (hd : 0 < d) (hB : 0 < B) :
     ((2 ^ chunkWidth d B) ^ (d * chunkCount d B)).size ≤
       d * (B + chunkWidth d B) + 1 := by
   rw [assignment_limit_size]
-  have h := Nat.mul_le_mul_left d (chunkCount_mul_lt hd hB).le
-  omega
+  exact Nat.add_le_add_right (Nat.mul_le_mul_left d (chunkCount_mul_lt hd hB).le) 1
 
 /-- A full interpolation point has linear field-cell storage at the selected parameters. -/
 theorem selected_point_cost_le {d B : ℕ} (hd : 0 < d) (hB : 0 < B) :
@@ -133,11 +130,8 @@ theorem prepared_metadata_le (k s : ℕ) : ∃ C, ∀ N b σ q : ℕ,
   have h := hc (N, b, σ, q)
   simp only [Initializer.encState, Initializer.encArgs, Initializer.prepare,
     length_encPair, length_encNat_eq_size] at h ⊢
-  have hc4 := Nat.mul_le_mul_left c
-    (by omega : 2 * N.size + 1 + (2 * b.size + 1 + (2 * σ.size + 1 + q.size)) + 1 ≤
-      4 * (N.size + b.size + σ.size + q.size + 1))
-  rw [← Nat.mul_assoc, Nat.mul_comm c 4] at hc4
-  omega
+  rw [Nat.mul_comm 4 c, Nat.mul_assoc]
+  refine Nat.le_trans ?_ (h.trans (Nat.mul_le_mul_left c ?_)) <;> omega
 
 /-- Binary selected interpolation metadata retains the assignment capacity only once. -/
 theorem selected_metadataSpace_le (N b σ q d B : ℕ) (hd : 0 < d) (hB : 0 < B) :
@@ -147,13 +141,12 @@ theorem selected_metadataSpace_le (N b σ q d B : ℕ) (hd : 0 < d) (hB : 0 < B)
       100 * (d + 1) * (N.size + b.size + σ.size + q.size + B + chunkWidth d B + d.size + 1) := by
   have hr := chunkCount_le hd hB
   have hrsize := Nat.size_le_size hr
-  have hBsize := length_encNat_le_self B
-  have hmSize := length_encNat_le_self (chunkWidth d B)
+  have hBsize := Nat.size_le_self B
+  have hmSize := Nat.size_le_self (chunkWidth d B)
   have hstride := Nat.size_mul_le (chunkCount d B) (chunkWidth d B)
   have hpoint := Nat.size_mul_le d (chunkCount d B)
   have hp := fieldModulus_size_le hd hB
   have hlimit := assignment_limit_size_le hd hB
-  simp only [length_encNat_eq_size] at hBsize hmSize
   simp only [ConcreteSupplier.metadataSpace, QueryGate.encParams, Interpolation.encContext_apply,
     Interpolation.encContextFields, encNat3, length_encPair, length_encNat_eq_size]
   rw [Nat.size_pow (n := chunkWidth d B), show (encList encNat []).length = 0 from rfl,
@@ -200,8 +193,8 @@ theorem initialized_allowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b σ q : 
   have hd : 0 < d := by dsimp only [d]; omega
   have hB : 0 < B := Encoding.width_pos k s b
   have hR : 0 < R := by dsimp only [R]; omega
-  have hbs : b.size ≤ b := by simpa only [length_encNat_eq_size] using length_encNat_le_self b
-  have hqs : q.size ≤ q := by simpa only [length_encNat_eq_size] using length_encNat_le_self q
+  have hbs := Nat.size_le_self b
+  have hqs := Nat.size_le_self q
   have hqmul : q ≤ q * (b.size + 1) := Nat.le_mul_of_pos_right _ (by omega)
   have hqR : q ≤ R := by dsimp only [R]; omega
   have hargs : N.size + b.size + σ.size + q.size + 1 ≤ R := by
@@ -215,11 +208,8 @@ theorem initialized_allowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b σ q : 
     have hc := Nat.le_mul_of_pos_right d.size hR
     rw [show M * R = d.size * R + A * R from Nat.add_mul d.size A R]; omega
   have hrB : r ≤ B := chunkCount_le hd hB
-  have hrs : r.size ≤ B := by
-    have h := length_encNat_le_self r
-    rw [length_encNat_eq_size] at h
-    omega
-  have hms : m.size ≤ m := by simpa only [length_encNat_eq_size] using length_encNat_le_self m
+  have hrs : r.size ≤ B := (Nat.size_le_self r).trans hrB
+  have hms := Nat.size_le_self m
   have hds : d.size ≤ d.size * R := Nat.le_mul_of_pos_right _ hR
   have hR0 : N.size + b.size + σ.size + q.size + B + m + d.size + 1 ≤
       (A + M + d.size + 2) * R := by
@@ -260,10 +250,9 @@ theorem initialized_allowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b σ q : 
       48 * (H * R + 2 * (P * R) + R) + 16 * (A * R) + 3 * (P * R) + replay * R + 14 * R by
         dsimp only [reply]; simp only [Nat.add_mul, Nat.mul_add, Nat.mul_assoc, one_mul]]
     omega
-  have hmetadata := hci N b σ q
   have hmetadataR : (Initializer.encMetadata
       ((Initializer.prepare k s (N, b, σ, q)).1)).length ≤ ci * R :=
-    hmetadata.trans (Nat.mul_le_mul_left ci hargs)
+    (hci N b σ q).trans (Nat.mul_le_mul_left ci hargs)
   have hinit0 := Initializer.space_prepare_le k s N b σ q
   have hinit1 := Nat.mul_le_mul_left (192 * (d + 1))
     (show 2 * B + d.size ≤ (2 * A + d.size) * R by rw [Nat.add_mul, Nat.mul_assoc]; omega)

@@ -62,21 +62,16 @@ theorem ComputableInTimeAndSpace.streamFold_pair_list {α σ β γ : Type}
     have ha := hA x j hj
     have hlen_p : (encPair encS encA (streamState (init x) next (elems x) j,
         (elems x)[j])).length + 1 ≤ 3 * (lMax x + 1) := by
-      rw [length_encPair]
-      dsimp only
-      omega
+      simp only [length_encPair]; omega
     have hpow_le : ∀ {e : ℕ}, e ≤ d →
         ((encPair encS encA (streamState (init x) next (elems x) j,
           (elems x)[j])).length + 1) ^ e ≤ 3 ^ d * (lMax x + 1) ^ d := by
       intro e he
-      calc ((encPair encS encA (streamState (init x) next (elems x) j,
-              (elems x)[j])).length + 1) ^ e
-          ≤ (3 * (lMax x + 1)) ^ e := Nat.pow_le_pow_left hlen_p e
-        _ ≤ (3 * (lMax x + 1)) ^ d := Nat.pow_le_pow_right (by omega) he
-        _ = 3 ^ d * (lMax x + 1) ^ d := Nat.mul_pow _ _ _
+      exact (Nat.pow_le_pow_left hlen_p e).trans
+        ((Nat.pow_le_pow_right (by omega) he).trans_eq (Nat.mul_pow _ _ _))
     exact ⟨Nat.mul_le_mul_left _ (hpow_le (by omega)),
       Nat.mul_le_mul_left _ (hpow_le (by omega))⟩
-  have hsf := ComputableTidilyInTimeAndSpace.streamFold_pair_sum
+  obtain ⟨c, hc⟩ := ComputableTidilyInTimeAndSpace.streamFold_pair_sum
     (g := g) (encOut := encList encB) (encF := encUnit)
     frameValueReader (fun a => frame (encA a)) (fun a => frame_ne_nil (encA a))
     (fun a rest => read_frameValueReader (encA a) rest)
@@ -89,51 +84,25 @@ theorem ComputableInTimeAndSpace.streamFold_pair_list {α σ β γ : Type}
     (sMax := fun x => K * (lMax x + 1) ^ d)
     (lMax := lMax)
     (fun x j hj => by
-      have hs0 := hS x j hj.le
-      have hs1 := hS x (j + 1) hj
-      have ha := hA x j hj
       obtain ⟨h1, h2⟩ := hstep_pow x j hj
-      have h3 : 1 ≤ (lMax x + 1) ^ d := Nat.one_le_pow _ _ (Nat.succ_pos _)
-      have h4 : 2 * lMax x + lMax x + 1 ≤ 3 * (lMax x + 1) ^ d := by
-        have : lMax x + 1 ≤ (lMax x + 1) ^ d := Nat.le_self_pow (by omega) _
-        omega
-      have hK : cn * (3 ^ d * (lMax x + 1) ^ d) + ce * (3 ^ d * (lMax x + 1) ^ d) +
-          (2 * lMax x + lMax x + 1) ≤ K * (lMax x + 1) ^ d := by
-        have h3pow : 3 ≤ 3 ^ d := le_trans (by decide : 3 ≤ 3 ^ 1)
-          (Nat.pow_le_pow_right (by decide) (by omega))
-        have h3mul : 3 * (lMax x + 1) ^ d ≤ 3 ^ d * (lMax x + 1) ^ d :=
-          Nat.mul_le_mul_right _ h3pow
-        dsimp [K]
-        nlinarith only [h3mul, h4, h3]
-      omega)
+      have hl1 : lMax x + 1 ≤ (lMax x + 1) ^ d := Nat.le_self_pow (by omega) _
+      have h3mul : 3 * (lMax x + 1) ^ d ≤ 3 ^ d * (lMax x + 1) ^ d :=
+        Nat.mul_le_mul_right _ (Nat.le_self_pow (by omega) 3)
+      dsimp only [K]
+      linarith [hS x j hj.le, hS x (j + 1) hj, hA x j hj, h1, h2, hl1, h3mul])
     (fun x j hj => by
       obtain ⟨h1, h2⟩ := hstep_pow x j hj
-      have hsum : cn * (3 ^ d * (lMax x + 1) ^ d) + ce * (3 ^ d * (lMax x + 1) ^ d) =
-          (3 ^ d * (cn + ce)) * (lMax x + 1) ^ d := by ring
-      calc cn * ((encPair encS encA (streamState (init x) next (elems x) j,
-              (elems x)[j])).length + 1) ^ dn +
-            ce * ((encPair encS encA (streamState (init x) next (elems x) j,
-              (elems x)[j])).length + 1) ^ de
-          ≤ cn * (3 ^ d * (lMax x + 1) ^ d) + ce * (3 ^ d * (lMax x + 1) ^ d) :=
+      calc _ ≤ cn * (3 ^ d * (lMax x + 1) ^ d) + ce * (3 ^ d * (lMax x + 1) ^ d) :=
             Nat.add_le_add h1 h2
-        _ = (3 ^ d * (cn + ce)) * (lMax x + 1) ^ d := hsum
-        _ ≤ K * (lMax x + 1) ^ d := by
-            refine Nat.mul_le_mul_right _ ?_
-            dsimp [K]
-            exact (Nat.mul_le_mul_left (3 ^ d) (Nat.le_succ (cn + ce))).trans
-              (Nat.le_add_right _ 4))
+        _ = (3 ^ d * (cn + ce)) * (lMax x + 1) ^ d := by ring
+        _ ≤ K * (lMax x + 1) ^ d := Nat.mul_le_mul_right _
+            ((Nat.mul_le_mul_left (3 ^ d) (Nat.le_succ (cn + ce))).trans (Nat.le_add_right _ 4)))
     hS hA
-  obtain ⟨c, hc⟩ := hsf
-  have hc' : ComputableInTimeAndSpace g encIn (encList encB)
-      (fun x => c * (2 * cf + 2 + (encIn x).length +
-        ∑ j ∈ Finset.range (elems x).length, K * (lMax x + 1) ^ d + lMax x + 1))
-      (fun x => c * (0 + K * (lMax x + 1) ^ d + lMax x + 1)) :=
-    ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hc
-  refine ⟨c * (2 * cf + K + 4), d, hc'.mono (fun x => ?_) (fun x => ?_)⟩
+  have hl (x : γ) : lMax x ≤ (lMax x + 1) ^ d :=
+    (Nat.le_succ _).trans (Nat.le_self_pow (by omega) _)
+  refine ⟨c * (2 * cf + K + 4), d, hc.computableInTimeAndSpace.mono (fun x => ?_) (fun x => ?_)⟩
   · simp only [Finset.sum_const, Finset.card_range, smul_eq_mul]
-    have hl : lMax x ≤ (lMax x + 1) ^ d :=
-      (Nat.le_succ _).trans (Nat.le_self_pow (by omega) _)
-    have hpow : 1 ≤ (lMax x + 1) ^ d := Nat.one_le_pow _ _ (Nat.succ_pos _)
+    have hl := hl x
     set A := (encIn x).length
     set B := ((elems x).length + 1) * (lMax x + 1) ^ d
     have hKl : (elems x).length * (K * (lMax x + 1) ^ d) ≤ K * B := by
@@ -142,7 +111,6 @@ theorem ComputableInTimeAndSpace.streamFold_pair_list {α σ β γ : Type}
         _ ≤ K * B := Nat.mul_le_mul_left K (Nat.mul_le_mul_right _ (Nat.le_succ _))
     have hA_le : A ≤ (2 * cf + K + 4) * A := Nat.le_mul_of_pos_left A (by omega)
     have hKB_le : (K + 1) * B ≤ (2 * cf + K + 4) * B := Nat.mul_le_mul_right B (by omega)
-    have h1_le : 2 * cf + 3 ≤ (2 * cf + K + 4) * 1 := by omega
     have hc_le : 2 * cf + 2 + A + (elems x).length * (K * (lMax x + 1) ^ d) + lMax x + 1 ≤
         (2 * cf + K + 4) * (A + B + 1) := by
       have hB_ge : lMax x ≤ B := hl.trans (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))
@@ -153,12 +121,10 @@ theorem ComputableInTimeAndSpace.streamFold_pair_list {α σ β γ : Type}
         _ = (2 * cf + K + 4) * (A + B + 1) := by ring
     rw [Nat.mul_assoc]
     exact Nat.mul_le_mul_left c hc_le
-  · have hl : lMax x ≤ (lMax x + 1) ^ d :=
-      (Nat.le_succ _).trans (Nat.le_self_pow (by omega) _)
-    have hpow : 1 ≤ (lMax x + 1) ^ d := Nat.one_le_pow _ _ (Nat.succ_pos _)
+  · have hpow : 1 ≤ (lMax x + 1) ^ d := Nat.one_le_pow _ _ (Nat.succ_pos _)
     rw [Nat.mul_assoc]
     apply Nat.mul_le_mul_left c
-    nlinarith only [hl, hpow]
+    nlinarith only [hl x, hpow]
 
 end
 

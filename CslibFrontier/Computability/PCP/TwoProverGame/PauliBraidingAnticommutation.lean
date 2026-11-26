@@ -132,11 +132,8 @@ theorem commutingWinProb_pauliBraidingCHSHGame_le [Nonempty (Fin n)]
   have haccept (h : game.accepts (x, y) (cond roles b a) (cond roles a b)) :
       TwoProverGame.chsh.accepts x y (read a) (read b) := by
     cases roles <;> cases a <;> cases b <;> first | exact h | exact False.elim h
-  split_ifs with h₁ h₂ h₂
-  · exact le_rfl
-  · exact False.elim (h₂ (haccept h₁))
-  · exact logical.prob_nonneg _ _ _ _
-  · exact le_rfl
+  split_ifs <;> first | exact le_rfl | exact logical.prob_nonneg _ _ _ _ |
+    exact absurd (haccept ‹_›) ‹_›
 
 section Scores
 
@@ -213,14 +210,8 @@ theorem expect_chshDeficit_pauliBraiding_le
   have hdef : (𝔼 r : Bool, deficit r) = Real.cos (π / 8) ^ 2 -
       (𝔼 r : Bool, 𝔼 p : ↥(oddPairs (Fin n)),
         (pauliBraidingCHSHGame n r p).commutingWinProb S) := by
-    have hrow (r : Bool) : deficit r = Real.cos (π / 8) ^ 2 -
-        (𝔼 p : ↥(oddPairs (Fin n)), (pauliBraidingCHSHGame n r p).commutingWinProb S) := by
-      unfold deficit
-      rw [Finset.expect_sub_distrib]
-      let := oddPairs_nonempty (ι := Fin n)
-      rw [Fintype.expect_const]
-    simp_rw [hrow]
-    rw [Finset.expect_sub_distrib, Fintype.expect_const]
+    let := oddPairs_nonempty (ι := Fin n)
+    simp only [deficit, Finset.expect_sub_distrib, Fintype.expect_const]
   rw [← hdef, Fintype.expect_eq_sum_div_card, Fintype.sum_bool, Fintype.card_bool]
   cases roles <;> push_cast <;> linarith [hnonneg false, hnonneg true]
 
@@ -249,22 +240,17 @@ theorem expect_norm_pauliBraidingSpecial_anticomm_sq_le
       S.state.norm (special false id p * special true id p +
         special true id p * special false id p) ^ 2 ≤ chshAnticommConst * deficit p := by
     let G := pauliBraidingCHSHStrategy S roles p
-    have hwin : Real.cos (π / 8) ^ 2 - deficit p ≤ TwoProverGame.chsh.commutingWinProb G.swap := by
-      rw [chsh_swap_score]
-      change Real.cos (π / 8) ^ 2 - (Real.cos (π / 8) ^ 2 - _) ≤ _
-      rw [sub_sub_cancel]
+    have hwin : Real.cos (π / 8) ^ 2 - deficit p ≤ TwoProverGame.chsh.commutingWinProb G.swap :=
+      (sub_sub_cancel _ _).trans_le (chsh_swap_score G).ge
     have h := norm_anticomm_sq_le_of_chsh G.swap hwin
     change G.state.norm ((G.bob false).observable * (G.bob true).observable +
       (G.bob true).observable * (G.bob false).observable) ^ 2 ≤ _ at h
     simpa only [G, pauliBraidingCHSHStrategy_state, pauliBraidingCHSHStrategy_bob_observable]
       using h
-  have havg := Finset.expect_le_expect
-    (s := (Finset.univ : Finset ↥(oddPairs (Fin n)))) fun p _ => hlocal p
-  rw [← Finset.mul_expect] at havg
-  exact havg.trans <| by
-    rw [mul_comm (2 : ℝ), mul_assoc]
-    exact mul_le_mul_of_nonneg_left (expect_chshDeficit_pauliBraiding_le S roles)
-      chshAnticommConst_nonneg
+  refine (Finset.expect_le_expect fun p _ => hlocal p).trans ?_
+  rw [← Finset.mul_expect, mul_comm (2 : ℝ), mul_assoc]
+  exact mul_le_mul_of_nonneg_left (expect_chshDeficit_pauliBraiding_le S roles)
+    chshAnticommConst_nonneg
 
 variable [Module ℚ≥0 𝒜] [PosSMulMono ℚ≥0 𝒜]
 
@@ -295,10 +281,8 @@ theorem expect_norm_pauliBraidingBasis_anticomm_sq_le
       (fun _ => Sum.elim (fun _ : Bool × Bool => false) id)
   let M := pauliBraidingBasisBitMeasurement measure
   have hspecial (q : Bool) (p : P) : star (special q id p) * special q id p ≤ 1 := by
-    have heq : ((pauliBraidingCHSHStrategy S roles p).bob q).observable = special q id p :=
-      pauliBraidingCHSHStrategy_bob_observable S roles p q
-    rw [← heq]
-    exact ((pauliBraidingCHSHStrategy S roles p).bob q).star_observable_mul_self_le_one
+    simpa only [special, pauliBraidingCHSHStrategy_bob_observable] using
+      ((pauliBraidingCHSHStrategy S roles p).bob q).star_observable_mul_self_le_one
   have hcomm (basis q : Bool) (x : Fin n → Bool) (p : P) :
       Commute (𝔼 d, (M basis x d).observable) (special q id p) := by
     rw [← Measurement.observable_average]
@@ -308,9 +292,7 @@ theorem expect_norm_pauliBraidingBasis_anticomm_sq_le
   let density : ℝ := (oddPairs (Fin n)).dens
   have hdensity : 0 < density := by
     obtain ⟨p⟩ := oddPairs_nonempty (ι := Fin n)
-    have hpos : 0 < (oddPairs (Fin n)).dens := Finset.dens_pos.mpr ⟨p.val, p.property⟩
-    change 0 < ((oddPairs (Fin n)).dens : ℝ)
-    exact_mod_cast hpos
+    exact NNRat.cast_pos.2 (Finset.dens_pos.mpr ⟨p.val, p.property⟩)
   have hclose (basis : Bool) :
       (𝔼 p : P, S.state.norm ((𝔼 d, (M basis (if basis then p.val.2 else p.val.1) d).observable) -
         special basis id p) ^ 2) ≤ 2048 * (1 - (branch 2).commutingWinProb S) := by

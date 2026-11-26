@@ -126,6 +126,26 @@ example (M : MACScheme) (hw : ∀ᶠ n in Filter.atTop, 3 ≤ fieldWidth (M.msgL
     M.not_blockwiseEUFCMA_noIdentifierEncoder hw⟩
 
 open Probability Turing.MultiTapeTM in
+/-- Concrete `MACScheme` (`msgLen = id`, message-echo tag) instantiating the blockwise nonvacuity
+separations without universally quantified scheme hypotheses. -/
+noncomputable def echoBlockMAC : MACScheme :=
+  prfMAC (fun _ msg => msg) (ComputableInPolyTime.snd _ _)
+
+/-- **`BlockwiseEUFCMA` fails unconditionally on `echoBlockMAC`** when any of the block index,
+message length, or message identifier is omitted (`3 ≤ n / 4 = fieldWidth n` for all `n ≥ 12`). -/
+theorem not_blockwiseEUFCMA_echoBlockMAC :
+    ¬ echoBlockMAC.BlockwiseEUFCMA noIndexEncoder ∧
+      ¬ echoBlockMAC.BlockwiseEUFCMA noLengthEncoder ∧
+      ¬ echoBlockMAC.BlockwiseEUFCMA noIdentifierEncoder := by
+  have hw : ∀ᶠ n in Filter.atTop, 3 ≤ fieldWidth (echoBlockMAC.msgLen n) :=
+    Filter.eventually_atTop.mpr ⟨12, fun n hn => by
+      change 3 ≤ n / 4
+      omega⟩
+  exact ⟨echoBlockMAC.not_blockwiseEUFCMA_noIndexEncoder hw,
+    echoBlockMAC.not_blockwiseEUFCMA_noLengthEncoder hw,
+    echoBlockMAC.not_blockwiseEUFCMA_noIdentifierEncoder hw⟩
+
+open Probability Turing.MultiTapeTM in
 /-- Concrete strict oracle-PPT certificates for the three 2-query attack forgers. -/
 example (M : MACScheme) :
     IsOraclePPT encForgerOutput (M.swapBlocksAdversary.toForger fun n _ => n) ∧

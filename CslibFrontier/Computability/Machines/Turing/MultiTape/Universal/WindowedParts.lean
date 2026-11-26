@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.WindowedBound
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Encoding
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TakeDropUnary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.ZipFold

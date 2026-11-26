@@ -380,14 +380,11 @@ private theorem stepOnce_spec (i : P) (r : ℕ) (m : P → List (SignedChain P V
   dsimp only
   set elig : SignedChain P V → Bool := fun c => decide (dolevStrongEligible dealer i r s c)
   split_ifs with h
-  · have hj₀ : ((Finset.univ : Finset P).filter fun j => (m j).any elig).min' h ∈
-        (Finset.univ : Finset P).filter fun j => (m j).any elig := Finset.min'_mem _ h
-    have hj₀_any := (Finset.mem_filter.1 hj₀).2
+  · have hj₀_any := (Finset.mem_filter.1 (Finset.min'_mem _ h)).2
     obtain ⟨c_wit, hc_wit, helig_wit⟩ := List.any_eq_true.1 hj₀_any
-    have hfind_some := List.find?_isSome.2 ⟨c_wit, hc_wit, helig_wit⟩
-    obtain ⟨c, hc_eq⟩ := Option.isSome_iff_exists.1 hfind_some
-    have helig : elig c = true := List.find?_some hc_eq
-    refine Or.inr ⟨_, c, List.mem_of_find?_eq_some hc_eq, of_decide_eq_true helig, ?_⟩
+    obtain ⟨c, hc_eq⟩ := Option.isSome_iff_exists.1 (List.find?_isSome.2 ⟨c_wit, hc_wit, helig_wit⟩)
+    refine Or.inr ⟨_, c, List.mem_of_find?_eq_some hc_eq,
+      of_decide_eq_true (List.find?_some hc_eq : elig c = true), ?_⟩
     rw [hc_eq]
   · refine Or.inl ⟨rfl, fun j c hcm hcond => ?_⟩
     apply h
@@ -424,10 +421,9 @@ private theorem round_extracted_subset (i : P) (r : ℕ) (s : DolevStrongState P
     (dolevStrongStepOnce dealer i r m ⟨s.extracted, []⟩) h1.2.1 h1.2.2.1
   dsimp only [dolevStrongRound]
   refine ⟨fun v hv => h2.1 v (h1.1 v hv), h2.2.1, h2.2.2.1, fun hrt => ?_⟩
-  simp only [hrt, ↓reduceIte]
   have e1 := h1.2.2.2
   have e2 := h2.2.2.2
-  simp only [List.length_nil, zero_add] at e1
+  simp only [hrt, ↓reduceIte, List.length_nil, zero_add] at e1 ⊢
   omega
 
 private theorem mem_stepOnce_toRelay {i : P} {r : ℕ} {m : P → List (SignedChain P V)}
@@ -479,11 +475,9 @@ private theorem mem_round_toRelay {i : P} {r : ℕ} {s : DolevStrongState P V}
     rcases mem_stepOnce_toRelay dealer hc' with hc1 | h2
     · rcases mem_stepOnce_toRelay dealer hc1 with hc0 | ⟨hv1, h1⟩
       · cases hc0
-      · have hsub : ∀ v ∈ s1.extracted,
-            v ∈ (dolevStrongStepOnce dealer i r m s1).extracted := by
-          rcases stepOnce_spec dealer i r m s1 with ⟨heq, -⟩ | ⟨_, _, _, _, heq⟩ <;>
-            · rw [heq]; intro v hv; simp [hv]
-        exact ⟨hsub _ hv1, h1⟩
+      · refine ⟨?_, h1⟩
+        rcases stepOnce_spec dealer i r m s1 with ⟨heq, -⟩ | ⟨_, _, _, _, heq⟩ <;>
+          simp [heq, s1, hv1]
     · exact h2
   · simp [hrt] at hc'
 
@@ -502,10 +496,9 @@ private theorem mem_round_extracted {i : P} {r : ℕ} {s : DolevStrongState P V}
   · rcases mem_stepOnce_extracted dealer hv1 with hv0 |
       ⟨src, c₀, hcm, rfl, hd, hi, hnd, hlen, hrel1⟩
     · exact absurd hv0 hnew
-    · have hsub_rel : ∀ c ∈ s1.toRelay, c ∈ (dolevStrongStepOnce dealer i r m s1).toRelay := by
-        rcases stepOnce_spec dealer i r m s1 with ⟨heq, -⟩ | ⟨_, _, _, _, heq⟩ <;>
-          · rw [heq]; intro c hc; simp [hc]
-      exact ⟨src, c₀, hcm, rfl, hd, hi, hnd, hlen, fun hrt => by simp [hrt, hsub_rel _ hrel1]⟩
+    · refine ⟨src, c₀, hcm, rfl, hd, hi, hnd, hlen, fun hrt => ?_⟩
+      rcases stepOnce_spec dealer i r m s1 with ⟨heq, -⟩ | ⟨_, _, _, _, heq⟩ <;>
+        simp [hrt, heq, s1, hrel1]
   · exact ⟨src, c₀, hcm, rfl, hd, hi, hnd, hlen, fun hrt => by simp [hrt, hrel2]⟩
 
 /-- Reception progress: if some sender `src` delivers a chain `c` with
@@ -518,36 +511,23 @@ private theorem dolevStrongRound_accept_or_full {i : P} {r : ℕ} {s : DolevStro
     (hi : i ∉ c.signers) (hnd : c.signers.Nodup) (hcard : c.signers.length = r + 1) :
     c.value ∈ (dolevStrongRound dealer t i r s m).extracted ∨
       (dolevStrongRound dealer t i r s m).extracted.length = 2 := by
-  dsimp only [dolevStrongRound]
-  set s1 := dolevStrongStepOnce dealer i r m ⟨s.extracted, []⟩
-  have h1 : (∀ v ∈ s.extracted, v ∈ s1.extracted) ∧ s1.extracted.length ≤ 2 ∧
-      s1.extracted.Nodup ∧ s1.toRelay.length + s.extracted.length =
-        ([] : List (SignedChain P V)).length + s1.extracted.length :=
-    dolevStrongStepOnce_preserve dealer i r m ⟨s.extracted, []⟩ hlen hnodup
-  set s2 := dolevStrongStepOnce dealer i r m s1
-  have h2 : (∀ v ∈ s1.extracted, v ∈ s2.extracted) ∧ s2.extracted.length ≤ 2 ∧
-      s2.extracted.Nodup ∧
-      s2.toRelay.length + s1.extracted.length = s1.toRelay.length + s2.extracted.length :=
-    dolevStrongStepOnce_preserve dealer i r m s1 h1.2.1 h1.2.2.1
+  -- A pass that ends below the cap without `c.value` found `c` eligible, so it grew by one.
+  have grow : ∀ st, c.value ∉ (dolevStrongStepOnce dealer i r m st).extracted →
+      (dolevStrongStepOnce dealer i r m st).extracted.length < 2 → c.value ∉ st.extracted ∧
+        (dolevStrongStepOnce dealer i r m st).extracted.length = st.extracted.length + 1 := by
+    intro st hnot hlt
+    rcases stepOnce_spec dealer i r m st with ⟨heq, hnone⟩ | ⟨_, _, _, _, heq⟩
+    · rw [heq] at hnot hlt
+      exact absurd ⟨hd, hi, hnd, hcard, hnot, hlt⟩ (hnone src c hc)
+    · rw [heq] at hnot ⊢
+      exact ⟨fun h => hnot (List.mem_cons_of_mem _ h), rfl⟩
+  have hle := (round_extracted_subset dealer t i r s m hlen hnodup).2.1
+  dsimp only [dolevStrongRound] at hle ⊢
   by_contra hcontra
   rcases not_or.1 hcontra with ⟨hnot2, hne2⟩
-  have hs2_le : s2.extracted.length ≤ 2 := h2.2.1
-  have hlt2 : s2.extracted.length < 2 := by omega
-  have hle12 : s1.extracted.length ≤ s2.extracted.length :=
-    h1.2.2.1.length_le_of_subset h2.1
-  have hle01 : s.extracted.length ≤ s1.extracted.length :=
-    hnodup.length_le_of_subset h1.1
-  have hnot1 : c.value ∉ s1.extracted := fun hv1 => hnot2 (h2.1 c.value hv1)
-  have hnot0 : c.value ∉ s.extracted := fun hv0 => hnot1 (h1.1 c.value hv0)
-  have h1_grow : s1.extracted.length = s.extracted.length + 1 := by
-    rcases stepOnce_spec dealer i r m ⟨s.extracted, []⟩ with ⟨_, hnone⟩ | ⟨_, c1, _, _, heq1⟩
-    · exact absurd ⟨hd, hi, hnd, hcard, hnot0, show s.extracted.length < 2 by omega⟩
-        (hnone src c hc)
-    · simp only [s1, heq1, List.length_cons]
-  have h2_grow : s2.extracted.length = s1.extracted.length + 1 := by
-    rcases stepOnce_spec dealer i r m s1 with ⟨_, hnone⟩ | ⟨_, c2, _, _, heq2⟩
-    · exact absurd ⟨hd, hi, hnd, hcard, hnot1, by omega⟩ (hnone src c hc)
-    · simp only [s2, heq2, List.length_cons]
+  obtain ⟨hnot1, h2⟩ := grow _ hnot2 (by omega)
+  obtain ⟨-, h1⟩ := grow _ hnot1 (by omega)
+  dsimp only at h1
   omega
 
 /-! ### Global state invariants of `dolevStrong` -/
@@ -597,9 +577,8 @@ private theorem state_extracted_props (F : Finset P)
       rw [dolevStrong_state_zero]
       split_ifs <;> simp
     refine ⟨hinit.1, hinit.2, fun v hv => ?_⟩
-    rw [dolevStrong_state_succ]
-    simp only [Nat.zero_le, ↓reduceIte]
-    exact (round_extracted_subset dealer t i 0 _ _ hinit.1 hinit.2).1 v hv
+    simpa only [dolevStrong_state_succ, Nat.zero_le, ↓reduceIte] using
+      (round_extracted_subset dealer t i 0 _ _ hinit.1 hinit.2).1 v hv
   | r + 1, i => by
     obtain ⟨hlen0, hnd0, -⟩ := state_extracted_props F adv input r i
     have hcur :
@@ -607,10 +586,8 @@ private theorem state_extracted_props (F : Finset P)
           ((dolevStrong P V dealer v₀ t).state F adv input (r + 1) i).extracted.Nodup := by
       rw [dolevStrong_state_succ]
       split_ifs with hr
-      · have h := round_extracted_subset dealer t i r
-          ((dolevStrong P V dealer v₀ t).state F adv input r i)
-          (fun src => (dolevStrong P V dealer v₀ t).receivedAt F adv input r src i) hlen0 hnd0
-        exact ⟨h.2.1, h.2.2.1⟩
+      · exact ⟨(round_extracted_subset dealer t i r _ _ hlen0 hnd0).2.1,
+          (round_extracted_subset dealer t i r _ _ hlen0 hnd0).2.2.1⟩
       · exact ⟨hlen0, hnd0⟩
     refine ⟨hcur.1, hcur.2, fun v hv => ?_⟩
     rw [dolevStrong_state_succ]
@@ -639,9 +616,8 @@ private theorem state_freeze_after_succ (F : Finset P)
   induction d with
   | zero => rfl
   | succ d ih =>
-    rw [← Nat.add_assoc, dolevStrong_state_succ]
-    have hgt : ¬(t + 1 + d ≤ t) := by omega
-    simp only [hgt, ↓reduceIte, ih]
+    simp only [← Nat.add_assoc, dolevStrong_state_succ, show ¬(t + 1 + d ≤ t) by omega, ↓reduceIte,
+      ih]
 
 private theorem state_dealer_extracted (F : Finset P)
     (adv : ℕ → P → P → List (SignedChain P V)) (input : V) :
@@ -661,12 +637,9 @@ private theorem state_dealer_extracted (F : Finset P)
           exact absurd (List.mem_of_getLast? hd) hnd
       simp only [dolevStrongRound, hno, hext, ite_self]
     rw [dolevStrong_state_succ]
-    by_cases hr : r ≤ t
-    · simp only [hr, ↓reduceIte, hround]
-      exact ⟨trivial, fun _ => trivial⟩
-    · have hpos : 0 < r := by omega
-      simp only [hr, ↓reduceIte]
-      exact ⟨hext, fun _ => hrel hpos⟩
+    split_ifs with hr
+    · exact ⟨by simp [hround], fun _ => by simp [hround]⟩
+    · exact ⟨hext, fun _ => hrel (by omega)⟩
 
 /-- Unified invariant on every chain queued in `toRelay` at step `r ≤ t`: `c` is rooted at
 `dealer`, includes `j`, has `Nodup` signers of exact length `r + 1`, carries a value already in
@@ -686,12 +659,8 @@ private theorem toRelay_props (F : Finset P) (adv : ℕ → P → P → List (Si
     rw [dolevStrong_state_zero] at hc ⊢
     split_ifs at hc with hjd
     · subst hjd
-      simp only [List.mem_singleton] at hc
-      subst hc
-      simp only [↓reduceIte]
-      refine ⟨rfl, List.mem_cons_self, List.nodup_singleton _, rfl, List.mem_cons_self, ?_⟩
-      intro k hk hkne
-      exact absurd (List.mem_singleton.1 hk) hkne
+      obtain rfl := List.mem_singleton.1 hc
+      simp
     · simp at hc
   | succ m =>
     have hm : m ≤ t := by omega
@@ -808,19 +777,14 @@ private theorem extracted_propagates {F : Finset P} (hF : F.card ≤ t)
       ((dolevStrong P V dealer v₀ t).state F adv input (t + 1) q).extracted.length = 2 := by
   obtain ⟨r, hrt1, hnot_r, hin_r1⟩ := exists_first_extracted dealer v₀ t F adv input hpd hv
   have hr : r ≤ t := by omega
-  rw [dolevStrong_state_succ] at hin_r1
-  simp only [hr, ↓reduceIte] at hin_r1
+  rw [dolevStrong_state_succ_of_le dealer v₀ t F adv input hr] at hin_r1
   obtain ⟨src, c₀, hc₀, rfl, hd, hp0, hnd, hlen, hrel⟩ :=
     mem_round_extracted dealer t hin_r1 hnot_r
   by_cases hlt : r < t
   · -- Extracted before the final round: `p` itself cosigns and queues `c₀.value` at `r + 1`.
-    have hr1 : r + 1 ≤ t := by omega
-    have hc'_rel : ⟨c₀.value, p :: c₀.signers⟩ ∈
-        ((dolevStrong P V dealer v₀ t).state F adv input (r + 1) p).toRelay := by
-      rw [dolevStrong_state_succ]
-      simp only [hr, ↓reduceIte]
-      exact hrel hlt
-    exact toRelay_reaches_all dealer v₀ t hunf hr1 hpF hc'_rel hqF
+    exact toRelay_reaches_all dealer v₀ t hunf (Nat.succ_le_of_lt hlt) hpF
+      (c := ⟨c₀.value, p :: c₀.signers⟩)
+      (by simpa only [dolevStrong_state_succ_of_le dealer v₀ t F adv input hr] using hrel hlt) hqF
   · -- Extracted in the final round `r = t`: `c₀` has `t + 1 > F.card` distinct signers.
     have hrt_eq : r = t := by omega
     subst r
@@ -837,21 +801,12 @@ omit [Fintype P] [LinearOrder P] [DecidableEq V] in
 private theorem not_two_mem_singleton {v a b : V} {rest : List V}
     (hlen : (a :: b :: rest).length ≤ 2) (hnd : (a :: b :: rest).Nodup)
     (h : ∀ x ∈ a :: b :: rest, x ∈ [v] ∨ [v].length = 2) : False := by
-  have hrest : rest = [] := by
-    cases rest with
-    | nil => rfl
-    | cons _ _ => simp only [List.length_cons] at hlen; omega
-  subst hrest
-  have hab : a ≠ b := (List.nodup_cons.1 hnd).1 ∘ List.mem_singleton.2
-  have ha : a = v := by
-    rcases h a List.mem_cons_self with hm | hl
-    · exact List.mem_singleton.1 hm
-    · simp at hl
-  have hb : b = v := by
-    rcases h b (List.mem_cons_of_mem _ List.mem_cons_self) with hm | hl
-    · exact List.mem_singleton.1 hm
-    · simp at hl
-  exact hab (ha.trans hb.symm)
+  cases rest with
+  | cons => simp only [List.length_cons] at hlen; omega
+  | nil =>
+    have ha := h a (by simp)
+    have hb := h b (by simp)
+    simp_all
 
 omit [Fintype P] [LinearOrder P] [DecidableEq V] in
 /-- **Two-value decision agreement.** If two `Nodup` lists of length at most `2` satisfy mutual
@@ -864,77 +819,45 @@ private theorem decideExtracted_eq_of_mutual {l₁ l₂ : List V}
     decideExtracted l₁ v₀ = decideExtracted l₂ v₀ := by
   match l₁, l₂ with
   | [], [] | [], _ :: _ :: _ | _ :: _ :: _, [] | _ :: _ :: _, _ :: _ :: _ => rfl
-  | [], [w] =>
-    rcases h₂₁ w List.mem_cons_self with hw | hlen
-    · cases hw
-    · simp at hlen
-  | [v], [] =>
-    rcases h₁₂ v List.mem_cons_self with hv | hlen
-    · cases hv
-    · simp at hlen
+  | [], [w] => exact False.elim (by simpa using h₂₁ w List.mem_cons_self)
+  | [v], [] => exact False.elim (by simpa using h₁₂ v List.mem_cons_self)
   | [v], [w] =>
-    rcases h₁₂ v List.mem_cons_self with hv | hlen
-    · simp only [List.mem_singleton] at hv
-      subst hv
-      rfl
-    · simp at hlen
-  | [v], w₁ :: w₂ :: rest => exact False.elim (not_two_mem_singleton hlen₂ hnd₂ h₂₁)
-  | v₁ :: v₂ :: rest, [w] => exact False.elim (not_two_mem_singleton hlen₁ hnd₁ h₁₂)
+    exact congrArg (fun x => decideExtracted [x] v₀) (by simpa using h₁₂ v List.mem_cons_self)
+  | [v], _ :: _ :: _ => exact False.elim (not_two_mem_singleton hlen₂ hnd₂ h₂₁)
+  | _ :: _ :: _, [w] => exact False.elim (not_two_mem_singleton hlen₁ hnd₁ h₁₂)
 
 private theorem validity_dolevStrong_at_succ {F : Finset P} (hd : dealer ∉ F)
     {adv : ℕ → P → P → List (SignedChain P V)} {input : V}
     (hunf : (dolevStrong P V dealer v₀ t).Unforgeable F input adv) {i : P} (hi : i ∉ F) :
     (dolevStrong P V dealer v₀ t).decision F adv input (t + 1) i = input := by
-  by_cases hid : i = dealer
-  · subst i
-    rw [AuthProtocol.decision]
-    change decideExtracted
-      (((dolevStrong P V dealer v₀ t).state F adv input (t + 1) dealer).extracted) v₀ = input
-    rw [(state_dealer_extracted dealer v₀ t F adv input (t + 1)).1]
-    rfl
-  · -- Every value extracted by `i` equals `input`, because every accepted chain is rooted at
-    -- `dealer`.
-    have hall_input :
-        ∀ v ∈ ((dolevStrong P V dealer v₀ t).state F adv input (t + 1) i).extracted,
-          v = input := by
-      intro v hv
-      obtain ⟨r, hrt1, hnot_r, hin_r1⟩ := exists_first_extracted dealer v₀ t F adv input hid hv
-      have hr : r ≤ t := by omega
-      rw [dolevStrong_state_succ] at hin_r1
-      simp only [hr, ↓reduceIte] at hin_r1
-      obtain ⟨src, c₀, hc₀, rfl, hd_last, -, -, -, -⟩ :=
-        mem_round_extracted dealer t hin_r1 hnot_r
-      obtain ⟨r', -, dst', c', hc', hval, -⟩ :=
-        hunf.exists_send_of_mem_signers (wellSigned_dolevStrong dealer v₀ t) r src i c₀ hc₀
-          dealer (List.mem_of_getLast? hd_last) hd
-      obtain ⟨hr't, hc'_rel, -⟩ := mem_toRelay_of_send dealer v₀ t hc'
-      have hv' := (toRelay_props dealer v₀ t F adv input hr't hc'_rel).2.2.2.2.1
-      rw [(state_dealer_extracted dealer v₀ t F adv input r').1, List.mem_singleton] at hv'
-      exact hval.symm.trans hv'
-    -- And `dealer` queues `⟨input, [dealer]⟩` in round `1` (`r = 0`).
-    have hrel0 : ⟨input, [dealer]⟩ ∈
-        ((dolevStrong P V dealer v₀ t).state F adv input 0 dealer).toRelay := by
-      rw [dolevStrong_state_zero]
-      simp
-    have hreach := toRelay_reaches_all dealer v₀ t hunf (Nat.zero_le t) hd hrel0 hi
-    obtain ⟨_, hnd, -⟩ := state_extracted_props dealer v₀ t F adv input (t + 1) i
-    simp only [AuthProtocol.decision, dolevStrong]
-    match hlist : ((dolevStrong P V dealer v₀ t).state F adv input (t + 1) i).extracted with
-    | [] =>
-      rw [hlist] at hreach
-      simp at hreach
-    | [v] =>
-      have hv_eq : v = input := hall_input v (by rw [hlist]; exact List.mem_cons_self)
-      subst hv_eq
-      rfl
-    | v₁ :: v₂ :: rest =>
-      rw [hlist] at hnd
-      have hv1 : v₁ = input := hall_input v₁ (by rw [hlist]; exact List.mem_cons_self)
-      have hv2 : v₂ = input := hall_input v₂
-        (by rw [hlist]; exact List.mem_cons_of_mem _ List.mem_cons_self)
-      have hne : v₁ ≠ v₂ := fun heq =>
-        (List.nodup_cons.1 hnd).1 (heq ▸ List.mem_cons_self)
-      exact absurd (hv1.trans hv2.symm) hne
+  -- Every value extracted by `i` equals `input`, because every accepted chain is rooted at
+  -- `dealer`.
+  have hall_input :
+      ∀ v ∈ ((dolevStrong P V dealer v₀ t).state F adv input (t + 1) i).extracted,
+        v = input := by
+    intro v hv
+    by_cases hid : i = dealer
+    · subst i
+      rwa [(state_dealer_extracted dealer v₀ t F adv input (t + 1)).1, List.mem_singleton] at hv
+    obtain ⟨r, hrt1, hnot_r, hin_r1⟩ := exists_first_extracted dealer v₀ t F adv input hid hv
+    have hr : r ≤ t := by omega
+    rw [dolevStrong_state_succ_of_le dealer v₀ t F adv input hr] at hin_r1
+    obtain ⟨src, c₀, hc₀, rfl, hd_last, -, -, -, -⟩ :=
+      mem_round_extracted dealer t hin_r1 hnot_r
+    obtain ⟨r', -, dst', c', hc', hval, -⟩ :=
+      hunf.exists_send_of_mem_signers (wellSigned_dolevStrong dealer v₀ t) r src i c₀ hc₀
+        dealer (List.mem_of_getLast? hd_last) hd
+    obtain ⟨hr't, hc'_rel, -⟩ := mem_toRelay_of_send dealer v₀ t hc'
+    have hv' := (toRelay_props dealer v₀ t F adv input hr't hc'_rel).2.2.2.2.1
+    rw [(state_dealer_extracted dealer v₀ t F adv input r').1, List.mem_singleton] at hv'
+    exact hval.symm.trans hv'
+  -- And `dealer` queues `⟨input, [dealer]⟩` in round `1` (`r = 0`), so `i` extracts `input`.
+  have hreach := toRelay_reaches_all dealer v₀ t hunf (Nat.zero_le t) hd
+    (c := ⟨input, [dealer]⟩) (by simp [dolevStrong_state_zero]) hi
+  obtain ⟨hlen, hnd, -⟩ := state_extracted_props dealer v₀ t F adv input (t + 1) i
+  exact decideExtracted_eq_of_mutual (l₂ := [input]) v₀ hlen (by simp) hnd
+    (List.nodup_singleton _) (fun v hv => Or.inl (List.mem_singleton.2 (hall_input v hv)))
+    (by simpa using hreach)
 
 /-- **Dolev–Strong authenticated synchronous broadcast** ([Dolev and Strong][DolevStrong1983],
 §4, Theorem 3, pp. 662–663): `dolevStrong P V dealer v₀ t` solves synchronous authenticated
@@ -1014,45 +937,20 @@ theorem dolevStrong_sum_send_length_le_two (F : Finset P)
     ∑ r ∈ Finset.range R,
       ((dolevStrong P V dealer v₀ t).send r i
         ((dolevStrong P V dealer v₀ t).state F adv input r i) dst).length ≤ 2 := by
-  have hprefix : ∀ m ≤ t,
-      ∑ r ∈ Finset.range (m + 1),
+  -- Rounds after `t` send nothing; earlier ones send a filter of `toRelay`.
+  calc _ ≤ ∑ r ∈ Finset.range (t + 1),
         ((dolevStrong P V dealer v₀ t).send r i
-          ((dolevStrong P V dealer v₀ t).state F adv input r i) dst).length ≤ 2 :=
-    fun m hm =>
-      calc ∑ r ∈ Finset.range (m + 1),
-            ((dolevStrong P V dealer v₀ t).send r i
-              ((dolevStrong P V dealer v₀ t).state F adv input r i) dst).length
-          ≤ ∑ r ∈ Finset.range (m + 1),
-              ((dolevStrong P V dealer v₀ t).state F adv input r i).toRelay.length := by
-            refine Finset.sum_le_sum fun r hr => ?_
-            have hrt : r ≤ t := by simp only [Finset.mem_range] at hr; omega
-            rw [dolevStrong_send]
-            simp only [hrt, ↓reduceIte]
-            exact List.length_filter_le _ _
-        _ = ((dolevStrong P V dealer v₀ t).state F adv input m i).extracted.length :=
-            sum_toRelay_length_prefix dealer v₀ t F adv input i m hm
-        _ ≤ 2 := (state_extracted_props dealer v₀ t F adv input m i).1
-  by_cases hR0 : R = 0
-  · subst hR0; simp
-  · by_cases hR : R ≤ t + 1
-    · obtain ⟨m, rfl⟩ : ∃ m, R = m + 1 := ⟨R - 1, by omega⟩
-      exact hprefix m (by omega)
-    · obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le (show t + 1 ≤ R by omega)
-      have htail : ∑ r ∈ Finset.range (t + 1 + d),
-          ((dolevStrong P V dealer v₀ t).send r i
-            ((dolevStrong P V dealer v₀ t).state F adv input r i) dst).length =
-          ∑ r ∈ Finset.range (t + 1),
-            ((dolevStrong P V dealer v₀ t).send r i
-              ((dolevStrong P V dealer v₀ t).state F adv input r i) dst).length := by
-        clear hR0 hR
-        induction d with
-        | zero => rfl
-        | succ d ih =>
-          rw [← Nat.add_assoc, Finset.sum_range_succ, ih, dolevStrong_send]
-          have hgt : ¬(t + 1 + d ≤ t) := by omega
-          simp only [hgt, ↓reduceIte, List.length_nil, Nat.add_zero]
-      rw [htail]
-      exact hprefix t le_rfl
+          ((dolevStrong P V dealer v₀ t).state F adv input r i) dst).length :=
+        Finset.sum_le_sum_of_ne_zero fun r _ hne => Finset.mem_range.2 <| by
+          by_contra h
+          simp [dolevStrong_send, show ¬r ≤ t by omega] at hne
+    _ ≤ ∑ r ∈ Finset.range (t + 1),
+        ((dolevStrong P V dealer v₀ t).state F adv input r i).toRelay.length :=
+        Finset.sum_le_sum fun r hr => by
+          simp only [dolevStrong_send, Nat.lt_succ_iff.1 (Finset.mem_range.1 hr), ↓reduceIte]
+          exact List.length_filter_le _ _
+    _ ≤ 2 := (sum_toRelay_length_prefix dealer v₀ t F adv input i t le_rfl).trans_le
+        (state_extracted_props dealer v₀ t F adv input t i).1
 
 /-- **Polynomial communication complexity** ([Dolev and Strong][DolevStrong1983], §4, Theorem 3,
 pp. 662–663): across any `R` rounds, all correct processes together emit at most
@@ -1064,38 +962,15 @@ theorem dolevStrong_correctMessagesSent_le (F : Finset P)
       2 * (Fintype.card P - F.card) * (Fintype.card P - 1) := by
   unfold AuthProtocol.correctMessagesSent
   rw [Finset.sum_comm]
-  have hinner : ∀ j : P,
-      ∑ i ∈ Finset.univ, ∑ r ∈ Finset.range R,
-        ((dolevStrong P V dealer v₀ t).send r j
-          ((dolevStrong P V dealer v₀ t).state F adv input r j) i).length ≤
-        2 * (Fintype.card P - 1) := fun j => by
-    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ j)]
-    have hself : ∑ r ∈ Finset.range R,
-        ((dolevStrong P V dealer v₀ t).send r j
-          ((dolevStrong P V dealer v₀ t).state F adv input r j) j).length = 0 := by
-      simp [send_self_eq_nil]
-    rw [hself, zero_add]
-    calc ∑ i ∈ Finset.univ.erase j, ∑ r ∈ Finset.range R,
-          ((dolevStrong P V dealer v₀ t).send r j
-            ((dolevStrong P V dealer v₀ t).state F adv input r j) i).length
-        ≤ ∑ _i ∈ Finset.univ.erase j, 2 :=
-          Finset.sum_le_sum fun i _ =>
-            dolevStrong_sum_send_length_le_two dealer v₀ t F adv input R j i
-      _ = 2 * (Fintype.card P - 1) := by
-          rw [Finset.sum_const, Nat.nsmul_eq_mul]; finset_card
-  calc ∑ j ∈ Finset.univ \ F, ∑ r ∈ Finset.range R, ∑ i ∈ Finset.univ,
-        ((dolevStrong P V dealer v₀ t).send r j
-          ((dolevStrong P V dealer v₀ t).state F adv input r j) i).length
-      = ∑ j ∈ Finset.univ \ F, ∑ i ∈ Finset.univ, ∑ r ∈ Finset.range R,
-          ((dolevStrong P V dealer v₀ t).send r j
-            ((dolevStrong P V dealer v₀ t).state F adv input r j) i).length :=
-        Finset.sum_congr rfl fun _ _ => Finset.sum_comm
-    _ ≤ ∑ _j ∈ Finset.univ \ F, 2 * (Fintype.card P - 1) :=
-        Finset.sum_le_sum fun j _ => hinner j
-    _ = 2 * (Fintype.card P - F.card) * (Fintype.card P - 1) := by
-        rw [Finset.sum_const, Nat.nsmul_eq_mul,
-          show (Finset.univ \ F).card = Fintype.card P - F.card by finset_card,
-          ← Nat.mul_assoc, Nat.mul_comm _ 2]
+  -- Each correct `j` sends nothing to itself and at most `2` chains to each other process.
+  refine (Finset.sum_le_card_nsmul _ _ (2 * (Fintype.card P - 1)) fun j _ => ?_).trans_eq ?_
+  · rw [Finset.sum_comm, ← Finset.add_sum_erase _ _ (Finset.mem_univ j)]
+    simp only [send_self_eq_nil, List.length_nil, Finset.sum_const_zero, zero_add]
+    refine (Finset.sum_le_card_nsmul _ _ 2 fun i _ =>
+      dolevStrong_sum_send_length_le_two dealer v₀ t F adv input R j i).trans_eq ?_
+    rw [Nat.nsmul_eq_mul, mul_comm]; finset_card
+  · rw [Nat.nsmul_eq_mul, show (Finset.univ \ F).card = Fintype.card P - F.card by finset_card,
+      ← Nat.mul_assoc, Nat.mul_comm _ 2]
 
 end DolevStrongProofs
 

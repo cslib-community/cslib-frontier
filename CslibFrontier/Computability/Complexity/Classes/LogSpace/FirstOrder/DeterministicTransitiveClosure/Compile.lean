@@ -112,8 +112,7 @@ theorem length_compile : ∀ {Γ : List ℕ} {α : Type w} (fv : α → ℕ) (ba
       List.length_nil]
     omega
   | _, _, fv, base, .op k body args, b, T, F => by
-    simp only [compile, len, length_dtcCode]
-    rw [length_compile]
+    simp only [compile, len, length_dtcCode, length_compile]
 
 variable {v}
 
@@ -159,11 +158,9 @@ theorem correct_neg {Γ : List ℕ} {α : Type} {φ : Formula (language L) TC.sh
   intro hΓ hW fv base val ρ b T F regs hP hbase hfv hd h0 hv hregs
   obtain ⟨res, regs', hres, hreach, hk⟩ :=
     ih hΓ hW fv base val ρ b F T regs hP hbase hfv hd h0 hv hregs
-  refine ⟨!res, regs', ?_, ?_, hk⟩
-  · cases res
-    · exact iff_of_true rfl fun h => Bool.false_ne_true (hres.mpr h)
-    · exact iff_of_false Bool.false_ne_true fun h => h (hres.mp rfl)
-  · cases res <;> exact hreach
+  cases res with
+  | false => exact ⟨true, regs', iff_of_true rfl (mt hres.mpr Bool.false_ne_true), hreach, hk⟩
+  | true => exact ⟨false, regs', iff_of_false Bool.false_ne_true (· (hres.mp rfl)), hreach, hk⟩
 
 theorem correct_conj {Γ : List ℕ} {α : Type} {φ ψ : Formula (language L) TC.shape Γ α}
     (ihφ : Correct v a P B φ) (ihψ : Correct v a P B ψ) : Correct v a P B (φ.conj ψ) := by
@@ -174,10 +171,8 @@ theorem correct_conj {Γ : List ℕ} {α : Type} {φ ψ : Formula (language L) T
   have hdφ : base + scratch φ ≤ regs.length := (Nat.add_le_add_left (le_max_left _ _) _).trans hd
   have hdψ : base + scratch ψ ≤ regs.length :=
     (Nat.add_le_add_left (le_max_right _ _) _).trans hd
-  have hP' : P.CodeAt b (compile v fv base φ b (b + len φ) F ++
-      compile v fv base ψ (b + len φ) T F) := hP
-  rw [codeAt_append, length_compile] at hP'
-  obtain ⟨hPφ, hPψ⟩ := hP'
+  obtain ⟨hPφ, hPψ⟩ : P.CodeAt b _ ∧ P.CodeAt (b + len φ) _ := by
+    simpa only [compile, codeAt_append, length_compile] using hP
   obtain ⟨r₁, regs₁, hr₁, hreach₁, hk₁⟩ :=
     ihφ hΓ hWφ fv base val ρ b (b + len φ) F regs hPφ hbase hfv hdφ h0 hv hregs
   cases r₁ with
@@ -189,9 +184,8 @@ theorem correct_conj {Γ : List ℕ} {α : Type} {φ ψ : Formula (language L) T
     obtain ⟨r₂, regs₂, hr₂, hreach₂, hk₂⟩ :=
       ihψ hΓ hWψ fv base val ρ (b + len φ) T F regs₁ hPψ hbase hfv hd₁ h0₁ hv₁ hk₁.bounded
     rw [ite_eq_left rfl] at hreach₁
-    refine ⟨r₂, regs₂, ?_, hreach₁.trans hreach₂, hk₁.trans hk₂⟩
-    rw [hr₂]
-    exact ⟨fun h => ⟨hr₁.mp rfl, h⟩, fun h => h.2⟩
+    exact ⟨r₂, regs₂, hr₂.trans ⟨fun h => ⟨hr₁.mp rfl, h⟩, And.right⟩, hreach₁.trans hreach₂,
+      hk₁.trans hk₂⟩
 
 theorem correct_ex (hE : Env v a B) {Γ : List ℕ} {α : Type}
     {φ : Formula (language L) TC.shape Γ (Option α)}
@@ -199,10 +193,9 @@ theorem correct_ex (hE : Env v a B) {Γ : List ℕ} {α : Type}
   intro hΓ hW fv base val ρ b T F regs hP hbase hfv hd h0 hv hregs
   have hdepth : base + 1 + scratch φ ≤ regs.length := by simp only [scratch] at hd; omega
   have hlen : base < regs.length := by omega
-  have hfv' : ∀ y : Option α, y.elim base fv < base + 1 := fun y => by
-    cases y with
-    | none => simp
-    | some y => have := hfv y; simp only [Option.elim_some]; omega
+  have hfv' : ∀ y : Option α, y.elim base fv < base + 1
+    | none => by simp
+    | some y => by have := hfv y; simp only [Option.elim_some]; omega
   have hP' : P.CodeAt b ([.assign base (const 0) (b + 1), .lt (reg base) (reg 0) (b + 2) F] ++
       compile v (fun x => x.elim base fv) (base + 1) φ (b + 2) T (b + 2 + len φ) ++
       [.assign base (add (reg base) (const 1)) (b + 1)]) := hP
@@ -308,20 +301,17 @@ theorem correct_op (hE : Env v a B) {Γ : List ℕ} {α : Type} (k : ℕ)
     rw [hcl]
     exact ih (by rw [hΓ]; rfl) hWb _ (base + 2 * k + 4) (Sum.elim val (TC.pair us ys))
       (RelEnv.empty.append ρ) (b + 2 * k + 6) _ _ regs₁ hbodyP (by omega)
-      (fun x => by
-        cases x with
-        | inl x => have := hfv x; simp only [Sum.elim_inl]; omega
-        | inr i => have : (i : ℕ) < 2 * k := i.isLt; simp only [Sum.elim_inr]; omega)
+      (fun
+        | .inl x => by have := hfv x; simp only [Sum.elim_inl]; omega
+        | .inr i => by have : (i : ℕ) < 2 * k := i.isLt; simp only [Sum.elim_inr]; omega)
       (by rw [hk.length_eq]; omega) ((hk.getD_eq 0 hbase).trans h0)
-      (fun x => by
-        cases x with
-        | inl x => simp only [Sum.elim_inl]; exact (hk.getD_eq _ (hfv x)).trans (hv x)
-        | inr i => exact getD_pair hu hy i)
+      (fun
+        | .inl x => by simp only [Sum.elim_inl]; exact (hk.getD_eq _ (hfv x)).trans (hv x)
+        | .inr i => getD_pair hu hy i)
       hk.bounded
-  obtain ⟨res, regs', hres, hreach, hk'⟩ := reaches_dtcCode (E := E) hP' hbase (by omega) h0
-    hNB hE.card_le hE.one_le hregs (fun regs' h i => hterm (TC.left args i) regs' h)
+  exact reaches_dtcCode (E := E) hP' hbase (by omega) h0 hNB hE.card_le hE.one_le hregs
+    (fun regs' h i => hterm (TC.left args i) regs' h)
     (fun regs' h i => hterm (TC.right args i) regs' h) hbody
-  exact ⟨res, regs', hres, hreach, hk'⟩
 
 /-- **Compiler correctness** for every formula without free relation variables. -/
 theorem correct (hE : Env v a B) :

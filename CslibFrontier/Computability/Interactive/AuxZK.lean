@@ -925,9 +925,7 @@ theorem Verifier.KnowledgeSound.seqProd
     rintro ⟨τ, w₁', w₂'⟩ ⟨⟨⟨y₁, y₂⟩, hout, hy₁, hy₂⟩, hnot⟩
     rw [Verifier.outputOn_seqProd_eq_some_iff] at hout
     simp only [relProd, Verifier.extractSeqProd, not_and_or] at hnot
-    rcases hnot with hn₁ | hn₂
-    · exact Or.inl ⟨⟨y₁, hout.1, hy₁⟩, hn₁⟩
-    · exact Or.inr ⟨⟨y₂, hout.2, hy₂⟩, hn₂⟩
+    exact hnot.imp (fun hn₁ => ⟨⟨y₁, hout.1, hy₁⟩, hn₁⟩) fun hn₂ => ⟨⟨y₂, hout.2, hy₂⟩, hn₂⟩
   refine le_trans (MeasureTheory.measure_mono hsub)
     (le_trans (MeasureTheory.measure_union_le _ _) (add_le_add ?_ ?_))
   · let P₁ : ProbOracleComp OracleSpec.empty

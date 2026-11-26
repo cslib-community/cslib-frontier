@@ -335,9 +335,8 @@ theorem log_n_max_lt_w {c U w n_max : ℕ} (hth : whpThreshold c ≤ n_max)
     (hnU : n_max ≤ U) (hU : Fits w U) :
     Nat.log 2 n_max < w := by
   have hn0 : 0 < n_max := (whpThreshold_pos c).trans_le hth
-  have hpow : 2 ^ Nat.log 2 n_max ≤ n_max := Nat.pow_log_le_self 2 hn0.ne'
-  have hlt : 2 ^ Nat.log 2 n_max < 2 ^ w := (hpow.trans hnU).trans_lt hU
-  exact (Nat.pow_lt_pow_iff_right (by decide : 1 < 2)).mp hlt
+  exact (Nat.pow_lt_pow_iff_right (by decide : 1 < 2)).mp
+    (((Nat.pow_log_le_self 2 hn0.ne').trans hnU).trans_lt hU)
 
 theorem two_mul_rIndepWhp_lt_qEpochWhp {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) :
     2 * sMaxWhp c n_max < qEpochWhp n_max := by
@@ -356,12 +355,7 @@ theorem two_mul_rIndepWhp_lt_qEpochWhp {c n_max : ℕ} (hth : whpThreshold c ≤
 theorem globalPtrBits_pos_of_large {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) :
     0 < globalPtrBits n_max := by
   have hn : 1 ≤ n_max := (whpThreshold_pos c).trans_le hth
-  have hpow := Nat.le_pow_clog Nat.one_lt_two (n_max + 1)
-  by_contra h0
-  have hz : globalPtrBits n_max = 0 := by unfold globalPtrBits at *; omega
-  unfold globalPtrBits at hz
-  rw [hz, pow_zero] at hpow
-  omega
+  exact Nat.clog_pos Nat.one_lt_two (by omega)
 
 theorem large_bounds_lt_n_max {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) :
     1024 ≤ numBucketsWhp n_max ∧
@@ -1083,22 +1077,16 @@ theorem hashEnvs_of_large {base c U V w n_max : ℕ}
   have hbot_lt : BitPackedDoubleTabulation.botEntries (dTabWhp c) (bCharWhp n_max) < 2 ^ w :=
     hbot_le.trans_lt htop_lt
   have hc1_lt : cTabWhp c + 1 < 2 ^ w := by
-    have hd_pos : 0 < dTabWhp c * 2 ^ bCharWhp n_max :=
-      Nat.mul_pos (dTabWhp_pos c) (Nat.two_pow_pos _)
-    have : cTabWhp c + 1 ≤
-        BitPackedDoubleTabulation.topEntries (cTabWhp c) (dTabWhp c) (bCharWhp n_max) := by
-      dsimp only [BitPackedDoubleTabulation.topEntries]
-      rw [mul_assoc]
-      exact Nat.le_mul_of_pos_right _ hd_pos
-    exact this.trans_lt htop_lt
-  have hd_lt : dTabWhp c < 2 ^ w := by
-    have : dTabWhp c ≤ BitPackedDoubleTabulation.botEntries (dTabWhp c) (bCharWhp n_max) :=
-      Nat.le_mul_of_pos_right _ (Nat.two_pow_pos _)
-    exact this.trans_lt hbot_lt
-  have hfit1 : Fits w ((base + offHashBkt) + bktHashWords c w n_max) := by
-    refine hfit.of_le ?_
-    dsimp only [largeSpaceWhp, offHashBkt, bktHashWords]
-    omega
+    refine (?_ : cTabWhp c + 1 ≤
+      BitPackedDoubleTabulation.topEntries (cTabWhp c) (dTabWhp c)
+        (bCharWhp n_max)).trans_lt htop_lt
+    dsimp only [BitPackedDoubleTabulation.topEntries]
+    rw [mul_assoc]
+    exact Nat.le_mul_of_pos_right _ (Nat.mul_pos (dTabWhp_pos c) (Nat.two_pow_pos _))
+  have hd_lt : dTabWhp c < 2 ^ w :=
+    (Nat.le_mul_of_pos_right _ (Nat.two_pow_pos _)).trans_lt hbot_lt
+  have hfit1 : Fits w ((base + offHashBkt) + bktHashWords c w n_max) :=
+    hfit.of_le (by dsimp only [largeSpaceWhp, offHashBkt, bktHashWords]; omega)
   have hfit2 : Fits w ((base + offHashFp c w n_max) + fpHashWords c w n_max) := by
     refine hfit.of_le ?_
     dsimp only [largeSpaceWhp, offHashFp, offHashBkt, bktHashWords, fpHashWords]
@@ -1146,11 +1134,8 @@ theorem fits_mkWhpParams {base c U V w n_max : ℕ}
   · have hsp : whpSpace c U V w n_max = smallSpaceWhp U V w n_max := by
       unfold whpSpace; exact ite_eq_left hsm
     rw [hsp] at hfit
-    have hs1 : offSmallPres = 32 := rfl
-    have hs2 : offSmallKeys U w n_max = offSmallPres + packedWords n_max 1 w := rfl
-    have hs3 : offSmallVals U w n_max = offSmallKeys U w n_max + packedWords n_max (keyBits U) w :=
-      rfl
     have hend := smallOffsets_eq U V w n_max
+    dsimp only [offSmallVals, offSmallKeys, offSmallPres] at hend
     refine ⟨fun i => ?_, fun j => ?_⟩
     · dsimp only [mkWhpCoreParams]
       rw [ite_eq_left hsm]
@@ -1162,10 +1147,9 @@ theorem fits_mkWhpParams {base c U V w n_max : ℕ}
       · exact hV
       · exact (keyBits_le_w hU).trans_lt hw_lt
       · exact (valBits_le_w hV).trans_lt hw_lt
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact h0_fit
+      all_goals
+        try dsimp only [offSmallVals, offSmallKeys, offSmallPres]
+        exact hfit.of_le (by omega)
     · dsimp only [mkWhpParams, wpHash1, wpHash2]
       rw [ite_eq_left hsm]
       exact ⟨h0_fit, h0_fit⟩
@@ -1236,19 +1220,16 @@ theorem fits_mkWhpParams {base c U V w n_max : ℕ}
       · exact hmt_lt.trans hn_lt
       · rw [hMaxBTree_eq]
         exact (by omega : 42 < 1024).trans (hM_ge.trans_lt (hM_le_n.trans_lt hn_lt))
-      · have : tMinWhp n_max < w := by
-          have : tMinWhp n_max ≤ Nat.log 2 n_max := by
-            unfold tMinWhp; exact max_le (by omega) (Nat.div_le_self _ _)
-          omega
-        exact this.trans hw_lt
+      · have ht : tMinWhp n_max ≤ Nat.log 2 n_max := by
+          unfold tMinWhp
+          exact max_le (by omega) (Nat.div_le_self _ _)
+        exact (ht.trans_lt hlog_w).trans hw_lt
       · have hkl_pos : 0 < keyLaneBitsWhp n_max := by unfold keyLaneBitsWhp; positivity
-        have h2t : 2 * tMinWhp n_max ≤ keysWordBitsWhp n_max :=
-          Nat.le_mul_of_pos_right _ hkl_pos
-        exact (h2t.trans_lt (by omega : keysWordBitsWhp n_max < w)).trans hw_lt
+        exact ((Nat.le_mul_of_pos_right _ hkl_pos).trans_lt
+          (by omega : keysWordBitsWhp n_max < w)).trans hw_lt
       · have hkl_pos : 0 < keyLaneBitsWhp n_max := by unfold keyLaneBitsWhp; positivity
-        have h2t : 2 * tMinWhp n_max - 1 ≤ keysWordBitsWhp n_max :=
-          (Nat.sub_le _ _).trans (Nat.le_mul_of_pos_right _ hkl_pos)
-        exact (h2t.trans_lt (by omega : keysWordBitsWhp n_max < w)).trans hw_lt
+        exact (((Nat.sub_le _ _).trans (Nat.le_mul_of_pos_right _ hkl_pos)).trans_lt
+          (by omega : keysWordBitsWhp n_max < w)).trans hw_lt
       · exact (by omega : keyLaneBitsWhp n_max < w).trans hw_lt
       · exact (Nat.sub_lt (Nat.two_pow_pos _) one_pos).trans
           (Nat.pow_lt_pow_right (by decide) (by omega : keyLaneBitsWhp n_max < w))
@@ -1263,27 +1244,7 @@ theorem fits_mkWhpParams {base c U V w n_max : ℕ}
           (Nat.pow_lt_pow_right (by decide) (by omega : valLaneBitsWhp n_max < w))
       · exact (by unfold nodeMetaBitsWhp; omega : nodeMetaBitsWhp n_max < w).trans hw_lt
       · exact hns_lt.trans hn_lt
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact hfit.of_le (by omega)
-      · exact h0_fit
+      all_goals exact hfit.of_le (by omega)
     · dsimp only [mkWhpParams]
       rw [ite_eq_right hsm]
       exact ⟨BitPackedDoubleTabulation.fits_mkHashParams henv1 j,

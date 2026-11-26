@@ -152,9 +152,9 @@ instance (μ : Allocation n) : Decidable (I.IsParetoEfficient μ) :=
 variable {I}
 
 theorem Blocks.weaklyBlocks {μ : Allocation n} {S : Finset (Fin n)} (h : I.Blocks μ S) :
-    I.WeaklyBlocks μ S := by
-  obtain ⟨⟨i, hi⟩, ν, hS, hlt⟩ := h
-  exact ⟨ν, hS, fun j hj => (hlt j hj).le, i, hi, hlt i hi⟩
+    I.WeaklyBlocks μ S :=
+  let ⟨⟨i, hi⟩, ν, hS, hlt⟩ := h
+  ⟨ν, hS, fun j hj => (hlt j hj).le, i, hi, hlt i hi⟩
 
 /-- The strict core is contained in the core. -/
 theorem InStrictCore.inCore {μ : Allocation n} (h : I.InStrictCore μ) : I.InCore μ :=
@@ -163,18 +163,16 @@ theorem InStrictCore.inCore {μ : Allocation n} (h : I.InStrictCore μ) : I.InCo
 /-- Strict-core allocations are individually rational: otherwise an agent blocks alone by keeping
 its own house. -/
 theorem InStrictCore.isIndividuallyRational {μ : Allocation n} (h : I.InStrictCore μ) :
-    I.IsIndividuallyRational μ := by
-  intro i
-  by_contra hlt
-  refine h {i} ⟨1, fun j hj => hj, fun j hj => ?_, i, Finset.mem_singleton_self i, not_le.1 hlt⟩
-  rw [Finset.mem_singleton.1 hj]
-  exact (not_le.1 hlt).le
+    I.IsIndividuallyRational μ :=
+  fun i => by_contra fun hlt => h {i} ⟨1, fun _ hj => hj,
+    fun _ hj => Finset.mem_singleton.1 hj ▸ (not_le.1 hlt).le,
+    i, Finset.mem_singleton_self i, not_le.1 hlt⟩
 
 /-- Strict-core allocations are Pareto efficient: otherwise the grand coalition weakly blocks. -/
 theorem InStrictCore.isParetoEfficient {μ : Allocation n} (h : I.InStrictCore μ) :
-    I.IsParetoEfficient μ := by
-  rintro ⟨ν, hle, i, hi⟩
-  exact h Finset.univ ⟨ν, fun j _ => Finset.mem_univ _, fun j _ => hle j, i, Finset.mem_univ _, hi⟩
+    I.IsParetoEfficient μ :=
+  fun ⟨ν, hle, i, hi⟩ =>
+    h Finset.univ ⟨ν, fun _ _ => Finset.mem_univ _, fun j _ => hle j, i, Finset.mem_univ _, hi⟩
 
 /-! ### Competitive allocations -/
 
@@ -204,15 +202,11 @@ following the reallocation around that member's cycle gives a contradiction. -/
 theorem IsCompetitive.inStrictCore {α : Type*} [LinearOrder α] {μ : Allocation n}
     {p : Fin n → α} (h : I.IsCompetitive μ p) : I.InStrictCore μ := by
   rintro S ⟨ν, hS, hle, j, hj, hlt⟩
-  have hup : ∀ i ∈ (S : Set (Fin n)), p i ≤ p (ν i) := by
-    intro i hi
-    by_contra hpi
+  have hup : ∀ i ∈ (S : Set (Fin n)), p i ≤ p (ν i) := fun i hi => by_contra fun hpi => by
     have heq := I.rank_injective i (le_antisymm (hle i hi) ((h i).2 (ν i) (not_le.1 hpi).le))
-    rw [heq, h.price_apply] at hpi
-    exact hpi le_rfl
-  have hj' : p j < p (ν j) := by
-    by_contra hpj
-    exact absurd ((h j).2 (ν j) (not_lt.1 hpj)) (not_le.2 hlt)
+    exact hpi (by rw [heq, h.price_apply])
+  have hj' : p j < p (ν j) := by_contra fun hpj =>
+    absurd ((h j).2 (ν j) (not_lt.1 hpj)) (not_le.2 hlt)
   exact absurd (Cslib.FunctionalGraph.apply_le_of_mem_periodicPts (fun i hi => hS i hi) hup
     (ν.injective.mem_periodicPts j) hj) (not_le.2 hj')
 

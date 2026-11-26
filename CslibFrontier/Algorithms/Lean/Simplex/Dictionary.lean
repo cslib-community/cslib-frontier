@@ -13,10 +13,6 @@ public import Mathlib.Algebra.Order.Field.Basic
 public import Mathlib.Data.Fintype.Basic
 public import Mathlib.Order.Bounds.Defs
 import Mathlib.Algebra.BigOperators.Field
-import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Algebra.Order.Module.Defs
-import Mathlib.Algebra.Order.Pi
-import Mathlib.Data.Fintype.Card
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.LinearCombination
 import Mathlib.Tactic.Linarith
@@ -232,80 +228,78 @@ private theorem sum_compl_pivot {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.ba
   have : (D.pivot r s).basisᶜ = insert r (D.basisᶜ.erase s) := by
     ext j
     simp only [Finset.mem_compl, mem_pivot_basis, Finset.mem_insert, Finset.mem_erase]
-    constructor
-    · intro h
-      by_cases hjr : j = r
-      · exact .inl hjr
-      · exact .inr ⟨fun hjs => h (.inl hjs), fun hj => h (.inr ⟨hj, hjr⟩)⟩
-    · rintro (rfl | ⟨hjs, hj⟩) (hjs' | ⟨hj', hjr⟩)
-      · exact hrs hjs'
-      · exact hjr rfl
-      · exact hjs hjs'
-      · exact hj hj'
+    by_cases hjr : j = r <;> simp [hjr, hrs]
   rw [this, Finset.sum_insert (by simp [hr])]
 
 private theorem sum_compl_eq_add {s : ι} (hs : s ∉ D.basis) (f : ι → K) :
     ∑ j ∈ D.basisᶜ, f j = f s + ∑ j ∈ D.basisᶜ.erase s, f j :=
   (Finset.add_sum_erase _ _ (Finset.mem_compl.2 hs)).symm
 
-omit [Field K] in
-private theorem mem_compl_erase {s j : ι} (hj : j ∈ D.basisᶜ.erase s) :
-    j ≠ s ∧ j ∉ D.basis :=
-  ⟨Finset.ne_of_mem_erase hj, Finset.mem_compl.1 (Finset.mem_of_mem_erase hj)⟩
+private theorem pivot_elim_row {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.basis)
+    (ha : D.coeff r s ≠ 0) (x : ι → K) (v : K) (c : ι → K) :
+    (v - c s * D.rhs r / D.coeff r s) +
+      ∑ j ∈ (D.pivot r s).basisᶜ,
+        (if j = r then c s / D.coeff r s else c j - c s * D.coeff r j / D.coeff r s) * x j =
+    v + c s * ((x r - D.rhs r - ∑ j ∈ D.basisᶜ.erase s, D.coeff r j * x j) / D.coeff r s) +
+      ∑ j ∈ D.basisᶜ.erase s, c j * x j := by
+  rw [D.sum_compl_pivot hr hs, ite_eq_left rfl]
+  have hsum : ∑ j ∈ D.basisᶜ.erase s,
+        (if j = r then c s / D.coeff r s else c j - c s * D.coeff r j / D.coeff r s) * x j =
+      ∑ j ∈ D.basisᶜ.erase s, c j * x j -
+        c s * ((∑ j ∈ D.basisᶜ.erase s, D.coeff r j * x j) / D.coeff r s) := by
+    rw [Finset.sum_div, Finset.mul_sum, ← Finset.sum_sub_distrib]
+    refine Finset.sum_congr rfl fun j hj => ?_
+    have hjr : j ≠ r := fun h => (Finset.mem_compl.1 (Finset.mem_of_mem_erase hj)) (h ▸ hr)
+    rw [ite_eq_right hjr]
+    ring
+  rw [hsum]
+  field_simp
+  ring
+
+private theorem eq_div_of_isSolution {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.basis)
+    (ha : D.coeff r s ≠ 0) {x : ι → K} (hx : D.IsSolution x) :
+    x s = (x r - D.rhs r - ∑ j ∈ D.basisᶜ.erase s, D.coeff r j * x j) / D.coeff r s := by
+  have hxr := hx r hr
+  rw [D.sum_compl_eq_add hs] at hxr
+  rw [eq_div_iff ha]
+  linear_combination -hxr
 
 /-- A pivot on a nonzero coefficient preserves the solutions. -/
 theorem isSolution_pivot_iff {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.basis)
     (ha : D.coeff r s ≠ 0) {x : ι → K} : (D.pivot r s).IsSolution x ↔ D.IsSolution x := by
-  have hrs : r ≠ s := fun h => hs (h ▸ hr)
-  set R : ι → K := fun i => ∑ j ∈ D.basisᶜ.erase s, D.coeff i j * x j with hR
-  -- the old row `i` with `x s` split off
+  set R : ι → K := fun i => ∑ j ∈ D.basisᶜ.erase s, D.coeff i j * x j
   have hold : ∀ i, D.rhs i + ∑ j ∈ D.basisᶜ, D.coeff i j * x j =
       D.rhs i + D.coeff i s * x s + R i := fun i => by
     rw [D.sum_compl_eq_add hs, add_assoc]
-  -- the new row `s`
   have hnew_s : (D.pivot r s).rhs s +
       ∑ j ∈ (D.pivot r s).basisᶜ, (D.pivot r s).coeff s j * x j =
       (x r - D.rhs r - R r) / D.coeff r s := by
-    rw [D.sum_compl_pivot hr hs]
-    have hsum : ∑ j ∈ D.basisᶜ.erase s, (D.pivot r s).coeff s j * x j =
-        -(R r / D.coeff r s) := by
-      simp only [hR]
-      rw [Finset.sum_div, ← Finset.sum_neg_distrib]
-      refine Finset.sum_congr rfl fun j hj => ?_
-      obtain ⟨hjs, hj⟩ := D.mem_compl_erase hj
-      have hjr : j ≠ r := fun h => hj (h ▸ hr)
-      simp only [pivot, hjs, hj, false_and, or_self, ite_false, ite_true, hjr]
-      ring
-    rw [hsum]
-    simp only [pivot, ite_true, hrs, hr, false_or, ne_eq, not_true_eq_false, and_false, ite_false]
-    field_simp
-    ring
-  -- the new row `i` for an old basic `i ≠ r`
+    have h := D.pivot_elim_row hr hs ha x 0 (fun j => if j = s then 1 else 0)
+    have hzero : ∑ j ∈ D.basisᶜ.erase s, (if j = s then (1 : K) else 0) * x j = 0 :=
+      Finset.sum_eq_zero fun j hj => by rw [ite_eq_right (Finset.ne_of_mem_erase hj), zero_mul]
+    simp only [↓reduceIte, one_mul, zero_sub, zero_add, hzero, add_zero] at h
+    rw [← h]
+    congr 1
+    · simp only [pivot, ↓reduceIte, neg_div]
+    · refine Finset.sum_congr rfl fun j hj => ?_
+      rw [Finset.mem_compl, mem_pivot_basis] at hj
+      simp only [pivot, (not_or.1 hj).1, (not_or.1 hj).2, or_self, ite_false, ite_true, zero_sub,
+        neg_div]
   have hnew_i : ∀ i ∈ D.basis, i ≠ r →
       (D.pivot r s).rhs i + ∑ j ∈ (D.pivot r s).basisᶜ, (D.pivot r s).coeff i j * x j =
       D.rhs i + D.coeff i s * ((x r - D.rhs r - R r) / D.coeff r s) + R i := by
     intro i hi hir
     have his : i ≠ s := fun h => hs (h ▸ hi)
-    rw [D.sum_compl_pivot hr hs]
-    have hsum : ∑ j ∈ D.basisᶜ.erase s, (D.pivot r s).coeff i j * x j =
-        R i - D.coeff i s * (R r / D.coeff r s) := by
-      simp only [hR]
-      rw [Finset.sum_div, Finset.mul_sum, ← Finset.sum_sub_distrib]
-      refine Finset.sum_congr rfl fun j hj => ?_
-      obtain ⟨hjs, hj⟩ := D.mem_compl_erase hj
-      have hjr : j ≠ r := fun h => hj (h ▸ hr)
-      simp only [pivot, hjs, hj, false_and, or_self, ite_false, his, hi, hir, ne_eq,
-        not_false_eq_true, and_self, ite_true, hjr]
-      ring
-    rw [hsum]
-    simp only [pivot, his, hi, hir, ne_eq, not_false_eq_true, and_self, ite_true, ite_false,
-      hrs, hr, false_or, not_true_eq_false, and_false]
-    field_simp
-    ring
+    rw [← D.pivot_elim_row hr hs ha x (D.rhs i) (D.coeff i)]
+    congr 1
+    · simp only [pivot, his, hi, hir, ne_eq, not_false_eq_true, and_self, ite_false, ite_true]
+    · refine Finset.sum_congr rfl fun j hj => ?_
+      rw [Finset.mem_compl, mem_pivot_basis] at hj
+      simp only [pivot, hj, ite_false, his, hi, hir, ne_eq, not_false_eq_true, and_self, ite_true]
   constructor
   · intro h i hi
-    have hxs : x s = (x r - D.rhs r - R r) / D.coeff r s := by
-      rw [← hnew_s]; exact h s (D.mem_pivot_basis.2 (.inl rfl))
+    have hxs : x s = (x r - D.rhs r - R r) / D.coeff r s :=
+      hnew_s ▸ h s (D.mem_pivot_basis.2 (.inl rfl))
     by_cases hir : i = r
     · subst hir
       rw [hold, hxs]
@@ -314,11 +308,7 @@ theorem isSolution_pivot_iff {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.basis
     · rw [hold, hxs, ← hnew_i i hi hir]
       exact h i (D.mem_pivot_basis.2 (.inr ⟨hi, hir⟩))
   · intro h i hi
-    have hxr := h r hr
-    rw [hold] at hxr
-    have hxs : x s = (x r - D.rhs r - R r) / D.coeff r s := by
-      field_simp
-      linear_combination -hxr
+    have hxs : x s = (x r - D.rhs r - R r) / D.coeff r s := D.eq_div_of_isSolution hr hs ha h
     rcases D.mem_pivot_basis.1 hi with rfl | ⟨hi, hir⟩
     · rw [hnew_s, ← hxs]
     · rw [hnew_i i hi hir, ← hxs, ← hold]
@@ -327,28 +317,16 @@ theorem isSolution_pivot_iff {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.basis
 /-- A pivot on a nonzero coefficient preserves the objective on solutions. -/
 theorem value_pivot {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.basis) (ha : D.coeff r s ≠ 0)
     {x : ι → K} (hx : D.IsSolution x) : (D.pivot r s).value x = D.value x := by
-  have hrs : r ≠ s := fun h => hs (h ▸ hr)
-  set R : ι → K := fun i => ∑ j ∈ D.basisᶜ.erase s, D.coeff i j * x j with hR
-  have hxr := hx r hr
-  rw [D.sum_compl_eq_add hs] at hxr
-  have hsum : ∑ j ∈ D.basisᶜ.erase s, (D.pivot r s).objCoeff j * x j =
-      ∑ j ∈ D.basisᶜ.erase s, D.objCoeff j * x j - D.objCoeff s * (R r / D.coeff r s) := by
-    simp only [hR]
-    rw [Finset.sum_div, Finset.mul_sum, ← Finset.sum_sub_distrib]
-    refine Finset.sum_congr rfl fun j hj => ?_
-    obtain ⟨hjs, hj⟩ := D.mem_compl_erase hj
-    have hjr : j ≠ r := fun h => hj (h ▸ hr)
-    simp only [pivot, hjs, hj, false_and, or_self, ite_false, hjr]
-    ring
-  rw [value, value, D.sum_compl_pivot hr hs, hsum, D.sum_compl_eq_add hs]
-  simp only [pivot, hrs, hr, false_or, ne_eq, not_true_eq_false, and_false, ite_false, ite_true]
-  have hxs : x s = (x r - D.rhs r - R r) / D.coeff r s := by
-    rw [eq_div_iff ha]
-    simp only [hR]
-    linear_combination -hxr
-  rw [hxs]
-  field_simp
-  ring
+  have hsum : ∑ j ∈ (D.pivot r s).basisᶜ, (D.pivot r s).objCoeff j * x j =
+      ∑ j ∈ (D.pivot r s).basisᶜ,
+        (if j = r then D.objCoeff s / D.coeff r s
+         else D.objCoeff j - D.objCoeff s * D.coeff r j / D.coeff r s) * x j :=
+    Finset.sum_congr rfl fun j hj => by
+      rw [Finset.mem_compl, mem_pivot_basis] at hj
+      simp only [pivot, hj, ite_false]
+  rw [value, hsum]
+  exact (D.pivot_elim_row hr hs ha x D.objConst D.objCoeff).trans (by
+    rw [← D.eq_div_of_isSolution hr hs ha hx, value, D.sum_compl_eq_add hs, add_assoc])
 
 /-- **Pivoting yields an equivalent dictionary** ([Chvatal1983], Chapter 2): a pivot on a basic
 `r`, a nonbasic `s` and a nonzero coefficient `D.coeff r s` preserves the solutions and the
@@ -359,12 +337,6 @@ theorem equivalent_pivot {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.basis)
     fun _ hx => (D.value_pivot hr hs ha hx).symm⟩
 
 /-! ### The edge direction of an entering variable -/
-
-private theorem sum_mul_ray {s : ι} (hs : s ∉ D.basis) (f : ι → K) :
-    ∑ j ∈ D.basisᶜ, f j * D.ray s j = f s := by
-  rw [Finset.sum_eq_single_of_mem s (Finset.mem_compl.2 hs) fun j hj hjs => by
-    rw [ray, ite_eq_right hjs, ite_eq_right (Finset.mem_compl.1 hj), mul_zero]]
-  rw [ray, ite_eq_left rfl, mul_one]
 
 omit [Fintype ι] in
 theorem ray_self (s : ι) : D.ray s s = 1 := ite_eq_left rfl
@@ -378,26 +350,25 @@ omit [Fintype ι] in
 theorem ray_of_notMem {s i : ι} (hi : i ∉ D.basis) (his : i ≠ s) : D.ray s i = 0 := by
   rw [ray, ite_eq_right his, ite_eq_right hi]
 
+private theorem sum_mul_smul_ray {s : ι} (hs : s ∉ D.basis) (f : ι → K) (t : K) :
+    ∑ j ∈ D.basisᶜ, f j * (t * D.ray s j) = t * f s := by
+  rw [Finset.sum_eq_single_of_mem s (Finset.mem_compl.2 hs) fun j hj hjs => by
+    rw [D.ray_of_notMem (Finset.mem_compl.1 hj) hjs, mul_zero, mul_zero],
+    D.ray_self, mul_one, mul_comm]
+
 /-- Moving a solution along the edge of a nonbasic variable keeps it a solution. -/
 theorem isSolution_add_smul_ray {s : ι} (hs : s ∉ D.basis) {x : ι → K} (hx : D.IsSolution x)
     (t : K) : D.IsSolution (x + t • D.ray s) := by
   intro i hi
   simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, mul_add, Finset.sum_add_distrib]
-  rw [hx i hi, D.ray_of_mem hi hs]
-  have : ∑ j ∈ D.basisᶜ, D.coeff i j * (t * D.ray s j) = t * D.coeff i s := by
-    rw [← D.sum_mul_ray hs (fun j => t * D.coeff i j)]
-    exact Finset.sum_congr rfl fun j _ => by ring
-  rw [this]
+  rw [hx i hi, D.ray_of_mem hi hs, D.sum_mul_smul_ray hs]
   ring
 
 /-- Along the edge of a nonbasic `s` the objective changes at rate `objCoeff s`. -/
 theorem value_add_smul_ray {s : ι} (hs : s ∉ D.basis) (x : ι → K) (t : K) :
     D.value (x + t • D.ray s) = D.value x + t * D.objCoeff s := by
   simp only [value, Pi.add_apply, Pi.smul_apply, smul_eq_mul, mul_add, Finset.sum_add_distrib]
-  have : ∑ j ∈ D.basisᶜ, D.objCoeff j * (t * D.ray s j) = t * D.objCoeff s := by
-    rw [← D.sum_mul_ray hs (fun j => t * D.objCoeff j)]
-    exact Finset.sum_congr rfl fun j _ => by ring
-  rw [this]
+  rw [D.sum_mul_smul_ray hs]
   ring
 
 omit [Fintype ι] in
@@ -447,13 +418,8 @@ theorem mem_feasibleSet {x : ι → K} : x ∈ D.feasibleSet ↔ D.IsSolution x 
 
 omit [Fintype ι] [IsStrictOrderedRing K] in
 theorem feasible_iff_nonneg_basicSolution : D.Feasible ↔ 0 ≤ D.basicSolution := by
-  constructor
-  · intro h i
-    by_cases hi : i ∈ D.basis
-    · rw [D.basicSolution_of_mem hi]; exact h i hi
-    · rw [D.basicSolution_of_notMem hi]; rfl
-  · intro h i hi
-    rw [← D.basicSolution_of_mem hi]; exact h i
+  refine ⟨fun h i => ?_, fun h i hi => D.basicSolution_of_mem hi ▸ h i⟩
+  by_cases hi : i ∈ D.basis <;> simp [basicSolution, hi, h i]
 
 omit [Fintype ι] [DecidableEq ι] in
 theorem ratio_nonneg (hD : D.Feasible) {s r : ι} (hr : r ∈ D.basis) (har : D.coeff r s < 0) :
@@ -510,11 +476,9 @@ omit [Fintype ι] in
 theorem ray_nonneg {s : ι} (hs : s ∉ D.basis) (h : ∀ i ∈ D.basis, 0 ≤ D.coeff i s) :
     0 ≤ D.ray s := by
   intro i
-  by_cases his : i = s
-  · rw [his, ray_self]; exact zero_le_one
   by_cases hi : i ∈ D.basis
-  · rw [D.ray_of_mem hi hs]; exact h i hi
-  · rw [D.ray_of_notMem hi his]; rfl
+  · exact D.ray_of_mem hi hs ▸ h i hi
+  · by_cases his : i = s <;> simp [ray, his, hi]
 
 /-- **Unboundedness certificate** ([Chvatal1983], Chapters 2–3): if a nonbasic variable of a
 feasible dictionary has a positive reduced cost and no row bounds its increase, the objective is

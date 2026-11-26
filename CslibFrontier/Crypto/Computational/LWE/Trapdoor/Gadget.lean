@@ -158,9 +158,8 @@ theorem mul_gadgetMatrix_transpose [Fintype ι] [DecidableEq ι] (w : ℕ)
     (C : Matrix ρ (ι × Fin w) (ZMod (2 ^ w))) :
     C * (gadgetMatrix w)ᵀ = GSW.recomposeMatrix w C := by
   ext r i
-  have h := congrFun (gadgetMatrix_mulVec w (C r)) i
   simpa only [Matrix.mulVec, dotProduct, Matrix.mul_apply, Matrix.transpose_apply,
-    mul_comm, GSW.recomposeMatrix] using h
+    mul_comm, GSW.recomposeMatrix] using congrFun (gadgetMatrix_mulVec w (C r)) i
 
 /-! ### Deterministic gadget decomposition (`G⁻¹` for `f_G`) -/
 
@@ -263,19 +262,15 @@ def scalarBasis (w : ℕ) : Matrix (Fin w) (Fin w) ℤ :=
 theorem scalarBasis_eq_zero_of_lt {w : ℕ} {i j : Fin w} (hij : i < j) :
     scalarBasis w i j = 0 := by
   have hlt : i.val < j.val := hij
-  have hne1 : i.val ≠ j.val := by omega
-  have hne2 : i.val ≠ j.val + 1 := by omega
-  simp [scalarBasis, hne1, hne2]
+  simp [scalarBasis, show i.val ≠ j.val by omega, show i.val ≠ j.val + 1 by omega]
 
 theorem scalarBasis_isLowerTriangular (w : ℕ) :
-    (scalarBasis w).IsLowerTriangular :=
-  fun _ _ hij => scalarBasis_eq_zero_of_lt hij
+    (scalarBasis w).IsLowerTriangular := fun _ _ => scalarBasis_eq_zero_of_lt
 
 /-- `det(S_w) = 2 ^ w` ([MicciancioPeikert2012], Section 4.1). -/
 @[simp] theorem det_scalarBasis (w : ℕ) :
     (scalarBasis w).det = 2 ^ w := by
-  rw [Matrix.det_of_isLowerTriangular (scalarBasis w) (scalarBasis_isLowerTriangular w)]
-  simp
+  simp [Matrix.det_of_isLowerTriangular _ (scalarBasis_isLowerTriangular w)]
 
 /-- Every entry of `S_w` has magnitude at most `2`. -/
 theorem natAbs_scalarBasis_le_two (w : ℕ) (i j : Fin w) :
@@ -287,27 +282,22 @@ private theorem sum_scalarBasis_col {M : Type*} [AddCommMonoid M] (w : ℕ) (j :
     (f : Fin w → ℤ → M) (hf0 : ∀ i, f i 0 = 0) :
     (∑ i : Fin w, f i (scalarBasis w i j)) =
       if hj : j.val + 1 < w then f j 2 + f ⟨j.val + 1, hj⟩ (-1) else f j 2 := by
-  simp only [scalarBasis]
-  have hdiag : ∀ i : Fin w, i.val = j.val ↔ i = j := fun i => Fin.ext_iff.symm
-  simp only [hdiag]
+  simp only [scalarBasis, show ∀ i : Fin w, i.val = j.val ↔ i = j from fun _ => Fin.ext_iff.symm]
   split_ifs with hj
   · let j' : Fin w := ⟨j.val + 1, hj⟩
+    have hne : j' ≠ j := fun h => by
+      have : j.val + 1 = j.val := congrArg Fin.val h
+      omega
     have hsub : ∀ i : Fin w, i.val = j.val + 1 ↔ i = j' :=
       fun i => (Fin.ext_iff (a := i) (b := j')).symm
-    have hne : j' ≠ j := by
-      intro h
-      have hval : j.val + 1 = j.val := congrArg Fin.val h
-      omega
     simp only [hsub]
     rw [Finset.sum_eq_add j j' hne.symm
       (fun i _ ⟨hij, hij'⟩ => by simp [hij, hij', hf0])
       (fun h => (h (Finset.mem_univ j)).elim)
       (fun h => (h (Finset.mem_univ j')).elim)]
     simp [hne, j']
-  · have hno : ∀ i : Fin w, ¬(i.val = j.val + 1) := fun i => by omega
-    simp only [hno, ↓reduceIte]
-    rw [Finset.sum_eq_single j
-      (fun i _ hij => by simp [hij, hf0])
+  · simp only [show ∀ i : Fin w, i.val ≠ j.val + 1 from fun _ => by omega, ↓reduceIte]
+    rw [Finset.sum_eq_single j (fun i _ hij => by simp [hij, hf0])
       (fun h => (h (Finset.mem_univ j)).elim)]
     simp
 
@@ -322,17 +312,16 @@ theorem scalarBasis_col_inScalarKernel (w : ℕ) (j : Fin w) :
   · simp only [gadgetVector_apply, Int.cast_ofNat, Int.cast_neg, Int.cast_one, pow_succ]
     ring
   · simp only [gadgetVector_apply, Int.cast_ofNat]
-    have hjw : j.val + 1 = w := by omega
     calc
       (2 : ZMod (2 ^ w)) ^ j.val * 2 = 2 ^ (j.val + 1) := (pow_succ 2 j.val).symm
-      _ = ((2 ^ w : ℕ) : ZMod (2 ^ w)) := by rw [hjw, Nat.cast_pow, Nat.cast_ofNat]
+      _ = ((2 ^ w : ℕ) : ZMod (2 ^ w)) := by
+        rw [show j.val + 1 = w by omega, Nat.cast_pow, Nat.cast_ofNat]
       _ = 0 := CharP.cast_eq_zero (ZMod (2 ^ w)) (2 ^ w)
 
 /-- Matrix form of `gᵀ S_w ≡ 0 (mod 2 ^ w)` ([MicciancioPeikert2012], Section 4.1). -/
 @[simp] theorem gadgetVector_vecMul_scalarBasis (w : ℕ) :
-    gadgetVector w ᵥ* (scalarBasis w).map Int.cast = 0 := by
-  funext j
-  exact scalarBasis_col_inScalarKernel w j
+    gadgetVector w ᵥ* (scalarBasis w).map Int.cast = 0 :=
+  funext (scalarBasis_col_inScalarKernel w)
 
 /-- Every column of `S_w` has squared Euclidean length at most `5` (`‖S_w‖ ≤ √5`,
 [MicciancioPeikert2012], Proposition 4.2). -/
@@ -353,10 +342,7 @@ def gadgetBasis (w : ℕ) [DecidableEq ι] : Matrix (ι × Fin w) (ι × Fin w) 
 /-- Every entry of `S = I_ι ⊗ S_w` has magnitude at most `2`. -/
 theorem natAbs_gadgetBasis_le_two [DecidableEq ι] (w : ℕ) (p q : ι × Fin w) :
     (gadgetBasis w p q).natAbs ≤ 2 := by
-  simp only [gadgetBasis]
-  split_ifs
-  · exact natAbs_scalarBasis_le_two w p.2 q.2
-  · simp
+  by_cases h : p.1 = q.1 <;> simp [gadgetBasis, h, natAbs_scalarBasis_le_two]
 
 /-- `G * S ≡ 0 (mod 2 ^ w)` ([MicciancioPeikert2012], Section 4, Theorem 4.1). -/
 @[simp] theorem gadgetMatrix_mul_gadgetBasis [Fintype ι] [DecidableEq ι] (w : ℕ) :
@@ -371,10 +357,9 @@ theorem natAbs_gadgetBasis_le_two [DecidableEq ι] (w : ℕ) (p q : ι × Fin w)
       (fun h => (h (Finset.mem_univ i)).elim)]
     simp only [↓reduceIte]
     exact scalarBasis_col_inScalarKernel w j
-  · refine Finset.sum_eq_zero fun r _ => Finset.sum_eq_zero fun k _ => ?_
-    by_cases hir : i = r
-    · subst hir
-      simp [hii']
+  · refine Finset.sum_eq_zero fun r _ => Finset.sum_eq_zero fun _ _ => ?_
+    rcases eq_or_ne i r with rfl | hir
+    · simp [hii']
     · simp [hir]
 
 /-- Every column of `gadgetBasis w` belongs to `Λ^⊥(G)`. -/
@@ -445,30 +430,25 @@ private theorem shifted_sub_mod_eq (w l : ℕ) (hl : l < w) (s : ZMod (2 ^ w)) :
     (2 : ZMod (2 ^ w)) ^ (w - 1 - l) * s -
         (2 : ZMod (2 ^ w)) ^ (w - 1 - l) * ((s.val % 2 ^ l : ℕ) : ZMod (2 ^ w)) =
       ((s.val.testBit l).toNat : ZMod (2 ^ w)) * 2 ^ (w - 1) := by
-  have hexp1 : 2 ^ (w - 1 - l) * 2 ^ l = 2 ^ (w - 1) := by
-    rw [← pow_add, show w - 1 - l + l = w - 1 by omega]
-  have hexp2 : 2 ^ (w - 1 - l) * 2 ^ (l + 1) = 2 ^ w := by
-    rw [← pow_add, show w - 1 - l + (l + 1) = w by omega]
-  have hnat :
-      2 ^ (w - 1 - l) * s.val =
-        2 ^ (w - 1 - l) * (s.val % 2 ^ l) + (s.val.testBit l).toNat * 2 ^ (w - 1) +
-          2 ^ w * (s.val / 2 ^ (l + 1)) := by
+  have hnat : 2 ^ (w - 1 - l) * s.val = 2 ^ (w - 1 - l) * (s.val % 2 ^ l) +
+      (s.val.testBit l).toNat * 2 ^ (w - 1) + 2 ^ w * (s.val / 2 ^ (l + 1)) := by
+    have h1 : 2 ^ (w - 1 - l) * 2 ^ l = 2 ^ (w - 1) := by
+      rw [← pow_add, show w - 1 - l + l = w - 1 by omega]
+    have h2 : 2 ^ (w - 1 - l) * 2 ^ (l + 1) = 2 ^ w := by
+      rw [← pow_add, show w - 1 - l + (l + 1) = w by omega]
     calc
       2 ^ (w - 1 - l) * s.val =
-          2 ^ (w - 1 - l) *
-            (s.val % 2 ^ l + (s.val.testBit l).toNat * 2 ^ l +
-              2 ^ (l + 1) * (s.val / 2 ^ (l + 1))) :=
-        congrArg (2 ^ (w - 1 - l) * ·) (nat_decomp_step s.val l)
-      _ = 2 ^ (w - 1 - l) * (s.val % 2 ^ l) +
+          2 ^ (w - 1 - l) * (s.val % 2 ^ l) +
             (s.val.testBit l).toNat * (2 ^ (w - 1 - l) * 2 ^ l) +
-            (2 ^ (w - 1 - l) * 2 ^ (l + 1)) * (s.val / 2 ^ (l + 1)) := by ring
+            (2 ^ (w - 1 - l) * 2 ^ (l + 1)) * (s.val / 2 ^ (l + 1)) := by
+        conv_lhs => rw [nat_decomp_step s.val l]
+        ring
       _ = 2 ^ (w - 1 - l) * (s.val % 2 ^ l) + (s.val.testBit l).toNat * 2 ^ (w - 1) +
-            2 ^ w * (s.val / 2 ^ (l + 1)) := by rw [hexp1, hexp2]
+            2 ^ w * (s.val / 2 ^ (l + 1)) := by rw [h1, h2]
   have hcast := congrArg (fun k : ℕ => (k : ZMod (2 ^ w))) hnat
   push_cast at hcast
-  have hzero : ((2 : ZMod (2 ^ w)) ^ w) = 0 := by
-    exact_mod_cast CharP.cast_eq_zero (ZMod (2 ^ w)) (2 ^ w)
-  rw [ZMod.natCast_zmod_val, hzero, zero_mul, add_zero] at hcast
+  rw [ZMod.natCast_zmod_val, (by exact_mod_cast CharP.cast_eq_zero (ZMod (2 ^ w)) (2 ^ w) :
+    ((2 : ZMod (2 ^ w)) ^ w) = 0), zero_mul, add_zero] at hcast
   rw [hcast]
   ring
 
@@ -480,33 +460,19 @@ private theorem invertScalarAux_eq_mod (w : ℕ) (s : ZMod (2 ^ w)) (e : Fin w �
     simp [invertScalarAux, Nat.mod_one]
   | succ l ih =>
     have hlw : l < w := Nat.lt_of_succ_le hl
-    have hw : 0 < w := Nat.zero_lt_of_lt hlw
-    simp only [invertScalarAux, hlw, ↓reduceDIte, ih (Nat.le_of_lt hlw)]
+    simp only [invertScalarAux, hlw, ↓reduceDIte, ih hlw.le]
     let idx : Fin w := ⟨w - 1 - l, by omega⟩
-    have hres :
-        (2 : ZMod (2 ^ w)) ^ idx.val * s + (e idx : ZMod (2 ^ w)) -
-            2 ^ idx.val * ((s.val % 2 ^ l : ℕ) : ZMod (2 ^ w)) =
-          (((s.val.testBit l).toNat : ℤ) * 2 ^ (w - 1) + e idx : ℤ) := by
-      have hshift := shifted_sub_mod_eq w l hlw s
+    have hres : (2 : ZMod (2 ^ w)) ^ idx.val * s + (e idx : ZMod (2 ^ w)) -
+        2 ^ idx.val * ((s.val % 2 ^ l : ℕ) : ZMod (2 ^ w)) =
+        (((s.val.testBit l).toNat : ℤ) * 2 ^ (w - 1) + e idx : ℤ) := by
       push_cast
-      change (2 : ZMod (2 ^ w)) ^ (w - 1 - l) * s + (e idx : ZMod (2 ^ w)) -
-          2 ^ (w - 1 - l) * ((s.val % 2 ^ l : ℕ) : ZMod (2 ^ w)) =
-        ((s.val.testBit l).toNat : ZMod (2 ^ w)) * 2 ^ (w - 1) + (e idx : ZMod (2 ^ w))
-      rw [← hshift]
+      dsimp only [idx]
+      rw [← shifted_sub_mod_eq w l hlw s]
       ring
-    have hdec :
-        LWE.decode w
-            ((2 : ZMod (2 ^ w)) ^ idx.val * s + (e idx : ZMod (2 ^ w)) -
-              2 ^ idx.val * ((s.val % 2 ^ l : ℕ) : ZMod (2 ^ w))) =
-          s.val.testBit l := by
-      rw [hres]
-      exact LWE.decode_eq_of_error hw (s.val.testBit l) (e idx) (he idx)
-    change s.val % 2 ^ l +
-        (LWE.decode w
-          ((2 : ZMod (2 ^ w)) ^ idx.val * s + (e idx : ZMod (2 ^ w)) -
-            2 ^ idx.val * ((s.val % 2 ^ l : ℕ) : ZMod (2 ^ w)))).toNat * 2 ^ l =
-      s.val % 2 ^ (l + 1)
-    rw [hdec, mod_two_pow_succ]
+    change s.val % 2 ^ l + (LWE.decode w ((2 : ZMod (2 ^ w)) ^ idx.val * s +
+      (e idx : ZMod (2 ^ w)) - 2 ^ idx.val * ((s.val % 2 ^ l : ℕ) : ZMod (2 ^ w)))).toNat *
+        2 ^ l = s.val % 2 ^ (l + 1)
+    rw [hres, LWE.decode_eq_of_error (Nat.zero_lt_of_lt hlw) _ _ (he idx), mod_two_pow_succ]
 
 /-- Iterative scalar gadget inversion recovers `s` whenever `4 * (e j).natAbs < 2 ^ w` for every
 coordinate `j` ([MicciancioPeikert2012], Section 4.1, "Inversion"; the paper's condition

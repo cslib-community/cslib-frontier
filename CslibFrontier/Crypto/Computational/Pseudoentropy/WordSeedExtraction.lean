@@ -77,15 +77,11 @@ theorem isPPTOn_extractWordObservations {α : Type} {input : α ↪ List Bool}
     (hobservations : ComputableInPolyTime observations input (encList encBits)) :
     IsPPTOn input encBits
       (fun a => extractWordObservations (bound a) (outputBits a) (observations a)) := by
-  have hpad : ComputableInPolyTime
-      (fun p : α × List Bool => padWord (bound p.1) p.2) (encPair input encBits) encBits :=
-    ComputableInPolyTime.bitsPadWord
-      (hbound.comp (ComputableInPolyTime.fst input encBits))
-      (ComputableInPolyTime.snd input encBits)
-  have hmapped := ComputableInPolyTime.mapWithInput (f := fun a word => padWord (bound a) word)
-    hobservations hpad
-  have hwords := ComputableInPolyTime.bitsFlatten hmapped
-  exact LinearHash.isPPTOn_extract houtput hwords
+  exact LinearHash.isPPTOn_extract houtput (ComputableInPolyTime.bitsFlatten
+    (ComputableInPolyTime.mapWithInput (f := fun a word => padWord (bound a) word) hobservations
+      (ComputableInPolyTime.bitsPadWord
+        (hbound.comp (ComputableInPolyTime.fst input encBits))
+        (ComputableInPolyTime.snd input encBits))))
 
 attribute [program_certificate] isPPTOn_extractWordObservations
 

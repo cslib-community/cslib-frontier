@@ -72,14 +72,8 @@ theorem scanSet_root (term : ℕ) (input : ℕ → ℕ) (k : ℕ) :
 /-- A child scan uses the same selected quotient image as the finite pruning specification. -/
 theorem scanSet_child (term : ℕ) (input : ℕ → ℕ) (k : ℕ) :
     scanSet true term input k = childCodes ((range k).image input) term := by
-  ext q
-  simp only [scanSet, selected, ↓reduceIte, shortened, mem_image,
-    mem_filter, childCodes]
-  constructor
-  · rintro ⟨i, ⟨hi, hm⟩, he⟩
-    exact ⟨input i, ⟨⟨i, hi, rfl⟩, hm⟩, he⟩
-  · rintro ⟨v, ⟨⟨i, hi, rfl⟩, hm⟩, he⟩
-    exact ⟨i, ⟨hi, hm⟩, he⟩
+  simp only [scanSet, selected, shortened, childCodes, filter_image, image_image,
+    Function.comp_def, ↓reduceIte]
 
 /-- Every stored code lies in the concrete destination capacity when each selected source does. -/
 theorem scanSet_bounded {child : Bool} {term k capacity : ℕ} {input : ℕ → ℕ}

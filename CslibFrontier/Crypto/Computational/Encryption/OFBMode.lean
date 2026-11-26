@@ -263,12 +263,8 @@ private theorem toOuterMeasure_bad_freshQuery_le (ℓ : ℕ) (b : Bool) (q : Blo
     gcongr
     exact (Nat.div_le_self _ _).trans (Nat.mul_le_mul_left _ (Nat.sub_le _ _))))
   rintro ⟨iv, us⟩ ⟨hflag, hp⟩
-  have hlen : us.length = blockModeBlocks ℓ q := length_snd_of_mem_support_uniformDraws hp
-  have hs' : s.2 = false := by simpa using hs
-  have hflag' : chainFlag s.1 iv us = true := by simpa [hs'] using hflag
-  have h := not_goodChain_of_chainFlag s.1 iv us hflag'
-  rw [hlen] at h
-  exact h
+  exact length_snd_of_mem_support_uniformDraws hp ▸
+    not_goodChain_of_chainFlag s.1 iv us (by simpa [hs] using hflag)
 
 /-- The flag is raised with probability at most `K (K + ℓ) / 2 ^ n` when the queries ask at most
 `K` blocks in total and at most `ℓ` blocks each. -/
@@ -310,15 +306,10 @@ private theorem toOuterMeasure_bad_fresh_le (ℓ : ℕ) (b : Bool) {adversary : 
       rw [PMF.snd_eq_of_mem_support_lift hx]
       exact le_add_right (le_add_right le_rfl)
     | inr q =>
-      have hlen := length_of_mem_support_freshQuery ℓ b q s hx
-      simp only [hlen, blockModeCost, Sum.elim_inr]
-      refine le_of_eq ?_
-      push_cast
-      ring
-  · intro q s _ x _ _
-    exact zero_le
-  · simp only [List.length_nil, Nat.cast_mul, Nat.cast_add, Nat.cast_zero]
-    ring
+      simp only [length_of_mem_support_freshQuery ℓ b q s hx, blockModeCost, Sum.elim_inr]
+      exact le_of_eq (by push_cast; ring)
+  · exact fun _ _ _ _ _ _ => zero_le
+  · simp only [List.length_nil, Nat.cast_mul, Nat.cast_add, Nat.cast_zero]; ring
 
 /-! ### Section 4: Security of OFB Mode -/
 
@@ -351,15 +342,13 @@ theorem advantage_ofbCpaGame_randomFunction_le (ℓ : ℕ) {adversary : BlockMod
     (Game.advantage (ofbCpaGame (fun f : BitString n → BitString n => f) ℓ false adversary)
         (ofbCpaGame (fun f : BitString n → BitString n => f) ℓ true adversary) : ℝ) ≤
       2 * ((K : ℝ) * (K + ℓ) / 2 ^ n) := by
-  have e : ∀ b, ofbCpaGame (fun f : BitString n → BitString n => f) ℓ b adversary =
-      ProbComp.eval (PRF.idealExperiment (ofbReduction ℓ b adversary)) := fun b => by
-    rw [ofbCpaGame_eq_realExperiment]
-    rfl
+  have e (b) : ofbCpaGame (fun f : BitString n → BitString n => f) ℓ b adversary =
+      ProbComp.eval (PRF.idealExperiment (ofbReduction ℓ b adversary)) :=
+    ofbCpaGame_eq_realExperiment _ ℓ b adversary
   rw [e, e]
-  have h₀ := advantage_idealExperiment_ofbReduction_le ℓ false h
-  have h₁ := advantage_idealExperiment_ofbReduction_le ℓ true h
   refine (advantage_le_two _ (ProbComp.eval (blockModeIdealExperiment ℓ adversary)) _).trans ?_
-  linarith
+  linarith [advantage_idealExperiment_ofbReduction_le ℓ false h,
+    advantage_idealExperiment_ofbReduction_le ℓ true h]
 
 /-- **OFB mode is CPA-secure for a pseudorandom function** ([KatzLindell2020], Section 3.6.3,
 following the proof of Theorem 3.33). If the queries of `adversary` ask at most `K` blocks in
@@ -374,12 +363,11 @@ theorem advantage_ofbCpaGame_le {Key : Type} [Fintype Key] [Nonempty Key]
       PRF.advantage F (ofbReduction ℓ false adversary) +
         PRF.advantage F (ofbReduction ℓ true adversary) + 2 * ((K : ℝ) * (K + ℓ) / 2 ^ n) := by
   rw [ofbCpaGame_eq_realExperiment, ofbCpaGame_eq_realExperiment]
-  have h₀ := advantage_idealExperiment_ofbReduction_le ℓ false h
-  have h₁ := advantage_idealExperiment_ofbReduction_le ℓ true h
   refine (advantage_le_four _
     (ProbComp.eval (PRF.idealExperiment (ofbReduction ℓ false adversary)))
     (ProbComp.eval (blockModeIdealExperiment ℓ adversary))
     (ProbComp.eval (PRF.idealExperiment (ofbReduction ℓ true adversary))) _).trans ?_
-  linarith
+  linarith [advantage_idealExperiment_ofbReduction_le ℓ false h,
+    advantage_idealExperiment_ofbReduction_le ℓ true h]
 
 end Cslib.Crypto

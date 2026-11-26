@@ -23,6 +23,7 @@ import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF
@@ -627,9 +628,8 @@ theorem eval_cca2Game_restrict {Msg Out : Type} (valid : ℕ → List Bool → M
     (adversary : CCA2AdversaryOf Msg) (bit : Bool) (n : ℕ) :
     ProbComp.eval (cca2Game encOut keyGen encrypt decrypt (adversary.restrict valid) bit n) =
       ProbComp.eval (cca2GameOn valid encOut keyGen encrypt decrypt adversary bit n) := by
-  simp only [cca2Game, cca2GameOn, CCA2AdversaryOf.restrict, ↓reduceIte,
-    OracleComp.interpret_bind, OracleComp.interpret_pure, StateT.run_bind, StateT.run_pure,
-    ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind, apply_ite ProbComp.eval]
+  simp only [cca2Game, cca2GameOn, CCA2AdversaryOf.restrict, ↓reduceIte, OracleComp.interpret_bind,
+    OracleComp.interpret_pure, StateT.run_bind, StateT.run_pure, apply_ite ProbComp.eval, pmf_norm]
   congr 1 with keys : 1
   congr 1 with choiceOut : 1
   cases valid n keys.1 choiceOut.1.1.1 choiceOut.1.1.2 <;>
@@ -733,9 +733,9 @@ theorem eval_cca2GameOn_ofCPA {Msg Out : Type}
     ProbComp.eval
       (cca2GameOn valid encOut keyGen encrypt decrypt (CCA2AdversaryOf.ofCPA adversary) bit n) =
       ProbComp.eval (gameOn valid keyGen encrypt adversary bit n) := by
-  simp only [cca2GameOn, gameOn, CCA2AdversaryOf.ofCPA, ProbComp.eval_bind, ProbComp.eval_pure,
-    ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_sample, PMF.bind_map,
-    PMF.bind_pure, Function.comp_def, apply_ite ProbComp.eval]
+  simp only [cca2GameOn, gameOn, CCA2AdversaryOf.ofCPA,
+    ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_sample,
+    apply_ite ProbComp.eval, pmf_norm]
 
 /-- Running a lifted CPA adversary in `cca2Game` has the same output distribution as the CPA
 `game`. -/
@@ -1120,9 +1120,8 @@ theorem eval_cca2MultiGame_restrict {Msg Out : Type} (valid : ℕ → List Bool 
   have hall (l : List (Msg × Msg)) : (l.all fun _ => true) = true :=
     List.all_eq_true.mpr fun _ _ => rfl
   simp only [cca2MultiGame, cca2MultiGameOn, MultiCCA2AdversaryOf.restrict, hall, ↓reduceIte,
-    OracleComp.interpret_bind, OracleComp.interpret_pure,
-    StateT.run_bind, StateT.run_pure, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind,
-    PMF.pure_bind, apply_ite ProbComp.eval]
+    OracleComp.interpret_bind, OracleComp.interpret_pure, StateT.run_bind, StateT.run_pure,
+    apply_ite ProbComp.eval, pmf_norm]
   congr 1 with keys : 1
   congr 1 with choiceOut : 1
   cases choiceOut.1.1.all (fun p => valid n keys.1 p.1 p.2) <;>
@@ -1234,8 +1233,7 @@ theorem eval_cca2MultiGameOn_toMulti {Msg Out : Type}
       (cca2MultiGameOn valid encOut keyGen encrypt decrypt adversary.toMulti bit n) =
       ProbComp.eval (cca2GameOn valid encOut keyGen encrypt decrypt adversary bit n) := by
   simp only [cca2MultiGameOn, cca2GameOn, CCA2AdversaryOf.toMulti, OracleComp.interpret_map,
-    StateT.run_map, ProbComp.eval_bind, ProbComp.eval_map, PMF.bind_map,
-    Function.comp_def, List.all_cons, List.all_nil, Bool.and_true]
+    StateT.run_map, List.all_cons, List.all_nil, Bool.and_true, pmf_norm]
   congr 1 with keys : 1
   congr 1 with choiceOut : 1
   by_cases h : valid n keys.1 choiceOut.1.1.1 choiceOut.1.1.2 = true

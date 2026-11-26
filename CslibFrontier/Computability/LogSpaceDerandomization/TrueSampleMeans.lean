@@ -60,17 +60,13 @@ theorem expect_mul_dens_div_of_subset {Ω : Type*} [Fintype Ω] {S T : Finset Ω
     (hTS : T ⊆ S) (hT : T.Nonempty) (v : Ω → ℝ)
     (hv : ∀ σ ∈ S, σ ∉ T → v σ = 0) :
     𝔼 σ ∈ S, ((dens S : ℝ) / dens T) * v σ = 𝔼 σ ∈ T, v σ := by
-  have hS : S.Nonempty := hT.mono hTS
-  have hScard : (#S : ℝ) ≠ 0 := by exact_mod_cast hS.card_ne_zero
+  have hScard : (#S : ℝ) ≠ 0 := by exact_mod_cast (hT.mono hTS).card_ne_zero
   have hTcard : (#T : ℝ) ≠ 0 := by exact_mod_cast hT.card_ne_zero
   have hΩcard : (Fintype.card Ω : ℝ) ≠ 0 := by
-    have hpos : 0 < Fintype.card Ω := hT.card_pos.trans_le (card_le_univ T)
-    exact_mod_cast hpos.ne'
-  have hsum : ∑ σ ∈ S, v σ = ∑ σ ∈ T, v σ := (sum_subset hTS hv).symm
-  rw [← mul_expect, expect_eq_sum_div_card, expect_eq_sum_div_card, hsum,
+    exact_mod_cast (hT.card_pos.trans_le (card_le_univ T)).ne'
+  rw [← mul_expect, expect_eq_sum_div_card, expect_eq_sum_div_card, (sum_subset hTS hv).symm,
     dens_eq_card_div_card, dens_eq_card_div_card]
-  push_cast
-  field_simp
+  push_cast; field_simp
 
 /-- Averaging a supported function over the full seed space multiplies its conditional mean
 by the exact retention density. -/
@@ -78,11 +74,8 @@ theorem expect_eq_dens_mul_expect_of_eq_zero {Ω : Type*} [Fintype Ω] (S : Fins
     (v : Ω → ℝ) (hv : ∀ σ ∉ S, v σ = 0) :
     𝔼 σ, v σ = (dens S : ℝ) * 𝔼 σ ∈ S, v σ := by
   classical
-  have hmask : ∀ σ, v σ = if σ ∈ S then v σ else 0 := by grind
-  calc
-    𝔼 σ, v σ = 𝔼 σ, if σ ∈ S then v σ else 0 :=
-      expect_congr rfl fun σ _ => hmask σ
-    _ = _ := by simpa only [NNRat.smul_def] using Fintype.expect_ite_mem S v
+  rw [expect_congr rfl fun σ _ => (show v σ = if σ ∈ S then v σ else 0 by grind)]
+  simpa only [NNRat.smul_def] using Fintype.expect_ite_mem S v
 
 end Finset
 
@@ -104,15 +97,12 @@ theorem expect_denseAtom_change_usage {Y Ya Yt : κ → V → Prop}
     𝔼 t ∈ ({t | Ya t y} : Finset κ),
         b * ((dens {t | Ya t y} : ℝ) / dens {t | Yt t y}) * denseAtom Y Yt k h ρ K b G t x y =
       b * k (G x y / b) := by
-  have hsub : ({t | Yt t y} : Finset κ) ⊆ ({t | Ya t y} : Finset κ) := by
-    intro t ht
-    exact mem_filter.mpr ⟨mem_univ _, hYt t (by simpa using ht)⟩
-  have hchange := expect_mul_dens_div_of_subset hsub hS (fun t => denseAtom Y Yt k h ρ K b G t x y)
-    (fun t _ ht => by
-      have hnot : ¬ Yt t y := by simpa using ht
-      simp [denseAtom, hnot])
+  have hsub : ({t | Yt t y} : Finset κ) ⊆ ({t | Ya t y} : Finset κ) := fun t ht =>
+    mem_filter.mpr ⟨mem_univ _, hYt t (by simpa using ht)⟩
   simp only [mul_assoc]
-  rw [← mul_expect, hchange,
+  rw [← mul_expect, expect_mul_dens_div_of_subset hsub hS
+    (fun t => denseAtom Y Yt k h ρ K b G t x y)
+    (fun t _ ht => by simp [denseAtom, show ¬ Yt t y by simpa using ht]),
     expect_denseAtom hS hkh hρ0 hρ1 hη hρη hb hG0 hGM hc hK hpair]
 
 variable {ι : Type*} [Fintype ι]
@@ -140,18 +130,12 @@ theorem expect_correctionAtom_unconditioned {I : ℝ → ℝ → ℝ} {τ Q h ρ
     𝔼 d ∈ ({s | X s x} : Finset ι) ×ˢ (univ : Finset κ),
         correctionAtom I τ K Kc f G X Z Zt Q h ρ g₀ d x z =
       (dens {t | Zt t z} : ℝ) * (Q (G x z / f) * g₀ z) := by
-  have hmean := expect_correctionAtom hSx hSz hQh hρ0 hρ1 hη hρη hτ0 hτ1 hτ₀ hττ hI
-    hf hG0 hGM hc hK hpairZ hp hpairX hB hKc
-  have hsupport : ∀ s, (𝔼 t, correctionAtom I τ K Kc f G X Z Zt Q h ρ g₀ (s, t) x z) =
-      (dens {t | Zt t z} : ℝ) * 𝔼 t ∈ ({t | Zt t z} : Finset κ),
-        correctionAtom I τ K Kc f G X Z Zt Q h ρ g₀ (s, t) x z := by
-    intro s
-    refine expect_eq_dens_mul_expect_of_eq_zero _ _ fun t ht => ?_
-    have hnot : ¬ Zt t z := by simpa using ht
-    simp [correctionAtom, hnot]
   rw [expect_product]
-  simp_rw [hsupport]
-  rw [← mul_expect, ← expect_product', hmean]
+  simp_rw [fun s => expect_eq_dens_mul_expect_of_eq_zero ({t | Zt t z} : Finset κ)
+    (fun t => correctionAtom I τ K Kc f G X Z Zt Q h ρ g₀ (s, t) x z) fun t ht => by
+      simp [correctionAtom, show ¬ Zt t z by simpa using ht]]
+  rw [← mul_expect, ← expect_product', expect_correctionAtom hSx hSz hQh hρ0 hρ1 hη hρη
+    hτ0 hτ1 hτ₀ hττ hI hf hG0 hGM hc hK hpairZ hp hpairX hB hKc]
 
 /-- **The true correction--dense product mean** [OpenAI2026LogSpace, Lemma 7.1]. Average the
 actual sample over the source slice, all intermediate seeds, and the broad terminal slice.
@@ -193,18 +177,11 @@ theorem expect_correctionAtom_mul_denseAtom {υ : Type*} [Fintype υ]
       ∑ z, (f * Q (G x z / f) * g₀ z) * (b * k (H z y / b)) := by
   have hSz (z : V) : ({t | Zt t z} : Finset κ).Nonempty :=
     dens_ne_zero.mp fun hz => hπf.ne' (by simpa [hz] using (hZπ z).symm)
-  have hleft : ∀ z, (𝔼 d ∈ ({s | X s x} : Finset ι) ×ˢ (univ : Finset κ),
+  have hleft (z : V) : (𝔼 d ∈ ({s | X s x} : Finset ι) ×ˢ (univ : Finset κ),
       correctionAtom I τ KF Kc f G X Z Zt Q hF ρF g₀ d x z) =
       πf * (Q (G x z / f) * g₀ z) := by
-    intro z
     rw [expect_correctionAtom_unconditioned hSx (hSz z) hQh hρF0 hρF1 hηF hρFη hτ0 hτ1
       hτ₀ hττ hI hf hG0 hGM hcF hKF (hpairZ z) hp hpairX (hR z) hKc, hZπ]
-  have hright : ∀ z, (𝔼 t ∈ ({t | Ya t y} : Finset υ),
-      b * ((dens {t | Ya t y} : ℝ) / dens {t | Yt t y}) *
-        denseAtom Y Yt k hB ρB KB b H t z y) = b * k (H z y / b) := by
-    intro z
-    exact expect_denseAtom_change_usage hYt hSy hkh hρB0 hρB1 hηB hρBη hb (hH0 z)
-      (hHM z) hcB hKB hpairY
   simp_rw [mul_sum]
   rw [expect_sum_comm]
   refine sum_congr rfl fun z _ => ?_
@@ -214,11 +191,12 @@ theorem expect_correctionAtom_mul_denseAtom {υ : Type*} [Fintype υ]
         𝔼 t ∈ ({t | Ya t y} : Finset υ),
           ((f / πf) * correctionAtom I τ KF Kc f G X Z Zt Q hF ρF g₀ l x z) *
             (b * ((dens {t | Ya t y} : ℝ) / dens {t | Yt t y}) *
-              denseAtom Y Yt k hB ρB KB b H t z y) := by
-      refine expect_congr rfl fun l _ => expect_congr rfl fun t _ => ?_
-      ring
+              denseAtom Y Yt k hB ρB KB b H t z y) :=
+      expect_congr rfl fun l _ => expect_congr rfl fun t _ => by ring
     _ = _ := by
-      rw [← expect_mul_expect, ← mul_expect, hleft z, hright z]
+      rw [← expect_mul_expect, ← mul_expect, hleft z,
+        expect_denseAtom_change_usage hYt hSy hkh hρB0 hρB1 hηB hρBη hb (hH0 z)
+          (hHM z) hcB hKB hpairY]
       field_simp
 
 end Matrix

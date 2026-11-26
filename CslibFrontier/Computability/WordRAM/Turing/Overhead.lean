@@ -200,9 +200,7 @@ theorem Program.ComputesInTime.computableInO_of_width
   have hExec (a : α) : ∃ m ≤ steps a, GenericRAM.Executes (width a) p.toGeneric
       (initState B r (encode (width a) a)).denote (f a) m := by
     obtain ⟨m, hm, hle⟩ := h a (width a) (hallowed a) (hfits a)
-    refine ⟨m, hle.trans (htime a), ?_⟩
-    rw [denote_initState]
-    exact executes_toGeneric_iff.mpr hm
+    exact ⟨m, hle.trans (htime a), by rw [denote_initState]; exact executes_toGeneric_iff.mpr hm⟩
   -- Every simulated outcome is a word-bounded state with at most `n + 1 + steps` cells.
   have hOutLen (a : α) (j : ℕ) (hj : j ≤ steps a) :
       (FiniteState.resultEncoding B.encoding (FiniteState.run (width a) p.toGeneric j
@@ -239,31 +237,24 @@ theorem Program.ComputesInTime.computableInO_of_width
         ((encode (width a) a).length + 1 + steps a) + 2) ^ max 3 d ≤ C * R ^ max 3 d := by
       rw [hC, ← Nat.mul_pow]
       exact Nat.pow_le_pow_left (by nlinarith) _
-    have hsq : ((encNat (steps a)).length + 1) ^ 2 ≤ R ^ max 3 d := by
-      have h1 := length_encNat_le_self (steps a)
-      calc ((encNat (steps a)).length + 1) ^ 2 ≤ R ^ 2 := Nat.pow_le_pow_left (by omega) 2
-        _ ≤ R ^ max 3 d := Nat.pow_le_pow_right hR1 (by omega)
+    have hencT := length_encNat_le_self (steps a)
+    have hsq : ((encNat (steps a)).length + 1) ^ 2 ≤ R ^ max 3 d :=
+      (Nat.pow_le_pow_left (by omega) 2).trans (Nat.pow_le_pow_right hR1 (by omega))
     have hinit : ((encList encNat (encode (width a) a)).length + 1) ^ 3 ≤ 27 * R ^ max 3 d := by
       have h1 := length_encList_le_of_inputFits (hfits a)
       have h2 : (encList encNat (encode (width a) a)).length + 1 ≤ 3 * R := by
         have : (encode (width a) a).length * (2 * width a + 1) ≤ 2 * R := by rw [hR]; nlinarith
         omega
-      calc ((encList encNat (encode (width a) a)).length + 1) ^ 3 ≤ (3 * R) ^ 3 :=
-            Nat.pow_le_pow_left h2 3
-        _ = 27 * R ^ 3 := by ring
-        _ ≤ 27 * R ^ max 3 d := Nat.mul_le_mul_left 27 (Nat.pow_le_pow_right hR1 hD)
+      exact ((Nat.pow_le_pow_left h2 3).trans_eq (by ring)).trans
+        (Nat.mul_le_mul_left 27 (Nat.pow_le_pow_right hR1 hD))
     have hencS : (FiniteState.encoding B.encoding (initState B r (encode (width a) a))).length ≤
         stateBound r (labelBound p.toGeneric) (width a)
           ((encode (width a) a).length + 1 + steps a) := by
       have := hOutLen a 0 (Nat.zero_le _)
       enc_len [FiniteState.run_zero, FiniteState.resultEncoding] at this
-    have hQ := Nat.mul_le_mul_left (steps a + 1) (Nat.add_le_add hXD hsq)
     have hPQ : R ^ max 3 d ≤ (steps a + 1) * R ^ max 3 d := Nat.le_mul_of_pos_left _ (by omega)
-    have hencT := length_encNat_le_self (steps a)
     have hKLP : KL * (2 * R) ≤ 2 * (KL * R ^ max 3 d) := by
       rw [Nat.mul_left_comm]; exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ hRP)
-    have hKLQ : KL * R ^ max 3 d ≤ KL * ((steps a + 1) * R ^ max 3 d) :=
-      Nat.mul_le_mul_left _ hPQ
     have hCQ : (steps a + 1) * (C * R ^ max 3 d + R ^ max 3 d) =
         C * ((steps a + 1) * R ^ max 3 d) + (steps a + 1) * R ^ max 3 d := by ring
     obtain ⟨K, hK⟩ : ∃ K, K = r + 2 * KL + C + 40 := ⟨_, rfl⟩
@@ -273,12 +264,6 @@ theorem Program.ComputesInTime.computableInO_of_width
     have hK3 := Nat.mul_le_mul_right (R ^ max 3 d) (show 2 * KL + C + 34 ≤ K by omega)
     have hKpos : 1 ≤ K := by omega
     have hKT (x : ℕ) : x ≤ K * x := Nat.le_mul_of_pos_left x hKpos
-    have hTw := hKT (Tw a)
-    have hTe := hKT (Te a)
-    have hTs := hKT (Ts a)
-    have hSw := hKT (Sw a)
-    have hSe := hKT (Se a)
-    have hSs := hKT (Ss a)
     simp only [initState, FiniteState.initConstCertificate, FiniteState.initCertificate_time,
       FiniteState.initCertificate_space, FiniteState.constRegsCertificate,
       NativeCertificate.const_time, NativeCertificate.const_space, NativeCertificate.comp_time,
@@ -286,7 +271,9 @@ theorem Program.ComputesInTime.computableInO_of_width
       Fintype.card_fin, smul_eq_mul, FiniteState.runInputEncoding, FiniteState.inputEncoding,
       length_encPair, Basis.encoding, encUnary_apply, List.length_replicate, Function.comp_apply,
       ← hR, ← hK] at hencS ⊢
-    linarith
+    linarith [Nat.mul_le_mul_left (steps a + 1) (Nat.add_le_add hXD hsq),
+      Nat.mul_le_mul_left KL hPQ, hKT (Tw a), hKT (Te a), hKT (Ts a), hKT (Sw a), hKT (Se a),
+      hKT (Ss a)]
 
 /-- **The additive word RAM, with the exponent `3`.** A run of `Basis.additive` within
 `steps a` instructions on `n` input words at word size `w` costs

@@ -82,10 +82,8 @@ theorem exp_edgeExpansion_le_of_refutableInSize
     (hs : (CNF.tseitinFormula G.edgeEnds χ).RefutableInSize s) :
     Real.exp ((G.edgeExpansion * Fintype.card V / 3 - Fintype.card D - 2) ^ 2 /
       (8 * Fintype.card V * Fintype.card D)) ≤ s := by
-  have hh : 0 < G.edgeExpansion := by
-    by_contra h
-    have : G.edgeExpansion = 0 := le_antisymm (not_lt.1 h) G.edgeExpansion_nonneg
-    rw [this, zero_mul, zero_div] at hG
+  have hh : 0 < G.edgeExpansion := lt_of_le_of_ne G.edgeExpansion_nonneg fun h => by
+    rw [← h, zero_mul, zero_div] at hG
     linarith [(Fintype.card D).cast_nonneg (α := ℝ)]
   have hc := G.connected_toSimpleGraph_of_edgeExpansion_pos hh
   rw [← G.toSimpleGraph_edgeEnds] at hc
@@ -156,8 +154,7 @@ theorem exists_forall_refutableInSize_exp_le :
   refine ⟨m, hm, tseitinFormula ends χ, hlen, hw, hunsat, fun s hs => ?_⟩
   have hn' : (4392000 : ℝ) ≤ n := by exact_mod_cast hn
   have hke : 120 + 2 ≤ Multigraph.minBalancedCut ends := by
-    have : (122 : ℝ) ≤ Multigraph.minBalancedCut ends := by linarith
-    exact_mod_cast this
+    exact_mod_cast (by linarith : (122 : ℝ) ≤ Multigraph.minBalancedCut ends)
   have hsize := Tseitin.exp_le_of_refutableInSize hG hdeg (by simpa using hm) hke hs
   refine le_trans (Real.exp_le_exp.2 ?_) hsize
   -- `e(G) - 122 ≥ n / 36000`

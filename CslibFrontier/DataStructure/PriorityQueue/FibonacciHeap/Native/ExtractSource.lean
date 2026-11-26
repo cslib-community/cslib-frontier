@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.PriorityQueue.FibonacciHeap.Memory
+import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # Uniform result words for the original Fibonacci extraction source
@@ -58,9 +59,6 @@ theorem runClient_extractRaw {n : ℕ} (L : Record.Layout (Cell.ok n))
           (L.methods handlerWidth) (extractMin n)),
         (Memory.spec w).clientHistory mem (DataStructure.link (E := Memory.spec handlerWidth)
           (L.methods handlerWidth) (extractMin n))) := by
-  rw [link_extractRaw_eq]
-  rw [← bind_pure_comp, ← PFunctor.FreeM.bind_eq_bind]
-  rw [StateTransitionSpec.runClient_bind]
-  simp only [StateTransitionSpec.runClient_pure', List.append_nil]
+  simp only [link_extractRaw_eq, client_simps]
 
 end Cslib.DataStructure.PriorityQueue.FibonacciHeap.Native

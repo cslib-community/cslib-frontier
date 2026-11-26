@@ -195,17 +195,9 @@ theorem code_input_frontier : code.input (Backend.frontier family) = false := by
 theorem code_input_argument (i : Fin 4) : code.input (argument (i.castAdd 2)) = false := by
   change decide (_ ∨ _ ∨ _ ∨ _ ∨ _) = false
   simp only [decide_eq_false_iff_not, not_or]
-  refine ⟨(bank_ne_argument 0 (i.castAdd 2)).symm,
-    (bank_ne_argument 1 (i.castAdd 2)).symm, (bank_ne_argument 2 (i.castAdd 2)).symm,
-    argument_injective.ne ?_, argument_injective.ne ?_⟩
-  · intro he
-    have hh : i.val = 4 := congrArg (fun z : Fin 6 => z.val) he
-    have hi := i.isLt
-    omega
-  · intro he
-    have hh : i.val = 5 := congrArg (fun z : Fin 6 => z.val) he
-    have hi := i.isLt
-    omega
+  exact ⟨(bank_ne_argument 0 (i.castAdd 2)).symm, (bank_ne_argument 1 (i.castAdd 2)).symm,
+    (bank_ne_argument 2 (i.castAdd 2)).symm, argument_injective.ne (Fin.ne_of_lt i.isLt),
+    argument_injective.ne (Fin.ne_of_lt (Nat.lt_succ_of_lt i.isLt))⟩
 
 private theorem code_outFlag_aux : code.outFlag = bank 0 := rfl
 private theorem code_outV_aux : code.outV = bank 1 := rfl
@@ -369,36 +361,27 @@ private theorem dispatch_exec {w n K : ℕ} (L : Memory.Layout n) (x : Data regi
   cases o with
   | isEmpty =>
     rcases ha with ⟨h2, h1, h0⟩
-    have h : ExecWithin w code.code x y (1 + (N + 1 + 1 + 1)) :=
-      hc.seq (ExecWithin.branch_pos (hp0.mpr h2)
-        (ExecWithin.branch_pos (hp1.mpr h1) (ExecWithin.branch_pos (hp2.mpr h0) he)))
-    exact h.mono (by omega)
+    exact (hc.seq (ExecWithin.branch_pos (hp0.mpr h2)
+      (ExecWithin.branch_pos (hp1.mpr h1) (ExecWithin.branch_pos (hp2.mpr h0) he)))).mono
+        (by omega)
   | getKey v =>
     rcases ha with ⟨h2, h1, h0, _⟩
     have hget := he.seq (ExecWithin.copy (x := y) (d := bank 2) (s := bank 1))
-    have h : ExecWithin w code.code x (finish (.getKey v) y) (1 + (N + 1 + 2 + 1 + 1)) :=
-      hc.seq (ExecWithin.branch_pos (hp0.mpr h2)
+    exact (hc.seq (ExecWithin.branch_pos (hp0.mpr h2)
         (ExecWithin.branch_pos (hp1.mpr h1)
-          (ExecWithin.branch_neg (fun h => h0 (hp2.mp h)) hget)))
-    exact h.mono (by omega)
+          (ExecWithin.branch_neg (fun h => h0 (hp2.mp h)) hget)))).mono (by omega)
   | insert v k =>
     rcases ha with ⟨h2, h1, h0, _, _⟩
-    have h : ExecWithin w code.code x y (1 + (N + 1 + 2 + 1)) :=
-      hc.seq (ExecWithin.branch_pos (hp0.mpr h2)
+    exact (hc.seq (ExecWithin.branch_pos (hp0.mpr h2)
         (ExecWithin.branch_neg (fun h => h1 (hp1.mp h))
-          (ExecWithin.branch_pos (hp2.mpr h0) he)))
-    exact h.mono (by omega)
+          (ExecWithin.branch_pos (hp2.mpr h0) he)))).mono (by omega)
   | decreaseKey v k =>
     rcases ha with ⟨h2, h1, h0, _, _⟩
-    have h : ExecWithin w code.code x y (1 + (N + 2 + 2 + 1)) :=
-      hc.seq (ExecWithin.branch_pos (hp0.mpr h2)
+    exact (hc.seq (ExecWithin.branch_pos (hp0.mpr h2)
         (ExecWithin.branch_neg (fun h => h1 (hp1.mp h))
-          (ExecWithin.branch_neg (fun h => h0 (hp2.mp h)) he)))
-    exact h.mono (by omega)
+          (ExecWithin.branch_neg (fun h => h0 (hp2.mp h)) he)))).mono (by omega)
   | extractMin =>
-    have h : ExecWithin w code.code x y (1 + (N + 2)) :=
-      hc.seq (ExecWithin.branch_neg (fun h => ha (hp0.mp h)) he)
-    exact h.mono (by omega)
+    exact (hc.seq (ExecWithin.branch_neg (fun h => ha (hp0.mp h)) he)).mono (by omega)
 
 /-- The paid zero staging preserves the source memory and all persistent layout words. -/
 theorem stage_zero {w : ℕ} (x : Data registers) (hx : x.Bounded w) :
@@ -406,15 +389,10 @@ theorem stage_zero {w : ℕ} (x : Data registers) (hx : x.Bounded w) :
       memoryState (Backend.frontier family) (x.set (bank 3) 0) =
         memoryState (Backend.frontier family) x ∧
       ∀ i : Fin 4, (x.set (bank 3) 0).regs (argument (i.castAdd 2)) =
-        x.regs (argument (i.castAdd 2)) := by
-  refine ⟨(Exec.const (B := Basis.exact) (d := bank 3) (fits_zero w)).bounded hx, ?_, ?_⟩
-  · refine @Memory.State.ext (memoryState (Backend.frontier family) (x.set (bank 3) 0))
-      (memoryState (Backend.frontier family) x) rfl ?_
-    change Function.update x.regs (bank 3) 0 (Backend.frontier family) = _
-    exact Function.update_of_ne (bank_ne_frontier 3).symm _ _
-  · intro i
-    change Function.update x.regs (bank 3) 0 (argument (i.castAdd 2)) = _
-    exact Function.update_of_ne (bank_ne_argument 3 (i.castAdd 2)).symm _ _
+        x.regs (argument (i.castAdd 2)) :=
+  ⟨(Exec.const (B := Basis.exact) (d := bank 3) (fits_zero w)).bounded hx,
+    Memory.State.ext rfl (Function.update_of_ne (bank_ne_frontier 3).symm 0 x.regs),
+    fun i => Function.update_of_ne (bank_ne_argument 3 (i.castAdd 2)).symm 0 x.regs⟩
 
 /-- Every selected method's live input words survive the actual zero staging. -/
 theorem stage_zero_input (i : Fin 5) (x : Data registers) :
@@ -437,19 +415,15 @@ theorem wrap_body {w n K : ℕ} (L : Memory.Layout n) (x : Data registers)
       z.regs code.outFlag = y.regs code.outFlag ∧ z.regs code.outV = y.regs code.outV ∧
       z.regs code.outK =
         (match o with | .getKey _ => y.regs code.outV | _ => y.regs code.outK) := by
-  refine ⟨finish o y, dispatch_exec L x o ha he, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨finish o y, dispatch_exec L x o ha he, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+    try (cases o <;> rfl)
   · cases o <;> first
     | exact hy
     | exact (Exec.copy (B := Basis.exact) (d := bank 2) (s := bank 1)).bounded hy
-  · cases o <;> rfl
-  · cases o <;> rfl
   · intro i
     cases o <;> try rfl
     change (y.set (bank 2) (y.regs (bank 1))).regs (argument (i.castAdd 2)) = _
     simp only [Data.set_regs, Function.update_of_ne (bank_ne_argument 2 (i.castAdd 2)).symm]
-  · cases o <;> rfl
-  · cases o <;> rfl
-  · cases o <;> rfl
 
 private theorem reserve_layout :
     Function.Injective reserveScratch ∧
@@ -462,20 +436,18 @@ private theorem reserve_layout :
     · apply Fin.ext; omega
     · exact False.elim (Backend.src_ne_tmp family (.inl 2) (.inr 0) (3 : Fin 6) _ he)
     · exact False.elim (Backend.src_ne_tmp family (.inl 2) (.inr 0) (3 : Fin 6) _ he.symm)
-    · have hh := Backend.tmp_injective family (.inr 0) he
-      have hv : i.val - 1 = j.val - 1 := congrArg (fun z => z.val) hh
-      apply Fin.ext
-      omega
+    · have hv : i.val - 1 = j.val - 1 :=
+        congrArg Fin.val (Backend.tmp_injective family (.inr 0) he)
+      exact Fin.ext (by omega)
   · intro i j
     dsimp only [reserveScratch]
     split
-    · exact argument_injective.ne (by decide)
-    · exact Backend.src_ne_tmp family (.inl 2) (.inr 0) (0 : Fin 6) _
+    exacts [argument_injective.ne (by decide),
+      Backend.src_ne_tmp family (.inl 2) (.inr 0) (0 : Fin 6) _]
   · intro j
     dsimp only [reserveScratch]
     split
-    · exact argument_ne_frontier 3
-    · exact Backend.tmp_ne_frontier family (.inr 0) _
+    exacts [argument_ne_frontier 3, Backend.tmp_ne_frontier family (.inr 0) _]
 
 /-- Actual compact reservation from arbitrary bounded native data. It preserves every cell and
 its live dimension parameter; no host argument installation or zeroing is substituted. -/
@@ -489,24 +461,14 @@ theorem span_exec {w n base : ℕ} (x : Data registers) (hx : x.Bounded w)
   change x.regs (Backend.frontier family) = base at hfront
   change x.regs (argument 0) = n at hn
   have hin : x.regs ∘ (fun _ : Fin 1 => argument 0) =
-      WordEncoding.encode (α := ℕ) n := by
-    funext i
-    exact hn
+      WordEncoding.encode (α := ℕ) n := funext fun _ => hn
   obtain ⟨y, hy, hb, hm, hf, ho, hframe⟩ := Initialize.reserve_exec
     (Backend.frontier family) (fun _ => argument 0) reserveScratch reserve_layout.1
     reserve_layout.2.1 reserve_layout.2.2 (fun _ => argument_ne_frontier 0) x hx hin
     (by rw [hfront]; exact hfit)
-  refine ⟨y, hy, hb, hm, ?_, ?_, ?_⟩
-  · change y.regs (argument 3) = base
-    change y.regs (argument 3) = x.regs (Backend.frontier family) at ho
-    exact ho.trans hfront
-  · change y.regs (Backend.frontier family) = _
-    rw [hfront] at hf
-    exact hf
-  · change y.regs (argument 0) = n
-    rw [hframe (argument 0) (argument_ne_frontier 0)
-      (fun j => (reserve_layout.2.1 0 j).symm)]
-    exact hn
+  refine ⟨y, hy, hb, hm, ho.trans hfront, by rw [hfront] at hf; exact hf, ?_⟩
+  exact (hframe (argument 0) (argument_ne_frontier 0)
+    (fun j => (reserve_layout.2.1 0 j).symm)).trans hn
 
 private theorem metadataScratch_injective : Function.Injective metadataScratch := by
   intro i j he
@@ -559,40 +521,22 @@ theorem setup_registers {w n base : ℕ} (x : Data registers) (hx : x.Bounded w)
   change x.regs (argument 0) = n at hn
   change x.regs (argument 3) = base at hb
   have hin : x.regs ∘ ![argument 0, argument 3] =
-      WordEncoding.encode (α := ℕ × ℕ) (n, base) := by
-    funext i
+      WordEncoding.encode (α := ℕ × ℕ) (n, base) := funext fun i => by
     fin_cases i
-    · exact hn
-    · exact hb
-  have hd : ∀ (i : Fin 2) j, ![argument 0, argument 3] i ≠ metadataScratch j := by
-    intro i j
-    fin_cases i
-    · exact (metadataScratch_ne_argument j 0 (by decide) (by decide)).symm
-    · exact (metadataScratch_ne_argument j 3 (by decide) (by decide)).symm
-  have hs : ∀ i : Fin 2, ![argument 0, argument 3] i ≠ Backend.frontier family := by
-    intro i
-    fin_cases i
-    · exact argument_ne_frontier 0
-    · exact argument_ne_frontier 3
+    exacts [hn, hb]
+  have hd : ∀ (i : Fin 2) j, ![argument 0, argument 3] i ≠ metadataScratch j := fun i j => by
+    fin_cases i <;> exact (metadataScratch_ne_argument j _ (by decide) (by decide)).symm
+  have hs : ∀ i : Fin 2, ![argument 0, argument 3] i ≠ Backend.frontier family := fun i => by
+    fin_cases i <;> exact argument_ne_frontier _
   obtain ⟨y, hy, hbounded, hm, ho, _, hframe⟩ := Initialize.metadata_exec
     (Backend.frontier family) ![argument 0, argument 3] metadataScratch
     metadataScratch_injective hd metadataScratch_ne_frontier hs (n, base) x hx hin hfit
   refine ⟨y, hy, hbounded, congrArg Memory.State.mem hm,
-    congrArg Memory.State.frontier hm, ?_, ?_, ?_, ?_⟩
-  · change y.regs (argument 0) = n
-    rw [hframe _ (argument_ne_frontier 0)
-      (fun i => metadataScratch_ne_argument i 0 (by decide) (by decide))]
-    exact hn
-  · change y.regs (argument 3) = base
-    rw [hframe _ (argument_ne_frontier 3)
-      (fun i => metadataScratch_ne_argument i 3 (by decide) (by decide))]
-    exact hb
-  · have h := ho 1
-    change y.regs (argument 1) = base + n at h
-    exact h
-  · have h := ho 2
-    change y.regs (argument 2) = 1 at h
-    exact h
+    congrArg Memory.State.frontier hm, ?_, ?_, ho 1, ho 2⟩
+  · exact (hframe _ (argument_ne_frontier 0)
+      (fun i => metadataScratch_ne_argument i 0 (by decide) (by decide))).trans hn
+  · exact (hframe _ (argument_ne_frontier 3)
+      (fun i => metadataScratch_ne_argument i 3 (by decide) (by decide))).trans hb
 
 /-- The actual compact fresh initializer preserves the entire old memory. Its local-zero domain
 is exactly the original 3n+1 block, and its code and constant clock precede all runtime values.

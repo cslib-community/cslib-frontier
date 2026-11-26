@@ -80,13 +80,9 @@ theorem value_step (c : ℕ → ℕ → ℤ) (j k : ℕ) (a : ℕ → ℤ) (p r 
   have hs7 := mem_range.mp hs
   simp only [mul_sum]
   refine sum_congr rfl fun q _ => ?_
-  have hp : (p * 10 + t) / 10 = p := by omega
-  have hq : (q * 7 + s) / 7 = q := by omega
-  simp only [weight, hp, hq, Nat.add_mod, Nat.mul_mod_left, Nat.mod_eq_of_lt ht,
-    Nat.mod_eq_of_lt hs7, zero_add]
-  have hidx : (q * 7 + s) * 7 ^ k + r = q * (7 ^ k * 7) + (s * 7 ^ k + r) := by ring
-  rw [hidx]
-  ring
+  simp only [weight, show (p * 10 + t) / 10 = p by omega, show (q * 7 + s) / 7 = q by omega,
+    Nat.add_mod, Nat.mul_mod_left, Nat.mod_eq_of_lt ht, Nat.mod_eq_of_lt hs7, zero_add]
+  rw [show (q * 7 + s) * 7 ^ k + r = q * (7 ^ k * 7) + (s * 7 ^ k + r) by ring]; ring
 
 /-- Each prefix product has absolute value at most one. -/
 theorem abs_weight_le {c : ℕ → ℕ → ℤ} (hc : ∀ t < 10, ∀ s < 7, |c t s| ≤ 1)
@@ -113,12 +109,9 @@ theorem abs_value_le_of_input {c : ℕ → ℕ → ℤ}
     (hc : ∀ t < 10, ∀ s < 7, |c t s| ≤ 1) {L j k : ℕ} (hjk : j + k = L)
     (p r : ℕ) (hr : r < 7 ^ k) {a : ℕ → ℤ} {A : ℤ}
     (ha : ∀ i < 7 ^ L, |a i| ≤ A) : |value c j k a p r| ≤ (7 ^ j : ℕ) * A := by
-  apply abs_value_le hc
-  intro v hv
+  refine abs_value_le hc j k p r fun v hv => ha _ ?_
   have hprod := Nat.mul_le_mul_right (7 ^ k) (Nat.succ_le_of_lt hv)
-  have hidx : v * 7 ^ k + r < 7 ^ j * 7 ^ k := by nlinarith only [hprod, hr]
-  rw [← pow_add, hjk] at hidx
-  exact ha _ hidx
+  rw [← hjk, pow_add]; nlinarith only [hprod, hr]
 
 private theorem index_cons {b L : ℕ} (s : Fin b) (u : Fin L → Fin b) :
     (finFunctionFinEquiv (Fin.cons s u) : ℕ) = s.val + b * (finFunctionFinEquiv u : ℕ) := by
@@ -144,15 +137,11 @@ theorem weight_index (c : Fin 10 → Fin 7 → ℤ) {L : ℕ}
   | zero => simp [weight]
   | succ L ih =>
     rw [← Fin.cons_self_tail τ, ← Fin.cons_self_tail u, index_cons, index_cons, weight]
-    have ht : ((τ 0).val + 10 * (finFunctionFinEquiv (Fin.tail τ) : ℕ)) / 10 =
-        (finFunctionFinEquiv (Fin.tail τ) : ℕ) := by omega
-    have hu : ((u 0).val + 7 * (finFunctionFinEquiv (Fin.tail u) : ℕ)) / 7 =
-        (finFunctionFinEquiv (Fin.tail u) : ℕ) := by omega
-    have htmod : ((τ 0).val + 10 * (finFunctionFinEquiv (Fin.tail τ) : ℕ)) % 10 =
-        (τ 0).val := by omega
-    have humod : ((u 0).val + 7 * (finFunctionFinEquiv (Fin.tail u) : ℕ)) % 7 =
-        (u 0).val := by omega
-    rw [ht, hu, htmod, humod, ih, Fin.prod_univ_succ]
+    set a := (finFunctionFinEquiv (Fin.tail τ) : ℕ)
+    set b := (finFunctionFinEquiv (Fin.tail u) : ℕ)
+    rw [show ((τ 0).val + 10 * a) / 10 = a by omega, show ((u 0).val + 7 * b) / 7 = b by omega,
+      show ((τ 0).val + 10 * a) % 10 = (τ 0).val by omega,
+      show ((u 0).val + 7 * b) % 7 = (u 0).val by omega, ih, Fin.prod_univ_succ]
     simp only [table, Nat.mod_eq_of_lt (τ 0).isLt, Nat.mod_eq_of_lt (u 0).isLt,
       Fin.cons_zero, Fin.cons_succ]
     exact mul_comm _ _
@@ -181,11 +170,8 @@ theorem stageSize_le (j k : ℕ) : 10 ^ j * 7 ^ k ≤ 10 ^ (j + k) := by
 theorem total_stageSize_le (L : ℕ) :
     ∑ j ∈ range L, 10 ^ (j + 1) * 7 ^ (L - (j + 1)) ≤ L * 10 ^ L := by
   calc
-    _ ≤ ∑ _j ∈ range L, 10 ^ L := by
-      apply sum_le_sum
-      intro j hj
-      have hjL : j + 1 ≤ L := by have := mem_range.mp hj; omega
-      simpa only [Nat.add_sub_of_le hjL] using stageSize_le (j + 1) (L - (j + 1))
+    _ ≤ ∑ _j ∈ range L, 10 ^ L := sum_le_sum fun j hj => by
+      simpa only [Nat.add_sub_of_le (mem_range.mp hj)] using stageSize_le (j + 1) (L - (j + 1))
     _ = _ := by simp
 
 end Cslib.Algorithms.MatrixMultiplication.Schonhage.CoordinateTransform
