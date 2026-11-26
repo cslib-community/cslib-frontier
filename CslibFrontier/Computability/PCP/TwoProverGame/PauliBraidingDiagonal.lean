@@ -69,8 +69,6 @@ theorem rejection_pauliBraidingDiagonalGame_le
   let game := pauliBraidingGame n G special decode
   let seedLaw := Probability.PMF.uniformOfFintype (SymmetricLinearitySeed n)
   let fixedBasis := game.pullbackSeed seedLaw (PauliBraidingSeed.linearity basis)
-  let diagonal := pauliBraidingDiagonalGame n G special decode roles basis
-  let linearity := pauliBraidingBranchGame n G special decode 0
   have hbasis := game.weighted_rejection_le_of_bind_seed (Probability.PMF.uniformOfFintype Bool)
     (fun basis => seedLaw.map (PauliBraidingSeed.linearity basis)) answer basis
   rw [Probability.PMF.uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat,
@@ -115,17 +113,14 @@ theorem expect_le_of_pauliBraidingDiagonal_checks {𝒜 : Type*} [Fintype A] [Ri
   let lose (r : Fin 3 × (Fin n → Bool) × (Fin n → Bool)) :=
     1 - ({ game with seed := PMF.pure r }).commutingWinProb S
   have havg : (𝔼 a, 𝔼 dummy, bad a dummy) ≤ 3 * (𝔼 r, lose r) := by
-    have h := expect_le_expect (s := (univ : Finset (Fin n → Bool))) fun a _ =>
-      expect_le_expect (s := (univ : Finset (Fin n → Bool))) fun dummy _ => hlocal a dummy
-    refine h.trans_eq ?_
+    refine (expect_le_expect fun a _ =>
+      expect_le_expect fun dummy _ => hlocal a dummy).trans_eq ?_
     simp_rw [Fintype.expect_prod_type]
     rw [Finset.expect_comm univ univ (fun k a => 𝔼 d, lose (k, a, d)), Finset.mul_expect]
     refine expect_congr rfl fun a _ => ?_
     rw [Finset.expect_comm univ univ (fun k d => lose (k, a, d)), Finset.mul_expect]
     refine expect_congr rfl fun d _ => ?_
-    rw [Fintype.expect_eq_sum_div_card, Fin.sum_univ_three, Fintype.card_fin]
-    push_cast
-    ring
+    simp [Fintype.expect_eq_sum_div_card, Fin.sum_univ_three]; ring
   have hscore : (𝔼 r, lose r) = 1 - game.commutingWinProb S := by
     unfold SeededGame.commutingWinProb
     rw [SeededGame.rejection_eq_sum]
@@ -242,8 +237,6 @@ theorem expect_prob_mismatch_pauliBraidingDiagonal_le {𝒜 : Type*} [Fintype A]
       have h₂ := sub_nonneg.mpr (SeededGame.answersWinProb_le_one
         ({ pauliBraidingDiagonalGame n G special decode roles basis with
             seed := PMF.pure (2, a, d) }) S.answers)
-      dsimp only at h01 h₂
-      change bad a ≤ _ at h01
       simp only [SeededGame.commutingWinProb] at h01 ⊢
       linarith only [h01, h₂]
 

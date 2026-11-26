@@ -255,18 +255,6 @@ theorem rootPassProg_realizes :
     ⟨le_rfl, Nat.zero_add _, Nat.zero_le _, hadj_h, hwt_h, hL0_h, htbl0_h⟩
   have hL0_lt_wt : ∀ u ∈ L0, u < wtL.length := hwtL_len ▸ hL0_lt
   have hnil_t : HoldsIn d.bag0Ptr [] t := HoldsIn.nil (by have := hL0_t.1; omega)
-  have hind_safe : Fits w 2 ∧ ∃ m' adjL' xs',
-      adjL'.length = m' * m' ∧ d.numVerts = m' ∧
-      HoldsIn d.adjPtr adjL' t ∧ HoldsIn d.bag0Ptr xs' t ∧ xs'.length = d.bag0Len ∧
-      (∀ u ∈ xs', u < m') ∧ Fits w (d.adjPtr + m' * m') ∧ Fits w (d.bag0Ptr + d.bag0Len) :=
-    ⟨h2, m, adjL, L0, hadjL_len, hnv, hadj_t, hL0_t, hL0_len, hL0_lt, hfit_adj, hfit_bag0⟩
-  have hfw_safe : Fits w 2 ∧ ∃ wtL' LB',
-      HoldsIn d.wtPtr wtL' t ∧ HoldsIn d.bag0Ptr LB' t ∧ LB'.length = d.bag0Len ∧
-      (∀ u ∈ LB', u < wtL'.length) ∧ Fits w (d.wtPtr + wtL'.length) ∧
-      Fits w (d.bag0Ptr + 0) ∧ Fits w (d.bag0Ptr + d.bag0Len) ∧
-      Fits w (d.bag0Len * wtL'.foldl max 0) :=
-    ⟨h2, wtL, L0, hwt_t, hL0_t, hL0_len, hL0_lt_wt, hwtL_len ▸ hfit_wt, hfit_bag0.of_le (by omega),
-      hfit_bag0, hfit_cap.of_le (by omega)⟩
   have hfw_le := forgetWeightProg_result_le
     ⟨d.wtPtr, d.bag0Ptr, 0, d.bag0Ptr, d.bag0Len, st.curC⟩
     hwt_t hnil_t rfl hL0_t hL0_len hL0_lt_wt
@@ -284,7 +272,11 @@ theorem rootPassProg_realizes :
     by rwa [hst_ev], by rwa [hst_ev], by rwa [hst_ev], by rwa [hst_ev]⟩
   · dsimp only [rootPassStep]
     rw [indepBagProg_state]
-    repeat (first | split | exact hind_safe | exact hfw_safe | assumption | refine And.intro ?_ ?_)
+    refine ⟨hfit_tbl_addr,
+      ⟨h2, m, adjL, L0, hadjL_len, hnv, hadj_t, hL0_t, hL0_len, hL0_lt, hfit_adj, hfit_bag0⟩,
+      ⟨h2, wtL, L0, hwt_t, hL0_t, hL0_len, hL0_lt_wt, hwtL_len ▸ hfit_wt,
+        hfit_bag0.of_le (by omega), hfit_bag0, hfit_cap.of_le (by omega)⟩, ?_⟩
+    repeat (first | split | assumption | refine And.intro ?_ ?_)
   · simp only [hres_ev]; omega
   · simp only [hres_ev]
     split_ifs <;> omega

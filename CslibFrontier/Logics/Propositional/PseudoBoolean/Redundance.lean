@@ -1185,6 +1185,9 @@ inductive TopStep where
   | presChange (add : Bool) (x : ℕ) (c : PBConstr) (sub : Option (List RedItem))
   /-- `epreserved P` (§5.11.4): the preserved set is `P`, as a set of variables. -/
   | epreserved (vars : List ℕ)
+  /-- `e C : j` (§5.11.1): the constraint numbered `j` is `C` after normalization, up to the order
+  of terms. Like the other checks of §5.11, it changes nothing. -/
+  | econstr (c : PBConstr) (j : ℕ)
   deriving Repr
 
 /-- The linear form `L - L'`: `L` with the coefficients of `L'` subtracted. -/
@@ -1850,6 +1853,8 @@ def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep �
     | none => none
   | .epreserved vs =>
     if s.pres.any (sameVars vs) then some s else none
+  | .econstr c j =>
+    if (lookup s.db j).any (fun d => sameUpToOrder d.normalize c.normalize) then some s else none
   | .dom c ω sub q =>
     match s.order with
     | some L =>
@@ -3373,7 +3378,7 @@ theorem stepTop_inv {F : List PBConstr} {obj : Option Objective} {s s' : State} 
         exact ⟨hs.sub, hs.imp, hs.chk, hs.wit, hs.ids.mono (presChangeCheck_le hchk)⟩
       · cases h
     · cases h
-  | epreserved _ | eordDef _ _ | eordLoaded _ _ =>
+  | epreserved _ | eordDef _ _ | eordLoaded _ _ | econstr _ _ =>
     obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
     exact hs
   | dom c ω items q =>
@@ -3619,7 +3624,7 @@ theorem stepTop_mono {F : List PBConstr} {obj : Option Objective} {s s' : State}
         exact .of_le (presChangeCheck_le hchk) rfl rfl id rfl
       · cases h
     · cases h
-  | epreserved _ | eordDef _ _ | eordLoaded _ _ =>
+  | epreserved _ | eordDef _ _ | eordLoaded _ _ | econstr _ _ =>
     obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
     exact .refl s
   | dom c ω sub q =>
@@ -3933,7 +3938,7 @@ theorem stepTop_ordInv {F : List PBConstr} {obj : Option Objective} {s s' : Stat
           · exact hag v hv
       · cases h
     · cases h
-  | epreserved _ | eordDef _ _ | eordLoaded _ _ =>
+  | epreserved _ | eordDef _ _ | eordLoaded _ _ | econstr _ _ =>
     obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
     exact ho
   | dom c ω items q =>
@@ -4168,7 +4173,7 @@ theorem stepTop_fwd {F : List PBConstr} {obj : Option Objective} {s s' : State} 
         exact .inl ⟨τ, hτ, le_rfl, fun _ _ => rfl⟩
       · cases h
     · cases h
-  | epreserved _ | eordDef _ _ | eordLoaded _ _ =>
+  | epreserved _ | eordDef _ _ | eordLoaded _ _ | econstr _ _ =>
     obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
     exact .inl ⟨τ, hτ, le_rfl, fun _ _ => rfl⟩
   | dom c ω items q =>
@@ -4312,7 +4317,7 @@ theorem stepTop_back {F : List PBConstr} {obj : Option Objective} {s s' : State}
         exact ⟨hc, τ, allHold_mono hinv.sub hτ, le_rfl, fun _ _ => rfl⟩
       · cases h
     · cases h
-  | epreserved _ | eordDef _ _ | eordLoaded _ _ =>
+  | epreserved _ | eordDef _ _ | eordLoaded _ _ | econstr _ _ =>
     obtain ⟨-, ⟨⟩⟩ := Option.ite_none_right_eq_some.1 h
     exact ⟨hc, τ, hτ, le_rfl, fun _ _ => rfl⟩
 

@@ -245,11 +245,8 @@ private theorem scanCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : Sta
       fun v hv => (List.mem_cons.mp hv).elim (· ▸ hu_lt) (hS.comp_lt v),
       by simpa only [S1, List.reverse_cons, List.length_reverse, hx1m] using
         hS.comp_mem.append_one u⟩
-  have hch1 : AdjChain g x1.mem (visBase g) (x1.regs rCurNode) (adj g u) := by
-    rw [hcn1]
-    exact (hS.bkt u hu_lt).frame le_rfl fun a _ ha => hfr_comp a (by wram_omega)
-  obtain ⟨y, ⟨t2, ht2, hex2⟩, hSy, hrem2, hidx2⟩ :=
-    visitListLoop_spec (w := w) g (adj g u) S1 x1 hS1 hch1 hw
+  obtain ⟨y, ⟨t2, ht2, hex2⟩, hSy, hrem2, hidx2⟩ := visitListLoop_spec (w := w) g (adj g u) S1 x1
+    hS1 (hcn1 ▸ (hS.bkt u hu_lt).frame le_rfl fun a _ ha => hfr_comp a (by wram_omega)) hw
   rw [scan_cons (List.finRange L) g hst]
   refine ⟨y, t1 + t2, hex1.seq hex2, ?_, hSy, hrem2.trans hrem1, hidx2.trans hidx1⟩
   have hstep := foldl_visit_step (List.finRange L) (adj g u) (S := S1) (adj_bounds hS.len_table u)
@@ -289,14 +286,12 @@ private theorem exploreCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : 
     obtain ⟨y, t, hexl, hcred, hSy, hidxy⟩ :=
       hloop (slots g) S x0 hS0 hrem0 (by simp only [hcomp0, List.length_nil, Nat.zero_add, le_refl])
     exact ⟨y, t0 + t, hex0.seq hexl, by omega, hSy, hidxy.trans hidx0⟩
-  intro k
-  induction k with
+  intro k S' z hS' hrem' hck
+  induction k generalizing S' z with
   | zero =>
-    intro S' z hS' hrem' _
-    refine ⟨z, 2, .loop_exit (by simp only [Cond.holds_lt, hS'.consts.zero, hrem']; omega),
+    exact ⟨z, 2, .loop_exit (by simp only [Cond.holds_lt, hS'.consts.zero, hrem']; omega),
       by simp only [Function.iterate_zero, id_eq]; omega, hS', rfl⟩
   | succ k ih =>
-    intro S' z hS' hrem' hck
     have hc_loop : (Cond.lt rZero rRem).Holds z := by
       simp only [Cond.holds_lt, hS'.consts.zero, hrem']; omega
     cases hst : S'.stack with
@@ -342,10 +337,8 @@ private theorem exploreCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : 
 
 private theorem sum_length_adj_le_fin {L : ℕ} (g : Graph (Fin L → Fin L)) :
     ∑ v ∈ Finset.range (slots g), (adj g v).length ≤ 2 * g.edges.length := by
-  suffices ∀ (l : List (Edge (Fin L → Fin L))),
-      ∑ v ∈ Finset.range (slots g), (l.filter (incident v)).length ≤ 2 * l.length from this _
-  intro l
-  induction l with
+  dsimp only [adj]
+  induction g.edges with
   | nil => simp
   | cons e l ih =>
     have hcount (v : ℕ) : ((e :: l).filter (incident v)).length =
@@ -353,8 +346,8 @@ private theorem sum_length_adj_le_fin {L : ℕ} (g : Graph (Fin L → Fin L)) :
       cases h : incident v e <;> simp [h]
     have h2 : ((Finset.range (slots g)).filter fun v => incident v e = true).card ≤ 2 :=
       (Finset.card_le_card (t := {e.src, e.dst}) fun v hv => by
-        have hv' : e.src = v ∨ e.dst = v := by simpa [incident] using (Finset.mem_filter.mp hv).2
-        rcases hv' with rfl | rfl <;> simp).trans Finset.card_le_two
+        simp only [Finset.mem_filter, incident, Bool.or_eq_true, beq_iff_eq] at hv
+        rcases hv.2 with rfl | rfl <;> simp).trans Finset.card_le_two
     simp only [hcount, Finset.sum_add_distrib, Finset.sum_boole, Nat.cast_id, List.length_cons]
     omega
 
@@ -469,15 +462,13 @@ theorem stepsLoop_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x :
       have hadj := Nat.mul_le_mul_left (visitPass L) (sum_length_adj_le_fin g)
       simp only [visitPass] at hadj ⊢; nlinarith
     exact ⟨y, ⟨t, by nlinarith, hexl⟩, hyT⟩
-  intro m
-  induction m with
+  intro m hm S z hzT hzIdx hzComp hzStk
+  induction m generalizing S z with
   | zero =>
-    intro _ S z hzT hzIdx _ _
     simp only [Nat.sub_zero, List.drop_length, List.foldl_nil] at hzIdx ⊢
     exact ⟨z, 2, .loop_exit (by simp only [Cond.holds_lt, hzIdx, hzT.consts.regE]; omega),
       by omega, hzT⟩
   | succ m ih =>
-    intro hm S z hzT hzIdx hzComp hzStk
     set j := g.edges.length - (m + 1)
     have hj : j < g.edges.length := by omega
     have hc_loop : (Cond.lt rOuterIdx rE).Holds z := by
@@ -486,7 +477,8 @@ theorem stepsLoop_spec {L w : ℕ} [NeZero L] (g : Graph (Fin L → Fin L)) (x :
       hstep_one j hj S z hzT hzIdx hzComp hzStk
     obtain ⟨y, t2, hex2, hcred2, hyT⟩ :=
       ih (by omega) (step (List.finRange L) g S g.edges[j]) z1 hz1T (by omega) hz1Comp hz1Stk
-    rw [List.drop_eq_getElem_cons hj, show j + 1 = g.edges.length - m by omega, List.foldl_cons]
+    have hj1 : j + 1 = g.edges.length - m := by omega
+    rw [List.drop_eq_getElem_cons hj, hj1, List.foldl_cons]
     exact ⟨y, t1 + t2 + 2, .loop_iter hc_loop hex1 hex2,
       by simp only [Nat.mul_succ]; omega, hyT⟩
 

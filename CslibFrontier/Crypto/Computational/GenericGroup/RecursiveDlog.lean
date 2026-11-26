@@ -127,19 +127,13 @@ theorem isQueryBounded_recursiveDlog {base : S → S → OracleComp (GroupOracle
                 .bind (ih₂ g₂ u₂ (by omega)) fun _ => .pure _ 0) ?_
     have hlog (m : ℕ) : Nat.log 2 (q ^ m) ≤ m * Nat.clog 2 q :=
       (Nat.log_le_clog 2 _).trans (Nat.clog_pow_le_mul 2 q m)
-    have hlog_d := hlog d; have hlog_f := hlog f; have hlog_e := hlog e
     have hT : f * T + d * T = e * T := by rw [← add_mul, hfd]
-    have hC1 : 6 * f * Nat.clog 2 q + 6 * d * Nat.clog 2 q = 6 * e * Nat.clog 2 q := by
-      rw [← add_mul, ← mul_add, hfd]
-    have hC2 : 6 * f * Nat.clog 2 e * Nat.clog 2 q + 6 * d * Nat.clog 2 e * Nat.clog 2 q =
-        6 * e * Nat.clog 2 e * Nat.clog 2 q := by rw [← add_mul, ← add_mul, ← mul_add, hfd]
-    have hprod : 4 * (d * Nat.clog 2 q) + 2 * (f * Nat.clog 2 q) + 2 * (e * Nat.clog 2 q) + 1 ≤
-        6 * e * Nat.clog 2 q := by nlinarith [show 4 * d + 2 * f + 2 * e + 1 ≤ 6 * e by omega]
-    have h1 : 6 * f * Nat.clog 2 f * Nat.clog 2 q + 6 * f * Nat.clog 2 q ≤
-        6 * f * Nat.clog 2 e * Nat.clog 2 q := by nlinarith
-    have h2 : 6 * d * Nat.clog 2 d * Nat.clog 2 q + 6 * d * Nat.clog 2 q ≤
-        6 * d * Nat.clog 2 e * Nat.clog 2 q := by nlinarith
-    linarith
+    have hstep : 4 * d + 2 * f + 2 * e + 1 ≤ 6 * e := by omega
+    have hc : 4 * d + 2 * f + 2 * e + 6 * f * Nat.clog 2 f + 6 * d * Nat.clog 2 d + 1 ≤
+        6 * e * Nat.clog 2 e := by nlinarith only [hfd, hclog_f, hclog_d, hstep]
+    have hmul := Nat.mul_le_mul_right (Nat.clog 2 q) hc
+    simp only [add_mul, one_mul, Nat.mul_assoc 4, Nat.mul_assoc 2] at hmul
+    linarith [hT, hCq, hmul, hlog d, hlog f, hlog e]
 
 /-- **Correctness.** For `s` of additive order `q ^ e` (`1 ≤ e`) and a base-case solver `base`
 correct on order `q`, `recursiveDlog base q e (L s) (L (α * s))` outputs `α` for `α < q ^ e`. -/

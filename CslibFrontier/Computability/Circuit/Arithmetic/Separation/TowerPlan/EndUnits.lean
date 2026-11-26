@@ -102,32 +102,26 @@ theorem channelHolders_of_target_eq_done (hh : 0 < h) {x : Relay T m A} (hx : x.
     {β : Bool} (hd : x.target R ch β = .done) (hne : moveCount lhat n o (.relay x hx) ≠ 0) :
     channelHolders (⟨.relay x hx, β⟩ : MoveChannel R ch FL) =
       s(x.child R ch β, (x.child R ch β).parent hh (edgeLoads (load lhat n o))) := by
-  have hpar {j : Fin J} (c : T.X j) : (Tower.Node.ofChamber j.2.le c).parent hh
-      (edgeLoads (load lhat n o)) =
-        .ofChamber j.2 (T.parentChamber hh (edgeLoads (load lhat n o)) c) :=
-    dite_eq_left j.2
+  set L := edgeLoads (load lhat n o)
+  have hpar {j : Fin J} (c : T.X j) : (Tower.Node.ofChamber j.2.le c).parent hh L =
+      .ofChamber j.2 (T.parentChamber hh L c) := dite_eq_left j.2
   rcases x with ⟨a, c, γ, s⟩ | ⟨j, i, e⟩ | ⟨j, e, s⟩ | e
   · exact absurd hd (start_target_ne_done hx β)
-  · obtain rfl : i = T.chosenType hh (edgeLoads (load lhat n o)) j :=
-      Decidable.byContradiction fun hi => hne <|
-        (moveCount_eq _).trans (ite_eq_right fun h => hi ((Tower.isChosenType_iff hh).1 h))
-    have h1 : T.vx (T.chosenType hh (edgeLoads (load lhat n o)) j) (T.e0 e) =
-        T.vx (T.chosenType hh (edgeLoads (load lhat n o)) j) (T.e1 e) :=
+  · obtain rfl : i = T.chosenType hh L j := Decidable.byContradiction fun hi => hne <|
+      (moveCount_eq _).trans (ite_eq_right fun h => hi ((Tower.isChosenType_iff hh).1 h))
+    have h1 : T.vx (T.chosenType hh L j) (T.e0 e) = T.vx (T.chosenType hh L j) (T.e1 e) :=
       (T.nr_vx0 j.2.le _ ⟨e, hx⟩).trans (T.nr_vx1 j.2.le _ ⟨e, hx⟩).symm
     cases β <;> simp [channelHolders, Relay.child, Relay.party, Move.party, Move.law, relayLaw,
       relayChannelEnd, RelayRole.elim, hpar, Tower.parentChamber, Tower.hostOf, h1, Sym2.eq_swap]
-  · have ht : T.ty e = T.chosenType hh (edgeLoads (load lhat n o)) j := by
-      by_contra ht
-      have := moveCount_middle_le (lhat := lhat) (n := n) (o := o) hx
-      rw [ite_eq_right fun h => ht ((Tower.isChosenType_iff hh).1 h)] at this
-      omega
+  · have ht : T.ty e = T.chosenType hh L j :=
+      Decidable.byContradiction fun ht => hne <| Nat.eq_zero_of_le_zero <|
+        (moveCount_middle_le hx).trans_eq
+          (ite_eq_right fun h => ht ((Tower.isChosenType_iff hh).1 h))
     cases β <;> fin_cases s <;> simp only [Relay.target] at hd <;> (try split_ifs at hd) <;>
       simp_all [channelHolders, Relay.child, Relay.party, Move.party, Move.law, relayLaw,
         relayChannelEnd, RelayRole.elim, Tower.parentChamber, Sym2.eq_swap]
-  · have hJ : (.ofChamber le_rfl (T.e0 e) : T.Node).parent hh (edgeLoads (load lhat n o)) =
-        .root ∧ (.ofChamber le_rfl (T.e1 e) : T.Node).parent hh (edgeLoads (load lhat n o)) =
-          .root :=
-      ⟨dite_eq_right (Nat.not_succ_le_self J), dite_eq_right (Nat.not_succ_le_self J)⟩
+  · have hJ (c : T.X J) : (Tower.Node.ofChamber le_rfl c).parent hh L = .root :=
+      dite_eq_right (Nat.not_succ_le_self J)
     cases β <;> simp [channelHolders, Relay.child, Relay.party, Move.party, Move.law, relayLaw,
       relayChannelEnd, RelayRole.elim, hJ, Sym2.eq_swap]
 

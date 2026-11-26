@@ -84,7 +84,7 @@ private theorem computableInPolyTime_guard : ComputableInPolyTime guard encCNF e
 
 /-- The divisor `√⌊log₂ (n + 2)⌋` of the contraction exponent is positive. -/
 private theorem one_le_sqrt_log (n : ℕ) : 1 ≤ Nat.sqrt (Nat.log 2 (n + 2)) :=
-  Nat.le_sqrt.mpr (by have := Nat.log_pos (b := 2) (n := n + 2) (by norm_num) (by omega); omega)
+  Nat.le_sqrt.mpr (Nat.log_pos one_lt_two (by omega))
 
 /-- For a positive number of variables, the divisor `√⌊log₂ (n + 2)⌋` is at most `n`. -/
 private theorem sqrt_log_le {n : ℕ} (hn : 1 ≤ n) : Nat.sqrt (Nat.log 2 (n + 2)) ≤ n := by
@@ -113,16 +113,13 @@ private theorem threshold_div_le_interpolationScale {n : ℕ} (hn : 16384 ≤ n)
   set lam := Nat.clog 2 n
   set nu := Nat.clog 2 lam
   set q := Nat.sqrt (Nat.log 2 (n + 2))
-  have hlam : 14 ≤ lam := by
-    simpa only [show (16384 : ℕ) = 2 ^ 14 by norm_num, Nat.clog_pow 2 _ one_lt_two] using
-      Nat.clog_mono_right 2 hn
+  have hlam : 14 ≤ lam := Nat.clog_pow 2 14 one_lt_two ▸ Nat.clog_mono_right 2 hn
   have hq : 1 ≤ q := one_le_sqrt_log n
   -- `λ ≤ ⌊log₂ (n + 2)⌋ + 1 < (q + 1) ^ 2 + 1 ≤ (2 q) ^ 2 + 1`
   have hlamq : lam ≤ (2 * q) ^ 2 := by
     have h1 : lam ≤ Nat.log 2 (n + 2) + 1 := Nat.clog_le_of_le_pow
       (by have := Nat.lt_pow_succ_log_self (b := 2) one_lt_two (n + 2); omega)
-    have h2 := Nat.lt_succ_sqrt' (Nat.log 2 (n + 2))
-    change Nat.log 2 (n + 2) < (q + 1) ^ 2 at h2
+    have h2 : Nat.log 2 (n + 2) < (q + 1) ^ 2 := Nat.lt_succ_sqrt' _
     nlinarith
   have hqR : (0 : ℝ) < q := Nat.cast_pos.mpr hq
   have hlamR : (0 : ℝ) < Real.sqrt lam :=
@@ -132,10 +129,9 @@ private theorem threshold_div_le_interpolationScale {n : ℕ} (hn : 16384 ≤ n)
   have hnuR : (nu : ℝ) ≤ (nu : ℝ) ^ 2 := by
     exact_mod_cast Nat.le_self_pow two_ne_zero nu
   have hstep : (threshold n : ℝ) / q ≤ 2 * ((n : ℝ) * (nu : ℝ) ^ 2 / Real.sqrt lam) := by
-    rw [div_le_iff₀ hqR, show 2 * ((n : ℝ) * (nu : ℝ) ^ 2 / Real.sqrt lam) * q =
-      (n : ℝ) * (nu : ℝ) ^ 2 * (2 * q) / Real.sqrt lam by ring, le_div_iff₀ hlamR]
-    have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg n
-    have hnu0 : (0 : ℝ) ≤ nu := Nat.cast_nonneg nu
+    have hmul : 2 * ((n : ℝ) * (nu : ℝ) ^ 2 / Real.sqrt lam) * q =
+        (n : ℝ) * (nu : ℝ) ^ 2 * (2 * q) / Real.sqrt lam := by ring
+    rw [div_le_iff₀ hqR, hmul, le_div_iff₀ hlamR]
     calc (threshold n : ℝ) * Real.sqrt lam = (n : ℝ) * nu * Real.sqrt lam := by
           simp only [threshold, Nat.cast_mul, nu, lam]
       _ ≤ (n : ℝ) * nu * (2 * q) := mul_le_mul_of_nonneg_left hsqrt (by positivity)
@@ -186,7 +182,7 @@ private theorem two_pow_le_of_le_threshold (A₁ : ℕ) {φ : CNF ℕ}
         _ = ((32 * A₁ : ℕ) : ℝ) * interpolationScale φ.numVars := by push_cast; ring
     have h2E : ((2 ^ E : ℕ) : ℝ) ≤ ⌈X⌉₊ := by
       calc ((2 ^ E : ℕ) : ℝ) = (2 : ℝ) ^ (E : ℝ) := by
-            rw [Real.rpow_natCast]; push_cast; rfl
+            simp only [Real.rpow_natCast, Nat.cast_pow, Nat.cast_ofNat]
         _ ≤ X := Real.rpow_le_rpow_of_exponent_le (by norm_num) hER
         _ ≤ ⌈X⌉₊ := Nat.le_ceil X
     calc 2 ^ E ≤ ⌈X⌉₊ := by exact_mod_cast h2E
@@ -277,10 +273,9 @@ theorem exists_modelCounter (k : ℕ) :
       split <;> exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (hY1 φ) (by omega))
     exact (Nat.add_le_add hd' hbr).trans (by omega)
   · -- space: the test and either branch are within `Y ^ b`
-    have hd' : Y φ ^ d ≤ Y φ ^ b := Nat.pow_le_pow_right (hY1 φ) (by omega)
-    have hbr : (if guard φ then Y φ ^ b₁ else Y φ ^ b₂) ≤ Y φ ^ b := by
-      split <;> exact Nat.pow_le_pow_right (hY1 φ) (by omega)
-    exact (Nat.add_le_add hd' hbr).trans (by omega)
+    refine (Nat.add_le_add (b := Y φ ^ b) (d := Y φ ^ b)
+      (Nat.pow_le_pow_right (hY1 φ) (by omega)) ?_).trans (by omega)
+    split <;> exact Nat.pow_le_pow_right (hY1 φ) (by omega)
   · -- every formula: the interpolation scale
     have hceil {c : ℕ} (hc : c ≤ A) : ⌈(2 : ℝ) ^ ((c : ℝ) * interpolationScale φ.numVars)⌉₊ ≤
         ⌈(2 : ℝ) ^ ((A : ℝ) * interpolationScale φ.numVars)⌉₊ :=

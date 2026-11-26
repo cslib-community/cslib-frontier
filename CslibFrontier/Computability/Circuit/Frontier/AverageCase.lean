@@ -355,13 +355,11 @@ def MultiaryAverageCaseBound (L : ℝ) : Prop :=
 
 /-- A multiary average-case bound holds for every smaller coefficient. -/
 theorem MultiaryAverageCaseBound.mono {L L' : ℝ} (h : MultiaryAverageCaseBound.{u, v} L)
-    (hL : L' ≤ L) : MultiaryAverageCaseBound.{u, v} L' := by
-  intro ε hε
-  obtain ⟨γ, hγ, H⟩ := h ε hε
-  refine ⟨γ, hγ, fun U _ _ S K b hbias hK => ?_⟩
-  filter_upwards [H U S K b hbias hK] with n hn σ I Acc c hfan hs
-  exact hn σ I Acc c hfan
-    (hs.trans (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n)))
+    (hL : L' ≤ L) : MultiaryAverageCaseBound.{u, v} L' := fun ε hε =>
+  (h ε hε).imp fun _ ⟨hγ, H⟩ => ⟨hγ, fun U _ _ S K b hbias hK =>
+    (H U S K b hbias hK).mono fun n hn σ I Acc c hfan hs =>
+      hn σ I Acc c hfan
+        (hs.trans (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n)))⟩
 
 /-- **The average-case claim with coefficient `L`.** For every `ε > 0` there is a `γ > 0` such
 that the following holds for every finite alphabet `U` with at least two symbols. Let
@@ -389,13 +387,11 @@ theorem MultiaryAverageCaseBound.averageCaseBound {L : ℝ} (h : MultiaryAverage
 
 /-- An average-case bound holds for every smaller coefficient. -/
 theorem AverageCaseBound.mono {L L' : ℝ} (h : AverageCaseBound.{u, v} L) (hL : L' ≤ L) :
-    AverageCaseBound.{u, v} L' := by
-  intro ε hε
-  obtain ⟨γ, hγ, H⟩ := h ε hε
-  refine ⟨γ, hγ, fun U _ _ S K b hbias hK => ?_⟩
-  filter_upwards [H U S K b hbias hK] with n hn σ I Acc c hfan hs
-  exact hn σ I Acc c hfan
-    (hs.trans (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n)))
+    AverageCaseBound.{u, v} L' := fun ε hε =>
+  (h ε hε).imp fun _ ⟨hγ, H⟩ => ⟨hγ, fun U _ _ S K b hbias hK =>
+    (H U S K b hbias hK).mono fun n hn σ I Acc c hfan hs =>
+      hn σ I Acc c hfan
+        (hs.trans (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n)))⟩
 
 /-- **The multiary average-case frontier lower bound.** If subcubic graphs have layouts of width
 `(A + o(1)) β₁ + o(|V|)` (`LayoutBound 3 A`), then the multiary average-case claim holds with
@@ -407,8 +403,7 @@ theorem multiaryAverageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout 
   intro ε hε
   set μ := min (A * ε / 2) (1 / 2)
   have hμ : 0 < μ := lt_min (by positivity) (by norm_num)
-  refine ⟨μ * Real.log 2, by positivity, ?_⟩
-  intro U _ _ S K b hbias hK
+  refine ⟨μ * Real.log 2, by positivity, fun U _ _ S K b hbias hK => ?_⟩
   set q := Nat.card U
   have hq1 : 1 < q := Finite.one_lt_card
   have hq2 : (2 : ℝ) ≤ q := by exact_mod_cast hq1
@@ -426,8 +421,7 @@ theorem multiaryAverageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout 
       (hlogb.const_mul_left 2)).bound (by norm_num : (0 : ℝ) < 1 / 2)] with n hn
     simp only [Real.norm_eq_abs, id, Nat.abs_cast] at hn
     linarith [le_abs_self (1 + 2 * Real.logb q (K' n))]
-  filter_upwards [H C e he, hbias, hsmall] with n hn hbiasn hsmalln
-  intro σ I Acc c hfan hsize
+  filter_upwards [H C e he, hbias, hsmall] with n hn hbiasn hsmalln σ I Acc c hfan hsize
   obtain ⟨c', heval, hfan_c', hmult, hsize_c'⟩ := c.exists_eval_eq_multiarySize_size_le I
   have hfan' : c'.FanInAtMost 2 := hfan_c' 2 hfan
   rw [← heval]
@@ -471,12 +465,10 @@ theorem multiaryAverageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout 
         (1 - A * ε / 2) * n := by
       push_cast
       rw [logb_residual (by linarith) (by positivity) (Nat.cast_nonneg _)]
-      have hlogV1 : 0 ≤ Real.log ((V : ℝ) + 1) :=
-        Real.log_nonneg (by linarith [Nat.cast_nonneg (α := ℝ) V])
       have hlogbV : Real.logb q ((V : ℝ) + 1) ≤ κ * Real.log ((V : ℝ) + 1) := by
-        refine (logb_le_mul_log hq2 (by linarith [Nat.cast_nonneg (α := ℝ) V])).trans
-          (mul_le_mul_of_nonneg_right ?_ hlogV1)
-        linarith [Nat.cast_nonneg (α := ℝ) q, pow_nonneg (Nat.cast_nonneg (α := ℝ) q) q]
+        refine (logb_le_mul_log hq2 (by linarith [V.cast_nonneg (α := ℝ)])).trans
+          (mul_le_mul_of_nonneg_right ?_ (Real.log_nonneg (le_add_of_nonneg_left V.cast_nonneg)))
+        linarith [q.cast_nonneg (α := ℝ), pow_nonneg (q.cast_nonneg (α := ℝ)) q]
       simp only [e] at hmargin
       linarith
     linarith [agreement_le_of_layout I Acc c' hS hb hfan' hu π le_rfl,

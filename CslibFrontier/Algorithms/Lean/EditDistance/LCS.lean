@@ -102,9 +102,8 @@ theorem length_le_lcsLength : ∀ {x y z : List α}, z <+ x → z <+ y → z.len
     rw [lcsLength_cons_cons]
     split_ifs with hab
     · subst hab
-      have := length_le_lcsLength hx.of_cons_cons hy.of_cons_cons
-      rw [List.length_cons]
-      omega
+      simpa only [List.length_cons, Nat.add_le_add_iff_right] using
+        length_le_lcsLength hx.of_cons_cons hy.of_cons_cons
     · by_cases hca : c = a
       · subst hca
         exact (length_le_lcsLength hx (hy.of_cons_of_ne hab)).trans (le_max_right _ _)
@@ -142,9 +141,7 @@ theorem lcs_cons_cons (a b : α) (x y : List α) :
 theorem lcs_spec : ∀ x y : List α,
     lcs x y <+ x ∧ lcs x y <+ y ∧ (lcs x y).length = lcsLength x y
   | [], y => ⟨List.nil_sublist _, List.nil_sublist _, (lcsLength_nil_left y).symm⟩
-  | a :: x, [] => by
-    rw [lcs_nil_right, lcsLength_nil_right]
-    exact ⟨List.nil_sublist _, List.nil_sublist _, rfl⟩
+  | a :: x, [] => ⟨List.nil_sublist _, List.nil_sublist _, (lcsLength_nil_right _).symm⟩
   | a :: x, b :: y => by
     rw [lcs_cons_cons, lcsLength_cons_cons]
     split_ifs with hab h
@@ -159,10 +156,8 @@ termination_by x y => x.length + y.length
 
 /-- `lcsLength x y` is the greatest length of a common subsequence of `x` and `y`. -/
 theorem isGreatest_lcsLength (x y : List α) :
-    IsGreatest {k | ∃ z : List α, z <+ x ∧ z <+ y ∧ z.length = k} (lcsLength x y) := by
-  refine ⟨⟨lcs x y, lcs_spec x y⟩, ?_⟩
-  rintro k ⟨z, hx, hy, rfl⟩
-  exact length_le_lcsLength hx hy
+    IsGreatest {k | ∃ z : List α, z <+ x ∧ z <+ y ∧ z.length = k} (lcsLength x y) :=
+  ⟨⟨lcs x y, lcs_spec x y⟩, fun _ ⟨_, hx, hy, hk⟩ => hk ▸ length_le_lcsLength hx hy⟩
 
 theorem lcsLength_le_left (x y : List α) : lcsLength x y ≤ x.length := by
   obtain ⟨hx, _, hlen⟩ := lcs_spec x y
@@ -192,8 +187,7 @@ theorem kept_sublist_src : ∀ s : EditScript α, s.kept <+ s.src
   | .sub a b :: s => by
     rw [kept, src_cons]
     split_ifs
-    · exact (kept_sublist_src s).cons_cons a
-    · exact (kept_sublist_src s).cons a
+    exacts [(kept_sublist_src s).cons_cons a, (kept_sublist_src s).cons a]
 
 theorem kept_sublist_tgt : ∀ s : EditScript α, s.kept <+ s.tgt
   | [] => by rw [kept, tgt_nil]

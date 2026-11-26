@@ -129,8 +129,7 @@ lemma mul_gcdStep_two_le (s : ℕ × ℕ) (hs : s.2 ≤ s.1) :
     2 * ((gcdStep s).1 * (gcdStep s).2) ≤ s.1 * s.2 := by
   unfold gcdStep
   split_ifs with h
-  · rw [h]
-    simp
+  · simp [h]
   · calc 2 * (s.2 * (s.1 % s.2))
         ≤ s.2 * s.1 := gcd_product_halving (Nat.pos_of_ne_zero h) hs
       _ = s.1 * s.2 := Nat.mul_comm s.2 s.1
@@ -160,11 +159,9 @@ lemma snd_iterate_gcdStep_gcdCount (p : ℕ × ℕ) :
   have hmul : (gcdStep p).1 * (gcdStep p).2 < 2 ^ k :=
     (mul_gcdStep_le p).trans_lt (Nat.pow_add 2 _ _ ▸ Nat.mul_lt_mul'' h₁ h₂)
   by_contra hne
-  have hpos : 1 ≤ (gcdStep^[k] (gcdStep p)).1 * (gcdStep^[k] (gcdStep p)).2 := by
-    have := Nat.pos_of_ne_zero hne
-    nlinarith
-  have := Nat.le_mul_of_pos_right (2 ^ k) hpos
-  lia
+  have hpos : 1 ≤ (gcdStep^[k] (gcdStep p)).1 * (gcdStep^[k] (gcdStep p)).2 :=
+    Nat.mul_pos (lt_of_lt_of_le (Nat.pos_of_ne_zero hne) hord) (Nat.pos_of_ne_zero hne)
+  nlinarith [Nat.le_mul_of_pos_right (2 ^ k) hpos]
 
 /-- Iterating `gcdStep` for `gcdCount p` steps reaches `(Nat.gcd p.1 p.2, 0)`. -/
 theorem iterate_gcdStep_eq (p : ℕ × ℕ) :
@@ -275,10 +272,9 @@ private lemma snd_iterate_modInvStep_lt {m : ℕ} (hm : 0 < m) (s : (ℕ × ℕ)
 
 /-- When `0 < m`, `modInv a m < m`. -/
 theorem modInv_lt {a m : ℕ} (hm : 0 < m) : modInv a m < m := by
-  have hinit : (modInvInit a m).2.1 < m ∧ (modInvInit a m).2.2 < m := by
-    unfold modInvInit
-    split_ifs <;> lia
-  exact (snd_iterate_modInvStep_lt hm (modInvInit a m) hinit.1 hinit.2 (gcdCount (m, a))).1
+  refine (snd_iterate_modInvStep_lt hm (modInvInit a m) hm ?_ (gcdCount (m, a))).1
+  unfold modInvInit
+  split_ifs <;> lia
 
 /-- For every `a` and `m`, `modInv a m ≤ m`. -/
 theorem modInv_le (a m : ℕ) : modInv a m ≤ m :=
@@ -333,9 +329,8 @@ theorem modInv_eq_zmod_inv_val {a m : ℕ} (hm : 0 < m) (hcop : Nat.Coprime a m)
     modInv a m = ((a : ZMod m)⁻¹).val := by
   rcases m with _ | _ | m
   · exact absurd hm (Nat.lt_irrefl 0)
-  · have hlt := modInv_lt (a := a) zero_lt_one
-    have hval := ZMod.val_lt ((a : ZMod 1)⁻¹)
-    lia
+  · rw [Nat.lt_one_iff.mp (modInv_lt (a := a) zero_lt_one),
+      Nat.lt_one_iff.mp (ZMod.val_lt ((a : ZMod 1)⁻¹))]
   · have : Fact (1 < m + 2) := ⟨by lia⟩
     have hmul : (a : ZMod (m + 2)) * (modInv a (m + 2) : ZMod (m + 2)) = 1 := by
       simpa using (ZMod.natCast_eq_natCast_iff (a * modInv a (m + 2)) 1 (m + 2)).mpr

@@ -45,14 +45,11 @@ open scoped BigOperators
 private theorem bufDelete_self_checkSlot_none {cTab bChar id rKey : ℕ} {tr : BufTrie}
     (hw : bufWalk bChar tr.trieChild rKey cTab 0 0 = some (tr.itemLeaf id)) :
     bufCheckSlot (bufDelete cTab bChar tr rKey) id = none := by
-  dsimp only [bufDelete]
-  rw [hw]
-  dsimp only
+  simp only [bufDelete, hw]
   split_ifs with hcond
   · dsimp only [bufCheckSlot]
     split_ifs <;> first | rfl | omega
-  · simp only [bufCheckSlot, Function.update_self, ne_eq, not_true_eq_false, and_false,
-      ↓reduceIte, ite_self]
+  · simp [bufCheckSlot]
 
 private theorem BufMapRel.untag_one {M tag b₀ loc₀ : ℕ} {bktCnt : ℕ → ℕ}
     {locSt rKeyOf : ℕ → ℕ → ℕ} {m : ℕ → Option (ℕ × ℕ)}
@@ -70,14 +67,12 @@ private theorem BufMapRel.untag_one {M tag b₀ loc₀ : ℕ} {bktCnt : ℕ → 
     rw [Function.update_self, Function.update_self]
     refine ⟨fun hm => ?_, fun h => absurd h.2.2.1 hne⟩
     rcases eq_or_ne rk (rKeyOf b loc) with rfl | hrk
-    · rw [Function.update_self] at hm
-      cases hm
+    · simp at hm
     · rw [Function.update_of_ne hrk] at hm
       exact absurd ((hrel.2 rk b loc).mp hm).2.2.2.symm hrk
   · rw [Function.update_update_apply_of_ne hbl]
-    by_cases hrk : rk = rKeyOf b₀ loc₀
-    · subst hrk
-      simp only [Function.update_self, reduceCtorEq, false_iff]
+    rcases eq_or_ne rk (rKeyOf b₀ loc₀) with rfl | hrk
+    · simp only [Function.update_self, reduceCtorEq, false_iff]
       exact fun ⟨hb, hloc, hst, heq⟩ => hbl (hinj b hb loc hloc hst heq)
     · rw [Function.update_of_ne hrk, hrel.2 rk b loc]
 
@@ -101,9 +96,8 @@ private theorem epochTickStage3Finish_spec {c U V n_max : ℕ} {θ : SeedWhp c U
   dsimp only [epochTickStage3Finish]
   by_cases hdone : (s.buf s.oldEp).itemAlloc ≤ s.stageCursor
   · rw [ite_eq_left hdone]
-    have hbo := hc.bufOld_valid
-    rw [ite_eq_left (by omega : s.rebStage ≤ 3)] at hbo
-    obtain ⟨hia_o, hna_o, oldMap, hv_o, hrel_o⟩ := hbo
+    obtain ⟨hia_o, hna_o, oldMap, hv_o, hrel_o⟩ :=
+      by simpa only [hs3, Nat.reduceLeDiff, ↓reduceIte] using hc.bufOld_valid
     have hno_old : ∀ b < numBucketsWhp n_max, ∀ loc < s.bktCount b,
         s.locState b loc ≠ 2 + s.oldEp := by
       intro b hb loc hloc hst
@@ -118,11 +112,8 @@ private theorem epochTickStage3Finish_spec {c U V n_max : ℕ} {θ : SeedWhp c U
         change inLiveTree 4 s.oldEp (s.rebDoneFlag b) (s.locState b loc) =
           inLiveTree s.rebStage s.oldEp (s.rebDoneFlag b) (s.locState b loc)
         simp [inLiveTree, hs3, hno_old b hb loc hloc])
-      (by
-        dsimp only [FastState.oldEp]
-        simp only [Nat.reduceLeDiff, ↓reduceIte]
-        exact ⟨hno_old, hv_o.toClearable,
-          hna_o.trans (Nat.add_le_add_left (Nat.mul_le_mul_left _ hia_o) 1)⟩)
+      (by simpa only [FastState.oldEp, Nat.reduceLeDiff, ↓reduceIte] using ⟨hno_old,
+        hv_o.toClearable, hna_o.trans (Nat.add_le_add_left (Nat.mul_le_mul_left _ hia_o) 1)⟩)
       (by simp [ValidEpochStage]) rfl
   · rw [ite_eq_right hdone]
     exact ⟨hc, hom, by simpa [ValidEpochStage, hs3, hsc_le] using hnone_lt, rfl⟩
@@ -139,20 +130,18 @@ theorem epochTickStage3_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     (∀ b < numBucketsWhp n_max, OvermarsBucketInv c U n_max θ fs1 b) ∧
     ValidEpochStage c U n_max θ fs1 ∧
     fs1.epochClock = fs.epochClock := by
-  simp only [ValidEpochStagePreTick, hs3, Nat.reduceEqDiff, ↓reduceIte] at hpre
-  obtain ⟨hsc_le, hnone0⟩ := hpre
-  have hbo := hc.bufOld_valid
-  rw [ite_eq_left (by omega : fs.rebStage ≤ 3)] at hbo
-  obtain ⟨hia_o, hna_o, oldMap, hv_o, hrel_o⟩ := hbo
+  obtain ⟨hsc_le, hnone0⟩ :=
+    by simpa only [ValidEpochStagePreTick, hs3, Nat.reduceEqDiff, ↓reduceIte] using hpre
+  obtain ⟨hia_o, hna_o, oldMap, hv_o, hrel_o⟩ :=
+    by simpa only [hs3, Nat.reduceLeDiff, ↓reduceIte] using hc.bufOld_valid
   set oldEp := fs.oldEp
   set oldTr := fs.buf oldEp
   dsimp only [epochTickStage3]
   by_cases hlt : fs.stageCursor < oldTr.itemAlloc
   · rw [ite_eq_left hlt]
     set nextCur := fs.stageCursor + 1
-    cases hchk : bufCheckSlot oldTr fs.stageCursor with
-    | some bloc =>
-      rcases bloc with ⟨b₀, loc₀⟩
+    match hchk : bufCheckSlot oldTr fs.stageCursor with
+    | some (b₀, loc₀) =>
       dsimp only
       obtain ⟨_, k, hk_lt, hwk, hmk⟩ := hv_o.checkSlot_some hchk
       obtain ⟨hb₀, hl₀, hst₀, hrk_k⟩ := (hrel_o.2 k b₀ loc₀).mp hmk
@@ -173,12 +162,9 @@ theorem epochTickStage3_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         intro b _ loc _
         change inLiveTree fs.rebStage oldEp _ _ = _
         rw [hs3]
-        dsimp only [fs']
         by_cases hbl : b = b₀ ∧ loc = loc₀
-        · rcases hbl with ⟨rfl, rfl⟩
-          rw [Function.update_self, Function.update_self, hst₀]
-          simp [inLiveTree]
-        · rw [Function.update_update_apply_of_ne hbl]
+        · simp [fs', hbl.1, hbl.2, inLiveTree, hst₀]
+        · simp [fs', Function.update_update_apply_of_ne hbl]
       have hc' : CoreFastInv c U V n_max θ fs' dict :=
         { hth := hc.hth
           curEp_or := hc.curEp_or
@@ -189,12 +175,10 @@ theorem epochTickStage3_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
           bktCount_le := hc.bktCount_le
           bktCount_ge_zero := hc.bktCount_ge_zero
           locState_active := fun b hb loc hloc => by
-            dsimp only [fs']
             by_cases hbl : b = b₀ ∧ loc = loc₀
-            · rcases hbl with ⟨rfl, rfl⟩
-              simp
-            · rw [Function.update_update_apply_of_ne hbl]
-              exact hc.locState_active b hb loc hloc
+            · simp [fs', hbl.1, hbl.2]
+            · simpa only [fs', Function.update_update_apply_of_ne hbl] using
+                hc.locState_active b hb loc hloc
           locState_inactive := fun b loc hnot => by
             dsimp only [fs']
             rw [Function.update_update_apply_of_ne (fun ⟨rfl, rfl⟩ => hnot ⟨hb₀, hl₀⟩)]
@@ -219,17 +203,12 @@ theorem epochTickStage3_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
             exact ⟨lm, hvl, hrl.congr (fun _ _ => rfl) fun loc hloc => by
               rw [hinL_pres b hb loc hloc]⟩
           rKey_buf_inj := fun b₁ hb₁ l₁ hl₁ b₂ hb₂ l₂ hl₂ h2₁ h2₂ hrkeq => by
-            have h2_orig : ∀ b < numBucketsWhp n_max, ∀ l < fs.bktCount b,
-                2 ≤ fs'.locState b l → 2 ≤ fs.locState b l := by
-              intro b _ l _ h2
-              dsimp only [fs'] at h2
+            have h2_orig {b l} (h2 : 2 ≤ fs'.locState b l) : 2 ≤ fs.locState b l := by
               by_cases hbl : b = b₀ ∧ l = loc₀
-              · rcases hbl with ⟨rfl, rfl⟩
-                rw [Function.update_self, Function.update_self] at h2
-                omega
-              · rwa [Function.update_update_apply_of_ne hbl] at h2
+              · simp [fs', hbl.1, hbl.2] at h2
+              · simpa only [fs', Function.update_update_apply_of_ne hbl] using h2
             exact hc.rKey_buf_inj b₁ hb₁ l₁ hl₁ b₂ hb₂ l₂ hl₂
-              (h2_orig b₁ hb₁ l₁ hl₁ h2₁) (h2_orig b₂ hb₂ l₂ hl₂ h2₂) hrkeq
+              (h2_orig h2₁) (h2_orig h2₂) hrkeq
           bufCur_valid := by
             obtain ⟨hi_c, hn_c, cm, hvc, hrc⟩ := hc.bufCur_valid
             dsimp only [fs']
@@ -272,8 +251,8 @@ theorem epochTickStage3_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       obtain ⟨hc', hom'⟩ := core_and_om_of_inLiveTree_eq fs' hc hom rfl hc.epochClock_lt
         hc.rebStage_le hc.rebCollision_zero rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
         rfl rfl rfl (fun _ _ => rfl) (fun _ _ => rfl) (fun _ _ _ _ => rfl)
-        (by dsimp only [fs', FastState.oldEp]; rw [ite_eq_left (by omega : fs.rebStage ≤ 3)]
-            exact ⟨hia_o, hna_o, oldMap, hv_o, hrel_o⟩)
+        (by simpa only [fs', FastState.oldEp, hs3, Nat.reduceLeDiff, ↓reduceIte] using
+          ⟨hia_o, hna_o, oldMap, hv_o, hrel_o⟩)
       exact epochTickStage3Finish_spec hc' hom' hs3 (Nat.succ_le_of_lt hlt)
         (fun id hid => by
           rcases Nat.lt_succ_iff_lt_or_eq.mp hid with hid' | rfl
@@ -290,10 +269,7 @@ private theorem ClearableBufTrie.clearSteps_pres :
   | k + 1, tr, hc => by
     obtain ⟨hc1, hna1⟩ := hc.clearOne_step
     obtain ⟨hck, hnak⟩ := hc1.clearSteps_pres k
-    refine ⟨hck, hnak.trans ?_⟩
-    rw [hna1]
-    have := hc.bounds.1
-    omega
+    exact ⟨hck, hnak.trans (by have := hc.bounds.1; omega)⟩
 
 /-- Stage-4 tick clears 8 trie nodes of `buf oldEp` per step until empty (`rebStage = 5`). -/
 theorem epochTickStage4_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
@@ -306,9 +282,8 @@ theorem epochTickStage4_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     (∀ b < numBucketsWhp n_max, OvermarsBucketInv c U n_max θ fs1 b) ∧
     ValidEpochStage c U n_max θ fs1 ∧
     fs1.epochClock = fs.epochClock := by
-  have hbo := hc.bufOld_valid
-  rw [ite_eq_right (by omega : ¬(fs.rebStage ≤ 3)), ite_eq_left hs4] at hbo
-  obtain ⟨hno_old, hclr, hna_ub⟩ := hbo
+  obtain ⟨hno_old, hclr, hna_ub⟩ :=
+    by simpa only [hs4, Nat.reduceLeDiff, ↓reduceIte] using hc.bufOld_valid
   set oldEp := fs.oldEp
   set oldTr := fs.buf oldEp
   dsimp only [epochTickStage4]
@@ -320,11 +295,8 @@ theorem epochTickStage4_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       (Function.update_of_ne (curEp_ne_oldEp hc.curEp_or) _ _)
       (fun _ _ => rfl) (fun _ _ => rfl)
       (fun _ _ _ _ => by simp [inLiveTree, hs4])
-      (by
-        simp only [Nat.reduceLeDiff, Nat.reduceEqDiff, ↓reduceIte]
-        dsimp only [FastState.oldEp, oldEp]
-        rw [Function.update_self]
-        exact ⟨hno_old, hv_empty, hna1, hia0⟩)
+      (by simpa only [FastState.oldEp, oldEp, Nat.reduceLeDiff, Nat.reduceEqDiff, ↓reduceIte,
+        Function.update_self] using ⟨hno_old, hv_empty, hna1, hia0⟩)
       (by simp [ValidEpochStage]) rfl
   · obtain ⟨hclr', hna'⟩ := hclr.clearSteps_pres 8
     have h1_le : 1 ≤ oldTr.nodeAlloc := hclr.bounds.1
@@ -335,11 +307,9 @@ theorem epochTickStage4_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       (Function.update_of_ne (curEp_ne_oldEp hc.curEp_or) _ _)
       (fun _ _ => rfl) (fun _ _ => rfl)
       (fun _ _ _ _ => by simp [inLiveTree, hs4])
-      (by
-        simp only [Nat.reduceLeDiff, ↓reduceIte]
-        dsimp only [FastState.oldEp, oldEp]
-        rw [Function.update_self]
-        exact ⟨hno_old, hclr', hna'.trans ((max_eq_right h1_le).trans_le hna_ub)⟩)
+      (by simpa only [FastState.oldEp, oldEp, Nat.reduceLeDiff, ↓reduceIte,
+        Function.update_self] using
+          ⟨hno_old, hclr', hna'.trans ((max_eq_right h1_le).trans_le hna_ub)⟩)
       (by simp [ValidEpochStage]) rfl
 
 

@@ -239,17 +239,18 @@ private theorem actual_marker_step (p : Program) (registers markers : List Bool)
     SelfClosingDoor.Step (principalDoors p)
       ⟨(d.tunnel b).source, registers ++ markers⟩
       ⟨(d.tunnel b).target, registers ++ markers.set j.val (!b)⟩ := by
+  have hi : registers.length ≤ p.initial.length + j.val := by omega
   have hd := principal_marker_get p j
   have hbits : (registers ++ markers).getD (p.initial.length + j.val) false = b := by
-    rw [List.getD_append_right _ _ _ _ (by omega), hr, Nat.add_sub_cancel_left, hb]
+    rw [List.getD_append_right _ _ _ _ hi, hr, Nat.add_sub_cancel_left, hb]
   refine ⟨?_, ⟨p.initial.length + j.val, by
     simp only [principalDoors, List.length_append, registerDoors_length, markerDoors_length]
     omega⟩, ?_, ?_⟩
   · simp only [State.Valid, List.length_append, principalDoors, registerDoors_length,
       markerDoors_length, hr, hm]
   · simp only [Fin.getElem_fin, hd, hbits]
-  · simp only [Fin.getElem_fin, hd, hbits]
-    rw [List.set_append_right _ _ (by omega), hr, Nat.add_sub_cancel_left]
+  · simp only [Fin.getElem_fin, hd, hbits, List.set_append_right _ _ hi, hr,
+      Nat.add_sub_cancel_left]
 
 private theorem indexed_instruction_mem (p : Program) (j : Fin p.instructions.length) :
     (p.instructions[j], j.val) ∈ p.instructions.zipIdx := by
@@ -434,14 +435,12 @@ private theorem Certified.step {p : Program} {s t : MachineState}
     simpa only [hri] using Certified.input source hr j hp hg hreg m (!b₀)
   case output.returnMarker source hr j hp hg hreg m b k hb =>
     obtain ⟨rfl, rfl⟩ := selectedMarkers_true hb
-    have hbit : b = !p.instructions[k].write := (Place.output.inj hloc).2
-    let next : State := ⟨p.instructions[k].target, source.bits.set p.instructions[k].register
-      p.instructions[k].write⟩
-    have hnext : p.Step source next :=
-      ⟨hr.length rfl, Or.inr ⟨p.instructions[k], List.getElem_mem k.isLt,
-        hreg, hp, hg, rfl⟩⟩
-    simpa only [next, hbit, Bool.not_not, selectedMarkers, List.set_set,
-      closedMarkers, List.set_replicate_self] using Certified.boundary next (hr.tail hnext)
+    have hnext : p.Step source
+        ⟨p.instructions[k].target, source.bits.set p.instructions[k].register
+          p.instructions[k].write⟩ :=
+      ⟨hr.length rfl, Or.inr ⟨p.instructions[k], List.getElem_mem k.isLt, hreg, hp, hg, rfl⟩⟩
+    simpa only [(Place.output.inj hloc).2, Bool.not_not, selectedMarkers, List.set_set,
+      closedMarkers, List.set_replicate_self] using Certified.boundary _ (hr.tail hnext)
 
 private def boundary (p : Program) (s : State) : MachineState :=
   ⟨.external s.location, s.bits, List.replicate p.instructions.length false⟩
@@ -453,10 +452,9 @@ private theorem machine_instruction_path (p : Program) (j : Fin p.instructions.l
   let r : Fin p.initial.length := ⟨p.instructions[j].register, by omega⟩
   let off := List.replicate p.instructions.length false
   let on := off.set j.val true
-  have hstart : MachineStep p (boundary p s) ⟨.entry j.val, s.bits, off⟩ := by
-    simpa only [boundary, hsource] using
-      (MachineStep.enter (registers := s.bits) (markers := off) j)
-  have hprefix := ((Relation.ReflTransGen.single hstart).tail
+  have hprefix := ((Relation.ReflTransGen.single (a := boundary p s) (by
+      simpa only [boundary, hsource] using
+        MachineStep.enter (registers := s.bits) (markers := off) j)).tail
     (MachineStep.openMarker j (by simp [off, List.getD_eq_getElem?_getD]))).tail
     (MachineStep.approach j)
   have hfirst := hprefix.tail (MachineStep.register r p.instructions[j].guard hguard)
@@ -464,14 +462,11 @@ private theorem machine_instruction_path (p : Program) (j : Fin p.instructions.l
       ⟨.output p.instructions[j].register (!p.instructions[j].write),
         s.bits.set p.instructions[j].register p.instructions[j].write, on⟩ := by
     by_cases hsame : p.instructions[j].guard = p.instructions[j].write
-    · have hsecond : (s.bits.set r.val (!p.instructions[j].guard)).getD r.val false =
-          !p.instructions[j].guard := by
-        rw [List.getD_eq_getElem?_getD, List.getElem?_set_self hr, Option.getD_some]
-      have hcycle := (hfirst.tail (MachineStep.connect r p.instructions[j].guard)).tail
-        (MachineStep.register r (!p.instructions[j].guard) hsecond)
-      simpa only [r, hsame, Bool.not_not, List.set_set] using hcycle
-    · have hother : p.instructions[j].guard = !p.instructions[j].write := by grind
-      simpa only [r, hother, Bool.not_not] using hfirst
+    · simpa only [r, hsame, Bool.not_not, List.set_set] using
+        (hfirst.tail (MachineStep.connect r p.instructions[j].guard)).tail
+          (MachineStep.register r (!p.instructions[j].guard) (by
+            rw [List.getD_eq_getElem?_getD, List.getElem?_set_self hr, Option.getD_some]))
+    · simpa only [r, Bool.eq_not_of_ne hsame, Bool.not_not] using hfirst
   simpa only [boundary, on, List.set_set, List.set_replicate_self, off] using
     hready.tail (MachineStep.returnMarker j (by simp [on, off, List.getD_eq_getElem?_getD, j.isLt]))
 
@@ -541,14 +536,12 @@ theorem compile_reachability_iff (p : Program) :
     SelfClosingDoor.Reachability ↔ p.Accepts
   rw [Wiring.compile_reachability_iff, principal_initial]
   have hs : (boundary p p.initialState).Valid p := ⟨rfl, List.length_replicate⟩
-  constructor
-  · rintro ⟨t, hr, hp⟩
-    obtain ⟨u, hu, he⟩ := actual_reachable_complete hs hr
-    exact (certified_reachable hu).accepts
-      (Place.code_injective ((congrArg State.location he).trans hp))
-  · rintro ⟨t, hr, hp⟩
-    exact ⟨(boundary p t).toState, machine_reachable_actual hs (machine_program_path rfl hr),
-      by simp only [boundary, MachineState.toState, Place.code, hp]⟩
+  refine ⟨fun ⟨t, hr, hp⟩ => ?_, fun ⟨t, hr, hp⟩ => ⟨(boundary p t).toState,
+    machine_reachable_actual hs (machine_program_path rfl hr),
+    by simp only [boundary, MachineState.toState, Place.code, hp]⟩⟩
+  obtain ⟨u, hu, he⟩ := actual_reachable_complete hs hr
+  exact (certified_reachable hu).accepts
+    (Place.code_injective ((congrArg State.location he).trans hp))
 
 open _root_.Turing.MultiTapeTM Compiler
 

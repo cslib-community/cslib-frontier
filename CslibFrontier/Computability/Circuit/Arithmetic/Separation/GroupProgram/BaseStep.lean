@@ -164,8 +164,6 @@ private theorem weightedSum_packSem_base (hκ : Function.Injective (Sum.elim key
       mem_indicesBelow]
     refine ⟨fun ⟨b, k', hk', h⟩ => ?_, fun hk => ⟨p, k, hk, by simp⟩⟩
     split_ifs at h with hbp; simp_all
-  have hdR (k : Fin U0) : Sum.inr (p, k) ∉ WR.flatMap Prod.fst := by
-    simp [WR, List.mem_flatMap, List.mem_ofFn]
   have hD : (∀ k ∈ indicesBelow (n p p), tget (key ⟨Fin.castAdd A' p, .init p p k⟩) t₂ =
       tget (dkey (p, k)) t₂) ↔ ∀ k : Fin U0, unitsOf ub (segmentString cb fun s => R s p) k =
         unitsOf ub (segmentString cb fun s => C s p) k := by
@@ -174,12 +172,10 @@ private theorem weightedSum_packSem_base (hκ : Function.Injective (Sum.elim key
           unitsOf ub (segmentString cb fun s => C s p) k := by
       have e1 := hget (.inl ⟨Fin.castAdd A' p, .init p p k⟩)
       have e2 := hget (.inr (p, k))
-      simp only [Sum.elim_inl, Sum.elim_inr, hmC, hmR, hdC, hdR, hk] at e1 e2
-      simp only [ne_eq, Cell.mk.injEq, UnitId.init.injEq, true_and, ↓existsAndEq, and_true,
-        exists_eq_right_right', hk, not_true_eq_false, and_false, ↓reduceIte, exists_eq_right',
-        initialContents] at e1 e2
-      rw [e1, e2]
-      exact (ofBits_bits_injective hub).eq_iff
+      simp only [Sum.elim_inl, Sum.elim_inr, hmC, hmR, hdC, hk, ne_eq, Cell.mk.injEq,
+        UnitId.init.injEq, true_and, ↓existsAndEq, and_true, exists_eq_right_right',
+        not_true_eq_false, and_false, ↓reduceIte, exists_eq_right', initialContents] at e1 e2
+      exact e1.symm ▸ e2.symm ▸ (ofBits_bits_injective hub).eq_iff
     refine ⟨fun h k => ?_, fun h k hk => (e k ((mem_indicesBelow _).1 hk)).2 (h k)⟩
     by_cases hk : (k : ℕ) < n p p
     · exact (e k hk).1 (h k ((mem_indicesBelow _).2 hk))
@@ -187,21 +183,18 @@ private theorem weightedSum_packSem_base (hκ : Function.Injective (Sum.elim key
   have hst₂ : Stores ub key t₂
       ((baseCells n o grp g p).piecewise (fun c => initialContents cb R C p c.unit) σ) := by
     refine ⟨(h3 (hcC.2 hn)).1 ((h1 (hcR.2 hc2)).1 hst.1), fun c => ?_⟩
-    have e := hget (.inl c)
-    simp only [Sum.elim_inl] at e
+    have e := by simpa only [Sum.elim_inl] using hget (.inl c)
     by_cases hb : c ∈ baseCells n o grp g p
     · obtain ⟨a, b, k, hk, hab, rfl⟩ := (mem_baseCells hp).1 hb
       rcases eq_or_ne a p with rfl | ha
       · simp [Finset.piecewise, hb, e, hmC, hmR, hk, initialContents]
       · obtain rfl := hab.resolve_left ha
         simp [Finset.piecewise, hb, e, hmC, hk, ha, initialContents]
-    · have h1c : Sum.inl c ∉ WC.flatMap Prod.fst := fun h =>
-        let ⟨b, k, hk, _, hc⟩ := (hmC c).1 h
-        hb ((mem_baseCells hp).2 ⟨b, p, k, hk, .inr rfl, hc⟩)
-      have h2c : Sum.inl c ∉ WR.flatMap Prod.fst := fun h =>
-        let ⟨b, k, hk, hc⟩ := (hmR c).1 h
-        hb ((mem_baseCells hp).2 ⟨p, b, k, hk, .inl rfl, hc⟩)
-      simp only [e, h1c, h2c, ite_false, Finset.piecewise, hb, hst.2 c]
+    · rw [e, ite_eq_right fun h => let ⟨b, k, hk, _, hc⟩ := (hmC c).1 h
+          hb ((mem_baseCells hp).2 ⟨b, p, k, hk, .inr rfl, hc⟩),
+        ite_eq_right fun h => let ⟨b, k, hk, hc⟩ := (hmR c).1 h
+          hb ((mem_baseCells hp).2 ⟨p, b, k, hk, .inl rfl, hc⟩)]
+      simp only [Finset.piecewise, hb, ↓reduceIte, hst.2 c]
   simp only [hC, hn, implies_true, ite_true, true_and, List.map_singleton, List.sum_singleton,
     hD, hΨ _ _ hst₂]
 
@@ -232,8 +225,7 @@ theorem simulates_base (hκ : Function.Injective (Sum.elim key dkey)) (hub : 0 <
       (baseWriteStep (ub := ub) mu T cb q x ρ n o grp g p) := by
   intro t σ Ψ Ψ' hst hΨ
   rw [baseInstructions, scriptSem_cons, List.weightedSum_weightedBind]
-  simp only [baseWriteStep]
-  rw [sum_product]
+  simp only [baseWriteStep, sum_product]
   induction p using Fin.addCases with
   | left κ =>
     rw [Fin.addCases_left, instructionSem, dite_eq_left_of_eq_true
@@ -250,14 +242,13 @@ theorem simulates_base (hκ : Function.Injective (Sum.elim key dkey)) (hub : 0 <
     rw [partyWeight_block, blockWeight]
     by_cases hF : InitialFits ub U0 cb (fun s => ρ s (Fin.castAdd K κ)) (fun a b => n a b)
       (Fin.castAdd K κ) R C
-    swap
+    · simp only [hF, and_true, ↓reduceIte, sides_iff_blockEmission]
+      by_cases h0 : ∀ b, R none b = []
+      · simp only [h0, implies_true, true_and, ↓reduceIte, mul_ite, mul_zero, ite_mul, zero_mul,
+          sum_mul]
+        exact sum_congr rfl fun _ _ => by split_ifs <;> rfl
+      · simp [h0]
     · simp [hF]
-    simp only [hF, and_true, ↓reduceIte, sides_iff_blockEmission]
-    by_cases h0 : ∀ b, R none b = []
-    · simp only [h0, implies_true, true_and, ↓reduceIte, mul_ite, mul_zero, ite_mul, zero_mul,
-        sum_mul]
-      exact sum_congr rfl fun _ _ => by split_ifs <;> rfl
-    · simp [h0]
   | right κ =>
     rw [Fin.addCases_right, instructionSem,
       weightedSum_packSem_base mu cb kinds hκ hub hp hρ (o := o)

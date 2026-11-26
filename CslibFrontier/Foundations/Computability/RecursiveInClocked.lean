@@ -186,18 +186,15 @@ theorem interpret_eq_rfind [Inhabited α] (g : ℕ →. ℕ) (T : OracleComp nat
       fun {m} hm => ?_⟩, ?_⟩
     · refine (Part.mem_map_iff _).2 ⟨(replies g T m).get (hdom m hm), Part.get_mem _, ?_⟩
       simpa using fun h => Nat.find_min hex hm ⟨_, Part.get_mem _, h⟩
-    · cases h : nextMove T rs₀ with
-      | inl _ => simp [h] at hn₀
-      | inr b =>
-        obtain rfl := Part.mem_unique ha ((mem_interpret_iff g T b).2 ⟨_, rs₀, hrs₀, h⟩)
-        exact (Part.mem_map_iff _).2 ⟨rs₀, hrs₀, by simp [h]⟩
+    · obtain ⟨b, hb⟩ := Sum.isRight_iff.1 hn₀
+      obtain rfl := Part.mem_unique ha ((mem_interpret_iff g T b).2 ⟨_, rs₀, hrs₀, hb⟩)
+      exact (Part.mem_map_iff _).2 ⟨rs₀, hrs₀, by simp [hb]⟩
   · rintro ⟨t, ht, ha⟩
     obtain ⟨rs, hrs, hfl⟩ := (Part.mem_map_iff _).1 (Nat.rfind_spec ht)
     obtain ⟨rs', hrs', rfl⟩ := (Part.mem_map_iff _).1 ha
     obtain rfl := Part.mem_unique hrs hrs'
-    cases h : nextMove T rs with
-    | inl _ => simp [h] at hfl
-    | inr b => simpa [h] using (mem_interpret_iff g T b).2 ⟨t, rs, hrs, h⟩
+    obtain ⟨b, hb⟩ := Sum.isRight_iff.1 hfl
+    simpa [hb] using (mem_interpret_iff g T b).2 ⟨t, rs, hrs, hb⟩
 
 end OracleComp
 
@@ -401,9 +398,8 @@ theorem exists_code_eval (hP : Computable (dialogue P)) :
 /-- Every family of clocked programs with computable dialogue computes a function recursive in
 the oracle it queries. -/
 theorem recursiveIn_eval (hP : Computable (dialogue P)) (g : ℕ →. ℕ) :
-    Nat.RecursiveIn {g} fun n => eval g (P n) := by
-  obtain ⟨c, hc⟩ := exists_code_eval hP
-  exact Nat.RecursiveIn.Code.exists_code.2 ⟨c, hc g⟩
+    Nat.RecursiveIn {g} fun n => eval g (P n) :=
+  (exists_code_eval hP).elim fun c hc => Nat.RecursiveIn.Code.exists_code.2 ⟨c, hc g⟩
 
 end Compile
 
@@ -579,8 +575,7 @@ theorem computable_play_rfind {p : σ × ℕ → ClockedComp natOracleSpec Bool}
     (sumCasesOn Computable.id snd.to₂ (sumInr.comp ((const none).pair (snd.comp snd))).to₂).of_eq
       fun t => by cases t <;> rfl
   refine (hdone.comp (nat_rec (snd.comp fst) (sumInr.comp ((const 0).pair snd))
-    (hstep.comp fst (snd.comp snd)).to₂)).of_eq fun a => ?_
-  rcases a with ⟨⟨x, k⟩, rs⟩
+    (hstep.comp fst (snd.comp snd)).to₂)).of_eq fun ⟨⟨x, k⟩, rs⟩ => ?_
   change _ = OracleComp.play (rfindFrom (fun i => p (x, i)) k k 0).run rs
   rw [play_rfindFrom, ← rec_eq_iterate]
 

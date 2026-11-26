@@ -183,15 +183,13 @@ theorem computableInPolyTime_ofList {Γ Q α : Type} [Inhabited Γ] {encIn : α 
     (hr : Turing.MultiTapeTM.ComputableInPolyTime radius encIn Turing.MultiTapeTM.encUnary) :
     Turing.MultiTapeTM.ComputableInPolyTime (fun a => Cfg.ofList (q a) (input a) (radius a))
       encIn (encCfg (Γ := Γ) (Q := Q)) := by
-  have hs : ComputableInPolyTime (fun a => (input a).headI) encIn (encFinite Γ) := by
-    convert listHeadDWithInput hi (const default) using 1
-    funext a
-    cases input a <;> rfl
-  have ht := (listTail (encFinite Γ)).comp hi
-  have hn := (length_list (encFinite Γ)).comp ht
-  have hpad := replicate (encA := encFinite Γ) (unary_sub' hr hn) (const (default : Γ))
-  have hright := (listAppend (encFinite Γ)).comp (ht.prod hpad)
-  exact encCfg_mk_polyTime hq hs (Turing.MultiTapeTM.ComputableInPolyTime.const [default]) hright
+  have hs : ComputableInPolyTime (fun a => (input a).headI) encIn (encFinite Γ) :=
+    (listHeadDWithInput hi (const default)).of_enc_eq fun a => by cases input a <;> rfl
+  let ht := (listTail (encFinite Γ)).comp hi
+  have hpad := replicate (encA := encFinite Γ)
+    (unary_sub' hr ((length_list (encFinite Γ)).comp ht)) (const (default : Γ))
+  exact encCfg_mk_polyTime hq hs (const [default])
+    ((listAppend (encFinite Γ)).comp (ht.prod hpad))
 
 end Turing.TM0Window
 
@@ -239,11 +237,8 @@ variable {α : Type} {encIn : α ↪ List Bool} {f : α → Bool}
 
 private theorem trInit_tail_length {K : Type} [DecidableEq K] {Γ : K → Type} (k : K)
     (input : List (Γ k)) : (TM2to1.trInit k input).tail.length ≤ input.length := by
-  let mkCell : Γ k → TM2to1.Γ' K Γ :=
-    fun a => (false, Function.update (fun _ => none) k (some a))
-  change (input.reverse.map mkCell).tail.length ≤ input.length
-  simp only [List.length_tail, List.length_map, List.length_reverse]
-  omega
+  change (List.map (β := TM2to1.Γ' K Γ) _ input.reverse).tail.length ≤ input.length
+  simp [TM2to1.Γ']
 
 /-- The finite input window represents the original compiled initial configuration. -/
 theorem inputWindow_toNative (h : TM2Computable encIn encBool f) (p : Polynomial ℕ) (a : α) :
@@ -345,8 +340,7 @@ theorem mem_PSPACE_exists_windowTM0 {α : Type} {encIn : α ↪ List Bool} {A : 
   obtain ⟨f, h, hfinite, p, hp, hf, ht⟩ := mem_PSPACE_exists_boundedTM0 hA
   refine ⟨f, h, hfinite, p, fun a => ⟨fun ha => ?_, fun hr => ?_⟩⟩
   · exact h.headRange_toWindow p a true (by simpa only [(hf a).mp ha] using hp a)
-  · apply (ht a).mpr
-    simpa only [TM2Computable.inputWindow_toNative, TM2Computable.haltWindow_toNative] using
-      reaches_native hr
+  · exact (ht a).mpr (by simpa only [TM2Computable.inputWindow_toNative,
+      TM2Computable.haltWindow_toNative] using reaches_native hr)
 
 end Cslib.Complexity

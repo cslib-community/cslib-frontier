@@ -134,8 +134,7 @@ theorem overlapCount_self (w : List Bool) : overlapCount w w = w.count true := b
 
 /-- Sharing ones is symmetric. -/
 theorem overlapCount_comm (v w : List Bool) : overlapCount v w = overlapCount w v := by
-  rw [overlapCount, overlapCount, List.zipWith_comm]
-  simp only [Bool.and_comm]
+  simp only [overlapCount, List.zipWith_comm_of_comm Bool.and_comm]
 
 /-! ### Designs given by masks -/
 
@@ -397,13 +396,9 @@ theorem listGenerator_take_greedyMasks (h : m ≤ (greedyMasks ℓ n a).length)
     listGenerator g n ((greedyMasks ℓ n a).take m) (List.ofFn z) =
       List.ofFn (generator (Design.greedy ℓ n a m h) (fun x => g (List.ofFn x)) z) := by
   refine List.ext_getElem (by simp [listGenerator, h]) fun i hi hi' => ?_
-  rw [List.length_ofFn] at hi'
-  simp only [listGenerator, List.getElem_map, List.getElem_take, List.getElem_ofFn,
-    generator_apply]
-  have hrestrict := ofFn_restrict_greedy h ⟨i, hi'⟩ z
-  have hlen : (restrictMask (greedyMasks ℓ n a)[i] (List.ofFn z)).length ≤ n :=
-    (congrArg List.length hrestrict).symm.trans_le (List.length_ofFn).le
-  rw [List.take_of_length_le hlen, hrestrict]; rfl
+  simp only [List.length_ofFn, listGenerator, List.getElem_map, List.getElem_take,
+    List.getElem_ofFn, generator_apply] at hi' ⊢
+  erw [← ofFn_restrict_greedy h ⟨i, hi'⟩ z, List.take_of_length_le List.length_ofFn.le]
 
 /-! ### Fooling small circuits, in counting form -/
 

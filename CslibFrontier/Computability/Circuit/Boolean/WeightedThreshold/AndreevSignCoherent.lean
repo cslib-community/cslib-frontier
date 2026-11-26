@@ -240,14 +240,12 @@ theorem two_pow_mul_sub_le_mul_sum_andreevCubeSplitCount (c : Circuit signature 
     (andreevCubeSplitCount_le c q) (by positivity)
     (by have : (1 : ℝ) ≤ 2 ^ b := one_le_pow₀ one_le_two
         nlinarith [Nat.cast_nonneg (α := ℝ) G]) hfiber
-  have hcard : (Fintype.card (BitString (2 ^ b)) : ℝ) = (2 : ℝ) ^ 2 ^ b := by simp [BitString]
   have hl2 : 0 < Real.log 2 := Real.log_pos one_lt_two
-  have hG1 : (0 : ℝ) < G + 1 := by positivity
-  rw [hcard, Real.log_pow, Real.log_pow, Real.log_mul hG1.ne' (by positivity), Real.log_pow]
-    at key
+  have hcard : (Fintype.card (BitString (2 ^ b)) : ℝ) = (2 : ℝ) ^ 2 ^ b := by simp [BitString]
   have hlogb : Real.log ((G : ℝ) + 1) = Real.logb 2 (G + 1) * Real.log 2 := by
     rw [Real.logb, div_mul_cancel₀ _ hl2.ne']
-  rw [hlogb] at key
+  rw [hcard, Real.log_pow, Real.log_pow, Real.log_mul (by positivity) (by positivity),
+    Real.log_pow, hlogb] at key
   push_cast at key
   exact le_of_mul_le_mul_right (by nlinarith [key]) hl2
 
@@ -288,9 +286,9 @@ theorem sum_mul_andreevCubePoint (a : Fin (2 ^ b + b * m) → ℝ) (x : BitStrin
       congrArg (a _ * Bool.toNat ·) (andreevCubePoint_andreevTableIndex x s idx)
   · rw [← finProdFinEquiv.sum_comp, Fintype.sum_prod_type]
     refine sum_congr rfl fun j _ => sum_congr rfl fun t _ => ?_
-    have hbv := andreevCubePoint_andreevBlockVar (b := b) x s j t
-    dsimp only [andreevBlockVar] at hbv ⊢
-    by_cases h : (t : ℕ) < s j <;> simp [hbv, h]
+    change a (andreevBlockVar b m j t) *
+      ((andreevCubePoint b m x s (andreevBlockVar b m j t)).toNat : ℝ) = _
+    by_cases h : (t : ℕ) < s j <;> simp [h]
 
 /-- The block form of a block with nonnegative weights is monotone, and with nonpositive weights
 antitone. -/
@@ -434,18 +432,15 @@ theorem mul_andreevCubeSplitBound_le (c : Circuit signature (2 ^ b + b * m) 1)
   have hmain := pow_mul_andreevCubeSplitBound_le c hd hcomp hcoh
   have hD := andreevCubeSplitBound_nonneg b G
   have hG : (0 : ℝ) ≤ G := Nat.cast_nonneg G
-  rcases Nat.eq_zero_or_pos m with hm | hm
-  · rw [hm, Nat.cast_zero, zero_mul]; positivity
-  rcases Nat.eq_zero_or_pos b with hb | hb
-  · subst hb
-    simp only [pow_zero, Nat.sub_self, Nat.cast_zero, zero_mul, one_mul] at hmain
+  rcases Nat.eq_zero_or_pos m with rfl | hm
+  · simp only [Nat.cast_zero, zero_mul]; positivity
+  rcases Nat.eq_zero_or_pos b with rfl | hb
+  · simp only [pow_zero, Nat.sub_self, Nat.cast_zero, zero_mul, one_mul] at hmain
     nlinarith
   have hle := (mul_le_mul_of_nonneg_right (pow_sub_pred_pow_le m b) hG).trans' hmain
-  have hpow : (m : ℝ) ^ b = m * (m : ℝ) ^ (b - 1) := by
-    rw [← pow_succ']; congr 1; omega
-  have hpos : (0 : ℝ) < (m : ℝ) ^ (b - 1) := by positivity
+  have hpow : (m : ℝ) ^ b = m * (m : ℝ) ^ (b - 1) := by rw [← pow_succ', Nat.sub_add_cancel hb]
   rw [hpow] at hle
-  nlinarith
+  nlinarith [pow_pos (Nat.cast_pos.mpr hm : (0 : ℝ) < m) (b - 1)]
 
 /-- **Theorem 13, explicit form**: `G ≥ min (N ^ 2) (m (N - 3 b - 1) / (3 b ^ 2))`, `N = 2 ^ b`. -/
 theorem min_le_card_outputBottomGates (c : Circuit signature (2 ^ b + b * m) 1)

@@ -105,11 +105,9 @@ theorem gaifmanGraph_structure {V : Type*} (G : SimpleGraph V) :
   let := G.structure
   ext x y
   rw [gaifmanGraph_adj]
-  constructor
-  · rintro ⟨hne, _, ⟨⟩, t, hR, ⟨i, rfl⟩, j, rfl⟩
-    fin_cases i <;> fin_cases j <;> first | exact absurd rfl hne | exact hR | exact hR.symm
-  · intro h
-    exact ⟨h.ne, 2, .adj, ![x, y], h, ⟨0, rfl⟩, 1, rfl⟩
+  refine ⟨?_, fun h => ⟨h.ne, 2, .adj, ![x, y], h, ⟨0, rfl⟩, 1, rfl⟩⟩
+  rintro ⟨hne, _, ⟨⟩, t, hR, ⟨i, rfl⟩, j, rfl⟩
+  fin_cases i <;> fin_cases j <;> first | exact absurd rfl hne | exact hR | exact hR.symm
 
 /-! ### Distances -/
 
@@ -322,34 +320,30 @@ theorem snoc {h₁ h₂ : M → N} {c : M} {c' : N} (H₁ : IsNbhdIso L r a b h�
     one_lt_edist_of_far (hc i) hy (mem_ball_const.1 hz)
   have farN : ∀ y ∈ T, ∀ z ∈ T', 1 < (gaifmanGraph L N).edist y z := fun _ ⟨i, hy⟩ _ hz =>
     one_lt_edist_of_far (hc' i) hy (mem_ball_const.1 hz)
-  have neM : ∀ y ∈ S, ∀ z ∈ S', y ≠ z := fun y hy z hz hyz => by
-    simpa [hyz] using farM y hy z hz
-  have neN : ∀ y ∈ T, ∀ z ∈ T', y ≠ z := fun y hy z hz hyz => by
-    simpa [hyz] using farN y hy z hz
+  have disjM : Disjoint S S' := Set.disjoint_left.2 fun x hx hx' => by
+    simpa using farM x hx x hx'
+  have disjN : Disjoint T T' := Set.disjoint_left.2 fun x hx hx' => by
+    simpa using farN x hx x hx'
   let H : M → N := fun x => if x ∈ S then h₁ x else h₂ x
   have HS : Set.EqOn H h₁ S := fun x hx => by simp [H, hx]
-  have HS' : Set.EqOn H h₂ S' := fun x hx => ite_eq_right fun h => neM x h x hx rfl
+  have HS' : Set.EqOn H h₂ S' := fun x hx => ite_eq_right (disjM.notMem_of_mem_right hx)
   have hb1 : Set.BijOn H S T := H₁.bijOn.congr HS.symm
   have hb2 : Set.BijOn H S' T' := H₂.bijOn.congr HS'.symm
   refine ⟨H, ⟨?_, fun i => ?_, fun R t ht => ?_⟩⟩
   · rw [ball_snoc, ball_snoc]
-    refine hb1.union hb2 ?_
-    rw [Set.injOn_union (Set.disjoint_left.2 fun x hx hx' => neM x hx x hx' rfl)]
-    exact ⟨hb1.injOn, hb2.injOn, fun x hx y hy hxy =>
-      neN _ (hb1.mapsTo hx) _ (hb2.mapsTo hy) hxy⟩
+    exact hb1.union hb2 ((Set.injOn_union disjM).2
+      ⟨hb1.injOn, hb2.injOn, fun _ hx _ hy => disjN.ne_of_mem (hb1.mapsTo hx) (hb2.mapsTo hy)⟩)
   · induction i using Fin.lastCases with
     | last => simpa only [Fin.snoc_last, HS' (mem_ball_self _ r 0)] using H₂.map_tuple 0
     | cast i => simpa only [Fin.snoc_castSucc, HS (mem_ball_self _ r i)] using H₁.map_tuple i
-  · have ht' : ∀ i, t i ∈ S ∨ t i ∈ S' := fun i => mem_ball_snoc.1 (ht i)
-    by_cases hS : ∀ i, t i ∈ S
+  · by_cases hS : ∀ i, t i ∈ S
     · exact (funext fun i => HS (hS i) : H ∘ t = h₁ ∘ t) ▸ H₁.relMap_iff R t hS
     by_cases hS' : ∀ i, t i ∈ S'
     · exact (funext fun i => HS' (hS' i) : H ∘ t = h₂ ∘ t) ▸ H₂.relMap_iff R t hS'
-    simp only [not_forall] at hS hS'
-    obtain ⟨i, hi⟩ := hS
-    obtain ⟨j, hj⟩ := hS'
-    have hi' : t i ∈ S' := (ht' i).resolve_left hi
-    have hj' : t j ∈ S := (ht' j).resolve_right hj
+    obtain ⟨i, hi⟩ := not_forall.1 hS
+    obtain ⟨j, hj⟩ := not_forall.1 hS'
+    have hi' : t i ∈ S' := (mem_ball_snoc.1 (ht i)).resolve_left hi
+    have hj' : t j ∈ S := (mem_ball_snoc.1 (ht j)).resolve_right hj
     refine iff_of_false (fun hR => ?_) (fun hR => ?_)
     · exact (farN _ (hb1.mapsTo hj') _ (hb2.mapsTo hi')).not_ge (edist_le_one_of_relMap hR j i)
     · exact (farM _ hj' _ hi').not_ge (edist_le_one_of_relMap hR j i)

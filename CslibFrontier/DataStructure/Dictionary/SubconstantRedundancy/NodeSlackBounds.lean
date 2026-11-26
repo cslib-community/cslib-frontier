@@ -75,8 +75,7 @@ private theorem numNodes_mul_tableCap_of_schedule (P : TreeSchedule) {ℓ : ℕ}
     rcases eq_or_lt_of_le h1 with rfl | hgt1
     · have h10 : 10 * P.delta 1 ≤ P.branchFactor 1 * P.delta (1 + 1) := h10d rfl
       change P.nFloor 1 + P.delta 1 - P.branchFactor 1 * P.nLow (1 + 1) ≤ _
-      rw [hsub]
-      omega
+      rw [hsub]; omega
     · rw [TreeSchedule.tableCap, ite_eq_right (by omega), ite_eq_left hlt, hsub,
         TreeSchedule.nLow, ite_eq_right (by omega)]
       omega
@@ -186,8 +185,7 @@ private theorem single_nonLeaf_tableMeta_of_schedule (P : TreeSchedule) {n r s �
   have hN77 : P.numNodes ℓ * (77 * P.tableCap ℓ + 9) ≤
       240 * (P.numNodes (ℓ + 1) * P.delta (ℓ + 1)) := by
     rw [Nat.mul_assoc 3] at hNtc
-    rw [Nat.mul_add, Nat.mul_left_comm]
-    omega
+    rw [Nat.mul_add, Nat.mul_left_comm]; omega
   calc P.numNodes ℓ *
         (succinctTableMetaBits (P.idBits ℓ) (P.tableCap ℓ) +
           P.tableCap ℓ *
@@ -305,8 +303,7 @@ private theorem rootExtra_and_poolDir_of_schedule (P : TreeSchedule) {n r L s1 p
   have hq_le : Nat.clog 2 ((P.paddedUniv + P.cap - 1) / P.cap) ≤ s1 ^ 2 := by
     have hpad_n : P.cap ≤ P.paddedUniv := by
       have := P.univ_le_padded
-      dsimp only [TreeSchedule.paddedUniv, TreeSchedule.branchFactor]
-      omega
+      dsimp only [TreeSchedule.paddedUniv, TreeSchedule.branchFactor]; omega
     refine Nat.clog_le_of_le_pow ((Nat.div_le_self _ _).trans ?_)
     calc P.paddedUniv + P.cap - 1 ≤ 2 ^ (2 * (p_max + 2) * L + 1) := by rw [pow_succ']; omega
       _ ≤ 2 ^ s1 ^ 2 := Nat.pow_le_pow_right Nat.two_pos (by
@@ -456,12 +453,10 @@ private theorem waitingLists_and_hashSeeds_of_schedule (P : TreeSchedule) {n U r
       rcases eq_or_lt_of_le h1 with rfl | hgt1
       · have hs_eq : s = Nat.log 2 U := ite_eq_left (by omega)
         have hls2 : levelScale U r P.depth 2 ≤ Nat.log 2 U := by
-          rw [levelScale]; split_ifs
-          exacts [Nat.log_le_self 2 _, hr_s1]
+          by_cases h : 2 < P.depth <;> simp [levelScale, h, Nat.log_le_self, hr_s1]
         have hid1 : P.idBits 1 ≤ 148 * levelScale U r P.depth 2 := hid_pred_all 2 le_rfl hd2
-        have hsq : 148 * Nat.log 2 U ≤ Nat.log 2 U ^ 2 := by
-          rw [sq]; exact Nat.mul_le_mul_right _ (by omega)
-        have hone : 1 ≤ Nat.log 2 U ^ 2 := Nat.one_le_pow _ _ (by omega)
+        have hsq : 1 ≤ Nat.log 2 U ^ 2 ∧ 148 * Nat.log 2 U ≤ Nat.log 2 U ^ 2 :=
+          ⟨Nat.one_le_pow _ _ (by omega), (Nat.mul_le_mul_right _ (by omega)).trans_eq (sq _).symm⟩
         have hcl1 : Nat.clog 2 (max (P.idCompRightUniv 1) 2) ≤ Nat.log 2 U ^ 2 :=
           Nat.clog_le_of_le_pow (max_le ((Nat.le_mul_of_pos_left _ (Nat.mul_pos
             (P.branchFactor_pos 0) (Nat.two_pow_pos _))).trans hpad_s1)

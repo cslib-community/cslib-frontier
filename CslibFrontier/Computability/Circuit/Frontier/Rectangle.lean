@@ -113,10 +113,8 @@ theorem domRestrict_prodMk_injective (X : Set ι) :
 every assignment and whose side on `Dᶜ` is the set of its parts there. -/
 theorem eq_rectangle_of_dependsOn {T : Set (ι → U)} {D : Set ι} (hD : DependsOn (· ∈ T) Dᶜ) :
     T = rectangle D univ (Dᶜ.domRestrict '' T) := by
-  refine subset_antisymm (fun x hx => ⟨mem_univ _, x, hx, rfl⟩) ?_
-  rintro z ⟨-, y, hy, hyz⟩
-  have : (y ∈ T) = (z ∈ T) := hD fun i hi => congrFun hyz ⟨i, hi⟩
-  exact this ▸ hy
+  exact subset_antisymm (fun x hx => ⟨mem_univ _, x, hx, rfl⟩) fun _ ⟨_, _, hy, hyz⟩ =>
+    (hD fun i hi => congrFun hyz ⟨i, hi⟩).mp hy
 
 /-- **Thick or small.** Let `T` depend only on the coordinates in `R`, and let the other
 coordinates carry at least `K ≥ 1` assignments. Then `T` is a rectangle with both sides of size
@@ -159,13 +157,10 @@ theorem exists_thick_or_ncard_lt [Finite ι] [Finite U] [Nonempty U] {T : Set (�
           (Nat.le_self_pow two_ne_zero K).trans (Nat.le_mul_of_pos_left _ hq)
   · have hlt : Nat.card U ^ (D.ncard - 1) < K := hdmin _ (by omega)
     have hpow : Nat.card U ^ D.ncard = Nat.card U * Nat.card U ^ (D.ncard - 1) := by
-      rw [← pow_succ']
-      congr 1
-      omega
+      rw [← pow_succ', Nat.sub_add_cancel hd]
     calc T.ncard ≤ Nat.card U ^ D.ncard * (K - 1) := hcard
-      _ ≤ Nat.card U * (K - 1) * (K - 1) := by
-          rw [hpow]
-          gcongr; omega
+      _ ≤ Nat.card U * (K - 1) * (K - 1) :=
+          hpow ▸ Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ (Nat.le_sub_one_of_lt hlt))
       _ < Nat.card U * K ^ 2 := by
           rw [mul_assoc, sq]
           exact Nat.mul_lt_mul_of_pos_left (Nat.mul_lt_mul'' (by omega) (by omega)) hq
@@ -283,9 +278,7 @@ theorem signedCount_eq_add_sdiff (S : Set (ι → U)) {R D : Set (ι → U)} (h 
   have hi := hsplit S ▸ ncard_union_eq (hdisj S)
   have hd := hsplit Sᶜ ▸ ncard_union_eq (hdisj Sᶜ)
   simp only [← sdiff_eq] at hd
-  rw [signedCount, signedCount, signedCount, hi, hd]
-  push_cast
-  ring
+  rw [signedCount, signedCount, signedCount, hi, hd, Nat.cast_add, Nat.cast_add]; ring
 
 /-- The signed count is twice the deviation of `|R ∩ S|` from `|R| / 2`. -/
 theorem signedCount_eq_two_mul (S R : Set (ι → U)) :

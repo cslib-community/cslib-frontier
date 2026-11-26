@@ -100,12 +100,9 @@ omit [Fintype W] in
 
 /-- The phase oracle preserves norms. -/
 theorem norm_phaseOracle (x : Fin N → Bool) (ψ : State N W) : ‖phaseOracle x ψ‖ = ‖ψ‖ := by
-  have h : ‖phaseOracle x ψ‖ ^ 2 = ‖ψ‖ ^ 2 := by
-    rw [EuclideanSpace.norm_sq_eq, EuclideanSpace.norm_sq_eq]
-    refine sum_congr rfl fun p _ => ?_
-    rw [phaseOracle_apply, norm_mul]
-    split_ifs <;> simp
-  exact (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).mp h
+  refine (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).mp ?_
+  simp only [EuclideanSpace.norm_sq_eq, phaseOracle_apply, norm_mul]
+  exact sum_congr rfl fun p _ => by split_ifs <;> simp
 
 omit [Fintype W] in
 /-- The oracle of the all-zero input is the identity. -/
@@ -159,12 +156,9 @@ theorem proj_sub (z : Fin N) (ψ φ : State N W) : proj z (ψ - φ) = proj z ψ 
   split_ifs <;> simp
 
 theorem norm_proj_le (z : Fin N) (ψ : State N W) : ‖proj z ψ‖ ≤ ‖ψ‖ := by
-  have h : ‖proj z ψ‖ ^ 2 ≤ ‖ψ‖ ^ 2 := by
-    rw [EuclideanSpace.norm_sq_eq, EuclideanSpace.norm_sq_eq]
-    refine sum_le_sum fun p _ => ?_
-    simp only [proj, PiLp.toLp_apply]
-    split_ifs <;> simp
-  exact (sq_le_sq₀ (norm_nonneg _) (norm_nonneg _)).mp h
+  refine (sq_le_sq₀ (norm_nonneg _) (norm_nonneg _)).mp ?_
+  simp only [EuclideanSpace.norm_sq_eq, proj]
+  exact sum_le_sum fun p _ => by split_ifs <;> simp
 
 /-- The measurement probabilities of all query indices sum to `‖ψ‖²`. -/
 theorem sum_regProb (ψ : State N W) : ∑ i, regProb ψ i = ‖ψ‖ ^ 2 := by
@@ -194,7 +188,8 @@ theorem phaseOracle_marked_sub (z : Fin N) (ψ : State N W) :
   simp only [PiLp.sub_apply, phaseOracle_apply, marked, PiLp.smul_apply, ctrlProj, smul_eq_mul]
   cases p.2.1
   · simp
-  · by_cases h : p.1 = z <;> simp [h]; ring
+  · by_cases h : p.1 = z <;> simp [h]
+    ring
 
 /-- **The hybrid argument** for one marked item: on the inputs `e_z` and `0`, the states after `t`
 queries differ by at most `2 ∑_{s < t} ‖Π_z φ_s‖`, where `φ_s` is the state on the all-zero input

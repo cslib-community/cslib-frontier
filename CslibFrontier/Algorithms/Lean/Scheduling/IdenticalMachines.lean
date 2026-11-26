@@ -366,11 +366,8 @@ section Tight
 private theorem prefixLoad_eq_cast [AddCommMonoidWithOne α] (p : Fin n → α) (σ : Fin n → Fin m)
     {k : ℕ} (hp : ∀ j : Fin n, j.val < k → p j = 1) (i : Fin m) :
     prefixLoad p σ k i = ((prefixLoad (fun _ => (1 : ℕ)) σ k i : ℕ) : α) := by
-  unfold prefixLoad
-  rw [Nat.cast_sum]
-  refine sum_congr rfl fun j hj => ?_
-  rw [mem_filter] at hj
-  rw [hp j hj.2.1, Nat.cast_one]
+  simp only [prefixLoad, Nat.cast_sum, Nat.cast_one]
+  exact sum_congr rfl fun j hj => hp j (And.left (mem_filter.1 hj).2)
 
 /-- The arithmetic step of the tight family: `m (m - 1) ≤ c + (m - 1)(c + 1)` forces
 `m - 1 ≤ c`. -/
@@ -380,9 +377,7 @@ private theorem sub_one_le_of_mul_le {m c : ℕ} (h : m * (m - 1) ≤ c + (m - 1
   · omega
   · simp only [Nat.add_sub_cancel] at h ⊢
     by_contra hlt
-    push Not at hlt
-    have := Nat.mul_le_mul_right (a + 1) hlt
-    nlinarith
+    nlinarith [Nat.lt_of_not_ge hlt]
 
 variable [Field α] [LinearOrder α] [IsStrictOrderedRing α]
 
@@ -456,9 +451,8 @@ private theorem IsListSchedule.load_grahamTight {σ : Fin (m * (m - 1) + 1) → 
     rwa [Fin.val_last, prefixLoad_of_le _ σ le_rfl, hpc _ le_rfl, ← hi₀, ite_eq_left rfl,
       grahamTight_last] at h
   rw [hload]
-  have hm : (1 : ℕ) ≤ m := Nat.one_le_iff_ne_zero.mpr (NeZero.ne m)
-  have h1 : ((m - 1 : ℕ) : α) ≤ c (m * (m - 1)) i₀ := by exact_mod_cast hc₀
-  rw [Nat.cast_sub hm, Nat.cast_one] at h1
+  have h1 : (m : α) - 1 ≤ c (m * (m - 1)) i₀ := by
+    simpa only [Nat.cast_sub NeZero.one_le, Nat.cast_one] using (Nat.cast_le (α := α)).mpr hc₀
   linarith
 
 variable (α m) in

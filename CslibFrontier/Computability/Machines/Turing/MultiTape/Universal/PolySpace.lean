@@ -93,15 +93,13 @@ theorem step_of_state_eq_none {c : SCfg} (h : c.state = none) :
 theorem stepOut_iterate_eq_of_state_eq_none {t T : ℕ}
     (hhalt : (run d x t).state = none) (hT : t ≤ T) :
     (stepOut d x)^[T] (init d, []) = (stepOut d x)^[t] (init d, []) := by
-  obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hT
-  clear hT
-  induction k with
-  | zero => rfl
-  | succ k ih =>
-    rw [← Nat.add_assoc, Function.iterate_succ_apply', ih]
+  induction hT with
+  | refl => rfl
+  | step _ ih =>
+    rw [Function.iterate_succ_apply', ih]
     have hcfg : ((stepOut d x)^[t] (init d, [])).1 = run d x t := rfl
     simp only [stepOut, hcfg, step_of_state_eq_none d x hhalt, Option.toList_none, List.append_nil]
-    exact Prod.mk.eta
+    exact Prod.ext hcfg.symm rfl
 
 /-- Once `run d x t` has halted, `run d x T = run d x t` for all `T ≥ t`. -/
 theorem run_eq_of_state_eq_none {t T : ℕ}
@@ -218,12 +216,10 @@ every later step `T ≥ t`. -/
 theorem budgetStep_iterate_eq_of_le {t T : ℕ}
     (hhalt : ((budgetStep d x b)^[t] (init d, [])).1.state.isNone = true) (hT : t ≤ T) :
     (budgetStep d x b)^[T] (init d, []) = (budgetStep d x b)^[t] (init d, []) := by
-  obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hT
-  clear hT
-  induction k with
-  | zero => rfl
-  | succ k ih =>
-    rw [← Nat.add_assoc, Function.iterate_succ_apply', ih]
+  induction hT with
+  | refl => rfl
+  | step _ ih =>
+    rw [Function.iterate_succ_apply', ih]
     obtain ⟨_, -, heq, -⟩ := budgetStep_iterate d x b t
     exact budgetStep_of_state_eq_none d x b (Option.isNone_iff_eq_none.mp hhalt)
       (by simpa only [heq] using List.length_take_le _ _)
@@ -248,23 +244,21 @@ theorem exists_budgetedUniversal_le_two_pow {t : ℕ}
   let t₀ := Nat.find hex
   have ht₀ : ((budgetStep d x b)^[t₀] (init d, [])).1.state.isNone = true := Nat.find_spec hex
   have ht₀_le : t₀ ≤ t := Nat.find_min' hex hhalt
-  have hstep :
-      ∀ k < t₀, (eCfg (step d x ((budgetStep d x b)^[k] (init d, [])).1).1).length ≤ b := by
-    intro k hk
+  have hstep (k : ℕ) (hk : k < t₀) :
+      (eCfg (step d x ((budgetStep d x b)^[k] (init d, [])).1).1).length ≤ b := by
     by_contra hnot
     have hfix : Function.IsFixedPt (budgetStep d x b) ((budgetStep d x b)^[k] (init d, [])) := by
       simp only [Function.IsFixedPt, budgetStep, hnot, ↓reduceIte]
     rw [← Nat.sub_add_cancel hk.le, Function.iterate_add_apply, hfix.iterate (t₀ - k)] at ht₀
     exact Nat.find_min hex hk ht₀
   have hfst : ∀ k ≤ t₀, ((budgetStep d x b)^[k] (init d, [])).1 = run d x k := by
-    intro k hk
+    intro k
     induction k with
-    | zero => rfl
+    | zero => exact fun _ => rfl
     | succ k ih =>
-      have hle := hstep k (Nat.lt_of_succ_le hk)
-      rw [Function.iterate_succ_apply', budgetStep]
-      split_ifs
-      rw [ih (Nat.le_of_succ_le hk), run_succ]
+      intro hk
+      rw [Function.iterate_succ_apply', budgetStep, ite_eq_left (hstep k (Nat.lt_of_succ_le hk)),
+        ih (Nat.le_of_succ_le hk), run_succ]
   have hb : ∀ k < t₀, (eCfg (run d x (k + 1))).length ≤ b := fun k hk => by
     simpa only [hfst k hk.le, ← run_succ] using hstep k hk
   exact ⟨t₀,

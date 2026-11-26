@@ -85,36 +85,31 @@ private theorem tryIn_of_tryOut (q : Quantifier) {t : q.gadget.Edge → Bool}
     (ht : (q.gadget.graph Gate.interp).Legal t) (h : t (q.gadget.bottom 1) = true) :
     t (.inl 1) = true := by
   cases q
-  · exact ExistsGadget.tryIn_of_tryOut ht h
-  · exact ForallGadget.tryIn_of_tryOut ht h
+  exacts [ExistsGadget.tryIn_of_tryOut ht h, ForallGadget.tryIn_of_tryOut ht h]
 
 private theorem satIn_of_satOut (q : Quantifier) {t : q.gadget.Edge → Bool}
     (ht : (q.gadget.graph Gate.interp).Legal t) (h : t (.inl 0) = false) :
     t (q.gadget.bottom 0) = false := by
   cases q
-  · exact h
-  · exact ForallGadget.satIn_of_satOut ht h
+  exacts [h, ForallGadget.satIn_of_satOut ht h]
 
 private theorem mem_eq_of_step (q : Quantifier) {a b : List Color} {D : Diagram Gate a b}
     (o : Occurrence q.gadget D) {s t : D.Edge → Bool} (h : (D.graph Gate.interp).Step s t)
     (htry : s (o.emb (q.gadget.bottom 1)) = true) : s (o.emb q.mem) = t (o.emb q.mem) := by
   cases q
-  · exact ExistsGadget.mem_eq_of_step o h htry
-  · exact ForallGadget.mem_eq_of_step o h htry
+  exacts [ExistsGadget.mem_eq_of_step o h htry, ForallGadget.mem_eq_of_step o h htry]
 
 private theorem mem_of_pos (q : Quantifier) {t : q.gadget.Edge → Bool}
     (ht : (q.gadget.graph Gate.interp).Legal t) (htry : t (q.gadget.bottom 1) = true)
     (hp : t (q.gadget.bottom 2) = true) : t q.mem = true := by
   cases q
-  · exact ExistsGadget.mem_of_pos ht htry hp
-  · exact ForallGadget.mem_of_pos ht htry hp
+  exacts [ExistsGadget.mem_of_pos ht htry hp, ForallGadget.mem_of_pos ht htry hp]
 
 private theorem mem_of_neg (q : Quantifier) {t : q.gadget.Edge → Bool}
     (ht : (q.gadget.graph Gate.interp).Legal t) (htry : t (q.gadget.bottom 1) = true)
     (hn : t (q.gadget.bottom 3) = true) : t q.mem = false := by
   cases q
-  · exact ExistsGadget.mem_of_neg ht htry hn
-  · exact ForallGadget.mem_of_neg ht htry hn
+  exacts [ExistsGadget.mem_of_neg ht htry hn, ForallGadget.mem_of_neg ht htry hn]
 
 private theorem literals_le (q : Quantifier) {t : q.gadget.Edge → Bool}
     (ht : (q.gadget.graph Gate.interp).Legal t) (htry : t (q.gadget.bottom 1) = true) :
@@ -155,8 +150,8 @@ private theorem head_top (r : List Color) (q : Quantifier) (qs : List Quantifier
 private theorem head_bottom (r : List Color) (q : Quantifier) (qs : List Quantifier) (j : Fin 2) :
     (headOcc r q qs).emb
         (q.gadget.bottom ⟨j, by simp only [List.length_cons, List.length_nil]; omega⟩) =
-      (tailOcc r q qs).emb (input ([R, R] ++ r) qs j) := by
-  exact congrArg (compLeft (q.gadget.tensor (.id r)) (diagram ([R, R] ++ r) qs))
+      (tailOcc r q qs).emb (input ([R, R] ++ r) qs j) :=
+  congrArg (compLeft (q.gadget.tensor (.id r)) (diagram ([R, R] ++ r) qs))
     (bottom_tensor_left q.gadget (.id r)
       ⟨j, by simp only [List.length_cons, List.length_nil]; omega⟩).symm
 
@@ -237,10 +232,9 @@ private theorem try_control_of_output : ∀ (qs : List Quantifier) (r : List Col
     {t : (diagram r qs).Edge → Bool}, ((diagram r qs).graph Gate.interp).Legal t →
     t (control r qs qs.length 1) = true → t (control r qs n 1) = true
   | [], _, n, _, _, h => by cases n <;> exact h
-  | q :: qs, r, 0, _, ht, h => by
-    apply first_try r q qs ht
-    simpa only [control_zero, Function.comp_def]
-      using try_control_of_output qs _ 0 ((tailOcc r q qs).legal ht) h
+  | q :: qs, r, 0, _, ht, h => first_try r q qs ht (by
+    simpa only [control_zero, Function.comp_def] using
+      try_control_of_output qs _ 0 ((tailOcc r q qs).legal ht) h)
   | q :: qs, r, n + 1, _, ht, h =>
     try_control_of_output qs _ n ((tailOcc r q qs).legal ht) h
 

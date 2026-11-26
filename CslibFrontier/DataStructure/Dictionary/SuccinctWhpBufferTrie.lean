@@ -431,18 +431,16 @@ theorem ValidBufTrie.delete_spec {cTab bChar rKey : ℕ} {tr : BufTrie}
   have ⟨halloc, hzero, hout, hmap, depth, hd0, hedge, hiff, hleaf⟩ := hv
   have hp_edge : ∀ u, 1 ≤ u → u < tr.nodeAlloc → depth u = depth (tr.nodeParent u) + 1 :=
     fun u h1 h2 => (hedge u h1 h2).2.2.1
-  have hnoop : mapFn rKey = none → Function.update mapFn rKey none = mapFn := fun hmr =>
-    Function.update_eq_self_iff.mpr hmr.symm
   dsimp only [bufDelete]
   cases hw : bufWalk bChar tr.trieChild rKey cTab 0 0 with
   | none =>
-    rw [hnoop (by rw [hmap rKey hk]; simp [bufLookup, hw])]
+    rw [Function.update_eq_self_iff.mpr (by simp [hmap rKey hk, bufLookup, hw])]
     exact ⟨hv, rfl, rfl, rfl, fun _ h => h⟩
   | some leaf =>
     dsimp only
     by_cases hcond : tr.nodeLeafItem leaf = 0 ∨ tr.nodeActive leaf = 0
     · simp only [hcond, ↓reduceIte]
-      rw [hnoop (by rw [hmap rKey hk]; simp [bufLookup, hw, hcond])]
+      rw [Function.update_eq_self_iff.mpr (by simp [hmap rKey hk, bufLookup, hw, hcond])]
       exact ⟨hv, trivial, trivial, trivial, fun _ h => h⟩
     · simp only [hcond, ↓reduceIte]
       refine ⟨⟨halloc, hzero, fun k hk_ge => by
@@ -537,8 +535,8 @@ private theorem BufTrieInv.allocStep {cTab bChar cur ch off : ℕ} {tr : BufTrie
     · rw [Function.update_update_apply_of_ne hvc]
       refine ⟨fun hnz => ?_, fun ⟨h1, _⟩ => by omega⟩
       obtain ⟨h1, h2, h3, h4⟩ := (hinv.iff v c).mp hnz
-      rw [Function.update_of_ne (by omega : tr.trieChild v c ≠ u),
-        Function.update_of_ne (by omega : tr.trieChild v c ≠ u)]
+      have hne_u : tr.trieChild v c ≠ u := Nat.ne_of_lt h2
+      rw [Function.update_of_ne hne_u, Function.update_of_ne hne_u]
       exact ⟨h1, by omega, h3, h4⟩
   · intro w hw_lt hnz
     dsimp only [tr', depth'] at hw_lt hnz ⊢
@@ -606,22 +604,22 @@ private theorem bufEnsurePath_props {cTab bChar rKey : ℕ} :
       rcases hih with ⟨ha_le, ha_ub, hia, hil, hib, hiloc, hact, hpres1, hz_ge1,
         hmono1, hnew1, _, hleaf_lt, hw_rem, depth1, hinv1, hd1_leaf⟩
       have hna_step : tr_step.nodeAlloc = u + 1 := rfl
-      rw [hna_step] at ha_le ha_ub
+      rw [hna_step] at ha_le ha_ub hpres1 hz_ge1 hnew1
       refine ⟨by omega, by omega, hia, hil, hib, hiloc, hact, ?_, ?_, ?_, ?_, ?_,
         hleaf_lt, ?_, depth1, hinv1, hd1_leaf⟩
       · intro w hw_lt
-        rw [hpres1 w (by rw [hna_step]; omega)]
-        dsimp [tr_step]; rw [Function.update_of_ne (by omega)]
+        rw [hpres1 w (by omega)]
+        exact Function.update_of_ne (by omega) ..
       · intro w hw_ge
         by_cases hw_eq : w = u
-        · subst hw_eq; rw [hpres1 u (by rw [hna_step]; omega)]; simp [tr_step]
-        · exact hz_ge1 w (by rw [hna_step]; omega)
+        · simp [hw_eq, hpres1 u (by omega), tr_step]
+        · exact hz_ge1 w (by omega)
       · intro v c hnz
         rw [hmono1 v c (by rw [hmono_step v c hnz]; exact hnz), hmono_step v c hnz]
       · intro v c hne
         by_cases hne1 : (bufEnsurePath bChar rKey rem (off + 1) tr_step u).1.trieChild v c ≠
             tr_step.trieChild v c
-        · have := hnew1 v c hne1; rw [hna_step] at this; omega
+        · exact Nat.le_of_succ_le (hnew1 v c hne1)
         · rw [not_ne_iff.mp hne1] at hne ⊢
           have hvc : v = cur ∧ c = ch :=
             by_contra fun hvc => hne (Function.update_update_apply_of_ne hvc)
@@ -630,7 +628,8 @@ private theorem bufEnsurePath_props {cTab bChar rKey : ℕ} :
           bufWalk_le_leaf hinv1.child_lt rem (off + 1) u _ rKey hw_rem⟩
       · have hu0 : u ≠ 0 := by have := hinv.alloc; omega
         have htr_ch : tr_step.trieChild cur ch = u := by simp [tr_step]
-        simpa only [bufWalk, ch, hmono1 cur ch (htr_ch ▸ hu0), htr_ch, hu0, ↓reduceIte] using hw_rem
+        have hch_nz : tr_step.trieChild cur ch ≠ 0 := htr_ch ▸ hu0
+        simpa only [bufWalk, ch, hmono1 cur ch hch_nz, htr_ch, hu0, ↓reduceIte] using hw_rem
     · simp only [h0, ↓reduceIte]
       obtain ⟨h1_ge, h1_lt, hp1, _⟩ := (hinv.iff cur ch).mp h0
       rcases ih (off + 1) tr nxt depth (by omega) hinv h1_lt
@@ -746,9 +745,8 @@ theorem ValidBufTrie.insert_spec {cTab bChar rKey b loc : ℕ} {tr : BufTrie}
           exact ⟨hd1_leaf, le_rfl, trivial, rKey, hk, hw_rKey⟩
         · rw [Function.update_of_ne hu_eq] at hnz' ⊢
           obtain ⟨hd_u, hle_u, hil_u, k, hk_lt, hwk⟩ := hinv1.leaf u hu_lt hnz'
-          exact ⟨hd_u, by omega,
-            by rw [Function.update_of_ne (by omega : tr1.nodeLeafItem u - 1 ≠ tr1.itemAlloc),
-              hil_u], k, hk_lt, hwk⟩
+          have hid_ne : tr1.nodeLeafItem u - 1 ≠ tr1.itemAlloc := by omega
+          exact ⟨hd_u, by omega, (Function.update_of_ne hid_ne ..).trans hil_u, k, hk_lt, hwk⟩
     · intro k hk_lt
       by_cases heq : k = rKey
       · subst heq; simp [bufEverPresent, hw_rKey]
@@ -788,13 +786,11 @@ theorem ValidBufTrie.insert_spec {cTab bChar rKey b loc : ℕ} {tr : BufTrie}
             have hlk_lt := (bufWalk_props hp_edge1 hinv1.iff cTab 0 0 leaf_k k
               hinv1.alloc hinv1.d0 hwk1).1
             have hil_k := (hinv1.leaf leaf_k hlk_lt hcond_k.1).2.2.1
-            simp only [Function.update_of_ne (fun heq_id =>
-              hne_leaf (by rw [← hil_k, heq_id, hil_leaf]) :
-              tr1.nodeLeafItem leaf_k - 1 ≠ tr1.nodeLeafItem leaf - 1)]
+            have hid_ne : tr1.nodeLeafItem leaf_k - 1 ≠ tr1.nodeLeafItem leaf - 1 :=
+              fun heq_id => hne_leaf (by rw [← hil_k, heq_id, hil_leaf])
+            simp only [Function.update_of_ne hid_ne]
     · intro k _
-      by_cases heq : k = rKey
-      · simp [heq, bufEverPresent, hw_rKey, hid1]
-      · rw [ite_eq_right heq, ← htr1_eq]; rfl
+      by_cases heq : k = rKey <;> simp [heq, bufEverPresent, hw_rKey, hid1, ← htr1_eq]
     · have hact_nz : tr1.nodeActive leaf ≠ 0 := fun hact0 =>
         hmap_ne (by rw [hmap rKey hk, ← htr1_eq]; simp [bufLookup, hw_rKey, hact0])
       refine ⟨congrArg BufTrie.nodeAlloc htr1_eq, hia, fun id hnone => ?_⟩
@@ -823,19 +819,13 @@ theorem ValidBufTrie.checkSlot_some {cTab bChar id b loc : ℕ} {tr : BufTrie}
       mapFn k = some (b, loc) := by
   obtain ⟨_, hzero, _, hmap, _, _, _, _, hleaf⟩ := hv
   dsimp only [bufCheckSlot] at hchk
-  split at hchk
-  · rename_i hid
-    set leaf := tr.itemLeaf id
-    split at hchk
-    · rename_i hcond
-      obtain ⟨hli, hact⟩ := hcond
-      simp only [Option.some.injEq, Prod.mk.injEq] at hchk
-      have hleaf_lt : leaf < tr.nodeAlloc :=
-        Nat.lt_of_not_ge fun hge => by have := hzero leaf hge; omega
-      obtain ⟨_, _, _, k, hk_lt, hwk⟩ := hleaf leaf hleaf_lt (by omega)
-      exact ⟨hid, k, hk_lt, hwk, by rw [hmap k hk_lt]; simp [bufLookup, hwk, hli, hact, hchk]⟩
-    · cases hchk
-  · cases hchk
+  split_ifs at hchk with hid hcond
+  obtain ⟨hli, hact⟩ := hcond
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hchk)
+  have hleaf_lt : tr.itemLeaf id < tr.nodeAlloc :=
+    Nat.lt_of_not_ge fun hge => by have := hzero _ hge; omega
+  obtain ⟨_, _, _, k, hk_lt, hwk⟩ := hleaf _ hleaf_lt (by omega)
+  exact ⟨hid, k, hk_lt, hwk, by simp [hmap k hk_lt, bufLookup, hwk, hli, hact]⟩
 
 /-- Converse scan specification: every active key `mapFn k = some (b, loc)` has an active scan slot
 `id < tr.itemAlloc` with `bufCheckSlot tr id = some (b, loc)`. In particular, once

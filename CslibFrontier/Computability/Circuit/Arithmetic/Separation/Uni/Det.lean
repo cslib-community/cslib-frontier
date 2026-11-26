@@ -173,25 +173,16 @@ theorem WellFormed.step {σ : Config supp} (hσ : WellFormed σ) (r : Rule supp)
   · intro c hc
     rcases List.mem_append.1 hc with hc | hc
     · exact (hσ.le c hc).trans (Nat.le_succ _)
-    · rw [List.mem_singleton] at hc
-      subst hc
-      exact ha.le
+    · exact (List.mem_singleton.1 hc ▸ ha).le
   · intro c hc c' hc' e
+    have hne {x : Rec RecKind} (hx : x ∈ σ.heap) : x.2 0 ≠ σ.n + 1 :=
+      Nat.ne_of_lt (Nat.lt_succ_of_le (hσ.le x hx))
     rcases List.mem_append.1 hc with hc | hc <;> rcases List.mem_append.1 hc' with hc' | hc'
     · exact hσ.fn c hc c' hc' e
-    · rw [List.mem_singleton] at hc'
-      subst hc'
-      have := hσ.le c hc
-      omega
-    · rw [List.mem_singleton] at hc
-      subst hc
-      have := hσ.le c' hc'
-      omega
-    · rw [List.mem_singleton] at hc hc'
-      rw [hc, hc']
-  · change env σ p q s ((rule θ supp r).dr 0) = 0
-    rw [dr_zero]
-    exact hσ.r0
+    · exact absurd (e.trans (List.mem_singleton.1 hc' ▸ ha)) (hne hc)
+    · exact absurd (e.symm.trans (List.mem_singleton.1 hc ▸ ha)) (hne hc')
+    · exact (List.mem_singleton.1 hc).trans (List.mem_singleton.1 hc').symm
+  · exact (congrArg (env σ p q s) (dr_zero r)).trans hσ.r0
 
 theorem heap_subset_step (σ : Config supp) (r : Rule supp)
     (p q s : ℕ) : σ.heap ⊆ (step θ σ r p q s).heap :=
@@ -213,36 +204,30 @@ theorem fire_iff {σ : Config supp} (hσ : WellFormed σ) {κ : RecKind} {p q s 
         (st : (universalMachine θ supp).Step) :
     Mach.Fire σ st ↔ (rule θ supp st.1).src = σ.mode ∧ (rule θ supp st.1).lk = κ ∧
       (rule θ supp st.1).rd.toList <+: σ.inp ∧ st.2 = env σ p q s := by
+  obtain ⟨r, v⟩ := st
   have hla : ∀ r,
       (universalMachine θ supp).la r = loadReg (rule θ supp r).src := fun r => la_eq θ supp r
   constructor
   · intro hf
-    have hs : (rule θ supp st.1).src = σ.mode := hf.src
-    have h0 : (Mach.ld st).2 0 = σ.regs (loadReg σ.mode) := by
-      have : (Mach.ld st).2 0 = st.2 (rv ((universalMachine θ supp).la st.1)) := rfl
-      rw [this, hf.regs, hla, hs]
+    have h0 : (Mach.ld (r, v)).2 0 = σ.regs (loadReg σ.mode) := by
+      change (r, v).2 (rv ((universalMachine θ supp).la r)) = _
+      rw [hf.regs, hla]
+      exact congrArg (σ.regs ∘ loadReg) hf.src
     have h1 := hσ.fn _ hf.load _ hrec h0
-    have h2 := congrArg Prod.fst h1
-    have h3 := fun i => congrFun (congrArg Prod.snd h1) i
-    refine ⟨hs, h2, hf.read, ?_⟩
-    funext i
+    refine ⟨hf.src, congrArg Prod.fst h1, hf.read, funext fun i => ?_⟩
     fin_cases i
-    exacts [hf.regs 0, hf.regs 1, hf.regs 2, hf.regs 3, hf.regs 4, h3 1, h3 2, h3 3, hf.fresh]
-  · rintro ⟨hs, hk, hr, he⟩
-    have hregs : ∀ j, st.2 (rv j) = σ.regs j := by
-      intro j
-      rw [he]
-      fin_cases j <;> rfl
-    refine ⟨hs, hregs, by rw [he]; rfl, ?_, hr⟩
-    have : Mach.ld st = (κ, ![σ.regs (loadReg σ.mode), p, q, s]) := by
+    exacts [hf.regs 0, hf.regs 1, hf.regs 2, hf.regs 3, hf.regs 4,
+      congrFun (congrArg Prod.snd h1) 1, congrFun (congrArg Prod.snd h1) 2,
+      congrFun (congrArg Prod.snd h1) 3, hf.fresh]
+  · rintro ⟨hs, hk, hr, rfl⟩
+    have hregs : ∀ j, env σ p q s (rv j) = σ.regs j := fun j => by fin_cases j <;> rfl
+    have h0 : env σ p q s (rv ((universalMachine θ supp).la r)) = σ.regs (loadReg σ.mode) := by
+      rw [hregs, hla, hs]
+    have hld : Mach.ld (r, env σ p q s) = (κ, ![σ.regs (loadReg σ.mode), p, q, s]) := by
       refine Prod.ext hk ?_
-      have h0 : st.2 (rv ((universalMachine θ supp).la st.1)) = σ.regs (loadReg σ.mode) :=
-          by rw [hregs, hla, hs]
-      change ![st.2 (rv ((universalMachine θ supp).la st.1)), st.2 5, st.2 6, st.2 7] = _
-      rw [h0, he]
-      rfl
-    rw [this]
-    exact hrec
+      change ![env σ p q s (rv ((universalMachine θ supp).la r)), p, q, s] = _
+      rw [h0]
+    exact ⟨hs, hregs, rfl, hld ▸ hrec, hr⟩
 
 /-- A rule that applies in a mode other than `parse`, and not to the nil record in the mode
 `decode 7`, is not chosen. -/
@@ -262,10 +247,8 @@ theorem sumTo_rule {σ : Config supp} (hσ : WellFormed σ) {κ : RecKind} {p q 
         (hs : (rule θ supp r).src = σ.mode) (hk : (rule θ supp r).lk = κ)
     {S : A} {B : ℤ} (h : Mach.SumTo (universalMachine θ supp) (step θ σ r p q s) S B) :
     Mach.SumTo (universalMachine θ supp) σ ((rule θ supp r).wt * S) (B + 1) := by
-  have hz : σ.mode ≠ (universalMachine θ supp).mh := by
-    rw [← hs]
-    exact src_ne_halt r
-  refine Mach.SumTo.one hz (r, env σ p q s) (fun st' => ?_) h
+  refine Mach.SumTo.one (P := universalMachine θ supp) (hs ▸ src_ne_halt r)
+    (r, env σ p q s) (fun st' => ?_) h
   rw [fire_iff hσ hrec]
   constructor
   · rintro ⟨h1, h2, -, h4⟩

@@ -131,13 +131,9 @@ omit [Fintype ι] in
 private theorem piecewise_mem_certRect {v c : N} {X : Finset ι} (hcX : C.vars c ⊆ X)
     {x z : ι → Bool} (hx : x ∈ certRect C v c X) (hz : z ∈ certRect C v c X) :
     X.piecewise x z ∈ certRect C v c X := by
-  obtain ⟨hxc, -⟩ := hx
   obtain ⟨-, y, hy, hzy⟩ := hz
-  refine ⟨?_, y, hy, fun i hi => ?_⟩
-  · rw [C.eval_congr c fun i hi => Finset.piecewise_eq_of_mem _ _ _ (hcX hi)]
-    exact hxc
-  · rw [Finset.piecewise_eq_of_notMem _ _ _ hi]
-    exact hzy i hi
+  exact ⟨(C.eval_congr c fun i hi => Finset.piecewise_eq_of_mem _ _ _ (hcX hi)).trans hx.1,
+    y, hy, fun i hi => (Finset.piecewise_eq_of_notMem _ _ _ hi).trans (hzy i hi)⟩
 
 omit [Fintype ι] in
 private theorem certRect_subset (hC : C.IsDecomposable) {v c : N} {X : Finset ι}
@@ -287,16 +283,14 @@ rectangles. -/
 theorem exists_isCover [Fintype N] (hC : C.IsDecomposable) (hn : 2 ≤ Fintype.card ι) :
     ∃ R : Fin C.size → Set (ι → Bool), IsCover (C.toFun ⁻¹' {true}) R := by
   obtain ⟨R, hR, hU⟩ := exists_nodeCover hC hn
-  refine ⟨fun i => R ((Fintype.equivFin N).symm i), fun i => hR _, ?_⟩
-  rw [← hU]
-  exact (Fintype.equivFin N).symm.iSup_comp (g := R)
+  exact ⟨fun i => R ((Fintype.equivFin N).symm i), fun i => hR _,
+    ((Fintype.equivFin N).symm.iSup_comp (g := R)).trans hU⟩
 
 /-- **[BovaCapelliMengelSlivovsky2016], [ArenasBroadrickLiewVanDenBroeck2026, Theorem 3.1].**
 Every DNNF computing `f` over at least two variables has at least `Cov^m_1(f)` nodes. -/
 theorem coverNumberFun_le_size [Fintype N] (hC : C.IsDecomposable) (hn : 2 ≤ Fintype.card ι) :
-    coverNumberFun true C.toFun ≤ C.size := by
-  obtain ⟨R, hR⟩ := exists_isCover hC hn
-  exact hR.coverNumber_le
+    coverNumberFun true C.toFun ≤ C.size :=
+  (exists_isCover hC hn).elim fun _ hR => hR.coverNumber_le
 
 /-- Every DNNF computing `¬f` over at least two variables has at least `Cov^m_0(f)` nodes. -/
 theorem coverNumberFun_false_le_size [Fintype N] (hC : C.IsDecomposable) (hn : 2 ≤ Fintype.card ι)

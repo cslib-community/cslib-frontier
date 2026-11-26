@@ -130,8 +130,7 @@ private theorem johnsonRadius_eq_sub_sqrt {q : ℝ} (hq : 1 < q) (δ : ℝ) :
 
 theorem johnsonRadius_nonneg {q δ : ℝ} (hq : 1 < q) (hδ : 0 ≤ δ) :
     0 ≤ johnsonRadius q δ := by
-  have hq1 : 0 < q - 1 := sub_pos.2 hq
-  have hnn : 0 ≤ q * δ / (q - 1) := by positivity
+  have hnn : 0 ≤ q * δ / (q - 1) := div_nonneg (mul_nonneg (by linarith) hδ) (sub_nonneg.2 hq.le)
   exact mul_nonneg (sub_nonneg.2 ((div_le_one (zero_lt_one.trans hq)).2 hq.le))
     (sub_nonneg.2 (Real.sqrt_le_one.2 (by linarith)))
 
@@ -183,9 +182,7 @@ theorem tendsto_johnsonRadius_atTop (δ : ℝ) :
   have hqsub : Tendsto (fun q : ℝ => q / (q - 1)) atTop (nhds 1) := by
     refine ((hθ.inv₀ one_ne_zero).congr' ?_).trans (by simp)
     filter_upwards [eventually_gt_atTop (1 : ℝ)] with q hq
-    have hq0 : q ≠ 0 := (zero_lt_one.trans hq).ne'
-    have hq1 : q - 1 ≠ 0 := sub_ne_zero.2 hq.ne'
-    field_simp
+    rw [one_sub_div (zero_lt_one.trans hq).ne', inv_div]
   have hinner : Tendsto (fun q : ℝ => 1 - q * δ / (q - 1)) atTop (nhds (1 - δ)) := by
     simpa only [div_mul_eq_mul_div, one_mul] using
       (tendsto_const_nhds (x := (1 : ℝ))).sub (hqsub.mul_const δ)
@@ -374,8 +371,8 @@ theorem isListDecodable_of_le_johnsonRadius [Nonempty ι] [Fintype α]
   have hdn_eq : ((q : ℝ) - 1) * δ * n ^ 2 = ((q : ℝ) - 1) * n * d := by
     dsimp only [δ]
     field_simp
-  refine Nat.le_floor ((le_div_iff₀ (by positivity)).2 ?_)
-  exact le_of_mul_le_mul_right (by linarith [hjohnR]) (sq_pos_of_pos hnR)
+  exact Nat.le_floor ((le_div_iff₀ (by positivity)).2
+    (le_of_mul_le_mul_right (by linarith [hjohnR]) (sq_pos_of_pos hnR)))
 
 /-- **The alphabet-free (`q → ∞`) real Johnson bound** [Johnson1962] (locator unverified),
 [GuruswamiRudraSudan2019] (locator unverified): whatever the alphabet `α`, a code `C : Set (ι → α)`
@@ -460,10 +457,8 @@ theorem isListDecodable_reedSolomon [Nonempty ι] {F : Type*} [Field F] [Decidab
   have hsub : n - k + 1 = n - (k - 1) := by omega
   have hd_eq : ((n - k + 1 : ℕ) : ℝ) / n = 1 - ((k - 1 : ℕ) : ℝ) / n := by
     rw [hsub, Nat.cast_sub (by omega), sub_div, div_self hnR.ne']
-  have hρ' : ρ ≤ johnsonRadiusLimit (((n - k + 1 : ℕ) : ℝ) / n) - ε := by
-    rwa [johnsonRadiusLimit, hd_eq, sub_sub_cancel]
-  simpa only [← hd_eq] using
-    isListDecodable_of_le_johnsonRadiusLimit (le_minDist_reedSolomon hα k) hε hρ'
+  simpa only [← hd_eq] using isListDecodable_of_le_johnsonRadiusLimit
+    (le_minDist_reedSolomon hα k) hε (by rwa [johnsonRadiusLimit, hd_eq, sub_sub_cancel])
 
 end JohnsonBounds
 

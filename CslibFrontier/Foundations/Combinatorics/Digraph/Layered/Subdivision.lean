@@ -252,15 +252,14 @@ private theorem nonempty_path_iff_reachable {W : Type*} (r : W → W → Prop) (
     Nonempty (@Quiver.Path W ⟨fun u v => PLift (r u v)⟩ a b) ↔
       Relation.ReflTransGen r a b := by
   let _ : Quiver W := ⟨fun u v => PLift (r u v)⟩
-  constructor
+  refine ⟨?_, fun h => ?_⟩
   · rintro ⟨p⟩
     induction p with
     | nil => exact .refl
     | cons _ e ih => exact ih.tail e.down
-  · intro h
-    induction h with
+  · induction h with
     | refl => exact ⟨.nil⟩
-    | tail _ e ih => exact ih.map (fun p => p.cons ⟨e⟩)
+    | tail _ e ih => exact ih.map (·.cons ⟨e⟩)
 
 /-- Reachability between subdivision roots is exactly reachability between the original
 vertices, for every weight assignment within the subdivision bound. -/
@@ -280,10 +279,7 @@ private theorem length_chain (v : V) (i : ℕ) (hi : i ≤ weight v) (hb : i ≤
     @Quiver.Path.length _ (toQuiver G weight bound) _ _ (chain v i hi hb) = i := by
   induction i with
   | zero => rfl
-  | succ i ih =>
-    change @Quiver.Path.length _ (toQuiver G weight bound) _ _
-      (chain v i (by omega) (by omega)) + 1 = i + 1
-    rw [ih]
+  | succ i ih => exact congrArg Nat.succ (ih (by omega) (by omega))
 
 /-- Expansion replaces departure weight by literal unweighted edges, with one extra edge
 per original edge. The formula includes the empty path. -/
@@ -322,14 +318,14 @@ private theorem departureCost_eq {a b : V} (p : G.Path a b) (h : a ≠ b) :
       simp [Quiver.Path.addWeightOfEPs_cons, Quiver.Path.addWeightOfEPs_nil,
         LayeredDigraph.Path.internalWeight, LayeredDigraph.Path.internalVertices,
         Quiver.Path.vertices_cons, Quiver.Path.vertices_nil, LayeredDigraph.Path.length]
-    · have hp : G.layer a < G.layer b := by
-        have hl : G.layer b = G.layer a + p.length := LayeredDigraph.Path.layer_end (G := G) p
-        have hn : p.length ≠ 0 := fun hz => hab (p.eq_of_length_zero hz)
-        omega
+    · have hp : G.layer a < G.layer b :=
+        (Nat.lt_add_of_pos_right
+          (Nat.pos_of_ne_zero (mt p.eq_of_length_zero hab))).trans_eq
+          (LayeredDigraph.Path.layer_end (G := G) p).symm
       have hw : LayeredDigraph.Path.internalWeight weight (p.cons e) =
           LayeredDigraph.Path.internalWeight weight p + weight b + 0 :=
-        LayeredDigraph.Path.internalWeight_comp weight p (LayeredDigraph.Path.ofAdj e.down) hp
-          (by have := G.layer_adj e.down; omega)
+        LayeredDigraph.Path.internalWeight_comp weight p (.ofAdj e.down) hp
+          ((Nat.lt_succ_self _).trans_eq (G.layer_adj e.down).symm)
       rw [Quiver.Path.addWeightOfEPs_cons, ih hab, hw]
       simp only [LayeredDigraph.Path.length, Quiver.Path.length_cons] at *
       omega
@@ -343,8 +339,7 @@ theorem length_pathEquiv_le_iff (hw : ∀ v, weight v ≤ bound) (s : V) (v : Ve
   let _ := G.toQuiver
   let _ := toQuiver G weight bound
   by_cases heq : s = v.vertex
-  · have hsame := LayeredDigraph.Path.eq_of_layer_le_succ
-      (by rw [heq]; exact Nat.le_succ _) p q
+  · have hsame := LayeredDigraph.Path.eq_of_layer_le_succ (heq ▸ Nat.le_succ _) p q
     simp [hsame]
   · rw [length_pathEquiv, length_pathEquiv, departureCost_eq p heq, departureCost_eq q heq]
     have hp := LayeredDigraph.Path.layer_end p

@@ -376,17 +376,14 @@ theorem card_hasInteriorExit_eq :
     ((triangles W H).filter (HasInteriorExit c W H)).card =
       ((triangles W H).filter (HasInteriorEntry c W H)).card := by
   refine Finset.card_nbij' (next c W H) (prev c W H) ?_ ?_ ?_ ?_ <;> intro t ht <;>
-    simp only [Finset.coe_filter, mem_triangles, Set.mem_ofPred_eq] at ht ⊢
-  · obtain ⟨hg, k, hk, hi⟩ := ht
-    rw [next_eq_across hk hi]
-    exact ⟨(gluing hg hi).1, _, isEntry_across c hg hi hk, (gluing hg hi).2.1⟩
-  · obtain ⟨hg, k, hk, hi⟩ := ht
-    rw [prev_eq_across hk hi]
-    exact ⟨(gluing hg hi).1, _, isExit_across c hg hi hk, (gluing hg hi).2.1⟩
-  · obtain ⟨hg, _, hk, hi⟩ := ht
-    exact prev_next hg hk hi
-  · obtain ⟨hg, _, hk, hi⟩ := ht
-    exact next_prev hg hk hi
+    simp only [Finset.coe_filter, mem_triangles, Set.mem_ofPred_eq] at ht ⊢ <;>
+    obtain ⟨hg, k, hk, hi⟩ := ht
+  · exact next_eq_across hk hi ▸
+      ⟨(gluing hg hi).1, _, isEntry_across c hg hi hk, (gluing hg hi).2.1⟩
+  · exact prev_eq_across hk hi ▸
+      ⟨(gluing hg hi).1, _, isExit_across c hg hi hk, (gluing hg hi).2.1⟩
+  · exact prev_next hg hk hi
+  · exact next_prev hg hk hi
 
 /-- **Index theorem for the door graph.** In every colouring of the `W × H` grid, the number of
 sinks plus the number of boundary exit doors equals the number of sources plus the number of
@@ -516,36 +513,30 @@ theorem prev_eq_self_of_not {t : GridTriangle} (h : ¬HasInteriorEntry c W H t) 
 theorem inGrid_next {t : GridTriangle} (ht : InGrid W H t) : InGrid W H (next c W H t) := by
   by_cases h : HasInteriorExit c W H t
   · obtain ⟨k, hk, hi⟩ := h
-    rw [next_eq_across hk hi]
-    exact (gluing ht hi).1
+    exact next_eq_across hk hi ▸ (gluing ht hi).1
   · rwa [next_eq_self_of_not h]
 
 theorem inGrid_prev {t : GridTriangle} (ht : InGrid W H t) : InGrid W H (prev c W H t) := by
   by_cases h : HasInteriorEntry c W H t
   · obtain ⟨k, hk, hi⟩ := h
-    rw [prev_eq_across hk hi]
-    exact (gluing ht hi).1
+    exact prev_eq_across hk hi ▸ (gluing ht hi).1
   · rwa [prev_eq_self_of_not h]
 
-theorem next_ne_self_iff {t : GridTriangle} : next c W H t ≠ t ↔ HasInteriorExit c W H t := by
-  refine ⟨fun h => by_contra fun h' => h (next_eq_self_of_not h'), fun ⟨k, hk, hi⟩ => ?_⟩
-  rw [next_eq_across hk hi]
-  exact across_ne_self t k
+theorem next_ne_self_iff {t : GridTriangle} : next c W H t ≠ t ↔ HasInteriorExit c W H t :=
+  ⟨fun h => by_contra fun h' => h (next_eq_self_of_not h'),
+    fun ⟨k, hk, hi⟩ => next_eq_across hk hi ▸ across_ne_self t k⟩
 
-theorem prev_ne_self_iff {t : GridTriangle} : prev c W H t ≠ t ↔ HasInteriorEntry c W H t := by
-  refine ⟨fun h => by_contra fun h' => h (prev_eq_self_of_not h'), fun ⟨k, hk, hi⟩ => ?_⟩
-  rw [prev_eq_across hk hi]
-  exact across_ne_self t k
+theorem prev_ne_self_iff {t : GridTriangle} : prev c W H t ≠ t ↔ HasInteriorEntry c W H t :=
+  ⟨fun h => by_contra fun h' => h (prev_eq_self_of_not h'),
+    fun ⟨k, hk, hi⟩ => prev_eq_across hk hi ▸ across_ne_self t k⟩
 
 theorem prev_next_of_hasInteriorExit {t : GridTriangle} (ht : InGrid W H t)
     (h : HasInteriorExit c W H t) : prev c W H (next c W H t) = t :=
-  let ⟨_, hk, hi⟩ := h
-  prev_next ht hk hi
+  h.elim fun _ h => prev_next ht h.1 h.2
 
 theorem next_prev_of_hasInteriorEntry {t : GridTriangle} (ht : InGrid W H t)
     (h : HasInteriorEntry c W H t) : next c W H (prev c W H t) = t :=
-  let ⟨_, hk, hi⟩ := h
-  next_prev ht hk hi
+  h.elim fun _ h => next_prev ht h.1 h.2
 
 /-- Following an interior exit door never leads back to `start`: the entry door of `start` lies
 on the boundary. -/
@@ -555,10 +546,9 @@ theorem IsSpernerColoring.next_ne_start (hc : IsSpernerColoring N c) {t : GridTr
   obtain ⟨hg, hi', -, -, -⟩ := gluing ht hi
   rw [next_eq_across hk hi]
   intro hs
-  have he := hs ▸ isEntry_across c ht hi hk
-  rw [hs] at hi' hg
-  rw [isEntry_unique c he (hc.isEntry_start (inGrid_start_iff.mp hg))] at hi'
-  exact Bool.noConfusion hi'
+  have he := isEntry_across c ht hi hk
+  rw [hs] at he hi' hg
+  exact Bool.noConfusion (isEntry_unique c he (hc.isEntry_start (inGrid_start_iff.mp hg)) ▸ hi')
 
 theorem IsSpernerColoring.hasInteriorExit_iff (hc : IsSpernerColoring N c) {t : GridTriangle}
     (ht : InGrid N N t) : HasInteriorExit c N N t ↔ HasExit c t := by

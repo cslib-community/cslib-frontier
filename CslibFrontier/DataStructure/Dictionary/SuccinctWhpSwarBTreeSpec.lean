@@ -186,8 +186,7 @@ private theorem descendToLeaf_reaches_leaf {isRoot : Bool}
       refine ⟨hidx, hmeta, hdeg, hcnt_le, hkw, hvw, hlo0, hhi_last, hmono, hnot, hdisj, hht,
         fun i => ?_⟩
       rcases eq_or_ne i r with rfl | hi
-      · rw [Function.update_self]
-        exact ⟨hroot' ▸ (hcs _).1, hv'⟩
+      · simpa only [Function.update_self] using ⟨hroot' ▸ (hcs _).1, hv'⟩
       · rw [Function.update_of_ne hi]
         exact ⟨(hcs i).1, (hcs i).2.frame le_rfl
           (fun v hv_in => Function.update_of_ne
@@ -229,8 +228,7 @@ theorem btreeLookup_eq_of_subtree {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
   have hhi : 2 ^ fpBits - 1 < 2 ^ fpBits := Nat.sub_one_lt (Nat.two_pow_pos fpBits).ne'
   obtain ⟨cntL, loL, hiL, _, _, hloL_q, hq_hiL, hhiL_le, hv_leaf, _⟩ :=
     descendToLeaf_reaches_leaf ht2 hcap hv hhi (Nat.zero_le q) (by omega) hfuel
-  rw [hroot] at hv_leaf
-  rw [btreeLookup, ite_eq_right (by omega)]
+  rw [btreeLookup, ite_eq_right (by omega), ← hroot]
   obtain ⟨-, -, -, ⟨hrc, hkey, hmap⟩ | ⟨hno, hmap⟩⟩ :=
     hv_leaf.leaf_rank (by omega) hcap (hhiL_le.trans_lt hhi) hloL_q hq_hiL
   · simp [hv_leaf.2.1, hrc, hkey, hmap]
@@ -390,7 +388,7 @@ private theorem childLo_window {W lo K K' a i m : ℕ}
     childLo W (childLo W lo K a) K' i = childLo W lo K (a + i) := by
   rcases Nat.eq_zero_or_pos i with rfl | hi
   · simp [childLo]
-  · simp [childLo, hi.ne', hkeys (i - 1) (by omega), show a + (i - 1) = a + i - 1 by omega]
+  · simp [childLo, hi.ne', hkeys (i - 1) (by omega), Nat.add_sub_assoc hi]
 
 /-- Right endpoint of child `i` of a window of `m + 1` children starting at child `a`. -/
 private theorem childHi_window {W hi cnt K K' a i m : ℕ}
@@ -546,8 +544,7 @@ theorem splitFullNode_spec {isRoot : Bool} {fpBits W_val tMin alloc alloc' lo hi
     refine ⟨_, _, by rfl, by rfl, by simp [hl_nd], by simp [hr_nd], hhtL, hhtR, hsubL,
       hsubR, ?_, hlo0.trans (lanes_le hmono _ _ (Nat.zero_le _) (by omega)),
       (hmono (tMin - 1) (cnt - 1) (by omega) (by omega)).trans hhi_last, ?_, hvL, hvR⟩
-    · rw [disjoint_left]
-      intro v hL hR
+    · refine disjoint_left.mpr fun v hL hR => ?_
       rw [BTreeTree.nodeSet, mem_insert, mem_biUnion] at hL hR
       rcases hL with rfl | ⟨i, _, hvi⟩ <;> rcases hR with heq | ⟨j, _, hvj⟩
       · exact hlr_ne heq
@@ -608,10 +605,8 @@ theorem splitRootIfFull_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
       by simp; omega, ?_, ?_, ?_⟩
     · rw [BTreeTree.height_branch_of_eq hht_root]
       exact (Nat.add_comm _ _).trans_le (Nat.add_le_add_right hhtL.le 1)
-    · have halloc2 : sl.alloc + 2 - 1 = sl.alloc - 1 + 2 := by omega
-      rw [halloc2, Nat.mul_add, BTreeTree.potential, Fin.sum_univ_two, Matrix.cons_val_zero,
-        Matrix.cons_val_one, Matrix.cons_val_zero]
-      omega
+    · rw [Nat.sub_add_comm halloc_pos, Nat.mul_add, BTreeTree.potential, Fin.sum_univ_two]
+      simp only [Matrix.cons_val_zero, Matrix.cons_val_one]; omega
     · have hsep_lt : (splitFullNode fpBits W_val tMin (sl.nodes sl.root)).sep < 2 ^ (fpBits + 2) :=
         hsep_hi.trans ((Nat.sub_le _ _).trans_lt (Nat.pow_lt_pow_right (by decide) (by omega)))
       have hlane0 : laneGet (fpBits + 2) (splitFullNode fpBits W_val tMin (sl.nodes sl.root)).sep 0
@@ -628,12 +623,12 @@ theorem splitRootIfFull_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
           (Nat.mul_le_mul_right _ halloc_val)
         rw [Nat.shiftLeft_eq, Nat.two_mul, Nat.pow_add]
         omega
-      have hne1 : sl.root ≠ sl.alloc + 1 := by omega
       simp only [ValidSubtree, Function.update_self, ↓reduceIte, le_refl, Nat.one_mul,
         Nat.sub_self, hlane0]
       refine ⟨by omega, trivial, trivial, by omega, hsep_lt, hvals_lt, Nat.zero_le _, hsep_hi,
         fun i j hij hj => by omega,
-        Fin.forall_fin_two.2 ⟨mt (hsubL ·) (by simp [hroot_lt.ne]), mt (hsubR ·) (by simp [hne1])⟩,
+        Fin.forall_fin_two.2 ⟨mt (hsubL ·) (by simp [hroot_lt.ne]),
+          mt (hsubR ·) (by simp [(hroot_lt.trans (Nat.lt_succ_self _)).ne])⟩,
         by simp [Fin.forall_fin_two, hdisjLR, hdisjLR.symm], hht_root,
         Fin.forall_fin_two.2
           ⟨⟨hval0.trans hrtL.symm, by simpa [childLo, childHi, hlane0] using hvL⟩,

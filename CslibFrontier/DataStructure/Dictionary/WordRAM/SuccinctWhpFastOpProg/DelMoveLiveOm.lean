@@ -76,16 +76,13 @@ private theorem realizes_delMoveOmInsertInc :
           ValidWhpSlice n_max (fs.overmarsInsCount b) (fs.slices omIdx) om)
       (fun _ _ => 0) := by
   unfold delMoveOmInsertIncProg
-  have hbi := realizes_btreeInsertGen
-  have hrb := realizes_readBktFieldGen
-  have hwb := realizes_writeBktFieldGen
-  realize
+  realize [realizes_btreeInsertGen, realizes_readBktFieldGen, realizes_writeBktFieldGen]
   all_goals (
     rcases d with ⟨⟨⟨cp, base⟩, ⟨b, omIdx⟩⟩, ⟨fp_live_last, loc_del⟩⟩
     dsimp only at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, om, henv, rfl, hseed, hrep, hb, rfl, homIdx,
+    obtain ⟨c, U, V, _, n_max, θ, fs, om, henv, rfl, hseed, hrep, hb, rfl, homIdx,
       hld, hfp, hins_lt, hv_om⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
+    cases henv.2.2.1
     have hth := henv.2.2.2.1
     have hML12 := numBucketsWhp_mul_scale_pow12_le hth
     have h8L12 : 8 * (slabScale n_max) ^ 12 ≤ n_max :=
@@ -184,16 +181,13 @@ private theorem realizes_delMoveOmActive :
           ValidWhpSlice n_max (fs.overmarsInsCount b) (fs.slices (fs.overmarsSliceIdx b)) om)
       (fun _ _ => 0) := by
   unfold delMoveOmActiveProg
-  have hrb := realizes_readBktFieldGen
-  have hbu := realizes_btreeUpdateGen
-  have hmi := realizes_delMoveOmInsertInc
-  realize
+  realize [realizes_readBktFieldGen, realizes_btreeUpdateGen, realizes_delMoveOmInsertInc]
   all_goals (
     rcases d with ⟨⟨⟨cp, base⟩, b⟩, ⟨⟨loc_del, loc_last⟩, fp_live_last⟩⟩
     dsimp only at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, om, henv, rfl, hseed, hrep, hb, hor, hld, hfp,
+    obtain ⟨c, U, V, _, n_max, θ, fs, om, henv, rfl, hseed, hrep, hb, hor, hld, hfp,
       hins_lt, hv_om⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
+    cases henv.2.2.1
     have hth := henv.2.2.2.1
     have h3M := (large_index_bounds hth).2.2.2.2.1
     have hval_ld := loc_lt_two_pow_valLaneBits hld
@@ -248,14 +242,12 @@ private theorem realizes_delMoveOmSub :
               (fs.slices (fs.overmarsSliceIdx b)) om))
       (fun _ _ => 0) := by
   unfold delMoveOmSubProg
-  have hrb := realizes_readBktFieldGen
-  have hma := realizes_delMoveOmActive
-  realize
+  realize [realizes_readBktFieldGen, realizes_delMoveOmActive]
   all_goals (
     rcases d with ⟨⟨⟨cp, base⟩, b⟩, ⟨⟨loc_del, loc_last⟩, fp_live_last⟩⟩
     dsimp only at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, rfl, hseed, hrep, hb, hor, hld, hfp, hom_fn⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
+    obtain ⟨c, U, V, _, n_max, θ, fs, henv, rfl, hseed, hrep, hb, hor, hld, hfp, hom_fn⟩ := h
+    cases henv.2.2.1
     have hth := henv.2.2.2.1
     obtain ⟨hst_5, hres_5, _, _⟩ := readBktFieldGenProg_spec henv hb (by decide : 5 < 10)
       hrep (s := s)
@@ -388,16 +380,13 @@ private theorem realizes_delMoveLiveOmActive :
               (fs.slices (fs.overmarsSliceIdx b)) om))
       (fun _ _ => 0) := by
   unfold delMoveLiveOmActiveProg
-  have hrb := realizes_readBktFieldGen
-  have hbu := realizes_btreeUpdateGen
-  have hmo := realizes_delMoveOmSub
-  realize
+  realize [realizes_readBktFieldGen, realizes_btreeUpdateGen, realizes_delMoveOmSub]
   all_goals (
     rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, ⟨loc_del, loc_last⟩⟩, fp_live_last⟩
     dsimp only at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, lm, henv, rfl, hseed, hrep, hb, hlr, hor, hne_lo,
+    obtain ⟨c, U, V, _, n_max, θ, fs, lm, henv, rfl, hseed, hrep, hb, hlr, hor, hne_lo,
       hld, hfp, hlic, hv_l, hom_fn⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
+    cases henv.2.2.1
     have hth := henv.2.2.2.1
     have h3M := (large_index_bounds hth).2.2.2.2.1
     have hval_ld := loc_lt_two_pow_valLaneBits hld
@@ -463,18 +452,14 @@ theorem realizes_delMoveLiveOmGen :
               (fs.slices (fs.overmarsSliceIdx b)) om))
       (fun _ _ => 0) := by
   unfold delMoveLiveOmGenProg
-  have hrh := realizes_readHdr
-  have hro := realizes_readOldEp
-  have hrb := realizes_readBktFieldGen
-  have hil := realizes_inLiveTree
-  have hma := realizes_delMoveLiveOmActive
-  realize
+  realize [realizes_readHdr, realizes_readOldEp, realizes_readBktFieldGen,
+    realizes_inLiveTree, realizes_delMoveLiveOmActive]
   all_goals (
     rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, ⟨loc_del, loc_last⟩⟩, ⟨st_last, fp_live_last⟩⟩
     dsimp only at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, lm, henv, rfl, hseed, hrep, hce, hb, hlr, hor, hne_lo,
+    obtain ⟨c, U, V, _, n_max, θ, fs, lm, henv, rfl, hseed, hrep, hce, hb, hlr, hor, hne_lo,
       hld, hfp, hlic, hv_l, hom_fn⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
+    cases henv.2.2.1
     have hth := henv.2.2.2.1
     have h2w := henv.two_le_w
     have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega

@@ -147,8 +147,7 @@ private theorem exists_bisection_step {V_fin : Type}
   have hfV : f (Nat.card V_fin) = n := by
     simp only [f, lay.initial_of_card_le le_rfl, mem_univ, ofPred_true, ncard_univ,
       Nat.card_eq_fintype_card, Fintype.card_fin]
-  have hstep : ∀ t < Nat.card V_fin, f (t + 1) ≤ f t + 1 := by
-    intro t ht
+  have hstep (t : ℕ) (ht : t < Nat.card V_fin) : f (t + 1) ≤ f t + 1 := by
     simp only [f, lay.initial_succ ht]
     have hle1 : {i : Fin n | leaf i = lay.symm ⟨t, ht⟩}.ncard ≤ 1 :=
       (ncard_le_one (toFinite _)).mpr fun a (ha : leaf a = _) b (hb : leaf b = _) =>
@@ -157,15 +156,15 @@ private theorem exists_bisection_step {V_fin : Type}
         (lay.initial t)}) (t := {i | leaf i = lay.symm ⟨t, ht⟩} ∪ {i | leaf i ∈ lay.initial t})
       (fun _ hi => hi) (toFinite _)).trans (ncard_union_le _ _)
     omega
-  have hgoal_le : n / 2 ≤ f (Nat.card V_fin) := by rw [hfV]; exact Nat.div_le_self n 2
+  have hgoal_le : n / 2 ≤ f (Nat.card V_fin) := hfV.symm ▸ Nat.div_le_self n 2
   have hP : ∃ t, n / 2 ≤ f t := ⟨_, hgoal_le⟩
   have hfeq : f (Nat.find hP) = n / 2 := by
     have hspec := Nat.find_spec hP
-    by_cases h0 : Nat.find hP = 0
-    · rw [h0, hf0] at hspec ⊢; omega
-    · have := Nat.find_min hP (by omega : Nat.find hP - 1 < Nat.find hP)
-      have := hstep (Nat.find hP - 1) (by have := Nat.find_min' hP hgoal_le; omega)
-      rw [Nat.sub_add_cancel (by omega : 1 ≤ Nat.find hP)] at this
+    rcases eq_or_lt_of_le (Nat.zero_le (Nat.find hP)) with h0 | hpos
+    · rw [← h0, hf0] at hspec ⊢; omega
+    · have := Nat.find_min hP (Nat.sub_lt hpos one_pos)
+      have h1 := Nat.sub_add_cancel hpos ▸
+        hstep (Nat.find hP - 1) ((Nat.sub_lt hpos one_pos).trans_le (Nat.find_min' hP hgoal_le))
       omega
   refine ⟨Nat.find hP, (Nat.find_min' hP hgoal_le).lt_of_ne fun h => ?_, hfeq⟩
   rw [h, hfV] at hfeq; omega
@@ -232,8 +231,7 @@ private theorem finite_bisection_supply_demand {V_fin E_fin : Type}
       exact_mod_cast (ncard_le_ncard hB_sub (toFinite _)).trans_eq hXt
     have hB_ge : ((m / 2 : ℕ) : ℝ) ≤
         ({j | leaf j ∈ Bset}.ncard : ℝ) + ({j | leaf j ∈ W}.ncard : ℝ) := by
-      rw [← hXt]
-      exact_mod_cast (ncard_le_ncard hinit_sub (toFinite _)).trans (ncard_union_le _ _)
+      exact_mod_cast hXt ▸ (ncard_le_ncard hinit_sub (toFinite _)).trans (ncard_union_le _ _)
     rcases hclosed_dich Bset hB_cut with hBs | hBl <;> linarith
   have hw_ρ_le : w_r * (G.cycleRankOn W : ℝ) ≤ w_r * ((s : ℝ) + 1) - m + (slack + e_defic) := by
     linarith [hρ_comp W hW_cut (G.ncard_component_le_ncard_touching_add_one _)]
@@ -265,7 +263,8 @@ private theorem step_contradiction_of_supply_demand {A η C_lay w_r c_edge ε₀
         w_r * η * V_r + w_r * C_lay)) : False := by
   set c_star := 1 + w_r / (2 * c_edge * A)
   have hc_star_pos : 1 < c_star := lt_add_of_pos_right 1 (by positivity)
-  have hs_ub : s_r ≤ c_star * n_r := by nlinarith
+  have hs_ub : s_r ≤ c_star * n_r :=
+    hsize.trans (mul_le_mul_of_nonneg_right (by linarith) (by linarith))
   have hmain : c_edge * A * (w_r * (s_r - n_r)) ≤
       w_r * (w_r * n_r / 2) - w_r * c_edge * A * ε₀ * n_r := by
     have h2 := mul_le_mul_of_nonneg_left hsize (by positivity : 0 ≤ c_edge * A * w_r)
@@ -288,11 +287,9 @@ private theorem step_contradiction_of_supply_demand {A η C_lay w_r c_edge ε₀
   have hsub_term : (w_r + c_edge * (A + η)) * sub_err +
       w_r + c_edge * ((A + η) * w_r + w_r * C_lay) ≤
       w_r * c_edge * A * ε₀ / 4 * n_r := by
-    have hA2 : A + η ≤ 2 * A := by linarith
-    have hC := le_abs_self C_lay
-    have h2 : c_edge * ((A + η) * w_r + w_r * C_lay) ≤ c_edge * (2 * A * w_r + w_r * |C_lay|) := by
-      gcongr
-    linarith [mul_le_mul_of_nonneg_right hslack_coef hsub_nn]
+    have hcw : 0 ≤ c_edge * w_r := by positivity
+    linarith [mul_le_mul_of_nonneg_right hslack_coef hsub_nn,
+      mul_le_mul_of_nonneg_left hη_le_A hcw, mul_le_mul_of_nonneg_left (le_abs_self C_lay) hcw]
   have hpos : 0 < w_r * c_edge * A * ε₀ / 4 * n_r := by positivity
   linarith
 
@@ -374,26 +371,24 @@ private theorem eventually_compiledQuantumNet_contradiction {d : ℕ} {A : ℝ} 
         w_r * ((twoQubitCount C : ℝ) + 1) := by
     dsimp only [w_r]; exact_mod_cast hρ_comp Comp hcut hconn
   obtain ⟨lay, hlay⟩ := hC_lay net.V net.E net.G net.loopless net.maxDeg
-  have hn24_r : (24 : ℝ) ≤ n := by exact_mod_cast hn24
-  have hm_pos : 1 ≤ m_fn n := by
-    exact_mod_cast (show (1 : ℝ) ≤ m_fn n by rw [hm_eq n]; nlinarith)
-  have he_add_le : (c_slack : ℝ) + (e_fn n : ℝ) ≤ (defic n : ℝ) := by exact_mod_cast he_le n
+  have hn24_r : (24 : ℝ) ≤ n := mod_cast hn24
   have hn_nn : (0 : ℝ) ≤ n := Nat.cast_nonneg n
+  have hm_pos : 1 ≤ m_fn n := mod_cast
+    (one_le_mul_of_one_le_of_one_le hw_ge_one (by linarith)).trans_eq (hm_eq n).symm
+  have he_add_le : (c_slack : ℝ) + (e_fn n : ℝ) ≤ (defic n : ℝ) := mod_cast he_le n
   have hfin := finite_bisection_supply_demand (w_r := w_r) (e_defic := (e_fn n : ℝ)) net.G lay
     (by positivity) (fun t ht => hlay t ht t le_rfl (by omega)) hm_pos hw_pos_r leaf hc_edge
     (hbis_M n) hcr_bound hρ_r
     (by rw [hm_eq n]; linarith [mul_le_mul_of_nonneg_right hw_ge_one hn_nn,
       mul_le_mul_of_nonneg_right hγ_le hn_nn])
   have h4B : 0 < 4 * Bcoef := by positivity
+  have hwA_nn : 0 ≤ w_r + 2 * c_edge * A := by positivity
   exact step_contradiction_of_supply_demand (C_lay := C_lay) (w_r := w_r) (c_edge := c_edge)
     (γ_coeff := γ_coeff) (sub_err := (c_slack : ℝ) + (e_fn n : ℝ))
     hA hη (min_le_left _ _) hw_ge_one hc_edge hε₀ hn24_r (Nat.cast_nonneg _)
     hγ_nn (by positivity) hsize net.card_V_le
-    (by linarith [(le_div_iff₀ h4B).mp (min_le_right A (A * ε₀ / (4 * Bcoef)))])
-    hγ_bound
-    (by
-      linarith [mul_le_mul_of_nonneg_left he_add_le (by positivity : 0 ≤ w_r + 2 * c_edge * A),
-        (le_abs_self _).trans herrn])
+    (by linarith [(le_div_iff₀ h4B).mp (min_le_right A (A * ε₀ / (4 * Bcoef)))]) hγ_bound
+    (by linarith [mul_le_mul_of_nonneg_left he_add_le hwA_nn, (le_abs_self _).trans herrn])
     (by rw [hm_eq n] at hfin; linarith)
 
 private theorem switched_coeff_eq (k c_sw : ℝ) (hk : k ≠ 0)

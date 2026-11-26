@@ -147,11 +147,10 @@ theorem exists_subdivision_embedding_with_reference_spokes {I : FixedRotationInp
     · exact Or.inl (hI.1.symm ▸ List.mem_range.mpr hsmall)
     · have hbound : v < I.graph.vertices.length + 2 * I.graph.edges.length := by
         simpa only [subdivisionGraph, subdivisionSize, List.mem_range] using hv
-      let j : Fin (2 * I.graph.edges.length) := ⟨v - I.graph.vertices.length, by omega⟩
-      let d := (Dart.indexEquiv I.graph).symm j
-      have hi : d.index = j.val :=
-        congrArg Fin.val ((Dart.indexEquiv I.graph).apply_symm_apply j)
-      exact Or.inr ⟨d, by rw [(subdivisionDart_endpoints I d).2, hi]; dsimp [j]; omega⟩
+      let d := (Dart.indexEquiv I.graph).symm ⟨v - I.graph.vertices.length, by omega⟩
+      have hi : d.index = v - I.graph.vertices.length :=
+        congrArg Fin.val ((Dart.indexEquiv I.graph).apply_symm_apply ⟨_, by omega⟩)
+      exact Or.inr ⟨d, by rw [(subdivisionDart_endpoints I d).2, hi]; omega⟩
   have hcf (d : Dart I.graph) : ‖D.cutPort ρ d - D.vertex d.vertex‖ = ρ := by
     simpa only [dist_eq_norm] using hD.dist_cutPort hρ.1.le d
   have hsupp (d : Dart I.graph) (hd : fixed d.vertex) :
@@ -201,23 +200,20 @@ theorem exists_subdivision_embedding_with_reference_spokes {I : FixedRotationInp
         have had := hD.cutPort_injective hρ.1 a d hsame
           (hbound d he.2 hx (hsame ▸ hportOutside a))
         refine ⟨!d.2, ?_⟩
-        change (subdivisionDart I d).reverse.vertex = v
-        simpa only [had] using ha.symm
+        exact (congrArg (fun x => (subdivisionDart I x).reverse.vertex) had.symm).trans ha.symm
     · obtain ⟨k, t, ht, hval⟩ := ((E.route e).mem_support_iff _).mp (by rwa [← hkeep e he])
       exact (hE.vertex_contacts e k t ht v hv hval).imp fun _ => And.right
   have hvertex : ∀ e (k : Fin (F.route e).segments) (t : ℝ), t ∈ Set.Icc 0 1 →
       ∀ v ∈ (subdivisionGraph I).vertices, (F.route e).eval k t = F.vertex v →
       ∃ b, (F.route e).AtEnd k t b ∧ Dart.vertex (e, b) = v := by
     intro e k t ht v hv heq
-    have hmem := (F.route e).at_mem_support k ht
-    rw [heq] at hmem
-    obtain ⟨b, hb⟩ := hvertex_end e hv hmem
+    obtain ⟨b, hb⟩ := hvertex_end e hv (heq ▸ (F.route e).at_mem_support k ht)
     have hopen : (F.route e).start ≠ (F.route e).finish := by
       change (F.route e).endpoint false ≠ (F.route e).endpoint true
       rw [F.endpoint_eq, F.endpoint_eq]
       exact hE.vertex_ne (hdecl e false) (hdecl e true) (subdivision_endpoint_spec hI e).2
-    refine ⟨b, atEnd_of_eval_eq (hsimple e) hopen k ht b ?_, hb⟩
-    rw [F.endpoint_eq, hb, heq]
+    exact ⟨b, atEnd_of_eval_eq (hsimple e) hopen k ht b
+      (heq.trans (hb ▸ (F.endpoint_eq e b).symm)), hb⟩
   have hsameSpokes (d a : Dart I.graph) (hd : fixed d.vertex) (ha : fixed a.vertex)
       (hne : d ≠ a) {x : ℂ} (hx : x ∈ (spoke d hd).support) (hy : x ∈ (spoke a ha).support) :
       x = D.vertex d.vertex := by

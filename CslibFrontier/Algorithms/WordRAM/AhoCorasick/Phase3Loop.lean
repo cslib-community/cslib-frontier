@@ -397,28 +397,21 @@ theorem exec_bfsBuild (inp : Input) (w : ℕ) (hvalid : inp.Valid)
   have hchar := inp.char_iff hvalid
   have hlo := layout_order inp
   have h1_maxS : 1 ≤ inp.maxS := by omega
-  have h0_code : ∃ x₀, ExecWithin (B := .standard) w
-      (ram[ r1 ← #0; r2 ← #0; r5 ← #0 ]) x x₀ 3 ∧
-      x₀.regs r1 = 0 ∧ x₀.regs r2 = 0 ∧ x₀.regs r5 = 0 ∧ x₀.mem = x.mem := by
-    refine WP.exists_execWithin ?_
+  let x₀ := ((x.set r1 0).set r2 0).set r5 0
+  have he₀ : ExecWithin (B := .standard) w
+      ((ram[ r1 ← #0 ]).seq ((ram[ r2 ← #0 ]).seq (ram[ r5 ← #0 ]))) x x₀ 3 := by
     wram_exec
-    exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
-  obtain ⟨x₀, he₀, hx₀_r1, hx₀_r2, hx₀_r5, hx₀_mem⟩ := h0_code
   obtain ⟨x₁, he_rt, hL₁, hM₁, hx₁_r1, hx₁_r2⟩ :=
     exec_bfsRootLoop inp w hvalid hw inp.alphabetSize 0 PBFS.init x₀ (Nat.zero_add _)
-      (hL.of_preserves he₀) (bfsMem_init (by rwa [hx₀_mem])) (rootLoopInv_init hT) hx₀_r1 hx₀_r2
-      hx₀_r5
+      (hL.of_preserves he₀) (bfsMem_init hM) (rootLoopInv_init hT) rfl rfl rfl
   set B₀ := PBFS.rootLoop inp.trie inp.alphabetSize 0 PBFS.init
   obtain ⟨hBFS₀, hqh₀⟩ := bfsInv_rootLoop hT hchar hterm
   obtain ⟨y, he_out, hLy, hMy⟩ :=
     exec_bfsOuterLoop inp w hvalid hw inp.trie.numStates B₀ x₁ hL₁ hM₁ hBFS₀
       (by rw [hqh₀]; omega) (hx₁_r1.trans hqh₀.symm) hx₁_r2
-  have hcost_le :
-      3 + (21 * inp.alphabetSize + 2) + ((31 * inp.alphabetSize + 10) * inp.trie.numStates + 2) ≤
-        52 * inp.maxS * inp.alphabetSize + 10 * inp.maxS + 7 := by
-    linarith [Nat.mul_le_mul_left inp.alphabetSize hT_maxS,
-      Nat.mul_le_mul_right inp.alphabetSize h1_maxS]
   rw [Input.bfs_eq]
-  exact ⟨y, ((he₀.seq he_rt).seq he_out).mono hcost_le, hLy, hMy⟩
+  exact ⟨y, ((he₀.seq he_rt).seq he_out).mono (by
+    linarith [Nat.mul_le_mul_left inp.alphabetSize hT_maxS,
+      Nat.mul_le_mul_right inp.alphabetSize h1_maxS]), hLy, hMy⟩
 
 end Cslib.Algorithms.WordRAM.AhoCorasick

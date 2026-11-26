@@ -360,26 +360,21 @@ theorem mem_Reach_boundedReachInterpretation {L : Language} {d : ℕ}
   have hZ_ne_T : Z ≠ T := fun h => h0_ne_max (congrFun h (tagZeroIdx d))
   constructor
   · intro hpath
-    let Inv (w : Fin (d + 2) → Fin M.size) : Prop :=
-      w = Z ∨
-        (IsMid w ∧ ∃ x : Fin d → Fin M.size, src.Realize x ∧
-          Relation.ReflTransGen (fun a b => step.Realize (Sum.elim a b))
-            x (fun i => w (payloadIdx i))) ∨
-        (w = T ∧ ∃ x y : Fin d → Fin M.size, src.Realize x ∧
-          Relation.ReflTransGen (fun a b => step.Realize (Sum.elim a b)) x y ∧ tgt.Realize y)
-    have hinv {w} (hw : Relation.ReflTransGen Edge Z w) : Inv w := by
+    let Step (a b : Fin d → Fin M.size) : Prop := step.Realize (Sum.elim a b)
+    have hinv {w} (hw : Relation.ReflTransGen Edge Z w) :
+        w = Z ∨ (IsMid w ∧ ∃ x, src.Realize x ∧
+          Relation.ReflTransGen Step x (fun i => w (payloadIdx i))) ∨
+          (w = T ∧ ∃ x y, src.Realize x ∧ Relation.ReflTransGen Step x y ∧ tgt.Realize y) := by
       induction hw with
       | refl => exact Or.inl rfl
       | @tail u w _ huw ih =>
         rcases ih with rfl | ⟨hu_mid, x, hx, hxu⟩ | ⟨rfl, -⟩
-        · rcases huw with ⟨⟨_, hw_mid⟩, hsrc⟩ | ⟨⟨hZ, _⟩, _⟩ | ⟨⟨hZ, _⟩, _⟩
-          exacts [Or.inr (Or.inl ⟨hw_mid, _, hsrc, .refl⟩), (hZ_not_mid hZ).elim,
-            (hZ_not_mid hZ).elim]
+        · simp only [Edge, true_and, hZ_not_mid, false_and, or_false] at huw
+          exact Or.inr (Or.inl ⟨huw.1, _, huw.2, .refl⟩)
         · rcases huw with ⟨⟨rfl, _⟩, _⟩ | ⟨⟨_, hw_mid⟩, hstep⟩ | ⟨⟨_, rfl⟩, htgt⟩
           exacts [(hZ_not_mid hu_mid).elim, Or.inr (Or.inl ⟨hw_mid, x, hx, hxu.tail hstep⟩),
             Or.inr (Or.inr ⟨rfl, x, _, hx, hxu, htgt⟩)]
-        · rcases huw with ⟨⟨hTZ, _⟩, _⟩ | ⟨⟨hT, _⟩, _⟩ | ⟨⟨hT, _⟩, _⟩
-          exacts [(hZ_ne_T hTZ.symm).elim, (hT_not_mid hT).elim, (hT_not_mid hT).elim]
+        · simp [Edge, hZ_ne_T.symm, hT_not_mid] at huw
     rcases hinv hpath with hTZ | ⟨hT, -⟩ | ⟨_, hgoal⟩
     exacts [(hZ_ne_T hTZ.symm).elim, (hT_not_mid hT).elim, hgoal]
   · rintro ⟨x, y, hx, hxy, hy⟩

@@ -132,8 +132,7 @@ theorem exists_antiChecker_circuit_le_of_NP_subset_PPoly (hNP : NP encBits ⊆ P
     refine ⟨x, ?_, hgx⟩
     rw [Set.mem_ofPred_eq, map_fst_samplesOf, List.mem_ofFn] at hx
     obtain ⟨j, rfl⟩ := hx
-    have hjt : (j : ℕ) < t := lt_of_lt_of_le j.isLt hRt
-    refine ⟨⟨j, hjt⟩, funext fun b => ?_⟩
+    refine ⟨⟨j, lt_of_lt_of_le j.isLt hRt⟩, funext fun b => ?_⟩
     simp only [BitString.block_apply, Circuit.eval_comp, Circuit.eval_wiring, Function.comp_apply,
       eval_inlineOracle G fun q => hD q, blockSelect, Equiv.symm_apply_apply]
     congr 2
@@ -157,8 +156,7 @@ theorem eventually_mul_floor_div_add_le_floor {β : ℝ} (hβ : 0 < β) :
   have hns : (n : ℝ) * ⌊X / (10 * n)⌋₊ ≤ X / 10 :=
     calc (n : ℝ) * ⌊X / (10 * n)⌋₊ ≤ n * (X / (10 * n)) := by gcongr
       _ = X / 10 := by field_simp
-  push_cast
-  nlinarith
+  push_cast; nlinarith
 
 /-- **The efficient anti-checker** [Oliveira, Pich and Santhanam, Lemma 4.1]
 [OliveiraPichSanthanam2019] (OPS ToC 2021 Lemma 4.1; ECCC TR18-158 Lemma 17). If
@@ -182,7 +180,6 @@ theorem exists_antiChecker_circuit_of_NP_subset_PPoly (hNP : NP encBits ⊆ PPol
   refine ⟨c + 1, fun β hβ => ?_⟩
   set a : ℝ := (2 : ℝ) ^ β with ha_def
   have ha : 1 < a := Real.one_lt_rpow (by norm_num) hβ
-  have ha0 : 0 < a := by linarith
   filter_upwards [eventually_mul_add_one_pow_lt_pow 4 2 ha,
     eventually_mul_add_one_pow_lt_pow (10 + c * 2 ^ c) 0 ha, eventually_gt_atTop 0,
     eventually_mul_floor_div_add_le_floor hβ] with n hpoly hconst hn hgap
@@ -193,12 +190,11 @@ theorem exists_antiChecker_circuit_of_NP_subset_PPoly (hNP : NP encBits ⊆ PPol
   have hX10 : (2 : ℝ) ^ (10 * β * n) = X ^ 10 := by
     rw [show 10 * β * n = β * n * (10 : ℕ) by push_cast; ring,
       Real.rpow_mul_natCast (by norm_num : (0 : ℝ) ≤ 2), hXβ]
-  have hX0 : 0 < X := pow_pos ha0 n
+  have hX0 : 0 < X := pow_pos (zero_lt_one.trans ha) n
   have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast hn
-  have hnX : 4 * ((n : ℝ) + 1) ^ 2 < X := hpoly
   have hcX : 10 + (c : ℝ) * 2 ^ c < X := by simpa using hconst
   have hX10le : (10 : ℝ) ≤ X := by
-    linarith [show (0 : ℝ) ≤ c * 2 ^ c by positivity]
+    linarith [mul_nonneg (Nat.cast_nonneg (α := ℝ) c) (pow_nonneg zero_le_two c)]
   have hn1X : (n : ℝ) + 1 ≤ X := by nlinarith
   -- The parameters.
   set s := ⌊(2 : ℝ) ^ (β * n) / (10 * n)⌋₊

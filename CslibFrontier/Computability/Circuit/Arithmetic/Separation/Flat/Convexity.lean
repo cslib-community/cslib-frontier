@@ -161,11 +161,8 @@ private theorem unitExponent_convex (w : V → V → ℝ) {ε : ℝ} (hε : 0 < 
       linarith [(abs_lt.1 (hF (m v) (b v))).1, (abs_lt.1 (hF (a v) (b v))).2, hb v])
   refine key.trans (add_le_add le_rfl ?_)
   have hterm (v : A) : √(c * F.wireExponent (a v) (b v) * (3 / 2 * δ) + (3 / 2 * δ) ^ 2) ≤
-      √(δ * (2 * R + 4)) := by
-    refine Real.sqrt_le_sqrt ?_
-    have h3 : c * F.wireExponent (a v) (b v) ≤ R + 1 := by
-      linarith [(abs_lt.1 (hF (a v) (b v))).1, hwR (a v) (b v)]
-    nlinarith
+      √(δ * (2 * R + 4)) :=
+    Real.sqrt_le_sqrt (by nlinarith [(abs_lt.1 (hF (a v) (b v))).1, hwR (a v) (b v)])
   refine (Finset.sum_le_sum fun v _ => hterm v).trans ?_
   rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← hn]
   refine (Real.le_sqrt_of_sq_le ?_).trans (Real.sqrt_sq hε.le).le
@@ -279,10 +276,9 @@ theorem exists_spectralPoint_cube (hK : FlatCase K) {k : ℕ} (V : Finset (Eucli
     simpa only [abs_sub_comm, Subtype.dist_eq, id_eq] using hF x y
   let α : ℕ → (Fin k → Bool) → P → V' := fun i χ x => pt (cubeSign i χ (j x) (b x))
   have hlevel : ∀ i ≤ k, ∀ χ, c * F.unitExponent (α i χ) ≤ √k + ε / 2 + i * (ε / (2 * k)) := by
-    intro i
-    induction i with
+    intro i hi χ
+    induction i generalizing χ with
     | zero =>
-      intro _ χ
       have h1 := F.unitExponent_le_of_two (α 0 χ) (pt fun x => boolSign (χ x))
         (pt fun x => -boolSign (χ x)) fun x =>
           (cubeSign_zero χ (j x) (b x)).imp (congrArg pt) (congrArg pt)
@@ -291,7 +287,6 @@ theorem exists_spectralPoint_cube (hK : FlatCase K) {k : ℕ} (V : Finset (Eucli
       simp only [Nat.cast_zero, zero_mul, add_zero]
       linarith [mul_le_mul_of_nonneg_left h1 hc0, min_le_right δ (ε / 2)]
     | succ i ih =>
-      intro hi χ
       have h1 := hconv F c hc0 (fun x y => (hF' x y).trans_le (min_le_left _ _))
         (α i (Function.update χ ⟨i, hi⟩ true)) (α i (Function.update χ ⟨i, hi⟩ false))
         (α (i + 1) χ) fun x => cubePoint_cubeSign_succ hi χ (j x) (b x)

@@ -394,13 +394,11 @@ theorem isMultilinear_sliceInterpolant {n : ℕ} (t₁ t₂ : F) {g₁ g₂ : (F
       g₁ (Fin.tail x) - t₁ * ((g₂ (Fin.tail x) - g₁ (Fin.tail x)) / (t₂ - t₁)),
       fun t => by ring⟩
   | succ j =>
-    have hsucc : lineRestrict (sliceInterpolant t₁ t₂ g₁ g₂) x j.succ = fun t =>
-        lineRestrict g₁ (Fin.tail x) j t + (x 0 - t₁) / (t₂ - t₁) *
-          (lineRestrict g₂ (Fin.tail x) j t - lineRestrict g₁ (Fin.tail x) j t) :=
-      funext fun t => by
-        simp only [sliceInterpolant, lineRestrict, Fin.tail_update_succ,
-          update_of_ne (Fin.succ_ne_zero j).symm]
-    exact hsucc ▸ (hg₁ _ j).add (((hg₂ _ j).sub (hg₁ _ j)).const_mul _)
+    unfold lineRestrict
+    simpa only [sliceInterpolant, lineRestrict, Fin.tail_update_succ,
+      update_of_ne (Fin.succ_ne_zero j).symm] using
+      (hg₁ (Fin.tail x) j).add (((hg₂ (Fin.tail x) j).sub (hg₁ (Fin.tail x) j)).const_mul
+        ((x 0 - t₁) / (t₂ - t₁)))
 
 section Soundness
 
@@ -511,11 +509,9 @@ theorem exists_isMultilinear_hammingDist_le (f : (Fin n → F) → F) :
             2 ^ (j : ℕ) * #(wrongPoints (fun y => f (Fin.cons t y)) j) :=
         Nat.add_le_add_left (Nat.mul_le_mul_left _ (sum_le_sum fun t _ => hdist t)) _
       _ = ∑ i : Fin (n + 1), 2 ^ (i : ℕ) * #(wrongPoints f i) := by
-        rw [Fin.sum_univ_succ, sum_comm, mul_sum]
+        rw [Fin.sum_univ_succ, sum_comm]
         simp only [card_wrongPoints_succ, mul_sum, Fin.val_zero, pow_zero, one_mul,
-          Fin.val_succ, pow_succ]
-        congr 1
-        refine sum_congr rfl fun j _ => sum_congr rfl fun t _ => by ring
+          Fin.val_succ, pow_succ', mul_assoc]
 
 /-- **Quantitative soundness of the multilinearity test**, as a probability: some multilinear `g`
 is within relative distance `n * 2 ^ (n - 1) * ρ` of `f`, where `ρ` is the rejection probability
@@ -529,11 +525,10 @@ theorem exists_isMultilinear_hammingDist_div_le (f : (Fin n → F) → F) :
   refine ⟨g, hg, ?_⟩
   have hcard : (0 : ℝ) < Fintype.card (Fin n → F) := by exact_mod_cast Fintype.card_pos
   rcases Nat.eq_zero_or_pos n with rfl | hn
-  · simp only [Finset.univ_eq_empty, Finset.sum_empty, nonpos_iff_eq_zero] at hdist
-    simp only [hdist, Nat.cast_zero, zero_div, zero_mul, le_refl]
+  · have h0 : hammingDist f g = 0 := by simpa [Finset.univ_eq_empty] using hdist
+    simp [h0]
   rw [multilinearityTestRejection_eq, Fintype.expect_eq_sum_div_card, Fintype.card_fin,
     ← sum_div, div_le_iff₀ hcard]
-  have hn' : (n : ℝ) ≠ 0 := by exact_mod_cast hn.ne'
   calc (hammingDist f g : ℝ)
       ≤ ∑ i : Fin n, (2 : ℝ) ^ (i : ℕ) * #(wrongPoints f i) := by exact_mod_cast hdist
     _ ≤ ∑ i : Fin n, (2 : ℝ) ^ (n - 1) * #(wrongPoints f i) :=

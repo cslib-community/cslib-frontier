@@ -135,16 +135,14 @@ theorem dependsOn_budgetedOutput [Fintype V] :
       ((univ ×ˢ range (B + 1) : Finset (V × ℕ)) : Set (V × ℕ)) := by
   intro T T' h
   obtain ⟨h₁, h₂⟩ := Prod.mk.inj (dependsOn_run_current (vbl := vbl) (r := r) B h)
-  unfold budgetedOutput
-  rw [h₂, h₁]
+  rw [budgetedOutput, budgetedOutput, h₂, h₁]
 
 /-- Two coupled runs that do not diverge have the same budgeted output. -/
 theorem budgetedOutput_eq_of_not_diverge {T : ∀ p : V × ℕ, α p.1 × α p.1}
     (hT : ¬Diverge vbl r T) :
     budgetedOutput vbl r B (fstTable T) = budgetedOutput vbl r B (sndTable T) := by
   simp only [Diverge, not_exists, not_or, not_not] at hT
-  unfold budgetedOutput
-  rw [(hT B).2, (hT B).1]
+  rw [budgetedOutput, budgetedOutput, (hT B).2, (hT B).1]
 
 end Budgeted
 
@@ -203,12 +201,10 @@ private theorem toOuterMeasure_readSeed {β : V → Type*} [∀ v, Finite (β v)
   have hseed : ((Probability.PMF.uniformOfFintype (BudgetSeed α L B)).map
       (readSeed B G)).toMeasure.map read = Measure.pi fun q => κ q.1 := by
     rw [PMF.toMeasure_map (hf := hread), PMF.map_comp]
-    have hcomp : read ∘ readSeed B G =
-        fun (σ : BudgetSeed α L B) (q : V × Fin (B + 1)) => G q.1 (σ q) := by
-      funext σ q
-      simp only [Function.comp_apply, read, readSeed]
-      congr 2
-      exact Prod.ext rfl (Fin.ext (min_eq_left (Nat.lt_succ_iff.1 q.2.isLt)))
+    have hcomp : read ∘ readSeed B G = fun (σ : BudgetSeed α L B) q => G q.1 (σ q) := by
+      ext σ q
+      exact congrArg (fun k => G q.1 (σ (q.1, k)))
+        (Fin.ext (min_eq_left (Nat.lt_succ_iff.1 q.2.isLt)))
     rw [hcomp, ← Probability.PMF.pi_uniformOfFintype, ← Probability.PMF.pi_map,
       Probability.PMF.toMeasure_pi]
   rw [← PMF.toOuterMeasure_map_apply, ← PMF.toMeasure_apply_eq_toOuterMeasure_apply _ hEm, hE',
@@ -283,8 +279,7 @@ theorem seedTable_disagree_le {ι : Type*} [Finite ι] (vbl : ι → Finset V)
       _ ≤ 2 * ∑ v, ENNReal.ofReal (2 * dist (P v).toPMF (Q v).toPMF) := by
           gcongr with v; exact hdis v
   ennreal_to_real at hcalc
-  simp only [← mul_sum, ← mul_assoc] at hcalc
-  linarith
+  simp only [← mul_sum, ← mul_assoc] at hcalc; linarith
 
 omit [Fintype V] [∀ v, Fintype (α v)] [∀ v, DecidableEq (α v)] in
 /-- A budgeted run times out only after `B + 1` resamplings: its log after `B + 1` steps has

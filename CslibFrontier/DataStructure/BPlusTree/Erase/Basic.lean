@@ -322,11 +322,7 @@ private theorem rebalanceLast_eq_ite (prev : BPlusTree α β) (s : α) (c : BPlu
 /-- Merging keeps the entries of both siblings; the separator is not an entry. -/
 @[simp] theorem toList_mergeSplit (l : BPlusTree α β) (s : α) (r : BPlusTree α β) :
     (mergeSplit t l s r).toList = l.toList ++ r.toList := by
-  unfold mergeSplit
-  split
-  · simp
-  · simp [List.flatMap_append]
-  · rfl
+  cases l <;> cases r <;> simp [mergeSplit, List.flatMap_append]
 
 /-- Repair against the right sibling keeps the entries. -/
 private theorem toList_rebalanceRight (c : BPlusTree α β) (s : α) (r : BPlusTree α β)
@@ -335,9 +331,7 @@ private theorem toList_rebalanceRight (c : BPlusTree α β) (s : α) (r : BPlusT
         ((rebalanceRight t c s r rest).2.flatMap fun e => e.child.toList) =
       c.toList ++ (r.toList ++ rest.flatMap fun e => e.child.toList) := by
   rw [rebalanceRight_eq_ite]
-  split
-  · rw [InsertResult.toList_withRest, toList_mergeSplit, List.append_assoc]
-  · simp
+  split <;> simp [InsertResult.toList_withRest, List.append_assoc]
 
 /-- Repair against the left sibling keeps the entries. -/
 private theorem toList_rebalanceLast (prev : BPlusTree α β) (s : α) (c : BPlusTree α β) :
@@ -345,17 +339,12 @@ private theorem toList_rebalanceLast (prev : BPlusTree α β) (s : α) (c : BPlu
         ((rebalanceLast t prev s c).2.flatMap fun e => e.child.toList) =
       prev.toList ++ c.toList := by
   rw [rebalanceLast_eq_ite]
-  split
-  · rw [InsertResult.toList_withRest, toList_mergeSplit]
-    simp
-  · simp
+  split <;> simp [InsertResult.toList_withRest]
 
 /-- Collapsing an empty root keeps the entries. -/
 @[simp] theorem toList_collapse (tr : BPlusTree α β) : (collapse tr).toList = tr.toList := by
   unfold collapse
-  split
-  · simp
-  · rfl
+  split <;> simp
 
 /-! ### Shape -/
 
@@ -465,17 +454,13 @@ private theorem mended_mergeSplit {l r : BPlusTree α β} {h : ℕ} (hl : Underf
       simp only [width_leaf] at hlo hhi
       exact mended_ofLeaf (by simp; omega) (by simp; omega)
     | node rf rr =>
-      have := rf.height_pos
-      have : rf.height + 1 = 1 :=
+      exact False.elim <| rf.height_pos.ne' <| Nat.succ.inj <|
         hr.balanced.height_node.symm.trans (hr.height_eq.trans hl.height_eq.symm)
-      omega
   | node lf lr =>
     cases r with
     | leaf re =>
-      have := lf.height_pos
-      have : lf.height + 1 = 1 :=
+      exact False.elim <| lf.height_pos.ne' <| Nat.succ.inj <|
         hl.balanced.height_node.symm.trans (hl.height_eq.trans hr.height_eq.symm)
-      omega
     | node rf rr =>
       obtain ⟨h', rfl⟩ : ∃ h', h = h' + 1 :=
         ⟨lf.height, by rw [← hl.height_eq, hl.balanced.height_node]⟩
@@ -874,10 +859,9 @@ private theorem separated_eraseSubtree (k : α) (tr : BPlusTree α β)
       have hsc := h.child hc
       have hcp : (∀ entries, c ≠ .leaf entries) → 1 ≤ c.width :=
         fun _ => (by omega : 1 ≤ t - 1).trans hg.occupied.le_width
-      refine ⟨hg.height_eq ▸ (eraseFits_eraseSubtree ht k c hg.balanced hsc.occupied hcp
-        hsc.sorted).underfull hg.occupied, ih hsc hg.balanced hcp, ?_⟩
-      rw [toList_eraseSubtree_of k c hsc, SortedAssoc.erase_def]
-      exact List.filter_sublist
+      exact ⟨hg.height_eq ▸ (eraseFits_eraseSubtree ht k c hg.balanced hsc.occupied hcp
+        hsc.sorted).underfull hg.occupied, ih hsc hg.balanced hcp,
+        toList_eraseSubtree_of k c hsc ▸ List.filter_sublist⟩
     obtain ⟨uf, sf, subf⟩ := hchild first List.mem_cons_self hgf ihf
     have hrest := fun e (he : e ∈ rest) =>
       hchild e.child (List.mem_cons_of_mem _ (List.mem_map_of_mem he)) (hgr e he) (ihr e he)

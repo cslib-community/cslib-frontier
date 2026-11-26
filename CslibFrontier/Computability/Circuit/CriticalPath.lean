@@ -432,8 +432,7 @@ theorem Circuit.criticalPathAux_step (C : Circuit σ n m) :
       ∃ s : C.Slot,
         C.slotReaders ((C.criticalPathAux fuel v)[i]'(Nat.lt_of_succ_lt hi)) = [s] ∧
         (C.criticalPathAux fuel v)[i + 1] = .gate s.1
-  | 0, v, i, hi => by
-    simp [Circuit.criticalPathAux] at hi
+  | 0, _, _, hi => by simp [Circuit.criticalPathAux] at hi
   | fuel + 1, v, i, hi => by
     cases h : C.uniqueReaderSlot v with
     | none =>
@@ -536,8 +535,7 @@ theorem Circuit.two_mul_sub_two_mul_le_size (C : Circuit σ n m)
     Classical.byContradiction fun hne => Finset.disjoint_left.mp (hdisj hne)
       (C.criticalEndpoint_mem x) (hxy ▸ C.criticalEndpoint_mem y)
   let E : Finset (Wire n C.size) := Finset.univ.image C.criticalEndpoint
-  have hcardE : E.card = n := by
-    simp [E, Finset.card_image_of_injective _ hinj]
+  have hcardE : E.card = n := (Finset.card_image_of_injective _ hinj).trans (Finset.card_fin n)
   have hcardCompl : Eᶜ.card = C.size := by grind [Finset.card_compl, Wire.card]
   have hlowE : 2 * n ≤ ∑ v ∈ E, (C.outDeg v + bonus v) := by
     calc
@@ -619,12 +617,11 @@ private theorem Circuit.gate_mem_take_criticalPath (C : Circuit σ n m) (x : Fin
     Wire.gate s.1 = (C.criticalPath x)[i] ∨ Wire.gate s.1 ∈ (C.criticalPath x).take i := by
   obtain ⟨j, hj, hjs⟩ := List.mem_take_iff_getElem.mp hs
   obtain ⟨r, hr, hrGate⟩ := C.criticalPath_step x (i := j) (by omega)
-  obtain rfl : s = r := by
-    simpa [hr] using C.mem_slotReaders.mpr hjs.symm
+  obtain rfl : s = r := List.mem_singleton.mp (hr ▸ C.mem_slotReaders.mpr hjs.symm)
   rw [← hrGate]
-  rcases eq_or_lt_of_le (show j + 1 ≤ i by omega) with rfl | hlt
-  · exact Or.inl rfl
-  · exact Or.inr (List.mem_take_iff_getElem.mpr ⟨j + 1, by omega, rfl⟩)
+  have hji : j + 1 ≤ i := by omega
+  rcases eq_or_lt_of_le hji with rfl | hlt
+  exacts [.inl rfl, .inr (List.mem_take_iff_getElem.mpr ⟨j + 1, by omega, rfl⟩)]
 
 /-- Every wire strictly before position `i` of a critical path has out-degree `1`. -/
 private theorem Circuit.outDeg_eq_one_of_mem_take_criticalPath (C : Circuit σ n m) (x : Fin n)
@@ -659,13 +656,12 @@ private theorem Circuit.exists_first_meet_criticalPath (C : Circuit σ n m) {x y
       fun k hk => by simpa using List.not_of_lt_findIdx hk⟩
   obtain ⟨j, hj, hji⟩ := List.getElem_of_mem hmem
   -- Neither meeting position is the start of its path, since the starts are distinct inputs.
-  obtain ⟨a, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero (n := i) <| by
-    rintro rfl
-    exact hxy ((C.input_mem_criticalPath_iff).mp (by simpa using hmem))
-  obtain ⟨b, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero (n := j) <| by
-    rintro rfl
-    exact hxy ((C.input_mem_criticalPath_iff).mp
-      ((C.criticalPath_zero_getElem y).symm.trans hji ▸ List.getElem_mem _)).symm
+  obtain ⟨a, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero (n := i) fun h0 =>
+    hxy (C.input_mem_criticalPath_iff.mp (by simpa [h0] using hmem))
+  obtain ⟨b, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero (n := j) fun h0 =>
+    hxy (C.input_mem_criticalPath_iff.mp
+      (by simpa [h0] using (hji.symm ▸ List.getElem_mem hlt :
+        (C.criticalPath y)[j] ∈ C.criticalPath x))).symm
   obtain ⟨⟨G, tx⟩, hxRead, hxGate⟩ := C.criticalPath_step x hlt
   obtain ⟨⟨G', ty⟩, hyRead, hyGate⟩ := C.criticalPath_step y hj
   obtain rfl : G = G' := Wire.gate.inj (hxGate.symm.trans (hji.symm.trans hyGate))

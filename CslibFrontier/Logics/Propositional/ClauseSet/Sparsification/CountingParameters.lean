@@ -68,10 +68,9 @@ def countingBChoiceCoeff (k : ℕ) : ℕ := 4 * ∑ r ∈ range (k - 1), 3 ^ r
 
 /-- The depth coefficient is at least four once width two is allowed. -/
 theorem four_le_countingDepthCoeff {k M : ℕ} (hk : 2 ≤ k) : 4 ≤ countingDepthCoeff k M := by
-  have h := single_le_sum (f := fun r => (3 * M) ^ r)
-    (fun r _ => Nat.zero_le _) (show 0 ∈ range (k - 1) by simp only [mem_range]; omega)
-  simp only [pow_zero] at h
-  exact Nat.mul_le_mul_left 4 h
+  have h0 : 0 ∈ range (k - 1) := mem_range.mpr (by omega)
+  have h := single_le_sum (f := fun r => (3 * M) ^ r) (fun _ _ => Nat.zero_le _) h0
+  simpa only [pow_zero, countingDepthCoeff, mul_one] using Nat.mul_le_mul_left 4 h
 
 /-- The B-choice coefficient is at least four once width two is allowed. -/
 theorem four_le_countingBChoiceCoeff {k : ℕ} (hk : 2 ≤ k) : 4 ≤ countingBChoiceCoeff k := by
@@ -213,12 +212,11 @@ theorem countingThresholdBase_eq_two_pow {k B m : ℕ} (hk : 2 ≤ k) (hB : 1 �
       B * countingBChoiceCoeff k * Nat.clog 2 (4 * countingDepthCoeff k (2 ^ j) * 2 ^ j) ≤
         2 ^ j)) : countingThresholdBase k B = 2 ^ m := by
   simp only [countingThresholdBase, hk, hB, and_self, ↓reduceDIte]
-  congr 1
-  exact (Nat.find_eq_iff _).mpr ⟨hpass, hfirst⟩
+  exact congrArg (2 ^ ·) ((Nat.find_eq_iff _).mpr ⟨hpass, hfirst⟩)
 
 /-- Widths zero and one use `M = 2` separately from the geometric search. -/
 theorem countingThresholdBase_of_lt_two {k : ℕ} (hk : k < 2) (B : ℕ) :
-    countingThresholdBase k B = 2 := by simp [countingThresholdBase, show ¬ 2 ≤ k by omega]
+    countingThresholdBase k B = 2 := by simp [countingThresholdBase, Nat.not_le.mpr hk]
 
 /-- The inverse error budget zero is outside the specification and uses the total default. -/
 theorem countingThresholdBase_zero (k : ℕ) : countingThresholdBase k 0 = 2 := by
@@ -253,18 +251,14 @@ theorem isBigO_countingThresholdBase {k : ℕ} (hk : 2 ≤ k) :
   filter_upwards [Filter.eventually_ge_atTop 1] with B hB
   have hBR : (1 : ℝ) ≤ B := by exact_mod_cast hB
   have hlog : 0 ≤ Real.logb 2 (B : ℝ) := Real.logb_nonneg (by norm_num) hBR
-  have hclog : (Nat.clog 2 B : ℝ) ≤ Real.logb 2 (B : ℝ) + 1 := by
-    rw [← Real.natCeil_logb_natCast]
-    exact (Nat.ceil_lt_add_one hlog).le
+  have hclog : (Nat.clog 2 B : ℝ) ≤ Real.logb 2 (B : ℝ) + 1 :=
+    Real.natCeil_logb_natCast (b := 2) B ▸ (Nat.ceil_lt_add_one hlog).le
   have hlogmul : Real.logb 2 (2 * (B : ℝ)) = 1 + Real.logb 2 (B : ℝ) := by
     rw [Real.logb_mul (by norm_num) (by positivity), Real.logb_self_eq_one (by norm_num)]
-  have hclog' : (Nat.clog 2 B : ℝ) + 1 ≤ 2 * Real.logb 2 (2 * (B : ℝ)) := by
-    rw [hlogmul]
-    linarith
+  have hclog' : (Nat.clog 2 B : ℝ) + 1 ≤ 2 * Real.logb 2 (2 * (B : ℝ)) := by linarith
   have hlog0 : 0 ≤ Real.log (2 * (B : ℝ)) := Real.log_nonneg (by linarith)
-  have hM0 : (0 : ℝ) ≤ countingThresholdBase k B := Nat.cast_nonneg _
-  simp only [Real.norm_eq_abs, abs_of_nonneg hM0,
-    abs_of_nonneg (mul_nonneg (Nat.cast_nonneg B) hlog0)]
+  rw [Real.norm_of_nonneg (Nat.cast_nonneg _),
+    Real.norm_of_nonneg (mul_nonneg (Nat.cast_nonneg B) hlog0)]
   calc (countingThresholdBase k B : ℝ)
       ≤ A * B * ((Nat.clog 2 B : ℝ) + 1) := by exact_mod_cast hA B hB
     _ ≤ A * B * (2 * Real.logb 2 (2 * (B : ℝ))) := by gcongr
@@ -279,8 +273,7 @@ theorem exists_clog_countingThresholdBase_le {k : ℕ} (hk : 2 ≤ k) :
   refine ⟨offset k, fun B hB => (Nat.clog_le_of_le_pow (thresholdBase_le_candidate hk hB)).trans ?_⟩
   have h : Nat.clog 2 (Nat.clog 2 B + 1) ≤ Nat.clog 2 B :=
     Nat.clog_le_of_le_pow Nat.lt_two_pow_self
-  unfold candidateExponent
-  omega
+  dsimp only [candidateExponent]; omega
 
 /-- The selected geometric parameter gives the rounded binomial-tail bound for every variable
 budget `N`, including zero. This is only a numerical bound; counting tree words is separate. -/

@@ -86,11 +86,8 @@ theorem clientState_copyCompItemGenProg {U V w N m_items itemBase src dst : ℕ}
           (writeCompQuot itemBase U V w N s.mem dst (compQuotAt itemBase U V w N m_items s.mem src))
           dst (compValAt itemBase U V w N m_items s.mem src),
         frontier := s.frontier } := by
-  unfold StateTransitionSpec.clientState
-  simp only [copyCompItemGenProg, prog_runClient_state_bind, StateTransitionSpec.clientState,
-    clientResult_readCompQuotGenProg hsrc, runClient_state_readCompQuotGenProg,
-    clientResult_readCompValGenProg hsrc, runClient_state_readCompValGenProg,
-    runClient_state_writeCompQuotGenProg, runClient_state_writeCompValGenProg]
+  simp [StateTransitionSpec.clientState, copyCompItemGenProg,
+    clientResult_readCompQuotGenProg hsrc, clientResult_readCompValGenProg hsrc]
 
 /-- `copyCompItemGenProg` issues `12` memory operations. -/
 @[simp] theorem memoryCost_copyCompItemGenProg
@@ -139,8 +136,7 @@ theorem clientState_clearCompItemGenProg (U V w N itemBase d : ℕ) (s : Memory.
         (clearCompItemGenProg ((mkCompParams U V w N, itemBase), d)) =
       { mem := writeCompVal itemBase U V w N (writeCompQuot itemBase U V w N s.mem d 0) d 0,
         frontier := s.frontier } := by
-  unfold StateTransitionSpec.clientState
-  simp [clearCompItemGenProg]
+  simp [StateTransitionSpec.clientState, clearCompItemGenProg]
 
 /-- `clearCompItemGenProg` issues `8` memory operations. -/
 @[simp] theorem memoryCost_clearCompItemGenProg
@@ -704,10 +700,9 @@ theorem clientResult_denseOfPhysGenProg {U V w N metaBase g : ℕ} {s : Memory.S
 theorem clientState_denseOfPhysGenProg (d : (CompParams × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (denseOfPhysGenProg d) = s := by
   rcases d with ⟨⟨cp, metaBase⟩, g⟩
-  unfold StateTransitionSpec.clientState
-  simp only [denseOfPhysGenProg, pure_bind]
+  simp only [StateTransitionSpec.clientState, denseOfPhysGenProg, pure_bind]
   split_ifs <;> simp only [prog_runClient_state_bind, prog_runClient_state_pure,
-    StateTransitionSpec.clientState, runClient_state_readCompGMGenProg]
+    runClient_state_readCompGMGenProg]
   split_ifs <;> simp
 
 /-- `simp`-indexed projection form of `clientState_denseOfPhysGenProg`. -/
@@ -966,8 +961,7 @@ theorem clientState_winShrinkRightGenProg {U V w N metaBase b_win n_win : ℕ} {
           (compTDAt metaBase U w N s.mem n_win)
           (compDTAt metaBase U w N s.mem ((b_win + n_win) % maxTailItems N)),
         frontier := s.frontier } := by
-  unfold StateTransitionSpec.clientState
-  simp [winShrinkRightGenProg, hc, hn]
+  simp [StateTransitionSpec.clientState, winShrinkRightGenProg, hc, hn]
 
 /-- Final memory state of `winShrinkLeftGenProg`, linking `DenseToTail[c_rem]` with
 `TailToDense[n_win]` for `c_rem = b_win % maxTailItems N` and preserving `s.frontier`. -/
@@ -982,7 +976,6 @@ theorem clientState_winShrinkLeftGenProg {U V w N metaBase b_win n_win : ℕ} {s
           (compTDAt metaBase U w N s.mem n_win)
           (compDTAt metaBase U w N s.mem (b_win % maxTailItems N)),
         frontier := s.frontier } := by
-  unfold StateTransitionSpec.clientState
-  simp [winShrinkLeftGenProg, hc, hn]
+  simp [StateTransitionSpec.clientState, winShrinkLeftGenProg, hc, hn]
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

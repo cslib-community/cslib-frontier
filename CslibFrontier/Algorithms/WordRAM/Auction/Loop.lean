@@ -277,19 +277,15 @@ theorem auctionCoreProg_spec {w : ℕ} (ws : AuctionWS)
       auctionInv_init (fun _ => le_rfl) hws₁ ham_init hfit1 hfit_ws hfit_p'
   let cZ : Fin ws.n × Fin ws.n → ℤ := fun e => (C e : ℤ)
   have hεZ : (0 : ℤ) < (ws.eps : ℤ) := Nat.cast_pos.mpr hε
-  have hC_spread : ∀ i j k : Fin ws.n, cZ (i, k) - cZ (i, j) ≤ (W : ℤ) := fun i j k => by
-    have := hC_le i k
-    dsimp only [cZ]; omega
+  have hC_spread : ∀ i j k : Fin ws.n, cZ (i, k) - cZ (i, j) ≤ (W : ℤ) := fun i _ k =>
+    (Int.sub_le_self _ (Nat.cast_nonneg _)).trans (Int.ofNat_le.mpr (hC_le i k))
   have hcut_free : (auctionLoop cZ (ws.eps : ℤ) (auctionCutoff ws) (auctionInit ws.n)).free = [] :=
     (auctionLoop_spec hεZ hC_spread (auctionCutoff ws) (auctionInit ws.n) auctionInv_init (by
       simp only [auctionInit, Finset.sum_const_zero, sub_zero]
       have hmul := mul_le_mul_of_nonneg_left (show (1 : ℤ) ≤ ws.eps by omega)
         (by positivity : (0 : ℤ) ≤ ws.n * (W + ws.eps))
-      have hcut : ((auctionCutoff ws : ℕ) : ℤ) = ws.n * (W + ws.eps) + 2 := by
-        dsimp only [auctionCutoff, W]
-        push_cast
-        ring
-      rw [hcut, add_mul]
+      dsimp only [auctionCutoff, W] at hmul ⊢
+      push_cast at hmul ⊢
       linarith)).2
   have hloop_eq :
       auctionLoop cZ (ws.eps : ℤ) (auctionCutoff ws) (auctionInit ws.n) =
@@ -300,9 +296,9 @@ theorem auctionCoreProg_spec {w : ℕ} (ws : AuctionWS)
     · rw [← Nat.add_sub_cancel' hle, auctionLoop_add hcut_free]
     · rw [← Nat.add_sub_cancel' hle, auctionLoop_add (auction_free hεZ)]
   simp only [hlen_init] at hwsafe_bw hv_bw hmc_bw hfr_bw ham_bw
-  have hsafe_core : AuctionCoreSafe w ws s₀ := ⟨hsafe_init, fun _ => hwsafe_bw hcut_free⟩
   unfold auctionCoreProg
-  refine ⟨hsafe_core, validHistory_bind_step hv_init hv_bw, ?_, ?_, ?_⟩
+  refine ⟨⟨hsafe_init, fun _ => hwsafe_bw hcut_free⟩, validHistory_bind_step hv_init hv_bw,
+    ?_, ?_, ?_⟩
   · rw [memoryCost_bind']
     rw [hloop_eq] at hmc_bw
     dsimp only [auctionInit, s₁, cZ] at hmc_bw ⊢

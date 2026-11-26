@@ -143,25 +143,16 @@ theorem mem_support_add (hP : P.IsLinearSummation) (hcorrect : P.IsCorrect)
     induction D using Finset.induction_on with
     | empty => simpa only [sum_empty, add_zero] using hv
     | insert a D ha ih =>
-      have hv_eq : v + ∑ h ∈ insert a D, Pi.single h (w h + v h) =
-          (v + ∑ h ∈ D, Pi.single h (w h + v h)) + Pi.single a (w a + v a) := by
-        rw [sum_insert ha]
-        abel
-      have hs_eq : s + ∑ h ∈ insert a D, (w h + v h) =
-          (s + ∑ h ∈ D, (w h + v h)) + (w a + v a) := by
-        rw [sum_insert ha]
-        abel
-      rw [hv_eq, hs_eq]
+      rw [sum_insert ha, sum_insert ha, ← add_assoc v, add_right_comm v,
+        ← add_assoc s, add_right_comm s]
       cases w a + v a
       · change _ + Pi.single a 0 ∈ (ProbComp.eval (P.serverQuery (_ + 0) i)).support
         simpa only [Pi.single_zero, add_zero] using ih
-      · have htrue : (s + ∑ h ∈ D, (w h + v h)) + true = !(s + ∑ h ∈ D, (w h + v h)) :=
-          Bool.xor_true _
-        exact htrue ▸ hP.add_single_mem hcorrect hprivate ih a
+      · generalize s + ∑ h ∈ D, (w h + v h) = b at ih ⊢
+        cases b <;> exact hP.add_single_mem hcorrect hprivate ih a
   have hvw : v + (fun h => w h + v h) = w := funext fun h => by
     rw [Pi.add_apply, add_comm (w h), ← add_assoc, BooleanRing.add_self, zero_add]
-  have h := key univ
-  rwa [univ_sum_single (fun h => w h + v h), hvw] at h
+  simpa only [univ_sum_single (fun h => w h + v h), hvw] using key univ
 
 omit [DecidableEq ι] in
 /-- In a correct, private linear-summation scheme, the server `s` can receive at least half of all
@@ -181,10 +172,8 @@ theorem two_pow_le_two_mul_ncard_support (hP : P.IsLinearSummation) (hcorrect : 
   have hcover : (Set.univ : Set (ι → Bool)) ⊆ T s ∪ T (!s) := fun w _ => by
     have hw := hP.mem_support_add hcorrect hprivate hv w
     cases hsum : ∑ h, (w h + v h) <;> rw [hsum] at hw
-    · have hf : s + false = s := Bool.xor_false s
-      exact Or.inl (hf ▸ hw)
-    · have ht : s + true = !s := Bool.xor_true s
-      exact Or.inr (ht ▸ hw)
+    · cases s <;> exact Or.inl hw
+    · cases s <;> exact Or.inr hw
   -- Flipping the position `h₀` maps the sets of the other server into those of `s`.
   have hflip : (T (!s)).ncard ≤ (T s).ncard :=
     Set.ncard_le_ncard_of_injOn (· + Pi.single h₀ true)

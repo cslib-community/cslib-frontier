@@ -552,9 +552,7 @@ private def candidateOutputs [Fintype St] (Q : Fin k → Fin n) (τd : Td) :
 
 private theorem card_candidateOutputs_le [Fintype St] (Q : Fin k → Fin n) (τd : Td) :
     (P.candidateOutputs Q τd).card ≤ Fintype.card St := by
-  simpa only [candidateOutputs, Finset.card_univ] using
-    Finset.card_image_le (s := (Finset.univ : Finset St))
-      (f := fun st : St => P.reconstruct st Q τd)
+  simpa only [candidateOutputs, Finset.card_univ] using Finset.card_image_le (s := Finset.univ)
 
 private theorem eval_run_le_onlineDownload_candidateOutputs [Fintype St]
     (D : Fin n → Bool) (Q : Fin k → Fin n) (y : Fin k → Bool) :
@@ -565,12 +563,7 @@ private theorem eval_run_le_onlineDownload_candidateOutputs [Fintype St]
     P.eval_onlineDownload_eq_map_stateAndDownload D Q, PMF.map_comp,
     PMF.map_apply, PMF.map_apply]
   refine tsum_le_tsum fun ⟨st, τd⟩ => ?_
-  split_ifs with hy hmem
-  · exact le_rfl
-  · exact absurd (by simpa only [Function.comp_apply, true_eq_decide_iff, candidateOutputs, hy]
-      using Finset.mem_image_of_mem (fun st => P.reconstruct st Q τd) (Finset.mem_univ st)) hmem
-  · exact zero_le
-  · exact zero_le
+  by_cases hy : y = P.reconstruct st Q τd <;> simp [hy, candidateOutputs]
 
 /-- Extend a `k`-bit string `y : Fin k → Bool` to an `n`-bit database, padding coordinates
 `i ≥ k` with `false`. -/

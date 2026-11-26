@@ -460,17 +460,13 @@ private theorem support_presampleTree_subset (Q : Prover Unit) (L : ℕ)
       t ∈ (presampleTree Q L queries d s).support → t ∈ allTrees L queries d := by
   intro d
   induction d with
-  | zero =>
-    rintro _ ⟨⟩ _
-    exact List.mem_singleton_self PUnit.unit
+  | zero => exact fun _ ⟨⟩ _ => List.mem_singleton_self PUnit.unit
   | succ d ih =>
-    intro s t ht
-    simp only [presampleTree, allTrees] at ht ⊢
-    refine mem_listMapM (fun m _ entry hentry => ?_) t ht
+    refine fun s t ht => mem_listMapM (fun _ _ _ hentry => ?_) t ht
     supp_cases hentry with ⟨ys, _, child, hchild, rfl⟩
-    simp only [List.mem_flatMap, List.mem_map]
-    refine ⟨ys.1.take L, ?_, child, ih ys.2 child hchild, rfl⟩
-    exact Finset.mem_toList.mpr (BitString.mem_shortWords.mpr (List.length_take_le L ys.1))
+    exact List.mem_flatMap.mpr ⟨ys.1.take L,
+      Finset.mem_toList.mpr (BitString.mem_shortWords.mpr (List.length_take_le L ys.1)),
+      List.mem_map.mpr ⟨child, ih ys.2 child hchild, rfl⟩⟩
 
 /-- Finite list of all `ι → α` functions built by `listPiPMF` from finite candidate lists `S i`. -/
 private def allListPi [DecidableEq ι] (default : α) (S : ι → List α) : List ι → List (ι → α)
@@ -552,23 +548,19 @@ theorem exists_deterministic_prover_family [Finite ι] [DecidableEq ι] {γ : Ty
         (Prover.independent P).init, PMF.bind_apply]
     simp only [hc, ← ENNReal.tsum_mul_left]
     rw [← Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
-    refine tsum_congr fun f => ?_
-    rw [Finset.mul_sum]
-    exact Finset.sum_congr rfl fun c _ => by rw [mul_left_comm]
+    exact tsum_congr fun f => ((Finset.mul_sum ..).trans
+      (Finset.sum_congr rfl fun c _ => mul_left_comm _ _ _)).symm
   let defaultTree : Sigma TreeStrategy := ⟨0, PUnit.unit⟩
-  let S (_ : ι) : List (Sigma TreeStrategy) :=
-    (allTrees L queries d).map fun t => Sigma.mk d t
   let candidates : List (ι → Sigma TreeStrategy) :=
-    allListPi defaultTree S (Finset.univ : Finset ι).toList
+    allListPi defaultTree (fun _ => (allTrees L queries d).map (Sigma.mk d))
+      (Finset.univ : Finset ι).toList
   have hsupp : ∀ f ∈ μ.support, f ∈ candidates := by
-    refine support_listPiPMF_subset defaultTree (Finset.univ : Finset ι).toList ?_
-    intro i _ st hst
+    refine support_listPiPMF_subset defaultTree (Finset.univ : Finset ι).toList fun i _ st hst => ?_
     supp_cases hst with ⟨t, ht, rfl⟩
     exact List.mem_map_of_mem (support_presampleTree_subset (P i) L queries d (P i).init t ht)
   let fBest := bestOfList g (fun _ => defaultTree) candidates
-  refine ⟨fun i => TreeStrategy.toDetProver (fBest i), ?_⟩
-  rw [hsum]
-  exact tsum_mul_le_bestOfList μ g (fun _ => defaultTree) candidates hsupp
+  exact ⟨fun i => TreeStrategy.toDetProver (fBest i),
+    hsum ▸ tsum_mul_le_bestOfList μ g (fun _ => defaultTree) candidates hsupp⟩
 
 /-! ### Pairwise history consistency and the candidate-filtering prover -/
 

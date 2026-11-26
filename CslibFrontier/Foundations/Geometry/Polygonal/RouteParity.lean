@@ -155,8 +155,7 @@ theorem rayParity_reverse (p : Route) (u z : ℂ) :
     _ = ∑ i : Fin p.segments,
         if RayCrosses (u * p.point i.rev.castSucc) (u * p.point i.rev.succ) (u * z)
           then (true : Bool) else 0 := by
-      apply Finset.sum_congr rfl
-      intro i _
+      refine Finset.sum_congr rfl fun i _ => ?_
       rw [Fin.rev_castSucc, Fin.rev_succ,
         rayCrosses_reverse (u * p.point i.rev.castSucc) (u * p.point i.rev.succ) (u * z)]
     _ = _ := Equiv.sum_comp e (fun i =>
@@ -196,10 +195,9 @@ private theorem right_slice_iff {K : Set ℂ} (hK : Convex ℝ K) {z w : ℂ}
   have hx : z.re ∈ segment ℝ w.re y.re :=
     segment_eq_Icc (hzw.trans hyre.le) ▸ ⟨hzw, hyre.le⟩
   obtain ⟨t, ht, he⟩ := segment_eq_image_lineMap ℝ w.re y.re ▸ hx
-  have heq : AffineMap.lineMap w y t = z := by
-    apply Complex.ext
-    · exact (Complex.reLm.toAffineMap.apply_lineMap w y t).trans he
-    · rw [lineMap_im, hh, hyim, sub_self, mul_zero, add_zero]
+  have heq : AffineMap.lineMap w y t = z := Complex.ext
+    ((Complex.reLm.toAffineMap.apply_lineMap w y t).trans he)
+    (by rw [lineMap_im, hh, hyim, sub_self, mul_zero, add_zero])
   exact hz (heq ▸ hK.segment_subset hw hy (lineMap_mem_segment ℝ w y ht))
 
 private theorem decide_height_between (a b h : ℝ) :
@@ -224,9 +222,7 @@ theorem rayParity_eq_false_of_support_subset_convex (p : Route) {K : Set ℂ}
   let K' := f '' K
   let z' := u * z
   have hK' : Convex ℝ K' := hK.linear_image f
-  have hz' : z' ∉ K' := by
-    rintro ⟨w, hw, heq⟩
-    exact hz ((mul_left_cancel₀ hu heq) ▸ hw)
+  have hz' : z' ∉ K' := fun ⟨w, hw, heq⟩ => hz (mul_left_cancel₀ hu heq ▸ hw)
   let right := decide (∃ y ∈ K', y.im = z'.im ∧ z'.re < y.re)
   let observe (w : ℂ) := right * decide ((u * w).im ≤ z'.im)
   have hsegment (i : Fin p.segments) :
@@ -247,8 +243,7 @@ theorem rayParity_eq_false_of_support_subset_convex (p : Route) {K : Set ℂ}
     · have hc : RayCrosses a b z' ↔ ∃ y ∈ K', y.im = z'.im ∧ z'.re < y.re :=
         (and_iff_right hh.1).trans ((and_iff_right hh.2).trans
           (right_slice_iff hK' hz' (hsegment i (horizontalIntercept_mem_segment hh)) rfl))
-      have hright : right = decide (RayCrosses a b z') := Bool.decide_congr hc.symm
-      rw [hright]
+      simp only [right, Bool.decide_congr hc.symm]
       by_cases h : RayCrosses a b z' <;> simp [h, hh, Bool.mul_eq_and, Bool.zero_eq_false]
     · have hnot : ¬RayCrosses a b z' := fun h => hh ⟨h.1, h.2.1⟩
       simp [hh, hnot, ← Bool.zero_eq_false]
@@ -296,9 +291,9 @@ private theorem exists_pos_rayParity_eq_of_fixed_incident_segments (p : Route) (
   classical
   let avoids (i : Fin p.segments) := z ∉ segment ℝ (p.point i.castSucc) (p.point i.succ)
   let S := ⋃ i : {i // avoids i}, segment ℝ (p.point i.val.castSucc) (p.point i.val.succ)
-  have hcompact : IsCompact S := isCompact_iUnion fun i => by
-    rw [segment_eq_image_lineMap]
-    exact isCompact_Icc.image AffineMap.lineMap_continuous
+  have hcompact : IsCompact S := isCompact_iUnion fun i =>
+    segment_eq_image_lineMap ℝ (p.point i.val.castSucc) (p.point i.val.succ) ▸
+      isCompact_Icc.image AffineMap.lineMap_continuous
   have hz : z ∉ S := fun h => (Set.mem_iUnion.mp h).elim fun i hi => i.property hi
   obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp hcompact.isClosed.isOpen_compl z hz
   refine ⟨ε, hε, fun q hs hf hdist hfixed => ?_⟩
@@ -328,16 +323,15 @@ private theorem exists_pos_rayParity_eq_of_fixed_incident_segments (p : Route) (
       exact hball (show x ∈ Metric.ball z ε from hdist') (Set.mem_iUnion.mpr ⟨⟨i, hi⟩, hx⟩)
     have old {x : ℂ} (hx : x ∈ segment ℝ a b) : x ∈ K :=
       ⟨x, hx, 0, Metric.mem_ball_self hε, add_zero x⟩
-    have moved {x y : ℂ} (hx : x ∈ segment ℝ a b) (hy : dist y x < ε) : y ∈ K := by
-      exact ⟨x, hx, y - x, by simpa only [Metric.mem_ball, dist_eq_norm, sub_zero] using hy,
+    have moved {x y : ℂ} (hx : x ∈ segment ℝ a b) (hy : dist y x < ε) : y ∈ K :=
+      ⟨x, hx, y - x, by simpa only [Metric.mem_ball, dist_eq_norm, sub_zero] using hy,
         add_sub_cancel x y⟩
     have ha := old (left_mem_segment ℝ a b)
     have hb := old (right_mem_segment ℝ a b)
     have hc := moved (left_mem_segment ℝ a b) (hdist i.castSucc)
     have hd := moved (right_mem_segment ℝ a b) (hdist i.succ)
-    have hline {x y : ℂ} (hx : x ∈ K) (hy : y ∈ K) : (line x y).support ⊆ K := by
-      rw [support_line]
-      exact hK.segment_subset hx hy
+    have hline {x y : ℂ} (hx : x ∈ K) (hy : y ∈ K) : (line x y).support ⊆ K :=
+      support_line x y ▸ hK.segment_subset hx hy
     let s := (line a c).concat (line c d)
     have hjoin : s.finish = (line d b).start := finish_concat rfl
     have hs : (line a b).start = (s.concat (line d b)).start :=
@@ -453,12 +447,10 @@ private theorem parityTriangle_bits (c z : ℂ) {r : ℝ} (hr : 0 < r) :
   let d : ℂ := ⟨c.re - r, c.im + r⟩
   have hab : horizontalIntercept a b z.im = c.re + r + 2 * (z.im - c.im) := by
     simp only [horizontalIntercept, a, b, sub_sub_cancel]
-    field_simp [hr.ne']
-    ring
+    field_simp [hr.ne']; ring
   have hbd : horizontalIntercept b d z.im = c.re + r - 2 * (z.im - c.im) := by
     simp only [horizontalIntercept, b, d, add_sub_cancel_left]
-    field_simp [hr.ne']
-    ring
+    field_simp [hr.ne']; ring
   have hda : horizontalIntercept d a z.im = c.re - r := by simp [horizontalIntercept, d, a]
   have ha : a.im ≤ b.im := by dsimp only [a, b]; linarith
   have hb : b.im ≤ d.im := by dsimp only [b, d]; linarith
@@ -545,9 +537,8 @@ theorem exists_rayParity_isolating_loop (points : Finset ℂ) (c : ℂ)
     change Fin 3 at i
     fin_cases i <;> intro heq <;> norm_num [parityTriangle_point] at heq <;> linarith
   · exact fun h => (parityTriangle_support c hr h).1 rfl
-  · intro z hz hs
-    obtain ⟨hne, hle⟩ := parityTriangle_support c hr hs
-    exact (not_lt_of_ge hle) (hpoints z hz hne)
+  · exact fun z hz hs =>
+      (parityTriangle_support c hr hs).2.not_gt (hpoints z hz (parityTriangle_support c hr hs).1)
   · exact fun z hz => (parityTriangle_support c hr hz).2.trans_lt hrε
   · exact fun z hz hne => parityTriangle_outside hr (hpoints z hz hne)
 
@@ -682,8 +673,7 @@ theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
       endpoint_concat p e he]
   · rintro (_ | _) <;> simp [germ_concat _ _ hq, germ_concat p q hjoin, germ_concat p e he]
   · rw [support_concat _ _ hq, support_concat p e he, support_concat p q hjoin]
-    intro z hz
-    exact hz.elim (fun hp => Or.inl (Or.inl hp)) Or.inr
+    exact fun _ => Or.imp Or.inl id
   · rw [support_concat _ _ hq, support_concat p e he, support_concat p q hjoin]
     rintro z ((hp | hl) | hq')
     exacts [Or.inl (Or.inl hp), Or.inr (hsupport hl), Or.inl (Or.inr hq')]
@@ -691,8 +681,7 @@ theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
     rw [rayParity_concat _ _ hq, rayParity_concat p e he, rayParity_concat p q hjoin,
       hparity z hz]
     ac_rfl
-  · rw [segments_concat, segments_concat]
-    omega
+  · rw [segments_concat, segments_concat]; omega
 
 /-- Insert a prescribed parity excursion at an interior point of a straight route.
 The excursion avoids the marked points, and each outer germ remains a positive
@@ -725,13 +714,11 @@ theorem exists_line_add_rayParity {U : Set ℂ} (hU : IsOpen U)
       Set.Icc_union_Icc_eq_Icc ht.1.le ht.2.le]
     exact (segment_eq_image_lineMap ℝ a b).symm
   refine ⟨r, fun s => ?_, fun s => ?_, hsegments ▸ hcontains, hsegments ▸ hsupport,
-    fun z hz => ?_⟩
-  · rw [he, endpoint_concat _ _ rfl]
+    fun z hz => by rw [hpar z hz, rayParity_line_split a b u z ht]⟩
+  · rw [he, endpoint_concat p q rfl]
     cases s <;> rfl
-  · rw [hg, germ_concat _ _ rfl]
-    cases s
-    · exact AffineMap.lineMap_vsub_left a b t
-    · exact AffineMap.lineMap_vsub_right a b t
-  · rw [hpar z hz, rayParity_line_split a b u z ht]
+  · rw [hg, germ_concat p q rfl]
+    cases s <;>
+      first | exact AffineMap.lineMap_vsub_left a b t | exact AffineMap.lineMap_vsub_right a b t
 
 end Cslib.Polygonal.Route

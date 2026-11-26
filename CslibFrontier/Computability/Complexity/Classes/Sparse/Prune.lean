@@ -138,20 +138,17 @@ theorem mem_searchRightFrom (hC : ∀ y ∈ N, C y ↔ ∀ w ∈ Q y, w ∈ K)
   rw [searchRightFrom, List.range_eq_range', List.drop_range', Nat.zero_add, Nat.mul_one,
     range'_split hlr hr]
   refine mem_searchRight (K := K) hc (fun x hx w hw => ?_) fun z hz => ?_
-  · have hx' : l ≤ x ∧ x ≤ r := by
-      simp only [List.mem_append, List.mem_range'_1, List.mem_singleton] at hx
-      omega
+  · simp only [List.mem_append, List.mem_range'_1, List.mem_singleton] at hx
     have hxN : x < N.length := by omega
     rw [queriesAt_of_lt hxN] at hw
-    exact (hC _ (List.getElem_mem hxN)).1 (hrun x hxN hx'.1 hx'.2) w hw
+    exact (hC _ (List.getElem_mem hxN)).1 (hrun x hxN (by omega) (by omega)) w hw
   · obtain ⟨rfl, hz'⟩ : z = r + 1 ∧ r + 1 < N.length := by
       rcases hlen : N.length - (r + 1) with _ | k
       · simp [hlen] at hz
       · rw [hlen, List.range'_succ, List.head?_cons, Option.mem_some_iff] at hz
         omega
-    have hout := mt (hC _ (List.getElem_mem hz')).2 (hnext hz')
-    push Not at hout
-    rwa [queriesAt_of_lt hz']
+    rw [queriesAt_of_lt hz']
+    simpa using mt (hC _ (List.getElem_mem hz')).2 (hnext hz')
 
 /-- **`SEARCH-LEFT` keeps the start of a run** (the source's Claim 2). If the nodes at the
 positions from `m` to `r` are in a set `C` whose members are the nodes with all their queries in
@@ -169,12 +166,10 @@ theorem mem_searchLeftFrom (hC : ∀ y ∈ N, C y ↔ ∀ w ∈ Q y, w ∈ K)
     rw [hr, List.reverse_append, List.reverse_cons, List.append_assoc, List.singleton_append]
   rw [searchLeftFrom, hsplit]
   refine mem_searchRight (K := K) hc (fun x hx w hw => ?_) fun z hz => ?_
-  · have hx' : m ≤ x ∧ x ≤ r := by
-      simp only [List.mem_append, List.mem_reverse, List.mem_range'_1, List.mem_singleton] at hx
-      omega
+  · simp only [List.mem_append, List.mem_reverse, List.mem_range'_1, List.mem_singleton] at hx
     have hxN : x < N.length := by omega
     rw [queriesAt_of_lt hxN] at hw
-    exact (hC _ (List.getElem_mem hxN)).1 (hrun x hxN hx'.1 hx'.2) w hw
+    exact (hC _ (List.getElem_mem hxN)).1 (hrun x hxN (by omega) (by omega)) w hw
   · obtain ⟨hm, rfl⟩ : 0 < m ∧ z = m - 1 := by
       rcases m with _ | m
       · simp at hz
@@ -182,9 +177,8 @@ theorem mem_searchLeftFrom (hC : ∀ y ∈ N, C y ↔ ∀ w ∈ Q y, w ∈ K)
           List.head?_cons, Option.mem_some_iff] at hz
         omega
     have hzN : m - 1 < N.length := by omega
-    have hout := mt (hC _ (List.getElem_mem hzN)).2 (hprev hm)
-    push Not at hout
-    rwa [queriesAt_of_lt hzN]
+    rw [queriesAt_of_lt hzN]
+    simpa using mt (hC _ (List.getElem_mem hzN)).2 (hprev hm)
 
 end Search
 
@@ -285,14 +279,13 @@ private theorem exists_run_end {P : ℕ → Prop} {h n : ℕ} (hP : P h) (hn : h
     have := Nat.find_min hex hjr
     push Not at this
     exact this hj
-  refine ⟨Nat.find hex, hhr, ?_, fun i hi hir => ?_, fun hr1 => ?_⟩
+  refine ⟨Nat.find hex, hhr, ?_, fun i hi hir => ?_, fun _ => hstop.resolve_left (by omega)⟩
   · by_contra hrn
     have := hmin (n - 1) (by omega) (by omega)
     omega
   · induction i, hi using Nat.le_induction with
     | base => exact hP
     | succ i hhi _ => exact (hmin i hhi (by omega)).2
-  · exact hstop.resolve_left (by omega)
 
 /-- The start of the longest run of positions satisfying `P` up to `r`. -/
 private theorem exists_run_start {P : ℕ → Prop} {a r : ℕ} (ha : ∀ i, a ≤ i → i ≤ r → P i) :
@@ -300,10 +293,8 @@ private theorem exists_run_start {P : ℕ → Prop} {a r : ℕ} (ha : ∀ i, a �
   classical
   have hex : ∃ m, ∀ i, m ≤ i → i ≤ r → P i := ⟨a, ha⟩
   refine ⟨Nat.find hex, Nat.find_min' hex ha, Nat.find_spec hex, fun hm hP => ?_⟩
-  refine Nat.find_min hex (show Nat.find hex - 1 < Nat.find hex by omega) fun i hi hir => ?_
-  rcases Nat.eq_or_lt_of_le hi with heq | hlt
-  · rwa [← heq]
-  · exact Nat.find_spec hex i (by omega) hir
+  refine Nat.find_min hex (Nat.sub_lt hm one_pos) fun i hi hir => ?_
+  exact (Nat.eq_or_lt_of_le hi).elim (· ▸ hP) fun _ => Nat.find_spec hex i (by omega) hir
 
 /-- **`PRUNE` collects the last position of the level in `L`** (the source's Claim 3), from any
 start position `l ≤ h` at depth `d` whose run of nodes in `C (2 d)` reaches `h`. -/
@@ -317,14 +308,12 @@ private theorem mem_prunePositions (hh : h < N.length)
       h ∈ prunePositions Q s N n d starts := by
   have hmono : ∀ y ∈ N, ∀ j j', j ≤ j' → C j' y → C j y := fun y hy _ _ hjj' =>
     antitone_nat_of_succ_le (f := fun j => C j y) (fun j => hnest j y hy) hjj'
-  intro n
-  induction n with
+  intro n d starts l hd hl hlh hrun
+  induction n generalizing d starts l with
   | zero =>
-    intro d starts l hd _ hlh hrun
     obtain ⟨d', hd', -, hout⟩ := (hleft h hh).1 le_rfl
     exact absurd (hmono _ (List.getElem_mem hh) _ _ (by omega) (hrun h hh hlh le_rfl)) hout
   | succ n ih =>
-    intro d starts l hd hl hlh hrun
     have hdD : d < D := by omega
     /- The longest run of nodes in `C (2 d)` from `l` ends at some `r ≥ h`. -/
     obtain ⟨r, hhr, hrN, hrun', hnext⟩ := exists_run_end
@@ -364,9 +353,8 @@ private theorem mem_prunePositions (hh : h < N.length)
     · /- The node at `h` is not in `C (2 d + 1)`, so the run starts at `m = h + 1`. -/
       have hm : m = h + 1 := le_antisymm hmh
         (Nat.succ_le_of_lt (lt_of_not_ge fun hmh' => hCh (hrunm h hmh' hhr hh)))
-      rcases Nat.eq_or_lt_of_le hhr with rfl | hhr'
-      · exact .inl (.inl hr)
-      · exact .inl (.inr ⟨m, hmem_left (by omega), by omega⟩)
+      exact (Nat.eq_or_lt_of_le hhr).elim (fun h => .inl (.inl (h ▸ hr))) fun _ =>
+        .inl (.inr ⟨m, hmem_left (by omega), by omega⟩)
 
 /-- **`PRUNE` keeps the last node of the level in `L`** (the source's Claim 3). Let the sets
 `C j` decrease along `N`, and let `L` be `⋃ d < D, C (2 d) \ C (2 d + 1)` on `N`, whose members in
@@ -479,8 +467,7 @@ theorem computableInPolyTime_prune {Q : γ → ℕ → α → List κ} {s : γ �
   have hfilter := filterWithInput (list := fun x => (N x).zip (List.range (N x).length))
     (test := fun x p => decide (p.2 ∈ prunePositions (Q x) (s x) (N x) D 0 [0])) (by fun_prop)
     (decide_mem (hpos.comp (fst _ _)) ((snd encA encUnary).comp (snd _ _)))
-  unfold prune
-  fun_prop
+  fun_prop [prune]
 
 end PolyTime
 

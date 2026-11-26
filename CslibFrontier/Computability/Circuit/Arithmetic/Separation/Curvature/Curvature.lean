@@ -81,12 +81,10 @@ private theorem prop_space_step {d : FreeMagma V → FreeMagma V → ℝ} (hd : 
       ite_eq_left (hst ▸ le_max_right _ _), ite_eq_right hm]
     have g1 := h3 (Sum.inl s) (Sum.inr (s, t))
     have g2 := h3 (Sum.inl t) (Sum.inr (s, t))
-    simp only
-        [Fin.sum_univ_two, Sum.elim_inl, Sum.elim_inr, id, ite_true, Fin.isValue, one_ne_zero,
-            ite_false] at g1 g2
-    rw [hd.self] at g1 g2
+    simp only [Fin.sum_univ_two, Sum.elim_inl, Sum.elim_inr, id, ite_true, Fin.isValue, one_ne_zero,
+      ite_false, hd.self] at g1 g2
     rw [hd.symm t s] at g2
-    constructor <;> linarith
+    exact ⟨by linarith, by linarith⟩
 
 /-- Each step extends the one before, so together they form a price; in it each new point is a
 midpoint of its pair. -/
@@ -110,10 +108,8 @@ private theorem prop_space_midpoints (hw : IsPrice K w) : ∃ d : FreeMagma V �
     filter_upwards [eventually_ge_atTop (max (depth s) (depth t))] with n hn
     obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hn
     exact (hst _ k s t (le_max_left _ _) (le_max_right _ _)).symm
-  · have e1 : max (depth s) (depth (s * t)) = max (depth s) (depth t) + 1 := by
-      simp only [depth]; omega
-    have e2 : max (depth t) (depth (s * t)) = max (depth s) (depth t) + 1 := by
-      simp only [depth]; omega
+  · have e1 : max (depth s) (depth (s * t)) = max (depth s) (depth t) + 1 := by simp [depth]; omega
+    have e2 : max (depth t) (depth (s * t)) = max (depth s) (depth t) + 1 := by simp [depth]; omega
     simpa only [e1, e2, hDs] using hf3 _ _ (hP _) s t rfl
 
 /-- Midpoints of Cauchy sequences are Cauchy by (CN) itself: if a n → x and b n → v, and m n
@@ -141,8 +137,7 @@ private theorem prop_space_cauchy {X : Type*} [MetricSpace X] {a b m : ℕ → X
   have hδ0 : 0 < δ := by positivity
   obtain ⟨N₁, hN₁⟩ := Metric.cauchySeq_iff.1 ha.cauchySeq (δ / 2) (by positivity)
   obtain ⟨N₂, hN₂⟩ := Metric.cauchySeq_iff.1 hb.cauchySeq (δ / 2) (by positivity)
-  obtain ⟨N₃, hN₃⟩ :=
-    eventually_atTop.1 ((ha.dist hb).eventually (gt_mem_nhds (show dist x v < R by linarith)))
+  obtain ⟨N₃, hN₃⟩ := eventually_atTop.1 ((ha.dist hb).eventually (gt_mem_nhds (lt_add_one _)))
   refine ⟨max N₁ (max N₂ N₃), fun l hl k hk => ?_⟩
   have e1 := hN₁ l ((le_max_left _ _).trans hl) k ((le_max_left _ _).trans hk)
   have e2 := hN₂ l (((le_max_left _ _).trans (le_max_right _ _)).trans hl) k
@@ -169,8 +164,8 @@ point m for which (CN) holds at all z in S. -/
 private theorem prop_space_completion {X : Type*} [MetricSpace X] [CompleteSpace X] {S : Set X}
     (hS : Dense S)
     (h : ∀ x ∈ S, ∀ v ∈ S, ∃ m, ∀ z ∈ S,
-      dist z m ^ 2 ≤ (dist z x ^ 2 + dist z v ^ 2) / 2 - dist x v ^ 2 / 4) : CompleteCAT0Space X :=
-          by
+      dist z m ^ 2 ≤ (dist z x ^ 2 + dist z v ^ 2) / 2 - dist x v ^ 2 / 4) :
+    CompleteCAT0Space X := by
   have h' (x) (hx : x ∈ S) (v) (hv : v ∈ S) : ∃ m, ∀ z,
       dist z m ^ 2 ≤ (dist z x ^ 2 + dist z v ^ 2) / 2 - dist x v ^ 2 / 4 := by
     obtain ⟨m, hm⟩ := h x hx v hv

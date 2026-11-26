@@ -209,7 +209,7 @@ private theorem lookup_pbPart {J : List Ent} (hJ : (J.map Ent.num).Nodup) {p : �
       exact ⟨e', List.mem_cons_of_mem _ he', hc, (lookup_lratPart_cons (Ne.symm hp)).trans hl⟩
 
 /-- What a propagation adds to the trail comes from the constraint. -/
-private theorem mem_of_propagate {ρ ρ' : List (Literal ℕ)} {c : PBConstr}
+private theorem mem_or_of_propagate {ρ ρ' : List (Literal ℕ)} {c : PBConstr}
     (h : propagate ρ c = some ρ') {l : Literal ℕ} (hl : l ∈ ρ') :
     l ∈ ρ ∨ l ∈ c.terms.map (·.2) := by
   unfold propagate at h
@@ -297,7 +297,7 @@ private theorem negate_ok {c : PBConstr} (hd : c.normalize.degree = 1) (ρ t : L
     omega
   obtain ⟨ρ', hp⟩ : ∃ ρ', propagate ρ c.negate = some ρ' :=
     ⟨_, by rw [propagate, ite_eq_right hs]⟩
-  refine ⟨ρ', hp, fun l hl => (mem_of_propagate hp hl).elim (hρ l) fun hl => ?_⟩
+  refine ⟨ρ', hp, fun l hl => (mem_or_of_propagate hp hl).elim (hρ l) fun hl => ?_⟩
   simp only [negate, List.map_map, Function.comp_def, List.mem_map] at hl
   obtain ⟨y, hy, rfl⟩ := hl
   exact hmem y hy

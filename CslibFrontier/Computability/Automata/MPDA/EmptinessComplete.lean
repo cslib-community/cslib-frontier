@@ -121,8 +121,7 @@ open Classical in
 private theorem Ext.find_sub_lt {i : Fin n} {q : ℕ} (h : ∃ r, Ext w i q r) :
     w.length - Nat.find h < w.length - q := by
   obtain ⟨hlt, ⟨hp, -⟩, -⟩ := Nat.find_spec h
-  have := hp.lt_length
-  omega
+  exact Nat.sub_lt_sub_left (hlt.trans hp.lt_length) hlt
 
 open Classical in
 /-- The greedy chain from position `q`, oldest first: `q`, then the least extension, and so on. -/
@@ -151,11 +150,9 @@ theorem chainFrom_spec {i : Fin n} :
     split_ifs at hr with h
     · rcases List.mem_cons.mp hr with rfl | hr
       · exact ⟨le_rfl, fun h' => absurd rfl h'⟩
-      · have hspec := Nat.find_spec h
+      · obtain ⟨hlt, hnhole, -⟩ := Nat.find_spec h
         obtain ⟨hle, hhole⟩ := chainFrom_spec (Nat.find h) r hr
-        refine ⟨by have := hspec.1; omega, fun _ => ?_⟩
-        rcases eq_or_ne r (Nat.find h) with rfl | hrf
-        exacts [hspec.2.1, hhole hrf]
+        exact ⟨hlt.le.trans hle, fun _ => if hrf : r = Nat.find h then hrf ▸ hnhole else hhole hrf⟩
     · obtain rfl := List.mem_singleton.mp hr
       exact ⟨le_rfl, fun h' => absurd rfl h'⟩
 termination_by q => w.length - q
@@ -171,8 +168,7 @@ theorem mem_chainFrom_of_ext {i : Fin n} : ∀ q, ∀ p ∈ chainFrom w i q, ∀
     split_ifs at hp ⊢ with h
     · rcases List.mem_cons.mp hp with rfl | hp
       · -- The least extension is the only one.
-        have hmin := Nat.find_min' h hr
-        obtain rfl := (Nat.find_spec h).eq_of_le hr hmin
+        obtain rfl := (Nat.find_spec h).eq_of_le hr (Nat.find_min' h hr)
         exact List.mem_cons_of_mem _ mem_chainFrom_self
       · exact List.mem_cons_of_mem _ (mem_chainFrom_of_ext (Nat.find h) p hp r hr)
     · obtain rfl := List.mem_singleton.mp hp
@@ -445,17 +441,12 @@ theorem chainFrom_lt_blockEnd {w : List (α × Op n Γ)} {i : Fin n} :
     rw [chainFrom_eq] at hr
     rw [blockEnd]
     split_ifs at hr ⊢ with h
-    · have hspec := Nat.find_spec h
-      have hq₂ := hspec.2.1.1.lt_length
+    · obtain ⟨hlt, ⟨hp, -⟩, -⟩ := Nat.find_spec h
       rcases List.mem_cons.mp hr with hqr | hr
-      · rw [hqr]
-        have := chainFrom_lt_blockEnd (i := i) (Nat.find h) hq₂ _ mem_chainFrom_self
-        have := hspec.1
-        omega
-      · exact chainFrom_lt_blockEnd (Nat.find h) hq₂ r hr
+      · exact hqr ▸ hlt.trans (chainFrom_lt_blockEnd (Nat.find h) hp.lt_length _ mem_chainFrom_self)
+      · exact chainFrom_lt_blockEnd (Nat.find h) hp.lt_length r hr
     · obtain rfl := List.mem_singleton.mp hr
-      have := (wnEnd_spec (w := w) (p := r + 1) (by omega)).1
-      omega
+      exact Nat.lt_of_succ_le (wnEnd_spec (w := w) (p := r + 1) hq).1
 termination_by q => w.length - q
 decreasing_by all_goals exact Ext.find_sub_lt h
 
@@ -764,8 +755,7 @@ private theorem cinv_hole {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {
       refine ⟨hrt, fun hpr => ?_⟩
       rw [← List.take_append_drop m (chainFrom w d.stack q₀), List.mem_append] at hrL
       rcases hrL with hrL | hrL
-      · obtain ⟨e', he', rfl⟩ := List.mem_map.mp (hm ▸ List.mem_reverse.mpr hrL)
-        exact ⟨e', he', rfl⟩
+      · exact List.mem_map.mp (hm ▸ List.mem_reverse.mpr hrL)
       · exact absurd (hpr.anti (by omega) (by omega)) (hpend r hrL)
   have hClt : C.length < K := by have := hK t htlen; omega
   -- The block of the greedy chain from `t`.

@@ -116,8 +116,6 @@ theorem exists_parameters {ξ : ℝ} (hξ : 0 < ξ) :
     (h3.symm ▸ hρ_lt)
   norm_num at hdecay
   have hq1 : q < 1 := lt_one_of_decay_bound hq0 hρ_pos hdecay
-  set T : ℝ := 10
-  have hTpos : 0 < T := by norm_num
   set ε : ℝ := min (ξ / 6) (1 / 100) with hεdef
   have hεpos : 0 < ε := lt_min (by positivity) (by norm_num)
   set M : ℕ := ⌈40 / ξ⌉₊ + 1 with hMdef
@@ -132,22 +130,22 @@ theorem exists_parameters {ξ : ℝ} (hξ : 0 < ξ) :
     have harc : (1 / 2 : ℝ) ≤ arccos (5 / 6) := by
       rw [← Real.arccos_cos (by norm_num : (0 : ℝ) ≤ 1 / 2) (by linarith [Real.pi_gt_three])]
       exact Real.arccos_le_arccos hcos_gt
-    have h1 : 3 / (4 * (4 : ℝ)) ≤ 3 / (4 * π) := by gcongr; exact Real.pi_lt_four.le
-    have h2 : 3 / (4 * (4 : ℝ)) * (1 / 2) ≤ 3 / (4 * π) * arccos (5 / 6) := by gcongr
+    have := Real.pi_lt_four.le
+    have : 3 / (4 * (4 : ℝ)) * (1 / 2) ≤ 3 / (4 * π) * arccos (5 / 6) := by gcongr
     unfold switchedCoefficient
     linarith
-  refine ⟨q, R, ρ, T, ε, M, hq0, hq1, hρ_pos, hρ_lt.le, hdecay, hTpos, hεpos, hMpos, ?_⟩
+  refine ⟨q, R, ρ, 10, ε, M, hq0, hq1, hρ_pos, hρ_lt.le, hdecay, by norm_num, hεpos, hMpos, ?_⟩
   rw [switchedBound, ← max_add_add_right]
   have hε_hi : ε ≤ ξ / 6 := min_le_left _ _
   have hε_num : ε ≤ 1 / 100 := min_le_right _ _
   have hsqrtpi : 2 ≤ √(2 * π) :=
     (le_sqrt (by norm_num) (by positivity)).mpr (by nlinarith [two_le_pi])
-  have hgrid : (T / M) / √(2 * π) ≤ ξ / 4 := by
+  have hgrid : ((10 : ℝ) / M) / √(2 * π) ≤ ξ / 4 := by
     refine (div_le_self (by positivity) (by linarith)).trans ?_
-    rw [show T = 10 from rfl, div_le_iff₀ hMposR]
+    rw [div_le_iff₀ hMposR]
     linarith [(div_le_iff₀ hξ).mp hMR]
   refine max_le ?_ (by linarith)
-  norm_num [T]
+  norm_num
   linarith
 
 /-! ### The layout bounds -/
@@ -179,12 +177,11 @@ theorem exists_width_le_switchedCoefficient {ξ : ℝ} (hξ : 0 < ξ) :
   have hHdeg : ∀ v : Fin n, H.degree v ≤ 3 := fun v => by
     let hiso : H ≃g G.toSimpleGraph := ⟨e.symm, Iff.rfl⟩
     exact hiso.degree_eq v ▸ hGdeg.degree_toSimpleGraph_le (e.symm v)
-  have hHadj : ∀ u w : Fin n, H.Adj u w →
-      ρ ≤ inner ℝ (unitKernelRow H q R u) (unitKernelRow H q R w) := fun u w huw =>
-    hdecay.trans (by
-      have h := le_inner_unitKernelRow (D := 3) (by norm_num) hHdeg hq0 R huw
-      norm_num at h
-      linarith)
+  have hHadj (u w : Fin n) (huw : H.Adj u w) :
+      ρ ≤ inner ℝ (unitKernelRow H q R u) (unitKernelRow H q R w) := by
+    have h := le_inner_unitKernelRow (D := 3) (by norm_num) hHdeg hq0 R huw
+    norm_num at h
+    linarith
   obtain ⟨y, hy_inj, hin, hout, hlo, hhi⟩ :=
     exists_good_labeling H hHdeg hq0 hq1 R hρ0 hρs hHadj hT hε hM hlarge
   set B : ℝ := switchedBound ρ T ε M * n
@@ -236,8 +233,7 @@ theorem exists_ncard_edgeCut_le {ξ : ℝ} (hξ : 0 < ξ) :
       (∀ v, (G.incidenceSet v).ncard = 3) → N₀ < Nat.card V → ∀ k ≤ Nat.card V,
         ∃ L : Set V, L.ncard = k ∧
           ((G.edgeCut L).ncard : ℝ) ≤ (switchedCoefficient + ξ) * Nat.card V := by
-  obtain ⟨N₀, hN₀⟩ := exists_width_le_switchedCoefficient hξ
-  refine ⟨N₀, fun V E _ _ G hloop h3 hN k hk => ?_⟩
+  refine (exists_width_le_switchedCoefficient hξ).imp fun N₀ hN₀ V E _ _ G hloop h3 hN k hk => ?_
   obtain ⟨σ, hσ⟩ := hN₀ V E G hloop h3 hN
   exact ⟨σ.initial k, σ.ncard_initial hk,
     (Nat.cast_le.mpr (G.ncard_frontier_le_width σ k)).trans hσ⟩

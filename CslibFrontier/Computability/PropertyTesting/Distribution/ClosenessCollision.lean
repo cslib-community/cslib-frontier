@@ -234,7 +234,7 @@ private theorem bracket_le {k s s' t c c' R b r D : ℝ} (hk : 1 ≤ k) (hs : s 
       (2 * k - 1) * b + (k ^ 2 - 1) * (2 * r * D) := by
   have h1 : 0 ≤ (2 * k - 1) * (c - s ^ 2 + (c' - s' ^ 2)) := mul_nonneg (by linarith) (by linarith)
   have h2 : 0 ≤ (k - 1) * (s ^ 2 + s' ^ 2 - 2 * t ^ 2) := mul_nonneg (by linarith)
-    (by linarith [sq_nonneg (s - s'), show (s - s') ^ 2 = s ^ 2 + s' ^ 2 - 2 * (s * s') by ring])
+    (by nlinarith only [htt, sq_nonneg (s - s')])
   have h3 : 0 ≤ k * (k - 1) * ((s - t) ^ 2 + (s' - t) ^ 2) :=
     mul_nonneg (mul_nonneg (by linarith) (by linarith)) (by positivity)
   have h4 : 0 ≤ (2 * k - 1) * (s ^ 2 + s' ^ 2) := mul_nonneg (by linarith) (by positivity)
@@ -314,7 +314,6 @@ theorem sum_sum_iid_mul_closenessStatistic_sub_sq_le (p q : PMF α) {k : ℕ} (h
       (k - 1) * (2 * k - 1) * b +
         2 * (k - 1) ^ 2 * (k + 1) * Real.sqrt b * ∑ a, ((p a).toReal - (q a).toReal) ^ 2 := by
   refine (sum_sum_iid_mul_closenessStatistic_sub_sq_le_sqrt_sum_pow_four p q hk hp hq).trans ?_
-  have hk1 : (1 : ℝ) ≤ k := by exact_mod_cast Nat.one_le_iff_ne_zero.mpr hk
   -- `‖p - q‖₄² ≤ ‖p - q‖₂²`.
   have h4 : Real.sqrt (∑ a, ((p a).toReal - (q a).toReal) ^ 4) ≤
       ∑ a, ((p a).toReal - (q a).toReal) ^ 2 := by
@@ -323,8 +322,7 @@ theorem sum_sum_iid_mul_closenessStatistic_sub_sq_le (p q : PMF α) {k : ℕ} (h
           sum_congr rfl fun a _ => by ring
       _ ≤ (∑ a, ((p a).toReal - (q a).toReal) ^ 2) ^ 2 :=
           sum_sq_le_sq_sum_of_nonneg fun _ _ => sq_nonneg _
-  linarith [mul_le_mul_of_nonneg_left h4
-    (by positivity : 0 ≤ 2 * ((k : ℝ) - 1) ^ 2 * (k + 1) * Real.sqrt b)]
+  gcongr
 
 omit [DecidableEq α] in
 /-- **Chebyshev's inequality** over two independent samples, from
@@ -362,10 +360,8 @@ private theorem variance_le_mul_sq {k : ℕ} {b E δ D r c : ℝ} (hK : 0 < (k :
   rw [Real.sqrt_sq hS, Nat.cast_choose_two, hkK, add_sub_cancel_right]
   have hS2 : S ^ 2 ≤ (K * E * δ) ^ 2 / 1296 :=
     (le_div_iff₀ (by norm_num)).mpr ((pow_le_pow_left₀ (by positivity) hk 2).trans_eq' (by ring))
-  have hA : K * (2 * (K + 1) - 1) ≤ 2 * (K + 1) ^ 2 :=
-    by linarith [show 2 * (K + 1) ^ 2 - K * (2 * (K + 1) - 1) = 3 * K + 2 by ring]
-  have hB : K * (K + 1 + 1) ≤ (K + 1) ^ 2 :=
-    by linarith [show (K + 1) ^ 2 - K * (K + 1 + 1) = 1 by ring]
+  have hA : K * (2 * (K + 1) - 1) ≤ 2 * (K + 1) ^ 2 := by nlinarith only [hK]
+  have hB : K * (K + 1 + 1) ≤ (K + 1) ^ 2 := by nlinarith only
   have hδ2 : δ ^ 2 ≤ δ := pow_le_of_le_one hδ0.le hδ1 two_ne_zero
   have h1 : K * (2 * (K + 1) - 1) * S ^ 2 ≤ 2 / 1296 * (K + 1) ^ 2 * K ^ 2 * E ^ 2 * δ :=
     calc K * (2 * (K + 1) - 1) * S ^ 2 ≤ 2 * (K + 1) ^ 2 * ((K * E * δ) ^ 2 / 1296) := by gcongr
@@ -457,9 +453,8 @@ theorem isClosenessTester_closenessTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
   have key (p : PMF α) : 36 * Real.sqrt 1 ≤
       (k - 1) * (2 * ε / Real.sqrt (Fintype.card α)) ^ 2 * (1 / 3) := by
     have hn := card_pos p
-    have hr : ((k : ℝ) - 1) * ((2 * ε) ^ 2 / Fintype.card α) * (1 / 3) =
-        4 / 3 * (((k : ℝ) - 1) * ε ^ 2) / Fintype.card α := by ring
-    rw [Real.sqrt_one, div_pow, Real.sq_sqrt hn.le, hr, le_div_iff₀ hn]
+    rw [Real.sqrt_one, div_pow, Real.sq_sqrt hn.le, mul_div_assoc' _ ((2 * ε) ^ 2),
+      div_mul_div_comm, le_div_iff₀ (mul_pos hn zero_lt_three)]
     linarith
   refine ⟨fun p => ?_, fun p q hpq => ?_⟩
   · linarith [le_acceptProb₂_closenessTester (by norm_num : (0 : ℝ) < 1 / 3)

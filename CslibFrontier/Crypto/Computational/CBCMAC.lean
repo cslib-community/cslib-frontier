@@ -435,10 +435,8 @@ private theorem toBlocks_encodeBlockList {n : ℕ} (hn : 0 < n) (bs : List (BitS
 private theorem cbcInputBlocks_injective {n ℓ : ℕ} :
     Function.Injective (cbcInputBlocks (n := n) (ℓ := ℓ)) := by
   rintro ⟨k, f⟩ ⟨k', f'⟩ h
-  have hk : k = k' := Fin.ext (by
-    have hlen := congrArg List.length h
-    simpa only [length_cbcInputBlocks, Nat.add_right_cancel_iff] using hlen)
-  subst hk
+  obtain rfl : k = k' := Fin.ext <| by
+    simpa only [length_cbcInputBlocks, Nat.add_right_cancel_iff] using congrArg List.length h
   exact congrArg (Sigma.mk k) (List.ofFn_injective h)
 
 private def decodeCBCWord (n ℓ : ℕ) (w : List Bool) : Option (CBCInput n ℓ) :=
@@ -645,13 +643,9 @@ private theorem cbcQueryRun_fixCoins_mem_support {α : Type} {n ℓ : ℕ}
     exact (PMF.mem_support_bind_iff _ _ _).mpr
       ⟨c, hc', cbcQueryRun_fixCoins_mem_support o (cont c) ω' hω₀⟩
   | .liftBind (.inr q) cont, f, hω => by
-    let f' : (y : BitString n) → ProbOracleComp.Coins (cont y) := f
-    have hne : (ProbOracleComp.coinLaw (.liftBind (.inr q) cont)) f' ≠ 0 :=
-      (PMF.mem_support_iff _ _).mp hω
-    rw [ProbOracleComp.coinLaw_liftBind_inr] at hne
-    have hmem := (PMF.mem_support_pi_iff _ _).mp ((PMF.mem_support_iff _ _).mpr hne)
-    exact (PMF.mem_support_map_iff _ _ _).mpr
-      ⟨_, cbcQueryRun_fixCoins_mem_support o (cont (o q)) (f' (o q)) (hmem (o q)), rfl⟩
+    rw [PMF.mem_support_iff, ProbOracleComp.coinLaw_liftBind_inr] at hω
+    exact (PMF.mem_support_map_iff _ _ _).mpr ⟨_, cbcQueryRun_fixCoins_mem_support o (cont (o q))
+      (f (o q)) ((PMF.mem_support_pi_iff _ _).mp ((PMF.mem_support_iff _ _).mpr hω) (o q)), rfl⟩
 
 private def cbcOracleWord {n ℓ : ℕ} (hn : 0 < n) (o : CBCInput n ℓ → BitString n)
     (w : List Bool) : List Bool :=
@@ -1471,9 +1465,8 @@ theorem PseudorandomFunction.prfOver_cbcMac {family : List Bool → List Bool �
         fun n => isPrefixFreeOn_restrictLengthDistinguisher _ adversary n⟩
     refine negligible_of_eventually_le hsec ?_
     filter_upwards [Filter.eventually_ge_atTop 1] with n hn
-    have hn0 : 0 < n := hn
     have hsub (w : List Bool) (hw : w.length = ℓ n * n) : cbcBlockValid ℓ n w = true := by
-      simp [cbcBlockValid, hw, hpos n, hn0, Nat.mul_mod_left]
+      simp [cbcBlockValid, hw, hpos n, Nat.lt_of_lt_of_le Nat.zero_lt_one hn, Nat.mul_mod_left]
     rw [← eval_prfRealGameOn_restrictLengthDistinguisher (fun m => ℓ m * m)
       (fun key _ _ => length_cbcMacFamily hF.length_eq key _) hsub adversary,
       ← eval_prfIdealGameOn_restrictLengthDistinguisher (fun m => ℓ m * m) hsub adversary]
@@ -1606,9 +1599,7 @@ theorem eval_macSufCmaGameOn_eq_macEufCmaGameOn (valid : ℕ → List Bool → B
   rw [ProbOracleComp.eval_run_interpret_eq_runWith,
     ProbOracleComp.eval_run_interpret_eq_runWith, ← hsim, PMF.bind_map]
   refine PMF.bind_congr_on_support _ _ _ fun ⟨(msg, tag), queried⟩ _ => ?_
-  by_cases htag : tagFamily sk msg = tag
-  · simp [Function.comp_apply, htag]
-  · simp [Function.comp_apply, beq_eq_false_iff_ne.mpr htag]
+  by_cases htag : tagFamily sk msg = tag <;> simp [Function.comp_apply, beq_eq_decide, htag]
 
 /-- Because `tagFamily` is deterministic with a unique valid tag per `(sk, msg)`, strong and
 ordinary adaptive chosen-message unforgeability on `valid` coincide. -/
@@ -2046,9 +2037,7 @@ theorem eval_macSufCmaGameOn_cbcMacFamily_cbcExtensionForger
     PMF.pure true := by
   rw [eval_macSufCmaGameOn_eq_macEufCmaGameOn]
   have hval1 : lpBlockValid (fun _ => 2) n (List.replicate n false) = true := by
-    simp only [lpBlockValid, List.length_replicate, Nat.mod_self, beq_self_eq_true, Bool.true_and,
-      decide_eq_true_eq]
-    omega
+    simp [lpBlockValid]; omega
   simp only [macEufCmaGameOn, cbcExtensionForger, Functor.map_map, OracleComp.interpret_map,
     StateT.run_map, ProbOracleComp.interpret_query, BitString.eval_sampleList, pmf_norm]
   dsimp only [StateT.run, macSigningOracleOn]

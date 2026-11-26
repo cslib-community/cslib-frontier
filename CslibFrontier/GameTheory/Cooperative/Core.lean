@@ -132,11 +132,10 @@ theorem exists_isGreatest_isLeast_coreLP [DecidableEq A] (G : CostSharingGame A)
     refine ⟨fun _ => -B, (G.mulVec_incidenceMatrix_le_iff _).2 fun S => ?_⟩
     rcases S.eq_empty_or_nonempty with rfl | hS
     · simp
-    have hcard : (1 : ℝ) ≤ S.card := by exact_mod_cast Finset.one_le_card.2 hS
-    have hBS : |G.cost S| ≤ B :=
-      Finset.single_le_sum (fun T _ => abs_nonneg (G.cost T)) (Finset.mem_univ S)
     rw [Finset.sum_const, nsmul_eq_mul]
-    linarith [le_mul_of_one_le_left hB hcard, neg_abs_le (G.cost S)]
+    linarith [le_mul_of_one_le_left hB (Nat.one_le_cast.mpr (Finset.one_le_card.2 hS)),
+      neg_abs_le (G.cost S),
+      Finset.single_le_sum (fun T _ => abs_nonneg (G.cost T)) (Finset.mem_univ S)]
   have hD : ∃ w : Finset A → ℝ, 0 ≤ w ∧ w ᵥ* incidenceMatrix = fun _ => 1 :=
     ⟨_, (vecMul_incidenceMatrix_eq_iff _).2 isBalancedWeights_univ⟩
   obtain ⟨v, hG, hL⟩ :=
@@ -251,14 +250,10 @@ private theorem cost_biUnion_le_sum_of_pairwiseDisjoint [DecidableEq A] {G : Cos
   | empty => simp
   | insert S P hSP ih =>
     rw [Finset.coe_insert] at hdisj
-    have hP_disj : (P : Set (Finset A)).PairwiseDisjoint id :=
-      hdisj.subset (Set.subset_insert S ↑P)
-    have hdisj_union : Disjoint S (P.biUnion id) :=
-      (Finset.disjoint_biUnion_right S P id).2 fun T hT =>
-        hdisj (Set.mem_insert S ↑P) (Set.mem_insert_of_mem S hT)
-          (fun hST => hSP (hST ▸ hT))
     rw [Finset.biUnion_insert, Finset.sum_insert hSP]
-    exact (hsub hdisj_union).trans (add_le_add le_rfl (ih hP_disj))
+    exact (hsub ((Finset.disjoint_biUnion_right S P id).2 fun T hT =>
+      hdisj (Set.mem_insert S ↑P) (Set.mem_insert_of_mem S hT) fun hST => hSP (hST ▸ hT))).trans
+      (add_le_add le_rfl (ih (hdisj.subset (Set.subset_insert S ↑P))))
 
 private theorem integralBalanced_support_spec [DecidableEq A] (G : CostSharingGame A)
     {w : Finset A → ℕ} (hw : IsIntegralBalancedWeights w) :
@@ -290,9 +285,9 @@ private theorem integralBalanced_support_spec [DecidableEq A] (G : CostSharingGa
       = ∑ S ∈ P, (w S : ℝ) * G.cost S := by
         refine (Finset.sum_subset (Finset.subset_univ P) fun S _ hSP => ?_).symm
         simp only [P, Finset.mem_filter, Finset.mem_univ, true_and, not_and, not_not] at hSP
-        by_cases hS : S.Nonempty
+        rcases S.eq_empty_or_nonempty with rfl | hS
+        · simp
         · rw [hSP hS, Nat.cast_zero, zero_mul]
-        · rw [Finset.not_nonempty_iff_eq_empty.1 hS, G.cost_empty, mul_zero]
     _ = ∑ S ∈ P, G.cost S := Finset.sum_congr rfl fun S hS => by simp [hw_one S hS]
 
 private theorem exists_isLeast_integralBalanced [DecidableEq A] (G : CostSharingGame A) :
@@ -313,8 +308,7 @@ private theorem exists_isLeast_integralBalanced [DecidableEq A] (G : CostSharing
     intro P hP
     obtain ⟨hdisj, hunion⟩ := (Finset.mem_filter.1 hP).2
     refine ⟨fun S => if S ∈ P then 1 else 0, fun j => ?_, ?_⟩
-    · have hj : j ∈ P.biUnion id := hunion.symm ▸ Finset.mem_univ j
-      obtain ⟨S₀, hS₀P, hjS₀⟩ := Finset.mem_biUnion.1 hj
+    · obtain ⟨S₀, hS₀P, hjS₀⟩ := Finset.mem_biUnion.1 (hunion.symm ▸ Finset.mem_univ j)
       rw [Finset.sum_eq_single_of_mem S₀ (Finset.mem_filter.2 ⟨Finset.mem_univ S₀, hjS₀⟩)]
       · simp [hS₀P]
       · exact fun S hS hne => ite_eq_right fun hSP =>
@@ -324,10 +318,9 @@ private theorem exists_isLeast_integralBalanced [DecidableEq A] (G : CostSharing
   have hne : valid.Nonempty := (hmem_valid isIntegralBalancedWeights_univ).imp fun _ h => h.1
   obtain ⟨P₀, hP₀, hmin⟩ := valid.exists_min_image (fun P => ∑ S ∈ P, G.cost S) hne
   obtain ⟨w₀, hw₀, hsum₀⟩ := hof_valid hP₀
-  refine ⟨∑ S ∈ P₀, G.cost S, ⟨w₀, hw₀, hsum₀⟩, ?_⟩
-  rintro _ ⟨w, hw, rfl⟩
-  obtain ⟨P, hP, hsum⟩ := hmem_valid hw
-  exact (hmin P hP).trans_eq hsum.symm
+  exact ⟨∑ S ∈ P₀, G.cost S, ⟨w₀, hw₀, hsum₀⟩, fun _ ⟨_, hw, h⟩ =>
+    let ⟨P, hP, hsum⟩ := hmem_valid hw
+    h ▸ (hmin P hP).trans_eq hsum.symm⟩
 
 /-- The optimal integral value of LP `(15.2)` over `IsIntegralBalancedWeights`
 ([JainMahdian2007], Section 15.2.2, p. 389). -/
@@ -463,12 +456,13 @@ private theorem sum_le_coalitionValue_of_feasible [Fintype G]
   · rw [Finset.sum_comm, E.coalitionValue_of_nonempty hS]
     refine Finset.sum_le_sum fun g _ => ?_
     obtain ⟨i₀, hi₀⟩ := id hS
-    have hsup_nn : 0 ≤ S.sup' hS (fun k => E.utility k g) :=
-      (E.utility_nonneg i₀ g).trans (Finset.le_sup' (fun k => E.utility k g) hi₀)
     calc ∑ i ∈ S, E.utility i g * x i g ≤ ∑ i ∈ S, S.sup' hS (E.utility · g) * x i g :=
         Finset.sum_le_sum fun i hi =>
           mul_le_mul_of_nonneg_right (Finset.le_sup' (E.utility · g) hi) (hx.1 i hi g)
-      _ ≤ _ := by rw [← Finset.mul_sum]; exact mul_le_mul_of_nonneg_left (hx.2 g) hsup_nn
+      _ ≤ _ := by
+        rw [← Finset.mul_sum]
+        exact mul_le_mul_of_nonneg_left (hx.2 g)
+          ((E.utility_nonneg i₀ g).trans (Finset.le_sup' (fun k => E.utility k g) hi₀))
 
 /-- Optimal redistribution of `S`'s endowments attained by `coalitionValue` (`IsGreatest` over
 `IsExactRedistribution`). -/
@@ -543,11 +537,11 @@ theorem marketPriceAllocation_inCore [Fintype A] [Fintype G] (E : LinearExchange
     · have hA : (Finset.univ : Finset A).Nonempty := hS.mono (Finset.subset_univ S)
       simp only [marketPriceAllocation, toCooperativeGame, coalitionValue, hS, hA, ↓reduceDIte]
       rw [Finset.sum_comm]
-      refine Finset.sum_le_sum fun g _ => ?_
-      rw [← Finset.mul_sum]
-      exact mul_le_mul_of_nonneg_right
-        (Finset.sup'_le hS _ fun i _ => Finset.le_sup' (E.utility · g) (Finset.mem_univ i))
-        (Finset.sum_nonneg fun i _ => E.endowment_nonneg i g)
+      exact Finset.sum_le_sum fun g _ => by
+        rw [← Finset.mul_sum]
+        exact mul_le_mul_of_nonneg_right
+          (Finset.sup'_le hS _ fun i _ => Finset.le_sup' (E.utility · g) (Finset.mem_univ i))
+          (Finset.sum_nonneg fun i _ => E.endowment_nonneg i g)
     · simp [Finset.not_nonempty_iff_eq_empty.1 hS]
 
 /-- **Exercise 15.1** ([JainMahdian2007], p. 410): every linear Arrow–Debreu exchange economy TU

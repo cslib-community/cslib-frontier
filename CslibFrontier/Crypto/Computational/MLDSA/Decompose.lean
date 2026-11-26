@@ -137,10 +137,8 @@ theorem power2Round_low_mem_Ioc (hd : 0 < d) (r : ZMod q) :
 /-- The low output of `Power2Round` has magnitude at most `2^(d-1)`. -/
 theorem abs_power2Round_low_le (hd : 0 < d) (r : ZMod q) :
     |(power2Round q d r).2| ≤ (2 ^ (d - 1) : ℕ) := by
-  have h := power2Round_low_mem_Ioc hd r
-  simp only [Set.mem_Ioc] at h
-  rw [abs_le]
-  exact ⟨h.1.le, h.2⟩
+  obtain ⟨h₁, h₂⟩ := power2Round_low_mem_Ioc hd r
+  exact abs_le.mpr ⟨h₁.le, h₂⟩
 
 /-- Coefficientwise `Power2Round` reconstructs the public-key vector. -/
 theorem power2RoundVec_reconstruct [NeZero q] {k n : ℕ} (t : Fin k → Fin n → ZMod q) :
@@ -180,11 +178,9 @@ private abbrev centeredRem (q γ₂ : ℕ) (r : ZMod q) : ℤ :=
 private theorem centeredRem_bounds (hγ : 0 < γ₂) (r : ZMod q) :
     -(γ₂ : ℤ) < centeredRem q γ₂ r ∧ centeredRem q γ₂ r ≤ γ₂ := by
   have : NeZero (2 * γ₂) := ⟨by omega⟩
-  have h : centeredRem q γ₂ r * 2 ∈ Set.Ioc (-((2 * γ₂ : ℕ) : ℤ)) ((2 * γ₂ : ℕ) : ℤ) :=
-    ZMod.valMinAbs_mem_Ioc _
-  simp only [Set.mem_Ioc] at h
-  push_cast at h
-  constructor <;> linarith [h.1, h.2]
+  obtain ⟨h₁, h₂⟩ := ZMod.valMinAbs_mem_Ioc ((r.val : ℤ) : ZMod (2 * γ₂))
+  push_cast [centeredRem] at h₁ h₂ ⊢
+  omega
 
 private theorem dvd_sub_centeredRem (r : ZMod q) :
     ((2 * γ₂ : ℕ) : ℤ) ∣ (r.val : ℤ) - centeredRem q γ₂ r :=
@@ -219,11 +215,9 @@ theorem intCast_highBits_mul_add_lowBits [NeZero q] (r : ZMod q) :
   · rw [highBits, lowBits, decompose_of_wrap h]
     have : (0 : ℤ) * (2 * γ₂ : ℕ) + (centeredRem q γ₂ r - 1) = (r.val : ℤ) - q := by linarith
     rw [this]
-    push_cast
     simp
   · rw [highBits, lowBits, decompose_of_not_wrap h, Int.ediv_mul_cancel (dvd_sub_centeredRem r),
-      sub_add_cancel]
-    simp
+      sub_add_cancel, Int.cast_natCast, ZMod.natCast_zmod_val]
 
 /-- In a valid ML-DSA modulus (`2 * γ₂ ∣ q - 1` and `q ≠ 0`), `q` decomposes in `ℤ` as
 `((q - 1) / (2 * γ₂)) * (2 * γ₂) + 1`. -/
@@ -242,13 +236,11 @@ theorem highBits_nonneg (hγ : 0 < γ₂) (r : ZMod q) : 0 ≤ highBits q γ₂ 
   · rw [highBits, decompose_of_not_wrap h]
     obtain ⟨k, hk⟩ := dvd_sub_centeredRem (γ₂ := γ₂) r
     obtain ⟨h₁, h₂⟩ := centeredRem_bounds (q := q) hγ r
-    have hv : (0 : ℤ) ≤ r.val := Int.natCast_nonneg _
     rw [hk, Int.mul_ediv_cancel_left _ (by positivity)]
     push_cast at hk
-    by_contra hneg
-    have hk1 : k ≤ -1 := by omega
+    by_contra! hneg
     have : (2 * γ₂ : ℤ) * k ≤ -(2 * γ₂) := by nlinarith
-    linarith
+    linarith [Int.natCast_nonneg r.val]
 
 /-- When `2 γ₂ ∣ q - 1`, the high bits lie below `(q - 1) / (2 γ₂)`, the number of high-order
 buckets. -/
@@ -295,39 +287,34 @@ theorem decompose_intCast_mul_add (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1)
   set m : ℕ := (q - 1) / (2 * γ₂) with hm
   have hqm : (q : ℤ) = m * (2 * γ₂) + 1 := by
     exact_mod_cast natCast_eq_bucketCount_mul_add_one (q := q) (γ₂ := γ₂) hdvd
-  have hcast : ((2 * γ₂ : ℕ) : ℤ) = 2 * (γ₂ : ℤ) := by push_cast; ring
-  have hγ' : (1 : ℤ) ≤ γ₂ := by exact_mod_cast hγ
-  have hm1 : (1 : ℤ) ≤ m := by omega
-  have hmγ : (2 * γ₂ : ℤ) ≤ m * (2 * γ₂) := by nlinarith
+  have hcast : ((2 * γ₂ : ℕ) : ℤ) = 2 * (γ₂ : ℤ) := by push_cast; rfl
+  have hmγ : (2 * γ₂ : ℤ) ≤ m * (2 * γ₂) := by
+    have : (1 : ℤ) ≤ m := by omega
+    nlinarith
   have hval : ((((a * (2 * γ₂ : ℕ) + b : ℤ) : ZMod q).val : ℕ) : ℤ) =
       (a * (2 * γ₂ : ℕ) + b) % q := ZMod.val_intCast _
   generalize ((a * (2 * γ₂ : ℕ) + b : ℤ) : ZMod q) = r at hval ⊢
   rw [hcast] at hval
   by_cases hx : 0 ≤ a * (2 * γ₂) + b
   · -- No reduction modulo `q` happens, and this is not the wrap-around case.
-    have hxq : a * (2 * γ₂) + b < q := by
-      have : a * (2 * γ₂) ≤ (m - 1) * (2 * γ₂) := by gcongr; omega
-      linarith
+    have hle : a * (2 * γ₂) ≤ m * (2 * γ₂) - 2 * γ₂ := by
+      simpa [sub_one_mul] using
+        mul_le_mul_of_nonneg_right (Int.le_sub_one_of_lt ha) (by positivity)
     have hv : (r.val : ℤ) = a * (2 * γ₂) + b := by
-      rw [hval, Int.emod_eq_of_lt hx hxq]
+      rw [hval, Int.emod_eq_of_lt hx (by linarith)]
     have hr₀ : centeredRem q γ₂ r = b :=
       centeredRem_eq hγ hb₁ hb₂ ⟨a, by rw [hv, hcast]; ring⟩
-    have hnw : (r.val : ℤ) - centeredRem q γ₂ r ≠ (q : ℤ) - 1 := by
-      intro heq
-      have h2 : a * (2 * γ₂) = m * (2 * γ₂) := by linarith
-      have := mul_right_cancel₀ (by positivity : (2 * γ₂ : ℤ) ≠ 0) h2
-      omega
+    have hnw : (r.val : ℤ) - centeredRem q γ₂ r ≠ (q : ℤ) - 1 := by linarith
     rw [decompose_of_not_wrap hnw, hr₀, hv, add_sub_cancel_right, hcast,
       Int.mul_ediv_cancel _ (by positivity)]
   · -- Then `a = 0` and `-γ₂ < b < 0`: the representative is `q + b`, the wrap-around case.
-    have hx : a * (2 * γ₂) + b < 0 := lt_of_not_ge hx
     obtain rfl : a = 0 := by
       by_contra hne
       have : 1 ≤ a := by omega
       nlinarith
     have hv : (r.val : ℤ) = b + q := by
-      have hmod : (b + q) % q = b % q := by simp
-      rw [hval, zero_mul, zero_add, ← hmod, Int.emod_eq_of_lt (by linarith) (by linarith)]
+      rw [hval, zero_mul, zero_add, ← Int.add_emod_right,
+        Int.emod_eq_of_lt (by linarith) (by linarith)]
     have hr₀ : centeredRem q γ₂ r = b + 1 :=
       centeredRem_eq hγ (by linarith) (by linarith) ⟨m, by rw [hv, hqm, hcast]; ring⟩
     have hw : (r.val : ℤ) - centeredRem q γ₂ r = (q : ℤ) - 1 := by linarith

@@ -207,10 +207,10 @@ private theorem card_bad_le {κ : Type} [Fintype κ] (D : PMF X) (f : κ → X �
     (hcorr : ∀ i j, i ≠ j → corr D (f i) (f j) ≤ γ) (φ : Query X) :
     (#({i | τ < |bias D φ (f i)|} : Finset κ) : ℝ) ≤ 2 * ((1 - γ) / (τ ^ 2 - γ)) := by
   have hsplit : ({i | τ < |bias D φ (f i)|} : Finset κ) ⊆
-      ({i | τ ≤ bias D φ (f i)} : Finset κ) ∪ ({i | τ ≤ -bias D φ (f i)} : Finset κ) := by
-    intro i hi
-    simp only [mem_union, mem_filter, mem_univ, true_and]
-    exact (lt_abs.1 (mem_filter.1 hi).2).imp le_of_lt le_of_lt
+      ({i | τ ≤ bias D φ (f i)} : Finset κ) ∪ ({i | τ ≤ -bias D φ (f i)} : Finset κ) :=
+    fun i hi => by
+      simp only [mem_union, mem_filter, mem_univ, true_and]
+      exact (lt_abs.1 (mem_filter.1 hi).2).imp le_of_lt le_of_lt
   have hbound (x : EuclideanSpace ℝ X) (hx : ‖x‖ ≤ 1) (S : Finset κ)
       (hS : ∀ i ∈ S, τ ≤ ⟪emb D (fun z => BitString.signVal (f i z)), x⟫) :
       (#S : ℝ) ≤ (1 - γ) / (τ ^ 2 - γ) :=
@@ -223,8 +223,7 @@ private theorem card_bad_le {κ : Type} [Fintype κ] (D : PMF X) (f : κ → X �
   have hminus := hbound (-emb D (slope φ))
     (norm_neg (emb D (slope φ)) ▸ norm_emb_le D _ (abs_slope_le φ))
     ({i | τ ≤ -bias D φ (f i)} : Finset κ) fun i hi => by
-      rw [inner_neg_right, inner_emb_bias]
-      exact (mem_filter.1 hi).2
+      simpa only [inner_neg_right, inner_emb_bias] using (mem_filter.1 hi).2
   have hu : (#({i | τ < |bias D φ (f i)|} : Finset κ) : ℝ) ≤
       #({i | τ ≤ bias D φ (f i)} : Finset κ) + #({i | τ ≤ -bias D φ (f i)} : Finset κ) := by
     exact_mod_cast (card_le_card hsplit).trans (card_union_le _ _)
@@ -306,15 +305,14 @@ theorem LearnsStateless.card_mul_sq_sub_one_le_two_mul {κ : Type} [Fintype κ] 
   set d : ℝ := (Fintype.card κ : ℝ) with hd
   have hdpos : 0 < d := by linarith
   rcases le_or_gt (d * τ ^ 2) 1 with h1 | h1
-  · linarith [show (0 : ℝ) ≤ 2 * q by positivity]
+  · linarith [Nat.cast_nonneg (α := ℝ) q]
   have hγτ : 1 / d < τ ^ 2 := by rw [div_lt_iff₀ hdpos]; linarith
   have hγ1 : 1 / d < 1 := by rw [div_lt_one hdpos]; linarith
   have h := hA.card_le_of_corr_le hq hf hcorr hτ le_rfl (by norm_num) hγτ
     (by simpa only [mul_zero, sub_zero, one_pow] using hγ1)
   rw [mul_zero, sub_zero, one_pow, div_self (sub_pos.2 hγ1).ne'] at h
-  have h4 := mul_le_mul_of_nonneg_right
-    (by linarith : d - 1 ≤ 2 * q * ((1 - 1 / d) / (τ ^ 2 - 1 / d))) (sub_pos.2 hγτ).le
-  rw [mul_assoc (2 * (q : ℝ)), div_mul_cancel₀ _ (sub_pos.2 hγτ).ne'] at h4
+  have h4 : (d - 1) * (τ ^ 2 - 1 / d) ≤ 2 * q * (1 - 1 / d) :=
+    (le_div_iff₀ (sub_pos.2 hγτ)).1 (by rw [mul_div_assoc]; linarith)
   field_simp at h4
   nlinarith
 
@@ -331,7 +329,7 @@ theorem LearnsStateless.card_mul_sq_sub_one_le_two_mul_add_one {κ : Type} [Fint
     (hτ : 0 ≤ τ) (hε0 : 0 ≤ ε) (hετ : τ ≤ 1 - 2 * ε) :
     Fintype.card κ * τ ^ 2 - 1 ≤ 2 * q + 1 := by
   rcases le_or_gt ((Fintype.card κ : ℝ) * τ ^ 2) 1 with h1 | h1
-  · linarith [show (0 : ℝ) ≤ 2 * q + 1 by positivity]
+  · linarith [Nat.cast_nonneg (α := ℝ) q]
   have hd1 : (1 : ℝ) ≤ Fintype.card κ :=
     Nat.one_le_cast.2 (Nat.one_le_iff_ne_zero.2 fun h0 => by simp [h0] at h1; linarith)
   set d : ℝ := (Fintype.card κ : ℝ) with hd
@@ -341,18 +339,15 @@ theorem LearnsStateless.card_mul_sq_sub_one_le_two_mul_add_one {κ : Type} [Fint
   have h := hA.card_le_of_corr_le hq hf hcorr hτ hε0 (by linarith) hγτ (hγτ.trans_le hττ)
   have hnum : 0 ≤ 1 - 1 / d := by rwa [sub_nonneg, div_le_one hdpos]
   have hpos : 0 < τ ^ 2 - 1 / d := sub_pos.2 hγτ
-  have h2 : (1 - 1 / d) / ((1 - 2 * ε) ^ 2 - 1 / d) ≤ (1 - 1 / d) / (τ ^ 2 - 1 / d) := by gcongr
   have h' : d ≤ (2 * q + 1) * ((1 - 1 / d) / (τ ^ 2 - 1 / d)) := by
     calc d ≤ _ := h
-      _ ≤ 2 * q * ((1 - 1 / d) / (τ ^ 2 - 1 / d)) + (1 - 1 / d) / (τ ^ 2 - 1 / d) := by
-        linarith
+      _ ≤ 2 * q * ((1 - 1 / d) / (τ ^ 2 - 1 / d)) + (1 - 1 / d) / (τ ^ 2 - 1 / d) := by gcongr
       _ = _ := by ring
   have h3 : d * (τ ^ 2 - 1 / d) ≤ (2 * q + 1) * (1 - 1 / d) := by
     calc d * (τ ^ 2 - 1 / d)
         ≤ (2 * q + 1) * ((1 - 1 / d) / (τ ^ 2 - 1 / d)) * (τ ^ 2 - 1 / d) := by gcongr
       _ = _ := by rw [mul_assoc, div_mul_cancel₀ _ hpos.ne']
-  have h4 : d * (τ ^ 2 - 1 / d) = d * τ ^ 2 - 1 := by field_simp
-  have h5 : 0 ≤ (2 * q + 1 : ℝ) * (1 / d) := by positivity
-  linarith
+  field_simp at h3
+  nlinarith
 
 end Cslib.MachineLearning.StatisticalQuery

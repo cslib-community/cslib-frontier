@@ -162,8 +162,8 @@ theorem decodeLetter_letterEquiv (l : BlockLetter k State b) :
 /-- Below `letterCount`, the letter of a number is the numbered letter. -/
 theorem decodeLetter_of_lt {n : ℕ} (hn : n < letterCount k s b) :
     decodeLetter e b n = (letterEquiv e).symm ⟨n, hn⟩ := by
-  conv_lhs => rw [show n = (letterEquiv e ((letterEquiv e).symm ⟨n, hn⟩) : ℕ) by simp]
-  exact decodeLetter_letterEquiv e b _
+  simpa only [Equiv.apply_symm_apply, Fin.val_mk] using
+    decodeLetter_letterEquiv e b ((letterEquiv e).symm ⟨n, hn⟩)
 
 /-- The control record of a decoded letter. -/
 theorem controlData_control_decodeLetter (n : ℕ) :
@@ -224,18 +224,17 @@ theorem lastBeforeNum_eq (σ : ℕ) (i : Fin q) (h : Fin k) (δ : Fin 3) :
   | some i' =>
     obtain ⟨hlt, hw, hmax⟩ := lastBefore_eq_some_iff.mp hl
     have hlt' : (i' : ℕ) < i := hlt
+    have hi' : (i : ℕ) - 1 - (i - 1 - i') = i' := by omega
     have hfind : (List.range i).find? (fun j => inWindowNum k σ (h + 1) i δ (i - 1 - j)) =
         some ((i : ℕ) - 1 - i') := by
-      rw [List.find?_range_eq_some]
-      refine ⟨?_, List.mem_range.mpr (by omega), fun j hj => ?_⟩
-      · rw [show (i : ℕ) - 1 - (i - 1 - i') = i' by omega]
+      refine List.find?_range_eq_some.mpr ⟨?_, List.mem_range.mpr (by omega), fun j hj => ?_⟩
+      · rw [hi']
         exact (inWindowNum_iff σ i i' h δ).mpr hw
       · rw [Bool.not_eq_true', Bool.eq_false_iff, ne_eq,
           inWindowNum_iff σ i ⟨i - 1 - j, by omega⟩ h δ]
         exact hmax ⟨i - 1 - j, by omega⟩ (Fin.lt_def.mpr (by simp only; omega))
           (Fin.lt_def.mpr (by simp only; omega))
-    simp only [lastBeforeNum, hfind, Option.map_some, Option.some.injEq]
-    omega
+    simp only [lastBeforeNum, hfind, Option.map_some, hi']
 
 /-- The window entry, in the window of interval `i'`, of the block `δ` of interval `i`'s window,
 for the head with digit offset `c`: `b(i) + δ - b(i') mod 3` from the digit counts. -/
@@ -247,11 +246,8 @@ for the head with digit offset `c`: `b(i) + δ - b(i') mod 3` from the digit cou
 theorem val_portOf (σ : ℕ) (i i' : Fin q) (h : Fin k) (δ : Fin 3) :
     (portOf (scheduleOfNat k q σ) i' h (portBlock (scheduleOfNat k q σ) i h δ) : ℕ) =
       portOfNum k σ (h + 1) i i' δ := by
-  have hc : (((finSuccEquiv k).symm (some h) : Fin (k + 1)) : ℕ) = h + 1 := by simp
-  have hb := scheduleBlock_scheduleOfNat (k := k) σ i.isLt.le (some h)
-  have hb' := scheduleBlock_scheduleOfNat (k := k) σ i'.isLt.le (some h)
-  rw [hc] at hb hb'
-  simp only [portOf, portBlock, hb, hb', portOfNum]
+  simp only [portOf, portBlock, scheduleBlock_scheduleOfNat σ i.isLt.le,
+    scheduleBlock_scheduleOfNat σ i'.isLt.le, finSuccEquiv_symm_some, Fin.val_succ, portOfNum]
   exact congrArg (· % 3) (by omega)
 
 /-! ### The tensor of an interval -/
@@ -551,8 +547,7 @@ theorem explicitTable_eq_explicitTableNum (σ : ℕ)
   have hidx : ∀ p, ((BN.binarize (letterCode e)).subdivide.explicitPorts ee w).idxOf (ee p) =
       P.idxOf (ee p : ℕ) := fun p => by rw [← hP, idxOf_map_val]
   unfold TensorNetwork.explicitTable explicitTableNum
-  rw [show ((BN.binarize (letterCode e)).subdivide.explicitPorts ee w).length = P.length by
-    rw [← hP, List.length_map]]
+  rw [← List.length_map (f := Fin.val), hP]
   refine List.map_congr_left fun j _ => ?_
   simp only [hidx]
   rcases w with u | ⟨e₀, r⟩
@@ -651,12 +646,9 @@ theorem explicitSrcNum_lt {m σ j : ℕ} (hj : j < 2 * (q * (3 * k + 1) * m)) :
     unfold blockSrcNum
     split_ifs with hq
     · nlinarith
-    · rcases Nat.eq_zero_or_pos k with rfl | hk
-      · omega
-      · have hmul : q * (3 * k + 1) = q + q * (k * 3) := by ring
-        have := (Nat.div_lt_iff_lt_mul (by omega : 0 < k * 3)).mpr
-          (by omega : j / m - q < q * (k * 3))
-        nlinarith
+    · have hdiv : (j / m - q) / (k * 3) < q :=
+        Nat.div_lt_of_lt_mul ((Nat.sub_lt_iff_lt_add (not_lt.mp hq)).mpr (by nlinarith))
+      nlinarith
   · have hn : (j - q * (3 * k + 1) * m) / m < q * (3 * k + 1) :=
       (Nat.div_lt_iff_lt_mul hm).mpr (by omega)
     set n := (j - q * (3 * k + 1) * m) / m

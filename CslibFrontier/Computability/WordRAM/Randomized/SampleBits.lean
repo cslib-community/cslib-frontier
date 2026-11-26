@@ -293,26 +293,22 @@ theorem ExecRand.queriesSatisfy_eq_of_usesRandSrc {w u : ℕ} {s : Fin r} {c : C
   induction h with
   | @op _ x' y' _ => exact Cslib.OracleComp.QueriesSatisfy.pure _
   | @rand dst src x' _ =>
-    simp only [Code.usesRandSrc, beq_iff_eq] at hu
-    subst hu
-    have hq : Cslib.OracleComp.QueriesSatisfy (· = u) (ProbComp.unifFin (x'.regs src)) :=
-      Cslib.OracleComp.QueriesSatisfy.query (p := (· = u)) hs
-    simpa only [Cslib.OracleComp.QueriesSatisfy, Nat.add_zero] using
-      Cslib.OracleComp.IsCostBounded.bind_on_support hq
+    obtain rfl := beq_iff_eq.mp hu
+    simpa only [Cslib.OracleComp.QueriesSatisfy, ProbComp.unifFin, Nat.add_zero] using
+      Cslib.OracleComp.IsCostBounded.bind_on_support
+        (Cslib.OracleComp.QueriesSatisfy.query (p := (· = u)) hs)
         fun _ _ => Cslib.OracleComp.QueriesSatisfy.pure _
   | @seq _ _ _ _ _ h₁ _ ih₁ ih₂ =>
-    simp only [Code.usesRandSrc, Bool.and_eq_true] at hu
+    obtain ⟨hu₁, hu₂⟩ := (Bool.and_eq_true _ _).mp hu
     simpa only [Cslib.OracleComp.QueriesSatisfy, Nat.add_zero] using
-      Cslib.OracleComp.IsCostBounded.bind_on_support (ih₁ hs hp.1 hu.1) fun z hz =>
+      Cslib.OracleComp.IsCostBounded.bind_on_support (ih₁ hs hp.1 hu₁) fun z hz =>
         Cslib.OracleComp.IsCostBounded.bind_on_support
-          (ih₂ z hz ((h₁.regs_eq hp.1 hz).trans hs) hp.2 hu.2)
+          (ih₂ z hz ((h₁.regs_eq hp.1 hz).trans hs) hp.2 hu₂)
           fun _ _ => Cslib.OracleComp.QueriesSatisfy.pure _
   | branch_pos _ _ ih =>
-    simp only [Code.usesRandSrc, Bool.and_eq_true] at hu
-    exact (Cslib.OracleComp.isCostBounded_map_iff _ _ 0).mpr (ih hs hp.1 hu.1)
+    exact (Cslib.OracleComp.isCostBounded_map_iff _ _ 0).mpr (ih hs hp.1 (Bool.and_elim_left hu))
   | branch_neg _ _ ih =>
-    simp only [Code.usesRandSrc, Bool.and_eq_true] at hu
-    exact (Cslib.OracleComp.isCostBounded_map_iff _ _ 0).mpr (ih hs hp.2 hu.2)
+    exact (Cslib.OracleComp.isCostBounded_map_iff _ _ 0).mpr (ih hs hp.2 (Bool.and_elim_right hu))
   | loop_exit _ => exact Cslib.OracleComp.QueriesSatisfy.pure _
   | @loop_iter _ _ _ _ _ _ hb _ ihb ihl =>
     simpa only [Cslib.OracleComp.QueriesSatisfy, Nat.add_zero] using

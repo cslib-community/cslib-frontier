@@ -1250,30 +1250,19 @@ theorem clipUnitPrefix_le_two_pow (K : ℕ) (P : ℤ) : clipUnitPrefix K P ≤ 2
 theorem abs_clipUnitPrefix_div_sub_streamVal_le {x : ℕ → ℤ} (hx : IsSignedStream x)
     (hx_mem : streamVal x ∈ Set.Icc (0 : ℝ) 1) (K : ℕ) :
     |(clipUnitPrefix K (intPrefix x K) : ℝ) / (2 : ℝ) ^ K - streamVal x| ≤ 6 / (2 : ℝ) ^ K := by
-  set P := intPrefix x K
-  set M : ℤ := min ((2 : ℤ) ^ K) (max 0 P)
-  have hcast : ((clipUnitPrefix K P : ℕ) : ℝ) = (M : ℝ) := by
-    exact_mod_cast Int.toNat_of_nonneg (le_min (by positivity) (le_max_left 0 P))
   have h2K : (0 : ℝ) < (2 : ℝ) ^ K := by positivity
-  set V : ℝ := streamVal x * (2 : ℝ) ^ K
-  have hdiff : |(M : ℝ) - V| ≤ |(P : ℝ) - V| := by
-    have hV0 : 0 ≤ V := mul_nonneg hx_mem.1 h2K.le
-    have hVK : V ≤ (2 : ℝ) ^ K := mul_le_of_le_one_left h2K.le hx_mem.2
-    have hMR : (M : ℝ) = min ((2 : ℝ) ^ K) (max (P : ℝ) 0) := by
-      dsimp only [M]; push_cast; rw [max_comm]
-    refine (show |min ((2 : ℝ) ^ K) (max (P : ℝ) 0) - min ((2 : ℝ) ^ K) (max V 0)| ≤
-        |(P : ℝ) - V| from (abs_min_sub_min_le_max _ _ _ _).trans ?_).trans_eq' ?_
-    · rw [sub_self, abs_zero, max_eq_right (abs_nonneg _)]
-      exact abs_max_sub_max_le_abs _ _ _
-    · rw [hMR, max_eq_left hV0, min_eq_right hVK]
-  refine le_trans ?_ (by simpa only [abs_sub_comm] using abs_streamVal_sub_streamPrefix_le hx K)
-  rw [hcast, streamPrefix_eq_intPrefix_div,
-    show (M : ℝ) / (2 : ℝ) ^ K - streamVal x = ((M : ℝ) - V) / (2 : ℝ) ^ K by
-      rw [sub_div, mul_div_cancel_right₀ _ h2K.ne'],
-    show (P : ℝ) / (2 : ℝ) ^ K - streamVal x = ((P : ℝ) - V) / (2 : ℝ) ^ K by
-      rw [sub_div, mul_div_cancel_right₀ _ h2K.ne'],
-    abs_div, abs_div, abs_of_pos h2K]
-  exact div_le_div_of_nonneg_right hdiff h2K.le
+  have hcast : ((clipUnitPrefix K (intPrefix x K) : ℕ) : ℝ) =
+      min ((2 : ℝ) ^ K) (max 0 (intPrefix x K)) := by
+    exact_mod_cast Int.toNat_of_nonneg (le_min (by positivity) (le_max_left _ _))
+  rw [hcast, ← min_div_div_right h2K.le, ← max_div_div_right h2K.le, div_self h2K.ne', zero_div,
+    ← streamPrefix_eq_intPrefix_div, max_comm 0]
+  have hv : streamVal x = min 1 (max (streamVal x) 0) := by
+    rw [max_eq_left hx_mem.1, min_eq_right hx_mem.2]
+  conv_lhs => rw [hv]
+  refine (abs_min_sub_min_le_max _ _ _ _).trans ?_
+  rw [sub_self, abs_zero, max_eq_right (abs_nonneg _)]
+  exact (abs_max_sub_max_le_abs _ _ _).trans
+    (abs_sub_comm (streamVal x) _ ▸ abs_streamVal_sub_streamPrefix_le hx K)
 
 /-! ### Virtual reciprocal composition and evaluation -/
 

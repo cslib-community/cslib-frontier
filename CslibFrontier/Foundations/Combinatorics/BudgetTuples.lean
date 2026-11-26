@@ -262,10 +262,7 @@ theorem sum_filter_weight_lt_eq [Fintype M] (hms : ms.Nodup) (hcover : ∀ Z, Z 
     ∑ β ∈ ({β ∈ Fintype.piFinset fun _ => Finset.range p | ∑ Z, w Z * β Z < p} :
         Finset (M → ℕ)), f β =
       ((budgetTuples (ms.map w) p).map fun l => f (ofList ms l)).sum := by
-  have hws : ∀ x ∈ ms.map w, 0 < x := by
-    rintro _ hx
-    obtain ⟨Z, -, rfl⟩ := List.mem_map.mp hx
-    exact hw Z
+  have hws : ∀ x ∈ ms.map w, 0 < x := by simp [hw]
   have hsum (g : M → ℕ) : ∑ Z, g Z = (ms.map g).sum :=
     congrArg (·.sum g) (Finset.ext fun Z => by simp [hcover Z]) |>.trans (List.sum_toFinset g hms)
   set L := budgetTuples (ms.map w) p
@@ -324,13 +321,9 @@ private theorem foldl_scanStep (ws β : List ℕ) (r : ℕ) (pre : List ℕ) (be
   | cons w ws ih =>
     rcases β with _ | ⟨b, β⟩
     · rfl
-    · rw [List.zip_cons_cons, List.foldl_cons, show scanStep (r, (w :: ws).length, pre, best)
-        (w, b) = (r - w * b, ws.length, pre ++ [b], if w * (b + 1) < r then
-          some (pre ++ (b + 1) :: List.replicate ws.length 0) else best) by simp [scanStep], ih]
-      simp only [budgetNext]
-      cases budgetNext ws (r - w * b) β with
-      | some t => simp
-      | none => split_ifs <;> rfl
+    · simp only [List.zip_cons_cons, List.foldl_cons, scanStep, List.length_cons,
+        Nat.add_sub_cancel, ih, budgetNext]
+      cases budgetNext ws (r - w * b) β <;> split_ifs <;> simp
 
 /-- The left scan computes the successor. -/
 theorem budgetNextScan_eq (ws : List ℕ) (p : ℕ) (β : List ℕ) :

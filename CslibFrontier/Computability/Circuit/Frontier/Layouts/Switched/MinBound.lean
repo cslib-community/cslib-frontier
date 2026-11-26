@@ -114,34 +114,27 @@ theorem min_bound {w wa wc : E} (hw : ‖w‖ = 1) (hwa : ‖wa‖ = 1) (hwc : �
   have hvc : ⟪vc, vc⟫ = 1 := by
     simp only [vc, real_inner_smul_left, real_inner_smul_right, hrcc]; field_simp; linarith
   have hvac : ⟪va, vc⟫ = b / (1 + b) := by
-    simp only [va, vc, real_inner_smul_left, real_inner_smul_right, hrac]
     have h1b : 0 < 1 + b := by linarith
+    simp only [va, vc, real_inner_smul_left, real_inner_smul_right, hrac]
     field_simp
-    have hm2' : m ^ 2 = 1 - b ^ 2 := by rw [sq]; exact hmm
-    rw [hm2']
-    ring
+    rw [sq, hmm]; ring
   -- the orthant probability `q ≤ 1/3`
   set q := μ.real {x | 0 ≤ ⟪ra, x⟫ ∧ 0 ≤ ⟪rc, x⟫}
   have hq : q = 1 / 2 - Real.arccos (b / (1 + b)) / (2 * π) := by
     rw [← hvac, ← bivariate_orthant_le hva hvc]
-    have hset : {x : E | 0 ≤ ⟪ra, x⟫ ∧ 0 ≤ ⟪rc, x⟫} = {x | 0 ≤ ⟪va, x⟫ ∧ 0 ≤ ⟪vc, x⟫} := by
-      ext x
-      simp only [va, vc, real_inner_smul_left, Set.mem_ofPred_eq]
-      rw [mul_nonneg_iff_of_pos_left (inv_pos.mpr hm), mul_nonneg_iff_of_pos_left (inv_pos.mpr hm)]
-    change (stdGaussian E).real {x | 0 ≤ ⟪ra, x⟫ ∧ 0 ≤ ⟪rc, x⟫} = _
-    rw [hset]
+    dsimp only [q, μ]
+    refine congrArg _ (Set.ext fun x => ?_)
+    simp only [va, vc, real_inner_smul_left, Set.mem_ofPred_eq,
+      mul_nonneg_iff_of_pos_left (inv_pos.mpr hm)]
   have hq3 : q ≤ 1 / 3 := by
-    rw [hq]
-    have hρ : b / (1 + b) ≤ 1 / 2 := by
-      rw [div_le_iff₀ (by linarith)]; linarith
-    have harc : π / 3 ≤ Real.arccos (b / (1 + b)) := by
-      rw [← Real.arccos_cos (div_nonneg Real.pi_nonneg zero_le_three)
-        (by linarith [Real.pi_pos])]
-      exact Real.arccos_le_arccos (hρ.trans_eq Real.cos_pi_div_three.symm)
-    have := Real.pi_pos
-    rw [sub_le_iff_le_add, div_add_div _ _ (by norm_num) (by positivity)]
-    rw [le_div_iff₀ (by positivity)]
-    nlinarith
+    have hρ : b / (1 + b) ≤ Real.cos (π / 3) := by
+      rw [Real.cos_pi_div_three, div_le_iff₀ (by linarith)]; linarith
+    have harc : π / 3 ≤ Real.arccos (b / (1 + b)) :=
+      Real.arccos_cos (div_nonneg Real.pi_nonneg zero_le_three) (by linarith [Real.pi_pos]) ▸
+        Real.arccos_le_arccos hρ
+    rw [hq, sub_le_iff_le_add, div_add_div _ _ (by norm_num) (by positivity),
+      le_div_iff₀ (by positivity)]
+    nlinarith [Real.pi_pos]
   -- disintegrate along `w`
   set S : Set (ℝ × E) := {p | 0 < p.1 ∧ p.1 ≤ t ∧ p.1 ≤ b * p.1 + ⟪ra, p.2⟫ ∧
     p.1 ≤ b * p.1 + ⟪rc, p.2⟫}
@@ -161,11 +154,9 @@ theorem min_bound {w wa wc : E} (hw : ‖w‖ = 1) (hwa : ‖wa‖ = 1) (hwc : �
     intro z
     by_cases hz : z ∈ Ioc 0 t
     · rw [indicator_of_mem hz]
-      apply measureReal_mono _ (measure_ne_top _ _)
-      intro x hx
+      refine measureReal_mono (fun x hx => ?_) (measure_ne_top _ _)
       simp only [S, Set.mem_ofPred_eq, inner_remainder_of_orth hra_orth,
-        inner_remainder_of_orth hrc_orth] at hx
-      simp only [Set.mem_ofPred_eq]
+        inner_remainder_of_orth hrc_orth] at hx ⊢
       constructor <;> nlinarith [hz.1, hx.2.2.1, hx.2.2.2]
     · have : {x : E | (z, remainder w x) ∈ S} = ∅ :=
         eq_empty_of_forall_notMem fun x hx => hz ⟨hx.1, hx.2.1⟩

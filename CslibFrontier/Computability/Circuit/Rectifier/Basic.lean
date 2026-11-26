@@ -272,8 +272,7 @@ def direct [Fintype α] [Fintype β] (A : Matrix α β Bool) : RectifierCircuit 
     nomatch h
 
 @[simp] theorem size_direct [Fintype α] [Fintype β] (A : Matrix α β Bool) :
-    (direct A).size = boolMatrixWeight A := by
-  simp only [size, direct, card_map, boolMatrixWeight]
+    (direct A).size = boolMatrixWeight A := card_map _
 
 theorem hasDepthLE_one_direct [Fintype α] [Fintype β] (A : Matrix α β Bool) :
     (direct A).HasDepthLE 1 := by
@@ -321,27 +320,24 @@ theorem Computes.boolMatrixWeight_le_sq_pred_mul_size [Fintype α] [Fintype β]
     (hA : IsRectangleFreeMatrix A K) :
     boolMatrixWeight A ≤ (K - 1) ^ 2 * C.size := by
   classical
-  have hKpos : 0 < K := hA.pos
-  rcases eq_or_lt_of_le (show 1 ≤ K by omega) with rfl | hK2
-  · exact hA.boolMatrixWeight_eq_zero ▸ Nat.zero_le _
+  rcases eq_or_lt_of_le (Nat.succ_le_of_lt hA.pos) with rfl | hK2
+  · exact hA.boolMatrixWeight_eq_zero.trans_le (Nat.zero_le _)
   set inSet : V → Finset β := fun v => univ.filter fun j => Nonempty (C.Walk (C.inp j) v)
   set outSet : V → Finset α := fun v => univ.filter fun i => Nonempty (C.Walk v (C.out i))
   set smallIn : V → Finset β :=
     fun u => if #(inSet u) < K then inSet u else univ.filter fun j => C.inp j = u
   set smallOut : V → Finset α :=
     fun w => if #(outSet w) < K then outSet w else univ.filter fun i => C.out i = w
-  have hin_mono {u w : V} (he : (u, w) ∈ C.edges) : inSet u ⊆ inSet w := by
-    intro j hj
-    obtain ⟨p⟩ := (mem_filter.mp hj).2
-    exact mem_filter.mpr ⟨mem_univ _, ⟨p.append (.cons he (.nil w))⟩⟩
+  have hin_mono {u w : V} (he : (u, w) ∈ C.edges) : inSet u ⊆ inSet w := fun j hj =>
+    let ⟨p⟩ := (mem_filter.mp hj).2
+    mem_filter.mpr ⟨mem_univ _, ⟨p.append (.cons he (.nil w))⟩⟩
   have hrect_vertex (v : V) (hin : K ≤ #(inSet v)) : #(outSet v) < K := by
     by_contra hout
-    obtain ⟨I, hIsub, hIcard⟩ := exists_subset_card_eq (s := outSet v) (by omega : K ≤ #(outSet v))
+    obtain ⟨I, hIsub, hIcard⟩ := exists_subset_card_eq (s := outSet v) (Nat.not_lt.mp hout)
     obtain ⟨J, hJsub, hJcard⟩ := exists_subset_card_eq (s := inSet v) hin
-    refine hA I J hIcard hJcard fun i hi j hj => (hC i j).mpr ?_
-    obtain ⟨p₁⟩ := (mem_filter.mp (hJsub hj)).2
-    obtain ⟨p₂⟩ := (mem_filter.mp (hIsub hi)).2
-    exact ⟨p₁.append p₂⟩
+    exact hA I J hIcard hJcard fun i hi j hj => (hC i j).mpr <|
+      (mem_filter.mp (hJsub hj)).2.elim fun p₁ =>
+        (mem_filter.mp (hIsub hi)).2.elim fun p₂ => ⟨p₁.append p₂⟩
   have hcard_smallIn (u : V) : #(smallIn u) ≤ K - 1 :=
     card_ite_filter_embedding_le (inSet u) C.inp u hK2
   have hcard_smallOut (w : V) : #(smallOut w) ≤ K - 1 :=
@@ -454,9 +450,8 @@ rectifier circuit of depth at most `d` computing `A`. -/
 theorem le_orDepthComplexity {d : ℕ} {A : Matrix α β Bool} {m : ℕ∞}
     (h : ∀ (k : ℕ) (C : RectifierCircuit α β (Fin k)),
       C.Computes A → C.HasDepthLE d → m ≤ C.size) :
-    m ≤ orDepthComplexity d A := by
-  rw [orDepthComplexity]
-  exact le_iInf fun k => le_iInf fun C => le_iInf fun hC => le_iInf fun hd => h k C hC hd
+    m ≤ orDepthComplexity d A :=
+  le_iInf fun k => le_iInf fun C => le_iInf fun hC => le_iInf fun hd => h k C hC hd
 
 /-- At depth `0`, any Boolean matrix with a `true` entry has `orDepthComplexity 0 A = ⊤`, since
 distinct input and output poles admit no zero-edge walk. -/
@@ -534,9 +529,9 @@ theorem boolMatrixWeight_le_sq_pred_mul_orComplexity [Fintype α] [Fintype β]
 [Nechiporuk1970]). -/
 theorem orComplexity_eq_boolMatrixWeight_of_isRectangleFree_two [Fintype α] [Fintype β]
     {A : Matrix α β Bool} (hA : IsRectangleFreeMatrix A 2) :
-    orComplexity A = boolMatrixWeight A := by
-  refine le_antisymm (orComplexity_le_boolMatrixWeight A) ?_
-  simpa using boolMatrixWeight_le_sq_pred_mul_orComplexity hA
+    orComplexity A = boolMatrixWeight A :=
+  le_antisymm (orComplexity_le_boolMatrixWeight A)
+    (by simpa using boolMatrixWeight_le_sq_pred_mul_orComplexity hA)
 
 /-- For every `2`-rectangle-free finite Boolean matrix `A` and every `1 ≤ d`,
 `orDepthComplexity d A = boolMatrixWeight A` ([JuknaSergeev2013], §3.3, Theorem 3.9, p. 33;

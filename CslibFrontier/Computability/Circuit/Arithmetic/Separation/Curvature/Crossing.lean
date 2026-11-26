@@ -381,34 +381,29 @@ theorem isPrice_crossing {Y : Type} {d : Y → Y → ℝ} (hd : IsPrice K d)
     have hT0 : 0 < T := by positivity
     set η := δ / T with hη
     have hη0 : 0 < η := by positivity
-    obtain ⟨F, c, hc, hF⟩ := hd.exists_spectralPoint ![x, y, v, u, o, o', w, w'] hη0
+    let pts : Fin 8 → Y := ![x, y, v, u, o, o', w, w']
+    obtain ⟨F, c, hc, hF⟩ := hd.exists_spectralPoint pts hη0
     obtain ⟨z, ⟨hz1, hz2, hz3⟩, h⟩ := prop_crossing_spectral hp hq F 0 1 2 3 4 5 6 7
     refine ⟨z, ⟨hz1, hz2, hz3⟩, ?_⟩
     have q1 : z.1 ≤ ρ + 1 := by nlinarith [sq_nonneg (z.1 - 1)]
     have q2 : z.2 ≤ ρ + 1 := by nlinarith [sq_nonneg (z.2 - 1)]
-    have lo (i j : Fin 8) {t : ℝ} (ht : 0 ≤ t) :
-        t * (c * F.wireExponent i j) ≤
-          t * d (![x, y, v, u, o, o', w, w'] i) (![x, y, v, u, o, o', w, w'] j) + t * η :=
-      mul_add t _ η ▸ mul_le_mul_of_nonneg_left (by linarith [(abs_lt.1 (hF i j)).1]) ht
-    have hi (i j : Fin 8) {t : ℝ} (ht : 0 ≤ t) :
-        t * d (![x, y, v, u, o, o', w, w'] i) (![x, y, v, u, o, o', w, w'] j) ≤
-          t * (c * F.wireExponent i j) + t * η :=
-      mul_add t _ η ▸ mul_le_mul_of_nonneg_left (by linarith [(abs_lt.1 (hF i j)).2]) ht
+    have lo (i j : Fin 8) (a b : Y) {t : ℝ} (ht : 0 ≤ t)
+        (ha : pts i = a := by rfl) (hb : pts j = b := by rfl) :
+        t * (c * F.wireExponent i j) ≤ t * d a b + t * η :=
+      ha ▸ hb ▸ mul_add t _ η ▸ mul_le_mul_of_nonneg_left (by linarith [(abs_lt.1 (hF i j)).1]) ht
+    have hi (i j : Fin 8) (a b : Y) {t : ℝ} (ht : 0 ≤ t)
+        (ha : pts i = a := by rfl) (hb : pts j = b := by rfl) :
+        t * d a b ≤ t * (c * F.wireExponent i j) + t * η :=
+      ha ▸ hb ▸ mul_add t _ η ▸ mul_le_mul_of_nonneg_left (by linarith [(abs_lt.1 (hF i j)).2]) ht
     have hsum : 3 * (p * η) + 3 * (q * η) + (ρ + 1) * η = δ :=
       (by ring : _ = η * T).trans (div_mul_cancel₀ δ hT0.ne')
-    obtain ⟨a1, a2⟩ : _ ∧ _ := ⟨hi 0 2 hp, hi 1 3 hq⟩
-    dsimp at a1 a2
     rw [← min_add_add_right]
     refine le_min ?_ ?_
-    · obtain ⟨a3, a4, a5, a6, a7⟩ : _ ∧ _ ∧ _ ∧ _ ∧ _ :=
-        ⟨lo 0 4 hp, lo 1 4 hq, lo 2 5 hp, lo 3 5 hq, lo 4 5 hz1⟩
-      dsimp at a3 a4 a5 a6 a7
-      linarith [mul_le_mul_of_nonneg_left (h.trans (min_le_left _ _)) hc,
+    · linarith [hi 0 2 x v hp, hi 1 3 y u hq, lo 0 4 x o hp, lo 1 4 y o hq, lo 2 5 v o' hp,
+        lo 3 5 u o' hq, lo 4 5 o o' hz1, mul_le_mul_of_nonneg_left (h.trans (min_le_left _ _)) hc,
         mul_le_mul_of_nonneg_right q1 hη0.le]
-    · obtain ⟨a3, a4, a5, a6, a7⟩ : _ ∧ _ ∧ _ ∧ _ ∧ _ :=
-        ⟨lo 0 6 hp, lo 3 6 hq, lo 1 7 hq, lo 2 7 hp, lo 6 7 hz2⟩
-      dsimp at a3 a4 a5 a6 a7
-      linarith [mul_le_mul_of_nonneg_left (h.trans (min_le_right _ _)) hc,
+    · linarith [hi 0 2 x v hp, hi 1 3 y u hq, lo 0 6 x w hp, lo 3 6 u w hq, lo 1 7 y w' hq,
+        lo 2 7 v w' hp, lo 6 7 w w' hz2, mul_le_mul_of_nonneg_left (h.trans (min_le_right _ _)) hc,
         mul_le_mul_of_nonneg_right q2 hη0.le]
   exact ⟨z.1, z.2, h1, h2, h3, le_min_iff.1 h⟩
 

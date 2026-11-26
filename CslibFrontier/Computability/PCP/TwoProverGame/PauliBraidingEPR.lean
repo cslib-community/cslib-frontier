@@ -82,24 +82,19 @@ private theorem squared_disagreement_after_local_isometries
   let v := applyState (T * C)
   let w := applyState (V ⊗ₖ DB)
   have htriangle : ‖v + w - u‖ ^ 2 ≤ 3 * (‖u‖ ^ 2 + ‖v‖ ^ 2 + ‖w‖ ^ 2) := by
-    have ht := (norm_sub_le (v + w) u).trans
-      (add_le_add_left (norm_add_le v w) ‖u‖)
-    have hs := (sq_le_sq₀ (norm_nonneg _) (by positivity)).mpr ht
-    nlinarith only [hs, sq_nonneg (‖u‖ - ‖v‖), sq_nonneg (‖u‖ - ‖w‖),
-      sq_nonneg (‖v‖ - ‖w‖)]
+    have hs := (sq_le_sq₀ (norm_nonneg _) (by positivity)).mpr
+      ((norm_sub_le (v + w) u).trans (add_le_add_left (norm_add_le v w) ‖u‖))
+    nlinarith only [hs, sq_nonneg (‖u‖ - ‖v‖), sq_nonneg (‖u‖ - ‖w‖), sq_nonneg (‖v‖ - ‖w‖)]
   have hu : ‖u‖ ^ 2 = (φ (kroneckerOne (DAᴴ * DA))).re := by
-    dsimp only [u, applyState, φ]
     rw [norm_toLp_mulVec_sq_eq, AlgState.vector_apply, conjTranspose_kronecker,
       ← mul_kronecker_mul, hW, kroneckerOne_apply]
   have hv : ‖v‖ ^ 2 = φ.norm C ^ 2 := by
     have hT : Tᴴ * T = 1 := by
       simp only [T, conjTranspose_kronecker, ← mul_kronecker_mul, hV, hW, one_kronecker_one]
-    dsimp only [v, applyState, φ]
     rw [norm_toLp_mulVec_sq_eq, AlgState.norm_sq, AlgState.vector_apply,
       Matrix.star_eq_conjTranspose, conjTranspose_mul, Matrix.mul_assoc,
       ← Matrix.mul_assoc Tᴴ T, hT, Matrix.one_mul]
   have hw : ‖w‖ ^ 2 = (φ (oneKronecker (DBᴴ * DB))).re := by
-    dsimp only [w, applyState, φ]
     rw [norm_toLp_mulVec_sq_eq, AlgState.vector_apply, conjTranspose_kronecker,
       ← mul_kronecker_mul, hV, oneKronecker_apply]
   rw [hu, hv, hw] at htriangle
@@ -431,7 +426,6 @@ theorem exists_pauliBraidingExtraction
     let C (x : Fin n → Bool) := (cond b (pauliZPow x) (pauliXPow x)) ⊗ₖ
       (1 : Matrix J J ℂ)
     let G := kroneckerOne (κ := K × ((Bool × Bool) ⊕ Bool)) (e₁ * e₁ᴴ)
-    let φ := T.toCommuting.state
     have hG : Gᴴ = G := by
       simp only [G, kroneckerOne_apply, conjTranspose_kronecker, conjTranspose_mul,
         conjTranspose_conjTranspose, conjTranspose_one]
@@ -459,7 +453,7 @@ theorem exists_pauliBraidingExtraction
       simp only [D, M, C, Bool.cond_true, kroneckerOne_apply, ← mul_kronecker_mul,
         Matrix.mul_one, Matrix.one_mul, hV.intertwinesZ]
     have hi (hb : ¬b) : (𝔼 x, let N := D * M x - kroneckerOne (C x) * D
-        (φ (Nᴴ * N)).re) ≤ ξ := by
+        (T.toCommuting.state (Nᴴ * N)).re) ≤ ξ := by
       obtain rfl := Bool.eq_false_iff.2 hb
       have hg (x : Fin n → Bool) :
           D * M x - kroneckerOne (C x) * D = (V * (P false).charObs x - C x * V) ⊗ₖ W := by

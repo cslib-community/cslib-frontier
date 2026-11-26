@@ -73,11 +73,10 @@ theorem satExt_iff (ρ : Fin n → Option Bool) (ψ : CNF (Fin n)) :
     -- choose a true literal in each clause
     have key : ∀ ψ : CNF (Fin n), ψ.eval σ = true →
         ∃ ls ∈ ψ.sections, ∀ l ∈ ls, σ l.1 = l.2 := by
-      intro ψ
+      intro ψ h
       induction ψ with
-      | nil => intro _; exact ⟨[], by simp, by simp⟩
+      | nil => exact ⟨[], by simp, by simp⟩
       | cons c ψ ih =>
-        intro h
         simp only [CNF.eval, List.all_cons, Bool.and_eq_true] at h
         obtain ⟨ls, hls, hl⟩ := ih h.2
         obtain ⟨l, hlc, hlσ⟩ := List.any_eq_true.mp h.1
@@ -86,9 +85,8 @@ theorem satExt_iff (ρ : Fin n → Option Bool) (ψ : CNF (Fin n)) :
     obtain ⟨ls, hls, hl⟩ := key ψ hψ
     refine ⟨ls, hls, ?_⟩
     simp only [compatible, Bool.and_eq_true, List.all_eq_true, bne_iff_ne, ne_eq]
-    refine ⟨fun l hl' h => ?_, fun l hl' _ hl'' h => ?_⟩
-    · grind [hσρ _ _ h, hl l hl']
-    · grind [hl _ hl'', hl l hl']
+    exact ⟨fun l hl' h => by grind [hσρ _ _ h, hl l hl'],
+      fun l hl' _ hl'' h => by grind [hl _ hl'', hl l hl']⟩
   · rintro ⟨ls, hls, hc⟩
     simp only [compatible, Bool.and_eq_true, List.all_eq_true, bne_iff_ne, ne_eq] at hc
     obtain ⟨hρ, hpair⟩ := hc
@@ -117,11 +115,10 @@ theorem satExt_iff (ρ : Fin n → Option Bool) (ψ : CNF (Fin n)) :
     · -- every clause contains its chosen literal
       have key : ∀ (ψ : CNF (Fin n)) (ls' : List (Literal (Fin n))), ls' ∈ ψ.sections →
           (∀ l ∈ ls', σ l.1 = l.2) → ψ.eval σ = true := by
-        intro ψ
-        induction ψ with
-        | nil => intro _ _ _; rfl
+        intro ψ ls' hls' hl'
+        induction ψ generalizing ls' with
+        | nil => rfl
         | cons c ψ ih =>
-          intro ls' hls' hl'
           simp only [List.sections, List.mem_flatMap, List.mem_map] at hls'
           obtain ⟨t, ht, l, hlc, rfl⟩ := hls'
           simp only [CNF.eval, List.all_cons, Bool.and_eq_true]
@@ -144,10 +141,7 @@ theorem mem_sections_replicate {α : Type*} {l : List α} {k : ℕ} {f : List α
   rw [List.mem_sections]
   induction f generalizing k with
   | nil => cases k <;> simp
-  | cons a f ih =>
-    cases k with
-    | zero => simp
-    | succ k => simp [List.replicate_succ, ih, and_left_comm]
+  | cons a f ih => cases k <;> simp [List.replicate_succ, ih, and_left_comm]
 
 /-- **The finite search deciding w-implication**: `τ` sets `x` to `b`, or some choice of `w`
 clauses of `φ` has no compatible choice of literals under `τ` with `x` set to `!b`. -/
@@ -171,13 +165,11 @@ theorem wImplied_iff_test (φ : CNF (Fin n)) (w : ℕ) (τ : Fin n → Option Bo
       simp only [not_or, not_not] at hc
       obtain ⟨hτx, σ, hσρ, hψ⟩ := hc
       have hσx : σ x = !b := hσρ x _ (by simp [hρ])
-      have hστ : ∀ y c, τ y = some c → σ y = c := fun y c hy => by
-        by_cases hyx : y = x
-        · subst hyx
-          cases c <;> cases b <;> simp_all
+      have hστ (y : Fin n) (c : Bool) (hy : τ y = some c) : σ y = c := by
+        rcases eq_or_ne y x with rfl | hyx
+        · cases c <;> cases b <;> simp_all
         · exact hσρ y c (by rwa [hρ, Function.update_of_ne hyx])
-      have := h σ hστ hψ
-      grind
+      grind [h σ hστ hψ]
     · rintro (hτx | hsat) σ hστ hψ
       · exact hστ x b hτx
       · by_contra hσx

@@ -227,8 +227,6 @@ private theorem isClearedAndExhausted_of_isParetoOptimal
     have hgap : 0 < (v j - v i) / 2 * δ := by nlinarith
     have hutil_i : o.utility v i < o'.utility v i := by
       simp only [utility, o', Function.update_of_ne hij, Function.update_self, t, mid]; linarith
-    have hutil_j : o.utility v j < o'.utility v j := by
-      simp only [utility, o', Function.update_self, t, mid]; linarith
     refine hnd o' ⟨⟨fun k => ?_, by linarith⟩, fun k => ?_, fun k => ?_, hsum_pay.ge,
       Or.inl ⟨i, hutil_i⟩⟩
     · simp only [o', Function.update_apply]
@@ -240,10 +238,9 @@ private theorem isClearedAndExhausted_of_isParetoOptimal
           linarith [hbf k, mul_nonneg hmid_pos.le hδ_pos.le]
         · simpa only [o', Function.update_of_ne hkj, Function.update_of_ne hki] using hbf k
     · rcases eq_or_ne k j with rfl | hkj
-      · exact hutil_j.le
+      · simp only [utility, o', Function.update_self, t, mid]; linarith
       · rcases eq_or_ne k i with rfl | hki
-        · exact hutil_i.le
-        · simp [utility, o', hkj, hki]
+        exacts [hutil_i.le, by simp [utility, o', hkj, hki]]
 
 private theorem isParetoOptimal_of_isClearedAndExhausted
     {m : ℝ} {v B : ι → ℝ} (hv : ∀ i, 0 ≤ v i) {o : Outcome ι}
@@ -288,12 +285,10 @@ private theorem isParetoOptimal_of_isClearedAndExhausted
             (pStar / v i) * (v i * o'.alloc i - o'.payment i - (v i * o.alloc i - o.payment i)) +
               (o'.payment i - o.payment i) =
             pStar * (o'.alloc i - o.alloc i) +
-              (1 - pStar / v i) * (o'.payment i - o.payment i) := by
-          field_simp [hvi_pos.ne']
-          ring
+              (1 - pStar / v i) * (o'.payment i - o.payment i) := by field_simp [hvi_pos.ne']; ring
         rw [hrew]
-        have hcoeff_nn : 0 ≤ 1 - pStar / v i := sub_nonneg.mpr ((div_le_one hvi_pos).mpr hgt.le)
-        linarith [mul_nonpos_of_nonneg_of_nonpos hcoeff_nn
+        linarith [mul_nonpos_of_nonneg_of_nonpos
+          (sub_nonneg.mpr ((div_le_one hvi_pos).mpr hgt.le))
           (sub_nonpos.mpr ((hbf' i).trans_eq (hbudget_of_gt i hgt).symm))]
     have hsum_le :
         (∑ i, w i * (o'.utility v i - o.utility v i)) + (o'.revenue - o.revenue) ≤ 0 := by
@@ -317,18 +312,17 @@ private theorem isParetoOptimal_of_isClearedAndExhausted
       · exact (hbf' i).trans (not_lt.mp fun hlt =>
           hslack ⟨i, Finset.mem_filter.mpr ⟨Finset.mem_univ i, hvi, hlt⟩⟩)
     have hpay_eq (i : ι) : o'.payment i = o.payment i := eq_of_le_of_sum_le hpay_le hrev_le i
-    have hrev_eq : o'.revenue = o.revenue := Finset.sum_congr rfl fun i _ => hpay_eq i
-    obtain ⟨i₀, hi₀⟩ := hstrict.resolve_right (by linarith)
+    obtain ⟨i₀, hi₀⟩ := hstrict.resolve_right
+      (not_lt_of_ge (Finset.sum_congr rfl fun i _ => hpay_eq i).le)
     simp only [utility, hpay_eq i₀, sub_lt_sub_iff_right] at hi₀
-    have hv_i₀ : 0 < v i₀ := (hv i₀).lt_of_ne' fun h0 => by simp [h0] at hi₀
-    obtain ⟨hsum_eq, hzero_alloc⟩ := hclear ⟨i₀, hv_i₀⟩
+    obtain ⟨hsum_eq, hzero_alloc⟩ :=
+      hclear ⟨i₀, (hv i₀).lt_of_ne' fun h0 => by simp [h0] at hi₀⟩
     have halloc_ge (i : ι) : o.alloc i ≤ o'.alloc i := by
       rcases (hv i).eq_or_lt with hvi0 | hvi
       · exact hzero_alloc i hvi0.symm ▸ hnn' i
       · exact le_of_mul_le_mul_left
           (by simpa only [utility, hpay_eq i, sub_le_sub_iff_right] using hu_le i) hvi
-    have halloc_eq := eq_of_le_of_sum_le halloc_ge (by linarith) i₀
-    exact lt_irrefl _ (halloc_eq ▸ hi₀)
+    exact lt_irrefl _ (eq_of_le_of_sum_le halloc_ge (hsum'.trans_eq hsum_eq.symm) i₀ ▸ hi₀)
 
 /-- **Exact Pareto-optimality characterization** ([DobzinskiLaviNisan2012], primary PDF not
 inspected): for a feasible, budget-feasible outcome `o` of supply `m` under nonnegative valuations

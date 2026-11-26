@@ -201,28 +201,23 @@ theorem synthesis_evalBits {N : ℕ} (G : PRG.Generator (BitString k) (BitString
     exact Synthesis.of_subset (Set.range_subset_iff.2 hseed)
   | succ n ih =>
     obtain ⟨c, hc, hsize⟩ := exists_computes_size_eq_complexity (I := interpretation) (f := ⇑G)
+    let gOut := Set.range fun j z => G (seed z) j
+    let seed' (z : BitString N) := BitString.block (G (seed z)) (finTwoEquiv.symm (query z 0))
     -- the expansion of the current label, by a smallest circuit for the generator
-    have h1 : Synthesis interpretation s (Set.range fun j z => G (seed z) j)
-        (complexity interpretation ⇑G) := by
+    have h1 : Synthesis interpretation s gOut (complexity interpretation ⇑G) := by
       convert hsize ▸ Synthesis.circuit (I := interpretation) c (fun i z => seed z i) hseed
         using 3 with j
       exact funext fun z => (congrFun (hc (seed z)) j).symm
     -- the block selected by the first query bit, by one multiplexer per bit
-    have h2 : Synthesis interpretation (s ∪ Set.range fun j z => G (seed z) j)
-        (Set.range fun i z => BitString.block (G (seed z)) (finTwoEquiv.symm (query z 0)) i)
-        (4 * k) := by
-      simpa [mul_comm] using Synthesis.family (I := interpretation)
-        (s := s ∪ Set.range fun j z => G (seed z) j)
-        (fun i : Fin k => fun z => BitString.block (G (seed z)) (finTwoEquiv.symm (query z 0)) i)
-        (fun _ => 4) fun i => by
-          convert Synthesis.mux (s := s ∪ Set.range fun j z => G (seed z) j)
-            (Or.inl (hquery 0)) (Or.inr ⟨finProdFinEquiv (1, i), rfl⟩)
-            (Or.inr ⟨finProdFinEquiv (0, i), rfl⟩) using 2
-          exact funext fun z => by cases query z 0 <;> rfl
-    have h3 := ih
-      (s := s ∪ Set.range fun i z => BitString.block (G (seed z)) (finTwoEquiv.symm (query z 0)) i)
-      (fun z => BitString.block (G (seed z)) (finTwoEquiv.symm (query z 0)))
-      (fun z => Fin.tail (query z))
+    have h2 : Synthesis interpretation (s ∪ gOut) (Set.range fun i z => seed' z i) (4 * k) := by
+      simpa [mul_comm] using Synthesis.family (I := interpretation) (s := s ∪ gOut)
+        (fun i : Fin k => fun z => seed' z i) (fun _ => 4) fun i => by
+          convert Synthesis.mux (s := s ∪ gOut) (Or.inl (hquery 0))
+            (Or.inr ⟨finProdFinEquiv (1, i), rfl⟩) (Or.inr ⟨finProdFinEquiv (0, i), rfl⟩) using 2
+          ext z
+          dsimp only [seed']
+          cases query z 0 <;> rfl
+    have h3 := ih (s := s ∪ Set.range fun i z => seed' z i) seed' (fun z => Fin.tail (query z))
       (fun i => Or.inr ⟨i, rfl⟩) (fun i => Or.inl (hquery i.succ))
     exact ((h1.trans h2).trans h3).mono Set.Subset.rfl Set.Subset.rfl (le_of_eq (by ring))
 

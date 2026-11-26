@@ -71,13 +71,11 @@ theorem blossomArcs_get_mem {ss : List (Occurrence F × Occurrence F)} {ts : Lis
     cases j with
     | zero => simp
     | succ j =>
-      have hh := ih (by simpa using hl) j (by simpa using hj)
-      exact ⟨List.mem_cons_of_mem _ (List.mem_cons_of_mem _
-          (by simpa only [List.getElem_cons_succ, Nat.succ_eq_add_one, Nat.lt_sub_iff_add_lt]
-            using hh.1)),
-        List.mem_cons_of_mem _ (List.mem_cons_of_mem _
-          (by simpa only [List.getElem_cons_succ, Nat.succ_eq_add_one, Nat.sub_le_iff_le_add]
-            using hh.2))⟩
+      simpa only [List.get_eq_getElem, List.getElem_cons_succ, Nat.succ_eq_add_one,
+        Nat.lt_sub_iff_add_lt, Nat.sub_le_iff_le_add] using
+        (ih (by simpa using hl) j (by simpa using hj)).imp
+          (fun h => List.mem_cons_of_mem _ (List.mem_cons_of_mem _ h))
+          (fun h => List.mem_cons_of_mem _ (List.mem_cons_of_mem _ h))
 
 /-- Every actual blossom arc is one of the two supplied ports of a particular cycle step. -/
 theorem blossomArcs_mem {ss : List (Occurrence F × Occurrence F)} {ts : List ℕ}
@@ -155,15 +153,11 @@ theorem blossomArcs_copy {w : Walk F} {ts : List ℕ} {pivot : ℕ}
     e = ⟨w.steps[j].1, ts[j]'(by have := hd.1; omega), decide (j < pivot)⟩ ∨
       e = ⟨w.steps[j].2, ts[j]'(by have := hd.1; omega), decide (pivot ≤ j + 1)⟩ := by
   obtain ⟨k, hk, he⟩ := blossomArcs_mem hd.1 he
-  have hl := linked_constraint hw.1 (List.getElem_mem hk)
-  change w.steps[k].1.1 = w.steps[k].2.1 at hl
-  obtain rfl : k = j := by
-    apply hd.index_eq hk hj
+  have hl : w.steps[k].1.1 = w.steps[k].2.1 := linked_constraint hw.1 (List.getElem_mem hk)
+  obtain rfl : k = j := hd.index_eq hk hj (by
     rcases he with rfl | rfl
     · exact hc
-    · change (w.steps[k].2.1, ts[k]'(by have := hd.1; omega)) = _ at hc
-      exact (congrArg (fun i : Fin F.length =>
-        (i, ts[k]'(by have := hd.1; omega))) hl).trans hc
+    · simpa only [Arc.copy, List.get_eq_getElem, ← hl] using hc)
   exact he
 
 /-- Distinct copied steps give the two-arc hypothesis needed by Corollary 36 and Lemma 40.
@@ -302,12 +296,10 @@ theorem blossomDAG_copy_not_drop [DecidableEq V] {w : Walk F} {ts : List ℕ}
     let (input, _) := w.steps[j]
     (input.1, ts[j]'(by have := hd.1; omega)) ∉
       (blossomDAG (w.drop (j + 1)) (ts.drop (j + 1)) pivot).copies := by
-  change (w.steps[j].1.1, ts[j]'(by have := hd.1; omega)) ∉
-    (blossomDAG (w.drop (j + 1)) (ts.drop (j + 1)) pivot).copies
+  dsimp only
   rw [blossomDAG_copies (hw.drop (j + 1)) (hd.drop (j + 1)).1, Walk.copies_drop,
-    List.mem_toFinset]
-  intro hm
-  obtain ⟨k, hk, he⟩ := List.mem_iff_getElem.mp hm
+    List.mem_toFinset, List.mem_iff_getElem]
+  rintro ⟨k, hk, he⟩
   simp only [List.length_drop] at hk
   have hjl : j < (w.copies ts).length := by simp [Walk.copies, hd.1, hj]
   have heq : j + 1 + k = j := (hd.2.getElem_inj_iff (hi := by omega) (hj := hjl)).mp

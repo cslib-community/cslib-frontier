@@ -154,9 +154,7 @@ theorem eight_mul_le_tableSize (n_max : ℕ) : 8 * n_max ≤ tableSize n_max := 
 /-- `n_max` is strictly less than `tableSize n_max`, so at least $7/8$ of the table slots are
 always empty. -/
 theorem n_max_lt_tableSize (n_max : ℕ) : n_max < tableSize n_max := by
-  have h8 := eight_le_tableSize n_max
-  have hmul := eight_mul_le_tableSize n_max
-  omega
+  linarith [eight_le_tableSize n_max, eight_mul_le_tableSize n_max]
 
 /-- `tableSize n_max` is strictly less than $16 \max(n_{\max}, 1)$. -/
 theorem tableSize_lt_sixteen_mul (n_max : ℕ) : tableSize n_max < 16 * max n_max 1 := by
@@ -217,10 +215,8 @@ theorem expect_bucketCentered_sq_le {Y : Type*} [Fintype Y] [DecidableEq Y] [Non
         expect_le_expect fun y _ => hle_pt y
     _ = (𝔼 y : Y, if y ∈ W then (1 : ℝ) else 0) * (1 - p) +
           (1 - (𝔼 y : Y, if y ∈ W then (1 : ℝ) else 0)) * p ^ 2 := by
-        rw [Fintype.expect_eq_sum_div_card, Fintype.expect_eq_sum_div_card]
-        simp only [sum_add_distrib, ← sum_mul, add_div, mul_div_right_comm, sub_div,
-          sum_sub_distrib, sum_const, card_univ, nsmul_eq_mul, mul_one]
-        rw [div_self hpos.ne']
+        rw [expect_add_distrib, ← expect_mul, ← expect_mul, expect_sub_distrib,
+          Fintype.expect_const]
     _ = p * (1 - p) + (1 - p) * p ^ 2 := by rw [hmean]
     _ = p - p ^ 3 := by ring
     _ ≤ p := sub_le_self _ (by positivity)
@@ -288,8 +284,7 @@ theorem expect_indicator_mul_sum_pow_four_le {ι X Y : Type*} [Fintype ι] [Fint
     refine mul_le_mul_of_nonneg_left ?_ hb0
     by_cases hall2 : ∀ x ∈ I, 2 ≤ #{r : Fin 4 | t r = x}
     · have hI_le2 : #I ≤ 2 := by
-        have hle : ∑ _x ∈ I, 2 ≤ ∑ x ∈ I, #{r : Fin 4 | t r = x} :=
-          sum_le_sum fun x hx => hall2 x hx
+        have hle := sum_le_sum hall2
         rw [← card_eq_sum_card_image t (univ : Finset (Fin 4)), sum_const, card_univ,
           Fintype.card_fin, smul_eq_mul] at hle
         omega
@@ -415,16 +410,9 @@ theorem backSlot_backSlot {M : ℕ} (b : Fin (2 ^ M)) (a₁ a₂ : ℕ) :
 theorem probeSlot_injOn_range {M : ℕ} (b : Fin (2 ^ M)) {len : ℕ} (hlen : len ≤ 2 ^ M) :
     Set.InjOn (probeSlot M b) (Finset.range len) := by
   intro i hi j hj hij
-  simp only [Finset.mem_coe, Finset.mem_range] at hi hj
-  have hval : (b.val + i) % 2 ^ M = (b.val + j) % 2 ^ M := congrArg Fin.val hij
-  have hb : b.val < 2 ^ M := b.isLt
-  have hmod (k : ℕ) (hk : k < 2 ^ M) : (b.val + k) % 2 ^ M =
-      if b.val + k < 2 ^ M then b.val + k else b.val + k - 2 ^ M := by
-    split_ifs with h
-    · exact Nat.mod_eq_of_lt h
-    · rw [Nat.mod_eq_sub_mod (by omega), Nat.mod_eq_of_lt (by omega)]
-  rw [hmod i (by omega), hmod j (by omega)] at hval
-  split_ifs at hval <;> omega
+  rw [Finset.mem_coe, Finset.mem_range] at hi hj
+  have hmod := Nat.ModEq.add_left_cancel' b.val (congrArg Fin.val hij : _ ≡ _ [MOD 2 ^ M])
+  rwa [Nat.ModEq, Nat.mod_eq_of_lt (hi.trans_le hlen), Nat.mod_eq_of_lt (hj.trans_le hlen)] at hmod
 
 theorem card_cyclicInterval {M : ℕ} (b : Fin (2 ^ M)) (a : ℕ) {len : ℕ} (hlen : len ≤ 2 ^ M) :
     #(cyclicInterval M b a len) = len := by
@@ -439,9 +427,8 @@ $\{(b - 2^j + d) \bmod 2^M \mid 0 \le d < 2^{j+1}\}$. -/
 
 /-- The scale window `scaleWindow M b j` has at most `2 ^ (j + 1)` elements. -/
 theorem card_scaleWindow_le (M : ℕ) (b : Fin (2 ^ M)) (j : ℕ) :
-    #(scaleWindow M b j) ≤ 2 ^ (j + 1) := by
-  dsimp only [scaleWindow]
-  exact card_image_le.trans (by simp)
+    #(scaleWindow M b j) ≤ 2 ^ (j + 1) :=
+  card_image_le.trans (by simp)
 
 /-- Every cyclic interval `cyclicInterval M b a len` with `a < 2 ^ j` and `len ≤ 2 ^ j` is a
 subset of the centered window `scaleWindow M b j`. -/
@@ -542,9 +529,7 @@ theorem expect_scaleOverload_le {ι X : Type*} [Fintype ι]
   have hmarkov :
       δ ^ 4 * (𝔼 i, if scaleOverload M h S u j i then (1 : ℝ) else 0) ≤ 18 * δ ^ 2 := by
     calc δ ^ 4 * (𝔼 i, if scaleOverload M h S u j i then (1 : ℝ) else 0)
-        = 𝔼 i, δ ^ 4 * (if scaleOverload M h S u j i then (1 : ℝ) else 0) := by
-          rw [Fintype.expect_eq_sum_div_card, Fintype.expect_eq_sum_div_card, ← mul_sum,
-            mul_div_assoc]
+        = 𝔼 i, δ ^ 4 * (if scaleOverload M h S u j i then (1 : ℝ) else 0) := mul_expect ..
       _ ≤ 𝔼 i, ∑ b : Fin (2 ^ M),
             (if h i u = b then (1 : ℝ) else 0) *
               (∑ x ∈ S, bucketCentered (scaleWindow M b j) (h i x)) ^ 4 :=
@@ -653,10 +638,8 @@ theorem expect_probe_le_of_cluster_witness {ι X : Type*} [Fintype ι]
         expect_sum_comm _ _ _
     _ ≤ ∑ j ∈ Finset.Icc 1 M, (2 ^ j : ℝ) * (288 / (2 ^ j : ℝ) ^ 2) := by
         refine sum_le_sum fun j _ => ?_
-        rw [Fintype.expect_eq_sum_div_card, ← mul_sum, mul_div_assoc,
-          ← Fintype.expect_eq_sum_div_card]
-        exact mul_le_mul_of_nonneg_left
-          (expect_scaleOverload_le hh S hu hS hM) (by positivity)
+        rw [← mul_expect]
+        exact mul_le_mul_of_nonneg_left (expect_scaleOverload_le hh S hu hS hM) (by positivity)
     _ = 288 - 288 / (2 ^ M : ℝ) := sum_Icc_two_pow_mul_div_sq_eq M
     _ ≤ 288 := sub_le_self _ (by positivity)
 

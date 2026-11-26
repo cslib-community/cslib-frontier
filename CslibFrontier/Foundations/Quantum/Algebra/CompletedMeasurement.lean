@@ -62,9 +62,8 @@ variable {A α β κ : Type*} [CStarAlgebra A] [PartialOrder A] [StarOrderedRing
 
 omit [StarOrderedRing A] in
 theorem effect_none_eq_one_sub_successfulEffect (M : Measurement (Option α) A) :
-    M.effect none = 1 - M.successfulEffect := by
-  unfold successfulEffect
-  exact eq_sub_of_add_eq (by simpa only [Fintype.sum_option] using M.sum_effect)
+    M.effect none = 1 - M.successfulEffect :=
+  eq_sub_of_add_eq (by simpa only [Fintype.sum_option, successfulEffect] using M.sum_effect)
 
 omit [StarOrderedRing A] in
 /-- The expectation of the successful effect is the probability of a nonfailure outcome. -/
@@ -75,8 +74,9 @@ theorem successfulEffect_eq_success_prob
   classical
   simp only [Cslib.Probability.PMF.toOuterMeasure_apply_toReal, Fintype.sum_option,
     Set.mem_ofPred_eq, Option.isSome_none, Option.isSome_some, Bool.false_eq_true, ite_false,
-    ite_true, zero_add, Measurement.distribution_apply, ENNReal.toReal_ofReal (M.prob_nonneg φ _)]
-  simp only [Measurement.successfulEffect, Measurement.prob, map_sum, Complex.re_sum]
+    ite_true, zero_add, Measurement.distribution_apply, ENNReal.toReal_ofReal (M.prob_nonneg φ _),
+    Measurement.successfulEffect, map_sum, Complex.re_sum]
+  rfl
 
 /-- The success effect is a positive contraction. -/
 theorem successfulEffect_mem_Icc (P : Measurement (Option α) A) :
@@ -227,11 +227,9 @@ theorem norm_none_sub_sq_le_successfulCopyDefect (φ : AlgState A)
     (P R : Measurement (Option α) A) (hP : P.IsProjective) (hR : R.IsProjective)
     (hc : ∀ a b, Commute (P.effect (some a)) (R.effect (some b))) :
     φ.norm (P.effect none - R.effect none) ^ 2 ≤ successfulCopyDefect φ P R := by
-  classical
   have hd : P.effect none - R.effect none =
       -(∑ a, (P.effect (some a) - R.effect (some a))) := by
-    rw [effect_none_eq_one_sub_successfulEffect, effect_none_eq_one_sub_successfulEffect,
-      successfulEffect, successfulEffect, sum_sub_distrib]
+    simp only [effect_none_eq_one_sub_successfulEffect, successfulEffect, sum_sub_distrib]
     abel
   simpa only [hd, AlgState.norm_neg, successfulCopyDefect] using
     norm_sum_successful_diff_sq_le φ P R hP hR hc univ
@@ -287,9 +285,7 @@ theorem pairCommutatorDefect_le_successful (φ : AlgState A)
   have hsuccess : ∑ a : α, ∑ b, f (some a) b =
       (∑ a : α, f (some a) none) + successfulPairDefect φ P Q := by
     simp only [Fintype.sum_option, successfulPairDefect, sum_add_distrib, f]
-  unfold pairCommutatorDefect
-  change (∑ a, ∑ b, f a b) ≤ _
-  rw [Fintype.sum_option]
+  rw [pairCommutatorDefect, Fintype.sum_option]
   linarith
 
 /-- The completed pair and copy defects under independent uniform questions, expressed in

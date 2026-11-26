@@ -145,14 +145,12 @@ theorem forgetWeight_le_foldl_max (wtL LP : List ℕ) :
       forgetWeight (fun u => wtL.getD u 0) LP LB t ≤ LB.length * wtL.foldl max 0
   | [], _, _ => by simp [forgetWeight]
   | u :: rest, t, hus => by
-    have hu_lt : u < wtL.length := hus u List.mem_cons_self
-    have hwu : wtL.getD u 0 ≤ wtL.foldl max 0 := by
-      rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hu_lt, Option.getD_some]
-      exact List.mem_le_foldl_max (List.getElem_mem hu_lt)
     have hhead :
         (if t % 2 = 1 ∧ memBag u LP = false then wtL.getD u 0 else 0) ≤ wtL.foldl max 0 := by
       split_ifs
-      · exact hwu
+      · rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (hus u List.mem_cons_self),
+          Option.getD_some]
+        exact List.mem_le_foldl_max (List.getElem_mem _)
       · exact Nat.zero_le _
     simp only [forgetWeight, List.length_cons]
     calc (if t % 2 = 1 ∧ memBag u LP = false then wtL.getD u 0 else 0) +
@@ -225,11 +223,10 @@ theorem forgetWeightProg_spec {w : ℕ} (args : ForgetWeightArgs) {wtL LP LB : L
     rw [hmem_u, hwt_read, hr_bm, hadd_eq] at hres_step
     have hc_step : memoryCost (forgetWeightStep (env, ⟨curB, curT, acc⟩)) s ≤
         args.bagPLen + 2 := by
-      have hr_st (a : ℕ) : (Memory.spec 0).clientState s (Memory.read a) = s := rfl
-      have hr_res (a : ℕ) : (Memory.spec 0).clientResult s (Memory.read a) = s.mem a := rfl
-      dsimp only at hc_bm
-      simp only [forgetWeightStep, env, memoryCost_bind', memoryCost_read, hr_st, hr_res, hmem_u,
-        hst_bm, memoryCost_pure, Nat.add_zero]
+      dsimp only [forgetWeightStep, env] at hc_bm ⊢
+      rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hmem_u,
+        memoryCost_bind', memoryCost_read, clientState_read, memoryCost_bind', hst_bm,
+        memoryCost_pure]
       omega
     simp only [List.length_cons, iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_⟩
@@ -296,8 +293,7 @@ theorem forgetWeightProg_realizes :
   have hwt_fit : Fits w (d.wtPtr + t.mem st.curB) := hfitW.of_le (by omega)
   have hadd_fit : Fits w (st.acc + t.mem (d.wtPtr + t.mem st.curB)) :=
     hfitSum.of_le (hacc_next_le.trans hacc_max)
-  have hacc_fit : Fits w (st.acc + 0) :=
-    hfitSum.of_le ((Nat.add_zero st.acc ▸ hacc_le).trans (Nat.mul_le_mul_right W (Nat.sub_le _ _)))
+  have hacc_fit : Fits w (st.acc + 0) := hadd_fit.of_le (Nat.add_le_add_left (Nat.zero_le _) _)
   let addW := if st.curT % 2 = 1 then
     if (Memory.spec 0).clientResult t (bagMemProg ⟨t.mem st.curB, d.bagPPtr, d.bagPLen⟩) = 0 then
       t.mem (d.wtPtr + t.mem st.curB) else 0
@@ -311,7 +307,6 @@ theorem forgetWeightProg_realizes :
     Nat.le_of_succ_le hj_le, ?_, by rwa [hst_body], ?_, ?_⟩
   · simp only [hres_body]; omega
   · rwa [hst_body, hres_body]
-  · simp only [hres_body]
-    exact (Nat.add_le_add_left hadd_le _).trans hacc_next_le
+  · simpa only [hres_body] using (Nat.add_le_add_left hadd_le _).trans hacc_next_le
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

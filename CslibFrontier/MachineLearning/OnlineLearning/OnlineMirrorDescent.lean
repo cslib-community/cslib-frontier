@@ -92,8 +92,7 @@ map `gradψ : E → E`: `B_ψ(x, y) = ψ x - ψ y - ⟪gradψ y, x - y⟫`. -/
 theorem bregmanDiv_three_point (ψ : E → ℝ) (gradψ : E → E) (x y z : E) :
     bregmanDiv ψ gradψ x y + bregmanDiv ψ gradψ y z - bregmanDiv ψ gradψ x z =
       ⟪gradψ z - gradψ y, x - y⟫ := by
-  simp only [bregmanDiv]
-  rw [show x - z = (x - y) + (y - z) by abel, inner_add_right, inner_sub_left]
+  simp only [bregmanDiv, inner_sub_left, inner_sub_right]
   ring
 
 /-- **Generalized Pythagorean inequality for Bregman projections**: if `y'` satisfies the
@@ -123,9 +122,9 @@ theorem isOMDStep_metricProjection_euclidean {K : Set E} (hne : K.Nonempty)
     (hc : IsComplete K) (hK : Convex ℝ K) (η : ℝ) (g x : E) :
     IsOMDStep K id η g x (metricProjection K (x - η • g)) := by
   refine ⟨metricProjection_mem hne hc hK (x - η • g), fun u hu => ?_⟩
-  set p := metricProjection K (x - η • g)
-  simp only [id_eq, show η • g + (p - x) = -((x - η • g) - p) by abel, inner_neg_left]
-  linarith [inner_sub_metricProjection_le_zero hc hK (x - η • g) hu]
+  have hle := inner_sub_metricProjection_le_zero hc hK (x - η • g) hu
+  simp only [id_eq, inner_add_left, inner_sub_left, real_inner_smul_left] at hle ⊢
+  linarith
 
 /-- **Fundamental single-step inequality for online mirror descent**: under strong convexity
 `μ / 2 * (primal (b - a)) ^ 2 ≤ B_ψ(a, b)` and dual pairing `⟪a, b⟫ ≤ dual a * primal b`,
@@ -276,19 +275,15 @@ theorem omd_sum_inner_le {K : Set E} {ψ : E → ℝ} {gradψ : E → E}
     intro n hn
     induction n with
     | zero =>
-      simp only [zero_add, range_one, sum_singleton]
-      linarith [div_le_div_of_nonneg_right (hD 0 (Nat.zero_le T)) (hη_pos 0).le,
-        sub_div (bregmanDiv ψ gradψ u (x 0)) (bregmanDiv ψ gradψ u (x 1)) (η 0)]
+      simp only [zero_add, range_one, sum_singleton, sub_div]
+      linarith [div_le_div_of_nonneg_right (hD 0 (Nat.zero_le T)) (hη_pos 0).le]
     | succ k ih =>
-      rw [Finset.sum_range_succ]
+      rw [Finset.sum_range_succ, sub_div]
       have hinv : 0 ≤ 1 / η (k + 1) - 1 / η k :=
         sub_nonneg.mpr (one_div_le_one_div_of_le (hη_pos (k + 1)) (hη_anti k))
-      linarith [ih (by omega), mul_le_mul_of_nonneg_right (hD (k + 1) hn) hinv,
-        show D / η k - bregmanDiv ψ gradψ u (x (k + 1)) / η k +
-            (bregmanDiv ψ gradψ u (x (k + 1)) - bregmanDiv ψ gradψ u (x (k + 2))) / η (k + 1) =
-          D / η k + bregmanDiv ψ gradψ u (x (k + 1)) * (1 / η (k + 1) - 1 / η k) -
-            bregmanDiv ψ gradψ u (x (k + 2)) / η (k + 1) by ring,
-        show D / η k + D * (1 / η (k + 1) - 1 / η k) = D / η (k + 1) by ring]
+      have hmul := mul_le_mul_of_nonneg_right (hD (k + 1) hn) hinv
+      simp only [mul_sub, mul_one_div] at hmul
+      linarith [ih (by omega)]
   have hnn : 0 ≤ bregmanDiv ψ gradψ u (x (T + 1)) :=
     (by positivity : 0 ≤ μ / 2 * (primal (x (T + 1) - u)) ^ 2).trans
       (hsc u hu (x (T + 1)) (hx_mem (T + 1) le_rfl))

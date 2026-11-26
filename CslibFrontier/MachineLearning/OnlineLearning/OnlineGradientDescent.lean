@@ -128,10 +128,10 @@ theorem ogd_succ (t : ℕ) :
       proj (ogd proj η grad x₀ t - η t • grad t (ogd proj η grad x₀ t)) := by rfl
 
 theorem ogd_mem (hP : IsPythagoreanProjection K proj) (hx₀ : x₀ ∈ K) (t : ℕ) :
-    ogd proj η grad x₀ t ∈ K := by
-  cases t with
-  | zero => rwa [ogd_zero]
-  | succ t => rw [ogd_succ]; exact hP.mem _
+    ogd proj η grad x₀ t ∈ K :=
+  match t with
+  | 0 => hx₀
+  | _ + 1 => hP.mem _
 
 /-- Each step of online gradient descent moves at most `η t * G` when the subgradients on `K` have
 norm at most `G`, so `‖x t - x₀‖ ≤ G * ∑ s < t, η s`. -/
@@ -143,9 +143,7 @@ theorem norm_ogd_sub_le (hP : IsPythagoreanProjection K proj) (hx₀ : x₀ ∈ 
   | succ t ih =>
     rw [ogd_succ, sum_range_succ, mul_add]
     set x := ogd proj η grad x₀ t
-    have hstep : η t * ‖grad t x‖ ≤ G * η t := by
-      rw [mul_comm G]
-      exact mul_le_mul_of_nonneg_left (hG t x (ogd_mem hP hx₀ t)) (hη t)
+    have hstep := mul_le_mul_of_nonneg_right (hG t x (ogd_mem hP hx₀ t)) (hη t)
     calc ‖proj (x - η t • grad t x) - x₀‖
         ≤ ‖proj (x - η t • grad t x) - x‖ + ‖x - x₀‖ := norm_sub_le_norm_sub_add_norm_sub _ _ _
       _ ≤ ‖x - η t • grad t x - x‖ + ‖x - x₀‖ := by
@@ -274,16 +272,12 @@ theorem ogd_sum_inner_le_sqrt (hP : IsPythagoreanProjection K proj) (hx₀ : x�
   have h2 : ∑ t ∈ range (T + 1), η t * ‖grad t (ogd proj η grad x₀ t)‖ ^ 2 ≤
       c * G ^ 2 * ∑ t ∈ range (T + 1), 1 / √((t : ℝ) + 1) := by
     rw [mul_sum]
-    refine sum_le_sum fun t _ => ?_
-    have hg2 : ‖grad t (ogd proj η grad x₀ t)‖ ^ 2 ≤ G ^ 2 :=
-      pow_le_pow_left₀ (norm_nonneg _) (hG t _ (ogd_mem hP hx₀ t)) 2
-    exact (mul_le_mul_of_nonneg_left hg2 (hη t).le).trans_eq (by simp only [hηdef]; ring)
+    refine sum_le_sum fun t _ => (mul_le_mul_of_nonneg_left
+      (pow_le_pow_left₀ (norm_nonneg _) (hG t _ (ogd_mem hP hx₀ t)) 2) (hη t).le).trans_eq ?_
+    simp only [hηdef]
+    ring
   rw [h1] at h
-  have h3 := mul_le_mul_of_nonneg_left (sum_range_one_div_sqrt_succ_le T)
-    (mul_nonneg hc.le (sq_nonneg G))
-  rw [mul_sub, ← mul_assoc, mul_right_comm (c * G ^ 2) 2] at h3
-  rw [mul_sub]
-  linarith
+  nlinarith [sum_range_one_div_sqrt_succ_le T, mul_nonneg hc.le (sq_nonneg G)]
 
 /-- **Regret of online gradient descent** [Hazan2022, Theorem 3.1]: for losses satisfying the
 subgradient inequality with subgradients of norm at most `G` on a set of diameter at most `D`, the
@@ -318,12 +312,10 @@ theorem ogd_regret_le_zinkevich {f : ℕ → E → ℝ} (hP : IsPythagoreanProje
     {T : ℕ} (hT : 0 < T) :
     ∑ t ∈ range T, (f t (ogd proj (fun t => 1 / √((t : ℝ) + 1)) grad x₀ t) - f t u) ≤
       D ^ 2 * √(T : ℝ) / 2 + (√(T : ℝ) - 1 / 2) * G ^ 2 := by
-  obtain ⟨T, rfl⟩ := Nat.exists_eq_add_of_lt hT
-  rw [zero_add]
+  obtain ⟨T, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hT.ne'
   refine (sum_sub_le_sum_inner hsub (ogd_mem hP hx₀) hu _).trans ?_
-  have h := ogd_sum_inner_le_sqrt (grad := grad) hP hx₀ hD hG one_pos hu T
   push_cast
-  linarith
+  linarith [ogd_sum_inner_le_sqrt (grad := grad) hP hx₀ hD hG one_pos hu T]
 
 /-- **Fixed step size, from the distance to the comparator**: for a known horizon `T ≥ 1` and a
 comparator `u ∈ K` with `‖x₀ - u‖ ≤ B`, the constant step size `B / (G √T)` gives regret at most
@@ -337,10 +329,8 @@ theorem ogd_regret_le_fixed_of_norm_sub_le {f : ℕ → E → ℝ} (hP : IsPytha
       G * B * √(T : ℝ) := by
   refine (sum_sub_le_sum_inner hsub (ogd_mem hP hx₀) hu T).trans ?_
   have hTr : (0 : ℝ) < T := by exact_mod_cast hT
-  have hs : 0 < √(T : ℝ) := sqrt_pos.mpr hTr
   set c := B / (G * √(T : ℝ)) with hcdef
-  have hc : 0 < c := div_pos hB0 (mul_pos hG0 hs)
-  have h := ogd_sum_inner_le_of_const (grad := grad) (x₀ := x₀) hP hc hu T
+  have hc : 0 < c := div_pos hB0 (mul_pos hG0 (sqrt_pos.mpr hTr))
   have h1 : ‖x₀ - u‖ ^ 2 / (2 * c) ≤ G * B * √(T : ℝ) / 2 := by
     calc ‖x₀ - u‖ ^ 2 / (2 * c) ≤ B ^ 2 / (2 * c) := by gcongr
       _ = G * B * √(T : ℝ) / 2 := by rw [hcdef]; field_simp
@@ -356,7 +346,7 @@ theorem ogd_regret_le_fixed_of_norm_sub_le {f : ℕ → E → ℝ} (hP : IsPytha
             rw [mul_self_sqrt hTr.le, hcdef]; ring
         _ = G * B * √(T : ℝ) := by field_simp
     linarith [mul_le_mul_of_nonneg_left hsum hc.le]
-  linarith
+  linarith [ogd_sum_inner_le_of_const (grad := grad) (x₀ := x₀) hP hc hu T]
 
 /-- **Fixed step size**: for a known horizon `T ≥ 1`, the constant step size `D / (G √T)` gives
 regret at most `G * D * √T`. -/
@@ -386,10 +376,8 @@ theorem norm_sub_le_of_strongConvex {f : E → ℝ} {g : E → E} {G α : ℝ} (
   rw [norm_sub_rev y x] at h1 hcx
   have hsq : α * ‖x - y‖ ^ 2 ≤ 2 * G * ‖x - y‖ := by linarith [hlow y hy (x - y)]
   rw [le_div_iff₀ hα]
-  rcases (norm_nonneg (x - y)).eq_or_lt with h0 | hpos
-  · rw [← h0, zero_mul]
-    linarith [(norm_nonneg (g x)).trans (hG x hx)]
-  · nlinarith
+  by_contra! hlt
+  nlinarith [norm_nonneg (x - y), (norm_nonneg (g x)).trans (hG x hx)]
 
 /-- **Logarithmic regret for strongly convex losses** [Hazan2022, Theorem 3.3]: if every loss
 satisfies `f t x + ⟪grad t x, y - x⟫ + α / 2 * ‖y - x‖ ^ 2 ≤ f t y` on `K` with `α > 0` and the
@@ -411,12 +399,13 @@ theorem ogd_regret_le_log {f : ℕ → E → ℝ} (hP : IsPythagoreanProjection 
     have h1 := ogd_two_mul_inner_le (x₀ := x₀) (grad := grad) hP hu t (hη t)
     have h2 := hsc t (x t) (ogd_mem hP hx₀ t) u hu
     rw [← neg_sub (x t) u, inner_neg_right, norm_neg] at h2
-    have hg := pow_le_pow_left₀ (norm_nonneg _) (hG t (x t) (ogd_mem hP hx₀ t)) 2
     have e1 : (‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2) / η t =
         α * t * ‖x t - u‖ ^ 2 + α * ‖x t - u‖ ^ 2 - α * (t + 1) * ‖x (t + 1) - u‖ ^ 2 := by
       simp only [hηdef, one_div, div_inv_eq_mul]; ring
     have e2 : η t * ‖grad t (x t)‖ ^ 2 ≤ G ^ 2 / α * (1 / (t + 1)) :=
-      (mul_le_mul_of_nonneg_left hg (hη t).le).trans_eq (by simp only [hηdef]; field_simp)
+      (mul_le_mul_of_nonneg_left
+        (pow_le_pow_left₀ (norm_nonneg _) (hG t (x t) (ogd_mem hP hx₀ t)) 2) (hη t).le).trans_eq
+        (by simp only [hηdef]; field_simp)
     rw [e1] at h1
     linarith
   have tele : 2 * ∑ t ∈ range T, (f t (x t) - f t u) ≤
@@ -425,9 +414,8 @@ theorem ogd_regret_le_log {f : ℕ → E → ℝ} (hP : IsPythagoreanProjection 
     | zero => simp
     | succ T ih =>
       rw [sum_range_succ, sum_range_succ, mul_add, mul_add]
-      have := step T
       push_cast
-      linarith
+      linarith [step T]
   have hH : ∑ t ∈ range T, 1 / ((t : ℝ) + 1) ≤ 1 + log T := by
     simpa [harmonic] using harmonic_le_one_add_log T
   rw [mul_comm 2 α, ← div_div, div_mul_eq_mul_div]

@@ -201,9 +201,8 @@ theorem countQueries_slotM_le (k : α) (rest : List (Branch α β)) :
   | nil => simp [slotM]
   | cons e rest ih =>
     obtain ⟨s, c⟩ := e
-    by_cases h : oracle (.le s k) = true
-    · simp [slotM, h]; omega
-    · simp [slotM, h]
+    by_cases h : oracle (.le s k) = true <;> simp [slotM, h]
+    omega
 
 /-- The minimum search makes no comparison. -/
 @[simp] theorem countQueries_minQ (tr : BPlusTree α β) : (minQ tr).countQueries oracle = 0 := by
@@ -239,9 +238,8 @@ private theorem countQueries_rankQ_leaf_le (k : α) (entries : List (α × β)) 
   induction entries with
   | nil => simp [SortedAssoc.rankM]
   | cons e l ih =>
-    by_cases h : oracle (.le k e.1) = true
-    · simp [SortedAssoc.rankM, h]
-    · simp [SortedAssoc.rankM, h]; omega
+    by_cases h : oracle (.le k e.1) = true <;> simp [SortedAssoc.rankM, h]
+    omega
 
 /-- Predecessor search in a leaf makes at most one comparison per entry. -/
 private theorem countQueries_predQ_leaf_le (k : α) (entries : List (α × β)) :
@@ -250,9 +248,8 @@ private theorem countQueries_predQ_leaf_le (k : α) (entries : List (α × β)) 
   induction entries with
   | nil => simp [SortedAssoc.predM]
   | cons e l ih =>
-    by_cases h : oracle (.le k e.1) = true
-    · simp [SortedAssoc.predM, h]
-    · simp [SortedAssoc.predM, h]; omega
+    by_cases h : oracle (.le k e.1) = true <;> simp [SortedAssoc.predM, h]
+    omega
 
 /-- Successor search in a leaf makes at most one comparison per entry. -/
 private theorem countQueries_succQ_leaf_le (k : α) (entries : List (α × β)) :
@@ -261,9 +258,8 @@ private theorem countQueries_succQ_leaf_le (k : α) (entries : List (α × β)) 
   induction entries with
   | nil => simp [SortedAssoc.succM]
   | cons e l ih =>
-    by_cases h : oracle (.le e.1 k) = true
-    · simp [SortedAssoc.succM, h]; omega
-    · simp [SortedAssoc.succM, h]
+    by_cases h : oracle (.le e.1 k) = true <;> simp [SortedAssoc.succM, h]
+    omega
 
 private theorem countQueries_node_le_of_step {f : BPlusTree α β → ℕ}
     (hnil : ∀ first, f (node first []) = f first)
@@ -342,9 +338,8 @@ theorem countQueries_lookupQ_le (h : IsWF t tr) (k : α) :
 /-- The membership test in a well-formed tree makes at most `2 * t - 1` comparisons per level and
 one more, under every oracle. -/
 theorem countQueries_containsQ_le (h : IsWF t tr) (k : α) :
-    (containsQ k tr).countQueries oracle ≤ (2 * t - 1) * tr.height + 1 := by
-  rw [countQueries_containsQ]
-  exact countQueries_lookupQ_le oracle h k
+    (containsQ k tr).countQueries oracle ≤ (2 * t - 1) * tr.height + 1 :=
+  (countQueries_containsQ oracle k).trans_le (countQueries_lookupQ_le oracle h k)
 
 /-- Predecessor search in a well-formed tree makes at most `2 * t - 1` comparisons per level,
 under every oracle. -/

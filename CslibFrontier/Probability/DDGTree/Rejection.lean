@@ -255,9 +255,7 @@ theorem runTrials_some (spec : BlockRejectionSpec α) (t : ℕ) (a : α) :
     classical
     rw [runTrials_succ, PMF.bind_apply, tsum_option_eq, ih, geom_sum_succ,
       tsum_eq_single a fun b hb => by simp [hb.symm]]
-    simp only [PMF.pure_apply, ↓reduceIte, mul_one]
-    change spec.rejectProb * (spec.singleLaw (some a) * ∑ j ∈ Finset.range t, spec.rejectProb ^ j) +
-      spec.singleLaw (some a) = _
+    simp only [PMF.pure_apply, ↓reduceIte, mul_one, rejectProb]
     ring
 
 private theorem mul_geom_sum_eq_one_sub_pow {r : ℝ≥0∞} (hr : r ≤ 1) (t : ℕ) :
@@ -374,12 +372,11 @@ theorem toDDGTree_generates {spec : BlockRejectionSpec α} {target : PMF α}
   · refine iSup_le fun n => ?_
     rw [run_toDDGTree, runTrials_some_of_singleLaw h]
     exact mul_le_of_le_one_left' tsub_le_self
-  · have hpow : Tendsto (fun t : ℕ => spec.rejectProb ^ t) atTop (𝓝 0) :=
-      ENNReal.tendsto_pow_atTop_nhds_zero_of_lt_one (spec.rejectProb_lt_one_iff.mpr hacc)
-    have hsub :
+  · have hsub :
         Tendsto (fun t : ℕ => (1 - spec.rejectProb ^ t) * target a) atTop (𝓝 (target a)) := by
       simpa only [tsub_zero, one_mul] using ENNReal.Tendsto.mul_const
-        (ENNReal.Tendsto.sub (tendsto_const_nhds (x := (1 : ℝ≥0∞))) hpow
+        (ENNReal.Tendsto.sub (tendsto_const_nhds (x := (1 : ℝ≥0∞)))
+          (ENNReal.tendsto_pow_atTop_nhds_zero_of_lt_one (spec.rejectProb_lt_one_iff.mpr hacc))
           (Or.inr ENNReal.zero_ne_top))
         (Or.inr (PMF.apply_ne_top target a))
     refine le_of_tendsto' hsub fun t => ?_
@@ -500,12 +497,10 @@ theorem one_half_le_acceptProb_uniformFinRejectionSpec (n : ℕ) [NeZero n] :
   rcases le_or_gt n 1 with hn1 | hn1
   · obtain rfl : n = 1 := le_antisymm hn1 (NeZero.pos n)
     simp
-  · have hclog : Nat.clog 2 n ≤ Nat.log 2 (n - 1) + 1 :=
-      (Nat.clog_le_iff_le_pow Nat.one_lt_two).mpr
-        (by have := Nat.lt_pow_succ_log_self Nat.one_lt_two (n - 1); omega)
-    have := pow_succ 2 (Nat.log 2 (n - 1)) ▸ Nat.pow_le_pow_right (by decide) hclog
-    have := Nat.pow_log_le_self 2 (x := n - 1) (by omega)
-    omega
+  · exact (Nat.pow_le_pow_right (by decide) ((Nat.clog_le_iff_le_pow Nat.one_lt_two).mpr
+      (by have := Nat.lt_pow_succ_log_self Nat.one_lt_two (n - 1); omega))).trans
+      ((pow_succ' 2 _).le.trans (Nat.mul_le_mul_left 2
+        ((Nat.pow_log_le_self 2 (by omega)).trans (Nat.sub_le n 1))))
 
 /-- After `t` trials of `uniformFinRejectionSpec n` (`n ≥ 1`), rejection probability is at most
 `(1 / 2) ^ t`. -/

@@ -163,9 +163,9 @@ private theorem exp_mul_inv_pow_le {k d : ℕ} {r : ℝ}
 private theorem card_fin_mul_inv_le_ofReal {m d : ℕ} {x : ℝ≥0∞}
     (hx : x ≤ Fintype.card (Fin m) * ENNReal.ofReal (1 / (d : ℝ))) :
     x ≤ ENNReal.ofReal ((m : ℝ) / (d : ℝ)) := by
-  refine hx.trans_eq ?_
   rw [Fintype.card_fin, ← ENNReal.ofReal_natCast,
-    ← ENNReal.ofReal_mul (Nat.cast_nonneg _), mul_one_div]
+    ← ENNReal.ofReal_mul (Nat.cast_nonneg _), mul_one_div] at hx
+  exact hx
 
 private theorem ae_eval_of_ae_notMem_violated (φ : CNF (Fin n))
     (trace : (∀ p : Fin n × ℕ, (fun _ : Fin n => Bool) p.1) → ℕ → List (Fin φ.length))
@@ -284,20 +284,15 @@ theorem not_lopsidependent_of_not_conflicts (φ : CNF (Fin n)) {i j : Fin φ.len
       (hab : ¬Conflicts φ[a] φ[b]) (hfa : fa ∈ violated φ a) (hgb : ga ∈ violated φ b) :
       ga ∈ violated φ a := by
     by_contra hga
-    simp only [violated, Set.mem_ofPred_eq, Bool.not_eq_false, Clause.eval_eq_true_iff] at hga
+    rw [violated, Set.mem_ofPred_eq, Bool.not_eq_false, Clause.eval_eq_true_iff] at hga
     obtain ⟨l, hla, hlga⟩ := hga
     have hlfa := (Clause.eval_eq_false_iff fa φ[a]).1 hfa l hla
-    have hinter : l.1 ∈ clauseVbl φ a ∩ clauseVbl φ b := by
-      by_contra hni
-      have := hfg l.1 hni
-      rw [hlfa, hlga] at this
-      cases l.2 <;> simp at this
+    have hinter : l.1 ∈ clauseVbl φ a ∩ clauseVbl φ b := by_contra fun hni =>
+      Bool.not_ne_self l.2 ((hlfa.symm.trans (hfg l.1 hni)).trans hlga)
     obtain ⟨m, hmb, hml⟩ := List.mem_map.1 (List.mem_toFinset.1 (mem_inter.1 hinter).2)
     have hmg := (Clause.eval_eq_false_iff ga φ[b]).1 hgb m hmb
     have hm_eq : m = (l.1, !l.2) := Prod.ext hml <| by
-      rw [← hml] at hlga
-      rw [hlga] at hmg
-      cases hm2 : m.2 <;> cases hl2 : l.2 <;> simp [hm2, hl2] at hmg ⊢
+      rw [((congrArg ga hml).trans hlga).symm.trans hmg, Bool.not_not]
     exact hab ⟨l, hla, hm_eq ▸ hmb⟩
   rw [MoserTardos.lopsidependent_iff]
   rintro ⟨f, g, hfg, hfi, hgj, hfj | hgi⟩
@@ -398,8 +393,8 @@ variable {n : ℕ}
 theorem isValidParallelRule_greedyParallelCNF (φ : CNF (Fin n)) :
     MoserTardos.IsValidParallelRule (clauseVbl φ) (violated φ) (greedyParallelCNF φ) :=
   MoserTardos.isValidParallelRule_greedyParallelList (clauseVbl φ) (violated φ)
-    (List.finRange φ.length) List.mem_finRange _ fun σ i => by
-      simp [violated]
+    (List.finRange φ.length) List.mem_finRange _ fun _ _ => by
+      simp only [violated, Set.mem_ofPred_eq, Bool.not_eq_true']
 
 /-- Parallel Moser–Tardos theorem for `k`-SAT (`1 ≤ d`): under `e (d + 1) ≤ (1 - ε) * 2 ^ k`
 with `ε ∈ (0, 1]`, every admissible parallel clause-resampling rule terminates in at most
@@ -473,9 +468,9 @@ an exact `k`-CNF conflicts with at most `d'` other clauses and `e (d' + 1) ≤ 2
 satisfiable (proved via `Moser.ae_exists_eval_run_firstViolated_of_conflict_exp_mul_le`). -/
 theorem CNF.IsExactDistinct.satisfiable_of_conflict_exp_mul_le {n k d' : ℕ} {φ : CNF (Fin n)}
     (hφ : φ.IsExactDistinct k) (hdeg : ∀ i : Fin φ.length, Moser.conflictDegree φ i ≤ d')
-    (hlll : Real.exp 1 * (d' + 1) ≤ 2 ^ k) : φ.Satisfiable := by
-  obtain ⟨T, N, hN⟩ :=
+    (hlll : Real.exp 1 * (d' + 1) ≤ 2 ^ k) : φ.Satisfiable :=
+  let ⟨_, _, hN⟩ :=
     (Moser.ae_exists_eval_run_firstViolated_of_conflict_exp_mul_le hφ hdeg hlll).exists
-  exact ⟨_, hN⟩
+  ⟨_, hN⟩
 
 end Cslib.Logic.PL

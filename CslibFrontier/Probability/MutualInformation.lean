@@ -202,20 +202,16 @@ theorem condMutualInfo_eq_zero_of_apply_eq_mul [Finite γ] [Finite α] [Finite �
   let := Fintype.ofFinite α
   let := Fintype.ofFinite β
   have hCA (c : γ) (a : α) :
-      joint.map (Prod.map id Prod.fst) (c, a) = f c a * ∑' b, g c b := by
-    have : joint.map (Prod.map id Prod.fst) =
-        (joint.map (Equiv.prodAssoc γ α β).symm).map Prod.fst := by rw [PMF.map_comp]; rfl
-    rw [this, map_fst_apply, ← ENNReal.tsum_mul_left]
-    exact tsum_congr fun b => by rw [map_equiv_apply]; simp [h]
+      joint.map (Prod.map id Prod.fst) (c, a) = f c a * ∑ b, g c b := by
+    simp only [Prod.map_apply, id_eq, PMF.map_apply, tsum_fintype, Fintype.sum_prod_type,
+      Prod.mk.injEq, ite_and, Finset.sum_ite_irrel, Finset.sum_const_zero, Finset.sum_ite_eq,
+      Finset.mem_univ, ↓reduceIte, Finset.mul_sum, h]
   have hCB (c : γ) (b : β) :
-      joint.map (Prod.map id Prod.snd) (c, b) = (∑' a, f c a) * g c b := by
-    let e : γ × α × β ≃ (γ × β) × α :=
-      ((Equiv.refl γ).prodCongr (Equiv.prodComm α β)).trans (Equiv.prodAssoc γ β α).symm
-    have : joint.map (Prod.map id Prod.snd) = (joint.map e).map Prod.fst := by
-      rw [PMF.map_comp]; rfl
-    rw [this, map_fst_apply, ← ENNReal.tsum_mul_right]
-    exact tsum_congr fun a => by rw [map_equiv_apply]; simp [e, h]
-  have hC (c : γ) : joint.map Prod.fst c = (∑' a, f c a) * ∑' b, g c b := by
+      joint.map (Prod.map id Prod.snd) (c, b) = (∑ a, f c a) * g c b := by
+    simp only [Prod.map_apply, id_eq, PMF.map_apply, tsum_fintype, Fintype.sum_prod_type,
+      Prod.mk.injEq, ite_and, Finset.sum_ite_irrel, Finset.sum_const_zero, Finset.sum_ite_eq,
+      Finset.mem_univ, ↓reduceIte, Finset.sum_mul, h]
+  have hC (c : γ) : joint.map Prod.fst c = (∑ a, f c a) * ∑ b, g c b := by
     simp only [map_fst_apply, tsum_fintype, Fintype.sum_prod_type, Finset.sum_mul_sum, h]
   have hid (c : γ) (a : α) (b : β) :
       (joint (c, a, b)).toReal * (joint.map Prod.fst c).toReal =

@@ -107,8 +107,7 @@ theorem Machine.IsReplyBounded.routeCorrupt {n : ℕ} {ιI : Type} {I : ιI → 
       rw [encSum_inl, List.length_cons]
       exact Nat.succ_le_succ ((hle p (.inl (i, inp)) s y hy).trans (Nat.le_add_right _ _))
     · obtain rfl := OracleComp.eq_of_mem_supportWith_pure hx
-      rw [encSum_inl, List.length_cons]
-      exact Nat.succ_le_succ (Nat.le_add_left _ _)
+      rw [encSum_inl, List.length_cons]; omega
   · simp only [StateT.run_map, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map] at hx
     obtain ⟨y, hy, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hx
     rw [encSum_inr, List.length_cons]
@@ -132,12 +131,9 @@ theorem WordInterface.exists_polyBounded_reply_take {n : ℕ} {ι : Type} {E : �
       (((PolyBounded.const (2 * Nat.card I.Channel + 2)).add hrb).pow d),
     fun p q w => ?_⟩
   rw [I.reply_decodeReply]
-  have h1 : (I.replyNormalize (I.channel q) (List.take p.replyBound w)).length ≤
-      c * ((encPair (encFinite I.Channel) encBits
-        (I.channel q, List.take p.replyBound w)).length + 1) ^ d := by
-    simpa only [encBits_apply] using hnorm (I.channel q, List.take p.replyBound w)
   have hch := length_encFinite_lt (I.channel q)
-  refine h1.trans (Nat.mul_le_mul_left c (Nat.pow_le_pow_left ?_ d))
+  refine (hnorm (I.channel q, List.take p.replyBound w)).trans
+    (Nat.mul_le_mul_left c (Nat.pow_le_pow_left ?_ d))
   simp only [length_encPair, encBits_apply, List.length_take]; omega
 
 /-- Every supported output of forwarding a single lowered query and keeping state `s` decodes a

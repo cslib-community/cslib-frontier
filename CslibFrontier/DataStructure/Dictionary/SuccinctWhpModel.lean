@@ -1690,11 +1690,9 @@ theorem ValidFastState.fastToCsr_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_ma
   set v' := (permuteByTarget n_max dest act₀ fs.quotArr fs.valArr).2
   have hqv_eq : ∀ b < M, ∀ loc < fs.bktCount b,
       q' (fb b + loc) = fs.quotArr (fs.physSlot n_max b loc) ∧
-      v' (fb b + loc) = fs.valArr (fs.physSlot n_max b loc) := by
-    intro b hb loc hloc
+      v' (fb b + loc) = fs.valArr (fs.physSlot n_max b loc) := fun b hb loc hloc => by
     obtain ⟨ha, hd⟩ := hact_fwd b hb loc hloc
-    have hp := hplaced (fs.physSlot n_max b loc) (hp_lt b hb loc hloc) ha
-    rwa [hd] at hp
+    exact hd ▸ hplaced (fs.physSlot n_max b loc) (hp_lt b hb loc hloc) ha
   dsimp only [ValidCsrState]
   refine ⟨⟨hfb0, fun b hb => by rw [hfb_adj b hb]; exact Nat.le_add_right _ _, hsum_le,
     ?_, ?_, ?_⟩, hqv'⟩
@@ -2084,8 +2082,7 @@ theorem trySelfHeal_spec {c U V n_max : ℕ} (hth : whpThreshold c ≤ n_max)
           rw [ite_eq_left ⟨hb₁, hk₁⟩, ite_eq_left ⟨hb₂, hk₂⟩] at heq
           exact fb_offset_inj hbp_adj' hb₁ hk₁ hb₂ hk₂ heq
         freeStack_inj := fun j₁ hj₁ j₂ hj₂ heq => by
-          dsimp only [fs', freeTop] at hj₁ hj₂ heq
-          rw [ite_eq_left hj₁, ite_eq_left hj₂] at heq; omega
+          simp only [fs', freeTop, hj₁, hj₂, ↓reduceIte] at heq; omega
         back_free_disj := fun b hb k hk j hj => by
           dsimp only [fs', freeTop, backPtr] at hk hj ⊢
           rw [ite_eq_left ⟨hb, hk⟩, ite_eq_left hj]
@@ -2109,26 +2106,15 @@ theorem trySelfHeal_spec {c U V n_max : ℕ} (hth : whpThreshold c ≤ n_max)
         live_valid := fun b hb => by
           have hX3 : bktCnt b ≤ 3 * (slabScale n_max) ^ 12 :=
             (hbktCnt_le b hb).trans totalLocalCoordsWhp_le_three_mul
-          have hdiv3 : (3 * b + 0) / 3 = b := by omega
-          have hmod3 : (3 * b + 0) % 3 = 0 := by omega
           have hsl_eq : fs'.slices (fs'.liveSliceIdx b) =
               buildBucketSlice c U n_max θ q' backPtr b (salts b) (bktCnt b) := by
-            change (if (3 * b + 0) / 3 < M ∧ (3 * b + 0) % 3 = 0 then
-              buildBucketSlice c U n_max θ q' backPtr ((3 * b + 0) / 3) (salts ((3 * b + 0) / 3))
-                (bktCnt ((3 * b + 0) / 3))
-              else zeroBTreeSlice) = _
-            rw [hdiv3, hmod3]
-            exact ite_eq_left ⟨hb, rfl⟩
+            simp [fs', FastState.liveSliceIdx, hb]
           have hs_eq : fs'.bktSalt b = salts b := ite_eq_left hb
           obtain ⟨m, hvm, hrel⟩ := buildBucketSlice_spec hth θ q' backPtr b (salts b) (bktCnt b)
             hX3 (hfp_inj b hb) (bktCnt b) le_rfl
           have hinL : ∀ loc < bktCnt b,
               inLiveTree fs'.rebStage fs'.oldEp (fs'.rebDoneFlag b) (fs'.locState b loc) = true :=
-            fun loc hloc => by
-              have hls : fs'.locState b loc = 1 := ite_eq_left ⟨hb, hloc⟩
-              change inLiveTree 5 1 0 (fs'.locState b loc) = true
-              rw [hls]
-              decide
+            fun loc hloc => by simp [fs', inLiveTree, hb, hloc]
           rw [hsl_eq, hs_eq]
           exact ⟨m, hvm, ⟨fun fp => (hrel.1 fp).trans ⟨fun hall loc hloc _ =>
               hall loc hloc trivial, fun hall loc hloc _ => hall loc hloc (hinL loc hloc)⟩,
@@ -2145,9 +2131,7 @@ theorem trySelfHeal_spec {c U V n_max : ℕ} (hth : whpThreshold c ≤ n_max)
         bufCur_valid := ⟨Nat.zero_le _, by simp [fs', emptyBufTrie],
           fun _ => none, validBufTrie_empty _ _,
           BufMapRel.empty_of_not _ _ _ _ _ fun b hb loc hloc => by
-            have hls : fs'.locState b loc = 1 := ite_eq_left ⟨hb, hloc⟩
-            have hc0 : fs'.curEp = 0 := rfl
-            rw [hls, hc0]; decide⟩
+            simp [fs', hb, hloc]⟩
         bufOld_valid := by
           simp +decide only [fs', FastState.oldEp, and_true]
           exact ⟨fun b hb loc hloc => by simp [hb, hloc], validBufTrie_empty _ _⟩

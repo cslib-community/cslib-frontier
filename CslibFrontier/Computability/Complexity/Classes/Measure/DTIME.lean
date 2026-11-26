@@ -116,12 +116,8 @@ theorem agrees_iff {k : ℕ} {w : List Bool} {i : ℕ} :
   simp only [agrees, List.all_eq_true, List.mem_range, Bool.or_eq_true, decide_eq_true_eq,
     beq_iff_eq]
   refine forall_congr' fun j => ⟨fun h hj hij => ?_, fun h hj => ?_⟩
-  · rw [← List.getD_eq_getElem _ false hj]
-    exact (h hj).resolve_left (by omega)
-  · by_cases hij : j < i
-    · exact Or.inl hij
-    · rw [List.getD_eq_getElem _ false hj]
-      exact Or.inr (h hj (by omega))
+  · exact (List.getD_eq_getElem w false hj).symm.trans ((h hj).resolve_left (not_lt.mpr hij))
+  · exact (lt_or_ge j i).imp_right fun hij => (List.getD_eq_getElem w false hj).trans (h hj hij)
 
 /-- Extending `w` by a bit keeps the agreement of machine `i < |w|` exactly when the bit is its
 prediction. -/
@@ -206,14 +202,12 @@ theorem computableInPolyTime_approx (k : ℕ) :
 theorem abs_approx_sub_le (k r : ℕ) (w : List Bool) :
     |(approx k (r, w) : ℝ) / 2 ^ r - martingale k w| ≤ 1 / 2 ^ r := by
   set q := approx k (r, w)
-  have hq₁' : (q : ℝ) * 2 ^ w.length ≤ num k w * 2 ^ r := by
-    exact_mod_cast Nat.div_mul_le_self _ _
-  have hq₂' : (num k w : ℝ) * 2 ^ r < (q + 1) * 2 ^ w.length := by
-    exact_mod_cast (Nat.add_one_mul q (2 ^ w.length)).symm ▸ Nat.lt_div_mul_add (by positivity)
   have hP : (0 : ℝ) < 2 ^ r := by positivity
   have hL : (0 : ℝ) < 2 ^ w.length := by positivity
-  have h₁ : (q : ℝ) ≤ num k w * 2 ^ r / 2 ^ w.length := (le_div_iff₀ hL).mpr hq₁'
-  have h₂ : (num k w : ℝ) * 2 ^ r / 2 ^ w.length < q + 1 := (div_lt_iff₀ hL).mpr hq₂'
+  have h₁ : (q : ℝ) ≤ num k w * 2 ^ r / 2 ^ w.length :=
+    (le_div_iff₀ hL).mpr (by exact_mod_cast Nat.div_mul_le_self _ _)
+  have h₂ : (num k w : ℝ) * 2 ^ r / 2 ^ w.length < q + 1 := (div_lt_iff₀ hL).mpr <| by
+    exact_mod_cast (Nat.add_one_mul q (2 ^ w.length)).symm ▸ Nat.lt_div_mul_add (by positivity)
   have hm : martingale k w = (num k w : ℝ) * 2 ^ r / 2 ^ w.length / 2 ^ r := by
     rw [martingale]; field_simp
   rw [hm, ← sub_div, abs_div, abs_of_pos hP, div_le_div_iff_of_pos_right hP, abs_le]

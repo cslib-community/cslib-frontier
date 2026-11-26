@@ -124,17 +124,12 @@ theorem answer_complete (q : Query Key Block) (st : Key → Cache Block)
     (answer q st).bind (fun (a, st') => (complete st').map (a, ·)) =
       (complete st).bind (fun P => (fun x => (x, P)) <$> PMF.pure (evalPerm (P q.1) q.2)) := by
   let p : Key → PMF (Equiv.Perm Block) := fun k => RandomPermutation.complete (st k)
-  have hupdate (c : Cache Block) :
-      (fun k => RandomPermutation.complete (Function.update st q.1 c k)) =
-        Function.update p q.1 (RandomPermutation.complete c) :=
-    funext <| Function.apply_update (fun _ => RandomPermutation.complete) st q.1 c
   have hcomplete_update (c : Cache Block) :
       complete (Function.update st q.1 c) =
         (RandomPermutation.complete c).bind fun v =>
           PMF.pi (Function.update p q.1 (PMF.pure v)) := by
-    change PMF.pi (fun k => RandomPermutation.complete (Function.update st q.1 c k)) = _
-    rw [hupdate c]
-    simpa only [Function.update_self, Function.update_idem] using
+    simpa only [complete, Function.apply_update (fun _ => RandomPermutation.complete) st q.1 c,
+      Function.update_self, Function.update_idem] using
       (PMF.pi_bind_update (Function.update p q.1 (RandomPermutation.complete c)) q.1).symm
   calc
     (answer q st).bind (fun (a, st') => (complete st').map (a, ·))
@@ -175,10 +170,10 @@ theorem uniform_interpret_eq_lazy {α : Type} (program : OracleComp (Spec Key Bl
         answer_complete program (fun _ => []) (fun _ => isPartialBijection_nil)
   rw [h2]
   simp only [complete, RandomPermutation.complete_nil, pmf_norm, PMF.map_bind]
-  refine congrArg _ (funext fun P => ?_)
-  refine ((congrArg (PMF.map Prod.fst) (OracleComp.run_interpret_readOnly
-    (fun (q : Query Key Block) (P : Key → Equiv.Perm Block) => PMF.pure (evalPerm (P q.1) q.2))
-    program P)).trans ?_).symm
+  refine congrArg _ (funext fun P => ((congrArg (PMF.map Prod.fst)
+    (OracleComp.run_interpret_readOnly
+      (fun (q : Query Key Block) (P : Key → Equiv.Perm Block) => PMF.pure (evalPerm (P q.1) q.2))
+      program P)).trans ?_).symm)
   rw [PMF.monad_map_eq_map, PMF.map_comp]
   exact PMF.map_id _
 
@@ -300,8 +295,7 @@ theorem run_interpret_exactWithBad_map_fst {β : Type}
     (OracleComp.interpret answer program).run cache :=
   OracleComp.run_interpret_map_state_of_invariant exactWithBad answer Prod.fst
     (fun s => ∀ k, IsPartialBijection (s.1 k))
-    (fun q s hs a s' hmem k => exactWithBad_preserve_isPartialBijection q s hs a s' hmem k)
-    (fun q s hs => exactWithBad_map_fst q s hs)
+    exactWithBad_preserve_isPartialBijection exactWithBad_map_fst
     program (cache, bad) hcache
 
 omit [Fintype Key] in

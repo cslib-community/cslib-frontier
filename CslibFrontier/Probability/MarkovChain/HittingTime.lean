@@ -134,11 +134,10 @@ theorem survival_succ_of_ne {v x : V} (hx : x ≠ v) (t : ℕ) :
 theorem survival_le_one (v : V) : ∀ (t : ℕ) (x : V), survival P v t x ≤ 1
   | 0, x => by unfold survival; split_ifs <;> simp
   | t + 1, x => by
-    unfold survival
-    split_ifs
-    · exact zero_le_one
-    · calc ∑ y, P x y * survival P v t y ≤ ∑ y, P x y * 1 :=
-            sum_le_sum fun y _ => mul_le_mul_right (survival_le_one v t y) _
+    by_cases hx : x = v
+    · simp [hx]
+    · calc survival P v (t + 1) x ≤ ∑ y, P x y * 1 := (survival_succ_of_ne hx t).trans_le
+            (sum_le_sum fun y _ => mul_le_mul_right (survival_le_one v t y) _)
         _ = 1 := by simp [sum_apply P x]
 
 theorem survival_ne_top (v : V) (t : ℕ) (x : V) : survival P v t x ≠ ⊤ :=
@@ -255,11 +254,10 @@ theorem hittingTime_ne_top {S : Set V}
     · exact zero_lt_one
   have hcy (y) (hy : y ∈ S) : survival P v M y ≤ c := by
     simpa [hy] using le_sup (f := fun y => if y ∈ S then survival P v M y else 0) (mem_univ y)
-  have hgeom (k r : ℕ) : ∀ x ∈ S, survival P v (k * M + r) x ≤ c ^ k := by
-    induction k with
-    | zero => intro x _; simpa using survival_le_one v r x
+  have hgeom (k r : ℕ) (x : V) (hx : x ∈ S) : survival P v (k * M + r) x ≤ c ^ k := by
+    induction k generalizing x with
+    | zero => simpa using survival_le_one v r x
     | succ k ih =>
-      intro x hx
       calc survival P v ((k + 1) * M + r) x = survival P v ((k * M + r) + M) x :=
             congrArg (survival P v · x) (by ring)
         _ ≤ c * survival P v (k * M + r) x := survival_add_le hS hcy _ x hx
@@ -309,8 +307,7 @@ theorem sum_firstHit_add_survival (v : V) :
     · rw [sum_range_succ', firstHit_zero_of_ne hx, add_zero, survival_succ_of_ne hx]
       simp_rw [firstHit_succ_of_ne hx]
       rw [sum_comm, ← sum_add_distrib]
-      simp_rw [← mul_sum, ← mul_add, sum_firstHit_add_survival v t, mul_one]
-      exact sum_apply P x
+      simpa [← mul_sum, ← mul_add, sum_firstHit_add_survival v t] using sum_apply P x
 
 theorem tsum_firstHit_le_one (v x : V) : ∑' j, firstHit P v j x ≤ 1 :=
   ENNReal.tsum_le_of_sum_range_le fun
@@ -378,11 +375,9 @@ from every state in the support of `π`, then `π v * E_v[τ⁺_v] = 1`. -/
 theorem IsStationary.mul_returnTime_eq_one {π : PMF V} (h : P.IsStationary π) (v : V)
     (hfin : ∀ x, π x ≠ 0 → hittingTime P v x ≠ ⊤) : π v * returnTime P v = 1 := by
   have hπ : ∀ y, ∑ x, π x * P x y = π y := fun y => by
-    rw [← tsum_fintype (L := .unconditional V), ← PMF.bind_apply]
-    exact congrArg (· y) h
+    rw [← tsum_fintype (L := .unconditional V), ← PMF.bind_apply, h]
   rw [mul_returnTime_eq hπ v, ← tsum_fintype (L := .unconditional V), π.tsum_coe]
-  refine (ENNReal.sum_lt_top.2 fun x _ => ?_).ne
-  rcases eq_or_ne (π x) 0 with hx | hx
-  exacts [by simp [hx], ENNReal.mul_lt_top (π.apply_ne_top x).lt_top (hfin x hx).lt_top]
+  exact (ENNReal.sum_lt_top.2 fun x _ => (eq_or_ne (π x) 0).elim (by simp +contextual)
+    fun hx => ENNReal.mul_lt_top (π.apply_ne_top x).lt_top (hfin x hx).lt_top).ne
 
 end Cslib.Probability.MarkovChain

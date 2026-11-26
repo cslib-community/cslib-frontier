@@ -205,14 +205,13 @@ variable {v l r : List (α × Op n Γ)} {i : Fin n} {p x : ℕ}
 private theorem IsPushOn.append_left (h : IsPushOn v i p) (l : List (α × Op n Γ)) :
     IsPushOn (l ++ v) i (l.length + p) := by
   obtain ⟨a, γ, h⟩ := h
-  refine ⟨a, γ, ?_⟩
-  rw [List.getElem?_append_right (by omega), Nat.add_sub_cancel_left, h]
+  exact ⟨a, γ, (List.getElem?_append_right (Nat.le_add_right _ _)).trans
+    (Nat.add_sub_cancel_left _ _ ▸ h)⟩
 
 private theorem IsPushOn.append_right (h : IsPushOn v i p) (r : List (α × Op n Γ)) :
     IsPushOn (v ++ r) i p := by
   obtain ⟨a, γ, h⟩ := h
-  have hp := (List.getElem?_eq_some_iff.mp h).1
-  exact ⟨a, γ, by rw [List.getElem?_append_left hp, h]⟩
+  exact ⟨a, γ, (List.getElem?_append_left (List.getElem?_eq_some_iff.mp h).1).trans h⟩
 
 private theorem PendingAt.append_left (h : PendingAt v p x) (l : List (α × Op n Γ)) :
     PendingAt (l ++ v) (l.length + p) (l.length + x) := by
@@ -356,8 +355,7 @@ private theorem PendingAt.succ {w : List (α × Op n Γ)} {j : Fin n} {p x : ℕ
 private theorem net_take_nonneg_of_append {j : Fin n} {u r : List (α × Op n Γ)}
     (h : ∀ k, 0 ≤ net j ((u ++ r).take k)) (k : ℕ) : 0 ≤ net j (u.take k) := by
   by_cases hk : k ≤ u.length
-  · have := h k
-    rwa [List.take_append_of_le_length hk] at this
+  · simpa only [List.take_append_of_le_length hk] using h k
   · have := h u.length
     rwa [List.take_append_of_le_length le_rfl, List.take_length,
       ← List.take_of_length_le (Nat.le_of_not_ge hk)] at this
@@ -365,9 +363,8 @@ private theorem net_take_nonneg_of_append {j : Fin n} {u r : List (α × Op n Γ
 private theorem net_take_nonneg_of_append_left {j : Fin n} {l v : List (α × Op n Γ)}
     (h : ∀ k, 0 ≤ net j ((l ++ v).take k)) (hl : net j l = 0) (k : ℕ) :
     0 ≤ net j (v.take k) := by
-  have := h (l.length + k)
-  rwa [List.take_append, List.take_of_length_le (by omega), Nat.add_sub_cancel_left, net_append,
-    hl, zero_add] at this
+  simpa only [List.take_append, List.take_of_length_le (Nat.le_add_right _ _),
+    Nat.add_sub_cancel_left, net_append, hl, zero_add] using h (l.length + k)
 
 /-! ## Stacks along runs -/
 
@@ -408,8 +405,7 @@ theorem balanced_of_configLTS_mTr {M : MPDA n State α Γ} {s s' : State}
     {w : List (α × Op n Γ)}
     (h : M.configLTS.MTr ⟨s, Stacks.empty⟩ w ⟨s', Stacks.empty⟩) : Balanced w := by
   refine fun i => ⟨by simpa [Stacks.empty] using (configLTS_mTr_length h i).symm, fun k => ?_⟩
-  rw [← List.take_append_drop k w] at h
-  obtain ⟨c, h₁, -⟩ := LTS.MTr.split h
+  obtain ⟨c, h₁, -⟩ := LTS.MTr.split (List.take_append_drop k w ▸ h)
   have := configLTS_mTr_length h₁ i
   simp only [Stacks.empty, List.length_nil, Nat.cast_zero, zero_add] at this
   omega
@@ -419,8 +415,7 @@ theorem balanced_of_configLTS_mTr {M : MPDA n State α Γ} {s s' : State}
 private theorem wellNested_of_not_crossing_aux {M : MPDA n State α Γ} :
     ∀ (N : ℕ) (w : List (α × Op n Γ)) (c c' : Config n State Γ), w.length ≤ N →
       M.configLTS.MTr c w c' → Balanced w → ¬Crossing w → WellNested w
-  | 0, [], _, _, _, _, _, _ => .nil
-  | N + 1, [], _, _, _, _, _, _ => .nil
+  | 0, [], _, _, _, _, _, _ | _ + 1, [], _, _, _, _, _, _ => .nil
   | N + 1, (a, op) :: w', c, c', hlen, hrun, hbal, hcr => by
     obtain ⟨c₁, htr, hrun'⟩ := LTS.MTr.cons_iff.mp hrun
     have hlen' : w'.length ≤ N := by simp at hlen; omega
@@ -489,13 +484,11 @@ private theorem wellNested_of_not_crossing_aux {M : MPDA n State α Γ} :
         wellNested_of_not_crossing_aux N u c₁ c₂ hlu hrunu (fun j => ⟨hunet j, hupre j⟩)
           fun h => hcr ((h.append_right ((b, .pop i δ) :: u')).append_left [(a, .push i γ)])
       -- Hence the pop matches the symbol of the push.
-      have hδ : δ = γ := by
+      obtain rfl : δ = γ := by
         have := congrFun (hwu.contents_eq hrunu) i
         rw [Op.apply_push.mp (configLTS_tr.mp htr).2,
           Op.apply_pop.mp (configLTS_tr.mp hν).2] at this
-        simp only [Function.update_self, List.cons.injEq] at this
-        exact this.1
-      subst hδ
+        exact (List.cons.inj (by simpa only [Function.update_self] using this)).1
       have hlu' : u'.length ≤ N := by simp at hlen; omega
       exact .pushPop hwu
         (wellNested_of_not_crossing_aux N u' c₃ c' hlu' hrunu' hbal' fun h =>

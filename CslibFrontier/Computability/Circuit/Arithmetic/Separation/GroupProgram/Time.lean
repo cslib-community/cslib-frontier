@@ -157,20 +157,12 @@ private theorem cost_baseInstructions (hx : ∀ κ, (x κ).length ≤ T)
     simp [baseBody, List.sum_ofFn]
   have e3 : (baseBody ρ n key dkey p).writeKeys.length = K + K := List.length_ofFn
   have e4 : (baseBody ρ n key dkey p).readKeys.length = K + K := List.length_ofFn
-  have := Nat.mul_le_mul_right (ub + Lc + 1) hpp
+  have hppW := Nat.mul_le_mul_right (ub + Lc + 1) hpp
   rw [e1, e3] at hW
   rw [e2, e4] at hR
   simp only [Body.cost, e3, List.length_map, length_indicesBelow, smul_eq_mul] at hhead hdiag
   rw [baseInstructions, List.map_cons, List.sum_cons, sum_add_distrib]
-  generalize ub + Lc + 1 = W at *
-  have h1 := hhead.trans (Nat.add_le_add_left (Nat.add_le_add_right (Nat.add_le_add
-    (Nat.add_le_add (Nat.add_le_add_right hfl _) hW) hR) 1) T)
-  have h2 := hdiag.trans (by rw [mul_comm 2 W, ← mul_assoc])
-  have h3 := Nat.mul_le_mul_right 2 this
-  generalize ∑ b, (n p b : ℕ) = Sa at *
-  generalize ∑ b, (n b p : ℕ) = Sb at *
-  generalize (n p p : ℕ) = npp at *
-  ring_nf at h1 h2 h3 ⊢; omega
+  ring_nf at hfl hW hR hdiag hppW ⊢; omega
 
 /-- The time of the instruction of a role. -/
 private theorem cost_roleInstruction {cap : ℕ} (hP : P.Ok cap) (hk : ∀ c, (key c).length ≤ Lc)
@@ -199,13 +191,9 @@ private theorem cost_roleInstruction {cap : ℕ} (hP : P.Ok cap) (hk : ∀ c, (k
     Finset.length_toList, card_univ] at h1 h2
   have h4 := hsl r
   have h5 := hcn r
+  have h7 := Nat.mul_le_mul_right (ub + Lc + 1) h3
   simp only [roleInstruction, Instruction.cost, slotList, channelList]
-  generalize hW : ub + Lc + 1 = W at *
-  have h6 : P.count n o r.1 * (ub + 1) ≤ P.count n o r.1 * W := Nat.mul_le_mul_left _ (by omega)
-  have h7 := Nat.mul_le_mul_right W h3
-  generalize ∑ e : (M.law r.1).SlotAt r.2, (P.ids n o ⟨r.1, e.1⟩).length = Ss at *
-  generalize ∑ ν : (M.law r.1).ChannelAt r.2, ((o ⟨r.1, ν.1⟩ : ℕ) + 1) = Sc at *
-  ring_nf at h1 h2 h6 h7 ⊢; omega
+  ring_nf at h1 h2 h7 ⊢; omega
 
 omit [Fintype S] in
 /-- The new units of the channels of the roles of a group, at their parties, are cells of the

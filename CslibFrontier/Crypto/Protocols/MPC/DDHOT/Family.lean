@@ -261,8 +261,7 @@ private theorem advantage_bind_iid_sampleExpBits_le (n : ℕ) (d : F.Desc) (m : 
               (fun bs : List Bool => (BitString.binaryValue bs : ZMod (F.order d))) m,
               F.eval_map_binaryValue_sampleExpBits, PMF.iid_map]
       _ = _ := PMF.bind_map _ _ _
-  rw [hiid]
-  exact F.advantage_bind_iid_sampleExp_le n d m k
+  exact hiid ▸ F.advantage_bind_iid_sampleExp_le n d m k
 
 /-- Replacing the `ZMod (F.order d)` residue of one `sampleExpBits n d` draw by an exact uniform
 draw changes `Game.advantage` by at most `1 / 2 ^ n`. -/
@@ -654,23 +653,20 @@ theorem isPPT_ddhOTReceiverToDDHDistinguisher
     (ComputableInPolyTime.dpi_apply F.ddhOTEncoding.input.enc 0).comp hinputs
   have hσ : ComputableInPolyTime (fun p : F.ReceiverReductionCtx => p.inputs 1) E encBool :=
     (ComputableInPolyTime.dpi_apply F.ddhOTEncoding.input.enc 1).comp hinputs
-  have hd := F.encDDHInput_groupParameters_polyTime hddh
   have hview : ComputableInPolyTime (fun p : F.ReceiverReductionCtx =>
       F.ddhOTReceiverViewWordsOf p.ddh (p.inputs 0).1 (p.inputs 0).2 (p.inputs 1)
         p.bBits p.rBits p.sBits) E encDDHOTReceiverViewWords := by
     dsimp only [ddhOTReceiverViewWordsOf]
     fun_prop
-  have houtputs : ComputableInPolyTime (fun p : F.ReceiverReductionCtx =>
-      ddhOTOutputWords (p.inputs 0).1 (p.inputs 0).2 (p.inputs 1)) E encBits :=
-    (ComputableInPolyTime.pi fun i =>
-      Fin.cases (ComputableInPolyTime.const []) (fun _ => hσ.ite' hin₀.snd' hin₀.fst')
-        i).encoding_comp
   have hwords : ComputableInPolyTime (fun p : F.ReceiverReductionCtx =>
       F.ddhOTReceiverGuessWords p.ddh (p.inputs 0).1 (p.inputs 0).2 (p.inputs 1)
         p.state p.bBits p.rBits p.sBits) E (encGuessInputFields F.ddhOTEncoding) :=
     (F.encDDHInput_secParam_polyTime hddh).prod
-      (hd.prod ((encReceiverReductionCtx_state_polyTime F .id').prod
-        (((ComputableInPolyTime.pi fun _ => hview.encoding_comp).encoding_comp).prod houtputs)))
+      ((F.encDDHInput_groupParameters_polyTime hddh).prod
+        ((encReceiverReductionCtx_state_polyTime F .id').prod
+          (((ComputableInPolyTime.pi fun _ => hview.encoding_comp).encoding_comp).prod
+            (ComputableInPolyTime.pi fun i => Fin.cases (ComputableInPolyTime.const [])
+              (fun _ => hσ.ite' hin₀.snd' hin₀.fst') i).encoding_comp)))
   have hsample {α : Type} {enc : α ↪ List Bool} {x : α → F.DDHInput}
       (hx : ComputableInPolyTime x enc F.encDDHInput) :
       IsPPTOn enc encBits fun a => F.sampleExpBits (x a).secParam (x a).groupParameters :=

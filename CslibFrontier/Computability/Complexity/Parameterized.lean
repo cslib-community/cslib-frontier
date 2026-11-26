@@ -150,13 +150,12 @@ theorem mem_XP : A ∈ XP enc κ ↔ ∃ f g : ℕ → ℕ,
 private theorem decidableInTimeO_mono_parameter {f f' g g' : ℕ → ℕ}
     (hf : ∀ a, f (κ a) ≤ f' (κ' a)) (hg : ∀ a, g (κ a) ≤ g' (κ' a))
     (h : DecidableInTimeO A enc fun a => f (κ a) * ((enc a).length + 1) ^ g (κ a)) :
-    DecidableInTimeO A enc fun a => f' (κ' a) * ((enc a).length + 1) ^ g' (κ' a) := by
-  refine h.mono 1 (fun a => ?_) fun _ => by positivity
-  have := mul_le_mul (Nat.cast_le (α := ℝ).mpr (hf a))
-    (pow_le_pow_right₀ (a := ((enc a).length : ℝ) + 1)
-      (by linarith [(Nat.cast_nonneg (enc a).length : (0 : ℝ) ≤ _)]) (hg a))
-    (by positivity) (by positivity)
-  push_cast; linarith
+    DecidableInTimeO A enc fun a => f' (κ' a) * ((enc a).length + 1) ^ g' (κ' a) :=
+  h.mono 1 (fun a => by
+    have hle : ((f (κ a) * ((enc a).length + 1) ^ g (κ a) : ℕ) : ℝ) ≤
+        ((f' (κ' a) * ((enc a).length + 1) ^ g' (κ' a) : ℕ) : ℝ) :=
+      Nat.cast_le.mpr (Nat.mul_le_mul (hf a) (Nat.pow_le_pow_right (Nat.succ_pos _) (hg a)))
+    push_cast at hle ⊢; linarith) fun _ => by positivity
 
 /-- **`FPT ⊆ XP`.** -/
 theorem FPT_subset_XP : FPT enc κ ⊆ XP enc κ :=
@@ -164,13 +163,12 @@ theorem FPT_subset_XP : FPT enc κ ⊆ XP enc κ :=
 
 /-- **`P ⊆ FPT`**, for every parameter: a polynomial-time decider is an fpt-time decider with
 `f = 1`. -/
-theorem P_subset_FPT : P enc ⊆ FPT enc κ := fun _ hA => by
-  obtain ⟨k, hk⟩ := mem_P_iff_exists_mem_DTIME.mp hA
-  refine ⟨fun _ => 1, k,
-    (mem_DTIME_iff_decidableInTimeO.mp hk).mono 1 (fun a => ?_) fun _ => by positivity⟩
-  have := pow_le_pow_left₀ (b := ((enc a).length : ℝ) + 1)
-    (Nat.cast_nonneg _) (by linarith) k
-  push_cast; linarith
+theorem P_subset_FPT : P enc ⊆ FPT enc κ := fun _ hA =>
+  let ⟨k, hk⟩ := mem_P_iff_exists_mem_DTIME.mp hA
+  ⟨fun _ => 1, k, (mem_DTIME_iff_decidableInTimeO.mp hk).mono 1 (fun a => by
+    have hle : (((enc a).length ^ k : ℕ) : ℝ) ≤ ((((enc a).length + 1) ^ k : ℕ) : ℝ) :=
+      Nat.cast_le.mpr (Nat.pow_le_pow_left (Nat.le_succ _) k)
+    push_cast at hle ⊢; linarith) fun _ => by positivity⟩
 
 /-- **`P ⊆ XP`**, for every parameter. -/
 theorem P_subset_XP : P enc ⊆ XP enc κ :=
@@ -197,10 +195,10 @@ theorem XP_subset_XP_of_le_comp {h : ℕ → ℕ} (hκ : ∀ a, κ a ≤ h (κ' 
 /-- **The function of an fpt bound may be taken monotone**: replace `f` by its partial sums. -/
 theorem mem_FPT_iff_exists_monotone :
     A ∈ FPT enc κ ↔ ∃ f : ℕ → ℕ, Monotone f ∧
-      ∃ c : ℕ, DecidableInTimeO A enc fun a => f (κ a) * ((enc a).length + 1) ^ c := by
-  refine ⟨fun ⟨f, c, hA⟩ => ⟨_, monotone_sum_range_succ f, c,
+      ∃ c : ℕ, DecidableInTimeO A enc fun a => f (κ a) * ((enc a).length + 1) ^ c :=
+  ⟨fun ⟨f, c, hA⟩ => ⟨_, monotone_sum_range_succ f, c,
     decidableInTimeO_mono_parameter (f := f) (f' := fun k => ∑ j ∈ Finset.range (k + 1), f j)
-      (g := fun _ => c) (g' := fun _ => c) (fun a => le_sum_range_succ le_rfl) (fun _ => le_rfl)
+      (g := fun _ => c) (g' := fun _ => c) (fun _ => le_sum_range_succ le_rfl) (fun _ => le_rfl)
       hA⟩,
     fun ⟨f, _, c, hA⟩ => ⟨f, c, hA⟩⟩
 
@@ -333,16 +331,13 @@ private theorem comp_time_le {L F₁ c₁ l n F₂ F₂' e E : ℕ}
   have h₁ : (n + 1) ^ e ≤ ((l + 1) * (F₁ + 1)) ^ E * ((L + 1) ^ c₁) ^ E := by
     rw [← Nat.mul_pow]
     exact (Nat.pow_le_pow_left hn' e).trans (Nat.pow_le_pow_right (by positivity) he)
-  have h₂ := Nat.mul_le_mul hF h₁
-  have h₃ := Nat.mul_le_mul_left (F₂' * ((l + 1) * (F₁ + 1)) ^ E * ((L + 1) ^ c₁) ^ E) hP
-  have h₄ := Nat.mul_le_mul_left (F₁ * (L + 1) ^ c₁) hQ
   rw [Nat.pow_add, Nat.pow_mul]
   calc F₁ * (L + 1) ^ c₁ + F₂ * (n + 1) ^ e
       ≤ F₁ * (L + 1) ^ c₁ * ((L + 1) ^ c₁) ^ E +
-        F₂' * ((l + 1) * (F₁ + 1)) ^ E * ((L + 1) ^ c₁) ^ E * (L + 1) ^ c₁ := by
-        rw [Nat.mul_one] at h₃ h₄
-        rw [← Nat.mul_assoc] at h₂
-        omega
+        F₂' * ((l + 1) * (F₁ + 1)) ^ E * ((L + 1) ^ c₁) ^ E * (L + 1) ^ c₁ :=
+        Nat.add_le_add (Nat.le_mul_of_pos_right _ hQ)
+          (((Nat.mul_le_mul hF h₁).trans_eq (Nat.mul_assoc ..).symm).trans
+            (Nat.le_mul_of_pos_right _ hP))
     _ = _ := by ring
 
 /-- Composition of an fpt-time function with a function computable within time
@@ -358,10 +353,10 @@ private theorem computableInO_comp {f : α → β} {g : β → γ} {F₁ : ℕ �
       (fun a => (F₁ (κA a) + F₂' (κA a) * ((l + 1) * (F₁ (κA a) + 1)) ^ E (κA a)) *
         ((encA a).length + 1) ^ (c₁ + c₁ * E (κA a)))
       fun a => (F₁ (κA a) + F₂' (κA a) * ((l + 1) * (F₁ (κA a) + 1)) ^ E (κA a)) *
-        ((encA a).length + 1) ^ (c₁ + c₁ * E (κA a)) := by
-  have ⟨l, _, hl⟩ := hf
-  have key := fun a => comp_time_le (hl a) (hF a) (he a)
-  exact ⟨l, (hg.comp hf).mono_le key key⟩
+        ((encA a).length + 1) ^ (c₁ + c₁ * E (κA a)) :=
+  let ⟨l, _, hl⟩ := hf
+  ⟨l, (hg.comp hf).mono_le (fun a => comp_time_le (hl a) (hF a) (he a))
+    fun a => comp_time_le (hl a) (hF a) (he a)⟩
 
 /-- **Composition in fpt time**, along a function that bounds the parameter. -/
 theorem ComputableInFPTTime.comp {f : α → β} {g : β → γ}

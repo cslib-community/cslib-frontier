@@ -337,9 +337,7 @@ theorem vecPotential_vset_add {α : Type*} {n : ℕ} {p : α → Prop} [Decidabl
   have hset : Finset.univ.filter (fun u => p (vget (vset t w x) u)) =
       (Finset.univ.filter (fun u => p (vget t u))).erase w := by
     ext u
-    rcases eq_or_ne u w with rfl | h
-    · simp [hx]
-    · simp [h, vget_vset_ne _ _ h.symm]
+    rcases eq_or_ne w u with rfl | h <;> simp [*, eq_comm, vget_vset_ne]
   simpa [vecPotential, hset] using Finset.sum_erase_add _ c (by simp [hw])
 
 private theorem vecPotential_vset_le {α : Type*} {n : ℕ} {p : α → Prop} [DecidablePred p]
@@ -697,9 +695,8 @@ theorem hkBfs_spec (hadj : BipAdjValid G adj) :
   unfold hkBfs
   set ml := hkMatchedLeft mate
   obtain ⟨h1, h2⟩ := bfsInit_foldl ml (List.finRange m) (Vector.replicate m none, [])
-  have hml : ∀ u, vget ml u = false ↔ IsLayer G (mateMatching mate) u 0 := fun u => by
-    rw [isLayer_zero, ← hkMatchedLeft_spec mate u]
-    simp [ml]
+  have hml (u : Fin m) : vget ml u = false ↔ IsLayer G (mateMatching mate) u 0 := by
+    simp [ml, isLayer_zero, ← hkMatchedLeft_spec mate u]
   refine hkBfsLoop_spec hadj (m + 1)
     (fun u i hi => by obtain rfl : i = 0 := Nat.eq_zero_of_le_zero hi; simp [h1 u, ← hml u])
     (fun u i h => by rw [h1 u] at h; split_ifs at h <;> simp_all)
@@ -1182,14 +1179,13 @@ theorem hkLoop_spec (hadj : BipAdjValid G adj) :
   intro fuel
   induction fuel with
   | zero =>
-    intro _ mate hM _
-    have : (mateMatching mate).card ≤ m := by simpa using hM.card_le_card_left
-    omega
+    intro _ mate hM hfuel
+    exact absurd hfuel (not_lt.mpr (by simpa using hM.card_le_card_left))
   | succ fuel ih =>
     intro n mate hM hfuel
-    have hb := hkBfs_spec (G := G) (adj := adj) (mate := mate) hadj
     simp only [hkLoop]
     set b := hkBfs G adj mate
+    have hb : HKBfsSpec G (mateMatching mate) b := hkBfs_spec hadj
     split_ifs with hf
     · obtain ⟨N, hN, hmate'⟩ := hkPhase_spec (dist := b.dist) hadj hM hb.exact
       obtain ⟨t, ht, hfree⟩ := hb.found_true hf
@@ -1199,9 +1195,8 @@ theorem hkLoop_spec (hadj : BipAdjValid G adj) :
           (mateMatching (hkPhase G adj mate b.dist b.k)).card :=
         hmate' ▸ hN.card_lt_card_augment_of_mem_altRight hM hb.noShort ht hfree
       have hpost := ih (n + 1) _ hM' (by omega)
-      have hle := hpost.le_phases
-      refine ⟨hpost.isMatching, by omega, ?_, hpost.closed⟩
-      rw [← Nat.sub_add_cancel (Nat.sub_pos_of_lt hle), Nat.sub_sub]
+      refine ⟨hpost.isMatching, Nat.le_of_succ_le hpost.le_phases, ?_, hpost.closed⟩
+      rw [← Nat.sub_add_cancel (Nat.sub_pos_of_lt hpost.le_phases), Nat.sub_sub]
       exact .step hb.noShort ht hfree hN (hmate' ▸ hpost.run)
     · obtain ⟨hstable, hsub, hdist⟩ := hb.found_false (Bool.eq_false_iff.mpr hf)
       exact ⟨hM, le_rfl, Nat.sub_self n ▸ .done, b.k, hstable, hsub, hdist⟩

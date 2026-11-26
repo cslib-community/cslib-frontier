@@ -157,7 +157,7 @@ private theorem one_sub_X_mul_paritySeriesAux_succ (m k : ℕ) :
     ring
   | succ k ih =>
     rw [paritySeriesAux_succ (m + 1) (k + 1), mul_add, ih, paritySeriesAux_succ m (k + 1),
-      show m + 1 + (k + 1) = m + k + 1 + 1 by omega, show m + (k + 1) = m + k + 1 by omega,
+      ← add_assoc (m + 1) k 1, Nat.add_right_comm m 1 k, ← add_assoc m k 1,
       Nat.choose_succ_succ (m + k + 1) k, Nat.cast_add]
     ring
 
@@ -169,7 +169,7 @@ private theorem one_sub_X_pow_mul_paritySeriesAux_add_sum (m k : ℕ) :
     simp only [zero_add, pow_one, one_sub_X_mul_paritySeriesAux_zero, range_one, sum_singleton,
       Nat.choose_self, Nat.cast_one, pow_zero, mul_one, sub_add_cancel]
   | succ m ih =>
-    rw [sum_range_succ, show m + 1 + k = m + k + 1 by omega]
+    rw [sum_range_succ, Nat.add_right_comm m 1 k]
     linear_combination ih + (1 - X) ^ (m + 1) * one_sub_X_mul_paritySeriesAux_succ m k
 
 /-- Exact Bezout identity for `parityAmplifier ℓ` (`ℓ ≥ 1`):
@@ -236,8 +236,7 @@ def hPoly : ℤ[X] :=
 
 /-- `hPoly = X ^ 2 - X` is monic. -/
 theorem monic_hPoly : hPoly.Monic := by
-  apply Monic.sub_of_left (monic_X_pow 2)
-  simp [degree_X]
+  exact (monic_X_pow 2).sub_of_left (by simp [degree_X])
 
 /-- `hPoly` has degree `2`. -/
 @[simp]
@@ -291,8 +290,8 @@ def parityBaseDigit (ℓ j : ℕ) : ℤ[X] :=
 
 /-- Remainder modulo `hPoly` has degree at most `1`. -/
 theorem natDegree_modByMonic_hPoly_le (P : ℤ[X]) : (P %ₘ hPoly).natDegree ≤ 1 := by
-  have hlt := (natDegree_modByMonic_lt P monic_hPoly hPoly_ne_one).trans_eq natDegree_hPoly
-  omega
+  exact Nat.le_of_lt_succ
+    ((natDegree_modByMonic_lt P monic_hPoly hPoly_ne_one).trans_eq natDegree_hPoly)
 
 /-- Each `baseDigitByH P j` has degree at most `1`. -/
 theorem natDegree_baseDigitByH_le (P : ℤ[X]) (j : ℕ) :
@@ -393,8 +392,7 @@ private theorem sum_range_choose_add (m k : ℕ) :
   induction k with
   | zero => simp only [zero_add, range_one, sum_singleton, add_zero, Nat.choose_zero_right]
   | succ k ih =>
-    rw [sum_range_succ, ih, show m + (k + 1) = m + k + 1 by omega,
-      Nat.choose_succ_succ (m + k + 1) k]
+    rw [sum_range_succ, ih, ← add_assoc m k 1, Nat.choose_succ_succ (m + k + 1) k]
 
 /-- The `ℓ₁` norm of `parityKernel ℓ` is at most `2 ^ (2 * ℓ)`. -/
 theorem coeffNorm1_parityKernel_le (ℓ : ℕ) :
@@ -440,7 +438,7 @@ theorem coeff_divByMonic_hPoly_sum (p : ℤ[X]) (n m : ℕ) :
   | zero => simp only [range_zero, sum_empty, add_zero, zero_add]
   | succ m ih =>
     rw [sum_range_succ, ih, coeff_divByMonic_hPoly_rec p (n + m),
-      show n + m + 2 = n + 2 + m by omega, show n + (m + 1) = n + m + 1 by omega]
+      Nat.add_right_comm n m 2, ← add_assoc n m 1]
     ring
 
 /-- The constant coefficient of `p %ₘ hPoly` equals `p.coeff 0`. -/
@@ -581,10 +579,8 @@ theorem two_pow_dvd_coeff_mul {P Q : ℤ[X]}
     (hP : ∀ s, (2 : ℤ) ^ s ∣ P.coeff s) (hQ : ∀ s, (2 : ℤ) ^ s ∣ Q.coeff s) (s : ℕ) :
     (2 : ℤ) ^ s ∣ (P * Q).coeff s := by
   rw [coeff_mul]
-  refine dvd_sum fun ij hij => ?_
-  rw [mem_antidiagonal] at hij
-  rw [← hij, pow_add]
-  exact mul_dvd_mul (hP ij.1) (hQ ij.2)
+  exact dvd_sum fun ij hij =>
+    mem_antidiagonal.1 hij ▸ pow_add (2 : ℤ) ij.1 ij.2 ▸ mul_dvd_mul (hP ij.1) (hQ ij.2)
 
 /-- Every `V ^ s`-coefficient of `∏ i ∈ I, parityFactor ℓ (y i)` at integer arguments `y i` is
 divisible by `2 ^ s`. -/
@@ -651,10 +647,10 @@ theorem totalDegree_coeff_parityFactor_le {σ R : Type*} [CommRing R] (ℓ : ℕ
     ((parityFactor ℓ y).coeff s).totalDegree ≤ d + 2 * d * s := by
   rw [coeff_parityFactor]
   split_ifs with hs
-  · refine (MvPolynomial.totalDegree_mul _ _).trans (add_le_add ?_ ?_)
-    · exact totalDegree_evalInt_of_natDegree_le_one (natDegree_parityBaseDigit_le ℓ s) hy
-    · exact (MvPolynomial.totalDegree_pow _ s).trans
-        ((Nat.mul_le_mul_left s (totalDegree_evalInt_hPoly_le hy)).trans_eq (by ring))
+  · exact (MvPolynomial.totalDegree_mul _ _).trans (add_le_add
+      (totalDegree_evalInt_of_natDegree_le_one (natDegree_parityBaseDigit_le ℓ s) hy)
+      ((MvPolynomial.totalDegree_pow _ s).trans
+        ((Nat.mul_le_mul_left s (totalDegree_evalInt_hPoly_le hy)).trans_eq (by ring))))
   · simp only [MvPolynomial.totalDegree_zero, zero_le]
 
 /-- Graded total-degree bounds `totalDegree (coeff s) ≤ M + 2 * d * s` add in the offset `M`
@@ -665,11 +661,9 @@ theorem totalDegree_coeff_mul_le {σ R : Type*} [CommRing R] {P Q : (MvPolynomia
     (hQ : ∀ s, (Q.coeff s).totalDegree ≤ M₂ + 2 * d * s) (s : ℕ) :
     ((P * Q).coeff s).totalDegree ≤ (M₁ + M₂) + 2 * d * s := by
   rw [coeff_mul]
-  refine (MvPolynomial.totalDegree_finsetSum _ _).trans (Finset.sup_le fun ij hij => ?_)
-  rw [mem_antidiagonal] at hij
-  refine (MvPolynomial.totalDegree_mul _ _).trans ?_
-  have hsum : 2 * d * ij.1 + 2 * d * ij.2 = 2 * d * s := by rw [← hij]; ring
-  linarith [hP ij.1, hQ ij.2]
+  refine (MvPolynomial.totalDegree_finsetSum _ _).trans (Finset.sup_le fun ij hij =>
+    (MvPolynomial.totalDegree_mul _ _).trans ?_)
+  linarith [hP ij.1, hQ ij.2, congr_arg (2 * d * ·) (mem_antidiagonal.1 hij)]
 
 /-- **Lemma 5.2 (graded total-degree bound)**: if every `y i` (`i ∈ I`) has multivariate total
 degree at most `d`, then the `V ^ s`-coefficient of `∏ i ∈ I, parityFactor ℓ (y i)` has total
@@ -706,8 +700,7 @@ theorem totalDegree_sumCoeffsBelow_prod_parityFactor_le {ι σ R : Type*} [CommR
     (sumCoeffsBelow ℓ (∏ i ∈ I, parityFactor ℓ (y i))).totalDegree ≤
       d * (#I + 2 * (ℓ - 1)) := by
   rw [sumCoeffsBelow]
-  refine (MvPolynomial.totalDegree_finsetSum _ _).trans (Finset.sup_le fun s hs => ?_)
-  rw [mem_range] at hs
-  exact totalDegree_coeff_prod_parityFactor_le_of_lt I hs hy
+  exact (MvPolynomial.totalDegree_finsetSum _ _).trans
+    (Finset.sup_le fun s hs => totalDegree_coeff_prod_parityFactor_le_of_lt I (mem_range.1 hs) hy)
 
 end Polynomial

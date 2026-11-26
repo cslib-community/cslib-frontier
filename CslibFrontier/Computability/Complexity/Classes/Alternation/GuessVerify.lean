@@ -147,27 +147,20 @@ theorem guessVerify_spec {L t₁ t₂ : ℕ} {V : List Bool → Bool}
     (t := t₁) (by rw [hprep]; rfl)
   obtain ⟨hdet, hstart⟩ := GuessVerify.prepare_spec (S₁ := S₁) (verify := verify) hu
     ((hu.runFrom_eq hut).symm.trans hprep)
-  have hguess : GuessVerify.cfg (input := input) (State := GuessState) B (some (.tag false))
-      (frame (List.replicate L true) ++ input) 0 =
-      GuessVerify.cfg B (some (.tag false))
-        (frame (([] : List Bool) ++ List.replicate L true) ++ input)
-        (2 * ([] : List Bool).length) := rfl
-  have hpos (z : List Bool) :
-      2 * (([] : List Bool) ++ z).length ≤ (frame z ++ input).length := by
-    simpa using two_mul_length_le_length_frame_append z input
   refine ⟨u + (2 * L + 1 + (2 * L + 2 + t₂)), by omega, ?_, ?_⟩
-  · rw [haltsWithin_add_iff_of_next_eq hdet, hstart, hguess, GuessVerify.haltsWithin_lift_tag]
-    intro z hz
-    simpa only [List.nil_append, List.length_nil, zero_add, hz] using
-      GuessVerify.haltsWithin_lift_none (S₁ := S₁) (prep := prep) (hpos z) (hverify z hz).1
-  · rw [acceptsWithin_add_iff_of_next_eq hdet, hstart, hguess,
-      GuessVerify.acceptsWithin_lift_tag, Bool.not_false]
+  · rw [haltsWithin_add_iff_of_next_eq hdet, hstart]
+    exact (GuessVerify.haltsWithin_lift_tag L [] false _).mpr fun z hz => by
+      simpa only [List.nil_append, List.length_nil, zero_add, hz] using
+        GuessVerify.haltsWithin_lift_none (S₁ := S₁) (prep := prep)
+          (two_mul_length_le_length_frame_append z input) (hverify z hz).1
+  · rw [acceptsWithin_add_iff_of_next_eq hdet, hstart]
+    refine (GuessVerify.acceptsWithin_lift_tag L [] false _).trans ?_
+    rw [Bool.not_false]
     refine Cslib.Complexity.alternation_congr_of_length fun z hz => ?_
     rw [Cslib.Complexity.sum_replicate_one] at hz
-    have hnone := GuessVerify.acceptsWithin_lift_none (S₁ := S₁) (prep := prep) (hpos z)
-      (hverify z hz).1
-    simp only [List.nil_append, List.length_nil, zero_add, hz] at hnone ⊢
-    simp [hnone, (hverify z hz).2]
+    simpa [List.nil_append, hz, (hverify z hz).2] using
+      GuessVerify.acceptsWithin_lift_none (S₁ := S₁) (prep := prep)
+        (two_mul_length_le_length_frame_append z input) (hverify z hz).1
 
 end Spec
 

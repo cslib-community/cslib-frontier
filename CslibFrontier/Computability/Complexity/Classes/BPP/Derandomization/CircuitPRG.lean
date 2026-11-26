@@ -142,14 +142,11 @@ private theorem sq_le_rpow {r n e : ℕ} (he : 0 < e) (hr : r ^ (2 * e) ≤ n) {
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · obtain rfl : r = 0 := by simpa [he.ne'] using hr
     simpa using Real.rpow_nonneg (le_refl (0 : ℝ)) ε
-  have hr' : (((r ^ 2) ^ e : ℕ) : ℝ) ≤ n := by
-    rw [← pow_mul]; exact_mod_cast hr
-  have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast hn
   calc ((r ^ 2 : ℕ) : ℝ) = ((((r ^ 2 : ℕ) : ℝ)) ^ e) ^ ((e : ℝ)⁻¹) :=
         (Real.pow_rpow_inv_natCast (by positivity) he.ne').symm
-    _ ≤ (n : ℝ) ^ ((e : ℝ)⁻¹) := by
-        refine Real.rpow_le_rpow (by positivity) (by exact_mod_cast hr') (by positivity)
-    _ ≤ (n : ℝ) ^ ε := Real.rpow_le_rpow_of_exponent_le hn1 (by simpa using hε)
+    _ ≤ (n : ℝ) ^ ((e : ℝ)⁻¹) :=
+        Real.rpow_le_rpow (by positivity) (mod_cast pow_mul r 2 e ▸ hr) (by positivity)
+    _ ≤ (n : ℝ) ^ ε := Real.rpow_le_rpow_of_exponent_le (mod_cast hn) (by simpa using hε)
 
 /-- The integer `d`-th root `⌊n ^ (1 / d)⌋`, the greatest `j ≤ n` with `j ^ d ≤ n`. -/
 private def rootFloor (d n : ℕ) : ℕ := Nat.findGreatest (fun j => j ^ d ≤ n) n
@@ -185,7 +182,6 @@ theorem exists_rootSeed_DTIME_subset {ε : ℝ} (hε : 0 < ε) :
           DTIME enc fun n => 2 ^ ⌈(n : ℝ) ^ ε⌉₊ := by
   -- `d = 2 e` with `1 / e ≤ ε`
   obtain ⟨e, he, hεe⟩ := Real.exists_nat_pos_inv_lt hε
-  have hεe : 1 / (e : ℝ) ≤ ε := by simpa only [one_div] using hεe.le
   set d := 2 * e with hd_def
   have hd : 1 ≤ d := by omega
   refine ⟨d, rootFloor d, hd, ?_,
@@ -201,8 +197,8 @@ theorem exists_rootSeed_DTIME_subset {ε : ℝ} (hε : 0 < ε) :
     set ρ := rootFloor d n
     have hsq : ρ * ρ ≤ ⌈(n : ℝ) ^ ε⌉₊ := by
       rw [← sq]
-      exact_mod_cast (sq_le_rpow he (r := ρ) (by rw [← hd_def]; exact hρd) hεe).trans
-        (Nat.le_ceil _)
+      exact_mod_cast (sq_le_rpow he (r := ρ) (hd_def ▸ hρd)
+        ((one_div (e : ℝ)).symm ▸ hεe.le)).trans (Nat.le_ceil _)
     have hpow : (n + 1) ^ D ≤ 2 ^ (ρ * d * D) :=
       calc (n + 1) ^ D ≤ ((ρ + 1) ^ d) ^ D := Nat.pow_le_pow_left hroot D
         _ ≤ ((2 ^ ρ) ^ d) ^ D :=
@@ -345,7 +341,7 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
     have hk1 : 1 ≤ k := by omega
     have hnk : (enc x).length + 1 ≤ k ^ d :=
       (hroot _).trans (Nat.pow_le_pow_left (by simp only [hk, seed]; omega) d)
-    have hsize : c₁ * ((enc x).length + 1) ^ a₁ ≤ k ^ c := by
+    have hsize : c₁ * ((enc x).length + 1) ^ a₁ ≤ k ^ c :=
       calc c₁ * ((enc x).length + 1) ^ a₁
           ≤ k * (k ^ d) ^ a₁ := Nat.mul_le_mul (by omega) (Nat.pow_le_pow_left hnk a₁)
         _ = k ^ (d * a₁ + 1) := by rw [← pow_mul, pow_succ, mul_comm]

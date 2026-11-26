@@ -414,17 +414,15 @@ theorem ofInternal_happensBeforeLe_iff {procs : List P}
       (Execution.ofInternal procs).CausalStep x y ↔ x.actor = y.actor ∧ x.idx < y.idx :=
     ⟨fun h => h.resolve_right fun hmsg => by
       simp [Execution.MessageOrder, Event.step, Execution.ofInternal] at hmsg, .inl⟩
-  refine ⟨fun hle => ?_, ?_⟩
-  · induction hle with
-    | refl => exact .inl rfl
-    | tail _ hcs ih =>
-      obtain ⟨hact₂, hlt₂⟩ := (hstep_iff _ _).mp hcs
-      rcases ih with rfl | ⟨hact₁, hlt₁⟩
-      · exact .inr ⟨hact₂, hlt₂⟩
-      · exact .inr ⟨hact₁.trans hact₂, hlt₁.trans hlt₂⟩
-  · rintro (rfl | ⟨hact, hlt⟩)
-    · exact (Execution.ofInternal procs).happensBeforeLe_refl _
-    · exact ((Execution.ofInternal procs).programOrder_happensBefore hact hlt).happensBeforeLe
+  refine ⟨fun hle => ?_, fun h => h.elim
+    (fun h => h ▸ (Execution.ofInternal procs).happensBeforeLe_refl _) fun ⟨hact, hlt⟩ =>
+      ((Execution.ofInternal procs).programOrder_happensBefore hact hlt).happensBeforeLe⟩
+  induction hle with
+  | refl => exact .inl rfl
+  | tail _ hcs ih =>
+    obtain ⟨hact₂, hlt₂⟩ := (hstep_iff _ _).mp hcs
+    exact ih.elim (fun h => h ▸ .inr ⟨hact₂, hlt₂⟩)
+      fun ⟨hact₁, hlt₁⟩ => .inr ⟨hact₁.trans hact₂, hlt₁.trans hlt₂⟩
 
 instance instIsStrictOrderEventHappensBefore (E : Execution P) :
     IsStrictOrder E.Event E.HappensBefore where
@@ -579,10 +577,8 @@ private theorem contains_causalPastLists_iff [DecidableEq P] (E : Execution P) :
         have hmj : em.idx.val < j := E.causalStep_idx_lt hcstep
         refine .inr ⟨Nat.lt_of_le_of_lt (E.happensBeforeLe_idx_le hxem) hmj, em.idx.val,
           List.mem_range.mpr hmj, ?_⟩
-        have hem_eq : (⟨⟨em.idx.val, hmj.trans hj⟩⟩ : E.Event) = em := Event.ext rfl
-        simp only [hmj, ↓reduceDIte, hem_eq, hcstep, decide_true, Bool.true_and,
-          E.causalPastLists_getElem?_lt hmj hj.le]
-        exact (ih em.idx.val hmj em.idx.isLt x).mpr hxem
+        simpa only [hmj, ↓reduceDIte, hcstep, decide_true, Bool.true_and,
+          E.causalPastLists_getElem?_lt hmj hj.le] using (ih em.idx.val hmj em.idx.isLt x).mpr hxem
 
 /-- Executable Boolean decision procedure for `E.HappensBeforeLe e₁ e₂`. -/
 @[expose] def decideHappensBeforeLe [DecidableEq P] (E : Execution P) (e₁ e₂ : E.Event) : Bool :=
@@ -739,11 +735,10 @@ private theorem map_causalStep_iff {Q : Type*} {f : P → Q} (hf : Function.Inje
     {E : Execution P} {e₁ e₂ : E.Event} :
     (E.map f).CausalStep (E.mapEvent f e₁) (E.mapEvent f e₂) ↔ E.CausalStep e₁ e₂ := by
   have hstep (e : E.Event) : (E.mapEvent f e).step = e.step.map f := List.getElem_map _
-  have hact (e : E.Event) : (E.mapEvent f e).actor = f e.actor := by
-    simp only [Event.actor, hstep, Step.actor_map]
   have hrecv (s : Step P) (a : P) (n : ℕ) : s.map f = .recv (f a) n ↔ s = .recv a n := by
     cases s <;> simp [Step.map, hf.eq_iff]
-  simp only [CausalStep, ProgramOrder, MessageOrder, hstep, hact, hf.eq_iff, hrecv, Fin.lt_def]
+  simp only [CausalStep, ProgramOrder, MessageOrder, Event.actor, hstep, Step.actor_map,
+    hf.eq_iff, hrecv, Fin.lt_def]
   rfl
 
 /-- An injective process renaming preserves and reflects `HappensBeforeLe`. -/

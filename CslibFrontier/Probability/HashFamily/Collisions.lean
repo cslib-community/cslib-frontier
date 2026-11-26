@@ -108,11 +108,8 @@ theorem two_le_orderedCollisionCount {h : X → Y} {S : Finset X} (hS : ¬ Set.I
   simp only [Set.InjOn, not_forall] at hS
   obtain ⟨x, hx, y, hy, hxy, hne⟩ := hS
   rw [orderedCollisionCount, ← card_pair (a := (x, y)) (b := (y, x)) (by simp [hne])]
-  refine card_le_card fun p hp => ?_
-  rcases mem_insert.mp hp with rfl | hp
-  · exact mem_filter.mpr ⟨mem_offDiag.mpr ⟨hx, hy, hne⟩, hxy⟩
-  · rw [mem_singleton.mp hp]
-    exact mem_filter.mpr ⟨mem_offDiag.mpr ⟨hy, hx, Ne.symm hne⟩, hxy.symm⟩
+  exact card_le_card (insert_subset_iff.mpr ⟨mem_filter.mpr ⟨mem_offDiag.mpr ⟨hx, hy, hne⟩, hxy⟩,
+    singleton_subset_iff.mpr (mem_filter.mpr ⟨mem_offDiag.mpr ⟨hy, hx, Ne.symm hne⟩, hxy.symm⟩)⟩)
 
 /-- The sum of the squared bucket sizes counts each key with itself and every ordered colliding
 pair: `∑ⱼ bⱼ² = |S| + #{(x, y) : x ≠ y, h x = h y}`. -/
@@ -122,10 +119,7 @@ theorem sum_card_filter_sq [Fintype Y] (h : X → Y) (S : Finset X) :
   have hsq (j) : (S.filter fun x => h x = j).card ^ 2 =
       ((S ×ˢ S).filter fun p => h p.1 = j ∧ h p.2 = j).card := by
     rw [sq, ← card_product]
-    congr 1
-    ext ⟨x, y⟩
-    simp only [mem_product, mem_filter]
-    tauto
+    exact congrArg card (Finset.ext fun ⟨x, y⟩ => by simp [and_and_and_comm])
   simp_rw [hsq]
   rw [← card_biUnion (fun j _ j' _ hjj' => disjoint_left.mpr fun p hp hp' =>
     hjj' ((mem_filter.mp hp).2.1.symm.trans (mem_filter.mp hp').2.1))]

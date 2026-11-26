@@ -256,10 +256,8 @@ def rawPoint (s : Level) : List Bool ↪ ModuleSIS.SelfTarget.Point s.params.k 2
 theorem rawPoint_pointAddress {s : Level} {p : ModuleSIS.SelfTarget.Point s.params.k 256 8380417}
     (hm : p.1.length = 512) (hv : OnCommitmentGrid s p.2) :
     rawPoint s (pointAddress s p) = p := by
-  change (if (decodePoint s (pointAddress s p)).1.length = 512 ∧
-    pointAddress s (decodePoint s (pointAddress s p)) = pointAddress s p then _ else _) = _
-  rw [decodePoint_address hm hv]
-  simp only [hm, and_self, ite_true]
+  simp only [rawPoint, Function.Embedding.coeFn_mk, decodePoint_address hm hv, hm, and_self,
+    ite_true]
 
 /-- A fixed-width message representative and a ring product on the verifier's grid. -/
 abbrev GridPoint (s : Level) := BitString 512 × {v : Fin s.params.k → Poly // OnCommitmentGrid s v}
@@ -496,16 +494,11 @@ private theorem tape_run {s : Level} {α : Type} (program : OracleComp (Both s) 
   · cases h : m.lookup k <;>
       simp only [StateT.run, withSampleList, handler, sumHandler, memoize, h, bind_pure_comp,
         map_pure, interpret_pure, stepAt, RandomOracle.memoizeSum_inl, pmf_norm, Function.comp_def]
-    all_goals
-      change PMF.map _ (PMF.pure _) = _
-      simp
+    all_goals exact PMF.pure_map _ _
   · simp only [StateT.run, withSampleList, handler, sumHandler, interpret_map, interpret_query,
       stepAt, RandomOracle.memoizeSum_inr, memoize_digest, Functor.map_map, pmf_norm,
       Function.comp_def]
-    change PMF.map _ ((Protocols.ROMSignature.oracle (Digest s) p d).map
-      (fun (a, state) => ((a, m, t.tail), state))) = _
-    rw [PMF.map_comp]
-    rfl
+    exact PMF.map_comp ..
 
 private theorem run_both {s : Level} {α : Type} {program : OracleComp (Both s) α} {Q : ℕ}
     (hQ : program.IsQueryBounded Q) (mc : Cache s) (dc : DigestCache s) :
@@ -659,11 +652,11 @@ private theorem run_raw {s : Level} {α : Type} (prog : OracleComp (RawOracleSpe
       RandomOracle.memoizeSum_inl, PMF.map_comp, Function.comp_def]
   · simp only [rawOracle, rawQueries, sumHandler, interpret_query, matrixDigestOracle,
       RandomOracle.memoizeSum_inr, PMF.map_comp, Function.comp_def]
-    have h := memoize_map (m := PMF) (rawPoint s) (id : Digest s → _)
-      (fun _ => PMF.uniformOfFintype _) (fun _ => PMF.uniformOfFintype _)
-      (fun _ => (PMF.map_id _).symm) w d
-    have h' := congrArg (PMF.map (fun (a, d') => (a, m, d'))) h
-    simpa only [PMF.monad_map_eq_map, PMF.map_comp, Function.comp_def, id_eq] using h'
+    simpa only [PMF.monad_map_eq_map, PMF.map_comp, Function.comp_def, id_eq] using
+      congrArg (PMF.map fun (a, d') => (a, m, d'))
+        (memoize_map (m := PMF) (rawPoint s) (id : Digest s → _)
+          (fun _ => PMF.uniformOfFintype _) (fun _ => PMF.uniformOfFintype _)
+          (fun _ => (PMF.map_id _).symm) w d)
 
 /-- The raw classical game runs the verifier on the same digest cache as the adversary.
 Both use the literal untagged FIPS commitment string. -/
@@ -687,8 +680,8 @@ theorem observeRaw_eq {Coins : Type} (s : Level) (coins : ProbComp Coins)
   simp only [interpret_bind, rawVerifier_point, StateT.run_bind, PMF.monad_bind_eq_bind,
     onlineTrial, pointForger, PMF.map_bind]
   refine congrArg (PMF.bind _) (funext fun ⟨f, m, d⟩ => ?_)
-  rw [show matrixDigestOracle s = RandomOracle.memoizeSum _ _ from rfl,
-    RandomOracle.run_interpret_memoizeSum_liftRight, PMF.map_comp, funext₂ (memoize_digest s)]
+  rw [matrixDigestOracle, RandomOracle.run_interpret_memoizeSum_liftRight, PMF.map_comp,
+    funext₂ (memoize_digest s)]
   rfl
 
 /-- The Hermite instance obtained by prefixing the identity to a single uniform right block. -/
@@ -835,9 +828,7 @@ theorem keyOnly_le_moduleLWE_add_fork_fairMatrices {Coins : Type} (s : Level) (Q
     rw [keyOnlyGame_eq_moduleLWE_realGame s Q coins adv bounded]
     simp only [ModuleLWE.realGame, ModuleLWE.eval_realExperiment, distinguisher,
       distinguisherFromSaved, saved, sampleSaved, ProbComp.eval_bind, ProbComp.eval_pure, pmf_norm]
-    iterate 5
-      apply CloseTo.bind_right
-      intro _ _
+    iterate 5 refine CloseTo.bind_right _ fun _ _ => ?_
     rw [ProbComp.eval_replicateFin, MatrixOracle.eval_sampleMatrix, PMF.pi_uniformOfFintype]
     exact (closeTo_of_dist_le_ofReal
       (MatrixOracle.dist_matrixTapeFair_le s Q attempts)).symm.bind_left _

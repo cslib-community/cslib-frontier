@@ -129,16 +129,10 @@ theorem toCostGame_cost [Fintype ι] [DecidableEq ι] (P : PolymatrixGame ι S) 
 @[simp]
 theorem toCostGame_ofBimatrixGame {M : Type*} {N : Type*} (G : BimatrixGame M N) :
     (ofBimatrixGame G).toCostGame = G.toCostGame := by
-  have hfalse : (univ : Finset Bool).erase false = {true} := by decide
-  have htrue : (univ : Finset Bool).erase true = {false} := by decide
   unfold toCostGame BimatrixGame.toCostGame
   congr
   funext b s
-  cases b
-  · rw [hfalse, sum_singleton]
-    rfl
-  · rw [htrue, sum_singleton]
-    rfl
+  cases b <;> simp [ofBimatrixGame]
 
 end Basic
 
@@ -159,11 +153,7 @@ theorem deviationCost_toCostGame (P : PolymatrixGame ι S) {p : ∀ i, S i → �
   simp only [toCostGame_cost, mul_sum]
   rw [sum_comm]
   refine sum_congr rfl fun j hj => ?_
-  have hji : j ≠ i := ne_of_mem_erase hj
-  have hupd : ∀ s : ∀ k, S k,
-      P.edgeCost i j (update s i a i) (update s i a j) = P.edgeCost i j a (s j) := fun s => by
-    rw [update_self, update_of_ne hji]
-  simp only [hupd]
+  simp only [update_self, update_of_ne (ne_of_mem_erase hj)]
   exact sum_productWeight_mul_apply (fun k _ => hp k) (fun b => P.edgeCost i j a b)
 
 /-- Player `i`'s expected cost in `P.toCostGame` is the sum of pairwise bilinear forms
@@ -232,10 +222,8 @@ theorem isPairwisePotential_iff_isSeparableSkew [∀ k, Nonempty (S k)] {P : Pol
     P.IsPairwisePotential ↔ P.IsSeparableSkew := by
   refine ⟨fun h => ?_, IsSeparableSkew.isPairwisePotential⟩
   let z : ∀ k, S k := fun k => Classical.arbitrary (S k)
-  refine ⟨fun i j a => P.skewEdge i j a (z j) - P.skewEdge i j (z i) (z j),
-    fun i j b => P.skewEdge i j (z i) b, fun i j hij a b => ?_⟩
-  have hrect := h hij (z i) a (z j) b
-  linarith
+  exact ⟨fun i j a => P.skewEdge i j a (z j) - P.skewEdge i j (z i) (z j),
+    fun i j b => P.skewEdge i j (z i) b, fun i j hij a b => by linarith [h hij (z i) a (z j) b]⟩
 
 variable [Fintype ι] [DecidableEq ι]
 
@@ -270,9 +258,8 @@ theorem IsSymmetric.isExactPotential_edgePotential {P : PolymatrixGame ι S} (h 
     intro x
     rw [← add_sum_erase univ _ (mem_univ i)]
     congr 1
-    refine sum_congr rfl fun k hk => ?_
-    have hik : i ∈ univ.erase k := mem_erase.2 ⟨(ne_of_mem_erase hk).symm, mem_univ i⟩
-    rw [← add_sum_erase (univ.erase k) _ hik]
+    exact sum_congr rfl fun k hk =>
+      (add_sum_erase (univ.erase k) _ (mem_erase.2 ⟨(ne_of_mem_erase hk).symm, mem_univ i⟩)).symm
   rw [splitTotal (update s i a), splitTotal s]
   have h_self : ∑ j ∈ univ.erase i, P.edgeCost i j (update s i a i) (update s i a j) =
       ∑ j ∈ univ.erase i, P.edgeCost i j a (s j) :=
@@ -316,9 +303,7 @@ theorem IsSymmetric.exists_isPureNash_socialCost_le [∀ i, Finite (S i)] [∀ i
       (A := 2) (B := 1 / 2) (by norm_num)
       (fun x => le_of_eq (P.socialCost_eq_two_mul_edgePotential x))
       (fun x => le_of_eq (by linarith [P.socialCost_eq_two_mul_edgePotential x]))
-  refine ⟨s, hs_nash, fun s' => ?_⟩
-  have hbound := hs_opt s'
-  linarith
+  exact ⟨s, hs_nash, fun s' => by linarith [hs_opt s']⟩
 
 private theorem rect_player_diff (P : PolymatrixGame ι S) {u v : ι} (huv : u ≠ v)
     (s : ∀ k, S k) (a b : S u) (c d : S v) :
@@ -328,12 +313,11 @@ private theorem rect_player_diff (P : PolymatrixGame ι S) {u v : ι} (huv : u �
         P.toCostGame.cost u (update (update s u b) v d)) =
       (P.edgeCost u v b c - P.edgeCost u v a c) +
         (P.edgeCost u v a d - P.edgeCost u v b d) := by
-  have hv_mem : v ∈ univ.erase u := mem_erase.2 ⟨huv.symm, mem_univ v⟩
   have hterm : ∀ (x : S u) (y : S v),
       P.toCostGame.cost u (update (update s u x) v y) =
         P.edgeCost u v x y + ∑ k ∈ (univ.erase u).erase v, P.edgeCost u k x (s k) := by
     intro x y
-    rw [toCostGame_cost, ← add_sum_erase (univ.erase u) _ hv_mem,
+    rw [toCostGame_cost, ← add_sum_erase (univ.erase u) _ (mem_erase.2 ⟨huv.symm, mem_univ v⟩),
       update_of_ne huv, update_self, update_self]
     congr 1
     refine sum_congr rfl fun k hk => ?_

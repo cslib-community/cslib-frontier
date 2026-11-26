@@ -328,9 +328,7 @@ private theorem invLookup_rep (x : ι → ZMod q) (tab : Tab ι q) (ℓ : ZMod q
   | cons e tab ih =>
     obtain ⟨K, m⟩ := e
     simp only [List.map_cons, Prod.swap_prod_mk, List.lookup_cons]
-    cases h : (ℓ == m) with
-    | true => rfl
-    | false => exact ih
+    cases ℓ == m <;> simp only [ih, Option.map_some]
 
 omit [DecidableEq ι] in
 /-- In a table with distinct values at `x`, the value of a key finds the key's own label. -/
@@ -549,8 +547,7 @@ private theorem realStep_inv_map {x : ι → ZMod q} {tab : Tab ι q} (hcon : Co
     (realStep x (.inv ℓ) tab).map (fun y => (ev x y.1, rep x y.2.1)) =
       RandomPermutation.answer (.inverse ℓ) (rep x tab) := by
   rcases h : keyOf tab ℓ with _ | K
-  · have hinv : RandomPermutation.invLookup (rep x tab) ℓ = none := by
-      rw [invLookup_rep, h]; rfl
+  · have hinv : RandomPermutation.invLookup (rep x tab) ℓ = none := by simp [invLookup_rep, h]
     have hlen : tab.length < q := by
       simpa using length_lt_of_notMem hcon.2 (keyOf_eq_none_iff.mp h)
     have hc := freshConsts_nonempty hlen
@@ -563,9 +560,7 @@ private theorem realStep_inv_map {x : ι → ZMod q} {tab : Tab ι q} (hcon : Co
     by_cases hcl : Clash x tab (0, b)
     · have hbv : b ∉ freshValues x tab := (clash_iff_notMem_freshValues hb).mp hcl
       rw [ite_eq_left hcl, ite_eq_right hbv, draw_of_nonempty hv, PMF.map_comp]
-      congr 1
-      funext b'
-      simp [rep_cons, ev_zero_left]
+      exact congrArg _ (funext fun b' => by simp [rep_cons, ev_zero_left])
     · have hbv : b ∈ freshValues x tab :=
         not_not.mp (mt (clash_iff_notMem_freshValues hb).mpr hcl)
       rw [ite_eq_right hcl, ite_eq_left hbv, PMF.pure_map, PMF.pure_map]
@@ -678,8 +673,7 @@ private theorem symStep_support {x : ι → ZMod q} {tab : Tab ι q} (p : Prim �
       exact ⟨e, List.mem_cons_of_mem _ he, (K, ℓ), List.mem_cons_self,
         lookup_eq_none_iff'.mp h₁ e he, heq.1⟩
     · simp only [symStep, h₁, PMF.mem_support_pure_iff] at hy
-      subst hy
-      exact ⟨fun e he => he, fun h => absurd h (by simp)⟩
+      exact hy ▸ ⟨fun _ he => he, by simp⟩
   | inv ℓ =>
     rcases h : keyOf tab ℓ with _ | K
     · simp only [symStep, h, PMF.mem_support_map_iff] at hy
@@ -688,8 +682,7 @@ private theorem symStep_support {x : ι → ZMod q} {tab : Tab ι q} (p : Prim �
       obtain ⟨e, he, hne, heq⟩ := of_decide_eq_true hflag
       exact ⟨e, List.mem_cons_of_mem _ he, ((0, b), ℓ), List.mem_cons_self, hne, heq⟩
     · simp only [symStep, h, PMF.mem_support_pure_iff] at hy
-      subst hy
-      exact ⟨fun e he => he, fun h => absurd h (by simp)⟩
+      exact hy ▸ ⟨fun _ he => he, by simp⟩
 
 omit [DecidableEq ι] in
 /-- A raised flag of the symbolic handler means that two distinct keys agree at `x`. -/
@@ -879,28 +872,24 @@ omit [DecidableEq ι] in
 private theorem consistent_of_mem_support_withBadFlag {x : ι → ZMod q} {s : Tab ι q × Bool}
     (hs : Consistent x s.1) (p : Prim ι q) {y : PrimSpec ι q p × (Tab ι q × Bool)}
     (h : y ∈ (withBadFlag (realStep x) p s).support) : Consistent x y.2.1 := by
-  obtain ⟨tab, b⟩ := s
-  simp only [withBadFlag, PMF.mem_support_map_iff] at h
-  obtain ⟨z, hz, rfl⟩ := h
-  exact (consistent_of_mem_support_realStep hs p hz :)
+  obtain ⟨z, hz, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp h
+  simpa using consistent_of_mem_support_realStep hs p hz
 
 omit [DecidableEq ι] in
 private theorem realFl_fwd_map {x : ι → ZMod q} {s : Tab ι q × Bool} (hs : Consistent x s.1)
     (K : (ι → ZMod q) × ZMod q) :
     ((withBadFlag (realStep x) (.fwd K)).run s).map (fun y => (y.1, rep x y.2.1)) =
       (RandomPermutation.answer (.forward (ev x K))).run (rep x s.1) := by
-  obtain ⟨tab, b⟩ := s
-  simp only [StateT.run, withBadFlag, PMF.map_comp]
-  exact realStep_fwd_map hs.1 K
+  simpa only [StateT.run, withBadFlag, PMF.map_comp, Function.comp_def, Prod.map_fst, Prod.map_snd,
+    id_eq] using realStep_fwd_map hs.1 K
 
 omit [DecidableEq ι] in
 private theorem realFl_inv_map {x : ι → ZMod q} {s : Tab ι q × Bool} (hs : Consistent x s.1)
     (ℓ : ZMod q) :
     ((withBadFlag (realStep x) (.inv ℓ)).run s).map (fun y => (ev x y.1, rep x y.2.1)) =
       (RandomPermutation.answer (.inverse ℓ)).run (rep x s.1) := by
-  obtain ⟨tab, b⟩ := s
-  simp only [StateT.run, withBadFlag, PMF.map_comp]
-  exact realStep_inv_map hs ℓ
+  simpa only [StateT.run, withBadFlag, PMF.map_comp, Function.comp_def, Prod.map_fst, Prod.map_snd,
+    id_eq] using realStep_inv_map hs ℓ
 
 omit [DecidableEq ι] in
 /-- The real handler on one group query, read at `x`, is the lazy permutation on that query. -/

@@ -121,8 +121,7 @@ theorem successfulMass_sub_sandwichedAgreement_le
   let H (u : Point F m) := U.sandwichBy (L u) (f u)
   let S (u : Point F m) (g : BoundedPolynomial F m d) := (H u).effect (some g)
   let D (u : Point F m) := (H u).successfulEffect
-  have hS (u g) : S u g = X u g * U.effect g * X u g := by
-    simp only [S, H, X, sandwichBy_effect_some]
+  have hS (u g) : S u g = X u g * U.effect g * X u g := sandwichBy_effect_some ..
   have hST (u h g) : Commute (S u h) (T.effect g) := by
     rw [hS]; exact ((hLT u g _).mul_left (hUT h g)).mul_left (hLT u g _)
   have hSR (u v g b) : Commute (S u g) ((R v).effect b) := by
@@ -149,10 +148,8 @@ theorem successfulMass_sub_sandwichedAgreement_le
     split_ifs with he
     · simp only [X, he, mul_assoc, hL u (f u g)]
     · simp only [X, mul_assoc, (hL u).mul_eq_zero he, mul_zero]
-  have hdiagTerm (u g) :
-      (φ (X u g * S u g * X u g * T.effect g)).re = w u g g := by
-    change _ = (φ (X u g * (U.effect g * T.effect g) * X u g)).re
-    apply congrArg (fun y => (φ y).re)
+  have hdiagTerm (u g) : (φ (X u g * S u g * X u g * T.effect g)).re = w u g g := by
+    refine congrArg (fun y => (φ y).re) ?_
     rw [hS]
     calc
       _ = (X u g * X u g) * U.effect g * (X u g * X u g) * T.effect g := by
@@ -164,8 +161,7 @@ theorem successfulMass_sub_sandwichedAgreement_le
         ∑ h with h ≠ g ∧ f u h = f u g, w u g h := by
     change (φ ((∑ h, S u h) * T.effect g * X u g)).re = _
     simp only [sum_mul, map_sum, Complex.re_sum, hink, hdiagTerm]
-    have hg : (∑ h, if h = g then w u g g else 0) = w u g g := by simp
-    rw [← hg, sum_filter, ← sum_add_distrib]
+    rw [← Fintype.sum_ite_eq' g (fun _ => w u g g), sum_filter, ← sum_add_distrib]
     exact sum_congr rfl fun h _ => by
       by_cases he : h = g <;> by_cases hf : f u h = f u g <;> simp [he, hf, w]
   have hsplit :
@@ -208,9 +204,8 @@ theorem successfulMass_sub_sandwichedAgreement_le
   simp only [← hP, heq, expect_sub_distrib, Fintype.expect_const] at hmaj
   have hmis := average_successfulMismatch_sandwichedPolynomial_le φ R L U hR
     (fun u v a b => (hLR v u b a).symm) (fun u g b => (hUR g u b).symm)
-  have hsym (u : Point F m) : copyDefect φ (L u) (R u) = copyDefect φ (R u) (L u) := by
-    unfold copyDefect
-    exact sum_congr rfl fun a _ => by rw [φ.norm_sub_comm]
+  have hsym (u : Point F m) : copyDefect φ (L u) (R u) = copyDefect φ (R u) (L u) :=
+    sum_congr rfl fun _ _ => congrArg (· ^ 2) (φ.norm_sub_comm _ _)
   simp only [hsym] at hmis
   linarith only [(abs_le.mp ht).1, htransport, hcollision, hmaj, hmis]
 

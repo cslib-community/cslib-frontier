@@ -437,14 +437,9 @@ theorem allGates_fieldGates {p : ℕ → Op × List ℕ → Prop}
         (orGate (4 + (s + cb + tb)) (treeBase (4 + (s + cb + tb)) (s + cb + tb))
           (Nat.size x.length) (orBase (4 + (s + cb + tb)) (s + cb + tb) (Nat.size x.length)) x i)) :
     AllGates p (4 + (s + cb + tb)) (fieldGates s cb tb x n T) := by
-  have hlen : ((List.range 14).flatMap fun k => (List.range (s + cb + tb)).map
-      (chainGate (4 + (s + cb + tb)) (s + cb + tb) k (chain s cb tb x.length n T k))).length =
-      14 * (s + cb + tb) := by
-    simp only [List.length_flatMap, List.length_map, List.length_range, List.map_const',
-      List.sum_replicate, smul_eq_mul]
   simp only [fieldGates, allGates_append, List.length_append, List.length_cons, List.length_nil,
-    List.length_map, List.length_range, hlen, length_treeGates, allGates_cons, allGates_nil,
-    and_true]
+    List.length_map, List.length_range, List.length_flatMap, List.map_const', List.sum_replicate,
+    smul_eq_mul, length_treeGates, allGates_cons, allGates_nil, and_true]
   refine ⟨⟨⟨⟨⟨hc₀, hc₁⟩, ?_⟩, ?_⟩, ?_⟩, ?_⟩
   · exact allGates_map_range.2 fun i hi => by simpa [Nat.add_assoc] using hnot i hi
   · refine allGates_flatMap_range.2 fun k hk => ?_
@@ -509,20 +504,21 @@ theorem allGates_consistentAt_fieldGates (hm : Nat.size x.length ≤ s + cb + tb
           else 4 + (s + cb + tb))
         else chainBase (4 + (s + cb + tb)) + k * (s + cb + tb) + (i - 1)) =
         chainVal (chain s cb tb x.length n T k) idx i := by
-      by_cases h₀ : i = 0
-      · subst h₀
+      cases i with
+      | zero =>
         cases h₁ : (chain s cb tb x.length n T k).init <;>
           simp [fieldVal_false, fieldVal_true, chainVal, cmp, Nat.mod_one, h₁]
-      · rw [ite_eq_right h₀, fieldVal_chain idx hk (by omega), Nat.sub_add_cancel (by omega)]
+      | succ i =>
+        simp only [Nat.succ_ne_zero, ↓reduceIte, Nat.add_sub_cancel]
+        exact fieldVal_chain idx hk (by omega)
     rw [hprev, chainVal, chainVal, cmp_succ]
   · rw [treeGate]
-    by_cases h₀ : ℓ = 0
-    · subst h₀
+    cases ℓ with
+    | zero =>
       rw [ite_eq_left rfl, consistentAt_const, fieldVal_tree idx hℓ hq]
       simp [Nat.lt_one_iff.1 hq, Nat.mod_one]
-    · simp only [h₀, ↓reduceIte]
-      obtain ⟨ℓ, rfl⟩ : ∃ ℓ', ℓ = ℓ' + 1 := ⟨ℓ - 1, by omega⟩
-      simp only [Nat.add_sub_cancel]
+    | succ ℓ =>
+      simp only [Nat.succ_ne_zero, ↓reduceIte, Nat.add_sub_cancel]
       have hlit : fieldVal s cb tb x n T idx (if q.testBit ℓ then 4 + ℓ else 4 + (s + cb + tb) + 2 +
           (4 + ℓ)) = decide ((idx / 16).testBit ℓ = q.testBit ℓ) := by
         have h4ℓ : 4 + ℓ < 4 + (s + cb + tb) := by omega
@@ -540,16 +536,14 @@ theorem allGates_consistentAt_fieldGates (hm : Nat.size x.length ≤ s + cb + tb
       have hi2 : i < 2 ^ Nat.size x.length := by omega
       cases hxi : x.getD i false <;> simp [fieldVal_false, fieldVal_tree idx le_rfl hi2]
     rw [hsel]
-    by_cases h₀ : i = 0
-    · subst h₀
+    cases i with
+    | zero =>
       cases h : decide (idx / 16 % 2 ^ Nat.size x.length = 0) <;>
         simp_all [fieldVal_false, Op.value]
-    · rw [ite_eq_right h₀, fieldVal_or idx]
-      by_cases heq : idx / 16 % 2 ^ Nat.size x.length = i
-      · simp [Op.value, heq]
-      · have hp : (idx / 16 % 2 ^ Nat.size x.length ≤ i - 1) ↔
-            idx / 16 % 2 ^ Nat.size x.length ≤ i := by omega
-        simp [Op.value, heq, hp]
+    | succ i =>
+      rw [ite_eq_right (Nat.succ_ne_zero i), Nat.add_sub_cancel, fieldVal_or idx]
+      by_cases heq : idx / 16 % 2 ^ Nat.size x.length = i + 1 <;>
+        simp [Op.value, heq, Nat.le_succ_iff]
 
 /-- **The field stage computes the intended values** of its wires on the bits of a clause
 number. -/

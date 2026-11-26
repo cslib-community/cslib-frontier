@@ -163,10 +163,8 @@ private theorem raw_exec
   have hr₀ : Representation.Rep base hn hK s x₀ := hr.congr
     (fun _ _ => rfl) (le_of_eq (congrArg Memory.State.frontier hm₀).symm) hl₀ hbx₀
   obtain ⟨hi, habs, _⟩ := (Backend.rep_iff hI s x₀).mp hr₀.1
-  have hv₀ : (indexedMinPQSpec n K).valid
-      ((Memory.refinement hL).abs (memoryState (Backend.frontier Program.family) x₀)) o := by
-    rwa [habs]
   let e := memoryState (Backend.frontier Program.family) x₀
+  have hv₀ : (indexedMinPQSpec n K).valid ((Memory.refinement hL).abs e) o := habs.symm ▸ hv
   have hrun := hI.run o e
   have hvalid := ((Memory.spec w).demonicValid_iff_validHistory_runClient _ _).mp
     ((Memory.refinement hL).valid o hi hv₀)
@@ -183,9 +181,9 @@ private theorem raw_exec
       (hhist ▸ hvalid)
   let a := S.answer o ((Memory.spec w).clientResult e
     ((Program.family (S.tag o)).prog (S.arg o)))
-  have hinstall := Backend.install_eq_self Program.family (S.tag o) (S.arg o) x₀ hlive
   have hbe : S.exec w x₀ o a y N := (Backend.exec_iff S w x₀ y o a N).mpr
-    ⟨by simpa only [Backend.prepare, hinstall] using he, _, rfl, hout⟩
+    ⟨by simpa only [Backend.prepare,
+      Backend.install_eq_self Program.family (S.tag o) (S.arg o) x₀ hlive] using he, _, rfl, hout⟩
   have hN : N ≤ Backend.factor Program.family * (memoryBound o + 1) :=
     bound_extend Program.initialization L hL hr₀.1 hv hbe
   obtain ⟨s', hstep, hrepY⟩ := (Backend.implementation hI).correct hr₀.1 hv hbe
@@ -196,28 +194,23 @@ private theorem raw_exec
         hframe _ (by rw [Program.argument_source]; exact Backend.src_ne_frontier _ _ _)
           (fun j => by rw [Program.argument_source]; exact (Backend.src_ne_tmp _ _ _ _ _).symm)
       _ = layoutWords ⟨n, L⟩ i := hr₀.2 i
-  have hrY : Representation.Rep base hn hK s' y := ⟨hrepY, hlY⟩
   have hmodY := Backend.modifies (M := Memory.framed hL) hI hr₀.1 hv hbe
-  obtain ⟨z, hez, hbz, hmz, hfz, hlz, hflag, hvalue, hkey⟩ :=
+  obtain ⟨z, ⟨steps, hsteps, hez⟩, hbz, hmz, hfz, hlz, hflag, hvalue, hkey⟩ :=
     Program.wrap_body L x o ha (N := N) ⟨N, le_rfl, he⟩ hby
   have hzstate : memoryState (Backend.frontier Program.family) z =
       memoryState (Backend.frontier Program.family) y :=
     Memory.State.ext hmz (Program.code_frontier ▸ hfz)
-  have hrZ : Representation.Rep base hn hK s' z := hrY.congr
+  have hrZ : Representation.Rep base hn hK s' z := Representation.Rep.congr ⟨hrepY, hlY⟩
     (fun c _ => congrFun hmz c) (le_of_eq (congrArg Memory.State.frontier hzstate).symm) hlz hbz
   obtain ⟨hdecode, hnative⟩ :=
     decode_body L e o y z hout hflag hvalue (by cases o <;> exact hkey)
   have hanswer : (Memory.spec w).clientResult e (Memory.ops L o) = a := congrArg Prod.fst hrun
-  have hstateY : memoryState (Backend.frontier Program.family) y =
-      (Memory.spec w).clientState e (Memory.ops L o) :=
-    hstate.trans (congrArg (fun t => t.2.1) hrun).symm
-  obtain ⟨steps, hsteps, hez⟩ := hez
   refine ⟨z, s', a, steps, hez, hstep, hdecode.trans (congrArg some hanswer), hrZ,
     fun c hc => (congrFun hmz c).trans (hmodY c (by
       simpa only [Memory.Framed.region_eq_footprint (Memory.framed hL) rfl,
         Memory.framed_footprint, Memory.compactLayout_footprint n base] using hc)),
     by omega,
-    (hzstate.trans hstateY).trans
+    (hzstate.trans (hstate.trans (congrArg (fun ⟨_, st, _⟩ => st) hrun).symm)).trans
       (congrArg (fun e => (Memory.spec w).clientState e (Memory.ops L o)) hm₀),
     hnative.trans (congrArg some hanswer)⟩
 

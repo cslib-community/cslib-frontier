@@ -131,12 +131,9 @@ private theorem spread_update {k : Nat} (t : Fin k → Int) (a : Fin k) (y : Int
       spread t + 2 * ∑ j, (|y - Function.update t a y j| - |t a - t j|) := by
   set t' := Function.update t a y
   set g : Fin k → Fin k → Int := fun i j => |t' i - t' j| - |t i - t j|
-  have hg0 : ∀ i j, i ≠ a → j ≠ a → g i j = 0 := fun i j hi hj => by
+  have hrow (i : Fin k) (hi : i ≠ a) : ∑ j, g i j = g a i := by
+    refine (Fintype.sum_eq_single a fun j hj => ?_).trans (by simp only [g, abs_sub_comm])
     simp only [g, t', Function.update_of_ne hi, Function.update_of_ne hj, sub_self]
-  have hgs : ∀ i j, g i j = g j i := fun i j => by
-    simp only [g, abs_sub_comm]
-  have hrow : ∀ i, i ≠ a → ∑ j, g i j = g a i := fun i hi => by
-    rw [Fintype.sum_eq_single a fun j hj => hg0 i j hi hj, hgs]
   have hdiff : spread t' - spread t = ∑ i, ∑ j, g i j := by
     simp only [spread, g, Finset.sum_sub_distrib]
   have haa : g a a = 0 := by simp only [g, sub_self, abs_zero]
@@ -261,9 +258,8 @@ private theorem matchCost_two_moves' (s o : Fin k → Int) {r : Int} (σ : Equiv
       matchCost NatMetric.line s o := by
   set τ := σ * Equiv.swap a₀ i
   have hτi : o (τ i) = r := by simp only [τ, Equiv.Perm.mul_apply, Equiv.swap_apply_right, ha₀]
-  have hτ : matchCostAlong NatMetric.line s o τ ≤ matchCost NatMetric.line s o := by
-    rw [hσ]
-    exact matchCostAlong_swap_le NatMetric.line s o σ (by rw [ha₀]; exact hbtw)
+  have hτ : matchCostAlong NatMetric.line s o τ ≤ matchCost NatMetric.line s o :=
+    hσ.symm ▸ matchCostAlong_swap_le NatMetric.line s o σ (ha₀ ▸ hbtw)
   have h1 := matchCostAlong_update_toward NatMetric.line s o τ i y (by
     change (s i - o (τ i)).natAbs = (s i - y).natAbs + (y - o (τ i)).natAbs
     rw [hτi]; exact hy)
@@ -374,9 +370,8 @@ def dcStep {n : Nat} (s : Fin (n + 1) → Int) (r : Int) : Fin (n + 1) → Int :
 
 /-- Relabeling `dcStep s r` by the sorting permutation of `s` gives the sorted step. -/
 theorem dcStep_comp_sort {n : Nat} (s : Fin (n + 1) → Int) (r : Int) :
-    dcStep s r ∘ Tuple.sort s = dcSorted (s ∘ Tuple.sort s) r := by
-  funext i
-  simp only [dcStep, Function.comp_apply, Equiv.symm_apply_apply]
+    dcStep s r ∘ Tuple.sort s = dcSorted (s ∘ Tuple.sort s) r :=
+  funext fun i => congrArg _ ((Tuple.sort s).symm_apply_apply i)
 
 /-- Double Coverage serves the request. -/
 theorem exists_dcStep_eq {n : Nat} (s : Fin (n + 1) → Int) (r : Int) :
