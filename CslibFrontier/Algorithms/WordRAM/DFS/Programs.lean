@@ -114,9 +114,8 @@ theorem sccIndexCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → List (Fin N)
     have htriv : s₃ = s₂.set finB (kOrdAddr wb N Mc + N) := by
       simp only [s₃, kOrdAddr, kFinAddr]; ring_nf
     rw [htriv]
-    have hf_on : Fits w (kOrdAddr wb N Mc + N) :=
-      hfit.of_le (by simp only [kOrdAddr, kTopAddr]; omega)
-    wram_exec [hs₂_fr0, hordB, hNv, hf_on]
+    wram_exec [hs₂_fr0, hordB, hNv,
+      (hfit.of_le (by simp only [kOrdAddr, kTopAddr]; omega) : Fits w (kOrdAddr wb N Mc + N))]
   have hs₃_fr : ∀ r : Fin 28, r.val < 18 → r ≠ offB → r ≠ edgeB → r ≠ finB →
       s₃.regs r = x.regs r := fun r hr h1 h2 h3 => by
     wram_simp [s₃, hs₂_fr0 r hr h1 h2]
@@ -261,13 +260,10 @@ private theorem setupCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound)
   have hm2 : (Data.init G.encodeCSR : Data 28).mem 2 = G.m := rfl
   unfold setupCode
   wram_exec [Data.init_regs, hm1, hm2]
-  · refine ⟨rfl, by wram_simp; exact Data.init_regs _ _, ?_,
-      ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, ?_⟩
-    all_goals wram_simp
-    all_goals
+  · refine ⟨rfl, by wram_simp [Data.init_regs], ?_,
+      ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ?_, ?_, ?_, ?_, ?_⟩ <;> wram_simp <;>
       dsimp only [kOffAddr, kEdgeAddr, kRevOffAddr, kRevEdgeAddr, kCurAddr, kVisAddr,
-        kOrdAddr, kStkAddr, kCompAddr]
-    all_goals omega
+        kOrdAddr, kStkAddr, kCompAddr] <;> omega
   all_goals exact hfit.of_le (by unfold Graph.wordBound; omega)
 
 /-- One step of the reversed copy `out[i] := ord[N - 1 - i]`. -/
@@ -361,11 +357,11 @@ private theorem n_eq_zero_branch {w : ℕ} {s : Data 28} (hs_out : s.regs outReg
       outputList y.mem (y.regs outReg) = words ∧ Fits w (y.regs outReg + words.length) := by
   have hst : ExecWithin (B := .standard) w (ram[ *cZero ← cZero ]) s (s.write 0 0) 1 := by
     wram_exec [hs_0]
+  have hout : (s.write 0 0).regs outReg = 0 := hs_out
   refine ⟨s.write 0 0, hst.branch_pos (hs_n.trans hs_0.symm), ?_, ?_⟩
-  · rw [show (s.write 0 0).regs outReg = 0 from hs_out, hwords, outputList_eq_iff]
+  · rw [hout, hwords, outputList_eq_iff]
     exact ⟨Data.write_mem_self _ _ _, Block.holdsList_nil _ _⟩
-  · have hout : (s.write 0 0).regs outReg = 0 := hs_out
-    simpa only [hout, hwords, List.length_nil, Nat.add_zero] using fits_zero w
+  · simpa only [hout, hwords, List.length_nil, Nat.add_zero] using fits_zero w
 
 private theorem topoWords_eq_nil (G : Graph) (hn0 : G.n = 0) : topoWords G = [] :=
   List.eq_nil_of_length_eq_zero (by simp [topoWords, length_topologicalSort_finRange, hn0])
@@ -395,9 +391,8 @@ theorem topoCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound) :
   have hN : 0 < G.n := Nat.pos_of_ne_zero hn0
   have hncond : ¬ (Cond.eq nVerts cZero).Holds s := by
     simpa only [Cond.holds_eq, hs_n, hs_r.czero] using hn0
-  have hfit_top := fits_top G hfit
   obtain ⟨s₁, hs₁_ex, -, hs₁_omem, -, -, hs₁_fr⟩ :=
-    forwardDFSCode_spec hN G.adj 3 G.m le_rfl hfit_top hs_r hs_n (hs_mem ▸ G.csrAt_init)
+    forwardDFSCode_spec hN G.adj 3 G.m le_rfl (fits_top G hfit) hs_r hs_n (hs_mem ▸ G.csrAt_init)
   set O := kOrdAddr 3 G.n G.m with hO_def
   set P := O + G.n with hP_def
   have hP_fit : Fits w (P + G.n + 1) := hfit.of_le (by
@@ -405,10 +400,8 @@ theorem topoCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound) :
   let x₂ := ((s₁.set outReg P).write P G.n).set iReg 0
   have hs₂_ex : ExecWithin (B := .standard) w
       (ram[ outReg ← ordB + nVerts; *outReg ← nVerts; iReg ← cZero ]) s₁ x₂ 3 := by
-    have hf_P : Fits w P := hP_fit.of_le (by omega)
-    wram_exec [hs₁_fr, hs_ord, hs_n, hs_r.czero, hf_P]
-  have hlen : (topoWords G).length = G.n := by
-    rw [topoWords, List.length_map, length_topologicalSort_finRange]
+    wram_exec [hs₁_fr, hs_ord, hs_n, hs_r.czero, (hP_fit.of_le (by omega) : Fits w P)]
+  have hlen : (topoWords G).length = G.n := by simp [topoWords, length_topologicalSort_finRange]
   obtain ⟨y, hy_ex, hy_cp, hy_low, hy_fr⟩ :=
     revCopyLoop_spec O P le_rfl hP_fit (fun q => (topoWords G).getD q 0) G.n 0 x₂ (by omega)
       (fun q hq => by
@@ -445,10 +438,9 @@ theorem sccCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound) :
   have hN : 0 < G.n := Nat.pos_of_ne_zero hn0
   have hncond : ¬ (Cond.eq nVerts cZero).Holds s := by
     simpa only [Cond.holds_eq, hs_n, hs_r.czero] using hn0
-  have hfit_top := fits_top G hfit
   obtain ⟨s₁, hs₁_ex, hs₁_comp, -, hs₁_fr⟩ :=
-    sccIndexCode_spec hN G.adj 3 G.m le_rfl hfit_top hs_r hs_n hs_cur hs_roff hs_redge hs_ord
-      hs_comp (hs_mem ▸ G.csrAt_init)
+    sccIndexCode_spec hN G.adj 3 G.m le_rfl (fits_top G hfit) hs_r hs_n hs_cur hs_roff hs_redge
+      hs_ord hs_comp (hs_mem ▸ G.csrAt_init)
   set C := kCompAddr 3 G.n G.m with hC_def
   set P := C - 1 with hP_def
   have hC : C = P + 1 := by rw [hP_def, hC_def]; simp only [kCompAddr]; omega
@@ -457,20 +449,17 @@ theorem sccCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound) :
   let y := (s₁.set outReg P).write P G.n
   have hs₂_ex : ExecWithin (B := .standard) w (ram[ outReg ← compB - cOne; *outReg ← nVerts ])
       s₁ y 2 := by
-    have hf_P : Fits w P := hP_fit.of_le (by omega)
-    wram_exec [hs₁_fr, hs_comp, hs_r.cone, hs_n, hf_P]
-  have hlen : (sccWords G).length = G.n := by
-    rw [sccWords, List.length_map, List.length_finRange]
+    wram_exec [hs₁_fr, hs_comp, hs_r.cone, hs_n, (hP_fit.of_le (by omega) : Fits w P)]
+  have hlen : (sccWords G).length = G.n := by simp [sccWords]
   have hy_out : y.regs outReg = P := by wram_simp [y]
   refine ⟨y, (hs_ex.seq ((hs₁_ex.seq hs₂_ex).branch_neg hncond)).mono (by omega),
     ?_, hlen ▸ hy_out ▸ hP_fit.of_le (by omega)⟩
   rw [hy_out, outputList_eq_iff]
   refine ⟨by simp [y, hlen], fun i => ?_⟩
   change y.mem (P + 1 + i.val) = (sccWords G)[i.val]
-  have hi : i.val < G.n := hlen ▸ i.isLt
   simp only [y]
   mem_upd
-  rw [Function.update_of_ne (by omega), ← hC, hs₁_comp ⟨i.val, hi⟩]
+  rw [Function.update_of_ne (by omega), ← hC, hs₁_comp ⟨i.val, hlen ▸ i.isLt⟩]
   simp [sccWords]
 
 /-- `topoProgram` computes `topoWords` in `O(n + m)` instructions

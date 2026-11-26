@@ -273,8 +273,7 @@ private theorem bfsProg_realizes :
     (fun _ _ _ _ => ?_) (Nat.zero_add _)
   dsimp only at *
   refine ⟨⟨⟨hlay, hws, hwb⟩, by omega⟩, ?_⟩
-  dsimp only [bfsLayerStep]
-  simp only [client_simps]; omega
+  simp only [bfsLayerStep, client_simps]; omega
 
 private theorem bnStep_realizes :
     Realizes .exact bnStep (WordEncoding.encode (α := Ctx × (ℕ × ℕ)))
@@ -349,14 +348,8 @@ theorem readResCap_state (d : (Ctx × ℕ) × ℕ) (s : Memory.State) :
 theorem bnStep_state (d : Ctx × (ℕ × ℕ)) (s : Memory.State) :
     (Memory.spec 0).clientState s (bnStep d) = s := by
   unfold bnStep
-  rw [clientState_bind_read]
-  split_ifs
-  · rw [clientState_bind_read]
-    split_ifs
-    · rw [clientState_bind, readResCap_state]
-      split_ifs <;> rfl
-    · rfl
-  · rfl
+  repeat (first | rfl | split_ifs | rw [clientState_bind_read] |
+    rw [clientState_bind, readResCap_state])
 
 theorem cutInnerStep_state (d : (Ctx × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
     (Memory.spec 0).clientState s (cutInnerStep d) = s := by
@@ -368,9 +361,8 @@ theorem cutOuterStep_state (d : Ctx × (ℕ × ℕ)) (s : Memory.State) :
     (Memory.spec 0).clientState s (cutOuterStep d) = s := by
   unfold cutOuterStep
   rw [clientState_bind_read]
-  split_ifs
-  · rw [clientState_bind, clientState_iterate_eq_of _ _ (fun _ t => cutInnerStep_state _ t)]; rfl
-  · rfl
+  split_ifs <;> try rfl
+  rw [clientState_bind, clientState_iterate_eq_of _ _ (fun _ t => cutInnerStep_state _ t)]; rfl
 
 theorem preservesAt_bfsProg {a : ℕ} {d : Ctx × ℕ} (hs : d.2 < d.1.n)
     (ha : a < distAddr d.1 0 ∨ predAddr d.1 d.1.n ≤ a) : PreservesAt a (bfsProg d) := by
@@ -416,16 +408,14 @@ private theorem bfsInnerStep_rel (d : ((Ctx × ℕ) × ℕ) × ℕ) (t : Memory.
     DistRel d.1.1.1 d.1.1.2 t ((Memory.spec 0).clientState t (bfsInnerStep d)) := by
   rcases d with ⟨⟨⟨c, layer⟩, u⟩, v⟩
   intro x hx
-  unfold bfsInnerStep
-  dsimp only
+  dsimp only [bfsInnerStep]
   rw [clientState_bind_read, clientState_bind, readResCap_state]
   split_ifs with hc
   · rw [clientState_bind_write, clientState_bind_write, clientState_pure]
     dsimp only
     rw [Function.update_of_ne (by ek_omega)]
-    by_cases hxv : x = v
-    · subst hxv
-      exact Or.inr ⟨hc.1, Function.update_self _ _ _⟩
+    obtain rfl | hxv := eq_or_ne x v
+    · exact Or.inr ⟨hc.1, Function.update_self ..⟩
     · exact Or.inl (Function.update_of_ne (by ek_omega) _ _)
   · exact Or.inl rfl
 
@@ -440,8 +430,7 @@ private theorem bfsInner_iterate_rel (c : Ctx) (layer u : ℕ)
 theorem bfsMidStep_rel (c : Ctx) (layer u : ℕ)
     (t : Memory.State) :
     DistRel c layer t ((Memory.spec 0).clientState t (bfsMidStep ((c, layer), u))) := by
-  unfold bfsMidStep
-  dsimp only
+  dsimp only [bfsMidStep]
   rw [clientState_bind_read]
   split_ifs
   · rw [clientState_bind, clientState_pure]

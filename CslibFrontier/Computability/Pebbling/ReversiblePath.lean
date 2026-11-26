@@ -226,10 +226,8 @@ private theorem exists_mTr_mem_pathDigraph (k : ℕ) {a v : ℕ} {C : Finset ℕ
 
 theorem reversiblePebblable_pathDigraph {k v : ℕ} (h : v + 2 ≤ 2 ^ k) :
     ReversiblePebblable pathDigraph k v := by
-  obtain ⟨ms, D, hms, hvD⟩ := exists_mTr_mem_pathDigraph k (a := 0) (C := ∅) (Nat.zero_le v)
+  simpa [ReversiblePebblable] using exists_mTr_mem_pathDigraph k (a := 0) (C := ∅) (Nat.zero_le v)
     (by omega) (by simp) fun _ hu => absurd hu pathDigraph_source
-  rw [Finset.card_empty, zero_add] at hms
-  exact ⟨ms, D, hms, hvD⟩
 
 theorem persistentReversiblePebblable_pathDigraph {k v : ℕ} (h : 2 * (v + 1) ≤ 2 ^ k) :
     PersistentReversiblePebblable pathDigraph k v := by
@@ -237,10 +235,8 @@ theorem persistentReversiblePebblable_pathDigraph {k v : ℕ} (h : 2 * (v + 1) �
   | zero => rw [pow_zero] at h; omega
   | succ k =>
     rw [pow_succ] at h
-    obtain ⟨ms, hms⟩ := exists_mTr_insert_pathDigraph k (a := 0) (C := ∅) (Nat.zero_le v)
-      (by omega) (by simp) fun _ hu => absurd hu pathDigraph_source
-    rw [Finset.card_empty, zero_add, insert_empty_eq] at hms
-    exact ⟨ms, hms⟩
+    simpa [PersistentReversiblePebblable] using exists_mTr_insert_pathDigraph k (a := 0) (C := ∅)
+      (Nat.zero_le v) (by omega) (by simp) fun _ hu => absurd hu pathDigraph_source
 
 /-! ## Lower bounds -/
 
@@ -250,10 +246,9 @@ private def shiftDown (d : ℕ) (C : Finset ℕ) : Finset ℕ :=
 
 private theorem mem_shiftDown {d x : ℕ} {C : Finset ℕ} : x ∈ shiftDown d C ↔ x + d ∈ C := by
   simp only [shiftDown, Finset.mem_image, Finset.mem_filter]
-  constructor
-  · rintro ⟨y, ⟨hy, hdy⟩, rfl⟩
-    rwa [Nat.sub_add_cancel hdy]
-  · exact fun h => ⟨x + d, ⟨h, Nat.le_add_left d x⟩, Nat.add_sub_cancel x d⟩
+  refine ⟨?_, fun h => ⟨x + d, ⟨h, Nat.le_add_left d x⟩, Nat.add_sub_cancel x d⟩⟩
+  rintro ⟨_, ⟨hy, hdy⟩, rfl⟩
+  rwa [Nat.sub_add_cancel hdy]
 
 private theorem card_shiftDown_le (d : ℕ) (C : Finset ℕ) :
     (shiftDown d C).card ≤ (C.filter (d ≤ ·)).card :=
@@ -267,28 +262,24 @@ private theorem RevStep.shift {d : ℕ} {C D : Finset ℕ} {m : Move ℕ}
   cases h with
   | @place v hv h =>
     by_cases hdv : d ≤ v
-    · refine .inr ⟨.place (v - d), ?_⟩
-      have e : shiftDown d (insert v C) = insert (v - d) (shiftDown d C) := by
-        ext x
+    · have e : shiftDown d (insert v C) = insert (v - d) (shiftDown d C) := Finset.ext fun _ => by
         simp only [mem_shiftDown, Finset.mem_insert]
         exact or_congr_left (by omega)
-      rw [e]
-      exact .place (fun hm => hv (by rwa [mem_shiftDown, Nat.sub_add_cancel hdv] at hm))
-        fun u hu => mem_shiftDown.2 (h _ (by rw [pathDigraph_adj] at hu ⊢; omega))
-    · refine .inl (Finset.ext fun x => ?_)
+      exact .inr ⟨.place (v - d), e ▸ .place
+        (fun hm => hv (by rwa [mem_shiftDown, Nat.sub_add_cancel hdv] at hm))
+        fun u hu => mem_shiftDown.2 (h _ (by rw [pathDigraph_adj] at hu ⊢; omega))⟩
+    · refine .inl (Finset.ext fun _ => ?_)
       simp only [mem_shiftDown, Finset.mem_insert, or_iff_right_iff_imp]
       omega
   | @remove v hv h =>
     by_cases hdv : d ≤ v
-    · refine .inr ⟨.remove (v - d), ?_⟩
-      have e : shiftDown d (C.erase v) = (shiftDown d C).erase (v - d) := by
-        ext x
+    · have e : shiftDown d (C.erase v) = (shiftDown d C).erase (v - d) := Finset.ext fun _ => by
         simp only [mem_shiftDown, Finset.mem_erase]
         exact and_congr_left' (by omega)
-      rw [e]
-      exact .remove (by rwa [mem_shiftDown, Nat.sub_add_cancel hdv])
-        fun u hu => mem_shiftDown.2 (h _ (by rw [pathDigraph_adj] at hu ⊢; omega))
-    · refine .inl (Finset.ext fun x => ?_)
+      exact .inr ⟨.remove (v - d), e ▸ .remove
+        (by rwa [mem_shiftDown, Nat.sub_add_cancel hdv])
+        fun u hu => mem_shiftDown.2 (h _ (by rw [pathDigraph_adj] at hu ⊢; omega))⟩
+    · refine .inl (Finset.ext fun _ => ?_)
       simp only [mem_shiftDown, Finset.mem_erase, and_iff_right_iff_imp]
       omega
 
@@ -414,9 +405,7 @@ reachable iff `2 * (v + 1) ≤ 2 ^ k`. -/
 theorem persistentReversiblePebblable_pathDigraph_iff {k v : ℕ} :
     PersistentReversiblePebblable pathDigraph k v ↔ 2 * (v + 1) ≤ 2 ^ k := by
   refine ⟨fun ⟨_, h⟩ => ?_, persistentReversiblePebblable_pathDigraph⟩
-  have := two_mul_min_add_one_le_of_reversiblePebbleGame_pathDigraph_mTr h
-    (Finset.singleton_nonempty v)
-  rwa [Finset.min'_singleton] at this
+  simpa using two_mul_min_add_one_le_of_reversiblePebbleGame_pathDigraph_mTr h ⟨v, by simp⟩
 
 /-- The reversible pebbling price of vertex `v` of the directed path is `⌈log₂ (v + 2)⌉`. -/
 theorem reversiblePebblingPrice_pathDigraph (v : ℕ) :
