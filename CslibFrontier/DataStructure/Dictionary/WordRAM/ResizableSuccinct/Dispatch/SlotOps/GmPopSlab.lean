@@ -156,9 +156,7 @@ private theorem realizesBounded_compGmUnlinkTopSlab :
     RealizesBounded .exact compGmUnlinkTopSlabGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
       CompGmPopSlabPre (fun _ _ => 0) := by
-  have hrgm := realizesBounded_readCompGMGen
-  have hwr := realizesBounded_compGmUnlinkWrite
-  realize
+  realize [realizesBounded_readCompGMGen, realizesBounded_compGmUnlinkWrite]
   all_goals (
     rcases d with ⟨⟨cp, metaBase⟩, b⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, hslab, hq_pos⟩ := h
@@ -196,10 +194,9 @@ private theorem validProg_compGmUnlinkTopSlab {w : ℕ} {d : (CompParams × ℕ)
   rw [clientState_readCompGMGenProg, hp4]
   refine validProg_bind (validProg_readCompGMGen ⟨mkEnv s rfl, hbel_lt⟩) ?_
   rw [clientState_readCompGMGenProg]
-  refine validProg_bind
+  exact validProg_bind
     (validProg_writeCompGM_bind ⟨mkEnv s rfl, htop_lt⟩ fun s1 hs1 =>
-      validProg_writeCompGMGen ⟨mkEnv s1 hs1, hq_lt⟩) ?_
-  exact validProg_pure _
+      validProg_writeCompGMGen ⟨mkEnv s1 hs1, hq_lt⟩) (validProg_pure _)
 
 private theorem compGmCompactSlabGenProg_effect {metaBase itemBase U V w N m_items p_del : ℕ}
     (hw : 0 < w) (hitem : metaBase + offCompItems U w N ≤ itemBase) (s : Memory.State)
@@ -240,9 +237,7 @@ private theorem realizesBounded_compGmMoveLastSlabMeta :
     RealizesBounded .exact compGmMoveLastSlabMetaProg
       (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
       CompGmMovedSlabPre (fun _ _ => 0) := by
-  have hrel := realizesBounded_compGmRelinkMovedSlab
-  have hlnk := realizesBounded_compGmLinkMovedNeighbors
-  realize
+  realize [realizesBounded_compGmRelinkMovedSlab, realizesBounded_compGmLinkMovedNeighbors]
   · exact h
   · rcases d with ⟨⟨⟨cp, metaBase⟩, p_del⟩, p_last⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hinv⟩ := h
@@ -285,9 +280,7 @@ private theorem realizesBounded_compGmCompactSlabStep :
     RealizesBounded .exact compGmCompactSlabStepProg
       (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
       CompGmCompactSlabStepPre (fun _ _ => 0) := by
-  have hmov := realizesBounded_compGmMoveLastSlabMeta
-  have hwgm := realizesBounded_writeCompGMGen
-  realize
+  realize [realizesBounded_compGmMoveLastSlabMeta, realizesBounded_writeCompGMGen]
   all_goals (
     rcases d with ⟨⟨⟨cp, metaBase⟩, p_del⟩, p_last⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hcond⟩ := h
@@ -300,9 +293,7 @@ private theorem realizesBounded_compGmCompactSlab :
     RealizesBounded .exact compGmCompactSlabGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
       CompGmCompactSlabPre (fun _ _ => 0) := by
-  have hrgm := realizesBounded_readCompGMGen
-  have hstp := realizesBounded_compGmCompactSlabStep
-  realize
+  realize [realizesBounded_readCompGMGen, realizesBounded_compGmCompactSlabStep]
   all_goals (
     rcases d with ⟨⟨cp, metaBase⟩, p_del⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, h0_pos, h0_le, hp_lt, hcond⟩ := h
@@ -349,8 +340,7 @@ private theorem pureCompactSlab_of_slabBijection {N b : ℕ} {gm : ℕ → ℕ}
     have hs1_lt : gm (gmSlabOwnerSIdx N (gm 0 - 1)) + 1 <
         gm (gmQIdx (gm (gmSlabOwnerBIdx N (gm 0 - 1)))) := by
       split_ifs at hs_lt_q with hbeq
-      · rw [hbeq]
-        omega
+      · rw [hbeq]; omega
       · exact hs_lt_q
     rw [← hptr_last, hslab.above_eq _ hb_last _ hs_last hs1_lt]
     exact hslab.ptr_lt_maxFullSlabs hb_last hs1_lt
@@ -382,9 +372,7 @@ theorem realizesBounded_compGmPopSlabGen :
     RealizesBounded .exact compGmPopSlabGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
       CompGmPopSlabPre (fun _ _ => 0) := by
-  have hunl := realizesBounded_compGmUnlinkTopSlab
-  have hcmp := realizesBounded_compGmCompactSlab
-  realize
+  realize [realizesBounded_compGmUnlinkTopSlab, realizesBounded_compGmCompactSlab]
   · exact h
   · rcases d with ⟨⟨cp, metaBase⟩, b⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, hslab, hq_pos⟩ := h

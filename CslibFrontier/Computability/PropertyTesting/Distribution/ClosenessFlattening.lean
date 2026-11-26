@@ -179,13 +179,9 @@ omit [DecidableEq α] in
 private theorem sum_sum_iid_mul_sub_div (a b : ℝ) (T : (Fin m → α) → (Fin m → α) → ℝ) :
     ∑ x, ∑ y, (iid p m x).toReal * (iid q m y).toReal * (a - T x y / b) =
       a - (∑ x, ∑ y, (iid p m x).toReal * (iid q m y).toReal * T x y) / b := by
-  have h1 : ∑ x, ∑ y, (iid p m x).toReal * (iid q m y).toReal * a = a := by
-    simp only [← sum_mul, ← mul_sum, sum_toReal, mul_one, one_mul]
-  conv_rhs => rw [← h1]
-  rw [sum_div, ← sum_sub_distrib]
-  refine sum_congr rfl fun x _ => ?_
-  rw [sum_div, ← sum_sub_distrib]
-  exact sum_congr rfl fun y _ => by ring
+  simp only [mul_sub, mul_div_assoc', sum_sub_distrib, ← sum_div]
+  congr 1
+  simp only [← sum_mul, ← mul_sum, sum_toReal, mul_one, one_mul]
 
 omit [DecidableEq α] in
 /-- Markov's inequality for a pointwise lower bound `a - (R x + S y) / b`. -/
@@ -231,17 +227,14 @@ private theorem le_acceptProb₂_split {m k : ℕ} {ε δ b : ℝ} (hδ : 0 < δ
   have hx0 := collisionProbability_pos (split p (occurrenceCount x))
   have hy0 := collisionProbability_pos (split p (occurrenceCount y))
   by_cases h : collisionProbability (split p (flatteningCount x y)) ≤ b
-  · have h1 := le_acceptProb₂_closenessTester hδ h h hk
-      (by simp only [sub_self, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
-        sum_const_zero]; positivity)
-    linarith [div_nonneg (add_nonneg hx0.le hy0.le) hb.le]
+  · linarith [le_acceptProb₂_closenessTester hδ h h hk
+      (by simp only [sub_self, zero_pow two_ne_zero, sum_const_zero]; positivity),
+      div_nonneg (add_nonneg hx0.le hy0.le) hb.le]
   · have h1 : 1 < (collisionProbability (split p (occurrenceCount x)) +
-        collisionProbability (split p (occurrenceCount y))) / b := by
-      rw [lt_div_iff₀ hb]
-      linarith [not_le.mp h]
-    have := acceptProb₂_nonneg (closenessTester k (flatteningProximity α m ε))
-      (split p (flatteningCount x y)) (split p (flatteningCount x y))
-    linarith
+        collisionProbability (split p (occurrenceCount y))) / b :=
+      (lt_div_iff₀ hb).mpr (by linarith [not_le.mp h])
+    linarith [acceptProb₂_nonneg (closenessTester k (flatteningProximity α m ε))
+      (split p (flatteningCount x y)) (split p (flatteningCount x y))]
 
 /-- Soundness after flattening, pointwise in the flattening samples: for `p, q` at statistical
 distance at least `ε`, the `ℓ₂` tester accepts the split distributions with probability at most
@@ -276,16 +269,12 @@ private theorem acceptProb₂_split_le {m k : ℕ} {ε δ b : ℝ} (hε : 0 ≤ 
       rw [flatteningProximity_eq, div_pow, Real.sq_sqrt hN.le, div_le_iff₀ hN]
       have : ε ^ 2 ≤ dist p q ^ 2 := pow_le_pow_left₀ hε hpq 2
       nlinarith)
-    have h2 : 0 ≤ (collisionProbability (split p (occurrenceCount x)) +
-        collisionProbability (split q (occurrenceCount y))) / b := by positivity
-    linarith
+    linarith [div_nonneg (add_nonneg hx0.le hy0.le) hb.le]
   · have h1 : 1 < (collisionProbability (split p (occurrenceCount x)) +
-        collisionProbability (split q (occurrenceCount y))) / b := by
-      rw [lt_div_iff₀ hb]
-      rcases not_and_or.mp h with h | h <;> linarith [not_le.mp h]
-    have := acceptProb₂_le_one (closenessTester k (flatteningProximity α m ε))
-      (split p (flatteningCount x y)) (split q (flatteningCount x y))
-    linarith
+        collisionProbability (split q (occurrenceCount y))) / b :=
+      (lt_div_iff₀ hb).mpr (by rcases not_and_or.mp h with h | h <;> linarith [not_le.mp h])
+    linarith [acceptProb₂_le_one (closenessTester k (flatteningProximity α m ε))
+      (split p (flatteningCount x y)) (split q (flatteningCount x y))]
 
 /-- **The closeness tester by flattening**, a fixed-sample, two-sided variant of
 [Diakonikolas–Kane, Proposition 2.10][DiakonikolasKane2016]: on a domain of size `n`, with `m`
@@ -304,7 +293,7 @@ theorem isClosenessTester_closenessFlatteningTester {m k : ℕ} {ε : ℝ} (hε 
   have hk' (p : PMF α) : 36 * Real.sqrt (16 / (m + 1)) ≤
       (k - 1) * flatteningProximity α m ε ^ 2 * (5 / 24) := by
     have : Nonempty α := ⟨p.support_nonempty.some⟩
-    have hcard := Fintype.card_pos (α := α)
+    have := Fintype.card_pos (α := α)
     have hN : (0 : ℝ) < Fintype.card α + 2 * m := by positivity
     have hs : 0 < Real.sqrt (m + 1) := Real.sqrt_pos.mpr hm
     have h4 : (4 : ℝ) ^ 2 = 16 := by norm_num
@@ -312,19 +301,15 @@ theorem isClosenessTester_closenessFlatteningTester {m k : ℕ} {ε : ℝ} (hε 
       Real.sqrt_sq (by norm_num)]
     field_simp
     linarith
-  constructor
-  · intro p
-    rw [acceptProb₂_closenessFlatteningTester]
-    have h := le_sum_sum p p _ _ _ hb (sum_iid_mul_collisionProbability_split_le p m)
+  refine ⟨fun p => ?_, fun p q hpq => ?_⟩
+  · rw [acceptProb₂_closenessFlatteningTester]
+    linarith [hrs, le_sum_sum p p _ _ _ hb (sum_iid_mul_collisionProbability_split_le p m)
       (sum_iid_mul_collisionProbability_split_le p m)
-      (le_acceptProb₂_split (by norm_num) hb (hk' p) p)
-    linarith [hrs]
-  · intro p q hpq
-    rw [acceptProb₂_closenessFlatteningTester]
-    have h := sum_sum_le p q _ _ _ hb (sum_iid_mul_collisionProbability_split_le p m)
+      (le_acceptProb₂_split (by norm_num) hb (hk' p) p)]
+  · rw [acceptProb₂_closenessFlatteningTester]
+    linarith [hrs, sum_sum_le p q _ _ _ hb (sum_iid_mul_collisionProbability_split_le p m)
       (sum_iid_mul_collisionProbability_split_le q m)
-      (acceptProb₂_split_le hε.le (by norm_num) hb (hk' p) hpq)
-    linarith [hrs]
+      (acceptProb₂_split_le hε.le (by norm_num) hb (hk' p) hpq)]
 
 /-- **Choosing the parameters.** For any real flattening budget `0 < t ≤ n`, the flattening tester
 with `m = ⌈t⌉` and `k = ⌈2592 n / (5 ε² √t)⌉ + 1` is a closeness tester with proximity `ε`. -/

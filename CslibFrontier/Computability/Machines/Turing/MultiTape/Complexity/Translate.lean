@@ -133,9 +133,8 @@ public lemma elim_le (q : Q) (w : List Bool) {k : ℕ} (hk : k < w.length) (F : 
 
 /-- The length of the events of a prefix. -/
 public lemma length_run_take_le (q : Q) (w : List Bool) (k : ℕ) :
-    (tr.run q (w.take k)).2.length ≤ (tr.run q w).2.length := by
-  rw [← tr.run_take q w k]
-  exact List.length_take_le' _ _
+    (tr.run q (w.take k)).2.length ≤ (tr.run q w).2.length :=
+  tr.run_take q w k ▸ List.length_take_le' _ _
 
 end Translator
 
@@ -313,10 +312,9 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold_translate {Q E σ γ
   let B (x : γ) : ℕ := 4 * cQ + 4 * lMax x + 6
   -- the states of the passes, and the bounds on them
   have hps (x : γ) (i : ℕ) (hi : i ≤ passes x + 1) :
-      (encS (passState (init x) next passEnd (tr.events (encIn x)) i)).length ≤ lMax x := by
-    rcases Nat.lt_or_eq_of_le hi with hi | rfl
-    · exact hS x i (by omega) 0 (Nat.zero_le _)
-    · exact hSlast x
+      (encS (passState (init x) next passEnd (tr.events (encIn x)) i)).length ≤ lMax x :=
+    (Nat.lt_or_eq_of_le hi).elim (fun hi => hS x i (by omega) 0 (Nat.zero_le _))
+      (fun h => h ▸ hSlast x)
   have hlen (x : γ) (q : Q) (s : σ) (hs : (encS s).length ≤ lMax x) :
       (encPair encQ encS (q, s)).length ≤ 2 * cQ + 1 + lMax x := by
     have := hcQ q
@@ -399,12 +397,9 @@ public theorem ComputableTidilyInTimeAndSpace.multiPassFold_translate {Q E σ γ
       simpa only [Translator.passState_lift, B] using (hlen x tr.q₀ _ (hSlast x)).trans (by omega))
     (fun _ _ _ => by simp [B])
   refine ⟨c * (3 * cI + cF * (2 * cQ + 3) + (2 * K + 1) * (4 * cQ + 7) + 1),
-    h.mono (fun x => ?_) (fun x => ?_)⟩
-  · rw [Translator.passState_lift]
-    exact time_le c cI cF cQ K _ _ _ _ _ _ _ _ (by omega) (hps x 0 (Nat.zero_le _))
-      (hlen x tr.q₀ _ (hps x _ le_rfl))
-  · rw [Translator.passState_lift]
-    exact space_le c cI cF cQ K _ _ _ _ _ _ (hps x 0 (Nat.zero_le _))
-      (hlen x tr.q₀ _ (hps x _ le_rfl))
+    h.mono (fun x => Translator.passState_lift .. ▸ time_le c cI cF cQ K _ _ _ _ _ _ _ _
+        (by omega) (hps x 0 (Nat.zero_le _)) (hlen x tr.q₀ _ (hps x _ le_rfl)))
+      (fun x => Translator.passState_lift .. ▸ space_le c cI cF cQ K _ _ _ _ _ _
+        (hps x 0 (Nat.zero_le _)) (hlen x tr.q₀ _ (hps x _ le_rfl)))⟩
 
 end Turing.MultiTapeTM

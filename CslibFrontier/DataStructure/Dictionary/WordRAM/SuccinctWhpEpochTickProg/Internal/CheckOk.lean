@@ -116,20 +116,20 @@ theorem epochTickWillSucceed_fastDelete {c U V n_max : ℕ} {θ : SeedWhp c U n_
           fs.dirtyBuckets fs.dirtyIdx = b ∧ fs.rebCandSalt < sMaxWhp c n_max ∧
           fs.rebCollision = 0)) fs1
       else fs1
-    have hclk2 :
-        (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).epochClock = fs.epochClock := by
-      dsimp only [fastDeleteShrink, fs2, fs1]; split_ifs <;> rfl
-    have hstg2 : (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).rebStage = fs.rebStage := by
-      dsimp only [fastDeleteShrink, fs2, fs1]; split_ifs <;> rfl
+    obtain ⟨hclk2, hstg2, hce2⟩ :
+        (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).epochClock = fs.epochClock ∧
+        (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).rebStage = fs.rebStage ∧
+        (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).curEp = fs.curEp := by
+      dsimp only [fastDeleteShrink, fs2, fs1]
+      split_ifs <;> exact ⟨rfl, rfl, rfl⟩
     by_cases hs4 : fs.rebStage = 4
     · have hbo := hv.bufOld_valid
       rw [ite_eq_right (by omega : ¬(fs.rebStage ≤ 3)), ite_eq_left hs4] at hbo
       obtain ⟨hno_old, _, _⟩ := hbo
-      have hrem_buf : fs1.buf fs.oldEp = fs.buf fs.oldEp := by
-        have hne_d := hno_old b hb loc_del hspec.1
-        exact buf_oldEp_ite_locState hv.curEp_or
-          (fun ho => by rwa [ho] at hne_d)
-          (fun ho => by rwa [ho] at hne_d) _ _ _
+      have hrem_buf : fs1.buf fs.oldEp = fs.buf fs.oldEp :=
+        buf_oldEp_ite_locState hv.curEp_or
+          (fun ho => by simpa [ho] using hno_old b hb loc_del hspec.1)
+          (fun ho => by simpa [ho] using hno_old b hb loc_del hspec.1) _ _ _
       have hmv_buf : fs2.buf fs.oldEp = fs.buf fs.oldEp := by
         dsimp only [fs2]
         split_ifs with hlt_l
@@ -139,8 +139,6 @@ theorem epochTickWillSucceed_fastDelete {c U V n_max : ℕ} {θ : SeedWhp c U n_
             (fun ho => by rwa [ho] at hne_l)
             (fun ho => by rwa [ho] at hne_l) _ _ _).trans hrem_buf
         · exact hrem_buf
-      have hce2 : (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).curEp = fs.curEp := by
-        dsimp only [fastDeleteShrink, fs2, fs1]; split_ifs <;> rfl
       refine epochTickWillSucceed_eq_of_fields hclk2 hstg2 hce2 ?_
       rwa [FastState.oldEp, hce2]
     · simp [epochTickWillSucceed, hclk2, hstg2, hs4]
@@ -210,9 +208,7 @@ theorem realizes_checkEpochTickOkGen :
     obtain ⟨hro_st, hro_res, _, _⟩ := readOldEpProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (by dsimp [hdrCurEp]; omega) hce_or
       hh.curEp (s := s)
-    rw [hh.epochClock] at hck_res
-    rw [hh.rebStage] at hst_res
-    simp only [hck_st, hck_res, hst_st, hst_res, hro_st, hro_res] at *
+    simp only [hck_st, hck_res, hst_st, hst_res, hro_st, hro_res, hh.epochClock, hh.rebStage] at *
     first
     | exact h2w
     | exact henv.2.1

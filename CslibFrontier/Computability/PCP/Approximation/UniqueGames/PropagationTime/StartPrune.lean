@@ -284,11 +284,8 @@ theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
                fun addr haddr => hzFr addr (by omega)⟩
             cases hck : S.cand ⟨k, hk⟩ with
             | false =>
-              have hck0 : (S.cand ⟨k, hk⟩).toNat = 0 := by simp only [hck, Bool.toNat_false]
-              have hk' := hkeep (by
-                rw [hck_mem, hck0]
-                simp only [cVal, hk, ↓reduceDIte, hck, Bool.false_and,
-                  Bool.toNat_false])
+              have hck0 : (S.cand ⟨k, hk⟩).toNat = 0 := hck ▸ rfl
+              have hk' := hkeep (by simp [hck_mem, cVal, hk, hck])
               unfold pruneBody
               wram_exec [hzC.one, hzC.candB, hk_reg, hck_mem, hck0]
               refine ⟨⟨?_, ?_, ?_, ?_,
@@ -296,7 +293,7 @@ theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
                   by simpa only [Data.set_mem] using hk'.2⟩, ?_⟩
               all_goals wram_simp [hzC, hzT2, hzT3, hzR]
             | true =>
-              have hck1 : (S.cand ⟨k, hk⟩).toNat = 1 := by simp only [hck, Bool.toNat_true]
+              have hck1 : (S.cand ⟨k, hk⟩).toNat = 1 := hck ▸ rfl
               have hfk_lt := (f ⟨k, hk⟩).isLt
               have hfa : z.mem (tabBase g + e.src * L + k) = (f ⟨k, hk⟩).val := by
                 rw [hzFr _ (by omega)]; exact htab_s k hk
@@ -304,9 +301,9 @@ theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
                 rw [hzFr _ (by omega)]; exact htab_d k hk
               have hcfa : z.mem (4 + j * (L + 2) + ((f ⟨k, hk⟩).val + 2)) =
                   (e.constraint (f ⟨k, hk⟩)).val := by
-                rw [hzFr _ (by wram_omega),
-                  show 4 + j * (L + 2) + ((f ⟨k, hk⟩).val + 2) =
-                    4 + j * (L + 2) + 2 + (f ⟨k, hk⟩).val by omega]
+                have had : 4 + j * (L + 2) + ((f ⟨k, hk⟩).val + 2) =
+                    4 + j * (L + 2) + 2 + (f ⟨k, hk⟩).val := by omega
+                rw [hzFr _ (by wram_omega), had]
                 exact hS.inp.edge_val j hj (f ⟨k, hk⟩).val hfk_lt
               have : Fits w (tabBase g + e.src * L + k) := fits_top hw (by wram_omega)
               have : Fits w (tabBase g + e.dst * L + k) := fits_top hw (by wram_omega)
@@ -314,10 +311,7 @@ theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
               have : Fits w (4 + j * (L + 2) + ((f ⟨k, hk⟩).val + 2)) :=
                 fits_top hw (by wram_omega)
               by_cases heq_val : (e.constraint (f ⟨k, hk⟩)).val = (h ⟨k, hk⟩).val
-              · have hk' := hkeep (by
-                  rw [hck_mem, hck1]
-                  simp only [cVal, hk, ↓reduceDIte, hck, Fin.ext heq_val,
-                    decide_true, Bool.and_self, Bool.toNat_true])
+              · have hk' := hkeep (by simp [hck_mem, cVal, hk, hck, Fin.ext heq_val])
                 unfold pruneBody
                 wram_exec [hzC.one, hzC.two, hzC.candB, hzT2, hzT3, hzE, hk_reg, hck_mem, hck1,
                   hfa, hha, hcfa, heq_val]

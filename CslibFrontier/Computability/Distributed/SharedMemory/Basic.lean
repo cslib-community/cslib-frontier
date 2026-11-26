@@ -295,9 +295,8 @@ theorem active_step_of_ne (π : Protocol P objs S V) {p q : P} {c : Config P Obj
 
 theorem step_mem_of_ne_target (π : Protocol P objs S V) {p : P} {c : Config P ObjState S V}
     (h : c.Active p) {j : I} (hne : j ≠ π.target p (c.proc p).state) :
-    (π.step p c).mem j = c.mem j := by
-  rw [π.step_of_active h]
-  exact Function.update_of_ne hne _ _
+    (π.step p c).mem j = c.mem j :=
+  π.step_of_active h ▸ Function.update_of_ne hne _ _
 
 /-- Steps by distinct active processes targeting distinct shared objects commute exactly. -/
 theorem step_comm_of_ne_target (π : Protocol P objs S V) {p q : P} {c : Config P ObjState S V}
@@ -326,18 +325,17 @@ theorem procDecided_stable (π : Protocol P objs S V) {p : P} {c c' : Config P O
   obtain ⟨ps, hmtr⟩ := hreach
   induction hmtr with
   | refl => exact hd
-  | stepL htr _ ih =>
-    rw [← htr.2] at ih
-    exact ih (π.procDecided_step _ hd)
+  | stepL htr _ ih => exact ih (htr.2 ▸ π.procDecided_step _ hd)
 
 theorem reachable_initConfig (π : Protocol P objs S V) (inp : P → V) :
     π.Reachable inp (π.initConfig inp) :=
   LTS.CanReach.refl _ _
 
 theorem Reachable.trans {π : Protocol P objs S V} {inp : P → V} {c c' : Config P ObjState S V}
-    (hr : π.Reachable inp c) (hc : π.lts.CanReach c c') : π.Reachable inp c' := by
-  rcases hr, hc with ⟨⟨ps₁, h₁⟩, ⟨ps₂, h₂⟩⟩
-  exact ⟨ps₁ ++ ps₂, h₁.comp _ h₂⟩
+    (hr : π.Reachable inp c) (hc : π.lts.CanReach c c') : π.Reachable inp c' :=
+  let ⟨ps₁, h₁⟩ := hr
+  let ⟨ps₂, h₂⟩ := hc
+  ⟨ps₁ ++ ps₂, h₁.comp _ h₂⟩
 
 /-- Accessibility under `StepRel` propagates forward along any active multi-step path. -/
 theorem acc_of_canReach (π : Protocol P objs S V) {c c' : Config P ObjState S V}
@@ -414,10 +412,8 @@ theorem soloRun_not_active (π : Protocol P objs S V) (p : P)
   induction ha with
   | intro c ha ih =>
     by_cases h : c.Active p
-    · rw [π.soloRun_of_active p (Acc.intro c ha) h]
-      exact ih (π.step p c) ⟨p, h, rfl⟩
-    · rw [π.soloRun_of_not_active p (Acc.intro c ha) h]
-      exact h
+    · exact (π.soloRun_of_active p (Acc.intro c ha) h).symm ▸ ih (π.step p c) ⟨p, h, rfl⟩
+    · exact (π.soloRun_of_not_active p (Acc.intro c ha) h).symm ▸ h
 
 theorem exists_decided_soloRun (π : Protocol P objs S V) (p : P)
     {c : Config P ObjState S V} (ha : Acc π.StepRel c) :
@@ -553,14 +549,12 @@ deciding the opposite bit. -/
 theorem IsBivalent.active_all {π : Protocol P objs S Bool}
     (hcons : π.SolvesWaitFreeConsensus) {inp : P → Bool} {c : Config P ObjState S Bool}
     (hr : π.Reachable inp c) (hbiv : π.IsBivalent c) (p : P) : c.Active p := by
-  simp only [Config.Active]
   cases hdec : (c.proc p).decided with
-  | none => rfl
+  | none => exact hdec
   | some b =>
     obtain ⟨c', hreach, hd_not⟩ := hbiv.canDecide (!b)
-    have heq := hcons.agreement inp c' (hr.trans hreach) b (!b)
-      ⟨p, π.procDecided_stable hdec hreach⟩ hd_not
-    exact absurd heq.symm (Bool.not_ne_self b)
+    exact absurd (hcons.agreement inp c' (hr.trans hreach) b (!b)
+      ⟨p, π.procDecided_stable hdec hreach⟩ hd_not).symm (Bool.not_ne_self b)
 
 /-- For an adjacent input flip `inpK` along an enumeration `e : P ≃ Fin n`, unanimous `false` at
 `0` is `false`-valent and unanimous `true` at `n` cannot decide `false`. -/
@@ -645,16 +639,14 @@ theorem exists_critical_config (π : Protocol P objs S Bool)
   obtain ⟨cstar, hreach, hcrit⟩ := hex_crit (hr.acc hcons.waitFree) hbiv
   have hr_star : π.Reachable inp cstar := hr.trans hreach
   have hall_act : ∀ r, cstar.Active r := hcrit.1.active_all hcons hr_star
-  have hex_step : ∀ b : Bool, ∃ p, π.IsUnivalent (π.step p cstar) b := by
-    intro b
+  have hex_step (b : Bool) : ∃ p, π.IsUnivalent (π.step p cstar) b := by
     obtain ⟨cf, ⟨ps, hmtr⟩, hdf⟩ := hcrit.1.canDecide b
     cases hmtr with
     | refl =>
       obtain ⟨r, hr_dec⟩ := hdf
-      exact absurd ((hall_act r).symm.trans hr_dec) (by simp)
+      exact nomatch (hall_act r).symm.trans hr_dec
     | @stepL _ p u ps' _ htr hrest =>
-      rw [← htr.2] at hrest
-      have hcan_p : π.CanDecide (π.step p cstar) b := ⟨cf, ⟨ps', hrest⟩, hdf⟩
+      have hcan_p : π.CanDecide (π.step p cstar) b := ⟨cf, ⟨ps', htr.2 ▸ hrest⟩, hdf⟩
       refine ⟨p, hcan_p, fun hcan_opp => hcrit.2 p htr.1 ?_⟩
       cases b
       exacts [⟨hcan_p, hcan_opp⟩, ⟨hcan_opp, hcan_p⟩]

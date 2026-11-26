@@ -144,9 +144,8 @@ theorem sbtw_arg_iff_chordCoordinate_pos {z p q x : ℂ} {ρ : ℝ}
     Set.disjoint_left.mp Metric.sphere_disjoint_ball hx (sub_eq_zero.mp h ▸ hm)
   have hqm : q - m = -(p - m) := by
     simp only [m, right_sub_midpoint, left_sub_midpoint, ← smul_neg, neg_sub]
-  have horder := sbtw_arg_sub_iff_of_mem_ball (Metric.mem_ball_self hρ) hm
-    hp hx hq hpx hxq hpq
-  rw [horder, hqm, Complex.arg_neg_coe_angle hpm]
+  rw [sbtw_arg_sub_iff_of_mem_ball (Metric.mem_ball_self hρ) hm hp hx hq hpx hxq hpq,
+    hqm, Complex.arg_neg_coe_angle hpm]
   have htranslate := sbtw_angle_add_right_iff
     (0 : Real.Angle) (((x - m).arg : Real.Angle) - (p - m).arg) Real.pi
     ((p - m).arg : Real.Angle)
@@ -301,10 +300,8 @@ theorem circle_chord_inter_iff_alternates {z p q x y : ℂ} {ρ : ℝ}
       (hwb : w ∈ Metric.closedBall z ρ) (hpw : p ≠ w) (hwq : w ≠ q) :
       t ∈ Set.Ioo 0 1 := by
     have ht := lineMap_parameter_mem_Icc_of_mem_closedBall hp hq hpq (hwt ▸ hwb)
-    refine ⟨lt_of_le_of_ne ht.1 (fun he => hpw ?_),
-      lt_of_le_of_ne ht.2 (fun he => hwq ?_)⟩
-    · simpa only [← he, AffineMap.lineMap_apply_zero] using hwt
-    · simpa only [he, AffineMap.lineMap_apply_one] using hwt.symm
+    exact ⟨lt_of_le_of_ne ht.1 fun he => hpw (by simpa [← he] using hwt),
+      lt_of_le_of_ne ht.2 fun he => hwq (by simpa [he] using hwt.symm)⟩
   have f_ne_zero {w : ℂ} (hw : w ∈ Metric.sphere z ρ) (hpw : p ≠ w) (hwq : w ≠ q) :
       f w ≠ 0 := fun hf => by
     obtain ⟨t, hwt⟩ := exists_lineMap_eq_of_chordCoordinate_eq_zero hpq hf
@@ -314,8 +311,7 @@ theorem circle_chord_inter_iff_alternates {z p q x y : ℂ} {ρ : ℝ}
   have left_zero {a b : ℂ} (hab : a ≠ b) : chordCoordinate a b a = 0 := by
     have hd : a - midpoint ℝ a b ≠ 0 := fun he => hab
       ((left_eq_midpoint_iff (R := ℝ)).mp (sub_eq_zero.mp he))
-    change ((a - midpoint ℝ a b) / (a - midpoint ℝ a b)).im = 0
-    rw [div_self hd, Complex.one_im]
+    simpa only [chordCoordinate, AffineMap.coe_mk, div_self hd] using Complex.one_im
   have hf₁ : f q = 0 := by simpa [f, chordCoordinate_swap p q] using left_zero hpq.symm
   have himage : f '' openSegment ℝ p q = {0} := by
     rw [image_openSegment ℝ f, left_zero hpq, hf₁, openSegment_same]

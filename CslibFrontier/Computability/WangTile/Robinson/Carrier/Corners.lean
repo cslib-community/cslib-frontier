@@ -313,11 +313,8 @@ private theorem indexZero_crossing_centered :
             coarseXMod coarseYMod (fineXEq ▸ fineYEq ▸ vertical))
         exact ⟨depth + 1, fineXEq.symm ▸ fineYEq.symm ▸ coarseCentered.lift levelPositive
           coarseXPositive coarseYPositive coarseXMod coarseYMod⟩
-      · have xCenter : (2 * x + 1) % period 1 = 2 * scale 1 + 1 := by
-          simp only [period, scale]; omega
-        have yCenter : (2 * y + 1) % period 1 = 2 * scale 1 + 1 := by
-          simp only [period, scale]; omega
-        exact ⟨1, centeredAtOne levelPositive xCenter yCenter⟩
+      · refine ⟨1, centeredAtOne levelPositive ?_ ?_⟩ <;>
+          simp only [period, scale] <;> omega
       · have xOpening : (2 * x + 1) % period 1 = frameStartResidue 1 := by
           simp only [period, frameStartResidue, scale]; omega
         have yInside : inFrame 1 (2 * y + 1) = true := by
@@ -348,9 +345,8 @@ private theorem corner_point_zero
     (Nat.div_lt_of_lt_mul (by simpa only [side, Nat.mul_comm] using j.isLt))
     indexZero (by simpa only [iEq, jEq] using horizontal)
     (by simpa only [iEq, jEq] using vertical)
-  rw [iEq] at columnOwner xCenter
-  rw [jEq] at rowOwner yCenter
-  exact point_eq_zero_of_centerResidues rowOwner columnOwner xCenter yCenter
+  exact point_eq_zero_of_centerResidues
+    (jEq ▸ rowOwner) (iEq ▸ columnOwner) (iEq ▸ xCenter) (jEq ▸ yCenter)
 
 private theorem cast_square_tile {τ : List WangTile} {m n : ℕ}
     (R : Rectangle τ m m) (h : m = n) (i j : Fin n) :
@@ -381,8 +377,6 @@ def canonicalAddressing (level : ℕ) :
     (i j : Fin (side level - 1 + 1)) :
     (canonicalAddressing level).base.tile i j =
       ShadedSite.tile (site level seedNode i.val j.val) := by
-  unfold canonicalAddressing
-  rw [addressedSquareOfHierarchy_base, cast_square_tile]
-  rfl
+  rw [canonicalAddressing, addressedSquareOfHierarchy_base, cast_square_tile]; rfl
 
 end Cslib.WangTile.Robinson.Carrier

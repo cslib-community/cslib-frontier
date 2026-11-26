@@ -113,15 +113,14 @@ namespace HasValueDensityOn
 
 variable {μ : Measure ℝ} {f : ℝ → NNReal} {a b : ℝ}
 
-theorem absolutelyContinuous (hμ : HasValueDensityOn μ f a b) : μ ≪ volume := by
-  rw [hμ.eq_withDensity]
-  exact (withDensity_absolutelyContinuous _ _).trans
+theorem absolutelyContinuous (hμ : HasValueDensityOn μ f a b) : μ ≪ volume :=
+  hμ.eq_withDensity.symm ▸ (withDensity_absolutelyContinuous _ _).trans
     (Measure.absolutelyContinuous_of_le Measure.restrict_le_self)
 
 /-- Almost every draw lies in `[a, b]`. -/
-theorem ae_mem (hμ : HasValueDensityOn μ f a b) : ∀ᵐ v ∂μ, v ∈ Icc a b := by
-  rw [hμ.eq_withDensity]
-  exact (withDensity_absolutelyContinuous _ _) (ae_restrict_mem measurableSet_Icc)
+theorem ae_mem (hμ : HasValueDensityOn μ f a b) : ∀ᵐ v ∂μ, v ∈ Icc a b :=
+  hμ.eq_withDensity.symm ▸
+    (withDensity_absolutelyContinuous _ _) (ae_restrict_mem measurableSet_Icc)
 
 /-- A distribution with a density has no atoms. -/
 theorem nullSingletonClass (hμ : HasValueDensityOn μ f a b) : NullSingletonClass μ :=
@@ -141,16 +140,14 @@ private theorem measure_Ioo_pos (hμ : HasValueDensityOn μ f a b) {c d : ℝ}
 
 /-- Every interior point `t ∈ (a, b)` has strictly positive upper tail `μ([t, ∞)) > 0`. -/
 theorem measureReal_Ici_pos [IsFiniteMeasure μ] (hμ : HasValueDensityOn μ f a b)
-    {t : ℝ} (ht : t ∈ Ioo a b) : 0 < μ.real (Ici t) := by
-  rw [measureReal_def]
-  exact ENNReal.toReal_pos (((hμ.measure_Ioo_pos ht.1.le ht.2 le_rfl).trans_le
+    {t : ℝ} (ht : t ∈ Ioo a b) : 0 < μ.real (Ici t) :=
+  ENNReal.toReal_pos (((hμ.measure_Ioo_pos ht.1.le ht.2 le_rfl).trans_le
     (measure_mono fun _ hx => hx.1.le)).ne') (measure_ne_top μ _)
 
 /-- Every interior point `t ∈ (a, b)` has strictly positive lower tail `μ((−∞, t]) > 0`. -/
 theorem measureReal_Iic_pos [IsFiniteMeasure μ] (hμ : HasValueDensityOn μ f a b)
-    {t : ℝ} (ht : t ∈ Ioo a b) : 0 < μ.real (Iic t) := by
-  rw [measureReal_def]
-  exact ENNReal.toReal_pos (((hμ.measure_Ioo_pos le_rfl ht.1 ht.2.le).trans_le
+    {t : ℝ} (ht : t ∈ Ioo a b) : 0 < μ.real (Iic t) :=
+  ENNReal.toReal_pos (((hμ.measure_Ioo_pos le_rfl ht.1 ht.2.le).trans_le
     (measure_mono fun _ hx => hx.2.le)).ne') (measure_ne_top μ _)
 
 end HasValueDensityOn
@@ -229,10 +226,9 @@ private theorem isTruthfulOn_utility_eq {X P : ℝ → ℝ} {a b v : ℝ}
   let X' : ℝ → ℝ := fun u => X (a + u)
   let P' : ℝ → ℝ := fun u => P (a + u) - a * X (a + u)
   have hT' : SingleParameter.IsTruthfulOn X' P' (Icc 0 (b - a)) := fun u hu w hw => by
-    have hu' : a + u ∈ Icc a b := ⟨le_add_of_nonneg_right hu.1, le_sub_iff_add_le'.1 hu.2⟩
-    have hw' : a + w ∈ Icc a b := ⟨le_add_of_nonneg_right hw.1, le_sub_iff_add_le'.1 hw.2⟩
-    have h := hT (a + u) hu' (a + w) hw'
-    simp only [X', P']
+    have h := hT (a + u) ⟨le_add_of_nonneg_right hu.1, le_sub_iff_add_le'.1 hu.2⟩
+      (a + w) ⟨le_add_of_nonneg_right hw.1, le_sub_iff_add_le'.1 hw.2⟩
+    dsimp only [X', P']
     linarith
   have hpay := hT'.payment_eq (v := v - a) ⟨sub_nonneg.2 hv.1, sub_le_sub_right hv.2 a⟩
   simp only [X', P', add_zero, add_sub_cancel, intervalIntegral.integral_comp_add_left] at hpay
@@ -245,10 +241,8 @@ private theorem IsBIC.interimSellerUtility_eq {M : Mechanism} {μ_b μ_s : Measu
     M.interimSellerUtility μ_b v =
       M.interimSellerUtility μ_b b_s + ∫ t in v..b_s, M.interimSellerTrade μ_b t := by
   have hT : SingleParameter.IsTruthfulOn (fun t => -M.interimSellerTrade μ_b t)
-      (fun t => -M.interimSellerPayment μ_b t) (Icc a_s b_s) := by
-    intro x hx y hy
-    have h := hBIC.2 x hx y hy
-    linarith
+      (fun t => -M.interimSellerPayment μ_b t) (Icc a_s b_s) := fun x hx y hy => by
+    linarith [hBIC.2 x hx y hy]
   have hU_v := isTruthfulOn_utility_eq hT hv
   have hU_b := isTruthfulOn_utility_eq hT ⟨hv.1.trans hv.2, le_rfl⟩
   have hmono : MonotoneOn (fun t => -M.interimSellerTrade μ_b t) (Icc a_s b_s) := hT.monotoneOn
@@ -260,8 +254,7 @@ private theorem IsBIC.interimSellerUtility_eq {M : Mechanism} {μ_b μ_s : Measu
       rw [uIcc_of_le hv.2] at ht; exact ⟨hv.1.trans ht.1, ht.2⟩).intervalIntegrable
   have hsplit := intervalIntegral.integral_add_adjacent_intervals hi1 hi2
   simp only [intervalIntegral.integral_neg] at hsplit hU_v hU_b
-  simp only [interimSellerUtility]
-  linarith
+  simp only [interimSellerUtility]; linarith
 
 /-- Buyer interim utility identity on `[a_b, b_b]`:
 `U_b(v) = U_b(a_b) + ∫ t in a_b..v, Q_b(t)`. -/
@@ -277,16 +270,15 @@ private theorem integral_intervalIntegral_left_eq {μ : Measure ℝ} [IsFiniteMe
     {a b : ℝ} (hμ : ∀ᵐ v ∂μ, v ∈ Icc a b) {g : ℝ → ℝ} (hg : IntegrableOn g (Ioc a b)) :
     ∫ v, (∫ t in a..v, g t) ∂μ = ∫ t in Ioc a b, μ.real (Ici t) * g t := by
   set S : Set (ℝ × ℝ) := {p | p.2 ≤ p.1}
-  have hSm : MeasurableSet S := measurableSet_le measurable_snd measurable_fst
   set G : ℝ × ℝ → ℝ := S.indicator (fun p => g p.2)
-  have hGint : Integrable G (μ.prod (volume.restrict (Ioc a b))) := (hg.comp_snd μ).indicator hSm
+  have hGint : Integrable G (μ.prod (volume.restrict (Ioc a b))) :=
+    (hg.comp_snd μ).indicator (measurableSet_le measurable_snd measurable_fst)
   have hL : ∀ᵐ v ∂μ, ∫ t in Ioc a b, G (v, t) = ∫ t in a..v, g t := by
     filter_upwards [hμ] with v hv
     have hfun : (fun t => G (v, t)) = (Iic v).indicator g :=
       funext fun t => by simp [G, S, indicator_apply]
-    have hset : Iic v ∩ Ioc a b = Ioc a v := by
-      ext t
-      exact ⟨fun ⟨h1, h2, _⟩ => ⟨h2, h1⟩, fun ⟨h1, h2⟩ => ⟨h2, h1, h2.trans hv.2⟩⟩
+    have hset : Iic v ∩ Ioc a b = Ioc a v :=
+      Set.ext fun _ => ⟨fun ⟨h1, h2, _⟩ => ⟨h2, h1⟩, fun ⟨h1, h2⟩ => ⟨h2, h1, h2.trans hv.2⟩⟩
     rw [hfun, integral_indicator measurableSet_Iic, Measure.restrict_restrict measurableSet_Iic,
       hset, intervalIntegral.integral_of_le hv.1]
   have hR : ∀ t, ∫ v, G (v, t) ∂μ = μ.real (Ici t) * g t := fun t => by
@@ -304,9 +296,9 @@ private theorem integral_intervalIntegral_right_eq {μ : Measure ℝ} [IsFiniteM
     {a b : ℝ} (hμ : ∀ᵐ v ∂μ, v ∈ Icc a b) {g : ℝ → ℝ} (hg : IntegrableOn g (Ioc a b)) :
     ∫ v, (∫ t in v..b, g t) ∂μ = ∫ t in Ioc a b, μ.real (Iic t) * g t := by
   set S : Set (ℝ × ℝ) := {p | p.1 ≤ p.2}
-  have hSm : MeasurableSet S := measurableSet_le measurable_fst measurable_snd
   set G : ℝ × ℝ → ℝ := S.indicator (fun p => g p.2)
-  have hGint : Integrable G (μ.prod (volume.restrict (Ioc a b))) := (hg.comp_snd μ).indicator hSm
+  have hGint : Integrable G (μ.prod (volume.restrict (Ioc a b))) :=
+    (hg.comp_snd μ).indicator (measurableSet_le measurable_fst measurable_snd)
   have hL : ∀ᵐ v ∂μ, ∫ t in Ioc a b, G (v, t) = ∫ t in v..b, g t := by
     filter_upwards [hμ] with v hv
     have hfun : (fun t => G (v, t)) = (Ici v).indicator g :=
@@ -315,9 +307,8 @@ private theorem integral_intervalIntegral_right_eq {μ : Measure ℝ} [IsFiniteM
       intervalIntegral.integral_of_le hv.2]
     rcases eq_or_lt_of_le hv.1 with rfl | hav
     · rw [inter_eq_right.2 fun t (ht : t ∈ Ioc a b) => ht.1.le]
-    · have hset : Ici v ∩ Ioc a b = Icc v b := by
-        ext t
-        exact ⟨fun ⟨h1, _, h3⟩ => ⟨h1, h3⟩, fun ⟨h1, h2⟩ => ⟨h1, hav.trans_le h1, h2⟩⟩
+    · have hset : Ici v ∩ Ioc a b = Icc v b :=
+        Set.ext fun _ => ⟨fun ⟨h1, _, h3⟩ => ⟨h1, h3⟩, fun ⟨h1, h2⟩ => ⟨h1, hav.trans_le h1, h2⟩⟩
       rw [hset, integral_Icc_eq_integral_Ioc]
   have hR : ∀ t, ∫ v, G (v, t) ∂μ = μ.real (Iic t) * g t := fun t => by
     have hfun : (fun v => G (v, t)) = (Iic t).indicator (fun _ => g t) :=
@@ -367,9 +358,8 @@ private theorem integral_gains_from_trade {μ_b μ_s : Measure ℝ}
           inter_subset_left (measure_mono_null hdiff Real.volume_singleton),
         Real.volume_Icc, ENNReal.toReal_ofReal (sub_nonneg.2 hle)]
     · rw [ite_eq_right hle]
-      have hfun : (fun t => G (p, t)) = fun _ => 0 :=
-        funext fun t => indicator_of_notMem (fun h : (p, t) ∈ S => hle (h.1.trans h.2)) _
-      rw [hfun, integral_zero]
+      exact integral_eq_zero_of_ae (Filter.Eventually.of_forall fun t =>
+        indicator_of_notMem (fun h : (p, t) ∈ S => hle (h.1.trans h.2)) _)
   have hR : ∀ t, ∫ p, G (p, t) ∂(μ_b.prod μ_s) = μ_b.real (Ici t) * μ_s.real (Iic t) := fun t => by
     have hfun : (fun p : ℝ × ℝ => G (p, t)) = (Ici t ×ˢ Iic t).indicator 1 := by
       ext p
@@ -390,10 +380,8 @@ private theorem IsExPostEfficient.interimBuyerTrade_eq {M : Mechanism} {μ_s : M
     [NullSingletonClass μ_s] (heff : M.IsExPostEfficient) (v_b : ℝ) :
     M.interimBuyerTrade μ_s v_b = μ_s.real (Iic v_b) := by
   have hae : (fun v_s => M.trade v_b v_s) =ᵐ[μ_s] (Iic v_b).indicator 1 := by
-    have hne : ∀ᵐ v_s ∂μ_s, v_s ≠ v_b := by
-      rw [ae_iff]; simp only [ne_eq, not_not, ofPred_eq_eq_singleton, measure_singleton]
-    filter_upwards [hne] with v_s hne
-    rcases lt_or_gt_of_ne hne with hlt | hgt
+    filter_upwards [compl_mem_ae_iff.mpr (measure_singleton v_b)] with v_s hne
+    rcases lt_or_gt_of_ne (Set.mem_compl_singleton_iff.mp hne) with hlt | hgt
     · rw [(heff v_b v_s).1 hlt, indicator_of_mem (s := Iic v_b) hlt.le, Pi.one_apply]
     · rw [(heff v_b v_s).2 hgt, indicator_of_notMem (s := Iic v_b) (not_le.2 hgt)]
   rw [interimBuyerTrade, integral_congr_ae hae, integral_indicator_one measurableSet_Iic]
@@ -404,10 +392,8 @@ private theorem IsExPostEfficient.interimSellerTrade_eq {M : Mechanism} {μ_b : 
     [NullSingletonClass μ_b] (heff : M.IsExPostEfficient) (v_s : ℝ) :
     M.interimSellerTrade μ_b v_s = μ_b.real (Ici v_s) := by
   have hae : (fun v_b => M.trade v_b v_s) =ᵐ[μ_b] (Ici v_s).indicator 1 := by
-    have hne : ∀ᵐ v_b ∂μ_b, v_b ≠ v_s := by
-      rw [ae_iff]; simp only [ne_eq, not_not, ofPred_eq_eq_singleton, measure_singleton]
-    filter_upwards [hne] with v_b hne
-    rcases lt_or_gt_of_ne hne with hlt | hgt
+    filter_upwards [compl_mem_ae_iff.mpr (measure_singleton v_s)] with v_b hne
+    rcases lt_or_gt_of_ne (Set.mem_compl_singleton_iff.mp hne) with hlt | hgt
     · rw [(heff v_b v_s).2 hlt, indicator_of_notMem (s := Ici v_s) (not_le.2 hlt)]
     · rw [(heff v_b v_s).1 hgt, indicator_of_mem (s := Ici v_s) hgt.le, Pi.one_apply]
   rw [interimSellerTrade, integral_congr_ae hae, integral_indicator_one measurableSet_Ici]
@@ -495,11 +481,10 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
       · simpa only [Real.norm_eq_abs, abs_of_nonneg measureReal_nonneg] using measureReal_le_one
       · simpa only [one_mul, abs_of_nonneg (sub_nonneg.2 hv.1)] using
           (sub_le_sub_right hv.2 a_b).trans (le_max_left _ _)
-    have hi1' : Integrable
-        (fun v_b => v_b * μ_s.real (Iic v_b) - M.interimBuyerUtility μ_s a_b) μ_b :=
-      hi1.sub (integrable_const _)
     change ∫ v_b, M.interimBuyerPayment μ_s v_b ∂μ_b = _
-    rw [integral_congr_ae hPae, integral_sub hi1' hi2,
+    rw [integral_congr_ae hPae,
+      integral_sub (f := fun v_b => v_b * μ_s.real (Iic v_b) - M.interimBuyerUtility μ_s a_b)
+        (hi1.sub (integrable_const _)) hi2,
       integral_sub hi1 (integrable_const _), integral_const, probReal_univ, one_smul,
       integral_intervalIntegral_left_eq hb_supp hFs_int]
   -- Seller expected payment: E[p_s] = E[v_s 1_{v_s ≤ v_b}] + U_s(b_s) + ∫_{a_s}^{b_s} F_s (1-F_b)
@@ -531,11 +516,10 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
       · simpa only [Real.norm_eq_abs, abs_of_nonneg measureReal_nonneg] using measureReal_le_one
       · simpa only [one_mul, abs_of_nonneg (sub_nonneg.2 hv.2)] using
           (sub_le_sub_left hv.1 b_s).trans (le_max_left _ _)
-    have hi1' : Integrable
-        (fun v_s => v_s * μ_b.real (Ici v_s) + M.interimSellerUtility μ_b b_s) μ_s :=
-      hi1.add (integrable_const _)
     change ∫ v_s, M.interimSellerPayment μ_b v_s ∂μ_s = _
-    rw [integral_congr_ae hPae, integral_add hi1' hi2,
+    rw [integral_congr_ae hPae,
+      integral_add (f := fun v_s => v_s * μ_b.real (Ici v_s) + M.interimSellerUtility μ_b b_s)
+        (hi1.add (integrable_const _)) hi2,
       integral_add hi1 (integrable_const _), integral_const, probReal_univ, one_smul,
       integral_intervalIntegral_right_eq hs_supp hFb_int]
     exact congrArg (_ + ·) (setIntegral_congr_fun measurableSet_Ioc fun _ _ => mul_comm _ _)
@@ -624,14 +608,14 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
             not_lt.mp h1, not_le.mp h2]
   have hcomb : (∫ t in Ioc L U, g t) - (∫ t in Ioc a_b b_b, g t) - (∫ t in Ioc a_s b_s, g t) =
       - ∫ t in Ioc (max a_b a_s) (min b_b b_s), g t := by
-    have hsub1 : IntegrableOn (fun t => g t - (Ioc a_b b_b).indicator g t) (Ioc L U) :=
-      hg_int.sub (hg_int.indicator measurableSet_Ioc)
     rw [hI (Ioc_subset_Ioc (min_le_left a_b a_s) (le_max_left b_b b_s)),
       hI (Ioc_subset_Ioc (min_le_right a_b a_s) (le_max_right b_b b_s)),
       hI (Ioc_subset_Ioc ((min_le_left _ _).trans (le_max_left _ _))
         ((min_le_left _ _).trans (le_max_left _ _))),
       ← integral_sub hg_int (hg_int.indicator measurableSet_Ioc),
-      ← integral_sub hsub1 (hg_int.indicator measurableSet_Ioc), ← integral_neg]
+      ← integral_sub (f := fun t => g t - (Ioc a_b b_b).indicator g t)
+        (hg_int.sub (hg_int.indicator measurableSet_Ioc))
+        (hg_int.indicator measurableSet_Ioc), ← integral_neg]
     exact setIntegral_congr_fun measurableSet_Ioc hpt
   rw [integral_sub (f := fun p : ℝ × ℝ => M.buyerPayment p.1 p.2)
     (g := fun p : ℝ × ℝ => M.sellerPayment p.1 p.2) hpb hps, hEb, hEs]
@@ -658,8 +642,6 @@ theorem budget_surplus_neg_of_hasValueDensityOn {M : Mechanism}
     heff hpb hps
   have hab : a_b ≤ b_b := (le_max_left a_b a_s).trans (hover.le.trans (min_le_left b_b b_s))
   have has : a_s ≤ b_s := (le_max_right a_b a_s).trans (hover.le.trans (min_le_right b_b b_s))
-  have hUb : 0 ≤ M.interimBuyerUtility μ_s a_b := hIR.1 a_b ⟨le_rfl, hab⟩
-  have hUs : 0 ≤ M.interimSellerUtility μ_b b_s := hIR.2 b_s ⟨has, le_rfl⟩
   set g : ℝ → ℝ := fun t => μ_b.real (Ici t) * μ_s.real (Iic t)
   have hg_pos : 0 < ∫ t in Ioc (max a_b a_s) (min b_b b_s), g t := by
     rw [setIntegral_pos_iff_support_of_nonneg_ae
@@ -673,7 +655,7 @@ theorem budget_surplus_neg_of_hasValueDensityOn {M : Mechanism}
           ⟨(le_max_right a_b a_s).trans_lt ht.1, ht.2.trans_le (min_le_right b_b b_s)⟩)).ne',
         ht.1, ht.2.le⟩
     exact (Real.volume_Ioo ▸ ENNReal.ofReal_pos.2 (sub_pos.2 hover)).trans_le (measure_mono hsub)
-  linarith
+  linarith [hIR.1 a_b ⟨le_rfl, hab⟩, hIR.2 b_s ⟨has, le_rfl⟩]
 
 /-- **Myerson–Satterthwaite impossibility theorem** ([MyersonSatterthwaite1983], Theorem 1;
 locator not re-verified against primary PDF): no BIC, interim IR, ex-post efficient bilateral trade
@@ -770,9 +752,8 @@ theorem not_isExAnteBudgetBalanced_uniform {M : Mechanism}
       ((volume.restrict (Icc (0 : ℝ) 1)).prod (volume.restrict (Icc 0 1))))
     (hps : Integrable (Function.uncurry M.sellerPayment)
       ((volume.restrict (Icc (0 : ℝ) 1)).prod (volume.restrict (Icc 0 1)))) :
-    ¬ M.IsExAnteBudgetBalanced (volume.restrict (Icc 0 1)) (volume.restrict (Icc 0 1)) := by
-  intro hBB
-  exact absurd (hBB.trans (budget_surplus_uniform_le_neg_one_sixth hBIC hIR heff hpb hps))
+    ¬ M.IsExAnteBudgetBalanced (volume.restrict (Icc 0 1)) (volume.restrict (Icc 0 1)) :=
+  fun hBB => absurd (hBB.trans (budget_surplus_uniform_le_neg_one_sixth hBIC hIR heff hpb hps))
     (by norm_num)
 
 end Mechanism
@@ -812,10 +793,9 @@ theorem fixedPrice_isBIC_and_isInterimIR {μ_b μ_s : Measure ℝ}
     hconst (hb_supp.mono fun _ hvb => ite_eq_left (hv.2.trans (hbc.trans (hca.trans hvb.1))))
   have hPs : ∀ v_s ∈ Icc a_s b_s, (fixedPrice c).interimSellerPayment μ_b v_s = c := fun v_s hv =>
     hconst (hb_supp.mono fun _ hvb => ite_eq_left (hv.2.trans (hbc.trans (hca.trans hvb.1))))
-  refine ⟨⟨fun v hv w hw => ?_, fun v hv w hw => ?_⟩, ⟨fun v hv => ?_, fun v hv => ?_⟩⟩
-  · rw [hQb v hv, hQb w hw, hPb v hv, hPb w hw]
-  · rw [hQs v hv, hQs w hw, hPs v hv, hPs w hw]
-  · rw [Mechanism.interimBuyerUtility, hQb v hv, hPb v hv]; linarith [hv.1]
-  · rw [Mechanism.interimSellerUtility, hQs v hv, hPs v hv]; linarith [hv.2]
+  exact ⟨⟨fun v hv w hw => by rw [hQb v hv, hQb w hw, hPb v hv, hPb w hw],
+      fun v hv w hw => by rw [hQs v hv, hQs w hw, hPs v hv, hPs w hw]⟩,
+    ⟨fun v hv => by rw [Mechanism.interimBuyerUtility, hQb v hv, hPb v hv]; linarith [hv.1],
+      fun v hv => by rw [Mechanism.interimSellerUtility, hQs v hv, hPs v hv]; linarith [hv.2]⟩⟩
 
 end Cslib.GameTheory.BilateralTrade

@@ -136,15 +136,13 @@ private theorem computableInPolyTime_arcOK :
     ComputableInPolyTime (fun p : (FeedbackVertexSetInstance × List ℕ) × (ℕ × ℕ) => arcOK p.1 p.2)
       (encPair (encPair encFeedbackVertexSet (encList encNat)) (encPair encNat encNat))
       encBool := by
-  unfold arcOK
-  fun_prop [encGraph_vertices_polyTime]
+  fun_prop [arcOK, encGraph_vertices_polyTime]
 
 private theorem computableInPolyTime_check :
     ComputableInPolyTime check (encPair encFeedbackVertexSet (encList encNat)) encBool := by
   have hz : ComputableInPolyTime zeroCount
-      (encPair encFeedbackVertexSet (encList encNat)) encUnary := by
-    unfold zeroCount
-    exact countPWithInput (by fun_prop) (by fun_prop)
+      (encPair encFeedbackVertexSet (encList encNat)) encUnary :=
+    countPWithInput (by fun_prop) (by fun_prop)
   exact bool_and.comp ((binary_le' (unary_to_binary.comp hz) (by fun_prop)).prod
     (allWithInput (encGraph_edges_polyTime (by fun_prop)) computableInPolyTime_arcOK))
 
@@ -152,9 +150,8 @@ private theorem computableInPolyTime_check :
 private theorem zeroCount_eq (x : FeedbackVertexSetInstance × List ℕ) :
     zeroCount x =
       (x.1.graph.vertices.toFinset.filter fun v => colorOf x.1.graph x.2 v = 0).card := by
-  have hset : x.1.graph.distinctVertices.toFinset = x.1.graph.vertices.toFinset := by
-    ext v
-    simp only [List.mem_toFinset, mem_distinctVertices]
+  have hset : x.1.graph.distinctVertices.toFinset = x.1.graph.vertices.toFinset :=
+    Finset.ext fun _ => by simp only [List.mem_toFinset, mem_distinctVertices]
   rw [zeroCount, List.countP_eq_length_filter,
     ← List.toFinset_card_of_nodup ((nodup_distinctVertices _).filter _), List.toFinset_filter, hset]
   simp only [decide_eq_true_eq]
@@ -208,8 +205,7 @@ private theorem exists_certifies {G : Graph} {k : ℕ}
   refine ⟨fun v => if v ∈ R then 0 else f v + 1, fun v hv => ?_, ?_, fun e he h1 h2 h3 h4 => ?_⟩
   · dsimp only
     split
-    · exact Nat.zero_le _
-    · exact (hflt v (mem_deleteVerts_vertices.2 ⟨hv, ‹_›⟩)).trans_le hsub
+    exacts [Nat.zero_le _, (hflt v (mem_deleteVerts_vertices.2 ⟨hv, ‹_›⟩)).trans_le hsub]
   · have hfilter : (G.vertices.toFinset.filter fun v => colorOf G (G.vertices.map fun v =>
         if v ∈ R then 0 else f v + 1) v = 0) = R := by
       ext v
@@ -218,8 +214,7 @@ private theorem exists_certifies {G : Graph} {k : ℕ}
           rw [colorOf_map hv] at h0
           split at h0 <;> first | assumption | omega,
         fun hv => ⟨hRV v hv, by rw [colorOf_map (hRV v hv), ite_eq_left hv]⟩⟩
-    rw [hfilter]
-    exact hcard
+    exact hfilter.symm ▸ hcard
   · dsimp only at h1 h2 h3 h4 ⊢
     rw [colorOf_map h1] at h3 ⊢
     rw [colorOf_map h2] at h4 ⊢
@@ -312,16 +307,12 @@ theorem computableInPolyTime_toFeedbackVertexSet :
     simp_rw [← Graph.length_distinctVertices]
     exact (length_list encNat).comp (Graph.computableInPolyTime_distinctVertices.comp (by fun_prop))
   have hb : ComputableInPolyTime (fun x : VertexCoverInstance => bidirect x.graph)
-      encVertexCoverInstance encGraph := by
-    unfold bidirect
-    fun_prop
+      encVertexCoverInstance encGraph := by fun_prop [bidirect]
   have heq : toFeedbackVertexSet = fun x : VertexCoverInstance =>
       if decide (x.k ≤ x.graph.vertices.toFinset.card) then ⟨bidirect x.graph, x.k⟩
-      else ⟨⟨[0], [(0, 0)]⟩, 0⟩ := by
-    funext x
-    simp only [toFeedbackVertexSet, decide_eq_true_eq]
-  rw [heq]
-  exact ite' (binary_le' (by fun_prop) (unary_to_binary.comp hn)) (by fun_prop) (const _)
+      else ⟨⟨[0], [(0, 0)]⟩, 0⟩ :=
+    funext fun _ => by simp only [toFeedbackVertexSet, decide_eq_true_eq]
+  exact heq ▸ ite' (binary_le' (by fun_prop) (unary_to_binary.comp hn)) (by fun_prop) (const _)
 
 end VertexCover
 

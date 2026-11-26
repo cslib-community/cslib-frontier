@@ -255,15 +255,8 @@ theorem balance_ne_nil (a : α) (l r : AVLTree α) : balance a l r ≠ .nil := b
   have right (a : α) (l r : AVLTree α) : rotateRight a l r ≠ .nil := by cases l <;> nofun
   have left (a : α) (l r : AVLTree α) : rotateLeft a l r ≠ .nil := by cases r <;> nofun
   unfold balance
-  split
-  · split
-    · nofun
-    · split <;> apply right
-  · split
-    · split
-      · nofun
-      · split <;> apply left
-    · nofun
+  repeat' split
+  all_goals first | apply right | apply left | nofun
 
 /-- Single right rotation preserves `HeightConsistent`. -/
 theorem heightConsistent_rotateRight {a : α} {l r : AVLTree α}
@@ -286,23 +279,13 @@ theorem heightConsistent_balance {a : α} {l r : AVLTree α}
     (hl : HeightConsistent l) (hr : HeightConsistent r) :
     HeightConsistent (balance a l r) := by
   unfold balance
-  split
-  · cases l with
-    | nil => exact ⟨rfl, trivial, hr⟩
-    | node la lh ll lr =>
-      dsimp only
-      split
-      · exact heightConsistent_rotateRight hl hr
-      · exact heightConsistent_rotateRight (heightConsistent_rotateLeft hl.2.1 hl.2.2) hr
-  · split
-    · cases r with
-      | nil => exact ⟨rfl, hl, trivial⟩
-      | node ra rh rl rr =>
-        dsimp only
-        split
-        · exact heightConsistent_rotateLeft hl hr
-        · exact heightConsistent_rotateLeft hl (heightConsistent_rotateRight hr.2.1 hr.2.2)
-    · exact ⟨rfl, hl, hr⟩
+  repeat' split
+  all_goals first
+    | exact ⟨rfl, hl, hr⟩
+    | exact heightConsistent_rotateRight hl hr
+    | exact heightConsistent_rotateRight (heightConsistent_rotateLeft hl.2.1 hl.2.2) hr
+    | exact heightConsistent_rotateLeft hl hr
+    | exact heightConsistent_rotateLeft hl (heightConsistent_rotateRight hr.2.1 hr.2.2)
 
 /-- Main structural contract of `balance`: when `l` and `r` are height-consistent, balanced, and
 differ in height by at most `2`, `balance a l r` is balanced and its height lies in
@@ -510,23 +493,12 @@ theorem elements_rotateLeft (a : α) (l r : AVLTree α) :
 theorem elements_balance (a : α) (l r : AVLTree α) :
     elements (balance a l r) = Insert.insert a (elements l ∪ elements r) := by
   unfold balance
-  split
-  · cases l with
-    | nil => rfl
-    | node la lh ll lr =>
-      dsimp only
-      split
-      · exact elements_rotateRight a _ r
-      · simp only [elements_rotateRight, elements_rotateLeft, elements_node]
-  · split
-    · cases r with
-      | nil => rfl
-      | node ra rh rl rr =>
-        dsimp only
-        split
-        · exact elements_rotateLeft a l _
-        · simp only [elements_rotateLeft, elements_rotateRight, elements_node]
-    · rfl
+  repeat' split
+  all_goals first
+    | rfl
+    | exact elements_rotateRight a _ r
+    | exact elements_rotateLeft a l _
+    | simp only [elements_rotateRight, elements_rotateLeft, elements_node]
 
 /-- Single right rotation preserves strict BST ordering. -/
 theorem ordered_rotateRight {a : α} {h : ℕ} {l r : AVLTree α}

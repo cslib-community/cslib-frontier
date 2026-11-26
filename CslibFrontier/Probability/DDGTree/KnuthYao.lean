@@ -96,8 +96,7 @@ theorem truncErr_le (n : ℕ) : truncErr x n ≤ x := by
   positivity
 
 theorem truncErr_eq_self {n : ℕ} (h : (2 : ℝ) ^ n * x < 1) : truncErr x n = x := by
-  rw [truncErr, Nat.floor_eq_zero.mpr h]
-  simp
+  simp [truncErr, Nat.floor_eq_zero.mpr h]
 
 theorem summable_truncErr (hx : 0 ≤ x) : Summable (truncErr x) :=
   Summable.of_nonneg_of_le (truncErr_nonneg hx) (fun n => (truncErr_lt n).le)
@@ -249,12 +248,10 @@ noncomputable def knuthYao (p : PMF α) : DDGTree α := ofCounts (knuthYaoCounts
 omit [Fintype α] in
 private theorem knuthYaoCounts_mono (p : PMF α) (k : ℕ) (a : α) :
     2 * knuthYaoCounts p k a ≤ knuthYaoCounts p (k + 1) a := by
-  unfold knuthYaoCounts
-  apply Nat.le_floor
-  push_cast
-  have := Nat.floor_le (by positivity : (0 : ℝ) ≤ 2 ^ k * (p a).toReal)
+  refine Nat.le_floor ?_
+  push_cast [knuthYaoCounts]
   rw [pow_succ', mul_assoc]
-  linarith
+  exact mul_le_mul_of_nonneg_left (Nat.floor_le (by positivity)) zero_le_two
 
 private theorem knuthYaoCounts_kraft (p : PMF α) (k : ℕ) :
     ∑ a, knuthYaoCounts p k a ≤ 2 ^ k := by
@@ -338,13 +335,12 @@ theorem run_knuthYao_none_le {T : DDGTree α} {p : PMF α} (hT : T.Generates p) 
     intro a
     obtain ⟨c, hc⟩ := T.exists_run_eq_div n (some a)
     have hp : T.run n (some a) ≤ p a := hT a ▸ T.run_le_outputProb n a
-    rw [hc] at hp ⊢
-    rw [run_knuthYao_some]
+    rw [hc] at hp
+    rw [hc, run_knuthYao_some]
     gcongr
-    apply Nat.le_floor
+    refine Nat.le_floor ?_
     ennreal_to_real at hp
-    rw [div_le_iff₀ (by positivity)] at hp
-    linarith
+    rwa [div_le_iff₀ (by positivity), mul_comm] at hp
   have hK1 := (knuthYao p).run_none_add_sum n
   have hfin : ∑ a, (knuthYao p).run n (some a) ≠ ⊤ :=
     ne_top_of_le_ne_top ENNReal.one_ne_top (hK1 ▸ le_add_self)
@@ -368,9 +364,8 @@ at least `H(p)` fair bits in expectation. -/
 theorem entropy_le_expectedFlips {α : Type*} [Finite α] {T : DDGTree α} {p : PMF α}
     (hT : T.Generates p) : ENNReal.ofReal (PMF.entropy p) ≤ T.expectedFlips := by
   have := Fintype.ofFinite α
-  refine le_trans ?_ (expectedFlips_knuthYao_le hT)
-  rw [expectedFlips_knuthYao]
-  exact ENNReal.ofReal_le_ofReal (entropy_le_sum_knuthYaoCost p)
+  exact ((expectedFlips_knuthYao p).symm ▸
+    ENNReal.ofReal_le_ofReal (entropy_le_sum_knuthYaoCost p)).trans (expectedFlips_knuthYao_le hT)
 
 /-- **Knuth–Yao upper bound** ([CoverThomas2006], Theorem 5.11.3): the Knuth–Yao tree reads fewer
 than `H(p) + 2` fair bits in expectation. -/
@@ -399,12 +394,11 @@ theorem expectedFlips_knuthYao_eq_entropy_iff (p : PMF α) :
   refine forall_congr' fun a => ?_
   rw [eq_comm, knuthYaoCost_eq_negMulLogb_iff ENNReal.toReal_nonneg (PMF.toReal_apply_le_one p a),
     PMF.mem_support_iff]
-  refine ⟨?_, fun h => (eq_or_ne (p a) 0).imp (fun h0 => by simp [h0]) fun hpa => ?_⟩
-  · rintro (h | ⟨m, hm⟩) hpa
-    · exact absurd (by ennreal_to_real using h) hpa
-    · exact ⟨m, by ennreal_to_real using hm⟩
-  · obtain ⟨m, hm⟩ := h hpa
-    exact ⟨m, by ennreal_to_real using hm⟩
+  refine ⟨fun h hpa => ?_, fun h => (eq_or_ne (p a) 0).imp (fun h0 => by simp [h0]) fun hpa =>
+    (h hpa).imp fun m hm => by ennreal_to_real using hm⟩
+  rcases h with h | ⟨m, hm⟩
+  · exact absurd (by ennreal_to_real using h) hpa
+  · exact ⟨m, by ennreal_to_real using hm⟩
 
 /-- **Dyadic case** ([CoverThomas2006], Theorem 5.11.2 and its converse): some tree generating `p`
 reads exactly `H(p)` fair bits in expectation if and only if every positive probability `p a` is a

@@ -117,8 +117,7 @@ private theorem tickStageAllPure_clk_and_stage5 (c U n_max : ℕ) (θ : SeedWhp 
         unfold epochTickStage2PostScan epochTickStage2AfterSwap epochTickStage2Swap
         split_ifs <;> try dsimp only
         all_goals exact ⟨hp.curEp, hp.epochClock, by omega⟩
-      · exact ⟨rfl, rfl, by omega⟩
-      · exact ⟨rfl, rfl, le_rfl⟩
+      exacts [⟨rfl, rfl, by omega⟩, ⟨rfl, rfl, le_rfl⟩]
     exact ⟨hclk.1, hclk.2.1, by omega⟩
   rw [ite_eq_right hs2]
   by_cases hs3 : fs.rebStage = 3
@@ -193,13 +192,8 @@ private theorem realizes_epochTickStageAllGen :
           ValidEpochStagePreTick c U n_max θ fs)
       (fun _ _ => 0) := by
   unfold epochTickStageAllGenProg
-  have hrh := realizes_readHdr
-  have hs0 := realizes_epochTickStage0Gen
-  have hs1 := realizes_epochTickStage1Gen
-  have hs2 := realizes_epochTickStage2Gen
-  have hs3 := realizes_epochTickStage3Gen
-  have hs4 := realizes_epochTickStage4Gen
-  realize
+  realize [realizes_readHdr, realizes_epochTickStage0Gen, realizes_epochTickStage1Gen,
+    realizes_epochTickStage2Gen, realizes_epochTickStage3Gen, realizes_epochTickStage4Gen]
   all_goals (
     rcases d with ⟨wp, base⟩
     dsimp only at *
@@ -241,9 +235,8 @@ private theorem readHdr_bind_fastStep {c U V w n_max base hdrOff v cost : ℕ}
   rw [hval] at hres
   dsimp only
   refine ⟨?_, validProg_bind hvp (by simpa only [hst, hres] using hk.2.1), ?_⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres, hmc]
-    have := hk.1
-    omega
+  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres, hmc, Nat.add_comm 1]
+    exact Nat.add_le_add_right hk.1 1
   · rw [clientState_bind, hst, hres]
     exact hk.2.2
 
@@ -315,9 +308,7 @@ private theorem realizes_epochTickRolloverGen :
           fs1.epochClock < qEpochWhp n_max)
       (fun _ _ => 0) := by
   unfold epochTickRolloverGenProg
-  have hrh := realizes_readHdr
-  have hwh := realizes_writeHdr
-  realize
+  realize [realizes_readHdr, realizes_writeHdr]
   all_goals (
     rcases d with ⟨cp, base⟩
     dsimp only at *
@@ -424,9 +415,7 @@ theorem realizes_epochTickGen :
           ValidEpochStagePreTick c U n_max θ fs)
       (fun _ _ => 0) := by
   unfold epochTickGenProg
-  have hsa := realizes_epochTickStageAllGen
-  have hro := realizes_epochTickRolloverGen
-  realize
+  realize [realizes_epochTickStageAllGen, realizes_epochTickRolloverGen]
   all_goals (
     rcases d with ⟨wp, base⟩
     dsimp only at *

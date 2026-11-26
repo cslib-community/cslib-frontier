@@ -98,10 +98,9 @@ private theorem stage2_rebScan16_facts {c U V w n_max base : ℕ}
   have h2tl := (large_index_bounds hth).2.2.1
   have h4096 : 4096 ≤ (slabScale n_max) ^ 12 :=
     Nat.pow_le_pow_left (two_le_slabScale n_max) 12
-  have hcur16 : fs.rebScanCursor + 16 ≤ n_max := by
-    rcases hcur_r with ⟨h0, _⟩ | ⟨_, hle, _⟩ <;> omega
-  have hins16 : fs.rebInsCount + 16 ≤ 8 * (slabScale n_max) ^ 12 := by
-    rcases hcur_r with ⟨_, hi0⟩ | ⟨_, _, hins_le⟩ <;> omega
+  have ⟨hcur16, hins16⟩ :
+      fs.rebScanCursor + 16 ≤ n_max ∧ fs.rebInsCount + 16 ≤ 8 * (slabScale n_max) ^ 12 := by
+    rcases hcur_r with ⟨h0, hi0⟩ | ⟨_, hle, hins_le⟩ <;> constructor <;> omega
   have hrIdx : fs.rebSliceIdx (fs.dirtyBuckets fs.dirtyIdx) < 3 * numBucketsWhp n_max :=
     rebSliceIdx_lt_of_core hcore hb
   have hpres := rebScanSteps_preserved θ (fs.dirtyBuckets fs.dirtyIdx) 16 fs
@@ -111,32 +110,26 @@ private theorem stage2_rebScan16_facts {c U V w n_max base : ℕ}
     simpa only [FastState.rebSliceIdx, FastState.rebRole, hpres.liveRole, hpres.overmarsRole]
       using hrIdx
   have h8L_lt := (large_bounds_lt_n_max hth).2.2.2.1
-  have hcandS_lt : fsScan.rebCandSalt < sMaxWhp c n_max := hpres.rebCandSalt ▸ hcs_lt
   have hinsS_le : fsScan.rebInsCount ≤ n_max := by have := hpres.rebInsCount_le; omega
   have hrv := hcore.roles_valid b hb
-  have hnxtS : fsScan.dirtyIdx + 1 < fsScan.dirtyCount →
-      fsScan.dirtyBuckets (fsScan.dirtyIdx + 1) < numBucketsWhp n_max ∧
-      ({ fsScan with liveRole := Function.update fsScan.liveRole b (fsScan.rebRole b) } :
-        FastState).rebSliceIdx (fsScan.dirtyBuckets (fsScan.dirtyIdx + 1)) <
-        3 * numBucketsWhp n_max := by
-    intro hlt_n
-    rw [hpres.dirtyIdx, hpres.dirtyCount] at hlt_n
-    have hbN : fs.dirtyBuckets (fs.dirtyIdx + 1) < numBucketsWhp n_max := hd3 _ hlt_n
-    rw [hpres.dirtyBuckets, hpres.dirtyIdx]
-    refine ⟨hbN, ?_⟩
-    dsimp only [FastState.rebSliceIdx, FastState.rebRole]
-    rw [hpres.liveRole, hpres.overmarsRole]
-    by_cases hbb : fs.dirtyBuckets (fs.dirtyIdx + 1) = b
-    · rw [hbb, Function.update_self]
-      have := hrv.1; have := hrv.2.1; have := hrv.2.2; omega
-    · rw [Function.update_of_ne hbb]
-      exact rebSliceIdx_lt_of_core hcore hbN
-  exact ⟨hb, hrIdx, hcnt_le, fun p => (hcore.qv_global p).1,
+  refine ⟨hb, hrIdx, hcnt_le, fun p => (hcore.qv_global p).1,
     fun idx hidx => (hcore.backPtr_valid b hb idx hidx).1, fun _ => ⟨hcur16, hins16, rm0, hvr0⟩,
     ⟨hpres.liveRole ▸ hrv.1, hpres.overmarsRole ▸ hrv.2.1,
       by rw [hpres.liveRole, hpres.overmarsRole]; exact hrv.2.2⟩,
-    hrIdxS, hcandS_lt, hinsS_le,
-    by simpa only [fsScan, b, hpres.dirtyIdx, hpres.dirtyCount] using hdi_lt, hnxtS⟩
+    hrIdxS, hpres.rebCandSalt ▸ hcs_lt, hinsS_le,
+    by simpa only [fsScan, b, hpres.dirtyIdx, hpres.dirtyCount] using hdi_lt, fun hlt_n => ?_⟩
+  rw [hpres.dirtyIdx, hpres.dirtyCount] at hlt_n
+  have hbN : fs.dirtyBuckets (fs.dirtyIdx + 1) < numBucketsWhp n_max := hd3 _ hlt_n
+  rw [hpres.dirtyBuckets, hpres.dirtyIdx]
+  refine ⟨hbN, ?_⟩
+  dsimp only [FastState.rebSliceIdx, FastState.rebRole]
+  rw [hpres.liveRole, hpres.overmarsRole]
+  by_cases hbb : fs.dirtyBuckets (fs.dirtyIdx + 1) = b
+  · rw [hbb, Function.update_self]
+    obtain ⟨h1, h2, h3⟩ := hrv
+    omega
+  · rw [Function.update_of_ne hbb]
+    exact rebSliceIdx_lt_of_core hcore hbN
 
 /-- `Realizes .exact` certificate for `epochTickStage2GenProg`. -/
 theorem realizes_epochTickStage2Gen :
@@ -239,14 +232,11 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
       (hmc : memoryCost m s = cm) (hvp : ValidProg w (base + largeSpaceWhp c U V w n_max) s m)
       (hk : ok (acc + cm) (k v) fs') : ok acc (m >>= k) fs' := by
     refine ⟨?_, validProg_bind hvp (by simpa only [hst, hres] using hk.2.1), ?_⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres, hmc]
-      have := hk.1
-      omega
+    · have := hk.1
+      simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres, hmc]; omega
     · rw [clientState_bind, hst, hres]
       exact hk.2.2
-  unfold epochTickStage2GenProg epochTickStage2
-  dsimp only
-  simp only [hwp1, pure_bind, hsmax_cp]
+  simp only [epochTickStage2GenProg, epochTickStage2, hwp1, pure_bind, hsmax_cp]
   rw [← Nat.zero_add (memoryCost _ s)]
   apply step_read hdi_st (hdi_res.trans hh.dirtyIdx) hdi_mc hdi_vp
   apply step_read hdc_st (hdc_res.trans hh.dirtyCount) hdc_mc hdc_vp
@@ -274,8 +264,7 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
           hscan_step.2.1 hscan_step.2.2.1 (s := sScan)
       refine ⟨?_, validProg_bind hscan_vp hps_vp, ?_⟩
       · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        dsimp only [sScan, cp, b] at hscan_mc hps_mc ⊢
-        omega
+        dsimp only [sScan, cp, b] at hscan_mc hps_mc ⊢; omega
       · rw [clientState_bind]
         exact hscan_step.trans hps_step
     · simp only [ite_eq_right hcs_lt]

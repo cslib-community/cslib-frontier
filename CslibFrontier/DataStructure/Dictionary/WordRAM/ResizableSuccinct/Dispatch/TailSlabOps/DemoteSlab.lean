@@ -243,7 +243,7 @@ private theorem compDemoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
       gmPopSlabGenProg_mk, demoteLoopProg]
     rw [StateTransitionSpec.clientState_bind]
   have hf_fields := gmPopSlab_preserves_tail hloopK.b_lt hslab1
-  refine ⟨by rw [hs'_eq]; exact hfr_loop.trans (CompOpFrame.of_gmFrame hfr_pop), ?_, ?_⟩
+  refine ⟨hs'_eq ▸ hfr_loop.trans (CompOpFrame.of_gmFrame hfr_pop), ?_, ?_⟩
   · rw [hs'_eq, hs_fix'_eq]
     unfold FixedCoupled
     have hgm0' : compGmAt metaBase U w N s_pop.mem 0 =
@@ -267,16 +267,9 @@ private theorem compDemoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
       exact hcpl_loop.quot_eq idx (htot_eq' ▸ hidx)
     · rw [htot_eq', congrFun hfr_pop.val_eq idx, hgm0', hfr_pop.dt_eq, hv_fpop]
       exact hcpl_loop.val_eq idx (htot_eq' ▸ hidx)
-  · dsimp only [d, compDemoteSlabGenProg]
-    simp only [pure_bind, cpSlabSize_mk, Realization.memoryCost_bind']
-    change memoryCost (iterate compDemoteStepGenProg
-        ((mkCompParams U V w N, (metaBase, itemBase)), b) (slabSize N) 0) s +
-      memoryCost (compGmPopSlabGenProg ((mkCompParams U V w N, metaBase), b)) s₁ ≤
-      58 * slabSize N + 68
-    rw [hcost_loop]
-    have hpop_cost := memoryCost_compGmPopSlabGenProg_le
-      ((mkCompParams U V w N, metaBase), b) s₁
-    omega
+  · simp only [d, compDemoteSlabGenProg, compDemoteLoopGenProg, pure_bind, cpSlabSize_mk,
+      Realization.memoryCost_bind', hcost_loop]
+    exact Nat.add_le_add_left (memoryCost_compGmPopSlabGenProg_le _ _) _
 
 private theorem realizesBounded_compDemoteSlabGen :
     RealizesBounded .exact compDemoteSlabGenProg
@@ -306,12 +299,9 @@ private theorem validProg_compDemoteSlabGen {w : ℕ} {d : (CompParams × (ℕ �
   obtain ⟨U, V, N, m_cap, s_fix, rfl, henv, hb_pos, hpre, hcpl, hm_cap⟩ := h
   obtain ⟨hfr_loop, hcpl_loop, hloopK, _, hsafe_loop⟩ :=
     compDemoteSlab_loop_step henv hb_pos hpre hcpl hm_cap
-  dsimp only [compDemoteSlabGenProg]
-  simp only [pure_bind, cpSlabSize_mk]
+  simp only [compDemoteSlabGenProg, compDemoteLoopGenProg, pure_bind, cpSlabSize_mk]
   refine validProg_bind
-    (validProg_iterate (slabSize N) 0 s (fun _ _ hs => validProg_compDemoteStep hs) hsafe_loop)
-    ?_
-  dsimp only [compDemoteLoopGenProg]
+    (validProg_iterate (slabSize N) 0 s (fun _ _ hs => validProg_compDemoteStep hs) hsafe_loop) ?_
   exact validProg_compGmPopSlabGen ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U,
     henv.le_pow_V, rfl, henv.meta_le_frontier.trans_eq hfr_loop.frontier_eq.symm, hb_pos,
     hloopK.b_lt, slabBijection_of_gm_eq hcpl_loop.gm_eq hloopK.slab_bij,

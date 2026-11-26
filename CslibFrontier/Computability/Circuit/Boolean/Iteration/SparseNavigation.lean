@@ -84,26 +84,23 @@ private theorem cycleLabelDistance_toNat (f : BitVec n → BitVec n) (hf : Funct
     chart_ofNat_toNat ((phase_lt f z).le.trans (cycleLength_le_words f z))
   have he : (BitVec.ofNat (chartWidth n) (cycleLength f x)).toNat = cycleLength f x :=
     chart_ofNat_toNat (cycleLength_le_words f x)
-  have hdepth : transientDepth f x = 0 :=
-    transientDepth_eq_zero_of_mem_periodicPts f (hf.mem_periodicPts x)
   simp only [cycleLabelDistance, wordCycleLabel, labelPhase_labelBits, labelLength_labelBits]
   rw [toNat_subtractResidues _ _ _ (by rw [hp, he, ← hl]; exact phase_lt f y)
     (by rw [hp, he]; exact phase_lt f x), hp, hp, he]
-  simp only [cyclicDistance, hdepth, Nat.add_zero]
+  simp only [cyclicDistance, transientDepth_eq_zero_of_mem_periodicPts f (hf.mem_periodicPts x),
+    Nat.add_zero]
 
 private theorem cycleLabelVisits_first (f : BitVec n → BitVec n) (hf : Function.Injective f)
     (x y : BitVec n) (hr : ∃ t, f^[t] x = y) :
     let d := (visitScheduleFirst (cycleLabelVisits (wordCycleLabel f x) (wordCycleLabel f y))).toNat
     f^[d] x = y ∧ (∀ j < d, f^[j] x ≠ y) ∧ d < 2 ^ n := by
   have hc := (exists_iterate_eq_iff_canonicalCycle_eq f x y (hf.mem_periodicPts y)).mp hr
-  have hdepth : transientDepth f x = 0 :=
-    transientDepth_eq_zero_of_mem_periodicPts f (hf.mem_periodicPts x)
   have hd : cyclicDistance f x y < 2 ^ n :=
     (Nat.mod_lt _ (cycleLength_pos f x)).trans_le (cycleLength_le_words f x)
   have hwide : cyclicDistance f x y < 2 ^ (n + 1) :=
     hd.trans_le (Nat.pow_le_pow_right (by decide) (by lia))
   have hfirst := cyclic_first_hit f x y (hf.mem_periodicPts y) hc
-  rw [hdepth, Nat.zero_add] at hfirst
+  rw [transientDepth_eq_zero_of_mem_periodicPts f (hf.mem_periodicPts x), Nat.zero_add] at hfirst
   simp only [visitScheduleFirst, cycleLabelVisits, Fin.append_left, Fin.append_right,
     BitString.equivBitVec_getLsbD, BitVec.toNat_setWidth, cycleLabelDistance_toNat f hf x y hc,
     Nat.mod_eq_of_lt hwide]
@@ -233,8 +230,7 @@ theorem sparse_counter_visit_schedule (f : Equiv.Perm (BitVec n)) :
           BitString.equivBitVec (inputRight z) ↔
         visitScheduleContains (out.eval Boolean.interpretation z) t :=
     ho z ▸ cycleLabelVisits_spec f f.injective _ _ t
-  refine ⟨out, hspec, fun z T => ?_, hs⟩
-  simpa only [hspec z] using visitScheduleCount_spec (out.eval Boolean.interpretation z) T
+  exact ⟨out, hspec, fun z T => by simpa only [hspec z] using visitScheduleCount_spec _ T, hs⟩
 
 /-- The existence flag and first hitting time have the same sparse circuit bound. -/
 theorem sparse_counter_hitting_time (f : Equiv.Perm (BitVec n)) :
@@ -261,8 +257,8 @@ theorem sparse_counter_hitting_time (f : Equiv.Perm (BitVec n)) :
   obtain ⟨out, ho, hsize⟩ := (hfull.mono Set.Subset.rfl hout le_rfl).exists_circuit_outputs
   have hnav (z : BitString (n + n)) : out.eval Boolean.interpretation z =
       fun i => cycleLabelVisits (wordCycleLabel f (BitString.equivBitVec (inputLeft z)))
-        (wordCycleLabel f (BitString.equivBitVec (inputRight z))) (Fin.castAdd (n + 1) i) := by
-    simp only [ho z, output, hf z]
+        (wordCycleLabel f (BitString.equivBitVec (inputRight z))) (Fin.castAdd (n + 1) i) :=
+    funext fun i => by simp only [ho z, output, hf z]
   refine ⟨out, fun z => hnav z ▸ cycleLabelVisits_flag f f.injective _ _, fun z hz => ?_,
     hsize.trans hs⟩
   rw [hnav z] at hz ⊢

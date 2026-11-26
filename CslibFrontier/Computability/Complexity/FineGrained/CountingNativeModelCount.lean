@@ -95,8 +95,7 @@ public theorem exists_counter_of_polyTime_toDeclared {α : Type} {encA : α ↪ 
     have h2 := Nat.pow_le_pow_right hY1 (show dg ≤ E by omega)
     have h3 := (Nat.le_succ (encA x).length).trans
       (Nat.le_self_pow (by omega : E ≠ 0) ((encA x).length + 1))
-    dsimp only [P]
-    omega
+    dsimp only [P]; omega
   refine ⟨fun x => if valid x then count₀ (g' x) else 0, T, S, A,
     3 + c₀ * (p + 1) ^ e₀, dv + dg + 1 + q * e₀,
     3 + a₀ * (p + 1) ^ b₀, dv + dg + 1 + q * b₀,
@@ -117,18 +116,15 @@ public theorem exists_counter_of_polyTime_toDeclared {α : Type} {encA : α ↪ 
     have hQ : (1 : ℝ) ≤ ((p : ℝ) + 1) ^ e₀ := one_le_pow₀ (by linarith [p.cast_nonneg (α := ℝ)])
     have hZ : (0 : ℝ) ≤ (((encA x).length : ℝ) + 1) ^ (dv + dg + 1 + q * e₀) := by positivity
     have hc₀ : (0 : ℝ) ≤ c₀ := Nat.cast_nonneg c₀
-    change ((P x + T₀ (g' x) : ℕ) : ℝ) ≤ _
-    push_cast
+    push_cast [T]
     nlinarith [hT₀ (g' x), mul_le_mul_of_nonneg_left hW (mul_nonneg hc₀ (zero_le_one.trans hX1)),
       mul_le_mul_of_nonneg_right hX1 hZ, mul_le_mul_of_nonneg_left hQ hc₀]
   · have hY1 : 1 ≤ (encA x).length + 1 := Nat.le_add_left 1 _
     have hS₀x := (hS₀ (g' x)).trans (Nat.mul_le_mul_left a₀ ((hpow x b₀).trans
       (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hY1 (Nat.le_add_left _ (dv + dg + 1))))))
     have hP_B := hP_le x (dv + dg + 1 + q * b₀) (Nat.le_add_right _ _)
-    change P x + S₀ (g' x) ≤
-      (3 + a₀ * (p + 1) ^ b₀) * ((encA x).length + 1) ^ (dv + dg + 1 + q * b₀)
-    rw [Nat.add_mul, Nat.mul_assoc]
-    omega
+    dsimp only [S]
+    rw [Nat.add_mul, Nat.mul_assoc]; omega
 
 /-- Dense relabeling followed by declaring the number of variables. -/
 private theorem computableInPolyTime_declareDense :
@@ -187,11 +183,9 @@ public theorem exists_modelCounter (k : ℕ) :
     generalize a * (p + 1) ^ b = v
     nlinarith [Nat.zero_le (c * Z), Nat.zero_le (v * Z), Nat.zero_le (u * Z)]
   · -- space
-    have hSg : S (g φ) ≤ a * (p + 1) ^ b * Y ^ (q * b + d) :=
-      (hS (g φ)).trans (by
-        rw [mul_assoc]
-        exact Nat.mul_le_mul_left a ((hpow b).trans (Nat.mul_le_mul_left _
-          (Nat.pow_le_pow_right hY1 (by omega)))))
+    have hSg : S (g φ) ≤ a * (p + 1) ^ b * Y ^ (q * b + d) := (hS (g φ)).trans <|
+      mul_assoc a _ _ ▸ Nat.mul_le_mul_left a ((hpow b).trans
+        (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hY1 (by omega))))
     have hd' : Y ^ d ≤ Y ^ (q * b + d) := Nat.pow_le_pow_right hY1 (by omega)
     change Y ^ d + S (g φ) ≤ _ * (Y ^ (q * b + d) + 1)
     generalize Y ^ (q * b + d) = Z at hSg hd' ⊢

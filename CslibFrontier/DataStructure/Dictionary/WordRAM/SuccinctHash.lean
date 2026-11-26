@@ -158,9 +158,8 @@ theorem initSteps_le (U n_max : ℕ) :
 
 /-- Multiplicative form of `initSteps_le`: `initSteps U n_max ≤ 1091 * (n_max + 1)`. -/
 theorem initSteps_le_mul (U n_max : ℕ) :
-    initSteps U n_max ≤ 1091 * (n_max + 1) := by
-  have h := initSteps_le U n_max
-  omega
+    initSteps U n_max ≤ 1091 * (n_max + 1) :=
+  (initSteps_le U n_max).trans (by omega)
 
 theorem eight_le_hashSpace (U w n_max : ℕ) : 8 ≤ hashSpace U w n_max := by
   unfold hashSpace ReducedKWise.space ReducedKWise.seedWords ReducedKWise.tableWords
@@ -195,8 +194,8 @@ theorem two_mul_reducedChunkBits_hash_lt {U V w n_max base : ℕ}
     (hnU : n_max ≤ U) (hU : U ≤ 2 ^ w)
     (hfit : Fits w (base + space U V w n_max)) :
     2 * reducedChunkBits
-      (reducedTrinomialStep (qBits U n_max) (hashB n_max) (totalMicroBits n_max)) < w := by
-  exact ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space
+      (reducedTrinomialStep (qBits U n_max) (hashB n_max) (totalMicroBits n_max)) < w :=
+  ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space
     (two_mul_reducedChunkBits_hash_le (two_le_w_of_fits_space hfit) hnU hU)
     (show Fits w (base + hashSpace U w n_max) from hfit.of_le (by wram_omega))
 
@@ -214,12 +213,9 @@ theorem tableWords_hash_le {U w n_max : ℕ} (hw : 0 < w) (hnU : n_max ≤ U) (h
     have hdiv1 : 2 * max 8 (2 ^ (hashB n_max / 2)) / w ≤ (16 + 2 * n_max) / w := by gcongr; omega
     have hdiv2 : (16 + 2 * n_max) / w < 9 + (2 * n_max + w - 1) / w := by
       refine Nat.div_lt_of_lt_mul ?_
-      have h2 := Nat.div_add_mod (2 * n_max + w - 1) w
-      have hm2 : (2 * n_max + w - 1) % w < w := Nat.mod_lt _ hw
-      have h16 : 16 ≤ w * 8 := by omega
-      have hmul : w * (9 + (2 * n_max + w - 1) / w) =
-          w * 8 + (w * ((2 * n_max + w - 1) / w) + w) := by ring
-      omega
+      have := Nat.div_add_mod (2 * n_max + w - 1) w
+      have := Nat.mod_lt (2 * n_max + w - 1) hw
+      rw [mul_add]; omega
     simp only [packedWords, Nat.mul_one]
     omega
   · obtain rfl : w = 1 := by omega
@@ -237,16 +233,14 @@ theorem tableWords_hash_le {U w n_max : ℕ} (hw : 0 < w) (hnU : n_max ≤ U) (h
         reducedTrinomialStep (qBits U n_max) (hashB n_max) (totalMicroBits n_max) = 0 := by
       unfold reducedTrinomialStep trinomialStepAux reducedTargetBits
       rw [hq1, ite_eq_left (by omega)]
-    have htw4 :
-        ReducedKWise.tableWords 1 (qBits U n_max) (hashB n_max) (totalMicroBits n_max) ≤ 4 := by
-      rw [ReducedKWise.tableWords, reducedTableWords, ht0]; decide
-    omega
+    have htw4 : reducedTableWords 0 1 ≤ 4 := by decide
+    rw [ReducedKWise.tableWords, ht0]; omega
 
 theorem hashSpace_le {U w n_max : ℕ} (hw : 0 < w) (hnU : n_max ≤ U) (hU : U ≤ 2 ^ w) :
     hashSpace U w n_max ≤ 175 + packedWords (2 * n_max) 1 w := by
   unfold hashSpace ReducedKWise.space
-  have hs := ReducedKWise.seedWords_le (qBits U n_max) (hashB n_max) (totalMicroBits n_max) 3
-  have ht := tableWords_hash_le hw hnU hU
+  have := ReducedKWise.seedWords_le (qBits U n_max) (hashB n_max) (totalMicroBits n_max) 3
+  have := tableWords_hash_le hw hnU hU
   omega
 
 /-- **Succinct word-space bound (`space_le_succinctWords`):**
@@ -261,16 +255,13 @@ theorem space_le_succinctWords {U V w n_max : ℕ}
   have h12345 := div_add_packedWords_le
     (Dynamic.optBits U V n_max + 79 * n_max * Dynamic.logLogFactor n_max) 35
     (2 * n_max) 1 w
-  have hll := Dynamic.one_le_logLogFactor n_max
-  have h2n : 2 * n_max * 1 ≤ 2 * n_max * Dynamic.logLogFactor n_max := by gcongr
+  have h2n : 2 * n_max ≤ 2 * n_max * Dynamic.logLogFactor n_max :=
+    Nat.le_mul_of_pos_right _ (Dynamic.one_le_logLogFactor n_max)
   have hdiv :
       (Dynamic.optBits U V n_max + 79 * n_max * Dynamic.logLogFactor n_max +
         (2 * n_max) * 1 + w - 1) / w ≤
-      (Dynamic.optBits U V n_max + 81 * n_max * Dynamic.logLogFactor n_max + w - 1) / w := by
-    refine Nat.div_le_div_right ?_
-    have : 81 * n_max * Dynamic.logLogFactor n_max =
-        79 * n_max * Dynamic.logLogFactor n_max + 2 * n_max * Dynamic.logLogFactor n_max := by ring
-    omega
+      (Dynamic.optBits U V n_max + 81 * n_max * Dynamic.logLogFactor n_max + w - 1) / w :=
+    Nat.div_le_div_right (Nat.sub_le_sub_right (by linarith) 1)
   wram_omega [htab]
 
 /-! ## Section 2: Expected `probeExcess` bound (`≤ 5`) under `ReducedPolySeed` -/
@@ -620,8 +611,7 @@ theorem realizes_extractQuotGen :
 /-- Helper lemma: `(h_q &&& (2 ^ b - 1)) ^^^ (u &&& (2 ^ b - 1)) = (h_q % 2 ^ b) ^^^ keyLow b u`. -/
 theorem and_mask_xor_eq_feistelBucket (b u h_q : ℕ) :
     (h_q &&& (2 ^ b - 1)) ^^^ (u &&& (2 ^ b - 1)) = (h_q % 2 ^ b) ^^^ keyLow b u := by
-  rw [Nat.and_two_pow_sub_one_eq_mod, Nat.and_two_pow_sub_one_eq_mod]
-  rfl
+  simp only [Nat.and_two_pow_sub_one_eq_mod, keyLow]
 
 /-- Helper lemma: `Fits w (bucketBits n_max)` and `Fits w (2 ^ bucketBits n_max - 1)` from
 `DictEnvGen`. -/
@@ -1033,8 +1023,7 @@ theorem queryWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
   refine ⟨hpre, hspec.1,
     hspec.2.2.trans (bucketMapOfState_feistelBucket hwf.2.1 h1 s_abs u), ?_⟩
   have hcost := hspec.2.1
-  dsimp only [b, q, m, h1] at hcost hprobe ⊢
-  omega
+  dsimp only [b, q, m, h1] at hcost hprobe ⊢; omega
 
 /-- Dictionary-level specification of `insertWithHashProg`: establishes `InsertWithHashPre`,
 preserves `DictStateInv` for `Function.update s_abs u (some v)`, preserves memory outside the
@@ -1094,8 +1083,7 @@ theorem insertWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
     split_ifs with his
     · exact (Dictionary.card_dom_insert_eq_of_isSome his v).symm
     · exact (Dictionary.card_dom_insert_eq_of_eq_none (Option.not_isSome_iff_eq_none.mp his) v).symm
-  · dsimp only [b, q, m, h1, gm₀] at hcost hprobe ⊢
-    omega
+  · dsimp only [b, q, m, h1, gm₀] at hcost hprobe ⊢; omega
 
 /-- Dictionary-level specification of the two-phase `delete` (`deletePrepWithHashProg` followed by
 `deleteFinishWithHashProg`): establishes both preconditions, preserves `DictStateInv` for
@@ -1161,11 +1149,10 @@ theorem deleteWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
     rw [hb_eq, hm_eq]; rfl
   obtain ⟨hpre_fin_inner, hf, hout, ⟨L', hinv'⟩, htot', hcost_fin⟩ := hfin_spec
   rw [bucketMapOfState_update hwf.2.1 h1 s_abs u none] at hinv'
-  have hpre_fin : DeleteFinishWithHashPre U V w₀ n_max w d_fin s := by
-    refine ⟨hwf, hValOfSeed_lt U n_max θ q, hValOfSeed_lt U n_max θ q_last, ?_⟩
-    dsimp only [d_fin]
-    rw [hb_eq, hm_eq]
-    exact hpre_fin_inner
+  have hpre_fin : DeleteFinishWithHashPre U V w₀ n_max w d_fin s :=
+    ⟨hwf, hValOfSeed_lt U n_max θ q, hValOfSeed_lt U n_max θ q_last, by
+      dsimp only [d_fin]
+      rwa [hb_eq, hm_eq]⟩
   have hB_eq : bucketMapOfState U n_max h1 s_abs b q = s_abs u :=
     bucketMapOfState_feistelBucket hwf.2.1 h1 s_abs u
   have hprobe := (chain_and_overflow_le_probeExcess θ hb_inv u).2.2
@@ -1178,8 +1165,7 @@ theorem deleteWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
     split_ifs with his
     · exact (Dynamic.card_dom_delete_eq_of_isSome his).symm
     · exact (Dynamic.card_dom_delete_eq_of_eq_none (Option.not_isSome_iff_eq_none.mp his)).symm
-  · dsimp only [b, q, m, h1, gm₀] at hcost_prep hcost_fin hprobe ⊢
-    omega
+  · dsimp only [b, q, m, h1, gm₀] at hcost_prep hcost_fin hprobe ⊢; omega
 
 end
 

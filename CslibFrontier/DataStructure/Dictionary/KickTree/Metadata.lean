@@ -239,16 +239,16 @@ private theorem rank0_eq_filter_positions_length {B : ℕ} (w : Fin (2 ^ B)) (id
 /-- Rank-select inversion: if `select1 B w k = some idx`, the rank of `idx` is `k`. -/
 theorem rank1_select1 (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) (idx : Fin B)
     (h : select1 B w k = some idx) :
-    rank1 B w ⟨idx.val, Nat.lt_succ_of_lt idx.isLt⟩ = k := by
-  rw [rank1, rank1_eq_filter_positions_length w idx]
-  exact filter_lt_of_getElem (BitString.pairwise_positions _) h
+    rank1 B w ⟨idx.val, Nat.lt_succ_of_lt idx.isLt⟩ = k :=
+  (rank1_eq_filter_positions_length w idx).trans
+    (filter_lt_of_getElem (BitString.pairwise_positions _) h)
 
 /-- Rank-select inversion: if `select0 B w k = some idx`, the 0-rank of `idx` is `k`. -/
 theorem rank0_select0 (B : ℕ) (w : Fin (2 ^ B)) (k : ℕ) (idx : Fin B)
     (h : select0 B w k = some idx) :
-    rank0 B w ⟨idx.val, Nat.lt_succ_of_lt idx.isLt⟩ = k := by
-  rw [rank0, rank0_eq_filter_positions_length w idx]
-  exact filter_lt_of_getElem (BitString.pairwise_positions _) h
+    rank0 B w ⟨idx.val, Nat.lt_succ_of_lt idx.isLt⟩ = k :=
+  (rank0_eq_filter_positions_length w idx).trans
+    (filter_lt_of_getElem (BitString.pairwise_positions _) h)
 
 /-- Population count matches the length of the set-bit positions list. -/
 theorem popcount_eq_length_positions (B : ℕ) (w : Fin (2 ^ B)) :
@@ -319,17 +319,15 @@ variable {α : Type*} {K : ℕ}
 
 @[simp] theorem read_write_same (A : MiniArray α K) (i : Fin K) (val : α) :
     (A.write i val).read i = val := by
-  simp [read, write]
+  exact Function.update_self i val A.data
 
 theorem read_write_of_ne (A : MiniArray α K) {i j : Fin K} (h : j ≠ i) (val : α) :
     (A.write i val).read j = A.read j := by
-  simp [read, write, Function.update_of_ne h]
+  exact Function.update_of_ne h val A.data
 
 private theorem sum_ofFn_add_one (f : Fin K → ℕ) :
     (List.ofFn (fun i => f i + 1)).sum = (List.ofFn f).sum + K := by
-  simp only [List.sum_ofFn, Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ,
-    Fintype.card_fin, nsmul_eq_mul, mul_one]
-  rfl
+  simp [List.sum_ofFn, Finset.sum_add_distrib]
 
 @[simp] theorem write_write_same (A : MiniArray α K) (i : Fin K) (v₁ v₂ : α) :
     (A.write i v₂).write i v₁ = A.write i v₁ := by
@@ -370,10 +368,9 @@ private lemma filter_id_replicate_false_concat_true (s : ℕ) :
 /-- Delimiter count: the total number of delimiter 1-bits across all `K` items is exactly `K`. -/
 theorem delimiters_count_delimiters (A : MiniArray α K) (sizeOf : α → ℕ) :
     ((A.delimiters sizeOf).filter id).length = K := by
-  dsimp only [delimiters]
-  simp only [List.filter_flatten, List.length_flatten, List.map_ofFn,
-    Function.comp_def, filter_id_replicate_false_concat_true]
-  simp
+  simp only [delimiters, List.filter_flatten, List.map_ofFn, Function.comp_def,
+    filter_id_replicate_false_concat_true, List.ofFn_const, List.flatten_replicate_singleton,
+    List.length_replicate]
 
 end MiniArray
 
@@ -523,8 +520,8 @@ theorem query_insert_two_distinct (v1 v2 : α) (p : List Bool) (b1 b2 : Bool) (h
     (s1 s2 : List Bool) (t1 t2 : PrefixTrie α)
     (hins1 : insert? v1 .empty (p ++ (b1 :: s1)) = some t1)
     (hins2 : insert? v2 t1 (p ++ (b2 :: s2)) = some t2) :
-    query t2 (p ++ (b1 :: s1)) = some v1 ∧ query t2 (p ++ (b2 :: s2)) = some v2 := by
-  exact ⟨(query_insert_of_diverge v2 p b2 b1 hb.symm s2 s1 t1 t2 hins2).trans
+    query t2 (p ++ (b1 :: s1)) = some v1 ∧ query t2 (p ++ (b2 :: s2)) = some v2 :=
+  ⟨(query_insert_of_diverge v2 p b2 b1 hb.symm s2 s1 t1 t2 hins2).trans
       (query_insert_same v1 .empty t1 _ hins1),
     query_insert_same v2 t1 t2 _ hins2⟩
 
@@ -713,12 +710,11 @@ theorem freeSlot_preserves_valid {h : ℕ} (t : FreeSlotTree B h) (idx : ℕ) (h
 theorem isFree_lt : ∀ {h : ℕ} (t : FreeSlotTree B h) (i : ℕ),
     isFree t i = true → i < B ^ (h + 1)
   | 0, .leaf freeBits, i, hfree => by
-    dsimp [isFree] at hfree
+    simp only [isFree] at hfree
     split_ifs at hfree with hlt
-    · simpa using hlt
+    simpa using hlt
   | h + 1, .node _ _ children, i, hfree => by
-    rw [isFree] at hfree
-    dsimp only at hfree
+    simp only [isFree] at hfree
     split_ifs at hfree with hstride hc
     rw [pow_succ']
     exact (Nat.div_lt_iff_lt_mul (Nat.pos_of_ne_zero hstride)).mp hc
@@ -730,14 +726,13 @@ private theorem isFree_node_mul_add {h : ℕ} (summary : Fin B → Bool)
   have hdiv : (c.val * B ^ (h + 1) + off) / B ^ (h + 1) = c.val := by
     rw [Nat.add_comm, Nat.add_mul_div_right _ _ (by omega), Nat.div_eq_of_lt hoff, Nat.zero_add]
   have hmod : (c.val * B ^ (h + 1) + off) % B ^ (h + 1) = off := by
-    rw [Nat.add_comm, Nat.add_mul_mod_self_right]
-    exact Nat.mod_eq_of_lt hoff
-  rw [isFree]
-  dsimp only
+    rw [Nat.add_comm, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hoff]
+  simp only [isFree]
   split_ifs with h0 hc'
   · omega
-  · rw [show (⟨_, hc'⟩ : Fin B) = c from Fin.ext hdiv, hmod]
-  · exact (hc' (by rw [hdiv]; exact c.isLt)).elim
+  · have hc_eq : (⟨_, hc'⟩ : Fin B) = c := Fin.ext hdiv
+    rw [hc_eq, hmod]
+  · exact (hc' (hdiv.symm ▸ c.isLt)).elim
 
 /-- Full-tree soundness of free-slot lookup: any slot index returned by `findFree?`
 is genuinely free. -/

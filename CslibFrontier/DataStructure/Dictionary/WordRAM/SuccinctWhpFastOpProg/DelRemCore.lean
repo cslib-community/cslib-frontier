@@ -131,9 +131,7 @@ theorem delRemBufGenProg_fastStep {c U V w n_max base st_del rKey_u : ℕ}
     memoryCost prog s ≤ 2 * cTabWhp c + 8 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ { fs with buf := buf1 } s s' := by
-  dsimp only
-  unfold delRemBufGenProg
-  simp only [pure_bind]
+  simp only [delRemBufGenProg, pure_bind]
   split_ifs with hs2 hs3
   · obtain ⟨m0, hv0⟩ := h2 hs2
     exact bufDeleteGenProg_fastStep henv (Or.inl rfl) hseed hrep hv0
@@ -240,9 +238,7 @@ theorem delRemLiveGenProg_fastStep {c U V w n_max base b st_del fp_live_u : ℕ}
     (inLiveTreeProg_spec (w := w) (F := base + largeSpaceWhp c U V w n_max)
       (rebStage := fs.rebStage) (oldEp := fs.oldEp) (rebDoneB := fs.rebDoneFlag b) (st := st_del)
       (s := s))
-  dsimp only
-  unfold delRemLiveGenProg
-  simp only [pure_bind]
+  simp only [delRemLiveGenProg, pure_bind]
   by_cases hin : inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del = true
   · rw [ite_eq_left hin] at hIL ⊢
     have h2 := CostBoundedStep.readBkt henv hb (by decide : 2 < 10) hrep (s := s)
@@ -371,7 +367,6 @@ private theorem readInLiveTagGenProg_spec {c U V w n_max base b st : ℕ}
     memoryCost prog s ≤ 5 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog := by
   obtain ⟨hS, hO, h8⟩ := inLiveTag_reads_step henv hce hb hrep (s := s)
-  dsimp only
   suffices h : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
       (readInLiveTagGenProg (((mkWhpCoreParams c U V w n_max, base), b), st)) s
       (if inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st then 1 else 0) 5 from
@@ -477,9 +472,7 @@ theorem delRemOmGenProg_fastStep {c U V w n_max base b loc_del st_del fp_live_u 
       (fs.overmarsActive b = 1 ∧ loc_del < fs.overmarsCursor b ∧
         inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del = true) := by
     cases inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del <;> simp
-  dsimp only
-  unfold delRemOmGenProg delRemOmDeleteProg
-  simp only [pure_bind]
+  simp only [delRemOmGenProg, delRemOmDeleteProg, pure_bind]
   by_cases hcond : fs.overmarsActive b = 1 ∧ loc_del < fs.overmarsCursor b ∧
       inLiveTree fs.rebStage fs.oldEp (fs.rebDoneFlag b) st_del = true
   · rw [ite_eq_left hcond]

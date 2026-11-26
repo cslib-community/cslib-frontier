@@ -128,13 +128,10 @@ theorem enoughSlices_prob_le_paste_prob_add_union [Fintype F] {β : Type*}
       obtain ⟨f, hf, he⟩ := hline b
       exact ⟨f, hf, fun i q hq => (he _).symm ▸ not_not.1 fun hne =>
         hmiss (Set.mem_iUnion₂.mpr ⟨i, mem_univ i, q, hq, hne⟩)⟩
-    have hpre (e : Set (ι → Option (BoundedPolynomial F m d))) :
-        ((law u).toOuterMeasure (Prod.fst ⁻¹' e)).toReal = (p.toOuterMeasure e).toReal := by
-      rw [← PMF.toOuterMeasure_map_apply, hmarg u]
     have h := (toOuterMeasure_toReal_mono (law u) hloc).trans
       (ENNReal.toReal_le_add (MeasureTheory.measure_union_le _ _)
         (toOuterMeasure_ne_top _ _) (toOuterMeasure_ne_top _ _))
-    rwa [hpre, hpre] at h
+    simpa only [← PMF.toOuterMeasure_map_apply, hmarg u] using h
   have hlocal : (𝔼 u, (p.toOuterMeasure (survives u)).toReal) ≤ (m * d : ℝ) / Fintype.card F := by
     simp_rw [toOuterMeasure_toReal_eq_sum_ite (p := p), Finset.expect_sum_comm,
       ← Finset.mul_expect]
@@ -142,15 +139,13 @@ theorem enoughSlices_prob_le_paste_prob_add_union [Fintype F] {β : Type*}
       _ ≤ ∑ g, (p g).toReal * ((m * d : ℝ) / Fintype.card F) := by
         refine sum_le_sum fun g _ => mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
         by_cases hg : g ∈ bad
-        · rw [Fintype.expect_eq_sum_div_card]
-          have hc : (∑ u : Fin m → F, if g ∈ survives u then (1 : ℝ) else 0) =
-              (#{u | LocallyInterpolable x g u} : ℝ) := by
-            simp [survives, hg]
-          have hF : (0 : ℝ) < Fintype.card F := by exact_mod_cast Fintype.card_pos
-          rw [hc, Fintype.card_fun, Fintype.card_fin, Nat.cast_pow,
+        · have hF : (0 : ℝ) < Fintype.card F := by exact_mod_cast Fintype.card_pos
+          rw [Fintype.expect_eq_sum_div_card, Fintype.card_fun, Fintype.card_fin, Nat.cast_pow,
             div_le_div_iff₀ (pow_pos hF m) hF]
+          simp only [survives, Set.mem_ofPred_eq, hg, true_and, sum_boole]
           exact_mod_cast card_locallyInterpolable_mul_card_le x g hg.1 hg.2
-        · simpa [survives, hg] using (by positivity : 0 ≤ (m * d : ℝ) / Fintype.card F)
+        · simp only [survives, Set.mem_ofPred_eq, hg, false_and, ↓reduceIte, Fintype.expect_const]
+          positivity
       _ = _ := by rw [← sum_mul, sum_toReal, one_mul]
   calc
     _ = 𝔼 _u : Fin m → F, (p.toOuterMeasure bad).toReal := (Fintype.expect_const _).symm

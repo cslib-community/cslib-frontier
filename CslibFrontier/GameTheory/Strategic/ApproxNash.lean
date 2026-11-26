@@ -170,10 +170,9 @@ private theorem sum_multiset_count_mul {α : Type*} [Fintype α] [DecidableEq α
     (m : Multiset α) (f : α → ℝ) :
     ∑ a : α, (m.count a : ℝ) * f a = (m.map f).sum := by
   rw [Finset.sum_multiset_map_count]
-  symm
-  refine (Finset.sum_subset (subset_univ _) fun a _ ha => ?_).trans
-    (sum_congr rfl fun a _ => nsmul_eq_mul _ _)
-  rw [Multiset.count_eq_zero.2 (mt Multiset.mem_toFinset.2 ha), zero_smul]
+  exact ((Finset.sum_subset (subset_univ _) fun a _ ha => by
+    rw [Multiset.count_eq_zero.2 (mt Multiset.mem_toFinset.2 ha), zero_smul]).trans
+    (sum_congr rfl fun a _ => nsmul_eq_mul _ _)).symm
 
 /-- For any nonempty multiset `m`, `uniformMultiset m` is a valid mixed strategy. -/
 theorem isMixedStrategy_uniformMultiset {α : Type*} [Fintype α] [DecidableEq α]
@@ -397,12 +396,10 @@ theorem lmmSampleSize_le (M N : Type*) [Fintype M] [Fintype N] [Nonempty M] [Non
     {ε : ℝ} (hε : 0 < ε) :
     (lmmSampleSize M N ε : ℝ) ≤
       2 * Real.log (2 * (Fintype.card M + Fintype.card N)) / ε ^ 2 + 1 := by
-  have hM : 1 ≤ Fintype.card M := Fintype.card_pos
-  have hN : 1 ≤ Fintype.card N := Fintype.card_pos
   have hlog : 0 ≤ Real.log (2 * (Fintype.card M + Fintype.card N)) :=
-    Real.log_nonneg (by exact_mod_cast (show 1 ≤ 2 * (Fintype.card M + Fintype.card N) by omega))
-  have hnn : 0 ≤ 2 * Real.log (2 * (Fintype.card M + Fintype.card N)) / ε ^ 2 :=
-    div_nonneg (by positivity) (by positivity)
+    Real.log_nonneg <| mod_cast Nat.one_le_of_lt <|
+      Nat.mul_pos zero_lt_two (add_pos (Fintype.card_pos (α := M)) (Fintype.card_pos (α := N)))
+  have hnn : 0 ≤ 2 * Real.log (2 * (Fintype.card M + Fintype.card N)) / ε ^ 2 := by positivity
   dsimp only [lmmSampleSize]
   push_cast
   linarith [Nat.floor_le hnn]
@@ -418,9 +415,7 @@ private theorem mixedToPMF_toReal {α : Type*} [Fintype α] {p : α → ℝ}
 
 private theorem mem_support_mixedToPMF_iff {α : Type*} [Fintype α] {p : α → ℝ}
     (hp : IsMixedStrategy p) (a : α) : a ∈ (mixedToPMF hp).support ↔ 0 < p a := by
-  rw [PMF.mem_support_iff]
-  change ENNReal.ofReal (p a) ≠ 0 ↔ 0 < p a
-  simp only [ne_eq, ENNReal.ofReal_eq_zero, not_le]
+  simp [mixedToPMF]
 
 /-- Probabilistic empirical-sampling lemma: for a mixed strategy `p` on `β`, a `[0, 1]`-valued
 family of functions `g : α → β → ℝ` indexed by finite `α`, `δ > 0`, and `k : ℕ` with
@@ -596,15 +591,14 @@ theorem exists_uniformMultiset_isApproxNash_of_nonneg [DecidableEq M] [Decidable
         simpa only [Matrix.smul_apply, smul_eq_mul, inv_mul_cancel₀ hK0] using
           mul_le_mul_of_nonneg_left (hC i j).2 (inv_nonneg.2 hK_pos.le)⟩
   have hG' : (⟨K • G'.A, K • G'.B⟩ : BimatrixGame M N) = G := by
-    cases G with
-    | mk A B =>
-      dsimp only [G']
-      split_ifs with hK0
-      · subst hK0
-        simp only [zero_smul]
-        congr 1 <;> ext i j
-        exacts [(le_antisymm (hA i j).2 (hA i j).1).symm, (le_antisymm (hB i j).2 (hB i j).1).symm]
-      · simp only [smul_smul, mul_inv_cancel₀ hK0, one_smul]
+    rcases G with ⟨A, B⟩
+    dsimp only [G']
+    split_ifs with hK0
+    · subst hK0
+      simp only [zero_smul]
+      congr 1 <;> ext i j
+      exacts [(le_antisymm (hA i j).2 (hA i j).1).symm, (le_antisymm (hB i j).2 (hB i j).1).symm]
+    · simp only [smul_smul, mul_inv_cancel₀ hK0, one_smul]
   obtain ⟨m₁, m₂, hm₁, hm₂, happrox⟩ :=
     G'.exists_uniformMultiset_isApproxNash (hscale G.A hA) (hscale G.B hB) hε
   exact ⟨m₁, m₂, hm₁, hm₂, mul_comm K ε ▸ hG' ▸ happrox.smul hK⟩

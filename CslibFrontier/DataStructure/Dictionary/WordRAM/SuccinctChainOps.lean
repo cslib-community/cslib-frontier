@@ -91,8 +91,8 @@ theorem allChainsValid_of_zero (n_max : ℕ) {lm : ℕ × ℕ → ℕ} (hzero : 
 /-- `AllChainsValid` depends only on `lm`. -/
 theorem AllChainsValid.of_lm_eq {n_max : ℕ} {lm lm' : ℕ × ℕ → ℕ} {L : ℕ → ℕ → List ℕ}
     (h : AllChainsValid n_max lm L) (heq : lm' = lm) :
-    AllChainsValid n_max lm' L := by
-  subst heq; exact h
+    AllChainsValid n_max lm' L :=
+  heq ▸ h
 
 /-- Prepending `j_new < effBucketCap n_max` (with `j_new ∉ L b m'` for all `m'`) preserves
 `AllChainsValid`. -/
@@ -107,11 +107,9 @@ theorem lmPrependProg_allChainsValid {U V w n_max h_space base b m j_new : ℕ}
     let L' := fun b' m' => if b' = b ∧ m' = m then j_new :: L b m else L b' m'
     AllChainsValid n_max (lmAt base U V w n_max h_space s'.mem) L' := by
   intro s' L'
-  have hold_le : lmHead n_max (lmAt base U V w n_max h_space s.mem) b m ≤ effBucketCap n_max :=
-    (hvalid.1 b hb m hm).head_le_cap
-  have eff := lmPrependProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
-    (h_space := h_space) (base := base) hw hb hm hj_cap hj_n hold_le
-  rcases eff with ⟨_, _, _, _, _, hhead, hnext, hprev⟩
+  rcases lmPrependProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
+      (h_space := h_space) (base := base) hw hb hm hj_cap hj_n (hvalid.1 b hb m hm).head_le_cap
+    with ⟨_, _, _, _, _, hhead, hnext, hprev⟩
   refine ⟨fun b' hb' m' hm' => ?_, fun b' hb' m₁ hm₁ m₂ hm₂ j hj₁ hj₂ => ?_⟩
   · dsimp only [L']
     by_cases hbm : b' = b ∧ m' = m
@@ -175,13 +173,10 @@ theorem lmUnlinkProg_allChainsValid {U V w n_max h_space base b m j_del : ℕ}
       j ∈ L' b' m' ↔ j ∈ L b' m' ∧ ¬(b' = b ∧ j = j_del)) := by
   intro s' L'
   have hj_cap : j_del < effBucketCap n_max := (hvalid.1 b hb m hm).lt_cap_of_mem hmem
-  have hp_le : lmPrev n_max (lmAt base U V w n_max h_space s.mem) b j_del ≤ effBucketCap n_max :=
-    (hvalid.1 b hb m hm).prev_le_cap hmem
-  have hn_le : lmNext n_max (lmAt base U V w n_max h_space s.mem) b j_del ≤ effBucketCap n_max :=
-    (hvalid.1 b hb m hm).next_le_cap hmem
-  have eff := lmUnlinkProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
-    (h_space := h_space) (base := base) hw hb hm hj_cap hp_le hn_le
-  rcases eff with ⟨_, _, _, _, _, hhead, hnext, hprev⟩
+  rcases lmUnlinkProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
+      (h_space := h_space) (base := base) hw hb hm hj_cap
+      ((hvalid.1 b hb m hm).prev_le_cap hmem) ((hvalid.1 b hb m hm).next_le_cap hmem)
+    with ⟨_, _, _, _, _, hhead, hnext, hprev⟩
   refine ⟨⟨fun b' hb' m' hm' => ?_, fun b' hb' m₁ hm₁ m₂ hm₂ j hj₁ hj₂ => ?_⟩,
     fun b' hb' m' hm' j => ?_⟩
   · dsimp only [L']
@@ -328,10 +323,8 @@ theorem prependIfIndexedProg_allChainsValid {U V w n_max h_space base b m j_new 
   intro d s'
   by_cases hj_min : j_new < min n_max (effBucketCap n_max)
   · have hj_cap : j_new < effBucketCap n_max := (lt_min_iff.mp hj_min).2
-    have hold_le : lmHead n_max (lmAt base U V w n_max h_space s.mem) b m ≤ effBucketCap n_max :=
-      (hvalid.1 b hb m hm).head_le_cap
     have eff := lmPrependProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
-      (h_space := h_space) (base := base) hw hb hm hj_cap hj_n hold_le
+      (h_space := h_space) (base := base) hw hb hm hj_cap hj_n (hvalid.1 b hb m hm).head_le_cap
     have hval' := lmPrependProg_allChainsValid (U := U) (V := V) (w := w) (n_max := n_max)
       (h_space := h_space) (base := base) hw hb hm hj_cap hj_n hvalid hj_not
     simp only [s', d, prependIfIndexedProg, prependIfIndexedGenProg, p_minCap_mk,
@@ -450,12 +443,9 @@ theorem unlinkIfIndexedProg_allChainsValid {U V w n_max h_space base b m j_del :
   by_cases hj_min : j_del < min n_max (effBucketCap n_max)
   · have hj_cap : j_del < effBucketCap n_max := (lt_min_iff.mp hj_min).2
     have hmem := hmem_if hj_cap
-    have hp_le : lmPrev n_max (lmAt base U V w n_max h_space s.mem) b j_del ≤ effBucketCap n_max :=
-      (hvalid.1 b hb m hm).prev_le_cap hmem
-    have hn_le : lmNext n_max (lmAt base U V w n_max h_space s.mem) b j_del ≤ effBucketCap n_max :=
-      (hvalid.1 b hb m hm).next_le_cap hmem
     have eff := lmUnlinkProg_effect (U := U) (V := V) (w := w) (n_max := n_max)
-      (h_space := h_space) (base := base) hw hb hm hj_cap hp_le hn_le
+      (h_space := h_space) (base := base) hw hb hm hj_cap
+      ((hvalid.1 b hb m hm).prev_le_cap hmem) ((hvalid.1 b hb m hm).next_le_cap hmem)
     have ⟨hval', hmem'⟩ := lmUnlinkProg_allChainsValid (U := U) (V := V) (w := w)
       (n_max := n_max) (h_space := h_space) (base := base) hw hb hm hvalid hmem
     simp only [s', d, unlinkIfIndexedProg, unlinkIfIndexedGenProg, p_minCap_mk,

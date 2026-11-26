@@ -100,8 +100,7 @@ variable {n m : ℕ} {R : Type*} [CommRing R] [LinearOrder R]
 theorem nashProduct_eq_prod_univ {A : BundleAllocation n m}
     (hpos : ∀ i : Fin n, 0 < W.bundleVal i (A.bundle i)) :
     W.nashProduct A = ∏ i : Fin n, W.bundleVal i (A.bundle i) := by
-  have huniv : W.posAgents A = Finset.univ := Finset.ext fun i => by simp [hpos i]
-  rw [nashProduct, huniv]
+  simp [nashProduct, posAgents, Finset.filter_true_of_mem fun i _ => hpos i]
 
 /-- Two-stage Maximum Nash Welfare (`MNW`) optimality
 ([CaragiannisKurokawaMoulinProcacciaShahWang2019]): `A` is a complete allocation that maximizes
@@ -158,10 +157,8 @@ private theorem leMNW_refl (A : BundleAllocation n m) : W.leMNW A A :=
 private theorem leMNW_trans {A B C : BundleAllocation n m}
     (hAB : W.leMNW A B) (hBC : W.leMNW B C) : W.leMNW A C := by
   rcases hAB with hlt₁ | ⟨heq₁, hle₁⟩ <;> rcases hBC with hlt₂ | ⟨heq₂, hle₂⟩
-  · exact Or.inl (hlt₁.trans hlt₂)
-  · exact Or.inl (heq₂ ▸ hlt₁)
-  · exact Or.inl (heq₁.symm ▸ hlt₂)
-  · exact Or.inr ⟨heq₁.trans heq₂, hle₁.trans hle₂⟩
+  exacts [Or.inl (hlt₁.trans hlt₂), Or.inl (heq₂ ▸ hlt₁), Or.inl (heq₁.symm ▸ hlt₂),
+    Or.inr ⟨heq₁.trans heq₂, hle₁.trans hle₂⟩]
 
 private theorem bestMNWState_spec (hn : 0 < n) :
     ∀ (xs : List (BundleAllocation n m)),
@@ -179,8 +176,7 @@ private theorem bestMNWState_spec (hn : 0 < n) :
     have ih := bestMNWState_spec hn rest (fun X hX => hxs X (List.mem_cons_of_mem B hX))
     dsimp only [bestMNWState]
     rcases hrest : W.bestMNWState hn rest with ⟨bestA, bestC, bestP⟩
-    rw [hrest] at ih
-    obtain ⟨hA_comp, hC_eq, hP_eq, hall_rest⟩ := ih
+    obtain ⟨hA_comp, hC_eq, hP_eq, hall_rest⟩ := hrest ▸ ih
     dsimp only at hA_comp hC_eq hP_eq hall_rest ⊢
     let cB := (W.posAgents B).card
     let pB := W.nashProduct B
@@ -191,9 +187,8 @@ private theorem bestMNWState_spec (hn : 0 < n) :
         W.leMNW_trans (hall_rest X hX) (Or.inr ⟨hC_eq ▸ h₂.1, (hP_eq ▸ h₂.2).le⟩)⟩⟩
     · refine ⟨hA_comp, hC_eq, hP_eq, List.forall_mem_cons.2 ⟨?_, hall_rest⟩⟩
       rcases lt_trichotomy cB bestC with hlt | heq | hgt
-      · exact Or.inl (hC_eq ▸ hlt)
-      · exact Or.inr ⟨hC_eq ▸ heq, hP_eq ▸ not_lt.1 fun hltP => h₂ ⟨heq.symm, hltP⟩⟩
-      · exact absurd hgt h₁
+      exacts [Or.inl (hC_eq ▸ hlt),
+        Or.inr ⟨hC_eq ▸ heq, hP_eq ▸ not_lt.1 fun hltP => h₂ ⟨heq.symm, hltP⟩⟩, absurd hgt h₁]
 
 /-- `W.maxNashWelfareAllocation hn` satisfies `W.IsMaxNashWelfare`. -/
 theorem isMaxNashWelfare_maxNashWelfareAllocation (hn : 0 < n) :
@@ -272,8 +267,7 @@ private theorem nashProduct_lt_of_pair_lt {A B : BundleAllocation n m} {i j : Fi
 theorem IsMaxNashWelfare.isParetoOptimal {A : BundleAllocation n m}
     (hMNW : W.IsMaxNashWelfare A) : W.toMonotoneValuation.IsParetoOptimal A := by
   obtain ⟨hcompA, hcard_max, hprod_max⟩ := hMNW
-  refine ⟨hcompA, ?_⟩
-  rintro ⟨B, hcompB, hle, i₀, hlt₀⟩
+  refine ⟨hcompA, fun ⟨B, hcompB, hle, i₀, hlt₀⟩ => ?_⟩
   simp only [toMonotoneValuation_val] at hle hlt₀
   have hsub : W.posAgents A ⊆ W.posAgents B := fun i hi =>
     W.mem_posAgents.2 (lt_of_lt_of_le (W.mem_posAgents.1 hi) (hle i))
@@ -354,8 +348,7 @@ theorem IsMaxNashWelfare.isEF1 {A : BundleAllocation n m}
           W.bundleVal i (B.bundle i) * W.bundleVal j (B.bundle j) := by
         rw [huBi, huBj]
         rcases (W.weight_nonneg j g).eq_or_lt with hw0 | hw_pos
-        · rw [← hw0, sub_zero, add_mul]
-          linarith [mul_pos hj_pos hw_ig_pos]
+        · rw [← hw0, sub_zero, add_mul]; linarith [mul_pos hj_pos hw_ig_pos]
         · linarith [mul_lt_mul_of_pos_left hrem_i hw_pos,
             show (W.bundleVal i (A.bundle i) + W.weight i g) *
                 (W.bundleVal j (A.bundle j) - W.weight j g) -

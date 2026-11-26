@@ -239,36 +239,32 @@ private theorem compDemoteStep_effect {metaBase itemBase U V w N m_cap b k : ℕ
       fun idx hidx => ?_, fun idx hidx => ?_⟩
     · rw [hbwin6_eq, hgm6_1, hm6_eq] at hidx ⊢
       rw [hdt6, hs6_mem, compQuotAt_writeCompVal henv.pos_w, hq_ds, hgm_fix_eq]
-      unfold winGrowLeft; dsimp only
-      by_cases heq_last : idx = g_last
-      · subst heq_last
-        rw [compQuotAt_writeCompQuot_self _ hg_last_m (quotAt_lt _ _ _ _ _ _ _),
+      dsimp only [winGrowLeft]
+      rcases eq_or_ne idx g_last with rfl | heq_last
+      · rw [compQuotAt_writeCompQuot_self _ hg_last_m (quotAt_lt _ _ _ _ _ _ _),
           hp_gl.1, Function.update_self]
       · rw [compQuotAt_writeCompQuot_of_ne henv.pos_w _ heq_last,
           compQuotAt_writeCompVal henv.pos_w,
           hp_gl.2 idx (by dsimp only [m] at hidx; omega) heq_last,
           Function.update_of_ne (hp_ne_tail hidx heq_last)]
-        by_cases heq_del : idx = g_del
-        · subst heq_del
-          rw [compQuotAt_writeCompQuot_self s₂.mem hg_del_m (quotAt_lt _ _ _ _ _ _ _),
+        rcases eq_or_ne idx g_del with rfl | heq_del
+        · rw [compQuotAt_writeCompQuot_self s₂.mem hg_del_m (quotAt_lt _ _ _ _ _ _ _),
             physByBase_slab _ hg_del_lt_b, Function.update_self]
         · rw [compQuotAt_writeCompQuot_of_ne henv.pos_w s₂.mem heq_del,
             congrFun hfr2.quot_eq idx, congrFun hq_w1 idx,
             Function.update_of_ne (hp_ne_del hidx heq_del), hcpl0.quot_eq idx hidx]
     · rw [hbwin6_eq, hgm6_1, hm6_eq] at hidx ⊢
       rw [hdt6, hs6_mem, hv_ds, hgm_fix_eq]
-      unfold winGrowLeft; dsimp only
-      by_cases heq_last : idx = g_last
-      · subst heq_last
-        rw [compValAt_writeCompVal_self _ hg_last_m (valAt_lt _ _ _ _ _ _ _ _),
+      dsimp only [winGrowLeft]
+      rcases eq_or_ne idx g_last with rfl | heq_last
+      · rw [compValAt_writeCompVal_self _ hg_last_m (valAt_lt _ _ _ _ _ _ _ _),
           hp_gl.1, Function.update_self]
       · rw [compValAt_writeCompVal_of_ne henv.pos_w _ heq_last,
           compValAt_writeCompQuot henv.pos_w,
           hp_gl.2 idx (by dsimp only [m] at hidx; omega) heq_last,
           Function.update_of_ne (hp_ne_tail hidx heq_last)]
-        by_cases heq_del : idx = g_del
-        · subst heq_del
-          rw [compValAt_writeCompVal_self _ hg_del_m (valAt_lt _ _ _ _ _ _ _ _),
+        rcases eq_or_ne idx g_del with rfl | heq_del
+        · rw [compValAt_writeCompVal_self _ hg_del_m (valAt_lt _ _ _ _ _ _ _ _),
             physByBase_slab _ hg_del_lt_b, Function.update_self]
         · rw [compValAt_writeCompVal_of_ne henv.pos_w _ heq_del,
             compValAt_writeCompQuot henv.pos_w s₂.mem,

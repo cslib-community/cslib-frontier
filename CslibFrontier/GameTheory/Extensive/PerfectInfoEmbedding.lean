@@ -236,15 +236,13 @@ private theorem exists_infoSet_of_isDecisionOf {ι : Type u} {H : ι → Type v}
       v.IsDecisionOf i h₀ → ∃ h : T.InfoSet i, f i h = h₀
   | .leaf _, _, _, _, _, .here, hv => False.elim hv
   | @PerfectInfoTree.chance _ _ _ _ _ _, _, _, _, _, .here, hv => False.elim hv
-  | @PerfectInfoTree.chance _ _ _ _ _ next, f, eqv, i, h₀, .chance c sub, hv => by
-      obtain ⟨h, hh⟩ := exists_infoSet_of_isDecisionOf (T := next c) hv
-      exact ⟨.chance c h, hh⟩
-  | @PerfectInfoTree.decision _ p _ _ _ next, f, eqv, i, h₀, .here, hv => by
-      obtain ⟨rfl, hh⟩ := Sigma.mk.inj_iff.1 hv
-      exact ⟨.here, eq_of_heq hh⟩
-  | @PerfectInfoTree.decision _ p _ _ _ next, f, eqv, i, h₀, .decision a sub, hv => by
-      obtain ⟨h, hh⟩ := exists_infoSet_of_isDecisionOf (T := next (eqv p .here a)) hv
-      exact ⟨.decision (eqv p .here a) h, hh⟩
+  | @PerfectInfoTree.chance _ _ _ _ _ next, _, _, _, _, .chance c _, hv =>
+      (exists_infoSet_of_isDecisionOf (T := next c) hv).elim fun h hh => ⟨.chance c h, hh⟩
+  | @PerfectInfoTree.decision _ _ _ _ _ _, _, _, _, _, .here, hv =>
+      match Sigma.mk.inj_iff.1 hv with | ⟨rfl, hh⟩ => ⟨.here, eq_of_heq hh⟩
+  | @PerfectInfoTree.decision _ p _ _ _ next, _, eqv, _, _, .decision a _, hv =>
+      (exists_infoSet_of_isDecisionOf (T := next (eqv p .here a)) hv).elim fun h hh =>
+        ⟨.decision (eqv p .here a) h, hh⟩
 
 /-- Whenever `f` maps distinct decision nodes to distinct information sets, every information set
 of `T.toExtensiveTreeOn f eqv` contains at most one decision node. -/
@@ -396,14 +394,13 @@ theorem ofExtensive_toExtensive {ι : Type u} [DecidableEq ι] {i : ι} :
     ∀ {T : PerfectInfoTree ι} (s : PureStrategy i T),
       ofExtensive T s.toExtensive = s
   | .leaf _, .leaf => by simp
-  | @PerfectInfoTree.decision _ p _ _ _ next, .decision c sub => by
-      refine PureStrategy.decision_ext (fun hp => ?_) fun a => ?_
-      · cases hp
-        simp [ofExtensive]
-      · simpa [ofExtensive] using ofExtensive_toExtensive (sub a)
-  | @PerfectInfoTree.chance _ _ _ _ _ next, .chance sub =>
-      PureStrategy.chance_ext fun c => by
-        simpa [ofExtensive] using ofExtensive_toExtensive (sub c)
+  | @PerfectInfoTree.decision _ _ _ _ _ _, .decision _ sub => by
+      refine PureStrategy.decision_ext (fun hp => ?_)
+        fun a => by simpa [ofExtensive] using ofExtensive_toExtensive (sub a)
+      cases hp
+      simp [ofExtensive]
+  | @PerfectInfoTree.chance _ _ _ _ _ _, .chance sub =>
+      PureStrategy.chance_ext fun c => by simpa [ofExtensive] using ofExtensive_toExtensive (sub c)
 
 private theorem toExtensive_ofExtensive {ι : Type u} [DecidableEq ι] {i : ι} :
     ∀ {T : PerfectInfoTree ι} (h : T.InfoSet i)
@@ -608,10 +605,9 @@ theorem toExtensiveTree_isPureNash_iff {ι : Type u} [DecidableEq ι] (T : Perfe
   refine ⟨fun h i σ' => by
     simpa [ExtensiveTree.toCostGame_cost, PerfectInfoTree.toCostGame_cost, hupd,
       toExtensiveTree_evalPure] using h i σ'.toExtensive, fun h i sE' => ?_⟩
-  rw [← (PureStrategy.toExtensiveEquiv T i).apply_symm_apply sE']
   simpa only [ExtensiveTree.toCostGame_cost, PerfectInfoTree.toCostGame_cost,
-    PureStrategy.toExtensiveEquiv_apply, PureStrategy.toExtensiveEquiv_symm_apply,
-    hupd, toExtensiveTree_evalPure] using h i (PureStrategy.ofExtensive T sE')
+    ← toExtensiveTree_evalPure, ← hupd, PureStrategy.toExtensive_ofExtensive_eq] using
+    h i (PureStrategy.ofExtensive T sE')
 
 /-- Backward induction constructs a pure Nash equilibrium of the embedded game
 `(T.toExtensiveTree).toCostGame`. -/

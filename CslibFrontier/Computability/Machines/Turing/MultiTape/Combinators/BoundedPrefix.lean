@@ -101,13 +101,9 @@ private lemma copyCappedCore_runFrom_walk
     change (copyCappedCore.tr () cur.inputSymbol cur.workTapeSymbols).apply cur = _
     rw [copyCappedCore, tr_ofTr, hinp, hwork0]
     refine Cfg.ext rfl (Fin.ext ?_) (funext fun i => ?_) (funext fun i => ?_) (by simp [cur])
-    · have hlenApp : (u₀ ++ raw).length = u₀.length + raw.length := List.length_append
-      have hinpPos : (↑(1 + u₀.length + m) + (1 : ℤ)).toNat = 1 + u₀.length + (m + 1) := by omega
-      change (moveInputPos cur.inputPos 1).val = 1 + u₀.length + (m + 1)
-      simp only [moveInputPos, cur, SignType.cast, hinpPos]
-      split_ifs
-      · rfl
-      · dsimp; omega
+    · have hinpPos : (↑(1 + u₀.length + m) + (1 : ℤ)).toNat = 1 + u₀.length + (m + 1) := by omega
+      simp only [cur, Action.apply, moveInputPos, SignType.cast, List.length_append, hinpPos]
+      split_ifs <;> first | rfl | omega
     · fin_cases i
       · simp [cur, Action.apply]
       · change Function.update (tapeOfList (u₀ ++ raw.take m))
@@ -115,9 +111,8 @@ private lemma copyCappedCore_runFrom_walk
           tapeOfList (u₀ ++ raw.take (m + 1))
         rw [← hlen, ← tapeOfList_append_single, List.append_assoc,
           List.take_add_one, List.getElem?_eq_getElem hltRaw, Option.toList_some]
-    · fin_cases i
-      · simp [cur, Action.apply]
-      · simp [cur, Action.apply]; omega
+    · fin_cases i <;> simp [cur, Action.apply]
+      omega
 
 private lemma copyCappedCore_runFrom_halt
     {u₀ raw out : List Bool} {N : ℕ} :
@@ -174,7 +169,8 @@ private lemma transformsWordsAt_appendPrefixTM (u₀ raw : List Bool) (N : ℕ) 
         ((2 * (u₀.length + min N raw.length + 2 + 1)) + (2 * (min N raw.length + 2 + 1)))) := by
   rintro input p ws out ⟨rfl, hp, rfl⟩
   let p₀ : Fin ((u₀ ++ raw).length + 2) := ⟨1 + u₀.length, by rw [List.length_append]; omega⟩
-  rw [show p = p₀ from Fin.ext hp]
+  have hp₀ : p = p₀ := Fin.ext hp
+  rw [hp₀]
   let pEnd : Fin ((u₀ ++ raw).length + 2) :=
     ⟨1 + u₀.length + min N raw.length, by rw [List.length_append]; omega⟩
   let cfg₀ : Cfg 2 Bool Unit (u₀ ++ raw) :=
@@ -252,9 +248,9 @@ private lemma transformsWordsAt_appendPrefixTM (u₀ raw : List Bool) (N : ℕ) 
       ((u₀.length + 1) + (min N raw.length + 1) +
         ((u₀.length + min N raw.length + 2) + (min N raw.length + 2))) =
       wordsCfgAt (u₀ ++ raw) pEnd none ![List.replicate N true, u₀ ++ raw.take N] (out ++ []) := by
-    change ((((forwardWork Bool).extendTapes (tapeEmb 1)).seq copyCappedCore).seq
-      rewindBothTM).runFrom _ _ = _
-    rw [hstart, runFrom_seq hrun₁₂ rfl hrun₃₄ rfl]
+    rw [hstart]
+    dsimp only [appendPrefixTM]
+    rw [runFrom_seq hrun₁₂ rfl hrun₃₄ rfl]
     simp [cfg₄, wordsCfgAt, Cfg.mapState]
   refine ⟨pEnd, ![List.replicate N true, u₀ ++ raw.take N], [], hrunAll,
     ⟨rfl, rfl, rfl, rfl⟩, ?_⟩
@@ -272,10 +268,8 @@ private lemma transformsWordsAt_appendPrefixTM (u₀ raw : List Bool) (N : ℕ) 
         (MultiTapeNTM.RunPath.ofDeterministic _ _ _).space_le_mul_time_add_one)
     erw [hrun₄]
     simp [cfg₄, wordsCfgAt, Cfg.Halted]
-  change (MultiTapeNTM.RunPath.ofDeterministic
-    ((((forwardWork Bool).extendTapes (tapeEmb 1)).seq copyCappedCore).seq rewindBothTM)
-    _ _).space ≤ _
   rw [hstart]
+  dsimp only [appendPrefixTM]
   refine (space_seq_le hrun₁₂ rfl ?_).trans (Nat.add_le_add hs₁₂ hs₃₄)
   rw [hrun₃₄]
   simp [cfg₄, wordsCfgAt, Cfg.Halted, Cfg.mapState]
@@ -304,13 +298,11 @@ private lemma onWords_onSlice {k K : ℕ} {Symbol State : Type*}
     by_cases hl : l ∈ Set.range e
     · obtain ⟨j, rfl⟩ := hl
       have hvj := congrFun hv j
-      by_cases hj : j = (Fin.last k).castAdd 2
-      · subst hj
-        simpa [e.injective.eq_iff] using hvj
+      rcases eq_or_ne j ((Fin.last k).castAdd 2) with rfl | hj
+      · simpa [e.injective.eq_iff] using hvj
       · rw [Function.update_of_ne (fun h => hj (e.injective h))]
-        by_cases hj2 : j = Fin.natAdd (k + 1) 0
-        · subst hj2
-          simpa [Function.update_apply, (Fin.castAdd_ne_natAdd _ _).symm, ← hin] using hvj
+        rcases eq_or_ne j (Fin.natAdd (k + 1) 0) with rfl | hj2
+        · simpa [Function.update_apply, (Fin.castAdd_ne_natAdd _ _).symm, ← hin] using hvj
         · simpa [Function.update_apply, hj, hclean j hj2] using hvj
     · rw [hx l hl, Function.update_of_ne (fun h => hl ⟨_, h.symm⟩)]
 
@@ -384,14 +376,16 @@ private theorem transformsTapesAt_extendTapes {k k' : ℕ} {Symbol State : Type*
     exact embed_wordsCfgAt e p' none v (out ++ emitted) hv hx
   have hrunQ : (tm.extendTapes e).runFrom (wordsCfgAt input p (some (tm.extendTapes e).q₀) ws out)
       t = wordsCfgAt input p' none ws' (out ++ emitted) := by
-    rw [← hrqHead, show t = rq.length from rfl, ← runPath_last_eq_runFrom rq, hrqLast]
+    have ht : t = rq.length := rfl
+    rw [← hrqHead, ht, ← runPath_last_eq_runFrom rq, hrqLast]
   have hspQ : rq.space ≤ s + (k' - k) :=
     (space_map_embedHom_le ..).trans (Nat.add_le_add_right hspace _)
   refine ⟨p', ws', emitted, hrunQ, ⟨by simpa only [hv] using hQ, hx⟩,
     (MultiTapeNTM.RunPath.space_le_of_subset ?_).trans hspQ⟩
   rintro _ ⟨n, rfl⟩
-  rw [runPath_apply_eq_runFrom,
-    show (MultiTapeNTM.RunPath.ofDeterministic _ _ _).head = rq.head by rw [hrqHead]; rfl]
+  have hhead : (MultiTapeNTM.RunPath.ofDeterministic (tm.extendTapes e)
+      (wordsCfgAt input p (some (tm.extendTapes e).q₀) ws out) t).head = rq.head := hrqHead.symm
+  rw [runPath_apply_eq_runFrom, hhead]
   exact ⟨⟨n.val, n.isLt⟩, runPath_apply_eq_runFrom rq ⟨n.val, n.isLt⟩⟩
 
 private def embUIdx (kU j : ℕ) : ℕ :=

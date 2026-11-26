@@ -213,8 +213,8 @@ theorem fifoFaults_amortized_bound {k : Nat} (hk : 0 < k) {s_off : Finset α} {q
     fifoFaults k q reqs +
         lruPotential k ((problem α k).finalState s_off offStates) (fifoRun k q reqs) ≤
       k * (problem α k).scheduleCost s_off reqs offStates + lruPotential k s_off q := by
-  have h := (fifoStrategy (α := α) k hk).amortized_bound (fifoAmortized k hk) hq hv
-  simpa only [fifoStrategy_costFrom_eq, fifoStrategy_runMem_eq] using h
+  simpa only [fifoStrategy_costFrom_eq, fifoStrategy_runMem_eq] using
+    (fifoStrategy (α := α) k hk).amortized_bound (fifoAmortized k hk) hq hv
 
 /-- **FIFO `k`-competitiveness from a common initial cache** ([SleatorTarjan1985], Section 4, p. 208
 at `n_FIFO = n_MIN = k` with identical initial caches): when online and offline algorithms start
@@ -281,23 +281,18 @@ theorem lifoFaults_append (k : Nat) (q : List α) (rs₁ rs₂ : List α) :
 theorem nodup_lifoNext {k : Nat} {q : List α} (hq : q.Nodup) (p : α) :
     (lifoNext k q p).Nodup := by
   unfold lifoNext
-  split
+  split_ifs with hp _
   · exact hq
-  · next hp =>
-    split
-    · exact List.nodup_cons.mpr ⟨hp, hq⟩
-    · have hp_drop : p ∉ q.drop 1 := fun h => hp ((List.drop_sublist 1 q).subset h)
-      exact (List.nodup_cons.mpr ⟨hp_drop, hq.sublist (List.drop_sublist 1 q)⟩).take
+  · exact List.nodup_cons.mpr ⟨hp, hq⟩
+  · exact (List.nodup_cons.mpr ⟨fun h => hp ((List.drop_sublist 1 q).subset h),
+      hq.sublist (List.drop_sublist 1 q)⟩).take
 
 /-- `lifoNext k` preserves `length ≤ k`. -/
 theorem length_lifoNext_le {k : Nat} {q : List α} (hq : q.length ≤ k) (p : α) :
     (lifoNext k q p).length ≤ k := by
   unfold lifoNext
-  split
-  · exact hq
-  · split
-    · next hlt => exact Nat.succ_le_of_lt hlt
-    · exact List.length_take_le k _
+  split_ifs with _ hlt
+  exacts [hq, Nat.succ_le_of_lt hlt, List.length_take_le k _]
 
 private theorem lifoNext_cons_of_length_eq {k : Nat} {e p : α} {rest : List α}
     (hk : 1 ≤ k) (hlen : rest.length = k - 1) (hp : p ∉ e :: rest) :
@@ -439,7 +434,7 @@ theorem lifoFaults_lifoCounterexample {k : Nat} (hk : 1 ≤ k) {init : List α} 
   have hb_rev : b ∉ init.reverse := by simpa only [List.mem_reverse] using hb_init
   have hrev_len : init.reverse.length = k - 1 := by simp only [List.length_reverse, hinit]
   have hstep1 : lifoNext k init.reverse a = a :: init.reverse := by
-    simp only [lifoNext, ha_rev, show init.reverse.length < k by omega, ↓reduceIte]
+    simp only [lifoNext, ha_rev, hrev_len, Nat.sub_lt hk zero_lt_one, ↓reduceIte]
   have hba_not : b ∉ a :: init.reverse := by simp [hab.symm, hb_rev]
   obtain ⟨_, hfault_alt⟩ := lifoFaults_alternating hrev_len hk ha_rev hb_rev hab t
   simp only [lifoCounterexample, lifoFaults_append, hrun_w, hfault_w, hinit,
@@ -484,8 +479,8 @@ theorem exists_offline_lifoCounterexample {k : Nat} (hk2 : 2 ≤ k) {init : List
     (fun _ _ h => Finset.notMem_empty _ h) hnodup_init
     (by simp only [Finset.card_empty, hinit]; omega)
   rw [Finset.empty_union] at hfin₀
-  have hcard_init : init.toFinset.card = k - 1 := by
-    rw [List.toFinset_card_of_nodup hnodup_init, hinit]
+  have hcard_init : init.toFinset.card = k - 1 :=
+    (List.toFinset_card_of_nodup hnodup_init).trans hinit
   have ha_not : a ∉ init.toFinset := by simpa only [List.mem_toFinset] using ha_init
   have hstep_a : ValidStep k init.toFinset a (insert a init.toFinset) :=
     validStep_insert (by omega) ha_not

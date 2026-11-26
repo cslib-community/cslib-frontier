@@ -146,9 +146,7 @@ private theorem promoteSlabInv_and_cap_of_tailWrite
   · rw [hrb_f1, congrFun hcpl.gm_eq.symm (gmRIdx b), hprom]
   · rw [(hother_f1 b' hb' hne).1, (hother_f1 b' hb' hne).2]
     exact hslot_fix.multi_r_bounds hb_pos b' hb'
-  · simp only [hcpl1.gm_eq, totalSlots, hb0, ↓reduceIte, htot_f1]
-    simp only [hcpl.gm_eq, totalSlots, hb0, ↓reduceIte] at hm_cap
-    omega
+  · simp only [hcpl1.gm_eq, hcpl.gm_eq, totalSlots, hb0, ↓reduceIte, htot_f1] at hm_cap ⊢; omega
 
 /-- `compPushBackSlotGenProg` maintains `FixedCoupled` with `pushBackSlotProg`, preserves outside
 memory via `CompOpFrame`, and satisfies the `O(1)` amortized `memoryCost` bound against
@@ -278,8 +276,7 @@ theorem compPushBackSlotGenProg_effect {metaBase itemBase U V w N m_cap b q_val 
     · have hcost : memoryCost (compPushBackSlotGenProg d) s = 14 := by
         dsimp only [d, compPushBackSlotGenProg, compPushBackSingleGenProg, writeCompItemGenProg]
         simp [hb0]
-      simp only [hcost, slotPotential, hb0, ↓reduceIte]
-      omega
+      simp only [hcost, slotPotential, hb0, ↓reduceIte]; omega
   · have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
     obtain ⟨hres1, hfr1, hcpl1⟩ :=
       compPushBackTailWrite_effect henv hb_pos hcpl hslot hb htot hm_cap hq_lt hv_lt
@@ -396,8 +393,7 @@ private theorem realizesBounded_compPushBackMultiGen :
     rw [hres1, cpTwoSlabSize_mk] at hc
     obtain ⟨hpre_prom, hm_cap1⟩ := promoteSlabInv_and_cap_of_tailWrite hb_pos hcpl hcpl1
       hslot hb htot hm_cap hq_lt hv_lt hc
-    exact ⟨U, V, N, m_cap, _, rfl,
-      henv.of_mem_eq (by rw [hfr1.frontier_eq]),
+    exact ⟨U, V, N, m_cap, _, rfl, henv.of_mem_eq hfr1.frontier_eq.symm.le,
       hb_pos, hpre_prom, hcpl1, hm_cap1⟩
 
 private def CompPushBackSinglePre (w : ℕ) :
@@ -471,10 +467,9 @@ theorem validProg_compPushBackSlotGen {w : ℕ}
     rw [clientState_readCompGMGenProg, clientResult_readCompGMGenProg h0_lt]
     refine validProg_bind_unit
       (validProg_writeCompItemGen ⟨m_cap, henv.compItemEnv, by omega⟩) fun s2 hs2 => ?_
-    have hf2 : s2.frontier = s.frontier := by
-      rw [hs2, writeCompItemGenProg, StateTransitionSpec.clientState_bind,
-        clientState_writeCompValGenProg, clientState_writeCompQuotGenProg]
-    exact validProg_writeCompGMGen ⟨(henv.of_mem_eq (by rw [hf2])).compMetaEnv, h0_lt⟩
+    refine validProg_writeCompGMGen ⟨(henv.of_mem_eq ?_).compMetaEnv, h0_lt⟩
+    rw [hs2, writeCompItemGenProg, StateTransitionSpec.clientState_bind,
+      clientState_writeCompValGenProg, clientState_writeCompQuotGenProg]
   · have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
     obtain ⟨hres1, hfr1, hcpl1⟩ :=
       compPushBackTailWrite_effect henv hb_pos hcpl hslot hb htot hm_cap hq_lt hv_lt
@@ -487,7 +482,7 @@ theorem validProg_compPushBackSlotGen {w : ℕ}
     obtain ⟨hpre_prom, hm_cap1⟩ := promoteSlabInv_and_cap_of_tailWrite hb_pos hcpl hcpl1
       hslot hb htot hm_cap hq_lt hv_lt hprom
     exact validProg_compPromoteSlabGen ⟨U, V, N, m_cap, _, rfl,
-      henv.of_mem_eq (by rw [hfr1.frontier_eq]), hb_pos, hpre_prom, hcpl1, hm_cap1⟩
+      henv.of_mem_eq hfr1.frontier_eq.symm.le, hb_pos, hpre_prom, hcpl1, hm_cap1⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
 

@@ -282,9 +282,8 @@ private theorem lt_iterLog_of_lt_treeDepthAux {U r cur fuel ℓ : ℕ}
 theorem two_le_treeDepth (U r : ℕ) : 2 ≤ treeDepth U r :=
   le_treeDepthAux U r 2 _
 
-theorem treeDepth_le (U r : ℕ) : treeDepth U r ≤ Nat.floorLogStar U + 2 := by
-  have h := treeDepthAux_le U r 2 (Nat.floorLogStar U)
-  wram_omega
+theorem treeDepth_le (U r : ℕ) : treeDepth U r ≤ Nat.floorLogStar U + 2 :=
+  (treeDepthAux_le U r 2 _).trans_eq (Nat.add_comm 2 _)
 
 theorem iterLog_treeDepth_le {U r : ℕ} (hr : 1 ≤ r) :
     Nat.iterLog (treeDepth U r) U ≤ 4 * r := by
@@ -367,9 +366,8 @@ def numNodes (ℓ : ℕ) : ℕ :=
 @[simp]
 theorem numNodes_zero : P.numNodes 0 = 1 := rfl
 
-theorem numNodes_succ (ℓ : ℕ) : P.numNodes (ℓ + 1) = P.numNodes ℓ * P.branchFactor ℓ := by
-  dsimp only [numNodes, cumBranchBits, branchFactor]
-  exact Nat.pow_add 2 (cumBranchBits P ℓ) (P.branchBits ℓ)
+theorem numNodes_succ (ℓ : ℕ) : P.numNodes (ℓ + 1) = P.numNodes ℓ * P.branchFactor ℓ :=
+  Nat.pow_add 2 (cumBranchBits P ℓ) (P.branchBits ℓ)
 
 theorem numNodes_pos (ℓ : ℕ) : 0 < P.numNodes ℓ :=
   Nat.two_pow_pos _
@@ -439,27 +437,25 @@ theorem quotUniv_succ_of_pos {ℓ : ℕ} (h1 : 1 ≤ ℓ) :
 theorem numNodes_mul_idUniv_mul_quotUniv {ℓ : ℕ} (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) :
     P.numNodes ℓ * 2 ^ P.idBits ℓ * P.quotUniv ℓ = P.paddedUniv := by
   obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le h1
-  clear h1
   induction d with
   | zero =>
     simp [numNodes_succ, numNodes_zero, quotUniv, paddedUniv]
   | succ d ih =>
-    have hd_lt : 1 + d < P.depth := by omega
-    have hstep := P.idBits_step_le (1 + d) (by omega) hd_lt
+    have hstep := P.idBits_step_le (1 + d) (Nat.le_add_right 1 d) (by omega)
     have hexp : P.idBits (1 + d + 1) + P.branchBits (1 + d) + P.remBits (1 + d) =
         P.idBits (1 + d) := by wram_omega
     calc P.numNodes (1 + (d + 1)) * 2 ^ P.idBits (1 + (d + 1)) * P.quotUniv (1 + (d + 1))
         = (P.numNodes (1 + d) * 2 ^ P.branchBits (1 + d)) *
             2 ^ P.idBits (1 + d + 1) *
             (P.quotUniv (1 + d) * 2 ^ P.remBits (1 + d)) := by
-          rw [show 1 + (d + 1) = (1 + d) + 1 by omega, numNodes_succ, branchFactor,
-            quotUniv_succ_of_pos P (by omega : 1 ≤ 1 + d)]
+          rw [← Nat.add_assoc, numNodes_succ, branchFactor,
+            quotUniv_succ_of_pos P (Nat.le_add_right 1 d)]
       _ = P.numNodes (1 + d) *
             (2 ^ P.idBits (1 + d + 1) * 2 ^ P.branchBits (1 + d) * 2 ^ P.remBits (1 + d)) *
             P.quotUniv (1 + d) := by ring
       _ = P.numNodes (1 + d) * 2 ^ P.idBits (1 + d) * P.quotUniv (1 + d) := by
           rw [← Nat.pow_add, ← Nat.pow_add, hexp]
-      _ = P.paddedUniv := ih (by omega)
+      _ = P.paddedUniv := ih (by omega) (by omega)
 
 /-- Right-coordinate universe `T_ℓ` of the level-`ℓ` Feistel child router (`2 ^ I_1 * Q_1` at
 `ℓ = 0`, `2 ^ (I_ℓ - s_ℓ)` for `1 ≤ ℓ < depth`). -/
@@ -525,17 +521,15 @@ theorem leaf_add_inner_slots_eq :
         P.numNodes 2 * P.nLow 2 := by
     intro m hm2 hm_le
     obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hm2
-    clear hm2
     induction d with
     | zero => simp
     | succ d ih =>
-      have hlt : 2 + d < P.depth := by omega
       have hcomb : P.numNodes (2 + d + 1) * P.nLow (2 + d + 1) +
           P.numNodes (2 + d) * P.tableCap (2 + d) = P.numNodes (2 + d) * P.nLow (2 + d) := by
         rw [numNodes_succ, Nat.mul_assoc, ← Nat.mul_add, add_comm (P.branchFactor (2 + d) * _),
-          P.tableCap_add_branchFactor_mul_nLow_succ (by omega) hlt]
-      rw [show 2 + (d + 1) = (2 + d) + 1 by omega, Finset.sum_Ico_succ_top (by omega)]
-      linarith [ih (by omega), hcomb]
+          P.tableCap_add_branchFactor_mul_nLow_succ (by omega) (by omega)]
+      rw [← Nat.add_assoc, Finset.sum_Ico_succ_top (by omega)]
+      linarith [ih (by omega) (by omega), hcomb]
   exact hgen P.depth P.two_le_depth le_rfl
 
 /-- Total value-slot conservation across leaf minimaps, inner tables, and the shared root value
@@ -587,8 +581,7 @@ theorem r_le_levelScale {U r ℓ : ℕ} (h1 : 1 ≤ ℓ) (hU : 4 * r ≤ Nat.log
   split_ifs with hlt
   · rcases eq_or_lt_of_le h1 with rfl | hgt
     · simpa only [Nat.iterLog_succ, Nat.iterLog_zero] using (by omega : r ≤ Nat.log 2 U)
-    · have h4 := lt_iterLog_of_lt_treeDepth (Nat.succ_le_of_lt hgt) hlt
-      omega
+    · linarith [lt_iterLog_of_lt_treeDepth (Nat.succ_le_of_lt hgt) hlt]
   · exact le_rfl
 
 /-- Across all `0 ≤ ℓ < treeDepth U r`, consecutive target sizes shrink by at least `2 ^ 18`
@@ -658,10 +651,9 @@ theorem numNodes_mul_targetSize_bounds {n U r k ℓ : ℕ}
       dsimp only [cumBranchBits]
       rw [ite_eq_right hℓ_pos.ne', max_eq_left hpos]
     set q := n / T
-    have hq1 : 1 ≤ q := Nat.div_pos hle hpos
     have hlo : numNodes n U r k ℓ ≤ q := by
       rw [numNodes, hS]
-      exact Nat.pow_log_le_self 2 (by omega : q ≠ 0)
+      exact Nat.pow_log_le_self 2 (Nat.div_pos hle hpos).ne'
     have hhi : q < 2 * numNodes n U r k ℓ := by
       rw [numNodes, hS, mul_comm 2, ← pow_succ]
       exact Nat.lt_pow_succ_log_self Nat.one_lt_two q
@@ -837,7 +829,6 @@ theorem idBits_pred_le_mul_levelScale {n U r ℓ : ℕ}
     let k := treeDepth U r
     idBits n U r k (ℓ - 1) ≤ 148 * levelScale U r k ℓ := by
   intro k
-  have hr256 : 256 ≤ r := hr
   obtain ⟨hlo, hhi⟩ := targetSize_le_nFloor_and_lt hpos_pred hle_pred
   have hT_eq : targetSize n U r (treeDepth U r) (ℓ - 1) = (Nat.iterLog (ℓ - 1) U) ^ 9 := by
     rw [targetSize_eq_levelScale_pow (by omega), levelScale, ite_eq_left (by omega)]
@@ -849,9 +840,10 @@ theorem idBits_pred_le_mul_levelScale {n U r ℓ : ℕ}
     dsimp only [s, levelScale]
     split_ifs with hlt
     · have := lt_iterLog_of_lt_treeDepth h2 hlt
+      have : 256 ≤ r := hr
       omega
-    · rw [← heq, show ℓ = k by omega]
-      exact ⟨hr256, iterLog_treeDepth_le (by omega)⟩
+    · rw [← heq, le_antisymm hℓ (not_lt.mp hlt)]
+      exact ⟨hr, iterLog_treeDepth_le (le_trans (by decide) hr)⟩
   have hX_lt : X < 2 ^ (4 * s + 1) :=
     (Nat.lt_pow_succ_log_self Nat.one_lt_two X).trans_le
       (Nat.pow_le_pow_right Nat.two_pos (by omega))
@@ -862,8 +854,7 @@ theorem idBits_pred_le_mul_levelScale {n U r ℓ : ℕ}
         ≤ 4 * X ^ 9 := by dsimp only [k]; omega
       _ ≤ 4 * (2 ^ (4 * s + 1)) ^ 9 := Nat.mul_le_mul_left 4 (Nat.pow_le_pow_left hX_lt.le 9)
       _ = 2 ^ (36 * s + 11) := by ring
-  have hcl : Nat.clog 2 (2 * max (nFloor n U r k (ℓ - 1)) 1) ≤ 36 * s + 11 :=
-    Nat.clog_le_of_le_pow h2y_le
+  have := Nat.clog_le_of_le_pow h2y_le
   wram_omega
 
 end Cslib.DataStructure.Dictionary.SubconstantRedundancy

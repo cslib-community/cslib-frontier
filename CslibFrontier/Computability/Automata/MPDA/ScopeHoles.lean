@@ -61,10 +61,8 @@ variable {n : ℕ} {Γ α β State : Type*}
 private theorem exists_configLTS_mTr_extract {M : MPDA n State α Γ} {c c' : Config n State Γ}
     {w : List (α × Op n Γ)} (h : M.configLTS.MTr c w c') (a b : ℕ) :
     ∃ c₁ c₂, M.configLTS.MTr c₁ (w.extract a b) c₂ := by
-  rw [← List.take_append_drop a w] at h
-  obtain ⟨c₁, -, h₁⟩ := LTS.MTr.split h
-  rw [← List.take_append_drop (b - a) (w.drop a)] at h₁
-  obtain ⟨c₂, h₂, -⟩ := LTS.MTr.split h₁
+  obtain ⟨c₁, -, h₁⟩ := LTS.MTr.split (List.take_append_drop a w ▸ h)
+  obtain ⟨c₂, h₂, -⟩ := LTS.MTr.split (List.take_append_drop (b - a) (w.drop a) ▸ h₁)
   exact ⟨c₁, c₂, by rwa [List.extract_eq_take_drop]⟩
 
 private theorem net_take_append_nonneg {i : Fin n} {u v : List (α × Op n Γ)}
@@ -241,7 +239,7 @@ private theorem not_isContext_extract_holes {M : MPDA n State α Γ} {c c' : Con
   obtain ⟨hp'x, hxlen, hp'k⟩ := hp'open.2.of_isPushOn hp'j
   have hbx : b ≤ x := hbpend.1
   have hk : ∀ k, 0 ≤ net j ((w.extract (p' + 1) b).take k) := fun k => by
-    rw [← w.take_extract (show p' + 1 ≤ b by omega) (show b ≤ x + 1 by omega), List.take_take]
+    rw [← w.take_extract (Nat.succ_le_of_lt hp'b) (Nat.le_succ_of_le hbx), List.take_take]
     exact hp'k _
   have hctxv : IsContextOf j (w.extract (p' + 1) b) := fun μ hμ => by
     obtain ⟨k, hk₁, hk₂, hk⟩ := List.mem_extract_iff_getElem?.mp hμ
@@ -263,18 +261,18 @@ private theorem not_isContext_extract_holes {M : MPDA n State α Γ} {c c' : Con
     have e : w.extract (p' + 1 + q + 1) (x + 1) =
         (w.extract (p' + 1) b).drop (q + 1) ++
           (w.extract b (b + 1) ++ w.extract (b + 1) (x + 1)) := by
+      have h1 : p' + 1 + (b - (p' + 1)) = b := by omega
+      have h2 : p' + 1 + (q + 1) ≤ b := by omega
       rw [List.drop_eq_extract, hlen, List.extract_extract _ (by omega),
-        w.extract_append_extract (show b ≤ b + 1 by omega) (show b + 1 ≤ x + 1 by omega),
-        show p' + 1 + (b - (p' + 1)) = b by omega,
-        w.extract_append_extract (show p' + 1 + (q + 1) ≤ b by omega) (show b ≤ x + 1 by omega)]
+        w.extract_append_extract (Nat.le_succ b) (Nat.succ_le_succ hbx), h1,
+        w.extract_append_extract h2 (Nat.le_succ_of_le hbx)]
       rfl
     rw [e]
     refine net_take_append_nonneg hqk (net_take_append_nonneg (fun k => ?_) hbk) k
     rw [List.extract_eq_singleton hbj']
     rcases k with _ | k <;> simp [Op.net]
   by_cases hs : HolePush w (p' + 1 + q)
-  · have := hmax (p' + 1 + q) (by omega) (by omega) ⟨hs, hspend⟩ hsj
-    omega
+  · exact absurd (hmax (p' + 1 + q) (by omega) (by omega) ⟨hs, hspend⟩ hsj) (by omega)
   · obtain ⟨m, hm, hwn⟩ : WellMatched w (p' + 1 + q) := not_not.1 fun h => hs ⟨⟨j, hsj⟩, h⟩
     have hxm := hspend.lt_of_matches hsj hm
     exact hbnwm (hwn.wellMatched_of_extract (by have := hm.lt_length; omega) (by omega)
@@ -306,8 +304,9 @@ theorem ScopeBounded.holeBounded {M : MPDA n State α Γ} {s s' : State} {w : Li
       simpa [List.extract_eq_take_drop] using (hbal i).1
     have h₁ : 0 ≤ net i (w.extract 0 r₁) := by
       simpa [List.extract_eq_take_drop] using (hbal i).2 r₁
-    rw [← w.extract_append_extract (Nat.zero_le r₁) (show r₁ ≤ w.length by omega),
-      ← w.extract_append_extract (show r₁ ≤ r₁ + 1 by omega) (show r₁ + 1 ≤ w.length by omega),
+    have hr₁w : r₁ + 1 ≤ w.length := by omega
+    rw [← w.extract_append_extract (Nat.zero_le r₁) (Nat.le_of_succ_le hr₁w),
+      ← w.extract_append_extract (Nat.le_add_right r₁ 1) hr₁w,
       net_append, net_append, net_extract_succ hr₁i'] at h₀
     simp only [Op.net, Op.kind, OpKind.net, ↓reduceIte] at h₀
     omega
@@ -334,24 +333,21 @@ theorem ScopeBounded.holeBounded {M : MPDA n State α Γ} {s s' : State} {w : Li
   case hT =>
     intro _ ht
     obtain ⟨a, ha, rfl⟩ := Finset.mem_image.mp ht
-    have := hge a ha
-    have := hle_m₁ a ha
-    simp; omega
+    exact Nat.lt_of_le_of_lt (Nat.sub_le_sub_right (hle_m₁ a ha) r₁) (by simp; omega)
   case hTP =>
     intro t ht t' ht' htt'
     obtain ⟨a, ha, rfl⟩ := Finset.mem_image.mp ht
     obtain ⟨b, hb, rfl⟩ := Finset.mem_image.mp ht'
     have hra := hge a ha
     have hrb := hge b hb
-    have hab : a < b := by omega
     have hbm := hle_m₁ b hb
-    rw [List.extract_extract _ (by omega), Nat.add_sub_cancel' hra,
-      show r₁ + (b - r₁ + 1) = b + 1 by omega]
+    have hb1 : r₁ + (b - r₁ + 1) = b + 1 := by omega
+    rw [List.extract_extract _ (by omega), Nat.add_sub_cancel' hra, hb1]
     have haR := (Finset.mem_filter.mp ((Finset.mem_insert.mp ha).resolve_left (by omega))).2
     rcases Finset.mem_insert.mp hb with rfl | hbT
     · exact not_isContext_extract_pop hrun hm₁ hr₁i haR.1.1 hra (by omega)
     · exact not_isContext_extract_holes hrun haR.1 (Finset.mem_filter.mp hbT).2.1
-        (Finset.mem_filter.mp hbT).2.2 hab
+        (Finset.mem_filter.mp hbT).2.2 (by omega)
 
 /-- The first sentence of Proposition 2 in Section 2.1 of [AkshayGastinKrishnaRoychowdhury2020],
 for rounds, with the bound `K * n` instead of `K`: the label sequence of a complete run with at
