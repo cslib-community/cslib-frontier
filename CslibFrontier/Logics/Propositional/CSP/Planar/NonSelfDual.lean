@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.CSP.Planar.RelationMinor
+import CslibFrontier.Foundations.BooleanAnalysis.OddForm
 import CslibFrontier.Logics.Propositional.CSP.Affine
 import CslibFrontier.Foundations.Data.BitString.Hamming
 import Mathlib.Tactic.FinCases
@@ -88,10 +89,14 @@ private theorem exists_normalized_minimal_failure {R : Set (Fin m → Bool)} {k 
   intro l U ⟨tail⟩ hl
   exact hmin l U ⟨(Trace.refl.translate t).trans tail⟩ hl
 
+private theorem parity_const (b : Bool) : Cslib.parity 3 (fun _ => b) = b := by
+  cases b <;> decide
+
 private theorem parity_translate (a : Fin 3 → Bool) (b : Bool) :
     Cslib.parity 3 (fun j => a j + b) = Cslib.parity 3 a + b := by
-  revert a b
-  decide
+  change Cslib.parity 3 (a + fun _ => b) = _
+  rw [Cslib.parity, Cslib.parityOn_add]
+  exact congrArg (Cslib.parity 3 a + ·) (parity_const b)
 
 private theorem majority_translate (a : Fin 3 → Bool) (b : Bool) :
     Cslib.majority 3 (fun j => a j + b) = Cslib.majority 3 a + b := by
@@ -152,8 +157,20 @@ theorem mem_of_cofactor_closure {R : Set (Fin (n + 1) → Bool)} {k : ℕ}
 private theorem majority_const (b : Bool) : Cslib.majority 3 (fun _ => b) = b := by
   cases b <;> decide
 
-private theorem parity_const (b : Bool) : Cslib.parity 3 (fun _ => b) = b := by
-  cases b <;> decide
+private theorem parity_three_pointwise {ι : Type*} (a : Fin 3 → ι → Bool) :
+    (fun i => Cslib.parity 3 (fun j => a j i)) = a 0 + a 1 + a 2 := by
+  funext i
+  simp only [Cslib.parity, Cslib.parityOn_eq_sum, Fin.sum_univ_three, Pi.add_apply, add_assoc]
+
+private theorem sum_three_mem_of_cofactor {R : Set (Fin (n + 1) → Bool)}
+    {j : Fin (n + 1)} {b : Bool} (h : IsPolymorphism (Cslib.parity 3) (cofactor R j b))
+    {x y z : Fin (n + 1) → Bool} (hx : x ∈ R) (hy : y ∈ R) (hz : z ∈ R)
+    (hxj : x j = b) (hyj : y j = b) (hzj : z j = b) : x + y + z ∈ R := by
+  simpa only [parity_three_pointwise, Matrix.cons_val_zero, Matrix.cons_val_one,
+    Matrix.cons_val_two, Matrix.head_cons, Matrix.tail_cons] using
+    mem_of_cofactor_closure (parity_const b) h ![x, y, z]
+      (Fin.forall_fin_succ.mpr ⟨hx, Fin.forall_fin_two.mpr ⟨hy, hz⟩⟩)
+      (Fin.forall_fin_succ.mpr ⟨hxj, Fin.forall_fin_two.mpr ⟨hyj, hzj⟩⟩)
 
 private theorem median_units {i j k : Fin n} (hij : i ≠ j) (hik : i ≠ k) (hjk : j ≠ k) :
     median (Pi.single i true) (Pi.single j true) (Pi.single k true) = 0 := by
@@ -223,13 +240,8 @@ private theorem parity_eq_true_of_units {R : Set (Fin n → Bool)}
     intro i
     have hi := he _ (hu i)
     change f (Pi.single i true) = b at hi
-    rw [hs, hb, Cslib.parityOn_eq_sum] at hi
-    by_contra hnot
-    have hzsum : (∑ j ∈ s, (Pi.single i true : Fin n → Bool) j) = 0 :=
-      Finset.sum_eq_zero fun j hj =>
-        Pi.single_eq_of_ne (M := fun _ : Fin n => Bool) (fun heq : j = i => hnot (heq ▸ hj)) true
-    rw [hzsum] at hi
-    exact Bool.false_ne_true hi
+    rw [hs, hb, parityOn_single] at hi
+    exact of_decide_eq_true hi
   have h : f x = b := he x hx
   rwa [hs, hsall, hb] at h
 
@@ -247,11 +259,8 @@ private theorem proper_even_impossible {R : Set (Fin (n + 1) → Bool)}
     (heven : Cslib.parityOn Finset.univ v = false) (j : Fin (n + 1)) : v j = true := by
   by_contra hh
   have hj : v j = false := Bool.eq_false_iff.mpr hh
-  have hz' : (0 : Fin n → Bool) ∉ cofactor R j false := fun h => hz <| by
-    have h0 : j.insertNth (α := fun _ => Bool) false 0 = 0 := by
-      ext i
-      rcases Fin.eq_self_or_eq_succAbove j i with rfl | ⟨k, rfl⟩ <;> simp [Bool.zero_eq_false]
-    exact h0 ▸ h
+  have hz' : (0 : Fin n → Bool) ∉ cofactor R j false := fun h =>
+    hz ((Fin.insertNth_eq_iff.2 ⟨rfl, rfl⟩ : j.insertNth (α := fun _ => Bool) false 0 = 0) ▸ h)
   have hodd := parity_eq_true_of_units (hc j) hz'
     (fun i => show j.insertNth false (Pi.single i true) ∈ R from
       (insert_false_single j i).symm ▸ hu _)
@@ -284,10 +293,7 @@ theorem exists_binary_parity_minor {R : Set (Fin m → Bool)}
   obtain ⟨q, hq⟩ : ∃ k : Fin 3, Cslib.parityOn Finset.univ (a k) = false := by
     by_contra hh
     simp only [not_exists, Bool.not_eq_false] at hh
-    have heq : a 0 + a 1 + a 2 = (0 : Fin (n + 1) → Bool) := by
-      convert hout using 1
-      ext i
-      simp [Cslib.parity, Cslib.parityOn_eq_sum, Fin.sum_univ_succ, add_assoc]
+    have heq := (parity_three_pointwise a).symm.trans hout
     have he := congrArg (Cslib.parityOn Finset.univ) heq
     rw [Cslib.parityOn_add, Cslib.parityOn_add, hh, hh, hh, Cslib.parityOn_eq_sum] at he
     simp at he
@@ -296,44 +302,21 @@ theorem exists_binary_parity_minor {R : Set (Fin m → Bool)}
     rwa [heven_full (ha q) hq] at hq
   have hn2 : n + 1 = 2 := by
     by_contra hh
-    have hne3 : n + 1 ≠ 3 := by
-      rintro ⟨⟩
-      exact absurd hefull (by decide)
-    have hn4 : 4 ≤ n + 1 := by omega
-    let i : Fin (n + 1) := ⟨0, by omega⟩
-    let j : Fin (n + 1) := ⟨1, by omega⟩
-    let k : Fin (n + 1) := ⟨2, by omega⟩
-    let l : Fin (n + 1) := ⟨3, by omega⟩
+    have hmod : (n + 1) % 2 ≠ 1 := by simpa [Cslib.parityOn] using hefull
+    have hn4 : 4 ≤ n + 1 := by lia
+    let i : Fin (n + 1) := ⟨0, by lia⟩
+    let j : Fin (n + 1) := ⟨1, by lia⟩
+    let k : Fin (n + 1) := ⟨2, by lia⟩
+    let l : Fin (n + 1) := ⟨3, by lia⟩
     let w : Fin (n + 1) → Bool := Pi.single i true + Pi.single j true + Pi.single k true
-    have hw : w ∈ S := by
-      have hm := mem_of_cofactor_closure (parity_const false) (hc l false)
-        ![Pi.single i true, Pi.single j true, Pi.single k true]
-        (by intro q; fin_cases q <;> exact hu _)
-        (by intro q; fin_cases q <;> simp [i, j, k, l, Bool.zero_eq_false])
-      convert hm using 1
-      ext p
-      simp [w, Cslib.parity, Cslib.parityOn_eq_sum, Fin.sum_univ_succ, add_assoc]
-    have hv : (fun _ : Fin (n + 1) => true) + Pi.single i true + w ∈ S := by
-      have hm := mem_of_cofactor_closure (parity_const true) (hc i true)
-        ![fun _ => true, Pi.single i true, w]
-        (fun q => by
-          fin_cases q
-          exacts [hfull, hu i, hw])
-        (by intro q; fin_cases q <;> simp [w, i, j, k])
-      convert hm using 1
-      ext p
-      simp [Cslib.parity, Cslib.parityOn_eq_sum, Fin.sum_univ_succ, add_assoc]
+    have hw : w ∈ S := sum_three_mem_of_cofactor (hc l false) (hu i) (hu j) (hu k)
+      (by simp [i, l, Bool.zero_eq_false]) (by simp [j, l, Bool.zero_eq_false])
+      (by simp [k, l, Bool.zero_eq_false])
+    have hv := sum_three_mem_of_cofactor (hc i true) hfull (hu i) hw
+      rfl (Pi.single_eq_same i _) (by simp [w, i, j, k])
     have he : Cslib.parityOn Finset.univ
         ((fun _ : Fin (n + 1) => true) + Pi.single i true + w) = false := by
-      have hunit (p : Fin (n + 1)) : Cslib.parityOn Finset.univ (Pi.single p true) = true := by
-        simp only [Cslib.parityOn_eq_sum, Pi.single_apply, Finset.sum_ite_eq',
-          Finset.mem_univ, ite_true]
-      change Cslib.parityOn Finset.univ
-        ((fun _ : Fin (n + 1) => true) + Pi.single i true +
-          (Pi.single i true + Pi.single j true + Pi.single k true)) = false
-      rw [Cslib.parityOn_add, Cslib.parityOn_add, Cslib.parityOn_add,
-        Cslib.parityOn_add, hefull, hunit i, hunit j, hunit k]
-      rfl
+      simp [w, Cslib.parityOn_add, hefull, parityOn_single]
     have hj := congrFun (heven_full hv he) j
     simp [w, i, j, k] at hj
   obtain rfl : n = 1 := by omega
@@ -353,7 +336,13 @@ theorem binary_parity_failure_eq {S : Set (Fin 2 → Bool)}
       rcases rows x with rfl | rfl | rfl | rfl <;>
         simp [disequality, hz, hu, hh]
     rw [he] at h
-    exact h (by unfold IsPolymorphism disequality; decide)
+    apply h
+    intro a ha
+    have hcol : (fun i => a i 0) = fun i => a i 1 + true := funext fun i => by
+      simpa only [Bool.add_eq_xor, Bool.xor_true] using Bool.eq_not_of_ne (ha i)
+    change Cslib.parity 3 (fun i => a i 0) ≠ Cslib.parity 3 (fun i => a i 1)
+    rw [hcol, parity_translate, Bool.add_eq_xor, Bool.xor_true]
+    exact (Bool.not_eq_self _).mp
   have hne0 : (fun _ : Fin 2 => true) ≠ 0 := by decide
   ext x
   rcases rows x with rfl | rfl | rfl | rfl <;> simp [hz, hu, hfull, hne0]
