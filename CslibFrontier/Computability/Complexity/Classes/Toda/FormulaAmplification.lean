@@ -142,16 +142,10 @@ private theorem amplifyCount_mem_SharpP :
       fun_prop
     fun_prop
   · refine (acceptCount_padVerifier_of_le _ _ ?_).symm
-    obtain ⟨ψ, m⟩ := a
-    set n := (encPair encQBF encUnary (ψ, m)).length
-    have hm : m + 1 ≤ n + 1 := by
-      have : (encUnary m).length ≤ n := length_le_encPair_right encQBF encUnary (ψ, m)
-      simp only [encUnary_apply, List.length_replicate] at this
-      omega
-    have hZ : ψ.distinctFreeVars.length ≤ n + 1 := by
-      have := QBF.three_mul_length_distinctFreeVars_le ψ
-      have : (encQBF ψ).length ≤ n := length_le_encPair_left encQBF encUnary (ψ, m)
-      omega
+    have hm := length_le_encPair_right encQBF encUnary a
+    have hZ := QBF.three_mul_length_distinctFreeVars_le a.1
+    have hQ := length_le_encPair_left encQBF encUnary a
+    simp only [encUnary_apply, List.length_replicate] at hm
     simp only [amplifyLength, p, Polynomial.eval_mul, Polynomial.eval_add, Polynomial.eval_X,
       Polynomial.eval_one, Polynomial.eval_ofNat]
     nlinarith

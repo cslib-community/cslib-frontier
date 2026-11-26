@@ -95,11 +95,8 @@ private theorem eval_body_iff [Fintype Rel] (f : Column R → Bool) :
   classical
   simp only [body, eval, List.all_map, List.all_eq_true, Finset.mem_toList,
     Finset.mem_univ, forall_true_left, Function.comp_def, Constraint.eval, List.map_ofFn]
-  constructor
-  · intro h r a ha
-    exact h ⟨⟨r, fun i t => a t i⟩, ha⟩
-  · intro h c
-    exact h c.val.1 (fun t i => c.val.2 i t) c.property
+  exact ⟨fun h r a ha => h ⟨⟨r, fun i t => a t i⟩, ha⟩,
+    fun h c => h c.val.1 (fun t i => c.val.2 i t) c.property⟩
 
 /-- Evaluation at a row is a satisfying assignment of the canonical conjunction. -/
 private theorem eval_body_projection [Fintype Rel] (t : R) :
@@ -124,21 +121,14 @@ theorem exists_ppGadget_of_polymorphisms [Finite Rel]
   let C := CanonicalPP.Column R
   let _ : Fintype C := Fintype.ofFinite C
   let col : Fin n → C := fun i t => t.val i
-  have hcol : Function.Injective col := by
-    intro i j hij
-    by_contra h
-    obtain ⟨a, ha, hneq⟩ := hsep i j h
-    exact hneq (congrFun hij ⟨a, ha⟩)
+  have hcol : Function.Injective col := fun i j hij => by_contra fun h =>
+    (hsep i j h).elim fun a ⟨ha, hneq⟩ => hneq (congrFun hij ⟨a, ha⟩)
   let e := Fintype.equivFin C
   let port : C → Fin n ⊕ Fin (Fintype.card C) := fun c =>
     if h : ∃ i, col i = c then Sum.inl h.choose else Sum.inr (e c)
   have port_col (i : Fin n) : port (col i) = Sum.inl i := by
-    dsimp [port]
-    split
-    · congr 1
-      rename_i h
-      exact hcol h.choose_spec
-    · simp_all
+    have h : ∃ j, col j = col i := ⟨i, rfl⟩
+    simp only [port, h, ↓reduceDIte, hcol h.choose_spec]
   let F := CanonicalPP.body arity sem R
   refine ⟨⟨Fintype.card C, F.relabel port, ?_, ?_⟩⟩
   · intro c hc
@@ -152,12 +142,9 @@ theorem exists_ppGadget_of_polymorphisms [Finite Rel]
       have heq : (Sum.elim a (fun i => (e.symm i) ⟨a, ha⟩)) ∘ port =
           fun c : C => c ⟨a, ha⟩ := by
         funext c
-        dsimp [port]
-        split
-        · rename_i h
-          have hc := h.choose_spec
-          simp only [Sum.elim_inl]
-          exact congrArg (fun c : C => c ⟨a, ha⟩) hc
+        simp only [Function.comp_apply, port]
+        split_ifs with h
+        · exact congrArg (fun c : C => c ⟨a, ha⟩) h.choose_spec
         · simp
       rw [heq]
       exact CanonicalPP.eval_body_projection arity sem R ⟨a, ha⟩
@@ -167,21 +154,14 @@ theorem exists_ppGadget_of_polymorphisms [Finite Rel]
       have hf := (CanonicalPP.eval_body_iff arity sem R f).mp hb
       let er := Fintype.equivFin R
       let g : (Fin (Fintype.card R) → Bool) → Bool := fun v => f (v ∘ er)
-      have hg : HasPolymorphism arity sem g := by
-        intro r t ht
-        exact hf r (fun j => t (er j)) (fun j => ht (er j))
+      have hg : HasPolymorphism arity sem g := fun r t ht =>
+        hf r (fun j => t (er j)) (fun j => ht (er j))
       have hr := hinv (Fintype.card R) Fintype.card_pos g hg
         (fun j => (er.symm j).val) (fun j => (er.symm j).property)
       have heq : (fun i => g (fun j => (er.symm j).val i)) = a := by
         funext i
-        change f ((fun j => (er.symm j).val i) ∘ er) = a i
-        have harg : ((fun j => (er.symm j).val i) ∘ er) = col i := by
-          funext t
-          simp [col]
-        rw [harg]
-        change Sum.elim a b (port (col i)) = a i
-        rw [port_col]
-        rfl
+        have harg : ((fun j => (er.symm j).val i) ∘ er) = col i := funext fun _ => by simp [col]
+        simp [g, f, harg, port_col]
       rwa [heq] at hr
 
 end Cslib.Logic.PL.CSP

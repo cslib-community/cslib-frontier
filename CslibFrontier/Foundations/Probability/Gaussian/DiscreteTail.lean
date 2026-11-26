@@ -84,15 +84,13 @@ theorem tsum_discreteGaussian_mul_exp (s : ℝ) (hs : 0 < s) (t : ℝ) (hst : s 
         ENNReal.ofReal (gaussianMass L t c / gaussianMass L s c) := by
   calc
     _ = ∑' z : L, ENNReal.ofReal ((discreteGaussian L s hs c z).toReal *
-        Real.exp (Real.pi * (1 / s ^ 2 - 1 / t ^ 2) * ‖(z : E) - c‖ ^ 2)) := by
-      apply tsum_congr
-      intro z
-      rw [ENNReal.ofReal_mul ENNReal.toReal_nonneg,
-        ENNReal.ofReal_toReal (PMF.apply_ne_top _ _)]
+        Real.exp (Real.pi * (1 / s ^ 2 - 1 / t ^ 2) * ‖(z : E) - c‖ ^ 2)) :=
+      tsum_congr fun z => by
+        rw [ENNReal.ofReal_mul ENNReal.toReal_nonneg, ENNReal.ofReal_toReal (PMF.apply_ne_top _ _)]
     _ = ENNReal.ofReal (∑' z : L, (discreteGaussian L s hs c z).toReal *
         Real.exp (Real.pi * (1 / s ^ 2 - 1 / t ^ 2) * ‖(z : E) - c‖ ^ 2)) :=
       (ENNReal.ofReal_tsum_of_nonneg
-        (fun z : L ↦ mul_nonneg ENNReal.toReal_nonneg (Real.exp_pos _).le)
+        (fun _ ↦ mul_nonneg ENNReal.toReal_nonneg (Real.exp_pos _).le)
         (summable_discreteGaussian_mul_exp L s hs t hst c)).symm
     _ = _ := by rw [tsum_toReal_discreteGaussian_mul_exp L s hs t hst c]
 
@@ -105,11 +103,8 @@ theorem discreteGaussian_norm_ge_le (s : ℝ) (hs : 0 < s) (t : ℝ) (hst : s < 
         (gaussianMass L t c / gaussianMass L s c)) := by
   classical
   let κ := Real.pi * (1 / s ^ 2 - 1 / t ^ 2)
-  have hk : 0 ≤ κ := by
-    apply mul_nonneg Real.pi_pos.le
-    apply sub_nonneg.mpr
-    apply one_div_le_one_div_of_le (sq_pos_of_pos hs)
-    nlinarith [hs.trans hst]
+  have hk : 0 ≤ κ := mul_nonneg Real.pi_pos.le <| sub_nonneg.mpr <|
+    one_div_le_one_div_of_le (sq_pos_of_pos hs) (by nlinarith [hs.trans hst])
   have hpoint (z : L) :
       {z : L | R ≤ ‖(z : E) - c‖}.indicator (discreteGaussian L s hs c) z ≤
         ENNReal.ofReal (Real.exp (-κ * R ^ 2)) *
@@ -119,8 +114,7 @@ theorem discreteGaussian_norm_ge_le (s : ℝ) (hs : 0 < s) (t : ℝ) (hst : s < 
       have hsq : R ^ 2 ≤ ‖(z : E) - c‖ ^ 2 := by nlinarith [norm_nonneg ((z : E) - c)]
       have hexp : 1 ≤ Real.exp (-κ * R ^ 2) * Real.exp (κ * ‖(z : E) - c‖ ^ 2) := by
         rw [← Real.exp_add, Real.one_le_exp_iff]
-        have := mul_le_mul_of_nonneg_left hsq hk
-        linarith
+        linarith [mul_le_mul_of_nonneg_left hsq hk]
       have he := ENNReal.ofReal_le_ofReal hexp
       rw [ENNReal.ofReal_one, ENNReal.ofReal_mul (Real.exp_pos _).le] at he
       calc
@@ -129,8 +123,7 @@ theorem discreteGaussian_norm_ge_le (s : ℝ) (hs : 0 < s) (t : ℝ) (hst : s < 
             (ENNReal.ofReal (Real.exp (-κ * R ^ 2)) *
               ENNReal.ofReal (Real.exp (κ * ‖(z : E) - c‖ ^ 2))) := by gcongr
         _ = _ := by ring
-    · rw [Set.indicator_of_notMem hz]
-      exact zero_le
+    · simp [hz]
   calc
     _ = ∑' z : L, {z : L | R ≤ ‖(z : E) - c‖}.indicator
         (discreteGaussian L s hs c) z := PMF.toOuterMeasure_apply _ _
@@ -142,9 +135,8 @@ theorem discreteGaussian_norm_ge_le (s : ℝ) (hs : 0 < s) (t : ℝ) (hst : s < 
       rw [ENNReal.tsum_mul_left, tsum_discreteGaussian_mul_exp L s hs t hst c]
     _ = _ := by
       rw [← ENNReal.ofReal_mul (Real.exp_pos _).le]
-      congr 1
-      dsimp [κ]
-      congr 2
-      ring
+      exact congrArg
+        (fun u => ENNReal.ofReal (Real.exp u * (gaussianMass L t c / gaussianMass L s c)))
+        (by dsimp only [κ]; ring)
 
 end ZLattice

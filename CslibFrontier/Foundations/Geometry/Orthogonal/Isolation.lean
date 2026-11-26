@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Geometry.Orthogonal.Subdivision
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Analysis.Convex.Basic
 import Mathlib.Tactic.Linarith
 
@@ -49,12 +50,10 @@ private theorem int_between_of_near {a b c : ℤ} {x : ℝ}
   constructor
   · by_contra h
     have h' : c + 1 ≤ a := by omega
-    have h'' : (c : ℝ) + 1 ≤ (a : ℝ) := by exact_mod_cast h'
-    linarith [hc.2]
+    cast_linarith [h', hc.2]
   · by_contra h
     have h' : b ≤ c - 1 := by omega
-    have h'' : (b : ℝ) ≤ (c : ℝ) - 1 := by exact_mod_cast h'
-    linarith [hc.1]
+    cast_linarith [h', hc.1]
 
 /-- Distinct grid points are not within the open box of radius `1` about one another. -/
 theorem eq_of_nearGridPoint {a c : Point} (h : nearGridPoint c (realPoint a)) : a = c := by
@@ -68,17 +67,13 @@ theorem gridPoint_mem_segment_of_near {a b c : Point} (hab : a.1 = b.1 ∨ a.2 =
     {p : ℝ × ℝ} (hp : p ∈ segment a b) (hc : nearGridPoint c p) :
     realPoint c ∈ segment a b := by
   have hb := mem_segment_bounds hp
-  change (min (a.1 : ℝ) (b.1 : ℝ) ≤ p.1 ∧ p.1 ≤ max (a.1 : ℝ) (b.1 : ℝ)) ∧
-    (min (a.2 : ℝ) (b.2 : ℝ) ≤ p.2 ∧ p.2 ≤ max (a.2 : ℝ) (b.2 : ℝ)) at hb
-  have hx : ((min a.1 b.1 : ℤ) : ℝ) ≤ p.1 ∧
-      p.1 ≤ ((max a.1 b.1 : ℤ) : ℝ) := by
-    simpa only [Int.cast_min, Int.cast_max] using hb.1
-  have hy : ((min a.2 b.2 : ℤ) : ℝ) ≤ p.2 ∧
-      p.2 ≤ ((max a.2 b.2 : ℤ) : ℝ) := by
-    simpa only [Int.cast_min, Int.cast_max] using hb.2
-  have hx' := int_between_of_near hx.1 hx.2 ⟨hc.1, hc.2.1⟩
-  have hy' := int_between_of_near hy.1 hy.2 ⟨hc.2.2.1, hc.2.2.2⟩
-  exact (realPoint_mem_segment_iff hab).2 ⟨hx'.1, hx'.2, hy'.1, hy'.2⟩
+  have hx := int_between_of_near (a := min a.1 b.1) (b := max a.1 b.1)
+    (by simpa only [Int.cast_min] using hb.1.1) (by simpa only [Int.cast_max] using hb.1.2)
+    ⟨hc.1, hc.2.1⟩
+  have hy := int_between_of_near (a := min a.2 b.2) (b := max a.2 b.2)
+    (by simpa only [Int.cast_min] using hb.2.1) (by simpa only [Int.cast_max] using hb.2.2)
+    ⟨hc.2.2.1, hc.2.2.2⟩
+  exact (realPoint_mem_segment_iff hab).2 ⟨hx.1, hx.2, hy.1, hy.2⟩
 
 /-- A nonincident integer vertex has a whole open box of radius `1` disjoint from an orthogonal
 route. -/
@@ -98,15 +93,12 @@ theorem segment_eq_first_of_head_mem {a b : Point} {r : Route}
   have he' : e ∈ (b :: r).consecutivePairs := by
     simpa only [List.consecutivePairs, List.tail_cons, List.zip_cons_cons, List.mem_cons,
       hne, false_or] using he
-  have hfirst : (a, b) ∈ (a :: b :: r).consecutivePairs := by
-    simp [List.consecutivePairs]
-  have ha' : realPoint a ∈ segment a b := _root_.left_mem_segment ℝ _ _
-  have hh := (hr.2 e he (a, b) hfirst hne (realPoint a) ha ha').1
-  have hnot : a ∉ b :: r := (List.nodup_cons.mp hr.1).1
-  have hepoints := List.of_mem_zip he'
-  rcases hh with hh | hh
-  · exact hnot (realPoint_injective hh ▸ hepoints.1)
-  · exact hnot (realPoint_injective hh ▸ List.mem_of_mem_tail hepoints.2)
+  have hh := (hr.2 e he (a, b) (by simp [List.consecutivePairs]) hne _ ha
+    (_root_.left_mem_segment ℝ _ _)).1
+  have hnot := (List.nodup_cons.mp hr.1).1
+  have hep := List.of_mem_zip he'
+  exact hh.elim (fun h => hnot (realPoint_injective h ▸ hep.1))
+    (fun h => hnot (realPoint_injective h ▸ List.mem_of_mem_tail hep.2))
 
 /-- The open box of radius `1` about the initial vertex of a simple orthogonal route meets only
 the route's first segment. -/
@@ -147,19 +139,17 @@ theorem axisAligned_cut_first {a b c : Point} (hab : a.1 = b.1 ∨ a.2 = b.2)
 /-- Removing an initial portion of the first segment only shrinks a route's real support. -/
 theorem support_cut_first_subset {a b c : Point} {r : Route}
     (hc : realPoint c ∈ segment a b) : support (c :: b :: r) ⊆ support (a :: b :: r) := by
-  have hsub : segment c b ⊆ segment a b :=
-    (convex_segment (𝕜 := ℝ) (realPoint a) (realPoint b)).segment_subset hc
-      (_root_.right_mem_segment ℝ _ _)
   rw [support_cons_cons, support_cons_cons]
-  exact Set.union_subset_union_left _ hsub
+  exact Set.union_subset_union_left _
+    ((convex_segment (realPoint a) (realPoint b)).segment_subset hc
+      (_root_.right_mem_segment ℝ _ _))
 
 /-- Endpoint cutting preserves a route's orthogonality. -/
 theorem isOrthogonal_cut_first {a b c : Point} {r : Route}
     (hr : IsOrthogonal (a :: b :: r)) (hc : realPoint c ∈ segment a b) (hcb : c ≠ b) :
     IsOrthogonal (c :: b :: r) := by
   intro e he
-  simp only [List.consecutivePairs, List.tail_cons, List.zip_cons_cons, List.mem_cons] at he
-  rcases he with rfl | he
+  rcases List.mem_cons.mp he with rfl | he
   · exact axisAligned_cut_first (hr (a, b) (by simp [List.consecutivePairs])).1 hc hcb
   · exact hr.of_cons e he
 
@@ -169,34 +159,18 @@ theorem isSimple_cut_first {a b c : Point} {r : Route}
     (hr : IsSimple (a :: b :: r)) (hc : realPoint c ∈ segment a b) (hcb : c ≠ b) :
     IsSimple (c :: b :: r) := by
   have hsub : segment c b ⊆ segment a b :=
-    (convex_segment (𝕜 := ℝ) (realPoint a) (realPoint b)).segment_subset hc
-      (_root_.right_mem_segment ℝ _ _)
-  have hnot : c ∉ b :: r := by
-    intro hm
-    have hp : realPoint c ∈ support (b :: r) := Or.inl ⟨c, hm, rfl⟩
-    exact hcb (realPoint_injective (first_segment_tail_contact hr hc hp))
-  have hne (e : Point × Point) (he : e ∈ (b :: r).consecutivePairs) : (a, b) ≠ e := by
-    intro h
-    have hp := (List.of_mem_zip he).1
-    have hnot' := (List.nodup_cons.mp hr.1).1
-    exact hnot' (by simpa only [← h] using hp)
-  have hmem (e : Point × Point) (he : e ∈ (b :: r).consecutivePairs) :
-      e ∈ (a :: b :: r).consecutivePairs := by
-    simpa only [List.consecutivePairs, List.tail_cons, List.zip_cons_cons, List.mem_cons]
-      using Or.inr he
+    (convex_segment (realPoint a) (realPoint b)).segment_subset hc (_root_.right_mem_segment ℝ _ _)
+  have hnot : c ∉ b :: r := fun hm =>
+    hcb (realPoint_injective (first_segment_tail_contact hr hc (Or.inl ⟨c, hm, rfl⟩)))
   have hcontact (e : Point × Point) (he : e ∈ (b :: r).consecutivePairs) :
-      EndpointContacts c b e.1 e.2 := by
-    intro p hp hq
-    have hp' := hsub hp
-    have htail : p ∈ support (b :: r) := Or.inr ⟨e, he, hq⟩
-    have hpb := first_segment_tail_contact hr hp' htail
-    exact ⟨Or.inr hpb,
-      (hr.2 (a, b) (by simp [List.consecutivePairs]) e (hmem e he) (hne e he) p hp' hq).2⟩
-  refine ⟨List.nodup_cons.mpr ⟨hnot, hr.1.tail⟩, ?_⟩
-  intro e he f hf hneq
-  simp only [List.consecutivePairs, List.tail_cons, List.zip_cons_cons, List.mem_cons] at he hf
-  rcases he with rfl | he <;> rcases hf with rfl | hf
-  · exact False.elim (hneq rfl)
+      EndpointContacts c b e.1 e.2 := fun p hp hq =>
+    ⟨Or.inr (first_segment_tail_contact hr (hsub hp) (Or.inr ⟨e, he, hq⟩)),
+      (hr.2 (a, b) (by simp [List.consecutivePairs]) e (List.mem_cons_of_mem _ he)
+        (fun h => (List.nodup_cons.mp hr.1).1 (by simpa only [← h] using (List.of_mem_zip he).1))
+        p (hsub hp) hq).2⟩
+  refine ⟨List.nodup_cons.mpr ⟨hnot, hr.1.tail⟩, fun e he f hf hneq => ?_⟩
+  rcases List.mem_cons.mp he with rfl | he <;> rcases List.mem_cons.mp hf with rfl | hf
+  · exact absurd rfl hneq
   · exact hcontact f hf
   · exact (hcontact e he).symm
   · exact hr.of_cons.2 e he f hf hneq

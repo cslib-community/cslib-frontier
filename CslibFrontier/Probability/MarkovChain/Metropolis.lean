@@ -87,17 +87,11 @@ theorem metropolis_apply_of_ne (Ψ : MarkovChain S) (π : PMF S) {x y : S} (hxy 
   change ((Ψ x).bind _) y = _
   rw [PMF.bind_apply, tsum_eq_single y]
   · congr 1
-    rw [PMF.map_apply, tsum_eq_single true]
-    · simp
-    · intro b hb
-      cases b
-      · simp [Ne.symm hxy]
-      · exact absurd rfl hb
+    rw [PMF.map_apply, tsum_fintype, Fintype.sum_bool]
+    simp [Ne.symm hxy]
   · intro z hz
-    rw [PMF.map_apply]
-    convert mul_zero (Ψ x z)
-    refine tsum_eq_zero_iff.mpr fun b => ?_
-    cases b <;> simp [Ne.symm hxy, Ne.symm hz]
+    rw [PMF.map_apply, tsum_fintype, Fintype.sum_bool]
+    simp [Ne.symm hxy, Ne.symm hz]
 
 private theorem mul_min_div_one {c d : ℝ≥0∞} (hc : c ≠ ⊤) : c * min (d / c) 1 = min d c := by
   rcases eq_or_ne c 0 with rfl | h0

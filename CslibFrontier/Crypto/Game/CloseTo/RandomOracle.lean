@@ -67,18 +67,12 @@ private theorem replaceAnswer_map (distribution : Query → PMF Value)
         (fun out => (out.1, Function.update out.2 target (some value))) =
       answer distribution q (Function.update cache target (some value)) := by
   classical
-  by_cases hq : q = target
-  · subst q
-    simp [replaceAnswer, answer]
-  · simp only [replaceAnswer, hq, ↓reduceIte, answer,
-      Function.update_of_ne hq]
-    cases hc : cache q with
-    | some v => simp
-    | none =>
-      simp only [PMF.map_comp, Function.comp_def]
-      congr 1 with v : 1
-      congr 1
-      exact Function.update_comm hq _ _ _
+  rcases eq_or_ne q target with rfl | hq
+  · simp [replaceAnswer, answer]
+  · simp only [replaceAnswer, hq, ↓reduceIte, answer, Function.update_of_ne hq]
+    cases cache q
+    · simp only [PMF.map_comp, Function.comp_def, Function.update_comm hq]
+    · simp
 
 private theorem replaceAnswer_run (distribution : Query → PMF Value)
     (target : Query) (value : Value) (program : OracleComp (fun _ : Query => Value) α)
@@ -86,8 +80,8 @@ private theorem replaceAnswer_run (distribution : Query → PMF Value)
     ((interpret (replaceAnswer distribution target value) program).run cache).map
         (fun out => (out.1, Function.update out.2 target (some value))) =
       (interpret (answer distribution) program).run
-        (Function.update cache target (some value)) := by
-  exact run_interpret_map_state (replaceAnswer distribution target value) (answer distribution)
+        (Function.update cache target (some value)) :=
+  run_interpret_map_state (replaceAnswer distribution target value) (answer distribution)
     (fun cache => Function.update cache target (some value))
     (replaceAnswer_map distribution target value) program cache
 
@@ -100,7 +94,7 @@ private theorem transcript_absorb
     ∀ out ∈ (withTranscript handler q state).support,
       ∃ entry ∈ out.2.2, entry.1 = target := by
   intro out hout
-  obtain ⟨⟨reply, cache⟩, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hout
+  obtain ⟨⟨_, _⟩, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hout
   obtain ⟨entry, he, ht⟩ := h
   exact ⟨entry, List.mem_cons_of_mem _ he, ht⟩
 
@@ -114,14 +108,13 @@ private theorem replaceAnswer_untilBad (distribution : Query → PMF Value)
     classical
     by_cases hq : q = target
     · subst q
-      have hz (handler : Query → StateT (Cache (fun _ : Query => Value)) PMF Value) :
-          withTranscript handler target state (reply, next) = 0 := by
-        by_contra hnonzero
-        have hmem := (PMF.mem_support_iff _ _).mpr hnonzero
-        obtain ⟨⟨r, cache⟩, _, he⟩ := (PMF.mem_support_map_iff _ _ _).mp hmem
-        cases he
-        exact hgood ⟨⟨target, reply⟩, List.mem_cons_self, rfl⟩
-      rw [hz, hz]
+      suffices ∀ h : Query → StateT (Cache (fun _ : Query => Value)) PMF Value,
+          withTranscript h target state (reply, next) = 0 by rw [this, this]
+      intro h
+      by_contra hnz
+      obtain ⟨⟨_, _⟩, _, ⟨⟩⟩ :=
+        (PMF.mem_support_map_iff _ _ _).mp ((PMF.mem_support_iff _ _).mpr hnz)
+      exact hgood ⟨⟨target, reply⟩, List.mem_cons_self, rfl⟩
     · simp only [withTranscript, replaceAnswer, hq, ↓reduceIte]
   absorb_first q state hs := transcript_absorb _ target q state hs
   absorb_second q state hs := transcript_absorb _ target q state hs
@@ -144,8 +137,7 @@ private theorem closeTo_answer_update (distribution : Query → PMF Value)
   have hp := congrArg (PMF.map Prod.fst)
     (replaceAnswer_run distribution target value program cache)
   simp only [PMF.map_comp, Function.comp_def] at hl hr hp
-  rw [hl, hr, hp] at h
-  exact h
+  rwa [hl, hr, hp] at h
 
 /-- Prepending one entry changes the visible result law by at most the probability that the
 unmodified execution queries its key. The final private caches are not compared. -/
@@ -166,36 +158,30 @@ theorem closeTo_run_interpret_memoize_cons (distribution : Query → PMF Value)
   have htrace :
       ((interpret (withTranscript (memoize distribution)) program).run (cache, [])).map
         (fun out => (out.1, ofList out.2.1, out.2.2)) =
-      (interpret (withTranscript (answer distribution)) program).run (ofList cache, []) := by
-    apply run_interpret_map_state (withTranscript (memoize distribution))
+      (interpret (withTranscript (answer distribution)) program).run (ofList cache, []) :=
+    run_interpret_map_state (withTranscript (memoize distribution))
       (withTranscript (answer distribution)) (fun state => (ofList state.1, state.2))
-    intro q state
-    have hq := run_interpret_memoize distribution (OracleComp.query q) state.1
-    simp only [run_interpret_query] at hq
-    have hm := congrArg (PMF.map (fun out => (out.1, out.2, ⟨q, out.1⟩ :: state.2))) hq
-    simpa only [withTranscript, PMF.map_comp, Function.comp_def] using hm
-  have he := congrArg (fun μ => μ.toOuterMeasure
-    {out | ∃ entry ∈ out.2.2, entry.1 = target}) htrace
+      (fun q state => by
+        have hq := run_interpret_memoize distribution (OracleComp.query q) state.1
+        simp only [run_interpret_query] at hq
+        simpa only [withTranscript, PMF.map_comp, Function.comp_def] using
+          congrArg (PMF.map fun out => (out.1, out.2, ⟨q, out.1⟩ :: state.2)) hq) program _
+  have he := congrArg (·.toOuterMeasure {out | ∃ entry ∈ out.2.2, entry.1 = target}) htrace
   rw [PMF.toOuterMeasure_map_apply] at he
-  rw [← hl, ← hr, ← he] at h
-  exact h
+  rwa [← hl, ← hr, ← he] at h
 
 /-- Transcript query membership agrees with key lookup on the pair projection. -/
 theorem entry_mem_iff_lookup_isSome {Query Value : Type} [DecidableEq Query]
     (tr : List (Σ _ : Query, Value)) (target : Query) :
     (∃ entry ∈ tr, entry.1 = target) ↔
       ((tr.map fun entry : (Σ _ : Query, Value) => (entry.1, entry.2)).lookup target).isSome := by
-  constructor
-  · rintro ⟨entry, hmem, rfl⟩
-    have hp : (entry.1, entry.2) ∈ tr.map (fun entry => (entry.1, entry.2)) :=
-      List.mem_map.mpr ⟨entry, hmem, rfl⟩
-    exact List.lookup_isSome_iff.mpr ⟨(entry.1, entry.2), hp, beq_self_eq_true entry.1⟩
-  · intro h
-    obtain ⟨p, hp, he⟩ := List.lookup_isSome_iff.mp h
-    have heq : target = p.1 := eq_of_beq he
+  refine ⟨fun ⟨entry, hmem, he⟩ => ?_, fun h => ?_⟩
+  · subst he
+    exact List.lookup_isSome_iff.mpr ⟨(entry.1, entry.2), List.mem_map.mpr ⟨entry, hmem, rfl⟩,
+      beq_self_eq_true _⟩
+  · obtain ⟨_, hp, he⟩ := List.lookup_isSome_iff.mp h
     obtain ⟨entry, hmem, rfl⟩ := List.mem_map.mp hp
-    subst heq
-    exact ⟨entry, hmem, rfl⟩
+    exact ⟨entry, hmem, (eq_of_beq he).symm⟩
 
 /-! ### `Game.advantage` bounds for adaptive random-oracle programming -/
 
@@ -252,9 +238,9 @@ theorem advantage_lazyProgramHandler_overwriteProgramHandler_choose_two_le
       (((interpret (overwriteProgramHandler dist active inactive samplePre point finish)
         program).run (cache, log)).bind next) ≤
       (q_S * cache.length + q_S * q_H + q_S.choose 2 : ℕ) * δ := by
-  have h := coe_advantage_lazyProgramHandler_overwriteProgramHandler_choose_two_le dist active
-    inactive samplePre point finish hminEnt hqS hqH cache log next
-  exact ENNReal.coe_le_coe.mp (by simpa only [ENNReal.coe_mul, ENNReal.coe_natCast] using h)
+  simpa only [← ENNReal.coe_le_coe, ENNReal.coe_mul, ENNReal.coe_natCast] using
+    coe_advantage_lazyProgramHandler_overwriteProgramHandler_choose_two_le dist active inactive
+      samplePre point finish hminEnt hqS hqH cache log next
 
 omit [DecidableEq Query] in
 /-- **Rectangular adaptive RO programming `Game.advantage` bound in `ℝ≥0` (`OracleComp`)**:
@@ -279,10 +265,9 @@ theorem advantage_lazyProgramHandler_overwriteProgramHandler_le
       (((interpret (overwriteProgramHandler dist active inactive samplePre point finish)
         program).run (cache, log)).bind next) ≤
       (q_S * (cache.length + q_S + q_H) : ℕ) * δ := by
-  have h := Game.coe_advantage_bind_le_of_closeTo
-    (closeTo_run_lazyProgramHandler_overwriteProgramHandler dist active inactive samplePre point
-      finish hminEnt hqS hqH cache log) next
-  exact ENNReal.coe_le_coe.mp (by simpa only [ENNReal.coe_mul, ENNReal.coe_natCast] using h)
+  simpa only [← ENNReal.coe_le_coe, ENNReal.coe_mul, ENNReal.coe_natCast] using
+    Game.coe_advantage_bind_le_of_closeTo (closeTo_run_lazyProgramHandler_overwriteProgramHandler
+      dist active inactive samplePre point finish hminEnt hqS hqH cache log) next
 
 omit [DecidableEq Query] in
 /-- **Sharpened adaptive RO programming `Game.advantage` bound in `ℝ≥0`
@@ -309,10 +294,10 @@ theorem advantage_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two_
         (overwriteProgramHandler dist active inactive samplePre point finish) program
           (cache, log)).bind next) ≤
       (q_S * cache.length + q_S * q_H + q_S.choose 2 : ℕ) * δ := by
-  have h := Game.coe_advantage_bind_le_of_closeTo
-    (closeTo_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two dist active inactive
-      samplePre point finish hminEnt hqS hqH cache log) next
-  exact ENNReal.coe_le_coe.mp (by simpa only [ENNReal.coe_mul, ENNReal.coe_natCast] using h)
+  simpa only [← ENNReal.coe_le_coe, ENNReal.coe_mul, ENNReal.coe_natCast] using
+    Game.coe_advantage_bind_le_of_closeTo
+      (closeTo_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two dist active inactive
+        samplePre point finish hminEnt hqS hqH cache log) next
 
 end AdvantageProgramming
 

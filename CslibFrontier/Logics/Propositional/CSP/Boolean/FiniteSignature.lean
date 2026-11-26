@@ -31,21 +31,10 @@ theorem exists_sixSymbol_not_hasSchaeferPolymorphism {Rel : Type}
     ∃ symbol : Fin 6 → Rel,
       ¬HasSchaeferPolymorphism (fun i => arity (symbol i)) (fun i => sem (symbol i)) := by
   classical
-  simp only [HasSchaeferPolymorphism, not_or, HasPolymorphism] at h
-  obtain ⟨hzero, hone, hand, hor, hmajority, hminority⟩ := h
-  obtain ⟨rzero, hrzero⟩ := not_forall.mp hzero
-  obtain ⟨rone, hrone⟩ := not_forall.mp hone
-  obtain ⟨rand, hrand⟩ := not_forall.mp hand
-  obtain ⟨ror, hror⟩ := not_forall.mp hor
-  obtain ⟨rmajority, hrmajority⟩ := not_forall.mp hmajority
-  obtain ⟨rminority, hrminority⟩ := not_forall.mp hminority
-  refine ⟨![rzero, rone, rand, ror, rmajority, rminority], ?_⟩
+  simp only [HasSchaeferPolymorphism, not_or, HasPolymorphism, not_forall] at h
+  obtain ⟨⟨r₀, h₀⟩, ⟨r₁, h₁⟩, ⟨r₂, h₂⟩, ⟨r₃, h₃⟩, ⟨r₄, h₄⟩, ⟨r₅, h₅⟩⟩ := h
+  refine ⟨![r₀, r₁, r₂, r₃, r₄, r₅], ?_⟩
   rintro (hz | ho | ha | hr | hm | hp)
-  · exact hrzero (hz 0)
-  · exact hrone (ho 1)
-  · exact hrand (ha 2)
-  · exact hror (hr 3)
-  · exact hrmajority (hm 4)
-  · exact hrminority (hp 5)
+  exacts [h₀ (hz 0), h₁ (ho 1), h₂ (ha 2), h₃ (hr 3), h₄ (hm 4), h₅ (hp 5)]
 
 end Cslib.Logic.PL.CSP

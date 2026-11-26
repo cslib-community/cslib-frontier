@@ -54,19 +54,14 @@ private theorem fromNTT_get (v : Poly) (j : Fin 256) :
     (fromNTT v).get j = 8347681 * ∑ i, v i * ((nttNode (bitRev8 i))⁻¹) ^ j.val := by
   unfold fromNTT
   simp only [Vector.get_ofFn]
-  apply congrArg (fun x : F => 8347681 * x)
-  apply Finset.sum_congr rfl
-  intro i _
-  apply congrArg (fun x : F => v i * x)
+  refine congrArg (8347681 * ·) (Finset.sum_congr rfl fun i _ => congrArg (v i * ·) ?_)
   change (1753 : F) ^ ((511 - 2 * (bitRev8 i).val) * j.val % 512) = _
   rw [← orderOf_zeta, pow_mod_orderOf, pow_mul]
-  apply congrArg (fun x : F => x ^ j.val)
-  apply eq_inv_of_mul_eq_one_left
-  rw [nttNode, ← pow_add]
+  refine congrArg (· ^ j.val) (eq_inv_of_mul_eq_one_left ?_)
   have h : 511 - 2 * (bitRev8 i).val + (2 * (bitRev8 i).val + 1) = 512 := by
     have := (bitRev8 i).isLt
     lia
-  rw [h, ← orderOf_zeta, pow_orderOf_eq_one]
+  rw [nttNode, ← pow_add, h, ← orderOf_zeta, pow_orderOf_eq_one]
 
 private theorem square_primitive : IsPrimitiveRoot ((1753 : F) ^ 2) 256 :=
   (IsPrimitiveRoot.iff_orderOf.mpr orderOf_zeta).pow_of_dvd (by decide : 2 ≠ 0) (by decide)

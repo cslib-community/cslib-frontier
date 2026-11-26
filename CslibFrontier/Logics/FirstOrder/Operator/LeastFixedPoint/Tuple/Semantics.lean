@@ -56,18 +56,11 @@ private theorem prefixed_equiv {A B : Type} (e : A ≃ B)
     (h : ∀ R x, F (e ⁻¹' R) x ↔ G R (e x)) (x : A) :
     (∀ S, (∀ y, F S y → y ∈ S) → x ∈ S) ↔
       ∀ R, (∀ y, G R y → y ∈ R) → e x ∈ R := by
-  constructor
-  · intro hF R hR
-    exact hF (e ⁻¹' R) (fun y hy => hR (e y) ((h R y).mp hy))
-  · intro hG S hS
-    let R : Set B := e.symm ⁻¹' S
-    have hRS : e ⁻¹' R = S := by ext y; simp [R]
-    have hx := hG R (fun y hy => by
-      have hy' : F (e ⁻¹' R) (e.symm y) :=
-        (h R (e.symm y)).mpr (by simpa only [Equiv.apply_symm_apply] using hy)
-      rw [hRS] at hy'
-      exact hS (e.symm y) hy')
-    simpa only [R, Set.mem_preimage, Equiv.symm_apply_apply] using hx
+  refine ⟨fun hF R hR => hF (e ⁻¹' R) fun y hy => hR (e y) ((h R y).mp hy), fun hG S hS => ?_⟩
+  have hRS : e ⁻¹' (e.symm ⁻¹' S) = S := Set.ext fun _ => by simp
+  simpa only [Set.mem_preimage, Equiv.symm_apply_apply] using
+    hG (e.symm ⁻¹' S) fun y hy => hS (e.symm y) <|
+      hRS ▸ (h (e.symm ⁻¹' S) (e.symm y)).mpr (by simpa using hy)
 
 include hf in
 /-- Full-tuple pullback preserves truth for arbitrary scoped relation valuations, including
@@ -80,23 +73,12 @@ theorem realize_onFormula {Γ : List ℕ} {α : Type} (φ : RawFormula L' Γ α)
         (onFormula f φ).Realize interpretation ρs v ↔
           φ.Realize interpretation ρt (fun a => e (fun i => v (a, i))) := by
   induction φ with
-  | ofFO φ =>
-    intro ρs ρt hρ v
-    exact hf φ v
-  | rel r args =>
-    intro ρs ρt hρ v
-    exact realize_applyTerms_rel f e hf _ _ r args ρs ρt (hρ r) v
-  | neg φ ih =>
-    intro ρs ρt hρ v
-    exact not_congr (ih ρs ρt hρ v)
-  | conj φ ψ ihφ ihψ =>
-    intro ρs ρt hρ v
-    exact and_congr (ihφ ρs ρt hρ v) (ihψ ρs ρt hρ v)
-  | ex φ ih =>
-    intro ρs ρt hρ v
-    exact realize_exBlock e _ _ ρs v _ (ih ρs ρt hρ)
-  | op k body args ih =>
-    rename_i Γ' α'
+  | ofFO φ => exact fun _ _ _ v => hf φ v
+  | rel r args => exact fun ρs ρt hρ v => realize_applyTerms_rel f e hf _ _ r args ρs ρt (hρ r) v
+  | neg _ ih => exact fun ρs ρt hρ v => not_congr (ih ρs ρt hρ v)
+  | conj _ _ ihφ ihψ => exact fun ρs ρt hρ v => and_congr (ihφ ρs ρt hρ v) (ihψ ρs ρt hρ v)
+  | ex _ ih => exact fun ρs ρt hρ v => realize_exBlock e _ _ ρs v _ (ih ρs ρt hρ)
+  | @op Γ' α' k body args ih =>
     intro ρs ρt hρ v
     let vt : α' → N := fun a => e (fun i => v (a, i))
     let ea := blockEquiv e k
@@ -111,27 +93,14 @@ theorem realize_onFormula {Γ : List ℕ} {α : Type} (φ : RawFormula L' Γ α)
       (Sum.elim (Sum.elim v xs) ys) → ys ∈ S) → xs ∈ S) ↔
       ∀ R, (∀ ys, (body 0).Realize interpretation (Operator.RelEnv.cons R ρt)
         (Sum.elim vt ys) → ys ∈ R) → (fun i => (args i).realize vt) ∈ R
-    have hb (R : Set (Fin k → N)) (ys : Fin (k * d) → M) :
-        b.Realize interpretation (Operator.RelEnv.cons (ea ⁻¹' R) ρs)
-          (Sum.elim (Sum.elim v xs) ys) ↔
-        (body 0).Realize interpretation (Operator.RelEnv.cons R ρt)
-          (Sum.elim vt (ea ys)) := by
-      simp only [b, Operator.Formula.realize_relabel]
-      have hρ' : ∀ {j} (r : Operator.RelVar (k :: Γ') j) zs,
-          zs ∈ Operator.RelEnv.cons (ea ⁻¹' R) ρs (r.scale d) ↔
-            blockEquiv e j zs ∈ Operator.RelEnv.cons R ρt r := by
-        intro j r zs
-        cases r with
-        | here => rfl
-        | there r => exact hρ r zs
-      rw [ih 0 _ _ hρ']
-      apply iff_of_eq
-      congr 1 with a : 1
-      cases a <;> rfl
     simpa only [xs, Equiv.apply_symm_apply] using prefixed_equiv ea
       (fun S ys => b.Realize interpretation (Operator.RelEnv.cons S ρs)
         (Sum.elim (Sum.elim v xs) ys))
       (fun R ys => (body 0).Realize interpretation (Operator.RelEnv.cons R ρt)
-        (Sum.elim vt ys)) hb xs
+        (Sum.elim vt ys)) (fun R ys => by
+        simp only [b, Operator.Formula.realize_relabel]
+        rw [ih 0 (Operator.RelEnv.cons (ea ⁻¹' R) ρs) (Operator.RelEnv.cons R ρt)
+          fun {_} r zs => by cases r with | here => rfl | there r => exact hρ r zs]
+        exact iff_of_eq (congrArg _ (funext fun a => by cases a <;> rfl))) xs
 
 end Cslib.Logic.FO.LFP.Tuple

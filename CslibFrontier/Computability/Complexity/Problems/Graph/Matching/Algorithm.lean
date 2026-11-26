@@ -96,17 +96,12 @@ theorem selectedBit_eq_true {F : CSP CSP.Table ℕ} (bits : List Bool) (x : ℕ)
     selectedBit F bits x = true ↔ ∀ o : CSP.Occurrence F,
       o.var = x → CSP.EdgeAugmenting.labeling F bits o = true := by
   simp only [selectedBit, List.all_eq_true, Bool.or_eq_true, decide_eq_true_eq]
-  constructor
-  · intro h o ho
-    have hh := h o.record (CSP.mem_occurrences.mpr ⟨o, rfl⟩)
-    exact (CSP.EdgeAugmenting.read_record bits o) ▸
-      hh.resolve_left (by simp only [CSP.Occurrence.record, ho, ne_eq, not_true_eq_false,
-        not_false_eq_true])
-  · intro h r hr
-    obtain ⟨o, rfl⟩ := CSP.mem_occurrences.mp hr
-    by_cases ho : o.var = x
-    · exact Or.inr ((CSP.EdgeAugmenting.read_record bits o).trans (h o ho))
-    · exact Or.inl ho
+  refine ⟨fun h o ho => CSP.EdgeAugmenting.read_record bits o ▸
+    (h o.record (CSP.mem_occurrences.mpr ⟨o, rfl⟩)).resolve_left
+      (by simp [CSP.Occurrence.record, ho]), fun h r hr => ?_⟩
+  obtain ⟨o, rfl⟩ := CSP.mem_occurrences.mp hr
+  exact (eq_or_ne o.var x).symm.imp_right fun ho =>
+    (CSP.EdgeAugmenting.read_record bits o).trans (h o ho)
 
 /-- A returned position is in range and its original edge is mutually selected. -/
 theorem mem_matchingPositions (G : Graph) (bits : List Bool) (i : ℕ) :
@@ -114,9 +109,7 @@ theorem mem_matchingPositions (G : Graph) (bits : List Bool) (i : ℕ) :
       2 * i ∈ CSP.selectedVariables (CSP.EdgeAugmenting.labeling G.matchingInstance bits) := by
   simp only [matchingPositions, List.mem_filter, List.mem_range, selectedBit_eq_true,
     CSP.mem_selectedVariables]
-  constructor
-  · rintro ⟨hi, hall⟩
-    exact ⟨hi, (G.mem_vars_matchingInstance).mpr (Or.inl ⟨i, hi, rfl⟩), hall⟩
-  · exact fun ⟨hi, _, hall⟩ => ⟨hi, hall⟩
+  exact ⟨fun ⟨hi, hall⟩ => ⟨hi, G.mem_vars_matchingInstance.mpr (Or.inl ⟨i, hi, rfl⟩), hall⟩,
+    fun ⟨hi, _, hall⟩ => ⟨hi, hall⟩⟩
 
 end Cslib.Complexity.Graph

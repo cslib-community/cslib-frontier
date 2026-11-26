@@ -63,15 +63,10 @@ variable {L : Language} {n : ℕ} [Fact (2 ≤ n)] [L.Structure (Fin n)] {α : T
 theorem realize_quotientEq (B x q r : (language L).Term α) (v : α → Fin n) :
     (quotientEq L B x q r).Realize v ↔
       (x.realize v).val = (r.realize v).val + (B.realize v).val * (q.realize v).val := by
-  fo_simp [quotientEq, Function.comp_def]
-  constructor
-  · rintro ⟨u, hu, he⟩
-    lia
-  · intro he
-    have ht : (B.realize v).val * (q.realize v).val < n := by
-      have := (x.realize v).isLt
-      lia
-    exact ⟨fun _ => ⟨_, ht⟩, rfl, he.symm⟩
+  fo_simp [quotientEq]
+  refine ⟨fun ⟨_, _, _⟩ => by lia, fun he => ⟨fun _ => ⟨_, ?_⟩, rfl, he.symm⟩⟩
+  have := (x.realize v).isLt
+  lia
 
 /-- When `1 ≤ B`, `decode L B x w` holds exactly when `w` is a radix-`B` word with the value of
 `x`. -/
@@ -82,15 +77,14 @@ theorem realize_decode {d : ℕ} (B x : (language L).Term α)
       (∀ i, ((w i).realize v).val < (B.realize v).val) ∧
       Nat.ofDigits (B.realize v).val (List.ofFn fun i => ((w i).realize v).val) =
         (x.realize v).val := by
-  fo_simp [decode, Function.comp_def, Fin.ext_iff, and_assoc]
-  constructor
-  · rintro ⟨hw, q, hq0, hqe, hs⟩
-    exact ⟨hw, (Nat.ofDigits_eq_of_quotients _ (fun i => (q i).val) hqe hs).trans hq0⟩
-  · rintro ⟨hw, he⟩
-    obtain ⟨q, hq0, hqe, hqb, hs⟩ := Nat.exists_radix_quotients hB
-      (fun i => ((w i).realize v).val)
-    rw [he] at hq0 hqb
-    exact ⟨hw, (fun i => ⟨q i, lt_of_le_of_lt (hqb i) (x.realize v).isLt⟩), hq0, hqe, hs⟩
+  fo_simp [decode, Fin.ext_iff, and_assoc]
+  refine ⟨fun ⟨hw, q, hq0, hqe, hs⟩ =>
+    ⟨hw, (Nat.ofDigits_eq_of_quotients _ (fun i => (q i).val) hqe hs).trans hq0⟩, ?_⟩
+  rintro ⟨hw, he⟩
+  obtain ⟨q, hq0, hqe, hqb, hs⟩ := Nat.exists_radix_quotients hB
+    (fun i => ((w i).realize v).val)
+  exact ⟨hw, fun i => ⟨q i, ((hqb i).trans_eq he).trans_lt (x.realize v).isLt⟩,
+    hq0.trans he, hqe, hs⟩
 
 omit [Fact (2 ≤ n)] in
 /-- Digit witnesses fit in the source universe even when the represented word does not. -/

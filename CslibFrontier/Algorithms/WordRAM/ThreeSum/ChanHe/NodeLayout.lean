@@ -118,40 +118,19 @@ theorem Layout.next_descriptor (L : Layout) :
 theorem Layout.bounds (L : Layout) :
     L.endpoint ≤ L.budget ∧ 120 * L.U + 80 ≤ L.budget ∧
       L.base + L.total + L.M + L.N + L.U + 16 ≤ L.budget := by
-  let S := L.base + L.total + L.M + L.N + L.U + 1
-  have hs : 1 ≤ S := by dsimp only [S]; omega
-  have hsq : S ≤ S ^ 2 := by nlinarith
-  have hb : L.base ≤ S := by dsimp only [S]; omega
-  have hn : L.total ≤ S := by dsimp only [S]; omega
-  have hm : L.M ≤ S := by dsimp only [S]; omega
-  have hN : L.N ≤ S := by dsimp only [S]; omega
-  have hU : L.U ≤ S := by dsimp only [S]; omega
   rw [Layout.endpoint_eq]
-  change _ ≤ 4096 * S ^ 2 ∧ _ ≤ 4096 * S ^ 2 ∧ _ ≤ 4096 * S ^ 2
-  constructor
-  · nlinarith
-  constructor <;> nlinarith
+  dsimp only [Layout.budget]
+  rw [sq]
+  exact ⟨by nlinarith, by nlinarith, by nlinarith⟩
 
 /-- The complete counting/placement call's budget is derived from the concrete node layout. -/
 theorem Layout.count_budget_le (L : Layout) (j : Fin 3) (src t : ℕ)
     (hs : src ≤ L.base) (ht : t ≤ 4 * L.gap) :
     src + L.scratch + L.hist + L.heavy j + L.packed + L.n j * L.n j +
         2 * L.n j + L.M + 4 * L.N + 2 * t + 2 * L.U + 64 ≤ L.budget := by
-  let S := L.base + L.total + L.M + L.N + L.U + 1
-  have hS : 1 ≤ S := by dsimp only [S]; omega
-  have hsq : S ≤ S ^ 2 := by nlinarith
-  have hb : L.base ≤ S := by dsimp only [S]; omega
-  have hn : L.total ≤ S := by dsimp only [S]; omega
-  have hm : L.M ≤ S := by dsimp only [S]; omega
-  have hN : L.N ≤ S := by dsimp only [S]; omega
-  have hU : L.U ≤ S := by dsimp only [S]; omega
   have hj := L.n_le_total j
-  have hjsq : L.n j * L.n j ≤ S ^ 2 := by nlinarith
   have ho := L.heavy_end_le_packed j
-  dsimp only [Layout.gap] at ht
-  dsimp only [Layout.hist, Layout.scratch, Layout.packed]
-  change _ ≤ 4096 * S ^ 2
-  dsimp only [Layout.packed] at ho
+  dsimp only [Layout.gap, Layout.hist, Layout.scratch, Layout.packed, Layout.budget] at ht ho ⊢
   nlinarith
 
 /-- All three tags are positive, dominate the input magnitude, and fit the common tag bound. -/

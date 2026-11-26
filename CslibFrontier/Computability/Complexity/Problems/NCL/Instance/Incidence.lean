@@ -45,26 +45,19 @@ private theorem checkEdge_perm_iff (ps : List (WeightedPort ℕ)) (e : ℕ) :
     checkEdge ps e = true ↔ ∃ w, (ps.filter (fun p => decide (p.port.edge = e))).Perm
       [⟨⟨e, false⟩, w⟩, ⟨⟨e, true⟩, w⟩] := by
   unfold checkEdge
-  constructor
-  · intro h
-    obtain ⟨p, _, hp⟩ := List.any_eq_true.1 h
-    simp only [Bool.or_eq_true, decide_eq_true_eq] at hp
-    exact ⟨p.weight, List.perm_pair.2 hp⟩
-  · rintro ⟨w, hw⟩
-    have hp : ⟨⟨e, false⟩, w⟩ ∈ ps.filter (fun p => decide (p.port.edge = e)) :=
-      hw.mem_iff.2 (by simp)
-    refine List.any_eq_true.2 ⟨⟨⟨e, false⟩, w⟩, hp, ?_⟩
-    rcases List.perm_pair.1 hw with hw | hw <;> simp [hw]
+  refine ⟨fun h => ?_, fun ⟨w, hw⟩ => List.any_eq_true.2
+    ⟨⟨⟨e, false⟩, w⟩, hw.mem_iff.2 (by simp),
+      by rcases List.perm_pair.1 hw with hw | hw <;> simp [hw]⟩⟩
+  obtain ⟨p, _, hp⟩ := List.any_eq_true.1 h
+  simp only [Bool.or_eq_true, decide_eq_true_eq] at hp
+  exact ⟨p.weight, List.perm_pair.2 hp⟩
 
 /-- The local check is equivalent to exactly two opposite ports of equal weight. -/
 theorem checkEdge_eq_true_iff (ps : List (WeightedPort ℕ)) (e : ℕ) :
     checkEdge ps e = true ↔ ∃ w,
       (↑ps : Multiset (WeightedPort ℕ)).filter (fun p => p.port.edge = e) =
-        {⟨⟨e, false⟩, w⟩} + {⟨⟨e, true⟩, w⟩} := by
-  rw [checkEdge_perm_iff]
-  apply exists_congr
-  intro w
-  exact Multiset.coe_eq_coe.symm
+        {⟨⟨e, false⟩, w⟩} + {⟨⟨e, true⟩, w⟩} :=
+  (checkEdge_perm_iff ps e).trans (exists_congr fun _ => Multiset.coe_eq_coe.symm)
 
 private theorem map_filter_graph (g : AndOrGraph) (hb : g.Bounded) (e : Fin g.edgeCount) :
     Multiset.map (WeightedPort.map Fin.val)
@@ -79,23 +72,15 @@ theorem wellFormed_iff_checkEdge (g : AndOrGraph) (hb : g.Bounded) :
     g.graph.WellFormed ↔
       ∀ e : Fin g.edgeCount, checkEdge (g.vertices.flatMap Vertex.ports) e = true := by
   rw [ConstraintGraph.wellFormed_iff_filter]
-  apply forall_congr'
-  intro e
+  refine forall_congr' fun e => ?_
   rw [checkEdge_eq_true_iff]
-  apply exists_congr
-  intro w
+  refine exists_congr fun w => ?_
   have hp : Multiset.map (WeightedPort.map Fin.val)
       ({⟨⟨e, false⟩, w⟩} + {⟨⟨e, true⟩, w⟩}) =
         {⟨⟨e.val, false⟩, w⟩} + {⟨⟨e.val, true⟩, w⟩} := by
     simp [WeightedPort.map, Port.map]
-  constructor
-  · intro h
-    have hh := congrArg (Multiset.map (WeightedPort.map Fin.val)) h
-    rwa [map_filter_graph g hb e, hp] at hh
-  · intro h
-    apply Multiset.map_injective (WeightedPort.map_injective Fin.val_injective)
-    rw [map_filter_graph g hb e, hp]
-    exact h
+  rw [← hp, ← map_filter_graph g hb e]
+  exact ((Multiset.map_injective (WeightedPort.map_injective Fin.val_injective)).eq_iff).symm
 
 /-- Bounded well-formed data have exactly two listed ports per declared edge. -/
 theorem portCount_eq_two_mul (g : AndOrGraph) (hb : g.Bounded) (hw : g.graph.WellFormed) :
@@ -114,17 +99,13 @@ theorem checkIncidences_eq_true_iff (g : AndOrGraph) (hb : g.Bounded) :
     g.checkIncidences = true ↔ g.graph.WellFormed := by
   simp only [checkIncidences, Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true,
     List.mem_range]
-  constructor
-  · rintro ⟨hc, he⟩
-    apply (wellFormed_iff_checkEdge g hb).2
-    intro e
-    simpa only [ite_eq_left e.isLt] using he e (e.isLt.trans_le hc)
-  · intro hw
-    have hc := portCount_eq_two_mul g hb hw
-    refine ⟨by omega, fun e _ => ?_⟩
-    split_ifs with he
-    · exact (wellFormed_iff_checkEdge g hb).1 hw ⟨e, he⟩
-    · rfl
+  refine ⟨fun ⟨hc, he⟩ => (wellFormed_iff_checkEdge g hb).2 fun e =>
+    by simpa only [ite_eq_left e.isLt] using he e (e.isLt.trans_le hc), fun hw => ?_⟩
+  have hc := portCount_eq_two_mul g hb hw
+  refine ⟨by omega, fun e _ => ?_⟩
+  split_ifs with he
+  · exact (wellFormed_iff_checkEdge g hb).1 hw ⟨e, he⟩
+  · rfl
 
 /-- Check bounded names, AND/OR vertices and consistent opposite endpoints. -/
 @[expose] def checkValid (g : AndOrGraph) : Bool :=

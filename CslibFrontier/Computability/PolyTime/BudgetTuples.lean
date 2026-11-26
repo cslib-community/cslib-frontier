@@ -68,21 +68,18 @@ abbrev ScanState : Type := ℕ × ℕ × List ℕ × Option (List ℕ)
 theorem computableInPolyTime_scanStep :
     ComputableInPolyTime (fun q : ScanState × (ℕ × ℕ) => scanStep q.1 q.2)
       (encPair encScanState (encPair encNat encNat)) encScanState := by
-  let enc := encPair encScanState (encPair encNat encNat)
-  have hr : ComputableInPolyTime (fun q : ScanState × (ℕ × ℕ) => q.1.1) enc encNat := by
-    unfold enc encScanState; fun_prop
+  unfold encScanState
+  let enc := encPair (encPair encNat (encPair encUnary
+    (encPair (encList encNat) (encOption (encList encNat))))) (encPair encNat encNat)
+  have hr : ComputableInPolyTime (fun q : ScanState × (ℕ × ℕ) => q.1.1) enc encNat := by fun_prop
   have hrest : ComputableInPolyTime (fun q : ScanState × (ℕ × ℕ) => q.1.2.1) enc encUnary := by
-    unfold enc encScanState; fun_prop
+    fun_prop
   have hpre : ComputableInPolyTime (fun q : ScanState × (ℕ × ℕ) => q.1.2.2.1) enc
-      (encList encNat) := by
-    unfold enc encScanState; fun_prop
+      (encList encNat) := by fun_prop
   have hbest : ComputableInPolyTime (fun q : ScanState × (ℕ × ℕ) => q.1.2.2.2) enc
-      (encOption (encList encNat)) := by
-    unfold enc encScanState; fun_prop
-  have hw : ComputableInPolyTime (fun q : ScanState × (ℕ × ℕ) => q.2.1) enc encNat := by
-    unfold enc; fun_prop
-  have hb : ComputableInPolyTime (fun q : ScanState × (ℕ × ℕ) => q.2.2) enc encNat := by
-    unfold enc; fun_prop
+      (encOption (encList encNat)) := by fun_prop
+  have hw : ComputableInPolyTime (fun q : ScanState × (ℕ × ℕ) => q.2.1) enc encNat := by fun_prop
+  have hb : ComputableInPolyTime (fun q : ScanState × (ℕ × ℕ) => q.2.2) enc encNat := by fun_prop
   have hb1 : ComputableInPolyTime (fun q : ScanState × (ℕ × ℕ) => q.2.2 + 1) enc encNat :=
     ComputableInPolyTime.binary_add.comp (hb.prod (.const 1))
   have hrest1 := ComputableInPolyTime.unary_sub' hrest (.const 1)
@@ -92,12 +89,10 @@ theorem computableInPolyTime_scanStep :
     (ComputableInPolyTime.optionSome (encList encNat)).comp (ComputableInPolyTime.listAppend' hpre
       (ComputableInPolyTime.cons' hb1 (ComputableInPolyTime.replicate hrest1 (.const 0))))
   have hcond := ComputableInPolyTime.binary_lt' (ComputableInPolyTime.binary_mul' hw hb1) hr
-  have h := ((ComputableInPolyTime.binary_sub' hr (ComputableInPolyTime.binary_mul' hw hb)).prod
+  have h := (ComputableInPolyTime.binary_sub' hr (ComputableInPolyTime.binary_mul' hw hb)).prod
     (hrest1.prod (((ComputableInPolyTime.snoc encNat).comp (hpre.prod hb)).prod
-      (hcond.ite' hnew hbest))))
-  unfold encScanState
-  refine h.of_enc_eq fun q => ?_
-  simp only [scanStep, decide_eq_true_eq, Function.comp_apply]
+      (hcond.ite' hnew hbest)))
+  exact h.of_enc_eq fun q => by simp only [scanStep, decide_eq_true_eq, Function.comp_apply]
 
 /-- The coordinates of the zipped pairs form a prefix of the tuple. -/
 private theorem map_snd_zip_prefix (ws β : List ℕ) : (ws.zip β).map Prod.snd <+: β := by
@@ -156,10 +151,7 @@ theorem computableInPolyTime_budgetNext :
   · -- The invariant is preserved.
     rintro ⟨ws, p, β⟩ consumed s ⟨w, b⟩ hpre ⟨hr, hrest, hcons, hbest⟩
     have hprefix : s.2.2.1 ++ [b] <+: β := by
-      have h1 : (consumed ++ [(w, b)]).map Prod.snd <+: (ws.zip β).map Prod.snd :=
-        hpre.map _
-      rw [List.map_append, ← hcons] at h1
-      exact h1.trans (map_snd_zip_prefix ws β)
+      simpa [List.map_append, ← hcons] using (hpre.map Prod.snd).trans (map_snd_zip_prefix ws β)
     refine ⟨(Nat.sub_le _ _).trans hr, (Nat.sub_le _ _).trans hrest, by
       simp [scanStep, hcons], fun l hl => ?_⟩
     simp only [scanStep] at hl
@@ -169,8 +161,7 @@ theorem computableInPolyTime_budgetNext :
       have hsucc := length_encNat_succ_le b
       simp only [length_encList, List.map_append, List.sum_append, List.map_cons, List.sum_cons,
         List.map_replicate, List.sum_replicate, List.map_nil, List.sum_nil, smul_eq_mul] at hle ⊢
-      have h0 : (encNat 0).length = 0 := rfl
-      rw [h0] at ⊢
+      rw [show (encNat 0).length = 0 from rfl]
       have : s.2.1 - 1 ≤ ws.length := (Nat.sub_le _ _).trans hrest
       omega
     · exact hbest l hl

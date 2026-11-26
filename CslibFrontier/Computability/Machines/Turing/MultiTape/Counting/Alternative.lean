@@ -138,13 +138,12 @@ theorem runList_alternative (first : MultiTapeCTM k Symbol State₀)
       (Cfg.init (alternative first second).initial input) =
       [jump (some (.inl first.initial)), jump (some (.inr second.initial))] := by
     simp [actions, Cfg.init, alternative]
-  rw [runList_succ _ _ fuel none rfl, ha]
-  simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil]
   have hjump (state : Option (State₀ ⊕ State₁)) : (jump (k := k) state).apply
       (Cfg.init (alternative first second).initial input) =
         Cfg.init state input := by
     simp [jump, Turing.Action.apply, Cfg.init, moveInputPos, alternative]
-  rw [hjump, hjump]
+  rw [runList_succ _ _ fuel none rfl, ha]
+  simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil, hjump]
   exact congrArg₂ List.append
     (runList_alternative_left first second fuel (Cfg.init first.initial input))
     (runList_alternative_right first second fuel (Cfg.init second.initial input))
@@ -170,12 +169,10 @@ theorem HaltsWithin.alternative {first : MultiTapeCTM k Symbol State₀}
     (alternative first second).HaltsWithin (fuel + 1)
       (Cfg.init (alternative first second).initial input) := by
   apply haltsWithin_of_halted _ (hnonfirst.alternative hnonsecond).actions_ne_nil
-  intro final hfinal
-  rw [runList_alternative] at hfinal
-  rcases List.mem_append.mp hfinal with hfinal | hfinal
-  · obtain ⟨native, hnative, rfl⟩ := List.mem_map.mp hfinal
-    simp [config, Cfg.Halted, hfirst.halted_of_mem_runList hnative]
-  · obtain ⟨native, hnative, rfl⟩ := List.mem_map.mp hfinal
-    simp [config, Cfg.Halted, hsecond.halted_of_mem_runList hnative]
+  intro c hc
+  rw [runList_alternative] at hc
+  rcases List.mem_append.mp hc with hc | hc <;> obtain ⟨n, hn, rfl⟩ := List.mem_map.mp hc
+  · simp [config, Cfg.Halted, hfirst.halted_of_mem_runList hn]
+  · simp [config, Cfg.Halted, hsecond.halted_of_mem_runList hn]
 
 end Turing.MultiTapeCTM

@@ -85,28 +85,23 @@ theorem bpReducible_iff :
     refine ⟨Polynomial.C c * (Polynomial.X + 1) ^ d, fun x => evalR x.1 x.2, hevalR, fun a => ?_⟩
     have hp : (Polynomial.C c * (Polynomial.X + 1) ^ d).eval (encA a).length =
         c * ((encA a).length + 1) ^ d := by simp
-    rw [hp]
+    rw [hp, ← @Nat.cast_le ℝ]
+    push_cast
     have h := hprob a
     rw [hlaw a _ le_rfl, BitString.toOuterMeasure_map_uniformList_toReal,
       le_div_iff₀ (by positivity)] at h
-    have h3 : (2 : ℝ) * 2 ^ (c * ((encA a).length + 1) ^ d) ≤
-        3 * ((Finset.univ.filter fun r : Fin (c * ((encA a).length + 1) ^ d) → Bool =>
-          (evalR a (List.ofFn r) ∈ B ↔ a ∈ A)).card : ℝ) := by
-      simp only [Set.mem_ofPred_eq] at h
-      linarith
-    exact_mod_cast h3
+    simp only [Set.mem_ofPred_eq] at h
+    linarith
   · rintro ⟨p, f, hf, hcard⟩
     refine ⟨fun a => (fun w => f (a, w)) <$> BitString.sampleList (p.eval (encA a).length),
       IsPPTOn.of_seeded
         ((ComputableInPolyTime.unary_eval p).comp (ComputableInPolyTime.encoding_length encA)) hf,
       fun a => ?_⟩
-    simp only [ProbComp.eval_map, BitString.eval_sampleList]
-    rw [BitString.toOuterMeasure_map_uniformList_toReal, le_div_iff₀ (by positivity)]
-    have h3 : (2 : ℝ) * 2 ^ p.eval (encA a).length ≤
-        3 * ((Finset.univ.filter fun r : Fin (p.eval (encA a).length) → Bool =>
-          (f (a, List.ofFn r) ∈ B ↔ a ∈ A)).card : ℝ) := by
-      exact_mod_cast hcard a
-    simp only [Set.mem_ofPred_eq]
+    simp only [ProbComp.eval_map, BitString.eval_sampleList,
+      BitString.toOuterMeasure_map_uniformList_toReal, Set.mem_ofPred_eq]
+    rw [le_div_iff₀ (by positivity)]
+    have h3 := (Nat.cast_le (α := ℝ)).mpr (hcard a)
+    push_cast at h3
     linarith
 
 end Cslib.Complexity

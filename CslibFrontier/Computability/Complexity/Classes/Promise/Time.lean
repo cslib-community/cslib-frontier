@@ -68,11 +68,9 @@ theorem SolvesPromiseWithBoundedErrorInTime.mono
     (ht : ∀ a, t a ≤ t' a) : machine.SolvesPromiseWithBoundedErrorInTime enc Q t' := by
   intro a
   obtain ⟨hhalt, hyes, hno⟩ := h a
-  refine ⟨?_, ?_⟩
-  · rw [machine.eval_runClosedConfigFrom_eq_of_halted _ (ht a) hhalt]
-    exact hhalt
-  · rw [machine.eval_runClosed_eq_of_halted _ (ht a) hhalt]
-    exact ⟨hyes, hno⟩
+  rw [machine.eval_runClosedConfigFrom_eq_of_halted _ (ht a) hhalt,
+    machine.eval_runClosed_eq_of_halted _ (ht a) hhalt]
+  exact ⟨hhalt, hyes, hno⟩
 
 /-- A machine solving a promise problem solves every promise problem with fewer yes-instances and
 fewer no-instances. -/
@@ -90,12 +88,7 @@ theorem solvesPromiseWithBoundedErrorInTime_ofSet_iff {machine : MultiTapePTM k 
     machine.SolvesPromiseWithBoundedErrorInTime enc (PromiseProblem.ofSet A) t ↔
       machine.DecidesWithBoundedErrorInTime enc A t := by
   refine forall_congr' fun a => and_congr_right fun _ => ?_
-  by_cases ha : a ∈ A
-  · have hno : a ∉ (PromiseProblem.ofSet A).no := fun h => h ha
-    simp only [MultiTapeTM.indicator, ha, ite_true]
-    exact ⟨fun h => h.1 ha, fun h => ⟨fun _ => h, fun h' => absurd h' hno⟩⟩
-  · simp only [MultiTapeTM.indicator, ha, ite_false]
-    exact ⟨fun h => h.2 ha, fun h => ⟨fun h' => absurd h' ha, fun _ => h⟩⟩
+  by_cases ha : a ∈ A <;> simp [PromiseProblem.ofSet, MultiTapeTM.indicator, ha]
 
 end Turing.MultiTapePTM
 

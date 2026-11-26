@@ -74,88 +74,52 @@ theorem CataloguePrefix.zero (L H D R : ℕ) (μ : ℕ → ℕ) :
     CataloguePrefix L H D R 0 μ μ := by
   constructor <;> simp
 
+private theorem catalogueWrite_of_ne {L H D R s a : ℕ} {ν : ℕ → ℕ} (had : a ≠ D + s)
+    (har : Eligible L H s →
+      ¬(R + 3 * Nat.count (Eligible L H) s ≤ a ∧ a < R + 3 * Nat.count (Eligible L H) s + 3)) :
+    catalogueWrite L H D R s ν a = ν a := by
+  dsimp only [catalogueWrite]
+  split_ifs with hv
+  · have := har hv
+    rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
+      Function.update_of_ne (by omega), Function.update_of_ne had]
+  · exact Function.update_of_ne had _ _
+
 /-- The actual slot and descriptor writes extend the readback invariant by one slot. -/
 theorem CataloguePrefix.step {L H D R s : ℕ} {μ ν : ℕ → ℕ}
     (h : CataloguePrefix L H D R s μ ν)
     (hs : s < (H + 1) * 10 ^ L) (hsep : D + (H + 1) * 10 ^ L ≤ R) :
     CataloguePrefix L H D R (s + 1) μ (catalogueWrite L H D R s ν) := by
   have hcount : Nat.count (Eligible L H) s ≤ s := Nat.count_le _
-  have hold (i : ℕ) (hi : i < s) (hp : Eligible L H i) :
+  have hlt (i : ℕ) (hi : i < s) (hp : Eligible L H i) :
       Nat.count (Eligible L H) i < Nat.count (Eligible L H) s :=
     Nat.count_strict_mono hp hi
-  by_cases hv : Eligible L H s
-  · have hn := Nat.count_succ_eq_succ_count hv
-    constructor
-    · intro i hi
-      by_cases his : i = s
-      · subst i
-        simp [catalogueWrite, hv, Function.update_of_ne (by omega : D + s ≠
-          R + 3 * Nat.count (Eligible L H) s),
-          Function.update_of_ne (by omega : D + s ≠ R + 3 * Nat.count (Eligible L H) s + 1),
-          Function.update_of_ne (by omega : D + s ≠ R + 3 * Nat.count (Eligible L H) s + 2)]
-      · have hiold : i < s := by omega
-        simp only [catalogueWrite, hv, ↓reduceIte]
-        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-          Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-        exact h.directory i hiold
-    · intro i hi hp
-      by_cases his : i = s
-      · subst i
-        simp [catalogueWrite, hv]
-      · have hr := hold i (by omega) hp
-        simp only [catalogueWrite, hv, ↓reduceIte]
-        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-          Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-        exact h.code i (by omega) hp
-    · intro i hi hp
-      by_cases his : i = s
-      · subst i
-        simp [catalogueWrite, hv]
-      · have hr := hold i (by omega) hp
-        simp only [catalogueWrite, hv, ↓reduceIte]
-        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-          Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-        exact h.stars i (by omega) hp
-    · intro i hi hp
-      by_cases his : i = s
-      · subst i
-        simp [catalogueWrite, hv]
-      · have hr := hold i (by omega) hp
-        simp only [catalogueWrite, hv, ↓reduceIte]
-        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-          Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-        exact h.stride i (by omega) hp
-    · intro a hd hr
-      simp only [hn] at hr
-      simp only [catalogueWrite, hv, ↓reduceIte]
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-        Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-      exact h.frame a (by omega) (by omega)
-  · have hn := Nat.count_succ_eq_count hv
-    constructor
-    · intro i hi
-      by_cases his : i = s
-      · subst i
-        simp [catalogueWrite, hv]
-      · rw [catalogueWrite, ite_eq_right hv, Function.update_of_ne (by omega)]
-        exact h.directory i (by omega)
-    · intro i hi hp
-      have hne : i ≠ s := fun heq => hv (heq ▸ hp)
-      have hiold : i < s := by omega
-      rw [catalogueWrite, ite_eq_right hv, Function.update_of_ne (by omega)]
-      exact h.code i hiold hp
-    · intro i hi hp
-      have hne : i ≠ s := fun heq => hv (heq ▸ hp)
-      have hiold : i < s := by omega
-      rw [catalogueWrite, ite_eq_right hv, Function.update_of_ne (by omega)]
-      exact h.stars i hiold hp
-    · intro i hi hp
-      have hne : i ≠ s := fun heq => hv (heq ▸ hp)
-      have hiold : i < s := by omega
-      rw [catalogueWrite, ite_eq_right hv, Function.update_of_ne (by omega)]
-      exact h.stride i hiold hp
-    · intro a hd hr
-      rw [catalogueWrite, ite_eq_right hv, Function.update_of_ne (by omega)]
+  refine ⟨fun i hi => ?_, fun i hi hp => ?_, fun i hi hp => ?_, fun i hi hp => ?_,
+    fun a hd hr => ?_⟩
+  · rcases eq_or_ne i s with rfl | his
+    · dsimp only [catalogueWrite]
+      split_ifs
+      · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
+          Function.update_of_ne (by omega), Function.update_self]
+      · exact Function.update_self _ _ _
+    · rw [catalogueWrite_of_ne (by omega) (by omega)]; exact h.directory i (by omega)
+  · rcases eq_or_ne i s with rfl | his
+    · simp [catalogueWrite, hp]
+    · have := hlt i (by omega) hp
+      rw [catalogueWrite_of_ne (by omega) (by omega)]; exact h.code i (by omega) hp
+  · rcases eq_or_ne i s with rfl | his
+    · simp [catalogueWrite, hp]
+    · have := hlt i (by omega) hp
+      rw [catalogueWrite_of_ne (by omega) (by omega)]; exact h.stars i (by omega) hp
+  · rcases eq_or_ne i s with rfl | his
+    · simp [catalogueWrite, hp]
+    · have := hlt i (by omega) hp
+      rw [catalogueWrite_of_ne (by omega) (by omega)]; exact h.stride i (by omega) hp
+  · by_cases hv : Eligible L H s
+    · have := Nat.count_succ_eq_succ_count hv
+      rw [catalogueWrite_of_ne (by omega) (by omega)]; exact h.frame a (by omega) (by omega)
+    · have hn := Nat.count_succ_eq_count hv
+      rw [catalogueWrite_of_ne (by omega) (fun h => (hv h).elim)]
       exact h.frame a (by omega) (by simpa only [hn] using hr)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxTable

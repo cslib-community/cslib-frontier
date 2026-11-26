@@ -87,31 +87,17 @@ theorem exec {w W n D scratch a b c A : ℕ} (x : Data 160) (u v z : ℕ → ℤ
     have hp0 : 0 < q.regs Reg.cursor := (Nat.mem_sqrtPrimeWindow_iff_sq.1 hpwin).1.pos
     have hpc : q.regs Reg.cursor ≤ cap := Nat.le_sqrt.2 (by
       simpa only [pow_two] using (Nat.mem_sqrtPrimeWindow_iff_sq.1 hpwin).2.2.le)
-    have hmagp : GenericRAM.Signed.Fits w
-        (CountPrime.magnitudeBudget (q.regs Reg.cursor) k A : ℤ) :=
-      hmag.of_natAbs_le (by simpa using CountPrime.magnitudeBudget_monotone_modulus k A hpc)
-    have hwp : Fits (w + 2)
-        (CountPrime.addressBudget n (q.regs Reg.cursor) k scratch a b c) :=
-      hw.of_le (CountPrime.addressBudget_monotone_modulus n k scratch a b c hpc)
-    obtain ⟨r, he, hr, frame⟩ := exec_count q u v z hp0
-      (by regs_frame) rfl
-      (by regs_frame) (by regs_frame) (by regs_frame)
-      (by regs_frame) ha hb hc hu hv hz qU qV qZ hmagp hwp
-    have hM : CountPrime.memoryEnd n (q.regs Reg.cursor) k scratch ≤
-        CountPrime.memoryEnd n cap k scratch :=
-      CountPrime.memoryEnd_monotone_modulus n k scratch hpc
-    have noWidth : ¬(count CountPrime.program).ReadsWidth := by decide +kernel
-    refine ⟨r, (he.mono_width noWidth hwidth).mono ?_, hr, ?_⟩
-    · exact Nat.add_le_add_right (CountPrime.cost_monotone_modulus n hpc) 6
-    · refine ⟨?_, ?_, ?_, ?_⟩
-      · intro i hi
-        exact (frame (a + i) (Or.inl (by omega))).trans (qU i hi)
-      · intro i hi
-        exact (frame (b + i) (Or.inl (by omega))).trans (qV i hi)
-      · intro i hi
-        exact (frame (c + i) (Or.inl (by omega))).trans (qZ i hi)
-      · intro d hd
-        exact (frame d (hd.elim Or.inl (fun h => Or.inr (hM.trans h)))).trans (qFrame d hd)
+    obtain ⟨r, he, hr, frame⟩ := exec_count q u v z hp0 (by regs_frame) rfl (by regs_frame)
+      (by regs_frame) (by regs_frame) (by regs_frame) ha hb hc hu hv hz qU qV qZ
+      (hmag.of_natAbs_le (by simpa using CountPrime.magnitudeBudget_monotone_modulus k A hpc))
+      (hw.of_le (CountPrime.addressBudget_monotone_modulus n k scratch a b c hpc))
+    refine ⟨r, (he.mono_width (by decide +kernel) hwidth).mono
+      (Nat.add_le_add_right (CountPrime.cost_monotone_modulus n hpc) 6), hr,
+      fun i hi => (frame (a + i) (Or.inl (by omega))).trans (qU i hi),
+      fun i hi => (frame (b + i) (Or.inl (by omega))).trans (qV i hi),
+      fun i hi => (frame (c + i) (Or.inl (by omega))).trans (qZ i hi),
+      fun d hd => (frame d (hd.imp_right
+        (CountPrime.memoryEnd_monotone_modulus n k scratch hpc).trans)).trans (qFrame d hd)⟩
   obtain ⟨p, hp⟩ := Cslib.Algorithms.ExactTriangle.exists_isSelectedPrime
     (fun α β : Fin n => u (α.val * n + β.val))
     (fun α β : Fin n => v (α.val * n + β.val))

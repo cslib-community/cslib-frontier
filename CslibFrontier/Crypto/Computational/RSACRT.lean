@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.RSATrapdoor
 public import CslibFrontier.Foundations.Data.Nat.ChineseRemainder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.ChineseRemainder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Gcd
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryPrimitives
 import CslibFrontier.Foundations.Data.ZMod.NatCast
@@ -148,9 +149,7 @@ namespace RSACRTKey
 /-- The hypothesis `q_inv * q ≡ 1 [MOD p]`, read in `ZMod p`. -/
 private theorem natCast_qInv_mul_q {key : RSACRTKey} (hinv : key.qInv * key.q ≡ 1 [MOD key.p]) :
     (key.qInv : ZMod key.p) * key.q = 1 := by
-  have h := (ZMod.natCast_eq_natCast_iff _ _ _).2 hinv
-  push_cast at h
-  exact h
+  simpa using (ZMod.natCast_eq_natCast_iff _ _ _).2 hinv
 
 /-- **CRT recombination** ([BonehShoup2023], §16.4.3, p. 701): for an inverse `q_inv` of `q`
 modulo `p` and `x < p * q`, recombining `x mod p` and `x mod q` returns `x`. -/
@@ -272,24 +271,18 @@ theorem gcd_val_pow_sub_eq_q (desc : RSADesc) {σ h : ℕ} (hσq : σ ≡ h ^ de
   set v := ((σ : ZMod desc.modulus) ^ desc.e - h).val with hv_def
   have hv : v + h ≡ σ ^ desc.e [MOD desc.modulus] := by
     rw [← ZMod.natCast_eq_natCast_iff]
-    push_cast
-    rw [hv_def, ZMod.natCast_zmod_val, sub_add_cancel]
+    simp [hv_def]
   have hvq : desc.q ∣ v := by
     have h1 : σ ^ desc.e ≡ h [MOD desc.q] :=
       calc σ ^ desc.e ≡ (h ^ desc.d) ^ desc.e [MOD desc.q] := hσq.pow _
         _ = h ^ (desc.e * desc.d) := by rw [← pow_mul, mul_comm]
         _ ≡ h [MOD desc.q] := (rsa_pow_mul_modEq desc h).of_dvd (dvd_mul_left _ _)
-    have h2 : v + h ≡ 0 + h [MOD desc.q] := by
-      rw [zero_add]
-      exact (hv.of_dvd (dvd_mul_left _ _)).trans h1
-    exact Nat.modEq_zero_iff_dvd.1 (Nat.ModEq.add_right_cancel' h h2)
-  have hvp : ¬ desc.p ∣ v := by
-    intro hdvd
-    apply hσp
-    have h1 : σ ^ desc.e ≡ h [MOD desc.p] := by
-      have h2 : v + h ≡ 0 + h [MOD desc.p] := (Nat.modEq_zero_iff_dvd.2 hdvd).add_right h
-      rw [zero_add] at h2
-      exact (hv.of_dvd (dvd_mul_right _ _)).symm.trans h2
+    exact Nat.modEq_zero_iff_dvd.1 (Nat.ModEq.add_right_cancel' h
+      (by simpa only [zero_add] using (hv.of_dvd (dvd_mul_left _ _)).trans h1))
+  have hvp : ¬ desc.p ∣ v := fun hdvd => hσp <| by
+    have h1 : σ ^ desc.e ≡ h [MOD desc.p] :=
+      (hv.of_dvd (dvd_mul_right _ _)).symm.trans
+        (by simpa using (Nat.modEq_zero_iff_dvd.2 hdvd).add_right h)
     calc σ ≡ σ ^ (desc.e * desc.d) [MOD desc.p] :=
           ((rsa_pow_mul_modEq desc σ).of_dvd (dvd_mul_right _ _)).symm
       _ = (σ ^ desc.e) ^ desc.d := pow_mul _ _ _
@@ -336,17 +329,8 @@ theorem computableInPolyTime_crtInvert {α : Type} {enc : α ↪ List Bool}
     (hp_pos : ∀ a, 0 < p a) (hq_pos : ∀ a, 0 < q a) :
     ComputableInPolyTime
       (fun a => ({ p := p a, q := q a, dp := dp a, dq := dq a, qInv := qInv a } :
-        RSACRTKey).invert (y a)) enc encNat := by
-  have hxp := ComputableInPolyTime.binary_powMod hy hdp hp hp_pos
-  have hxq := ComputableInPolyTime.binary_powMod hy hdq hq hq_pos
-  simp only [RSACRTKey.invert, RSACRTKey.combine, RSACRTKey.powP, RSACRTKey.powQ, crtCombine]
-  exact ComputableInPolyTime.binary_add' hxq
-    (ComputableInPolyTime.binary_mul' hq
-      (ComputableInPolyTime.binary_mod'
-        (ComputableInPolyTime.binary_mul'
-          (ComputableInPolyTime.binary_add' hxp
-            (ComputableInPolyTime.binary_sub' hp (ComputableInPolyTime.binary_mod' hxq hp)))
-          hqInv) hp))
+        RSACRTKey).invert (y a)) enc encNat :=
+  .crtCombine' hq hp (.binary_powMod hy hdq hq hq_pos) (.binary_powMod hy hdp hp hp_pos) hqInv
 
 /-- RSA-CRT inversion with the key `RSADesc.crtKeyWith desc qInv` is computable in polynomial
 time whenever `p`, `q`, `d`, `q_inv` and the input are computable in polynomial time as natural
@@ -359,14 +343,10 @@ theorem computableInPolyTime_crtKeyWith_invert {α : Type} {enc : α ↪ List Bo
     (hq : ComputableInPolyTime (fun a => (desc a).q) enc encNat)
     (hd : ComputableInPolyTime (fun a => (desc a).d) enc encNat)
     (hqInv : ComputableInPolyTime qInv enc encNat) (hy : ComputableInPolyTime y enc encNat) :
-    ComputableInPolyTime (fun a => ((desc a).crtKeyWith (qInv a)).invert (y a)) enc encNat := by
-  have := computableInPolyTime_crtInvert hp hq
-    (ComputableInPolyTime.binary_mod' hd
-      (ComputableInPolyTime.binary_sub' hp (ComputableInPolyTime.const 1)))
-    (ComputableInPolyTime.binary_mod' hd
-      (ComputableInPolyTime.binary_sub' hq (ComputableInPolyTime.const 1)))
-    hqInv hy (fun a => (desc a).hp.pos) (fun a => (desc a).hq.pos)
-  simpa only [RSADesc.crtKeyWith] using this
+    ComputableInPolyTime (fun a => ((desc a).crtKeyWith (qInv a)).invert (y a)) enc encNat :=
+  computableInPolyTime_crtInvert hp hq (.binary_mod' hd (.binary_sub' hp (.const 1)))
+    (.binary_mod' hd (.binary_sub' hq (.const 1))) hqInv hy
+    (fun a => (desc a).hp.pos) fun a => (desc a).hq.pos
 
 /-- The inverse `RSADesc.crtQInv` of `q` modulo `p` is computable in polynomial time whenever
 `p` and `q` are computable in polynomial time as natural numbers on `encNat`. It is
@@ -418,10 +398,9 @@ theorem computableInPolyTime_gcd_val_pow_sub {α : Type} {enc : α ↪ List Bool
     have : NeZero (n a) := ⟨(hn_pos a).ne'⟩
     rw [val_natCast_pow_sub_natCast]
   rw [hfun]
-  exact ComputableInPolyTime.binary_gcd'
-    (ComputableInPolyTime.binary_mod'
-      (ComputableInPolyTime.binary_add' (ComputableInPolyTime.binary_powMod hσ he hn hn_pos)
-        (ComputableInPolyTime.binary_sub' hn (ComputableInPolyTime.binary_mod' hh hn))) hn) hn
+  exact .binary_gcd'
+    (.binary_mod' (.binary_add' (.binary_powMod hσ he hn hn_pos)
+      (.binary_sub' hn (.binary_mod' hh hn))) hn) hn
 
 end PolyTime
 

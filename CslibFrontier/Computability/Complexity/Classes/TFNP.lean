@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Reduction
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option
 import CslibFrontier.Computability.Complexity.Classes.NP.Witness
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
@@ -218,22 +219,19 @@ theorem mem_FNP_iff_exists_bounded : R ∈ FNP enc ↔
     exact ⟨p, V, hV, fun a w => ⟨fun h => ⟨hp a w h, (hR a w).1 h⟩, fun h => (hR a w).2 h.2⟩⟩
   · rintro ⟨p, V, hV, hR⟩
     refine ⟨⟨p, fun a w h => ((hR a w).1 h).1⟩,
-      fun x => decide (x.2.length ≤ p.eval (enc x.1).length) && V x, ?_, fun a w => ?_⟩
-    · exact bool_and' (unary_le' (length_bits.comp (snd enc encBits))
-        ((unary_eval p).comp ((encoding_length enc).comp (fst enc encBits)))) hV
-    · simp only [hR a w, Bool.and_eq_true, decide_eq_true_eq]
+      fun x => decide (x.2.length ≤ p.eval (enc x.1).length) && V x, by fun_prop, fun a w => ?_⟩
+    simp only [hR a w, Bool.and_eq_true, decide_eq_true_eq]
 
 /-- A polynomial-time solver of a total relation in `FNP` puts it in `FPSearch`. -/
 theorem mem_FPSearch_of_total (hR : R ∈ FNP enc) {g : α → List Bool}
     (hg : ComputableInPolyTime g enc encBits) (h : ∀ a, R a (g a)) : R ∈ FPSearch enc := by
-  exact ⟨hR, _, ((optionSome encBits).comp hg), solvesSearch_some h⟩
+  exact ⟨hR, _, by fun_prop, solvesSearch_some h⟩
 
 /-- A total relation in `FPSearch` has a polynomial-time function returning a solution. -/
 theorem exists_total_of_mem_FPSearch (hR : R ∈ FPSearch enc) (htot : IsTotalSearch R) :
     ∃ g : α → List Bool, ComputableInPolyTime g enc encBits ∧ ∀ a, R a (g a) :=
   let ⟨_, f, hf, hsolve⟩ := hR
-  ⟨fun a => (f a).getD [], optionGetDWithInput hf (const []),
-    fun a => hsolve.rel_getD htot a []⟩
+  ⟨fun a => (f a).getD [], by fun_prop, fun a => hsolve.rel_getD htot a []⟩
 
 /-! ### Domains and `NP` -/
 
@@ -255,10 +253,8 @@ theorem verifierSearch_mem_FNP {p : Polynomial ℕ} {V : α × List Bool → Boo
     (hV : ComputableInPolyTime V (encPair enc encBits) encBool) :
     verifierSearch enc p V ∈ FNP enc := by
   refine mem_FNP.mpr ⟨⟨p, fun a w h => h.1.le⟩,
-    fun x => decide (x.2.length = p.eval (enc x.1).length) && V x, ?_, fun a w => ?_⟩
-  · exact (bool_and' (decide_eq' (length_bits.comp (snd enc encBits))
-      ((unary_eval p).comp ((encoding_length enc).comp (fst enc encBits)))) hV)
-  · simp only [verifierSearch, Bool.and_eq_true, decide_eq_true_eq]
+    fun x => decide (x.2.length = p.eval (enc x.1).length) && V x, by fun_prop, fun a w => ?_⟩
+  simp only [verifierSearch, Bool.and_eq_true, decide_eq_true_eq]
 
 /-- A verifier verifies exactly the domain of its search problem. -/
 theorem IsVerifier.searchDomain_eq {p : Polynomial ℕ} {V : α × List Bool → Bool} {A : Set α}
@@ -273,7 +269,7 @@ theorem mem_NP_iff_exists_FNP {A : Set α} : A ∈ NP enc ↔ ∃ R ∈ FNP enc,
 /-- **Domains of `FPSearch` relations are in `P`**: test whether the solver finds a solution. -/
 theorem searchDomain_mem_P (hR : R ∈ FPSearch enc) : searchDomain R ∈ P enc :=
   let ⟨_, f, hf, hsolve⟩ := hR
-  ⟨fun a => (f a).isSome, (optionIsSome hf), fun _ => hsolve.isSome_iff.symm⟩
+  ⟨fun a => (f a).isSome, by fun_prop, fun _ => hsolve.isSome_iff.symm⟩
 
 /-- **If every `FNP` relation is in `FPSearch`, then `NP ⊆ P`** for the encoding `enc`. -/
 theorem NP_subset_P_of_FNP_subset_FPSearch (h : FNP enc ⊆ FPSearch enc) : NP enc ⊆ P enc :=
@@ -318,19 +314,11 @@ theorem searchSum_mem_FNP (hR : R ∈ FNP enc) (hS : S ∈ FNP enc) : searchSum 
     match w, h with
     | true :: u, h =>
       have := hp a u h
-      simp only [List.length_cons]
-      omega
+      simp only [List.length_cons]; omega
     | false :: u, h =>
       have := hq a u h
-      simp only [List.length_cons]
-      omega
-  · have htail : ComputableInPolyTime (fun x : α × List Bool => (x.1, x.2.tail))
-        (encPair enc encBits) (encPair enc encBits) :=
-      (fst enc encBits).prod (bitsTail.comp (snd enc encBits))
-    refine (bool_and' (bool_not.comp ?_)
-      (ite' (encC := encBool) ?_ (hV.comp htail) (hW.comp htail)))
-    · fun_prop
-    · fun_prop
+      simp only [List.length_cons]; omega
+  · fun_prop
   · match w with
     | [] => simp
     | true :: u => simp [hRV]
@@ -363,10 +351,7 @@ exactly when the solver returns a solution tagged `true`. -/
 theorem searchDomain_mem_P_of_searchSum_mem_FPSearch (hRS : searchSum R S ∈ FPSearch enc)
     (hdisj : Disjoint (searchDomain R) (searchDomain S)) : searchDomain R ∈ P enc := by
   obtain ⟨-, f, hf, hsolve⟩ := mem_FPSearch.mp hRS
-  refine mem_P.mpr ⟨fun a => ((f a).getD []).headD false, ?_, fun a => ?_⟩
-  · have hget := optionGetDWithInput hf
-      (const [] : ComputableInPolyTime (fun _ : α => ([] : List Bool)) enc encBits)
-    fun_prop
+  refine mem_P.mpr ⟨fun a => ((f a).getD []).headD false, by fun_prop, fun a => ?_⟩
   · change a ∈ searchDomain R ↔ ((f a).getD []).headD false = true
     cases ha : f a with
     | none =>
@@ -487,17 +472,13 @@ theorem SearchReducible.mem_FPSearch (h : SearchReducible encA encB R T) (hR : R
   obtain ⟨f, g, hf, hg, hdom, hsol⟩ := h
   obtain ⟨-, s, hs, hsolve⟩ := Complexity.mem_FPSearch.mp hT
   refine Complexity.mem_FPSearch.mpr ⟨hR, fun a => (s (f a)).elim none fun w => some (g (a, w)),
-    (optionElimWithInput (hs.comp hf) (const none)
-      ((optionSome encBits).comp hg)),
-    fun a => ⟨fun w ha => ?_, fun ha hR => ?_⟩⟩
-  · cases hsa : s (f a) with
-    | none => simp [hsa] at ha
-    | some v =>
-      simp only [hsa, Option.elim_some, Option.some.injEq] at ha
-      exact ha ▸ hsol a v (hsolve.rel hsa)
-  · cases hsa : s (f a) with
-    | none => exact hsolve.notMem hsa (hdom a hR)
-    | some v => simp [hsa] at ha
+    by fun_prop, fun a => ?_⟩
+  cases hsa : s (f a) with
+  | none => exact ⟨fun _ ha => by simp [hsa] at ha, fun _ hR => hsolve.notMem hsa (hdom a hR)⟩
+  | some v =>
+    refine ⟨fun w ha => ?_, fun ha => by simp [hsa] at ha⟩
+    simp only [hsa, Option.elim_some, Option.some.injEq] at ha
+    exact ha ▸ hsol a v (hsolve.rel hsa)
 
 section Hardness
 

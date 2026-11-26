@@ -48,10 +48,9 @@ theorem size_bitonicSortCircuit_le {k R : ℕ} (key : Fin k → Fin R) (p : ℕ)
   have h := four_mul_size_bitonicSortCircuit key p ascending
   have hite : (if R = 0 then 0 else 6 * k + 6 * R + 2) ≤ 3 * (2 * k + 2 * R + 1) := by
     split_ifs <;> lia
-  have hp : p * (p + 1) ≤ (p + 1) ^ 2 := by grind
-  have := Nat.mul_le_mul (Nat.mul_le_mul_right (2 ^ p) hp) hite
-  have e : (p + 1) ^ 2 * 2 ^ p * (3 * (2 * k + 2 * R + 1)) =
-      3 * ((p + 1) ^ 2 * 2 ^ p * (2 * k + 2 * R + 1)) := by ring
+  have := Nat.mul_le_mul (Nat.mul_le_mul_right (2 ^ p) (Nat.mul_le_mul_right (p + 1) p.le_succ))
+    hite
+  ring_nf at h this ⊢
   lia
 
 section Bounds
@@ -143,29 +142,20 @@ private theorem stage3_le {D L b s p r : ℕ} (hk : arity p ≤ 2 ^ D)
   have hk1 : 1 ≤ arity p := by rw [arity_eq_two_pow]; exact Nat.one_le_two_pow
   have hA : arity d ≤ 2 * (arity p * s) + 1 := by
     rw [arity_eq_two_pow]
-    by_cases h0 : arity p * s = 0
-    · rw [hd, h0]
-      simp
-    · have := Nat.pow_clog_le_mul Nat.one_lt_two h0
+    rcases eq_or_ne s 0 with rfl | hs0
+    · simp [d]
+    · have := Nat.pow_clog_le_mul Nat.one_lt_two (Nat.mul_ne_zero (Nat.pos_iff_ne_zero.mp hk1) hs0)
       lia
   have hA1 : 1 ≤ arity d := by rw [arity_eq_two_pow]; exact Nat.one_le_two_pow
   have hd1 : d + 1 ≤ W := by
-    have : arity p * s ≤ 2 ^ (D + b) := by
-      rw [pow_add]
-      exact Nat.mul_le_mul hk hs.le
-    have := Nat.clog_le_of_le_pow this
+    have := Nat.clog_le_of_le_pow ((pow_add 2 D b).symm ▸ Nat.mul_le_mul hk hs.le)
     lia
-  have hsts : 4 * sortTraceSize d ≤ 4 * (W ^ 2 * arity d) := by
-    rw [four_mul_sortTraceSize, ← arity_eq_two_pow]
-    have h1 : d * (d + 1) ≤ W ^ 2 := by
-      rw [pow_two]
-      exact Nat.mul_le_mul (by lia) hd1
-    calc d * (d + 1) * arity d ≤ W ^ 2 * arity d := Nat.mul_le_mul_right _ h1
-      _ ≤ 4 * (W ^ 2 * arity d) := by lia
-  have hsts' : sortTraceSize d ≤ W ^ 2 * arity d := by lia
-  have hW3 : W ≤ W ^ 3 := by
-    calc W = W ^ 1 := (pow_one W).symm
-      _ ≤ W ^ 3 := Nat.pow_le_pow_right hW1 (by decide)
+  have hsts' : sortTraceSize d ≤ W ^ 2 * arity d := by
+    have h4 := arity_eq_two_pow d ▸ four_mul_sortTraceSize d
+    have : d * (d + 1) * arity d ≤ W ^ 2 * arity d :=
+      Nat.mul_le_mul_right _ (by rw [pow_two]; exact Nat.mul_le_mul (by lia) hd1)
+    lia
+  have hW3 : W ≤ W ^ 3 := Nat.le_self_pow (by norm_num) W
   have e1 : sortTraceSize d * (6 * (L + 1) + 6 * (L + 1) + 8) ≤ 12 * W ^ 3 * arity d :=
     calc sortTraceSize d * (6 * (L + 1) + 6 * (L + 1) + 8) ≤ (W ^ 2 * arity d) * (12 * W) :=
           Nat.mul_le_mul hsts' (by lia)
@@ -173,22 +163,17 @@ private theorem stage3_le {D L b s p r : ℕ} (hk : arity p ≤ 2 ^ D)
   have e2 : (arity d - 1) * (6 * (L + 1) + 1) ≤ 6 * W ^ 3 * arity d :=
     calc (arity d - 1) * (6 * (L + 1) + 1) ≤ arity d * (6 * W ^ 3) := by gcongr <;> omega
       _ = 6 * W ^ 3 * arity d := by ring
-  have e3 : 4 * arity d ≤ 4 * W ^ 3 * arity d := by
-    have : 1 ≤ W ^ 3 := Nat.one_le_pow _ _ (by lia)
-    calc 4 * arity d = 4 * 1 * arity d := by ring
-      _ ≤ 4 * W ^ 3 * arity d := Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ this)
+  have e3 : 4 * arity d ≤ 4 * W ^ 3 * arity d :=
+    Nat.mul_le_mul_right _ (Nat.le_mul_of_pos_right 4 (Nat.pow_pos hW1))
   have hsize : (duplicateFlagsCircuit (id : Fin (L + 1) → Fin (L + 1)) d).size + 2 ≤
       22 * W ^ 3 * arity d := by
     rw [size_duplicateFlagsCircuit]
     lia
   have hrA : r * arity d ≤ 12 * 2 ^ D * W * (s + 1) := by
     have h1 := Nat.mul_le_mul_left r hA
-    have h2 : r * (2 * (arity p * s) + 1) = 2 * ((r * arity p) * s) + r := by ring
     have h3 := Nat.mul_le_mul_right s hrk
-    have hr : r ≤ r * arity p := Nat.le_mul_of_pos_right r hk1
-    have h4 : 4 * 2 ^ D * W * (s + 1) = 4 * 2 ^ D * W * s + 4 * 2 ^ D * W := by ring
-    have h5 : 12 * 2 ^ D * W * (s + 1) = 12 * 2 ^ D * W * s + 12 * 2 ^ D * W := by ring
-    lia
+    have hr := le_trans (Nat.le_mul_of_pos_right r hk1) hrk
+    ring_nf at h1 h3 hr ⊢; omega
   calc r * ((duplicateFlagsCircuit (id : Fin (L + 1) → Fin (L + 1)) d).size + 2)
       ≤ r * (22 * W ^ 3 * arity d) := Nat.mul_le_mul_left r hsize
     _ = 22 * W ^ 3 * (r * arity d) := by ring
@@ -201,49 +186,28 @@ theorem phaseCost_le {D L b s p a r : ℕ} (hk : a + arity p = 2 ^ D)
     (hr : arity p * r ≤ 2 ^ D * (2 + 3 * L) + 2 * arity p) (hs : s < 2 ^ b) :
     phaseCost D L s p a r ≤ 16384 * 2 ^ D * (s + 1) * (D + L + b + 2) ^ 4 := by
   have hkn : arity p ≤ 2 ^ D := by lia
-  have hpD : p ≤ D := by
-    by_contra h
-    have := Nat.pow_lt_pow_right Nat.one_lt_two (not_le.mp h)
-    have := arity_eq_two_pow p
+  have hpD : p ≤ D := Nat.le_of_not_lt fun h => by
+    have := (arity_eq_two_pow p).symm ▸ Nat.pow_lt_pow_right Nat.one_lt_two h
     lia
   have hk1 : 1 ≤ arity p := by rw [arity_eq_two_pow]; exact Nat.one_le_two_pow
   have hW1 : 1 ≤ D + L + b + 2 := by lia
   have hrk : r * arity p ≤ 4 * 2 ^ D * (D + L + b + 2) := by
-    have h1 : 2 ^ D * (2 + 3 * L) + 2 * arity p ≤ 2 ^ D * (4 + 3 * L) := by
-      have : 2 ^ D * (4 + 3 * L) = 2 ^ D * (2 + 3 * L) + 2 * 2 ^ D := by ring
-      lia
-    have h2 : 2 ^ D * (4 + 3 * L) ≤ 2 ^ D * (4 * (D + L + b + 2)) :=
-      Nat.mul_le_mul_left _ (by lia)
-    have h3 : 2 ^ D * (4 * (D + L + b + 2)) = 4 * 2 ^ D * (D + L + b + 2) := by ring
-    have h4 : r * arity p = arity p * r := Nat.mul_comm _ _
-    lia
+    ring_nf at hr ⊢; omega
   have hr' : r ≤ 4 * 2 ^ D * (D + L + b + 2) := le_trans (Nat.le_mul_of_pos_right r hk1) hrk
   have hS1 : 1 ≤ s + 1 := by lia
   -- Stage 2 operands.
-  have hrks : r * arity p * s ≤ 4 * 2 ^ D * (D + L + b + 2) * (s + 1) :=
-    Nat.mul_le_mul hrk (by lia)
-  have has : a * s ≤ 2 ^ D * (s + 1) := Nat.mul_le_mul (by lia) (by lia)
+  have hrks := Nat.mul_le_mul_right s hrk
+  have has : a * s ≤ 2 ^ D * s := Nat.mul_le_mul_right s (by omega)
+  ring_nf at hrks has
   have hX : r * arity p * s + a * s + 1 ≤ 6 * 2 ^ D * (s + 1) * (D + L + b + 2) := by
-    have h1 : 2 ^ D * (s + 1) ≤ 2 ^ D * (s + 1) * (D + L + b + 2) :=
-      Nat.le_mul_of_pos_right _ hW1
-    have h2 : 1 ≤ 2 ^ D * (s + 1) := Nat.mul_le_mul Nat.one_le_two_pow hS1
-    have h3 : 4 * 2 ^ D * (D + L + b + 2) * (s + 1) = 4 * (2 ^ D * (s + 1) * (D + L + b + 2)) :=
-      by ring
-    have h4 : 6 * 2 ^ D * (s + 1) * (D + L + b + 2) = 6 * (2 ^ D * (s + 1) * (D + L + b + 2)) :=
-      by ring
-    lia
+    have hP1 : 1 ≤ 2 ^ D := Nat.one_le_two_pow
+    ring_nf; omega
   have hY : Nat.clog 2 (r * arity p * s + a * s) + 1 ≤ 7 * (D + L + b + 2) := by
-    have hfour : 4 * (D + L + b + 2) < 2 ^ (4 * (D + L + b + 2)) := Nat.lt_two_pow_self
-    have hle : r * arity p * s + a * s ≤ 2 ^ (D + b + 4 * (D + L + b + 2)) := by
-      have h1 : r * arity p * s + a * s ≤ 2 ^ D * s * (4 * (D + L + b + 2) + 1) := by
-        have h5 := Nat.mul_le_mul_right s hrk
-        have h6 := Nat.mul_le_mul_right s (show a ≤ 2 ^ D by lia)
-        have h7 : 2 ^ D * s * (4 * (D + L + b + 2) + 1) =
-            4 * 2 ^ D * (D + L + b + 2) * s + 2 ^ D * s := by ring
-        lia
-      calc r * arity p * s + a * s ≤ 2 ^ D * s * (4 * (D + L + b + 2) + 1) := h1
+    have hle : r * arity p * s + a * s ≤ 2 ^ (D + b + 4 * (D + L + b + 2)) :=
+      calc r * arity p * s + a * s ≤ 2 ^ D * s * (4 * (D + L + b + 2) + 1) := by
+            ring_nf; omega
         _ ≤ 2 ^ D * 2 ^ b * 2 ^ (4 * (D + L + b + 2)) :=
-            Nat.mul_le_mul (Nat.mul_le_mul_left _ hs.le) hfour
+            Nat.mul_le_mul (Nat.mul_le_mul_left _ hs.le) Nat.lt_two_pow_self
         _ = 2 ^ (D + b + 4 * (D + L + b + 2)) := by rw [pow_add, pow_add]
     have := Nat.clog_le_of_le_pow hle
     lia
@@ -251,19 +215,19 @@ theorem phaseCost_le {D L b s p a r : ℕ} (hk : a + arity p = 2 ^ D)
   have t2 := stage2_le hX hY (by lia : L + 2 ≤ D + L + b + 2)
   have t3 := stage3_le (L := L) hkn hrk hs
   have t4 := stage4_le (s := s) hrk rfl hW1
-  have hz5 := size_bitonicSortCircuit_le (id : Fin 1 → Fin 1) p false
-  rw [← arity_eq_two_pow] at hz5
   have t5 := stage5_le (z := (bitonicSortCircuit (id : Fin 1 → Fin 1) p false).size)
-    (by simpa using hz5) hrk (by lia : p + 1 ≤ D + L + b + 2) hS1 hW1
+    (by simpa [← arity_eq_two_pow] using size_bitonicSortCircuit_le (id : Fin 1 → Fin 1) p false)
+    hrk (by lia : p + 1 ≤ D + L + b + 2) hS1 hW1
   have t6 := stage6_le hr' hS1 hW1
   have t7 := stage7_le hrk hkn hS1 hW1
   have t8 := stage8_le (L := L) (s := s) hrk hkn (by lia : s ≤ s + 1)
     (by lia : L ≤ D + L + b + 2) hW1
-  have hz9 := size_bitonicSortCircuit_le
-    (Fin.castAdd (width D L s) : Fin 1 → Fin (1 + width D L s)) p false
-  rw [← arity_eq_two_pow] at hz9
-  have t9 := stage9_le hz9 hkn (by lia : p + 1 ≤ D + L + b + 2)
-    (by lia : D + L ≤ D + L + b + 2) (by lia : L ≤ D + L + b + 2) rfl hW1
+  have t9 := stage9_le (by
+      simpa only [← arity_eq_two_pow] using size_bitonicSortCircuit_le
+        (Fin.castAdd (width D L s) : Fin 1 → Fin (1 + width D L s)) p false)
+    hkn (by lia : p + 1 ≤ D + L + b + 2)
+    (by lia : D + L ≤ D + L + b + 2)
+    (by lia : L ≤ D + L + b + 2) rfl hW1
   unfold phaseCost
   lia
 

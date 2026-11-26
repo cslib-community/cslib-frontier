@@ -52,9 +52,7 @@ theorem exists_AWPP_queryWeights {α : Type} {enc : α ↪ List Bool} {A : Set (
           (w.take (T a) ∉ A → (2 : ℤ) ^ e a * H (a, w) ≤ D) := by
   obtain ⟨g, hg, p, hA⟩ := hA
   let query : α × List Bool → List Bool := fun x => x.2.take (T x.1)
-  have hquery : ComputableInPolyTime query (encPair enc encBits) encBits := by
-    dsimp [query]
-    fun_prop
+  have hquery : ComputableInPolyTime query (encPair enc encBits) encBits := by fun_prop
   have he' : ComputableInPolyTime (fun x : α × List Bool => e x.1)
       (encPair enc encBits) encUnary := he.comp (.fst enc encBits)
   let H₀ : α × List Bool → ℤ := fun x => AWPPAmplification.majorityPolynomial
@@ -66,22 +64,16 @@ theorem exists_AWPP_queryWeights {α : Type} {enc : α ↪ List Bool} {A : Set (
     · fun_prop
   let padding : α × List Bool → ℕ := fun x =>
     12 * e x.1 * (p.eval (T x.1) - p.eval (query x).length)
-  have hpadding : ComputableInPolyTime padding (encPair enc encBits) encUnary := by
-    dsimp [padding]
-    fun_prop
   have hpow : ComputableInPolyTime (fun x => 2 ^ padding x)
       (encPair enc encBits) encNat := by fun_prop
   let H : α × List Bool → ℤ := fun x => H₀ x * (2 : ℤ) ^ padding x
   have hH : H ∈ GapP (encPair enc encBits) := by
-    convert GapP.mul_mem hH₀
-      (SharpP.natCast_mem_GapP (mem_SharpP_of_polyTime hpow)) using 1
-    ext x
-    simp [H]
+    simpa [H, Pi.mul_def] using
+      GapP.mul_mem hH₀ (SharpP.natCast_mem_GapP (mem_SharpP_of_polyTime hpow))
   refine ⟨H, hH, fun a => 12 * e a * p.eval (T a), by fun_prop, fun a w => ?_⟩
   obtain ⟨hb, hy, hn⟩ := hA (query (a, w))
   simp only [encBits_apply] at hb hy hn
-  obtain ⟨hb', hy', hn'⟩ := AWPPAmplification.majorityPolynomial_bounds
-    (e := e a) hb.1 hb.2
+  obtain ⟨hb', hy', hn'⟩ := AWPPAmplification.majorityPolynomial_bounds (e := e a) hb.1 hb.2
   let d : ℤ := 2 ^ (2 * (6 * e a) * p.eval (query (a, w)).length)
   let P : ℤ := 2 ^ padding (a, w)
   have hP : 0 ≤ P := by dsimp [P]; positivity
@@ -91,28 +83,14 @@ theorem exists_AWPP_queryWeights {α : Type} {enc : α ↪ List Bool} {A : Set (
     congr 1
     have hlen : p.eval (query (a, w)).length ≤ p.eval (T a) :=
       p.eval_mono (List.length_take_le _ _)
-    calc
-      12 * e a * p.eval (T a) =
-          12 * e a * (p.eval (query (a, w)).length +
-            (p.eval (T a) - p.eval (query (a, w)).length)) := by
-        rw [Nat.add_sub_of_le hlen]
-      _ = _ := by ring
-  change (0 ≤ H₀ (a, w) * P ∧ H₀ (a, w) * P ≤ _) ∧ _
+    rw [show 2 * (6 * e a) = 12 * e a by ring, ← Nat.mul_add, Nat.add_sub_of_le hlen]
+  dsimp only [H]
   rw [hD]
-  refine ⟨⟨mul_nonneg hb'.1 hP, mul_le_mul_of_nonneg_right hb'.2 hP⟩, ?_, ?_⟩
-  · intro ha
-    have h := mul_le_mul_of_nonneg_right (hy' (hy ha)) hP
-    change (2 : ℤ) ^ e a * (d * P - H₀ (a, w) * P) ≤ d * P
-    calc
-      (2 : ℤ) ^ e a * (d * P - H₀ (a, w) * P) =
-          ((2 : ℤ) ^ e a * (d - H₀ (a, w))) * P := by ring
-      _ ≤ d * P := h
-  · intro ha
-    have h := mul_le_mul_of_nonneg_right (hn' (hn ha)) hP
-    change (2 : ℤ) ^ e a * (H₀ (a, w) * P) ≤ d * P
-    calc
-      (2 : ℤ) ^ e a * (H₀ (a, w) * P) = ((2 : ℤ) ^ e a * H₀ (a, w)) * P :=
-        (mul_assoc _ _ _).symm
-      _ ≤ d * P := h
+  refine ⟨⟨mul_nonneg hb'.1 hP, mul_le_mul_of_nonneg_right hb'.2 hP⟩, fun ha => ?_, fun ha => ?_⟩
+  · calc (2 : ℤ) ^ e a * (d * P - H₀ (a, w) * P)
+        = (2 : ℤ) ^ e a * (d - H₀ (a, w)) * P := by ring
+      _ ≤ d * P := mul_le_mul_of_nonneg_right (hy' (hy ha)) hP
+  · rw [← mul_assoc]
+    exact mul_le_mul_of_nonneg_right (hn' (hn ha)) hP
 
 end Cslib.Complexity

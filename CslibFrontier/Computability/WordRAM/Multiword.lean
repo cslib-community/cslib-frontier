@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Notation
 public import CslibFrontier.Foundations.Data.Nat.Radix
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -131,49 +132,11 @@ def setup : Code .standard 7 := ram[
   digit ← #1;
   base ← digit <<< base ]
 
-/-- The result of radix setup. -/
-private def setupResult (w : ℕ) (x : Data 7) : Data 7 :=
-  ((((x.set total w).set digit 2).set base (w / 2)).set digit 1).set base (radix w)
-
-/-- Radix setup costs five instructions for every physical word size at least two. -/
-private theorem exec_setup {w : ℕ} (x : Data 7) (hw : 2 ≤ w) :
-    Exec w setup x (setupResult w x) 5 := by
-  have h2 : Fits w 2 := by
-    have := Nat.pow_le_pow_right (n := 2) (by decide) hw
-    exact lt_of_lt_of_le (by decide : 2 < 2 ^ 2) this
-  have hhalf : Fits w (w / 2) := (fits_self w).of_le (Nat.div_le_self _ _)
-  have h1 := fits_one (w := w) (by omega)
-  have hβ := radix_fits hw
-  have hshift : 1 <<< (w / 2) = radix w := by rw [Nat.shiftLeft_eq, one_mul]; rfl
-  ram_eval [setup, setupResult, h2, hhalf, h1, hβ, hshift]
-
 /-- Fixed code computing the radix and then executing a schoolbook update. -/
 def initializedProgram : Code .standard 7 := .seq setup program
 
 /-- The initialized limb-update program consists of ten instructions. -/
 theorem size_initializedProgram : initializedProgram.size = 10 := rfl
-
-/-- The mathematical result of the five instructions, including the workspace. -/
-private def result (x : Data 7) : Data 7 :=
-  let s := x.regs left * x.regs right + x.regs addend + x.regs carry
-  ((x.set total s).set digit (s % x.regs base)).set carry (s / x.regs base)
-
-/-- Checked execution of the elementary update. All three intermediate results are justified
-from the digit bounds; no high-product primitive or enlarged physical word is assumed. -/
-private theorem exec_exact {w : ℕ} (x : Data 7)
-    (ha : x.regs left < radix w) (hb : x.regs right < radix w)
-    (hd : x.regs addend < radix w) (hc : x.regs carry < radix w) :
-    Exec w program x (result x) 5 := by
-  have hs := limb_update_fits ha hb hd hc
-  have hp : Fits w (x.regs left * x.regs right) := hs.of_le (by omega)
-  have hpd : Fits w (x.regs left * x.regs right + x.regs addend) :=
-    hs.of_le (by omega)
-  have hm : Fits w ((x.regs left * x.regs right + x.regs addend + x.regs carry) %
-      x.regs base) := hs.of_le (Nat.mod_le _ _)
-  have hq : Fits w ((x.regs left * x.regs right + x.regs addend + x.regs carry) /
-      x.regs base) := hs.of_le (Nat.div_le_self _ _)
-  ram_eval [program, result, hp, hpd, hs, hm, hq]
-  simp only [Data.set, Function.update_idem]
 
 /-- In five instructions the elementary update returns an exact low digit and carry, both
 strictly below the radix. Memory and the two operands, addend, and radix are preserved.
@@ -188,18 +151,15 @@ theorem exec {w : ℕ} (x : Data 7) (hbase : x.regs base = radix w)
       y.mem = x.mem ∧ y.regs left = x.regs left ∧ y.regs right = x.regs right ∧
       y.regs addend = x.regs addend ∧ y.regs base = x.regs base := by
   have hβ : 0 < radix w := Nat.two_pow_pos _
-  have hs := limb_update_lt_sq ha hb hd hc
+  have hs := limb_update_fits ha hb hd hc
   have hq : (x.regs left * x.regs right + x.regs addend + x.regs carry) /
-      radix w < radix w := by
-    apply (Nat.div_lt_iff_lt_mul hβ).mpr
-    simpa only [pow_two] using hs
-  refine ⟨result x, (exec_exact x ha hb hd hc).within, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simpa +decide [result, Function.update_apply, hbase] using Nat.mod_lt
-      (x.regs left * x.regs right + x.regs addend + x.regs carry) hβ
-  · simpa +decide [result, Function.update_apply, hbase] using hq
-  · simpa +decide [result, Function.update_apply, hbase] using (Nat.mod_add_div
-      (x.regs left * x.regs right + x.regs addend + x.regs carry) (radix w)).symm
-  all_goals simp +decide [result]
+      radix w < radix w :=
+    (Nat.div_lt_iff_lt_mul hβ).mpr (by simpa only [pow_two] using limb_update_lt_sq ha hb hd hc)
+  refine WP.exists_execWithin ?_
+  unfold program
+  wram_exec [hbase, hs]
+  wram_simp
+  exact ⟨Nat.mod_lt _ hβ, hq, (Nat.mod_add_div _ _).symm⟩
 
 /-- The update with charged radix setup, in ten instructions at any word size at least two.
 The initial radix and workspace registers may contain arbitrary words. -/
@@ -212,17 +172,19 @@ theorem exec_initialized {w : ℕ} (x : Data 7) (hw : 2 ≤ w)
         y.regs digit + radix w * y.regs carry ∧
       y.mem = x.mem ∧ y.regs left = x.regs left ∧ y.regs right = x.regs right ∧
       y.regs addend = x.regs addend ∧ y.regs base = radix w := by
-  have ha' : (setupResult w x).regs left < radix w := by
-    simpa +decide [setupResult] using ha
-  have hb' : (setupResult w x).regs right < radix w := by
-    simpa +decide [setupResult] using hb
-  have hd' : (setupResult w x).regs addend < radix w := by
-    simpa +decide [setupResult] using hd
-  have hc' : (setupResult w x).regs carry < radix w := by
-    simpa +decide [setupResult] using hc
-  obtain ⟨y, he, hy⟩ := exec (setupResult w x) (by simp [setupResult]) ha' hb' hd' hc'
-  refine ⟨y, (exec_setup x hw).within.seq he, ?_⟩
-  simpa +decide [setupResult] using hy
+  have h2 : Fits w 2 :=
+    lt_of_lt_of_le (by decide : 2 < 2 ^ 2) (Nat.pow_le_pow_right (by decide) hw)
+  have hshift : 1 <<< (w / 2) = radix w := by rw [Nat.shiftLeft_eq, one_mul]; rfl
+  refine WP.exists_execWithin ?_
+  unfold initializedProgram setup
+  wram_exec [fits_self w, h2, radix_fits hw, hshift]
+  refine WP.name fun z hzx => ?_
+  obtain ⟨y, he, hyd, hyc, hyeq, hym, hyl, hyr, hya, hyb⟩ :=
+    exec (w := w) z (by rw [hzx]; wram_simp) (by rw [hzx]; wram_simp [ha])
+      (by rw [hzx]; wram_simp [hb]) (by rw [hzx]; wram_simp [hd]) (by rw [hzx]; wram_simp [hc])
+  rw [hzx] at hyeq hym hyl hyr hya hyb
+  wram_simp at hyeq hyl hyr hya hyb
+  exact WP.of_execWithin he ⟨by omega, hyd, hyc, hyeq, hym, hyl, hyr, hya, hyb⟩
 
 end LimbUpdate
 

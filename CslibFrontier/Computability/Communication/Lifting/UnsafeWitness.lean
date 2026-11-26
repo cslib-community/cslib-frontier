@@ -45,13 +45,7 @@ theorem agreeOn_extend_restrict [NeZero m] (Y : Finset (Fin n → Fin m))
     agreeOn Y J (extendAssignment J (J.restrict α)) = agreeOn Y J α := by
   ext y
   simp only [agreeOn, mem_filter]
-  apply and_congr_right
-  intro _
-  apply forall_congr'
-  intro i
-  apply forall_congr'
-  intro hi
-  simp [extendAssignment, hi]
+  exact and_congr_right fun _ => forall₂_congr fun i hi => by simp [extendAssignment, hi]
 
 /-- Construct a supported parity test from a partial conditioning assignment. -/
 @[expose] def ofPartial [NeZero m] {F : Finset (Fin n)} {Y : Finset (Fin n → Fin m)}
@@ -79,15 +73,10 @@ theorem bias_eq_sum {F : Finset (Fin n)} {Y : Finset (Fin n → Fin m)}
     (w : ParityTest F Y) (g : Fin m → Fin m → Bool) (x : Fin n → Fin m) :
     w.bias g x = |∑ y, ((PMF.uniformOfFinset (agreeOn Y w.conditioned w.assignment)
       w.supported) y).toReal * chi ℝ w.parity (fun i => g (x i) (y i))| := by
-  unfold ParityTest.bias
-  rw [PMF.sum_map_mul]
-  congr 1
-  apply sum_congr rfl
-  intro y _
-  congr 1
+  rw [ParityTest.bias, PMF.sum_map_mul]
+  refine congrArg abs (sum_congr rfl fun y _ => congrArg (_ * ·) ?_)
   rw [chi_eq_signVal_parityOn, parityOn_eq_sum]
-  congr 1
-  exact sum_coe_sort w.parity (fun i => g (x i) (y i))
+  exact congrArg _ (sum_coe_sort w.parity fun i => g (x i) (y i))
 
 /-- A parity of a gadget output law is exactly the corresponding conditional parity test. -/
 theorem bias_eq_outputLaw {F I J : Finset (Fin n)} {Y : Finset (Fin n → Fin m)}
@@ -123,23 +112,19 @@ theorem exists_canonical_parityTest [NeZero m] {F I J : Finset (Fin n)}
       w.conditioned = J ∧ J.restrict w.assignment = J.restrict α ∧
       w.bias g x = |bias (gadgetOutputLaw g (agreeOn Y J α) hA I x) S| := by
   let P := S.map (Function.Embedding.subtype (· ∈ I))
-  have hPI : P ⊆ I := by
-    intro i hi
+  have hPI : P ⊆ I := fun _ hi => by
     obtain ⟨j, _, rfl⟩ := mem_map.mp hi
     exact j.property
   have hJF : J ⊆ F := fun j hj => (mem_sdiff.mp (hJ hj)).1
-  have hd : Disjoint J P := by
-    apply disjoint_left.mpr
-    intro i hiJ hiP
-    exact (mem_sdiff.mp (hJ hiJ)).2 (hPI hiP)
+  have hd : Disjoint J P :=
+    disjoint_left.mpr fun _ hiJ hiP => (mem_sdiff.mp (hJ hiJ)).2 (hPI hiP)
   have ha : (agreeOn Y J (ParityTest.extendAssignment J (J.restrict α))).Nonempty := by
     simpa only [ParityTest.agreeOn_extend_restrict] using hA
   let w := ParityTest.ofPartial P J (J.restrict α) (hPI.trans hI) hJF hd ha
-  refine ⟨w, ParityTest.ofPartial_isCanonical _ _ _ _ _ _ _, rfl, rfl, ?_, ?_⟩
-  · funext j
-    simp [w, ParityTest.ofPartial, ParityTest.extendAssignment, j.property]
-  · apply ParityTest.bias_eq_outputLaw w g x S α hA rfl
-    exact ParityTest.agreeOn_extend_restrict Y J α
+  refine ⟨w, ParityTest.ofPartial_isCanonical _ _ _ _ _ _ _, rfl, rfl, ?_,
+    ParityTest.bias_eq_outputLaw w g x S α hA rfl (ParityTest.agreeOn_extend_restrict Y J α)⟩
+  funext j
+  simp [w, ParityTest.ofPartial, ParityTest.extendAssignment, j.property]
 
 /-- Every unsafe value has a canonical conditional parity witness. The integer order assigned
 to each conditioning slice must satisfy the explicit low-order-count budget. The witness is
@@ -165,20 +150,19 @@ theorem exists_parityTest_of_not_isSafe [NeZero m]
   classical
   by_contra! hnone
   apply hunsafe
+  have hsubI {I : Finset (Fin n)} {S : Finset I} :
+      S.map (Function.Embedding.subtype (· ∈ I)) ⊆ I := fun i hi => by
+    obtain ⟨j, _, rfl⟩ := mem_map.mp hi
+    exact j.property
   apply isSafe_of_parity_bias_le g σ F Y hY x hσ
   · intro I hI S hS
     have hA : (agreeOn Y ∅ (fun _ => (0 : Fin m))).Nonempty := by simpa [agreeOn] using hY
     obtain ⟨w, hcan, hp, hj, _, hb⟩ :=
       exists_canonical_parityTest hI (empty_subset _) S (fun _ => (0 : Fin m)) hA g x
-    have hPI : w.parity ⊆ I := by
-      rw [hp]
-      intro i hi
-      obtain ⟨j, _, rfl⟩ := mem_map.mp hi
-      exact j.property
+    have hPI : w.parity ⊆ I := hp ▸ hsubI
     have hPne : w.parity.Nonempty := by simpa only [hp, map_nonempty] using hS
     have hIp : I.Nonempty := hPne.mono hPI
-    have hb' : w.bias g x = |bias (gadgetOutputLaw g Y hY I x) S| := by
-      simpa [agreeOn] using hb
+    have hb' : w.bias g x = |bias (gadgetOutputLaw g Y hY I x) S| := by simpa [agreeOn] using hb
     have hc := hnone I w hI hcan hPI hPne (Or.inl hj)
     rw [hb', hp, card_map] at hc
     exact hc.trans (half_global_bias_bound_le hIp S.card)
@@ -190,25 +174,19 @@ theorem exists_parityTest_of_not_isSafe [NeZero m]
     refine ⟨order I J a, ht, ?_, ?_⟩
     · intro S hS
       obtain ⟨w, hcan, hp, hj, hass, hb⟩ := exists_canonical_parityTest hI hJ S α hA g x
-      have hPI : w.parity ⊆ I := by
-        rw [hp]
-        intro i hi
-        obtain ⟨j, _, rfl⟩ := mem_map.mp hi
-        exact j.property
-      have hSnonempty : S.Nonempty := card_pos.mp (by omega)
-      have hPne : w.parity.Nonempty := by simpa only [hp, map_nonempty] using hSnonempty
+      have hPI : w.parity ⊆ I := hp ▸ hsubI
+      have hPne : w.parity.Nonempty := by
+        simpa only [hp, map_nonempty] using card_pos.mp (by omega : 0 < S.card)
       have hIp : I.Nonempty := hPne.mono hPI
       have ho : order I w.conditioned (w.conditioned.restrict w.assignment) =
-          order I J (J.restrict α) := by
-        subst J
-        rw [hass]
+          order I J (J.restrict α) := by subst J; rw [hass]
       have he : w.conditioned.Nonempty ∧ w.conditioned ⊆ F \ I ∧
           order I w.conditioned (w.conditioned.restrict w.assignment) ≤ w.parity.card := by
         simpa only [ho, hj, hp, card_map, a] using And.intro hJne (And.intro hJ hS)
       have hc := hnone I w hI hcan hPI hPne (Or.inr he)
       rw [hb, hp, card_map] at hc
       have hpow : (0 : ℝ) ≤ (1 / (2 * I.card) : ℝ) ^ S.card := by positivity
-      exact (hc.trans (half_global_bias_bound_le hIp S.card)).trans (by nlinarith)
+      exact (hc.trans (half_global_bias_bound_le hIp S.card)).trans (by linarith)
     · simpa only [a, ParityTest.agreeOn_extend_restrict] using hcap
 
 end Cslib.Communication.Lifting

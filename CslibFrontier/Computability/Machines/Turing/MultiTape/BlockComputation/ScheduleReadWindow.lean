@@ -58,18 +58,22 @@ theorem inWindow_inSpace (k c : ℕ) :
   have hni := budget_comp_linear (read_inSpace k c 0) (budget_prod hs hi)
   have hpj := budget_comp_linear (read_inSpace k c 2) (budget_prod hs hj)
   have hnj := budget_comp_linear (read_inSpace k c 0) (budget_prod hs hj)
-  have hone := budget_const (encB := encNat) 1 (show
-    (fun a => (encWindowArgs a).length) ≼ fun a => (encWindowArgs a).length from .refl _)
-  have htwo := budget_const (encB := encNat) 2 (show
-    (fun a => (encWindowArgs a).length) ≼ fun a => (encWindowArgs a).length from .refl _)
+  have hone :=
+    budget_const (encIn := encWindowArgs) (Bs := fun a => (encWindowArgs a).length) (encB := encNat)
+      1
+  have htwo :=
+    budget_const (encIn := encWindowArgs) (Bs := fun a => (encWindowArgs a).length) (encB := encNat)
+      2
   have ha := budget_natAdd hpj hni
   have hb := budget_natAdd (budget_natAdd hnj hpi) hd
   have hleft := budget_natLt (budget_natAdd hb hone) (budget_natAdd ha hone)
   have hright := budget_natLt (budget_natAdd ha htwo) hb
-  have hfalse := budget_const (encB := encBool) false (show
-    (fun a => (encWindowArgs a).length) ≼ fun a => (encWindowArgs a).length from .refl _)
-  have htrue := budget_const (encB := encBool) true (show
-    (fun a => (encWindowArgs a).length) ≼ fun a => (encWindowArgs a).length from .refl _)
+  have hfalse :=
+    budget_const (encIn := encWindowArgs) (Bs := fun a => (encWindowArgs a).length)
+      (encB := encBool) false
+  have htrue :=
+    budget_const (encIn := encWindowArgs) (Bs := fun a => (encWindowArgs a).length)
+      (encB := encBool) true
   exact (budget_ite hleft hfalse (budget_ite hright hfalse htrue)).of_enc_eq
     fun ⟨σ, i, δ, j⟩ => by
       simp only [inWindow, decide_eq_true_eq]

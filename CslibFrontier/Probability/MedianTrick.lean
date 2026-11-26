@@ -57,27 +57,20 @@ theorem dens_abs_median_sub_gt_le [Nonempty Ω] (g : Ω → ℝ) {μ t : ℝ}
     ext x
     simp only [G, mem_compl, mem_filter, mem_univ, true_and, not_le]
   have hG : 2 * Fintype.card Ω ≤ 3 * G.card := by
-    have h := card_compl_add_card G
+    rw [← hGc, nnratCast_dens, div_le_iff₀ (Nat.cast_pos.2 Fintype.card_pos)] at hg
     have hc : 3 * Gᶜ.card ≤ Fintype.card Ω := by
-      rw [hGc]
-      rw [nnratCast_dens, div_le_iff₀ (Nat.cast_pos.2 Fintype.card_pos)] at hg
-      exact_mod_cast (by linarith : (3 * #({x | t < |g x - μ|} : Finset Ω) : ℝ) ≤
-        Fintype.card Ω)
+      exact_mod_cast (by linarith : (3 : ℝ) * #Gᶜ ≤ Fintype.card Ω)
+    have := card_compl_add_card G
     omega
   have hmaj := card_filter_card_filter_le_le G hG r
   -- A sample with a majority of good estimates has a good median.
   have hsub : ({ω : Fin (2 * r) → Ω | t < |median (fun i => g (ω i)) - μ|} :
       Finset (Fin (2 * r) → Ω)) ⊆ ({ω | #{i | ω i ∈ G} ≤ r} : Finset (Fin (2 * r) → Ω)) :=
     fun ω hω => by
-      simp only [mem_filter, mem_univ, true_and] at hω ⊢
-      by_contra hlt
-      rw [not_le] at hlt
+      simp only [G, mem_filter, mem_univ, true_and] at hω ⊢
+      by_contra! hlt
       refine not_le.2 hω (abs_median_sub_le ?_)
-      have : #{i | ω i ∈ G} = #{j | |g (ω j) - μ| ≤ t} := by
-        congr 1
-        ext i
-        simp only [G, mem_filter, mem_univ, true_and]
-      rw [Fintype.card_fin, ← this]
+      rw [Fintype.card_fin]
       omega
   calc (dens {ω : Fin (2 * r) → Ω | t < |median (fun i => g (ω i)) - μ|} : ℝ)
       ≤ dens ({ω | #{i | ω i ∈ G} ≤ r} : Finset (Fin (2 * r) → Ω)) := by

@@ -85,12 +85,12 @@ private theorem le_clipped_relative_error {η d r ρ : ℝ} (hη : 0 < η) (hd :
   have hden : 0 < 1 + d := by linarith
   have hηden : 0 < 2 * (1 + η) := by positivity
   have hdiff : d ≤ 2 * |r - d| := by linarith [neg_le_abs (r - d)]
-  refine le_min ?_ ?_
-  · apply (div_le_iff₀ hηden).2
-    linarith
-  · apply (div_le_div_iff₀ hηden hden).2
-    nlinarith [mul_nonneg (show 0 ≤ 1 + η by positivity)
-      (show 0 ≤ 2 * |r - d| - d by linarith)]
+  refine le_min ((div_le_iff₀ hηden).2 (by linarith)) ((div_le_div_iff₀ hηden hden).2 ?_)
+  calc η * (1 + d) = η + η * d := by ring
+    _ ≤ d + η * d := by linarith
+    _ = d * (1 + η) := by ring
+    _ ≤ (2 * |r - d|) * (1 + η) := by gcongr
+    _ = |r - d| * (2 * (1 + η)) := by ring
 
 /-- Before overflow, a change at a genuinely large target can be charged to the raw prefix's
 clipped error. `raw` is the uncompressed prefix; `w` also includes preceding compression loss.
@@ -106,19 +106,13 @@ theorem abs_update_sub_le_mul_clippedError {s : Finset ι} {n K : ℕ} {ρ z η 
   by_cases hlarge : 3 * threshold s n ρ z w ≤ entrySize (w y)
   · rw [update_eq_self_of_three_mul_le hlarge, sub_self, abs_zero]
     exact mul_nonneg (mul_nonneg hC hρ) (clippedError_nonneg _ _ _)
-  have hsize : entrySize (w y) < 3 * threshold s n ρ z w := lt_of_not_ge hlarge
   have hraw : raw 0 ≤ 4 * ρ := by
-    have hw := (le_abs_self (w y 0)).trans (abs_apply_le_entrySize (w y) 0)
-    have hp := (abs_le.mp hprev).1
-    linarith
+    linarith [(le_abs_self (w y 0)).trans (abs_apply_le_entrySize (w y) 0), (abs_le.mp hprev).1]
   have he : η / (2 * (1 + η)) ≤ clippedError d v raw :=
     (le_clipped_relative_error hη hd hsmall hraw).trans (le_max_left _ _)
-  have hcancel : (12 * (1 + η) / η) * ρ * (η / (2 * (1 + η))) = 6 * ρ := by
-    field_simp
-    ring
   calc |update s n K ρ z w y ν - w y ν| ≤ 6 * ρ :=
       (abs_update_sub_le_six_mul y ν).trans (mul_le_mul_of_nonneg_left hno (by norm_num))
-    _ = (12 * (1 + η) / η) * ρ * (η / (2 * (1 + η))) := hcancel.symm
+    _ = (12 * (1 + η) / η) * ρ * (η / (2 * (1 + η))) := by field_simp; ring
     _ ≤ (12 * (1 + η) / η) * ρ * clippedError d v raw := by gcongr
 
 /-- The weighted preloss estimate [OpenAI2026LogSpace, Lemma 8.2, (8.9)] for actual iterates.
@@ -138,19 +132,17 @@ theorem abs_iterate_sub_uncompressed_le_weighted {s : Finset ι} {n K : ℕ → 
     have hj := Nat.lt_succ_self j
     have hno' : ∀ i < j, stepThreshold s n K ρ Δ a i ≤ ρ i :=
       fun i hi => hno i (Nat.lt_succ_of_lt hi)
-    have hprev : |inputRow s n K ρ Δ a j y 0 -
-        uncompressedRow Δ a.row (j + 1) y 0| ≤ ρ j := by
+    have hdiff (μ : Fin 2) : |inputRow s n K ρ Δ a j y μ - uncompressedRow Δ a.row (j + 1) y μ| =
+        |(iterate s n K ρ Δ a j).row y μ - uncompressedRow Δ a.row j y μ| := by
       rw [uncompressedRow_succ]
       simp only [inputRow, Pi.add_apply, add_sub_add_right_eq_sub]
-      exact (abs_iterate_sub_uncompressed_le_of_no_overflow j hno' y 0).trans (hprior j hj)
+    have hprev : |inputRow s n K ρ Δ a j y 0 - uncompressedRow Δ a.row (j + 1) y 0| ≤ ρ j :=
+      (hdiff 0).trans_le
+        ((abs_iterate_sub_uncompressed_le_of_no_overflow j hno' y 0).trans (hprior j hj))
     have hstep := abs_update_sub_le_mul_clippedError (K := K j) (v := v) hη hd
       (hno j hj) (hsmall j hj) hprev ν
     have hbefore := ih hno' (fun i hi => hsmall i (Nat.lt_succ_of_lt hi))
       (fun i hi => hprior i (Nat.lt_succ_of_lt hi))
-    have hdiff : |inputRow s n K ρ Δ a j y ν - uncompressedRow Δ a.row (j + 1) y ν| =
-        |(iterate s n K ρ Δ a j).row y ν - uncompressedRow Δ a.row j y ν| := by
-      rw [uncompressedRow_succ]
-      simp only [inputRow, Pi.add_apply, add_sub_add_right_eq_sub]
     calc _ ≤ |(iterate s n K ρ Δ a (j + 1)).row y ν - inputRow s n K ρ Δ a j y ν| +
           |inputRow s n K ρ Δ a j y ν - uncompressedRow Δ a.row (j + 1) y ν| :=
         abs_sub_le _ _ _
@@ -158,7 +150,7 @@ theorem abs_iterate_sub_uncompressed_le_weighted {s : Finset ι} {n K : ℕ → 
             clippedError d v (uncompressedRow Δ a.row (j + 1) y) +
           (12 * (1 + η) / η) * ∑ i ∈ range j,
             ρ i * clippedError d v (uncompressedRow Δ a.row (i + 1) y) := by
-        rw [hdiff]
+        rw [hdiff ν]
         exact add_le_add hstep hbefore
       _ = _ := by rw [sum_range_succ]; ring
 
@@ -173,11 +165,10 @@ theorem abs_iterate_sub_uncompressed_le_weighted_dyadic {s : Finset ι} {n K : �
     |(iterate s n K (dyadicFloor η m) Δ a j).row y ν - uncompressedRow Δ a.row j y ν| ≤
       (12 * (1 + η) / η) * ∑ i ∈ range j,
         dyadicFloor η m i * clippedError d v (uncompressedRow Δ a.row (i + 1) y) := by
-  apply abs_iterate_sub_uncompressed_le_weighted hη hd j hno
-  · exact fun i _ => eight_mul_dyadicFloor_le hη.le m i
-  · intro i hi
-    have hsum := six_sum_range_dyadicFloor_le hη.le (hi.trans_le hj)
-    have hfloor := dyadicFloor_nonneg hη.le m i
-    linarith
+  exact abs_iterate_sub_uncompressed_le_weighted (v := v) hη hd j hno
+    (fun i _ => eight_mul_dyadicFloor_le hη.le m i)
+    (fun i hi => by
+      linarith [six_sum_range_dyadicFloor_le hη.le (hi.trans_le hj), dyadicFloor_nonneg hη.le m i])
+    y ν
 
 end Cslib.RowCompression

@@ -7,11 +7,15 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
+public import CslibFrontier.Algorithms.Lean.PessimisticEstimator
+public import CslibFrontier.Algorithms.WordRAM.MaxCut
+meta import CslibFrontier.Algorithms.WordRAM.MaxCut
 public import CslibFrontier.Computability.Complexity.Problems.MaxCut.Derandomized
 public import CslibFrontier.Computability.Probabilistic.RejectionSampling
 public import CslibFrontier.Probability.Product.ConditionalExpectation
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 
@@ -25,9 +29,12 @@ Exercises the public module-system interfaces (`public import`, no `import all`)
 2. `CslibFrontier.Probability.Product.ConditionalExpectation`,
    `CslibFrontier.Algorithms.Lean.PessimisticEstimator`, and
    `CslibFrontier.Computability.PolyTime.PessimisticEstimator`;
-3. `CslibFrontier.Algorithms.Lean.MaxCut.Derandomized` and
-   `CslibFrontier.Computability.Complexity.Problems.MaxCut.Derandomized`.
+3. `CslibFrontier.Algorithms.Lean.MaxCut.Derandomized`,
+   `CslibFrontier.Computability.Complexity.Problems.MaxCut.Derandomized`, and
+   `CslibFrontier.Algorithms.WordRAM.MaxCut`.
 -/
+
+set_option linter.hashCommand false
 
 public section
 
@@ -36,8 +43,8 @@ namespace Cslib.Tests.FairBitRejectionAndCondExp
 open scoped ENNReal Cslib.Probability.PMF
 open Cslib.Probability Cslib.PessimisticEstimator Cslib.Algorithms.Lean.MaxCut
 open Cslib.Algorithms.Lean Cslib.Algorithms.Lean.PessimisticEstimator
-open Cslib.Complexity Cslib.Complexity.MaxCut
-open Turing.MultiTapeTM
+open Cslib.Complexity Cslib.Complexity.MaxCut Cslib.Computability
+open Turing.MultiTapeTM ComputableInPolyTime
 
 /-! ## 1. Strict `module` surface checks (`rfl`) -/
 
@@ -139,7 +146,7 @@ theorem subset_and_ppt_rejection_checks :
       fun_prop
     exact (ComputableInPolyTime.optionSome encBits).comp hbits
 
-/-! ## 3. Non-Boolean finite-product conditional expectations and `CostedProductDerandomizer` -/
+/-! ## 3. Non-Boolean finite-product conditional expectations and `ProductDerandomizer` -/
 
 /-- Non-uniform rational PMF on `Fin 3` with weights `(1 / 2, 1 / 3, 1 / 6)` realized as a
 pushforward of `PMF.uniformOfFintype (Fin 6)`. -/
@@ -161,12 +168,11 @@ private def fin3Weight6 (i : Fin 3) : ℕ :=
 def prodPenaltyNat (y : Fin 2 → Fin 3) : ℕ :=
   ((3 : ℤ) * (y 0).val + 2 * (y 1).val - 4).natAbs ^ 2
 
-/-- Costed conditional-expectation evaluator (scaled by `36`) over `Fin 2 → Fin 3`, charging `1`
-tick per product point inspected. -/
-def exactCondExp36M (fixed : Finset (Fin 2)) (x : Fin 2 → Fin 3) : TimeM ℕ ℕ :=
-  (List.finRange 3).foldlM
+/-- Pure conditional-expectation evaluator (scaled by `36`) over `Fin 2 → Fin 3`. -/
+def exactCondExp36 (fixed : Finset (Fin 2)) (x : Fin 2 → Fin 3) : ℕ :=
+  (List.finRange 3).foldl
     (fun acc0 a0 =>
-      (List.finRange 3).foldlM
+      (List.finRange 3).foldl
         (fun acc1 a1 =>
           let y : Fin 2 → Fin 3 := fun j => if j = 0 then a0 else a1
           let term : ℕ :=
@@ -174,30 +180,27 @@ def exactCondExp36M (fixed : Finset (Fin 2)) (x : Fin 2 → Fin 3) : TimeM ℕ �
               (if 0 ∈ fixed then 6 else fin3Weight6 a0) *
                 (if 1 ∈ fixed then 6 else fin3Weight6 a1) * prodPenaltyNat y
             else 0
-          do ✓[1] pure (acc1 + term))
+          acc1 + term)
         acc0)
     0
 
-/-- Costed derandomizer over `Fin 2 → Fin 3` with exact scaled conditional expectations. -/
-def fin2Fin3Derandomizer : CostedProductDerandomizer (Fin 2) (fun _ => Fin 3) ℕ where
+/-- Product derandomizer over `Fin 2 → Fin 3` with exact scaled conditional expectations. -/
+def fin2Fin3Derandomizer : ProductDerandomizer (Fin 2) (fun _ => Fin 3) ℕ where
   choices _ := [0, 1, 2]
-  condExpM := exactCondExp36M
-  compareCost := 1
+  condExp := exactCondExp36
 
 /-- Concrete execution check on `Fin 2 → Fin 3`: although `(0, 2)` has global minimum `0`, its
 `y₀ = 0` slice has conditional expectation `56 / 6 > 14 / 6`, so `fin2Fin3Derandomizer` selects
-`(1, 1)` with `prodPenaltyNat = 1` (`36 * 1 < 276 = 36 * E[prodPenaltyNat]`) in `58` `TimeM`
-ticks (`29` ticks per coordinate). -/
+`(1, 1)` with `prodPenaltyNat = 1` (`36 * 1 < 276 = 36 * E[prodPenaltyNat]`). -/
 theorem fin2Fin3Derandomizer_concrete :
-    let res := fin2Fin3Derandomizer.derandomizeM [0, 1] (fun _ => 0)
+    let res := fin2Fin3Derandomizer.derandomize [0, 1] (fun _ => 0)
     prodPenaltyNat (fun i => if i = 0 then 0 else 2) = 0 ∧
-      prodPenaltyNat res.ret = 1 ∧ res.ret 0 = 1 ∧ res.ret 1 = 1 ∧
-      36 * prodPenaltyNat res.ret < (exactCondExp36M ∅ (fun _ => 0)).ret ∧
-      res.time = 58 := by
+      prodPenaltyNat res = 1 ∧ res 0 = 1 ∧ res 1 = 1 ∧
+      36 * prodPenaltyNat res < exactCondExp36 ∅ (fun _ => 0) := by
   intro res
-  refine ⟨by decide, by decide, by decide, by decide, by decide, by decide⟩
+  refine ⟨by decide, by decide, by decide, by decide, by decide⟩
 
-/-- Tower law and `CostedProductDerandomizer.derandomizeM_spec` check on `PMF.condExpect` for the
+/-- Tower law and `ProductDerandomizer.derandomize_spec` check on `PMF.condExpect` for the
 non-Boolean product `Fin 2 → Fin 3`. -/
 theorem fin2Fin3_tower_and_spec_check :
     (∑ a : Fin 3, (weightedFin3PMF a).toReal *
@@ -205,17 +208,15 @@ theorem fin2Fin3_tower_and_spec_check :
         (fun y => (prodPenaltyNat y : ℝ)) (insert 0 ∅) (Function.update (fun _ => 0) 0 a) =
     ∑ y : Fin 2 → Fin 3,
       (PMF.pi (fun _ : Fin 2 => weightedFin3PMF) y).toReal * (prodPenaltyNat y : ℝ)) ∧
-    (let D : CostedProductDerandomizer (Fin 2) (fun _ => Fin 3) ℝ :=
+    (let D : ProductDerandomizer (Fin 2) (fun _ => Fin 3) ℝ :=
       { choices := fun _ => [0, 1, 2]
-        condExpM := fun fixed x =>
-          do ✓[1] pure (PMF.condExpect (fun _ : Fin 2 => weightedFin3PMF)
-            (fun y => (prodPenaltyNat y : ℝ)) fixed x)
-        compareCost := 1 }
-     let out := D.derandomizeM [0, 1] (fun _ => 0)
-     (prodPenaltyNat out.ret : ℝ) ≤
+        condExp := fun fixed x =>
+          PMF.condExpect (fun _ : Fin 2 => weightedFin3PMF)
+            (fun y => (prodPenaltyNat y : ℝ)) fixed x }
+     let out := D.derandomize [0, 1] (fun _ => 0)
+     (prodPenaltyNat out : ℝ) ≤
        ∑ y : Fin 2 → Fin 3,
-         (PMF.pi (fun _ : Fin 2 => weightedFin3PMF) y).toReal * (prodPenaltyNat y : ℝ) ∧
-       out.time ≤ 12) := by
+         (PMF.pi (fun _ : Fin 2 => weightedFin3PMF) y).toReal * (prodPenaltyNat y : ℝ)) := by
   refine ⟨?_, ?_⟩
   · rw [PMF.sum_mul_condExpect_insert (fun _ : Fin 2 => weightedFin3PMF)
       (fun y => (prodPenaltyNat y : ℝ)) (Finset.notMem_empty 0) (fun _ => 0),
@@ -223,33 +224,65 @@ theorem fin2Fin3_tower_and_spec_check :
   · intro D out
     have hcov_fin3 : ∀ i : Fin 2, ∀ a : Fin 3, a ∈ [0, 1, 2] := by decide
     have hcov_fin2 : ∀ i : Fin 2, i ∈ ([0, 1] : List (Fin 2)) := by decide
-    obtain ⟨hexp, htime⟩ :=
-      D.derandomizeM_spec (fun _ : Fin 2 => weightedFin3PMF)
-        (fun y => (prodPenaltyNat y : ℝ)) monotone_id (fun _ _ => rfl)
-        (fun i a _ => hcov_fin3 i a) (fun _ => 1) (fun _ _ _ => le_rfl)
-        [0, 1] (by decide) hcov_fin2 (fun _ => 0)
-    exact ⟨hexp, htime.trans (by decide)⟩
+    exact D.derandomize_spec (fun _ : Fin 2 => weightedFin3PMF)
+      (fun y => (prodPenaltyNat y : ℝ)) monotone_id (fun _ _ => rfl)
+      (fun i a _ => hcov_fin3 i a) [0, 1] (by decide) hcov_fin2 (fun _ => 0)
 
-/-! ## 4. Weighted `MaxCut` downstream client: multigraph with parallel edges and self-loop -/
+/-- Multi-choice `PolyTimeChoiceGreedyInput` check over ternary choices `[2, 1, 0]`. -/
+def ternaryChoiceGreedy : PolyTimeChoiceGreedyInput ℕ ℕ ℕ (ℕ × ℕ) ℕ where
+  rounds _ := [0, 1]
+  choices _ _ := [2, 1, 0]
+  init _ := (2, 2)
+  branch _ r a s := if r = 0 then (a, s.2) else (s.1, a)
+  estimate _ s := s.1 + s.2
+
+theorem ternaryChoiceGreedy_polyTime_and_run :
+    ternaryChoiceGreedy.run 0 = (0, 0) ∧
+      (ComputableInPolyTime ternaryChoiceGreedy.run encNat (encPair encNat encNat) ∧
+        ∀ x, ternaryChoiceGreedy.estimate x (ternaryChoiceGreedy.run x) ≤
+          ternaryChoiceGreedy.estimate x (ternaryChoiceGreedy.init x)) := by
+  refine ⟨by decide, ?_⟩
+  obtain ⟨hpt, hmin⟩ := ternaryChoiceGreedy.run_polyTime_spec
+    (encI := encNat) (encR := encNat) (encLR := encList encNat)
+    (encA := encNat) (encLA := encList encNat) (encS := encPair encNat encNat)
+    (const [0, 1]) (const [2, 1, 0]) (const (2, 2))
+    (by unfold PolyTimeChoiceGreedyInput.encChoiceInput ternaryChoiceGreedy; fun_prop)
+    (by unfold ternaryChoiceGreedy; fun_prop)
+    (binary_le' (fst encNat encNat) (snd encNat encNat))
+    (growth := fun _ => 6) (PolyBounded.const 6)
+    (fun _ s r a _ ha => by
+      have halen : (encNat a).length ≤ 2 := by
+        rcases List.mem_cons.mp ha with rfl | ha1
+        · decide
+        · rcases List.mem_cons.mp ha1 with rfl | ha0
+          · decide
+          · rcases List.mem_cons.mp ha0 with rfl | hnil
+            · decide
+            · cases hnil
+      dsimp only [ternaryChoiceGreedy]
+      split_ifs <;> simp only [length_encPair] <;> omega)
+    (fun _ _ _ => True) (fun _ => trivial) (fun _ _ _ _ _ _ _ => trivial)
+    (fun _ _ _ _ _ => ⟨0, by simp [ternaryChoiceGreedy], by
+      dsimp only [ternaryChoiceGreedy]; split_ifs <;> omega⟩)
+  exact ⟨hpt, fun x => (hmin x).2⟩
+
+/-! ## 4. Weighted `MaxCut` downstream clients: Turing `PolyTime` and `WordRAM` -/
 
 /-- Test multigraph with parallel edges on `{0, 1}` (weights `4` and `2`), triangle edges `(1, 2)`
 (weight `5`) and `(0, 2)` (weight `3`), plus a self-loop `(1, 1)` of weight `10`. -/
 def testMultigraph : List WeightedEdge :=
   [⟨0, 1, 4⟩, ⟨0, 1, 2⟩, ⟨1, 2, 5⟩, ⟨0, 2, 3⟩, ⟨1, 1, 10⟩]
 
-/-- Concrete verification of `derandomizedCut`, `derandomizedCutM`, `nonLoopWeight`, and the strict
-gap between `nonLoopWeight` (`14`) and `totalWeight` (`24`) caused by the self-loop `(1, 1, 10)`. -/
+/-- Concrete verification of `derandomizedCut`, `nonLoopWeight`, and the strict gap between
+`nonLoopWeight` (`14`) and `totalWeight` (`24`) caused by the self-loop `(1, 1, 10)`. -/
 theorem testMultigraph_derandomized_concrete :
     nonLoopWeight testMultigraph = 14 ∧
       loopWeight testMultigraph = 10 ∧
       totalWeight testMultigraph = 24 ∧
       cutWeight testMultigraph (derandomizedCutSide testMultigraph) = 11 ∧
       nonLoopWeight testMultigraph ≤
-        2 * cutWeight testMultigraph (derandomizedCutSide testMultigraph) ∧
-      (derandomizedCutM testMultigraph).ret = derandomizedCut testMultigraph ∧
-      (derandomizedCutM testMultigraph).time = 39 := by
-  refine ⟨by decide, by decide, by decide, by decide, by decide, ?_, by decide⟩
-  exact ret_derandomizedCutM testMultigraph
+        2 * cutWeight testMultigraph (derandomizedCutSide testMultigraph) :=
+  ⟨by decide, by decide, by decide, by decide, by decide⟩
 
 /-- Universal `1 / 2`-approximation and plain `ComputableInPolyTime` certificate on weighted
 multigraphs. -/
@@ -259,5 +292,48 @@ theorem testMultigraph_universal_and_polyTime (σ : ℕ → Bool) :
       ComputableInPolyTime derandomizedCut (encList encWeightedEdge) (encList encNat) :=
   ⟨cutWeight_le_two_mul_derandomizedCutSide testMultigraph σ,
     computableInPolyTime_derandomizedCut⟩
+
+-- Compiled `WordRAM.run` boundary checks: empty graph (`n = 0` and `n = 3`), single edge
+-- `[⟨0, 1, 5⟩]`, and `testMultigraph` (`cutWeight = 11` despite the weight-`10` self-loop).
+#guard (Cslib.WordRAM.run 4 Cslib.Algorithms.WordRAM.MaxCut.maxCutProgram
+  (Cslib.Algorithms.WordRAM.MaxCut.maxCutTime 0 ([] : List WeightedEdge).length + 1)
+  (Cslib.WordRAM.State.init (Cslib.Algorithms.WordRAM.MaxCut.encode 0 []))).map Prod.fst = some 0
+#guard (Cslib.WordRAM.run 4 Cslib.Algorithms.WordRAM.MaxCut.maxCutProgram
+  (Cslib.Algorithms.WordRAM.MaxCut.maxCutTime 3 ([] : List WeightedEdge).length + 1)
+  (Cslib.WordRAM.State.init (Cslib.Algorithms.WordRAM.MaxCut.encode 3 []))).map Prod.fst = some 0
+#guard (Cslib.WordRAM.run 4 Cslib.Algorithms.WordRAM.MaxCut.maxCutProgram
+  (Cslib.Algorithms.WordRAM.MaxCut.maxCutTime 2 1 + 1)
+  (Cslib.WordRAM.State.init (Cslib.Algorithms.WordRAM.MaxCut.encode 2 [⟨0, 1, 5⟩]))).map
+  Prod.fst = some 5
+#guard (Cslib.WordRAM.run 6 Cslib.Algorithms.WordRAM.MaxCut.maxCutProgram
+  (Cslib.Algorithms.WordRAM.MaxCut.maxCutTime 3 testMultigraph.length + 1)
+  (Cslib.WordRAM.State.init (Cslib.Algorithms.WordRAM.MaxCut.encode 3 testMultigraph))).map
+  Prod.fst = some 11
+
+/-- Ordinary-import specification checks for `inputFits_encode` and `maxCutProgram_spec` on both
+the empty multigraph (`n = 0`, `edges = []`) and `testMultigraph` (`n = 3`, `m = 5`,
+`wordBound = 45`, `maxCutTime 3 5 + 1 = 358` instructions). -/
+theorem testMultigraph_wordRAM_spec :
+    Cslib.WordRAM.InputFits 6 (Cslib.Algorithms.WordRAM.MaxCut.encode 3 testMultigraph) ∧
+    (∃ (side : ℕ → Bool) (steps : ℕ),
+      steps ≤ Cslib.Algorithms.WordRAM.MaxCut.maxCutTime 0 0 + 1 ∧
+      Cslib.WordRAM.Executes 4 Cslib.Algorithms.WordRAM.MaxCut.maxCutProgram
+        (Cslib.WordRAM.State.init (Cslib.Algorithms.WordRAM.MaxCut.encode 0 []))
+        (cutWeight [] side) steps) ∧
+    ∃ (side : ℕ → Bool) (steps : ℕ),
+      steps ≤ Cslib.Algorithms.WordRAM.MaxCut.maxCutTime 3 testMultigraph.length + 1 ∧
+      Cslib.WordRAM.Executes 6 Cslib.Algorithms.WordRAM.MaxCut.maxCutProgram
+        (Cslib.WordRAM.State.init (Cslib.Algorithms.WordRAM.MaxCut.encode 3 testMultigraph))
+        (cutWeight testMultigraph side) steps ∧
+      nonLoopWeight testMultigraph ≤ 2 * cutWeight testMultigraph side ∧
+      ∀ τ : ℕ → Bool, cutWeight testMultigraph τ ≤ 2 * cutWeight testMultigraph side := by
+  have hw0 : Cslib.WordRAM.Fits 4 (Cslib.Algorithms.WordRAM.MaxCut.wordBound 0 []) := by decide
+  obtain ⟨s0, st0, hst0, hex0, -, -⟩ :=
+    Cslib.Algorithms.WordRAM.MaxCut.maxCutProgram_spec [] (by simp) hw0
+  have hends : ∀ e ∈ testMultigraph, e.u < 3 ∧ e.v < 3 := by decide
+  have hw : Cslib.WordRAM.Fits 6 (Cslib.Algorithms.WordRAM.MaxCut.wordBound 3 testMultigraph) := by
+    decide
+  exact ⟨Cslib.Algorithms.WordRAM.MaxCut.inputFits_encode hends hw, ⟨s0, st0, hst0, hex0⟩,
+    Cslib.Algorithms.WordRAM.MaxCut.maxCutProgram_spec testMultigraph hends hw⟩
 
 end Cslib.Tests.FairBitRejectionAndCondExp

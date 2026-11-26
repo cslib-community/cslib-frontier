@@ -10,10 +10,8 @@ module
 public import CslibFrontier.Init
 public import Mathlib.Combinatorics.Matroid.Basic
 public import Mathlib.Data.Fintype.Card
-import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Combinatorics.Matroid.Minor.Restrict
-import Mathlib.Order.Preorder.Finite
 
 /-!
 # `p`-Systems of Finite Sets
@@ -79,8 +77,7 @@ namespace IsPSystem
 e.g. from a Boolean independence test to the `Indep` predicate of a matroid it implements. -/
 theorem of_iff {indep indep' : Finset α → Prop} {p : ℕ} (h : IsPSystem indep p)
     (hiff : ∀ S, indep' S ↔ indep S) : IsPSystem indep' p := by
-  have heq : indep' = indep := funext fun S => propext (hiff S)
-  exact heq ▸ h
+  exact funext (fun S => propext (hiff S)) ▸ h
 
 variable [DecidableEq α] {indep : Finset α → Prop} {p : ℕ}
 
@@ -93,16 +90,14 @@ theorem card_le_mul_card_of_blocked (h : IsPSystem indep p) {S T : Finset α}
   classical
   set Y := S ∪ T
   have hSmax : Maximal (fun Z => Z ⊆ Y ∧ indep Z) S := by
-    refine ⟨⟨Finset.subset_union_left, hS⟩, fun Z ⟨hZY, hZ⟩ hSZ => ?_⟩
-    intro z hz
+    refine ⟨⟨Finset.subset_union_left, hS⟩, fun Z ⟨hZY, hZ⟩ hSZ z hz => ?_⟩
     by_contra hzS
-    have hzT : z ∈ T := (Finset.mem_union.mp (hZY hz)).resolve_left hzS
-    exact hblock z hzT hzS (h.indep_of_subset hZ (Finset.insert_subset hz hSZ))
+    exact hblock z ((Finset.mem_union.mp (hZY hz)).resolve_left hzS) hzS
+      (h.indep_of_subset hZ (Finset.insert_subset hz hSZ))
   obtain ⟨A, hTA, hAmax⟩ := (Y.powerset.filter indep).exists_le_maximal
     (a := T) (Finset.mem_filter.mpr ⟨Finset.mem_powerset.mpr Finset.subset_union_right, hT⟩)
-  have hAmax' : Maximal (fun Z => Z ⊆ Y ∧ indep Z) A := by
-    simpa only [Finset.mem_filter, Finset.mem_powerset] using hAmax
-  exact (Finset.card_le_card hTA).trans (h.card_le_mul_card hAmax' hSmax)
+  refine (Finset.card_le_card hTA).trans (h.card_le_mul_card ?_ hSmax)
+  simpa only [Finset.mem_filter, Finset.mem_powerset] using hAmax
 
 end IsPSystem
 
@@ -148,18 +143,12 @@ theorem isPSystem_iInter_matroid {ι : Type*} [Fintype ι] [Nonempty ι]
     · exact ⟨Classical.arbitrary ι, fun htT htS => absurd ⟨htT, htS⟩ ht⟩
   choose g hg using hwit
   let Ti : ι → Finset α := fun i => T.filter fun t => t ∈ S ∨ g t = i
-  have hTi : ∀ i, (Ti i).card ≤ S.card := by
-    intro i
-    have h1 := (isPSystem_matroid (M i)).card_le_mul_card_of_blocked (S := S) (T := Ti i) (hS i)
-      ((hT i).subset (Finset.coe_subset.mpr (Finset.filter_subset _ T)))
-      (fun t ht htS => by
-        have ht' := Finset.mem_filter.mp ht
-        have hgi : g t = i := ht'.2.resolve_left htS
-        exact hgi ▸ hg t ht'.1 htS)
-    simpa using h1
-  have hcover : T ⊆ Finset.univ.biUnion Ti := by
-    intro t ht
-    refine Finset.mem_biUnion.mpr ⟨g t, Finset.mem_univ _, Finset.mem_filter.mpr ⟨ht, Or.inr rfl⟩⟩
+  have hTi (i : ι) : (Ti i).card ≤ S.card := by
+    simpa using (isPSystem_matroid (M i)).card_le_mul_card_of_blocked (hS i)
+      ((hT i).subset (Finset.coe_subset.mpr (Finset.filter_subset _ T))) fun t ht htS => by
+        obtain ⟨htT, hgi⟩ := Finset.mem_filter.mp ht
+        exact hgi.resolve_left htS ▸ hg t htT htS
+  have hcover : T ⊆ Finset.univ.biUnion Ti := fun t ht => by simp [Ti, ht]
   calc T.card ≤ (Finset.univ.biUnion Ti).card := Finset.card_le_card hcover
     _ ≤ ∑ i, (Ti i).card := Finset.card_biUnion_le
     _ ≤ ∑ _i : ι, S.card := Finset.sum_le_sum fun i _ => hTi i

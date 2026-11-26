@@ -62,17 +62,14 @@ theorem expect_retained_vertex_pow_le (hNu : 0 < N * u) (v : Ω → V → ℝ) (
     refine expect_le_expect fun σ _ => ?_
     split_ifs with hσ
     · exact single_le_sum (f := fun x : V => |v σ x| ^ p)
-        (fun x _ => pow_nonneg (abs_nonneg _) _)
-        (show z ∈ ({x | X σ x} : Finset V) by
-          simpa only [E, mem_filter, mem_univ, true_and] using hσ)
+        (fun x _ => pow_nonneg (abs_nonneg _) _) (by simpa [E] using hσ)
     · exact sum_nonneg fun x _ => pow_nonneg (abs_nonneg _) _
   rw [Fintype.expect_ite_mem, NNRat.smul_def] at hkeep
   change (𝔼 σ ∈ E, |v σ z| ^ p) ≤ _
   apply (mul_le_mul_iff_right₀ hπ).mp
   calc
     (E.dens : ℝ) * (𝔼 σ ∈ E, |v σ z| ^ p) ≤
-        𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V), |v σ x| ^ p := by
-          exact hkeep
+        𝔼 σ, ∑ x ∈ ({x | X σ x} : Finset V), |v σ x| ^ p := hkeep
     _ = (E.dens : ℝ) * (N * u / (E.dens : ℝ) * vertexNormPow p N u X v) := by
       unfold vertexNormPow
       field_simp [hNu.ne', hπ.ne']

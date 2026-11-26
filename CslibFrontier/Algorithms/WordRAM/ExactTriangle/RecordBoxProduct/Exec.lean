@@ -94,21 +94,12 @@ theorem exec {W b m n i out rho piece s t q : ℕ}
       (BoxProduct.input_prefix true X Y qs j (by omega) hj').symm
   obtain ⟨y, hy, yr, yv, yf, yg⟩ := exec_invoke X Y qs a ab as aright aq ahead athreshold
     hsb htb hqb
-    (by
-      intro j hj
-      rw [hread _ (by omega)]
-      exact (hleft j hj).trans
-        (word _ (by omega) (by unfold QueriedProduct.inputEnd; omega)))
-    (by
-      intro j hj
-      rw [hread _ (by omega)]
-      exact (hright j hj).trans
-        (word _ (by omega) (by unfold QueriedProduct.inputEnd; omega)))
-    (by
-      intro j hj
-      rw [hread _ (by omega)]
-      exact (hqueries j hj).trans
-        (word _ (by omega) (by unfold QueriedProduct.inputEnd; omega)))
+    (fun j hj => (hread _ (by omega)).trans <| (hleft j hj).trans
+      (word _ (by omega) (by unfold QueriedProduct.inputEnd; omega)))
+    (fun j hj => (hread _ (by omega)).trans <| (hright j hj).trans
+      (word _ (by omega) (by unfold QueriedProduct.inputEnd; omega)))
+    (fun j hj => (hread _ (by omega)).trans <| (hqueries j hj).trans
+      (word _ (by omega) (by unfold QueriedProduct.inputEnd; omega)))
     hX hY (Nat.div_le_self _ _) hN hfit
   have hI : 5 ≤ QueriedProduct.inputEnd m n qs.length := by
     unfold QueriedProduct.inputEnd; omega
@@ -116,14 +107,12 @@ theorem exec {W b m n i out rho piece s t q : ℕ}
       CallableProduct.windowSize n qs.length := by
     unfold QueriedProduct.inputEnd
     omega
-  refine ⟨y, (ha.seq hy).mono ?_, yr, yv, ?_, ?_⟩
+  refine ⟨y, (ha.seq hy).mono ?_, yr, yv, fun j hj => (yf j hj).trans (af j (by omega)),
+    fun j hj => ?_⟩
   · exact (show 8 * m + 64 + (PointerBoxProduct.timeBound m (m / 9) qs + 5) ≤
         gatherTimeBound (m := m) qs by unfold gatherTimeBound; omega).trans
       (gatherTimeBound_le_timeBound qs)
-  · intro j hj
-    exact (yf j hj).trans (af j (by omega))
-  · intro j hj
-    have hne : j ≠ Reg.result := by intro h; subst j; simp [Reg.result] at hj
+  · have hne : j ≠ Reg.result := by intro h; subst j; simp [Reg.result] at hj
     exact (yg j (by omega) hne).trans (ar j hj)
 
 /-- The `RecordBoxProduct` backend at tensor level `21 * m`. -/

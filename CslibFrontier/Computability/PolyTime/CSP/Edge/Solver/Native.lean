@@ -49,25 +49,20 @@ theorem inputGuard_spec (input : EdgeForest.Input) (h : inputGuard input = true)
     EdgeInstance input.body ∧ EdgeInstance.EvenConstraints Table.sem input.body ∧
       ValidLabeling Table.sem (EdgeAugmenting.labeling input.body input.labels) ∧
         input.labels.length = (incidenceList input.body).length := by
-  have hc : checkModel input.body = true ∧ EdgeAugmenting.valid input.body input.labels = true ∧
-      input.labels.length = (CSP.occurrences input.body).length := by
-    simpa only [inputGuard, Bool.and_eq_true, decide_eq_true_eq, and_assoc] using h
-  have hm := checkModel_sound input.body hc.1
-  refine ⟨hm.1, hm.2, ?_, ?_⟩
-  · simpa only [EdgeAugmenting.valid_eq, decide_eq_true_eq] using hc.2.1
-  · simpa only [occurrences_eq_map_incidenceList, List.length_map] using hc.2.2
+  simp only [inputGuard, Bool.and_eq_true, decide_eq_true_eq, EdgeAugmenting.valid_eq,
+    occurrences_eq_map_incidenceList, List.length_map] at h
+  obtain ⟨hm1, hm2⟩ := checkModel_sound input.body h.1.1
+  exact ⟨hm1, hm2, h.1.2, h.2⟩
 
 /-- Every successful guarded improvement has the original actual occurrence width. This
 statement covers all raw inputs, without assuming a valid model or a well-formed buffer. -/
 theorem safeImprove_width (input : EdgeForest.Input) {bits : List Bool}
     (h : safeImprove input = some bits) : bits.length = (incidenceList input.body).length := by
-  unfold safeImprove at h
-  split at h
-  next hg =>
-    rw [improve_eq input (inputGuard_spec input hg).2.2.2] at h
-    obtain ⟨f, _, rfl⟩ := Option.map_eq_some_iff.mp h
-    exact List.length_map f
-  next => contradiction
+  obtain ⟨hg, h⟩ : inputGuard input = true ∧ improve input = some bits := by
+    simpa [safeImprove] using h
+  rw [improve_eq input (inputGuard_spec input hg).2.2.2] at h
+  obtain ⟨f, _, rfl⟩ := Option.map_eq_some_iff.mp h
+  exact List.length_map f
 
 /-- The guarded wrapper agrees with the unguarded mathematical improvement on its actual
 model. Validity and width are checked by the wrapper itself on raw inputs. -/

@@ -89,6 +89,12 @@ def moveOn (n p : ℕ) : SignType → ℕ
   | -1 => p - 1
   | 1 => if p = n + 1 then p else p + 1
 
+/-- Head-movement component `r.2.1` of a `StepMachine.step` result `(state, move, out)`. -/
+abbrev stepMove {σ Out : Type*} (r : σ × SignType × List Out) : SignType := r.2.1
+
+/-- Emitted-symbols component `r.2.2` of a `StepMachine.step` result `(state, move, out)`. -/
+abbrev stepEmit {σ Out : Type*} (r : σ × SignType × List Out) : List Out := r.2.2
+
 /-- The step of `g.comp f` on the symbol `a` under the input head. -/
 def compStep (f : StepMachine σf Bool Bool) (g : StepMachine σg Bool Out) (s : CompState σf σg)
     (a : Option Bool) : CompState σf σg × SignType × List Out :=
@@ -97,11 +103,11 @@ def compStep (f : StepMachine σf Bool Bool) (g : StepMachine σg Bool Out) (s :
     if f.halt s.f then
       -- `f` has halted: the countdown has found the symbol under the head of `g`
       let r := g.step s.g.1 (s.cd.symbol s.g.2)
-      let p := moveOn s.cd.len s.g.2 r.2.1
-      (⟨(r.1, p), .rewindStart, f.init, .start p⟩, 0, r.2.2)
+      let p := moveOn s.cd.len s.g.2 (stepMove r)
+      (⟨(r.1, p), .rewindStart, f.init, .start p⟩, 0, stepEmit r)
     else
       let r := f.step s.f a
-      ({ s with f := r.1, cd := r.2.2.foldl .push s.cd }, r.2.1, [])
+      ({ s with f := r.1, cd := (stepEmit r).foldl .push s.cd }, stepMove r, [])
   | .rewindStart => ({ s with phase := .rewind }, -1, [])
   | .rewind => if a.isNone then ({ s with phase := .run }, 1, []) else (s, -1, [])
 
@@ -137,8 +143,7 @@ lemma foldl_push (w : List Bool) {k : ℕ} (fd : Bool) (len : ℕ) (hk : 1 ≤ k
   | nil => simp; omega
   | cons b w ih =>
     rcases Nat.eq_or_lt_of_le hk with rfl | hk'
-    · simp [push, foldl_push_zero]
-      omega
+    · simp [push, foldl_push_zero]; omega
     · rw [List.foldl_cons, push, ih (k := k - 1) _ _ (by omega)]
       obtain ⟨j, rfl⟩ : ∃ j, k = j + 2 := ⟨k - 2, by omega⟩
       simp only [show j + 2 ≠ 1 by omega, ↓reduceIte, List.length_cons, mk.injEq]
@@ -190,8 +195,8 @@ lemma rewind_iterate (s : CompState σf σg) (out : List Out) (r : ℕ) (hr : r 
     convert ih (by omega) using 2
     have hsym : (MultiTapeTM.inputSymbolAt x ⟨r + 1, by omega⟩).isNone = false := by
       simp [MultiTapeTM.inputSymbolAt, List.getElem?_eq_getElem (show r < x.length by omega)]
-    simp only [stepCfg, stepAt, comp, compStep, hsym]
-    simp [moveInputPos, SignType.cast, show r < x.length + 2 by omega]
+    simp [stepCfg, stepAt, comp, compStep, hsym, moveInputPos, SignType.cast,
+      show r < x.length + 2 by omega]
 
 /-- While rewinding, the input head moves to the left and nothing else changes. -/
 lemma rewind_iterate_le (s : CompState σf σg) (out : List Out) {j r : ℕ} (hj : j ≤ r)
@@ -208,10 +213,7 @@ lemma rewind_iterate_le (s : CompState σf σg) (out : List Out) {j r : ℕ} (hj
         List.getElem?_eq_getElem (show r - j - 1 < x.length by omega)]
     simp only [stepCfg, stepAt, comp, compStep, hsym, reduceCtorEq, decide_false, Bool.false_and,
       Bool.false_eq_true, ↓reduceIte, List.append_nil, Cfg.mk.injEq, true_and, and_true]
-    refine Fin.ext ?_
-    rw [val_moveInputPos]
-    simp only [moveOn]
-    omega
+    exact Fin.ext ((val_moveInputPos _ (-1)).trans (Nat.sub_sub r j 1))
 
 /-- The time of the rewind from the position `p`. -/
 def rewindTime (p : ℕ) : ℕ := p - 1 + 2
@@ -223,16 +225,13 @@ lemma stepCfg_rewindStart (s : CompState σf σg) (out : List Out) (p : Fin (x.l
         (⟨{ s with phase := .rewindStart }, p, out⟩ : Cfg (CompState σf σg) Out x) =
       ⟨{ s with phase := .rewind }, ⟨p.val - 1, by omega⟩, out⟩ := by
   simp only [stepCfg, stepAt, comp, compStep]
-  refine congrArg₂ _ rfl (congrArg₂ _ (Fin.ext ?_) (by simp))
-  rw [show p = ⟨p.val, p.isLt⟩ from rfl, val_moveInputPos]
-  rfl
+  exact congrArg₂ _ rfl (congrArg₂ _ (Fin.ext (val_moveInputPos p.isLt (-1))) (by simp))
 
 lemma rewindStart_iterate (s : CompState σf σg) (out : List Out) (p : Fin (x.length + 2)) :
     (g.comp f).stepCfg^[rewindTime p]
         (⟨{ s with phase := .rewindStart }, p, out⟩ : Cfg (CompState σf σg) Out x) =
       ⟨{ s with phase := .run }, 1, out⟩ := by
-  rw [rewindTime, show p.val - 1 + 2 = (p.val - 1 + 1) + 1 by omega, Function.iterate_succ_apply,
-    stepCfg_rewindStart]
+  rw [rewindTime, Function.iterate_succ_apply, stepCfg_rewindStart]
   exact rewind_iterate f g x s out _ (by omega)
 
 /-- During the rewind, only the phase changes. -/
@@ -317,7 +316,8 @@ theorem along_run_comp {uf ug : ℕ} (hf : f.HaltsAt x uf) (hg : g.HaltsAt (f.ru
     (run_zero_comp f g x) (u := ug) (fun i hi => Bool.eq_false_iff.mpr (hg.2 i hi))
     (by simp [compPeriod]) hi
   simp only [Nat.zero_add] at hround hrun
-  rw [hrun, show (g.comp f).run x (q * compPeriod f x uf) = roundCfg f x (g.run y q) from hround]
+  change _ = f.roundCfg x (g.run y q) at hround
+  rw [hrun, hround]
   have hpos (q : ℕ) : (g.run y q).pos.val ≤ y.length + 1 := Nat.lt_succ_iff.mp (g.run y q).pos.isLt
   rcases Nat.eq_zero_or_pos j with rfl | hj₀
   · exact ⟨⟨q, by omega, rfl⟩, ⟨0, Nat.zero_le _, rfl⟩, hpos q, Nat.zero_le _⟩
@@ -335,31 +335,25 @@ theorem along_run_comp {uf ug : ℕ} (hf : f.HaltsAt x uf) (hg : g.HaltsAt (f.ru
   · rw [roundCfg, run_f_iterate f g x hf _ hgq _ _ hjf]
     have hlen := (f.out_run_prefix (input := x) hjf).length_le
     refine ⟨⟨q, hq.le, rfl⟩, ⟨j, hjf, rfl⟩, ?_, ?_⟩
-    · simp only [Countdown.k_foldl, Countdown.start, ← hy]
-      have := hpos q
-      omega
-    · simp only [Countdown.len_foldl, Countdown.start, ← hy] at hlen ⊢
-      omega
+    · exact (Countdown.k_foldl _ _ ▸ Nat.sub_le _ _).trans (hpos q)
+    · simpa only [Countdown.len_foldl, Countdown.start, Nat.zero_add, ← hy] using hlen
 
 /-- **Composition**: when `f` halts after `uf` steps and `g` on its output after `ug` steps,
 `g.comp f` halts within `ug` rounds, with the output of `g`. -/
 theorem exists_haltsAt_comp {uf ug : ℕ} (hf : f.HaltsAt x uf)
     (hg : g.HaltsAt (f.run x uf).out ug) :
     ∃ t ≤ ug * compPeriod f x uf, (g.comp f).HaltsAt x t ∧
-      ((g.comp f).run x t).out = (g.run (f.run x uf).out ug).out :=
-  by
-  have h := (simulates_comp f g x hf).exists_haltsAt (run_zero_comp f g x) (u := ug)
+      ((g.comp f).run x t).out = (g.run (f.run x uf).out ug).out := by
+  rw [← Nat.zero_add (ug * _)]
+  exact (simulates_comp f g x hf).exists_haltsAt (run_zero_comp f g x) (u := ug)
     (fun i hi => Bool.eq_false_iff.mpr (hg.2 i hi)) hg.1
-  rw [Nat.zero_add] at h
-  exact h
 
 /-- **Composition**: `g.comp f` computes `g` after `f`. -/
 theorem Computes.comp {y : List Bool} {z : List Out} (hf : f.Computes x y) (hg : g.Computes y z) :
     (g.comp f).Computes x z := by
   obtain ⟨uf, hf, rfl⟩ := hf
   obtain ⟨ug, hg, rfl⟩ := hg
-  obtain ⟨t, -, ht⟩ := exists_haltsAt_comp f g x hf hg
-  exact ⟨t, ht⟩
+  exact (exists_haltsAt_comp f g x hf hg).imp fun _ h => h.2
 
 end Run
 

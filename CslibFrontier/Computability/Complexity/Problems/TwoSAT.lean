@@ -54,17 +54,11 @@ theorem notMem_TwoSAT_iff {φ : CNF ℕ} :
     φ ∉ TwoSAT ↔ (∃ c ∈ φ, 2 < c.length) ∨ [] ∈ φ ∨
       ∃ v, Relation.ReflTransGen φ.Implies (v, true) (v, false) ∧
         Relation.ReflTransGen φ.Implies (v, false) (v, true) := by
-  rw [mem_TwoSAT, not_and]
-  constructor
-  · intro h
-    by_cases hw : ∀ c ∈ φ, c.length ≤ 2
-    · exact .inr ((CNF.not_satisfiable_iff_of_width_le_two hw).mp (h hw))
-    · push Not at hw
-      exact .inl hw
-  · rintro (⟨c, hc, hlen⟩ | h) hw
-    · exact absurd (hw c hc) (by omega)
-    · rcases h with h | ⟨v, h₁, h₂⟩
-      · exact CNF.not_satisfiable_of_nil_mem h
-      · exact CNF.not_satisfiable_of_reach (ℓ := (v, true)) h₁ h₂
+  by_cases hw : ∀ c ∈ φ, c.length ≤ 2
+  · have hno : ¬∃ c ∈ φ, 2 < c.length := fun ⟨c, hc, h⟩ => h.not_ge (hw c hc)
+    simp only [mem_TwoSAT, iff_true_intro hw, true_and, hno, false_or,
+      CNF.not_satisfiable_iff_of_width_le_two hw]
+  · refine iff_of_true (fun h => hw h.1) (Or.inl ?_)
+    simpa only [not_forall, exists_prop, not_le] using hw
 
 end Cslib.Complexity

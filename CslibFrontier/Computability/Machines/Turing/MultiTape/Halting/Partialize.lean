@@ -74,10 +74,7 @@ theorem verdict_append (out : List Bool) (o : Option Bool) :
 theorem strip_append (out : List Bool) (o : Option Bool) :
     strip (out ++ o.toList) =
       strip out ++ (if verdict out = some false then o else none).toList := by
-  rcases out with _ | ⟨_ | _, out⟩
-  · rcases o with _ | _ | _ <;> rfl
-  · simp [strip, verdict]
-  · simp [strip, verdict]
+  rcases out with _ | ⟨_ | _, out⟩ <;> rcases o with _ | _ | _ <;> rfl
 
 end Partialize
 
