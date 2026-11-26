@@ -62,8 +62,10 @@ kernel's conclusion `0`, which names no contradiction; and both stop at the firs
 step. So the converse holds for runs that skip no hint (`Cslib.Logic.PL.VeriPB.hintTight`): in the
 kernel run of the translation, every hinted constraint propagated without a conflict is
 *asserting* (`Cslib.Logic.PL.VeriPB.asserting`), a term not falsified has a coefficient above the
-slack, and no `~` hint conflicts by itself. This is a condition on the kernel run alone, which
-holds trivially on runs that fail. On a clause, an asserting constraint is falsified or unit, so a
+slack, and no `~` hint conflicts by itself. This is a condition on the kernel run alone. It does
+not ask the run to succeed, and checks nothing after the run of a step stops, at a conflict, at
+the end of the hints, at a hint that names no constraint, or at a failing step; but a run that
+skips a hint before it fails violates it. On a clause, an asserting constraint is unit, so a
 kernel run that skips no hint is an LRAT run, step by step
 (`Cslib.Logic.PL.CNF.checkLRAT_iff_check_toVeriPB`). The back-translation of the clausal `rup`/`del`
 fragment of the kernel format into LRAT, which drops skipped hints, is
@@ -392,19 +394,31 @@ def hintsTight (db : List (ℕ × PBConstr)) (neg : PBConstr) :
       | none => decide (h ≠ .neg)
       | some ρ' => (decide (h = .neg) || asserting ρ c) && hintsTight db neg hs ρ'
 
-/-- **The kernel run of the steps skips no hint**: every `rup` step it runs from the database `db`
-and the next number `n` has hints that skip none (`Cslib.Logic.PL.VeriPB.hintsTight`). The steps
-are run as `Cslib.Logic.PL.VeriPB.runSteps` runs them, and the predicate says nothing after a step
-that fails. -/
+mutual
+
+/-- **The kernel run of a step skips no hint**, from the database `db` and the next number `n`:
+the hints of a `rup` step skip none (`Cslib.Logic.PL.VeriPB.hintsTight`), and the run of the
+steps of a `pbc` subproof skips none, from the database extended by the negated constraint, as
+`Cslib.Logic.PL.VeriPB.subproofRefutes` runs it. -/
+def Step.hintTight : List (ℕ × PBConstr) → ℕ → Step → Bool
+  | db, _, .rup c hs => hintsTight db c.negate hs []
+  | db, n, .pbc c sub _ => VeriPB.stepsTight ((n, c.negate) :: db) (n + 1) sub
+  | _, _, _ => true
+
+/-- **The kernel run of the steps skips no hint**: every step it runs from the database `db` and
+the next number `n` skips none (`Cslib.Logic.PL.VeriPB.Step.hintTight`), so every `rup` step it
+runs, also inside a `pbc` subproof, has hints that skip none. The steps are run as
+`Cslib.Logic.PL.VeriPB.runSteps` runs them, and the predicate says nothing after a step that
+fails. -/
 def stepsTight : List (ℕ × PBConstr) → ℕ → List Step → Bool
   | _, _, [] => true
   | db, n, s :: ss =>
-    (match s with
-      | .rup c hs => hintsTight db c.negate hs []
-      | _ => true) &&
+    s.hintTight db n &&
     match runStep db n s with
     | some (db', n') => stepsTight db' n' ss
     | none => true
+
+end
 
 /-- **The kernel run of a proof for `F` skips no hint** (`Cslib.Logic.PL.VeriPB.stepsTight`). -/
 def hintTight (F : List PBConstr) (P : Proof) : Bool :=
@@ -421,11 +435,12 @@ theorem asserting_of_degree_eq_zero {c : PBConstr} (h : c.degree = 0) (ρ : List
   simp only [slack, h, Nat.cast_zero, sub_zero] at hlt
   omega
 
-/-- **An asserting constraint of degree `1` leaves at most one literal not false**: with positive
-coefficients, two terms not falsified give a slack at least the coefficient of each. -/
-theorem residual_ne_other_of_asserting {c : PBConstr} (hpos : ∀ t ∈ c.terms, 0 < t.1)
-    (hd : c.degree = 1) {ρ : List (Literal ℕ)} (ha : asserting ρ c = true) :
-    Clause.residual (c.terms.map (·.2)) ρ ≠ .other := by
+/-- **An asserting constraint of degree `1` leaves exactly one literal not false**: the asserting
+term is not falsified, and with positive coefficients, two terms not falsified give a slack at
+least the coefficient of each. -/
+private theorem exists_residual_eq_unit_of_asserting {c : PBConstr}
+    (hpos : ∀ t ∈ c.terms, 0 < t.1) (hd : c.degree = 1) {ρ : List (Literal ℕ)}
+    (ha : asserting ρ c = true) : ∃ l, Clause.residual (c.terms.map (·.2)) ρ = .unit l := by
   set F := c.terms.filter fun t => !falsified ρ t with hF
   have hFpos : ∀ t ∈ F, 0 < t.1 := fun t ht => hpos t (List.mem_of_mem_filter ht)
   have hslack : slack ρ c = (coeffSum F : ℤ) - 1 := by simp [slack, hd, hF]
@@ -435,8 +450,8 @@ theorem residual_ne_other_of_asserting {c : PBConstr} (hpos : ∀ t ∈ c.terms,
   unfold Clause.residual
   rw [filter_map_snd, ← hF]
   match hFm : F with
-  | [] => simp
-  | [_] => simp
+  | [] => simp at htF
+  | [t₀] => exact ⟨t₀.2, by simp⟩
   | t₁ :: t₂ :: ts =>
     exfalso
     have h1 := hFpos t₁ (by simp)
@@ -449,16 +464,17 @@ theorem residual_ne_other_of_asserting {c : PBConstr} (hpos : ∀ t ∈ c.terms,
     · have := le_coeffSum_of_mem htF
       omega
 
-/-- **An asserting clause is falsified or unit**: a tautological clause is never asserting, and
-otherwise its normal form has degree `1`. -/
-theorem residual_ne_other_of_asserting_toPB (d : Clause ℕ) {ρ : List (Literal ℕ)}
-    (ha : asserting ρ d.toPB.normalize = true) : d.residual ρ ≠ .other := by
+/-- **An asserting clause is unit**: a tautological clause is never asserting, and otherwise its
+normal form has degree `1`, and its asserting term is the one literal not false. -/
+theorem exists_residual_eq_unit_of_asserting_toPB (d : Clause ℕ) {ρ : List (Literal ℕ)}
+    (ha : asserting ρ d.toPB.normalize = true) : ∃ l, d.residual ρ = .unit l := by
   by_cases hd : ∃ l ∈ d, Std.Sat.Literal.negate l ∈ d
   · simp [asserting_of_degree_eq_zero (Clause.degree_normalize_toPB_of_isTautology hd)] at ha
   · have hN := Clause.normalize_toPB_of_not_isTautology hd
     rw [Clause.residual_congr_left (c' := d.toPB.normalize.terms.map (·.2))
       (by simp [hN, List.mem_dedup])]
-    exact residual_ne_other_of_asserting (fun _ ht => pos_of_mem_normalize ht) (by rw [hN]) ha
+    exact exists_residual_eq_unit_of_asserting (fun _ ht => pos_of_mem_normalize ht) (by rw [hN])
+      ha
 
 end VeriPB
 
@@ -758,7 +774,8 @@ private theorem propagateHints_of_rupHints {J : List Entry} (hJ : (J.map Entry.n
         simp only [List.mem_cons, hρ]
         exact ⟨fun h => .inr h, fun h => h.elim (· ▸ this) id⟩
       · simp [hρ]
-    · exact absurd hr (residual_ne_other_of_asserting_toPB d (Bool.and_eq_true_iff.1 hT).1)
+    · obtain ⟨l, hl⟩ := exists_residual_eq_unit_of_asserting_toPB d (Bool.and_eq_true_iff.1 hT).1
+      simp [hr] at hl
 
 /-- **A `rup` step that skips no hint comes from a RUP step**: its negated clause does not
 conflict by itself, so the clause is not a tautology, and the kernel and the LRAT checker start
@@ -799,13 +816,13 @@ private theorem checkLRATAux_of_check : ∀ (cert : List LRAT.IntAction) (J : Li
         true := by
       by_contra hne
       simp [hne] at hrun
-    simp only [CNF.toVeriPBAux, stepsTight, Bool.and_eq_true] at hT
+    simp only [CNF.toVeriPBAux, stepsTight, Step.hintTight, Bool.and_eq_true] at hT
     unfold rup at hr
     exact propagateHints_of_rupHints hJ h0 _ _ [] [] (by simp [TrailConsistent]) (by simp)
       hT.1 hr
   | .addRup i c hints :: rest, J, n, hid, hn, h0, hT, D, m, hrun, hc => by
     have hJ : (J.map Entry.num).Nodup := pbPart_map_fst J ▸ hid.nodup
-    simp only [CNF.toVeriPBAux, stepsTight, runStep, Bool.and_eq_true] at hT
+    simp only [CNF.toVeriPBAux, stepsTight, Step.hintTight, runStep, Bool.and_eq_true] at hT
     simp only [CNF.toVeriPBAux, runSteps, runStep] at hrun hc
     have hr : rup (pbPart J) (Clause.ofDIMACS c.toList).toPB
         (.neg :: CNF.renameHints (renPart J) hints.toList) = true := by
@@ -824,7 +841,8 @@ private theorem checkLRATAux_of_check : ∀ (cert : List LRAT.IntAction) (J : Li
     simp [CNF.toVeriPBAux, namesContra, lookup_pbPart_zero h0] at hc
   | .del ids :: rest, J, n, hid, hn, h0, hT, D, m, hrun, hc => by
     obtain ⟨hl, hr, hid', hstep⟩ := del_parts hid ids
-    simp only [CNF.toVeriPBAux, ← hr, stepsTight, runSteps, hstep, Bool.true_and] at hT hrun hc
+    simp only [CNF.toVeriPBAux, ← hr, stepsTight, Step.hintTight, runSteps, hstep, Bool.true_and]
+      at hT hrun hc
     simp only [CNF.checkLRATAux, ← hl]
     exact checkLRATAux_of_check rest _ n hid' hn (fun e he => h0 e (List.mem_of_mem_filter he))
       hT D m hrun hc
@@ -856,8 +874,8 @@ theorem check_toVeriPB {φ : CNF ℕ} {cert : Array LRAT.IntAction} (h : φ.chec
 
 /-- **For runs that skip no hint, LRAT and the kernel accept the same certificates.** If the
 kernel run of the translation skips no hint (`Cslib.Logic.PL.VeriPB.hintTight`: every hinted
-clause it propagates without a conflict is falsified or unit, and no RUP step conflicts from its
-negated clause alone), then the LRAT checker accepts the certificate exactly when the kernel
+clause it propagates without a conflict is unit, and no RUP step conflicts from its negated
+clause alone), then the LRAT checker accepts the certificate exactly when the kernel
 accepts its translation. The hypothesis is needed: the kernel skips a hinted clause with two
 literals left, which the LRAT checker rejects, and it refutes the negation of a tautological RUP
 clause at once, whatever its hints. -/

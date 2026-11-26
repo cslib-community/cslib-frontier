@@ -35,7 +35,8 @@ kernel skips the hint and accepts the translation. A tautological RUP clause wit
 rejected by the LRAT checker and accepted by the kernel. Both translations skip a hint
 (`Cslib.Logic.PL.VeriPB.hintTight` fails), as does the tautology with a hint above. The other
 translations skip none, so the two checkers agree on them
-(`Cslib.Logic.PL.CNF.checkLRAT_iff_check_toVeriPB`).
+(`Cslib.Logic.PL.CNF.checkLRAT_iff_check_toVeriPB`). The predicate also follows the run of a
+`pbc` subproof: a superfluous hint there makes it fail.
 
 The kernel also checks, with `decide +kernel`, the translations of the certificates of
 `Cslib.Algorithms.Lean.DPLL.solve` on these clauses and of `Cslib.Algorithms.Lean.CDCL.solve` on
@@ -169,6 +170,35 @@ example : check (φ.map Clause.toPB) (φ.toVeriPB certTautNoHints) = true := by 
 
 /-- The negation of `a ∨ ¬a` conflicts by itself, so the run violates the hypothesis. -/
 example : hintTight (φ.map Clause.toPB) (φ.toVeriPB certTautNoHints) = false := by decide +kernel
+
+/-- A run that skips the hint `3` and then runs out of hints: the kernel rejects the translation,
+and the run still violates the hypothesis, which checks the run up to where it stops. -/
+private abbrev certSkipFail : Array LRAT.IntAction := #[.addRup 5 #[1] #[3]]
+
+example : check (φ.map Clause.toPB) (φ.toVeriPB certSkipFail) = false := by decide +kernel
+
+example : hintTight (φ.map Clause.toPB) (φ.toVeriPB certSkipFail) = false := by decide +kernel
+
+/-! ### Subproofs -/
+
+/-- A kernel proof that derives `a` by contradiction: the subproof starts from `¬a`, numbered `5`,
+and refutes it with `rup 0 ≥ 1 : 5 1 2`, numbered `6`; then `a` is numbered `7`, and the
+empty constraint follows with `rup 0 ≥ 1 : 7 3 4`. -/
+private abbrev pbcProof (sub : List Hint) : Proof :=
+  ⟨[.pbc ⟨[(1, (0, true))], 1⟩ [.rup ⟨[], 1⟩ sub] 6, .rup ⟨[], 1⟩ [.id 7, .id 3, .id 4]], 8⟩
+
+example : check (φ.map Clause.toPB) (pbcProof [.id 5, .id 1, .id 2]) = true := by decide +kernel
+
+example : hintTight (φ.map Clause.toPB) (pbcProof [.id 5, .id 1, .id 2]) = true := by
+  decide +kernel
+
+/-- With the superfluous hint `3` inside the subproof, the kernel still accepts, but the run of
+the subproof skips the hint. -/
+example : check (φ.map Clause.toPB) (pbcProof [.id 5, .id 3, .id 1, .id 2]) = true := by
+  decide +kernel
+
+example : hintTight (φ.map Clause.toPB) (pbcProof [.id 5, .id 3, .id 1, .id 2]) = false := by
+  decide +kernel
 
 /-! ### Certificates from the solvers -/
 
