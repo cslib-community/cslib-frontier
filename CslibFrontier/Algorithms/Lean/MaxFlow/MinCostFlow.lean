@@ -814,9 +814,7 @@ private theorem dpRelax_le_walkCost [AddCommGroup W] [LinearOrder W] [IsOrderedA
     · rw [List.concat_eq_append] at hw hlen ⊢
       obtain ⟨hw₀, ha_pos, ha_dst⟩ :=
         isArcWalk_split_append.mp ((isArcWalk_pos_resCap_iff f).mpr hw)
-      have hl₀ : l₀.length ≤ k := by
-        simp only [List.length_append, List.length_singleton] at hlen
-        omega
+      have hl₀ : l₀.length ≤ k := by simpa using hlen
       have ih := dpRelax_le_walkCost harcs hall k l₀ ((isArcWalk_pos_resCap_iff f).mp hw₀) hl₀
       have hstep : (dpRelax M arcs (k + 1) v).1 ≤ (dpRelax M arcs k a.src).1 + M.resCost a := by
         rw [dpRelax, Function.iterate_succ_apply']
@@ -1015,13 +1013,8 @@ private theorem cycleCancelLoop_spec [DecidableEq V] [AddCommGroup W] [LinearOrd
   | fuel + 1, f, count, hfuel => by
     have hspec := findNegCycleOrPotential_spec hvs f
     dsimp only [cycleCancelLoop]
-    cases hfind : findNegCycleOrPotential M vs f with
-    | inr π =>
-      rw [hfind] at hspec
-      exact ⟨isMinCost_of_compSlackness hspec, hspec, hP_refl f count⟩
-    | inl cyc =>
-      rw [hfind] at hspec
-      obtain ⟨hc, hneg⟩ := hspec
+    rcases hfind : findNegCycleOrPotential M vs f with cyc | π <;> rw [hfind] at hspec
+    · obtain ⟨hc, hneg⟩ := hspec
       dsimp only
       split_ifs
       set δ := f.cycleBottleneck cyc
@@ -1035,6 +1028,7 @@ private theorem cycleCancelLoop_spec [DecidableEq V] [AddCommGroup W] [LinearOrd
       obtain ⟨hmin, hcs, hP⟩ :=
         cycleCancelLoop_spec hvs rank h0 hdrop P hP_refl hP_step fuel f' (count + 1) (by omega)
       exact ⟨hmin, hcs, hP_step hlt_cost rfl hP⟩
+    · exact ⟨isMinCost_of_compSlackness hspec, hspec, hP_refl f count⟩
 
 /-- Any feasible flow network with linearly ordered additive group costs admits a minimum-cost
 feasible flow and complementary-slackness potentials. -/
@@ -1061,8 +1055,7 @@ theorem exists_isMinCost_of_feasible [AddCommGroup W] [LinearOrder W] [IsOrdered
     (Finset.card_le_univ _).trans_eq Finset.card_univ
   obtain ⟨hmin, hcs, _⟩ := cycleCancelLoop_spec hvs (fun f => (cheaperCapMaps M f.totalCost).card)
     h0 hdrop (fun _ _ _ _ => True) (fun _ _ => trivial) (fun _ _ h => h) fuel f₀ 0 hcard
-  exact ⟨(cycleCancelLoop M vs fuel f₀ 0).flow, (cycleCancelLoop M vs fuel f₀ 0).potential,
-    hmin, hcs⟩
+  exact ⟨_, _, hmin, hcs⟩
 
 private theorem sum_toFinset_le_list_sum {α : Type*} [DecidableEq α] (L : List α)
     (fn : α → ℕ) :

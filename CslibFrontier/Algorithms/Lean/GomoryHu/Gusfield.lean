@@ -517,11 +517,8 @@ private theorem exists_uncrossed (hsym : ∀ X, f Xᶜ = f X) (hsub : IsSubmodul
     intro z hzt hpz
     rcases I.cover htP ((I.conn z).trans (reflTransGen_tAdj_symm (I.conn t))) with
       ⟨k, hk, hzk⟩ | h | ⟨-, h⟩
-    · have hzk' : z ≠ k := by
-        intro h
-        rcases (mem_edgesAt.mp hk).2.2 with h' | h'
-        · exact hpz (h ▸ h')
-        · exact hzt (h.trans h')
+    · have hzk' : z ≠ k := fun h =>
+        (mem_edgesAt.mp hk).2.2.elim (fun h' => hpz (h ▸ h')) fun h' => hzt (h.trans h')
       rw [M1 k hk z hzk, M1 k hk (p z) ((I.mem_farSide_iff hk hzk').mp hzk)]
     · exact absurd h hzt
     · exact absurd h hpz
@@ -790,12 +787,11 @@ private theorem gInv_isGomoryHuTree (hsym : ∀ X, f Xᶜ = f X) {r : V} {p : V 
     replace hi := (Finset.mem_erase.mp (Finset.mem_coe.mp hi)).1
     rcases Sym2.eq_iff.mp hij with ⟨h, -⟩ | ⟨h1, h2⟩
     · exact h
-    · exfalso
-      have hc := I.cut i (Finset.mem_univ i) hi
+    · have hc := I.cut i (Finset.mem_univ i) hi
       have hji : j ≠ i := fun h => hne i hi (h2.trans h)
       have hl := I.lam i (Finset.mem_univ i) hi j hji
       rw [← h1, ← h2] at hl
-      exact hc.right_notMem (hl.mpr hc.left_mem)
+      exact absurd (hl.mpr hc.left_mem) hc.right_notMem
   have htree : (parentGraph p).IsTree := by
     rw [SimpleGraph.isTree_iff_connected_and_card]
     refine ⟨hconn, ?_⟩

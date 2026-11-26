@@ -410,12 +410,10 @@ theorem isFixedPt_adachiMap_iff (ν : I.PreMatching) :
           nomatch hp.symm.trans ((I.fixedPt_mutual hfix p r₀).2 (hr₀ ▸ hg r₀))
         · push Not at hall_recv
           obtain ⟨r₀, hr₀⟩ := hall_recv
-          have hr₀_will : r₀ ∈ I.willingReceivers ν p :=
-            Finset.mem_filter.2 ⟨Finset.mem_univ _, by
-              cases h : ν.recvPartner r₀ with
-              | none => simp [Fin.le_last]
-              | some q => exact (hr₀ q h).elim⟩
-          have hle := I.propOptRank_bestWillingReceiver_le hr₀_will
+          have hle := I.propOptRank_bestWillingReceiver_le (ν := ν) (p := p) (r := r₀)
+            (Finset.mem_filter.2 ⟨Finset.mem_univ _, by
+              rw [Option.eq_none_iff_forall_ne_some.mpr hr₀, recvOptRank_none]
+              exact Fin.le_last _⟩)
           rw [hprop_fix p, hp, propOptRank_none, propOptRank_some] at hle
           exact not_lt_of_ge hle (Fin.castSucc_lt_last _)
     choose f hf using hall_some
@@ -473,8 +471,7 @@ theorem adachiMap_gfp :
     I.adachiMap.gfp = PreMatching.ofMatching I I.deferredAcceptance := by
   obtain ⟨μ, hstab, h_eq⟩ := (I.isFixedPt_adachiMap_iff I.adachiMap.gfp).1
     I.adachiMap.isGreatest_gfp.1
-  have hp : ∀ p, I.propRank p (I.deferredAcceptance p) ≤ I.propRank p (μ p) :=
-    fun p => I.propRank_deferredAcceptance_le hstab p
+  have hp := I.propRank_deferredAcceptance_le hstab
   refine h_eq.trans (le_antisymm ?_ (h_eq ▸ I.adachiMap.isGreatest_gfp.2
     ((I.isFixedPt_ofMatching_iff _).2 I.isStable_deferredAcceptance)))
   rw [PreMatching.le_iff]
@@ -486,8 +483,7 @@ theorem adachiMap_lfp :
     I.adachiMap.lfp = PreMatching.ofMatching I I.receiverDeferredAcceptance := by
   obtain ⟨μ, hstab, h_eq⟩ := (I.isFixedPt_adachiMap_iff I.adachiMap.lfp).1
     I.adachiMap.isLeast_lfp.1
-  have hp : ∀ p, I.propRank p (μ p) ≤ I.propRank p (I.receiverDeferredAcceptance p) :=
-    fun p => I.isProposerPessimal_receiverDeferredAcceptance.2 μ hstab p
+  have hp := I.isProposerPessimal_receiverDeferredAcceptance.2 μ hstab
   refine h_eq.trans (le_antisymm (h_eq ▸ I.adachiMap.isLeast_lfp.2
     ((I.isFixedPt_ofMatching_iff _).2 I.isStable_receiverDeferredAcceptance)) ?_)
   rw [PreMatching.le_iff]
