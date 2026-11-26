@@ -8,6 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.SharpTwoSAT
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Logics.Propositional.CNF.PolyTime
 import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Logics.Propositional.CNF.Eval
 import CslibFrontier.Logics.Propositional.CNF.ModelCount.Relabel
@@ -34,13 +37,14 @@ The size and model-count results supply the combinatorial part of the #SH transf
 
 * `Cslib.Complexity.SharpTwoSATParity.sharpSAT_eq_parityQuery_sub`: the exact difference identity.
 * `Cslib.Complexity.SharpTwoSATParity.size_parityQuery_le`: a linear bound for width-three inputs.
+* `Cslib.Complexity.SharpTwoSATParity.computableInPolyTime_parityQuery`: the multitape certificate.
 -/
 
 public section
 
 namespace Cslib.Complexity
 
-open Cslib.Logic.PL
+open Cslib.Logic.PL Turing.MultiTapeTM
 open scoped BigOperators
 
 namespace SharpTwoSATParity
@@ -62,7 +66,7 @@ private theorem mem_choices (ab : Choice) : ab ∈ choices := by
   rcases ab with ⟨a, b⟩
   cases a <;> cases b <;> decide
 
-private def gate {φ : CNF ℕ} (s : Var φ) (l : Literal (Var φ)) : Clause (Var φ) :=
+private def gate {V : Type} (s : V) (l : Literal V) : Clause V :=
   [(s, false), l]
 
 private theorem eval_gate_iff {φ : CNF ℕ} (σ : Var φ → Bool) (s : Var φ) (l : Literal (Var φ)) :
@@ -292,16 +296,21 @@ private theorem modelCount_typedQuery_sub (φ : CNF ℕ) :
       rw [CNF.modelCount, Finset.card_eq_sum_ones, Nat.cast_sum, Finset.sum_filter]
       simp only [Nat.cast_one]
 
+private def blockLabel (i offset : ℕ) : ℕ := 6 * i + offset
+
+private def selectorOffset (ab : Choice) : ℕ := 2 + 2 * ab.1.toNat + ab.2.toNat
+
 /-- Original variables use residue zero, states use residue one, and the four selectors use
 residues two through five. The quotient holds the source label or chain index. -/
 private def label {φ : CNF ℕ} : Var φ → ℕ
-  | .inl v => 6 * v.val
-  | .inr (.inl i) => 6 * i.val + 1
-  | .inr (.inr (i, a, b)) => 6 * i.val + 2 + 2 * a.toNat + b.toNat
+  | .inl v => blockLabel v.val 0
+  | .inr (.inl i) => blockLabel i.val 1
+  | .inr (.inr (i, ab)) => blockLabel i.val (selectorOffset ab)
 
 private theorem label_injective (φ : CNF ℕ) : Function.Injective (label (φ := φ)) := by
   have hbit (b : Bool) : b.toNat ≤ 1 := by cases b <;> decide
-  rintro (v | (i | ⟨i, a, b⟩)) (w | (j | ⟨j, c, d⟩)) h <;> simp only [label] at h
+  rintro (v | (i | ⟨i, a, b⟩)) (w | (j | ⟨j, c, d⟩)) h <;>
+    simp only [label, blockLabel, selectorOffset] at h
   · exact congrArg Sum.inl (Subtype.ext (by omega))
   · omega
   · have := hbit c
@@ -347,6 +356,122 @@ private theorem length_clause_typedQuery (φ : CNF ℕ) (odd : Bool) {c : Clause
 disjoint natural-variable labels. `false` chooses even parity and `true` chooses odd parity. -/
 def parityQuery (φ : CNF ℕ) (odd : Bool) : CNF ℕ :=
   (typedQuery φ odd).relabel label
+
+private def indexedStep (c : Clause ℕ) (i : ℕ) (ab : Choice) : CNF ℕ :=
+  let s := blockLabel i (selectorOffset ab)
+  gate s (blockLabel i 1, ab.1) :: gate s (blockLabel (i + 1) 1, ab.2) ::
+    (if ab.1 = ab.2 then [] else c.map fun l => gate s (blockLabel l.1 0, !l.2))
+
+private theorem relabel_stepClauses (φ : CNF ℕ) (i : Fin φ.length) (ab : Choice) :
+    (stepClauses φ i ab).relabel label = indexedStep φ[i] i.val ab := by
+  simp only [stepClauses, indexedStep, CNF.relabel, List.map_cons, Clause.relabel, gate,
+    state, selector, List.map_nil]
+  split_ifs
+  · rfl
+  · let s := blockLabel i.val (selectorOffset ab)
+    have ht := congrArg (List.map (fun l : Literal ℕ => [(s, false), (blockLabel l.1 0, !l.2)]))
+      (List.attach_map_subtype_val φ[i])
+    simp only [List.map_map, Function.comp_def] at ht
+    rw [List.map_map]
+    exact congrArg (fun tail =>
+      [(s, false), (blockLabel i.val 1, ab.1)] ::
+        [(s, false), (blockLabel (i.val + 1) 1, ab.2)] :: tail) ht
+
+private theorem parityQuery_eq_zipIdx (φ : CNF ℕ) (odd : Bool) :
+    parityQuery φ odd =
+      [(blockLabel 0 1, false)] :: [(blockLabel φ.length 1, odd)] ::
+        φ.zipIdx.flatMap fun ci => choices.flatMap (indexedStep ci.1 ci.2) := by
+  have hzip : (List.finRange φ.length).map (fun i => (φ[i], i.val)) = φ.zipIdx := by
+    apply List.ext_getElem (by simp)
+    intro n hn hm
+    simp only [List.getElem_map, List.getElem_finRange, List.getElem_zipIdx, Nat.zero_add,
+      Fin.val_cast]
+    rfl
+  change (typedQuery φ odd).relabel label = _
+  simp only [typedQuery, CNF.relabel, List.map_cons, List.map_flatMap]
+  rw [← hzip, List.flatMap_map]
+  change [(blockLabel 0 1, false)] :: [(blockLabel φ.length 1, odd)] ::
+    ((List.finRange φ.length).flatMap fun i => choices.flatMap fun ab =>
+      (stepClauses φ i ab).relabel label) = _
+  simp only [relabel_stepClauses]
+
+private theorem computableInPolyTime_blockLabel (offset : ℕ) :
+    ComputableInPolyTime (fun i => blockLabel i offset) encNat encNat := by
+  unfold blockLabel
+  apply ComputableInPolyTime.binary_add' _ (ComputableInPolyTime.const offset)
+  exact ComputableInPolyTime.binary_mul.comp
+    ((ComputableInPolyTime.const 6).prod ComputableInPolyTime.id')
+
+open ComputableInPolyTime in
+private theorem computableInPolyTime_gate {α : Type} {input : α ↪ List Bool}
+    {s : α → ℕ} {l : α → Literal ℕ} (hs : ComputableInPolyTime s input encNat)
+    (hl : ComputableInPolyTime l input (encPair encNat encBool)) :
+    ComputableInPolyTime (fun x => gate (s x) (l x)) input (encClause encNat) :=
+  cons' (hs.prod (const false)) (cons' hl (const []))
+
+open ComputableInPolyTime in
+private theorem computableInPolyTime_flipGate :
+    ComputableInPolyTime
+      (fun p : ℕ × Literal ℕ => gate p.1 (blockLabel p.2.1 0, !p.2.2))
+      (encPair encNat (encPair encNat encBool)) (encClause encNat) := by
+  have hl := (computableInPolyTime_blockLabel 0).comp ((snd encNat (encPair encNat encBool)).fst')
+  have hnot : ComputableInPolyTime Bool.not encBool encBool := of_finite _
+  have hb := hnot.comp ((snd encNat (encPair encNat encBool)).snd')
+  exact computableInPolyTime_gate (fst encNat _) (hl.prod hb)
+
+/-- Encode the clause with binary variable labels, followed by its unary position. -/
+private abbrev encIndexedClause : (Clause ℕ × ℕ) ↪ List Bool :=
+  encPair (encClause encNat) encUnary
+
+open ComputableInPolyTime in
+private theorem computableInPolyTime_indexedStep (ab : Choice) :
+    ComputableInPolyTime (fun ci : Clause ℕ × ℕ => indexedStep ci.1 ci.2 ab)
+      encIndexedClause encCNF := by
+  have hi := unary_to_binary.comp (snd (encClause encNat) encUnary)
+  have hs : ComputableInPolyTime (fun ci => blockLabel ci.2 (selectorOffset ab))
+      encIndexedClause encNat :=
+    (computableInPolyTime_blockLabel (selectorOffset ab)).comp hi
+  have hstart := (computableInPolyTime_blockLabel 1).comp hi
+  have hend : ComputableInPolyTime (fun ci => blockLabel (ci.2 + 1) 1) encIndexedClause encNat := by
+    simpa only [Function.comp_def, blockLabel, Nat.mul_add, Nat.mul_one, Nat.add_assoc] using
+      (computableInPolyTime_blockLabel 7).comp hi
+  have htail : ComputableInPolyTime
+      (fun ci : Clause ℕ × ℕ =>
+        if ab.1 = ab.2 then [] else ci.1.map fun l =>
+          gate (blockLabel ci.2 (selectorOffset ab)) (blockLabel l.1 0, !l.2))
+      encIndexedClause encCNF := by
+    by_cases h : ab.1 = ab.2
+    · simp only [ite_eq_left h]
+      exact const []
+    · simp only [ite_eq_right h]
+      exact mapWith computableInPolyTime_flipGate hs (fst (encClause encNat) encUnary)
+  unfold indexedStep
+  exact cons' (computableInPolyTime_gate hs (hstart.prod (const ab.1)))
+    (cons' (computableInPolyTime_gate hs (hend.prod (const ab.2))) htail)
+
+open ComputableInPolyTime in
+/-- Each parity query is computable in polynomial time on multitape machines with binary
+CNF variable labels. Only positions introduced by the list traversal use unary counters. -/
+@[fun_prop]
+theorem computableInPolyTime_parityQuery (odd : Bool) :
+    ComputableInPolyTime (fun φ => parityQuery φ odd) encCNF encCNF := by
+  simp_rw [parityQuery_eq_zipIdx]
+  have hblocks : ComputableInPolyTime
+      (fun ci : Clause ℕ × ℕ => choices.flatMap (indexedStep ci.1 ci.2))
+      encIndexedClause encCNF :=
+    flatMapConst choices (fun ab _ => computableInPolyTime_indexedStep ab)
+  have hbody : ComputableInPolyTime
+      (fun φ : CNF ℕ => φ.zipIdx.flatMap fun ci => choices.flatMap (indexedStep ci.1 ci.2))
+      encCNF encCNF :=
+    flatMapWithInput (zipIdx (encClause encNat)) (hblocks.comp (snd encCNF _))
+  have hlen : ComputableInPolyTime (fun φ : CNF ℕ => φ.length) encCNF encUnary :=
+    CNF.computableInPolyTime_length (V := ℕ)
+      (id' : ComputableInPolyTime (fun φ : CNF ℕ => φ) encCNF (encCNFOver encNat))
+  have hnum := (computableInPolyTime_blockLabel 1).comp (unary_to_binary.comp hlen)
+  have hend : ComputableInPolyTime (fun φ => [(blockLabel φ.length 1, odd)])
+      encCNF (encClause encNat) :=
+    cons' (hnum.prod (const odd)) (const [])
+  exact cons' (const [(blockLabel 0 1, false)]) (cons' hend hbody)
 
 /-- Every clause of a parity query has width at most two. -/
 theorem width_parityQuery (φ : CNF ℕ) (odd : Bool) :
