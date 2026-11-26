@@ -183,16 +183,13 @@ theorem Good.bob {send : (Fin n → Fin m → Bool) → Bool} {p₀ p₁ : Proto
     dsimp only
     exact h.X_large.trans (mul_le_mul_of_nonneg_right
       (pow_le_pow_right₀ (by norm_num) (Nat.le_succ _)) (Nat.cast_nonneg _))
-  solves := by
-    intro x hx y hy
-    have hy' := mem_filter.mp (mem_coe.mp hy)
-    have := h.solves x hx y (mem_coe.mpr hy'.1)
-    simp only [Protocol.run_bob, hy'.2] at this
-    cases b <;> exact this
+  solves := fun x hx y hy => by
+    obtain ⟨hy1, hy2⟩ := mem_filter.mp (mem_coe.mp hy)
+    have hsol := h.solves x hx y (mem_coe.mpr hy1)
+    cases b <;> simpa only [Protocol.run_bob, hy2, Bool.cond_true, Bool.cond_false] using hsol
   budget := by
-    have := h.budget
-    simp only [Protocol.depth] at this
-    cases b <;> simp only [Bool.cond_true, Bool.cond_false] <;> omega
+    have hbgt := h.budget
+    cases b <;> simp only [Protocol.depth, Bool.cond_true, Bool.cond_false] at hbgt ⊢ <;> omega
 
 /-- Under the hypotheses of `Good.alice`, Bob's filtered set `Y'` satisfies the deficiency
 invariant for `st.t + 1` and `st.J ∪ q.I`. -/
@@ -213,12 +210,8 @@ private theorem Good.alice_Y_large {send : (Fin n → Fin m) → Bool} {p₀ p�
     simpa only [compl_union, ← sdiff_eq_inter_compl] using card_sdiff_add_card_eq_card hIJ
   have h1 := h.Y_large
   have h2 := hq ρ'
-  rw [hcardJ, ← hcardc] at *
-  rw [← hcardc] at h1
-  have e1 : (2 : ℝ) ^ ((#(st.J ∪ q.I)ᶜ + #q.I) * m) =
-      2 ^ (#(st.J ∪ q.I)ᶜ * m) * 2 ^ (m * #q.I) := by
-    rw [← pow_add, add_mul, mul_comm m]
-  rw [e1] at h1
+  rw [← hcardc, add_mul, pow_add, mul_comm #q.I m] at h1
+  rw [hcardJ]
   refine le_of_mul_le_mul_right ?_ (by positivity : (0 : ℝ) < 2 ^ (m * #q.I))
   calc (2 : ℝ) ^ (#(st.J ∪ q.I)ᶜ * m) * 2 ^ (m * #q.I)
       ≤ 2 ^ st.t * (4 * τ) ^ #st.J * #st.Y := h1
@@ -301,14 +294,12 @@ theorem Good.alice {send : (Fin n → Fin m) → Bool} {p₀ p₁ : Protocol _ _
   · change IsDense τ (st.J ∪ q.I)ᶜ q.P
     simpa only [compl_union, ← sdiff_eq_inter_compl] using hL.dense q hqL
   · intro x hx y hy
-    have hx' := mem_filter.mp (hL.subset q hqL (mem_coe.mp hx))
-    have := h.solves x (mem_coe.mpr hx'.1) y (mem_coe.mpr (filter_subset _ _ (mem_coe.mp hy)))
-    simp only [Protocol.run_alice, hx'.2] at this
-    cases b <;> exact this
-  · have := h.budget
-    simp only [Protocol.depth] at this
+    obtain ⟨hx1, hx2⟩ := mem_filter.mp (hL.subset q hqL (mem_coe.mp hx))
+    have hsol := h.solves x (mem_coe.mpr hx1) y (mem_coe.mpr (filter_subset _ _ (mem_coe.mp hy)))
+    cases b <;> simpa only [Protocol.run_alice, hx2, Bool.cond_true, Bool.cond_false] using hsol
+  · have hbgt := h.budget
     change st.t + 1 + (cond b p₁ p₀).depth ≤ c
-    cases b <;> simp only [Bool.cond_true, Bool.cond_false] <;> omega
+    cases b <;> simp only [Protocol.depth, Bool.cond_true, Bool.cond_false] at hbgt ⊢ <;> omega
 
 end SimState
 
@@ -598,19 +589,17 @@ theorem depth_mul_logb_le {R : (Fin n → Bool) → O → Prop} (hm : 16 ≤ m)
     Real.le_sqrt_of_sq_le (by exact_mod_cast show 4 ^ 2 ≤ m by omega)
   obtain ⟨t, ht, hdepth⟩ := exists_decisionTree_of_solves h4 hsq.le hmn hp
   refine ⟨t, ht, ?_⟩
-  have hspos : 0 < Real.sqrt m := by linarith only [h4]
-  have hdiv : (m : ℝ) / Real.sqrt m = Real.sqrt m := by
-    rw [div_eq_iff hspos.ne', ← sq, hsq]
-  rw [hdiv] at hdepth
+  have hdiv : (m : ℝ) / Real.sqrt m = Real.sqrt m :=
+    (div_eq_iff (by linarith only [h4] : Real.sqrt m ≠ 0)).mpr (sq (Real.sqrt m) ▸ hsq.symm)
+  have h4pow : (4 : ℝ) ^ p.depth = 2 ^ (2 * p.depth) := by
+    rw [pow_mul]
+    norm_num
+  rw [hdiv, h4pow] at hdepth
   have hlog := Real.logb_le_logb_of_le (b := 2) (by norm_num) (by positivity) hdepth
+  rw [Real.logb_pow, Real.logb_two_pow, Nat.cast_mul, Nat.cast_ofNat] at hlog
   have hsqrt : Real.logb 2 m = 2 * Real.logb 2 (Real.sqrt m) := by
     conv_lhs => rw [← hsq]
     rw [Real.logb_pow, Nat.cast_ofNat]
-  have hlog4 : Real.logb 2 4 = 2 := by
-    have h4eq : (4 : ℝ) = 2 ^ (2 : ℕ) := by norm_num
-    rw [h4eq, Real.logb_two_pow]
-    norm_num
-  rw [Real.logb_pow, Real.logb_pow, hlog4] at hlog
   rw [hsqrt]
   linarith [hlog]
 

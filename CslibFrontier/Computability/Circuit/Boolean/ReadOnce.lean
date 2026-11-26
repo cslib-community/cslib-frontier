@@ -453,11 +453,7 @@ theorem eval_orFin {N : ℕ} :
     ∀ (m : ℕ) (hm : 0 < m) (f : Fin m → PosFormula N) (w : BitString N),
     (orFin m hm f).eval w = decide (∃ i : Fin m, (f i).eval w = true)
   | 0, hm, _, _ => absurd hm (Nat.lt_irrefl 0)
-  | 1, _, f, w => by
-    dsimp [orFin]
-    rw [← Bool.decide_coe ((f 0).eval w), decide_eq_decide]
-    exact ⟨fun h => ⟨0, h⟩,
-      fun ⟨i, hi⟩ => by rcases Fin.eq_zero i with rfl; exact hi⟩
+  | 1, _, f, w => by simp [orFin]
   | m + 2, _, f, w => by
     dsimp [orFin, PosFormula.eval]
     rw [eval_orFin (m + 1) (Nat.succ_pos m),
@@ -480,10 +476,7 @@ theorem mem_leafSupport_orFin {N : ℕ} :
     ∀ (m : ℕ) (hm : 0 < m) (f : Fin m → PosFormula N) (v : Fin N),
     v ∈ (orFin m hm f).leafSupport ↔ ∃ i : Fin m, v ∈ (f i).leafSupport
   | 0, hm, _, _ => absurd hm (Nat.lt_irrefl 0)
-  | 1, _, f, v => by
-    dsimp [orFin]
-    exact ⟨fun h => ⟨0, h⟩,
-      fun ⟨i, hi⟩ => by rcases Fin.eq_zero i with rfl; exact hi⟩
+  | 1, _, f, v => by simp [orFin]
   | m + 2, _, f, v => by
     dsimp [orFin, PosFormula.leafSupport]
     rw [Finset.mem_union, mem_leafSupport_orFin (m + 1) (Nat.succ_pos m)]
@@ -600,13 +593,9 @@ theorem eval_le_of_not_mem_posSupport {F : LitFormula n} {i : Fin n} (hi : i ∉
     (hy₀ : y₀ i = false) (hy₁ : y₁ i = true) : F.eval y₁ ≤ F.eval y₀ := by
   induction F with
   | lit j pol =>
-    cases pol
-    · by_cases hji : j = i
-      · subst hji
-        simp [eval, hy₁]
-      · simp [eval, hdiff j hji]
-    · simp only [posSupport, ↓reduceIte, Finset.mem_singleton] at hi
-      simp [eval, hdiff j (Ne.symm hi)]
+    rcases eq_or_ne j i with rfl | hji
+    · cases pol <;> simp [posSupport, eval, hy₁] at hi ⊢
+    · cases pol <;> simp [eval, hdiff j hji]
   | and L R ihL ihR =>
     simp only [posSupport, Finset.mem_union, not_or] at hi
     exact bool_and_le_and (ihL hi.1) (ihR hi.2)
@@ -753,31 +742,24 @@ private theorem sum_lastCases_leafSize (hn : 0 < n) (p : Program signature n g) 
         Wire n (g + 1) → LitFormula n) w).leafSize =
       frontier.card + (p.gate ⟨op, wires⟩).cost binaryCost := by
   obtain ⟨_, hopened_eq, hlast_tight⟩ := openedFrontier_tight p op wires frontier h
-  let lastFormula : LitFormula n := lineLitFormula hn F' op wires
-  let F : Wire n (g + 1) → LitFormula n := Wire.lastCases lastFormula F'
   have hsum_prior :
-      ∑ w ∈ frontier.erase (.gate (.last g)), (F w).leafSize =
+      ∑ w ∈ frontier.erase (.gate (.last g)),
+        ((Wire.lastCases (lineLitFormula hn F' op wires) F' :
+          Wire n (g + 1) → LitFormula n) w).leafSize =
         ∑ w' ∈ priorFrontier frontier, (F' w').leafSize := by
-    rw [← image_castSucc_priorFrontier,
-      Finset.sum_image fun a _ b _ hab => Wire.castSucc_injective hab]
-    exact Finset.sum_congr rfl fun w' _ =>
-      congrArg LitFormula.leafSize (wire_lastCases_castSucc lastFormula F' w')
-  have hcost_gate : (p.gate ⟨op, wires⟩).cost binaryCost = p.cost binaryCost + binaryCost op :=
-    Program.cost_gate p ⟨op, wires⟩ binaryCost
+    simp [← image_castSucc_priorFrontier,
+      Finset.sum_image fun _ _ _ _ h => Wire.castSucc_injective h]
+  rw [hopened_eq] at hF'_sum
   by_cases hlast : Wire.gate (Fin.last g) ∈ frontier
   · obtain ⟨hdisj, hcard_li, harity_eq⟩ := hlast_tight hlast
-    have hlast_leaf :
-        (F (.gate (.last g))).leafSize = ∑ w ∈ Finset.univ.image wires, (F' w).leafSize := by
-      simpa only [F, wire_lastCases_last] using
-        leafSize_lineLitFormula hn F' op wires harity_eq hcard_li
-    have hdef : openedFrontier frontier wires =
-        priorFrontier frontier ∪ Finset.univ.image wires := ite_eq_left hlast
-    rw [← Finset.sum_erase_add _ _ hlast, hsum_prior, hlast_leaf,
-      ← Finset.sum_union hdisj, ← hdef, hF'_sum, hopened_eq, hcost_gate]
+    simp only [openedFrontier, hlast, ↓reduceIte] at hF'_sum
+    rw [← Finset.sum_erase_add _ _ hlast, hsum_prior]
+    simp only [wire_lastCases_last, leafSize_lineLitFormula hn F' op wires harity_eq hcard_li,
+      ← Finset.sum_union hdisj, hF'_sum, Program.cost_gate]
     omega
   · rw [Finset.erase_eq_of_notMem hlast] at hsum_prior
-    have hdef : openedFrontier frontier wires = priorFrontier frontier := ite_eq_right hlast
-    rw [hsum_prior, ← hdef, hF'_sum, hopened_eq, hcost_gate]
+    simp only [openedFrontier, hlast, ↓reduceIte] at hF'_sum
+    simp only [hsum_prior, hF'_sum, Program.cost_gate]
     omega
 
 /-- When a frontier of wires in a De Morgan program achieves the binary-cost support bound
@@ -797,8 +779,7 @@ theorem Program.exists_litFormula_of_card_biUnion_wireSupport_ge (hn : 0 < n)
     have h1 : ∀ w ∈ frontier,
         (match w with | Wire.input i => LitFormula.lit i true | Wire.gate j => j.elim0).leafSize =
           1 := fun | .input _, _ => rfl | .gate j, _ => j.elim0
-    rw [Finset.sum_congr rfl h1, Finset.sum_const, smul_eq_mul, mul_one, Program.cost_empty,
-      Nat.add_zero]
+    simp [Finset.sum_congr rfl h1]
   | @gate g p line ih =>
     obtain ⟨op, wires⟩ := line
     obtain ⟨h_opened, _, hlast_tight⟩ := openedFrontier_tight p op wires frontier h
@@ -808,17 +789,15 @@ theorem Program.exists_litFormula_of_card_biUnion_wireSupport_ge (hn : 0 < n)
     induction w using Wire.lastCases with
     | last =>
       obtain ⟨_, _, harity_eq⟩ := hlast_tight hw
-      have hmem_li (a : Fin (signature.Arity op)) : wires a ∈ openedFrontier frontier wires := by
-        simp [openedFrontier, hw]
-      simp only [wire_lastCases_last, Program.trace_gate_last]
-      rw [eval_lineLitFormula hn F' op wires harity_eq x]
-      exact congrArg (interpretation op) (funext fun a => hF'_eval (wires a) (hmem_li a) x)
+      simp only [wire_lastCases_last, Program.trace_gate_last,
+        eval_lineLitFormula hn F' op wires harity_eq x]
+      exact congrArg (interpretation op)
+        (funext fun a => hF'_eval (wires a) (by simp [openedFrontier, hw]) x)
     | castSucc w' =>
-      have hw'_open : w' ∈ openedFrontier frontier wires := by
-        by_cases hlast : Wire.gate (Fin.last g) ∈ frontier <;>
-          simp [openedFrontier, priorFrontier, hlast, hw]
       simp only [wire_lastCases_castSucc, Program.trace_gate_castSucc]
-      exact hF'_eval w' hw'_open x
+      refine hF'_eval w' ?_ x
+      by_cases hlast : Wire.gate (Fin.last g) ∈ frontier <;>
+        simp [openedFrontier, priorFrontier, hlast, hw]
 
 /-- A one-output De Morgan circuit with `1 ≤ n`, full input support `n ≤ c.inputSupport.card`, and
 `c.program.cost binaryCost + 1 ≤ n` unfolds into a constant-free NNF formula `F : LitFormula n` of

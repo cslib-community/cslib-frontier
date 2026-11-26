@@ -113,20 +113,14 @@ theorem missingPage_mem_and_notMem (p₀ : α) {pages : List α} {s : Finset α}
     (hnodup : pages.Nodup) (hcard : s.card < pages.length) :
     missingPage p₀ pages s ∈ pages ∧ missingPage p₀ pages s ∉ s := by
   induction pages generalizing s with
-  | nil =>
-    simp only [List.length_nil] at hcard
-    omega
+  | nil => cases hcard
   | cons x xs ih =>
     rcases List.nodup_cons.mp hnodup with ⟨hx_xs, hnodup'⟩
     simp only [missingPage]
     split
     · next hxs =>
-      have hcard' : (s.erase x).card < xs.length := by
-        rw [Finset.card_erase_of_mem hxs]
-        have := Finset.one_le_card.mpr ⟨x, hxs⟩
-        simp only [List.length_cons] at hcard
-        omega
-      obtain ⟨hmem, hnot⟩ := ih hnodup' hcard'
+      rw [← Finset.card_erase_add_one hxs, List.length_cons] at hcard
+      obtain ⟨hmem, hnot⟩ := ih hnodup' (Nat.lt_of_succ_lt_succ hcard)
       rw [missingPage_erase_of_notMem p₀ hx_xs s] at hmem hnot
       have hne : missingPage p₀ xs s ≠ x := fun h => hx_xs (h ▸ hmem)
       refine ⟨List.mem_cons_of_mem x hmem, fun hs => hnot (Finset.mem_erase.mpr ⟨hne, hs⟩)⟩
@@ -233,13 +227,11 @@ theorem offlineLookahead_cons (k : Nat) (p₀ : α) (pages : List α) (s : Finse
         let s' := insert p (s.erase evict)
         s' :: (List.replicate (rest.take (k - 1)).length s' ++
           offlineLookahead k p₀ pages s' (rest.drop (k - 1))) := by
-  simp only [offlineLookahead, offlineLookaheadAux]
-  split
+  rw [offlineLookahead, offlineLookaheadAux]
+  split_ifs
   · rfl
-  · split
-    · rfl
-    · rw [offlineLookaheadAux_eq_replicate_append]
-      rfl
+  · rfl
+  · exact congrArg _ (offlineLookaheadAux_eq_replicate_append _ _ _ _ _ _)
 
 private theorem filter_mem_length_eq_card {pages : List α} {s : Finset α}
     (hnodup : pages.Nodup) (hsub : s ⊆ pages.toFinset) :
@@ -373,11 +365,10 @@ theorem scheduleCost_offlineLookahead_bound {k : Nat} (hk : 0 < k) (p₀ : α) {
       have htail_pages : ∀ r ∈ tail, r ∈ pages :=
         fun r hr => hrest_pages r (List.mem_of_mem_drop hr)
       by_cases hshort : rest.length < k - 1
-      · have htail_nil : tail = [] := List.drop_eq_nil_of_le (by omega)
-        rw [htail_nil, offlineLookahead_nil]
-        have hzero : (problem α k).scheduleCost s' [] [] = 0 := rfl
-        rw [hzero, Nat.mul_zero, Nat.add_zero]
-        simp only [hseq, Nat.sub_self, Nat.mul_zero, Nat.add_zero, List.length_cons]
+      · dsimp only [tail]
+        rw [List.drop_eq_nil_of_le hshort.le]
+        change k + k * 0 ≤ _
+        simp only [hseq, Nat.sub_self, List.length_cons]
         omega
       · have ih := scheduleCost_offlineLookahead_bound hk p₀ hnodup hlen tail
           (Nat.le_of_eq hs'_card) hs'_sub htail_pages

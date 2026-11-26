@@ -50,8 +50,7 @@ private theorem tasks_bound (p : State Rel × List ℕ) :
   unfold tasks
   split
   · have h := (List.takeWhile_sublist (fun b => decide (b=p.2.headD 0)) (l := p.2)).length_le
-    simp only [List.length_tail]
-    omega
+    simp only [List.length_tail]; omega
   · simp
 
 private theorem fold_resource (I : State Rel) (ts : List ℕ)
@@ -67,18 +66,14 @@ private theorem fold_resource (I : State Rel) (ts : List ℕ)
     exact ⟨id, (List.map_id'' (fun c => by cases c; simp [Constraint.relabel]) _).symm, by simp,
       by simp, by simp, by simp⟩
   | append_singleton ts t ih =>
-    have hs : ts.length ≤ I.ports.length - 1 := by
-      simp only [List.length_append,List.length_singleton] at hlen
-      omega
-    obtain ⟨f,hb,hp,hn,_,_⟩ := ih hs
+    simp only [List.length_append, List.length_singleton] at hlen
+    obtain ⟨f, hb, hp, hn, _, _⟩ := ih (by omega)
     let J := ts.foldl (fun J _ => fuseHead J) I
     change J.body = I.body.relabel f at hb
     change J.ports = (I.ports.drop ts.length).map f at hp
     have hP : J.ports.length=I.ports.length-ts.length := by
       rw [hp,List.length_map,List.length_drop]
-    have htwo : 2≤J.ports.length := by
-      simp only [List.length_append,List.length_singleton] at hlen
-      omega
+    have htwo : 2 ≤ J.ports.length := by omega
     cases he : J.ports with
     | nil => simp only [he,List.length_nil] at htwo; omega
     | cons x tail =>
@@ -114,9 +109,8 @@ private theorem fold_resource (I : State Rel) (ts : List ℕ)
               CSP.vars_length_eq_occurrences]
           have hsize : 2*(J.body.occurrences.length+(ps.length+1))=
               2*(I.body.occurrences.length+I.ports.length-(ts++[t]).length) := by
-            simp only [he,List.length_cons] at hP
-            simp only [List.length_append,List.length_singleton]
-            omega
+            simp only [he, List.length_cons] at hP
+            simp only [List.length_append, List.length_singleton]; omega
           simp only [List.foldl_append,List.foldl_cons,List.foldl_nil]
           change (fuseHead J).rotation.successor.length =
             2*(I.body.occurrences.length+I.ports.length-(ts++[t]).length) ∧
@@ -202,8 +196,7 @@ private theorem prefix_size (encRel : Rel ↪ List Bool) (p : State Rel × List 
       simp only [List.length_map] at hw
       rw [encConstraint_apply,length_encPair]
       change 2*(encRel d.rel).length+1+(encList encNat (d.scope.map f)).length≤_
-      have hw' := hw.trans (Nat.mul_le_mul_right _ hs)
-      nlinarith
+      nlinarith [hw.trans (Nat.mul_le_mul_right _ hs)]
     have hb' := length_encList_le (encConstraint encRel encNat) J.body hrow
     have hq : J.body.length≤N := by rw [hb]; simpa only [CSP.relabel,List.length_map] using hQ
     have hb'' := hb'.trans (Nat.mul_le_mul_right _ hq)
