@@ -182,7 +182,8 @@ private theorem map_modify_fst {f : ℕ × ℤ → ℕ × ℤ} (hf : ∀ e, (f e
   | e :: L, 0 => by simp [hf]
   | e :: L, i + 1 => by simp [map_modify_fst hf L i]
 
-private theorem fst_mem_toLinear {ts : List (ℕ × Literal ℕ)} {e : ℕ × ℤ}
+/-- The variables of the linear form of a list of terms are those of the terms. -/
+theorem fst_mem_toLinear {ts : List (ℕ × Literal ℕ)} {e : ℕ × ℤ}
     (h : e ∈ toLinear ts) : e.1 ∈ ts.map termVar := by
   induction ts generalizing e with
   | nil => simp [toLinear] at h
@@ -229,22 +230,27 @@ private def normalizeFast (c : PBConstr) : PBConstr :=
 @[simp] private theorem normalizeFast_eq (c : PBConstr) : c.normalizeFast = c.normalize := by
   simp [normalizeFast, normalize, toLinearFast_eq]
 
+/-- The terms of a linear form over distinct variables are on distinct variables. -/
+theorem nodup_termVar_fromLinear {L : List (ℕ × ℤ)} (h : (L.map (·.1)).Nodup) (D : ℤ) :
+    ((fromLinear L D).terms.map termVar).Nodup := by
+  refine h.sublist ?_
+  clear h
+  induction L with
+  | nil => simp [fromLinear]
+  | cons e L ih =>
+    simp only [fromLinear] at ih ⊢
+    rw [List.filterMap_cons]
+    cases he : entryTerm e with
+    | none => exact ih.cons _
+    | some t =>
+      have : termVar t = e.1 := by
+        unfold entryTerm at he
+        split_ifs at he <;> cases he <;> rfl
+      simpa [this] using ih.cons_cons e.1
+
 /-- The variables of a normalized constraint are distinct. -/
-theorem nodup_termVar_normalize (c : PBConstr) : (c.normalize.terms.map termVar).Nodup := by
-  have hsub : ∀ L : List (ℕ × ℤ), ((L.filterMap entryTerm).map termVar).Sublist (L.map (·.1)) := by
-    intro L
-    induction L with
-    | nil => simp
-    | cons e L ih =>
-      rw [List.filterMap_cons]
-      cases h : entryTerm e with
-      | none => exact ih.cons _
-      | some t =>
-        have : termVar t = e.1 := by
-          unfold entryTerm at h
-          split_ifs at h <;> cases h <;> rfl
-        simpa [this] using ih.cons_cons e.1
-  exact (nodup_toLinear c.terms).sublist (hsub _)
+theorem nodup_termVar_normalize (c : PBConstr) : (c.normalize.terms.map termVar).Nodup :=
+  nodup_termVar_fromLinear (nodup_toLinear c.terms) _
 
 /-- `Cslib.Logic.PL.PBConstr.normalize` of terms on distinct variables, without merging. -/
 private def normalizeDistinct (c : PBConstr) : PBConstr :=

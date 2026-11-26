@@ -8,17 +8,17 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.VeriPB
--- `import all`: the facts about linear forms (`nodup_keys_toLinear`, `keys_toLinear_subset`) are
--- private there.
-import all CslibFrontier.Logics.Propositional.PseudoBoolean.Reification
+import CslibFrontier.Logics.Propositional.PseudoBoolean.CuttingPlanes
+import CslibFrontier.Logics.Propositional.PseudoBoolean.Fast
 
 /-!
 # Unit propagation is complete on constraints over distinct variables
 
-A trail `ρ` of literals is *coherent* when it holds no literal together with its negation
-(`Cslib.Logic.PL.VeriPB.Coherent`). For a constraint `C` whose terms are on distinct variables, as
-every normalized constraint's are (`Cslib.Logic.PL.VeriPB.nodup_vars_normalize`), unit propagation
-on a coherent trail decides the two questions a proof by reverse unit propagation asks of `C`:
+A trail `ρ` of literals is *consistent* when it holds no literal together with its negation
+(`Cslib.Logic.PL.VeriPB.TrailConsistent`). For a constraint `C` whose terms are on distinct
+variables, as every normalized constraint's are
+(`Cslib.Logic.PL.PBConstr.nodup_termVar_normalize`), unit propagation on a consistent trail
+decides the two questions a proof by reverse unit propagation asks of `C`:
 
 * it reports a conflict exactly when no assignment extending `ρ` satisfies `C`
   (`Cslib.Logic.PL.VeriPB.propagate_eq_none_of_forall`), because some assignment extending `ρ`
@@ -28,7 +28,7 @@ on a coherent trail decides the two questions a proof by reverse unit propagatio
   `ℓ` false and every other unfalsified term true violates `C`, so a term of `C` carries `ℓ`, and
   its coefficient exceeds the slack.
 
-The trail stays coherent (`Cslib.Logic.PL.VeriPB.coherent_of_propagate`). So a `rup` step
+The trail stays consistent (`Cslib.Logic.PL.VeriPB.trailConsistent_of_propagate`). So a `rup` step
 succeeds when, along its hints, each constraint is either violated by every assignment satisfying
 the literals derived so far, or implies new literals (`Cslib.Logic.PL.VeriPB.RupOk`): acceptance
 of a `rup` step reduces to implications between constraints, checked on assignments, with no
@@ -43,8 +43,8 @@ its slack at every assignment (`Cslib.Logic.PL.VeriPB.slack_normalize`).
 
 ## Main definitions
 
-* `Cslib.Logic.PL.VeriPB.Coherent`: a trail without complementary literals.
-* `Cslib.Logic.PL.VeriPB.RupOk`: every coherent trail containing the given literals leads the
+* `Cslib.Logic.PL.VeriPB.TrailConsistent`: a trail without complementary literals.
+* `Cslib.Logic.PL.VeriPB.RupOk`: every consistent trail containing the given literals leads the
   hints to a conflict.
 
 ## Main results
@@ -64,8 +64,22 @@ namespace Cslib.Logic.PL.VeriPB
 
 open PBConstr
 
-/-- A trail is **coherent** when it holds no literal together with its negation. -/
-def Coherent (ρ : List (Literal ℕ)) : Prop := ∀ l ∈ ρ, Std.Sat.Literal.negate l ∉ ρ
+/-- A trail is *consistent* when it holds no literal together with its negation. -/
+def TrailConsistent (ρ : List (Literal ℕ)) : Prop :=
+  ∀ l ∈ ρ, Std.Sat.Literal.negate l ∉ ρ
+
+/-- A literal whose negation is not on a consistent trail extends it consistently. -/
+theorem TrailConsistent.cons {t : List (Literal ℕ)} (ht : TrailConsistent t) {l : Literal ℕ}
+    (hl : Std.Sat.Literal.negate l ∉ t) : TrailConsistent (l :: t) := by
+  intro m hm hnm
+  simp only [List.mem_cons] at hm hnm
+  rcases hm with rfl | hm
+  · rcases hnm with h | h
+    · exact absurd h (by cases m; simp [Std.Sat.Literal.negate])
+    · exact hl h
+  · rcases hnm with h | h
+    · exact hl (h ▸ by simpa using hm)
+    · exact ht m hm h
 
 private theorem negate_ne_self (l : Literal ℕ) : Std.Sat.Literal.negate l ≠ l := by
   obtain ⟨v, b⟩ := l; cases b <;> simp [Std.Sat.Literal.negate]
@@ -79,10 +93,10 @@ private theorem eq_of_termVar_eq {ts : List (ℕ × Literal ℕ)} (hd : (ts.map 
     {t t' : ℕ × Literal ℕ} (ht : t ∈ ts) (ht' : t' ∈ ts) (h : termVar t = termVar t') : t = t' :=
   List.inj_on_of_nodup_map hd ht ht' h
 
-/-- **The best assignment of a trail**: on a coherent trail, some assignment extending the trail
+/-- **The best assignment of a trail**: on a consistent trail, some assignment extending the trail
 makes every term not falsified by the trail true. -/
 theorem exists_lhs_eq {ts : List (ℕ × Literal ℕ)} (hd : (ts.map termVar).Nodup)
-    {ρ : List (Literal ℕ)} (hρ : Coherent ρ) :
+    {ρ : List (Literal ℕ)} (hρ : TrailConsistent ρ) :
     ∃ σ, Consistent σ ρ ∧ lhs σ ts = coeffSum (ts.filter fun t => !falsified ρ t) := by
   let σ : ℕ → Bool := fun v =>
     if (v, true) ∈ ρ then true else if (v, false) ∈ ρ then false
@@ -119,10 +133,10 @@ theorem exists_lhs_eq {ts : List (ℕ × Literal ℕ)} (hd : (ts.map termVar).No
       subst heq
       cases b <;> simp_all [σ, Literal.eval]
 
-/-- **Conflicts are found**: if no assignment extending a coherent trail satisfies a constraint
+/-- **Conflicts are found**: if no assignment extending a consistent trail satisfies a constraint
 over distinct variables, propagation reports a conflict. -/
 theorem propagate_eq_none_of_forall {c : PBConstr} (hd : (c.terms.map termVar).Nodup)
-    {ρ : List (Literal ℕ)} (hρ : Coherent ρ) (h : ∀ σ, Consistent σ ρ → ¬ c.Holds σ) :
+    {ρ : List (Literal ℕ)} (hρ : TrailConsistent ρ) (h : ∀ σ, Consistent σ ρ → ¬ c.Holds σ) :
     propagate ρ c = none := by
   obtain ⟨σ, hσ, hl⟩ := exists_lhs_eq hd hρ
   have := h σ hσ
@@ -130,23 +144,11 @@ theorem propagate_eq_none_of_forall {c : PBConstr} (hd : (c.terms.map termVar).N
   have hs : slack ρ c < 0 := by unfold slack; omega
   simp [propagate, hs]
 
-private theorem coherent_cons {ρ : List (Literal ℕ)} (hρ : Coherent ρ) {l : Literal ℕ}
-    (hl : l ∉ ρ) :
-    Coherent (Std.Sat.Literal.negate l :: ρ) := by
-  intro m hm
-  simp only [List.mem_cons] at hm ⊢
-  rcases hm with rfl | hm
-  · rw [negate_negate]
-    exact fun h => h.elim (negate_ne_self l).symm hl
-  · rintro (h | h)
-    · exact hl (negate_inj h ▸ hm)
-    · exact hρ m hm h
-
 /-- **Implied literals are propagated**: if propagation of a constraint over distinct variables on
-a coherent trail finds no conflict, every literal that the constraint implies under the trail is
+a consistent trail finds no conflict, every literal that the constraint implies under the trail is
 on the new trail. -/
 theorem mem_of_propagate {c : PBConstr} (hd : (c.terms.map termVar).Nodup) {ρ ρ' : List (Literal ℕ)}
-    (hρ : Coherent ρ) (hp : propagate ρ c = some ρ') {l : Literal ℕ}
+    (hρ : TrailConsistent ρ) (hp : propagate ρ c = some ρ') {l : Literal ℕ}
     (hl : ∀ σ, Consistent σ ρ → c.Holds σ → Literal.eval σ l = true) : l ∈ ρ' := by
   have hsub : ∀ m ∈ ρ, m ∈ ρ' := by
     unfold propagate at hp
@@ -162,7 +164,8 @@ theorem mem_of_propagate {c : PBConstr} (hd : (c.terms.map termVar).Nodup) {ρ �
       have h2 := hσ _ hn
       simp [Literal.eval_negate, h1] at h2
     simp [this] at hp
-  obtain ⟨σ, hσ, hlhs⟩ := exists_lhs_eq hd (coherent_cons hρ hin)
+  obtain ⟨σ, hσ, hlhs⟩ := exists_lhs_eq hd
+    (hρ.cons (l := Std.Sat.Literal.negate l) (by rwa [negate_negate]))
   have hσρ : Consistent σ ρ := fun m hm => hσ m (List.mem_cons_of_mem _ hm)
   have hlf : Literal.eval σ l = false := by
     have := hσ _ List.mem_cons_self
@@ -232,9 +235,10 @@ theorem mem_of_propagate {c : PBConstr} (hd : (c.terms.map termVar).Nodup) {ρ �
     unfold slack
     omega
 
-/-- **Propagation keeps the trail coherent** on a constraint over distinct variables. -/
-theorem coherent_of_propagate {c : PBConstr} (hd : (c.terms.map termVar).Nodup)
-    {ρ ρ' : List (Literal ℕ)} (hρ : Coherent ρ) (hp : propagate ρ c = some ρ') : Coherent ρ' := by
+/-- **Propagation keeps the trail consistent** on a constraint over distinct variables. -/
+theorem trailConsistent_of_propagate {c : PBConstr} (hd : (c.terms.map termVar).Nodup)
+    {ρ ρ' : List (Literal ℕ)} (hρ : TrailConsistent ρ) (hp : propagate ρ c = some ρ') :
+    TrailConsistent ρ' := by
   unfold propagate at hp
   split at hp
   · cases hp
@@ -266,11 +270,11 @@ theorem coherent_of_propagate {c : PBConstr} (hd : (c.terms.map termVar).Nodup)
 
 /-! ### Reverse unit propagation -/
 
-/-- **A justified run of hints**: from every coherent trail containing the literals `K`, the hints
+/-- **A justified run of hints**: from every consistent trail containing the literals `K`, the hints
 `hs` reach a conflict. -/
 def RupOk (db : List (ℕ × PBConstr)) (neg : PBConstr) (hs : List Hint) (K : List (Literal ℕ)) :
     Prop :=
-  ∀ ρ, Coherent ρ → (∀ l ∈ K, l ∈ ρ) → rupHints db neg hs ρ = true
+  ∀ ρ, TrailConsistent ρ → (∀ l ∈ K, l ∈ ρ) → rupHints db neg hs ρ = true
 
 /-- **A hint in conflict**: a constraint over distinct variables violated by every assignment
 satisfying `K` closes the run. -/
@@ -293,7 +297,7 @@ theorem RupOk.imp {db : List (ℕ × PBConstr)} {neg c : PBConstr} {h : Hint} {h
   split
   · rfl
   · rename_i ρ' hp
-    refine hrest ρ' (coherent_of_propagate hd hρ hp) fun l hl => ?_
+    refine hrest ρ' (trailConsistent_of_propagate hd hρ hp) fun l hl => ?_
     have hsub : ∀ m ∈ ρ, m ∈ ρ' := by
       unfold propagate at hp
       split at hp
@@ -311,26 +315,9 @@ theorem rup_of_rupOk {db : List (ℕ × PBConstr)} {c : PBConstr} {hs : List Hin
 
 /-! ### Normalized constraints -/
 
-/-- The terms of a normalized constraint are on distinct variables. -/
-theorem nodup_vars_normalize (c : PBConstr) : (c.normalize.terms.map termVar).Nodup := by
-  have hk := nodup_keys_toLinear c.terms
-  simp only [normalize, fromLinear]
-  refine List.Nodup.sublist ?_ hk
-  generalize toLinear c.terms = L
-  induction L with
-  | nil => simp
-  | cons e L ih =>
-    obtain ⟨v, a⟩ := e
-    rw [List.filterMap_cons]
-    rcases h : entryTerm (v, a) with _ | t
-    · exact ih.cons _
-    · have hv : termVar t = v := by
-        unfold entryTerm at h; split_ifs at h <;> cases h <;> rfl
-      simpa [hv] using ih.cons_cons v
-
 /-- The terms of a negation are on distinct variables. -/
 theorem nodup_vars_negate (c : PBConstr) : (c.negate.terms.map termVar).Nodup := by
-  have := nodup_vars_normalize c
+  have := nodup_termVar_normalize c
   simp only [negate, List.map_map]
   convert this using 2
   ext t
@@ -343,8 +330,11 @@ private theorem negMass_toLinear_of_nodup {ts : List (ℕ × Literal ℕ)}
   | nil => rfl
   | cons t ts ih =>
     simp only [List.map_cons, List.nodup_cons] at hd
+    have hn : termVar t ∉ (toLinear ts).map Prod.fst := fun h => hd.1 (by
+      obtain ⟨e, he, hev⟩ := List.mem_map.1 h
+      exact hev ▸ fst_mem_toLinear he)
     rw [show toLinear (t :: ts) = insertCoeff (termVar t) (termCoeff t) (toLinear ts) from rfl,
-      insertCoeff_of_not_mem fun h => hd.1 (keys_toLinear_subset h), negSum_cons, ← ih hd.2]
+      insertCoeff_of_not_mem hn, negSum_cons, ← ih hd.2]
     obtain ⟨a, v, b⟩ := t
     cases b <;> simp [negMass, termCoeff, termPos, Nat.add_comm]
 

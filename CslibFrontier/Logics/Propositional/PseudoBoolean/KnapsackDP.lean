@@ -12,6 +12,7 @@ public import CslibFrontier.Logics.Propositional.PseudoBoolean.RupComplete
 -- `import all`: the acceptance proofs unfold `stepTop`, `runTop` and the reification steps.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Reification
+import CslibFrontier.Logics.Propositional.PseudoBoolean.Fast
 import Mathlib.Algebra.BigOperators.Fin
 
 /-!
@@ -545,12 +546,6 @@ theorem lhs_map_negate (σ : ℕ → Bool) (ts : List (ℕ × Literal ℕ)) :
     have := termVal_add_negate σ a l
     omega
 
-theorem vars_negate_sub {c : PBConstr} {x : ℕ} (h : x ∈ c.negate.vars) : x ∈ c.vars := by
-  refine mem_vars_of_mem_vars_normalize ?_
-  simp only [PBConstr.vars, negate, List.map_map, List.mem_map] at h ⊢
-  obtain ⟨t, ht, rfl⟩ := h
-  exact ⟨t, ht, by obtain ⟨a, v, b⟩ := t; rfl⟩
-
 theorem nodup_impl_single {l : Literal ℕ} {c : PBConstr} (hz : l.1 ∉ c.vars)
     (hd : (c.terms.map termVar).Nodup) : ((impl [l] c).terms.map termVar).Nodup := by
   simp only [impl, List.map_cons, List.map_nil, List.singleton_append, List.nodup_cons]
@@ -574,7 +569,7 @@ theorem slack_bwd {z : ℕ} {c : PBConstr} (hz : z ∉ c.vars)
     (lhs σ (impl [(z, false)] c.negate).normalize.terms : ℤ) -
         (impl [(z, false)] c.negate).normalize.degree =
       (if σ z = true then (c.negate.degree : ℤ) else 0) - ((lhs σ c.terms : ℤ) - c.degree) - 1 := by
-  have hz' : z ∉ c.negate.vars := fun h => hz (vars_negate_sub h)
+  have hz' : z ∉ c.negate.vars := not_mem_vars_negate hz
   rw [slack_normalize (nodup_impl_single hz' (nodup_vars_negate c))]
   obtain ⟨τ, hτ⟩ := hsat
   have hle : c.normalize.degree ≤ coeffSum c.normalize.terms :=
@@ -607,9 +602,9 @@ theorem trans_dim {a : ℕ → ℕ} {pol b : Bool} {i d dt zu zt : ℕ} (hzu : i
     omega
   · rfl
 
-/-- **The refutation of a last-layer state by addition** (equations (14)–(15) of the paper): the
-forward half of `Z ⇔ ∑_{j<n} aⱼ ℓⱼ ≥ d` plus a constraint `∑ aⱼ ¬ℓⱼ ≥ B` of the formula gives
-`Z ⇒ d + B ≤ ∑ aⱼ`. -/
+/-- **The refutation of a last-layer state by addition**, as in equations (14)–(15) of the
+paper: the forward half of `Z ⇔ ∑_{j<n} aⱼ ℓⱼ ≥ d` plus a constraint `∑ aⱼ ¬ℓⱼ ≥ B` of the
+formula gives `Z ⇒ d + B ≤ ∑ aⱼ`. -/
 theorem final_dim {a : ℕ → ℕ} {pol : Bool} {m d z : ℕ} (hz : m ≤ z) {G : PBConstr}
     (hG : (G.terms.map termVar).Nodup) (hGl : ∀ σ, lhs σ G.terms = part σ a (!pol) m)
     {σ : ℕ → Bool} (hA : ((impl [(z, true)] (dimC a pol m d)).normalize.add G.normalize).Holds σ)
@@ -679,18 +674,6 @@ theorem push_steps (e : Acc) (ss : List TopStep) (dn dv : ℕ) :
     (e.push ss dn dv).steps.reverse = e.steps.reverse ++ ss := by
   simp [Acc.push]
 
-theorem lookup_cons_self (db : List (ℕ × PBConstr)) (m : ℕ) (c : PBConstr) :
-    lookup ((m, c) :: db) m = some c := by
-  simp [lookup]
-
-theorem lookup_cons_ne {db : List (ℕ × PBConstr)} {m k : ℕ} {c : PBConstr} (h : m ≠ k) :
-    lookup ((m, c) :: db) k = lookup db k := by
-  simp [lookup, h]
-
-theorem lookup_cons_eq {db : List (ℕ × PBConstr)} {m k : ℕ} {c : PBConstr} (h : m = k) :
-    lookup ((m, c) :: db) k = some c := by
-  subst h; simp [lookup]
-
 theorem mem_of_lookup {db : List (ℕ × PBConstr)} {k : ℕ} {c : PBConstr}
     (h : lookup db k = some c) : (k, c) ∈ db := by
   simp only [lookup, Option.map_eq_some_iff] at h
@@ -713,16 +696,18 @@ theorem run_start {X : Ctx} (h3 : X.s₀.next = 3) (hid : ∀ x ∈ X.s₀.db, x
     I.Run X ⟨[], 3, I.n⟩ X.s₀.db :=
   ⟨by simp only [List.reverse_nil, runTop_nil, state, ← h3], hid, hv, le_rfl, h1, h2⟩
 
-/-- **A `pol` step runs.** -/
-theorem Run.pol {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run X e db) {ops : List PolOp}
-    {c : PBConstr} (hp : polEval db ops [] = some [c]) (hv : ∀ v ∈ c.vars, v < e.var) :
-    I.Run X (e.push [.step (.pol ops)] 1 0) ((e.next, c) :: db) ∧ Sub db ((e.next, c) :: db) := by
+/-- **A step that is not a deletion runs** when it adds the constraint `c` at the next number. -/
+theorem Run.step {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run X e db) {st : Step}
+    (hst : ∀ ids, st ≠ .del ids) {c : PBConstr}
+    (hr : runStep db e.next st = some ((e.next, c) :: db, e.next + 1))
+    (hv : ∀ v ∈ c.vars, v < e.var) :
+    I.Run X (e.push [.step st] 1 0) ((e.next, c) :: db) ∧ Sub db ((e.next, c) :: db) := by
   have hs := sub_cons h.2.1 c
   refine ⟨⟨?_, ?_, ?_, by simpa [Acc.push] using h.2.2.2.1, hs _ _ h.2.2.2.2.1,
     hs _ _ h.2.2.2.2.2⟩, hs⟩
   · rw [push_steps, runTop_append, h.1, Option.bind_some, runTop_cons,
-      stepTop_step_of_ne_del _ _ _ (by intro ids h; cases h)]
-    simp [state, runStep, hp, runTop_nil, Acc.push]
+      stepTop_step_of_ne_del _ _ _ hst]
+    simp [state, hr, runTop_nil, Acc.push]
   · intro x hx
     simp only [List.mem_cons] at hx
     rcases hx with rfl | hx
@@ -734,27 +719,19 @@ theorem Run.pol {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run X e db) {ops 
     · simpa [Acc.push] using hv _ hv'
     · simpa [Acc.push] using h.2.2.1 x hx v hv'
 
+/-- **A `pol` step runs.** -/
+theorem Run.pol {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run X e db) {ops : List PolOp}
+    {c : PBConstr} (hp : polEval db ops [] = some [c]) (hv : ∀ v ∈ c.vars, v < e.var) :
+    I.Run X (e.push [.step (.pol ops)] 1 0) ((e.next, c) :: db) ∧ Sub db ((e.next, c) :: db) :=
+  Run.step I h (by intro ids h; cases h) (by simp [runStep, hp]) hv
+
 /-- **A `rup` step runs** when the checker accepts it. -/
 theorem Run.rup {e : Acc} {db : List (ℕ × PBConstr)} (h : I.Run X e db) {c : PBConstr}
     {hs : List Hint} (hr : rup db c hs = true) (hv : ∀ v ∈ c.vars, v < e.var) :
     I.Run X (e.push [.step (.rup c hs)] 1 0) ((e.next, c.normalize) :: db) ∧
-      Sub db ((e.next, c.normalize) :: db) := by
-  have hsub := sub_cons h.2.1 c.normalize
-  refine ⟨⟨?_, ?_, ?_, by simpa [Acc.push] using h.2.2.2.1, hsub _ _ h.2.2.2.2.1,
-    hsub _ _ h.2.2.2.2.2⟩, hsub⟩
-  · rw [push_steps, runTop_append, h.1, Option.bind_some, runTop_cons,
-      stepTop_step_of_ne_del _ _ _ (by intro ids h; cases h)]
-    simp [state, runStep, hr, runTop_nil, Acc.push]
-  · intro x hx
-    simp only [List.mem_cons] at hx
-    rcases hx with rfl | hx
-    · simp [Acc.push]
-    · have := h.2.1 x hx; simp [Acc.push]; omega
-  · intro x hx v hv'
-    simp only [List.mem_cons] at hx
-    rcases hx with rfl | hx
-    · simpa [Acc.push] using hv _ (mem_vars_of_mem_vars_normalize hv')
-    · simpa [Acc.push] using h.2.2.1 x hx v hv'
+      Sub db ((e.next, c.normalize) :: db) :=
+  Run.step I h (by intro ids h; cases h) (by simp [runStep, hr])
+    fun v hv' => hv _ (mem_vars_of_mem_vars_normalize hv')
 
 theorem vars_impl {l : Literal ℕ} {c : PBConstr} {x : ℕ} (h : x ∈ (impl [l] c).vars) :
     x = l.1 ∨ x ∈ c.vars := by
@@ -811,7 +788,7 @@ theorem Run.reify {e : Acc} {db : List (ℕ × PBConstr)} (hX : I.CtxOk X)
     rcases hx with rfl | rfl | hx
     · rcases vars_impl (mem_vars_of_mem_vars_normalize hv') with h' | h'
       · simp at h'; omega
-      · have := hv _ (vars_negate_sub h'); omega
+      · have := hv _ (by_contra fun hx => not_mem_vars_negate hx h'); omega
     · rcases vars_impl (mem_vars_of_mem_vars_normalize hv') with h' | h'
       · simp at h'; omega
       · have := hv _ h'; omega
@@ -948,7 +925,7 @@ theorem mkLayer_spec {i : ℕ} (hi : i ≤ I.n) : ∀ (sts : List St) (e : Acc)
         refine ⟨hb, hn, by dsimp only; omega, by dsimp only; omega, by dsimp only; omega,
           by dsimp only; omega, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
         · refine hs _ _ ?_
-          simp (disch := omega) only [Acc.push, lookup_cons_ne, lookup_cons_eq]
+          simp (disch := omega) only [Acc.push, lookup_cons, ite_eq_right, ↓reduceIte]
       · exact hok u hu
     · simp only [mkLayer]; exact le_trans (by simp [Acc.push]) hv
 
@@ -1052,35 +1029,35 @@ theorem trSteps_spec {i : ℕ} (hi : i < I.n) {e : Acc} {db : List (ℕ × PBCon
   set cP' := (impl [(u.P, true)] (I.cP i u.st)).normalize.add
     (impl [(t.P, false)] (I.cP (i + 1) t.st).negate).normalize with hcP
   have hlookA : lookup ((e.next + 1, cP') :: (e.next, cA) :: db) e.next = some cA := by
-    simp (disch := omega) only [lookup_cons_ne, lookup_cons_eq]
+    simp (disch := omega) only [lookup_cons, ite_eq_right, ↓reduceIte]
   have hlookP : lookup ((e.next + 1, cP') :: (e.next, cA) :: db) (e.next + 1) = some cP' :=
-    lookup_cons_self _ _ _
+    ((lookup_cons _ _ _ _).trans (ite_eq_left rfl))
   have hr : rup ((e.next + 1, cP') :: (e.next, cA) :: db)
       (trClause i u b t) [.neg, .id u.sf, .id e.next, .id (e.next + 1), .id t.sb] = true := by
     refine rup_clause ?_
     simp only [List.map_cons, List.map_nil, Std.Sat.Literal.negate, Bool.not_not,
       Bool.not_false, Bool.not_true, List.append_nil]
     refine RupOk.id_imp (L := [(u.W, true), (u.P, true)]) (s₂ _ _ (s₁ _ _ hu.sf))
-      (nodup_vars_normalize _) ?_ ?_
+      (nodup_termVar_normalize _) ?_ ?_
     · intro σ hσ hc
       rw [holds_normalize, holds_impl] at hc
       have := (holds_cS σ _ _).1 (hc (by simp [lit_of hσ (v := u.S) (b := true) (by simp)]))
       simp [Consistent, this]
-    refine RupOk.id_imp (L := [(t.W, true)]) hlookA (nodup_vars_normalize _) ?_ ?_
+    refine RupOk.id_imp (L := [(t.W, true)]) hlookA (nodup_termVar_normalize _) ?_ ?_
     · intro σ hσ hc
       have := trans_dim (a := I.w) (pol := true) (b := b) (i := i) (d := u.st.1) (zu := u.W)
         (zt := t.W) (by have := hu.nW; omega) (by have := ht.nW; omega) hst₁ hb.1
         (by rw [hcA] at hc; simp only [cW] at hc; exact hc)
         (lit_of hσ (by simp)) (lit_of hσ (by simp))
       simp [Consistent, this]
-    refine RupOk.id_imp (L := [(t.P, true)]) hlookP (nodup_vars_normalize _) ?_ ?_
+    refine RupOk.id_imp (L := [(t.P, true)]) hlookP (nodup_termVar_normalize _) ?_ ?_
     · intro σ hσ hc
       have := trans_dim (a := I.p) (pol := false) (b := b) (i := i) (d := u.st.2) (zu := u.P)
         (zt := t.P) (by have := hu.nP; omega) (by have := ht.nP; omega) hst₂ hb.2
         (by rw [hcP] at hc; simp only [cP] at hc; exact hc)
         (lit_of hσ (by simp)) (lit_of hσ (by simp))
       simp [Consistent, this]
-    refine RupOk.id_conflict (s₂ _ _ (s₁ _ _ ht.sb)) (nodup_vars_normalize _) ?_
+    refine RupOk.id_conflict (s₂ _ _ (s₁ _ _ ht.sb)) (nodup_termVar_normalize _) ?_
     intro σ hσ hc
     rw [holds_normalize, holds_impl_neg_negate] at hc
     have h1 := hc ((holds_cS σ _ _).2 ⟨lit_of hσ (by simp), lit_of hσ (by simp)⟩)
@@ -1096,7 +1073,7 @@ theorem trSteps_spec {i : ℕ} (hi : i < I.n) {e : Acc} {db : List (ℕ × PBCon
     · exact ht.S)
   refine ⟨_, ?_, s₁.trans (s₂.trans s₃), ?_⟩
   · rw [push_push, push_push] at h₃; simpa [trSteps] using h₃
-  · simpa [Acc.push] using lookup_cons_self _ _ _
+  · simp [Acc.push, lookup_cons]
 
 /-- The layer `L` has a node that a transition to `st` may go to: one with the state `st`, or,
 when `m.dom`, one dominating it. -/
@@ -1181,12 +1158,12 @@ theorem prSteps_spec {m : Mode} {i : ℕ} (hi : i < I.n) {e : Acc} {db : List (�
     simp only [List.map_cons, List.map_nil, Std.Sat.Literal.negate, Bool.not_not,
       Bool.not_false, List.append_nil]
     refine RupOk.id_imp (L := [(u.W, true), (u.P, true)]) (s₁ _ _ hu.sf)
-      (nodup_vars_normalize _) ?_ ?_
+      (nodup_termVar_normalize _) ?_ ?_
     · intro σ hσ hc
       rw [holds_normalize, holds_impl] at hc
       have := (holds_cS σ _ _).1 (hc (by simp [lit_of hσ (v := u.S) (b := true) (by simp)]))
       simp [Consistent, this]
-    refine RupOk.id_conflict (lookup_cons_self _ _ _) (nodup_vars_normalize _) fun σ hσ hc => ?_
+    refine RupOk.id_conflict ((lookup_cons _ _ _ _).trans (ite_eq_left rfl)) (nodup_termVar_normalize _) fun σ hσ hc => ?_
     have := I.prune_dim (b := b) hi hu.nW hu.bnd.1 hc (lit_of hσ (by simp)) (lit_of hσ (by simp))
     omega
   obtain ⟨h₂, s₂⟩ := Run.rup I h₁ hr (fun v hv => by
@@ -1198,7 +1175,7 @@ theorem prSteps_spec {m : Mode} {i : ℕ} (hi : i < I.n) {e : Acc} {db : List (�
     · simp; have := h.2.2.2.1; omega)
   refine ⟨_, ?_, s₁.trans s₂, ?_⟩
   · rw [push_push] at h₂; simpa [prSteps] using h₂
-  · simpa [Acc.push] using lookup_cons_self _ _ _
+  · simp [Acc.push, lookup_cons]
 
 theorem holds_trClause {σ : ℕ → Bool} {i : ℕ} {u t : Node} {b : Bool} :
     (trClause i u b t).normalize.Holds σ ↔
@@ -1250,7 +1227,7 @@ theorem trans1_spec {m : Mode} {i : ℕ} (hi : i < I.n) {L' : List Node} {u : No
         · exact hall x hx
       · simp only [List.zip_cons_cons, List.mem_cons]
         rintro p (rfl | hp)
-        · refine ⟨_, s' _ _ hl₁, nodup_vars_normalize _, fun σ hc hS hx => ?_⟩
+        · refine ⟨_, s' _ _ hl₁, nodup_termVar_normalize _, fun σ hc hS hx => ?_⟩
           exact ⟨_, List.mem_cons_self, holds_trClause.1 hc hS hx⟩
         · obtain ⟨c, hc, hnd, hsem⟩ := hcls p hp
           exact ⟨c, hc, hnd, fun σ hσ hS hx => by
@@ -1267,7 +1244,7 @@ theorem trans1_spec {m : Mode} {i : ℕ} (hi : i < I.n) {L' : List Node} {u : No
         by rw [hv]; rfl⟩
       simp only [List.zip_cons_cons, List.mem_cons]
       rintro p (rfl | hp)
-      · refine ⟨_, s' _ _ hl₁, nodup_vars_normalize _, fun σ hc hS hx => ?_⟩
+      · refine ⟨_, s' _ _ hl₁, nodup_termVar_normalize _, fun σ hc hS hx => ?_⟩
         rw [holds_normalize, holds_clause] at hc
         simp [hS, hx] at hc
       · exact hcls p hp
@@ -1374,7 +1351,7 @@ theorem transOut_spec {m : Mode} {i : ℕ} (hi : i < I.n) {L' : List Node} {e : 
     hvo⟩
   · obtain ⟨h1, h2, h3, h4, h5⟩ := hall x hx
     exact ⟨h1, h2, h3, h4, s₂ _ _ h5⟩
-  · exact lookup_cons_self _ _ _
+  · exact (lookup_cons _ _ _ _).trans (ite_eq_left rfl)
 
 theorem trans_spec {m : Mode} {i : ℕ} (hi : i < I.n) {L' : List Node} :
     ∀ (L : List Node) (e : Acc) (db : List (ℕ × PBConstr)), I.Run X e db →
@@ -1405,6 +1382,21 @@ theorem negate_aloClause (L : List Node) :
     (I.negD ++ L.map fun u => (u.S, true)).map Std.Sat.Literal.negate ++ [] =
       I.fixedLits ++ L.map fun u => (u.S, false) := by
   simp [List.map_append, negate_negD, List.map_map, Function.comp_def, Std.Sat.Literal.negate]
+
+/-- **The at-least-one constraint of a layer conflicts** with the fixed literals and the falsity
+of every node of the layer. -/
+theorem rupOk_alo {db : List (ℕ × PBConstr)} {neg : PBConstr} {k : ℕ} {hs : List Hint}
+    {L : List Node} {K : List (Literal ℕ)} (halo : lookup db k = some (I.aloClause L).normalize)
+    (hD : ∀ l ∈ I.fixedLits, l ∈ K) (hL : ∀ u ∈ L, (u.S, false) ∈ K) :
+    RupOk db neg (.id k :: hs) K :=
+  RupOk.id_conflict halo (nodup_termVar_normalize _) fun σ hσ hc => by
+    rw [holds_normalize, aloClause, holds_clause] at hc
+    obtain ⟨l, hl, hev⟩ := hc
+    rcases List.mem_append.1 hl with hl | hl
+    · have := I.eval_negD (fun m hm => hσ m (hD m hm)) l hl
+      simp [this] at hev
+    · obtain ⟨u, hu, rfl⟩ := List.mem_map.1 hl
+      simp [lit_of hσ (hL u hu)] at hev
 
 /-- Under the fixed literals and the falsity of every node of `L'`, the clause `S_u ∧ D ⇒ ⋁ S_t`
 of a node whose targets are in `L'` makes `S_u` false. -/
@@ -1441,23 +1433,16 @@ theorem rup_alo {m : Mode} {i : ℕ} (hi : i < I.n) {db : List (ℕ × PBConstr)
   · rw [List.map_map] at this; exact this
   · intro x hx
     obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hx
-    refine ⟨_, (houts o ho).succ, nodup_vars_normalize _, fun σ hσ hc => ?_⟩
+    refine ⟨_, (houts o ho).succ, nodup_termVar_normalize _, fun σ hσ hc => ?_⟩
     have := I.succ_false hi (fun l hl => List.mem_append_left _ hl)
       (fun x hx => List.mem_append_right _ (List.mem_map.2 ⟨_, ((houts o ho).tr x hx).1, rfl⟩))
       hσ hc
     simp [this]
-  · refine RupOk.id_conflict halo (nodup_vars_normalize _) fun σ hσ hc => ?_
-    rw [holds_normalize, aloClause, holds_clause] at hc
-    obtain ⟨l, hl, hev⟩ := hc
-    rcases List.mem_append.1 hl with hl | hl
-    · have := I.eval_negD (fun m hm => hσ m (by simp [hm])) l hl
-      simp [this] at hev
-    · obtain ⟨u, hu, rfl⟩ := List.mem_map.1 hl
-      rw [← hmap] at hu
-      obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hu
-      have := lit_of hσ (v := o.u.S) (b := false)
-        (by simp only [List.map_map, List.mem_append, List.mem_map]; exact .inl ⟨o, ho, rfl⟩)
-      simp [this] at hev
+  · refine I.rupOk_alo halo (fun m hm => by simp [hm]) fun u hu => ?_
+    rw [← hmap] at hu
+    obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hu
+    simp only [List.map_map, List.mem_append, List.mem_map]
+    exact .inl ⟨o, ho, rfl⟩
 
 /-- **The facts about a layer** `i` of the forward pass. -/
 structure LayOk (m : Mode) (i : ℕ) (db : List (ℕ × PBConstr)) (V : ℕ) (r : LayerRec) : Prop where
@@ -1591,7 +1576,7 @@ theorem fwd_spec (m : Mode) (hX : I.CtxOk X) : ∀ (k i : ℕ) (e : Acc) (L : Li
     obtain ⟨db', h', s', rest⟩ := fwd_spec m hX k (i + 1) _ r₁.2 r₂.1.next
       (⟨i, L, r₂.2, alo⟩ :: recs) _ (by omega) h₃
       ⟨rfl, hlay₁, fun u hu => (hok₁ u hu).mono I (s₂.trans s₃) hV,
-        lookup_cons_self _ _ _⟩
+        ((lookup_cons _ _ _ _).trans (ite_eq_left rfl))⟩
       ⟨rfl, ⟨rfl, hLl, fun u hu => (hL.nodes u hu).mono I hs (le_trans hv₁ hV), hs _ _ hL.alo⟩,
         hmap₂, fun o ho => (hok₂ o ho).mono I s₃ (by rw [hv₂]; exact hV),
         hc.mono I hs (le_trans hv₁ hV)⟩
@@ -1619,17 +1604,17 @@ theorem forward_spec (m : Mode) (hX : I.CtxOk X) {db₀ : List (ℕ × PBConstr)
     refine rup_clause ?_
     rw [negate_aloClause]
     simp only [List.headD_cons, List.map_cons, List.map_nil]
-    refine RupOk.id_imp (L := [(u₀.W, true)]) hn₀.wb (nodup_vars_normalize _) ?_ ?_
+    refine RupOk.id_imp (L := [(u₀.W, true)]) hn₀.wb (nodup_termVar_normalize _) ?_ ?_
     · intro σ _ hc
       rw [holds_normalize, holds_impl_neg_negate] at hc
       simp [Consistent, hc (by rw [cW, holds_dimC, hst₀]; exact Nat.zero_le _)]
-    refine RupOk.id_imp (L := [(u₀.P, true)]) hn₀.pb (nodup_vars_normalize _) ?_ ?_
+    refine RupOk.id_imp (L := [(u₀.P, true)]) hn₀.pb (nodup_termVar_normalize _) ?_ ?_
     · intro σ _ hc
       rw [holds_normalize, holds_impl_neg_negate] at hc
       have : (I.cP 0 u₀.st).Holds σ := by
         rw [cP, holds_dimC, hst₀]; exact Nat.zero_le _
       simp [Consistent, hc this]
-    refine RupOk.id_conflict hn₀.sb (nodup_vars_normalize _) fun σ hσ hc => ?_
+    refine RupOk.id_conflict hn₀.sb (nodup_termVar_normalize _) fun σ hσ hc => ?_
     rw [holds_normalize, holds_impl_neg_negate] at hc
     have h1 := hc ((holds_cS σ _ _).2 ⟨lit_of hσ (by simp), lit_of hσ (by simp)⟩)
     have h2 := lit_of hσ (v := u₀.S) (b := false) (by simp)
@@ -1641,7 +1626,7 @@ theorem forward_spec (m : Mode) (hX : I.CtxOk X) {db₀ : List (ℕ × PBConstr)
     · obtain ⟨t, ht, rfl⟩ := List.mem_map.1 hl; exact (hok₀ t ht).S)
   obtain ⟨db₂, h₂, s₂, rest⟩ := I.fwd_spec m hX I.n 0 _ r₀.2 r₀.1.next [] _ (by omega) h₁
     ⟨rfl, hmap₀, fun u hu => (hok₀ u hu).mono I s₁ (by simp [Acc.push]),
-      lookup_cons_self _ _ _⟩ trivial rfl
+      ((lookup_cons _ _ _ _).trans (ite_eq_left rfl))⟩ trivial rfl
   exact ⟨db₂, h₂, s₀.trans (s₁.trans s₂), rest⟩
 
 /-! ### Reachable states -/

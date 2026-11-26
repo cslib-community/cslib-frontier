@@ -12,6 +12,7 @@ public import CslibFrontier.Logics.Propositional.PseudoBoolean.Knapsack
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Knapsack
 import CslibFrontier.Algorithms.Lean.Knapsack.ProfitDP
+import CslibFrontier.Logics.Propositional.PseudoBoolean.Fast
 
 /-!
 # The certified knapsack's proof is accepted
@@ -305,7 +306,7 @@ private theorem run_pols : ∀ (L : List Node) (e : Acc) (db : List (ℕ × PBCo
     · simp only [List.length_cons, List.range_succ_eq_map, List.map_cons, Nat.add_zero,
         List.zip_cons_cons, List.mem_cons, List.map_map]
       rintro x (rfl | hx)
-      · exact s' _ _ (lookup_cons_self _ _ _)
+      · exact s' _ _ ((lookup_cons _ _ _ _).trans (ite_eq_left rfl))
       · refine hall x ?_
         convert hx using 3
         funext j
@@ -423,7 +424,7 @@ private theorem final_rup {db : List (ℕ × PBConstr)} {V : ℕ} {rn : LayerRec
   · intro x hx
     obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hx
     have hyn := (List.of_mem_zip hy).1
-    refine ⟨_, hpols y hy, nodup_vars_normalize _, fun σ _ hc => ?_⟩
+    refine ⟨_, hpols y hy, nodup_termVar_normalize _, fun σ _ hc => ?_⟩
     simp only [Literal.eval_mk, beq_iff_eq]
     by_contra hP
     exact refute_last w p B (hrn.lay ▸ List.mem_map_of_mem hyn) (hrn.nodes y.1 hyn).nP hc
@@ -435,22 +436,16 @@ private theorem final_rup {db : List (ℕ × PBConstr)} {V : ℕ} {rn : LayerRec
   refine RupOk.imps (K₀ := rn.nodes.map fun u => (u.P, false)) _ _ (fun l hl => hl) ?_ ?_
   · intro x hx
     obtain ⟨u, hu, rfl⟩ := List.mem_map.1 hx
-    refine ⟨_, (hrn.nodes u hu).sf, nodup_vars_normalize _, fun σ hσ hc => ?_⟩
+    refine ⟨_, (hrn.nodes u hu).sf, nodup_termVar_normalize _, fun σ hσ hc => ?_⟩
     rw [holds_normalize, holds_impl] at hc
     have hP := lit_of hσ (v := u.P) (b := false) (List.mem_map_of_mem hu)
     cases hS : σ u.S
     · simp [hS]
     · have := ((holds_cS σ _ _).1 (hc (by simpa using hS))).2
       simp [hP] at this
-  · refine RupOk.id_conflict hrn.alo (nodup_vars_normalize _) fun σ hσ hc => ?_
-    rw [holds_normalize, Inst.aloClause, Inst.negD, fixedLits_opt, holds_clause] at hc
-    obtain ⟨l, hl, hev⟩ := hc
-    simp only [List.map_nil, List.nil_append, List.mem_map] at hl
-    obtain ⟨u, hu, rfl⟩ := hl
-    have := lit_of hσ (v := u.S) (b := false)
-      (List.mem_append_left _ (List.mem_map.2 ⟨(Hint.id u.sf, (u.S, false)),
-        List.mem_map.2 ⟨u, hu, rfl⟩, rfl⟩))
-    simp [this] at hev
+  · exact (optInst w p B).rupOk_alo hrn.alo (by simp [fixedLits_opt]) fun u hu =>
+      List.mem_append_left _ (List.mem_map.2 ⟨(Hint.id u.sf, (u.S, false)),
+        List.mem_map.2 ⟨u, hu, rfl⟩, rfl⟩)
 
 /-- **The checker accepts the proof of the certified knapsack**, on every instance. -/
 theorem checkRed_certify :
@@ -504,7 +499,7 @@ theorem checkRed_certify :
       rn.nodes.length 0).next, (⟨[], 1⟩ : PBConstr).normalize) :: db₃) ((I.forward optMode).1.push
       (List.map (fun u => TopStep.step (Step.pol [PolOp.id u.pf, PolOp.id 2, PolOp.add])) rn.nodes)
       rn.nodes.length 0).next = true := by
-    simp only [namesContra, lookup_cons_self, Option.any_some]; decide
+    simp only [namesContra, lookup_cons, ↓reduceIte, Option.any_some]; decide
   simp only [Nat.cast_list_sum, List.map_map] at hev
   simp [checkConclusion, boundsOk, state, s₀, State.improve, State.addCore, State.log,
     State.init, lowerTo, objValue, hnc, sel, hev]

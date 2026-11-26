@@ -12,6 +12,7 @@ public import CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackDP
 -- `import all`: the acceptance proof unfolds `stepTop`, `runTop` and the reification steps.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Reification
+import CslibFrontier.Logics.Propositional.PseudoBoolean.Fast
 import Mathlib.Algebra.BigOperators.Fin
 
 /-!
@@ -61,7 +62,10 @@ The proof has no conclusion; it runs with the item variables as the preserved se
 derived constraint over the items holds at every solution of the formula.
 
 **Soundness and completeness.** The checker accepts the proof on every instance
-(`Cslib.Logic.PL.VeriPB.Knapsack.checkRed_propagate`). This is proved, not checked when the proof
+(`Cslib.Logic.PL.VeriPB.Knapsack.checkRed_propagate`), and the database it reaches holds the
+removal clause `D ⇒ xⱼ ≠ b` (`Cslib.Logic.PL.VeriPB.Knapsack.remClause`,
+`Cslib.Logic.PL.VeriPB.Knapsack.holds_remClause_iff`) of every removed value
+(`Cslib.Logic.PL.VeriPB.Knapsack.runTop_propagate`). This is proved, not checked when the proof
 runs, for the forward pass by `Cslib.Logic.PL.VeriPB.Knapsack.Inst.forward_spec`: each `rup` step
 is shown accepted by the completeness of unit propagation on constraints over
 distinct variables (`CslibFrontier.Logics.Propositional.PseudoBoolean.RupComplete`), from the
@@ -71,14 +75,18 @@ halves. The propagator removes exactly the unsupported values
 checker's soundness makes its derived clause `D ⇒ xⱼ ≠ b` hold at every solution, and an
 unsupported value is removed because the dynamic program is exact.
 
-**Departures from the paper.** §3.3 treats Trick's constraint, linear equalities whose sums are
-integer variables, with states `S^i_{w,p}` reifying exact sums by four variables (equations
-(24)–(26)) and direct variables for non-Boolean domains. Here the items are `0`–`1` variables
-with domains of fixed literals, the sums are bounded by constants, and each state reifies
-one-sided sums by two variables, as in §3.1: a weight of at least `w` and a profit left out of at
-least `q`. Every condition under which a state is refuted is monotone in both, so the one-sided
-states suffice, and the states are still exact. The bounds of sum variables are not propagated.
-The proof deletes nothing.
+**Departures from the paper.** §3.3 (p. 9:11) cites Trick's propagator for a single `0`–`1`
+linear inequality whose sum is an integer variable, and the work of Fahle and Sellmann, Sellmann,
+Katriel et al. and Malitsky et al., and MiniZinc's definition, for two linear equalities summing to
+two integer variables over items that need not be `0`–`1`. Its proof has states `S^i_{w,p}`
+reifying exact sums by four variables (equations (24)–(26)), direct variables for non-Boolean
+domains, and propagation on the sum variables. Here the items are `0`–`1` variables with domains
+of fixed literals, the sums are bounded by constants, and each state reifies one-sided sums by two
+variables, as in §3.1: a weight of at least `w` and a profit left out of at least `q`. Every
+condition under which a state is refuted is monotone in both, so the one-sided states suffice,
+and the states are still exact. The proof deletes nothing. The integer-domain constraint with sum
+variables and the exact states of equations (24)–(26) is tracked in #7222 and formalized in
+#8789.
 
 ## Main definitions
 
@@ -87,10 +95,14 @@ The proof deletes nothing.
 * `Cslib.Logic.PL.VeriPB.Knapsack.Supported`: a value supported under the domains.
 * `Cslib.Logic.PL.VeriPB.Knapsack.Propagation`, `Cslib.Logic.PL.VeriPB.Knapsack.propagate`: the
   propagator and its output.
+* `Cslib.Logic.PL.VeriPB.Knapsack.remClause`: the removal clause `D ⇒ xⱼ ≠ b`.
 
 ## Main results
 
 * `Cslib.Logic.PL.VeriPB.Knapsack.holds_profitBound_iff`: the profit constraint is correct.
+* `Cslib.Logic.PL.VeriPB.Knapsack.runTop_propagate`: the propagator's proof runs and derives the
+  removal clause of every removed value, whose meaning is
+  `Cslib.Logic.PL.VeriPB.Knapsack.holds_remClause_iff`.
 * `Cslib.Logic.PL.VeriPB.Knapsack.checkRed_propagate`: the checker accepts every proof of the
   propagator.
 * `Cslib.Logic.PL.VeriPB.Knapsack.mem_removed_iff`: the propagator removes exactly the unsupported
@@ -350,13 +362,13 @@ private theorem deadFinal_spec : ∀ (ts : List Node) (e : Acc) (db : List (ℕ 
         split_ifs with hC
         · refine ⟨_, polEval_add ht.pf h.2.2.2.2.2, fun v hv => (vars_add hv).elim
             (I.vars_of_lookup h ht.pf v) (I.vars_of_lookup h h.2.2.2.2.2 v),
-            nodup_vars_normalize _, fun σ _ hP hA => ?_⟩
+            nodup_termVar_normalize _, fun σ _ hP hA => ?_⟩
           have := final_dim (a := I.p) (pol := false) (m := I.n) (d := t.st.2) (z := t.P)
             ht.nP (G := I.profC) (nodup_range _ _ _) (fun σ => lhs_range σ _ _ _) hA hP
           exact hf' ⟨hC, by simpa [profC] using this⟩
         · refine ⟨_, polEval_add ht.wf h.2.2.2.2.1, fun v hv => (vars_add hv).elim
             (I.vars_of_lookup h ht.wf v) (I.vars_of_lookup h h.2.2.2.2.1 v),
-            nodup_vars_normalize _, fun σ hW _ hA => ?_⟩
+            nodup_termVar_normalize _, fun σ hW _ hA => ?_⟩
           have := final_dim (a := I.w) (pol := true) (m := I.n) (d := t.st.1) (z := t.W)
             ht.nW (G := I.capC) (nodup_range _ _ _) (fun σ => lhs_range σ _ _ _) hA hW
           simp only [capC] at this
@@ -367,11 +379,11 @@ private theorem deadFinal_spec : ∀ (ts : List Node) (e : Acc) (db : List (ℕ 
         refine rup_clause ?_
         rw [negate_deadClause]
         refine RupOk.id_imp (L := [(t.W, true), (t.P, true)]) (s₁ _ _ ht.sf)
-          (nodup_vars_normalize _) (fun σ hσ hc => ?_) ?_
+          (nodup_termVar_normalize _) (fun σ hσ hc => ?_) ?_
         · rw [holds_normalize, holds_impl] at hc
           have := (holds_cS σ _ _).1 (hc (by simp [lit_of hσ (v := t.S) (b := true) (by simp)]))
           simp [Consistent, this]
-        exact RupOk.id_conflict (lookup_cons_self _ _ _) hnd fun σ hσ hc =>
+        exact RupOk.id_conflict ((lookup_cons _ _ _ _).trans (ite_eq_left rfl)) hnd fun σ hσ hc =>
           hsem σ (lit_of hσ (by simp)) (lit_of hσ (by simp)) hc
       obtain ⟨h₂, s₂⟩ := Run.rup I h₁ hr (fun v hv => by
         obtain ⟨l, hl, rfl⟩ := vars_clause hv
@@ -387,7 +399,7 @@ private theorem deadFinal_spec : ∀ (ts : List Node) (e : Acc) (db : List (ℕ 
       · simp only [deadFinal, hfF, Bool.false_eq_true, ↓reduceIte, DeadOk, List.mem_cons,
           forall_eq_or_imp]
         refine ⟨s' _ _ ?_, hd'⟩
-        simpa [Acc.push] using lookup_cons_self _ _ _
+        simp [Acc.push, lookup_cons]
       · intro u hu hu'
         simp only [deadFinal, hfF, Bool.false_eq_true, ↓reduceIte, List.mem_cons]
         rcases List.mem_cons.1 hu with rfl | hu
@@ -443,10 +455,10 @@ private theorem deadLayer_spec {i : ℕ} (hi : i < I.n) {A : List St} {dl : List
         · rw [List.map_map] at this; exact this
         · intro y hy
           obtain ⟨x, hx, rfl⟩ := List.mem_map.1 hy
-          refine ⟨_, hdl _ (hdead x hx), nodup_vars_normalize _, fun σ hσ hc => ?_⟩
+          refine ⟨_, hdl _ (hdead x hx), nodup_termVar_normalize _, fun σ hσ hc => ?_⟩
           have := I.holds_deadClause (I.consistent_fixed hσ) hc
           simp [this]
-        · refine RupOk.id_conflict ho.succ (nodup_vars_normalize _) fun σ hσ hc => ?_
+        · refine RupOk.id_conflict ho.succ (nodup_termVar_normalize _) fun σ hσ hc => ?_
           have := I.succ_false hi (o := o)
             (K := (o.tr.map fun x => (Hint.id (dlook dl x.tgt.S), (x.tgt.S, false))).map (·.2) ++
               (I.fixedLits ++ [(o.u.S, true)])) (fun l hl => by simp [hl])
@@ -465,7 +477,7 @@ private theorem deadLayer_spec {i : ℕ} (hi : i < I.n) {A : List St} {dl : List
       refine ⟨db', by simpa [deadLayer, hany'] using h', s₁.trans s', ?_, ?_, ?_⟩
       · simp only [deadLayer, hany', Bool.false_eq_true, ↓reduceIte, DeadOk, List.mem_cons,
           forall_eq_or_imp]
-        exact ⟨s' _ _ (lookup_cons_self _ _ _), hd'⟩
+        exact ⟨s' _ _ ((lookup_cons _ _ _ _).trans (ite_eq_left rfl)), hd'⟩
       · intro u hu hu'
         simp only [deadLayer, hany', Bool.false_eq_true, ↓reduceIte, List.mem_cons]
         rcases List.mem_cons.1 hu with rfl | hu
@@ -583,7 +595,7 @@ private theorem rup_rem {db : List (ℕ × PBConstr)} {V : ℕ} {next : List Nod
   · rw [List.map_map] at h1; exact h1
   · intro y hy
     obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hy
-    refine ⟨_, hdead o ho, nodup_vars_normalize _, fun σ hσ hc => ?_⟩
+    refine ⟨_, hdead o ho, nodup_termVar_normalize _, fun σ hσ hc => ?_⟩
     have := I.holds_deadClause (I.consistent_fixed hσ) hc
     simp [this]
   have h2 := RupOk.imps (db := db) (neg := (I.remClause r.i b).negate)
@@ -595,7 +607,7 @@ private theorem rup_rem {db : List (ℕ × PBConstr)} {V : ℕ} {next : List Nod
     obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hy
     obtain ⟨z, hz, hzb, ht, hτ⟩ := htr o ho
     obtain ⟨-, -, -, -, hzl⟩ := (hx.out o ho).tr z hz
-    refine ⟨_, by rw [hτ]; exact hzl, nodup_vars_normalize _, fun σ hσ hc => ?_⟩
+    refine ⟨_, by rw [hτ]; exact hzl, nodup_termVar_normalize _, fun σ hσ hc => ?_⟩
     rw [hzb] at hc
     have h3 := lit_of hσ (v := (o.tgt b).S) (b := false)
       (by simp only [List.mem_append, List.mem_map]; left; exact ⟨_, ⟨o, ho, rfl⟩, rfl⟩)
@@ -604,18 +616,12 @@ private theorem rup_rem {db : List (ℕ × PBConstr)} {V : ℕ} {next : List Nod
     cases hu : σ o.u.S
     · simp [hu]
     · simp [holds_trClause.1 hc hu h4] at h3
-  · refine RupOk.id_conflict hx.lay.alo (nodup_vars_normalize _) fun σ hσ hc => ?_
-    rw [holds_normalize, aloClause, holds_clause] at hc
-    obtain ⟨l, hl, hev⟩ := hc
-    rcases List.mem_append.1 hl with hl | hl
-    · have := I.eval_negD (fun m hm => hσ m (by simp [hm])) l hl
-      simp [this] at hev
-    · obtain ⟨u, hu, rfl⟩ := List.mem_map.1 hl
-      rw [← hx.outs] at hu
-      obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hu
-      have := lit_of hσ (v := o.u.S) (b := false)
-        (by simp only [List.mem_append, List.mem_map]; left; exact ⟨_, ⟨o, ho, rfl⟩, rfl⟩)
-      simp [this] at hev
+  · refine I.rupOk_alo hx.lay.alo (fun m hm => by simp [hm]) fun u hu => ?_
+    rw [← hx.outs] at hu
+    obtain ⟨o, ho, rfl⟩ := List.mem_map.1 hu
+    simp only [List.mem_append, List.mem_map]
+    left
+    exact ⟨_, ⟨o, ho, rfl⟩, rfl⟩
 
 private theorem remLayer_spec {next : List Node} {r : LayerRec} {A : List St}
     {dl : List (ℕ × ℕ)} : ∀ (bs : List Bool) (e : Acc) (db : List (ℕ × PBConstr)),
@@ -644,7 +650,7 @@ private theorem remLayer_spec {next : List Node} {r : LayerRec} {A : List St}
       simp only [remLayer, hall, ↓reduceIte]
       refine ⟨db', h', s₁.trans s', ?_, ?_, by simpa [Acc.push] using hv⟩
       · simp only [List.mem_cons, forall_eq_or_imp]
-        refine ⟨⟨by simp, by simp, s' _ _ (lookup_cons_self _ _ _)⟩, fun y hy => ?_⟩
+        refine ⟨⟨by simp, by simp, s' _ _ ((lookup_cons _ _ _ _).trans (ite_eq_left rfl))⟩, fun y hy => ?_⟩
         obtain ⟨h1, h2, h3⟩ := hys y hy
         exact ⟨h1, .inr h2, h3⟩
       · simp only [List.mem_cons]
@@ -744,12 +750,17 @@ private theorem emit_spec : ∃ db, I.Run I.X₀ I.emit.1 db ∧
     exact hall _ (hxj ▸ hst))
   exact ⟨k, hxj ▸ hk⟩
 
-/-- **The checker accepts the propagator's proof**, on every instance. -/
-private theorem checkRed_run : checkRed I.F none I.run.proof (some I.pres) = true := by
-  obtain ⟨db, h, -⟩ := I.emit_spec
+/-- **The propagator's proof runs and derives every removal clause.** -/
+private theorem runTop_run : ∃ s, runTop I.F none (State.init I.F none (some I.pres))
+    I.run.proof.steps = some s ∧
+      ∀ j b, (j, b) ∈ I.run.removed → ∃ k, lookup s.db k = some (I.remClause j b).normalize := by
+  obtain ⟨db, h, hys, -⟩ := I.emit_spec
   have h1 := h.1
   simp only [X₀] at h1
-  simp [checkRed, run, h1, checkConclusion]
+  refine ⟨state I.X₀ db I.emit.1.next, h1, fun j b hm => ?_⟩
+  simp only [run, List.mem_map, Prod.mk.injEq] at hm
+  obtain ⟨y, hy, rfl, rfl⟩ := hm
+  exact ⟨y.2.2, (hys y hy).2.2⟩
 
 /-- A constraint of the database over item variables holds at every solution of the formula: the
 witnesses of `red` change only extension variables, which the preserved set excludes. -/
@@ -987,12 +998,12 @@ end Inst
 variable {n : ℕ}
 
 /-- **The profit constraint** `∑ pᵢ xᵢ ≥ P`, with item `i` the variable `i`. -/
-def profitBound (p : Fin n → ℕ) (P : ℕ) : PBConstr :=
+@[expose] def profitBound (p : Fin n → ℕ) (P : ℕ) : PBConstr :=
   ⟨(List.finRange n).map fun i => (p i, (i.val, true)), P⟩
 
 /-- **The knapsack constraint** `∑ wᵢ xᵢ ≤ C ∧ ∑ pᵢ xᵢ ≥ P`: the capacity constraint of the
 certified knapsack and the profit constraint. -/
-def propFormula (w p : Fin n → ℕ) (C P : ℕ) : List PBConstr :=
+@[expose] def propFormula (w p : Fin n → ℕ) (C P : ℕ) : List PBConstr :=
   [capacity w C, profitBound p P]
 
 /-- **The knapsack propagator**: for the items of weights `w` and profits `p`, the capacity `C`,
@@ -1005,8 +1016,8 @@ def propagate (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n → Option Bool) : 
 /-- The value `b` of item `j` is **supported** by the knapsack constraint under the domains:
 some set of items that agrees with the domains, contains `j` exactly when `b`, weighs at most `C`
 and earns at least `P`. -/
-def Supported (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n → Option Bool) (j : Fin n) (b : Bool) :
-    Prop :=
+@[expose] def Supported (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n → Option Bool) (j : Fin n)
+    (b : Bool) : Prop :=
   ∃ S : Finset (Fin n), (∀ i c, dom i = some c → (i ∈ S ↔ c = true)) ∧ (j ∈ S ↔ b = true) ∧
     ∑ i ∈ S, w i ≤ C ∧ P ≤ ∑ i ∈ S, p i
 
@@ -1035,13 +1046,66 @@ private theorem F_ofFin (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n → Optio
     h3]
   rfl
 
+/-- **The removal clause** `D ⇒ xⱼ ≠ b` of the value `b` of item `j`, `D` the literals that the
+domains `dom` fix: the clause `⋁_{dom i = some c} xᵢ ≠ c ∨ xⱼ ≠ b`. -/
+@[expose] def remClause (dom : Fin n → Option Bool) (j : Fin n) (b : Bool) : PBConstr :=
+  ⟨(((List.finRange n).filterMap fun i => (dom i).map fun c => (i.val, !c)) ++
+    [(j.val, !b)]).map ((1, ·)), 1⟩
+
+/-- **The removal clause holds exactly when** an assignment agreeing with the domains does not
+give item `j` the value `b`. -/
+theorem holds_remClause_iff (dom : Fin n → Option Bool) (j : Fin n) (b : Bool) (σ : ℕ → Bool) :
+    (remClause dom j b).Holds σ ↔ ((∀ i c, dom i = some c → σ i = c) → σ j ≠ b) := by
+  rw [show remClause dom j b = clause _ from rfl, Inst.holds_clause]
+  simp only [List.mem_append, List.mem_filterMap, List.mem_finRange, true_and,
+    Option.map_eq_some_iff, List.mem_singleton, Literal.eval_eq_true_iff]
+  constructor
+  · rintro ⟨l, hl | rfl, hev⟩ hd hj
+    · obtain ⟨i, c, hc, rfl⟩ := hl
+      simp [hd i c hc] at hev
+    · simp [hj] at hev
+  · intro h
+    by_contra hne
+    push Not at hne
+    refine h (fun i c hc => ?_) ?_
+    · have := hne (i.val, !c) (.inl ⟨i, c, hc, rfl⟩)
+      simpa using this
+    · simpa using hne (j.val, !b) (.inr rfl)
+
+private theorem remClause_ofFin (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n → Option Bool)
+    (j : Fin n) (b : Bool) : (Inst.ofFin w p C P dom).remClause j.val b = remClause dom j b := by
+  have key : ((List.range n).filterMap fun k =>
+      (if h : k < n then dom ⟨k, h⟩ else none).map fun c => (k, c)).map Std.Sat.Literal.negate =
+      (List.finRange n).filterMap fun i => (dom i).map fun c => (i.val, !c) := by
+    rw [← List.map_coe_finRange_eq_range, List.filterMap_map, List.map_filterMap]
+    refine List.filterMap_congr fun i _ => ?_
+    rcases h : dom i with _ | c <;> simp [i.isLt, h, Std.Sat.Literal.negate]
+  simp only [Inst.remClause, Inst.negD, Inst.fixedLits, Inst.ofFin, remClause, clause, key]
+
+/-- **The propagator's proof runs, and derives the removal clause** `D ⇒ xⱼ ≠ b` of every removed
+value `b` of item `j`: the checker, run on the knapsack constraint with the item variables
+preserved, reaches a database holding the normalized removal clause. -/
+theorem runTop_propagate (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n → Option Bool) :
+    ∃ s, runTop (propFormula w p C P) none
+        (State.init (propFormula w p C P) none (some (List.range n)))
+        (propagate w p C P dom).proof.steps = some s ∧
+      ∀ j b, (j.val, b) ∈ (propagate w p C P dom).removed →
+        ∃ k, lookup s.db k = some (remClause dom j b).normalize := by
+  obtain ⟨s, hs, hrem⟩ := (Inst.ofFin w p C P dom).runTop_run
+  rw [F_ofFin] at hs
+  refine ⟨s, hs, fun j b hm => ?_⟩
+  rw [← remClause_ofFin w p C P]
+  exact hrem j.val b hm
+
 /-- **The checker accepts the propagator's proof**, for every knapsack constraint and every
 domains, the item variables preserved. -/
 theorem checkRed_propagate (w p : Fin n → ℕ) (C P : ℕ) (dom : Fin n → Option Bool) :
     checkRed (propFormula w p C P) none (propagate w p C P dom).proof (some (List.range n)) =
       true := by
-  have := (Inst.ofFin w p C P dom).checkRed_run
-  rwa [F_ofFin] at this
+  obtain ⟨s, hs, -⟩ := runTop_propagate w p C P dom
+  rw [checkRed, hs]
+  rfl
+
 
 private theorem part_eq_sum (σ : ℕ → Bool) (a : Fin n → ℕ) :
     Inst.part σ (fun j => if h : j < n then a ⟨j, h⟩ else 0) true n = ∑ i ∈ chosen n σ, a i := by
