@@ -112,8 +112,7 @@ theorem odd_card_doors_iff_surjective (f : α → β) (b₀ : β)
       · rintro rfl b hb
         obtain ⟨j, rfl⟩ := hf b
         exact ⟨j, fun h => hb (h ▸ hk₀), rfl⟩
-    rw [this, card_singleton]
-    exact odd_one
+    simp [this]
   · simp only [hf, iff_false, Nat.not_odd_iff_even]
     by_cases hD : ∃ k, ∀ b ≠ b₀, ∃ j ≠ k, f j = b
     · obtain ⟨k, hk⟩ := hD
@@ -144,10 +143,8 @@ theorem odd_card_doors_iff_surjective (f : α → β) (b₀ : β)
               exact ⟨j, fun h => hbi (h ▸ hj.symm), hj⟩
           rintro (rfl | rfl)
           exacts [key hne h12, key hne.symm h12.symm]
-      rw [hD, card_pair hne]
-      exact ⟨1, rfl⟩
-    · rw [filter_false_of_mem fun k _ h => hD ⟨k, h⟩, card_empty]
-      exact ⟨0, rfl⟩
+      simp [hD, card_pair hne]
+    · simp [filter_false_of_mem fun k _ h => hD ⟨k, h⟩]
 
 end Parity
 
@@ -358,8 +355,7 @@ theorem vertex_across_of_ne {s : KuhnSimplex (n + 1)} {k : Fin (n + 2)} (hk0 : k
     · rw [Equiv.swap_apply_of_ne_of_ne h h']
 
 /-- The facet opposite the upper corner is opposite the lower corner of the neighbour. -/
-theorem mate_zero : mate (0 : Fin (n + 2)) = Fin.last (n + 1) := by
-  simp [mate]
+theorem mate_zero : mate (0 : Fin (n + 2)) = Fin.last (n + 1) := rfl
 
 /-- The facet opposite the lower corner is opposite the upper corner of the neighbour. -/
 theorem mate_last : mate (Fin.last (n + 1)) = 0 := by
@@ -497,9 +493,8 @@ theorem eq_zero_of_isDoor_of_not_isInteriorFacet {N : Fin (n + 1) → ℕ}
 /-- The facet opposite the upper corner of a simplex touching the face `x 0 = 0` along it is not
 interior. -/
 theorem not_isInteriorFacet_zero {N : Fin (n + 1) → ℕ} {s : KuhnSimplex (n + 1)}
-    (hr : s.rank 0 = 0) (hb : s.base 0 = 0) : ¬IsInteriorFacet N s 0 := fun h => by
-  have := h.1 rfl 0 hr
-  omega
+    (hr : s.rank 0 = 0) (hb : s.base 0 = 0) : ¬IsInteriorFacet N s 0 :=
+  fun h => (h.1 rfl 0 hr).ne' hb
 
 /-! ### The face `x 0 = 0` -/
 
@@ -577,10 +572,8 @@ private theorem isHypergridSperner_faceColoring {N : Fin (n + 1) → ℕ}
   have hs := faceColoring_succ (ne_zero_of_cons hc hq)
   obtain ⟨h1, h2⟩ := hc _ (cons_le hq) i.succ
   rw [Fin.cons_succ] at h1 h2
-  refine ⟨fun hqi => ?_, fun hqi heq => h2 hqi (hs.symm.trans (congrArg Fin.succ heq))⟩
-  have := h1 hqi
-  rw [← hs] at this
-  fin_index
+  refine ⟨fun hqi => Fin.succ_lt_succ_iff.mp ((h1 hqi).trans_eq hs.symm),
+    fun hqi heq => h2 hqi (hs.symm.trans (congrArg Fin.succ heq))⟩
 
 private theorem isDoor_ofFace_iff {N : Fin (n + 1) → ℕ}
     {c : (Fin (n + 1) → ℕ) → Fin (n + 2)}
@@ -743,13 +736,10 @@ theorem IsValidColoring.exists_panchromatic {n : ℕ} {N : Fin n → ℕ}
   refine ⟨s.base, mem_kuhnSimplices.mp hs, univ.image s.vertex, ?_, ?_, ?_⟩
   · intro q hq i
     obtain ⟨k, -, rfl⟩ := mem_image.mp hq
-    unfold vertex
-    split_ifs
-    exacts [.inr rfl, .inl rfl]
+    by_cases hk : k ≤ (s.rank i).castSucc <;> simp [vertex, hk]
   · rw [card_image_of_injective _ hinj.of_comp, card_univ, Fintype.card_fin]
-  · rintro _ hx _ hy hxy
-    obtain ⟨k, -, rfl⟩ := mem_image.mp (mem_coe.mp hx)
-    obtain ⟨l, -, rfl⟩ := mem_image.mp (mem_coe.mp hy)
-    rw [hinj hxy]
+  · rw [coe_image, coe_univ, Set.image_univ]
+    rintro _ ⟨k, rfl⟩ _ ⟨l, rfl⟩ hxy
+    exact congrArg s.vertex (hinj hxy)
 
 end Cslib.Sperner

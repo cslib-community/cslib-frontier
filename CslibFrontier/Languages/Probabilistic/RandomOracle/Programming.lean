@@ -666,17 +666,10 @@ theorem closeTo_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two
       (ProbOracleComp.runWith
         (overwriteProgramHandler dist active inactive samplePre point finish) program (cache, log))
       ((q_S * cache.length + q_S * q_H + q_S.choose 2 : ℕ) * δ) := by
-  have hl := ProbOracleComp.runWith_withBadFlag_map_fst
-    (lazyProgramStep dist active inactive samplePre point finish)
-    (lazyProgramHandler dist active inactive samplePre point finish)
-    (lazyProgramStep_map_fst dist active inactive samplePre point finish)
-    program (cache, log) false
-  have hr := ProbOracleComp.runWith_withBadFlag_map_fst
-    (overwriteProgramStep dist active inactive samplePre point finish)
-    (overwriteProgramHandler dist active inactive samplePre point finish)
-    (overwriteProgramStep_map_fst dist active inactive samplePre point finish)
-    program (cache, log) false
-  rw [← hl, ← hr]
+  rw [← ProbOracleComp.runWith_withBadFlag_map_fst _ _
+      (lazyProgramStep_map_fst dist active inactive samplePre point finish) _ _ false,
+    ← ProbOracleComp.runWith_withBadFlag_map_fst _ _
+      (overwriteProgramStep_map_fst dist active inactive samplePre point finish) _ _ false]
   refine (((ProbOracleComp.identicalUntilBad_withBadFlag _ _
     (lazyProgramStep_agree_overwriteProgramStep dist active inactive samplePre point
       finish)).closeTo_run program ((cache, log), false)).map (Prod.map id Prod.fst)).mono ?_

@@ -113,10 +113,8 @@ theorem dynamicWidth_fits {W b widthCoeff S : ℕ} (hc : 1 ≤ widthCoeff) (hS :
       dynamicWidth widthCoeff S < dynamicWindowSize widthCoeff S ∧
       widthCoeff < dynamicWindowSize widthCoeff S := by
   obtain ⟨hSle, hwlt, hclt⟩ := dynamicWindowSize_bounds hc hS
-  have hpow : 2 ^ (dynamicWidth widthCoeff S + 2) ≤ b + 4 * dynamicWindowSize widthCoeff S := by
-    simp only [dynamicWindowSize, pow_add, Nat.reducePow]
-    omega
-  have hw2 : dynamicWidth widthCoeff S + 2 ≤ W := (hfit.lt_of_pow_le hpow).le
+  have hw2 : dynamicWidth widthCoeff S + 2 ≤ W :=
+    (hfit.lt_of_pow_le (by simp only [dynamicWindowSize, pow_add, Nat.reducePow]; omega)).le
   exact ⟨hw2, by omega, hfit.of_le (by omega), hSle, hwlt, hclt⟩
 
 /-- Multiply `⌈log₂ S⌉` in `scratch 1` by `widthCoeff` into `scratch 3` and load base `2` into
@@ -148,12 +146,10 @@ theorem size_withDynamicModulus {R : ℕ} (scratch : Fin 5 → Fin R) (widthCoef
 theorem readsWidth_withDynamicModulus {R : ℕ} (scratch : Fin 5 → Fin R) (widthCoeff : ℕ)
     (cont : Code .standard R) :
     (withDynamicModulus scratch widthCoeff cont).ReadsWidth ↔ cont.ReadsWidth := by
-  have hclog : ¬NatClog.program.ReadsWidth := by decide
+  have hcp : ¬NatClog.program.ReadsWidth ∧ ¬Power.program.ReadsWidth := by decide
   have hargs : ¬(modulusArgs scratch widthCoeff).ReadsWidth :=
     not_or.mpr ⟨nofun, not_or.mpr ⟨Op.readsWidth_bin _ _ _ _, nofun⟩⟩
-  have hpow : ¬Power.program.ReadsWidth := by decide
-  simp only [withDynamicModulus, Code.ReadsWidth, Code.readsWidth_rename,
-    hclog, hargs, hpow, false_or]
+  simp only [withDynamicModulus, Code.ReadsWidth, Code.readsWidth_rename, hcp, hargs, false_or]
 
 /-- Dynamic modulus computation preserves every register outside `scratch` that `cont` preserves. -/
 theorem preserves_withDynamicModulus {R : ℕ} (scratch : Fin 5 → Fin R) (widthCoeff : ℕ)
@@ -232,8 +228,7 @@ and normalize all `r` source registers modulo `2 ^ (widthCoeff * Nat.clog 2 S)`.
 /-- Code size of `dynamicSetup`. -/
 theorem size_dynamicSetup {r : ℕ} (scratch : Fin 5 → Fin (r + 3)) (widthCoeff : ℕ) :
     (dynamicSetup scratch widthCoeff).size = r + 22 := by
-  simp only [dynamicSetup, size_withDynamicModulus, Code.size, size_normalizeRegisters]
-  omega
+  simp only [dynamicSetup, size_withDynamicModulus, Code.size, size_normalizeRegisters]; omega
 
 /-- `dynamicSetup` never reads the physical word width. -/
 theorem dynamicSetup_not_readsWidth {r : ℕ} (scratch : Fin 5 → Fin (r + 3)) (widthCoeff : ℕ) :
@@ -304,10 +299,10 @@ theorem preserves_dynamicSetupBank {r R : ℕ} (winBank : Fin (r + 3) → Fin R)
     (hscratch : ∀ k : Fin 5, scratch k ≠ i)
     (hwin : ∀ j : Fin (r + 3), winBank j ≠ i) :
     (dynamicSetupBank winBank scratch baseReg widthCoeff).Preserves i := by
-  apply preserves_withDynamicModulus scratch widthCoeff hscratch
-  refine ⟨⟨?_, ?_⟩, (normalizeRegisters r).preserves_rename_of_forall_ne winBank i hwin⟩
-  · simp [Code.Preserves, Op.dest, hwin Reg.base]
-  · simp [Code.Preserves, Op.dest, hwin Reg.modulus]
+  exact preserves_withDynamicModulus scratch widthCoeff hscratch
+    ⟨⟨by simp [Code.Preserves, Op.dest, hwin Reg.base],
+      by simp [Code.Preserves, Op.dest, hwin Reg.modulus]⟩,
+      (normalizeRegisters r).preserves_rename_of_forall_ne winBank i hwin⟩
 
 /-- Execute `dynamicSetupBank` on `Data R` when `baseReg` holds `b` and `scratch 0` holds `S`.
 All memory words and all registers outside `scratch` and `winBank` are preserved, and the
@@ -342,9 +337,9 @@ theorem exec_dynamicSetupBank {r R W b widthCoeff S : ℕ}
   wram_exec [hzb, hz_val]
   refine WP.name fun z₂ hz₂ => ?_
   obtain ⟨y, hnorm, ⟨hymem, hymatch, hybound, -⟩, hyframe⟩ :=
-    ExecWithin.rename_post hwin (exec_normalizeRegisters (z₂.comap winBank)
-      (show z₂.regs (winBank Reg.base) = b by wram_simp [hz₂])
-      (show z₂.regs (winBank Reg.modulus) = _ by wram_simp [hz₂, dynamicWindowSize]) hw)
+    ExecWithin.rename_post hwin (exec_normalizeRegisters (b := b) (z₂.comap winBank)
+      (by wram_simp [Data.comap, Function.comp_apply, hz₂])
+      (by wram_simp [Data.comap, Function.comp_apply, hz₂, dynamicWindowSize]) hw)
   refine WP.of_execWithin hnorm ⟨by omega, hymem.trans (by rw [hz₂]; exact hz_mem),
     hymatch, hybound, fun i hi_s hi_w => ?_⟩
   have := (hi_w Reg.base).symm
@@ -368,8 +363,7 @@ theorem size_dynamicCallBank {r R : ℕ} (winBank : Fin (r + 3) → Fin R)
     (dynamicCallBank winBank scratch baseReg widthCoeff callee).size ≤
       r + 23 + 3 * callee.size := by
   have hc := size_compile callee
-  simp only [dynamicCallBank, Code.size, size_dynamicSetupBank, Code.size_rename]
-  omega
+  simp only [dynamicCallBank, Code.size, size_dynamicSetupBank, Code.size_rename]; omega
 
 /-- `dynamicCallBank` never reads the physical word width when `callee` does not. -/
 theorem dynamicCallBank_not_readsWidth {r R : ℕ} (winBank : Fin (r + 3) → Fin R)

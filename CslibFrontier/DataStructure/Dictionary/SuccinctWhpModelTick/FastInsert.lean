@@ -70,18 +70,17 @@ theorem ValidFastState.fastInsert_spec {c U V n_max : ℕ} (hnU : n_max ≤ U)
     set fs_ov : FastState := { fs with valArr := Function.update fs.valArr p v }
     have hc_ov : CoreFastInv c U V n_max θ fs_ov (Function.update dict u (some v)) :=
       { hv.toCore with
-        qv_global := fun p' => by
-          dsimp only [fs_ov]
-          by_cases hp : p' = p
-          · subst hp; rw [Function.update_self]; exact ⟨(hv.qv_global _).1, hv_max⟩
-          · rw [Function.update_of_ne hp]; exact hv.qv_global p'
-        active_item := fun b' hb' l' hl' => by
-          obtain ⟨h1', h2', h3', h4'⟩ := hv.active_item b' hb' l' hl'
-          refine ⟨h1', h2', h3', ?_⟩
-          change (Function.update fs.valArr p v) (fs.physSlot n_max b' l') < V
-          by_cases hp : fs.physSlot n_max b' l' = p
-          · rwa [hp, Function.update_self]
-          · rwa [Function.update_of_ne hp]
+        qv_global := fun p' => ⟨(hv.qv_global p').1, by
+          simp only [fs_ov, Function.update_apply]
+          split_ifs
+          exacts [hv_max, (hv.qv_global p').2]⟩
+        active_item := fun b' hb' l' hl' =>
+          let ⟨h1', h2', h3', h4'⟩ := hv.active_item b' hb' l' hl'
+          ⟨h1', h2', h3', by
+            change Function.update fs.valArr p v (fs.physSlot n_max b' l') < V
+            rw [Function.update_apply]
+            split_ifs
+            exacts [hv_lt, h4']⟩
         dict_map := fun u' => by
           rw [show fs_ov.physSlot n_max = fs.physSlot n_max from rfl]
           dsimp only [fs_ov]
@@ -90,14 +89,12 @@ theorem ValidFastState.fastInsert_spec {c U V n_max : ℕ} (hnU : n_max ≤ U)
           have hb' : b' < numBucketsWhp n_max := feistelBucket_lt _ _ _
           by_cases hu' : u' = u
           · subst hu'
-            rw [Function.update_self]
-            dsimp only [b', q']
-            refine ⟨⟨fun h => (by cases h), fun hall => absurd hq_loc (hall loc hloc_lt)⟩,
-              fun v' => ⟨fun h => ?_, fun ⟨l', hl', hql, hvl⟩ => ?_⟩⟩
-            · obtain rfl := Option.some.inj h.symm
-              exact ⟨loc, hloc_lt, hq_loc, Function.update_self _ _ _⟩
-            · obtain rfl : l' = loc := hv.quot_inj b hb l' hl' loc hloc_lt (hql.trans hq_loc.symm)
-              rwa [Function.update_self, ← Option.some_inj] at hvl
+            simp only [Function.update_self, reduceCtorEq, false_iff, Option.some.injEq]
+            exact ⟨fun hall => absurd hq_loc (hall loc hloc_lt), fun v' =>
+              ⟨fun h => ⟨loc, hloc_lt, hq_loc, h ▸ Function.update_self _ _ _⟩,
+               fun ⟨l', hl', hql, hvl⟩ => by
+                 obtain rfl := hv.quot_inj b hb l' hl' loc hloc_lt (hql.trans hq_loc.symm)
+                 simpa only [b, b', p, Function.update_self] using hvl⟩⟩
           · rw [Function.update_of_ne hu']
             obtain ⟨hn_iff, hs_iff⟩ := hv.dict_map u'
             refine ⟨hn_iff, fun v' => (hs_iff v').trans ?_⟩
@@ -123,37 +120,21 @@ theorem ValidFastState.fastInsert_spec {c U V n_max : ℕ} (hnU : n_max ≤ U)
       (hv.dict_map u).1.mp hfl
     set X := fs.bktCount b
     set cf := capFrontWhp n_max
-    by_cases hg1 : totalLocalCoordsWhp n_max ≤ X ∨ (cf ≤ X ∧ fs.poolFreeTop = 0)
-    · rw [ite_eq_left hg1] at hins; cases hins
-    rw [ite_eq_right hg1] at hins
-    have hX_lt : X < totalLocalCoordsWhp n_max := by omega
-    have htop_pos : cf ≤ X → 0 < fs.poolFreeTop := by omega
     set rKey := fpReducedKey c U n_max θ.2 u
-    have hrk_lt : rKey < 2 ^ (cTabWhp c * bCharWhp n_max) := fpReducedKey_lt c U n_max θ.2 u
-    by_cases hg2 : (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey).isSome ∨
-        (fs.rebStage ≤ 3 ∧
-          (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey).isSome)
-    · rw [ite_eq_left hg2] at hins; cases hins
-    rw [ite_eq_right hg2] at hins
-    have hcur_lk_none : bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey = none :=
-      Option.not_isSome_iff_eq_none.mp fun h => hg2 (.inl h)
-    have hold_lk_none : fs.rebStage ≤ 3 →
-        bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey = none := fun hle3 =>
-      Option.not_isSome_iff_eq_none.mp fun h => hg2 (.inr ⟨hle3, h⟩)
     set fp := fpOfSalt c U n_max θ.2 (fs.bktSalt b) u
     set lIdx := fs.liveSliceIdx b
     set hasFpCollision :=
       (btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
         (fs.slices lIdx) fp).isSome
-    by_cases hg3 : hasFpCollision ∧
-        !bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey ∧
-        2 * sMaxWhp c n_max ≤ (fs.buf fs.curEp).itemAlloc
-    · rw [ite_eq_left hg3] at hins; cases hins
-    rw [ite_eq_right hg3] at hins
-    set fsAlloc := fastInsertAlloc n_max b X fs
-    set fsIns := fastInsertFresh c n_max b X q_val v rKey fp lIdx hasFpCollision fsAlloc
-    have hins_eq : overmarsStep c U n_max θ b fsIns = fs' := Option.some.inj hins
-    rw [← hins_eq]
+    simp only [Option.ite_none_left_eq_some, Option.some.injEq] at hins
+    obtain ⟨hg1, hg2, hg3, rfl⟩ := hins
+    have hX_lt : X < totalLocalCoordsWhp n_max := by omega
+    have htop_pos : cf ≤ X → 0 < fs.poolFreeTop := by omega
+    have hcur_lk_none : bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey = none :=
+      Option.not_isSome_iff_eq_none.mp fun h => hg2 (.inl h)
+    have hold_lk_none : fs.rebStage ≤ 3 →
+        bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey = none := fun hle3 =>
+      Option.not_isSome_iff_eq_none.mp fun h => hg2 (.inr ⟨hle3, h⟩)
     -- Common facts about `fsIns` (holding in both `hasFpCollision = true` and `false` branches)
     have hbase : FastInsertFreshBase c U V n_max θ fs dict u v hasFpCollision :=
       fastInsertFresh_base hnU hv hv_lt hno_q hX_lt htop_pos hcur_lk_none hold_lk_none

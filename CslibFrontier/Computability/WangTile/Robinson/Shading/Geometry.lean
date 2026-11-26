@@ -437,8 +437,7 @@ private theorem CycleShade.faceHeight_west
       omega
   | succ offset ih =>
       rw [faceHeight, ih (by omega), CycleShade.west_rightWeightAt shaded cycle valid
-        (y := quarterSouth south + offset + 1) (by omega) hnorth]
-      omega
+        (y := quarterSouth south + offset + 1) (by omega) hnorth, add_zero]
 
 /-- Horizontal variation of face height is the signed vertical edge at the
 shared vertex. -/
@@ -998,25 +997,17 @@ theorem CycleShade.geometry
       indexGrid stateGrid west east south north where
   verticalBoundary := by
     intro column row hwest heast hsouth hnorth free notFree
-    let selected := fun y =>
-      selectedHorizontalFor
-        (componentAt indexGrid column y) (quadrantAt column y)
-        (stateGrid column y)
-    have witness : ∃ boundary,
-        quarterSouth south < boundary ∧ boundary < quarterNorth north ∧
-          selected boundary ≠ none := by
-      simpa only [IsFreeColumn, not_forall, exists_prop] using notFree
+    simp only [IsFreeColumn, not_forall, exists_prop] at notFree
     have hscan {s : Nat} (hs : s = column ∨ s + 1 = column) :
         quarterWest west ≤ s ∧ s < quarterEast east := by rcases hs with rfl | rfl <;> omega
     have height (scan) (scanEq : scan = column ∨ scan + 1 = column) :
         faceHeight stateGrid scan (quarterSouth south) (row - quarterSouth south) = 1 :=
       CycleShade.faceHeight_eq_one_of_freeRow shaded cycle valid
         (hscan scanEq).1 (hscan scanEq).2 (le_of_lt hsouth) hnorth free
-    exact boundary_of_unit_height (selected := selected)
-      (primary := rightWeightAt stateGrid) (secondary := leftWeightAt stateGrid)
+    exact boundary_of_unit_height
       (potential := fun scan y =>
         faceHeight stateGrid scan (quarterSouth south) (y - quarterSouth south))
-      witness
+      notFree
       (by rintro (_ | _) <;> simp)
       (by rintro (_ | _) <;> simp)
       (by omega) ⟨hsouth, hnorth⟩ le_rfl hnorth (fun _ _ => le_of_lt)
@@ -1029,20 +1020,15 @@ theorem CycleShade.geometry
         (hscan scanEq).1 (hscan scanEq).2 (row := position))
   horizontalBoundary := by
     intro column row hwest heast hsouth hnorth free notFree
-    let selected := fun x => selectedVerticalFor
-      (componentAt indexGrid x row) (quadrantAt x row) (stateGrid x row)
-    have witness : ∃ boundary,
-        quarterWest west < boundary ∧ boundary < quarterEast east ∧
-          selected boundary ≠ none := by
-      simpa only [IsFreeRow, not_forall, exists_prop] using notFree
+    simp only [IsFreeRow, not_forall, exists_prop] at notFree
     have hscan {s : Nat} (hs : s = row ∨ s + 1 = row) :
         quarterSouth south ≤ s ∧ s < quarterNorth north := by rcases hs with rfl | rfl <;> omega
-    exact boundary_of_unit_height (selected := selected)
+    exact boundary_of_unit_height
       (primary := fun scan x => upWeightAt stateGrid x scan)
       (secondary := fun scan x => downWeightAt stateGrid x scan)
       (potential := fun scan x =>
         faceHeight stateGrid x (quarterSouth south) (scan - quarterSouth south))
-      (beforeFinish := column - 1) witness
+      notFree
       (by rintro (_ | _) <;> simp)
       (by rintro (_ | _) <;> simp)
       (by omega) ⟨hwest, heast⟩ (Nat.sub_le _ _) (by omega)

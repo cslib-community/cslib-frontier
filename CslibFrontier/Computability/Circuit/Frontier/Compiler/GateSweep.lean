@@ -159,9 +159,8 @@ private theorem sum_straddle_le_of_tangent_on {σ : Signature.{v}} {n m : ℕ} (
   have hcompl :
       ({i : Fin n | Compiler.Reach c (.input i)}.ncard : ℝ) +
         {i : Fin n | ¬ Compiler.Reach c (.input i)}.ncard = n := by
-    rw [show {i : Fin n | ¬ Compiler.Reach c (.input i)} =
-      {i : Fin n | Compiler.Reach c (.input i)}ᶜ from rfl, ← Nat.cast_add, ncard_add_ncard_compl,
-      Nat.card_eq_fintype_card, Fintype.card_fin]
+    exact_mod_cast (ncard_add_ncard_compl {i : Fin n | Compiler.Reach c (.input i)}).trans
+      (by rw [Nat.card_eq_fintype_card, Fintype.card_fin])
   have hd_nn : (0 : ℝ) ≤ {i : Fin n | ¬ Compiler.Reach c (.input i)}.ncard := Nat.cast_nonneg _
   have htan :
       (∑ w ∈ S, (1 - (1 / 2 : ℝ) ^ ((Compiler.support c w).ncard - 1))) ≤
@@ -235,10 +234,8 @@ private theorem sum_nonUnit_straddle_le_of_tangent {σ : Signature.{v}} {n m : �
           exact ⟨g, by omega, rfl⟩
     rw [← ncard_coe_finset, ← himg, ncard_image_of_injective _ emb.injective]
   have hG_split : {g : Compiler.InnerGate c | g ∉ Compiler.multiFanoutGates c}.ncard +
-      Compiler.multiFanoutSize c = Nat.card (Compiler.InnerGate c) := by
-    rw [show {g : Compiler.InnerGate c | g ∉ Compiler.multiFanoutGates c} =
-      (Compiler.multiFanoutGates c)ᶜ from rfl, add_comm, Compiler.multiFanoutSize,
-      ncard_add_ncard_compl]
+      Compiler.multiFanoutSize c = Nat.card (Compiler.InnerGate c) :=
+    (add_comm _ _).trans (ncard_add_ncard_compl (Compiler.multiFanoutGates c))
   have htot := Finset.card_filter_add_card_filter_not (s := Finset.univ)
     (Compiler.IsUnitGateSignal c)
   rw [Finset.card_univ, card_activeSignal_eq c, hcard_unit] at htot
@@ -376,9 +373,7 @@ private theorem mul_sqrt_le_of_sq_le {a M K V δ : ℝ} {N_sq n : ℕ}
     a * √(M * V) ≤ δ * n := by
   have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg n
   have hN_r : (N_sq : ℝ) ≤ n := by exact_mod_cast hn
-  have h1 : M * V ≤ (M * K) * n := by
-    rw [mul_assoc]
-    exact mul_le_mul_of_nonneg_left hV hM
+  have h1 : M * V ≤ (M * K) * n := (mul_le_mul_of_nonneg_left hV hM).trans_eq (mul_assoc _ _ _).symm
   have h2 : a * √(M * V) ≤ (a * √(M * K)) * √n := by
     calc a * √(M * V) ≤ a * √((M * K) * n) :=
           mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt h1) ha
@@ -399,7 +394,6 @@ private theorem logb_residual_nat {q K V m : ℕ} (hq : 1 < q) (hK : 0 < K) :
     Real.logb q ((K ^ 3 * (V + 1) * q ^ m : ℕ) : ℝ) =
       (m : ℝ) + 3 * Real.logb q K + Real.logb q ((V : ℝ) + 1) := by
   have hq_r : (1 : ℝ) < q := by exact_mod_cast hq
-  have hq_pos : 0 < q := by omega
   push_cast
   rw [Real.logb_mul (by positivity) (by positivity),
     Real.logb_mul (by positivity) (by positivity),
@@ -427,9 +421,8 @@ private theorem agreement_le_of_div_le {a half_b R qn μ' μ l2 n : ℝ}
 private theorem mul_le_of_norm_le {c x η : ℝ} {n : ℕ} (hc : 0 < c) (hx : 0 ≤ x)
     (hn : ‖x‖ ≤ (η / c) * ‖(n : ℝ)‖) :
     c * x ≤ η * n := by
-  rw [Real.norm_eq_abs, abs_of_nonneg hx, Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg n),
+  rwa [Real.norm_eq_abs, abs_of_nonneg hx, Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg n),
     div_mul_eq_mul_div, le_div_iff₀ hc, mul_comm] at hn
-  exact hn
 
 private theorem logb_node_err_le {q V L₀ η : ℝ} {n : ℕ}
     (hq2 : 2 ≤ q) (hV0 : 0 ≤ V) (hV : V ≤ L₀ * n + 1)
@@ -526,11 +519,10 @@ private theorem supply_base_le {b n δ a p W C_deg L_K L_V S_str gs U_un E : ℝ
 
 private theorem contra_of_logb_base {b n δ L_S B : ℝ} (hb : 1 < b) (hδn : 0 < δ * n)
     (hdef : n - L_S ≤ (δ / (2 * b)) * n) (hdem : L_S ≤ B) (hB : B ≤ (1 - δ / b) * n) : False := by
-  have hb0 : 0 < 2 * b := by linarith
   have h1 : (δ / (2 * b)) * n + (1 - δ / b) * n = n - (δ * n) / (2 * b) := by
     field_simp
     ring
-  have hpos : 0 < (δ * n) / (2 * b) := div_pos hδn hb0
+  have hpos : 0 < (δ * n) / (2 * b) := div_pos hδn (by linarith)
   linarith
 
 private theorem eventually_not_decides_of_signalWidth_supply {U : Type u}
@@ -728,19 +720,18 @@ private theorem agreement_le_of_not_reach_exp {U : Type u} [Finite U] [Nontrivia
   have hq1 : 1 < q := Finite.one_lt_card
   have hq : (1 : ℝ) < q := by exact_mod_cast hq1
   have hq2 : (2 : ℝ) ≤ q := by exact_mod_cast hq1
-  have hq_pos : 0 < q := Nat.card_pos
   have hlog : Real.logb q ((q * K ^ 2 : ℕ) : ℝ) ≤ (1 - 1 / 2) * n := by
     push_cast
     rw [Real.logb_mul (by positivity) (by positivity), Real.logb_pow, Real.logb_self_eq_one hq]
     exact hsmall
   have hexp_step := div_pow_le_exp hq2
-    (by exact_mod_cast Nat.mul_pos hq_pos (Nat.pow_pos (zero_lt_two.trans_le hK2)))
+    (by exact_mod_cast Nat.mul_pos Nat.card_pos (Nat.pow_pos (zero_lt_two.trans_le hK2)))
     (by norm_num) hlog
   have hmono : Real.exp (-((1 / 2 : ℝ) * Real.log 2 * n)) ≤ Real.exp (-(μ * Real.log 2 * n)) :=
     Real.exp_le_exp.mpr (by
       nlinarith [mul_nonneg (Real.log_nonneg one_le_two) (Nat.cast_nonneg (α := ℝ) n)])
-  have hag := agreement_le_of_not_reach I Acc c hS hb (one_le_two.trans hK2) hu
-  exact agreement_le_of_div_le hag hexp_step hmono
+  exact agreement_le_of_div_le
+    (agreement_le_of_not_reach I Acc c hS hb (one_le_two.trans hK2) hu) hexp_step hmono
 
 private theorem eventually_agreement_le_of_signalWidth_supply {U : Type u}
     [Finite U] [Nontrivial U] {r : ℕ} (hr : 2 ≤ r) {μ₀ : ℝ} (hμ₀ : 0 < μ₀)
@@ -779,8 +770,8 @@ private theorem eventually_agreement_le_of_signalWidth_supply {U : Type u}
     have hmono : Real.exp (-(μ₀ * Real.log 2 * n)) ≤
         Real.exp (-(min μ₀ (1 / 2) * Real.log 2 * n)) :=
       Real.exp_le_exp.mpr (by
-        have : min μ₀ (1 / 2) ≤ μ₀ := min_le_left _ _
-        nlinarith [mul_nonneg (Real.log_nonneg one_le_two) (Nat.cast_nonneg (α := ℝ) n)])
+        nlinarith [min_le_left μ₀ (1 / 2),
+          mul_nonneg (Real.log_nonneg one_le_two) (Nat.cast_nonneg (α := ℝ) n)])
     obtain ⟨π, hB⟩ := hsup σ c hfan hPc hu
     have hlog_res :
         Real.logb q ((K' n ^ 3 * (Nat.card (Compiler.Node c) + 1) *
@@ -788,8 +779,8 @@ private theorem eventually_agreement_le_of_signalWidth_supply {U : Type u}
       (logb_residual_nat_deg (r := r) hq1 (zero_lt_two.trans_le hK2)).trans_le hB
     have hexp_step := div_pow_le_exp hq2
       (residual_nat_pos Nat.card_pos (zero_lt_two.trans_le hK2)) hμ₀.le hlog_res
-    have hag := agreement_le_of_signalWidth I Acc c hr hS hb hfan hu π
-    exact agreement_le_of_div_le hag hexp_step hmono
+    exact agreement_le_of_div_le
+      (agreement_le_of_signalWidth I Acc c hr hS hb hfan hu π) hexp_step hmono
 
 section Family2
 
@@ -886,11 +877,8 @@ private theorem eventually_exists_layout_signalWidth_le_multiFanoutSize {U : Typ
     have hr0 : (0 : ℝ) ≤ (2 : ℝ) ^ k₀ - k₀ := by linarith
     linarith [mul_nonneg hr0 (Nat.cast_nonneg (Compiler.multiFanoutSize c)), mul_nonneg hε.le hn0]
   obtain ⟨hM_term, hsqrt_term, hlogV_err⟩ := hcerr c hs_le
-  have hM3 : (3 * Nat.card (Compiler.Node c) : ℝ) / M ≤ η * n := by
-    simpa only [show ((2 : ℕ) + 1 : ℝ) = 3 by norm_num] using hM_term
-  have hsqrt3 : 3 * √((M * (2 * B + 1) * Nat.card (Compiler.Node c) : ℝ)) ≤ η * n := by
-    simpa only [show (2 : ℝ) + 1 = 3 by norm_num, Nat.cast_mul, Nat.cast_add,
-      Nat.cast_ofNat, Nat.cast_one, mul_assoc] using hsqrt_term
+  simp only [Nat.cast_mul, Nat.cast_add, Nat.cast_ofNat, Nat.cast_one]
+    at hM_term hsqrt_term
   have hB_term : (Nat.card (Compiler.Node c) : ℝ) / (2 * (B + 1)) ≤ η * n := by
     have hnat : (Nat.card (Compiler.Node c) : ℝ) ≤ c.innerSize + 1 := by
       exact_mod_cast Compiler.card_node_le c
@@ -900,14 +888,13 @@ private theorem eventually_exists_layout_signalWidth_le_multiFanoutSize {U : Typ
   rw [Nat.cast_one] at hstr
   have hs_term :
       ((c.innerSize : ℝ) + ((2 : ℝ) ^ k₀ - k₀) * Compiler.multiFanoutSize c) / (2 : ℝ) ^ k₀ ≤
-        ((k₀ + 2 : ℝ) / (2 : ℝ) ^ k₀) * n - δ * n := by
-    refine (div_le_div_of_nonneg_right hsize (by positivity)).trans_eq ?_
-    dsimp only [δ]
-    ring
+        ((k₀ + 2 : ℝ) / (2 : ℝ) ^ k₀) * n - δ * n :=
+    (div_le_div_of_nonneg_right hsize (pow_nonneg zero_le_two k₀)).trans_eq
+      (by dsimp only [δ]; ring)
   exact supply_base_le (b := 5) (by norm_num)
     ((hπ.trans_eq (add_assoc _ _ _)).trans_eq (add_assoc _ _ _)) hstr hs_term
     (mul_le_mul_of_nonneg_left (ncard_not_reach_le_logb hunread) (by positivity))
-    (by dsimp only [η] at hB_term hM3 hsqrt3 ⊢; linarith) hK_err hlogV_err hconst_err
+    (by dsimp only [η] at hB_term hM_term hsqrt_term ⊢; linarith) hK_err hlogV_err hconst_err
 
 /-- **Family 3 (worst-case) — Low-reuse lower bound at fan-in two.** For every `k₀ ≥ 1` and
 `ε > 0`, circuits of fan-in at most two deciding dense rectangle-free sets `S_n ⊆ U^n` satisfy

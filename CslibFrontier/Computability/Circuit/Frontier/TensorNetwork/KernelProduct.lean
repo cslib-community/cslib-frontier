@@ -83,9 +83,8 @@ private theorem padicValInt_ediv_eq_zero {n : ℤ} (hn : n ≠ 0) :
 /-- The valuation of the odd part of a nonzero integer is one. -/
 private theorem padicValuation_ediv {n : ℤ} (hn : n ≠ 0) :
     Rat.padicValuation 2 (((n / 2 ^ padicValInt 2 n : ℤ) : ℚ)) = 1 := by
-  rw [Rat.padicValuation_intCast_of_ne_zero 2 (ediv_two_pow_ne_zero hn),
+  simp [Rat.padicValuation_intCast_of_ne_zero 2 (ediv_two_pow_ne_zero hn),
     padicValInt_ediv_eq_zero hn]
-  rfl
 
 /-- The inverse of an odd part is `2`-integral. -/
 private theorem inv_ediv_mem {n : ℤ} (hn : n ≠ 0) :
@@ -139,9 +138,7 @@ theorem coe_kernelUnit (a : ℕ) :
   change (ℤ₍₂₎).subtype (kernelUnit a) = _
   rw [kernelUnit, map_prod, ← prod_inv_distrib]
   refine prod_congr rfl fun q hq => ?_
-  have hne : (0 : ℤ) - q ≠ 0 := sub_ne_zero.mpr (Ne.symm (ne_of_mem_erase hq))
-  rw [dite_eq_right hne]
-  rfl
+  simp [ne_of_mem_erase hq]
 
 /-- The `2`-integral factor `u_q + 2 ^ (a + 1 - v_q) z` of the local kernel, where
 `t - q = 2 ^ v_q u_q`. -/
@@ -169,8 +166,7 @@ private theorem shift_eq_unitFactor {a : ℕ} {t q : ℤ} (ht : t ∈ cauchyGrid
   have hpow : (2 : ℚ) ^ padicValInt 2 (t - q) * 2 ^ (a + 1 - padicValInt 2 (t - q)) =
       2 ^ (a + 1) := by
     rw [← pow_add, Nat.add_sub_cancel' (by omega)]
-  rw [map_unitFactor, mul_add, ← mul_assoc, ← C_mul, ← C_mul, hpow, ← hsplit, C_sub]
-  ring
+  rw [map_unitFactor, mul_add, ← mul_assoc, ← C_mul, ← C_mul, hpow, ← hsplit, C_sub]; ring
 
 /-- The shifted factors over grid points other than `t`. -/
 private theorem prod_shift_eq {a : ℕ} {t : ℤ} (ht : t ∈ cauchyGrid (2 ^ a)) (F : Finset ℤ)
@@ -223,9 +219,7 @@ theorem localKernel_eq_prod {a : ℕ} {t d : ℤ} (ht : t ∈ cauchyGrid (2 ^ a)
   · rw [ite_eq_left rfl, mul_one, erase_idem, prod_shift_eq ht _ subset_rfl, hsum, ← mul_assoc,
       ← C_mul]
     congr 2
-    rw [mul_inv]
-    change ((2 : ℚ) ^ S₀)⁻¹ * w⁻¹ * 2 ^ S₀ = w⁻¹
-    rw [mul_comm, ← mul_assoc, mul_inv_cancel₀ (pow_ne_zero _ two_ne_zero), one_mul]
+    rw [mul_inv, mul_right_comm, inv_mul_cancel₀ (pow_ne_zero _ two_ne_zero), one_mul]
   · rw [ite_eq_right hdt]
     have htd : t ∈ (cauchyGrid (2 ^ a)).erase d := mem_erase.mpr ⟨hdt.symm, ht⟩
     have hdt' : d ∈ (cauchyGrid (2 ^ a)).erase t := mem_erase.mpr ⟨hdt, hd⟩
@@ -255,8 +249,7 @@ theorem localKernel_eq_prod {a : ℕ} {t d : ℤ} (ht : t ∈ cauchyGrid (2 ^ a)
     have h2 : (2 : ℚ) ^ (a + 1) =
         2 ^ (a + 1 - padicValInt 2 (t - d)) * 2 ^ padicValInt 2 (t - d) := by
       rw [← pow_add, Nat.sub_add_cancel (by omega)]
-    rw [h2, hsplit, pow_add]
-    field_simp
+    rw [h2, hsplit, pow_add]; field_simp
 
 /-- **Kernel values as products of units.** In a ring `R` receiving `ℤ_(2)` through `κ`, the
 kernel value `W_d(t + α ζ)` is `κ(kernelUnit a)` times `∏_{q ≠ d, t} (u_q + 2 ^ (a + 1 - v_q) ζ)`,

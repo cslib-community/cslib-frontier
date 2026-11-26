@@ -88,8 +88,7 @@ theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
     obtain ⟨hlen_p, hlit_p, hcm_rest⟩ := clauseMemAt_cons hcm
     simp only [List.flatMap_cons, List.length_append, length_encodeClauseBy] at hp
     have hf_i1 : Fits w (idx + 1) := G.fits_of_le hfit (by unfold Instance.wordBound; lia)
-    have hbound_imp : ∀ w_u : Fin (2 * G.n), (G.adjFin w_u).length ≤ 2 * G.φ.length := by
-      intro w_u
+    have hbound_imp (w_u : Fin (2 * G.n)) : (G.adjFin w_u).length ≤ 2 * G.φ.length := by
       have h1 := csrOffset_succ G.adjFin w_u.isLt
       have h2 := csrOffset_mono G.adjFin (by omega : w_u.val + 1 ≤ 2 * G.n)
       have h3 := csrOffset_adjFin_le G
@@ -117,11 +116,9 @@ theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
       have hxor_a : litCodeBy Fin.val a ^^^ 1 = (litEquiv G.n a.negate).val :=
         litCodeBy_xor_one Fin.val a
       have hf_na := fits_litCode_xor_one G hfit a
-      have hf_p_next : Fits w (p + 1 + (a :: tail).length) := by
-        refine G.fits_of_le hfit ?_
-        have := G.encode_length
-        unfold Instance.wordBound
-        omega
+      have hge := G.encode_length
+      have hf_p_next : Fits w (p + 1 + (a :: tail).length) :=
+        G.fits_of_le hfit (by dsimp only [Instance.wordBound]; omega)
       rcases tail with _ | ⟨b, _ | ⟨d, rest⟩⟩
       · have hroom_a : (mapAdj (litEquiv G.n) g (litEquiv G.n a.negate)).length + 1 ≤
             2 * G.φ.length := by
@@ -194,11 +191,10 @@ theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
         · wram_simp [hy₂_fr r (by reg_ne) (by reg_ne), st_v2, hy₁_fr r (by reg_ne) (by reg_ne),
             st_v1]
       · simp at hc
-    have hcm_x₁ : ClauseMemAt x₁.mem (p + 1 + c.length) cs := fun k hk => by
-      have hk_bound : p + 1 + c.length + k < curBase := by
-        simp only [curBase, kCurAddr, Instance.workBase, Instance.outAddrBase]
-        omega
-      exact (hx₁_out _ (by omega)).trans (hcm_rest k hk)
+    have hcm_x₁ : ClauseMemAt x₁.mem (p + 1 + c.length) cs := fun k hk =>
+      (hx₁_out _ (by
+        simp only [curBase, kCurAddr, Instance.workBase, Instance.outAddrBase]; omega)).trans
+        (hcm_rest k hk)
     simp only [List.length_cons] at hidx
     have hlt : (Cond.lt iReg mClauses).Holds x := by
       simp only [Cond.Holds, hi, hm]; omega

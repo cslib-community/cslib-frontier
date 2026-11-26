@@ -272,9 +272,8 @@ theorem addPair_children (S : State cfg n) (pr : cfg.Pair) (z : ℕ) :
 
 /-- Pair creation increases `q` by `1`. -/
 theorem addPair_q {S : State cfg n} {pr : cfg.Pair} (h : S.AddPairOK pr) :
-    (S.addPair pr).q = S.q + 1 := by
-  change (insert pr S.pairs).card = S.pairs.card + 1
-  exact Finset.card_insert_of_notMem fun hmem =>
+    (S.addPair pr).q = S.q + 1 :=
+  Finset.card_insert_of_notMem fun hmem =>
     (mem_unpaired.1 h.fst_unpaired).2 ⟨pr, hmem, Or.inl rfl⟩
 
 /-- Generic validity preservation for pair creation `(PC)` given `phiOK` and locus weakening. -/
@@ -359,9 +358,8 @@ theorem deleteGate_children_subset {S : State cfg n} {J : ℕ} {ℓ : Lit} (z : 
   intro w hw
   rcases w with K | e
   · simp only [SemiCircuit.inl_mem_children] at hw
-    refine Finset.mem_erase.2 ⟨fun he => ?_, ?_⟩
-    · cases he; exact Finset.notMem_erase J _ hw.1
-    · exact (SemiCircuit.inl_mem_children _).2 ⟨Finset.mem_of_mem_erase hw.1, hw.2⟩
+    exact Finset.mem_erase.2 ⟨mt Sum.inl.inj (Finset.ne_of_mem_erase hw.1),
+      (SemiCircuit.inl_mem_children _).2 ⟨Finset.mem_of_mem_erase hw.1, hw.2⟩⟩
   · simp only [SemiCircuit.inr_mem_children] at hw
     exact Finset.mem_erase.2 ⟨Sum.inr_ne_inl, (SemiCircuit.inr_mem_children _).2 hw⟩
 
@@ -451,9 +449,8 @@ theorem deleteEqn_children_subset {S : State cfg n} {e v : ℕ} {ℓ : Lit} (z :
   · simp only [SemiCircuit.inl_mem_children] at hw
     exact Finset.mem_erase.2 ⟨Sum.inl_ne_inr, (SemiCircuit.inl_mem_children _).2 hw⟩
   · simp only [SemiCircuit.inr_mem_children] at hw
-    refine Finset.mem_erase.2 ⟨fun he => ?_, ?_⟩
-    · cases he; exact Finset.notMem_erase e _ hw.1
-    · exact (SemiCircuit.inr_mem_children _).2 ⟨Finset.mem_of_mem_erase hw.1, hw.2⟩
+    exact Finset.mem_erase.2 ⟨mt Sum.inr.inj (Finset.ne_of_mem_erase hw.1),
+      (SemiCircuit.inr_mem_children _).2 ⟨Finset.mem_of_mem_erase hw.1, hw.2⟩⟩
 
 /-- Deleting an equation removes it from the children of every parameter other than the target of
 `ℓ`. -/
@@ -549,10 +546,9 @@ theorem Valid.dropTrivialEqn {S : State cfg n} (hS : S.Valid f) {e : ℕ} (he : 
 /-- Moving an affine gate into the affine system preserves the size of the state. -/
 theorem moveAffine_size {S : State cfg n} {J e : ℕ} (h : S.MoveOK J e) :
     (S.moveAffine J e).size = S.size := by
-  have h1 := Finset.card_erase_add_one h.mem
-  have h2 := Finset.card_insert_of_notMem h.fresh
   change (S.gates.erase J).card + (insert e S.eqns).card = S.gates.card + S.eqns.card
-  omega
+  rw [Finset.card_insert_of_notMem h.fresh, Nat.add_left_comm, Finset.card_erase_add_one h.mem,
+    Nat.add_comm]
 
 /-- Moving an affine gate into the affine system decreases the number of gates by `1`. -/
 theorem moveAffine_gates_card {S : State cfg n} {J e : ℕ} (h : S.MoveOK J e) :
@@ -692,9 +688,9 @@ theorem Valid.swap_of {S : State cfg n} (hS : S.Valid f) {x Q : ℕ} {c : Bool} 
 /-- An affine reparameterisation `(AR)` preserves `m`. -/
 theorem Valid.swap_m {S : State cfg n} (hS : S.Valid f) {x Q : ℕ} {c : Bool} {T : Finset ℕ}
     (h : S.SwapOK x Q c T) : (S.swap x Q c T).m = S.m := by
-  have hQpar : Q ∉ S.params := fun hp => hS.wf.notMem_aux_of_mem_params hp h.aux
   change (insert Q (S.params.erase x)).card = S.params.card
-  rw [Finset.card_insert_of_notMem (fun hm => hQpar (Finset.mem_of_mem_erase hm)),
+  rw [Finset.card_insert_of_notMem
+      (fun hm => hS.wf.notMem_aux_of_mem_params (Finset.mem_of_mem_erase hm) h.aux),
     Finset.card_erase_add_one h.mem]
 
 /-- Potential comparison helper for `(AR)`: if replacing `x` by `Q` increases weight on `Q` by at
@@ -726,9 +722,9 @@ theorem Valid.swap_W_le_of {S : State cfg n} (hS : S.Valid f) {x Q : ℕ} {c : B
           have hp := paired_congr (x := u) (swap_pairs S x Q c T)
           by_cases hup : S.Paired u
           · rw [wt_of_paired (hp.2 hup), wt_of_paired hup]
-          · have hu1 : u ∈ S₁.unpaired := mem_unpaired.2 ⟨huS₁, mt hp.1 hup⟩
-            have hu0 : u ∈ S.unpaired := mem_unpaired.2 ⟨huS, hup⟩
-            rw [wt_of_mem hu1, wt_of_mem hu0, SemiCircuit.deg, SemiCircuit.deg, swap_children]
+          · rw [wt_of_mem (mem_unpaired.2 ⟨huS₁, mt hp.1 hup⟩),
+              wt_of_mem (mem_unpaired.2 ⟨huS, hup⟩), SemiCircuit.deg, SemiCircuit.deg,
+              swap_children]
   dsimp only [S₁] at hW
   rw [Finset.sum_ite_eq', ite_eq_left (Finset.mem_insert_of_mem h.mem),
     Finset.sum_ite_eq', ite_eq_left (Finset.mem_insert_self _ _)] at hW

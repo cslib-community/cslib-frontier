@@ -108,8 +108,7 @@ theorem Algorithm.le_of_approx_freqMoment {σ : Type*} {L b k : ℕ} {η : ℝ} 
     (hA : ∀ s : List (Fin L × Fin 16), s.length ≤ 2 * L →
       |A.run s - freqMoment k s| ≤ η * freqMoment k s)
     (hspace : A.SpaceLE L b) : L ≤ b := by
-  by_contra hb
-  push Not at hb
+  by_contra! hb
   obtain ⟨enc, henc⟩ := hspace
   obtain ⟨C, hC, hCd⟩ := Code.exists_two_pow_le_card_and_le_two_mul_hammingDist L
   -- two codewords whose graph streams lead to the same memory state
@@ -125,23 +124,21 @@ theorem Algorithm.le_of_approx_freqMoment {σ : Type*} {L b k : ℕ} {η : ℝ} 
   have hrun : A.run (graphStream x ++ graphStream x) = A.run (graphStream y ++ graphStream x) := by
     simp only [run, state_append, hstate]
   have hlen (z : Fin L → Fin 16) : (graphStream z ++ graphStream x).length ≤ 2 * L := by
-    rw [List.length_append, length_graphStream, length_graphStream]
-    omega
+    simp only [List.length_append, length_graphStream]; omega
   have h1 := hA _ (hlen x)
   have h2 := hA _ (hlen y)
   rw [hrun] at h1
   set Y := A.run (graphStream y ++ graphStream x)
   -- the two moments
   have hd := hCd y hy x hx (Ne.symm hxy)
-  have hsum := card_filter_eq_add_hammingDist y x
-  rw [Fintype.card_fin] at hsum
+  have hsum := (card_filter_eq_add_hammingDist y x).trans (Fintype.card_fin L)
   have hF1 : (freqMoment k (graphStream x ++ graphStream x) : ℝ) = 2 ^ k * L := by
     simp only [freqMoment_graphStream_append_eq, hammingDist_self, filter_true, card_univ,
       Fintype.card_fin, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat, mul_zero, add_zero]
   have hF2 : (freqMoment k (graphStream y ++ graphStream x) : ℝ) =
       2 ^ k * (#{i | y i = x i} : ℕ) + 2 * (hammingDist y x : ℕ) := by
     rw [freqMoment_graphStream_append_eq]; push_cast; ring
-  rw [hF1] at h1; rw [hF2] at h2
+  rw [hF1] at h1
   have hLpos : (0 : ℝ) < L := by exact_mod_cast lt_of_le_of_lt (Nat.zero_le b) hb
   have hη0 : 0 ≤ η := nonneg_of_mul_nonneg_left ((abs_nonneg _).trans h1) (by positivity)
   have hd' : (L : ℝ) ≤ 2 * (hammingDist y x : ℝ) := by exact_mod_cast hd
@@ -149,8 +146,8 @@ theorem Algorithm.le_of_approx_freqMoment {σ : Type*} {L b k : ℕ} {η : ℝ} 
   have hc : ((#{i | y i = x i} : ℕ) : ℝ) = L - (hammingDist y x : ℝ) :=
     eq_sub_of_add_eq (by exact_mod_cast hsum)
   set δ : ℝ := (hammingDist y x : ℝ)
-  rw [hc] at h2
-  rw [abs_le] at h1 h2
+  rw [hF2, hc, abs_le] at h2
+  rw [abs_le] at h1
   rcases Nat.eq_zero_or_pos k with rfl | hk0
   · -- `F₀`: `L` against `L + δ` with `L / 2 ≤ δ ≤ L`
     norm_num at h1 h2
@@ -263,8 +260,7 @@ theorem div_le_of_solves_freqMoment {σ : Type*} {N b r k : ℕ} {ε : ℝ} (hk 
     (Randomized.SpaceLE.map_reduce [] (by rwa [List.length_nil, Nat.zero_add]) e id)
   refine (μ.errorProb_map_reduce_le [] e id s fun c hc => ?_).trans
     (hμ _ (by rwa [List.nil_append, List.length_map]))
-  rw [hc, List.nil_append, freqMoment_map e.injective]
-  rfl
+  rw [hc, List.nil_append, freqMoment_map e.injective]; rfl
 
 /-- **Computing `F_k` exactly and deterministically needs `n` bits of memory**, for `k ≠ 1`: a
 deterministic streaming algorithm computing `F_k` on every stream of at most `2 n` items of

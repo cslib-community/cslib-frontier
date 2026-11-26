@@ -291,8 +291,7 @@ theorem corruptRouter_fcom_isBounded (κ : ℕ) (C : Finset (Fin 2)) :
     · erw [StateT.run_map]
       exact (OracleComp.isCostBounded_map_iff _ _ _).mpr ((fcom_isBounded κ C).2 (.inl (i, x)) s)
     · exact OracleComp.IsCostBounded.pure _ 0
-  · dsimp only [corruptRouter]
-    erw [StateT.run_map]
+  · erw [StateT.run_map]
     exact (OracleComp.isCostBounded_map_iff _ _ _).mpr ((fcom_isBounded κ C).2 (.inr q) s)
 
 /-- Adversaries (and simulators) facing `fcom`: environment queries `AdvQ` with replies `AdvR`,
@@ -640,20 +639,11 @@ theorem toProtocol_polyBounded {scheme : PlainCommitmentScheme CommitMsg OpenMsg
   · cases netQ with
     | readCommit | readOpen => cases s₁ <;> exact OracleComp.IsCostBounded.pure _ _
     | deliverCommit c =>
-      cases s₂ with
-      | waiting =>
-        by_cases h0 : (0 : Fin 2) ∈ C <;> [skip; cases s₁] <;>
-          simp only [toProtocol, StateT.run, h0, ↓reduceIte] <;>
-          (try split_ifs) <;> exact OracleComp.IsCostBounded.pure _ _
-      | _ => exact OracleComp.IsCostBounded.pure _ _
+      cases s₂ <;> cases s₁ <;> simp only [toProtocol, StateT.run] <;>
+        (try split_ifs) <;> exact OracleComp.IsCostBounded.pure _ _
     | deliverOpen o =>
-      cases s₂ with
-      | committed c =>
-        by_cases h0 : (0 : Fin 2) ∈ C <;> [skip; cases s₁] <;>
-          simp only [toProtocol, StateT.run, h0, ↓reduceIte] <;>
-          (try split_ifs) <;>
-          (first | exact hverify c o | exact OracleComp.IsCostBounded.pure _ _)
-      | _ => exact OracleComp.IsCostBounded.pure _ _
+      cases s₂ <;> cases s₁ <;> simp only [toProtocol, StateT.run] <;>
+        (try split_ifs) <;> (first | exact hverify _ _ | exact OracleComp.IsCostBounded.pure _ _)
 
 end PlainCommitmentScheme
 

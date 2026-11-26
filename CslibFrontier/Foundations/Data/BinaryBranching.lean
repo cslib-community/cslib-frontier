@@ -225,24 +225,18 @@ theorem card_le_sum_choose_of_isLeafWord {s : σ} {W : Finset (List Bool)}
     (hρ : ∀ w ∈ W, ((range w.length).filter fun i => w.getD i false = true).card ≤ ρ) :
     W.card ≤ ∑ j ∈ range (ρ + 1), Λ.choose j := by
   classical
-  let pos (w : List Bool) : Finset ℕ := (range Λ).filter fun i => w.getD i false = true
-  have hpos (w : List Bool) (hw : w.length ≤ Λ) :
-      pos w = (range w.length).filter fun i => w.getD i false = true := by
-    ext i
-    simp only [pos, mem_filter, mem_range]
-    refine ⟨fun ⟨_, hi⟩ => ⟨by_contra fun hge => ?_, hi⟩, fun ⟨hi, h⟩ => ⟨by omega, h⟩⟩
-    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega)] at hi
-    exact Bool.false_ne_true hi
+  let pos (w : List Bool) : Finset ℕ := (range w.length).filter fun i => w.getD i false = true
+  have hmem (w : List Bool) (i : ℕ) : i ∈ pos w ↔ w.getD i false = true :=
+    ⟨fun h => (mem_filter.mp h).2, fun h => mem_filter.mpr ⟨mem_range.mpr (lt_of_not_ge fun hge =>
+      by simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none hge] at h), h⟩⟩
   have hinj : Set.InjOn pos W := fun w hw w' hw' h =>
-    (hW w hw).eq_of_getD_eq (hW w' hw') fun i => by
-      by_cases hi : i < Λ
-      · exact Bool.eq_iff_iff.mpr (by simpa [pos, hi] using congrArg (i ∈ ·) h)
-      · rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none ((hlen w hw).trans (not_lt.mp hi)),
-          List.getD_eq_getElem?_getD, List.getElem?_eq_none ((hlen w' hw').trans (not_lt.mp hi))]
+    (hW w hw).eq_of_getD_eq (hW w' hw') fun i =>
+      Bool.eq_iff_iff.mpr (by simpa only [hmem, eq_iff_iff] using congrArg (i ∈ ·) h)
   calc W.card = (W.image pos).card := (card_image_of_injOn hinj).symm
     _ ≤ #{S ∈ (range Λ).powerset | #S ≤ ρ} := card_le_card fun S hS => by
         obtain ⟨w, hw, rfl⟩ := mem_image.mp hS
-        exact mem_filter.mpr ⟨mem_powerset.mpr (filter_subset _ _), hpos w (hlen w hw) ▸ hρ w hw⟩
+        exact mem_filter.mpr ⟨mem_powerset.mpr ((filter_subset _ _).trans
+          (Finset.range_mono (hlen w hw))), hρ w hw⟩
     _ = ∑ j ∈ range (ρ + 1), Λ.choose j := by
         rw [card_filter_powerset_card_le_eq_sum_choose, card_range]
 

@@ -178,16 +178,13 @@ private theorem card_filter_add_card_filter_of_not_forall {T₁ T₂ : Finset κ
   obtain ⟨j, hj1, hj2⟩ := hcl
   obtain rfl : j = k := by_contra fun h => (hacl j h).elim hj1 hj2
   have hui := card_union_add_card_inter T₁ T₂
-  have hu : T₁ ∪ T₂ = univ.erase j := by
-    ext l
+  have hu : T₁ ∪ T₂ = univ.erase j := Finset.ext fun l => by
     simp only [mem_union, mem_erase, mem_univ, and_true]
     exact ⟨by rintro (h | h) rfl <;> contradiction, hacl l⟩
   have hpos : 0 < Fintype.card κ := Fintype.card_pos_iff.2 ⟨j⟩
   rw [hu, card_erase_of_mem (mem_univ _), card_univ] at hui
   have hf {S R : Finset κ} (hjS : j ∉ S) : {l ∈ S | l = j ∨ l ∈ R} = S ∩ R := by
-    ext l
-    simp only [mem_filter, mem_inter]
-    exact and_congr_right fun hl => or_iff_right fun h => hjS (h ▸ hl)
+    rw [filter_congr fun _ hl => or_iff_right (ne_of_mem_of_not_mem hl hjS), filter_mem_eq_inter]
   rw [hf hj1, hf hj2, inter_comm T₂]
   omega
 
@@ -203,10 +200,8 @@ theorem isVertex_left_of_completelyLabeled (hnd₁ : IsNondegenerateSystem A₁ 
     IsVertex A₁ b₁ x := by
   classical
   refine isVertex_of_card_tightRows hnd₁ hrec₁ hx ?_
-  have hu : tightRows A₁ b₁ x ∪ tightRows A₂ b₂ y = univ :=
-    eq_univ_of_forall fun j => mem_union.2 (hcl j)
   have h1 := card_union_le (tightRows A₁ b₁ x) (tightRows A₂ b₂ y)
-  rw [hu, card_univ, hcard] at h1
+  rw [eq_univ_of_forall fun j => mem_union.2 (hcl j), card_univ, hcard] at h1
   have h2 := isNondegenerateSystem_iff.1 hnd₂ y hy
   omega
 
@@ -331,13 +326,13 @@ theorem even_ncard_completelyLabeled [Nonempty κ]
   let := Fintype.ofFinite (Node A₁ b₁ A₂ b₂ k)
   have heven := (graph A₁ b₁ A₂ b₂ k).even_card_odd_degree_vertices
   have hodd : (univ.filter fun p => Odd ((graph A₁ b₁ A₂ b₂ k).degree p)) =
-      univ.filter fun p : Node A₁ b₁ A₂ b₂ k => CompletelyLabeled A₁ b₁ A₂ b₂ p.x p.y := by
-    ext p
-    simp only [mem_filter, mem_univ, true_and, ← SimpleGraph.card_neighborFinset_eq_degree,
-      ← Set.ncard_coe_finset, SimpleGraph.coe_neighborFinset]
-    by_cases h : CompletelyLabeled A₁ b₁ A₂ b₂ p.x p.y
-    · simp [h, ncard_neighborSet_of_completelyLabeled hnd₁ hrec₁ hnd₂ hrec₂ hcard p h]
-    · simp [h, ncard_neighborSet_of_not_completelyLabeled hnd₁ hrec₁ hnd₂ hrec₂ hcard p h]
+      univ.filter fun p : Node A₁ b₁ A₂ b₂ k => CompletelyLabeled A₁ b₁ A₂ b₂ p.x p.y :=
+    filter_congr fun p _ => by
+      simp only [← SimpleGraph.card_neighborFinset_eq_degree, ← Set.ncard_coe_finset,
+        SimpleGraph.coe_neighborFinset]
+      by_cases h : CompletelyLabeled A₁ b₁ A₂ b₂ p.x p.y
+      · simp [h, ncard_neighborSet_of_completelyLabeled hnd₁ hrec₁ hnd₂ hrec₂ hcard p h]
+      · simp [h, ncard_neighborSet_of_not_completelyLabeled hnd₁ hrec₁ hnd₂ hrec₂ hcard p h]
   rw [hodd, ← Set.ncard_coe_finset, ← Set.ncard_image_of_injective _ Node.toProd_injective] at heven
   convert heven using 2
   ext ⟨x, y⟩

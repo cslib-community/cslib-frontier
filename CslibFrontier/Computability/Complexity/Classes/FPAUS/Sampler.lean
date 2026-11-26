@@ -276,23 +276,18 @@ private theorem le_natCast_div_div {u D s x : ℕ} (hD : 0 < D) (hs : D < 2 ^ s)
     (1 - (1 / 2 : ℝ) ^ x) * ((u : ℝ) / D) ≤
       (((u * 2 ^ (s + x) / D : ℕ) : ℝ) / ((2 ^ (s + x) : ℕ) : ℝ)) := by
   generalize hN : u * 2 ^ (s + x) = N
-  have hdiv := Nat.div_add_mod N D
-  have hmod := Nat.mod_lt N hD
   have hD' : (0 : ℝ) < D := by exact_mod_cast hD
-  have hpos : (0 : ℝ) < ((2 ^ (s + x) : ℕ) : ℝ) := by positivity
-  rw [le_div_iff₀ hpos]
-  have hlt : (N : ℝ) < D * ((N / D : ℕ) : ℝ) + D :=
-    mod_cast (show N < D * (N / D) + D by omega)
+  rw [le_div_iff₀ (by positivity)]
+  have hlt : (N : ℝ) < ((N / D : ℕ) : ℝ) * D + D := mod_cast Nat.lt_div_mul_add hD
   have hDu : (D : ℝ) ≤ u * 2 ^ s :=
     (le_of_lt (by exact_mod_cast hs)).trans
       (le_mul_of_one_le_left (by positivity) (Nat.one_le_cast.2 hu))
   have key : (1 - (1 / 2 : ℝ) ^ x) * ((u : ℝ) / D) * ((2 ^ (s + x) : ℕ) : ℝ) =
       ((N : ℝ) - u * 2 ^ s) / D := by
     rw [← hN, pow_add, one_div_pow]
-    push_cast
-    field_simp
+    push_cast; field_simp
   rw [key, div_le_iff₀ hD']
-  linarith only [hlt, mul_comm (D : ℝ) ((N / D : ℕ) : ℝ), hDu]
+  linarith only [hlt, hDu]
 
 /-- The choice at a node picks the child `c` with probability at most `weight c / total`. -/
 theorem eval_choose_le (m extra : ℕ) (e e₀ e₁ : ℕ × ℕ) (c : Bool) :
@@ -673,9 +668,7 @@ section Constants
 private theorem precision_aux (ℓ q : ℕ) :
     ((3 * ℓ + 1 : ℕ) : ℝ) * (1 / 2 : ℝ) ^ precision ℓ q ≤ (1 / 2 : ℝ) ^ q / 4 := by
   have hpow : (1 / 2 : ℝ) ^ precision ℓ q = (1 / 2) ^ q / 16 * (1 / 2) ^ ℓ := by
-    rw [precision, pow_add, pow_add]
-    norm_num
-    ring
+    rw [precision, pow_add, pow_add]; ring
   have h2 : ((ℓ + 1 : ℕ) : ℝ) ≤ 2 ^ ℓ := by exact_mod_cast Nat.lt_two_pow_self
   have hx : (2 : ℝ) ^ ℓ * (1 / 2) ^ ℓ = 1 := by rw [← mul_pow]; norm_num
   have hb : ((3 * ℓ + 1 : ℕ) : ℝ) * (1 / 2) ^ ℓ ≤ 4 := by
@@ -689,8 +682,7 @@ private theorem precision_aux (ℓ q : ℕ) :
 
 private theorem stepFactor_precision (ℓ q : ℕ) :
     stepFactor (precision ℓ q) (precision ℓ q) = (1 - (1 / 2 : ℝ) ^ precision ℓ q) ^ 3 := by
-  rw [stepFactor]
-  ring
+  rw [stepFactor]; ring
 
 private theorem half_le_stepFactor_pow (ℓ q : ℕ) :
     1 / 2 ≤ stepFactor (precision ℓ q) (precision ℓ q) ^ ℓ := by
@@ -709,12 +701,11 @@ private theorem half_le_stepFactor_pow (ℓ q : ℕ) :
 private theorem half_le_levelFactor_pow (ℓ : ℕ) : 1 / 2 ≤ levelFactor (damping ℓ) ^ ℓ := by
   have hm : levelFactor (damping ℓ) = 1 + -(1 / ((2 * ℓ + 2 : ℕ) : ℝ)) := by
     rw [levelFactor, damping, Nat.add_succ_sub_one]
-    push_cast
-    field_simp
+    push_cast; field_simp
     ring
   have hpos : (0 : ℝ) < ((2 * ℓ + 2 : ℕ) : ℝ) := by positivity
   have hle : 1 / ((2 * ℓ + 2 : ℕ) : ℝ) ≤ 1 :=
-    (div_le_one hpos).2 (mod_cast (show 1 ≤ 2 * ℓ + 2 by omega))
+    (div_le_one hpos).2 (Nat.one_le_cast.2 (by omega))
   have hbern := one_add_mul_le_pow (a := -(1 / ((2 * ℓ + 2 : ℕ) : ℝ))) (by linarith only [hle]) ℓ
   rw [← hm] at hbern
   have hfrac : (ℓ : ℝ) * (1 / ((2 * ℓ + 2 : ℕ) : ℝ)) ≤ 1 / 2 := by
@@ -786,10 +777,9 @@ private theorem le_eval_trial_toReal (R : SelfReducible enc W)
     stepFactor (precision (R.len x) q) (precision (R.len x) q) ^ R.len x *
         (levelFactor (damping (R.len x)) ^ R.len x * invEstimate e) ≤
       (ProbComp.eval (R.trial A x q e) (some w)).toReal := by
-  have hm : 2 ≤ damping (R.len x) := by rw [damping]; omega
-  have hp : 2 * damping (R.len x) - 1 ≤ counterAccuracy (R.len x) := by
-    rw [damping, counterAccuracy]; omega
-  have h := le_eval_walk (extra := precision (R.len x) q) R hm hp hA (R.len x) x rfl e he w hw
+  have h := le_eval_walk (p := counterAccuracy (R.len x)) (m := damping (R.len x))
+    (extra := precision (R.len x) q) R (by rw [damping]; omega)
+    (by rw [damping, counterAccuracy]; omega) hA (R.len x) x rfl e he w hw
   rw [mul_assoc] at h
   exact (ENNReal.ofReal_le_iff_le_toReal (PMF.apply_ne_top _ _)).1 h
 

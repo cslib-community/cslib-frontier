@@ -66,9 +66,8 @@ private abbrev fcBucket (c : (ℕ × ℕ) × ℕ) : ℕ := c.1.1
 theorem fits_wOffQ_add_three_of_itemWords {U V w N m : ℕ} (hw : 0 < w)
     (hfit : Fits w (4 + compactedItemWords U V w N m)) :
     Fits w (wOffQ (quotientBits U N) (valBits V) w m + 3) := by
-  have heq := compactedItemWords_eq_wOffQ_add (U := U) (V := V) (N := N) (m := m) hw
   refine hfit.of_le ?_
-  rw [heq]
+  rw [compactedItemWords_eq_wOffQ_add hw]
   split_ifs <;> omega
 
 /-- Evaluate `compactedItemWords U V w N (n + 1) - compactedItemWords U V w N n` (`∈ {0, 1, 2}`)
@@ -92,17 +91,14 @@ def compGrowDeltaGenProg : CompParams × ℕ → Memory.Prog ℕ
 theorem clientState_compGrowDeltaGenProg (d : CompParams × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (compGrowDeltaGenProg d) = s := by
   rcases d with ⟨cp, n⟩
-  unfold StateTransitionSpec.clientState
-  dsimp only [compGrowDeltaGenProg]
-  simp only [prog_runClient_state_bind, StateTransitionSpec.clientState,
-    runClient_state_compItemWordsGenProg, prog_runClient_state_pure]
+  simp [StateTransitionSpec.clientState, compGrowDeltaGenProg,
+    runClient_state_compItemWordsGenProg]
 
 @[simp] theorem memoryCost_compGrowDeltaGenProg (d : CompParams × ℕ) (s : Memory.State) :
     memoryCost (compGrowDeltaGenProg d) s = 0 := by
   rcases d with ⟨cp, n⟩
-  dsimp only [compGrowDeltaGenProg]
-  simp only [Realization.memoryCost_bind', memoryCost_compItemWordsGenProg,
-    runClient_state_compItemWordsGenProg, memoryCost_pure, zero_add]
+  simp [compGrowDeltaGenProg, memoryCost_compItemWordsGenProg,
+    runClient_state_compItemWordsGenProg]
 
 /-- Precondition for `compGrowDeltaGenProg`. -/
 @[expose] def CompGrowDeltaPre (w : ℕ) : CompParams × ℕ → Memory.State → Prop
@@ -160,17 +156,14 @@ def compShrinkDeltaGenProg : CompParams × ℕ → Memory.Prog ℕ
 theorem clientState_compShrinkDeltaGenProg (d : CompParams × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (compShrinkDeltaGenProg d) = s := by
   rcases d with ⟨cp, n⟩
-  unfold StateTransitionSpec.clientState
-  dsimp only [compShrinkDeltaGenProg]
-  simp only [prog_runClient_state_bind, StateTransitionSpec.clientState,
-    runClient_state_compItemWordsGenProg, prog_runClient_state_pure]
+  simp [StateTransitionSpec.clientState, compShrinkDeltaGenProg,
+    runClient_state_compItemWordsGenProg]
 
 @[simp] theorem memoryCost_compShrinkDeltaGenProg (d : CompParams × ℕ) (s : Memory.State) :
     memoryCost (compShrinkDeltaGenProg d) s = 0 := by
   rcases d with ⟨cp, n⟩
-  dsimp only [compShrinkDeltaGenProg]
-  simp only [Realization.memoryCost_bind', memoryCost_compItemWordsGenProg,
-    runClient_state_compItemWordsGenProg, memoryCost_pure, zero_add]
+  simp [compShrinkDeltaGenProg, memoryCost_compItemWordsGenProg,
+    runClient_state_compItemWordsGenProg]
 
 /-- Precondition for `compShrinkDeltaGenProg`. -/
 @[expose] def CompShrinkDeltaPre (w : ℕ) : CompParams × ℕ → Memory.State → Prop

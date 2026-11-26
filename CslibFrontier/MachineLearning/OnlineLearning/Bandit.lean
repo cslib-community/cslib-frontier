@@ -371,13 +371,8 @@ theorem expect_exploredLoss_eq {m K : ℕ} {Ω : Type*} [Fintype Ω] [Nonempty �
     (sched : ExplorationSchedule ι m Ω) (ℓ : ℕ → ι → ℝ) {τ : ℕ} (hτ : τ < K) (i : ι) :
     (𝔼 ω : Fin K → Ω, exploredLoss sched ω ℓ τ i) = blockAvgLoss m ℓ τ i := by
   rw [← Fintype.expect_expect_update (fun ω : Fin K → Ω => exploredLoss sched ω ℓ τ i) ⟨τ, hτ⟩]
-  have hinner : ∀ ω : Fin K → Ω,
-      (𝔼 x : Ω, exploredLoss sched (Function.update ω ⟨τ, hτ⟩ x) ℓ τ i) =
-        blockAvgLoss m ℓ τ i := fun ω =>
-    (expect_congr rfl (g := fun x : Ω => ℓ (τ * m + (sched.time x i).val) i) fun x _ => by
-      simp only [exploredLoss_of_lt sched _ ℓ hτ i, Function.update_self]).trans
-      (sched.expect_apply i fun r => ℓ (τ * m + r.val) i)
-  simp only [hinner, Fintype.expect_const]
+  simp only [exploredLoss_of_lt _ _ ℓ hτ i, Function.update_self, Fintype.expect_const]
+  exact sched.expect_apply i fun r => ℓ (τ * m + r.val) i
 
 /-- **Causal decoupling identity** [BlumMansour2007AGT, §4.6, eq. (4.2), p. 95]: because `H` is
 causal on `[0, 1]` histories, its round-`τ` distribution depends only on blocks `< τ` and is
@@ -826,9 +821,8 @@ theorem mabPlay_expected_loss_le_two_thirds [DecidableEq ι] [Nonempty ι] {T : 
     set x : ℝ := ((T : ℝ) / N) ^ ((2 : ℝ) / 3)
     set B : ℝ := (T : ℝ) ^ ((2 : ℝ) / 3) * (N : ℝ) ^ ((1 : ℝ) / 3)
     have hB_nn : 0 ≤ B := by positivity
-    have hx_ge : 1 ≤ x := one_le_rpow (by
-      rw [le_div_iff₀ hNpos, one_mul]
-      exact_mod_cast hT) (by norm_num)
+    have hx_ge : 1 ≤ x :=
+      one_le_rpow ((one_le_div hNpos).mpr (Nat.cast_le.mpr hT)) (by norm_num)
     have hx_pos : 0 < x := by linarith
     have hK_le_x : (K : ℝ) ≤ x := Nat.floor_le hx_pos.le
     have hx_half_le_K : x / 2 ≤ (K : ℝ) := by
@@ -840,7 +834,7 @@ theorem mabPlay_expected_loss_le_two_thirds [DecidableEq ι] [Nonempty ι] {T : 
       rw [mul_pow, rpow_two_thirds_cube hTpos.le, rpow_one_third_cube hNpos.le]
     have hNx_eq_B : (N : ℝ) * x = B := by
       refine (pow_left_inj₀ (by positivity) hB_nn (by decide : 3 ≠ 0)).mp ?_
-      rw [mul_pow, rpow_two_thirds_cube (by positivity), hB_cube]
+      rw [mul_pow, rpow_two_thirds_cube (div_nonneg hTpos.le hNpos.le), hB_cube]
       field_simp
     have hterm1 : (N : ℝ) * K ≤ B :=
       (mul_le_mul_of_nonneg_left hK_le_x hNpos.le).trans_eq hNx_eq_B
@@ -852,9 +846,8 @@ theorem mabPlay_expected_loss_le_two_thirds [DecidableEq ι] [Nonempty ι] {T : 
           mul_le_mul_of_nonneg_right (one_div_le_one_div_of_le (by norm_num) hNr) hB_nn
     have hT_div_eq : (T : ℝ) / √x = B := by
       have hx6 : (√x) ^ 6 = x ^ 3 := (pow_mul (√x) 2 3).trans (by rw [sq_sqrt hx_pos.le])
-      have hB6 : B ^ 6 = (B ^ 3) ^ 2 := by ring
       refine (pow_left_inj₀ (by positivity) hB_nn (by decide : 6 ≠ 0)).mp ?_
-      rw [div_pow, hx6, rpow_two_thirds_cube (by positivity), hB6, hB_cube]
+      rw [div_pow, hx6, rpow_two_thirds_cube (div_nonneg hTpos.le hNpos.le), pow_mul B 3 2, hB_cube]
       field_simp
     have hterm3 : (m : ℝ) * (C * √((K : ℝ) * log N)) ≤ C * √2 * √(log N) * B := by
       have hm_le : (m : ℝ) ≤ (T : ℝ) / K :=
@@ -881,8 +874,7 @@ theorem mabPlay_expected_loss_le_two_thirds [DecidableEq ι] [Nonempty ι] {T : 
         _ ≤ C * (√2 * √(log N) * B) := mul_le_mul_of_nonneg_left hcore hC
         _ = C * √2 * √(log N) * B := by ring
     have hL_gt : (1 / 2 : ℝ) ≤ log (N : ℝ) := by
-      have hlog2 : (1 / 2 : ℝ) ≤ log 2 := by linarith [log_two_gt_d9]
-      exact hlog2.trans (log_le_log (by norm_num) hNr)
+      linarith [log_two_gt_d9, log_le_log zero_lt_two hNr]
     have hcoef2 : √2 * √(log (N : ℝ)) ≤ 2 * log (N : ℝ) := by
       refine le_of_sq_le_sq ?_ (by positivity)
       rw [mul_pow, sq_sqrt (by norm_num), sq_sqrt hL.le]
@@ -901,9 +893,7 @@ theorem mabPlay_expected_loss_le_two_thirds [DecidableEq ι] [Nonempty ι] {T : 
             (3 + 2 * C) * (T : ℝ) ^ ((2 : ℝ) / 3) * (N : ℝ) ^ ((1 : ℝ) / 3) * log N := by
           have hmul := mul_le_mul_of_nonneg_right hfactor hB_nn
           dsimp only [B] at hterm1 hterm2 hterm3 hmul
-          have hrew : ((3 + 2 * C) * log (N : ℝ)) *
-              ((T : ℝ) ^ ((2 : ℝ) / 3) * (N : ℝ) ^ ((1 : ℝ) / 3)) =
-              (3 + 2 * C) * (T : ℝ) ^ ((2 : ℝ) / 3) * (N : ℝ) ^ ((1 : ℝ) / 3) * log N := by ring
+          rw [mul_right_comm, ← mul_assoc] at hmul
           linarith
   · -- Degenerate single-action boundary `N = 1`: regret is identically `0` and `log 1 = 0`.
     have hN1 : N = 1 := le_antisymm (by omega) hN_pos

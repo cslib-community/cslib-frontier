@@ -127,9 +127,7 @@ private theorem bbOf_mem {v : Code → Part ℕ} (h0 : (v Code.zero).Dom) (n : �
     ⟨_, Code.zero, Nat.zero_le n, Part.get_mem h0⟩ (finite_setOf v n).bddAbove
 
 private theorem monotone_bbOf (v : Code → Part ℕ) (h0 : (v Code.zero).Dom) : Monotone (bbOf v) :=
-  fun m n hmn => by
-    obtain ⟨c, hc, hx⟩ := bbOf_mem h0 m
-    exact le_bbOf (hc.trans hmn) hx
+  fun m _ hmn => (bbOf_mem h0 m).elim fun _ h => le_bbOf (h.1.trans hmn) h.2
 
 /-- **Busy beaver, output version** [Rado1962]: the largest output on input `0` of a code with
 Gödel number at most `n` that halts on `0`. -/
@@ -280,12 +278,11 @@ theorem not_computable_bbFuel : ¬ Computable bbFuel := fun h =>
 exactly when `evaln` succeeds with fuel `bbFuel n`. -/
 theorem dom_eval_iff_isSome_evaln_bbFuel {n : ℕ} {c : Code} (hc : encode c ≤ n) :
     (c.eval 0).Dom ↔ (Code.evaln (bbFuel n) c 0).isSome := by
-  refine ⟨fun h => ?_, fun h => ?_⟩
-  · obtain ⟨k, hk⟩ := Part.dom_iff_mem.1 ((dom_evalnFuel_iff c 0).2 h)
-    obtain ⟨x, hx⟩ := Option.isSome_iff_exists.1 (mem_evalnFuel_iff.1 hk).1
-    exact Option.isSome_iff_exists.2 ⟨x, Code.evaln_mono (le_bbFuel hc hk) hx⟩
-  · obtain ⟨x, hx⟩ := Option.isSome_iff_exists.1 h
-    exact Part.dom_iff_mem.2 ⟨x, Code.evaln_sound hx⟩
+  rw [Option.isSome_iff_exists]
+  refine ⟨fun h => ?_, fun ⟨x, hx⟩ => Part.dom_iff_mem.2 ⟨x, Code.evaln_sound hx⟩⟩
+  obtain ⟨k, hk⟩ := Part.dom_iff_mem.1 ((dom_evalnFuel_iff c 0).2 h)
+  exact (Option.isSome_iff_exists.1 (mem_evalnFuel_iff.1 hk).1).imp fun _ =>
+    Code.evaln_mono (le_bbFuel hc hk)
 
 /-- A computable upper bound on `bbFuel` decides whether a code halts on `0`. This is the
 unrelativized corollary of [Aaronson, Proposition 1][Aaronson2020], which solves the halting
@@ -296,11 +293,10 @@ theorem computablePred_dom_eval_of_bbFuel_le {g : ℕ → ℕ} (hg : Computable 
     ⟨fun c => (Code.evaln (g (encode c)) c 0).isSome, ?_, funext fun c => propext ?_⟩
   · exact Primrec.option_isSome.to_comp.comp (Code.primrec_evaln.to_comp.comp
       (((hg.comp Computable.encode).pair Computable.id).pair (Computable.const 0)))
-  · refine ⟨fun h => ?_, fun h => ?_⟩
-    · obtain ⟨x, hx⟩ := Option.isSome_iff_exists.1 ((dom_eval_iff_isSome_evaln_bbFuel le_rfl).1 h)
-      exact Option.isSome_iff_exists.2 ⟨x, Code.evaln_mono (hle _) hx⟩
-    · obtain ⟨x, hx⟩ := Option.isSome_iff_exists.1 h
-      exact Part.dom_iff_mem.2 ⟨x, Code.evaln_sound hx⟩
+  · rw [Option.isSome_iff_exists]
+    refine ⟨fun h => ?_, fun ⟨x, hx⟩ => Part.dom_iff_mem.2 ⟨x, Code.evaln_sound hx⟩⟩
+    exact (Option.isSome_iff_exists.1 ((dom_eval_iff_isSome_evaln_bbFuel le_rfl).1 h)).imp fun _ =>
+      Code.evaln_mono (hle _)
 
 /-- No computable function bounds `bbFuel` from above, since it would decide the halting problem
 (`ComputablePred.halting_problem`). This is a second proof that `bbFuel` is not computable. -/
@@ -335,10 +331,10 @@ private theorem strictMono_encode_curry (d : Code) :
   intro a b hab
   have h1 := strictMono_encode_const hab
   simp only [Code.curry, Code.encodeCode_eq, Code.encodeCode] at h1 ⊢
-  have h2 := Nat.pair_lt_pair_left (Code.encodeCode Code.id) h1
+  have h2 := Nat.pair_lt_pair_left Code.id.encodeCode h1
   have h3 := Nat.pair_lt_pair_right d.encodeCode
-    (show 2 * (2 * Nat.pair (Code.const a).encodeCode Code.id.encodeCode) + 4 <
-      2 * (2 * Nat.pair (Code.const b).encodeCode Code.id.encodeCode) + 4 by omega)
+    (Nat.add_lt_add_right (Nat.mul_lt_mul_of_pos_left
+      (Nat.mul_lt_mul_of_pos_left h2 Nat.zero_lt_two) Nat.zero_lt_two) 4)
   omega
 
 /-- A family of codes `t c` that output the fuel of `c` on `0`, with sizes bounded by a computable
@@ -346,11 +342,9 @@ function of the size of `c`. -/
 private theorem exists_code_evalnFuel :
     ∃ t : Code → Code, (∀ c, (t c).eval 0 = evalnFuel c 0) ∧
       ∃ h : ℕ → ℕ, Computable h ∧ ∀ n c, encode c ≤ n → encode (t c) ≤ h n := by
-  have hp : Nat.Partrec fun p : ℕ => evalnFuel (ofNat Code p.unpair.1) 0 :=
-    Partrec.nat_iff.1 (fuelMeasure.partrec_cost.comp
-      ((Computable.ofNat Code).comp (Computable.fst.comp Computable.unpair))
-      (Computable.const 0))
-  obtain ⟨d, hd⟩ := Code.exists_code.1 hp
+  obtain ⟨d, hd⟩ := Code.exists_code.1 <| Partrec.nat_iff.1 <|
+    fuelMeasure.partrec_cost.comp
+      ((Computable.ofNat Code).comp (Computable.fst.comp Computable.unpair)) (Computable.const 0)
   refine ⟨fun c => Code.curry d (encode c), fun c => ?_, fun n => encode (Code.curry d n), ?_,
     fun n c hc => (strictMono_encode_curry d).monotone hc⟩
   · simp [Code.eval_curry, hd, ofNat_encode]

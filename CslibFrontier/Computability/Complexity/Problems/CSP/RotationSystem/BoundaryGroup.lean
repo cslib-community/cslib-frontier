@@ -48,12 +48,12 @@ private theorem collapse_step (x y : ℕ) (ys : List ℕ) :
     collapseTo x (ys.map (Function.update id y x)) ∘ Function.update id y x =
       collapseTo x (y :: ys) := by
   funext z
-  by_cases hzy : z = y
-  · simp [hzy, collapseTo]
-  · by_cases hzx : z = x
-    · simp [hzx, collapseTo, Function.update_of_ne (hzx ▸ hzy)]
+  rcases eq_or_ne z y with rfl | hzy
+  · simp [collapseTo]
+  · rcases eq_or_ne z x with rfl | hzx
+    · simp [collapseTo, Function.update_of_ne hzy]
     · have hiff (v : ℕ) : Function.update id y x v = z ↔ v = z := by
-        by_cases hvy : v = y <;> simp [hvy, Ne.symm hzx, Ne.symm hzy]
+        by_cases hvy : v = y <;> simp [hvy, hzx.symm, hzy.symm]
       simp [collapseTo, hzy, hiff]
 
 private theorem fusion_fields (tasks : List ℕ) (F : CSP Rel ℕ) (x : ℕ)
@@ -122,18 +122,14 @@ theorem fields_closeFirstMetadataRun (I : State Rel) (a : ℕ) (ks : List ℕ)
     have hK : closeFirstMetadataRun (⟨F,x::ps,c⟩ : State Rel) (a::ks) = hideHead J := by
       simp [closeFirstMetadataRun,hl,J,R]
     dsimp only
-    simp only [List.takeWhile_cons, decide_true, ↓reduceIte, List.length_cons, ← hR_def]
-    rw [hC, hK]
+    simp only [List.takeWhile_cons, decide_true, ↓reduceIte, List.length_cons, ← hR_def, hC, hK]
     have hd : (hideHead J).rotation =
         restrictPrefix (2*(F.occurrences.length+rest.length)) J.rotation := by
       simp only [hideHead,hf.2,hm,List.length_map]
-    refine ⟨?_, ?_, ?_, ?_⟩
-    · simpa only [hideHead, hf.2] using hf.1
-    · simp only [hideHead, hf.2, rest, List.drop_succ_cons]
+    refine ⟨by simpa only [hideHead, hf.2] using hf.1,
+      by simp only [hideHead, hf.2, rest, List.drop_succ_cons], ?_, fun v hv => ?_⟩
     · rw [hd, length_restrictPrefix]; simp only [rest, List.length_drop]; omega
-    · rw [hd]
-      intro v hv
-      have hv' := entries_restrictPrefix_lt _ _ v hv
+    · have hv' := entries_restrictPrefix_lt _ _ v (hd ▸ hv)
       simp only [rest, List.length_drop] at hv' ⊢; omega
 
 /-- Mismatch and empty metadata retain every raw field, without normalization. -/
@@ -206,10 +202,9 @@ theorem names_closeFirstMetadataRun_subset (I : State Rel) (keys : List ℕ) :
       intro z hz
       obtain ⟨v,hv,rfl⟩ := List.mem_map.mp hz
       split
-      · apply List.mem_append_right
-        cases hp : I.ports with
-        | nil => simp only [hp,List.length_nil,List.length_cons] at hl; omega
-        | cons x ps => simp
+      · cases hp : I.ports with
+        | nil => simp [hp] at hl
+        | cons _ _ => exact List.mem_append_right _ List.mem_cons_self
       · rcases List.mem_append.mp hv with hv | hv
         · exact List.mem_append_left _ hv
         · exact List.mem_append_right _ ((List.drop_sublist _ _).subset hv)
@@ -243,13 +238,9 @@ theorem forward_closeFirstMetadataRun (sem : Rel → List Bool → Bool) (I : St
       (∀ z, τ z = σ z) ∧ (closeFirstMetadataRun I (a::ks)).ports.map τ=
         (I.ports.drop ((a::ks).takeWhile (fun b => decide (b = a))).length).map σ := by
   have hf := fields_closeFirstMetadataRun I a ks hl
-  dsimp only at hf
   have ha : (σ ∘ fun z => if z ∈ I.ports.take
       ((a::ks).takeWhile (fun b => decide (b = a))).length then I.ports.headD 0 else z) = σ :=
-    funext fun z => by
-      dsimp only [Function.comp_apply]
-      split_ifs with hz
-      exacts [(he z hz).symm, rfl]
+    funext fun z => (apply_ite σ _ _ _).trans (ite_eq_right_iff.mpr fun hz => (he z hz).symm)
   exact ⟨σ, by rwa [hf.1, CSP.eval_relabel, ha], fun _ => rfl,
     by rw [hf.2.1, List.map_map, ha]⟩
 

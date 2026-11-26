@@ -110,9 +110,7 @@ private theorem eval_iterate_eq_sentinel {ι : Type u} {s : Finset ι} {n : ℕ 
       (herr m (le_refl m) y hy)).1
     have hlarge := three_mul_scale_le_of_small_error hθ hmargin (by grind) he hraw (hloss y hy 0)
     have hv : θ ≤ actual.row y 0 := by
-      dsimp only [actual, a]
-      rw [hc.2.1 y hmarked]
-      simp only [uncompressedRow, Pi.add_apply] at hlarge ⊢
+      simp only [actual, a, hc.2.1 y hmarked, uncompressedRow, Pi.add_apply] at hlarge ⊢
       linarith
     rw [sentinelFirst_zero_of_mem hmarked, sentinelFirst_one]
     exact hsaturate _ _ _ _ hv (by dsimp only [L]; linarith)
@@ -178,9 +176,8 @@ theorem exists_iterate_root_bound (hθ : 0 < θ) :
         hfirst hsecond hloss hcount (by intros; norm_num)
         (by intros; simp [uncompressedRow, clippedError])
         (by simp [prefixErrorBudget]) y hy
-      have hzero (D : Finset ι) : sentinelFirst D 0 (0 : ι → Fin 2 → ℝ) = 0 := by
-        funext y ν
-        simp [sentinelFirst]
+      have hzero (D : Finset ι) : sentinelFirst D 0 (0 : ι → Fin 2 → ℝ) = 0 :=
+        funext fun _ => funext fun _ => by simp [sentinelFirst]
       dsimp only at ha hb
       rw [hzero] at hb
       have hs := (iterate_sentinelState_stability_of_clippedError_le
@@ -209,12 +206,10 @@ theorem exists_iterate_root_bound (hθ : 0 < θ) :
       have hcard : K ≤ #D := not_lt.mp hcount
       have hraw (i : ℕ) (hi : i ≤ m) (y : ι) (hy : y ∈ D) :
           3 * θ ≤ uncompressedRow Δ a.row i y 0 := by
-        have hys := hDs hy
-        have hlarge := three_mul_scale_le_of_small_error hθ hmargin (mem_filter.mp hy).2 (he i hi)
-          (abs_sub_le_of_clippedError_le (hfirst y hys) (hεlt i hi) (herr i hi y hys)).1
-          (hloss y hys 0)
-        simpa only [a, uncompressedRow, Pi.add_apply, add_assoc, add_comm, add_left_comm]
-          using hlarge
+        simpa only [a, uncompressedRow, Pi.add_apply, add_assoc, add_comm, add_left_comm] using
+          three_mul_scale_le_of_small_error hθ hmargin (mem_filter.mp hy).2 (he i hi)
+            (abs_sub_le_of_clippedError_le (hfirst y (hDs hy)) (hεlt i hi)
+              (herr i hi y (hDs hy))).1 (hloss y (hDs hy) 0)
       have hreference (i : ℕ) (_hi : i ≤ m) (y : ι) (hy : y ∈ D) :
           3 * θ ≤ uncompressedRow (fun _ => 0) b.row i y 0 := by
         simp only [b, uncompressedRow, Pi.zero_apply, sum_const_zero, add_zero, Pi.add_apply]
@@ -223,9 +218,7 @@ theorem exists_iterate_root_bound (hθ : 0 < θ) :
         (K := fun _ => K) (ρ := ρ) hθ hK hDs hcard m hraw
       have hqb := le_iterate_firstRank_of_raw_large (s := s) (n := n)
         (K := fun _ => K) (ρ := ρ) hθ hK hDs hcard m hreference
-      unfold stateRootError
-      rw [hgate _ _ _ hqa, hgate _ _ _ hqb, sub_self, abs_zero]
-      positivity
+      rw [stateRootError, hgate _ _ _ hqa, hgate _ _ _ hqb, sub_self, abs_zero]; positivity
   · exact (hrange s K actual reference y).trans
       (by nlinarith [not_le.mp hsmall, mul_nonneg hA (mul_nonneg hc0 hE0)])
 

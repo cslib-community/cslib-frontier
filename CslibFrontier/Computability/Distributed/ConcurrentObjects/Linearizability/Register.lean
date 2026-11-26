@@ -82,12 +82,10 @@ private theorem resp_ext_eq_nil_of_even_proc {P Obj : Type*} {Op Resp : Obj → 
     cases e with
     | inv _ _ _ => exact Bool.noConfusion (hrespR _ List.mem_cons_self)
     | resp p x res =>
-      have hp := hwf' p
-      rw [History.procSubhistory_append] at hp
-      have hresp_p : History.IsRespList (History.procSubhistory (.resp p x res :: rs) p) :=
-        fun a ha => hrespR a (List.mem_filter.mp ha).1
-      have hnil_p :=
-        History.isRespList_eq_nil_of_isSequential_even (hwf p) (hev p) hresp_p hp
+      have hnil_p := History.isRespList_eq_nil_of_isSequential_even
+        (R := History.procSubhistory (.resp p x res :: rs) p) (hwf p) (hev p)
+        (fun a ha => hrespR a (List.mem_filter.mp ha).1)
+        (History.procSubhistory_append H (.resp p x res :: rs) p ▸ hwf' p)
       simp only [History.procSubhistory_cons, Event.proc_resp, ↓reduceIte] at hnil_p
       nomatch hnil_p
 
@@ -161,9 +159,8 @@ theorem exists_sequentiallyConsistent_not_linearizable :
       exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, trivial⟩
     · intro b; cases b <;> rfl
   · rintro ⟨H', ⟨R, hrespR, rfl, hwf'⟩, S, hseqS, hlegS, heqS, hprecS⟩
-    have hR_nil : R = [] :=
+    obtain rfl : R = [] :=
       resp_ext_eq_nil_of_even_proc hwfH (fun b => by cases b <;> decide) hrespR hwf'
-    subst hR_nil
     rw [List.append_nil] at hwf' heqS hprecS
     have hpr_S := hprecS ⟨false, 0⟩ ⟨true, 0⟩ rfl rfl ⟨1, 2, rfl, rfl, by omega⟩
     have hevS := History.even_length_of_equivalent_complete hwf' hseqS heqS
@@ -178,15 +175,14 @@ theorem exists_sequentiallyConsistent_not_linearizable :
     match cs, hlen_cs with
     | [c₀, c₁], _ =>
       have hleg0 := hlegS ()
-      unfold registerSeqSpec at hleg0
+      dsimp only [registerSeqSpec] at hleg0
       rw [History.objSubhistory_eq_self_of_forall_obj (fun _ _ => rfl),
         SeqSpec.mem_ofMachine_allowed] at hleg0
       cases hp₀ : c₀.proc
       · cases hp₁ : c₁.proc
-        · have ht := heqS true
-          simp only [History.procSubhistory_flatMap_toEvents, List.filter, hp₀, hp₁,
-            Bool.false_eq_true, decide_false, List.flatMap_nil] at ht
-          nomatch ht
+        · suffices H.complete.procSubhistory true = [] by nomatch this
+          simpa only [History.procSubhistory_flatMap_toEvents, List.filter, hp₀, hp₁,
+            Bool.false_eq_true, decide_false, List.flatMap_nil] using heqS true
         · obtain rfl : c₀ = ⟨false, (), .write true, .writeAck⟩ :=
             List.singleton_injective <| flatMap_toEvents_injective <| ((heqS false).trans (by
               simp only [History.procSubhistory_flatMap_toEvents, List.filter, hp₀, hp₁,
@@ -206,10 +202,9 @@ theorem exists_sequentiallyConsistent_not_linearizable :
             Nat.zero_add, decide_true, decide_false, Bool.true_eq_false, ↓reduceIte,
             Option.map_some, Option.some.injEq] at hr hi
           omega
-        · have hf := heqS false
-          simp only [History.procSubhistory_flatMap_toEvents, List.filter, hp₀, hp₁,
-            Bool.true_eq_false, decide_false, List.flatMap_nil] at hf
-          nomatch hf
+        · suffices H.complete.procSubhistory false = [] by nomatch this
+          simpa only [History.procSubhistory_flatMap_toEvents, List.filter, hp₀, hp₁,
+            Bool.true_eq_false, decide_false, List.flatMap_nil] using heqS false
 
 /-- Original explicit 2-process, 2-register **non-locality of sequential consistency** witness
 (register counterpart of two-queue history `H_8` in [HerlihyWing1990], §3.3, p. 472): there exists a
@@ -239,9 +234,8 @@ theorem exists_obj_sequentiallyConsistent_not_global :
         <;> first | trivial | exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, trivial⟩
     · intro p; cases x <;> cases p <;> rfl
   · rintro ⟨H', ⟨R, hrespR, rfl, hwf'⟩, S, hseqS, hlegS, heqS⟩
-    have hR_nil : R = [] :=
+    obtain rfl : R = [] :=
       resp_ext_eq_nil_of_even_proc hwfH (fun b => by cases b <;> decide) hrespR hwf'
-    subst hR_nil
     rw [List.append_nil] at hwf' heqS
     have hevS := History.even_length_of_equivalent_complete hwf' hseqS heqS
     obtain ⟨cs, rfl⟩ := History.exists_calls_of_isSequential_even hseqS hevS
@@ -250,8 +244,6 @@ theorem exists_obj_sequentiallyConsistent_not_global :
       rw [History.procSubhistory_flatMap_toEvents, History.length_flatMap_toEvents,
         (by cases b <;> rfl : (History.procSubhistory (History.complete H) b).length = 4)] at hb
       dsimp only [countProcCalls]; omega
-    have hcF0 := hc_cnt false
-    have hcT0 := hc_cnt true
     have hop_ex (b : Bool) (i : ℕ) (hi : i < 2) :=
       exists_opIdAt_of_lt_countProcCalls cs ⟨b, i⟩ (hc_cnt b ▸ hi)
     obtain ⟨jF0, hjF0, hopF0⟩ := hop_ex false 0 (by decide)
@@ -280,42 +272,37 @@ theorem exists_obj_sequentiallyConsistent_not_global :
       exact (prec_flatMap_toEvents_opIdAt_iff cs hj0 hj1).mp hpr
     have hjF_lt := hj_ord false hjF0 hjF1 hopF0 hopF1
     have hjT_lt := hj_ord true hjT0 hjT1 hopT0 hopT1
-    have hval_at : ∀ (j : ℕ) (hj : j < cs.length) (b : Bool) (idx : ℕ),
-        opIdAt cs j hj = ⟨b, idx⟩ →
-          ∃ hlt : idx < (cs.filter fun c => decide (c.proc = b)).length,
-            (cs.filter fun c => decide (c.proc = b))[idx]'hlt = cs[j] := by
-      intro j hj b idx hop
+    have hval_at {j b idx} (hj : j < cs.length) (hop : opIdAt cs j hj = ⟨b, idx⟩) :
+        (cs.filter fun c => decide (c.proc = b))[idx]? = some cs[j] := by
       have hpb : cs[j].proc = b := congrArg OpId.proc hop
-      have hidx : ((cs.take j).filter fun c => decide (c.proc = b)).length = idx := by
+      obtain rfl : ((cs.take j).filter fun c => decide (c.proc = b)).length = idx := by
         simpa only [opIdAt, countProcCalls, hpb] using congrArg OpId.idx hop
-      subst hidx
-      exact List.filter_getElem_count_take (fun c => decide (c.proc = b)) cs j hj
-        (decide_eq_true hpb)
-    obtain ⟨_, hgetF0⟩ := hval_at jF0 hjF0 false 0 hopF0
-    obtain ⟨_, hgetF1⟩ := hval_at jF1 hjF1 false 1 hopF1
-    obtain ⟨_, hgetT0⟩ := hval_at jT0 hjT0 true 0 hopT0
-    obtain ⟨_, hgetT1⟩ := hval_at jT1 hjT1 true 1 hopT1
-    simp only [hcs_F, List.getElem_cons_zero, List.getElem_cons_succ] at hgetF0 hgetF1
-    simp only [hcs_T, List.getElem_cons_zero, List.getElem_cons_succ] at hgetT0 hgetT1
-    have hlen_cs4 : cs.length = 4 := by
-      have h := filter_proc_bool_length_sum cs
-      dsimp only [countProcCalls] at hcF0 hcT0
-      omega
+      exact List.getElem?_eq_some_iff.mpr
+        (List.filter_getElem_count_take _ cs j hj (decide_eq_true hpb))
+    have hgetF0 := Option.some.inj (hcs_F ▸ hval_at hjF0 hopF0).symm
+    have hgetF1 := Option.some.inj (hcs_F ▸ hval_at hjF1 hopF1).symm
+    have hgetT0 := Option.some.inj (hcs_T ▸ hval_at hjT0 hopT0).symm
+    have hgetT1 := Option.some.inj (hcs_T ▸ hval_at hjT1 hopT1).symm
+    have hne_FT {j0 j1 i0 i1} {h0 : j0 < cs.length} {h1 : j1 < cs.length}
+        (e0 : opIdAt cs j0 h0 = ⟨false, i0⟩) (e1 : opIdAt cs j1 h1 = ⟨true, i1⟩) : j0 ≠ j1 := by
+      rintro rfl
+      nomatch e0.symm.trans e1
+    have hne00 := hne_FT hopF0 hopT0
+    have hne01 := hne_FT hopF0 hopT1
+    have hne10 := hne_FT hopF1 hopT0
+    have hne11 := hne_FT hopF1 hopT1
+    have hlen_cs4 : cs.length = 4 :=
+      (filter_proc_bool_length_sum cs).symm.trans (congrArg₂ (· + ·) (hc_cnt false) (hc_cnt true))
     obtain ⟨c0, c1, c2, c3, rfl⟩ : ∃ c0 c1 c2 c3, cs = [c0, c1, c2, c3] := by
       match cs, hlen_cs4 with
       | [c0, c1, c2, c3], _ => exact ⟨c0, c1, c2, c3, rfl⟩
-    have hne_FT00 : jF0 ≠ jT0 := fun h => by subst h; rw [hopF0] at hopT0; nomatch hopT0
-    have hne_FT01 : jF0 ≠ jT1 := fun h => by subst h; rw [hopF0] at hopT1; nomatch hopT1
-    have hne_FT10 : jF1 ≠ jT0 := fun h => by subst h; rw [hopF1] at hopT0; nomatch hopT0
-    have hne_FT11 : jF1 ≠ jT1 := fun h => by subst h; rw [hopF1] at hopT1; nomatch hopT1
     simp only [List.length_cons, List.length_nil] at hjF0 hjF1 hjT0 hjT1
     have hnot_F0_lt_T1 : ¬ jF0 < jT1 :=
       dekker_write_not_lt_stale_read false (hlegS false) hjF0 hjF1 hjT0 hjT1 hjF_lt hjT_lt
-        hne_FT00 hne_FT01 hne_FT10 hne_FT11 hgetF0.symm hgetF1.symm hgetT0.symm hgetT1.symm
+        hne00 hne01 hne10 hne11 hgetF0 hgetF1 hgetT0 hgetT1
     have hnot_T0_lt_F1 : ¬ jT0 < jF1 :=
       dekker_write_not_lt_stale_read true (hlegS true) hjT0 hjT1 hjF0 hjF1 hjT_lt hjF_lt
-        hne_FT00.symm hne_FT10.symm hne_FT01.symm hne_FT11.symm
-        hgetT0.symm hgetT1.symm hgetF0.symm hgetF1.symm
+        hne00.symm hne10.symm hne01.symm hne11.symm hgetT0 hgetT1 hgetF0 hgetF1
     omega
 
 end Cslib.Distributed.ConcurrentObjects

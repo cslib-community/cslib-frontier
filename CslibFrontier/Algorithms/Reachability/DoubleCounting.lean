@@ -172,12 +172,8 @@ theorem passes_iff {w : Transcript α} :
     refine ⟨fun v hv => ?_, fun v hv => ?_⟩
     · have hmem : v ∈ selected w := hselected ▸ hv
       obtain ⟨p, hp⟩ := mem_selected.mp hmem
-      have heq : guessedLength w v = distance r s v := by
-        apply (hle v hmem).antisymm'
-        by_contra! hlt
-        rw [← hselected] at hsum
-        exact not_lt_of_ge hsum.le (Finset.sum_lt_sum hle ⟨v, hmem, hlt⟩)
-      exact ⟨p, hp, (hwalk v p hp).1, heq ▸ guessedLength_spec hp (hwalk v p hp).1⟩
+      have heq := (Finset.sum_eq_sum_iff_of_le hle).mp (hselected ▸ hsum.symm) v hmem
+      exact ⟨p, hp, (hwalk v p hp).1, by rw [guessedLength_spec hp (hwalk v p hp).1, heq]⟩
     · exact Option.eq_none_iff_forall_not_mem.mpr fun p hp =>
         hv (hselected ▸ mem_selected.mpr ⟨p, hp⟩)
   · rintro ⟨hin, hout⟩
@@ -257,9 +253,8 @@ theorem round_zero {α : Type*} [Fintype α] (r : α → α → Prop) (s : α) :
 /-- The initial tally counts the source, at distance zero. -/
 theorem expected_zero {α : Type*} [Fintype α] (r : α → α → Prop) (s : α) :
     expected r s 0 = ⟨1, 0⟩ := by
-  have hmem : s ∈ round r s 0 := by simp [round_zero]
-  have hd := (distance_spec (mem_round.mp hmem)).2
-  simp [expected, round_zero, Nat.eq_zero_of_le_zero hd]
+  have h0 : s ∈ reachableWithin r s 0 := by simp [reachableWithin_zero]
+  simp [expected, round_zero, Nat.eq_zero_of_le_zero (distance_spec h0).2]
 
 /-- The only successful radius-zero transcript selects the singleton walk at the source. -/
 theorem existsUnique_passes_zero {α : Type*} [Fintype α] (r : α → α → Prop) (s : α) :
@@ -268,8 +263,8 @@ theorem existsUnique_passes_zero {α : Type*} [Fintype α] (r : α → α → Pr
   rw [existsUnique_passes_iff, round_zero]
   intro v hv
   obtain rfl := mem_singleton.mp hv
-  have hd := Nat.eq_zero_of_le_zero
-    (distance_spec (mem_round.mp (by simp [round_zero] : v ∈ round r v 0))).2
+  have h0 : v ∈ reachableWithin r v 0 := by simp [reachableWithin_zero]
+  have hd := Nat.eq_zero_of_le_zero (distance_spec h0).2
   refine ⟨[v], ⟨List.isChainFromTo_singleton, by simp [hd]⟩, fun p hp => ?_⟩
   obtain ⟨a, rfl⟩ := List.length_eq_one_iff.mp (by simpa [hd] using hp.2)
   simpa using hp.1.getLast_eq
@@ -304,14 +299,12 @@ theorem existsUnique_passes_reindex {α β : Type*} [Fintype α] [Fintype β] (i
   have shortest (v : α) (hv : v ∈ round r s k) :
       (∃! p : List α, p.IsChainFromTo r s v ∧ p.length = distance r s v + 1) ↔
         ∃! p : List β, p.IsChainFromTo r' (index s) (index v) ∧
-          p.length = distance r' (index s) (index v) + 1 := by
-    apply index.listEquivOfEquiv.existsUnique_congr
-    intro xs
-    change (_ ∧ _) ↔ (xs.map index).IsChainFromTo r' (index s) (index v) ∧
-      (xs.map index).length = distance r' (index s) (index v) + 1
-    rw [List.length_map, ← dist v hv]
-    refine and_congr_left fun _ => ⟨chainMap index toIndex, fun h => ?_⟩
-    simpa [List.map_map, Function.comp_def] using chainMap index.symm (fun _ _ => id) h
+          p.length = distance r' (index s) (index v) + 1 :=
+    index.listEquivOfEquiv.existsUnique_congr fun xs => by
+      simp only [Equiv.listEquivOfEquiv, Equiv.coe_fn_mk, List.length_map, ← dist v hv,
+        and_congr_left_iff]
+      exact fun _ => ⟨chainMap index toIndex, fun h => by
+        simpa [List.map_map, Function.comp_def] using chainMap index.symm (fun _ _ => id) h⟩
   rw [existsUnique_passes_iff, existsUnique_passes_iff]
   refine ⟨fun h v hv => ?_, fun h v hv => (shortest v hv).mpr (h _ ((memRound v).mp hv))⟩
   have hm := (memRound (index.symm v)).mpr (by simpa using hv)

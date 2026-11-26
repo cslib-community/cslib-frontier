@@ -174,21 +174,18 @@ theorem progress_step {w L j : ℕ} (hw : 0 < w) (hj : j < L) (side : Bool)
   have hload : ∀ i < 10 * P * n, ∀ a,
       x.mem (source L j + (i / (10 * n) * 7 + a.val) * n + i % n) = encode (v i a) := by
     intro i hi a
-    have hp : i / (10 * n) < 10 ^ j := by
-      apply (Nat.div_lt_iff_lt_mul (by positivity : 0 < 10 * n)).mpr
-      dsimp only [P] at hi
-      nlinarith only [hi]
+    have hp : i / (10 * n) < 10 ^ j :=
+      Nat.div_lt_of_lt_mul (by dsimp only [P] at hi; nlinarith only [hi])
     have hidx : source L j + (i / (10 * n) * 7 + a.val) * n + i % n =
         source L j + i / (10 * n) * 7 ^ (L - j) + (a.val * n + i % n) := by
       rw [hstride]
       ring
     rw [hidx, hx.values _ hp _ (by rw [hk]; exact hsuffix i a), hk]
   have hvalue : 7 * B < (2 : ℤ) ^ (w - 1) := by
-    have hpow : 7 ^ (j + 1) ≤ 7 ^ L := Nat.pow_le_pow_right (by decide) (by omega)
-    have hpowZ : ((7 ^ (j + 1) : ℕ) : ℤ) ≤ (7 ^ L : ℕ) := by exact_mod_cast hpow
-    have hprod := mul_le_mul_of_nonneg_right hpowZ hA
+    have hpowZ : ((7 ^ (j + 1) : ℕ) : ℤ) ≤ (7 ^ L : ℕ) :=
+      mod_cast Nat.pow_le_pow_right (by decide) hj
     simpa only [Nat.pow_succ', Nat.cast_mul, Nat.cast_ofNat, mul_assoc, B] using
-      hprod.trans_lt hmag
+      (mul_le_mul_of_nonneg_right hpowZ hA).trans_lt hmag
   have hbound := buffer_address_le L j
   have hcap : 1 ≤ 10 ^ L := Nat.one_le_pow L 10 (by decide)
   have hnative : Fits (w + 2) (source L j + destination L j + 64 + 64 * P * n) :=
@@ -212,12 +209,9 @@ theorem progress_step {w L j : ℕ} (hw : 0 < w) (hj : j < L) (side : Bool)
     have hpp' : p < 10 * P := by simpa only [pow_succ', P] using hpp
     have hprod := Nat.mul_le_mul_right n (Nat.succ_le_of_lt hpp')
     have hi : p * n + r < 10 * P * n := by nlinarith only [hprod, hrr']
-    have hdiv : (p * n + r) / n = p := Nat.mul_add_div_of_lt p hrr'
-    have hmod : (p * n + r) % n = r := Nat.mul_add_mod_of_lt hrr'
     have hvout := hm (p * n + r) hi
-    rw [show stageResult side n v (p * n + r) = value (table (coefficients side))
-      (j + 1) k arr ((p * n + r) / n) ((p * n + r) % n) from stageResult_value side j k _ arr,
-      hdiv, hmod] at hvout
+    rw [stageResult_value side j k (p * n + r) arr, Nat.mul_add_div_of_lt p hrr',
+      Nat.mul_add_mod_of_lt hrr'] at hvout
     simpa only [source, n, k, Nat.add_assoc] using hvout
   · refine fun a haout => (hf a ?_).trans (hx.frame a haout)
     rcases destination_cases L j with hd | hd <;> rw [hd] <;> unfold scratchBase at * <;> omega

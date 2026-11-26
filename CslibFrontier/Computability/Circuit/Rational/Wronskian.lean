@@ -140,10 +140,8 @@ lemma wronskian_order_of_distinct_orders {K : Type*} [Field K] [CharZero K]
         (Matrix.of fun i j : Fin h => derivative^[i.val] (f j))
   have hw : wronskianFamily f ≠ 0 := fun hz => hA0 (by rw [hscale, hz, mul_zero])
   refine ⟨hw, ?_⟩
-  have ho : A.det.natTrailingDegree = ∑ j, (f j).natTrailingDegree := by
-    rw [hdet, mul_comm, natTrailingDegree_mul_X_pow hB0,
-      natTrailingDegree_eq_zero.mpr (Or.inr hBc), zero_add]
-  rwa [hscale, mul_comm, natTrailingDegree_mul_X_pow hw] at ho
+  rw [← natTrailingDegree_mul_X_pow hw, mul_comm, ← hscale, hdet, mul_comm,
+    natTrailingDegree_mul_X_pow hB0, natTrailingDegree_eq_zero.mpr (Or.inr hBc), zero_add]
 
 /-- A nonzero polynomial of degree `< d + 1` whose degree-`d` coefficient vanishes has degree
 `< d`. -/
@@ -251,8 +249,8 @@ lemma exists_order_echelon_family {K : Type*} [Field K]
   obtain ⟨h, g, hgLI, hgspan, hgdeg⟩ := exists_degree_echelon_family d W hW
   have hgW : ∀ i, g i ∈ W := fun i => hgspan.le (Submodule.subset_span ⟨i, rfl⟩)
   refine ⟨h, fun i => e.symm (g i), hgLI.map' e.symm.toLinearMap (by simp), ?_, ?_⟩
-  · rw [show (fun i => e.symm (g i)) = e.symm.toLinearMap ∘ g from rfl, Set.range_comp,
-      ← Submodule.map_span, hgspan, ← Submodule.map_comp]
+  · change Submodule.span K (Set.range (e.symm.toLinearMap ∘ g)) = V
+    rw [Set.range_comp, ← Submodule.map_span, hgspan, ← Submodule.map_comp]
     simp
   · intro i j hij
     change (reflect (d - 1) (g i)).natTrailingDegree =
@@ -262,7 +260,7 @@ lemma exists_order_echelon_family {K : Type*} [Field K]
     rw [order_reflect _ _ (hgLI.ne_zero i) (by omega),
       order_reflect _ _ (hgLI.ne_zero j) (by omega)] at hij
     apply hgdeg
-    dsimp only; omega
+    dsimp only at hij ⊢; omega
 
 lemma wronskian_linearCombination {K : Type*} [CommRing K] {h : ℕ}
     (f : Fin h → K[X]) (A : Matrix (Fin h) (Fin h) K) :
@@ -333,11 +331,7 @@ lemma iterate_derivative_taylor {K : Type*} [CommRing K] (a : K)
 lemma wronskian_taylor {K : Type*} [CommRing K] {h : ℕ}
     (a : K) (f : Fin h → K[X]) :
     wronskianFamily (fun j => taylor a (f j)) = taylor a (wronskianFamily f) := by
-  unfold wronskianFamily
-  have he : (Matrix.of fun i j : Fin h => derivative^[i.val] (taylor a (f j))) =
-      (Matrix.of fun i j : Fin h => derivative^[i.val] (f j)).map (taylorEquiv a) :=
-    Matrix.ext fun i j => iterate_derivative_taylor a (f j) i.val
-  rw [he]
+  simp_rw [wronskianFamily, iterate_derivative_taylor]
   exact ((taylorEquiv a).toRingHom.map_det _).symm
 
 lemma natDegree_wronskian_le {K : Type*} [CommRing K] {h : ℕ}

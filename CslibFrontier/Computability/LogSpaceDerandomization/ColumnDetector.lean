@@ -225,9 +225,7 @@ private theorem card_X (hch : RetentionChannels X Y f π cπ Cπ Cpair Cvar) (v 
   have h := hch.dens_X v
   rw [dens_cast] at h
   rcases (Fintype.card ι).eq_zero_or_pos with h0 | h0
-  · have : (#({s | X s v} : Finset ι)) = 0 := Nat.eq_zero_of_le_zero
-      (h0 ▸ card_le_univ _)
-    simp [this, h0]
+  · simp [Nat.eq_zero_of_le_zero (h0 ▸ card_le_univ _), h0]
   · rw [← h]; field_simp
 
 /-- **Detected columns have many substantial entries** [OpenAI2026LogSpace, Lemma 4.3 (2)]: if
@@ -284,10 +282,8 @@ omit [Fintype V] in
 private theorem card_pos_of_dens {α : Type*} [Fintype α] {s : Finset α} {π : ℝ} (hπ : 0 < π)
     (h : (dens s : ℝ) = π) : 0 < Fintype.card α ∧ 0 < #s := by
   rw [dens_cast] at h
-  rcases (Fintype.card α).eq_zero_or_pos with h0 | h0
-  · simp [h0] at h; linarith
-  refine ⟨h0, Nat.pos_of_ne_zero fun hs => ?_⟩
-  simp [hs] at h; linarith
+  exact ⟨Nat.pos_of_ne_zero fun h0 => by simp [h0] at h; linarith,
+    Nat.pos_of_ne_zero fun hs => by simp [hs] at h; linarith⟩
 
 /-- **Columns with many large entries are detected** [OpenAI2026LogSpace, Lemma 4.3 (1)]. Let the
 rows of `G ≥ 0` sum to at most `k`, let `ϕ` be one from `δ₁`, let `ρ ≤ 1` be one through `η > 0`,
@@ -310,8 +306,7 @@ theorem le_columnDetector (hch : RetentionChannels X Y f π cπ Cπ Cpair Cvar) 
   have hπ : 0 < π := (mul_pos hcπ hf).trans_le hch.lower
   have hJr : (0 : ℝ) < J := by exact_mod_cast hJ
   have hnπ : cπ * R < #A * π := by
-    have h1 : R < #A * f := by rwa [div_lt_iff₀ hf] at hy
-    linarith [mul_lt_mul_of_pos_left h1 hcπ,
+    linarith [mul_lt_mul_of_pos_left ((div_lt_iff₀ hf).1 hy) hcπ,
       mul_le_mul_of_nonneg_left hch.lower (Nat.cast_nonneg (α := ℝ) #A)]
   have hnπ0 : 0 < (#A : ℝ) * π := by linarith
   have hA : A.Nonempty := card_pos.1 (Nat.cast_pos.1 (pos_of_mul_pos_left hnπ0 hπ.le))

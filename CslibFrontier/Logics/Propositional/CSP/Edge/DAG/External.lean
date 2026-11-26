@@ -37,19 +37,10 @@ theorem PairedCopies.full_copy {S : DAG F} (hT : T.PairedCopies) (hS : S.PairedC
     e ∈ S.arcs := by
   obtain ⟨a, ha, b, hb, _, hac, hbc, hab, hpairS⟩ := hS e.copy hc
   obtain ⟨c, hcm, d, hdm, _, hcc, hdc, _, hpairT⟩ := hT e.copy (hst.2.1 hc)
-  have hea := hpairT a (hst.2.2 ha) hac
-  have heb := hpairT b (hst.2.2 hb) hbc
-  rcases hpairT e he rfl with rfl | rfl
-  · rcases hea with rfl | hea
-    · exact ha
-    · rcases heb with rfl | heb
-      · exact hb
-      · exact (hab (hea.trans heb.symm)).elim
-  · rcases hea with hea | rfl
-    · rcases heb with heb | rfl
-      · exact (hab (hea.trans heb.symm)).elim
-      · exact hb
-    · exact ha
+  rcases hpairT a (hst.2.2 ha) hac with rfl | rfl <;>
+    rcases hpairT b (hst.2.2 hb) hbc with rfl | rfl <;>
+    rcases hpairT e he rfl with rfl | rfl <;>
+    first | exact absurd rfl hab | assumption
 
 /-- Keep whole selected copies and one boundary arc at a further copy. Isolated old variables
 remain in the support, so externality can still be checked against the original blossom. -/

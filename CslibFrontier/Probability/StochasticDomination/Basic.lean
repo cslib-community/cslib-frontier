@@ -81,22 +81,16 @@ private theorem lintegral_eq_lintegral_ennreal_lt {α : Type*} [MeasurableSpace 
       (measurableSet_lt (ENNReal.measurable_ofReal.comp measurable_snd) (hf.comp measurable_fst))
   have hpoint (x : α) :
       f x = ∫⁻ t : ℝ, S.indicator (fun _ => (1 : ℝ≥0∞)) (x, t) ∂volume := by
-    let Tx : Set ℝ := {t : ℝ | 0 < t ∧ ENNReal.ofReal t < f x}
-    have hTxm : MeasurableSet Tx :=
-      (measurableSet_lt measurable_const measurable_id).inter
-        (measurableSet_lt ENNReal.measurable_ofReal measurable_const)
-    have hslice : (fun t : ℝ => S.indicator (fun _ => (1 : ℝ≥0∞)) (x, t)) =
-        Tx.indicator (1 : ℝ → ℝ≥0∞) :=
-      funext fun t => by simp [S, Tx, Set.indicator_apply]
-    rw [hslice, lintegral_indicator hTxm]
-    simp only [Pi.one_apply, lintegral_const, MeasurableSet.univ, Measure.restrict_apply,
-      Set.univ_inter, one_mul]
     by_cases htop : f x = ⊤
-    · have hset : Tx = Set.Ioi 0 := Set.ext fun t => by simp [Tx, htop]
-      rw [hset, Real.volume_Ioi, htop]
-    · have hset : Tx = Set.Ioo 0 (f x).toReal := Set.ext fun t =>
-        and_congr_right fun ht0 => ENNReal.ofReal_lt_iff_lt_toReal ht0.le htop
-      rw [hset, Real.volume_Ioo, sub_zero, ENNReal.ofReal_toReal htop]
+    · have hslice : (fun t : ℝ => S.indicator (fun _ => (1 : ℝ≥0∞)) (x, t)) =
+          (Set.Ioi 0).indicator 1 := funext fun t => by simp [S, htop, Set.indicator_apply]
+      rw [hslice, lintegral_indicator_one measurableSet_Ioi, Real.volume_Ioi, htop]
+    · have hslice : (fun t : ℝ => S.indicator (fun _ => (1 : ℝ≥0∞)) (x, t)) =
+          (Set.Ioo 0 (f x).toReal).indicator 1 := funext fun t => by
+        simp [S, Set.indicator_apply, and_congr_right fun ht0 : 0 < t =>
+          ENNReal.ofReal_lt_iff_lt_toReal ht0.le htop]
+      rw [hslice, lintegral_indicator_one measurableSet_Ioo, Real.volume_Ioo, sub_zero,
+        ENNReal.ofReal_toReal htop]
   calc
     ∫⁻ x, f x ∂μ
       = ∫⁻ x, ∫⁻ t : ℝ, S.indicator (fun _ => (1 : ℝ≥0∞)) (x, t) ∂volume ∂μ :=
@@ -111,8 +105,7 @@ private theorem lintegral_eq_lintegral_ennreal_lt {α : Type*} [MeasurableSpace 
                 {x | ENNReal.ofReal t < f x}.indicator 1 :=
               funext fun x => by simp [S, ht, Set.indicator_apply]
             rw [Set.indicator_of_mem ht, hslice,
-              lintegral_indicator (measurableSet_lt measurable_const hf)]
-            simp
+              lintegral_indicator_one (measurableSet_lt measurable_const hf)]
           · simp [S, ht]
 
 namespace StochasticallyDominates

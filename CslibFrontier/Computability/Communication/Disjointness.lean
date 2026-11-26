@@ -275,9 +275,7 @@ private theorem four_mul_sum_filter_le (hU : Fintype.card U = 2 * m + 1)
   have hconst : (18 : ℝ) * ((#(powersetCard m (univ : Finset U)) * (m + 1) : ℕ) : ℝ) * 4 ^ m *
       (27 / 32) ^ r = ∑ _Ty ∈ powersetCard m (univ : Finset U),
         18 * ((m : ℝ) + 1) * 4 ^ m * (27 / 32) ^ r := by
-    rw [sum_const, nsmul_eq_mul]
-    push_cast
-    ring
+    simp only [sum_const, nsmul_eq_mul, Nat.cast_mul, Nat.cast_add, Nat.cast_one]; ring
   rw [hconst, ← sum_add_distrib]
   refine sum_le_sum fun Ty hTy => ?_
   have hTy : #Ty = m := (mem_powersetCard.mp hTy).2
@@ -437,8 +435,7 @@ private theorem high_univ {i : U} {s : Finset U} (hi : i ∉ s) :
   have h5 : 2 ^ #sᶜ = 2 ^ (#sᶜ - 1) * 2 := by
     rw [← pow_succ, Nat.sub_add_cancel (card_pos.mpr ⟨i, hi'⟩)]
   rw [h2, card_powerset, card_erase_of_mem hi', h5] at h3
-  rw [h1]
-  omega
+  rw [h1]; omega
 
 /-- Half of the weight lies on disjoint pairs. -/
 private theorem sum_sum_ite_hardWeight_univ (hU : Fintype.card U = 2 * m + 1) :
@@ -471,9 +468,7 @@ theorem sum_hardWeight (hU : Fintype.card U = 2 * m + 1) :
             (if decide (Disjoint x y) = true then 0 else hardWeight m (x, y))) := by
         refine sum_congr rfl fun x _ => sum_congr rfl fun y _ => ?_
         split_ifs <;> simp
-    _ = 1 := by
-        simp only [sum_add_distrib, h1, h2]
-        norm_num
+    _ = 1 := by simp only [sum_add_distrib, h1, h2]; linarith
 
 variable (m) in
 /-- **A hard distribution for disjointness**, a variant of Razborov's distribution
@@ -543,20 +538,15 @@ private theorem le_of_mul_pow_le {r c : ℕ} (h : 13 * 32 ^ r ≤ 576 * 2 ^ c * 
     exact Nat.pow_le_pow_left (by norm_num) q
   have h2 : 27 ^ t ≤ 32 ^ t := Nat.pow_le_pow_left (by norm_num) t
   have h3 : 13 * 2 ^ q * 27 ^ r ≤ 576 * 2 ^ c * 27 ^ r :=
-    calc 13 * 2 ^ q * 27 ^ r = 13 * (2 ^ q * 27 ^ (5 * q)) * 27 ^ t := by
-          rw [hr, pow_add]
-          ring
+    calc 13 * 2 ^ q * 27 ^ r = 13 * (2 ^ q * 27 ^ (5 * q)) * 27 ^ t := by rw [hr, pow_add]; ring
       _ ≤ 13 * 32 ^ (5 * q) * 32 ^ t := by gcongr
-      _ = 13 * 32 ^ r := by
-          rw [hr, pow_add]
-          ring
+      _ = 13 * 32 ^ r := by rw [hr, pow_add]; ring
       _ ≤ 576 * 2 ^ c * 27 ^ r := h
   have h4 : 13 * 2 ^ q ≤ 576 * 2 ^ c := Nat.le_of_mul_le_mul_right h3 (by positivity)
   have h5 : q < c + 6 := by
     by_contra hq
-    have h6 : 2 ^ c * 2 ^ 6 ≤ 2 ^ q := by
-      rw [← pow_add]
-      exact Nat.pow_le_pow_right two_pos (by omega)
+    have h6 : 2 ^ c * 2 ^ 6 ≤ 2 ^ q :=
+      (pow_add 2 c 6).symm.trans_le (Nat.pow_le_pow_right two_pos (by omega))
     have : 0 < 2 ^ c := by positivity
     omega
   omega
@@ -684,8 +674,7 @@ theorem PublicCoin.le_of_ecomplexityFun_disjointness_le {n c r : ℕ} {ε : ℝ}
           gcongr
           exact h2.trans (by gcongr)
       _ = ((2 ^ 10 * r * c + 2 ^ 12 : ℕ) : ℕ∞) := by
-          push_cast
-          ring
+          simp only [Nat.cast_add, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]; ring
   exact_mod_cast h3
 
 end Cslib.Communication

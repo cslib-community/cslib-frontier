@@ -166,19 +166,13 @@ private theorem vertex_mem_obstacle_iff {I : FixedRotationInput} (hI : Valid I)
         exact Or.inl ((hends.1.symm.trans hb) ▸ RotationSystem.vertex_mem hdeclared d)
       · rw [Bool.eq_not_of_ne he] at hb
         exact Or.inr ⟨d, hd, hb.symm.trans hends.2⟩
-  · rintro (hv' | ⟨d, hd, hv'⟩)
+  · rintro (hv' | ⟨d, hd, rfl⟩)
     · exact Or.inl ⟨v, hv', hcenter v hv'⟩
-    · refine Or.inr ⟨d, hd, ?_⟩
-      let e := (subdivisionDart I d).1
-      let b := !d.2
-      let p := D.route e
-      have hpoint := p.at_mem_support (p.endSegment b)
-        (Route.endTime_mem b (t := 0) ⟨le_rfl, zero_le_one⟩)
-      have hend : Dart.vertex (G := subdivisionGraph I) (e, b) = _ :=
-        (subdivisionDart_endpoints I d).2
-      rw [p.eval_near_end, zero_smul, add_zero, D.endpoint_eq e b, hend, ← hv'] at hpoint
-      change D.vertex v ∈ (D.route e).support at hpoint
-      rwa [hroute d hd] at hpoint
+    · have he := congrArg (fun p : Route => p.endpoint (!d.2)) (hroute d hd)
+      have hleaf : Dart.vertex (G := subdivisionGraph I) ((subdivisionDart I d).1, !d.2) =
+          I.graph.vertices.length + d.index := (subdivisionDart_endpoints I d).2
+      rw [D.endpoint_eq, (referenceDrawing I).endpoint_eq, hleaf] at he
+      exact Or.inr ⟨d, hd, he.symm ▸ spoke_support I d ▸ right_mem_segment ℝ _ _⟩
 
 /-- In a subdivision embedding with the frozen spokes and original centers placed, exactly
 the original vertices and the frozen occurrence leaves lie on the protected reference set. -/

@@ -235,7 +235,6 @@ private theorem swap_game_bounds (σ τ : List (AMMove × ℕ)) (q p k : ℕ)
   rw [hrep] at hle hge
   have hε : (2 : ℚ) ^ (2 * 24 * q) * ((8 / 9) ^ k / 2) ≤ 1 / 32 := by
     rw [hk]; exact two_pow_mul_eight_ninths_le _
-  have hε0 : (0 : ℚ) ≤ (8 / 9) ^ k := by positivity
   have hε1 : (8 / 9 : ℚ) ^ k ≤ 1 / 16 := by
     rw [hk]
     calc _ ≤ (1 / 2 : ℚ) ^ (2 * 24 * q + 4) := eight_ninths_pow_le _
@@ -253,10 +252,8 @@ theorem AMGameClass_swap {enc : α ↪ List Bool} (σ τ : List AMMove) :
       AMGameClass enc (σ ++ .arthur :: .merlin :: τ) := by
   rintro A ⟨G, V, hG, hV, hA⟩
   obtain ⟨Gσ, G', rfl, hσ, h'⟩ := List.map_eq_append_iff.1 hG
-  obtain ⟨⟨x₁, qM⟩, G'', rfl, hx₁, h''⟩ := List.map_eq_cons_iff.1 h'
-  obtain ⟨⟨x₂, pA⟩, Gτ, rfl, hx₂, hτ⟩ := List.map_eq_cons_iff.1 h''
-  dsimp only at hx₁ hx₂
-  subst hx₁ hx₂
+  obtain ⟨⟨_, qM⟩, G'', rfl, rfl, h''⟩ := List.map_eq_cons_iff.1 h'
+  obtain ⟨⟨_, pA⟩, Gτ, rfl, rfl, hτ⟩ := List.map_eq_cons_iff.1 h''
   rw [isAMGameVerifier_iff_value] at hA
   set M₀ : Polynomial ℕ := Polynomial.C 48 with hM₀def
   set V₁ := amplifiedVerifier enc (Gσ ++ (.merlin, qM) :: (.arthur, pA) :: Gτ) 24 V with hV₁def
@@ -275,8 +272,6 @@ theorem AMGameClass_swap {enc : α ↪ List Bool} (σ τ : List AMMove) :
     have hev (P : Polynomial ℕ) : ComputableInPolyTime
         (fun x : α × List Bool => P.eval (enc x.1).length) (encPair enc encBits) encUnary :=
       (ComputableInPolyTime.unary_eval P).comp hlen
-    have hV₁ : ComputableInPolyTime V₁ (encPair enc encBits) encBool :=
-      computableInPolyTime_amplifiedVerifier _ _ hV
     have hx2 : ComputableInPolyTime (fun x : α × List Bool => x.2) (encPair enc encBits)
         encBits := .snd _ _
     have hL := hev (transcriptLengthPoly (repeatShapePoly M₀ Gσ))
@@ -293,7 +288,8 @@ theorem AMGameClass_swap {enc : α ↪ List Bool} (σ τ : List AMMove) :
         (encPair (encPair enc encBits) encBits) encBool := by
       have hf : ComputableInPolyTime (fun p : (α × List Bool) × List Bool => p.1)
           (encPair (encPair enc encBits) encBits) (encPair enc encBits) := .fst _ _
-      refine hV₁.comp (((ComputableInPolyTime.fst _ _).comp hf).prod ?_)
+      refine (computableInPolyTime_amplifiedVerifier _ _ hV).comp
+        (((ComputableInPolyTime.fst _ _).comp hf).prod ?_)
       exact .bitsAppend (.bitsTakeWithInput (hx2.comp hf) (hL.comp hf))
         (.bitsAppend (.bitsTakeWithInput (.bitsDropWithInput (hx2.comp hf) (hLP.comp hf))
           (hq.comp hf)) (.snd _ _))

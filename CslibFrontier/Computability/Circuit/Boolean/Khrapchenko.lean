@@ -145,30 +145,28 @@ theorem Formula.sq_card_hammingEdges_le (F : Formula signature n)
       exact (ih 0 (fun b hb => by simpa [interpretation] using hB b hb)
         fun a ha => by simpa [interpretation] using hA a ha).trans_eq (mul_right_comm _ _ _)
     | and =>
-      have hA' : ∀ a ∈ A, (args 0).eval interpretation a = true ∧
-          (args 1).eval interpretation a = true := fun a ha => by
-        simpa [interpretation] using hA a ha
+      have hA' (a) (ha : a ∈ A) : (args 0).eval interpretation a = true ∧
+          (args 1).eval interpretation a = true := by simpa [interpretation] using hA a ha
       have h₁ := ih 0 (A := A) (B := B.filter fun b => (args 0).eval interpretation b = false)
         (fun a ha => (hA' a ha).1) fun b hb => (mem_filter.1 hb).2
       have h₂ := ih 1 (A := A) (B := B.filter fun b => ¬(args 0).eval interpretation b = false)
         (fun a ha => (hA' a ha).2) fun b hb => by
-          obtain ⟨hb, h0⟩ := mem_filter.1 hb
-          simpa [interpretation, Bool.not_eq_false _ ▸ h0] using hB b hb
+          simpa [interpretation, Bool.eq_true_of_not_eq_false (mem_filter.1 hb).2] using
+            hB b (mem_filter.1 hb).1
       rw [← card_hammingEdges_filter_add_card_hammingEdges_filter_not
         (fun b => (args 0).eval interpretation b = false),
         ← card_filter_add_card_filter_not (s := B)
         (fun b => (args 0).eval interpretation b = false), Formula.leafSize_gate, Fin.sum_univ_two]
       exact sq_add_le_mul h₁ h₂
     | or =>
-      have hB' : ∀ b ∈ B, (args 0).eval interpretation b = false ∧
-          (args 1).eval interpretation b = false := fun b hb => by
-        simpa [interpretation] using hB b hb
+      have hB' (b) (hb : b ∈ B) : (args 0).eval interpretation b = false ∧
+          (args 1).eval interpretation b = false := by simpa [interpretation] using hB b hb
       have h₁ := ih 0 (A := A.filter fun a => (args 0).eval interpretation a = true)
         (B := B) (fun a ha => (mem_filter.1 ha).2) fun b hb => (hB' b hb).1
       have h₂ := ih 1 (A := A.filter fun a => ¬(args 0).eval interpretation a = true)
         (B := B) (fun a ha => by
-          obtain ⟨ha, h0⟩ := mem_filter.1 ha
-          simpa [interpretation, Bool.not_eq_true _ ▸ h0] using hA a ha)
+          simpa [interpretation, Bool.eq_false_of_not_eq_true (mem_filter.1 ha).2] using
+            hA a (mem_filter.1 ha).1)
         fun b hb => (hB' b hb).2
       rw [card_hammingEdges_comm] at h₁ h₂ ⊢
       rw [← card_hammingEdges_filter_add_card_hammingEdges_filter_not
@@ -190,11 +188,11 @@ theorem Formula.mul_le_leafSize (F : Formula signature n) {s₀ s₁ : ℕ}
   · obtain ⟨a, ha⟩ := hAne
     simp [Nat.eq_zero_of_le_zero (by simpa using h₁ a ha)]
   have e₁ : #A * s₁ ≤ #(hammingEdges A B) := by
-    simpa only [smul_eq_mul, card_hammingEdges_eq_sum_card_filter] using
-      card_nsmul_le_sum A _ s₁ h₁
+    simpa [card_hammingEdges_eq_sum_card_filter] using card_nsmul_le_sum A _ s₁ h₁
   have e₀ : #B * s₀ ≤ #(hammingEdges A B) := by
-    rw [card_hammingEdges_comm, card_hammingEdges_eq_sum_card_filter, ← smul_eq_mul]
-    exact card_nsmul_le_sum B _ s₀ h₀
+    rw [card_hammingEdges_comm]
+    simpa only [smul_eq_mul, card_hammingEdges_eq_sum_card_filter] using
+      card_nsmul_le_sum B _ s₀ h₀
   refine Nat.le_of_mul_le_mul_right ?_ (Nat.mul_pos (card_pos.2 hAne) (card_pos.2 hBne))
   calc s₀ * s₁ * (#A * #B) = (#B * s₀) * (#A * s₁) := by ring
     _ ≤ #(hammingEdges A B) * #(hammingEdges A B) := Nat.mul_le_mul e₀ e₁
@@ -245,19 +243,17 @@ private theorem le_card_neighbors_weight_succ {k : ℕ} {b : BitString n}
 the `n` bits are true" has leaf size at least `k (n + 1 - k)`. -/
 theorem mul_le_leafSize_of_computes_threshold {k : ℕ} {F : Formula signature n}
     (hF : F.Computes interpretation (threshold n k)) : k * (n + 1 - k) ≤ F.leafSize := by
-  rcases Nat.eq_zero_or_pos k with rfl | hk
+  rcases k with _ | k
   · simp
-  rcases lt_or_ge n k with hkn | hkn
+  rcases lt_or_ge n (k + 1) with hkn | hkn
   · simp [Nat.sub_eq_zero_of_le hkn]
-  have hsub : n + 1 - k = n - (k - 1) := by omega
-  rw [mul_comm, hsub]
-  refine F.mul_le_leafSize (A := BitString.weightLayer n k)
-    (B := BitString.weightLayer n (k - 1))
+  rw [mul_comm, Nat.succ_sub_succ]
+  exact F.mul_le_leafSize (A := BitString.weightLayer n (k + 1)) (B := BitString.weightLayer n k)
     (fun a ha => (hF a).trans (by simp [threshold_apply, BitString.mem_weightLayer.1 ha]))
     (fun b hb => (hF b).trans (by
       simp only [threshold_apply, BitString.mem_weightLayer.1 hb, decide_eq_false_iff_not]; omega))
     (BitString.weightLayer_nonempty hkn) (fun _ => le_card_neighbors_weight_pred)
-    fun _ hb => by simpa only [Nat.sub_add_cancel hk] using le_card_neighbors_weight_succ hb
+    fun _ => le_card_neighbors_weight_succ
 
 /-- One half of `⌊m ^ 2 / 4⌋ = ⌊m / 2⌋ ⌈m / 2⌉`. -/
 private theorem sq_div_four_le (m : ℕ) : m ^ 2 / 4 ≤ m / 2 * (m - m / 2) := by
@@ -333,11 +329,10 @@ theorem parityOn_consecutive_add (o a b : ℕ) (x : BitString n) :
 /-- The parity of the single bit `o` is that bit. -/
 theorem parityOn_consecutive_one (o : ℕ) (h : o < n) (x : BitString n) :
     parityOn ({i | o ≤ (i : ℕ) ∧ (i : ℕ) < o + 1} : Finset (Fin n)) x = x ⟨o, h⟩ := by
-  have : ({i | o ≤ (i : ℕ) ∧ (i : ℕ) < o + 1} : Finset (Fin n)) = insert ⟨o, h⟩ ∅ := by
+  have hs : ({i | o ≤ (i : ℕ) ∧ (i : ℕ) < o + 1} : Finset (Fin n)) = insert ⟨o, h⟩ ∅ := by
     ext i
-    simp only [mem_filter, mem_univ, true_and, insert_empty, mem_singleton, Fin.ext_iff]
-    omega
-  rw [this, parityOn_insert (notMem_empty _), parityOn_empty, Bool.xor_false]
+    simp only [mem_filter, mem_univ, true_and, insert_empty, mem_singleton, Fin.ext_iff]; omega
+  rw [hs, parityOn_insert (notMem_empty _), parityOn_empty, Bool.xor_false]
 
 /-- A De Morgan formula for the parity of the `2 ^ k` bits from `o` on, of leaf size `4 ^ k`. -/
 def parityFormula : (k o : ℕ) → o + 2 ^ k ≤ n → Formula signature n

@@ -184,8 +184,7 @@ theorem card_quotHash_eq_le {U w₀ n : ℕ} (hw₀ : 0 < w₀) (hU : U ≤ 2 ^ 
       2 ^ b * (#{β : Bot | H β x' = H β y'} * 2 ^ b) = 2 ^ b * Fintype.card Bot)).le
   have hprod : #{θ : QuotSeed w₀ n | quotHash U w₀ n θ x = quotHash U w₀ n θ y} =
       ∑ α : Top, #{β : Bot | quotHash U w₀ n (α, β) x = quotHash U w₀ n (α, β) y} := by
-    simp only [Finset.card_filter]
-    exact Fintype.sum_prod_type _
+    simpa only [Finset.card_filter] using Fintype.sum_prod_type _
   let eqTop (α : Top) : Prop :=
     multiplyShiftReduced U w₀ (3 * b) α x = multiplyShiftReduced U w₀ (3 * b) α y
   rw [hprod, Finset.sum_mul, ← Finset.sum_filter_add_sum_filter_not Finset.univ eqTop]
@@ -201,8 +200,7 @@ theorem card_quotHash_eq_le {U w₀ n : ℕ} (hw₀ : 0 < w₀) (hU : U ≤ 2 ^ 
       Fintype.card Top * Fintype.card Bot :=
     (Finset.sum_le_sum fun α hα => hgood α (Finset.mem_filter.mp hα).2).trans <| by
       rw [Finset.sum_const, smul_eq_mul]; exact Nat.mul_le_mul_right _ (Finset.card_le_univ _)
-  rw [Fintype.card_prod]
-  linarith
+  linarith [Fintype.card_prod Top Bot]
 
 /-- Counting false-positive bound over `FilterSeed w₀ n`: for any `S : Finset (Fin U)` with
 `#S ≤ n` and any `u ∉ S` (`0 < w₀`, `U ≤ 2 ^ w₀`), the number of seeds `p : FilterSeed w₀ n` for
@@ -230,10 +228,9 @@ theorem card_falsePositive_mul_le {U w₀ n k : ℕ} (hw₀ : 0 < w₀) (hU : U 
       (Finset.card_biUnion_le.trans_eq (by simp only [Finset.card_product]))
     simpa only [FP, Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_biUnion,
       Finset.mem_product] using hp
-  have h2S : 2 * #S ≤ 2 ^ b := by
-    have := card_le_effCap hU hS
-    have := eight_mul_effCap_le_two_pow_quotBits w₀ n
-    dsimp only [b]; omega
+  have h2S : 2 * #S ≤ 2 ^ b :=
+    (Nat.mul_le_mul_left 2 (card_le_effCap hU hS)).trans
+      (le_trans (by omega) (eight_mul_effCap_le_two_pow_quotBits w₀ n))
   have hmul : (#FP * 2 ^ k) * 2 ^ b ≤ Fintype.card (FilterSeed w₀ n) * 2 ^ b :=
     calc (#FP * 2 ^ k) * 2 ^ b
         = #FP * (2 ^ b * 2 ^ k) := by ring
@@ -270,9 +267,8 @@ theorem toOuterMeasure_falsePositive_le {U w₀ n k : ℕ} (hw₀ : 0 < w₀) (h
   simp only [E, Set.toFinset_ofPred, PMF.uniformOfFintype_apply, Finset.sum_const, nsmul_eq_mul,
     one_div]
   rw [← ENNReal.inv_pow, ENNReal.le_inv_iff_mul_le, mul_right_comm, ← div_eq_mul_inv]
-  refine ENNReal.div_le_of_le_mul ?_
-  rw [one_mul]
-  exact_mod_cast card_falsePositive_mul_le (k := k) hw₀ hU hS hu
+  exact ENNReal.div_le_of_le_mul (le_trans
+    (by exact_mod_cast card_falsePositive_mul_le (k := k) hw₀ hU hS hu) (one_mul _).symm.le)
 
 /-- Minimum exponent `k = max 1 ⌈log₂(1 / ε)⌉` such that `(1 / 2 : ℝ≥0∞) ^ k ≤ ε` for any
 `ε : ℝ≥0∞` with `ε ≠ 0`. -/
@@ -342,10 +338,9 @@ theorem sum_seedClusterBound_sub_one_goodTop_le {U w₀ n : ℕ} (hU : U ≤ 2 ^
   let u' : T := ⟨u, Finset.mem_insert_self u (S.erase u)⟩
   let S' : Finset T := (S.erase u).subtype (· ∈ T)
   have hu'_notMem : u' ∉ S' := by simp [S', u']
-  have hS'_card : #S' ≤ effCap w₀ n := by
-    rw [Finset.card_subtype,
-      Finset.filter_true_of_mem fun _ hx => Finset.mem_insert_of_mem hx]
-    exact Finset.card_erase_le.trans (card_le_effCap hU hS)
+  have hS'_card : #S' ≤ effCap w₀ n :=
+    ((Finset.card_subtype (· ∈ T) (S.erase u)).trans_le (Finset.card_filter_le _ _)).trans
+      (Finset.card_erase_le.trans (card_le_effCap hU hS))
   let hT : Bot → T → Fin (2 ^ b) := fun β x => quotHash U w₀ n (α, β) x.val
   have hkT : IsKWiseIndependentHash 5 hT :=
     isKWiseIndependentHash_reducedPolyHash_of_injOn (mem_reducedGoodTop.mp hα)
@@ -364,8 +359,7 @@ theorem sum_seedClusterBound_sub_one_goodTop_le {U w₀ n : ℕ} (hU : U ≤ 2 ^
       ((seedClusterBound U w₀ n S u (α, β) - 1 : ℕ) : ℝ) =
         ∑ j ∈ Finset.Icc 1 b,
           (2 ^ j : ℝ) * (if scaleOverload b hT S' u' j β then (1 : ℝ) else 0) := by
-    dsimp only [seedClusterBound]
-    rw [ite_eq_left hα, Nat.add_sub_cancel_left, Nat.cast_sum]
+    simp only [seedClusterBound, ite_eq_left hα, Nat.add_sub_cancel_left, Nat.cast_sum]
     refine Finset.sum_congr rfl fun j _ => ?_
     rw [if_congr (hov_eq j β) rfl rfl]
     split_ifs <;> simp
@@ -382,13 +376,14 @@ theorem sum_seedClusterBound_sub_one_goodTop_le {U w₀ n : ℕ} (hU : U ≤ 2 ^
             (expect_scaleOverload_le hkT S' hu'_notMem hS'_card
               (eight_mul_effCap_le_two_pow_quotBits w₀ n)) (by positivity)
       _ = 288 * ∑ j ∈ Finset.Ico 1 (b + 1), (2⁻¹ : ℝ) ^ j := by
-          rw [show Finset.Icc 1 b = Finset.Ico 1 (b + 1) by ext; simp, Finset.mul_sum]
+          have hI : Finset.Icc 1 b = Finset.Ico 1 (b + 1) :=
+            Finset.ext fun _ => by simp only [Finset.mem_Icc, Finset.mem_Ico, Nat.lt_succ_iff]
+          rw [hI, Finset.mul_sum]
           exact Finset.sum_congr rfl fun j _ => by rw [inv_pow]; field_simp
       _ ≤ 288 := by
-          rw [geom_sum_Ico' (by norm_num) (Nat.le_add_left 1 b)]
-          have h0 : (0 : ℝ) ≤ (2⁻¹ : ℝ) ^ (b + 1) := by positivity
-          linarith [show 288 * (((2⁻¹ : ℝ) ^ 1 - (2⁻¹ : ℝ) ^ (b + 1)) / (1 - 2⁻¹)) =
-            288 - 576 * (2⁻¹ : ℝ) ^ (b + 1) by ring]
+          rw [geom_sum_Ico' (by norm_num) (Nat.le_add_left 1 b), pow_one]
+          refine mul_le_of_le_one_right (by norm_num) ((div_le_one (by norm_num)).mpr ?_)
+          linarith [pow_nonneg (inv_nonneg.mpr (zero_le_two (α := ℝ))) (b + 1)]
   rw [Fintype.expect_eq_sum_div_card,
     div_le_iff₀ (Nat.cast_pos.mpr Fintype.card_pos)] at hexp
   exact_mod_cast hexp
@@ -421,15 +416,16 @@ theorem sum_seedClusterBound_le {U w₀ n : ℕ} (hw₀ : 0 < w₀) (hU : U ≤ 
       exact (Nat.mul_le_mul_left 289 (Nat.mul_le_mul_right _ (Finset.card_le_univ Good))).trans_eq'
         (by ring)
   have hT_le : #T ≤ 2 ^ b := by
-    have := Finset.card_insert_le u (S.erase u)
-    have := Finset.card_erase_le (s := S) (a := u) |>.trans (card_le_effCap hU hS)
+    have := (Finset.card_insert_le u (S.erase u)).trans
+      (Nat.add_le_add_right (Finset.card_erase_le.trans (card_le_effCap hU hS)) 1)
     have := eight_mul_effCap_le_two_pow_quotBits w₀ n
     have := eight_le_two_pow_quotBits w₀ n
-    dsimp only [T, b]; omega
+    dsimp only [T, b]
+    omega
   have hbad_card : #Bad * 2 ^ b ≤ Fintype.card Top := by
     refine Nat.le_of_mul_le_mul_right (c := 2 ^ (2 * b)) ?_ (Nat.two_pow_pos _)
     calc (#Bad * 2 ^ b) * 2 ^ (2 * b)
-        = #Bad * 2 ^ (3 * b) := by rw [mul_assoc, ← pow_add, show b + 2 * b = 3 * b by omega]
+        = #Bad * 2 ^ (3 * b) := by rw [mul_assoc, ← pow_add, add_comm, ← Nat.succ_mul]
       _ ≤ (#T * (#T - 1)) * 2 ^ (w₀ - 1) := card_not_injOn_multiplyShiftReduced_le hw₀ hU T
       _ ≤ (2 ^ b * 2 ^ b) * Fintype.card Top :=
           Nat.mul_le_mul (Nat.mul_le_mul hT_le ((Nat.sub_le _ _).trans hT_le))
@@ -437,9 +433,9 @@ theorem sum_seedClusterBound_le {U w₀ n : ℕ} (hw₀ : 0 < w₀) (hU : U ≤ 
       _ = Fintype.card Top * 2 ^ (2 * b) := by rw [← pow_add, ← two_mul, mul_comm]
   have hsum_bad : (∑ α ∈ Bad, ∑ β : Bot, seedClusterBound U w₀ n S u (α, β)) ≤
       Fintype.card (QuotSeed w₀ n) := by
-    rw [Finset.sum_congr rfl fun α hα => Finset.sum_congr rfl fun β _ =>
-      show seedClusterBound U w₀ n S u (α, β) = 2 ^ b by
-        dsimp only [seedClusterBound]; exact ite_eq_right (Finset.mem_sdiff.mp hα).2]
+    have hval (α : Top) (hα : α ∈ Bad) (β : Bot) :
+        seedClusterBound U w₀ n S u (α, β) = 2 ^ b := ite_eq_right (Finset.mem_sdiff.mp hα).2
+    rw [Finset.sum_congr rfl fun α hα => Finset.sum_congr rfl fun β _ => hval α hα β]
     simp only [Finset.sum_const, Finset.card_univ, smul_eq_mul, Fintype.card_prod]
     exact (Nat.mul_le_mul_right _ hbad_card).trans_eq' (by ring)
   rw [Fintype.sum_prod_type, ← Finset.sum_sdiff (Finset.subset_univ Good)]

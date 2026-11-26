@@ -64,22 +64,16 @@ theorem slotRotN_val (I : USTCONInstance) (v : Fin I.n × Fin I.n) (b : Label) :
   have hrot (d : SlotLabel) : (input I.graph).rot ((v₁, v₂), slotLabel d) =
       Prod.map id slotLabel ((slotGraph I.graph (finRotate I.n)).rot ((v₁, v₂), d)) :=
     rot_extendLabels_apply _ _ (v₁, v₂) d
-  have hne₁ : slotLabel (.inr ((), (), false)) ≠ slotLabel (.inl ()) :=
-    slotLabel.injective.ne (by decide)
-  have hne₂ : slotLabel (.inr ((), (), true)) ≠ slotLabel (.inl ()) :=
-    slotLabel.injective.ne (by decide)
-  have hne₃ : slotLabel (.inr ((), (), true)) ≠ slotLabel (.inr ((), (), false)) :=
-    slotLabel.injective.ne (by decide)
   unfold slotRotN
   rcases eq_or_ne b (slotLabel (.inl ())) with rfl | h₁
   · rw [ite_eq_left rfl, hrot]
     by_cases hadj : I.adj v₁ v₂ = true <;> simp [slotSwap, hadj, slotVal]
   rcases eq_or_ne b (slotLabel (.inr ((), (), false))) with rfl | h₂
-  · rw [ite_eq_right hne₁, ite_eq_left rfl, hrot]
+  · rw [ite_eq_right h₁, ite_eq_left rfl, hrot]
     simp only [rot_slotGraph_inr_false, Prod.map, slotVal, id, val_finRotate]
     congr 3
   rcases eq_or_ne b (slotLabel (.inr ((), (), true))) with rfl | h₃
-  · rw [ite_eq_right hne₂, ite_eq_right hne₃, ite_eq_left rfl, hrot]
+  · rw [ite_eq_right h₁, ite_eq_right h₂, ite_eq_left rfl, hrot]
     simp only [rot_slotGraph_inr_true, Prod.map, slotVal, id, val_finRotate_symm]
     congr 3
   rw [ite_eq_right h₁, ite_eq_right h₂, ite_eq_right h₃, input,
@@ -209,8 +203,8 @@ private theorem exists_iterate_eq_forall_not {α : Type*} (f : α → α) (P : �
   refine ⟨Nat.find hex, ?_, fun i hi ↦ Nat.find_min hex hi⟩
   have hk := Nat.find_spec hex
   have hle : Nat.find hex ≤ N := Nat.find_min' hex (hN ▸ hb)
-  rw [← hN, show N = (N - Nat.find hex) + Nat.find hex by omega, Function.iterate_add_apply,
-    Function.iterate_fixed (hfix _ hk)]
+  have hN' : N = (N - Nat.find hex) + Nat.find hex := by omega
+  rw [← hN, hN', Function.iterate_add_apply, Function.iterate_fixed (hfix _ hk)]
 
 /-- The evaluation stays put when no frame is left. -/
 private theorem reingoldEvalStep_of_frames_eq_nil {V : Type*} (base' : V × Label → V × Label)
@@ -337,18 +331,12 @@ private theorem reaches_walk {m : ℕ} (hm : m ≠ 0) (q : State) (hc : q.ctl = 
       ev := ⟨slotVal r.1.root, (r.1.toList).2, []⟩
       w := w / numLabels
       j := j }
-    have h₃ : Reaches I { q with
-        ctl := .eval
-        ev := (⟨(r.1.toList).1, r.2 :: (r.1.toList).2, []⟩ :
-          ReingoldEvalState (Fin I.n × Fin I.n) Label).mapVertex slotVal
-        w := w / numLabels
-        j := j } q₂ := by
-      refine .single (by simp) ?_
-      rw [readBit_of_addr_none (by simp [addr, ReingoldEvalState.atRoot,
-        ReingoldEvalState.mapVertex])]
-      simp [step, ReingoldEvalState.mapVertex, q₂]
     rw [pow_succ', ← Nat.div_div_eq_div_mul]
-    exact h₁.trans (h₂.trans (h₃.trans (ih q₂ rfl hn hs ht r.1 (w / numLabels) rfl rfl rfl)))
+    refine h₁.trans (h₂.trans (Reaches.trans (.single (by simp [q₁]) ?_)
+      (ih q₂ rfl hn hs ht r.1 (w / numLabels) rfl rfl rfl)))
+    rw [readBit_of_addr_none (by simp [addr, ReingoldEvalState.atRoot,
+      ReingoldEvalState.mapVertex, q₁])]
+    simp [step, ReingoldEvalState.mapVertex, q₁, q₂, r]
 
 /-- **A walk of a counter**: from the start of the walk of the counter `c`, the machine fills the
 labels of the start vertex `(⋯ ((s, s), 0) ⋯, 0)` and walks along the digits of `c`. -/
@@ -492,9 +480,10 @@ private theorem exists_labelOfNat_eq (T : ℕ) (k : Fin T → Label) :
         _ = numLabels ^ (T + 1) := (pow_succ' _ _).symm
     · refine Fin.cases ?_ (fun i ↦ ?_) i
       · simp only [Fin.val_zero, pow_zero, Nat.div_one, labelOfNat]
-        rw [show (⟨(d + numLabels * c') % numLabels, _⟩ : Fin numLabels) =
-            labelEquiv.symm (k 0) from Fin.ext (by simp [Nat.add_mul_mod_self_left,
-              Nat.mod_eq_of_lt hd, d]), Equiv.apply_symm_apply]
+        have hmod : (⟨(d + numLabels * c') % numLabels, Nat.mod_lt _ numLabels_pos⟩ :
+            Fin numLabels) = labelEquiv.symm (k 0) :=
+          Fin.ext (by simp [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hd, d])
+        rw [hmod, Equiv.apply_symm_apply]
       · have hdiv : (d + numLabels * c') / numLabels = c' := by
           rw [Nat.add_mul_div_left _ _ numLabels_pos, Nat.div_eq_of_lt hd, zero_add]
         rw [Fin.val_succ, pow_succ', ← Nat.div_div_eq_div_mul, hdiv]

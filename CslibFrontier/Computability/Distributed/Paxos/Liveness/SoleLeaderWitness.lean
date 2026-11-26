@@ -103,8 +103,7 @@ theorem exists_sole_leader_execution_crashStop [Finite Acceptor] {inputs : Propo
     induction c with
     | zero =>
       refine ⟨?_, hQ_live, hl_live⟩
-      dsimp only [ts, get_fun, soleLeaderStateSeq, s₁, synodStep, synodStepCore]
-      simp only [↓reduceIte, hp_live]
+      simp [ts, get_fun, soleLeaderStateSeq, s₁, synodStep, synodStepCore, hp_live]
     | succ c ih => exact (soleLeaderSweep_mTr qs ih.1 ih.2.1 ih.2.2 (b := b)).2
   have hts_mtr : ∀ c, (synodLts qs).MTr (ts c) (xls c) (ts (c + 1)) :=
     fun c => (soleLeaderSweep_mTr qs (hts_live c).1 (hts_live c).2.1 (hts_live c).2.2).1
@@ -134,13 +133,10 @@ theorem exists_sole_leader_execution_crashStop [Finite Acceptor] {inputs : Propo
     induction n with
     | zero => exact ⟨hp_live, hQ_live, hl_live⟩
     | succ n ih =>
-      have hnd := hxs_nodel n
-      have hpres := synodStep_preserve_of_delivery (qs := qs) (w := ss n) (act := xs n)
-        hnd.1 hnd.2.1 hnd.2.2.1 hnd.2.2.2
+      obtain ⟨h1, h2, h3, h4⟩ := hxs_nodel n
+      obtain ⟨_, hp, ha, hl⟩ := synodStep_preserve_of_delivery (qs := qs) (w := ss n) h1 h2 h3 h4
       rw [(hexec n).2]
-      exact ⟨(hpres.2.1 p).trans ih.1,
-        fun a haQ => (hpres.2.2.1 a).trans (ih.2.1 a haQ),
-        (hpres.2.2.2 l).trans ih.2.2⟩
+      exact ⟨(hp p).trans ih.1, fun a haQ => (ha a).trans (ih.2.1 a haQ), (hl l).trans ih.2.2⟩
   have hmsgs_mono : ∀ {n j}, n ≤ j → (ss n).msgs ⊆ (ss j).msgs := by
     intro n j hle
     obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hle
@@ -170,13 +166,11 @@ theorem exists_sole_leader_execution_crashStop [Finite Acceptor] {inputs : Propo
       fair_phase1a := fun n hm a haQ =>
         hex_fair n (.phase1a b) (.recvPhase1a a b) hm (by simp [soleLeaderMsgActs, haQ])
       fair_phase1b := fun n a mv haQ hm =>
-        hex_fair n (.phase1b a b mv) (.recvPhase1b p a b mv) hm
-          (by simp only [soleLeaderMsgActs, true_and, haQ, ↓reduceIte, List.mem_singleton])
+        hex_fair n (.phase1b a b mv) (.recvPhase1b p a b mv) hm (by simp [soleLeaderMsgActs, haQ])
       fair_phase2a := fun n v hm a haQ =>
         hex_fair n (.phase2a b v) (.recvPhase2a a b v) hm (by simp [soleLeaderMsgActs, haQ])
       fair_phase2b := fun n a v haQ hm =>
-        hex_fair n (.phase2b a b v) (.recvPhase2b l a b v) hm
-          (by simp only [soleLeaderMsgActs, true_and, haQ, ↓reduceIte, List.mem_singleton]) }
+        hex_fair n (.phase2b a b v) (.recvPhase2b l a b v) hm (by simp [soleLeaderMsgActs, haQ]) }
   obtain ⟨k, v, hlearnedAt, hlearned⟩ :=
     paxos_liveness_of_sole_leader_crashStop qs hr₀ hexec hQ rfl hbelow hno_higher hlive
   exact ⟨r, ss, xs, k, v, rfl, hexec, rfl, hbelow, hno_higher, hlive, hlearnedAt, hlearned⟩

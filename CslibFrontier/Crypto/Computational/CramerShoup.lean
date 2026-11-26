@@ -567,12 +567,11 @@ private theorem advantage_cramerShoupGame2_game3_le_exactCollision
       isElem (d, encodeMsg (d, csChoiceMsg₁ choiceOut.1))) = true
   · simp only [h, ↓reduceIte]
     let sk := F.skNatOfZMod d σ τ σ₁ τ₁ σ₂ τ₂
-    let v := F.encode d (β • F.generator d)
-    let w := F.encode d (γ • F.generator d)
     let m := if bit then encodeMsg (d, csChoiceMsg₁ choiceOut.1)
       else encodeMsg (d, csChoiceMsg₀ choiceOut.1)
     let ad := encodeAD (d, csChoiceAD choiceOut.1)
-    let ct := F.encodeCramerShoupChallenge H d sk v w m ad
+    let ct := F.encodeCramerShoupChallenge H d sk
+      (F.encode d (β • F.generator d)) (F.encode d (γ • F.generator d)) m ad
     have hm : isElem (d, m) = true := by
       cases bit <;> simp [m, Bool.and_eq_true_iff.mp h]
     have htarget : F.isCramerShoupHashInput hasAD isElem d (extractCramerShoupTuple ct ad) = true :=
@@ -620,10 +619,7 @@ private theorem succProbability_cramerShoupExactCollisionGame_le
     simp only [pmf_norm, F.smul_encode]
     peel_binds d
     let kSK (α β γ : ZMod (F.order d)) (sk : (ℕ × ℕ) × ((ℕ × ℕ) × (ℕ × ℕ))) : Game :=
-      let u := F.encode d (α • F.generator d)
-      let v := F.encode d (β • F.generator d)
-      let w := F.encode d (γ • F.generator d)
-      let pk := F.encodeCramerShoupPublicKey d u sk
+      let pk := F.encodeCramerShoupPublicKey d (F.encode d (α • F.generator d)) sk
       (ProbComp.eval ((OracleComp.interpret
         (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifFin m))
           (F.cramerShoupPhase1Oracle hasAD H isElem d sk))
@@ -635,7 +631,8 @@ private theorem succProbability_cramerShoupExactCollisionGame_le
             let m := if bit then encodeMsg (d, csChoiceMsg₁ choice)
               else encodeMsg (d, csChoiceMsg₀ choice)
             let ad := encodeAD (d, csChoiceAD choice)
-            let ct := F.encodeCramerShoupChallenge H d sk v w m ad
+            let ct := F.encodeCramerShoupChallenge H d sk
+              (F.encode d (β • F.generator d)) (F.encode d (γ • F.generator d)) m ad
             ((OracleComp.interpret
               (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifFin m))
                 (F.cramerShoupCollisionPhase2Oracle hasAD H isElem d sk ct ad))
@@ -1217,11 +1214,9 @@ private theorem advantage_cramerShoupCCA2InnerSK_le
   dsimp only [cramerShoupCCA2InnerSK]
   peel_binds choiceOut
   by_cases h : (isElem (d, csChoiceMsg₀ choiceOut.1) && isElem (d, csChoiceMsg₁ choiceOut.1)) = true
-  · simp only [h, ↓reduceIte, Bool.false_eq_true]
-    exact F.advantage_bind_sampleExp_le n d
-      (F.cramerShoupCCA2InnerB hasAD encodeAD H isElem d adversary bit n
-        α σ τ σ₁ τ₁ σ₂ τ₂ choiceOut)
-  · simp only [h, Bool.false_eq_true, ↓reduceIte, Game.advantage_self, zero_le]
+  · simpa only [h, ↓reduceIte, Bool.false_eq_true, PMF.monad_bind_eq_bind] using
+      F.advantage_bind_sampleExp_le n d _
+  · simp [h]
 
 private theorem cramerShoupMsgCCA2Game_eq_bind_innerSK
     (hasAD : Bool) {AD : Type} (encodeAD : F.Desc × AD → List Bool)
@@ -1315,11 +1310,10 @@ private theorem negligible_advantage_of_eight_le {g₀ g₁ h₀ h₁ : ℕ → 
     (hle₀ : ∀ n, Game.advantage (g₀ n) (h₀ n) ≤ 8 / 2 ^ n)
     (hle₁ : ∀ n, Game.advantage (g₁ n) (h₁ n) ≤ 8 / 2 ^ n) :
     Negligible fun n => Game.advantage (g₀ n) (g₁ n) := by
-  negligible using fun n => by
-    have h1 := (Game.advantage_comm (g₁ n) (h₁ n)).symm.le.trans (hle₁ n)
-    exact ((Game.advantage_triangle (g₀ n) (h₀ n) (g₁ n)).trans
-      (add_le_add le_rfl (Game.advantage_triangle (h₀ n) (h₁ n) (g₁ n)))).trans
-      (add_le_add (hle₀ n) (add_le_add le_rfl h1))
+  have hbound (n : ℕ) :
+      Game.advantage (g₀ n) (g₁ n) ≤ Game.advantage (h₀ n) (h₁ n) + 16 / 2 ^ n := by
+    game_trans [h₀ n, h₁ n] using [hle₀ n, le_rfl, hle₁ n]
+  negligible using hbound
 
 /-- Binding the ideal game over `withKeySetup` for a fixed group family draws the key first. -/
 private theorem withKeySetup_pure_bind {α : Type} (d : ℕ → F.Desc) (keyLen : ℕ → ℕ) (n : ℕ)

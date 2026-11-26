@@ -132,13 +132,9 @@ theorem degree_nsmul_le (c : ℕ) (I : Ineq V) : (c • I).degree ≤ c * I.degr
 /-- Division by a positive integer dividing every coefficient does not raise the degree. -/
 theorem degree_div_le {I : Ineq V} {c : ℕ} (hc : 0 < c) (hdvd : ∀ v, (c : ℤ) ∣ I.coeff v) :
     (I.div c).degree ≤ I.degree :=
-  degree_le_iff.2 fun σ => by
-    have h := bound_sub_lhs_le_degree σ I
-    have hl := lhs_of_coeff_eq_smul σ (smul_coeff_div hdvd).symm
-    have hc' : (1 : ℤ) ≤ c := by exact_mod_cast hc
-    have hd : (0 : ℤ) ≤ I.degree := Int.natCast_nonneg _
-    have := (bound_div_le_iff hc (I := I) (y := (I.div c).lhs σ + I.degree)).2 (by nlinarith)
-    linarith
+  degree_le_iff.2 fun σ => sub_le_iff_le_add'.2 <| (bound_div_le_iff hc).2 <| by
+    nlinarith [bound_sub_lhs_le_degree σ I, lhs_of_coeff_eq_smul σ (smul_coeff_div hdvd).symm,
+      (Nat.one_le_cast (α := ℤ)).2 hc, Int.natCast_nonneg I.degree]
 
 /-- Adding `c m` times `J` commutes with division by `c`. -/
 theorem add_nsmul_div {c : ℕ} (hc : 0 < c) (I J : Ineq V) (m : ℕ) :
@@ -293,10 +289,8 @@ theorem restrict_of_coeff_eq_zero {I : Ineq V} (h : ∀ v ∈ S, I.coeff v = 0) 
 theorem restrict_guard : (guard S τ).restrict S τ = 0 := by
   ext w
   · rw [coeff_restrict, coeff_guard]; split_ifs <;> simp_all
-  · simp only [bound_restrict, bound_guard, coeff_guard, bound_zero]
-    rw [Finset.sum_congr rfl fun v hv => show (if v ∈ S then (if τ v then -1 else 1) else 0) *
-      (τ v).toInt = -(τ v).toInt by cases τ v <;> simp [hv]]
-    simp
+  · rw [bound_restrict, bound_guard, bound_zero, sub_eq_zero, ← Finset.sum_neg_distrib]
+    exact Finset.sum_congr rfl fun v hv => by cases hτ : τ v <;> simp [coeff_guard, hv, hτ]
 
 /-! ### Semantics -/
 
@@ -332,29 +326,17 @@ private theorem one_le_slack_guard {σ : V → Bool} {v : V} (hv : v ∈ S) (hne
 same truth value. -/
 theorem holds_restrict_iff {σ : V → Bool} (h : ∀ v ∈ S, σ v = τ v) (I : Ineq V) :
     (I.restrict S τ).Holds σ ↔ I.Holds σ := by
-  have hsplit : I = I.restrict S τ + ∑ v ∈ S, (offCoeff τ I v) • offLit τ v := by
+  have hsplit : I = I.restrict S τ +
+      ∑ v ∈ S, (⟨Finsupp.single v (I.coeff v), I.coeff v * (τ v).toInt⟩ : Ineq V) := by
     ext w
-    · simp only [coeff_add, Finsupp.add_apply, coeff_sum, Finsupp.finsetSum_apply, coeff_zsmul,
-        Finsupp.smul_apply, coeff_offLit, Finsupp.single_apply, coeff_restrict, smul_eq_mul,
-        mul_ite, mul_zero, Finset.sum_ite_eq']
-      by_cases hw : w ∈ S
-      · simp only [hw, ↓reduceIte, offCoeff]; cases τ w <;> simp
-      · simp [hw]
-    · have hpt : ∀ v ∈ S, offCoeff τ I v * -(τ v).toInt = I.coeff v * (τ v).toInt := fun v _ => by
-        cases hτ : τ v <;> simp [offCoeff, hτ]
-      simp only [bound_add, bound_sum, bound_zsmul, bound_offLit, bound_restrict, smul_eq_mul]
-      rw [Finset.sum_congr rfl hpt]; ring
-  have hl : ∀ v ∈ S, (offCoeff τ I v • offLit τ v).lhs σ =
-      (offCoeff τ I v • offLit τ v).bound := by
-    intro v hv
-    have := slack_offLit (τ := τ) σ v
-    simp only [h v hv, ↓reduceIte] at this
-    rw [lhs_of_coeff_eq_smul σ (J := offLit τ v) (c := offCoeff τ I v) rfl, bound_zsmul,
-      smul_eq_mul]
-    congr 1; omega
+    · simp only [coeff_add, Finsupp.add_apply, coeff_sum, Finsupp.finsetSum_apply,
+        Finsupp.single_apply, coeff_restrict, Finset.sum_ite_eq']
+      split_ifs <;> simp
+    · simp [bound_restrict]
+  have hsum : ∑ v ∈ S, I.coeff v * (σ v).toInt = ∑ v ∈ S, I.coeff v * (τ v).toInt :=
+    Finset.sum_congr rfl fun v hv => by rw [h v hv]
   conv_rhs => rw [hsplit]
-  simp only [Holds, lhs_add, bound_add, lhs_sum, bound_sum, Finset.sum_congr rfl hl]
-  constructor <;> intro h <;> linarith
+  simp [Holds, hsum]
 
 /-- At an assignment agreeing with `τ` on `S`, the line `D↾ρ + K • guard` holds exactly when `D`
 does, for every `K`. -/

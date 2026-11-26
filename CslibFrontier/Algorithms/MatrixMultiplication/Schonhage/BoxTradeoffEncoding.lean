@@ -59,14 +59,11 @@ private theorem twentyone_pow_le_choose (m : ℕ) : 21 ^ m ≤ (21 * m).choose m
 
 private theorem choose_twentyone_mul_le (m : ℕ) : (21 * m).choose m ≤ 64 ^ m := by
   have hterm : (21 * m).choose m * 20 ^ (20 * m) ≤ 21 ^ (21 * m) := by
-    have h := Finset.single_le_sum
-      (f := fun i : ℕ => (1 : ℕ) ^ i * 20 ^ (21 * m - i) * (21 * m).choose i)
-      (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr (by omega) : m ∈ range (21 * m + 1))
-    have hp := add_pow (1 : ℕ) 20 (21 * m)
     have hsub : 21 * m - m = 20 * m := by omega
-    simp only [Nat.cast_id] at hp
-    rw [← hp, hsub] at h
-    simpa only [one_pow, one_mul, Nat.reduceAdd, Nat.mul_comm] using h
+    have h := (Finset.single_le_sum (f := fun i => 1 ^ i * 20 ^ (21 * m - i) * (21 * m).choose i)
+      (fun _ _ => Nat.zero_le _) (mem_range.mpr (by omega) : m ∈ range (21 * m + 1))).trans_eq
+      (by simpa only [Nat.cast_id] using (add_pow (1 : ℕ) 20 (21 * m)).symm)
+    simpa only [hsub, one_pow, one_mul, Nat.reduceAdd, Nat.mul_comm (20 ^ (20 * m))] using h
   have hbig : 21 ^ (21 * m) ≤ 64 ^ m * 20 ^ (20 * m) := by
     simpa only [pow_mul, mul_pow] using
       Nat.pow_le_pow_left (by norm_num : 21 ^ 21 ≤ 64 * 20 ^ 20) m
@@ -115,10 +112,9 @@ theorem encodings_ninth_blocks (k N : ℕ) (hN : D (9 * k) ^ 18 ≤ N) :
     simpa only [← heq] using (bandSize_twentyone_le (9 * k)).trans hN
   have hpad : (B : ℝ) * ((K0' : ℝ) * (N0' : ℝ)) ≤ 2 * (N : ℝ) :=
     mod_cast (padN_le_two_mul (189 * k) (9 * k) N hband : B * (K0' * N0') ≤ 2 * N)
-  have hK : (21 : ℝ) ^ (9 * k) ≤ 4 * (K0' : ℝ) ^ 2 := by
-    have h := (twentyone_pow_le_choose (9 * k)).trans (K_le_four_mul_K0_sq (21 * (9 * k)) (9 * k))
-    rw [← heq] at h
-    exact_mod_cast h
+  have hK : (21 : ℝ) ^ (9 * k) ≤ 4 * (K0' : ℝ) ^ 2 := mod_cast by
+    simpa only [K0', heq] using (twentyone_pow_le_choose (9 * k)).trans
+      (K_le_four_mul_K0_sq (21 * (9 * k)) (9 * k))
   have hcount : (B : ℝ) ^ 2 * (21 : ℝ) ^ (9 * k) * (N0' : ℝ) ^ 2 ≤
       16 * (N : ℝ) ^ 2 := by
     calc (B : ℝ) ^ 2 * (21 : ℝ) ^ (9 * k) * (N0' : ℝ) ^ 2
@@ -169,10 +165,8 @@ private theorem matrix_words_ninth_blocks (k N : ℕ) (hN : D (9 * k) ^ 18 ≤ N
   have hpow := pow_le_pow_left₀ (by positivity)
     (by norm_num : (4 : ℝ) ^ 9 ≤ (4 : ℝ) ^ 162 * (9 / 20 : ℝ)) k
   have hD : (D (9 * k) : ℝ) ≤ (9 / 20 : ℝ) ^ k * ((D (9 * k) ^ 18 : ℕ) : ℝ) := by
-    dsimp only [D]
-    push_cast
-    rw [← pow_mul, Nat.mul_right_comm 9 k 18]
-    simpa only [mul_pow, ← pow_mul, mul_comm] using hpow
+    simpa only [D, Nat.cast_pow, Nat.cast_ofNat, mul_pow, ← pow_mul, Nat.mul_right_comm 9 k 18,
+      Nat.reduceMul, mul_comm ((9 / 20 : ℝ) ^ k)] using hpow
   have hNr : ((D (9 * k) ^ 18 : ℕ) : ℝ) ≤ (N : ℝ) := by exact_mod_cast hN
   calc (N : ℝ) * (D (9 * k) : ℝ)
       ≤ (N : ℝ) * ((9 / 20 : ℝ) ^ k * ((D (9 * k) ^ 18 : ℕ) : ℝ)) := by gcongr

@@ -236,22 +236,18 @@ theorem iopInteractiveGame_le_sum {r d : ℕ} {Stmt Wit Sym Chal : Type}
   refine ((iopRunRounds P r []).toOuterMeasure_mono ?_).trans
     (iopPrefixEscape_le_sum (hrbr.init_doomed x hx) (hrbr.step_doomed x)
       r ε_round (hescape x hx) P)
-  rintro tr ⟨hacc, hsupp⟩
-  simp only [Set.mem_preimage, Set.mem_singleton_iff] at hacc
-  simp only [Set.mem_ofPred_eq]
-  intro hd
+  rintro tr ⟨hacc, hsupp⟩ hd
   have hlen : tr.length = r := by
     simpa only [List.length_nil, Nat.zero_add] using
       length_of_mem_support_iopRunRounds P r [] tr hsupp
   let oracles : Fin r → OracleTable d Sym := fun j => (tr[j.val]?.getD defaultEntry).1
   let chals : Fin r → Chal := fun j => (tr[j.val]?.getD defaultEntry).2
   have htr_eq : (List.ofFn fun j : Fin r => (oracles j, chals j)) = tr := by
-    apply List.ext_getElem (by simp only [List.length_ofFn, hlen])
-    intro i hi1 hi2
+    refine List.ext_getElem (by simp only [List.length_ofFn, hlen]) fun i _ hi2 => ?_
     simp only [List.getElem_ofFn, oracles, chals, List.getElem?_eq_getElem hi2,
       Option.getD_some, Prod.mk.eta]
-  have hrej := hrbr.reject_of_doomed x oracles chals (htr_eq.symm ▸ hd)
-  exact Bool.false_ne_true (hrej.symm.trans hacc)
+  exact Bool.false_ne_true
+    ((hrbr.reject_of_doomed x oracles chals (htr_eq.symm ▸ hd)).symm.trans hacc)
 
 private noncomputable def causalPref {r d : ℕ} {Sym Chal : Type}
     (P : (j : Fin r) → (Fin j.val → Chal) → OracleTable d Sym) :
@@ -309,9 +305,7 @@ private theorem iopRunRounds_ofCausal_aux {r d : ℕ} {Sym Chal : Type}
     obtain rfl : j = r := by omega
     rw [iopRunRounds, ← PMF.map_const (PMF.uniformOfFintype (Fin 0 → Chal))]
     congr 1 with _ : 1
-    dsimp only [Function.const]
-    congr 1 with k : 1
-    simp [k.isLt]
+    exact congrArg (causalPref P j le_rfl) (funext fun k => by simp [k.isLt])
   | m + 1, j, hjm, hist => by
     have hj_lt : j < r := by omega
     have hstep_P :
@@ -337,8 +331,8 @@ private theorem iopRunRounds_ofCausal_aux {r d : ℕ} {Sym Chal : Type}
       simp only [hk, hk1, ↓reduceDIte]
       exact Fin.snoc_castSucc (α := fun _ => Chal) (rest 0) hist ⟨k.val, hk⟩
     · simp only [hkeq, lt_irrefl, Nat.lt_succ_self, ↓reduceDIte]
-      rw [show (⟨j, Nat.lt_succ_self j⟩ : Fin (j + 1)) = Fin.last j from rfl, Fin.snoc_last]
-      exact congrArg rest (Fin.ext (Nat.sub_self j).symm)
+      exact (Fin.snoc_last (α := fun _ => Chal) (rest 0) hist).trans
+        (congrArg rest (Fin.ext (Nat.sub_self j).symm))
     · simp only [not_lt.mpr hk.le, not_lt.mpr (Nat.succ_le_of_lt hk), ↓reduceDIte, Fin.tail]
       exact congrArg rest (Fin.ext (by simp only [Fin.val_succ]; omega))
 
@@ -353,8 +347,7 @@ theorem iopInteractiveGame_ofCausal_eq {r d : ℕ} {Stmt Wit Sym Chal : Type}
         iopVerify iop x chals (fun j => P j fun i => chals ⟨i.val, lt_trans i.isLt j.isLt⟩) := by
   have hrun := iopRunRounds_ofCausal_aux P r 0 (Nat.zero_add r) Fin.elim0
   dsimp only [causalPref] at hrun
-  simp only [iopInteractiveGame]
-  change (iopRunRounds (InteractiveIOPProver.ofCausal P) r []).map _ = _
+  dsimp only [iopInteractiveGame]
   rw [hrun, PMF.map_comp]
   congr 1 with chals : 1
   have hget (j : Fin r) (d0 : OracleTable d Sym × Chal) :

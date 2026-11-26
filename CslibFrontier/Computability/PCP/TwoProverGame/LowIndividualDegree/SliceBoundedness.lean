@@ -101,13 +101,8 @@ theorem abs_average_evaluated_sandwich_failure_le {β : Type*} [Fintype β]
     simp only [evaluatePolynomialMeasurement_effect_some, mul_sum, sum_mul, map_sum, Complex.re_sum]
     conv_rhs => rw [← sum_fiberwise univ (fun g : BoundedPolynomial F m d => eval u g.val)]
     exact sum_congr rfl fun b _ => sum_congr rfl fun g hg => by rw [hKTerm, (mem_filter.mp hg).2]
-  have hmean (a : β) (g : BoundedPolynomial F m d) :
-      (𝔼 u : (Fin m → F), (φ (star (K (a, g)) * K (a, g) * P.effect none *
-        (B u).effect (eval u g.val))).re) =
-        (φ (star (K (a, g)) * K (a, g) * P.effect none * H (a, g))).re := by
-    simp only [H, averagePolynomialPointEffect_eq, ← φ.re_apply_uniformAverage, ← mul_sum,
-      ← mul_smul_comm]
-  simpa only [Fintype.sum_prod_type, hsum, expect_sum_comm, hmean] using h
+  simpa only [Fintype.sum_prod_type, hsum, expect_sum_comm, ← φ.re_apply_uniformAverage,
+    ← mul_sum, ← mul_smul_comm, ← averagePolynomialPointEffect_eq, H] using h
 
 /-- After moving the varying point effect to the right, the same majorant controls
 the failure term with a second fixed point measurement. -/
@@ -161,15 +156,10 @@ theorem abs_average_evaluated_failure_rightPoint_le {β : Type*} [Fintype β]
     dsimp only [Y]
     rw [AlgState.norm_sq, hc.eq, star_mul, (B u).nonneg _ |>.isSelfAdjoint.star_eq,
       mul_assoc, ← mul_assoc ((B u).effect _) ((B u).effect _), hB, ← mul_assoc]
-  have hmean (p : β × BoundedPolynomial F m d) :
-      (𝔼 u : Fin m → F, φ.norm (Y u p) ^ 2) =
-        (φ (star (K p * P.effect none) * averagePolynomialPointEffect B p.2 *
-          (K p * P.effect none))).re := by
-    simp only [hY]
-    rw [averagePolynomialPointEffect_eq, ← φ.re_apply_uniformAverage, ← sum_mul, ← mul_sum,
-      ← smul_mul_assoc, ← mul_smul_comm]
   have hv : (𝔼 u : Fin m → F, ∑ p, φ.norm (Y u p) ^ 2) ≤ (φ (P.effect none * Z)).re := by
-    simp only [expect_sum_comm, hmean, ← Complex.re_sum, ← map_sum]
+    simp_rw [expect_sum_comm, hY, ← φ.re_apply_uniformAverage, ← sum_mul, ← mul_sum,
+      ← smul_mul_assoc, smul_mul_assoc _ (star _), ← mul_smul_comm,
+      ← averagePolynomialPointEffect_eq, ← Complex.re_sum, ← map_sum]
     exact φ.re_apply_mono (sum_failure_conjugate_le K
       (fun p => averagePolynomialPointEffect B p.2) (P.effect none) Z
       (P.nonneg none).isSelfAdjoint (hp none) hK hZ (fun p => hbound p.2)

@@ -100,17 +100,13 @@ theorem HasWeight.mul {m n : ℕ} {Q Q' : R[X]} (h : HasWeight J m Q) (h' : HasW
   rw [coeff_mul]
   refine Submodule.sum_mem _ fun x hx => ?_
   have hx' := mem_antidiagonal.1 hx
-  have hmul := Ideal.mul_mem_mul (h x.1) (h' x.2)
-  rw [← pow_add] at hmul
-  exact Ideal.pow_le_pow_right (by omega) hmul
+  exact Ideal.pow_le_pow_right (by omega) (pow_add J _ _ ▸ Ideal.mul_mem_mul (h x.1) (h' x.2))
 
 theorem HasWeight.pow {n : ℕ} {Q : R[X]} (h : HasWeight J n Q) (k : ℕ) :
     HasWeight J (n * k) (Q ^ k) := by
   induction k with
   | zero => exact hasWeight_zero _
-  | succ k ih =>
-    rw [pow_succ, Nat.mul_succ]
-    exact ih.mul h
+  | succ k ih => simpa only [pow_succ, Nat.mul_succ] using ih.mul h
 
 /-- A polynomial whose coefficients of `1` and `y` lie in `J` has weight at least `2`. -/
 theorem hasWeight_two_of_coeff_mem {G : R[X]} (h0 : G.coeff 0 ∈ J) (h1 : G.coeff 1 ∈ J) :
@@ -227,10 +223,9 @@ theorem sum_coeff_mul_pow_sub_eval_mem [Field F] [CharZero F] [Algebra F R] {G :
     Ideal.pow_le_pow_right (by omega)
       (((hasWeight_zero (J := J) (K * (1 - derivative G) * E)).mul (hG.pow (N + 1))) N)
   have e3 : ∑ n ∈ range (N + 1),
-      ((X - C f) * K * (1 - derivative G) * D ^ (2 * e) * G ^ n).coeff n ∈ J ^ e := by
-    have hw : HasWeight J (0 + 1 * (2 * e)) ((X - C f) * K * (1 - derivative G) * D ^ (2 * e)) :=
-      (hasWeight_zero _).mul (hDw.pow (2 * e))
-    exact Ideal.pow_le_pow_right (by omega) (sum_coeff_mul_pow_mem hG hw N)
+      ((X - C f) * K * (1 - derivative G) * D ^ (2 * e) * G ^ n).coeff n ∈ J ^ e :=
+    Ideal.pow_le_pow_right (by omega)
+      (sum_coeff_mul_pow_mem hG ((hasWeight_zero _).mul (hDw.pow (2 * e))) N)
   convert Ideal.add_mem _ (Ideal.neg_mem_iff _ |>.2 (Ideal.mul_mem_left _ (H.eval f) e1))
     (Ideal.add_mem _ (Ideal.neg_mem_iff _ |>.2 e2) e3) using 1
   rw [hsum]
@@ -266,11 +261,9 @@ theorem sub_sum_coeff_pow_mem_of_eval_eq [Field F] [CharZero F] [Algebra F R] {G
         (((n : F) + 1) * ((n : F) + 2)⁻¹) • (G ^ (n + 2)).coeff (n + 1) =
         ∑ n ∈ range N, ((n : F) * ((n : F) + 1)⁻¹) • (G ^ (n + 1)).coeff n +
           ((N : F) * ((N : F) + 1)⁻¹) • (G ^ (N + 1)).coeff N := by
-      have h := sum_range_succ' (fun n => ((n : F) * ((n : F) + 1)⁻¹) • (G ^ (n + 1)).coeff n) N
-      rw [sum_range_succ] at h
-      simp only [Nat.cast_zero, zero_mul, zero_smul, add_zero, Nat.cast_add, Nat.cast_one,
-        add_assoc, one_add_one_eq_two] at h
-      exact h.symm
+      simpa only [sum_range_succ, Nat.cast_zero, zero_mul, zero_smul, add_zero, Nat.cast_add,
+        Nat.cast_one, add_assoc, one_add_one_eq_two] using
+        (sum_range_succ' (fun n => ((n : F) * ((n : F) + 1)⁻¹) • (G ^ (n + 1)).coeff n) N).symm
     rw [hshift, ← sub_sub, ← sum_sub_distrib]
     congr 1
     refine sum_congr rfl fun m _ => ?_

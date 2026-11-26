@@ -256,19 +256,15 @@ theorem minChainCover_correct (e : Fin n ≃ α) :
     fun x y h => e.symm.injective (by simpa [vget] using h)
   have hemb : Function.Injective (Prod.map e e) := e.injective.prodMap e.injective
   have hL : L.Nodup := (nodup_filter_pairs M).map hemb
-  have hmemL : ∀ a b : α, (a, b) ∈ L ↔ (e.symm a, e.symm b) ∈ M := by
-    intro a b
-    simp only [L, ps, List.mem_map, mem_filter_pairs, Prod.exists, Prod.map, Prod.mk.injEq]
-    exact ⟨fun ⟨i, j, h, hi, hj⟩ => by simpa [← hi, ← hj] using h,
-      fun h => ⟨_, _, h, by simp, by simp⟩⟩
-  have hmatch : IsMatching (ltGraph (α := α)) L.toFinset := by
-    refine ⟨fun ⟨a, b⟩ h => ?_, fun a b₁ b₂ h₁ h₂ => ?_, fun a₁ a₂ b h₁ h₂ => ?_⟩
-    · rw [List.mem_toFinset, hmemL] at h
-      simpa [enumLtGraph] using hmax.1.1 _ h
-    · rw [List.mem_toFinset, hmemL] at h₁ h₂
-      exact e.symm.injective (hmax.1.2.1 _ _ _ h₁ h₂)
-    · rw [List.mem_toFinset, hmemL] at h₁ h₂
-      exact e.symm.injective (hmax.1.2.2 _ _ _ h₁ h₂)
+  have hmemL (a b : α) : (a, b) ∈ L.toFinset → (e.symm a, e.symm b) ∈ M := by
+    simp only [List.mem_toFinset, L, ps, List.mem_map, mem_filter_pairs, Prod.exists, Prod.map,
+      Prod.mk.injEq]
+    rintro ⟨i, j, h, rfl, rfl⟩
+    simpa only [Equiv.symm_apply_apply] using h
+  have hmatch : IsMatching (ltGraph (α := α)) L.toFinset :=
+    ⟨fun ⟨a, b⟩ h => by simpa [enumLtGraph] using hmax.1.1 _ (hmemL a b h),
+      fun _ _ _ h₁ h₂ => e.symm.injective (hmax.1.2.1 _ _ _ (hmemL _ _ h₁) (hmemL _ _ h₂)),
+      fun _ _ _ h₁ h₂ => e.symm.injective (hmax.1.2.2 _ _ _ (hmemL _ _ h₁) (hmemL _ _ h₂))⟩
   obtain ⟨hchain, hnum⟩ := foldl_mergeLabel_spec hinj hL hmatch
   rw [← hlabel] at hchain hnum
   set lab := ChainCoverOutput.label e ⟨chainLabels M (List.finRange n ×ˢ List.finRange n)
@@ -286,16 +282,14 @@ theorem minChainCover_correct (e : Fin n ≃ α) :
     rw [Finset.mem_coe, mem_uncovered] at hi hj
     exact (hmin.1 i j (by simpa [enumLtGraph] using lt_of_le_of_ne hle hij)).elim hi.1 hj.2
   have hle : n - M.card ≤ C.uncovered.card := by
-    have := card_sub_size_le_card_uncovered C
-    rwa [Fintype.card_fin, ← hcard] at this
-  have hge : C.uncovered.card ≤ (Finset.univ.image lab).card := by
-    have hinjOn : Set.InjOn lab (e '' C.uncovered) :=
-      hanti.injOn_of_isChain_fibre hchain
+    simpa only [Fintype.card_fin, ← hcard] using card_sub_size_le_card_uncovered C
+  have hge : C.uncovered.card ≤ (Finset.univ.image lab).card :=
     calc C.uncovered.card = (C.uncovered.map e.toEmbedding).card := (Finset.card_map _).symm
       _ ≤ (Finset.univ.image lab).card :=
         Finset.card_le_card_of_injOn lab (fun x _ => Finset.mem_coe.mpr
           (Finset.mem_image_of_mem lab (Finset.mem_univ x)))
-          (by rwa [Finset.coe_map, Equiv.coe_toEmbedding])
+          (by simpa only [Finset.coe_map, Equiv.coe_toEmbedding] using
+            hanti.injOn_of_isChain_fibre hchain)
   rw [hrange] at hnum hge
   refine ⟨hchain, hanti, ?_, ?_⟩ <;> simp only [ChainCoverOutput.numChains] <;> omega
 
@@ -317,9 +311,9 @@ has `k` at least the number of its labels. -/
 theorem card_antichain_le_of_isChain_fibre {k : ℕ} {f : α → Fin k}
     (hf : ∀ i, IsChain (· ≤ ·) (f ⁻¹' {i})) : (minChainCover e).antichain.card ≤ k := by
   obtain ⟨-, hanti, -, -⟩ := minChainCover_correct e
-  have h := IsAntichain.card_le_of_isChain_fibre (t := (minChainCover e).antichain.map
-    e.toEmbedding) (by rwa [Finset.coe_map, Equiv.coe_toEmbedding]) hf
-  rwa [Finset.card_map, Fintype.card_fin] at h
+  simpa only [Finset.card_map, Fintype.card_fin] using IsAntichain.card_le_of_isChain_fibre
+    (t := (minChainCover e).antichain.map e.toEmbedding)
+    (by simpa only [Finset.coe_map, Equiv.coe_toEmbedding] using hanti) hf
 
 end Proofs
 

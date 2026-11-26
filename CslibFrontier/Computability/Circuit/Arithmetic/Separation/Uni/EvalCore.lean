@@ -120,8 +120,7 @@ theorem self (h : InMode σ md H inp) : InMode σ md σ.heap inp :=
 private theorem step (h : InMode σ md H inp) (hd : (rule θ supp r).dst = md' := by rfl)
     (hrd : (rule θ supp r).rd = none := by rfl) : InMode (step θ σ r p q s) md' H inp :=
   ⟨h.wf.step r p q s, hd, List.Subset.trans h.heap (heap_subset_step σ r p q s), by
-    rw [inp_step, hrd]
-    exact h.inp⟩
+    simpa [inp_step, hrd] using h.inp⟩
 
 /-- A record of `H` is in the heap; its address may be given by an equation. -/
 theorem mem_of_eq (h : InMode σ md H inp) {k k' f₀ f₁ f₂ : ℕ}
@@ -222,12 +221,10 @@ theorem sumTo_readName (hθ : ∀ q, q ∉ supp → θ q = 0) (w : Tree) :
     generalize decide (a ≠ .nil) = bt at hx ⊢
     by_cases hp : p.1 ++ [bt] ∈ prefixes supp
     · have hl := length_le_nameLength hp
-      rw [List.length_append, List.length_singleton] at hl
       exact h₁.sumTo_step hx (r := .thetaBit p ⟨_, hp⟩ bt rfl)
         (by cases bt <;> exact dite_eq_left hp)
         fun h₂ => .mono (ih ⟨_, hp⟩ _ h₂ hb.step.step hk h) (by
-          simp only [List.length_append, List.length_singleton]
-          omega)
+          simp only [List.length_append, List.length_singleton] at hl ⊢; omega)
     · rw [hθ _ fun hq => hp (mem_prefixes.2 ⟨_, hq, List.prefix_append _ _⟩), zero_mul]
       exact h₁.sumTo_zero hx (by cases bt <;> exact dite_eq_right hp) _
 
@@ -348,8 +345,7 @@ private theorem Returns.det {v : Tree} {m : Run A → A} (h : ∀ r ∈ [(.det 1
     r.bill = [] → Returns θ supp H k inp r.out (m r) (B - codeCost supp * r.cost)) :
     Returns θ supp H k inp v (plainValue m [.det 1 v]) (B - 13) := fun σ hσ hk hv => by
   simpa [plainValue] using (h (.det 1 v) (by simp) rfl σ hσ hk hv).mono (by
-    simp only [Run.det, Nat.cast_one]
-    linarith [codeCost_ge (supp := supp)])
+    simp only [Run.det, Nat.cast_one]; linarith [codeCost_ge (supp := supp)])
 
 /-- The empty code is `quote nil`. -/
 theorem EvalsTo.nil : EvalsTo θ supp .nil x [.det 1 .nil] := fun _ _ _ _ hσ _ _ h =>
@@ -379,9 +375,8 @@ theorem EvalsTo.fail (ho : o.len = 8 ∨ 11 ≤ o.len) : EvalsTo θ supp (.cons 
 /-- Naming a constant stops the machine: such runs do not count. -/
 theorem EvalsTo.mul (ho : o.len = 10) (l : List (Run A)) : EvalsTo θ supp (.cons o a) x
     (l.map fun r => ⟨r.cost + 1, r.th, r.bill ++ [r.out.path], .nil⟩) := by
-  intro σ H k inp hσ m B h
-  rw [show plainValue m _ = 0 by simp [plainValue, plainWeight, Function.comp_def]]
-  exact hσ.sumTo_noRule (by omega)
+  intro σ H k inp hσ m B _
+  simpa [plainValue, plainWeight, Function.comp_def] using hσ.sumTo_noRule (by omega)
 
 /-- The rules for the mode `decode 7` at the empty record are the two guesses. -/
 private theorem eq_decodeGuess {r : Rule supp} (hs : (rule θ supp r).src = .decode 7)
@@ -394,22 +389,22 @@ private theorem eq_decodeGuess {r : Rule supp} (hs : (rule θ supp r).src = .dec
 theorem EvalsTo.guess (ho : o.len = 7) :
     EvalsTo θ supp (.cons o a) x [.det 1 .nil, .det 1 Tree.one] := by
   intro σ H k inp hσ m B h
-  have h₀ := h (.det 1 .nil) (by simp) rfl
-  have h₁ := h (.det 1 Tree.one) (by simp) rfl
-  simp only [Run.det, Nat.cast_one, mul_one] at h₀ h₁
-  have hC := codeCost_ge (supp := supp)
-  rw [show plainValue m [.det 1 .nil, .det 1 Tree.one] =
-    1 * m (.det 1 .nil) + 1 * m (.det 1 Tree.one) by simp [plainValue]]
+  have hB : B - codeCost supp * (1 : ℕ) ≤ B - 12 := by
+    push_cast; linarith [codeCost_ge (supp := supp)]
+  simp only [plainValue, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, add_zero,
+    plainWeight_det]
   refine .mono (hσ.sumTo_opcode (B := B - 11) (fun j hj σ₁ hσ₁ h₁₁ _ _ hk => ?_) (by omega))
     (by omega)
   obtain rfl : j = 7 := Fin.ext (hj.symm.trans ho)
   have hrec : ((.nil, ![σ₁.regs (loadReg σ₁.mode), 0, 0, 0]) : Rec RecKind) ∈ σ₁.heap :=
     hσ₁.mode.symm ▸ hσ₁.wf.nil_mem h₁₁
-  have g₀ := h₀ (step θ σ₁ (.base (.decodeGuess false)) 0 0 0) hσ₁.step hk hσ₁.wf.r0
-  have g₁ := h₁ (step θ σ₁ (.base (.decodeGuess true)) 0 0 0) hσ₁.step hk
-    ⟨_, _, _, mem_heap_step σ₁ _ 0 0 0, hσ₁.wf.r0, hσ₁.wf.r0⟩
-  refine .mono (Mach.SumTo.two (B := B - 12) (by rw [hσ₁.mode]; rintro ⟨⟩) _ _ (by rintro ⟨⟩)
-    (fun st => ?_) (g₀.mono (by linarith)) (g₁.mono (by linarith))) (by omega)
+  have g₀ := (h (.det 1 .nil) (by simp) rfl (step θ σ₁ (.base (.decodeGuess false)) 0 0 0)
+    hσ₁.step hk hσ₁.wf.r0).mono hB
+  have g₁ := (h (.det 1 Tree.one) (by simp) rfl (step θ σ₁ (.base (.decodeGuess true)) 0 0 0)
+    hσ₁.step hk ⟨_, _, _, mem_heap_step σ₁ _ 0 0 0, hσ₁.wf.r0, hσ₁.wf.r0⟩).mono hB
+  refine .mono (Mach.SumTo.two (B := B - 12) (hσ₁.mode.symm ▸ by rintro ⟨⟩) _ _
+    (by rintro ⟨⟩) (fun st => ?_) g₀ g₁)
+    (by omega)
   rw [fire_iff hσ₁.wf hrec, hσ₁.mode]
   constructor
   · rintro ⟨e₁, e₂, -, e₄⟩

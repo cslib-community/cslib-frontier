@@ -91,10 +91,9 @@ theorem entropy_ge_of_dist_uniform {n : ℕ} (hn : 1 ≤ n) (p : PMF (BitString 
   have hsurp (x : BitString n) (hx : x ∈ S₁) :
       (p x).toReal * ((n : ℝ) - 1) ≤ (p x).toReal * surprisal p x := by
     rcases (ENNReal.toReal_nonneg (a := p x)).eq_or_lt with hp0 | hpx
-    · rw [← hp0, zero_mul, zero_mul]
-    refine mul_le_mul_of_nonneg_left ?_ hpx.le
-    rw [surprisal, le_neg]
-    exact (Real.logb_le_iff_le_rpow (by norm_num) hpx).mpr (Finset.mem_filter.1 hx).2
+    · simp [← hp0]
+    exact mul_le_mul_of_nonneg_left (le_neg.mpr <|
+      (Real.logb_le_iff_le_rpow (by norm_num) hpx).mpr (Finset.mem_filter.1 hx).2) hpx.le
   rw [entropy_eq_sum_surprisal]
   calc ((n : ℝ) - 1) * (1 - 2 * dist p U) ≤ ((n : ℝ) - 1) * ∑ x ∈ S₁, (p x).toReal :=
         mul_le_mul_of_nonneg_left
@@ -154,8 +153,7 @@ theorem sum_filter_mass_le_ge_of_entropy_ge {m : ℕ} (hm : 1 ≤ m) (p : PMF (B
     let pS := p.filter (S : Set (BitString m))
       ⟨y₀, hy₀, (p.mem_support_iff y₀).2 fun h => hpy₀ (by simp [h])⟩
     have hmeas : (p.toOuterMeasure (S : Set (BitString m))).toReal = q := by
-      rw [toOuterMeasure_apply_toReal]
-      simp [q]
+      simpa [q] using toOuterMeasure_apply_toReal p (S : Set (BitString m))
     have hterm (y : BitString m) : q * ((pS y).toReal * surprisal pS y) =
         if y ∈ S then (p y).toReal * surprisal p y + (p y).toReal * Real.logb 2 q else 0 := by
       rw [surprisal, surprisal, filter_apply_toReal, hmeas]
@@ -173,8 +171,7 @@ theorem sum_filter_mass_le_ge_of_entropy_ge {m : ℕ} (hm : 1 ≤ m) (p : PMF (B
     have hent_pS : entropy pS ≤ m := by
       simpa only [BitString.logb_card] using entropy_le_log_card pS
     have hq_log := mul_neg_logb_two_le_two hq_pos
-    rw [mul_neg] at hq_log
-    linarith [mul_le_mul_of_nonneg_left hent_pS hq_pos.le]
+    linarith [mul_le_mul_of_nonneg_left hent_pS hq_pos.le, mul_neg q (Real.logb 2 q)]
   rw [div_le_iff₀ (by exact_mod_cast hm)]
   linarith [Finset.sum_add_sum_compl S fun y => (p y).toReal * surprisal p y,
     entropy_eq_sum_surprisal p]
@@ -209,9 +206,8 @@ theorem entropy_append_uniform {m k : ℕ} (p : PMF (BitString m)) :
     BitString.ofList (m + k) (List.ofFn xz.1 ++ List.ofFn xz.2)
   have hinj : Function.Injective join := by
     rintro ⟨x₁, z₁⟩ ⟨x₂, z₂⟩ hxy
-    have h := congrArg List.ofFn hxy
-    dsimp only [join] at h
-    rw [BitString.ofFn_ofList (by simp), BitString.ofFn_ofList (by simp)] at h
+    have h : List.ofFn x₁ ++ List.ofFn z₁ = List.ofFn x₂ ++ List.ofFn z₂ := by
+      simpa [join, BitString.ofFn_ofList] using congrArg List.ofFn hxy
     obtain ⟨hx, hz⟩ := List.append_inj h (by simp)
     exact Prod.ext (List.ofFn_inj.mp hx) (List.ofFn_inj.mp hz)
   have hmap : (p.bind fun x => (PMF.uniformOfFintype (BitString k)).map (x, ·)).map join =

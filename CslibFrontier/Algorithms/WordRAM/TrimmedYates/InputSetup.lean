@@ -95,14 +95,12 @@ theorem input_total_time_le {d nL nR nQ L H : ℕ} (hL : 1 ≤ L) :
     13 + (nL * (23 * d + 40) + 11 + (5 + (nR * (23 * d + 40) + 11 +
       (3 + 200 * (d + 1) ^ 2 * (L + nQ * H))))) ≤
       250 * (d + 1) ^ 2 * (nL + nR + L + nQ * H) - 1 := by
-  obtain ⟨Lp, rfl⟩ : ∃ Lp, L = Lp + 1 := ⟨L - 1, (Nat.sub_add_cancel hL).symm⟩
-  have hid :
-      (13 + (nL * (23 * d + 40) + 11 + (5 + (nR * (23 * d + 40) + 11 +
-        (3 + 200 * (d + 1) ^ 2 * ((Lp + 1) + nQ * H))))) + 1) +
-      ((nL + nR) * (250 * d ^ 2 + 477 * d + 210) + (50 * d ^ 2 + 100 * d + 6) +
-        Lp * (50 * (d + 1) ^ 2) + nQ * H * (50 * (d + 1) ^ 2)) =
-      250 * (d + 1) ^ 2 * (nL + nR + (Lp + 1) + nQ * H) := by ring
-  omega
+  obtain ⟨Lp, rfl⟩ := Nat.exists_eq_add_of_le' hL
+  refine (Nat.le_sub_iff_add_le (Nat.succ_le_of_lt (by positivity))).2 ?_
+  zify
+  rw [← sub_nonneg]
+  ring_nf
+  positivity
 
 /-- Reads the `p`-th `(mask, weight)` pair from `encodeEntries es ++ post`. -/
 private theorem getD_encodeEntries_append {d : ℕ} (es : List (Finset (Fin d) × ℤ))
@@ -157,27 +155,19 @@ theorem exec_inputSetupCode (inst : Instance) {w : ℕ} (hw : inst.FitsWidth w) 
       Fits w (nR + nR) ∧ Fits w (6 + 2 * nL + (nR + nR)) := by
     refine ⟨?_, ?_, ?_, ?_⟩ <;> exact hf_if.of_le (by omega)
   -- Header decode
-  obtain ⟨u₀, he_dec, hu₀d, hu₀s, hu₀fr, hu₀cdp, hu₀cdl, hu₀qc, hu₀mem⟩ : ∃ u₀,
-      ExecWithin (B := .standard) w (ram[
-        rZero ← #0;
-        rOne ← #1;
-        Reg.free ← *rZero;
-        Reg.free ← Reg.free + rOne;
-        rGenTmp ← #1;
-        Reg.dim ← *rGenTmp;
-        rGenTmp ← #2;
-        Reg.thresh ← *rGenTmp;
-        rGenTmp ← #3;
-        Reg.entryCount ← *rGenTmp;
-        rGenTmp ← #5;
-        Reg.queryCount ← *rGenTmp;
-        Reg.entryPtr ← #6 ]) x u₀ 13 ∧
+  dsimp only [x] at hx0 hm1 hm2 hm3 hm4 hm5
+  simp only [exists_and_left]
+  unfold inputSetupCode
+  wram_exec [hx0, hm1, hm2, hm3, hm5]
+  refine WP.name fun u₀ hu₀ => ?_
+  obtain ⟨hu₀d, hu₀s, hu₀fr, hu₀cdp, hu₀cdl, hu₀qc, hu₀mem⟩ :
       u₀.regs Reg.dim = inst.d ∧ u₀.regs Reg.thresh = inst.s ∧ u₀.regs Reg.free = initFree ∧
       u₀.regs Reg.entryPtr = 6 ∧ u₀.regs Reg.entryCount = inst.leftEntries.length ∧
       u₀.regs Reg.queryCount = inst.queries.length ∧ u₀.mem = x.mem := by
-    wram_exec [hx0, hm1, hm2, hm3, hm5]
-    refine ⟨rfl, rfl, ?_, rfl, rfl, rfl, rfl⟩
-    wram_simp [hx0]; omega
+    rw [hu₀]
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, rfl⟩
+    all_goals wram_simp
+    omega
   -- Build left input trie
   obtain ⟨u₁, free₁, fnF, he_bL, hu₁_sav, hu₁_fr, hlo_L, hhi_L, htrF, hf_eq, hfr_L, hreg_L⟩ :=
     exec_buildInputTrie (W := inst.weightSum) inst.leftEntries u₀ hu₀d hu₀cdp hu₀cdl hu₀fr
@@ -229,11 +219,16 @@ theorem exec_inputSetupCode (inst : Instance) {w : ℕ} (hw : inst.FitsWidth w) 
     refine ⟨rfl, ?_, rfl⟩
     wram_simp [hnum_eq]; omega
   have hbf_le := input_bf_le hhi_L hhi_R
-  refine ⟨u₄, baseFree, initFree, free₁, fnF, fnG,
-    he_dec.seq (he_bL.seq (he_pR.seq (he_bR.seq he_pS))), by regs_frame, by regs_frame,
-    by regs_frame, by omega, by regs_frame, hu₄_tG, hu₄_qp, by regs_frame, by omega,
-    fun j hj => ?_, ?_, by rwa [hu₄_mem], hf_eq, hg_eq,
-    by rw [hnQ_def]; exact hsp'.of_le (by dsimp only [solveSpace]; omega)⟩
+  refine WP.of_execWithin he_bL <| WP.of_execWithin (he_pR.seq (he_bR.seq he_pS))
+    ⟨by omega, ?_, ?_, baseFree,
+    by regs_frame, (Nat.zero_lt_succ _).trans_le hlo_R, initFree,
+    by regs_frame, free₁, hu₄_tG, hu₄_qp,
+    by regs_frame,
+    by omega, fun j hj => ?_, fnF, ?_, fnG,
+    by rwa [hu₄_mem], hf_eq, hg_eq,
+    hnQ_def ▸ hsp'.of_le (by dsimp only [solveSpace]; omega)⟩
+  · regs_frame
+  · regs_frame
   · rw [hu₄_mem, hfr_R _ (Or.inl (by omega)), hu₂_mem, hfr_L _ (Or.inl (by omega)), hu₀mem,
       hnum_eq, show 6 + 2 * (nL + nR) + j = j + 2 * nR + 2 * nL + 5 + 1 by omega]
     simp only [x, Instance.encode, List.cons_append, List.nil_append, List.append_assoc,

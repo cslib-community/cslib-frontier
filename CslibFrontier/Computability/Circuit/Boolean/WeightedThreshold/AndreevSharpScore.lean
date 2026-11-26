@@ -182,8 +182,7 @@ private theorem andreevSharpMult_single (i : Fin b) :
 
 private theorem tableVal_sq (x : BitString b → Bool) (c : BitString b) :
     tableVal x c ^ 2 = tableVal x c := by
-  simp only [tableVal]
-  cases x c <;> simp
+  cases h : x c <;> simp [tableVal, h]
 
 /-- **Closed form of the sharper score** (preprint, Appendix A, equation `eq:bestclosed`, in a
 uniform shape): with `p` the block parities, `I₀ = [p = 0]` and `μ_p` the multiplier,
@@ -241,13 +240,10 @@ theorem andreevSharpScore_eq (x : BitString b → Bool) (s : Fin b → ℕ) :
     refine sum_congr rfl fun S _ => ?_
     set u := 2 * andreevSharpW b m x S + ∑ i ∈ S, s i with hu'
     have hu : (2 * (andreevSharpW b m x S : ℤ) + ((∑ i ∈ S, s i : ℕ) : ℤ)) = (u : ℤ) := by
-      rw [hu']; push_cast; ring
-    have h4 : (4 : ℝ) * (andreevRidge (andreevSharpKappa b m S) (u : ℤ) : ℝ) =
-        -8 * ((u + u % 2 : ℕ) : ℝ) ^ 2 +
-          2 * (andreevSharpKappa b m S : ℝ) * ((u + u % 2 : ℕ) : ℝ) := by
-      simpa only [Int.cast_mul, Int.cast_add, Int.cast_pow, Int.cast_neg, Int.cast_ofNat,
-        Int.cast_natCast] using
-        congrArg (Int.cast (R := ℝ)) (four_mul_andreevRidge (andreevSharpKappa b m S) u)
+      push_cast [hu']; ring
+    have h4 := congrArg (Int.cast (R := ℝ)) (four_mul_andreevRidge (andreevSharpKappa b m S) u)
+    simp only [Int.cast_mul, Int.cast_add, Int.cast_pow, Int.cast_neg, Int.cast_ofNat,
+      Int.cast_natCast] at h4
     rw [hu, h4, hG S, hkappa]; ring
   rw [two_mul_sum_oddForm, four_mul_sum_oddForm_mul_oddForm,
     four_mul_sum_oddForm_mul_oddForm] at hridge
@@ -281,7 +277,6 @@ theorem andreevSharpScore_eq (x : BitString b → Bool) (s : Fin b → ℕ) :
   have hsεa : ∑ c, ε c * a c = (1 + α) * E := by
     simp [hε, sum_onSingles_mul, ha, hE, mul_sum, hα]
   have hsεst : ∑ c, ε c * st c = σ := by simp [hε, sum_onSingles_mul, hst, hσ]
-  have hsεδ : ∑ c, ε c * δ c = ε p := hsum_δ ε
   have hsg : ∑ c, g c = 2 * (z + α * E) + σ + 1 := by
     simp only [hg, sum_add_distrib, ← mul_sum, hsa, hsst, hsδ]
   have hg0 : g 0 = I0 := by simp only [hg, ha0, hst0, hδ0]; ring
@@ -295,25 +290,15 @@ theorem andreevSharpScore_eq (x : BitString b → Bool) (s : Fin b → ℕ) :
   have hsεg : ∑ c, ε c * g c = 2 * ((1 + α) * E) + σ + ε p := by
     have h (c : BitString b) : ε c * g c = 2 * (ε c * a c) + ε c * st c + ε c * δ c := by
       simp only [hg]; ring
-    simp only [h, sum_add_distrib, ← mul_sum, hsεa, hsεst, hsεδ]
+    simp only [h, sum_add_distrib, ← mul_sum, hsεa, hsεst, hsum_δ]
   rw [hsg, hg0, hsgg, hsε, hε0, hsεg] at hridge
   -- the load
   have hload : (andreevSharpLoad b m x s : ℝ) = 2 * (z + α * E) + σ := by
     simp [andreevSharpLoad, ← hsa, ha, hX, hσ]
   -- assemble
-  have hscore : 4 * andreevSharpScore b m x s = 4 * (2 * N) +
-      4 * ∑ S, (andreevRidge (andreevSharpKappa b m S)
-        (2 * andreevSharpW b m x S + ∑ i ∈ S, s i) : ℝ) +
-      4 * (N / 2 * ((2 * (z + α * E) + σ) ^ 2 + ∑ i, (s i : ℝ) ^ 2) + 4 * N * z -
-        2 * N * (α ^ 2 + 1) * E - 2 * α * N * σ +
-        2 * N * (1 + α) * ∑ i, X (Pi.single i true) * s i -
-        N * (andreevSharpRange b m + 4) * X 0 * I0) := by
-    rw [andreevSharpScore, ← hload]
-    simp only [hN, hα, hX, hz, hE, hσ, hI0, hp]
-    ring
-  rw [hridge] at hscore
-  have h4 : andreevSharpScore b m x s = (4 * andreevSharpScore b m x s) / 4 := by ring
-  rw [h4, hscore, hload, ha, ← hN, hI0]
+  rw [mul_comm] at hridge
+  rw [andreevSharpScore, eq_div_of_mul_eq four_ne_zero hridge, hload]
+  simp only [← hN, ← hα, ← hσ, ← hp, ha, hI0]
   split_ifs <;> ring
 
 /-- The load is at most the range: `w ≤ R`. -/
@@ -332,8 +317,7 @@ theorem andreevSharpLoad_le (x : BitString b → Bool) (s : Fin b → ℕ) (hs :
     simp [cast_andreevSharpMult, sum_add_distrib, ← mul_sum, h1, h0, sum_sub_distrib]
   have hσ : ∑ i, s i ≤ b * m := (sum_le_sum fun i _ => hs i).trans (by simp)
   rw [andreevSharpLoad, andreevSharpRange]
-  have := hμ.trans hμN.le
-  nlinarith
+  linarith [hμ.trans hμN.le]
 
 /-- The real load is `2 (z + α E) + σ`. -/
 theorem cast_andreevSharpLoad (x : BitString b → Bool) (s : Fin b → ℕ) :

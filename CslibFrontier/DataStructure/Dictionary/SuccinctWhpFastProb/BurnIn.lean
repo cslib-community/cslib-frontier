@@ -266,13 +266,8 @@ theorem HasBurnInBudget.run {c U V n_max : ℕ} (hnU : n_max ≤ U)
     have hins_rest : opInsKeys rest ⊆ opInsKeys (windowSuffix U n_max ops) := by
       refine Subset.trans ?_ hins_sub
       cases o <;> simp [opInsKeys, subset_insert]
-    have hres := ih hstep hv_l.2
-      (fun s hs => hseq_sub s (List.mem_cons_of_mem dict hs)) hins_rest
-    change HasBurnInBudget c U V n_max θ _ BadIns
-      (whpRunFrom c U n_max θ (whpStepPure c U n_max θ st o).1 rest)
-      ((Dynamic.spec U V n_max).run (Dynamic.step dict o).1 rest).1
-      (b - (rest.length + 1))
-    simpa only [Nat.add_comm, Nat.sub_sub] using hres
+    rw [List.length_cons, Nat.add_comm, ← Nat.sub_sub]
+    exact ih hstep hv_l.2 (fun s hs => hseq_sub s (List.mem_cons_of_mem dict hs)) hins_rest
 
 theorem whpRunFrom_small {c U n_max : ℕ} (θ : SeedWhp c U n_max) :
     ∀ (ops : List (Dynamic.Op U)) (sm : SmallDictState),

@@ -333,12 +333,10 @@ private theorem fourCycleZero_of_simpleClosed_four {G : CostGame ι S}
   set B := update (update s i yᵢ) j xⱼ
   set C := update (update s i yᵢ) j yⱼ
   set D := update (update s i xᵢ) j yⱼ
-  by_cases hxi : xᵢ = yᵢ
-  · subst hxi
-    ring
-  by_cases hxj : xⱼ = yⱼ
-  · subst hxj
-    ring
+  rcases eq_or_ne xᵢ yᵢ with rfl | hxi
+  · ring
+  rcases eq_or_ne xⱼ yⱼ with rfl | hxj
+  · ring
   have hne_of : ∀ (u v : ∀ k, S k) (k : ι), u k ≠ v k → u ≠ v :=
     fun _ _ k h e => h (congrFun e k)
   let γ : UnilateralPath ι S :=
@@ -401,8 +399,8 @@ private theorem sweepCost_swap_head {G : CostGame ι S} (h : G.FourCycleZero) {i
   dsimp only at hrect
   have hB : update (update cur i (target i)) j (cur j) = update cur i (target i) := by
     rw [update_comm hij, update_eq_self]
-  simp only [update_eq_self, hB] at hrect
-  simp only [sweepCost, update_comm hij.symm (target j) (target i) cur]
+  simp only [update_eq_self, hB, sweepCost, update_comm hij.symm (target j) (target i) cur]
+    at hrect ⊢
   linarith
 
 private theorem sweepCost_perm {G : CostGame ι S} (h : G.FourCycleZero) :
@@ -464,41 +462,39 @@ theorem exists_isExactPotential_iff_fourCycleZero [Finite ι] {G : CostGame ι S
     (∃ Φ, G.IsExactPotential Φ) ↔ G.FourCycleZero := by
   refine ⟨fun ⟨Φ, hΦ⟩ => fourCycleZero_of_simpleClosed_four fun γ hγ _ =>
     hΦ.pathIntegral_eq_zero_of_isClosed hγ.isClosed, fun h => ?_⟩
-  by_cases hne : Nonempty (∀ i, S i)
-  · obtain ⟨z⟩ := hne
-    have : Fintype ι := Fintype.ofFinite ι
+  rcases isEmpty_or_nonempty (∀ i, S i) with _ | ⟨⟨z⟩⟩
+  · exact ⟨isEmptyElim, isEmptyElim⟩
+  · have := Fintype.ofFinite ι
     exact ⟨G.potentialOfBase z, h.isExactPotential_potentialOfBase z⟩
-  · have : IsEmpty (∀ i, S i) := not_nonempty_iff.1 hne
-    exact ⟨isEmptyElim, isEmptyElim⟩
 
 /-- **[MondererShapley1996], Theorem 2.8, `(1) ↔ (2)` (p. 131)**: a game with finitely many players
 is an exact potential game if and only if `G.pathIntegral γ = 0` for every finite closed unilateral
 path `γ`. -/
 theorem exists_isExactPotential_iff_closedPath [Finite ι] {G : CostGame ι S} :
     (∃ Φ, G.IsExactPotential Φ) ↔
-      ∀ γ : UnilateralPath ι S, γ.IsClosed → G.pathIntegral γ = 0 := by
-  refine ⟨fun ⟨Φ, hΦ⟩ γ hγ => hΦ.pathIntegral_eq_zero_of_isClosed hγ, fun h => ?_⟩
-  exact exists_isExactPotential_iff_fourCycleZero.2
-    (fourCycleZero_of_simpleClosed_four fun γ hγ _ => h γ hγ.isClosed)
+      ∀ γ : UnilateralPath ι S, γ.IsClosed → G.pathIntegral γ = 0 :=
+  ⟨fun ⟨_, hΦ⟩ _ hγ => hΦ.pathIntegral_eq_zero_of_isClosed hγ, fun h =>
+    exists_isExactPotential_iff_fourCycleZero.2
+      (fourCycleZero_of_simpleClosed_four fun γ hγ _ => h γ hγ.isClosed)⟩
 
 /-- **[MondererShapley1996], Theorem 2.8, `(1) ↔ (3)` (p. 131)**: a game with finitely many players
 is an exact potential game if and only if `G.pathIntegral γ = 0` for every finite simple closed
 unilateral path `γ`. -/
 theorem exists_isExactPotential_iff_simpleClosedPath [Finite ι] {G : CostGame ι S} :
     (∃ Φ, G.IsExactPotential Φ) ↔
-      ∀ γ : UnilateralPath ι S, γ.IsSimpleClosed → G.pathIntegral γ = 0 := by
-  refine ⟨fun ⟨Φ, hΦ⟩ γ hγ => hΦ.pathIntegral_eq_zero_of_isClosed hγ.isClosed, fun h => ?_⟩
-  exact exists_isExactPotential_iff_fourCycleZero.2
-    (fourCycleZero_of_simpleClosed_four fun γ hγ _ => h γ hγ)
+      ∀ γ : UnilateralPath ι S, γ.IsSimpleClosed → G.pathIntegral γ = 0 :=
+  ⟨fun ⟨_, hΦ⟩ _ hγ => hΦ.pathIntegral_eq_zero_of_isClosed hγ.isClosed, fun h =>
+    exists_isExactPotential_iff_fourCycleZero.2
+      (fourCycleZero_of_simpleClosed_four fun γ hγ _ => h γ hγ)⟩
 
 /-- **[MondererShapley1996], Theorem 2.8, `(1) ↔ (4)` (p. 131)**: a game with finitely many players
 is an exact potential game if and only if `G.pathIntegral γ = 0` for every finite simple closed
 unilateral path `γ` of length `4`. -/
 theorem exists_isExactPotential_iff_simpleClosedPath_four [Finite ι] {G : CostGame ι S} :
     (∃ Φ, G.IsExactPotential Φ) ↔
-      ∀ γ : UnilateralPath ι S, γ.IsSimpleClosed → γ.length = 4 → G.pathIntegral γ = 0 := by
-  refine ⟨fun ⟨Φ, hΦ⟩ γ hγ _ => hΦ.pathIntegral_eq_zero_of_isClosed hγ.isClosed, fun h => ?_⟩
-  exact exists_isExactPotential_iff_fourCycleZero.2 (fourCycleZero_of_simpleClosed_four h)
+      ∀ γ : UnilateralPath ι S, γ.IsSimpleClosed → γ.length = 4 → G.pathIntegral γ = 0 :=
+  ⟨fun ⟨_, hΦ⟩ _ hγ _ => hΦ.pathIntegral_eq_zero_of_isClosed hγ.isClosed, fun h =>
+    exists_isExactPotential_iff_fourCycleZero.2 (fourCycleZero_of_simpleClosed_four h)⟩
 
 end CycleCharacterization
 
@@ -527,11 +523,10 @@ private theorem expectedCost_update_sub_eq (H : CostGame ι S) {p : ∀ i, S i �
     (hp : ∀ j, ∑ a, p j a = 1) (i : ι) {q : S i → ℝ} (hq : ∑ a, q a = 1) :
     H.expectedCost (update p i q) i - H.expectedCost p i =
       ∑ a, q a * (H.deviationCost p i a - H.expectedCost p i) := by
-  have hq_upd : ∑ a, update p i q i a = 1 := by rw [update_self]; exact hq
   have h_upd : H.expectedCost (update p i q) i = ∑ a, q a * H.deviationCost p i a := by
-    rw [← H.sum_mul_deviationCost_eq_expectedCost (update p i q) hq_upd]
-    refine sum_congr rfl fun a _ => ?_
-    rw [update_self, H.deviationCost_update_self p (by rw [hq, hp i])]
+    rw [← H.sum_mul_deviationCost_eq_expectedCost (update p i q) (by simpa [update_self] using hq)]
+    exact sum_congr rfl fun a _ => by
+      rw [update_self, H.deviationCost_update_self p (by rw [hq, hp i])]
   rw [h_upd]
   simp only [mul_sub, sum_sub_distrib, ← sum_mul, hq, one_mul]
 

@@ -368,10 +368,7 @@ theorem ensureAndSplitRootGenProg_spec {c U V w n_max base sIdx insCount : ℕ}
         hsl1_def.symm ▸ hrep4, by omega, ⟨T1, hT1_rt, by omega, hT1_nf, hv1⟩, hoth4,
         fun idx hidx h1 _ => hbm4 idx hidx h1, hout4⟩
     · -- Subcase 2b: Non-full root (`splitRootIfFull sl = sl`)
-      have hsl1_eq : sl1 = sl := by simp [sl1, splitRootIfFull, hfull]
-      simp only [hfull, ↓reduceIte]
-      dsimp only [sl1] at hsl1_eq
-      rw [hens, hsl1_eq, memoryCost_pure]
+      simp only [hfull, hens, splitRootIfFull, beq_iff_eq, ↓reduceIte, memoryCost_pure]
       exact ⟨rfl, rfl, by omega, validProg_pure _, hrep, by omega, ⟨T, hrt, hht_T.le, by omega, hT⟩,
         fun _ _ _ _ hr => hr, fun _ _ _ _ => rfl, fun _ _ => rfl⟩
 
@@ -395,7 +392,6 @@ theorem realizes_ensureAndSplitRootGen :
     have ht8 := eight_le_tMinWhp hth
     have h64 := sixty_four_le_nSliceWhp n_max
     obtain ⟨hcs_h, hres_h, _, _⟩ := readSliceHeaderGenProg_spec hth henv.2.1 hsIdx hrep (s := s)
-    dsimp only at hcs_h hres_h
     simp only [hcs_h, hres_h, wp_large_M hth, wp_large_nSlice hth, wp_large_tMin hth] at *
     obtain ⟨halloc_lt, ⟨ha0, _⟩ | ⟨ha_pos, T, hrt, _, _, _, hT⟩⟩ :=
       hv.alloc_and_height_lt hth hins
@@ -405,11 +401,9 @@ theorem realizes_ensureAndSplitRootGen :
       | exact ⟨c, U, V, w, n_max, henv, rfl⟩
     · have hhi : 2 ^ fpBitsWhp n_max - 1 < 2 ^ fpBitsWhp n_max :=
         Nat.sub_lt (Nat.two_pow_pos _) one_pos
-      obtain ⟨hrt_lt, _, _, _, _, _, _⟩ := validSubtree_root_bounds hth hhi hT
-      rw [hrt] at hrt_lt
+      have hrt_lt : sl.root < sl.alloc := hrt ▸ (validSubtree_root_bounds hth hhi hT).1
       obtain ⟨hnd_st, hnd_res, _, _⟩ := readBTreeNodeGenProg_spec hth henv.2.1 hsIdx hrt_lt hrep
         (s := s)
-      dsimp only at hnd_st hnd_res
       simp only [hnd_st, hnd_res] at *
       have hkw_lt : 2 * tMinWhp n_max * keyLaneBitsWhp n_max < w := henv.keysWordBits_lt_w
       try dsimp only [SplitFullRootPre]

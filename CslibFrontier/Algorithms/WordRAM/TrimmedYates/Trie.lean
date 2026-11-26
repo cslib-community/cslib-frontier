@@ -65,17 +65,12 @@ theorem exec_trieInit {w d free : ℕ} (x : Data numRegs)
       TrieRep y.mem d free {free, free + 1} (fun _ => 0) ∧
       (∀ a, a ≠ free ∧ a ≠ free + 1 → y.mem a = x.mem a) ∧
       ∀ i : Fin numRegs, i ≠ rTrieRoot ∧ i ≠ Reg.free → y.regs i = x.regs i := by
-  obtain ⟨y, he, hroot, hfree, hmem⟩ : ∃ y, ExecWithin w trieInit x y 5 ∧
-      y.regs rTrieRoot = free ∧ y.regs Reg.free = free + 2 ∧
-      y.mem = Function.update (Function.update x.mem free 0) (free + 1) 0 := by
-    unfold trieInit
-    wram_exec [hz, ho, hf]
-    wram_simp
-  refine ⟨y, he, hroot, hfree, ?_, ?_, fun i hi => he.regs_eq (trieInit_preserves i hi)⟩
-  · exact TrieRep.fresh_node d hpos
-      (by rw [hmem, Function.update_of_ne (by omega), Function.update_self])
-      (by rw [hmem, Function.update_self])
-  · exact fun a ⟨ha0, ha1⟩ => by rw [hmem, Function.update_of_ne ha1, Function.update_of_ne ha0]
+  unfold trieInit
+  wram_exec [hz, ho, hf]
+  refine ⟨?_, ?_, TrieRep.fresh_node d hpos ?_ ?_,
+    fun a ⟨ha0, ha1⟩ => by wram_simp [ha0, ha1],
+    fun i ⟨hi1, hi2⟩ => by wram_simp [hi1, hi2]⟩
+  all_goals wram_simp
 
 /-- The empty trie at address `0` represents only the zero function. -/
 private theorem TrieRep.fn_eq_zero {mem : ℕ → ℕ} {k : ℕ} {S : Set ℕ} {fn : ℕ → ℕ}
@@ -142,9 +137,8 @@ theorem exec_trieGet {w bound d root key : ℕ} {fn : ℕ → ℕ} (x : Data num
     obtain ⟨hsz, hso, hsd, hsm, hfrem, S, hS, subFn, hrep, hval⟩ := hs
     have hrem_and : Fits w (s.regs rTrieRem &&& 1) :=
       hfit_d.of_le (by rw [Nat.and_one_is_mod]; omega)
-    have hrem_shr : Fits w (s.regs rTrieRem >>> 1) := by
-      rw [Nat.shiftRight_eq_div_pow]
-      exact hfrem.of_le (Nat.div_le_self _ _)
+    have hrem_shr : Fits w (s.regs rTrieRem >>> 1) :=
+      hfrem.of_le (Nat.shiftRight_eq_div_pow .. ▸ Nat.div_le_self _ _)
     have hbit_next : Fits w (s.regs rTrieBit + 1) := hfit_d.of_le (by omega)
     have hsub : d - s.regs rTrieBit = d - (s.regs rTrieBit + 1) + 1 := by omega
     rw [hsub] at hrep
@@ -152,9 +146,8 @@ theorem exec_trieGet {w bound d root key : ℕ} {fn : ℕ → ℕ} (x : Data num
     by_cases hcur0 : s.regs rTrieCur = 0
     · rw [hcur0] at hrep
       wram_exec [hsz, hso, hcur0]
-      refine ⟨⟨hsz, hso, hsd, hsm, hfrem, ∅, Set.empty_subset _, fun _ => 0,
-        by simpa [hcur0] using TrieRep.zero_root x.mem _, ?_⟩, rfl⟩
-      rw [hval, hrep.fn_eq_zero]
+      exact ⟨⟨hsz, hso, hsd, hsm, hfrem, ∅, Set.empty_subset _, fun _ => 0,
+        by simpa [hcur0] using TrieRep.zero_root x.mem _, hval.trans (hrep.fn_eq_zero _)⟩, rfl⟩
     · obtain ⟨Sc, So, fnc, fno, -, -, rfl, htc, -, hfn⟩ :=
         (trieRep_succ_iff (Nat.pos_of_ne_zero hcur0) (Nat.mod_lt _ two_pos)).1 hrep
       have hcur1 := (hS (by simp : s.regs rTrieCur + 1 ∈ _)).2
@@ -177,16 +170,14 @@ theorem exec_trieGet {w bound d root key : ℕ} {fn : ℕ → ℕ} (x : Data num
   obtain ⟨u, hloop, huP, _⟩ := ExecWithin.loop_count P (fun s hs => hs.2.2.1) hbody
     (by simp [x₀]) hx₀
   obtain ⟨huz, _, _, hum, _, _, _, subFn, hrep_end, hval_end⟩ := huP
-  rw [Nat.sub_self] at hrep_end
-  dsimp only [TrieRep] at hrep_end
+  simp only [Nat.sub_self, TrieRep] at hrep_end
   obtain ⟨y, hfy, hyval, hymem⟩ : ∃ y, ExecWithin (B := .standard) w
       (ram[ if rTrieCur = rZero then [ rTrieVal ← #0 ] else [ rTrieVal ← *rTrieCur ] ]) u y 3 ∧
       y.regs rTrieVal = fn key ∧ y.mem = u.mem := by
     rcases hrep_end with ⟨hc0, _, hf0⟩ | ⟨hpos, _, hmem_eq⟩
     · wram_exec [huz, hc0]
       wram_simp [hval_end, hf0]
-    · have hne : u.regs rTrieCur ≠ 0 := by omega
-      wram_exec [huz, hne]
+    · wram_exec [huz, Nat.pos_iff_ne_zero.mp hpos]
       wram_simp [hval_end, hmem_eq, hum]
   have htot : ExecWithin w trieGet x y (9 * d + 8) :=
     (hinit.seq (hloop.seq hfy)).mono (by simp [x₀]; omega)
@@ -395,11 +386,11 @@ theorem exec_trieSet {w lo d root key val free : ℕ} {S : Set ℕ} {fn : ℕ �
       (by simpa [x₀] using hv) (by simpa [x₀] using hfree)
       hlo hfree_lo hroot hS (by simpa [x₀] using hrep) hfit_free hfit_d hfit_key
   have htot : ExecWithin w trieSet x y (14 * d + 6) := (hinit.seq hbody).mono (by omega)
-  rw [Nat.mod_eq_of_lt hkey_lt] at hyrep
   refine ⟨y, S', free', htot, hyfree, hle1, hle2,
     fun a ha => (hS' ha).elim (fun h => ⟨(hS h).1, (hS h).2.trans_le hle1⟩)
       fun h => ⟨hfree_lo.trans h.1, h.2⟩,
-    fun a ha => hyframe a ?_, hyrep, fun i hi => htot.regs_eq (trieSet_preserves i hi)⟩
+    fun a ha => hyframe a ?_, Nat.mod_eq_of_lt hkey_lt ▸ hyrep,
+    fun i hi => htot.regs_eq (trieSet_preserves i hi)⟩
   rintro (h | ⟨h1, h2⟩)
   · obtain ⟨h1, h2⟩ := hS h; omega
   · omega

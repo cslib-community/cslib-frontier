@@ -168,11 +168,10 @@ theorem find?_run (q : ℕ) (i : Option ℕ) (ws : List (Option ℕ)) :
     find?_append_of_forall_not' fun e he => ?_, find?_append_of_forall_not' fun e he => ?_,
     find?_append_of_forall_not fun e he => ?_, runEntries, List.find?_map]
   · congr 2
-    funext e
-    obtain ⟨⟨q', i', w'⟩, a⟩ := e
+    funext ⟨⟨q', i', w'⟩, a⟩
     simp only [Function.comp_apply, Key.mk.injEq, List.cons.injEq, true_and,
       List.append_cancel_right_eq, decide_eq_decide]
-    exact ⟨fun ⟨h₁, rfl, rfl⟩ => ⟨by omega, rfl, rfl⟩, fun ⟨rfl, rfl, rfl⟩ => ⟨rfl, rfl, rfl⟩⟩
+    exact and_congr_left fun _ => by omega
   · have := (prep_spec eS tm d (List.mem_append_left _ he)).1
     exact decide_eq_false fun h => by rw [h] at this; dsimp only at this; omega
   · have := (prep_spec eS tm d (List.mem_append_right _ he)).1
@@ -221,8 +220,7 @@ theorem applyTapes_append_of_length_le {ts us : List Tape} {as : List TapeAct}
     (h : as.length ≤ ts.length) : applyTapes (ts ++ us) as = applyTapes ts as ++ us := by
   induction ts generalizing as with
   | nil =>
-    rw [List.length_eq_zero_iff.mp (Nat.le_zero.mp h)]
-    simp [applyTapes_nil_right, applyTapes]
+    simp [List.length_eq_zero_iff.mp (Nat.le_zero.mp h), applyTapes_nil_right, applyTapes]
   | cons t ts ih =>
     cases as with
     | nil => simp [applyTapes]
@@ -286,8 +284,7 @@ theorem iterate_runCfg {x : List ℕ} (hx : inputSymbol x 1 ∈ bitSyms) {u : �
   | succ t ih =>
     obtain ⟨q, e, hq, he, hlen⟩ := hrun t (by omega)
     rw [Function.iterate_succ_apply', ih (by omega), stepOut_runCfg eS tm d hq he hlen]
-    simp only [descRun, Function.iterate_succ_apply']
-    rfl
+    simp only [descRun, Function.iterate_succ_apply', stepOut]
 
 /-- **The run of `tm` on `w`, from a tidy computation**: the description of `tm` runs, with a
 transition for every key it meets, until it halts with the input head on the first symbol, blank
@@ -354,10 +351,9 @@ theorem Desc.computes_dispatch {k : ℕ} {S : Type} [Fintype S] (eS : S ↪ ℕ)
     (dispatch eS tm d).Computes (w.map eBit) o ↔ (d b).Computes (v.map eBit) o := by
   obtain ⟨u, hrun, hst, hpos, hread, hout⟩ := exists_run_of_computesTidily eS tm htm
   have h1 := iterate_runCfg eS tm d (inputSymbol_map_eBit_mem w 1) hrun u le_rfl
-  generalize Dispatch.descRun eS tm (w.map eBit) u = c at hst hpos hread hout h1
-  obtain ⟨c, out⟩ := c
-  simp only at hst hpos hread hout h1
-  subst hout
+  rcases hc : Dispatch.descRun eS tm (w.map eBit) u with ⟨c, out⟩
+  obtain rfl : out = (b :: v).map eBit := by simpa [hc] using hout
+  simp only [hc] at hst hpos hread h1
   have hrest : (c.workTapes ++ List.replicate (width d) Tape.blank).map Tape.read = rest d k := by
     simp [rest, hread]
   have hcfg : runCfg d c ((b :: v).map eBit) = ⟨some 4, 1,

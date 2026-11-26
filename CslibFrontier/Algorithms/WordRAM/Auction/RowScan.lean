@@ -214,24 +214,21 @@ theorem findBest_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n →
             redCost (fun e => (C e : ℤ)) st.price i₀ k) ∧
         res.bestJ = j₀.val ∧
         (res.bestVal : ℤ) = redCost (fun e => (C e : ℤ)) st.price i₀ j₀ := by
-  have hend : ws.outBase ≤ ws.outBase + ws.n + 1 :=
-    (Nat.le_add_right _ _).trans (Nat.le_succ _)
-  have outputFits := hfit_ws.of_le hend
-  have outputAllocated := hend.trans hws.hfrontier
-  let cZ : Fin ws.n × Fin ws.n → ℤ := fun e => (C e : ℤ)
+  have outputFits : Fits w ws.outBase := hfit_ws.of_le (by omega)
+  have outputAllocated : ws.outBase ≤ s₀.frontier := Nat.le_trans (by omega) hws.hfrontier
   let rowBase := ws.bC + i₀.val * ws.n
   let d : ScanRowArgs := ⟨ws.n, rowBase, ws.bPrice⟩
   have hn_pos : 0 < ws.n := Nat.zero_lt_of_lt i₀.isLt
   have hit := iterate_spec findBestStep FindBestStepSafe w d 2 ws.n
     (fun k b s => s = s₀ ∧ b.idx = k ∧
       (k = 0 ∨ ∃ j₀ : Fin ws.n, j₀.val < k ∧
-        ((List.finRange ws.n).take k).argmin (redCost cZ st.price i₀) = some j₀ ∧
-        b.bestJ = j₀.val ∧ (b.bestVal : ℤ) = redCost cZ st.price i₀ j₀))
+        ((List.finRange ws.n).take k).argmin (redCost (fun e => (C e : ℤ)) st.price i₀) = some j₀ ∧
+        b.bestJ = j₀.val ∧ (b.bestVal : ℤ) = redCost (fun e => (C e : ℤ)) st.price i₀ j₀))
     (fun _ => False)
     (fun k hk b s ⟨hs, hbidx, harg⟩ => by
       subst s
-      have hk' : b.idx < ws.n := hbidx ▸ hk
-      let jk : Fin ws.n := ⟨b.idx, hk'⟩
+      subst hbidx
+      let jk : Fin ws.n := ⟨b.idx, hk⟩
       obtain ⟨hrow, hprice⟩ := rowReads_before_output hws i₀ jk
       obtain ⟨hrc_le, hrc_z⟩ := ham.redCost_read hC_le hp_nn hp_le i₀ jk
       have hsafe : FindBestStepSafe w (d, b) s₀ :=
@@ -245,28 +242,25 @@ theorem findBest_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n →
       rw [findBestStep, hres]
       dsimp only [d, bestNext]
       by_cases hk0 : b.idx = 0
-      · subst hbidx
-        rw [hk0, ite_eq_left rfl]
-        refine ⟨rfl, Or.inr ⟨⟨0, hn_pos⟩, Nat.one_pos,
-          by simp [List.take_succ_finRange hn_pos], rfl, ?_⟩⟩
-        simpa only [jk, hk0] using hrc_z
+      · rw [hk0, ite_eq_left rfl]
+        exact ⟨rfl, Or.inr ⟨⟨0, hn_pos⟩, Nat.one_pos,
+          by simp [List.take_succ_finRange hn_pos], rfl,
+          by simpa only [jk, hk0] using hrc_z⟩⟩
       · rw [ite_eq_right hk0]
         rcases harg with h0 | ⟨j₀, hj₀_lt, htake, hbj, hbv⟩
         · omega
-        · subst hbidx
-          by_cases hlt : s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) < b.bestVal
+        · by_cases hlt : s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) < b.bestVal
           · rw [ite_eq_left hlt]
             refine ⟨rfl, Or.inr ⟨jk, Nat.lt_succ_self _, ?_, rfl, hrc_z⟩⟩
-            rw [List.take_succ_finRange hk', List.argmin_concat, htake]
+            rw [List.take_succ_finRange hk, List.argmin_concat, htake]
             exact ite_eq_left (hrc_z.symm.trans_lt ((Nat.cast_lt.mpr hlt).trans_eq hbv))
           · rw [ite_eq_right hlt]
             refine ⟨rfl, Or.inr ⟨j₀, Nat.lt_succ_of_lt hj₀_lt, ?_, hbj, hbv⟩⟩
-            rw [List.take_succ_finRange hk', List.argmin_concat, htake]
+            rw [List.take_succ_finRange hk, List.argmin_concat, htake]
             exact ite_eq_right fun hz =>
               hlt (Nat.cast_lt.mp (hrc_z.trans_lt (hz.trans_eq hbv.symm))))
     ⟨0, 0, 0⟩ s₀ ⟨rfl, rfl, Or.inl rfl⟩
-  obtain ⟨hsafe, hv, hmc, _, _, hs_eq, _, hfinal⟩ := hit
-  rcases hfinal with h0 | ⟨j₀, _, htake, hbj, hbv⟩
+  rcases hit with ⟨hsafe, hv, hmc, _, _, hs_eq, _, h0 | ⟨j₀, _, htake, hbj, hbv⟩⟩
   · omega
   · rw [List.take_of_length_le (by simp)] at htake
     exact ⟨hsafe, hv, hmc, hs_eq, j₀, htake,
@@ -343,10 +337,8 @@ theorem findSecond_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
       | none => res.hasSecond = 0
       | some wVal =>
         res.hasSecond = 1 ∧ (res.secondVal : ℤ) = wVal ∧ res.secondVal ≤ 2 * W + ws.eps := by
-  have hend : ws.outBase ≤ ws.outBase + ws.n + 1 :=
-    (Nat.le_add_right _ _).trans (Nat.le_succ _)
-  have outputFits := hfit_ws.of_le hend
-  have outputAllocated := hend.trans hws.hfrontier
+  have outputFits : Fits w ws.outBase := hfit_ws.of_le (by omega)
+  have outputAllocated : ws.outBase ≤ s₀.frontier := Nat.le_trans (by omega) hws.hfrontier
   let cZ : Fin ws.n × Fin ws.n → ℤ := fun e => (C e : ℤ)
   let rowBase := ws.bC + i₀.val * ws.n
   let d : ScanSecondArgs := ⟨ws.n, rowBase, ws.bPrice, j₀.val⟩

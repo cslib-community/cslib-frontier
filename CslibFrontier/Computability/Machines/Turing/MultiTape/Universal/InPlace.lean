@@ -209,17 +209,10 @@ lemma scan_all (x : List ℕ) (k cur : ℕ) (hk : 1 ≤ k) :
   | nil => simp
   | cons n x ih =>
     simp only [List.map_cons, List.flatten_cons, List.foldl_append, scan_tok]
-    rcases Nat.lt_or_ge 1 (k - 1) with h | h
-    · rw [ih _ _ (by omega)]
-      have hk1 : k ≠ 1 := by omega
-      have hk2 : k - 1 = (k - 2) + 1 := by omega
-      simp only [hk1, ↓reduceIte, List.length_cons, hk2, List.drop_succ_cons]
-      exact Prod.ext (by omega) rfl
-    · rcases Nat.eq_or_lt_of_le h with h | h
-      · obtain rfl : k = 2 := by omega
-        simp [ih _ _ le_rfl]
-      · obtain rfl : k = 1 := by omega
-        simp [scan_zero]
+    rcases k with _ | _ | k
+    · omega
+    · simp [scan_zero]
+    · simpa [Nat.add_sub_cancel] using ih (k + 1) cur (Nat.le_add_left 1 k)
 
 /-- **The countdown finds the symbol under the input head.** -/
 public theorem inputSymbol_scan (x : List ℕ) (p : ℕ) :

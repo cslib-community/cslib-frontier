@@ -63,8 +63,7 @@ theorem arg_parabolaChord_lt_iff {a b c : ℝ} (ha : 0 ≤ a) (hab : a < b) (hac
       (parabolaPoint c - parabolaPoint a).arg ↔ b < c := by
   have him {x : ℝ} (hx : a < x) : 0 < (parabolaPoint x - parabolaPoint a).im := by
     change 0 < x ^ 2 - a ^ 2
-    rw [show x ^ 2 - a ^ 2 = (x - a) * (x + a) by ring]
-    exact mul_pos (sub_pos.mpr hx) (by linarith)
+    nlinarith
   have hb := him hab
   have hc := him hac
   rw [arg_lt_arg_iff_det_pos hb.ne' hc.ne'
@@ -117,19 +116,14 @@ theorem parabolaPoint_mem_segment_iff (a b x : ℝ) :
     parabolaPoint x ∈ segment ℝ (parabolaPoint a) (parabolaPoint b) ↔ x = a ∨ x = b := by
   constructor
   · intro hx
-    have himage := image_segment ℝ (chordMap a b) a b
-    rw [chordMap_left, chordMap_right] at himage
-    obtain ⟨y, _, hy⟩ := himage.symm ▸ hx
-    have hre := congrArg Complex.re hy
-    have him := congrArg Complex.im hy
-    rw [chordMap_apply] at hre him
-    change y = x at hre
-    change (a + b) * y - a * b = x ^ 2 at him
-    have hprod : (x - a) * (x - b) = 0 := by rw [hre] at him; linear_combination -him
+    rw [← chordMap_left a b, ← chordMap_right a b, ← image_segment ℝ (chordMap a b)] at hx
+    obtain ⟨y, _, hy⟩ := hx
+    simp only [chordMap_apply, parabolaPoint, Complex.ext_iff] at hy
+    obtain ⟨rfl, him⟩ := hy
+    have hprod : (y - a) * (y - b) = 0 := by linear_combination -him
     exact (mul_eq_zero.mp hprod).imp sub_eq_zero.mp sub_eq_zero.mp
   · rintro (rfl | rfl)
-    · exact left_mem_segment ℝ _ _
-    · exact right_mem_segment ℝ _ _
+    exacts [left_mem_segment ℝ _ _, right_mem_segment ℝ _ _]
 
 private noncomputable def chordResidual (a b : ℝ) : ℂ →ᵃ[ℝ] ℝ :=
   (a + b) • Complex.reCLM.toLinearMap.toAffineMap - AffineMap.const ℝ ℂ (a * b) -

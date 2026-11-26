@@ -124,9 +124,8 @@ theorem levelNet_cap_pos_iff (f : N.Flow) (d : V → ℕ) (u v : V) :
 
 theorem levelNet_cap_eq_zero_of_pos (f : N.Flow) (d : V → ℕ) {u v : V}
     (h : 0 < (f.levelNet d).cap u v) : (f.levelNet d).cap v u = 0 := by
-  rw [levelNet_cap_pos_iff] at h
-  rw [levelNet_cap]
-  split_ifs <;> omega
+  obtain ⟨hd, -⟩ := (f.levelNet_cap_pos_iff d u v).mp h
+  exact ite_eq_right (by omega)
 
 /-! ### Augmenting by a flow of a residual subnetwork -/
 
@@ -241,8 +240,7 @@ theorem resDist_le_resDist_augmentLevel (f : N.Flow) (g : (f.levelNet f.resDist)
     | zero => simp
     | @succ u w k _ hpos ih =>
       rcases f.pos_resCap_or_of_pos_resCap_augmentLevel g hpos with hf | hlev
-      · have := f.resDist_le_add_one_of_pos_resCap hf
-        omega
+      · exact (f.resDist_le_add_one_of_pos_resCap hf).trans (Nat.succ_le_succ ih)
       · omega
   by_cases hlt : (f.augmentLevel g).resDist v < Fintype.card V
   · exact hwalk ((f.augmentLevel g).hasResWalkOfLen_resDist hlt)
@@ -254,10 +252,9 @@ distances, then augmenting by `g` strictly increases the residual distance of `N
 theorem resDist_lt_resDist_augmentLevel (f : N.Flow) (g : (f.levelNet f.resDist).Flow)
     (hg : g.IsBlocking) (hreach : f.ResReachable N.s N.t) :
     f.resDist N.t < (f.augmentLevel g).resDist N.t := by
-  have hmono := f.resDist_le_resDist_augmentLevel g N.t
   have hlt : f.resDist N.t < Fintype.card V := (f.resDist_lt_card_iff_resReachable N.t).mpr hreach
-  by_contra hnot
-  have heq : (f.augmentLevel g).resDist N.t = f.resDist N.t := by omega
+  by_contra! hle
+  have heq := le_antisymm hle (f.resDist_le_resDist_augmentLevel g N.t)
   -- Along a shortest residual walk of `f.augmentLevel g` that is also shortest for `f`, every arc
   -- is an unsaturated arc of the level network.
   have hclaim {w : V} {k : ℕ} (h : (f.augmentLevel g).HasResWalkOfLen w k) : f.resDist w = k →
@@ -294,8 +291,7 @@ theorem resDist_lt_resDist_augmentLevel (f : N.Flow) (g : (f.levelNet f.resDist)
   obtain ⟨p, hnd, hs, hlast, _, harcs⟩ :=
     hclaim ((f.augmentLevel g).hasResWalkOfLen_resDist (v := N.t) (by omega)) heq.symm
   obtain ⟨e, he, hsat⟩ := hg p hnd hs hlast fun e he => (harcs e he).1
-  have := (harcs e he).2
-  omega
+  exact (harcs e he).2.ne hsat
 
 end Flow
 
@@ -322,9 +318,7 @@ theorem IsDinitzStep.resDist_lt {f f' : N.Flow} (h : N.IsDinitzStep f f') :
 arc. -/
 theorem IsDinitzStep.source_ne_sink {f f' : N.Flow} (h : N.IsDinitzStep f f') : N.s ≠ N.t := by
   obtain ⟨_, g, hg, _⟩ := h
-  intro hst
-  obtain ⟨e, he, _⟩ := hg [N.s] (List.nodup_singleton _) rfl (by simp [hst]) (by simp)
-  simp at he
+  exact fun hst => by simpa using hg [N.s] (List.nodup_singleton _) rfl (by simp [hst]) (by simp)
 
 /-- A run of `T` Dinitz phases `flows 0 → flows 1 → ⋯ → flows T`. -/
 @[expose] def IsDinitzRun (T : ℕ) (flows : ℕ → N.Flow) : Prop :=
@@ -377,15 +371,13 @@ theorem mem_resBall_iff (f : N.Flow) (k : ℕ) (v : V) :
     exact ⟨by rintro rfl; exact .zero, fun h => by cases h; rfl⟩
   | succ k ih =>
     simp only [resBall, Finset.mem_union, Finset.mem_filter, Finset.mem_univ, true_and, ih]
-    constructor
+    refine ⟨?_, ?_⟩
     · rintro (⟨m, hm, hw⟩ | ⟨u, ⟨m, hm, hw⟩, hpos⟩)
-      · exact ⟨m, by omega, hw⟩
-      · exact ⟨m + 1, by omega, hw.succ hpos⟩
+      exacts [⟨m, Nat.le_succ_of_le hm, hw⟩, ⟨m + 1, Nat.succ_le_succ hm, hw.succ hpos⟩]
     · rintro ⟨m, hm, hw⟩
-      rcases Nat.lt_or_ge m (k + 1) with hlt | hge
-      · exact .inl ⟨m, by omega, hw⟩
-      · obtain rfl : m = k + 1 := by omega
-        cases hw with
+      rcases Nat.lt_or_eq_of_le hm with hlt | rfl
+      · exact .inl ⟨m, Nat.lt_succ_iff.mp hlt, hw⟩
+      · cases hw with
         | succ hu hpos => exact .inr ⟨_, ⟨k, le_rfl, hu⟩, hpos⟩
 
 theorem mem_resBall_iff_resDist_le (f : N.Flow) {k : ℕ} (hk : k < Fintype.card V) (v : V) :
@@ -452,8 +444,7 @@ theorem isBlocking_iff_not_exists_slackNet {g : L.Flow} :
   refine ⟨fun hg ⟨p, hnd, hs, ht, hpos⟩ => ?_, isBlocking_of_not_exists_slackNet⟩
   simp only [resCap_zero_slackNet] at hpos
   obtain ⟨e, he, hsat⟩ := hg p hnd hs ht fun e he => by have := hpos e he; omega
-  have := hpos e he
-  omega
+  exact absurd (hpos e he) (by omega)
 
 /-- Arcs not saturated by `g`. -/
 def unsatArcs (g : L.Flow) : Finset (V × V) :=

@@ -296,8 +296,7 @@ theorem whpStepPureGenProg_spec {c U V w n_max base : ℕ}
   cases st with
   | small sm =>
     obtain ⟨hsm_lt, hsm_rep⟩ := hrep
-    have hsp_eq : whpSpace c U V w n_max = smallSpaceWhp U V w n_max := by
-      unfold whpSpace; exact ite_eq_left hsm_lt
+    have hsp_eq : whpSpace c U V w n_max = smallSpaceWhp U V w n_max := ite_eq_left hsm_lt
     have hm0 : s.mem base = 0 := by simpa only [hdrMode, Nat.add_zero] using hsm_rep.1
     have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       unfold mkWhpParams; exact congrArg Prod.fst (ite_eq_left hsm_lt)
@@ -330,8 +329,7 @@ theorem whpStepPureGenProg_spec {c U V w n_max base : ℕ}
     exact (Nat.add_le_add_right hsm_mc 1).trans (le_max_left _ _)
   | fast fs =>
     obtain ⟨hth, hseed, hfs_rep⟩ := hrep
-    have hsp_eq : whpSpace c U V w n_max = largeSpaceWhp c U V w n_max := by
-      unfold whpSpace; exact ite_eq_right (Nat.not_lt.mpr hth)
+    have hsp_eq : whpSpace c U V w n_max = largeSpaceWhp c U V w n_max := ite_eq_right hth.not_gt
     have hm1 : s.mem base = 1 := by simpa only [hdrMode, Nat.add_zero] using hfs_rep.2.1
     have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       unfold mkWhpParams; rw [ite_eq_right (Nat.not_lt.mpr hth)]
@@ -344,7 +342,6 @@ theorem whpStepPureGenProg_spec {c U V w n_max base : ℕ}
     | some p =>
       rcases p with ⟨fs', res⟩
       rw [hfsp] at hfs_m
-      dsimp only
       set s_fs := (Memory.spec 0).clientState s
         (fastStepPureGenProg ((mkWhpParams c U V w n_max, base), encodeOpWhp op))
       have hstep : StepSpec w (base + whpSpace c U V w n_max) s prog s_fs (encodeOptRes res) := by
@@ -362,7 +359,6 @@ theorem whpStepPureGenProg_spec {c U V w n_max base : ℕ}
       exact (Nat.add_le_add_right hfs_mc 1).trans (le_max_right _ _)
     | none =>
       rw [hfsp] at hfs_m
-      dsimp only
       obtain ⟨hseed_fc, hrep_fc, hfr_fc, hvp_fc, hout_fc⟩ :=
         fastToCsrGenProg_spec henv_lg hseed hfs_rep hv (s := s)
       obtain ⟨hcsr_fc, hqv_fc⟩ := hv.fastToCsr_spec
@@ -389,8 +385,7 @@ theorem whpStepPureGenProg_spec {c U V w n_max base : ℕ}
   | fallback csr =>
     obtain ⟨hth, hseed, hcsr_rep⟩ := hrep
     obtain ⟨_, hcsr, hqv⟩ := hv
-    have hsp_eq : whpSpace c U V w n_max = largeSpaceWhp c U V w n_max := by
-      unfold whpSpace; exact ite_eq_right (Nat.not_lt.mpr hth)
+    have hsp_eq : whpSpace c U V w n_max = largeSpaceWhp c U V w n_max := ite_eq_right hth.not_gt
     have hm2 : s.mem base = 2 := by simpa only [hdrMode, Nat.add_zero] using hcsr_rep.1
     have henv_lg : WhpLargeEnv c U V w n_max w base :=
       ⟨hc, hw, rfl, hth, hnU, hU, hV, hfit_sp⟩

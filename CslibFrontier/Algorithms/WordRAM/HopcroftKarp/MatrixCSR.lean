@@ -256,13 +256,11 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
         have hoff_u'_succ : sInst.offset (u'.val + 1) =
             sInst.offset u'.val + (sInst.adj u').length := sInst.offset_succ u'.isLt
         rw [hf_c2 _ (by omega)]
-        dsimp only [y₁]
-        wram_simp
+        wram_simp [y₁]
         exact hedge_y u' hu'_lt hi
     · dsimp only [Data.set]
       rw [hf_c2 a (by omega)]
-      dsimp only [y₁]
-      wram_simp [hlow_y a ha]
+      wram_simp [y₁, hlow_y a ha]
   have hs₀_qh : s₀.regs qHead = 0 := by dsimp only [s₀]; wram_simp
   obtain ⟨y_end, hl_row, hPRm, _⟩ := ExecWithin.loop_count PR
     (fun y hy => by
@@ -299,16 +297,13 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
     hfit_init
   have hcsrz : CSRMem sInst bOff z.mem :=
     { hoff := fun {u'} hu' => by
-        rw [hmem_z]
-        dsimp only [y_last]
-        by_cases heq : u' = m
-        · subst heq; wram_simp
-        · wram_simp; exact hoff_m u' (by dsimp only [sInst] at hu'; omega)
+        rcases eq_or_ne u' m with rfl | hne
+        · wram_simp [hmem_z, y_last]
+        · wram_simp [hmem_z, y_last]
+          exact hoff_m u' (by dsimp only [sInst] at hu'; omega)
       hedge := fun u' {i} hi => by
         have hed_u' := sInst.offset_add_lt_numEdges u' hi
-        rw [hmem_z]
-        dsimp only [y_last]
-        wram_simp
+        wram_simp [hmem_z, y_last]
         exact hedge_m u' u'.isLt hi }
   exact ⟨z, (he₀.seq (hl_row.seq (he_last.seq he_init))).mono (by nlinarith), hbz, hcsrz⟩
 
@@ -336,15 +331,14 @@ theorem exec_matrixSetupCode {w m r : ℕ} (isSquare : Bool) (hsq : isSquare = t
         (9 * m * r + 8 * m + (if isSquare then 33 else 35)) ∧
       BaseRegs ⟨m, r, exactBipAdj G⟩ ((if isSquare then 2 else 3) + m * r) y ∧
       CSRMem ⟨m, r, exactBipAdj G⟩ ((if isSquare then 2 else 3) + m * r) y.mem := by
-  obtain ⟨y₀, he_pre, h0, h1, h2, hrm, hmem₀⟩ : ∃ y₀, ExecWithin w
+  let y₀ := (((((Data.init input : Data 34).set zero 0).set one 1).set two 2).set addr 1).set rm m
+  have he_pre : ExecWithin w
       (ram[ zero ← #0; one ← #1; two ← #2; addr ← #1; rm ← *addr ] : Code .standard 34)
-      (Data.init input) y₀ 5 ∧
-      y₀.regs zero = 0 ∧ y₀.regs one = 1 ∧ y₀.regs two = 2 ∧
-      y₀.regs rm = m ∧ y₀.mem = (Data.init input : Data 34).mem := by
+      (Data.init input) y₀ 5 := by
     have hfit2 : Fits w 2 := hfit.of_le (by cases isSquare <;> omega)
-    refine WP.exists_execWithin ?_
+    refine WP.execWithin ?_
     wram_exec [hm, hfit2]
-    exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, rfl⟩
+    rfl
   obtain ⟨y₁, he_dim, h0', h1', h2', hrm', hrr', hbOff', hmem₁⟩ : ∃ y₁, ExecWithin w
       (if isSquare then ram[ rr ← rm; val ← rm * rr; bOffReg ← two + val ]
        else ram[ addr ← #2; rr ← *addr; val ← rm * rr;
@@ -353,19 +347,18 @@ theorem exec_matrixSetupCode {w m r : ℕ} (isSquare : Bool) (hsq : isSquare = t
       y₁.regs rm = m ∧ y₁.regs rr = r ∧
       y₁.regs bOffReg = (if isSquare then 2 else 3) + m * r ∧
       y₁.mem = (Data.init input : Data 34).mem := by
+    dsimp only [y₀]
     refine WP.exists_execWithin ?_
     cases isSquare with
     | true =>
       obtain rfl := hsq rfl
       simp only [↓reduceIte]
-      wram_exec [h2, hrm]
-      exact ⟨by wram_simp [h0], by wram_simp [h1], by wram_simp [h2],
-        by wram_simp [hrm], by wram_simp, by wram_simp, hmem₀⟩
+      wram_exec
+      exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
     | false =>
       simp only [Bool.false_eq_true, ↓reduceIte]
-      wram_exec [hrm, hmem₀, hr rfl]
-      exact ⟨by wram_simp [h0], by wram_simp [h1], by wram_simp [h2],
-        by wram_simp [hrm], by wram_simp, by wram_simp, hmem₀⟩
+      wram_exec [hr rfl]
+      exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
   obtain ⟨z, he_csr, hbz, hcsrz⟩ := exec_buildCSRCode (m := m) (r := r)
     (matBase := if isSquare then 2 else 3) (bOff := (if isSquare then 2 else 3) + m * r) G y₁
     h0' h1' h2' hrm' hrr' hbOff' le_rfl

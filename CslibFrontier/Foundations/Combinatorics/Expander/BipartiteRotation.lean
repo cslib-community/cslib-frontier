@@ -217,10 +217,8 @@ variable [Fintype L] [Fintype R]
 /-- Averaging `B.walkLeft g` over left vertices equals averaging `g` over right vertices. -/
 theorem expect_walkLeft [Nonempty D] (g : R → ℝ) :
     𝔼 u : L, B.walkLeft g u = 𝔼 v : R, g v := by
-  have _ : Fintype.card L = Fintype.card R := B.card_left_eq_card_right
   simp only [walkLeft_apply, neighborRight, ← expect_product', univ_product_univ]
-  rw [Fintype.expect_equiv B.toRight (fun p => g (B.toRight p).1) (fun q => g q.1)
-    fun _ => rfl, Fintype.expect_prod_type]
+  rw [Fintype.expect_equiv B.toRight _ (fun q => g q.1) fun _ => rfl, Fintype.expect_prod_type]
   simp only [Fintype.expect_const]
 
 /-- `B.walkLeft` and `B.walkRight` are adjoint with respect to uniform expectations on `L` and `R`.
@@ -327,14 +325,12 @@ theorem nontrivialSingularValue_flip_le [Nonempty D] (B : BipartiteRotationMap L
       (B.nontrivialSingularValue ^ 2 * 𝔼 u : L, f u ^ 2) * (𝔼 v : R, h v ^ 2) := by
     have hadj : 𝔼 v : R, h v ^ 2 = 𝔼 u : L, f u * B.walkLeft h u := by
       simpa only [h, sq] using (B.expect_mul_walkLeft f h).symm
-    have hcs : (𝔼 u : L, f u * B.walkLeft h u) ^ 2 ≤
-        (𝔼 u : L, f u ^ 2) * 𝔼 u : L, B.walkLeft h u ^ 2 :=
-      expect_mul_sq_le_sq_mul_sq univ f (B.walkLeft h)
-    have hwl := expect_walkLeft_sq_le (B := B) hh0
-    have hf_nn : 0 ≤ 𝔼 u : L, f u ^ 2 := expect_nonneg fun _ _ => sq_nonneg _
     calc (𝔼 v : R, h v ^ 2) ^ 2 = (𝔼 u : L, f u * B.walkLeft h u) ^ 2 := by rw [hadj]
-      _ ≤ (𝔼 u : L, f u ^ 2) * 𝔼 u : L, B.walkLeft h u ^ 2 := hcs
-      _ ≤ (𝔼 u : L, f u ^ 2) * (B.nontrivialSingularValue ^ 2 * 𝔼 v : R, h v ^ 2) := by gcongr
+      _ ≤ (𝔼 u : L, f u ^ 2) * 𝔼 u : L, B.walkLeft h u ^ 2 :=
+          expect_mul_sq_le_sq_mul_sq univ f (B.walkLeft h)
+      _ ≤ (𝔼 u : L, f u ^ 2) * (B.nontrivialSingularValue ^ 2 * 𝔼 v : R, h v ^ 2) :=
+          mul_le_mul_of_nonneg_left (expect_walkLeft_sq_le hh0)
+            (expect_nonneg fun _ _ => sq_nonneg _)
       _ = (B.nontrivialSingularValue ^ 2 * 𝔼 u : L, f u ^ 2) * 𝔼 v : R, h v ^ 2 := by ring
   rw [sq] at hsq
   exact le_of_mul_le_mul_right hsq hpos
@@ -511,9 +507,8 @@ theorem abs_card_interedges_sub_le [Fintype L] [Fintype R] [Fintype D]
     simp only [sub_mul, mul_sub, expect_sub_distrib, ← expect_mul, ← mul_expect,
       B.expect_walkLeft, Fintype.expect_const]
     ring
-  have hf0 : 𝔼 u : L, (f u - 𝔼 u', f u') = 0 := Fintype.expect_balance f
-  have hg0 : 𝔼 v : R, (g v - 𝔼 v', g v') = 0 := Fintype.expect_balance g
-  have hbd := expect_mul_walkLeft_sq_le (B := B) hf0 hg0
+  have hbd := expect_mul_walkLeft_sq_le (B := B) (f := fun u => f u - 𝔼 u', f u')
+    (g := fun v => g v - 𝔼 v', g v') (Fintype.expect_balance f) (Fintype.expect_balance g)
   rw [← add_sub_cancel_left ((𝔼 u : L, f u) * 𝔼 v : R, g v)
     (𝔼 u : L, (f u - 𝔼 u', f u') * B.walkLeft (fun v => g v - 𝔼 v', g v') u), ← hcorr,
     Fintype.expect_sub_expect_sq, Fintype.expect_sub_expect_sq] at hbd

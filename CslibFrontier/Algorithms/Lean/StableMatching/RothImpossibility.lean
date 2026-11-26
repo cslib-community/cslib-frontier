@@ -209,23 +209,18 @@ theorem not_isStable_and_strategyProof_of_le {n : ℕ} (hn : 3 ≤ n) (M : Match
     ¬ (M.IsStable ∧ M.IsProposerStrategyProof ∧ M.IsReceiverStrategyProof) := by
   rintro ⟨hs, hp, hr⟩
   let base := padInstance hn rothInstance
-  have hbase : base.IsStable (M base) := hs base
-  let ρ := restrictMatching hn (M base) (fun _ hd => isStable_padInstance_fixed hn hbase hd)
-  rcases (rothInstance_isStable_iff ρ).1 (isStable_restrict hn hbase) with h | h
+  let ρ := restrictMatching hn (M base) (fun _ hd => isStable_padInstance_fixed hn (hs base) hd)
+  rcases (rothInstance_isStable_iff ρ).1 (isStable_restrict hn (hs base)) with h | h
   · let π : Equiv.Perm (Fin 3) := permOfInjective ![2, 0, 1]
     let r0 : Fin n := ⟨(0 : Fin 3).val, lt_of_lt_of_le (0 : Fin 3).isLt hn⟩
     let upd := base.updateRecvPref r0 (extendPerm hn π)
     have hupd : (padInstance hn (rothInstance.updateRecvPref 0 π)).IsStable (M upd) :=
       (padInstance_updateRecvPref hn rothInstance 0 π).symm ▸ hs upd
     let ρ' := restrictMatching hn (M upd) (fun _ hd => isStable_padInstance_fixed hn hupd hd)
-    have hsp : ((padInstance hn rothInstance).recvRank r0 ((M base).symm r0)).val ≤
-        ((padInstance hn rothInstance).recvRank r0 ((M upd).symm r0)).val :=
-      hr base r0 (extendPerm hn π)
-    have hMbase : (M base).symm r0 = ⟨(ρ.symm 0).val, lt_of_lt_of_le (ρ.symm 0).isLt hn⟩ :=
-      Fin.ext rfl
-    have hMupd : (M upd).symm r0 = ⟨(ρ'.symm 0).val, lt_of_lt_of_le (ρ'.symm 0).isLt hn⟩ :=
-      Fin.ext rfl
-    rw [hMbase, hMupd, padInstance_recvRank_core, padInstance_recvRank_core, h] at hsp
+    have hsp : (base.recvRank r0 ⟨(ρ.symm 0).val, lt_of_lt_of_le (ρ.symm 0).isLt hn⟩).val ≤
+        (base.recvRank r0 ⟨(ρ'.symm 0).val, lt_of_lt_of_le (ρ'.symm 0).isLt hn⟩).val :=
+      Fin.le_def.mp (hr base r0 (extendPerm hn π))
+    rw [padInstance_recvRank_core, padInstance_recvRank_core, h] at hsp
     exact not_le_of_gt (rothInstance_receiver_gains (isStable_restrict hn hupd)) hsp
   · let π : Equiv.Perm (Fin 3) := permOfInjective ![0, 1, 2]
     let p1 : Fin n := ⟨(1 : Fin 3).val, lt_of_lt_of_le (1 : Fin 3).isLt hn⟩
@@ -233,12 +228,10 @@ theorem not_isStable_and_strategyProof_of_le {n : ℕ} (hn : 3 ≤ n) (M : Match
     have hupd : (padInstance hn (rothInstance.updatePropPref 1 π)).IsStable (M upd) :=
       (padInstance_updatePropPref hn rothInstance 1 π).symm ▸ hs upd
     let ρ' := restrictMatching hn (M upd) (fun _ hd => isStable_padInstance_fixed hn hupd hd)
-    have hsp : ((padInstance hn rothInstance).propRank p1 (M base p1)).val ≤
-        ((padInstance hn rothInstance).propRank p1 (M upd p1)).val :=
-      hp base p1 (extendPerm hn π)
-    have hMbase : M base p1 = ⟨(ρ 1).val, lt_of_lt_of_le (ρ 1).isLt hn⟩ := Fin.ext rfl
-    have hMupd : M upd p1 = ⟨(ρ' 1).val, lt_of_lt_of_le (ρ' 1).isLt hn⟩ := Fin.ext rfl
-    rw [hMbase, hMupd, padInstance_propRank_core, padInstance_propRank_core, h] at hsp
+    have hsp : (base.propRank p1 ⟨(ρ 1).val, lt_of_lt_of_le (ρ 1).isLt hn⟩).val ≤
+        (base.propRank p1 ⟨(ρ' 1).val, lt_of_lt_of_le (ρ' 1).isLt hn⟩).val :=
+      Fin.le_def.mp (hp base p1 (extendPerm hn π))
+    rw [padInstance_propRank_core, padInstance_propRank_core, h] at hsp
     exact not_le_of_gt (rothInstance_proposer_gains (isStable_restrict hn hupd)) hsp
 
 /-! ### Sharp converse for complete lists: `n ≤ 2` -/
@@ -304,9 +297,8 @@ theorem isReceiverStrategyProof_deferredAcceptance_of_le_two {n : ℕ} (hn : n �
              by rw [Instance.RecvPrefers, hp₀_rankR, hrank1]; decide⟩
         have hle : I.propRank p₀ (μ' p₀) ≤ I.propRank p₀ (μ p₀) :=
           I'.isProposerOptimal_deferredAcceptance.2 μ hμ_stable' p₀
-        have hμ'_p₀ : μ' p₀ = μ p₀ := I.propRank_injective p₀ <| by
-          rw [hp₀_rankP] at hle ⊢
-          exact le_antisymm hle (Fin.zero_le _)
+        have hμ'_p₀ : μ' p₀ = μ p₀ :=
+          I.propRank_injective p₀ (le_antisymm hle (hp₀_rankP.trans_le (Fin.zero_le _)))
         have hμ'_eq : μ' = μ := Equiv.ext fun p => by
           by_cases hp : p = p₀
           · rw [hp, hμ'_p₀]

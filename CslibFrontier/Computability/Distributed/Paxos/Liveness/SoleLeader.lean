@@ -72,14 +72,10 @@ theorem paxos_liveness_from_phase2a_crashStop {inputs : Proposer → V}
         Finset.mem_insert_self]
     obtain ⟨j₄, _, hj₄_act⟩ := hphase2b (j₃ + 1) a v haQ h2b_mem
     exact ⟨j₄ + 1, by simp [(hexec j₄).2, hj₄_act, synodStep, synodStepCore]⟩
-  let recvStep : Acceptor → ℕ := fun a =>
-    if h : a ∈ Q then Classical.choose (hQ_recv a h) else 0
+  choose! recvStep hrecv using hQ_recv
   let k_final := Q.sup recvStep
-  have hlearnedAt : (ss k_final).LearnedAt qs l b v := by
-    refine ⟨Q, hQ, fun a haQ => ?_⟩
-    have hle : Classical.choose (hQ_recv a haQ) ≤ k_final := by
-      simpa only [recvStep, dite_eq_left haQ] using Finset.le_sup (f := recvStep) haQ
-    exact learner_received_mono qs hexec hle (Classical.choose_spec (hQ_recv a haQ))
+  have hlearnedAt : (ss k_final).LearnedAt qs l b v :=
+    ⟨Q, hQ, fun a haQ => learner_received_mono qs hexec (Finset.le_sup haQ) (hrecv a haQ)⟩
   have hr_final : Reachable qs inputs (ss k_final) :=
     hr₀.trans ⟨xs.extract 0 k_final, hexec.extract_mTr (Nat.zero_le k_final)⟩
   exact ⟨k_final, hlearnedAt, hr_final.learned_eq_some_iff.mpr ⟨b, hlearnedAt⟩⟩
@@ -178,19 +174,17 @@ theorem paxos_liveness_of_sole_leader_crashStop {inputs : Proposer → V}
       have hQ_prom : ∀ a ∈ Q, ∃ n, 1 ≤ n ∧ a ∈ ((ss n).proposers p).promised := by
         intro a haQ
         obtain ⟨j₁, _, hj₁_act⟩ := hlive.fair_phase1a 1 hs1_1a a haQ
-        have hex_1b : ∃ j_m mv, Msg.phase1b a b mv ∈ (ss j_m).msgs := by
+        obtain ⟨j_m, mv, h1b_mem⟩ : ∃ j_m mv, Msg.phase1b a b mv ∈ (ss j_m).msgs := by
           cases hab : aboveMaxBal ((ss j₁).acceptors a).maxBal b with
           | true =>
             exact ⟨j₁ + 1, ((ss j₁).acceptors a).maxVoted, by
               simp [(hexec j₁).2, hj₁_act, synodStep, synodStepCore, hab]⟩
           | false =>
             cases hmb_cur : ((ss j₁).acceptors a).maxBal with
-            | none => rw [hmb_cur] at hab; cases hab
+            | none => simp [hmb_cur, aboveMaxBal] at hab
             | some mb =>
-              rw [hmb_cur] at hab
-              simp only [aboveMaxBal, decide_eq_false_iff_not, not_lt] at hab
+              simp only [hmb_cur, aboveMaxBal, decide_eq_false_iff_not, not_lt] at hab
               exact hacc_1b j₁ a (le_antisymm ((hceil j₁).2 a mb hmb_cur) hab ▸ hmb_cur)
-        obtain ⟨j_m, mv, h1b_mem⟩ := hex_1b
         have h1b_at_max : Msg.phase1b a b mv ∈ (ss (max 1 j_m)).msgs :=
           ballot_msg_persist qs hexec hlive.no_drop_ballot (le_max_right 1 j_m) h1b_mem rfl
         obtain ⟨j₂, hj₂_ge, hj₂_act⟩ := hlive.fair_phase1b (max 1 j_m) a mv haQ h1b_at_max

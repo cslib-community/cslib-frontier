@@ -204,10 +204,8 @@ private theorem inv_update {s : State n} (hs : I.Inv s) {p : Fin n} (hp : I.Outr
     exact (key a ha).trans (key b hb).symm
 
 /-- Steps preserve the invariant. -/
-theorem inv_step {s : State n} (hs : I.Inv s) : I.Inv (I.step s) := by
-  rcases I.step_cases s with ⟨h, -⟩ | ⟨p, hp, h⟩
-  · rw [h]; exact hs
-  · rw [h]; exact I.inv_update hs hp
+theorem inv_step {s : State n} (hs : I.Inv s) : I.Inv (I.step s) :=
+  (I.step_cases s).elim (fun ⟨h, _⟩ => h.symm ▸ hs) fun ⟨_, hp, h⟩ => h.symm ▸ I.inv_update hs hp
 
 /-- Every state of the run satisfies the invariant. -/
 theorem inv_run (k : ℕ) : I.Inv (I.run k) := by
@@ -290,16 +288,14 @@ theorem step_run_fixed : I.step (I.run ((n - 1) ^ 2)) = I.run ((n - 1) ^ 2) := b
 theorem inv_finalState : I.Inv I.finalState := I.inv_run _
 
 /-- One more round of the run is one more step. -/
-theorem run_succ (k : ℕ) : I.run (k + 1) = I.step (I.run k) := by
-  exact Function.iterate_succ_apply' _ _ _
+theorem run_succ (k : ℕ) : I.run (k + 1) = I.step (I.run k) :=
+  Function.iterate_succ_apply' _ _ _
 
 /-- Rejection counts never decrease along the run. -/
 theorem run_le_run_succ (k : ℕ) (p : Fin n) : I.run k p ≤ I.run (k + 1) p := by
   rw [run_succ]
-  rcases I.step_cases (I.run k) with ⟨h, -⟩ | ⟨q, -, h⟩
-  · rw [h]
-  · rw [h]
-    grind [Function.update_apply]
+  rcases I.step_cases (I.run k) with ⟨h, -⟩ | ⟨_, -, h⟩ <;> rw [h]
+  grind [Function.update_apply]
 
 /-- Rejection counts are monotone in the number of rounds. -/
 theorem run_mono {j k : ℕ} (hjk : j ≤ k) (p : Fin n) : I.run j p ≤ I.run k p := by
@@ -312,10 +308,8 @@ theorem run_eq_finalState {k : ℕ} (hk : (n - 1) ^ 2 ≤ k) : I.run k = I.final
   I.run_fixed_of_le hk I.step_run_fixed
 
 /-- Every intermediate rejection count is bounded by the final one. -/
-theorem run_le_finalState (k : ℕ) (p : Fin n) : I.run k p ≤ I.finalState p := by
-  rcases le_total k ((n - 1) ^ 2) with h | h
-  · exact I.run_mono h p
-  · rw [I.run_eq_finalState h]
+theorem run_le_finalState (k : ℕ) (p : Fin n) : I.run k p ≤ I.finalState p :=
+  (le_total k ((n - 1) ^ 2)).elim (fun h => I.run_mono h p) fun h => I.run_eq_finalState h ▸ le_rfl
 
 /-- No proposer is outranked in the final state. -/
 theorem not_outranked_finalState (p : Fin n) : ¬ I.Outranked I.finalState p := by
@@ -458,9 +452,9 @@ theorem isStable_receiverDeferredAcceptance : I.IsStable I.receiverDeferredAccep
 
 /-- Receiver-proposing deferred acceptance is receiver-optimal. -/
 theorem isReceiverOptimal_receiverDeferredAcceptance :
-    I.IsReceiverOptimal I.receiverDeferredAcceptance := by
-  rw [isReceiverOptimal_iff_swap, receiverDeferredAcceptance, Equiv.symm_symm]
-  exact I.swap.isProposerOptimal_deferredAcceptance
+    I.IsReceiverOptimal I.receiverDeferredAcceptance :=
+  (I.isReceiverOptimal_iff_swap _).2
+    (Equiv.symm_symm I.swap.deferredAcceptance ▸ I.swap.isProposerOptimal_deferredAcceptance)
 
 /-- Receiver-proposing deferred acceptance is proposer-pessimal. -/
 theorem isProposerPessimal_receiverDeferredAcceptance :

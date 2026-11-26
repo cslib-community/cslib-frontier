@@ -307,10 +307,8 @@ theorem cost_fairCostSharing_const (p : P) (i : ι) :
       = (∑ e ∈ R p, c e) / Fintype.card ι := by
   rw [toCostGame_cost, fairCostSharing_resources, Finset.sum_div]
   refine Finset.sum_congr rfl fun e he => ?_
-  have hload : (fairCostSharing (fun (_ : ι) => R) c).load (fun _ => p) e = Fintype.card ι := by
-    unfold load
-    rw [Finset.filter_true_of_mem fun j _ => by rwa [fairCostSharing_resources], Finset.card_univ]
-  rw [fairCostSharing_latency, hload]
+  rw [fairCostSharing_latency, load,
+    Finset.filter_true_of_mem fun _ _ => by rwa [fairCostSharing_resources], Finset.card_univ]
 
 /-- When all players have the strategy set `P` and the resource map `R` and all play the same
 strategy `p`, the social cost is the cost of `R p` (with at least one player). -/
@@ -318,9 +316,8 @@ theorem socialCost_fairCostSharing_const [Nonempty ι] (p : P) :
     (fairCostSharing (fun (_ : ι) => R) c).toCostGame.socialCost (fun _ => p)
       = ∑ e ∈ R p, c e := by
   rw [CostGame.socialCost, Finset.sum_congr rfl fun i _ => cost_fairCostSharing_const c p i,
-    Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
-  have hk : (0 : ℝ) < Fintype.card ι := by exact_mod_cast Fintype.card_pos
-  rw [mul_div_cancel₀ _ hk.ne']
+    Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
+    mul_div_cancel₀ _ (Nat.cast_ne_zero.2 Fintype.card_ne_zero)]
 
 end Common
 
@@ -413,8 +410,7 @@ private theorem optOut_latency (e : Option (Fin k)) (n : ℕ) :
 private theorem optOut_load_some (s : Fin k → Bool) (j : Fin k) :
     (optOut k ε).load s (some j) = if s j then 1 else 0 := by
   have hmem (i : Fin k) : some j ∈ (optOut k ε).resources i (s i) ↔ i = j ∧ s j = true := by
-    rw [optOut_resources]
-    grind
+    simp only [optOut_resources]; grind
   unfold load
   rw [Finset.filter_congr fun i _ => hmem i]
   cases s j <;> simp [Finset.filter_eq']
@@ -424,8 +420,7 @@ private theorem optOut_load_none (s : Fin k → Bool) :
     (optOut k ε).load s none = (Finset.univ.filter fun i => s i = false).card := by
   unfold load
   refine congrArg Finset.card (Finset.filter_congr fun i _ => ?_)
-  rw [optOut_resources]
-  cases s i <;> simp
+  cases s i <;> simp [optOut_resources]
 
 /-- The cost of player `i` in the opt-out game: `1 / (i + 1)` if it opts out, and the share
 `(1 + ε) / m` of the shared resource if `m` players (including `i`) do not opt out. -/
@@ -483,9 +478,8 @@ theorem isPureNash_optOut_iff (hε : 0 < ε) (s : Fin k → Bool) :
 /-- In the opt-out game, the profile in which every player opts out has social cost `H k`. -/
 theorem socialCost_optOut_true :
     (optOut k ε).toCostGame.socialCost (fun _ => true) = harmonic k := by
-  unfold CostGame.socialCost
-  simp only [optOut_cost, ↓reduceIte, one_div]
-  rw [Fin.sum_univ_eq_sum_range (fun i : ℕ => ((i : ℝ) + 1)⁻¹), ← cast_harmonic]
+  simp only [CostGame.socialCost, optOut_cost, ↓reduceIte, one_div,
+    Fin.sum_univ_eq_sum_range (fun i : ℕ => ((i : ℝ) + 1)⁻¹), ← cast_harmonic]
 
 /-- In the opt-out game with `k ≥ 1` players, the profile in which every player shares has social
 cost `1 + ε`. -/

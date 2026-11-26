@@ -134,18 +134,13 @@ theorem expect_choose_visitCount_le (W : Finset V) (t m : ℕ) :
         fun ⟨h1, h2⟩ => ⟨⟨fun i hi => (h1 hi).1, h2⟩, fun i hi => (h1 hi).2⟩⟩
     rw [sum_boole, heq, card_powersetCard]
     rfl
-  simp only [hcount]
-  rw [expect_sum_comm]
-  have hb : ∀ S ∈ T, (𝔼 p : V × (Fin t → D),
-      if ∀ i ∈ S, G.walkAt p i ∈ W then (1 : ℝ) else 0) ≤
-      ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ ((m : ℝ) / 2) := by
-    intro S hS
-    obtain ⟨hsub, hcard⟩ := mem_powersetCard.mp hS
-    rw [Fintype.expect_boole]
-    simpa only [hcard] using G.dens_filter_selected_walkAt_mem_le W t S hsub
-  calc _ ≤ ∑ _S ∈ T,
-        ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ ((m : ℝ) / 2) := sum_le_sum hb
-    _ = _ := by rw [sum_const, nsmul_eq_mul]; simp only [T, card_powersetCard, card_range]
+  simp only [hcount, expect_sum_comm]
+  calc _ ≤ ∑ _S ∈ T, ((dens W : ℝ) + G.spectralExpansion ^ 2) ^ ((m : ℝ) / 2) :=
+        sum_le_sum fun S hS => by
+          obtain ⟨hsub, hcard⟩ := mem_powersetCard.mp hS
+          rw [Fintype.expect_boole]
+          simpa only [hcard] using G.dens_filter_selected_walkAt_mem_le W t S hsub
+    _ = _ := by simp only [T, sum_const, nsmul_eq_mul, card_powersetCard, card_range]
 
 /-- Integer upper tail, including threshold zero and impossible thresholds. -/
 theorem dens_filter_visitCount_ge_le (W : Finset V) (t m : ℕ) :

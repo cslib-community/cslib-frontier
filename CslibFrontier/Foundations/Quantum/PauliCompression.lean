@@ -219,9 +219,8 @@ private theorem exists_isometry_pauliFamily (X Z : (ι → Bool) → Matrix κ �
   set V := regularIsometry f
   have hf := conjTranspose_pauliFamily_mul X Z hX hZ
   obtain ⟨L₁, E, hEE, hEP⟩ :=
-    (isHermitian_signProj_regularRep_negOne :
-      (signProj (regularRep (ι := κ) (negOne : PauliGroup ι)) true).IsHermitian
-      ).exists_isometry_of_mul_self (signProj_mul_self regularRep_negOne_mul_self true)
+    isHermitian_signProj_regularRep_negOne.exists_isometry_of_mul_self
+      (signProj_mul_self (regularRep_negOne_mul_self (ι := ι) (κ := κ)) true)
   let R := codeRep hEE hEP
   obtain ⟨L₂, Φ, hΦ1, hΦ2, hXΦ, hZΦ⟩ := R.exists_unitary_eq_pauli
   set W : Matrix ((ι → Bool) × L₂) κ ℂ := Φᴴ * (Eᴴ * V)
@@ -336,9 +335,7 @@ theorem exists_isometry_compress_intertwine_pauliFamily
     rw [← pauliFamily_ofZ pauliXPow pauliZPow pauliXPow_zero b, ← pauliFamily_ofZ X Z hX0 b,
       hintertwine]
     refine (expect_congr rfl fun p _ => ?_).trans (Fintype.expect_const _)
-    have hz : pauliFamily X Z p * pauliFamily X Z (ofZ b) - pauliFamily X Z (p * ofZ b) = 0 := by
-      simp [pauliFamily_mul_sub, ofZ, Bool.zero_eq_false, hX0, ← hZmul p.z b, Matrix.mul_assoc]
-    simp [hz]
+    simp [pauliFamily_mul_sub, ofZ, Bool.zero_eq_false, hX0, ← hZmul p.z b, Matrix.mul_assoc]
   refine ⟨J, inferInstance, inferInstance, W, hWW, hZexact,
     expect_norm_sub_pauliFamily_compression_le X Z W
       (conjTranspose_pauliFamily_mul X Z hX hZ) hcompress, ?_⟩
@@ -355,7 +352,6 @@ theorem exists_isometry_compress_intertwine_pauliFamily
       ← Matrix.mul_assoc (X p.x)ᴴ, hX, Matrix.one_mul, Complex.star_def, Complex.conj_ofReal,
       ← Complex.ofReal_mul, signVal_mul_self, Complex.ofReal_one, one_smul]
   have h := hintertwine (ofX a)
-  dsimp only at h
   simp only [f, hgram] at h
   rw [pauliFamily_ofX _ _ hZ0, pauliFamily_ofX _ _ pauliZPow_zero] at h
   simpa only [D, expect_pauliGroup (fun _ b => (B b)ᴴ * B b), Fintype.expect_const] using h

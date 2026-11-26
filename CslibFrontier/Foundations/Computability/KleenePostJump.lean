@@ -94,9 +94,6 @@ private def haltsPredOptAll (p : Nat.RecursiveIn.Code × List Bool × ℕ) (e : 
   let (c, τ, x) := p
   haltsPredOpt c τ x e
 
-private lemma primrec_bits : _root_.Primrec bits :=
-  list_map _root_.Primrec.id ((_root_.Primrec.dom_bool Bool.toNat).comp snd).to₂
-
 private lemma primrec_evaln_all :
     _root_.Primrec (fun (q : (Nat.RecursiveIn.Code × List Bool × ℕ) × List Bool × ℕ × ℕ) =>
       Nat.RecursiveIn.Code.evaln (bits q.2.1) q.2.2.1 q.1.1 q.1.2.2) := by

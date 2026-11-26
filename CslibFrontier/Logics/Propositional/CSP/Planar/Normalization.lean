@@ -295,9 +295,8 @@ theorem CyclicExchangeObstruction.standardized {P : Set (Fin 4 → Bool)} {d : F
   · intro x hx
     have hx4 : ∀ x : Fin 4 → Bool, (x 0 = x 1 ∨ (x 0 = x 2 ∧ x 0 ≠ x 1 ∧ x 1 = x 3)) ∨
         ∃ j, j ≠ 0 ∧ cyclicDifference x = flipOn {0, j} (fun _ => false) := by decide
-    rcases hx4 x with hok | ⟨j, hj, hjd⟩
-    · exact hok
-    · exact (h.forbidden j hj (by rw [h.eq_full]) (hjd ▸ ⟨x, hx, rfl⟩)).elim
+    exact (hx4 x).resolve_right fun ⟨j, hj, hjd⟩ =>
+      h.forbidden j hj (congrFun h.eq_full j) (hjd ▸ ⟨x, hx, rfl⟩)
 
 /-- When all candidate quartets fail, the cap preserves the full-support obstruction.
 Every putative new pair has exactly the two lifts ruled out by the hypotheses. -/
@@ -357,9 +356,8 @@ theorem exists_program_of_obstruction (n : ℕ) (P : Set (Fin (n + 1) → Bool))
   induction n using Nat.strong_induction_on with
   | ind n ih =>
     have hn := h.four_le
-    by_cases hfour : n = 3
-    · subst n
-      exact ⟨.done 4, h.standardized⟩
+    rcases eq_or_ne n 3 with rfl | hfour
+    · exact ⟨.done 4, h.standardized⟩
     obtain ⟨r, rfl⟩ : ∃ r, n = r + 4 := ⟨n - 4, by omega⟩
     have shrink (d' : Fin (r + 5) → Bool) (hd' : CyclicExchangeObstruction P d')
         (hz : ∃ i, d' i = false) :
@@ -416,17 +414,13 @@ theorem obstruction_twist_rotate {n : ℕ} {R : Set (Fin (n + 1) → Bool)}
   · simp only [Function.comp_apply, hcycle, Pi.add_apply, Bool.add_eq_xor]
     cases ha : cyclicDifference a e <;> cases hb : cyclicDifference b e <;> simp_all
   · rintro j hj hd ⟨x, hx, hdx⟩
-    have hjd : cyclicDifference a (finCycle e j) ≠ cyclicDifference b (finCycle e j) :=
-      Ne.symm <| by
-        simpa only [Function.comp_apply, Pi.add_def, Bool.add_eq_xor, bne_iff_ne] using hd
-    apply hf (finCycle e j) hjd
-    refine ⟨(x ∘ (finCycle e).symm) + a, hx, ?_⟩
+    refine hf (finCycle e j) (Ne.symm (by
+      simpa only [Function.comp_apply, Pi.add_def, Bool.add_eq_xor, bne_iff_ne] using hd))
+      ⟨(x ∘ (finCycle e).symm) + a, hx, ?_⟩
     rw [cyclicDifference_add, cyclicDifference_comp_finCycle_symm, hdx]
     funext k
-    have hk0 : (finCycle e).symm k = 0 ↔ k = e := by rw [Equiv.symm_apply_eq, hcycle]
-    have hkj : (finCycle e).symm k = j ↔ k = finCycle e j := Equiv.symm_apply_eq _
     simp only [Pi.add_apply, Function.comp_apply, flipOn, Finset.mem_insert,
-      Finset.mem_singleton, hk0, hkj]
+      Finset.mem_singleton, Equiv.symm_apply_eq, hcycle]
     split_ifs <;> cases cyclicDifference a k <;> rfl
 
 /-- A nonempty cyclic-difference relation that is not an even delta-matroid has a genuine

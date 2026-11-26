@@ -229,7 +229,6 @@ theorem expect_fkBasicEstimate_sq_le {k : ℕ} (hk : k ≠ 0) (s : List α) :
     𝔼 p : Fin s.length, fkBasicEstimate k s p ^ 2 ≤
       k * s.length * freqMoment (2 * k - 1) s := by
   obtain ⟨j, rfl⟩ : ∃ j, k = j + 1 := ⟨k - 1, by omega⟩
-  rw [show 2 * (j + 1) - 1 = 2 * j + 1 by omega]
   rcases Nat.eq_zero_or_pos s.length with h0 | hpos
   · simp [List.length_eq_zero_iff.1 h0, freqMoment]
   · rw [Fintype.expect_eq_sum_div_card, Fintype.card_fin]
@@ -240,7 +239,8 @@ theorem expect_fkBasicEstimate_sq_le {k : ℕ} (hk : k ≠ 0) (s : List α) :
         ≤ (s.length : ℝ) ^ 2 * (((j + 1 : ℕ) : ℝ) * freqMoment (2 * j + 1) s) :=
           mul_le_mul_of_nonneg_left
             (by exact_mod_cast sum_range_sq_pow_sub_pow_suffixCount_le j s) (by positivity)
-      _ = _ := by push_cast; ring
+      _ = ((j + 1 : ℕ) : ℝ) * s.length * freqMoment (2 * j + 1) s * s.length := by
+          push_cast; ring
 
 /-- The group size condition `(3 k) ^ k n ^ (k - 1) ≤ (K η²) ^ k` bounds three times the second
 moment bound `k F₁ F_{2k-1}` by `K (η F_k)²` on streams with at most `n` distinct items, through
@@ -250,7 +250,7 @@ theorem three_mul_length_mul_freqMoment_le {k K n : ℕ} (hk : k ≠ 0) {η : �
     (hn : s.toFinset.card ≤ n) :
     3 * (k * s.length * freqMoment (2 * k - 1) s : ℝ) ≤ K * (η * freqMoment k s) ^ 2 := by
   obtain ⟨j, rfl⟩ : ∃ j, k = j + 1 := ⟨k - 1, by omega⟩
-  simp only [show 2 * (j + 1) - 1 = 2 * j + 1 by omega, Nat.add_sub_cancel] at hK ⊢
+  rw [Nat.add_sub_cancel] at hK
   have hfact : ((s.length * freqMoment (2 * j + 1) s : ℕ) : ℝ) ^ (j + 1) ≤
       (n : ℝ) ^ j * (freqMoment (j + 1) s : ℝ) ^ (2 * (j + 1)) :=
     (by exact_mod_cast length_mul_freqMoment_pow_le j s :
@@ -278,12 +278,11 @@ theorem pow_mul_pow_sub_one_le_of_mul_rpow_le {k K n : ℕ} {η : ℝ}
     (3 * k : ℝ) ^ k * n ^ (k - 1) ≤ (K * η ^ 2) ^ k := by
   rcases eq_or_ne k 0 with rfl | hk
   · simp
-  have hk' : (0 : ℝ) < k := Nat.cast_pos.2 (Nat.pos_of_ne_zero hk)
+  have hk' : (k : ℝ) ≠ 0 := Nat.cast_ne_zero.2 hk
   have hpow : ((n : ℝ) ^ (1 - 1 / (k : ℝ))) ^ k = (n : ℝ) ^ (k - 1) := by
     rw [← Real.rpow_mul_natCast (Nat.cast_nonneg n), ← Real.rpow_natCast]
-    congr 1
-    rw [Nat.cast_sub (Nat.one_le_iff_ne_zero.2 hk), Nat.cast_one]
-    field_simp
+    exact congrArg ((n : ℝ) ^ ·)
+      (by rw [Nat.cast_sub (Nat.one_le_iff_ne_zero.2 hk), Nat.cast_one]; field_simp)
   calc (3 * k : ℝ) ^ k * n ^ (k - 1) = (3 * k * (n : ℝ) ^ (1 - 1 / (k : ℝ))) ^ k := by
         rw [mul_pow (3 * (k : ℝ)), hpow]
     _ ≤ (K * η ^ 2) ^ k := pow_le_pow_left₀ (by positivity) h k
@@ -353,10 +352,9 @@ private theorem fkCell_eq (s : List α) (a : α) (p : ℕ) :
     rw [suffixCount_eq_of_lt hp, suffixCount_eq_of_lt hp2, List.getElem?_eq_getElem hp,
       List.getElem?_eq_getElem hp2, List.getElem_append_left hp,
       List.drop_append_of_le_length hp.le, List.count_append]
-    rcases eq_or_ne s[p] a with rfl | h
-    · simp [fkCell, hp.ne]
-    · simp [fkCell, h, hp.ne, h.symm]
-  · simp [fkCell, suffixCount_eq_of_lt (show s.length < (s ++ [a]).length by simp)]
+    by_cases h : s[p] = a <;> simp [fkCell, hp.ne, h, Ne.symm]
+  · have hp : s.length < (s ++ [a]).length := by simp
+    simp [fkCell, suffixCount_eq_of_lt hp]
   · have hp2 : (s ++ [a]).length ≤ p := by simpa using hp
     simp [fkCell, hp.ne', suffixCount_eq_zero_of_le hp.le, suffixCount_eq_zero_of_le hp2,
       List.getElem?_eq_none hp.le, List.getElem?_eq_none hp2]
@@ -407,12 +405,10 @@ theorem dens_fkSketch_error_le {n : ℕ} (hk : k ≠ 0) {η : ℝ} (hη : 0 < η
   have hne : Nonempty (Fin s.length) := ⟨⟨0, List.length_pos_iff.2 hs⟩⟩
   have hn1 : 0 < n :=
     (Finset.card_pos.2 ⟨_, List.mem_toFinset.2 (List.head_mem hs)⟩).trans_le hn
-  have hK0 : NeZero K := ⟨by
-    rintro rfl
-    have hk0 : 0 < k := Nat.pos_of_ne_zero hk
-    have : (0 : ℝ) < (3 * k : ℝ) ^ k * n ^ (k - 1) := by positivity
-    simp only [Nat.cast_zero, zero_mul, zero_pow hk] at hK
-    linarith⟩
+  have hk0 : 0 < k := Nat.pos_of_ne_zero hk
+  have hpos : (0 : ℝ) < (3 * k : ℝ) ^ k * n ^ (k - 1) := by positivity
+  have hK0 : NeZero K := ⟨fun h0 => by
+    simp only [h0, Nat.cast_zero, zero_mul, zero_pow hk] at hK; linarith⟩
   have hF : (0 : ℝ) < freqMoment k s := by exact_mod_cast freqMoment_pos k hs
   let g : Fin s.length → ℝ := fun p => fkBasicEstimate k s p
   have hvar : 3 * 𝔼 p, (g p - 𝔼 p', g p') ^ 2 ≤ K * (η * freqMoment k s) ^ 2 := by

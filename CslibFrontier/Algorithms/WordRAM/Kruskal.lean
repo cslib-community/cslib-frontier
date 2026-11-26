@@ -151,13 +151,16 @@ theorem inputFits_encode {w n : ℕ} (es : List (WeightedEdge n ℕ))
 
 /-! ## Stride-3 Edge Memory -/
 
-private def HoldsEdges {n : ℕ} (base : ℕ) (es : List (WeightedEdge n ℕ)) (mem : ℕ → ℕ) : Prop :=
+/-- Memory `mem` stores `es` in stride-3 `(u, v, weight)` layout starting at `base`. -/
+@[expose] def HoldsEdges {n : ℕ} (base : ℕ) (es : List (WeightedEdge n ℕ)) (mem : ℕ → ℕ) : Prop :=
   ∀ i : ℕ, (hi : i < es.length) →
     mem (base + 3 * i) = es[i].u.val ∧
     mem (base + 3 * i + 1) = es[i].v.val ∧
     mem (base + 3 * i + 2) = es[i].weight
 
-private theorem holdsEdges_of_holdsList {n : ℕ} {base : ℕ} {es : List (WeightedEdge n ℕ)}
+/-- Decode a stride-3 `HoldsEdges` layout from a flat `Block.HoldsList (encodeEdges es)`
+layout. -/
+theorem holdsEdges_of_holdsList {n : ℕ} {base : ℕ} {es : List (WeightedEdge n ℕ)}
     {mem : ℕ → ℕ} (h : Block.HoldsList base (encodeEdges es) mem) :
     HoldsEdges base es mem := by
   induction es generalizing base with
@@ -182,7 +185,9 @@ private theorem holdsEdges_of_holdsList {n : ℕ} {base : ℕ} {es : List (Weigh
         by rwa [show base + 3 * (k + 1) + 1 = base + 3 + 3 * k + 1 by omega],
         by rwa [show base + 3 * (k + 1) + 2 = base + 3 + 3 * k + 2 by omega]⟩
 
-private theorem holdsList_of_holdsEdges {n : ℕ} {base : ℕ} {es : List (WeightedEdge n ℕ)}
+/-- Convert a stride-3 `HoldsEdges` layout into a flat `Block.HoldsList (encodeEdges es)`
+layout. -/
+theorem holdsList_of_holdsEdges {n : ℕ} {base : ℕ} {es : List (WeightedEdge n ℕ)}
     {mem : ℕ → ℕ} (h : HoldsEdges base es mem) :
     Block.HoldsList base (encodeEdges es) mem := by
   induction es generalizing base with
@@ -207,7 +212,8 @@ private theorem holdsList_of_holdsEdges {n : ℕ} {base : ℕ} {es : List (Weigh
       rw [show base + (k + 3) = base + 3 + k by omega]
       simpa [encodeEdges_cons] using hget
 
-private theorem holdsEdges_frame {n : ℕ} {base : ℕ} {es : List (WeightedEdge n ℕ)}
+/-- Framing lemma for `HoldsEdges` over `[base, base + 3 * es.length)`. -/
+theorem holdsEdges_frame {n : ℕ} {base : ℕ} {es : List (WeightedEdge n ℕ)}
     {m₀ m₁ : ℕ → ℕ} (h : HoldsEdges base es m₀)
     (heq : ∀ a, base ≤ a → a < base + 3 * es.length → m₁ a = m₀ a) :
     HoldsEdges base es m₁ := fun i hi => by
@@ -216,16 +222,18 @@ private theorem holdsEdges_frame {n : ℕ} {base : ℕ} {es : List (WeightedEdge
     (heq _ (by omega) (by omega)).trans hv,
     (heq _ (by omega) (by omega)).trans hw⟩
 
-private theorem holdsEdges_init {n : ℕ} (es : List (WeightedEdge n ℕ)) :
-    HoldsEdges 3 es (Data.init (encode es) : Data 26).mem := by
-  have hall : Block.HoldsList 1 (encode es) (Data.init (encode es) : Data 26).mem :=
+/-- `Data.init (encode es)` stores `es` in stride-3 `HoldsEdges` layout starting at address
+`3`. -/
+theorem holdsEdges_init {r n : ℕ} (es : List (WeightedEdge n ℕ)) :
+    HoldsEdges 3 es (Data.init (r := r) (encode es)).mem := by
+  have hall : Block.HoldsList 1 (encode es) (Data.init (r := r) (encode es)).mem :=
     (outputList_eq_iff.mp (outputList_init (encode es))).2
   refine holdsEdges_of_holdsList fun j => ?_
   have hj := hall.get (j.val + 1 + 1) (by
     have := j.isLt
     simp only [length_encode, length_encodeEdges] at this ⊢
     omega)
-  change (Data.init (encode es) : Data 26).mem (3 + j.val) = (encodeEdges es)[j.val]
+  change (Data.init (r := r) (encode es)).mem (3 + j.val) = (encodeEdges es)[j.val]
   have hidx : 3 + j.val = 1 + (j.val + 1 + 1) := by omega
   exact hidx ▸ hj
 

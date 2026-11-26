@@ -162,27 +162,23 @@ theorem computableInPolyTime_semBoolean_of_forall (encRel : Rel ↪ List Bool) (
   have hb : 0 < b := CSP.one_le_bitWidth q
   have hsome : ComputableInPolyTime (fun R : Rel => CSP.semBoolean q sem (some R) bw)
       encRel encBool := by
-    by_cases hq : 0 < q
-    · let r := bw.length / b
-      let vals := CSP.decodeChunks b r bw
-      let ok : Bool := (bw.length % b == 0) && vals.all (decide <| · < q)
-      by_cases hok : ok = true
-      · have hw_len : (vals.map (CSP.toFin q hq)).length ≤ max 1 k := by
-          rw [List.length_map, CSP.decodeChunks_length]
-          exact (Nat.div_le_div_right hbw).trans (by rw [Nat.mul_div_cancel _ hb])
-        refine (hsem (vals.map (CSP.toFin q hq)) hw_len).of_enc_eq fun R => ?_
-        dsimp only [CSP.semBoolean]
-        simp only [hq, ↓reduceDIte]
-        change encBool ((ok && sem R (vals.map (CSP.toFin q hq)))) = _
-        rw [hok, Bool.true_and]
-      · refine (ComputableInPolyTime.const (encOut := encBool) false).of_enc_eq fun R => ?_
-        dsimp only [CSP.semBoolean]
-        simp only [hq, ↓reduceDIte]
-        change encBool ((ok && sem R (vals.map (CSP.toFin q hq)))) = encBool false
-        rw [Bool.eq_false_iff.mpr hok, Bool.false_and]
+    by_cases hguard : ∃ _ : 0 < q,
+        ((bw.length % b == 0) &&
+          (CSP.decodeChunks b (bw.length / b) bw).all (decide <| · < q)) = true
+    · obtain ⟨hq, hok⟩ := hguard
+      let vals := CSP.decodeChunks b (bw.length / b) bw
+      have hw_len : (vals.map (CSP.toFin q hq)).length ≤ max 1 k := by
+        simpa only [vals, List.length_map, CSP.decodeChunks_length, b,
+          Nat.mul_div_cancel _ hb] using Nat.div_le_div_right (c := b) hbw
+      refine (hsem (vals.map (CSP.toFin q hq)) hw_len).of_enc_eq fun R => ?_
+      dsimp only [CSP.semBoolean]
+      simp only [hq, ↓reduceDIte, b, vals, hok, Bool.true_and]
     · refine (ComputableInPolyTime.const (encOut := encBool) false).of_enc_eq fun R => ?_
       dsimp only [CSP.semBoolean]
-      simp only [hq, ↓reduceDIte]
+      by_cases hq : 0 < q
+      · simp only [hq, ↓reduceDIte, b, Bool.eq_false_iff.mpr (not_exists.mp hguard hq),
+          Bool.false_and]
+      · simp only [hq, ↓reduceDIte]
   refine (ComputableInPolyTime.optionElimWithInput
     (body := fun _ R => CSP.semBoolean q sem (some R) bw)
     (ComputableInPolyTime.id' (encIn := encOption encRel))

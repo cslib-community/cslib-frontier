@@ -146,18 +146,12 @@ private theorem isLeafCall_polyTime (h : R.PolyTime encX encA encY) :
 /-- Every step but the evaluation of a leaf is polynomial-time. -/
 private theorem polyStep_polyTime (h : R.PolyTime encX encA encY) :
     ComputableInPolyTime (polyStep R) (encState encX encA encY) (encState encX encA encY) := by
-  have hstack : ComputableInPolyTime (fun σ : State X A Y => σ.1) (encState encX encA encY)
-      (encList (encPair encX encA)) :=
-    ComputableInPolyTime.fst (encList (encPair encX encA))
-      (encPair (encOption encX) (encOption encY))
-  have hreg : ComputableInPolyTime (fun σ : State X A Y => σ.2) (encState encX encA encY)
-      (encPair (encOption encX) (encOption encY)) :=
-    ComputableInPolyTime.snd (encList (encPair encX encA))
-      (encPair (encOption encX) (encOption encY))
-  have hpend : ComputableInPolyTime (fun σ : State X A Y => σ.2.1) (encState encX encA encY)
-      (encOption encX) := (ComputableInPolyTime.fst (encOption encX) (encOption encY)).comp hreg
-  have hret : ComputableInPolyTime (fun σ : State X A Y => σ.2.2) (encState encX encA encY)
-      (encOption encY) := (ComputableInPolyTime.snd (encOption encX) (encOption encY)).comp hreg
+  have hstack := ComputableInPolyTime.fst (encList (encPair encX encA))
+    (encPair (encOption encX) (encOption encY))
+  have hreg := ComputableInPolyTime.snd (encList (encPair encX encA))
+    (encPair (encOption encX) (encOption encY))
+  have hpend := (ComputableInPolyTime.fst (encOption encX) (encOption encY)).comp hreg
+  have hret := (ComputableInPolyTime.snd (encOption encX) (encOption encY)).comp hreg
   -- A returned value is absorbed by the innermost open frame.
   have hframe : ComputableInPolyTime
       (fun q : (State X A Y × Y) × (X × A) =>
@@ -170,40 +164,23 @@ private theorem polyStep_polyTime (h : R.PolyTime encX encA encY) :
       (encPair encX encA)
     have hy := (ComputableInPolyTime.snd (encState encX encA encY) encY).comp hq
     have hσ := (ComputableInPolyTime.fst (encState encX encA encY) encY).comp hq
-    have habs := h.absorb.comp (hf.prod hy)
     exact (resume_polyTime h).comp
-      ((((ComputableInPolyTime.fst encX encA).comp hf).prod habs).prod
+      ((((ComputableInPolyTime.fst encX encA).comp hf).prod (h.absorb.comp (hf.prod hy))).prod
         ((ComputableInPolyTime.tail (encA := encPair encX encA)).comp (hstack.comp hσ)))
-  have hreturn : ComputableInPolyTime
-      (fun p : State X A Y × Y =>
-        p.1.1.head?.elim p.1 fun f => R.resume f.1 (R.absorb f.1 f.2 p.2) p.1.1.tail)
-      (encPair (encState encX encA encY) encY) (encState encX encA encY) := by
-    have hσ := ComputableInPolyTime.fst (encState encX encA encY) encY
-    have hhead : ComputableInPolyTime (fun p : State X A Y × Y => p.1.1.head?)
-        (encPair (encState encX encA encY) encY) (encOption (encPair encX encA)) :=
-      (ComputableInPolyTime.head? (encPair encX encA) (encL := encList (encPair encX encA))).comp
-        (hstack.comp hσ)
-    exact ComputableInPolyTime.optionElimWithInput
-      (value := fun p : State X A Y × Y => p.1.1.head?) (fallback := fun p => p.1)
-      (body := fun p f => R.resume f.1 (R.absorb f.1 f.2 p.2) p.1.1.tail) hhead hσ hframe
-  have hnoCall : ComputableInPolyTime
-      (fun σ : State X A Y =>
-        σ.2.2.elim σ fun y => σ.1.head?.elim σ fun f => R.resume f.1 (R.absorb f.1 f.2 y) σ.1.tail)
-      (encState encX encA encY) (encState encX encA encY) :=
-    ComputableInPolyTime.optionElimWithInput (value := fun σ : State X A Y => σ.2.2)
-      (fallback := fun σ => σ)
-      (body := fun σ y => σ.1.head?.elim σ fun f => R.resume f.1 (R.absorb f.1 f.2 y) σ.1.tail)
-      hret ComputableInPolyTime.id' hreturn
-  have hcall : ComputableInPolyTime
-      (fun p : State X A Y × X => R.resume p.2 (R.start p.2) p.1.1)
-      (encPair (encState encX encA encY) encX) (encState encX encA encY) := by
-    have hx : ComputableInPolyTime (fun p : State X A Y × X => p.2)
-        (encPair (encState encX encA encY) encX) encX :=
-      ComputableInPolyTime.snd (encState encX encA encY) encX
-    have hst : ComputableInPolyTime (fun p : State X A Y × X => p.1.1)
-        (encPair (encState encX encA encY) encX) (encList (encPair encX encA)) :=
-      hstack.comp (ComputableInPolyTime.fst (encState encX encA encY) encX)
-    exact (resume_polyTime h).comp ((hx.prod (h.start.comp hx)).prod hst)
+  have hreturn := ComputableInPolyTime.optionElimWithInput
+    (value := fun p : State X A Y × Y => p.1.1.head?) (fallback := fun p => p.1)
+    (body := fun p f => R.resume f.1 (R.absorb f.1 f.2 p.2) p.1.1.tail)
+    ((ComputableInPolyTime.head? (encPair encX encA) (encL := encList (encPair encX encA))).comp
+      (hstack.comp (ComputableInPolyTime.fst (encState encX encA encY) encY)))
+    (ComputableInPolyTime.fst (encState encX encA encY) encY) hframe
+  have hnoCall := ComputableInPolyTime.optionElimWithInput
+    (value := fun σ : State X A Y => σ.2.2) (fallback := fun σ => σ)
+    (body := fun σ y => σ.1.head?.elim σ fun f => R.resume f.1 (R.absorb f.1 f.2 y) σ.1.tail)
+    hret ComputableInPolyTime.id' hreturn
+  have hcall := (resume_polyTime h).comp
+    (((ComputableInPolyTime.snd (encState encX encA encY) encX).prod
+      (h.start.comp (ComputableInPolyTime.snd (encState encX encA encY) encX))).prod
+      (hstack.comp (ComputableInPolyTime.fst (encState encX encA encY) encX)))
   exact ComputableInPolyTime.optionElimWithInput (value := fun σ : State X A Y => σ.2.1)
     (fallback := fun σ => σ.2.2.elim σ fun y =>
       σ.1.head?.elim σ fun f => R.resume f.1 (R.absorb f.1 f.2 y) σ.1.tail)
@@ -324,12 +301,10 @@ theorem exists_stepCertificate_le (h : R.PolyTime encX encA encY)
     constructor <;> omega
   · have hx := length_pending_le (encX := encX) (encA := encA) (encY := encY)
       (σ := (st, some x, v)) rfl
-    cases hl : R.isLeaf x
-    · simp only [leafCost, isLeafCall, Option.elim, hl, Bool.false_eq_true, ite_false, Nat.add_zero]
-      constructor <;> omega
-    · simp only [leafCost, isLeafCall, Option.elim, hl, ite_true,
-        leafStepCertificate_time, leafStepCertificate_space,
-        length_encPair (enc₁ := encState encX encA encY)]
+    cases hl : R.isLeaf x <;>
+      simp only [leafCost, isLeafCall, Option.elim, hl, Bool.false_eq_true, ite_false, ite_true,
+        Nat.add_zero, leafStepCertificate_time, leafStepCertificate_space,
+        length_encPair (enc₁ := encState encX encA encY)] <;>
       constructor <;> omega
 
 /-- **The native machine** for the clocked run: one fixed machine, from native certificates for
@@ -430,10 +405,9 @@ theorem certificate_le (h : R.PolyTime encX encA encY)
         (stepCertificate h leaf).space (R.step^[j] ([], some (root a), none)) ≤
           K₀ * (5 * z + 1) ^ K₀ + SL := by
     obtain ⟨ht, hs⟩ := hK₀ (R.step^[j] ([], some (root a), none))
-    have hp := Nat.mul_le_mul_left K₀
-      (Nat.pow_le_pow_left (Nat.add_le_add_right (hlen j) 1) K₀)
-    have hct := hcost leaf.time TL (fun x hx hl => ((hnode x hx).2 hl).1) j
-    have hcs := hcost leaf.space SL (fun x hx hl => ((hnode x hx).2 hl).2) j
+    have hp := Nat.mul_le_mul_left K₀ (Nat.pow_le_pow_left (Nat.add_le_add_right (hlen j) 1) K₀)
+    have := hcost leaf.time TL (fun x hx hl => ((hnode x hx).2 hl).1) j
+    have := hcost leaf.space SL (fun x hx hl => ((hnode x hx).2 hl).2) j
     constructor <;> omega
   have hmaxT := NativeCertificate.maxRoundTime_le (stepCertificate h leaf) (fuel a)
     ([], some (root a), none) (R := K₀ * (5 * z + 1) ^ K₀ + TL) fun j _ => (hround j).1

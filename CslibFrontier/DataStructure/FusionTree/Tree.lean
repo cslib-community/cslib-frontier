@@ -225,19 +225,20 @@ private theorem slots_add_nine_le {B : ℕ} {t : Tree} (ht : Valid B t) (hne : t
           (cs.map slots).sum + 9 * cs.length ≤ 14 * (cs.flatMap keys).length) with
   | leaf xs =>
     intro ht hne
+    have := List.length_pos_iff.mpr hne
     simp only [Valid, keys, slots] at *
-    have hp : 0 < xs.length := List.length_pos_iff.mpr hne
     omega
   | node m cs ih =>
     intro ht _
     simp only [Valid] at ht
-    have hs := ih ht.2.2.2
+    have := ih ht.2.2.2
     simp only [slots, keys]
     omega
   | nil => simp
   | cons t ts iht ihts hc =>
-    have hs := iht (hc t (by simp)).1 (hc t (by simp)).2
-    have hts := ihts (fun u hu => hc u (by simp [hu]))
+    obtain ⟨⟨hvt, hnt⟩, hcts⟩ := List.forall_mem_cons.mp hc
+    have := iht hvt hnt
+    have := ihts hcts
     simp only [List.map_cons, List.sum_cons, List.length_cons, List.flatMap_cons,
       List.length_append]
     omega
@@ -276,15 +277,10 @@ private theorem selectChild_spec {q : ℕ} {cs : List Tree} {t : Tree}
   induction cs with
   | nil => simp [selectChild] at h
   | cons u us ih =>
-    simp only [selectChild] at h
-    cases hs : selectChild q us with
-    | none =>
-      rw [hs, Option.none_or] at h
-      split_ifs at h with hle
+    rcases Option.or_eq_some_iff.mp h with h | ⟨_, h⟩
+    · exact (ih h).imp_left (List.mem_cons_of_mem u)
+    · split_ifs at h with hle
       exact Option.some.inj h ▸ ⟨List.mem_cons_self, hle⟩
-    | some v =>
-      have ht : selectChild q us = some t := by simpa [hs] using h
-      exact ⟨List.mem_cons_of_mem u (ih ht).1, (ih ht).2⟩
 
 /-- Any child selected by `selectChild` belongs to the input child list. -/
 theorem selectChild_mem {q : ℕ} {cs : List Tree} {t : Tree}
@@ -321,15 +317,7 @@ theorem listPredecessor_eq_none_iff (q : ℕ) (xs : List ℕ) :
     listPredecessor q xs = none ↔ ∀ x ∈ xs, q < x := by
   induction xs with
   | nil => simp [listPredecessor]
-  | cons x xs ih =>
-    cases hs : listPredecessor q xs with
-    | none =>
-      by_cases hx : x ≤ q
-      · simp [listPredecessor, hs, Option.or, hx]
-      · simpa [listPredecessor, hs, Option.or, hx, Nat.lt_of_not_le hx] using ih.mp hs
-    | some y =>
-      have ht : ¬ ∀ x ∈ xs, q < x := mt ih.mpr (by simp [hs])
-      simp [listPredecessor, hs, Option.or, ht]
+  | cons x xs ih => simp [listPredecessor, ih, and_comm]
 
 theorem listPredecessor_append (q : ℕ) (xs ys : List ℕ) :
     listPredecessor q (xs ++ ys) = (listPredecessor q ys).or (listPredecessor q xs) := by
@@ -405,19 +393,14 @@ theorem listPredecessor_some_spec {q p : ℕ} {xs : List ℕ}
   | nil => simp [listPredecessor] at hp
   | cons x xs ih =>
     obtain ⟨hhead, hsort⟩ := List.pairwise_cons.mp hs
-    cases htail : listPredecessor q xs with
-    | none =>
-      have hnone := (listPredecessor_eq_none_iff q xs).mp htail
-      rw [listPredecessor, htail, Option.none_or] at hp
-      split_ifs at hp with hx
-      obtain rfl := Option.some.inj hp
-      exact ⟨List.mem_cons_self, hx, List.forall_mem_cons.mpr
-        ⟨fun _ => le_rfl, fun y hy hyq => absurd hyq (not_le_of_gt (hnone y hy))⟩⟩
-    | some r =>
-      obtain rfl : r = p := by simpa [listPredecessor, htail, Option.or] using hp
-      obtain ⟨hmem, hle, hmax⟩ := ih hsort htail
+    rcases Option.or_eq_some_iff.mp hp with htail | ⟨htail, hx⟩
+    · obtain ⟨hmem, hle, hmax⟩ := ih hsort htail
       exact ⟨List.mem_cons_of_mem x hmem, hle,
-        List.forall_mem_cons.mpr ⟨fun _ => hhead r hmem, hmax⟩⟩
+        List.forall_mem_cons.mpr ⟨fun _ => hhead p hmem, hmax⟩⟩
+    · split_ifs at hx with hle
+      obtain rfl := Option.some.inj hx
+      exact ⟨List.mem_cons_self, hle, List.forall_mem_cons.mpr ⟨fun _ => le_rfl,
+        fun y hy hyq => absurd hyq ((listPredecessor_eq_none_iff q xs).mp htail y hy).not_ge⟩⟩
 
 /-- The list search returns exactly the greatest stored key not exceeding the query. -/
 theorem listPredecessor_eq_some_iff {q p : ℕ} {xs : List ℕ}

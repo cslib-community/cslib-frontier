@@ -152,10 +152,8 @@ private theorem two_mul_pow_le_pow {m t₀ P : ℕ} (hP : 1 ≤ P) (ht₀ : t₀
   have hPr : (1 : ℝ) ≤ P := by exact_mod_cast hP
   have hPpos : (0 : ℝ) < P := by linarith
   have hle : (t₀ : ℝ) ≤ m * (1 - 1 / P) := by
-    have h' : ((t₀ * P : ℕ) : ℝ) ≤ ((m * (P - 1) : ℕ) : ℝ) := mod_cast ht₀
-    push_cast [Nat.cast_sub hP] at h'
-    have hdiv : (m : ℝ) * (1 - 1 / P) = m * (P - 1) / P := by field_simp
-    rwa [hdiv, le_div_iff₀ hPpos]
+    rw [one_sub_div hPpos.ne', ← mul_div_assoc, le_div_iff₀ hPpos]
+    simpa [Nat.cast_sub hP] using (Nat.cast_le (α := ℝ)).mpr ht₀
   have h1 : (t₀ : ℝ) ^ P ≤ (m : ℝ) ^ P * (1 - 1 / P) ^ P :=
     mul_pow (m : ℝ) (1 - 1 / P) P ▸ pow_le_pow_left₀ (by positivity) hle P
   have h2 : (m : ℝ) ^ P * (1 - 1 / P) ^ P < (m : ℝ) ^ P * (1 / 2) :=
@@ -263,9 +261,7 @@ theorem eq_zero_of_four_mul_le_three_mul (D : ℕ → ℕ) {n : ℕ} (hn : 1 ≤
   have h₂ : 54 ^ n < 4 ^ (3 * n) := by
     rw [e₄]; exact Nat.pow_lt_pow_left (by norm_num) (by omega)
   by_contra hD
-  have := Nat.le_mul_of_pos_right (4 ^ (3 * n)) (Nat.pos_of_ne_zero hD)
-  have := hpow (3 * n)
-  omega
+  linarith [Nat.le_mul_of_pos_right (4 ^ (3 * n)) (Nat.pos_of_ne_zero hD), hpow (3 * n)]
 
 /-! ### The greedy procedure -/
 
@@ -296,11 +292,9 @@ theorem numPassing_eq (v : X → Fin m → Bool) (A : List (Fin m → Bool)) :
     numPassing v A = #{x | v x = 0} + #{x | PassesTests v A x ∧ v x ≠ 0} := by
   rw [numPassing, ← card_filter_add_card_filter_not (s := {x | PassesTests v A x})
     (p := fun x => v x = 0), filter_filter, filter_filter]
-  congr 2
-  ext x
+  refine congrArg₂ (· + ·) (congrArg card (ext fun x => ?_)) rfl
   simp only [mem_filter, mem_univ, true_and, and_iff_right_iff_imp]
-  rintro hx h -
-  rw [hx, dotProduct_zero]; rfl
+  exact fun hx h _ => hx.symm ▸ dotProduct_zero h
 
 /-- **Greedy selection of parity tests** [OpenAI2026ETH, Lemma 6.2]. Suppose that after the
 initial rows `A 0`, every accepted point with a nonzero violation vector has at least `m / P`
@@ -323,14 +317,13 @@ theorem numPassing_greedy (v : X → Fin m → Bool) {n : ℕ} (hn : 1 ≤ n)
   have hstep : ∀ i, 4 * D (i + 1) ≤ 3 * D i := by
     intro i
     set S := ({x | PassesTests v (A i) x ∧ v x ≠ 0} : Finset X)
-    have hcount : ∀ γ' : Fin P → Fin m × Bool,
+    have hcount (γ' : Fin P → Fin m × Bool) :
         #{x | PassesTests v (A i ++ [testRow γ']) x ∧ v x ≠ 0} =
-          #{x ∈ S | testParity γ' (v x) = false} := fun γ' => by
-      congr 1
-      ext x
-      simp only [S, mem_filter, mem_univ, true_and, passesTests_append_singleton,
-        testRow_dotProduct]
-      tauto
+          #{x ∈ S | testParity γ' (v x) = false} :=
+      congrArg card (ext fun x => by
+        simp only [S, mem_filter, mem_univ, true_and, passesTests_append_singleton,
+          testRow_dotProduct]
+        tauto)
     have hmin (γ' : Fin P → Fin m × Bool) :
         #{x ∈ S | testParity (γ i) (v x) = false} ≤ #{x ∈ S | testParity γ' (v x) = false} := by
       have := hγ i γ'

@@ -273,9 +273,7 @@ private theorem tsum_seedLaw_insertSeedSteps_le {c_exp n_max U V C_walk C_reh v 
   by_cases hu : u ∈ Dictionary.dom s
   · simp_rw [insertSeedSteps, ite_eq_left hu]
     rw [ENNReal.tsum_mul_right, p.tsum_coe, one_mul]
-    exact_mod_cast (by omega : insertBaseSteps c_exp n_max U + 3 ≤
-      insertBaseSteps c_exp n_max U + 3 + C_walk * evictIterSteps c_exp n_max U +
-        C_reh * rehashAmortizedSteps c_exp n_max U)
+    exact_mod_cast Nat.le_add_right_of_le (Nat.le_add_right _ _)
   · have hu_ks : u ∉ ks := fun h => hu ((hdom u).mp h)
     have hcard_lt : (Dictionary.dom s).card < n_max :=
       hvalid.1.resolve_right (by simp [Dictionary.notMem_dom_iff.mp hu])
@@ -407,18 +405,14 @@ private theorem initSetup_coupled_spec {w base c_exp n_max U V : ℕ} {x₁ : Da
       (Nat.le_pow_clog one_lt_two _).trans (Nat.pow_le_pow_right two_pos
         ((le_max_left _ _).trans
           (Probability.trinomialTargetBits_le_trinomialDeg U (tableBits n_max))))
-    have hpow : 2 ^ Probability.trinomialDeg U (tableBits n_max) * 2 ≤ 2 ^ w := by
-      rw [← pow_succ]
-      exact Nat.pow_le_pow_right two_pos (by omega)
-    rw [fits_iff]
-    omega
+    have hpow : 2 ^ Probability.trinomialDeg U (tableBits n_max) * 2 ≤ 2 ^ w :=
+      (pow_succ 2 _).symm ▸ Nat.pow_le_pow_right two_pos (by omega)
+    exact fits_iff.mpr (by omega)
   obtain ⟨ν₀, hdist, hseed, hsupp⟩ :=
     initSetup_spec (U := U) (V := V) hx₁ hb hfr (hpar 0) (hpar 1) hz hfit_ev hfit_U hfit_q
-  refine ⟨ν₀, hdist, fun θ => ?_, fun p hp => ?_⟩
-  · rw [hseed, two_mul]
-    exact le_self_add
-  · obtain ⟨_, hfr', hrep, hmod⟩ := hsupp p hp
-    exact ⟨hfr', hrep.toRep, le_rfl, hmod⟩
+  refine ⟨ν₀, hdist, fun θ => by simp only [hseed, two_mul, le_self_add], fun p hp => ?_⟩
+  obtain ⟨_, hfr', hrep, hmod⟩ := hsupp p hp
+  exact ⟨hfr', hrep.toRep, le_rfl, hmod⟩
 
 private theorem opCode_coupled_step_spec {w base c_exp n_max U V : ℕ}
     {s : Dictionary.State U} (o : Dictionary.Op U)
@@ -467,22 +461,18 @@ private theorem opCode_coupled_step_spec {w base c_exp n_max U V : ℕ}
     obtain ⟨_, hex, _, hpost⟩ := Classical.choose_spec
       (opCode_execCodeDist o hreh (Classical.choose_spec hp.1)
         hv hp.2 hfit_ev hw hfit_end hfit_V hfit_q)
-    have hsnd_eq : (μ_step p).map Prod.snd = μ_raw p :=
-      (PMF.map_comp _ _ _).trans (PMF.map_id _)
-    refine ⟨?_, ?_⟩
-    · dsimp only [cuckooCode, T_step]
-      rw [hsnd_eq]
-      simpa only [μ_raw, hp, and_self, ↓reduceDIte] using
+    refine ⟨?_, fun q hq => ?_⟩
+    · have hsnd : (μ_step p).map Prod.snd = μ_raw p := (PMF.map_comp _ _ _).trans (PMF.map_id _)
+      simpa only [cuckooCode, T_step, hsnd, μ_raw, hp, and_self, ↓reduceDIte] using
         hex.mono (opSeedSteps_le_stepWorstCharge _ _ _ _ _ _ _)
-    · intro q hq
-      obtain ⟨y, hy, rfl⟩ := (PMF.mem_support_map_iff ..).mp hq
+    · obtain ⟨y, hy, rfl⟩ := (PMF.mem_support_map_iff ..).mp hq
       obtain ⟨hdec, hrep', hmod⟩ :=
         hpost y (by simpa only [μ_raw, hp, and_self, ↓reduceDIte] using hy)
       exact ⟨hdec, hrep'.toRep, hmod⟩
   · intro θ'
-    have hfst : (ν.bind μ_step).map Prod.fst = ν.map Prod.fst := by
-      rw [PMF.map_bind]
-      exact congrArg ν.bind (funext fun p => (PMF.map_comp _ _ _).trans (PMF.map_const _ _))
+    have hfst : (ν.bind μ_step).map Prod.fst = ν.map Prod.fst :=
+      (PMF.map_bind ..).trans <|
+        congrArg ν.bind (funext fun p => (PMF.map_comp _ _ _).trans (PMF.map_const _ _))
     exact hfst ▸ hseed θ'
   · simp only [T_step, Nat.cast_zero, mul_zero, tsum_zero, add_zero]
     rw [ENNReal.tsum_mul_right, ν.tsum_coe, one_mul]
@@ -499,10 +489,9 @@ private theorem cuckoo_arguments_fit {w n_max U V : ℕ}
   | insert u v =>
     dsimp only [encode]
     split_ifs
-    · exact hfit_U.of_le (by omega)
-    · exact hfit_U.of_le (by have := u.isLt; omega)
-    · exact hfit_V.of_le hv.2.le
-    · exact hfit_U.of_le (Nat.zero_le _)
+    exacts [hfit_U.of_le (by omega),
+      hfit_U.of_le (u.isLt.le.trans ((le_max_left _ _).trans (Nat.le_succ _))),
+      hfit_V.of_le hv.2.le, hfit_U.of_le (Nat.zero_le _)]
 
 private theorem cuckoo_span_exec {w base c_exp n_max U : ℕ}
     (hfit_end : Fits w (base + space c_exp n_max))
@@ -780,12 +769,9 @@ theorem cuckoo_steps_expected_amortized (w base c_exp n_max U V : ℕ)
         argMatch o (C.prepare o p.2).regs := by
       intro p hp
       obtain ⟨hp1, hrep_p⟩ := hsupp p hp
-      refine ⟨hp1, ?_, C.prepare_argMatch o p.2⟩
-      exact RepWithKeys.supported
-        (C.prepare_regs_of_not_input (i := 0) rfl o p.2)
-        (fun _ _ => rfl)
-        (C.prepare_bounded hrep_p.1 (C.arguments_fit o hvo))
-        hrep_p
+      exact ⟨hp1, RepWithKeys.supported (C.prepare_regs_of_not_input (i := 0) rfl o p.2)
+        (fun _ _ => rfl) (C.prepare_bounded hrep_p.1 (C.arguments_fit o hvo)) hrep_p,
+        C.prepare_argMatch o p.2⟩
     obtain ⟨_, hrep_p₀, harg_p₀⟩ := hprep_ok p₀ hp₀
     obtain ⟨_, hE', _⟩ := opCode_execCodeDist o hfam.rehash_prob_le_half hrep_p₀ hvo harg_p₀
       hfit_ev hw hfit_end hfit_V hfit_q
@@ -890,8 +876,7 @@ theorem cuckoo_steps_expected_amortized (w base c_exp n_max U V : ℕ)
             _ = 2 * ∑' θ : Seed c_exp n_max U (tableBits n_max),
                   seedLaw c_exp n_max U (tableBits n_max) θ *
                     (insertSeedSteps c_exp n_max U ks θ s u + 3) := by
-                simp_rw [mul_assoc]
-                rw [ENNReal.tsum_mul_left]
+                simp only [mul_assoc, ENNReal.tsum_mul_left]
             _ ≤ 2 * (insertBaseSteps c_exp n_max U + 3 + 3 * evictIterSteps c_exp n_max U +
                   4 * rehashAmortizedSteps c_exp n_max U : ℕ) :=
                 mul_le_mul' le_rfl (tsum_seedLaw_insertSeedSteps_le hfam hnodup hdom hvo)
@@ -941,9 +926,8 @@ theorem cuckoo_seq_expected_amortized (w base c_exp n_max U V : ℕ)
   have hfit_q := KWise.fits_two_pow_trinomialDeg hw
   obtain ⟨x₁, ⟨t_span, ht_span, he_span⟩, hm₁, hb₁, hfr₁, h3₁, h4₁⟩ :=
     allocSpan_execWithin hfr h3 h4 hfit_end hfit_ev
-  have hx₁_bdd : x₁.Bounded w := he_span.bounded hx
   obtain ⟨ν₀, hdist_setup, hseed_setup, hsupp_setup⟩ :=
-    initSetup_spec (V := V) hx₁_bdd hb₁ hfr₁ h3₁ h4₁ (fun a ha => hm₁ ▸ hz a ha)
+    initSetup_spec (V := V) (he_span.bounded hx) hb₁ hfr₁ h3₁ h4₁ (fun a ha => hm₁ ▸ hz a ha)
       hfit_ev hfit_U hfit_q
   have he_init :
       ExecCodeDist w (cuckooCode c_exp n_max).initFresh x (ν₀.map Prod.snd) C.initTime :=
@@ -957,13 +941,11 @@ theorem cuckoo_seq_expected_amortized (w base c_exp n_max U V : ℕ)
         (survivingSeeds evalHash1 evalHash2 (maxEvictions n_max) ([] : List (Fin U))) hE₀ :=
     hseed_setup.trans (PMF.ext fun θ => by
       simp [seedLaw, PMF.uniformOfFintype_apply, PMF.uniformOfFinset_apply, survivingSeeds_nil])
-  have hsupp₀ : ∀ p ∈ ν₀.support,
-      p.1 = extractSeed (hashBase base) c_exp n_max U (tableBits n_max) p.2.mem ∧
-      RepWithKeys w base c_exp n_max U V [] (Dictionary.empty U) p.2 :=
-    fun p hp => ⟨(hsupp_setup p hp).1, (hsupp_setup p hp).2.2.1⟩
   obtain ⟨ν_final, T_ops, hex_steps, hseed_final, hrep_final, hamort⟩ :=
     cuckoo_steps_expected_amortized w base c_exp n_max U V hU hw hfit_end hfit_ev hfit_U
-      hfit_V ops ν₀ hv hE₀ hseed₀ hsupp₀
+      hfit_V ops ν₀ hv hE₀ hseed₀ fun p hp =>
+        let ⟨h1, _, hrep, _⟩ := hsupp_setup p hp
+        ⟨h1, hrep⟩
   exact ⟨ν₀, ν_final, T_ops, he_init, hex_steps, hseed_final, hrep_final,
     add_le_add le_rfl hamort⟩
 

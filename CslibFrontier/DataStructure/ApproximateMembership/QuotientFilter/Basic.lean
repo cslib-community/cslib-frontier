@@ -157,13 +157,13 @@ theorem bucketRun_erase_self {U b f : ℕ} {S : Finset (Fin U)}
     ((pairwise_le_bucketRun S quot rem (quot u)).sublist List.erase_sublist) ?_
   have hfilter : S.filter (fun x => quot x = quot u) =
       insert u ((S.erase u).filter fun x => quot x = quot u) := by
-    rw [Finset.filter_erase, Finset.insert_erase (by simp [hu])]
-  have hval : ((S.erase u).filter (fun x => quot x = quot u)).val.map rem =
-      ((S.filter (fun x => quot x = quot u)).val.map rem).erase (rem u) := by
-    conv_rhs => rw [hfilter, Finset.insert_val_of_notMem (by simp), Multiset.map_cons,
-      Multiset.erase_cons_head]
+    have hmem : u ∈ S.filter (fun x => quot x = quot u) := mem_filter.mpr ⟨hu, rfl⟩
+    rw [Finset.filter_erase, Finset.insert_erase hmem]
   dsimp only [bucketRun]
-  rw [← Multiset.coe_eq_coe, Multiset.sort_eq, ← Multiset.coe_erase, Multiset.sort_eq, hval]
+  rw [← Multiset.coe_eq_coe, Multiset.sort_eq, ← Multiset.coe_erase, Multiset.sort_eq]
+  conv_rhs =>
+    rw [hfilter, Finset.insert_val_of_notMem (fun h => notMem_erase u S (mem_filter.mp h).1),
+      Multiset.map_cons, Multiset.erase_cons_head]
 
 /-- Tag a bucket's remainder list with `isRunStart` booleans: `true` at the head, `false` at all
 subsequent positions. -/
@@ -657,14 +657,10 @@ theorem FilterInv.card_filter_quot_mem_cyclicInterval_eq {U b f n : ℕ} {S : Fi
     #(S.filter fun x =>
       quot x ∈ cyclicInterval b q (hinv.backLen hS_lt q) (hinv.clusterLen hS_lt q)) =
       hinv.clusterLen hS_lt q := by
-  have hvalid := hinv.intervalValid_cluster hS_lt q
   have hlen_le : hinv.clusterLen hS_lt q ≤ 2 ^ b :=
     (hinv.clusterLen_le_card hS_lt q).trans hS_lt.le
-  rw [cyclicInterval_eq_image_probeSlot]
-  change #(S.filter fun x =>
-    quot x ∈ (Finset.range (hinv.clusterLen hS_lt q)).image
-      (probeSlot b (hinv.clusterStart hS_lt q))) = hinv.clusterLen hS_lt q
-  rw [← runOffset_eq_card_filter_image S quot rem _ hlen_le, hvalid.runOffset_eq]
+  rw [cyclicInterval_eq_image_probeSlot, ← runOffset_eq_card_filter_image S quot rem _ hlen_le]
+  exact (hinv.intervalValid_cluster hS_lt q).runOffset_eq
 
 /-- Under `FilterInv`, the bucket of an empty slot has no run. -/
 theorem FilterInv.bucketRun_eq_nil_of_isFull_eq_false {U b f n : ℕ} {S : Finset (Fin U)}
@@ -835,8 +831,7 @@ theorem FilterInv.querySlot_eq_true_iff {U b f n : ℕ} {S : Finset (Fin U)}
     rw [FilterInv.querySlot,
       (hinv.intervalValid_cluster hS_lt q).queryCluster_eq_true_iff hinv.isOcc_eq ha_lt_ℓ, hq_eq]
   · obtain ⟨hocc_q, hrun_nil⟩ := hinv.isOcc_eq_false_of_fwdLen_eq_zero hS_lt q (by omega)
-    dsimp only [o, a, q] at *
-    simp [FilterInv.querySlot, queryCluster, hq_eq, hocc_q, hrun_nil]
+    simp [FilterInv.querySlot, queryCluster, o, a, q, hq_eq, hocc_q, hrun_nil]
 
 /-- **Pathwise zero false negatives**: if `u ∈ S`, `hinv.querySlot hS_lt u = true`. -/
 theorem FilterInv.querySlot_of_mem {U b f n : ℕ} {S : Finset (Fin U)}

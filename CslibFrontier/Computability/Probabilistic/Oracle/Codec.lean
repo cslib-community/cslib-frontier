@@ -141,17 +141,13 @@ theorem adapt_toWord {replyCap : Q → ℕ} {decodeReply : Q → List Bool → R
       (c.queryWord replyCap decodeReply q)) = ProbOracleComp.query := by
     funext q
     simp only [queryWord, ProbOracleComp.simulate_map, ProbOracleComp.simulate_query,
-      wordOracle_encodeQuery, Functor.map_map]
-    have hfun : (fun r : R => decodeReply q (List.take (replyCap q) (c.encodeReply q r))) =
-        _root_.id := funext fun r =>
-      (congrArg (decodeReply q) (List.take_of_length_le (hcap q r))).trans (hdec q r)
-    rw [hfun, id_map]
-  rw [hid]
+      wordOracle_encodeQuery, Functor.map_map, List.take_of_length_le (hcap q _), hdec]
+    exact id_map _
   have hsub : OracleComp.sumHandler (fun n => ProbOracleComp.sample (ProbComp.unifFin n))
       (ProbOracleComp.query (spec := fun _ : Q => R)) = OracleComp.query := funext fun
     | .inl n => ProbOracleComp.sample_unifFin n
     | .inr _ => rfl
-  rw [ProbOracleComp.simulate, hsub, OracleComp.substitute_query_eq_self]
+  rw [hid, ProbOracleComp.simulate, hsub, OracleComp.substitute_query_eq_self]
 
 /-- **Stateful `runWith` bisimulation**: running `c.toWord replyCap decodeReply program` against
 `c.wordOracle oracle` has the exact same joint `(α × State)` distribution as running `program`
@@ -196,29 +192,24 @@ theorem run_wordOracle_toWord (oracle : Q → ProbComp R)
     unfold wordOracle
     cases c.decodeQuery req with
     | none =>
-      change ((pure [] : StateT Unit PMF (List Bool))).run () =
-        (ProbComp.eval (pure [] : ProbComp (List Bool))).map (·, ())
+      change ((pure [] : StateT Unit PMF (List Bool))).run () = _
       simp [StateT.run_pure, PMF.monad_pure_eq_pure, ProbComp.eval_pure]
     | some q =>
       dsimp only
-      rw [show (c.encodeReply q <$> stOracle q) () =
-          ((c.encodeReply q <$> stOracle q)).run () from rfl,
-        StateT.run_map]
-      dsimp only [stOracle, StateT.run]
-      simp only [PMF.monad_map_eq_map, ProbComp.eval_map, PMF.map_comp]
-      rfl
+      change ((c.encodeReply q <$> stOracle q)).run () = _
+      rw [StateT.run_map]
+      simp [stOracle, StateT.run, PMF.monad_map_eq_map, ProbComp.eval_map, PMF.map_comp,
+        Function.comp_def]
   have hrun := c.runWith_wordOracle_toWord stOracle
     (replyCap := replyCap) (decodeReply := decodeReply)
-    (fun q ⟨⟩ r ⟨⟩ hmem => by
-      change (r, ()) ∈ ((ProbComp.eval (oracle q)).map (·, ())).support at hmem
+    (fun q _ r _ hmem => by
       obtain ⟨r', hr', heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hmem
-      obtain ⟨rfl, -⟩ := Prod.mk.inj heq
-      exact hcap q r' hr')
+      exact (Prod.mk.inj heq).1 ▸ hcap q r' hr')
     hdec program ()
   rw [hstate, ProbOracleComp.runWith_memoryless, ProbOracleComp.runWith_memoryless] at hrun
-  have hmap := congrArg (PMF.map Prod.fst) hrun
-  simpa only [PMF.map_comp, show (Prod.fst ∘ fun x : α => (x, ())) = _root_.id from rfl,
-    PMF.map_id, ProbOracleComp.eval_run, OracleComp.evalWith_eq_interpret] using hmap
+  have hid : (Prod.fst ∘ fun x : α => (x, ())) = _root_.id := rfl
+  simpa only [PMF.map_comp, hid, PMF.map_id, ProbOracleComp.eval_run,
+    OracleComp.evalWith_eq_interpret] using congrArg (PMF.map Prod.fst) hrun
 
 /-- `toWord` preserves cost budgets whenever each encoded word request costs at most the typed
 query's cost. -/

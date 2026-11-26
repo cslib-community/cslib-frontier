@@ -279,8 +279,7 @@ theorem finishLeafInsertGenProg_spec {isR : Bool}
       rw [clientState_swarRankGenProg, clientResult_swarRankGenProg hth, hr_def]
       change ValidProg w _ s (hitProg >>= _)
       refine validProg_bind hhit_vp ?_
-      rw [hhit_st, htail_eq]
-      exact htail_vp hwn_vp
+      simpa only [hhit_st, htail_eq] using htail_vp hwn_vp
     · rw [hfin_eq]
       have hbm_eq : ∀ i < 16 * numBucketsWhp n_max,
           readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w
@@ -365,13 +364,8 @@ theorem realizes_finishLeafInsertGen :
       FinishLeafGenPre
       (fun _ _ => 0) := by
   unfold finishLeafInsertGenProg
-  have hrn := realizes_readBTreeNodeGen
-  have hsr := realizes_swarRankGen
-  have hch := realizes_checkLeafHitGen
-  have hwu := realizes_wordUpdateAtGen
-  have hwi := realizes_wordInsertOp
-  have hwn := realizes_writeNodeOp
-  realize
+  realize [realizes_readBTreeNodeGen, realizes_swarRankGen, realizes_checkLeafHitGen,
+    realizes_wordUpdateAtGen, realizes_wordInsertOp, realizes_writeNodeOp]
   all_goals
     rcases d with ⟨⟨⟨⟨⟨cp, base⟩, sIdx⟩, leafIdx⟩, q⟩, val⟩
     dsimp only [FinishLeafGenPre] at h

@@ -217,11 +217,10 @@ theorem succProbability_repeatedIterateExperiment_le_sum (idx : Q → ℕ) (samp
       (D.map fun w => slotHit idx f d g w.1 w.2) true ≤ ProbComp.eval (inversionExperiment
         (f^[g % d] <$> sample) f (slotInverter idx sample f n d g A)) true := by
     intro g hg
-    have hgn : g / d < n :=
-      Nat.div_lt_of_lt_mul (by rw [Nat.mul_comm]; exact Finset.mem_range.mp hg)
+    have hgn : g / d < n := Nat.div_lt_of_lt_mul (Nat.mul_comm n d ▸ Finset.mem_range.mp hg)
     have hpd : g % d < d := Nat.mod_lt _ hd
-    have hrep := ProbComp.eval_replicate_splice sample (g / d) (n - g / d - 1)
-    rw [show g / d + (n - g / d - 1 + 1) = n by omega] at hrep
+    have hgn_add : g / d + (n - g / d - 1 + 1) = n := by omega
+    have hrep := hgn_add ▸ ProbComp.eval_replicate_splice sample (g / d) (n - g / d - 1)
     rw [hD, ← hrep]
     simp only [inversionExperiment, slotInverter, ← ProbOracleComp.map_fst_eval_runLog, pmf_norm,
       Function.comp_def]
@@ -231,26 +230,20 @@ theorem succProbability_repeatedIterateExperiment_le_sum (idx : Q → ℕ) (samp
     have hlen : front.length = g / d := ((ProbComp.mem_support_replicate_iff _ _ _).mp hfront).1
     rw [slotKey_eq hpd]
     refine map_true_le_map_true_of_le _ _ fun z hz => ?_
-    simp only [slotHit, decide_eq_true_eq] at hz
-    obtain ⟨hza, hzb, hzlog, hzf⟩ := hz
+    obtain ⟨hza, hzb, hzlog, hzf⟩ := of_decide_eq_true hz
     refine ⟨le_of_eq (ProbOracleComp.eval_runLog_apply_eq_of_agree
-      (bad := fun q => idx q / d = g / d ∧ idx q % d ≤ g % d) (fun q hq => ?_) _ hzlog), ?_⟩
-    · rw [chainSlot_eq_of_not_below hlen back x₀ hq]
-    · rw [← hlen, show (front ++ x₀ :: back).getD front.length default = x₀ by simp] at hzf
-      simpa [hza, hzb] using hzf
+      (bad := fun q => idx q / d = g / d ∧ idx q % d ≤ g % d)
+      (fun q hq => by rw [chainSlot_eq_of_not_below hlen back x₀ hq]) _ hzlog), ?_⟩
+    simpa [← hlen, hza, hzb] using hzf
   have htop : ∀ g ∈ Finset.range (n * d), ProbComp.eval (inversionExperiment (f^[g % d] <$> sample)
       f (slotInverter idx sample f n d g A)) true ≠ ⊤ := fun g _ => PMF.apply_ne_top _ _
-  have hsum : ProbComp.eval (repeatedIterateExperiment idx sample f n d A) true ≤
-      ∑ g ∈ Finset.range (n * d), ProbComp.eval (inversionExperiment (f^[g % d] <$> sample) f
-        (slotInverter idx sample f n d g A)) true := by
-    rw [hreal]
-    exact (PMF.map_true_le_sum D (Finset.range (n * d))
-      (F := fun g w => slotHit idx f d g w.1 w.2) fun ⟨xs, ⟨q, x⟩, log⟩ hw hE =>
-        exists_slotHit hd (hsupp _ hw).1 (hsupp _ hw).2 hE).trans (Finset.sum_le_sum hstep)
   calc Experiment.succProbability (repeatedIterateExperiment idx sample f n d A)
       ≤ (∑ g ∈ Finset.range (n * d), ProbComp.eval (inversionExperiment (f^[g % d] <$> sample) f
           (slotInverter idx sample f n d g A)) true).toNNReal :=
-        ENNReal.toNNReal_mono (ENNReal.sum_ne_top.mpr htop) hsum
+        ENNReal.toNNReal_mono (ENNReal.sum_ne_top.mpr htop) <| hreal ▸
+          (PMF.map_true_le_sum D (Finset.range (n * d))
+            (F := fun g w => slotHit idx f d g w.1 w.2) fun ⟨xs, ⟨q, x⟩, log⟩ hw hE =>
+              exists_slotHit hd (hsupp _ hw).1 (hsupp _ hw).2 hE).trans (Finset.sum_le_sum hstep)
     _ = _ := ENNReal.toNNReal_sum htop
 
 /-- The slot sum behind (13.6): the `d = 1` case. -/
@@ -290,8 +283,7 @@ theorem succProbability_repeatedInversionExperiment_le (idx : Q → ℕ) (sample
         (t : ℝ≥0∞)⁻¹ * ∑ g ∈ Finset.range t, ProbComp.eval (inversionExperiment sample f
           (slotInverter idx sample f t 1 g A)) true := by
       simp only [ProbComp.eval_inversionExperiment, plantInverter, ProbComp.eval_bind,
-        ProbComp.eval_unifFin]
-      rw [inversionExperiment_bind, PMF.bind_apply, tsum_fintype]
+        ProbComp.eval_unifFin, inversionExperiment_bind, PMF.bind_apply, tsum_fintype]
       simp only [← ProbComp.eval_inversionExperiment, PMF.uniformOfFintype_apply, Fintype.card_fin]
       rw [← Finset.mul_sum, Fin.sum_univ_eq_sum_range (fun g => ProbComp.eval
         (inversionExperiment sample f (slotInverter idx sample f t 1 g A)) true),

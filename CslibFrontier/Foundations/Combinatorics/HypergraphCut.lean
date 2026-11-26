@@ -88,10 +88,9 @@ private theorem abs_deficit_update_sub_le (S : κ → Finset ι) {D : ℕ}
     |deficit S (Function.update x i false) - deficit S (Function.update x i true)| ≤ D + 1 := by
   classical
   have hw : (BitString.weight (Function.update x i true) : ℝ) =
-      BitString.weight (Function.update x i false) + 1 := by
-    have h := BitString.weight_update_true (x := Function.update x i false) (i := i) (by simp)
-    simp only [Function.update_idem] at h
-    exact_mod_cast h
+      BitString.weight (Function.update x i false) + 1 :=
+    mod_cast (Function.update_idem (a := i) false true x ▸
+      BitString.weight_update_true (x := Function.update x i false) (i := i) (by simp))
   have hsum : |∑ j, (hits (S j) (Function.update x i false) -
       hits (S j) (Function.update x i true))| ≤ D := by
     calc
@@ -119,11 +118,10 @@ private theorem variance_deficit_le (S : κ → Finset ι) {D : ℕ}
   have hi (i : ι) : BitString.influence i (deficit S) ≤ (D + 1 : ℝ) ^ 2 / 4 := by
     rw [BitString.influence, ← Fintype.expect_const (ι := ι → Bool) ((D + 1 : ℝ) ^ 2 / 4)]
     refine expect_le_expect fun x _ => ?_
-    have h4 : (2 : ℝ) ^ 2 = 4 := by norm_num
-    rw [BitString.derivative, div_pow, h4, ← sq_abs]
-    exact div_le_div_of_nonneg_right
-      ((sq_le_sq₀ (abs_nonneg _) (by positivity)).mpr (abs_deficit_update_sub_le S hD i x))
-      (by norm_num)
+    have h := abs_deficit_update_sub_le S hD i x
+    rw [BitString.derivative, div_pow, ← sq_abs]
+    nlinarith [abs_nonneg (deficit S (Function.update x i false) -
+      deficit S (Function.update x i true))]
   calc
     BitString.totalInfluence (deficit S) ≤ ∑ _i : ι, (D + 1 : ℝ) ^ 2 / 4 :=
       sum_le_sum fun i _ => hi i
@@ -168,9 +166,8 @@ theorem card_le_of_deficit (S : κ → Finset ι) {d D : ℕ} {k : ℝ}
     simp only [deficit, BitString.weight, hits, ← sum_boole, Finset.not_disjoint_iff, mem_filter,
       mem_univ, true_and]
   have hnot (x : ι → Bool) : (univ.filter fun i => (!x i) = true) =
-      (univ.filter fun i => x i = true)ᶜ := by
-    ext i
-    cases x i <;> simp
+      (univ.filter fun i => x i = true)ᶜ :=
+    ext fun i => by cases x i <;> simp
   have hm := mean_le_of_complement_obstruction (deficit S) (variance_deficit_le S hD)
     (k := k) (fun x => by simpa only [hdef, hnot] using hcut (univ.filter fun i => x i = true))
   have hs : (∑ j, (1 - (1 / 2 : ℝ) ^ (S j).card)) ≤
@@ -205,8 +202,7 @@ theorem card_lt_of_deficit_chain (S : κ → Finset ι) (U : ℕ → Finset ι) 
   have hA (t : ℕ) : (A t).card ≤ Fintype.card κ := card_le_univ _
   have hf0 : f 0 = Fintype.card κ := by simp [f, A, hzero]
   have hfm : Fintype.card ι ≤ f m := by
-    simp only [f, hlast, card_univ]
-    exact Nat.le_sub_of_add_le (Nat.add_le_add_left (hA m) _)
+    simpa only [f, hlast, card_univ] using Nat.le_sub_of_add_le (Nat.add_le_add_left (hA m) _)
   have hfstep (t : ℕ) (ht : t < m) : f (t + 1) ≤ f t + 1 := by
     have hAm : (A t).card ≤ (A (t + 1)).card :=
       card_le_card fun j hj =>
@@ -228,9 +224,8 @@ theorem card_lt_of_deficit_chain (S : κ → Finset ι) (U : ℕ → Finset ι) 
       have := Nat.find_min hex (by omega : t' < t)
       have := hfstep t' (by omega)
       rw [ht0] at hft; omega
-  have hleft : (U t).card = (A t).card + k := by
-    have := hA t
-    dsimp only [f] at heq; omega
+  have := hA t
+  dsimp only [f] at heq
   let B := univ.filter fun j => ¬Disjoint (S j) (U t)ᶜ
   have hsum : (A t).card + B.card ≤ Fintype.card κ + W := by
     have hu := card_le_univ (A t ∪ B)

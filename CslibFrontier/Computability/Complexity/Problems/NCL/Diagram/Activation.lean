@@ -98,9 +98,7 @@ private theorem sweep_reverse [DecidableEq E] {rank : E → ℕ} (hrank : Functi
   · simp only [sweep, he, Nat.lt_succ_self, Nat.lt_irrefl, ite_true, ite_false, reverse_self]
     cases hs : s f <;> cases ht : t f <;> simp_all
   · have hn : rank f ≠ n := fun h => hf (hrank (h.trans he.symm))
-    have hlt : rank f < n + 1 ↔ rank f < n := ⟨by omega, by omega⟩
-    rw [reverse_of_ne _ hf]
-    simp only [sweep, hlt]
+    simp only [reverse_of_ne _ hf, sweep, Nat.lt_succ_iff, le_iff_lt_or_eq, hn, or_false]
 
 private theorem sweep_path {rank : E → ℕ} (s t : E → Bool) {r : (E → Bool) → (E → Bool) → Prop}
     (hstep : ∀ n e, rank e = n → s e ≠ t e → r (sweep rank s t n) (sweep rank s t (n + 1))) :
@@ -135,15 +133,13 @@ theorem legal_top_mono (hI : I.Forward) (D : Diagram Γ a b) {s t : D.Edge → B
   have hle : ∀ e, s e ≤ t e := fun | .inl i => htop i | .inr e => (hinner e).le
   induction D with
   | gen g =>
-    refine fun v => Vertex.Sat.mono (fun p hp hin => ?_) (hs v)
+    refine fun v => Vertex.Sat.mono (fun p hp => ?_) (hs v)
+    change s p.port.edge = p.port.dir → t p.port.edge = p.port.dir
     have hd := hI g _ (List.get_mem _ v) p hp
-    change s p.port.edge = p.port.dir at hin
-    change t p.port.edge = p.port.dir
-    rcases he : p.port.edge with i | e <;> rw [he] at hd hin
-    · have hdir : p.port.dir = true := hd
-      rw [hdir] at hin ⊢
-      exact Bool.eq_true_of_true_le (hin ▸ htop i)
-    · exact (hinner e).symm.trans hin
+    rcases he : p.port.edge with i | e <;> rw [he] at hd
+    · exact fun hin => (hd.symm : true = p.port.dir) ▸
+        Bool.eq_true_of_true_le ((hin.trans hd : s (.inl i) = true) ▸ htop i)
+    · exact (hinner e).symm.trans
   | id a | swap x y => exact fun v => v.elim
   | comp D₁ D₂ ih₁ ih₂ =>
     obtain ⟨h₁, h₂⟩ := (legal_comp_iff D₁ D₂ s).1 hs

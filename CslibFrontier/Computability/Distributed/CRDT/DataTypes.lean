@@ -187,8 +187,7 @@ theorem value_zero {P : Type*} [Fintype P] : (zero P).value = 0 :=
 theorem value_inc {P : Type*} [Fintype P] [DecidableEq P] (p : P) (c : GCounter P) :
     (c.inc p).value = c.value + 1 := by
   simp only [value, inc, ← Finset.add_sum_erase _ _ (Finset.mem_univ p), Function.update_self]
-  rw [Finset.sum_congr rfl fun x hx => Function.update_of_ne (Finset.ne_of_mem_erase hx) _ _]
-  omega
+  rw [Finset.sum_congr rfl fun _ h => Function.update_of_ne (Finset.ne_of_mem_erase h) _ _]; omega
 
 /-- Monotonicity of `GCounter.value` with respect to the semilattice order. -/
 theorem mono_value {P : Type*} [Fintype P] : Monotone (value (P := P)) :=
@@ -223,12 +222,9 @@ theorem value_sup_of_local_counts {P : Type*} [Fintype P] [Nonempty P]
     (rep : P → GCounter P) (k : P → ℕ)
     (hown : ∀ p, (rep p).counts p = k p)
     (hle : ∀ q p, (rep q).counts p ≤ k p) :
-    (Finset.univ.sup' Finset.univ_nonempty rep).value = ∑ p : P, k p := by
-  have hsup_eq : Finset.univ.sup' Finset.univ_nonempty rep = ⟨k⟩ :=
-    le_antisymm (Finset.sup'_le _ _ fun q _ p => hle q p) fun p => by
-      simpa only [← hown p] using Finset.le_sup' rep (Finset.mem_univ p) p
-  rw [hsup_eq]
-  rfl
+    (Finset.univ.sup' Finset.univ_nonempty rep).value = ∑ p : P, k p :=
+  congrArg GCounter.value (le_antisymm (Finset.sup'_le _ _ fun q _ p => hle q p) fun p => by
+    simpa only [← hown p] using Finset.le_sup' rep (Finset.mem_univ p) p)
 
 end GCounter
 
@@ -309,21 +305,17 @@ theorem applyOp_comm {P : Type*} [DecidableEq P] (op₁ op₂ : PNCounterOp P) (
   cases op₁ <;> cases op₂ <;> simp [applyOp, inc, dec, GCounter.inc_comm]
 
 @[simp]
-theorem value_zero {P : Type*} [Fintype P] : (zero P).value = 0 := by
-  change ((GCounter.zero P).value : ℤ) - ((GCounter.zero P).value : ℤ) = 0
-  simp
+theorem value_zero {P : Type*} [Fintype P] : (zero P).value = 0 := sub_self _
 
 @[simp]
 theorem value_inc {P : Type*} [Fintype P] [DecidableEq P] (p : P) (c : PNCounter P) :
     (c.inc p).value = c.value + 1 := by
-  simp only [value, inc, GCounter.value_inc]
-  omega
+  simp only [value, inc, GCounter.value_inc]; omega
 
 @[simp]
 theorem value_dec {P : Type*} [Fintype P] [DecidableEq P] (p : P) (c : PNCounter P) :
     (c.dec p).value = c.value - 1 := by
-  simp only [value, dec, GCounter.value_inc]
-  omega
+  simp only [value, dec, GCounter.value_inc]; omega
 
 /-- State-based `CvRDT` instance for `PNCounter P`. -/
 @[expose]
@@ -357,10 +349,9 @@ theorem value_sup_of_local_counts {P : Type*} [Fintype P] [Nonempty P]
     (Finset.univ.sup' Finset.univ_nonempty rep).value =
       ((∑ p : P, incK p : ℕ) : ℤ) - ((∑ p : P, decK p : ℕ) : ℤ) := by
   rw [value, Finset.apply_sup'_eq_sup'_comp Finset.univ_nonempty PNCounter.pos (fun _ _ => rfl),
-    Finset.apply_sup'_eq_sup'_comp Finset.univ_nonempty PNCounter.neg (fun _ _ => rfl)]
-  dsimp only [Function.comp_def]
-  rw [GCounter.value_sup_of_local_counts _ incK hpos_own hpos_le,
-    GCounter.value_sup_of_local_counts _ decK hneg_own hneg_le]
+    Finset.apply_sup'_eq_sup'_comp Finset.univ_nonempty PNCounter.neg (fun _ _ => rfl),
+    GCounter.value_sup_of_local_counts (PNCounter.pos ∘ rep) incK hpos_own hpos_le,
+    GCounter.value_sup_of_local_counts (PNCounter.neg ∘ rep) decK hneg_own hneg_le]
 
 end PNCounter
 
@@ -622,10 +613,8 @@ theorem mem_add_after_removeObserved {s : ORSetCv P α} {p : P} {seq : ℕ} {x :
     x ∈ ((s.removeObserved x).add p seq x).elements := by
   simp only [elements, add, removeObserved, Finset.mem_image, Finset.mem_sdiff,
     Finset.mem_union, Finset.mem_filter]
-  refine ⟨⟨x, p, seq⟩, ⟨Finset.mem_insert_self _ _, ?_⟩, rfl⟩
-  rintro (htomb | ⟨hent, _⟩)
-  · exact hfresh_tomb htomb
-  · exact hfresh_ent hent
+  exact ⟨⟨x, p, seq⟩, ⟨Finset.mem_insert_self _ _,
+    fun h => h.elim hfresh_tomb fun ⟨hent, _⟩ => hfresh_ent hent⟩, rfl⟩
 
 end ORSetCv
 
@@ -752,17 +741,15 @@ private def ORSetCausalHistory.restrict {H H' : Finset Ev}
 
 omit [DecidableEq Ev] in
 private theorem isCausallyClosed_past {H : Finset Ev} (hclosed : IsCausallyClosed prec H)
-    (e : Ev) : IsCausallyClosed prec (H.filter (fun u => prec u e)) := by
-  intro u hu v hvu
-  obtain ⟨huH, hue⟩ := Finset.mem_filter.mp hu
-  exact Finset.mem_filter.mpr ⟨hclosed u huH v hvu, _root_.trans hvu hue⟩
+    (e : Ev) : IsCausallyClosed prec (H.filter (fun u => prec u e)) := fun u hu v hvu =>
+  let ⟨huH, hue⟩ := Finset.mem_filter.mp hu
+  Finset.mem_filter.mpr ⟨hclosed u huH v hvu, _root_.trans hvu hue⟩
 
 omit [DecidableEq Ev] in
 private theorem card_past_lt {H : Finset Ev} {e : Ev} (he : e ∈ H) :
-    (H.filter (fun u => prec u e)).card < H.card := by
-  apply Finset.card_lt_card
-  rw [Finset.ssubset_iff_of_subset (Finset.filter_subset _ H)]
-  exact ⟨e, he, fun hmem => irrefl e (Finset.mem_filter.mp hmem).2⟩
+    (H.filter (fun u => prec u e)).card < H.card :=
+  Finset.card_lt_card ((Finset.ssubset_iff_of_subset (Finset.filter_subset _ H)).mpr
+    ⟨e, he, fun hmem => irrefl e (Finset.mem_filter.mp hmem).2⟩)
 
 private theorem orset_main_ind (n : ℕ) :
     ∀ (H : Finset Ev) (hH : ORSetCausalHistory P α Ev prec H), H.card = n →
@@ -793,8 +780,7 @@ private theorem orset_main_ind (n : ℕ) :
         (hnot_prec : ¬ prec a r) (s : Finset (TaggedElem P α)) :
         orsetEffect (hH.effOf a) (orsetEffect (hH.effOf r) s) =
           orsetEffect (hH.effOf r) (orsetEffect (hH.effOf a) s) := by
-      rw [hH.eff_add a haH p n xa hop_a, hrem_eq r hrH xr hop_r]
-      simp only [orsetEffect]
+      simp only [hH.eff_add a haH p n xa hop_a, hrem_eq r hrH xr hop_r, orsetEffect]
       refine (Finset.insert_sdiff_of_notMem s fun hmem => ?_).symm
       obtain ⟨hsurv, -⟩ := Finset.mem_filter.mp hmem
       obtain ⟨u, huP, hu_op, -⟩ := mem_orsetSurvivingTags_iff.mp hsurv
@@ -814,8 +800,7 @@ private theorem orset_main_ind (n : ℕ) :
     rcases l.eq_nil_or_concat with rfl | ⟨initL, e_last, hconcat⟩
     · obtain rfl : H = ∅ := Finset.ext fun e => by simpa using (hl.2.1 e).symm
       simp [orsetSurvivingTags]
-    · rw [List.concat_eq_append] at hconcat
-      subst hconcat
+    · obtain rfl : l = initL ++ [e_last] := by simpa using hconcat
       have he_last_mem_l : e_last ∈ initL ++ [e_last] :=
         List.mem_append_right initL List.mem_cons_self
       have he_last_H : e_last ∈ H := (hl.2.1 e_last).mp he_last_mem_l
@@ -850,10 +835,9 @@ private theorem orset_main_ind (n : ℕ) :
       -- Compare `orsetEffect (effOf e_last) (orsetSurvivingTags H')` with `orsetSurvivingTags H`.
       cases hop_last : hH.opOf e_last with
       | add p₀ n₀ x₀ =>
-        rw [hH.eff_add e_last he_last_H p₀ n₀ x₀ hop_last]
-        simp only [orsetEffect]
-        ext t
-        simp only [Finset.mem_insert, mem_orsetSurvivingTags_iff]
+        simp only [hH.eff_add e_last he_last_H p₀ n₀ x₀ hop_last, orsetEffect, Finset.ext_iff,
+          Finset.mem_insert, mem_orsetSurvivingTags_iff]
+        intro t
         constructor
         · rintro (rfl | ⟨u, huH', hu_op, hnot_r⟩)
           · exact ⟨e_last, he_last_H, hop_last, fun ⟨r, hrH, _, hprec⟩ => he_max r hrH hprec⟩
@@ -868,10 +852,9 @@ private theorem orset_main_ind (n : ℕ) :
           · exact Or.inr ⟨u, Finset.mem_erase.mpr ⟨hue, huH⟩, hu_op,
               fun ⟨r, hrH', hr_op, hprec⟩ => hnot_r ⟨r, hH'_sub hrH', hr_op, hprec⟩⟩
       | remove x₀ =>
-        rw [hrem_eq e_last he_last_H x₀ hop_last]
-        simp only [orsetEffect]
-        ext t
-        simp only [Finset.mem_sdiff, Finset.mem_filter, mem_orsetSurvivingTags_iff]
+        simp only [hrem_eq e_last he_last_H x₀ hop_last, orsetEffect, Finset.ext_iff,
+          Finset.mem_sdiff, Finset.mem_filter, mem_orsetSurvivingTags_iff]
+        intro t
         constructor
         · rintro ⟨⟨u, huH', hu_op, hnot_r'⟩, hnot_filt⟩
           refine ⟨u, hH'_sub huH', hu_op, fun ⟨r, hrH, hr_op, hprec⟩ => ?_⟩
@@ -946,9 +929,7 @@ theorem not_exists_untagged_finset_merge {α : Type*} [DecidableEq α] [Nonempty
         (∀ x : α, x ∉ merge {x} (({x} : Finset α).erase x)) := by
   rintro ⟨merge, hcomm, hadd, hrem⟩
   obtain ⟨x⟩ := ‹Nonempty α›
-  have hr := hrem x
-  rw [Finset.erase_singleton, hcomm.comm {x} ∅] at hr
-  exact hr (hadd x)
+  exact hrem x (by simpa [Finset.erase_singleton, hcomm.comm {x} ∅] using hadd x)
 
 /-- Naïve op-based untagged `insert`/`erase` non-commutativity step (toward #7502, after
 [ShapiroPreguicaBaqueroZawirski2011R], §3.3, Figure 11, p. 21). -/

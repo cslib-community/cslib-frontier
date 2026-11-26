@@ -608,9 +608,7 @@ theorem relax_realizes : Realizes .exact
     obtain ⟨hoff, hlast, htgt, hwt⟩ := Memory.inputGraph_edge hf.2.1.2.1 u hi
     refine ⟨⟨hmem.fits_of_lt_frontier hoff, hmem.fits_of_lt_frontier hlast⟩, ?_⟩
     have hRes : (Memory.spec 0).clientResult s (relaxReadEdge ⟨T, G.n, G.m, u.val, du, idx⟩) =
-        ((((G.adj u)[idx]).1.val, ((G.adj u)[idx]).2), 0) := by
-      change ((s.mem _, s.mem _), 0) = _
-      rw [htgt, hwt]
+        ((((G.adj u)[idx]).1.val, ((G.adj u)[idx]).2), 0) := Prod.ext (Prod.ext htgt hwt) rfl
     rw [hRes]
     change if ((G.adj u)[idx]).1.val < G.n then _ else _
     rw [ite_eq_left ((G.adj u)[idx]).1.isLt]
@@ -719,8 +717,7 @@ theorem scan_realizes : Realizes .exact
     refine ⟨⟨hmem.fits_of_lt_frontier hoff, hmem.fits_of_lt_frontier hnext, by omega⟩, ?_,
       trivial⟩
     have hDegRes : (Memory.spec 0).clientResult s (scanReadDegree ⟨T, G.n, G.m, u.val, du⟩) =
-        ((G.adj u).length, 0) := by
-      change (s.mem (3 + (u.val + 1)) - s.mem (3 + u.val), 0) = _; rw [hdegEq]
+        ((G.adj u).length, 0) := Prod.ext hdegEq rfl
     rw [hDegRes]
     have hbfit : Fits w (G.adj u).length :=
       (hmem.mem_fits (3 + (u.val + 1))).of_le (by omega)
@@ -888,9 +885,8 @@ theorem loop_realizes : Realizes .exact
           exact ite_eq_left rfl ▸ trivial
         · dsimp only
           rw [hsome]
-          change if u.val < G.n then _ else _
-          rw [ite_eq_left u.isLt]
-          exact ⟨⟨G, hV, hT, u, rfl, rfl, rfl, hinv', hdu, hfit, hscan⟩, ha⟩)
+          exact (ite_eq_left u.isLt).symm ▸
+            ⟨⟨G, hV, hT, u, rfl, rfl, rfl, hinv', hdu, hfit, hscan⟩, ha⟩)
       a0 s hf hb hv (((validHistory_bind' ..).mp hvHist).1)
     exact whileSafe_imp
       (fun (_ : Unit) (a : ℕ) => a ≠ 0)

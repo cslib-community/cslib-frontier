@@ -105,16 +105,11 @@ theorem exec {w s base : ℕ} (xs : List ℕ) (x : Data 16)
     have hnext (hlt : y.regs idx + c < n) :
         y.mem (s + (y.regs idx + c)) ≠ xs[y.regs idx] := by
       rw [hym.get _ hlt]
-      have hmember : xs[y.regs idx + c] ∈ rest := by
-        rw [← hdrop']
-        have hh := List.getElem_mem (l := xs.drop (y.regs idx + c))
-          (n := 0) (by simp only [List.length_drop]; omega)
-        simpa using hh
-      have := hrest _ hmember
-      omega
+      refine (hrest _ ?_).ne'
+      rw [← hdrop', List.drop_eq_getElem_cons hlt]
+      exact List.mem_cons_self
     have hrl : rs.length ≤ y.regs idx := by
-      have hh := length_le_expand hrs.positive
-      rwa [hrs.reconstruct, List.length_take_of_le hiy] at hh
+      simpa only [hrs.reconstruct, List.length_take_of_le hiy] using length_le_expand hrs.positive
     have hrs' : RunEncoding (xs.take (y.regs idx + c)) (rs ++ [(xs[y.regs idx], c)]) := by
       refine ⟨?_, ?_, ?_⟩
       · exact fun p hp => (List.mem_append.mp hp).elim (hrs.positive p)
@@ -145,9 +140,8 @@ theorem exec {w s base : ℕ} (xs : List ℕ) (x : Data 16)
       fun a ha => (hzf a ha).trans (hyf a ha), rs ++ [(xs[y.regs idx], c)], hrs',
       by simp, ?_, ?_, ?_⟩, by omega⟩
     · rw [List.map_append, List.map_cons, List.map_nil]
-      have hkr : Block.HoldsList base (rs.map Prod.fst ++ [xs[y.regs idx]])
-          (Function.update y.mem (base + rs.length) xs[y.regs idx]) := by
-        simpa only [List.length_map] using hyrk.append_one xs[y.regs idx]
+      have hkr := hyrk.append_one xs[y.regs idx]
+      rw [List.length_map] at hkr
       ram_keep hkr
     · rw [List.map_append, List.map_cons, List.map_nil]
       have hcr : Block.HoldsList (base + n) (rs.map Prod.snd)
@@ -167,9 +161,7 @@ theorem exec {w s base : ℕ} (xs : List ℕ) (x : Data 16)
   obtain ⟨y, he, hy, hcond⟩ := ExecWithin.loop_potential I
     (fun y => 29 * (n - y.regs idx)) hbody hx₀
   obtain ⟨hyn, _, _, _, _, hiy, hym, hyf, rs, hrs, hyout, hyrk, hyrc, _⟩ := hy
-  have hend : y.regs idx = xs.length := by
-    simp only [Cond.holds_lt, hyn] at hcond
-    omega
+  have hend : y.regs idx = xs.length := by simp only [Cond.holds_lt, hyn] at hcond; omega
   have hinit : ExecWithin (B := .standard) w (ram[ one ← #1; idx ← #0; out ← #0 ]) x x₀ 3 := by
     wram_exec
   refine ⟨y, rs, ?_, by simpa only [hend, List.take_length] using hrs,

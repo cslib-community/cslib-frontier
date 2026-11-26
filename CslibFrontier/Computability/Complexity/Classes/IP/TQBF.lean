@@ -231,10 +231,8 @@ private theorem runWith_verdict_bin (o : ArithQBF.Connective) (e₁ e₂ : Arith
     (runWith (typedRespond I respond) (verifyAt (samplerOf I) I.degree (.bin o e₁ e₂) rest r c)
       s).bind fun x => if x.1 then runWith respond (verdict I ⟨rest, St, true⟩ m) x.2
         else PMF.pure (false, x.2) := by
-  have hmsg : message a = queryMessage I ⟨.bin o e₁ e₂, rest, r⟩ := by
-    rw [message, queryMessage, hsuf, htop]
   rw [ProbOracleComp.runWith_bind, runWith_ask, PMF.bind_map, PMF.bind_bind, verifyAt,
-    runWith_query_bind, PMF.bind_bind, hmsg]
+    runWith_query_bind, PMF.bind_bind, message, queryMessage, hsuf, htop]
   refine congrArg _ (funext fun y => ?_)
   simp only [Function.comp_apply, ProbOracleComp.runWith_pure, PMF.pure_bind]
   rw [getD_decodeTyped, getD_decodeTyped, hmod, hdeg,
@@ -243,8 +241,8 @@ private theorem runWith_verdict_bin (o : ArithQBF.Connective) (e₁ e₂ : Arith
   · rw [ih₁, ProbOracleComp.runWith_bind, PMF.bind_bind]
     refine congrArg _ (funext fun z => ?_)
     cases z.1
-    · simp only [Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_bind]
-    · exact ih₂ _ _ _ _ _ _
+    exacts [by simp only [Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure,
+      PMF.pure_bind], ih₂ _ _ _ _ _ _]
   · exact reject_case respond I _ _ _ _ _ (by simp)
 
 private theorem opNext_eq (o : ArithQBF.Operator) (v : ℕ) (e : ArithQBF ℕ)
@@ -279,10 +277,8 @@ private theorem runWith_verdict_op (o : ArithQBF.Operator) (v : ℕ) (hv : v ∈
     (runWith (typedRespond I respond) (verifyAt (samplerOf I) I.degree (.op o v e) rest r c)
       s).bind fun x => if x.1 then runWith respond (verdict I ⟨rest, St, true⟩ m) x.2
         else PMF.pure (false, x.2) := by
-  have hmsg : message a = queryMessage I ⟨.op o v e, rest, r⟩ := by
-    rw [message, queryMessage, hsuf, htop]
   rw [ProbOracleComp.runWith_bind, runWith_ask, PMF.bind_map, PMF.bind_bind, verifyAt,
-    runWith_query_bind, PMF.bind_bind, hmsg]
+    runWith_query_bind, PMF.bind_bind, message, queryMessage, hsuf, htop]
   refine congrArg _ (funext fun y => ?_)
   simp only [Function.comp_apply]
   rw [take_decodeTyped, decodeTyped, hmod, hdeg]
@@ -424,10 +420,9 @@ theorem acceptProb_verifier_eq (hψ : ψ.Closed) (P : Prover Unit) :
       (verifyAt (samplerOf (loopInput ψ)) (loopInput ψ).degree (arithOf ψ) [] 0 1) P.init := by
   have : Fact (1 < (loopInput ψ).modulus) := ⟨one_lt_modulus_loopInput ψ⟩
   have hinit : init (loopInput ψ) = ⟨(arithOf ψ).tokens ++ [],
-      ⟨canonPt (loopInput ψ).xs (0 : ℕ → ZMod (loopInput ψ).modulus),
-        (1 : ZMod (loopInput ψ).modulus).val⟩ :: [], true⟩ := by
-    rw [init, List.append_nil, tokens_arithOf, ZMod.val_one]
-    simp only [canonPt, Pi.zero_apply, ZMod.val_zero]
+      [⟨canonPt (loopInput ψ).xs (0 : ℕ → ZMod (loopInput ψ).modulus),
+        (1 : ZMod (loopInput ψ).modulus).val⟩], true⟩ := by
+    simp [init, tokens_arithOf, canonPt, ZMod.val_one]
   have hrun := runWith_verdict P.respond (loopInput ψ) (arithOf ψ) (fun w hw => vars_arithOf ψ hw)
     [] 0 1 [] 0 P.init
   have hcont : (fun x : Bool × P.State => if x.1 then runWith P.respond
@@ -462,20 +457,18 @@ theorem acceptProb_verifier_le (hψ : ψ ∉ TQBF) (P : Prover Unit) :
     Complexity.acceptProb (verifier ψ) P ≤ 1 / 3 := by
   by_cases hclosed : ψ.Closed
   · rw [acceptProb_verifier_eq ψ hclosed]
-    have hfalse : ψ.eval (fun _ => false) = false :=
-      Bool.eq_false_iff.2 fun h => hψ ⟨hclosed, h⟩
     have hc : (arithOf ψ).eval 0 ≠ (1 : ZMod (loopInput ψ).modulus) := by
-      simp [arithOf, QBF.eval_arithmetize_zero _ hclosed (fun _ => false), hfalse]
+      simp [arithOf, QBF.eval_arithmetize_zero _ hclosed (fun _ => false),
+        Bool.eq_false_iff.2 fun h => hψ ⟨hclosed, h⟩]
     refine (acceptProb_verifyAt_le (samplerOf (loopInput ψ)) (loopInput ψ).degree
       (eval_samplerOf_le (loopInput ψ)) _ _ (maxRoundDegree_arithOf ψ) hc P.init).trans ?_
     refine mul_two_div_le_one_third (Nat.succ_ne_zero _) ?_
     have hops : (arithOf ψ).ops ≤ (ψ.size + 1) * ψ.size := by
       simpa only [arithOf, linVars, List.length_map, QBF.length_tokens] using
         QBF.ops_arithmetize_le (linVars ψ) ψ
-    have hbound : primeBound ψ < (loopInput ψ).modulus := modulus_loopInput ψ ▸ lt_modulus ψ
-    have hD : (loopInput ψ).degree = 2 * ψ.size := by
-      rw [loopInput, degreeBound, QBF.length_tokens]
-    rw [primeBound, QBF.length_tokens] at hbound
+    have hbound : 12 * ψ.size ^ 2 * (ψ.size + 1) < (loopInput ψ).modulus := by
+      simpa only [primeBound, QBF.length_tokens, ← modulus_loopInput ψ] using lt_modulus ψ
+    have hD : (loopInput ψ).degree = 2 * ψ.size := QBF.length_tokens ψ ▸ rfl
     rw [hD]
     calc 6 * ((arithOf ψ).ops * (2 * ψ.size))
         ≤ 6 * ((ψ.size + 1) * ψ.size * (2 * ψ.size)) := by gcongr
@@ -581,20 +574,20 @@ private theorem agreesAt_honest (e : ArithQBF ℕ) (rest : List (ArithQBF.Kind �
 probability `1`. -/
 theorem acceptProb_verifier_honestProver (hψ : ψ ∈ TQBF) :
     Complexity.acceptProb (verifier ψ) (honestProver ψ) = 1 := by
-  rw [acceptProb_verifier_eq ψ hψ.1]
+  rw [acceptProb_verifier_eq ψ hψ.1, acceptProbWith]
   set f : QueryAt (ZMod (loopInput ψ).modulus) → List (ZMod (loopInput ψ).modulus) :=
     fun q => decodeTyped (loopInput ψ) (honestWord ψ (queryMessage (loopInput ψ) q))
   have htyped : typedRespond (loopInput ψ) (honestProver ψ).respond =
       fun q s => PMF.pure (f q, s) := funext₂ fun _ _ => PMF.pure_map _ _
   have heval : (arithOf ψ).eval 0 = (1 : ZMod (loopInput ψ).modulus) := by
     simp [arithOf, QBF.eval_arithmetize_zero _ hψ.1 (fun _ => false), hψ.2]
-  have hrun := run_verifyAt_of_agreesAt (samplerOf (loopInput ψ)) (loopInput ψ).degree f
-    (loopInput ψ).xs (fun q hq => agreesAt_honest ψ q.formula q.rest q.point hq) (arithOf ψ)
-    (fun w hw => vars_arithOf ψ hw) (maxRoundDegree_arithOf ψ) [] 0 ()
-  rw [htyped, acceptProbWith]
+  rw [htyped]
   dsimp only [honestProver]
-  exact (congrArg (fun μ => PMF.map Prod.fst μ true) (heval ▸ hrun)).trans
-    (by rw [PMF.pure_map, PMF.pure_apply_self])
+  rw [← heval,
+    run_verifyAt_of_agreesAt (samplerOf (loopInput ψ)) (loopInput ψ).degree f (loopInput ψ).xs
+      (fun q hq => agreesAt_honest ψ q.formula q.rest q.point hq) (arithOf ψ)
+      (fun w hw => vars_arithOf ψ hw) (maxRoundDegree_arithOf ψ) [] 0 (),
+    PMF.pure_map, PMF.pure_apply_self]
 
 /-- **The interactive proof for `TQBF`**, with perfect completeness and soundness error `1 / 3`. -/
 theorem isInteractiveProof_verifier : IsInteractiveProof verifier TQBF 1 (1 / 3) where

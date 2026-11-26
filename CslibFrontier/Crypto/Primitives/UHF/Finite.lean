@@ -131,8 +131,8 @@ theorem isUniversalHash_iff_eval_collisionExperiment_le [Fintype K] [Nonempty K]
     [DecidableEq M] [DecidableEq Y] (H : K → M → Y) (ε : ℝ≥0∞) :
     IsUniversalHash (PMF.uniformOfFintype K) H ε ↔
       ∀ A, ProbComp.eval (collisionExperiment H A) true ≤ ε := by
-  simp only [collisionExperiment, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
-  rw [forall_eval_uniformGuess_le_iff]
+  simp only [collisionExperiment, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
+    forall_eval_uniformGuess_le_iff]
   exact ⟨fun h guess hne => h guess.first guess.second hne, fun h m m' hne => h ⟨m, m'⟩ hne⟩
 
 /-- The pairwise difference bound is equivalent to the game bound of Definition 7.5
@@ -141,8 +141,8 @@ theorem isDeltaUniversalHash_iff_eval_differenceExperiment_le [Fintype K] [Nonem
     [DecidableEq M] [AddGroup Y] [DecidableEq Y] (H : K → M → Y) (ε : ℝ≥0∞) :
     IsDeltaUniversalHash (PMF.uniformOfFintype K) H ε ↔
       ∀ A, ProbComp.eval (differenceExperiment H A) true ≤ ε := by
-  simp only [differenceExperiment, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
-  rw [forall_eval_uniformGuess_le_iff]
+  simp only [differenceExperiment, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
+    forall_eval_uniformGuess_le_iff]
   exact ⟨fun h guess hne => h guess.second guess.first hne.symm guess.difference,
     fun h m m' hne d => h ⟨⟨m', m⟩, d⟩ hne.symm⟩
 
@@ -232,27 +232,22 @@ theorem isPPTOn_collisionPairReduction {I : Type} {encI : I ↪ List Bool}
   have hdecode : ComputableInPolyTime (fun p : List M × ℕ => decodeCollisionPair fallback p.1 p.2)
       (encPair encL encUnary) (encCollisionGuess encM) := by
     let encQR := encPair encUnary encUnary
-    have hinputList := fst encL encUnary
-    have hdivMod := unary_divMod.comp
-      ((snd encL encUnary).prod ((hlen.comp hinputList).unary_sub' (.const 1)))
-    have hlist := fst encL encQR
     have hqr := snd encL encQR
     have hi := (fst encUnary encUnary).comp hqr
     have hj := (snd encUnary encUnary).comp hqr
-    have hskip := (unary_lt' hj hi).ite hj (hj.unary_add' (.const 1))
     have hlookup := encCollisionGuess_mk_polyTime encM
-      (listGetDWithInput hlist hi fallback) (listGetDWithInput hlist hskip fallback)
-    refine (hlookup.comp (hinputList.prod hdivMod)).of_enc_eq fun p => ?_
-    simp only [decodeCollisionPair, Function.comp_apply, decide_eq_true_eq]
-  have hresult : ComputableInPolyTime
-      (fun p : List M × Option ℕ =>
-        p.2.elim ⟨fallback, fallback⟩ (decodeCollisionPair fallback p.1))
-      encO (encCollisionGuess encM) :=
-    optionElimWithInput (snd encL (encOption encUnary))
+      (listGetDWithInput (fst encL encQR) hi fallback)
+      (listGetDWithInput (fst encL encQR) ((unary_lt' hj hi).ite hj (hj.unary_add' (.const 1)))
+        fallback)
+    have hdivMod := unary_divMod.comp
+      ((snd encL encUnary).prod ((hlen.comp (fst encL encUnary)).unary_sub' (.const 1)))
+    exact (hlookup.comp ((fst encL encUnary).prod hdivMod)).of_enc_eq fun p => by
+      simp only [decodeCollisionPair, Function.comp_apply, decide_eq_true_eq]
+  exact hA.bind ((isPPTOn_sampleUniformInterval hbound hlen).map_with
+    (optionElimWithInput (snd encL (encOption encUnary))
       (.const (CollisionGuess.mk fallback fallback))
       (hdecode.comp (((fst encL (encOption encUnary)).comp (fst encO encUnary)).prod
-        (snd encO encUnary)))
-  exact hA.bind ((isPPTOn_sampleUniformInterval hbound hlen).map_with hresult)
+        (snd encO encUnary)))))
 
 private def pairSlot (s i j : ℕ) : ℕ :=
   i * (s - 1) + if j < i then j else j - 1

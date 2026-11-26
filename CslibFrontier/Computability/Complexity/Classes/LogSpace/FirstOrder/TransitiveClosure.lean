@@ -172,6 +172,11 @@ private theorem test_correct (hE : Env v a P B Post R) {Γ : List ℕ} {α : Typ
       (hy : ∀ j : Fin k, regs₂.getD (base + 7 + k + j) 0 = ys j) :=
     body_correct ih hΓ hWb hbase hfv h0 hv hEiff (by omega) (by omega) s hc hk₂
       (by rw [hk₂.length_eq]; omega) hx hy
+  have he18 {regs₂} {xs ys : Fin k → Fin a.1} :=
+    hedge true (codeAt_of_eq h18 (by omega)) (regs₂ := regs₂) (xs := xs) (ys := ys)
+  have he20 {regs₂} {xs ys : Fin k → Fin a.1} :=
+    hedge false (codeAt_of_eq h20 (by rw [length_compile]; omega))
+      (regs₂ := regs₂) (xs := xs) (ys := ys)
   refine ⟨test_sound (w₁ := l + 14 + 5 * k + len (body ⟨0, Nat.one_pos⟩) true)
     (by rw [length_compile]) hP hE.one_le hE.card_le hNB hE.halts hE.post hsrc ?_ ?_ ?_ hpre,
     test_complete (w₁ := l + 14 + 5 * k + len (body ⟨0, Nat.one_pos⟩) true)
@@ -179,22 +184,17 @@ private theorem test_correct (hE : Env v a P B Post R) {Γ : List ℕ} {α : Typ
   · exact fun _ _ _ _ _ hkW hmid =>
       sound_of_eq ((hwalk hkW hmid).1.mono fun _ h => ⟨h.1.mono (by omega), h.2⟩) rfl
         (by rw [length_compile])
+  · exact fun _ _ _ hk₂ hx hy => sound_of_eq (he18 hk₂ hx hy).1 (by omega) (by omega)
   · exact fun _ _ _ hk₂ hx hy =>
-      sound_of_eq (hedge true (codeAt_of_eq h18 (by omega)) hk₂ hx hy).1 (by omega) (by omega)
-  · exact fun _ _ _ hk₂ hx hy => sound_of_eq
-      (hedge false (codeAt_of_eq h20 (by rw [length_compile]; omega)) hk₂ hx hy).1
-      (by rw [length_compile]; omega)
-      (by simp only [length_compile]; omega)
+      sound_of_eq (he20 hk₂ hx hy).1 (by rw [length_compile]; omega)
+        (by simp only [length_compile]; omega)
   · exact fun _ _ _ _ _ hkW hmid he =>
       complete_of_eq (((hwalk hkW hmid).2 he).mono fun _ h => h.mono (by omega)) rfl
         (by rw [length_compile])
+  · exact fun _ _ _ hk₂ hx hy he => complete_of_eq ((he18 hk₂ hx hy).2 he) (by omega) (by omega)
   · exact fun _ _ _ hk₂ hx hy he =>
-      complete_of_eq ((hedge true (codeAt_of_eq h18 (by omega)) hk₂ hx hy).2 he)
-        (by omega) (by omega)
-  · exact fun _ _ _ hk₂ hx hy he => complete_of_eq
-      ((hedge false (codeAt_of_eq h20 (by rw [length_compile]; omega)) hk₂ hx hy).2 he)
-      (by rw [length_compile]; omega)
-      (by simp only [length_compile]; omega)
+      complete_of_eq ((he20 hk₂ hx hy).2 he) (by rw [length_compile]; omega)
+        (by simp only [length_compile]; omega)
 
 theorem correct_op (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type} (k : ℕ)
     (body : (i : Fin (TC.shape k).slots) → Formula (language L) TC.shape
@@ -232,18 +232,14 @@ theorem correct_op (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type} (k : �
       test_correct hE ih hΓ hNB hWb hbase hfv hd' h0 hv hsrc (fun _ _ => Iff.rfl) c13
         (by simp only [length_countTestCode, length_compile]; omega) hpre
     refine ⟨count_sound (E := E) (s₀ := s₀) (z₀ := z₀) hP hbase hE.one_le hNB hE.halts hE.post
-      hdst ?_ ?_ (by omega) h0 hregs, fun hn => count_complete (E := E) (s₀ := s₀) (z₀ := z₀)
-      hP hbase hE.one_le hNB hdst ?_ ?_ (by omega) h0 hregs hn⟩
-    · exact fun _ _ _ hp => sound_of_eq (hc7 hp).1 rfl
-        (by simp only [length_countTestCode, length_compile]; omega)
-    · exact fun _ _ _ hp => sound_of_eq (hc13 hp).1
-        (by simp only [length_countTestCode, length_compile]; omega)
-        (by simp only [length_countTestCode, length_compile]; omega)
-    · exact fun _ _ _ hp => complete_of_eq (hc7 hp).2 rfl
-        (by simp only [length_countTestCode, length_compile]; omega)
-    · exact fun _ _ _ hp => complete_of_eq (hc13 hp).2
-        (by simp only [length_countTestCode, length_compile]; omega)
-        (by simp only [length_countTestCode, length_compile]; omega)
+      hdst (fun _ _ _ hp => sound_of_eq (hc7 hp).1 rfl ?_)
+      (fun _ _ _ hp => sound_of_eq (hc13 hp).1 ?_ ?_) (by omega) h0 hregs,
+      fun hn => count_complete (E := E) (s₀ := s₀) (z₀ := z₀) hP hbase hE.one_le hNB hdst
+        (fun _ _ _ hp => complete_of_eq (hc7 hp).2 rfl ?_)
+        (fun _ _ _ hp => complete_of_eq (hc13 hp).2 ?_ ?_) (by omega) h0 hregs hn⟩
+    all_goals
+      simp only [length_countTestCode, length_compile]
+      omega
   | true =>
   -- the body block
   let code := compile v (α := α ⊕ Fin ((TC.shape k).binder ⟨0, Nat.one_pos⟩).vars)
@@ -254,20 +250,16 @@ theorem correct_op (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type} (k : �
   have hM : ∀ regs' : List ℕ, (∀ j < base, regs'.getD j 0 = regs.getD j 0) →
       (pow (reg 0) k).eval regs' = a.1 ^ k := fun _ h => eval_pow_reg0 ((h 0 hbase).trans h0)
   have hcl : code.length = len (body ⟨0, Nat.one_pos⟩) true := length_compile ..
-  have hbody : ∀ us ws t regs₃, LoopMid a.1 B base k regs us ws t regs₃ →
-      Sound P (encStructure a) B Post (b + 2 * k + 7) regs₃ (b + 2 * k + 7 + code.length)
-        (fun regs' => Kept B (base + 2 * k + 2) regs₃ regs' ∧ E us ws) ∧
-      (E us ws → Complete P (encStructure a) (b + 2 * k + 7) regs₃
-        (b + 2 * k + 7 + code.length) (Kept B (base + 2 * k + 2) regs₃)) := by
-    rintro us ws t regs₃ ⟨⟨hk, _, hu, -⟩, hw⟩
-    rw [hcl]
-    exact body_correct ih hΓ hWb hbase hfv h0 hv (fun _ _ => Iff.rfl) le_rfl (by omega) true
+  have hbody {us ws t regs₃} (hmid : LoopMid a.1 B base k regs us ws t regs₃) := by
+    obtain ⟨⟨hk, _, hu, -⟩, hw⟩ := hmid
+    exact body_correct ih hΓ hWb hbase hfv h0 hv (ρ := ρ) (E := E) (fun _ _ => Iff.rfl)
+      le_rfl (by omega) true
       (tcCode_parts hP').2.2.2.2.2.2.1 hk (by rw [hk.length_eq]; omega) hu hw
   obtain ⟨regsI, hrI, hinvI⟩ := loop_init (w := encStructure a) hP' (by omega)
     hE.card_le hregs hsrc
   refine ⟨Sound.of_oblivious hE.one_le hrI ?_, fun hsat => Complete.of_oblivious hrI ?_⟩
   · refine (loop_sound (s₀ := s₀) hP' hbase hE.one_le hE.card_le hNB hNB h0 hE.halts hE.post
-      hdst hM (fun us ws t regs₃ hmid => (hbody us ws t regs₃ hmid).1) _ 0 s₀ regsI rfl
+      hdst hM (fun _ _ _ _ hmid => sound_of_eq (hbody hmid).1 rfl (by rw [hcl])) _ 0 s₀ regsI rfl
       (Nat.zero_le _) hinvI (Relation.RelatesWithinSteps.refl _)).mono
       fun regs' h => ⟨h.1, h.2.reflTransGen⟩
   · have : 0 < a.1 ^ k := pow_pos hn k
@@ -275,7 +267,8 @@ theorem correct_op (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type} (k : �
       simp only [Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_fin]; omega
     obtain ⟨m, hm, hsteps⟩ := (Relation.reflTransGen_iff_relatesWithinSteps hcard).mp hsat
     exact loop_complete hP' hbase hE.card_le hNB hNB h0 hdst hM
-      (fun _ _ _ _ h => (hbody _ _ _ _ h).2) m 0 s₀ regsI hsteps (by omega) hinvI
+      (fun _ _ _ _ h he => complete_of_eq ((hbody h).2 he) rfl (by rw [hcl])) m 0 s₀ regsI hsteps
+      (by omega) hinvI
 
 /-- **Compiler correctness** for every formula without free relation variables. -/
 theorem correct (hE : Env v a P B Post R) :

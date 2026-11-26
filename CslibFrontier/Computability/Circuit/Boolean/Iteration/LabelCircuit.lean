@@ -129,20 +129,20 @@ theorem cyclic_labels_from_checkpoints (c : Circuit signature n n) (L : ℕ) (hL
     change chooseRecord (flags x) (fun j => corrected j x) (shortLabel f K x) (K + 1) =
       canonicalLabel f x
     by_cases hh : ∃ j, flags x j = true
-    · obtain ⟨j, -, hj, he⟩ := chooseRecord_spec (flags x) (fun j => corrected j x)
-        (shortLabel f K x) (K + 1) (by obtain ⟨j, hj⟩ := hh; exact ⟨j, j.isLt, hj⟩)
-      rw [he]
+    · obtain ⟨j₀, hj₀⟩ := hh
+      obtain ⟨j, -, hj, he⟩ := chooseRecord_spec (flags x) (fun j => corrected j x)
+        (shortLabel f K x) (K + 1) ⟨j₀, j₀.isLt, hj₀⟩
       obtain ⟨i, hi, -⟩ := (decide_eq_true_iff.mp hj : ∃ i, cp i = _ ∧ stored i 0 = true)
-      have hrecord : records x j = canonicalLabel f (f^[j.val] x) :=
-        funext fun bit => by
-          change lookupOr cp stored _ bit.succ = _
-          rw [lookupOr_of_eq stored hcp hi]
-          simp only [stored, Fin.cons_succ, hi]; rfl
-      change correctLabel (records x j) j.val = _
+      have hrecord : records x j = canonicalLabel f (f^[j.val] x) := funext fun bit => by
+        dsimp only [records, result, queries]
+        rw [lookupOr_of_eq stored hcp hi]
+        simp only [stored, Fin.cons_succ, hi]; rfl
+      rw [he]
+      dsimp only [corrected]
       rw [hrecord]
       apply correctLabel_canonicalLabel
       have := j.isLt
-      have := Nat.one_le_two_pow (n := n)
+      have := @Nat.one_le_two_pow n
       simp only [K, Nat.pow_succ] at *; omega
     · have hnone : ∀ j, flags x j = false := fun j => Bool.eq_false_iff.mpr fun hj => hh ⟨j, hj⟩
       rw [chooseRecord_of_forall_eq_false _ _ _ hnone]
@@ -168,10 +168,6 @@ private theorem labelCost_le (n s M L : ℕ) (hL : 0 < L) (hLN : L ≤ 2 ^ n) (h
   have hMN : M ≤ N := hM.trans (Nat.div_le_self _ _)
   have h4 : 2 ^ (n + 2) = 4 * N := by rw [hNdef, pow_add]; ring
   have hd : d ≤ n + 2 := Nat.clog_le_of_le_pow (by omega)
-  have hP : 1 ≤ P := Nat.one_le_pow _ _ (by omega)
-  have hn1 : n + 1 ≤ P := by
-    simpa only [pow_one] using Nat.pow_le_pow_right (show 0 < n + 1 by omega) (by decide : 1 ≤ 3)
-  have hn2 : (n + 1) ^ 2 ≤ P := Nat.pow_le_pow_right (by omega) (by decide)
   have hdict : 48 * ((2 * L + 1) + M + 1) * (d + 1) ^ 2 * (n + (labelWidth n + 1) + 1) ≤
       13824 * (P * (L + N / L + 1)) := by
     have h1 : (d + 1) ^ 2 ≤ 9 * (n + 1) ^ 2 :=
@@ -181,18 +177,16 @@ private theorem labelCost_le (n s M L : ℕ) (hL : 0 < L) (hLN : L ≤ 2 ^ n) (h
     calc 48 * ((2 * L + 1) + M + 1) * (d + 1) ^ 2 * (n + (labelWidth n + 1) + 1)
         ≤ 48 * (4 * (L + N / L + 1)) * (9 * (n + 1) ^ 2) * (8 * (n + 1)) := by gcongr
       _ = 13824 * (P * (L + N / L + 1)) := by simp only [P]; ring
-  have hfour : (n + 4) ^ 2 ≤ 16 * (n + 1) ^ 2 :=
-    (Nat.pow_le_pow_left (show n + 4 ≤ 4 * (n + 1) by omega) 2).trans_eq (by ring)
   have hrest : (2 * L + 1) * (50 * (n + 4) ^ 2) + ((2 * L + 1) * (30 * n + 27) +
       50 * (n + 4) ^ 2) + (2 * L + 1) * (4 * labelWidth n) + 2 ≤ 6000 * (P * (L + N / L + 1)) := by
-    have h3L : 2 * L + 1 ≤ 3 * L := by omega
-    have hw : 4 * labelWidth n ≤ 24 * (n + 1) := by unfold labelWidth; omega
-    have e1 : (2 * L + 1) * (50 * (n + 4) ^ 2) ≤ 3 * L * (800 * P) := Nat.mul_le_mul h3L (by omega)
-    have e2 : (2 * L + 1) * (30 * n + 27) ≤ 3 * L * (57 * P) := Nat.mul_le_mul h3L (by omega)
-    have e3 : (2 * L + 1) * (4 * labelWidth n) ≤ 3 * L * (24 * P) :=
-      Nat.mul_le_mul h3L (hw.trans (by omega))
-    have e4 : 50 * (n + 4) ^ 2 + 2 ≤ 802 * P := by omega
-    nlinarith only [e1, e2, e3, e4, hL, Nat.mul_le_mul_left P (show L ≤ L + N / L + 1 by omega)]
+    have hpoly : 50 * (n + 4) ^ 2 + (30 * n + 27) + 4 * labelWidth n ≤ 1700 * P :=
+      Nat.le.intro (show _ + (1700 * n ^ 3 + 5050 * n ^ 2 + 4658 * n + 849) = _ by
+        dsimp only [labelWidth, P]; ring)
+    have hc : 50 * (n + 4) ^ 2 + 2 ≤ 802 * P :=
+      Nat.le.intro (show _ + (802 * n ^ 3 + 2356 * n ^ 2 + 2006 * n) = _ by dsimp only [P]; ring)
+    have hm1 := Nat.mul_le_mul (show 2 * L + 1 ≤ 3 * L by omega) hpoly
+    have hm2 := Nat.mul_le_mul_left P (Nat.le_add_right L (N / L + 1))
+    nlinarith only [hm1, hm2, hc, hL]
   nlinarith only [hdict, hrest, Nat.zero_le (L * s)]
 
 /-- **Labels of periodic states.** For every `0 < L ≤ 2 ^ n`, some circuit of size at most

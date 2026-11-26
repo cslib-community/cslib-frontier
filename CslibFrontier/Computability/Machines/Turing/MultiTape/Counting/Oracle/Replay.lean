@@ -157,10 +157,8 @@ private theorem replayAuxResult_live
           nextState := by
   unfold replayAuxResult
   simp only [replayIndicesFrom, h]
-  cases (machine.tr state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
-    cfg.answerSymbols)[index]? with
-  | none => rfl
-  | some action => cases action <;> rfl
+  rcases (machine.tr state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
+    cfg.answerSymbols)[index]? with _ | (_ | _) <;> rfl
 
 private theorem flatMap_range_getElem? {α β : Type} (choices : List α)
     (f : ℕ → α → List β) (bound : ℕ) (hbound : choices.length ≤ bound) :
@@ -193,16 +191,14 @@ private theorem filterMap_replayAuxResult
     simp only [indexWords, List.filterMap_flatMap, List.filterMap_map, Function.comp_def]
     cases hs : cfg.tapes.state with
     | none =>
-      simp only [replayAuxResult_halted machine cfg hs]
       have hz (index : ℕ) :
-          (indexWords bound fuel).filterMap (fun rest =>
-            if index = 0 then replayAuxResult machine cfg trace rest oracle s else none) =
-          if index = 0 then
-            (indexWords bound fuel).filterMap
-              (fun rest => replayAuxResult machine cfg trace rest oracle s) else [] := by
-        by_cases hi : index = 0 <;> simp [hi]
-      simp_rw [hz]
-      rw [flatMap_range_zero bound hpos, ih]
+          (indexWords bound fuel).filterMap
+              (fun rest => replayAuxResult machine cfg trace (index :: rest) oracle s) =
+            if index = 0 then
+              (indexWords bound fuel).filterMap
+                (fun rest => replayAuxResult machine cfg trace rest oracle s) else [] := by
+        by_cases hi : index = 0 <;> simp [replayAuxResult_halted machine cfg hs, hi]
+      simp_rw [hz, flatMap_range_zero bound hpos, ih]
       simp [machine.runOccurrenceProgram_halted fuel hs,
         machine.runOccurrenceProgram_halted (fuel + 1) hs]
     | some state =>
@@ -355,11 +351,9 @@ private theorem replayIndicesFrom_empty_terminal (machine : MultiTapeCTM k Symbo
       simp [MultiTapeCTM.decodeCertificate, hs, OracleComp.interpret_pure,
         Config.emptyOracleEquiv, apply_ite]
     | some state =>
-      have ht : (Config.emptyOracleEquiv.symm cfg :
-          Config k Symbol Control Empty input).tapes = cfg := rfl
-      have ha : (Config.emptyOracleEquiv.symm cfg :
-          Config k Symbol Control Empty input).answerSymbols = Empty.elim :=
-        funext fun op => op.elim
+      have ht : (Config.emptyOracleEquiv.symm cfg : Config _ _ _ Empty _).tapes = cfg := rfl
+      have ha : (Config.emptyOracleEquiv.symm cfg : Config _ _ _ Empty _).answerSymbols =
+          Empty.elim := funext Empty.rec
       simp only [replayIndicesFrom, ht, ha, MultiTapeCTM.decodeCertificate,
         MultiTapeCTM.step?, MultiTapeCTM.actions, hs, List.getElem?_map]
       cases hg : (machine.tr state cfg.inputSymbol cfg.workTapeSymbols Empty.elim)[index]? with

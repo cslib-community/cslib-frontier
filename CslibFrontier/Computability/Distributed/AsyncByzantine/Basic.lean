@@ -308,19 +308,19 @@ private lemma tr_procDecided_stable {F : Finset P} {s s' : State P S M V} {a : A
     {p : P} {v : V} (hd : s.ProcDecided p v) (htr : (π.lts F).Tr s a s') :
     s'.ProcDecided p v := by
   cases a with
-  | stutter => obtain rfl := htr; exact hd
+  | stutter => exact htr ▸ hd
   | _ =>
     obtain ⟨_, _, rfl⟩ := htr
     simp only [State.ProcDecided, recvHonest, recvByz, recvCore]
     split_ifs with hp
-    · subst hp; exact π.updateProc_out_eq_some hd
+    · exact hp ▸ π.updateProc_out_eq_some hd
     · exact hd
 
 /-- Once a process delivers `v`, its delivery register remains `some v` in every later state. -/
 theorem procDecided_stable {F : Finset P} {s s' : State P S M V} {p : P} {v : V}
-    (hd : s.ProcDecided p v) (hreach : (π.lts F).CanReach s s') : s'.ProcDecided p v := by
-  obtain ⟨xl, hxl⟩ := hreach
-  exact LTS.mtrInv_of_trInv (fun _ _ _ htr hd' => π.tr_procDecided_stable hd' htr) _ _ _ hxl hd
+    (hd : s.ProcDecided p v) (hreach : (π.lts F).CanReach s s') : s'.ProcDecided p v :=
+  let ⟨_, hxl⟩ := hreach
+  LTS.mtrInv_of_trInv (fun _ _ _ htr hd' => π.tr_procDecided_stable hd' htr) _ _ _ hxl hd
 
 theorem omega_procDecided_stable {F : Finset P} {ss : ωSequence (State P S M V)}
     {xs : ωSequence (Action P M)} (he : (π.lts F).OmegaExecution ss xs)
@@ -344,24 +344,20 @@ private lemma tr_msgs_src_notMem {F : Finset P} {s s' : State P S M V} {a : Acti
     ∀ e ∈ s'.msgs, e.src ∉ F := by
   intro e he
   cases a with
-  | deliver m =>
+  | stutter => exact hs e (htr ▸ he)
+  | _ =>
     obtain ⟨_, hdest, rfl⟩ := htr
-    simp only [recvHonest, recvCore, Multiset.mem_add, Multiset.mem_map] at he
-    rcases he with he | ⟨qm, _, rfl⟩
-    exacts [hs e (Multiset.mem_of_mem_erase he), hdest]
-  | byzRecv src dest body =>
-    obtain ⟨_, hdest, rfl⟩ := htr
-    simp only [recvByz, recvCore, Multiset.mem_add, Multiset.mem_map] at he
-    rcases he with he | ⟨qm, _, rfl⟩
-    exacts [hs e he, hdest]
-  | stutter => obtain rfl := htr; exact hs e he
+    simp only [recvHonest, recvByz, recvCore, Multiset.mem_add, Multiset.mem_map] at he
+    rcases he with he | ⟨_, _, rfl⟩
+    · first | exact hs e (Multiset.mem_of_mem_erase he) | exact hs e he
+    · exact hdest
 
 /-- In any reachable global state, every envelope in `s.msgs` originates from a correct process. -/
 theorem Reachable.msgs_src_notMem [Fintype P] {π : Protocol P S M V dealer}
     {F : Finset P} {input : Option V} {s : State P S M V} (hr : π.Reachable F input s)
-    {e : Envelope P M} (he : e ∈ s.msgs) : e.src ∉ F := by
-  obtain ⟨xl, hxl⟩ := hr
-  exact LTS.mtrInv_of_trInv (lts := π.lts F) (fun _ _ _ htr hs => π.tr_msgs_src_notMem hs htr)
+    {e : Envelope P M} (he : e ∈ s.msgs) : e.src ∉ F :=
+  let ⟨_, hxl⟩ := hr
+  LTS.mtrInv_of_trInv (lts := π.lts F) (fun _ _ _ htr hs => π.tr_msgs_src_notMem hs htr)
     _ _ _ hxl (fun _ => π.start_msgs_src_notMem F input) e he
 
 /-- An in-flight message `e` stays in `msgs` across any transition other than `.deliver e`. -/
@@ -372,8 +368,10 @@ theorem tr_notDelivered_mem {F : Finset P} {s s' : State P S M V} {a : Action P 
   | deliver m =>
     obtain ⟨_, _, rfl⟩ := htr
     exact Multiset.mem_add.mpr (.inl ((Multiset.mem_erase_of_ne fun h => ha (by rw [h])).mpr he))
-  | byzRecv src dest body => obtain ⟨_, _, rfl⟩ := htr; exact Multiset.mem_add.mpr (.inl he)
-  | stutter => obtain rfl := htr; exact he
+  | byzRecv _ _ _ =>
+    obtain ⟨_, _, rfl⟩ := htr
+    exact Multiset.mem_add.mpr (.inl he)
+  | stutter => exact htr ▸ he
 
 /-- An in-flight message `e` stays in `msgs` across any finite trace not containing `.deliver e`. -/
 theorem mTr_notDelivered_mem {F : Finset P} {s t : State P S M V} {xl : List (Action P M)}
@@ -454,20 +452,18 @@ private lemma drainPhase_spec (F : Finset P) (s : State P S M V) :
     (∀ e ∈ s.msgs, e.dest ∉ F → .deliver e ∈ res.1) := by
   dsimp only [drainPhase]
   set pending := s.msgs.filter (fun e => e.dest ∉ F)
-  by_cases h0 : pending = 0
-  · simp only [h0, ↓reduceIte, List.length_singleton, zero_lt_one, true_and]
-    exact ⟨LTS.MTr.single (π.lts F) rfl,
-      fun a ha => by obtain rfl := List.mem_singleton.mp ha; trivial,
+  split_ifs with h0
+  · exact ⟨LTS.MTr.single (π.lts F) rfl, Nat.one_pos,
+      fun _ ha => List.mem_singleton.mp ha ▸ trivial,
       fun e he hdest => (Multiset.filter_eq_nil.mp h0 e he hdest).elim⟩
-  · simp only [h0, ↓reduceIte]
-    obtain ⟨hmtr, hmap⟩ := π.drainList_spec s pending.toList
-      (by rw [Multiset.coe_toList]; exact Multiset.filter_le _ _)
+  · obtain ⟨hmtr, hmap⟩ := π.drainList_spec s pending.toList
+      (Multiset.coe_toList _ ▸ Multiset.filter_le _ _)
       (fun e he => (Multiset.mem_filter.mp (Multiset.mem_toList.mp he)).2)
     rw [hmap] at hmtr ⊢
-    refine ⟨hmtr, ?_, fun a ha => by obtain ⟨_, _, rfl⟩ := List.mem_map.mp ha; trivial,
+    exact ⟨hmtr, by simp [Multiset.card_pos.mpr h0],
+      fun _ ha => (List.mem_map.mp ha).choose_spec.2 ▸ trivial,
       fun e he hed => List.mem_map.mpr
         ⟨e, Multiset.mem_toList.mpr (Multiset.mem_filter.mpr ⟨he, hed⟩), rfl⟩⟩
-    simpa only [List.length_map, List.length_pos_iff_ne_nil, ne_eq, Multiset.toList_eq_nil] using h0
 
 private noncomputable def drainSeq (F : Finset P) (s₀ : State P S M V) :
     ℕ → List (Action P M) × State P S M V
@@ -518,17 +514,11 @@ theorem Reachable.exists_admissibleRun [Fintype P] {π : Protocol P S M V dealer
   have hss' (n : ℕ) : ss (xl.length + n) = ss' n := by rw [← hdrop, get_drop]
   refine ⟨ss, xl ++ω xs', xl.length, ⟨hstart, hω, ?_⟩, hat, fun j hle => ?_⟩
   · intro e hdest k he
-    by_cases hkl : k ≤ xl.length
-    · by_cases hdel : .deliver e ∈ (xl ++ω xs').extract k xl.length
-      · obtain ⟨i, hi, hget⟩ := List.getElem_of_mem hdel
-        have hi' : i < xl.length - k := by simpa [ωSequence.length_extract] using hi
-        exact ⟨k + i, Nat.le_add_right k i, by rw [← (xl ++ω xs').get_extract hi', hget]⟩
-      · obtain ⟨j, _, hj⟩ := hfair e hdest 0
-          (hss' 0 ▸ π.mTr_notDelivered_mem (hω.extract_mTr hkl) he hdel)
-        exact ⟨xl.length + j, by omega, by simpa [get_append_right] using hj⟩
-    · obtain ⟨j, hkj, hj⟩ := hfair e hdest (k - xl.length)
-        (by rwa [← hss', Nat.add_sub_cancel' (by omega)])
-      exact ⟨xl.length + j, by omega, by simpa [get_append_right] using hj⟩
+    by_contra! hnot
+    have hmem : e ∈ (ss' (k - xl.length)).msgs := hss' (k - xl.length) ▸
+      π.omega_notDelivered_mem hω he hnot (xl.length + (k - xl.length)) (by omega)
+    obtain ⟨j, _, hj⟩ := hfair e hdest (k - xl.length) hmem
+    exact hnot (xl.length + j) (by omega) (by simpa [get_append_right] using hj)
   · obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hle
     simpa [get_append_right] using hhon d
 
@@ -567,7 +557,7 @@ theorem card_msgs_add_traceSent {F : Finset P} {s₀ s₁ : State P S M V} {xl :
         Multiset.card_erase_of_mem hmem, Nat.pred_eq_sub_one, List.countP_cons, Action.isDeliver,
         ↓reduceIte] at ih ⊢
       omega
-    | byzRecv src dest body =>
+    | byzRecv _ _ _ =>
       obtain ⟨_, _, rfl⟩ := htr
       simp only [traceSent, recvByz, recvCore, Multiset.card_add, Multiset.card_map,
         List.countP_cons, Action.isDeliver, Bool.false_eq_true, ↓reduceIte] at ih ⊢
@@ -718,10 +708,9 @@ private lemma directInv_tr {P V : Type*} [Fintype P] [DecidableEq P] [DecidableE
 private lemma direct_noSpurious {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
     {dealer : P} {F : Finset P} (hd : dealer ∉ F) {input : Option V} {s : State P PUnit V V}
     (hr : (directProtocol P V dealer).Reachable F input s) {i : P} (hi : i ∉ F) {v : V}
-    (hv : s.ProcDecided i v) : input = some v := by
-  obtain ⟨xl, hxl⟩ := hr
-  exact (LTS.mtrInv_of_trInv (directInv_tr hd input) _ _ _ hxl (directInv_start F input)).2
-    i hi v hv
+    (hv : s.ProcDecided i v) : input = some v :=
+  let ⟨_, hxl⟩ := hr
+  (LTS.mtrInv_of_trInv (directInv_tr hd input) _ _ _ hxl (directInv_start F input)).2 i hi v hv
 
 private lemma direct_validity {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
     {dealer : P} {F : Finset P} (hd : dealer ∉ F) (v : V)
@@ -782,17 +771,14 @@ consistency and totality are trivial. -/
 theorem solvesReliableBroadcast_direct_of_card_le_two {P V : Type*} [Fintype P] [DecidableEq P]
     [DecidableEq V] (dealer : P) (hcard : Fintype.card P ≤ 2) (t : ℕ) :
     (directProtocol P V dealer).SolvesReliableBroadcast t where
-  consistency F _ _ _ hr i hi j hj _ _ h₁ h₂ := by
-    by_cases hd : dealer ∈ F
-    · obtain rfl := eq_of_card_le_two_of_mem hcard hd hi hj
-      exact Option.some.inj (h₁.symm.trans h₂)
-    · exact direct_honest_agreement hd hr hi hj h₁ h₂
+  consistency F _ _ _ hr _ hi _ hj _ _ h₁ h₂ :=
+    if hd : dealer ∈ F then
+      Option.some.inj ((eq_of_card_le_two_of_mem hcard hd hi hj ▸ h₁).symm.trans h₂)
+    else direct_honest_agreement hd hr hi hj h₁ h₂
   noSpurious _ _ hd _ _ hr _ hi _ hv := direct_noSpurious hd hr hi hv
   validity _ _ hd v _ _ ha _ hi := direct_validity hd v ha hi
-  totality F _ _ _ _ ha i hi k _ hv j hj := by
-    by_cases hd : dealer ∈ F
-    · obtain rfl := eq_of_card_le_two_of_mem hcard hd hi hj
-      exact ⟨k, hv⟩
-    · exact direct_honest_totality hd ha hi hj hv
+  totality F _ _ _ _ ha _ hi k _ hv _ hj :=
+    if hd : dealer ∈ F then ⟨k, eq_of_card_le_two_of_mem hcard hd hi hj ▸ hv⟩
+    else direct_honest_totality hd ha hi hj hv
 
 end Cslib.Distributed.AsyncByzantine

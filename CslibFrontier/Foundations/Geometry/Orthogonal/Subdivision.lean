@@ -71,10 +71,8 @@ def walk (a d : Point) : ℕ → Route
 
 private theorem support_cons_of_head (a b : Point) {r : Route} (h : r.head? = some b) :
     support (a :: r) = segment a b ∪ support r := by
-  rcases r with _ | ⟨c, r⟩
-  · simp at h
-  · obtain rfl : b = c := (Option.some.inj h).symm
-    exact support_cons_cons a b r
+  obtain ⟨r', rfl⟩ := List.head?_eq_some_iff.1 h
+  exact support_cons_cons a b r'
 
 /-- A step vector in one of the four cardinal unit directions. -/
 def UnitVector (d : Point) : Prop :=
@@ -114,9 +112,8 @@ theorem walk_step {a d : Point} {k : ℕ} {e : Point × Point}
   induction k generalizing a with
   | zero => simp [walk, List.consecutivePairs] at he
   | succ k ih =>
-    rcases List.mem_cons.1 (consecutivePairs_walk a d k ▸ he) with rfl | he
-    · rfl
-    · exact ih he
+    exact (List.mem_cons.1 (consecutivePairs_walk a d k ▸ he)).elim
+      (fun h : e = (a, a + d) => h ▸ rfl) ih
 
 /-- Cardinal steps have Manhattan length one. -/
 theorem length_add_unit (a d : Point) (hd : UnitVector d) : length a (a + d) = 1 := by
@@ -198,8 +195,7 @@ theorem consecutivePairs_join {q r : Route} {p : Point}
   | nil => simp at hq
   | cons a q ih =>
     rcases q with _ | ⟨b, q⟩
-    · cases Option.some.inj hq
-      rfl
+    · exact Option.some.inj hq ▸ rfl
     · exact congrArg ((a, b) :: ·) (ih (by simpa only [List.getLast?_cons_cons] using hq))
 
 /-- Joining routes at their common endpoint takes the union of their full real supports. -/
@@ -280,9 +276,7 @@ theorem subdivide_unit {r : Route} (hr : IsOrthogonal r) {e : Point × Point}
     have hab := (hr (a, b) (by simp [List.consecutivePairs])).1
     rw [consecutivePairs_join (segmentWalk_last hab) (subdivide_head (b :: r)),
       List.mem_append] at he
-    rcases he with he | he
-    · exact segmentWalk_unit a b he
-    · exact ih hr.of_cons he
+    exact he.elim (segmentWalk_unit a b) (ih hr.of_cons)
 
 /-- Unit subdivision preserves total Manhattan wire length exactly. -/
 theorem wireLength_subdivide {r : Route} (hr : IsOrthogonal r) :
@@ -397,9 +391,8 @@ theorem first_segment_tail_contact {a b : Point} {r : Route}
     have hc := hs.2 (a, b) (by simp [List.consecutivePairs]) f (List.mem_cons_of_mem _ hf)
       (fun h => hnot (by simpa only [← h] using hfmem.1)) p hp hpf
     refine hc.1.resolve_left fun (hpa : p = realPoint a) => hnot ?_
-    rcases hc.2 with hpf | hpf <;> obtain rfl := realPoint_injective (hpa.symm.trans hpf)
-    · exact hfmem.1
-    · exact List.mem_of_mem_tail hfmem.2
+    exact hc.2.elim (fun hpf => realPoint_injective (hpa.symm.trans hpf) ▸ hfmem.1)
+      fun hpf => realPoint_injective (hpa.symm.trans hpf) ▸ List.mem_of_mem_tail hfmem.2
 
 /-- Unit subdivision of a continuously simple orthogonal route has no repeated lattice points.
 The proof uses the original segments' endpoint-contact certificates, not support equality alone. -/

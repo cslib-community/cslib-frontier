@@ -104,12 +104,10 @@ private theorem measureReal_setOf_cdf_le_clamp (α : ℝ) :
   exact measureReal_setOf_cdf_gaussianReal_le 0 one_ne_zero (le_max_right _ _)
     (max_le (min_le_right _ _) zero_le_one)
 
-private theorem ae_cdf_ne (c : ℝ) : ∀ᵐ y ∂gaussianReal 0 1, Φ y ≠ c := by
+private theorem ae_cdf_ne (c : ℝ) : ∀ᵐ y ∂gaussianReal 0 1, Φ y ≠ c :=
   have := nullSingletonClass_gaussianReal (μ := 0) (v := 1) one_ne_zero
-  refine (measure_eq_zero_iff_ae_notMem.1 (Subsingleton.measure_zero ?_ (gaussianReal 0 1)) :
-    ∀ᵐ y ∂gaussianReal 0 1, y ∉ {y | Φ y = c})
-  exact fun x hx y hy => (strictMono_cdf_gaussianReal 0 one_ne_zero).injective
-    (hx.trans hy.symm)
+  measure_eq_zero_iff_ae_notMem.1 <| Subsingleton.measure_zero (s := {y | Φ y = c})
+    (fun _ hx _ hy => (strictMono_cdf_gaussianReal 0 one_ne_zero).injective (hx.trans hy.symm)) _
 
 /-- The first coordinate of a correlated pair satisfies `Φ z ≤ α` with probability `α`, clamped
 to `[0, 1]`. -/
@@ -274,8 +272,8 @@ private theorem integral_indicator_Iic_mul_indicator_Iic (μ : Measure (ℝ × �
   have hS : MeasurableSet {p : ℝ × ℝ | p.1 ≤ t ∧ p.2 ≤ t'} :=
     (measurableSet_Iic.preimage measurable_fst).inter (measurableSet_Iic.preimage measurable_snd)
   rw [← integral_indicator_one hS]
-  refine integral_congr_ae (.of_forall fun p => ?_)
-  by_cases h1 : p.1 ≤ t <;> by_cases h2 : p.2 ≤ t' <;> simp [indicator, h1, h2]
+  exact integral_congr_ae (.of_forall fun p => by
+    by_cases h1 : p.1 ≤ t <;> by_cases h2 : p.2 ≤ t' <;> simp [indicator, h1, h2])
 
 /-- **Sheppard's value** [O'Donnell, Exercise 11.19][ODonnell2014]:
 `Λ_ρ(1 / 2, 1 / 2) = 1 / 2 - arccos ρ / (2π)`. -/
@@ -297,8 +295,7 @@ private theorem measure_correlatedGaussian_fst_mem_cdf_le (ρ β : ℝ) {A : Set
     (hA.preimage measurable_fst).inter ((measurableSet_cdf_le β).preimage measurable_snd)
   rw [correlatedGaussian_def, Measure.map_apply (by fun_prop) hS,
     Measure.prod_apply (hS.preimage (by fun_prop)), ← lintegral_indicator hA]
-  refine lintegral_congr fun x => ?_
-  by_cases hx : x ∈ A <;> simp [indicator, hx]
+  exact lintegral_congr fun x => by by_cases hx : x ∈ A <;> simp [indicator, hx]
 
 /-- [O'Donnell, Exercise 11.19][ODonnell2014]: positively correlated Gaussians are at least as
 likely as independent ones to lie in a lower quadrant, `αβ ≤ Λ_ρ(α, β)` for `ρ ∈ [0, 1]` and
@@ -311,15 +308,14 @@ theorem mul_le_gaussianQuadrant {ρ : ℝ} (hρ0 : 0 ≤ ρ) (hρ1 : ρ ≤ 1) {
   -- The conditional probability `q` is antitone, so it is larger on `A` than off `A`.
   have hq : ∀ x ∈ A, ∀ x' ∈ Aᶜ, q x' ≤ q x := fun x hx x' hx' => by
     have hlt : x < x' := (monotone_cdf _).reflect_lt (hx.trans_lt (not_le.1 hx'))
-    refine measure_mono fun y (hy : Φ _ ≤ β) => ?_
-    exact (monotone_cdf _ (add_le_add_left (mul_le_mul_of_nonneg_left hlt.le hρ0) _)).trans hy
+    exact measure_mono fun y (hy : Φ _ ≤ β) =>
+      (monotone_cdf _ (add_le_add_left (mul_le_mul_of_nonneg_left hlt.le hρ0) _)).trans hy
   have hcheb : gaussianReal 0 1 A * ∫⁻ x in Aᶜ, q x ∂gaussianReal 0 1 ≤
       gaussianReal 0 1 Aᶜ * ∫⁻ x in A, q x ∂gaussianReal 0 1 :=
     calc gaussianReal 0 1 A * ∫⁻ x in Aᶜ, q x ∂gaussianReal 0 1
         = ∫⁻ x' in Aᶜ, ∫⁻ _ in A, q x' ∂gaussianReal 0 1 ∂gaussianReal 0 1 := by
           rw [← lintegral_const_mul' _ _ (measure_ne_top _ _)]
-          refine lintegral_congr fun x' => ?_
-          rw [setLIntegral_const, mul_comm]
+          exact lintegral_congr fun _ => ((setLIntegral_const ..).trans (mul_comm _ _)).symm
       _ ≤ ∫⁻ x' in Aᶜ, ∫⁻ x in A, q x ∂gaussianReal 0 1 ∂gaussianReal 0 1 :=
           setLIntegral_mono' hA.compl fun x' hx' => setLIntegral_mono' hA fun x hx => hq x hx x' hx'
       _ = gaussianReal 0 1 Aᶜ * ∫⁻ x in A, q x ∂gaussianReal 0 1 := by
@@ -342,8 +338,7 @@ theorem mul_le_gaussianQuadrant {ρ : ℝ} (hρ0 : 0 ≤ ρ) (hρ1 : ρ ≤ 1) {
   rw [gaussianQuadrant_def]
   calc α * β = (gaussianReal 0 1 A *
         correlatedGaussian ρ {p | p.1 ∈ univ ∧ Φ p.2 ≤ β}).toReal := by
-        rw [ENNReal.toReal_mul]
-        exact congrArg₂ (· * ·) e1.symm e2.symm
+        rw [ENNReal.toReal_mul, ← measureReal_def, ← measureReal_def, e1, e2]
     _ ≤ (correlatedGaussian ρ {p | p.1 ∈ A ∧ Φ p.2 ≤ β}).toReal := by
         rw [hΛ, hβ]
         exact ENNReal.toReal_mono (hΛ ▸ measure_ne_top _ _) hkey
@@ -383,8 +378,7 @@ theorem abs_gaussianQuadrant_sub_le_left (ρ α α' β : ℝ) :
 /-- `Λ_ρ` is `1`-Lipschitz in its second argument. -/
 theorem abs_gaussianQuadrant_sub_le_right {ρ : ℝ} (hρ : |ρ| ≤ 1) (α β β' : ℝ) :
     |gaussianQuadrant ρ α β - gaussianQuadrant ρ α β'| ≤ |β - β'| := by
-  rw [gaussianQuadrant_comm hρ α β, gaussianQuadrant_comm hρ α β']
-  exact abs_gaussianQuadrant_sub_le_left ρ β β' α
+  simpa only [gaussianQuadrant_comm hρ α] using abs_gaussianQuadrant_sub_le_left ρ β β' α
 
 /-- **Lipschitz continuity** [O'Donnell, Exercise 11.19][ODonnell2014]:
 `|Λ_ρ(α, β) - Λ_ρ(α', β')| ≤ |α - α'| + |β - β'|`. -/
@@ -397,18 +391,18 @@ theorem abs_gaussianQuadrant_sub_le {ρ : ℝ} (hρ : |ρ| ≤ 1) (α β α' β'
 /-- [O'Donnell, Exercise 11.19][ODonnell2014]: `Λ_ρ(α) = Λ_ρ(α, α)` is a `2`-Lipschitz function
 of `α`. -/
 theorem lipschitzWith_gaussianQuadrant_diag {ρ : ℝ} (hρ : |ρ| ≤ 1) :
-    LipschitzWith 2 fun α => gaussianQuadrant ρ α α := by
-  refine LipschitzWith.of_dist_le_mul fun α α' => ?_
-  rw [Real.dist_eq, Real.dist_eq, NNReal.coe_ofNat, two_mul]
-  exact abs_gaussianQuadrant_sub_le hρ α α α' α'
+    LipschitzWith 2 fun α => gaussianQuadrant ρ α α :=
+  LipschitzWith.of_dist_le_mul fun α α' => by
+    simpa only [Real.dist_eq, NNReal.coe_ofNat, two_mul] using
+      abs_gaussianQuadrant_sub_le hρ α α α' α'
 
 /-- `Λ_ρ` is `2`-Lipschitz on the plane, with the sup metric, for `|ρ| ≤ 1`. -/
 theorem lipschitzWith_gaussianQuadrant {ρ : ℝ} (hρ : |ρ| ≤ 1) :
-    LipschitzWith 2 fun q : ℝ × ℝ => gaussianQuadrant ρ q.1 q.2 := by
-  refine LipschitzWith.of_dist_le_mul fun q q' => ?_
-  rw [Real.dist_eq, Prod.dist_eq, Real.dist_eq, Real.dist_eq, NNReal.coe_ofNat, two_mul]
-  exact (abs_gaussianQuadrant_sub_le hρ _ _ _ _).trans
-    (add_le_add (le_max_left _ _) (le_max_right _ _))
+    LipschitzWith 2 fun q : ℝ × ℝ => gaussianQuadrant ρ q.1 q.2 :=
+  LipschitzWith.of_dist_le_mul fun q q' => by
+    rw [Real.dist_eq, Prod.dist_eq, Real.dist_eq, Real.dist_eq, NNReal.coe_ofNat, two_mul]
+    exact (abs_gaussianQuadrant_sub_le hρ _ _ _ _).trans
+      (add_le_add (le_max_left _ _) (le_max_right _ _))
 
 /-- `Λ_ρ` is jointly continuous for `|ρ| ≤ 1`. -/
 theorem continuous_gaussianQuadrant {ρ : ℝ} (hρ : |ρ| ≤ 1) :

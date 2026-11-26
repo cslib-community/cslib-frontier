@@ -75,9 +75,7 @@ private theorem sumScaledStep_realizes :
       SumScaledStepSafe (fun _ _ => 0) := by
   unfold sumScaledStep
   realize
-  all_goals
-    rcases h with ⟨_, _, _, _, _, _⟩
-    assumption
+  all_goals tauto
 
 private theorem four_n_maxMag_add_one_le_wordBound (inst : Instance) :
     4 * (inst.n * inst.maxMag) + 1 ≤ inst.wordBound := by
@@ -117,7 +115,7 @@ theorem sumScaledCostProg_realizes :
   unfold sumScaledCostProg
   realize [sumScaledStep_realizes]
   all_goals
-    rcases h with ⟨_, _, _, _, _, _⟩
+    unfold SumScaledCostSafe at h
     tauto
 
 /-- Specification of `sumScaledCostProg`: computes `inst.encodedMinCost` in at most `2 * inst.n`
@@ -150,8 +148,6 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
         = (outputList s₀.mem ws.outBase)[i.val]'hi := (getElem_outputList _ _ _ hi).symm
       _ = inst.assignment[i.val]'(by simp) := by simp [hout]
       _ = (π i).val := by simp [Instance.assignment, π]
-  have hf1 : Fits w 1 := hw.of_le (by unfold Instance.wordBound; omega)
-  have hf2 : Fits w 2 := hw.of_le (by unfold Instance.wordBound; omega)
   have hit := iterate_spec sumScaledStep SumScaledStepSafe w ws 2 ws.n
     (fun k st s => s = s₀ ∧ st.idx = k ∧
       st.acc = (((List.finRange inst.n).take k).map fun i => C_unsc (i, π i)).sum ∧
@@ -220,14 +216,11 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
     push_cast
     ring
   have hnM : ws.n * ws.M ≤ inst.n * inst.maxMag := hn ▸ Nat.mul_le_mul_left _ hM_le
+  have hf2 : Fits w 2 := hw.of_le (by dsimp [Instance.wordBound]; omega)
   have hsafe_prog : SumScaledCostSafe w ws s₀ := by
-    dsimp only [SumScaledCostSafe]
-    rw [← hres]
-    exact ⟨hsafe_it, hf1, hf2,
-      hw.of_le (by omega),
-      fun hlt => ⟨hlt.le,
-        hw.of_le (by omega),
-        hw.of_le (by omega)⟩,
+    rw [SumScaledCostSafe, ← hres]
+    exact ⟨hsafe_it, hf2.of_le (by decide), hf2, hw.of_le (by omega),
+      fun hlt => ⟨hlt.le, hw.of_le (by omega), hw.of_le (by omega)⟩,
       fun hlt => ⟨le_of_not_gt hlt, hw.of_le (by omega)⟩⟩
   unfold sumScaledCostProg
   refine ⟨hsafe_prog,
@@ -235,9 +228,7 @@ theorem sumScaledCostProg_spec {w : ℕ} (inst : Instance) (ws : AuctionWS)
       (validHistory_ite (fun _ => validHistory_pure w _ _) (fun _ => validHistory_pure w _ _)),
     ?_, ?_⟩
   · rw [memoryCost_bind', memoryCost_ite]
-    split_ifs <;> {
-      rw [memoryCost_pure, Nat.add_zero]
-      exact hmc_it.trans_eq (by rw [hn]) }
+    split_ifs <;> simpa [memoryCost_pure, hn] using hmc_it
   · rw [clientResult_bind, hs_it, ← hres]
     dsimp only
     rw [apply_ite ((Memory.spec 0).clientResult s₀), clientResult_pure, clientResult_pure, hn]

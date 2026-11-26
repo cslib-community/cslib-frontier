@@ -171,8 +171,7 @@ theorem sturmVariationsList_eq_sturmVariations (cs : List ℚ) (x : ℚ) :
     ← List.signVariations_map (f := algebraMap ℚ ℝ) fun q => by
       rcases lt_trichotomy q 0 with h | rfl | h <;> simp [eq_ratCast, sign_neg, sign_pos, *]]
   simp only [List.map_map]
-  congr 1
-  refine List.map_congr_left fun g _ => ?_
+  refine congrArg List.signVariations (List.map_congr_left fun g _ => ?_)
   simpa only [Function.comp_apply, Polynomial.eval_map, eval_ofCoeffList, eq_ratCast] using
     (Polynomial.eval₂_hom (p := ofCoeffList g) (algebraMap ℚ ℝ) x).symm
 
@@ -246,16 +245,13 @@ theorem abs_lt_cauchyBoundNat_of_isRoot {cs : List ℚ} (hcs : ofCoeffList cs �
         exact abs_getD_le_maxAbsList t.dropLast i) hr'
     rw [hlead] at hcb
     let b := maxAbsList t.dropLast / |lc| + 1
-    have hb_nonneg : 0 ≤ b :=
-      add_nonneg (div_nonneg (maxAbsList_nonneg _) (abs_nonneg _)) zero_le_one
     have hrat_lt : b < ((Int.natAbs b.num / b.den + 1 : ℕ) : ℚ) := by
-      have hnum_eq : (Int.natAbs b.num : ℚ) / (b.den : ℚ) = |b| := by
-        rw [← Int.cast_natCast, ← Int.abs_eq_natAbs, Int.cast_abs,
-          ← abs_of_pos (by positivity : (0 : ℚ) < b.den), ← abs_div, Rat.num_div_den]
-      conv_lhs => rw [← abs_of_nonneg hb_nonneg, ← hnum_eq]
-      rw [div_lt_iff₀ (by exact_mod_cast b.den_pos)]
-      exact_mod_cast
-        (Nat.lt_div_mul_add (a := b.num.natAbs) b.den_pos).trans_eq (Nat.add_one_mul ..).symm
+      have hlt : b.num < ((b.num.natAbs / b.den + 1) * b.den : ℕ) :=
+        Int.le_natAbs.trans_lt (Int.ofNat_lt.mpr
+          ((Nat.lt_div_mul_add b.den_pos).trans_eq (Nat.add_one_mul ..).symm))
+      conv_lhs => rw [← Rat.num_div_den b]
+      rw [div_lt_iff₀ (Nat.cast_pos.mpr b.den_pos), ← Nat.cast_mul, ← Int.cast_natCast]
+      exact Int.cast_lt.mpr hlt
     rw [hlc, Option.getD_some]
     exact lt_trans hcb (by exact_mod_cast hrat_lt)
 

@@ -80,8 +80,7 @@ theorem realizes_readFastLocGen :
         WhpLargeEnvGen w cp base ∧ b < wpM cp ∧ loc < wpTotalLoc cp)
       (fun _ _ => 0) := by
   unfold readFastLocGenProg
-  have hrl := realizes_readLocStateGen
-  realize
+  realize [realizes_readLocStateGen]
   rcases d with ⟨⟨⟨cp, base⟩, b⟩, loc⟩
   exact fastLoc_pre_safe h
 
@@ -115,8 +114,7 @@ theorem realizes_writeFastLocGen :
         WhpLargeEnvGen w cp base ∧ b < wpM cp ∧ loc < wpTotalLoc cp)
       (fun _ _ => 0) := by
   unfold writeFastLocGenProg
-  have hwl := realizes_writeLocStateGen
-  realize
+  realize [realizes_writeLocStateGen]
   rcases d with ⟨⟨⟨⟨cp, base⟩, b⟩, loc⟩, tag⟩
   exact fastLoc_pre_safe h
 
@@ -194,8 +192,7 @@ theorem realizes_readPoolFreeStackGen :
       (fun w ((cp, base), j) _ => WhpLargeEnvGen w cp base ∧ j < wpPoolSize cp)
       (fun _ _ => 0) := by
   unfold readPoolFreeStackGenProg
-  have hrp := realizes_readPackedGen
-  realize
+  realize [realizes_readPackedGen]
   rcases d with ⟨⟨cp, base⟩, j⟩
   exact poolFreeStack_pre_safe h
 
@@ -229,8 +226,7 @@ theorem realizes_writePoolFreeStackGen :
       (fun w (((cp, base), j), _) _ => WhpLargeEnvGen w cp base ∧ j < wpPoolSize cp)
       (fun _ _ => 0) := by
   unfold writePoolFreeStackGenProg
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   rcases d with ⟨⟨⟨cp, base⟩, j⟩, pSlot⟩
   exact poolFreeStack_pre_safe h
 
@@ -287,8 +283,7 @@ theorem realizes_writePoolOwnerGen :
       (fun w (((cp, base), j), _) _ => WhpLargeEnvGen w cp base ∧ j < wpPoolSize cp)
       (fun _ _ => 0) := by
   unfold writePoolOwnerGenProg
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   rcases d with ⟨⟨⟨cp, base⟩, j⟩, enc⟩
   obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hj⟩ := h
   have hw_eq := henv.2.2.1; subst hw_eq

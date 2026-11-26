@@ -269,15 +269,11 @@ theorem countQueries_queyranneQuery_eq
   have hne : ∀ b ∈ vs.eraseDups.map ({·} : V → Finset V), b.Nonempty :=
     List.forall_mem_map.mpr fun v _ => Finset.singleton_nonempty v
   have hdisj : (vs.eraseDups.map ({·} : V → Finset V)).Pairwise Disjoint :=
-    List.pairwise_map.mpr ((List.nodup_eraseDups vs).imp fun hab =>
-      Finset.disjoint_singleton.mpr hab)
-  have hlen : (vs.eraseDups.map ({·} : V → Finset V)).length =
-      (vs.eraseDups.length - 2) + 2 := by rw [List.length_map]; omega
-  have hrec := countQueries_queyranneRecM_eq oracle (vs.eraseDups.length - 2) _ hne hdisj hlen
-  have h1 : vs.eraseDups.length - 2 + 2 = vs.toFinset.card := by omega
-  have h2 : vs.eraseDups.length - 2 + 3 = vs.toFinset.card + 1 := by omega
-  have h3 : vs.eraseDups.length - 2 + 4 = vs.toFinset.card + 2 := by omega
-  rwa [h1, h2, h3] at hrec
+    List.pairwise_map.mpr ((List.nodup_eraseDups vs).imp Finset.disjoint_singleton.mpr)
+  have hm : vs.toFinset.card = (vs.eraseDups.length - 2) + 2 := by omega
+  rw [hm]
+  exact countQueries_queyranneRecM_eq oracle (vs.eraseDups.length - 2) _ hne hdisj
+    (by rw [List.length_map]; omega)
 
 /-- On degenerate inputs with fewer than two distinct elements, `queyranneQuery vs` makes `1`
 query (`∅`). -/
@@ -295,10 +291,8 @@ theorem three_mul_countQueries_queyranneQuery_le
   have heq := countQueries_queyranneQuery_eq oracle hvs
   set n := vs.toFinset.card
   rcases Nat.eq_or_lt_of_le hvs with heq2 | hn
-  · rw [← heq2] at heq ⊢
-    omega
-  · have hge3 : 3 ≤ n := hn
-    nlinarith
+  · rw [← heq2] at heq ⊢; omega
+  · nlinarith
 
 /-- Pointwise cubic upper bound valid for all input lists `vs`, including degenerate lists with
 `vs.toFinset.card < 2`. -/

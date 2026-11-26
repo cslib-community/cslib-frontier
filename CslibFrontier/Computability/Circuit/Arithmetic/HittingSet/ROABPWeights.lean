@@ -101,10 +101,8 @@ theorem levelWeight_le {p B : ℕ} (hp : 0 < p) (hB : 0 < B) :
 private theorem eq_of_mul_add_eq {B x y u v : ℕ} (hu : u < B) (hv : v < B)
     (h : B * x + u = B * y + v) : x = y ∧ u = v := by
   have hB : 0 < B := (Nat.zero_le u).trans_lt hu
-  have hx : x = y := by
-    have h' := congrArg (· / B) h
-    simpa [Nat.mul_add_div hB, Nat.div_eq_of_lt hu, Nat.div_eq_of_lt hv] using h'
-  subst hx
+  obtain rfl : x = y := by
+    simpa [Nat.mul_add_div hB, Nat.div_eq_of_lt hu, Nat.div_eq_of_lt hv] using congrArg (· / B) h
   exact ⟨rfl, Nat.add_left_cancel h⟩
 
 private theorem mul_add_lt_mul_add {B x x' u u' : ℕ} (hx : x' < x) (hu : u' < B) :
@@ -159,12 +157,10 @@ private theorem exists_isolates_subtrees [Fact p.Prime] (hp : 2 * n * (w ^ 2) ^ 
           (fun hi => by rw [Finsupp.notMem_support_iff.1 hi, zero_smul])]
         simp [levelWeight]
       have hinj : Set.InjOn (Finsupp.weight (levelWeight p (n * δ * p + 1) []))
-          (↑(monomialsLE [i] δ) : Set (Fin n →₀ ℕ)) := fun m hm m' hm' hmm => by
-        rw [hwt m hm, hwt m' hm'] at hmm
-        refine Finsupp.ext fun j => ?_
-        rcases eq_or_ne j i with rfl | hj
-        · exact hmm
-        · rw [(mem_monomialsLE.1 hm).2 j (by simp [hj]), (mem_monomialsLE.1 hm').2 j (by simp [hj])]
+          (↑(monomialsLE [i] δ) : Set (Fin n →₀ ℕ)) := fun m hm m' hm' hmm =>
+        Finsupp.ext fun j => if hj : j = i then hj ▸ (hwt m hm).symm.trans (hmm.trans (hwt m' hm'))
+          else ((mem_monomialsLE.1 hm).2 j (by simp [hj])).trans
+            ((mem_monomialsLE.1 hm').2 j (by simp [hj])).symm
       obtain ⟨S, hS, hiso⟩ := exists_isolates_of_injOn (F := F) (D := segmentCoeff M [i]) hinj
       exact ⟨S, hS.trans_eq hrank, hiso⟩
   | succ h ih =>
@@ -194,14 +190,13 @@ private theorem exists_isolates_subtrees [Fact p.Prime] (hp : 2 * n * (w ^ 2) ^ 
       refine lt_of_le_of_lt (Nat.mul_le_mul_right n ?_) hp
       rw [hPdef, levelPairs]
       refine card_biUnion_le.trans ((sum_le_card_nsmul _ _ ((w ^ 2) ^ 4) fun s hs => ?_).trans ?_)
-      · rw [mem_filter, List.mem_toFinset] at hs
-        cases s with
-        | leaf i => simp
-        | node l r =>
-          have hl := hScard l (Bracketing.mem_subtrees_of_node hs.1).1 (hheight hs.2).1
-          have hr := hScard r (Bracketing.mem_subtrees_of_node hs.1).2 (hheight hs.2).2
-          have hadd : (S l + S r).card ≤ w ^ 2 * w ^ 2 :=
-            (card_add_le).trans (Nat.mul_le_mul hl hr)
+      · rcases s with _ | ⟨l, r⟩
+        · simp
+        · obtain ⟨hs₁, hs₂⟩ := mem_filter.1 hs
+          replace hs₁ := List.mem_toFinset.1 hs₁
+          have hadd : (S l + S r).card ≤ w ^ 2 * w ^ 2 := card_add_le.trans (Nat.mul_le_mul
+            (hScard l (Bracketing.mem_subtrees_of_node hs₁).1 (hheight hs₂).1)
+            (hScard r (Bracketing.mem_subtrees_of_node hs₁).2 (hheight hs₂).2))
           exact (offDiag_card _).trans_le
             ((Nat.sub_le _ _).trans ((Nat.mul_le_mul hadd hadd).trans_eq (by ring)))
       · rw [smul_eq_mul]
@@ -222,11 +217,10 @@ private theorem exists_isolates_subtrees [Fact p.Prime] (hp : 2 * n * (w ^ 2) ^ 
         Isolates F (Finsupp.weight c') (segmentCoeff M s.leaves) (monomialsLE s.leaves δ)
           (S s) := fun s hs hsh => by
       have hiso := hSiso s hs hsh
-      refine hiso.mono_weight (fun m hm m' hm' hlt => ?_) fun x hx y hy hxy => ?_
-      · rw [hw', hw']; exact mul_add_lt_mul_add hlt (hsmall hm')
-      · rw [hw', hw'] at hxy
-        exact hiso.2.1 hx hy
-          (eq_of_mul_add_eq (hsmall (hiso.1 hx)) (hsmall (hiso.1 hy)) hxy).1
+      exact hiso.mono_weight
+        (fun m _ m' hm' hlt => by simpa only [hw'] using mul_add_lt_mul_add hlt (hsmall hm'))
+        fun x hx y hy hxy => hiso.2.1 hx hy
+          (eq_of_mul_add_eq (hsmall (hiso.1 hx)) (hsmall (hiso.1 hy)) (by rwa [hw', hw'] at hxy)).1
     refine ⟨a' :: a, by rw [List.length_cons, hlen], List.forall_mem_cons.2 ⟨ha'p, hap⟩,
       fun s hs hsh => ?_⟩
     rcases Nat.lt_or_ge s.height (h + 1) with hlt | hge

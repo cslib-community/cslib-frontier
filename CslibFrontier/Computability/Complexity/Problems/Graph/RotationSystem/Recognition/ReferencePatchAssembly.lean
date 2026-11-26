@@ -276,9 +276,8 @@ private theorem free_route_first_germ {I : FixedRotationInput}
     (free_route e (z :: zs) left middle right).germ false =
       left z - ((referenceDrawing I).route e).start := by
   have heval (t : ℝ) : (free_route e (z :: zs) left middle right).eval 0 t =
-      AffineMap.lineMap ((referenceDrawing I).route e).start (left z) t := by
-    rw [free_route, Route.eval_foldl_append_line]
-    rfl
+      AffineMap.lineMap ((referenceDrawing I).route e).start (left z) t :=
+    Route.eval_foldl_append_line _ _ _ 0 t
   simpa only [Route.eval, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one,
     Route.germ, Route.start, Bool.false_eq_true, ↓reduceIte, Fin.castSucc_zero]
     using congrArg₂ (· - ·) (heval 1) (heval 0)
@@ -608,18 +607,16 @@ private theorem free_route_word_support {I : FixedRotationInput}
       ((referenceDrawing I).route e).support ∪ ⋃ z ∈ C, Metric.ball z (ρ z) := by
   let D := referenceDrawing I
   let S := (D.route e).support ∪ ⋃ z ∈ C, Metric.ball z (ρ z)
-  have hOldConvex : Convex ℝ (D.route e).support :=
-    (Route.support_line (D.route e).start (D.route e).finish).symm ▸ convex_segment _ _
-  have hOldStart : (D.route e).start ∈ (D.route e).support :=
-    (Route.support_line (D.route e).start (D.route e).finish).symm ▸ left_mem_segment ℝ _ _
-  have hOldFinish : (D.route e).finish ∈ (D.route e).support :=
-    (Route.support_line (D.route e).start (D.route e).finish).symm ▸ right_mem_segment ℝ _ _
+  have hOld := (Route.support_line (D.route e).start (D.route e).finish).symm
+  have hOldConvex : Convex ℝ (D.route e).support := hOld ▸ convex_segment _ _
+  have hOldStart : (D.route e).start ∈ (D.route e).support := hOld ▸ left_mem_segment ℝ _ _
+  have hOldFinish : (D.route e).finish ∈ (D.route e).support := hOld ▸ right_mem_segment ℝ _ _
   have hLeftOld (z : ι) : left z ∈ (D.route e).support := hleft z ▸ hOldConvex.lineMap_mem
     hOldStart hOldFinish ⟨(hmargins z).1.le, ((hmargins z).2.1.trans (hmargins z).2.2).le⟩
   have hRightOld (z : ι) : right z ∈ (D.route e).support := hright z ▸ hOldConvex.lineMap_mem
     hOldStart hOldFinish ⟨((hmargins z).1.trans (hmargins z).2.1).le, (hmargins z).2.2.le⟩
   have hold {x y : ℂ} (hx : x ∈ (D.route e).support) (hy : y ∈ (D.route e).support) :
-      segment ℝ x y ⊆ S := (hOldConvex.segment_subset hx hy).trans fun _ h => Or.inl h
+      segment ℝ x y ⊆ S := (hOldConvex.segment_subset hx hy).trans Set.subset_union_left
   cases L with
   | nil => exact fun _ hw => Or.inl hw
   | cons z zs =>
@@ -980,8 +977,7 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
     raw_first_embedding := fun e he q => by
       have hFe : F e = false := he
       have hraw_seg (z : Z e) : (R (site e z) (occurrence e z)).segments = 2 := by
-        simp only [R, occurrence, hFe, Bool.false_eq_true, ↓reduceIte]
-        rfl
+        simp only [R, occurrence, hFe, Bool.false_eq_true, ↓reduceIte]; rfl
       dsimp only [D', Q]
       generalize F e = b at hFe ⊢
       subst hFe
@@ -991,7 +987,6 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
   dsimp only
   intro e
   cases hf : F e <;> cases hL : L e <;>
-    dsimp only [F] at hf <;>
     simp only [D', Q, free_route, F, D, site, occurrence, cutα, cutβ, left, middle,
       right, hf, hL, Bool.false_eq_true, ↓reduceIte]; rfl
 

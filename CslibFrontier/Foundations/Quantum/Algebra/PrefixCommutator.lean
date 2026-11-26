@@ -238,15 +238,6 @@ theorem average_prefixCommutatorDefect_le {Q : Type*} [Fintype Q] [Nonempty Q] {
   let pos (j : Fin i.val) : Fin k := j.castLT (j.isLt.trans i.isLt)
   let P (x : Fin k → Q) (j : Fin i.val) := pairCommutatorDefect φ (M (x i)) (M (x (pos j)))
   let C (x : Fin k → Q) (j : Fin i.val) := copyDefect φ (M (x (pos j))) (R (x (pos j)))
-  have hp (j : Fin i.val) :
-      (𝔼 x : Fin k → Q, P x j) = 𝔼 x : Q, 𝔼 y : Q, pairCommutatorDefect φ (M x) (M y) := by
-    have hj : i ≠ pos j := fun he => (Nat.ne_of_gt j.isLt) (congrArg Fin.val he)
-    exact Fintype.expect_apply_pair (fun x y => pairCommutatorDefect φ (M x) (M y)) hj
-  have hcopy' (j : Fin i.val) :
-      (𝔼 x : Fin k → Q, C x j) = 𝔼 x : Q, copyDefect φ (M x) (R x) := by
-    simpa only [C, Function.update_self, Fintype.expect_const] using
-      (Fintype.expect_expect_update
-        (fun x : Fin k → Q => copyDefect φ (M (x (pos j))) (R (x (pos j)))) (pos j)).symm
   calc
     _ ≤ 𝔼 x : Fin k → Q, ((i.val : ℝ) * ∑ j, (2 * P x j + 8 * C x j)) := by
       refine expect_le_expect fun x _ => ?_
@@ -259,7 +250,11 @@ theorem average_prefixCommutatorDefect_le {Q : Type*} [Fintype Q] [Nonempty Q] {
       simp only [← Finset.mul_expect, Finset.expect_sum_comm, Finset.expect_add_distrib]
     _ ≤ (i.val : ℝ) * ∑ _j : Fin i.val, (2 * χ + 8 * ζ) := by
       refine mul_le_mul_of_nonneg_left (sum_le_sum fun j _ => ?_) (by positivity)
-      rw [hp, hcopy']
+      have hp := Fintype.expect_apply_pair (fun x y => pairCommutatorDefect φ (M x) (M y))
+        (i := i) (j := pos j) (fun he => j.isLt.ne' (congrArg Fin.val he))
+      have hc' := Fintype.expect_expect_update (fun x : Fin k → Q => C x j) (pos j)
+      simp only [C, Function.update_self, Fintype.expect_const] at hc'
+      dsimp only [P, C]
       linarith
     _ = _ := by simp only [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, pow_two, mul_assoc]
 

@@ -236,8 +236,7 @@ private theorem length_filter_prefixOrder {xs : List α} {k : α} (h_nodup : xs.
     rw [List.length_drop] at hj
     have hj_lt_L : i + j + 1 < L_i.length := by omega
     have hLj : L_i[i + j + 1] = (xs.drop i)[j] := by
-      rw [List.getElem_drop, List.getElem_insertIdx_of_gt (by omega)]
-      rfl
+      rw [List.getElem_drop, List.getElem_insertIdx_of_gt (by omega)]; rfl
     simp only [p, decide_eq_true_eq, ← hLj, ← hLi,
       prefixOrder_lt_getElem_iff h_nodup_i (i + j + 1) i hj_lt_L hi_lt]
     omega
@@ -271,10 +270,9 @@ theorem rank_lowerBound_infinite [Infinite α]
       (fun a b => by simp [progOracles]) h_sorted_i]
     simpa [xs, List.filter_map, Function.comp_def] using
       length_filter_prefixOrder h_nodup hk i (hi_le i)
-  have h_inj : Function.Injective (fun i => (rankProg k tree).eval (progOracles i)) :=
-    fun i j h => Fin.ext ((eval_eq i).symm.trans (h.trans (eval_eq j)))
   obtain ⟨i, hi⟩ := FreeM.exists_countQueries_ge_clog 2 LEQuery.cardResponse_le_two
-    (rankProg k tree) progOracles (by omega) h_inj
+    (rankProg k tree) progOracles (by omega)
+    fun i j h => Fin.ext ((eval_eq i).symm.trans (h.trans (eval_eq j)))
   exact ⟨k, progOracles i, hi⟩
 
 /-- **Comparison lower bound for B-tree rank (`Cslib.Query.LowerBound`).** Any `IsRank` program on
@@ -294,8 +292,7 @@ theorem IsRank.lowerBound_infinite [Infinite α] [Nonempty β]
     hmap ▸ List.nodup_range.map (Infinite.natEmbedding α).injective
   have hsize : tree.size = n := by simp [← length_toList, tree, l]
   obtain ⟨k, oracle, hi⟩ := rank_lowerBound_infinite h_corr tree hnodup
-  rw [hsize] at hi
-  exact ⟨(tree, k), hsize.le, oracle, hi⟩
+  exact ⟨(tree, k), hsize.le, oracle, hsize ▸ hi⟩
 
 /-- **Comparison lower bound for B-tree rank over well-formed inputs (`WFInput`).** When `2 ≤ t`,
 any `IsRank` program restricted to well-formed B-trees of minimum degree `t` (`WFInput α β t`,
@@ -313,20 +310,18 @@ theorem IsRank.lowerBound_wfInput_infinite [LinearOrder α] [Infinite α] [Nonem
   have hnodup_sorted : sortedKeys.Nodup :=
     (List.mergeSort_perm rawKeys _).nodup_iff.mpr
       (List.Nodup.map (Infinite.natEmbedding α).injective List.nodup_range)
-  have hle_sorted : sortedKeys.Pairwise (· ≤ ·) := by
-    simpa using List.pairwise_mergeSort' (· ≤ ·) rawKeys
   have hlt_sorted : sortedKeys.Pairwise (· < ·) :=
-    (hle_sorted.and hnodup_sorted).imp fun h => h.1.lt_of_ne h.2
+    ((List.pairwise_mergeSort' (· ≤ ·) rawKeys).and hnodup_sorted).imp
+      fun h => h.1.lt_of_ne h.2
   let l : List (α × β) := sortedKeys.map fun x => (x, v)
   have hl_map : l.map Prod.fst = sortedKeys := by simp [l, Function.comp_def]
-  have hl_sorted : l.IsSortedAssoc := by rwa [List.isSortedAssoc_iff_pairwise, hl_map]
   let tree : BTree α β := ofSortedList t l
-  have hwf : IsWF t tree := isWF_ofSortedList ht hl_sorted
+  have hwf : IsWF t tree :=
+    isWF_ofSortedList ht (List.isSortedAssoc_iff_pairwise.mpr (hl_map ▸ hlt_sorted))
   have hnodup_tree : (tree.toList.map Prod.fst).Nodup := by rwa [toList_ofSortedList, hl_map]
   have hsize : tree.size = n := by simp [← length_toList, tree, l, sortedKeys, rawKeys]
   obtain ⟨k, oracle, hi⟩ := rank_lowerBound_infinite h_corr tree hnodup_tree
-  rw [hsize] at hi
-  exact ⟨⟨(tree, k), hwf⟩, hsize.le, oracle, hi⟩
+  exact ⟨⟨(tree, k), hwf⟩, hsize.le, oracle, hsize ▸ hi⟩
 
 end LowerBound
 

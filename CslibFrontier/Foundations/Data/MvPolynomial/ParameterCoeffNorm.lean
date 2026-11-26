@@ -9,20 +9,53 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.MvPolynomial.CoeffNorm1
 public import CslibFrontier.Foundations.Data.Polynomial.CoeffNorm1
+public import Mathlib.Algebra.MvPolynomial.Equiv
 import CslibFrontier.Foundations.Data.MvPolynomial.CoeffSumBounds
+import CslibFrontier.Foundations.Data.MvPolynomial.Substitution
+import Mathlib.Algebra.BigOperators.Group.Finset.Sigma
 
 /-!
-# Coefficient norm with one integer polynomial parameter
+# Coefficient norms with polynomial parameters
 
 Sum the ordinary integer polynomial coefficient norms over the outer monomials. This gives
 arithmetic bounds used in the pure-power residue estimate. Constant promotion preserves the
-integer multivariate coefficient norm.
+integer multivariate coefficient norm. With multivariate coefficients, the sum of the
+individual coefficient norms equals the norm after joining the variable blocks.
 
 Adapted from `LeanCanny.CountingHierarchy.ParameterMass` at lean-canny commit
 `970f28a5ecefc1327402ade16c068aa4b1b2c183`.
 -/
 
 public section
+
+namespace MvPolynomial
+
+/-- Joining two variable blocks preserves the sum of their nested integer coefficient norms. -/
+theorem coeffNorm1_sumRingEquiv_symm {ι κ : Type*}
+    (p : MvPolynomial ι (MvPolynomial κ ℤ)) :
+    ((sumRingEquiv ℤ ι κ).symm p).coeffNorm1 = ∑ m ∈ p.support, (p.coeff m).coeffNorm1 := by
+  classical
+  let q := (sumRingEquiv ℤ ι κ).symm p
+  have hcoeff (a : ι →₀ ℕ) (b : κ →₀ ℕ) : q.coeff (a.sumElim b) = (p.coeff a).coeff b := by
+    simpa only [q, RingEquiv.apply_symm_apply] using (coeff_coeff_sumRingEquiv q a b).symm
+  let e : (Σ _ : ι →₀ ℕ, κ →₀ ℕ) ≃ (ι ⊕ κ →₀ ℕ) :=
+    (Equiv.sigmaEquivProd _ _).trans Finsupp.sumFinsuppEquivProdFinsupp.symm
+  symm
+  change (∑ m ∈ p.support, (p.coeff m).coeffNorm1) = q.coeffNorm1
+  unfold coeffNorm1
+  rw [Finset.sum_sigma']
+  refine Finset.sum_equiv e ?_ ?_
+  · rintro ⟨a, b⟩
+    change _ ↔ a.sumElim b ∈ q.support
+    simp only [Finset.mem_sigma, mem_support_iff, hcoeff]
+    refine ⟨And.right, fun hb => ⟨?_, hb⟩⟩
+    intro hz
+    exact hb (by rw [hz]; rfl)
+  · rintro ⟨a, b⟩ _
+    change ((p.coeff a).coeff b).natAbs = (q.coeff (a.sumElim b)).natAbs
+    rw [hcoeff]
+
+end MvPolynomial
 
 namespace MvPolynomial.ParameterCoeffNorm
 
@@ -105,12 +138,9 @@ theorem mul_le (p q : MvPolynomial ι (Polynomial ℤ)) : norm (p * q) ≤ norm 
     Polynomial.coeffNorm1_mul_le p q
 
 /-- Powers satisfy the corresponding coefficient norm bound. -/
-theorem pow_le (p : MvPolynomial ι (Polynomial ℤ)) (n : ℕ) : norm (p ^ n) ≤ norm p ^ n := by
-  induction n with
-  | zero => simp
-  | succ n ih =>
-    rw [pow_succ, pow_succ]
-    exact (mul_le _ _).trans (Nat.mul_le_mul_right _ ih)
+theorem pow_le (p : MvPolynomial ι (Polynomial ℤ)) (n : ℕ) : norm (p ^ n) ≤ norm p ^ n :=
+  sum_pow_le_of_submultiplicative Polynomial.coeffNorm1_zero Polynomial.coeffNorm1_one.le
+    Polynomial.coeffNorm1_add_le Polynomial.coeffNorm1_mul_le p n
 
 /-- A finite product has norm at most the product of the norms. -/
 theorem prod_le {J : Type*} (s : Finset J) (p : J → MvPolynomial ι (Polynomial ℤ)) :

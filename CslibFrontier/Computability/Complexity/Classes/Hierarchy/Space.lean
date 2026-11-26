@@ -193,8 +193,7 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
   obtain ⟨dg, hg⟩ := hg.exists_computableTidilyInTimeAndSpace
   obtain ⟨k, h⟩ := hc.ite (hU.restrict _) (hg.restrict _)
   have e : (fun x => if tinyDesc x then ((Diagonal.verdict ∘ budgetedUniversal) ∘
-      universalInput G) x else false) = spaceDiagonal G := by
-    ext x
+      universalInput G) x else false) = spaceDiagonal G := funext fun x => by
     by_cases hx : tinyDesc x <;> simp [spaceDiagonal, universalInput, hx, tinyCut_of_tinyDesc]
   rw [e] at h
   -- the sizes of the pieces, up to constants, in `G n + log₂ n`
@@ -226,7 +225,6 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
     have hS : (encList encUnary (x.map eBit)).length ≤ (x.map eBit).length * (2 * 1 + 1) :=
       length_encList_le _ _ fun b hb => by
         obtain ⟨c, -, rfl⟩ := List.mem_map.mp hb
-        rw [encUnary_apply, List.length_replicate]
         cases c <;> decide
     have hlen : (eInS (universalInput G x)).length + 1 ≤
         (2 * (eDesc (decodeDesc (tinyCut x))).length + 3 * G x.length + 12) * (x.length + 1) := by
@@ -246,13 +244,12 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
 /-- **The diagonal within space `G` decides a problem in `DSPACE G`**, for a space-constructible
 `G` with `log₂ n ≤ G n`. -/
 theorem setOf_spaceDiagonal_mem_DSPACE {G : ℕ → ℕ} (hG : SpaceConstructible G)
-    (hlog : ∀ n, Nat.log2 n ≤ G n) : {x | spaceDiagonal G x = true} ∈ DSPACE encBits G := by
-  obtain ⟨c, t, hc⟩ := computableInTimeAndSpace_spaceDiagonal hG
-  refine mem_DSPACE_iff.mpr ⟨2 * c, c, t, decidableInTimeAndSpace_iff.mpr
-    ⟨spaceDiagonal G, hc.mono (fun _ => le_rfl) fun x => ?_, fun x => Iff.rfl⟩⟩
-  have := hlog x.length
-  simp only [encBits_apply]
-  nlinarith
+    (hlog : ∀ n, Nat.log2 n ≤ G n) : {x | spaceDiagonal G x = true} ∈ DSPACE encBits G :=
+  let ⟨c, t, hc⟩ := computableInTimeAndSpace_spaceDiagonal hG
+  mem_DSPACE_iff.mpr ⟨2 * c, c, t, decidableInTimeAndSpace_iff.mpr
+    ⟨spaceDiagonal G, hc.mono (fun _ => le_rfl) fun x => by
+      have := hlog x.length
+      simp only [encBits_apply]; nlinarith, fun _ => Iff.rfl⟩⟩
 
 open Diagonal in
 /-- On a tiny padded description, the diagonal within space `G` negates the answer of a machine
@@ -298,9 +295,8 @@ theorem setOf_spaceDiagonal_notMem_DSPACE {f G : ℕ → ℕ} (hlog : ∀ n, 4 *
     from this (List.replicate _ false) (List.length_replicate ..).ge
   intro pad hpad
   have hpow := Nat.one_le_two_pow (n := 2 ^ (eDesc (desc eS eBit tm)).length)
-  have hlen : (frame (eDesc (desc eS eBit tm)) ++ pad).length =
-      2 * (eDesc (desc eS eBit tm)).length + 1 + pad.length := by
-    rw [List.length_append, length_frame]
+  have hlen := (List.length_append ..).trans
+    (congrArg (· + pad.length) (length_frame (eDesc (desc eS eBit tm))))
   have htiny : tinyDesc (frame (eDesc (desc eS eBit tm)) ++ pad) = true :=
     tinyDesc_frame_append (by omega)
   generalize hx : frame (eDesc (desc eS eBit tm)) ++ pad = x at hlen htiny
@@ -314,9 +310,7 @@ theorem setOf_spaceDiagonal_notMem_DSPACE {f G : ℕ → ℕ} (hlog : ∀ n, 4 *
   have hclock : (x.length + 2) * storageBound Bool State k s ≤ 2 ^ G x.length := by
     have hx2 : x.length + 2 ≤ 2 ^ (Nat.log2 x.length + 2) := by
       have := Nat.lt_log2_self (n := x.length)
-      rw [pow_add]
-      omega
-    have hb : base ≤ 2 ^ base := Nat.lt_two_pow_self.le
+      rw [pow_add]; omega
     have hes : 4 * (e * s) ≤ 4 * e * (c₁ + c₂) * f x.length + 4 * e * (c₁ + c₂) :=
       (Nat.mul_le_mul_left 4 (Nat.mul_le_mul_left e hsf)).trans_eq (by ring)
     have hy : 4 * e * (c₁ + c₂) * f x.length ≤
@@ -325,7 +319,7 @@ theorem setOf_spaceDiagonal_notMem_DSPACE {f G : ℕ → ℕ} (hlog : ∀ n, 4 *
         ≤ 2 ^ (Nat.log2 x.length + 2) * (base * 2 ^ (e * s)) :=
           Nat.mul_le_mul hx2 (storageBound_le_base_mul_pow s)
       _ ≤ 2 ^ (Nat.log2 x.length + 2) * (2 ^ base * 2 ^ (e * s)) :=
-          Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hb)
+          Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ Nat.lt_two_pow_self.le)
       _ = 2 ^ (Nat.log2 x.length + 2 + base + e * s) := by rw [pow_add, pow_add, pow_add]; ring
       _ ≤ 2 ^ G x.length := Nat.pow_le_pow_right (by norm_num) (by omega)
   obtain ⟨hhalt, hout⟩ := hrun.of_card.runFrom_of_le hclock
@@ -381,10 +375,11 @@ theorem DSPACE_log2_pow_ssubset_DSPACE_log2_pow_succ (k : ℕ) :
 /-- **Logarithmic space is strictly within space `log² n`**: `L = DSPACE (log₂ n)`, and the
 diagonal within space `4 * log₂ n ^ 2` separates them [Sipser, Corollary 9.4][Sipser2013]. -/
 theorem L_ssubset_DSPACE_log2_sq : L encBits ⊂ DSPACE encBits (Nat.log2 · ^ 2) := by
-  rw [show L encBits = DSPACE encBits Nat.log2 from Set.ext fun _ => mem_L_iff_mem_DSPACE]
-  refine DSPACE_ssubset_DSPACE (spaceConstructible_log2_pow 1)
-    (fun n => Nat.le_self_pow (by omega) _) fun c => ?_
-  simpa using eventually_mul_log2_pow_add_le 1 c
+  have hL : L encBits = DSPACE encBits Nat.log2 := Set.ext fun _ => mem_L_iff_mem_DSPACE
+  rw [hL]
+  exact DSPACE_ssubset_DSPACE (spaceConstructible_log2_pow 1)
+    (fun _ => Nat.le_self_pow two_ne_zero _) fun c => by
+      simpa using eventually_mul_log2_pow_add_le 1 c
 
 /-- **Logarithmic space is strictly within polynomial space**: `L ⊂ DSPACE (log₂ n ^ 2)`, which is
 within `PSPACE`. This is the deterministic part of [Sipser, Corollary 9.6][Sipser2013], which
@@ -399,10 +394,8 @@ theorem L_ssubset_PSPACE : L encBits ⊂ PSPACE encBits :=
 theorem eventually_mul_pow_add_le_succ_pow (k c : ℕ) :
     ∀ᶠ n in atTop, c * n ^ k + c ≤ (n + 1) ^ (k + 1) := by
   filter_upwards [eventually_ge_atTop (2 * c)] with n hc
-  have h₁ : n ^ k ≤ (n + 1) ^ k := Nat.pow_le_pow_left (Nat.le_succ n) k
-  have h₂ : 1 ≤ (n + 1) ^ k := Nat.one_le_pow _ _ (by omega)
-  have e : (n + 1) ^ (k + 1) = (n + 1) ^ k * (n + 1) := pow_succ ..
-  nlinarith
+  rw [pow_succ]
+  nlinarith [Nat.pow_le_pow_left (Nat.le_succ n) k, Nat.one_le_pow k (n + 1) (Nat.succ_pos n)]
 
 /-- **Polynomial space has a strict hierarchy**: `DSPACE (n ^ k) ⊂ DSPACE (n ^ (k + 1))`
 [Sipser, Corollary 9.5][Sipser2013]. The diagonal within space `4 * (n + 1) ^ (k + 1)` separates

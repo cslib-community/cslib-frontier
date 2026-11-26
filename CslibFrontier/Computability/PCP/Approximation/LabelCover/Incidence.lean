@@ -146,17 +146,16 @@ theorem unsatVal_contradiction (a b : α) (hab : a ≠ b) :
   have hcount (τ : ℕ → (α × α) × α) :
       1 ≤ (contradiction a b).edges.countP
         (fun d => !projectionEval d.constraint (τ d.src) (τ d.dst)) := by
-    have hnot : ¬(a = (τ 0).2 ∧ b = (τ 0).2) := fun h => hab (h.1.trans h.2.symm)
-    by_cases ha : a = (τ 0).2 <;> by_cases hb : b = (τ 0).2 <;>
-      simp [contradiction, projectionEval, ha, hb] at *
+    by_cases ha : a = (τ 0).2
+    · simp [contradiction, projectionEval, ha, Ne.symm (ha ▸ hab)]
+    · simp [contradiction, projectionEval, ha]
   refine le_antisymm ?_ ((ConstraintGraph.le_unsatVal_iff _).2 fun τ => ?_)
   · have h := ((contradiction a b).toGraph projectionEval).unsatVal_le fun _ => ((a, a), a)
     rw [Graph.unsatFrac_toGraph] at h
     simpa [contradiction, projectionEval, hab, hab.symm] using h
-  · have hlen : ((contradiction a b).edges.length : ℝ) = 2 := by simp [contradiction]
-    rw [Graph.unsatFrac_toGraph, hlen]
-    exact (div_le_div_iff_of_pos_right (by norm_num : (0 : ℝ) < 2)).2
-      (Nat.one_le_cast.mpr (hcount τ))
+  · rw [Graph.unsatFrac_toGraph]
+    simpa [contradiction] using
+      (div_le_div_iff_of_pos_right (zero_lt_two' ℝ)).2 (Nat.one_le_cast.mpr (hcount τ))
 
 private theorem count_violations_le_incidence (pairs : List (α × α)) (fallback : α × α)
     (g : Graph (α → α → Bool))
@@ -171,16 +170,13 @@ private theorem count_violations_le_incidence (pairs : List (α × α)) (fallbac
     rw [← List.countP_map, List.zipIdx_map_fst]
   rw [hcnt, incidence, List.countP_flatMap]
   refine List.countP_le_sum_map fun ⟨d, i⟩ hdi hbad => ?_
-  have hgood := satisfies_repair pairs fallback (hR d (List.fst_mem_of_mem_zipIdx hdi))
-    ((τ i).1)
-  have hnotboth : ¬((repair pairs fallback d.constraint (τ i).1).1 = (τ d.src).2 ∧
-      (repair pairs fallback d.constraint (τ i).1).2 = (τ d.dst).2) := by
-    rintro ⟨h₁, h₂⟩
-    rw [h₁, h₂] at hgood
-    simp [hgood] at hbad
-  by_cases h₁ : (repair pairs fallback d.constraint (τ i).1).1 = (τ d.src).2 <;>
-    by_cases h₂ : (repair pairs fallback d.constraint (τ i).1).2 = (τ d.dst).2 <;>
-    simp [block, projectionEval, h₁, h₂] at *
+  by_cases h₁ : (repair pairs fallback d.constraint (τ i).1).1 = (τ d.src).2
+  · have h₂ : (repair pairs fallback d.constraint (τ i).1).2 ≠ (τ d.dst).2 := fun h₂ => by
+      have hgood := satisfies_repair pairs fallback (hR d (List.fst_mem_of_mem_zipIdx hdi)) (τ i).1
+      rw [h₁, h₂] at hgood
+      simp [hgood] at hbad
+    simp [block, projectionEval, h₁, h₂]
+  · simp [block, projectionEval, h₁]
 
 /-- Every labelling of the incidence graph decodes to a source labelling with at most twice its
 violated fraction. The label of each source vertex is the right component of the target label. -/
@@ -354,8 +350,8 @@ private def dinurPairs : List ((Bool × (Fin 6 → Bool)) × (Bool × (Fin 6 →
   dinurAlphabet.flatMap fun a => dinurAlphabet.map fun b => (a, b)
 
 private theorem mem_dinurPairs (p : (Bool × (Fin 6 → Bool)) × (Bool × (Fin 6 → Bool))) :
-    p ∈ dinurPairs := by
-  exact List.mem_flatMap.mpr ⟨p.1, mem_dinurAlphabet _, List.mem_map.mpr
+    p ∈ dinurPairs :=
+  List.mem_flatMap.mpr ⟨p.1, mem_dinurAlphabet _, List.mem_map.mpr
     ⟨p.2, mem_dinurAlphabet _, rfl⟩⟩
 
 /-- Label Cover with left alphabet of `128²` symbols and right alphabet of `128` symbols is

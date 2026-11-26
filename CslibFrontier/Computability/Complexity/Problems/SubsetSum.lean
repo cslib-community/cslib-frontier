@@ -458,8 +458,7 @@ theorem counts_iff_satisfiable (hφ : ∀ c ∈ φ, c.length ≤ 3) :
       have h₂ : 2 ≤ #{a ∈ A | a.1 = i} := by
         calc 2 = #({(i, true), (i, false)} : Finset (ℕ × Bool)) := by simp
           _ ≤ _ := card_le_card fun a ha => by
-            simp only [mem_insert, mem_singleton] at ha
-            rcases ha with rfl | rfl <;> simpa
+            rcases mem_insert.1 ha with rfl | ha <;> simp_all
       have := hvar i hi
       lia
     refine ⟨fun v => decide ((φ.distinctVars.idxOf v, true) ∈ A),
@@ -479,10 +478,8 @@ theorem counts_iff_satisfiable (hφ : ∀ c ∈ φ, c.length ≤ 3) :
     -- Choose the true literal of each variable, then fill each clause position with slack.
     set b : ℕ → Bool := fun i => σ (φ.distinctVars.getD i 0) with hb
     set A : Finset (ℕ × Bool) := (range φ.distinctVars.length).image fun i => (i, b i) with hA
-    have hmemA : ∀ a, a ∈ A ↔ a.1 < φ.distinctVars.length ∧ a.2 = b a.1 := by
-      rintro ⟨i, c⟩
-      simp only [hA, mem_image, mem_range, Prod.mk.injEq]
-      grind
+    have hmemA : ∀ a, a ∈ A ↔ a.1 < φ.distinctVars.length ∧ a.2 = b a.1 := fun ⟨i, c⟩ => by
+      simp [hA, eq_comm]
     set cnt : ℕ → ℕ := fun j => #{a ∈ A | covers φ a.1 a.2 j} with hcnt
     set B : Finset (ℕ × Bool) := (range φ.length ×ˢ univ).filter
       (fun c => cnt c.1 + (!c.2).toNat ≤ 2) with hB
@@ -505,9 +502,7 @@ theorem counts_iff_satisfiable (hφ : ∀ c ∈ φ, c.length ≤ 3) :
       have hBj : ({c ∈ B | c.1 = j} : Finset (ℕ × Bool)) =
           ({c ∈ (univ : Finset Bool) | cnt j + (!c).toNat ≤ 2}).image (Prod.mk j) := by
         ext ⟨j', c⟩
-        rcases eq_or_ne j j' with rfl | h
-        · simp [hB, hj]
-        · simp [hB, h, h.symm]
+        by_cases h : j' = j <;> simp [hB, hj, h, Ne.symm]
       change cnt j + _ = 3
       rw [hBj, card_image_of_injective _ (Prod.mk_right_injective j),
         card_filter _ (univ : Finset Bool), Fintype.sum_bool]

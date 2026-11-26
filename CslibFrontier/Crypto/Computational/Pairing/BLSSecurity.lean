@@ -645,13 +645,9 @@ private theorem interpret_handler_blsNative_eq_decoded (P : DecodablePairingGrou
     (congrArg Nat.cast (Turing.MultiTapeTM.Decoder.nat.decode_enc α.val)).trans
       (ZMod.natCast_zmod_val α)
   induction prog using OracleComp.induction generalizing state with
-  | pure a =>
-    simp only [OracleComp.interpret_pure, StateT.run_pure]
+  | pure a => rfl
   | query_bind q cont ih =>
-    change (OracleComp.interpret (handler (P.blsNativeROMScheme n d)
-      (P.G₁.toFamily.encScalar d α)) (OracleComp.query q >>= cont)).run state =
-      (OracleComp.interpret (handler (P.toPairingGroupFamily.blsTypedROMScheme d) α)
-        (OracleComp.interpret _ (OracleComp.query q >>= cont))).run state
+    rw [PFunctor.FreeM.bind_eq_bind]
     cases q with
     | inl m =>
       simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
@@ -669,8 +665,7 @@ private theorem interpret_handler_blsNative_eq_decoded (P : DecodablePairingGrou
         PMF.monad_bind_eq_bind]
       dsimp only [StateT.run, OracleComp.sumHandler_inr]
       simp only [PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.pure_bind]
-      refine PMF.bind_congr_on_support _ _ _ fun r _ => ?_
-      exact ih r.1 (r.2, state.2)
+      exact PMF.bind_congr_on_support _ _ _ fun r _ => ih r.1 (r.2, state.2)
 
 private theorem succProbability_eufCmaGame_blsNativeROMScheme_le
     (P : DecodablePairingGroupFamily) (n : ℕ) (d : P.G₀.Desc) [Fintype (P.G₀.Carrier d)]
@@ -693,16 +688,17 @@ private theorem succProbability_eufCmaGame_blsNativeROMScheme_le
           (blsDecodedForger P d A)) := by
     apply Game.succProbability_mono
     unfold eufCmaGame
-    rw [show idealScheme.keyGen = P.G₁.toFamily.schnorrIdealKeyGen d from rfl]
+    have hkg : idealScheme.keyGen = P.G₁.toFamily.schnorrIdealKeyGen d := rfl
+    rw [hkg]
     dsimp only [PrimeOrderGroupFamily.schnorrIdealKeyGen,
       PairingGroupFamily.blsTypedROMScheme, blsDecodedForger,
       PrimeOrderGroupFamily.Companion.toFamily]
     simp only [PMF.monad_bind_eq_bind, PMF.bind_map]
     refine PMF.bind_apply_mono_on_support _ _ fun α _ =>
       PMF.bind_apply_mono_on_support _ _ fun s _ => ?_
+    have hhand : handler idealScheme = handler (P.blsNativeROMScheme n d) := rfl
     dsimp only
-    rw [show handler idealScheme = handler (P.blsNativeROMScheme n d) from rfl,
-      interpret_handler_blsNative_eq_decoded]
+    rw [hhand, interpret_handler_blsNative_eq_decoded]
     simp only [OracleComp.interpret_map, StateT.run_map, PMF.monad_map_eq_map, PMF.bind_map]
     refine PMF.bind_apply_mono_on_support _ _ fun forged _ => ?_
     dsimp only [idealScheme, blsNativeROMScheme, PairingGroupFamily.blsTypedROMScheme]
@@ -719,8 +715,8 @@ private theorem succProbability_eufCmaGame_blsNativeROMScheme_le
       obtain ⟨⟨helem, hpair⟩, hfresh⟩ := hwin1
       obtain ⟨σ', hdec, hσ⟩ := P.toDecodableG₀.exists_decode_eq_some_of_isElem helem
       let σ : P.G₀.Carrier d := σ'
-      have hσ' : P.G₀.encode d σ = forged.1.2 := hσ
-      rw [← hσ', P.pairEncoded_encode, P.pairEncoded_encode,
+      change P.G₀.encode d σ = _ at hσ
+      rw [← hσ, P.pairEncoded_encode, P.pairEncoded_encode,
         (P.GT.encode_injective d).eq_iff] at hpair
       change P.decode₀ d forged.1.2 = some σ at hdec
       exact hwin2 (by simp [List.contains_eq_mem, hdec, hpair, hfresh])
@@ -935,9 +931,7 @@ private theorem blsWordBankFinish_eq
       unfold PairingGroupFamily.blsBankedReductionFinish
       cases hfl : tabT.lookup msig.1 <;> simp [sT, hfl]
     rw [hfinT]
-    dsimp only [blsBankWordFinish, caller]
-    rw [hab]
-    simp only [Bool.false_eq_true, ↓reduceIte]
+    simp only [blsBankWordFinish, caller, hab, Bool.false_eq_true, ↓reduceIte]
     have hsel := blsBankSelectSample_eq (P.G₀.order d) msig.1 samples stW tabT countT hrem htab
     have hc : sW.coin = sT.1 := congrArg Prod.fst hsel
     have hre : (sW.exponent : ZMod (P.G₀.order d)) = sT.2 := congrArg Prod.snd hsel

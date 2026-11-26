@@ -166,8 +166,7 @@ theorem isLPRFeasible_zero {N M : Type*} [Fintype N] [Fintype M] [DecidableEq M]
 /-- The indicator of an allocation is a 0–1 vector. -/
 theorem Allocation.indicator_isIntegral {N M : Type*} [DecidableEq M] (a : Allocation N M) :
     IsIntegral a.indicator := fun i S => by
-  unfold Allocation.indicator
-  split_ifs <;> simp
+  by_cases h : S = a.bundle i <;> simp [Allocation.indicator, h]
 
 /-- The indicator of an allocation is LPR-feasible. -/
 theorem Allocation.indicator_isLPRFeasible {N M : Type*} [Fintype N] [Fintype M] [DecidableEq M]
@@ -361,8 +360,8 @@ private theorem isLPRFeasible_iff_matrix [DecidableEq N] (x : N → Finset M →
 private theorem isDLPRFeasible_iff_matrix [DecidableEq N]
     (v : N → Finset M → ℝ) (u : N → ℝ) (p : M → ℝ) :
     IsDLPRFeasible v u p ↔
-      0 ≤ Sum.elim p u ∧ Function.uncurry v ≤ Sum.elim p u ᵥ* lprMatrix := by
-  exact ⟨fun h => ⟨fun | .inl j => h.price_nonneg j | .inr i => h.utility_nonneg i,
+      0 ≤ Sum.elim p u ∧ Function.uncurry v ≤ Sum.elim p u ᵥ* lprMatrix :=
+  ⟨fun h => ⟨fun | .inl j => h.price_nonneg j | .inr i => h.utility_nonneg i,
       fun ⟨i, S⟩ => (h.cover i S).trans_eq (vecMul_lprMatrix p u i S).symm⟩,
     fun ⟨hnonneg, hle⟩ =>
       { cover := fun i S => by simpa [vecMul_lprMatrix] using hle (i, S)
@@ -543,15 +542,13 @@ theorem exists_isWalrasianEquilibrium_of_isIntegral {N M : Type*} [Fintype N] [F
     (hx : IsLPROptimal v x) (hint : IsIntegral x) :
     ∃ p : M → ℝ, IsWalrasianEquilibrium v p hx.1.toAllocation ∧
       welfare v hx.1.toAllocation = lprObjective v x := by
-  have hge : lprObjective v x ≤ welfare v hx.1.toAllocation :=
-    hx.1.lprObjective_le_welfare_toAllocation hv hint
-  have hle : welfare v hx.1.toAllocation ≤ lprObjective v x := by
-    simpa only [Allocation.lprObjective_indicator] using
-      hx.2 _ hx.1.toAllocation.indicator_isLPRFeasible
-  have heq : welfare v hx.1.toAllocation = lprObjective v x := le_antisymm hle hge
-  obtain ⟨p, hp⟩ := exists_isWalrasianEquilibrium_of_lprObjective_le fun y hy =>
-    (hx.2 y hy).trans_eq heq.symm
-  exact ⟨p, hp, heq⟩
+  have heq : welfare v hx.1.toAllocation = lprObjective v x :=
+    le_antisymm
+      (by simpa only [Allocation.lprObjective_indicator] using
+          hx.2 _ hx.1.toAllocation.indicator_isLPRFeasible)
+      (hx.1.lprObjective_le_welfare_toAllocation hv hint)
+  exact (exists_isWalrasianEquilibrium_of_lprObjective_le fun y hy =>
+    (hx.2 y hy).trans_eq heq.symm).imp fun _ hp => ⟨hp, heq⟩
 
 /-- Under `∀ i, 0 ≤ v i ∅`, LPR admits a 0–1 optimal solution iff there is an `Allocation` whose
 social welfare dominates every feasible fractional allocation. -/
@@ -617,9 +614,8 @@ theorem welfare_noEquilibriumVal_le (a : Allocation Bool Bool) :
 
 private theorem sum_finset_bool (f : Finset Bool → ℝ) :
     ∑ S : Finset Bool, f S = f ∅ + f {false} + f {true} + f Finset.univ := by
-  rw [show (Finset.univ : Finset (Finset Bool)) = {∅, {false}, {true}, Finset.univ} by decide,
-    Finset.sum_insert (by decide), Finset.sum_insert (by decide), Finset.sum_insert (by decide),
-    Finset.sum_singleton]
+  have huniv : (Finset.univ : Finset (Finset Bool)) = {∅, {false}, {true}, .univ} := by decide
+  simp (disch := decide) only [huniv, Finset.sum_insert, Finset.sum_singleton]
   ring
 
 private noncomputable def noEquilibriumFractional (i : Bool) (S : Finset Bool) : ℝ :=

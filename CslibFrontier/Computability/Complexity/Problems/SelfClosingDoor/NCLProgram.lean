@@ -143,9 +143,8 @@ private theorem local_check {a : Vertex ℕ} (ha : a.ports.length = 3)
   simp [localVertex, hp, Vertex.checkSat, Vertex.Sat, Vertex.inflow, Port.In, ← h0, ← h1, ← h2]
 
 private theorem set_read (s : List Bool) (i : ℕ) (b : Bool) (hi : i < s.length)
-    (hb : s.getD i false = b) : s.set i b = s := by
-  rw [← hb, List.getD_eq_getElem _ _ hi]
-  exact List.set_getElem_self hi
+    (hb : s.getD i false = b) : s.set i b = s :=
+  (List.getD_eq_getElem _ _ hi ▸ hb) ▸ List.set_getElem_self hi
 
 private theorem test_step {p : Program} {a b r : ℕ} {v : Bool} {s : List Bool}
     (hi : test a b r v ∈ p.instructions) (hs : s.length = p.initial.length)
@@ -235,9 +234,8 @@ private theorem good_accept {x : Input} {s : State} (hg : Good x s)
   exact hm ▸ hr
 
 private theorem vertex_mem {x : Input} {v : ℕ} (hv : v < x.graph.vertices.length) :
-    vertex x v ∈ x.graph.vertices := by
-  rw [vertex, List.getD_eq_getElem _ _ hv]
-  exact List.getElem_mem _
+    vertex x v ∈ x.graph.vertices :=
+  show x.graph.vertices.getD v _ ∈ _ from (List.getD_eq_getElem _ _ hv).symm ▸ List.getElem_mem _
 
 private theorem vertex_of_zipIdx {x : Input} {a : Vertex ℕ} {v : ℕ}
     (ha : (a, v) ∈ x.graph.vertices.zipIdx) :
@@ -314,8 +312,7 @@ private theorem branch_good {x : Input} (hx : x.graph.Valid) {v k p : ℕ}
 private theorem set_flip {s : List Bool} {e : ℕ} {b : Bool}
     (he : e < s.length) (hb : s.getD e false = b) :
     s.set e (!b) = s.modify e Bool.not := by
-  have hget : s.get ⟨e, he⟩ = b := (List.getD_eq_get s false ⟨e, he⟩).symm.trans hb
-  rw [List.modify_eq_set_get Bool.not he, hget]
+  rw [List.modify_eq_set_get Bool.not he, (List.getD_eq_get s false ⟨e, he⟩).symm.trans hb]
 
 private theorem flip_good {x : Input} {e : ℕ} {b : Bool}
     (he : e < x.initial.length) {s t : State} (hg : Good x s)
@@ -374,12 +371,11 @@ private theorem raw_sound {x : Input} (hx : x.graph.Valid)
     (ht : x.target.length = x.graph.edgeCount)
     (hinitial : x.graph.graph.Legal (x.graph.config x.initial))
     (h : (raw x).Accepts) : Origin x x.target := by
-  obtain ⟨t, hrun, htarget⟩ := h
-  refine good_accept ?_ htarget
-  clear htarget
-  induction hrun with
-  | refl => exact ⟨rfl, Or.inl ⟨rfl, .refl⟩⟩
-  | tail _ hm ih => exact step_good hx hlen (ht.trans hlen.symm) hinitial ih hm
+  have hg {t} (hrun : (raw x).Reachable (raw x).initialState t) : Good x t := by
+    induction hrun with
+    | refl => exact ⟨rfl, Or.inl ⟨rfl, .refl⟩⟩
+    | tail _ hm ih => exact step_good hx hlen (ht.trans hlen.symm) hinitial ih hm
+  exact h.elim fun _ ⟨hrun, htarget⟩ => good_accept (hg hrun) htarget
 
 private theorem branch_mem {x : Input} {v k p : ℕ}
     (hv : v < x.graph.vertices.length) (hk : k < 8) (hp : p < 3)
@@ -426,13 +422,11 @@ private theorem run_checks {x : Input} (hx : x.graph.Valid)
     (hs : s.length = x.initial.length) (hlegal : x.graph.graph.Legal (x.graph.config s)) :
     (raw x).Reachable ⟨check 0, s⟩ ⟨check x.graph.vertices.length, s⟩ := by
   have hall := List.all_eq_true.1 ((x.graph.checkLegal_eq_true_iff hx.1 s).2 hlegal)
-  suffices ∀ v ≤ x.graph.vertices.length, (raw x).Reachable ⟨check 0, s⟩ ⟨check v, s⟩ from
-    this _ le_rfl
-  intro v hv
-  induction v with
-  | zero => exact .refl
-  | succ v ih =>
-    exact (ih (by omega)).trans (run_vertex hx hlen hs (by omega) (hall _ (vertex_mem (by omega))))
+  have hrun : ∀ v ≤ x.graph.vertices.length, (raw x).Reachable ⟨check 0, s⟩ ⟨check v, s⟩ :=
+    Nat.rec (fun _ => .refl) fun v ih hv =>
+      (ih (Nat.le_of_succ_le hv)).trans
+        (run_vertex hx hlen hs (Nat.lt_of_succ_le hv) (hall _ (vertex_mem (Nat.lt_of_succ_le hv))))
+  exact hrun _ le_rfl
 
 private theorem run_source_step {x : Input} (hx : x.graph.Valid)
     (hlen : x.initial.length = x.graph.edgeCount) {s t : List Bool}
@@ -453,16 +447,13 @@ private theorem run_source_step {x : Input} (hx : x.graph.Valid)
 private theorem run_target {x : Input} (ht : x.target.length = x.initial.length) :
     (raw x).Reachable ⟨0, x.target⟩ ⟨1, x.target⟩ := by
   have hrun : ∀ i ≤ x.target.length,
-      (raw x).Reachable ⟨target x 0, x.target⟩ ⟨target x i, x.target⟩ := by
-    intro i hi
-    induction i with
-    | zero => exact .refl
-    | succ i ih =>
-      have hib : i < x.target.length := by omega
-      refine (ih (by omega)).tail (test_step ?_ ht hib rfl)
-      simp only [raw, List.mem_append]
-      exact Or.inr <| List.mem_map.2 ⟨(x.target.getD i false, i),
-        List.mem_zipIdx_iff_getElem?.2 (by simp [hib]), rfl⟩
+      (raw x).Reachable ⟨target x 0, x.target⟩ ⟨target x i, x.target⟩ :=
+    Nat.rec (fun _ => .refl) fun i ih hi =>
+      (ih (Nat.le_of_succ_le hi)).tail (test_step (by
+        simp only [raw, List.mem_append]
+        exact Or.inr <| List.mem_map.2 ⟨(x.target.getD i false, i),
+          List.mem_zipIdx_iff_getElem?.2 (by simp [Nat.lt_of_succ_le hi]), rfl⟩)
+        ht (Nat.lt_of_succ_le hi) rfl)
   exact ((Relation.ReflTransGen.single
     (jump_step (by simp [raw]) ht)).trans (hrun _ le_rfl)).tail (jump_step (by simp [raw]) ht)
 
@@ -481,10 +472,9 @@ private theorem raw_complete {x : Input} (hx : x.graph.Valid)
   exact ⟨⟨1, x.target⟩, hrun.trans (run_target (ht.trans hlen.symm)), rfl⟩
 
 private theorem reject_not_accepts : ¬ reject.Accepts := by
-  rintro ⟨t, hrun, ht⟩
-  cases hrun with
-  | refl => simp [reject, Program.initialState] at ht
-  | tail _ hm => simp [Program.Step, reject] at hm
+  rintro ⟨_, _ | ⟨_, hm⟩, ht⟩
+  · simp [reject, Program.initialState] at ht
+  · simp [Program.Step, reject] at hm
 
 /-- The compiled finite register program accepts exactly the valid NCL source instances. -/
 theorem compile_accepts_iff (x : AndOrNCL.Instance) :
@@ -563,8 +553,7 @@ private theorem branchInstruction_polyTime (k p : ℕ) :
       encEmission encInstruction := by
   have hi : ComputableInPolyTime (fun q : Input × (Vertex ℕ × ℕ) => q.2.2)
       encEmission encNat := ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
-  have hp := (port_polyTime p).comp (by fun_prop : ComputableInPolyTime
-    (fun q : Input × (Vertex ℕ × ℕ) => q.2.1) encEmission (encVertex encNat))
+  have hp := port_polyTime p
   unfold branchInstruction
   split_ifs <;> fun_prop
 

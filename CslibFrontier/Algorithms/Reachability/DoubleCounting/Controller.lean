@@ -140,20 +140,15 @@ theorem scanNextRound_correct {m : Type → Type} [Monad m] [LawfulMonad m] {n :
     simp only [hstep, Fin.foldlM_pure, foldl_count, Nat.zero_add, card_eq_sum_ones, sum_filter]
   have hstep (a : RoundUpdate) (v : Fin n) :
       scanVertex edge (member k (expected r s k)) k a v = pure (a.addVertex k (p v)) := by
-    rw [scanVertex, hm, pure_bind]
-    simp only [decide_eq_true_eq]
-    by_cases hv : v ∈ round r s k
-    · simp [hv, p, predecessorCount, RoundUpdate.addVertex]
-    · rw [ite_eq_right hv, hpred, pure_bind]
-      simp only [p, predecessorCount, ite_eq_right hv]
+    by_cases hv : v ∈ round r s k <;>
+      simp [scanVertex, hm, hpred, hv, p, predecessorCount, RoundUpdate.addVertex]
   have hfront (v : Fin n) : p v ≠ 0 ↔ v ∈ frontier r w := by
     rw [mem_frontier_iff hpass]
     by_cases hv : v ∈ round r s k
     · simp [p, predecessorCount, hv]
-    · change predecessorCount r s k v ≠ 0 ↔ _
-      rw [predecessorCount, ite_eq_right hv, card_ne_zero]
-      simp only [Finset.Nonempty, mem_filter, mem_univ, true_and, hv, not_false_eq_true, and_true,
-        mem_round, reachableWithin_succ, Set.mem_union, Set.mem_ofPred_eq]
+    · simp only [p, predecessorCount, ↓reduceIte, card_ne_zero, Finset.Nonempty, mem_filter,
+        mem_univ, true_and, hv, not_false_eq_true, and_true, mem_round, reachableWithin_succ,
+        Set.mem_union, Set.mem_ofPred_eq]
       simp only [← mem_round, hv, false_or]
   have hsum : (∑ v, if p v = 0 then 0 else 1) = (frontier r w).card := by
     rw [← show (univ.filter fun v => p v ≠ 0) = frontier r w by ext v; simpa using hfront v,

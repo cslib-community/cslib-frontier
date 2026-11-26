@@ -281,9 +281,8 @@ private theorem lineErrors_le {q Q a ε D δ : ℝ} (hq : 1 < q) (hQ : 1 ≤ Q) 
   -- the second term
   have hterm2 : Q * (Q - 1) * δ / (q - 1) / Q ≤ Q * (D / (q - 1)) := by
     rw [div_div, div_le_iff₀ (by positivity)]
-    have : Q * (Q - 1) * δ ≤ Q * Q * D :=
-      by gcongr; linarith only [hQ]
-    calc Q * (Q - 1) * δ ≤ Q * Q * D := this
+    calc Q * (Q - 1) * δ ≤ Q * Q * D := by
+          gcongr; linarith only [hQ]
       _ = Q * (D / (q - 1)) * ((q - 1) * Q) := by field_simp
   rw [add_div]
   calc 1 + (q * a * (Q - 1) / (μ - D) ^ 2 / Q + Q * (Q - 1) * δ / (q - 1) / Q)
@@ -468,28 +467,22 @@ private theorem kernelVecCost_le (hM : M ≤ q ^ 2) (hq : 1 ≤ q) :
     kernelVecCost q M ≤ 64 * q ^ 5 := by
   unfold kernelVecCost
   have hq0 : 1 ≤ q ^ 2 := Nat.one_le_pow 2 q hq
-  have h1 : q + 1 ≤ 2 * q := by omega
-  have h2 : M + 1 ≤ 2 * q ^ 2 := by omega
-  calc 8 * (q + 1) * (M + 1) ^ 2 ≤ 8 * (2 * q) * (2 * q ^ 2) ^ 2 := by gcongr
+  calc 8 * (q + 1) * (M + 1) ^ 2 ≤ 8 * (2 * q) * (2 * q ^ 2) ^ 2 := by gcongr <;> omega
     _ = 64 * q ^ 5 := by ring
 
 private theorem interpolantCost_le (hM : M ≤ q ^ 2) (hℓ : ℓ ≤ q) (hq : 1 ≤ q) :
     interpolantCost q M ℓ ≤ 150 * q ^ 6 := by
   have hk := kernelVecCost_le hM hq
   have hq0 : 1 ≤ q ^ 2 := Nat.one_le_pow 2 q hq
-  have hℓ1 : ℓ + 1 ≤ 2 * q := by omega
-  have hM1 : M + 1 ≤ 2 * q ^ 2 := by omega
   unfold interpolantCost
   calc
     _ ≤ q * q ^ 2 + (2 * q) * (64 * q ^ 5) + (2 * q) * (2 * q ^ 2) +
-        (2 * (2 * q) + 1) + q ^ 2 * (2 * (2 * q) + 1) := by gcongr
+        (2 * (2 * q) + 1) + q ^ 2 * (2 * (2 * q) + 1) := by gcongr <;> omega
     _ = 128 * q ^ 6 + 9 * q ^ 3 + q ^ 2 + 4 * q + 1 := by ring
     _ ≤ 150 * q ^ 6 := by
-      have hq6 : 1 ≤ q ^ 6 := Nat.one_le_pow 6 q hq
-      have hq16 : q ≤ q ^ 6 := (pow_one q).symm.le.trans (Nat.pow_le_pow_right hq (by decide))
-      have hq26 : q ^ 2 ≤ q ^ 6 := Nat.pow_le_pow_right hq (by decide)
-      have hq36 : q ^ 3 ≤ q ^ 6 := Nat.pow_le_pow_right hq (by decide)
-      omega
+      have hpow (k : ℕ) (hk : k ≤ 6) : q ^ k ≤ q ^ 6 := Nat.pow_le_pow_right hq hk
+      linarith [Nat.one_le_pow 6 q hq, (pow_one q).symm.trans_le (hpow 1 (by decide)),
+        hpow 2 (by decide), hpow 3 (by decide)]
 
 private theorem henselCost_le (hM : M ≤ q ^ 2) (hd : d ≤ q) (hq : 1 ≤ q) :
     henselCost q M d ≤ 25 * q ^ 4 := by

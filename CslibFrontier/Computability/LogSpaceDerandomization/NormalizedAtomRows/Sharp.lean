@@ -56,7 +56,7 @@ theorem stationary_bound {scale : ℝ} (hs : 0 < scale) (hmargin : scale ≤ HP.
   have hηθ : δ ≤ HP.θ := by linarith [threshold_margin HP, HP.η_lt_η₂, HP.η_pos]
   simpa only [stateRootError, mul_assoc] using abs_stationaryState_root_sub_le_weighted_dyadic
     (H := output HP ζ) (p := (4⁻¹ : ℝ)) (C := L)
-    hδ (rank_pos HP) hL (by norm_num : (0 : ℝ) ≤ 0) (by linarith : (0 : ℝ) ≤ δ / 2)
+    hδ (rank_pos HP) hL le_rfl (half_pos hδ).le
     m j hj hno hε herr
     (fun x _ _ hx => entry_zero HP (hx.trans hηθ))
     (fun _ _ _ _ hq hq' => gate_flat HP (hq.2.trans (hδs.trans hmargin))
@@ -163,9 +163,7 @@ theorem sharp_noOverflow {scale : ℝ} (hs : 0 < scale) (hmargin : scale ≤ HP.
   have hact := hfinal s actual.defaultValue truth r loss hfirst hloss εf hεf herrf y hy
   have hr : r + loss = actual.row := funext fun y => funext fun ν => by simp [loss]
   rw [hr] at hact
-  change |stateRootError (output HP ζ) s HP.K actual ref y| ≤ Cf * εf at hact
   have href := hpre s n Δ raw truth m m le_rfl hno ε hε herr y hy
-  change |stateRootError (output HP ζ) s HP.K ref ⟨0, truth⟩ y| ≤ _ at href
   calc
     _ ≤ |stateRootError (output HP ζ) s HP.K actual ref y| + |stateRootError (output HP ζ) s
       HP.K ref ⟨0, truth⟩ y| := abs_sub_le _ _ _
@@ -191,8 +189,8 @@ theorem firstOverflow_bound {scale : ℝ} (hs : 0 < scale) (_hmargin : scale ≤
         (stationaryContinuation s n HP.K (dyadicFloor δ m) Δ ⟨0, raw⟩ truth j (m - j)) y| ≤
         Ctail * ∑ i ∈ Ico j m, 28^(m - i) * ε i := by
   obtain ⟨C, hC, hbound⟩ := relative_bound HP ζ hζ hs hcapscale
-  refine ⟨4 * C, by positivity, ?_⟩
-  intro ι s n Δ raw truth δ hδ hδs m j hj hover hfirst hsecond hn ε hε herr y hy
+  refine ⟨4 * C, by positivity,
+    fun {ι} s n Δ raw truth δ hδ hδs m j hj hover hfirst hsecond hn ε hε herr y hy => ?_⟩
   let ρ := dyadicFloor δ m
   let run := iterate s n (fun _ => HP.K) ρ Δ ⟨0, raw⟩
   let raw₀ := uncompressedRow Δ raw (j + 1)
@@ -207,10 +205,9 @@ theorem firstOverflow_bound {scale : ℝ} (hs : 0 < scale) (_hmargin : scale ≤
     rw [stationaryState_row_sub] at h
     change |loss y ν| ≤ δ / 100 at h
     linarith
-  have hlocalε (i : ℕ) (hi : i ≤ m - j) : 0 ≤ preloadedError ε j i := by
-    cases i with
-    | zero => exact hε j le_rfl hj
-    | succ i => exact hε (j + i) (Nat.le_add_right _ _) (by omega)
+  have hlocalε : ∀ i ≤ m - j, 0 ≤ preloadedError ε j i
+    | 0, _ => hε j le_rfl hj
+    | i + 1, hi => hε (j + i) (Nat.le_add_right _ _) (by omega)
   have hlocalerr (i : ℕ) (hi : i ≤ m - j) (y : ι) (hy : y ∈ s) :
       clippedError (truth y 0) (truth y 1)
         (uncompressedRow (preloadedIncrement Δ j) raw₀ i y) ≤ preloadedError ε j i := by
@@ -233,15 +230,13 @@ theorem firstOverflow_bound {scale : ℝ} (hs : 0 < scale) (_hmargin : scale ≤
   have hz : z ≤ scale := (stationaryState_defaultValue_le_dyadic (s := s) (n := n)
     (K := fun _ => HP.K) (Δ := Δ) (a := ⟨0, raw⟩) (truth := truth)
     hδ.le le_rfl (by dsimp; positivity) m j hj.le hover.1).trans hδs
-  have hlocal := hbound s (fun i => n (j + i)) (fun i => ρ (j + i))
+  have hlocal := hactual ▸ hbound s (fun i => n (j + i)) (fun i => ρ (j + i))
     (preloadedIncrement Δ j) truth raw₀ loss z (m - j) hz hr
     (fun i hi => hn (j + i) (Nat.le_add_right _ _) (by omega))
     (fun i _ => by have h := dyadicFloor_le_scale_div hδ.le m (j + i); dsimp only [ρ]; linarith)
     hfirst hsecond hloss (preloadedError ε j) hlocalε hlocalerr y hy
-  rw [hactual] at hlocal
-  have hbudget := prefixErrorBudget_preloadedError_le j hr
+  have hbudget := hjr ▸ prefixErrorBudget_preloadedError_le j hr
     (fun i hi => hε i (mem_Ico.mp hi).1 (by have := (mem_Ico.mp hi).2; omega))
-  rw [hjr] at hbudget
   calc
     _ ≤ C * prefixErrorBudget (preloadedError ε j) (m - j) := hlocal
     _ ≤ C * (4*∑ i ∈ Ico j m, 28^(m - i) * ε i) := mul_le_mul_of_nonneg_left hbudget hC
@@ -281,12 +276,11 @@ theorem sharp_firstOverflow {scale : ℝ} (hs : 0 < scale) (hmargin : scale ≤ 
       stateRootError (output HP ζ) s HP.K b ⟨0, truth⟩ y :=
     congrArg (· ^ (4⁻¹ : ℝ) - _) (continuation_preserved HP ζ s n Δ raw truth hs hmargin hδ hδs m j
       (m - j) (by omega) hover.1 hfirst hsecond hn y hy)
-  rw [← href] at hp
   calc
     _ ≤ |stateRootError (output HP ζ) s HP.K a c y| + |stateRootError (output HP ζ) s HP.K c
       ⟨0, truth⟩ y| := abs_sub_le _ _ _
     _ ≤ Ct * ∑ i ∈ Ico j m, 28 ^ (m - i) * ε i + Cp * ∑ i ∈ range j, dyadicFloor δ m i * ε i :=
-      add_le_add ht hp
+      add_le_add ht (href.symm ▸ hp)
     _ = _ := add_comm _ _
 
 

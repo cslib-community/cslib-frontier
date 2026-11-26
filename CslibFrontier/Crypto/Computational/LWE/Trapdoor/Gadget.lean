@@ -215,9 +215,7 @@ theorem natAbs_gadgetDecompMatrix_le_one (w : ℕ) (U : Matrix ι κ (ZMod (2 ^ 
 @[simp] theorem gadgetMatrix_mulVec_gadgetDecomp [Fintype ι] [DecidableEq ι] (w : ℕ)
     (u : ι → ZMod (2 ^ w)) :
     gadgetMatrix w *ᵥ (Int.cast ∘ gadgetDecomp w u) = u := by
-  rw [gadgetMatrix_mulVec]
-  simp only [Function.comp_def, gadgetDecomp, Int.cast_natCast]
-  exact GSW.bitCompose_bitDecomp w u
+  simp [gadgetMatrix_mulVec, Function.comp_def, gadgetDecomp]
 
 /-- `scalarDecomp w` is a deterministic right inverse of `x ↦ ⟨g, x⟩ mod 2 ^ w`. -/
 @[simp] theorem gadgetVector_dotProduct_scalarDecomp (w : ℕ) (u : ZMod (2 ^ w)) :
@@ -261,9 +259,7 @@ def scalarBasis (w : ℕ) : Matrix (Fin w) (Fin w) ℤ :=
 
 theorem scalarBasis_eq_zero_of_lt {w : ℕ} {i j : Fin w} (hij : i < j) :
     scalarBasis w i j = 0 := by
-  have h1 : i.val ≠ j.val := Nat.ne_of_lt hij
-  have h2 : i.val ≠ j.val + 1 := Nat.ne_of_lt (Nat.lt_succ_of_lt hij)
-  simp [scalarBasis, h1, h2]
+  simp [scalarBasis, Nat.ne_of_lt hij, Nat.ne_of_lt (Nat.lt_succ_of_lt hij)]
 
 theorem scalarBasis_isLowerTriangular (w : ℕ) :
     (scalarBasis w).IsLowerTriangular := fun _ _ => scalarBasis_eq_zero_of_lt
@@ -307,11 +303,11 @@ theorem scalarBasis_col_inScalarKernel (w : ℕ) (j : Fin w) :
   split_ifs with hj
   · simp only [gadgetVector_apply, Int.cast_ofNat, Int.cast_neg, Int.cast_one, pow_succ]
     ring
-  · simp only [gadgetVector_apply, Int.cast_ofNat]
+  · have hjw : j.val + 1 = w := Nat.le_antisymm j.isLt (not_lt.mp hj)
+    simp only [gadgetVector_apply, Int.cast_ofNat]
     calc
       (2 : ZMod (2 ^ w)) ^ j.val * 2 = 2 ^ (j.val + 1) := (pow_succ 2 j.val).symm
-      _ = ((2 ^ w : ℕ) : ZMod (2 ^ w)) := by
-        rw [show j.val + 1 = w by omega, Nat.cast_pow, Nat.cast_ofNat]
+      _ = ((2 ^ w : ℕ) : ZMod (2 ^ w)) := by rw [hjw, Nat.cast_pow, Nat.cast_ofNat]
       _ = 0 := CharP.cast_eq_zero (ZMod (2 ^ w)) (2 ^ w)
 
 /-- Matrix form of `gᵀ S_w ≡ 0 (mod 2 ^ w)` ([MicciancioPeikert2012], Section 4.1). -/
@@ -354,9 +350,7 @@ theorem natAbs_gadgetBasis_le_two [DecidableEq ι] (w : ℕ) (p q : ι × Fin w)
     simp only [↓reduceIte]
     exact scalarBasis_col_inScalarKernel w j
   · refine Finset.sum_eq_zero fun r _ => Finset.sum_eq_zero fun _ _ => ?_
-    rcases eq_or_ne i r with rfl | hir
-    · simp [hii']
-    · simp [hir]
+    split_ifs <;> simp_all
 
 /-- Every column of `gadgetBasis w` belongs to `Λ^⊥(G)`. -/
 theorem gadgetBasis_col_inKernelLattice [Fintype ι] [DecidableEq ι] (w : ℕ) (q : ι × Fin w) :

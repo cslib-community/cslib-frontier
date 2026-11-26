@@ -88,9 +88,9 @@ noncomputable def restrictLine {k : ℕ} (y w : Fin k → F) (W : (Fin k → Boo
     fun j => Polynomial.C (w j - y j) * Polynomial.X + Polynomial.C (y j)
 
 theorem eval_restrictLine {k : ℕ} (y w : Fin k → F) (W : (Fin k → Bool) → F) (t : F) :
-    (restrictLine y w W).eval t = eval (line y w t) (multilinearExtension W) := by
-  rw [restrictLine, FiniteField.eval_eval₂_line]
-  exact congrArg (eval · (multilinearExtension W)) (funext fun _ => add_comm _ _)
+    (restrictLine y w W).eval t = eval (line y w t) (multilinearExtension W) :=
+  (FiniteField.eval_eval₂_line ..).trans
+    (congrArg (eval · (multilinearExtension W)) (funext fun _ => add_comm _ _))
 
 theorem natDegree_restrictLine_le {k : ℕ} (y w : Fin k → F) (W : (Fin k → Bool) → F) :
     (restrictLine y w W).natDegree ≤ k :=
@@ -227,10 +227,10 @@ theorem lineStep_complete (W : (Fin (C.width i) → Bool) → F) :
     ⟨natDegree_restrictLine_le _ _ W,
       ((C.mem_endLang i W x).mp hxw).symm.trans (C.combine_restrictLine i W x).symm⟩
   rw [PMF.toOuterMeasure_bind_apply]
-  refine Probability.PMF.tsum_mul_le_of_forall_le _ fun t => le_of_eq ?_
-  refine (PMF.toOuterMeasure_pure_apply _ _).trans (ite_eq_right fun h =>
-    h ⟨(C.lineStep_outputOn i W x _ _).trans (ite_eq_left hacc),
-      (eval_restrictLine _ _ W t).symm⟩)
+  exact Probability.PMF.tsum_mul_le_of_forall_le _ fun t => le_of_eq <|
+    (PMF.toOuterMeasure_pure_apply _ _).trans (ite_eq_right fun h =>
+      h ⟨(C.lineStep_outputOn i W x _ _).trans (ite_eq_left hacc),
+        (eval_restrictLine _ _ W t).symm⟩)
 
 /-- **The line step is round-by-round sound** with error `width i / |F|`: a false last sumcheck
 claim forces a line polynomial other than the true restriction, which agrees with it at a random
@@ -425,10 +425,10 @@ theorem totalDegree_multilinearExtension_sub_le {k : ℕ} (D E : (Fin k → Bool
 omit [Fintype F] [DecidableEq F] in
 /-- Distinct functions on the cube have distinct multilinear extensions. -/
 theorem multilinearExtension_sub_ne_zero {k : ℕ} {D E : (Fin k → Bool) → F} (h : D ≠ E) :
-    multilinearExtension D - multilinearExtension E ≠ 0 := by
-  refine fun h0 => h (funext fun b => ?_)
-  have := congrArg (eval (bitPoint (R := F) b)) (sub_eq_zero.mp h0)
-  simpa [eval_multilinearExtension] using this
+    multilinearExtension D - multilinearExtension E ≠ 0 := fun h0 =>
+  h (funext fun b => by
+    simpa [eval_multilinearExtension] using
+      congrArg (eval (bitPoint (R := F) b)) (sub_eq_zero.mp h0))
 
 omit [DecidableEq F] in
 /-- **The output step is perfectly complete.** -/
@@ -439,8 +439,8 @@ theorem outputStep_complete (x : (Fin (C.width 0) → Bool) → F) :
   rw [Reduction.run, World.plain_eval_execute, PMF.toOuterMeasure_map_apply]
   simp only [outputStep, runStrategy, plainLaw_bind, plainLaw_pure, plainLaw_sample, PMF.pure_bind]
   rw [PMF.toOuterMeasure_bind_apply]
-  refine Probability.PMF.tsum_mul_le_of_forall_le _ fun r => le_of_eq ?_
-  exact (PMF.toOuterMeasure_pure_apply _ _).trans (ite_eq_right fun h => h ⟨rfl, rfl⟩)
+  exact Probability.PMF.tsum_mul_le_of_forall_le _ fun _ => le_of_eq <|
+    (PMF.toOuterMeasure_pure_apply _ _).trans (ite_eq_right fun h => h ⟨rfl, rfl⟩)
 
 omit [DecidableEq F] in
 /-- **The output step is round-by-round sound** with error `width depth / |F|`, by
@@ -452,12 +452,11 @@ theorem outputStep_rbrSound (x : (Fin (C.width 0) → Bool) → F) :
   refine ⟨fun D p => match p with
     | none => D = C.output x
     | some (r, _) => eval r (multilinearExtension D) = eval r (multilinearExtension (C.output x)),
-    fun D hD h => hD h, fun D => ⟨?_, fun r => ?_⟩⟩
-  · intro hD
-    simp only [← sub_eq_zero (a := eval _ (multilinearExtension D)), ← eval_sub]
-    exact toOuterMeasure_eval_eq_zero_le (multilinearExtension_sub_ne_zero hD)
-      (totalDegree_multilinearExtension_sub_le _ _)
-  · exact fun hS ⟨_, hy, hout⟩ => hS (Option.some.inj hout ▸ hy).symm
+    fun D hD h => hD h, fun D => ⟨fun hD => by
+      simp only [← sub_eq_zero (a := eval _ (multilinearExtension D)), ← eval_sub]
+      exact toOuterMeasure_eval_eq_zero_le (multilinearExtension_sub_ne_zero hD)
+        (totalDegree_multilinearExtension_sub_le _ _),
+    fun r hS ⟨_, hy, hout⟩ => hS (Option.some.inj hout ▸ hy).symm⟩⟩
 
 omit [Fintype F] in
 /-- **The input step is perfectly complete.** -/
@@ -499,9 +498,9 @@ noncomputable def layerError (i : ℕ) : PerChallenge (fun _ => ℝ≥0∞) (C.l
 theorem layer_complete (x : (Fin (C.width 0) → Bool) → F) (i : ℕ) :
     (C.layer x i).Complete World.plain
       (fun y _ => y ∈ C.layerLang (i + 1) (C.value x (i + 1)))
-      (fun y _ => y ∈ C.layerLang i (C.value x i)) 0 := by
-  have h := (C.sumcheckStage_complete i (C.value x i)).append (C.lineStep_complete i (C.value x i))
-  rwa [add_zero] at h
+      (fun y _ => y ∈ C.layerLang i (C.value x i)) 0 :=
+  add_zero (0 : ℝ≥0∞) ▸
+    (C.sumcheckStage_complete i (C.value x i)).append (C.lineStep_complete i (C.value x i))
 
 theorem layer_rbrSound (x : (Fin (C.width 0) → Bool) → F) (i : ℕ) :
     (C.layer x i).verifier.RbrSound (C.layerLang (i + 1) (C.value x (i + 1)))
@@ -536,9 +535,7 @@ theorem descend_complete (x : (Fin (C.width 0) → Bool) → F) :
     ∀ m, (C.descend x m).Complete World.plain
       (fun y _ => y ∈ C.layerLang m (C.value x m)) Accept 0
   | 0 => C.inputStep_complete x
-  | m + 1 => by
-    have h := (C.layer_complete x m).append (descend_complete x m)
-    rwa [add_zero] at h
+  | m + 1 => add_zero (0 : ℝ≥0∞) ▸ (C.layer_complete x m).append (descend_complete x m)
 
 theorem descend_rbrSound (x : (Fin (C.width 0) → Bool) → F) :
     ∀ m, (C.descend x m).verifier.RbrSound (C.layerLang m (C.value x m)) Set.univ
@@ -552,10 +549,9 @@ theorem sum_descendError :
       ∑ i ∈ Finset.range m,
         ((C.sumcheckVars i : ℝ≥0∞) * (2 / Fintype.card F) + C.width i / Fintype.card F)
   | 0 => rfl
-  | m + 1 => by
-    dsimp only [descendSpec, descendError]
-    rw [PerChallenge.sum_append, sum_layerError, sum_descendError m, Finset.sum_range_succ,
-      add_comm]
+  | m + 1 =>
+    (PerChallenge.sum_append (C.layerError m) (C.descendError m)).trans <| by
+      rw [sum_layerError, sum_descendError m, Finset.sum_range_succ, add_comm]
 
 /-- **The GKR protocol** for the claim that the circuit outputs `D` on the input `x`: the output
 step, then the layers from the output down to the input, then the input step. -/
@@ -568,9 +564,8 @@ noncomputable def protocol (x : (Fin (C.width 0) → Bool) → F) :
 /-- **Completeness of GKR**: the honest prover convinces the verifier of the true output with
 probability one. -/
 theorem protocol_complete (x : (Fin (C.width 0) → Bool) → F) :
-    (C.protocol x).Complete World.plain (fun D _ => D = C.output x) Accept 0 := by
-  have h := (C.outputStep_complete x).append (C.descend_complete x C.depth)
-  rwa [add_zero] at h
+    (C.protocol x).Complete World.plain (fun D _ => D = C.output x) Accept 0 :=
+  add_zero (0 : ℝ≥0∞) ▸ (C.outputStep_complete x).append (C.descend_complete x C.depth)
 
 /-- **Soundness of GKR** [Goldwasser, Kalai, Rothblum][GoldwasserKalaiRothblum2015],
 [Thaler, §4.6][Thaler2022]: any prover convinces the verifier of a wrong output with probability

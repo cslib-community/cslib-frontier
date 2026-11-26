@@ -254,8 +254,7 @@ private theorem sum_natCast_div {ι : Type*} [Fintype ι] (w : ι → ℕ) {D : 
 private theorem tsum_natCast_div_mul {ι : Type*} [Fintype ι] (w f : ι → ℕ) (D : ℕ) :
     ∑' i, ((w i : ℕ) : ℝ≥0∞) / D * (f i : ℝ≥0∞) = ((∑ i, w i * f i : ℕ) : ℝ≥0∞) / D := by
   rw [tsum_fintype, Nat.cast_sum, ENNReal.sum_div]
-  refine Finset.sum_congr rfl fun i _ => ?_
-  rw [Nat.cast_mul, ENNReal.mul_div_right_comm]
+  exact Finset.sum_congr rfl fun i _ => by rw [Nat.cast_mul, ENNReal.mul_div_right_comm]
 
 /-! ### The equalizing randomized strategy -/
 
@@ -342,9 +341,8 @@ theorem expectedCost_randomRentThenBuy_le {B : ℕ} [NeZero B] {reqs : List Unit
 no additive constant. -/
 theorem randomRentThenBuy_isCompetitive (B : ℕ) [NeZero B] :
     RandStrategy.IsCompetitive (randomRentThenBuy B) (ENNReal.ofReal (randomizedRatio B)) 0 := by
-  rintro s₀ rfl reqs states hv
-  rw [add_zero]
-  exact expectedCost_randomRentThenBuy_le hv
+  rintro _ rfl _ _ hv
+  simpa only [add_zero] using expectedCost_randomRentThenBuy_le hv
 
 /-- `randomRentThenBuy B` is `e/(e-1)`-competitive against an oblivious adversary, for every
 purchase price `B ≥ 1`. -/
@@ -373,12 +371,9 @@ def advWeight (B : ℕ) : Option (Fin (B - 1)) → ℕ
 private theorem sum_adv_eq (m : ℕ) (g : ℕ → ℕ) :
     ∑ o, advWeight (m + 1) o * g (advDays (m + 1) o) =
       m ^ m * g (2 * m + 1) + ∑ k ∈ range m, m ^ k * (m + 1) ^ (m - 1 - k) * g (k + 1) := by
-  have h2 : ∑ i : Fin (m + 1 - 1), advWeight (m + 1) (some i) * g (advDays (m + 1) (some i)) =
-      ∑ k ∈ range (m + 1 - 1), m ^ k * (m + 1) ^ (m - 1 - k) * g (k + 1) := by
-    rw [← Fin.sum_univ_eq_sum_range]
-    exact Finset.sum_congr rfl fun i _ => by simp only [advWeight, advDays, Nat.add_sub_cancel]
-  rw [Fintype.sum_option, h2]
-  congr 1
+  rw [Fintype.sum_option, ← Fin.sum_univ_eq_sum_range]
+  exact congrArg₂ (· + ·) rfl (Finset.sum_congr rfl fun i _ => by
+    simp only [advWeight, advDays, Nat.add_sub_cancel])
 
 /-- The adversary weights sum to `B^(B-1)`. -/
 theorem sum_advWeight (B : ℕ) [NeZero B] : ∑ o, advWeight B o = B ^ (B - 1) := by
@@ -445,9 +440,8 @@ theorem exists_randomized_witness (B : ℕ) (μ : RandStrategy (problem B)) :
     (fun o => List.replicate (advDays B o) ())
     (fun o => ((B ^ B * min (advDays B o) B : ℕ) : ℝ≥0∞))
     ((B ^ B - (B - 1) ^ B : ℕ) : ℝ≥0∞)
-    (by
-      simp only [adversary_apply, tsum_natCast_div_mul]
-      exact ENNReal.div_ne_top (ENNReal.natCast_ne_top _) hV0)
+    (by simpa only [adversary_apply, tsum_natCast_div_mul] using
+      ENNReal.div_ne_top (ENNReal.natCast_ne_top _) hV0)
     (fun A => by
       simp only [adversary_apply, tsum_natCast_div_mul, ← mul_div_assoc, ← Nat.cast_mul]
       have key : ∑ o, advWeight B o * (B ^ B * min (advDays B o) B) ≤

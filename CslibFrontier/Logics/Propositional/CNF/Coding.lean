@@ -125,8 +125,7 @@ theorem disjoint_agreeOffForced {x x' : BitString N} (hx : φ.eval x = true) (hx
     obtain ⟨⟨u, e⟩, hl, hle⟩ :=
       (Clause.eval_eq_true_iff b c).1 ((CNF.eval_eq_true_iff b φ).1 hb c hc)
     by_cases hl' : (u, e) = (v, a v)
-    · obtain ⟨rfl, rfl⟩ := Prod.mk.inj hl'
-      exact hab hle.symm
+    · exact hab ((Prod.mk.inj hl').2.symm.trans ((Prod.mk.inj hl').1 ▸ hle.symm))
     · exact (hrest (u, e) hl hl').2 ((hagr u (hrest (u, e) hl hl').1).trans hle)
   by_cases hfx : v ∈ φ.forced σ x
   · exact key hx' hxv hagree hfx
@@ -168,9 +167,7 @@ instance (x : BitString N) (c : Clause (Fin N)) (i : Fin N) : Decidable (Critica
 theorem exists_critical {x : BitString N} {i : Fin N} (hx : φ.eval x = true)
     (hi : φ.eval (Function.update x i (!x i)) = false) : ∃ c ∈ φ, Critical x c i := by
   obtain ⟨c, hc, hcf⟩ : ∃ c ∈ φ, c.eval (Function.update x i (!x i)) = false := by
-    by_contra! h
-    exact Bool.eq_false_iff.mp hi ((CNF.eval_eq_true_iff _ φ).2 fun c hc =>
-      Bool.eq_true_of_not_eq_false (h c hc))
+    simpa only [CNF.eval, List.all_eq_false, Bool.not_eq_true] using hi
   have hfalse (l) (hl : l ∈ c) : Function.update x i (!x i) l.1 ≠ l.2 := fun h =>
     Bool.false_ne_true (hcf.symm.trans ((Clause.eval_eq_true_iff _ c).2 ⟨l, hl, h⟩))
   obtain ⟨⟨u, e⟩, hl, hle⟩ := (Clause.eval_eq_true_iff x c).1 ((CNF.eval_eq_true_iff x φ).1 hx c hc)
@@ -213,11 +210,10 @@ theorem card_filter_critical_prod_le (c : Clause (Fin N)) :
   rw [card_eq_sum_card_fiberwise (f := Prod.snd) (t := V) fun p hp =>
     List.mem_toFinset.2 (List.mem_map.2 ⟨_, (mem_filter.1 hp).2.1, rfl⟩)]
   refine (sum_le_sum fun i _ => ?_).trans_eq (by rw [sum_const, smul_eq_mul])
-  refine (card_le_card_of_injOn Prod.fst (fun p hp => ?_) fun p hp q hq h => ?_).trans
+  refine (card_le_card_of_injOn Prod.fst (fun p hp => mem_filter.2 ⟨mem_univ _,
+    (mem_filter.1 hp).2 ▸ (mem_filter.1 (mem_filter.1 hp).1).2⟩) fun p hp q hq h =>
+    Prod.ext h (((mem_filter.1 hp).2).trans ((mem_filter.1 hq).2).symm)).trans
     (card_filter_critical_le c i)
-  · obtain ⟨hp', hpi⟩ := mem_filter.1 hp
-    exact mem_filter.2 ⟨mem_univ _, hpi ▸ (mem_filter.1 hp').2⟩
-  · exact Prod.ext h (((mem_filter.1 hp).2).trans ((mem_filter.1 hq).2).symm)
 
 /-- **Critical clauses force often.** A direction `i` with a critical clause `c` at `x` is forced
 whenever it comes last among the variables of `c`, so for at least a `1 / v` fraction of the
@@ -277,13 +273,13 @@ theorem sum_two_rpow_average_card_forced_le (φ : CNF (Fin N)) :
   have hamgm (x : BitString N) :
       (2 : ℝ) ^ ((∑ σ : Equiv.Perm (Fin N), ((φ.forced σ x).card : ℝ)) / N.factorial) ≤
         ∑ σ : Equiv.Perm (Fin N), 1 / N.factorial * (2 : ℝ) ^ (φ.forced σ x).card := by
-    have h := Real.geom_mean_le_arith_mean_weighted (s := univ) (fun _ => 1 / (N.factorial : ℝ))
-      (fun σ : Equiv.Perm (Fin N) => (2 : ℝ) ^ (φ.forced σ x).card) (fun _ _ => by positivity)
-      (by rw [sum_const, nsmul_eq_mul, hP]; field_simp) (fun _ _ => by positivity)
-    refine le_trans (le_of_eq ?_) h
-    rw [div_eq_mul_one_div, sum_mul, Real.rpow_sum_of_pos (by norm_num)]
-    refine prod_congr rfl fun σ _ => ?_
-    rw [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num)]
+    refine Eq.trans_le ?_ (Real.geom_mean_le_arith_mean_weighted (s := univ)
+      (fun _ => 1 / (N.factorial : ℝ)) (fun σ => (2 : ℝ) ^ (φ.forced σ x).card)
+      (fun _ _ => div_nonneg zero_le_one hF.le)
+      (by rw [sum_const, nsmul_eq_mul, hP, mul_one_div_cancel hF.ne'])
+      (fun _ _ => pow_nonneg zero_le_two _))
+    rw [div_eq_mul_one_div, sum_mul, Real.rpow_sum_of_pos two_pos]
+    exact prod_congr rfl fun σ _ => by rw [← Real.rpow_natCast, ← Real.rpow_mul zero_le_two]
   calc ∑ x ∈ univ.filter fun x : BitString N => φ.eval x = true,
         (2 : ℝ) ^ ((∑ σ : Equiv.Perm (Fin N), ((φ.forced σ x).card : ℝ)) / N.factorial)
       ≤ ∑ x ∈ univ.filter fun x : BitString N => φ.eval x = true,
@@ -340,10 +336,9 @@ theorem card_isolatedInputs_mul_two_rpow_le {k : ℕ} (hk1 : 1 ≤ k) (hk : ∀ 
   refine (sum_le_sum_of_subset_of_nonneg (fun x hx => mem_filter.2 ⟨mem_univ x,
     (BitString.mem_isolatedInputs.1 hx).1⟩) fun _ _ _ => by positivity).trans'
       (le_of_eq (sum_congr rfl fun x hx => ?_))
-  have hall (i : Fin N) : φ.eval (Function.update x i !x i) = false :=
-    (BitString.mem_isolatedInputs.1 hx).2 i
   congr 2
-  rw [filter_true_of_mem fun i _ => hall i, card_univ, Fintype.card_fin]
+  rw [← Bool.not_true, filter_true_of_mem fun i _ => (BitString.mem_isolatedInputs.1 hx).2 i,
+    card_univ, Fintype.card_fin]
 
 /-! ### Weights of solutions -/
 
@@ -356,9 +351,9 @@ noncomputable def critWidth (φ : CNF (Fin N)) (x : BitString N) (i : Fin N) : �
 number of distinct variables equals `φ.critWidth x i`. -/
 theorem exists_critical_card_eq_critWidth {x : BitString N} {i : Fin N}
     (h : ∃ c ∈ φ, Critical x c i) :
-    ∃ c ∈ φ, Critical x c i ∧ (c.map Prod.fst).toFinset.card = φ.critWidth x i := by
-  obtain ⟨c, hc, hcrit⟩ := h
-  exact Nat.sInf_mem (s := {v | ∃ c ∈ φ, Critical x c i ∧ (c.map Prod.fst).toFinset.card = v})
+    ∃ c ∈ φ, Critical x c i ∧ (c.map Prod.fst).toFinset.card = φ.critWidth x i :=
+  let ⟨c, hc, hcrit⟩ := h
+  Nat.sInf_mem (s := {v | ∃ c ∈ φ, Critical x c i ∧ (c.map Prod.fst).toFinset.card = v})
     ⟨_, c, hc, hcrit, rfl⟩
 
 private theorem critWidth_eq_zero {x : BitString N} {i : Fin N} (h : ¬ ∃ c ∈ φ, Critical x c i) :

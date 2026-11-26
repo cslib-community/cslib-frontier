@@ -194,12 +194,11 @@ theorem decidableInExpTime (r : SizeSensitiveReduction encA encB μA μB)
     rw [← Real.rpow_add (by norm_num)]
     have hm : (μB (r.toFun a) : ℝ) ≤ r.scale * μA a + r.offset := by exact_mod_cast r.measure_le a
     exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (by nlinarith)
-  have hsum : P + (t (r.toFun a) : ℝ) ≤ K * (X * P ^ (e + 1)) :=
-    reduction_add_time_le (C := (2 : ℝ) ^ (δ * r.offset)) hP hX (by positivity)
-      (by dsimp only [P]; exact_mod_cast hl a) hexp (ht (r.toFun a))
   push_cast
   rw [pow_mul]
-  exact hsum.trans (mul_le_mul_of_nonneg_right (Nat.le_ceil K) (by positivity))
+  exact (reduction_add_time_le (C := (2 : ℝ) ^ (δ * r.offset)) hP hX (by positivity)
+    ((Nat.cast_le.mpr (hl a)).trans_eq (by simp [P])) hexp (ht (r.toFun a))).trans
+    (mul_le_mul_of_nonneg_right (Nat.le_ceil K) (by positivity))
 
 /-- **Subexponential-time transfer along a size-sensitive reduction.** -/
 theorem decidableInSubexpTime (r : SizeSensitiveReduction encA encB μA μB)
@@ -564,25 +563,19 @@ private theorem batch_exp_absorb_le {base itemsLen listLen perItem maxT Cp k e o
   have hl_1 : ((listLen : ℝ) + 1) ≤ Cp * P :=
     (le_mul_of_one_le_right (by positivity)
       (one_le_pow₀ (le_add_of_nonneg_left (Nat.cast_nonneg listLen)))).trans hl_e
-  have hit_len : ((itemsLen : ℝ) + 1) ≤ (listLen : ℝ) + 1 := by
-    exact_mod_cast Nat.add_le_add_right hitems 1
-  have hXP : P ≤ X * P := le_mul_of_one_le_left hP0 hX1
-  have hbase_le : (base : ℝ) + ((itemsLen : ℝ) + 1) * (perItem : ℝ) ≤ Cp * (X * P) := by
-    have h₁ : ((itemsLen : ℝ) + 1) * (perItem : ℝ) ≤
-        ((listLen : ℝ) + 1) * ((perItem : ℝ) + ((listLen : ℝ) + 1) ^ e) :=
-      mul_le_mul hit_len (le_add_of_nonneg_right (by positivity)) (by positivity) (by positivity)
-    linarith [mul_le_mul_of_nonneg_left hXP (Nat.cast_nonneg Cp)]
-  have hmax_mul : ((itemsLen : ℝ) + 1) * (maxT : ℝ) ≤
-      Cp * (k * 2 ^ (δ * offset) + k) * (X * P) := by
-    have h₁ := mul_le_mul hit_len hmax (by positivity) (by positivity)
-    have h₂ := mul_le_mul_of_nonneg_left hl_e
-      (by positivity : (0 : ℝ) ≤ k * 2 ^ (δ * offset) * X)
-    have h₃ : ((listLen : ℝ) + 1) * k ≤ Cp * k * (X * P) :=
-      (mul_le_mul_of_nonneg_right
-        (hl_1.trans (mul_le_mul_of_nonneg_left hXP (Nat.cast_nonneg Cp)))
-        (Nat.cast_nonneg k)).trans_eq (mul_right_comm _ _ _)
-    linarith
-  push_cast; linarith
+  have hit_len : ((itemsLen : ℝ) + 1) ≤ (listLen : ℝ) + 1 := mod_cast Nat.add_le_add_right hitems 1
+  have hXP : Cp * P ≤ Cp * (X * P) :=
+    mul_le_mul_of_nonneg_left (le_mul_of_one_le_left hP0 hX1) (Nat.cast_nonneg Cp)
+  have h₁ : ((itemsLen : ℝ) + 1) * (perItem : ℝ) ≤
+      ((listLen : ℝ) + 1) * ((perItem : ℝ) + ((listLen : ℝ) + 1) ^ e) :=
+    mul_le_mul hit_len (le_add_of_nonneg_right (by positivity)) (by positivity) (by positivity)
+  have h₂ := mul_le_mul hit_len hmax (by positivity) (by positivity)
+  have h₃ := mul_le_mul_of_nonneg_left hl_e (by positivity : (0 : ℝ) ≤ k * 2 ^ (δ * offset) * X)
+  have h₄ : ((listLen : ℝ) + 1) * k ≤ Cp * k * (X * P) :=
+    (mul_le_mul_of_nonneg_right (hl_1.trans hXP) (Nat.cast_nonneg k)).trans_eq
+      (mul_right_comm _ _ _)
+  push_cast
+  linarith
 
 private theorem batch_poly_exp_le (r : DisjointBatchReduction encA encB μA μB)
     {base perItem : α → ℕ} {t : β → ℕ} {δ : ℝ} (hδ : 0 ≤ δ) {k e : ℕ}
@@ -658,11 +651,10 @@ private theorem exists_computableInO_foldl_of_ansBound
           (((r.toBatch a).items.take i).foldl (fun s b => combine s (g b)) (init a),
             g (r.toBatch a).items[i])).length + 1) ^ dc ≤
         stepPoly a + fBound := by
-    have hmem := List.getElem_mem hi
     have hblen : (encB (r.toBatch a).items[i]).length ≤ listLen a :=
-      length_le_encList_of_mem encB hmem
+      length_le_encList_of_mem encB (List.getElem_mem hi)
     have hacc_i := hacc a i hi.le
-    have hg_i := hans a _ hmem
+    have hg_i := hans a _ (List.getElem_mem hi)
     have hp : (encPair encD encB
         (((r.toBatch a).items.take i).foldl (fun s b => combine s (g b)) (init a),
           (r.toBatch a).items[i])).length ≤ pairBound a := by
@@ -1154,15 +1146,14 @@ private theorem stack_exp_absorb {A_ov B_ov R_cnt leafMax Cp : ℝ} {K₀ K₁ M
   have hP1 : 1 ≤ P := one_le_pow₀ (le_add_of_nonneg_left (Nat.cast_nonneg _))
   have hX1 : 1 ≤ X := Real.one_le_rpow (by norm_num) (by positivity)
   have hY1 : 1 ≤ Y := Real.one_le_rpow (by norm_num) (by positivity)
+  have hexp : (2 : ℝ) ^ (δ * ((scale * μ + offset : ℕ) : ℝ)) = 2 ^ (δ * offset) * Y := by
+    rw [← Real.rpow_add (by norm_num)]
+    exact congrArg (2 ^ ·) (by push_cast; ring)
+  have hmul : k * 2 ^ (δ * offset) * Y * ((leafLen : ℝ) + 1) ^ e ≤
+      k * 2 ^ (δ * offset) * Cp * Y * P :=
+    (mul_le_mul_of_nonneg_left hll (by positivity)).trans_eq (by ring)
   have hleaf' : leafMax ≤ k * 2 ^ (δ * offset) * Cp * Y * P + (k + 1) := by
-    have hexp : (2 : ℝ) ^ (δ * ((scale * μ + offset : ℕ) : ℝ)) = 2 ^ (δ * offset) * Y := by
-      rw [← Real.rpow_add (by norm_num)]
-      exact congrArg (2 ^ ·) (by push_cast; ring)
-    have hmul := mul_le_mul_of_nonneg_left hll
-      (by positivity : (0 : ℝ) ≤ k * 2 ^ (δ * offset) * Y)
     rw [hexp, ← mul_assoc] at hleaf
-    have hring : (k : ℝ) * (2 : ℝ) ^ (δ * offset) * Y * (Cp * P) =
-        k * (2 : ℝ) ^ (δ * offset) * Cp * Y * P := by ring
     linarith
   have hXY : (2 : ℝ) ^ ((1 / M + scale * δ) * μ) = X * Y := by
     rw [← Real.rpow_add (by norm_num)]
@@ -1192,9 +1183,9 @@ private theorem rounds_succ_exp_le {rounds ν μA : α → ℕ} {K₀ K₁ M : �
     rw [Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast, one_div_mul_eq_div]
     exact Real.rpow_le_rpow_of_exponent_le (by norm_num) Nat.cast_div_le
   have h₃ : (1 : ℝ) ≤ 2 ^ ((1 / M : ℝ) * μA a) := Real.one_le_rpow (by norm_num) (by positivity)
-  have h₄ : (rounds a : ℝ) ≤ (K₀ * 2 ^ K₁ : ℝ) * ((2 ^ (μA a / M) : ℕ) : ℝ) := by
-    exact_mod_cast h₁
-  have h₅ := mul_le_mul_of_nonneg_left h₂ (by positivity : (0 : ℝ) ≤ K₀ * 2 ^ K₁)
+  have h₄ : (rounds a : ℝ) ≤ (K₀ * 2 ^ K₁ : ℝ) * 2 ^ ((1 / M : ℝ) * μA a) :=
+    (show (rounds a : ℝ) ≤ (K₀ * 2 ^ K₁ : ℝ) * ((2 ^ (μA a / M) : ℕ) : ℝ) from mod_cast h₁).trans
+      (mul_le_mul_of_nonneg_left h₂ (by positivity))
   rw [Nat.cast_succ]
   linarith
 
@@ -1217,13 +1208,16 @@ private theorem stack_poly_exp_le
   obtain ⟨Cp, E, hCp⟩ := hpoly.exists_le
   set K : ℝ := Cp + (K₀ * 2 ^ K₁ + 1) * (Cp + k * 2 ^ (δ * offset) * Cp + (k + 1))
   refine ⟨⌈K⌉₊, E, fun a => ?_⟩
-  have hCp_a := hCp a
-  have hA : (A_ov a : ℝ) ≤ Cp * (((encA a).length : ℝ) + 1) ^ E := by norm_cast; omega
-  have hB : (B_ov a : ℝ) ≤ Cp * (((encA a).length : ℝ) + 1) ^ E := by norm_cast; omega
+  have hCp_a := Nat.cast_le (α := ℝ).mpr (hCp a)
+  push_cast at hCp_a
+  have h0 : (0 : ℝ) ≤ ((leafLen a : ℝ) + 1) ^ e := by positivity
   have hll : ((leafLen a : ℝ) + 1) ^ e ≤ Cp * (((encA a).length : ℝ) + 1) ^ E := by
-    norm_cast; omega
-  have habs := stack_exp_absorb hδ (Nat.cast_nonneg Cp) (Nat.cast_nonneg _) (Nat.cast_nonneg _)
-    hA hB (rounds_succ_exp_le hrounds hν a) (hleafMax_le a) hll
+    linarith [Nat.cast_nonneg (α := ℝ) (A_ov a), Nat.cast_nonneg (α := ℝ) (B_ov a)]
+  have habs := stack_exp_absorb (A_ov := A_ov a) hδ (Nat.cast_nonneg Cp)
+    (Nat.cast_nonneg (B_ov a)) (Nat.cast_nonneg _)
+    (by linarith [Nat.cast_nonneg (α := ℝ) (B_ov a)])
+    (by linarith [Nat.cast_nonneg (α := ℝ) (A_ov a)])
+    (rounds_succ_exp_le hrounds hν a) (hleafMax_le a) hll
   push_cast at habs ⊢
   exact habs.trans (mul_le_mul_of_nonneg_right (Nat.le_ceil K) (by positivity))
 
@@ -1243,9 +1237,8 @@ private theorem step_cost_le (S : StackAccumulationSpec encA encK encS encB encG
       ((stateBound + 1) ^ d + (stateBound + ansBound + 1) ^ d) + fBound := by
   have hp1 := Nat.pow_le_pow_left (Nat.add_le_add_right hst 1) d
   split_ifs with hact
-  · have ha_len := hans hact
-    have hf_le := hf hact
-    have hp2 := Nat.pow_le_pow_left (Nat.add_le_add_right (Nat.add_le_add hst ha_len) 1) d
+  · have hp2 := Nat.pow_le_pow_left (Nat.add_le_add_right (Nat.add_le_add hst (hans hact)) 1) d
+    have := hf hact
     omega
   · omega
 
@@ -1648,14 +1641,12 @@ theorem run_cappedSum_eq_root
   have hcomb_eq : (fun (d : CappedNatAcc) (s : σ) =>
       S.combine ⟨S.initCtx a, d, g (S.leafInstance ⟨S.initCtx a, s⟩)⟩) =
       fun d s => d.add (g (S.leafInstance ⟨S.initCtx a, s⟩)) :=
-    funext fun d => funext fun _ => hcombine d _
-  have hcongr : List.map ((fun s => g (S.leafInstance ⟨S.initCtx a, s⟩)) ∘ T.walk root) L =
-      L.map (fun w => val (T.walk root w)) :=
-    List.map_congr_left fun w hw => hval_leaf _ ((hL w).mp hw).isLeaf_walk
-  rw [hrun_eq, hinitAcc, hcomb_eq, CappedNatAcc.foldl_add_init_total, List.map_map, hcongr,
-    ← List.sum_toFinset _ hnd,
-    T.sum_leafWords_eq hT hadd root fun w => by rw [List.mem_toFinset, hL],
-    Nat.min_eq_right hcap]
+    funext₂ fun d _ => hcombine d _
+  have hsum_eq := T.sum_leafWords_eq hT hadd root fun w => List.mem_toFinset.trans (hL w)
+  rw [hrun_eq, hinitAcc, hcomb_eq, CappedNatAcc.foldl_add_init_total, List.map_map,
+    Function.comp_def]
+  rw [List.map_congr_left fun w hw => hval_leaf _ ((hL w).mp hw).isLeaf_walk,
+    ← List.sum_toFinset _ hnd, hsum_eq, Nat.min_eq_right hcap]
 
 end StackAccumulationSpec
 

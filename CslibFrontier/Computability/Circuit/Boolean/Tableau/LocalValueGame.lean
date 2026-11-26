@@ -349,22 +349,14 @@ theorem localPosition_inSpace :
   have hn := encLocalClaim_length_budget hlc
   have hv := encLocalClaim_value_budget hlc
   have hbit := budget_optionGetD false (snd encLocalClaim (encOption encBool))
-  have hq : ComputableInSpace
-      (fun p : LocalClaim × Option Bool => (decide (p.1.wire < p.1.length), p.2.getD false,
-        (p.1.gate tm).1, p.1.value)) (encPair encLocalClaim (encOption encBool))
-      (encPair encBool (encPair encBool (encPair (encFinite Op) encBool)))
-      fun p => (encPair encLocalClaim (encOption encBool) p).length :=
-    budget_prod (budget_natLt hw hn) (budget_prod hbit (budget_prod (budget_finite id hop) hv))
+  have hq := budget_prod (budget_natLt hw hn) (budget_prod hbit (budget_prod hop hv))
   have hsome := budget_finite (encC := encBool) (fun q => (outcomeOf q).isSome) hq
   have hres := budget_finite (encC := encBits)
     (fun q => if (outcomeOf q).getD false then [true] else []) hq
   have hplayer := budget_finite (encC := encList encBool)
     (fun q : Op × Bool => [playerOf q, false, false]) (budget_prod hop hv)
-  have hid : ComputableInSpace (fun p : LocalClaim × Option Bool => encLocalClaim p.1)
-      (encPair encLocalClaim (encOption encBool)) encBits
-      fun p => (encPair encLocalClaim (encOption encBool) p).length :=
-    budget_comp_linear ((of_inO ComputableInDegree.id'.inO_one).of_enc_eq
-      (g := fun lc : LocalClaim => encLocalClaim lc) (encC := encBits) fun _ => rfl) hlc
+  have hid := budget_comp_linear ((of_inO ComputableInDegree.id'.inO_one).of_enc_eq
+    (g := fun lc : LocalClaim => encLocalClaim lc) (encC := encBits) fun _ => rfl) hlc
   have hcons := ((budget_comp_linear listToBits hplayer).append hid
     (g := fun p : LocalClaim × Option Bool =>
       playerOf ((p.1.gate tm).1, p.1.value) :: false :: false :: encLocalClaim p.1)
@@ -635,23 +627,15 @@ theorem localNext_inSpace {lc₀ : LocalClaim} :
   have hv := encLocalClaim_value_budget hlc
   have hq := budget_prod (budget_natLt hw hn)
     (budget_prod (budget_optionGetD false hr) (budget_prod hop hv))
-  have hout : ComputableInSpace
-      (fun p : (LocalClaim × Option Bool) × Option Bool × Bool =>
-        LocalClaim.outcome tm p.1.1 p.2.1)
-      (encPair encLocalState (encPair (encOption encBool) encBool)) (encOption encBool)
-      fun p => (encPair encLocalState (encPair (encOption encBool) encBool) p).length :=
-    (budget_finite (encC := encOption encBool) outcomeOf hq).of_enc_eq fun _ => rfl
-  have hnext : ComputableInSpace
-      (fun p : (LocalClaim × Option Bool) × Option Bool × Bool => p.1.1.next tm p.2.2)
-      (encPair encLocalState (encPair (encOption encBool) encBool)) encLocalClaim
-      fun p => (encPair encLocalState (encPair (encOption encBool) encBool) p).length :=
-    (budget_ite hb (budget_comp_linear (LocalClaim.next_inSpace (tm := tm) true) hlc)
-      (budget_comp_linear (LocalClaim.next_inSpace (tm := tm) false) hlc)).of_enc_eq
-        fun ⟨_, _, b⟩ => by cases b <;> rfl
+  have hout := budget_finite (encC := encOption encBool) outcomeOf hq
+  have hnext := budget_ite hb
+    (budget_comp_linear (LocalClaim.next_inSpace (tm := tm) true) hlc)
+    (budget_comp_linear (LocalClaim.next_inSpace (tm := tm) false) hlc)
   exact (budget_ite (budget_optionIsSome hout) (budget_prod hlc hout)
     (budget_prod hnext (budget_const (encB := encOption encBool) none))).of_enc_eq
       fun ⟨⟨lc, _⟩, r, b⟩ => by
-        cases h : LocalClaim.outcome tm lc r <;> simp [localMachine, localNext, h]
+        cases b <;> cases h : LocalClaim.outcome tm lc r <;>
+          simp [localMachine, localNext, LocalClaim.outcome] at h ⊢ <;> simp [h]
 
 end QueryMachine
 

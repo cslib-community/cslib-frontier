@@ -341,11 +341,9 @@ theorem isOraclePPTOn_gmwSeqVerifier {α : Type} {enc : α ↪ List Bool}
     (hk : ComputableInPolyTime k encUnary encUnary) :
     IsOraclePPTOn (encPair encUnary enc) encBool
       (fun p : ℕ × α => gmwSeqVerifier generator length f k p.1 p.2) := by
-  have hV := isOraclePPTOn_gmwVerifier (enc := enc) hg hlen hf
-  have hk' := hk.comp' (.fst encUnary enc)
   dsimp only [gmwSeqVerifier]
-  exact IsOraclePPTOn.map (f := fun bs : List Bool => bs.all id)
-    (isOraclePPTOn_replicate_bool hV hk')
+  exact (isOraclePPTOn_replicate_bool (isOraclePPTOn_gmwVerifier (enc := enc) hg hlen hf)
+    (hk.comp' (.fst encUnary enc))).map
     (ComputableInPolyTime.bitsAllWithInput (.id' (encIn := encBits)) (.snd encBits encBool))
 
 private theorem runSeq_gmwVerifier {α : Type} (generator : List Bool → List Bool)
@@ -700,18 +698,14 @@ theorem isOraclePPTOn_sessionStep {k : ℕ} {Control : Type} [Finite Control]
     (PolyBounded.of_forall_le (4 * cf + 6) 1 (fun _ => by simp))
     (by
       intro a i st _ ⟨h1, h2, h3⟩
-      have hlen : (encIn a).length =
-          2 * a.1 + 1 + (2 * a.2.1 + 1 + (2 * a.2.2.1 + 1 + L₀ a)) := by
-        simp only [encIn, encSt, length_encPair, encUnary_apply, List.length_replicate]; rfl
-      have hstlen : (encSt st).length =
-          2 * st.1 + 1 + (2 * st.2.1 + 1 + (encCfg st.2.2).length) := by
-        simp only [encSt, length_encPair, encUnary_apply, List.length_replicate]
-      have hT : T₀ a - st.1 ≤ L₀ a + a.2.1 := by dsimp [T₀]; omega
       have hcf' : (encFiniteConfig st.2.2).length ≤ cf * (2 * ((encIn a).length + 1)) :=
-        (hcf (L₀ a) (T₀ a - st.1) a.1 st.2.2 h3).trans (Nat.mul_le_mul_left cf (by omega))
-      dsimp only [encCfg] at hstlen
+        (hcf (L₀ a) (T₀ a - st.1) a.1 st.2.2 h3).trans (Nat.mul_le_mul_left cf (by
+          simp only [encIn, encSt, L₀, T₀, length_encPair, encUnary_apply, List.length_replicate]
+          omega))
       have hmul : (4 * cf + 6) * ((encIn a).length + 1) =
           2 * (cf * (2 * ((encIn a).length + 1))) + 6 * ((encIn a).length + 1) := by ring
+      simp only [encIn, encSt, encCfg, length_encPair, encUnary_apply,
+        List.length_replicate] at hcf' hmul ⊢
       omega)).1
   exact hiter.map (output := encPair encUnary encCfg)
     ((ComputableInPolyTime.fst encUnary (encPair encUnary encCfg)).prod

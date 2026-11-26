@@ -51,8 +51,7 @@ private theorem exists_max_trace (H : A → Matrix ι ι ℂ) [Nonempty A] :
       isCompact_closedBall (0 : Matrix ι ι ℂ) 1).of_isClosed_subset hclosed fun E hE a _ => ?_
     rw [mem_closedBall_zero_iff, CStarAlgebra.norm_le_one_iff_of_nonneg _ (hE.1 a)]
     exact (⟨E, fun a => (hE.1 a).posSemidef, hE.2⟩ : POVM A ι).toMeasurement.effect_le_one a
-  let a₀ : A := Classical.choice inferInstance
-  have hnonempty : feasible.Nonempty :=
+  have hnonempty : feasible.Nonempty := ‹Nonempty A›.elim fun a₀ =>
     ⟨(POVM.const a₀).effect, fun a => ((POVM.const a₀).posSemidef a).nonneg,
       (POVM.const a₀).sum_effect⟩
   obtain ⟨E, hE, hmax⟩ := hcompact.exists_isMaxOn hnonempty
@@ -84,23 +83,20 @@ private theorem exists_variation [DecidableEq A] (T : POVM A ι) (j : A) {P : Ma
   classical
   let B : Matrix ι ι ℂ := 1 - t • P
   have hnonneg : 0 ≤ t • P := (hP.smul ht).nonneg
-  have hB : 0 ≤ B := by
-    apply sub_nonneg.mpr ((CStarAlgebra.norm_le_one_iff_of_nonneg _ hnonneg).mp _)
-    simpa only [norm_smul, Real.norm_of_nonneg ht] using htP
+  have hB : 0 ≤ B := sub_nonneg.mpr ((CStarAlgebra.norm_le_one_iff_of_nonneg _ hnonneg).mp
+    (by simpa only [norm_smul, Real.norm_of_nonneg ht] using htP))
   have hB₁ : 0 ≤ 1 - B := by simpa [B] using hnonneg
-  have hB₂ : B * B ≤ B := by
-    apply sub_nonneg.mp
+  have hB₂ : B * B ≤ B := sub_nonneg.mp (by
     simpa only [mul_sub, mul_one] using
-      (Commute.one_right B |>.sub_right (Commute.refl B)).mul_nonneg hB hB₁
+      (Commute.one_right B |>.sub_right (Commute.refl B)).mul_nonneg hB hB₁)
   have hrem : 0 ≤ 1 - B * B := sub_nonneg.mpr (hB₂.trans (sub_nonneg.mp hB₁))
   refine ⟨{ effect a := B * T.effect a * B + if a = j then 1 - B * B else 0
             posSemidef a := ?_
             sum_effect := ?_ }, fun a => rfl⟩
-  · apply PosSemidef.add
-    · simpa only [hB.posSemidef.isHermitian.eq] using
-        (T.posSemidef a).mul_mul_conjTranspose_same B
-    · split_ifs
-      exacts [hrem.posSemidef, PosSemidef.zero]
+  · refine PosSemidef.add ?_
+      (by by_cases ha : a = j <;> simp [ha, hrem.posSemidef, PosSemidef.zero])
+    simpa only [hB.posSemidef.isHermitian.eq] using
+      (T.posSemidef a).mul_mul_conjTranspose_same B
   · simp [sum_add_distrib, ← sum_mul, ← mul_sum, T.sum_effect]
 
 /-- A maximum of the trace objective gives a dual majorant by varying the POVM. -/
@@ -153,8 +149,7 @@ private theorem majorant_of_max (H : A → Matrix ι ι ℂ) (hH : ∀ a, (H a).
     dsimp only [c]
     linarith only [hscore]
   have ht : 0 ≤ ((P * (Z - H j)).trace).re := by
-    rw [mul_sub, trace_sub, Complex.sub_re]
-    linarith only [hb]
+    rw [mul_sub, trace_sub, Complex.sub_re]; linarith only [hb]
   dsimp only [P] at ht
   rw [trace_mul_comm, mul_vecMulVec, trace_vecMulVec, dotProduct_comm] at ht
   refine Complex.nonneg_iff.mpr ⟨ht, ?_⟩
