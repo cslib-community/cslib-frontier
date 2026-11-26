@@ -559,7 +559,7 @@ theorem ComputableInPowerExpTime.SharpKSAT_numVars_of_size {k : ℕ} (hk : 2 ≤
 [MITHardnessGroup2026SH, v2, §2.2, Corollary 2.3], for fixed widths `k ≥ 2`.
 A solver with a fixed power saving in occurring variables plus clauses yields a solver with a
 fixed power saving in occurring variables. The polynomial factor charges the original encoded
-length. The decision hypothesis equivalences remain open in #8457. -/
+length. -/
 theorem DecidableInPowerExpTime.KSAT_numVars_of_size {k : ℕ} (hk : 2 ≤ k) {p : ℝ}
     (hp : 0 < p) (hp1 : p < 1)
     (h : DecidableInPowerExpTime (KSAT k) encCNF (fun φ => φ.numVars + φ.length) p) :

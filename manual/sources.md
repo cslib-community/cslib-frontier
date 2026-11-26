@@ -3982,7 +3982,7 @@ The independent counting review checked the definition of #SH in §2 (p. 5) and 
 The independent implication review checked that SH implies #SH in §2 (p. 5), including the declared-variable convention and the binary count length bound.
 The independent bounded-degree counting review checked §6, Corollary 6.1 (p. 10), including the three-occurrence promise, the exponent in occurring variables plus clauses, and the polynomial overhead in the native binary encoding length.
 The independent Weak #ETH review checked the definition in §2 (p. 5) and the counting equivalence in §2.3, Theorem 2.4 (p. 7), including the variable-count convention and the polynomial factor in the native encoding.
-The decision Weak ETH and Weak k-ETH equivalences and remaining applications are tracked in [#8457](https://github.com/cslib-community/cslib-frontier/issues/8457).
+The remaining applications are tracked in [#8457](https://github.com/cslib-community/cslib-frontier/issues/8457).
 [Independent Weak #ETH review](https://github.com/cslib-community/cslib-frontier/pull/8843#issuecomment-7203614246).
 [Independent bounded-degree counting review](https://github.com/cslib-community/cslib-frontier/pull/8762#issuecomment-7189165403).
 [Independent counting review](https://github.com/cslib-community/cslib-frontier/pull/8614#issuecomment-7169443584).

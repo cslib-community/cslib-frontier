@@ -6660,6 +6660,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.SymAnd
 public import CslibFrontier.Foundations.Combinatorics.BudgetTuples
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryLog
 public import CslibFrontier.Crypto.Computational.ElGamal.Malleability
+public import CslibFrontier.Computability.Complexity.FineGrained.WeakExponentialTimeHypothesis
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.PathGeometry
 public import CslibFrontier.Computability.PointerMachine.WordRAM.Natural
