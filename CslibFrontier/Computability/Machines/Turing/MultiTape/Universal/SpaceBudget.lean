@@ -140,8 +140,7 @@ public theorem budgetStep_iterate (i : ℕ) : ∃ j ≤ i,
 private lemma length_budgetStep_iterate_le (i : ℕ) :
     ((budgetStep d x b)^[i] (init d, [])).2.length ≤ 2 := by
   obtain ⟨j, -, heq, -⟩ := budgetStep_iterate d x b i
-  rw [heq, List.length_take]
-  exact min_le_left _ _
+  simpa only [heq] using List.length_take_le 2 _
 
 /-- The symbols of the output kept by the run within the budget are numbers of the description. -/
 private lemma le_of_mem_budgetStep_iterate (i : ℕ) {o : ℕ}
@@ -158,12 +157,12 @@ private theorem budgetStep_iterate_of_le {t : ℕ}
   induction t with
   | zero => rfl
   | succ t ih =>
-    rw [Function.iterate_succ_apply', ih fun j hj => hb j (by omega), budgetStep]
+    rw [Function.iterate_succ_apply', ih fun j hj => hb j (Nat.lt_succ_of_lt hj), budgetStep]
     dsimp only
     split_ifs with h
     · simp only [simulate]
       rw [stepOut_iterate_succ, ← run_succ, take_two_append_take_two]
-    · exact absurd (by rw [← run_succ]; exact hb t (by omega)) h
+    · exact absurd (run_succ d x t ▸ hb t (Nat.lt_succ_self t)) h
 
 /-- **Within the budget, the universal function**: if every configuration of the simulation within
 `t` steps is encoded within `b` bits, `budgetedUniversal` returns the first two symbols of the
@@ -580,13 +579,11 @@ public theorem computableInTimeAndSpace_budgetedUniversal : ∃ c,
 /-- The initial configuration is encoded within `11 * descLen d + 6` bits: the initial state, the
 input head at `1` and blank work tapes. -/
 public lemma length_eCfg_init_le : (eCfg (init d)).length ≤ 11 * descLen d + 6 := by
-  have hq : d.q₀ ≤ descLen d := by
-    simp only [descLen, eDesc_apply, length_encPair, encUnary_apply, List.length_replicate]; omega
-  have hk : d.tapes ≤ descLen d := by
-    simp only [descLen, eDesc_apply, length_encPair, encUnary_apply, List.length_replicate]; omega
-  have ht := length_encList_le eTape (List.replicate d.tapes ⟨0, [], []⟩) (b := 4) fun t ht => by
-    rw [List.eq_of_mem_replicate ht]
-    rfl
+  have hqk : d.q₀ ≤ descLen d ∧ d.tapes ≤ descLen d := by
+    simp only [descLen, eDesc_apply, length_encPair, encUnary_apply, List.length_replicate]
+    omega
+  have ht := length_encList_le eTape (List.replicate d.tapes ⟨0, [], []⟩) (b := 4)
+    fun t ht => List.eq_of_mem_replicate ht ▸ le_rfl
   rw [List.length_replicate] at ht
   simp only [init, eCfg_apply, length_encPair, eSym, encOption_some, List.length_cons,
     encUnary_apply, List.length_replicate]
@@ -623,12 +620,9 @@ public theorem computableInO_budgetedUniversal :
       (fun i => (i.2.2.1 + 1) * ((eInS i).length + 1) ^ 2 * (budgetSpace i + 1) ^ 3)
       budgetSpace := by
   obtain ⟨c, h⟩ := computableInTimeAndSpace_budgetedUniversal
-  refine .of_bounds h (c + 1)
-    (fun i => ?_) (fun i => ?_) fun i => ?_
-  · exact Nat.mul_le_mul (Nat.le_succ c) (Nat.le_succ _)
-  · exact Nat.mul_le_mul (Nat.le_succ c) le_rfl
-  · obtain ⟨d, x, t, b⟩ := i
-    have := length_eOut_budgetedUniversal_le d x b t
-    nlinarith
+  refine .of_bounds h (c + 1) (fun _ => Nat.mul_le_mul (Nat.le_succ c) (Nat.le_succ _))
+    (fun _ => Nat.mul_le_mul (Nat.le_succ c) le_rfl) fun ⟨d, x, t, b⟩ => ?_
+  have := length_eOut_budgetedUniversal_le d x b t
+  nlinarith
 
 end Turing.MultiTapeTM.Universal

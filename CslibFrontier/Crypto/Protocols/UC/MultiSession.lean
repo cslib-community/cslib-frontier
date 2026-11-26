@@ -396,11 +396,7 @@ private theorem runFrom_parLiftAdversary_liftMultiParty {m n : ℕ}
   cases q with
   | inl k => exact runFrom_query_sample _ k s
   | inr c =>
-    change (parLiftAdversary S).runFrom
-      (ProbOracleComp.query (c.session, Sum.inl (c.party, c.input))) s = _
-    rw [Machine.runFrom_query]
-    change (StateT.lift (ProbOracleComp.query _)).run s = _
-    rw [StateT.run_lift, bind_pure_comp]
+    simp only [sumHandler, parLiftAdversary]
     rfl
 
 /-- Mapping over a multi-session party-interface program commutes with `liftMultiParty`. -/
@@ -835,10 +831,8 @@ theorem multiHybridSim_polyBounded {m n : ℕ}
       (Polynomial.C m * pS + 1) := by
   intro κ C
   refine ⟨?_, fun q s => ?_⟩
-  · have hpi := OracleComp.isCostBounded_pi (fun j => (hS j κ C).1)
-    dsimp only [multiHybridSim, multiHybridSimMachine]
-    convert hpi.mono (Nat.le_succ (m * pS.eval κ)) using 1
-    simp
+  · simpa [multiHybridSim, multiHybridSimMachine] using
+      (OracleComp.isCostBounded_pi fun j => (hS j κ C).1).mono (Nat.le_succ (m * pS.eval κ))
   · rcases q with p | outer | ⟨j, q⟩
     -- outer and environment-facing queries are forwarded with one call
     iterate 2
@@ -1006,17 +1000,13 @@ theorem Emulates.composeFamily {m n : ℕ}
     intro j
     choose ε hε hε_adv using hadv j
     refine ⟨ε, hε, S_D j, (hSD j).mono fun κ => ?_, fun C Z pZ hZ κ z => hε_adv pZ C Z hZ κ z⟩
-    have heval : pD_max.eval κ = ∑ i : Fin m, (pD i).eval κ :=
-      map_sum (Polynomial.evalRingHom κ) pD Finset.univ
-    rw [heval]
-    exact Finset.single_le_sum (f := fun i => (pD i).eval κ) (fun _ _ => Nat.zero_le _)
-      (Finset.mem_univ j)
+    exact (Finset.single_le_sum (f := fun i => (pD i).eval κ) (fun _ _ => Nat.zero_le _)
+      (Finset.mem_univ j)).trans_eq (map_sum (Polynomial.evalRingHom κ) pD Finset.univ).symm
   choose ε hε hD using hdummy
   refine (EmulatesDummyWithin.composeFamily hρ hπ hφ hD).emulatesWithin.emulates fun pA pZ => ?_
-  convert Negligible.sum Finset.univ fun j _ =>
-    hε j (sessionHopPoly m (absorbPoly pZ pA) pρ pπ pφ pD_max) using 1
-  funext κ
-  simp [Finset.sum_apply]
+  rw [← Finset.sum_fn]
+  exact Negligible.sum Finset.univ fun j _ =>
+    hε j (sessionHopPoly m (absorbPoly pZ pA) pρ pπ pφ pD_max)
 
 /-- Fixed-session homogeneous composition step for `Emulates`, this library's own call-bounded
 emulation relation, specializing `Emulates.composeFamily` to `m` instances of `π` replaced by `φ`.

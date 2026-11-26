@@ -136,14 +136,10 @@ private theorem state_crashAdv_eq (m₀ : M) (F : Finset P) (alive : ℕ → P �
     ∀ r ≤ R, π.state F (π.crashAdv m₀ alive x) x r = π.crashState m₀ alive x r
   | 0, _ => rfl
   | r + 1, hr => by
-    have ih := state_crashAdv_eq m₀ F alive x hF r (by omega)
     funext i
-    simp only [state, crashState, ih]
-    congr 1
-    funext j
-    by_cases hj : j ∈ F
-    · simp only [hj, ↓reduceIte, crashAdv]
-    · simp only [hj, ↓reduceIte, hF r (by omega) j hj i]
+    simp only [state, crashState, state_crashAdv_eq m₀ F alive x hF r (by omega)]
+    refine congrArg _ (funext fun j => ?_)
+    by_cases hj : j ∈ F <;> simp [hj, crashAdv, hF r (by omega)]
 
 private theorem crashDecision_agree {R : ℕ}
     (hagr : ∀ F : Finset P, F.card ≤ R → ∀ (adv : ℕ → P → P → M) (x : P → Bool),
@@ -184,8 +180,7 @@ private theorem extAlive_honest {k : ℕ} {C : Finset P} {alive : ℕ → P → 
   intro r j hj i
   unfold extAlive
   split_ifs with hr
-  · exact h r hr j hj i
-  · exact decide_eq_true hj
+  exacts [h r hr j hj i, decide_eq_true hj]
 
 private theorem extAlive_succ_extAlive (k : ℕ) (C : Finset P) (alive : ℕ → P → P → Bool) :
     extAlive (k + 1) C (extAlive k C alive) = extAlive k C alive := by
@@ -197,10 +192,7 @@ private theorem silenceAt_empty (k : ℕ) (C : Finset P) (p : P) (alive : ℕ �
     silenceAt k C p ∅ alive = extAlive (k + 1) (insert p C) (extAlive k C alive) := by
   funext r j i
   unfold silenceAt extAlive
-  rcases lt_trichotomy r k with hlt | rfl | hgt
-  · simp [hlt, Nat.lt_succ_of_lt hlt]
-  · simp
-  · simp [Nat.not_lt.mpr hgt.le, hgt.ne', Nat.not_lt.mpr hgt]
+  split_ifs <;> first | omega | simp_all [Finset.mem_insert]
 
 private theorem silenceAt_univ [Fintype P] (k : ℕ) (C : Finset P) (p : P)
     (alive : ℕ → P → P → Bool) :
@@ -431,20 +423,15 @@ private theorem solvesByzantineAgreement_reindex {P Q S S' M M' : Type*}
     {π : Protocol Q S M} {t R : ℕ} (h : π.SolvesByzantineAgreement t R) :
     (reindex eP eS eM π).SolvesByzantineAgreement t R where
   agreement F hF adv x i hi j hj := by
-    have hF' : (F.map eP.toEmbedding).card ≤ t := by simpa only [Finset.card_map] using hF
-    have hi' : eP i ∉ F.map eP.toEmbedding := by
-      simpa only [Finset.mem_map_equiv, Equiv.symm_apply_apply] using hi
-    have hj' : eP j ∉ F.map eP.toEmbedding := by
-      simpa only [Finset.mem_map_equiv, Equiv.symm_apply_apply] using hj
     rw [reindex_decision, reindex_decision]
-    exact h.agreement _ hF' _ _ (eP i) hi' (eP j) hj'
+    exact h.agreement _ (by simpa only [Finset.card_map] using hF) _ _
+      (eP i) (by simpa only [Finset.mem_map_equiv, Equiv.symm_apply_apply] using hi)
+      (eP j) (by simpa only [Finset.mem_map_equiv, Equiv.symm_apply_apply] using hj)
   validity F hF adv x v hv i hi := by
-    have hF' : (F.map eP.toEmbedding).card ≤ t := by simpa only [Finset.card_map] using hF
-    have hi' : eP i ∉ F.map eP.toEmbedding := by
-      simpa only [Finset.mem_map_equiv, Equiv.symm_apply_apply] using hi
     rw [reindex_decision]
-    refine h.validity _ hF' _ _ v (fun j hj => ?_) (eP i) hi'
-    exact hv (eP.symm j) (by simpa only [Finset.mem_map_equiv] using hj)
+    exact h.validity _ (by simpa only [Finset.card_map] using hF) _ _ v
+      (fun j hj => hv (eP.symm j) (by simpa only [Finset.mem_map_equiv] using hj))
+      (eP i) (by simpa only [Finset.mem_map_equiv, Equiv.symm_apply_apply] using hi)
 
 /-- Protocols sharing `send` and `update` whose initial states agree at every process visit
 identical states at every round. -/

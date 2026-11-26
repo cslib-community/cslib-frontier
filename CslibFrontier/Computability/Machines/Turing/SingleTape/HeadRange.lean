@@ -139,15 +139,11 @@ theorem ReachesWithin.restrict {M : TM0.Machine Γ Q} {S : Set Q}
   induction h with
   | refl => exact ⟨c', hc, .refl⟩
   | @tail b d _ hs ih =>
-    obtain ⟨b', hb', hr⟩ := ih
+    obtain ⟨b', rfl, hr⟩ := ih
     have hm := step_liftCfg M hS b'
-    rw [hb', hs.1] at hm
-    obtain ⟨d', hd', he⟩ := Option.map_eq_some_iff.mp hm
-    refine ⟨d', he, hr.tail ⟨hd', ?_⟩⟩
-    have hp : b'.position = b.position := congrArg Cfg.position hb'
-    have hq : d'.position = d.position := congrArg Cfg.position he
-    rw [hp, hq]
-    exact hs.2
+    rw [hs.1] at hm
+    obtain ⟨d', hd', rfl⟩ := Option.map_eq_some_iff.mp hm
+    exact ⟨d', rfl, hr.tail ⟨hd', hs.2⟩⟩
 
 end
 
@@ -262,14 +258,9 @@ private theorem TrCfg.right_unique {c : TM2.Cfg Γ Λ σ}
     {a b : TM1.Cfg (Γ' K Γ) (Λ' K Γ Λ σ) σ} (ha : TrCfg c a) (hb : TrCfg c b) : a = b := by
   rcases ha with @⟨q, v, S, L, hL⟩
   rcases hb with @⟨_, _, _, L', hL'⟩
-  have he : L = L' := by
-    apply ListBlank.ext
-    intro n
-    funext k
-    have hk := congrArg (fun T : ListBlank (Option (Γ k)) => T.nth n)
-      ((hL k).trans (hL' k).symm)
-    simpa only [ListBlank.nth_map, proj, PointedMap.mk_val] using hk
-  subst L'
+  obtain rfl : L = L' := ListBlank.ext fun n => funext fun k => by
+    simpa only [ListBlank.nth_map, proj, PointedMap.mk_val] using
+      congrArg (fun T : ListBlank (Option (Γ k)) => T.nth n) ((hL k).trans (hL' k).symm)
   rfl
 
 private theorem TrCfg.with_label {c : TM2.Cfg Γ Λ σ}
@@ -541,8 +532,7 @@ theorem tr_reachesWithin [Fintype Λ] {c d : TM2.Cfg Γ Λ σ}
     cases l with
     | none => cases hed
     | some l =>
-      have he : d = TM2.stepAux (M l) v S := Option.some.inj hed.symm
-      subst d
+      obtain rfl : d = TM2.stepAux (M l) v S := Option.some.inj hed.symm
       obtain ⟨L', hL', hp⟩ := stmt_within M (M l) v S L B hL (hB _ hce)
         (R := B + headOverhead M) (by
           have hm : stackDepth (M l) ≤ Finset.univ.sup (fun l => stackDepth (M l)) :=
@@ -567,9 +557,7 @@ theorem tr_reachesWithin_halt [Fintype Λ] (ki ko : K) (input : List (Γ ki))
       ⟨TM0.init (trInit ki input), 0⟩
       ⟨⟨(none, default), Tape.mk₁ (trInit ko output)⟩, 0⟩ := by
   obtain ⟨b, hb, hp⟩ := tr_reachesWithin M (trCfg_init ki input) hr B hB
-  have he := hb.right_unique (trCfg_halt ko output)
-  subst b
-  exact hp
+  rwa [hb.right_unique (trCfg_halt ko output)] at hp
 
 end TM2to1
 

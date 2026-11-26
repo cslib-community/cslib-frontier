@@ -72,10 +72,8 @@ private theorem mem_placed_support {p : Route} {flip : Bool} {z w : ℂ} :
     fun h => ⟨w - z, h, add_sub_cancel _ _⟩⟩
 
 private theorem placed_simple {p : Route} (hp : p.IsSimple) (flip : Bool) (z : ℂ) :
-    (placed p flip z).IsSimple := by
-  cases flip
-  · exact hp.translate z
-  · exact hp.reverse.translate z
+    (placed p flip z).IsSimple :=
+  flip.rec (hp.translate z) (hp.reverse.translate z)
 
 private theorem placed_contact_eval (p : Route) (flip : Bool) (z : ℂ) (t : ℝ) :
     (placed p flip z).eval (contactIndex p flip z) (contactTime flip t) = z + p.eval 0 t := by
@@ -266,13 +264,11 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
     · exact ⟨fun he => he.elim, fun he => (h ⟨e, he⟩).elim⟩
   let m : X → ℝ := fun e => min (z.re - min (a e.val) (b e.val))
     (max (a e.val) (b e.val) - z.re)
-  have hmem (e : X) : z ∈ openSegment ℝ (parabolaPoint (a e.val))
-      (parabolaPoint (b e.val)) := hopen e
   have hm (e : X) : 0 < m e := by
-    obtain ⟨hx, _⟩ := (mem_openChord_iff (hne e.val) z).mp (hmem e)
+    obtain ⟨hx, _⟩ := (mem_openChord_iff (hne e.val) z).mp (hopen e)
     exact lt_min (sub_pos.mpr hx.1) (sub_pos.mpr hx.2)
   obtain ⟨r, ε, hr, hε, hrm, htube⟩ := choose_geometry s m hm hρ
-  have hcut (e : X) := cut_parameters (hne e.val) (hmem e) hr (hrm e)
+  have hcut (e : X) := cut_parameters (hne e.val) (hopen e) hr (hrm e)
   choose α β hα hαβ hβ hcutA hcutB using hcut
   obtain ⟨d, hsep⟩ := exists_slopeDetour_separation s hs hr hε fixed
   dsimp only at hsep
@@ -283,15 +279,13 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
   have hraw (e : X) :
       (if fixed = some e then Route.line ⟨-r, -r * s e⟩ ⟨r, r * s e⟩
         else Route.slopeDetour r (s e) (d e)) = R e := by
-    simp only [hfixed]
-    rfl
+    simp only [hfixed, R]
   have hraw_eval (e : X) (t : ℝ) := congrArg (fun q : Route => q.eval 0 t) (hraw e)
   let flip : X → Bool := fun e => decide (b e.val < a e.val)
   let P : X → Route := fun e => placed (R e) (flip e) z
   have hEndR (e : X) (tag : Bool) : (R e).endpoint tag =
-      if tag then (⟨r, r * s e⟩ : ℂ) else ⟨-r, -r * s e⟩ := by
-    cases tag
-    exacts [(hends e).1, (hends e).2.1]
+      if tag then (⟨r, r * s e⟩ : ℂ) else ⟨-r, -r * s e⟩ :=
+    tag.rec (hends e).1 (hends e).2.1
   have htransport (e : X) (tag : Bool) :
       (P e).endpoint tag = z + (R e).endpoint (if flip e then !tag else tag) := by
     change ((if flip e then (R e).reverse else R e).translate z).endpoint tag = _
@@ -303,9 +297,8 @@ theorem exists_reference_detour_placement {I : FixedRotationInput} (hI : Valid I
     have hc : AffineMap.lineMap (D.route e.val).start (D.route e.val).finish
         (if tag then β e else α e) = z +
         (if tag then (if b e.val < a e.val then (⟨-r, -r * s e⟩ : ℂ) else ⟨r, r * s e⟩)
-          else (if b e.val < a e.val then (⟨r, r * s e⟩ : ℂ) else ⟨-r, -r * s e⟩)) := by
-      cases tag
-      exacts [hcutA e, hcutB e]
+          else (if b e.val < a e.val then (⟨r, r * s e⟩ : ℂ) else ⟨-r, -r * s e⟩)) :=
+      tag.rec (hcutA e) (hcutB e)
     rw [htransport, hEndR, hc]
     congr 1
     cases tag <;> by_cases hf : b e.val < a e.val <;>

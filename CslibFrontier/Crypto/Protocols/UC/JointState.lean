@@ -195,12 +195,8 @@ single-subroutine `HybridProtocol` targeting `F.multiSession (Fin m)` ([CanettiR
 call budget `pρ` unchanged. -/
 theorem toJoint_polyBounded {m n : ℕ} {In Out NetQ NetR SubIn SubOut : Type}
     {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut} {pρ : Polynomial ℕ}
-    (hρ : ρ.PolyBounded pρ) : (ρ.toJoint).PolyBounded pρ := fun κ C => by
-  refine ⟨(hρ κ C).1, fun q s => ?_⟩
-  refine OracleComp.IsCostBounded.interpret (fun r => ?_) ((hρ κ C).2 q s)
-  cases r with
-  | inl k => exact OracleComp.IsCostBounded.query (Sum.inl k)
-  | inr c => exact OracleComp.IsCostBounded.query _
+    (hρ : ρ.PolyBounded pρ) : (ρ.toJoint).PolyBounded pρ := fun κ C =>
+  ⟨(hρ κ C).1, fun q s => .interpret (by rintro (_ | _) <;> exact .query _) ((hρ κ C).2 q s)⟩
 
 /-- Library construction (no cited definition): translate a network query of the `F̂`-hybrid
 execution (`compose ρ.toJoint F̂`) to the corresponding network query of the `m`-session execution
@@ -247,12 +243,8 @@ private def mapNetMachine {NQ₁ NQ₂ R AdvQ AdvR : Type} (f : NQ₁ → NQ₂)
 
 private theorem isBounded_mapNetMachine {NQ₁ NQ₂ R AdvQ AdvR : Type} (f : NQ₁ → NQ₂)
     {A : Machine (netSpec NQ₁ R) (netSpec AdvQ AdvR)} {t : ℕ} (h : A.IsBounded t) :
-    (mapNetMachine f A).IsBounded t := by
-  refine ⟨h.1, fun q s => ?_⟩
-  refine OracleComp.IsCostBounded.interpret (fun r => ?_) (h.2 q s)
-  cases r with
-  | inl k => exact OracleComp.IsCostBounded.query (Sum.inl k)
-  | inr nq => exact OracleComp.IsCostBounded.query (Sum.inr (f nq))
+    (mapNetMachine f A).IsBounded t :=
+  ⟨h.1, fun q s => .interpret (by rintro (_ | _) <;> exact .query _) (h.2 q s)⟩
 
 /-- Library construction (no cited result): explicit demultiplexing adversary for
 `compose ρ.toJoint (F.multiSession (Fin m)).toProtocol` running against
@@ -557,11 +549,10 @@ private theorem handle_corruptRouter_multiSession_inr {m n : ℕ}
       Prod.map _root_.id (MultiSessionState.mk κ C) <$>
         ((SSP.parFinLazy fun _ : Fin m => corruptRouter C (F.toProtocol κ C)).handle
           (j, .inr nq)).run s := by
-  rcases nq with ⟨i, x⟩ | bq <;> dsimp only [SSP.parFinLazy] at s ⊢
-  · simp only [corruptRouter, hnq, ↓reduceIte, StateT.run_map]; erw [StateT.run_map]
-    dsimp only [IdealFunctionality.multiSession, IdealFunctionality.toProtocol, StateT.run]
-    cases s j <;> simp [ProbOracleComp.sample_bind]
-  · simp only [corruptRouter, StateT.run_map]; erw [StateT.run_map]
+  rcases nq with ⟨i, x⟩ | bq <;> dsimp only [SSP.parFinLazy] at s ⊢ <;>
+    simp only [corruptRouter, hnq, ↓reduceIte, StateT.run_map]
+  all_goals
+    erw [StateT.run_map]
     dsimp only [IdealFunctionality.multiSession, IdealFunctionality.toProtocol, StateT.run]
     cases s j <;> simp [ProbOracleComp.sample_bind]
 

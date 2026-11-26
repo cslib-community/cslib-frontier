@@ -246,8 +246,7 @@ theorem probOracleComp_randomNonceSimHandler_not_nodup_le {α : Type}
         have hbad (x : N) (t : Y) :
             ¬ ((s ++ [((m, x), t)]).map (fun e => e.1.2)).Nodup ↔
               x ∈ s.map (fun e => e.1.2) := by
-          rw [List.map_append, List.map_singleton, List.nodup_append]
-          simp [hs']
+          simp [List.nodup_append, hs']
         simp only [pmf_norm, OracleComp.sumHandler, randomNonceSimHandler, hbad,
           PMF.bind_const, Sum.elim_inr, one_mul, show Nat.choose 1 2 = 0 from rfl, add_zero]
         rw [bind_pure_decide_apply_true]
@@ -649,7 +648,6 @@ theorem isOraclePPT_prfRandomNonceToPrfDistinguisher
       (encPair encBits (encList (encPair encBits encBits)))
       (fun ⟨((n, _), k), request, log⟩ => cwRandomNonceLogHandler msgLen hash n k request log) := by
     unfold cwRandomNonceLogHandler
-    dsimp only
     exact IsOraclePPTOn.cond (by fun_prop)
       (((ComputableInPolyTime.sampleList (by fun_prop)).isOraclePPTOn
           (Operation := Unit)).bind_with
@@ -666,10 +664,9 @@ theorem isOraclePPT_prfRandomNonceToPrfDistinguisher
   · simp only [hcond, ↓reduceIte, OracleComp.mem_supportWith_bind_iff,
       OracleComp.mem_supportWith_map_iff] at hresult
     rcases hresult with ⟨nonce, hnonce, pad, -, rfl⟩
-    change nonce ∈ OracleComp.support
-      (ProbOracleComp.sample (BitString.sampleList np.1)) at hnonce
-    rw [ProbOracleComp.support_sample, BitString.eval_sampleList] at hnonce
-    have hnonceLen : nonce.length = np.1 := BitString.length_of_mem_support_uniformList hnonce
+    have hnonceLen : nonce.length = np.1 :=
+      BitString.length_of_mem_support_uniformList
+        (by simpa [ProbOracleComp.support_sample, BitString.eval_sampleList] using hnonce)
     exact ⟨by dsimp only; enc_len [hnonceLen, BitString.length_listXor],
       by dsimp only; enc_len [hnonceLen, BitString.length_listXor]⟩
   · simp only [Bool.eq_false_iff.mpr hcond, Bool.false_eq_true, ↓reduceIte,
@@ -792,10 +789,9 @@ private theorem cwRandomNonceAccept_imp_checkRandomNonceSUF
       dropFrame cand.2 =
         BitString.listXor n
           [hash n k cand.1, (randomFunctionOracle n table (unframe cand.2)).take n] := by
-    have h := congrArg dropFrame hfullTag.symm
-    simpa only [encPair_apply, encBits_apply, dropFrame_frame_append] using h
-  have htag : (dropFrame cand.2).length = n := by
-    rw [hdrop, BitString.length_listXor]
+    simpa only [encPair_apply, encBits_apply, dropFrame_frame_append] using
+      congrArg dropFrame hfullTag.symm
+  have htag : (dropFrame cand.2).length = n := hdrop ▸ BitString.length_listXor _ _
   have hround : ofRandomBitTriple (toRandomBitTriple msgLen n cand) = cand := by
     dsimp only [ofRandomBitTriple, toRandomBitTriple]
     rw [BitString.ofFn_ofList hmsg, BitString.ofFn_ofList hnonce, BitString.ofFn_ofList htag,
@@ -845,19 +841,18 @@ private theorem step_cwRandomNonceLogHandler_randomFunctionOracle
       simp only [tOf, mBit, sign, BitString.ofFn_ofList hcond, randomFunctionOracle,
         List.length_ofFn, ↓reduceIte, BitString.listXor_pair, BitString.ofList_take,
         BitString.ofList_ofFn]
-    refine ⟨?_, ?_⟩
-    · congr 1; funext x; simp [mBit, tOf, htag]
-    · rintro _ _ _ hmem
-      simp only [PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hmem
-      rcases hmem with ⟨x, -, ⟨⟩⟩
-      simp only [id_eq, List.map_append, List.map_singleton, List.reverse_cons,
-        ofRandomBitTriple, BitString.ofFn_ofList hcond]
-      exact hsub.append (List.Sublist.refl _)
+    refine ⟨congrArg _ (funext fun x => by simp [mBit, tOf, htag]), ?_⟩
+    rintro _ _ _ hmem
+    obtain ⟨x, -, ⟨⟩⟩ := by
+      simpa only [PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] using hmem
+    simp only [id_eq, List.map_append, List.map_singleton, List.reverse_cons,
+      ofRandomBitTriple, BitString.ofFn_ofList hcond]
+    exact hsub.append (List.Sublist.refl _)
   · simp only [Bool.eq_false_iff.mpr hcond, Bool.false_eq_true, ↓reduceIte,
       ProbOracleComp.runWith_pure, OracleComp.interpret_pure, ProbComp.eval_pure, PMF.pure_map,
       PMF.support_pure, Set.mem_singleton_iff]
-    refine ⟨trivial, fun _ _ _ h => ?_⟩
-    cases h
+    refine ⟨trivial, ?_⟩
+    rintro _ _ _ ⟨⟩
     exact hsub
 
 /-- **Ideal-game bound for `prfRandomNonceToPrfDistinguisher`**, a step of the proof of

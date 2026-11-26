@@ -397,11 +397,8 @@ theorem isSolution_of_forgery_at_simulated_digest (hP : P.Valid) (hq : 2 * P.γ�
     (hexpand : expand raw = some σ.c) (hz : ResponseShort P σ.z) (hw : σ.recover d pk = w) :
     ∃ other, sent = some (raw, other) ∧ ModuleSIS.IsSolution (ModuleSIS.hermiteMatrix pk.A)
       (max (2 * (P.γ₁ - P.β)) (4 * P.γ₂ + 2)) (responseDifference d pk σ other) := by
-  simp only [simulatePartialTrial, hexpand, PMF.mem_support_map_iff] at ht
-  obtain ⟨_ | t, hout, he⟩ := ht
-  · cases he
-  change some (t.commitment, some (raw, t.signature)) = some (w, sent) at he
-  cases he
+  simp only [simulatePartialTrial, hexpand, PMF.mem_support_map_iff, terminalTranscript] at ht
+  rcases ht with ⟨_ | t, hout, ⟨⟩⟩
   obtain ⟨hc, hshort, _, hrec⟩ :=
     simulateFreshSigningAttempt_support P hP hq hγq d ω hβ pk σ.c hout
   exact ⟨t.signature, rfl, isSolution_responseDifference hP hγq d pk
@@ -482,8 +479,7 @@ private theorem expand_partialSigningProgram (K : ℕ)
     expandSigningRetries P K (partialSigningProgram P program) =
       interpret (outerSigningQuery P K) program := by
   simp only [expandSigningRetries, partialSigningProgram, interpret_interpret]
-  congr 1
-  funext q
+  congr 1 with q
   cases q <;> simp [sumHandler, outerSigningQuery]
 
 /-- Execute the partial signing simulator, recording the last writer at each cache entry and
@@ -647,8 +643,7 @@ private theorem lookup_of_queryForgeryDigest (d ω K : ℕ) (hβ : P.β < P.γ�
   cases eq : st.lookup (forged.signature.recover d pk, forged.message) with
   | some entry =>
     simp only [eq, PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hreply
-    obtain ⟨rfl, rfl⟩ := hreply
-    simp [eq]
+    simp [hreply.1, hreply.2, eq]
   | none =>
     simp only [eq, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
       PMF.mem_support_pure_iff, Prod.mk.injEq] at hreply

@@ -265,12 +265,10 @@ theorem fastInsertAllocGenProg_fastStep {c U V w n_max base b X : ℕ}
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ (fastInsertAlloc n_max b X fs) s s' := by
   have hth := henv.2.2.2.1
-  have hmcb := (large_index_bounds hth).1
   have hps_le := (large_index_bounds hth).2.2.2.1
-  set cp := mkWhpCoreParams c U V w n_max
   dsimp only
   unfold fastInsertAllocGenProg fastInsertAlloc
-  simp only [cp, wp_large_capFront hth, pure_bind]
+  simp only [wp_large_capFront hth, pure_bind]
   by_cases hcf : capFrontWhp n_max ≤ X
   · simp only [hcf, ↓reduceIte]
     obtain ⟨hpos, hle_ps, hp_lt⟩ := hcf_fn hcf
@@ -282,19 +280,16 @@ theorem fastInsertAllocGenProg_fastStep {c U V w n_max base b X : ℕ}
     obtain ⟨ht_st, ht_res, ht_mc, ht_vp⟩ := readHdr_large_spec (c := c) (U := U) (V := V) (w := w)
       (n_max := n_max) (by decide) hrep.2.2.1
     obtain ⟨hp_st, hp_res, hp_mc, hp_vp⟩ :=
-      readPoolFreeStackGenProg_spec henv (by omega : top' < poolSizeWhp n_max) hrep (s := s)
+      readPoolFreeStackGenProg_spec henv (by omega : top' < poolSizeWhp n_max) hrep
     obtain ⟨hwh_mc, hwh_vp, hwh_step⟩ := writeHdrProg_fastStep (hdrOff := hdrPoolFreeTop) henv
       (by decide) (henv.fits_of_le_n_max (by omega)) (by intro h; cases h) hseed hrep
-      (val := top') (s := s)
+      (val := top')
     dsimp only [updateFastHdr] at hwh_step
-    set s1 := (Memory.spec 0).clientState s (writeHdrProg ((base, hdrPoolFreeTop), top'))
     obtain ⟨hwb_mc, hwb_vp, hwb_step⟩ := writeBackPtrGenProg_fastStep henv hb hk
-      (by omega : pSlot ≤ n_max) hwh_step.2.1 hwh_step.2.2.1 (s := s1)
-    set s2 := (Memory.spec 0).clientState s1 (writeBackPtrGenProg ((((cp, base), b), k), pSlot))
-    have hidx_enc : b * capBackWhp n_max + k < numBucketsWhp n_max * capBackWhp n_max :=
-      mul_add_lt_mul_bound hb hk
+      (by omega : pSlot ≤ n_max) hwh_step.2.1 hwh_step.2.2.1
     obtain ⟨hwo_mc, hwo_vp, hwo_step⟩ := writePoolOwnerGenProg_fastStep henv hp_lt
-      (by omega : b * capBackWhp n_max + k ≤ n_max) hwb_step.2.1 hwb_step.2.2.1 (s := s2)
+      ((mul_add_lt_mul_bound hb hk).le.trans (large_index_bounds hth).1)
+      hwb_step.2.1 hwb_step.2.2.1
     unfold insAllocBackyardProg insPopFreeSlotGenProg insBindBackSlotGenProg
     simp only [wp_large_capFront hth, wp_large_capBack hth, pure_bind]
     exact CostBoundedStep.elim (.bind (.bind ⟨ht_st, ht_res, ht_mc.le, ht_vp⟩ <|
@@ -366,17 +361,14 @@ theorem insWriteQVAtGenProg_fastStep {c U V w n_max base b X q_val v_val : ℕ}
       { fs with
         quotArr := Function.update fs.quotArr p_new q_val
         valArr := Function.update fs.valArr p_new v_val } s s' := by
-  set cp := mkWhpCoreParams c U V w n_max
   obtain ⟨hps_st, hps_res, hps_lt, hps_mc, hps_vp⟩ :=
-    physSlotGenProg_spec henv hb hX_tl hbp hrep (s := s)
+    physSlotGenProg_spec henv hb hX_tl hbp hrep
   obtain ⟨hwq_mc, hwq_vp, hwq_step⟩ :=
-    writeQuotGenProg_fastStep henv hps_lt hq_lt hseed hrep (s := s)
-  set s1 := (Memory.spec 0).clientState s
-    (writeQuotGenProg (((cp, base), fs.physSlot n_max b X), q_val))
+    writeQuotGenProg_fastStep henv hps_lt hq_lt hseed hrep
   obtain ⟨hwv_mc, hwv_vp, hwv_step⟩ :=
-    writeValGenProg_fastStep henv hps_lt hv_lt hwq_step.2.1 hwq_step.2.2.1 (s := s1)
+    writeValGenProg_fastStep henv hps_lt hv_lt hwq_step.2.1 hwq_step.2.2.1
   dsimp only
-  unfold insWriteQVAtGenProg; dsimp only
+  unfold insWriteQVAtGenProg
   exact CostBoundedStep.elim (.bind ⟨hps_st, hps_res, hps_mc, hps_vp⟩ <|
     .bind ⟨rfl, rfl, hwq_mc.le, hwq_vp⟩ ⟨rfl, rfl, hwv_mc.le, hwv_vp⟩) (by omega)
     (hwq_step.trans hwv_step)
@@ -436,15 +428,14 @@ private theorem insWriteCntLocGenProg_fastStep {c U V w n_max base b X tag : ℕ
         locState := Function.update fs.locState b
           (Function.update (fs.locState b) X tag) } s s' := by
   have h2tl := (large_index_bounds henv.2.2.2.1).2.2.1
-  set cp := mkWhpCoreParams c U V w n_max
   obtain ⟨hwb_mc, hwb_vp, hwb_step⟩ := writeBktFieldGenProg_fastStep henv hb (by decide : 0 < 10)
-    (by omega : X + 1 ≤ n_max) hseed hrep (s := s)
+    (by omega : X + 1 ≤ n_max) hseed hrep
   simp only [setBktField] at hwb_step
-  set s1 := (Memory.spec 0).clientState s (writeBktFieldGenProg ((((cp, base), b), 0), X + 1))
   obtain ⟨hwl_mc, hwl_vp, hwl_step⟩ := writeFastLocGenProg_fastStep henv hb hX_tl htag
-    hwb_step.2.1 hwb_step.2.2.1 (s := s1)
+    hwb_step.2.1 hwb_step.2.2.1
   dsimp only
-  unfold insWriteCntLocGenProg; dsimp only; simp only [pure_bind]
+  unfold insWriteCntLocGenProg
+  simp only [pure_bind]
   exact CostBoundedStep.elim (.bind ⟨rfl, rfl, hwb_mc.le, hwb_vp⟩ ⟨rfl, rfl, hwl_mc.le, hwl_vp⟩)
     (by omega) (hwb_step.trans hwl_step)
 
@@ -622,17 +613,11 @@ theorem realizes_insFinishDirectGen :
     have hth := henv.2.2.2.1
     have hval_X := loc_lt_two_pow_valLaneBits hX_tl
     obtain ⟨_, _, hwc_step⟩ :=
-      insWriteCntLocGenProg_fastStep henv hb hX_tl (by decide : 1 < 4) hseed hrep (s := s)
-    set fs1 : FastState :=
-      { fs with
-        bktCount := Function.update fs.bktCount b (X + 1)
-        locState := Function.update fs.locState b (Function.update (fs.locState b) X 1) }
-    set s1 := (Memory.spec 0).clientState s
-      (insWriteCntLocGenProg ((((mkWhpCoreParams c U V w n_max, base), b), X), 1))
+      insWriteCntLocGenProg_fastStep henv hb hX_tl (by decide : 1 < 4) hseed hrep
     obtain ⟨_, _, hbi_step⟩ :=
-      btreeInsertGenProg_fastStep (fs := fs1) henv hlIdx hlic
-        hwc_step.2.1 hwc_step.2.2.1 hv_l hfp_lt hval_X (s := s1)
-    try simp only [wp_large_M hth, wp_large_totalLoc hth] at *
+      btreeInsertGenProg_fastStep henv hlIdx hlic
+        hwc_step.2.1 hwc_step.2.2.1 hv_l hfp_lt hval_X
+    simp only [wp_large_M hth, wp_large_totalLoc hth] at *
     first
     | exact henv.fits_const (by decide)
     | exact ⟨c, U, V, w, n_max, henv, rfl⟩
@@ -667,21 +652,13 @@ theorem insFinishCollisionGenProg_fastStep {c U V w n_max base b X rKey : ℕ}
           (Function.update (fs.locState b) X (2 + ep))
         buf := Function.update fs.buf ep tr' } s s' := by
   have htag_lt : 2 + fs.curEp < 4 := by rcases hce with hc | hc <;> omega
-  set cp := mkWhpCoreParams c U V w n_max
   obtain ⟨hep_st, hep_res, hep_mc, hep_vp⟩ := readHdr_large_spec (c := c) (U := U) (V := V) (w := w)
     (n_max := n_max) (by decide) hrep.2.2.2.1
   obtain ⟨hwc_mc, hwc_vp, hwc_step⟩ :=
-    insWriteCntLocGenProg_fastStep henv hb hX_tl htag_lt hseed hrep (s := s)
-  set fs1 : FastState :=
-    { fs with
-      bktCount := Function.update fs.bktCount b (X + 1)
-      locState := Function.update fs.locState b
-        (Function.update (fs.locState b) X (2 + fs.curEp)) }
-  set s1 := (Memory.spec 0).clientState s
-    (insWriteCntLocGenProg ((((cp, base), b), X), 2 + fs.curEp))
+    insWriteCntLocGenProg_fastStep henv hb hX_tl htag_lt hseed hrep
   obtain ⟨hbi_mc, hbi_vp, hbi_step⟩ :=
-    bufInsertGenProg_fastStep (fs := fs1) henv hce hwc_step.2.1 hwc_step.2.2.1 hv_cur
-      hna_cap hia_cap hb hX_tl (rKey := rKey) (s := s1)
+    bufInsertGenProg_fastStep henv hce hwc_step.2.1 hwc_step.2.2.1 hv_cur
+      hna_cap hia_cap hb hX_tl (rKey := rKey)
   dsimp only
   unfold insFinishCollisionGenProg
   simp only [pure_bind]
@@ -715,29 +692,16 @@ theorem insFinishDirectGenProg_fastStep {c U V w n_max base b X fp lIdx : ℕ}
         liveInsCount := Function.update fs.liveInsCount b (fs.liveInsCount b + 1) } s s' := by
   subst hlIdx_eq
   have hval_X := loc_lt_two_pow_valLaneBits hX_tl
-  set cp := mkWhpCoreParams c U V w n_max
   obtain ⟨hwc_mc, hwc_vp, hwc_step⟩ :=
-    insWriteCntLocGenProg_fastStep henv hb hX_tl (by decide : 1 < 4) hseed hrep (s := s)
-  set fs1 : FastState :=
-    { fs with
-      bktCount := Function.update fs.bktCount b (X + 1)
-      locState := Function.update fs.locState b (Function.update (fs.locState b) X 1) }
-  set s1 := (Memory.spec 0).clientState s
-    (insWriteCntLocGenProg ((((cp, base), b), X), 1))
+    insWriteCntLocGenProg_fastStep henv hb hX_tl (by decide : 1 < 4) hseed hrep
   obtain ⟨hbi_mc, hbi_vp, hbi_step⟩ :=
-    btreeInsertGenProg_fastStep (fs := fs1) henv hlIdx hlic
-      hwc_step.2.1 hwc_step.2.2.1 hv_l hfp_lt hval_X (s := s1)
-  set fs2 : FastState :=
-    { fs1 with
-      slices := Function.update fs1.slices (fs.liveSliceIdx b)
-        (btreeInsert (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-          (fs.slices (fs.liveSliceIdx b)) fp X) }
-  set s2 := (Memory.spec 0).clientState s1
-    (btreeInsertGenProg ((((cp, base), fs.liveSliceIdx b), fp), X))
+    btreeInsertGenProg_fastStep henv hlIdx hlic
+      hwc_step.2.1 hwc_step.2.2.1 hv_l hfp_lt hval_X
   obtain ⟨hic_mc, hic_vp, hic_step⟩ :=
-    insIncLiveInsGenProg_fastStep (fs := fs2) henv hb hlic hbi_step.2.1 hbi_step.2.2.1 (s := s2)
+    insIncLiveInsGenProg_fastStep henv hb (by exact hlic) hbi_step.2.1 hbi_step.2.2.1
   dsimp only
-  unfold insFinishDirectGenProg; dsimp only; simp only [pure_bind]
+  unfold insFinishDirectGenProg
+  simp only [pure_bind]
   exact CostBoundedStep.elim (.bind ⟨rfl, rfl, hwc_mc, hwc_vp⟩ <|
     .bind ⟨rfl, rfl, hbi_mc, hbi_vp⟩ ⟨rfl, rfl, hic_mc, hic_vp⟩) (by omega)
     ((hwc_step.trans hbi_step).trans hic_step)

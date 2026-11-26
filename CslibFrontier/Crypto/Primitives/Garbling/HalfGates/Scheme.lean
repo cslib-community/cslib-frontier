@@ -411,10 +411,8 @@ theorem zeroWords_eq (k : ℕ) (f : XorAndCircuit) (coins : List Bool) {s : ℕ}
     simp only [zeroWords, List.length_ofFn] at h₁
     have hin : (Wire.ofNat i (by omega) : Wire f.circuit.n (toCircuit f).size) = .input ⟨i, h₁⟩ :=
       Wire.toNat_injective (by simp)
-    have hWi := congrFun hW (.input ⟨i, h₁⟩)
-    simp only [evalStep] at hWi
-    simp only [zeroWords, List.getElem_ofFn, List.getElem_take, hin, ← hWi,
-      labelBits_inputLabels]
+    simp only [zeroWords, List.getElem_ofFn, List.getElem_take, hin, ← congrFun hW (.input ⟨i, h₁⟩),
+      evalStep, labelBits_inputLabels]
   | succ s ih =>
     have hsq : s < f.circuit.q := hs
     have hsize := size_toCircuit f
@@ -424,9 +422,8 @@ theorem zeroWords_eq (k : ℕ) (f : XorAndCircuit) (coins : List Bool) {s : ℕ}
     have hAB := f.isValid.A_lt_B ⟨s, hsq⟩
     have hBg := f.isValid.B_lt_gate ⟨s, hsq⟩
     simp only [ConventionalCircuit.topo] at hA₁ hAB hBg
-    rw [zeroWords, dite_eq_left hsq]
-    dsimp only
-    rw [ih hsq.le, ← Nat.add_assoc, List.take_add_one, List.getElem?_ofFn]
+    rw [zeroWords, dite_eq_left hsq, ih hsq.le, ← Nat.add_assoc, List.take_add_one,
+      List.getElem?_ofFn]
     have hgate : (Wire.ofNat (f.circuit.n + s) (by omega) : Wire f.circuit.n (toCircuit f).size) =
         .gate g := Wire.toNat_injective (by simp [hg])
     simp only [show f.circuit.n + s < f.circuit.n + (toCircuit f).size by omega, dite_true,
@@ -514,15 +511,12 @@ private theorem encodeGate_garbleTable (k : ℕ) (f : XorAndCircuit) (coins : Li
   rw [getD_ofFn_labels W (by omega), getD_ofFn_labels W (by omega),
     ← left_toCircuit f g, ← right_toCircuit f g]
   cases hG : f.circuit.G (g.cast (size_toCircuit f)) true true
-  · have hop : op (toCircuit f) g = .xor := by rw [op_toCircuit, opOf, hG]; rfl
-    rw [dite_eq_right (by rw [hop]; decide)]
-    rfl
-  · have hop : op (toCircuit f) g = .and := by rw [op_toCircuit, opOf, hG]; rfl
-    rw [dite_eq_left hop]
-    simp only [garbleTable, Slot.gate, Bool.false_eq_true, ↓reduceIte]
-    rw [labelBits_genCt hash k g (ofFn_slotTweak _ k g hop false),
+  · have hop : op (toCircuit f) g = .xor := by simp [op_toCircuit, opOf, hG]
+    simp only [hop, reduceCtorEq, ↓reduceDIte, Bool.false_eq_true, ↓reduceIte]
+  · have hop : op (toCircuit f) g = .and := by simp [op_toCircuit, opOf, hG]
+    simp only [hop, ↓reduceDIte, ↓reduceIte, garbleTable, Slot.gate, Bool.false_eq_true,
+      Fin.val_cast, labelBits_genCt hash k g (ofFn_slotTweak _ k g hop false),
       labelBits_evCt hash k g (ofFn_slotTweak _ k g hop true), labelBits_offset]
-    rfl
 
 /-- **The garbler computes the typed garbling.** At parameter `k`, `Gb` on any coins writes the
 words of the typed half-gates garbling `garbleWith` of `toCircuit f`, with the hash
@@ -723,13 +717,9 @@ theorem scheme_correct : (scheme hash).Correct := by
   rw [PointPermute.projectiveEncode_labelBits (n := f.circuit.n)
       (fun i b => inputLabels k coins i + bitOffset (CCR.offset (offsetKey k coins)) b) hx,
     evalWord_encodeFn hash k f _ _ _ (fun w => congrFun hfix w), PointPermute.decodeWord_ofFn]
-  have h := congrArg List.ofFn hrun
-  rw [eval_toCircuit, BitString.ofFn_ofList hx] at h
-  rw [← h]
-  congr 2
-  funext o
-  unfold Garbled.run evaluate
-  simp only [garbleWith, Garbling.decode]
+  conv_rhs => rw [← BitString.ofFn_ofList hx, ← eval_toCircuit, ← hrun]
+  congr 2 with o
+  simp only [Garbled.run, evaluate, garbleWith, Garbling.decode]
   exact congrArg (fun y : BitString (k + 1) × Bool => y.2 + _)
     (congrFun hev ((toCircuit f).outputs o)).symm
 

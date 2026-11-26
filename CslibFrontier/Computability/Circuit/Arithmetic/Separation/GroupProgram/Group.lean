@@ -131,10 +131,9 @@ private theorem StoreBound.of_mem_instructionSem {mu : Tape.Letter S Unit Γ →
     split_ifs at hq
     exacts [List.mem_singleton.1 hq ▸ h, absurd hq List.not_mem_nil]
   | role j tt slots keys =>
-    simp only [instructionSem] at hq
+    simp only [instructionSem, roleSem] at hq
     split at hq
-    · simp only [roleSem] at hq
-      split_ifs at hq
+    · split_ifs at hq
       · obtain ⟨a, -, r, hr, rfl⟩ := List.mem_weightedBind_iff.1 hq
         obtain ⟨t', ht', rfl⟩ := List.mem_map.1 hr
         exact h.of_mem_putStrings ht'
@@ -157,9 +156,7 @@ private theorem compare_gives {pf v : Fm} {x t o : Tree} {ub cv : ℕ} {k : List
   simp only [path_ofBits, len_ofBits] at e
   refine e.mono ?_
   have := (ht.tget k).2
-  have : (tget k t).size ≤ 4 * ub + 1 := by
-    rw [(ht.tget k).1]
-    exact (size_ofBits _).trans (by omega)
+  have := le_of_eq_of_le (congrArg Tree.size (ht.tget k).1) (size_ofBits _)
   omega
 
 /-- A check: the trie is kept if the comparison `C` holds, and the run fails otherwise. -/
@@ -205,8 +202,7 @@ private theorem exists_formula_instruction (mu : Tape.Letter S Unit Γ → Matri
       (K * i.cost T ub) by
     refine ((Does.cons hx.tl.hd (Does.cons hx.tl.tl.hd h)).of_eq ?_).mono ?_
     · simp [groupState, Function.comp_def, x]
-    · rw [Nat.add_mul]
-      omega
+    · rw [Nat.add_mul]; omega
   cases i with
   | block q q' B =>
     obtain ⟨hq, hq'⟩ := hi
@@ -232,10 +228,10 @@ private theorem exists_formula_instruction (mu : Tape.Letter S Unit Γ → Matri
     simp only [Instruction.cost]
     exact le_trans (by omega) (Nat.mul_le_mul_right _ (show 400 ≤ K by omega))
   | fixed k w =>
-    have gw : Gives θ (.tl (.tl (.hd .id))) x (ofBits w) 4 := hx.hd.tl.tl
     have hD : Does θ (fs.getD 3 .fail) x (instructionSem θ mu cb kinds T ub (.fixed k w) t)
         (30 * k.length + 240 * ub + 120) :=
-      (ite_check_does (compare_gives ht hx.hd.tl.hd hx.tl.tl.tl gw) hx.tl.tl.tl).mono (by omega)
+      (ite_check_does (compare_gives ht hx.hd.tl.hd hx.tl.tl.tl hx.hd.tl.tl) hx.tl.tl.tl).mono
+        (by omega)
     refine (switchF_does (j := 3) hx.hd.hd rfl hD).mono ?_
     simp only [Instruction.cost]
     exact le_trans (by omega) (Nat.mul_le_mul_right _ (show 400 ≤ K by omega))
@@ -244,8 +240,7 @@ private theorem exists_formula_instruction (mu : Tape.Letter S Unit Γ → Matri
     have hj : j < kinds.length := (List.getElem?_eq_some_iff.1 hz).1
     have hf : fs[4 + j]? = some (lett (.cons (.hd (.tl (.tl .id))) (.cons (.tl (.tl (.tl .id)))
         (.tl (.hd .id)))) (FR z)) := by
-      rw [show 4 + j = j + 1 + 1 + 1 + 1 by omega]
-      simp [fs, hz]
+      simp [fs, Nat.add_comm 4 j, hz]
     refine ((switchF_does hx.hd.hd hf (Does.of_gives (hx.tl.tl.hd.cons (hx.tl.tl.tl.cons
       hx.hd.tl)) (hFR z ub tt slots keys t ht hsl))).of_eq (by simp [instructionSem, hz])).mono ?_
     simp only [Instruction.cost]
@@ -289,8 +284,7 @@ private theorem unF_gives {b : Fm} {x : Tree} {w : List Bool} {c : ℕ}
           ((Gives.quote .nil _).cons hg)).mono (by omega)) rfl
   refine h1.mono ?_
   simp only [List.map_const', List.sum_replicate, smul_eq_mul]
-  rw [show 62 * BitString.binaryValue w + 90 + 30 = 62 * BitString.binaryValue w + 120 by omega]
-  omega
+  nlinarith
 
 /-- **The program GROUP.** For an automaton `mu`, a code `cb` of the letters and a list `kinds` of
 roles of laws, one formula computes, at every script whose instructions are valid, the semantics of
@@ -310,24 +304,23 @@ theorem exists_formula_scriptSem (mu : Tape.Letter S Unit Γ → Matrix Q Q A)
   obtain ⟨F, κ, hF⟩ := exists_formula_instruction (θ := θ) mu cb kinds
   refine ⟨foldF F (.cons (unF (.hd (.hd .id))) (.cons (unF (.tl (.hd .id))) (.quote .nil)))
     (.tl .id), κ + 300, fun bT bub l hl => ?_⟩
-  obtain ⟨T, hT⟩ : ∃ T, T = BitString.binaryValue bT := ⟨_, rfl⟩
-  obtain ⟨ub, hub⟩ : ∃ ub, ub = BitString.binaryValue bub := ⟨_, rfl⟩
-  rw [← hT, ← hub]
+  set T := BitString.binaryValue bT with hT
+  set ub := BitString.binaryValue bub with hub
   have h1 := foldF_does_enc (θ := θ) (encE := Instruction.enc) (xs := l) (enc := groupState T ub)
     (s₀ := .nil) (f := instructionSem θ mu cb kinds T ub) (Inv := fun _ t => StoreBound ub t)
-    (d := fun i => κ * i.cost T ub) ((hT ▸ unF_gives (Gives.id (scriptEnc bT bub l)).hd.hd).cons
-      ((hub ▸ unF_gives (Gives.id _).hd.tl).cons (Gives.quote .nil _))) (Gives.id _).tl
+    (d := fun i => κ * i.cost T ub) ((unF_gives (Gives.id (scriptEnc bT bub l)).hd.hd).cons
+      ((unF_gives (Gives.id _).hd.tl).cons (Gives.quote .nil _))) (Gives.id _).tl
     (fun i _ t hi ht => ⟨hF T ub i t (hl i hi) ht, fun _ hq => ht.of_mem_instructionSem hq⟩)
     (StoreBound.nil ub)
   refine h1.mono ?_
-  rw [List.sum_map_add, List.sum_map_mul_left, List.map_const', List.sum_replicate, smul_eq_mul]
+  rw [List.sum_map_add, List.sum_map_mul_left, List.map_const', List.sum_replicate, smul_eq_mul,
+    Nat.add_mul, ← hT, ← hub]
   have p1 : bT.length * (62 * T + 120) ≤ 120 * ((bT.length + 1) * (T + 1)) := by nlinarith
   have p2 : bub.length * (62 * ub + 120) ≤ 120 * ((bub.length + 1) * (ub + 1)) := by nlinarith
   have p3 : 1 ≤ (bT.length + 1) * (T + 1) := Nat.one_le_iff_ne_zero.2 (by positivity)
-  have q : κ * (l.map (Instruction.cost T ub)).sum ≤ κ * ((bT.length + 1) * (T + 1) +
-      (bub.length + 1) * (ub + 1) + (l.map (Instruction.cost T ub)).sum + l.length) :=
-    Nat.mul_le_mul_left _ (by omega)
-  rw [Nat.add_mul]
+  have q := Nat.mul_le_mul_left κ ((Nat.le_add_left (l.map (Instruction.cost T ub)).sum
+    ((bT.length + 1) * (T + 1) + (bub.length + 1) * (ub + 1))).trans
+      (Nat.le_add_right _ l.length))
   omega
 
 end Cslib.Circuits.Arithmetic.Separation.GroupProgram
