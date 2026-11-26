@@ -20,10 +20,3 @@ example : ([[], []], [[]]) ∈ SigmaWidthThree 2 := by
   simp [SigmaWidthThree, prenexAt, PrenexQBF.SigmaSAT, PrenexQBF.WellFormed, matrix,
     PrenexQBF.formula, QBF.blocks, QBF.ofCNF, QBF.ofClause, DNF.negate, Term.negate, QBF.eval,
     QBF.exs, QBF.alls, QBF.freeVars, QBF.quantifierFree_bot]
-
-#print axioms sigmaWidthThree_complete
-#print axioms piWidthThree_complete
-#print axioms exists_normalFormReduction
-#print axioms iterate_not_true_eq
-#print axioms widthThree_blocks_eval
-#print axioms widthThreeCNF_blocks_eval
