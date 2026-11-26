@@ -275,7 +275,8 @@ theorem hard_power_exponent_capacity (k m T : ℕ) (hT : T < 2 ^ m)
     2 ^ k < 112640 * (m + 1) * (k + 1) ^ 2 := by
   have h : 2 ^ k / (1024 * (k + 1)) < 110 * (m + 1) * (k + 1) :=
     hard_power_requires_long_exponent k m T hT hard
-  nlinarith [(Nat.div_lt_iff_lt_mul (by positivity : 0 < 1024 * (k + 1))).mp h]
+  have hlt := (Nat.div_lt_iff_lt_mul (by positivity)).mp h
+  nlinarith
 
 end ModulusCounter
 

@@ -279,7 +279,8 @@ theorem length_modulus_le (m : ℕ) : (modulus m).length ≤ 32 * (m + 1) ^ 2 :=
   have h3 : 3 ^ t ≤ (2 ^ t) ^ 2 := by
     rw [← pow_mul, mul_comm, pow_mul]
     exact Nat.pow_le_pow_left (by norm_num) t
-  nlinarith [Nat.pow_le_pow_left (by omega : 2 ^ t ≤ 4 * (m + 1)) 2]
+  have h4 : 2 ^ t ≤ 4 * (m + 1) := by omega
+  nlinarith [Nat.pow_le_pow_left h4 2]
 
 /-- The coefficients of the modulus are `0` or `1`. -/
 theorem le_one_of_mem_modulus {m z : ℕ} (hz : z ∈ modulus m) : z ≤ 1 := by

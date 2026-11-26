@@ -496,8 +496,8 @@ private theorem two_sub_two_mul_mul_le_mul_logb (hp : 1 - 1 / (2 * Real.log 2) �
   have h2 : s - m ≤ s * Real.log (s / m) := by
     have := mul_le_mul_of_nonneg_left (Real.one_sub_inv_le_log_of_pos (div_pos hs hm)) hs.le
     rwa [inv_div, mul_sub, mul_one, mul_div_cancel₀ m hs.ne'] at this
-  have h3 : 2 - 2 * p ≤ 1 / Real.log 2 := by
-    linarith [(by field_simp : 2 * (1 / (2 * Real.log 2)) = 1 / Real.log 2)]
+  have htwo : 2 * (1 / (2 * Real.log 2)) = 1 / Real.log 2 := by field_simp
+  have h3 : 2 - 2 * p ≤ 1 / Real.log 2 := by linarith
   calc (2 - 2 * p) * (s - m) ≤ 1 / Real.log 2 * (s - m) :=
         mul_le_mul_of_nonneg_right h3 (sub_nonneg.2 hms)
     _ ≤ 1 / Real.log 2 * (s * Real.log (s / m)) :=

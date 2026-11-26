@@ -97,12 +97,6 @@ private theorem swapVerifier_apply {L P q : ℕ} (g' : List (AMMove × ℕ)) (k 
   rw [swapVerifier, List.take_left' hs, e2, List.drop_left' hs, List.take_left' List.length_ofFn,
     e4]
 
-private theorem value_repeatShape_cons_arthur (b : Bool) (k p : ℕ) (τ : List (AMMove × ℕ))
-    (f : List Bool → ℚ) :
-    value b (repeatShape k ((.arthur, p) :: τ)) f =
-      (∑ R : Fin (k * p) → Bool, value b (repeatShape k τ) fun t => f (List.ofFn R ++ t)) /
-        2 ^ (k * p) := rfl
-
 /-- The pointwise upper bound behind the swap: the union bound over Merlin's message. -/
 private theorem swap_pointwise_le (τ : List (AMMove × ℕ)) (q p k : ℕ)
     (W : (Fin q → Bool) → List Bool → Bool) :

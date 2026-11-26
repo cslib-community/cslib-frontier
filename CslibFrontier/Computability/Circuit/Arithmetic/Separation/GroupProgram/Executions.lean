@@ -92,10 +92,6 @@ section Subset
 variable {n : Fin (K + K) → Fin (K + K) → Fin (U0 + 1)} {o : M.Channel → Fin U1}
   {grp : Fin (K + K + A') → G} {g : G}
 
-private theorem baseCells_subset_groupCells (p : Fin (K + K)) :
-    baseCells n o grp g p ⊆ groupCells n o grp g :=
-  filter_subset _ _
-
 theorem roleCells_subset_groupCells (r : M.Role) : roleCells n o grp g r ⊆ groupCells n o grp g :=
   filter_subset _ _
 
