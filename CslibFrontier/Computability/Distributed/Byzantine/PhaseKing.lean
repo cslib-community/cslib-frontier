@@ -575,11 +575,10 @@ theorem phaseKing_fails_four_one (kings : Fin 2 ↪ Fin 4) (R : ℕ) :
   let adv : ℕ → Fin 4 → Fin 4 → Bool := fun r _ i => if r = 2 then true else decide (i = p)
   have hmin (i : Fin 4) : (phaseKing 1 kings).decision F adv x R i =
       (phaseKing 1 kings).decision F adv x (min R 4) i := by
-    by_cases hR : 4 ≤ R
-    · rw [Nat.min_eq_right hR]
-      simp only [MultivaluedProtocol.decision, phaseKing_state_eq_of_le kings F adv x hR,
-        phaseKing_state_eq_of_le kings F adv x le_rfl]
-    · rw [Nat.min_eq_left (by omega)]
+    rcases le_or_gt 4 R with hR | hR
+    · simp [MultivaluedProtocol.decision, Nat.min_eq_right hR,
+        phaseKing_state_eq_of_le kings F adv x hR, phaseKing_state_eq_of_le kings F adv x le_rfl]
+    · rw [Nat.min_eq_left hR.le]
   let r' : Fin 5 := ⟨min R 4, by omega⟩
   have hsuff : ∀ (k₀ k₁ : Fin 4) (h : k₀ ≠ k₁) (r : Fin 5),
       ({k₁} : Finset (Fin 4)).card ≤ 1 ∧ k₀ ∉ ({k₁} : Finset (Fin 4)) ∧
@@ -693,9 +692,7 @@ theorem turpinCoan_valueMessagesSent_eq (t : ℕ) (default : V) (πBool : Protoc
   unfold turpinCoanValueMessagesSent
   rw [Finset.sum_range_succ', Finset.sum_eq_zero fun k _ => Finset.sum_eq_zero fun _ _ =>
     Finset.sum_eq_zero fun _ _ => by cases k <;> rfl, Nat.zero_add]
-  simp only [turpinCoan, TurpinCoanMsg.isVal, ↓reduceIte, Finset.sum_const, Nat.nsmul_eq_mul,
-    Nat.mul_one, Finset.card_univ]
-  rw [show (univ \ F).card = Fintype.card P - F.card by finset_card]
+  simp [turpinCoan, TurpinCoanMsg.isVal, Finset.card_sdiff_of_subset (Finset.subset_univ F)]
 
 private theorem turpinCoan_heard_of_notMem (t : ℕ) (default : V) (πBool : Protocol P SBool MBool)
     (F : Finset P) (adv : ℕ → P → P → TurpinCoanMsg V MBool) (x : P → V) (i : P) {j : P}
@@ -756,13 +753,11 @@ private theorem turpinCoan_candidate_eq {t : ℕ} {default : V} {πBool : Protoc
     · by_contra hne
       have hsub : (univ.filter fun j => perp j = false).filter
           (fun j => (s₁ i).heard j = w) ⊆ F := fun j hj => by
-        rw [Finset.mem_filter, Finset.mem_filter] at hj
+        obtain ⟨⟨-, hjp⟩, hjw⟩ := (Finset.mem_filter.1 hj).imp_left Finset.mem_filter.1
         by_contra hjF
-        have hjc : (s₁ j).perplexed = false := (hperp j hjF).symm.trans hj.1.2
-        have hval : (s₁ i).heard j = x c₀ :=
-          (turpinCoan_heard_of_notMem t default πBool F adv x i hjF).trans
-            (turpinCoan_content_eq hF hjc hc₀)
-        exact hne (hj.2.symm.trans hval)
+        exact hne (hjw.symm.trans
+          ((turpinCoan_heard_of_notMem t default πBool F adv x i hjF).trans
+            (turpinCoan_content_eq hF ((hperp j hjF).symm.trans hjp) hc₀)))
       finset_card
   rw [huniq, Option.getD_some]
 
@@ -821,10 +816,8 @@ theorem turpinCoan_solvesByzantineAgreement {t R₀ : ℕ} (default : V)
     (hBool : πBool.SolvesByzantineAgreement t R₀) :
     (turpinCoan t default πBool).SolvesByzantineAgreement t (R₀ + 2) where
   agreement F hF adv x i hi j hj := by
-    rw [turpinCoan_decision_add_two, turpinCoan_decision_add_two]
-    have hdec := hBool.agreement F hF (turpinCoanAdvBool t default πBool F adv x)
-      (turpinCoanAlert t default πBool F adv x) i hi j hj
-    rw [← hdec]
+    rw [turpinCoan_decision_add_two, turpinCoan_decision_add_two,
+      ← hBool.agreement F hF _ _ i hi j hj]
     cases hbit : πBool.decision F (turpinCoanAdvBool t default πBool F adv x)
       (turpinCoanAlert t default πBool F adv x) R₀ i with
     | true => rfl
@@ -855,9 +848,8 @@ theorem turpinCoan_solvesByzantineAgreement {t R₀ : ℕ} (default : V)
     rw [turpinCoan_decision_add_two]
     -- Every correct process receives `v` from all `n - |F| ≥ n - t` correct processes in round 1,
     -- so none is perplexed (`2 * (n - t) > n + t` since `3 * t < n`).
-    have hcontent : ∀ q ∉ F,
+    have hcontent (q : P) (hq : q ∉ F) :
         ((turpinCoan t default πBool).state F adv x 1 q).perplexed = false := by
-      intro q hq
       rw [turpinCoan_perplexed_eq_false_iff, hv q hq]
       have hsub : univ \ F ⊆ univ.filter (fun j =>
           ((turpinCoan t default πBool).state F adv x 1 q).heard j = v) := fun j hj => by

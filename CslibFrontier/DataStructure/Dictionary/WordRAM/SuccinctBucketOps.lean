@@ -438,21 +438,18 @@ private theorem bucketStateInv_updateVal {U V w₀ n_max h_space base b j₀ q_t
     fun b' hb' j₁ hj₁ j₂ hj₂ => by
       rw [hgm] at hj₁ hj₂; rw [hgm, hq]; exact hinv.hnodup_q b' hb' j₁ hj₁ j₂ hj₂,
     fun b' hb' j hj => ?_, fun b' hb' q => ?_⟩
-  · rw [hgm] at hj; rw [hgm, hq, hv]
+  · rw [hgm] at hj
+    rw [hgm, hq, hv]
     rcases eq_or_ne b' b with rfl | hbeq
     · rcases eq_or_ne j j₀ with rfl | hjeq
       · simp [hq₀]
-      · have hq_ne : quotAt base U w₀ n_max h_space s.mem
-            (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b' j) ≠ q_target :=
-          fun heq => hjeq (hinv.hnodup_q b' hb' j hj j₀ hj₀ (heq.trans hq₀.symm))
-        have hs_ne : slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b' j ≠
-            slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b' j₀ :=
-          fun heq => hjeq (hinj b' hb' j hj b' hb' j₀ hj₀ heq).2
-        simp [hq_ne, hs_ne, hinv.hmap_some b' hb' j hj]
-    · have hs_ne : slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b' j ≠
-          slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b j₀ :=
-        fun heq => hbeq (hinj b' hb' j hj b hb j₀ hj₀ heq).1
-      simp [hbeq, hs_ne, hinv.hmap_some b' hb' j hj]
+      · rw [Function.update_self, Function.update_of_ne fun heq =>
+            hjeq (hinv.hnodup_q b' hb' j hj j₀ hj₀ (heq.trans hq₀.symm)),
+          Function.update_of_ne fun heq => hjeq (hinj b' hb' j hj b' hb' j₀ hj₀ heq).2,
+          hinv.hmap_some b' hb' j hj]
+    · rw [Function.update_of_ne hbeq,
+        Function.update_of_ne fun heq => hbeq (hinj b' hb' j hj b hb j₀ hj₀ heq).1,
+        hinv.hmap_some b' hb' j hj]
   · rw [hgm, hq]
     rcases eq_or_ne b' b with rfl | hbeq
     · rcases eq_or_ne q q_target with rfl | hqeq
@@ -509,8 +506,8 @@ private theorem bucketStateInv_pushBack
     · rw [hbc_b]
       rcases eq_or_ne j j_new with rfl | hjeq
       · simp [j_new, hq_new, ← hm_eq, and_comm, eq_comm]
-      · simp only [show j ≠ bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b' from hjeq,
-          false_and, and_false, or_false]
+      · have hjeq' : j ≠ bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b' := hjeq
+        simp only [hjeq', false_and, and_false, or_false]
         exact ⟨fun ⟨hj, hcap, hm_j⟩ => ⟨by omega, hcap, (hold b' hb' j hj).1.symm ▸ hm_j⟩,
           fun ⟨hj, hcap, hm_j⟩ => ⟨by omega, hcap, (hold b' hb' j (by omega)).1 ▸ hm_j⟩⟩
     · simp only [hbeq, false_and, or_false]
@@ -521,9 +518,8 @@ private theorem bucketStateInv_pushBack
       wlog hle : j₁ ≤ j₂ generalizing j₁ j₂
       · exact (this j₂ hj₂ j₁ hj₁ hq_eq.symm (by omega)).symm
       rcases eq_or_ne j₂ j_new with rfl | h2
-      · by_contra h1
-        have hj1 : j₁ < j_new := by omega
-        exact habs ⟨j₁, hj1, ((hold b' hb' j₁ hj1).1.symm.trans hq_eq).trans hq_new⟩
+      · exact hle.eq_or_lt.resolve_right fun hj1 =>
+          habs ⟨j₁, hj1, ((hold b' hb' j₁ hj1).1.symm.trans hq_eq).trans hq_new⟩
       · have hj2 : j₂ < j_new := by omega
         rw [(hold b' hb' j₁ (hle.trans_lt hj2)).1, (hold b' hb' j₂ hj2).1] at hq_eq
         exact hinv.hnodup_q b' hb' j₁ (hle.trans_lt hj2) j₂ hj2 hq_eq

@@ -122,11 +122,9 @@ private theorem eq_ttcRounds_of_pareto_and_or_endowment {I : Instance n} {ν : A
           exact (hadich _ (I.iterate_mem_cycleAgents ha₀ _)).resolve_right fun htop =>
             topChoice_iterate_ne_self_of_ne ha₀ hf_ne₀ (p - (m + 1))
               (ν.injective (htop.trans hν_fb.symm)).symm
-      have hO_fix : ∀ b ∈ O, ν b = b ∧ f b ≠ b := by
-        rintro b hb
+      have hO_fix (b : Fin n) (hb : b ∈ O) : ν b = b ∧ f b ≠ b := by
         obtain ⟨t, -, rfl⟩ := Finset.mem_image.1 hb
         refine ⟨?_, topChoice_iterate_ne_self_of_ne ha₀ hf_ne₀ t⟩
-        change ν (f^[t] a₀) = f^[t] a₀
         rw [← Function.iterate_mod_minimalPeriod_eq (f := f) (x := a₀) (n := t)]
         exact Nat.sub_sub_self (Nat.mod_lt t hp_pos).le ▸ hfix_back (p - t % p) (Nat.sub_le p _)
       -- Trading along `O` strictly improves all of `O` without hurting anyone outside `O`.
@@ -218,12 +216,10 @@ theorem eq_topTradingCycles_of_ir_pe_sp {M : HousingMechanism n}
       exact I.inStrictCore_ttc S ⟨ν, hS, hle', j₀, hj₀, lt_of_le_of_ne (hle' j₀ hj₀)
         fun hr => hlt.ne (congrArg (I'.rank j₀) (I.rank_injective j₀ hr))⟩
     -- The endowment-rank sum strictly drops, so the induction hypothesis gives `M I' = I.ttc`.
-    have hsum_lt : (∑ j : Fin n, (I'.rank j j).val) < m := by
-      rw [← hm]
-      refine Finset.sum_lt_sum (fun j _ => ?_) ⟨i, Finset.mem_univ i, hI'_ii ▸ hkr⟩
-      rcases eq_or_ne j i with rfl | hji
-      · exact hI'_ii ▸ hkr.le
-      · rw [I.updatePref_rank_of_ne π hji]
+    have hsum_lt : (∑ j : Fin n, (I'.rank j j).val) < m := hm ▸ Finset.sum_lt_sum
+      (fun j _ => if hji : j = i then hji ▸ hI'_ii ▸ hkr.le
+        else I.updatePref_rank_of_ne π hji ▸ le_rfl)
+      ⟨i, Finset.mem_univ i, hI'_ii ▸ hkr⟩
     have hMI' : M I' = I.ttc := (ih _ hsum_lt I' rfl).trans hI'_strictCore.eq_ttc.symm
     -- Strategy-proofness between `I` and `I'` forces `M I i = I.ttc i`.
     have hsp_fwd : I.rank i (M I i) ≤ r := by simpa only [I', hMI'] using hSP I i π
@@ -375,10 +371,8 @@ private theorem eq_sdSteps_of_rank_le {k : ℕ} {R : Finset (Fin n)} (hk_le : k 
 /-- Serial dictatorship always produces a Pareto-efficient allocation. -/
 theorem isParetoEfficient_serialDictatorship : I.IsParetoEfficient I.serialDictatorship := by
   rintro ⟨ν, hle, i, hlt⟩
-  have heq := I.eq_sdSteps_of_rank_le (k := n) (R := Finset.univ) le_rfl (by simp)
-    (fun _ _ => Finset.mem_univ _) (fun j _ => hle j) i (by simp)
-  rw [serialDictatorship_apply, ← heq] at hlt
-  exact lt_irrefl _ hlt
+  exact hlt.ne (congrArg (I.rank i) (I.eq_sdSteps_of_rank_le le_rfl (by simp)
+    (fun _ _ => Finset.mem_univ _) (fun j _ => hle j) i (by simp)))
 
 private theorem rank_sdSteps_le_updatePref {k : ℕ} {R : Finset (Fin n)} (hk_le : k ≤ n)
     (hcard : k ≤ R.card) (i : Fin n) (hi : n - k ≤ i.val) (π : Equiv.Perm (Fin n)) :
@@ -390,8 +384,8 @@ private theorem rank_sdSteps_le_updatePref {k : ℕ} {R : Finset (Fin n)} (hk_le
     let J := I.updatePref i π
     let a : Fin n := ⟨n - 1 - k, by omega⟩
     by_cases hia : i = a
-    · rw [show I.sdSteps (k + 1) R i = I.topChoice R i from hia ▸ I.sdSteps_succ_of_eq hk R]
-      exact I.rank_topChoice_le (J.sdSteps_mem hk_le hcard hi) i
+    · have htop_i : I.sdSteps (k + 1) R i = I.topChoice R i := hia ▸ I.sdSteps_succ_of_eq hk R
+      exact htop_i.symm ▸ I.rank_topChoice_le (J.sdSteps_mem hk_le hcard hi) i
     · rw [I.sdSteps_succ_of_ne hk R hia, J.sdSteps_succ_of_ne hk R hia,
         I.updatePref_topChoice_of_ne π (Ne.symm hia) R]
       exact ih (by omega)

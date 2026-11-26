@@ -139,12 +139,9 @@ private theorem sum_powersetCard_chi (s : Finset ι) (x : ι → Bool) (m j : �
         (X + C ((-1) ^ b.toNat)) ^ #{l ∈ s | x l = b} :=
       prod_eq_pow_card fun l hl => by rw [(mem_filter.1 hl).2]
     rw [← prod_filter_mul_prod_filter_not s (fun l => x l = true)]
-    simp only [Bool.not_eq_true]
-    rw [h, h, htrue, hfalse, ← mul_pow, map_pow (expand ℝ 2)]
+    simp only [Bool.not_eq_true, h, htrue, hfalse, ← mul_pow, map_pow (expand ℝ 2)]
     congr 1
-    simp only [Bool.toNat_true, Bool.toNat_false, pow_one, pow_zero, map_add, expand_X, map_neg,
-      map_one]
-    ring
+    simp [Bool.toNat_true, Bool.toNat_false, expand_X]; ring
   rw [hprod, coeff_expand two_pos, ite_eq_left ⟨m - j, by omega⟩,
     show (#s - 2 * j) / 2 = m - j by omega, coeff_X_add_C_pow,
     show m - (m - j) = j by omega, Nat.choose_symm hjm]
@@ -178,13 +175,10 @@ theorem fourierCoeff_signVal_majority_two_mul_empty (m : ℕ) :
         show m ≤ weight (fun i => !x i) by omega]
     · simp [majority, threshold_apply, hhalf, show m ≤ weight x by omega,
         show ¬m ≤ weight (fun i => !x i) by omega, ne_of_gt hgt]
-  have htie :
-      (𝔼 x : Fin (2 * m) → Bool, if weight x = m then (1 : ℝ) else 0) =
-        (2 * m).choose m / (4 : ℝ) ^ m := by
-    change (𝔼 x : Fin (2 * m) → Bool,
-      if #{i ∈ univ | x i = true} = m then (1 : ℝ) else 0) = _
-    rw [expect_ite_card_filter_eq, card_univ, Fintype.card_fin, pow_mul]
-    norm_num
+  have htie : (𝔼 x : Fin (2 * m) → Bool, if weight x = m then (1 : ℝ) else 0) =
+      (2 * m).choose m / (4 : ℝ) ^ m := by
+    change (𝔼 x : Fin (2 * m) → Bool, if #{i ∈ univ | x i = true} = m then (1 : ℝ) else 0) = _
+    rw [expect_ite_card_filter_eq, card_univ, Fintype.card_fin, pow_mul]; norm_num
   have hmean : (𝔼 x, f x) + (𝔼 x, f x) =
       (-2 : ℝ) * ((2 * m).choose m / (4 : ℝ) ^ m) := by
     calc
@@ -276,13 +270,12 @@ theorem levelWeight_signVal_majority_of_odd (m j : ℕ) :
     levelWeight (2 * j + 1) (fun x => signVal (majority (2 * m + 1) x)) =
       (2 * m + 1).choose (2 * j + 1) *
         ((m.choose j : ℝ) / (2 * m).choose (2 * j) * ((2 * m).choose m / 4 ^ m)) ^ 2 := by
-  rw [levelWeight, sum_congr rfl fun S hS => by
-    rw [fourierCoeff_signVal_majority_of_card_eq m j (mem_filter.1 hS).2]]
-  rw [sum_const, nsmul_eq_mul]
+  rw [levelWeight, sum_congr rfl fun S hS =>
+    congrArg (· ^ 2) (fourierCoeff_signVal_majority_of_card_eq m j (mem_filter.1 hS).2),
+    sum_const, nsmul_eq_mul]
   congr 1
   · simp
-  rw [mul_div_assoc, mul_assoc, mul_pow, ← pow_mul, mul_comm j 2, pow_mul]
-  norm_num
+  · rw [mul_div_assoc, mul_assoc, mul_pow, ← pow_mul, mul_comm j 2, pow_mul]; norm_num
 
 /-- Majority has no Fourier weight on the levels of even size. -/
 theorem levelWeight_signVal_majority_of_even (m : ℕ) {k : ℕ} (hk : Even k) :

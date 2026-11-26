@@ -149,16 +149,15 @@ private theorem clarkePivot_unassigned [Fintype ι] [DecidableEq ι]
     (hv : ∀ j, 0 ≤ v j) {x : ι} (hx : x ∉ Set.range σ) :
     clarkePivot x (linearProfile (slotAlloc μ) v) =
       ∑ j ∈ Finset.univ.erase x, linearProfile (slotAlloc μ) v j σ := by
-  have hσ' : IsAssortative (Function.update v x 0) σ := by
-    refine ⟨fun a b hab => ?_, fun i j hj => ?_⟩
-    · simp only [Function.comp_apply, Function.update_of_ne (fun h => hx ⟨a, h⟩),
-        Function.update_of_ne (fun h => hx ⟨b, h⟩)]
-      exact hσ.antitone hab
-    · rw [Function.update_of_ne (fun h => hx ⟨i, h⟩)]
-      by_cases hjx : j = x
-      · subst hjx
-        simpa only [Function.update_self] using hv _
-      · simpa only [Function.update_of_ne hjx] using hσ.unassigned_le i j hj
+  have hσ' : IsAssortative (Function.update v x 0) σ :=
+    ⟨fun a b hab => by
+      simpa only [Function.comp_apply, Function.update_of_ne (fun h => hx ⟨a, h⟩),
+        Function.update_of_ne (fun h => hx ⟨b, h⟩)] using hσ.antitone hab,
+     fun i j hj => by
+      rw [Function.update_of_ne (fun h => hx ⟨i, h⟩)]
+      rcases eq_or_ne j x with rfl | hjx
+      · simpa only [Function.update_self] using hv _
+      · simpa only [Function.update_of_ne hjx] using hσ.unassigned_le i j hj⟩
   refine le_antisymm (Finset.sup'_le _ _ fun ω _ => ?_)
     (Finset.le_sup' (fun ω => ∑ j ∈ Finset.univ.erase x, linearProfile (slotAlloc μ) v j ω)
       (Finset.mem_univ σ))
@@ -272,22 +271,20 @@ theorem vcg_payment_slot_eq_minEnvyFreePrice [Fintype ι] [DecidableEq ι]
     (hμ : Antitone μ) (hμ_nonneg : ∀ i, 0 ≤ μ i) (hv : ∀ j, 0 ≤ v j) (t : Fin k) :
     (vcg f).payment (linearProfile (slotAlloc μ) v) (σ t) = minEnvyFreePrice μ v σ t := by
   simp only [vcg, groves, hfσ]
-  have hsolve : ∀ (tail : ι) (htail : ∀ r : Fin k, r ≠ t → tail ≠ σ r),
-      Function.update v (σ t) 0 tail = maxUnassignedValue v σ →
-      IsAssortative (Function.update v (σ t) 0) (shiftUp σ t tail htail) →
+  have hsolve (tail : ι) (htail : ∀ r : Fin k, r ≠ t → tail ≠ σ r)
+      (hval : Function.update v (σ t) 0 tail = maxUnassignedValue v σ)
+      (hassort : IsAssortative (Function.update v (σ t) 0) (shiftUp σ t tail htail)) :
       clarkePivot (σ t) (linearProfile (slotAlloc μ) v) -
         ∑ j ∈ Finset.univ.erase (σ t), linearProfile (slotAlloc μ) v j σ =
         minEnvyFreePrice μ v σ t := by
-    intro tail htail hval hassort
     have hpivot : clarkePivot (σ t) (linearProfile (slotAlloc μ) v) =
-        welfare μ (Function.update v (σ t) 0) (shiftUp σ t tail htail) := by
-      refine le_antisymm (Finset.sup'_le _ _ fun ω _ => ?_) ?_
-      · rw [sum_erase_linearProfile]; exact hassort.isOptimal hμ hμ_nonneg ω
-      · rw [← sum_erase_linearProfile μ v (σ t) (shiftUp σ t tail htail)]
-        exact Finset.le_sup' (fun ω => ∑ j ∈ Finset.univ.erase (σ t),
-          linearProfile (slotAlloc μ) v j ω) (Finset.mem_univ _)
-    rw [hpivot]
-    exact welfare_shiftUp_sub μ v σ t tail htail hval
+        welfare μ (Function.update v (σ t) 0) (shiftUp σ t tail htail) :=
+      le_antisymm (Finset.sup'_le _ _ fun ω _ => by
+          simpa only [sum_erase_linearProfile] using hassort.isOptimal hμ hμ_nonneg ω)
+        (sum_erase_linearProfile μ v (σ t) (shiftUp σ t tail htail) ▸
+          Finset.le_sup' (fun ω => ∑ j ∈ Finset.univ.erase (σ t),
+            linearProfile (slotAlloc μ) v j ω) (Finset.mem_univ _))
+    exact hpivot.symm ▸ welfare_shiftUp_sub μ v σ t tail htail hval
   by_cases hne : (Finset.univ \ Finset.univ.map σ).Nonempty
   · obtain ⟨jstar, hjmem, hjval⟩ := Finset.exists_mem_eq_sup' hne v
     have hjrange : jstar ∉ Set.range σ := by
@@ -307,17 +304,15 @@ theorem vcg_payment_slot_eq_minEnvyFreePrice [Fintype ι] [DecidableEq ι]
   · have htail : ∀ r : Fin k, r ≠ t → σ t ≠ σ r := fun r hr h => hr (σ.injective h).symm
     have hval : Function.update v (σ t) 0 (σ t) = maxUnassignedValue v σ := by
       simp [maxUnassignedValue, hne]
-    refine hsolve (σ t) htail hval (shiftUp_isAssortative hσ t (σ t) htail ?_ ?_)
-    · intro r
-      simpa only [Function.update_self] using hv (σ r)
-    · intro j hj
-      obtain ⟨r, rfl⟩ : j ∈ Set.range σ := by
-        by_contra hnot
-        exact hne ⟨j, Finset.mem_sdiff.mpr ⟨Finset.mem_univ j, by simpa using hnot⟩⟩
-      rcases eq_or_ne r t with rfl | hrt
-      · exact (hj ⟨⟨k - 1, Nat.sub_lt (Fin.pos r) Nat.one_pos⟩,
-          shiftUp_last σ r (σ r) htail (Nat.sub_add_cancel (Fin.pos r))⟩).elim
-      · exact (hj (mem_range_shiftUp_of_ne hrt)).elim
+    refine hsolve (σ t) htail hval (shiftUp_isAssortative hσ t (σ t) htail
+      (fun r => by simpa only [Function.update_self] using hv (σ r)) fun j hj => ?_)
+    obtain ⟨r, _, rfl⟩ := Finset.mem_map.mp
+      (Finset.sdiff_eq_empty_iff_subset.mp (Finset.not_nonempty_iff_eq_empty.mp hne)
+        (Finset.mem_univ j))
+    rcases eq_or_ne r t with rfl | hrt
+    · exact (hj ⟨⟨k - 1, Nat.sub_lt (Fin.pos r) Nat.one_pos⟩,
+        shiftUp_last σ r (σ r) htail (Nat.sub_add_cancel (Fin.pos r))⟩).elim
+    · exact (hj (mem_range_shiftUp_of_ne hrt)).elim
 
 /-- Every unassigned bidder pays `0` under the VCG mechanism on `Fin k ↪ ι`. -/
 theorem vcg_payment_unassigned_eq_zero [Fintype ι] [DecidableEq ι]

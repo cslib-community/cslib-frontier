@@ -180,21 +180,19 @@ theorem greedyColorReduction_run {V : Type*} [Fintype V]
       (greedyColorReduction Δ).state G x s u := fun _ _ => rfl
   simp only [hrun_eq]
   induction r with
-  | zero =>
-    exact ⟨hx, fun u => (hq u).trans_le (by have := hq u; omega)⟩
+  | zero => exact ⟨hx, fun u => (hq u).trans_le (Nat.le_max_left (q - 0) _)⟩
   | succ r ih =>
     obtain ⟨ih_ne, ih_lt⟩ := ih
-    have hst : ∀ w, (greedyColorReduction Δ).state G x (r + 1) w =
+    have hst (w) : (greedyColorReduction Δ).state G x (r + 1) w =
         greedyStep Δ ((greedyColorReduction Δ).state G x r w)
-          ((G.neighborFinset w).image ((greedyColorReduction Δ).state G x r)) := fun w => by
+          ((G.neighborFinset w).image ((greedyColorReduction Δ).state G x r)) := by
       rw [BroadcastProtocol.state_succ]
       dsimp only [greedyColorReduction, BroadcastProtocol.fullInfo]
       rw [multiset_map_toFinset_eq_image]
     refine ⟨fun u v huv => by rw [hst u, hst v]; exact greedyStep_ne_of_adj hdeg ih_ne huv,
       fun u => ?_⟩
-    have hlt := greedyStep_lt (Δ := Δ) ih_ne ih_lt u
     rw [hst u]
-    omega
+    exact (greedyStep_lt (Δ := Δ) ih_ne ih_lt u).trans_le (by omega)
 
 /-! ### Kuhn–Wattenhofer one-round disjoint-block palette compression -/
 
@@ -256,8 +254,8 @@ theorem kwCompressProtocol_run {V : Type*} [Fintype V]
     (∀ u v, G.Adj u v → (kwCompressProtocol Δ m).run G x 1 u ≠
       (kwCompressProtocol Δ m).run G x 1 v) ∧
       ∀ u, (kwCompressProtocol Δ m).run G x 1 u < kwBound Δ m := by
-  have hrun : ∀ w, (kwCompressProtocol Δ m).run G x 1 w =
-      kwCompress Δ m (x w) ((G.neighborFinset w).image x) := fun w => by
+  have hrun (w) : (kwCompressProtocol Δ m).run G x 1 w =
+      kwCompress Δ m (x w) ((G.neighborFinset w).image x) := by
     change kwCompress Δ m (x w) (((G.neighborFinset w).val.map x).toFinset) = _
     rw [multiset_map_toFinset_eq_image]
   have hcard_used : ∀ w base,
@@ -266,12 +264,10 @@ theorem kwCompressProtocol_run {V : Type*} [Fintype V]
     Finset.card_image_le.trans
       ((Finset.card_filter_le _ _).trans
         (Finset.card_image_le.trans ((G.degree_le_maxDegree w).trans hΔ)))
-  have hnot_nbr : ∀ w base,
-      base + firstFreeColor Δ
-        ((((G.neighborFinset w).image x).filter fun b => base ≤ b).image fun b => b - base) ∉
-        (G.neighborFinset w).image x := by
-    intro w base hmem
-    exact firstFreeColor_notMem (hcard_used w base) <| Finset.mem_image.2
+  have hnot_nbr (w base) (hmem : base + firstFreeColor Δ
+      ((((G.neighborFinset w).image x).filter fun b => base ≤ b).image fun b => b - base) ∈
+      (G.neighborFinset w).image x) : False :=
+    firstFreeColor_notMem (hcard_used w base) <| Finset.mem_image.2
       ⟨_, Finset.mem_filter.2 ⟨hmem, Nat.le_add_right _ _⟩, Nat.add_sub_cancel_left _ _⟩
   refine ⟨fun u v huv => ?_, fun u => ?_⟩
   · rw [hrun u, hrun v]
@@ -280,8 +276,7 @@ theorem kwCompressProtocol_run {V : Type*} [Fintype V]
       Finset.mem_image.2 ⟨u, (G.mem_neighborFinset v u).2 huv.symm, rfl⟩
     have hxv_in_u : x v ∈ (G.neighborFinset u).image x :=
       Finset.mem_image.2 ⟨v, (G.mem_neighborFinset u v).2 huv, rfl⟩
-    unfold kwCompress
-    dsimp only
+    dsimp only [kwCompress]
     split_ifs with hu hv
     · exact hne
     · exact fun heq => hnot_nbr v ((x v - kwBound Δ m) * (Δ + 1)) (heq ▸ hxu_in_v)
@@ -291,8 +286,7 @@ theorem kwCompressProtocol_run {V : Type*} [Fintype V]
       simp [Nat.mul_comm _ (Δ + 1), Nat.mul_add_div, Nat.div_eq_of_lt (firstFreeColor_lt _ _)] at h
       omega
   · rw [hrun u]
-    unfold kwCompress
-    dsimp only
+    dsimp only [kwCompress]
     split_ifs with hu
     · exact hu
     · have hi_lt : x u - kwBound Δ m < kwBound Δ m / (Δ + 1) := by
@@ -755,8 +749,7 @@ theorem deltaPlusOneColoring_isProperColoring {Δ C : ℕ} (hΔ : G.maxDegree �
   have hR : 1 + Nat.logStar C + Δ * (5 * (Δ + 1)) = deltaPlusOneRounds Δ C := by
     unfold deltaPlusOneRounds; rw [Nat.mul_comm 5 Δ, Nat.mul_assoc]
   rw [hR] at hprop hlt
-  rw [SimpleGraph.isProperColoring_iff]
-  intro u v huv heq
+  refine (G.isProperColoring_iff).2 fun u v huv heq => ?_
   have hval := congrArg Fin.val heq
   rw [deltaPlusOneColoring_run_eq, deltaPlusOneColoring_run_eq,
     deltaPlusOneColoring_state_add G Δ C x t u, deltaPlusOneColoring_state_add G Δ C x t v,

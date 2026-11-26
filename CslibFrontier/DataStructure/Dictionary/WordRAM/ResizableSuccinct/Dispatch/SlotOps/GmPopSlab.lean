@@ -229,15 +229,12 @@ private theorem compGmCompactSlabGenProg_effect {metaBase itemBase U V w N m_ite
       (hg1.symm ▸ pureMovedSlabInv_after_relink hm1)
     obtain ⟨hf3, hg3⟩ := compGmFrame_writeCompGMGenProg (m_items := m_items) hw hitem h0_lt
       hp_last_val _
-    rw [ite_eq_left hlt, StateTransitionSpec.clientState_bind]
-    refine ⟨hf1.trans (hf2.trans hf3), ?_⟩
-    rw [hg3, hg2, hg1]
-    exact gmCompactSlab_eq_parts gm hlt hm1.2.2.1
+    rw [ite_eq_left hlt, StateTransitionSpec.clientState_bind, hg3, hg2, hg1]
+    exact ⟨hf1.trans (hf2.trans hf3), gmCompactSlab_eq_parts gm hlt hm1.2.2.1⟩
   · obtain ⟨hf1, hg1⟩ := compGmFrame_writeCompGMGenProg (m_items := m_items) hw hitem h0_lt
       hp_last_val s
-    rw [ite_eq_right hlt, StateTransitionSpec.clientState_pure]
-    refine ⟨hf1, ?_⟩
-    unfold gmCompactSlab; rw [ite_eq_right hlt, hg1]
+    rw [ite_eq_right hlt, StateTransitionSpec.clientState_pure, hg1]
+    exact ⟨hf1, by rw [gmCompactSlab, ite_eq_right hlt]⟩
 
 private theorem realizesBounded_compGmMoveLastSlabMeta :
     RealizesBounded .exact compGmMoveLastSlabMetaProg
@@ -376,13 +373,10 @@ theorem compGmPopSlabGenProg_effect {metaBase itemBase U V w N m_items b : ℕ}
   obtain ⟨hf2, hg2⟩ := compGmCompactSlabGenProg_effect
     (V := V) (p_del := (Memory.spec 0).clientResult s
       (compGmUnlinkTopSlabGenProg ((mkCompParams U V w N, metaBase), b)))
-    (m_items := m_items) hw hitem _ (hg1.symm ▸ hc1) (hg1.symm ▸ hc2) (by
-      rw [hg1, hres1]
-      exact hc4)
+    (m_items := m_items) hw hitem _ (hg1.symm ▸ hc1) (hg1.symm ▸ hc2) (by rwa [hg1, hres1])
   dsimp only [s', compGmPopSlabGenProg]
   rw [StateTransitionSpec.clientState_bind]
-  refine ⟨hf1.trans hf2, ?_⟩
-  rw [hg2, hg1, hres1]; rfl
+  exact ⟨hf1.trans hf2, by rw [hg2, hg1, hres1]; rfl⟩
 
 theorem realizesBounded_compGmPopSlabGen :
     RealizesBounded .exact compGmPopSlabGenProg

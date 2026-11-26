@@ -343,16 +343,14 @@ private theorem address_swapWord (M : PointerMatching m) (i : Fin m)
 private theorem swapWord_swapWord (M : PointerMatching m) (i : Fin m) (s : Bool)
     (z : Fin m ⊕ M.Keys → Bool) (hz : address z = M.endpoint i s) :
     M.swapWord i (M.swapWord i z) = z := by
-  have hs : address z i = s := by rw [hz, M.endpoint_bit]
+  have hs : z (.inl i) = s := by simpa [address, M.endpoint_bit] using congrFun hz i
   funext j
-  cases j with
-  | inl j =>
-    simp only [swapWord, Sum.elim_inl, Sum.elim_inr, Function.update_self, hs]
-    exact (congrFun hz j).symm
-  | inr j =>
-    rw [swapWord, Sum.elim_inr, M.address_swapWord, M.endpoint_bit]
-    simp only [swapWord, Sum.elim_comp_inr, Function.update_idem]
-    exact congrFun (Function.update_eq_self _ (z ∘ Sum.inr)) j
+  rcases j with j | j
+  · simpa only [swapWord, address, Function.comp_apply, Sum.elim_inl, Sum.elim_inr,
+      Function.update_self, hs] using (congrFun hz j).symm
+  · rw [swapWord, Sum.elim_inr, M.address_swapWord, M.endpoint_bit]
+    simpa only [swapWord, Function.comp_apply, Sum.elim_comp_inr, Function.update_idem] using
+      congrFun (Function.update_eq_self _ (z ∘ Sum.inr)) j
 
 private theorem restrict_force_eq_swapWord (M : PointerMatching m) (S : Finset (Fin m ⊕ M.Keys))
     (i : Fin m) (s : Bool) (z : Fin m ⊕ M.Keys → Bool) (hz : address z = M.endpoint i s)
@@ -362,16 +360,12 @@ private theorem restrict_force_eq_swapWord (M : PointerMatching m) (S : Finset (
   have hpoint : point M.key z = .inr (M.lowerKey i) := by rw [point, hz, M.key_endpoint]
   have htarget : M.target (address z) = s := by rw [hz, M.target_endpoint]
   funext ⟨j, hj⟩
-  cases j with
-  | inl j =>
-    simp only [Finset.restrict, forcePointer, swapWord, Sum.elim_inl, hpoint,
-      Function.update_of_ne (by simp : Sum.inl j ≠ .inr (M.lowerKey i))]
+  rcases j with j | j
+  · simp only [Finset.restrict, forcePointer, swapWord, Sum.elim_inl, hpoint,
+      Function.update_of_ne Sum.inl_ne_inr]
     exact (congrFun hz j).trans (M.endpoint_other i _ _ fun h => hi (h ▸ hj))
-  | inr j =>
-    simp only [Finset.restrict, forcePointer, swapWord, Sum.elim_inr, hpoint, htarget, hs]
-    by_cases h : j = M.lowerKey i
-    · simp [h]
-    · simp [Function.update_of_ne h, Function.update_of_ne (Sum.inr_injective.ne h)]
+  · by_cases h : j = M.lowerKey i <;>
+      simp [Finset.restrict, forcePointer, swapWord, hpoint, htarget, hs, h]
 
 /-- Perform the exchange precisely on edges whose direction is hidden by the projection. -/
 private noncomputable def compareWord (M : PointerMatching m) (S : Finset (Fin m ⊕ M.Keys))

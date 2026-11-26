@@ -407,19 +407,12 @@ theorem acceptProb_gmwSeqVerifier_gmwSeqProver {α : Type} {generator : List Boo
   have hrep (K : ℕ) : (OracleComp.replicate K (pure true : ProbComp Bool)) =
       pure (List.replicate K true) := by
     induction K <;> simp [OracleComp.replicate_succ, List.replicate_succ, *]
-  have hmap : (do
-      let coinsList ← OracleComp.replicate (k n) (sampleHonestCoins (n + 7) (f a) w)
-      Prod.fst <$> runSeq generator (n + 7) (length (n + 7)) (f a)
-        (gmwSeqVerifier generator length f k n a) (false, coinsList)) =
-      (fun bs : List Bool => bs.all id) <$> (do
-        let coinsList ← OracleComp.replicate (k n) (sampleHonestCoins (n + 7) (f a) w)
-        Prod.fst <$> runSeq generator (n + 7) (length (n + 7)) (f a)
-          (OracleComp.replicate (k n) (gmwVerifier generator length f n a))
-          (false, coinsList)) := by
-    simp only [gmwSeqVerifier, runSeq_map, map_bind, Functor.map_map, Prod.map_fst]
-  rw [acceptProb, run_gmwSeqProver_fst, hmap, ProbComp.eval_map,
-    eval_bind_replicate_runSeq_gmwVerifier,
-    ProbComp.eval_replicate_congr (h1'.trans (ProbComp.eval_pure true).symm), hrep (k n)]
+  have h := congrArg (PMF.map fun bs : List Bool => bs.all id)
+    (eval_bind_replicate_runSeq_gmwVerifier generator length f n a w (k n))
+  rw [ProbComp.eval_replicate_congr (h1'.trans (ProbComp.eval_pure true).symm), hrep (k n)] at h
+  rw [acceptProb, run_gmwSeqProver_fst]
+  simp only [gmwSeqVerifier, runSeq_map, Prod.map_fst, pmf_norm] at h ⊢
+  rw [h]
   simp
 
 /-- **Sequential soundness amplification for interactive proofs.** If no stateful prover makes
@@ -690,10 +683,9 @@ theorem isOraclePPTOn_sessionStep {k : ℕ} {Control : Type} [Finite Control]
   let inv (a : ℕ × ℕ × ℕ × FiniteConfig k Bool Control Unit) (_ : ℕ)
       (st : ℕ × ℕ × FiniteConfig k Bool Control Unit) : Prop :=
     st.1 ≤ a.2.1 ∧ st.2.1 ≤ a.2.2.1 ∧ FiniteConfig.SpaceBound (L₀ a) (T₀ a - st.1) a.1 st.2.2
-  have hbase (a : ℕ × ℕ × ℕ × FiniteConfig k Bool Control Unit) : inv a 0 a.2 := by
-    refine ⟨le_rfl, le_rfl, ?_⟩
-    rw [show T₀ a - a.2.1 = L₀ a from Nat.add_sub_cancel _ _]
-    exact (spaceBound_of_encFiniteConfig a.2.2.2).mono le_rfl le_rfl (Nat.zero_le _)
+  have hbase (a : ℕ × ℕ × ℕ × FiniteConfig k Bool Control Unit) : inv a 0 a.2 :=
+    ⟨le_rfl, le_rfl, (spaceBound_of_encFiniteConfig a.2.2.2).mono le_rfl
+      (Nat.add_sub_cancel (L₀ a) a.2.1).ge (Nat.zero_le _)⟩
   have hpres (a : ℕ × ℕ × ℕ × FiniteConfig k Bool Control Unit) (i : ℕ)
       (st : ℕ × ℕ × FiniteConfig k Bool Control Unit) (_ : i < a.2.1) (hst : inv a i st)
       (next : ℕ × ℕ × FiniteConfig k Bool Control Unit)
@@ -722,7 +714,8 @@ theorem isOraclePPTOn_sessionStep {k : ℕ} {Control : Type} [Finite Control]
       have hcf' : (encFiniteConfig st.2.2).length ≤ cf * (2 * ((encIn a).length + 1)) :=
         (hcf (L₀ a) (T₀ a - st.1) a.1 st.2.2 h3).trans (Nat.mul_le_mul_left cf (by omega))
       dsimp only [encCfg] at hstlen
-      rw [Nat.add_mul, show 4 * cf = 2 * (cf * 2) by omega, Nat.mul_assoc, Nat.mul_assoc]
+      have hmul : (4 * cf + 6) * ((encIn a).length + 1) =
+          2 * (cf * (2 * ((encIn a).length + 1))) + 6 * ((encIn a).length + 1) := by ring
       omega)).1
   exact hiter.map (output := encPair encUnary encCfg)
     ((ComputableInPolyTime.fst encUnary (encPair encUnary encCfg)).prod

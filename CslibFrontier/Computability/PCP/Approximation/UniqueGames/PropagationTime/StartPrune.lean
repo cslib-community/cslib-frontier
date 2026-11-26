@@ -291,13 +291,10 @@ theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
                   Bool.toNat_false])
               unfold pruneBody
               wram_exec [hzC.one, hzC.candB, hk_reg, hck_mem, hck0]
-              exact ⟨⟨by wram_simp [hzC],
-                  by wram_simp [hzT2],
-                  by wram_simp [hzT3],
-                  by wram_simp [hzR],
+              refine ⟨⟨?_, ?_, ?_, ?_,
                   by simpa only [Data.set_mem] using hk'.1,
-                  by simpa only [Data.set_mem] using hk'.2⟩,
-                by wram_simp⟩
+                  by simpa only [Data.set_mem] using hk'.2⟩, ?_⟩
+              all_goals wram_simp [hzC, hzT2, hzT3, hzR]
             | true =>
               have hck1 : (S.cand ⟨k, hk⟩).toNat = 1 := by simp only [hck, Bool.toNat_true]
               have hfk_lt := (f ⟨k, hk⟩).isLt
@@ -324,13 +321,10 @@ theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
                 unfold pruneBody
                 wram_exec [hzC.one, hzC.two, hzC.candB, hzT2, hzT3, hzE, hk_reg, hck_mem, hck1,
                   hfa, hha, hcfa, heq_val]
-                exact ⟨⟨by wram_simp [hzC],
-                    by wram_simp [hzT2],
-                    by wram_simp [hzT3],
-                    by wram_simp [hzR],
+                refine ⟨⟨?_, ?_, ?_, ?_,
                     by simpa only [Data.set_mem] using hk'.1,
-                    by simpa only [Data.set_mem] using hk'.2⟩,
-                  by wram_simp⟩
+                    by simpa only [Data.set_mem] using hk'.2⟩, ?_⟩
+                all_goals wram_simp [hzC, hzT2, hzT3, hzR]
               · have hpws := prefix_write_step hzCand hzFr
                   (show Function.update z.mem (candBase g + k) 0 =
                     Function.update z.mem (candBase g + k) (cVal k) by
@@ -340,13 +334,10 @@ theorem pruneCode_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (S : State (Fin
                 unfold pruneBody
                 wram_exec [hzC.zero, hzC.one, hzC.two, hzC.candB, hzT2, hzT3, hzE, hk_reg,
                   hck_mem, hck1, hfa, hha, hcfa, heq_val]
-                exact ⟨⟨by wram_simp [hzC],
-                    by wram_simp [hzT2],
-                    by wram_simp [hzT3],
-                    by wram_simp [hzR],
+                refine ⟨⟨?_, ?_, ?_, ?_,
                     by simpa only [Data.write_mem, Data.set_mem] using hpws.1,
-                    by simpa only [Data.write_mem, Data.set_mem] using hpws.2⟩,
-                  by wram_simp⟩)
+                    by simpa only [Data.write_mem, Data.set_mem] using hpws.2⟩, ?_⟩
+                all_goals wram_simp [hzC, hzT2, hzT3, hzR])
           (hlab2.symm ▸ Nat.zero_le L)
           (hlab2.symm ▸ ⟨hc2, ht2_2, ht3_2, hr2'.trans hr1,
             fun _ h => absurd h (Nat.not_lt_zero _), fun addr _ => congrFun (hm2'.trans hm1) addr⟩)

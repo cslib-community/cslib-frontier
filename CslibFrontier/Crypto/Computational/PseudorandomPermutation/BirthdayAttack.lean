@@ -98,10 +98,9 @@ def wordBirthdayDistinguisher (blockLen Q : ℕ → ℕ) : OracleDistinguisher :
 theorem injective_birthdayQueries {m q : ℕ} (hq : q ≤ 2 ^ m) :
     Function.Injective (birthdayQueries m q) := by
   intro i j hij
-  have hij' := congrArg List.ofFn hij
-  simp only [birthdayQueries, BitString.ofFn_ofList (BitString.length_lowBits m _)] at hij'
-  exact Fin.ext
-    (BitString.lowBits_injective_of_lt (i.isLt.trans_le hq) (j.isLt.trans_le hq) hij')
+  refine Fin.ext (BitString.lowBits_injective_of_lt (i.isLt.trans_le hq) (j.isLt.trans_le hq) ?_)
+  simpa only [birthdayQueries, BitString.ofFn_ofList (BitString.length_lowBits m _)] using
+    congrArg List.ofFn hij
 
 /-- `birthdayQueries m (2 ^ m)` enumerates every `m`-bit string bijectively. -/
 theorem bijective_birthdayQueries {m : ℕ} :
@@ -177,8 +176,7 @@ theorem isOraclePPT_wordBirthdayDistinguisher {blockLen Q : ℕ → ℕ}
       (encPair (encList encBits) encBool next).length ≤
         (encPair (encList encBits) encBool state).length + (4 * blockLen n + 10) := by
     rintro n ⟨seen, collided⟩ next hnext
-    simp only [wordBirthdayStep, OracleComp.mem_supportWith_bind_iff] at hnext
-    obtain ⟨raw, -, hnext⟩ := hnext
+    obtain ⟨raw, -, hnext⟩ := OracleComp.mem_supportWith_bind_iff.mp hnext
     obtain rfl := OracleComp.eq_of_mem_supportWith_pure hnext
     have hlen : (raw.take (blockLen n)).length ≤ blockLen n := List.length_take_le _ _
     have hencBool : ∀ b : Bool, (encBool b).length = 1 := fun b => by cases b <;> rfl
@@ -214,11 +212,11 @@ theorem isQueryBounded_wordBirthdayDistinguisher (blockLen Q : ℕ → ℕ) (n :
     induction k with
     | zero => exact OracleComp.IsCostBounded.pure _ 0
     | succ k ih =>
-      rw [OracleComp.iterate_succ]
-      exact OracleComp.IsCostBounded.bind ih (isQueryBounded_wordBirthdayStep blockLen n)
-  rw [wordBirthdayDistinguisher, ← bind_pure_comp, ← Nat.add_zero (min (Q n) (2 ^ blockLen n))]
-  exact OracleComp.IsCostBounded.bind (hiter (min (Q n) (2 ^ blockLen n)))
-    (fun _ => OracleComp.IsCostBounded.pure _ 0)
+      exact OracleComp.iterate_succ .. ▸
+        OracleComp.IsCostBounded.bind ih (isQueryBounded_wordBirthdayStep blockLen n)
+  simpa only [wordBirthdayDistinguisher, ← bind_pure_comp, Nat.add_zero] using
+    OracleComp.IsCostBounded.bind (hiter (min (Q n) (2 ^ blockLen n)))
+      fun _ => OracleComp.IsCostBounded.pure _ 0
 
 private theorem run_iterate_wordBirthdayStep (blockLen : ℕ → ℕ) (n : ℕ)
     (f : List Bool → List Bool) (k : ℕ) :
@@ -426,22 +424,20 @@ private theorem exists_freq_le_poly_of_not_negligible_inv_two_pow {f : ℕ → �
   obtain ⟨k, δ, hδ, hfreq⟩ := hf
   refine ⟨k, Nat.ceil (δ⁻¹ : ℝ≥0) + 1, Nat.succ_pos _, Filter.frequently_atTop.mpr fun m => ?_⟩
   obtain ⟨n, hn_ge, hn⟩ := hfreq m
-  by_cases h0 : f n = 0
-  · simp only [h0, ↓reduceIte, mul_zero] at hn
-    exact absurd hn (not_le_of_gt hδ)
-  · simp only [h0, ↓reduceIte] at hn
-    refine ⟨n, hn_ge, Nat.one_le_iff_ne_zero.mpr h0, ?_⟩
-    have hpow : (2 : ℝ≥0) ^ f n ≤ δ⁻¹ * (n : ℝ≥0) ^ k := by
-      calc (2 : ℝ≥0) ^ f n = δ⁻¹ * δ * (2 : ℝ≥0) ^ f n := by rw [inv_mul_cancel₀ hδ.ne', one_mul]
-        _ ≤ δ⁻¹ * ((n : ℝ≥0) ^ k * ((2 : ℝ≥0) ^ f n)⁻¹) * (2 : ℝ≥0) ^ f n := by gcongr
-        _ = δ⁻¹ * (n : ℝ≥0) ^ k := by
-          rw [mul_assoc, mul_assoc, inv_mul_cancel₀ (pow_ne_zero _ two_ne_zero), mul_one]
-    have hc : δ⁻¹ ≤ ((Nat.ceil (δ⁻¹ : ℝ≥0) + 1 : ℕ) : ℝ≥0) := by
-      calc δ⁻¹ ≤ (Nat.ceil (δ⁻¹ : ℝ≥0) : ℝ≥0) := Nat.le_ceil _
-        _ ≤ ((Nat.ceil (δ⁻¹ : ℝ≥0) + 1 : ℕ) : ℝ≥0) := by exact_mod_cast Nat.le_add_right _ 1
-    have hnn : (n : ℝ≥0) ≤ (n : ℝ≥0) + 1 := le_add_of_nonneg_right zero_le
-    push_cast at hc
-    exact_mod_cast hpow.trans (mul_le_mul' hc (pow_le_pow_left' hnn k))
+  have h0 : f n ≠ 0 := fun h0 => by simp [h0, not_le_of_gt hδ] at hn
+  simp only [h0, ↓reduceIte] at hn
+  refine ⟨n, hn_ge, Nat.one_le_iff_ne_zero.mpr h0, ?_⟩
+  have hpow : (2 : ℝ≥0) ^ f n ≤ δ⁻¹ * (n : ℝ≥0) ^ k := by
+    calc (2 : ℝ≥0) ^ f n = δ⁻¹ * δ * (2 : ℝ≥0) ^ f n := by rw [inv_mul_cancel₀ hδ.ne', one_mul]
+      _ ≤ δ⁻¹ * ((n : ℝ≥0) ^ k * ((2 : ℝ≥0) ^ f n)⁻¹) * (2 : ℝ≥0) ^ f n := by gcongr
+      _ = δ⁻¹ * (n : ℝ≥0) ^ k := by
+        rw [mul_assoc, mul_assoc, inv_mul_cancel₀ (pow_ne_zero _ two_ne_zero), mul_one]
+  have hc : δ⁻¹ ≤ ((Nat.ceil (δ⁻¹ : ℝ≥0) + 1 : ℕ) : ℝ≥0) := by
+    calc δ⁻¹ ≤ (Nat.ceil (δ⁻¹ : ℝ≥0) : ℝ≥0) := Nat.le_ceil _
+      _ ≤ ((Nat.ceil (δ⁻¹ : ℝ≥0) + 1 : ℕ) : ℝ≥0) := by exact_mod_cast Nat.le_add_right _ 1
+  push_cast at hc
+  exact_mod_cast hpow.trans
+    (mul_le_mul' hc (pow_le_pow_left' (le_add_of_nonneg_right zero_le_one) k))
 
 /-- If `((2 : ℝ≥0) ^ E.blockLen n)⁻¹` on nonzero blocks is not negligible, `E.prpRealGame` and
 `prfIdealGame` are not indistinguishable for PPT adversaries: some PPT adversary distinguishes them,

@@ -277,11 +277,8 @@ private theorem tsum_seedLaw_insertSeedSteps_le {c_exp n_max U V C_walk C_reh v 
       insertBaseSteps c_exp n_max U + 3 + C_walk * evictIterSteps c_exp n_max U +
         C_reh * rehashAmortizedSteps c_exp n_max U)
   · have hu_ks : u ∉ ks := fun h => hu ((hdom u).mp h)
-    have hnone_u : s u = none := Dictionary.notMem_dom_iff.mp hu
-    have hcard_lt : (Dictionary.dom s).card < n_max := by
-      rcases hvalid.1 with hlt | hsome
-      · exact hlt
-      · rw [hnone_u] at hsome; exact Bool.noConfusion hsome
+    have hcard_lt : (Dictionary.dom s).card < n_max :=
+      hvalid.1.resolve_right (by simp [Dictionary.notMem_dom_iff.mp hu])
     have htoFinset : ks.toFinset = Dictionary.dom s := Finset.ext fun x => by simp [hdom x]
     have hlen_lt : ks.length < n_max := by
       rwa [← List.toFinset_card_of_nodup hnodup, htoFinset]
@@ -655,15 +652,13 @@ theorem charge_le_expectedOpCharge {c_exp n_max U : ℕ}
     charge c_exp n_max U 3 4 s o ≤ expectedOpCharge c_exp s o := by
   cases o with
   | query _ =>
-    dsimp only [charge, expectedOpCharge, queryChargeBound]
     have hg := querySteps_le hU
-    omega
+    dsimp only [charge, expectedOpCharge, queryChargeBound]; omega
   | insert _ _ =>
-    dsimp only [charge, expectedOpCharge, insertCharge, insertChargeBound, insertBaseSteps]
     have hp := probeKeySteps_le hU
     have he := evictIterSteps_le_add hU
     have hr := rehashAmortizedSteps_le hU
-    omega
+    dsimp only [charge, expectedOpCharge, insertCharge, insertChargeBound, insertBaseSteps]; omega
 
 /-- Composable randomized Word-RAM `StateTransitionImpl` certificate for Pagh–Rodler cuckoo hashing
 over `Basis.exact`, unconditional whenever `U ≤ max n_max 4 ^ c_exp`. -/
@@ -867,13 +862,13 @@ theorem cuckoo_steps_expected_amortized (w base c_exp n_max U V : ℕ)
       exact ⟨((hstep_spec p hp).2.2 q hq_step).2.1, ((hstep_spec p hp).2.2 q hq_step).2.2.1⟩
     obtain ⟨ν_final, T_rest, hex_rest, hseed_final, hrep_final, hamort_rest⟩ :=
       ih ν₁ hvos hE' hseed₁ hsupp₁
-    have hex_cons : C.ExecStepsOfFn s (o :: os) ν ν_final ((∑' p, ν p * T_step p) + T_rest) := by
-      refine Randomized.StateTransitionImpl.ExecStepsOfFn.cons (C := C) (μ_step := μ_step)
-        (T_step := T_step) (fun p hp => ?_) hex_rest
-      obtain ⟨hex, _, hpost⟩ := hstep_spec p hp
-      refine ⟨hex, fun q hq => ?_⟩
-      obtain ⟨hdec, _, hrep', hmod⟩ := hpost q hq
-      exact ⟨hdec, hrep'.toRep, hmod⟩
+    have hex_cons : C.ExecStepsOfFn s (o :: os) ν ν_final ((∑' p, ν p * T_step p) + T_rest) :=
+      Randomized.StateTransitionImpl.ExecStepsOfFn.cons (C := C) (μ_step := μ_step)
+        (T_step := T_step) (fun p hp =>
+          let ⟨hex, _, hpost⟩ := hstep_spec p hp
+          ⟨hex, fun q hq =>
+            let ⟨hdec, _, hrep', hmod⟩ := hpost q hq
+            ⟨hdec, hrep'.toRep, hmod⟩⟩) hex_rest
     have hstep_cost :
         (∑' p, ν p * T_step p) ≤ (expectedOpCharge c_exp s o : ℝ≥0∞) := by
       have hstep_ch :
@@ -959,11 +954,9 @@ theorem cuckoo_seq_expected_amortized (w base c_exp n_max U V : ℕ)
         (maxEvictions n_max) ([] : List (Fin U))).Nonempty := by simp [survivingSeeds_nil]
   have hseed₀ : ν₀.map Prod.fst =
       PMF.uniformOfFinset
-        (survivingSeeds evalHash1 evalHash2 (maxEvictions n_max) ([] : List (Fin U))) hE₀ := by
-    rw [hseed_setup]
-    ext θ
-    rw [seedLaw, PMF.uniformOfFintype_apply, PMF.uniformOfFinset_apply]
-    simp [survivingSeeds_nil]
+        (survivingSeeds evalHash1 evalHash2 (maxEvictions n_max) ([] : List (Fin U))) hE₀ :=
+    hseed_setup.trans (PMF.ext fun θ => by
+      simp [seedLaw, PMF.uniformOfFintype_apply, PMF.uniformOfFinset_apply, survivingSeeds_nil])
   have hsupp₀ : ∀ p ∈ ν₀.support,
       p.1 = extractSeed (hashBase base) c_exp n_max U (tableBits n_max) p.2.mem ∧
       RepWithKeys w base c_exp n_max U V [] (Dictionary.empty U) p.2 :=

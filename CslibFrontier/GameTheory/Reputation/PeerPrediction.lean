@@ -218,10 +218,9 @@ def StochasticallyRelevant : Prop :=
 
 theorem stochasticallyRelevant_iff :
     M.StochasticallyRelevant ↔
-      ∀ s₁ s₂ : S, s₁ ≠ s₂ → ∃ s' : S, M.peerPosterior s₁ s' ≠ M.peerPosterior s₂ s' := by
-  refine ⟨fun hinj _ _ hne => Function.ne_iff.mp fun heq => hne (hinj heq), fun h s₁ s₂ heq => ?_⟩
-  by_contra hne
-  exact (h s₁ s₂ hne).elim fun s' hs' => hs' (congrFun heq s')
+      ∀ s₁ s₂ : S, s₁ ≠ s₂ → ∃ s' : S, M.peerPosterior s₁ s' ≠ M.peerPosterior s₂ s' :=
+  ⟨fun hinj _ _ hne => Function.ne_iff.mp fun heq => hne (hinj heq), fun h s₁ s₂ heq =>
+    not_ne_iff.mp fun hne => (h s₁ s₂ hne).elim fun s' hs' => hs' (congrFun heq s')⟩
 
 /-! ### Simultaneous reporting game (Equation `(27.1)`) -/
 
@@ -364,17 +363,11 @@ theorem truthful_isStrictBayesNash_logPeerTransfer [DecidableEq S] {I : Type*}
   rw [M.interimTransfer_logPeerTransfer hr α β (truthfulStrategy I) i s_i report,
     M.interimTransfer_logPeerTransfer hr α β (truthfulStrategy I) i s_i (truthfulStrategy I i s_i)]
   simp only [truthfulStrategy, mul_add, sum_add_distrib, ← sum_mul,
-    (M.isMixedStrategy_peerPosterior s_i).sum_eq_one, one_mul]
-  have hlt := sum_mul_log_lt_of_ne
-    (M.isMixedStrategy_peerPosterior report) (M.isMixedStrategy_peerPosterior s_i)
-    (M.peerPosterior_pos report) (M.peerPosterior_pos s_i)
-    (fun heq => hne (hrel heq))
-  have hpull (x : S) :
-      ∑ s_r : S, M.peerPosterior s_i s_r * (α * Real.log (M.peerPosterior x s_r)) =
-        α * ∑ s_r : S, M.peerPosterior s_i s_r * Real.log (M.peerPosterior x s_r) := by
-    rw [mul_sum]
-    exact sum_congr rfl fun _ _ => by ring
-  linarith [hpull report, hpull s_i, mul_lt_mul_of_pos_left hlt hα]
+    (M.isMixedStrategy_peerPosterior s_i).sum_eq_one, one_mul, mul_left_comm _ α, ← mul_sum]
+  exact add_lt_add_left (mul_lt_mul_of_pos_left
+    (sum_mul_log_lt_of_ne (M.isMixedStrategy_peerPosterior report)
+      (M.isMixedStrategy_peerPosterior s_i) (M.peerPosterior_pos report)
+      (M.peerPosterior_pos s_i) fun heq => hne (hrel heq)) hα) β
 
 /-- Ex-ante expected base log score `∑_s Pr(s) ∑_{s'} Pr(s' | s) ln Pr(s' | s)` when acquiring a
 signal and reporting truthfully, assuming reference rater `r(i)` reports truthfully
@@ -466,12 +459,11 @@ theorem truthful_isStrictBayesNash_balancedLogPeerTransfer [DecidableEq S]
     {α : ℝ} (hα : 0 < α) :
     M.IsStrictBayesNashReporting (M.balancedLogPeerTransfer r b α) (truthfulStrategy I) := by
   intro i s_i report hne
-  have hsplit : ∀ a : S,
+  have hsplit (a : S) :
       M.interimTransfer (M.balancedLogPeerTransfer r b α) (truthfulStrategy I) i s_i a =
         M.interimTransfer (M.logPeerTransfer r α 0) (truthfulStrategy I) i s_i a -
           ∑ s_prof : I → S, M.condSignalProb i s_i s_prof *
             M.logPeerTransfer r α 0 (fun j => truthfulStrategy I j (s_prof j)) (b i) := by
-    intro a
     simp only [interimTransfer, balancedLogPeerTransfer, mul_sub, sum_sub_distrib,
       logPeerTransfer, Function.update_of_ne (hb i), Function.update_of_ne (hrb i)]
   rw [hsplit report, hsplit (truthfulStrategy I i s_i)]

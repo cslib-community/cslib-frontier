@@ -411,14 +411,11 @@ theorem exists_lpr_dlpr_eq (v : N → Finset M → ℝ) :
   obtain ⟨val, ⟨⟨x', hx', hxv⟩, -⟩, ⟨⟨y', hy', hyv⟩, -⟩⟩ :=
     Matrix.exists_isGreatest_isLeast_dotProduct_of_nonneg
       lprMatrix 1 (Function.uncurry v) hP hD
-  refine ⟨Function.curry x', y' ∘ Sum.inr, y' ∘ Sum.inl, ?_, ?_, ?_⟩
-  · exact (isLPRFeasible_iff_matrix (Function.curry x')).mpr
-      (by simpa [Function.uncurry_curry] using hx')
-  · refine (isDLPRFeasible_iff_matrix v (y' ∘ Sum.inr) (y' ∘ Sum.inl)).mpr ?_
-    simpa [Sum.elim_comp_inl_inr] using hy'
-  · rw [← dotProduct_lprCost, ← dotProduct_dlprRhs, Function.uncurry_curry,
-      Sum.elim_comp_inl_inr]
-    exact hxv.trans hyv.symm
+  refine ⟨Function.curry x', y' ∘ Sum.inr, y' ∘ Sum.inl,
+    (isLPRFeasible_iff_matrix _).mpr (by simpa [Function.uncurry_curry] using hx'),
+    (isDLPRFeasible_iff_matrix _ _ _).mpr (by simpa [Sum.elim_comp_inl_inr] using hy'), ?_⟩
+  rw [← dotProduct_lprCost, ← dotProduct_dlprRhs, Function.uncurry_curry, Sum.elim_comp_inl_inr]
+  exact hxv.trans hyv.symm
 
 end Duality
 
@@ -569,13 +566,10 @@ theorem exists_isIntegral_isLPROptimal_iff {N M : Type*} [Fintype N] [Fintype M]
     {v : N → Finset M → ℝ} (hv : ∀ i, 0 ≤ v i ∅) :
     (∃ x, IsLPROptimal v x ∧ IsIntegral x) ↔
       ∃ a : Allocation N M, ∀ x, IsLPRFeasible x → lprObjective v x ≤ welfare v a := by
-  constructor
-  · rintro ⟨x, hx, hint⟩
-    refine ⟨hx.1.toAllocation, fun y hy => ?_⟩
-    exact (hx.2 y hy).trans (hx.1.lprObjective_le_welfare_toAllocation hv hint)
-  · rintro ⟨a, ha⟩
-    refine ⟨a.indicator, ⟨a.indicator_isLPRFeasible, fun y hy => ?_⟩, a.indicator_isIntegral⟩
-    simpa only [Allocation.lprObjective_indicator] using ha y hy
+  refine ⟨fun ⟨x, hx, hint⟩ => ⟨hx.1.toAllocation, fun y hy =>
+      (hx.2 y hy).trans (hx.1.lprObjective_le_welfare_toAllocation hv hint)⟩,
+    fun ⟨a, ha⟩ => ⟨a.indicator, ⟨a.indicator_isLPRFeasible, fun y hy => by
+      simpa only [Allocation.lprObjective_indicator] using ha y hy⟩, a.indicator_isIntegral⟩⟩
 
 /-- **Corollary 11.16** ([BlumrosenNisan2007], §11.3.2, p. 279): assuming `∀ i, 0 ≤ v i ∅` (in
 particular, for normalized valuations), a Walrasian equilibrium exists if and only if the linear
@@ -676,8 +670,7 @@ theorem exists_isLPROptimal_noEquilibriumVal :
         · have hc : (1 : ℝ) ≤ (S.card : ℝ) := by exact_mod_cast Finset.card_pos.mpr hS
           linarith
         · positivity
-        · simp [hS]
-          norm_num
+        · norm_num [hS]
         · positivity
       utility_nonneg := fun i => by cases i <;> norm_num
       price_nonneg := fun _ => by norm_num }

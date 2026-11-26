@@ -353,8 +353,8 @@ private theorem forall_contPayoff₁_le_iff {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ�
         contPayoff₁ δ σ₁ σ₂ (h ++ [⟨a, σ₂ h⟩]) :=
       congrArg (discountedPayoff δ) (funext fun t => by
         rw [roundAt_congr_of_gt hgt (fun _ _ => rfl) (by simp)])
-    have hle := h₁ h σ₁'
-    rwa [contPayoff₁_bellman hδ₀ hδ₁ σ₁' σ₂ h, show σ₁' h = a from ite_eq_left rfl, htail] at hle
+    have hσ : σ₁' h = a := ite_eq_left rfl
+    simpa only [contPayoff₁_bellman hδ₀ hδ₁ σ₁' σ₂ h, hσ, htail] using h₁ h σ₁'
   · have hbd (n : ℕ) : ∀ h' : PDHistory,
         contPayoff₁ δ σ₁' σ₂ h' - contPayoff₁ δ σ₁ σ₂ h' ≤ 4 * δ ^ n := by
       induction n with
@@ -593,10 +593,8 @@ private theorem contPayoff₁_titForTat_nil {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ�
     contPayoff₁ δ titForTat₁ titForTat₂ [] = 1 := by
   rw [contPayoff₁_bellman hδ₀ hδ₁,
     contPayoff₁_titForTat_some hδ₀ hδ₁ (List.getLast?_concat ..)]
-  have hpos : 0 < 1 + δ := by linarith
   simp only [titForTat₁, titForTat₂, List.getLast?_nil, pdPayoff]
-  field_simp [hpos.ne']
-  ring
+  field_simp; ring
 
 private theorem contPayoff₂_titForTat_nil {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) :
     contPayoff₂ δ titForTat₁ titForTat₂ [] = 1 := by
@@ -665,16 +663,10 @@ expected stream `personalizedGrimDevPayoff δ N` for `N ≥ 1` potential partner
 theorem personalizedGrim_incentive_iff {δ : ℝ} (hδ₀ : 0 ≤ δ) (hδ₁ : δ < 1) {N : ℕ}
     (hN : 1 ≤ N) :
     personalizedGrimDevPayoff δ N ≤ 1 ↔ (N : ℝ) / ((N : ℝ) + 1) ≤ δ := by
-  have hNpos : (0 : ℝ) < N := by exact_mod_cast Nat.pos_of_ne_zero (by omega)
-  rw [personalizedGrimDevPayoff, discountedPayoff_ite_zero hδ₀ hδ₁, div_le_iff₀ (by positivity)]
-  constructor <;> intro h
-  · have hmul := mul_le_mul_of_nonneg_right h hNpos.le
-    have := div_mul_cancel₀ ((N : ℝ) - 1) hNpos.ne'
-    nlinarith
-  · rw [show (1 - δ) * 2 + δ * (((N : ℝ) - 1) / (N : ℝ)) =
-      (2 * (1 - δ) * (N : ℝ) + δ * ((N : ℝ) - 1)) / (N : ℝ) by field_simp [hNpos.ne'],
-      div_le_one hNpos]
-    nlinarith
+  have hNpos : (0 : ℝ) < N := Nat.cast_pos.mpr hN
+  rw [personalizedGrimDevPayoff, discountedPayoff_ite_zero hδ₀ hδ₁]
+  field_simp [hNpos.ne']
+  constructor <;> intro h <;> nlinarith
 
 /-! ### Whitewashing entry fees and Pay-Your-Dues (§27.3 & Exercise 27.4) -/
 

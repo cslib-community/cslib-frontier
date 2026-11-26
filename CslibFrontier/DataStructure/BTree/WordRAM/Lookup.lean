@@ -312,9 +312,8 @@ private theorem lookupLoop_spec {l w base capNodes t u k : ℕ} {x : Data 20}
         have hne_all : ∀ i < m, keyAt base t x.mem u i ≠ k := fun i hi =>
           (lt_or_ge i slot).elim (fun hlt => (hsc.2.1 i hlt).ne) fun hge => (hgt_all i hge hi).ne'
         have hlk := lookup_readTree_leaf_none hs hne_all
-        refine ⟨x₁, lookupLoop_of_stop hstep hz hact hz₁ hact₁, hmem₁, hb₁_reg, hd₁, ?_, ?_⟩
-        · rw [hlk, hfnd₁, hfound0]; rfl
-        · rw [hlk, hval₁, hval0]; rfl
+        exact ⟨x₁, lookupLoop_of_stop hstep hz hact hz₁ hact₁, hmem₁, hb₁_reg, hd₁,
+          by simp [hlk, hfnd₁, hfound0], by simp [hlk, hval₁, hval0]⟩
       · simp only [hhit, hv.leafFlag_eq, Nat.succ_ne_zero, ↓reduceIte] at hbr
         obtain ⟨hcur₁, hact₁, hfnd₁, hval₁⟩ := hbr
         have hslot_lt1 : slot < m + 1 := Nat.lt_succ_of_le hsc.1
@@ -358,11 +357,9 @@ theorem lookupCode_spec {w base capNodes t k : ℕ} {tr : BTree ℕ ℕ} {x : Da
       refine ⟨he.bounded hr.bounded, hr.two_le, ?_, ?_, hfit, hr.cnt_le_cap, Or.inl ⟨hcnt0, rfl⟩⟩
       · dsimp only [y]; wram_simp; exact hr.base_eq
       · dsimp only [y]; wram_simp; exact hr.deg_eq
-    refine ⟨y, he.mono (by omega), hrep, rfl, ?_, ?_⟩
-    · simp only [BTree.lookup_leaf, Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
-      dsimp only [y]; wram_simp
-    · simp only [BTree.lookup_leaf, Option.getD_none]
-      dsimp only [y]; wram_simp
+    simp only [BTree.lookup_leaf, Option.isSome_none, Bool.false_eq_true, ↓reduceIte,
+      Option.getD_none]
+    exact ⟨y, he.mono (by omega), hrep, rfl, rfl, rfl⟩
   · have hcap1 : 1 ≤ capNodes := by have := hr.cnt_le_cap; omega
     have hst_le := stride_le_arena (base := base) (t := t) hcap1
     have hf_2t : Fits w (t + t) := hfit.of_le (by omega)
@@ -391,12 +388,10 @@ theorem lookupCode_spec {w base capNodes t k : ℕ} {tr : BTree ℕ ℕ} {x : Da
       apply WP.execWithin
       wram_exec [hr.base_eq, hr.deg_eq, hcnt_ne, h6t, hf0, hf1, hf_b1, hf_2t, hf_4t, hf_6t]
       exact WP.of_execWithin hloop ⟨by omega, rfl⟩
-    have hmem_yx : y.mem = x.mem := hmem_y
     exact ⟨y, hv.balanced_and_height.2 ▸ he,
-      ⟨he.bounded hr.bounded, hr.two_le, hb_y, hd_y, hfit,
-        by simpa only [hmem_yx] using hr.cnt_le_cap,
-        by simpa only [hmem_yx] using Or.inr ⟨hcnt_pos, l, rfl, hv, hs, hrange⟩⟩,
-      hmem_yx, hfnd_y, hval_y⟩
+      ⟨he.bounded hr.bounded, hr.two_le, hb_y, hd_y, hfit, hmem_y.symm ▸ hr.cnt_le_cap,
+        hmem_y.symm ▸ Or.inr ⟨hcnt_pos, l, rfl, hv, hs, hrange⟩⟩,
+      hmem_y, hfnd_y, hval_y⟩
 
 /-- Logarithmic `O(t log_t n)` Word-RAM instruction bound for `lookupCode`. -/
 theorem lookupCode_log_spec {w base capNodes t k : ℕ} {tr : BTree ℕ ℕ} {x : Data 20}

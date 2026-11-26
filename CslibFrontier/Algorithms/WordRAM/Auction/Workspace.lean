@@ -127,15 +127,11 @@ theorem AuctionMem.redCost_read {W : ℕ} {ws : AuctionWS} {C : Fin ws.n × Fin 
     let rc := s.mem (ws.bC + i₀.val * ws.n + j.val) + s.mem (ws.bPrice + j.val)
     rc ≤ 2 * W + ws.eps ∧
       (rc : ℤ) = redCost (fun e => (C e : ℤ)) st.price i₀ j := by
-  have hC_k : s.mem (ws.bC + i₀.val * ws.n + j.val) = C (i₀, j) := by
-    rw [Nat.add_assoc]; exact ham.hC i₀ j
-  have hP_k : s.mem (ws.bPrice + j.val) = (st.price j).toNat := ham.hPrice j
   have h1 := hC_le i₀ j
   have h2 := hp_nn j
   have h3 := hp_le j
-  refine ⟨by rw [hC_k, hP_k]; omega, ?_⟩
-  rw [hC_k, hP_k]
   dsimp only [redCost]
+  rw [Nat.add_assoc, ham.hC, ham.hPrice]
   omega
 
 end Cslib.Algorithms.WordRAM.Auction

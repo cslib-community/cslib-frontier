@@ -222,8 +222,8 @@ private theorem card_agreePointsApprox_le {f g : (Fin n → F) → F} (hg : IsMu
     (δ : ℝ) (i : Fin n) :
     #(agreePointsApprox f g δ i) ≤ Fintype.card F ^ (n - 1) := by
   have hfib : #{y : Fin n → F | y i = 0} = Fintype.card F ^ (n - 1) := by
-    have := Fintype.card_filter_piFinset_const_eq_of_mem (univ : Finset F) i (mem_univ 0)
-    simpa [Fintype.piFinset_univ] using this
+    simpa [Fintype.piFinset_univ] using
+      Fintype.card_filter_piFinset_const_eq_of_mem (univ : Finset F) i (mem_univ 0)
   rw [← hfib]
   refine card_le_card_of_injOn (fun x => update x i 0) (fun x _ => by simp) ?_
   intro x hx x' hx' hxx'
@@ -407,9 +407,8 @@ private theorem exists_isMultilinear_hammingDist_le_of_slices_approx (f : (Fin (
           #{y : Fin n → F | Fin.cons t y ∈ corruptPoints f δ 0}) := by
     have hsplit : bad t h = ({x | f (Fin.cons t (Fin.tail x)) ≠ h (Fin.tail x)} :
           Finset (Fin (n + 1) → F)) ∪
-        ({x | Fin.cons t (Fin.tail x) ∈ corruptPoints f δ 0} : Finset (Fin (n + 1) → F)) := by
-      ext x
-      simp [bad]
+        ({x | Fin.cons t (Fin.tail x) ∈ corruptPoints f δ 0} : Finset (Fin (n + 1) → F)) :=
+      Finset.ext fun _ => by simp [bad]
     rw [hsplit]
     calc #(_ ∪ _) ≤ #{x : Fin (n + 1) → F | f (Fin.cons t (Fin.tail x)) ≠ h (Fin.tail x)} +
           #{x : Fin (n + 1) → F | Fin.cons t (Fin.tail x) ∈ corruptPoints f δ 0} :=
@@ -426,10 +425,8 @@ private theorem exists_isMultilinear_hammingDist_le_of_slices_approx (f : (Fin (
           (Nat.add_le_add_left (card_union_le _ _) _))
     _ ≤ #(wrongPointsApprox f δ 0) + #(corruptPoints f δ 0) + (#(bad t₁ g₁) + #(bad t₂ g₂)) :=
         Nat.add_le_add_right (card_union_le _ _) _
-    _ ≤ _ := by
-        refine Nat.add_le_add_left ?_ _
-        rw [mul_add]
-        exact Nat.add_le_add (hcard t₁ g₁) (hcard t₂ g₂)
+    _ ≤ _ := Nat.add_le_add_left
+        ((Nat.add_le_add (hcard t₁ g₁) (hcard t₂ g₂)).trans_eq (mul_add _ _ _).symm) _
 
 open Classical in
 /-- Induction on the dimension for `δ`-approximate multilinearity testing, using thresholds
@@ -445,9 +442,8 @@ private theorem exists_isMultilinear_hammingDist_le_mul_approx {m : ℕ} (hm : 0
         ∃ g, IsMultilinear g ∧ (hammingDist h g : ℝ) ≤ γ * (Fintype.card F : ℝ) ^ k := by
   have hm1 : (1 : ℝ) ≤ m := by exact_mod_cast hm
   have hq : (0 : ℝ) < Fintype.card F := by exact_mod_cast Fintype.card_pos
-  have hr_nonneg : 0 ≤ 1 - 1 / (2 * (m : ℝ)) := by
-    have : 1 / (2 * (m : ℝ)) ≤ 1 := (div_le_one (by positivity)).2 (by linarith only [hm1])
-    linarith only [this]
+  have hr_nonneg : 0 ≤ 1 - 1 / (2 * (m : ℝ)) :=
+    sub_nonneg.2 ((div_le_one (by positivity)).2 (by linarith))
   have hr_le_one : 1 - 1 / (2 * (m : ℝ)) ≤ 1 := sub_le_self _ (by positivity)
   intro k
   induction k with
@@ -506,10 +502,8 @@ private theorem exists_isMultilinear_hammingDist_le_mul_approx {m : ℕ} (hm : 0
             sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => by positivity
         _ = (#(corruptPoints f δ 0) : ℝ) := hsumC
         _ ≤ δ * (Fintype.card F : ℝ) ^ (k + 1) := card_corruptPoints_le f hδ0 0
-    have hbadC_le : (#badC : ℝ) ≤ 40 * δ * Fintype.card F := by
-      have hden : (0 : ℝ) < (1 / 40 : ℝ) * (Fintype.card F : ℝ) ^ k := by positivity
-      refine le_of_mul_le_mul_right (hbadC.trans_eq ?_) hden
-      ring
+    have hbadC_le : (#badC : ℝ) ≤ 40 * δ * Fintype.card F :=
+      le_of_mul_le_mul_right (hbadC.trans_eq (by ring)) (by positivity)
     -- `16 + 40 δ |F| ≤ |F| / (2 m)`, leaving at least two good slices.
     have hgap : 16 + 40 * δ * Fintype.card F ≤ Fintype.card F / (2 * m) := by
       have h1 : 400 * (m : ℝ) ^ 2 * δ ≤ 1 := by rwa [le_div_iff₀' (by positivity)] at hδ
@@ -573,8 +567,7 @@ private theorem exists_isMultilinear_hammingDist_le_mul_approx {m : ℕ} (hm : 0
             2 * ((k + 1 : ℕ) : ℝ) ^ 2 * (Fintype.card F : ℝ) ^ k := by gcongr
       _ = ((2 * ((k + 1 : ℕ) : ℝ) + 1) * (ε₀ + ((k + 1 : ℕ) : ℝ) * δ) +
             2 * ((k + 1 : ℕ) : ℝ) ^ 2 / Fintype.card F) * (Fintype.card F : ℝ) ^ (k + 1) := by
-          field_simp
-          ring
+          field_simp; ring
       _ ≤ γ * (Fintype.card F : ℝ) ^ (k + 1) := by gcongr
 
 /-- **Polynomial soundness of the multilinearity test (`δ`-approximate lines)**: if in every

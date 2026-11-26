@@ -132,11 +132,7 @@ theorem Rep.input_eq {w base capacity : ℕ} {front back : List ℕ} {x : Data r
     x.regs ∘ src = ![front.length, back.length, base, capacity, x.regs (src 4)] := by
   funext i
   fin_cases i
-  · exact hr.frontLen_eq
-  · exact hr.backLen_eq
-  · exact hr.base_eq
-  · exact hr.capacity_eq
-  · rfl
+  exacts [hr.frontLen_eq, hr.backLen_eq, hr.base_eq, hr.capacity_eq, rfl]
 
 /-- Rear credit is scaled by the single native exchange factor. This definition does not
 assert the still separate dispatcher clock or the final per-call amortized inequality. -/
@@ -161,11 +157,10 @@ theorem initialize_exec {w base capacity : ℕ} {x : Data registers} (hx : x.Bou
     (hc : Fits w (base + 2 * capacity)) :
     Exec w (initializeCode base capacity) x (initialized base capacity x) 6 ∧
       (initialized base capacity x).Bounded w ∧ (initialized base capacity x).mem = x.mem := by
-  have hb : Fits w base := hc.of_le (by omega)
-  have hcap : Fits w capacity := hc.of_le (by omega)
   have he : Exec w (initializeCode base capacity) x (initialized base capacity x) 6 :=
     (Exec.const hc).seq ((Exec.const (fits_zero w)).seq ((Exec.const (fits_zero w)).seq
-      ((Exec.const hb).seq ((Exec.const hcap).seq (Exec.const (fits_zero w))))))
+      ((Exec.const (hc.of_le (by omega))).seq
+        ((Exec.const (hc.of_le (by omega))).seq (Exec.const (fits_zero w))))))
   exact ⟨he, he.bounded hx, rfl⟩
 
 end Cslib.DataStructure.Queue.WordRAM

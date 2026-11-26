@@ -381,12 +381,10 @@ steps. -/
 
 theorem prefixAccepted_prefix_succ (c : Code) (n : ℕ) :
     prefixAccepted c n <+: prefixAccepted c (n + 1) := by
-  simp only [prefixAccepted]
-  rcases prefixCand c n with _ | ⟨q, x⟩
+  rw [prefixAccepted]
+  rcases prefixCand c n with _ | ⟨q, x⟩ <;> dsimp only
   · exact List.prefix_rfl
-  · dsimp only
-    split_ifs
-    exacts [List.prefix_rfl, List.prefix_append _ _]
+  · split_ifs <;> simp
 
 theorem prefixAccepted_prefix (c : Code) {m n : ℕ} (h : m ≤ n) :
     prefixAccepted c m <+: prefixAccepted c n := by
@@ -424,12 +422,10 @@ private theorem prefixAccepted_invariants (c : Code) (n : ℕ) :
         · rintro p₁ ⟨y₁, hy₁⟩ p₂ ⟨y₂, hy₂⟩ hp
           simp only [List.mem_append, List.mem_singleton, Prod.mk.injEq] at hy₁ hy₂
           rcases hy₁ with hy₁ | ⟨rfl, rfl⟩ <;> rcases hy₂ with hy₂ | ⟨rfl, rfl⟩
-          · exact hpf p₁ ⟨y₁, hy₁⟩ p₂ ⟨y₂, hy₂⟩ hp
-          · exact absurd hp (hno (p₁, y₁) hy₁).2
-          · exact absurd hp (hno (p₂, y₂) hy₂).1
-          · rfl
-        · rw [List.map_append, List.map_cons, List.map_nil]
-          exact hnodup.append (List.nodup_singleton q) (by simpa using hq_notMem)
+          exacts [hpf p₁ ⟨y₁, hy₁⟩ p₂ ⟨y₂, hy₂⟩ hp, absurd hp (hno (p₁, y₁) hy₁).2,
+            absurd hp (hno (p₂, y₂) hy₂).1, rfl]
+        · exact List.map_append .. ▸
+            hnodup.append (List.nodup_singleton q) (by simpa using hq_notMem)
         · simp only [List.mem_append, List.mem_singleton, Prod.mk.injEq]
           rintro p y (hy | ⟨rfl, rfl⟩)
           exacts [hsound p y hy, hq_eval]
@@ -969,8 +965,7 @@ theorem MinorizesPrefixPartrec.exists_forall_le_complexity_universalPrefix_add_o
   obtain ⟨r, hr, hrlen⟩ :=
     exists_length_eq_ecomplexity (ecomplexity_universalPrefix_ne_top (encode e))
   rw [← natCast_complexity_universalPrefix, Nat.cast_inj] at hrlen
-  rw [← hrlen]
-  exact chaitin_berry_bound hk hT hsound ((hfU r (encode e)).mp hr) ht hxn
+  exact hrlen ▸ chaitin_berry_bound hk hT hsound ((hfU r (encode e)).mp hr) ht hxn
 
 /-- **Chaitin's incompleteness theorem for prefix-free complexity**, quantitative form
 [Chaitin1974], [LiVitanyi2019]: every sound code `e` semi-deciding pairs `(x, n)` with

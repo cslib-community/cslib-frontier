@@ -133,8 +133,7 @@ private theorem card_multiplyShiftReduced_mul_le {U w₀ R m : ℕ} (hw₀ : 0 <
     (card_multiplyShiftReduced_eq_le (R := R) hw₀ hU hxy)
   conv at h1 => rhs; rw [← Nat.sub_add_cancel hw₀, pow_succ']
   rw [pow_succ'] at h1
-  rw [Fintype.card_fin]
-  linarith
+  rw [Fintype.card_fin]; linarith
 
 /-- For any distinct `x, y : Fin U` (`0 < w₀`, `U ≤ 2 ^ w₀`), the number of remainder seeds
 `γ : RemSeed w₀` on which `remHash U w₀ k γ x = remHash U w₀ k γ y` satisfies
@@ -411,10 +410,9 @@ theorem sum_seedClusterBound_le {U w₀ n : ℕ} (hw₀ : 0 < w₀) (hU : U ≤ 
   let Bad : Finset Top := Finset.univ \ Good
   have hgood_each (α : Top) (hα : α ∈ Good) :
       (∑ β : Bot, seedClusterBound U w₀ n S u (α, β)) ≤ 289 * Fintype.card Bot := by
-    have hle : (∑ β : Bot, seedClusterBound U w₀ n S u (α, β)) ≤
-        (∑ β : Bot, (seedClusterBound U w₀ n S u (α, β) - 1)) + Fintype.card Bot := by
-      rw [show Fintype.card Bot = ∑ _ : Bot, 1 by simp, ← Finset.sum_add_distrib]
-      exact Finset.sum_le_sum fun _ _ => by omega
+    have hle := Finset.sum_le_sum fun (β : Bot) (_ : β ∈ Finset.univ) =>
+      Nat.sub_le_iff_le_add.mp (le_rfl : seedClusterBound U w₀ n S u (α, β) - 1 ≤ _)
+    rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, smul_eq_mul, mul_one] at hle
     linarith [sum_seedClusterBound_sub_one_goodTop_le hU hS u hα]
   have hsum_good : (∑ α ∈ Good, ∑ β : Bot, seedClusterBound U w₀ n S u (α, β)) ≤
       289 * Fintype.card (QuotSeed w₀ n) :=
@@ -454,16 +452,13 @@ theorem tsum_seedClusterBound_le {U w₀ n : ℕ} (hw₀ : 0 < w₀) (hU : U ≤
     (∑' p : FilterSeed w₀ n,
       (filterSeedLaw w₀ n) p * (seedClusterBound U w₀ n S u p.1 : ℝ≥0∞)) ≤ 290 := by
   classical
-  rw [tsum_fintype]
-  simp only [filterSeedLaw, PMF.uniformOfFintype_apply]
+  simp only [tsum_fintype, filterSeedLaw, PMF.uniformOfFintype_apply]
   rw [← Finset.mul_sum, ← Nat.cast_sum, mul_comm, ← div_eq_mul_inv]
   refine ENNReal.div_le_of_le_mul ?_
   norm_cast
-  rw [Fintype.sum_prod_type_right]
-  refine (Finset.sum_le_sum fun _ _ => sum_seedClusterBound_le hw₀ hU hS u).trans ?_
-  rw [Finset.sum_const, Finset.card_univ, smul_eq_mul,
-    Fintype.card_prod (QuotSeed w₀ n) (RemSeed w₀)]
-  exact (by ring : _ = _).le
+  refine (Fintype.sum_prod_type_right _).trans_le
+    ((Finset.sum_le_sum fun _ _ => sum_seedClusterBound_le hw₀ hU hS u).trans_eq ?_)
+  rw [Finset.sum_const, Finset.card_univ, smul_eq_mul, Fintype.card_prod (QuotSeed w₀ n)]; ring
 
 /-- **Unconditional sum bound on `clusterLen` over `QuotSeed w₀ n`**:
 for any `S : Finset (Fin U)` with `#S ≤ n` and any `u : Fin U` (`0 < w₀`, `U ≤ 2 ^ w₀`),

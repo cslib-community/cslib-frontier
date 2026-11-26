@@ -119,9 +119,8 @@ theorem hockeyStick_ne_top (c : ℝ≥0∞) (p q : PMF α) : hockeyStick c p q �
 theorem toOuterMeasure_le_mul_add_hockeyStick (c : ℝ≥0∞) (p q : PMF α) (S : Set α) :
     p.toOuterMeasure S ≤ c * q.toOuterMeasure S + hockeyStick c p q := by
   calc p.toOuterMeasure S = ∑' a, S.indicator p a := _root_.PMF.toOuterMeasure_apply p S
-    _ ≤ ∑' a, (c * S.indicator q a + (p a - c * q a)) := by
-      refine tsum_le_tsum fun a => ?_
-      by_cases ha : a ∈ S <;> simp [ha, le_add_tsub]
+    _ ≤ ∑' a, (c * S.indicator q a + (p a - c * q a)) :=
+      tsum_le_tsum fun a => by by_cases ha : a ∈ S <;> simp [ha, le_add_tsub]
     _ = c * q.toOuterMeasure S + hockeyStick c p q := by
       rw [tsum_add, ENNReal.tsum_mul_left, _root_.PMF.toOuterMeasure_apply, hockeyStick]
 
@@ -139,9 +138,8 @@ theorem forall_toOuterMeasure_le_iff_hockeyStick_le {c : ℝ≥0∞} (hc : c ≠
         ← ENNReal.tsum_mul_left, ← tsum_add]
       refine tsum_congr fun a => ?_
       by_cases ha : a ∈ T
-      · simp only [Set.indicator_of_mem ha]; exact (add_tsub_cancel_of_le ha.le).symm
-      · have hle : p a ≤ c * q a := not_lt.mp ha
-        simp only [Set.indicator_of_notMem ha, mul_zero, zero_add, tsub_eq_zero_of_le hle]
+      · simpa only [Set.indicator_of_mem ha] using (add_tsub_cancel_of_le ha.le).symm
+      · simpa [Set.indicator_of_notMem ha] using (tsub_eq_zero_of_le (not_lt.mp ha)).symm
     exact (ENNReal.add_le_add_iff_left (ENNReal.mul_ne_top hc (toOuterMeasure_ne_top q T))).mp
       (hsplit ▸ h T)
   · exact fun h S => (toOuterMeasure_le_mul_add_hockeyStick c p q S).trans (add_le_add le_rfl h)
@@ -204,8 +202,7 @@ theorem hockeyStick_bind_le (c : ℝ≥0∞) (p q : PMF α) (K : α → PMF β) 
 /-- Deterministic post-processing cannot increase the hockey-stick divergence. -/
 theorem hockeyStick_map_le (c : ℝ≥0∞) (p q : PMF α) (f : α → β) :
     hockeyStick c (p.map f) (q.map f) ≤ hockeyStick c p q := by
-  rw [← _root_.PMF.bind_pure_comp, ← _root_.PMF.bind_pure_comp]
-  exact hockeyStick_bind_le c p q _
+  simpa only [_root_.PMF.bind_pure_comp] using hockeyStick_bind_le c p q (_root_.PMF.pure ∘ f)
 
 /-- **Multiplicative triangle inequality** (group privacy step): comparing `p` to `r` at factor
 `c₁ * c₂` is bounded by `hockeyStick c₁ p q + c₁ * hockeyStick c₂ q r`. -/
@@ -241,11 +238,10 @@ theorem hockeyStick_bind_pair_le {c₁ c₂ : ℝ≥0∞} (hc₁ : c₁ ≠ ⊤)
   have hA (a : α) : p a * A a ≤ p a * (min 1 (c₂ * B a) + δ₂) := by
     by_cases h0 : p a = 0
     · simp [h0]
-    gcongr
     rw [← min_add_add_right]
-    exact le_min ((toOuterMeasure_le_one _ _).trans le_self_add)
+    exact mul_le_mul_of_nonneg_left (le_min ((toOuterMeasure_le_one _ _).trans le_self_add)
       ((toOuterMeasure_le_mul_add_hockeyStick c₂ (K a) (L a) _).trans
-        (add_le_add le_rfl (hKL a h0)))
+        (add_le_add le_rfl (hKL a h0)))) zero_le
   calc ∑' a, p a * A a
       ≤ ∑' a, (p a * min 1 (c₂ * B a) + p a * δ₂) :=
         tsum_le_tsum fun a => by rw [← mul_add]; exact hA a

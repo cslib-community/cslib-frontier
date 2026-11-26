@@ -272,10 +272,8 @@ private theorem leaf_realization (a : R) :
       M * fromBlocks 1 (-scalar a) 0 1 = 1 ∧
       fromCols (1 : Matrix Unit Unit R) 0 * M *
         fromRows (0 : Matrix Unit Unit R) (1 : Matrix Unit Unit R) = scalar a := by
-  refine ⟨fromBlocks 1 (scalar a) 0 1, ?_, ?_, ?_⟩
-  · simp [fromBlocks_multiply]
-  · simp [fromBlocks_multiply]
-  · simp [fromCols_mul_fromBlocks, fromCols_mul_fromRows]
+  refine ⟨fromBlocks 1 (scalar a) 0 1, ?_, ?_,
+    by simp [fromCols_mul_fromBlocks, fromCols_mul_fromRows]⟩ <;> simp [fromBlocks_multiply]
 
 private theorem fromBlocks_zero₂₂_inverse {ι κ : Type*} [Fintype ι] [Fintype κ]
     [DecidableEq ι] [DecidableEq κ]
@@ -328,11 +326,10 @@ private theorem realization_mul (args : Fin (ratSignature.Arity .mul) → Formul
   have hB2 : B * realized c X (args 1) = Mf * colR c (args 0) * rowR c (args 1) := by
     simp [B, Matrix.mul_assoc, hg2, Matrix.mul_one]
   refine ⟨fromBlocks Mf B 0 Mg, ?_, ?_, ?_⟩
-  · rw [realized_mul, fromBlocks_multiply]
-    simp [hf1, hg1, hB1, Matrix.mul_zero, Matrix.zero_mul, Matrix.neg_mul]
-  · rw [realized_mul, fromBlocks_multiply]
-    simp [hf2, hg2, hB2, Matrix.mul_zero, Matrix.zero_mul, Matrix.mul_neg, Matrix.neg_mul,
-      ← Matrix.mul_assoc]
+  · simp [realized_mul c X args, fromBlocks_multiply, hf1, hg1, hB1, Matrix.mul_zero,
+      Matrix.zero_mul, Matrix.neg_mul]
+  · simp [realized_mul c X args, fromBlocks_multiply, hf2, hg2, hB2, Matrix.mul_zero,
+      Matrix.zero_mul, Matrix.mul_neg, Matrix.neg_mul, ← Matrix.mul_assoc]
   · rw [rowR_mul, colR_mul, fromCols_mul_fromBlocks, fromCols_mul_fromRows]
     simp only [Matrix.mul_zero, Matrix.zero_mul, add_zero, zero_add, B, ← Matrix.mul_assoc]
     rw [Matrix.mul_assoc _ (rowR c (args 1)), Matrix.mul_assoc _ (rowR c (args 1) * Mg), hfr, hgr]
@@ -415,9 +412,8 @@ not a new counted gate. -/
 def certificates (f : Formula n) : List (Formula n) := inverseNodes f ++ [inv f]
 
 private theorem Eval.pencil_isUnit {f : Formula n} {a : R} (ha : f.Eval c X a) :
-    IsUnit (realized c X f) := by
-  obtain ⟨M, hM, hM', _⟩ := ha.realization
-  exact isUnit_iff_exists.mpr ⟨M, hM, hM'⟩
+    IsUnit (realized c X f) :=
+  ha.realization.elim fun M ⟨hM, hM', _⟩ => isUnit_iff_exists.mpr ⟨M, hM, hM'⟩
 
 /-- At a defined point, the augmented pencil is invertible exactly when the value is. -/
 theorem Eval.augmented_isUnit_iff {f : Formula n} {a : R} (ha : f.Eval c X a) :
@@ -475,9 +471,8 @@ theorem certificates_iff (f : Formula n) :
     exact ⟨a, ha, ha.augmented_isUnit_iff.mp (hu (inv f) (by simp [certificates]))⟩
   · rintro ⟨a, ha, hua⟩ h hh
     rcases List.mem_append.mp hh with hh | hh
-    · exact Eval.inverseNodes_units c X ha h hh
-    · obtain rfl : h = inv f := by simpa using hh
-      exact ha.augmented_isUnit_iff.mpr hua
+    exacts [Eval.inverseNodes_units c X ha h hh,
+      List.mem_singleton.mp hh ▸ ha.augmented_isUnit_iff.mpr hua]
 
 private theorem inverseNodes_length (f : Formula n) : (inverseNodes f).length ≤ f.nodeCount := by
   induction f using inductionOn with
@@ -551,10 +546,8 @@ private theorem normalized [Algebra ℚ R] (Z : Fin (n + 1) → R) (u : R) (hu :
     Z 0 * ((algebraMap ℚ R) a.1 + ∑ i, (algebraMap ℚ R) (a.2 i) * (u * Z i.succ))
   rw [Fin.sum_univ_succ]
   simp only [coeff, Fin.cases_zero, Fin.cases_succ, mul_add, Finset.mul_sum]
-  congr 1
-  · exact Algebra.commutes a.1 (Z 0)
-  · refine Finset.sum_congr rfl fun i _ => ?_
-    rw [← mul_assoc, ← Algebra.commutes (a.2 i) (Z 0), mul_assoc, ← mul_assoc (Z 0) u, hu, one_mul]
+  refine congrArg₂ _ (Algebra.commutes a.1 (Z 0)) (Finset.sum_congr rfl fun i _ => ?_)
+  rw [← mul_assoc, ← Algebra.commutes (a.2 i) (Z 0), mul_assoc, ← mul_assoc (Z 0) u, hu, one_mul]
 
 private theorem normalized_pencil {ι : Type*} [Fintype ι] [DecidableEq ι] [Algebra ℚ R]
     (L : Matrix ι ι (Form n)) (Z : Fin (n + 1) → R) (u : R) (hu : Z 0 * u = 1) :

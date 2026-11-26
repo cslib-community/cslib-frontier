@@ -98,8 +98,7 @@ theorem walshSum_mul_walshSum (f g : (ι → Bool) → R) (u : ι → Bool) :
   refine sum_congr rfl fun x _ => ?_
   rw [← Equiv.sum_comp (Equiv.addLeft x)]
   refine sum_congr rfl fun z _ => ?_
-  rw [Equiv.coe_addLeft, dotProduct_add,
-    show (u ⬝ᵥ x + u ⬝ᵥ z) = (u ⬝ᵥ x ^^ u ⬝ᵥ z) from rfl, signVal_xor]
+  rw [Equiv.coe_addLeft, dotProduct_add, Bool.add_eq_xor, signVal_xor]
   have h : ((signVal (u ⬝ᵥ x) : ℝ) : ℂ) * (signVal (u ⬝ᵥ x) : ℝ) = 1 := by
     rw [← Complex.ofReal_mul, signVal_mul_self, Complex.ofReal_one]
   congr 1
@@ -115,13 +114,10 @@ theorem sum_fourierCoeff_mul_self_eq (A : (ι → Bool) → R) :
     ∑ u, fourierCoeff A u * fourierCoeff A u =
       (((2 : ℝ) ^ Fintype.card ι)⁻¹ : ℝ) • ∑ a, A a * A a := by
   simp only [fourierCoeff, smul_mul_smul_comm, ← smul_sum, sum_walshSum_mul_walshSum]
-  rw [← Complex.coe_smul, smul_smul]
-  have hscale : (((((2 : ℝ) ^ Fintype.card ι)⁻¹) *
-      ((2 : ℝ) ^ Fintype.card ι)⁻¹ : ℝ) : ℂ) * (2 : ℂ) ^ Fintype.card ι =
-      (((2 : ℝ) ^ Fintype.card ι)⁻¹ : ℝ) := by
-    push_cast
-    field_simp
-  rw [hscale, Complex.coe_smul]
+  rw [← Complex.coe_smul, smul_smul, ← Complex.coe_smul]
+  congr 1
+  push_cast
+  field_simp
 
 /-- **Parseval**: the squares of the Fourier coefficients of `±1` observables sum to `1`. -/
 theorem sum_fourierCoeff_mul_self {A : (ι → Bool) → R} (hA2 : ∀ a, A a * A a = 1) :
@@ -172,9 +168,7 @@ theorem fourierCoeff_mul_of_linear (A : (ι → Bool) → R)
   rw [hsum]
   simp only [f, BitString.add_cancel_right, dotProduct_add, Bool.add_eq_xor,
     signVal_xor, Complex.ofReal_mul, ← smul_smul]
-  have hf (x : ι → Bool) : (signVal (u ⬝ᵥ x) : ℂ) • (signVal (u ⬝ᵥ a) : ℂ) • A x =
-      (signVal (u ⬝ᵥ a) : ℂ) • (signVal (u ⬝ᵥ x) : ℂ) • A x := by rw [smul_comm]
-  simp only [hf, ← smul_sum]
+  simp_rw [smul_comm _ ((signVal (u ⬝ᵥ a) : ℂ)), ← smul_sum]
   exact smul_comm _ _ _
 
 /-- The Fourier coefficient at an exact character is idempotent. -/
@@ -236,9 +230,8 @@ observable of an exactly linear family. -/
 theorem walshSum_fourierMeasurement_of_linear (hlin : ∀ a b, A a * A b = A (a + b))
     (a : ι → Bool) : walshSum (fourierMeasurement A hA hA2).effect a = A a := by
   have hsum := (fourierMeasurement A hA hA2).sum_effect
-  simp only [fourierMeasurement_effect, fourierCoeff_mul_self_of_linear A hlin] at hsum
   rw [walshSum]
-  simp only [fourierMeasurement_effect, fourierCoeff_mul_self_of_linear A hlin]
+  simp only [fourierMeasurement_effect, fourierCoeff_mul_self_of_linear A hlin] at hsum ⊢
   simp_rw [dotProduct_comm a, ← fourierCoeff_mul_of_linear A hlin]
   rw [← sum_mul, hsum, one_mul]
 

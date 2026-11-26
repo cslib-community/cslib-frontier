@@ -171,13 +171,9 @@ theorem growStep_spec {W : Type} {t : List (Fin n)} {e : WeightedEdge n W}
       growStep t e = insertAfter a b t := by
   rw [crosses_eq_true_iff] at he
   unfold growStep
-  by_cases hu : e.u ∈ t
-  · exact ⟨e.u, e.v, Or.inl ⟨rfl, rfl⟩, hu, fun hv => he ⟨fun _ => hv, fun _ => hu⟩,
-      ite_eq_left hu⟩
-  · have hv : e.v ∈ t := by
-      by_contra hv
-      exact he ⟨fun h => absurd h hu, fun h => absurd h hv⟩
-    exact ⟨e.v, e.u, Or.inr ⟨rfl, rfl⟩, hv, hu, ite_eq_right hu⟩
+  split_ifs with hu
+  · exact ⟨e.u, e.v, Or.inl ⟨rfl, rfl⟩, hu, fun hv => he (iff_of_true hu hv), rfl⟩
+  · exact ⟨e.v, e.u, Or.inr ⟨rfl, rfl⟩, of_not_not fun hv => he (iff_of_false hu hv), hu, rfl⟩
 
 /-- Growing keeps the tour free of repetitions. -/
 theorem nodup_growTour {W : Type} (F : List (WeightedEdge n W)) (k : ℕ) {t : List (Fin n)}
@@ -201,27 +197,23 @@ theorem mem_growTour {W : Type} {F : List (WeightedEdge n W)}
     simp only [List.length_cons, Fintype.card_fin] at this
     omega
   | case2 k t h =>
-    have key : ∀ a b, Relation.EqvGen (fun x y => ∃ e ∈ F, x = e.u ∧ y = e.v) a b →
-        (a ∈ t ↔ b ∈ t) := by
-      intro a b hab
-      induction hab with
-      | rel _ _ hab =>
-        obtain ⟨e, he, rfl, rfl⟩ := hab
-        simpa [crosses_eq_true_iff] using List.find?_eq_none.1 h e he
-      | refl => rfl
-      | symm _ _ _ ih => exact ih.symm
-      | trans _ _ _ _ _ ih₁ ih₂ => exact ih₁.trans ih₂
     obtain ⟨r, hr⟩ := List.exists_mem_of_ne_nil t hne
-    exact (key r x (hF r x)).1 hr
+    refine (?_ : r ∈ t ↔ x ∈ t).1 hr
+    clear hr
+    induction hF r x with
+    | rel _ _ hab =>
+      obtain ⟨e, he, rfl, rfl⟩ := hab
+      simpa [crosses_eq_true_iff] using List.find?_eq_none.1 h e he
+    | refl => rfl
+    | symm _ _ _ ih => exact ih.symm
+    | trans _ _ _ _ _ ih₁ ih₂ => exact ih₁.trans ih₂
   | case3 k t e h ih =>
     obtain ⟨a, b, -, ha, hb, heq⟩ := growStep_spec (List.find?_some h)
     have hperm := insertAfter_perm b ha
     rw [heq] at ih ⊢
     refine ih (hperm.nodup_iff.2 (List.nodup_cons.2 ⟨hb, ht⟩))
       (fun h0 => List.cons_ne_nil _ _ (h0 ▸ hperm).symm.eq_nil) ?_
-    have := hperm.length_eq
-    simp only [List.length_cons] at this
-    omega
+    rw [hperm.length_eq, List.length_cons]; omega
 
 /-! ### The charging argument -/
 
@@ -268,35 +260,30 @@ private theorem cycleCost_growTour_le {δ : Fin n → Fin n → ℕ} (hsymm : �
   fun_induction growTour F k t with
   | case1 | case2 => exact ht
   | case3 k t e h ih =>
-    refine ih fun _ => ?_
-    clear ih
-    have heF := List.mem_of_find?_eq_some h
     obtain ⟨a, b, hab, ha, hb, heq⟩ := growStep_spec (List.find?_some h)
-    have hmem : ∀ x, x ∈ growStep t e ↔ x = b ∨ x ∈ t := fun x => by
-      rw [heq, (insertAfter_perm b ha).mem_iff, List.mem_cons]
-    have hsub : t ⊆ growStep t e := fun x hx => (hmem x).2 (Or.inr hx)
-    have hbin : b ∈ growStep t e := (hmem b).2 (Or.inl rfl)
+    rw [heq] at ih ⊢
+    refine ih fun _ => ?_
+    have heF := List.mem_of_find?_eq_some h
+    have hperm := insertAfter_perm b ha
+    have hsub : t ⊆ insertAfter a b t := fun _ hx => hperm.mem_iff.2 (List.mem_cons_of_mem b hx)
+    have hbin : b ∈ insertAfter a b t := hperm.mem_iff.2 List.mem_cons_self
+    have hain : a ∈ insertAfter a b t := hsub ha
     have hw2 : δ a b + δ b a = 2 * e.weight := by
       rw [hw e heF]
       have := hsymm e.u e.v
       rcases hab with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> omega
     have hinside := insideWeight_add_le hsub heF
       (by rcases hab with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> tauto)
-      (by rcases hab with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> exact ⟨by tauto, by tauto⟩)
-    have hcost : cycleCost δ (insertAfter a b t) ≤ 2 * insideWeight F t + (δ a b + δ b a) := by
-      by_cases h2 : 2 ≤ t.length
-      · have := cycleCost_insertAfter_le δ htri b ha
-        have := ht h2
-        omega
-      · obtain rfl : t = [a] := by
-          rcases t with _ | ⟨x, _ | ⟨_, _⟩⟩
-          · cases ha
-          · rw [List.mem_singleton.1 ha]
-          · simp only [List.length_cons] at h2; omega
-        simp only [insertAfter, ↓reduceIte, cycleCost_pair]
-        omega
-    rw [← heq] at hcost
-    omega
+      (by rcases hab with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;> tauto)
+    by_cases h2 : 2 ≤ t.length
+    · have := cycleCost_insertAfter_le δ htri b ha
+      have := ht h2
+      omega
+    · rcases t with _ | ⟨x, _ | ⟨_, _⟩⟩
+      · cases ha
+      · obtain rfl := List.mem_singleton.1 ha
+        simp only [insertAfter, ↓reduceIte, cycleCost_pair] at hinside ⊢; omega
+      · simp only [List.length_cons] at h2; omega
 
 /-! ### The algorithm -/
 

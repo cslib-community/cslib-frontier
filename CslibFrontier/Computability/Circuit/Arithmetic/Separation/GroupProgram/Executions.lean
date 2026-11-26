@@ -92,10 +92,6 @@ section Subset
 variable {n : Fin (K + K) → Fin (K + K) → Fin (U0 + 1)} {o : M.Channel → Fin U1}
   {grp : Fin (K + K + A') → G} {g : G}
 
-private theorem baseCells_subset_groupCells (p : Fin (K + K)) :
-    baseCells n o grp g p ⊆ groupCells n o grp g :=
-  filter_subset _ _
-
 theorem roleCells_subset_groupCells (r : M.Role) : roleCells n o grp g r ⊆ groupCells n o grp g :=
   filter_subset _ _
 
@@ -272,13 +268,11 @@ private theorem sequential_groupSteps {cap : ℕ} (hP : P.Ok cap) :
     obtain rfl : x = x' := (new_mem_newUnits.1 (e ▸ h2')).1
     obtain rfl : p = p' := M.party_injective x (h1.symm.trans h1')
     rfl
-  · rintro _ hs _ hs'
-    obtain ⟨p, -, rfl⟩ := List.mem_map.1 hs
-    obtain ⟨r, -, rfl⟩ := List.mem_map.1 hs'
-    refine ⟨disjoint_left.2 fun c hc hc' => ?_, disjoint_empty_left _⟩
+  · refine List.forall_mem_map.2 fun p _ => List.forall_mem_map.2 fun r _ =>
+      ⟨disjoint_left.2 fun ⟨a, u⟩ hc hc' => ?_, disjoint_empty_left _⟩
     have h := (mem_filter.1 hc).2.2
     have h' := (mem_filter.1 hc').2.2
-    rcases c with ⟨a, ⟨⟩ | ⟨⟩⟩ <;> simp_all
+    cases u <;> simp_all
   · intro s hs
     rcases List.mem_append.1 hs with hs | hs <;> obtain ⟨r, -, rfl⟩ := List.mem_map.1 hs
     · exact ⟨disjoint_empty_left _, fun _ _ _ _ _ => ⟨rfl, fun _ _ => rfl⟩⟩
@@ -352,14 +346,10 @@ private theorem factor_baseWriteStep {p : Fin (K + K)} (hp : grp (Fin.castAdd A'
         rcases hab with rfl | rfl <;> split_ifs <;> simp_all
     refine ⟨h1, fun b => ⟨h2 b, fun k => by simpa using key p b k (.inl rfl)⟩,
       fun b => ⟨h3 b, fun k => (key b p k (.inr rfl)).trans ?_⟩⟩
-    split_ifs with h
-    · exact h ▸ h4 k
-    · rfl
-  · obtain ⟨a, b, k, -, hab, rfl⟩ := (mem_baseCells hp).1 hc
-    simp only [initialContents]
-    split_ifs with hap
-    · exact hap ▸ (h2 b).2 k
-    · exact (hab.resolve_left hap) ▸ (h3 a).2 k
+    by_cases h : b = p <;> simp [h, h4 k]
+  · obtain ⟨a, b, k, -, rfl | rfl, rfl⟩ := (mem_baseCells hp).1 hc
+    · simp [initialContents, (h2 b).2 k]
+    · by_cases hap : a = b <;> simp [initialContents, hap, (h2 b).2 k, (h3 a).2 k]
 
 /-- The factor of a role is its table, at the copies of the units at its party. -/
 private theorem factor_roleWriteStep {r : M.Role} (hr : grp (M.roleParty r) = g)

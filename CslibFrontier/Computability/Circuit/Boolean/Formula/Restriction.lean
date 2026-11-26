@@ -284,11 +284,8 @@ theorem restrict_input_of_eq_some {i : Fin n} {b : Bool} (h : ρ i = some b) :
     (F.restrict ρ).eval interpretation x = F.eval interpretation (ρ.fill x) := by
   induction F with
   | input i =>
-    cases h : ρ i with
-    | none => rw [restrict_input_of_eq_none ρ h, eval_input, eval_input,
-        PartialAssignment.fill_of_eq_none h]
-    | some b => rw [restrict_input_of_eq_some ρ h, eval_input, eval_const,
-        PartialAssignment.fill_of_eq_some h]
+    cases h : ρ i <;>
+      simp [h, PartialAssignment.fill_of_eq_none, PartialAssignment.fill_of_eq_some]
   | gate op args ih =>
     cases op with
     | const b => rfl
@@ -476,9 +473,7 @@ of the free inputs. -/
 theorem formulaSize_comp_fill_le_leafSizeIn {F : Formula signature n}
     (hF : F.Computes interpretation f) (ρ : PartialAssignment (Fin n)) :
     formulaSize (f ∘ ρ.fill) ≤ F.leafSizeIn ρ.free :=
-  (formulaSize_le (F := F.restrict ρ) fun x => by
-    rw [eval_restrict, hF]
-    rfl).trans (leafSize_restrict_le ρ F)
+  (formulaSize_le (F := F.restrict ρ) fun x => by simp [hF _]).trans (leafSize_restrict_le ρ F)
 
 /-- Restricting a Boolean function by a partial assignment does not increase its formula size. -/
 theorem formulaSize_comp_fill_le (f : BooleanFunction n) (ρ : PartialAssignment (Fin n)) :
@@ -495,8 +490,7 @@ theorem leafSizeIn_eq_leafSize_of_dependsOn {S : Finset (Fin n)} (hf : DependsOn
   refine le_antisymm (leafSizeIn_le_leafSize S F) ?_
   have hρ : f ∘ (PartialAssignment.outside S fun _ => false).fill = f :=
     funext fun x => hf fun i hi => by
-      simp only [PartialAssignment.fill_outside]
-      exact Finset.piecewise_eq_of_mem _ _ _ hi
+      simp [PartialAssignment.fill_outside, Finset.piecewise_eq_of_mem _ _ _ hi]
   have := formulaSize_comp_fill_le_leafSizeIn hF (PartialAssignment.outside S fun _ => false)
   rw [hρ, PartialAssignment.free_outside] at this
   omega

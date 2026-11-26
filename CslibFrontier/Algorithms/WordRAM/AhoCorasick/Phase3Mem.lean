@@ -51,9 +51,8 @@ theorem Input.bfs_eq (inp : Input) : inp.bfs = PBFS.build inp.trie inp.alphabetS
 
 /-- Completed `AutomatonInv` certificate for `inp.bfs` under `inp.Valid`. -/
 theorem Input.bfs_spec {inp : Input} (hv : inp.Valid) :
-    AutomatonInv inp.patterns inp.alphabetSize inp.trie inp.bfs := by
-  rw [Input.bfs_eq, Input.trie_eq]
-  exact build_bfs_spec inp.patterns inp.alphabetSize hv.1
+    AutomatonInv inp.patterns inp.alphabetSize inp.trie inp.bfs :=
+  Input.bfs_eq inp ▸ Input.trie_eq inp ▸ build_bfs_spec inp.patterns inp.alphabetSize hv.1
 
 /-- Word-RAM memory invariant matching the partial breadth-first automaton `B : PBFS` over
 trie `T : PTrie`. -/
@@ -99,9 +98,9 @@ theorem bfsMem_init {inp : Input} {T : PTrie} {mem : ℕ → ℕ}
   exact
     { txt := hM.txt
       trie_cell := hM.trie_cell
-      delta_cell := fun u hu c hc => by
-        have := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
-        exact hM.zero_df _ (by omega) (by omega)
+      delta_cell := fun u hu c hc =>
+        hM.zero_df _ (by omega)
+          (by have := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc; omega)
       fail_cell := fun u hu => hM.zero_df _ (by omega) (by omega)
       depth_cell := hM.depth_cell
       term_cell := hM.term_cell
@@ -131,7 +130,7 @@ theorem bfsMem_of_set_delta {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → 
     { txt := hM.txt.frame fun _ _ _ => Function.update_of_ne (by omega) _ _
       trie_cell := fun u hu c hc => by
         have := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
-        rw [Function.update_of_ne (by omega)]; exact hM.trie_cell u hu c hc
+        exact (Function.update_of_ne (by omega) _ _).trans (hM.trie_cell u hu c hc)
       delta_cell := fun u hu c hc => by
         have hiff : inp.deltaBase + u * inp.alphabetSize + c =
             inp.deltaBase + (u₀ * inp.alphabetSize + a) ↔ u = u₀ ∧ c = a :=
@@ -250,18 +249,15 @@ theorem exec_bfsRootLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
         BFSMem inp inp.trie (PBFS.rootLoop inp.trie k a B) y.mem ∧
         y.regs r1 = 0 ∧
         y.regs r2 = (PBFS.rootLoop inp.trie k a B).qTail := by
-  intro k
+  intro k a B x hak hL hM hinv hr1 hr2 hr5
   obtain ⟨hT, hT_maxS, _, _, hterm⟩ := inp.trie_spec hvalid
   have hchar := inp.char_iff hvalid
   have hlo := layout_order inp
-  induction k with
+  induction k generalizing a B x with
   | zero =>
-    intro a B x hak hL hM _ hr1 hr2 hr5
-    have hstop : ¬(Cond.lt r5 sigma).Holds x := by
-      simp only [Cond.holds_lt, hr5, hL.h_sigma]; omega
-    exact ⟨x, ExecWithin.loop_exit hstop, hL, hM, hr1, hr2⟩
+    exact ⟨x, ExecWithin.loop_exit (by simp only [Cond.holds_lt, hr5, hL.h_sigma]; omega),
+      hL, hM, hr1, hr2⟩
   | succ k ih =>
-    intro a B x hak hL hM hinv hr1 hr2 hr5
     have ha : a < inp.alphabetSize := by omega
     have hc : (Cond.lt r5 sigma).Holds x := by
       simp only [Cond.holds_lt, hr5, hL.h_sigma]; omega
@@ -269,16 +265,16 @@ theorem exec_bfsRootLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     have ha_rm : a < inp.maxS * inp.alphabetSize :=
       Nat.lt_of_lt_of_le ha (Nat.le_mul_of_pos_left _ h0_maxS)
     have hfit (n : ℕ) (hn : n ≤ inp.outBase := by omega) : Fits w n := fits_of_le_outBase hw hn
-    obtain ⟨s, hs⟩ : ∃ s, inp.trie.trie 0 a = s := ⟨_, rfl⟩
-    have ht_read : x.mem (inp.trieBase + a) = s := by
-      simpa only [Nat.zero_mul, Nat.add_zero, hs] using hM.trie_cell 0 h0_maxS a ha
+    have ht_read : x.mem (inp.trieBase + a) = inp.trie.trie 0 a := by
+      simpa only [Nat.zero_mul, Nat.add_zero] using hM.trie_cell 0 h0_maxS a ha
     obtain ⟨x₁, he_st, hM₁, hx₁_r1, hx₁_r2, hx₁_r5⟩ : ∃ x₁, ExecWithin w bfsRootStepCode x x₁ 19 ∧
         BFSMem inp inp.trie (PBFS.rootStep inp.trie B a) x₁.mem ∧ x₁.regs r1 = 0 ∧
         x₁.regs r2 = (PBFS.rootStep inp.trie B a).qTail ∧ x₁.regs r5 = a + 1 := by
       refine WP.exists_execWithin ?_
       unfold bfsRootStepCode
+      set s := inp.trie.trie 0 a with hs
       by_cases hs_pos : 0 < s
-      · have hs_maxS : s < inp.maxS := hs ▸ lt_of_lt_of_le (hT.trie_lt 0 hT.one_le a ha) hT_maxS
+      · have hs_maxS : s < inp.maxS := lt_of_lt_of_le (hT.trie_lt 0 hT.one_le a ha) hT_maxS
         have hqt_maxS : B.qTail < inp.maxS := lt_of_lt_of_le (qTail_lt_numStates hT.one_le
           (fun i hi => ⟨(hinv.q_bounds i hi).1, (hinv.q_bounds i hi).2.1⟩) hinv.q_inj) hT_maxS
         have hM' := bfsMem_of_enqueue (fval := 0) (onval := 0)
@@ -291,11 +287,11 @@ theorem exec_bfsRootLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
           hfit (B.qTail + 1), hfit (inp.outNextBase + s), hfit (inp.termBase + s),
           hfit (inp.outHeadBase + s), hfit (a + 1)]
         all_goals
-          simp only [PBFS.rootStep, hs, hs_pos, hc, ↓reduceIte] at hM' ⊢
+          simp only [PBFS.rootStep, ← hs, hs_pos, hc, ↓reduceIte] at hM' ⊢
           exact ⟨by wram_simp [hM'], by wram_simp [hr1], by wram_simp [hr2], by wram_simp⟩
       · wram_exec [hL.h_trieBase, hL.h_deltaBase, hL.h_zero, hL.h_one, hr1, hr2, hr5, ht_read,
           hs_pos, hfit (inp.trieBase + a), hfit (inp.deltaBase + a), hfit (a + 1)]
-        simp only [PBFS.rootStep, hs, hs_pos, ↓reduceIte]
+        simp only [PBFS.rootStep, ← hs, hs_pos, ↓reduceIte]
         have hM' := bfsMem_of_set_delta (dval := 0) h0_maxS ha hM
         simp only [Nat.zero_mul, Nat.zero_add] at hM'
         exact ⟨by wram_simp [hM'], by wram_simp [hr1], by wram_simp [hr2], by wram_simp⟩

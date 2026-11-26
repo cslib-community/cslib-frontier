@@ -222,11 +222,8 @@ theorem exists_computableInO_comp (r : SizeSensitiveReduction encA encB μA μB)
       ComputableInO (g ∘ r.toFun) encA encC
         (fun a => ((encA a).length + 1) ^ d + Tg (r.toFun a)) S := by
   obtain ⟨d, _, hf⟩ := r.computableInPolyTime_toFun.exists_degree
-  have hcomp := hg.comp hf.inO
-  have hS : PolyBounded (fun a => (encA a).length)
-      (fun a => ((encA a).length + 1) ^ d + Sg (r.toFun a)) := by
-    growth_poly [r.polyBounded_output_length]
-  exact ⟨d, _, hS, hcomp⟩
+  refine ⟨d, _, ?_, hg.comp hf.inO⟩
+  growth_poly [r.polyBounded_output_length]
 
 /-- Polynomial space transfers along any `SizeSensitiveReduction`. -/
 theorem computableInPolySpace_comp (r : SizeSensitiveReduction encA encB μA μB)
@@ -443,22 +440,12 @@ open ComputableInPolyTime in
 theorem computableInPolyTime_add :
     ComputableInPolyTime (fun p : CappedNatAcc × ℕ => p.1.add p.2)
       (encPair encCappedNatAcc encNat) encCappedNatAcc := by
-  have hsum : ComputableInPolyTime (fun p : CappedNatAcc × ℕ => p.1.total + p.2)
-      (encPair encCappedNatAcc encNat) encNat :=
-    binary_add' (encCappedNatAcc_total_polyTime (fst encCappedNatAcc encNat))
-      (snd encCappedNatAcc encNat)
-  have hcap : ComputableInPolyTime (fun p : CappedNatAcc × ℕ => p.1.cap)
-      (encPair encCappedNatAcc encNat) encNat :=
-    encCappedNatAcc_cap_polyTime (fst encCappedNatAcc encNat)
-  have hle : ComputableInPolyTime (fun p : CappedNatAcc × ℕ => decide (p.1.cap ≤ p.1.total + p.2))
-      (encPair encCappedNatAcc encNat) encBool :=
-    binary_le' hcap hsum
-  have hmin : ComputableInPolyTime
-      (fun p : CappedNatAcc × ℕ => min p.1.cap (p.1.total + p.2))
-      (encPair encCappedNatAcc encNat) encNat :=
-    (ComputableInPolyTime.ite' hle hcap hsum).of_enc_eq fun p => by
-      by_cases h : p.1.cap ≤ p.1.total + p.2 <;> simp [h, Nat.min_def]
-  exact encCappedNatAcc_mk_polyTime hcap hmin
+  have hsum := binary_add' (encCappedNatAcc_total_polyTime (fst encCappedNatAcc encNat))
+    (snd encCappedNatAcc encNat)
+  have hcap := encCappedNatAcc_cap_polyTime (fst encCappedNatAcc encNat)
+  refine encCappedNatAcc_mk_polyTime hcap
+    ((ComputableInPolyTime.ite' (binary_le' hcap hsum) hcap hsum).of_enc_eq fun p => ?_)
+  by_cases h : p.1.cap ≤ p.1.total + p.2 <;> simp [h, Nat.min_def]
 
 end CappedNatAcc
 
@@ -737,21 +724,17 @@ theorem exists_computableInO_foldl (r : DisjointBatchReduction encA encB μA μB
         S := by
   obtain ⟨kg, hglen⟩ := hg.length_le
   obtain ⟨cs, ds, hSg_le⟩ := hSg.exists_le
-  let listLen (a : α) : ℕ := (encList encB (r.toBatch a).items).length
-  let sgMax (a : α) : ℕ := cs * (listLen a + 1) ^ ds
-  let ansMax (a : α) : ℕ := kg * (sgMax a + 1)
+  let sgMax (a : α) : ℕ := cs * ((encList encB (r.toBatch a).items).length + 1) ^ ds
   have hsg_mem (a : α) (b : β) (hb : b ∈ (r.toBatch a).items) : Sg b ≤ sgMax a :=
     (hSg_le b).trans (Nat.mul_le_mul_left cs
       (Nat.pow_le_pow_left (Nat.add_le_add_right (length_le_encList_of_mem encB hb) 1) ds))
-  have hans_mem (a : α) (b : β) (hb : b ∈ (r.toBatch a).items) : (encG (g b)).length ≤ ansMax a :=
-    (hglen b).trans (Nat.mul_le_mul_left kg (Nat.add_le_add_right (hsg_mem a b hb) 1))
-  have hlistPoly : PolyBounded (fun a => (encA a).length) listLen := r.polyBounded_batch_length
-  have hansPoly : PolyBounded (fun a => (encA a).length) ansMax := by growth_poly
+  have hansPoly : PolyBounded (fun a => (encA a).length) (fun a => kg * (sgMax a + 1)) := by
+    growth_poly [r.polyBounded_batch_length]
   obtain ⟨c, e, hfold⟩ := r.exists_computableInO_foldl_of_ansBound hinit hcombine hg haccPoly
-    hansPoly hacc hans_mem hsg_mem
-  have hSPoly : PolyBounded (fun a => (encA a).length)
-      (fun a => c * ((encA a).length + 1) ^ e + sgMax a) := by growth_poly
-  exact ⟨c, e, _, hSPoly, hfold⟩
+    hansPoly hacc (fun a b hb => (hglen b).trans
+      (Nat.mul_le_mul_left kg (Nat.add_le_add_right (hsg_mem a b hb) 1))) hsg_mem
+  refine ⟨c, e, _, ?_, hfold⟩
+  growth_poly [r.polyBounded_batch_length]
 
 /-- **Exponential-time OR transfer over a summed-measure disjoint-instance batch.**
 If `a ∈ A ↔ ∃ b ∈ (r.toBatch a).items, b ∈ B`, then a decider for `B` within time
@@ -1436,18 +1419,12 @@ theorem exists_computableInO_run (S : StackAccumulationSpec encA encK encS encB 
   obtain ⟨leafLen, hleafPoly, hleafLen⟩ := S.exists_leafLen_le hstatePoly hstate
   obtain ⟨cs, ds, hSg_le⟩ := hSg.exists_le
   let sgBound (a : α) : ℕ := cs * (leafLen a + 1) ^ ds
-  have hsg (a : α) (i : ℕ) (hi : i ≤ S.rounds a) :
-      let st := (S.step g)^[i] (S.initState a)
-      st.stack.isEmpty = false ∧ S.isLeaf (S.topNode st) = true →
-        Sg (S.leafInstance (S.topNode st)) ≤ sgBound a := fun _ =>
-    (hSg_le _).trans (Nat.mul_le_mul_left cs
-      (Nat.pow_le_pow_left (Nat.add_le_add_right (hleafLen a i hi) 1) ds))
   obtain ⟨c, e, hcert⟩ := S.exists_computableInO_run_of_spaceBound hg hstatePoly hansPoly
-    hstate hans htime hsg
+    hstate hans htime fun a i hi _ => (hSg_le _).trans
+      (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left (Nat.add_le_add_right (hleafLen a i hi) 1) ds))
   have hSpacePoly : PolyBounded (fun a => (encA a).length)
       (fun a => c * ((encA a).length + 1) ^ e + sgBound a) := by growth_poly
-  exact ⟨c, e, _, hSpacePoly, hcert,
-    ComputableInPolySpace.of_inSpace hSpacePoly (ComputableInSpace.of_inO hcert)⟩
+  exact ⟨c, e, _, hSpacePoly, hcert, .of_inSpace hSpacePoly (.of_inO hcert)⟩
 
 /-- **Exponential-time decision transfer along a Boolean-OR `StackAccumulationSpec`.**
 When `S.rounds a ≤ K₀ * 2 ^ (ν a)` with `ν a ≤ μA a / M + K₁` and every active leaf subinstance

@@ -133,8 +133,7 @@ theorem Formula.sq_card_hammingEdges_le (F : Formula signature n)
     #(hammingEdges A B) ^ 2 ≤ F.leafSize * #A * #B := by
   induction F generalizing A B with
   | input i =>
-    rw [Formula.leafSize_input, one_mul]
-    exact card_hammingEdges_le_of_forall hA hB
+    simpa only [Formula.leafSize_input, one_mul] using card_hammingEdges_le_of_forall hA hB
   | gate op args ih =>
     cases op with
     | const c =>
@@ -330,15 +329,10 @@ theorem parityOn_consecutive_add (o a b : ℕ) (x : BitString n) :
     parityOn ({i | o ≤ (i : ℕ) ∧ (i : ℕ) < o + (a + b)} : Finset (Fin n)) x =
       (parityOn ({i | o ≤ (i : ℕ) ∧ (i : ℕ) < o + a} : Finset (Fin n)) x ^^
         parityOn ({i | o + a ≤ (i : ℕ) ∧ (i : ℕ) < o + a + b} : Finset (Fin n)) x) := by
-  have hsplit : ({i | o ≤ (i : ℕ) ∧ (i : ℕ) < o + (a + b)} : Finset (Fin n)) =
-      ({i | o ≤ (i : ℕ) ∧ (i : ℕ) < o + a} : Finset (Fin n)) ∪
-        ({i | o + a ≤ (i : ℕ) ∧ (i : ℕ) < o + a + b} : Finset (Fin n)) := by
-    ext i
-    simp only [mem_filter, mem_univ, true_and, mem_union]
-    omega
-  rw [hsplit, parityOn_union (disjoint_left.2 fun i hi hi' => by
-    simp only [mem_filter, mem_univ, true_and] at hi hi'
-    omega)]
+  rw [← parityOn_union (disjoint_filter.2 fun _ _ h₁ h₂ => by omega)]
+  refine congrArg (parityOn · x) (Finset.ext fun i => ?_)
+  simp only [mem_filter, mem_univ, true_and, mem_union]
+  omega
 
 /-- The parity of the single bit `o` is that bit. -/
 theorem parityOn_consecutive_one (o : ℕ) (h : o < n) (x : BitString n) :
@@ -361,13 +355,10 @@ theorem eval_parityFormula (k o : ℕ) (h : o + 2 ^ k ≤ n) (x : BitString n) :
     (parityFormula k o h).eval interpretation x =
       parityOn ({i | o ≤ (i : ℕ) ∧ (i : ℕ) < o + 2 ^ k} : Finset (Fin n)) x := by
   induction k generalizing o with
-  | zero =>
-    rw [pow_zero, parityOn_consecutive_one o (by rw [pow_zero] at h; omega)]
-    rfl
+  | zero => exact (parityOn_consecutive_one o (by simpa using h) x).symm
   | succ k ih =>
     rw [parityFormula, Formula.eval_xor, ih, ih, ← parityOn_consecutive_add]
-    congr 1
-    ext i
+    refine congrArg (parityOn · x) (Finset.ext fun i => ?_)
     simp only [mem_filter, mem_univ, true_and, pow_succ]
     omega
 

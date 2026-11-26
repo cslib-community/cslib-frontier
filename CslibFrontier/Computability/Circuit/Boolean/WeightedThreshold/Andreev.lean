@@ -298,8 +298,7 @@ theorem negOnePow_andreevBlockSum (b m : ℕ) (S : Finset (Fin b))
     ((andreevBlockSum b m S w).negOnePow : ℤ) = chi ℤ S (andreevParities b m w) := by
   rw [andreevBlockSum, negOnePow_sum, chi]
   refine prod_congr rfl fun j _ => ?_
-  rw [negOnePow_sum]; simp only [Int.coe_negOnePow_natCast]
-  simpa [chi, andreevParities, parity] using
+  simpa [negOnePow_sum, Int.coe_negOnePow_natCast, chi, andreevParities, parity] using
     chi_eq_neg_one_pow_parityOn (R := ℤ) (univ : Finset (Fin m))
       (fun t => w (andreevBlockVar b m j t))
 
@@ -380,8 +379,7 @@ theorem sum_andreevStairSign_mul_altLinear (b m : ℕ) (S : Finset (Fin b))
   rw [negOnePow_andreevTableScore, negOnePow_andreevBlockSum] at h
   simp only [Fintype.sum_bool, andreevStairSign, andreevStairForm, ↓reduceIte,
     Bool.false_eq_true, one_mul]
-  rw [← h]
-  ring
+  linarith
 
 /-! ### Choice-free integer evaluation and exact Fourier-telescoping proof -/
 
@@ -595,17 +593,15 @@ theorem lines_andreevCircuit_bottom_or_top (b m : ℕ) (k : Fin (andreevCircuit 
     ((∀ a, ∃ g, ((andreevCircuit b m).program.lines k).wires a = .gate g) ∧
       ∀ a, ∃ z : ℤ, Odd z ∧ |z| < 2 * ((2 ^ b + b * m : ℕ) : ℤ) ∧
         ((andreevCircuit b m).program.lines k).op.weight a = z) := by
-  obtain ⟨j, hj⟩ | ⟨ws, hws⟩ :=
-    lines_depthTwo_bottom_or_top (andreevTopOp b m) (andreevBottomOp b m) (fun _ => id) k
-  · have hj' : (andreevCircuit b m).program.lines k = _ := hj
-    rw [hj']
+  dsimp only [andreevCircuit]
+  rcases lines_depthTwo_bottom_or_top (andreevTopOp b m) (andreevBottomOp b m) (fun _ => id) k with
+    ⟨j, hj⟩ | ⟨ws, hws⟩
+  · rw [hj]
     exact .inl ⟨fun a => ⟨a, rfl⟩, fun a => ⟨_, abs_andreevStairWeightInt_le b m _ _ a, rfl⟩⟩
-  · have hws' : (andreevCircuit b m).program.lines k = _ := hws
-    rw [hws']
-    exact .inr ⟨fun a => ⟨ws a, rfl⟩, fun a =>
-      ⟨andreevTopWeightInt b m ((andreevBottomEquiv b m).symm a),
-        Int.odd_iff.mpr (Int.emod_two_ne_zero.mp (andreevTopWeightInt_emod_two_ne_zero b m _)),
-        (abs_andreevTopWeightInt_le b m _).trans_lt (by push_cast; omega), rfl⟩⟩
+  · rw [hws]
+    exact .inr ⟨fun a => ⟨ws a, rfl⟩, fun a => ⟨_,
+      Int.odd_iff.mpr (Int.emod_two_ne_zero.mp (andreevTopWeightInt_emod_two_ne_zero b m _)),
+      (abs_andreevTopWeightInt_le b m _).trans_lt (by push_cast; omega), rfl⟩⟩
 
 /-- **Exact quadratic depth-two threshold circuit upper bound for Andreev's function**:
 for all `b, m : ℕ`, there is a depth-two weighted threshold circuit with

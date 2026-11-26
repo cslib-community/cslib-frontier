@@ -285,10 +285,9 @@ theorem natChunkVec_eq_iff {q ℓ x y : ℕ} (hx : x < 2 ^ (ℓ * q)) (hy : y < 
   have hpow : (2 ^ q) ^ ℓ = 2 ^ (ℓ * q) := by rw [← pow_mul, Nat.mul_comm]
   obtain ⟨dx, hdx, hvx⟩ := Nat.exists_ofDigits_ofFn (hpow.symm ▸ hx)
   obtain ⟨dy, hdy, hvy⟩ := Nat.exists_ofDigits_ofFn (hpow.symm ▸ hy)
-  have h_eq : dx = dy := funext fun i ↦ by
-    simpa only [natChunkVec, Cslib.Radix.digit_eq_div_pow_mod, ← hvx, ← hvy,
-      Nat.ofDigits_ofFn_div_mod dx hdx i, Nat.ofDigits_ofFn_div_mod dy hdy i] using congrFun h i
-  rw [← hvx, ← hvy, h_eq]
+  refine hvx.symm.trans ((congrArg (Nat.ofDigits _ ∘ List.ofFn) (funext fun i ↦ ?_)).trans hvy)
+  simpa only [natChunkVec, Cslib.Radix.digit_eq_div_pow_mod, ← hvx, ← hvy,
+    Nat.ofDigits_ofFn_div_mod dx hdx i, Nat.ofDigits_ofFn_div_mod dy hdy i] using congrFun h i
 
 private theorem mul_two_pow_sub_one_sq_lt (q ℓ : ℕ) :
     ℓ * (2 ^ q - 1) ^ 2 < 2 ^ (2 * q + Nat.log 2 ℓ + 1) := by
@@ -506,23 +505,19 @@ theorem card_vertexLocalFrame : Fintype.card VertexLocalFrame = 2 ^ 7 := by
 `2 ^ vertexCatBits B n`. -/
 theorem card_vertexCatState (B n : ℕ) :
     Fintype.card (VertexCatState B n) = 2 ^ vertexCatBits B n := by
-  have card_reg (ℓ k : ℕ) :
-      Fintype.card ((Unit → Fin ℓ → ZMod (2 ^ k)) × ZMod (2 ^ k)) = 2 ^ ((ℓ + 1) * k) := by
-    rw [Fintype.card_prod, Fintype.card_fun, Fintype.card_fun, ZMod.card, Fintype.card_fin,
-      Fintype.card_unique, pow_one, ← pow_mul, ← pow_add]
-    exact congrArg (2 ^ ·) (by ring)
-  rw [Fintype.card_prod, card_reg, Fintype.card_prod, card_reg,
-    Fintype.card_fun, ZMod.card, ZMod.card, vertexCatBits, pow_add, pow_add]
-  ring
+  simp only [VertexCatState, OuterRegState, InnerRegState, KeyTableState, Fintype.card_prod,
+    Fintype.card_fun, ZMod.card, Fintype.card_fin, Fintype.card_unique, pow_one, ← pow_mul,
+    ← pow_add, vertexCatBits]
+  exact congrArg (2 ^ ·) (by ring)
 
 private theorem outerAccBits_le {B n C_N : ℕ} (hn : n ≤ C_N * B) :
     outerAccBits B n ≤ 3 * outerChunkBits B + Nat.log 2 (C_N + 1) + 2 := by
   have hq₁ : 0 < outerChunkBits B := by simp [outerChunkBits]
   have hℓ₁_le_n : outerDigits B n ≤ n :=
     (Nat.ceilDiv_le_iff hq₁).2 (Nat.le_mul_of_pos_right n hq₁)
-  have hBlog : B < 2 ^ (Nat.log 2 B + 1) := Nat.lt_pow_succ_log_self (by decide) B
   have hBq₁ : B < 2 ^ (outerChunkBits B + 1) :=
-    hBlog.trans_le (Nat.pow_le_pow_right (by decide) (by simp [outerChunkBits]))
+    (Nat.lt_pow_succ_log_self one_lt_two B).trans_le
+      (Nat.pow_le_pow_right two_pos (Nat.add_le_add_right (le_max_right 1 _) 1))
   have hc : C_N + 1 < 2 ^ (Nat.log 2 (C_N + 1) + 1) :=
     Nat.lt_pow_succ_log_self (by decide) (C_N + 1)
   have hℓ₁_lt : outerDigits B n < 2 ^ (Nat.log 2 (C_N + 1) + outerChunkBits B + 2) := by

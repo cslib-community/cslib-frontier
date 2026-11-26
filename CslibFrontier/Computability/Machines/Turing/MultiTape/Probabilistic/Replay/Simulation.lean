@@ -237,10 +237,8 @@ theorem localStep_pt : ComputableInPolyTime machine.localStep encFiniteConfig
     (branch := fun i cfg => match i with
       | some (.step action symbol move) => cfg.step action symbol move
       | _ => cfg) machine.instruction_pt ?_
-  rintro (_ | ⟨_, _, _⟩ | _)
-  · exact ComputableInPolyTime.id'
-  · fun_prop
-  · exact ComputableInPolyTime.id'
+  rintro (_ | ⟨_, _, _⟩ | _) <;> try exact ComputableInPolyTime.id'
+  fun_prop
 
 omit [DecidableEq Operation] in
 theorem pendingRequest_pt : ComputableInPolyTime machine.pendingRequest encFiniteConfig
@@ -285,13 +283,12 @@ theorem answerStep_inO {g : List Bool → Bool} {Tg Sg : List Bool → ℕ}
   have hcond : ComputableInPolyTime (fun cfg => (machine.pendingQuery cfg).isSome)
       encFiniteConfig encBool :=
     (ComputableInPolyTime.of_finite Option.isSome).comp machine.pendingQuery_pt
-  have hid : ComputableInPolyTime (fun cfg : FiniteConfig k Bool Control Operation => cfg)
-      encFiniteConfig encFiniteConfig := ComputableInPolyTime.id'
   obtain ⟨dc, _, hc⟩ := hcond.exists_degree
   obtain ⟨dr, _, hr⟩ := machine.pendingRequest_pt.exists_degree
   obtain ⟨dv, _, hv⟩ := machine.receiveBit_pt.exists_degree
   obtain ⟨dl, _, hl⟩ := machine.localStep_pt.exists_degree
-  obtain ⟨di, _, hi⟩ := hid.exists_degree
+  obtain ⟨di, _, hi⟩ := (ComputableInPolyTime.id'
+    (α := FiniteConfig k Bool Control Operation) (encIn := encFiniteConfig)).exists_degree
   have h := hc.inO.ite (hv.inO.comp (hi.inO.prod (hg.comp hr.inO))) hl.inO
   refine ⟨dc + dr + dv + dl + di,
     ((h.mono (4 ^ dv + 5) (fun cfg => ?_) fun cfg => ?_).of_enc_eq
@@ -299,17 +296,15 @@ theorem answerStep_inO {g : List Bool → Bool} {Tg Sg : List Bool → ℕ}
   all_goals
     simp only [Function.comp_apply, length_encPair, encBool_apply, List.length_singleton]
     generalize (encFiniteConfig cfg).length = L
-    have hpow (d : ℕ) (hd : d ≤ dc + dr + dv + dl + di) := Nat.pow_le_pow_right (Nat.succ_pos L) hd
-    have h2 : (2 * L + 1 + 1 + 1) ^ dv ≤ 4 ^ dv * (L + 1) ^ dv :=
-      (Nat.pow_le_pow_left (by omega) dv).trans_eq (Nat.mul_pow _ _ _)
+    set M := (L + 1) ^ (dc + dr + dv + dl + di)
+    have hpow (d : ℕ) (hd : d ≤ dc + dr + dv + dl + di) : (L + 1) ^ d ≤ M :=
+      Nat.pow_le_pow_right (Nat.succ_pos L) hd
+    have h2 : (2 * L + 1 + 1 + 1) ^ dv ≤ 4 ^ dv * M :=
+      (Nat.pow_le_pow_left (by omega) dv).trans ((Nat.mul_pow _ _ _).trans_le
+        (Nat.mul_le_mul_left _ (hpow dv (by omega))))
     have h4 : 1 ≤ 4 ^ dv := Nat.one_le_pow _ _ (by omega)
-    have hc' := hpow dc (by omega)
-    have hr' := hpow dr (by omega)
-    have hv' := hpow dv (by omega)
-    have hl' := hpow dl (by omega)
-    have hi' := hpow di (by omega)
-    generalize (L + 1) ^ (dc + dr + dv + dl + di) = M at *
-    split_ifs <;> nlinarith
+    split_ifs <;> nlinarith [hpow dc (by omega), hpow dr (by omega),
+      hpow dl (by omega), hpow di (by omega)]
 
 omit [Finite Control] [Fintype Operation] in
 /-- An instruction against a one-bit oracle grows the storage by a bounded amount. -/
@@ -322,8 +317,7 @@ theorem spaceBound_answerStep (g : List Bool → Bool) {inputSize steps : ℕ}
   split
   · exact h.mono le_rfl (Nat.le_succ _) le_rfl
   · split
-    · exact h.step _ _ _
-    · exact h.receive _ _ _ (by simp)
+    exacts [h.step _ _ _, h.receive _ _ _ (by simp)]
 
 omit [Finite Control] [Fintype Operation] in
 private theorem spaceBound_iterate_answerStep (g : List Bool → Bool) (input : List Bool) (i : ℕ) :
@@ -427,8 +421,8 @@ the encoded configuration: it either installs `g` of the pending request or is l
 theorem computableInPolyTime_answerStep {g : List Bool → Bool}
     (hg : ComputableInPolyTime g encBits encBool) :
     ComputableInPolyTime (machine.answerStep fun q => [g q.2]) encFiniteConfig
-      encFiniteConfig := by
-  exact (ComputableInPolyTime.ite (encC := encBool)
+      encFiniteConfig :=
+  (ComputableInPolyTime.ite (encC := encBool)
     ((ComputableInPolyTime.of_finite Option.isSome).comp machine.pendingQuery_pt)
     (machine.receiveBit_pt.comp
       (ComputableInPolyTime.id'.prod (hg.comp machine.pendingRequest_pt)))

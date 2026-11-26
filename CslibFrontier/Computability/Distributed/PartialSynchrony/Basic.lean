@@ -311,10 +311,8 @@ whenever `procs` enumerates every `P`. -/
 theorem length_filter_dedup_eq_card {P : Type*} [Fintype P] [DecidableEq P]
     {procs : List P} (hprocs : ∀ x : P, x ∈ procs) (p : P → Bool) :
     (procs.dedup.filter p).length = (Finset.univ.filter fun x => p x = true).card := by
-  have hnd : (procs.dedup.filter p).Nodup := List.Nodup.filter _ (List.nodup_dedup procs)
-  rw [← List.toFinset_card_of_nodup hnd]
-  congr 1
-  ext x
+  rw [← List.toFinset_card_of_nodup ((List.nodup_dedup procs).filter p)]
+  refine congrArg Finset.card (Finset.ext fun x => ?_)
   simp only [List.mem_toFinset, List.mem_filter, List.mem_dedup, hprocs x, true_and,
     Finset.mem_filter, Finset.mem_univ]
 
@@ -456,15 +454,14 @@ theorem pickMaxLock_eq_none_iff {V : Type*} {lks : List (ViewLock V)} :
 theorem pickMaxLock_mem {V : Type*} {lks : List (ViewLock V)} {best : ViewLock V}
     (h : pickMaxLock lks = some best) : best ∈ lks := by
   induction lks generalizing best with
-  | nil => simp only [pickMaxLock, reduceCtorEq] at h
+  | nil => cases h
   | cons lk lks ih =>
     simp only [pickMaxLock] at h
     split at h
-    · cases h; exact List.mem_cons_self
+    · exact Option.some.inj h ▸ List.mem_cons_self
     · next _ hrec =>
       split_ifs at h <;> cases h
-      · exact List.mem_cons_self
-      · exact List.mem_cons_of_mem lk (ih hrec)
+      exacts [List.mem_cons_self, List.mem_cons_of_mem lk (ih hrec)]
 
 theorem pickMaxLock_le {V : Type*} {lks : List (ViewLock V)} {best : ViewLock V}
     (h : pickMaxLock lks = some best) : ∀ lk ∈ lks, lk.view ≤ best.view := by
@@ -789,15 +786,13 @@ theorem byzQuorum_irrevocable (F : Finset P) (deliver : ℕ → P → P → Bool
   induction hr with
   | refl => exact hdec
   | @step m _ ih =>
-    change ((byzQuorumProtocol P V procs leader t).byzantineState F deliver adv x m i).decided =
-      some val at ih
-    change ((byzQuorumProtocol P V procs leader t).byzantineState
-      F deliver adv x (m + 1) i).decided = some val
     by_cases hm5 : m % 6 = 5
-    · rw [byzQuorum_state_succ]
+    · rw [PartialSyncProtocol.byzantineDecision, byzQuorum_state_succ]
       simp only [byzUpdate, hm5]
-      split <;> simp only [ih, Option.some_or]
-    · rwa [byzState_decided_unchanged_of_ne_five leader F deliver adv x m hm5 i]
+      split
+      · next w _ => exact congrArg (Option.or · (some w)) ih
+      · exact ih
+    · exact (byzState_decided_unchanged_of_ne_five leader F deliver adv x m hm5 i).trans ih
 
 private theorem byzState_votedViews_unchanged_of_ne_three (F : Finset P)
     (deliver : ℕ → P → P → Bool) (adv : ℕ → P → P → Option (ByzViewMsg V)) (x : P → V)
@@ -1517,15 +1512,13 @@ theorem omission_irrevocable (deliver : ℕ → P → P → Bool) (x : P → V)
   induction hr with
   | refl => exact hdec
   | @step m _ ih =>
-    change ((omissionQuorumProtocol P V procs leader t).omissionState deliver x m i).decided =
-      some val at ih
-    change ((omissionQuorumProtocol P V procs leader t).omissionState
-      deliver x (m + 1) i).decided = some val
     by_cases hm2 : m % 3 = 2
-    · rw [omissionQuorum_state_succ]
+    · rw [PartialSyncProtocol.omissionDecision, omissionQuorum_state_succ]
       simp only [omissionUpdate, hm2]
-      split <;> simp only [ih, Option.some_or]
-    · rwa [omission_decided_unchanged_of_ne_two leader deliver x m hm2 i]
+      split
+      · next w _ => exact congrArg (Option.or · (some w)) ih
+      · exact ih
+    · exact (omission_decided_unchanged_of_ne_two leader deliver x m hm2 i).trans ih
 
 theorem omission_locked_unchanged_of_ne_one (deliver : ℕ → P → P → Bool) (x : P → V)
     (r : ℕ) (h : r % 3 ≠ 1) (i : P) :

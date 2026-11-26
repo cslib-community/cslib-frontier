@@ -74,12 +74,8 @@ is of the given kind, its distinct arguments are reached by disjoint sets of inp
   unfold IsDecomposableAt
   rw [Fin.forall_fin_succ']
   refine and_congr (forall_congr' fun k => ?_) ?_
-  · generalize hk : (p.gate line).lines k.castSucc = l
-    rw [lines_gate_castSucc] at hk
-    subst hk
+  · rw [lines_gate_castSucc]
     simp [Line.mapWires]
-  · generalize hk : (p.gate line).lines (Fin.last g) = l
-    rw [lines_gate_last] at hk
-    subst hk
+  · rw [lines_gate_last]
     simp [Line.mapWires]
 end Cslib.Circuits

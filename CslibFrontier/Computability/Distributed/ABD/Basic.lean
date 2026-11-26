@@ -813,8 +813,7 @@ theorem reachable_start [Fintype P] : π.Reachable π.start :=
 /-- Reachability from `π.start` composes with `π.lts.CanReach`. -/
 theorem Reachable.trans [Fintype P] {π : Protocol P S M V} {s s' : State P S M V}
     (hs : π.Reachable s) (hreach : π.lts.CanReach s s') : π.Reachable s' := by
-  obtain ⟨xl, hxl⟩ := hs
-  obtain ⟨yl, hyl⟩ := hreach
+  rcases hs, hreach with ⟨⟨xl, hxl⟩, ⟨yl, hyl⟩⟩
   exact ⟨xl ++ yl, LTS.MTr.comp π.lts hxl hyl⟩
 
 /-! ### Structural invariants of `history` and `msgs` -/
@@ -1178,9 +1177,7 @@ private lemma localInv_tr {P V : Type*} [Fintype P] [DecidableEq P]
   have hsub : Subsingleton P := Fintype.card_le_one_iff_subsingleton.mp hcard
   intro s a s' htr ⟨hpend, hcomp, hmono, hvalid, hstate⟩
   cases a with
-  | stutter =>
-    obtain rfl := htr
-    exact ⟨hpend, hcomp, hmono, hvalid, hstate⟩
+  | stutter => exact htr ▸ ⟨hpend, hcomp, hmono, hvalid, hstate⟩
   | deliver e =>
     obtain ⟨_, rfl⟩ := htr
     rw [(localRegisterProtocol P V v₀).doDeliver_of_resp_eq_none rfl]
@@ -1189,8 +1186,7 @@ private lemma localInv_tr {P V : Type*} [Fintype P] [DecidableEq P]
       Function.update_eq_self e.dest s.proc
     refine ⟨fun p => hproc_eq.symm ▸ hpend p, fun i hi => ?_, hmono, hvalid,
       fun p => hproc_eq.symm ▸ hstate p⟩
-    obtain ⟨hc, hr, hlt⟩ := hcomp i hi
-    exact ⟨hc, hr, Nat.lt_succ_of_lt hlt⟩
+    exact ⟨(hcomp i hi).1, (hcomp i hi).2.1, Nat.lt_succ_of_lt (hcomp i hi).2.2⟩
   | invoke caller kind =>
     obtain ⟨_, rfl⟩ := htr
     let nextVal : V := match kind with
@@ -1250,9 +1246,7 @@ theorem implementsAtomicRegister_local_of_card_le_one {P V : Type*} [Fintype P] 
       obtain ⟨_, hr', _⟩ := hcomp i hi_lt
       cases hr'.symm.trans hr_step
       rcases lt_trichotomy i j with hij | rfl | hji
-      · exact hij
-      · exact False.elim (Nat.lt_irrefl _ hlt)
-      · exact False.elim (Nat.lt_asymm hlt (hmono j i hji hi_lt))
+      exacts [hij, (Nat.lt_irrefl _ hlt).elim, (Nat.lt_asymm hlt (hmono j i hji hi_lt)).elim]
   terminates _ _ ss xs ha k i hi _ := by
     obtain ⟨xl, hxl⟩ := (localRegisterProtocol P V v₀).admissibleRun_reachable ha k
     have hinv := LTS.mtrInv_of_trInv (localInv_tr hcard v₀) _ _ _ hxl (localInv_start v₀)

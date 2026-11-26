@@ -188,12 +188,10 @@ theorem cbcMacWord_append_block (family : List Bool → List Bool → List Bool)
     (hblock : block.length = n) :
     cbcMacWord family n key (msg ++ block) =
       (family key (List.zipWith xor (cbcMacWord family n key msg) block)).take n := by
-  have hdvd : n ∣ block.length := by simpa only [hblock] using (dvd_rfl : n ∣ n)
   have hrow : BitString.listRows (block.length / n) n block = [block] := by
     simpa only [List.length_singleton, List.flatten_singleton, hblock, Nat.div_self hn] using
-      BitString.listRows_flatten [block]
-        (fun _ hm => (List.mem_singleton.mp hm) ▸ hblock)
-  simp only [cbcMacWord, BitString.listRows_append_aligned hn hmsg hdvd, hrow,
+      BitString.listRows_flatten [block] fun _ hm => (List.mem_singleton.mp hm) ▸ hblock
+  simp only [cbcMacWord, BitString.listRows_append_aligned hn hmsg (dvd_of_eq hblock.symm), hrow,
     List.foldl_append, List.foldl_cons, List.foldl_nil]
 
 /-- Keyed-family presentation of basic CBC-MAC at block width `key.length`. -/
@@ -727,11 +725,8 @@ private theorem cbcAdmissible_fixCoins_adapt {ℓ : ℕ → ℕ} {n Q : ℕ} (hn
     (hω : ω ∈ (ProbOracleComp.coinLaw ((cbcInputCodec n (ℓ n) hn).adapt program)).support) :
     CBCAdmissible Q (ProbOracleComp.fixCoins ((cbcInputCodec n (ℓ n) hn).adapt program) ω) := by
   intro o
-  have htreeQ :
-      (ProbOracleComp.fixCoins ((cbcInputCodec n (ℓ n) hn).adapt program) ω).IsQueryBounded Q :=
-    ProbOracleComp.isQueryBounded_fixCoins
-      (OracleCodec.isQueryBounded_adapt (cbcInputCodec n (ℓ n) hn) hQ) ω
-  refine ⟨?_, cbcQueryRun_length_le_of_isQueryBounded o htreeQ⟩
+  refine ⟨?_, cbcQueryRun_length_le_of_isQueryBounded o
+    (ProbOracleComp.isQueryBounded_fixCoins (OracleCodec.isQueryBounded_adapt _ hQ) ω)⟩
   obtain ⟨res, hres, hsub⟩ := exists_wordQueryRunDist_of_probCbcQueryRun hn o program
     (cbcQueryRun_fixCoins_mem_support o _ ω hω)
   have horacle (w : List Bool) : (cbcBlockValid ℓ n w = false → cbcOracleWord hn o w = []) ∧
@@ -742,10 +737,8 @@ private theorem cbcAdmissible_fixCoins_adapt {ℓ : ℕ → ℕ} {n Q : ℕ} (hn
     hpf (cbcOracleWord hn o) (fun w => (horacle w).1) (fun w => (horacle w).2) res hres
   have hvalid (z : CBCInput n (ℓ n)) :
       cbcBlockValid ℓ n ((cbcInputCodec n (ℓ n) hn).encodeQuery z).2 = true := by
-    rw [cbcBlockValid_eq_isSome_cbcInputCodec hn,
-      show ((), ((cbcInputCodec n (ℓ n) hn).encodeQuery z).2) =
-        (cbcInputCodec n (ℓ n) hn).encodeQuery z from rfl,
-      OracleCodec.decodeQuery_encodeQuery, Option.isSome_some]
+    rw [cbcBlockValid_eq_isSome_cbcInputCodec hn]
+    exact congrArg Option.isSome ((cbcInputCodec n (ℓ n) hn).decodeQuery_encodeQuery z)
   intro x hx y hy hxy hpre
   have hneWord : ((cbcInputCodec n (ℓ n) hn).encodeQuery x).2 ≠
       ((cbcInputCodec n (ℓ n) hn).encodeQuery y).2 := fun heq =>
@@ -922,16 +915,9 @@ private theorem isOraclePPT_interpret_wordGuard
     dsimp only [ECall]; fun_prop
   have hhandler : IsOraclePPTOn ECall encBits
       (fun c : (ℕ × List Bool) × (Unit × List Bool) => handler c.1.1 c.2) := by
-    have heq : (fun c : (ℕ × List Bool) × (Unit × List Bool) => handler c.1.1 c.2) =
-        (fun c => if valid c.1.1 c.2.2 then
-            (call ∘ (fun c : (ℕ × List Bool) × (Unit × List Bool) => (c.1.1, c.2.2))) c
-          else ProbOracleComp.sample (pure [])) := by
-      funext c
-      rw [hdef]
-      cases valid c.1.1 c.2.2 <;> rfl
-    rw [heq]
+    simp only [hdef]
     exact IsOraclePPTOn.cond (hvalid.comp hpair) (hcall.preprocess hpair)
-      ((ComputableInPolyTime.const []).isPPTOn.isOraclePPTOn)
+      (ComputableInPolyTime.const []).isPPTOn.isOraclePPTOn
   refine (hadversary.on.interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
     (handler := fun c => handler c.1) (prepare := id) (resources := fun c _ => c.1)
     ComputableInPolyTime.id' hhandler
@@ -1732,9 +1718,8 @@ private theorem run_macLogHandlerOn_eq_macSigningOracleOn
         (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
         (macLogHandlerOn valid n))
       prog).run []) ())
-  simp only [PMF.map_comp, Function.comp_def,
-    show (fun x : (List Bool × List Bool) × List (List Bool) => x) = id from rfl, PMF.map_id]
-    at hfst
+  rw [PMF.map_comp] at hfst
+  erw [PMF.map_id] at hfst
   simp only [ProbOracleComp.eval_interpret, ProbComp.eval_pure]
   rw [← OracleComp.evalWith_eq_interpret, ← hfst, ProbOracleComp.runWith_run_interpret,
     ProbOracleComp.eval_run_interpret_eq_runWith]
@@ -1755,8 +1740,7 @@ private theorem run_macLogHandlerOn_eq_macSigningOracleOn
         simp only [List.take_of_length_le hlenEq.le, pmf_norm]
       · simp only [Bool.eq_false_iff.mpr hv, Bool.false_eq_true, ↓reduceIte,
           OracleComp.interpret_pure, ProbComp.eval_pure]
-        rw [show (pure ([], queried) : StateT Unit PMF _) PUnit.unit =
-            PMF.pure (([], queried), PUnit.unit) from rfl]
+        dsimp only [Pure.pure, StateT.pure]
         simp only [PMF.pure_map])
     prog ([], ())
   unfold prfRealLogHandlerOn at hsim
@@ -1827,8 +1811,7 @@ private theorem prfIdealLogOracleOn_inv (valid : ℕ → List Bool → Bool) (ad
     · exact List.forall_mem_cons.mpr ⟨List.mem_cons_self, htail⟩
   · simp only [Bool.eq_false_iff.mpr hv, Bool.false_eq_true, ↓reduceIte,
       OracleComp.interpret_pure] at hstep
-    rw [show (pure ([], queried) : StateT _ PMF _) cache =
-        PMF.pure (([], queried), cache) from rfl] at hstep
+    dsimp only [Pure.pure, StateT.pure] at hstep
     simp only [PMF.pure_map, PMF.mem_support_pure_iff, Prod.mk.injEq] at hstep
     rcases hstep with ⟨-, rfl, rfl⟩
     exact hstate
@@ -2054,7 +2037,7 @@ private theorem cbcMacFamily_zero_append_tag {family : List Bool → List Bool �
     simp only [tag, cbcMacFamily, hsk, cbcMacWord, List.length_replicate, hrows1,
       List.foldl_cons, List.foldl_nil, zipWith_xor_self, List.take_of_length_le hfamLen.le]
   have htagWord : cbcMacWord family n sk (List.replicate n false) = tag := by
-    rw [show tag = cbcMacFamily family sk (List.replicate n false) from rfl, cbcMacFamily, hsk]
+    simp only [tag, cbcMacFamily, hsk]
   rw [cbcMacFamily, hsk, cbcMacWord_append_block family hn sk (by simp) htagLen, htagWord,
     zipWith_xor_self, htagLen, ← htag1, List.take_of_length_le htagLen.le]
 
@@ -2078,25 +2061,24 @@ theorem eval_macSufCmaGameOn_cbcMacFamily_cbcExtensionForger
     StateT.run_map, ProbOracleComp.interpret_query, BitString.eval_sampleList, pmf_norm]
   dsimp only [StateT.run, macSigningOracleOn]
   simp only [hval1, ↓reduceIte, ProbComp.eval_pure, PMF.pure_bind]
-  trans PMF.bind (BitString.uniformList n) (fun _ => PMF.pure true)
-  · refine PMF.bind_congr_on_support _ _ _ fun sk hsk => ?_
-    have hskLen : sk.length = n := BitString.length_of_mem_support_uniformList hsk
-    have htagLen : (cbcMacFamily family sk (List.replicate n false)).length = n := by
-      rw [length_cbcMacFamily hlen, hskLen]
-    have hlen2 : (List.replicate n false ++
-        cbcMacFamily family sk (List.replicate n false)).length = 2 * n := by
-      rw [List.length_append, List.length_replicate, htagLen, Nat.two_mul]
-    have hval2 : lpBlockValid (fun _ => 2) n
-        (List.replicate n false ++ cbcMacFamily family sk (List.replicate n false)) = true := by
-      simp [lpBlockValid, hlen2, Nat.mul_mod_left]
-    have hne : List.replicate n false ++ cbcMacFamily family sk (List.replicate n false) ≠
-        List.replicate n false := fun hEq => by
-      have hlenEq := congrArg List.length hEq
-      rw [hlen2, List.length_replicate] at hlenEq
-      omega
-    rw [List.take_of_length_le htagLen.le]
-    simp [hval2, hne, cbcMacFamily_zero_append_tag hlen hn hskLen]
-  · exact PMF.bind_const _ _
+  refine (PMF.bind_congr_on_support _ _ (fun _ => PMF.pure true) fun sk hsk => ?_).trans
+    (PMF.bind_const _ _)
+  have hskLen : sk.length = n := BitString.length_of_mem_support_uniformList hsk
+  have htagLen : (cbcMacFamily family sk (List.replicate n false)).length = n := by
+    rw [length_cbcMacFamily hlen, hskLen]
+  have hlen2 : (List.replicate n false ++
+      cbcMacFamily family sk (List.replicate n false)).length = 2 * n := by
+    rw [List.length_append, List.length_replicate, htagLen, Nat.two_mul]
+  have hval2 : lpBlockValid (fun _ => 2) n
+      (List.replicate n false ++ cbcMacFamily family sk (List.replicate n false)) = true := by
+    simp [lpBlockValid, hlen2, Nat.mul_mod_left]
+  have hne : List.replicate n false ++ cbcMacFamily family sk (List.replicate n false) ≠
+      List.replicate n false := fun hEq => by
+    have hlenEq := congrArg List.length hEq
+    rw [hlen2, List.length_replicate] at hlenEq
+    omega
+  rw [List.take_of_length_le htagLen.le]
+  simp [hval2, hne, cbcMacFamily_zero_append_tag hlen hn hskLen]
 
 /-- CBC-MAC step toward #5801 after [BonehShoup2023], Section 6.4.3 (printed pp. 230–231), not the
 full Section 6.4.2–6.4.3 / Definition 6.4 cascade and extendable-PRF endpoint: for every

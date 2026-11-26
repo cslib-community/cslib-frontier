@@ -80,10 +80,8 @@ theorem quantifierDepth_mapVars (f : ℕ → ℕ) :
   | falsum => rfl
   | equal _ _ => rfl
   | rel _ _ => rfl
-  | imp φ ψ => by
-    simp only [mapVars, quantifierDepth_imp, quantifierDepth_mapVars f φ,
-      quantifierDepth_mapVars f ψ]
-  | all _ φ => by simp only [mapVars, quantifierDepth_all, quantifierDepth_mapVars f φ]
+  | imp φ ψ => by simp [mapVars, quantifierDepth_mapVars f φ, quantifierDepth_mapVars f ψ]
+  | all _ φ => by simp [mapVars, quantifierDepth_mapVars f φ]
 
 /-- Renaming by an injective map: the renamed formula holds under `v` iff the formula holds under
 `v ∘ f`. -/
@@ -209,8 +207,7 @@ private theorem inDepths_depths {F : ℕ → Prop} [DecidablePred F] {A : ℕ �
     · simp only [InDepths, Option.getD_some, h, false_and, iff_false]; omega
   | imp φ ψ, d => by
     rw [depths, WellScoped, inDepths_inter, inDepths_depths φ, inDepths_depths ψ]
-  | all x φ, d => by
-    rw [depths, WellScoped, inDepths_allDepths, inDepths_depths φ]
+  | all x φ, d => by simp [depths, WellScoped, inDepths_allDepths, inDepths_depths φ]
 
 section Primrec
 
@@ -242,7 +239,7 @@ private theorem primrec_listDepths {F : ℕ → Prop} [DecidablePred F] (hF : Pr
 private theorem primrec_depths {F : ℕ → Prop} [DecidablePred F] {A : ℕ → ℕ → Prop}
     [DecidableRel A] (hF : PrimrecPred F) (hA : PrimrecRel A) : Primrec (depths F A) := by
   have hL := primrec_listDepths hF
-  have h := primrec₂_of_rec (α := Unit) (σ := ℕ × Option ℕ) (fun _ φ => depths F A φ)
+  exact (primrec₂_of_rec (α := Unit) (σ := ℕ × Option ℕ) (fun _ φ => depths F A φ)
     (const (0, none))
     (e := fun _ p => listDepths F [p.1, p.2])
     (hL.comp (list_cons.comp (fst.comp snd) (list_cons.comp (snd.comp snd) (const [])))).to₂
@@ -260,8 +257,8 @@ private theorem primrec_depths {F : ℕ → Prop} [DecidablePred F] {A : ℕ →
       (Primrec.pair (nat_div.comp (fst.comp (fst.comp snd)) (const 2))
         (option_some.comp (nat_div.comp (fst.comp (fst.comp snd)) (const 2))))
       (const (1, some 0))).to₂
-    (fun _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl)
-  exact h.comp (const ()) Primrec.id
+    (fun _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl)
+    (fun _ _ _ => rfl)).comp (const ()) Primrec.id
 
 /-- **Being well scoped is primitive recursive**, for primitive recursive `F` and `A`. -/
 theorem primrecRel_wellScoped {F : ℕ → Prop} {A : ℕ → ℕ → Prop} (hF : PrimrecPred F)
@@ -309,10 +306,8 @@ theorem quantifierDepth_levels : ∀ φ : RawFormula, (levels φ).quantifierDept
   | falsum => rfl
   | equal _ _ => rfl
   | rel _ _ => rfl
-  | imp φ ψ => by
-    simp only [levels, quantifierDepth_imp, quantifierDepth_levels φ, quantifierDepth_levels ψ]
-  | all _ φ => by
-    simp only [levels, quantifierDepth_all, quantifierDepth_mapVars, quantifierDepth_levels φ]
+  | imp φ ψ => by simp [levels, quantifierDepth_levels φ, quantifierDepth_levels ψ]
+  | all _ φ => by simp [levels, quantifierDepth_levels φ]
 
 /-- `levels φ` holds under `ρ` iff `φ` holds under `x ↦ ρ (2 * x + 1)`. -/
 theorem realize_levels {M : Type*} {I : ℕ → List M → Prop} :
@@ -366,11 +361,10 @@ private theorem wellScoped_mapVars_bindShift {F : ℕ → Prop} {A : ℕ → ℕ
 where
   nameOk_bindShift' {d y : ℕ} (hy : NameOk (fun z => F z ∨ z = x) d y) :
       NameOk (fun z => F z ∧ z ≠ x) (d + 1) (bindShift x y) := by
-    by_cases hyx : y = 2 * x + 1
-    · exact hyx ▸ nameOk_bindShift_self
-    · refine nameOk_bindShift (hy.imp id fun ⟨h1, h2⟩ => ⟨h1, h2.resolve_right ?_⟩)
-      rintro rfl
-      omega
+    rcases eq_or_ne y (2 * x + 1) with rfl | hyx
+    · exact nameOk_bindShift_self
+    · exact nameOk_bindShift (hy.imp id fun ⟨h1, h2⟩ =>
+        ⟨h1, h2.resolve_right fun h => hyx (by omega)⟩)
 
 /-- `levels φ` is level-named at depth `0`, with free variables among those of `φ` and the same
 atoms. -/
@@ -420,8 +414,8 @@ theorem primrec₂_bindShift : Primrec₂ bindShift :=
     (Primrec.ite (Primrec.eq.comp (nat_mod.comp snd (const 2)) (const 0))
       (nat_add.comp snd (const 2)) snd)
 
-theorem primrec_levels : Primrec levels := by
-  have h := primrec₂_of_rec (α := Unit) (σ := RawFormula) (fun _ φ => levels φ) (const falsum)
+theorem primrec_levels : Primrec levels :=
+  (primrec₂_of_rec (α := Unit) (σ := RawFormula) (fun _ φ => levels φ) (const falsum)
     (e := fun _ p => equal (2 * p.1 + 1) (2 * p.2 + 1))
     (primrec_equal (nat_double_succ.comp (fst.comp snd)) (nat_double_succ.comp (snd.comp snd))).to₂
     (r := fun _ p => rel p.1 (p.2.map fun x => 2 * x + 1))
@@ -431,8 +425,8 @@ theorem primrec_levels : Primrec levels := by
     (l := fun _ p => all 0 (mapVars (bindShift p.1.1) p.2))
     (primrec_all (const 0) ((primrec₂_mapVars primrec₂_bindShift).comp (fst.comp (fst.comp snd))
       (snd.comp snd))).to₂
-    (fun _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl)
-  exact h.comp (const ()) Primrec.id
+    (fun _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl)
+    (fun _ _ _ => rfl)).comp (const ()) Primrec.id
 
 end Primrec
 

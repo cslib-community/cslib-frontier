@@ -152,10 +152,8 @@ private theorem sum_fingerWeight_le (s : Finset α) (f : α) :
   norm_num at h₁ h₂
   linarith
 
-private theorem logb_two_three_le_two : Real.logb 2 3 ≤ 2 := by
-  have h4 : Real.logb 2 4 = 2 := by
-    rw [show (4 : ℝ) = 2 ^ (2 : ℕ) by norm_num, Real.logb_two_pow]; norm_num
-  exact (Real.logb_le_logb_of_le (by norm_num) (by norm_num) (by norm_num)).trans_eq h4
+private theorem logb_two_three_le_two : Real.logb 2 3 ≤ 2 :=
+  (Real.logb_le_iff_le_rpow (by norm_num) (by norm_num)).2 (by norm_num)
 
 /-- **Static Finger Theorem** ([SleatorTarjan1985b], Section 2, Theorem 3, p. 659): let `t` be an
 `Ordered` splay tree with `n = |t|` keys and `f ∈ t` a fixed key. A sequence `xs` of `m` accesses to
@@ -245,9 +243,8 @@ private theorem takeWhile_ne_cons_self (y : α) (l : List α) :
   List.takeWhile_cons_of_neg (p := fun z => decide (z ≠ y)) (by simp)
 
 private theorem not_mem_toFinset_takeWhile_ne (y : α) (l : List α) :
-    y ∉ (l.takeWhile fun z => z ≠ y).toFinset := by
-  intro hmem
-  exact absurd (List.all_eq_true.mp List.all_takeWhile y (List.mem_toFinset.mp hmem)) (by simp)
+    y ∉ (l.takeWhile fun z => z ≠ y).toFinset := fun hmem =>
+  absurd (List.all_eq_true.mp List.all_takeWhile y (List.mem_toFinset.mp hmem)) (by simp)
 
 private theorem takeWhile_ne_append_cons_self (x : α) (h l : List α) :
     (h ++ x :: l).takeWhile (fun y => y ≠ x) = h.takeWhile (fun y => y ≠ x) := by
@@ -444,8 +441,7 @@ theorem splaySeqTime_le_working_set (xs : List α) {t : BinaryTree α} (ht : Ord
   let R := (elements t).toList
   have hset : ([] ++ xs ++ R).toFinset = elements t := by
     ext z
-    simp only [List.nil_append, List.mem_toFinset, List.mem_append, Finset.mem_toList, R]
-    exact ⟨fun hz => hz.elim (hxs z) id, Or.inr⟩
+    simp [R, or_iff_right_iff_imp.mpr (hxs z)]
   have htel := splaySeqTime_mtf_telescoping xs ht hset
   rw [wsAux_nil, sum_map_wsCharge, length_workingSetNumbers] at htel
   obtain ⟨ho_end, he_end⟩ := splaySeq_ordered_and_elements xs ht
@@ -465,10 +461,9 @@ theorem splaySeqTime_le_working_set (xs : List α) {t : BinaryTree α} (ht : Ord
     rw [← nsmul_eq_mul, ← neg_nsmul, ← Finset.sum_const]
     refine Finset.sum_le_sum fun y hy => ?_
     have hy' : y ∈ xs.reverse ++ [] ++ R := List.mem_toFinset.mp (hsetₘ.symm ▸ hy)
-    have hlog := Real.logb_le_logb_of_le (b := 2) (by norm_num)
-      (by positivity : (0 : ℝ) < (recencyRank y (xs.reverse ++ [] ++ R) : ℝ) + 1)
-      (by exact_mod_cast hsetₘ ▸ recencyRank_lt_card hy' :
-        (recencyRank y (xs.reverse ++ [] ++ R) : ℝ) + 1 ≤ (elements t).card)
+    have hle_card : (recencyRank y (xs.reverse ++ [] ++ R) : ℝ) + 1 ≤ (elements t).card := by
+      exact_mod_cast hsetₘ ▸ recencyRank_lt_card hy'
+    have hlog := Real.logb_le_logb_of_le (b := 2) (by norm_num) (by positivity) hle_card
     rw [mtfWeight, one_div, Real.logb_inv, Real.logb_pow]
     push_cast; linarith
   linarith

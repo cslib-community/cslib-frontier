@@ -246,9 +246,7 @@ theorem toListRest_cons :
     toListRest rest = rest.flatMap fun e => (e.1, e.val) :: e.child.toList := by
   induction rest with
   | nil => rfl
-  | cons e rest ih =>
-    obtain ⟨k, v, c⟩ := e
-    simp [toListRest_cons, ih]
+  | cons e rest ih => exact congrArg ((e.1, e.val) :: e.child.toList ++ ·) ih
 
 /-- A list of entries, each over an empty child, has those entries. Not `@[simp]`: the simp
 normal form of `toListRest` is the `flatMap` of `toListRest_eq_flatMap`. -/
@@ -279,9 +277,7 @@ one, or `0` for the empty list. -/
     heightRest rest = (rest.map fun e => e.child.height + 1).foldr max 0 := by
   induction rest with
   | nil => rfl
-  | cons e rest ih =>
-    obtain ⟨k, v, c⟩ := e
-    simp [heightRest_cons, ih]
+  | cons e rest ih => exact congrArg (max (e.child.height + 1)) ih
 
 /-- The children among a list of triples are all shorter than `n` exactly when the list's height
 contribution is at most `n`. -/
@@ -311,9 +307,7 @@ theorem mapRest_cons (f : β → γ) :
     mapRest f rest = rest.map fun e => (e.1, f e.val, e.child.map f) := by
   induction rest with
   | nil => rfl
-  | cons e rest ih =>
-    obtain ⟨k, v, c⟩ := e
-    simp [mapRest_cons, ih]
+  | cons e rest ih => exact congrArg ((e.1, f e.val, e.child.map f) :: ·) ih
 
 /-- The empty tree has no children. -/
 @[simp] theorem children_leaf : (leaf : BTree α β).children = [] := rfl
@@ -758,18 +752,14 @@ variable {rest : List (Triple α β)} {t n : ℕ}
     occupiedRest t rest = rest.all fun e => occupied t e.child := by
   induction rest with
   | nil => rfl
-  | cons e rest ih =>
-    obtain ⟨k, v, c⟩ := e
-    simp [occupiedRest, ih]
+  | cons e rest ih => exact congrArg (occupied t e.child && ·) ih
 
 /-- `balancedRest n` checks that every child among the triples is balanced and of height `n`. -/
 @[simp] theorem balancedRest_eq_all :
     balancedRest n rest = rest.all fun e => balanced e.child && e.child.height == n := by
   induction rest with
   | nil => rfl
-  | cons e _ ih =>
-    obtain ⟨_, _, _⟩ := e
-    simp [balancedRest, ih, Bool.and_assoc]
+  | cons e _ ih => simp [balancedRest, ih, Bool.and_assoc]
 
 /-- `occupied` decides `Occupied`. -/
 @[simp] theorem occupied_iff : occupied t tr = true ↔ Occupied t tr := by

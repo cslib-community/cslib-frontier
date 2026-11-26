@@ -141,18 +141,15 @@ private theorem moveCount_le_moveCap (hρ : StageRate FL ρ) (hρ1 : ρ ≤ 1)
     have := batchSize_le (ch := ch) (lhat := lhat) (n := n) a c γ
     have := (Nat.div_le_self (n a c) (Fintype.card (T.X 0))).trans (hn a c)
     omega
-  · have := (moveCount_relay_le _ hx).trans (hedge j.castSucc e)
-    omega
+  · exact ((moveCount_relay_le _ hx).trans (hedge j.castSucc e)).trans (Nat.le_add_left _ _)
   · have := (moveCount_middle_le (lhat := lhat) (n := n) (o := o) hx).trans
       (by split_ifs; exacts [hedge j.castSucc e, Nat.zero_le _])
     omega
-  · have := (moveCount_relay_le _ hx).trans (hedge (Fin.last J) e)
-    omega
+  · exact ((moveCount_relay_le _ hx).trans (hedge (Fin.last J) e)).trans (Nat.le_add_left _ _)
   · have h1 := moveCount_vertex_le (lhat := lhat) (n := n) (o := o) l
     have h2 := minUnits_le (lhat := lhat) (n := n) (o := o) (Uu := Uu) (A := A) hρ hρ1 l
-    have h3 : (l.minUnits (load lhat n o) : ℝ) <
-        (⌈3 * (b : ℝ) * normBound FL Uu A lhat⌉₊ + 2 : ℕ) := by push_cast; linarith
-    have := Nat.cast_lt.1 h3
+    have h3 : l.minUnits (load lhat n o) < ⌈3 * (b : ℝ) * normBound FL Uu A lhat⌉₊ + 2 :=
+      Nat.cast_lt (α := ℝ) |>.1 (by push_cast; linarith)
     omega
 
 /-- **The tower plan obeys the rules** ([AnthropicVPVNP2026], proof of Theorem H.2, pp. 46–48),
@@ -266,13 +263,12 @@ theorem normBound_le (hm : 1 ≤ m) (hUu : Uu ≤ 2 * Fintype.card (T.X 0) * m)
     Uu * (lhat / X + 2 * A) ≤ 2 * X * m * (lhat / X + 2 * X) := by gcongr
     _ = 2 * m * (X * (lhat / X) + 2 * X ^ 2) := by ring
     _ ≤ _ := by gcongr; exact Nat.mul_div_le lhat X
-  have hnR : (startBound T Uu A lhat : ℝ) ≤ 2 * m * (lhat + 2 * (X : ℝ) ^ 2) := by
-    exact_mod_cast hn
   have h1 : (1 : ℝ) ≤ m * (lhat + 2 * (X : ℝ) ^ 2) := by
     nlinarith [(mod_cast hX : (1 : ℝ) ≤ X), (mod_cast hm : (1 : ℝ) ≤ m),
       (lhat.cast_nonneg : (0 : ℝ) ≤ lhat)]
   have p1 : √h * (r * X / 2) * startBound T Uu A lhat ≤
-      √h * (r * X / 2) * (2 * m * (lhat + 2 * (X : ℝ) ^ 2)) := by gcongr
+      √h * (r * X / 2) * (2 * m * (lhat + 2 * (X : ℝ) ^ 2)) :=
+    mul_le_mul_of_nonneg_left (by exact_mod_cast hn) (by positivity)
   have p2 : √FL.contraction * FL.scale / b * X ≤
       √FL.contraction * FL.scale * X * (m * (lhat + 2 * (X : ℝ) ^ 2)) := calc
     _ ≤ √FL.contraction * FL.scale * X * 1 := by

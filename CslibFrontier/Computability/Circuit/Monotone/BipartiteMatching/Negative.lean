@@ -272,10 +272,8 @@ private theorem exists_fresh {𝒟 𝒞 : Finset (Finset (Fin n × Fin n))} (h�
     card_image_le.trans (hcard D (h𝒞 hD))
   set B := 𝒟.filter fun D => ∃ e ∈ D, e.1 ∈ U ∧ e.2 ∈ V
   have hB : B.card ≤ (𝒞.card * s) ^ 2 := by
-    have hsub : B.biUnion (fun D => D.filter fun e => e.1 ∈ U ∧ e.2 ∈ V) ⊆ U ×ˢ V := by
-      intro e he
-      obtain ⟨_, -, he⟩ := mem_biUnion.1 he
-      exact mem_product.2 (mem_filter.1 he).2
+    have hsub : B.biUnion (fun D => D.filter fun e => e.1 ∈ U ∧ e.2 ∈ V) ⊆ U ×ˢ V :=
+      biUnion_subset.2 fun _ _ _ he => mem_product.2 (mem_filter.1 he).2
     have hdisj' : (B : Set (Finset (Fin n × Fin n))).PairwiseDisjoint
         fun D => D.filter fun e => e.1 ∈ U ∧ e.2 ∈ V := fun D hD D' hD' hDD' =>
       disjoint_filter_filter (hdisj (filter_subset _ _ hD) (filter_subset _ _ hD') hDD')
@@ -394,9 +392,8 @@ theorem card_stepExceptions_le_of_step {F G : Finset (Finset (Fin n × Fin n))}
       fun ht => absurd ⟨t, ht, hct⟩ hF'
   by_cases hsub : ∃ i, V i ⊆ W
   · obtain ⟨i, hi⟩ := hsub
-    refine (Nat.mul_le_mul_right _ (card_eq_zero.2 (eq_empty_of_forall_notMem fun c hc =>
-      ?_)).le).trans (by simp)
-    exact (hexc c hc).2 i ((hexc c hc).1.mono hi)
+    have hemp := eq_empty_of_forall_notMem fun c hc => (hexc c hc).2 i ((hexc c hc).1.mono hi)
+    simp [card_eq_zero.2 hemp]
   push Not at hsub
   have hinter (i j : Fin r) (hij : i ≠ j) : (V i \ W) ∩ (V j \ W) = ∅ := by
     refine eq_empty_of_forall_notMem fun e he => ?_
@@ -411,10 +408,8 @@ theorem card_stepExceptions_le_of_step {F G : Finset (Finset (Fin n × Fin n))}
     (Finset.forall_mem_image.2 fun i _ => sdiff_nonempty.2 (hsub i))
     (Finset.forall_mem_image.2 fun i _ =>
       (card_le_card sdiff_subset).trans (mem_matchings.1 (hF (hV i))).2)
-    (fun D hD D' hD' hDD' => by
-      obtain ⟨i, -, rfl⟩ := mem_image.1 (mem_coe.1 hD)
-      obtain ⟨j, -, rfl⟩ := mem_image.1 (mem_coe.1 hD')
-      exact disjoint_iff_inter_eq_empty.2 (hinter i j fun hij => hDD' (hij ▸ rfl)))
+    (Finset.forall_mem_image.2 fun i _ => Finset.forall_mem_image.2 fun j _ hDD' =>
+      disjoint_iff_inter_eq_empty.2 (hinter i j (ne_of_apply_ne (fun k => V k \ W) hDD')))
     (by rwa [card_image_of_injective _ hinj, card_univ, Fintype.card_fin])
   refine le_trans (Nat.mul_le_mul_right _ (card_le_card fun c hc => ?_)) hcount
   obtain ⟨hcW, hcV⟩ := hexc c hc

@@ -248,12 +248,11 @@ theorem exists_complexity_verifierTest_le (p : Polynomial ℕ) {V : α × List B
   have hBpoly : PolynomiallyBounded fun N => p.eval N + Tc N + 2 := by fun_prop
   obtain ⟨c, a, hB⟩ := polynomiallyBounded_iff_le.1 hBpoly
   refine ⟨c, a, fun x => ⟨by have := hB (enc x).length; omega, fun L hL => ?_⟩⟩
-  have h := complexity_le_of_append_take L' (frame (enc x)) hL
+  have h := length_frame (enc x) ▸ complexity_le_of_append_take L' (frame (enc x)) hL
     (f := fun y : BitString L => V (x, (List.ofFn y).take (p.eval (enc x).length))) fun y => by
       rw [hVL', encPair_apply, encBits_apply]
-  rw [length_frame] at h
   have := hB (enc x).length
-  simp only [Tc] at this
+  dsimp only [Tc] at this
   omega
 
 /-- **Seed enumeration is correct for a generator that fools the verifier.** Let `V` answer whether
@@ -272,14 +271,14 @@ theorem seedDecider_eq_true_iff_of_advantage_lt {A : Set α} {V : α × List Boo
       (fun y => PMF.pure (V (x, (List.ofFn y).take m))) < 1 / 6) :
     seedDecider V gen seed x = true ↔ x ∈ A := by
   set k := seed x
-  set test : BooleanFunction (ℓ k) := fun y => V (x, (List.ofFn y).take m) with htest_def
+  set test : BooleanFunction (ℓ k) := fun y => V (x, (List.ofFn y).take m)
   rw [Generator.advantage_pure_eq] at hadv
   have hseeds : #{z : BitString k | test (wordFamily G ℓ k z) = true} =
-      #{z : Fin k → Bool | V (x, gen x (List.ofFn z)) = true} := by
-    refine congrArg _ (filter_congr fun z _ => ?_)
-    simp only [test, hgen]
-    rw [show wordFamily G ℓ k z = fun i : Fin (ℓ k) => (G (List.ofFn z)).getD i false from rfl,
-      List.ofFn_getD_eq_of_length false (by rw [hlen, List.length_ofFn])]
+      #{z : Fin k → Bool | V (x, gen x (List.ofFn z)) = true} :=
+    congrArg _ (filter_congr fun z _ => by
+      have hwf : wordFamily G ℓ k z = fun i : Fin (ℓ k) => (G (List.ofFn z)).getD i false := rfl
+      have hlen_z : (G (List.ofFn z)).length = ℓ k := by rw [hlen, List.length_ofFn]
+      simp only [test, hgen, hwf, List.ofFn_getD_eq_of_length false hlen_z])
   have hstrings : (#{y : BitString (ℓ k) | test y = true} : ℝ) / 2 ^ ℓ k =
       #{r : Fin m → Bool | V (x, List.ofFn r) = true} / 2 ^ m := by
     simp only [test, BitString.card_filter_take hm fun w => V (x, w) = true]
@@ -360,9 +359,9 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
       ⟨_, (hcB _ hmℓ).trans hsize, rfl⟩
     have hadv := hsec _ htest
     have h7' : ((((k : ℝ≥0) ^ 1)⁻¹ : ℝ≥0) : ℝ) ≤ 1 / 7 := by
-      rw [pow_one, one_div]
-      push_cast
-      exact inv_anti₀ (by norm_num) (by exact_mod_cast (show 7 ≤ k by omega))
+      simpa only [pow_one, one_div, NNReal.coe_inv, NNReal.coe_natCast] using
+        inv_anti₀ (by norm_num)
+          (mod_cast (by omega : 7 ≤ k))
     exact (seedDecider_eq_true_iff_of_advantage_lt (hA x).1
       (fun hx => boundedErrorAt_false_iff.1 ((hA x).2 hx)) hG.length_eq gen seed (fun _ => rfl) hmℓ
       (by linarith)).symm
@@ -446,13 +445,11 @@ theorem _root_.Cslib.Crypto.NonuniformPRG.circuitSecurePRG {G : List Bool → Li
   -- negligible advantage contradicts the frequent breaks
   obtain ⟨m, hm⟩ := (Crypto.negligible_iff _).1 hneg c' 1 one_pos
   obtain ⟨k, hk, hkm⟩ := (hbad.and_eventually (eventually_ge_atTop (m + 1))).exists
-  have hlt := hbreak k hk
-  rw [← hadv k] at hlt
+  have hlt := (hadv k).symm ▸ hbreak k hk
   have hmk := NNReal.coe_lt_coe.2 (hm k (by omega))
-  have hpos : (0 : ℝ) < (k : ℝ) ^ c' := pow_pos (by exact_mod_cast (show 0 < k by omega)) _
+  have hpos : (0 : ℝ) < (k : ℝ) ^ c' := pow_pos (mod_cast (by omega : 0 < k)) _
   push_cast at hmk hlt
-  rw [inv_lt_iff_one_lt_mul₀ hpos] at hlt
-  linarith
+  linarith [(inv_lt_iff_one_lt_mul₀ hpos).1 hlt]
 
 /-- **Goldreich, Theorem 8.13** [Goldreich, Theorem 8.13][Goldreich2007DraftR4] (draft r4, printed
 page 334, PDF page 70): *if there exist non-uniformly strong pseudorandom generators, then
@@ -470,10 +467,8 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_nonuniformPRG {G : List Bool → List B
     {ℓ : ℕ → ℕ} (hG : Crypto.NonuniformPRG G ℓ) {α : Type} (enc : α ↪ List Bool) :
     BPP enc ⊆ ⋂ (ε : ℝ) (_ : 0 < ε), DTIME enc fun n => 2 ^ ⌈(n : ℝ) ^ ε⌉₊ := by
   refine BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG (fun c _ => ?_) enc
-  have h₁ := hG.truncate (fun n => n + 1) (by fun_prop) (fun n => hG.stretch n)
-    fun n => Nat.lt_succ_self n
-  have h₂ := Crypto.NonuniformPRG.amplify h₁ (fun n => n ^ c + n + 1) (by fun_prop)
-    fun n => by omega
+  have h₁ := hG.truncate (· + 1) (by fun_prop) hG.stretch Nat.lt_succ_self
+  have h₂ := h₁.amplify (fun n => n ^ c + n + 1) (by fun_prop) fun n => by omega
   exact ⟨_, _, Eventually.of_forall fun k => by omega, h₂.circuitSecurePRG c⟩
 
 end Nonuniform

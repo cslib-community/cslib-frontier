@@ -109,28 +109,16 @@ theorem nextRule_rule (r : Rule supp) (hr : ¬ IsChosen r) :
     | readEnd => exact absurd (Or.inl rfl) hr
     | readBit => exact absurd (Or.inr (Or.inl rfl)) hr
     | decodeGuess b => exact absurd (Or.inr (Or.inr ⟨b, rfl⟩)) hr
-    | start₂ b => cases b <;> rfl
-    | frameCons b => cases b <;> rfl
-    | frameIte b => cases b <;> rfl
-    | frameRun b => cases b <;> rfl
-    | head b => cases b <;> rfl
-    | tail b => cases b <;> rfl
-    | ite₁ b => cases b <;> rfl
-    | ite₂ b => cases b <;> rfl
-    | decodeStep j =>
-      have : (j.castSucc : Fin 11).1 < 10 := j.2
-      exact dite_eq_left this
+    | start₂ b | frameCons b | frameIte b | frameRun b
+    | head b | tail b | ite₁ b | ite₂ b => cases b <;> rfl
+    | decodeStep j => exact dite_eq_left j.2
     | _ => rfl
   | thetaStart h => exact dite_eq_left h
-  | thetaRead p => rfl
-  | thetaNext p => rfl
-  | thetaBit p p' b hx =>
-    obtain ⟨p', hp'⟩ := p'
-    simp only at hx
-    subst hx
-    cases b
-    · exact dite_eq_left hp'
-    · exact dite_eq_left hp'
+  | thetaRead _ | thetaNext _ => rfl
+  | thetaBit _ p' b hx =>
+    obtain ⟨_, hp'⟩ := p'
+    cases hx
+    cases b <;> exact dite_eq_left hp'
 
 private theorem rd_eq_none (r : Rule supp) (hr : ¬ IsChosen r) : (rule θ supp r).rd = none := by
   cases r with

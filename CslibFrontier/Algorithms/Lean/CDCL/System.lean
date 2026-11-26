@@ -277,15 +277,13 @@ theorem sat_of_entailed {φ : CNF ℕ} {M : Trail} (h : Entailed φ M) {σ : ℕ
   | nil => simp [Sat, lits]
   | decision l _ ih =>
     intro l' hl'
-    simp only [lits, List.map_cons, List.mem_cons] at hl'
-    rcases hl' with rfl | hl'
+    rcases List.mem_cons.1 hl' with rfl | hl'
     · exact hdec _ List.mem_cons_self
     · exact ih (fun l hl => hdec l (List.mem_cons_of_mem _ hl)) l' hl'
   | implied l _ himp ih =>
     have hM := ih fun l hl => hdec l (List.mem_cons_of_mem _ hl)
     intro l' hl'
-    simp only [lits, List.map_cons, List.mem_cons] at hl'
-    rcases hl' with rfl | hl'
+    rcases List.mem_cons.1 hl' with rfl | hl'
     · exact himp σ hσ hM
     · exact hM l' hl'
 
@@ -334,9 +332,8 @@ theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step S S'
   · cases hstep with
     | @unitPropagate M F c l hc hl hfalse hundef =>
       obtain ⟨hnd, hsub⟩ := RunInv.push h false hundef (h.db_vars c hc l hl)
-      refine ⟨h.models, h.pmodels, hnd, hsub, h.db_vars, .implied l h.entailed fun σ hσ hM => ?_⟩
-      exact Trail.eval_of_forall_ne
-        ((CNF.eval_eq_true_iff σ F).1 (by rw [h.models]; exact hσ) c hc) hM hfalse
+      exact ⟨h.models, h.pmodels, hnd, hsub, h.db_vars, .implied l h.entailed fun σ hσ hM =>
+        Trail.eval_of_forall_ne ((CNF.eval_eq_true_iff σ F).1 (h.models σ ▸ hσ) c hc) hM hfalse⟩
     | @decide M F l hundef hv =>
       obtain ⟨hnd, hsub⟩ := RunInv.push h true hundef (h.mem_of_occurs (.inl hv))
       exact ⟨h.models, h.pmodels, hnd, hsub, h.db_vars, .decision l h.entailed⟩
@@ -354,23 +351,19 @@ theorem Step.inv {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : Step S S'
         simp only [Trail.vars, List.map_append, List.map_cons] at this
         exact (List.nodup_cons.1 (List.nodup_append.1 this).2.1).2
       refine ⟨h.models, h.pmodels, List.nodup_cons.2 ⟨hundef, hnodup⟩, fun x hx => ?_,
-        h.db_vars, ?_⟩
-      · rcases List.mem_cons.1 hx with rfl | hx
-        · exact h.mem_of_occurs hocc
-        · exact h.subset x (by simp [Trail.vars] at hx ⊢; tauto)
-      · refine .implied l (Trail.entailed_append (N := N ++ [⟨d, true⟩])
-          (by simpa using h.entailed)) fun σ hσ hM => ?_
-        exact Trail.eval_of_forall_ne (hC σ (by rw [h.models]; exact hσ)) hM hfalse
+        h.db_vars, .implied l (Trail.entailed_append (N := N ++ [⟨d, true⟩])
+          (by simpa using h.entailed)) fun σ hσ hM =>
+          Trail.eval_of_forall_ne (hC σ (h.models σ ▸ hσ)) hM hfalse⟩
+      rcases List.mem_cons.1 hx with rfl | hx
+      · exact h.mem_of_occurs hocc
+      · exact h.subset x (by simp [Trail.vars] at hx ⊢; tauto)
   · cases hstep with
     | @learn M F C hC hCV =>
       refine ⟨fun σ => ?_, fun ρ hρ => h.pmodels ρ fun c hc => hρ c (List.mem_cons_of_mem _ hc),
-        h.nodup, h.subset, ?_, h.entailed⟩
-      · rw [CNF.eval_cons, ← h.models]
-        cases hF : CNF.eval σ F <;> simp [hC σ, hF]
-      · intro c hc l hl
-        rcases List.mem_cons.1 hc with rfl | hc
-        · exact h.mem_of_occurs (hCV l hl)
-        · exact h.db_vars c hc l hl
+        h.nodup, h.subset, fun c hc l hl => (List.mem_cons.1 hc).elim
+          (fun hEq => h.mem_of_occurs (hCV l (hEq ▸ hl))) (h.db_vars c · l hl), h.entailed⟩
+      rw [CNF.eval_cons, ← h.models]
+      cases hF : CNF.eval σ F <;> simp [hC σ, hF]
   · cases hstep with
     | @forget M F₁ F₂ C hC =>
       refine ⟨fun σ => ?_, fun ρ hρ => h.pmodels ρ fun c hc => ?_, h.nodup, h.subset,
@@ -625,18 +618,15 @@ theorem BasicStep.rank_lt {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : 
   cases hstep with
   | fail =>
     have := RunInv.measure_le (show RunInv _ _ _ _ from h)
-    simp only [rank]
-    omega
+    simp only [rank]; omega
   | @unitPropagate M F c l _ _ _ _ =>
-    have hle := RunInv.measure_le (show RunInv _ _ _ _ from h')
+    have := RunInv.measure_le (show RunInv _ _ _ _ from h')
     have := Trail.measure_lt_cons V.dedup.length ⟨l, false⟩ M
-    simp only [rank]
-    omega
+    simp only [rank]; omega
   | @decide M F l _ _ =>
-    have hle := RunInv.measure_le (show RunInv _ _ _ _ from h')
+    have := RunInv.measure_le (show RunInv _ _ _ _ from h')
     have := Trail.measure_lt_cons V.dedup.length ⟨l, true⟩ M
-    simp only [rank]
-    omega
+    simp only [rank]; omega
   | @backjump N M₀ F d c C l hc hconf hC hl hfalse hundef hCV =>
     have hlen := (show RunInv _ _ _ _ from h).length_le
     have hle' := RunInv.measure_le (show RunInv _ _ _ _ from h')
@@ -647,11 +637,10 @@ theorem BasicStep.rank_lt {φ : CNF ℕ} {V : List ℕ} {S S' : State} (hstep : 
       Nat.add_zero] at hle hle' ⊢
     have hlev := Trail.level_le_length M₀
     -- one literal at level `L` outweighs the literals above it
-    have hpow :
-        (n + 1) ^ (n - Trail.level M₀) = (n + 1) * (n + 1) ^ (n - (Trail.level M₀ + 1)) := by
+    have hpow : (n + 1) ^ (n - Trail.level M₀) =
+        (n + 1) * (n + 1) ^ (n - (Trail.level M₀ + 1)) := by
       rw [← pow_succ']
-      congr 1
-      omega
+      exact congrArg ((n + 1) ^ ·) (by omega)
     have : (N.length + 1) * (n + 1) ^ (n - (Trail.level M₀ + 1)) <
         (n + 1) * (n + 1) ^ (n - (Trail.level M₀ + 1)) :=
       Nat.mul_lt_mul_of_pos_right (by omega) (Nat.pow_pos (by omega))

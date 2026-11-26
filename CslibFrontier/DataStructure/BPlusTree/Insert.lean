@@ -597,13 +597,10 @@ private theorem toList_insertOrSplit_of (k : α) (v : β) (tr : BPlusTree α β)
       (fun e he => ihr e he (h.child (hmem e he)))
     rw [insertOrSplit_node]
     cases hr : insertRest t k v rest with
-    | some r =>
-      simp only [InsertResult.toList_ofNode, toList_node]
-      exact spec.2 r hr
+    | some r => simpa only [InsertResult.toList_ofNode, toList_node] using spec.2 r hr
     | none =>
-      simp only [InsertResult.toList_ofNode, toList_node]
-      rw [InsertResult.toList_withRest, ihf (h.child List.mem_cons_self),
-        SortedAssoc.insert_append_of_forall_gt (spec.1 hr)]
+      simp only [InsertResult.toList_ofNode, toList_node, InsertResult.toList_withRest,
+        ihf (h.child List.mem_cons_self), SortedAssoc.insert_append_of_forall_gt (spec.1 hr)]
 
 /-! ### The shape of the result -/
 
@@ -729,8 +726,7 @@ theorem sep_ofLeaf {entries : List (α × β)} (hs : entries.IsSortedAssoc) :
         fun q hq => ?_⟩
       rw [toList_leaf] at hq
       rcases List.mem_cons.1 hq with rfl | hq
-      · exact le_rfl
-      · exact ((List.isSortedAssoc_cons_iff.1 hs.2.1).1 q hq).le
+      exacts [le_rfl, ((List.isSortedAssoc_cons_iff.1 hs.2.1).1 q hq).le]
 
 /-- The split of a separated node without empty children among its branches has the separator
 convention. -/
@@ -881,8 +877,7 @@ private theorem sep_insertOrSplit (k : α) (v : β) (tr : BPlusTree α β)
       refine ⟨fits_insertOrSplit ht1 k v c hg.balanced hsc.occupied hg.occupied.width_le hsc.sorted,
         ih hsc hg.balanced hg.occupied.width_le, fun p hp' => ?_⟩
       rw [toList_insertOrSplit_of k v c hsc] at hp'
-      rcases SortedAssoc.eq_or_mem_of_mem_insert hp' with rfl | hp'
-      exacts [Or.inl rfl, Or.inr hp']
+      exact (SortedAssoc.eq_or_mem_of_mem_insert hp').imp_left (congrArg Prod.fst)
     have hrest := fun e (he : e ∈ rest) =>
       hchild e.child (List.mem_cons_of_mem _ (List.mem_map_of_mem he)) (hgr e he) (ihr e he)
     have hlink := linked_insertRest (t := t) (k := k) (v := v) hp.linked
@@ -960,14 +955,12 @@ theorem height_insert (h : IsWF t tr) (k : α) (v : β) :
 /-- Insertion raises the height by at most one. -/
 theorem height_insert_le (h : IsWF t tr) (k : α) (v : β) :
     (insert t k v tr).height ≤ tr.height + 1 := by
-  rw [height_insert h]
-  cases insertOrSplit t k v tr <;> simp
+  cases h' : insertOrSplit t k v tr <;> simp [height_insert h, h']
 
 /-- Insertion never lowers the height. -/
 theorem height_le_height_insert (h : IsWF t tr) (k : α) (v : β) :
     tr.height ≤ (insert t k v tr).height := by
-  rw [height_insert h]
-  cases insertOrSplit t k v tr <;> simp
+  cases h' : insertOrSplit t k v tr <;> simp [height_insert h, h']
 
 /-- Insertion keeps the size when the key is present and adds one otherwise. -/
 theorem size_insert (h : IsWF t tr) (k : α) (v : β) :

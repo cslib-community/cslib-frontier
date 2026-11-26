@@ -172,18 +172,16 @@ theorem collaredProfile_incidence_endpoints (p : ClauseProfile)
   · rw [collared_variablePoint _ _ hfend.2.1]
     dsimp only [LocalIncidence.route]
     split_ifs with ht
-    · have hend := hfend.2.2.2
-      rw [profile_prefix_terminal_endpoint p f.variableIndex ht] at hend
-      have hleft : (collarRoute (collarReflected s) f.route).getLast? =
+    · have hleft : (collarRoute (collarReflected s) f.route).getLast? =
           some (collarInnerPort (collarReflected s)
             (terminalIndex (profilePrefixGeometry p) f.variableIndex)) := by
-        rw [collarRoute_eq_map, List.getLast?_map, hend, Option.map_some,
+        rw [collarRoute_eq_map, List.getLast?_map, hfend.2.2.2,
+          profile_prefix_terminal_endpoint p f.variableIndex ht, Option.map_some,
           collarPoint_innerTemplatePort]
-      have hright :=
-        ((collar_check s hs).2 (terminalIndex (profilePrefixGeometry p) f.variableIndex)).2.1
-      rw [collarPrefixRoute, last_join hleft (by simpa only [List.head?_reverse] using hright),
+      let hc := (collar_check s hs).2 (terminalIndex (profilePrefixGeometry p) f.variableIndex)
+      rw [collarPrefixRoute, last_join hleft (by simpa only [List.head?_reverse] using hc.2.1),
         List.getLast?_reverse]
-      exact ((collar_check s hs).2 (terminalIndex (profilePrefixGeometry p) f.variableIndex)).1
+      exact hc.1
     · rw [collarRoute_eq_map, List.getLast?_map, hfend.2.2.2, Option.map_some]
 
 /-- The actual translated local incidence is proper and simple, with its prescribed endpoints.
@@ -387,13 +385,10 @@ theorem positiveStem_other_terminal_not_mem_support {φ : CNF ℕ}
     realPoint (positiveBoxOrigin φ d i +
       (clauseGeometry φ d i c).variablePosition f.variableIndex) ∉
       support (positiveStem φ d i e) := by
-  intro hz
-  rw [positiveStem, support_translate] at hz
-  obtain ⟨x, hx, hxp⟩ := hz
-  obtain rfl : x = realPoint ((clauseGeometry φ d i c).variablePosition f.variableIndex) := by
-    simpa [realPoint_add, add_comm (realPoint (positiveBoxOrigin φ d i))] using hxp
+  rw [positiveStem, support_translate, realPoint_add, add_comm (realPoint _)]
+  rintro ⟨x, hx, hxp⟩
   exact collaredProfile_other_terminal_not_mem_support _ h (clausePorts_spec hd hi).1
-    he hf hne ht hx
+    he hf hne ht (add_right_cancel hxp ▸ hx)
 
 /-- Inside one clause box, an inherited exterior is disjoint from every other local prefix.
 The shared clause center has already been cut away. -/

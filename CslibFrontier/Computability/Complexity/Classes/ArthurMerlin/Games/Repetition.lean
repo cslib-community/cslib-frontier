@@ -211,8 +211,7 @@ theorem value_majority_le (g : List (AMMove × ℕ)) (k : ℕ) (W : List Bool �
     _ = (8 / 9) ^ k / 2 := by
       rw [pow_mul, pow_succ]
       field_simp
-      rw [← mul_pow]
-      norm_num
+      rw [← mul_pow]; norm_num
 
 private theorem toNat_not_cast (b : Bool) : (((!b).toNat : ℕ) : ℚ) = 1 - (b.toNat : ℚ) := by
   cases b <;> norm_num
@@ -237,11 +236,7 @@ theorem value_majority_ge (g : List (AMMove × ℕ)) (k : ℕ) (W : List Bool �
           (fun _ t => 1 + ((!W t).toNat : ℚ)) (fun _ t => by positivity), prod_const, card_univ,
           Fintype.card_fin, value_const_add, hdual]
       _ ≤ 1 / 2 ^ k * (4 / 3) ^ (2 * k) + 0 := by gcongr <;> linarith
-      _ = (8 / 9) ^ k := by
-        rw [pow_mul]
-        field_simp
-        rw [← mul_pow]
-        norm_num
+      _ = (8 / 9) ^ k := by rw [← one_div_pow, pow_mul, ← mul_pow]; norm_num
   linarith
 
 theorem computableInPolyTime_copyTranscript {γ : Type} {encIn : γ ↪ List Bool}

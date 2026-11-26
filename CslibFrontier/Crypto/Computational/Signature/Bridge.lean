@@ -202,12 +202,7 @@ theorem Forger.eval_eufCmaExperiment_restrict_toTyped
   -- On an admissible message, the filtered log names it exactly when the full log does.
   have hfilter : (adm msg && !((log.filter (fun p => adm p.1)).map Prod.fst).contains msg) =
       (adm msg && !(log.map Prod.fst).contains msg) := by
-    cases hadm : adm msg
-    · rfl
-    · simp only [Bool.true_and, List.contains_eq_mem]
-      refine congrArg (!·) (decide_eq_decide.mpr ?_)
-      simp only [List.mem_map, List.mem_filter]
-      exact ⟨fun ⟨a, ⟨ha, _⟩, h⟩ => ⟨a, ha, h⟩, fun ⟨a, ha, h⟩ => ⟨a, ⟨ha, h ▸ hadm⟩, h⟩⟩
+    cases hadm : adm msg <;> simp [List.contains_eq_mem, hadm]
   simp only [Function.comp_apply, Signature.Scheme.restrict_verify, freshMessage,
     List.contains_reverse, hfilter]
   cases adm msg <;> cases S.verify pk msg sig <;> simp
@@ -410,9 +405,7 @@ private theorem eval_runLogWith_toCounter (S : IndexedSignatureScheme) (adversar
         Prod.mk.injEq] at h
       obtain ⟨σ, -, -, rfl, rfl⟩ := h
       simp
-    · rw [ite_eq_right hcap] at h
-      simp only [interp_norm] at h
-      simp_all [PMF.monad_pure_eq_pure]
+    · simp_all [interp_norm, PMF.monad_pure_eq_pure]
   case step =>
     rintro q ⟨j, log⟩ (rfl : j = log.length)
     dsimp only
@@ -426,8 +419,7 @@ private theorem eval_runLogWith_toCounter (S : IndexedSignatureScheme) (adversar
       congr 1
       funext σ
       simp [List.map_append]
-    · rw [ite_eq_right hcap]
-      simp [counterSigningOracle, hcap, PMF.monad_pure_eq_pure]
+    · simp [counterSigningOracle, hcap, PMF.monad_pure_eq_pure]
 
 /-- At each parameter `n`, the word-level counter EUF-CMA game is the typed counter experiment of
 `S.toScheme n` played by `adversary.toCounter (S.capacity n) n`. -/

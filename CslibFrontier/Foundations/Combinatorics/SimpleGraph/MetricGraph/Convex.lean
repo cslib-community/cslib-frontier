@@ -134,8 +134,7 @@ theorem helly_theorem (hT : W.graph.IsTree) {ι : Type*} {K : ι → Set (Metric
     have h₀ : i₀ ∈ insert i₀ s := Finset.mem_insert_self i₀ s
     have hs' : ∀ {i}, i ∈ s → i ∈ insert i₀ s := Finset.mem_insert_of_mem
     rcases s.eq_empty_or_nonempty with rfl | hsne
-    · obtain ⟨z, hz, -⟩ := hpair i₀ h₀ i₀ h₀
-      exact ⟨z, by simpa using hz⟩
+    · exact (hpair i₀ h₀ i₀ h₀).imp fun _ hz => by simpa using hz.1
     obtain ⟨z, hz⟩ := ih (K := fun i => K i ∩ K i₀) hsne
       (fun i hi => (hconv i (hs' hi)).inter (hconv i₀ h₀))
       (fun i hi j hj => by
@@ -166,8 +165,7 @@ noncomputable def gate (K : Set (MetricGraph W)) (y : MetricGraph W) : MetricGra
 theorem gate_eq_of_forall_mem_interval {K : Set (MetricGraph W)} {y p : MetricGraph W}
     (hp : p ∈ K) (h : ∀ z ∈ K, p ∈ interval y z) : gate K y = p := by
   have hex : ∃ p ∈ K, ∀ z ∈ K, p ∈ interval y z := ⟨p, hp, h⟩
-  unfold gate
-  rw [dite_eq_left hex]
+  rw [gate, dite_eq_left hex]
   obtain ⟨hq, hqz⟩ := hex.choose_spec
   exact _root_.dist_eq_zero.mp (by
     linarith [mem_interval_iff.mp (hqz p hp), mem_interval_iff.mp (h _ hq),
@@ -325,12 +323,10 @@ private lemma fst_mem_of_edgePoint_mem_subtree (hT : W.graph.IsTree) {S : Finset
   have hpos : 0 < edgeProj hT d₀ (edgePoint d t) := by
     by_cases he : d.edge = d₀.edge
     · rcases (dart_edge_eq_iff d d₀).mp he with rfl | hsym
-      · rw [edgeProj_edgePoint_self]
-        exact mul_pos ht0 (W.dart_weight_pos d)
-      · rw [hsym, edgeProj_edgePoint_symm]
-        exact mul_pos (sub_pos.mpr ht1) (W.dart_weight_pos d₀)
-    · rw [edgeProj_edgePoint_of_edge_ne hT he, hd₀]
-      exact W.dart_weight_pos d₀
+      · simpa only [edgeProj_edgePoint_self] using mul_pos ht0 (W.dart_weight_pos d)
+      · simpa only [hsym, edgeProj_edgePoint_symm] using
+          mul_pos (sub_pos.mpr ht1) (W.dart_weight_pos d₀)
+    · simpa only [edgeProj_edgePoint_of_edge_ne hT he, hd₀] using W.dart_weight_pos d₀
   exact hpos.ne' (edgeProj_eq_zero_of_mem_interval hT (hd₀S u₁ hu₁) (hd₀S u₂ hu₂) hz)
 
 theorem edgePoint_mem_subtree_iff (hT : W.graph.IsTree) {S : Finset V}
@@ -454,14 +450,11 @@ theorem exists_adj_mem_branch_of_mem_subtree (hT : W.graph.IsTree) {S : Finset V
   have hd_S := (edgePoint_mem_subtree_iff hT hS ht0 ht1).mp hp_S
   have hadj : W.graph.Adj c d.snd := hd_fst ▸ d.adj
   have hp_br : edgePoint d t ∈ branch (vertex c) (vertex d.snd) := by
-    rw [mem_branch_vertex_iff_edgeProj_pos hT hadj]
-    have hd_eq : (⟨(c, d.snd), hadj⟩ : W.graph.Dart) = d := by
-      ext <;> simp [hd_fst]
-    rw [hd_eq, edgeProj_edgePoint_self]
-    exact mul_pos ht0 (W.dart_weight_pos d)
-  have hp_ne : edgePoint d t ≠ vertex c := fun heq => by
-    rw [heq, _root_.dist_self] at hp_dist
-    linarith
+    have hd_eq : (⟨(c, d.snd), hadj⟩ : W.graph.Dart) = d := by ext <;> simp [hd_fst]
+    simpa only [mem_branch_vertex_iff_edgeProj_pos hT hadj, hd_eq, edgeProj_edgePoint_self] using
+      mul_pos ht0 (W.dart_weight_pos d)
+  have hp_ne : edgePoint d t ≠ vertex c := fun heq =>
+    hr_pos.ne' (by simpa only [heq, _root_.dist_self] using hp_dist.symm)
   have hp_bry : edgePoint d t ∈ branch (vertex c) y :=
     mem_branch_of_mem_interval hT (mem_branch_self hy_ne) hp_mem hp_ne
   refine ⟨d.snd, hd_S.2, hadj, ?_⟩

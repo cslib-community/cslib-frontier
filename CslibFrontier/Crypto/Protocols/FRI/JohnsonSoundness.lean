@@ -146,8 +146,7 @@ private theorem sum_natCast_div_ennreal {ι : Type*} (s : Finset ι) (x : ι →
 omit [Field F] in
 private theorem natCast_div_eq_ofReal {N D : ℕ} (hD : 0 < D) :
     ((N : ℝ≥0∞) / (D : ℝ≥0∞)) = ENNReal.ofReal ((N : ℝ) / (D : ℝ)) := by
-  rw [ENNReal.ofReal_div_of_pos (by exact_mod_cast hD), ENNReal.ofReal_natCast,
-    ENNReal.ofReal_natCast]
+  simp only [ENNReal.ofReal_div_of_pos (Nat.cast_pos.mpr hD), ENNReal.ofReal_natCast]
 
 private theorem cast_two_pow_sub_eq_smooth (params : FRISmoothParams F) :
     (((2 ^ params.d - 2 ^ (params.d - params.totalLog) : ℕ) : ℝ)) =
@@ -155,8 +154,7 @@ private theorem cast_two_pow_sub_eq_smooth (params : FRISmoothParams F) :
   have hpow : (2 : ℝ) ^ params.d =
       (2 : ℝ) ^ (params.d - params.totalLog) * (2 : ℝ) ^ params.totalLog := by
     rw [← pow_add, Nat.sub_add_cancel params.htotal]
-  rw [Nat.cast_sub (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))]
-  push_cast
+  push_cast [Nat.pow_le_pow_right zero_lt_two (Nat.sub_le _ _)]
   rw [hpow]; field_simp
 
 private theorem sum_fin_arity_sub_one_succ {α : Type*} {a : ℕ} (ha : 1 ≤ a)
@@ -587,7 +585,7 @@ private theorem johnsonCurveBound_rescaled_le {ni m d D r mJ k₀ n₀ : ℕ}
             ((k₀ : ℝ) / (n₀ : ℝ))) * (n₀ : ℝ) * (k₀ : ℝ) := by gcongr
       _ = _ := by field_simp
   refine (Nat.le_div_iff_mul_le hk₀).mpr ?_
-  exact_mod_cast le_of_mul_le_mul_right hmul (by exact_mod_cast hni : (0 : ℝ) < ni)
+  exact_mod_cast le_of_mul_le_mul_right hmul (Nat.cast_pos.mpr hni)
 
 /-- **Original explicit-constant per-round Johnson-bound `WeightedCurveGapPerRound`** across all `m`
 single-word smooth FRI folding rounds up to `δ ≤ 1 - √ρ - √ρ / (2 * mJ)` (in the setting of
@@ -821,8 +819,7 @@ theorem weightedLineGapBound_of_unique [DecidableEq F]
     (params : FRIParams F) {e : ℕ} (huniq : 2 * e + params.dim 0 ≤ 2 ^ params.d) :
     WeightedLineGapBound params (2 ^ params.d - e - 1) (2 ^ (params.d - 1)) :=
   (weightedLineGapPerRound_of_unique params huniq).mono fun _ =>
-    Nat.pow_le_pow_right (by omega)
-      (Nat.sub_le_sub_left (Nat.succ_le_succ (Nat.zero_le _)) _)
+    Nat.pow_le_pow_right zero_lt_two (Nat.sub_le_sub_left (Nat.succ_pos _) _)
 
 /-- Closed-form geometric commit-phase error `(1 - 1 / 2 ^ m) * (2 ^ d / |F|)` across all `m`
 single-word 2-to-1 FRI folding rounds in the unique-decoding regime (`< 2 ^ d / |F|`
@@ -963,9 +960,8 @@ private theorem friJohnsonRoundBound_eq_smooth (params : FRIParams F) (mJ : ℕ)
 theorem friSmoothJohnsonCommitBound_toSmooth_le (params : FRIParams F) (mJ : ℕ) :
     friSmoothJohnsonCommitBound params.toSmooth mJ ≤ friJohnsonCommitBound params mJ := by
   rw [friSmoothJohnsonCommitBound, friJohnsonCommitBound, params.toSmooth_dim (Nat.zero_le _)]
-  refine Nat.div_le_div_right ?_
-  have := two_mul_toSmooth_first_sub_le params
-  nlinarith [Nat.zero_le ((mJ + 1) ^ 6 * (2 ^ params.d) ^ 2)]
+  exact Nat.div_le_div_right <| by
+    nlinarith [two_mul_toSmooth_first_sub_le params, ((mJ + 1) ^ 6 * (2 ^ params.d) ^ 2).zero_le]
 
 /-- At round `0`, `friJohnsonRoundBound` coincides exactly with `friJohnsonCommitBound`. -/
 theorem friJohnsonRoundBound_zero (params : FRIParams F) (mJ : ℕ) (hm : 0 < params.m) :

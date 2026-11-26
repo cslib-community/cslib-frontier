@@ -329,9 +329,7 @@ theorem runSeedSearchIndexed_eq_scheduler {count : ℕ}
     (sourceAt : Fin count → Fin n) (source : Fin n) :
     runSeedSearchIndexed controller sourceAt source =
       runSeedScheduler (fun i _ => controller ((BitString.equivFin length).symm i))
-        sourceAt source := by
-  unfold runSeedSearchIndexed
-  rfl
+        sourceAt source := by rfl
 
 /-- A scanner that depends only on the seed number and source ID gives the same computation
 as the indexed search with the corresponding bit-seed callback. -/
@@ -366,10 +364,8 @@ theorem runSeedScheduler_clock {σ : Type} {count : ℕ} (clock : σ → ℕ) (c
       clock s + 2 ^ length * ((1 + count) * cost) := by
   have hgood i phase u t :
       clock ((sourceGood (scan i phase) u).run t).2 ≤ clock t + cost := by
-    unfold sourceGood
-    rw [← Nat.add_zero cost]
-    apply bind_optionT_clock clock cost 0 _ _ (hc i phase u)
-    rintro (_ | _ | _) _ <;> exact Nat.le_refl _
+    simpa only [sourceGood, Nat.add_zero] using bind_optionT_clock clock cost 0 _ _ (hc i phase u)
+      (by rintro (_ | _ | _) _ <;> exact Nat.le_refl _) t
   have hothers i answer (remaining cursor : ℕ)
       (h : cursor + remaining ≤ count) (t : σ) :
       clock ((checkSourcesFrom (fun position => scan i (some (position, answer)))
@@ -402,9 +398,8 @@ theorem runSeedScheduler_clock {σ : Type} {count : ℕ} (clock : σ → ℕ) (c
   let test := rankedSeedTest (testScheduledSeed scan sourceAt source)
   let budget := (1 + count) * cost
   have hstep i t : clock ((test i).run t).2 ≤ clock t + budget := by
-    unfold test rankedSeedTest
-    rw [← Nat.add_zero budget]
-    exact bind_optionT_clock clock budget 0 _ _ (htest _) (fun _ _ => Nat.le_refl _) t
+    simpa only [test, rankedSeedTest, testScheduledSeed, Nat.add_zero] using
+      bind_optionT_clock clock budget 0 _ _ (htest i) (fun _ _ => Nat.le_refl _) t
   have hloop (remaining cursor : ℕ) (h : cursor + remaining ≤ 2 ^ length) (t : σ) :
       clock ((findSeedFrom test remaining cursor h).run t).2 ≤
         clock t + remaining * budget := by
@@ -503,9 +498,8 @@ theorem runSeedSearch_correct (sources : List (Fin n))
   let good (i : Fin (2 ^ length)) :=
     (∀ j, ∃! w, Passes (r (bits i)) source j w) ∧
       ∀ s ∈ sources, ∀ j, ∃! w, Passes (r (bits i)) s j w
-  have hex' : ∃ i, good i := by
-    obtain ⟨seed, hs⟩ := hex
-    exact ⟨BitString.equivFin length seed, by simpa [good, bits] using hs⟩
+  have hex' : ∃ i, good i :=
+    hex.elim fun seed hs => ⟨BitString.equivFin length seed, by simpa [good, bits] using hs⟩
   let i := Fin.find good hex'
   let makeAnswer (j : Fin (2 ^ length)) : SeedAnswer length :=
     ⟨j, decide (Relation.ReflTransGen (r (bits j)) source target)⟩
@@ -536,9 +530,9 @@ theorem runSeedSearch_correct (sources : List (Fin n))
         change pure ((List.finRange (2 ^ length)).findSome?
           (Option.map makeAnswer ∘ Option.guard (fun j => decide (good j)))) = _
         rw [← List.map_findSome?, List.findSome?_guard]
-  refine ⟨makeAnswer i, ?_, Fin.find_spec hex', fun j hj => Fin.find_min hex' hj, ?_⟩
-  · rw [hrun, hfind]
-    rfl
-  · simp only [makeAnswer, bits, decide_eq_true_eq]
+  refine ⟨makeAnswer i, ?_, Fin.find_spec hex', fun j hj => Fin.find_min hex' hj,
+    decide_eq_true_iff⟩
+  rw [hrun, hfind]
+  rfl
 
 end Cslib.DoubleCounting

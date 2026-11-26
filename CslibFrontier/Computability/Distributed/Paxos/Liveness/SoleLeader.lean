@@ -171,13 +171,10 @@ theorem paxos_liveness_of_sole_leader_crashStop {inputs : Proposer → V}
           rw [hstep] at hmb
           rcases acceptors_synodStep_cases qs (ss n) (xs n) a with heq |
               ⟨b', _, _, heq, h1b⟩ | ⟨b', v, hact, _, heq⟩ | ⟨_, heq⟩
-          · rw [heq] at hmb; exact ih a hmb
-          · rw [heq] at hmb; injection hmb with hb_eq; subst hb_eq
-            exact ⟨n + 1, _, hstep ▸ h1b⟩
-          · rw [heq] at hmb; injection hmb with hb_eq; subst hb_eq
-            rw [hact] at hen
-            exact False.elim (hno_2a n v hen.2)
-          · rw [heq] at hmb; exact ih a hmb
+          · exact ih a (heq ▸ hmb)
+          · exact ⟨n + 1, _, Option.some.inj (heq ▸ hmb) ▸ hstep ▸ h1b⟩
+          · exact (hno_2a n v (Option.some.inj (heq ▸ hmb) ▸ (hact ▸ hen).2)).elim
+          · exact ih a (by simpa [heq] using hmb)
       have hQ_prom : ∀ a ∈ Q, ∃ n, 1 ≤ n ∧ a ∈ ((ss n).proposers p).promised := by
         intro a haQ
         obtain ⟨j₁, _, hj₁_act⟩ := hlive.fair_phase1a 1 hs1_1a a haQ
@@ -201,10 +198,7 @@ theorem paxos_liveness_of_sole_leader_crashStop {inputs : Proposer → V}
         refine ⟨j₂ + 1, by omega, ?_⟩
         by_cases ha_already : a ∈ ((ss j₂).proposers p).promised
         · exact promised_mono qs hexec hprep₀ hno_higher hj₂_1 (Nat.le_succ j₂) ha_already
-        · rw [(hexec j₂).2, hj₂_act]
-          dsimp only [synodStep, synodStepCore]
-          rw [(hround_inv j₂ hj₂_1).1]
-          dsimp only []
+        · simp only [(hexec j₂).2, hj₂_act, synodStep, synodStepCore, (hround_inv j₂ hj₂_1).1]
           rw [ite_eq_left ⟨rfl, ha_already⟩]
           split_ifs <;> simp only [↓reduceIte] <;> exact Finset.mem_insert_self _ _
       choose! stepOf hstep₁ hstep using hQ_prom
@@ -237,8 +231,7 @@ theorem paxos_liveness_of_sole_leader_crashStop {inputs : Proposer → V}
       · simp [heq] at hm_next_pfalse
       · rw [heq] at hm_sub
         exact (hq_not (by simpa [hm_pfalse] using ⟨Q₁, hQ₁, hQ₁_sub.trans hm_sub⟩)).elim
-      · rw [heq] at hm_sub
-        exact (hm_not_sub hm_sub).elim
+      · exact (hm_not_sub (by simpa [heq] using hm_sub)).elim
   -- The accept phase needs only the accept quorum inside the live cohort.
   obtain ⟨n₂, v, _, h2a_mem⟩ := hexists_2a
   obtain ⟨k, hlearned, hreg⟩ := paxos_liveness_from_phase2a_crashStop qs hr₀ hexec hQ₂

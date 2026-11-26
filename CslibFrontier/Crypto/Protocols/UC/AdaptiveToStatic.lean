@@ -75,8 +75,7 @@ private theorem isQueryBounded_clampNetProgram (C₀ : Finset (Fin n)) {α : Typ
   · exact OracleComp.IsCostBounded.query _
   · dsimp only [sumHandler, Sum.elim_inr]
     split_ifs
-    · exact OracleComp.IsCostBounded.query _
-    · exact OracleComp.IsCostBounded.pure _ 1
+    exacts [OracleComp.IsCostBounded.query _, OracleComp.IsCostBounded.pure _ 1]
   · exact OracleComp.IsCostBounded.query _
 
 private theorem noNewCorrupt_clampNetProgram (C₀ : Finset (Fin n)) {α : Type}
@@ -92,8 +91,7 @@ private theorem noNewCorrupt_clampNetProgram (C₀ : Finset (Fin n)) {α : Type}
     · rw [clampNetProgram, OracleComp.interpret_bind, OracleComp.interpret_query]
       dsimp only [sumHandler]
       by_cases hi : i ∈ C₀ <;> simp only [hi, ↓reduceIte, pure_bind]
-      · exact .bind (.query hi) ih
-      · exact ih (.corrupt none)
+      exacts [.bind (.query hi) ih, ih (.corrupt none)]
     · exact .bind (.query trivial) ih
 
 /-- Clamp an adaptive adversary so it drops any `.corrupt i` query for `i ∉ A.initial κ`. -/
@@ -151,8 +149,7 @@ private theorem liftAdaptiveNet_clampNetProgram (C₀ : Finset (Fin n)) {α : Ty
   · exact ProbOracleComp.interpret_query _ _ _
   · dsimp only [sumHandler, clampRouterHandler]
     split_ifs
-    · exact ProbOracleComp.interpret_query _ _ _
-    · rfl
+    exacts [ProbOracleComp.interpret_query _ _ _, rfl]
   · exact ProbOracleComp.interpret_query _ _ _
 
 private theorem runFrom_adaptiveRouter_clampNetProgram_static {α β : Type}
@@ -613,16 +610,14 @@ private theorem static_advantage_le_of_adaptive_clampStatic
     have hbound (target : Bool) :
         ((adaptiveExec .adaptive P A.clampStatic Z κ z).eval target).toReal -
           ((adaptiveExec .adaptive Q S.clampStatic Z κ z).eval target).toReal ≤ (ν κ : ℝ) := by
-      have hPA : (adaptiveExec .adaptive P A.clampStatic (Z_post target) κ z).eval true =
-          (adaptiveExec .adaptive P A.clampStatic Z κ z).eval target :=
-        apply_true_status_post_eq_noNewCorrupt P A.clampStatic
-          A.noNewCorrupt_clampStatic Z κ z target
       have hQS : (adaptiveExec .adaptive Q S (Z_post target) κ z).eval true ≤
           (adaptiveExec .adaptive Q S.clampStatic Z κ z).eval target := by
         simpa only [Z_post, hinit] using apply_true_status_post_le Q S Z κ z target
       have hadv_real := NNReal.coe_le_coe.mpr (hadv (Z_post target) (hZ_post target) κ z)
       rw [adaptiveAdvantage, Game.coe_advantage, Game.coe_succProbability,
-        Game.coe_succProbability, hPA] at hadv_real
+        Game.coe_succProbability] at hadv_real
+      erw [apply_true_status_post_eq_noNewCorrupt P A.clampStatic
+        A.noNewCorrupt_clampStatic Z κ z target] at hadv_real
       linarith [(abs_sub_le_iff.mp hadv_real).1,
         ENNReal.toReal_mono (PMF.apply_ne_top _ _) hQS]
     have hsum (p : PMF Bool) : (p true).toReal + (p false).toReal = 1 := by
@@ -642,8 +637,8 @@ private theorem static_advantage_le_of_adaptive_clampStatic
         (by simp only [Polynomial.eval_add, Polynomial.eval_one]; omega)
     have hadv_st := hadv Z_status hZ_status κ z
     rw [adaptiveAdvantage, eval_Z_status_eq_pure, eval_Z_status_eq_pure] at hadv_st
-    refine (Game.advantage_le_one _ _).trans ?_
-    simpa [AdaptiveAdversary.clampStatic, hinit, Game.succProbability] using hadv_st
+    exact (Game.advantage_le_one _ _).trans
+      (by simpa [AdaptiveAdversary.clampStatic, hinit, Game.succProbability] using hadv_st)
 
 /-- Adaptive emulation implies static emulation (sanity bridge, not a theorem of `[Canetti2020]`).
 Checking whether the simulator corrupted any party outside `A.initial κ` via `.status` costs one
@@ -667,10 +662,9 @@ theorem AdaptiveEmulates.static_of_adaptive
     (h : AdaptiveEmulates .adaptive P Q) : AdaptiveEmulates .static P Q := by
   intro AdvQ AdvR A pA hA
   obtain ⟨S, pS, hS, hper_Z⟩ := h AdvQ AdvR A.clampStatic pA hA.clampStatic
-  refine ⟨S.clampStatic, pS, hS.clampStatic, fun pZ => ?_⟩
-  obtain ⟨ν, hν, hadv⟩ := hper_Z (pZ + 1)
-  exact ⟨ν, hν, fun Z hZ κ z =>
-    static_advantage_le_of_adaptive_clampStatic P Q A S hadv Z hZ κ z⟩
+  exact ⟨S.clampStatic, pS, hS.clampStatic, fun pZ =>
+    let ⟨ν, hν, hadv⟩ := hper_Z (pZ + 1)
+    ⟨ν, hν, fun Z hZ κ z => static_advantage_le_of_adaptive_clampStatic P Q A S hadv Z hZ κ z⟩⟩
 
 end AdaptiveToStatic
 

@@ -138,13 +138,10 @@ def foldTable (x₀ : α) (B : (α → Bool) → Bool) (f : α → Bool) : Bool 
 /-- Folding any table produces an odd table. -/
 theorem isOdd_foldTable (x₀ : α) (B : (α → Bool) → Bool) : IsOdd (foldTable x₀ B) := by
   intro f
-  have h1 : (f + fun _ : α => true) x₀ = !f x₀ := by
-    change (f x₀ + true) = !f x₀
-    cases f x₀ <;> rfl
-  have h2 : (f + fun _ : α => true) + (fun _ : α => true) = f := by
-    funext x
-    change (f x + true) + true = f x
-    cases f x <;> rfl
+  have h1 : (f + fun _ : α => true) x₀ = !f x₀ := isOdd_longCode x₀ f
+  have h2 : (f + fun _ : α => true) + (fun _ : α => true) = f := funext fun x => by
+    simpa [longCode] using (isOdd_longCode x (f + fun _ => true)).trans
+      (congrArg not (isOdd_longCode x f))
   simp only [foldTable, h1, h2]
   cases f x₀ <;> simp
 
@@ -277,9 +274,8 @@ theorem longCodeSubcubeProb_eq_expect_filter_le (B : (α → Bool) → Bool) :
     longCodeSubcubeProb B =
       𝔼 f : α → Bool, 𝔼 g ∈ ({g : α → Bool | ∀ i, g i ≤ f i} : Finset (α → Bool)),
         bitVal ℝ (B f || !B g) := by
-  unfold longCodeSubcubeProb
-  refine expect_congr rfl fun f _ => ?_
-  exact expect_and_eq_expect_filter_le f (fun g => bitVal ℝ (B f || !B g))
+  exact expect_congr rfl fun f _ =>
+    expect_and_eq_expect_filter_le f fun g => bitVal ℝ (B f || !B g)
 
 /-- Averaging `chi ℝ S (fun i => f i && h i)` over independent uniform `f, h : α → Bool` yields
 `(1 / 2) ^ #S`, the probability that `f` vanishes on `S`. -/
@@ -297,12 +293,8 @@ the Hadamard codeword `hadamardCode s` passes the subcube test with probability
 theorem longCodeSubcubeProb_hadamardCode {s : α → Bool} (hs : s ≠ 0) :
     longCodeSubcubeProb (hadamardCode s) = 3 / 4 + (1 / 2 : ℝ) ^ (#{i | s i} + 1) := by
   set S : Finset α := {i | s i}
-  have hS : S ≠ ∅ := by
-    intro h0
-    apply hs
-    funext i
-    by_contra hi
-    exact notMem_empty i (h0 ▸ mem_filter.2 ⟨mem_univ i, Bool.eq_true_of_not_eq_false hi⟩)
+  have hS : S ≠ ∅ := fun h0 => hs (funext fun i =>
+    Bool.eq_false_iff.2 (filter_eq_empty_iff.1 h0 (mem_univ i)))
   have hinner : ∀ f : α → Bool,
       (𝔼 h : α → Bool, bitVal ℝ (longCodeSubcubeAccept (hadamardCode s) f h)) =
         (3 : ℝ) / 4 - (1 / 4 : ℝ) * chi ℝ S f +
@@ -322,14 +314,8 @@ theorem longCodeSubcubeProb_hadamardCode {s : α → Bool} (hs : s ≠ 0) :
     simp only [hstep, expect_add_distrib, expect_const univ_nonempty, mul_assoc, ← mul_expect,
       expect_chi]
     split_ifs with h0
-    · have hchi1 : chi ℝ S f = 1 := by
-        rw [chi_eq_prod_signVal]
-        refine prod_eq_one fun i hi => ?_
-        have hfi : f i = false := by
-          by_contra htrue
-          exact notMem_empty i (h0 ▸ mem_filter.2 ⟨hi, Bool.eq_true_of_not_eq_false htrue⟩)
-        simp [hfi]
-      rw [hchi1]
+    · rw [chi_eq_prod_signVal, prod_eq_one fun i hi => by
+        simp [Bool.eq_false_iff.2 (filter_eq_empty_iff.1 h0 hi)]]
       ring
     · ring
   unfold longCodeSubcubeProb

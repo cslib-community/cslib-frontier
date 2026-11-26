@@ -177,8 +177,7 @@ private def abpEquiv (k₁ k₂ : ℕ) : Fin (k₁ + 2) ⊕ Fin (k₂ + 1) ≃ F
   finSumFinEquiv.trans (finCongr (by omega))
 
 private theorem abpEquiv_inl_zero (k₁ k₂ : ℕ) : abpEquiv k₁ k₂ (.inl 0) = 0 := by
-  ext
-  simp [abpEquiv]
+  exact Fin.ext (by simp [abpEquiv])
 
 private theorem abpEquiv_inr_last (k₁ k₂ : ℕ) :
     abpEquiv k₁ k₂ (.inr (Fin.last k₂)) = Fin.last (k₁ + k₂ + 2) := by
@@ -276,9 +275,7 @@ theorem of_isSubstEntry {P : MvPolynomial σ K} (hP : IsSubstEntry P) :
     Fin.cases 1 (fun _ => P), fun i j => ?_, fun i j hji => ?_, ?_, rfl⟩
   · simp only [Matrix.of_apply]
     split_ifs <;> [exact hP; exact .zero]
-  · simp only [Matrix.of_apply, ite_eq_right_iff, and_imp]
-    rintro rfl rfl
-    exact absurd hji (by decide)
+  · exact ite_eq_right_iff.2 fun ⟨hi, hj⟩ => absurd (hi ▸ hj ▸ hji) (by decide)
   · refine funext (Fin.cases (by simp [Matrix.vecMul, dotProduct]) fun i => ?_)
     rw [Subsingleton.elim i 0, Fin.cases_succ]
     simp [Matrix.vecMul, dotProduct]
@@ -363,12 +360,8 @@ some finite size. -/
 theorem exists_isSubstABP (f : MvPolynomial σ K) : ∃ k, IsSubstABP k f := by
   induction f using MvPolynomial.induction_on with
   | C a => exact ⟨0, .of_isSubstEntry (.C a)⟩
-  | add p q hp hq =>
-    rcases hp, hq with ⟨⟨k₁, h₁⟩, ⟨k₂, h₂⟩⟩
-    exact ⟨k₁ + k₂ + 1, h₁.add h₂⟩
-  | mul_X p i hp =>
-    obtain ⟨k₁, h₁⟩ := hp
-    exact ⟨k₁ + 0 + 1, h₁.mul (.of_isSubstEntry (.X i))⟩
+  | add _ _ hp hq => exact ⟨_, hp.choose_spec.add hq.choose_spec⟩
+  | mul_X _ i hp => exact ⟨_, hp.choose_spec.mul (.of_isSubstEntry (.X i))⟩
 
 /-- **Valiant's projection universality**: over every commutative ring `K` and arbitrary variable
 index type `σ`, every polynomial `f : MvPolynomial σ K` is a projection of `(genericMatrix K m).det`

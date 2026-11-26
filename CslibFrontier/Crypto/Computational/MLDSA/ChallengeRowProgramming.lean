@@ -232,23 +232,19 @@ private theorem Success.challenge_program {s : Level} (x : Success s) (d : Targe
   rw [Equiv.symm_apply_apply]
   let k' := u.2.e.symm k
   have route : u.1.perm k = (x.challenge.transfer d).e (x.trace.perm k') := by
-    have h := x.trace.move_perm (span_level s).le
-      (FixedAbove.mk (x.challenge.transfer d).e (fun k h => (x.challenge.transfer d).fixes k
-        (by rwa [span_level] at h))) k'
-    change u.1.perm (u.2.e k') = _ at h
-    simpa [k'] using h
+    simpa only [u, moved, k', Equiv.apply_symm_apply] using x.trace.move_perm (span_level s).le
+      ⟨(x.challenge.transfer d).e, fun j hj =>
+        (x.challenge.transfer d).fixes j (by rwa [span_level] at hj)⟩ k'
   have supp := x.challenge.transfer_nonzero d (x.trace.perm k')
   rw [← route] at supp
-  change d.val (u.1.perm k) ≠ 0 ↔ signedTail s (List.ofFn x.signs)
-    (x.trace.perm.symm (x.trace.perm k')) ≠ 0 at supp
-  rw [Equiv.symm_apply_apply] at supp
+  simp only [Success.challenge, Function.comp_apply, Equiv.symm_apply_apply] at supp
   by_cases hk : k.val < start s
   · have hk' : k'.val < start s := by
       by_contra! h
       have eq : k = k' := by simpa [k'] using u.2.fixes k' h
       lia
-    simpa [signedTail, hk] using (show d.val (u.1.perm k) = 0 by
-      simpa [signedTail, hk'] using supp).symm
+    have hd0 : d.val (u.1.perm k) = 0 := by simpa [signedTail, hk'] using supp
+    simp [signedTail, hk, hd0]
   · let a := k.val - start s
     have ha : a < s.params.τ := by have := span_level s; have := k.isLt; dsimp [a]; lia
     have key : label a ha = k := Fin.ext (by dsimp [label, a]; lia)
@@ -266,18 +262,14 @@ private theorem Success.program_back {s : Level} (x : Success s) (d : Target s) 
     exact congrArg Prod.fst (x.trace.move_symm (span_level s).le
       ⟨(x.challenge.transfer d).e, fun k h => (x.challenge.transfer d).fixes k
         (by rwa [span_level] at h)⟩)
+  generalize hy : x.program d = y at tr ⊢
   apply Success.ext ?_ tr
   funext j
   by_cases hj : j.val < s.params.τ
-  · change (if h : j.val < s.params.τ then decide (x.challenge.val
-      ((moved (x.program d).trace (x.program d).challenge x.challenge).1.perm (label j.val h)) = -1)
-      else (x.program d).signs j) = x.signs j
-    rw [dite_eq_left hj, tr]
-    change decide (signedTail s (List.ofFn x.signs)
-      (x.trace.perm.symm (x.trace.perm (label j.val hj))) = -1) = x.signs j
-    rw [Equiv.symm_apply_apply, label_coeff]
-    cases x.signs j <;> decide
-  · simp [Success.program, hj]
+  · simp only [Success.program, hj, ↓reduceDIte, tr]
+    simp only [Success.challenge, Function.comp_apply, Equiv.symm_apply_apply, label_coeff, Fin.eta]
+    cases hb : x.signs j <;> decide
+  · simp [← hy, Success.program, hj]
 
 private def readSigns (head : List Byte) (j : Fin 64) : Bool :=
   (Keccak.bytesToBitsLE head)[j.val]!

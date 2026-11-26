@@ -114,9 +114,7 @@ theorem choose_mul_pow_mul_exp_binaryKL_le_one {p : ℝ} (hp : p ∈ Icc (0 : �
   · cases k <;> simp
   rcases hp.2.eq_or_lt with rfl | hp1
   · rcases hk.eq_or_lt with rfl | hkm
-    · rcases Nat.eq_zero_or_pos k with rfl | hk0
-      · simp
-      · simp [div_self ((Nat.cast_ne_zero (R := ℝ)).2 hk0.ne')]
+    · by_cases hk0 : k = 0 <;> simp [hk0]
     · simp [zero_pow (Nat.sub_pos_of_lt hkm).ne']
   set q : ℝ := k / m with hq
   have hmq : (m : ℝ) * q = k := by
@@ -232,16 +230,14 @@ theorem mul_klFun_integral_div_integral_le {a b : α → ℝ}
   rcases (integral_nonneg (f := a) (μ := μ) ha).eq_or_lt with hA | hA
   · have h0 : a =ᵐ[μ] 0 := (integral_eq_zero_iff_of_nonneg (fun x => ha x) hai).1 hA.symm
     rw [← hA, zero_div, klFun_zero, mul_one]
-    refine (integral_congr_ae (h0.mono fun x (hx : a x = 0) => ?_)).le
-    simp [hx, klFun_zero]
+    exact (integral_congr_ae (h0.mono fun x (hx : a x = 0) => by simp [hx, klFun_zero])).le
   set A := ∫ x, a x ∂μ
   set B := ∫ x, b x ∂μ
   have ht : 0 < A / B := div_pos hA hB
   have hpt (x : α) : b x * klFun (A / B) + Real.log (A / B) * (a x - b x * (A / B)) ≤
       b x * klFun (a x / b x) := by
     rcases (hb x).eq_or_lt with h | h
-    · rw [← h, hab x h.symm]
-      simp
+    · simp [← h, hab x h.symm]
     · have hc : b x * (a x / b x) = a x := mul_div_cancel₀ _ h.ne'
       calc b x * klFun (A / B) + Real.log (A / B) * (a x - b x * (A / B))
           = b x * (klFun (A / B) + Real.log (A / B) * (a x / b x - A / B)) := by
@@ -343,14 +339,13 @@ theorem two_mul_sq_le_binaryKL {q p : ℝ} (hq : q ∈ Icc (0 : ℝ) 1) (hp0 : 0
   have hsupp : qCoin.support ⊆ pCoin.support := fun b _ => by
     cases b <;> simp [_root_.PMF.mem_support_iff, pCoin, PMF.coin_apply, hp0, hp1]
   have hdist : dist qCoin pCoin = |q - p| := by
+    have hneg : 1 - q - (1 - p) = -(q - p) := by ring
     simp only [PMF.dist_eq, Fintype.sum_bool, qCoin, pCoin, PMF.coin_apply_toReal,
-      Bool.false_eq_true, ite_false, ite_true]
-    rw [show 1 - q - (1 - p) = -(q - p) by ring, abs_neg]
+      Bool.false_eq_true, ite_false, ite_true, hneg, abs_neg]
     ring
-  have h := PMF.two_mul_dist_sq_le_sum_mul_log_div hsupp
-  rw [hdist, sq_abs, Fintype.sum_bool] at h
-  simpa only [qCoin, pCoin, PMF.coin_apply_toReal, Bool.false_eq_true, ite_false, ite_true,
-    binaryKL_eq_mul_log hp0 hp1] using h
+  simpa only [hdist, sq_abs, Fintype.sum_bool, qCoin, pCoin, PMF.coin_apply_toReal,
+    Bool.false_eq_true, ite_false, ite_true, binaryKL_eq_mul_log hp0 hp1] using
+    PMF.two_mul_dist_sq_le_sum_mul_log_div hsupp
 
 /-- **Quadratic empirical-Bernstein lower bound on `binaryKL`**: for `0 ≤ q ≤ p < 1` (`0 < p`),
 `(p - q) ^ 2 / (2 * p) ≤ binaryKL q p`. Sharp for small `q` (`O(p)` at `q = 0`), yielding the

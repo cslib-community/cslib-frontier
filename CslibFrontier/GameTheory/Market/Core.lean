@@ -117,12 +117,11 @@ omit [Fintype G] in
 /-- Blocking by the grand coalition `Finset.univ` rules out Pareto improvements, so every core
 allocation is Pareto optimal when `I` is nonempty. -/
 theorem IsInCore.isParetoOptimal [Nonempty I] {E : ExchangeMarket I G} {x : I → G → ℝ}
-    (hcore : E.IsInCore x) : E.IsParetoOptimal x := by
-  refine ⟨hcore.1, ?_⟩
-  rintro ⟨y, hy_feas, hy_le, ⟨i₀, hi₀⟩⟩
-  exact hcore.2 univ y ⟨univ_nonempty, fun i _ => hy_feas.1 i,
-    fun g => by simpa only [← E.totalSupply_eq_sum] using hy_feas.2 g,
-    fun i _ => hy_le i, ⟨i₀, mem_univ i₀, hi₀⟩⟩
+    (hcore : E.IsInCore x) : E.IsParetoOptimal x :=
+  ⟨hcore.1, fun ⟨y, hy_feas, hy_le, ⟨i₀, hi₀⟩⟩ =>
+    hcore.2 univ y ⟨univ_nonempty, fun i _ => hy_feas.1 i,
+      fun g => by simpa only [← E.totalSupply_eq_sum] using hy_feas.2 g,
+      fun i _ => hy_le i, ⟨i₀, mem_univ i₀, hi₀⟩⟩⟩
 
 omit [Fintype G] in
 /-- Blocking by singleton coalitions `{i}` ensures **individual rationality**: every trader weakly
@@ -208,15 +207,14 @@ theorem replica_excessDemand (E : ExchangeMarket I G) (r : ℕ) (x : I → G →
 theorem IsCompetitiveEquilibrium.replica {E : ExchangeMarket I G} {x : I → G → ℝ} {p : G → ℝ}
     (heq : E.IsCompetitiveEquilibrium x p) (r : ℕ) :
     (E.replica r).IsCompetitiveEquilibrium (fun ic => x ic.1) p := by
-  refine ⟨heq.1, fun ic => ?_, fun g => ?_, fun g => ?_⟩
-  · rw [mem_demandSet, replica_utility, replica_income]
-    exact (E.mem_demandSet).1 (heq.2.1 ic.1)
-  · rw [E.replica_excessDemand r x g]
-    exact mul_nonpos_of_nonneg_of_nonpos (Nat.cast_nonneg r) (heq.2.2.1 g)
-  · rw [E.replica_excessDemand r x g]
-    calc
-      p g * ((r : ℝ) * E.excessDemand x g) = (r : ℝ) * (p g * E.excessDemand x g) := by ring
-      _ = 0 := by rw [heq.2.2.2 g, mul_zero]
+  refine ⟨heq.1, fun ic => (mem_demandSet ..).2 ((replica_income E r p ic).symm ▸
+      (E.mem_demandSet).1 (heq.2.1 ic.1)),
+    fun g => E.replica_excessDemand r x g ▸
+      mul_nonpos_of_nonneg_of_nonpos (Nat.cast_nonneg r) (heq.2.2.1 g), fun g => ?_⟩
+  rw [E.replica_excessDemand r x g]
+  calc
+    p g * ((r : ℝ) * E.excessDemand x g) = (r : ℝ) * (p g * E.excessDemand x g) := by ring
+    _ = 0 := by rw [heq.2.2.2 g, mul_zero]
 
 /-- Consequently, in any locally nonsatiated exchange economy, the symmetric replication of every
 competitive equilibrium allocation belongs to the core of `E.replica r` for all `r`. -/
@@ -278,14 +276,13 @@ theorem eq_of_isInCore_replica {E : ExchangeMarket I G} {r : ℕ} [NeZero r]
     exact hcore.1.2 g
   · intro ic hic
     obtain ⟨k, -, rfl⟩ := mem_map.1 hic
-    simp only [hemb, replica_utility, z]
     exact (hmin_le k).trans (by
-      simpa only [smul_eq_mul] using (hsc k).concaveOn.le_map_sum (fun c hc => (hw_pos c hc).le)
-        hw_sum fun c _ => hcore.1.1 (k, c))
-  · refine ⟨emb i, mem_map.2 ⟨i, mem_univ i, rfl⟩, ?_⟩
-    simp only [hemb, replica_utility, z]
-    exact (hmin_le i).trans_lt (StrictConcaveOn.sum_mul_lt_of_ne (hsc i) hw_pos hw_sum
-      (fun c _ => hcore.1.1 (i, c)) ⟨c₁, mem_univ c₁, c₂, mem_univ c₂, hne⟩)
+      simpa only [hemb, replica_utility, z, smul_eq_mul] using
+        (hsc k).concaveOn.le_map_sum (fun c hc => (hw_pos c hc).le)
+          hw_sum fun c _ => hcore.1.1 (k, c))
+  · exact ⟨emb i, mem_map.2 ⟨i, mem_univ i, rfl⟩, (hmin_le i).trans_lt
+      (StrictConcaveOn.sum_mul_lt_of_ne (hsc i) hw_pos hw_sum
+        (fun c _ => hcore.1.1 (i, c)) ⟨c₁, mem_univ c₁, c₂, mem_univ c₂, hne⟩)⟩
 
 end Replica
 
@@ -347,8 +344,10 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
         exacts [mul_nonneg ht₂_pos.le (hα₂_pos i h).le, le_rfl]
       have hα_pos : ∀ i ∈ S, 0 < α i := fun i hi => by
         rcases mem_union.1 hi with hi₁ | hi₂
-        · linarith [hw₂_nn i, show 0 < w₁ i by simp [w₁, hi₁, mul_pos ht₁_pos (hα₁_pos i hi₁)]]
-        · linarith [hw₁_nn i, show 0 < w₂ i by simp [w₂, hi₂, mul_pos ht₂_pos (hα₂_pos i hi₂)]]
+        · exact add_pos_of_pos_of_nonneg
+            (lt_of_lt_of_eq (mul_pos ht₁_pos (hα₁_pos i hi₁)) (ite_eq_left hi₁).symm) (hw₂_nn i)
+        · exact add_pos_of_nonneg_of_pos (hw₁_nn i)
+            (lt_of_lt_of_eq (mul_pos ht₂_pos (hα₂_pos i hi₂)) (ite_eq_left hi₂).symm)
       have hsum_w₁ : ∑ i ∈ S, w₁ i = t₁ := by
         rw [sum_ite_mem, inter_eq_right.2 subset_union_left, ← mul_sum, hα₁_sum, mul_one]
       have hsum_w₂ : ∑ i ∈ S, w₂ i = t₂ := by
@@ -462,8 +461,7 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
       rw [hsum_C (fun i => b i g), hsum_C (fun i => E.endowment i g)]
       -- Bound `∑ i ∈ S, k i * (b i g - w i g) = M * D g + ∑ i ∈ S, (k i - M * α i) * (...) < 0`.
       suffices hneg_diff : ∑ i ∈ S, (k i : ℝ) * (b i g - E.endowment i g) ≤ 0 by
-        simp only [mul_sub, sum_sub_distrib] at hneg_diff
-        linarith
+        simp only [mul_sub, sum_sub_distrib] at hneg_diff; linarith
       have hsplit_k : ∑ i ∈ S, (k i : ℝ) * (b i g - E.endowment i g) =
           (M : ℝ) * D g + ∑ i ∈ S, ((k i : ℝ) - (M : ℝ) * α i) * (b i g - E.endowment i g) := by
         dsimp only [D]
@@ -510,8 +508,7 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
     have hge0 := hsep (b - E.endowment i)
       ⟨{i}, fun _ => 1, fun _ => b, singleton_nonempty i, fun _ _ => zero_lt_one, by simp,
         fun _ _ => hb_nn, fun j hj => mem_singleton.1 hj ▸ hub, fun _ => by simp⟩
-    rw [expenditure_sub, ← E.income_eq] at hge0
-    linarith
+    rw [expenditure_sub, ← E.income_eq] at hge0; linarith
   -- Approaching `x i` via `hlns i` gives `E.income p i ≤ expenditure p (x i)` for every `i`.
   have hinc_le_exp : ∀ i : I, E.income p i ≤ expenditure p (x i) := fun i => by
     by_contra hlt
@@ -519,15 +516,13 @@ theorem exists_priceQuasiEquilibrium_of_forall_replica_isInCore [Nonempty I] [No
       (hlns i).exists_lt_expenditure_lt hp_nn (hx_feas.1 i) (sub_pos.2 (not_le.1 hlt))
     linarith [hsupp_i i b hb_nn hub]
   -- Feasibility of `x` gives the reverse sum inequality, forcing equality for every trader!
-  have hsum_le : ∑ i : I, expenditure p (x i) ≤ ∑ i : I, E.income p i := by
-    rw [E.sum_income p]
-    exact hx_feas.sum_expenditure_le_totalSupply hp_nn
+  have hsum_le : ∑ i : I, expenditure p (x i) ≤ ∑ i : I, E.income p i :=
+    E.sum_income p ▸ hx_feas.sum_expenditure_le_totalSupply hp_nn
   have hexp_eq_inc : ∀ i : I, expenditure p (x i) = E.income p i := fun i =>
     ((sum_eq_sum_iff_of_le fun j _ => hinc_le_exp j).1
       (le_antisymm (sum_le_sum fun j _ => hinc_le_exp j) hsum_le) i (mem_univ i)).symm
-  have hex0 : expenditure p (E.excessDemand x) = 0 := by
-    rw [E.expenditure_excessDemand]
-    exact sum_eq_zero fun i _ => by rw [hexp_eq_inc i, sub_self]
+  have hex0 : expenditure p (E.excessDemand x) = 0 :=
+    (E.expenditure_excessDemand p x).trans (sum_eq_zero fun i _ => sub_eq_zero.2 (hexp_eq_inc i))
   have hcs : ∀ g : G, p g * E.excessDemand x g = 0 :=
     hx_feas.price_mul_excessDemand_eq_zero hp_nn hex0
   refine ⟨p, ⟨hp_nn, hp_pos, fun i => ⟨⟨hx_feas.1 i, (hexp_eq_inc i).le⟩, hsupp_i i⟩,

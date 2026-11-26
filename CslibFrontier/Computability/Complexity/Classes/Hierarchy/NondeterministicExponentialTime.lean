@@ -152,11 +152,9 @@ theorem expLazyDiagonal_notMem_NTIME (k : ℕ) :
     (fun c₂ => ⟨c₂, fun y v hy _ => by
       simp only [encPair_apply, encBits_apply, List.length_append, length_frame, sq]
       exact Nat.mul_le_mul_right _ (by omega)⟩)
-    fun P => by
-      have : P + 1 ≤ horizon k P :=
-        Nat.lt_two_pow_self.le.trans
-          (Nat.pow_le_pow_right Nat.one_lt_two.le (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)))
-      exact this.trans_lt Nat.lt_two_pow_self
+    fun _ => (Nat.lt_two_pow_self.le.trans
+      (Nat.pow_le_pow_right Nat.one_lt_two.le
+        (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)))).trans_lt Nat.lt_two_pow_self
 
 /-! ### The lazy diagonal is in nondeterministic exponential time -/
 
@@ -215,16 +213,13 @@ private theorem exists_computableInO_brute (k : ℕ) : ∃ K, ComputableInO
   -- the bounds
   refine ⟨3 * K₀ + 4, (h.mono (C + 3) (fun q => ?_) fun q => ?_).of_enc_eq fun _ => rfl⟩
   all_goals
-    have e₁ : (encPair encQ encUnary (q, 2 ^ ((k + 1) * (q.2.length + 1)))).length =
-        2 * (encQ q).length + 1 + 2 ^ ((k + 1) * (q.2.length + 1)) := by
-      rw [length_encPair, encUnary_apply, List.length_replicate]
     have e₂ : (4 : ℕ) ^ ((k + 1) * (q.2.length + 1)) =
         2 ^ ((k + 1) * (q.2.length + 1)) * 2 ^ ((k + 1) * (q.2.length + 1)) :=
       Nat.mul_pow 2 2 _
     have hc : 1 ≤ 2 ^ ((k + 1) * (q.2.length + 1)) := Nat.one_le_two_pow
     have h := LazyDiagonal.brute_bound_aux C K₀ (encQ q).length _ hc
     have := Nat.le_mul_of_pos_left (2 ^ ((k + 1) * (q.2.length + 1))) hc
-    simp only [e₁, e₂, certLen] at h ⊢
+    simp only [length_encPair, encUnary_apply, List.length_replicate, e₂, certLen] at h ⊢
     omega
 
 /-- The cost of the tests of the verifier: quadratic in the encoded input, times the square of a
@@ -243,18 +238,15 @@ private theorem horizon_le (k C : ℕ) (x : List Bool) :
   have hk : (k + 2) * (2 * (unframe x).length + 1 + 1) ≤ 2 * ((k + 2) * (x.length + 1)) :=
     (Nat.mul_le_mul_left (k + 2)
       (by omega : 2 * (unframe x).length + 1 + 1 ≤ 2 * (x.length + 1))).trans_eq (by ring)
-  refine ⟨?_, ?_⟩
-  · rw [horizon, h4]
-    exact Nat.pow_le_pow_right Nat.one_lt_two.le hk
-  · have h₁ : 2 ^ (2 * (unframe x).length + 1) ≤ 2 * 4 ^ ((k + 2) * (x.length + 1)) := by
-      rw [h4, pow_succ, mul_comm]
-      exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right Nat.one_lt_two.le
-        ((by omega : 2 * (unframe x).length ≤ 2 * (x.length + 1)).trans
-          (Nat.mul_le_mul_left 2 (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)))))
-    have h₂ : 4 ^ ((k + 2) * (2 * (unframe x).length + 1 + 1)) ≤
-        (4 ^ ((k + 2) * (x.length + 1))) ^ 2 := by
-      simpa only [← pow_mul, mul_comm _ 2] using Nat.pow_le_pow_right (by norm_num) hk
-    exact Nat.add_le_add ((Nat.mul_le_mul_left C h₁).trans_eq (by ring)) h₂
+  refine ⟨(h4 _).symm ▸ Nat.pow_le_pow_right Nat.one_lt_two.le hk, ?_⟩
+  have h₁ : 2 ^ (2 * (unframe x).length + 1) ≤ 2 * 4 ^ ((k + 2) * (x.length + 1)) := by
+    rw [h4, pow_succ, mul_comm]
+    exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right Nat.one_lt_two.le
+      (((Nat.le_add_right _ 2).trans (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))).trans hk))
+  have h₂ : 4 ^ ((k + 2) * (2 * (unframe x).length + 1 + 1)) ≤
+      (4 ^ ((k + 2) * (x.length + 1))) ^ 2 := by
+    simpa only [← pow_mul, mul_comm _ 2] using Nat.pow_le_pow_right (by norm_num) hk
+  exact Nat.add_le_add ((Nat.mul_le_mul_left C h₁).trans_eq (by ring)) h₂
 
 /-- **The verifier of the exponential lazy diagonal is computable**, within the cost of its tests
 plus the cost of the branch taken: the simulation, or the brute force at the end of an interval. -/
@@ -341,6 +333,7 @@ theorem expLazyDiagonal_mem_NTIME (k : ℕ) :
   set V := 2 ^ ((k + 1) * (n + 2)) with hVdef
   have hv' : v.length = V := hv
   set M := 2 ^ ((8 * k + 16) * n)
+  have h42 : (4 : ℕ) = 2 ^ 2 := rfl
   have hnV : 4 * n + 4 ≤ V :=
     calc 4 * n + 4 ≤ 2 ^ (n + 2) := by
           have := Nat.lt_two_pow_self (n := n)
@@ -351,13 +344,11 @@ theorem expLazyDiagonal_mem_NTIME (k : ℕ) :
     Nat.pow_le_pow_right Nat.one_lt_two.le (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))
   -- the certificate length
   have hTℓ : Cℓ * 2 ^ n + 4 ^ ((k + 1) * (n + 2)) ≤ A₃ * M := by
-    have h₂ : 4 ^ ((k + 1) * (n + 2)) ≤ 2 ^ (4 * k + 4) * M := by
-      rw [show (4 : ℕ) = 2 ^ 2 by rfl, ← pow_mul]
-      apply two_pow_le_two_pow_mul
-      ring_nf; omega
-    have : A₃ * M = Cℓ * M + 2 ^ (4 * k + 4) * M := by ring
-    have := Nat.mul_le_mul_left Cℓ h₁
-    omega
+    simp only [A₃, add_mul]
+    refine Nat.add_le_add (Nat.mul_le_mul_left Cℓ h₁) ?_
+    rw [h42, ← pow_mul]
+    apply two_pow_le_two_pow_mul
+    ring_nf; omega
   -- the tests
   have hcheap : cheap k (x, v) ≤ A₁ * M := by
     have hN : (encPair encBits encBits (x, v)).length + 1 ≤ 2 * V := by enc_len [hv', ← hn]
@@ -366,7 +357,7 @@ theorem expLazyDiagonal_mem_NTIME (k : ℕ) :
       _ ≤ (2 * V) ^ 2 * (4 ^ ((k + 2) * (n + 1))) ^ 2 :=
           Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hN 2)
       _ = 2 ^ (2 + 2 * ((k + 1) * (n + 2)) + 4 * ((k + 2) * (n + 1))) := by
-          rw [hVdef, show (4 : ℕ) = 2 ^ 2 by rfl]
+          rw [hVdef, h42]
           simp only [mul_pow, ← pow_mul, ← pow_add]; ring_nf
       _ ≤ A₁ * M := by
           apply two_pow_le_two_pow_mul

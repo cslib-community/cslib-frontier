@@ -350,12 +350,11 @@ private theorem amp_randomCollisionGame_succProbability_le
   let a₀ := accessibleSetExpectation (accSet n)
   let k₀ := PMF.conditionalEntropy ((PMF.uniformOfFintype (BitString w₀)).map fun z => (f₀ z, z))
   have ha₀_nonneg : 0 ≤ a₀ := accessibleSetExpectation_nonneg _
-  have hgap₀ : a₀ ≤ k₀ - 1 / (D : ℝ) := hN₀ n hn
   have hk₀_le : k₀ ≤ (w₀ : ℝ) :=
     (PMF.conditionalEntropy_le_log_card _).trans_eq (by simp [Real.logb_pow])
   have hD_pos : (0 : ℝ) < D := by exact_mod_cast F.denom_pos n
   have hw₀_ne_zero : w₀ ≠ 0 := fun h0 => by
-    linarith [div_pos zero_lt_one hD_pos, (Nat.cast_eq_zero (R := ℝ)).mpr h0]
+    linarith [hN₀ n hn, div_pos zero_lt_one hD_pos, (Nat.cast_eq_zero (R := ℝ)).mpr h0]
   have hn₁_eq : ampRepInLen F n = n₁True n := ite_eq_right hw₀_ne_zero
   have hm₁_eq : ampRepOutLen F n = m₁True n := ite_eq_right hw₀_ne_zero
   have heval₁_eq : ampRepEvalWord F n = repEvalWord t w₀ (F.evalWord n) :=
@@ -377,7 +376,8 @@ private theorem amp_randomCollisionGame_succProbability_le
   have hgap_scaled : 6 * (Δ : ℝ) ≤ (t : ℝ) * k₀ - (t : ℝ) * a₀ := by
     rw [← mul_sub]
     calc 6 * (Δ : ℝ) = (t : ℝ) * (1 / (D : ℝ)) := by rw [ht_real]; field_simp [hD_pos.ne']
-      _ ≤ (t : ℝ) * (k₀ - a₀) := mul_le_mul_of_nonneg_left (by linarith) (by positivity)
+      _ ≤ (t : ℝ) * (k₀ - a₀) :=
+        mul_le_mul_of_nonneg_left (by linarith [hN₀ n hn]) (Nat.cast_nonneg t)
   let qFloor := Nat.floor (((t : ℝ) * a₀) / (Δ : ℝ))
   have hfloor_le : (qFloor : ℝ) * (Δ : ℝ) ≤ (t : ℝ) * a₀ :=
     (le_div_iff₀ hΔ_pos).mp (Nat.floor_le (by positivity))
@@ -399,10 +399,9 @@ private theorem amp_randomCollisionGame_succProbability_le
     Real.two_rpow_le_half_pow n (by rw [hmin_eq]; dsimp only [A_max]; linarith)
   have hpow_out : (2 : ℝ) ^ ((min j₀ (n₁True n) : ℝ) - K_min) ≤ (1 / 2 : ℝ) ^ n :=
     Real.two_rpow_le_half_pow n (by rw [hmin_eq]; dsimp only [K_min]; linarith)
-  have h2pow : (2 : ℝ) ^ ampShrinkLen n ≤ 2 * ((n : ℝ) + 1) := by
-    exact_mod_cast two_pow_ampShrinkLen_le n
-  have hout_term := (mul_le_mul h2pow (add_le_add htail_ent hpow_out) (by positivity)
-    (by positivity)).trans_eq
+  have hout_term := (mul_le_mul
+    (mod_cast two_pow_ampShrinkLen_le n : (2 : ℝ) ^ ampShrinkLen n ≤ 2 * (n + 1))
+    (add_le_add htail_ent hpow_out) (by positivity) (by positivity)).trans_eq
       (by ring : _ = 4 * ((n : ℝ) + 1) * (1 / 2 : ℝ) ^ n)
   simp only [randomCollisionGame, hn₁_eq, hm₁_eq, heval₁_eq, t, w₀]
   rw [← NNReal.coe_le_coe]
@@ -469,8 +468,7 @@ STEPS 1–3 (pp. 30–31)**: every uniform `OneWay` function yields a uniform po
 `ShrinkingCollisionGrid` with `G.shrinkLen n = Nat.log 2 n + 1`. -/
 theorem OneWay.exists_shrinkingCollisionGrid_log {f : List Bool → List Bool} (hf : OneWay f) :
     ∃ G : ShrinkingCollisionGrid, ∀ n, G.shrinkLen n = Nat.log 2 n + 1 :=
-  let ⟨F⟩ := hf.exists_inaccessibleEntropyFamily
-  F.exists_shrinkingCollisionGrid_log
+  hf.exists_inaccessibleEntropyFamily.elim fun F => F.exists_shrinkingCollisionGrid_log
 
 /-- `Nonempty ShrinkingCollisionGrid` (`1 ≤ shrinkLen n`) corollary of
 `AdversaryInaccessibleEntropyFamily.exists_shrinkingCollisionGrid_log`, forgetting the explicit
@@ -478,8 +476,7 @@ theorem OneWay.exists_shrinkingCollisionGrid_log {f : List Bool → List Bool} (
 theorem AdversaryInaccessibleEntropyFamily.exists_shrinkingCollisionGrid
     (F : AdversaryInaccessibleEntropyFamily) :
     Nonempty ShrinkingCollisionGrid :=
-  let ⟨G, _⟩ := F.exists_shrinkingCollisionGrid_log
-  ⟨G⟩
+  F.exists_shrinkingCollisionGrid_log.elim fun G _ => ⟨G⟩
 
 /-- `Nonempty ShrinkingCollisionGrid` (`1 ≤ shrinkLen n`) specialization of
 `AdversaryInaccessibleEntropyFamily.exists_shrinkingCollisionGrid` to a fixed
@@ -493,7 +490,6 @@ theorem InaccessibleEntropyFamily.exists_shrinkingCollisionGrid (F : Inaccessibl
 equation. -/
 theorem OneWay.exists_shrinkingCollisionGrid {f : List Bool → List Bool} (hf : OneWay f) :
     Nonempty ShrinkingCollisionGrid :=
-  let ⟨G, _⟩ := hf.exists_shrinkingCollisionGrid_log
-  ⟨G⟩
+  hf.exists_inaccessibleEntropyFamily.elim fun F => F.exists_shrinkingCollisionGrid
 
 end Cslib.Crypto

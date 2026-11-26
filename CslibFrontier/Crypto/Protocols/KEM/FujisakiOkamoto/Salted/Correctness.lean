@@ -390,21 +390,19 @@ private theorem interpret_completionPrefetchProgram_eq_simProgram
       OracleComp.interpret (fun query => PMF.pure (table query))
         (S.completionSimProgram pk challenge q) := by
   classical
-  rcases q with input | input | ⟨pkeCiphertext, salt⟩
-  · rfl
-  · rfl
-  · by_cases hc : (⟨pkeCiphertext, salt⟩ : Ciphertext CT Salt) = challenge
-    · simp [completionPrefetchProgram, completionSimProgram, Query.dispatch, hc]
-    · simp only [completionPrefetchProgram, completionSimProgram, Query.dispatch, hc, ↓reduceIte]
-      cases hdec : S.pke.dec sk pkeCiphertext with
-      | none => simp only [completionPrefetchDecapsProgram, hdec]
-      | some message =>
-        simp only [completionPrefetchDecapsProgram, completionJointProgram, jointInput, hdec,
-          interp_norm, pmf_norm, ite_true]
-        split_ifs with h
-        · rw [h]
-          simp only [OracleComp.interpret_pure, PMF.monad_pure_eq_pure]
-        · simp only [interp_norm, pmf_norm]
+  rcases q with input | input | ⟨pkeCiphertext, salt⟩ <;> try rfl
+  by_cases hc : (⟨pkeCiphertext, salt⟩ : Ciphertext CT Salt) = challenge
+  · simp [completionPrefetchProgram, completionSimProgram, Query.dispatch, hc]
+  · simp only [completionPrefetchProgram, completionSimProgram, Query.dispatch, hc, ↓reduceIte]
+    cases hdec : S.pke.dec sk pkeCiphertext with
+    | none => simp only [completionPrefetchDecapsProgram, hdec]
+    | some message =>
+      simp only [completionPrefetchDecapsProgram, completionJointProgram, jointInput, hdec,
+        interp_norm, pmf_norm, ite_true]
+      split_ifs with h
+      · rw [h]
+        simp only [OracleComp.interpret_pure, PMF.monad_pure_eq_pure]
+      · simp only [interp_norm, pmf_norm]
 
 /-! ### Concrete real, prefetch, and keyless handlers -/
 
@@ -784,15 +782,12 @@ private theorem mem_support_cacheJoint_iff
         refine ⟨coins, hc, ?_⟩
         rcases hbranch with ⟨htarget, hvalid, hdec, rfl⟩ |
             ⟨htarget, hvalid, hdec, hk, rfl⟩ | ⟨hn, hk, rfl⟩
-        · rw [ite_eq_left htarget]; simp [hvalid, hdec]
-        · rw [PMF.mem_support_iff] at hk
-          rw [ite_eq_left htarget]
-          simp [hvalid, hdec, hk]
-        · rw [PMF.mem_support_iff] at hk
-          by_cases htarget : input = S.jointInput pk input.message input.salt
-          · rw [ite_eq_left htarget]
-            simp [show ¬valid input.message coins from fun hv => hn ⟨htarget, hv⟩, hk]
-          · rw [ite_eq_right htarget]; simp [hk]
+        · simp [ite_eq_left htarget, hvalid, hdec]
+        · simp [ite_eq_left htarget, hvalid, hdec, (PMF.mem_support_iff _ _).mp hk]
+        · by_cases htarget : input = S.jointInput pk input.message input.salt
+          · have hnv : ¬valid input.message coins := fun hv => hn ⟨htarget, hv⟩
+            simp [hnv, (PMF.mem_support_iff _ _).mp hk]
+          · simp [ite_eq_right htarget, (PMF.mem_support_iff _ _).mp hk]
 
 private theorem mem_support_rejection_iff
     [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
@@ -826,9 +821,8 @@ private theorem lookup_cons_of_lookup_eq_none {α β : Type} [DecidableEq α]
     {l : List (α × β)} {k k' : α} {v v' : β}
     (h : l.lookup k = some v) (hnone : l.lookup k' = none) :
     ((k', v') :: l).lookup k = some v := by
-  by_cases hk : k = k'
-  · subst hk
-    cases h.symm.trans hnone
+  rcases eq_or_ne k k' with rfl | hk
+  · cases h.symm.trans hnone
   · simpa only [List.lookup_cons, beq_eq_false_iff_ne.mpr hk] using h
 
 private theorem Linked.of_simJoint
@@ -1605,10 +1599,9 @@ theorem Scheme.closeTo_run_realHandler_simHandler
         ENNReal.ofReal (S.pke.keyPairMaxFailProb pk sk)) := by
   rw [← S.run_prefetchHandler_eq_simHandler pk sk challenge program]
   simpa only [PMF.bind_pure_comp] using
-    (closeTo_run_corr (S.identicalUntilBad_realHandler_prefetchHandler pk sk challenge)
+    closeTo_run_corr (S.identicalUntilBad_realHandler_prefetchHandler pk sk challenge)
       (fun q st hst => S.realHandler_bad_le pk sk challenge q (of_not_not hst))
-      program hbounds (by simp [Scheme.GoodCache, Scheme.coinCache,
-        ExplicitCoinPKE.GoodCache]) (PMF.pure ∘ Prod.fst))
+      program hbounds (not_not.mpr (GoodCache.empty S pk sk)) (PMF.pure ∘ Prod.fst)
 
 /-- Run a challenge-aware randomized adversary against the post-secret-seed-guessing real
 handler. The adversary's coins are sampled before the common public challenge. -/

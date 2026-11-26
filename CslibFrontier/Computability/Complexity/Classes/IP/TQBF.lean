@@ -360,19 +360,17 @@ theorem runWith_verdict (e : ArithQBF ℕ) (he : ∀ w ∈ e.vars, w ∈ I.xs)
       PMF.pure_bind, verifyAt, StepData.top, StepData.below, StepData.modulus, StepData.xs,
       StepData.tokens, List.headD_cons, List.tail_cons, normPt_canonPt, ← val_one_sub, ih he]
   | bin o e₁ e₂ ih₁ ih₂ =>
-    rw [show (ArithQBF.bin o e₁ e₂).tokens.length + m =
-        (e₁.tokens.length + (e₂.tokens.length + m)) + 1 by
-      cases o <;> simp only [ArithQBF.tokens, List.length_cons, List.length_append] <;> omega,
-      verdict_succ, ProbOracleComp.runWith_bind]
-    cases o <;> simp only [ArithQBF.tokens, List.cons_append, List.append_assoc, step_cons] <;>
+    cases o <;>
+      rw [ArithQBF.tokens, List.length_cons, List.length_append, Nat.add_right_comm _ 1 m,
+        Nat.add_assoc e₁.tokens.length, verdict_succ, ProbOracleComp.runWith_bind,
+        List.cons_append, List.append_assoc, step_cons] <;>
       exact runWith_verdict_bin respond I _ e₁ e₂ rest r c St m s (by simp [ArithQBF.tokens])
         rfl rfl rfl rfl rfl (ih₁ fun w hw => he w (List.mem_append_left _ hw))
         (ih₂ fun w hw => he w (List.mem_append_right _ hw))
   | op o v e ih =>
-    rw [show (ArithQBF.op o v e).tokens.length + m = (e.tokens.length + m) + 1 by
-      cases o <;> simp only [ArithQBF.tokens, List.length_cons] <;> omega,
-      verdict_succ, ProbOracleComp.runWith_bind]
-    cases o <;> simp only [ArithQBF.tokens, List.cons_append, step_cons] <;>
+    cases o <;>
+      rw [ArithQBF.tokens, List.length_cons, Nat.add_right_comm _ 1 m, verdict_succ,
+        ProbOracleComp.runWith_bind, List.cons_append, step_cons] <;>
       exact runWith_verdict_op respond I _ v (he v List.mem_cons_self) e rest r c St m s
         (by simp [ArithQBF.tokens]) rfl rfl rfl rfl rfl rfl
         (ih fun w hw => he w (List.mem_cons_of_mem v hw))
@@ -565,9 +563,7 @@ private theorem decodeTyped_honestWord (e : ArithQBF ℕ) (rest : List (ArithQBF
       ((List.range ((loopInput ψ).degree + 1)).map fun i =>
         ((honestReplyAt (loopInput ψ).degree e r).map ZMod.val).getD i 0).map Nat.cast := by
     rw [honestWord, dite_eq_left hex, hreply, decodeTyped, decodeReply_encodeReply]
-    · intro a ha
-      obtain ⟨b, -, rfl⟩ := List.mem_map.1 ha
-      exact ZMod.val_lt b
+    · exact fun _ ha => Exists.elim (List.mem_map.1 ha) fun b hb => hb.2 ▸ ZMod.val_lt b
     · simpa only [List.length_map] using hlen
   exact ⟨by rw [hdec, List.length_map, List.length_map, List.length_range],
     fun i => hdec ▸ getD_decoded _ _ hlen i⟩
@@ -594,9 +590,7 @@ theorem acceptProb_verifier_honestProver (hψ : ψ ∈ TQBF) :
   set f : QueryAt (ZMod (loopInput ψ).modulus) → List (ZMod (loopInput ψ).modulus) :=
     fun q => decodeTyped (loopInput ψ) (honestWord ψ (queryMessage (loopInput ψ) q))
   have htyped : typedRespond (loopInput ψ) (honestProver ψ).respond =
-      fun q s => PMF.pure (f q, s) := by
-    funext q s
-    exact PMF.pure_map _ _
+      fun q s => PMF.pure (f q, s) := funext₂ fun _ _ => PMF.pure_map _ _
   have heval : (arithOf ψ).eval 0 = (1 : ZMod (loopInput ψ).modulus) := by
     simp [arithOf, QBF.eval_arithmetize_zero _ hψ.1 (fun _ => false), hψ.2]
   have hrun := run_verifyAt_of_agreesAt (samplerOf (loopInput ψ)) (loopInput ψ).degree f

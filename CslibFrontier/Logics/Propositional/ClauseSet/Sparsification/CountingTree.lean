@@ -147,15 +147,12 @@ theorem card_le_of_mem_countingChild {ψ : ClauseSet V} {c k : ℕ} {H : Finset 
   have hck : c ≤ k := (mem_flower.mp hD₀).2.1 ▸ hk D₀ (flower_subset ψ c H hD₀)
   cases b with
   | false =>
-    rcases mem_union.mp (child_subset ψ c H false hC) with hCψ | hCH
-    · exact hk C hCψ
-    · obtain rfl : C = H := by simpa [intro] using hCH
-      omega
+    refine (mem_union.mp (child_subset ψ c H false hC)).elim (hk C) fun hCH => ?_
+    obtain rfl : C = H := by simpa [intro] using hCH
+    omega
   | true =>
     rcases mem_union.mp (reduce_subset _ hC) with hC' | hCneg
-    · rcases mem_union.mp hC' with hCψ | hCpet
-      · exact hk C hCψ
-      · rw [card_of_mem_petals hCpet]; omega
+    · exact (mem_union.mp hC').elim (hk C) fun hCpet => by rw [card_of_mem_petals hCpet]; omega
     · rw [card_of_mem_negatedHeartUnits hCneg]; omega
 
 private theorem petal_unit_potential_bound {c h z : ℕ} (h1 : 1 ≤ h) (hlt : h < c) (hz : 2 ≤ z) :
@@ -399,15 +396,11 @@ theorem countP_sat_countingLeaves (θ : ℕ → ℕ) (ψ : ClauseSet V) (x : V �
     by_cases hsat : ψ.Sat x
     · by_cases hH : ∃ l ∈ ch.2, x l.1 = l.2
       · have h₀ := (sat_countingChild_false_iff ψ ch.1 ch.2 x).mpr ⟨hsat, hH⟩
-        rw [ite_eq_left hsat, ite_eq_left h₀,
-          ite_eq_right fun ht => not_sat_both_countingChild ψ ch.1 ch.2 x ⟨h₀, ht⟩]
+        simp [hsat, h₀, not_and.mp (not_sat_both_countingChild ψ ch.1 ch.2 x) h₀]
       · have h₁ := (sat_countingChild_true_iff ψ ch.1 ch.2 x).mpr ⟨hsat, hH⟩
-        rw [ite_eq_left hsat,
-          ite_eq_right fun hf => not_sat_both_countingChild ψ ch.1 ch.2 x ⟨hf, h₁⟩,
-          ite_eq_left h₁]
-    · rw [ite_eq_right hsat,
-        ite_eq_right fun hf => hsat ((sat_countingChild_false_iff ψ ch.1 ch.2 x).mp hf).1,
-        ite_eq_right fun ht => hsat ((sat_countingChild_true_iff ψ ch.1 ch.2 x).mp ht).1]
+        simp [hsat, h₁, not_and'.mp (not_sat_both_countingChild ψ ch.1 ch.2 x) h₁]
+    · simp [hsat, mt (fun hf => ((sat_countingChild_false_iff ψ ch.1 ch.2 x).mp hf).1) hsat,
+        mt (fun ht => ((sat_countingChild_true_iff ψ ch.1 ch.2 x).mp ht).1) hsat]
   | case2 ψ h =>
     by_cases hsat : ψ.Sat x <;> simp [hsat]
 

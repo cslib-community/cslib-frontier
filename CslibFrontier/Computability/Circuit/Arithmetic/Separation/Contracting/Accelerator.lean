@@ -128,12 +128,11 @@ private theorem sum_length_phiLits_le (i e : Q) {B : ℕ}
     (Nat.mul_le_mul hE hE).trans_eq (by ring)
   have hB : 1 ≤ B := by omega
   have p : ∀ k ≤ 6, B ^ k ≤ B ^ 6 := fun k hk => Nat.pow_le_pow_right hB hk
-  have := p 5 (by norm_num)
-  have := p 3 (by norm_num)
-  have := p 2 (by norm_num)
-  have := Nat.one_le_pow 3 B hB
-  have := Nat.le_self_pow (n := 3) (by norm_num) B
-  have := Nat.le_self_pow (n := 6) (by norm_num) B
+  have : B ^ 5 ≤ B ^ 6 ∧ B ^ 3 ≤ B ^ 6 ∧ B ^ 2 ≤ B ^ 6 ∧
+      1 ≤ B ^ 3 ∧ B ≤ B ^ 3 ∧ B ≤ B ^ 6 :=
+    ⟨p 5 (Nat.le_succ 5), p 3 (Nat.le_add_left 3 3), p 2 (Nat.le_add_left 2 4),
+      Nat.one_le_pow 3 B hB, Nat.le_self_pow (Nat.succ_ne_zero 2) B,
+      Nat.le_self_pow (Nat.succ_ne_zero 5) B⟩
   refine (Nat.mul_le_mul (n₂ := 119 * B ^ 6) (m₂ := 13 * B ^ 3) (by omega) (by omega)).trans ?_
   ring_nf
   omega
@@ -169,14 +168,11 @@ private theorem exists_isAffineProjection_runVal {G : PolynomialFamily F} {κ : 
     · exact .inl ⟨b, rfl⟩
   · rw [clauseSum_withInputs]
     refine totalDegree_monomialExtension_le _ fun x hx => ?_
-    rw [hf] at hx
-    by_cases h : IsWordCode x
-    · exact card_ones_le h
-    · exact absurd (ite_eq_right h) hx
+    rw [hf, ite_ne_right_iff] at hx
+    exact card_ones_le hx.1
   · rw [clauseSum_withInputs, eval_indicator_monomialExtension, sum_eq_single (wordCode N w)]
-    · have hc : Tape.code N (fun _ : Fin 1 => w) = wordCode N w := by
-        funext ⟨p, y⟩
-        simp [Tape.code, wordCode, wordOf]
+    · have hc : Tape.code N (fun _ : Fin 1 => w) = wordCode N w :=
+        funext fun ⟨_, _⟩ => by simp [Tape.code, wordCode, wordOf]
       rw [hf, ite_eq_left (isWordCode_wordCode w), ← hc, runVal_eq_domainClauseSum _ i e _
         (by omega) (by rw [length_wordOf_ofFn]; simpa using hw)]
       exact runVal_congr φ mu i e t fun _ => w
@@ -217,7 +213,7 @@ theorem exists_hasAcc_of_computedWithin (hθ : (Function.support θ).Finite) {H 
       have : v ^ (H - 32) ≤ v ^ (3 * H + 1) := Nat.pow_le_pow_right hv1 (by omega)
       have : v ≤ v ^ (3 * H + 1) := Nat.le_self_pow (by omega) v
       have : 3 * v ^ (3 * H + 1) ≤ v * v ^ (3 * H + 1) := Nat.mul_le_mul_right _ (by omega)
-      rw [show v ^ (3 * H + 2) = v * v ^ (3 * H + 1) by ring]
+      rw [pow_succ' v (3 * H + 1)]
       omega) (calc
       κ * (1600 * (v ^ (3 * H + 2)) ^ 9) = 1600 * κ * v ^ (27 * H + 18) := by ring
       _ ≤ v * v ^ (27 * H + 18) := Nat.mul_le_mul_right _ (by omega)
@@ -292,14 +288,11 @@ theorem exists_hasAcc_of_computedWithin (hθ : (Function.support θ).Finite) {H 
     exact (sum_congr rfl fun i _ => (coeff_line _ Ψ i).symm).trans
       (sum_coeff_line_eq_eval _ _ hΨdeg n.lt_succ_self)
   · have h2M : 2 ^ M ≤ 2 * X := by
-      have := two_pow_lg_le (n := X) (by omega)
-      rw [hM] at this
-      rw [show M = M - 1 + 1 by omega, pow_succ]
+      have := hM ▸ two_pow_lg_le (n := X) (by omega)
+      rw [← Nat.sub_add_cancel (m := 1) (Nat.one_le_of_lt hM5), pow_succ]
       omega
     have hX : 51 ≤ X := by omega
-    calc K.nds ≤ 2 * (2 ^ M) ^ 3 + 8 * (2 ^ M) ^ 2 + 3 := by
-          refine hnds.trans_eq ?_
-          ring
+    calc K.nds ≤ 2 * (2 ^ M) ^ 3 + 8 * (2 ^ M) ^ 2 + 3 := hnds.trans_eq (by ring)
       _ ≤ 2 * (2 * X) ^ 3 + 8 * (2 * X) ^ 2 + 3 := by gcongr
       _ = 16 * X ^ 3 + 32 * X ^ 2 + 3 := by ring
       _ ≤ X * X ^ 3 := by

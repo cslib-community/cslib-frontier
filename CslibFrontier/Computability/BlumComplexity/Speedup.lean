@@ -319,8 +319,7 @@ variable {Φ r}
 
 private theorem eval_vers {e : Code} (he : e.eval = master Φ r e) (u d x : ℕ) :
     (vers e u d).eval x = run Φ r e u d x := by
-  rw [vers, Code.eval_curry, he]
-  simp only [master, Nat.unpair_pair]
+  simp [vers, Code.eval_curry, he, master]
 
 private theorem costOK_eq_true {e u x B} : costOK Φ e u x B = true ↔ CostOK Φ e u x B :=
   @decide_eq_true_iff _ (Classical.dec _)
@@ -356,9 +355,8 @@ private theorem run_eq {e u d x B} (hB : B ∈ Nat.rfind fun B => Part.some (cos
       (((canc (elig Φ r e) (ovB d) u x).map fun _ => 1 - w).getD 0))
       (Code.eval (((canc (elig Φ r e) (ovB d) u x).map (ofNat Code)).getD Code.zero) x) := by
   have hok : CostOK Φ e u x B := costOK_eq_true.1 (Part.mem_some_iff.1 (Nat.rfind_spec hB)).symm
-  rw [run, Part.bind_of_mem hB]
-  unfold selCode post
-  rw [canc_eligB_eq hok]
+  unfold run selCode post
+  simp only [Part.bind_of_mem hB, canc_eligB_eq hok]
 
 /-- If every version consulted up to stage `x` halts, some cost cap works. -/
 private theorem exists_costOK {e u x}
@@ -505,18 +503,14 @@ theorem speedup {r : ℕ → ℕ → ℕ} (hr : Computable₂ r) :
         have hcy' : canc (elig Φ r e) (ovB D) (i + 1) y = none :=
           Option.eq_none_iff_forall_ne_some.2 fun k h' =>
             Option.some_ne_none k (((hsame y k (canc_le h').1).1 h').symm.trans hcy)
-        have h := mem_run he (u := i + 1) (d := D) (x := y) (w := 0)
+        simpa [hg, hcy', hf0 y hcy] using mem_run he (u := i + 1) (d := D) (x := y) (w := 0)
           (by rw [hcy']; exact Part.mem_some 0)
-        rw [hg, hcy', Option.map_none, Option.getD_none, Option.getD_none] at h
-        rwa [hf0 y hcy]
       | some k =>
         have hk : i + 1 ≤ k := not_lt.1 fun hk => hlow ⟨k, hk, hcy⟩
         have hcy' : canc (elig Φ r e) (ovB D) (i + 1) y = some k := (hsame y k hk).2 hcy
         obtain ⟨w, hw⟩ := Part.dom_iff_mem.1 (dom_eval_of_canc hcy)
-        have h := mem_run he (u := i + 1) (d := D) (x := y) (w := w)
-          (by simpa [hcy'] using hw)
-        rw [hfc y k w hcy hw]
-        simpa [hg, hcy'] using h
+        simpa [hg, hcy', hfc y k w hcy hw] using
+          mem_run he (u := i + 1) (d := D) (x := y) (w := w) (by simpa [hcy'] using hw)
   refine ⟨c', hc', ?_⟩
   -- eventually `c` is not eligible, which is the speedup
   filter_upwards [hne, eventually_ge_atTop D] with y hy hDy m hm m' hm'

@@ -377,14 +377,10 @@ private theorem promoteStep_bounds {U V w₀ n_max h_space base b k : ℕ}
   rw [← htu_eq] at htu_le hgu_lt
   rw [← httop_eq] at httop_le hgtop_lt
   rw [← hpnew_eq] at hgslab_lt
-  have hqtop_lt : q_top < 2 ^ quotientBits U n_max := by
-    rw [show q_top = _ from clientResult_readQuotProg s hgtop_lt]; exact quotAt_lt ..
-  have hvtop_lt : v_top < 2 ^ valBits V := by
-    rw [show v_top = _ from clientResult_readValProg s hgtop_lt]; exact valAt_lt ..
-  obtain ⟨_, _, _, _, _, hg1⟩ :=
-    writeQuotProg_effect (base := base) (V := V) (h_space := h_space) hw hgu_lt hqtop_lt s
-  obtain ⟨_, _, _, _, _, hg2⟩ :=
-    writeValProg_effect (base := base) (h_space := h_space) hw hgu_lt hvtop_lt s_wq
+  obtain ⟨_, _, _, _, _, hg1⟩ := writeQuotProg_effect (base := base) (V := V) (h_space := h_space)
+    hw hgu_lt ((clientResult_readQuotProg s hgtop_lt).trans_lt (quotAt_lt ..)) s
+  obtain ⟨_, _, _, _, _, hg2⟩ := writeValProg_effect (base := base) (h_space := h_space)
+    hw hgu_lt ((clientResult_readValProg s hgtop_lt).trans_lt (valAt_lt ..)) s_wq
   have hgm_wv : gmAt base U V w₀ n_max h_space s_wv.mem = gmAt base U V w₀ n_max h_space s.mem := by
     dsimp only [s_wv]; rw [hg2, hg1]
   refine ⟨by have := h.1.2.1; omega, hr_top_cap.le, hptr_u_lt, hptr_top_lt, h0_lt, htu_le, httop_le,
@@ -836,10 +832,8 @@ theorem slotOf_gmPushSlab_preserve {α : Type*} {n_max b : ℕ} {gm₀ gm : ℕ 
         rw [hq_b_push, hq b hb]
         exact Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])
       by_cases hj_old : j < gm₀ (gmQIdx b) * slabSize n_max
-      · have hs_ne : j / slabSize n_max ≠ gm (gmQIdx b) := by
-          rw [hq b hb]
-          have := Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm] : j < slabSize n_max * gm₀ (gmQIdx b))
-          omega
+      · have hs_ne : j / slabSize n_max ≠ gm (gmQIdx b) :=
+          (hq b hb ▸ Nat.div_lt_of_lt_mul (Nat.mul_comm _ _ ▸ hj_old)).ne
         rw [hptr b hb (j / slabSize n_max) hs_lt, ite_eq_right (fun h => hs_ne h.2),
           ← harr.same_slabs j hj_old]
         simp only [slotOf, hb0, hq b hb, hj_old, ↓reduceIte]
@@ -852,8 +846,8 @@ theorem slotOf_gmPushSlab_preserve {α : Type*} {n_max b : ℕ} {gm₀ gm : ℕ 
         have hmod_eq : j % slabSize n_max = u := by
           rw [hj_eq, Nat.mul_comm, Nat.mul_add_mod, Nat.mod_eq_of_lt hu_lt]
         rw [hptr b hb (j / slabSize n_max) hs_lt, ite_eq_left ⟨rfl, hs_eq⟩, hmod_eq, h0]
-        have hnew := harr.new_slab (slabSize n_max - 1 - u) (by omega)
-        rwa [show slabSize n_max - 1 - (slabSize n_max - 1 - u) = u by omega, ← hj_eq] at hnew
+        have hsub : slabSize n_max - 1 - (slabSize n_max - 1 - u) = u := by omega
+        simpa only [hsub, ← hj_eq] using harr.new_slab (slabSize n_max - 1 - u) (by omega)
     · set u := j - (gm₀ (gmQIdx b) + 1) * slabSize n_max
       have hu_lt : u < slabSize n_max := by omega
       have hu_cap : u < tailCapPerBucket n_max := by
@@ -868,10 +862,9 @@ theorem slotOf_gmPushSlab_preserve {α : Type*} {n_max b : ℕ} {gm₀ gm : ℕ 
       unfold slotOf
       rw [ite_eq_right hb0, ite_eq_right hb0, hq_b'_push, hq b' hb']
       split_ifs with hj_slab
-      · have hs_lt : j / slabSize n_max < gmPushSlab n_max gm b (gmQIdx b') := by
-          rw [hq_b'_push, hq b' hb']
-          exact Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm])
-        rw [hptr b' hb' (j / slabSize n_max) hs_lt, ite_eq_right (fun h => hbeq h.1)]
+      · rw [hptr b' hb' (j / slabSize n_max)
+            (hq_b'_push.symm ▸ hq b' hb' ▸ Nat.div_lt_of_lt_mul (Nat.mul_comm _ _ ▸ hj_slab)),
+          ite_eq_right (fun h => hbeq h.1)]
       · have hr'_lt : j - gm₀ (gmQIdx b') * slabSize n_max < gm (gmRIdx b') := by
           rw [hr_other b' hb' hbeq]; omega
         rw [htail_ptr b' hb' _ (lt_of_lt_of_le hr'_lt (htail.r_le b' hb'))]
@@ -996,16 +989,13 @@ theorem realizes_promoteSlabGen :
   · exact (iterate_promoteStepProg_spec hw h.2.2 (slabSize n_max) 0 s
       (by omega) (promoteLoopInv_zero h.2.1)).2.2 h.1
   · rcases d with ⟨base, b⟩
-    dsimp only at h
     have hloopK := (iterate_promoteStepProg_spec (w := w) hw h.2.2 (slabSize n_max) 0 s
       (by omega) (promoteLoopInv_zero h.2.1)).1
     rw [Nat.zero_add] at hloopK
-    have htot1 : (gmAt base U V w₀ n_max h_space
-        ((Memory.spec 0).clientState s
-          (promoteLoopProg U V w₀ n_max h_space (((base, b), 0), slabSize n_max))).mem 0 + 1) *
-        slabSize n_max ≤ n_max := by
-      unfold promoteLoopProg; dsimp only; have := hloopK.tot_le; rw [Nat.add_one_mul]; omega
-    unfold GmPushSlabPre
-    exact ⟨h.1, hloopK.slab_bij, h.2.1.1, nslabs_lt_maxFullSlabs_of_mul_le h.2.2 htot1, h.2.2⟩
+    have htot := hloopK.tot_le
+    refine ⟨h.1, hloopK.slab_bij, h.2.1.1, nslabs_lt_maxFullSlabs_of_mul_le h.2.2 ?_, h.2.2⟩
+    dsimp only [GmPushSlabPre, promoteLoopProg] at htot ⊢
+    rw [Nat.add_one_mul]
+    omega
 
 end Cslib.DataStructure.Dictionary.WordRAM.Succinct

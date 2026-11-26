@@ -537,16 +537,13 @@ private theorem contract_consecutive {I : FixedRotationInput} (hI : Valid I) {v 
   intro i hi d hd
   have hmem : block.getD (i + 1) 0 ∈ block := List.getD_eq_getElem _ _ hi ▸ List.getElem_mem hi
   apply contract_index s r hr d (mem_fiber.mp (hb _ hmem)).1
+  have hget := List.getD_append block [2 * I.graph.edges.length] 0 i (Nat.lt_of_succ_lt hi)
   have h := hs I.graph.vertices.length (block ++ [2 * I.graph.edges.length])
     (split_order_hub hI v block) i (by simp; omega)
     ((splitCoordinates I v block).symm (some (some d)))
-  have hidx := index_splitCoordinates I v block (some (some d))
-  have hget : (block ++ [2 * I.graph.edges.length]).getD i 0 = block.getD i 0 := by
-    rw [List.getD_eq_getElem _ _ (by simp; omega),
-      List.getElem_append_left (by omega), List.getD_eq_getElem _ _ (by omega)]
-  specialize h (hidx.trans (hd.trans hget.symm))
-  simpa only [nextInWord, List.length_append, List.length_singleton,
-    show i + 1 < block.length + 1 from by omega, ↓reduceIte,
+    ((index_splitCoordinates I v block (some (some d))).trans (hd.trans hget.symm))
+  have hi' : i + 1 < block.length + 1 := Nat.lt_succ_of_lt hi
+  simpa only [nextInWord, List.length_append, List.length_singleton, hi', ↓reduceIte,
     List.getD_append _ _ _ _ hi] using h
 
 private theorem split_dart_eq_old {I : FixedRotationInput} {v : ℕ} {block : List ℕ}
@@ -624,9 +621,7 @@ private theorem cut_realizes {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
         rw [ite_eq_left (by simp; omega), List.getD_eq_getElem _ _ (by simp; omega)]
         simp [hlast]
       · have hi' : i + 1 < L.length := by omega
-        have hel : e ≠ last := fun h => by
-          have := hL.getElem_inj_iff.mp h
-          omega
+        have hel : e ≠ last := fun h => absurd (hL.getElem_inj_iff.mp h) (by omega)
         have hea : e ≠ a := fun h =>
           hel (h.trans ((block_boundary r.rotate L hn hL (successive_blockDarts block hb r hc)).1.mp
             (Eq.mp (congrArg (· ∈ L) h) (List.getElem_mem (Nat.lt_of_succ_lt hi')))))

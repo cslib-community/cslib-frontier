@@ -85,10 +85,10 @@ theorem compQueryWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items : 
   have hfix_spec := queryWithHashProg_dict_spec (w := ghostW w) hwf hg_env θ hinv u
   have hchain : IsDLChain N (lmHead N (compLmAt metaBase U w N s.mem) b m)
       (lmPrev N (compLmAt metaBase U w N s.mem) b)
-      (lmNext N (compLmAt metaBase U w N s.mem) b) (L b m) := by
-    rw [hcpl.lm_eq]; exact hb_inv.hchains.1 b hb_lt m hm_lt
-  have hc_lt : ∀ j ∈ L b m, j < bCount N (compGmAt metaBase U w N s.mem) b := fun j hj => by
-    rw [hcpl.gm_eq]; exact ((hb_inv.hchain_mem b hb_lt m hm_lt j).mp hj).1
+      (lmNext N (compLmAt metaBase U w N s.mem) b) (L b m) :=
+    hcpl.lm_eq.symm ▸ hb_inv.hchains.1 b hb_lt m hm_lt
+  have hc_lt (j : ℕ) (hj : j ∈ L b m) : j < bCount N (compGmAt metaBase U w N s.mem) b :=
+    hcpl.gm_eq.symm ▸ ((hb_inv.hchain_mem b hb_lt m hm_lt j).mp hj).1
   obtain ⟨hst_qb, hres_qb, hcost_qb⟩ := compQueryBodyGenProg_spec (q_target := q)
     henv hcpl hslot hm_items hb_lt hm_lt hchain hc_lt
   obtain ⟨hlen_pr, hovf_pr, _⟩ := chain_and_overflow_le_probeExcess θ hb_inv u
@@ -108,18 +108,15 @@ theorem compQueryWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items : 
       Nat.shiftRight_eq_div_pow u.val (bucketBits N)]
     rfl
   refine ⟨hpre, ?_, ?_, ?_⟩
-  · rw [hprog_eq, StateTransitionSpec.clientState_bind, clientState_compFeistelCoordsProg, hc_res]
-    exact hst_qb
+  · rwa [hprog_eq, StateTransitionSpec.clientState_bind, clientState_compFeistelCoordsProg, hc_res]
   · rw [hprog_eq, StateTransitionSpec.clientResult_bind, clientState_compFeistelCoordsProg,
-      hc_res, hres_qb, ← hfix_eq]
-    exact hfix_spec.2.2.1
+      hc_res, hres_qb, ← hfix_eq, hfix_spec.2.2.1]
   · rw [hprog_eq, memoryCost_bind_of_clientState_eq (clientState_compFeistelCoordsProg _ s) _,
       memoryCost_compFeistelCoordsProg, hc_res, zero_add]
-    rw [hcpl.gm_eq, show epochHashSpace U (ghostW w) N = hashSpace U (ghostW w) N from rfl]
-      at hcost_qb
+    have heh : epochHashSpace U (ghostW w) N = hashSpace U (ghostW w) N := rfl
+    rw [hcpl.gm_eq, heh] at hcost_qb
     dsimp only [b, q, m] at hcost_qb hlen_pr hovf_pr ⊢
-    unfold probeExcess
-    omega
+    rw [probeExcess]; omega
 
 /-- Dictionary-level specification of Phase 1 (`compInsertSearchWithHashGenProg`) of split
 compacted insertion. -/
@@ -155,10 +152,10 @@ theorem compInsertSearchWithHashGenProg_dict_spec {metaBase itemBase U V w N m_i
   have hg_env := ghostDictEnvGen henv.pos_w henv.le_U henv.lt_pow_U henv.le_pow_V
   have hchain : IsDLChain N (lmHead N (compLmAt metaBase U w N s.mem) b m)
       (lmPrev N (compLmAt metaBase U w N s.mem) b)
-      (lmNext N (compLmAt metaBase U w N s.mem) b) (L b m) := by
-    rw [hcpl.lm_eq]; exact hb_inv.hchains.1 b hb_lt m hm_lt
-  have hc_lt : ∀ j ∈ L b m, j < bCount N (compGmAt metaBase U w N s.mem) b := fun j hj => by
-    rw [hcpl.gm_eq]; exact ((hb_inv.hchain_mem b hb_lt m hm_lt j).mp hj).1
+      (lmNext N (compLmAt metaBase U w N s.mem) b) (L b m) :=
+    hcpl.lm_eq.symm ▸ hb_inv.hchains.1 b hb_lt m hm_lt
+  have hc_lt (j : ℕ) (hj : j ∈ L b m) : j < bCount N (compGmAt metaBase U w N s.mem) b :=
+    hcpl.gm_eq.symm ▸ ((hb_inv.hchain_mem b hb_lt m hm_lt j).mp hj).1
   obtain ⟨hst_sb, hres_sb, hcost_sb⟩ := compSearchBucketGenProg_spec (q_target := q)
     henv hcpl hslot hm_items hb_lt hm_lt hchain hc_lt
   have hres_branch :=
@@ -196,11 +193,10 @@ theorem compInsertSearchWithHashGenProg_dict_spec {metaBase itemBase U V w N m_i
   · rw [hprog_eq, memoryCost_bind_of_clientState_eq (clientState_compFeistelCoordsProg _ s) _,
       memoryCost_compFeistelCoordsProg, hc_res, zero_add,
       memoryCost_bind_of_clientState_eq hst_sb _, memoryCost_compPackInsertSearchResProg, add_zero]
-    rw [hcpl.gm_eq, show epochHashSpace U (ghostW w) N = hashSpace U (ghostW w) N from rfl]
-      at hcost_sb
+    have heh : epochHashSpace U (ghostW w) N = hashSpace U (ghostW w) N := rfl
+    rw [hcpl.gm_eq, heh] at hcost_sb
     dsimp only [b, q, m] at hcost_sb hlen_pr hovf_pr ⊢
-    unfold probeExcess
-    omega
+    rw [probeExcess]; omega
 
 private theorem insertWithHashProg_clientState_hit (U V w₀ n_max u v h_q : ℕ)
     (s_fix : Memory.State)
@@ -217,11 +213,11 @@ private theorem insertWithHashProg_clientState_hit (U V w₀ n_max u v h_q : ℕ
     (Memory.spec 0).clientState s_fix (insertWithHashProg U V w₀ n_max (((0, u), v), h_q)) =
       (Memory.spec 0).clientState s_fix
         (writeValProg U V w₀ n_max (hashSpace U w₀ n_max) ((0, res_sb.2), v)) := by
-  unfold insertWithHashProg insertWithHashGenProg
-  simp only [p_bucketBits_mk, p_bucketMask_mk, insertBodyGenProg_mk, pure_bind]
+  simp only [insertWithHashProg, insertWithHashGenProg, p_bucketBits_mk, p_bucketMask_mk,
+    insertBodyGenProg_mk, pure_bind]
   rw [hb_eq, hq_eq, hm_eq]
-  unfold insertBodyProg insertBodyGenProg
-  simp only [searchBucketGenProg_mk, writeValGenProg_mk, insertNewGenProg_mk, pure_bind]
+  simp only [insertBodyProg, insertBodyGenProg, searchBucketGenProg_mk, writeValGenProg_mk,
+    insertNewGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientState_bind, hst, hres, ite_eq_left hfound]
 
 private theorem insertWithHashProg_clientState_miss (U V w₀ n_max u v h_q : ℕ)
@@ -242,15 +238,14 @@ private theorem insertWithHashProg_clientState_miss (U V w₀ n_max u v h_q : �
         (prependIfIndexedProg U V w₀ n_max (hashSpace U w₀ n_max)
           (((0, b), m),
             bCount n_max (gmAt 0 U V w₀ n_max (hashSpace U w₀ n_max) s_fix.mem) b)) := by
-  unfold insertWithHashProg insertWithHashGenProg
-  simp only [p_bucketBits_mk, p_bucketMask_mk, insertBodyGenProg_mk, pure_bind]
+  simp only [insertWithHashProg, insertWithHashGenProg, p_bucketBits_mk, p_bucketMask_mk,
+    insertBodyGenProg_mk, pure_bind]
   rw [hb_eq, hq_eq, hm_eq]
-  unfold insertBodyProg insertBodyGenProg
-  simp only [searchBucketGenProg_mk, writeValGenProg_mk, insertNewGenProg_mk, pure_bind]
+  simp only [insertBodyProg, insertBodyGenProg, searchBucketGenProg_mk, writeValGenProg_mk,
+    insertNewGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientState_bind, hst, ite_eq_right hmiss]
-  unfold insertNewProg insertNewGenProg
-  simp only [readTotalSlotsGenProg_mk, p_nMax_mk, readBucketCountGenProg_mk,
-    pushBackSlotGenProg_mk, prependIfIndexedGenProg_mk, pure_bind]
+  simp only [insertNewProg, insertNewGenProg, readTotalSlotsGenProg_mk, p_nMax_mk,
+    readBucketCountGenProg_mk, pushBackSlotGenProg_mk, prependIfIndexedGenProg_mk, pure_bind]
   rw [StateTransitionSpec.clientState_bind, clientState_readTotalSlotsProg,
     clientResult_readTotalSlotsProg, ite_eq_left htot,
     StateTransitionSpec.clientState_bind, clientState_readBucketCountProg,
@@ -302,27 +297,20 @@ theorem compInsertHit_dict_spec {metaBase itemBase U V w N m_items : ℕ}
     ⟨Or.inr (hf_iff.mp hfound), hv⟩
   set s_fix' := (Memory.spec 0).clientState s_fix
     (insertWithHashProg U V (ghostW w) N (((0, u.val), v), h_q))
-  have hst_sb_fix :
-      (Memory.spec 0).clientState s_fix
-        (searchBucketProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (((0, b), q), m)) =
-        s_fix :=
-    (searchBucketProg_bucket_spec hb_inv hg_env hb_lt (q_target := q) (m := m) rfl hm_lt).1
   have hs_fix'_eq : s_fix' = (Memory.spec 0).clientState s_fix
       (writeValProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) ((0, res_sb.2), v)) :=
     insertWithHashProg_clientState_hit U V (ghostW w) N u.val v h_q s_fix b q m
       (and_mask_xor_eq_feistelBucket (bucketBits N) u.val h_q)
-      (Nat.shiftRight_eq_div_pow u.val (bucketBits N)) rfl res_sb rfl hst_sb_fix hfound
+      (Nat.shiftRight_eq_div_pow u.val (bucketBits N)) rfl res_sb rfl
+      (searchBucketProg_bucket_spec hb_inv hg_env hb_lt (q_target := q) (m := m) rfl hm_lt).1 hfound
   obtain ⟨hfr_wv, hcpl_wv⟩ :=
     compWritePhysValGenProg_effect henv hcpl hslot hm_items hb_lt hj_bc hv_lt
   have hphys_lt : slotOf N (compGmAt metaBase U w N s.mem) b j_hit < N :=
     (slotOf_lt_and_injective hslot).1 b hb_lt j_hit hj_bc
   have eff_wv_fix := writeValProg_effect (base := 0) (U := U) (V := V) (w := ghostW w) (n_max := N)
     (h_space := epochHashSpace U (ghostW w) N) hwf.1 hphys_lt hv_lt s_fix
-  have hd_eq : d_wv = (((mkCompParams U V w N, (metaBase, itemBase)),
-      slotOf N (compGmAt metaBase U w N s.mem) b j_hit), v) :=
-    congrArg (fun p => (((mkCompParams U V w N, (metaBase, itemBase)), p), v)) hphys_eq
-  dsimp only [s']
-  rw [hd_eq]
+  dsimp only [s', d_wv]
+  rw [hphys_eq]
   exact ⟨⟨U, V, N, m_items, s_fix, b, j_hit, rfl, henv, hcpl, hslot, hm_items,
       hb_lt, hj_bc, rfl⟩,
     hfr_wv, hcpl_wv.gm_eq.trans (eff_wv_fix.2.2.2.2.2.trans hcpl.gm_eq.symm),
@@ -390,11 +378,6 @@ theorem compInsertMiss_dict_spec {metaBase itemBase U V w N m_cap : ℕ}
   set h_q := hValOfSeed U N θ q
   set s_fix' := (Memory.spec 0).clientState s_fix
     (insertWithHashProg U V (ghostW w) N (((0, u.val), v), h_q))
-  have hst_sb_fix :
-      (Memory.spec 0).clientState s_fix
-        (searchBucketProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (((0, b), q), m)) =
-        s_fix :=
-    (searchBucketProg_bucket_spec hb_inv hg_env hb_lt (q_target := q) (m := m) rfl hm_lt).1
   have hbc_eq : bCount N (compGmAt metaBase U w N s_grown.mem) b =
       bCount N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b :=
     hmem_grown ▸ hcpl.gm_eq ▸ rfl
@@ -406,7 +389,9 @@ theorem compInsertMiss_dict_spec {metaBase itemBase U V w N m_cap : ℕ}
     rw [hbc_eq]
     exact insertWithHashProg_clientState_miss U V (ghostW w) N u.val v h_q s_fix b q m
       (and_mask_xor_eq_feistelBucket (bucketBits N) u.val h_q)
-      (Nat.shiftRight_eq_div_pow u.val (bucketBits N)) rfl hst_sb_fix hmiss htot_fix hb_lt
+      (Nat.shiftRight_eq_div_pow u.val (bucketBits N)) rfl
+      (searchBucketProg_bucket_spec hb_inv hg_env hb_lt (q_target := q) (m := m) rfl hm_lt).1
+      hmiss htot_fix hb_lt
   obtain ⟨hfr_app, hcpl_app, hcost_app⟩ := compInsertAppendNewGenProg_effect
     henv_grown hcpl_grown hslot hb_lt hm_lt htot_grown hm_cap_grown hq_lt hv_lt hold_grown
   rw [hmem_grown] at hcost_app

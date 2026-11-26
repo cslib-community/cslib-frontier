@@ -156,12 +156,11 @@ private theorem pivWeight_ne_zero_other {j : Fin s} {x : BitString (s * w)}
 private theorem pivWeight_eq_zero_of_ne {j₁ j₂ : Fin s} (hj₁ : j₁ ∈ T) (hj : j₂ ≠ j₁)
     {x : BitString (s * w)} (hx : pivWeight T c j₁ x ≠ 0) : pivWeight T c j₂ x = 0 := by
   by_contra hx₂
-  have h1 := pivWeight_ne_zero_self hx
   have h2 := prod_ne_zero_iff.1 hx₂ j₁ (mem_univ _)
   simp only [pivFactor, Ne.symm hj, hj₁, ite_false, ite_true, ne_eq, ite_eq_right_iff,
     one_ne_zero, imp_false, not_not, mem_erase, mem_univ, and_true] at h2
   obtain ⟨i, hi, hxi⟩ := h2
-  exact Bool.false_ne_true (hxi.symm.trans (h1 i hi))
+  exact Bool.false_ne_true (hxi.symm.trans (pivWeight_ne_zero_self hx i hi))
 
 /-- Setting the free bit of tribe `j` keeps its pivotality event. -/
 private theorem pivWeight_update (j : Fin s) (x : BitString (s * w)) (b : Bool) :
@@ -180,17 +179,13 @@ private theorem tribes_eq_of_pivWeight_ne_zero {j : Fin s} {x : BitString (s * w
     (hx : pivWeight T c j x ≠ 0) : tribes w s x = x (finProdFinEquiv (j, c j)) := by
   rw [tribes]
   cases hb : x (finProdFinEquiv (j, c j))
-  · refine decide_eq_false ?_
-    rintro ⟨j', hj'⟩
-    by_cases hjj : j' = j
-    · subst hjj
-      exact Bool.false_ne_true (hb.symm.trans (hj' (c j')))
+  · refine decide_eq_false fun ⟨j', hj'⟩ => ?_
+    rcases eq_or_ne j' j with rfl | hjj
+    · exact Bool.false_ne_true (hb.symm.trans (hj' (c j')))
     · obtain ⟨i, hi⟩ := pivWeight_ne_zero_other hx hjj
       exact Bool.false_ne_true (hi.symm.trans (hj' i))
-  · refine decide_eq_true ⟨j, fun i => ?_⟩
-    by_cases hi : i = c j
-    · rw [hi, hb]
-    · exact pivWeight_ne_zero_self hx i hi
+  · exact decide_eq_true ⟨j, fun i =>
+      if hi : i = c j then hi ▸ hb else pivWeight_ne_zero_self hx i hi⟩
 
 /-- The probability of the pivotality event of a tribe of `T`. -/
 private theorem expect_pivWeight {j : Fin s} (hj : j ∈ T) :
@@ -311,12 +306,10 @@ private theorem one_div_256_le_hammingDist_tribes_div_of {g : BitString (s * w) 
     (hq : 1 / 2 ≤ (1 - (2⁻¹ : ℝ) ^ w) ^ s) (hJ : 4 * #J ≤ 3 * (s * w))
     (hg : DependsOn g (J : Set (Fin (s * w)))) :
     1 / 256 ≤ (hammingDist (tribes w s) g : ℝ) / 2 ^ (s * w) := by
-  have hc : ∀ j ∈ looseTribes w J, ∃ i, finProdFinEquiv (j, i) ∉ J := fun j hj => by
-    simpa [looseTribes] using hj
   have : Nonempty (Fin w) := ⟨⟨0, hw⟩⟩
-  choose! c hc using hc
-  have hts : #(looseTribes w J) ≤ s := by simpa using card_le_univ (looseTribes w J)
-  exact (one_div_256_le_card_mul hw hs₁ hs₂ hq (le_four_mul_card_looseTribes hw hJ) hts).trans
+  choose! c hc using fun j (hj : j ∈ looseTribes w J) => (mem_filter.1 hj).2
+  exact (one_div_256_le_card_mul hw hs₁ hs₂ hq (le_four_mul_card_looseTribes hw hJ)
+    (by simpa using card_le_univ (looseTribes w J))).trans
     (card_mul_le_hammingDist_tribes_div hc hg)
 
 end Junta

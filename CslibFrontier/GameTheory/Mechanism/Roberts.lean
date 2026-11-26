@@ -249,8 +249,7 @@ private theorem pad_range_of_isWeaklyMonotoneOn [Finite ι] [DecidableEq ι]
   let hybrid (S : Finset ι) (j : ι) : Ω → ℝ := if j ∈ S then v' j else v j
   have hhyb : ∀ S : Finset ι, f (hybrid S) = f v := fun S => by
     induction S using Finset.induction_on with
-    | empty =>
-      rw [show hybrid ∅ = v from funext fun _ => by simp [hybrid]]
+    | empty => exact congrArg f (funext fun _ => by simp [hybrid])
     | @insert i S hi ih =>
       have hdom : ∀ j, j ≠ i → hybrid S j ∈ V j := fun j _ => by
         by_cases hj : j ∈ S <;> simp [hybrid, hj, hv' j, hv j]
@@ -262,8 +261,7 @@ private theorem pad_range_of_isWeaklyMonotoneOn [Finite ι] [DecidableEq ι]
       have hw := hf i (hybrid S) (v i) (v' i) hdom (hv i) (hv' i)
       rw [h1, h2, ih] at hw
       linarith [hinc i (f (hybrid (insert i S))) (Set.mem_range_self _) hne]
-  simpa only [show hybrid Finset.univ = v' from funext fun _ => by simp [hybrid]] using
-    hhyb Finset.univ
+  exact (congrArg f (funext fun _ => by simp [hybrid])).symm.trans (hhyb Finset.univ)
 
 /-- **Weak monotonicity implies PAD** ([Lavi2007], Claim 12.28, §12.4, p. 318): with finitely many
 agents, every weakly monotone (hence every DSIC-implementable) rule on any domain `V` satisfies
@@ -302,22 +300,20 @@ theorem isGeneralizedWMON_of_isPAD {f : (ι → Ω → ℝ) → Ω}
     else min (v i z + Δ i / 2) (v' i z + (v i y - v' i y)) - 1
   have hfx : f v'' = x :=
     hf v v'' (fun _ => trivial) (fun _ => trivial) fun i z hz => by
-      change z ≠ x at hz
-      change v'' i z - v i z < v'' i x - v i x
-      rcases eq_or_ne y z with rfl | hzy
-      · simp only [v'', hxy.symm, ↓reduceIte]
+      dsimp only [v'', x, y] at hxy hz ⊢
+      rcases eq_or_ne (f v') z with rfl | hzy
+      · simp only [hxy.symm, ↓reduceIte]
         linarith [hΔ i]
-      · simp only [v'', hz, hzy.symm, ↓reduceIte]
-        linarith [min_le_left (v i z + Δ i / 2) (v' i z + (v i y - v' i y))]
+      · simp only [hz, hzy.symm, ↓reduceIte]
+        linarith [min_le_left (v i z + Δ i / 2) (v' i z + (v i (f v') - v' i (f v')))]
   have hfy : f v'' = y :=
     hf v' v'' (fun _ => trivial) (fun _ => trivial) fun i z hz => by
-      change z ≠ y at hz
-      change v'' i z - v' i z < v'' i y - v' i y
-      rcases eq_or_ne x z with rfl | hzx
-      · simp only [v'', hxy.symm, ↓reduceIte]
-        linarith [hΔ i, show Δ i = (v' i x - v' i y) - (v i x - v i y) from rfl]
-      · simp only [v'', hzx.symm, hz, hxy.symm, ↓reduceIte]
-        linarith [min_le_right (v i z + Δ i / 2) (v' i z + (v i y - v' i y))]
+      dsimp only [v'', Δ, x, y] at hxy hz hΔ ⊢
+      rcases eq_or_ne (f v) z with rfl | hzx
+      · simp only [hxy.symm, ↓reduceIte]
+        linarith [hΔ i]
+      · simp only [hzx.symm, hz, hxy.symm, ↓reduceIte]
+        linarith [min_le_right (v i z + Δ i / 2) (v' i z + (v i (f v') - v' i (f v')))]
   exact hxy (hfx.symm.trans hfy)
 
 /-- On the unrestricted domain `ℝ^Ω` with finitely many agents, every weakly monotone rule satisfies
@@ -554,11 +550,11 @@ private theorem openShifted_subset_right [Finite ι] [Nonempty ι] [DecidableEq 
   by_cases hyz : y = z
   · subst hyz; exact Set.Subset.rfl
   rintro α ⟨ε, hε, hmem⟩
-  have hα' : (fun i => α i - ε / 2) ∈ openShifted f x y :=
-    ⟨ε / 2, by linarith, by convert hmem using 1; ext _; ring⟩
-  have hc := const_pos_mem_openShifted hf_onto hpad hyz (r := ε / 2) (by linarith)
-  simpa only [show (fun i => α i - ε / 2) + (fun _ => ε / 2) = α by ext _; simp] using
-    openShifted_trans_add hf_onto hpad hgw hxy hyz hxz hα' hc
+  have hsum : (fun i => α i - ε / 2) + (fun _ => ε / 2) = α := funext fun _ => sub_add_cancel _ _
+  refine hsum ▸ openShifted_trans_add hf_onto hpad hgw hxy hyz hxz ⟨ε / 2, half_pos hε, ?_⟩
+    (const_pos_mem_openShifted hf_onto hpad hyz (half_pos hε))
+  convert hmem using 1
+  exact funext fun _ => by ring
 
 private theorem openShifted_subset_left [Finite ι] [Nonempty ι] [DecidableEq Ω]
     {f : (ι → Ω → ℝ) → Ω} (hf_onto : Function.Surjective f)
@@ -569,11 +565,11 @@ private theorem openShifted_subset_left [Finite ι] [Nonempty ι] [DecidableEq �
   by_cases hwx : w = x
   · subst hwx; exact Set.Subset.rfl
   rintro α ⟨ε, hε, hmem⟩
-  have hc := const_pos_mem_openShifted hf_onto hpad hwx (r := ε / 2) (by linarith)
-  have hα' : (fun i => α i - ε / 2) ∈ openShifted f x y :=
-    ⟨ε / 2, by linarith, by convert hmem using 1; ext _; ring⟩
-  simpa only [show (fun _ => ε / 2) + (fun i => α i - ε / 2) = α by ext _; simp] using
-    openShifted_trans_add hf_onto hpad hgw hwx hxy hwy hc hα'
+  have hsum : (fun _ => ε / 2) + (fun i => α i - ε / 2) = α := funext fun _ => add_sub_cancel _ _
+  refine hsum ▸ openShifted_trans_add hf_onto hpad hgw hwx hxy hwy
+    (const_pos_mem_openShifted hf_onto hpad hwx (half_pos hε)) ⟨ε / 2, half_pos hε, ?_⟩
+  convert hmem using 1
+  exact funext fun _ => by ring
 
 private theorem openShifted_eq [Finite ι] [Nonempty ι] [Fintype Ω] [DecidableEq Ω]
     {f : (ι → Ω → ℝ) → Ω} (hf_onto : Function.Surjective f)
@@ -710,9 +706,8 @@ private theorem openShifted_smul_pos [Finite ι] [Nonempty ι] [Fintype Ω] [Dec
   set d : ℝ := (n : ℝ) / (2 : ℝ) ^ m
   have hdt_le : d ≤ t := (div_le_iff₀ h2m_pos).2 (Nat.floor_le (mul_nonneg ht.le h2m_pos.le))
   have hdt_lt : t - 1 / (2 : ℝ) ^ m < d := (lt_div_iff₀ h2m_pos).2 <| by
-    have h2ne := h2m_pos.ne'
-    linarith [Nat.lt_floor_add_one (t * (2 : ℝ) ^ m),
-      show (t - 1 / (2 : ℝ) ^ m) * (2 : ℝ) ^ m = t * (2 : ℝ) ^ m - 1 by field_simp]
+    rw [sub_mul, div_mul_cancel₀ _ h2m_pos.ne']
+    linarith [Nat.lt_floor_add_one (t * (2 : ℝ) ^ m)]
   have htd_half : t / 2 < d := by linarith [min_le_left (t / 2) (t * r / (2 * M))]
   have hn_pos : 0 < n := Nat.pos_of_ne_zero fun h0 => by
     simp only [d, h0, Nat.cast_zero, zero_div] at htd_half
@@ -730,9 +725,7 @@ private theorem openShifted_smul_pos [Finite ι] [Nonempty ι] [Fintype Ω] [Dec
     calc (t - d) * |α i|
       _ ≤ (t - d) * M := mul_le_mul_of_nonneg_left (hM_le i) (by linarith)
       _ ≤ (t * r / (2 * M)) * M := mul_le_mul_of_nonneg_right htd_lt_bound.le hM.le
-      _ = t * r / 2 := by
-            have hMne := hM.ne'
-            field_simp
+      _ = t * r / 2 := by field_simp [hM.ne']
   have hlow := mul_le_mul_of_nonneg_left (neg_abs_le (α i)) (by linarith : 0 ≤ t - d)
   nlinarith
 
@@ -799,8 +792,7 @@ private theorem roberts_with_gamma [Fintype ι] [DecidableEq ι] [Fintype Ω] [D
         split_ifs <;> linarith)
     rw [map_add, map_smul, smul_eq_mul, hL_eq] at hlt
     simp only [mul_one] at hlt
-    have hwi_ne : w₀ i ≠ 0 := hneg.ne
-    have hcalc : t * w₀ i = -(∑ j, w₀ j) + w₀ i := by dsimp [t]; field_simp [hwi_ne]
+    have hcalc : t * w₀ i = -(∑ j, w₀ j) + w₀ i := by dsimp [t]; field_simp [hneg.ne]
     change 0 < ∑ j, w₀ j + t * w₀ i at hlt
     linarith
   let S : ℝ := ∑ i, w₀ i
@@ -845,10 +837,9 @@ private theorem roberts_with_gamma [Fintype ι] [DecidableEq ι] [Fintype Ω] [D
         simp only [mul_sub, Finset.sum_sub_distrib, ← Finset.sum_mul]
         ring
       rwa [h1]
+    simp only [mul_sub, Finset.sum_sub_distrib] at hdiv
     simp only [affineScore]
-    linarith [gamma_add hf_onto hpad hgw x₀ x y,
-      show ∑ i, w i * (b i x - b i y) = ∑ i, w i * b i x - ∑ i, w i * b i y by
-        simp only [mul_sub, Finset.sum_sub_distrib]]
+    linarith [gamma_add hf_onto hpad hgw x₀ x y]
 
 /-! ### Headline theorems (Roberts' theorem and neutral Roberts' theorem) -/
 

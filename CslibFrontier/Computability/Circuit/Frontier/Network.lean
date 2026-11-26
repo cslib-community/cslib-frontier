@@ -142,10 +142,8 @@ def read : Set ι :=
 /-- The inputs read by a set with one more vertex. -/
 theorem readIn_insert_subset (v : V) (L : Set V) :
     N.readIn (insert v L) ⊆ N.readIn L ∪ N.readAt v := by
-  rintro i ⟨u, hu, hi⟩
-  rcases hu with rfl | hu
-  · exact Or.inr hi
-  · exact Or.inl ⟨u, hu, hi⟩
+  rintro i ⟨u, rfl | hu, hi⟩
+  exacts [Or.inr hi, Or.inl ⟨u, hu, hi⟩]
 
 /-- **The separator lemma.** Let `α` satisfy the network on the input `x` and `β` on the input
 `y`, and suppose that they agree on the edge cut of `L`. Then the network is satisfied on any
@@ -160,10 +158,8 @@ theorem Satisfies.splice {N : Network U ι V E} {L : Set V} {x y z : ι → U} {
     piecewise_eqOn_compl _ _ _⟩
   by_cases hv : v ∈ L
   · -- Near `L`, the spliced assignment is `α` and the input reads like `x`.
-    refine N.constraint_congr v x z α _ (fun i hi => (hzx ⟨v, hv, hi⟩).symm) (fun e he => ?_)
-      (hx v)
-    have : e ∈ N.touching L := by rcases he with h | h <;> [left; right] <;> rw [h] <;> exact hv
-    exact (piecewise_eq_of_mem _ _ _ this).symm
+    exact N.constraint_congr v x z α _ (fun i hi => (hzx ⟨v, hv, hi⟩).symm)
+      (fun e he => (piecewise_eq_of_mem _ _ _ (he.imp (·.symm ▸ hv) (·.symm ▸ hv))).symm) (hx v)
   · -- Away from `L`, it is `β` and the input reads like `y`; the two agree on the cut.
     have hinputs : ∀ i, N.site i = some v → y i = z i := fun i hi =>
       (hzy fun ⟨u, hu, hiu⟩ => hv (Option.some.inj (hiu.symm.trans hi) ▸ hu)).symm
@@ -208,9 +204,7 @@ theorem frontierValues_eq_iff {t : ℕ} {α β : E → U} :
     N.frontierValues π t α = N.frontierValues π t β ↔ EqOn α β (N.frontier π t) := by
   refine ⟨fun h e he => by simpa [frontierValues, he] using congrFun h e,
     fun h => funext fun e => ?_⟩
-  simp only [frontierValues]
-  split_ifs with he
-  exacts [congrArg some (h he), rfl]
+  by_cases he : e ∈ N.frontier π t <;> simp [frontierValues, he, @h e]
 
 /-- The inputs revealed by time `t`: those read by the first `t` vertices, and after the last
 vertex, all inputs, including those the network does not read. -/
@@ -373,9 +367,8 @@ theorem exists_satisfies_of_isAcceptingPath {x : ι → U} {γ : ℕ → E → O
     · exact (hpersist e t ((hmem e t).mp he).1 ((hmem e t).mp he).2).trans
         (N.frontierValues_of_mem π he).symm
     · rw [N.frontierValues_of_notMem π he]
-      rcases ht.lt_or_eq with ht | rfl
-      · exact hfv t ht ▸ N.frontierValues_of_notMem π he
-      · exact congrFun hγ.accept e
+      exact ht.lt_or_eq.elim (fun ht => hfv t ht ▸ N.frontierValues_of_notMem π he)
+        fun h => h ▸ congrFun hγ.accept e
 
 /-- **Exactness.** The branching program of a layout accepts exactly the accepted inputs of the
 network. -/
@@ -480,8 +473,8 @@ theorem size_branchingProgram_le [Finite ι] [Finite U] [Nonempty U] [Finite E]
     (N.branchingProgram π).size ≤
       Nat.card V * Nat.card U ^ (w + d + m) + Nat.card U ^ N.readᶜ.ncard := by
   have hq : 1 ≤ Nat.card U := Nat.card_pos
-  rw [ReadOnceNBP.size, show (N.branchingProgram π).length = Nat.card V + 1 from rfl,
-    Finset.sum_range_succ]
+  have hlen : (N.branchingProgram π).length = Nat.card V + 1 := rfl
+  rw [ReadOnceNBP.size, hlen, Finset.sum_range_succ]
   refine add_le_add ?_ (N.ncard_edges_last_le π)
   calc ∑ t ∈ Finset.range (Nat.card V), ((N.branchingProgram π).edges t).ncard
       ≤ ∑ _t ∈ Finset.range (Nat.card V), Nat.card U ^ (w + d + m) := by

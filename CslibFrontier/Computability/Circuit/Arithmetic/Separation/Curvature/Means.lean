@@ -97,11 +97,10 @@ theorem meanNorm_le_meanLength : meanNorm W g ≤ meanLength W g := by
 
 /-- A lower bound on `N` needs all `S`. -/
 theorem le_meanNorm {c : ℝ} (h : ∀ S : ℕ, 0 < S → c * S ≤ meanLength W (S • g)) :
-    c ≤ meanNorm W g := by
-  refine (meanNorm_isGLB W g).2 ?_
-  rintro _ ⟨S, hS, rfl⟩
-  rw [le_div_iff₀ (by exact_mod_cast hS)]
-  exact h S hS
+    c ≤ meanNorm W g :=
+  (meanNorm_isGLB W g).2 <| by
+    rintro _ ⟨S, hS, rfl⟩
+    exact (le_div_iff₀ (Nat.cast_pos.2 hS)).2 (h S hS)
 
 theorem meanNorm_nonneg : 0 ≤ meanNorm W g :=
   le_meanNorm W g fun S _ => by rw [zero_mul]; exact meanLength_nonneg _ _
@@ -136,11 +135,10 @@ theorem meanNorm_eq_homogenization (hW : ∀ n, IsPrice K (W n))
     meanNorm W = (crossingLength_meanLength hW hΛ).homogenization := by
   set hν := crossingLength_meanLength hW hΛ
   funext g
-  refine le_antisymm (hν.le_homogenization fun S hS => ?_) (le_meanNorm W g fun S _ => ?_)
-  · rw [← le_div_iff₀ (by exact_mod_cast hS)]
-    exact meanNorm_le W g hS
-  · rw [mul_comm, ← hν.isHomogeneous_homogenization S g]
-    exact hν.homogenization_le _
+  exact le_antisymm
+    (hν.le_homogenization fun S hS => (le_div_iff₀ (Nat.cast_pos.2 hS)).1 (meanNorm_le W g hS))
+    (le_meanNorm W g fun S _ =>
+      (mul_comm _ (S : ℝ)).trans_le (hν.isHomogeneous_homogenization S g ▸ hν.homogenization_le _))
 
 /-! ### The proof of Lemma C.2
 
@@ -212,10 +210,9 @@ private theorem lem_means_convex (hN : CrossingLength N) (hh : IsHomogeneous N) 
   have h3 := hN.sub_le ((M + 1) • c + s) s
   rw [add_sub_cancel_right, hh] at h3
   rw [show (M + 1) • c + s - c = M • c + s by module]
-  have hM' : (0 : ℝ) < ((M + 1 : ℕ) : ℝ) := by positivity
   have h5 : N c - 2 * N s / ((M + 1 : ℕ) : ℝ) =
       (((M + 1 : ℕ) : ℝ) * N c - 2 * N s) / ((M + 1 : ℕ) : ℝ) := by field_simp
-  rw [h5, div_le_iff₀ hM']
+  rw [h5, div_le_iff₀ (by positivity)]
   linarith
 
 /-- The `δ_i` are bounded and telescope: the sum of `∂A_i + ∂(A_i - a)` over `0 ≤ i < R` is at least
@@ -298,9 +295,8 @@ private theorem lem_means_estimate (hN : CrossingLength N) (hh : IsHomogeneous N
       1 / (2 * M) * N Z ^ 2 ≤ M * N c ^ 2 / 2 + 4 * R * κ ^ 2 := by
     have h3 : N Z ^ 2 ≤ (M * N c + 2 * R * κ) ^ 2 :=
       pow_le_pow_left₀ (hN.nonneg Z) (by linarith [(abs_le.1 hZ).2]) 2
-    have h5 : (M : ℝ) * R * (N c * κ) ≤ M * R * κ ^ 2 := by
-      rw [sq κ]
-      exact mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hc hκ0) (by positivity)
+    have h5 : (M : ℝ) * R * (N c * κ) ≤ M * R * (κ * κ) :=
+      mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right hc hκ0) (by positivity)
     have h6 : (R : ℝ) * R * κ ^ 2 ≤ M * R * κ ^ 2 :=
       mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right hR' hR0) (sq_nonneg _)
     rw [div_mul_eq_mul_div, one_mul, div_le_iff₀ (by positivity)]
@@ -413,8 +409,7 @@ theorem meanNorm_parallelogram (hW : ∀ n, IsPrice K (W n))
 theorem tendsto_meanLength_div (hW : ∀ n, IsPrice K (W n))
     (hΛ : ∀ n b (P g : ℤ × ℤ), W n (b, P) (b, P + g) ≤ Λ * (|(g.1 : ℝ)| + |(g.2 : ℝ)|))
     (g : ℤ × ℤ) :
-    Tendsto (fun S : ℕ => meanLength W (S • g) / S) atTop (𝓝 (meanNorm W g)) := by
-  rw [meanNorm_eq_homogenization hW hΛ]
-  exact (crossingLength_meanLength hW hΛ).tendsto_homogenization g
+    Tendsto (fun S : ℕ => meanLength W (S • g) / S) atTop (𝓝 (meanNorm W g)) :=
+  meanNorm_eq_homogenization hW hΛ ▸ (crossingLength_meanLength hW hΛ).tendsto_homogenization g
 
 end Cslib.Circuits.Arithmetic.Separation.Curvature

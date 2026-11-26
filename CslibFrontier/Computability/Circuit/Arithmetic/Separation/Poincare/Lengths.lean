@@ -94,8 +94,7 @@ private theorem le_grow {D : ℕ → ℝ} {μ k : ℕ} {s : ℝ} (hμ : 2 ≤ μ
     D r ≤ grow μ s r * D 1 := by
   unfold grow
   by_cases hrm : r < μ
-  · rw [Nat.log_of_lt hrm]
-    simp only [CharP.cast_eq_zero, zero_add, mul_one, pow_zero]
+  · simp only [Nat.log_of_lt hrm, CharP.cast_eq_zero, zero_add, mul_one, pow_zero]
     have hlin : ∀ t ≤ k, D t ≤ t * D 1 := fun t ht => by
       induction t with
       | zero => simp [h0]
@@ -136,9 +135,7 @@ private theorem sqrt_rankMean_le {G : Type*} [Group G] (l : Len G) {μ : ℕ} {s
     rw [DM_dg_eq, Real.sqrt_mul (by positivity), Real.sqrt_sq hg.le]
   refine le_grow (D := fun r => √(rankMean (fun W => l (τ W)) r)) hμ hs ?_ (Real.sqrt_nonneg _)
     (fun i j hij => ?_) (fun i hi => ?_) hr
-  · have h := hgood.dg_zero
-    rw [DM_dg_eq, card_empty, mul_eq_zero] at h
-    simp [h.resolve_left (by positivity)]
+  · exact Real.sqrt_eq_zero'.2 (le_of_eq (by simpa [DM_dg_eq, hg.ne'] using hgood.dg_zero))
   · obtain ⟨S, -, T, -, hST, rfl, rfl⟩ :=
       exists_disjoint_card_eq (s := (univ : Finset (Fin k))) (by simpa using hij)
     have h := DM_dg_le _ hgood.nonneg hgood.add hST
@@ -203,14 +200,13 @@ private theorem len_le_of_vecMulVec {n : ℕ} (l : Len (U n)) (k : ℕ) {u φ : 
     obtain ⟨C, hC, hlC⟩ := key (φ + (Pi.single (hi j) 1 : Fin n → F2))
       (fun i hi => by rw [Pi.add_apply, hφ' i hi, he i hi, add_zero])
       (by rw [Pi.add_apply, hb, Pi.single_eq_same, zero_add])
+    have hdot : (Pi.single (hi j) 1 : Fin n → F2) ⬝ᵥ u = 0 := by
+      simp [hu' _ (Cslib.SLTower.lo_lt_hi j)]
     have hBC : A = B * C := mat_inj <| by
-      rw [mat_mul, hA, hB, hC, add_mul, one_mul, mul_add, mul_one, vecMulVec_mul_vecMulVec,
-        show (Pi.single (hi j) 1 : Fin n → F2) ⬝ᵥ u = 0 by
-          simp [hu' _ (Cslib.SLTower.lo_lt_hi j)],
+      rw [mat_mul, hA, hB, hC, add_mul, one_mul, mul_add, mul_one, vecMulVec_mul_vecMulVec, hdot,
         zero_smul, vecMulVec_zero, add_zero, add_assoc, ← vecMulVec_add, add_assoc, vadd_self,
         add_zero]
-    rw [hBC]
-    linarith [map_mul_le_add l B C]
+    linarith [hBC.symm ▸ map_mul_le_add l B C]
   · linarith [lead_le l j u φ (f2 _ ha0) hu' (f2 _ hb) hφ' A hA]
 
 /-- Lemma F.2 for the elements `up (u φᵀ)` of the upper right block. -/
@@ -219,12 +215,9 @@ private theorem len_up_le {a b : ℕ} (l : Len (U (a + b))) (u : Fin a → F2) (
   refine len_le_of_vecMulVec l a (u := wl a b *ᵥ u) (φ := wr a b *ᵥ φ) (fun i hi => ?_)
     (fun i hi => ?_) _ (by rw [mat_up, mul_vecMulVec, vecMulVec_mul, vecMul_transpose])
   all_goals
-    by_contra h
-    apply hi
-    simp only [mulVec, dotProduct]
-    refine sum_eq_zero fun c _ => ?_
-    simp only [incl_apply, weEmb_apply, we, Fin.ext_iff]
-    split_ifs <;> simp_all
+    refine by_contra fun h => hi ?_
+    simp only [mulVec, dotProduct, incl_apply, weEmb_apply, we, Fin.ext_iff]
+    exact sum_eq_zero fun c _ => by split_ifs <;> simp_all
 
 /-! ### Lemma F.3: the mean length on `U_n` -/
 
@@ -250,12 +243,11 @@ private theorem sum_len_up_le {a : ℕ} (l : Len (U (a + a))) (hμ : 2 ≤ μ) (
     obtain ⟨i, rfl⟩ := card_eq_one.1 ((rank_X p q T).symm.trans (mem_filter.1 hW).2)
     rw [X_singleton]
     exact len_up_le l _ _
-  have h2 : ∀ r ≤ a, rankMean (fun M => l (up M)) r ≤ (grow μ s a * (18 * l.S)) ^ 2 :=
-    fun r hr => by
-      rw [← Real.sq_sqrt (rankMean_nonneg _ r)]
-      refine pow_le_pow_left₀ (Real.sqrt_nonneg _) ((sqrt_rankMean_le l hμ hs hl _ up_add hr).trans
-        ?_) 2
-      exact mul_le_mul (grow_mono μ hs hr) h1 (Real.sqrt_nonneg _) (grow_nonneg μ hs a)
+  have h2 (r : ℕ) (hr : r ≤ a) :
+      rankMean (fun M => l (up M)) r ≤ (grow μ s a * (18 * l.S)) ^ 2 := by
+    rw [← Real.sq_sqrt (rankMean_nonneg _ r)]
+    exact pow_le_pow_left₀ (Real.sqrt_nonneg _) ((sqrt_rankMean_le l hμ hs hl _ up_add hr).trans
+      (mul_le_mul (grow_mono μ hs hr) h1 (Real.sqrt_nonneg _) (grow_nonneg μ hs a))) 2
   have hmap : ∀ M ∈ (univ : Finset (Mt a)), M.rank ∈ range (a + 1) := fun M _ =>
     mem_range.2 (Nat.lt_succ_of_le ((rank_le_card_width M).trans (Fintype.card_fin a).le))
   rw [← sum_fiberwise_of_maps_to hmap, ← card_univ, card_eq_sum_card_fiberwise hmap,
@@ -313,9 +305,8 @@ private theorem bd_add_self (hμ : 2 ≤ μ) (hs : 1 ≤ s) {a : ℕ} {κ : ℝ}
   rw [e0, eA, eB] at key
   have h1 : l.rms ≤ Len.rms B + (grow μ s a * (18 * l.S) + Len.rms A) :=
     le_of_mul_le_mul_left (by linarith) (Real.sqrt_pos.2 hN)
-  have hS := mul_le_mul_of_nonneg_left (S_add_le l) hκ
-  rw [mul_add] at hS
-  linarith [h A (hC.comp _), h B (hC.comp _)]
+  linarith [mul_add κ (Len.S A) (Len.S B) ▸ mul_le_mul_of_nonneg_left (S_add_le l) hκ,
+    h A (hC.comp _), h B (hC.comp _)]
 
 /-- **Lemma F.3** (p. 38): every contracting length on `U_n` has root mean square length at most
 `kappa μ s n ∑_j |x_j|`. The proof treats `n = 2^i` by induction (`bd_add_self`), and `U_n` is a

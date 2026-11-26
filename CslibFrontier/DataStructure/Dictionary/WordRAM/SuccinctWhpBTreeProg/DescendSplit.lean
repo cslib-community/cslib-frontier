@@ -87,8 +87,7 @@ private theorem realizes_splitFullChildBody :
     obtain ⟨c, U, V, w₀, n_max, henv, rfl, hsIdx, halloc1, hcur, hchild, hc0, hr_le,
       hkw_cnt, hvw_cnt⟩ := h
     have hth := henv.2.2.2.1
-    have hw_eq := henv.2.2.1
-    subst hw_eq
+    obtain rfl := henv.2.2.1
     have ht8 := eight_le_tMinWhp hth
     have hns_lt_n := (large_bounds_lt_n_max hth).2.1
     obtain ⟨_, _, _, hns_lt_v⟩ := (btree_slice_param_bounds hth).1
@@ -199,11 +198,9 @@ private theorem realizes_descendSplitStepGen :
     rcases d with ⟨⟨⟨⟨cp, base⟩, sIdx⟩, q⟩, ⟨alloc, cur⟩⟩
     dsimp only [DescendSplitStepGenPre] at h
     obtain ⟨c, U, V, w₀, n_max, sl, isRoot, lo, hi, mapFn, T,
-      henv, rfl, hsIdx, hrep, halloc_eq, halloc1, hrt, hnf, hqlo, hqhi, hhi, hv⟩ := h
+      henv, rfl, hsIdx, hrep, rfl, halloc1, hrt, hnf, hqlo, hqhi, hhi, hv⟩ := h
     have hth := henv.2.2.2.1
-    have hw_eq := henv.2.2.1
-    subst hw_eq
-    subst halloc_eq
+    obtain rfl := henv.2.2.1
     have ht8 := eight_le_tMinWhp hth
     have hns_lt_n := (large_bounds_lt_n_max hth).2.1
     obtain ⟨ht3, _, hkey_lt, hns_lt_v⟩ := (btree_slice_param_bounds hth).1
@@ -424,10 +421,7 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
           (f + 1) sl cur q =
           descendSplitToLeaf (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
             f sl cur q := by
-        simp only [descendSplitToLeaf, hmeta, metaIsLeaf_mkNodeMeta, ↓reduceIte]
-        cases f with
-        | zero => rfl
-        | succ f' => simp [descendSplitToLeaf, hmeta]
+        cases f <;> simp [descendSplitToLeaf, hmeta]
       obtain ⟨hS, hR, hM, hV, hI⟩ := descendSplitLoop_succ (f := f) hsafe1 hstep
       obtain ⟨ih_fr, ih_res, ih_mc, ih_vp, ih_safe, ih_rep, ih_lf, ih_oth, ih_bm, ih_out⟩ :=
         ih (cur := cur) (T := .leaf cur c0) hrep (by omega) rfl hnf (by simp [BTreeTree.height])
@@ -626,14 +620,13 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
               lon ≤ q ∧ q ≤ hin ∧ hin < 2 ^ fpBitsWhp n_max ∧
               ValidSubtree isR (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
                 sl_mid.alloc sl_mid.nodes lon hin mapFn Tn := by
-          by_cases hsq : spPure.sep < q
-          · rw [show nextCur = sl.alloc by simp [nextCur, hsq]]
-            dsimp only [spPure, childIdx] at hsq
-            exact ⟨_, rightT, _, _, hrtR, by dsimp [sl_mid]; omega, by rw [hhtR]; exact hchild_ht,
+          dsimp only [nextCur]
+          split_ifs with hsq
+          · dsimp only [spPure, childIdx] at hsq
+            exact ⟨_, rightT, _, _, hrtR, hcntR_eq.trans_lt (by omega), hhtR.trans_le hchild_ht,
               by omega, hq_chi, hchi_le.trans_lt hhi, hvR⟩
-          · rw [show nextCur = childIdx by simp [nextCur, hsq]]
-            dsimp only [spPure, childIdx] at hsq
-            exact ⟨_, leftT, _, _, hrtL, by dsimp [sl_mid]; omega, by rw [hhtL]; exact hchild_ht,
+          · dsimp only [spPure, childIdx] at hsq
+            exact ⟨_, leftT, _, _, hrtL, hcntL_le.trans_lt (by omega), hhtL.trans_le hchild_ht,
               hclo_q, by omega, hsep_chi.trans_le (hchi_le.trans hhi.le), hvL⟩
         obtain ⟨hS, hR, hM, hV, hI⟩ :=
           descendSplitLoop_succ (f := f) hsafe1 hstep

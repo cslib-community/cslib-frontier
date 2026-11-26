@@ -241,10 +241,8 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
       hslot hcpl.tailDenseInv htot zero_lt_one hu₀_lt
   have hv_ro : (Memory.spec w).ValidHistory (memoryState mFr x₇.toData)
       ((Memory.spec w).clientHistory (memoryState mFr x₇.toData)
-        (readOldItemKeyValGenProg d_ro)) := by
-    have hwf₇ : Memory.WellFormed w (memoryState mFr x₇.toData) := wellFormed_memoryState hx₇b.1
-    rw [hms₇] at hwf₇ ⊢
-    exact hvp_ro ⟨hwf₇, Nat.zero_le _⟩
+        (readOldItemKeyValGenProg d_ro)) :=
+    hms₇.symm ▸ hvp_ro ⟨hms₇ ▸ wellFormed_memoryState hx₇b.1, Nat.zero_le _⟩
   obtain ⟨y, hex_ro, hyb, hyf, hm_ro, hout_reg_ro, hframe_ro⟩ :=
     execWitness wReadOldKV factor_wReadOldKV_le mFr srcReadOldKV tmpReadOldKV
       tmpReadOldKV_inj srcReadOldKV_ne_tmp tmpReadOldKV_ne_mFr srcReadOldKV_ne_mFr
@@ -471,21 +469,16 @@ theorem deleteLastOneCode_demonicExec {U V w N n_init base : ℕ}
     have hex_nop := RDemonicExec.copy (B := .exact) (w := w) (L_peak := x.frontier)
       (d := mZero) (s := mZero) (x := y) hyf.le
     set z := y.set mZero (y.regs mZero)
-    have hzb : z.Bounded w := hyb.set (hyb.regs_fits mZero)
     have hs_same : Function.update s_abs u none = s_abs :=
       Function.update_eq_self_iff.mpr (Option.not_isSome_iff_eq_none.mp hsome).symm
     have hout_scr : ∀ a, (a < base + offScratch ∨ base + epochHdrWords ≤ a) → z.mem a = x.mem a :=
       fun a ha => hy_mem a (by unfold offScratch epochHdrWords at ha; omega)
-    have hsplit_z : CompactedSplitRep base (base + offCompItems U w N) U V w N 1 n_init θ s_abs
-        ⟨z.mem, z.frontier⟩ :=
-      compactedSplitRep_of_scratch_mod hw hsplit hyf hout_scr
-    have hpot_eq : inEpochPotential U w N base z = inEpochPotential U w N base x := by
-      simp only [inEpochPotential, compGmAt_eq_of_scratch_mod hw hout_scr]
     refine ⟨z, _, hex_r.seq_eq (RDemonicExec.branch_neg hnc_eq hex_nop),
-      hzb, by simp [z, RData.set, hy_base],
+      hyb.set (hyb.regs_fits mZero), by simp [z, RData.set, hy_base],
       fun addr haddr => hy_mem addr (fun h => by linarith only [haddr, h.1]), ?_⟩
     rw [ite_eq_right hsome]
-    refine ⟨hs_same, hyf.trans hfr, hsplit_z, hpot_eq, ?_⟩
+    refine ⟨hs_same, hyf.trans hfr, compactedSplitRep_of_scratch_mod hw hsplit hyf hout_scr,
+      by simp only [inEpochPotential, compGmAt_eq_of_scratch_mod hw hout_scr], ?_⟩
     unfold deleteLastOneCharge
     linarith only [hc_r, hf1]
 

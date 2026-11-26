@@ -142,11 +142,8 @@ private theorem stateOptions_iff (hK : 0 < K) {i e : Q} {q : Fin (K + 1) → Q} 
     (∀ a, q a ∈ stateOptions i e a) ↔ q 0 = i ∧ q (Fin.last K) = e := by
   have h0 : Fin.last K ≠ 0 := fun h => by simp [Fin.ext_iff] at h; omega
   constructor
-  · intro h
-    have h1 := h 0
-    have h2 := h (Fin.last K)
-    simp only [stateOptions, h0, ↓reduceIte, List.mem_singleton] at h1 h2
-    exact ⟨h1, h2⟩
+  · refine fun h => ⟨by simpa [stateOptions] using h 0, ?_⟩
+    simpa [stateOptions, h0] using h (Fin.last K)
   rintro ⟨h1, h2⟩ a
   unfold stateOptions
   split_ifs with ha ha' <;> simp [*]
@@ -221,15 +218,10 @@ private theorem sum_countSteps (hU0 : U0 < D) {st : PlanName S M U0 U1 pS → Tr
   · simp
   · obtain ⟨a1, a2⟩ := a
     simp only [Codes.countOption, List.mem_cons] at hb
-    rcases hb with rfl | rfl | rfl | hb
-    · simp [own3, val3]
-    · simp [own3, val3]
-    · simp [own3, val3]
-    · split_ifs at hb with h
-      · simp only [List.mem_singleton] at hb
-        subst hb h
-        simp [own3, val3]
-      · simp at hb
+    split_ifs at hb with h
+    · subst h
+      rcases hb with rfl | rfl | rfl | hb <;> simp_all [own3, val3]
+    · rcases hb with rfl | rfl | rfl | hb <;> simp_all [own3, val3]
   · cases x <;> simp_all [own3, Codes.countOption] <;> subst hx <;> simp
 
 private def own4 : PlanName S M U0 U1 pS → Option M.Channel

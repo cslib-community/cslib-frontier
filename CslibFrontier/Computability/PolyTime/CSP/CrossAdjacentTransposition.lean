@@ -183,14 +183,14 @@ theorem recover_transposeAdjacent (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   let J := (rotateRight^[R.length]) I
   have hf := positioned_fields g w F L x y R c
   have hj := positioned_state F L x y R c
-  have hrec := recover_transposeTail g w F (R ++ L) x y J.rotation τ (by rwa [← hj, ← hf.1])
-  refine ⟨hrec.1, ?_⟩
-  have hrec2 := hrec.2
+  obtain ⟨hrec1, hrec2⟩ := recover_transposeTail g w F (R ++ L) x y J.rotation τ
+    (by rwa [← hj, ← hf.1])
   rw [ports_transposeTail, List.map_append, List.map_map] at hrec2
   obtain ⟨h5, h7⟩ : τ 5 = τ (2 * y) ∧ τ 7 = τ (2 * x) := by
     simpa using List.append_cancel_left hrec2
-  rw [ports_transposeAdjacent]
-  simp [Function.comp_def, h5, h7]
+  refine ⟨hrec1, ?_⟩
+  simpa [Function.comp_def, h5, h7] using
+    congrArg (List.map τ) (ports_transposeAdjacent g w F L x y R c)
 
 /-- Exact extension at a valid selected pair. The fresh output word carries `y,x`, and
 all old even names, including unused names, agree with the original assignment. -/
@@ -219,9 +219,7 @@ theorem eval_transposeAdjacent_iff (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
 theorem wellFormed_transposeAdjacent_iff (I : State Rel) (j : ℕ) :
     (transposeAdjacent g w I j).body.WellFormed ar ↔ I.body.WellFormed ar := by
   unfold transposeAdjacent
-  split_ifs
-  · rw [left_body, wellFormed_transposeTail_iff, right_body]
-  · rfl
+  split_ifs <;> simp [left_body, wellFormed_transposeTail_iff, right_body]
 
 /-- Rows, occurrences and port counts for a valid positioned operation. These are
 one-operation bounds, not an accumulated routing/iteration certificate. -/
@@ -259,16 +257,15 @@ theorem counts_transposeAdjacent (I : State Rel) (j : ℕ) :
     (transposeAdjacent g w I j).ports.length = I.ports.length := by
   dsimp only
   by_cases h : j + 1 < I.ports.length
-  · rw [ite_eq_left h]
-    obtain ⟨L, x, y, R, hL, hI⟩ := split_valid I j h
+  · obtain ⟨L, x, y, R, hL, hI⟩ := split_valid I j h
     have hc := counts_valid g w I.body L x y R I.rotation
-    rw [hL, ← hI] at hc
     have hp : I.ports.length = j + 2 + R.length := by
-      rw [hI]
-      simp only [List.length_append, List.length_cons, List.length_nil, hL]
-    simpa only [one_mul, ← hp] using hc
-  · rw [transposeAdjacent_invalid g w I j (by omega), ite_eq_right h]
-    simp
+      simpa only [List.length_append, List.length_cons, List.length_nil, hL] using
+        congrArg (fun S => S.ports.length) hI
+    rw [hL, ← hI] at hc
+    simpa only [ite_eq_left h, one_mul, ← hp] using hc
+  · rw [transposeAdjacent_invalid g w I j (by omega)]
+    simp [h]
 
 /-- Each successful request appends the fixed template's relation-symbol word after all
 old rows; invalid requests preserve the word exactly. This includes arbitrary encoded Rel. -/
@@ -276,9 +273,10 @@ theorem relations_transposeAdjacent (I : State Rel) (j : ℕ) :
     (transposeAdjacent g w I j).body.map Constraint.rel = I.body.map Constraint.rel ++
       (if j + 1 < I.ports.length then g.body.map Constraint.rel else []) := by
   by_cases h : j + 1 < I.ports.length
-  · rw [transposeAdjacent, ite_eq_left h, left_body, relations_transposeTail, right_body]
-    rw [right_ports, List.length_reverse, List.length_rotate, List.length_reverse]
-    simp only [show ¬I.ports.length < 2 from by omega, h, ↓reduceIte]
+  · have hlt2 : ¬I.ports.length < 2 := by omega
+    rw [transposeAdjacent, ite_eq_left h, left_body, relations_transposeTail, right_body,
+      right_ports]
+    simp [hlt2, h]
   · rw [transposeAdjacent_invalid g w I j (by omega), ite_eq_right h, List.append_nil]
 
 /-- One positioned operation adds at most one bit to old names. Rotations preserve
@@ -492,10 +490,8 @@ theorem computableInPolyTime_transposeAdjacent (encRel : Rel ↪ List Bool) :
   have hguard := ComputableInPolyTime.binary_lt'
     (ComputableInPolyTime.binary_add' hj (ComputableInPolyTime.const 1))
     (ComputableInPolyTime.unary_to_binary.comp hP)
-  apply (ComputableInPolyTime.ite_decide hguard hpost hI).of_enc_eq
-  intro p
-  apply congrArg (encState encRel)
-  rcases p with ⟨I, j⟩
+  refine (ComputableInPolyTime.ite_decide hguard hpost hI).of_enc_eq fun ⟨I, j⟩ =>
+    congrArg (encState encRel) ?_
   have hr : I.ports.length - min I.ports.length (j + 2) = I.ports.length - (j + 2) := by omega
   have hle : I.ports.length - (j + 2) ≤ I.ports.length := Nat.sub_le _ _
   have hp := (loop_components encRel true I (I.ports.length - (j + 2))).2.1.length_eq
@@ -571,9 +567,8 @@ theorem storage_transposeAdjacent (I : State Rel) (j : ℕ) (h : j + 1 < I.ports
   have hs := normalized_loop_storage false H r B
     (by simpa only [hpJ, hpH] using ht.1)
     (by simpa only [J, right_body, hpJ] using ht.2) hb
-  rw [show (turn false : State Rel → State Rel) = rotateLeft from rfl] at hs
-  rw [hout]
-  refine ⟨?_, hs.2.2.2⟩
-  simpa only [turn, Bool.false_eq_true, ↓reduceIte, hmH, hpH] using hs.2.2.1
+  have hturn : (turn false : State Rel → State Rel) = rotateLeft := rfl
+  rw [hturn] at hs
+  exact hout ▸ ⟨by simpa only [hmH, hpH] using hs.2.2.1, hs.2.2.2⟩
 
 end Cslib.Complexity.CSP.CrossInsertion

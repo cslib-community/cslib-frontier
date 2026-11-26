@@ -132,8 +132,6 @@ theorem delMoveBufGenProg_fastStep {c U V w n_max base b loc_del st_last rKey_la
     memoryCost prog s ≤ 20 * cTabWhp c + 24 ∧
     ValidProg w (base + largeSpaceWhp c U V w n_max) s prog ∧
     FastStateStep base c U V w n_max θ { fs with buf := buf2 } s s' := by
-  intro prog s' buf2
-  dsimp only [prog, s', buf2]
   unfold delMoveBufGenProg
   simp only [pure_bind]
   split_ifs with hs2 hs3
@@ -259,9 +257,7 @@ theorem delCopySlotGenProg_fastStep
       fs.valArr (fs.physSlot n_max b loc_last)))
   obtain ⟨hwl_mc, hwl_vp, hwl_step⟩ :=
     writeFastLocGenProg_fastStep henv hb hld hst_lt hwv_step.2.1 hwv_step.2.2.1 (s := s2)
-  dsimp only
   unfold delCopySlotGenProg
-  dsimp only
   exact CostBoundedStep.elim
     (.bind ⟨hps1_st, hps1_res, hps1_mc, hps1_vp⟩ <|
       .bind ⟨hps2_st, hps2_res, hps2_mc, hps2_vp⟩ <|

@@ -585,12 +585,8 @@ private theorem bakeryStepShape_of_step [Fintype P] [LinearOrder P]
       · rename_i hnrem; subst htr
         rw [Finset.not_nonempty_iff_eq_empty, Finset.sdiff_eq_empty_iff_subset] at hnrem
         exact .pollNumCS p val _ _ hph hsafe hnspin fun x => hnrem (Finset.mem_univ x)
-  | fail p =>
-    simp only [bakeryStep?, Option.some.injEq] at htr
-    subst htr; exact .fail p
-  | stutter =>
-    simp only [bakeryStep?, Option.some.injEq] at htr
-    subst htr; exact .stutter
+  | fail p => exact Option.some.inj htr ▸ .fail p
+  | stutter => exact Option.some.inj htr ▸ .stutter
 
 private theorem bakeryActorStep_of_step [Fintype P] [LinearOrder P]
     {s s' : BakeryState P} {μ : BakeryAction P} {q : P}
@@ -733,13 +729,9 @@ private theorem localInv_preserved [Fintype P] [LinearOrder P]
     | pollChSpin _ ch tg hph => simp [localPhaseInv, hph, (hinv i).waitL2 ch tg hph]
     | pollChPass _ ch tg hph => simp [localPhaseInv, (hinv i).waitL2 ch tg hph]
     | pollNumSpin _ _ ch tg hph => simp [localPhaseInv, hph, (hinv i).waitL3 ch tg hph]
-    | pollNumNext _ _ ch tg tg' hph _ _ hnot =>
-      obtain ⟨hch, hpos, _⟩ := (hinv i).waitL3 ch tg hph
-      unfold localPhaseInv; dsimp only; rw [Function.update_self]
-      exact ⟨hch, hpos, hnot⟩
-    | pollNumCS _ _ ch tg hph =>
-      obtain ⟨hch, hpos, _⟩ := (hinv i).waitL3 ch tg hph
-      simp [localPhaseInv, hch, hpos]
+    | pollNumNext _ _ ch tg _ hph _ _ hnot =>
+      simp [localPhaseInv, (hinv i).waitL3 ch tg hph, hnot]
+    | pollNumCS _ _ ch tg hph => simp [localPhaseInv, (hinv i).waitL3 ch tg hph]
     | exit _ hph => simp [localPhaseInv, ((hinv i).cs hph).1]
     | finishReset _ hph => simp [localPhaseInv, (hinv i).writeNumberZero hph]
   · obtain ⟨hph, hch, hnum⟩ := step_actor_frame htr hact
@@ -770,7 +762,6 @@ private theorem bakeryInv_step [Fintype P] [LinearOrder P]
       | pollChSpin | pollNumSpin => exact hinv.l2_scan i k hik hp2'
       | pollChPass _ checked target hph hsafe =>
         simp only [passedL2, Function.update_self] at hp2'
-        dsimp only at hph_k ⊢
         rw [hph_k]
         rcases hp2' with hmem | rfl
         · exact hinv.l2_scan i k hik (by simp [passedL2, hph, hmem])
@@ -781,11 +772,9 @@ private theorem bakeryInv_step [Fintype P] [LinearOrder P]
               ((hinv.local_inv target).writeNumber nt hwn).1] at hsafe
       | pollNumNext _ _ checked target _ hph =>
         simp only [passedL2, Function.update_self, Finset.mem_insert] at hp2'
-        dsimp only at hph_k ⊢
         rw [hph_k]
         exact hinv.l2_scan i k hik (by simpa [passedL2, hph, eq_comm, or_comm] using hp2')
       | pollNumCS _ _ checked target hph _ _ hall =>
-        dsimp only at hph_k ⊢
         rw [hph_k]
         exact hinv.l2_scan i k hik
           (by simpa [passedL2, hph, eq_comm, or_comm] using Finset.mem_insert.mp (hall k))
@@ -866,9 +855,8 @@ private theorem bakeryInv_step [Fintype P] [LinearOrder P]
           simp [BakeryState.inBakery, BakeryState.inWaiting, BakeryState.inCS,
             BakeryPhase.isWaiting] at hk_in'
       · obtain ⟨hph_k, _, hnum_k⟩ := step_actor_frame htr hact_k
-        have hk_in : s.phase k = .writeChoosingFalse ∨ s.inBakery k := by
-          rwa [hph_k, inBakery_congr hph_k] at hk_in'
-        simpa [BakeryState.ticket, hnum_i, hnum_k] using hinv.l3_ticket i k hik hp3 hk_in
+        rw [hph_k, inBakery_congr hph_k] at hk_in'
+        simpa [BakeryState.ticket, hnum_i, hnum_k] using hinv.l3_ticket i k hik hp3 hk_in'
 
 private theorem BakeryState.Reachable.bakeryInv [Fintype P] [LinearOrder P] {s : BakeryState P}
     (hr : s.Reachable) : BakeryInv s := by

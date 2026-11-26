@@ -203,37 +203,32 @@ private theorem solveAuctionProg_spec {w maxMag : ℕ} (a : SolveArgs)
       (auction_free (Nat.cast_pos.mpr hε)) s₄ hws₄ ham_core hf1 hfit_ws
   dsimp only [ws₀] at hmc_core hout_scat
   rw [hs_eq] at hmc_core hout_scat
-  have hsafe_solve : SolveAuctionSafe w a s₀ := by
-    unfold SolveAuctionSafe
-    dsimp only
+  refine ⟨?_, ?_, ?_, ?_⟩
+  · dsimp only [SolveAuctionSafe]
     rw [hs₂_eq]
     exact ⟨hf1, hf_fr1.of_le (by dsimp only [s₁, base]; omega),
       hf_fr1.of_le (by dsimp only [s₁, base]; omega),
       hfit_ws.of_le (by dsimp only [ws₀]; omega),
       hsafe_scan, hsafe_fill, hsafe_core, hsafe_scat⟩
-  dsimp only [s₁, base] at hs₂_eq
-  have hres_solve : (Memory.spec 0).clientResult s₀ (solveAuctionProg a) = ws₀ := by
-    dsimp only [solveAuctionProg]
-    rw [clientResult_bind, clientResult_allocDirty, clientState_allocDirty, clientResult_bind,
-      hs₂_eq, clientResult_bind, clientResult_bind, clientResult_bind, clientResult_pure]
-  have hst_solve : (Memory.spec 0).clientState s₀ (solveAuctionProg a) =
-      (Memory.spec 0).clientState s₄ (scatterProg ws₀) := by
-    dsimp only [solveAuctionProg]
-    rw [clientState_bind, clientResult_allocDirty, clientState_allocDirty, clientState_bind,
-      hs₂_eq, clientState_bind, clientState_bind, clientState_bind, clientState_pure]
-  refine ⟨hsafe_solve, ?_, ?_, ?_⟩
   · dsimp only [solveAuctionProg]
     refine validHistory_allocDirty_bind hf_fr1 (validHistory_bind_step hv_scan ?_)
+    dsimp only [s₁, base] at hs₂_eq
     rw [hs₂_eq]
     exact validHistory_bind_step hv_fill (validHistory_bind_step hv_core
       (validHistory_bind_step hv_scat (validHistory_pure w _ _)))
-  · dsimp only [solveAuctionProg]
+  · dsimp only [s₁, base] at hs₂_eq
+    dsimp only [solveAuctionProg]
     rw [memoryCost_bind', memoryCost_allocDirty, clientResult_allocDirty, clientState_allocDirty,
       memoryCost_bind', hs₂_eq, memoryCost_bind', memoryCost_bind', memoryCost_bind',
       memoryCost_pure]
     dsimp only [ws₀, M, s₁, base, s₃, s₄] at hmc_scan hmc_fill hmc_core hmc_scat ⊢
     omega
-  · rw [hres_solve, hst_solve]
+  · dsimp only [s₁, base] at hs₂_eq
+    dsimp only [solveAuctionProg]
+    rw [clientResult_bind, clientResult_allocDirty, clientState_allocDirty, clientResult_bind,
+      hs₂_eq, clientResult_bind, clientResult_bind, clientResult_bind, clientResult_pure,
+      clientState_bind, clientResult_allocDirty, clientState_allocDirty, clientState_bind,
+      hs₂_eq, clientState_bind, clientState_bind, clientState_bind, clientState_pure]
     exact ⟨hws₄.of_frontier_eq hfr_scat, rfl, rfl, hM_le, hM_ge, hC_scat, hout_scat, hfit_ws⟩
 
 public section
@@ -347,14 +342,13 @@ theorem scaledSolveProg_spec {w C : ℕ} (inst : Instance)
   have hf1 : Fits w 1 := hw.of_le (by unfold Instance.wordBound; nlinarith)
   have hfn1 : Fits w (inst.n + 1) := hw.of_le (by unfold Instance.wordBound; nlinarith)
   have hf2 : Fits w 2 := hw.of_le (by unfold Instance.wordBound; nlinarith)
-  have hsolve := solveAuctionProg_spec (w := w) (maxMag := inst.maxMag) a
-    (s₀ := Memory.State.init inst.encode) Nat.one_pos (Nat.le_add_left 1 inst.n)
-    (by change inst.encode.length + 1 = _; dsimp only [a]; rw [inst.encode_length]; omega)
-    (init_mem_cost_instance inst) inst.natAbs_cost_le_maxMag hf2
-    (hw.of_le (by dsimp only [a]; unfold Instance.wordBound; nlinarith))
-    (hw.of_le (by dsimp only [a]; unfold Instance.wordBound; nlinarith))
   obtain ⟨hsafe_s, hv_s, hmc_s, hws_s, hws_n, hws_sc, hM_le, hM_ge, hC_s, hout_s, hfit_ws⟩ :=
-    hsolve
+    solveAuctionProg_spec (w := w) (maxMag := inst.maxMag) a
+      (s₀ := Memory.State.init inst.encode) Nat.one_pos (Nat.le_add_left 1 inst.n)
+      (by simp only [Memory.State.init, a, inst.encode_length]; omega)
+      (init_mem_cost_instance inst) inst.natAbs_cost_le_maxMag hf2
+      (hw.of_le (by dsimp only [a, Instance.wordBound]; nlinarith))
+      (hw.of_le (by dsimp only [a, Instance.wordBound]; nlinarith))
   have hsc_eq :
       auction (fun e => ((inst.n + 1 : ℕ) : ℤ) * inst.cost e) ((1 : ℕ) : ℤ) =
         scaledAuction inst.cost := by

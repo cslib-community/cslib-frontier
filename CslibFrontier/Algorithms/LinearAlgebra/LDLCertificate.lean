@@ -231,9 +231,7 @@ theorem trace_ofLists [AddCommMonoid α] (n : ℕ) (rows : List (List α)) :
   | succ n ih =>
     rw [rowsTrace, ← ih, trace, trace, Fin.sum_univ_succ]
     congr 1
-    · rcases rows with _ | ⟨r, rows⟩
-      · simp [ofLists_apply, ofList_apply]
-      · cases r <;> simp [ofLists_apply, ofList_apply]
+    · rcases rows with _ | ⟨_ | _, _⟩ <;> simp [ofLists_apply, ofList_apply]
     · refine Finset.sum_congr rfl fun i _ => ?_
       simp only [diag_apply, ofLists_apply, ofList_apply, Fin.val_succ, getD_map_tail,
         getD_tail]
@@ -304,16 +302,14 @@ theorem map_ofLists_scaleRow {m n s : ℕ} {A : List (List ℚ)} (hs : ∀ q ∈
     (ofLists m n (A.map (scaleRow s))).map ((↑) : ℤ → ℚ) = (s : ℚ) • ofLists m n A := by
   ext i j
   have hrow : (A.map (scaleRow s)).getD i [] = scaleRow s (A.getD i []) := by
-    simp only [List.getD_eq_getElem?_getD, List.getElem?_map]
-    cases A[(i : ℕ)]? <;> rfl
+    cases hA : A[(i : ℕ)]? <;> simp [List.getD_eq_getElem?_getD, scaleRow, hA]
   have hs' : ∀ q ∈ A.getD i [], q.den ∣ s := by
-    intro q hq
     rcases Nat.lt_or_ge i A.length with hi | hi
-    · rw [List.getD_eq_getElem _ _ hi] at hq
-      exact hs q (List.mem_flatten.2 ⟨_, List.getElem_mem hi, hq⟩)
-    · simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none hi] at hq
-  simp only [map_apply, Matrix.smul_apply, smul_eq_mul, ofLists_apply, ofList_apply]
-  rw [hrow, cast_getD_scaleRow hs']
+    · exact fun q hq => hs q (List.mem_flatten.2 ⟨_, List.getElem_mem hi,
+        by rwa [List.getD_eq_getElem _ _ hi] at hq⟩)
+    · simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none hi]
+  simp only [map_apply, Matrix.smul_apply, smul_eq_mul, ofLists_apply, ofList_apply, hrow,
+    cast_getD_scaleRow hs']
 
 /-! ### `LDLᵀ` certificates -/
 
@@ -517,19 +513,16 @@ private theorem scaledLowerCheck_iff {β : Type*} [Zero β] {num : β → ℤ} {
         rowDot (List.zipWith (· * ·) (scaleRow (denLcm c.lower[(i : ℕ)]) c.lower[(i : ℕ)])
             (scaleRow (denLcm c.diag) c.diag))
             (scaleRow (denLcm c.lower[(j : ℕ)]) c.lower[(j : ℕ)]) * den rows[(i : ℕ)][(j : ℕ)] ↔
-        v i j = (c.L n * diagonal (c.d n) * (c.L n)ᵀ) i j := by
-    intro i j hi hj hi' hj'
-    have := key i j
-    rwa [List.getD_eq_getElem _ _ hi, List.getD_eq_getElem _ _ hj, List.getD_eq_getElem _ _ hi',
-      List.getD_eq_getElem _ _ hj'] at this
+        v i j = (c.L n * diagonal (c.d n) * (c.L n)ᵀ) i j := fun i j hi hj hi' hj' => by
+    simpa only [List.getD_eq_getElem _ _ hi, List.getD_eq_getElem _ _ hj,
+      List.getD_eq_getElem _ _ hi', List.getD_eq_getElem _ _ hj'] using key i j
   constructor
   · intro h i j hji
     have hi : (i : ℕ) < rows.length := hrows ▸ i.is_lt
     have hj : (j : ℕ) < rows[(i : ℕ)].length := (hrow _ (List.getElem_mem hi)).symm ▸ j.is_lt
     have hi' : (i : ℕ) < c.lower.length := hlen ▸ i.is_lt
-    have hji' : (j : ℕ) ≤ i := hji
     exact (hkey i j hi hj hi' (hlen ▸ j.is_lt)).1
-      (h i hi hi' j (by rw [hrowlen i hi']; omega) (hlen ▸ j.is_lt))
+      (h i hi hi' j ((hrowlen i hi').symm ▸ lt_min (Nat.lt_succ_of_le hji) hj) (hlen ▸ j.is_lt))
   · intro h i hi hi' j hj hj'
     rw [hrowlen i hi'] at hj
     have hn : i < n := hlen ▸ hi'
@@ -551,10 +544,7 @@ private theorem eq_of_factorsLower {β : Type*} [Zero β] {num : β → ℤ} {de
   ext i j
   rcases le_total j i with hji | hij
   · exact hlow i j hji
-  · have h₁ := congrFun (congrFun hsymm i) j
-    have h₂ := congrFun (congrFun c.transpose_LDLt i) j
-    rw [transpose_apply] at h₁ h₂
-    rw [← h₁, hlow j i hij, h₂]
+  · rw [← transpose_apply v, hsymm, hlow j i hij, ← transpose_apply (_ * _), c.transpose_LDLt]
 
 /-- An accepted witness factors the matrix: `M = L * diagonal d * Lᵀ` over `ℚ`. -/
 theorem eq_of_factors {rows : List (List ℚ)} (h : c.factors n rows = true) :
@@ -810,26 +800,21 @@ theorem posDef_of_check {c : LyapunovCert} {n : ℕ} {A P : List (List ℚ)}
   have hσ : 0 < lyapunovScale A P := Nat.mul_pos (denLcm_pos _) (denLcm_pos _)
   -- the residual is symmetric because `P` is
   have hPs : (ofLists n n P)ᵀ = ofLists n n P := by
-    have := c.P.eq_of_factors (by simp only [LDLCert.checkPosDef, Bool.and_eq_true] at hP
-                                  exact hP.1)
-    rw [this, LDLCert.transpose_LDLt]
+    rw [c.P.eq_of_factors (Bool.and_eq_true_iff.1 hP).1, LDLCert.transpose_LDLt]
   have hsymm : Rᵀ = R := by
     rw [hR, ofLists_lyapunovResidual, transpose_neg, transpose_add, transpose_mul,
       transpose_mul, transpose_transpose, hPs, add_comm]
   -- the integer rows give `σ • R`
-  have hval : ∀ i j : Fin n, (((scaledLyapunovResidual n A P).getD i []).getD j 0 : ℚ) =
+  have hval (i j : Fin n) : (((scaledLyapunovResidual n A P).getD i []).getD j 0 : ℚ) =
       R i j * lyapunovScale A P := by
-    intro i j
-    have := congrFun (congrFun (map_ofLists_scaledLyapunovResidual n A P) i) j
-    simp only [map_apply, Matrix.smul_apply, smul_eq_mul, ofLists_apply, ofList_apply] at this
-    rw [this, mul_comm, hR, ofLists_apply, ofList_apply]
+    simpa only [map_apply, Matrix.smul_apply, smul_eq_mul, ofLists_apply, ofList_apply, hR,
+      mul_comm] using congrFun (congrFun (map_ofLists_scaledLyapunovResidual n A P) i) j
   have hM := c.Q.eq_of_factorsLower (num := id) (den := fun _ => lyapunovScale A P)
     (rows := scaledLyapunovResidual n A P) (fun i j => by simpa only [id] using hval i j)
     (fun _ _ => hσ) hsymm hQ
   have hs := c.Q.shape_of_factorsLower hQ
   have hQpos := c.Q.posDef_of_eq hs.1 hs.2.1 hs.2.2 hd hM
-  rw [hR, ofLists_lyapunovResidual] at hQpos
-  rwa [Matrix.map_neg _ Rat.cast_neg, Matrix.map_add _ Rat.cast_add,
+  rwa [hR, ofLists_lyapunovResidual, Matrix.map_neg _ Rat.cast_neg, Matrix.map_add _ Rat.cast_add,
     Matrix.map_mul_ratCast, Matrix.map_mul_ratCast, transpose_map] at hQpos
 
 end LyapunovCert

@@ -827,17 +827,15 @@ theorem hasBackwardInductionDominance_gradualReleaseGame (R : ReconstructionGame
         rampPayoffFrom_pivotal_self R q hiS hScard mSuccFin]
       exact hpiv m hm
   · -- Part 2: No `r ≤ m` is weakly dominated on `Rset`.
-    rintro ⟨r', hr'_mem, hdom⟩
-    have hr'le : r'.val ≤ m + 1 := hr'_mem
+    rintro ⟨r', hr'le, hdom⟩
     obtain ⟨S, hiS, hScard⟩ := R.exists_pivotal_opponents i
     have hrT : r.val < T := by omega
     let rSucc : Fin (T + 1) := ⟨r.val + 1, by omega⟩
     let s := pivotalCutoffProfile S rSucc
     have hs_mem : ∀ j, s j ∈ Rset j := fun j => by
-      simp only [s, pivotalCutoffProfile, Rset, Set.mem_ofPred_eq]
-      split_ifs
-      · dsimp [rSucc]; omega
-      · simp
+      by_cases hj : j ∈ S <;> simp only [s, pivotalCutoffProfile, hj, ↓reduceIte, Rset,
+        Set.mem_ofPred_eq, rSucc, Fin.val_zero, zero_le]
+      omega
     have hcmp := hdom.1 s hs_mem
     dsimp only [gradualReleaseGame] at hcmp
     rw [rampPayoffFrom_pivotal_withhold R q hiS hScard (a := r) hrT (Nat.lt_succ_self r.val)]
@@ -896,16 +894,11 @@ theorem hasBackwardInductionDominance_uniformRampGame (R : ReconstructionGame ι
   rcases Nat.eq_zero_or_pos T with rfl | hT
   · intro m hm
     exact absurd hm (Nat.not_lt_zero m)
-  · refine R.hasBackwardInductionDominance_gradualReleaseGame (fun m => ?_) (fun a b hab => ?_)
-      (fun _ => ?_)
-    · positivity
-    · exact div_lt_div_of_pos_right
-        (by linarith [show (a.val : ℝ) < (b.val : ℝ) from Nat.cast_lt.mpr hab])
-        (Nat.cast_pos.mpr hT)
-    · have hcast : ((T - 1 : ℕ) : ℝ) + 1 = (T : ℝ) := by
-        exact_mod_cast Nat.sub_add_cancel hT
-      rw [hcast]
-      exact div_self (Nat.cast_ne_zero.mpr hT.ne')
+  · refine R.hasBackwardInductionDominance_gradualReleaseGame (fun _ => by positivity)
+      (fun a b hab => div_lt_div_of_pos_right (add_lt_add_left (Nat.cast_lt.mpr hab) 1)
+        (Nat.cast_pos.mpr hT)) fun _ => ?_
+    have hcast : ((T - 1 : ℕ) : ℝ) + 1 = (T : ℝ) := by exact_mod_cast Nat.sub_add_cancel hT
+    rw [hcast, div_self (Nat.cast_ne_zero.mpr hT.ne')]
 
 /-- **Unconditional `T`-round `IDoWDS` collapse for `uniformRampGame`**: for every `T : ℕ` and
 every `(t, n)` reconstruction game (`2 ≤ t ≤ n`), `(R.uniformRampGame T).idowdsIter T = fun _ =>
@@ -931,8 +924,7 @@ theorem payoff_knownHorizonGame_eq_uMinus_of_mem_idowdsIter_one (R : Reconstruct
         ((R.knownHorizonGame T).idowdsIter 0) j (s j) :=
       ((PayoffGame.mem_idowdsIter_succ_iff (G := R.knownHorizonGame T) (k := 0)).mp (hs j)).2
     by_contra hgt
-    have hj_last : s j = Fin.last T := by
-      ext; dsimp [Fin.last]; omega
+    have hj_last : s j = Fin.last T := Fin.ext (by dsimp [Fin.last]; omega)
     rw [hj_last] at hmem
     refine hmem ⟨⟨T - 1, by omega⟩, by rw [PayoffGame.idowdsIter_zero]; exact Set.mem_univ _,
       ⟨fun s' _ => ?_, ?_⟩⟩
@@ -967,17 +959,16 @@ theorem payoff_knownHorizonGame_eq_uMinus_of_mem_idowdsIter_one (R : Reconstruct
   induction hdiff : (T - 1) - r generalizing r with
   | zero =>
     obtain rfl : r = T - 1 := by omega
-    have hempty : roundActive s (T - 1) = ∅ := by
-      ext j
-      simp [roundActive, hnot_last j]
+    have hempty : roundActive s (T - 1) = ∅ :=
+      Finset.eq_empty_iff_forall_notMem.mpr fun j => by simp [roundActive, hnot_last j]
     rw [rampPayoffFrom_of_roundActive_eq_empty R qK i hempty, ite_eq_left hm]
   | succ d ih =>
     have hrT : r < T := by omega
     by_cases hcard : R.threshold ≤ (roundActive s r).card
     · rw [rampPayoffFrom_lt_pos R qK s i hrT hcard]
       exact ih (r + 1) (by omega) (by omega)
-    · rw [rampPayoffFrom_lt_neg R qK s i hrT hcard,
-        show qK ⟨r, hrT⟩ = 0 from ite_eq_right (by dsimp; omega)]
+    · have hq0 : qK ⟨r, hrT⟩ = 0 := ite_eq_right (by dsimp; omega)
+      rw [rampPayoffFrom_lt_neg R qK s i hrT hcard, hq0]
       ring
 
 /-! ### Stage analysis of the randomized geometric-termination protocol -/
@@ -1025,13 +1016,10 @@ private theorem geometricStageGame_update_false_le (p : ℝ) (hp0 : 0 ≤ p) (i 
 theorem honest_isPureNash_geometricStageGame {p : ℝ} (hp0 : 0 ≤ p)
     (hp : p ≤ R.prefs.criticalStoppingProb) :
     (R.geometricStageGame p).IsPureNash (fun _ => true) := by
-  have htrue : ∀ i, (R.geometricStageGame p).payoff i (fun _ => true) = R.prefs.uAll := fun i => by
-    simp [geometricStageGame_payoff]
   intro i b
   cases b
-  · rw [htrue i]
-    exact (R.geometricStageGame_update_false_le p hp0 i).trans
-      (R.prefs.temptation_le_uAll_iff.mpr hp)
+  · simpa only [geometricStageGame_payoff, implies_true, ↓reduceIte] using
+      (R.geometricStageGame_update_false_le p hp0 i).trans (R.prefs.temptation_le_uAll_iff.mpr hp)
   · simp [Function.update_eq_self]
 
 /-- For `0 ≤ p < criticalStoppingProb`, honest simultaneous broadcast (`fun _ => true`) is a
@@ -1040,13 +1028,11 @@ game (`2 ≤ t ≤ n`). -/
 theorem honest_isStrictPureNash_geometricStageGame {p : ℝ} (hp0 : 0 ≤ p)
     (hp : p < R.prefs.criticalStoppingProb) :
     (R.geometricStageGame p).IsStrictPureNash (fun _ => true) := by
-  have htrue : ∀ i, (R.geometricStageGame p).payoff i (fun _ => true) = R.prefs.uAll := fun i => by
-    simp [geometricStageGame_payoff]
   intro i b hb
   cases b
-  · rw [htrue i]
-    exact (R.geometricStageGame_update_false_le p hp0 i).trans_lt
-      (R.prefs.temptation_lt_uAll_iff.mpr hp)
+  · simpa only [geometricStageGame_payoff, implies_true, ↓reduceIte] using
+      (R.geometricStageGame_update_false_le p hp0 i).trans_lt
+        (R.prefs.temptation_lt_uAll_iff.mpr hp)
   · exact absurd rfl hb
 
 /-- **Exact stage Nash characterization for `n`-out-of-`n`**: when `R.threshold = Fintype.card ι`
@@ -1058,23 +1044,16 @@ theorem honest_isPureNash_geometricStageGame_iff {p : ℝ} (hp0 : 0 ≤ p)
       p ≤ R.prefs.criticalStoppingProb := by
   refine ⟨fun h => ?_, R.honest_isPureNash_geometricStageGame hp0⟩
   obtain ⟨i⟩ := ‹Nonempty ι›
-  have hi := h i false
-  have hall_t : ∀ _ : ι, true = true := fun _ => rfl
   have hnot_all : ¬ ∀ j, Function.update (fun _ : ι => true) i false j = true :=
     fun hall => Bool.false_ne_true (by simpa using hall i)
-  have hB : broadcastSet (Function.update (fun _ : ι => true) i false) = Finset.univ.erase i := by
-    rw [broadcastSet_update_false, broadcastSet_const_true]
-  have hiS : i ∉ Finset.univ.erase i := Finset.notMem_erase i _
   have hcard : (Finset.univ.erase i).card + 1 = R.threshold := by
     rw [Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_univ, hfull]
     have := R.two_le_threshold
     omega
-  obtain ⟨_, heq, _⟩ := R.outcomeUtility_withhold_vs_broadcast hiS
-  obtain ⟨hu0, _⟩ := heq hcard
-  dsimp only [geometricStageGame] at hi
-  split_ifs at hi
-  rw [hB, hu0] at hi
-  exact R.prefs.temptation_le_uAll_iff.mp hi
+  obtain ⟨_, heq, _⟩ := R.outcomeUtility_withhold_vs_broadcast (Finset.notMem_erase i Finset.univ)
+  simpa only [geometricStageGame_payoff, implies_true, hnot_all, ↓reduceIte,
+    broadcastSet_update_false, broadcastSet_const_true, (heq hcard).1,
+    R.prefs.temptation_le_uAll_iff] using h i false
 
 /-- **Stage weak dominance for `n`-out-of-`n`**: when `R.threshold = Fintype.card ι` and `0 ≤ p <
 criticalStoppingProb`, honest broadcast (`true`) weakly dominates withholding (`false`) in

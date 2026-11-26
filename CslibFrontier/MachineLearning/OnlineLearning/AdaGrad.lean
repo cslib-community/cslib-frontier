@@ -187,9 +187,8 @@ private theorem adaGradNorm_step_le {K : Set E} {proj : E → E}
     have hr : 0 < r := sqrt_pos.mpr hpos
     set η := γ / r
     have hη : 0 < η := div_pos hγ hr
-    have hproj : ‖x (t + 1) - u‖ ^ 2 ≤ ‖x t - η • grad t (x t) - u‖ ^ 2 := by
-      rw [show x (t + 1) = proj (x t - η • grad t (x t)) from adaGradNorm_succ _ _ _ _ _ t]
-      exact pow_le_pow_left₀ (norm_nonneg _) (hP.norm_sub_le _ u hu) 2
+    have hproj : ‖x (t + 1) - u‖ ^ 2 ≤ ‖x t - η • grad t (x t) - u‖ ^ 2 :=
+      pow_le_pow_left₀ (norm_nonneg _) (hP.norm_sub_le _ u hu) 2
     have hexp : ‖x t - η • grad t (x t) - u‖ ^ 2 =
         ‖x t - u‖ ^ 2 - 2 * η * ⟪grad t (x t), x t - u⟫ + η ^ 2 * ‖grad t (x t)‖ ^ 2 := by
       rw [show x t - η • grad t (x t) - u = (x t - u) - η • grad t (x t) by abel,
@@ -345,9 +344,7 @@ theorem adaGradNorm_regret_le_sqrt {K : Set E} {proj : E → E} {f : ℕ → E �
     calc √(∑ t ∈ range T, ‖grad t (adaGradNorm proj grad (D / √2) 0 x₀ t)‖ ^ 2)
         ≤ √((T : ℝ) * G ^ 2) := sqrt_le_sqrt hsum
       _ = √(T : ℝ) * √(G ^ 2) := sqrt_mul (Nat.cast_nonneg T) _
-      _ = G * √(T : ℝ) := by
-          rw [sqrt_sq hG0]
-          ring
+      _ = G * √(T : ℝ) := by rw [sqrt_sq hG0]; ring
   calc ∑ t ∈ range T, (f t (adaGradNorm proj grad (D / √2) 0 x₀ t) - f t u)
       ≤ √2 * D * √(∑ t ∈ range T, ‖grad t (adaGradNorm proj grad (D / √2) 0 x₀ t)‖ ^ 2) := h
     _ ≤ √2 * D * (G * √(T : ℝ)) := mul_le_mul_of_nonneg_left hsqrt (by positivity)
@@ -461,8 +458,7 @@ theorem adaGradBox_regret_le {ι : Type*} [Fintype ι] {l r : ι → ℝ} (hlr :
           √(ε + ∑ t ∈ range T, (grad t (x t) i) ^ 2) - γ * √ε) := sum_le_sum fun i _ => hcoord i
     _ = ∑ i : ι, ((r i - l i) ^ 2 / (2 * γ) + γ) *
           √(ε + ∑ t ∈ range T, (grad t (x t) i) ^ 2) - γ * (Fintype.card ι : ℝ) * √ε := by
-        rw [sum_sub_distrib, sum_const, card_univ, nsmul_eq_mul]
-        ring
+        rw [sum_sub_distrib, sum_const, card_univ, nsmul_eq_mul]; ring
 
 /-- **Optimally scaled diagonal `AdaGrad` on an `ℓ∞`-bounded box**: when `r i - l i ≤ D` for
 every coordinate `i : ι` with `D > 0`, choosing `γ = D / √2` gives
@@ -486,9 +482,7 @@ theorem adaGradBox_regret_le_optimal {ι : Type*} [Fintype ι] {l r : ι → ℝ
     have h2 : √(2 : ℝ) * √(2 : ℝ) = 2 := mul_self_sqrt (by norm_num)
     calc (r i - l i) ^ 2 / (2 * (D / √2)) + D / √2
         ≤ D ^ 2 / (2 * (D / √2)) + D / √2 := by gcongr
-      _ = √2 * D := by
-          field_simp
-          nlinarith [h2]
+      _ = √2 * D := by field_simp; nlinarith [h2]
   calc ∑ t ∈ range T, (f t (adaGradBox l r grad (D / √2) ε x₀ t) - f t u)
       ≤ ∑ i : ι, ((r i - l i) ^ 2 / (2 * (D / √2)) + D / √2) *
             √(ε + ∑ t ∈ range T, (grad t (adaGradBox l r grad (D / √2) ε x₀ t) i) ^ 2) -

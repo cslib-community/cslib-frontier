@@ -277,8 +277,7 @@ theorem IsAcyclic.sum_edgeFinset_toSimpleGraph {n : ℕ} {W : Type} [AddCommMono
   obtain ⟨_, hnodup, hloop⟩ := (isAcyclic_iff_toSimpleGraph F).mp hF
   rw [edgeFinset_toSimpleGraph_of_no_loops hloop, List.sum_toFinset w hnodup, List.map_map,
     totalWeight]
-  congr 1
-  exact List.map_congr_left fun e he => (hw e he).symm
+  exact congrArg List.sum (List.map_congr_left fun e he => (hw e he).symm)
 
 /-- Every `IsSpanningForest es F` projects to a Mathlib maximal acyclic subgraph of
 `toSimpleGraph es`. -/
@@ -331,42 +330,35 @@ theorem mem_graphEdges {n : ℕ} {W : Type} (G : SimpleGraph (Fin n)) [Decidable
 /-- `(graphEdges G w)` contains no duplicate edges. -/
 theorem nodup_graphEdges {n : ℕ} {W : Type} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj]
     (w : Sym2 (Fin n) → W) : (graphEdges G w).Nodup := by
-  unfold graphEdges
-  rw [List.nodup_flatMap]
-  refine ⟨fun u _ => ((List.nodup_finRange n).filter _).map fun _ _ => congrArg WeightedEdge.v,
-    (List.nodup_finRange n).imp fun hne e he₁ he₂ => ?_⟩
-  simp only [List.mem_map, List.mem_filter] at he₁ he₂
-  obtain ⟨_, _, heq₁⟩ := he₁
-  obtain ⟨_, _, heq₂⟩ := he₂
-  exact hne ((congrArg WeightedEdge.u heq₁).trans (congrArg WeightedEdge.u heq₂).symm)
+  refine List.nodup_flatMap.mpr
+    ⟨fun u _ => ((List.nodup_finRange n).filter _).map fun _ _ => congrArg WeightedEdge.v,
+      (List.nodup_finRange n).imp fun hne e he₁ he₂ => ?_⟩
+  obtain ⟨_, _, rfl⟩ := List.mem_map.mp he₁
+  obtain ⟨_, _, heq₂⟩ := List.mem_map.mp he₂
+  exact hne (congrArg WeightedEdge.u heq₂).symm
 
 /-- Unordered endpoint pairs in `graphEdges G w` have no duplicates. -/
 theorem nodup_map_sym2_graphEdges {n : ℕ} {W : Type} (G : SimpleGraph (Fin n))
     [DecidableRel G.Adj] (w : Sym2 (Fin n) → W) :
     ((graphEdges G w).map WeightedEdge.sym2).Nodup := by
-  refine (nodup_graphEdges G w).map_on fun e₁ he₁ e₂ he₂ hsym => ?_
-  obtain ⟨hlt₁, _, hw₁⟩ := (mem_graphEdges G w e₁).mp he₁
-  obtain ⟨hlt₂, _, hw₂⟩ := (mem_graphEdges G w e₂).mp he₂
-  rcases Sym2.eq_iff.mp hsym with ⟨hu, hv⟩ | ⟨hu, hv⟩
-  · cases e₁
-    cases e₂
-    simp_all
-  · exact absurd (hu ▸ hv ▸ hlt₁) (lt_asymm hlt₂)
+  refine (nodup_graphEdges G w).map_on fun ⟨u₁, v₁, w₁⟩ he₁ ⟨u₂, v₂, w₂⟩ he₂ hsym => ?_
+  obtain ⟨hlt₁, _, hw₁⟩ := (mem_graphEdges G w _).mp he₁
+  obtain ⟨hlt₂, _, hw₂⟩ := (mem_graphEdges G w _).mp he₂
+  rcases Sym2.eq_iff.mp hsym with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  · exact congrArg (WeightedEdge.mk u₁ v₁) (hw₁.trans hw₂.symm)
+  · exact absurd hlt₁ (lt_asymm hlt₂)
 
 /-- `s(x, y)` appears in `(graphEdges G w).map sym2` iff `G.Adj x y`. -/
 theorem mem_map_sym2_graphEdges {n : ℕ} {W : Type} (G : SimpleGraph (Fin n))
     [DecidableRel G.Adj] (w : Sym2 (Fin n) → W) (x y : Fin n) :
     s(x, y) ∈ (graphEdges G w).map WeightedEdge.sym2 ↔ G.Adj x y := by
   simp only [List.mem_map, mem_graphEdges, WeightedEdge.sym2_eq]
-  constructor
-  · rintro ⟨e, ⟨_, hadj, _⟩, hsym⟩
-    rcases Sym2.eq_iff.mp hsym with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-    · exact hadj
-    · exact hadj.symm
-  · intro hadj
-    rcases lt_or_gt_of_ne (G.ne_of_adj hadj) with hlt | hgt
-    · exact ⟨⟨x, y, w s(x, y)⟩, ⟨hlt, hadj, rfl⟩, rfl⟩
-    · exact ⟨⟨y, x, w s(y, x)⟩, ⟨hgt, hadj.symm, rfl⟩, Sym2.eq_swap⟩
+  refine ⟨fun ⟨e, ⟨_, hadj, _⟩, hsym⟩ => ?_, fun hadj => ?_⟩
+  · exact (Sym2.eq_iff.mp hsym).elim (fun ⟨hx, hy⟩ => hx ▸ hy ▸ hadj)
+      fun ⟨hx, hy⟩ => hx ▸ hy ▸ hadj.symm
+  · exact (lt_or_gt_of_ne (G.ne_of_adj hadj)).elim
+      (fun hlt => ⟨⟨x, y, w s(x, y)⟩, ⟨hlt, hadj, rfl⟩, rfl⟩)
+      fun hgt => ⟨⟨y, x, w s(y, x)⟩, ⟨hgt, hadj.symm, rfl⟩, Sym2.eq_swap⟩
 
 /-- `toSimpleGraph (graphEdges G w)` recovers `G` exactly. -/
 @[simp]
@@ -410,8 +402,7 @@ theorem totalWeight_graphEdges {n : ℕ} {W : Type} [AddCommMonoid W]
     totalWeight (graphEdges F w) = ∑ z ∈ F.edgeFinset, w z := by
   rw [edgeFinset_eq_toFinset_graphEdges F w,
     List.sum_toFinset w (nodup_map_sym2_graphEdges F w), List.map_map, totalWeight]
-  congr 1
-  exact List.map_congr_left fun e he => ((mem_graphEdges F w e).mp he).2.2
+  exact congrArg List.sum (List.map_congr_left fun e he => ((mem_graphEdges F w e).mp he).2.2)
 
 /-- Every Mathlib maximal acyclic subgraph `F` of `G` corresponds to an `IsSpanningForest` of
 `graphEdges G w`. -/

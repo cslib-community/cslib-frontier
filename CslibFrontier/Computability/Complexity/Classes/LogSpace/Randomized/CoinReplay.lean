@@ -202,9 +202,7 @@ private theorem replayStep_inSpace [Fintype State] (machine : MultiTapePTM k Boo
   have hreg : ComputableInSpace (fun q : ReplayRegs × β => q.1) (encPair encReplayRegs encB)
       encReplayRegs fun q => (encReplayRegs q.1).length + S q.2 :=
     ((ComputableInLogSpace.fst encReplayRegs encB).inSpace_context
-      (.of_le fun _ => Nat.le_add_right _ _)).mono_le fun q => by
-        have := hlog q.2
-        omega
+      (.of_le fun _ => Nat.le_add_right _ _)).mono_le fun q => by linarith [hlog q.2]
   have hsym : ComputableInSpace (fun q : ReplayRegs × β => (w q.2)[q.1.query]?)
       (encPair encReplayRegs encB) (encOption encBool)
       fun q => (encReplayRegs q.1).length + S q.2 :=
@@ -227,8 +225,7 @@ private theorem replayStep_inSpace [Fintype State] (machine : MultiTapePTM k Boo
     (budget_optionSome (encReplayRegs_mk_budget hbound hlen hradix (budget_natSucc hidx) hu
       (queryIndex_budget (k := k) hradix hu)))
     (budget_const none)).of_enc_eq fun q => by
-      unfold replayStep
-      by_cases h : q.1.idx < q.1.bound <;> simp [h]
+      by_cases h : q.1.idx < q.1.bound <;> simp [replayStep, h]
 
 /-- The view after the first `j` coins. -/
 private noncomputable def replayView (machine : MultiTapePTM k Bool State) (w : β → List Bool)
@@ -384,8 +381,7 @@ theorem replayCoins_inSpace_context [Finite State] (machine : MultiTapePTM k Boo
     ((computableInLogSpace_bitsLength.comp' hsnd).inSpace_context
       ⟨2, fun q => (length_encNat_le_of_le_pow (N := (enc q.2).length) (d := 1)
         (by simp)).trans (by dsimp only; omega)⟩).mono_le fun q => by
-          have := hlogS q.2
-          omega
+          linarith [hlogS q.2]
   have hbit : ComputableInSpace (fun q : ℕ × (ℕ × α) => (enc q.2.2)[q.1]?)
       (encPair encNat (encPair encNat enc)) (encOption encBool)
       fun q => (encNat q.1).length + (2 * (encNat q.2.1).length + S q.2.2 + 2) :=
@@ -395,17 +391,14 @@ theorem replayCoins_inSpace_context [Finite State] (machine : MultiTapePTM k Boo
       (ComputableInLogSpace.pair (ComputableInLogSpace.fst _ _)
         ((ComputableInLogSpace.snd encNat enc).comp' (ComputableInLogSpace.snd _ _)))
       (.of_le fun q => by
-        have := hlogS q.2.2
         dsimp only
-        omega)
-      fun q => (hlogP q).trans (by have := hlogS q.2; omega))
+        linarith [hlogS q.2.2])
+      fun q => (hlogP q).trans (by linarith [hlogS q.2]))
   refine (replayCoins_inSpace machine c (w := fun q => enc q.2) (fun q => hs q.2) hlen hbit
     (hL.mono_le fun q => by omega) (hcoin.mono_le fun q => by omega)
-    (fun q => (hlogP q).trans (by have := hlogS q.2; omega))
-    (fun q => by have := hlogS q.2; omega)).weaken ⟨8, fun q => ?_⟩
-  have := hlogP q
-  have := hlogS q.2
+    (fun q => (hlogP q).trans (by linarith [hlogS q.2]))
+    (fun q => by linarith [hlogS q.2])).weaken ⟨8, fun q => ?_⟩
   dsimp only
-  omega
+  linarith [hlogP q, hlogS q.2]
 
 end Turing.MultiTapePTM

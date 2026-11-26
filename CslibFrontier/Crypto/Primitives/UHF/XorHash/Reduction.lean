@@ -116,9 +116,8 @@ theorem isQueryBounded_xorHashWordMultiQueryReduction (ℓ blockWidth width Q : 
   have htraverse := OracleComp.IsCostBounded.mapM (inputs := ms) fun m _ =>
     isQueryBounded_xorHashWordQueries (ℓ n) (width n) m
   refine (htraverse.bind fun _ => OracleComp.IsCostBounded.pure _ 0).mono ?_
-  have hlen : ms.length ≤ Q n :=
-    (List.length_filter_le _ _).trans (List.length_take_le _ _)
-  simpa only [Nat.add_zero] using Nat.mul_le_mul_right (ℓ n) hlen
+  simpa only [Nat.add_zero] using
+    Nat.mul_le_mul_right (ℓ n) ((List.length_filter_le _ _).trans (List.length_take_le _ _))
 
 private theorem polyTime_xorHashWordValid {α : Type} {input : α ↪ List Bool}
     {ℓ blockWidth : α → ℕ} {m : α → List (List Bool)}
@@ -130,12 +129,10 @@ private theorem polyTime_xorHashWordValid {α : Type} {input : α ↪ List Bool}
   have hlen := (ComputableInPolyTime.length_list encBits).comp hm
   have hcap : ComputableInPolyTime (fun p => decide ((m p).length ≤ ℓ p)) input encBool := by
     fun_prop
-  have hblocks : ComputableInPolyTime
-      (fun p => (m p).all (fun b => decide (b.length = blockWidth p))) input encBool :=
-    hm.allWithInput (ComputableInPolyTime.decide_eq'
+  exact ComputableInPolyTime.bool_and.comp (hcap.prod (hm.allWithInput
+    (ComputableInPolyTime.decide_eq'
       (ComputableInPolyTime.length_bits.comp (ComputableInPolyTime.snd input encBits))
-      (hb.comp (ComputableInPolyTime.fst input encBits)))
-  exact ComputableInPolyTime.bool_and.comp (hcap.prod hblocks)
+      (hb.comp (ComputableInPolyTime.fst input encBits)))))
 
 /-- The multi-query wrapper is strict oracle PPT whenever its adversary is strict PPT and
 its dimensions and list cap are polynomial-time computable in unary. -/
@@ -483,9 +480,8 @@ private theorem eval_prfIdealGame_xorHashWordMultiQueryReduction_le
       (hinj (List.mem_toFinset.mpr (List.mem_map_of_mem hm))
         (List.mem_toFinset.mpr (List.mem_map_of_mem hm')) heq))
   · gcongr
-    refine ds.toFinset_card_le.trans ?_
-    rw [List.length_map]
-    exact (List.length_filter_le _ _).trans (List.length_take_le _ _)
+    exact ds.toFinset_card_le.trans ((List.length_map _).le.trans
+      ((List.length_filter_le _ _).trans (List.length_take_le _ _)))
 
 /-- The concrete bound (7.12) of Boneh–Shoup v0.6, §7.2.3, p. 261, for the explicit
 word distinguisher. The ideal-table contribution is the reciprocal of the digest cardinality. -/
@@ -512,10 +508,8 @@ theorem succProbability_xorHashWordFamily_le {ℓ blockWidth width : ℕ → ℕ
     simpa only [BitString.card, Nat.cast_pow, Nat.cast_ofNat] using
       eval_prfIdealGame_xorHashWordCollisionReduction_le ℓ blockWidth width A n
   rw [← eval_prfRealGame_xorHashWordCollisionReduction family hlength A n]
-  let I := ProbComp.eval (prfIdealGame (fun k => ℓ k + blockWidth k) width
-    (xorHashWordCollisionReduction ℓ blockWidth width A) n)
   simpa only [add_comm ((2 : ℝ≥0) ^ width n)⁻¹] using
-    (Game.succProbability_le_add_of_advantage_le (g₁ := I) le_rfl).trans (add_le_add hideal le_rfl)
+    (Game.succProbability_le_add_of_advantage_le le_rfl).trans (add_le_add hideal le_rfl)
 
 /-- Boneh–Shoup v0.6, Exercise 7.28, printed p. 285. A `Q`-message adversary's collision success
 is at most the advantage of the direct word PRF wrapper plus `Q² / (2 |Y|)`. The wrapper

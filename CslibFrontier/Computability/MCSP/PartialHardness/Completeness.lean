@@ -161,14 +161,12 @@ theorem exists_satTerm {S : Finset ℕ}
     · obtain ⟨c, hc, hct⟩ := List.any_eq_true.1 (hsat _ (List.getElem_mem hj))
       obtain ⟨t, ht, rfl⟩ := List.mem_iff_getElem.1 hc
       refine ⟨t, fun _ => ⟨by simpa [List.getD_eq_getElem?_getD, hj] using ht, fun q hq => ?_⟩⟩
-      have htD : term I j t = I.formulas[j][t] := term_eq_getElem hj ht
-      rw [htD] at hq
-      have hq' := (Term.eval_eq_true_iff _ _).1 hct _ (List.getElem_mem hq)
-      rw [hmono _ (List.getElem_mem hj) _ (List.getElem_mem ht) _ (List.getElem_mem hq)] at hq'
-      simpa [var, htD, List.getD_eq_getElem?_getD, hq] using hq'
+      rw [term_eq_getElem hj ht] at hq
+      simpa [var, term_eq_getElem hj ht, List.getD_eq_getElem?_getD, hq,
+        hmono _ (List.getElem_mem hj) _ (List.getElem_mem ht) _ (List.getElem_mem hq)] using
+        (Term.eval_eq_true_iff _ _).1 hct _ (List.getElem_mem hq)
     · exact ⟨0, fun h => absurd h hj⟩
-  choose τ hτ using h
-  exact ⟨τ, hτ⟩
+  exact ⟨fun j => (h j).choose, fun j => (h j).choose_spec⟩
 
 /-- The blocks of the variables of an assignment `S` have total size at most `2 w(S) λ`. -/
 theorem sum_two_pow_varLength_le_two_mul_weight {S : Finset ℕ}
@@ -204,16 +202,15 @@ private theorem addrBit_eq {τ o : ℕ → ℕ} {x : BitString (inputLength I Δ
   rw [hc, Nat.testBit_two_pow_mul_add _ hlt]
   unfold addrBit
   by_cases h : τ j < Δ ∧ r < varLength I lam (var I j (τ j) q) ∧ r < seedWidth I lam
-  · rw [dite_eq_left h, show (⟨_, h.1⟩ : Fin Δ) = t from Fin.ext ht]
+  · have ht' : (⟨_, h.1⟩ : Fin Δ) = t := Fin.ext ht
+    rw [dite_eq_left h, ht']
     rw [ht, hv] at h
-    rw [ite_eq_left h.2.1, BitString.testBit_equivFin
-      (BitString.zeroExtend (d' := varLength I lam v) (seed x t q i)) ⟨r, h.2.1⟩]
+    rw [ite_eq_left h.2.1, BitString.testBit_equivFin _ ⟨r, h.2.1⟩]
     simp [BitString.zeroExtend, h.2.2]
   · rw [dite_eq_right h]
     rw [ht, hv] at h ⊢
     have hr : ¬ r < varLength I lam v := fun hr => h ⟨t.isLt, hr, by omega⟩
-    rw [ite_eq_right hr, hc, Nat.testBit_two_pow_mul]
-    simp [show varLength I lam v ≤ r by omega]
+    simp [ite_eq_right hr, hc, Nat.testBit_two_pow_mul, not_lt.mp hr]
 
 /-- **The Yes circuit agrees with the table.** -/
 private theorem combine_append_eq {S : Finset ℕ} {f : VarFunctions I lam} {τ : ℕ → ℕ}
@@ -250,12 +247,9 @@ private theorem combine_append_eq {S : Finset ℕ} {f : VarFunctions I lam} {τ 
       simp only [BitString.block, addr, Equiv.symm_apply_apply, natBits]
       exact addrBit_eq (t := ⟨_, htΔ⟩) rfl rfl hvW (hfit v hvS).1 i r
     have hlt : o v + s < 2 ^ L := by have := (hfit v hvS).2; omega
-    simp only [directProduct, hin]
-    rw [hardTable_apply hdisj hvS hs _ (val_equivFin_natBits hlt)]
-    have hbits : natBits (varLength I lam v) s =
-        BitString.zeroExtend (d' := varLength I lam v) (seed x ⟨_, htΔ⟩ q i) :=
-      funext fun r => BitString.testBit_equivFin _ r
-    simp only [hbits, evalVar, hvn, ↓reduceDIte, BitString.zeroExtend_self]
+    have hbits : natBits (varLength I lam v) s = _ := funext (BitString.testBit_equivFin _)
+    rw [directProduct, hin, hardTable_apply hdisj hvS hs _ (val_equivFin_natBits hlt), hbits]
+    simp only [evalVar, hvn, ↓reduceDIte, BitString.zeroExtend_self]
   · rfl
 
 /-! ### Size -/
@@ -271,8 +265,7 @@ private theorem complexity_addr_le (L : ℕ) (τ o : ℕ → ℕ) :
     (if hr : (r : ℕ) < seedWidth I lam then univ.image fun t => seedPos I Δ k lam t q i ⟨r, hr⟩
       else ∅), ?_, ?_⟩
   · refine (card_union_le _ _).trans (add_le_add (card_image_le.trans (by simp)) ?_)
-    split_ifs
-    exacts [card_image_le.trans (by simp), by simp]
+    split_ifs <;> simp [card_image_le.trans_eq (card_univ.trans (Fintype.card_fin Δ))]
   · intro x y hxy
     have hidx : (fun i => x (indexPos I Δ k lam i)) = fun i => y (indexPos I Δ k lam i) :=
       funext fun i => hxy _ (mem_union_left _ (mem_image_of_mem _ (mem_univ i)))

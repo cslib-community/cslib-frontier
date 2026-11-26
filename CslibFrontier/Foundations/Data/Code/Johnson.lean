@@ -201,17 +201,14 @@ theorem exists_listCode_listDecodes {M : Type*} [Finite M] [Nonempty M]
   classical
   have := Fintype.ofFinite M
   have hrange : Set.range enc = ((univ.image enc : Finset (ι → α)) : Set (ι → α)) := by simp
-  have hC : (d : ℕ∞) ≤ minDist ((univ.image enc : Finset (ι → α)) : Set (ι → α)) :=
-    hrange ▸ hd
   have hn : (Fintype.card ι : ℝ) ≠ 0 := Nat.cast_ne_zero.2 fun h0 => by simp [h0] at h
   rw [← isListDecodable_range_iff_exists_listCode henc, hrange, isListDecodable_finset_iff]
   intro w
   calc #{c ∈ univ.image enc |
           (hammingDist c w : ℝ) ≤ (e : ℝ) / Fintype.card ι * Fintype.card ι}
-      = #{c ∈ univ.image enc | hammingDist c w ≤ e} := by
-        refine congrArg Finset.card (filter_congr fun c _ => ?_)
-        rw [div_mul_cancel₀ _ hn, Nat.cast_le]
-    _ ≤ Fintype.card ι * (d - e) := card_filter_hammingDist_le_le hC h w
+      = #{c ∈ univ.image enc | hammingDist c w ≤ e} :=
+        congrArg Finset.card (filter_congr fun _ _ => by rw [div_mul_cancel₀ _ hn, Nat.cast_le])
+    _ ≤ Fintype.card ι * (d - e) := card_filter_hammingDist_le_le (hrange ▸ hd) h w
 
 /-! ### The q-ary Johnson bound -/
 
@@ -266,10 +263,9 @@ private theorem card_filter_hammingDist_le_mul_le_of_mul_le_int [Nonempty α]
       simp only [A, a, card_filter, Nat.cast_sum]
       exact sum_comm
     rw [hswap, ← nsmul_eq_mul]
-    refine card_nsmul_le_sum _ _ _ fun x hx => ?_
-    have h1 := card_filter_eq_add_hammingDist x w
-    have h2 := (mem_filter.1 hx).2
-    omega
+    exact card_nsmul_le_sum _ _ _ fun x hx => by
+      have := le_card_filter_eq_of_hammingDist_le (mem_filter.1 hx).2
+      omega
   -- pairwise distances and agreements
   set P : ℕ := ∑ i, ∑ x ∈ L, ∑ y ∈ L, (if x i = y i then 1 else 0)
   have hDP : ∑ x ∈ L, ∑ y ∈ L, hammingDist x y + P = n * #L ^ 2 := by
@@ -289,10 +285,8 @@ private theorem card_filter_hammingDist_le_mul_le_of_mul_le_int [Nonempty α]
   -- sum the column bounds
   have hcol : ((q : ℤ) - 1) * ∑ i, (a i : ℤ) ^ 2 + ∑ i, ((M : ℤ) - a i) ^ 2 ≤
       ((q : ℤ) - 1) * P := by
-    rw [mul_sum, ← sum_add_distrib]
-    simp only [P]
-    push_cast
-    rw [mul_sum]
+    push_cast [P]
+    rw [mul_sum, mul_sum, ← sum_add_distrib]
     exact sum_le_sum fun i _ => sub_one_mul_sq_add_sq_le_sub_one_mul_sum_sum_ite L w i
   -- Cauchy–Schwarz on both sums
   have hcs1 : A ^ 2 ≤ n * ∑ i, (a i : ℤ) ^ 2 := by

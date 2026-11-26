@@ -452,9 +452,7 @@ theorem qsMaskedCheckReply_correct (d : ℕ) (constraints : ι → MvPolynomial 
   simp only [qsPolySum, qsMaskedCheckReply, c_w, add_mul, Finset.sum_add_distrib, Finset.mul_sum,
     ← mul_assoc]
   rw [Finset.sum_comm]
-  congr 1
-  refine Finset.sum_congr rfl fun j _ => ?_
-  rw [Finset.sum_mul]
+  exact congrArg (· + _) (Finset.sum_congr rfl fun _ _ => (Finset.sum_mul _ _ _).symm)
 
 variable [Fintype F] [DecidableEq F] [DecidableEq ι]
 
@@ -703,8 +701,7 @@ private theorem qsMaskedView_fixed {d : ℕ} (hd : 1 ≤ d)
       (Prod.ext rfl (Prod.ext rfl (Prod.ext rfl (Prod.ext (funext fun j => ?_) rfl))))
     by_cases hj : j.val = 0
     · simp only [consReply, hj, ↓reduceDIte]
-      rw [show (j : Fin (m + 1)) = ⟨0, Nat.succ_pos _⟩ from Fin.ext hj]
-      exact hc0.symm
+      exact (congrArg _ (Fin.ext hj)).trans hc0.symm
     · simp only [consReply, hj, ↓reduceDIte]
       exact congrArg (qsMaskedCheckReply (m + 1) constraints w uv.1 uv.2 r)
         (Fin.ext (Nat.sub_add_cancel (Nat.pos_of_ne_zero hj)).symm)
@@ -755,11 +752,10 @@ private theorem qsDiffPoly_ne_zero (d : ℕ) (P : Polynomial F) (a : Fin d → F
 private theorem natDegree_qsDiffPoly_le {d : ℕ} {P : Polynomial F} (hdeg : P.natDegree ≤ d)
     (a : Fin d → F) :
     (qsDiffPoly d P a).natDegree ≤ d := by
-  rw [qsDiffPoly]
-  refine (Polynomial.natDegree_sub_le _ _).trans (max_le hdeg ?_)
-  refine Polynomial.natDegree_sum_le_of_forall_le _ _ fun k _ => ?_
-  exact (Polynomial.natDegree_C_mul_le _ _).trans <|
-    (Polynomial.natDegree_X_pow_le _).trans (Nat.le_of_lt k.isLt)
+  refine (Polynomial.natDegree_sub_le _ _).trans
+    (max_le hdeg (Polynomial.natDegree_sum_le_of_forall_le _ _ fun k _ => ?_))
+  exact (Polynomial.natDegree_C_mul_le _ _).trans
+    ((Polynomial.natDegree_X_pow_le _).trans k.isLt.le)
 
 /-- For any injective challenge map `ι : C ↪ F` and any polynomial `P` of degree at most `d` with
 nonzero degree-`d` coefficient, at most `d` challenges satisfy `P.eval (ι c) = qsPolySum d a (ι c)`.
@@ -1012,10 +1008,8 @@ theorem toOuterMeasure_qsMaskedCheckValue_le [Fintype F] [DecidableEq F] {C ι :
         let P_batch := ∑ i : ι, Polynomial.C (r i) * qsHomogPoly d (constraints i) w' v_w
         return decide (P_batch.eval (ι_C c) = qsPolySum d reply (ι_C c))) := by
     simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_map, Function.comp_def]
-    refine congrArg (PMF.bind (PMF.uniformOfFintype (ι → F))) (funext fun r => ?_)
-    refine congrArg (PMF.bind (a r)) (funext fun reply => ?_)
-    refine congrArg (PMF.bind (PMF.uniformOfFintype C)) (funext fun c => ?_)
-    exact congrArg PMF.pure (decide_eq_decide.mpr (hval r c reply))
+    exact congrArg _ (funext fun r => congrArg _ (funext fun reply =>
+      congrArg _ (funext fun c => congrArg PMF.pure (decide_eq_decide.mpr (hval r c reply)))))
   rw [heq]
   exact toOuterMeasure_qsHomogLinearBatch_le ι_C constraints hdeg w' v_w hfalse
     fun r => (a r).map fun rep => rep - mask
@@ -1466,8 +1460,7 @@ private theorem actV1_qs_inner_le {C : Type}
         (1 - (Fintype.card F : ℝ≥0∞)⁻¹) * (ε_zk + (d : ℝ≥0∞) / (Fintype.card C : ℝ≥0∞)) := by
   classical
   by_cases hs : ∃ j, (P j).coeff d ≠ 0
-  · refine (uniform_linearBatch_split_le (fun j => (P j).coeff d) hs _ fun l hl => ?_).trans_eq
-      rfl
+  · refine uniform_linearBatch_split_le (fun j => (P j).coeff d) hs _ fun l hl => ?_
     have hl' : (foldedConstraint P l).coeff d ≠ 0 := by
       simpa only [coeff_foldedConstraint] using hl
     rw [PMF.toOuterMeasure_bind_apply]

@@ -136,10 +136,7 @@ private theorem simulate_id_map_query {ιJ ιK α : Type} {K : ιK → Type} (f 
           fun j => ProbOracleComp.query (spec := K) (f j))
         program := by
   rw [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
-  refine congrArg (OracleComp.interpret · program) (funext ?_)
-  rintro (_ | _)
-  · rfl
-  · exact id_map _
+  exact congrArg (OracleComp.interpret · program) (funext fun | .inl _ => rfl | .inr _ => id_map _)
 
 /-- Library construction (no cited definition): the right-injection `PortMap` embedding `iR` into
 `iL.sum iR`. Its `adapt` equals `Machine.liftRightProgram L`. -/
@@ -257,14 +254,12 @@ theorem WordInterface.PortMap.support_lowerWith_adapt {ιJ ιK α : Type}
     OracleComp.substitute_eq_interpret, OracleComp.substitute_eq_interpret]
   unfold OracleComp.support
   rw [OracleComp.supportWith_interpret, OracleComp.supportWith_interpret]
-  refine congrArg (OracleComp.supportWith · program) (funext ?_)
-  rintro (_ | j)
-  · rfl
-  · simp only [OracleComp.sumHandler, ProbOracleComp.simulate_map, ProbOracleComp.simulate_query,
-      WordInterface.lowerQuery, Functor.map_map]
-    ext v
-    simp only [OracleComp.mem_supportWith_map_iff, ProbOracleComp.supportWith_query,
-      Set.mem_univ, true_and, ← m.decodeReply_replyMap j, hreply]
+  refine congrArg (OracleComp.supportWith · program) (funext fun | .inl _ => rfl | .inr j => ?_)
+  simp only [OracleComp.sumHandler, ProbOracleComp.simulate_map, ProbOracleComp.simulate_query,
+    WordInterface.lowerQuery, Functor.map_map]
+  ext v
+  simp only [OracleComp.mem_supportWith_map_iff, ProbOracleComp.supportWith_query,
+    Set.mem_univ, true_and, ← m.decodeReply_replyMap j, hreply]
 
 /-- Library infrastructure (no cited result): lowering a `liftParty` program through
 `WordInterface.protocol subParty nq` has the same `OracleComp.support` as lowering the underlying
@@ -414,22 +409,17 @@ private theorem wordHandle_routeCorrupt {n : ℕ} {ιI : Type} {I : ιI → Type
   rcases ch with ⟨⟨⟩⟩ | ⟨⟨⟩⟩
   · dsimp only [wordHandle, WordInterface.protocol, WordInterface.sum, WordInterface.net,
       UC.routeCorrupt]
-    by_cases hmem : (party.queryDecoder.decode w).1 ∈ p.corrupted
-    · simp only [hmem, ↓reduceIte, StateT.run_pure, ProbOracleComp.lowerWith,
-        ProbOracleComp.simulate_pure, map_pure]
-    · simp only [hmem, ↓reduceIte]
+    by_cases hmem : (party.queryDecoder.decode w).1 ∈ p.corrupted <;>
+      simp [hmem, StateT.run_pure, ProbOracleComp.lowerWith, ProbOracleComp.simulate_pure]
   · dsimp only [wordHandle, WordInterface.protocol, WordInterface.sum, WordInterface.net,
       WordPort.sum, Decoder.sum]
     cases w.headD false
     · rw [ite_eq_right Bool.false_ne_true]
       dsimp only [UC.routeCorrupt]
-      by_cases hmem : (party.queryDecoder.decode w.tail).1 ∈ p.corrupted
-      · simp only [hmem, ↓reduceIte, StateT.run_map, ProbOracleComp.lowerWith,
-          ProbOracleComp.simulate_map, Functor.map_map, encSum_inl]
-        rfl
-      · simp only [hmem, ↓reduceIte, StateT.run_pure, ProbOracleComp.lowerWith,
-          ProbOracleComp.simulate_pure, map_pure, encSum_inl]
-        rfl
+      by_cases hmem : (party.queryDecoder.decode w.tail).1 ∈ p.corrupted <;>
+        simp only [hmem, Bool.false_eq_true, ↓reduceIte, StateT.run_map, StateT.run_pure,
+          ProbOracleComp.lowerWith, ProbOracleComp.simulate_map, ProbOracleComp.simulate_pure,
+          map_pure, Functor.map_map, encSum_inl] <;> rfl
     · rw [ite_eq_left rfl]
       simp only [UC.routeCorrupt, StateT.run_map, ProbOracleComp.lowerWith,
         ProbOracleComp.simulate_map, Functor.map_map, encSum_inr]

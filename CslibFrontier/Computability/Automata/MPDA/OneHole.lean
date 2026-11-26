@@ -177,24 +177,20 @@ private theorem Crossing.two_le_openHoles (hij : i ≠ j) (hpq : p < q) (hqz : q
   have hzlen := hpz.lt_length
   obtain ⟨-, -, hpk, -⟩ := hpz.of_isPushOn hp
   obtain ⟨-, -, hqk⟩ := hqp.of_isPushOn hq
-  have hpx : PendingAt w p (z - 1) :=
-    ⟨by omega, by omega, i, hp, by rwa [show z - 1 + 1 = z by omega]⟩
-  have hqx : PendingAt w q (z - 1) := by
-    refine ⟨by omega, by omega, j, hq, fun k => ?_⟩
-    rw [show z - 1 + 1 = z by omega,
-      ← w.take_extract (show q + 1 ≤ z by omega) (Nat.le_succ z), List.take_take]
-    exact hqk _
+  have hz1 : z - 1 + 1 = z := by omega
+  have hpx : PendingAt w p (z - 1) := ⟨by omega, by omega, i, hp, by rwa [hz1]⟩
+  have hqx : PendingAt w q (z - 1) := ⟨Nat.le_sub_one_of_lt hqz, (Nat.sub_le z 1).trans_lt hzlen,
+    j, hq, fun k => by
+      rw [hz1, ← w.take_extract hqz (Nat.le_succ z), List.take_take]
+      exact hqk _⟩
   obtain ⟨r, hr, hri, hrl⟩ :=
     exists_first_openHolePush ⟨crossing_holePush_left hpq hqz hp hq hpz hqp, hpx⟩ hp
   obtain ⟨r', hr', hr'j, hr'l⟩ :=
     exists_first_openHolePush ⟨crossing_holePush_right hij hpq hqz hp hq hpz hqp, hqx⟩ hq
   have hne : r ≠ r' := fun h => hij (hri.unique (h ▸ hr'j))
-  have hsub :
-      ({r, r'} : Set ℕ) ⊆ {q | OpenHolePush w (z - 1) q ∧ ¬∃ p, SameHole w (z - 1) p q} :=
-    Set.pair_subset ⟨hr, hrl⟩ ⟨hr', hr'l⟩
   unfold openHoles
-  rw [← Set.ncard_pair hne]
-  exact Set.ncard_le_ncard hsub (openHoles_finite w _)
+  exact (Set.ncard_pair hne).symm ▸ Set.ncard_le_ncard
+    (Set.pair_subset ⟨hr, hrl⟩ ⟨hr', hr'l⟩) (openHoles_finite w _)
 
 /-- A sequence with a crossing is not `1`-hole-bounded. -/
 theorem Crossing.not_holeBounded_one (h : Crossing w) : ¬HoleBounded 1 w := by
@@ -452,8 +448,7 @@ private theorem wellNested_of_not_crossing_aux {M : MPDA n State α Γ} :
     | push i γ =>
       have hw'i : net i w' = -1 := by
         have := (hbal i).1
-        simp only [net_cons, Op.net, Op.kind, OpKind.net, ↓reduceIte] at this
-        omega
+        simp only [net_cons, Op.net, Op.kind, OpKind.net, ↓reduceIte] at this; omega
       obtain ⟨u, b, δ, u', rfl, hu0, huk⟩ := exists_first_pop i w' 0 (by simp [hw'i])
       simp only [Nat.cast_zero, zero_add] at hu0 huk
       -- The prefixes of `u` never pop below the initial height of any stack.
@@ -469,10 +464,8 @@ private theorem wellNested_of_not_crossing_aux {M : MPDA n State α Γ} :
         rcases eq_or_ne i j with rfl | hij
         · exact hu0
         · by_contra hne
-          have hpos : 0 < net j u := by
-            have := hupre j u.length
-            rw [List.take_length] at this
-            omega
+          have hpos : 0 < net j u :=
+            lt_of_le_of_ne (List.take_length (l := u) ▸ hupre j u.length) (Ne.symm hne)
           obtain ⟨q, hq, hqj, hqk⟩ := exists_pending_push (hupre j) hpos
           apply hcr
           have hfu : ((a, Op.push i γ) :: (u ++ (b, Op.pop i δ) :: u')).extract 1

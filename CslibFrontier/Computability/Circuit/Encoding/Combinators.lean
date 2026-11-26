@@ -551,9 +551,8 @@ theorem computableInPolyTime_appendCode {n : α → ℕ}
     (hc : ComputableInPolyTime c enc (encCode encOp))
     (hd : ComputableInPolyTime d enc (encCode encOp)) :
     ComputableInPolyTime (fun a => appendCode (n a) (c a) (d a)) enc (encCode encOp) := by
-  have hlen : ComputableInPolyTime (fun a => (c a).1.length) enc encNat :=
-    (length_list_binary (encGate encOp)).comp hc.fst'
-  have hshift := computableInPolyTime_shiftCode hn hlen hd
+  have hshift :=
+    computableInPolyTime_shiftCode hn ((length_list_binary (encGate encOp)).comp hc.fst') hd
   exact (listAppend' hc.fst' hshift.fst').prod (listAppend' hc.snd' hshift.snd')
 
 /-- Combining arbitrary raw blocks is polynomial-time in their complete encodings.
@@ -586,9 +585,7 @@ theorem computableInPolyTime_appendCodes {n : α → ℕ}
     (f := fun a (q : (List (Op × List ℕ) × List ℕ) × ℕ) =>
       (shiftCode (n a) (((codes a).take q.2).flatMap Prod.fst).length q.1).2)
     hblocks hshift.snd'
-  have h := hgates.prod houtputs
-  change ComputableInPolyTime (fun a => appendCodesDirect (n a) (codes a)) enc (encCode encOp) at h
-  simpa only [appendCodesDirect_eq_appendCodes] using h
+  exact funext (fun a => appendCodesDirect_eq_appendCodes (n a) (codes a)) ▸ hgates.prod houtputs
 
 /-- Bundling raw blocks is polynomial-time in their encodings and binary layout parameters. -/
 @[fun_prop]
@@ -977,10 +974,9 @@ private theorem computable_intervalRow {Op α : Type} {encOp : Op ↪ List Bool}
     have hs := snd enc encUnary
     have hleaf := computedGetD (hl.comp hfst) hs (hu.comp hfst)
     have hlc := computedGetD (hleft.comp hfst) hs (hu.comp hfst)
-    have hrc := computedGetD (hright.comp hfst)
-      (show ComputableInPolyTime
-        (fun p : α × ℕ => p.2 + (rows p.1).length / 2) (encPair enc encUnary) encUnary from
-          by fun_prop) (hu.comp hfst)
+    have hidx : ComputableInPolyTime (fun p : α × ℕ => p.2 + (rows p.1).length / 2)
+        (encPair enc encUnary) encUnary := by fun_prop
+    have hrc := computedGetD (hright.comp hfst) hidx (hu.comp hfst)
     fun_prop
   have hrange : ComputableInPolyTime (fun a => List.range ((leaves a).length + 1))
       enc (encList encUnary) := by fun_prop
@@ -1010,8 +1006,7 @@ private theorem intervalTables_getD {Op : Type*} (n : ℕ)
       referenceCode n op unit ((leaves.drop start).take len) := by
   induction count generalizing len start with
   | zero =>
-    have : len = 0 := by omega
-    subst len
+    obtain rfl : len = 0 := by omega
     simp [intervalTables, referenceCode]
   | succ count ih =>
     rw [intervalTables, Function.iterate_succ_apply']
@@ -1021,14 +1016,12 @@ private theorem intervalTables_getD {Op : Type*} (n : ℕ)
     by_cases hlt : len ≤ count
     · rw [List.getD_append _ _ _ _ (by rw [length_intervalTables]; omega)]
       exact ih _ _ hlt hs
-    · have heq : len = count + 1 := by omega
-      subst len
+    · obtain rfl : len = count + 1 := by omega
       rw [← length_intervalTables n op unit leaves count, List.getD_append_cons_length,
         intervalRow_getD n op unit leaves _ start (by omega), length_intervalTables]
       by_cases hc : count = 0
       · subst count
-        rw [ite_eq_left rfl]
-        rw [List.take_one_drop_eq_of_lt_length (by omega)]
+        rw [ite_eq_left rfl, List.take_one_drop_eq_of_lt_length (by omega)]
         rw [List.getD_eq_getElem _ _ (by omega : start < leaves.length)]
         simp [referenceCode]
       · rw [ite_eq_right (by omega), ite_eq_left hs]
@@ -1195,8 +1188,7 @@ theorem code_balanced {σ : Signature} {n r : ℕ} (op : Circuit σ (r + r) r)
   symm
   change ((intervalTables n op.code unit.code (leaves.map Circuit.code)
     (leaves.map Circuit.code).length).getD (leaves.map Circuit.code).length []).getD 0 unit.code = _
-  rw [intervalTables_getD _ _ _ _ _ _ _ le_rfl (by omega)]
-  simp only [List.drop_zero, List.take_length]
+  rw [intervalTables_getD _ _ _ _ _ _ _ le_rfl (by omega), List.drop_zero, List.take_length]
   exact referenceCode_map op unit leaves
 
 /-- Uniform native generation from the binary shared-input count and the complete operator,

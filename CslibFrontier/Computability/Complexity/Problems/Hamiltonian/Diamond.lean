@@ -122,8 +122,7 @@ variable {i : ℕ} {o : ℕ → Option ℕ}
 
 private theorem mem_step {a x : ℕ} :
     x ∈ step i o a ↔ x = rowNode i a ∨ ∃ j, o a = some j ∧ x = clauseNode j := by
-  unfold step
-  cases o a <;> simp
+  cases h : o a <;> simp [step, h]
 
 private theorem step_ne_nil (a : ℕ) : step i o a ≠ [] := List.cons_ne_nil _ _
 
@@ -155,16 +154,14 @@ repetitions. -/
 private theorem nodup_flatMap_step {l : List ℕ} (hl : l.Nodup)
     (ho : ∀ a b j, o a = some j → o b = some j → a = b) : (l.flatMap (step i o)).Nodup := by
   rw [List.nodup_flatMap]
-  refine ⟨fun a _ => ?_, hl.pairwise_of_forall_ne fun a _ b _ hab => ?_⟩
-  · unfold step
-    cases o a <;> simp
-  · intro x hx hx'
-    rw [mem_step] at hx hx'
-    rcases hx with rfl | ⟨j, hv, rfl⟩ <;> rcases hx' with h' | ⟨j', hv', h'⟩ <;>
-      simp only [rowNode_inj, clauseNode_inj, rowNode_ne_clauseNode,
-        clauseNode_ne_rowNode] at h'
-    · exact absurd h'.2 hab
-    · exact hab (ho a b j hv (h' ▸ hv'))
+  refine ⟨fun a _ => by cases h : o a <;> simp [step, h],
+    hl.pairwise_of_forall_ne fun a _ b _ hab x hx hx' => ?_⟩
+  rw [mem_step] at hx hx'
+  rcases hx with rfl | ⟨j, hv, rfl⟩ <;> rcases hx' with h' | ⟨j', hv', h'⟩ <;>
+    simp only [rowNode_inj, clauseNode_inj, rowNode_ne_clauseNode,
+      clauseNode_ne_rowNode] at h'
+  · exact absurd h'.2 hab
+  · exact hab (ho a b j hv (h' ▸ hv'))
 
 end Step
 
@@ -236,10 +233,9 @@ private theorem arc_detour {j : ℕ} (hj : j < M) :
 
 /-- No clause is visited across the right end of a row. -/
 private theorem visit_last (i : ℕ) : visit M pick i (slots i) = none := by
-  rw [Option.eq_none_iff_forall_ne_some]
-  intro j hv
-  obtain ⟨hj, hi, hs⟩ := (visit_eq_some_iff hD hpick).1 hv
-  exact (hi ▸ hs ▸ hD.slot_lt _ (hpick j hj).1).false
+  refine Option.eq_none_iff_forall_ne_some.2 fun j hv => ?_
+  obtain ⟨hj, rfl, hs⟩ := (visit_eq_some_iff hD hpick).1 hv
+  exact (hs ▸ hD.slot_lt _ (hpick j hj).1).false
 
 /-- The traversal of a row, its first and last node, and its arcs. -/
 private theorem rowPath_spec {i : ℕ} (hi : i < N) :
@@ -316,10 +312,8 @@ private theorem mem_rowPath {i v : ℕ} :
       (∃ j < M, (pick j).row = i ∧ v = clauseNode j) := by
   unfold rowPath
   split_ifs
-  · simp only [List.mem_flatMap, List.mem_range]
-    exact mem_flatMap_step hD hpick (by norm_num) fun _ _ => rightVisit_eq_some_iff hD hpick
-  · simp only [List.mem_flatMap, List.mem_reverse, List.mem_range]
-    exact mem_flatMap_step hD hpick le_rfl fun _ _ => leftVisit_eq_some_iff hD hpick
+  · simpa using mem_flatMap_step hD hpick (by decide) fun _ _ => rightVisit_eq_some_iff hD hpick
+  · simpa using mem_flatMap_step hD hpick le_rfl fun _ _ => leftVisit_eq_some_iff hD hpick
 
 private theorem nodup_rowPath (i : ℕ) : (rowPath slots M dir pick i).Nodup := by
   unfold rowPath
@@ -378,12 +372,10 @@ private theorem isDirHamPath_hamPath :
     rw [hamPath]
     rcases Nat.eq_zero_or_pos N with h | h
     · simp [h]
-    · rw [List.head?_append_of_ne_nil _ (by simpa using ⟨0, h⟩),
-        List.head?_flatMap_range h (hblock_ne 0)]
-      rfl
+    · exact (List.head?_append_of_ne_nil _ (by simpa using ⟨0, h⟩)).trans
+        (List.head?_flatMap_range h (hblock_ne 0))
   · -- It ends at the bottom of the last diamond.
-    rw [hamPath, List.getLast?_append_of_ne_nil _ (List.cons_ne_nil _ _)]
-    rfl
+    exact List.getLast?_append_of_ne_nil _ (List.cons_ne_nil _ _)
   · -- Consecutive vertices are joined by arcs.
     rw [hamPath, List.isChain_append]
     refine ⟨List.isChain_flatMap_range (fun i _ => hblock_ne i) (fun i hi => ?_) (fun i hi => ?_),

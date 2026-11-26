@@ -692,15 +692,12 @@ theorem setSlot_preserves_valid : {h : ℕ} → (t : FreeSlotTree B h) → (b : 
   | h + 1, .node _ summary children, b, idx, hval => by
     rw [setSlot]
     split_ifs with hstride hc
-    · dsimp only [Valid]
-      refine ⟨fun i => ?_, fun i => ?_⟩ <;> by_cases heq : i = ⟨idx / B ^ (h + 1), hc⟩
-      · subst heq
-        rw [Function.update_self]
-        exact setSlot_preserves_valid _ b _ (hval.1 _)
-      · rw [Function.update_of_ne heq]; exact hval.1 i
-      · subst heq; simp
-      · simp [Function.update_of_ne heq, hval.2 i,
-          show i.val ≠ idx / B ^ (h + 1) from fun h' => heq (Fin.ext h')]
+    · refine ⟨fun i => ?_, fun i => ?_⟩ <;>
+        rcases eq_or_ne i ⟨idx / B ^ (h + 1), hc⟩ with rfl | heq
+      · simpa only [Function.update_self] using setSlot_preserves_valid _ b _ (hval.1 _)
+      · simpa only [Function.update_of_ne heq] using hval.1 i
+      · simp
+      · simp [Function.update_of_ne heq, Fin.val_ne_of_ne heq, hval.2 i]
     all_goals exact hval
 
 /-- Allocating a slot preserves structural validity across all tree levels. -/
@@ -752,12 +749,10 @@ theorem findFree?_sound : ∀ {h : ℕ} (t : FreeSlotTree B h), Valid t → ∀ 
     subst hfind
     simpa [isFree] using BitString.mem_positions.mp (List.mem_of_mem_head? hhd)
   | h + 1, .node _ summary children => fun hv _ hfind => by
-    unfold findFree? at hfind
-    rcases hcand : (BitString.positions summary).head? with _ | c
-    · simp [hcand] at hfind
-    rcases hchild : findFree? (children c) with _ | off
-    · simp [hcand, hchild] at hfind
-    simp only [hcand, hchild, Option.some.injEq] at hfind
+    rcases hcand : (BitString.positions summary).head? with _ | c <;>
+      simp only [findFree?, hcand, reduceCtorEq] at hfind
+    rcases hchild : findFree? (children c) with _ | off <;>
+      simp only [hchild, Option.some.injEq, reduceCtorEq] at hfind
     subst hfind
     have hsound := findFree?_sound (children c) (hv.1 c) hchild
     rwa [isFree_node_mul_add summary children c (isFree_lt _ off hsound)]
@@ -833,15 +828,14 @@ theorem isFree_setSlot_of_ne : ∀ {h : ℕ} (t : FreeSlotTree B h) (b : Bool) (
     rw [setSlot]
     split_ifs with hstride hc
     · simp only [isFree, hstride.ne', ↓reduceIte]
-      by_cases hc' : j / B ^ (h + 1) < B
-      · simp only [hc', ↓reduceDIte]
-        by_cases heq : (⟨j / B ^ (h + 1), hc'⟩ : Fin B) = ⟨idx / B ^ (h + 1), hc⟩
+      split_ifs with hc'
+      · rcases eq_or_ne (⟨j / B ^ (h + 1), hc'⟩ : Fin B) ⟨idx / B ^ (h + 1), hc⟩ with heq | heq
         · rw [heq, Function.update_self]
           refine isFree_setSlot_of_ne _ b _ _ fun hmod => hne ?_
           rw [← Nat.div_add_mod j (B ^ (h + 1)), ← Nat.div_add_mod idx (B ^ (h + 1)), hmod,
             Fin.mk.inj heq]
         · rw [Function.update_of_ne heq]
-      · simp [hc']
+      · rfl
     all_goals rfl
 
 /-- Allocating slot `idx` marks it as occupied across all tree heights. -/

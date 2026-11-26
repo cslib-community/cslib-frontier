@@ -97,11 +97,9 @@ theorem exists_replaceBends_avoiding_spans {ι : Type*} [Finite ι]
     intro j
     refine Fin.lastCases ?_ (fun k => Fin.cases ?_ (fun l => ?_) k) j
     · change dist r.finish (p i).finish < tolerance i
-      rw [finish_replaceBends, dist_self]
-      exact hpositive i
+      simpa only [r, finish_replaceBends, dist_self] using hpositive i
     · change dist r.start (p i).start < tolerance i
-      rw [start_replaceBends, dist_self]
-      exact hpositive i
+      simpa only [r, start_replaceBends, dist_self] using hpositive i
     · change dist (r.point l.succ.castSucc) _ < tolerance i
       rw [Fin.castSucc_succ, point_replaceBends]
       exact (hnear ⟨i, l⟩).trans (hδi i)
@@ -175,20 +173,17 @@ theorem family_affineSpan_separation {ι : Type*} (p : ι → Route) (protectedP
     · exact ⟨.inr ⟨e, i⟩, congrArg (Sigma.mk e) (Fin.castSucc_succ i).symm⟩
   have hEnd (d : E) : point (endNode d) = (p d.1).endpoint d.2 := by
     rcases d with ⟨_, _ | _⟩ <;> rfl
-  have hEndFixed (d : E) : point (endNode d) ∈ fixed := by
-    rcases d with ⟨e, _ | _⟩
-    · exact Or.inl (Or.inr ⟨e, rfl⟩)
-    · exact Or.inr ⟨e, rfl⟩
+  have hEndFixed : ∀ d : E, point (endNode d) ∈ fixed
+    | ⟨e, false⟩ => .inl (.inr ⟨e, rfl⟩)
+    | ⟨e, true⟩ => .inr ⟨e, rfl⟩
   have hpoint : Function.Injective point := by
     apply Function.Injective.of_comp_right _ hnode
     rw [Sum.comp_elim]
     exact Sum.elim_injective.mpr ⟨fun x y h => hends ((hEnd x).symm.trans (h.trans (hEnd y))),
       hinj, fun x y h => hfixed y (h ▸ hEndFixed x : (point ∘ bendNode) y ∈ fixed)⟩
   have hpool (d : N) : point d ∈ fixed ∪ Set.range placed := by
-    obtain ⟨s, rfl⟩ := hnode d
-    cases s with
-    | inl x => exact Or.inl (hEndFixed x)
-    | inr y => exact Or.inr ⟨y, rfl⟩
+    obtain ⟨x | y, rfl⟩ := hnode d
+    exacts [.inl (hEndFixed x), .inr ⟨y, rfl⟩]
   let S := (e : ι) × Fin (p e).segments
   let left (d : S) : N := ⟨d.1, d.2.castSucc⟩
   let right (d : S) : N := ⟨d.1, d.2.succ⟩
@@ -197,12 +192,9 @@ theorem family_affineSpan_separation {ι : Type*} (p : ι → Route) (protectedP
     have hval := congrArg (fun d : N => d.2.val) (hpoint h)
     change d.2.val = d.2.val + 1 at hval
     omega
-  have hmovable (d : S) : point (left d) ∈ Set.range placed ∨
-      point (right d) ∈ Set.range placed := by
-    rcases d with ⟨e, i⟩
-    refine Fin.cases ?_ (fun k => ?_) i
-    · exact Or.inr ⟨⟨e, ⟨0, hbends e⟩⟩, rfl⟩
-    · exact Or.inl ⟨⟨e, k⟩, rfl⟩
+  have hmovable : ∀ d : S, point (left d) ∈ Set.range placed ∨
+      point (right d) ∈ Set.range placed := fun ⟨e, i⟩ =>
+    Fin.cases (.inr ⟨⟨e, ⟨0, hbends e⟩⟩, rfl⟩) (fun k => .inl ⟨⟨e, k⟩, rfl⟩) i
   have hpair (d f : S) (hEq : ({point (left d), point (right d)} : Set ℂ) =
       {point (left f), point (right f)}) : d = f := by
     rcases (hEq ▸ Or.inl rfl : point (left d) ∈ ({point (left f), point (right f)} : Set ℂ))

@@ -191,7 +191,7 @@ theorem exists_price_of_convex_disjoint_negOrthant [Fintype G]
   have hu_le : u ≤ 0 := by
     by_contra! hu_pos
     obtain ⟨g₀, hpg₀⟩ := hp_pos
-    set P : ℝ := ∑ g : G, p g
+    set P : ℝ := ∑ g : G, p g with hP_def
     have hP_pos : 0 < P :=
       lt_of_lt_of_le hpg₀ (single_le_sum (fun g _ => hp_nn g) (mem_univ g₀))
     obtain ⟨z, hzK, hz_norm⟩ := hzero (u / (2 * P)) (by positivity)
@@ -201,7 +201,7 @@ theorem exists_price_of_convex_disjoint_negOrthant [Fintype G]
         rw [expenditure_eq_sum]
         exact sum_le_sum fun g _ => mul_le_mul_of_nonneg_left
           ((le_abs_self (z g)).trans (hz_norm g).le) (hp_nn g)
-      _ = u / 2 := by rw [← sum_mul, show ∑ g, p g = P from rfl]; field_simp [hP_pos.ne']
+      _ = u / 2 := by rw [← sum_mul, ← hP_def]; field_simp [hP_pos.ne']
     linarith
   refine ⟨p, hp_nn, hp_pos, fun z hz => ?_⟩
   simpa only [le_antisymm hu_le hu_nn, hf_eq z] using hge z hz
@@ -442,15 +442,10 @@ theorem IsFeasibleAllocation.price_mul_excessDemand_eq_zero
     (hx : E.IsFeasibleAllocation x) (hp : ∀ g, 0 ≤ p g)
     (hex0 : expenditure p (E.excessDemand x) = 0) (g : G) :
     p g * E.excessDemand x g = 0 := by
-  classical
   rw [expenditure_eq_sum] at hex0
-  have hnonpos : ∀ k ∈ (univ : Finset G), p k * E.excessDemand x k ≤ 0 := fun k _ => by
-    rw [E.excessDemand_eq]
-    exact mul_nonpos_of_nonneg_of_nonpos (hp k) (sub_nonpos.2 (hx.2 k))
-  have hrest : ∑ k ∈ univ.erase g, p k * E.excessDemand x k ≤ 0 :=
-    sum_nonpos fun k hk => hnonpos k (mem_of_mem_erase hk)
-  have hsplit := add_sum_erase univ (fun k => p k * E.excessDemand x k) (mem_univ g)
-  linarith [hnonpos g (mem_univ g)]
+  have hnonpos : ∀ k ∈ (univ : Finset G), p k * E.excessDemand x k ≤ 0 := fun k _ =>
+    E.excessDemand_eq x k ▸ mul_nonpos_of_nonneg_of_nonpos (hp k) (sub_nonpos.2 (hx.2 k))
+  exact (sum_eq_zero_iff_of_nonpos hnonpos).1 hex0 g (mem_univ g)
 
 omit [Fintype G] in
 /-- Under local nonsatiation, every feasible allocation `x` of a nonempty market can be perturbed
@@ -609,11 +604,9 @@ theorem exists_priceQuasiEquilibrium_reendow_of_isParetoOptimal [Nonempty I]
     linarith
   have hsum_eq : ∑ i : I, expenditure p (x i) = expenditure p E.totalSupply :=
     le_antisymm (hpo.1.sum_expenditure_le_totalSupply hp_nn) hsum_ge
-  have hex0 : expenditure p (E.excessDemand x) = 0 := by
-    rw [show E.excessDemand x = fun g => (∑ i : I, x i g) - E.totalSupply g from
-      funext (E.excessDemand_eq x), hexp_excess, hsum_eq, sub_self]
   have hcs : ∀ g : G, p g * E.excessDemand x g = 0 :=
-    hpo.1.price_mul_excessDemand_eq_zero hp_nn hex0
+    hpo.1.price_mul_excessDemand_eq_zero hp_nn <| by
+      rw [funext (E.excessDemand_eq x), hexp_excess, hsum_eq, sub_self]
   have hquasi : ∀ i : I, IsQuasiDemand (E.utility i) p (expenditure p (x i)) (x i) := by
     intro i
     refine ⟨⟨hpo.1.1 i, le_rfl⟩, fun b hb_nn hub => ?_⟩
@@ -755,9 +748,10 @@ theorem IsEquilibrium.envyFree_of_budget_eq {M : LinearFisherMarket I G}
     {x : I → G → ℝ} {p : G → ℝ} (heq : M.IsEquilibrium x p) {i j : I}
     (hbud : M.budget i = M.budget j) :
     linearUtility (M.utility i) (x j) ≤ M.buyerUtility x i := by
+  have hle : M.toFisherMarket.budget j ≤ M.toFisherMarket.budget i := by
+    simpa only [M.toFisherMarket_budget] using hbud.symm.le
   simpa only [M.toFisherMarket_utility, M.buyerUtility_eq] using
-    FisherMarket.IsEquilibrium.utility_le_of_budget_le heq
-      (show M.toFisherMarket.budget j ≤ M.toFisherMarket.budget i by simp [hbud])
+    FisherMarket.IsEquilibrium.utility_le_of_budget_le heq hle
 
 /-- **Proportional-share guarantee for linear Fisher equilibria:** when every buyer desires at least
 one good (`buyer_nonsatiated`) and `0 < ∑ k, M.budget k`, every buyer `i` achieves at least fraction
@@ -770,12 +764,11 @@ theorem IsEquilibrium.proportional_share {M : LinearFisherMarket I G}
       M.buyerUtility x i := by
   have hB_eq : M.toFisherMarket.totalBudget = ∑ k : I, M.budget k := by
     simp [FisherMarket.totalBudget_eq_sum]
-  have hlns : ∀ k, IsLocallyNonsatiated (M.toFisherMarket.utility k) := fun k => by
-    rw [M.toFisherMarket_utility]
-    exact (isLocallyNonsatiated_linearUtility_iff _).2 (hns k)
-  have h := FisherMarket.IsEquilibrium.utility_budgetShare_supply_le heq hlns (hB_eq.symm ▸ hB) i
-  rwa [M.toFisherMarket_utility, M.toFisherMarket_budget, M.toFisherMarket_supply, hB_eq,
-    ← M.buyerUtility_eq, linearUtility_smul] at h
+  have hlns : ∀ k, IsLocallyNonsatiated (M.toFisherMarket.utility k) := fun k =>
+    M.toFisherMarket_utility k ▸ (isLocallyNonsatiated_linearUtility_iff _).2 (hns k)
+  simpa only [M.toFisherMarket_utility, M.toFisherMarket_budget, M.toFisherMarket_supply, hB_eq,
+    ← M.buyerUtility_eq, linearUtility_smul] using
+    FisherMarket.IsEquilibrium.utility_budgetShare_supply_le heq hlns (hB_eq.symm ▸ hB) i
 
 end LinearFisherMarket
 

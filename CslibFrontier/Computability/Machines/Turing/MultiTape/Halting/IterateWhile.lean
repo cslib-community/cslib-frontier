@@ -213,14 +213,11 @@ private theorem not_halts_loopMachine {tm : MultiTapeTM k Symbol State}
   rw [hws₁, he₁, List.nil_append] at hfirstRun
   let cfg : ℕ → Cfg (k + 1 + 2) Symbol Unit (w 0) :=
     fun n => wordsCfg (w 0) none (words (w n) (w (n + 1))) []
-  have hcond : ∀ n, nextNonEmpty k Symbol (cfg n).inputSymbol (cfg n).workTapeSymbols = true := by
-    intro n
-    have hsym : (cfg n).workTapeSymbols (nextTape k) = (w (n + 1)).head? := by
-      simp [cfg, Cfg.workTapeSymbols, wordsCfg, tapeOfList_zero, words_next]
-    simp only [nextNonEmpty, hsym]
-    cases hwn : w (n + 1) with
-    | nil => exact absurd hwn (hne n)
-    | cons _ _ => rfl
+  have hcond (n : ℕ) :
+      nextNonEmpty k Symbol (cfg n).inputSymbol (cfg n).workTapeSymbols = true := by
+    cases hwn : w (n + 1)
+    · exact absurd hwn (hne n)
+    · simp [nextNonEmpty, cfg, Cfg.workTapeSymbols, wordsCfg, tapeOfList_zero, words_next, hwn]
   have hbody : ∀ n, nextNonEmpty k Symbol (cfg n).inputSymbol (cfg n).workTapeSymbols = true →
       ∃ u, (loopRound tm mark).runFrom ((cfg n).withState (some (loopRound tm mark).q₀)) u =
         (cfg (n + 1)).withState none := by
@@ -262,17 +259,11 @@ private theorem not_halts_comp_of_left {k₁ k₂ : ℕ} {S₁ S₂ : Type*}
     {x : List Symbol} (h₁ : ¬tm₁.Halts x) (mark : Symbol) :
     ¬(tm₂.comp tm₁ mark).Halts x := by
   rintro ⟨t, hhalt⟩
-  have h1 : ¬(tm₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).Halts x :=
-    not_halts_extendTapes _ h₁
-  have h2 : ∀ u, ¬((tm₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord.runFrom
-      ((tm₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord.initCfg x) u).Halted :=
-    fun u => not_halted_seq_of_left (not_halted_outputToTape h1) u
-  have h3 : ∀ u, ¬(((tm₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord.extendTapes
-      Fin.castSuccEmb).runFrom
-        (((tm₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord.extendTapes
-          Fin.castSuccEmb).initCfg x) u).Halted := fun u hu =>
-    not_halts_extendTapes Fin.castSuccEmb (fun ⟨v, hv⟩ => h2 v hv) ⟨u, hu⟩
-  exact not_halted_seq_of_left h3 t hhalt
+  let tm1e := tm₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))
+  have h2 : ¬tm1e.outputToWord.Halts x := fun ⟨u, hu⟩ =>
+    not_halted_seq_of_left (not_halted_outputToTape (not_halts_extendTapes _ h₁)) u hu
+  exact not_halted_seq_of_left
+    (fun u hu => not_halts_extendTapes Fin.castSuccEmb h2 ⟨u, hu⟩) t hhalt
 
 private theorem not_halts_comp_of_right {k₁ k₂ : ℕ} {S₁ S₂ : Type*}
     {tm₁ : MultiTapeTM k₁ Symbol S₁} {tm₂ : MultiTapeTM k₂ Symbol S₂}

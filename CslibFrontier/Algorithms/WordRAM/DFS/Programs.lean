@@ -114,9 +114,8 @@ theorem sccIndexCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → List (Fin N)
     have htriv : s₃ = s₂.set finB (kOrdAddr wb N Mc + N) := by
       simp only [s₃, kOrdAddr, kFinAddr]; ring_nf
     rw [htriv]
-    have hf_on : Fits w (kOrdAddr wb N Mc + N) :=
-      hfit.of_le (by simp only [kOrdAddr, kTopAddr]; omega)
-    wram_exec [hs₂_fr0, hordB, hNv, hf_on]
+    wram_exec [hs₂_fr0, hordB, hNv]
+    exact hfit.of_le (by simp only [kOrdAddr, kTopAddr]; omega)
   have hs₃_fr : ∀ r : Fin 28, r.val < 18 → r ≠ offB → r ≠ edgeB → r ≠ finB →
       s₃.regs r = x.regs r := fun r hr h1 h2 h3 => by
     wram_simp [s₃, hs₂_fr0 r hr h1 h2]
@@ -197,14 +196,13 @@ theorem csrAt_init (G : Graph) :
     CSRAt G.adj (kOffAddr 3) (kEdgeAddr 3 G.n) (Data.init G.encodeCSR : Data 28).mem := by
   have hoffs : ((List.range (G.n + 1)).map (csrOffset G.adj)).length = G.n + 1 := by simp
   refine ⟨fun u hu => ?_, fun u k hk => ?_⟩
-  · rw [show kOffAddr 3 + u = u + 2 + 1 by simp only [kOffAddr]; omega, Data.init_mem_succ,
-      List.getD_eq_getElem?_getD]
+  · rw [kOffAddr, Nat.add_comm 3 u, Data.init_mem_succ, List.getD_eq_getElem?_getD]
     simp only [encodeCSR, List.getElem?_cons_succ]
     rw [List.getElem?_append_left (by rw [hoffs]; omega)]
     simp [Nat.lt_succ_of_le hu]
-  · rw [show kEdgeAddr 3 G.n + csrOffset G.adj u.val + k =
-        G.n + 1 + (csrOffset G.adj u.val + k) + 1 + 1 + 1 by simp only [kEdgeAddr]; omega,
-      Data.init_mem_succ, List.getD_eq_getElem?_getD]
+  · have hadr : kEdgeAddr 3 G.n + csrOffset G.adj u.val + k =
+        G.n + 1 + (csrOffset G.adj u.val + k) + 3 := by simp only [kEdgeAddr]; omega
+    rw [hadr, Data.init_mem_succ, List.getD_eq_getElem?_getD]
     simp only [encodeCSR, List.getElem?_cons_succ]
     rw [List.getElem?_append_right (by rw [hoffs]; omega), hoffs, Nat.add_sub_cancel_left,
       getElem?_arcs G.adj u k hk]
@@ -284,8 +282,7 @@ private theorem revCopyLoop_spec {N w : ℕ} (O P : ℕ) (hOP : O + N ≤ P)
         (∀ a, a ≤ P → y.mem a = x.mem a) ∧
         (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r)
   | 0, k, x, hk, _, hcp, _, hNv, _, _, hi => by
-    have hend : ¬ (Cond.lt iReg nVerts).Holds x := by
-      change ¬ x.regs iReg < x.regs nVerts; omega
+    have hend : ¬ (Cond.lt iReg nVerts).Holds x := by rw [Cond.holds_lt]; omega
     exact ⟨x, ExecWithin.loop_exit hend, fun q hq => hcp q (by omega),
       fun _ _ => rfl, fun _ _ => rfl⟩
   | rem + 1, k, x, hk, hord, hcp, hc1, hNv, hO, hP, hi => by
@@ -300,21 +297,18 @@ private theorem revCopyLoop_spec {N w : ℕ} (O P : ℕ) (hOP : O + N ≤ P)
       unfold revCopyBody
       wram_exec [hc1, hNv, hO, hP, hi, hm]
       refine ⟨fun q hq => ?_, fun q hq => ?_, fun a ha => ?_, by wram_simp, fun r hr => ?_⟩
-      · mem_upd
-        exact (Function.update_of_ne (by omega) _ _).trans (hord q hq)
+      · simp (disch := omega) only [Data.set_mem, Data.write_mem, Function.update_of_ne, hord q hq]
       · mem_upd
         rcases eq_or_ne q k with rfl | hqk
-        · rw [show P + 1 + q = P + q + 1 by omega, Function.update_self]
+        · rw [Nat.add_right_comm, Function.update_self]
         · exact (Function.update_of_ne (by omega) _ _).trans (hcp q (by omega))
-      · mem_upd
-        exact Function.update_of_ne (by omega) _ _
+      · simp (disch := omega) only [Data.set_mem, Data.write_mem, Function.update_of_ne]
       · wram_simp
     obtain ⟨y, hy_ex, hy_cp, hy_low, hy_fr⟩ :=
       revCopyLoop_spec O P hOP hfit f rem (k + 1) x₁ (by omega) hx₁_ord hx₁_cp
         (by wram_simp [hx₁_fr, hc1]) (by wram_simp [hx₁_fr, hNv]) (by wram_simp [hx₁_fr, hO])
         (by wram_simp [hx₁_fr, hP]) hx₁_i
-    have hlt : (Cond.lt iReg nVerts).Holds x := by
-      change x.regs iReg < x.regs nVerts; omega
+    have hlt : (Cond.lt iReg nVerts).Holds x := by rw [Cond.holds_lt]; omega
     exact ⟨y, (hx₁_ex.loop_iter hlt hy_ex).mono (by omega), hy_cp,
       fun a ha => (hy_low a ha).trans (hx₁_low a ha),
       fun r hr => (hy_fr r hr).trans (hx₁_fr r hr)⟩
@@ -460,10 +454,8 @@ theorem sccCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound) :
   rw [hy_out, outputList_eq_iff]
   refine ⟨by simp [y, hlen], fun i => ?_⟩
   change y.mem (P + 1 + i.val) = (sccWords G)[i.val]
-  simp only [y]
-  mem_upd
-  rw [Function.update_of_ne (by omega), ← hC, hs₁_comp ⟨i.val, hlen ▸ i.isLt⟩]
-  simp [sccWords]
+  simp (disch := omega) [y, Data.write_mem, Function.update_of_ne, ← hC,
+    hs₁_comp ⟨i.val, hlen ▸ i.isLt⟩, sccWords]
 
 /-- `topoProgram` computes `topoWords` in `O(n + m)` instructions
 (`Program.ComputesListInTime`). -/

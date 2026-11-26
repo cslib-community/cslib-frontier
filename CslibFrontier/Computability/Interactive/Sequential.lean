@@ -354,10 +354,9 @@ theorem Verifier.RbrSound.append {V₁ : Verifier OracleSpec.empty s₁ S₁ S�
         (fun _ => by simp) (hr₂ x')
   refine ⟨fun x => compState s₁ s₂ (T₁ x) (next x),
     fun x hx => not_compState_empty (hr₁ x) (hjunc x) (hinit₁ x hx), fun x => ?_⟩
-  refine RbrFrom.congr (fun p => Iff.rfl) (fun τ => ?_)
+  exact RbrFrom.congr (fun _ => Iff.rfl) (fun τ => by rw [outputOn_append])
     (rbrFrom_append s₁ s₂ V₁.samplers V₂.samplers ε₁ ε₂ (T₁ x) _ (next x) _ (hr₁ x) (hjunc x)
       (hsecond x))
-  rw [outputOn_append]
 
 end Rbr
 
@@ -568,8 +567,7 @@ theorem Reduction.Complete.append {R₁ : Reduction OracleSpec.empty OracleSpec.
   have hl₂ := h₂ x₂ w₂ hrel
   rw [Reduction.run, World.plain_eval_execute, PMF.toOuterMeasure_map_apply] at hl₂
   rw [PMF.toOuterMeasure_map_apply]
-  convert hl₂ using 2
-  ext ⟨τ₂, yw⟩
+  refine (MeasureTheory.measure_mono fun ⟨τ₂, yw⟩ => ?_).trans hl₂
   simp [Reduction.append, outputOn_append, Spec.Transcript.split_append, hout]
 
 
@@ -604,18 +602,13 @@ theorem Verifier.Sound.append {V₁ : Verifier OracleSpec.empty s₁ S₁ S₂}
   rw [PMF.toOuterMeasure_map_apply]
   cases hout : V₁.outputOn x r₁.1 with
   | none =>
-    have hset : (fun r₂ : Transcript s₂ × α => (Transcript.append s₁ s₂ r₁.1 r₂.1, r₂.2)) ⁻¹'
-        ((fun r : Transcript (s₁ ++ s₂) × α => (r.1, (V₁.append V₂).outputOn x r.1, r.2)) ⁻¹'
-          {r | ∃ x' ∈ L₃, r.2.1 = some x'}) = ∅ :=
-      Set.ext fun _ => by simp [outputOn_append, Spec.Transcript.split_append, hout]
-    simp only [hset, MeasureTheory.measure_empty, zero_le]
+    refine (MeasureTheory.measure_mono (t := ∅) ?_).trans (by simp)
+    simp [outputOn_append, Spec.Transcript.split_append, hout]
   | some y =>
-    have hy : y ∉ L₂ := fun hy => hr₁ y hy hout
-    have hl₂ := h₂ y hy _ (pure r₁.2)
-    rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply] at hl₂
-    simp only [plainLaw_bind, plainLaw_pure, PMF.pure_bind] at hl₂
-    convert hl₂ using 2
-    ext r₂
+    have hl₂ := h₂ y (fun hy => hr₁ y hy hout) _ (pure r₁.2)
+    simp only [World.plain_eval_execute, PMF.toOuterMeasure_map_apply, plainLaw_bind,
+      plainLaw_pure, PMF.pure_bind] at hl₂
+    refine (MeasureTheory.measure_mono fun _ => ?_).trans hl₂
     simp [outputOn_append, Spec.Transcript.split_append, hout]
 
 
@@ -677,15 +670,13 @@ theorem Verifier.KnowledgeSound.append {V₁ : Verifier OracleSpec.empty s₁ S�
     rw [PMF.toOuterMeasure_map_apply]
     cases hout : V₁.outputOn x r₁.1 with
     | none =>
-      have hset : (fun r₂ : Transcript s₂ × W₃ => (Transcript.append s₁ s₂ r₁.1 r₂.1, r₂.2)) ⁻¹'
-          T₂ = ∅ := Set.ext fun _ => by simp [T₂, Spec.Transcript.split_append, hout]
-      simp only [hset, MeasureTheory.measure_empty, zero_le]
+      refine (MeasureTheory.measure_mono (t := ∅) ?_).trans (by simp)
+      simp [T₂, Spec.Transcript.split_append, hout]
     | some y =>
       have hl₂ := h₂ y (pure r₁.2)
-      rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply] at hl₂
-      simp only [plainLaw_bind, plainLaw_pure, PMF.pure_bind] at hl₂
-      convert hl₂ using 2
-      ext r₂
+      simp only [World.plain_eval_execute, PMF.toOuterMeasure_map_apply, plainLaw_bind,
+        plainLaw_pure, PMF.pure_bind] at hl₂
+      refine (MeasureTheory.measure_mono fun _ => ?_).trans hl₂
       simp [T₂, Spec.Transcript.split_append, hout]
 
 end Compose

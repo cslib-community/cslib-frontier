@@ -129,8 +129,7 @@ private theorem middle_position_upper (p : Route) {s t : ℝ}
       simpa only [cutUpper, hi, ite_true] using p.cutTime_eq_upper_iff hs.le ht.le hst i u
     exact ⟨by linarith, fun hz => by linarith [he.mp (by linarith)],
       fun hz => by linarith [he.mpr (by linarith)]⟩
-  · have hic : (i.val : ℝ) + 2 ≤ p.segments := by
-      exact_mod_cast (show i.val + 2 ≤ p.segments by omega)
+  · have hic : (i.val : ℝ) + 2 ≤ p.segments := mod_cast (show i.val + 2 ≤ p.segments by omega)
     have hr := p.cutTime_mem hs.le ht.le hst i hu
     exact ⟨by linarith [hr.2], iff_of_false (by linarith [hr.2]) (by linarith [hu.2])⟩
 
@@ -235,14 +234,14 @@ theorem support_trisect (p : Route) {s t : ℝ}
         obtain ⟨u, hu, he⟩ := preimage hlu.le ⟨hlow, hupp⟩
         refine Set.mem_iUnion.mpr
           ⟨1, ((p.trisect s t 1).mem_support_iff _).mpr ⟨i, u, hu, ?_⟩⟩
-        change (p.cutEnds s t).eval i u = _
-        rw [eval_cutEnds, show p.cutTime s t i u = r from he]
-      · obtain rfl : i = Fin.last p.bends := by
+        exact (p.eval_cutEnds s t i u).trans (congrArg (p.eval i) he)
+      · obtain rfl : i = Fin.last p.bends := Fin.ext <| by
+          rw [Fin.val_last]
           by_contra h
-          have hn : i.val + 1 ≠ p.segments := fun he =>
-            h (Fin.ext (by simp only [Fin.val_last]; unfold segments at he; omega))
-          simp only [cutUpper, ite_eq_right hn] at hupp
-          exact (not_lt_of_ge hr.2) hupp
+          have hn : i.val + 1 ≠ p.segments := by
+            unfold segments
+            omega
+          exact not_lt_of_ge hr.2 (by simpa only [cutUpper, ite_eq_right hn] using hupp)
         have hupp' : 1 - t < r := by simpa [cutUpper, segments] using hupp
         obtain ⟨u, hu, he⟩ := preimage (show 1 - t ≤ (1 : ℝ) by linarith) ⟨hupp'.le, hr.2⟩
         have hr' : 1 - t + t * u = r := by rw [AffineMap.lineMap_apply_ring'] at he; linarith
@@ -321,15 +320,11 @@ theorem exists_subroute_between (p : Route) (i j : Fin p.segments) (hij : i ≤ 
     obtain ⟨hlo, hhi⟩ := hcuts k
     simp only [cutTime, sourceTime, hlo, hhi]
   refine ⟨q, e, ?_, ?_, ?_, ?_⟩
-  · change (r.cutEnds s (1 - t)).endpoint false = _
-    rw [endpoint_cutEnds]
-    change r.eval 0 s = _
-    exact (heval 0 s).trans (congrArg (fun k => p.eval k s) hfirst)
-  · change (r.cutEnds s (1 - t)).endpoint true = _
-    rw [endpoint_cutEnds]
-    change r.eval (Fin.last r.bends) (1 - (1 - t)) = _
-    rw [sub_sub_cancel]
-    exact (heval (Fin.last r.bends) t).trans (congrArg (fun k => p.eval k t) hlast)
+  · exact (r.endpoint_cutEnds s (1 - t) false).trans
+      ((heval 0 s).trans (congrArg (p.eval · s) hfirst))
+  · exact (r.endpoint_cutEnds s (1 - t) true).trans
+      ((congrArg (r.eval _) (sub_sub_cancel 1 t)).trans
+        ((heval (Fin.last r.bends) t).trans (congrArg (p.eval · t) hlast)))
   · intro k
     obtain ⟨hlo, hhi⟩ := hcuts k
     obtain ⟨hl, hlt, hh⟩ := hlo ▸ hhi ▸ hbounds k

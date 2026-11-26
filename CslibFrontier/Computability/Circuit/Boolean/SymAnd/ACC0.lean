@@ -145,13 +145,11 @@ abbrev Seed (ℓ : ℕ) : Type := Cslib.BinaryField (2 * ℓ + 2)
   | .gate k => n + k
 
 /-- The wire numbering is injective. -/
-theorem widx_injective {n g : ℕ} : Function.Injective (widx (n := n) (g := g)) := by
-  intro w w' h
-  cases w <;> cases w' <;> simp only [widx, Nat.add_left_cancel_iff] at h
-  · exact congrArg Wire.input (Fin.ext h)
-  · omega
-  · omega
-  · exact congrArg Wire.gate (Fin.ext h)
+theorem widx_injective {n g : ℕ} : Function.Injective (widx (n := n) (g := g))
+  | .input _, .input _, h => congrArg Wire.input (Fin.ext h)
+  | .input i, .gate k, h => absurd (h.symm.trans_lt i.isLt) (Nat.not_lt.2 (Nat.le_add_right n k))
+  | .gate k, .input j, h => absurd (h.trans_lt j.isLt) (Nat.not_lt.2 (Nat.le_add_right n k))
+  | .gate _, .gate _, h => congrArg Wire.gate (Fin.ext (Nat.add_left_cancel h))
 
 /-- The wire numbering takes values below `n + g`. -/
 theorem widx_lt {n g : ℕ} (w : Wire n g) : widx w < n + g := by
@@ -376,8 +374,7 @@ theorem map_atSeed_macroS (P : Program Unbounded.extSignature n g) (r : Seed ℓ
     (macroS P m ℓ).map (fun L => L.atSeed r) =
       (⟨2, combineQ P r⟩ : ModPolyLayer (Slot n g m)) ::
         (primes m).map fun p₀ => ⟨p₀, digitQ P p₀⟩ := by
-  simp only [macroS, List.map_cons, List.map_map]
-  rfl
+  simp only [macroS, List.map_cons, List.map_map, Function.comp_def, SLayer.atSeed]
 
 /-- After `j` rounds, the slots `u` hold the correct value of every wire of depth at most `j`. -/
 @[expose] def WiresOK (P : Program Unbounded.extSignature n g) (m : ℕ) (x : Fin n → Bool) (j : ℕ)
@@ -445,16 +442,12 @@ theorem wiresOK_run_towerS (P : Program Unbounded.extSignature n g) (hm : 0 < m)
       (ModPolyLayer.run ((towerS P m ℓ d).map fun L => L.atSeed r) (init x)) := by
   induction d with
   | zero =>
-    intro w hw
-    cases w with
-    | input i => rfl
-    | gate k =>
-      have := P.depths_pos k
-      simp only [Program.wireDepths_gateWire] at hw
-      omega
+    rintro (i | k) hw
+    · rfl
+    · exact absurd hw (not_le.2 (P.depths_pos k))
   | succ d ih =>
-    simp only [towerS, List.map_append, ModPolyLayer.run_append]
-    exact wiresOK_run_macro P hm x hr ih
+    simpa only [towerS, List.map_append, ModPolyLayer.run_append] using
+      wiresOK_run_macro P hm x hr ih
 
 /-! ### Counting the good seeds -/
 
@@ -535,9 +528,8 @@ theorem decide_majority {F : Type*} [Fintype F] (G : F → Prop) [DecidablePred 
     (f : F → Bool) (b : Bool) (hG : ∀ r, G r → f r = b)
     (hbad : 2 * #{r | ¬ G r} < Fintype.card F) :
     decide (Fintype.card F < 2 * #{r | f r = true}) = b := by
-  have hsplit : #{r | G r} + #{r | ¬ G r} = Fintype.card F := by
-    rw [← card_univ]
-    exact card_filter_add_card_filter_not G
+  have hsplit : #{r | G r} + #{r | ¬ G r} = Fintype.card F :=
+    card_univ (α := F) ▸ card_filter_add_card_filter_not G
   cases b
   · have h : #{r | f r = true} ≤ #{r | ¬ G r} := card_le_card fun r => by
       simpa only [mem_filter, mem_univ, true_and] using mt (hG r) ∘ Bool.ne_false_of_eq_true
@@ -555,9 +547,7 @@ theorem linePoly_mem_lowDegree (r : Seed ℓ) (k : Fin g) (L : Line Unbounded.ex
     linePoly (m := m) r k L ∈ lowDegree ℤ (Slot n g m) (2 * ℓ + 2 + (m + 1) ^ 2) := by
   obtain ⟨op, ws⟩ := L
   rcases op with ((_ | mm | mm) | mm)
-  · refine lowDegree_mono ?_
-      (one_sub_mem_lowDegree (bitVal_mem_lowDegree (Sum.inl (ws (0 : Fin 1)) : Slot n g m)))
-    omega
+  · exact lowDegree_mono (by omega) (one_sub_mem_lowDegree (bitVal_mem_lowDegree _))
   · refine lowDegree_mono ?_ (one_sub_mem_lowDegree (orTest_mem_lowDegree (seedBasis ℓ)
       (fun w => r ^ widx w) (univ.image ws)
       (g := fun w (v : Slot n g m → Bool) => !v (Sum.inl w))
@@ -579,10 +569,9 @@ theorem linePoly_mem_lowDegree (r : Seed ℓ) (k : Fin g) (L : Line Unbounded.ex
 /-- The `MOD_2` layer polynomials have degree at most `2ℓ + 2 + (m + 1) ^ 2`. -/
 theorem combineQ_mem_lowDegree (P : Program Unbounded.extSignature n g) (r : Seed ℓ)
     (s : Slot n g m) : combineQ P r s ∈ lowDegree ℤ (Slot n g m) (2 * ℓ + 2 + (m + 1) ^ 2) := by
-  rcases s with (i | k) | a
-  · exact lowDegree_mono (by omega) (bitVal_mem_lowDegree _)
-  · exact linePoly_mem_lowDegree r k (P.lines k)
-  · exact lowDegree_mono (by omega) (bitVal_mem_lowDegree _)
+  match s with
+  | .inl (.gate k) => exact linePoly_mem_lowDegree r k (P.lines k)
+  | .inl (.input _) | .inr _ => exact lowDegree_mono (by omega) (bitVal_mem_lowDegree _)
 
 /-- The digit layer polynomials have degree at most `m`, for `m > 0`. -/
 theorem digitQ_mem_lowDegree (P : Program Unbounded.extSignature n g) (hm : 0 < m) (p₀ : ℕ)
@@ -643,16 +632,14 @@ theorem card_seed_slot_lt (hN : n + g < 2 ^ ℓ) :
   set a := (m + 1) ^ 2 with ha
   have hslot : Fintype.card (Slot n g m) = n + g + g * a := by
     simp only [Fintype.card_sum, Wire.card, Fintype.card_prod, Fintype.card_fin, ha, sq]
-  have ha2 : a + 1 ≤ 2 ^ a := Nat.lt_two_pow_self
-  have h1 : n + g + g * a ≤ (n + g) * (a + 1) := by
-    have : (n + g) * (a + 1) = n + g + g * a + n * a := by ring
+  have hlt : n + g + g * a < 2 ^ ℓ * 2 ^ a := by
+    refine lt_of_le_of_lt ?_ (Nat.mul_lt_mul_of_pos_right hN (Nat.two_pow_pos a))
+    refine le_trans ?_ (Nat.mul_le_mul_left (n + g) Nat.lt_two_pow_self)
+    rw [Nat.mul_succ, Nat.add_mul]
     omega
-  have h2 : (n + g) * (a + 1) ≤ (n + g) * 2 ^ a := Nat.mul_le_mul_left _ ha2
-  have h3 : (n + g) * 2 ^ a < 2 ^ ℓ * 2 ^ a :=
-    Nat.mul_lt_mul_of_pos_right hN (Nat.two_pow_pos a)
   rw [Fintype.card_prod, hslot, Cslib.BinaryField.card (by omega)]
   calc 2 ^ (2 * ℓ + 2) * (n + g + g * a) < 2 ^ (2 * ℓ + 2) * (2 ^ ℓ * 2 ^ a) :=
-        Nat.mul_lt_mul_of_pos_left (by omega) (Nat.two_pow_pos _)
+        Nat.mul_lt_mul_of_pos_left hlt (Nat.two_pow_pos _)
     _ = 2 ^ (3 * ℓ + 2 + a) := by ring
 
 /-! ### The theorem -/

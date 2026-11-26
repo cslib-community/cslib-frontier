@@ -175,9 +175,8 @@ theorem select_select {q : Query S n} {Γ : Fin n → SqlType} (hq : q.typeOf = 
     obtain ⟨s, hs⟩ := Option.isSome_iff_exists.mp (hC r hr)
     simp [hs, ht r hr, Truth.inf_eq_true_iff, Bool.and_comm]
   · rw [ite_eq_right hC, Option.bind_none, eq_comm]
-    refine ite_eq_right fun hall => hC fun r hr => ?_
-    have := hall r hr
-    cases hs : (c.evalTruth r).toOption <;> simp_all
+    exact ite_eq_right fun hall => hC fun r hr =>
+      Option.isSome_iff_ne_none.mpr fun hs => by simpa [hs] using hall r hr
 
 /-- Selection commutation: two safe `WHERE` clauses may be applied in either order. -/
 theorem select_comm {q : Query S n} {Γ : Fin n → SqlType} (hq : q.typeOf = some Γ)
@@ -234,10 +233,8 @@ theorem eval_join_of_isSafePredicate {q₁ : Query S n} {q₂ : Query S m} {Γ :
       return ((rs ×ˢ ss).filter fun (r, s) =>
           (θ.evalTruth (Fin.append r s)).toOption = some .true)
         |>.map fun (r, s) => Fin.append r s) := by
-  rcases hrs : q₁.eval D with _ | rs
-  · simp [eval_join, hrs]
-  rcases hss : q₂.eval D with _ | ss
-  · simp [eval_join, hrs, hss]
+  rcases hrs : q₁.eval D with _ | rs <;> rcases hss : q₂.eval D with _ | ss <;>
+    try solve | simp [eval_join, hrs, hss]
   exact eval_join_eq_ok_of_forall hrs hss fun r hr s hs => hθ.exists_evalTruth_eq_ok
     (Row.conforms_append_iff.mpr ⟨conforms_of_eval_eq_ok hD h₁ hrs r hr,
       conforms_of_eval_eq_ok hD h₂ hss s hs⟩)
@@ -382,20 +379,18 @@ theorem join_comm (θ : Expr (n + m)) (q₁ : Query S n) (q₂ : Query S m) :
       (project (fun i => col (finAddFlip i)) (join (θ.rename finAddFlip) q₂ q₁)) := fun D _ => by
   simp only [eval_join, eval_project]
   rcases q₁.eval D with e | rs <;> rcases q₂.eval D with e' | ss <;> try exact .none
-  have hcols : ∀ ts : List (Row (m + n)),
-      ts.mapM (Expr.evalRow fun i => col (finAddFlip i)) = .ok (ts.map (· ∘ finAddFlip)) :=
-    fun ts => Except.mapM_eq_ok_map fun t _ => Expr.evalRow_col_comp _ t
+  have hbind (o : Option (List (Row (m + n)))) :
+      (o.bind fun ts => some (ts.map (· ∘ finAddFlip))) = o.map (List.map (· ∘ finAddFlip)) :=
+    Option.map_eq_bind.symm
   have hflip : ∀ t ∈ Row.product ss rs,
       θ.evalTruth (t ∘ finAddFlip) = (θ.rename finAddFlip).evalTruth t :=
     fun t _ => by simp only [Expr.evalTruth, Expr.eval_rename]
-  simp only [Except.ok_bind, Except.toOption_bind, hcols, Except.toOption_ok]
-  rw [show (((θ.rename finAddFlip).filterRows (Row.product ss rs)).toOption.bind
-      fun ts => some (ts.map (· ∘ finAddFlip))) = _ from Option.map_eq_bind.symm,
+  simp only [Except.ok_bind, Except.toOption_bind,
+    Except.mapM_eq_ok_map fun t _ => Expr.evalRow_col_comp finAddFlip t, Except.toOption_ok, hbind,
     ← Expr.toOption_filterRows_map hflip]
   refine EquivLevel.Rel.filterRows (ℓ := .bag) ?_ fun _ _ => rfl
-  simp only [EquivLevel.rel_bag, Row.product, List.map_map]
   refine ((List.perm_map_swap_product ss rs).map _).symm.trans (List.Perm.of_eq ?_)
-  rw [List.map_map]
+  simp only [Row.product, List.map_map]
   exact List.map_congr_left fun ⟨s, r⟩ _ => (Fin.append_comp_finAddFlip r s).symm
 
 /-! ### `DISTINCT` -/

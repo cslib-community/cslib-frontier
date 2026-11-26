@@ -86,11 +86,9 @@ theorem markov_bad_samples
   -- proof, for the pinned Mathlib's `haveI` style linter and deprecation.
   have hμ_prob : IsProbabilityMeasure μ := Measure.pi.instIsProbabilityMeasure _
   have hd_pos : 0 < d := by rw [hd_def, hW'_def, card_erase_of_mem hw₀]; omega
-  have hd_cast : (0 : ℝ) < (d : ℝ) := Nat.cast_pos.mpr hd_pos
+  have hd_one : (1 : ℝ) ≤ (d : ℝ) := by exact_mod_cast hd_pos
   have hp_nonneg : (0 : ℝ) ≤ 8 * ε' / d := by positivity
-  have hp_le_one : 8 * ε' / d ≤ 1 := by
-    rw [div_le_one hd_cast]
-    linarith [show (1 : ℝ) ≤ d from by exact_mod_cast hd_pos]
+  have hp_le_one : 8 * ε' / d ≤ 1 := (div_le_one (Nat.cast_pos.mpr hd_pos)).mpr (by linarith)
   have hf_meas : Measurable (fun xs : Fin m → α => ((seenElements W' xs).card : ℝ≥0∞)) :=
     measurable_seenElements_card W'
   set good : Set (Fin m → α) := {xs | (seenElements W' xs).card ≤ d / 2}
@@ -125,16 +123,15 @@ theorem markov_bad_samples
     have h8mε : 8 * (m : ℝ) * ε' < (↑d : ℝ) / 4 := by
       calc 8 * (m : ℝ) * ε' < 8 * ((↑d : ℝ) / (32 * ε')) * ε' := by gcongr
         _ = ↑d / 4 := by field_simp; ring
-    have h2k : (d : ℝ) < 2 * ↑k := by exact_mod_cast (by omega : d < 2 * k)
+    have h2k : (d : ℝ) < 2 * ↑k := by norm_cast; omega
     calc 8 * ↑m * ε' / ↑k
         < (↑d / 4) / ↑k := div_lt_div_of_pos_right h8mε hk_pos
       _ = ↑d / (4 * ↑k) := by ring
-      _ < 1 / 2 := by
-          rw [div_lt_iff₀ (by positivity : (0 : ℝ) < 4 * ↑k)]; linarith
+      _ < 1 / 2 := (div_lt_iff₀ (mul_pos zero_lt_four hk_pos)).mpr (by linarith)
   have hbad_lt : μ bad < ENNReal.ofReal (1 / 2) := calc
     μ bad ≤ ENNReal.ofReal (8 * ↑m * ε' / ↑k) := hbad_bound
     _ < ENNReal.ofReal (1 / 2) :=
-        (ENNReal.ofReal_lt_ofReal_iff (by norm_num : (0 : ℝ) < 1 / 2)).mpr harith
+        (ENNReal.ofReal_lt_ofReal_iff one_half_pos).mpr harith
   rw [hgood_compl_bad, ← ENNReal.add_lt_add_iff_left (measure_ne_top μ bad),
     prob_add_prob_compl hbad_meas]
   calc μ bad + ENNReal.ofReal (1 / 2)
@@ -218,8 +215,7 @@ theorem ehkv_sum_lower_bound
         have hw_ne_w₀ : w ≠ w₀ := Finset.ne_of_mem_erase (Finset.sdiff_subset hwU')
         -- For any S' ∈ W'.powerset and w ≠ w₀ with w ∈ W: w ∈ concepts S' ↔ w ∈ S'.
         have hmem_iff {S' : Finset α} (hS' : S' ∈ W'.powerset) : w ∈ concepts S' ↔ w ∈ S' := by
-          have h := Set.ext_iff.mp (hconcepts_eq S' hS') w
-          simpa [hwW, hw_ne_w₀] using h
+          simpa [hwW, hw_ne_w₀] using Set.ext_iff.mp (hconcepts_eq S' hS') w
         have hσ_iff : w ∈ concepts (σ S) ↔ w ∉ S :=
           (hmem_iff hσS_mem).trans (by
             simp only [σ, U, Finset.mem_union, Finset.mem_inter, Finset.mem_sdiff] at *; tauto)
@@ -271,7 +267,7 @@ theorem ehkv_final_contradiction
     (h_combined : (2 ^ d / 2 : ℕ) • μB < (2 ^ d : ℕ) • ENNReal.ofReal (1 / 14)) : False := by
   have hB_upper : μB ≤ ENNReal.ofReal (1 / 7) := by
     have h2d_nat : (2 ^ d : ℕ) = 2 * (2 ^ d / 2) :=
-      Nat.eq_mul_of_div_eq_right (dvd_pow_self 2 (by omega : d ≠ 0)) rfl
+      Nat.eq_mul_of_div_eq_right (dvd_pow_self 2 hd_pos.ne') rfl
     rw [nsmul_eq_mul, nsmul_eq_mul] at h_combined
     have h_rhs : (↑(2 ^ d : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 / 14) =
         ↑(2 ^ d / 2 : ℕ) * ENNReal.ofReal (1 / 7) := by
@@ -280,14 +276,11 @@ theorem ehkv_final_contradiction
         _ = (2 * ↑(2 ^ d / 2 : ℕ)) * ENNReal.ofReal (1 / 14) := by push_cast; ring_nf
         _ = ↑(2 ^ d / 2 : ℕ) * (2 * ENNReal.ofReal (1 / 14)) := by ring
         _ = ↑(2 ^ d / 2 : ℕ) * ENNReal.ofReal (1 / 7) := by
-            congr 1
-            rw [show (2 : ℝ≥0∞) = ENNReal.ofReal 2 from by norm_num,
-              ← ENNReal.ofReal_mul (by norm_num : (0 : ℝ) ≤ 2)]
-            congr 1; norm_num
+            rw [← ENNReal.ofReal_ofNat, ← ENNReal.ofReal_mul zero_le_two]; norm_num
     rw [h_rhs] at h_combined
     exact (lt_of_mul_lt_mul_left' h_combined).le
   exact absurd hB_prob
-    (not_lt.mpr (hB_upper.trans (ENNReal.ofReal_le_ofReal (by norm_num : (1:ℝ)/7 ≤ 1/2))))
+    (not_lt.mpr (hB_upper.trans (ENNReal.ofReal_le_ofReal (by norm_num))))
 
 open Classical in
 /-- **Marginal-space EHKV witness lemma**: If the sample size `m` is strictly
@@ -359,11 +352,6 @@ theorem exists_bad_concept_marginal
   set B := {xs : Fin m → α | (seenElements W' xs).card ≤ d / 2}
   have hB_prob : ENNReal.ofReal (1 / 2) < μ B :=
     markov_bad_samples hw₀ hW_card hε'_pos hε'_le hm_real P hP_w
-  have hlower_ω : ∀ ω : Ω, (2 ^ d / 2 : ℕ) • μ B ≤
-      ∑ S ∈ W'.powerset, μ {xs : Fin m → α |
-        hypothesisError P ((A ω) (sampleOf (concepts S) xs)) (concepts S) > ε} := by
-    intro ω; simpa only [hε_eq] using
-      ehkv_sum_lower_bound hW_card hw₀ hε'_pos (A ω) P hP_w hP_supp concepts hconcepts_eq
   have hintegrate : (2 ^ d / 2 : ℕ) • μ B ≤
       ∑ S ∈ W'.powerset, ∫⁻ ω, μ {xs : Fin m → α |
         hypothesisError P ((A ω) (sampleOf (concepts S) xs)) (concepts S) > ε} ∂Q := by
@@ -372,22 +360,19 @@ theorem exists_bad_concept_marginal
           rw [lintegral_const, measure_univ, mul_one]
       _ ≤ ∫⁻ ω, ∑ S ∈ W'.powerset, μ {xs : Fin m → α |
             hypothesisError P ((A ω) (sampleOf (concepts S) xs)) (concepts S) > ε} ∂Q :=
-          lintegral_mono (fun ω => hlower_ω ω)
+          lintegral_mono fun ω => by
+            simpa only [hε_eq] using
+              ehkv_sum_lower_bound hW_card hw₀ hε'_pos (A ω) P hP_w hP_supp concepts hconcepts_eq
       _ = ∑ S ∈ W'.powerset, ∫⁻ ω, μ {xs : Fin m → α |
             hypothesisError P ((A ω) (sampleOf (concepts S) xs)) (concepts S) > ε} ∂Q :=
           lintegral_finsetSum' _ (fun S hS => hA_aem P hP_supp (concepts S) (hconcepts_mem S hS))
-  have hfail_bound : ∀ S ∈ W'.powerset,
-      ∫⁻ ω, μ {xs : Fin m → α |
-        hypothesisError P ((A ω) (sampleOf (concepts S) xs)) (concepts S) > ε} ∂Q <
-      ENNReal.ofReal (1 / 14) :=
-    fun S hS => (h_neg (concepts S) (hconcepts_mem S hS)).trans_lt hδ_lt
-  have hpow_nonempty : W'.powerset.Nonempty := ⟨∅, Finset.empty_mem_powerset _⟩
   have h_combined : (2 ^ d / 2 : ℕ) • μ B < (2 ^ d : ℕ) • ENNReal.ofReal (1 / 14) :=
     lt_of_le_of_lt hintegrate (by
       calc ∑ S ∈ W'.powerset, ∫⁻ ω, μ {xs : Fin m → α |
               hypothesisError P ((A ω) (sampleOf (concepts S) xs)) (concepts S) > ε} ∂Q
           < ∑ _S ∈ W'.powerset, ENNReal.ofReal (1 / 14) :=
-            ENNReal.sum_lt_sum_of_nonempty hpow_nonempty hfail_bound
+            ENNReal.sum_lt_sum_of_nonempty W'.powerset_nonempty fun S hS =>
+              (h_neg (concepts S) (hconcepts_mem S hS)).trans_lt hδ_lt
         _ = (2 ^ d : ℕ) • ENNReal.ofReal (1 / 14) := by rw [Finset.sum_const, card_powerset])
   exact ehkv_final_contradiction hd hB_prob h_combined
 

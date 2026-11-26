@@ -250,13 +250,11 @@ theorem toPoly_def (x : Truncated R r) :
 @[simp]
 theorem coeff_toPoly (x : Truncated R r) (i : ℕ) : (toPoly x).coeff i = coeff i x := by
   rw [toPoly, ← Polynomial.lcoeff_apply, map_sum]
-  simp only [Polynomial.lcoeff_apply, Polynomial.coeff_C_mul_X_pow]
-  by_cases hi : i < r
-  · rw [Finset.sum_eq_single i (fun _ _ hbi => by simp [hbi.symm])
-      (fun h => absurd (Finset.mem_range.mpr hi) h)]
-    simp
-  · rw [coeff_eq_zero_of_le (not_lt.mp hi)]
-    exact Finset.sum_eq_zero fun b hb => by simp [show i ≠ b from fun h => hi (h ▸ mem_range.mp hb)]
+  simp only [Polynomial.lcoeff_apply, Polynomial.coeff_C_mul_X_pow, Finset.sum_ite_eq,
+    Finset.mem_range]
+  split_ifs with hi
+  · rfl
+  · exact (coeff_eq_zero_of_le (not_lt.mp hi) x).symm
 
 @[simp]
 theorem mk_toPoly (x : Truncated R r) : mk r (toPoly x) = x := by
@@ -497,11 +495,10 @@ theorem coeff_subst_of_coeff_zero {S : Type*} [CommRing S] [Algebra R S] {g : Tr
       ∑ d ∈ Finset.range (i + 1), algebraMap R S (coeff d f) * coeff i (g ^ d) := by
   rw [substZeroConst, subst, liftAlgHom_eq_sum _ f, coeff_sum,
     ← Finset.sum_subset (Finset.range_mono (by omega : i + 1 ≤ r))]
-  · refine Finset.sum_congr rfl fun d _ => ?_
-    exact coeff_smul_algebra i (coeff d f) (g ^ d)
+  · exact Finset.sum_congr rfl fun d _ => coeff_smul_algebra i (coeff d f) (g ^ d)
   · intro d _ hd
-    rw [Finset.mem_range, not_lt] at hd
-    rw [coeff_smul_algebra, coeff_pow_eq_zero_of_lt hg0 hd, mul_zero]
+    rw [coeff_smul_algebra, coeff_pow_eq_zero_of_lt hg0 (not_lt.mp (mt Finset.mem_range.mpr hd)),
+      mul_zero]
 
 /-- Truncated substitution agrees with polynomial composition `p.comp q` modulo `T ^ r` whenever
 `(mk r q) ^ r = 0` (in particular whenever `q.coeff 0 = 0`). -/
@@ -539,9 +536,8 @@ theorem mk_trunc_subst_eq_subst (f g : R⟦X⟧) (hg0 : PowerSeries.constantCoef
       PowerSeries.coeff_trunc, hdr, ↓reduceIte, ← map_pow, mk_trunc_pow, coeff_mk_of_lt hi, hi,
       smul_eq_mul]
   · intro d hd
-    by_contra hid
-    have hlt : i < d := not_lt.mp (mt Finset.mem_range.mpr hid)
-    exact hd (by simp [coeff_pow_eq_zero_of_constantCoeff_zero hg0 hlt])
+    exact by_contra fun hid => hd (by
+      simp [coeff_pow_eq_zero_of_constantCoeff_zero hg0 (not_lt.mp (mt Finset.mem_range.mpr hid))])
 
 end Substitution
 

@@ -697,9 +697,6 @@ theorem eval_prfRealGame_prfRandomNonceToPrfDistinguisher
       ((carterWegmanRandomMAC msgLen seed hash family hmsgLen hseed hhash hfamily).sufCmaGame
         adversary n) := by
   let M := carterWegmanRandomMAC msgLen seed hash family hmsgLen hseed hhash hfamily
-  change ProbComp.eval
-      (prfRealGame id family (prfRandomNonceToPrfDistinguisher msgLen seed hash adversary) n) =
-    ProbComp.eval (M.sufCmaGame adversary n)
   unfold prfRandomNonceToPrfDistinguisher MACScheme.sufCmaGame
   refine eval_prfRealGame_prfLogDistinguisher family seed (cwRandomNonceLogHandler msgLen hash)
     adversary _ _ (M.signingPairOracle n)
@@ -843,17 +840,14 @@ private theorem step_cwRandomNonceLogHandler_randomFunctionOracle
         BitString.ofList_ofFn]
     refine ⟨congrArg _ (funext fun x => by simp [mBit, tOf, htag]), ?_⟩
     rintro _ _ _ hmem
-    obtain ⟨x, -, ⟨⟩⟩ := by
-      simpa only [PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] using hmem
+    supp_cases hmem with ⟨x, -, rfl⟩
     simp only [id_eq, List.map_append, List.map_singleton, List.reverse_cons,
       ofRandomBitTriple, BitString.ofFn_ofList hcond]
     exact hsub.append (List.Sublist.refl _)
   · simp only [Bool.eq_false_iff.mpr hcond, Bool.false_eq_true, ↓reduceIte,
       ProbOracleComp.runWith_pure, OracleComp.interpret_pure, ProbComp.eval_pure, PMF.pure_map,
       PMF.support_pure, Set.mem_singleton_iff]
-    refine ⟨trivial, ?_⟩
-    rintro _ _ _ ⟨⟩
-    exact hsub
+    exact ⟨trivial, fun | _, _, _, rfl => hsub⟩
 
 /-- **Ideal-game bound for `prfRandomNonceToPrfDistinguisher`**, a step of the proof of
 [BonehShoup2023], Theorem 7.9 (Section 7.4, p. 270): under
@@ -881,10 +875,9 @@ theorem eval_prfIdealGame_prfRandomNonceToPrfDistinguisher_le
     (List.Sublist.refl [])
     (step_cwRandomNonceLogHandler_randomFunctionOracle msgLen hash n)
     (cwRandomNonceAccept_imp_checkRandomNonceSUF msgLen hash n)).trans ?_
-  have hq_adapt := isQueryBounded_adaptRandomNonceStep msgLen n hq []
   simpa only [BitString.card, Nat.cast_pow, Nat.cast_ofNat] using
-    seed_uniform_probOracleComp_checkRandomNonceSUF_le hh hq_adapt
-      (fun out => toRandomBitTriple msgLen n out.1)
+    seed_uniform_probOracleComp_checkRandomNonceSUF_le hh
+      (isQueryBounded_adaptRandomNonceStep msgLen n hq []) fun x => toRandomBitTriple msgLen n x.1
 
 /-- **Quantitative SUF-CMA bound for `carterWegmanRandomMAC`** (after [BonehShoup2023],
 Theorem 7.9, Section 7.4, p. 270, for a hash that is an `ε`-DUF at parameter `n`, with `ε` in place

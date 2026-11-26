@@ -132,9 +132,7 @@ private theorem putUnits_spec (hκ : κ.Injective) (hub : 0 < ub) {v : α → Un
         simp only [unitCount, List.length_drop, Nat.div_eq_sub_div hub hr]
       refine ⟨t', fun h => ⟨fun hb => (h1 (by simpa [hc] using h)).1 (ht₀ hb), fun a => ?_⟩, ?_⟩
       · rw [(h1 (by simpa [hc] using h)).2, hget]
-        by_cases ha : a = a₀
-        · simp [ha, (List.nodup_cons.1 hnd).1]
-        · simp [ha]
+        by_cases ha : a = a₀ <;> simp [ha, (List.nodup_cons.1 hnd).1]
       · rw [List.drop_append_of_le_length hr, h2, hc]
         simp
     · rw [List.drop_eq_nil_of_le (by simp; omega)]
@@ -166,8 +164,7 @@ theorem putStrings_spec (hκ : κ.Injective) (hub : 0 < ub) {v : α → UnitCont
         (fun w' hw' => hv w' (List.mem_cons_of_mem _ hw')) t₁
       refine ⟨t', fun ⟨_, h⟩ => ⟨fun hb => (h3 h).1 ((h1 hw).1 hb), fun a => ?_⟩, ?_⟩
       · rw [(h3 h).2, (h1 hw).2]
-        simp only [List.flatMap_cons, List.mem_append]
-        by_cases ha : a ∈ w.1 <;> by_cases ha' : a ∈ W.flatMap Prod.fst <;> simp [ha, ha']
+        by_cases ha' : a ∈ W.flatMap Prod.fst <;> simp [ha']
       · rw [ite_eq_left hw, List.flatMap_singleton, h4]
         exact if_congr (and_iff_right hw).symm rfl rfl
     · exact ⟨t₁, fun h => absurd h.1 hw, by simp [hw]⟩
@@ -227,11 +224,9 @@ theorem scriptSem_of_checks {l : List Instruction} {t : Tree} (P : Instruction �
   induction l with
   | nil => simp
   | cons i l ih =>
-    have ih' := ih fun j hj => h j (List.mem_cons_of_mem _ hj)
     rw [scriptSem_cons, h i List.mem_cons_self]
-    by_cases hi : P i
-    · simp [hi, ih']
-    · simp [hi, List.weightedBind]
+    by_cases hi : P i <;> simp [hi, ih fun j hj => h j (List.mem_cons_of_mem _ hj),
+      List.weightedBind]
 
 /-! ### Roles -/
 
@@ -365,9 +360,8 @@ theorem simulates_role (hkey : key.Injective) (hub : 0 < ub) {r : M.Role}
   split_ifs with hb
   · rw [List.map_singleton, List.sum_singleton, mul_comm,
       hΨ t' _ ⟨(h1 (hc.2 hb)).1 hst.1, fun c => ?_⟩, mul_comm]
-    rw [(h1 (hc.2 hb)).2]
     by_cases hcc : c ∈ roleCells n o grp g r <;>
-      simp [hcells c, hcc, Finset.piecewise, hst.2 c]
+      simp [(h1 (hc.2 hb)).2, hcells c, hcc, Finset.piecewise, hst.2 c]
   · simp
 
 end Role

@@ -236,8 +236,8 @@ theorem computableInPolyTime_verifier :
 
 /-- The binary step bound `a.steps` is strictly below `2 ^ |enc a|`. -/
 theorem steps_lt_two_pow_length (a : NEXPBoundedAcceptanceInstance) :
-    a.steps < 2 ^ (encNEXPBoundedAcceptanceInstance a).length := by
-  exact (Nat.size_eq_bits_len a.steps ▸ Nat.lt_size_self a.steps).trans_le
+    a.steps < 2 ^ (encNEXPBoundedAcceptanceInstance a).length :=
+  (Nat.size_eq_bits_len a.steps ▸ Nat.lt_size_self a.steps).trans_le
     (Nat.pow_le_pow_right (by omega) (encNEXPBoundedAcceptanceInstance_steps_length_le a))
 
 /-- **`NEXPBoundedAcceptance` is in `NE`.** -/
@@ -265,10 +265,7 @@ theorem mem_NE : NEXPBoundedAcceptance ∈ NE encNEXPBoundedAcceptanceInstance :
       _ ≤ 2 ^ (k * n) := Nat.pow_le_pow_right (by omega) (by dsimp [k]; nlinarith)
   have hpair_le : (encPair encNEXPBoundedAcceptanceInstance encBits (a, w)).length + 1 ≤
       4 * 2 ^ n := by
-    rw [length_encPair]
-    simp only [encBits, Function.Embedding.refl_apply, hw]
-    change 2 * n + 1 + (2 * a.steps + 1) + 1 ≤ 4 * 2 ^ n
-    omega
+    simp only [length_encPair, encBits, Function.Embedding.refl_apply, hw]; omega
   have hdV : ((encPair encNEXPBoundedAcceptanceInstance encBits (a, w)).length + 1) ^ dV ≤
       4 ^ dV * 2 ^ (k * n) := by
     calc ((encPair encNEXPBoundedAcceptanceInstance encBits (a, w)).length + 1) ^ dV
@@ -336,18 +333,15 @@ theorem polyTimeReducible {α : Type} {enc : α ↪ List Bool} {A : Set α} {p :
         rw [hc_len]
         linarith [Nat.mul_le_mul_left M h1, Nat.zero_le (M * E), Nat.zero_le (c₁ * E),
           Nat.zero_le (c₂ * E)]
+      have hstep_eq : stepBound a = 2 ^ C * E := by rw [hE, ← Nat.pow_add, Nat.add_comm C]
       have hCE : (cV + 1) * ((M + 1) * (c₁ + c₂ + 4) * E) ≤ stepBound a := by
-        rw [show stepBound a = 2 ^ C * E by rw [hE, ← Nat.pow_add, Nat.add_comm C], ← mul_assoc,
-          ← mul_assoc]
+        rw [hstep_eq, ← mul_assoc, ← mul_assoc]
         exact Nat.mul_le_mul_right _ Nat.lt_two_pow_self.le
       have hB := (Nat.le_mul_of_pos_left ((M + 1) * (c₁ + c₂ + 4) * E) (Nat.succ_pos cV)).trans hCE
       have hc_step : c.length ≤ stepBound a := by omega
       have htV_step : tV (enc a, c) ≤ stepBound a := by
-        have hlen_pair : (encPair encBits encBits (enc a, c)).length + 1 =
-            2 * (enc a).length + c.length + 2 := by
-          simp only [length_encPair, encBits, Function.Embedding.refl_apply]
-          omega
-        exact (Nat.mul_le_mul (Nat.le_succ cV) (by omega)).trans hCE
+        refine (Nat.mul_le_mul (Nat.le_succ cV) ?_).trans hCE
+        simp only [length_encPair, encBits, Function.Embedding.refl_apply]; omega
       obtain ⟨hhalt, hout⟩ := (htm (enc a, c)).runFrom_of_le htV_step
       change (tm.runFrom (tm.initCfg (encPair encBits encBits (enc a, c))) (stepBound a)).output =
         [ntm.checkChoices encBits (enc a, c)] at hout
@@ -358,11 +352,10 @@ theorem polyTimeReducible {α : Type} {enc : α ↪ List Bool} {A : Set α} {p :
       let T' := max (stepBound a) (tV (enc a, c))
       have hrun_eq := tm.runFrom_eq_of_halt _ (Nat.le_max_left (stepBound a) (tV (enc a, c))) hhalt
       obtain ⟨-, hout'⟩ := (htm (enc a, c)).runFrom_of_le (Nat.le_max_right (stepBound a) _)
-      change (tm.runFrom (tm.initCfg (encPair encBits encBits (enc a, c))) T').output =
-        [ntm.checkChoices encBits (enc a, c)] at hout'
-      rw [hrun_eq, hout, List.singleton_inj] at hout'
-      exact (hdec a).2.mpr
-        (ntm.accepts_of_runClosedCoins_choiceTable (of_decide_eq_true hout'.symm))
+      have hout_eq : [true] = [ntm.checkChoices encBits (enc a, c)] :=
+        hout.symm.trans ((congrArg Cfg.output hrun_eq).symm.trans hout')
+      exact (hdec a).2.mpr (ntm.accepts_of_runClosedCoins_choiceTable
+        (of_decide_eq_true (List.singleton_injective hout_eq).symm))
 
 /-- **`NEXPBoundedAcceptance` is hard for `NE`** under polynomial-time many-one reductions. -/
 theorem polyTimeHard_NE : PolyTimeHard @NE encNEXPBoundedAcceptanceInstance NEXPBoundedAcceptance :=

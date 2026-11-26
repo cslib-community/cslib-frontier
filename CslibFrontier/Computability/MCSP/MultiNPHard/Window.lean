@@ -232,10 +232,8 @@ theorem value_window_last (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^ p) 
     (x : Fin p → Bool) :
     value A T (.window i (lastIdx p)) x =
       decide (BitString.equivFin p x ∈ A i ∧ T (BitString.equivFin p x) = true) := by
-  have hle : BitString.equivFin p x ≤ lastIdx p := by
-    fin_index [lastIdx]
   rw [value_window]
-  exact decide_eq_decide.mpr (and_iff_right hle)
+  exact decide_eq_decide.mpr (and_iff_right (by fin_index [lastIdx]))
 
 /-! ### The program -/
 
@@ -337,9 +335,7 @@ private theorem value_eq_eval (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^
     simp only [line, eval_andLine, elim_litWire]
     by_cases hk : (k : ℕ) = 0
     · rw [dite_eq_left hk, elim_litWire, Bool.and_self, value_grid]
-      refine decide_eq_decide.mpr ⟨fun h => h k le_rfl, fun h b hb => ?_⟩
-      obtain rfl : b = k := by omega
-      exact h
+      exact decide_eq_decide.mpr ⟨fun h => h k le_rfl, fun h b hb => (by omega : b = k) ▸ h⟩
     · rw [dite_eq_right hk, elim_gateWire, value_grid, value_grid, ← Bool.decide_and]
       refine decide_eq_decide.mpr
         ⟨fun h => ⟨fun b hb => h b (by fin_index), h k le_rfl⟩, fun ⟨h, hk'⟩ b hb => ?_⟩
@@ -349,11 +345,7 @@ private theorem value_eq_eval (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^
     have hsel : Wire.elim x (template A T x)
         (if y ∈ A i ∧ T y = true then gateWire (.grid y (lastBit p)) else gateWire .zero) =
         decide (BitString.equivFin p x = y ∧ y ∈ A i ∧ T y = true) := by
-      split <;> rename_i hy
-      · rw [elim_gateWire, value_grid_last]
-        exact decide_eq_decide.mpr (by tauto)
-      · rw [elim_gateWire, value_zero]
-        exact (decide_eq_false fun h => hy h.2).symm
+      split_ifs with hy <;> simp [value_grid_last, value_zero, hy]
     rw [hsel, value_window]
     split <;> rename_i hy0
     · rw [elim_gateWire, value_zero, Bool.false_or]
@@ -457,8 +449,7 @@ theorem ecomplexity_template [NeZero p] (A : Fin t → Finset (Fin (2 ^ p)))
   obtain ⟨P, hP, -⟩ := exists_program A T
   have heval : (P.mapOp (Boolean.DeMorganBasis.hom I)).eval I = template A T :=
     funext fun x => (Program.eval_mapOp (I := Boolean.DeMorgan.interpretation) P x).trans (hP x)
-  rw [← heval]
-  exact ecomplexity_eval_eq_card_nonInputComponents I _
+  exact heval ▸ ecomplexity_eval_eq_card_nonInputComponents I _
 
 /-- An OR of `#C` input coordinates costs `#C - 1` gates of the constant-free basis. -/
 private theorem synthesis_or {n : ℕ} {C : Finset (Fin n)} (hC : C.Nonempty) :
@@ -507,10 +498,8 @@ theorem ecomplexityGiven_tableFun_le (A : Fin t → Finset (Fin (2 ^ p))) (T : F
     funext o
     simp only [single_apply, tableFun, Finset.mem_image, exists_exists_and_eq_and, coord,
       Fin.append_right, template_equivFin, value_window_last, decide_eq_true_eq]
-    obtain ⟨i, hi, hy⟩ := hC (BitString.equivFin p x)
-    cases hT : T (BitString.equivFin p x)
-    · simp
-    · simpa [hT] using ⟨i, hi, hy⟩
+    exact Bool.eq_iff_iff.2 ⟨fun h => (of_decide_eq_true h).choose_spec.2.2,
+      fun hT => decide_eq_true ((hC _).imp fun _ ⟨hi, hy⟩ => ⟨hi, hy, hT⟩)⟩
   · rw [Circuit.size_mapOp]
     exact_mod_cast hsize.trans (by rw [Finset.card_image_of_injective _ hinj])
 

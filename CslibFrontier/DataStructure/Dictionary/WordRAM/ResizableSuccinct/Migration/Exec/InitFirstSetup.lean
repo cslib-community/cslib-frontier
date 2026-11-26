@@ -137,13 +137,10 @@ private theorem initFirstParamsCode_exec {U V w base : ℕ} {x : RData rResize}
       tmpTargetCap_inj srcTargetCap_ne_tmp tmpTargetCap_ne_mFr srcTargetCap_ne_mFr
       (base, 1) hs₃b hfr_le hin_tc (hms₃ ▸ hpre_tc) (hms₃ ▸ hv_tc)
       (by rw [hms₃, hst_tc]; exact le_rfl)
-  rw [hms₃, hst_tc] at hm_tc
-  rw [hms₃, hres_tc] at hout_tc
-  rw [hms₃] at hex_tc
+  simp only [hms₃, hst_tc, hres_tc] at hm_tc hout_tc hex_tc
   have hs₄m : s₄.mem = x.mem := congrArg Memory.State.mem hm_tc
   have hs₄f_eq : s₄.frontier = base + 8 := hs₄f.trans hfr
-  have hs₄_nn : s₄.regs mNNew = N₁ := by
-    have h0 := hout_tc 0; rwa [tmpTargetCap_out] at h0
+  have hs₄_nn : s₄.regs mNNew = N₁ := tmpTargetCap_out ▸ hout_tc 0
   have hs₄_keep3 : ∀ reg, reg ≠ mFr → reg.val < 160 → reg ≠ mNNew → s₄.regs reg = s₃.regs reg :=
     fun reg h1 h160 hnn =>
       hframe_tc reg h1 (mkTmp_ne_reg _ h160 (fun a => by fin_cases a; exact hnn.symm))
@@ -153,8 +150,7 @@ private theorem initFirstParamsCode_exec {U V w base : ℕ} {x : RData rResize}
     (hs₄f_eq.le.trans (by rw [hfr₁_eq]; linarith only [h225_le])) (hfit225.of_le (by decide))
   have hs₅b : s₅.Bounded w := hs₄b.set (hfit225.of_le (by decide))
   have hs₅_k : s₅.regs mK = 55 := by simp [s₅, RData.set]
-  have hsum_55 : s₅.frontier + s₅.regs mK = base + 63 := by
-    rw [show s₅.frontier = base + 8 from hs₄f_eq, hs₅_k]
+  have hsum_55 : s₅.frontier + s₅.regs mK = base + 63 := by simp [s₅, RData.set, hs₄f_eq]
   have h63_le : base + 63 ≤ fr₁ := by rw [hfr₁_eq]; linarith only [h225_le]
   have hfit_b63 : Fits w (base + 63) := hfit_off.of_le (by linarith only [h225_le])
   have hex_gz1 := growZeroCode_exec (w := w) (L_peak := fr₁)
@@ -399,8 +395,8 @@ private theorem initFirstGrowCode_exec {U V w base : ℕ} {x s₁₀ : RData rRe
   have hy₃b : y₃.Bounded w :=
     ((hs₁₀b.set hfit_off).set hfit_peak).set (hfit_peak.of_le (Nat.sub_le _ _))
   have hy₃_k : y₃.regs mK = fr₁ - (base + 63) := by simp [y₃, RData.set]
-  have hsum_fr₁ : y₃.frontier + y₃.regs mK = fr₁ := by
-    rw [show y₃.frontier = base + 63 from hs₁₀f, hy₃_k]; exact Nat.add_sub_of_le h63_le
+  have hsum_fr₁ : y₃.frontier + y₃.regs mK = fr₁ :=
+    (congrArg₂ (· + ·) hs₁₀f hy₃_k).trans (Nat.add_sub_of_le h63_le)
   have hex_gz := growZeroCode_exec (w := w) (L_peak := fr₁)
     (count := mK) (result := mRes) (cur := mCur) (idx := mIdx) (zero := mZero) (one := mOne)
     hy₃b mGrow_nodup hfit1 hsum_fr₁.le (hsum_fr₁ ▸ hfit_peak)
@@ -442,8 +438,7 @@ private theorem initFirstGrowCode_exec {U V w base : ℕ} {x s₁₀ : RData rRe
   have hiw_lin : iw₁ ≤ 4 :=
     (compactedItemWords_le_linear (U := U) (V := V) (w := w) (N := N₁) (n := 1) hw hU.le hV).trans
       (by decide)
-  have hc_gz : 5 * (fr₁ - (base + 63)) + 6 ≤ 4750 := by
-    clear * - hfr₁_eq hoff_lin hiw_lin; omega
+  have hc_gz : 5 * (fr₁ - (base + 63)) + 6 ≤ 4750 := by omega
   have hex_all :=
     hex₁.seq_eq (hex₂.seq_eq (hex₃.seq_eq
       ((hex_gz.mono hc_gz (fun _ h => h)).seq_eq (hex₅.seq_eq (hex₆.seq_eq hex₇)))))

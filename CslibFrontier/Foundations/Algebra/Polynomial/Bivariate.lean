@@ -139,15 +139,13 @@ theorem coeff_hasseDerivX (i : ℕ) (Q : R[X][Y]) (b : ℕ) :
 
 /-- `hasseDerivX i` on `0` is `0`. -/
 @[simp]
-theorem hasseDerivX_zero (i : ℕ) : hasseDerivX i (0 : R[X][Y]) = 0 := by
-  ext b a
-  simp only [coeff_hasseDerivX, coeff_zero, map_zero]
+theorem hasseDerivX_zero (i : ℕ) : hasseDerivX i (0 : R[X][Y]) = 0 := sum_zero_index _
 
 /-- `hasseDerivX i` is additive. -/
 theorem hasseDerivX_add (i : ℕ) (P Q : R[X][Y]) :
     hasseDerivX i (P + Q) = hasseDerivX i P + hasseDerivX i Q := by
   ext b a
-  simp only [coeff_hasseDerivX, coeff_add, map_add]
+  simp
 
 /-- `hasseDerivX i` on a monomial in `Y`. -/
 @[simp]
@@ -218,9 +216,8 @@ theorem vanishesToOrder_iff_hasseDerivBiv (m : ℕ) (x y : R) (Q : R[X][Y]) :
 
 /-- Every polynomial vanishes to order `0`. -/
 @[simp]
-theorem vanishesToOrder_zero (x y : R) (Q : R[X][Y]) : VanishesToOrder 0 x y Q := by
-  intro i j h
-  omega
+theorem vanishesToOrder_zero (x y : R) (Q : R[X][Y]) : VanishesToOrder 0 x y Q :=
+  fun _ _ h => absurd h (Nat.not_lt_zero _)
 
 /-- Vanishing to order `1` at `(x, y)` is ordinary vanishing `Q(x, y) = 0`. -/
 theorem vanishesToOrder_one_iff (x y : R) (Q : R[X][Y]) :
@@ -236,9 +233,8 @@ theorem VanishesToOrder.mono {m m' : ℕ} {x y : R} {Q : R[X][Y]}
 
 /-- The zero polynomial vanishes to every order. -/
 @[simp]
-theorem vanishesToOrder_of_zero (m : ℕ) (x y : R) : VanishesToOrder m x y (0 : R[X][Y]) := by
-  intro i j _
-  rw [map_zero, coeff_zero, coeff_zero]
+theorem vanishesToOrder_of_zero (m : ℕ) (x y : R) : VanishesToOrder m x y (0 : R[X][Y]) :=
+  fun _ _ _ => by simp
 
 /-- Vanishing to order `m` is closed under addition. -/
 theorem VanishesToOrder.add {m : ℕ} {x y : R} {P Q : R[X][Y]}
@@ -430,9 +426,8 @@ private theorem exists_max_weightedDegree_monomial {d : ℕ} {Q : R[X][Y]} (hQ :
     exact ⟨p, mem_filter.2 ⟨hp, hpeq.symm⟩⟩
   obtain ⟨⟨a₀, b₀⟩, hp₀, hb₀⟩ := exists_mem_eq_sup' htop Prod.snd
   obtain ⟨hp₀, hdeg₀⟩ := mem_filter.1 hp₀
-  refine ⟨a₀, b₀, (hmem a₀ b₀).2 hp₀, hdeg₀.trans hM₀_eq, fun a b hab hdeg => ?_⟩
-  rw [show b₀ = (a₀, b₀).2 from rfl, ← hb₀]
-  exact le_sup' Prod.snd (mem_filter.2 ⟨(hmem a b).1 hab, hdeg.trans hM₀_eq.symm⟩)
+  refine ⟨a₀, b₀, (hmem a₀ b₀).2 hp₀, hdeg₀.trans hM₀_eq, fun a b hab hdeg =>
+    (le_sup' Prod.snd (mem_filter.2 ⟨(hmem a b).1 hab, hdeg.trans hM₀_eq.symm⟩)).trans_eq hb₀⟩
 
 /-- **Additivity of `(1, d)`-weighted degree.** Over a domain, if `A ≠ 0` and `B ≠ 0`, then
 `weightedDegree d (A * B) = weightedDegree d A + weightedDegree d B`. -/

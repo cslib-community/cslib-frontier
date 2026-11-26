@@ -1027,18 +1027,16 @@ private theorem viewWordOf_eq {m n l Q w : ℕ}
     (by simp [rowIndexEquiv])
   have hchal (i : Fin l) := rowEntries M b (rowIndexEquiv m l Q (Sum.inr (Sum.inl i)))
     (row := m + i.val) (by simp [rowIndexEquiv, finSumFinEquiv_apply_right])
+  have h0 : encodeHalfBits (2 ^ w) (fun _ : Fin m => false) = 0 := funext fun _ => rfl
   have hc := keyWord_eq_cipherRowsWord (headRows b) (headMatrixRows M) 0 (fun _ => false) _ 0 []
     [] (fun i => (hhead i).1) (fun i j => (hhead i).2 j) (by simp) (by simp)
-  rw [_root_.Matrix.mulVec_zero, add_zero,
-    show encodeHalfBits (2 ^ w) (fun _ : Fin m => false) = 0 from funext fun _ => rfl,
-    add_zero] at hc
+  rw [_root_.Matrix.mulVec_zero, add_zero, h0, add_zero] at hc
   rw [viewWordOf, ← toBinary_eq_matrixRowsWord (headMatrixRows M) _ 0 fun i j => (hhead i).2 j,
     ← hc, ← toBinary_eq_matrixRowsWord (challengeMatrixRows M) _ m fun i j => (hchal i).2 j,
     ← keyWord_eq_cipherRowsWord (challengeRows b) (challengeMatrixRows M) 0 r _ m [] (List.ofFn r)
       (fun i => (hchal i).1) (fun i j => (hchal i).2 j) (by simp)
       (fun i => List.getD_ofFn r i false)]
-  simp only [_root_.Matrix.mulVec_zero, add_zero]
-  rfl
+  simp only [_root_.Matrix.mulVec_zero, add_zero]; rfl
 
 /-- The block that `withSampleList` supplies after `k` queries: block `k` of the query rows, or
 the zero block once they are used up. -/
@@ -1063,15 +1061,13 @@ private theorem blockAt_entries {m n l Q w : ℕ}
   · rw [show blockAt M b k = (queryMatrixRows M ⟨k, hk⟩, queryRows b ⟨k, hk⟩) by simp [blockAt, hk]]
     exact ⟨fun i => (rowEntries M b _ (val_rowIndexEquiv_query ⟨k, hk⟩ i)).1,
       fun i j => (rowEntries M b _ (val_rowIndexEquiv_query ⟨k, hk⟩ i)).2 j⟩
-  · rw [show blockAt M b k = (0, 0) by simp [blockAt, hk]]
-    have hzero (i : Fin l) (j : ℕ) : Cslib.Matrix.binaryEntry (n + 1) w
-        (Cslib.Matrix.toBinary (LWE.augmentedMatrix M b)) (m + l + l * k + i.val) j = 0 := by
-      apply Cslib.Matrix.binaryEntry_eq_zero_of_length_le
-      rw [Cslib.Matrix.length_toBinary]
-      have hrow : m + (Q + 1) * l ≤ m + l + l * k + i.val := by nlinarith [not_lt.mp hk]
-      exact Nat.mul_le_mul_right w
-        ((Nat.mul_le_mul_right (n + 1) hrow).trans (Nat.le_add_right _ _))
-    exact ⟨fun i => by simp [hzero], fun i j => by simp [hzero]⟩
+  · have hzero (i : Fin l) (j : ℕ) : Cslib.Matrix.binaryEntry (n + 1) w
+        (Cslib.Matrix.toBinary (LWE.augmentedMatrix M b)) (m + l + l * k + i.val) j = 0 :=
+      Cslib.Matrix.binaryEntry_eq_zero_of_length_le <| by
+        rw [Cslib.Matrix.length_toBinary]
+        exact Nat.mul_le_mul_right w
+          ((Nat.mul_le_mul_right (n + 1) (by nlinarith)).trans (Nat.le_add_right _ _))
+    exact ⟨fun i => by simp [hzero, blockAt, hk], fun i j => by simp [hzero, blockAt, hk]⟩
 
 /-- The leakage word from block `k` is the encoded leakage
 `(⟨c* + A x + clampShift t δ, B_k, b_k + B_k x + ⌊2 ^ w / 2⌋ r⟩, r)`. -/
@@ -1138,10 +1134,9 @@ private theorem eval_queryWords (t Q : ℕ → ℕ) (A : WordReuseAdversary)
       (Cslib.Matrix.toBinary (LWE.augmentedMatrix M b)) q).run k))
     (fun q s => ProbComp.eval ((c.wordOracle O q).run s)) (fun k => ((), blocks.drop k)) hstep P 0
   simp only [StateT.run, List.drop_zero] at h
-  rw [hadapt]
-  simp only [ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure,
-    ProbOracleComp.eval_runState]
-  rw [← h, PMF.bind_map]; rfl
+  simp only [hadapt, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure,
+    ProbOracleComp.eval_runState, ← h, PMF.bind_map]
+  rfl
 
 /-- The word program of `LWEFamily.encryptRealReduction` has its law. -/
 private theorem eval_realWords (t Q : ℕ → ℕ) (A : WordReuseAdversary)

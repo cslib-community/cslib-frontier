@@ -224,8 +224,7 @@ theorem length_mod_lt {a b : List K} (hb : ofCoeffList b ≠ 0) :
       refine ⟨hinv', h2', ?_⟩
       have hih := ih.2.2
       by_cases hlt : ((divModStep bt)^[k] ([], trim a)).2.length < bt.length
-      · rw [hstay (Or.inl hlt)]
-        omega
+      · rw [hstay (Or.inl hlt)]; omega
       · have := hdrop (by omega) hbt_ne
         omega
   exact (hiter a.length).2.2.trans_lt (by omega)
@@ -234,10 +233,7 @@ private theorem divMod_eq_zero_divisor {a b : List K} (hb : ofCoeffList b = 0) :
     div a b = [] ∧ mod a b = trim a := by
   suffices ∀ k, (divModStep ([] : List K))^[k] ([], trim a) = ([], trim a) by
     simp [div, mod, divMod, (trim_eq_nil_iff b).mpr hb, this a.length]
-  intro k
-  induction k with
-  | zero => rfl
-  | succ k ih => simp [Function.iterate_succ_apply', ih, divModStep]
+  exact fun k => Nat.rec rfl (fun _ ih => by simp [Function.iterate_succ_apply', ih, divModStep]) k
 
 private theorem ofCoeffList_eq_div_and_mod_of_lt {a b q r : List K} (hb : ofCoeffList b ≠ 0)
     (hr : IsTrimmed r) (hr_lt : r.length < (trim b).length)
@@ -268,9 +264,7 @@ private theorem ofCoeffList_div_and_mod (a b : List K) :
       ofCoeffList (mod a b) = ofCoeffList a % ofCoeffList b := by
   by_cases hb : ofCoeffList b = 0
   · obtain ⟨hq, hr⟩ := divMod_eq_zero_divisor (a := a) hb
-    rw [hq, hr, hb, ofCoeffList_nil, ofCoeffList_trim, EuclideanDomain.div_zero,
-      EuclideanDomain.mod_zero]
-    exact ⟨rfl, rfl⟩
+    simp [hq, hr, hb]
   · exact ofCoeffList_eq_div_and_mod_of_lt hb (isTrimmed_mod a b) (length_mod_lt hb)
       (ofCoeffList_div_mul_add_mod a b)
 
@@ -366,8 +360,8 @@ private theorem gcdStep_iterate_spec :
     · have hlt : (mod x y).length < y.length := by
         simpa only [hy.trim_eq] using
           length_mod_lt (a := x) (hy.ofCoeffList_ne_zero fun hy0 => h (List.isEmpty_iff.mpr hy0))
-      obtain ⟨ht, hnil, hgcd⟩ := gcdStep_iterate_spec k y (mod x y) hy (isTrimmed_mod x y)
-        (by omega)
+      obtain ⟨ht, hnil, hgcd⟩ :=
+        gcdStep_iterate_spec k y (mod x y) hy (isTrimmed_mod x y) (by omega)
       exact ⟨ht, hnil, by rw [hgcd, ofCoeffList_mod, ← EuclideanDomain.gcd_val]⟩
 
 /-- `gcd a b` is trimmed. -/

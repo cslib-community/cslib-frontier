@@ -331,8 +331,7 @@ theorem IsIntervalPrefixCircuit.isUniversalPrefixCircuit {N : ℕ} {c : PrefixCi
       rw [programWord_gate_mul c.program g wires hline, ih0.2, ih1.2, hglo, hghi]
       have hsum : lo (wires 0) + (hi (wires 0) - lo (wires 0)) = lo (wires 1) := by omega
       rw [← hsum, List.range'_append_1]
-      congr 1
-      omega
+      exact congrArg (List.range' (lo (wires 0))) (by omega)
   funext j
   apply freeFinWord_injective
   simpa [programWord, Circuit.eval, (hout j).1, (hout j).2, freeFinWord_prefixProd] using
@@ -408,12 +407,9 @@ private theorem card_mulGates_eq_cost {N g : ℕ} (p : Program prefixSignature N
     · rw [Finset.card_map]
       cases line.op <;> simp only [reduceCtorEq, ↓reduceIte, Finset.card_singleton,
         Finset.card_empty]
-    · rw [Finset.disjoint_right]
-      intro k hk
-      split_ifs at hk <;> simp only [Finset.mem_singleton, Finset.notMem_empty] at hk
-      subst hk
-      simp only [Finset.mem_map, Function.Embedding.coeFn_mk, Fin.castSucc_ne_last, and_false,
-        exists_false, not_false_eq_true]
+    · split_ifs
+      · simp [Finset.disjoint_singleton_right, Fin.castSucc_ne_last]
+      · exact Finset.disjoint_empty_right _
 
 private def ancMul {N g : ℕ} (p : Program prefixSignature N g) : Wire N g → Finset (Fin g)
   | .input _ => ∅
@@ -478,14 +474,11 @@ private theorem ancMul_range_and_card {N g : ℕ} (p : Program prefixSignature N
     (fun k wires hline ih0 a len hlen hw => ?_)
     (fun k wires hline ih0 ih1 a len _ hw => ?_) w
   · rw [programWord_input] at hw
-    have h1 : len = 1 := by
-      have := congrArg List.length hw
-      simpa only [List.length_singleton, List.length_range'] using this.symm
-    rw [ancMul_input, h1]
+    obtain rfl : len = 1 := by simpa using (congrArg List.length hw).symm
+    rw [ancMul_input]
     exact ⟨fun j hj => absurd hj (Finset.notMem_empty j), rfl⟩
   · rw [ancMul_gate_id p k wires hline]
-    rw [programWord_gate_id p k wires hline] at hw
-    exact ih0 a len hlen hw
+    exact ih0 a len hlen (programWord_gate_id p k wires hline ▸ hw)
   · rw [programWord_gate_mul p k wires hline] at hw
     obtain ⟨hm1, hm2, hw0, hw1⟩ := range_split_of_append
       (programWord_ne_nil p (wires 0)) (programWord_ne_nil p (wires 1)) hw
@@ -612,8 +605,7 @@ private theorem zero_mem_ancMul_iff_mem_leftSpine {N g : ℕ} (p : Program prefi
       ∀ j ∈ ancMul p w, 0 ∈ programWord p (.gate j) ↔ j ∈ leftSpine p w := by
   intro w
   refine prefix_wire_induction p
-    (fun i len _ _ j hj => by
-      rw [ancMul_input] at hj; exact absurd hj (Finset.notMem_empty j))
+    (fun i _ _ _ j hj => absurd (ancMul_input p i ▸ hj) (Finset.notMem_empty j))
     (fun k wires hline ih0 len hlen hw j hj => ?_)
     (fun k wires hline ih0 _ len _ hw j hj => ?_) w
   · rw [ancMul_gate_id p k wires hline] at hj

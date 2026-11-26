@@ -72,9 +72,9 @@ private theorem exists_strictSep_of_not_balanced {A : Type*} [Fintype A] [Decida
     ∃ v : A → ℝ, 0 < ∑ i, v i ∧ ∀ S ∈ Fset, ∑ i ∈ S, v i < 0 := by
   let M : Matrix A (Finset A) ℝ := fun i S => if S ∈ Fset ∧ i ∈ S then 1 else 0
   have hno : ¬ ∃ u : Finset A → ℝ, 0 ≤ u ∧ M *ᵥ u = fun _ => 1 := by
-    rintro ⟨u, hu0, hu1⟩
+    rintro ⟨u, hu0 : ∀ S, 0 ≤ u S, hu1⟩
     refine hnb ⟨fun S => if S ∈ Fset then u S else 0,
-      fun S => by by_cases hS : S ∈ Fset <;> simp [hS, show 0 ≤ u S from hu0 S],
+      fun S => by by_cases hS : S ∈ Fset <;> simp [hS, hu0 S],
       ite_eq_right fun h => Finset.notMem_empty _ (hne ∅ h).choose_spec, fun i => ?_,
       fun S hS => by_contra fun hnot => by simp [hnot] at hS⟩
     have hi := congr_fun hu1 i
@@ -105,10 +105,8 @@ private theorem isCompact_simplex {A : Type*} [Fintype A] :
     IsCompact {q : A → ℝ | (∀ i, 0 ≤ q i) ∧ ∑ i, q i = 1} := by
   refine (isCompact_Icc (a := (0 : A → ℝ)) (b := (1 : A → ℝ))).of_isClosed_subset
     ?_ fun q hq => ⟨hq.1, fun i => ?_⟩
-  · exact ((by simpa only [Set.ofPred_forall] using isClosed_iInter fun i =>
-        isClosed_le continuous_const (continuous_apply i) :
-        IsClosed {q : A → ℝ | ∀ i, 0 ≤ q i}).inter
-      (isClosed_eq (continuous_finsetSum _ fun i _ => continuous_apply i) continuous_const))
+  · exact isClosed_Ici.inter
+      (isClosed_eq (continuous_finsetSum _ fun i _ => continuous_apply i) continuous_const)
   · calc
       q i ≤ ∑ j, q j := Finset.single_le_sum (fun j _ => hq.1 j) (Finset.mem_univ i)
       _ = 1 := hq.2
@@ -277,17 +275,10 @@ theorem exists_mem_iInter_of_kkmCover {A : Type*} [Fintype A] [Nonempty A]
         ∃ i ∈ T, q ∈ F i) :
     ∃ q : A → ℝ, ((∀ i, 0 ≤ q i) ∧ ∑ i, q i = 1) ∧ ∀ i : A, q ∈ F i := by
   classical
-  let G : Finset A → Set (A → ℝ) := fun S => if h : ∃ i : A, S = {i} then F h.choose else ∅
-  have hG_single (i : A) : G {i} = F i := by
-    dsimp only [G]
-    split_ifs with hex
-    · rw [Finset.singleton_injective hex.choose_spec.symm]
-    · exact (hex ⟨i, rfl⟩).elim
+  let G : Finset A → Set (A → ℝ) := fun S => ⋃ (i : A) (_ : S = {i}), F i
+  have hG_single (i : A) : G {i} = F i := Set.ext fun _ => by simp [G]
   obtain ⟨q, hq, w, hw0, _, hw_bal, hqG⟩ := exists_balanced_inter_of_kkmCover G
-    (fun S _ => by
-      dsimp only [G]
-      split_ifs with h
-      exacts [hclosed h.choose, isClosed_empty])
+    (fun _ _ => isClosed_iUnion_of_finite fun i => isClosed_iUnion_of_finite fun _ => hclosed i)
     fun T hT q hq0 hq1 hqout => by
       obtain ⟨i, hiT, hqi⟩ := hcover T hT q hq0 hq1 hqout
       exact ⟨{i}, Finset.singleton_subset_iff.2 hiT, Finset.singleton_nonempty i,
@@ -296,9 +287,7 @@ theorem exists_mem_iInter_of_kkmCover {A : Type*} [Fintype A] [Nonempty A]
   suffices w {i} = 1 by linarith
   rw [← hw_bal i, Finset.sum_eq_single {i} (fun S hS hSne => ?_) (by simp)]
   refine le_antisymm (not_lt.1 fun hwS => ?_) (hw0 S)
-  by_cases hex : ∃ j, S = {j}
-  · obtain ⟨j, rfl⟩ := hex
-    exact hSne (congrArg singleton (Finset.mem_singleton.1 (Finset.mem_filter.1 hS).2).symm)
-  · exact absurd (hqG S hwS) (by simp [G, hex])
+  obtain ⟨j, rfl, -⟩ := Set.mem_iUnion₂.1 (hqG S hwS)
+  exact hSne (congrArg singleton (Finset.mem_singleton.1 (Finset.mem_filter.1 hS).2).symm)
 
 end Cslib.Brouwer

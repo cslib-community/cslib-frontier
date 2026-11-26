@@ -128,20 +128,14 @@ theorem length_stage_le : ∀ l : List α, (stage label t l).length ≤ max (2 *
   | [] => Nat.zero_le _
   | a :: rest => by
     have h := (reps_sublist (label := label) a rest).length_le
+    have ht := List.length_take_le (2 * t + 1) (reps label a rest)
     rw [stage]
-    split
-    · simp only [List.length_cons, Nat.add_sub_cancel]
-      omega
-    · have := List.length_take_le (2 * t + 1) (reps label a rest)
-      rw [List.length_cons]
-      omega
+    split <;> simp only [List.length_cons, Nat.add_sub_cancel] <;> omega
 
 theorem iterate_stage_sublist (i : ℕ) (l : List α) : ((stage label t)^[i] l).Sublist l := by
   induction i with
   | zero => exact List.Sublist.refl l
-  | succ i ih =>
-    rw [Function.iterate_succ_apply']
-    exact (stage_sublist _).trans ih
+  | succ i ih => exact Function.iterate_succ_apply' _ i l ▸ (stage_sublist _).trans ih
 
 theorem length_iterate_stage_le (i : ℕ) (l : List α) :
     ((stage label t)^[i] l).length ≤ max (2 * t + 2) (l.length - i) := by

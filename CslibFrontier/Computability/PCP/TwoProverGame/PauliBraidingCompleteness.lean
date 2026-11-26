@@ -220,8 +220,7 @@ private theorem sum_ite_prob_honest_mapped
       (K.state (((K.alice basis).map f).effect a * ((K.bob basis').map g).effect b)).re
     simp only [hf, hg, Measurement.map_effect, map_sum]
     rfl
-  simp only [hprob]
-  rw [K.sum_ite_prob_map]
+  simp only [hprob, L, K.sum_ite_prob_map]
   refine Eq.trans (sum_congr rfl fun u _ => sum_congr rfl fun v _ => ?_) (K.sum_prob basis basis')
   by_cases huv : K.prob basis basis' u v = 0
   · rw [huv, ite_self]
@@ -362,8 +361,7 @@ private theorem honest_pauliBraidingCHSHGame
       S.prob (g.query (x, y)).1 (g.query (x, y)).2 (cond roles b a) (cond roles a b) =
         L.prob x y a b := by
     cases roles
-    · exact hK x y a b
-    · exact (honest_prob_swap _ _ b a).trans (hK x y a b)
+    exacts [hK x y a b, (honest_prob_swap _ _ b a).trans (hK x y a b)]
   rw [← quantumWinProb_honestCHSHStrategy p, ← TwoProverGame.commutingWinProb_toCommuting]
   change g.commutingWinProb S = TwoProverGame.chsh.toSeeded.commutingWinProb K
   rw [SeededGame.commutingWinProb_eq_sum, SeededGame.commutingWinProb_eq_sum]
@@ -376,8 +374,7 @@ private theorem honest_pauliBraidingCHSHGame
         else 0 := by
     simp only [← hperm]
     cases roles
-    · rfl
-    · exact sum_comm
+    exacts [rfl, sum_comm]
   rw [hswap, K.sum_ite_prob_map]
   refine sum_congr rfl fun a _ => sum_congr rfl fun b _ => if_congr ?_ rfl rfl
   cases roles <;> rfl
@@ -437,10 +434,9 @@ private theorem honest_special_accepts (roles basis : Bool) (p : ↥(oddPairs (F
     .inr ((if y then p.val.2 else p.val.1) ⬝ᵥ u)
   have hq : honestMeasurement q.toBraidingQuestion = (honestBasisMeasurement basis).map f := rfl
   have hr : honestMeasurement r = (honestBasisMeasurement y).map g := Measurement.map_map _ _ _
-  have hcheck (u v : Fin n → Bool) (huv : y = basis → u = v) :
-      y = basis → q.braidingCheckedBit (q.braidingStrings.1 ⬝ᵥ u, q.braidingStrings.2 ⬝ᵥ u) =
+  have hcheck (u v : Fin n → Bool) (huv : y = basis → u = v) (hy : y = basis) :
+      q.braidingCheckedBit (q.braidingStrings.1 ⬝ᵥ u, q.braidingStrings.2 ⬝ᵥ u) =
         (if y then p.val.2 else p.val.1) ⬝ᵥ v := by
-    intro hy
     rw [← huv hy, hy]
     exact q.braidingCheckedBit_braidingStrings (· ⬝ᵥ u)
   cases roles
@@ -509,13 +505,12 @@ theorem quantumWinProb_pauliBraidingGame_le {I K : Type*}
   rw [← SeededGame.commutingWinProb_toCommuting, SeededGame.commutingWinProb,
     answersWinProb_pauliBraidingGame, Fin.sum_univ_three]
   let G := pauliBraidingBranchGame n TwoProverGame.chsh id (fun _ => id)
-  have h₀ := (G 0).answersWinProb_le_one S.toCommuting.answers
-  have h₁ := commutingWinProb_pauliBraidingAnticommutation_le S.toCommuting
-  have h₂ := (G 2).answersWinProb_le_one S.toCommuting.answers
-  change (G 1).answersWinProb S.toCommuting.answers ≤ _ at h₁
+  have h₁ : (G 1).answersWinProb S.toCommuting.answers ≤ Real.cos (π / 8) ^ 2 :=
+    commutingWinProb_pauliBraidingAnticommutation_le S.toCommuting
   change ((G 0).answersWinProb S.toCommuting.answers +
     (G 1).answersWinProb S.toCommuting.answers + (G 2).answersWinProb S.toCommuting.answers) / 3 ≤ _
-  linarith only [h₀, h₁, h₂]
+  linarith [(G 0).answersWinProb_le_one S.toCommuting.answers, h₁,
+    (G 2).answersWinProb_le_one S.toCommuting.answers]
 
 end Consistency
 

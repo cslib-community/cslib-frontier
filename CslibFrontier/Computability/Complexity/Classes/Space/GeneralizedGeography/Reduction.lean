@@ -150,12 +150,8 @@ theorem mem_formulaArcs :
         w = valueNode (lastIdx xs l.1) (!l.2)) := by
   have hd (j : ℕ) : (u, w) ∈ diamondArcs j ↔ (u = topNode j ∧ ∃ b, w = valueNode j b) ∨
       (∃ b, u = valueNode j b ∧ w = bottomNode j) ∨ (u = bottomNode j ∧ w = topNode (j + 1)) := by
-    simp only [diamondArcs, List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false]
-    constructor
-    · rintro (⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩)
-      exacts [Or.inl ⟨rfl, _, rfl⟩, Or.inl ⟨rfl, _, rfl⟩, Or.inr (Or.inl ⟨_, rfl, rfl⟩),
-        Or.inr (Or.inl ⟨_, rfl, rfl⟩), Or.inr (Or.inr ⟨rfl, rfl⟩)]
-    · rintro (⟨rfl, (_ | _), rfl⟩ | ⟨(_ | _), rfl, rfl⟩ | ⟨rfl, rfl⟩) <;> simp
+    simp only [diamondArcs, List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false,
+      Bool.exists_bool, and_or_left, or_assoc]
   have hl : (∃ c ∈ ψ.zipIdx, (u, w) ∈ literalArcs xs c.2 c.1) ↔ ∃ i, ∃ h : i < ψ.length,
       ∃ l ∈ ψ[i], l.1 ∈ xs ∧ u = clauseNode i ∧ w = valueNode (lastIdx xs l.1) (!l.2) := by
     simp only [List.mem_zipIdx_iff_getElem?, List.getElem?_eq_some_iff, literalArcs, List.mem_map,
@@ -390,14 +386,10 @@ private theorem geographyWins_topNode (heven : Even xs.length)
     simp only [List.length_append, List.length_singleton, List.append_assoc,
       List.singleton_append] at ih
     rw [geographyWins_topNode_lt (by omega), List.replicate_succ]
-    rcases Nat.mod_two_eq_zero_or_one z.length with h | h
-    · have h' : (z.length + 1) % 2 = 1 := by omega
-      simp only [h, h', beq_self_eq_true, true_iff, alternation_true_one_cons] at ih ⊢
-      exact exists_congr fun b => by simp [ih b]
-    · have h' : (z.length + 1) % 2 = 0 := by omega
-      simp only [h, h', beq_self_eq_true, Nat.reduceBEq, Bool.false_eq_true, false_iff,
-        alternation_false_one_cons, not_forall] at ih ⊢
-      exact exists_congr fun b => by simp [ih b]
+    rcases Nat.mod_two_eq_zero_or_one z.length with h | h <;>
+      simp only [Nat.add_mod, h, Nat.reduceAdd, Nat.reduceMod, Nat.reduceBEq, beq_self_eq_true,
+        Bool.false_eq_true, true_iff, false_iff, alternation_true_one_cons,
+        alternation_false_one_cons, ih, not_forall, not_not]
 
 /-- **The first player wins on the graph of a formula** exactly when the existential player wins
 the game of single-bit moves in which the moves choose the values of the quantified variables,

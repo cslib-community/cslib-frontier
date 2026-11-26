@@ -277,12 +277,10 @@ private theorem prepend_adjChain {L : ℕ} {g : Graph (Fin L → Fin L)} {mem : 
       split_ifs <;> omega
     · rw [Function.update_of_ne (by omega), Function.update_self]
       exact (hbs v hv).frame (by omega) hfr
-  · rw [List.getD_set_ne (Ne.symm hvu)]
-    have hhd : mem' (headBase g + v) = mem (headBase g + v) := by
+  · have hhd : mem' (headBase g + v) = mem (headBase g + v) := by
       simp only [mem', Function.update_apply]
       split_ifs <;> omega
-    rw [hhd]
-    exact (hbs v hv).frame (by omega) hfr
+    simpa only [List.getD_set_ne (Ne.symm hvu), hhd] using (hbs v hv).frame (by omega) hfr
 
 private theorem prependToSlot_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) (slotReg : Fin 34)
     (x : Data 34) (bs : List (List (Edge (Fin L → Fin L)))) (u j : ℕ)
@@ -354,11 +352,9 @@ theorem bucketsLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) {x : Data 34}
   have hp0 : P 0 x := by
     refine ⟨hc, hinp, by omega, by omega, fun u hu => ?_, fun a ha =>
       hzero a (by simp only [visBase, nodeBase] at ha; omega)⟩
-    have hnil : (bsAt 0).getD u [] = [] := by
-      simpa only [bsAt, Nat.sub_zero, List.drop_length, buckets, List.foldr_nil] using
-        List.getD_replicate (n := slots g) [] hu
-    rw [hnil, hzero (headBase g + u) (Nat.le_add_right _ _)]
-    exact .nil
+    simpa only [bsAt, Nat.sub_zero, List.drop_length, buckets, List.foldr_nil,
+      List.getD_replicate (n := slots g) [] hu,
+      hzero (headBase g + u) (Nat.le_add_right _ _)] using AdjChain.nil
   obtain ⟨y, hy, ⟨hyC, hyInp, hyLo, hyHi, hyAdj, hyZero⟩, _⟩ :=
     ExecWithin.loop_count (w := w) (index := rOuterIdx) (limit := rE) (body := bucketsBody)
       (N := g.edges.length) (T := 26) P
@@ -415,8 +411,7 @@ theorem bucketsLoop_spec {L w : ℕ} (g : Graph (Fin L → Fin L)) {x : Data 34}
             by rw [hz2NF, hz1NF, hy1NF]; omega,
             by rw [hz2NF, hz1NF, hy1NF]; omega,
             fun u hu => ?_, by rw [hz2m]; exact hz1Zero⟩, hz2Idx⟩
-          simp only [hbs_next, insertEdge, hsd, ↓reduceIte, hz2NF, hz2m]
-          simpa only [hsd] using hz1Adj u hu
+          simpa only [hbs_next, insertEdge, hsd, ↓reduceIte, hz2NF, hz2m] using hz1Adj u hu
         · obtain ⟨z2, hz2, hz2C, hz2Inp, hz2NF, hz2Idx, _, _, _, hz2Adj, hz2Zero⟩ :=
             prependToSlot_spec (w := w) g rDst z1
               ((bsAt k).set g.edges[j].src (g.edges[j] :: (bsAt k).getD g.edges[j].src []))

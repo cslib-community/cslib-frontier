@@ -506,18 +506,9 @@ theorem access_eq_some_iff {m m' : ℕ} (s : RelocationState m m') (c : Fin m') 
     access s c = some e ↔ s.perm (Fin.castLE hm e) = startOfChain s c := by
   simp only [access]
   split_ifs with hlt
-  · simp only [Option.some.injEq]
-    refine ⟨fun h => ?_, fun h => ?_⟩
-    · rw [← h]
-      exact s.perm.apply_symm_apply (startOfChain s c)
-    · ext
-      have := congrArg (fun x => (s.perm.symm x).val) h
-      simpa using this.symm
-  · simp only [false_iff]
-    intro h
-    have := congrArg (fun x => (s.perm.symm x).val) h
-    simp only [Equiv.symm_apply_apply, Fin.val_castLE] at this
-    exact hlt (this ▸ e.isLt)
+  · refine ⟨fun h => Option.some.inj h ▸ s.perm.apply_symm_apply (startOfChain s c), fun h => ?_⟩
+    exact congrArg some (Fin.ext (by simpa using congrArg (fun x => (s.perm.symm x).val) h.symm))
+  · exact ⟨False.elim, fun h => hlt (by simp [← congrArg (fun x => (s.perm.symm x).val) h])⟩
 
 /-- **Fact 3.12** of [WangRen2025] (p. 15): `access s c = none` iff the chain containing `c`
 starts at `s.perm i` for some `i ≥ m`. -/
@@ -539,12 +530,9 @@ theorem access_locate {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid) (e 
 p. 15). -/
 theorem locate_injective {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
     (hm : m ≤ m') :
-    Function.Injective (fun e => locate s e hm) := by
-  intro e₁ e₂ h
-  dsimp only at h
-  have h₁ := access_locate hv e₁ hm
-  rw [h, access_locate hv e₂ hm] at h₁
-  exact Option.some.inj h₁.symm
+    Function.Injective (fun e => locate s e hm) := fun e₁ e₂ h =>
+  Option.some.inj
+    ((access_locate hv e₁ hm).symm.trans ((congrArg (access s) h).trans (access_locate hv e₂ hm)))
 
 /-- For any valid state `s` and logical element `e`, `locate s e hm` is an unconsumed physical
 position (`locate s e hm ∉ s.history`). -/
@@ -1309,10 +1297,10 @@ theorem eval_realExperiment_eq_idealExperiment {m m' Q : ℕ} {c : Fin Q → Fin
   have hnd : (List.ofFn c).Nodup := List.nodup_ofFn.mpr hc
   have hlen : m + (List.ofFn c).length ≤ m' := by
     simp only [List.length_ofFn]; omega
-  have hjoint := congrArg (PMF.map fun (_, initPos, outs) => RelocationOutput.mk initPos outs)
-    (realJointPMF_eq_idealJointPMF (List.ofFn c) hm hnd hlen)
   simpa [realJointPMF, idealJointPMF, realExperiment, idealExperiment,
-    PMF.map_comp, PMF.map_bind, Function.comp_def, PMF.bind_pure_comp] using hjoint
+    PMF.map_comp, PMF.map_bind, Function.comp_def, PMF.bind_pure_comp] using
+    congrArg (PMF.map fun (_, initPos, outs) => RelocationOutput.mk initPos outs)
+      (realJointPMF_eq_idealJointPMF (List.ofFn c) hm hnd hlen)
 
 end Cslib.Crypto.Protocols.PIR.Preprocessing.Relocation
 

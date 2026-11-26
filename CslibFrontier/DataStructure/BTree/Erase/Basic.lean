@@ -507,15 +507,12 @@ theorem Good.ne_leaf {c : BTree α β} {h : ℕ} (hc : Good t h c) (hh : 1 ≤ h
 /-- A subtree that does not underflow is occupied. -/
 theorem Underfull.occupied {c : BTree α β} {h : ℕ} (hc : Underfull t h c)
     (hu : underflows t c = false) : Occupied t c := by
-  have ho := hc.children_occupied
-  have hk := hc.rootKeys_le
   cases c with
   | leaf => exact .leaf
   | node f r =>
     simp only [underflows, decide_eq_false_iff_not, not_lt] at hu
-    simp only [rootKeys_node] at hk
-    exact .node hu hk (ho f List.mem_cons_self)
-      fun e he => ho _ (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
+    exact .node hu hc.rootKeys_le (hc.children_occupied f List.mem_cons_self)
+      fun e he => hc.children_occupied _ (List.mem_cons_of_mem _ (List.mem_map_of_mem he))
 
 /-- A subtree that does not underflow is good. -/
 theorem Underfull.good {c : BTree α β} {h : ℕ} (hc : Underfull t h c)
@@ -672,24 +669,21 @@ theorem eraseFits_popMin (ht : 2 ≤ t) {tr : BTree α β} (hb : Balanced tr)
     have hpos := hpos (by simp)
     simp only [rootKeys_node] at hpos
     rw [popMin_node] at hp
-    rcases hpf : popMin t first with _ | ⟨e₁, first'⟩ <;>
-      rcases rest with _ | ⟨⟨k, v, c⟩, rest⟩
-    · simp at hpos
-    · -- the first child is empty: the node gives up its first entry
-      simp only [hpf, Option.some.injEq, Prod.mk.injEq] at hp
-      obtain ⟨-, rfl⟩ := hp
-      obtain ⟨hc, hrest⟩ := List.forall_mem_cons.1 hr
-      obtain ⟨hb', hh', hco⟩ := node_of_good hc hrest
-      exact ⟨hb', by rw [hh', hh], hco, by simp, by simp⟩
-    · simp at hpos
-    · -- the least entry comes from the first child, which is then repaired
-      simp only [hpf, Option.some.injEq, Prod.mk.injEq] at hp
-      obtain ⟨-, rfl⟩ := hp
-      obtain ⟨hc, hrest⟩ := List.forall_mem_cons.1 hr
-      have hu := hf.underfull_of_eraseFits ht fun ho hpos => ihf hf.balanced ho hpos hpf
-      obtain ⟨g₁, g₂, l₁, l₂⟩ := good_rebalanceRight ht hu hc k v hrest
-      obtain ⟨hb', hh', hco⟩ := node_of_good g₁ g₂
-      exact ⟨hb', by rw [hh', hh], hco, by simpa using l₂, by simpa using l₁⟩
+    rcases rest with _ | ⟨⟨k, v, c⟩, rest⟩
+    · rcases hpf : popMin t first with _ | ⟨e₁, first'⟩ <;> simp at hpos
+    · obtain ⟨hc, hrest⟩ := List.forall_mem_cons.1 hr
+      rcases hpf : popMin t first with _ | ⟨e₁, first'⟩
+      · -- the first child is empty: the node gives up its first entry
+        obtain ⟨-, rfl⟩ : (k, v) = e ∧ BTree.node c rest = tr' := by simpa [hpf] using hp
+        obtain ⟨hb', hh', hco⟩ := node_of_good hc hrest
+        exact ⟨hb', hh'.trans hh.symm, hco, by simp, by simp⟩
+      · -- the least entry comes from the first child, which is then repaired
+        simp only [hpf, Option.some.injEq, Prod.mk.injEq] at hp
+        obtain ⟨-, rfl⟩ := hp
+        have hu := hf.underfull_of_eraseFits ht fun ho hpos => ihf hf.balanced ho hpos hpf
+        obtain ⟨g₁, g₂, l₁, l₂⟩ := good_rebalanceRight ht hu hc k v hrest
+        obtain ⟨hb', hh', hco⟩ := node_of_good g₁ g₂
+        exact ⟨hb', hh'.trans hh.symm, hco, by simpa using l₂, by simpa using l₁⟩
 
 end PureStructure
 

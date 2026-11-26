@@ -182,11 +182,9 @@ private theorem eval_publicKeyChainHybrid_of_width_zero (n depth : ℕ)
   | zero => rfl
   | succ k ih =>
     have hdepth_eq : k + (depth - k - 1) + 1 = depth := by omega
-    have h0 := E.eval_publicKeyLinkHybrid_zero n k (depth - k - 1)
-    have hlen := E.eval_publicKeyLinkHybrid_length n k (depth - k - 1) 0 hwidth
-    rw [hdepth_eq] at h0 hlen
-    rw [ProbComp.eval_bind, ← h0, hlen, ← ProbComp.eval_bind]
-    exact ih (by omega)
+    rw [ProbComp.eval_bind, ← hdepth_eq, ← E.eval_publicKeyLinkHybrid_zero,
+      E.eval_publicKeyLinkHybrid_length _ _ _ 0 hwidth, hdepth_eq, ← ProbComp.eval_bind]
+    exact ih (Nat.le_of_succ_le hk)
 
 /-- The real-to-zero public-key gap equals `(depth : ℝ) * capacity` times the signed gap of
 `exactKeyChainHybridGame`, with no dyadic rounding factor. -/
@@ -496,9 +494,8 @@ theorem length_activeLinkState_le (depth width pkBound : ℕ)
   have hafter_len := hlist after hafter
   have hsum_lists :
       before.length * (2 * keyPairLen + 1) + after.length * (2 * keyPairLen + 1) ≤
-        (depth - 1) * (2 * keyPairLen + 1) := by
-    rw [← Nat.add_mul]
-    exact Nat.mul_le_mul_right _ (by omega)
+        (depth - 1) * (2 * keyPairLen + 1) :=
+    Nat.add_mul .. ▸ Nat.mul_le_mul_right _ (by omega)
   dsimp only [keyPairLen] at hbefore_len hafter_len hsum_lists
   obtain ⟨hpred1, hpred2⟩ := hpred
   simp only [activeLinkState, encLinkState, length_encPair, encBool_apply, List.length_singleton,
@@ -1327,16 +1324,12 @@ theorem exists_leveledAdversary_overhead {E : Scheme}
         c_ch * ((encPair encUnary encBits (n, pk')).length + 1) ^ d_ch ≤ advChooseBudget n :=
       Nat.mul_le_mul_left c_ch (Nat.pow_le_pow_left hin d_ch)
     refine ⟨hchoose_law (n, pk') (advChooseBudget n) hch_le, fun choice hchoice => ?_⟩
-    have hchoice2 : choice.2.length ≤
-        (encPair (encPair encBool encBool) encBits choice).length := by
-      enc_len [List.length_singleton]
-    exact (hchoice2.trans (hchoose_len (n, pk') choice hchoice)).trans hch_le
+    exact (le_trans (by enc_len [List.length_singleton])
+      (hchoose_len (n, pk') choice hchoice)).trans hch_le
   · intro n state ct' hstate hct'
     change state.length ≤ advChooseBudget n at hstate
     change ct'.length ≤ ctBound n + 1 at hct'
-    apply hguess_law (n, state, ct') (advGuessBudget n)
-    have hin : (encPair encUnary (encPair encBits encBits) (n, state, ct')).length + 1 ≤
-        2 * n + 2 * advChooseBudget n + ctBound n + 4 := by enc_len
-    exact Nat.mul_le_mul_left c_gu (Nat.pow_le_pow_left hin d_gu)
+    exact hguess_law (n, state, ct') (advGuessBudget n)
+      (Nat.mul_le_mul_left c_gu (Nat.pow_le_pow_left (by enc_len) d_gu))
 
 end Cslib.Crypto.Homomorphic.Leveled

@@ -138,9 +138,7 @@ theorem step?_of_halted (M : CountingAuxPDA k Symbol StackSym State)
 theorem runBranch_of_halted (M : CountingAuxPDA k Symbol StackSym State)
     {cfg : AuxPDA.Cfg k Symbol StackSym State input} (h : cfg.Halted) (choices : List ℕ) :
     M.runBranch cfg choices = if choices = [] then some cfg else none := by
-  cases choices with
-  | nil => simp
-  | cons index rest => simp [runBranch_cons, M.step?_of_halted h]
+  cases choices <;> simp [runBranch_cons, M.step?_of_halted h]
 
 theorem runBranch_append (M : CountingAuxPDA k Symbol StackSym State)
     (cfg : AuxPDA.Cfg k Symbol StackSym State input) (first second : List ℕ) :
@@ -255,8 +253,7 @@ theorem exists_runBranch_of_runningPath (M : CountingAuxPDA k Symbol StackSym St
   | snoc p next hs ih =>
     obtain ⟨indices, hi, hlen⟩ := ih
     obtain ⟨i, hstep⟩ := (M.step_toAuxPDA_iff hs.1).mp hs.2
-    refine ⟨indices ++ [i], ?_, by simp [hlen]⟩
-    simp [runBranch_append, hi, runBranch_cons, hstep]
+    exact ⟨indices ++ [i], by simp [runBranch_append, hi, runBranch_cons, hstep], by simp [hlen]⟩
 
 /-- A successful occurrence replay yields a path of running `toAuxPDA` steps. -/
 theorem exists_runningPath_of_runBranch (M : CountingAuxPDA k Symbol StackSym State)
@@ -562,23 +559,21 @@ theorem ofMultiTapeCTM_haltsWithin_iff (M : MultiTapeCTM k Symbol State) (fuel :
   induction fuel generalizing c with
   | zero => constructor <;> rintro ⟨hh⟩ <;> exact .halt hh
   | succ fuel ih =>
+    have hlen_eq : ((ofMultiTapeCTM M).actions ⟨c, s⟩).length = (M.actions c).length := by
+      simp only [ofMultiTapeCTM_actions, List.length_map]
     refine ⟨?_, ?_⟩
     · rintro (⟨hh⟩ | ⟨hne, _, hnext⟩)
       · exact .halt hh
-      · refine .step (by simpa only [ofMultiTapeCTM_actions, ne_eq, List.map_eq_nil_iff] using hne)
-          fun idx => (ih _).mp (hnext ⟨idx.val, ?_⟩ ⟨(M.actions c)[idx].apply c, s⟩
+      · exact .step (by simpa only [ofMultiTapeCTM_actions, ne_eq, List.map_eq_nil_iff] using hne)
+          fun idx => (ih _).mp (hnext (idx.cast hlen_eq.symm) ⟨(M.actions c)[idx].apply c, s⟩
             (by simp [ofMultiTapeCTM_actions, AuxPDA.Action.apply?]))
-        simpa only [ofMultiTapeCTM_actions, List.length_map] using idx.isLt
     · rintro (⟨hh⟩ | ⟨hne, hnext⟩)
       · exact .halt hh
       · refine .step (by simpa only [ofMultiTapeCTM_actions, ne_eq, List.map_eq_nil_iff] using hne)
-          (fun _ => by simp [ofMultiTapeCTM_actions, AuxPDA.Action.apply?])
-          fun idx nextCfg hact => ?_
-        have hlt : idx.val < (M.actions c).length := by
-          simpa only [ofMultiTapeCTM_actions, List.length_map] using idx.isLt
+          (fun _ => by simp [ofMultiTapeCTM_actions, AuxPDA.Action.apply?]) fun idx _ hact => ?_
         simp only [ofMultiTapeCTM_actions, List.getElem_map, AuxPDA.Action.apply?,
           AuxPDA.StackOp.apply?_stay, Option.map_some, Option.some.injEq] at hact
-        exact hact ▸ (ih _).mpr (hnext ⟨idx.val, hlt⟩)
+        exact hact ▸ (ih _).mpr (hnext (idx.cast hlen_eq))
 
 theorem ofMultiTapeCTM_acceptCount (M : MultiTapeCTM k Bool State) {input : List Bool}
     (fuel : ℕ) (c : Turing.Cfg k Bool State input) (s : List PUnit) :

@@ -181,20 +181,16 @@ theorem ecbValid_eq_ecbAdmissible_of_le_one {ℓ : ℕ → ℕ} {n : ℕ} (hℓ 
     (pk m₀ m₁ : List Bool) :
     E.ecbValid ℓ n pk m₀ m₁ = E.ecbAdmissible ℓ n pk m₀ m₁ := by
   by_cases hadm : E.ecbAdmissible ℓ n pk m₀ m₁ = true
-  · have hadm' := hadm
-    simp only [ecbAdmissible, blockPairValid, Bool.and_eq_true, beq_iff_eq,
-      decide_eq_true_eq] at hadm'
-    obtain ⟨⟨hlen, -⟩, hle⟩ := hadm'
+  · obtain ⟨⟨hlen, -⟩, hle⟩ : (m₀.length = m₁.length ∧ _) ∧ m₀.length ≤ ℓ n * E.blockLen n := by
+      simpa only [ecbAdmissible, blockPairValid, Bool.and_eq_true, beq_iff_eq,
+        decide_eq_true_eq] using hadm
     have hle₁ : m₀.length ≤ 1 * E.blockLen n := hle.trans (Nat.mul_le_mul_right _ hℓ)
     have hnodup {m : List Bool} (hm : m.length ≤ 1 * E.blockLen n) :
         (E.ecbBlocks n m).Nodup := by
       have hdiv : (E.ecbBlocks n m).length ≤ 1 := by
         rw [ecbBlocks, BitString.length_listRows]
         exact Nat.div_le_of_le_mul (by simpa only [Nat.mul_comm] using hm)
-      rcases h : E.ecbBlocks n m with _ | ⟨a, _ | ⟨b, l⟩⟩
-      · exact List.nodup_nil
-      · exact List.nodup_singleton a
-      · simp [h] at hdiv
+      rcases h : E.ecbBlocks n m with _ | ⟨a, _ | ⟨b, l⟩⟩ <;> simp_all
     simp [ecbValid, hadm, hnodup hle₁, hnodup (hlen ▸ hle₁)]
   · simp [ecbValid, hadm]
 
@@ -513,8 +509,7 @@ private theorem eval_demKeyGameOn_ecbTwoBlockAdversary {ℓ : ℕ → ℕ} {n : 
     rw [Nat.two_mul, List.replicate_add]
     cases bit <;> rfl
   have hxy : List.replicate (E.blockLen n) false ≠ List.replicate (E.blockLen n) true := by
-    obtain ⟨m, hm⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : E.blockLen n ≠ 0)
-    simp [hm]
+    cases h : E.blockLen n <;> simp_all
   have hkey (k : BitString (E.keyLen n)) :
       decide (((E.ecbBlocks n (List.replicate (E.blockLen n) false ++
           if bit then List.replicate (E.blockLen n) true

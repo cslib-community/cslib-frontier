@@ -330,9 +330,7 @@ private theorem pi_pure {ι γ : Type} [Fintype ι] [Finite γ] (c : ι → γ) 
 theorem sampleLaw_eq_pi (n m q : ℕ) [Fact (Nat.Prime q)] (noise : PMF (ZMod q))
     (s : Fin n → ZMod q) :
     sampleLaw n m q noise s = PMF.pi fun _ : Fin m => rowLaw n q noise s := by
-  rw [rowLaw, PMF.pi_bind]
-  simp only [PMF.pi_bind (fun _ => noise), pi_pure]
-  rw [PMF.pi_uniformOfFintype]
+  simp only [rowLaw, PMF.pi_bind, pi_pure, PMF.pi_uniformOfFintype]
   rfl
 
 /-- Number of samples used by `reduceSearchToDecision`: `N` blocks of `m` samples for each of
@@ -489,11 +487,10 @@ theorem pi_estimatorLaw_guessSecret_ne_le {n m q : ℕ} [Fact (Nat.Prime q)] (N 
       PMF.toOuterMeasure_map_apply] at h
     refine h.trans_eq ?_
     congr 2
-    rcases Nat.eq_zero_or_pos N with hN | hN
-    · simp [hN]
+    rcases Nat.eq_zero_or_pos N with rfl | hN
+    · simp
     · have : (N : ℝ) ≠ 0 := by positivity
-      field_simp
-      ring
+      field_simp; ring
   calc (μ.toOuterMeasure {X | guessSecret X ≠ s}).toReal
       ≤ (μ.toOuterMeasure (⋃ o ∈ Finset.univ, E o)).toReal :=
         ENNReal.toReal_mono (PMF.toOuterMeasure_ne_top _ _) (MeasureTheory.measure_mono hsub)
@@ -547,20 +544,14 @@ theorem searchToDecision {n m q : ℕ} [Fact (Nat.Prime q)] {noise : PMF (ZMod q
       Game.succProbability (searchGame n (searchSamples n q N m) q noise
         (reduceSearchToDecision (n := n) (m := m) (q := q) N adversary)) := by
   set D := fun M : Matrix (Fin m) (Fin (n + 1)) (ZMod q) => adversary (encMatrix m (n + 1) q M)
-  have hR : distinguishingGame
-      (realEnsemble (fun _ => n) (fun _ => m) (fun _ => q) (fun _ => noise) 0) adversary =
-        realLaw noise D := by
-    simp only [distinguishingGame_eq_bind, realEnsemble, realLaw, D, pmf_norm]
-  have hU : distinguishingGame (uniformEnsemble (fun _ => n) (fun _ => m) (fun _ => q) 0)
-      adversary = uniformLaw D := by
-    simp only [distinguishingGame_eq_bind, uniformEnsemble, uniformLaw, D, pmf_norm]
-  rw [Game.coe_advantage, Game.coe_succProbability, Game.coe_succProbability, hR, hU,
-    Game.coe_succProbability]
   set B := (n * q + 1) * (2 * Real.exp (-(N * |(realLaw noise D true).toReal -
     (uniformLaw D true).toReal| ^ 2) / 8))
   have hB : 0 ≤ B := by positivity
   set game := searchGame n (searchSamples n q N m) q noise
     (reduceSearchToDecision (n := n) (m := m) (q := q) N adversary) with hgame
+  simp only [Game.coe_advantage, Game.coe_succProbability, distinguishingGame_eq_bind,
+    realEnsemble, uniformEnsemble, pmf_norm]
+  change 1 - B ≤ (game true).toReal
   have hfalse : game false ≤ ENNReal.ofReal B := by
     rw [hgame, searchGame_reduceSearchToDecision (m := m) noise adversary N]
     refine PMF.bind_apply_le_on_support _ fun s _ => ?_

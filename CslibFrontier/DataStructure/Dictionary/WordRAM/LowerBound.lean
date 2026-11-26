@@ -296,12 +296,11 @@ private theorem not_halt_zero_of_execFlatProgramOps
       (prepareFlatRegs input encode (.query u₀)
           (prepareFlatRegs input encode (.insert u₀ 0) p₀.2)).regs =
         (prepareFlatRegs input encode (.query u₀)
-          (prepareFlatRegs input encode (.insert u₁ 0) p₀.2)).regs := by
-    funext i
-    by_cases hi : input i = true <;> simp [prepareFlatRegs, hi]
+          (prepareFlatRegs input encode (.insert u₁ 0) p₀.2)).regs :=
+    funext fun i => by by_cases hi : input i = true <;> simp [prepareFlatRegs, hi]
   have hne_u : u₀ ≠ u₁ := by simp [u₀, u₁]
-  simp only [Dictionary.empty, Function.update_self, Function.update_of_ne hne_u] at hans₀ hans₁
-  rw [hregs_eq] at hans₀
+  simp only [Dictionary.empty, Function.update_self, Function.update_of_ne hne_u, hregs_eq]
+    at hans₀ hans₁
   cases hans₀.symm.trans hans₁
 
 private theorem one_le_of_execProgramDist_no_halt0
@@ -464,12 +463,11 @@ private theorem le_initPotential_add_tsum_totalCost
     LB ≤ (initPotential : ℝ≥0∞) +
       ∑' ops, dist ops *
         ((Dynamic.spec U V n).totalCost charge (Dictionary.empty U) ops : ℝ≥0∞) := by
-  have hmono := Cslib.Probability.PMF.tsum_mul_mono_support dist hT
-  have hadd := Cslib.Probability.PMF.tsum_mul_add_of_support dist
-    (g := fun _ => (initPotential : ℝ≥0∞))
-    (f := fun ops => ((Dynamic.spec U V n).totalCost charge (Dictionary.empty U) ops : ℝ≥0∞))
-    (fun _ _ => rfl)
-  exact hlb.trans (hmono.trans_eq hadd)
+  exact hlb.trans ((Cslib.Probability.PMF.tsum_mul_mono_support dist hT).trans_eq
+    (Cslib.Probability.PMF.tsum_mul_add_of_support dist
+      (g := fun _ => (initPotential : ℝ≥0∞))
+      (f := fun ops => ((Dynamic.spec U V n).totalCost charge (Dictionary.empty U) ops : ℝ≥0∞))
+      fun _ _ => rfl))
 
 private theorem tsum_mul_add_const_length {Op : Type*} (dist : PMF (List Op))
     (cost : List Op → ℝ≥0∞) (ov : ℝ≥0∞) {L : ℕ}
@@ -641,8 +639,7 @@ private theorem le_expectedFlatTime_mode_of_det_indexedScheme (withQueries : Boo
       ∑' ops, modeDist withQueries U V n hU hV ops *
         flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   have hM2 : 2 ≤ modeHorizon withQueries n + 1 := by
-    cases withQueries <;> simp only [modeHorizon, modeStride, ↓reduceIte, Bool.false_eq_true] <;>
-      omega
+    cases withQueries <;> simp only [modeHorizon_false, modeHorizon_true] <;> omega
   exact le_expectedFlatTime_mode_of_no_halt withQueries hU hV hspace p_op
     (not_halt_zero_of_execFlatProgramOps hn (by omega) hV hM2 ν₀ hex_corr)
     encode decode ν₀ hsupp₀ hex_corr hlb
@@ -863,9 +860,8 @@ private theorem expectedFlatTime_scaled_iqd
         flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   simpa only [modeDist_true, mul_assoc] using
     expectedFlatTime_scaled_of_mode true hc_cp (mul_nonneg (Nat.cast_nonneg n) hY) hn hU2 hV hpers
-      p_op encode decode ν₀ hsupp₀ (by rwa [modeHorizon_true])
-      fun hcorr => by
-        simpa only [modeDist_true, mul_assoc] using hlb (by rwa [modeHorizon_true] at hcorr)
+      p_op encode decode ν₀ hsupp₀ ((modeHorizon_true n).symm ▸ hex_corr) fun hcorr => by
+        simpa only [modeDist_true, mul_assoc] using hlb (modeHorizon_true n ▸ hcorr)
 
 private theorem expectedFlatTime_scaled_upd
     {B : Basis} {U V n r w base space r_max : ℕ} {input : Fin r → Bool} {Latent : Type z}
@@ -891,9 +887,8 @@ private theorem expectedFlatTime_scaled_upd
         flatExpectedBodyTime w p_op input encode (ν₀.map Prod.snd) ops := by
   simpa only [modeDist_false, mul_assoc] using
     expectedFlatTime_scaled_of_mode false hc_cp (mul_nonneg (Nat.cast_nonneg n) hY) hn hU2 hV hpers
-      p_op encode decode ν₀ hsupp₀ (by rwa [modeHorizon_false])
-      fun hcorr => by
-        simpa only [modeDist_false, mul_assoc] using hlb (by rwa [modeHorizon_false] at hcorr)
+      p_op encode decode ν₀ hsupp₀ ((modeHorizon_false n).symm ▸ hex_corr) fun hcorr => by
+        simpa only [modeDist_false, mul_assoc] using hlb (modeHorizon_false n ▸ hcorr)
 
 /-- Word-RAM **Theorem 1.1 / Theorem 3.1** ([LiLiangYuZhou2023], Section 1, p. 1 and footnote 1 /
 PDF p. 2, and Section 3, pp. 10–13 / PDF pp. 11–14; [Yao1977]): for any `α > 0`, `c_R ≥ 0`,

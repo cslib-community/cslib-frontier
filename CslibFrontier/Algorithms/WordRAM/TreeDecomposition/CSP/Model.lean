@@ -213,27 +213,22 @@ theorem encodeNiceTreeAux_max_le (offset : ℕ) (T : NiceTree ℕ) :
     ∀ x ∈ encodeNiceTreeAux offset T, x ≤ max 3 (max (maxTreeVert T) (offset + T.size)) := by
   induction T generalizing offset with
   | leaf =>
-    intro x hx
-    simp only [encodeNiceTreeAux, List.mem_cons, List.not_mem_nil, or_false] at hx
-    rcases hx with rfl | rfl | rfl | rfl <;> omega
+    simp only [encodeNiceTreeAux, List.mem_cons, List.not_mem_nil, or_false]
+    rintro x (rfl | rfl | rfl | rfl) <;> omega
   | introduce v child ih | forget v child ih =>
-    intro x hx
-    simp only [encodeNiceTreeAux, List.mem_append, List.mem_cons, List.not_mem_nil,
-      or_false] at hx
-    simp only [maxTreeVert, NiceTree.size_introduce, NiceTree.size_forget]
-    rcases hx with hsub | rfl | rfl | rfl | rfl
-    · have h1 := ih offset x hsub
+    simp only [encodeNiceTreeAux, List.mem_append, List.mem_cons, List.not_mem_nil, or_false,
+      maxTreeVert, NiceTree.size_introduce, NiceTree.size_forget]
+    rintro x (hsub | rfl | rfl | rfl | rfl)
+    · have := ih offset x hsub
       omega
     all_goals omega
   | join left right ihl ihr =>
-    intro x hx
-    simp only [encodeNiceTreeAux, List.mem_append, List.mem_cons, List.not_mem_nil,
-      or_false] at hx
-    simp only [maxTreeVert, NiceTree.size_join]
-    rcases hx with (hL | hR) | rfl | rfl | rfl | rfl
-    · have h1 := ihl offset x hL
+    simp only [encodeNiceTreeAux, List.mem_append, List.mem_cons, List.not_mem_nil, or_false,
+      maxTreeVert, NiceTree.size_join]
+    rintro x ((hL | hR) | rfl | rfl | rfl | rfl)
+    · have := ihl offset x hL
       omega
-    · have h1 := ihr (offset + left.size) x hR
+    · have := ihr (offset + left.size) x hR
       omega
     all_goals omega
 
@@ -289,9 +284,7 @@ theorem mem_dpInstTree_le (counting : Bool) {q : ℕ} (hq : 0 < q)
   · simp only [Bool.false_eq_true, ↓reduceIte]
     induction T with
     | leaf =>
-      intro x hx
-      simp only [dpInstTree, List.mem_singleton] at hx
-      subst hx
+      simp only [dpInstTree, List.mem_singleton, forall_eq]
       split_ifs <;> omega
     | introduce v child ih =>
       intro x hx
@@ -325,10 +318,8 @@ theorem mem_dpInstTree_le (counting : Bool) {q : ℕ} (hq : 0 < q)
   · simp only [↓reduceIte]
     induction T with
     | leaf =>
-      intro x hx
-      simp only [dpInstTree, List.mem_singleton] at hx
-      subst hx
-      have hq1 : 1 ≤ q ^ (NiceTree.leaf : NiceTree ℕ).size := Nat.one_le_pow _ _ hq
+      simp only [dpInstTree, List.mem_singleton, forall_eq]
+      have := Nat.one_le_pow (NiceTree.leaf : NiceTree ℕ).size q hq
       split_ifs <;> omega
     | introduce v child ih =>
       intro x hx
@@ -501,9 +492,8 @@ private theorem dpInstTree_ofConstraint_count {Rel V : Type*} [DecidableEq V] {q
     simp only [NiceTree.map, dpInstTree, cspCountTree, dpTree, dpCountAlg]
     rw [Array.toList_ofFn]
     refine List.ext_getElem (by simp [hbl]) fun idx h1 h2 => ?_
-    simp only [List.getElem_ofFn]
-    rw [all_ofConstraint_introduce, ih, getD_toList]
-    rfl
+    simp only [List.getElem_ofFn, all_ofConstraint_introduce, ih, getD_toList, cspCountTree,
+      dpCountAlg]
   | forget v child ih =>
     have herase := bagList_map hinj (.forget v child)
     simp only [NiceTree.map, bagList] at herase
@@ -516,18 +506,15 @@ private theorem dpInstTree_ofConstraint_count {Rel V : Type*} [DecidableEq V] {q
     by_cases hv : v ∈ vars
     · simp only [hmem.2 hv, hv, ↓reduceIte]
       refine dpAlgFold_congr fun d _ => ?_
-      rw [toRadix_forget_map, getD_toList]
-      rfl
-    · simp only [mt hmem.1 hv, hv, ↓reduceIte, toRadix_forget_map, getD_toList]
-      rfl
+      simp only [toRadix_forget_map, getD_toList, cspCountTree, dpCountAlg]
+    · simp only [mt hmem.1 hv, hv, ↓reduceIte, toRadix_forget_map, getD_toList, cspCountTree,
+        dpCountAlg]
   | join left right ihl ihr =>
     have hblL := bagList_map hinj left
     simp only [NiceTree.map, dpInstTree, cspCountTree, dpTree, dpCountAlg]
     rw [Array.toList_ofFn, ihl, ihr]
     refine List.ext_getElem (by simp [hblL]) fun idx h1 h2 => ?_
-    simp only [List.getElem_ofFn]
-    rw [toRadix_join_map, getD_toList, getD_toList]
-    rfl
+    simp only [List.getElem_ofFn, toRadix_join_map, getD_toList, cspCountTree, dpCountAlg]
 
 private theorem dpInstTree_ofConstraint_decide {Rel V : Type*} [DecidableEq V] {q m : ℕ}
     (hq : 0 < q) (e : V ≃ Fin m) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V)

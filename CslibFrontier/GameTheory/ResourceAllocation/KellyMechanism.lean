@@ -402,13 +402,10 @@ theorem IsSocialOptimum.swap_deriv_le {G : KellyGame ι} {d : ι → ℝ} (hd : 
     have hx_feas : G.IsFeasibleAllocation x := by
       refine ⟨fun k => ?_, ?_⟩
       · rcases eq_or_ne k j with rfl | hkj
-        · simp only [x, Function.update_self]
-          linarith [hd.1.1 k, ht.1]
+        · simp only [x, Function.update_self]; linarith [hd.1.1 k, ht.1]
         · rcases eq_or_ne k i with rfl | hki
-          · simp only [x, d₁, Function.update_of_ne hkj, Function.update_self]
-            linarith [ht.2]
-          · simp only [x, d₁, Function.update_of_ne hkj, Function.update_of_ne hki]
-            exact hd.1.1 k
+          · simp only [x, d₁, Function.update_of_ne hkj, Function.update_self]; linarith [ht.2]
+          · simpa only [x, d₁, Function.update_of_ne hkj, Function.update_of_ne hki] using hd.1.1 k
       · have h1 := sum_comp_update_eq (fun _ z => z) d₁ j (d j + t)
         rw [hd₁j, sum_comp_update_eq (fun _ z => z) d i (d i - t)] at h1
         linarith [hd.1.2]
@@ -590,14 +587,15 @@ theorem exists_isCompetitiveEquilibrium [Nonempty ι] {G : KellyGame ι} (hC : 0
     simp only [price, w, ← Finset.mul_sum, hsum, mul_div_cancel_right₀ _ hC.ne']
   have hce : G.IsCompetitiveEquilibrium w μ := by
     refine ⟨hw, hμ, hprice, fun i t ht => ?_⟩
-    rw [show w i / μ = d i from mul_div_cancel_left₀ (d i) hμ.ne']
+    dsimp only [w]
+    rw [mul_div_cancel_left₀ (d i) hμ.ne']
     have htan := (hU i).le_add_derivWithin (hd.1 i) (div_nonneg ht hμ.le)
     have hprod : (derivWithin (G.utility i) (Ici 0) (d i) - μ) * (t / μ - d i) ≤ 0 := by
       rcases eq_or_lt_of_le (hd.1 i) with h0 | hpos
       · rw [← h0, sub_zero]
         exact mul_nonpos_of_nonpos_of_nonneg (sub_nonpos.mpr (h0 ▸ hle i)) (div_nonneg ht hμ.le)
       · rw [heq i hpos, sub_self, zero_mul]
-    nlinarith [mul_div_cancel₀ t hμ.ne', show w i = μ * d i from rfl]
+    nlinarith [mul_div_cancel₀ t hμ.ne']
   exact ⟨w, μ, hce, hce.isSocialOptimum hC⟩
 
 /-- When utilities are also strictly concave on `[0, ∞)`, the competitive equilibrium `(w, μ)` is
@@ -1210,11 +1208,9 @@ theorem kellyTightGame_spec {n : ℕ} (hn : 2 ≤ n) :
     rw [isNashEquilibrium_iff_kkt (by simp [kellyTightGame] : 0 < (kellyTightGame n).capacity) hU]
     have herase : ∀ i, 0 < ∑ j ∈ Finset.univ.erase i, kellyTightBid n j := fun i => by
       have hlt : kellyTightBid n i < 1 / 2 := by
-        unfold kellyTightBid
+        dsimp only [kellyTightBid]
         split_ifs
-        · norm_num
-        · rw [div_lt_div_iff₀ (by positivity) (by norm_num)]
-          linarith
+        exacts [by norm_num, one_div_lt_one_div_of_lt zero_lt_two (by linarith)]
       linarith [Finset.add_sum_erase Finset.univ (kellyTightBid n) (Finset.mem_univ i)]
     have hfoc : ∀ i, derivWithin ((kellyTightGame n).utility i) (Ici 0)
         ((kellyTightGame n).allocation (kellyTightBid n) i) *
@@ -1245,11 +1241,9 @@ theorem kellyTightGame_spec {n : ℕ} (hn : 2 ≤ n) :
     rw [hopt_welfare]
     calc (kellyTightGame n).welfare x
         ≤ ∑ i, x i := Finset.sum_le_sum fun i _ => by
-          unfold kellyTightGame
-          dsimp only
+          dsimp only [kellyTightGame]
           split_ifs
-          · exact le_rfl
-          · exact mul_le_of_le_one_left (hx.1 i) hslope_le
+          exacts [le_rfl, mul_le_of_le_one_left (hx.1 i) hslope_le]
       _ ≤ 1 := hx.2
   have hne_welfare :
       (kellyTightGame n).welfare ((kellyTightGame n).allocation (kellyTightBid n)) =
@@ -1260,9 +1254,8 @@ theorem kellyTightGame_spec {n : ℕ} (hn : 2 ≤ n) :
         ∑ _i ∈ Finset.univ.erase (0 : Fin (n + 1)),
           ((n : ℝ) / (2 * (n : ℝ) - 1) * (1 / (2 * (n : ℝ)))) :=
       Finset.sum_congr rfl fun i hi => by
-        have hne0 := Finset.ne_of_mem_erase hi
-        rw [halloc_ne i hne0]
-        simp [kellyTightGame, hne0]
+        rw [halloc_ne i (Finset.ne_of_mem_erase hi)]
+        simp [kellyTightGame, Finset.ne_of_mem_erase hi]
     rw [hrest, Finset.sum_const, hcard_erase, nsmul_eq_mul, halloc0]
     simp only [kellyTightGame, ↓reduceIte]
     have hne1 : (2 * (n : ℝ) - 1) ≠ 0 := h2n1_pos.ne'

@@ -128,11 +128,9 @@ theorem criticalValue_eq_iInf (q : PriceSchedule ι T) (θ : ι → AgentType (F
   · refine le_iInf₂ fun t ht => q.policy.criticalValue_le_of_isSome (q.price_nonneg i t θ) ?_
     simpa only [q.policy_alloc_isSome_iff, Function.update_self, q.price_update] using
       ⟨t, ht, le_rfl⟩
-  · apply le_sInf
-    rintro w ⟨r, hr, rfl, hwin⟩
-    rw [q.policy_alloc_isSome_iff] at hwin
-    simp only [Function.update_self, q.price_update] at hwin
-    obtain ⟨t, ht, hle⟩ := hwin
+  · refine le_sInf fun _ ⟨r, _, heq, hwin⟩ => heq ▸ ?_
+    obtain ⟨t, ht, hle⟩ := by
+      simpa only [q.policy_alloc_isSome_iff, Function.update_self, q.price_update] using hwin
     exact iInf₂_le_of_le t ht (ENNReal.ofReal_le_ofReal hle)
 
 /-- Pairing an agent-independent price schedule with its critical payment is DSIC under
@@ -283,15 +281,13 @@ theorem thresholdSingleItemPolicy_isCausal (p : ℝ) :
 theorem thresholdSingleItemMechanism_isNPT {p : ℝ} (hp : 0 ≤ p) :
     (thresholdSingleItemMechanism (ι := ι) (T := T) p).IsNPT := by
   intro i θ
-  simp only [thresholdSingleItemMechanism]
-  split_ifs
-  exacts [hp, le_rfl]
+  dsimp only [thresholdSingleItemMechanism]
+  split_ifs <;> linarith
 
 theorem thresholdSingleItemMechanism_isLoserZero (p : ℝ) :
     (thresholdSingleItemMechanism (ι := ι) (T := T) p).IsLoserZero := by
   intro i θ hnone
-  simp only [thresholdSingleItemMechanism] at hnone ⊢
-  simp only [hnone, Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
+  simp_all [thresholdSingleItemMechanism]
 
 theorem thresholdSingleItemMechanism_isIR (p : ℝ) :
     (thresholdSingleItemMechanism (ι := ι) (T := T) p).IsIR := by
@@ -401,15 +397,12 @@ private theorem exists_geometric_bucket {L v : ℝ} {m : ℕ}
     (hlo : L ≤ v) (hhi : v < L * (2 : ℝ) ^ m) :
     ∃ k : Fin m, L * (2 : ℝ) ^ k.val ≤ v ∧ v < L * (2 : ℝ) ^ (k.val + 1) := by
   induction m with
-  | zero =>
-    simp only [pow_zero, mul_one] at hhi
-    linarith
+  | zero => simp only [pow_zero, mul_one] at hhi; linarith
   | succ m ih =>
-    by_cases hmid : v < L * (2 : ℝ) ^ m
+    rcases le_or_gt (L * (2 : ℝ) ^ m) v with hmid | hmid
+    · exact ⟨Fin.last m, hmid, hhi⟩
     · obtain ⟨k, h1, h2⟩ := ih hmid
       exact ⟨k.castSucc, h1, h2⟩
-    · push Not at hmid
-      exact ⟨Fin.last m, hmid, hhi⟩
 
 /-- Shared geometric-bucket averaging step for `2m`-competitive bounds over `[L, L · 2^m)`. -/
 private theorem geometricThreshold_expected_bound {L v : ℝ} (hL : 0 < L) {m : ℕ} (hm : 0 < m)

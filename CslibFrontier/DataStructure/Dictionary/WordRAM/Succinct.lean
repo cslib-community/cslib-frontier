@@ -222,12 +222,9 @@ theorem setup_exec_succinct {U V w n_max base : ℕ}
     fun p => (p.latent, p.data.extend coreReg x₂)
   let ν₀ := ν_core.map lift0
   refine ⟨ν₀, ?_, ?_, ?_⟩
-  · have hdist :
-        (ν_core.map LatentState.data).map (Data.extend coreReg · x₂) = ν₀.map Prod.snd := by
-      simp only [ν₀, lift0, PMF.map_comp]
-      rfl
-    simpa only [subroutineCode, Nat.cast_add] using
-      he_tab_ren.seq_pure ((he_res.rename coreReg_injective).congr_dist hdist le_rfl)
+  · simpa only [subroutineCode, Nat.cast_add] using he_tab_ren.seq_pure
+      ((he_res.rename coreReg_injective).congr_dist
+        (by simp only [ν₀, lift0, PMF.map_comp]; rfl) le_rfl)
   · intro θ
     simp only [ν₀, lift0, PMF.map_comp]
     exact le_of_eq ((congrArg (· θ) hunif).trans (one_mul _).symm)
@@ -263,9 +260,7 @@ theorem setup_exec_succinct {U V w n_max base : ℕ}
       · simp only [ReducedKWise.tabBase, hashSpace, ReducedKWise.space] at hhs ⊢
         omega
     refine ⟨hz_fr, ⟨hz_bdd, hz_base, hz_fr, hq_tab, hq_seed, hdict0⟩, ?_, hmod_all⟩
-    unfold potential
-    change slotPotential n_max (gmAt base U V w n_max (hashSpace U w n_max) (lift0 q).2.mem) = 0
-      at hpot0
+    dsimp only [potential, memoryState] at hpot0 ⊢
     rw [hpot0, Nat.mul_zero]
 
 theorem tsum_mul_probeExcess_le {U V w n_max base : ℕ} (hnU : n_max ≤ U)
@@ -589,9 +584,7 @@ theorem totalCost_charge_eq (U V n_max : ℕ) (s₀ : Dictionary.State U)
   induction ops generalizing s₀ with
   | nil => simp
   | cons o os ih =>
-    rw [StateTransitionSpec.totalCost_cons, ih]
-    unfold charge
-    simp only [List.length_cons]
+    simp only [StateTransitionSpec.totalCost_cons, ih, charge, List.length_cons]
     ring
 
 /-- **Headline multi-operation theorem (`seq_expected_amortized`):**

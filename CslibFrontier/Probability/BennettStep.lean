@@ -104,13 +104,11 @@ private theorem antitone_half_sq_sub_exp_sub_one_sub :
 
 private theorem exp_sub_one_sub_le_half_sq_of_nonpos {u : ℝ} (hu : u ≤ 0) :
     exp u - 1 - u ≤ u ^ 2 / 2 := by
-  linarith [antitone_half_sq_sub_exp_sub_one_sub hu,
-    show (0 : ℝ) ^ 2 / 2 - (exp 0 - 1 - 0) = 0 by norm_num]
+  simpa using antitone_half_sq_sub_exp_sub_one_sub hu
 
 private theorem half_sq_le_exp_sub_one_sub_of_nonneg {u : ℝ} (hu : 0 ≤ u) :
     u ^ 2 / 2 ≤ exp u - 1 - u := by
-  linarith [antitone_half_sq_sub_exp_sub_one_sub hu,
-    show (0 : ℝ) ^ 2 / 2 - (exp 0 - 1 - 0) = 0 by norm_num]
+  simpa using antitone_half_sq_sub_exp_sub_one_sub hu
 
 private theorem sub_two_mul_exp_add_add_two_nonneg {u : ℝ} (hu : 0 ≤ u) :
     0 ≤ (u - 2) * exp u + u + 2 := by
@@ -198,20 +196,16 @@ theorem sq_div_two_mul_le_klFun_one_add {u : ℝ} (hu : 0 ≤ u) :
       (f' := fun t => 1 / (1 + t) - 27 / (3 + t) ^ 3) (by simp)
       (fun y hy => ?_) (fun y hy => ?_) hx
     · have h1y : 0 < 1 + y := by linarith
-      have h3y : 0 < 3 + y := by linarith
       exact ((((hasDerivAt_id' y).const_add 1).log h1y.ne').sub
         ((((hasDerivAt_id' y).const_mul 3).mul ((hasDerivAt_id' y).const_add 6)).div
           ((((hasDerivAt_id' y).const_add 3).pow 2).const_mul 2)
           (by dsimp only [Pi.pow_apply]; positivity)))
         |>.congr_deriv (by
           dsimp only [Pi.mul_apply, Pi.pow_apply]
-          field_simp [h1y.ne', h3y.ne']
-          ring)
-    · have h1y : 0 < 1 + y := by linarith
-      have h3y : 0 < 3 + y := by linarith
-      rw [show 1 / (1 + y) - 27 / (3 + y) ^ 3 =
-        y ^ 2 * (9 + y) / ((1 + y) * (3 + y) ^ 3) by field_simp [h1y.ne', h3y.ne']; ring]
-      exact div_nonneg (mul_nonneg (sq_nonneg y) (by linarith)) (by positivity)
+          field_simp; ring)
+    · have h : 1 / (1 + y) - 27 / (3 + y) ^ 3 = y ^ 2 * (9 + y) / ((1 + y) * (3 + y) ^ 3) := by
+        field_simp; ring
+      exact h ▸ div_nonneg (mul_nonneg (sq_nonneg y) (by linarith)) (by positivity)
   have hq0_nn : 0 ≤ klFun (1 + u) - 3 * u ^ 2 / (2 * (3 + u)) :=
     Real.nonneg_of_hasDerivAt_Ici_zero
       (f := fun t => klFun (1 + t) - 3 * t ^ 2 / (2 * (3 + t)))
@@ -219,14 +213,13 @@ theorem sq_div_two_mul_le_klFun_one_add {u : ℝ} (hu : 0 ≤ u) :
       (by simp [klFun_one])
       (fun x hx => by
         have h1x : 0 < 1 + x := by linarith
-        have h3x : 0 < 3 + x := by linarith
         exact (((hasDerivAt_klFun h1x.ne').comp x ((hasDerivAt_id' x).const_add 1)).sub
           (((hasDerivAt_pow 2 x).const_mul 3).div
             (((hasDerivAt_id' x).const_add 3).const_mul 2) (by positivity))).congr_deriv
-              (by field_simp [h3x.ne']; ring))
+              (by field_simp; ring))
       (fun y hy => hq1_nn y hy.le) hu
-  have h3u : 0 < 3 + u := by linarith
-  linarith [show u ^ 2 / (2 * (1 + u / 3)) = 3 * u ^ 2 / (2 * (3 + u)) by field_simp [h3u.ne']]
+  have hu_eq : u ^ 2 / (2 * (1 + u / 3)) = 3 * u ^ 2 / (2 * (3 + u)) := by field_simp
+  linarith
 
 end InformationTheory
 
@@ -241,8 +234,8 @@ theorem bennett_laplace_exponent_eq {b v ε : ℝ} (hb : 0 < b) (hv : 0 < v) (h�
         -(v / b ^ 2) * klFun (1 + b * ε / v) := by
   intro s
   refine ⟨mul_nonneg (by positivity) (Real.log_nonneg (le_add_of_nonneg_right (by positivity))), ?_⟩
-  rw [show s * b = Real.log (1 + b * ε / v) by dsimp only [s]; field_simp,
-    Real.exp_log (by positivity), klFun_apply]
+  have hsb : s * b = Real.log (1 + b * ε / v) := by dsimp only [s]; field_simp
+  rw [hsb, Real.exp_log (by positivity), klFun_apply]
   dsimp only [s]
   field_simp; ring
 
@@ -251,10 +244,9 @@ rational tail `exp (-ε² / (2 (v + b ε / 3)))` (`b > 0, v > 0, ε ≥ 0`). -/
 theorem exp_neg_klFun_le_exp_bernstein {b v ε : ℝ} (hb : 0 < b) (hv : 0 < v) (hε : 0 ≤ ε) :
     Real.exp (-(v / b ^ 2) * klFun (1 + b * ε / v)) ≤
       Real.exp (-ε ^ 2 / (2 * (v + b * ε / 3))) := by
-  have hden : 0 < v + b * ε / 3 := by positivity
-  rw [Real.exp_le_exp, neg_div, neg_mul,
-    ← show (v / b ^ 2) * ((b * ε / v) ^ 2 / (2 * (1 + (b * ε / v) / 3))) =
-      ε ^ 2 / (2 * (v + b * ε / 3)) by field_simp [hb.ne', hv.ne', hden.ne']]
+  have hEq : (v / b ^ 2) * ((b * ε / v) ^ 2 / (2 * (1 + (b * ε / v) / 3))) =
+      ε ^ 2 / (2 * (v + b * ε / 3)) := by field_simp
+  rw [Real.exp_le_exp, neg_div, neg_mul, ← hEq]
   exact neg_le_neg (mul_le_mul_of_nonneg_left
     (sq_div_two_mul_le_klFun_one_add (by positivity)) (by positivity))
 
@@ -370,11 +362,9 @@ theorem tsum_mul_exp_le_bennett (q : PMF α) (d : α → ℝ) {b v : ℝ}
   rcases eq_or_lt_of_le hs with rfl | hs_pos
   · simp
   · let d' (x : α) : ℝ := if x ∈ q.support then d x else 0
-    have hd'_le (x : α) : d' x ≤ b := by
-      dsimp only [d']
-      split_ifs with hx
-      · exact hupper x hx
-      exact hb.le
+    have hd'_le (x : α) : d' x ≤ b :=
+      if hx : x ∈ q.support then (ite_eq_left hx).le.trans (hupper x hx)
+      else (ite_eq_right hx).le.trans hb.le
     have hmul (f : ℝ → ℝ) :
         (fun x => (q x).toReal * f (d' x)) = fun x => (q x).toReal * f (d x) := funext fun x => by
       dsimp only [d']

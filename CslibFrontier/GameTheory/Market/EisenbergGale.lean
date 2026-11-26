@@ -459,8 +459,8 @@ theorem IsEquilibrium.isEisenbergGaleKKT {M : LinearFisherMarket I G}
     have hterm (g : G) : M.utility i g * x i g = (M.utility i g₀ / p g₀) * (p g * x i g) := by
       rcases (hx_nn i g).eq_or_lt with hxg0 | hxg
       · simp [← hxg0]
-      · rw [← show M.utility i g / p g = M.utility i g₀ / p g₀ from
-          le_antisymm (hmax i g₀ hg₀ g) (hmax i g hxg g₀)]
+      · rw [← M.bangPerBuck_eq p i g₀, ← le_antisymm (hmax i g₀ hg₀ g) (hmax i g hxg g₀),
+          bangPerBuck_eq]
         field_simp [(hp_pos g).ne']
     rw [buyerUtility_eq, linearUtility_eq_sum, Finset.sum_congr rfl fun g _ => hterm g,
       ← Finset.mul_sum, ← expenditure_eq_sum, hexp i]
@@ -684,12 +684,10 @@ theorem isEisenbergGaleKKT_eisenbergGaleDualPrice_of_isMaxOn {M : LinearFisherMa
       simp [y, buyerUtility_eq, linearUtility_eq_sum, mul_add, Finset.sum_add_distrib]
     have hy : M.IsPositiveUtilityAllocation y := by
       refine ⟨⟨fun i g' => ?_, fun g' => ?_⟩, fun i => by rw [hU]; exact hpos i⟩
-      · by_cases hg : g' = g
-        · simpa [y, hg] using hnn i
-        · simpa [y, hg] using hx.1.1 i g'
-      · by_cases hg : g' = g
-        · simpa [y, hg, Finset.sum_add_distrib] using hsum
-        · simpa [y, hg] using hx.1.2 g'
+      · rcases eq_or_ne g' g with rfl | hg
+        exacts [by simpa [y] using hnn i, by simpa [y, hg] using hx.1.1 i g']
+      · rcases eq_or_ne g' g with rfl | hg
+        exacts [by simpa [y, Finset.sum_add_distrib] using hsum, by simpa [y, hg] using hx.1.2 g']
     simp only [← hU]
     linarith [eisenbergGaleObjective_sub M x y, isMaxOn_iff.1 hmax y hy]
   refine ⟨hp_nonneg, hx, hstat, fun i₁ g hxi₁ => (hstat i₁ g).antisymm ?_, fun g => ?_⟩
@@ -799,32 +797,22 @@ theorem IsNonDegenerate.exists_isEquilibrium {M : LinearFisherMarket I G}
       {y | (∀ i g, 0 ≤ y i g) ∧ (∀ g, ∑ i : I, y i g ≤ M.supply g) ∧
         ∀ i : I, δ i ≤ M.buyerUtility y i}
     have hx₀_mem : x₀ ∈ K := ⟨hx₀_feas.1, hx₀_feas.2, fun i => min_le_left _ _⟩
-    let Box : Set (I → G → ℝ) :=
-      Set.pi Set.univ fun _ => Set.pi Set.univ fun g => Set.Icc 0 (M.supply g)
-    have hBox_compact : IsCompact Box :=
-      isCompact_univ_pi fun _ => isCompact_univ_pi fun _ => isCompact_Icc
-    have hK_sub : K ⊆ Box := fun y hy i _ g _ =>
-      ⟨hy.1 i g, (Finset.single_le_sum (fun k _ => hy.1 k g) (Finset.mem_univ i)).trans (hy.2.1 g)⟩
     have hK_closed : IsClosed K := by
       dsimp only [K]
-      rw [Set.ofPred_and, Set.ofPred_and]
-      refine IsClosed.inter ?_ (IsClosed.inter ?_ ?_)
-      · simp only [Set.ofPred_forall]
-        exact isClosed_iInter fun i => isClosed_iInter fun g =>
-          isClosed_le continuous_const (by fun_prop)
-      · simp only [Set.ofPred_forall]
-        exact isClosed_iInter fun g => isClosed_le (by fun_prop) continuous_const
-      · simp only [buyerUtility_eq, linearUtility_eq_sum, Set.ofPred_forall]
-        exact isClosed_iInter fun i => isClosed_le continuous_const (by fun_prop)
-    have hK_compact : IsCompact K := hBox_compact.of_isClosed_subset hK_closed hK_sub
+      simp only [Set.ofPred_and, Set.ofPred_forall, buyerUtility_eq, linearUtility_eq_sum]
+      exact (isClosed_iInter fun i => isClosed_iInter fun g =>
+          isClosed_le continuous_const (by fun_prop)).inter
+        ((isClosed_iInter fun g => isClosed_le (by fun_prop) continuous_const).inter
+          (isClosed_iInter fun i => isClosed_le continuous_const (by fun_prop)))
+    have hK_compact : IsCompact K :=
+      (isCompact_univ_pi fun _ => isCompact_univ_pi fun _ => isCompact_Icc).of_isClosed_subset
+        hK_closed fun y hy i _ g _ => ⟨hy.1 i g,
+          (Finset.single_le_sum (fun k _ => hy.1 k g) (Finset.mem_univ i)).trans (hy.2.1 g)⟩
     have hf_cont : ContinuousOn M.eisenbergGaleObjective K := by
-      have hterm (i : I) : ContinuousOn
-          (fun y : I → G → ℝ => M.budget i * Real.log (M.buyerUtility y i)) K := by
-        refine continuousOn_const.mul
-          (ContinuousOn.log ?_ fun y hy => ((hδ_pos i).trans_le (hy.2.2 i)).ne')
-        simp only [buyerUtility_eq, linearUtility_eq_sum]
-        fun_prop
       rw [funext M.eisenbergGaleObjective_eq]
+      refine continuousOn_finsetSum _ fun i _ => continuousOn_const.mul
+        (ContinuousOn.log ?_ fun y hy => ((hδ_pos i).trans_le (hy.2.2 i)).ne')
+      simp only [buyerUtility_eq, linearUtility_eq_sum]
       fun_prop
     obtain ⟨xStar, hxStar_K, hxStar_max⟩ :=
       hK_compact.exists_isMaxOn ⟨x₀, hx₀_mem⟩ hf_cont

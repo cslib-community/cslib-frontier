@@ -51,8 +51,7 @@ theorem Interpreter.KT.val_eq_binaryValue_reverse (w : List Bool) :
   | nil => rfl
   | cons b w ih =>
     rw [List.reverse_cons, BitString.binaryValue_snoc, ← ih, KT.val]
-    cases b <;> simp only [Bool.false_eq_true, ↓reduceIte, Bool.toNat_false, Bool.toNat_true] <;>
-      omega
+    cases b <;> dsimp <;> omega
 
 namespace Dealing
 
@@ -84,14 +83,11 @@ theorem groupTime_le_of_sizeBounds (H : C.SizeBounds qn tg X Lc) {bT bub : List 
       (Lc + 1) * (T + ub + 2) + ι * T + 3 * (ev + ι * lh) * (ub + Lc + 1) + 10 * X ^ 3 := by
   have hb : (baseParties grp g).length = #{p : Fin (K + K) | grp (Fin.castAdd A' p) = g} := by
     rw [baseParties_eq_filter, ← List.toFinset_card_of_nodup ((List.nodup_finRange _).filter _)]
-    congr 1
-    ext p
-    simp
+    exact congrArg Finset.card (Finset.ext fun _ => by simp)
   refine (groupTime_le hT hub hlT hlub hP hx H.key H.dkey H.tapes H.parties H.roles H.slotsAt
     H.channelsAt (hb.trans_le hι) hιX hlh le_rfl le_rfl b).trans ?_
-  have := Nat.mul_le_mul_right (ub + Lc + 1) (Nat.mul_le_mul_left 3 (Nat.add_le_add_right hev
-    (ι * lh)))
-  omega
+  exact Nat.add_le_add_right (Nat.add_le_add_left
+    (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left 3 (Nat.add_le_add_right hev _))) _) _
 
 end Dealing
 

@@ -120,10 +120,7 @@ theorem rawVar_inr (i : Fin n) : rawVar (α := α) (.inr i) = 2 * i := rfl
 
 @[simp]
 theorem varOfRaw_rawVar (v : α ⊕ Fin n) : varOfRaw n (rawVar v) = some v := by
-  rcases v with a | i
-  · simp [varOfRaw, show (2 * encode a + 1) % 2 = 1 by omega,
-      show (2 * encode a + 1) / 2 = encode a by omega]
-  · simp [varOfRaw, show 2 * (i : ℕ) % 2 = 0 by omega, show 2 * (i : ℕ) / 2 = i by omega]
+  rcases v with a | i <;> simp [varOfRaw, Nat.mul_add_div two_pos]
 
 /-- If `y` decodes to the variable `v` at depth `n`, then `rawVar v = y`. -/
 theorem rawVar_of_varOfRaw {y : ℕ} {v : α ⊕ Fin n} (h : varOfRaw n y = some v) :
@@ -291,11 +288,10 @@ theorem fromRaw_toRaw : ∀ {n} (φ : L.BoundedFormula α n), fromRaw n φ.toRaw
     obtain ⟨w, rfl⟩ := term_eq_var t₂
     simp [fromRaw]
   | n, @rel _ _ _ l R ts => by
-    have hs : ∀ y ∈ List.ofFn (fun i => rawTerm (ts i)), (varOfRaw (α := α) n y).isSome := by
-      intro y hy
-      obtain ⟨i, rfl⟩ := List.mem_ofFn.1 hy
-      obtain ⟨v, hv⟩ := term_eq_var (ts i)
-      simp [hv]
+    have hs : ∀ y ∈ List.ofFn (fun i => rawTerm (ts i)), (varOfRaw (α := α) n y).isSome :=
+      List.forall_mem_ofFn_iff.2 fun i => by
+        obtain ⟨v, hv⟩ := term_eq_var (ts i)
+        simp [hv]
     rw [toRaw_rel, fromRaw, relOfRaw, encodek₂, Option.bind_some,
       dite_eq_left ⟨List.length_ofFn, hs⟩]
     congr 2
@@ -595,12 +591,10 @@ theorem exists_structure_realize_iff_toRaw (M : Type*) [Nonempty M] (φ : L.Sent
 
 /-- A sentence is finitely satisfiable iff its raw formula is. -/
 theorem finSat_iff_toRaw (φ : L.Sentence) : FinSat φ ↔ RawFormula.FinSat (toRaw φ) := by
-  constructor
-  · rintro ⟨M, hS, hf, hn, h⟩
-    obtain ⟨I, ρ, h'⟩ := (exists_structure_realize_iff_toRaw M φ).1 ⟨hS, h⟩
+  refine ⟨fun ⟨M, hS, hf, hn, h⟩ => ?_, fun ⟨M, hf, hn, I, ρ, h⟩ => ?_⟩
+  · obtain ⟨I, ρ, h'⟩ := (exists_structure_realize_iff_toRaw M φ).1 ⟨hS, h⟩
     exact ⟨M, hf, hn, I, ρ, h'⟩
-  · rintro ⟨M, hf, hn, I, ρ, h⟩
-    obtain ⟨hS, h'⟩ := (exists_structure_realize_iff_toRaw M φ).2 ⟨I, ρ, h⟩
+  · obtain ⟨hS, h'⟩ := (exists_structure_realize_iff_toRaw M φ).2 ⟨I, ρ, h⟩
     exact ⟨M, hS, hf, hn, h'⟩
 
 /-- A sentence is finitely valid iff its raw formula is. -/

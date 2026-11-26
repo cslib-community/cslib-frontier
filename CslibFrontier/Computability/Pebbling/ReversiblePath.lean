@@ -101,8 +101,8 @@ first run backwards to remove the midpoint. -/
   induction k generalizing a with
   | zero => rfl
   | succ k ih =>
-    simp only [bennettMoves, List.length_append, List.length_map, List.length_reverse, ih]
-    rw [pow_succ]
+    simp only [bennettMoves, List.length_append, List.length_map, List.length_reverse, ih,
+      pow_succ]
     omega
 
 /-- On the path, the only predecessor of `v` is `v - 1`, so a configuration with a pebble on
@@ -132,7 +132,6 @@ theorem bennettMoves_mTr (k : ℕ) {a : ℕ} {C : Finset ℕ} (hC : ∀ x ∈ C,
     set top := a + 2 ^ (k + 1) - 1 with htop
     have hmC : m ∉ C := fun h => by have := hC m h; omega
     have htopC : top ∉ C := fun h => by have := hC top h; omega
-    have hmtop : m ≠ top := by omega
     -- Pebble the midpoint.
     have h₁ := ih (a := a) (C := C) (fun x hx => by have := hC x hx; omega) ha
     -- Pebble the end from the midpoint.
@@ -145,10 +144,9 @@ theorem bennettMoves_mTr (k : ℕ) {a : ℕ} {C : Finset ℕ} (hC : ∀ x ∈ C,
         ((Finset.forall_mem_insert _ _ _).2 ⟨by omega, fun x hx => by have := hC x hx; omega⟩)
         (fun u hu => Finset.mem_insert_of_mem (ha u hu)))
       (by rw [Finset.card_insert_of_notMem htopC]; omega)
-    rw [Finset.card_insert_of_notMem hmC] at h₂
-    rw [Finset.card_insert_of_notMem htopC] at h₃
     have e₂ : a + 2 ^ k + 2 ^ k - 1 = top := by omega
-    rw [e₂, Finset.insert_comm] at h₂
+    rw [Finset.card_insert_of_notMem hmC, e₂, Finset.insert_comm] at h₂
+    rw [Finset.card_insert_of_notMem htopC] at h₃
     exact LTS.MTr.comp _ (LTS.MTr.comp _ (reversiblePebbleGame_mTr_mono (by omega) h₁)
       (reversiblePebbleGame_mTr_mono (by omega) h₂)) (reversiblePebbleGame_mTr_mono (by omega) h₃)
 
@@ -420,9 +418,8 @@ theorem persistentReversiblePebblingPrice_pathDigraph (v : ℕ) :
     persistentReversiblePebblingPrice pathDigraph v = Nat.clog 2 (v + 1) + 1 := by
   refine persistentReversiblePebblingPrice_eq
     (persistentReversiblePebblable_pathDigraph_iff.2 ?_) fun s h => ?_
-  · rw [pow_succ]
-    have := Nat.le_pow_clog (b := 2) Nat.one_lt_two (v + 1)
-    omega
+  · have := Nat.le_pow_clog (b := 2) Nat.one_lt_two (v + 1)
+    rw [pow_succ]; omega
   · have h := persistentReversiblePebblable_pathDigraph_iff.1 h
     cases s with
     | zero => rw [pow_zero] at h; omega
@@ -434,9 +431,8 @@ theorem persistentReversiblePebblingPrice_pathDigraph (v : ℕ) :
 `2 ^ k` vertices has reversible price `k + 1`: with `k` pebbles it cannot even be visited. -/
 theorem reversiblePebblingPrice_pathDigraph_two_pow_sub_one (k : ℕ) :
     reversiblePebblingPrice pathDigraph (2 ^ k - 1) = k + 1 := by
-  have hpos : 0 < 2 ^ k := Nat.two_pow_pos k
-  have heq : 2 ^ k - 1 + 2 = 2 ^ k + 1 := by omega
-  rw [reversiblePebblingPrice_pathDigraph, heq]
+  have hpos := Nat.two_pow_pos k
+  rw [reversiblePebblingPrice_pathDigraph, ← Nat.sub_add_comm hpos]
   exact le_antisymm ((Nat.clog_le_iff_le_pow Nat.one_lt_two).2 (by rw [pow_succ]; omega))
     ((Nat.lt_clog_iff_pow_lt Nat.one_lt_two).2 (Nat.lt_succ_self _))
 

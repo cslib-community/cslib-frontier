@@ -173,19 +173,17 @@ theorem exists_bits_eq_append_true {m : ℕ} (hm : m ≠ 0) : ∃ l, m.bits = l 
   | zero => exact absurd rfl hm
   | bit b n hn ih =>
     rw [Nat.bits_append_bit _ _ hn]
-    rcases eq_or_ne n 0 with rfl | hn0
+    rcases Decidable.eq_or_ne n 0 with rfl | hn0
     · exact ⟨[], by simp [hn rfl]⟩
     · obtain ⟨l, hl⟩ := ih hn0
       exact ⟨b :: l, by rw [hl, List.cons_append]⟩
 
 theorem natDegree_polyOfBits_append_true (l : List Bool) :
     (polyOfBits (l ++ [true])).natDegree = l.length := by
-  rw [polyOfBits_append]
-  simp only [polyOfBits_cons, bitEquiv_symm_true, map_one, polyOfBits_nil, mul_zero, add_zero,
-    mul_one]
+  simp only [polyOfBits_append, polyOfBits_cons, bitEquiv_symm_true, map_one, polyOfBits_nil,
+    mul_zero, add_zero, mul_one]
   rw [add_comm, natDegree_add_eq_left_of_degree_lt
     ((degree_polyOfBits_lt l).trans_eq (degree_X_pow _).symm), natDegree_X_pow]
-
 
 /-! ### Reduction modulo a binary polynomial -/
 
@@ -372,8 +370,7 @@ theorem isIrreducibleCode_iff (m : ℕ) :
   · simp only [not_le.2 hm, false_and, false_iff]
     obtain rfl | rfl : m = 0 ∨ m = 1 := by omega
     · simp
-    · rw [polyOfCode_one]
-      exact not_irreducible_one
+    · exact polyOfCode_one.symm ▸ not_irreducible_one
   have hm0 : m ≠ 0 := by omega
   have hdeg : (polyOfCode m).natDegree = Nat.log 2 m := natDegree_polyOfCode hm0
   have hlog : 1 ≤ Nat.log 2 m := Nat.le_log_of_pow_le one_lt_two (by simpa using hm)
@@ -398,11 +395,10 @@ theorem isIrreducibleCode_iff (m : ℕ) :
     simp only [not_or, not_lt, Bool.not_eq_true] at hc
     obtain ⟨⟨hd2, hdlog⟩, hany⟩ := hc
     have hd0 : d ≠ 0 := by omega
-    have hd : polyOfCode d ≠ 0 := (polyOfCode_ne_zero_and_natDegree hd0).1
-    refine h (polyOfCode d) (monic_of_ne_zero hd) ?_ (not_not.mp fun hndvd =>
-      Bool.false_ne_true (hany.symm.trans ((any_modBits_bits_iff hd0 _).2 hndvd)))
-    rw [natDegree_polyOfCode hd0, Finset.mem_Ioc]
-    exact ⟨Nat.log_pos one_lt_two hd2, hdlog⟩
+    refine h (polyOfCode d) (monic_of_ne_zero (polyOfCode_ne_zero_and_natDegree hd0).1) ?_
+      (not_not.mp fun hndvd =>
+        Bool.false_ne_true (hany.symm.trans ((any_modBits_bits_iff hd0 _).2 hndvd)))
+    simpa only [natDegree_polyOfCode hd0, Finset.mem_Ioc] using ⟨Nat.log_pos one_lt_two hd2, hdlog⟩
 
 /-- **The exhaustive search**: the least code `m < B` of an irreducible binary polynomial of degree
 `p`, by trial division (`0` if there is none). -/
@@ -442,15 +438,13 @@ theorem pow_eq_sum_powerTable {A : Type*} [CommRing A] [Algebra (ZMod 2) A] (l :
     {α : A} (hα : aeval α (polyOfBits (l ++ [true])) = 0) {e : ℕ} (he : e < 2 * l.length) :
     α ^ e = ∑ d ∈ Finset.range l.length,
       bitEquiv.symm (((powerTable (l ++ [true])).getD e []).getD d false) • α ^ d := by
-  have hlen : (l ++ [true]).length - 1 = l.length := by simp
   have hget : (powerTable (l ++ [true])).getD e [] =
       modBits (l ++ [true]) (List.replicate e false ++ [true]) := by
-    rw [List.getD_eq_getElem _ _ (by rw [length_powerTable, hlen]; exact he)]
+    rw [List.getD_eq_getElem _ _ (by simp [length_powerTable, he])]
     simp [powerTable]
-  rw [hget, ← length_modBits l (List.replicate e false ++ [true]), ← aeval_polyOfBits]
-  have h := AdjoinRoot.mk_eq_mk.1 (mk_polyOfBits_modBits l (List.replicate e false ++ [true]))
-  rw [polyOfBits_replicate_append_true] at h
-  have h0 := aeval_eq_zero_of_dvd_aeval_eq_zero h hα
+  rw [hget, ← length_modBits l _, ← aeval_polyOfBits]
+  have h0 := aeval_eq_zero_of_dvd_aeval_eq_zero (polyOfBits_replicate_append_true e ▸
+    AdjoinRoot.mk_eq_mk.1 (mk_polyOfBits_modBits l _)) hα
   rwa [map_sub, aeval_X_pow, sub_eq_zero, eq_comm] at h0
 
 end Cslib

@@ -156,21 +156,17 @@ private theorem joinFillProg_spec {w : ℕ} (counting : Bool) (a : JoinFillArgs)
   dsimp only [mr] at hprod_eq
   have hv_step : (Memory.spec w).ValidHistory t
       ((Memory.spec w).clientHistory t (joinFillStep (a, m))) := by
-    unfold joinFillStep
-    dsimp only
-    refine validHistory_read_bind (by rw [hfr_t]; omega) ?_
-    refine validHistory_bind_step hv_rp ?_
+    dsimp only [joinFillStep]
+    refine validHistory_read_bind (by rw [hfr_t]; omega) (validHistory_bind_step hv_rp ?_)
     rw [hst_rp, hr_rp]
-    refine validHistory_read_bind (by rw [hfr_t]; omega) ?_
-    rw [hprod_eq]
-    exact validHistory_write_bind (by rw [hfr_t]; omega) hentry_fit (validHistory_pure w _ _)
+    exact validHistory_read_bind (by rw [hfr_t]; omega)
+      (hprod_eq.symm ▸ validHistory_write_bind (by rw [hfr_t]; omega) hentry_fit
+        (validHistory_pure w _ _))
   have hc_step : memoryCost (joinFillStep (a, m)) t ≤ stepCost := by
-    unfold joinFillStep
-    dsimp only
+    dsimp only [joinFillStep, stepCost]
     rw [memoryCost_bind', memoryCost_read, clientState_read, memoryCost_bind', hst_rp,
       memoryCost_bind', memoryCost_read, clientState_read,
       memoryCost_bind', memoryCost_write, memoryCost_pure]
-    dsimp only [stepCost]
     omega
   exact ⟨hv_step, by rw [hst_ev, hr_rp, hprod_eq], hres_ev, trivial, hc_step⟩
 
@@ -333,16 +329,15 @@ theorem joinNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : JoinNodeArgs)
     rw [hleft.bag_len, hleft.tbl_len, hright.bag_len,
       StateTransitionSpec.clientState_bind, ha1_s, ha1_r,
       StateTransitionSpec.clientState_bind]
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨?_, by rw [hsEnd_eq, hfr_wd, hs₂_fr],
+    hsEnd_eq ▸ (FrameOutsideRange.of_preservesBelow a.dCur (a.dCur + 4) hp_s_s₂).trans hframe_wd,
+    ?_, ?_⟩
   · unfold joinNodeProg
     iterate 7 (refine validHistory_read_bind (by omega) ?_)
     rw [hleft.bag_len, hleft.tbl_len, hright.bag_len]
     refine validHistory_bind_step hv₁ ?_
     rw [ha1_s, ha1_r]
     exact validHistory_bind_step hv_fill hv_wd
-  · rw [hsEnd_eq, hfr_wd, hs₂_fr]
-  · rw [hsEnd_eq]
-    exact (FrameOutsideRange.of_preservesBelow a.dCur (a.dCur + 4) hp_s_s₂).trans hframe_wd
   · rw [hsEnd_eq]
     exact ⟨hdCur, hm0 ▸ hleft.bag_lo, hm1,
       hm0 ▸ hlBag_s₂.frame_outsideRange (.inr (le_trans hdCur hleft.bag_lo)) hframe_wd,

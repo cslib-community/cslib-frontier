@@ -345,10 +345,8 @@ private theorem pointAt_eq_of_mutual_carriers
     pointAt axis level along transverse =
       orientedInt axis (axisCoordinate depth along)
         (axisCoordinate depth transverse) := by
-  have alongOwner := alongOwner_eq_of_mutual_carriers
-    axis owner primary crossing
-  cases axis <;>
-    simp [pointAt, orientedNat, orientedInt, point, owner, alongOwner]
+  have := alongOwner_eq_of_mutual_carriers axis owner primary crossing
+  cases axis <;> simp [pointAt, orientedNat, orientedInt, point, owner, this]
 
 private theorem transverseInterior_of_mutual_carriers
     (axis : AddressAxis) {level along transverse depth : Nat}
@@ -356,9 +354,8 @@ private theorem transverseInterior_of_mutual_carriers
     (primary : primaryCarrier axis level along transverse = true)
     (crossing : crossingCarrier axis level along transverse = true) :
     onFrameBoundary depth transverse = false := by
-  have alongOwner := alongOwner_eq_of_mutual_carriers
-    axis owner primary crossing
-  exact ((crossingCarrier_iff_of_owner axis alongOwner).1 crossing).2
+  exact ((crossingCarrier_iff_of_owner axis
+    (alongOwner_eq_of_mutual_carriers axis owner primary crossing)).1 crossing).2
 
 private theorem sourceAt_eq_of_transverseInterior
     (axis : AddressAxis) {level along transverse depth : Nat}
@@ -386,11 +383,8 @@ private theorem roleAt_eq_of_primary
     roleAt axis level along transverse =
       if crossingCarrier axis level along transverse = true then .active
       else primaryRole axis := by
-  cases crossing : crossingCarrier axis level along transverse <;> cases axis
-  all_goals
-    simp only [primaryCarrier, roleAt, crossingCarrier, primaryRole, orientedNat]
-      at primary crossing ⊢
-    simp [carrierRole, primary, crossing]
+  cases crossing : crossingCarrier axis level along transverse <;> cases axis <;>
+    simp_all [primaryCarrier, roleAt, crossingCarrier, primaryRole, orientedNat, carrierRole]
 
 /-- A crossing at the centers of both owner frames has logical address zero. -/
 theorem point_eq_zero_of_centerResidues
@@ -688,10 +682,9 @@ private def frameClosing (depth coordinate : Nat) : Nat :=
 
 private theorem coordinate_lt_frameBase_add_period (depth coordinate : Nat) :
     coordinate < frameBase depth coordinate + period depth := by
-  have decomposition : frameBase depth coordinate + coordinate % period depth = coordinate :=
+  have : frameBase depth coordinate + coordinate % period depth = coordinate :=
     Nat.div_add_mod coordinate (period depth)
-  have periodPositive := lt_trans Nat.zero_lt_one (one_lt_period depth)
-  have residueLt := Nat.mod_lt coordinate periodPositive
+  have := Nat.mod_lt coordinate (lt_trans Nat.zero_lt_one (one_lt_period depth))
   omega
 
 private theorem mod_eq_sub_frameBase_of_mem_block
@@ -832,12 +825,10 @@ private theorem selectedBorder_ne_some_false_before_frameOpening
     have startBeforeEnd := frameStartResidue_lt_frameEndResidue depth
     simp only [frameOpening] at beforeOpening
     omega
-  · have largeResidue : candidate % period depth = 0 :=
-      largeClosing_mod_small larger closing
-    have coordinateBaseLe : frameBase depth coordinate ≤ coordinate :=
-      Nat.mul_div_le coordinate (period depth)
-    rw [show candidate = coordinate by omega, coordinateClear] at selected
-    cases selected
+  · have hmod := largeClosing_mod_small larger closing
+    have hbase : frameBase depth coordinate ≤ coordinate := Nat.mul_div_le coordinate (period depth)
+    have hcand : candidate = coordinate := by omega
+    exact absurd (hcand ▸ selected) (by simp [coordinateClear])
 
 private theorem selectedBorder_eq_none_after_frameClosing
     {level depth coordinate transverse candidate : Nat}
@@ -1025,8 +1016,7 @@ theorem intervalEdge_pair_iff_horizontalCarrier
           (fun x => selectedBorder level x transverse)
           (side level) (coordinate + 1) = .none) ↔
       isHorizontalCarrier level coordinate transverse = true := by
-  constructor
-  · exact horizontalCarrier_of_intervalEdge_pair coordinate_lt
-  · exact intervalEdge_pair_of_horizontalCarrier coordinate_lt
+  exact ⟨horizontalCarrier_of_intervalEdge_pair coordinate_lt,
+    intervalEdge_pair_of_horizontalCarrier coordinate_lt⟩
 
 end Cslib.WangTile.Robinson.Carrier

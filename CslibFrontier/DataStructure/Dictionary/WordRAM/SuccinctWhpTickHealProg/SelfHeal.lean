@@ -563,25 +563,20 @@ private theorem csrToFastPart1Prog_eq {c U V w n_max base : ℕ}
       (csrToFastPart1aProg (cp, base)) s_pt totalBack := by
     unfold csrToFastPart1aProg
     simp only [pure_bind]
-    refine StepSpec.bind ⟨hmr_st, hmr_res, hmr_vp⟩ ?_
-    refine StepSpec.bind ⟨hmp_st, hmp_res, hmp_vp⟩ ?_
+    refine StepSpec.bind ⟨hmr_st, hmr_res, hmr_vp⟩ (StepSpec.bind ⟨hmp_st, hmp_res, hmp_vp⟩ ?_)
     simp only [hlBase_mk, hlW_mk, hlM_mk, hlGBits_mk, hlOffBm_mk]
-    refine StepSpec.bind ⟨rfl, rfl, hvp_w0⟩ ?_
-    refine StepSpec.bind ⟨rfl, rfl, hvp_bp⟩ ?_
-    refine (StepSpec.readPackedGen_eq hw (by omega) hbm_b htb_rd).bind ?_
-    refine StepSpec.bind ⟨rfl, rfl, hvp_fbp⟩ ?_
-    exact StepSpec.bind ⟨rfl, rfl, hvp_pt⟩ (StepSpec.pure _ _)
+    exact StepSpec.bind ⟨rfl, rfl, hvp_w0⟩ <| StepSpec.bind ⟨rfl, rfl, hvp_bp⟩ <|
+      (StepSpec.readPackedGen_eq hw (by omega) hbm_b htb_rd).bind <|
+      StepSpec.bind ⟨rfl, rfl, hvp_fbp⟩ <| StepSpec.bind ⟨rfl, rfl, hvp_pt⟩ (StepSpec.pure _ _)
   have h1b : StepSpec w (base + largeSpaceWhp c U V w n_max) s_pt
       (csrToFastPart1bProg ((cp, base), totalBack)) s_ras freeTop := by
     unfold csrToFastPart1bProg
     simp only [pure_bind]
     refine StepSpec.bind ⟨hmr_pt_st, hmr_pt_res, hmr_pt_vp⟩ ?_
     simp only [hlM_mk, hlPoolSize_mk]
-    refine StepSpec.bind ⟨hcl_st, hcl_res, hcl_vp⟩ ?_
-    refine StepSpec.bind ⟨rfl, rfl, hvp_po⟩ ?_
-    refine StepSpec.bind ⟨rfl, rfl, hvp_fs⟩ ?_
-    refine StepSpec.bind ⟨rfl, rfl, hvp_ls⟩ ?_
-    exact StepSpec.bind ⟨rfl, rfl, hvp_ras⟩ (StepSpec.pure _ _)
+    exact StepSpec.bind ⟨hcl_st, hcl_res, hcl_vp⟩ <| StepSpec.bind ⟨rfl, rfl, hvp_po⟩ <|
+      StepSpec.bind ⟨rfl, rfl, hvp_fs⟩ <| StepSpec.bind ⟨rfl, rfl, hvp_ls⟩ <|
+      StepSpec.bind ⟨rfl, rfl, hvp_ras⟩ (StepSpec.pure _ _)
   unfold csrToFastPart1Prog
   simp only [pure_bind]
   exact h1a.bind h1b
@@ -680,9 +675,10 @@ theorem csrToFastGenProg_spec {c U V w n_max base : ℕ}
   obtain ⟨hbnd_good, _⟩ := csrToFast_bounds_of_good hth hcsr hgood
   obtain ⟨_, hbp_adj, _, hbp_mono⟩ := backPrefix_spec (numBucketsWhp n_max) (capFrontWhp n_max)
     csr.fbStart
-  have hwp1 : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
-    unfold mkWhpParams; rw [ite_eq_right (Nat.not_lt.mpr hth)]
   set cp := mkWhpCoreParams c U V w n_max
+  have hwp1 : (mkWhpParams c U V w n_max).1 = cp := by
+    unfold mkWhpParams
+    exact congrArg Prod.fst (ite_eq_right (Nat.not_lt.mpr hth))
   set rt := mkHealRt c U V w n_max base
   set prt := mkPermRt c U V w n_max base
   set hrt := mkHashRt c U w n_max base
@@ -771,10 +767,9 @@ theorem csrToFastGenProg_spec {c U V w n_max base : ℕ}
   set s_fin := (Memory.spec 0).clientState s_ztc
     (writeHealHdrsAndTrieMetaProg
       ((rt, (offTrieMeta0 c U V w n_max, offTrieMeta1 c U V w n_max)), freeTop))
-  have hch := largeOffsetChain c U V w n_max
-  have h32_q : 32 ≤ offQuotWhp c w n_max := by omega
-  have hq_bm : offQuotWhp c w n_max + packedWords n_max (quotBitsWhp U n_max) w ≤
-      offValWhp c U w n_max ∧
+  have ⟨h32_q, hq_bm⟩ : 32 ≤ offQuotWhp c w n_max ∧
+      (offQuotWhp c w n_max + packedWords n_max (quotBitsWhp U n_max) w ≤
+        offValWhp c U w n_max ∧
       offValWhp c U w n_max + packedWords n_max (valBits V) w ≤ offLocState c U V w n_max ∧
       offLocState c U V w n_max + packedWords (M * totalLocalCoordsWhp n_max) 2 w =
         offBktMeta c U V w n_max ∧
@@ -787,10 +782,12 @@ theorem csrToFastGenProg_spec {c U V w n_max base : ℕ}
         offBtMeta c U V w n_max ∧
       offBtMeta c U V w n_max ≤ offTrieChild0 c U V w n_max ∧
       offTrieChild0 c U V w n_max ≤ offTrieMeta0 c U V w n_max ∧
-      offTrieItems0 c U V w n_max ≤ largeSpaceWhp c U V w n_max := by
+      offTrieMeta0 c U V w n_max ≤ offTrieItems0 c U V w n_max ∧
+      offTrieItems0 c U V w n_max ≤ largeSpaceWhp c U V w n_max) := by
+    have hch := largeOffsetChain c U V w n_max
     dsimp only [M, gBits, cb]
-    exact ⟨by omega, by omega, by omega, by omega, by omega, by omega, by omega, by omega,
-      by omega, by omega, by omega⟩
+    exact ⟨by omega, le_rfl, by omega, rfl, rfl, by omega, by omega, rfl, rfl, by omega, by omega,
+      by omega, by omega⟩
   have hfin_to_ffm : ∀ a, base + 16 ≤ a → a < base + offTrieChild0 c U V w n_max →
       s_fin.mem a = s_ffm.mem a := fun a ha1 ha2 =>
     (hout_whd a (Or.inr (Or.inl ⟨ha1, by omega⟩))).trans (hout_ztc a (Or.inl ha2))
@@ -808,7 +805,7 @@ theorem csrToFastGenProg_spec {c U V w n_max base : ℕ}
       (csrToFastGenProg (mkWhpParams c U V w n_max, base)) s_fin () := by
     unfold csrToFastGenProg; dsimp only
     simp only [pure_bind]
-    rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
+    rw [hwp1]
     refine hp1_step.bind ?_
     dsimp only [cp] at hmr_st hmr_res hmr_vp ⊢
     refine StepSpec.bind ⟨hmr_st, hmr_res, hmr_vp⟩ ?_
@@ -840,7 +837,7 @@ theorem csrToFastGenProg_spec {c U V w n_max base : ℕ}
         hfin_to_ras_nonBmBt a (by omega) (Or.inl (by
           dsimp only [M] at hq_bm ha2; omega))),
         hls_ras b hb loc hloc]
-      simp only [hb, true_and, ↓reduceIte]
+      simp -zeta only [hb, true_and, ↓reduceIte]
     · intro b hb
       have hbm_fin_eq : ∀ idx < 16 * M,
           readPacked (base + offBktMeta c U V w n_max) gBits w s_fin.mem idx =
@@ -852,7 +849,7 @@ theorem csrToFastGenProg_spec {c U V w n_max base : ℕ}
           salts b :=
         (hffm_keep (16 * b + 1) (by omega) (Or.inl (by omega))).trans (hbab_salts b hb)
       obtain ⟨_, _, _, _, _, _, _, _, _⟩ := hffm_bm b hb
-      simp only [hb, ↓reduceIte]
+      simp_rw [ite_eq_left hb]
       refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
         exact (hbm_fin_eq _ (by omega)).trans (by assumption)
     · intro b hb k hk
@@ -888,11 +885,11 @@ theorem csrToFastGenProg_spec {c U V w n_max base : ℕ}
       have hdiv_lt' : sIdx / 3 < numBucketsWhp n_max := hdiv_lt
       simpa only [backPtr, bktCnt, hdiv_lt, hdiv_lt', true_and, ↓reduceIte] using hsl_fin
     · dsimp only [BufTrieMemRep, emptyBufTrie]
-      simp only [↓reduceIte]
       refine ⟨hmt_pos, Nat.zero_le _, hm12, hm13, fun u hu ch hch => ?_,
         fun _ h1 h2 => absurd h1 (Nat.not_le.mpr h2), fun u hu => ?_,
         fun _ h => absurd h (Nat.not_lt_zero _)⟩
-      · have hidx : u * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max := by
+      · rw [ite_eq_left rfl]
+        have hidx : u * 2 ^ bCharWhp n_max + ch < trieChildEntriesWhp c n_max := by
           unfold trieChildEntriesWhp; exact mul_add_lt_mul_bound hu hch
         exact (readPacked_congr hw (hidx := hidx) (fun a ⟨ha1, ha2⟩ =>
           hout_whd a (Or.inr (Or.inl ⟨by omega, by
@@ -900,11 +897,10 @@ theorem csrToFastGenProg_spec {c U V w n_max base : ℕ}
               offTrieChild0 c U V w n_max + packedWords (trieChildEntriesWhp c n_max) gBits w := rfl
             dsimp only [gBits] at h14
             unfold offTrieMeta0; omega⟩)))).trans (hztc_ch _ hidx).1
-      · have hu0 : u = 0 := by omega
-        subst hu0
+      · obtain rfl := Nat.lt_one_iff.mp hu
         exact ⟨htm0_2, fun h => absurd rfl h⟩
     · dsimp only [BufTrieMemRep, emptyBufTrie]
-      simp only [Nat.one_ne_zero, ↓reduceIte]
+      simp_rw [ite_eq_right Nat.one_ne_zero]
       refine ⟨hmt_pos, Nat.zero_le _, hm14, hm15, fun u hu ch hch => ?_,
         fun _ h1 h2 => absurd h1 (Nat.not_le.mpr h2), fun u hu => ?_,
         fun _ h => absurd h (Nat.not_lt_zero _)⟩
@@ -917,8 +913,7 @@ theorem csrToFastGenProg_spec {c U V w n_max base : ℕ}
         dsimp only [gBits] at h14 h15
         exact (readPacked_congr hw (hidx := hidx) (fun a ⟨ha1, ha2⟩ =>
           hout_whd a (Or.inr (Or.inl ⟨by omega, by omega⟩)))).trans (hztc_ch _ hidx).2
-      · have hu0 : u = 0 := by omega
-        subst hu0
+      · obtain rfl := Nat.lt_one_iff.mp hu
         exact ⟨htm1_2, fun h => absurd rfl h⟩
   · rw [htot_step.1]
     exact hfr_whd.trans (hfr_ztc.trans (hfr_ffm.trans (hfr_bab.trans hfr_ras)))
@@ -929,10 +924,7 @@ theorem csrToFastGenProg_spec {c U V w n_max base : ℕ}
           ((hout_ffm a (Or.inl (by omega))).trans
             ((hout_bab a (Or.inl (by omega))).trans (hout_ras a (Or.inl (by omega))))))
     · exact (hout_whd a (Or.inr (Or.inr (by omega)))).trans
-        ((hout_ztc a (Or.inr (by
-            have : offTrieMeta0 c U V w n_max ≤ offTrieItems0 c U V w n_max := by
-              unfold offTrieItems0 offTrieMeta1; omega
-            omega))).trans
+        ((hout_ztc a (Or.inr (by omega))).trans
           ((hout_ffm a (Or.inr (by omega))).trans
             ((hout_bab a (Or.inr (Or.inr (by omega)))).trans
               (hout_ras a (Or.inr (by omega))))))
@@ -982,11 +974,9 @@ theorem realizes_trySelfHealGen :
     | (obtain ⟨hck_res, hck_seed, hck_rep, hck_salts, _, _, _⟩ :=
          checkGoodSeedOnStateGenProg_spec henv hseed hrep hcsr (s := s)
        have hok_eq : (checkGoodSeedOnState c U n_max θ csr).1 = true := by
-         have h1 : (Memory.spec 0).clientResult s
-             (checkGoodSeedOnStateGenProg (mkWhpParams c U V w n_max, base)) = 1 := by assumption
-         rw [hck_res] at h1
          cases hok : (checkGoodSeedOnState c U n_max θ csr).1
-         · rw [hok] at h1; simp at h1
+         · simp only [hok, Bool.false_eq_true, ↓reduceIte] at hck_res
+           omega
          · rfl
        have hgood : GoodSeedOnState c U n_max θ dict :=
          (checkGoodSeedOnState_spec hcsr).1.mp hok_eq
@@ -1017,33 +1007,30 @@ theorem trySelfHealGenProg_spec {c U V w n_max base : ℕ}
   set s1 := (Memory.spec 0).clientState s
     (checkGoodSeedOnStateGenProg (mkWhpParams c U V w n_max, base))
   dsimp only [trySelfHeal]
-  by_cases hok : (checkGoodSeedOnState c U n_max θ csr).1 = true
-  · have hgood : GoodSeedOnState c U n_max θ dict :=
-      (checkGoodSeedOnState_spec hcsr).1.mp hok
-    obtain ⟨hcf_seed, hcf_rep, hcf_fr, hcf_vp, hcf_out⟩ :=
-      csrToFastGenProg_spec henv hck_seed hck_rep hcsr hqv hgood hck_salts (s := s1)
-    rw [hok] at hck_res ⊢
-    simp only [↓reduceIte] at hck_res ⊢
+  cases hok : (checkGoodSeedOnState c U n_max θ csr).1
+  · simp only [hok, Bool.false_eq_true, ↓reduceIte] at hck_res ⊢
+    have hstep : StepSpec w (base + largeSpaceWhp c U V w n_max) s prog s1 () := by
+      dsimp only [prog]
+      unfold trySelfHealGenProg
+      simpa only [pure_bind] using StepSpec.bind ⟨rfl, hck_res, hck_vp⟩
+        (by simpa only [Nat.zero_ne_one, ↓reduceIte] using StepSpec.pure _ _)
+    rw [hstep.1]
+    exact ⟨⟨hth, hck_seed, hck_rep⟩, hck_fr, hstep.2.2, hck_out⟩
+  · obtain ⟨hcf_seed, hcf_rep, hcf_fr, hcf_vp, hcf_out⟩ := csrToFastGenProg_spec henv
+      hck_seed hck_rep hcsr hqv ((checkGoodSeedOnState_spec hcsr).1.mp hok) hck_salts (s := s1)
+    simp only [hok, ↓reduceIte] at hck_res ⊢
     have hstep : StepSpec w (base + largeSpaceWhp c U V w n_max) s prog
         ((Memory.spec 0).clientState s1 (csrToFastGenProg (mkWhpParams c U V w n_max, base)))
         () := by
-      dsimp only [prog]; unfold trySelfHealGenProg; simp only [pure_bind]
+      dsimp only [prog]
+      unfold trySelfHealGenProg
+      simp only [pure_bind]
       refine StepSpec.bind ⟨rfl, hck_res, hck_vp⟩ ?_
       simp only [↓reduceIte]
       exact ⟨rfl, rfl, hcf_vp⟩
     rw [hstep.1]
     exact ⟨⟨hth, hcf_seed, hcf_rep⟩, hcf_fr.trans hck_fr, hstep.2.2,
       fun a ha => (hcf_out a ha).trans (hck_out a ha)⟩
-  · have hok_f : (checkGoodSeedOnState c U n_max θ csr).1 = false := Bool.eq_false_iff.mpr hok
-    rw [hok_f] at hck_res ⊢
-    simp only [Bool.false_eq_true, ↓reduceIte] at hck_res ⊢
-    have hstep : StepSpec w (base + largeSpaceWhp c U V w n_max) s prog s1 () := by
-      dsimp only [prog]; unfold trySelfHealGenProg; simp only [pure_bind]
-      refine StepSpec.bind ⟨rfl, hck_res, hck_vp⟩ ?_
-      simp only [Nat.zero_ne_one, ↓reduceIte]
-      exact StepSpec.pure _ _
-    rw [hstep.1]
-    exact ⟨⟨hth, hck_seed, hck_rep⟩, hck_fr, hstep.2.2, hck_out⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

@@ -292,12 +292,10 @@ private theorem step_contradiction_of_supply_demand {A η C_lay w_r c_edge ε₀
   have hsub_term : (w_r + c_edge * (A + η)) * sub_err +
       w_r + c_edge * ((A + η) * w_r + w_r * C_lay) ≤
       w_r * c_edge * A * ε₀ / 4 * n_r := by
-    have h2 : c_edge * ((A + η) * w_r + w_r * C_lay) ≤
-        c_edge * (2 * A * w_r + w_r * |C_lay|) :=
-      mul_le_mul_of_nonneg_left
-        (add_le_add (mul_le_mul_of_nonneg_right (by linarith : A + η ≤ 2 * A)
-            (by linarith : 0 ≤ w_r))
-          (mul_le_mul_of_nonneg_left (le_abs_self C_lay) (by linarith : 0 ≤ w_r))) hc_edge.le
+    have hA2 : A + η ≤ 2 * A := by linarith
+    have hC := le_abs_self C_lay
+    have h2 : c_edge * ((A + η) * w_r + w_r * C_lay) ≤ c_edge * (2 * A * w_r + w_r * |C_lay|) := by
+      gcongr
     linarith [mul_le_mul_of_nonneg_right hslack_coef hsub_nn]
   linarith [show 0 < w_r * c_edge * A * ε₀ / 4 * n_r by positivity]
 
@@ -383,21 +381,18 @@ private theorem eventually_compiledQuantumNet_contradiction {d : ℕ} {A : ℝ} 
   have hm_pos : 1 ≤ m_fn n := by
     exact_mod_cast (show (1 : ℝ) ≤ m_fn n by rw [hm_eq n]; nlinarith)
   have he_add_le : (c_slack : ℝ) + (e_fn n : ℝ) ≤ (defic n : ℝ) := by exact_mod_cast he_le n
+  have hn_nn : (0 : ℝ) ≤ n := Nat.cast_nonneg n
   have hfin := finite_bisection_supply_demand (w_r := w_r) (e_defic := (e_fn n : ℝ)) net.G lay
     (by positivity) (fun t ht => hlay t ht t le_rfl (by omega)) hm_pos hw_pos_r leaf hc_edge
     (hbis_M n) hcr_bound hρ_r
-    (by
-      rw [hm_eq n]
-      have hw_half : 1 / 2 * (n : ℝ) ≤ w_r / 2 * n :=
-        mul_le_mul_of_nonneg_right (by linarith) (Nat.cast_nonneg n)
-      linarith [mul_le_mul_of_nonneg_right hγ_le (Nat.cast_nonneg (α := ℝ) n)])
+    (by rw [hm_eq n]; linarith [mul_le_mul_of_nonneg_right hw_ge_one hn_nn,
+      mul_le_mul_of_nonneg_right hγ_le hn_nn])
+  have h4B : 0 < 4 * Bcoef := by positivity
   exact step_contradiction_of_supply_demand (C_lay := C_lay) (w_r := w_r) (c_edge := c_edge)
     (γ_coeff := γ_coeff) (sub_err := (c_slack : ℝ) + (e_fn n : ℝ))
     hA hη (min_le_left _ _) hw_ge_one hc_edge hε₀ hn24_r (Nat.cast_nonneg _)
     hγ_nn (by positivity) hsize net.card_V_le
-    (by
-      have h1 : η ≤ A * ε₀ / (4 * Bcoef) := min_le_right _ _
-      linarith [(le_div_iff₀ (by positivity : 0 < 4 * Bcoef)).mp h1])
+    (by linarith [(le_div_iff₀ h4B).mp (min_le_right A (A * ε₀ / (4 * Bcoef)))])
     hγ_bound
     (by
       linarith [mul_le_mul_of_nonneg_left he_add_le (by positivity : 0 ≤ w_r + 2 * c_edge * A),
@@ -531,9 +526,7 @@ theorem eventually_abs_quantumCorrelation_hardForm_le_of_layoutBound {d : ℕ} (
   have hrhs_sq : (2 : ℝ) ^ (-γ_sq * n) = ((2 : ℝ) ^ (-(γ_sq / 2) * n)) ^ 2 := by
     rw [← Real.rpow_natCast, ← Real.rpow_mul two_pos.le]
     push_cast; congr 1; ring
-  rw [hrhs_sq, ← sq_abs] at hsq
-  by_contra! hgt
-  linarith [pow_lt_pow_left₀ hgt (by positivity) (n := 2) (by norm_num)]
+  exact (sq_le_sq.mp (hsq.trans_eq hrhs_sq)).trans_eq (abs_of_pos (by positivity))
 
 /-- **Median-switched `BQP` correlation decay (`1.893993 n`).** Below
 `(1 + π / (6 arccos (5 / 6)) - ε) n ≈ 1.893993 n` bond-rank-two two-qubit gates (with unlimited

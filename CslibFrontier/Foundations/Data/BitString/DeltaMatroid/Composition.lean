@@ -162,17 +162,10 @@ omit [DecidableEq ι] [DecidableEq κ] in
 private theorem trace_option (R : Set ((ι ⊕ (Option κ × Bool)) → Bool)) :
     trace (tracePair {x | (fun i => x (optionPairEquiv i)) ∈ R}) = trace R := by
   ext x
-  constructor
-  · rintro ⟨z, b, hz⟩
-    refine ⟨fun k => Option.elim k b z, ?_⟩
-    change _ ∈ R at hz ⊢
-    convert hz using 1
-    ext (i | ⟨_ | k, a⟩) <;> rfl
-  · rintro ⟨z, hz⟩
-    refine ⟨fun k => z (some k), z none, ?_⟩
-    change _ ∈ R at hz ⊢
-    convert hz using 1
-    ext (i | ⟨_ | k, a⟩) <;> rfl
+  refine ⟨fun ⟨z, b, hz⟩ => ⟨fun k => Option.elim k b z, ?_⟩,
+    fun ⟨z, hz⟩ => ⟨fun k => z (some k), z none, ?_⟩⟩
+  · exact (congrArg (· ∈ R) (by ext (i | ⟨_ | k, a⟩) <;> rfl)).mp hz
+  · exact (congrArg (· ∈ R) (by ext (i | ⟨_ | k, a⟩) <;> rfl)).mpr hz
 
 /-- Finite equal-pair elimination preserves exchange. The output must have a witness. -/
 theorem IsDeltaMatroid.trace [Finite κ] {R : Set ((ι ⊕ (κ × Bool)) → Bool)}
@@ -273,15 +266,9 @@ omit [DecidableEq ι] [DecidableEq κ] [DecidableEq τ] in
 private theorem comp_eq_trace (R : Set ((ι ⊕ κ) → Bool)) (S : Set ((κ ⊕ τ) → Bool)) :
     comp R S = trace {x | (fun i => x (compEquiv i)) ∈ sumProd R S} := by
   ext x
-  refine exists_congr fun z => ?_
-  change (_ ∈ R ∧ _ ∈ S) ↔ (_ ∈ R ∧ _ ∈ S)
-  have hR : (fun i => Sum.elim x (fun p => z p.1) (compEquiv (.inl i))) =
-      Sum.elim (fun i => x (.inl i)) z := by
-    ext (i | k) <;> rfl
-  have hS : (fun i => Sum.elim x (fun p => z p.1) (compEquiv (.inr i))) =
-      Sum.elim z (fun i => x (.inr i)) := by
-    ext (k | i) <;> rfl
-  rw [hR, hS]
+  exact exists_congr fun z => and_congr
+    (iff_of_eq (congrArg (· ∈ R) (by ext (i | k) <;> rfl)))
+    (iff_of_eq (congrArg (· ∈ S) (by ext (k | i) <;> rfl)))
 
 /-- Proposition 6 of [KazdaKolmogorovRolinek2018], with compatibility explicit.
 Neither input nonemptiness nor nonempty external coordinates imply compatibility. -/

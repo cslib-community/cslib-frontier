@@ -256,7 +256,6 @@ private theorem delMoveRebInsertIncProg_fastStep {c U V w n_max base rIdx loc_de
   obtain ⟨hwh_mc, hwh_vp, hwh_step⟩ := writeHdrProg_fastStep (hdrOff := hdrRebInsCount) henv
     (by decide) (henv.fits_of_le_n_max (by omega))
     nofun hbi_step.2.1 hbi_step.2.2.1 (val := fs.rebInsCount + 1)
-  dsimp only
   unfold delMoveRebInsertIncProg
   simp only [pure_bind]
   exact CostBoundedStep.elim
@@ -475,7 +474,6 @@ theorem delMoveRebGenProg_fastStep
       ((if rebActiveB then 1 else 0) = 1 ∧ (st_last = 1 ∨ st_last = 2 + fs.oldEp)) ↔
       (rebActiveB && decide (st_last = 1 ∨ st_last = 2 + fs.oldEp)) = true := by
     cases rebActiveB <;> simp
-  dsimp only
   unfold delMoveRebGenProg
   simp only [pure_bind]
   rw [(hO _ _).1, (hO _ _).2.2.1, (hO _ _).2.2.2, hmc_o]
@@ -498,10 +496,8 @@ theorem delMoveRebGenProg_fastStep
       obtain ⟨hbu_mc, hbu_vp, hbu_step⟩ :=
         btreeUpdateGenProg_fastStep henv hrIdx hins_lt.le hseed hrep hv_r hfp hval_ld (s := s)
       exact ⟨by omega, hbu_vp, hbu_step⟩
-    simp only [hll_r, ↓reduceIte]
-    by_cases hld_r : loc_del < fs.rebScanCursor
-    · simp only [hld_r, ↓reduceIte]
-      obtain ⟨hbl_st, hbl_res, hbl_mc, hbl_vp⟩ :=
+    by_cases hld_r : loc_del < fs.rebScanCursor <;> simp only [hll_r, hld_r, ↓reduceIte]
+    · obtain ⟨hbl_st, hbl_res, hbl_mc, hbl_vp⟩ :=
         btreeLookupGenProg_spec henv hrIdx hins_lt.le (hrep.slice_rep hrIdx) hv_r hfp (s := s)
       rw [← hv_r.lookup_eq hth hins_lt.le hfp] at hbl_res
       have hL := bind_of_readOnly hbl_st hbl_res hbl_vp
@@ -518,8 +514,7 @@ theorem delMoveRebGenProg_fastStep
           delMoveRebInsertIncProg_fastStep henv hrIdx hld hfp hins_lt hv_r hseed hrep (s := s)
         simp only [Nat.zero_ne_one, ↓reduceIte]
         exact ⟨by omega, hri_vp, hri_step⟩
-    simp only [hld_r, ↓reduceIte]
-    exact ⟨by rw [memoryCost_pure]; omega, validProg_pure _, FastStateStep.refl hseed hrep⟩
+    · exact ⟨by rw [memoryCost_pure]; omega, validProg_pure _, FastStateStep.refl hseed hrep⟩
   rw [ite_eq_right hcond, ite_eq_right fun h => hcond (hcond_iff.mp h)]
   exact ⟨by rw [memoryCost_pure]; omega, validProg_pure _, FastStateStep.refl hseed hrep⟩
 

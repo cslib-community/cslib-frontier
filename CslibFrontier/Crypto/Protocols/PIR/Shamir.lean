@@ -309,17 +309,15 @@ theorem reconstruct_answer_shamirCube {D ι : Type} [Fintype D] [DecidableEq D]
     simp only [poly, term, _root_.Polynomial.eval_finsetSum]
     refine Finset.sum_congr rfl fun j _ => ?_
     by_cases hxj : x j <;> simp [hxj, _root_.Polynomial.eval_prod, factor, Shamir.share]
-  have hpoly_deg : poly.degree < Fintype.card S := by
-    refine _root_.Polynomial.degree_le_natDegree.trans_lt ?_
-    suffices poly.natDegree ≤ Fintype.card D * params.threshold by
-      exact_mod_cast this.trans_lt hdeg
-    refine _root_.Polynomial.natDegree_sum_le_of_forall_le _ _ fun j _ => ?_
-    by_cases hxj : x j
-    · simp only [term, hxj, ↓reduceIte]
-      exact (_root_.Polynomial.natDegree_prod_le _ _).trans
-        ((Finset.sum_le_sum fun l _ => Shamir.Polynomial.natDegree_sharingPolynomial_le _ _
-          (Shamir.Polynomial.tailPolynomial_degree_lt _ _)).trans_eq (by simp))
-    · simp [term, hxj]
+  have hpoly_deg : poly.degree < Fintype.card S :=
+    _root_.Polynomial.degree_le_natDegree.trans_lt <| WithBot.coe_lt_coe.2 <|
+      (_root_.Polynomial.natDegree_sum_le_of_forall_le _ _ fun j _ => by
+        by_cases hxj : x j
+        · simp only [term, hxj, ↓reduceIte]
+          exact (_root_.Polynomial.natDegree_prod_le _ _).trans
+            ((Finset.sum_le_sum fun l _ => Shamir.Polynomial.natDegree_sharingPolynomial_le _ _
+              (Shamir.Polynomial.tailPolynomial_degree_lt _ _)).trans_eq (by simp))
+        · simp [term, hxj]).trans_lt hdeg
   dsimp only [shamirCube]
   rw [hans,
     Shamir.Polynomial.reconstruct_eq_constantCoeff_of_eval_eq params.point_injective hpoly_deg]
@@ -330,11 +328,10 @@ theorem reconstruct_answer_shamirCube {D ι : Type} [Fintype D] [DecidableEq D]
       Shamir.Polynomial.constantCoeff_sharingPolynomial, Finset.prod_const_one]
   · intro j _ hji
     obtain ⟨l₀, hl₀⟩ := Function.ne_iff.mp hji
-    by_cases hxj : x j
-    · simp only [hxj, ↓reduceIte, map_prod _root_.Polynomial.constantCoeff]
-      exact Finset.prod_eq_zero (Finset.mem_univ l₀) (by
-        simp only [factor, hl₀, ↓reduceIte, Shamir.Polynomial.constantCoeff_sharingPolynomial])
-    · simp [hxj]
+    cases hxj : x j <;> simp only [Bool.false_eq_true, ↓reduceIte, map_zero,
+      map_prod _root_.Polynomial.constantCoeff]
+    exact Finset.prod_eq_zero (Finset.mem_univ l₀)
+      (by simp only [factor, hl₀, ↓reduceIte, Shamir.Polynomial.constantCoeff_sharingPolynomial])
 
 /-- **Degree-`d` polynomial PIR is perfectly correct** whenever `|D| * params.threshold < |S|`:
 each server evaluates a polynomial of degree at most `|D| * t` whose constant term is `1` if `x i`
@@ -431,10 +428,8 @@ theorem hasTPrivateScheme_rows_of_le_pow (params : Shamir.Params F S) {n d ℓ :
   refine (((isCorrect_shamirCube (D := Fin d) (ι := Fin ℓ) params (by simpa using hdeg)).rows
     (Fin ℓ)).hasTPrivateScheme ((isTPrivate_shamirCube params).rows (Fin ℓ))).mono ?_
     |>.fin_of_le_card (by simpa [pow_succ'] using h)
-  have hcomm :=
+  simpa only [Fintype.card_fin, add_one_mul, one_mul] using
     communication_shamirCube_rows_le (F := F) (S := S) (ρ := Fin ℓ) (D := Fin d) (ι := Fin ℓ)
-  simp only [Fintype.card_fin] at hcomm
-  nlinarith
 
 end ShamirBounds
 

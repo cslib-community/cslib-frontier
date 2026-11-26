@@ -313,9 +313,7 @@ theorem eagerCoupledBotGame_eq_eagerIndCcaBotGame [Fintype M] [Finite R] [Fintyp
   congr 1 with ⟨pk, sk⟩ : 1
   congr 1 with G : 1
   rw [eq_comm, S.bind_keyTable_coupledH G pk sk]
-  have hfun (Hq : CT → K) (Hraw : Bool × M × CT → K) (cStar : CT) :=
-    funext (S.eagerBotHandler_coupledH G Hq Hraw pk sk cStar)
-  simp only [hfun]
+  simp only [fun Hq Hraw cStar => funext (S.eagerBotHandler_coupledH G Hq Hraw pk sk cStar)]
 
 /-- Decapsulation filter of `cachedCoupledBotGame`: decrypts `c` under `sk` to `m'` and accepts
 only when `m'` is already cached in `gCache` with a coin `r'` satisfying `Enc(pk, m'; r') = c`. -/
@@ -366,8 +364,7 @@ private theorem closeTo_coupledCache_cachedCoupledBotHandler (S : Scheme PK SK M
     simp only [ROQuery.dCost, Nat.cast_one, one_mul]
     dsimp only [eagerCoupledBotHandler, ROQuery.dispatch]
     by_cases hc : c = cStar
-    · simp only [hc, ↓reduceIte]
-      exact (CloseTo.refl _).mono zero_le
+    · simpa only [hc, ↓reduceIte] using (CloseTo.refl _).mono zero_le
     simp only [hc, ↓reduceIte, cachedCoupledBotCheck, decT_eq]
     cases hdec : S.pke.dec sk c with
     | none => exact (CloseTo.refl _).mono zero_le
@@ -418,7 +415,9 @@ private theorem closeTo_run_cachedCoupledBotHandler_eager (S : Scheme PK SK M R 
               (RandomOracle.ofList st.hqCache)).bind fun Hq =>
             OracleComp.interpret (S.eagerCoupledBotHandler G Hq Hraw pk sk cStar) prog)
       (d * ENNReal.ofReal ((2 : ℝ) ^ (-γ))) := by
-  have h := OracleComp.closeTo_run_interpret_simulation_readOnly ROQuery.dCost
+  rw [OracleComp.map_run_interpret ProbComp.isMonadHom_eval, ← RandomOracle.bind_complete_sum,
+    ← RandomOracle.bind_complete_sum]
+  exact OracleComp.closeTo_run_interpret_simulation_readOnly ROQuery.dCost
     (fun q s => ProbComp.eval
       (S.coupledFilterHandler (cachedCoupledBotCheck S.pke pk sk) pk sk cStar q s))
     (fun (T : (q : (M ⊕ (Bool × M × CT)) ⊕ CT) → CoupledSpec M R CT K q) =>
@@ -427,9 +426,6 @@ private theorem closeTo_run_cachedCoupledBotHandler_eager (S : Scheme PK SK M R 
     (fun st => RandomOracle.complete S.coupledDistribution st.coupledCache)
     (ENNReal.ofReal ((2 : ℝ) ^ (-γ)))
     (S.closeTo_coupledCache_cachedCoupledBotHandler hγ hpk cStar) prog hd st
-  rw [OracleComp.map_run_interpret ProbComp.isMonadHom_eval, ← RandomOracle.bind_complete_sum,
-    ← RandomOracle.bind_complete_sum]
-  exact h
 
 /-- **Lazy and `γ`-spreadness CVO hop for `FO^⊥`** ([HofheinzHoevelmannsKiltz2017], §3.1):
 replacing `eagerCoupledBotGame` (where decapsulation evaluates `decT` on the full table `G`) by
@@ -570,9 +566,8 @@ private theorem simBotCheck_eq_true_iff (P : ExplicitCoinPKE PK SK M R CT) (pk :
   simp only [simBotCheck, List.any_eq_true, Prod.exists]
   constructor
   · rintro ⟨m, _, -, h⟩
-    cases hlook : L.lookup m with
-    | none => simp [hlook] at h
-    | some r => exact ⟨m, r, hlook, by simpa [hlook] using h⟩
+    cases hlook : L.lookup m <;> simp only [hlook, Bool.false_eq_true, decide_eq_true_eq] at h
+    exact ⟨m, _, hlook, h⟩
   · rintro ⟨m, r, hlook, henc⟩
     obtain ⟨l₁, l₂, hlist, -⟩ := List.lookup_eq_some_iff.mp hlook
     exact ⟨m, r, by simp [hlist], by simp [hlook, henc]⟩

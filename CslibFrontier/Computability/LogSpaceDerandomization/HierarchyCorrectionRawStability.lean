@@ -183,10 +183,9 @@ private lemma root_product_dist {a a' b b' c B : ℝ}
     (ha' : a' ∈ Set.Icc 0 B) (hb : b ∈ Set.Icc 0 1)
     (hc : c ∈ Set.Icc 0 1) :
     |a * b * c - a' * b' * c| ≤ |a - a'| + B * |b - b'| := by
-  rw [show a * b * c - a' * b' * c = ((a-a')*b + a'*(b-b'))*c by ring, abs_mul,
-    abs_of_nonneg hc.1]
-  apply (mul_le_of_le_one_right (abs_nonneg _) hc.2).trans
-  apply (abs_add_le _ _).trans
+  have hdecomp : a * b * c - a' * b' * c = ((a - a') * b + a' * (b - b')) * c := by ring
+  rw [hdecomp, abs_mul, abs_of_nonneg hc.1]
+  refine (mul_le_of_le_one_right (abs_nonneg _) hc.2).trans ((abs_add_le _ _).trans ?_)
   rw [abs_mul, abs_mul, abs_of_nonneg hb.1, abs_of_nonneg ha'.1]
   exact add_le_add (mul_le_of_le_one_right (abs_nonneg _) hb.2)
     (mul_le_mul_of_nonneg_right ha'.2 (abs_nonneg _))
@@ -222,9 +221,8 @@ theorem normalized_raw_normalizer_root_stability
       (Lτ * (LI * (Ec + Er) / f)) := by
   obtain ⟨C, hC, hdist⟩ := NormalizedRow.root_dist HP (by norm_num : (0:ℝ) < 1)
   obtain ⟨LI, Lτ, hLI, hLτ, hi⟩ := HP.incoming_root_stability_constants
-  refine ⟨C, LI, Lτ, hC, hLI, hLτ, ?_⟩
-  intro V Γ Ζ instV instΓ instΖ Xs Z Zt instXs instZ instZt Kc hKc f hf
-    A B prep prep' maximum σ x y Ec Er hEc hEr hc hr
+  refine ⟨C, LI, Lτ, hC, hLI, hLτ, fun V Γ Ζ _ _ _ Xs Z Zt _ _ _ Kc hKc f hf
+      A B prep prep' maximum σ x y Ec Er hEc hEr hc hr => ?_⟩
   classical
   by_cases hy : Zt σ.2 y
   · let S : Finset V := {w | Xs σ.1 w}
@@ -294,9 +292,8 @@ theorem normalized_raw_prep_root_stability
     (2 * HP.Q HP.toHierarchyParams.atomCap) ^ (4⁻¹ : ℝ) *
       (Lτ * (LI * (Ec + Er) / f)) := by
   obtain ⟨C, LI, Lτ, hC, hLI, hLτ, h⟩ := HP.normalized_raw_normalizer_root_stability
-  refine ⟨C, LI, Lτ, hC, hLI, hLτ, ?_⟩
-  intro V Γ Ζ instV instΓ instΖ Xs Z Zt instXs instZ instZt Kc hKc f hf
-    A B prep prep' maximum σ x y Ec Er hEc hEr hc hr
+  refine ⟨C, LI, Lτ, hC, hLI, hLτ, fun V Γ Ζ _ _ _ Xs Z Zt _ _ _ Kc hKc f hf
+      A B prep prep' maximum σ x y Ec Er hEc hEr hc hr => ?_⟩
   exact (h V Γ Ζ Xs Z Zt Kc hKc f hf A B prep prep' maximum σ x y Ec Er hEc hEr hc hr).trans
     (by gcongr; exact CorrectionRowRecipe.normalizer_stability Xs Zt prep prep' x y)
 
@@ -343,11 +340,8 @@ theorem correctionRequest_children_root_stability_of_bounds
       |maximum σ y - maximum' σ y| := by
   obtain ⟨C, LI, Lτ, hC, hLI, hLτ, hraw⟩ := HP.normalized_raw_prep_root_stability
   obtain ⟨Lγ, hLγ, hmax⟩ := correctionRequest_maximum_root_stability HP
-  refine ⟨C, LI, Lτ, Lγ, hC, hLI, hLτ, hLγ, ?_⟩
-  intro P J instP V instV k D ident r hr hf Kc hKc raw raw' prep prep'
-    maximum maximum' σ x y Ec Er
-  dsimp only
-  intro hEc hEr hc hrank
+  refine ⟨C, LI, Lτ, Lγ, hC, hLI, hLτ, hLγ, fun P J _ V _ k D ident r hr hf Kc hKc
+      raw raw' prep prep' maximum maximum' σ x y Ec Er hEc hEr hc hrank => ?_⟩
   have hd := hraw V _ _
     (fun rest z => coordinate D r.source (rest ⟨r.source.role, hr.1⟩) (ident z))
     (fun A z => coordinate D r.terminal A (ident z))

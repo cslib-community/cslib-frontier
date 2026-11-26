@@ -91,17 +91,14 @@ section Basic
 variable [AddCommMonoid α]
 
 theorem load_def (p : Fin n → α) (σ : Fin n → Fin m) (i : Fin m) :
-    load p σ i = ∑ j with σ j = i, p j := by
-  unfold load; rfl
+    load p σ i = ∑ j with σ j = i, p j := by rfl
 
 theorem prefixLoad_def (p : Fin n → α) (σ : Fin n → Fin m) (k : ℕ) (i : Fin m) :
-    prefixLoad p σ k i = ∑ j : Fin n with j.val < k ∧ σ j = i, p j := by
-  unfold prefixLoad; rfl
+    prefixLoad p σ k i = ∑ j : Fin n with j.val < k ∧ σ j = i, p j := by rfl
 
 theorem isListSchedule_iff [LE α] (p : Fin n → α) (σ : Fin n → Fin m) :
     IsListSchedule p σ ↔
-      ∀ (j : Fin n) (i : Fin m), prefixLoad p σ j (σ j) ≤ prefixLoad p σ j i := by
-  unfold IsListSchedule; rfl
+      ∀ (j : Fin n) (i : Fin m), prefixLoad p σ j (σ j) ≤ prefixLoad p σ j i := by rfl
 
 /-- In a list schedule, job `j` starts on a machine that was least loaded before `j`. -/
 theorem IsListSchedule.prefixLoad_le [LE α] {p : Fin n → α} {σ : Fin n → Fin m}
@@ -115,11 +112,7 @@ theorem prefixLoad_zero (p : Fin n → α) (σ : Fin n → Fin m) (i : Fin m) :
 
 theorem prefixLoad_of_le (p : Fin n → α) (σ : Fin n → Fin m) {k : ℕ} (hk : n ≤ k) (i : Fin m) :
     prefixLoad p σ k i = load p σ i := by
-  unfold prefixLoad load
-  congr 1
-  ext j
-  simp only [mem_filter, mem_univ, true_and, and_iff_right_iff_imp]
-  exact fun _ => lt_of_lt_of_le j.isLt hk
+  exact sum_congr (filter_congr fun j _ => and_iff_right (j.isLt.trans_le hk)) fun _ _ => rfl
 
 theorem prefixLoad_succ (p : Fin n → α) (σ : Fin n → Fin m) (j : Fin n) (i : Fin m) :
     prefixLoad p σ (j + 1) i = prefixLoad p σ j i + if σ j = i then p j else 0 := by
@@ -139,10 +132,8 @@ theorem prefixLoad_succ (p : Fin n → α) (σ : Fin n → Fin m) (j : Fin n) (i
 /-- The machine loads before job `k` add up to the total processing time of the jobs `j < k`. -/
 theorem sum_prefixLoad (p : Fin n → α) (σ : Fin n → Fin m) (k : ℕ) :
     ∑ i, prefixLoad p σ k i = ∑ j : Fin n with j.val < k, p j := by
-  unfold prefixLoad
-  rw [← sum_fiberwise (univ.filter fun j : Fin n => (j : ℕ) < k) σ p]
-  refine sum_congr rfl fun i _ => ?_
-  rw [filter_filter]
+  simp only [prefixLoad, ← sum_fiberwise (univ.filter fun j : Fin n => (j : ℕ) < k) σ p,
+    filter_filter]
 
 /-- The machine loads add up to the total processing time. -/
 theorem sum_load (p : Fin n → α) (σ : Fin n → Fin m) : ∑ i, load p σ i = ∑ j, p j := by
@@ -164,8 +155,7 @@ noncomputable def optMakespan (p : Fin n → α) : α :=
   (univ : Finset (Fin n → Fin m)).inf' univ_nonempty (makespan p)
 
 theorem makespan_def (p : Fin n → α) (σ : Fin n → Fin m) :
-    makespan p σ = univ.sup' univ_nonempty (load p σ) := by
-  unfold makespan; rfl
+    makespan p σ = univ.sup' univ_nonempty (load p σ) := by rfl
 
 theorem load_le_makespan (p : Fin n → α) (σ : Fin n → Fin m) (i : Fin m) :
     load p σ i ≤ makespan p σ :=
@@ -181,9 +171,8 @@ theorem optMakespan_le (p : Fin n → α) (σ : Fin n → Fin m) :
 
 variable (m) in
 theorem exists_makespan_eq_optMakespan (p : Fin n → α) :
-    ∃ σ : Fin n → Fin m, makespan p σ = optMakespan m p := by
-  obtain ⟨σ, -, h⟩ := exists_mem_eq_inf' (univ_nonempty (α := Fin n → Fin m)) (makespan p)
-  exact ⟨σ, h.symm⟩
+    ∃ σ : Fin n → Fin m, makespan p σ = optMakespan m p :=
+  (exists_mem_eq_inf' (univ_nonempty (α := Fin n → Fin m)) (makespan p)).imp fun _ h => h.2.symm
 
 end Makespan
 
@@ -343,13 +332,12 @@ theorem listSchedule_succ (p : Fin (n + 1) → α) :
   have hlen := length_listScheduleAux (m := m) (Fin.init p)
   induction j using Fin.lastCases with
   | last =>
-    rw [Fin.snoc_last, listSchedule]
-    simp only [listScheduleAux, Fin.val_last]
-    rw [List.getD_append_right _ _ _ _ hlen.le, hlen, Nat.sub_self]; rfl
+    simp only [Fin.snoc_last, listSchedule, listScheduleAux, Fin.val_last,
+      List.getD_append_right _ _ _ _ hlen.le, hlen, Nat.sub_self, List.getD_cons_zero]
+    rfl
   | cast j =>
-    rw [Fin.snoc_castSucc, listSchedule]
-    simp only [listScheduleAux, Fin.val_castSucc]
-    rw [List.getD_append _ _ _ _ (by omega)]; rfl
+    simp only [Fin.snoc_castSucc, listSchedule, listScheduleAux, Fin.val_castSucc,
+      List.getD_append _ _ _ _ (j.isLt.trans_eq hlen.symm)]
 
 omit [LinearOrder α] [NeZero m] in
 private theorem prefixLoad_snoc (p : Fin (n + 1) → α) (σ : Fin n → Fin m) (x : Fin m) {k : ℕ}

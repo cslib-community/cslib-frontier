@@ -41,17 +41,12 @@ theorem contractionLift_coordinates (G : Graph) (u v : ℕ)
 theorem contractionLift_relabelEquiv (G : Graph) (u v : ℕ) (d : Dart G) :
     contractionLift G u v (Dart.relabelEquiv G (Function.update id u v) d) =
       retainedLastEdgeDart G u v d := by
-  let e := (contractLastEdgeDartEquiv G u v).trans
-    (lastEdgeDartEquiv (contractLastEdgeGraph G u v) v v)
-  apply e.injective
+  refine ((contractLastEdgeDartEquiv G u v).trans
+    (lastEdgeDartEquiv (contractLastEdgeGraph G u v) v v)).injective ?_
   refine (contractionLift_coordinates G u v _).trans (Eq.symm ?_)
-  change ((contractLastEdgeDartEquiv G u v).trans
-    (lastEdgeDartEquiv (contractLastEdgeGraph G u v) v v)) (retainedLastEdgeDart G u v d) = _
-  rw [contractLastEdge_coordinates]
-  change (Dart.relabelEquiv G (Function.update id u v)).optionCongr.optionCongr
-    ((lastEdgeDartEquiv G u v) (retainedLastEdgeDart G u v d)) = _
-  rw [retainedLastEdgeDart, Equiv.apply_symm_apply]
-  rfl
+  exact (Equiv.congr_fun (contractLastEdge_coordinates G u v) _).trans
+    (congrArg (Dart.relabelEquiv G (Function.update id u v)).optionCongr.optionCongr
+      ((lastEdgeDartEquiv G u v).apply_symm_apply (some (some d))))
 
 /-- Distinct retained ends lift to distinct source ends, including ends of a target loop. -/
 theorem contractionLift_injective (G : Graph) (u v : ℕ) :
@@ -76,11 +71,10 @@ theorem vertex_contractionLift (G : Graph) (u v : ℕ)
     (d : Dart (contractLastEdgeGraph G u v)) :
     Function.update id u v (contractionLift G u v d).vertex = d.vertex := by
   have he : contractLastEdgeDartEquiv G u v (contractionLift G u v d) =
-      retainedLastEdgeDart (contractLastEdgeGraph G u v) v v d := by
-    apply (lastEdgeDartEquiv (contractLastEdgeGraph G u v) v v).injective
-    change ((contractLastEdgeDartEquiv G u v).trans
-      (lastEdgeDartEquiv (contractLastEdgeGraph G u v) v v)) (contractionLift G u v d) = _
-    rw [contractionLift_coordinates, retainedLastEdgeDart, Equiv.apply_symm_apply]
+      retainedLastEdgeDart (contractLastEdgeGraph G u v) v v d :=
+    (lastEdgeDartEquiv (contractLastEdgeGraph G u v) v v).injective <| by
+      simpa only [Equiv.trans_apply, retainedLastEdgeDart, Equiv.apply_symm_apply] using
+        contractionLift_coordinates G u v d
   simpa only [vertex_contractLastEdgeDartEquiv, vertex_retainedLastEdgeDart] using
     congrArg Dart.vertex he
 
@@ -468,9 +462,8 @@ theorem exists_contractionRank_origin {G : Graph} {u v : ℕ}
       ((r.contractionRank d).val + n) % N := by
     induction n with
     | zero =>
-      simp only [pow_zero, Equiv.Perm.one_apply, add_zero]
-      exact (Nat.mod_eq_of_lt (show (r.contractionRank d).val < N from
-        (r.contractionRank d).isLt)).symm
+      simpa only [pow_zero, Equiv.Perm.one_apply, add_zero] using
+        (Nat.mod_eq_of_lt (r.contractionRank d).isLt).symm
     | succ n ih =>
       rw [pow_succ', Equiv.Perm.mul_apply, hstep, ih, Nat.mod_add_mod, Nat.add_assoc]
   have hval (n : ℕ) (d) : ((S ^ n) d).val = (s.rotate ^ n) d.val := by

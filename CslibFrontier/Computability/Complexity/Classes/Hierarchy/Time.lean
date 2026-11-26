@@ -278,13 +278,7 @@ theorem computableInO_timeDiagonal {J : ℕ → ℕ} (hJ : TimeConstructible J) 
     have := hW x
     have := hW2 x
     dsimp only [Function.comp_apply, encBits_apply]
-    split_ifs with hs
-  · have := (hbounds x hs).1
-    omega
-  · omega
-  · have := (hbounds x hs).2
-    omega
-  · omega
+    split_ifs with hs <;> (try have := hbounds x hs) <;> omega
 
 /-- **Diagonalization at arbitrarily large favorable lengths.** The clock need only dominate
 each linear bound infinitely often. A description can be padded to every sufficiently large

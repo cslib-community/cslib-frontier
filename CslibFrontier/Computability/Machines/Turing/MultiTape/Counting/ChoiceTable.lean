@@ -215,9 +215,8 @@ private theorem stepCoins_of_halted {width : ℕ} (hw : 0 < width)
 
 private theorem reject_ne_accept {width : ℕ}
     (cfg : Cfg k Bool (ScanState width State) input) :
-    (reject.apply cfg).output ≠ [true] := by
-  simp only [reject, Action.apply, Option.toList_some]
-  exact fun h => by simpa using congrArg List.getLast? h
+    (reject.apply cfg).output ≠ [true] :=
+  fun h => by simpa [reject, Action.apply] using congrArg List.getLast? h
 
 private theorem reject_continuation {width : ℕ} (hw : 0 < width)
     (machine : MultiTapeCTM k Bool State) (cfg : Cfg k Bool (ScanState width State) input)
@@ -298,14 +297,7 @@ private theorem binaryCertificate_eq_zeros {width : ℕ} {indices : List ℕ}
 private theorem append_eq_zeros (left right : List Bool) :
     left ++ right = List.replicate (left ++ right).length false ↔
       left = List.replicate left.length false ∧ right = List.replicate right.length false := by
-  constructor
-  · intro h
-    have hz := (List.eq_replicate_iff.mp h).2
-    exact ⟨List.eq_replicate_iff.mpr ⟨rfl, fun _ hi => hz _ (List.mem_append_left _ hi)⟩,
-      List.eq_replicate_iff.mpr ⟨rfl, fun _ hi => hz _ (List.mem_append_right _ hi)⟩⟩
-  · rintro ⟨hl, hr⟩
-    rw [List.length_append, hl, hr, ← List.replicate_add]
-    simp only [List.length_replicate]
+  simp only [List.eq_replicate_iff, List.mem_append, true_and, or_imp, forall_and]
 
 private theorem stepCoins_certificate_suffix {width : ℕ} (hw : 0 < width)
     (machine : MultiTapeCTM k Bool State) (cfg : Cfg k Bool State input)
@@ -381,9 +373,8 @@ private theorem stepCoins_full {width : ℕ} (hw : 0 < width)
     ((table hw machine).stepCoins word (simCfg hw cfg)).output = [true] ↔
       machine.certificateAccepts (fun out => out == [true]) cfg
         (binaryIndices count width word) = true := by
-  have h := stepCoins_certificate hw machine cfg (binaryIndices count width word)
-    binaryIndices_lt_two_pow
-  rwa [binaryCertificate_binaryIndices hlen] at h
+  simpa only [binaryCertificate_binaryIndices hlen, certificateAccepts] using
+    stepCoins_certificate hw machine cfg (binaryIndices count width word) binaryIndices_lt_two_pow
 
 private theorem stepCoins_full_suffix {width : ℕ} (hw : 0 < width)
     (machine : MultiTapeCTM k Bool State) (cfg : Cfg k Bool State input)
@@ -454,8 +445,8 @@ theorem acceptCount_table {width : ℕ} (hw : 0 < width)
     (table hw machine).acceptCount input (count * width) =
       machine.acceptCount count (Cfg.init machine.initial input) := by
   rw [acceptCount, ← machine.card_binaryCertificateAccepts
-    (Cfg.init machine.initial input) hbound count (fun out => out == [true])]
-  unfold MultiTapePTM.acceptCount Complexity.acceptCount
+    (Cfg.init machine.initial input) hbound count (fun out => out == [true]),
+    MultiTapePTM.acceptCount, Complexity.acceptCount]
   refine congrArg Finset.card (Finset.filter_congr fun word _ => ?_)
   rw [decide_eq_true_eq, MultiTapePTM.runClosedCoins_eq_output_stepCoins]
   exact stepCoins_full hw machine (Cfg.init machine.initial input) count

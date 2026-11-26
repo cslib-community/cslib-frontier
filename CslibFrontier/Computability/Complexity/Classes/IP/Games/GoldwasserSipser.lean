@@ -115,9 +115,8 @@ private theorem clog_bounds (X : ℕ) (hX : 1 < X) :
   omega
 
 theorem threshold_le (c B : ℕ) (hc : 0 < c) : threshold c B < B + 2 * (6 * c * (B + 1)) := by
-  have := (clog_bounds _ (one_lt_six_mul c B hc)).2.2
-  unfold threshold
-  omega
+  obtain ⟨-, -, h⟩ := clog_bounds _ (one_lt_six_mul c B hc)
+  exact Nat.add_lt_add_left h B
 
 private theorem complete_arith (c B : ℕ) (hc : 0 < c) :
     (c : ℚ) * ((B + 1) * 2 ^ B / 2 ^ threshold c B) ≤ 1 / 6 := by
@@ -201,8 +200,7 @@ theorem countFrom_revealPayoff (msg : List Bool → ℕ → List Bool → List B
     (hL : transcriptLength g = L) (ρ : ℕ) :
     countFrom (g ++ [(.verifier, ρ)]) (revealPayoff msg dec g L) [] =
       bestCount (ρ := ρ) (fun c => msg (List.ofFn c)) (fun c => dec (List.ofFn c)) g := by
-  unfold countFrom bestCount
-  rw [count_append]
+  simp only [countFrom, bestCount, count_append]
   refine count_congr_of_length g fun t ht => ?_
   rw [count_verifier, acceptedCoins, card_filter]
   refine sum_congr rfl fun c _ => ?_
@@ -253,10 +251,9 @@ theorem computableInPolyTime_revealPayoff {γ : Type} {encIn : γ ↪ List Bool}
   have hmsg' : ComputableInPolyTime (fun y : γ × ℕ × List Bool => msg (y.1, w y.1 |>.drop (L y.1),
       y.2.1, y.2.2)) (encPair encIn (encPair encUnary encBits)) encBits :=
     hmsg.comp ((ComputableInPolyTime.fst _ _).prod ((hc.comp (.fst _ _)).prod (.snd _ _)))
-  have hag := computableInPolyTime_agrees G hlen hmsg' (ComputableInPolyTime.const 0)
-    (ComputableInPolyTime.const []) ht
-  have hd := hdec.comp (ComputableInPolyTime.id'.prod (hc.prod ht))
-  exact (ComputableInPolyTime.bool_and' hag hd).of_enc_eq fun x => rfl
+  exact (ComputableInPolyTime.bool_and' (computableInPolyTime_agrees G hlen hmsg'
+    (.const 0) (.const []) ht) (hdec.comp (ComputableInPolyTime.id'.prod (hc.prod ht)))).of_enc_eq
+    fun _ => rfl
 
 /-! ### The public-coin verifier -/
 
@@ -334,10 +331,8 @@ open IPGame Emulation
 theorem le_two_pow_sub {x r ρ : ℕ} (h : x * 2 ^ r ≤ 2 ^ ρ) : x ≤ 2 ^ (ρ - r) := by
   rcases le_or_gt r ρ with hr | hr
   · exact Nat.le_of_mul_le_mul_right (by rwa [← pow_add, Nat.sub_add_cancel hr]) (Nat.two_pow_pos r)
-  · rcases x with _ | x
-    · exact Nat.zero_le _
-    · exact absurd (h.trans_lt (Nat.pow_lt_pow_right one_lt_two hr))
-        (Nat.not_lt.2 (Nat.le_mul_of_pos_left _ (Nat.succ_pos x)))
+  · exact (Nat.lt_of_mul_lt_mul_right ((h.trans_lt (Nat.pow_lt_pow_right one_lt_two hr)).trans_eq
+      (one_mul _).symm)).le.trans Nat.one_le_two_pow
 
 /-- Bound `2 ^ (ρ - r) ≤ N` from `2 ^ r * 2 ^ ρ ≤ 3 ^ r * N`. -/
 theorem two_pow_sub_le {N r ρ : ℕ} (h : 2 ^ r * 2 ^ ρ ≤ 3 ^ r * N) :

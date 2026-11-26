@@ -392,9 +392,7 @@ theorem eval_eufCmaGame_targetForgerWord_eq (S : WordSignatureScheme)
     WordSignatureScheme.toScheme_verify, ProbComp.eval_bind, ProbComp.eval_pure]
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ⟨pk, sk⟩ hkeys => ?_
   dsimp only
-  have hs : Signer.ofSign S.sign sk = fun _ msg => some (S.sign sk msg) :=
-    funext fun _ => funext (Signer.ofSign_apply _ _ _)
-  rw [hs, ProbOracleComp.runLogWith_some]
+  rw [funext fun l => funext (Signer.ofSign_apply S.sign sk l), ProbOracleComp.runLogWith_some]
   simp only [targetForgerWord, targetForgerWordOf, targetForger, WordExtractedForgerOf.toTyped,
     WordExtractedForgerOf.atKey, ProbOracleComp.runLog, bind_pure_comp, OracleComp.interpret_map,
     StateT.run_map, ProbComp.eval_map, ProbOracleComp.runState_map]
@@ -592,22 +590,14 @@ theorem computableInPolyTime_findBindingWitness {Message : Type} {encM : Message
       (encPair encParamInput (encPair (encPayloadOf encM) (encPayloadLogOf encM)))
       (encOption (encBindingWitnessOf encM)) := by
   let E := encPair encParamInput (encPair (encPayloadOf encM) (encPayloadLogOf encM))
-  have he1 := ComputableInPolyTime.fst encParamInput
-    (encPair (encPayloadOf encM) (encPayloadLogOf encM))
-  have he2 := ComputableInPolyTime.snd encParamInput
-    (encPair (encPayloadOf encM) (encPayloadLogOf encM))
-  have hq1 := ComputableInPolyTime.fst E (encPayloadLogEntryOf encM)
-  have hq2 := ComputableInPolyTime.snd E (encPayloadLogEntryOf encM)
-  have hn := (he1.comp hq1).fst'
-  have hck := (he1.comp hq1).snd'
-  have hpay1 := hq2.fst'
-  have hpay2 := (he2.comp hq1).fst'
+  have hp := ComputableInPolyTime.id' (encIn := encPair E (encPayloadLogEntryOf encM))
   have htest := ComputableInPolyTime.decide_eq'
-    (computableInPolyTime_target_comp htarget hn hck hpay1)
-    (computableInPolyTime_target_comp htarget hn hck hpay2)
+    (computableInPolyTime_target_comp htarget hp.fst'.fst'.fst' hp.fst'.fst'.snd' hp.snd'.fst')
+    (computableInPolyTime_target_comp htarget hp.fst'.fst'.fst' hp.fst'.fst'.snd'
+      hp.fst'.snd'.fst')
   exact ComputableInPolyTime.optionMapWithInput
-    (ComputableInPolyTime.findWithInput he2.snd' htest)
-    (encBindingWitnessOf_mk_polyTime encM hpay2 hpay1)
+    (ComputableInPolyTime.findWithInput (ComputableInPolyTime.snd encParamInput _).snd' htest)
+    (encBindingWitnessOf_mk_polyTime encM hp.fst'.snd'.fst' hp.snd'.fst')
 
 /-- Word-level binding reduction corresponding to `Basic.bindingReduction`: executes
 `runExtractedWord` and searches the transcript for a target collision with the output payload. -/
@@ -1915,10 +1905,8 @@ theorem eval_eufCmaGame_noteForgerWord_eq (S : WordSignatureScheme)
     ProbComp.eval_bind, ProbComp.eval_pure]
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ⟨pk, sk⟩ hkeys => ?_
   dsimp only
-  have hs' : Signer.ofSign (pairScheme S tag n).sign sk =
-      fun _ msg => some (S.sign sk (tag msg.1 msg.2)) :=
-    funext fun _ => funext (Signer.ofSign_apply _ _ _)
-  rw [hs', ProbOracleComp.runLogWith_some]
+  rw [funext fun l => funext (Signer.ofSign_apply (pairScheme S tag n).sign sk l),
+    ProbOracleComp.runLogWith_some]
   simp only [targetForgerWordOf, targetForger, ProbOracleComp.runLog, bind_pure_comp,
     OracleComp.interpret_map, StateT.run_map, ProbComp.eval_map, ProbOracleComp.runState_map]
   change (PMF.map _ (ProbComp.eval ((OracleComp.interpret
@@ -1956,15 +1944,10 @@ private theorem computableInPolyTime_wordNoteCom
     ComputableInPolyTime
       (fun p : (ℕ × List Bool) × ComInput =>
         wordNoteCom H p.1.1 p.1.2 p.2.nullifier p.2.context p.2.credit p.2.opening)
-      encComArgs encBits := by
-  have hck : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × ComInput => p.1.2) encComArgs encBits :=
-    (ComputableInPolyTime.fst _ _).snd'
-  have hmsg : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × ComInput => encComInput p.2) encComArgs encBits :=
-    (ComputableInPolyTime.of_eq (f := encComInput) (encOut := encBits) fun _ => rfl).comp
-      (ComputableInPolyTime.snd _ _)
-  exact hH.comp (hck.prod hmsg)
+      encComArgs encBits :=
+  hH.comp (((ComputableInPolyTime.fst encParamInput encComInput).snd').prod
+    ((ComputableInPolyTime.of_eq (f := encComInput) (encOut := encBits) fun _ => rfl).comp
+      (ComputableInPolyTime.snd _ _)))
 
 /-- Key-sampling EUF-CMA wrapper around `noteForgerWord` using `wordNoteCom H` and `wordTag`. -/
 noncomputable def sampledConservationForger (sigBound : ℕ → ℕ → ℕ)

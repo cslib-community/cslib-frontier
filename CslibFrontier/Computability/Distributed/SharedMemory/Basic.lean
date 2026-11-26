@@ -279,14 +279,14 @@ theorem step_of_active (π : Protocol P objs S V) {p : P} {c : Config P ObjState
             decided := π.decideVal p (c.proc p).state
               ((objs (π.target p (c.proc p).state)).step
                 (π.op p (c.proc p).state) (c.mem (π.target p (c.proc p).state))).2 } } := by
-  simp only [step, show (c.proc p).decided = none from h]
+  rw [Config.Active] at h
+  simp only [step, h]
 
 @[simp]
 theorem step_proc_of_ne (π : Protocol P objs S V) {p q : P} (c : Config P ObjState S V)
     (hne : q ≠ p) : (π.step p c).proc q = c.proc q := by
   by_cases h : c.Active p
-  · rw [π.step_of_active h]
-    exact Function.update_of_ne hne _ _
+  · exact π.step_of_active h ▸ Function.update_of_ne hne _ _
   · rw [π.step_of_not_active h]
 
 theorem active_step_of_ne (π : Protocol P objs S V) {p q : P} {c : Config P ObjState S V}
@@ -315,10 +315,9 @@ theorem step_comm_of_ne_target (π : Protocol P objs S V) {p q : P} {c : Config 
 theorem procDecided_step (π : Protocol P objs S V) {p : P} (q : P) {c : Config P ObjState S V}
     {v : V} (hd : (c.proc p).decided = some v) :
     ((π.step q c).proc p).decided = some v := by
-  by_cases hqp : p = q
-  · subst hqp
-    rw [π.step_of_not_active (by simp [Config.Active, hd]), hd]
-  · rw [π.step_proc_of_ne c hqp, hd]
+  rcases eq_or_ne p q with rfl | hqp
+  · rwa [π.step_of_not_active (by simp [Config.Active, hd])]
+  · rwa [π.step_proc_of_ne c hqp]
 
 /-- Decisions are write-once across arbitrary reachable paths. -/
 theorem procDecided_stable (π : Protocol P objs S V) {p : P} {c c' : Config P ObjState S V}
@@ -406,10 +405,8 @@ theorem soloRun_of_not_active (π : Protocol P objs S V) (p : P)
 theorem soloRun_of_active (π : Protocol P objs S V) (p : P)
     {c : Config P ObjState S V} (ha : Acc π.StepRel c) (h : c.Active p) :
     π.soloRun p c ha = π.soloRun p (π.step p c) (ha.inv ⟨p, h, rfl⟩) := by
-  nth_rw 1 [soloRun]
-  rw [WellFounded.fixF_eq]
-  simp only [h, ↓reduceDIte]
-  rfl
+  conv_lhs => rw [soloRun, WellFounded.fixF_eq]
+  simp [soloRun, h]
 
 theorem soloRun_not_active (π : Protocol P objs S V) (p : P)
     {c : Config P ObjState S V} (ha : Acc π.StepRel c) :
@@ -606,11 +603,9 @@ theorem exists_bivalent_init [Fintype P] (π : Protocol P objs S Bool)
       π.IsUnivalent (π.initConfig (inpK (k + 1))) true := by
     by_contra hno_sw
     push Not at hno_sw
-    have hall : ∀ k ≤ n, π.IsUnivalent (π.initConfig (inpK k)) false := by
-      intro k hk
-      induction k with
-      | zero => exact hu0
-      | succ k ih => exact (huniv (k + 1)).resolve_right (hno_sw k hk (ih (by omega)))
+    have hall (k : ℕ) : k ≤ n → π.IsUnivalent (π.initConfig (inpK k)) false :=
+      Nat.rec (fun _ => hu0) (fun k ih hk =>
+        (huniv (k + 1)).resolve_right (hno_sw k hk (ih (by omega)))) k
     exact (hall n le_rfl).2 huN.1
   obtain ⟨k, hk, huf, hut⟩ := hex_switch
   let q : P := e.symm ⟨k, hk⟩

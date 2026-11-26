@@ -164,8 +164,7 @@ theorem card_filter_friSmoothFinalPasses_le [DecidableEq F] (params : FRISmoothP
       friSmoothPreWeight params stmt pref params.m le_rfl j := by
   let c₀ : FRIChal F params.d params.q := ⟨0, fun _ => ⟨0, Nat.pow_pos (by omega)⟩⟩
   let pref' := pref ++ [(πFinal, c₀)]
-  have hπm : prefOracle pref' params.m = πFinal := by
-    simp only [pref', ← hlen, prefOracle_append_self]
+  have hπm : prefOracle pref' params.m = πFinal := hlen ▸ prefOracle_append_self pref πFinal c₀
   have hfw (j : Fin (params.domainSize params.m)) :
       friSmoothOracleFilterWeight params stmt pref' params.m le_rfl (prefOracle pref' params.m) j =
         friSmoothOracleFilterWeight params stmt pref params.m le_rfl πFinal j := by
@@ -196,9 +195,9 @@ theorem card_filter_friSmoothFinalPasses_le [DecidableEq F] (params : FRISmoothP
     have hfin : friSmoothFinalFin params s = j := Fin.ext hmod
     exact ⟨⟨hp, by rwa [hfin, hidx hfin, hπm]⟩, hfin⟩
   · rw [Finset.card_eq_zero, Finset.filter_eq_empty_iff]
-    rintro s hs hfin
-    have heq := (Finset.mem_filter.mp hs).2.2.2
-    exact hok (by rwa [hfin, hidx hfin] at heq)
+    rintro s hs rfl
+    obtain ⟨-, -, -, heq⟩ := Finset.mem_filter.mp hs
+    exact hok (by rwa [hidx rfl] at heq)
 
 
 private theorem friSmoothCommitDoomed_congr_round [DecidableEq F] (params : FRISmoothParams F)
@@ -246,7 +245,8 @@ theorem uniformOfFintype_friChal_map_foldScalar [Fintype F] [Nonempty F] (d q : 
     (PMF.uniformOfFintype (FRIChal F d q)).map FRIChal.foldScalar =
       PMF.uniformOfFintype F := by
   have : Nonempty (Fin q → Fin (2 ^ d)) := ⟨fun _ => ⟨0, Nat.two_pow_pos d⟩⟩
-  rw [show FRIChal.foldScalar = Prod.fst ∘ FRIChal.equivProd F d q from rfl, ← PMF.map_comp,
+  have hfs : FRIChal.foldScalar = Prod.fst ∘ FRIChal.equivProd F d q := rfl
+  rw [hfs, ← PMF.map_comp,
     Cslib.Probability.PMF.uniformOfFintype_map_equiv (FRIChal.equivProd F d q),
     Cslib.Probability.PMF.uniformOfFintype_prod_map_fst]
 
@@ -342,18 +342,11 @@ private theorem sum_agree_foldComp_le_of_commitDoomed [DecidableEq F] (params : 
   obtain ⟨p, hp, hpeq⟩ := mem_reedSolomon.mp hc_rs
   have hc'_rs : (c ∘ eqv.symm) ∈ params.rsCode ir.val := mem_reedSolomon.mpr
     ⟨p, (params.dim_eq_arity_mul_succ ir).symm ▸ hp, funext fun y => congrFun hpeq (eqv.symm y)⟩
-  have heqv :
-      (∑ idx ∈ Finset.univ.filter
-          (fun idx => restrictOracle (i := params.cumLog ir.val) π (eqv idx) = c idx),
-        friSmoothOracleFilterWeight params stmt pref ir.val ir.isLt.le π (eqv idx)) =
-      ∑ y ∈ Finset.univ.filter
-          (fun y => restrictOracle (i := params.cumLog ir.val) π y = (c ∘ eqv.symm) y),
-        friSmoothOracleFilterWeight params stmt pref ir.val ir.isLt.le π y := by
-    simp only [Finset.sum_filter, Function.comp_apply]
-    exact (Finset.sum_congr rfl fun idx _ => by simp).trans (Equiv.sum_comp eqv _)
-  refine hc_sum.trans_eq heqv |>.trans
-    ((sum_agree_friSmoothOracleFilterWeight_le params stmt pref ir.val ir.isLt.le π _).trans
-      (hcommit _ hc'_rs))
+  refine (hc_sum.trans_eq ?_).trans
+    ((sum_agree_friSmoothOracleFilterWeight_le params stmt pref ir.val ir.isLt.le π
+      (c ∘ eqv.symm)).trans (hcommit _ hc'_rs))
+  simp only [Finset.sum_filter, Function.comp_apply]
+  exact (Finset.sum_congr rfl fun idx _ => by simp).trans (Equiv.sum_comp eqv _)
 
 /-- **Conditional step (smooth commit-round escape bound assuming `WeightedCurveEscapePerRound`)**:
 when `pref.length < m` and `pref` is doomed at threshold `B`, the probability over a uniform

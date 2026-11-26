@@ -76,12 +76,10 @@ section PrimeThreeModFour
 
 variable {p : ℕ} [Fact p.Prime]
 
-private theorem not_isSquare_neg_one (hp : p % 4 = 3) : ¬ IsSquare (-1 : ZMod p) := by
-  rw [ZMod.exists_sq_eq_neg_one_iff]
-  omega
+private theorem not_isSquare_neg_one (hp : p % 4 = 3) : ¬ IsSquare (-1 : ZMod p) :=
+  ZMod.exists_sq_eq_neg_one_iff.not.mpr (by omega)
 
-private theorem two_ne_zero_zmod (hp : p % 4 = 3) : (2 : ZMod p) ≠ 0 := by
-  intro h2
+private theorem two_ne_zero_zmod (hp : p % 4 = 3) : (2 : ZMod p) ≠ 0 := fun h2 => by
   have := Nat.le_of_dvd (by decide) ((ZMod.natCast_eq_zero_iff 2 p).mp h2)
   omega
 
@@ -93,8 +91,7 @@ private theorem sq_add_sq_eq_zero_iff (hp : p % 4 = 3) (u v : ZMod p) :
     u ^ 2 + v ^ 2 = 0 ↔ u = 0 ∧ v = 0 := by
   refine ⟨fun huv => ?_, fun ⟨hu, hv⟩ => by simp [hu, hv]⟩
   by_cases hv : v = 0
-  · subst hv
-    exact ⟨by simpa using huv, rfl⟩
+  · exact ⟨by simpa [hv] using huv, hv⟩
   · exact False.elim (not_isSquare_neg_one hp
       (isSquare_neg_one_of_sq_eq_neg_sq (z := u) hv (by linear_combination huv)))
 
@@ -152,8 +149,7 @@ private theorem card_unitSphere_three (hp : p % 4 = 3) :
     rw [← card_sigma]
     refine card_bij (fun z _ => ⟨z 2, (z 0, z 1)⟩) ?_ ?_ ?_
     · intro z hz
-      simp only [mem_filter, mem_univ, true_and] at hz
-      simp only [mem_sigma, mem_univ, circleSet, mem_filter, true_and]
+      simp only [mem_sigma, mem_univ, circleSet, mem_filter, true_and] at hz ⊢
       linear_combination hz
     · intro z₁ _ z₂ _ h
       simp only [Sigma.mk.injEq, heq_eq_eq, Prod.mk.injEq] at h
@@ -288,9 +284,7 @@ theorem isRectangleFreeMatrix_brownMatrix (hp : p % 4 = 3) :
     simpa only [brownMatrix_apply, decide_eq_true_eq, normSq3, Pi.sub_apply] using hall a ha b hb
   have hdist_symm {a b : Fin 3 → ZMod p} (ha : a ∈ ({a₀, a₁, a₂} : Finset _))
       (hb : b ∈ ({b₀, b₁, b₂} : Finset _)) : normSq3 (b - a) = 1 := by
-    have h := hdist ha hb
-    simp only [normSq3, Pi.sub_apply] at h ⊢
-    linear_combination h
+    simpa only [← neg_sub a b, normSq3, Pi.neg_apply, neg_sq] using hdist ha hb
   have ⟨ha₀, ha₁, ha₂⟩ : a₀ ∈ ({a₀, a₁, a₂} : Finset _) ∧ a₁ ∈ ({a₀, a₁, a₂} : Finset _) ∧
       a₂ ∈ ({a₀, a₁, a₂} : Finset _) := by simp
   have ⟨hb₀, hb₁, hb₂⟩ : b₀ ∈ ({b₀, b₁, b₂} : Finset _) ∧ b₁ ∈ ({b₀, b₁, b₂} : Finset _) ∧

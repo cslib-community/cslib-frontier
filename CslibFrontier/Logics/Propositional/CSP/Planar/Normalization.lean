@@ -111,18 +111,14 @@ theorem twistBody_size {n : ℕ} (a : Fin n → Bool) :
     if a i then [⟨.disequality, [.inr (i.castAdd n), .inl i]⟩]
     else [⟨.disequality, [.inr (i.castAdd n), .inr (i.natAdd n)]⟩,
       ⟨.disequality, [.inr (i.natAdd n), .inl i]⟩]
-  have hl (L : List (Fin n)) : (L.flatMap f).length ≤ 2 * L.length := by
+  have hb (L : List (Fin n)) : (L.flatMap f).length ≤ 2 * L.length ∧
+      ((L.flatMap f).flatMap Constraint.scope).length ≤ 4 * L.length := by
     induction L with
     | nil => simp
-    | cons i L ih => cases ha : a i <;> simp [f, ha] at * <;> omega
-  have hw (L : List (Fin n)) : ((L.flatMap f).flatMap Constraint.scope).length ≤ 4 * L.length := by
-    induction L with
-    | nil => simp
-    | cons i L ih => cases ha : a i <;> simp [f, ha] at * <;> omega
-  have hc := hl (List.finRange n)
-  have hv := hw (List.finRange n)
+    | cons i L ih => cases ha : a i <;> simp [f, ha] at ih ⊢ <;> omega
+  have h := hb (List.finRange n)
   simp only [twistBody, vars, f, List.length_cons, List.flatMap_cons, List.length_append,
-    List.length_ofFn, List.length_finRange] at hc hv ⊢
+    List.length_ofFn, List.length_finRange] at h ⊢
   omega
 
 /-- Exact scope widths of the initial conjunction, including arities zero and one. -/
@@ -300,19 +296,10 @@ theorem CyclicExchangeObstruction.standardized {P : Set (Fin 4 → Bool)} {d : F
     apply (mem_cyclicDifferenceRelation_iff h.selfComplementary x).mp
     rcases hc x hx with he | he <;> rwa [he]
   · intro x hx
-    by_cases he : x 0 = x 1
-    · exact Or.inl he
-    have hfirst : cyclicDifference x 0 = true := by
-      change (x 0 ^^ x 1) = true
-      cases ha : x 0 <;> cases hb : x 1 <;> simp_all
-    have hc : ∀ d : Fin 4 → Bool, parityOn Finset.univ d = false → d 0 = true →
-        d = (fun _ => true) ∨ ∃ j, j ≠ 0 ∧ d = flipOn {0, j} (fun _ => false) := by
-      decide
-    rcases hc (cyclicDifference x) (parityOn_cyclicDifference x) hfirst with hf | ⟨j, hj, hjd⟩
-    · right
-      have ht : ∀ x : Fin 4 → Bool, cyclicDifference x = (fun _ => true) →
-          x 0 = x 2 ∧ x 0 ≠ x 1 ∧ x 1 = x 3 := by decide
-      exact ht x hf
+    have hx4 : ∀ x : Fin 4 → Bool, (x 0 = x 1 ∨ (x 0 = x 2 ∧ x 0 ≠ x 1 ∧ x 1 = x 3)) ∨
+        ∃ j, j ≠ 0 ∧ cyclicDifference x = flipOn {0, j} (fun _ => false) := by decide
+    rcases hx4 x with hok | ⟨j, hj, hjd⟩
+    · exact hok
     · exact (h.forbidden j hj (by rw [h.eq_full]) (hjd ▸ ⟨x, hx, rfl⟩)).elim
 
 /-- When all candidate quartets fail, the cap preserves the full-support obstruction.

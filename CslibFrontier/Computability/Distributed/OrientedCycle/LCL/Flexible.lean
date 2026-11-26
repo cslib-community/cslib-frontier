@@ -166,9 +166,7 @@ theorem distColoring_ne {s k n : ℕ} (hkn : k < n) {x : ZMod n → ℕ} (hx : F
 theorem anchorRule_apply {k n : ℕ} (c : ZMod n → ℕ) (u : ZMod n) :
     (anchorRule k).apply c u = true ↔
       ∀ m < k, c u < c (u + (m + 1)) ∧ c u < c (u - (m + 1)) := by
-  simp only [LocalRule.apply, anchorRule, window, decide_eq_true_eq, Int.cast_zero, add_zero]
-  push_cast
-  simp only [sub_eq_add_neg]
+  simp [LocalRule.apply, anchorRule, window, sub_eq_add_neg]
 
 /-- Anchors are more than `k` apart. -/
 theorem anchorRule_spacing {k n : ℕ} (c : ZMod n → ℕ) (u : ZMod n)
@@ -192,9 +190,8 @@ theorem anchorRule_exists {k n : ℕ} {c : ZMod n → ℕ}
     refine ⟨0, by simp, ?_⟩
     rw [Int.cast_zero, add_zero, anchorRule_apply]
     intro m hm
-    have h1 := hc v m hm
-    have h2 := hc (v - (m + 1)) m hm
-    rw [sub_add_cancel] at h2
+    have := hc v m hm
+    have := sub_add_cancel v (m + 1) ▸ hc (v - (m + 1)) m hm
     omega
   | succ N ih =>
     intro v hv
@@ -330,9 +327,7 @@ theorem fillRule_isSolution {L : Type*} {R : L → L → Prop} {q : L} {W : ℕ 
     by_contra hlt
     have h1 := hspace (v - P v) (hPspec v).2.1 (P v + Q v) (by omega)
     have h2 := (hQspec v).2.1
-    have : v - (P v : ZMod n) + ((P v + Q v : ℕ) + 1) = v + (Q v + 1) := by
-      push_cast
-      ring
+    have : v - (P v : ZMod n) + ((P v + Q v : ℕ) + 1) = v + (Q v + 1) := by push_cast; ring
     rw [this, h2] at h1
     exact absurd h1 (by decide)
   intro v
@@ -355,34 +350,23 @@ theorem fillRule_isSolution {L : Type*} {R : L → L → Prop} {q : L} {W : ℕ 
     have hP1 : P (v + 1) = P v + 1 := by
       obtain ⟨d, hd, had⟩ := hcov (v + 1)
       refine firstTrue_eq _ _ ?_ ?_ ⟨d, by omega, had⟩
-      · show a (v + 1 - ((P v + 1 : ℕ) : ZMod n)) = true
-        have := (hPspec v).2.1
-        convert this using 2
-        push_cast
-        ring
-      · intro j hj
-        show a (v + 1 - (j : ZMod n)) = false
-        rcases j with _ | j
+      · convert (hPspec v).2.1 using 2
+        push_cast; ring
+      · rintro (_ | j) hj
         · simpa using hnext'
-        · have := (hPspec v).2.2 j (by omega)
-          convert this using 2
-          push_cast
-          ring
+        · convert (hPspec v).2.2 j (by omega) using 2
+          push_cast; ring
     have hQ1 : Q (v + 1) = Q v - 1 := by
       have hspec := hQspec v
       have hi : a (v + 1 + (((Q v - 1 : ℕ) : ZMod n) + 1)) = true := by
         convert hspec.2.1 using 2
         rw [Nat.cast_sub hQpos]
-        push_cast
-        ring
-      refine firstTrue_eq _ _ hi ?_ ⟨Q v - 1, by omega, hi⟩
-      intro j hj
-      show a (v + 1 + ((j : ZMod n) + 1)) = false
-      have := hspec.2.2 (j + 1) (by omega)
-      convert this using 2
-      push_cast
-      ring
-    rw [hP1, hQ1, show P v + 1 + (Q v - 1) + 1 = P v + Q v + 1 by omega]
+        push_cast; ring
+      refine firstTrue_eq _ _ hi (fun j hj => ?_) ⟨Q v - 1, by omega, hi⟩
+      convert hspec.2.2 (j + 1) (by omega) using 2
+      push_cast; ring
+    have hsum_eq : P v + 1 + (Q v - 1) + 1 = P v + Q v + 1 := by omega
+    rw [hP1, hQ1, hsum_eq]
     exact hWR _ (hgap v) _ (by omega)
 
 /-! ### The algorithm -/

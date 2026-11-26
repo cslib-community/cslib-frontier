@@ -64,8 +64,7 @@ theorem card_locallyInterpolable_mul_card_le [Fintype F] (x : ι ↪ F)
   let selected (i : ι) := if i ∈ s then g i else none
   have hselected : successfulSlices selected = s := Finset.ext fun i => by
     by_cases hi : i ∈ s
-    · simpa [selected, hi] using hs hi
-    · simp [selected, hi]
+    exacts [by simpa [selected, hi] using hs hi, by simp [selected, hi]]
   obtain ⟨p, hp⟩ := pasteOutcome_eq_some_of_card x selected ((congrArg card hselected).trans hsize)
   have hfit : ¬ FitsSlices x g p := fun h => by
     simpa [hfail] using (pasteOutcome_eq_some_iff x g p).2 ⟨hcard, h⟩
@@ -77,10 +76,8 @@ theorem card_locallyInterpolable_mul_card_le [Fintype F] (x : ι ↪ F)
     intro u hu
     simp only [mem_filter, mem_univ, true_and] at hu ⊢
     obtain ⟨f, hf, hagree⟩ := hu
-    have hline : evalPrefix u p.val = f :=
-      evalPrefix_eq_of_paste_agrees x u hp hf fun j r hr => hagree j r <|
-        if hj : j ∈ s then (ite_eq_left hj).symm.trans hr
-        else nomatch (ite_eq_right hj).symm.trans hr
+    have hline := evalPrefix_eq_of_paste_agrees x u hp hf fun j r hr =>
+      hagree j r (Option.ite_none_right_eq_some.mp hr).2
     rw [hagree i q hq, ← hline, eval_evalPrefix]; rfl
   exact (Nat.mul_le_mul_right _ (card_le_card hsubset)).trans
     (card_filter_eval_eq_mul_card_le (fun h => hne (Subtype.ext h))
@@ -157,9 +154,8 @@ theorem enoughSlices_prob_le_paste_prob_add_union [Fintype F] {β : Type*}
       _ = _ := by rw [← sum_mul, sum_toReal, one_mul]
   calc
     _ = 𝔼 _u : Fin m → F, (p.toOuterMeasure bad).toReal := (Fintype.expect_const _).symm
-    _ ≤ _ := (expect_le_expect fun u _ => hsurv u).trans (by
-      rw [expect_add_distrib]
-      exact add_le_add_right hlocal _)
+    _ ≤ _ := (expect_le_expect fun u _ => hsurv u).trans
+      ((expect_add_distrib ..).trans_le (add_le_add_right hlocal _))
 
 /-- The loss from discarding incompatible transcripts, estimated by the sum of
 the individual slice-line mismatch probabilities. -/
@@ -304,8 +300,7 @@ private theorem enoughSlices_successfulEffect_le {β : Type*} [Fintype β]
             hpair hcopy))
   have hscore' := expect_le_expect_embedding_add k score
     (fun x => ENNReal.toReal_nonneg) (fun x => toOuterMeasure_toReal_le_one _ _)
-  have hpaste := expect_le_expect (s := (univ : Finset (Fin k ↪ F))) fun x _ =>
-    htuple x
+  have hpaste := expect_le_expect (s := univ) fun (x : Fin k ↪ F) _ => htuple x
   simp only [expect_add_distrib, Fintype.expect_const,
     ← pasteSlices_success_prob_eq_expect] at hpaste
   simp only [← hscore, mul_div_assoc (2 : ℝ)]

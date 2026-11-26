@@ -165,8 +165,7 @@ private theorem mem_support_testHashH (S : Scheme PK SK M R CT K) (m : M) (c : C
     (t : R → Prop) [DecidablePred t] (st : SimState M R CT K) (x : K × SimState M R CT K)
     (hx : x ∈ (ProbComp.eval (S.testHashH m c t st)).support) :
     ∃ z ∈ (ProbComp.eval (simHashG S.pke.sampleCoins m st)).support, x.2.gCache = z.2.gCache := by
-  rw [eval_testHashH, PMF.mem_support_bind_iff] at hx
-  obtain ⟨z, hz, hx⟩ := hx
+  obtain ⟨z, hz, hx⟩ := (PMF.mem_support_bind_iff _ _ _).mp (eval_testHashH S m c t st ▸ hx)
   exact ⟨z, hz, testCont_gCache_eq S m c _ z.2 x hx⟩
 
 /-- On a final state whose cache is good, `testHashH` does not depend on how the coin test treats
@@ -181,11 +180,10 @@ private theorem eval_testHashH_apply_congr (S : Scheme PK SK M R CT K) (pk : PK)
   by_cases hz : z ∈ (ProbComp.eval (simHashG S.pke.sampleCoins m st)).support
   · by_cases hgz : GoodCache S.pke pk sk z.2
     · simp only [ht z.1 (hgz _ (simHashG_mem_gCache hz))]
-    · have h0 (p : Prop) [Decidable p] :
-          ProbComp.eval ((if p then simHashHq S.sampleKey c
-            else simHashHRaw S.sampleKey (false, m, c)) z.2) y = 0 := by
-        refine (PMF.apply_eq_zero_iff _ _).mpr fun hmem => hgz ?_
-        exact hy.of_subset fun e he => by rwa [testCont_gCache_eq S m c p z.2 y hmem]
+    · have h0 (p : Prop) [Decidable p] : ProbComp.eval ((if p then simHashHq S.sampleKey c
+          else simHashHRaw S.sampleKey (false, m, c)) z.2) y = 0 :=
+        (PMF.apply_eq_zero_iff _ _).mpr fun hmem =>
+          hgz (hy.of_subset fun e he => testCont_gCache_eq S m c p z.2 y hmem ▸ he)
       rw [h0, h0]
   · rw [(PMF.apply_eq_zero_iff _ _).mpr hz, zero_mul, zero_mul]
 
@@ -222,11 +220,7 @@ private theorem simHashG_bad_le (P : ExplicitCoinPKE PK SK M R CT) (pk : PK) (sk
           rcases mem_support_simHashG hz with ⟨h1, -⟩ | ⟨-, -, h2⟩
           · rw [h] at h1; cases h1
           · intro hdec
-            refine hbad fun e he => ?_
-            rw [h2] at he
-            rcases List.mem_cons.mp he with rfl | he
-            · exact hdec
-            · exact hs e he
+            exact hbad (h2.symm ▸ List.forall_mem_cons.mpr ⟨hdec, hs⟩)
       _ = _ := by
           rw [← PMF.toOuterMeasure_map_apply, hmarg, ExplicitCoinPKE.msgFailProb,
             ENNReal.ofReal_toReal (Probability.PMF.toOuterMeasure_ne_top _ _)]
@@ -368,22 +362,21 @@ private theorem eval_coupledHashH_init (S : Scheme PK SK M R CT K) (pk : PK) (sk
         { gCache := [(m, r)] }) =
       ProbComp.eval ((simHashHq S.sampleKey (S.pke.encDet pk m r)).run
         ({ gCache := [(m, r)] } : SimState M R CT K)) := by
-  change ProbComp.eval (S.testHashH m (S.pke.encDet pk m r) (fun r' =>
-    S.pke.encDet pk m r' = S.pke.encDet pk m r ∧ S.pke.dec sk (S.pke.encDet pk m r) = some m)
-      { gCache := [(m, r)] }) = _
-  rw [eval_testHashH_of_lookup (r := r) _ _ _ _ (by simp),
-    ite_eq_left_of_eq_true _ _ (eq_true ⟨rfl, hr⟩)]
-  rfl
+  let t (r' : R) := S.pke.encDet pk m r' = S.pke.encDet pk m r ∧
+    S.pke.dec sk (S.pke.encDet pk m r) = some m
+  have hlk : ({ gCache := [(m, r)] } : SimState M R CT K).gCache.lookup m = some r := by simp
+  change ProbComp.eval (S.testHashH m (S.pke.encDet pk m r) t { gCache := [(m, r)] }) = _
+  simpa [t, hr, StateT.run] using eval_testHashH_of_lookup S m (S.pke.encDet pk m r) t hlk
 
 private theorem eval_simHashH_init (S : Scheme PK SK M R CT K) (pk : PK) (m : M) (r : R) :
     ProbComp.eval ((S.simHashH pk (false, m, S.pke.encDet pk m r)).run
         { gCache := [(m, r)] }) =
       ProbComp.eval ((simHashHq S.sampleKey (S.pke.encDet pk m r)).run
         ({ gCache := [(m, r)] } : SimState M R CT K)) := by
-  change ProbComp.eval (S.testHashH m (S.pke.encDet pk m r) (fun r' =>
-    S.pke.encDet pk m r' = S.pke.encDet pk m r) { gCache := [(m, r)] }) = _
-  rw [eval_testHashH_of_lookup (r := r) _ _ _ _ (by simp), ite_eq_left_of_eq_true _ _ (eq_true rfl)]
-  rfl
+  let t (r' : R) := S.pke.encDet pk m r' = S.pke.encDet pk m r
+  have hlk : ({ gCache := [(m, r)] } : SimState M R CT K).gCache.lookup m = some r := by simp
+  change ProbComp.eval (S.testHashH m (S.pke.encDet pk m r) t { gCache := [(m, r)] }) = _
+  simpa [t, StateT.run] using eval_testHashH_of_lookup S m (S.pke.encDet pk m r) t hlk
 
 /-- **Filtered correctness hop**: for an adversary making at most `qG` queries to `G` and `qH`
 queries to `H` against a `δ`-correct PKE, when the decapsulation filters `d₁` and `d₂` agree on

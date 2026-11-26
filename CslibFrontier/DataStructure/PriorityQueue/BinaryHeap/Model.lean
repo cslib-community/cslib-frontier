@@ -165,9 +165,9 @@ theorem HeapShape.size_lt (h : HeapShape N base S mem) {v : ℕ} (hv : v < N)
     omega
   · rw [Finset.mem_coe, Finset.mem_Icc] at hi
     rw [Finset.mem_coe, Finset.mem_erase, Finset.mem_range]
-    refine ⟨fun he => ?_, h.vertex_lt i hi.1 hi.2⟩
+    refine ⟨fun (he : mem (base + N + i) = v) => ?_, h.vertex_lt i hi.1 hi.2⟩
     have := h.pos_vertex i hi.1 hi.2
-    rw [show mem (base + N + i) = v from he, hp] at this
+    rw [he, hp] at this
     omega
   · rw [Finset.mem_coe, Finset.mem_Icc] at hi hj
     rw [← h.pos_vertex i hi.1 hi.2, ← h.pos_vertex j hj.1 hj.2]
@@ -198,9 +198,8 @@ among all handles present in the heap, so `IndexedMinPQ.findMin` equals the root
 theorem HeapInv.findMin_eq_root (h : HeapInv N base S mem) (hS : 1 ≤ S) :
     IndexedMinPQ.findMin (stateOfMem N base mem) =
       some (⟨mem (base + N + 1), h.vertex_lt 1 le_rfl hS⟩, mem (base + mem (base + N + 1))) := by
-  have key : ∀ i, 1 ≤ i → i ≤ S →
+  have key (i : ℕ) : 1 ≤ i → i ≤ S →
       IndexedMinPQ.RawPrioLE (heapEntry N base mem 1) (heapEntry N base mem i) := by
-    intro i
     induction i using Nat.strong_induction_on with
     | _ i ih =>
       intro h1 h2
@@ -284,14 +283,11 @@ theorem HeapInv.decrease (h : HeapInv N base S mem) {v c : ℕ} (hv : v < N)
     rw [hval, ite_eq_right fun he => hj (he ▸ h.pos_vertex j h1 h2).symm]
   refine ⟨⟨h.size_le,
       fun i h1 h2 => (hm_hi (base + N + i) (by omega)).symm ▸ h.vertex_lt i h1 h2,
-      fun i h1 h2 => by
-        rw [hm_hi _ (by omega), hm_hi _ (by omega)]
-        exact h.pos_vertex i h1 h2,
+      fun i h1 h2 => by rw [hm_hi _ (by omega), hm_hi _ (by omega), h.pos_vertex i h1 h2],
       fun w hw => (hm_hi (base + 2 * N + 1 + w) (by omega)).symm ▸ h.pos_le w hw,
       fun w hw hw0 => by
         rw [hm_hi _ (by omega)] at hw0 ⊢
-        rw [hm_hi _ (by omega)]
-        exact h.vertex_pos w hw hw0⟩,
+        rw [hm_hi _ (by omega), h.vertex_pos w hw hw0]⟩,
     fun i h1 h2 => ⟨fun hi => ?_, fun hi h2k => ?_⟩⟩
   · rw [heq i (by omega) h2 hi]
     exact (hle' _).trans (h.ordered i h1 h2)
@@ -326,13 +322,12 @@ theorem HeapInv.extract (h : HeapInv N base S mem) (hS : 2 ≤ S) :
   have hother : ∀ w < N, w ≠ mem (base + N + 1) → w ≠ mem (base + N + S) →
       mem (base + 2 * N + 1 + w) ≤ S - 1 ∧ mem (base + 2 * N + 1 + w) ≠ 1 := by
     intro w hw h1 h2
-    have := h.pos_le w hw
     by_cases h0 : mem (base + 2 * N + 1 + w) = 0
     · omega
     have hv := h.vertex_pos w hw h0
-    refine ⟨?_, fun e => h1 (by rw [e] at hv; exact hv.symm)⟩
-    by_contra hc
-    exact h2 (by rw [show mem (base + 2 * N + 1 + w) = S by omega] at hv; exact hv.symm)
+    have hltS : mem (base + 2 * N + 1 + w) < S :=
+      (h.pos_le w hw).lt_of_ne fun hs => h2 (hs ▸ hv).symm
+    exact ⟨by omega, fun e => h1 (e ▸ hv).symm⟩
   have hpos : ∀ w < N, m' (base + 2 * N + 1 + w) = if w = mem (base + N + S) then 1
       else if w = mem (base + N + 1) then 0 else mem (base + 2 * N + 1 + w) := by
     intro w hw
@@ -373,17 +368,15 @@ theorem HeapInv.extract (h : HeapInv N base S mem) (hS : 2 ≤ S) :
 heap invariant. -/
 theorem HeapInv.extract_one (h : HeapInv N base 1 mem) :
     HeapInv N base 0 (Function.update mem (base + 2 * N + 1 + mem (base + N + 1)) 0) := by
-  have hz : ∀ w < N, Function.update mem (base + 2 * N + 1 + mem (base + N + 1)) 0
+  have hz (w : ℕ) (hw : w < N) : Function.update mem (base + 2 * N + 1 + mem (base + N + 1)) 0
       (base + 2 * N + 1 + w) = 0 := by
-    intro w hw
     rw [Function.update_apply]
     split_ifs with he
     · rfl
-    · have := h.pos_le w hw
-      by_contra h0
-      have hv := h.vertex_pos w hw h0
-      rw [show mem (base + 2 * N + 1 + w) = 1 by omega] at hv
-      omega
+    · by_contra h0
+      have hp1 : mem (base + 2 * N + 1 + w) = 1 :=
+        le_antisymm (h.pos_le w hw) (Nat.pos_of_ne_zero h0)
+      exact he (congrArg (base + 2 * N + 1 + ·) (hp1 ▸ h.vertex_pos w hw h0).symm)
   exact ⟨⟨Nat.zero_le _, fun _ h1 h2 => by omega, fun _ h1 h2 => by omega,
     fun w hw => (hz w hw).le, fun w hw hw0 => absurd (hz w hw) hw0⟩, fun _ h1 h2 => by omega⟩
 

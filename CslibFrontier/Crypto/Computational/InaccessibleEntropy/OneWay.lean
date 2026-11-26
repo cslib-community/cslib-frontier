@@ -411,19 +411,15 @@ theorem computableInPolyTime_rompelBaseEvalWord {g : List Bool → List Bool} {o
   have hn := fst encUnary encBits
   have hz := snd encUnary encBits
   have hm := houtLen.comp hn
-  have hs : ComputableInPolyTime (fun p : ℕ × List Bool => rompelSeedWidth p.1 (outLen p.1))
-      (encPair encUnary encBits) encUnary :=
-    unary_add' (unary_mul' hn hm) hn
-  have hx := bitsRowWithInput hn (.const 0) (bitsTakeWithInput hz hn)
+  have hs := unary_add' (unary_mul' hn hm) hn
   have hrest := bitsDropWithInput hz hn
   have hseed := bitsRowWithInput hs (.const 0) (bitsTakeWithInput hrest hs)
-  have ht : ComputableInPolyTime (fun p : ℕ × List Bool => rompelTruncWidth p.1)
-      (encPair encUnary encBits) encUnary :=
-    unary_add' (unary_log_two.comp hn) (.const 1)
-  have hrBits := bitsRowWithInput ht (.const 0) (bitsDropWithInput hrest hs)
+  have hrBits := bitsRowWithInput (computableInPolyTime_rompelTruncWidth.comp hn) (.const 0)
+    (bitsDropWithInput hrest hs)
   have hr := bitsBoundedBinaryValueWithInput hn hrBits
   have hhash := computableInPolyTime_wordAffineHash hn hseed
-    (bitsRowWithInput hm (.const 0) (hg.comp hx))
+    (bitsRowWithInput hm (.const 0)
+      (hg.comp (bitsRowWithInput hn (.const 0) (bitsTakeWithInput hz hn))))
   exact bitsAppend (bitsAppend hseed hrBits)
     (bitsAppend (bitsTakeWithInput hhash hr)
       ((bitsReplicate false).comp (unary_sub' hn hr)))
@@ -524,10 +520,9 @@ theorem isPPT_rompelBaseInverter {g : List Bool → List Bool} {outLen : ℕ →
   have hadjust := computableInPolyTime_wordAdjustAffineSeed hparameter (houtLen.comp hparameter)
     (bitsBoundedBinaryValueWithInput hparameter hrBits)
     hp.fst'.fst'.fst'.snd' (hg.comp hx) hp.snd'
-  have hprepare := bitsAppend (bitsAppend hx hadjust) hrBits
-  have hresult := bitsTakeWithInput (snd _ encBits) (hparameter.comp (fst _ encBits))
   simpa only [bind_pure_comp, Function.comp_def] using
-    (hA.preprocess hparameter hprepare).map_with hresult
+    (hA.preprocess hparameter (bitsAppend (bitsAppend hx hadjust) hrBits)).map_with
+      (bitsTakeWithInput (snd _ encBits) (hparameter.comp (fst _ encBits)))
 
 private def rompelTupleEquiv (n m : ℕ) :
     (BitString n × ((Fin n → BitString m) × BitString n) × BitString (rompelTruncWidth n)) ≃
@@ -675,7 +670,7 @@ private theorem rompelBase_escape_seed_toReal_le (c : ℕ) (g : List Bool → Li
         List.take_left' (List.length_ofFn (f := z'.preimage)), hg_ofFn]
   have hbind (b : List Bool → Bool) :
       (pA >>= fun raw => PMF.pure (b raw)) true = ∑' raw, if b raw then pA raw else 0 := by
-    rw [show (pA >>= _) = pA.bind _ from rfl, PMF.bind_apply]
+    rw [PMF.monad_bind_eq_bind, PMF.bind_apply]
     exact tsum_congr fun raw => by cases b raw <;> simp
   have hterm (y : BitString m) :
       (if hitPref y then
@@ -1344,9 +1339,8 @@ theorem rompelBase_accessible_le_conditionalEntropy_sub (c : ℕ) (g : List Bool
         = (c * Nat.log 2 n + 1 : ℝ) * (1 / 2) / (16 * (2 * (n + 1 : ℝ))) := by field_simp; ring
       _ ≤ (c * Nat.log 2 n + 1 : ℝ) * (1 / 2) / (16 * (2 ^ rompelTruncWidth n : ℝ)) := by gcongr
       _ ≤ _ := by gcongr; linarith
-  have hgap := rompelBase_accessibleInput_le_conditionalEntropy_sub c ht gFin
   rw [hacc, hcond]
-  linarith
+  linarith [rompelBase_accessibleInput_le_conditionalEntropy_sub c ht gFin]
 
 /-! ### Theorem 4.5: logarithmic entropy gap from any one-way function -/
 
@@ -1518,11 +1512,11 @@ theorem OneWay.exists_rompelBase_logGap {f : List Bool → List Bool} (hf : OneW
                   (accessibleEscapeGame evalWord inLen accSet A n)))) := by
   obtain ⟨g, outLen, hg, hlen, houtLen⟩ := hf.exists_fixedOutputLength
   let F₀ := hg.rompelFamily 0 hlen houtLen
-  refine ⟨F₀.inLen, F₀.outLen, F₀.evalWord, F₀.polyTime_inLen, F₀.polyTime_outLen,
-    F₀.polyTime_evalWord, F₀.length_evalWord, fun d hd => ?_⟩
-  obtain ⟨hgap, hesc⟩ := hg.rompelBase_logGap hlen houtLen hd
-  exact ⟨rompelAccessibleSet _ g outLen, self_mem_rompelAccessibleSet _ g outLen,
-    rompelAccessibleSet_subset_fiber _ g outLen, hgap, hesc⟩
+  exact ⟨F₀.inLen, F₀.outLen, F₀.evalWord, F₀.polyTime_inLen, F₀.polyTime_outLen,
+    F₀.polyTime_evalWord, F₀.length_evalWord, fun d hd =>
+      let ⟨hgap, hesc⟩ := hg.rompelBase_logGap hlen houtLen hd
+      ⟨_, self_mem_rompelAccessibleSet _ g outLen,
+        rompelAccessibleSet_subset_fiber _ g outLen, hgap, hesc⟩⟩
 
 /-- Every uniform `OneWay` function yields a uniform polynomial-time `InaccessibleEntropyFamily`:
 `OneWay.rompelFamily` for its fixed-output-length normalization. -/

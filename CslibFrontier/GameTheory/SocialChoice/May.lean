@@ -411,13 +411,11 @@ theorem eq_twoAltMajority [Fintype V] [Fintype A] (h2 : Fintype.card A = 2)
     F = twoAltMajority (eq_or_eq_of_card_le_two h2.le) := by
   classical
   have hA := eq_or_eq_of_card_le_two h2.le
-  funext P
-  ext x y
+  ext P x y
   change (F P).AtLeast x y ↔ x = y ∨ support P y x ≤ support P x y
-  by_cases hxy : x = y
-  · subst hxy
-    exact iff_of_true ((F P).refl x) (Or.inl rfl)
-  have hcover : ∀ z : A, z = x ∨ z = y := fun z =>
+  rcases eq_or_ne x y with rfl | hxy
+  · exact iff_of_true ((F P).refl x) (Or.inl rfl)
+  have hcover (z : A) : z = x ∨ z = y :=
     (hA z x y).elim Or.inl fun h => h.elim (fun h' => absurd h' hxy) Or.inr
   have hswap : ∀ r : Ranking A, r.relabel (Equiv.swap x y) = r.reverse := fun r => by
     ext u v
@@ -428,14 +426,10 @@ theorem eq_twoAltMajority [Fintype V] [Fintype A] (h2 : Fintype.card A = 2)
       (h1 : r.Prefers x y ↔ s.Prefers x y) (h2 : r.Prefers y x ↔ s.Prefers y x) : r = s := by
     ext u v
     rcases hcover u with rfl | rfl <;> rcases hcover v with rfl | rfl
-    · exact iff_of_false (r.irrefl _) (s.irrefl _)
-    · exact h1
-    · exact h2
-    · exact iff_of_false (r.irrefl _) (s.irrefl _)
-  have hiff := may_atLeast_iff_card_le Ranking.Prefers Ranking.reverse
-    (fun e r => r.relabel e) F (a := x) (b := y) (fun r _ _ => r.asymm)
-    (fun r u v => r.reverse_prefers) hswap hext hanon hneut hpr P
-  exact hiff.trans ⟨Or.inr, fun h => h.resolve_left hxy⟩
+    exacts [iff_of_false (r.irrefl _) (s.irrefl _), h1, h2, iff_of_false (r.irrefl _) (s.irrefl _)]
+  exact (may_atLeast_iff_card_le Ranking.Prefers Ranking.reverse (fun e r => r.relabel e) F
+    (fun r _ _ => r.asymm) (fun r _ _ => r.reverse_prefers) hswap hext hanon hneut hpr P).trans
+    ⟨Or.inr, fun h => h.resolve_left hxy⟩
 
 /-- **May's theorem** on strict profiles ([May1952]; [Fey2004], §1, p. 1): on two alternatives with
 finitely many voters, simple majority rule is the unique anonymous, neutral, positively responsive
@@ -443,11 +437,10 @@ social welfare function. -/
 theorem isAnonymous_and_isNeutral_and_isPositivelyResponsive_iff [Fintype V] [Fintype A]
     (h2 : Fintype.card A = 2) :
     F.IsAnonymous ∧ F.IsNeutral ∧ F.IsPositivelyResponsive ↔
-      F = twoAltMajority (eq_or_eq_of_card_le_two h2.le) := by
-  refine ⟨fun ⟨ha, hn, hp⟩ => eq_twoAltMajority h2 ha hn hp, ?_⟩
-  rintro rfl
-  exact ⟨isAnonymous_twoAltMajority _, isNeutral_twoAltMajority _,
-    isPositivelyResponsive_twoAltMajority _⟩
+      F = twoAltMajority (eq_or_eq_of_card_le_two h2.le) :=
+  ⟨fun ⟨ha, hn, hp⟩ => eq_twoAltMajority h2 ha hn hp,
+    fun h => h ▸ ⟨isAnonymous_twoAltMajority _, isNeutral_twoAltMajority _,
+      isPositivelyResponsive_twoAltMajority _⟩⟩
 
 end SocialWelfareFunction
 
@@ -546,13 +539,11 @@ theorem eq_twoAltMajority [Fintype V] [Fintype A] (h2 : Fintype.card A = 2)
     G = twoAltMajority (eq_or_eq_of_card_le_two h2.le) := by
   classical
   have hA := eq_or_eq_of_card_le_two h2.le
-  funext P
-  ext x y
+  ext P x y
   change (G P).AtLeast x y ↔ x = y ∨ weakSupport P y x ≤ weakSupport P x y
-  by_cases hxy : x = y
-  · subst hxy
-    exact iff_of_true ((G P).refl x) (Or.inl rfl)
-  have hcover : ∀ z : A, z = x ∨ z = y := fun z =>
+  rcases eq_or_ne x y with rfl | hxy
+  · exact iff_of_true ((G P).refl x) (Or.inl rfl)
+  have hcover (z : A) : z = x ∨ z = y :=
     (hA z x y).elim Or.inl fun h => h.elim (fun h' => absurd h' hxy) Or.inr
   have hswap : ∀ R : WeakRanking A, R.relabel (Equiv.swap x y) = R.reverse := fun R => by
     ext u v
@@ -563,15 +554,12 @@ theorem eq_twoAltMajority [Fintype V] [Fintype A] (h2 : Fintype.card A = 2)
       (h1 : R.Prefers x y ↔ S.Prefers x y) (h2 : R.Prefers y x ↔ S.Prefers y x) : R = S := by
     ext u v
     rcases hcover u with rfl | rfl <;> rcases hcover v with rfl | rfl
-    · exact iff_of_true (R.refl _) (S.refl _)
-    · exact not_iff_not.1 h2
-    · exact not_iff_not.1 h1
-    · exact iff_of_true (R.refl _) (S.refl _)
-  have hiff := may_atLeast_iff_card_le WeakRanking.Prefers WeakRanking.reverse
-    (fun e R => R.relabel e) G (a := x) (b := y) (fun R _ _ => R.prefers_asymm)
-    (fun R u v => R.reverse_prefers) hswap hext hanon hneut
-    (fun P₁ P₂ u v i h12 hn1 h2 => hpr P₁ P₂ u v i h12 (Or.inl ⟨hn1, h2⟩)) P
-  exact hiff.trans ⟨Or.inr, fun h => h.resolve_left hxy⟩
+    exacts [iff_of_true (R.refl _) (S.refl _), not_iff_not.1 h2, not_iff_not.1 h1,
+      iff_of_true (R.refl _) (S.refl _)]
+  exact (may_atLeast_iff_card_le WeakRanking.Prefers WeakRanking.reverse (fun e R => R.relabel e) G
+    (fun R _ _ => R.prefers_asymm) (fun R _ _ => R.reverse_prefers) hswap hext hanon hneut
+    (fun P₁ P₂ u v i h12 hn1 h2 => hpr P₁ P₂ u v i h12 (Or.inl ⟨hn1, h2⟩)) P).trans
+    ⟨Or.inr, fun h => h.resolve_left hxy⟩
 
 /-- **May's theorem** allowing individual indifference ([May1952]): on two alternatives with
 finitely many voters, simple majority rule is the unique anonymous, neutral, positively responsive
@@ -579,11 +567,10 @@ social welfare function on weak individual rankings. -/
 theorem isAnonymous_and_isNeutral_and_isPositivelyResponsive_iff [Fintype V] [Fintype A]
     (h2 : Fintype.card A = 2) :
     G.IsAnonymous ∧ G.IsNeutral ∧ G.IsPositivelyResponsive ↔
-      G = twoAltMajority (eq_or_eq_of_card_le_two h2.le) := by
-  refine ⟨fun ⟨ha, hn, hp⟩ => eq_twoAltMajority h2 ha hn hp, ?_⟩
-  rintro rfl
-  exact ⟨isAnonymous_twoAltMajority _, isNeutral_twoAltMajority _,
-    isPositivelyResponsive_twoAltMajority _⟩
+      G = twoAltMajority (eq_or_eq_of_card_le_two h2.le) :=
+  ⟨fun ⟨ha, hn, hp⟩ => eq_twoAltMajority h2 ha hn hp,
+    fun h => h ▸ ⟨isAnonymous_twoAltMajority _, isNeutral_twoAltMajority _,
+      isPositivelyResponsive_twoAltMajority _⟩⟩
 
 end WeakSocialWelfareFunction
 

@@ -101,9 +101,8 @@ private theorem terminalVal_fst {f : BooleanFunction n} {S : State n} (hS : S.Va
 private theorem findIdx?_eq_some_of_nodup {L : List ℕ} (hL : L.Nodup) {j : ℕ} (hj : j < L.length) :
     L.findIdx? (· = L[j]) = some j := by
   rw [List.findIdx?_eq_some_iff_getElem]
-  refine ⟨hj, by simp, fun k hk => ?_⟩
-  have := (hL.getElem_inj_iff (i := k) (j := j) (hi := by omega) (hj := hj)).not.2 (by omega)
-  simpa using this
+  exact ⟨hj, decide_eq_true rfl, fun k hk =>
+    mt of_decide_eq_true ((hL.getElem_inj_iff (hi := hk.trans hj) (hj := hj)).not.2 hk.ne)⟩
 
 private theorem terminalVal_of_getElem {S : State n} {L : List ℕ} (hL : L.Nodup) (A : List Bool)
     {j : ℕ} (hj : j < L.length) (hfst : isFstOfAnyPair S L[j] = false) :
@@ -121,8 +120,7 @@ private theorem isAffine_getD_ofFn {d : ℕ} (i : ℕ) :
   simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn]
   by_cases hi : i < d
   · simp [hi]
-  · simp only [hi, ↓reduceDIte, Option.getD_none]
-    rfl
+  · simp [hi]; rfl
 
 private theorem isAffine_terminalVal {d : ℕ} (S : State n) (L : List ℕ) (x : ℕ) :
     IsAffine fun u : BitString d => terminalVal S L (List.ofFn u) x := by
@@ -153,11 +151,8 @@ private theorem length_freeParams {f : BooleanFunction n} {S : State n} (hS : S.
     (freeParams S).length = S.a := by
   rw [← List.toFinset_card_of_nodup (nodup_freeParams S),
     ← hS.card_sdiff_image ZeroPair.fst (fun _ _ => Or.inl rfl)]
-  congr 1
-  ext x
-  rw [List.mem_toFinset, mem_freeParams, Finset.mem_sdiff, Finset.mem_image]
-  refine and_congr_right fun _ => ?_
-  rw [← Bool.not_eq_true, isFstOfAnyPair_eq_true_iff hS]
+  refine congrArg Finset.card (Finset.ext fun x => ?_)
+  simp [← Bool.not_eq_true, isFstOfAnyPair_eq_true_iff hS]
 
 /-! ### The generic search -/
 
@@ -403,14 +398,9 @@ private theorem terminal_gate_shape {f : BooleanFunction n} {S : State n} (hS : 
   have hnaff : ¬ IsAffineOp (S.gate G).op := by
     have := List.find?_eq_none.1 hm G hGs
     simpa [hl, hr, isGate, hnotgate t₁ (Or.inl hl), hnotgate t₂ (Or.inr hr)] using this
-  have hpaired : ¬ S.Paired t₁ := by
+  have hpaired : ¬ S.Paired t₁ := fun hp => by
     have := List.findSome?_eq_none_iff.1 hAOP G hGs
-    simp only [hl, hr] at this
-    simp only [hnaff, ht₁p, ht₂p] at this
-    intro hp
-    simp only [not_false_eq_true, ↓reduceIte, ne_eq, and_self, and_true, hp, ite_not,
-      ite_eq_left_iff, reduceCtorEq, imp_false, Decidable.not_not] at this
-    exact h12 this
+    simp [hl, hr, hnaff, ht₁p, ht₂p, h12, hp] at this
   exact ⟨t₁, t₂, hl, hr, ht₁p, hpaired, hnaff, huG⟩
 
 /-- On a valid terminal state of the refuter for the function of `C` with `d < S.a`, the final
@@ -549,7 +539,6 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
             rw [← Bool.not_eq_true, isFstOfAnyPair_eq_true_iff hS]
             rintro ⟨pr, hpr, rfl⟩
             exact ht₁u ⟨pr, hpr, Or.inl rfl⟩⟩
-          dsimp only
           simp only [hl]
           set op := (S.gate (S.gates.min' hne)).op with hop
           refine findSome_isSome_pin C f hf hS ht₁F ha
@@ -557,11 +546,10 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
             (Cslib.BitString.isAffine_const (fun b => Bool.xor_self b) _)
             (op (decide ((op true false == op true true) = true)) false ^^ S.out.neg)
             fun A val hcons hval => ?_
-          have hG := hcons.2 _ (Finset.min'_mem _ hne)
           have h1 : val t₁ = decide ((op true false == op true true) = true) := by
             rw [hval _ ht₁p, ite_eq_left rfl]
-          simp only [Lit.eval, hu, Arg.eval, huG, hG, Gate.eval, hl, hr, h1]
-          rw [← hop]
+          simp only [Lit.eval, hu, Arg.eval, huG, hcons.2 _ (Finset.min'_mem _ hne), Gate.eval,
+            hl, hr, h1, ← hop]
           congr 1
           cases val t₂ <;> [rfl; exact (op_const_of_not_isAffineOp op hnaff).symm]
         · rename_i hne

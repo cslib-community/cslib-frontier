@@ -211,8 +211,7 @@ theorem choose_mul_le_hit (hk : 1 ≤ k) (a b d : ℕ) (h : d + a ≤ b) :
   have hkne : (k : ℝ) ≠ 0 := hk0.ne'
   induction hm : a + b generalizing a b d with
   | zero =>
-    obtain ⟨rfl, rfl⟩ : a = 0 ∧ b = 0 := by omega
-    obtain rfl : d = 0 := by omega
+    obtain ⟨rfl, rfl, rfl⟩ : a = 0 ∧ b = 0 ∧ d = 0 := by omega
     simp
   | succ m ih =>
     cases d with
@@ -298,10 +297,9 @@ theorem inv_le_hit (hk : 3 ≤ k) (d : ℕ) :
   have hdie : (k - 2) * i + e = d := Nat.div_add_mod d (k - 2)
   have he : e < k - 2 := Nat.mod_lt d (by omega)
   have hlen : i + (i + d) = k * i + e := by
-    rw [← hdie]
-    obtain ⟨k', rfl⟩ : ∃ k', k = k' + 2 := ⟨k - 2, by omega⟩
-    simp only [Nat.add_sub_cancel]
-    ring
+    rw [← hdie, Nat.sub_mul]
+    have := Nat.mul_le_mul_right i hk
+    omega
   have hid : i ≤ d := Nat.div_le_self d (k - 2)
   have hki : k * i ≤ 3 * d := by omega
   have hpath := choose_mul_le_hit (by omega : 1 ≤ k) i (i + d) d (by omega)
@@ -466,9 +464,8 @@ theorem trial_success_of_length_le (hk : 3 ≤ k) {φ : CNF V} (hφ : φ.Satisfi
         (3 * Fintype.card V + 1) ≤ succeedProb φ (trial φ) := by
   obtain ⟨σs, hs⟩ := hφ
   set n := Fintype.card V
-  have hk1 : (1 : ℝ) < (k : ℝ) - 1 := by
-    have : (3 : ℝ) ≤ k := by exact_mod_cast hk
-    linarith
+  have hk3 : (3 : ℝ) ≤ k := mod_cast hk
+  have hk1 : (1 : ℝ) < (k : ℝ) - 1 := by linarith
   set c := (((k : ℝ) - 1) / k) ^ (k - 3)
   have hc : 0 ≤ c := by positivity
   have hlow (σ : V → Bool) : c * (1 / ((k : ℝ) - 1)) ^ hammingDist σ σs / (3 * n + 1) ≤
@@ -489,14 +486,11 @@ theorem trial_success_of_length_le (hk : 3 ≤ k) {φ : CNF V} (hφ : φ.Satisfi
         ∑ σ : V → Bool, ((2 : ℝ) ^ n)⁻¹ *
           (c * (1 / ((k : ℝ) - 1)) ^ hammingDist σ σs / (3 * n + 1)) := by
       rw [← mul_sum, ← sum_div, ← mul_sum, sum_pow_hammingDist]
-      have : (1 + 1 / ((k : ℝ) - 1)) = (k : ℝ) / ((k : ℝ) - 1) := by
-        field_simp
-        ring
-      rw [this, div_pow, div_pow, mul_pow, show Fintype.card V = n from rfl]
-      field_simp
-    _ ≤ ∑ σ : V → Bool, ((2 : ℝ) ^ n)⁻¹ * succeedProb φ (walk φ (3 * n) σ) := by
-      gcongr with σ
-      exact hlow σ
+      have h1 : 1 + 1 / ((k : ℝ) - 1) = k / ((k : ℝ) - 1) := by field_simp; ring
+      rw [h1, div_pow, div_pow, mul_pow]
+      dsimp only [n]; field_simp
+    _ ≤ ∑ σ : V → Bool, ((2 : ℝ) ^ n)⁻¹ * succeedProb φ (walk φ (3 * n) σ) :=
+      sum_le_sum fun σ _ => mul_le_mul_of_nonneg_left (hlow σ) (by positivity)
 
 /-- **Schöning's theorem for 3-SAT, one trial.** For a satisfiable CNF formula on `n` variables
 whose clauses have at most three literals, one trial of Schöning's algorithm finds a satisfying

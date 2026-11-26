@@ -97,15 +97,11 @@ private lemma crossings_cut (hdec : tm.DecidesByHeadInTime ι L yes T) {w : List
     rw [← List.map_append, List.take_append_drop]
   have e₂ : w.map ι = (w.take j).map ι ++ (w.drop j).map ι := by
     rw [← List.map_append, List.take_append_drop]
-  have e₃ : (w.take i).map ι ++ (w.drop j).map ι = (w.take i ++ w.drop j).map ι :=
-    (List.map_append ..).symm
-  have l₁ : ((w.take i).map ι).length = i := by
-    simp only [List.length_map, List.length_take]; omega
-  have l₂ : ((w.take j).map ι).length = j := by
-    simp only [List.length_map, List.length_take]; omega
+  have l₁ : ((w.take i).map ι).length = i :=
+    (List.length_map _).trans (List.length_take_of_le (hij.le.trans hj))
+  have l₂ : ((w.take j).map ι).length = j := (List.length_map _).trans (List.length_take_of_le hj)
   have hne : (w.take i).map ι = [] ↔ (w.take j).map ι = [] := by
-    rw [← List.length_eq_zero_iff, ← List.length_eq_zero_iff, l₁, l₂]
-    omega
+    simp only [← List.length_eq_zero_iff, l₁, l₂]; omega
   have hL : ((tm.absInit ((w.take i).map ι ++ (w.drop i).map ι)).run (T w.length)).state =
       none := e₁ ▸ hw
   have hR : ((tm.absInit ((w.take j).map ι ++ (w.drop j).map ι)).run (T w.length)).state =
@@ -114,9 +110,9 @@ private lemma crossings_cut (hdec : tm.DecidesByHeadInTime ι L yes T) {w : List
       ((w.take i).map ι).length (T w.length) =
       (tm.absInit ((w.take j).map ι ++ (w.drop j).map ι)).crossings
       ((w.take j).map ι).length (T w.length) := by
-    rw [← e₁, ← e₂, l₁, l₂]; exact h
+    rwa [← e₁, ← e₂, l₁, l₂]
   obtain ⟨hC, hcL, hcR, -⟩ := cut_and_paste_run hne hL hR hx
-  rw [e₃] at hC hcL hcR
+  rw [← List.map_append] at hC hcL hcR
   rw [← e₁] at hcL
   rw [← e₂] at hcR
   have heq (b : ℤ) : (tm.absInit ((w.take i ++ w.drop j).map ι)).crossings b
@@ -165,12 +161,10 @@ private lemma card_mul_le_of_injOn (a : tm.AbsCfg) (t : ℕ) {S : Finset ℕ}
   set m := S.card
   set L := (Nat.log 2 m - 1) / d with hL
   have hcnt := Finset.card_sub_pow_mul_le_sum_length hS L
-  have hpow : Fintype.card (Option tm.State) + 1 ≤ 2 ^ d := by
-    rw [Fintype.card_option, hd_def]
-    exact Nat.le_pow_clog one_lt_two _
-  have hP : (Fintype.card (Option tm.State) + 1) ^ L ≤ 2 ^ (d * L) := by
-    rw [pow_mul]
-    exact Nat.pow_le_pow_left hpow L
+  have hpow : Fintype.card (Option tm.State) + 1 ≤ 2 ^ d :=
+    Fintype.card_option (α := tm.State) ▸ Nat.le_pow_clog one_lt_two _
+  have hP : (Fintype.card (Option tm.State) + 1) ^ L ≤ 2 ^ (d * L) :=
+    pow_mul 2 d L ▸ Nat.pow_le_pow_left hpow L
   rcases Nat.eq_zero_or_pos L with h0 | hLpos
   · simp [h0]
   · have hdiv : d * L + (Nat.log 2 m - 1) % d = Nat.log 2 m - 1 := hL ▸ Nat.div_add_mod _ d
@@ -248,15 +242,12 @@ theorem isRegular_of_time_le_mul_log (hdec : tm.DecidesByHeadInTime ι L yes T) 
       (fun h => crossings_ne_of_minimal hdec hb1 hbn hlong hmin (by omega) h hj.2 (.inl hi.1) hij)
       (fun h => crossings_ne_of_minimal hdec hb1 hbn hlong hmin (by omega) h hi.2 (.inl hj.1)
         hij.symm)
-  have hsplit : (Finset.Icc 1 b).card + (Finset.Icc b w.length).card = w.length + 1 := by
-    simp only [Nat.card_Icc]
-    omega
   obtain ⟨S, hS, hcard⟩ : ∃ S : Finset ℕ,
       Set.InjOn (fun i : ℕ => (tm.absInit (w.map ι)).crossings (i : ℤ) (T w.length)) S ∧
         w.length + 1 ≤ 2 * S.card := by
     by_cases hc : (Finset.Icc b w.length).card ≤ (Finset.Icc 1 b).card
-    · exact ⟨_, hinjL, by omega⟩
-    · exact ⟨_, hinjR, by omega⟩
+    · exact ⟨_, hinjL, by simp only [Nat.card_Icc] at hc ⊢; omega⟩
+    · exact ⟨_, hinjR, by simp only [Nat.card_Icc] at hc ⊢; omega⟩
   exact gap_arith hd hcard (by omega)
     (card_mul_le_of_injOn (tm.absInit (w.map ι)) (T w.length) hS) (hT _ (by omega))
 

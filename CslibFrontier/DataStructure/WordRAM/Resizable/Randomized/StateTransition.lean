@@ -542,15 +542,14 @@ theorem steps_expected_amortized (C : StateTransitionImpl P D w base params s₀
           C₁ + ∑' t, ν t * (C.potential t.seed t.data : ℝ≥0∞) ∧
         ∀ ν_final T_rest C_rest, C.ExecSteps os ν₁ ν_final T_rest C_rest →
           C.ExecSteps (o :: os) ν ν_final (T₁ + T_rest) (C₁ + C_rest) := by
-    intro o os ν h
-    obtain ⟨hv, hfit, hseed, hrep, hsingle⟩ := h
+    rintro o os ν ⟨hv, hfit, hseed, hrep, hsingle⟩
     let prepMap : CoupledRState C.Seed D.State r_ds → CoupledRState C.Seed D.State r_ds :=
       fun t => ⟨t.seed, t.state, C.prepare o t.data⟩
     let ν_prep := ν.map prepMap
-    have hsingle_prep : C.singleState → ∃ s, ∀ t' ∈ ν_prep.support, t'.state = s := fun hd => by
-      obtain ⟨s, hs⟩ := hsingle hd
-      refine ⟨s, fun t' ht' => ?_⟩
-      rw [PMF.mem_support_map_iff] at ht'; obtain ⟨t, ht, rfl⟩ := ht'; exact hs t ht
+    have hsingle_prep : C.singleState → ∃ s, ∀ t' ∈ ν_prep.support, t'.state = s := fun hd =>
+      let ⟨s, hs⟩ := hsingle hd
+      ⟨s, fun _ ht' =>
+        ((PMF.mem_support_map_iff ..).mp ht').elim fun t ⟨ht, heq⟩ => heq ▸ hs t ht⟩
     have hseed_prep : ∀ s, (∀ t' ∈ ν_prep.support, t'.state = s) →
         ∀ θ, (ν_prep.map CoupledRState.seed) θ ≤ C.seedSlack * C.seedLaw s θ := fun s hs θ => by
       rw [PMF.map_comp]
@@ -598,11 +597,10 @@ theorem steps_expected_amortized (C : StateTransitionImpl P D w base params s₀
         hex_rest⟩
     rw [hstep_split]
     exact (hamort₁.trans_eq hpot_prep).trans_eq (by simp only [C₁, ← tsum_add, ← mul_add])
-  obtain ⟨ν_final, T_ops, C_ops, hex, hfinal, hamort⟩ :=
+  obtain ⟨ν_final, T_ops, C_ops, hex, ⟨_, _, hseed_final, hrep_final, _⟩, hamort⟩ :=
     Cslib.DataStructure.expectedAmortizedSequence
       (fun μ => ∑' q, μ q * (C.potential q.seed q.data : ℝ≥0∞)) inv C.ExecSteps
       (fun μ => .nil μ) advance ops ν ⟨hv, hfit, hseed, hrep, hsingle⟩
-  obtain ⟨_, _, hseed_final, hrep_final, _⟩ := hfinal
   exact ⟨ν_final, T_ops, C_ops, hex, hseed_final, hrep_final, hamort⟩
 
 private theorem steps_expected_amortized_map_state
@@ -659,13 +657,12 @@ theorem seq_expected_amortized (C : StateTransitionImpl P D w base params s₀)
   have hcaller_final := hex_steps.caller_mem (mem₀ := x₀.mem) fun t ht => by
     rcases (PMF.mem_support_map_iff _ _ _).mp ht with ⟨p, hp, rfl⟩
     exact (hsupp₀ p hp).2.2
-  have hpot₀ : (∑' p, ν₀ p * (C.potential p.1 p.2 : ℝ≥0∞)) ≤ (C.initPotential : ℝ≥0∞) :=
-    Cslib.Probability.PMF.tsum_mul_le_of_support ν₀ fun p hp =>
-      Nat.cast_le.mpr (hsupp₀ p hp).2.1
   refine ⟨ν₀, ν_final, T_ops, C_ops, he_init, fun p hp => ⟨(hsupp₀ p hp).1, (hsupp₀ p hp).2.2⟩,
     hex_steps, hseed_final, fun q hq => ⟨hrep_final q hq, hcaller_final q hq⟩, ?_⟩
   rw [add_assoc, add_assoc, add_comm (C.initPotential : ℝ≥0∞)]
-  exact add_le_add le_rfl (hamort.trans (add_le_add le_rfl hpot₀))
+  exact add_le_add le_rfl (hamort.trans (add_le_add le_rfl
+    (Cslib.Probability.PMF.tsum_mul_le_of_support ν₀ fun p hp =>
+      Nat.cast_le.mpr (hsupp₀ p hp).2.1)))
 
 /-! ## Functional-specification sequence theorems (`ExecStepsOfFn`, `*_ofFn`) -/
 
@@ -729,11 +726,11 @@ theorem ExecSteps.toOfFn {C : StateTransitionImpl P D w base params s₀}
         (by rw [ENNReal.tsum_mul_right, ν_rel.tsum_coe, one_mul])
     refine ⟨?_, ?_, fun q hq => by simpa only [StateTransitionSpec.run_cons] using hs_final q hq⟩
     · refine hT_eq ▸ .cons (μ_step := μ_det) (T_step := T_det) ?_ (hbind_eq ▸ hex_rest_det)
-      intro p hp; rw [PMF.mem_support_map_iff] at hp; obtain ⟨t, ht, rfl⟩ := hp
+      intro p hp
+      obtain ⟨t, ht, rfl⟩ := (PMF.mem_support_map_iff ..).mp hp
       obtain ⟨he_rel, hq_rel⟩ := hstep (lift (proj t)) ((hlift_proj t ht).symm ▸ ht)
-      refine ⟨he_rel.congr_dist (by dsimp only [μ_det]; rw [PMF.map_comp]; rfl) le_rfl, ?_⟩
-      intro q hq; dsimp only [μ_det] at hq; rw [PMF.mem_support_map_iff] at hq
-      obtain ⟨q_rel, hq_mem, rfl⟩ := hq
+      refine ⟨he_rel.congr_dist (by simp only [μ_det, PMF.map_comp]; rfl) le_rfl, fun _ hq => ?_⟩
+      obtain ⟨q_rel, hq_mem, rfl⟩ := (PMF.mem_support_map_iff ..).mp hq
       obtain ⟨a, hstep_a, hdec, hrep', hcaller⟩ := hq_rel q_rel hq_mem
       have hpair := (D.step_iff_stepFn s o q_rel.state a).mp hstep_a
       exact ⟨congrArg Prod.snd hpair ▸ hdec, congrArg Prod.fst hpair ▸ hrep', hcaller⟩
@@ -764,10 +761,8 @@ theorem steps_expected_amortized_ofFn (C : StateTransitionImpl P D w base params
     (PMF.map_comp ..).trans (PMF.map_id ν)
   refine ⟨ν_final_rel.map proj, T_ops, hproj_lift ▸ hex_det,
     fun θ => (PMF.map_comp ..).symm ▸ hseed_final (D.run s ops).1 hs_final θ,
-    fun _ hp =>
-      let ⟨q, hq, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
-      heq ▸ hs_final q hq ▸ hrep_final q hq, ?_⟩
-  rwa [Cslib.Probability.PMF.tsum_map_mul]
+    fun _ hp => ((PMF.mem_support_map_iff ..).mp hp).elim fun q ⟨hq, heq⟩ =>
+      heq ▸ hs_final q hq ▸ hrep_final q hq, by rwa [Cslib.Probability.PMF.tsum_map_mul]⟩
 
 /-- `ExecStepsOfFn` preserves caller memory `[0, base)` across all support states. -/
 theorem ExecStepsOfFn.caller_mem {C : StateTransitionImpl P D w base params s₀}
@@ -805,12 +800,12 @@ theorem seq_expected_amortized_ofFn (C : StateTransitionImpl P D w base params s
   obtain ⟨ν_final, T_ops, hex, hseed_final, hrep_final, hamort⟩ :=
     C.steps_expected_amortized_ofFn ops ν₀ hv hfit_ops hseed₀ fun p hp => (hsupp₀ p hp).1
   have hcaller_final := hex.caller_mem (mem₀ := x₀.mem) fun p hp => (hsupp₀ p hp).2.2
-  have hpot₀ : (∑' p, ν₀ p * (C.potential p.1 p.2 : ℝ≥0∞)) ≤ (C.initPotential : ℝ≥0∞) :=
-    Cslib.Probability.PMF.tsum_mul_le_of_support ν₀ fun p hp => Nat.cast_le.mpr (hsupp₀ p hp).2.1
   refine ⟨ν₀, ν_final, T_ops, he_init, fun p hp => ⟨(hsupp₀ p hp).1, (hsupp₀ p hp).2.2⟩,
     hex, hseed_final, fun q hq => ⟨hrep_final q hq, hcaller_final q hq⟩, ?_⟩
   rw [add_assoc, add_assoc, add_comm (C.initPotential : ℝ≥0∞)]
-  exact add_le_add le_rfl (hamort.trans (add_le_add le_rfl hpot₀))
+  exact add_le_add le_rfl (hamort.trans (add_le_add le_rfl
+    (Cslib.Probability.PMF.tsum_mul_le_of_support ν₀ fun p hp =>
+      Nat.cast_le.mpr (hsupp₀ p hp).2.1)))
 
 /-! ## Compilation to flat `ExecRProgramDist` and `.halt` rejection -/
 

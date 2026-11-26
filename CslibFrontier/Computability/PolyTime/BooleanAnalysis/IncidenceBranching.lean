@@ -244,10 +244,9 @@ theorem threshold_le {k c n : ℕ} {sys : List (List (List ℕ))} (h : IsSparseS
   rw [threshold_eq_mul hn]
   refine Nat.mul_le_mul_right _ ((Nat.div_lt_iff_lt_mul (by omega)).mpr ?_ |> Nat.le_of_lt_succ)
   set B := c * k * Nat.clog 2 n ^ c
-  have hmax : max 1 (sys.map fun eq => (equationVars eq).length).sum ≤ max 1 B * n :=
-    max_le (Nat.one_le_iff_ne_zero.mpr (by positivity))
-      (h.incidences_le.trans (Nat.mul_le_mul_right n (le_max_right 1 B)))
-  have : 1 ≤ max 1 B := le_max_left 1 B
+  have := max_le (Nat.one_le_iff_ne_zero.mpr (by positivity))
+    (h.incidences_le.trans (Nat.mul_le_mul_right n (le_max_right 1 B)))
+  have := le_max_left 1 B
   rw [Nat.succ_mul]
   omega
 
@@ -259,8 +258,8 @@ theorem threshold_le_pow {k c n : ℕ} {sys : List (List (List ℕ))} (h : IsSpa
   have hlam : 1 ≤ lam := Nat.clog_pos Nat.one_lt_two (by omega)
   have hmax : max 1 (c * k * lam ^ c) ≤ lam ^ (c + 1) :=
     max_le (Nat.one_le_pow _ _ hlam) (pow_succ' lam c ▸ Nat.mul_le_mul_right _ hck)
-  have hs : (lam - 1).sqrt + 1 ≤ lam := by
-    have := Nat.sqrt_le_self (lam - 1); omega
+  have hs : (lam - 1).sqrt + 1 ≤ lam :=
+    (Nat.sqrt_le_self _).trans_lt (Nat.sub_lt hlam zero_lt_one)
   calc threshold n sys ≤ max 1 (c * k * lam ^ c) * ((lam - 1).sqrt + 1) := threshold_le h
     _ ≤ lam ^ (c + 1) * lam := Nat.mul_le_mul hmax hs
     _ = lam ^ (c + 2) := (pow_succ lam (c + 1)).symm
@@ -275,8 +274,7 @@ theorem IsReducedBranch.le_two_mul {n n' : ℕ} {sys sys' : List (List (List ℕ
   obtain ⟨vals, -, hred⟩ := hb
   have hn' := HeavyBranchFold.prepareBranch_freeVars_eq.2 sys' hred
   have hlam : 2 ≤ Nat.clog 2 n := (Nat.lt_clog_iff_pow_lt Nat.one_lt_two).2 (by omega)
-  have hs : 2 ≤ (Nat.clog 2 n - 1).sqrt + 1 := by
-    have := Nat.sqrt_pos.mpr (by omega : 0 < Nat.clog 2 n - 1); omega
+  have hs : 2 ≤ (Nat.clog 2 n - 1).sqrt + 1 := Nat.succ_le_succ (Nat.sqrt_pos.mpr (by omega))
   have hS := (length_branchVars_le n sys).trans (Nat.div_le_div_left hs (by norm_num))
   have := Nat.div_mul_le_self n 2
   exact ⟨hn', by omega⟩
@@ -378,12 +376,10 @@ private theorem computableInPolyTime_incidences :
       (encPair encUnary encSparseSystem) encNat := by
   have hlen : CPT (fun eq => (equationVars eq).length) encSparseEquation encNat :=
     unary_to_binary.comp ((length_list encNat).comp computableInPolyTime_equationVars)
-  have hsum := (show CPT List.sum (encList encNat) encNat by fun_prop).comp
+  refine (((binary_le' (const 1) id').ite' id' (const 1)).of_enc_eq fun x => congrArg encNat
+    (by split_ifs with hx <;> simp only [decide_eq_true_eq] at hx <;> omega)).comp ?_
+  exact (show CPT List.sum (encList encNat) encNat by fun_prop).comp
     (hlen.map.comp (snd encUnary encSparseSystem))
-  have hmax1 : CPT (fun x : ℕ => max 1 x) encNat encNat :=
-    ((binary_le' (const 1) id').ite' id' (const 1)).of_enc_eq fun x =>
-      congrArg encNat (by split_ifs with hx <;> simp only [decide_eq_true_eq] at hx <;> omega)
-  exact hmax1.comp hsum
 
 public section
 

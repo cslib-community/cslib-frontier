@@ -236,8 +236,7 @@ private theorem inv_step_header {l c n s t cur steps v : ℕ} (hl : l < 7)
     search_step
     rw [I.getElem?_encode_n hnI]
     by_cases h : n < I.n <;> simp only [h, decide_true, decide_false] <;> search_finish []
-  case «1» =>
-    obtain ⟨hnI, rfl, rfl, rfl, rfl, rfl⟩ := hP
+  case «1» | «3» | «5» =>
     search_step
     search_finish []
   case «2» =>
@@ -245,19 +244,11 @@ private theorem inv_step_header {l c n s t cur steps v : ℕ} (hl : l < 7)
     search_step
     rw [I.getElem?_encode_s hsI']
     by_cases h : s < I.s <;> simp only [h, decide_true, decide_false] <;> search_finish []
-  case «3» =>
-    obtain ⟨rfl, hsI', rfl, rfl, rfl, rfl⟩ := hP
-    search_step
-    search_finish []
   case «4» =>
     obtain ⟨rfl, rfl, htI', rfl, rfl, rfl⟩ := hP
     search_step
     rw [I.getElem?_encode_t htI']
     by_cases h : t < I.t <;> simp only [h, decide_true, decide_false] <;> search_finish []
-  case «5» =>
-    obtain ⟨rfl, rfl, htI', rfl, rfl, rfl⟩ := hP
-    search_step
-    search_finish []
   case «6» =>
     obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩ := hP
     search_step
@@ -284,9 +275,10 @@ private theorem inv_step_check {l c n s t cur steps v : ℕ} (hl7 : 7 ≤ l) (hl
     search_step
     by_cases h : (I.t : ℕ) < cur <;> simp only [h, ↓reduceIte]
     · search_finish [hR]
-    · have hmem : Relation.ReflTransGen I.Adj I.s I.t :=
-        (Fin.ext (show cur = I.t by omega) : (⟨cur, hR.1⟩ : Fin I.n) = I.t) ▸ hR.2
-      search_finish [show I ∈ STCON from hmem]
+    · have hct : cur = I.t := by omega
+      have hmem : Relation.ReflTransGen I.Adj I.s I.t :=
+        (Fin.ext hct : (⟨cur, hR.1⟩ : Fin I.n) = I.t) ▸ hR.2
+      search_finish [STCON, Set.mem_ofPred_eq, hmem]
   case «9» =>
     obtain ⟨rfl, rfl, rfl, hR, hst, hvn⟩ := hP
     search_step
@@ -367,9 +359,8 @@ private theorem inv_step (cfg : Config) (hinv : Inv I cfg) (hrun : searchProgram
   have hl := label_le_of_phase I hP
   interval_cases l <;> simp [CounterProgram.halted, instr, searchProgram, Instr.halts] at hrun
 
-private theorem inv_init : Inv I searchProgram.init := by
-  change Inv I (0, [0, 0, 0, 0, 0, 0, 0])
-  exact (inv_mk I).2 ⟨by omega, by simp [Bounded], by simp [Phase]⟩
+private theorem inv_init : Inv I searchProgram.init :=
+  (inv_mk I).2 ⟨by omega, by simp [Bounded], by simp [Phase]⟩
 
 /-- **The invariant holds on every branch.** -/
 theorem inv_run (choices : List Bool) :

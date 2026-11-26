@@ -357,7 +357,7 @@ theorem lorHybridGameOn_step_gap {Msg : Type}
   · have hrem0 : Q n - split = (Q n - split - 1) + 1 := by omega
     have lhs_eq (bit : Bool) :
         ProbComp.eval
-          (lorHybridGameOn valid keyGen encrypt Q adversary (if bit then split + 1 else split) n) =
+          (lorHybridGameOn valid keyGen encrypt Q adversary (Bool.rec split (split + 1) bit) n) =
           (do
             let keys ← ProbComp.eval (keyGen n)
             let st₀ ← ProbComp.eval (adversary.start n keys.1)
@@ -408,31 +408,27 @@ theorem lorHybridGameOn_step_gap {Msg : Type}
             else PMF.pure false) := by
       simp only [gameOn, lorToSingleAt, decide_eq_true hlt, ↓reduceIte, pmf_norm,
         apply_ite ProbComp.eval, lorToSingleStateDecoder.decode_enc]
-    have h0 := lhs_eq false
-    have h1 := lhs_eq true
-    simp only [Bool.false_eq_true, ↓reduceIte] at h0 h1
-    rw [h0, h1, rhs_eq false, rhs_eq true]
+    rw [lhs_eq false, lhs_eq true, rhs_eq false, rhs_eq true]
     simp only [PMF.monad_bind_eq_bind]
     rw [sub_eq_sub_iff_add_eq_add, Game.coe_succProbability, Game.coe_succProbability,
       Game.coe_succProbability, Game.coe_succProbability,
       ← ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _),
       ← ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)]
-    refine congrArg ENNReal.toReal ?_
+    congr 1
     refine PMF.bind_apply_add_eq_on_support fun keys _ =>
       PMF.bind_apply_add_eq_on_support fun st₀ _ =>
       PMF.bind_apply_add_eq_on_support fun mid _ =>
       PMF.bind_apply_add_eq_on_support fun choice _ => ?_
-    by_cases hv : valid n keys.1 (ChoiceOut.msg₀ choice) (ChoiceOut.msg₁ choice) = true
-    · simp [hv]
-    · simp [hv, add_comm]
-  · have hle : Q n ≤ split := Nat.le_of_not_lt hlt
-    have heqR (bit : Bool) :
-        ProbComp.eval
-          (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary split) bit n) =
-          PMF.pure false := by
-      simp only [gameOn, lorToSingleAt, decide_eq_false hlt, Bool.false_eq_true,
-        ↓reduceIte, pmf_norm, apply_ite ProbComp.eval, decode_rejectLoRToSingleState,
-        PMF.bind_const, ite_self]
+    cases valid n keys.1 (ChoiceOut.msg₀ choice) (ChoiceOut.msg₁ choice)
+    · simp only [Bool.false_eq_true, Bool.true_eq_false, ↓reduceIte, pmf_norm,
+        PMF.pure_apply, add_zero, zero_add]
+    · rfl
+  · have hle := Nat.le_of_not_lt hlt
+    have heqR (bit : Bool) : ProbComp.eval
+        (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary split) bit n) =
+        PMF.pure false := by
+      simp only [gameOn, lorToSingleAt, decide_eq_false hlt, Bool.false_eq_true, ↓reduceIte,
+        pmf_norm, apply_ite ProbComp.eval, decode_rejectLoRToSingleState, PMF.bind_const, ite_self]
     rw [eval_lorHybridGameOn_of_le valid keyGen encrypt Q adversary hle,
       eval_lorHybridGameOn_of_le valid keyGen encrypt Q adversary (Nat.le_succ_of_le hle),
       sub_self, heqR false, heqR true, sub_self]

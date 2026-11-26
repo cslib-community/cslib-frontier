@@ -274,10 +274,7 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
         {m | μ * 2 ^ b * N < 2 ^ κ * countFrom g V (p ++ List.ofFn m)}
       have hT (b : ℕ) : μ * 2 ^ b * #(T b) ≤ 2 ^ κ := by
         rcases Nat.eq_zero_or_pos N with h0 | hpos
-        · have hTe : T b = ∅ := filter_eq_empty_iff.2 fun m _ hm => by
-            rw [h0, sum_eq_zero_iff.1 h0 m (mem_univ m)] at hm
-            simp at hm
-          simp [hTe]
+        · simp [T, h0, sum_eq_zero_iff.1 h0]
         · have hsum : μ * 2 ^ b * #(T b) * N ≤ 2 ^ κ * N := by
             calc μ * 2 ^ b * #(T b) * N = ∑ _m ∈ T b, μ * 2 ^ b * N := by
                   rw [sum_const, smul_eq_mul]; ring
@@ -361,7 +358,7 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
                   μ * 2 ^ ((List.ofFn c).count true) * N := by
                 exact_mod_cast hle
               linarith [mul_le_mul_of_nonneg_left hq
-                (by positivity : (0 : ℚ) ≤ μ ^ verifierMoves g)]
+                (pow_nonneg (Nat.cast_nonneg (α := ℚ) μ) (verifierMoves g))]
             linarith
         · rw [decide_eq_false hloc, Bool.toNat_false, Nat.cast_zero, zero_mul]
           linarith
@@ -382,12 +379,8 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
       have hsum := sum_le_sum hb'
       rw [sum_const, card_range, nsmul_eq_mul] at hsum
       push_cast at hsum ⊢
-      have key : ((B : ℚ) + 1) * (2 ^ K * 2 ^ (B * (n + Z) + B) / (μ * 2 ^ B)) +
-          (2 : ℚ) ^ (B * (n + Z) + B) * (verifierMoves g * ((B + 1) * 2 ^ K / (μ * 2 ^ B)) +
-            μ ^ (verifierMoves g + 1) * N / 2 ^ κ) =
-          ((verifierMoves g + 1) * ((B + 1) * 2 ^ K / (μ * 2 ^ B)) +
-            μ ^ (verifierMoves g + 1) * N / 2 ^ κ) * 2 ^ (B * (n + Z) + B) := by ring
-      linarith
+      refine (add_le_add hsum le_rfl).trans_eq ?_
+      ring
     · -- prover move
       rw [shape, AMGame.value_merlin_true, verifierMoves_prover, countFrom_prover]
       refine sup'_le _ _ fun y _ => ?_
@@ -441,11 +434,8 @@ theorem one_sub_le_value (B Z K : ℕ) (hBK : B ≤ K) (hZ : B + K ≤ Z) (V : L
   | nil =>
     rw [countFrom_nil] at hN
     have hV : V p = true := by grind
-    have hκ0 : κ = 0 := by
-      rw [hV, Bool.toNat_true] at hN
-      exact by_contra fun h => (Nat.one_lt_two_pow h).not_ge hN
-    rw [shape, AMGame.value_nil, check_nil, verifierMoves_nil, hκ0, hV]
-    simp
+    have hκ0 : κ = 0 := by_contra fun h => (Nat.one_lt_two_pow h).not_ge (by simpa [hV] using hN)
+    simp [shape, AMGame.value_nil, check_nil, verifierMoves_nil, hκ0, hV]
   | cons x g ih =>
     obtain ⟨_ | _, n⟩ := x
     · -- verifier move

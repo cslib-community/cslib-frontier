@@ -188,9 +188,8 @@ theorem card_le (h : IsPathRemovalNumbering n C σ) : C.card ≤ n := by
 /-- Some pebble carries the least number `n - #C`. -/
 private theorem exists_eq (h : IsPathRemovalNumbering n C σ) (hne : C.Nonempty) :
     ∃ x ∈ C, σ x = n - C.card := by
-  have hsub : C.image σ ⊆ Finset.Ico (n - C.card) n := fun y hy => by
-    obtain ⟨x, hx, rfl⟩ := Finset.mem_image.1 hy
-    exact Finset.mem_Ico.2 ⟨h.le x hx, h.lt x hx⟩
+  have hsub : C.image σ ⊆ Finset.Ico (n - C.card) n :=
+    Finset.image_subset_iff.2 fun x hx => Finset.mem_Ico.2 ⟨h.le x hx, h.lt x hx⟩
   have hcard : (Finset.Ico (n - C.card) n).card ≤ (C.image σ).card := by
     rw [Finset.card_image_of_injOn h.injOn, Nat.card_Ico]
     omega
@@ -220,12 +219,8 @@ theorem erase (h : IsPathRemovalNumbering n C σ) {x : ℕ} (hx : x ∈ C)
   refine ⟨h.injOn.mono (Finset.coe_subset.2 (Finset.erase_subset x C)),
     fun z hz => by have := hgt hz; omega,
     fun z hz => h.lt z (Finset.mem_of_mem_erase hz), fun z hz => ?_⟩
-  rcases h.near z (Finset.mem_of_mem_erase hz) with h' | ⟨y, hy, hyz, hσ, hzy⟩
-  · exact .inl h'
-  · refine .inr ⟨y, Finset.mem_erase.2 ⟨?_, hy⟩, hyz, hσ, hzy⟩
-    rintro rfl
-    have := hgt hz
-    omega
+  exact (h.near z (Finset.mem_of_mem_erase hz)).imp_right fun ⟨y, hy, hyz, hσ, hzy⟩ =>
+    ⟨y, Finset.mem_erase.2 ⟨ne_of_apply_ne σ ((hgt hz).trans hσ).ne', hy⟩, hyz, hσ, hzy⟩
 
 /-- Adding an available pebble with the least number gives a removal numbering. -/
 private theorem update {x : ℕ} (h : IsPathRemovalNumbering n (C.erase x) σ) (hx : x ∈ C)
@@ -239,11 +234,9 @@ private theorem update {x : ℕ} (h : IsPathRemovalNumbering n (C.erase x) σ) (
   refine ⟨fun z hz w hw e => ?_, fun z hz => ?_, fun z hz => ?_, fun z hz => ?_⟩
   · simp only [Finset.mem_coe, Function.update_apply] at hz hw e
     split_ifs at e with hzx hwx hwx
-    · rw [hzx, hwx]
-    · have := hold w hw hwx
-      omega
-    · have := hold z hz hzx
-      omega
+    · exact hzx.trans hwx.symm
+    · exact absurd e (hold w hw hwx).ne
+    · exact absurd e (hold z hz hzx).ne'
     · exact h.injOn (Finset.mem_erase.2 ⟨hzx, hz⟩) (Finset.mem_erase.2 ⟨hwx, hw⟩) e
   · by_cases hzx : z = x
     · simp [hzx]

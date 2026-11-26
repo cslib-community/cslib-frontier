@@ -735,10 +735,8 @@ private lemma eval_challengeLoop_debit2_true
     decide_eq_true ⟨by omega, hsum⟩
   have hadm2 : (!guardBoth || decide (2 < bound ∧ 2 ≤ balOther + refOther ∧
       balOther + refOther - 2 < bound)) = true := by
-    cases guardBoth
-    · rfl
-    · have h2 : 2 < bound := by omega
-      simp [h2, hoth rfl]
+    have h2 : 2 < bound := by omega
+    cases guardBoth <;> simp [h2, hoth]
   simp only [hadm1, hadm2, Bool.and_self, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
     ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbOracleComp.run_query,
     ProbComp.eval_bind]
@@ -752,8 +750,9 @@ private lemma eval_challengeLoop_debit2_true
     exact ⟨by simp, by omega, by simp, hnote_bal, hnote_ref, by omega, by omega⟩
   rw [bind_realProofOracle_valid Com tag S bound sys ck hv]
   refine pmfBind_congr _ fun piC => ?_
+  have h0 : 0 < bound := by omega
   simp only [hfin, ProbOracleComp.run_sample, ProbOracleComp.run_bind, ProbComp.eval_bind,
-    ProbComp.eval_pure, PMF.pure_bind, hmksig, show (0 : ℕ) < bound by omega, decide_true,
+    ProbComp.eval_pure, PMF.pure_bind, hmksig, h0, decide_true,
     Bool.and_self, Bool.not_true, Bool.false_eq_true, ↓reduceIte, hguess]
 
 /-- Helper showing a `challengeLoopOracle` debit-`2` call aborts immediately (`PMF.pure false`)
@@ -775,9 +774,7 @@ private lemma eval_challengeLoop_debit2_false
   have hj0 : (⟨1 - (0 + 1), by omega⟩ : Fin 1) = 0 := rfl
   simp only [challengeLoopOracle, hj0, hchoose, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
     ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, spendAdmissible]
-  rcases habort with h1 | ⟨rfl, h2⟩
-  · simp [not_le.mpr h1]
-  · simp [not_le.mpr h2]
+  rcases habort with h1 | ⟨rfl, h2⟩ <;> simp [not_le.mpr ‹_›]
 
 /-- Shared evaluation helper for `balancePartitionInitAdversary` across worlds. -/
 private lemma eval_balancePartitionInit_eq
@@ -823,12 +820,9 @@ private lemma eval_balancePartitionInit_abort
         (balancePartitionInitAdversary tag pk ctx mkSig) guardBoth b ck).run
         (realProofOracle Com tag S bound sys ck)) = PMF.pure false := by
   refine eval_balancePartitionInit_eq Com nfGen tag S bound sys hbound pk ctx mkSig hmksig
-    guardBoth b false fun ck nf r => ?_
-  cases b
-  · exact eval_challengeLoop_debit2_false Com nfGen tag S bound sys _ (fun _ => rfl) ck pk ctx
-      guardBoth _ 1 0 (Or.inr ⟨hbad, by simp⟩)
-  · exact eval_challengeLoop_debit2_false Com nfGen tag S bound sys _ (fun _ => rfl) ck pk ctx
-      guardBoth _ 2 0 (Or.inl (by simp))
+    guardBoth b false fun ck nf r =>
+      eval_challengeLoop_debit2_false Com nfGen tag S bound sys _ (fun _ => rfl) ck pk ctx
+        guardBoth _ _ 0 (by cases b <;> simp_all)
 
 /-- Without the cross-branch non-abort guard, `balancePartitionInitAdversary` achieves
 unlinkability advantage `1` whenever `bound ≥ 3` and `mkSig` produces valid signatures under
@@ -1125,24 +1119,21 @@ private lemma challengeLoopOracle_isQueryBounded
     simp only [challengeLoopOracle]
     exact ProbOracleComp.IsQueryBounded.sample _
   | succ rem' ih =>
+    have hcost : rem' + 1 = 0 + (0 + (0 + (1 + (0 + rem')))) := by omega
     simp only [challengeLoopOracle]
-    conv_rhs => rw [← Nat.zero_add (rem' + 1)]
+    conv_rhs => rw [hcost]
     refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
     split_ifs
-    · exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
-    · conv_rhs => rw [← Nat.zero_add (rem' + 1)]
-      refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
-      conv_rhs => rw [← Nat.zero_add (rem' + 1)]
-      refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
-      conv_rhs => rw [show rem' + 1 = 1 + rem' by omega]
-      refine (ProbOracleComp.IsQueryBounded.query _).bind fun pi? => ?_
+    · exact OracleComp.IsCostBounded.pure _ _
+    · refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ =>
+        (ProbOracleComp.IsQueryBounded.sample _).bind fun _ =>
+          (ProbOracleComp.IsQueryBounded.query _).bind fun pi? => ?_
       cases pi? with
-      | none => exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
+      | none => exact OracleComp.IsCostBounded.pure _ _
       | some pi =>
-        conv_rhs => rw [← Nat.zero_add rem']
-        refine (ProbOracleComp.IsQueryBounded.sample _).bind fun resp => ?_
+        refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
         split_ifs
-        · exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
+        · exact OracleComp.IsCostBounded.pure _ _
         · exact ih (by omega) _ _ _ _
 
 /-- Query bound for `preLoopOracle`: at most `rem + challengeSpends` queries. -/
@@ -1166,25 +1157,22 @@ private lemma preLoopOracle_isQueryBounded
       exact challengeLoopOracle_isQueryBounded Com nfGen tag S bound adv ck pk ctx guardBoth
         challengeSpends (le_refl _) _ _ _ _
   | succ rem' ih =>
+    have hcost : rem' + 1 + challengeSpends =
+        0 + (0 + (0 + (1 + (0 + (rem' + challengeSpends))))) := by omega
     simp only [preLoopOracle]
-    conv_rhs => rw [← Nat.zero_add (rem' + 1 + challengeSpends)]
+    conv_rhs => rw [hcost]
     refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
     split_ifs <;> first
-      | exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
-      | (conv_rhs => rw [← Nat.zero_add (rem' + 1 + challengeSpends)]
-         refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
-         conv_rhs => rw [← Nat.zero_add (rem' + 1 + challengeSpends)]
-         refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
-         conv_rhs =>
-           rw [show rem' + 1 + challengeSpends = 1 + (rem' + challengeSpends) by omega]
-         refine (ProbOracleComp.IsQueryBounded.query _).bind fun pi? => ?_
+      | exact OracleComp.IsCostBounded.pure _ _
+      | (refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ =>
+           (ProbOracleComp.IsQueryBounded.sample _).bind fun _ =>
+             (ProbOracleComp.IsQueryBounded.query _).bind fun pi? => ?_
          cases pi? with
-         | none => exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
+         | none => exact OracleComp.IsCostBounded.pure _ _
          | some pi =>
-           conv_rhs => rw [← Nat.zero_add (rem' + challengeSpends)]
            refine (ProbOracleComp.IsQueryBounded.sample _).bind fun _ => ?_
            split_ifs <;> first
-             | exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
+             | exact OracleComp.IsCostBounded.pure _ _
              | exact ih (by omega) _ _ _)
 
 private lemma issueStep_isQueryBounded

@@ -160,11 +160,10 @@ theorem preserves_withDynamicModulus {R : ℕ} (scratch : Fin 5 → Fin R) (widt
     {cont : Code .standard R} {i : Fin R}
     (hscratch : ∀ k : Fin 5, scratch k ≠ i) (hcont : cont.Preserves i) :
     (withDynamicModulus scratch widthCoeff cont).Preserves i := by
-  refine ⟨NatClog.program.preserves_rename_of_forall_ne _ i (fun j => hscratch (j.castAdd 1)),
-    ⟨?_, ?_, ?_⟩, Power.program.preserves_rename_of_forall_ne scratch i hscratch, hcont⟩
-  · simp [Code.Preserves, Op.dest, hscratch 2]
-  · simp [Code.Preserves, hscratch 3]
-  · simp [Code.Preserves, Op.dest, hscratch 2]
+  exact ⟨NatClog.program.preserves_rename_of_forall_ne _ i (fun j => hscratch (j.castAdd 1)),
+    ⟨by simp [Code.Preserves, Op.dest, hscratch 2], by simp [Code.Preserves, hscratch 3],
+      by simp [Code.Preserves, Op.dest, hscratch 2]⟩,
+    Power.program.preserves_rename_of_forall_ne scratch i hscratch, hcont⟩
 
 /-- Execute `NatClog.program`, multiply by `widthCoeff`, and run `Power.program` in `scratch`,
 delivering `dynamicWindowSize widthCoeff S` in `scratch 0` with unchanged memory and external
@@ -189,9 +188,8 @@ theorem exec_withDynamicModulus {R W widthCoeff S tCont : ℕ}
   have hc_fit : Fits W widthCoeff := hfit.of_le (by omega)
   have hS1 : Fits W (S + 1) := hfit.of_le (by omega)
   have hlog1 : Fits W (Nat.clog 2 S + 1) := hfit.of_le (by omega)
-  have hexp : Fits W (Nat.clog 2 S * widthCoeff) := hfit.of_le (by
-    have hmul : Nat.clog 2 S * widthCoeff = dynamicWidth widthCoeff S := Nat.mul_comm _ _
-    omega)
+  have hexp : Fits W (Nat.clog 2 S * widthCoeff) :=
+    Nat.mul_comm widthCoeff _ ▸ (hfit.of_le (by omega) : Fits W (dynamicWidth widthCoeff S))
   have hpfit : Fits W (2 ^ dynamicWidth widthCoeff S + dynamicWidth widthCoeff S + 2) :=
     hfit.of_le (by change dynamicWindowSize widthCoeff S + _ + 2 ≤ _; omega)
   let clogScratch : Fin 4 → Fin R := fun i => scratch (i.castAdd 1)
@@ -201,14 +199,13 @@ theorem exec_withDynamicModulus {R W widthCoeff S tCont : ℕ}
   obtain ⟨l, hl, ⟨hl_res, hl_mem, -, -⟩, hl_frame⟩ :=
     ExecWithin.rename_post hclog_inj (NatClog.exec (x.comap clogScratch) h2
       (by simpa only [harg0] using hS1) (by simpa only [harg0] using hlog1))
-  have hl' : ExecWithin W (NatClog.program.rename clogScratch) x l (5 * Nat.clog 2 S + 5) := by
-    simpa only [harg0] using hl
+  rw [harg0] at hl
   have hl_val : l.regs (scratch 1) = Nat.clog 2 S := hxS ▸ hl_res
   have h12 : scratch 1 ≠ scratch 2 := hscratch.ne (by decide)
   have h32 : scratch 3 ≠ scratch 2 := hscratch.ne (by decide)
   refine WP.exists_execWithin ?_
   dsimp only [withDynamicModulus, modulusArgs]
-  refine WP.seq (WP.of_execWithin hl' ?_)
+  refine WP.seq (WP.of_execWithin hl ?_)
   wram_exec [hl_val]
   refine WP.name fun a ha => ?_
   obtain ⟨z, hz, hz_val, -, -, hz_mem, -, -, hz_frame⟩ :=
@@ -452,10 +449,8 @@ theorem exec_dynamicCallBank {r R W b widthCoeff S T : ℕ}
 the clipped source view `view w b x` agrees on `[0, L)` with `Data.init inp`. -/
 theorem view_mem_init_of_inputFits {r r₀ w b L : ℕ} {inp : List ℕ} (hi : InputFits w inp)
     (x : Data (r + 3)) (hinput : ∀ q < L, x.mem (b + q) = (Data.init inp : Data r₀).mem q) :
-    ∀ q < L, (view w b x).mem q = (Data.init inp : Data r₀).mem q := by
-  have hbound := Data.Bounded.init (r := r₀) hi
-  intro q hq
-  change x.mem (b + q) % 2 ^ w = _
-  rw [hinput q hq, Nat.mod_eq_of_lt (hbound.2 q)]
+    ∀ q < L, (view w b x).mem q = (Data.init inp : Data r₀).mem q :=
+  fun q hq => (congrArg (· % 2 ^ w) (hinput q hq)).trans
+    (Nat.mod_eq_of_lt ((Data.Bounded.init (r := r₀) hi).2 q))
 
 end Cslib.WordRAM.MemoryWindow

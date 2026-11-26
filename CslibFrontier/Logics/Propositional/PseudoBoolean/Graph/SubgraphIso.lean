@@ -232,8 +232,6 @@ theorem forall_holds_isoConstraints_iff (P : SimpleGraph (Fin p)) [DecidableRel 
       have hle : (Finset.univ.filter fun a : Fin p => σ (isoVar t a (f b)) = true).card ≤ 1 := by
         have := card_true_add_card_false fun a : Fin p => σ (isoVar t a (f b))
         have := hinj (f b)
-        have := (Finset.univ.filter fun a : Fin p => σ (isoVar t a (f b)) = true).card_le_univ
-        simp only [Fintype.card_fin] at this
         omega
       exact Finset.card_le_one.1 hle a (by simp [hσ, hab]) b (by simp [hσ])
     refine ⟨⟨⟨f, fun {a b} hab => ?_⟩, hinj'⟩, hσ⟩
@@ -241,9 +239,8 @@ theorem forall_holds_isoConstraints_iff (P : SimpleGraph (Fin p)) [DecidableRel 
     rw [hσ, decide_eq_true_eq] at hσv
     exact hσv ▸ hv
   · rintro ⟨f, hσ⟩
-    have hS : ∀ a, (Finset.univ.filter fun u => σ (isoVar t a u) = true) = {f a} := fun a => by
-      ext u
-      simp [hσ, eq_comm]
+    have hS (a : Fin p) : (Finset.univ.filter fun u => σ (isoVar t a u) = true) = {f a} :=
+      Finset.ext fun u => by simp [hσ, eq_comm]
     refine ⟨fun a => by simp [hS], fun a => ?_, fun u => ?_, fun u a b hab ha => ?_⟩
     · have := card_true_add_card_false fun u => σ (isoVar t a u)
       rw [hS, Finset.card_singleton] at this
@@ -384,16 +381,11 @@ theorem isContained_iff_of_checkSubgraphIsoGraph {P : SimpleGraph (Fin p)} [Deci
   rw [← exists_holds_isoConstraints_iff]
   have hc' : (checkOPBOutput (printOPB ⟨isoConstraints P T, none, none⟩ (isoNames p t)) pbp).map
       (·.1) = some concl := by rw [hc]; rfl
-  cases concl with
-  | sat _ =>
-    cases hb
-    exact iff_of_true (exists_satisfies_of_checkOPB_printOPB (isoNames_covers P T) hc') rfl
-  | unsat _ =>
-    cases hb
-    exact iff_of_false
+  cases concl <;> cases hb
+  · exact iff_of_false
       (fun ⟨σ, hσ⟩ => not_satisfiable_of_checkOPB_printOPB (isoNames_covers P T) hc' σ hσ)
-      (by simp)
-  | _ => cases hb
+      Bool.false_ne_true
+  · exact iff_of_true (exists_satisfies_of_checkOPB_printOPB (isoNames_covers P T) hc') rfl
 
 /-- **Subgraph isomorphism for LAD graphs** (CakePB's `check_unsat_3_sem`, the pure functional
 specification of `cake_pb_iso`, not its compiled code): if the checker returns `b` for the LAD

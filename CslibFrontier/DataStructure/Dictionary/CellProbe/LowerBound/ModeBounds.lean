@@ -93,9 +93,7 @@ theorem det_expectedSeqProbes_mode_ge_iterLog (withQueries : Bool)
     have hm_lo_1 : (n : ℝ) ^ (1 - γ / 2) ≤ (T.blockSize 1 : ℝ) := by
       have hn_pos : (0 : ℝ) < (n : ℝ) := Nat.cast_pos.mpr (by omega)
       have hrpow_eq : (n : ℝ) ^ (1 - γ / 2) * (n : ℝ) ^ (γ / 2) = (n : ℝ) := by
-        rw [← Real.rpow_add hn_pos]
-        ring_nf
-        exact Real.rpow_one _
+        rw [← Real.rpow_add hn_pos, sub_add_cancel, Real.rpow_one]
       exact le_of_mul_le_mul_right ((mul_le_mul_of_nonneg_left (logb_le_rpow_of_ge_pow hγ
         ((Nat.pow_le_pow_right Nat.two_pos hMrpow).trans hpow_N₀))
           (Real.rpow_nonneg hn_pos.le _)).trans (hrpow_eq.trans_le hn_le_b1))
@@ -181,9 +179,9 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
   set R₁ := max R 1
   have hR1_ge : 1 ≤ R₁ := _root_.le_max_right R 1
   have hR_le_R1 : R ≤ R₁ := _root_.le_max_left R 1
-  have hR1_le_n : R₁ ≤ (n : ℝ) :=
-    max_le hR_hi (by exact_mod_cast (show 1 ≤ n by clear hM_fan; omega))
-  have hn_pos : (0 : ℝ) < (n : ℝ) := by exact_mod_cast (show 0 < n by clear hM_fan; omega)
+  have hn1 : (1 : ℝ) ≤ n := mod_cast (by decide : 1 ≤ 2).trans hn
+  have hR1_le_n : R₁ ≤ (n : ℝ) := max_le hR_hi hn1
+  have hn_pos : (0 : ℝ) < (n : ℝ) := by positivity
   have hlog_div_nn : 0 ≤ Real.logb 2 ((n : ℝ) / R₁) :=
     Real.logb_nonneg (by norm_num) ((one_le_div (by positivity)).mpr hR1_le_n)
   generalize hm₁ : max (Nat.ceil R₁) (Nat.ceil ((n : ℝ) ^ (1 - γ / 2))) = m₁_half
@@ -195,15 +193,10 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
     (Nat.one_le_iff_ne_zero.mpr (Nat.ceil_pos.mpr (by positivity)).ne').trans
       (hm₁ ▸ _root_.le_max_left _ _)
   have hm₁_ub : (m₁_half : ℝ) ≤ 2 * max R₁ ((n : ℝ) ^ (1 - γ / 2)) := by
-    have hcR1 : (Nat.ceil R₁ : ℝ) ≤ 2 * R₁ :=
-      (Nat.ceil_lt_add_one (by positivity : 0 ≤ R₁)).le.trans (by linarith [hR1_ge])
-    have hr1 : 1 ≤ (n : ℝ) ^ (1 - γ / 2) :=
-      Real.one_le_rpow (by exact_mod_cast (show 1 ≤ n by clear hM_fan; omega)) (by linarith)
-    have hcn : (Nat.ceil ((n : ℝ) ^ (1 - γ / 2)) : ℝ) ≤ 2 * (n : ℝ) ^ (1 - γ / 2) :=
-      (Nat.ceil_lt_add_one (by positivity : 0 ≤ (n : ℝ) ^ (1 - γ / 2))).le.trans (by linarith)
-    rw [← hm₁, Nat.cast_max]
-    exact max_le (hcR1.trans (mul_le_mul_of_nonneg_left (_root_.le_max_left _ _) (by norm_num)))
-      (hcn.trans (mul_le_mul_of_nonneg_left (_root_.le_max_right _ _) (by norm_num)))
+    have h2ceil {x : ℝ} (hx : 1 ≤ x) : (Nat.ceil x : ℝ) ≤ 2 * x :=
+      (Nat.ceil_lt_add_one (by linarith)).le.trans (by linarith)
+    rw [← hm₁, Nat.cast_max, mul_max_of_nonneg _ _ zero_le_two]
+    exact max_le_max (h2ceil hR1_ge) (h2ceil (Real.one_le_rpow hn1 (by linarith)))
   clear hm₁
   set T := geomMetaTree n m₁_half
   set H := T.height
@@ -211,8 +204,8 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
     have hlt_nat := lt_mul_pow_height_geomMetaTree n m₁_half
     rw [max_eq_right hm₁_pos] at hlt_nat
     have hpow_eq : (8 : ℝ) * (((2 ^ 64 : ℕ) : ℝ) ^ H) = (2 : ℝ) ^ (3 + 64 * H) := by
-      rw [Nat.cast_pow, Nat.cast_ofNat, ← pow_mul,
-        show (8 : ℝ) = (2 : ℝ) ^ 3 by norm_num, ← pow_add]
+      rw [Nat.cast_pow, Nat.cast_ofNat, ← pow_mul, pow_add]
+      ring
     have hle_max : (n : ℝ) ≤ max R₁ ((n : ℝ) ^ (1 - γ / 2)) * (2 : ℝ) ^ (3 + 64 * H) :=
       calc (n : ℝ) ≤ 4 * (m₁_half : ℝ) * ((2 ^ 64 : ℕ) : ℝ) ^ H := by exact_mod_cast hlt_nat.le
         _ ≤ 4 * (2 * max R₁ ((n : ℝ) ^ (1 - γ / 2))) * (((2 ^ 64 : ℕ) : ℝ) ^ H) := by gcongr
@@ -226,10 +219,10 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
       have h2γ : 1 ≤ 2 / γ := (one_le_div hγ).mpr (by linarith)
       exact hl.trans ((one_mul _).symm.trans_le (mul_le_mul_of_nonneg_right h2γ (by positivity)))
     · rw [max_eq_right hmax] at hle_max
-      have hl := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) hn_pos hle_max
+      have hl := Real.logb_le_logb_of_le one_lt_two hn_pos hle_max
       rw [Real.logb_mul (by positivity) (by positivity),
         Real.logb_rpow_eq_mul_logb_of_pos hn_pos, Real.logb_pow,
-        Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2), mul_one,
+        Real.logb_self_eq_one one_lt_two, mul_one,
         Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat] at hl
       have hlogn : Real.logb 2 n ≤ (2 / γ) * (3 + 64 * (H : ℝ)) := by
         rw [div_mul_eq_mul_div, le_div_iff₀ hγ]; linarith
@@ -270,10 +263,8 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
           have hb1_next : 2 * R₁ ≤ (T.blockSize (ℓ + 1) : ℝ) :=
             (mul_le_mul_of_nonneg_left hm₁_R (by norm_num)).trans
               (hb1_ge.trans (by exact_mod_cast T.blockSize_strictMono.monotone (by omega)))
-          have hlog_fan : Real.logb 2 (T.fanout (ℓ + 1)) = 64 := by
-            rw [hfan, Nat.cast_pow, Nat.cast_ofNat, Real.logb_pow,
-              Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2), mul_one, Nat.cast_ofNat]
-          rw [hlog_fan]
+          rw [hfan, Nat.cast_pow, Nat.cast_ofNat, Real.logb_pow,
+            Real.logb_self_eq_one one_lt_two, mul_one, Nat.cast_ofNat]
           linarith
         have hR_in : R₁ ≤ (γ / 2) * (T.blockSize ℓ : ℝ) * Real.logb 2 U := by
           have hγU : 1 ≤ (γ / 2) * Real.logb 2 U := by linarith [(div_le_iff₀ hγ).mp h11_logU]

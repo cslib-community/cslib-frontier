@@ -140,9 +140,7 @@ theorem two_mul_card_testParity_eq_true (z : Fin m → Bool) :
     (p := fun e => ∃ j, z (e j) = true)
   have h0 : #{e : Fin P → Fin m | ¬ ∃ j, z (e j) = true} = #{i | z i = false} ^ P := by
     rw [← Fintype.card_piFinset_const]
-    congr 1
-    ext e
-    simp [Fintype.mem_piFinset]
+    exact congrArg card (ext fun e => by simp [Fintype.mem_piFinset])
   rw [card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin, h0] at hc
   omega
 
@@ -225,8 +223,7 @@ theorem four_mul_card_accept_le_of_forall_le {ι : Type*} (S : Finset ι) (z : �
     have hrej := pow_le_four_mul_card_testParity_eq_true (z x) hP (hz x hx)
     have hsplit := card_filter_add_card_filter_not
       (s := (univ : Finset (Fin P → Fin m × Bool))) (p := fun γ' => testParity γ' (z x) = true)
-    simp only [Bool.not_eq_true] at hsplit
-    rw [card_univ, ← hN] at hsplit
+    simp only [Bool.not_eq_true, card_univ, ← hN] at hsplit
     rw [← hNval] at hrej
     omega
   -- double counting
@@ -245,9 +242,7 @@ theorem four_mul_card_accept_le_of_forall_le {ι : Type*} (S : Finset ι) (z : �
     have := Finset.card_nsmul_le_sum (univ : Finset (Fin P → Fin m × Bool))
       (fun γ' => #{x ∈ S | testParity γ' (z x) = false}) _ (fun γ' _ => hγ γ')
     rwa [card_univ, smul_eq_mul] at this
-  have : N * (4 * #{x ∈ S | testParity γ (z x) = false}) ≤ N * (3 * #S) := by
-    nlinarith
-  exact Nat.le_of_mul_le_mul_left this hNpos
+  exact Nat.le_of_mul_le_mul_left (by nlinarith) hNpos
 
 /-- **Iteration.** A sequence of naturals that starts at most `2 ^ n`, with `n ≥ 1`, and shrinks
 by a factor of at least `3/4` at each step vanishes after `3 n` steps, since

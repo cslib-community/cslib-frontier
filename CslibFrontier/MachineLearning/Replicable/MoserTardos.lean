@@ -136,8 +136,7 @@ theorem dependsOn_budgetedOutput [Fintype V] :
     DependsOn (budgetedOutput vbl r B (α := α))
       ((univ ×ˢ range (B + 1) : Finset (V × ℕ)) : Set (V × ℕ)) := by
   intro T T' h
-  obtain ⟨h₁, h₂⟩ := Prod.ext_iff.1 (dependsOn_run_current (vbl := vbl) (r := r) B h)
-  simp only at h₁ h₂
+  obtain ⟨h₁, h₂⟩ := Prod.mk.inj (dependsOn_run_current (vbl := vbl) (r := r) B h)
   unfold budgetedOutput
   rw [h₂, h₁]
 
@@ -263,11 +262,11 @@ theorem seedTable_disagree_le {ι : Type*} [Finite ι] (vbl : ι → Finset V)
     {T | budgetedOutput vbl r B (fstTable T) ≠ budgetedOutput vbl r B (sndTable T)}
   have hEdep : DependsOn (· ∈ E) ((univ ×ˢ range (B + 1) : Finset (V × ℕ)) : Set (V × ℕ)) :=
     fun T T' h => by
-      have h₁ := dependsOn_budgetedOutput (vbl := vbl) (r := r) (B := B) (x := fstTable T)
-        (y := fstTable T') fun p hp => by simp only [fstTable]; rw [h p hp]
-      have h₂ := dependsOn_budgetedOutput (vbl := vbl) (r := r) (B := B) (x := sndTable T)
-        (y := sndTable T') fun p hp => by simp only [sndTable]; rw [h p hp]
-      simp only [E, Set.mem_ofPred_eq, h₁, h₂]
+      simp only [E, Set.mem_ofPred_eq,
+        dependsOn_budgetedOutput (x := fstTable T) (y := fstTable T')
+          fun p hp => congrArg Prod.fst (h p hp),
+        dependsOn_budgetedOutput (x := sndTable T) (y := sndTable T')
+          fun p hp => congrArg Prod.snd (h p hp)]
   have hcalc : (Probability.PMF.uniformOfFintype (BudgetSeed α L B)).toOuterMeasure
       {σ | budgetedOutput vbl r B (seedTable B P σ) ≠
         budgetedOutput vbl r B (seedTable B Q σ)} ≤
@@ -342,10 +341,8 @@ theorem seedTable_timeout_le {ι : Type*} [Fintype ι] (vbl : ι → Finset V)
     fun T T' h => by simp only [E, Set.mem_ofPred_eq, dependsOn_budgetedOutput h]
   have hseed : (Probability.PMF.uniformOfFintype (BudgetSeed α L B)).toOuterMeasure
       {σ | budgetedOutput vbl r B (seedTable B P σ) = none} = table μ E := by
-    rw [show {σ | budgetedOutput vbl r B (seedTable B P σ) = none} =
-        readSeed B (fun v => gridSample (P v)) ⁻¹' E from rfl, toOuterMeasure_readSeed B _ hEdep,
-      table_def]
-    simp only [map_gridSample, μ]
+    simpa only [seedTable, E, Set.preimage_ofPred_eq, table_def, map_gridSample, μ] using
+      toOuterMeasure_readSeed B (fun v => gridSample (P v)) hEdep
   -- A timeout forces `B + 1` resamplings.
   have hsub : E ⊆ {T | ((B + 1 : ℕ) : ℝ≥0∞) ≤ maxSteps T} := fun T hT => by
     have hlog := isLog_run vbl A (historyRule_valid hr) T (B + 1)
@@ -371,9 +368,7 @@ theorem seedTable_timeout_le {ι : Type*} [Fintype ι] (vbl : ι → Finset V)
             (ENNReal.natCast_ne_top _)
       _ ≤ Fintype.card ι * ENNReal.ofReal (1 / (d + 1)) / ((B + 1 : ℕ) : ℝ≥0∞) := by gcongr
   ennreal_to_real at hcalc
-  refine hcalc.trans_eq ?_
-  push_cast
-  field_simp
+  exact hcalc.trans_eq (by push_cast; field_simp)
 
 /-- The **budgeted Moser–Tardos learner**. On the dataset `S`, it runs the rule `historyRule r`
 for `B` steps on the table of the shared seed for the estimated grid distributions `P̂ S`, and
@@ -520,8 +515,7 @@ theorem disagreeProb_budgetedMoserTardos_le {ι X : Type*} [Finite ι] {m : ℕ}
           rw [← Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
           refine tsum_congr fun S₁ => ?_
           rw [← Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
-          refine tsum_congr fun S₂ => sum_congr rfl fun v _ => ?_
-          ring
+          exact tsum_congr fun S₂ => sum_congr rfl fun v _ => by ring
   have he_top : ∀ v, e v ≠ ∞ := fun v => (he v).1
   ennreal_to_real at hbound
   rw [Algorithm.disagreeProb]

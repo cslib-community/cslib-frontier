@@ -146,13 +146,8 @@ theorem card_filter_card_filter_eq {ι : Type*} [Fintype ι] [DecidableEq ι]
       ← Finset.sum_coe_sort R (fun i => if w i = true then 1 else 0)]; rfl
   have hbij : #{w : ι → Bool | #{i ∈ R | w i = true} = k} =
       #(({u : {i // i ∈ R} → Bool | weight u = k} : Finset _) ×ˢ
-        (univ : Finset ({i // i ∉ R} → Bool))) := by
-    rw [← card_map e.toEmbedding]; congr 1; ext ⟨u, v⟩
-    simp only [mem_map, mem_filter, mem_univ, true_and, Equiv.toEmbedding_apply, mem_product,
-      and_true]
-    refine ⟨?_, fun hu => ⟨e.symm (u, v), by rw [hwt, e.apply_symm_apply]; exact hu,
-      e.apply_symm_apply (u, v)⟩⟩
-    rintro ⟨w, hw, hwe⟩; have hu : (e w).1 = u := congrArg Prod.fst hwe; rwa [← hu, ← hwt w]
+        (univ : Finset ({i // i ∉ R} → Bool))) :=
+    card_equiv e fun w => by simp [hwt]
   rw [hbij, card_product, card_filter_weight_eq, card_univ, Fintype.card_fun, Fintype.card_bool,
     Fintype.card_coe, Fintype.card_subtype_compl, Fintype.card_coe, mul_comm]
 

@@ -144,10 +144,8 @@ theorem dens_saksZhouAcceptEst_far_le {input : List Bool} {V : Finset (FiniteCfg
   have h1 : ∀ x, ∑ y, P x y ≤ 1 := fun x => (sum_smul_configMatrix_eq_one machine hV x).le
   have hM : ∀ x y, ∃ c : ℕ, P x y * Fintype.card (BitString (2 * m)) = c :=
     exists_smul_configMatrix_mul_card_eq machine hm
-  have herr' : (Fintype.card V + 1 : ℝ) *
-      ((2 ^ s - 1) * (Fintype.card V + 1) / 2 ^ m) ≤ ε ^ 2 := by
-    simpa only [Fintype.card_coe] using herr
-  have hsz := dens_snapIter_bitNisanPow_far_le d m s s hs hdm h0 h1 hM hε herr'
+  have hsz := dens_snapIter_bitNisanPow_far_le d m s s hs hdm h0 h1 hM hε
+    (by simpa only [Fintype.card_coe] using herr)
   have hacc : (machine.acceptCoins input (2 ^ (s * s)) : ℝ) / 2 ^ (2 ^ (s * s)) =
       (P ^ 2 ^ (s * s) *ᵥ FiniteCfg.acceptVec ℝ V) ⟨_, hinit⟩ :=
     machine.acceptCoins_div_eq_configMatrix_pow_mulVec ℝ hV hinit (2 ^ (s * s))
@@ -338,8 +336,8 @@ theorem exists_saksZhouSeeds_of_mem_BPL (h : A ∈ BPL enc) :
       have := Nat.lt_log2_self (n := (enc a).length)
       rw [pow_succ]
       omega
-    rw [polyClock, show R = clk * (Nat.log2 (enc a).length + 2) + 1 from rfl,
-      Nat.mul_comm clk, pow_add, pow_one, mul_comm _ 2, pow_mul]
+    dsimp only [polyClock, R]
+    rw [Nat.mul_comm clk, pow_add, pow_one, mul_comm _ 2, pow_mul]
     exact Nat.mul_le_mul_left 2 (Nat.pow_le_pow_left hm_lt clk)
   have hR1 : 1 ≤ R := by dsimp only [R]; omega
   have hs1 : 1 ≤ s := by dsimp only [s]; omega
@@ -363,27 +361,22 @@ theorem exists_saksZhouSeeds_of_mem_BPL (h : A ∈ BPL enc) :
     exact herr_step.trans_lt hp
   have hposL : (0 : ℝ) < 2 ^ (2 ^ (s * s)) := by positivity
   refine ⟨V, hinit, hV, hVcard, saksZhou_seed_budget_le clk _, hfar_le, fun ha => ?_, fun ha => ?_⟩
-  · have hacc_nat := (M.two_pow_mul_le_iff ht hL 2 3).mp (hmem ha)
-    have hacc : (2 : ℝ) / 3 ≤
-        (M.acceptCoins (enc a) (2 ^ (s * s)) : ℝ) / 2 ^ (2 ^ (s * s)) := by
+  · have hacc : (2 : ℝ) / 3 ≤ (M.acceptCoins (enc a) (2 ^ (s * s)) : ℝ) / 2 ^ (2 ^ (s * s)) := by
       rw [div_le_div_iff₀ (by norm_num) hposL]
-      exact_mod_cast (by linarith :
-        2 * 2 ^ (2 ^ (s * s)) ≤ M.acceptCoins (enc a) (2 ^ (s * s)) * 3)
+      have := (M.two_pow_mul_le_iff ht hL 2 3).mp (hmem ha)
+      exact_mod_cast (by omega : 2 * 2 ^ (2 ^ (s * s)) ≤ M.acceptCoins (enc a) (2 ^ (s * s)) * 3)
     have : Nonempty (Probability.SaksZhou.NisanShiftSeed (2 * m) s s d) :=
       ⟨⟨fun _ => (fun _ => false, fun _ => false), fun _ => 0⟩⟩
     refine dens_sdiff_subset_le bad _ (fun p hp => ?_) hfar_le
     simp only [bad, Finset.mem_sdiff, Finset.mem_filter, Finset.mem_univ, true_and, not_lt] at hp ⊢
     exact lt_of_lt_of_le (by linarith [hp, hacc]) (neg_le_abs _)
-  · have hacc_nat := (M.mul_le_two_pow_iff ht hL 1 3).mp (by simpa using hnot ha)
-    have hacc : (M.acceptCoins (enc a) (2 ^ (s * s)) : ℝ) / 2 ^ (2 ^ (s * s)) ≤ 1 / 3 := by
+  · have hacc : (M.acceptCoins (enc a) (2 ^ (s * s)) : ℝ) / 2 ^ (2 ^ (s * s)) ≤ 1 / 3 := by
       rw [div_le_div_iff₀ hposL (by norm_num)]
-      exact_mod_cast (by linarith :
-        M.acceptCoins (enc a) (2 ^ (s * s)) * 3 ≤ 1 * 2 ^ (2 ^ (s * s)))
-    have hsub_maj :
-        (Finset.univ.filter fun p : Probability.SaksZhou.NisanShiftSeed (2 * m) s s d =>
-          (1 : ℝ) / 2 < M.saksZhouAcceptEst V hinit m s d p) ⊆ bad := fun p hp => by
-      simp only [bad, Finset.mem_filter, Finset.mem_univ, true_and] at hp ⊢
-      exact lt_of_lt_of_le (by linarith [hp, hacc]) (le_abs_self _)
-    linarith [(NNRat.cast_le.2 (Finset.dens_le_dens hsub_maj)).trans hfar_le]
+      have := (M.mul_le_two_pow_iff ht hL 1 3).mp (by simpa using hnot ha)
+      exact_mod_cast (by omega : M.acceptCoins (enc a) (2 ^ (s * s)) * 3 ≤ 1 * 2 ^ (2 ^ (s * s)))
+    refine ((NNRat.cast_le.2 (Finset.dens_le_dens fun p hp => ?_)).trans hfar_le).trans_lt
+      (by norm_num)
+    simp only [bad, Finset.mem_filter, Finset.mem_univ, true_and] at hp ⊢
+    exact lt_of_lt_of_le (by linarith [hp, hacc]) (le_abs_self _)
 
 end Cslib.Complexity

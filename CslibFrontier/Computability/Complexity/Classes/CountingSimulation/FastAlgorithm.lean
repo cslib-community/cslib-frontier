@@ -133,9 +133,8 @@ theorem exists_le_of_fastGuard_eq_false (C : ℕ) :
   have h3 : degreeBound G.2.numEdges ^ 10 < (C * Nat.log 2 s) ^ 10 :=
     Nat.pow_lt_pow_left ((hg hrows htab).trans_le hdeg) (by norm_num)
   have h4 := hL₀ _ (Nat.le_log_of_pow_le one_lt_two hs.le)
-  have h5 : 2 ^ (9 * Nat.log 2 s) ≤ s ^ 9 := by
-    rw [pow_mul']
-    exact Nat.pow_le_pow_left
+  have h5 : 2 ^ (9 * Nat.log 2 s) ≤ s ^ 9 :=
+    pow_mul' 2 9 (Nat.log 2 s) ▸ Nat.pow_le_pow_left
       (Nat.pow_log_le_self 2 (by have := Nat.one_le_two_pow (n := L₀); omega)) 9
   omega
 
@@ -208,10 +207,9 @@ theorem fuel_le {C D s P : ℕ} {G : ℕ × ExplicitTensorNetwork ℕ} (hA : Exp
   have hq' : Nat.sqrt (Nat.log 2 s) ≤ Nat.sqrt (Nat.log 2 x) :=
     Nat.sqrt_le_sqrt (Nat.log_mono_right hsx)
   calc fuelConst * x / Nat.sqrt (Nat.log 2 x) ≤ fuelConst * x / Nat.sqrt (Nat.log 2 s) := by gcongr
-    _ ≤ fuelConst * (C + D) * s / Nat.sqrt (Nat.log 2 s) := by
-        refine Nat.div_le_div_right ?_
-        rw [Nat.mul_assoc]
-        exact Nat.mul_le_mul_left _ hx
+    _ ≤ fuelConst * (C + D) * s / Nat.sqrt (Nat.log 2 s) :=
+        Nat.div_le_div_right ((Nat.mul_le_mul_left fuelConst hx).trans_eq
+          (Nat.mul_assoc fuelConst (C + D) s).symm)
 
 /-! ### The resources of the fast machine -/
 
@@ -303,11 +301,10 @@ theorem exists_clockedRun_le (K₁ Ka c d r₁ e₁ r₂ e₂ kf : ℕ) :
   set Xa := 2 ^ (Ka * s / S)
   set X := 2 ^ ((kf + Ka) * s / S)
   have hXf : 1 ≤ Xf := Nat.one_le_two_pow
-  have hXa : 1 ≤ Xa := Nat.one_le_two_pow
   have hX : Xf * Xa ≤ X := by
     rw [← pow_add]
     exact Nat.pow_le_pow_right (by norm_num) (Nat.div_add_div_le_add_div.trans (by rw [add_mul]))
-  have hXfX : Xf ≤ X := (Nat.le_mul_of_pos_right _ hXa).trans hX
+  have hXfX : Xf ≤ X := (Nat.le_mul_of_pos_right _ Nat.one_le_two_pow).trans hX
   set W := B ^ E * X
   have hEW (a : ℕ) : a * B ^ E ≤ a * W :=
     Nat.mul_le_mul_left _ (Nat.le_mul_of_pos_right _ (hXf.trans hXfX))
@@ -352,8 +349,7 @@ theorem outputStep_le {β : Type*} {o : Option (ℕ × β)} {valid : ℕ × β �
       2 * Y + 2 * Z := by
   rcases hr : o with _ | v
   · have := hdir (Nat.lt_of_not_le fun h => nomatch hr.symm.trans (hbig h))
-    simp only [Option.elim_none]
-    omega
+    simp only [Option.elim_none]; omega
   · have hd := hdec v (hval v hr)
     simp only [Option.elim_some]
     split_ifs with h0
@@ -425,8 +421,6 @@ theorem fastCertificate_le
   obtain ⟨hrT, hrS⟩ := hK₁ (NativeCertificate.ofPolyTime fuel_polyTime)
     (NativeCertificate.ofPolyTime root_polyTime) I F TL SL hnode hframe hvalue
     (ExplicitTensorNetwork.capPrecision q) _ N H he
-  have hrT' : (runCertificate hpoly).time (ExplicitTensorNetwork.capPrecision q) ≤ _ := hrT
-  have hrS' : (runCertificate hpoly).space (ExplicitTensorNetwork.capPrecision q) ≤ _ := hrS
   -- Direct summation below `s₀`.
   have h2 : 1 ≤ 2 ^ (C * s₀) := Nat.one_le_two_pow
   have hdir (hs₀ : s < s₀) :
@@ -460,11 +454,12 @@ theorem fastCertificate_le
     rw [Nat.mul_assoc 2, Nat.mul_assoc 2]
     exact outputStep_le (fun _ => Scheme.value_of_run_eq_some he)
       (fun v hv => le_of_le_encPair (h₂ (q, v)) hB (hvalue v hv) (by omega)) hbig hdir hdirS
-  rw [fastCertificate_time, fastCertificate_space]
+  simp only [fastCertificate_time, fastCertificate_space, runCertificate]
   exact (hK (n := (FastContraction.encInput q).length)
     (pre := 2 * (NativeCertificate.ofPolyTime ExplicitTensorNetwork.capPrecision_polyTime).time q)
     (preS := 2 * (NativeCertificate.ofPolyTime ExplicitTensorNetwork.capPrecision_polyTime).space q)
-    (by omega) hrT' hrS' (by rw [Nat.mul_assoc]; omega) hrest (fuel_le hA hs hPD) hHFS hTL).imp
+    ((Nat.lt_succ_self _).trans_eq hB.symm) hrT hrS (by rw [Nat.mul_assoc]; omega) hrest
+    (fuel_le hA hs hPD) hHFS hTL).imp
     (fun h => by omega) fun h => by omega
 
 /-- **The contraction algorithm from the fast machine**, given its remaining obligations:

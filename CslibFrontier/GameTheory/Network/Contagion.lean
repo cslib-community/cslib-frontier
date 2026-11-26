@@ -545,10 +545,7 @@ theorem exists_finset_isContagious_bestResponseStep_iff_progressiveStep {q : ℝ
     (∃ S : Finset V, IsContagious (bestResponseStep G q) (S : Set V)) ↔
       (∃ S : Finset V, IsContagious (progressiveStep G q) (S : Set V)) := by
   constructor
-  · rintro ⟨S, hS⟩
-    refine ⟨S, fun w => ?_⟩
-    obtain ⟨k, hk⟩ := hS w
-    exact ⟨k, fun j hj =>
+  · exact fun ⟨S, hS⟩ => ⟨S, fun w => (hS w).imp fun _ hk j hj =>
       bestResponseStep_iterate_subset_progressiveStep_iterate G q S j (hk j hj)⟩
   · rintro ⟨S, hS⟩
     by_cases hq0 : q ≤ 0
@@ -570,16 +567,11 @@ theorem exists_finset_isContagious_bestResponseStep_iff_progressiveStep {q : ℝ
           bestResponseStep G q ((progressiveStep G q)^[j] (S : Set V)) := by
       intro j hj
       rw [progressiveStep_iterate_succ]
-      apply Set.union_eq_right.mpr
-      intro v hv
-      rw [mem_bestResponseStep_iff]
-      have hnb : G.neighborSet v ⊆ (progressiveStep G q)^[j] (S : Set V) := by
-        intro u hu
-        have hucl : u ∈ closedNbhd :=
-          Finset.mem_union_right _
-            (Finset.mem_biUnion.mpr ⟨v, hv, (G.mem_neighborFinset v u).mpr hu⟩)
-        exact progressiveStep_iterate_mono G q (S : Set V) hj (hclosed hucl)
-      rw [Set.inter_eq_left.mpr hnb, ncard_neighborSet_eq_degree]
+      refine Set.union_eq_right.mpr fun v hv => ?_
+      have hnb : G.neighborSet v ⊆ (progressiveStep G q)^[j] (S : Set V) := fun u hu =>
+        progressiveStep_iterate_mono G q (S : Set V) hj (hclosed (Finset.mem_union_right _
+          (Finset.mem_biUnion.mpr ⟨v, hv, (G.mem_neighborFinset v u).mpr hu⟩)))
+      rw [mem_bestResponseStep_iff, Set.inter_eq_left.mpr hnb, ncard_neighborSet_eq_degree]
       exact mul_le_of_le_one_left (Nat.cast_nonneg _) hq
     have hTfin : ((progressiveStep G q)^[ℓ] (S : Set V) \ {v | G.IsIsolated v}).Finite :=
       progressiveStep_iterate_sdiff_isolated_finite G hq0 S ℓ
@@ -613,9 +605,8 @@ theorem contagionThreshold_eq_sSup_progressive :
   unfold contagionThreshold
   congr 1
   ext q
-  simp only [Set.mem_ofPred_eq, and_congr_right_iff]
-  intro hq
-  exact exists_finset_isContagious_bestResponseStep_iff_progressiveStep G hq.2
+  exact and_congr_right fun hq =>
+    exists_finset_isContagious_bestResponseStep_iff_progressiveStep G hq.2
 
 /-! ## Theorem 24.2: Morris's 1/2 contagion threshold bound -/
 
@@ -852,10 +843,8 @@ theorem isContagious_intPathGraph_half_pair :
         push_cast
         exact congrArg₂ Set.Icc (by ring) (by ring)
   rw [hpair]
-  intro w
-  refine ⟨w.natAbs, fun j hj => ?_⟩
-  rw [hiter j, Set.mem_Icc]
-  omega
+  refine fun w => ⟨w.natAbs, fun j hj => ?_⟩
+  rw [hiter j, Set.mem_Icc]; omega
 
 /-- On `intPathGraph` at `q = 1 / 2`, starting from a single node `{0}` produces the
 parity-alternating sets `{x | -k ≤ x ≤ k ∧ x % 2 = k % 2}` at step `k`. -/
@@ -909,10 +898,8 @@ theorem isContagious_progressiveStep_intPathGraph_half_singleton :
         push_cast
         exact congrArg₂ Set.Icc (by ring) (by ring)
   rw [← Set.Icc_self (0 : ℤ)]
-  intro w
-  refine ⟨w.natAbs, fun j hj => ?_⟩
-  rw [hiter j, Set.mem_Icc]
-  omega
+  refine fun w => ⟨w.natAbs, fun j hj => ?_⟩
+  rw [hiter j, Set.mem_Icc]; omega
 
 /-- **Tightness of Theorem 24.2** ([Kleinberg2007], Section 24.2, p. 616):
 the contagion threshold of the two-way infinite path on `ℤ` is exactly `1 / 2`. -/

@@ -58,9 +58,7 @@ omit [BorelSpace E] in
 private theorem Fv_perm (v : Fin 3 → E) (σ : Equiv.Perm (Fin 3)) (h : ℝ) :
     Fv (v ∘ σ) h = Fv v h := by
   unfold Fv
-  congr 2 <;>
-    · ext x
-      exact ⟨fun H i => by simpa using H (σ.symm i), fun H i => H (σ i)⟩
+  congr 2 <;> exact Set.ext fun x => ⟨fun H i => by simpa using H (σ.symm i), fun H i => H (σ i)⟩
 
 /-- The canonical triple with pivot `e₀`. -/
 private def canT (I J si sj ψ : ℝ) : Fin 3 → E3 :=
@@ -159,12 +157,10 @@ private theorem Fv_eq_rotF (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) (h : �
       Fv v h = Rot.rotF ⟪v 0, v 2⟫ ⟪v 1, v 2⟫ (Real.sqrt (1 - ⟪v 0, v 2⟫ ^ 2))
         (Real.sqrt (1 - ⟪v 1, v 2⟫ ^ 2)) h ψ := by
   obtain ⟨ψ, h0, hπ, hπ', hg⟩ := canonical v hv
-  refine ⟨ψ, h0, hπ, hπ', ?_, ?_⟩
-  · have := hg 0 1
-    simp only [canGram, Fin.isValue, Matrix.cons_val_zero, Matrix.cons_val_one] at this
-    linarith
-  · rw [rotF_eq_Fv]
-    exact Fv_gram v _ (fun i j => by rw [inner_canT]; exact hg i j) h
+  refine ⟨ψ, h0, hπ, hπ', ?_, rotF_eq_Fv .. ▸ Fv_gram v _ (fun i j => ?_) h⟩
+  · have h01 := hg 0 1
+    simp only [canGram, Fin.isValue, Matrix.cons_val_zero, Matrix.cons_val_one] at h01; linarith
+  · exact inner_canT .. ▸ hg i j
 
 /-- **Case A** (pivot `v₂`): if `⟨v₀,v₂⟩ + ⟨v₁,v₂⟩ ≤ 0` the bound holds. -/
 private theorem caseA (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh : 0 < h)
@@ -307,11 +303,11 @@ private theorem allEqual (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ}
       μ.real {y : E3 | ⟪e 0, y⟫ < h ∧ -1 * ⟪e 0, y⟫ + 0 * ⟪e 1, y⟫ < h ∧
         -1 * ⟪e 0, y⟫ - 0 * ⟪e 1, y⟫ < h} := by
     rw [← measureReal_union]
-    · congr 1; ext y; simp only [Set.mem_union, Set.mem_ofPred_eq]
-      constructor
-      · exact fun h' => (le_or_gt _ _).imp id fun hc => ⟨h', by linarith, by linarith⟩
-      · rintro (h' | ⟨a, -, -⟩) <;> linarith
-    · rw [Set.disjoint_left]; intro y h1 h2
+    · refine congrArg _ (Set.ext fun y => ?_)
+      simp only [Set.mem_union, Set.mem_ofPred_eq]
+      exact ⟨fun h' => (le_or_gt _ _).imp id fun _ => ⟨h', by linarith, by linarith⟩,
+        by rintro (h' | ⟨a, -, -⟩) <;> linarith⟩
+    · refine Set.disjoint_left.mpr fun y h1 h2 => ?_
       simp only [Set.mem_ofPred_eq] at h1 h2; linarith [h2.2.1]
     · simp only [Set.ofPred_and]
       exact (measurableSet_lt (f := fun y : E3 => ⟪e 0, y⟫) (by fun_prop) measurable_const).inter
@@ -439,8 +435,7 @@ private theorem eq_pot {h : ℝ} (hh : 0 < h) : ∀ n : ℕ, ∀ v : Fin 3 → E
     · -- swap `v₁` and `v₂`
       obtain ⟨a0, a1, a2⟩ := swap12_apply v
       have hPeq : Pot (v ∘ Equiv.swap 1 2) = Pot v := by
-        unfold Pot; rw [a0, a1, a2, real_inner_comm (v 1) (v 2)]
-        rw [max_left_comm]; ring
+        simp only [Pot, a0, a1, a2, real_inner_comm (v 1) (v 2), max_left_comm]; ring
       refine hPsym _ hPeq (core_step _ (unit_comp v hv _) hh ih ?_ ?_ ?_ ?_ ?_ (hPeq ▸ hP))
       all_goals rw [a0, a1, a2]
       all_goals linarith only [s1, s2, s3, hymax.1, hymax.2, real_inner_comm (v 1) (v 2)]

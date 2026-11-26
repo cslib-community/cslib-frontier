@@ -353,18 +353,17 @@ theorem iterate_ne_mate (k : ℕ) (y : V) : (M.cycleStepMap α β)^[k] y ≠ M.m
     induction m with
     | zero => simpa using h
     | succ m ih =>
+      have hk_sub : k - m = (k - (m + 1)) + 1 := by omega
       have h2 := congrArg (M.mate β) (ih (by omega))
-      rw [show k - m = (k - (m + 1)) + 1 by omega, mate_iterate_succ, mate_mate_iterate] at h2
+      rw [hk_sub, mate_iterate_succ, mate_mate_iterate] at h2
       rw [← h2, M.mate_mate]
   obtain ⟨m, rfl | rfl⟩ := Nat.even_or_odd' k
-  · have := hrefl m (by omega)
-    rw [show 2 * m - m = m by omega] at this
-    exact M.mate_ne α _ this.symm
-  · have := hrefl (m + 1) (by omega)
-    rw [show 2 * m + 1 - (m + 1) = m by omega] at this
-    have h2 := congrArg (M.mate α) this
-    rw [M.mate_mate, ← mate_mate_iterate] at h2
-    exact M.mate_ne β _ h2.symm
+  · have hm := hrefl m (by omega)
+    rw [Nat.two_mul, Nat.add_sub_cancel] at hm
+    exact M.mate_ne α _ hm.symm
+  · have hm := hrefl (m + 1) (by omega)
+    rw [Nat.two_mul, add_assoc, Nat.add_sub_cancel] at hm
+    exact M.mate_ne β _ (mate_mate_iterate y m ▸ M.mate_mate α _ ▸ (congrArg (M.mate α) hm).symm)
 
 omit [DecidableEq V] in
 theorem iterate_ne_mate_iterate (x : V) (i i' : ℕ) :
@@ -470,20 +469,18 @@ theorem cycleBlock_pairs (x : V) : ∀ v ∈ M.cycleBlock α β x, ∀ γ, (γ =
   set P := M.cyclePeriod α β x
   set σ := M.cycleStepMap α β
   have hP := cyclePeriod_pos (M := M) (α := α) (β := β) x
-  have hlen : l.length = 2 * P := length_cycleBlock x
-  have hget : ∀ j (hj : j < l.length), l[j] = M.cycleVertex α β x j := getElem_cycleBlock x
   -- Consecutive and closing pairs.
-  have hcons : ∀ j (hj : j + 1 < 2 * P), (M.cycleVertex α β x j, M.cycleVertex α β x (j + 1)) ∈
-      cyclePairs l := fun j hj => by
-    rw [← hget j (by omega), ← hget (j + 1) (by omega)]
-    exact getElem_mem_cyclePairs (by omega)
+  have hcons (j : ℕ) (hj : j + 1 < 2 * P) :
+      (M.cycleVertex α β x j, M.cycleVertex α β x (j + 1)) ∈ cyclePairs l := by
+    have := getElem_mem_cyclePairs (l := M.cycleBlock α β x) ((length_cycleBlock x).symm ▸ hj)
+    rwa [getElem_cycleBlock, getElem_cycleBlock] at this
+  have hP1 : 2 * P - 1 = 2 * (P - 1) + 1 := by omega
   have hclose : (M.mate α (σ^[P - 1] x), x) ∈ cyclePairs l := by
-    have := last_first_mem_cyclePairs (l := l) (by omega)
-    rwa [hget, hget, hlen, show 2 * P - 1 = 2 * (P - 1) + 1 by omega, cycleVertex_odd,
-      show (0 : ℕ) = 2 * 0 from rfl, cycleVertex_even, Function.iterate_zero_apply] at this
+    have := last_first_mem_cyclePairs (l := M.cycleBlock α β x) (by rw [length_cycleBlock]; omega)
+    rw [getElem_cycleBlock, getElem_cycleBlock, length_cycleBlock, hP1, cycleVertex_odd] at this
+    simpa [cycleVertex] using this
   have hβlast : M.mate β (M.mate α (σ^[P - 1] x)) = x := by
-    rw [mate_mate_iterate, show P - 1 + 1 = P by omega]
-    exact iterate_cyclePeriod x
+    rw [mate_mate_iterate, Nat.sub_add_cancel hP, iterate_cyclePeriod]
   obtain ⟨j, hj, rfl⟩ := mem_cycleBlock.mp hv
   obtain ⟨i, rfl | rfl⟩ := Nat.even_or_odd' j
   · rw [cycleVertex_even]
@@ -497,9 +494,8 @@ theorem cycleBlock_pairs (x : V) : ∀ v ∈ M.cycleBlock α β x, ∀ γ, (γ =
         rw [Function.iterate_zero_apply, ← congrArg (M.mate γ) hβlast, M.mate_mate]
       · obtain ⟨i', rfl⟩ : ∃ i', i = i' + 1 := ⟨i - 1, by omega⟩
         refine ⟨_, hcons (2 * i' + 1) (by omega), ?_, .inr ?_⟩ <;>
-          rw [show 2 * i' + 1 + 1 = 2 * (i' + 1) by omega, cycleVertex_odd, cycleVertex_even]
-        · exact mate_mate_iterate x i'
-        · rw [mate_iterate_succ]
+          simp only [add_assoc, ← Nat.mul_succ, cycleVertex_odd, cycleVertex_even,
+            mate_mate_iterate, mate_iterate_succ]
   · rw [cycleVertex_odd]
     rcases hγ with rfl | rfl
     · refine ⟨_, hcons (2 * i) (by omega), ?_, .inr ?_⟩ <;>
@@ -507,9 +503,8 @@ theorem cycleBlock_pairs (x : V) : ∀ v ∈ M.cycleBlock α β x, ∀ γ, (γ =
       rw [M.mate_mate]
     · by_cases hi : i + 1 < P
       · refine ⟨_, hcons (2 * i + 1) (by omega), ?_, .inl ?_⟩ <;>
-          rw [show 2 * i + 1 + 1 = 2 * (i + 1) by omega, cycleVertex_odd, cycleVertex_even]
-        · exact mate_mate_iterate x i
-        · rw [mate_mate_iterate]
+          simp only [add_assoc, ← Nat.mul_succ, cycleVertex_odd, cycleVertex_even,
+            mate_mate_iterate]
       · obtain rfl : i = P - 1 := by omega
         exact ⟨_, hclose, hβlast, .inl (by rw [hβlast])⟩
 

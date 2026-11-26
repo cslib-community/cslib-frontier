@@ -78,21 +78,16 @@ theorem exists_quasipoly_lt_of_not_pow {P : ℕ → ℕ → Prop}
   set L := Real.logb 2 m
   set l := Real.logb 2 L
   have hmR : (0 : ℝ) < m := by exact_mod_cast (by omega : 0 < m)
-  have hl1 : 1 ≤ l := by
-    rw [Real.le_logb_iff_rpow_le one_lt_two (by linarith), Real.rpow_one]
-    exact hL
-  by_contra hb
-  push Not at hb
+  have hl1 : 1 ≤ l := (Real.le_logb_iff_rpow_le one_lt_two (by linarith)).2 (by simpa using hL)
+  by_contra! hb
   have ha := Nat.ceil_lt_add_one (show 0 ≤ c * L / l by positivity)
   refine h m (by omega) ⌈c * L / l⌉₊ ?_ (hmono m s _ ?_ hs)
   · -- `(lg m) ^ (C a) ≤ m`, in logarithms
     have hlg : (0 : ℝ) < lg m := by exact_mod_cast Nat.succ_pos _
     have h2l : Real.logb 2 (lg m) ≤ 2 * l := by
       have : (lg m : ℝ) ≤ L ^ 2 := by
-        have := Real.natLog_le_logb m 2
-        rw [Nat.cast_ofNat] at this
-        simp only [lg]
-        push_cast
+        have : (Nat.log 2 m : ℝ) ≤ L := by simpa using Real.natLog_le_logb m 2
+        simp only [lg, Nat.cast_add, Nat.cast_one]
         nlinarith
       calc Real.logb 2 (lg m) ≤ Real.logb 2 (L ^ 2) := Real.logb_le_logb_of_le one_lt_two hlg this
         _ = 2 * l := by rw [Real.logb_pow]; push_cast; rfl
@@ -102,20 +97,20 @@ theorem exists_quasipoly_lt_of_not_pow {P : ℕ → ℕ → Prop}
             gcongr
             exact Real.logb_nonneg one_lt_two (by exact_mod_cast Nat.succ_pos _)
         _ ≤ 4 * C * c * L := by
-            rw [show (C : ℝ) * (c * L / l + 1) * (2 * l) = 2 * C * c * L + 2 * C * l by
-              field_simp]
+            have hmul : (C : ℝ) * (c * L / l + 1) * (2 * l) = 2 * C * c * L + 2 * C * l := by
+              field_simp
             nlinarith
         _ ≤ L := by
             rw [hc]
             field_simp
             nlinarith
     have : (lg m : ℝ) ^ (C * ⌈c * L / l⌉₊) ≤ m :=
-      (Real.logb_le_logb one_lt_two (by positivity) hmR).1 (by rw [Real.logb_pow]; exact key)
+      (Real.logb_le_logb one_lt_two (by positivity) hmR).1 (by rwa [Real.logb_pow])
     exact_mod_cast this
   · have : (s : ℝ) ≤ (m : ℝ) ^ ⌈c * L / l⌉₊ :=
       calc (s : ℝ) ≤ 2 ^ (c * L ^ 2 / l) := hb
         _ ≤ 2 ^ (L * ⌈c * L / l⌉₊) := Real.rpow_le_rpow_of_exponent_le one_le_two (by
-            rw [show c * L ^ 2 / l = L * (c * L / l) by ring]
+            rw [sq, mul_left_comm c L L, mul_div_assoc]
             exact mul_le_mul_of_nonneg_left (Nat.le_ceil _) (by linarith))
         _ = (m : ℝ) ^ ⌈c * L / l⌉₊ := by
             rw [Real.rpow_mul (by norm_num), Real.rpow_logb (by norm_num) (by norm_num) hmR,

@@ -1031,14 +1031,12 @@ private theorem mem_activeQueries_bandScanJ {Struct : Type v} (s k i idxJ remJ :
   | zero => nomatch hev
   | succ remJ ih =>
     unfold bandScanJ at hev
-    by_cases hwin : inBandWindow s k i idxJ
-    · simp only [hwin, ↓reduceIte, QueryProg.activeQueries, List.mem_cons] at hev
+    split_ifs at hev with hwin
+    · simp only [QueryProg.activeQueries, List.mem_cons] at hev
       rcases hev with rfl | rfl | hev
-      · exact ⟨0, i, _, ⟨idxJ, hwin, Or.inl rfl⟩, by omega, rfl⟩
-      · exact ⟨1, idxJ, _, ⟨idxJ, hwin, Or.inr rfl⟩, le_rfl, rfl⟩
-      · exact ih (idxJ + 1) _ hev
-    · simp only [hwin, ↓reduceIte] at hev
-      exact ih (idxJ + 1) _ hev
+      exacts [⟨0, i, _, ⟨idxJ, hwin, Or.inl rfl⟩, by omega, rfl⟩,
+        ⟨1, idxJ, _, ⟨idxJ, hwin, Or.inr rfl⟩, le_rfl, rfl⟩, ih (idxJ + 1) _ hev]
+    · exact ih (idxJ + 1) _ hev
 
 private theorem mem_activeQueries_bandScanI {Struct : Type v} (s k idxI remI : ℕ) (acc : ℤ)
     (env : Fin 2 → ℕ → ℤ) (sEnv : Struct → Bool) {ev : QueryEvent (Fin 2) Struct}
@@ -1424,13 +1422,10 @@ private theorem eval_recipChild_eq {Struct : Type v} (s : ℕ)
     (env : Unit → ℕ → ℤ) (sEnv : Struct → Bool) :
     (fun op r => (recipChild s op r).eval env sEnv) = recipVirtualEnv (env ()) s := by
   ext op r
-  fin_cases op
-  · simp [recipChild, recipVirtualEnv, QueryProg.eval_bindOverhead, QueryProg.eval,
-      eval_intPrefixProg, recipAlpha, recipPrefixRat]
-  · simp [recipChild, recipVirtualEnv, QueryProg.eval_bindOverhead, QueryProg.eval,
-      eval_intPrefixProg, recipBeta, recipPrefixRat]
-  · dsimp [recipChild, recipVirtualEnv, suffixStream]
-    split_ifs <;> rfl
+  fin_cases op <;>
+    simp [recipChild, recipVirtualEnv, QueryProg.eval_bindOverhead, QueryProg.eval,
+      eval_intPrefixProg, recipAlpha, recipBeta, recipPrefixRat, suffixStream,
+      apply_ite (QueryProg.eval · env sEnv)]
 
 theorem eval_recip64ResProg {Struct : Type v} (s : ℕ)
     {env : Unit → ℕ → ℤ} (hx : IsSignedStream (env ()))
@@ -1735,10 +1730,8 @@ private theorem eval_countAtLeastProg {Op : Type u} {Struct : Type v}
     simp only [countAtLeastProg, QueryProg.eval_bindOverhead, eval_cmpPrefixProg,
       ih _ fun w' hm => hws w' (List.mem_cons_of_mem w hm), List.filter_cons]
     by_cases hle : intPrefix (env i) K ≤ intPrefix (env w) K
-    · simp only [(cmpPrefix_nonneg_iff hw hi K).mpr hle, ↓reduceIte, decide_eq_true hle,
-        List.length_cons]; omega
-    · simp only [(cmpPrefix_nonneg_iff hw hi K).not.mpr hle, ↓reduceIte, decide_eq_false hle,
-        Bool.false_eq_true]
+    · simp [(cmpPrefix_nonneg_iff hw hi K).mpr hle, hle]; omega
+    · simp [(cmpPrefix_nonneg_iff hw hi K).not.mpr hle, hle]
 
 private def optIntPrefix {Op : Type u} (env : Op → ℕ → ℤ) (K : ℕ) : Option Op → ℤ
   | none => 0
@@ -1779,8 +1772,7 @@ private theorem foldQualMax_le {Op : Type u} (P : Op → Prop) [DecidablePred P]
     simp only [foldQualMax]
     refine ih _ ?_ fun x hx => hrem x (List.mem_cons_of_mem i hx)
     split_ifs with hPi
-    · exact max_le hacc (hrem i List.mem_cons_self hPi)
-    · exact hacc
+    exacts [max_le hacc (hrem i List.mem_cons_self hPi), hacc]
 
 private theorem eval_zeroPaddedRankFoldProg_optIntPrefix {Op : Type u} [DecidableEq Op]
     {Struct : Type v}

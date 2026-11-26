@@ -209,19 +209,12 @@ def time (s : ℕ) : ℕ :=
 
 /-- The instruction bound is a polynomial of degree `15`: `time s ≤ 4096 (s + 1)¹⁵`. -/
 theorem time_le (s : ℕ) : time s ≤ 4096 * (s + 1) ^ 15 := by
-  have h (k : ℕ) (hk : k ≤ 15) : s ^ k ≤ (s + 1) ^ 15 :=
-    (Nat.pow_le_pow_left (Nat.le_succ s) k).trans (Nat.pow_le_pow_right (Nat.succ_pos s) hk)
-  have h0 : 1 ≤ (s + 1) ^ 15 := Nat.one_le_pow _ _ (Nat.succ_pos s)
-  have h1 : s ≤ (s + 1) ^ 15 := by simpa using h 1 (by norm_num)
-  have h2 := h 2 (by norm_num); have h3 := h 3 (by norm_num); have h4 := h 4 (by norm_num)
-  have h5 := h 5 (by norm_num); have h6 := h 6 (by norm_num); have h7 := h 7 (by norm_num)
-  have h8 := h 8 (by norm_num); have h9 := h 9 (by norm_num); have h10 := h 10 (by norm_num)
-  have h11 := h 11 (by norm_num); have h12 := h 12 (by norm_num)
-  have h13 := h 13 (by norm_num); have h14 := h 14 (by norm_num); have h15 := h 15 le_rfl
-  generalize (s + 1) ^ 15 = S at *
+  zify
+  rw [← sub_nonneg]
   unfold time OrderSearch.time GcdTotient.time PolyPow.mulTime
+  push_cast
   ring_nf
-  omega
+  positivity
 
 /-- The instruction bound is polynomial in the number of bits. -/
 theorem polynomiallyBounded_time : PolynomiallyBounded time :=

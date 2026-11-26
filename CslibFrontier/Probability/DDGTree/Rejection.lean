@@ -175,8 +175,7 @@ theorem decodeTrials_append_of_some {spec : BlockRejectionSpec α} {t : ℕ} {w 
     rw [decodeTrials_succ, List.take_append_of_le_length hw1, List.drop_append_of_le_length hw1]
     rw [decodeTrials_succ] at h
     cases hatt : spec.attempt (w.take spec.width) <;> rw [hatt] at h
-    · exact ih (by rw [List.length_drop]; omega) h
-    · exact h
+    exacts [ih (by rw [List.length_drop]; omega) h, h]
 
 theorem decodeTrials_mono_of_some {spec : BlockRejectionSpec α} {t t' : ℕ} {w : List Bool} {a : α}
     (htt : t ≤ t') (h : spec.decodeTrials t w = some a) :
@@ -187,8 +186,7 @@ theorem decodeTrials_mono_of_some {spec : BlockRejectionSpec α} {t t' : ℕ} {w
     obtain ⟨k, rfl⟩ : ∃ k, t' = k + 1 := ⟨t' - 1, by omega⟩
     rw [decodeTrials_succ] at h ⊢
     cases hatt : spec.attempt (w.take spec.width) <;> rw [hatt] at h
-    · exact ih (by omega) h
-    · exact h
+    exacts [ih (by omega) h, h]
 
 theorem decodeTrials_take (spec : BlockRejectionSpec α) (t : ℕ) (w : List Bool) :
     spec.decodeTrials t (w.take (t * spec.width)) = spec.decodeTrials t w := by
@@ -245,9 +243,7 @@ theorem runTrials_none (spec : BlockRejectionSpec α) (t : ℕ) :
   induction t with
   | zero => simp
   | succ t ih =>
-    rw [runTrials_succ, PMF.bind_apply, tsum_option_eq,
-      tsum_eq_zero_iff.mpr fun a => by simp, add_zero, ih, pow_succ']
-    rfl
+    simp [runTrials_succ, PMF.bind_apply, tsum_option_eq, ih, pow_succ', rejectProb]
 
 /-- Accepted outcome mass after `t` trials. -/
 theorem runTrials_some (spec : BlockRejectionSpec α) (t : ℕ) (a : α) :
@@ -538,9 +534,8 @@ theorem uniformFinTree_generates (n : ℕ) [NeZero n] :
   split_ifs with hn1
   · subst hn1
     intro i
-    obtain rfl : i = ⟨0, NeZero.pos 1⟩ := Subsingleton.elim _ _
-    simp [DDGTree.outputProb, DDGTree.run_eq_pure_of_output_nil (T := constZeroFinTree 1) rfl,
-      PMF.uniformOfFintype_apply]
+    simp [Subsingleton.elim i ⟨0, NeZero.pos 1⟩, DDGTree.outputProb,
+      DDGTree.run_eq_pure_of_output_nil (T := constZeroFinTree 1) rfl, PMF.uniformOfFintype_apply]
   · exact BlockRejectionSpec.toDDGTree_generates
       (Nat.clog_pos Nat.one_lt_two (by have := NeZero.pos n; omega))
       (ne_of_gt (lt_of_lt_of_le (by norm_num) (one_half_le_acceptProb_uniformFinRejectionSpec n)))
@@ -560,10 +555,7 @@ attaining the Knuth–Yao entropy lower bound. -/
 theorem expectedFlips_uniformFinTree_two_pow (k : ℕ) :
     (uniformFinTree (2 ^ k)).expectedFlips = k := by
   cases k with
-  | zero =>
-    unfold uniformFinTree
-    rw [ite_eq_left (by simp : 2 ^ 0 = 1), Nat.cast_zero]
-    exact expectedFlips_constZeroFinTree _
+  | zero => simpa [uniformFinTree] using expectedFlips_constZeroFinTree 1
   | succ k =>
     rw [expectedFlips_uniformFinTree_of_two_le (Nat.le_self_pow k.succ_ne_zero 2),
       Nat.clog_pow _ _ Nat.one_lt_two,
@@ -593,12 +585,10 @@ theorem dyadicFinRejectionSpec_generates (n : ℕ) [NeZero n] :
     (singleLaw_dyadicFinRejectionSpec_some n)
 
 theorem runTrials_dyadicFinRejectionSpec_none_le (n : ℕ) [NeZero n] (t : ℕ) :
-    (dyadicFinRejectionSpec n).runTrials t none ≤ (1 / 2 : ℝ≥0∞) ^ t := by
-  refine BlockRejectionSpec.runTrials_none_le_of_one_half_le
-    (one_half_le_acceptProb_finCutoffSpec (lt_dyadicSize n).le ?_) t
-  have h1 := Nat.pow_log_le_self 2 (NeZero.ne n)
-  rw [pow_succ]
-  omega
+    (dyadicFinRejectionSpec n).runTrials t none ≤ (1 / 2 : ℝ≥0∞) ^ t :=
+  BlockRejectionSpec.runTrials_none_le_of_one_half_le
+    (one_half_le_acceptProb_finCutoffSpec (lt_dyadicSize n).le
+      ((pow_succ' 2 _).trans_le (Nat.mul_le_mul_left 2 (Nat.pow_log_le_self 2 (NeZero.ne n))))) t
 
 /-! ### Subset rejection sampling -/
 

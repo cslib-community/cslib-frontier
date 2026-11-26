@@ -204,14 +204,12 @@ lemma exists_degree_echelon_family {K : Type*} [Field K]
       have hnot : f ∉ Submodule.span K (Set.range g) := hgspan.symm ▸ fun hh => hfc hh.2
       refine ⟨h + 1, Fin.cons f g, hgLI.finCons hnot,
         span_finCons_eq_of_coeff_ne_zero hfV hfc hgspan, ?_⟩
-      rw [show (fun i => ((Fin.cons f g : Fin (h + 1) → K[X]) i).natDegree) =
-        Fin.cons f.natDegree (fun i => (g i).natDegree) from
-          funext fun i => Fin.cases rfl (fun _ => rfl) i]
-      refine Fin.cons_injective_of_injective ?_ hgdeg
-      rintro ⟨j, hj⟩
-      have hh := hW (g j) (hgmem j) (hgLI.ne_zero j)
-      change (g j).natDegree = f.natDegree at hj
-      omega
+      have hcons : (fun i => ((Fin.cons f g : Fin (h + 1) → K[X]) i).natDegree) =
+          Fin.cons f.natDegree (fun i => (g i).natDegree) :=
+        funext (Fin.cases rfl fun _ => rfl)
+      rw [hcons]
+      exact Fin.cons_injective_of_injective
+        (fun ⟨j, hj⟩ => (hW (g j) (hgmem j) (hgLI.ne_zero j)).ne (hj.trans hfd)) hgdeg
 
 /-- Fixed-length coefficient reversal is linear, unlike degree-dependent
 polynomial reversal. -/
@@ -264,8 +262,7 @@ lemma exists_order_echelon_family {K : Type*} [Field K]
     rw [order_reflect _ _ (hgLI.ne_zero i) (by omega),
       order_reflect _ _ (hgLI.ne_zero j) (by omega)] at hij
     apply hgdeg
-    change (g i).natDegree = (g j).natDegree
-    omega
+    dsimp only; omega
 
 lemma wronskian_linearCombination {K : Type*} [CommRing K] {h : ℕ}
     (f : Fin h → K[X]) (A : Matrix (Fin h) (Fin h) K) :
@@ -348,10 +345,8 @@ lemma natDegree_wronskian_le {K : Type*} [CommRing K] {h : ℕ}
     (wronskianFamily f).natDegree ≤ h * D := by
   unfold wronskianFamily
   rw [Matrix.det_apply]
-  apply natDegree_sum_le_of_forall_le
-  intro g _
-  apply (natDegree_smul_le _ _).trans
-  apply (natDegree_prod_le _ _).trans
+  refine natDegree_sum_le_of_forall_le _ _ fun g _ =>
+    (natDegree_smul_le _ _).trans ((natDegree_prod_le _ _).trans ?_)
   calc
     ∑ j : Fin h, (derivative^[(g j).val] (f j)).natDegree
         ≤ ∑ _j : Fin h, D := Finset.sum_le_sum fun j _ =>
@@ -406,10 +401,9 @@ theorem wronskian_order_bound {K : Type*} [Field K] [CharZero K]
     ∑ i, ∑ j, (e i j : K[X]).rootMultiplicity (a i) ≤
       h * (d - 1) + w * (∑ j : Fin h, j.val) := by
   classical
-  have localOrder : ∀ i, ∑ j, (e i j : K[X]).rootMultiplicity (a i) =
+  have localOrder (i : Fin w) : ∑ j, (e i j : K[X]).rootMultiplicity (a i) =
       (wronskianFamily (fun j => (b j : K[X]))).rootMultiplicity (a i) +
         (∑ j : Fin h, j.val) := by
-    intro i
     rw [← wronskian_order_at (a i) _ (fun j hz => (e i).ne_zero j (Subtype.ext hz)) (he i),
       wronskian_basis_rootMultiplicity d b (e i) (a i) hV]
   simp_rw [localOrder]

@@ -394,8 +394,8 @@ private theorem IsExPostEfficient.interimBuyerTrade_eq {M : Mechanism} {μ_s : M
       rw [ae_iff]; simp only [ne_eq, not_not, ofPred_eq_eq_singleton, measure_singleton]
     filter_upwards [hne] with v_s hne
     rcases lt_or_gt_of_ne hne with hlt | hgt
-    · rw [(heff v_b v_s).1 hlt, indicator_of_mem (show v_s ∈ Iic v_b from hlt.le), Pi.one_apply]
-    · rw [(heff v_b v_s).2 hgt, indicator_of_notMem (show v_s ∉ Iic v_b from not_le.2 hgt)]
+    · rw [(heff v_b v_s).1 hlt, indicator_of_mem (s := Iic v_b) hlt.le, Pi.one_apply]
+    · rw [(heff v_b v_s).2 hgt, indicator_of_notMem (s := Iic v_b) (not_le.2 hgt)]
   rw [interimBuyerTrade, integral_congr_ae hae, integral_indicator_one measurableSet_Iic]
 
 /-- Under atomless `μ_b` and ex-post efficiency, the seller's interim trade probability is
@@ -408,8 +408,8 @@ private theorem IsExPostEfficient.interimSellerTrade_eq {M : Mechanism} {μ_b : 
       rw [ae_iff]; simp only [ne_eq, not_not, ofPred_eq_eq_singleton, measure_singleton]
     filter_upwards [hne] with v_b hne
     rcases lt_or_gt_of_ne hne with hlt | hgt
-    · rw [(heff v_b v_s).2 hlt, indicator_of_notMem (show v_b ∉ Ici v_s from not_le.2 hlt)]
-    · rw [(heff v_b v_s).1 hgt, indicator_of_mem (show v_b ∈ Ici v_s from hgt.le), Pi.one_apply]
+    · rw [(heff v_b v_s).2 hlt, indicator_of_notMem (s := Ici v_s) (not_le.2 hlt)]
+    · rw [(heff v_b v_s).1 hgt, indicator_of_mem (s := Ici v_s) hgt.le, Pi.one_apply]
   rw [interimSellerTrade, integral_congr_ae hae, integral_indicator_one measurableSet_Ici]
 
 private theorem measurable_measureReal_Iic (μ : Measure ℝ) [IsFiniteMeasure μ] :
@@ -574,8 +574,8 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
       rw [h, integral_indicator measurableSet_Ici, setIntegral_const, smul_eq_mul, mul_comm]
     rw [← h1eq, ← h2eq, ← integral_sub h1int h2int]
     have hsub : (fun p : ℝ × ℝ => (if p.2 ≤ p.1 then p.1 else 0) -
-        (if p.2 ≤ p.1 then p.2 else 0)) = fun p => if p.2 ≤ p.1 then p.1 - p.2 else 0 := by
-      ext p; split_ifs <;> ring
+        (if p.2 ≤ p.1 then p.2 else 0)) = fun p => if p.2 ≤ p.1 then p.1 - p.2 else 0 :=
+      funext fun p => by split_ifs <;> ring
     rw [hsub, integral_gains_from_trade hb_supp hs_supp]
   -- Combine the three integrals over Ioc (min a_b a_s) (max b_b b_s)
   set L := min a_b a_s
@@ -620,8 +620,7 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
             indicator_of_notMem (s := Ioc (max a_b a_s) (min b_b b_s))
               fun h => h1 ((le_max_left _ _).trans_lt h.1)]
           ring
-        · exfalso
-          linarith [(le_max_left a_b a_s).trans (hover.trans (min_le_right b_b b_s)),
+        · linarith [(le_max_left a_b a_s).trans (hover.trans (min_le_right b_b b_s)),
             not_lt.mp h1, not_le.mp h2]
   have hcomb : (∫ t in Ioc L U, g t) - (∫ t in Ioc a_b b_b, g t) - (∫ t in Ioc a_s b_s, g t) =
       - ∫ t in Ioc (max a_b a_s) (min b_b b_s), g t := by
@@ -758,12 +757,8 @@ theorem budget_surplus_uniform_le_neg_one_sixth {M : Mechanism}
       ((volume.restrict (Icc (0 : ℝ) 1)).prod (volume.restrict (Icc 0 1)))) :
     ∫ p, (M.buyerPayment p.1 p.2 - M.sellerPayment p.1 p.2)
         ∂((volume.restrict (Icc (0 : ℝ) 1)).prod (volume.restrict (Icc 0 1))) ≤ -(1 / 6) := by
-  have heq := budget_surplus_uniform_eq hBIC heff hpb hps
-  have hUb : 0 ≤ M.interimBuyerUtility (volume.restrict (Icc 0 1)) 0 :=
-    hIR.1 0 ⟨le_rfl, zero_le_one⟩
-  have hUs : 0 ≤ M.interimSellerUtility (volume.restrict (Icc 0 1)) 1 :=
-    hIR.2 1 ⟨zero_le_one, le_rfl⟩
-  linarith
+  linarith [budget_surplus_uniform_eq hBIC heff hpb hps,
+    hIR.1 0 ⟨le_rfl, zero_le_one⟩, hIR.2 1 ⟨zero_le_one, le_rfl⟩]
 
 /-- On `Uniform[0, 1] × Uniform[0, 1]`, no BIC, interim IR, ex-post efficient bilateral trade
 mechanism with integrable payments is ex-ante weakly budget-balanced. -/
@@ -791,9 +786,8 @@ end Mechanism
   buyerPayment v_b v_s := if v_s ≤ v_b then c else 0
   sellerPayment v_b v_s := if v_s ≤ v_b then c else 0
 
-theorem fixedPrice_isExPostEfficient (c : ℝ) : (fixedPrice c).IsExPostEfficient := by
-  intro v_b v_s
-  exact ⟨fun h => ite_eq_left h.le, fun h => ite_eq_right (not_le.2 h)⟩
+theorem fixedPrice_isExPostEfficient (c : ℝ) : (fixedPrice c).IsExPostEfficient :=
+  fun _ _ => ⟨fun h => ite_eq_left h.le, fun h => ite_eq_right (not_le.2 h)⟩
 
 theorem fixedPrice_isExAnteBudgetBalanced (c : ℝ) (μ_b μ_s : Measure ℝ) :
     (fixedPrice c).IsExAnteBudgetBalanced μ_b μ_s := by

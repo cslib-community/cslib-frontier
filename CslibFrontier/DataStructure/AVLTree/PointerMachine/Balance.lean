@@ -136,10 +136,8 @@ private theorem inChild_correct (right : Bool)
   have fieldEq : fld = if right then 1 else 0 := by
     have siblingNe : root sibling ≠ some o := fun e =>
       Finset.disjoint_left.mp dis (root_mem_addresses hroot) (root_mem_addresses e)
-    rcases fields with rfl | rfl <;> cases right
-    all_goals first
-      | rfl
-      | exact (siblingNe (by simpa [record, saved] using oldLink)).elim
+    rcases fields with rfl | rfl <;> cases right <;>
+      first | rfl | exact (siblingNe (by simpa [record, saved] using oldLink)).elim
   have semantic := replaceChild right s.heap t.heap label old (.node nl c d) sibling parent
     rep distinct built.rep built.distinct (by simpa only [built.footprint] using no)
     (by simpa only [built.footprint] using dis) built.frame
@@ -478,10 +476,8 @@ theorem balance_correct (zero maxSucc : M.Op) (heavy le : M.Test) (encode : ℕ 
   · cases tree with
     | node => simp [root]
     | nil =>
-      have m := fin.matched
-      cases eq : AVLTree.balance (label.data 0) A B with
-      | nil => exact (balance_ne_nil _ _ _ eq).elim
-      | node => simp [eq, Matches] at m
+      cases eq : AVLTree.balance (label.data 0) A B
+      exacts [(balance_ne_nil _ _ _ eq).elim, (eq ▸ fin.matched).elim]
   · intro z f hf
     obtain ⟨_, steps, _, _⟩ := total
     apply steps.data_frame f

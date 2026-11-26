@@ -388,8 +388,7 @@ private theorem toList_pack (first : BPlusTree α β) (rest : List (Branch α β
   | nil => simp [pack_nil]
   | cons s ss ih =>
     rcases h : rest.drop s with _ | ⟨⟨k, c⟩, rest'⟩
-    · rw [pack_cons_of_drop_eq_nil ss h]
-      simp
+    · simp [pack_cons_of_drop_eq_nil ss h]
     · rw [pack_cons_of_drop_eq_cons ss h]
       conv_rhs => rw [← List.take_append_drop s rest, h]
       simp only [toList_node, List.flatMap_cons, List.flatMap_append, List.append_assoc,
@@ -544,8 +543,7 @@ private theorem shaped_build {h fuel : ℕ} {first : BPlusTree α β} {rest : Li
   induction fuel generalizing h first rest with
   | zero =>
     obtain rfl := List.eq_nil_of_length_eq_zero (Nat.le_zero.1 hfuel)
-    rw [build_nil]
-    exact hf.shaped ht
+    exact build_nil .. ▸ hf.shaped ht
   | succ fuel ih =>
     rcases Nat.lt_or_ge (2 * t - 1) rest.length with hlt | hle
     · rw [build_succ_of_lt hlt]
@@ -554,18 +552,15 @@ private theorem shaped_build {h fuel : ℕ} {first : BPlusTree α β} {rest : Li
       obtain ⟨hf', hr'⟩ := good_pack hg rfl hf hr
       exact ih hf' hr' (by rw [length_pack hg rfl]; have := hg.two_mul_length_lt ht; omega)
     · rcases rest with _ | ⟨e, es⟩
-      · rw [build_nil]
-        exact hf.shaped ht
+      · exact build_nil .. ▸ hf.shaped ht
       · rw [build_of_length_le (List.cons_ne_nil e es) hle]
         exact
           { width_le := hle
             width_pos := fun _ => by simp
-            occupied_of_mem_children := by
-              intro c hc
+            occupied_of_mem_children := fun c hc => by
               simp only [children_node, List.mem_cons, List.mem_map] at hc
               rcases hc with rfl | ⟨e', he', rfl⟩
-              · exact hf.occupied
-              · exact (hr e' (by simpa using he')).occupied
+              exacts [hf.occupied, (hr e' (List.mem_cons.mpr he')).occupied]
             balanced := .node hf.balanced (fun e' he' => (hr e' he').balanced)
               fun e' he' => (hr e' he').height_eq.trans hf.height_eq.symm }
 
@@ -645,8 +640,7 @@ private theorem separated_node {first : BPlusTree α β} {rest : List (Branch α
       hrs.sublist (List.flatMap_def .. ▸ List.sublist_flatten_of_mem (List.mem_map_of_mem he))
     rw [hl] at hc hp
     rcases List.mem_cons.1 hp with rfl | hp
-    · exact le_rfl
-    · exact ((List.isSortedAssoc_cons_iff.1 hc).1 p hp).le
+    exacts [le_rfl, ((List.isSortedAssoc_cons_iff.1 hc).1 p hp).le]
   · have hp := hrs.pairwise
     rw [List.flatMap_def, List.pairwise_flatten] at hp
     refine (List.pairwise_map.1 hp.2).imp_of_mem fun {a b} _ hb hab p hp => ?_
@@ -663,9 +657,7 @@ private theorem separated_pack {first : BPlusTree α β} {rest : List (Branch α
     Separated (pack first rest ss).1 ∧
       ∀ e ∈ (pack first rest ss).2, Separated e.child ∧ HeadKey e := by
   induction ss generalizing first rest with
-  | nil =>
-    rw [pack_nil]
-    exact ⟨separated_node hf hr hk hs, by simp⟩
+  | nil => exact ⟨pack_nil .. ▸ separated_node hf hr hk hs, by simp [pack_nil]⟩
   | cons s ss ih =>
     rcases hd : rest.drop s with _ | ⟨⟨k, c⟩, rest'⟩
     · rw [pack_cons_of_drop_eq_nil ss hd]
@@ -709,9 +701,9 @@ private theorem separated_build (fuel : ℕ) {first : BPlusTree α β} {rest : L
         build_of_length_le (List.cons_ne_nil e es) hle ▸ separated_node hf hr hk hs]
 
 /-- A tree of the bottom level is a leaf, hence separated. -/
-private theorem Good.separated {c : BPlusTree α β} (h : Good t 1 c) : Separated c := by
-  obtain ⟨es, rfl⟩ := height_eq_one_iff.1 h.height_eq
-  exact .leaf
+private theorem Good.separated {c : BPlusTree α β} (h : Good t 1 c) : Separated c :=
+  let ⟨_, h⟩ := height_eq_one_iff.1 h.height_eq
+  h ▸ .leaf
 
 /-- Bulk loading a sorted list builds a well-formed tree at a minimum degree of at least `2`. -/
 theorem isWF_ofSortedList {l : List (α × β)} (ht : 2 ≤ t) (h : l.IsSortedAssoc) :
@@ -728,8 +720,7 @@ theorem isWF_ofSortedList {l : List (α × β)} (ht : 2 ≤ t) (h : l.IsSortedAs
         obtain ⟨hf, hr⟩ := good_leafLevel ht hlt
         exact separated_build _ hf.separated (fun e he => (hr e he).1.separated)
           (fun e he => (hr e he).2) (by rwa [toList_leafLevel])
-      · rw [ofSortedList_of_length_le ht hle]
-        exact .leaf
+      · exact ofSortedList_of_length_le ht hle ▸ .leaf
     sorted := by rwa [toList_ofSortedList] }
 
 /-- Lookup in a bulk-loaded sorted list is lookup in the list, for every `t`. -/

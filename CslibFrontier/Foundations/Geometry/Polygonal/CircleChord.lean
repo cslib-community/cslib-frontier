@@ -234,9 +234,7 @@ private theorem exists_lineMap_eq_of_chordCoordinate_eq_zero {p q x : ℂ}
   let s := w.re
   have hw : w = (s : ℂ) := Complex.ext rfl hx
   have hreal : s • (p - m) + m = x := by
-    rw [Complex.real_smul, ← hw]
-    change (x - m) / (p - m) * (p - m) + m = x
-    rw [div_mul_cancel₀ _ hd, sub_add_cancel]
+    simpa only [Complex.real_smul, ← hw, w, div_mul_cancel₀ _ hd] using sub_add_cancel x m
   have hm : m = AffineMap.lineMap p q (1 / 2 : ℝ) := by
     simp [m, midpoint, invOf_eq_inv, one_div]
   refine ⟨(1 - s) / 2, ?_⟩
@@ -259,8 +257,7 @@ private theorem lineMap_parameter_nonneg_of_mem_closedBall {z p q : ℂ} {ρ t :
   have hs : s ∈ Set.Ioo 0 1 :=
     ⟨div_pos (neg_pos.mpr htneg) hden, (div_lt_one hden).mpr (by linarith)⟩
   have hpar : 1 - (1 - s) * (1 - t) = 0 := by
-    dsimp only [s]
-    field_simp; ring
+    simp only [s, sub_mul, div_mul_cancel₀ _ hden.ne']; ring
   have hline : AffineMap.lineMap (AffineMap.lineMap p q t) q s = p := by
     rw [AffineMap.lineMap_lineMap_left, hpar, AffineMap.lineMap_apply_zero]
   have hne : AffineMap.lineMap p q t ≠ q := fun he =>
@@ -273,9 +270,8 @@ private theorem lineMap_parameter_nonneg_of_mem_closedBall {z p q : ℂ} {ρ t :
 private theorem lineMap_parameter_mem_Icc_of_mem_closedBall {z p q : ℂ} {ρ t : ℝ}
     (hp : p ∈ Metric.sphere z ρ) (hq : q ∈ Metric.sphere z ρ) (hpq : p ≠ q)
     (ht : AffineMap.lineMap p q t ∈ Metric.closedBall z ρ) : t ∈ Set.Icc 0 1 := by
-  have h : AffineMap.lineMap q p (1 - t) ∈ Metric.closedBall z ρ := by
-    rwa [AffineMap.lineMap_apply_one_sub]
-  have hright := lineMap_parameter_nonneg_of_mem_closedBall hq hp hpq.symm h
+  have hright := lineMap_parameter_nonneg_of_mem_closedBall hq hp hpq.symm
+    ((AffineMap.lineMap_apply_one_sub q p t).symm ▸ ht)
   exact ⟨lineMap_parameter_nonneg_of_mem_closedBall hp hq hpq ht, by linarith⟩
 
 /-- Two chords with four distinct endpoints on the same circle meet in their open
@@ -310,12 +306,11 @@ theorem circle_chord_inter_iff_alternates {z p q x y : ℂ} {ρ : ℝ}
     · simpa only [← he, AffineMap.lineMap_apply_zero] using hwt
     · simpa only [he, AffineMap.lineMap_apply_one] using hwt.symm
   have f_ne_zero {w : ℂ} (hw : w ∈ Metric.sphere z ρ) (hpw : p ≠ w) (hwq : w ≠ q) :
-      f w ≠ 0 := by
-    intro hf
+      f w ≠ 0 := fun hf => by
     obtain ⟨t, hwt⟩ := exists_lineMap_eq_of_chordCoordinate_eq_zero hpq hf
     have ht := parameter_mem_Ioo hwt (Metric.sphere_subset_closedBall hw) hpw hwq
-    have h := inside hp hq hpq (lineMap_mem_openSegment ℝ _ _ ht)
-    exact Set.disjoint_left.mp Metric.sphere_disjoint_ball hw (hwt ▸ h)
+    exact Set.disjoint_left.mp Metric.sphere_disjoint_ball hw
+      (hwt ▸ inside hp hq hpq (lineMap_mem_openSegment ℝ _ _ ht))
   have left_zero {a b : ℂ} (hab : a ≠ b) : chordCoordinate a b a = 0 := by
     have hd : a - midpoint ℝ a b ≠ 0 := fun he => hab
       ((left_eq_midpoint_iff (R := ℝ)).mp (sub_eq_zero.mp he))
@@ -327,15 +322,13 @@ theorem circle_chord_inter_iff_alternates {z p q x y : ℂ} {ρ : ℝ}
   change _ ↔ Xor (0 < f x) (0 < f y)
   rw [← Cslib.zero_mem_openSegment_iff_xor_pos (f_ne_zero hx hpx hxq)
     (f_ne_zero hy hpy hyq), ← image_openSegment ℝ f]
-  constructor
-  · rintro ⟨w, hwpq, hwxy⟩
-    exact ⟨w, hwxy, himage.subset (Set.mem_image_of_mem f hwpq)⟩
-  · rintro ⟨w, hw, hf⟩
-    have hb := inside hx hy hxy hw
-    obtain ⟨t, hwt⟩ := exists_lineMap_eq_of_chordCoordinate_eq_zero hpq hf
-    have hpw : p ≠ w := fun he => Set.disjoint_left.mp Metric.sphere_disjoint_ball hp (he ▸ hb)
-    have hwq : w ≠ q := fun he => Set.disjoint_left.mp Metric.sphere_disjoint_ball hq (he ▸ hb)
-    have ht := parameter_mem_Ioo hwt (Metric.ball_subset_closedBall hb) hpw hwq
-    exact ⟨w, hwt ▸ lineMap_mem_openSegment ℝ _ _ ht, hw⟩
+  refine ⟨fun ⟨w, hwpq, hwxy⟩ => ⟨w, hwxy, himage.subset (Set.mem_image_of_mem f hwpq)⟩, ?_⟩
+  rintro ⟨w, hw, hf⟩
+  have hb := inside hx hy hxy hw
+  obtain ⟨t, hwt⟩ := exists_lineMap_eq_of_chordCoordinate_eq_zero hpq hf
+  have hpw : p ≠ w := fun he => Set.disjoint_left.mp Metric.sphere_disjoint_ball hp (he ▸ hb)
+  have hwq : w ≠ q := fun he => Set.disjoint_left.mp Metric.sphere_disjoint_ball hq (he ▸ hb)
+  have ht := parameter_mem_Ioo hwt (Metric.ball_subset_closedBall hb) hpw hwq
+  exact ⟨w, hwt ▸ lineMap_mem_openSegment ℝ _ _ ht, hw⟩
 
 end Cslib.Polygonal

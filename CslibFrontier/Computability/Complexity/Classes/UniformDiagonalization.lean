@@ -285,14 +285,12 @@ end Spec
 /-! ### The stages in polynomial time -/
 
 theorem computableInPolyTime_side : ComputableInPolyTime side encUnary encBool := by
-  unfold side
-  fun_prop
+  fun_prop [side]
 
 private theorem computableInPolyTime_disagree :
     ComputableInPolyTime (fun p : Option Bool × Option Bool => disagree p.1 p.2)
       (encPair (encOption encBool) (encOption encBool)) encBool := by
-  unfold disagree
-  fun_prop
+  fun_prop [disagree]
 
 private theorem computableInPolyTime_witnessAt :
     ComputableInPolyTime (fun p : (List ℕ × ℕ) × ℕ =>
@@ -303,18 +301,15 @@ private theorem computableInPolyTime_witnessAt :
   have hdF : ComputableInPolyTime dF encBool eDesc := .of_finite dF
   have hside := computableInPolyTime_side
   have hd := computableInPolyTime_disagree
-  unfold approxA approxF
-  fun_prop
+  fun_prop [approxA, approxF]
 
 private theorem computableInPolyTime_stageStep :
     ComputableInPolyTime (stageStep dA dF) (encList encUnary) encUnary := by
   have ha := computableInPolyTime_witnessAt dA dF
   have hw : ComputableInPolyTime (fun p : List ℕ × ℕ => witness dA dF p.1 p.2)
       (encPair (encList encUnary) encUnary) encBool := by
-    unfold witness
-    fun_prop
-  unfold stageStep
-  fun_prop
+    fun_prop [witness]
+  fun_prop [stageStep]
 
 /-- The tables of the stages are polynomial-time in their length, in unary. -/
 theorem computableInPolyTime_table :
@@ -434,10 +429,9 @@ theorem polyTimeReducible_markedUnion {A B C : Set (List Bool)}
   obtain ⟨fB, hfB, hB⟩ := hBC
   let step : List Bool → List Bool := fun w =>
     if w.isEmpty then c₀ else if w.headD false then fB w.tail else fA w.tail
-  have hstep : ComputableInPolyTime step encBits encBits := by
-    unfold step
-    fun_prop
-  refine ⟨step, hstep, fun w => ?_⟩
+  refine ⟨step, by
+    dsimp only [step]
+    fun_prop, fun w => ?_⟩
   cases w with
   | nil =>
     simp only [step, List.isEmpty_nil, ↓reduceIte, hc₀, iff_false]

@@ -127,9 +127,7 @@ private def shiftTie (τ : Fin 3 → ℝ) : Fin 3 → ℝ :=
 
 private theorem shiftTie_add_one (τ : Fin 3 → ℝ) (c : Fin 3) :
     shiftTie τ (c + 1) = τ c := by
-  dsimp [shiftTie]
-  congr 1
-  fin_cases c <;> decide
+  exact congrArg τ (by fin_cases c <;> decide)
 
 private theorem measurePreserving_shiftTie :
     MeasurePreserving shiftTie gaussTie gaussTie := by
@@ -196,8 +194,7 @@ private theorem gauss2_prod_det_eq_zero :
     (isClosed_eq (by fun_prop) continuous_const).measurableSet
   rw [Measure.prod_apply hSm]
   have ha0 : gauss2 {a : ℝ × ℝ | a.1 = 0} = 0 := by
-    have hset : {a : ℝ × ℝ | a.1 = 0} = ({0} : Set ℝ) ×ˢ (univ : Set ℝ) := by
-      ext ⟨a₀, a₁⟩; simp
+    have hset : {a : ℝ × ℝ | a.1 = 0} = ({0} : Set ℝ) ×ˢ univ := Set.ext fun _ => by simp
     rw [hset, gauss2, Measure.prod_prod, measure_singleton, zero_mul]
   refine (lintegral_eq_zero_iff (measurable_measure_prodMk_left hSm)).mpr ?_
   filter_upwards [compl_mem_ae_iff.mpr ha0] with a (ha : a.1 ≠ 0)
@@ -236,14 +233,9 @@ private theorem measureReal_pi_prod_det2_eq_zero {ι : Type*} [Fintype ι]
     nlinarith only [hρ_gt, hρ_lt, hw_sq]
   let u₂ : EuclideanSpace ℝ ι := ‖w‖⁻¹ • w
   have hu₂_norm : ‖u₂‖ = 1 := by
-    dsimp [u₂]
     rw [norm_smul, norm_inv, norm_norm, inv_mul_cancel₀ hw_pos.ne']
   have hy₁u₂ : ⟪y₁, u₂⟫ = 0 := by
-    dsimp [u₂, w]
-    rw [real_inner_smul_right, inner_sub_right, real_inner_smul_right, real_inner_self_eq_norm_sq,
-      hy₁]
-    change ‖w‖⁻¹ * (ρ - ρ * 1 ^ 2) = 0
-    ring
+    simp [u₂, w, ρ, real_inner_smul_right, inner_sub_right, hy₁]
   have hy₂_decomp (x : EuclideanSpace ℝ ι) :
       ⟪y₂, x⟫ = ρ * ⟪y₁, x⟫ + ‖w‖ * ⟪u₂, x⟫ := by
     have hw_eq : y₂ = ρ • y₁ + ‖w‖ • u₂ := by simp [u₂, w, smul_smul, hw_pos.ne']

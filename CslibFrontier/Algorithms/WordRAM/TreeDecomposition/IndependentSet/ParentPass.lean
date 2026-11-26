@@ -82,7 +82,8 @@ private theorem parentPassPrefix_step (LB LP oldL bestL : List ℕ) {k : ℕ}
   refine List.ext_getElem (by simp [parentPassPrefix]) fun i hi1 hi2 => ?_
   rcases eq_or_ne k i with rfl | hik
   · simp [parentPassPrefix]
-  · simp [parentPassPrefix, hik, show (i < k) ↔ (i < k + 1) by omega]
+  · have hlt : (i < k) ↔ (i < k + 1) := by omega
+    simp [parentPassPrefix, hik, hlt]
 
 /-- Pointwise formula for `(parentPass LB LP old best c).getD s 0` without requiring `LP.Nodup`. -/
 theorem getD_parentPass_raw (LB LP : List ℕ) (old best : Array ℕ) {c s : ℕ}
@@ -164,14 +165,12 @@ private theorem parentPassStep_eval (a : ParentPassArgs) (curS : ℕ) (t : Memor
     (Memory.spec 0).clientState t (parentPassStep (a, curS)) =
       ⟨Function.update t.mem (a.tblPPtr + curS) (oldVal + bestVal), t.frontier⟩ ∧
     (Memory.spec 0).clientResult t (parentPassStep (a, curS)) = curS + 1 := by
-  have hr_st (x : ℕ) : (Memory.spec 0).clientState t (Memory.read x) = t := rfl
-  have hr_res (x : ℕ) : (Memory.spec 0).clientResult t (Memory.read x) = t.mem x := rfl
   unfold parentPassStep
   dsimp only
-  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind, hr_st, hr_res,
+  rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     restrictMaskProg_state,
-    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind, hr_st, hr_res]
+    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind]
   exact ⟨rfl, rfl⟩
 
 /-- Correctness, outside-table framing, and memory-cost bound for `parentPassProg`. -/
@@ -278,23 +277,17 @@ theorem parentPassProg_spec {w : ℕ} (args : ParentPassArgs)
     have hc_step : memoryCost (parentPassStep (args, curS)) st ≤ stepCost := by
       have hr_s (x : ℕ) : (Memory.spec 0).clientState st (Memory.read x) = st := rfl
       have hr_r (x : ℕ) : (Memory.spec 0).clientResult st (Memory.read x) = st.mem x := rfl
-      unfold parentPassStep
-      dsimp only
-      rw [memoryCost_bind', memoryCost_read, hr_s, hr_r,
-        memoryCost_bind', hst_rk, hr_rk,
-        memoryCost_bind', memoryCost_read, hr_s, hr_r,
-        memoryCost_bind', memoryCost_write, memoryCost_pure]
-      dsimp only [stepCost]
+      simp only [parentPassStep, memoryCost_bind', memoryCost_read, hr_s, hr_r, hst_rk, hr_rk,
+        memoryCost_write, memoryCost_pure, stepCost]
       omega
     obtain ⟨hv_rem, hfr_rem, hout_rem, hpfx_rem, hc_rem⟩ :=
       ih (curS + 1) st₁ (by omega) hfr hout₁ hpfx_next
+    have hadd : curS + (rem + 1) = curS + 1 + rem := by omega
     dsimp only [iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_, ?_, ?_⟩
     · rwa [StateTransitionSpec.clientState_bind, hst_step, hres_step]
     · rwa [StateTransitionSpec.clientState_bind, hst_step, hres_step]
-    · rw [StateTransitionSpec.clientState_bind, hst_step, hres_step,
-        show curS + (rem + 1) = curS + 1 + rem by omega]
-      exact hpfx_rem
+    · rwa [StateTransitionSpec.clientState_bind, hst_step, hres_step, hadd]
     · rw [memoryCost_bind', hst_step, hres_step]
       calc memoryCost (parentPassStep (args, curS)) st +
             memoryCost (iterate parentPassStep args rem (curS + 1)) st₁
@@ -377,7 +370,7 @@ theorem parentPassProg_realizes :
   · have hrk_lt' : restrictMask LB LP curS < bestL.length := by rwa [← hr_rk]
     rw [hst_ev, hres_ev, ← parentPassPrefix_step LB LP oldL bestL hcur_lt,
       List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hrk_lt', Option.getD_some,
-      ← hold_val, ← hbest_t.get _ hrk_lt', ← show rk = _ from hr_rk]
+      ← hold_val, ← hbest_t.get _ hrk_lt', ← hr_rk]
     exact holdsIn_set hpfx_t
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

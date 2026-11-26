@@ -342,12 +342,12 @@ theorem average_epsDominated_le_div [∀ j, DecidableEq (S j)]
   let δ : S i → S i := fun a => if ha : a ∈ D then (hD a ha).choose else a
   have hpoint (s : ∀ j, S j) :
       ε * (if s i ∈ D then 1 else 0) ≤ G.cost i s - G.cost i (update s i (δ (s i))) := by
-    by_cases hs : s i ∈ D
+    dsimp only [δ]
+    split_ifs with hs
     · have hdom := (hD (s i) hs).choose_spec s
       rw [update_eq_self] at hdom
-      rw [ite_eq_left hs, mul_one, show δ (s i) = _ from dite_eq_left hs]; linarith
-    · rw [ite_eq_right hs, mul_zero, show δ (s i) = s i from dite_eq_right hs,
-        update_eq_self, sub_self]
+      linarith
+    · simp
   have hsum : ε * ∑ t ∈ range T, (σ t).weights.sum (fun s w => w * if s i ∈ D then 1 else 0) ≤
       R := by
     rw [mul_sum]
@@ -507,20 +507,11 @@ theorem intRegretMatching_isApproxInternalCorrelatedEquilibrium {M : ℝ} (hM : 
     sum_congr rfl fun t _ => by
       rw [intRegretMatchingDist, productDist_sum,
         sum_ite_productWeight G _ (G.sum_intRegretMatchingDynamics t i) a c]
-  have hL : ∑ t ∈ range T, (G.intRegretMatchingDist t).weights.sum
-        (fun s w => w * if s i = a then G.cost i s else 0) =
-      ∑ t ∈ range T, G.intRegretMatchingDynamics t i a *
-        G.deviationCost (G.intRegretMatchingDynamics t) i a :=
-    (sum_congr rfl fun _ _ => Finsupp.sum_congr fun s _ => by
-      split_ifs with hs
-      exacts [by rw [← hs, update_eq_self], rfl]).trans (hterm a)
-  rw [hL, hterm b]
+  rw [(sum_congr rfl fun _ _ => Finsupp.sum_congr fun s _ => by
+    split_ifs with hs
+    exacts [by rw [← hs, update_eq_self], rfl]).trans (hterm a), hterm b]
   dsimp only
-  have hscale : 2 * M * √((Fintype.card (S i) - 1 : ℕ) / T) =
-      (2 * M * √((Fintype.card (S i) - 1 : ℕ) * T)) / T := by
-    rw [mul_div_assoc (2 * M), mul_comm ((Fintype.card (S i) - 1 : ℕ) : ℝ) T,
-      Real.sqrt_mul_div_self hT']
-  rw [hscale, ← add_div]
+  rw [← Real.sqrt_mul_div_self hT', mul_comm (T : ℝ), ← mul_div_assoc, ← add_div]
   exact div_le_div_of_nonneg_right (by linarith) hT'.le
 
 /-- **Anytime `O(1 / √T)` convergence of Hart–Mas-Colell stationary regret-matching to `ε`-CE**

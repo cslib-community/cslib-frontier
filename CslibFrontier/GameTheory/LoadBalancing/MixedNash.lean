@@ -187,10 +187,7 @@ theorem eq_of_isTotallyMixedNash (G : LoadBalancingGame ι M) (hw : ∀ i, 0 < G
         G.speed j * G.expectedLoad r j + (1 - r i j) * G.weight i := by
     have hdev := hr.1.deviationCost_eq_of_pos i (hr.2 i j)
     rw [G.deviationCost_toCostGame (fun k => (hr.1.1 k).sum_eq_one) i j] at hdev
-    have hs := (G.speed_pos j).ne'
-    rw [← hdev, mul_add]
-    congr 1
-    field_simp
+    rw [← hdev, mul_add, mul_left_comm, mul_div_cancel₀ _ (G.speed_pos j).ne']
   -- For any totally mixed NE `r`, player `i`'s common cost `C_i` is uniquely determined by `G`.
   have hcost_eq : ∀ r : ι → M → ℝ, G.toCostGame.IsTotallyMixedNash r → ∀ i,
       (∑ j : M, G.speed j) * G.toCostGame.expectedCost r i =
@@ -300,9 +297,8 @@ theorem isTotallyMixedNash_twoUnitRelated_eq {s : ℝ} (hs : 0 < s) (hs1 : 1 / 2
     {p : Fin 2 → Fin 2 → ℝ} (hp : (twoUnitRelated s hs).toCostGame.IsTotallyMixedNash p)
     (i : Fin 2) :
     p i 0 = (2 - s) / (s + 1) ∧ p i 1 = (2 * s - 1) / (s + 1) := by
-  have heq := (twoUnitRelated s hs).eq_of_isTotallyMixedNash (fun _ => zero_lt_one) (by decide) hp
-    (isTotallyMixedNash_twoUnitRelated_profile hs hs1 hs2)
-  subst heq
+  rw [(twoUnitRelated s hs).eq_of_isTotallyMixedNash (fun _ => zero_lt_one) (by decide) hp
+    (isTotallyMixedNash_twoUnitRelated_profile hs hs1 hs2)]
   simp
 
 end TwoUnitRelated
@@ -342,8 +338,7 @@ theorem IsIdentical.expectedMakespan_le_three_halves_mul_optMakespan
     rw [sum_comm]
     refine sum_congr rfl fun A _ => ?_
     rw [hms_eq A, G.load_eq_sum_div, hId (heaviest A), div_one, sum_filter, mul_sum]
-    refine sum_congr rfl fun i _ => ?_
-    split_ifs <;> ring
+    exact sum_congr rfl fun i _ => by split_ifs <;> ring
   by_cases hall : ∀ i, q i ≤ 3 / 4
   · calc G.expectedMakespan p
         = ∑ i, q i * G.weight i := hEM_eq

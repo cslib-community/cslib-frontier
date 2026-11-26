@@ -148,24 +148,22 @@ private theorem exists_honest_instruction (hsource : source < N) (hwidth : N ≤
     refine ⟨false, ?_, by simp [ChoiceFits, hp]⟩
     simp only [instruction, hp]
     split_ifs
-    · trivial
-    · exact fullPrefix_start { s with finalScan := true }
+    exacts [trivial, fullPrefix_start { s with finalScan := true }]
   | target =>
     refine ⟨false, ?_, by simp [ChoiceFits, hp]⟩
     simp only [instruction, hp]
     split_ifs
-    · exact fullPrefix_start s
-    · trivial
+    exacts [fullPrefix_start s, trivial]
   | candidate =>
     simp only [Honest, hp] at hh
     by_cases hu : s.candidate < N
     · by_cases hm : s.candidate ∈ roundSet N edge source s.round
       · refine ⟨true, ?_, by simp [ChoiceFits, hp]⟩
-        simp only [instruction, hp, hu, ↓reduceIte, Honest]
-        exact ⟨hh, (mem_roundSet hsource).mp hm⟩
+        simpa only [instruction, hp, hu, ↓reduceIte, Honest] using
+          ⟨hh, (mem_roundSet hsource).mp hm⟩
       · refine ⟨false, ?_, by simp [ChoiceFits, hp]⟩
-        simp only [instruction, hp, hu, ↓reduceIte, Bool.false_eq_true, Honest]
-        exact fullPrefix_skip hh hm
+        simpa only [instruction, hp, hu, ↓reduceIte, Bool.false_eq_true, Honest] using
+          fullPrefix_skip hh hm
     · refine ⟨false, ?_, by simp [ChoiceFits, hp]⟩
       simpa only [instruction, hp, hu, ↓reduceIte, Honest, FullPrefix] using hh
   | walk =>
@@ -194,8 +192,7 @@ private theorem exists_honest_instruction (hsource : source < N) (hwidth : N ≤
     | zero =>
       obtain rfl := binaryExtension_zero (hb ▸ hx)
       refine ⟨false, ?_, by simp [ChoiceFits, hb]⟩
-      simp only [instruction, hp, hb, hv, ↓reduceIte, Honest]
-      exact ⟨hf, he, hw⟩
+      simpa only [instruction, hp, hb, hv, ↓reduceIte, Honest] using ⟨hf, he, hw⟩
     | succ bits =>
       cases hb ▸ hx with
       | bit b hx =>
@@ -241,12 +238,10 @@ private theorem bounded_instruction (hsource : source < N) (hi : Invariant N edg
     simp only [instruction, hp]
     split_ifs <;> simp_all only [Bounded, and_true, true_and] <;> omega
   | target =>
-    simp only [Invariant, hp, RoundCorrect] at hi
-    simp only [instruction, hp]
+    simp only [Invariant, RoundCorrect, instruction, hp] at hi ⊢
     split_ifs <;> simp_all only [Bounded, and_true, true_and] <;> omega
   | candidate =>
-    simp only [Invariant, hp] at hi
-    simp only [instruction, hp]
+    simp only [Invariant, instruction, hp] at hi ⊢
     split_ifs <;> simp_all only [Bounded, and_true, true_and] <;> omega
   | walk =>
     simp only [instruction, hp]

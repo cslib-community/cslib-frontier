@@ -124,12 +124,9 @@ theorem parityAmplifier_one : parityAmplifier 1 = 1 - X := by
 
 /-- At precision `2`, `parityAmplifier 2 = 1 - 3 * X ^ 2 + 2 * X ^ 3`. -/
 theorem parityAmplifier_two : parityAmplifier 2 = 1 - 3 * X ^ 2 + 2 * X ^ 3 := by
-  have hkern : parityKernel 2 = 1 + 2 * X := by
-    unfold parityKernel paritySeriesAux
-    rw [sum_range_succ, sum_range_one]
-    simp only [Nat.reduceSub, add_zero, Nat.choose_zero_right, Nat.cast_one, pow_zero, mul_one,
-      Nat.reduceAdd, Nat.choose_one_right, Nat.cast_ofNat, pow_one]
-  rw [parityAmplifier, hkern]
+  simp only [parityAmplifier, parityKernel, paritySeriesAux, sum_range_succ, range_zero, sum_empty,
+    Nat.reduceSub, zero_add, add_zero, Nat.choose_zero_right, Nat.cast_one, pow_zero, mul_one,
+    Nat.reduceAdd, Nat.choose_one_right, Nat.cast_ofNat, pow_one]
   ring
 
 /-- `(1 - X) ^ ℓ` divides `parityAmplifier ℓ` in `ℤ[X]`. -/
@@ -295,8 +292,7 @@ def parityBaseDigit (ℓ j : ℕ) : ℤ[X] :=
 
 /-- Remainder modulo `hPoly` has degree at most `1`. -/
 theorem natDegree_modByMonic_hPoly_le (P : ℤ[X]) : (P %ₘ hPoly).natDegree ≤ 1 := by
-  have hlt := natDegree_modByMonic_lt P monic_hPoly hPoly_ne_one
-  rw [natDegree_hPoly] at hlt
+  have hlt := (natDegree_modByMonic_lt P monic_hPoly hPoly_ne_one).trans_eq natDegree_hPoly
   omega
 
 /-- Each `baseDigitByH P j` has degree at most `1`. -/
@@ -363,11 +359,10 @@ theorem natDegree_parityKernel_le (ℓ : ℕ) :
 /-- `parityAmplifier ℓ` has degree at most `2 * ℓ - 1`. -/
 theorem natDegree_parityAmplifier_le (ℓ : ℕ) :
     (parityAmplifier ℓ).natDegree ≤ 2 * ℓ - 1 := by
-  rw [parityAmplifier]
-  refine natDegree_mul_le.trans ?_
+  refine (natDegree_mul_le (p := (1 - X) ^ ℓ) (q := parityKernel ℓ)).trans ?_
   have h1 : ((1 - X : ℤ[X]) ^ ℓ).natDegree ≤ ℓ :=
     natDegree_pow_le.trans ((Nat.mul_le_mul_left ℓ
-      ((natDegree_sub_le 1 X).trans (by simp))).trans_eq (mul_one ℓ))
+      (by simpa using natDegree_sub_le (1 : ℤ[X]) X)).trans_eq (mul_one ℓ))
   have h2 := natDegree_parityKernel_le ℓ
   omega
 
@@ -643,13 +638,10 @@ theorem totalDegree_evalInt_of_natDegree_le_one {σ R : Type*} [CommRing R] {q :
     (hq : q.natDegree ≤ 1) {y : MvPolynomial σ R} {d : ℕ} (hy : y.totalDegree ≤ d) :
     (evalInt y q).totalDegree ≤ d := by
   rw [evalInt, eq_X_add_C_of_natDegree_le_one hq, eval₂_add, eval₂_mul, eval₂_X, eval₂_C, eval₂_C]
-  have hcast (a : ℤ) : Int.castRingHom (MvPolynomial σ R) a = a • (1 : MvPolynomial σ R) := by
-    simp only [eq_intCast, zsmul_one]
-  rw [hcast, hcast, smul_mul_assoc, one_mul]
-  refine (MvPolynomial.totalDegree_add _ _).trans (max_le ?_ ?_)
-  · exact (MvPolynomial.totalDegree_smul_le _ _).trans hy
-  · exact (MvPolynomial.totalDegree_smul_le _ _).trans
-      (by simp only [MvPolynomial.totalDegree_one, zero_le])
+  simp only [eq_intCast, ← zsmul_one, smul_mul_assoc, one_mul]
+  exact (MvPolynomial.totalDegree_add _ _).trans (max_le
+    ((MvPolynomial.totalDegree_smul_le _ _).trans hy)
+    ((MvPolynomial.totalDegree_smul_le _ _).trans (by simp)))
 
 /-- Evaluating `hPoly = X ^ 2 - X` at `y : MvPolynomial σ R` of total degree at most `d` gives
 a polynomial of total degree at most `2 * d`. -/

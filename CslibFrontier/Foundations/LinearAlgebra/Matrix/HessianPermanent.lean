@@ -96,11 +96,10 @@ private theorem sandwich_eq_zero {K R : Type*} [Field K] [Ring R] [Algebra K R] 
     rw [h2, smul_zero, add_zero] at h1
     exact cancel (mul_ne_zero hp (pow_ne_zero 2 hN)) h1
   have h4 : (J - 1) * X * (J - 1) = 0 := by
-    have hB : (D * (J - 1) * D) * X * (D * (J - 1) * D) =
-        D * (J - 1) * (D * X * D) * (J - 1) * D := by
-      simp only [mul_assoc]
-    rw [hB, h3, mul_zero, zero_mul, zero_mul, smul_zero, add_zero] at h
-    exact cancel hp h
+    have h3' := congrArg (fun Z => D * (J - 1) * Z * ((J - 1) * D)) h3
+    simp only [mul_assoc, mul_zero, zero_mul] at h3'
+    simp only [mul_assoc, h3', smul_zero, add_zero] at h
+    simpa only [mul_assoc] using cancel hp h
   have key := congrArg (fun Z => (J - (N - 1) • 1) * Z * (J - (N - 1) • 1)) h4
   simp only [mul_zero, zero_mul] at key
   refine cancel (pow_ne_zero 2 hN) (Eq.trans ?_ key)
@@ -136,9 +135,8 @@ private theorem rank_of_ite_sandwich (o : ι) {p s : K} (hN : (Fintype.card ι :
       rw [Matrix.mul_apply]
       simp [hJ, hD, sum_ite_eq_zero_else_one]
   have hDD : D * D = D := by
-    rw [hD, Matrix.diagonal_mul_diagonal]
-    congr 1 with i : 1
-    split_ifs <;> simp
+    ext i j
+    by_cases hij : i = j <;> simp [hD, hij]
   have hA : ∀ i j, (J - 1) i j = if i = j then 0 else 1 := fun i j => by
     by_cases h : i = j <;> simp [hJ, h]
   have hB : ∀ i j, (D * (J - 1) * D) i j = if i = j ∨ i = o ∨ j = o then 0 else 1 :=
@@ -215,8 +213,7 @@ private theorem card_perm_two (r c r' c' : ι) :
     rcases h with h | h
     · exact hcc (σ.injective (hr.trans (h.trans hr'.symm)))
     · exact hcc h.symm
-  · push Not at h
-    obtain ⟨hrr, hcc⟩ := h
+  · obtain ⟨hrr, hcc⟩ := not_or.1 h
     have := Perm.card_filter_forall_eq_of_injOn {c, c'} (fun i => if i = c then r else r') (by
       intro x hx y hy hxy
       simp only [coe_insert, coe_singleton, Set.mem_insert_iff, Set.mem_singleton_iff] at hx hy
@@ -321,12 +318,10 @@ theorem card_mul_card_le_two_mul_card_of_permanent_eq_det {κ : Type*} [Fintype 
     rw [h1]
     by_contra hκ
     have : IsEmpty κ := Fintype.card_eq_zero_iff.1 (by omega)
-    obtain ⟨o⟩ : Nonempty ι := Fintype.card_pos_iff.1 (by omega)
     have h0 := congrArg (eval (0 : ι × ι → K)) hperm
-    rw [Matrix.det_isEmpty, map_one, Matrix.permanent] at h0
-    simp only [map_sum, map_prod, mvPolynomialX_apply, eval_X, Pi.zero_apply] at h0
-    rw [Finset.sum_eq_zero fun σ _ => Finset.prod_eq_zero (mem_univ o) rfl] at h0
-    exact zero_ne_one h0
+    simp only [Matrix.det_isEmpty, map_one, Matrix.permanent, map_sum, map_prod,
+      mvPolynomialX_apply, eval_X, Pi.zero_apply, Finset.prod_const, card_univ, h1, pow_one,
+      Finset.sum_const_zero, zero_ne_one] at h0
   · obtain ⟨o⟩ : Nonempty ι := Fintype.card_pos_iff.1 (by omega)
     have := rank_hessian_det_le A hA
       (hperm ▸ eval_permanent_mignonRessayrePoint o : eval _ A.det = 0)

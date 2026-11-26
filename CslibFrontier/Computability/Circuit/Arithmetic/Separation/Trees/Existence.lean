@@ -178,9 +178,8 @@ private theorem exists_thinTrees_of_tower (Rt : Routes T m Uu)
     have h1 : 3 * c * constNormBound c m X N ≤ G ^ 19 :=
       (Nat.mul_le_mul (Nat.mul_le_mul_left 3 hcG) hcnb).trans
         (by rw [mul_assoc, ← pow_succ']; exact gk (by norm_num) (by norm_num))
-    have h2 : 3 * G ^ 1 ≤ G ^ 19 := gk (by norm_num) (by norm_num)
+    have h2 : 3 * G ≤ G ^ 19 := by simpa using gk (a := 1) (by norm_num) (by norm_num)
     have h3 : 2 * G ^ 19 ≤ G ^ 22 := gk (by norm_num) (by norm_num)
-    rw [pow_one] at h2
     omega
   -- the outcomes are below `U1`
   obtain ⟨U1, hU1⟩ : ∃ U1, U1 = constMoveCap c m X N N * (c + c) + 1 := ⟨_, rfl⟩
@@ -282,9 +281,8 @@ private theorem exists_thinTrees_of_tower (Rt : Routes T m Uu)
           (N + (M : ℝ) ^ 2) := by push_cast; ring
       _ ≤ _ := by gcongr
   have htot : treeUnitBound FL Uu A N ρ ≤ lg M ^ C * M * (N + M ^ 2) := by
-    have h0 : treeFactor c * c ≤ (c + 1) * treeFactor c := by
-      rw [mul_comm]
-      exact Nat.mul_le_mul_right _ (Nat.le_succ c)
+    have h0 : treeFactor c * c ≤ (c + 1) * treeFactor c :=
+      (mul_comm _ _).trans_le (Nat.mul_le_mul_right _ (Nat.le_succ c))
     have h1 : treeFactor c * c * lg M ^ 7 ≤ lg M ^ C :=
       Nat.mul_pow_le_pow_of_add_le hl (by omega)
     calc treeUnitBound FL Uu A N ρ ≤ 2 * c * constNormBound c m X N * c :=
@@ -403,10 +401,7 @@ private theorem exists_thinTrees_of_tower (Rt : Routes T m Uu)
     card_children_root_le := fun n o => (card_children_root_le _).trans (by omega)
     card_dead_le := fun o => card_image_le.trans ((Fintype.card_congr
       (moveChannelEquiv Rt FL Pl)).le.trans hdead)
-    stage_pos := fun r hr => by
-      change 0 < (Pl.party.symm (Pl.party ((moveOrder Rt ch FL r.1).party r.2))).stage
-      rw [Equiv.symm_apply_apply]
-      exact hstage _ hr _
+    stage_pos := fun r hr => (Equiv.symm_apply_apply Pl.party _).symm ▸ hstage _ hr _
     exists_parent := fun n hn o hg u hu => exists_parent _ (hInit hn) hg hu
     card_between_le := fun n hn o hg p hp => card_between_le _ (hInit hn) hg hp
     units_add_sum_le := fun n o p =>
@@ -444,10 +439,7 @@ theorem exists_thinTrees {A₀ : Type*} [CommSemiring A₀] {h : ℕ} [NeZero h]
   obtain ⟨c, hc⟩ := exists_towers h3 FL hgain
   refine ⟨treeExponent c, fun R _ _ M A N ℓ hM hA hN hℓ => ?_⟩
   obtain ⟨n, m, Uu, ⟨Rt⟩, hC, hX1, hX2, hm1, hm, hUu⟩ := hc R (algebraMap A₀ R) M (by omega)
-  have e : Real.logb 2 ((2 ^ SLTower.ee h : ℕ) : ℝ) = SLTower.ee h := by
-    push_cast
-    rw [Real.logb_pow, Real.logb_self_eq_one (by norm_num), mul_one]
-  rw [e]
-  exact exists_thinTrees_of_tower Rt hC le_rfl hm1 hm hUu hM hX1 hX2 hA hN hℓ
+  have e : Real.logb 2 ((2 ^ SLTower.ee h : ℕ) : ℝ) = SLTower.ee h := by simp [Real.logb_pow]
+  exact e ▸ exists_thinTrees_of_tower Rt hC le_rfl hm1 hm hUu hM hX1 hX2 hA hN hℓ
 
 end Cslib.Circuits.Arithmetic.Separation.Trees

@@ -177,8 +177,7 @@ theorem sturmVariationsList_eq_sturmVariations (cs : List ℚ) (x : ℚ) :
       (Polynomial.eval₂_hom (p := ofCoeffList g) (algebraMap ℚ ℝ) x).symm
   rw [← hlist, sturmVariationsList]
   refine (List.signVariations_map (fun q => ?_) _).symm
-  change SignType.sign (q : ℝ) = SignType.sign q
-  rcases lt_trichotomy q 0 with h | rfl | h <;> simp [sign_neg, sign_pos, *]
+  rcases lt_trichotomy q 0 with h | rfl | h <;> simp [eq_ratCast, sign_neg, sign_pos, *]
 
 /-- Maximum absolute value among a list of rational numbers (`0` on `[]`). -/
 @[expose] def maxAbsList : List ℚ → ℚ
@@ -214,9 +213,7 @@ real root of `ofCoeffList cs`. -/
 /-- `cauchyBoundNat cs` is always at least `1`. -/
 theorem one_le_cauchyBoundNat (cs : List ℚ) : 1 ≤ cauchyBoundNat cs := by
   simp only [cauchyBoundNat]
-  split_ifs
-  · exact le_rfl
-  · exact Nat.le_add_left 1 _
+  split_ifs <;> exact Nat.succ_pos _
 
 private theorem getD_dropLast_of_lt {α : Type*} (l : List α) (d : α) {i : ℕ}
     (hi : i < l.length - 1) : l.dropLast.getD i d = l.getD i d := by
@@ -240,9 +237,8 @@ theorem abs_lt_cauchyBoundNat_of_isRoot {cs : List ℚ} (hcs : ofCoeffList cs �
   split_ifs with hlen
   · change t.length ≤ 1 at hlen
     have hc := eq_C_of_natDegree_eq_zero (by omega : (ofCoeffList t).natDegree = 0)
-    rw [hc, Polynomial.map_C, IsRoot.def, eval_C, eq_ratCast] at hr'
-    have h0 := Rat.cast_injective (α := ℝ) (hr'.trans Rat.cast_zero.symm)
-    exact absurd (by rw [hc, h0, C_0]) ht0
+    rw [hc, Polynomial.map_C, IsRoot.def, eval_C, eq_ratCast, Rat.cast_eq_zero] at hr'
+    exact absurd (by rw [hc, hr', C_0]) ht0
   · obtain ⟨l, lc, _, hteq⟩ := ht.exists_append_singleton htnil
     have hlead : (ofCoeffList t).leadingCoeff = lc := by
       rw [ht.leadingCoeff_ofCoeffList, hteq, List.getLastD_concat]
@@ -463,10 +459,8 @@ theorem mignotteBisectionDepth_le (cs : List ℚ) (hd : 2 ≤ (ofCoeffList cs).n
   have hx_ge1 : 1 ≤ b ^ 2 * mignotteSepSqInv cs :=
     Nat.mul_pos (Nat.pow_pos (one_le_cauchyBoundNat cs))
       (hs_eq ▸ Nat.mul_pos (Nat.pow_pos (by omega)) (Nat.pow_pos hsn_ge1))
-  have hdiv_le : 4 * b ^ 2 * mignotteSepSqInv cs / 3 + 1 ≤
-      4 * b ^ 2 * mignotteSepSqInv cs := by
-    have : 4 * b ^ 2 * mignotteSepSqInv cs = 4 * (b ^ 2 * mignotteSepSqInv cs) := by ring
-    omega
+  have hdiv_le : 4 * b ^ 2 * mignotteSepSqInv cs / 3 + 1 ≤ 4 * b ^ 2 * mignotteSepSqInv cs := by
+    rw [mul_assoc]; omega
   have clog_pow (a m : ℕ) : a ^ m ≤ 4 ^ (m * Nat.clog 4 a) := by
     rw [mul_comm m _, pow_mul]
     exact Nat.pow_le_pow_left (Nat.le_pow_clog (by decide : 1 < 4) a) m

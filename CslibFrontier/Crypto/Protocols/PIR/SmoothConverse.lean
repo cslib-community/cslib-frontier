@@ -460,16 +460,10 @@ theorem expectedReads_smoothDecoder_le (P : Scheme ι S R Q A) [Fintype S] [Deci
     by_cases hk : k = eS s₀
     · subst hk
       simp only [Equiv.symm_apply_apply, ↓reduceIte]
-      rw [Finset.sum_eq_single q₀
-        (fun q _ hq => by
-          simp [show ((s₀, q₀) : S × Q) ≠ (s₀, q) from fun h => hq (Prod.mk.inj h).2.symm])
-        (fun h => (h (Finset.mem_univ _)).elim)]
+      rw [Fintype.sum_eq_single q₀ fun q hq => by simp [hq.symm]]
       simp only [↓reduceIte, ← mul_div_assoc, mul_keepProb_eq_min]
-    · rw [ite_eq_right hk]
-      refine Finset.sum_eq_zero fun q _ => ?_
-      have hne : ((s₀, q₀) : S × Q) ≠ (eS.symm k, q) := fun h =>
-        hk ((Equiv.eq_symm_apply eS).mp (Prod.mk.inj h).1).symm
-      simp [hne]
+    · have hs : s₀ ≠ eS.symm k := fun h => hk ((Equiv.eq_symm_apply eS).mp h).symm
+      simp [hk, hs]
   simp only [hk_val, Fintype.sum_ite_eq'] at hexp
   set p₀ : ℝ := (ProbComp.eval (P.serverQuery s₀ i₀) q₀).toReal
   set pᵢ : ℝ := (ProbComp.eval (P.serverQuery s₀ i) q₀).toReal
@@ -572,22 +566,19 @@ theorem toReal_decodeLaw_smoothDecoder_ge (P : Scheme ι S R Q A) [Fintype S]
     · rw [dite_eq_left hall]
       have hrec_eq :
           (fun s : S => smoothCode P i₀ x ((slots (eS s)).get (hall (eS s)))) =
-            fun s : S => P.answer s x (rq.2 s) := by
-        funext s
+            fun s : S => P.answer s x (rq.2 s) := funext fun s => by
         have hk := hslots (eS s)
-        rw [← Option.some_get (hall (eS s))] at hk
-        have hpos : (ProbComp.eval (smoothSlotCoins P i₀ i (eS.symm (eS s)) (rq.2 (eS.symm (eS s))))
+        rw [← Option.some_get (hall (eS s)), Equiv.symm_apply_apply] at hk
+        have hpos : (ProbComp.eval (smoothSlotCoins P i₀ i s (rq.2 s))
             (some ((slots (eS s)).get (hall (eS s))))).toReal ≠ 0 := by
           ennreal_to_real using (PMF.mem_support_iff _ _).mp hk
         rw [toReal_eval_smoothSlotCoins_some] at hpos
-        rcases pos : (slots (eS s)).get (hall (eS s)) with ⟨⟨s', q'⟩, idx'⟩
-        rw [pos] at hpos
-        have hsq : (s', q') = (s, rq.2 s) := by
-          by_contra hne
-          rw [Equiv.symm_apply_apply, ite_eq_right hne] at hpos
-          exact hpos rfl
-        rcases Prod.mk.inj hsq with ⟨rfl, rfl⟩
-        rfl
+        split_ifs at hpos with hsq
+        · rcases pos : (slots (eS s)).get (hall (eS s)) with ⟨sq, _⟩
+          rw [pos] at hsq
+          subst hsq
+          rfl
+        · exact (hpos rfl).elim
       rw [hrec_eq]
       exact le_self_add
     · rw [dite_eq_right hall]

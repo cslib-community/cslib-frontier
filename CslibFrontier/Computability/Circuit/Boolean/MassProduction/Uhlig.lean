@@ -127,11 +127,9 @@ theorem complexity_directProduct_two_pow_le {p m L H : ℕ}
     refine (complexity_directProduct_two_mul_le (t := 2 ^ d)
       (ih (d * p + m) rfl fun e he => hH e (Nat.lt_succ_of_lt he)) f).trans ?_
     have hHd := hH d (Nat.lt_succ_self d)
-    have hApos : 0 < (2 ^ p + 1) ^ d := by positivity
+    have hKA : 0 < (2 ^ p + 1) * (2 ^ p + 1) ^ d := by positivity
     generalize (2 ^ p + 1) ^ d = A at *
-    have hK : 1 ≤ 2 ^ p + 1 := Nat.le_add_left 1 _
     generalize 2 ^ d = T, 2 ^ p + 1 = K at *
-    have hKA : 1 ≤ K * A := Nat.mul_pos hK hApos
     calc K * (A * (L + d * T * H)) + T * layerOverhead p (d * p + m)
         ≤ K * (A * (L + d * T * H)) + K * A * (T * H) := by
           refine Nat.add_le_add_left ?_ _
@@ -277,8 +275,7 @@ theorem eventually_mul_complexity_directProduct_le {depth : ℕ → ℕ}
   set p := 2 * ℓ + 2 with hpdef
   have hℓ : 1 ≤ ℓ := Nat.log_pos (by norm_num) (by omega)
   have hltℓ : n < 2 * 2 ^ ℓ := by
-    simpa only [← hℓdef, pow_succ, mul_comm _ 2] using
-      Nat.lt_pow_succ_log_self (b := 2) one_lt_two n
+    simpa only [← hℓdef, pow_succ, mul_comm _ 2] using Nat.lt_pow_succ_log_self one_lt_two n
   have hdp : (X + 1) * (d * p) ≤ n :=
     calc (X + 1) * (d * p) ≤ (X + 1) * (d * (4 * ℓ)) := by gcongr; omega
       _ = 4 * (X + 1) * d * ℓ := by ring
@@ -309,9 +306,8 @@ theorem eventually_mul_massComplexity_le {depth : ℕ → ℕ} (hdepth : IsUhlig
       (P * n : ℕ∞) * massComplexity f k ≤ ((P + 1) * 2 ^ n : ℕ) := by
   filter_upwards [eventually_mul_complexity_directProduct_le hdepth P] with n h f k hk
   calc (P * n : ℕ∞) * massComplexity f k
-      ≤ (P * n : ℕ∞) * (complexity interpretation (directProduct f k) : ℕ) := by
-        gcongr
-        exact massComplexity_le_complexity
+      ≤ (P * n : ℕ∞) * (complexity interpretation (directProduct f k) : ℕ) :=
+        mul_le_mul_of_nonneg_left massComplexity_le_complexity zero_le
     _ = ((P * n * complexity interpretation (directProduct f k) : ℕ) : ℕ∞) := by push_cast; ring
     _ ≤ ((P + 1) * 2 ^ n : ℕ) := by exact_mod_cast h f k hk
 

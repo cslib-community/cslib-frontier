@@ -90,19 +90,14 @@ theorem isQueryBounded_cascadeChildRouter (valid : List Bool → Bool) (inLen : 
     {program : WordOracleComp Unit Bool} {budget : ℕ}
     (h : program.IsQueryBounded budget) :
     (cascadeChildRouter valid inLen family n depth program).IsQueryBounded budget := by
-  unfold cascadeChildRouter
-  apply (OracleComp.isCostBounded_map_iff _ _ _).mpr
-  refine OracleComp.IsCostBounded.run_interpret (fun q state => ?_) h _
+  refine (OracleComp.isCostBounded_map_iff _ _ _).mpr
+    (OracleComp.IsCostBounded.run_interpret (fun q state => ?_) h _)
   cases q with
   | inl k =>
-    change ((StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k))).run state).IsQueryBounded 0
-    rw [StateT.run_lift, bind_pure_comp]
-    exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
-      (ProbOracleComp.IsQueryBounded.sample _)
+    rw [OracleComp.sumHandler, StateT.run_lift, bind_pure_comp]
+    exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (ProbOracleComp.IsQueryBounded.sample _)
   | inr q =>
-    change (cascadeChildRoute valid inLen family n depth q.2 state).IsQueryBounded 1
-    unfold cascadeChildRoute
-    dsimp only
+    dsimp only [OracleComp.sumHandler, cascadeChildRoute]
     split
     · split
       · exact (ProbOracleComp.IsQueryBounded.query _).bind fun _ => .pure _ 0

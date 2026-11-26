@@ -583,7 +583,7 @@ private theorem realizes_checkCoordInLiveGen :
     rcases d with ⟨⟨⟨cp, base⟩, b⟩, loc⟩
     dsimp only at *
     obtain ⟨c, U, V, w₀, n_max, fs, henv, rfl, hrep, hce_or, hb, hloc⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
+    obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
     have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
     have hw2 : 2 ≤ w := by linarith [le_bMinWhp c, bMinWhp_le_log hth, henv.log_lt_w]
@@ -666,7 +666,7 @@ private theorem realizes_overmarsReadScanInfoGen :
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
     obtain ⟨c, U, V, w₀, n_max, fs, henv, rfl, hrep, hb, hor⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
+    obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
     have h3M := (large_index_bounds hth).2.2.2.2.1
     obtain ⟨h1_st, _, _, _⟩ := readBktFieldGenProg_spec henv hb (by decide : 1 < 10) hrep (s := s)
@@ -1037,9 +1037,9 @@ private theorem realizes_overmarsScanOne :
     rcases d with ⟨⟨⟨wp, base⟩, b⟩, ⟨⟩⟩
     dsimp only at *
     simp only [Prod.mk.eta] at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, omMap, henv, heq_wp, hseed, hrep, hb, hce_or, hor,
+    obtain ⟨c, U, V, w₀, n_max, θ, fs, omMap, henv, rfl, hseed, hrep, hb, hce_or, hor,
       hcnt_le, hcur_n, hins_lt, hq_all, hbp_v, hv_om⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
+    obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       simp [mkWhpParams, Nat.not_lt.mpr hth]
@@ -1130,12 +1130,7 @@ private theorem overmarsScanOneProg_fastStep {c U V w n_max base b : ℕ}
           (.of (mkBktMetaRtProg_spec (U := U) (V := V) (w := w) (base := base) hth _)) hwc)
         (by dsimp only; have := hfp.2.2.1; have := hbi.1; omega)
         ⟨rfl, rfl, rfl, rfl, rfl, Function.update_self _ _ _, (Function.update_self _ _ _).le,
-          _, by
-            change ValidWhpSlice n_max
-              (Function.update fs.overmarsInsCount b (fs.overmarsInsCount b + 1) b)
-              (Function.update fs.slices (fs.overmarsSliceIdx b) _ (fs.overmarsSliceIdx b)) _
-            rw [Function.update_self, Function.update_self]
-            exact hv_om1⟩
+          _, by simpa only [FastState.overmarsSliceIdx, Function.update_self] using hv_om1⟩
     · rw [ite_eq_right (fun h : _ ∧ _ => hinL h.2)]
       exact StepSpec.toAnd_le_and (hcc.thenStep <| .if_pos hcur_lt <| hcl.thenStep <|
         .if_neg (by rw [ite_eq_right hinL]; decide) hw6) (by omega)
@@ -1260,7 +1255,7 @@ private theorem realizes_overmarsDoSwapGen :
   realize
   rcases d with ⟨⟨cp, base⟩, b⟩
   obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hb⟩ := h
-  have hw_eq := henv.2.2.1; subst hw_eq
+  obtain rfl := henv.2.2.1
   have hth := henv.2.2.2.1
   obtain ⟨hmb_st, hmb_res, _, _⟩ := mkBktMetaRtProg_spec (c := c) (U := U) (V := V)
     (w := w) (n_max := n_max) (base := base) hth s
@@ -1454,21 +1449,16 @@ theorem realizes_overmarsStepGen :
     rcases d with ⟨⟨wp, base⟩, b⟩
     dsimp only at *
     try simp only [Prod.mk.eta] at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, heq_wp, hseed, hrep,
+    obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, rfl, hseed, hrep,
       ⟨hb, hce_or, _, hor, hcnt_le, hq_all, hbp_v, hscan16⟩⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
+    obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       simp [mkWhpParams, Nat.not_lt.mpr hth]
     obtain ⟨_, _, hoa_step⟩ := overmarsActivateGenProg_fastStep henv hb hor hseed hrep (s := s)
-    have hrep0 : FastMemRep base c U V w n_max (overmarsAfterActivate n_max b fs)
-        ((Memory.spec 0).clientState s
-          (overmarsActivateGenProg ((mkWhpCoreParams c U V w n_max, base), b))).mem :=
-      hoa_step.2.2.1
+    have hrep0 := hoa_step.2.2.1
     obtain ⟨h5_st, h5_res, _, _⟩ :=
       readBktFieldGenProg_spec henv hb (by decide : 5 < 10) hrep0
-        (s := (Memory.spec 0).clientState s
-          (overmarsActivateGenProg ((mkWhpCoreParams c U V w n_max, base), b)))
     simp only [getBktField] at h5_res
     simp only [hcp_eq, h5_st, h5_res] at *
     try simp only [wp_large_M hth] at *
@@ -1529,10 +1519,7 @@ theorem overmarsStepGenProg_fastStep {c U V w n_max base b : ℕ}
   obtain ⟨hoa_mc, hoa_vp, hoa_step⟩ :=
     overmarsActivateGenProg_fastStep henv hb hor hseed hrep (s := s)
   have hoa := StepSpec.of_le ⟨hoa_mc, hoa_vp, hoa_step⟩
-  have hrep0 : FastMemRep base c U V w n_max (overmarsAfterActivate n_max b fs)
-      ((Memory.spec 0).clientState s
-        (overmarsActivateGenProg ((mkWhpCoreParams c U V w n_max, base), b))).mem :=
-    hoa.step.2.2.1
+  have hrep0 := hoa.step.2.2.1
   have h5 := ReadSpec.of (readBktFieldGenProg_spec henv hb (by decide : 5 < 10) hrep0)
   dsimp only
   unfold overmarsStepGenProg

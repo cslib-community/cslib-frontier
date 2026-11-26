@@ -264,9 +264,7 @@ theorem cutWeight_pullback_eq_contract {V' V : Type*} [Fintype V'] [DecidableEq 
     simp only [mem_filter, mem_univ, true_and]
     exact ⟨fun h => h.2, fun h => ⟨h ▸ hu, h⟩⟩
   have hcompl : univ \ univ.filter (fun x' => π x' ∈ X) =
-      univ.filter (fun y' => π y' ∈ univ \ X) := by
-    ext
-    simp
+      univ.filter (fun y' => π y' ∈ univ \ X) := Finset.ext fun _ => by simp
   rw [cutWeight, cutWeight, hcompl, hfib X]
   refine sum_congr rfl fun u hu => ?_
   simp_rw [hfib (univ \ X)]
@@ -485,8 +483,7 @@ theorem not_isKRankSybilproof_of_isSymmetric {K : ℕ} (hK : 1 ≤ K) {F : Globa
                   if u = v then {Sum.inl v, Sum.inr 0} else {Sum.inl u} := fun u => by
               ext (_ | z)
               · by_cases h : u = v <;> simp [h]
-              · fin_cases z
-                by_cases h : u = v <;> simp [h, eq_comm]
+              · by_cases h : u = v <;> simp [h, Subsingleton.elim z 0, eq_comm]
             rw [TrustGraph.contract_weight_of_ne _ _ hab, hflt a, hflt b]
             rcases eq_or_ne a v with rfl | hav <;> rcases eq_or_ne b v with rfl | hbv
             · exact absurd rfl hab
@@ -1109,14 +1106,12 @@ theorem isRankStrategyproof_pathrankRep :
   · by_cases hwv : w = v
     · subst hwv; exact le_rfl
     · by_cases htop : pathrankDist G s v = ⊤
-      · rw [heq_v, htop]
-        exact le_top
+      · simp [heq_v, htop]
       · refine ENNReal.le_of_forall_pos_le_add fun ε hε _ => ?_
         let δ : ℝ≥0∞ := min (ε : ℝ≥0∞) (minEdgeStep G)
         have hδ_pos : 0 < δ := lt_min (ENNReal.coe_pos.mpr hε) (minEdgeStep_pos G)
-        have hlt_δ : pathrankDist G s w < pathrankDist G s v + δ := by
-          rw [hd_eq]
-          exact ENNReal.lt_add_right htop hδ_pos.ne'
+        have hlt_δ : pathrankDist G s w < pathrankDist G s v + δ :=
+          hd_eq.trans_lt (ENNReal.lt_add_right htop hδ_pos.ne')
         obtain ⟨p, hp_valid, hp⟩ := exists_walk_lt_of_pathrankDist_lt G hlt_δ
         have hv_not : v ∉ p := fun hmem =>
           (hp.trans_le (add_le_add le_rfl (min_le_right _ _))).not_ge
@@ -1126,9 +1121,7 @@ theorem isRankStrategyproof_pathrankRep :
             ≤ walkInvTrustLen G' p := pathrankDist_le_of_walk G' hp_valid
           _ = walkInvTrustLen G p := hw_congr p hv_not
           _ ≤ pathrankDist G s v + δ := hp.le
-          _ ≤ pathrankDist G' s v + ε := by
-              rw [heq_v]
-              exact add_le_add le_rfl (min_le_left _ _)
+          _ ≤ pathrankDist G' s v + ε := heq_v ▸ add_le_add le_rfl (min_le_left _ _)
   · exact (hstrict hd_lt).le
 
 private theorem walkInvTrustLen_anti_pointwise {V : Type*} {G G' : TrustGraph V}

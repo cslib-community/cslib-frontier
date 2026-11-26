@@ -81,10 +81,7 @@ theorem step_native (M : TM0.Machine Γ Q) (c : Cfg Γ Q) :
 /-- A bounded coordinate path is a path of the original single-tape machine. -/
 theorem ReachesWithin.native {M : TM0.Machine Γ Q} {lo hi : ℤ} {c d : Cfg Γ Q}
     (h : ReachesWithin M lo hi c d) : TM0.Reaches M c.native d.native :=
-  h.lift Cfg.native fun a b hab => by
-    have hs := step_native M a
-    rw [hab.1] at hs
-    exact hs.symm
+  h.lift Cfg.native fun a _ hab => by simpa [hab.1] using (step_native M a).symm
 
 /-- Enlarging the coordinate interval retains every bounded path. -/
 theorem ReachesWithin.mono {M : TM0.Machine Γ Q} {lo hi lo' hi' : ℤ} {c d : Cfg Γ Q}
@@ -210,13 +207,9 @@ theorem headRange_reaches {lo hi : ℤ} (q : TM1.Stmt Γ Λ σ) (v : σ) (T : Ta
       ⟨trCfg M (TM1.stepAux q v T), TM1.headAfter q v T p⟩ := by
   induction q generalizing v T p with
   | move d q ih =>
-    cases d
-    all_goals
-      refine Relation.TransGen.head ?_ (ih _ _ _ h.2.2)
-      exact ⟨rfl, h.1, h.2.1, (TM1.HeadRange.endpoints h.2.2).1⟩
-  | write f q ih =>
-    refine Relation.TransGen.head ?_ (ih _ _ _ h.2.2)
-    exact ⟨rfl, h.1, h.2.1, h.1, h.2.1⟩
+    cases d <;>
+      exact .head ⟨rfl, h.1, h.2.1, (TM1.HeadRange.endpoints h.2.2).1⟩ (ih _ _ _ h.2.2)
+  | write f q ih => exact .head ⟨rfl, h.1, h.2.1, h.1, h.2.1⟩ (ih _ _ _ h.2.2)
   | load f q ih =>
     exact HeadPosition.transGen_of_step_eq
       (b := ⟨⟨(some q, f T.head v), T⟩, p⟩) rfl rfl (ih (f T.head v) T p h)
@@ -535,8 +528,7 @@ theorem tr_reachesWithin [Fintype Λ] {c d : TM2.Cfg Γ Λ σ}
       obtain rfl : d = TM2.stepAux (M l) v S := Option.some.inj hed.symm
       obtain ⟨L', hL', hp⟩ := stmt_within M (M l) v S L B hL (hB _ hce)
         (R := B + headOverhead M) (by
-          have hm : stackDepth (M l) ≤ Finset.univ.sup (fun l => stackDepth (M l)) :=
-            Finset.le_sup (f := fun l => stackDepth (M l)) (Finset.mem_univ l)
+          have hm := Finset.le_sup (f := fun l => stackDepth (M l)) (Finset.mem_univ l)
           simp only [headOverhead]
           omega)
       exact ⟨_, TrCfg.mk L' hL', hpath.trans hp.to_reflTransGen⟩

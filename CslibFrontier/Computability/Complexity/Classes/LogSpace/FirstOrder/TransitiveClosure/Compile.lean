@@ -346,11 +346,10 @@ theorem correct_ofFO (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type}
     reaches_formulaCodeWith (P := padded b code) hE.card_le fv base hbase hfv val _
       (hE.atomic fv base val) φ b (cond s T R) (cond s R T) regs default (codeAt_padded b code)
       hd h0 hregs hv (fun i => i.elim0)
-  have hP' : P.CodeAt b (code.map Instr.shift) := hP
   have hk : Kept B base regs regs' := hk'.mono (Nat.le_add_right _ _)
   have hX : (Formula.ofFO (shape := TC.shape) (Γ := Γ) φ).Realize TC.interpretation ρ val ↔
       res = true := hres.symm
-  refine ⟨Sound.of_reaches hE.one_le hP' hreach ?_, fun hs => Complete.of_reaches hP' hreach ?_⟩
+  refine ⟨Sound.of_reaches hE.one_le hP hreach ?_, fun hs => Complete.of_reaches hP hreach ?_⟩
   · cases s <;> cases res <;>
       first
       | exact Sound.exit ⟨hk, by simp [Sat, hX]⟩
@@ -394,19 +393,13 @@ theorem correct_conj (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type}
       fun ⟨hX, hY⟩ => (cφ hX).bind fun regs₁ hk₁ =>
         ((hψ regs₁ hk₁).2 hY).mono fun regs₂ hk₂ => hk₁.trans hk₂⟩
   | false =>
-    have hP' : P.CodeAt b ([(Instr.lt (const 0) (const 0) (b + 1) (b + 1)).shift,
-        .lt (reg 0) (const 1) (b + 2) (b + 2 + len φ false)] ++
-        compile v fv base φ false (b + 2) T R ++
-        compile v fv base ψ false (b + 2 + len φ false) T R) := hP
+    dsimp only [compile] at hP
     have h₀ : P.instr b = (Instr.lt (const 0) (const 0) (b + 1) (b + 1)).shift :=
-      hP' 0 (by simp)
+      hP 0 (by simp)
     have h₁ : P.instr (b + 1) = .lt (reg 0) (const 1) (b + 2) (b + 2 + len φ false) :=
-      hP' 1 (by simp)
-    have hPφ : P.CodeAt (b + 2) (compile v fv base φ false (b + 2) T R) :=
-      codeAt_right (codeAt_left hP') rfl
-    have hPψ : P.CodeAt (b + 2 + len φ false)
-        (compile v fv base ψ false (b + 2 + len φ false) T R) :=
-      codeAt_right hP' (by simp [length_compile]; omega)
+      hP 1 (by simp)
+    have hPφ := codeAt_right (b' := b + 2) (codeAt_left hP) rfl
+    have hPψ := codeAt_right (b' := b + 2 + len φ false) hP (by simp [length_compile]; omega)
     obtain ⟨sφ, cφ⟩ :=
       ihφ hΓ false hWφ fv base val ρ (b + 2) T regs hPφ hbase hfv hdφ h0 hv hregs
     obtain ⟨sψ, cψ⟩ := ihψ hΓ false hWψ fv base val ρ (b + 2 + len φ false) T regs hPψ hbase
@@ -439,12 +432,9 @@ theorem correct_ex (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type}
     (List.getD_set_ne (by omega) ..).trans h0
   cases s with
   | true =>
-    have hP' : P.CodeAt b (guessCode b base (reg 0) (b + 4) R ++
-        compile v (fun x => x.elim base fv) (base + 1) φ true (b + 4) T R) := hP
-    have hPg := codeAt_left hP'
-    have hPφ :
-        P.CodeAt (b + 4) (compile v (fun x => x.elim base fv) (base + 1) φ true (b + 4) T R) :=
-      codeAt_right hP' rfl
+    dsimp only [compile] at hP
+    have hPg := codeAt_left hP
+    have hPφ := codeAt_right (b' := b + 4) hP rfl
     have hbody : ∀ x : Fin a.1,
         Sound P (encStructure a) B Post (b + 4) (regs.set base x) T
           (fun regs' => Kept B (base + 1) (regs.set base x) regs' ∧
@@ -468,18 +458,15 @@ theorem correct_ex (hE : Env v a P B Post R) {Γ : List ℕ} {α : Type}
         (m := x) (hN'.symm ▸ x.isLt)).bind fun _ h => ?_
       exact h ▸ ((hbody x).2 hx).mono fun _ => Kept.of_set
   | false =>
-    have hP' : P.CodeAt b ([(Instr.assign base (const 0) (b + 1)).shift,
-        (Instr.lt (reg base) (reg 0) (b + 2) T).shift] ++
-        compile v (fun x => x.elim base fv) (base + 1) φ false (b + 2) (b + 2 + len φ false) R ++
-        [(Instr.assign base (add (reg base) (const 1)) (b + 1)).shift]) := hP
-    have h₀ : P.instr b = (Instr.assign base (const 0) (b + 1)).shift := hP' 0 (by simp)
+    dsimp only [compile] at hP
+    have h₀ : P.instr b = (Instr.assign base (const 0) (b + 1)).shift := hP 0 (by simp)
     have h₁ : P.instr (b + 1) = (Instr.lt (reg base) (reg 0) (b + 2) T).shift :=
-      hP' 1 (by simp)
-    have hPφ : P.CodeAt (b + 2) (compile v (fun x => x.elim base fv) (base + 1) φ false (b + 2)
-        (b + 2 + len φ false) R) := codeAt_right (codeAt_left hP') rfl
+      hP 1 (by simp)
+    have hPφ := codeAt_right (b' := b + 2) (codeAt_left hP) rfl
     have h₂ : P.instr (b + 2 + len φ false) =
         (Instr.assign base (add (reg base) (const 1)) (b + 1)).shift :=
-      codeAt_right hP' (by simp [length_compile]; omega) 0 Nat.zero_lt_one
+      codeAt_right (b' := b + 2 + len φ false) hP
+        (by simp [length_compile]; omega) 0 Nat.zero_lt_one
     -- the state at the loop test: `m` checked values, all false
     have hbody : ∀ (x : Fin a.1) (regs₁ : List ℕ), Kept B base regs regs₁ →
         regs₁.getD base 0 = x →

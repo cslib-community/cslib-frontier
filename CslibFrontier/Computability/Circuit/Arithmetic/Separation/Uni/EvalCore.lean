@@ -193,9 +193,7 @@ variable (supp) in
 /-- The number of steps of the machine for one step of the evaluation. -/
 @[expose] def codeCost : ℤ := 40 + 2 * (nameLength supp : ℤ)
 
-theorem codeCost_ge : 40 ≤ codeCost supp := by
-  unfold codeCost
-  omega
+theorem codeCost_ge : 40 ≤ codeCost supp := le_add_of_nonneg_right (by positivity)
 
 private theorem length_le_nameLength {p : List Bool} (hp : p ∈ prefixes supp) :
     p.length ≤ nameLength supp := by
@@ -313,13 +311,10 @@ private theorem EvalReady.sumTo_opcode (hσ : EvalReady σ (.cons o a) x H k inp
     (h0 : 11 ≤ o.len → S = 0) : Mach.SumTo (universalMachine θ supp) σ S (B + 11) := by
   obtain ⟨p, q, s, hrec, hp, hq⟩ := hσ.code
   refine hσ.inMode.sumTo_step hrec rfl fun h₁ => ?_
-  refine .mono (sumTo_opcodeChain (B := B + 10 - o.len) o 0 _ h₁.self hp.step
-    (fun j' σ' e h' e₁ e₂ e₃ e₄ => .mono (h j' (by simpa using e) σ' (h'.mono h₁.heap) e₁ ?_ ?_
-      (e₄.trans hσ.frame)) (by omega)) (by simpa using h0)) (by omega)
-  · rw [e₂]
-    exact hq.step.mono h'.heap
-  · rw [e₃]
-    exact hσ.arg.step.mono h'.heap
+  exact .mono (sumTo_opcodeChain (B := B + 10 - o.len) o 0 _ h₁.self hp.step
+    (fun j' σ' e h' e₁ e₂ e₃ e₄ => .mono (h j' (by simpa using e) σ' (h'.mono h₁.heap) e₁
+      (e₂ ▸ hq.step.mono h'.heap) (e₃ ▸ hσ.arg.step.mono h'.heap) (e₄.trans hσ.frame)) (by omega))
+    (by simpa using h0)) (by omega)
 
 /-- Reading the opcode `j` and the step after it, by the rule for the mode `decode j`. -/
 theorem EvalReady.sumTo_decode (hσ : EvalReady σ (.cons o a) x H k inp) (j : Fin 11)
@@ -375,9 +370,7 @@ private theorem EvalReady.sumTo_noRule (hσ : EvalReady σ (.cons o a) x H k inp
     Mach.SumTo (universalMachine θ supp) σ 0 B := by
   refine .mono (hσ.sumTo_opcode (B := B - 11) (fun j hj σ₁ h₁ h₁₁ _ _ _ => ?_) fun _ => rfl)
     (by omega)
-  obtain rfl | rfl : j = 8 ∨ j = 10 := by
-    simp only [Fin.ext_iff]
-    omega
+  obtain rfl | rfl : j = 8 ∨ j = 10 := by rw [Fin.ext_iff, Fin.ext_iff]; omega
   all_goals exact h₁.sumTo_zero (h₁.wf.nil_mem h₁₁) rfl _
 
 theorem EvalsTo.fail (ho : o.len = 8 ∨ 11 ≤ o.len) : EvalsTo θ supp (.cons o a) x [] :=
@@ -410,9 +403,8 @@ theorem EvalsTo.guess (ho : o.len = 7) :
   refine .mono (hσ.sumTo_opcode (B := B - 11) (fun j hj σ₁ hσ₁ h₁₁ _ _ hk => ?_) (by omega))
     (by omega)
   obtain rfl : j = 7 := Fin.ext (hj.symm.trans ho)
-  have hrec : ((.nil, ![σ₁.regs (loadReg σ₁.mode), 0, 0, 0]) : Rec RecKind) ∈ σ₁.heap := by
-    rw [hσ₁.mode]
-    exact hσ₁.wf.nil_mem h₁₁
+  have hrec : ((.nil, ![σ₁.regs (loadReg σ₁.mode), 0, 0, 0]) : Rec RecKind) ∈ σ₁.heap :=
+    hσ₁.mode.symm ▸ hσ₁.wf.nil_mem h₁₁
   have g₀ := h₀ (step θ σ₁ (.base (.decodeGuess false)) 0 0 0) hσ₁.step hk hσ₁.wf.r0
   have g₁ := h₁ (step θ σ₁ (.base (.decodeGuess true)) 0 0 0) hσ₁.step hk
     ⟨_, _, _, mem_heap_step σ₁ _ 0 0 0, hσ₁.wf.r0, hσ₁.wf.r0⟩

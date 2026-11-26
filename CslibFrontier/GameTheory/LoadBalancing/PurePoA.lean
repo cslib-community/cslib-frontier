@@ -165,8 +165,7 @@ theorem IsIdentical.makespan_le_four_thirds_of_isPureNash {G : LoadBalancingGame
     (hId : G.IsIdentical) {A : ι → Fin 2} (hA : G.toCostGame.IsPureNash A) :
     G.makespan A ≤ 4 / 3 * G.optMakespan := by
   have h := hId.makespan_le_of_isPureNash hA
-  norm_num [Fintype.card_fin] at h
-  exact h
+  rw [Fintype.card_fin] at h; linarith
 
 /-- **Tightness witness family for Finn–Horowitz** ([FinnHorowitz1979]; [Vocking2007]):
 for every `m ≥ 1`, `2m` jobs indexed by `Bool × Fin m` on `m` identical machines.
@@ -261,9 +260,9 @@ theorem optMakespan_finnHorowitzTight (m : ℕ) [NeZero m] :
     rw [hprev_eq]
     by_cases hj0 : j.val = 0
     · simp only [prev, hj0, ↓reduceIte, Nat.sub_sub_self hm_pos, Nat.cast_one]
-    · simp only [prev, hj0, ↓reduceIte, Nat.cast_sub (by omega : j.val - 1 ≤ m),
-        Nat.cast_sub (by omega : 1 ≤ j.val), Nat.cast_one]
-      ring
+    · have hnat : j.val + (m - (j.val - 1)) = m + 1 := by have := j.isLt; omega
+      simp only [prev, hj0, ↓reduceIte]
+      exact_mod_cast hnat
   have hsum : ∑ p : Bool × Fin m, (finnHorowitzTight m).weight p = (m : ℝ) * ((m : ℝ) + 1) := by
     rw [← (isIdentical_finnHorowitzTight m).sum_load Aopt]
     simp only [hload_opt, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
@@ -339,9 +338,8 @@ theorem IsIdentical.makespan_eq_opt_of_three_jobs_two_machines
         ext i
         simp only [mem_filter, mem_univ, true_and, mem_sdiff, S]
         exact ⟨fun hi h => hjne (hi.symm.trans h), hne_eq (A i)⟩
-      have hcard_comp : #(univ \ S) = 1 := by
-        rw [card_sdiff_of_subset (subset_univ S), card_univ, Fintype.card_fin, hcard2]
-      obtain ⟨i₃, hi₃_eq⟩ := card_eq_one.mp hcard_comp
+      obtain ⟨i₃, hi₃_eq⟩ := card_eq_one.mp
+        (by rw [card_sdiff_of_subset (subset_univ S), card_univ, Fintype.card_fin, hcard2])
       have hi₃_notS : i₃ ∉ S := (mem_sdiff.mp (hi₃_eq ▸ mem_singleton_self i₃)).2
       have hmemS {i} (hi : i ∈ ({i₁, i₂} : Finset (Fin 3))) : i ∈ S := hS_eq ▸ hi
       have hAi₁ : A i₁ = jstar := (mem_filter.mp (hmemS (mem_insert_self i₁ _))).2
@@ -353,8 +351,7 @@ theorem IsIdentical.makespan_eq_opt_of_three_jobs_two_machines
         rw [G.load_eq_sum_div, hId jother, div_one, hfilt_other, hi₃_eq, sum_singleton]
       have hNE₁ := (G.isPureNash_iff A).mp hA i₁ jother (hAi₁ ▸ hjne)
       have hNE₂ := (G.isPureNash_iff A).mp hA i₂ jother (hAi₂ ▸ hjne)
-      rw [hAi₁, hload_jstar, hload_other, hId jother, div_one] at hNE₁
-      rw [hAi₂, hload_jstar, hload_other, hId jother, div_one] at hNE₂
+      simp only [hAi₁, hAi₂, hload_jstar, hload_other, hId jother, div_one] at hNE₁ hNE₂
       have hi₁₃ : i₁ ≠ i₃ := fun h => hi₃_notS (h ▸ hmemS (mem_insert_self i₁ _))
       have hi₂₃ : i₂ ≠ i₃ := fun h =>
         hi₃_notS (h ▸ hmemS (mem_insert_of_mem (mem_singleton_self i₂)))
@@ -448,8 +445,7 @@ theorem makespan_le_goldenRatio_mul_optMakespan (G : LoadBalancingGame ι (Fin 2
           rw [mul_add, mul_div_cancel₀ _ ht.ne'] at this; linarith
         by_cases hratio : t ≤ φ * s
         · nlinarith
-        · have h1 : t * G.load A jstar ≤ (s + t) * G.optMakespan := by linarith
-          have hφ_pos : 0 < φ := by linarith
+        · have hφ_pos : 0 < φ := by linarith
           have h2 : s + t ≤ φ * t :=
             le_of_mul_le_mul_left (by nlinarith [hφ_sq]) hφ_pos
           nlinarith
@@ -503,20 +499,21 @@ theorem isPureNash_goldenRatioTightNE :
   have hsq5 : (√5 : ℝ) ^ 2 = 5 := Real.sq_sqrt (by norm_num)
   have hφ_pos : (0 : ℝ) < (1 + √5) / 2 := by positivity
   obtain ⟨hload0, hload1⟩ := load_goldenRatioTightNE
+  have hne0 : goldenRatioTightNE 0 = 1 := rfl
+  have hne1 : goldenRatioTightNE 1 = 0 := rfl
   rw [goldenRatioTight.isPureNash_iff]
   intro i k hk
   rcases (eq_or_ne i 0).imp_right (Fin.eq_one_of_ne_zero _) with rfl | rfl <;>
     rcases (eq_or_ne k 0).imp_right (Fin.eq_one_of_ne_zero _) with rfl | rfl
-  · rw [show goldenRatioTightNE 0 = 1 from rfl, hload1, hload0]
-    simp only [goldenRatioTight, Matrix.cons_val_zero, div_one]
-    rw [div_le_iff₀ hφ_pos]; nlinarith [Real.sqrt_nonneg 5]
+  · rw [hne0, hload1, hload0]
+    simp only [goldenRatioTight, Matrix.cons_val_zero, div_one, div_le_iff₀ hφ_pos]
+    nlinarith [Real.sqrt_nonneg 5]
   · exact absurd rfl hk
   · exact absurd rfl hk
-  · rw [show goldenRatioTightNE 1 = 0 from rfl, hload0, hload1]
-    simp only [goldenRatioTight, Matrix.cons_val_one, Matrix.cons_val_fin_one,
-      div_self hφ_pos.ne']
-    have : 1 / ((1 + √5) / 2) + 1 = (1 + √5) / 2 := by field_simp; nlinarith [hsq5]
-    linarith
+  · rw [hne1, hload0, hload1]
+    simp only [goldenRatioTight, Matrix.cons_val_one, Matrix.cons_val_fin_one, div_self hφ_pos.ne',
+      ← sub_le_iff_le_add, le_div_iff₀ hφ_pos]
+    nlinarith [hsq5]
 
 theorem optMakespan_goldenRatioTight : goldenRatioTight.optMakespan = 1 := by
   have hφ_pos : (0 : ℝ) < (1 + √5) / 2 := by positivity
@@ -630,11 +627,10 @@ theorem factorial_le_card_of_prefix_step (P : ℕ → Finset M)
     | succ d ih =>
       intro hd
       rw [prod_range_succ, mul_right_comm, mul_comm _ (c - d)]
-      have hrec := hrec_step (c - (d + 1))
-      rw [show c - (d + 1) + 1 = c - d by omega] at hrec
+      have hcd : c - (d + 1) + 1 = c - d := by omega
       calc (c - d) * ((∏ r ∈ range d, (c - r)) * #(P c))
           ≤ (c - d) * #(P (c - d)) := Nat.mul_le_mul_left _ (ih (by omega))
-        _ ≤ #(P (c - (d + 1))) := hrec
+        _ ≤ #(P (c - (d + 1))) := hcd ▸ hrec_step (c - (d + 1))
   have hprod_eq : ∏ r ∈ range c, (c - r) = c.factorial := by
     rw [Nat.factorial_eq_prod_range_add_one, ← Finset.prod_range_reflect (fun r => r + 1) c]
     exact prod_congr rfl fun r hr => by rw [mem_range] at hr; omega
@@ -760,9 +756,9 @@ theorem le_log_div_log_log_add_three_mul_of_factorial_le {m : ℕ} (hm : 3 ≤ m
     have hq_ge2 : 2 ≤ q := (Nat.le_floor_iff (div_nonneg hval hopt.le)).mpr
       ((le_div_iff₀ hopt).mpr (by push_cast; linarith))
     set c : ℕ := q - 1
-    have hge : ((c + 1 : ℕ) : ℝ) * opt ≤ val := by
-      rw [show c + 1 = q by omega]
-      exact (le_div_iff₀ hopt).mp (Nat.floor_le (div_nonneg hval hopt.le))
+    have hge : ((c + 1 : ℕ) : ℝ) * opt ≤ val :=
+      Nat.sub_add_cancel (one_le_two.trans hq_ge2) ▸
+        (le_div_iff₀ hopt).mp (Nat.floor_le (div_nonneg hval hopt.le))
     set r : ℕ := c / 2
     have hpow : r ^ r ≤ m :=
       (pow_le_factorial_two_mul r).trans ((Nat.factorial_le (by omega)).trans (hfac c hge))
@@ -790,8 +786,7 @@ theorem le_log_div_log_log_add_three_mul_of_factorial_le {m : ℕ} (hm : 3 ≤ m
       linarith
     have hq_real : (q : ℝ) ≤ 2 * (r : ℝ) + 2 := by exact_mod_cast (by omega : q ≤ 2 * r + 2)
     have hval_lt : val < ((q : ℝ) + 1) * opt := (div_lt_iff₀ hopt).mp (Nat.lt_floor_add_one _)
-    have h2 : 2 * (2 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ))) =
-        4 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) := by ring
+    rw [mul_div_assoc] at hr_lt ⊢
     nlinarith
 
 /-- **Asymptotic pure PoA for uniformly related machines** ([CzumajVocking2002]; [Vocking2007]):

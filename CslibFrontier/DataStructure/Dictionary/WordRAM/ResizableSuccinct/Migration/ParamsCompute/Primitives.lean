@@ -120,8 +120,6 @@ private theorem clientState_log2StepProg (x : ℕ × (ℕ × ℕ)) (s : Memory.S
   rcases x with ⟨hdrAddr, ⟨rem, acc⟩⟩
   dsimp only [log2StepProg]
   rw [StateTransitionSpec.clientState_bind]
-  have hs0 : (Memory.spec 0).clientState s (Memory.read hdrAddr) = s := rfl
-  rw [hs0]
   split_ifs <;> rfl
 
 private theorem validHistory_log2StepProg {w hdrAddr rem acc : ℕ} {s : Memory.State}
@@ -590,12 +588,10 @@ theorem writeTwoBlock4FinRet_spec {w n : ℕ} (base : ℕ) (g : Fin n → ℕ) (
       (writeBlock4Prog (base, b0) >>= fun _ => writeBlock4Prog (base + 4, b1)) := by
     dsimp only [s']; rw [hbind, StateTransitionSpec.clientState_bind,
       StateTransitionSpec.clientState_pure]
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-  · rw [hbind, validHistory_bind']; exact ⟨hv, trivial⟩
-  · rw [hbind, prog_clientResult_bind, prog_clientResult_pure]
-  · rw [hs'_eq]; exact hfr'
-  · intro j hj; rw [hs'_eq]; exact hmem' j hj
-  · intro a ha; rw [hs'_eq]; exact hframe' a ha
-  · rw [hbind, Realization.memoryCost_bind', memoryCost_pure, hc]
+  refine ⟨?_, by rw [hbind, prog_clientResult_bind, prog_clientResult_pure],
+    hs'_eq ▸ hfr', fun j hj => hs'_eq ▸ hmem' j hj, fun a ha => hs'_eq ▸ hframe' a ha,
+    by rw [hbind, Realization.memoryCost_bind', memoryCost_pure, hc]⟩
+  rw [hbind, validHistory_bind']
+  exact ⟨hv, trivial⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct.ParamsComputeAux

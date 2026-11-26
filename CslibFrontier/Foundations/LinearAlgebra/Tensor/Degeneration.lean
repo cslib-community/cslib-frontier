@@ -518,10 +518,8 @@ theorem IsSLDegen.slSum_comp {ι κ : Type*} [Finite ι] [DecidableEq ι] [Decid
     [Fintype X'] [Fintype Y'] [Fintype Z'] [DecidableEq X'] {f : X → X'} {h : ℕ}
     {G : ι → Tensor K X Y Z} {S : Tensor K X' Y' Z'} (hT : IsSLDegen f h (Tensor.slSum G) S)
     (e : κ → ι) (he : Function.Injective e) : IsSLDegen f h (Tensor.slSum (G ∘ e)) S := by
-  cases nonempty_fintype ι
-  cases nonempty_fintype X
-  cases nonempty_fintype Y
-  cases nonempty_fintype Z
+  rcases nonempty_fintype ι, nonempty_fintype X, nonempty_fintype Y, nonempty_fintype Z with
+    ⟨⟨_⟩, ⟨_⟩, ⟨_⟩, ⟨_⟩⟩
   classical
   obtain ⟨β, γ, E, hE⟩ := hT
   refine ⟨β * incl (Prod.map e id), (incl (Prod.map e id))ᵀ * γ,
@@ -546,10 +544,8 @@ theorem IsDegen.dsum_comp {ι κ : Type*} [Finite ι] [DecidableEq ι] [Decidabl
     [Fintype Y'] [Fintype Z'] {h : ℕ} {G : ι → Tensor K X Y Z} {S : Tensor K X' Y' Z'}
     (hT : IsDegen h (Tensor.dsum G) S) (e : κ → ι) (he : Function.Injective e) :
     IsDegen h (Tensor.dsum (G ∘ e)) S := by
-  cases nonempty_fintype ι
-  cases nonempty_fintype X
-  cases nonempty_fintype Y
-  cases nonempty_fintype Z
+  rcases nonempty_fintype ι, nonempty_fintype X, nonempty_fintype Y, nonempty_fintype Z with
+    ⟨⟨_⟩, ⟨_⟩, ⟨_⟩, ⟨_⟩⟩
   exact (isRestriction_dsum_comp G e he).trans_isDegen hT
 
 end Degenerations
@@ -584,9 +580,7 @@ theorem IsDegen.rank_of_natDegree_le [Finite X] [Finite Y] [Finite Z] {h D r : �
       (Polynomial.X ^ h : K[X]) • T.map C + (Polynomial.X ^ (h + 1) : K[X]) • E)
     (hD : ∀ x y z, (restrict α β γ ((unit r).map C) x y z).natDegree ≤ D) :
     Rank ((D + 1) * r) T := by
-  cases nonempty_fintype X
-  cases nonempty_fintype Y
-  cases nonempty_fintype Z
+  rcases nonempty_fintype X, nonempty_fintype Y, nonempty_fintype Z with ⟨⟨_⟩, ⟨_⟩, ⟨_⟩⟩
   classical
   obtain ⟨c, hc⟩ := exists_coeff_eq_sum_eval (K := K) h D
   have hT : T = ∑ k : Fin (D + 1), c k •
@@ -615,9 +609,7 @@ bound `D` depending only on the degeneration. -/
 theorem IsDegen.exists_rank_tpow [Finite X] [Finite Y] [Finite Z] {h r : ℕ}
     {T : Tensor K X Y Z} (hT : IsDegen h T (unit r)) :
     ∃ D : ℕ, ∀ m : ℕ, Rank ((D * m + 1) * r ^ m) (Tensor.tpow m T) := by
-  cases nonempty_fintype X
-  cases nonempty_fintype Y
-  cases nonempty_fintype Z
+  rcases nonempty_fintype X, nonempty_fintype Y, nonempty_fintype Z with ⟨⟨_⟩, ⟨_⟩, ⟨_⟩⟩
   classical
   obtain ⟨α, β, γ, E, hw⟩ := hT
   let f : X × Y × Z → ℕ := fun ⟨x, y, z⟩ => (restrict α β γ ((unit r).map C) x y z).natDegree

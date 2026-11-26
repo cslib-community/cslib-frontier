@@ -266,13 +266,11 @@ private theorem inv_step_header {l c n p cur steps v : ℕ} (hl : l < 5)
     · simp only [h, ↓reduceIte]
       search_finish [hdone]
     · have hmem : G ∈ StronglyConnected := fun a b => by
-        have hab := Nat.mul_add_lt_mul_of_lt_of_lt a.isLt b.isLt
-        rw [Nat.mul_comm] at hab
-        obtain ⟨_, _, hr⟩ := hdone (a * G.n + b) (by omega)
-        have hdiv : (a * G.n + b) / G.n = a := Nat.mul_add_div_fin a b
+        obtain ⟨_, _, hr⟩ := hdone (a * G.n + b) (Nat.mul_comm G.n a ▸
+          (Nat.mul_add_lt_mul_of_lt_of_lt a.isLt b.isLt).trans_le (Nat.le_of_not_lt h))
         have hmod : (a * G.n + b) % G.n = b := by
           rw [Nat.add_comm, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt b.isLt]
-        convert hr <;> simp [hdiv, hmod]
+        convert hr <;> simp [Nat.mul_add_div_fin, hmod]
       simp only [h, ↓reduceIte]
       search_finish [hmem]
   case «3» =>
@@ -402,10 +400,8 @@ private theorem inv_step (cfg : Config) (hinv : Inv G cfg)
   · exact inv_step_check G (by omega) hl9 hB hP b
   by_cases hl15 : l < 15
   · exact inv_step_guess G (by omega) hl15 hB hP b
-  have hl : l ≤ 17 := by
-    by_contra! h
-    obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le' h
-    exact hP
+  have hl : l ≤ 17 := Nat.le_of_not_lt fun h =>
+    match l, Nat.exists_eq_add_of_le' h, hP with | _, ⟨_, rfl⟩, hP => hP
   interval_cases l
   · exact inv_step_next G hB hP b
   all_goals simp [CounterProgram.halted, instr, searchProgram, Instr.halts] at hrun
@@ -443,10 +439,8 @@ theorem mem_of_accepts (h : searchProgram.toNondeterministicQueryMachine.Accepts
   have hi := instr_of_accepts hhalt hacc
   obtain ⟨c, n, p, cur, steps, v, -, -, -, hP⟩ := inv_run G choices
   generalize (searchProgram.toNondeterministicQueryMachine.run G.encode choices).1 = l at hi hP
-  have hl : l ≤ 17 := by
-    by_contra! h
-    obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le' h
-    exact hP
+  have hl : l ≤ 17 := Nat.le_of_not_lt fun h =>
+    match l, Nat.exists_eq_add_of_le' h, hP with | _, ⟨_, rfl⟩, hP => hP
   interval_cases l <;> first | exact hP | simp [instr, searchProgram] at hi
 
 /-! ### An accepting branch -/

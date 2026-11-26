@@ -345,8 +345,7 @@ private theorem eval_prfRealGame_mteCIToPrfDistinguisher
       refine PMF.bind_congr_on_support _ _ _ fun tag htag => ?_
       refine PMF.bind_congr_on_support _ _ _ fun r hr => ?_
       have hrLen : r.length = ptLen n := BitString.length_of_mem_support_uniformList hr
-      have hpadLen : (family ke r).length = ptLen n := by
-        rw [hlen ke r (by rw [hrLen, hkeLen]), hkeLen]
+      have hpadLen := (hlen ke r (hrLen.trans hkeLen.symm)).trans hkeLen
       simp [prfOracle, hrLen, List.take_of_length_le hpadLen.le]
     · simp [hmsg, runWith_norm, pmf_norm]
   rw [horacle]
@@ -406,11 +405,8 @@ private theorem eval_prfIdealGame_mteCIToPrfDistinguisher (M : MACScheme) (ptLen
         rfl
       · simp [hmsg, runWith_norm, pmf_norm])
     (adversary n []) {}
-  rw [show (([] : List (List Bool)), ([] : List (List Bool × List Bool))) =
-      (fun st : MteState => (st.history.map (MteRec.ct (ptLen n)), st.cache)) {} from rfl,
-    ← hsim, PMF.bind_map]
-  refine PMF.bind_congr_on_support _ _ _ fun out _ => ?_
-  obtain ⟨ct, cache, hist⟩ := out
+  erw [← hsim, PMF.bind_map]
+  refine PMF.bind_congr_on_support _ _ _ fun ⟨ct, cache, hist⟩ _ => ?_
   unfold mteIdealFinal
   dsimp only [Function.comp_apply]
   by_cases hcond :
@@ -548,8 +544,7 @@ theorem isOraclePPT_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ
       cases OracleComp.eq_of_mem_supportWith_pure hresult
       have hpadTake : (List.take p.1.1 rawPad).length ≤ p.1.1 := List.length_take_le _ _
       refine ⟨trivial, ?_, ?_⟩
-      · simp only [List.length_append, List.length_zipWith, hrLen]
-        lia
+      · simp only [List.length_append, List.length_zipWith, hrLen]; omega
       · simp only [encList_cons, List.length_append, length_frame, encBits_apply,
           List.length_zipWith, hrLen]
         lia

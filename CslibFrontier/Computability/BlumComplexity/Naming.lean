@@ -419,8 +419,7 @@ private theorem computable_hist : Computable fun q : Code × ℕ => hist Φ q.1 
     exact (Computable.list_append.comp (Computable.snd.comp Computable.snd)
       (Computable.list_cons.comp ((computable_step Φ).comp ((Computable.fst.comp
         Computable.fst).pair (Computable.snd.comp Computable.snd))) (Computable.const []))).to₂
-  refine h.of_eq fun q => ?_
-  obtain ⟨i, n⟩ := q
+  refine h.of_eq fun ⟨i, n⟩ => ?_
   induction n with
   | zero => rfl
   | succ n ih => rw [hist, ← ih]
@@ -533,15 +532,12 @@ private theorem actor_isSome {i : Code} {l : List (Option ℕ)} {x z s e : ℕ}
     ⟨_, e, Nat.lt_succ_of_le he.1, he, rfl⟩
   obtain ⟨e₀, he₀s, he₀, hk₀⟩ := Nat.find_spec hex
   have hmin : ∀ e' < s + 1, Cand Φ i l x z e' s → key l e₀ s ≤ key l e' s :=
-    fun e' he's he' => by
-      rw [hk₀]
-      exact Nat.find_min' hex ⟨e', he's, he', rfl⟩
+    fun e' he's he' => hk₀ ▸ Nat.find_min' hex ⟨e', he's, he', rfl⟩
   cases ha : actor Φ i l x z s with
   | none =>
     have h1 := bfind_eq_none.1 ha e₀ (Nat.zero_le _) (by omega)
-    have h2 : Cand Φ i l x z e₀ s ∧ ∀ e' < s + 1, Cand Φ i l x z e' s →
-        key l e₀ s ≤ key l e' s := ⟨he₀, hmin⟩
-    exact absurd (@decide_eq_true _ (Classical.dec _) h2) (by rw [h1]; simp)
+    exact Bool.noConfusion
+      (h1.symm.trans (@decide_eq_true _ (Classical.dec _) (And.intro he₀ hmin)))
   | some e'' =>
     exact ⟨e'', rfl, (actor_eq_some ha).2 e (Nat.lt_succ_of_le he.1) he⟩
 
@@ -761,19 +757,15 @@ private theorem frequently_not_halts {i : Code} {t' : ℕ → ℕ} (ht' : ∀ n,
       by_cases hz : ∃ z, Defd Φ i x z
       · obtain ⟨z, hz⟩ := hz
         filter_upwards [eventually_gt_atTop (Nat.pair x z)] with s hs z' hz'
-        rw [Defd.unique hz' hz]
-        exact hs.ne'
+        exact Defd.unique hz' hz ▸ hs.ne'
       · exact Eventually.of_forall fun _ z hz' => absurd ⟨z, hz'⟩ hz
   obtain ⟨B, hB⟩ := eventually_atTop.1 hfin
   obtain ⟨s, hs, hse⟩ := frequently_atTop.1 he B
   obtain ⟨x, z, rfl⟩ : ∃ x z, Nat.pair x z = s := ⟨_, _, Nat.pair_unpair s⟩
   obtain ⟨hu, hc, -⟩ := act_pair_eq_some hse
   have hd : Defd Φ i x z := ⟨hu, Or.inl (by simp [hse])⟩
-  refine ⟨x, ?_, ?_⟩
-  · by_contra hx
-    exact hB _ hs x (by simpa using hx) z hd rfl
-  · rw [name_eq_val ht' hd, val_of_act hse]
-    exact hc.2.2.1
+  exact ⟨x, not_lt.1 fun hx => hB _ hs x hx z hd rfl,
+    (name_eq_val ht' hd).trans (val_of_act hse) ▸ hc.2.2.1⟩
 
 /-- Eventually every acting index has key above `K`: each of the finitely many indices `≤ K`
 moves above `K` once it acts at a stage `≥ K`. -/
@@ -908,17 +900,14 @@ private theorem halts_iff {i : Code} {t t' : ℕ → ℕ} (ht : ∀ n, t n ∈ i
     have hSz : S ≤ Nat.pair x z₁ := hxS.trans (Nat.left_le_pair x z₁)
     obtain ⟨hlate, hq, -⟩ := hS _ hSz
     have hna : act Φ i (Nat.pair x z₁) = none := by
-      cases hc : act Φ i (Nat.pair x z₁) with
-      | none => rfl
-      | some e'' =>
-        exfalso
-        obtain ⟨-, hcand, -⟩ := act_pair_eq_some hc
+      rcases hc : act Φ i (Nat.pair x z₁) with _ | e''
+      · rfl
+      · obtain ⟨-, hcand, -⟩ := act_pair_eq_some hc
         have hlt := hlate e'' hc
-        refine hMmin z₁ hMz fun e' he' hve => ?_
-        have hqe := (hq e' he').2 hve
-        have hqk := hqe.1
-        have he'' := le_key_hist (Φ := Φ) i e' (Nat.pair x z₁)
-        exact hcand.2.2.2 e' (by omega) (by omega) hqe.2
+        refine (hMmin z₁ hMz fun e' he' hve => ?_).elim
+        obtain ⟨hqk, hqf⟩ := (hq e' he').2 hve
+        have := le_key_hist (Φ := Φ) i e' (Nat.pair x z₁)
+        exact hcand.2.2.2 e' (by omega) (by omega) hqf
     have hH₁ : Halts Φ i x z₁ := hz₁.2.resolve_left fun h => h hna
     rw [val_of_not_act hna, gv_eq ht hH₁, max_eq_right (by omega)]
 

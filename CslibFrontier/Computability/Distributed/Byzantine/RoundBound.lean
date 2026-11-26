@@ -235,10 +235,7 @@ private theorem crashState_silenceAt_insert_eq_of_ne (m₀ : M) (k : ℕ) (C : F
 private theorem crashState_extAlive_eq (m₀ : M) (k : ℕ) (C : Finset P)
     (alive : ℕ → P → P → Bool) (x : P → Bool) :
     π.crashState m₀ (extAlive k C alive) x k = π.crashState m₀ alive x k :=
-  π.crashState_congr_lt m₀ x (fun r hr => by
-    funext j i
-    unfold extAlive
-    simp only [hr, ↓reduceIte]) k le_rfl
+  π.crashState_congr_lt m₀ x (fun _ hr => funext₂ fun _ _ => ite_eq_left hr) k le_rfl
 
 private theorem crashState_extAlive_eq_of_agree (m₀ : M) {k : ℕ} {C : Finset P}
     {alive₁ alive₂ : ℕ → P → P → Bool} {x₁ x₂ : P → Bool}
@@ -253,11 +250,8 @@ private theorem crashState_extAlive_eq_of_agree (m₀ : M) {k : ℕ} {C : Finset
     congr 1
     · exact crashState_extAlive_eq_of_agree m₀ hagree d q hq
     · funext j
-      simp only [extAlive, show ¬(k + d < k) by omega, ↓reduceIte]
-      by_cases hj : j ∈ C
-      · simp only [hj, not_true_eq_false, decide_false, Bool.false_eq_true, ↓reduceIte]
-      · simp only [hj, not_false_eq_true, decide_true, ↓reduceIte,
-          crashState_extAlive_eq_of_agree m₀ hagree d j hj]
+      rw [extAlive, extAlive, ite_eq_right (Nat.not_lt.mpr (Nat.le_add_right k d))]
+      by_cases hj : j ∈ C <;> simp [hj, crashState_extAlive_eq_of_agree m₀ hagree d j]
 
 /-- Shared backward-peeling core: on at least `R + 2` processes, no protocol simultaneously achieves
 `R`-fault agreement at round `R` and distinguishes all-`false` from all-`true` in the fault-free
@@ -399,15 +393,11 @@ private theorem reindex_state {P Q S S' M M' : Type*} [DecidableEq P] [Decidable
           (fun r j i => eM (adv r (eP.symm j) (eP.symm i))) (fun j => x (eP.symm j)) r (eP i))
   | 0, i => by simp only [state, reindex, Equiv.symm_apply_apply]
   | r + 1, i => by
-    have ih := reindex_state eP eS eM π F adv x r
-    rw [state]
-    simp only [ih, state]
-    change eS.symm (π.update r (eP i) _ _) = _
-    congr 1
-    rw [Equiv.apply_symm_apply]
-    congr 1
+    simp only [state, reindex_state]
+    simp only [reindex, Equiv.apply_symm_apply]
+    congr 2
     funext j
-    by_cases hj : eP.symm j ∈ F <;> simp [hj, reindex]
+    by_cases hj : eP.symm j ∈ F <;> simp [hj]
 
 private theorem reindex_decision {P Q S S' M M' : Type*} [DecidableEq P] [DecidableEq Q]
     (eP : P ≃ Q) (eS : S' ≃ S) (eM : M' ≃ M) (π : Protocol Q S M)
@@ -557,8 +547,7 @@ theorem not_solvesInteractiveConsistency_of_rounds_le [Fintype P] [Nontrivial V]
     have h₁ := hR_solves.validity ∅ (Nat.zero_le R) adv (fun _ => v₁) p₀
       (Finset.notMem_empty p₀) p₀ (Finset.notMem_empty p₀)
     simp only [InteractiveProtocol.decision] at h₀ h₁
-    simp only [Protocol.decision, hstate, π₀, ↓reduceIte, Bool.false_eq_true, h₀, h₁,
-      decide_eq_false hv, decide_true, and_self]
+    simp [Protocol.decision, hstate, π₀, h₀, h₁, hv]
 
 end Model
 

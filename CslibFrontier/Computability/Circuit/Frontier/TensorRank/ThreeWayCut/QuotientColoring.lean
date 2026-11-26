@@ -341,10 +341,7 @@ private theorem measureReal_blockColor_eq_one_third (Q : Multigraph W F) (q : �
     (measurableSet_blockColor_eq Q q R B (k + 1)).nullMeasurableSet]
   refine measureReal_congr ?_
   filter_upwards [compl_mem_ae_iff.mpr hN_null] with ω hω
-  simp only [mem_compl_iff, mem_ofPred_eq, not_not] at hω
-  simp only [mem_preimage, mem_ofPred_eq]
-  rw [blockColor_rotSample hω]
-  exact ⟨fun h => by rw [h], fun h => add_right_cancel h⟩
+  simp [blockColor_rotSample (not_not.mp hω)]
 
 /-- Event that quotient edge `e` crosses between color `c` and color `c + 1`. -/
 private def cutPairEvent (Q : Multigraph W F) (q : ℝ) (R : ℕ) (c : Fin 3) (e : F) :
@@ -413,13 +410,7 @@ private theorem measureReal_cutPairEvent_eq_third (Q : Multigraph W F) (q : ℝ)
   refine measureReal_congr ?_
   filter_upwards [compl_mem_ae_iff.mpr (hnull (Q.src e)), compl_mem_ae_iff.mpr (hnull (Q.tgt e))]
     with ω h1 h2
-  simp only [mem_compl_iff, mem_ofPred_eq, not_not] at h1 h2
-  simp only [mem_preimage, cutPairEvent, mem_ofPred_eq]
-  rw [blockColor_rotSample h1, blockColor_rotSample h2]
-  exact ⟨fun h => h.imp (fun ⟨h1, h2⟩ => ⟨by rw [h1], by rw [h2]⟩)
-      (fun ⟨h1, h2⟩ => ⟨by rw [h1], by rw [h2]⟩),
-    fun h => h.imp (fun ⟨h1, h2⟩ => ⟨add_right_cancel h1, add_right_cancel h2⟩)
-      (fun ⟨h1, h2⟩ => ⟨add_right_cancel h1, add_right_cancel h2⟩)⟩
+  simp [cutPairEvent, blockColor_rotSample (not_not.mp h1), blockColor_rotSample (not_not.mp h2)]
 
 omit [Finite F] in
 private theorem measure_dot2_edgeVec2_eq_zero {Q : Multigraph W F} {q : ℝ} {R : ℕ} {e : F}

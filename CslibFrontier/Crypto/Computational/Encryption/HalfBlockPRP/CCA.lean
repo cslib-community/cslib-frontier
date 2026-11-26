@@ -268,13 +268,9 @@ theorem isQueryBounded_ccaToStrongPRPAdversary (bit : Bool) (adversary : CCAAdve
   refine OracleComp.IsCostBounded.run_interpret (fun q s => ?_) hq []
   cases q with
   | inl m =>
-    simp only [OracleComp.sumHandler, Sum.elim_inl]
-    change ((·, s) <$> ProbOracleComp.sample (ProbComp.unifFin m)).IsQueryBounded 0
-    simp only [OracleComp.isCostBounded_map_iff]
-    exact ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin m)
-  | inr request =>
-    simp only [OracleComp.sumHandler, Sum.elim_inr]
-    exact isQueryBounded_ccaToStrongPRPHandler n bit request s
+    exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
+      (ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin m))
+  | inr request => exact isQueryBounded_ccaToStrongPRPHandler n bit request s
 
 /-- The reduction is uniform strict oracle PPT whenever the adversary is. -/
 theorem isOraclePPT_ccaToStrongPRPAdversary {adversary : CCAAdversary}
@@ -410,8 +406,7 @@ private theorem coupledStep_flag_imp (n : ℕ) (bit : Bool) (request : Bool × L
     (s : CoupledState n) (r : List Bool) (z : BitString (2 * n))
     (h : (coupledStep n bit request s r z).2.2 = true) :
     r ∈ s.2.map (fun t => (List.ofFn t.1).take n) := by
-  rw [coupledStep_flag] at h
-  simp only [Bool.and_eq_true, decide_eq_true_eq] at h
+  simp only [coupledStep_flag, Bool.and_eq_true, decide_eq_true_eq] at h
   exact h.2
 
 /-- The coupled handler keeps a raised flag raised. -/
@@ -854,10 +849,9 @@ theorem BlockCipher.StrongPRP.indcca_halfBlockCipher {F : BlockCipher} (hF : F.S
     refine Game.Indistinguishable.of_birthday_queryBounded_real
       (base := fun n => ((2 : ℝ≥0) ^ n)⁻¹) 3 (by negligible) fun n Q adversary hQ => ?_
     have hbound := advantage_strongPRPIdealGame_ccaToStrongPRPAdversary_le adversary n Q hQ
-    have hsmall : (((2 : ℝ) ^ n)⁻¹) ^ 2 ≤ ((2 : ℝ) ^ n)⁻¹ := by
-      have h₀ : 0 ≤ ((2 : ℝ) ^ n)⁻¹ := by positivity
-      have h₁ : ((2 : ℝ) ^ n)⁻¹ ≤ 1 := inv_le_one_of_one_le₀ (one_le_pow₀ (by norm_num))
-      nlinarith
+    have hsmall : (((2 : ℝ) ^ n)⁻¹) ^ 2 ≤ ((2 : ℝ) ^ n)⁻¹ :=
+      (sq _).trans_le (mul_le_of_le_one_right (by positivity)
+        (inv_le_one_of_one_le₀ (one_le_pow₀ one_le_two)))
     have hchoose : (0 : ℝ) ≤ Q.choose 2 := Nat.cast_nonneg _
     refine hbound.trans ?_
     push_cast

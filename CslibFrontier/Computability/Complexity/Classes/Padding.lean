@@ -270,8 +270,8 @@ theorem NTIME_subset_iUnion_DTIME_of_agree_padded {t T : ℕ → ℕ}
   set n := (enc a).length
   set X := n + T n + 1
   have hX : 1 ≤ X := by omega
-  have hL : 2 * n + 1 + t n ≤ (c' + 2) * X := by
-    dsimp only [X]; nlinarith [show t n ≤ c' * (T n + 1) from ht a]
+  have htn : t n ≤ c' * (T n + 1) := ht a
+  have hL : 2 * n + 1 + t n ≤ (c' + 2) * X := by dsimp only [X]; nlinarith
   have h₁ : (2 * n + 1 + t n) ^ d ≤ (c' + 2) ^ d * X ^ (d + 1) := by
     calc (2 * n + 1 + t n) ^ d ≤ ((c' + 2) * X) ^ d := Nat.pow_le_pow_left hL d
       _ = (c' + 2) ^ d * X ^ d := Nat.mul_pow _ _ _
@@ -407,10 +407,8 @@ theorem preimage_mem_NTIME_of_mem_NP {B : Set (List Bool)} {g : α → List Bool
     intro final hfinal
     rw [MultiTapePTM.eval_runClosedConfigFrom_ofDeterministic, PMF.mem_support_pure_iff] at hfinal
     exact hfinal ▸ congrArg (·.state) (htm_run a)
-  have hout₁ (a : α) :
-      ProbComp.eval (M_pad.runClosed (t₁ a) (enc a)) = PMF.pure (g a) := by
-    rw [MultiTapePTM.eval_runClosed_ofDeterministic, htm_run a]
-    rfl
+  have hout₁ (a : α) : ProbComp.eval (M_pad.runClosed (t₁ a) (enc a)) = PMF.pure (g a) := by
+    rw [MultiTapePTM.eval_runClosed_ofDeterministic, htm_run a]; rfl
   -- Unpack `B ∈ NP encBits` into a halting fair-coin machine `M_NP`
   obtain ⟨p, V, hV, hVer⟩ := hB
   obtain ⟨k₁, State₁, hfinite₁, M_NP, c₁, d₁, heval₂, hhalt₂⟩ :=
@@ -539,10 +537,8 @@ theorem preimage_pad_prod_id_mem_EXP {B : Set (List Bool × List Bool)}
     simp only [length_encPair, encBits_apply, List.length_append, length_frame,
       List.length_replicate, pow_add]
     omega
-  have hpow : (encPair encBits encBits
-      (frame (enc p.1) ++ List.replicate (2 ^ f n) true, p.2)).length ^ d ≤ 2 ^ E :=
-    pow_le_two_pow_mul_of_add_one_le hlen (by omega)
-  omega
+  have hpow := pow_le_two_pow_mul_of_add_one_le (d := d) (e := d₀ + d + 2) hlen (by omega)
+  rw [← hE] at hpow; omega
 
 /-- Pulling back `B ∈ P (encPair encBits encUnary)` along
 `a ↦ (frame (enc a) ++ List.replicate (2 ^ f (enc a).length) true, 2 ^ g (enc a).length)`, where
@@ -580,10 +576,8 @@ theorem preimage_pad_prod_two_pow_mem_EXP {B : Set (List Bool × ℕ)}
     simp only [length_encPair, encBits_apply, encUnary_apply, List.length_append, length_frame,
       List.length_replicate, pow_add]
     omega
-  have hpow : (encPair encBits encUnary
-      (frame (enc a) ++ List.replicate (2 ^ f n) true, 2 ^ g n)).length ^ d ≤ 2 ^ E :=
-    pow_le_two_pow_mul_of_add_one_le hlen (by omega)
-  omega
+  have hpow := pow_le_two_pow_mul_of_add_one_le (d := d) (e := d₀ + d₁ + d + 2) hlen (by omega)
+  rw [← hE] at hpow; omega
 
 end Translation
 

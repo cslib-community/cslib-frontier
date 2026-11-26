@@ -114,7 +114,8 @@ private theorem unitExponent_le_mean_add (F : SpectralPoint K V) {c : ℝ} (hc :
       √(c * F.wireExponent (a v) (b v) * δ + δ ^ 2) := by
     refine Real.le_sqrt_of_sq_le ?_
     have h := sq_dist_midpoint_le hw (x := Sum.inl (a v)) (y := Sum.inl (b v)) (v := Sum.inr v)
-      (z := Sum.inl (m v)) (δ := δ) ?_ ?_ ?_ ?_
+      (z := Sum.inl (m v)) (δ := δ) ?_ ?_
+      (by simpa only [he] using ha v) (by simpa only [he] using hb v)
     · simpa only [he] using h
     · have := mul_le_mul_of_nonneg_left (hd (Sum.inl (a v)) (Sum.inr v)) hc
       simp only [Sum.elim_inl, Sum.elim_inr, id, F.wireExponent_self, he] at this ⊢
@@ -123,13 +124,9 @@ private theorem unitExponent_le_mean_add (F : SpectralPoint K V) {c : ℝ} (hc :
       simp only [Sum.elim_inl, Sum.elim_inr, id, F.wireExponent_self,
         F.wireExponent_comm (b v) (a v), he] at this ⊢
       linarith
-    · simpa only [he] using ha v
-    · simpa only [he] using hb v
-  have h1 := F'.unitExponent_le_move (Sum.inl ∘ m) Sum.inr
-  rw [hm] at h1
   calc c * F.unitExponent m
       ≤ c * (F'.unitExponent Sum.inr + ∑ v, F'.wireExponent ((Sum.inl ∘ m) v) (Sum.inr v)) :=
-        mul_le_mul_of_nonneg_left h1 hc
+        mul_le_mul_of_nonneg_left (hm ▸ F'.unitExponent_le_move (Sum.inl ∘ m) Sum.inr) hc
     _ = c * F'.unitExponent Sum.inr + ∑ v, c * F'.wireExponent (Sum.inl (m v)) (Sum.inr v) := by
         rw [mul_add, Finset.mul_sum]
         rfl
@@ -194,13 +191,11 @@ private theorem unitExponent_midpoint_le {n : ℕ} (V : Finset (EuclideanSpace �
   classical
   obtain ⟨δ, hδ, h⟩ := unitExponent_convex K I (fun x y : V => dist x y) hε
   refine ⟨δ, hδ, fun F c hc hd a b m hm => ?_⟩
-  have := h F c hc (fun x y => by rw [abs_sub_comm]; exact hd x y) a b m
-    (fun i => le_of_eq ?_) (fun i => le_of_eq ?_)
-  · linarith
-  · rw [Subtype.dist_eq, Subtype.dist_eq, hm, dist_midpoint_left, Real.norm_ofNat]
-    ring
-  · rw [Subtype.dist_eq, Subtype.dist_eq, hm, dist_midpoint_right, Real.norm_ofNat]
-    ring
+  linarith [h F c hc (fun x y => (abs_sub_comm (dist x y) _).trans_lt (hd x y)) a b m
+    (fun i => le_of_eq (by simp only [Subtype.dist_eq, hm, dist_midpoint_left, Real.norm_ofNat,
+      div_eq_inv_mul]))
+    (fun i => le_of_eq (by simp only [Subtype.dist_eq, hm, dist_midpoint_right, Real.norm_ofNat,
+      div_eq_inv_mul]))]
 
 end Midpoints
 
@@ -305,19 +300,16 @@ theorem exists_spectralPoint_cube (hK : FlatCase K) {k : ℕ} (V : Finset (Eucli
       have h1 := hconv F c hc0 (fun x y => (hF' x y).trans_le (min_le_left _ _))
         (α i (Function.update χ ⟨i, hi⟩ true)) (α i (Function.update χ ⟨i, hi⟩ false))
         (α (i + 1) χ) fun x => cubePoint_cubeSign_succ hi χ (j x) (b x)
-      have h2 := ih (Nat.le_of_succ_le hi) (Function.update χ ⟨i, hi⟩ true)
-      have h3 := ih (Nat.le_of_succ_le hi) (Function.update χ ⟨i, hi⟩ false)
       push_cast
-      linarith
+      linarith [ih (Nat.le_of_succ_le hi) (Function.update χ ⟨i, hi⟩ true),
+        ih (Nat.le_of_succ_le hi) (Function.update χ ⟨i, hi⟩ false)]
   refine ⟨F.pull incl, c, hc0, fun x y => ?_, ?_⟩
   · rw [F.pull_wireExponent, Subtype.dist_eq]
     exact (hF' (incl x) (incl y)).trans_le ((min_le_right _ _).trans (by linarith))
   · have e : incl ∘ (fun x : P => (⟨x.1, hPV x.2⟩ : V)) = α k fun _ => true :=
       funext fun x => Subtype.ext ((hjb x).trans (cubePoint_cubeSign_top _ _ _).symm)
     rw [F.pull_unitExponent, e]
-    refine (hlevel k le_rfl _).trans_eq ?_
-    field_simp
-    ring
+    exact (hlevel k le_rfl _).trans_eq (by field_simp; ring)
 
 end Cube
 

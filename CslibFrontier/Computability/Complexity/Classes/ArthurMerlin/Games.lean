@@ -155,22 +155,20 @@ theorem value_mono_of_length (b : Bool) (g : List (AMMove × ℕ)) {f f' : List 
   induction g generalizing f f' with
   | nil => exact h [] rfl
   | cons x g ih =>
-    obtain ⟨_ | _, n⟩ := x
-    · rw [value_arthur, value_arthur]
-      gcongr with r
-      exact ih fun t ht => h _ (by
+    obtain ⟨mv, n⟩ := x
+    have hstep (r : Fin n → Bool) : (value b g fun t => f (List.ofFn r ++ t)) ≤
+        value b g fun t => f' (List.ofFn r ++ t) :=
+      ih fun t ht => h _ (by
         simp only [transcriptLength, List.length_append, List.length_ofFn, List.map_cons,
           List.sum_cons] at ht ⊢; omega)
-    · have hy (y : Fin n → Bool) : (value b g fun t => f (List.ofFn y ++ t)) ≤
-          value b g fun t => f' (List.ofFn y ++ t) :=
-        ih fun t ht => h _ (by
-          simp only [transcriptLength, List.length_append, List.length_ofFn, List.map_cons,
-            List.sum_cons] at ht ⊢; omega)
-      cases b
+    cases mv
+    · rw [value_arthur, value_arthur]
+      exact div_le_div_of_nonneg_right (sum_le_sum fun r _ => hstep r) (by positivity)
+    · cases b
       · rw [value_merlin_false, value_merlin_false]
-        exact le_inf' _ _ fun y _ => (inf'_le _ (mem_univ y)).trans (hy y)
+        exact le_inf' _ _ fun y _ => (inf'_le _ (mem_univ y)).trans (hstep y)
       · rw [value_merlin_true, value_merlin_true]
-        exact sup'_le _ _ fun y _ => (hy y).trans
+        exact sup'_le _ _ fun y _ => (hstep y).trans
           (le_sup' (fun y => value true g fun t => f' (List.ofFn y ++ t)) (mem_univ y))
 
 theorem value_mono (b : Bool) (g : List (AMMove × ℕ)) {f f' : List Bool → ℚ}
@@ -264,7 +262,6 @@ theorem value_merge_arthur (b : Bool) (σ τ : List (AMMove × ℕ)) (n₁ n₂ 
       value b (σ ++ (.arthur, n₁ + n₂) :: τ) f := by
   rw [value_append, value_append]
   congr 1 with s : 1
-  rw [value_arthur, value_arthur]
   simp only [value_arthur]
   have hsum : (∑ r : Fin (n₁ + n₂) → Bool, value b τ fun t => f (s ++ (List.ofFn r ++ t))) =
       ∑ r₁ : Fin n₁ → Bool, ∑ r₂ : Fin n₂ → Bool,
@@ -281,7 +278,6 @@ theorem value_merge_merlin (σ τ : List (AMMove × ℕ)) (n₁ n₂ : ℕ) (f :
       value true (σ ++ (.merlin, n₁ + n₂) :: τ) f := by
   rw [value_append, value_append]
   congr 1 with s : 1
-  rw [value_merlin_true, value_merlin_true]
   simp only [value_merlin_true]
   refine le_antisymm (sup'_le _ _ fun y₁ _ => sup'_le _ _ fun y₂ _ => ?_)
     (sup'_le _ _ fun y _ => ?_)
@@ -438,8 +434,7 @@ theorem AMGameClass_mono_sublist_append {enc : α ↪ List Bool} {l₁ l₂ : Li
   | slnil => exact le_rfl
   | cons x _ ih => exact (ih σ).trans (AMGameClass_insert σ _ x)
   | cons_cons x _ ih =>
-    have := ih (σ ++ [x])
-    simpa only [List.append_assoc, List.singleton_append] using this
+    simpa only [List.append_assoc, List.singleton_append] using ih (σ ++ [x])
 
 /-- **Padding**: game classes are monotone in the move pattern under `List.Sublist`. -/
 theorem AMGameClass_mono {enc : α ↪ List Bool} {π₁ π₂ : List AMMove} (h : List.Sublist π₁ π₂) :
@@ -453,15 +448,13 @@ private theorem sum_toNat_eq_card {ι : Type} [Fintype ι] (f : ι → Bool) :
 
 private theorem sup_toNat_eq {ι : Type} [Fintype ι] (f : ι → Bool) :
     (univ.sup fun i => (f i).toNat) = (decide (∃ i, f i = true)).toNat := by
-  refine le_antisymm (Finset.sup_le fun j _ => ?_) ?_
-  · cases hj : f j
-    · simp
-    · simp [show ∃ i, f i = true from ⟨j, hj⟩]
-  · by_cases h : ∃ i, f i = true
-    · obtain ⟨i, hi⟩ := h
-      rw [decide_eq_true ⟨i, hi⟩]
-      simpa [hi] using Finset.le_sup (f := fun i => (f i).toNat) (mem_univ i)
-    · simp [h]
+  by_cases h : ∃ i, f i = true
+  · obtain ⟨i, hi⟩ := h
+    rw [decide_eq_true ⟨i, hi⟩]
+    exact le_antisymm (Finset.sup_le fun j _ => Bool.toNat_le (f j))
+      (by simpa [hi] using Finset.le_sup (f := fun i => (f i).toNat) (mem_univ i))
+  · simp only [not_exists, Bool.not_eq_true] at h
+    simp [h]
 
 /-- The one-move shape `[(x, p)]` of a polynomial game. -/
 private theorem map_fst_eq_singleton {G : List (AMMove × Polynomial ℕ)} {x : AMMove}
@@ -648,8 +641,8 @@ theorem mem_AMGameClass_cons_merlin {enc : α ↪ List Bool} {B : Set (α × Lis
       exact (hL a y ▸ (hB' (a, List.ofFn y)).1 (by rwa [BitString.ofFn_ofList hw])).trans
         (Nat.mul_le_mul_left 3 (Finset.le_sup (f := f) (mem_univ y)))
     · obtain ⟨y, -, hy⟩ := exists_mem_eq_sup univ univ_nonempty f
-      have h2 := (hB' (a, List.ofFn y)).2 fun h => ha ⟨List.ofFn y, List.length_ofFn, h⟩
-      rw [hL a y] at h2
-      rwa [hy]
+      rw [hy]
+      simpa only [hL a y] using
+        (hB' (a, List.ofFn y)).2 fun h => ha ⟨List.ofFn y, List.length_ofFn, h⟩
 
 end Cslib.Complexity

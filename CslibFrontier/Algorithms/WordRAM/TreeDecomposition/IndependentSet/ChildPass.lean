@@ -200,20 +200,16 @@ private theorem childPassStep_eval (a : ChildPassArgs) (curC : ℕ) (t : Memory.
     (Memory.spec 0).clientState t (childPassStep (a, curC)) =
       ⟨Function.update t.mem (a.bestPtr + key) nextVal, t.frontier⟩ ∧
     (Memory.spec 0).clientResult t (childPassStep (a, curC)) = curC + 1 := by
-  have hr_st (x : ℕ) : (Memory.spec 0).clientState t (Memory.read x) = t := rfl
-  have hr_res (x : ℕ) : (Memory.spec 0).clientResult t (Memory.read x) = t.mem x := rfl
   unfold childPassStep
   dsimp only
   rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-    hr_st, hr_res,
     StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     indepBagProg_state,
     StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     keyMaskProg_state,
     StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
     forgetWeightProg_state,
-    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-    hr_st, hr_res]
+    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind]
   exact ⟨rfl, rfl⟩
 
 /-- Functional correctness, framing below `bestPtr`, and memory-cost bound for `childPassProg`. -/
@@ -275,7 +271,7 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
   induction rem with
   | zero =>
     intro curC st _ hfr hpres hbest_st
-    rw [show iterate childPassStep args 0 curC = pure curC from rfl, Nat.add_zero]
+    rw [iterate, Nat.add_zero]
     exact ⟨validHistory_pure w st curC, hfr, hpres, hbest_st, by simp [memoryCost_pure]⟩
   | succ rem ih =>
     intro curC st hsum hfr hpres hbest_st
@@ -304,9 +300,8 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
       exact keyMask_lt_two_pow LB LP curC
     have hcur_tbl_lt : curC < tblB.length := by omega
     have hfc_addr_lt : args.tblBPtr + curC < st.frontier := by have := htblB_st.1; omega
-    have hbest_addr_lt : args.bestPtr + key < st.frontier := by
-      have h1 : args.bestPtr + bestCur.length ≤ st.frontier := hbest_st.1
-      omega
+    have hbest_addr_lt : args.bestPtr + key < st.frontier :=
+      (Nat.add_lt_add_left hkey_lt _).trans_le hbest_st.1
     have hfc_eq : st.mem (args.tblBPtr + curC) = tblB.getD curC 0 := by
       simpa [hcur_tbl_lt] using htblB_st.get curC hcur_tbl_lt
     have holdBest_eq : st.mem (args.bestPtr + key) = bestCur.getD key 0 := by
@@ -319,10 +314,8 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
       if (if indepInst inst.adj LB curC then 1 else 0) = 1 then
         if oldBest < cand then cand else oldBest
       else oldBest
-    have holdBest_le : oldBest ≤ cap := by
-      change st.mem (args.bestPtr + key) ≤ cap
-      rw [hbest_st.get key hkey_lt]
-      exact mem_childPassList_le (adj := inst.adj) hinit_le
+    have holdBest_le : oldBest ≤ cap :=
+      (hbest_st.get key hkey_lt).le.trans <| mem_childPassList_le (adj := inst.adj) hinit_le
         (fun t ht => hcand_le t (lt_trans ht hcur_lt)) _ (List.getElem_mem hkey_lt)
     have hcand_val_le : cand ≤ cap := by
       simpa only [cand, fc, hfc_eq] using hcand_le curC hcur_lt
@@ -363,15 +356,8 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
     have hc_step : memoryCost (childPassStep (args, curC)) st ≤ stepCost := by
       have hr_s (x : ℕ) : (Memory.spec 0).clientState st (Memory.read x) = st := rfl
       have hr_r (x : ℕ) : (Memory.spec 0).clientResult st (Memory.read x) = st.mem x := rfl
-      unfold childPassStep
-      dsimp only
-      rw [memoryCost_bind', memoryCost_read, hr_s, hr_r,
-        memoryCost_bind', hst_ind, hr_ind,
-        memoryCost_bind', hst_key, hr_key,
-        memoryCost_bind', hst_fw, hr_fw,
-        memoryCost_bind', memoryCost_read, hr_s, hr_r,
-        memoryCost_bind', memoryCost_write, memoryCost_pure]
-      dsimp only [stepCost]
+      simp only [childPassStep, memoryCost_bind', memoryCost_read, hr_s, hr_r, hst_ind, hr_ind,
+        hst_key, hr_key, hst_fw, hr_fw, memoryCost_write, memoryCost_pure, stepCost]
       omega
     obtain ⟨hv_rem, hfr_rem, hp_rem, hbest_rem, hc_rem⟩ :=
       ih (curC + 1) st₁ (by omega) hfr

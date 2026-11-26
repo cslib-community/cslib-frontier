@@ -272,17 +272,14 @@ private theorem runClient_edge_bind {α : Type} (s : (spec n K V).State) (u : Fi
 private theorem Runs.bind {s s₁ s₂ : (spec n K V).State} {p q : (spec n K V).Client Unit}
     {b₁ b₂ : ℕ} (h₁ : Runs rate pU pQ s p s₁ b₁) (h₂ : Runs rate pU pQ s₁ q s₂ b₂) :
     Runs rate pU pQ s (p >>= fun _ => q) s₂ (b₁ + b₂) := by
-  obtain ⟨hv₁, hs₁, hw₁⟩ := h₁
-  obtain ⟨hv₂, hs₂, hw₂⟩ := h₂
-  have hrun := runClient_bind' s p (fun _ => q)
-  simp only [hs₁] at hrun
+  obtain ⟨hv₁, rfl, hw₁⟩ := h₁
+  obtain ⟨hv₂, rfl, hw₂⟩ := h₂
   refine ⟨?_, ?_, ?_⟩
-  · rw [StateTransitionSpec.clientHistory, hrun, StateTransitionSpec.validHistory_append,
-      StateTransitionSpec.run_runClient, hs₁]
+  · simp only [StateTransitionSpec.clientHistory, runClient_bind',
+      StateTransitionSpec.validHistory_append, StateTransitionSpec.run_runClient]
     exact ⟨hv₁, hv₂⟩
-  · rw [StateTransitionSpec.clientState, hrun, hs₂]
-  · rw [StateTransitionSpec.clientHistory, hrun, weight_append]
-    omega
+  · simp only [StateTransitionSpec.clientState, runClient_bind']
+  · rw [StateTransitionSpec.clientHistory, runClient_bind', weight_append]; omega
 
 private theorem Runs.pure (s : (spec n K V).State) : Runs rate pU pQ s (pure ()) s 0 :=
   ⟨trivial, rfl, le_rfl⟩
@@ -330,10 +327,9 @@ private theorem Runs.of_runClient {s s' : (spec n K V).State} {p : (spec n K V).
     (hv : (spec n K V).ValidHistory s hist)
     (hw : weight rate hist + pot pU pQ s' ≤ b + pot pU pQ s) :
     Runs rate pU pQ s p s' b := by
-  refine ⟨?_, ?_, ?_⟩
-  · rwa [StateTransitionSpec.clientHistory, h]
-  · rw [StateTransitionSpec.clientState, h]
-  · rwa [StateTransitionSpec.clientHistory, h]
+  exact ⟨by rwa [StateTransitionSpec.clientHistory, h],
+    by rw [StateTransitionSpec.clientState, h],
+    by rwa [StateTransitionSpec.clientHistory, h]⟩
 
 /-- **One edge.** Relaxing the edge `(v, c)` out of `u` updates the tentative distance of `v` and,
 unless `v` is visited, its key. A visited target must not improve. -/
@@ -381,9 +377,8 @@ private theorem relaxEdge_runs (T : Finset (Fin n)) (dm : Dictionary.State n)
           (IndexedMinPQ.dom (syncQ T dm)).card := by
         rw [← syncQ_update hvT, IndexedMinPQ.dom_decreaseKey]
         exact IndexedMinPQ.mem_dom_iff.mpr ⟨dv, by simp [syncQ, hvT, hdm]⟩
-      have hmin : relaxOpt (du + c) (some dv) = some (du + c) := congrArg some (min_eq_left hlt.le)
       rw [syncQ_update hvT] at hrun
-      rw [hmin]
+      rw [relaxOpt, min_eq_left hlt.le]
       refine Runs.of_runClient rate hrun ?_ ?_
       · simp [StateTransitionSpec.validHistory_cons, AdjacencyList.valid, Dictionary.valid,
           IndexedMinPQ.valid, hi, hvc, hdm, hV, hK, syncQ, hvT, hlt.le]
@@ -395,9 +390,7 @@ private theorem relaxEdge_runs (T : Finset (Fin n)) (dm : Dictionary.State n)
         simp only [relaxEdge, runClient_edge_bind, AdjacencyList.step_edge _ _ hi, hvc,
           runClient_getDist_bind, hdm, hlt, ite_false]
         rfl
-      have hmin : Function.update dm v (relaxOpt (du + c) (some dv)) = dm := by
-        rw [relaxOpt, min_eq_right (Nat.le_of_not_lt hlt), ← hdm, Function.update_eq_self]
-      rw [hmin]
+      rw [relaxOpt, min_eq_right (Nat.le_of_not_lt hlt), ← hdm, Function.update_eq_self]
       refine Runs.of_runClient rate hrun ?_ ?_
       · simp [StateTransitionSpec.validHistory_cons, AdjacencyList.valid, hi]
       · simp only [weight_cons rate, weight_nil rate, kind, edgeRate]
@@ -524,11 +517,8 @@ private theorem tentative_of_some {dm : Dictionary.State n} {v : Fin n} {d : ℕ
 private theorem elim_relaxOpt (du c : ℕ) (o : Option ℕ) :
     (relaxOpt (du + c) o).elim (⊤ : ℕ∞) (↑) = min (o.elim ⊤ (↑)) ((du : ℕ∞) + c) := by
   cases o with
-  | none => simp only [relaxOpt, Option.elim_some, Option.elim_none, Nat.cast_add,
-      min_eq_right le_top]
-  | some d =>
-    simp only [relaxOpt, Option.elim_some]
-    rw [Nat.mono_cast.map_min, Nat.cast_add, min_comm]
+  | none => simp [relaxOpt]
+  | some d => simp [relaxOpt, Nat.mono_cast.map_min, min_comm]
 
 /-- The tentative distance of `v` after scanning `es` is the machine-free scan of `es`. -/
 private theorem tentative_scanMap_apply (du : ℕ) (es : List (Fin n × ℕ))
@@ -608,11 +598,10 @@ private theorem Good.visit {G : ListInstance} {T : Finset (Fin G.n)} {dm : Dicti
   -- Keys stay at most `n` times the largest weight.
   have hcard : T.card + 1 ≤ G.n := by
     simpa [Finset.card_insert_of_notMem huT] using Finset.card_le_univ (insert u T)
-  have hduW : du ≤ T.card * G.maxWeight :=
-    (by exact_mod_cast (hDu ▸ hgood.inv.bound u hfin :
-      (du : ℕ∞) ≤ ((T.card * G.toInstance.maxWeight : ℕ) : ℕ∞)) :
-      du ≤ T.card * G.toInstance.maxWeight).trans
-      (Nat.mul_le_mul_left _ G.toInstance_maxWeight_le)
+  have hduW : du ≤ T.card * G.maxWeight := by
+    refine (ENat.natCast_le_natCast.mp ?_).trans (Nat.mul_le_mul_left _ G.toInstance_maxWeight_le)
+    rw [Nat.cast_mul, ← hDu]
+    exact hgood.inv.bound u hfin
   have hbound : ∀ v c, (v, c) ∈ G.adj u → du + c ≤ K ∧ du + c < V := by
     intro v c hvc
     have hc : c ≤ G.maxWeight := G.le_maxWeight hvc
@@ -691,14 +680,11 @@ private theorem loop_runs (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
       · have hsum : (∑ v ∈ Tᶜ, (G.adj v).length) * edgeRate rate pU pQ =
             (G.adj u).length * edgeRate rate pU pQ +
               (∑ v ∈ (insert u T)ᶜ, (G.adj v).length) * edgeRate rate pU pQ := by
-          rw [← add_mul, Finset.compl_insert]
-          rw [Finset.add_sum_erase Tᶜ (fun v => (G.adj v).length) (Finset.mem_compl.mpr huT)]
-        have hpot : pot (K := K) (V := V) pU pQ (syncQ T dm, dm, G.adj) =
-            pot (K := K) (V := V) pU pQ (syncQ (insert u T) dm, dm, G.adj) + pQ := by
-          simp only [pot, ← hcard, Nat.mul_succ]
-          omega
+          rw [← add_mul, Finset.compl_insert,
+            Finset.add_sum_erase Tᶜ (fun v => (G.adj v).length) (Finset.mem_compl.mpr huT)]
         simp only [IndexedMinPQ.step, hf, kind]
-        rw [hsync, hsum, hpot, add_one_mul]
+        rw [hsync, hsum, add_one_mul]
+        simp only [pot, ← hcard, Nat.mul_succ]
         omega
 
 /-- **The whole run.** From the initial state, Dijkstra's algorithm leaves an empty queue and the
@@ -802,19 +788,18 @@ theorem sum_rate_dijkstra_le (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
       dijkstra_runs rate (pU := rate .insert) (pQ := 0) G hK hV
     have hpot : pot (rate .insert) 0 (init (K := K) (V := V) G) = rate .insert * G.n := by
       simp [pot, unreached, init, Dictionary.empty, IndexedMinPQ.dom_empty]
-    rw [hpot] at hw
-    simp only [edgeRate, Nat.add_zero, Nat.sub_self, Nat.sub_zero, Nat.zero_sub] at hw
+    simp only [hpot, edgeRate, Nat.add_zero, Nat.sub_self, Nat.sub_zero, Nat.zero_sub] at hw
     nlinarith [Nat.zero_le (pot (K := K) (V := V) (rate .insert) 0
       (IndexedMinPQ.empty G.n, dist, G.adj))]
   · obtain ⟨dist, _, _, _, hw⟩ :=
       dijkstra_runs rate (pU := 0) (pQ := rate .extractMin + rate .graph) G hK hV
     have hpot : pot 0 (rate .extractMin + rate .graph) (init (K := K) (V := V) G) = 0 := by
       simp [pot, init, IndexedMinPQ.dom_empty]
-    rw [hpot] at hw
-    simp only [edgeRate, Nat.sub_zero, Nat.sub_self, Nat.add_sub_cancel, mul_zero,
+    have hpot' : pot (K := K) (V := V) 0 (rate .extractMin + rate .graph)
+        (IndexedMinPQ.empty G.n, dist, G.adj) = 0 := by simp [pot, IndexedMinPQ.dom_empty]
+    simp only [hpot, hpot', edgeRate, Nat.sub_zero, Nat.sub_self, Nat.add_sub_cancel, mul_zero,
       Nat.add_zero, Nat.zero_add] at hw
-    nlinarith [Nat.zero_le (pot (K := K) (V := V) 0 (rate .extractMin + rate .graph)
-      (IndexedMinPQ.empty G.n, dist, G.adj))]
+    nlinarith
 
 /-- The number of operations of each kind that Dijkstra's algorithm issues on a graph with `n`
 vertices and `m` edges, at most. -/

@@ -565,9 +565,8 @@ theorem evalWith_ddhOTProtocolWith (g : G) (q : ℕ) [Module (ZMod q) G]
       return (ddhOTViewsWith g proj₀ proj₁ x raw₀ raw₁, otOutputs x) := by
   rw [Protocol.evalWith_eq, eval_pi_ddhOTSampleCoins]
   simp only [evalWith_ddhOTSteps, pmf_norm]
-  refine congrArg (ProbComp.eval sample₀).bind (funext fun raw₀ => ?_)
-  refine congrArg (ProbComp.eval sample₁).bind
-    (funext fun raw₁ => congrArg PMF.pure (Prod.ext ?_ ?_))
+  refine congrArg (ProbComp.eval sample₀).bind (funext fun raw₀ =>
+    congrArg (ProbComp.eval sample₁).bind (funext fun raw₁ => congrArg PMF.pure (Prod.ext ?_ ?_)))
   · funext i
     fin_cases i
     · exact ddhOTReceivedWith_zero g proj₀ proj₁ x raw₀ raw₁
@@ -578,8 +577,7 @@ theorem evalWith_ddhOTProtocolWith (g : G) (q : ℕ) [Module (ZMod q) G]
       rfl
   · funext i
     fin_cases i
-    · rfl
-    · exact outputOfView_ddhOT_one g q sample₀ sample₁ proj₀ proj₁ x raw₀ raw₁
+    exacts [rfl, outputOfView_ddhOT_one g q sample₀ sample₁ proj₀ proj₁ x raw₀ raw₁]
 
 /-- **Correctness**: for any party coin samplers and exponent projections, in every execution of
 `ddhOTProtocolWith`, the sender outputs `()` and the receiver outputs
@@ -673,8 +671,7 @@ theorem realJoint_ddhOT_sender (g : G) (q : ℕ) [NeZero q] [Module (ZMod q) G]
   simp only [pmf_norm, ProbComp.eval_uniform]
   refine congrArg (PMF.bind _) (funext fun c₀ =>
     congrArg (PMF.bind _) (funext fun b => congrArg PMF.pure ?_))
-  simp only [Prod.map, id, restrict_singleton, ddhOTViewsWith]
-  rfl
+  simp [Prod.map, restrict_singleton, ddhOTViewsWith]
 
 /-- **Perfect privacy against a corrupted sender**: the ideal joint distribution with
 `ddhOTSenderSim` equals the real joint distribution. -/
@@ -996,11 +993,8 @@ theorem succProbability_ddhOTUncheckedRealGame (g : G) (q : ℕ) [NeZero q] [Mod
     (b₀ b₁ : ZMod q) :
     (Game.succProbability (ProbComp.eval (ddhOTUncheckedRealGame g q b₀ b₁)) : ℝ) = 1 := by
   have hcoins : (ddhOTUncheckedProtocol g q).sampleCoins 0 = sampleDDHOTSenderCoins q := rfl
-  rw [Game.coe_succProbability]
-  simp only [ddhOTUncheckedRealGame, hcoins,
-    ddhOTSenderReplyOf_ddhOTUncheckedProtocol, ddhOTAttackBothMessages_eq, decide_true,
-    ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_const, PMF.pure_apply, ↓reduceIte,
-    ENNReal.toReal_one]
+  simp [Game.coe_succProbability, ddhOTUncheckedRealGame, hcoins,
+    ddhOTSenderReplyOf_ddhOTUncheckedProtocol, ddhOTAttackBothMessages_eq]
 
 /-- In `ddhOTUncheckedIdealGame`, every simulator `S` outputs both messages with probability at
 most `(Fintype.card G : ℝ)⁻¹`: the message it does not query is uniform and independent of its

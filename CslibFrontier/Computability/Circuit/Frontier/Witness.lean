@@ -220,14 +220,11 @@ theorem exists_rectangleFree_two_pow_le_ncard :
   -- Some large set is rectangle-free.
   have hlarge := two_pow_le_two_mul_card_filter (ι := ι)
   have hlt : #bad < #{f : (ι → Bool) → Bool | 2 ^ (n - 1) ≤ #{x | f x = true}} := by
-    have h16 : 16 ≤ 2 ^ (n + 4) := by
-      rw [pow_add]
-      exact Nat.le_mul_of_pos_left _ (by positivity)
+    have h16 : 16 ≤ 2 ^ (n + 4) := pow_add 2 n 4 ▸ Nat.le_mul_of_pos_left _ (Nat.two_pow_pos n)
     nlinarith [Nat.one_le_two_pow (n := N)]
   obtain ⟨f, hf, hfbad⟩ := exists_mem_notMem_of_card_lt_card hlt
-  refine ⟨{x | f x = true}, by simpa [bad] using hfbad, ?_⟩
-  rw [ncard_eq_toFinset_card']
-  simpa using (mem_filter.mp hf).2
+  exact ⟨{x | f x = true}, by simpa [bad] using hfbad,
+    by simpa [ncard_eq_toFinset_card'] using (mem_filter.mp hf).2⟩
 
 end RectangleFree
 
@@ -303,9 +300,8 @@ theorem exists_rectangleBias {K : ℕ} {b : ℝ} (hb : 0 < b)
     · rw [← hw]
       refine le_trans ?_ (card_filter_lt_abs_le (R k₁ k₂ w) hb.le)
       exact Nat.cast_le.mpr (Finset.card_le_card (monotone_filter_right _ fun f _ hf => hf.2))
-    · have hEw : E k₁ k₂ w = ∅ := by ext f; simp [E, hw]
-      rw [hEw, Finset.card_empty, Nat.cast_zero]
-      positivity
+    · dsimp only [E]
+      rw [filter_false_of_mem fun _ _ hf => hw hf.1, Finset.card_empty, Nat.cast_zero]; positivity
   -- Every set of large bias on some rectangle has large bias on a spanned rectangle.
   set bad : Finset ((ι → Bool) → Bool) :=
     {f : (ι → Bool) → Bool | ¬ RectangleBias {x | f x = true} K b}
@@ -322,9 +318,7 @@ theorem exists_rectangleBias {K : ℕ} {b : ℝ} (hb : 0 < b)
     have hBN : B.ncard ≤ N := (Nat.le_mul_of_pos_left _ (by omega)).trans (hR ▸ hRN)
     refine mem_biUnion.mpr ⟨A.ncard, mem_Icc.mpr ⟨hA, hAN⟩, mem_biUnion.mpr ⟨B.ncard,
       mem_Icc.mpr ⟨hB, hBN⟩, mem_biUnion.mpr ⟨(X, x, y), Finset.mem_univ _, ?_⟩⟩⟩
-    simp only [E, R, mem_filter, Finset.mem_univ, true_and]
-    rw [hxy]
-    exact ⟨hR, hbias⟩
+    simpa only [E, R, mem_filter, Finset.mem_univ, true_and, hxy] using ⟨hR, hbias⟩
   -- The union bound for rectangles with sides of sizes `k₁` and `k₂`.
   have hterm (k₁ k₂ : ℕ) (hk₁ : K ≤ k₁) (hk₂ : K ≤ k₂) :
       ∑ w : Set ι × (Fin k₁ → ι → Bool) × (Fin k₂ → ι → Bool), (#(E k₁ k₂ w) : ℝ) ≤
@@ -370,9 +364,7 @@ theorem exists_rectangleBias {K : ℕ} {b : ℝ} (hb : 0 < b)
           have : (#(Finset.Icc K N) : ℝ) ≤ N := by exact_mod_cast hIcc
           gcongr
       _ = (2 : ℝ) ^ (3 * n + 1) * exp (-(2 * K)) * 2 ^ N := by
-          rw [hN]
-          push_cast
-          ring
+          push_cast [hN]; ring
       _ < 2 ^ N := by
           refine mul_lt_of_lt_one_left (by positivity) ?_
           refine (mul_le_mul_of_nonneg_right (two_pow_le_exp _) (exp_pos _).le).trans_lt ?_
@@ -450,10 +442,8 @@ theorem exists_rectangleBias_family :
       Tendsto (fun n : ℕ => 1 / ((n : ℝ) + 1)) atTop (nhds 0) := by
   have hK (n : ℕ) :
       (Fintype.card (Fin n) + 1 : ℝ) ≤ (1 / ((n : ℝ) + 1)) ^ 2 * ((n + 1) ^ 3 : ℕ) := by
-    rw [Fintype.card_fin]
-    push_cast
-    field_simp
-    rfl
+    push_cast [Fintype.card_fin]
+    field_simp; rfl
   choose S hS using fun n : ℕ => exists_rectangleBias (ι := Fin n) (by positivity) (hK n)
   refine ⟨S, Eventually.of_forall hS, ?_, tendsto_one_div_add_atTop_nhds_zero_nat⟩
   simpa only [Nat.cast_pow, Nat.cast_add, Nat.cast_one, Real.log_pow, Nat.cast_ofNat] using

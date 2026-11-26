@@ -263,15 +263,12 @@ theorem collapse_polyTime (hvalid : ComputableInPolyTime H.valid encBits encBool
   let idx : List Bool → ℕ := fun r =>
     ((List.range (r.length + 1)).find? (fun k => H.valid (r.take k))).getD 0
   let findHdr : List Bool → List Bool := fun r => r.take (idx r)
-  have hrange : ComputableInPolyTime
-      (fun r : List Bool => List.range (r.length + 1)) encBits (encList encUnary) :=
-    ComputableInPolyTime.range.comp (by polytime)
-  have hfind : ComputableInPolyTime
-      (fun r : List Bool => (List.range (r.length + 1)).find? (fun k => H.valid (r.take k)))
-      encBits (encOption encUnary) :=
-    ComputableInPolyTime.findWithInput hrange (by polytime)
   have hidx : ComputableInPolyTime idx encBits encUnary :=
-    ComputableInPolyTime.optionGetDWithInput hfind (ComputableInPolyTime.const 0)
+    ComputableInPolyTime.optionGetDWithInput
+      (ComputableInPolyTime.findWithInput
+        (ComputableInPolyTime.range.comp (by polytime))
+        (by polytime))
+      (ComputableInPolyTime.const 0)
   have hfindHdr_pt : ComputableInPolyTime findHdr encBits encBits := by polytime
   have hpoly : ComputableInPolyTime (fun r =>
       if H.valid r then findHdr r ++ List.replicate (r.length - (findHdr r).length) true
@@ -307,8 +304,7 @@ theorem collapse_polyTime (hvalid : ComputableInPolyTime H.valid encBits encBool
         calc (H.header r).length = (H.header (r.take k)).length := by rw [hhd]
           _ ≤ (r.take k).length := (H.header_isPrefix _ hvp).length_le
           _ ≤ k := List.length_take_le k r
-      have hk_eq : k = (H.header r).length := le_antisymm hk_le_hdr hdr_le_k
-      simp [findHdr, idx, L, p, hopt, hk_eq, htake_hdr]
+      simp [findHdr, idx, L, p, hopt, le_antisymm hk_le_hdr hdr_le_k, htake_hdr]
   have heq : H.collapse = fun r =>
       if H.valid r then findHdr r ++ List.replicate (r.length - (findHdr r).length) true else r :=
     funext fun r => by cases hv : H.valid r <;> simp [collapse, hv, hfindHdr]
@@ -320,18 +316,17 @@ theorem pComp_ensemble (hvalid : ComputableInPolyTime H.valid encBits encBool)
   have hcoll := H.collapse_polyTime hvalid
   refine ⟨H.cdfNum, fun y => 2 ^ y.length, ?_, by polytime, fun _ => by positivity,
     H.cdf_ensemble⟩
-  have hc : ComputableInPolyTime (fun y => decide (H.collapse y = y)) encBits encBool :=
-    ComputableInPolyTime.decide_eq' hcoll (.id' (encIn := encBits))
   have hsucc : ComputableInPolyTime (fun y => BitString.binaryValue y + 1) encBits encNat :=
     ComputableInPolyTime.binary_add.comp
       (ComputableInPolyTime.bitsBinaryValue.prod (ComputableInPolyTime.const 1))
   have hexp : ComputableInPolyTime (fun y : List Bool => y.length - (H.header y).length)
       encBits encUnary := by polytime
-  have hlo : ComputableInPolyTime H.lo encBits encNat :=
-    ComputableInPolyTime.binary_mul' (ComputableInPolyTime.bitsBinaryValue.comp hheader)
-      (ComputableInPolyTime.binary_two_pow.comp hexp)
-  unfold cdfNum
-  simpa only [decide_eq_true_eq] using ComputableInPolyTime.ite' hc hsucc hlo
+  unfold cdfNum lo
+  simpa only [decide_eq_true_eq, Function.comp_def] using
+    ComputableInPolyTime.ite' (ComputableInPolyTime.decide_eq' hcoll (.id' (encIn := encBits)))
+      hsucc
+      (ComputableInPolyTime.binary_mul' (ComputableInPolyTime.bitsBinaryValue.comp hheader)
+        (ComputableInPolyTime.binary_two_pow.comp hexp))
 
 /-! ### Point masses -/
 

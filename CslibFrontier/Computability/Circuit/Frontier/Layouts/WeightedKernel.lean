@@ -296,18 +296,14 @@ theorem weightedKernelRow_eq_zero_of_lt {R : ℕ} {v z : V} (h : R < H.edist v z
   | zero =>
     rw [bestWalkWeight, ite_eq_right fun hvz => by simp [hvz] at h]
   | succ r ih =>
-    rw [bestWalkWeight_succ]
-    have h1 : (r : ℕ∞) < H.edist v z :=
-      lt_of_le_of_lt (by exact_mod_cast Nat.le_succ r) h
-    have hstep : finsetMaxZero (H.neighborFinset v)
-        (fun w => edgeWeight deg θ v w * bestWalkWeight H deg θ r w z) = 0 := by
-      refine le_antisymm (finsetMaxZero_le le_rfl fun w hw => ?_) (finsetMaxZero_nonneg _ _)
-      have hvw : H.Adj v w := (SimpleGraph.mem_neighborFinset H v w).mp hw
-      have hwz : (r : ℕ∞) < H.edist w z := lt_of_not_ge fun hle => by
-        push_cast at h
-        exact h.not_ge ((hvw.edist_le_edist_add_one z).trans (add_le_add_left hle 1))
-      rw [ih hwz, mul_zero]
-    rw [ih h1, hstep, max_self]
+    rw [bestWalkWeight_succ, ih (lt_of_le_of_lt (by exact_mod_cast Nat.le_succ r) h),
+      max_eq_right (finsetMaxZero_nonneg _ _)]
+    refine le_antisymm (finsetMaxZero_le le_rfl fun w hw => ?_) (finsetMaxZero_nonneg _ _)
+    have hvw : H.Adj v w := (SimpleGraph.mem_neighborFinset H v w).mp hw
+    have hwz : (r : ℕ∞) < H.edist w z := lt_of_not_ge fun hle => by
+      push_cast at h
+      exact h.not_ge ((hvw.edist_le_edist_add_one z).trans (add_le_add_left hle 1))
+    rw [ih hwz, mul_zero]
 
 /-! ### Pointwise adjacent defect -/
 
@@ -663,15 +659,7 @@ theorem sum_one_sub_inv_deg_eq {V E : Type*} [Fintype V] [Fintype E] {G : Multig
           have hv : ((G.incidenceSet v).ncard : ℝ) ≠ 0 := by exact_mod_cast (hpos v).ne'
           field_simp
       _ = Fintype.card V := by simp
-  have hsplit : (∑ e : E, (1 - 1 / ((G.incidenceSet (G.src e)).ncard : ℝ) -
-        1 / ((G.incidenceSet (G.tgt e)).ncard : ℝ))) =
-      (∑ _e : E, (1 : ℝ)) -
-        ∑ e : E, (1 / ((G.incidenceSet (G.src e)).ncard : ℝ) +
-          1 / ((G.incidenceSet (G.tgt e)).ncard : ℝ)) := by
-    rw [← Finset.sum_sub_distrib]
-    refine Finset.sum_congr rfl fun e _ => ?_
-    ring
-  rw [hsplit, ← hhand, hV]
+  rw [Finset.sum_congr rfl fun _ _ => sub_sub _ _ _, Finset.sum_sub_distrib, ← hhand, hV]
   simp
 
 /-- Limiting step factor `1 / (√(√(d₁ - 1)) * √(√(d₂ - 1)))` at `θ = 1` for endpoint degrees

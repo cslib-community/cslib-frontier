@@ -113,14 +113,10 @@ theorem isRespList_eq_nil_of_isSequential_even {L R : History P Op Resp}
     (hseq_app : IsSequential (L ++ R)) : R = [] := by
   match L with
   | [] =>
-    cases R with
-    | nil => rfl
-    | cons e rs =>
-      cases e with
-      | inv _ _ _ => exact Bool.noConfusion (hresp _ List.mem_cons_self)
-      | resp _ _ _ =>
-        simp only [List.nil_append] at hseq_app
-        cases rs <;> exact False.elim hseq_app
+    rcases R with _ | ⟨_ | _, rs⟩
+    · rfl
+    · exact Bool.noConfusion (hresp _ List.mem_cons_self)
+    · cases rs <;> exact False.elim hseq_app
   | [.inv _ _ _] => simp only [List.length_singleton] at heven; omega
   | [.resp _ _ _] | .inv _ _ _ :: .inv _ _ _ :: _ | .resp _ _ _ :: _ :: _ => exact False.elim hseq
   | .inv _ _ _ :: .resp _ _ _ :: _ =>
@@ -136,29 +132,22 @@ theorem isRespList_le_one_of_isSequential {L R : History P Op Resp}
   rcases isSequential_decomp hseq with ⟨cs, rfl⟩ | ⟨cs, p, x, op, rfl⟩
   · exact Or.inl (isRespList_eq_nil_of_isSequential_even hseq
       (by rw [length_flatMap_toEvents]; omega) hresp hseq_app)
-  · cases R with
-    | nil => exact Or.inl rfl
-    | cons e rs =>
-      cases e with
-      | inv _ _ _ => exact Bool.noConfusion (hresp _ List.mem_cons_self)
-      | resp q y res =>
-        right
+  · rcases R with _ | ⟨_ | ⟨q, y, res⟩, rs⟩
+    · exact Or.inl rfl
+    · exact Bool.noConfusion (hresp _ List.mem_cons_self)
+    · have htail : IsSequential (.inv p x op :: .resp q y res :: rs) := by
         have hseq' : IsSequential (cs.flatMap OpCall.toEvents ++
             (.inv p x op :: .resp q y res :: rs)) := by
           simpa only [List.append_assoc, List.singleton_append] using hseq_app
-        have htail : IsSequential (.inv p x op :: .resp q y res :: rs) := by
-          clear hseq hseq_app
-          induction cs with
-          | nil => exact hseq'
-          | cons _ _ ih => exact ih hseq'.2.2
-        obtain ⟨rfl, rfl, hrs⟩ := htail
-        cases rs with
-        | nil => exact ⟨cs, p, x, op, res, rfl, rfl⟩
-        | cons e' rs' =>
-          cases e' with
-          | inv _ _ _ =>
-            exact Bool.noConfusion (hresp _ (List.mem_cons_of_mem _ List.mem_cons_self))
-          | resp _ _ _ => cases rs' <;> exact False.elim hrs
+        clear hseq hseq_app
+        induction cs with
+        | nil => exact hseq'
+        | cons _ _ ih => exact ih hseq'.2.2
+      obtain ⟨rfl, rfl, hrs⟩ := htail
+      rcases rs with _ | ⟨_ | _, rs'⟩
+      · exact Or.inr ⟨cs, p, x, op, res, rfl, rfl⟩
+      · exact Bool.noConfusion (hresp _ (List.mem_cons_of_mem _ List.mem_cons_self))
+      · cases rs' <;> exact False.elim hrs
 
 /-- `nthProcPos p H n` is `some` iff `n < (H | p).length`. -/
 theorem nthProcPos_isSome_iff [DecidableEq P] (p : P) (H : History P Op Resp) (n : ℕ) :
@@ -324,12 +313,10 @@ theorem nthFilterPos_flatMap_toEvents (pred : OpCall P Op Resp → Bool)
 theorem invPos_respPos_opIdAt [DecidableEq P] (calls : List (OpCall P Op Resp))
     (j : ℕ) (hj : j < calls.length) :
     History.invPos (calls.flatMap OpCall.toEvents) (opIdAt calls j hj) = some (2 * j) ∧
-      History.respPos (calls.flatMap OpCall.toEvents) (opIdAt calls j hj) = some (2 * j + 1) := by
-  dsimp only [History.invPos, History.respPos, History.nthProcPos, opIdAt, countProcCalls]
-  exact nthFilterPos_flatMap_toEvents
-    (fun c => decide (c.proc = calls[j].proc))
-    (fun e => decide (e.proc = calls[j].proc))
-    (fun _ => rfl) (fun _ => rfl) calls j hj (decide_eq_true rfl)
+      History.respPos (calls.flatMap OpCall.toEvents) (opIdAt calls j hj) = some (2 * j + 1) :=
+  nthFilterPos_flatMap_toEvents (fun c => decide (c.proc = calls[j].proc))
+    (fun e => decide (e.proc = calls[j].proc)) (fun _ => rfl) (fun _ => rfl) calls j hj
+    (decide_eq_true rfl)
 
 /-- `opIdAt calls` is injective on valid call indices. -/
 theorem opIdAt_injective [DecidableEq P] {calls : List (OpCall P Op Resp)}

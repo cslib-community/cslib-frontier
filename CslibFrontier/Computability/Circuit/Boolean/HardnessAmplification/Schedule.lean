@@ -180,8 +180,7 @@ private theorem two_pow_masks_ge (σ b : ℕ) :
 private theorem masks_size {w σ K : ℕ} (hK : 2 * w * 4 ^ σ + 1 ≤ 2 ^ K) :
     (w : ℝ) ≤ 2 * (1 / ((2 ^ σ : ℕ) : ℝ) / 2) ^ 2 * ((2 ^ K - 1 : ℕ) : ℝ) := by
   have hcast : (2 * w * 4 ^ σ : ℝ) ≤ ((2 ^ K - 1 : ℕ) : ℝ) := by
-    have : 2 * w * 4 ^ σ ≤ 2 ^ K - 1 := by omega
-    exact_mod_cast this
+    exact_mod_cast Nat.le_sub_one_of_lt hK
   have hpos : (0 : ℝ) < 2 ^ σ := by positivity
   have h4 : (2 : ℝ) * (1 / ((2 ^ σ : ℕ) : ℝ) / 2) ^ 2 * (2 * w * 4 ^ σ) = w := by
     rw [show (4 : ℝ) ^ σ = (2 ^ σ) ^ 2 by rw [← pow_mul, mul_comm σ 2, pow_mul]; norm_num]
@@ -298,13 +297,11 @@ private theorem errors_le {M b σ : ℕ} (hM : 1 ≤ M) (hb : 1 ≤ b)
       1 / (18 * ((d : ℝ) + 1)) := by
     rw [mul_one_div, div_div_eq_mul_div, div_le_div_iff₀ (by linarith) hdpos, one_mul]
     have : ((18 * (d + 1) * 2 ^ (K + 4) * 2 ^ σ : ℕ) : ℝ) ≤ q := by exact_mod_cast hT2
-    push_cast at this ⊢
-    linarith
+    push_cast at this ⊢; linarith
   have e3 : (D : ℝ) / ((q : ℝ) - 1) ≤ 1 / (18 * ((d : ℝ) + 1)) := by
     rw [div_le_div_iff₀ (by linarith) hdpos, one_mul]
     have : ((18 * (d + 1) * D + 1 : ℕ) : ℝ) ≤ q := by exact_mod_cast hT3
-    push_cast at this
-    linarith
+    push_cast at this; linarith
   have hne : (d : ℝ) + 1 ≠ 0 := by positivity
   calc _ ≤ 6 * ((d : ℝ) + 1) * (3 * (1 / (18 * ((d : ℝ) + 1)))) := by gcongr; linarith
     _ = 1 := by field_simp; ring
@@ -414,10 +411,9 @@ theorem eventually_isAverageCaseHard_encodedSlice {L : Language Bool} {γ : ℝ}
   have hhard : ∀ᶠ b : ℕ in atTop,
       2 ^ (40 * b) ≤ complexity interpretation (single (L.slice (M * b))) := by
     filter_upwards [hMb.eventually hard] with b hb
-    have h1 : (2 : ℝ) ^ ((40 * b : ℕ) : ℝ) ≤ (2 : ℝ) ^ (γ * ((M * b : ℕ) : ℝ)) := by
-      apply Real.rpow_le_rpow_of_exponent_le (by norm_num)
-      push_cast
-      nlinarith
+    have h1 : (2 : ℝ) ^ ((40 * b : ℕ) : ℝ) ≤ (2 : ℝ) ^ (γ * ((M * b : ℕ) : ℝ)) :=
+      Real.rpow_le_rpow_of_exponent_le (by norm_num)
+        (by push_cast; nlinarith)
     rw [Real.rpow_natCast] at h1
     exact_mod_cast h1.trans hb
   have hev := Nat.eventually_mul_pow_le_pow_div (2 ^ 27 * M ^ 3 + 4608 * M + 128) 6 4

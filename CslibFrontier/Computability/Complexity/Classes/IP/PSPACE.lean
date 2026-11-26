@@ -107,8 +107,7 @@ def encodeWord (L : ℕ) (w : List Bool) : List Bool :=
 /-- Decoding inverts coding. -/
 theorem decodeWord_encodeWord (L : ℕ) (w : List Bool) : decodeWord
     (encodeWord L w) = w := by
-  rw [decodeWord, encodeWord, List.idxOf_true_replicate_false_append, List.drop_append]
-  simp
+  simp [decodeWord, encodeWord, List.idxOf_true_replicate_false_append, List.drop_append]
 
 /-- The code of a word of length at most `L` has length `L + 1`. -/
 theorem length_encodeWord {L : ℕ} {w : List Bool} (hw : w.length ≤ L) :
@@ -133,11 +132,10 @@ private theorem eq_replicate_append_decodeWord {u : List Bool} (ht : true ∈ u)
 private theorem encodeWord_decodeWord {L : ℕ} {u : List Bool} (hu : u.length = L + 1)
     (ht : true ∈ u) :
     encodeWord L (decodeWord u) = u := by
-  have h := eq_replicate_append_decodeWord ht
-  have hlen := congrArg List.length h
+  have hlen := congrArg List.length (eq_replicate_append_decodeWord ht)
   simp only [List.length_append, List.length_replicate, List.length_cons, hu] at hlen
-  rw [encodeWord, show L - (decodeWord u).length = u.idxOf true by lia]
-  exact h.symm
+  have hidx : L - (decodeWord u).length = u.idxOf true := by lia
+  rw [encodeWord, hidx, ← eq_replicate_append_decodeWord ht]
 
 variable (L : ℕ)
 
@@ -430,12 +428,11 @@ private theorem computableInPolySpace_evalStep [Finite Control] :
     ComputableInPolySpace (evalStep enc M fuel) (encEvalState enc) (encEvalState enc) := by
   have hcond : ComputableInPolyTime (fun s : EvalState α => s.2.2.isSome)
       (encEvalState enc) encBool := by fun_prop
-  refine (ComputableInPolySpace.ite (.of_polyTime hcond)
+  exact (ComputableInPolySpace.ite (.of_polyTime hcond)
     (.of_polyTime (computableInPolyTime_returnStep hfuel))
     ((ComputableInPolySpace.of_polyTime (computableInPolyTime_pushStep hfuel)).comp
       ((ComputableInPolySpace.of_polyTime id').prod
-        (computableInPolySpace_leaf M hfuel)))).congr fun s => ?_
-  rw [evalStep_eq]
+        (computableInPolySpace_leaf M hfuel)))).congr fun s => (evalStep_eq enc M fuel s).symm
 
 omit hfuel in
 /-- **The states of the evaluation are of polynomial size.** -/
@@ -450,14 +447,11 @@ theorem length_encEvalState_iterate_le (a : α) (j : ℕ) :
     (fun u hu => by simpa using hu) j
   set st := (GameTree.step (fuel a) (2 ^ fuel a) (firstCode (fuel a)) BitString.increment
     (lastCode (fuel a)) (leafValue (coinFamily M (fuel a) (enc a))))^[j] ([], none)
-  have hframe : ∀ f ∈ st.1, (encFrame f).length ≤ 7 * fuel a + 10 := by
-    intro f hf
+  have hframe (f) (hf : f ∈ st.1) : (encFrame f).length ≤ 7 * fuel a + 10 := by
     obtain ⟨hu, hw, hs, ha⟩ := hgood.frames f hf
     have hs' := length_encNat_le_of_le_two_pow hs
     have ha' := length_encNat_le_of_le_two_pow ha
     enc_len [encFrame, hu, hw] at hs' ha' ⊢
-  have hlist := length_encList_le encFrame st.1 hframe
-  have hdepth := Nat.mul_le_mul_right (2 * (7 * fuel a + 10) + 1) hgood.length
   have hret : (encOption encNat st.2).length ≤ fuel a + 2 := by
     rcases hst : st.2 with _ | v
     · simp
@@ -466,7 +460,8 @@ theorem length_encEvalState_iterate_le (a : α) (j : ℕ) :
   simp only [encEvalState, length_encPair]
   have hlist2 : 2 * (encList encFrame st.1).length ≤ 2 * fuel a * (14 * fuel a + 21) := by
     calc 2 * (encList encFrame st.1).length
-        ≤ 2 * (fuel a * (2 * (7 * fuel a + 10) + 1)) := Nat.mul_le_mul_left 2 (hlist.trans hdepth)
+        ≤ 2 * (fuel a * (2 * (7 * fuel a + 10) + 1)) := Nat.mul_le_mul_left 2
+          ((length_encList_le encFrame st.1 hframe).trans (Nat.mul_le_mul_right _ hgood.length))
       _ = 2 * fuel a * (14 * fuel a + 21) := by ring
   omega
 
@@ -521,23 +516,24 @@ theorem mem_iff_two_pow_lt_value {V : α → WordOracleComp Unit Bool} {A : Set 
     acceptProb_eq_sum M (by
       simpa only [ProbOracleComp.runWith_eq_run_interpret] using hV a) P
   have hpos : 2 ^ t ≠ 0 := by positivity
-  have hcast : ((2 ^ t : ℕ) : ENNReal) = 2 ^ t := by push_cast; rfl
   have hupper (P : Prover Unit) : acceptProb (V a) P ≤ (W : ENNReal) / (2 ^ t : ℕ) := by
-    rw [hacc, ENNReal.div_eq_inv_mul, hcast]
+    rw [hacc, ENNReal.div_eq_inv_mul, Nat.cast_pow, Nat.cast_ofNat]
     exact mul_le_mul_right (sum_acceptFrom_le_value hbounded P) _
   have hopt : acceptProb (V a) (optimalProver (coinFamily M t (enc a)) t t) =
       (W : ENNReal) / (2 ^ t : ℕ) := by
-    rw [hacc, ENNReal.div_eq_inv_mul, hcast, sum_acceptFrom_optimalProver hbounded]
+    rw [hacc, ENNReal.div_eq_inv_mul, Nat.cast_pow, Nat.cast_ofNat,
+      sum_acceptFrom_optimalProver hbounded]
   have h2pow := Nat.one_le_two_pow (n := t)
   refine ⟨fun ha => ?_, fun hlt => by_contra fun ha => ?_⟩
   · obtain ⟨P, hP⟩ := hA.complete a ha
-    have h := hP.trans (hupper P)
-    rw [show (2 / 3 : ENNReal) = ((2 : ℕ) : ENNReal) / ((3 : ℕ) : ENNReal) by norm_num,
-      ENNReal.natCast_div_le_natCast_div_iff (by norm_num) hpos] at h
+    have h : ((2 : ℕ) : ENNReal) / (3 : ℕ) ≤ (W : ENNReal) / (2 ^ t : ℕ) := by
+      simpa only [Nat.cast_ofNat] using hP.trans (hupper P)
+    have := (ENNReal.natCast_div_le_natCast_div_iff (by decide) hpos).mp h
     lia
-  · have h := hopt ▸ hA.sound a ha (optimalProver _ t t)
-    rw [show (1 / 3 : ENNReal) = ((1 : ℕ) : ENNReal) / ((3 : ℕ) : ENNReal) by norm_num,
-      ENNReal.natCast_div_le_natCast_div_iff hpos (by norm_num)] at h
+  · have h : (W : ENNReal) / (2 ^ t : ℕ) ≤ ((1 : ℕ) : ENNReal) / (3 : ℕ) := by
+      simpa only [hopt, Nat.cast_one, Nat.cast_ofNat] using
+        hA.sound a ha (optimalProver (coinFamily M t (enc a)) t t)
+    have := (ENNReal.natCast_div_le_natCast_div_iff hpos (by decide)).mp h
     lia
 
 /-- **`IP ⊆ PSPACE`** [Arora and Barak, Chapter 8][AroraBarak09] [Sipser, Section

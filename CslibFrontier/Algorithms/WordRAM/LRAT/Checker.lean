@@ -102,9 +102,7 @@ theorem TableAt.snoc {mem : ℕ → ℕ} {T : ℕ} {db : List (ℕ × Clause ℕ
   · have hfind : (db ++ [(i, c)]).find? (·.1 == j) = db.find? (·.1 == j) := by
       simp [List.find?_append, hj]
     rw [hfind, Function.update_of_ne (by simp only [tcell]; omega)]
-    exact ⟨(h j).1, fun e he =>
-      let ⟨hpos, hlt, hl⟩ := (h j).2 e he
-      ⟨hpos, hlt, hfr hlt hl⟩⟩
+    exact ⟨(h j).1, fun e he => ((h j).2 e he).imp_right fun ⟨hlt, hl⟩ => ⟨hlt, hfr hlt hl⟩⟩
 
 /-! ### Loading the formula -/
 
@@ -209,10 +207,8 @@ theorem checker_spec (φ : CNF ℕ) (cert : Array LRAT.IntAction)
       List.getElem?_eq_none (Nat.le_sub_one_of_lt ha)]
   have hFC : HoldsList 2 (F ++ C) (Data.init input : Data 28).mem := fun i => by
     change (Data.init input : Data 28).mem (2 + i.val) = (F ++ C)[i.val]
-    rw [show 2 + i.val = (1 + i.val) + 1 by omega, Data.init_mem_succ]
-    simp only [hinputeq, Nat.add_comm 1 i.val, List.getD_cons_succ]
-    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by simpa using i.isLt)]
-    rfl
+    rw [Nat.add_comm 2 i.val, Data.init_mem_succ]
+    simp [hinputeq, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem i.isLt]
   obtain ⟨hF, hC⟩ := holdsList_append_iff.mp hFC
   have hm1 : (Data.init input : Data 28).mem 1 = φ.length := by
     simp [Data.init_mem_succ, hinputeq]
@@ -275,13 +271,12 @@ def dbWidth (φ : CNF ℕ) (cert : Array LRAT.IntAction) : ℕ :=
 clauses of total length at most `W` per hint. -/
 private theorem hintsWork_le {db : List (ℕ × Clause ℕ)} {W : ℕ} (hdb : ∀ e ∈ db, e.2.length ≤ W)
     (hs : List ℕ) : hintsWork db hs ≤ hs.length * W := by
-  have hh : ∀ h, hintLen db h ≤ W := fun h => by
-    unfold hintLen
-    cases he : db.find? (·.1 == h) with
-    | none => simp
-    | some e => simpa using hdb e (List.mem_of_find?_eq_some he)
   simpa [hintsWork] using List.sum_le_length_nsmul (hs.map (hintLen db)) W
-    (List.forall_mem_map.2 fun h _ => hh h)
+    (List.forall_mem_map.2 fun h _ => by
+      unfold hintLen
+      cases he : db.find? (·.1 == h) with
+      | none => simp
+      | some e => simpa using hdb e (List.mem_of_find?_eq_some he))
 
 /-- **The hinted clauses are bounded by the hints and the width**: they have total length at most
 the number of hints (`Cslib.Logic.PL.CNF.lratHintCount`) times `dbWidth φ cert`. -/

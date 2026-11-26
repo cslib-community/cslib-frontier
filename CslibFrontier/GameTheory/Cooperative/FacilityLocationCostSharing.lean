@@ -305,11 +305,8 @@ private theorem exists_greedy_cover {F : Type*} (rem : Finset F) (t : F → ℝ)
     by_cases hS : S.Nonempty
     · obtain ⟨i₀, hi₀, hi₀_min⟩ := Finset.exists_min_image S t hS
       let S' : Finset F := S.filter fun i => 2 * t i < dF i₀ i
-      have hi₀_nmem : i₀ ∉ S' := by
-        simp only [S', Finset.mem_filter, not_and, not_lt]
-        intro _
-        rw [hd_self i₀]
-        linarith [ht_nn i₀]
+      have hi₀_nmem : i₀ ∉ S' := fun h => by
+        linarith [(Finset.mem_filter.1 h).2, hd_self i₀, ht_nn i₀]
       obtain ⟨F', hF'sub, hind, hdom⟩ := ih S' (Finset.ssubset_iff_subset_ne.2
         ⟨Finset.filter_subset _ S, fun h => hi₀_nmem (h ▸ hi₀)⟩)
       refine ⟨insert i₀ F',
@@ -439,14 +436,11 @@ private theorem flCostShareScheme_cost_le_three_mul_sum (I : FacilityLocationIns
       rw [← Finset.sum_biUnion hdisj, add_comm, Finset.sum_sdiff hUT]
     refine (I.toCostSharingGame_cost_le_planCost T F' hF').trans ?_
     rw [planCost_eq, hconn_split, hshare_split]
-    have hsum_F' : (∑ i ∈ F', I.openCost i) + ∑ i ∈ F', ∑ j ∈ ball i, I.connCost i j ≤
-        3 * ∑ i ∈ F', ∑ j ∈ ball i, I.flCostShareScheme.share T j := by
-      rw [← Finset.sum_add_distrib, Finset.mul_sum]
-      exact Finset.sum_le_sum hfac_bound
-    have hsum_rem : ∑ j ∈ T \ U, F'.inf' hF' (fun i => I.connCost i j) ≤
-        3 * ∑ j ∈ T \ U, I.flCostShareScheme.share T j := by
-      rw [Finset.mul_sum]
-      exact Finset.sum_le_sum fun j hj => hrest_bound j (Finset.mem_sdiff.1 hj).1
+    have hsum_F' := (Finset.sum_add_distrib.symm.trans_le (Finset.sum_le_sum hfac_bound)).trans_eq
+      (Finset.mul_sum F' (fun i => ∑ j ∈ ball i, I.flCostShareScheme.share T j) 3).symm
+    have hsum_rem := (Finset.sum_le_sum fun j (hj : j ∈ T \ U) =>
+      hrest_bound j (Finset.mem_sdiff.1 hj).1).trans_eq
+      (Finset.mul_sum (T \ U) (I.flCostShareScheme.share T) 3).symm
     linarith
   · simp [Finset.not_nonempty_iff_eq_empty.1 hT, I.toCostSharingGame.cost_empty]
 

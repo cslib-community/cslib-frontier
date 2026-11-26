@@ -84,8 +84,7 @@ private theorem append_word_point_order {α : Type*} [Preorder α]
   have h0 := Route.eval_foldl_append_line a b nodes i 0
   have h1 := Route.eval_foldl_append_line a b nodes i 1
   simp only [Route.eval, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one] at h0 h1
-  rw [h0, h1]
-  exact (List.pairwise_iff_getElem.mp hword) _ _ _ _ (Nat.lt_succ_self _)
+  simpa only [h0, h1] using (List.pairwise_iff_getElem.mp hword) _ _ _ _ (Nat.lt_succ_self _)
 
 
 private theorem sorted_reference_cuts (I : FixedRotationInput)
@@ -294,20 +293,11 @@ private theorem free_route_last_germ {I : FixedRotationInput}
   let last := L.getLast hne
   have hsplit : L = L.dropLast ++ [last] := (List.dropLast_append_getLast hne).symm
   have hf (p : Route) (a : ℂ) : (p.append a).finish = a := Route.endpoint_append p a true
-  cases hpre : L.dropLast with
-  | nil =>
-    have hL : L = [last] := by simpa only [hpre, List.nil_append] using hsplit
-    conv_lhs => rw [hL]
-    simp only [free_route, List.flatMap_nil, List.nil_append, List.cons_append, List.foldl_cons,
-      List.foldl_nil, Route.germ_append, hf, ↓reduceIte]
-    rfl
-  | cons z zs =>
-    have hL : L = z :: (zs ++ [last]) := by simpa only [hpre, List.cons_append] using hsplit
-    conv_lhs => rw [hL]
+  conv_lhs => rw [hsplit]
+  cases L.dropLast <;>
     simp only [free_route, List.flatMap_append, List.flatMap_cons, List.flatMap_nil,
-      List.nil_append, List.append_assoc, List.foldl_append, List.foldl_cons,
-      List.foldl_nil, Route.germ_append, hf, ↓reduceIte]
-    rfl
+      List.nil_append, List.cons_append, List.append_assoc, List.foldl_append, List.foldl_cons,
+      List.foldl_nil, Route.germ_append, hf, ↓reduceIte] <;> rfl
 
 
 private theorem word_order_from_cuts {ι : Type*} (L : List ι) (a b : ℂ)
@@ -984,8 +974,7 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
     vertex_eq := rfl
     route_eq := ?_
     segments_eq := fun e he => by
-      have hFe : F e = false := he
-      simpa only [D', Q, hFe, Bool.false_eq_true, ↓reduceIte] using
+      simpa only [D', Q, F, he, Bool.false_eq_true, ↓reduceIte] using
         free_route_segments e (L e) (left e) (middle e) (right e)
     simple := hsimple
     vertex_contacts := fun e => vertex_contacts_from_support hI e C ρ

@@ -158,28 +158,21 @@ theorem assumeLoop_spec (ls : List (Literal ℕ)) (trail : List (Literal ℕ)) (
     obtain ⟨hlit, hrest⟩ := holdsList_cons_iff.mp (by simpa using hl)
     have hMl := hM l (by simp)
     have hx1 : litCode (Std.Sat.Literal.negate l) ≤ litCode l + 1 := litCodeBy_negate_le _root_.id l
-    have : Fits w (litCode l) := hw.of_le (by omega)
-    have : Fits w (litCode (Std.Sat.Literal.negate l)) := hw.of_le (by omega)
-    have : Fits w (litCode (Std.Sat.Literal.negate l) + litCode (Std.Sat.Literal.negate l)) :=
-      hw.of_le (by omega)
-    have : Fits w (litCode (Std.Sat.Literal.negate l) + litCode (Std.Sat.Literal.negate l) + 1) :=
-      hw.of_le (by omega)
-    have : Fits w (T + (litCode (Std.Sat.Literal.negate l) +
-        litCode (Std.Sat.Literal.negate l) + 1)) := hw.of_le (by omega)
     have hOA : OnlyAsg T x.mem
         (Function.update x.mem (acell T (litCode (Std.Sat.Literal.negate l))) s) :=
       OnlyAsg.update T _ s x.mem
     refine WP.exists_execWithin (WP.loop_iter hc ?_)
     unfold assumeBody
     wram_exec [hlit, hone, litCodeBy_xor_one, hT, hst]
-    wram_call (ih (Std.Sat.Literal.negate l :: trail) _)
-      [hone, hT, hst, hle, htr.update _] with z ⟨hzp, hzoa, hztr, hz1, hzT, hzs, hze⟩
-    · wram_simp at hzp hzoa hze
-      exact ⟨by simp only [List.length_cons]; omega, by rw [hzp], hOA.trans hzoa,
-        by simpa using hztr, hz1, hzT, hzs, hze⟩
-    · wram_simp
-      exact hrest.frame fun a _ ha => hOA.eq_of_lt (by simp only [List.length_map] at ha; omega)
-    · exact fun l' hl' => hM l' (by simp [hl'])
+    · wram_call (ih (Std.Sat.Literal.negate l :: trail) _)
+        [hone, hT, hst, hle, htr.update _] with z ⟨hzp, hzoa, hztr, hz1, hzT, hzs, hze⟩
+      · wram_simp at hzp hzoa hze
+        exact ⟨by simp only [List.length_cons]; omega, by rw [hzp], hOA.trans hzoa,
+          by simpa using hztr, hz1, hzT, hzs, hze⟩
+      · wram_simp
+        exact hrest.frame fun a _ ha => hOA.eq_of_lt (by simp only [List.length_map] at ha; omega)
+      · exact fun l' hl' => hM l' (by simp [hl'])
+    all_goals exact hw.of_le (by dsimp only [litCode] at hMl hx1 ⊢; omega)
 
 /-- **A RUP step** on the words `i :: encodeClause c ++ encodeNums hints` at `ptr`: when
 propagation from the negated clause along the hints succeeds, it adds `(i, c)` to the database,

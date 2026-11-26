@@ -244,22 +244,15 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
       omega
     · rw [clientState_bind, hst, hres]
       exact hk.2.2
-  unfold epochTickStage2GenProg
+  unfold epochTickStage2GenProg epochTickStage2
   dsimp only
-  rw [hwp1]
-  simp only [pure_bind, hsmax_cp]
-  dsimp only [epochTickStage2]
+  simp only [hwp1, pure_bind, hsmax_cp]
   rw [← Nat.zero_add (memoryCost _ s)]
   apply step_read hdi_st (hdi_res.trans hh.dirtyIdx) hdi_mc hdi_vp
   apply step_read hdc_st (hdc_res.trans hh.dirtyCount) hdc_mc hdc_vp
   by_cases hdi_lt : fs.dirtyIdx < fs.dirtyCount
   · simp only [ite_eq_left hdi_lt]
-    dsimp only [ValidEpochStagePreTick] at hpre
-    have hpre2 := hpre
-    rw [ite_eq_right (by omega : ¬(fs.rebStage = 0)),
-      ite_eq_right (by omega : ¬(fs.rebStage = 1)), ite_eq_left hs2] at hpre2
     set b := fs.dirtyBuckets fs.dirtyIdx
-    have hb : b < numBucketsWhp n_max := hpre2.2.2.1 _ hdi_lt
     obtain ⟨hrd_st, hrd_res, hrd_mc, hrd_vp⟩ :=
       readDirtyBucketGenProg_spec henv hdi_lt hrep (s := s)
     obtain ⟨hcd_st, hcd_res, hcd_mc, hcd_vp⟩ := hdr hdrRebCandSalt (by decide)
@@ -267,7 +260,7 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
     apply step_read hcd_st (hcd_res.trans hh.rebCandSalt) hcd_mc hcd_vp
     by_cases hcs_lt : fs.rebCandSalt < sMaxWhp c n_max
     · simp only [ite_eq_left hcs_lt]
-      obtain ⟨_, hrIdx, hcnt_le, hq_all, hbp_v, hcoll_k, hrvS, hrIdxS, hcandS_lt,
+      obtain ⟨hb, hrIdx, hcnt_le, hq_all, hbp_v, hcoll_k, hrvS, hrIdxS, hcandS_lt,
         hinsS_le, hdiS, hnxtS⟩ :=
         stage2_rebScan16_facts henv hcore hpre hs2 hdi_lt hcs_lt
       obtain ⟨_, hscan_mc, hscan_vp, hscan_step⟩ := rebScanLoop_spec henv hb θ 16 fs s
@@ -286,11 +279,9 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
       · rw [clientState_bind]
         exact hscan_step.trans hps_step
     · simp only [ite_eq_right hcs_lt]
-      refine ⟨?_, validProg_pure _, ?_⟩
-      · rw [memoryCost_pure]
-        omega
-      · rw [clientState_pure_whp]
-        exact FastStateStep.refl hseed hrep
+      refine ⟨by rw [memoryCost_pure]; omega, validProg_pure _, ?_⟩
+      rw [clientState_pure_whp]
+      exact FastStateStep.refl hseed hrep
   · simp only [ite_eq_right hdi_lt]
     obtain ⟨ht3_mc, ht3_vp, ht3_step⟩ := tickToStage3Prog_fastStep henv hseed hrep (s := s)
     exact ⟨by omega, ht3_vp, ht3_step⟩

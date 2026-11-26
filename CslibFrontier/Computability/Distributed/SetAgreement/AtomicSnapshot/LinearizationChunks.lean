@@ -109,9 +109,7 @@ private theorem doneUpdate_inj_of_trace {P Data : Type*} [Fintype P] [DecidableE
         rw [List.getElem_of_eq hhist hk, List.getElem_append] at hst
         split_ifs at hst with hk₀
         · exact ⟨hk₀, hst⟩
-        · obtain rfl : k = (τ.stateAt t).history.length := by
-            rw [hhist, List.length_append, List.length_singleton] at hk
-            omega
+        · obtain rfl : k = (τ.stateAt t).history.length := by simp [hhist] at hk; omega
           simp only [Nat.sub_self, List.getElem_singleton, hpend, reduceCtorEq] at hst
       obtain ⟨hk₁, hs₁'⟩ := lt_old h₁ hst₁
       obtain ⟨hk₂, hs₂'⟩ := lt_old h₂ hst₂
@@ -292,9 +290,8 @@ private theorem linUpdatesAt_valid (τ : SnapshotTrace ord dInit)
     refine ⟨?_, by simp only [seqSnapshotValid, hget₀, hkind₀, hstat₀]⟩
     simp only [seqSnapshotMemAfter, hget₀, hkind₀, hcaller₀]
     funext p
-    by_cases hpj : p = j
-    · subst hpj
-      rw [Function.update_self, memSnapshot, ← hcaller₀, hreg₀]
+    rcases eq_or_ne p j with rfl | hpj
+    · rw [Function.update_self, memSnapshot, ← hcaller₀, hreg₀]
     · rw [Function.update_of_ne hpj, memSnapshot]
       rcases τ.reg_step_iff p ht_lt with ⟨hreg_eq, -⟩ | ⟨_, _, _, hev_p, -, -, -⟩
       · exact (congrArg SnapshotReg.data hreg_eq).symm
@@ -327,10 +324,7 @@ theorem linPrefix_valid (τ : SnapshotTrace ord dInit)
     omega
   intro k hk
   induction k with
-  | zero =>
-    simp only [linPrefix, List.range_zero, List.flatMap_nil, seqSnapshotValid,
-      seqSnapshotMemAfter, stateAt_zero]
-    exact ⟨trivial, fun _ => rfl⟩
+  | zero => simp [linPrefix, seqSnapshotValid, seqSnapshotMemAfter, stateAt_zero]; rfl
   | succ k ih_k =>
     obtain ⟨hv_k, hm_k⟩ := ih_k (Nat.le_of_succ_le hk)
     have hk_le_T : k ≤ τ.events.length := Nat.le_of_succ_le_succ hk

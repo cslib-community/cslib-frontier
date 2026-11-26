@@ -139,8 +139,7 @@ variable {b m : ℕ}
 theorem four_mul_andreevRidge (κ : ℤ) (u : ℕ) :
     4 * andreevRidge κ u = -8 * ((u + u % 2 : ℕ) : ℤ) ^ 2 + 2 * κ * (u + u % 2 : ℕ) := by
   have h : ((u + u % 2 : ℕ) : ℤ) = 2 * (((u : ℤ) + 1) / 2) := by push_cast; omega
-  rw [h, andreevRidge]
-  ring
+  rw [h, andreevRidge]; ring
 
 /-- The parity of a block sum is the parity of the block parities. -/
 theorem sum_mod_two_eq_toNat_parityOn (s : Fin b → ℕ) (S : Finset (Fin b)) :
@@ -233,9 +232,7 @@ theorem andreevSharpScore_eq (x : BitString b → Bool) (s : Fin b → ℕ) :
     simp [hε, oddForm_onSingles]
   have hkappa (S : Finset (Fin b)) : (andreevSharpKappa b m S : ℝ) =
       -4 * (2 * α + 1) * b + 8 * (2 * α + 1) * oddForm ε S := by
-    rw [← hcard, andreevSharpKappa]
-    push_cast
-    ring
+    push_cast [andreevSharpKappa, ← hcard]; ring
   have hridge : 4 * ∑ S, (andreevRidge (andreevSharpKappa b m S)
       (2 * andreevSharpW b m x S + ∑ i ∈ S, s i) : ℝ) =
       -2 * (4 * ∑ S, oddForm g S * oddForm g S) - 4 * (2 * α + 1) * b * (2 * ∑ S, oddForm g S) +
@@ -251,8 +248,7 @@ theorem andreevSharpScore_eq (x : BitString b → Bool) (s : Fin b → ℕ) :
       simpa only [Int.cast_mul, Int.cast_add, Int.cast_pow, Int.cast_neg, Int.cast_ofNat,
         Int.cast_natCast] using
         congrArg (Int.cast (R := ℝ)) (four_mul_andreevRidge (andreevSharpKappa b m S) u)
-    rw [hu, h4, hG S, hkappa]
-    ring
+    rw [hu, h4, hG S, hkappa]; ring
   rw [two_mul_sum_oddForm, four_mul_sum_oddForm_mul_oddForm,
     four_mul_sum_oddForm_mul_oddForm] at hridge
   simp only [Fintype.card_fin] at hridge
@@ -271,12 +267,8 @@ theorem andreevSharpScore_eq (x : BitString b → Bool) (s : Fin b → ℕ) :
     simpa only [ha, ← sq, mul_pow, hX, tableVal_sq, cast_andreevSharpMult_sq, hα, hε]
       using weighted_sum (2 * α + α ^ 2)
   have hsast : ∑ c, a c * st c = (1 + α) * ∑ i, X (Pi.single i true) * s i := by
-    rw [hst, show (∑ c, a c * onSingles (fun i => (s i : ℝ)) c) =
-        ∑ c, onSingles (fun i => (s i : ℝ)) c * a c from sum_congr rfl fun c _ => mul_comm _ _,
-      sum_onSingles_mul, mul_sum]
-    refine sum_congr rfl fun i _ => ?_
-    simp only [ha, andreevSharpMult_single]
-    push_cast; ring
+    simp_rw [hst, mul_comm (a _), sum_onSingles_mul, mul_sum, ha, andreevSharpMult_single]
+    exact sum_congr rfl fun _ _ => by push_cast; ring
   have hsum_δ (F : BitString b → ℝ) : ∑ c, F c * δ c = F p := by
     simp [hδ]
   have hsst : ∑ c, st c = σ := by
@@ -347,8 +339,7 @@ theorem andreevSharpLoad_le (x : BitString b → Bool) (s : Fin b → ℕ) (hs :
 theorem cast_andreevSharpLoad (x : BitString b → Bool) (s : Fin b → ℕ) :
     (andreevSharpLoad b m x s : ℝ) = 2 * ((∑ c, if c = 0 then 0 else tableVal x c) +
       andreevSharpAmp m * ∑ i, tableVal x (Pi.single i true)) + ∑ i, (s i : ℝ) := by
-  rw [andreevSharpLoad]
-  push_cast
+  push_cast [andreevSharpLoad]
   simp only [cast_andreevSharpMult, add_mul, sum_add_distrib, ite_mul, zero_mul, one_mul,
     mul_assoc, ← mul_sum, sum_onSingles_mul, Pi.one_apply]
 

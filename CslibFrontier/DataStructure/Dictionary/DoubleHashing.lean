@@ -897,13 +897,11 @@ private theorem rawQueue_spec {U m : ℕ} (hm : 0 < m)
   intro b
   induction b using Nat.strong_induction_on with
   | _ b ih =>
-    intro hbw
-    cases b with
-    | zero =>
-      exact ⟨h0 ▸ Finset.image_subset_image fun y hy =>
+    rcases b with _ | c
+    · exact fun _ => ⟨h0 ▸ Finset.image_subset_image fun y hy =>
         mem_partialDepSet_of_mem_directBlockers T π r_ext hy,
         by simp only [rawQueue, length_probePrefix]; omega⟩
-    | succ c =>
+    · intro hbw
       obtain ⟨hsub_c, hlen_c⟩ := ih c (Nat.lt_succ_self c) (by omega)
       obtain ⟨hxc_W, -⟩ :=
         keyAt_getD_mem_of_toFinset_subset hm hrep x₀ hW_dom hsub_c (i := c) (by omega)
@@ -1156,7 +1154,7 @@ private theorem card_stepFiber_le (M : ℕ) {w : ℕ} (hw : w ≤ 2 ^ M) (q : Li
     · simp only [P, hlt, true_and]
       exact (card_filter_two_probes_eq_le M hlt (k_b.isLt.trans_le hw) slot₁ slot_b).trans
         ((Nat.sub_le _ _).trans k_b.isLt.le)
-    · simp [P, show ¬j₁ < k_b from hlt]
+    · simp [P, mt Fin.val_fin_lt.mpr hlt]
   calc (stepFiber M w q slot_b d).card
       ≤ F₁.card + _ := (Finset.card_le_card hsub).trans (Finset.card_union_le _ _)
     _ ≤ 2 ^ (M - 1) + Fintype.card (Fin w) * (Fintype.card (Fin w) * (q.toFinset.card * w)) :=
@@ -1263,8 +1261,8 @@ private theorem tupleQueue_restrictTuple_eq_bfsQueue {U M w : ℕ}
   induction b with
   | zero => rfl
   | succ b ih =>
-      have hbw : b < w := hb
-      simp only [tupleQueue, init_restrictTuple, ih hbw.le, bfsQueue, hbw, ↓reduceDIte]
+      simp only [tupleQueue, init_restrictTuple, ih (Nat.le_of_succ_le hb), bfsQueue,
+        Nat.lt_of_succ_le hb, ↓reduceDIte]
       rfl
 
 private theorem mem_validTuples_of_bfsStepEvent {U M w : ℕ}
@@ -1280,13 +1278,13 @@ private theorem mem_validTuples_of_bfsStepEvent {U M w : ℕ}
   induction b with
   | zero => exact Finset.mem_univ _
   | succ b ih =>
-      have hbw : b < w := hb
-      have hev_b := hev ⟨b, hbw⟩
-      dsimp only [bfsStepEvent] at hev_b
-      rw [← tupleQueue_restrictTuple_eq_bfsQueue x₀ h x p s b hbw.le] at hev_b
-      exact Finset.mem_biUnion.mpr ⟨restrictTuple f b hbw.le, ih hbw.le, Finset.mem_map.mpr
-        ⟨f ⟨b + 1, Nat.succ_lt_succ hbw⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hev_b⟩,
+      have hbw := Nat.le_of_succ_le hb
+      refine Finset.mem_biUnion.mpr ⟨restrictTuple f b hbw, ih hbw, Finset.mem_map.mpr
+        ⟨f ⟨b + 1, Nat.succ_lt_succ hb⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩,
           snoc_restrictTuple f b hb⟩⟩
+      dsimp only [bfsStepEvent]
+      rw [tupleQueue_restrictTuple_eq_bfsQueue x₀ h x p s b hbw]
+      exact hev ⟨b, hb⟩
 
 open scoped Classical in
 /-- **Fixed-Tuple BFS Event Bound under `k`-Wise Independence**:
@@ -1474,9 +1472,8 @@ private theorem four_pow_mul_card_hasBFSWitness_le
     _ ≤ 4 ^ w * (4 ^ w * (n_max ^ w * ((2 ^ (M - 1) + w ^ 4) ^ w * Fintype.card (Θ₁ × Θ₂)))) :=
         Nat.mul_le_mul_left _ hsum_bi
     _ = (16 * n_max * (2 ^ (M - 1) + w ^ 4)) ^ w * Fintype.card (Θ₁ × Θ₂) := by
-        simp only [mul_pow]
-        rw [show (16 : ℕ) = 4 * 4 from rfl, mul_pow]
-        ring
+        have h16 : (16 : ℕ) ^ w = 4 ^ w * 4 ^ w := mul_pow 4 4 w
+        simp only [mul_pow, h16]; ring
     _ ≤ (2 ^ M * 2 ^ (M - 1)) ^ w * Fintype.card (Θ₁ × Θ₂) :=
         Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hstep_base w)
     _ = Fintype.card (Θ₁ × Θ₂) * (2 ^ M * 2 ^ (M - 1)) ^ w := Nat.mul_comm _ _
@@ -1579,7 +1576,7 @@ theorem sum_probeCount_oddStride_le_of_kWiseIndependent
     have hsum_4L := (Finset.sum_le_card_nsmul _ _ _ fun x₀ _ => hov_x₀ x₀).trans
       (Nat.mul_le_mul_right _ ((Finset.card_insert_le u _).trans (Nat.add_le_add_right hdom 1)))
     rw [← Finset.mul_sum] at hsum_4L
-    refine Nat.le_of_mul_le_mul_left ?_ (Nat.pow_pos (n := L) (show 0 < 4 by decide))
+    refine Nat.le_of_mul_le_mul_left ?_ (Nat.pow_pos (n := L) (by decide : 0 < 4))
     linarith [Nat.mul_le_mul_left (2 * n_max) hsum_4L, Nat.mul_le_mul_right (Fintype.card (Θ₁ × Θ₂))
       (four_mul_n_max_sq_le_four_pow_maxProbeCutoff n_max)]
   have hpt :
@@ -1592,11 +1589,9 @@ theorem sum_probeCount_oddStride_le_of_kWiseIndependent
     simp only [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, smul_eq_mul, mul_one,
       ← Finset.mul_sum]
     congr 2
-    · rw [Finset.sum_comm]
-      exact Finset.sum_congr rfl fun w _ => hC_sum u w w
-    · rw [Finset.sum_comm]
-      exact Finset.sum_congr rfl fun x₀ _ => Finset.sum_comm.trans
-        (Finset.sum_congr rfl fun w _ => (hC_sum x₀ w 1).trans (one_mul _))
+    · exact Finset.sum_comm.trans (Finset.sum_congr rfl fun w _ => hC_sum u w w)
+    · exact Finset.sum_comm.trans (Finset.sum_congr rfl fun x₀ _ => Finset.sum_comm.trans
+        (Finset.sum_congr rfl fun w _ => (hC_sum x₀ w 1).trans (one_mul _)))
   omega
 
 /-- **Expected Probe-Count Bound under `(2 * L + 1)`-Wise Independence**:

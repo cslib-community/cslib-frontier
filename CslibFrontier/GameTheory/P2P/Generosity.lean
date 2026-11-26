@@ -162,8 +162,7 @@ private theorem uniformEquilibrium_of_quad {θ_m x : ℝ} (hθ : 0 < θ_m) (hx�
     linarith
   refine ⟨hx₀, hx₁, ?_⟩
   rw [uniformTail_of_pos_le (one_div_pos.mpr hx₀) hle_θm]
-  field_simp [hx₀.ne', hθ.ne']
-  linarith
+  field_simp [hx₀.ne', hθ.ne']; linarith
 
 /-- **Minimalist equilibrium characterization** (NRTV Claim 23.1): for a uniform generosity
 distribution on `[0, θ_m]` (`θ_m > 0`), positive equilibrium contribution fractions exist iff
@@ -180,8 +179,7 @@ theorem uniformEquilibrium_iff {θ_m x : ℝ} (hθ : 0 < θ_m) :
       linarith [uniformTail_of_gt hinv_pos (lt_of_not_ge hgt)]
     rw [uniformTail_of_pos_le hinv_pos hle_θm] at hxeq
     have hquad : θ_m * x ^ 2 - θ_m * x + 1 = 0 := by
-      field_simp [hx0.ne', hθ.ne'] at hxeq
-      linarith
+      field_simp [hx0.ne', hθ.ne'] at hxeq; linarith
     have h4 : 4 ≤ θ_m := by nlinarith [mul_nonneg hθ.le (sq_nonneg (x - 1 / 2))]
     have hdisc : 0 ≤ θ_m ^ 2 - 4 * θ_m * 1 :=
       hdisc_eq ▸ mul_nonneg hθ.le (sub_nonneg.mpr h4)
@@ -232,8 +230,7 @@ theorem uniform_stability {θ_m : ℝ} (hθ4 : 4 ≤ θ_m) {x : ℝ} (hx₀ : 0 
       linarith
     rw [uniformTail_of_pos_le hinv_pos hle_θm, ← sub_pos]
     have hid : 1 - (1 / x) / θ_m - x = -(θ_m * x ^ 2 - θ_m * x + 1) / (θ_m * x) := by
-      field_simp [hx₀.ne', hθ.ne']
-      ring
+      field_simp [hx₀.ne', hθ.ne']; ring
     rw [hid]
     exact div_pos (by linarith) (mul_pos hθ hx₀)
   · intro hdisj
@@ -247,12 +244,9 @@ theorem uniform_stability {θ_m : ℝ} (hθ4 : 4 ≤ θ_m) {x : ℝ} (hx₀ : 0 
     by_cases hle_θm : 1 / x ≤ θ_m
     · rw [uniformTail_of_pos_le hinv_pos hle_θm, ← sub_pos]
       have hid : x - (1 - (1 / x) / θ_m) = (θ_m * x ^ 2 - θ_m * x + 1) / (θ_m * x) := by
-        field_simp [hx₀.ne', hθ.ne']
-        ring
-      rw [hid]
-      exact div_pos hquad_pos (mul_pos hθ hx₀)
-    · rw [uniformTail_of_gt hinv_pos (lt_of_not_ge hle_θm)]
-      exact hx₀
+        field_simp [hx₀.ne', hθ.ne']; ring
+      rw [hid]; positivity
+    · rwa [uniformTail_of_gt hinv_pos (lt_of_not_ge hle_θm)]
 
 private theorem unifHighRoot_eq_half_add {θ_m : ℝ} (hθ : 0 < θ_m) :
     unifHighRoot θ_m = 1 / 2 + Real.sqrt (1 / 4 - 1 / θ_m) := by
@@ -666,18 +660,14 @@ lowers welfare: `exclWelfare 2 (exclHighRoot 5 (1 / 2)) (1 / 2) <
 minimalistWelfare 2 (unifHighRoot 5)`. -/
 theorem excl_can_reduce_welfare :
     exclWelfare 2 (exclHighRoot 5 (1 / 2)) (1 / 2) < minimalistWelfare 2 (unifHighRoot 5) := by
+  have r1 : (5 : ℝ) * (5 - 4) = 5 := by norm_num
+  have r2 : (5 : ℝ) * (5 - 4 * (1 - 1 / 2)) = 15 := by norm_num
   have h1 : minimalistWelfare 2 (unifHighRoot 5) = Real.sqrt 5 / 5 := by
-    simp only [minimalistWelfare, unifHighRoot]
-    rw [show (5 : ℝ) * (5 - 4) = 5 by ring]
-    ring
+    rw [minimalistWelfare, unifHighRoot, r1]; ring
   have h2 : exclWelfare 2 (exclHighRoot 5 (1 / 2)) (1 / 2) = Real.sqrt 15 / 10 := by
-    simp only [exclWelfare, exclHighRoot]
-    rw [show (5 : ℝ) * (5 - 4 * (1 - 1 / 2)) = 15 by ring]
-    ring
-  rw [h1, h2]
+    rw [exclWelfare, exclHighRoot, r2]; ring
   have hlt : Real.sqrt 15 < 2 * Real.sqrt 5 := by
-    rw [Real.sqrt_lt' (by positivity), mul_pow, Real.sq_sqrt (by norm_num)]
-    norm_num
+    rw [Real.sqrt_lt' (by positivity), mul_pow, Real.sq_sqrt (by norm_num)]; norm_num
   linarith
 
 end Cslib.GameTheory.P2P

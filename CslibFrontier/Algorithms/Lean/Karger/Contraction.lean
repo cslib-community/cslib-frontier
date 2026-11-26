@@ -425,8 +425,8 @@ theorem trackedSurvives_contractTimes {n t : ℕ} (ht : 2 ≤ t) {W₀ : Fin n �
           {r | SampleSurvives W B (castFin r)} := by
       have : Nonempty (Fin (totalDoubledWeight W)) := ⟨⟨0, hS⟩⟩
       have h := step_survival_prob_ge (by omega) hC.multigraph hS hdeg
-      rwa [show t + (s + 1) - 2 = t + s - 1 by omega,
-        ← Probability.PMF.uniformOfFintype_map_equiv castFin,
+      have hsub : t + (s + 1) - 2 = t + s - 1 := by omega
+      rwa [hsub, ← Probability.PMF.uniformOfFintype_map_equiv castFin,
         PMF.toOuterMeasure_map_apply] at h
     refine Probability.PMF.toOuterMeasure_bind_ge_mul_ennreal _ _ _ _ hstep fun r _ hr => ?_
     obtain ⟨u, v, hsamp, hsame⟩ := hr
@@ -448,9 +448,9 @@ def Survives {n : ℕ} (W₀ : Fin n → Fin n → ℕ) (C : Finset (Fin n)) (t 
 
 /-- A cut that survives over the blocks survives in the graph. -/
 theorem TrackedSurvives.survives {n : ℕ} {W₀ : Fin n → Fin n → ℕ} {C : Finset (Fin n)} {t : ℕ}
-    {G : TrackedGraph n} (h : TrackedSurvives W₀ C t G) : Survives W₀ C t G.toGraph := by
-  obtain ⟨W, part, B, rfl, hC, hB⟩ := h
-  exact ⟨W, part, B, rfl, hC, hB⟩
+    {G : TrackedGraph n} (h : TrackedSurvives W₀ C t G) : Survives W₀ C t G.toGraph :=
+  let ⟨W, part, B, hG, hC, hB⟩ := h
+  ⟨W, part, B, hG ▸ rfl, hC, hB⟩
 
 /-- **Survival of a minimum cut** [KargerStein1996]. Contracting a contraction of a connected
 multigraph `W₀` from `t + s` down to `t ≥ 2` supervertices preserves a fixed minimum cut with
@@ -483,9 +483,7 @@ theorem exists_of_mem_support_tracked_contractTimes {n t : ℕ} (ht : 1 ≤ t)
       x.2 = ⟨t, W', fun i => pullbackCut part' {i}⟩ ∧ IsContractionOf W₀ part' W' := by
   induction s with
   | zero =>
-    change x ∈ (PMF.pure _).support at hx
-    supp_cases hx
-    exact ⟨W, part, rfl, hC⟩
+    exact ⟨W, part, congrArg Prod.snd ((PMF.mem_support_pure_iff _ _).mp hx), hC⟩
   | succ s ih =>
     change x ∈ ((trackedSpec n).toRandomized.withCoins.run
       (contractStep >>= fun _ => contractTimes s)
@@ -531,9 +529,7 @@ theorem minCut_eq_zero_of_mem_support_contractTimes {t : ℕ} (ht : 2 ≤ t) (s 
     ∃ W' : Fin t → Fin t → ℕ, x.2 = ⟨t, W'⟩ ∧ IsMultigraph W' ∧ minCut W' = 0 := by
   induction s with
   | zero =>
-    change x ∈ (PMF.pure _).support at hx
-    supp_cases hx
-    exact ⟨W, rfl, hW, hmin⟩
+    exact ⟨W, congrArg Prod.snd ((PMF.mem_support_pure_iff _ _).mp hx), hW, hmin⟩
   | succ s ih =>
     change x ∈ (spec.toRandomized.withCoins.run
       (contractStep >>= fun _ => contractTimes s) ⟨t + s + 1, W⟩).support at hx
@@ -548,20 +544,18 @@ theorem minCut_eq_zero_of_mem_support_contractTimes {t : ℕ} (ht : 2 ≤ t) (s 
       have h2 := two_mul_cutWeight_le_totalDoubledWeight hW' {z}
       exact ih hW' (by omega) hx
     · supp_cases hx [run_contractStep_bind (m := t + s) _ W hS, ProbComp.unifOracle] with ⟨r, hx⟩
-      obtain ⟨B, hB, hB0⟩ := exists_minCut_achiever
-        (by rw [Fintype.card_fin]; omega) W
-      rw [hmin] at hB0
+      obtain ⟨B, hB, hB0⟩ := exists_minCut_achiever (by rw [Fintype.card_fin]; omega) W
       let r' : Fin (totalDoubledWeight W) := ⟨r, by have := r.isLt; omega⟩
       have hsurv : SampleSurvives W B r' := by
         have hcard := crossing_card_eq hW B
-        rw [hB0, mul_zero, Finset.card_eq_zero, Finset.filter_eq_empty_iff] at hcard
+        rw [hB0, hmin, mul_zero, Finset.card_eq_zero, Finset.filter_eq_empty_iff] at hcard
         exact Classical.not_not.mp (hcard (Finset.mem_univ r'))
       obtain ⟨u, v, hsamp, hsame⟩ := hsurv
       have huv : u ≠ v := isSampledPair_ne hW hsamp
       rw [sampledPair_eq hsamp, contractGraph_fin] at hx
       have hpb := (pullbackCut_contractCut id huv hsame).trans (pullbackCut_id B)
-      have hcw : cutWeight (contractMatrix W u v) (contractCut v B) = 0 := by
-        rw [cutWeight_contractCut hW huv hsame, hB0]
+      have hcw : cutWeight (contractMatrix W u v) (contractCut v B) = 0 :=
+        (cutWeight_contractCut hW huv hsame).trans (hB0.trans hmin)
       have hle := minCut_le_cutWeight (contractMatrix W u v)
         (isNonTrivialCut_of_pullbackCut _ (hpb ▸ hB))
       exact ih (isMultigraph_contractMatrix hW u v) (by omega) hx
@@ -613,8 +607,7 @@ noncomputable def cutLaw {n : ℕ} (W : Fin n → Fin n → ℕ) : PMF (Finset (
 theorem cutLaw_eq {n : ℕ} (W : Fin n → Fin n → ℕ) :
     cutLaw W = ((trackedSpec n).toRandomized.withCoins.run (contractTimes (n - 2))
       (TrackedGraph.init W)).map fun x => x.2.side := by
-  rw [cutLaw, run_karger_tracked, PMF.map_bind]
-  simp only [PMF.pure_map]
+  simp only [cutLaw, run_karger_tracked, PMF.map_bind, PMF.pure_map]
   exact PMF.bind_pure_comp _ _
 
 /-- **The answer is the weight of the output cut.** Every outcome of `karger` on a multigraph with
@@ -664,20 +657,18 @@ theorem two_div_le_cutLaw {n : ℕ} {W₀ : Fin n → Fin n → ℕ} (hW₀ : Is
     (hCmin : cutWeight W₀ C = minCut W₀) :
     (2 : ℝ≥0∞) / ((n * (n - 1) : ℕ) : ℝ≥0∞) ≤
       (cutLaw W₀).toOuterMeasure {C, Finset.univ \ C} := by
-  have hn : 2 ≤ n := by
-    have := Fintype.card_fin n ▸ (isNonTrivialCut_iff_card C).mp hC
-    omega
+  have hcard := Fintype.card_fin n ▸ (isNonTrivialCut_iff_card C).mp hC
   obtain ⟨s, rfl⟩ : ∃ s, n = 2 + s := ⟨n - 2, by omega⟩
   have hsurv := pullbackCut_id C ▸ trackedSurvives_contractTimes le_rfl hmin s
     (isContractionOf_id hW₀) (B := C) hC (by rw [pullbackCut_id, hCmin])
-  rw [cutLaw_eq, PMF.toOuterMeasure_map_apply, Nat.add_sub_cancel_left,
-    show (2 : ℝ≥0∞) / ((2 + s) * (2 + s - 1) : ℕ) =
-      ((2 * (2 - 1) : ℕ) : ℝ≥0∞) / ((2 + s) * (2 + s - 1) : ℕ) by norm_num]
+  have h2 : ((2 * (2 - 1) : ℕ) : ℝ≥0∞) = 2 := by norm_num
+  rw [h2] at hsurv
+  rw [cutLaw_eq, PMF.toOuterMeasure_map_apply, Nat.add_sub_cancel_left]
   refine le_trans hsurv (PMF.toOuterMeasure_mono _ ?_)
   rintro x ⟨⟨W', part', B', hx, -, hpb⟩, -⟩
   have hB' : IsNonTrivialCut B' := isNonTrivialCut_of_pullbackCut part' (hpb ▸ hC)
   rw [isNonTrivialCut_iff_card, Fintype.card_fin] at hB'
-  obtain ⟨b, rfl⟩ := Finset.card_eq_one.mp (show B'.card = 1 by omega)
+  obtain ⟨b, rfl⟩ := Finset.card_eq_one.mp (Nat.le_antisymm (Nat.lt_succ_iff.mp hB'.2) hB'.1)
   change x.2.side ∈ ({C, Finset.univ \ C} : Set (Finset (Fin (2 + s))))
   rw [hx]
   change pullbackCut part' {1} ∈ ({C, Finset.univ \ C} : Set (Finset (Fin (2 + s))))
@@ -697,14 +688,16 @@ theorem two_div_le_toOuterMeasure_karger {n : ℕ} (hn : 2 ≤ n) {W₀ : Fin n 
       (spec.toRandomized.withCoins.run karger ⟨n, W₀⟩).toOuterMeasure {x | x.1 = minCut W₀} := by
   obtain ⟨C, hC, hCmin⟩ := exists_minCut_achiever (by rw [Fintype.card_fin]; omega) W₀
   refine (two_div_le_cutLaw hW₀ hmin hC hCmin).trans ?_
-  rw [show (⟨n, W₀⟩ : Graph) = (TrackedGraph.init W₀).toGraph from rfl, ← map_run_trackedSpec,
-    PMF.toOuterMeasure_map_apply, cutLaw, PMF.toOuterMeasure_map_apply]
+  have hinit : (⟨n, W₀⟩ : Graph) = (TrackedGraph.init W₀).toGraph := rfl
+  rw [hinit, ← map_run_trackedSpec, PMF.toOuterMeasure_map_apply, cutLaw,
+    PMF.toOuterMeasure_map_apply]
   refine PMF.toOuterMeasure_mono _ fun x ⟨hx, hsupp⟩ => ?_
   change x.1 = minCut W₀
   rw [(answer_eq_cutWeight_side hn hW₀ hsupp).2]
+  simp only [Set.mem_preimage, Set.mem_insert_iff, Set.mem_singleton_iff] at hx
   rcases hx with hx | hx
-  · rw [show x.2.side = C from hx, hCmin]
-  · rw [show x.2.side = Finset.univ \ C from hx, cutWeight_compl hW₀, hCmin]
+  · rw [hx, hCmin]
+  · rw [hx, cutWeight_compl hW₀, hCmin]
 
 /-- Every answer of `karger` on a multigraph with `n ≥ 2` vertices is the weight of a non-trivial
 cut. -/
@@ -862,7 +855,7 @@ theorem isCostBounded_contractTimes {cost : ℕ ⊕ Op → ℕ} {a b : ℕ}
   | zero => exact .pure _ _
   | succ s ih =>
     exact ((isCostBounded_contractStep hcoin hop).bind fun _ => ih).mono
-      (le_of_eq (by ring))
+      ((Nat.succ_mul s _).trans (Nat.add_comm _ _)).ge
 
 /-! ## Admissibility -/
 

@@ -328,12 +328,9 @@ theorem lockstepDriftFreeByzantineOffset_abs_sub_le {t : ℕ} (ht : 3 * t < Fint
       add_multisetMidTrim (-e) t (by rw [Multiset.card_map, Finset.card_val]; exact h2t),
       Multiset.map_map]
     exact multisetMidTrim_map_mono t hzb_le
-  have hcore := abs_multisetMidTrim_map_sub_le hF
-    (S₁ := Finset.univ) (S₂ := Finset.univ)
-    (by simp only [Finset.card_univ]; omega) hc_Icc
-    (f₁ := ya) (f₂ := zb)
-    (fun j _ hj => by dsimp only [ya]; split_ifs; rfl)
-    (fun j _ hj => by dsimp only [zb]; split_ifs; rfl)
+  have hcore := abs_multisetMidTrim_map_sub_le hF (S₁ := Finset.univ) (S₂ := Finset.univ)
+    (by simp only [Finset.card_univ]; omega) hc_Icc (f₁ := ya) (f₂ := zb)
+    (fun j _ hj => ite_eq_right hj) (fun j _ hj => ite_eq_right hj)
   have he : 2 * e = u := by dsimp only [e]; ring
   linarith [(le_abs_self _).trans hcore]
 
@@ -354,9 +351,7 @@ theorem lockstepDriftFreeByzantineOffsetIter_abs_sub_le {t : ℕ} (ht : 3 * t < 
   induction R with
   | zero =>
     intro p q hp hq
-    simp only [lockstepDriftFreeByzantineOffsetIter, pow_zero, div_one, sub_self, mul_zero,
-      zero_mul, add_zero]
-    exact hc p hp q hq
+    simpa [lockstepDriftFreeByzantineOffsetIter] using hc p hp q hq
   | succ r ih =>
     intro p q hp hq
     refine (lockstepDriftFreeByzantineOffset_abs_sub_le ht hF (adv r) _ (δ r)

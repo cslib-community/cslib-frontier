@@ -188,18 +188,13 @@ private theorem reaches_size (q : State) (m d l : ℕ) :
   induction m using Nat.strong_induction_on generalizing d l with
   | _ m ih =>
     rcases Nat.eq_zero_or_pos m with rfl | hm
-    · refine .single (by simp) ?_
-      rw [readBit_of_addr_none rfl]
-      simp [step]
+    · exact .single (by simp) (by simp [step])
     · refine (Reaches.single
         (q' := { q with ctl := .size, cnt := m / 2, depth := d + 16, len := l + 4168 })
-        (by simp) ?_).trans ?_
-      · rw [readBit_of_addr_none rfl]
-        simp [step, hm.ne']
-      · have hs := Nat.size_div_two_add_one hm.ne'
-        simpa only [← hs, mul_add, mul_one, ← add_assoc, add_right_comm d _ 16,
-          add_right_comm l _ 4168] using
-          ih (m / 2) (Nat.div_lt_self hm (by norm_num)) (d + 16) (l + 4168)
+        (by simp) (by simp [step, hm.ne'])).trans ?_
+      simpa only [← Nat.size_div_two_add_one hm.ne', mul_add, mul_one, ← add_assoc,
+        add_right_comm d _ 16, add_right_comm l _ 4168] using
+        ih (m / 2) (Nat.div_lt_self hm (by norm_num)) (d + 16) (l + 4168)
 
 /-! ### Evaluating the rotation map -/
 
@@ -234,8 +229,7 @@ map of the instance. -/
 private theorem inputRot_slotVal (v : Fin I.n × Fin I.n) (b : Label) :
     inputRot I (slotVal v, b) = Prod.map slotVal id ((input I.graph).rot (v, b)) := by
   rw [inputRot, ← slotRotN_val]
-  congr 1
-  exact USTCONInstance.getD_encode_matrix I v.1 v.2
+  exact congrArg (slotRotN I.n (slotVal v) b) (USTCONInstance.getD_encode_matrix I v.1 v.2)
 
 /-- **The evaluation of the rotation map**: from a frame for level `m ≥ 1`, freshly pushed with the
 label `a` above the registers of a vertex `x` of the `m`-th graph, the machine reaches the registers
@@ -353,8 +347,7 @@ private theorem reaches_walk {m : ℕ} (hm : m ≠ 0) (q : State) (hc : q.ctl = 
       rw [readBit_of_addr_none (by simp [addr, ReingoldEvalState.atRoot,
         ReingoldEvalState.mapVertex])]
       simp [step, ReingoldEvalState.mapVertex, q₂]
-    rw [show w / numLabels ^ (j + 1) = w / numLabels / numLabels ^ j by
-      rw [pow_succ', Nat.div_div_eq_div_mul]]
+    rw [pow_succ', ← Nat.div_div_eq_div_mul]
     exact h₁.trans (h₂.trans (h₃.trans (ih q₂ rfl hn hs ht r.1 (w / numLabels) rfl rfl rfl)))
 
 /-- **A walk of a counter**: from the start of the walk of the counter `c`, the machine fills the
@@ -536,9 +529,8 @@ private theorem outputs_init : Outputs I init (decide (I ∈ USTCON)) := by
   refine hstart.outputs ?_
   convert hout using 2
   -- the decision is reachability
-  have hreach := reachable_iff_exists_walk_of_le_two_pow I.graph (a := a)
-    (Nat.lt_size_self I.n).le I.s I.t
-  rw [show I ∈ USTCON ↔ I.graph.Reachable I.s I.t from Iff.rfl, hreach]
+  rw [USTCON, Set.mem_ofPred_eq,
+    reachable_iff_exists_walk_of_le_two_pow I.graph (Nat.lt_size_self I.n).le I.s I.t]
   refine ⟨fun ⟨k, hk⟩ ↦ ?_, fun ⟨c, _, hc, hsucc⟩ ↦ ?_⟩
   · obtain ⟨c, hc, rfl⟩ := exists_labelOfNat_eq (walkLength a) k
     exact ⟨c, Nat.zero_le _, hc, by rwa [Success, walkFrom_eq]⟩

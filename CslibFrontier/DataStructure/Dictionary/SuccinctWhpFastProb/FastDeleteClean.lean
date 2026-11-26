@@ -184,8 +184,7 @@ theorem fastDelete_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       · have hrk_last_lt : fs.rKeyAt c U n_max θ b loc_last < 2 ^ (cTabWhp c * bCharWhp n_max) := by
           dsimp only [FastState.rKeyAt]
           split_ifs with hu
-          · exact fpReducedKey_lt c U n_max θ.2 ⟨_, hu⟩
-          · exact Nat.two_pow_pos _
+          exacts [fpReducedKey_lt c U n_max θ.2 ⟨_, hu⟩, Nat.two_pow_pos _]
         have hbuf2_eq :
             (fastDeleteMoveLast c U n_max θ b loc_del loc_last rebActiveB fs1).buf fs.curEp =
               if fs.locState b loc_last = 2 + fs.curEp then
@@ -234,9 +233,8 @@ theorem fastDelete_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
               (fs1.rebSliceIdx b))
             (fs1.fpAt c U n_max θ fs1.rebCandSalt b loc_last) with _ | prev_loc
         · exact .inl ⟨rfl, rfl⟩
-        obtain ⟨hra_t, -⟩ := Bool.and_eq_true_iff.mp hreb_act
-        rw [decide_eq_true_iff] at hra_t
-        obtain ⟨hs2, hd2, hdb_eq, hcs_lt, -⟩ := hra_t
+        obtain ⟨hs2, hd2, hdb_eq, hcs_lt, -⟩ :=
+          of_decide_eq_true (Bool.and_eq_true_iff.mp hreb_act).1
         obtain ⟨s_opt, hs_opt_inj, hc_le_s⟩ := hsalt_cur hs2 hd2
         refine .inr ⟨hs2, rfl, rfl, s_opt, hs_opt_inj,
           Nat.lt_of_le_of_ne hc_le_s fun heq_s => ?_⟩
@@ -263,16 +261,14 @@ theorem fastDelete_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
           dsimp only [FastState.fpAt]
           rw [dite_eq_left hcs_lt]
           split_ifs with hu
-          · exact fpHash_lt c U n_max θ.2 ⟨_, hcs_lt⟩ ⟨_, hu⟩
-          · exact Nat.two_pow_pos _
+          exacts [fpHash_lt c U n_max θ.2 ⟨_, hcs_lt⟩ ⟨_, hu⟩, Nat.two_pow_pos _]
         have hrm_prev : rm0 (fs.fpAt c U n_max θ fs.rebCandSalt b loc_last) =
             some prev_loc := by
           dsimp only [fs1] at hlk
           rw [fastDeleteRemove_rebSliceIdx _ _ _ _ _ _ _ _ (hc.roles_valid b hb)] at hlk
           split_ifs at hlk
           · have hfp_d_lt : fpOfSalt c U n_max θ.2 fs.rebCandSalt u < 2 ^ fpBitsWhp n_max := by
-              dsimp only [fpOfSalt]
-              rw [dite_eq_left hcs_lt]
+              simp only [fpOfSalt, hcs_lt, ↓reduceDIte]
               exact fpHash_lt c U n_max θ.2 ⟨_, hcs_lt⟩ u
             have hvd := hvr0.delete_spec hc.hth hins_le8 hfp_d_lt
             rw [hvd.lookup_eq hc.hth hins_le8 hfp_cl_lt] at hlk
@@ -323,9 +319,8 @@ theorem fastDelete_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         have h2_na : fs2.buf fs.oldEp = fs.buf fs.oldEp := by
           dsimp only [fs2]
           split_ifs
-          · dsimp only [fastDeleteMoveLast]
-            rw [show fs1.locState = fs.locState from rfl,
-              buf_update23_at_other _ _ _ _ _ hold_or (hbo.1 b hb loc_last hloc_last), h1_na]
+          · exact (buf_update23_at_other _ _ _ _ _ hold_or
+              (hbo.1 b hb loc_last hloc_last)).trans h1_na
           · exact h1_na
         dsimp only [stageWorkRemaining]
         simp only [hst3, hold3, hs4, Nat.reduceEqDiff, ↓reduceIte]
@@ -341,11 +336,8 @@ theorem fastDelete_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         rw [hsub1, Nat.add_mul, one_mul]; omega
     · -- `SaltBoundAt` across `fastDelete`: prove directly from `hsalt_cur` and `hcand3`.
       intro hs2' hdi'
-      rw [h4, hst3] at hs2'
-      rw [h7, h6, hdi3, hdc3] at hdi'
       rw [h8, h7, h9, hdb3, hdi3]
       rcases hcand3 with ⟨hcs3, -⟩ | ⟨-, -, hcs3, hbump⟩ <;> rw [hcs3]
-      · exact hsalt_cur hs2' hdi'
-      · exact hbump
+      exacts [hsalt_cur (hst3 ▸ h4 ▸ hs2') (hdc3 ▸ h6 ▸ hdi3 ▸ h7 ▸ hdi'), hbump]
 
 end Cslib.DataStructure.Dictionary.SuccinctWhp

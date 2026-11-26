@@ -142,8 +142,7 @@ private theorem finish_output (a : α) (s : σ) (hs : (M.withInit (start a)).Rea
     change p ⟨q.length, hq⟩ = q.last.mapState Native.finishState at h
     have heq : p ⟨q.length, hq⟩ = wordsCfg (enc a) none ws' (out ++ e) := by
       simpa [hlast', hqlast, Native.finishState] using h
-    have hh : (p ⟨q.length, hq⟩).Halted := by rw [heq]; rfl
-    rw [MultiTapeNTM.RunPath.last_eq_of_halted p _ hh, heq, he]
+    rw [MultiTapeNTM.RunPath.last_eq_of_halted p _ (by rw [heq]; rfl), heq, he]
     rfl
 
 /-- Reverse simulation of every halted native branch, including arbitrary native prefixes
@@ -257,17 +256,17 @@ theorem choose_realizes (a : α) (choices : List Bool) (s : σ)
     have hs' : (M.withInit (start a)).Reachable (enc a) (M.step (enc a) s b) :=
       Reachable.step _ (enc a) hs b
     obtain ⟨p, hphead, hplast⟩ := R.exists_pass_path a s hs b flag out
-    by_cases hnext : M.halted (M.step (enc a) s b) = true
-    · obtain ⟨q, hqhead, hqhalt, hqout⟩ := R.exists_finish_path a _ hs' false out
-      have hconnect : p.last = q.head := by rw [hplast, hqhead]; simp [hnext]
-      refine ⟨p.smash q hconnect, by simpa using hphead,
-        by simpa using hqhalt, ?_⟩
-      simpa only [RelSeries.last_smash, replay_cons, M.replay_of_halted _ hnext] using hqout
-    · have hn : M.halted (M.step (enc a) s b) = false := Bool.eq_false_iff.mpr hnext
+    cases hnext : M.halted (M.step (enc a) s b) with
+    | false =>
       obtain ⟨q, hqhead, hqhalt, hqout⟩ := ih _ hs' hh true out
-      have hconnect : p.last = q.head := by rw [hplast, hqhead]; simp [hn]
-      exact ⟨p.smash q hconnect, by simpa using hphead,
+      rw [hnext] at hplast
+      exact ⟨p.smash q (hplast.trans hqhead.symm), by simpa using hphead,
         by simpa using hqhalt, by simpa only [RelSeries.last_smash, replay_cons] using hqout⟩
+    | true =>
+      obtain ⟨q, hqhead, hqhalt, hqout⟩ := R.exists_finish_path a _ hs' false out
+      rw [hnext] at hplast
+      exact ⟨p.smash q (hplast.trans hqhead.symm), by simpa using hphead, by simpa using hqhalt,
+        by simpa only [RelSeries.last_smash, replay_cons, M.replay_of_halted _ hnext] using hqout⟩
 
 private theorem check_output (a : α) (p : R.machine.RunPath (enc a)) (s : σ)
     (hs : (M.withInit (start a)).Reachable (enc a) s) (out : List Bool)
@@ -340,17 +339,13 @@ theorem accepts_iff (a : α) :
       R.check_output a (p.toRunPath.drop ⟨q.length, hlong⟩) (start a)
         ((M.withInit (start a)).reachable_init _) [] (by simpa using hcfg)
         (by simpa using hhalt)
-    refine ⟨choices, hchoices ▸ hhalt', ?_⟩
     have hbit : [M.accept s] = [true] := by simpa [hout] using hout'.symm
-    rw [hchoices]
-    exact List.head_eq_of_cons_eq hbit
+    exact ⟨choices, hchoices ▸ hhalt', hchoices ▸ List.head_eq_of_cons_eq hbit⟩
   · rintro ⟨choices, hhalt, haccept⟩
     let p := q.map (Native.initHom R.I R.P R.F R.C)
-    have hphead : p.head = R.machine.initCfg (enc a) := by
-      change (q.map (Native.initHom R.I R.P R.F R.C)).head =
-        Cfg.init (.init R.I.q₀ : Native.State R.SI R.SP R.SF) (enc a)
-      rw [RelSeries.head_map]
-      simp [hhead', hqhead, Native.initState, wordsCfg, Cfg.mapState]
+    have hphead : p.head = R.machine.initCfg (enc a) :=
+      show p.head = Cfg.init (.init R.I.q₀) (enc a) by
+        simp [p, hhead', hqhead, Native.initState, wordsCfg, Cfg.mapState]
     have hplast : p.last =
         wordsCfg (enc a) (some .check) (R.boundary (start a) (!M.halted (start a))) [] := by
       simp [p, hlast', hqlast, Native.initState, hws, he]

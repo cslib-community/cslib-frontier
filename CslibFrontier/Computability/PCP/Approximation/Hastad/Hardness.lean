@@ -276,8 +276,7 @@ theorem GapExactThreeLin_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
   let wMax : ℝ := min (δ / 2) (ε / 4)
   let baseLC : ℝ := 1 - 1 / (6000 * 2 ^ 186)
   let baseDrop : ℝ := 1 - 1 / (m : ℝ)
-  have hbaseDrop1 : baseDrop < 1 := by
-    dsimp only [baseDrop]; linarith [show (0 : ℝ) < 1 / m by positivity]
+  have hbaseDrop1 : baseDrop < 1 := sub_lt_self 1 (by positivity)
   obtain ⟨n₁, hn₁⟩ := exists_pow_lt_of_lt_one hη0 (by norm_num : baseLC < 1)
   obtain ⟨n₂, hn₂⟩ := exists_pow_lt_of_lt_one (lt_min (by linarith) (by linarith) :
     0 < wMax) hbaseDrop1
@@ -375,11 +374,10 @@ theorem GapMaxExactThreeSAT_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
 private theorem exists_gap_params_of_gt {t ρ : ℝ} (ht0 : 0 ≤ t) (ht1 : t < 1) (hρ : t < ρ) :
     ∃ δ ε : ℝ, 0 < δ ∧ 0 < ε ∧ t + ε < 1 - δ ∧ t + ε < ρ * (1 - δ) := by
   let γ : ℝ := min ρ 1 - t
-  have hγ0 : 0 < γ := by dsimp only [γ]; linarith [lt_min hρ ht1]
-  have hγ_le : γ ≤ 1 - t := by dsimp only [γ]; linarith [min_le_right ρ 1]
-  refine ⟨γ / 4, γ / 4, by linarith, by linarith, by linarith, ?_⟩
-  dsimp only [γ]
-  nlinarith [min_le_left ρ 1]
+  have hγ0 : 0 < γ := sub_pos.2 (lt_min hρ ht1)
+  refine ⟨γ / 4, γ / 4, by linarith, by linarith, ?_, ?_⟩ <;> dsimp only [γ]
+  · linarith [min_le_right ρ 1]
+  · nlinarith [min_le_left ρ 1, min_le_right ρ 1]
 
 /-- Generic rational-threshold decider turning a polynomial-time `ρ`-approximation algorithm into a
 `PromiseP` decider for a restricted `gapMax (1 - uval)` problem when `0 ≤ s < c ≤ 1` and
@@ -445,16 +443,13 @@ theorem P_eq_NP_of_maxExactThreeLin_approx {A : CSP Bool ℕ → List ℕ} {ρ :
       (encCSP encBool encNat) encNat :=
     unary_to_binary.comp ((computableInPolyTime_countUnsat_mem encNat).comp
       ((CSP.computableInPolyTime_toCNFBounded_parity encNat).prod hA))
+  have hc {F : CSP Bool ℕ} (hF : ∀ e ∈ F, e.scope.length = 3 ∧ e.scope.Nodup) :=
+    CSP.countUnsat_toCNFBounded CSP.paritySem (fun e he => (hF e he).1.le)
   have hmem : GapExactThreeLin (1 - δ) (1 / 2 + ε) ∈ PromiseP (encCSP encBool encNat) :=
     gapMax_restrict_mem_PromiseP_of_approx (by linarith) hgap (by linarith) hsρc
-      (length_list_binary _) hu
-      (fun F hF => by
-        rw [CSP.countUnsat_toCNFBounded CSP.paritySem (fun e he => (hF e he).1.le)]
-        exact CSP.unsatVal_le CSP.paritySem F _)
+      (length_list_binary _) hu (fun F hF => hc hF _ ▸ CSP.unsatVal_le CSP.paritySem F _)
       (fun _ _ hpos => List.length_pos_of_ne_nil fun h0 => hpos.ne' (by simp [h0]))
-      (fun F hF => by
-        rw [CSP.countUnsat_toCNFBounded CSP.paritySem (fun e he => (hF e he).1.le)]
-        exact happrox F hF)
+      (fun F hF => hc hF _ ▸ happrox F hF)
   exact (GapExactThreeLin_npHard hδ hε hgap).P_eq_NP_of_mem_PromiseP hmem enc
 
 /-- **Håstad's Theorem 6.1: MAX-E3SAT has no polynomial-time `(7 / 8 + ε)`-approximation

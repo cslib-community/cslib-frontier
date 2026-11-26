@@ -214,9 +214,7 @@ private theorem channelParty_decide (r : M.Role) (ν : (M.law r.1).ChannelAt r.2
   obtain ⟨ν, d, hd⟩ := ν
   simp only [Moves.channelParty, Moves.channelRole, Moves.roleParty]
   congr 1
-  by_cases h : (M.law x).channelEnd ν false = p
-  · simp [h]
-  · cases d <;> simp_all
+  cases d <;> by_cases h : (M.law x).channelEnd ν false = p <;> simp_all
 
 omit [Fintype S] in
 private theorem digitTree_group_iff (a : Fin (K + K + A')) (g : Fin mm) :
@@ -245,13 +243,9 @@ private theorem expand_basesTm {cb : Option Γ → Fin c → Bool} {x : Fin K �
   rw [Codes.basesTm, Tm.expand, baseInstructions, List.map_cons, listT, expand_valueTm, h.selfAgree,
     Codes.selfAgreeTree, List.map_map]
   congr 1
-  induction p using Fin.addCases with
-  | left κ =>
-    rw [Codes.baseTm, Fin.addCases_left, Fin.addCases_left]
-    simp [Tm.expand, expand_valueTm, h.state, hbody, Instruction.enc]
-  | right κ =>
-    rw [Codes.baseTm, Fin.addCases_right, Fin.addCases_right]
-    simp [Tm.expand, expand_valueTm, h.part, hpt, hbody, Instruction.enc, -Fin.natAdd_eq_addNat]
+  induction p using Fin.addCases <;>
+    simp [Codes.baseTm, Tm.expand, expand_valueTm, h.state, h.part, hpt, hbody, Instruction.enc,
+      -Fin.natAdd_eq_addNat]
 
 omit [Fintype S] in
 private theorem expand_slotTm (z : M.Slot) (a : Fin (K + K + A')) :
@@ -259,8 +253,7 @@ private theorem expand_slotTm (z : M.Slot) (a : Fin (K + K + A')) :
       wordsEnc (((P.ids n o z).map fun u => C.key ⟨a, u⟩).reverse) := by
   rw [Codes.slotTm, expand_catTm, List.flatMap_map]
   simp only [toList_expand_ifTm, gate_eq h,
-    digitTree_eq_one C (tab.fn_givenGate z _ ⟨n, o⟩), Tm.expand, toList_listT]
-  rw [flatMap_ite]
+    digitTree_eq_one C (tab.fn_givenGate z _ ⟨n, o⟩), Tm.expand, toList_listT, flatMap_ite]
   simp [List.filter_reverse, Plan.ids, wordsEnc, Function.comp_def, ← List.map_eq_flatMap]
 
 omit [Fintype S] in

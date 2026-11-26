@@ -190,14 +190,12 @@ theorem lhs_of_coeff_eq_smul (σ : V → Bool) {I J : Ineq V} {c : ℤ} (h : I.c
 /-- The left-hand side over finitely many variables, as a sum. -/
 theorem lhs_eq_sum [Fintype V] (σ : V → Bool) (I : Ineq V) :
     I.lhs σ = ∑ v, I.coeff v * (σ v).toInt := by
-  rw [lhs, Finsupp.linearCombination_apply, Finsupp.sum_fintype _ _ fun _ => by simp]
-  rfl
+  simp [lhs, Finsupp.linearCombination_apply, Finsupp.sum_fintype]
 
 /-- The left-hand side as a sum over the nonzero coefficients. -/
 theorem lhs_eq_finsuppSum (σ : V → Bool) (I : Ineq V) :
     I.lhs σ = I.coeff.sum fun v a => a * (σ v).toInt := by
-  rw [lhs, Finsupp.linearCombination_apply]
-  rfl
+  simp [lhs, Finsupp.linearCombination_apply]
 
 theorem Holds.add {σ : V → Bool} {I J : Ineq V} (hI : I.Holds σ) (hJ : J.Holds σ) :
     (I + J).Holds σ := by
@@ -256,9 +254,8 @@ is integer division. It is sound when `c` divides every coefficient
 /-- `⌈b / c⌉ ≤ y` iff `b ≤ c y`. -/
 theorem bound_div_le_iff {I : Ineq V} {c : ℕ} (hc : 0 < c) {y : ℤ} :
     (I.div c).bound ≤ y ↔ I.bound ≤ c * y := by
-  have hc' : (0 : ℤ) < c := by exact_mod_cast hc
-  rw [bound_div, neg_le, Int.le_ediv_iff_mul_le hc']
-  constructor <;> intro h <;> linarith
+  rw [bound_div, neg_le, Int.le_ediv_iff_mul_le (Int.natCast_pos.2 hc), neg_mul, neg_le_neg_iff,
+    mul_comm]
 
 /-- If `c` divides every coefficient of `I`, multiplying the coefficients of `I.div c` by `c` gives
 back those of `I`. -/
@@ -274,11 +271,8 @@ theorem Holds.div {σ : V → Bool} {I : Ineq V} {c : ℕ}
     (hdvd : ∀ v, (c : ℤ) ∣ I.coeff v) (h : I.Holds σ) : (I.div c).Holds σ := by
   obtain rfl | hc := Nat.eq_zero_or_pos c
   · have h0 : I.div 0 = 0 := by ext <;> simp
-    rw [h0]
-    exact le_of_eq (lhs_zero σ).symm
-  unfold Holds at h ⊢
-  rw [bound_div_le_iff hc, ← lhs_of_coeff_eq_smul σ (smul_coeff_div hdvd).symm]
-  exact h
+    simp [Holds, h0]
+  rwa [Holds, bound_div_le_iff hc, ← lhs_of_coeff_eq_smul σ (smul_coeff_div hdvd).symm]
 
 /-- Recognizing a rounded division: `I.div c = J` when the coefficients of `I` are `c` times those
 of `J` and `⌈b_I / c⌉ = b_J`. -/
@@ -310,8 +304,7 @@ theorem coeff_relabel (f : V → W) (I : Ineq V) : (I.relabel f).coeff = I.coeff
 
 @[simp] theorem lhs_relabel (f : V → W) (σ : W → Bool) (I : Ineq V) :
     (I.relabel f).lhs σ = I.lhs (σ ∘ f) := by
-  simp only [lhs, coeff_relabel, Finsupp.linearCombination_mapDomain]
-  rfl
+  simp [lhs, coeff_relabel, Finsupp.linearCombination_mapDomain, Function.comp_def]
 
 /-- `σ` satisfies a renamed inequality iff `σ ∘ f` satisfies the original. -/
 @[simp] theorem holds_relabel (f : V → W) (σ : W → Bool) (I : Ineq V) :
@@ -361,7 +354,7 @@ theorem relabel_div_of_dvd (f : V → W) {I : Ineq V} {c : ℕ} (hdvd : ∀ v, (
     rcases Nat.eq_zero_or_pos c with rfl | hc
     · have h0 : (I.div 0).coeff = 0 := by ext v; simp
       simp [coeff_relabel, h0]
-    · rw [Int.mul_ediv_cancel_left _ (by exact_mod_cast hc.ne')]
+    · exact (Int.mul_ediv_cancel_left _ (Int.natCast_pos.2 hc).ne').symm
   · rfl
 
 end Ineq
@@ -453,12 +446,10 @@ theorem Literal.relabel_toIneq {W : Type*} (f : V → W) (l : Literal V) :
 /-- Along an injective renaming, the inequality of a renamed clause is the renamed inequality. -/
 theorem Clause.toIneq_relabel [DecidableEq V] {W : Type*} [DecidableEq W] {f : V → W}
     (hf : f.Injective) (c : Clause V) : (c.relabel f).toIneq = c.toIneq.relabel f := by
-  have hg : Function.Injective (Prod.map f id : Literal V → Literal W) :=
-    hf.prodMap Function.injective_id
   have himage : (c.map (Prod.map f id)).toFinset = c.toFinset.image (Prod.map f id) := by
     ext; simp
   rw [Clause.toIneq, Clause.toIneq, relabel_add, relabel_contra, relabel_sum, Clause.relabel,
-    himage, Finset.sum_image fun _ _ _ _ h => hg h]
+    himage, Finset.sum_image fun _ _ _ _ h => (hf.prodMap Function.injective_id) h]
   simp only [Literal.relabel_toIneq]
 
 /-- Along an injective renaming, the inequalities of a renamed CNF are the renamed
@@ -641,13 +632,11 @@ theorem relabel {W : Type*} (f : V → W) (h : DerivableInSize Γ I s) :
   ⟨_, h.relabel f, List.mem_map_of_mem hI, by simpa using hlen⟩
 
 theorem add (hI : DerivableInSize Γ I s) (hJ : DerivableInSize Γ J t) :
-    DerivableInSize Γ (I + J) (s + t + 1) := by
-  obtain ⟨ls, h, hI, hlen⟩ := hI
-  obtain ⟨ls', h', hJ, hlen'⟩ := hJ
-  refine ⟨_, (h.append h').add (List.mem_append_left _ hI) (List.mem_append_right _ hJ),
-    List.mem_cons_self, ?_⟩
-  simp only [List.length_cons, List.length_append]
-  omega
+    DerivableInSize Γ (I + J) (s + t + 1) :=
+  let ⟨_, h, hI, hlen⟩ := hI
+  let ⟨_, h', hJ, hlen'⟩ := hJ
+  ⟨_, (h.append h').add (List.mem_append_left _ hI) (List.mem_append_right _ hJ),
+    List.mem_cons_self, by simp only [List.length_cons, List.length_append]; omega⟩
 
 theorem smul (hI : DerivableInSize Γ I s) (c : ℕ) (hc : 0 < c) :
     DerivableInSize Γ (c • I) (s + 1) :=

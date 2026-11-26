@@ -345,9 +345,7 @@ private theorem norm_signPos_le (x : ℝ) : ‖signPos x‖ ≤ 1 := by
 /-- A `0`-correlated pair is a pair of independent standard Gaussians. -/
 theorem correlatedGaussian_zero :
     correlatedGaussian 0 = (gaussianReal 0 1).prod (gaussianReal 0 1) := by
-  rw [correlatedGaussian]
-  simp only [zero_mul, zero_add, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
-    sub_zero, sqrt_one, one_mul, Prod.mk.eta, Measure.map_id']
+  simp [correlatedGaussian]
 
 /-- Negating the second coordinate of a `ρ`-correlated pair gives a `-ρ`-correlated pair. -/
 theorem correlatedGaussian_map_neg_snd (ρ : ℝ) :
@@ -565,11 +563,9 @@ theorem gaussianNoiseStability_comp_dotProduct (ρ : ℝ) (a : ι → ℝ) {g : 
     gaussianNoiseStability ρ (fun z => g (a ⬝ᵥ z)) =
       ∫ p, g (√(a ⬝ᵥ a) * p.1) * g (√(a ⬝ᵥ a) * p.2) ∂correlatedGaussian ρ := by
   have hF : Measurable fun q : ℝ × ℝ => g q.1 * g q.2 := by fun_prop
-  have h := integral_map (μ := correlatedGaussianPi ι ρ)
-    (φ := fun p => (a ⬝ᵥ p.1, a ⬝ᵥ p.2)) (by fun_prop) hF.aestronglyMeasurable
+  refine (integral_map (μ := correlatedGaussianPi ι ρ) (φ := fun p => (a ⬝ᵥ p.1, a ⬝ᵥ p.2))
+    (by fun_prop) hF.aestronglyMeasurable).symm.trans ?_
   rw [correlatedGaussianPi_map_dotProduct, integral_map (by fun_prop) hF.aestronglyMeasurable]
-    at h
-  exact h.symm
 
 /-- **Example 11.19** [O'Donnell, Example 11.19][ODonnell2014]: the indicator `f` of
 `z i ≤ 0` has Gaussian noise stability `Stab_ρ[f] = 1 / 2 - arccos ρ / (2π)`. -/

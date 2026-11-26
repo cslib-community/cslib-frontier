@@ -153,19 +153,13 @@ theorem smallMSB_eq_log2 {s z : ℕ} (hz0 : 0 < z) (hz : z < 2 ^ s) :
   have hl : z.log2 < s := (Nat.log2_lt (by omega)).mpr hz
   have hsum : (∑ i ∈ Finset.range s, (decide (2 ^ i ≤ z)).toNat) = z.log2 + 1 := by
     calc
-      _ = ∑ i ∈ Finset.range s, if i < z.log2 + 1 then 1 else 0 := by
-        apply Finset.sum_congr rfl
-        intro i _
-        simp only [← Nat.le_log2 (n := z) (by omega)]
-        by_cases hi : i ≤ z.log2 <;>
-          simp [hi, show (i < z.log2 + 1) ↔ i ≤ z.log2 by omega]
+      _ = ∑ i ∈ Finset.range s, if i < z.log2 + 1 then 1 else 0 :=
+        Finset.sum_congr rfl fun i _ => by
+          simp only [← Nat.le_log2 (n := z) (by omega), ← Nat.lt_succ_iff]
+          by_cases hi : i < z.log2 + 1 <;> simp [hi]
       _ = z.log2 + 1 := by
-        rw [← Finset.sum_filter]
-        have he : (Finset.range s).filter (fun i => i < z.log2 + 1) =
-            Finset.range (z.log2 + 1) := by
-          ext i
-          simp only [Finset.mem_filter, Finset.mem_range]
-          omega
+        have he : (Finset.range s).filter (· < z.log2 + 1) = Finset.range (z.log2 + 1) :=
+          Finset.ext fun _ => by simp only [Finset.mem_filter, Finset.mem_range]; omega
         simp [he]
   rw [smallMSB, powerCount_eq (by omega) hz, hsum, Nat.add_sub_cancel]
 
@@ -308,10 +302,7 @@ private theorem clusterDifference_guard {s x i : ℕ} (hs : 0 < s)
   rw [packed_testBit _ (fun j _ => (Nat.sub_le _ _).trans_lt hsmall) hi (by omega)]
   by_cases hz : x / 2 ^ (s * i) % 2 ^ (s - 1) = 0
   · simp [hz]
-  · have hd : 2 ^ (s - 1) - x / 2 ^ (s * i) % 2 ^ (s - 1) < 2 ^ (s - 1) := by
-      have := Nat.two_pow_pos (s - 1)
-      omega
-    simp [Nat.testBit_lt_two_pow hd, hz]
+  · simp [Nat.testBit_lt_two_pow (Nat.sub_lt (Nat.two_pow_pos _) (Nat.pos_of_ne_zero hz)), hz]
 
 /-- Every marker is set precisely when its original cluster is nonzero. This includes
 clusters whose only set bit was already at the marker position. -/
@@ -660,9 +651,8 @@ theorem widthMSB_virtual_bounds {w x : ℕ} (hw : 0 < w) (hx : x < 2 ^ w) :
       (Nat.pow_le_pow_right (by decide) hp)
   · intro a ha
     have hv : (x >>> (smallMSB (clusterSize w) (clusterSummary (clusterSize w) x) *
-        clusterSize w)) &&& (2 ^ clusterSize w - 1) < 2 ^ clusterSize w := by
-      rw [Nat.and_two_pow_sub_one_eq_mod]
-      exact Nat.mod_lt _ (Nat.two_pow_pos _)
+        clusterSize w)) &&& (2 ^ clusterSize w - 1) < 2 ^ clusterSize w :=
+      Nat.and_two_pow_sub_one_eq_mod _ _ ▸ Nat.mod_lt _ (Nat.two_pow_pos _)
     exact (powerStageValues_lt hs hv a ha).trans_le (Nat.pow_le_pow_right (by decide) hp)
   · have hi := smallMSB_lt hs (clusterSummary_lt (clusterSize w) x)
     have hh : smallMSB (clusterSize w) (clusterSummary (clusterSize w) x) *

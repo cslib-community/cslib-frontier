@@ -182,12 +182,10 @@ as two bit words. -/
 theorem iknpSenderViewWords_injective :
     Function.Injective (iknpSenderViewWords (κ := κ) (m := m)) := by
   rintro ⟨X, s, ⟨Q, Y, ⟨⟩⟩⟩ ⟨X', s', ⟨Q', Y', ⟨⟩⟩⟩ h
-  simp only [iknpSenderViewWords, IKNPSenderViewWords.mk.injEq] at h
-  obtain ⟨h₀, h₁, hs, hQ⟩ := h
-  refine PartyView.ext ?_ (List.ofFn_injective hs) (Prod.ext ?_ (Prod.ext ?_ rfl))
-  · funext j b
-    cases b
-    exacts [congrFun (List.ofFn_injective h₀) j, congrFun (List.ofFn_injective h₁) j]
+  obtain ⟨h₀, h₁, hs, hQ⟩ := IKNPSenderViewWords.mk.inj h
+  refine PartyView.ext (funext fun j => funext fun b =>
+    Bool.rec (congrFun (List.ofFn_injective h₀) j) (congrFun (List.ofFn_injective h₁) j) b)
+    (List.ofFn_injective hs) (Prod.ext ?_ (Prod.ext ?_ rfl))
   · refine Round.received_oracle_ext fun sl hsl => ?_
     fin_cases sl
     · exact absurd hsl (by simp [iknpRoleReversal])
@@ -199,8 +197,7 @@ theorem iknpSenderViewWords_injective :
 theorem iknpReceiverViewWords_injective :
     Function.Injective (iknpReceiverViewWords (κ := κ) (m := m)) := by
   rintro ⟨r, T, ⟨Q, Y, ⟨⟩⟩⟩ ⟨r', T', ⟨Q', Y', ⟨⟩⟩⟩ h
-  simp only [iknpReceiverViewWords, IKNPReceiverViewWords.mk.injEq] at h
-  obtain ⟨hr, hT, h₀, h₁⟩ := h
+  obtain ⟨hr, hT, h₀, h₁⟩ := IKNPReceiverViewWords.mk.inj h
   refine PartyView.ext (List.ofFn_injective hr)
     (funext fun j => List.ofFn_injective (congrFun (List.ofFn_injective hT) j))
     (Prod.ext ?_ (Prod.ext ?_ rfl))
@@ -208,9 +205,8 @@ theorem iknpReceiverViewWords_injective :
     fin_cases sl
     · rfl
     · exact absurd hsl (by simp [iknpRoleReversal])
-  · refine Round.received_message_ext fun _ => funext fun j => funext fun b => ?_
-    cases b
-    exacts [congrFun (List.ofFn_injective h₀) j, congrFun (List.ofFn_injective h₁) j]
+  · exact Round.received_message_ext fun _ => funext fun j => funext fun b =>
+      Bool.rec (congrFun (List.ofFn_injective h₀) j) (congrFun (List.ofFn_injective h₁) j) b
 
 end ViewWords
 

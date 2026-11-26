@@ -543,23 +543,19 @@ theorem fixedCoupled_of_shift {metaBase srcItemBase dstItemBase U V w N n : ℕ}
     rw [hitem (a - srcItemBase) (by omega), Nat.add_sub_of_le ha.1]
   have hmem_sh_add : ∀ off, mem_sh (srcItemBase + off) = s₁.mem (dstItemBase + off) := fun off => by
     dsimp only [mem_sh]; rw [Nat.add_sub_cancel_left]
-  have hq_eq : compQuotAt dstItemBase U V w N n s₁.mem = compQuotAt srcItemBase U V w N n s₀.mem :=
-    by
-      rw [← compQuotAt_congr (itemBase := srcItemBase) (U := U) (V := V) (N := N) (n := n) hw
-        hitem_congr]
-      funext idx; unfold compQuotAt readBitSlice; dsimp only
-      split_ifs <;> [simp only [Nat.add_assoc, hmem_sh_add]; rfl]
-  have hv_eq : compValAt dstItemBase U V w N n s₁.mem = compValAt srcItemBase U V w N n s₀.mem :=
-    by
-      rw [← compValAt_congr (itemBase := srcItemBase) (U := U) (V := V) (N := N) (n := n) hw
-        hitem_congr]
-      funext idx; unfold compValAt readBitSlice; dsimp only
-      split_ifs <;> [simp only [Nat.add_assoc, hmem_sh_add]; rfl]
-  have htot₁ : totalSlots N (compGmAt metaBase U w N s₁.mem) = n :=
-    (congrArg (totalSlots N) hgm_eq).trans htot
-  have hd_bd : ∀ d, d < epochTotalSlots N (compGmAt metaBase U w N s₁.mem) →
-      d < n ∧ d < epochTotalSlots N (compGmAt metaBase U w N s₀.mem) := fun d hd => by
-    change d < totalSlots N _ at hd; change _ ∧ d < totalSlots N _; omega
+  have hq_eq :
+      compQuotAt dstItemBase U V w N n s₁.mem = compQuotAt srcItemBase U V w N n s₀.mem := by
+    rw [← compQuotAt_congr (itemBase := srcItemBase) (U := U) (V := V) (N := N) (n := n) hw
+      hitem_congr]
+    exact funext fun _ => by simp only [compQuotAt, readBitSlice, Nat.add_assoc, hmem_sh_add]
+  have hv_eq :
+      compValAt dstItemBase U V w N n s₁.mem = compValAt srcItemBase U V w N n s₀.mem := by
+    rw [← compValAt_congr (itemBase := srcItemBase) (U := U) (V := V) (N := N) (n := n) hw
+      hitem_congr]
+    exact funext fun _ => by simp only [compValAt, readBitSlice, Nat.add_assoc, hmem_sh_add]
+  have hd_bd (d : ℕ) (hd : d < epochTotalSlots N (compGmAt metaBase U w N s₁.mem)) :
+      d < n ∧ d < epochTotalSlots N (compGmAt metaBase U w N s₀.mem) :=
+    ⟨lt_of_lt_of_eq (hgm_eq ▸ hd) htot, hgm_eq ▸ hd⟩
   refine ⟨⟨hgm_eq.trans hcpl.gm_eq, hlm_eq.trans hcpl.lm_eq,
       by rw [hgm_eq, htd_eq, hdt_eq]; exact hcpl.win_inv,
       fun i => by rw [htd_eq]; exact hcpl.td_lt i,
@@ -632,14 +628,12 @@ theorem hashSpace_bounds_of_fits_offCompItems {U w N metaBase : ℕ}
       ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3) ∧
     2 * reducedChunkBits
       (reducedTrinomialStep (qBits U N) (hashB N) (totalMicroBits N)) < w := by
-  have hw2 : 2 ≤ w := by
-    by_contra hlt2
-    linarith only [Nat.pow_le_pow_right two_pos (by omega : w ≤ 1),
-      show 225 < 2 ^ w from fits_const_of_offCompItems hfit_nm le_rfl]
+  have h225 : 225 < 2 ^ w := fits_const_of_offCompItems hfit_nm le_rfl
+  have hw2 : 2 ≤ w := by rcases w with _ | _ | _ <;> omega
   have hsp_le : 225 + ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3 ≤
       offCompItems U w N := by
-    change offCompLM U w N ≤ _
-    unfold offCompItems offDenseToTail offTailToDense offCompGM
+    dsimp only [offCompItems, offDenseToTail, offTailToDense, offCompGM, offCompLM,
+      epochHdrWords, epochHashSpace, epochQBits, epochHashB, qBits, hashB]
     omega
   have hfit_h : Fits w ((metaBase + epochHdrWords) +
       ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3) :=

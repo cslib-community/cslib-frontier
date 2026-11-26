@@ -662,19 +662,16 @@ theorem dens_childRouter_exists_bucketLoad_sub_ge_le {c q b s T m : ℕ}
     have hnotG : ({T₁ : DoubleTabTopSeed c (2 * q * c) b | T₁ ∉ G} : Finset _) =
         univ.filter fun T₁ => ¬ IsKUnique (2 * m) (simpleTabTuple T₁) := by
       ext T₁; simp [G]
+    have hexp : 2 * (q - 1) * b = (q - 1) * b * 2 := by ring
     rw [hnotG, dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast,
-      div_le_div_iff₀ (Nat.cast_pos.mpr Fintype.card_pos) (by positivity),
-      show 2 * (q - 1) * b = (q - 1) * b * 2 by ring, pow_mul]
+      div_le_div_iff₀ (Nat.cast_pos.mpr Fintype.card_pos) (by positivity), hexp, pow_mul]
     exact_mod_cast (mul_comm _ _).trans_le (card_not_isKUnique_le hc hq rfl hcode)
   calc (dens {θ : ChildRouterSeed c q b s | ∃ bucket : Fin (2 ^ s),
         a ≤ |(bucketLoad (childRouterRound c q b s T θ) S bucket : ℝ) -
           (#S : ℝ) / (2 ^ s : ℝ)|} : ℝ) ≤
       (dens {p : ChildRouterSeed c q b s | ∃ bucket : Fin (2 ^ s),
         a ≤ |(bucketLoad (doubleTabHash c (2 * q * c) b T s p.1 p.2) S bucket : ℝ) -
-          (#S : ℝ) / (2 ^ s : ℝ)|} : ℝ) := by
-        exact_mod_cast dens_le_dens fun θ hθ => by
-          simp only [mem_filter, mem_univ, true_and] at hθ ⊢
-          exact hθ
+          (#S : ℝ) / (2 ^ s : ℝ)|} : ℝ) := le_rfl
     _ ≤ 2 * (doubleTabCodeBound c (2 * q * c) q (2 * m) : ℝ) ^ 2 /
         (2 ^ (2 * (q - 1) * b) : ℝ) +
       (2 ^ (s + 1) : ℝ) * (3 * (m : ℝ) * ((#S : ℝ) / (2 ^ s : ℝ)) / a ^ 2) ^ m :=
@@ -748,9 +745,10 @@ theorem dens_childRouter_bucketLoad_outside_le {c q b s T : ℕ}
   have hmain := dens_childRouter_exists_bucketLoad_sub_ge_le hc hq hm hT h2code S hmμ ha_pos
   have hdt : 2 * (doubleTabCodeBound c (2 * q * c) q (2 * m) : ℝ) ^ 2 /
       (2 ^ (2 * (q - 1) * b) : ℝ) ≤ 1 / (8 * (#S : ℝ) ^ 2) := by
+    have hexp : 2 * (q - 1) * b = (q - 1) * b * 2 := by ring
     have h : ((4 * #S * doubleTabCodeBound c (2 * q * c) q (2 * m) : ℕ) : ℝ) ^ 2 ≤
         (2 : ℝ) ^ (2 * (q - 1) * b) := by
-      rw [show 2 * (q - 1) * b = (q - 1) * b * 2 by ring, pow_mul]
+      rw [hexp, pow_mul]
       exact_mod_cast Nat.pow_le_pow_left hcode 2
     rw [div_le_div_iff₀ (by positivity) (by positivity)]
     push_cast at h
@@ -766,23 +764,19 @@ theorem dens_childRouter_bucketLoad_outside_le {c q b s T : ℕ}
             Nat.mul_le_mul (Nat.mul_le_mul_left 16 (Nat.pow_le_pow_left hSn 2)) (hsS.trans hSn)
         _ = 2 ^ (3 * Ln + 4) := by ring
         _ = 2 ^ m := rfl
-    have h2m_real : 8 * (#S : ℝ) ^ 2 * (2 ^ (s + 1) : ℝ) ≤ (2 ^ m : ℝ) := by
-      exact_mod_cast h2m_nat
     calc (2 ^ (s + 1) : ℝ) * (3 * (m : ℝ) * μ / a ^ 2) ^ m
         ≤ (2 ^ (s + 1) : ℝ) * ((1 : ℝ) / 2) ^ m := by gcongr
       _ = (2 ^ (s + 1) : ℝ) / (2 ^ m : ℝ) := by rw [one_div, inv_pow, div_eq_mul_inv]
       _ ≤ 1 / (8 * (#S : ℝ) ^ 2) := by
-          rw [div_le_div_iff₀ (by positivity) (by positivity)]; linarith
+          rw [div_le_div_iff₀ (by positivity) (by positivity), one_mul]
+          exact_mod_cast (Nat.mul_comm _ _).trans_le h2m_nat
   calc _ ≤ (dens {θ : ChildRouterSeed c q b s | ∃ bucket : Fin (2 ^ s),
           a ≤ |(bucketLoad (childRouterRound c q b s T θ) S bucket : ℝ) - μ|} : ℝ) := by
         exact_mod_cast dens_le_dens fun θ hθ => by
-          simp only [mem_filter, mem_univ, true_and] at hθ ⊢
-          push Not at hθ
-          obtain ⟨bucket, hb⟩ := hθ
-          refine ⟨bucket, le_abs.mpr ?_⟩
-          by_cases hlo : μ - a ≤ (bucketLoad (childRouterRound c q b s T θ) S bucket : ℝ)
-          · exact Or.inl (by linarith [hb hlo])
-          · exact Or.inr (by linarith)
+          simp only [mem_filter, mem_univ, true_and, not_forall, not_and, not_le] at hθ ⊢
+          exact hθ.imp fun bucket hb => le_abs.mpr <| (le_or_gt (μ - a) _).imp
+            (fun hlo => by linarith [hb hlo])
+            (fun hlt => by linarith)
     _ ≤ _ := hmain
     _ ≤ 1 / (8 * (#S : ℝ) ^ 2) + 1 / (8 * (#S : ℝ) ^ 2) := add_le_add hdt hch
     _ = 1 / (4 * (#S : ℝ) ^ 2) := by ring
@@ -1367,15 +1361,13 @@ theorem dens_not_injOn_idCompressorBit_le {s L : ℕ} (hsL : s ≤ L) (S : Finse
       (#S : ℝ) ^ 2 / (2 * (2 ^ s : ℝ)) := by
   let S' := S.map (bitDomainEquiv hsL).toEmbedding
   have hinj_iff (θ : IdCompressorSeed s (2 ^ (L - s))) :
-      Set.InjOn (fun u => idCompressorHead s (2 ^ (L - s)) θ (bitDomainEquiv hsL u))
-          (S : Set (Fin (2 ^ L))) ↔
-        Set.InjOn (idCompressorHead s (2 ^ (L - s)) θ)
-          (S' : Set (Fin (2 ^ s) × Fin (2 ^ (L - s)))) :=
-    ⟨fun h x hx y hy heq => by
+      Set.InjOn (fun u => idCompressorHead s (2 ^ (L - s)) θ (bitDomainEquiv hsL u)) ↑S ↔
+        Set.InjOn (idCompressorHead s (2 ^ (L - s)) θ) ↑S' :=
+    ⟨fun h _ hx _ hy heq => by
       obtain ⟨u, hu, rfl⟩ := mem_map.mp hx
       obtain ⟨v, hv, rfl⟩ := mem_map.mp hy
       exact congrArg _ (h hu hv heq),
-     fun h u hu v hv heq =>
+     fun h _ hu _ hv heq =>
       (bitDomainEquiv hsL).injective (h (mem_map_of_mem _ hu) (mem_map_of_mem _ hv) heq)⟩
   have hcard : #S' = #S := card_map _
   simpa only [hinj_iff, hcard] using dens_not_injOn_idCompressorHead_le s (2 ^ (L - s)) S'

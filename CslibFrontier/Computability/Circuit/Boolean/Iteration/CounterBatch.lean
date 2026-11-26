@@ -238,14 +238,12 @@ theorem batched_counter_power (T r : ℕ) (hr : r ≤ 2 ^ (k + k)) :
     intro hpos
     let j : Fin (2 ^ k - 1) := ⟨(a member x).toNat - 1, by have := (a member x).isLt; omega⟩
     have hj1 : j.val + 1 = (a member x).toNat := Nat.sub_add_cancel hpos
-    have hkey : residueKeys k j = queries x member := by
-      funext bit
-      simp [residueKeys, queries, hj1, a, ModulusCounter.leftWord]
-    have hrw : rem member x = BitVec.ofNat k (T % (a member x).toNat) := by
-      simp only [rem, lookupOr_of_eq (residueValues k T) (residueKeys_injective k) hkey]
-      unfold residueValues
-      rw [BitString.equivBitVec_getLsbD, hj1]
-    rw [hrw, BitVec.toNat_ofNat,
+    have hkey : residueKeys k j = queries x member :=
+      funext fun bit => by simp [residueKeys, queries, hj1, a, ModulusCounter.leftWord]
+    dsimp only [rem]
+    rw [lookupOr_of_eq _ (residueKeys_injective k) hkey]
+    unfold residueValues
+    rw [BitString.equivBitVec_getLsbD, hj1, BitVec.toNat_ofNat,
       Nat.mod_eq_of_lt ((Nat.mod_lt _ hpos).trans (a member x).isLt)]
   have h := (Synthesis.of_subset (I := interpretation) (s := inputs (r * (k + k)))
     (t := inputs (r * (k + k))) Set.Subset.rfl).union (hdict.trans hfam)
@@ -356,12 +354,9 @@ theorem counterBatch_size_ge_of_ne_id (T : ℕ) (hT : ModulusCounter.power (k :=
       have hb : counterBlock xy member = y := funext fun b => by simp [xy, counterBlock]
       exact hy (by simpa only [hb, hi_eq, xy, o, g, Equiv.symm_apply_apply] using (hi xy).symm)
   choose γ hγ using hgate
-  have hinj : Function.Injective γ := by
-    intro m m' hmm
-    by_contra hne
+  have hinj : Function.Injective γ := fun m m' hmm => by_contra fun hne => by
     have h1 := heval m (xe m)
-    have h2 := heval m' (xe m)
-    rw [hγ m, hmm, ← hγ m', h2, hxe_same, hxe_other (Ne.symm hne), hge, hgz] at h1
+    rw [hγ m, hmm, ← hγ m', heval m' (xe m), hxe_same, hxe_other (Ne.symm hne), hge, hgz] at h1
     exact Bool.false_ne_true h1
   simpa using Fintype.card_le_of_injective γ hinj
 
@@ -390,9 +385,7 @@ theorem batched_hard_counter_power (k : ℕ) (hk : 64 ≤ k) :
   obtain ⟨T, hT, hh⟩ := exists_hard_counter_power k hk
   refine ⟨T, hT, fun r hr hrN => ⟨batched_counter_power T r hrN, fun c hc => ?_⟩⟩
   obtain ⟨out, ho, hs⟩ := counterPower_of_batched T ⟨0, hr⟩ c hc
-  refine ⟨(hh out ho).trans_le hs, counterBatch_size_ge_of_ne_id T ?_ c hc⟩
-  intro hid
-  have h0 := hh (Circuit.id signature (k + k)) (fun x => by rw [hid]; rfl)
-  simp at h0
+  refine ⟨(hh out ho).trans_le hs, counterBatch_size_ge_of_ne_id T (fun hid => ?_) c hc⟩
+  simpa using hh (Circuit.id signature (k + k)) fun x => (congrFun hid x).symm
 
 end Cslib.Circuits.Boolean.Iteration

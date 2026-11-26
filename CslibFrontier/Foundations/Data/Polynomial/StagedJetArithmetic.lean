@@ -280,53 +280,44 @@ theorem conv_comm (A B : JetTable J ℓ R) : conv A B = conv B A := by
 theorem const_conv (c : R) (A : JetTable J ℓ R) : conv (const c) A = smul c A := by
   ext j u
   rw [conv_apply, smul_apply]
-  have inner_u : ∀ j₁ j₂ : Fin J,
+  have inner_u (j₁ j₂ : Fin J) :
       (∑ u₁ : Fin ℓ, ∑ u₂ ∈ univ.filter (fun u₂ : Fin ℓ => (u₁ : ℕ) + (u₂ : ℕ) = (u : ℕ)),
         (const c : JetTable J ℓ R) j₁ u₁ * A j₂ u₂) =
         if (j₁ : ℕ) = 0 then c * A j₂ u else 0 := by
-    intro j₁ j₂
     by_cases hj : (j₁ : ℕ) = 0
     · simp only [const_apply, hj, true_and, ↓reduceIte, ite_mul, zero_mul]
-      exact sum_fin_zero_left u (fun u₂ => c * A j₂ u₂)
+      exact sum_fin_zero_left u fun u₂ => c * A j₂ u₂
     · simp only [const_apply, hj, false_and, ↓reduceIte, zero_mul, sum_const_zero]
-  simp only [inner_u]
-  rw [sum_fin_zero_left j (fun j₂ => c * A j₂ u), smul_eq_mul]
+  simpa only [inner_u, smul_eq_mul] using sum_fin_zero_left j fun j₂ => c * A j₂ u
 
 theorem conv_const (A : JetTable J ℓ R) (c : R) : conv A (const c) = smul c A := by
   rw [conv_comm, const_conv]
 
-theorem one_conv (A : JetTable J ℓ R) : conv one A = A := by
-  rw [one, const_conv]
-  exact ext fun _ _ => one_smul _ _
+theorem one_conv (A : JetTable J ℓ R) : conv one A = A :=
+  (const_conv 1 A).trans (ext fun _ _ => one_smul _ _)
 
 theorem conv_one (A : JetTable J ℓ R) : conv A one = A := by
   rw [conv_comm, one_conv]
 
-theorem zero_conv (A : JetTable J ℓ R) : conv zero A = zero := by
-  ext j u
-  simp only [conv_apply, zero_apply, zero_mul, sum_const_zero]
+theorem zero_conv (A : JetTable J ℓ R) : conv zero A = zero :=
+  ext fun _ _ => by simp only [conv_apply, zero_apply, zero_mul, sum_const_zero]
 
-theorem conv_zero (A : JetTable J ℓ R) : conv A zero = zero := by
-  ext j u
-  simp only [conv_apply, zero_apply, mul_zero, sum_const_zero]
+theorem conv_zero (A : JetTable J ℓ R) : conv A zero = zero :=
+  ext fun _ _ => by simp only [conv_apply, zero_apply, mul_zero, sum_const_zero]
 
-theorem conv_add (A B C : JetTable J ℓ R) : conv A (add B C) = add (conv A B) (conv A C) := by
-  ext j u
-  simp only [conv_apply, add_apply, mul_add, sum_add_distrib]
+theorem conv_add (A B C : JetTable J ℓ R) : conv A (add B C) = add (conv A B) (conv A C) :=
+  ext fun _ _ => by simp only [conv_apply, add_apply, mul_add, sum_add_distrib]
 
-theorem add_conv (A B C : JetTable J ℓ R) : conv (add A B) C = add (conv A C) (conv B C) := by
-  ext j u
-  simp only [conv_apply, add_apply, add_mul, sum_add_distrib]
+theorem add_conv (A B C : JetTable J ℓ R) : conv (add A B) C = add (conv A C) (conv B C) :=
+  ext fun _ _ => by simp only [conv_apply, add_apply, add_mul, sum_add_distrib]
 
 theorem conv_assoc (A B C : JetTable J ℓ R) : conv (conv A B) C = conv A (conv B C) := by
   -- By commutativity both sides are double convolutions `conv (conv _ _) _`; their triple sums
   -- agree after cycling the three index pairs.
   ext j u
   rw [conv_comm A (conv B C), conv_conv_eq_prod_sum, conv_conv_eq_prod_sum, sum_comm]
-  refine sum_congr rfl fun p₂ _ => ?_
-  rw [sum_comm]
-  refine sum_congr rfl fun p₃ _ => sum_congr rfl fun p₁ _ => ?_
-  exact if_congr (by omega) (mul_rotate _ _ _) rfl
+  refine sum_congr rfl fun p₂ _ => sum_comm.trans <|
+    sum_congr rfl fun p₃ _ => sum_congr rfl fun p₁ _ => if_congr (by omega) (mul_rotate _ _ _) rfl
 
 instance instCommRing : CommRing (JetTable J ℓ R) where
   zero := zero
@@ -409,9 +400,8 @@ theorem const_mul_const (a b : R) : (const a : JetTable J ℓ R) * const b = con
 theorem const_pow (c : R) (n : ℕ) : (const c : JetTable J ℓ R) ^ n = const (c ^ n) :=
   ((constRingHom J ℓ R).map_pow c n).symm
 
-theorem zsmul_eq_const_mul (c : ℤ) (A : JetTable J ℓ R) : c • A = const (c : R) * A := by
-  ext j u
-  simp only [coe_zsmul, const_mul, smul_apply, smul_eq_mul, zsmul_eq_mul]
+theorem zsmul_eq_const_mul (c : ℤ) (A : JetTable J ℓ R) : c • A = const (c : R) * A :=
+  ext fun _ _ => by simp only [coe_zsmul, const_mul, smul_apply, smul_eq_mul, zsmul_eq_mul]
 
 /-- Apply a ring homomorphism `f : R →+* S` entrywise to a `(J × ℓ)` jet table. -/
 def mapRingHom {S : Type*} [CommRing S] (f : R →+* S) :
@@ -858,15 +848,12 @@ theorem cast_clearedParityFactorJet (Δ : ℤ) (L_rat : JetTable J ℓ K) (A_int
   have hquad_pow : (Ck (Δ : K) * L_rat * (Ck (Δ : K) * L_rat - Ck (Δ : K))) ^ (s : ℕ) =
       (Ck (Δ : K) ^ 2) ^ (s : ℕ) * (L_rat * (L_rat - 1)) ^ (s : ℕ) := by
     rw [← mul_pow]
-    congr 1
-    ring
+    exact congrArg (· ^ (s : ℕ)) (by ring)
   have hpow : Ck (Δ : K) ^ (2 * ℓ - 1) =
       Ck (Δ : K) ^ (2 * (ℓ - 1 - (s : ℕ))) * Ck (Δ : K) * (Ck (Δ : K) ^ 2) ^ (s : ℕ) := by
     rw [← pow_mul, ← pow_succ, ← pow_add]
-    congr 1
-    omega
-  rw [hquad_pow, hpow]
-  ring
+    exact congrArg _ (by omega)
+  rw [hquad_pow, hpow]; ring
 
 /-- **Stage-2 `ℓ₁`-norm bound (Appendix B.2, p. 49).** If `‖A_int‖₁ ≤ B` and every linear remainder
 `e_s(Y) = a_s + b_s Y` satisfies `|a_s| + |b_s| ≤ E_ℓ`, then
@@ -1112,8 +1099,7 @@ theorem hermiteCramerNumerator_eq_mul {Q J : ℕ} (nodes : Fin Q → ℤ) (hQ : 
   rw [hermiteCramerNumerator, Int.cast_det, Matrix.map_updateCol, hcol, Matrix.det_updateCol_smul,
     ← Polynomial.det_hermiteMatrix_mul_coeff nodes hp c₀, hc₀, Polynomial.coeff_zero_eq_eval_zero,
     hzero]
-  push_cast
-  ring
+  push_cast; ring
 
 /-- At distinct integer nodes and nonzero denominator `Ω ≠ 0`, the integer Cramer denominator
 `Ω * det (hermiteMatrix nodes J)` is nonzero ([OpenAI2026ETH, Appendix B.3, p. 50]). -/

@@ -288,9 +288,9 @@ private theorem erase_first_skipped {A : ι → Set (∀ v, α v)}
     have ha : levelRel R a S ≠ 0 := fun h =>
       hu (traceSteps_append R {(i, 0)} u [a] ▸
         List.mem_append_right _ (by simp [traceSteps, h] : none ∈ traceSteps R S [a]))
+    have hpush : foldPush R S [a] = insert (a, levelRel R a S) S := pushRel_of_ne_zero ha
     have hb' : levelRel R b (insert (a, levelRel R a S) S) = 0 := by
-      rw [foldPush_append] at hb
-      rwa [show foldPush R S [a] = pushRel R a S from rfl, pushRel_of_ne_zero ha] at hb
+      rwa [foldPush_append, hpush] at hb
     have hstep : traceSteps R S [a, b] = [some (a, levelRel R a S), none] := by
       simp [traceSteps, ha, hb']
     obtain ⟨hnab, _, hfold⟩ := traceSteps_swap R hRs S hstep (Or.inl rfl)
@@ -393,10 +393,9 @@ private theorem phase2_sort_perm {A : ι → Set (∀ v, α v)}
             List.nil_append, List.singleton_append] using hlog')
         simpa only [u, v, List.map_append, List.map_cons, List.append_assoc] using hswap
       · simp only [List.map_append, List.map_cons]
-        change traceSteps R S₀' (u ++ p.1 :: q.1 :: v) = _
-        rw [show p.1 :: q.1 :: v = [p.1, q.1] ++ v from rfl, traceSteps_append,
-          traceSteps_append, hpre, htrace, hfold, htail]
-        simp
+        change traceSteps R S₀' (u ++ ([p.1, q.1] ++ v)) = _
+        rw [traceSteps_append, traceSteps_append, hpre, htrace, hfold, htail]
+        rfl
       · exact (List.Perm.append_left front (List.Perm.swap q p tail)).trans hperm'
 
 /-- Any valid log `i :: w` whose lopsided witness structure is `S` implies that the canonical
@@ -425,11 +424,9 @@ private theorem isLog_canonList {A : ι → Set (∀ v, α v)}
   obtain ⟨p₀, t, hsorted⟩ := List.exists_cons_of_ne_nil (List.ne_nil_of_mem hmem)
   rw [hsorted] at hmem hpairS hpermS
   obtain ⟨hle, hpair_t⟩ := List.pairwise_cons.1 hpairS
-  obtain rfl : p₀ = (i, 0) := by
-    rcases List.mem_cons.1 hmem with h | hit
-    · exact h.symm
-    · exact hroot.zero p₀ (mem_toList.1 (hpermS.subset List.mem_cons_self))
-        (Nat.eq_zero_of_le_zero (hle _ hit))
+  obtain rfl : p₀ = (i, 0) := (List.mem_cons.1 hmem).elim Eq.symm fun hit =>
+    hroot.zero p₀ (mem_toList.1 (hpermS.subset List.mem_cons_self))
+      (Nat.eq_zero_of_le_zero (hle _ hit))
   have hnod_t : t.Nodup := (List.nodup_cons.1 (hpermS.nodup_iff.2 S.nodup_toList)).2
   have hperm_ins : ((i, 0) :: L).Perm S.toList :=
     (List.perm_ext_iff_of_nodup (List.nodup_cons.2 ⟨hnot_root, hnodL⟩) S.nodup_toList).2
@@ -519,9 +516,8 @@ private theorem table_canonList_eq_prod (A : ι → Set (∀ v, α v)) (hAm : �
     (hA : ∀ i, DependsOn (· ∈ A i) (vbl i : Set V)) (S : Finset (ι × ℕ)) :
     table μ {T | IsLog vbl A T (canonList S)} = ∏ p ∈ S, Measure.pi μ (A p.1) := by
   rw [table_isLog_eq_prod μ vbl A hAm hA (canonList S), canonList, List.map_map,
-    ((List.mergeSort_perm S.toList _).map ((fun j => Measure.pi μ (A j)) ∘ Prod.fst)).prod_eq,
-    Finset.prod_map_toList]
-  rfl
+    ((List.mergeSort_perm S.toList _).map ((fun j => Measure.pi μ (A j)) ∘ Prod.fst)).prod_eq]
+  exact Finset.prod_map_toList S _
 
 open scoped Classical in
 /-- **Lemma 6.2** of [MoserTardos2010]: the probability that a fixed structure `S` occurs as the
@@ -534,8 +530,7 @@ theorem table_witness_le [DecidableEq ι] (A : ι → Set (∀ v, α v))
         witnessRel (lopsidedAdj vbl A) i w = S} ≤
       ∏ p ∈ S, Measure.pi μ (A p.1) := by
   refine (measure_mono ?_).trans (table_canonList_eq_prod μ vbl A hAm hA S).le
-  rintro _ ⟨_, _, hlog, hS⟩
-  exact isLog_canonList vbl hA hlog hS
+  exact fun _ ⟨_, _, hlog, hS⟩ => isLog_canonList vbl hA hlog hS
 
 end Measure
 

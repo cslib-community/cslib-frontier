@@ -148,8 +148,7 @@ private theorem cost_baseInstructions (hx : ∀ κ, (x κ).length ≤ T)
     obtain ⟨k, -, rfl⟩ := List.mem_map.1 hi
     have := hk ⟨Fin.castAdd A' p, .init p p k⟩
     have := hd (p, k)
-    simp only [Instruction.cost]
-    omega
+    simp only [Instruction.cost]; omega
   have hpp : (n p p : ℕ) ≤ ∑ b, (n p b : ℕ) :=
     single_le_sum (f := fun b => (n p b : ℕ)) (fun _ _ => Nat.zero_le _) (mem_univ p)
   have e1 : ((baseBody ρ n key dkey p).writeKeys.map List.length).sum = ∑ b, (n p b : ℕ) := by
@@ -171,8 +170,7 @@ private theorem cost_baseInstructions (hx : ∀ κ, (x κ).length ≤ T)
   generalize ∑ b, (n p b : ℕ) = Sa at *
   generalize ∑ b, (n b p : ℕ) = Sb at *
   generalize (n p p : ℕ) = npp at *
-  ring_nf at h1 h2 h3 ⊢
-  omega
+  ring_nf at h1 h2 h3 ⊢; omega
 
 /-- The time of the instruction of a role. -/
 private theorem cost_roleInstruction {cap : ℕ} (hP : P.Ok cap) (hk : ∀ c, (key c).length ≤ Lc)
@@ -193,10 +191,9 @@ private theorem cost_roleInstruction {cap : ℕ} (hP : P.Ok cap) (hk : ∀ c, (k
       obtain ⟨u, -, rfl⟩ := List.mem_map.1 hk'
       exact hk _
   have h3 : ∑ e : (M.law r.1).SlotAt r.2, (P.ids n o ⟨r.1, e.1⟩).length ≤
-      Fintype.card ((M.law r.1).SlotAt r.2) * P.count n o r.1 := by
-    refine (sum_le_sum fun (e : (M.law r.1).SlotAt r.2) _ => (Plan.length_ids (P := P) (n := n)
-      (o := o) (z := ⟨r.1, e.1⟩)).trans_le (hP.card_given_le n o ⟨r.1, e.1⟩)).trans ?_
-    simp
+      Fintype.card ((M.law r.1).SlotAt r.2) * P.count n o r.1 :=
+    (sum_le_sum fun (e : (M.law r.1).SlotAt r.2) _ => (Plan.length_ids (P := P) (n := n)
+      (o := o) (z := ⟨r.1, e.1⟩)).trans_le (hP.card_given_le n o ⟨r.1, e.1⟩)).trans (by simp)
   simp only [List.map_map, Function.comp_def, List.length_reverse, List.length_map,
     length_indicesBelow, Fin.val_succ, slotList, channelList, Finset.sum_map_toList,
     Finset.length_toList, card_univ] at h1 h2
@@ -208,8 +205,7 @@ private theorem cost_roleInstruction {cap : ℕ} (hP : P.Ok cap) (hk : ∀ c, (k
   have h7 := Nat.mul_le_mul_right W h3
   generalize ∑ e : (M.law r.1).SlotAt r.2, (P.ids n o ⟨r.1, e.1⟩).length = Ss at *
   generalize ∑ ν : (M.law r.1).ChannelAt r.2, ((o ⟨r.1, ν.1⟩ : ℕ) + 1) = Sc at *
-  ring_nf at h1 h2 h6 h7 ⊢
-  omega
+  ring_nf at h1 h2 h6 h7 ⊢; omega
 
 omit [Fintype S] in
 /-- The new units of the channels of the roles of a group, at their parties, are cells of the
@@ -240,15 +236,13 @@ private theorem cost_endInstructions (hk : ∀ c, (key c).length ≤ Lc)
     (b : UnitId (K + K) U0 M.Channel U1 → UnitContent ub) :
     ((endInstructions P n o grp g key b).map fun i => i.cost T ub + 1).sum ≤
       cellCount n o grp g * (2 * (ub + Lc + 1)) := by
-  have hb (u : UnitId (K + K) U0 M.Channel U1) : (b u).bits.length ≤ ub :=
-    (b u).length_bits_le
   refine (List.sum_map_filterMap_le (D := fun u =>
     if grp (UnitId.holder M.channelParty u false) = g ∨
       grp (UnitId.holder M.channelParty u true) = g then 2 * (ub + Lc + 1) else 0)
     (fun u i h => ?_) _).trans ?_
   · have := hk ⟨UnitId.holder M.channelParty u false, u⟩
     have := hk ⟨UnitId.holder M.channelParty u true, u⟩
-    have := hb u
+    have := (b u).length_bits_le
     have hD : grp (UnitId.holder M.channelParty u false) = g ∨
         grp (UnitId.holder M.channelParty u true) = g := by
       split_ifs at h <;> tauto

@@ -338,17 +338,12 @@ theorem pedersen_verify (d : F.Desc) (h c : F.Carrier d) (m r : ZMod (F.order d)
 /-- Pedersen commitments are correct: every honest opening verifies. -/
 theorem pedersen_correct (d : F.Desc) : (F.pedersen d).Correct := by
   intro h _ m c r hcr
-  simp only [pedersen, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
-    PMF.support_pure, Set.mem_singleton_iff, Prod.mk.injEq] at hcr
-  obtain ⟨r', -, rfl, rfl⟩ := hcr
-  simp
+  simp_all [pedersen]
 
 /-- The Pedersen commitment to `m` under `h` is distributed as `pedersenCommitLaw d h m`. -/
 theorem eval_pedersen_commitment (d : F.Desc) (h : F.Carrier d) (m : ZMod (F.order d)) :
     ProbComp.eval ((F.pedersen d).commitment h m) = F.pedersenCommitLaw d h m := by
-  simp only [Commitment.Scheme.commitment, pedersen, bind_pure_comp, ProbComp.eval_map,
-    ProbComp.eval_uniform, pedersenCommitLaw, PMF.map_comp]
-  rfl
+  simp [Commitment.Scheme.commitment, pedersen, pedersenCommitLaw]
 
 /-- **Perfect hiding at a non-identity key** ([Pedersen1991], Section 3, Theorem 3.1): for `h ≠ 0`,
 the commitment is uniform on `F.Carrier d` whatever the message. -/
@@ -817,8 +812,7 @@ theorem pedersenToDLAdversary_encode
           adversary n (F.pedersenScheme.encodeKey ⟨d, h⟩)) h := by
   simp only [pedersenToDLAdversary, pedersenToDL, pedersenScheme_encodeKey, map_bind,
     bind_map_left, map_pure]
-  congr 1
-  funext ⟨c, ⟨m₀, o₀⟩, ⟨m₁, o₁⟩⟩
+  congr 1 with ⟨c, ⟨m₀, o₀⟩, ⟨m₁, o₁⟩⟩
   obtain ⟨α, rfl⟩ := F.smul_generator_surjective d h
   simp only [encodePedersenVerify_encode]
   cases hb : F.pedersenScheme.isBindingCollision ⟨d, α • F.generator d⟩ (c, (m₀, o₀), (m₁, o₁)) <;>

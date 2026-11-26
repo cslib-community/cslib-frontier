@@ -234,24 +234,22 @@ theorem findBest_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n →
       let jk : Fin ws.n := ⟨b.idx, hk'⟩
       obtain ⟨hrow, hprice⟩ := rowReads_before_output hws i₀ jk
       obtain ⟨hrc_le, hrc_z⟩ := ham.redCost_read hC_le hp_nn hp_le i₀ jk
-      have hsafe : FindBestStepSafe w (d, b) s₀ := by
-        dsimp only [FindBestStepSafe, d]
-        exact ⟨hfit1, outputFits.of_le hrow.le, outputFits.of_le hprice.le,
+      have hsafe : FindBestStepSafe w (d, b) s₀ :=
+        ⟨hfit1, outputFits.of_le hrow.le, outputFits.of_le hprice.le,
           hfit_rc.of_le hrc_le, hfit_ws.of_le (by have := jk.isLt; lia)⟩
       obtain ⟨hv, hmc, hst_eq, hres⟩ :=
         scanCell_spec (w := w) (s := s₀) (cost := d.rowBase + b.idx) (price := d.bPrice + b.idx)
           (bestNext b) (hrow.trans_le outputAllocated) (hprice.trans_le outputAllocated)
       refine ⟨hsafe, hv, hmc.le, by rw [findBestStep, hst_eq],
         fun _ _ => by rw [findBestStep, hst_eq], hst_eq, ?_⟩
-      unfold findBestStep
-      rw [hres]
+      rw [findBestStep, hres]
       dsimp only [d, bestNext]
       by_cases hk0 : b.idx = 0
       · subst hbidx
         rw [hk0, ite_eq_left rfl]
-        refine ⟨rfl, Or.inr ⟨⟨0, hn_pos⟩, Nat.one_pos, ?_, rfl, ?_⟩⟩
-        · simp [List.take_succ_finRange hn_pos]
-        · simpa only [jk, hk0] using hrc_z
+        refine ⟨rfl, Or.inr ⟨⟨0, hn_pos⟩, Nat.one_pos,
+          by simp [List.take_succ_finRange hn_pos], rfl, ?_⟩⟩
+        simpa only [jk, hk0] using hrc_z
       · rw [ite_eq_right hk0]
         rcases harg with h0 | ⟨j₀, hj₀_lt, htake, hbj, hbv⟩
         · omega
@@ -365,31 +363,25 @@ theorem findSecond_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
       let jk : Fin ws.n := ⟨b.idx, hk⟩
       obtain ⟨hrow, hprice⟩ := rowReads_before_output hws i₀ jk
       obtain ⟨hrc_le, hrc_z⟩ := ham.redCost_read hC_le hp_nn hp_le i₀ jk
-      have hsafe : FindSecondStepSafe w (d, b) s₀ := by
-        dsimp only [FindSecondStepSafe, d]
-        exact ⟨hfit1, outputFits.of_le hrow.le, outputFits.of_le hprice.le,
+      have hsafe : FindSecondStepSafe w (d, b) s₀ :=
+        ⟨hfit1, outputFits.of_le hrow.le, outputFits.of_le hprice.le,
           hfit_rc.of_le hrc_le, hfit_ws.of_le (by have := jk.isLt; lia)⟩
       obtain ⟨hv, hmc, hst_eq, hres⟩ :=
         scanCell_spec (w := w) (s := s₀) (cost := d.rowBase + b.idx) (price := d.bPrice + b.idx)
           (secondNext d.bestJ b) (hrow.trans_le outputAllocated) (hprice.trans_le outputAllocated)
       refine ⟨hsafe, hv, hmc.le, by rw [findSecondStep, hst_eq],
         fun _ _ => by rw [findSecondStep, hst_eq], hst_eq, ?_⟩
-      unfold findSecondStep
-      rw [hres]
+      rw [findSecondStep, hres]
       dsimp only [d, secondNext]
       by_cases heq_j : b.idx = j₀.val
       · have hjk_eq : jk = j₀ := Fin.ext heq_j
         have hpref_eq : prefList (b.idx + 1) = prefList b.idx := by
-          dsimp only [prefList]
-          rw [List.take_succ_finRange hk, List.filter_append, List.map_append]
-          simp [jk, hjk_eq]
+          simp [prefList, List.take_succ_finRange hk, List.filter_append, jk, hjk_eq]
         rw [ite_eq_left heq_j]
         exact ⟨rfl, hpref_eq.symm ▸ hmin⟩
       · have hjk_ne : jk ≠ j₀ := fun e => heq_j (congrArg Fin.val e)
         have hpref_eq : prefList (b.idx + 1) = prefList b.idx ++ [redCost cZ st.price i₀ jk] := by
-          dsimp only [prefList]
-          rw [List.take_succ_finRange hk, List.filter_append, List.map_append]
-          simp [jk, hjk_ne]
+          simp [prefList, List.take_succ_finRange hk, List.filter_append, jk, hjk_ne]
         rw [ite_eq_right heq_j]
         rcases hl_prev : prefList b.idx with _ | ⟨hd_prev, tl_prev⟩
         · rw [hl_prev] at hmin hpref_eq
@@ -399,8 +391,8 @@ theorem findSecond_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
         · let wPrev := tl_prev.foldl min hd_prev
           rw [hl_prev, List.min?_cons'] at hmin
           obtain ⟨hhs1, hsv_z, hsv_le⟩ := hmin
-          rw [ite_eq_right (by omega : b.hasSecond ≠ 0), hpref_eq, hl_prev, List.cons_append,
-            List.min?_cons', List.foldl_append, List.foldl_cons, List.foldl_nil]
+          rw [ite_eq_right (ne_of_eq_of_ne hhs1 Nat.one_ne_zero), hpref_eq, hl_prev,
+            List.cons_append, List.min?_cons', List.foldl_append, List.foldl_cons, List.foldl_nil]
           by_cases hlt : s₀.mem (rowBase + b.idx) + s₀.mem (ws.bPrice + b.idx) < b.secondVal
           · have hlt_z : redCost cZ st.price i₀ jk < wPrev :=
               hrc_z.symm.trans_lt ((Nat.cast_lt.mpr hlt).trans_eq hsv_z)
@@ -412,9 +404,9 @@ theorem findSecond_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
             exact ⟨rfl, hhs1, hsv_z, hsv_le⟩)
     ⟨0, 0, 0⟩ s₀ ⟨rfl, rfl, by simp [prefList]⟩
   obtain ⟨hsafe, hv, hmc, _, _, hs_eq, _, hfinal⟩ := hit
-  have hpref_n : (prefList ws.n).min? = secondBest cZ st.price i₀ j₀ := by
-    simp [prefList, secondBest, List.take_of_length_le List.length_finRange.le]
-  exact ⟨hsafe, hv, hmc, hs_eq, hpref_n ▸ hfinal⟩
+  refine ⟨hsafe, hv, hmc, hs_eq, ?_⟩
+  simpa only [cZ, d, rowBase, findSecondProg, prefList, secondBest,
+    List.take_of_length_le List.length_finRange.le] using hfinal
 
 end
 

@@ -564,15 +564,11 @@ theorem focusSearch_toTree_and_length {x : α} {t : BinaryTree α} {ctx : List (
   | node a l r ihl ihr =>
     rcases focusSearch_node_eq_some hf with
       ⟨hxa, hl | ⟨rfl, rfl⟩⟩ | ⟨hax, hr | ⟨rfl, rfl⟩⟩ | ⟨rfl, rfl⟩
-    · obtain ⟨htree, hlen⟩ := ihl hl
-      refine ⟨htree, ?_⟩
-      simp only [List.length_cons, searchVisits, hxa, ↓reduceIte] at hlen ⊢
-      omega
+    · refine (ihl hl).imp_right fun hlen => ?_
+      simp only [List.length_cons, searchVisits, hxa, ↓reduceIte] at hlen ⊢; omega
     · simp [Focus.toTree, Focus.sub, searchVisits, hxa]
-    · obtain ⟨htree, hlen⟩ := ihr hr
-      refine ⟨htree, ?_⟩
-      simp only [List.length_cons, searchVisits, lt_asymm hax, hax, ↓reduceIte] at hlen ⊢
-      omega
+    · refine (ihr hr).imp_right fun hlen => ?_
+      simp only [List.length_cons, searchVisits, lt_asymm hax, hax, ↓reduceIte] at hlen ⊢; omega
     · simp [Focus.toTree, Focus.sub, searchVisits, lt_asymm hax, hax]
     · simp [Focus.toTree, Focus.sub, searchVisits]
 
@@ -876,9 +872,7 @@ and rotates it to the root. -/
 
 theorem ordered_contains {t : BinaryTree α} (ht : Ordered t) (x : α) :
     Ordered (contains x t).tree := by
-  simp only [contains]
-  have ho := ordered_splay ht x
-  cases hs : (splay x t).tree <;> simpa [hs] using ho
+  cases hs : (splay x t).tree <;> simpa [contains, hs] using ordered_splay ht x
 
 theorem contains_answer_eq_true {t : BinaryTree α} (ht : Ordered t) (x : α) :
     (contains x t).answer = true ↔ x ∈ elements t := by
@@ -1039,9 +1033,7 @@ theorem ordered_erase {t : BinaryTree α} (ht : Ordered t) (x : α) :
 
 theorem ordered_minimum {t : BinaryTree α} (ht : Ordered t) :
     Ordered (minimum t).tree := by
-  simp only [minimum]
-  have ho := ordered_splayMin ht
-  cases hs : (splayMin t).tree <;> simpa [hs] using ho
+  cases hs : (splayMin t).tree <;> simpa [minimum, hs] using ordered_splayMin ht
 
 /-- The root of an ordered tree with empty left subtree is its least key. -/
 private theorem leastResult_node_nil {m : α} {R : BinaryTree α} (ho : Ordered (.node m .nil R)) :
@@ -1058,9 +1050,7 @@ subtree. -/
 private theorem leastResult_splayMin {t : BinaryTree α} (ht : Ordered t) (hne : t ≠ .nil) :
     ∃ m R, (splayMin t).tree = .node m .nil R ∧ LeastResult (elements t) (some m) := by
   obtain ⟨m, R, hm⟩ := exists_node_nil_left_splayMin hne
-  refine ⟨m, R, hm, ?_⟩
-  rw [← elements_splayMin t, hm]
-  exact leastResult_node_nil (hm ▸ ordered_splayMin ht)
+  exact ⟨m, R, hm, elements_splayMin t ▸ hm.symm ▸ leastResult_node_nil (hm ▸ ordered_splayMin ht)⟩
 
 theorem minimum_spec {t : BinaryTree α} (ht : Ordered t) :
     LeastResult (elements t) (minimum t).answer := by

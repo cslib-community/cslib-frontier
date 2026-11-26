@@ -142,16 +142,13 @@ private theorem split_active {x y : Letter Γ Λ} (hy : IsActive y) :
     exact ⟨congrArg _ h₁, h₂, h₃⟩
 
 private theorem not_active_left (L : List Γ) :
-    ∀ z ∈ (lb :: L.reverse.map sym : List (Letter Γ Λ)), ¬IsActive z := by
-  intro z hz
-  rcases (List.mem_cons.mp hz).imp_right List.mem_map.mp with rfl | ⟨a, -, rfl⟩ <;>
-    exact id
+    ∀ z ∈ (lb :: L.reverse.map sym : List (Letter Γ Λ)), ¬IsActive z := fun _ hz => by
+  rcases (List.mem_cons.mp hz).imp_right List.mem_map.mp with rfl | ⟨_, -, rfl⟩ <;> exact id
 
 private theorem not_active_right (R : List Γ) :
-    ∀ z ∈ (R.map sym ++ [rb] : List (Letter Γ Λ)), ¬IsActive z := by
-  intro z hz
+    ∀ z ∈ (R.map sym ++ [rb] : List (Letter Γ Λ)), ¬IsActive z := fun _ hz => by
   rcases (List.mem_append.mp hz).imp List.mem_map.mp List.mem_singleton.mp with
-    ⟨a, -, rfl⟩ | rfl <;> exact id
+    ⟨_, -, rfl⟩ | rfl <;> exact id
 
 private theorem split_word {x y : Letter Γ Λ} {L R : List Γ} {p s : List (Letter Γ Λ)}
     (h : p ++ y :: s = word x L R) (hy : IsActive y) :
@@ -304,12 +301,9 @@ private theorem good_of_rewrites {M : TM0.Machine Γ Λ} {l : List Γ} {u v : Li
     | finish => exact nomatch (split3 hw trivial).2.1
   · cases hd <;> simp at hw
   · cases hd with
-    | stop hM => exact nomatch (split1 hw trivial).2.1
-    | write hM => exact nomatch (split1 hw trivial).2.1
-    | right c hM => exact nomatch (split2 hw trivial).2.1
-    | rightEnd hM => exact nomatch (split2 hw trivial).2.1
-    | left c hM => exact nomatch (split2' hw trivial).2.1
-    | leftEnd hM => exact nomatch (split2' hw trivial).2.1
+    | stop _ | write _ => exact nomatch (split1 hw trivial).2.1
+    | right _ _ | rightEnd _ => exact nomatch (split2 hw trivial).2.1
+    | left _ _ | leftEnd _ => exact nomatch (split2' hw trivial).2.1
     | eatLeft c =>
       obtain ⟨hp, -, rfl⟩ := split2' hw trivial
       obtain ⟨L', rfl, rfl⟩ := peel_left_sym hp
@@ -351,12 +345,10 @@ private theorem rb_mem_top {M : TM0.Machine Γ Λ} {d : Domino (Letter Γ Λ)} (
 
 private theorem halt_reflTransGen {M : TM0.Machine Γ Λ} :
     ∀ L R : List Γ, ReflTransGen (Rewrites (Rule M)) (word halt L R) []
-  | c :: L, R => by
-    refine ReflTransGen.head ⟨lb :: L.reverse.map sym, ⟨[sym c, halt], [halt]⟩,
+  | c :: L, R => ReflTransGen.head ⟨lb :: L.reverse.map sym, ⟨[sym c, halt], [halt]⟩,
       R.map sym ++ [rb], Rule.eatLeft c, by simp [word], by simp [word]⟩ (halt_reflTransGen L R)
-  | [], c :: R => by
-    refine ReflTransGen.head ⟨[lb], ⟨[halt, sym c], [halt]⟩, R.map sym ++ [rb], Rule.eatRight c,
-      by simp [word], by simp [word]⟩ (halt_reflTransGen [] R)
+  | [], c :: R => ReflTransGen.head ⟨[lb], ⟨[halt, sym c], [halt]⟩, R.map sym ++ [rb],
+      Rule.eatRight c, by simp [word], by simp [word]⟩ (halt_reflTransGen [] R)
   | [], [] => ReflTransGen.single ⟨[], ⟨[lb, halt, rb], []⟩, [], Rule.finish, rfl, rfl⟩
 
 private theorem reflTransGen_of_reaches {M : TM0.Machine Γ Λ} {c c' : TM0.Cfg Γ Λ}

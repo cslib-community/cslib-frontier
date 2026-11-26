@@ -684,19 +684,16 @@ theorem mem_orsetSurvivingTags_iff {P α Ev : Type*} [DecidableEq P] [DecidableE
       ∃ e ∈ H, opOf e = .add t.replica t.seq t.elem ∧
         ¬ ∃ r ∈ H, opOf r = .remove t.elem ∧ prec e r := by
   simp only [orsetSurvivingTags, Finset.mem_biUnion]
-  constructor
-  · rintro ⟨e, heH, hmem⟩
-    cases hop : opOf e with
-    | add p seq x =>
-      rw [hop] at hmem
-      dsimp only at hmem
-      split_ifs at hmem with hrem
-      · simp at hmem
-      · obtain rfl := Finset.mem_singleton.mp hmem
-        exact ⟨e, heH, hop, hrem⟩
-    | remove x => simp [hop] at hmem
-  · rintro ⟨e, heH, hop, hnot_rem⟩
-    exact ⟨e, heH, by simp [hop, hnot_rem]⟩
+  refine ⟨?_, fun ⟨e, heH, hop, hnot_rem⟩ => ⟨e, heH, by simp [hop, hnot_rem]⟩⟩
+  rintro ⟨e, heH, hmem⟩
+  cases hop : opOf e with
+  | add p seq x =>
+    simp only [hop] at hmem
+    split_ifs at hmem with hrem
+    · simp at hmem
+    · obtain rfl := Finset.mem_singleton.mp hmem
+      exact ⟨e, heH, hop, hrem⟩
+  | remove x => simp [hop] at hmem
 
 /-- Well-formed finite causally closed `OR-Set` execution history `H : Finset Ev` under strict
 partial order `prec` ([ShapiroPreguicaBaqueroZawirski2011R], §3.3.5, Specification 15, p. 26):
@@ -805,21 +802,13 @@ private theorem orset_main_ind (n : ℕ) :
         hu_op hop_a rfl rfl ▸ (Finset.mem_filter.mp huP).2)
     have hcomm : ConcurrentCommute orsetEffect prec hH.effOf (H : Set Ev) := by
       intro e₁ he₁ e₂ he₂ _ hn₁₂ hn₂₁ s
-      cases hop₁ : hH.opOf e₁ with
-      | add p₁ n₁ x₁ =>
-        cases hop₂ : hH.opOf e₂ with
-        | add p₂ n₂ x₂ =>
-          rw [hH.eff_add e₁ he₁ p₁ n₁ x₁ hop₁, hH.eff_add e₂ he₂ p₂ n₂ x₂ hop₂]
-          exact Finset.insert_comm _ _ s
-        | remove x₂ =>
-          exact h_add_rem e₁ he₁ e₂ he₂ p₁ n₁ x₁ x₂ hop₁ hop₂ hn₁₂ s
-      | remove x₁ =>
-        cases hop₂ : hH.opOf e₂ with
-        | add p₂ n₂ x₂ =>
-          exact (h_add_rem e₂ he₂ e₁ he₁ p₂ n₂ x₂ x₁ hop₂ hop₁ hn₂₁ s).symm
-        | remove x₂ =>
-          rw [hrem_eq e₁ he₁ x₁ hop₁, hrem_eq e₂ he₂ x₂ hop₂]
-          exact sdiff_sdiff_comm
+      cases hop₁ : hH.opOf e₁ <;> cases hop₂ : hH.opOf e₂
+      · rw [hH.eff_add e₁ he₁ _ _ _ hop₁, hH.eff_add e₂ he₂ _ _ _ hop₂]
+        exact Finset.insert_comm _ _ s
+      · exact h_add_rem e₁ he₁ e₂ he₂ _ _ _ _ hop₁ hop₂ hn₁₂ s
+      · exact (h_add_rem e₂ he₂ e₁ he₁ _ _ _ _ hop₂ hop₁ hn₂₁ s).symm
+      · rw [hrem_eq e₁ he₁ _ hop₁, hrem_eq e₂ he₂ _ hop₂]
+        exact sdiff_sdiff_comm
     -- Step 3: Prove every causal linearization `l` of `H` folds to `orsetSurvivingTags`.
     refine ⟨hcomm, fun l hl => ?_⟩
     rcases l.eq_nil_or_concat with rfl | ⟨initL, e_last, hconcat⟩

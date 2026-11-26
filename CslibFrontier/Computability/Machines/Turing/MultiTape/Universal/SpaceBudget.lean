@@ -274,10 +274,8 @@ private lemma length_eSSt_le (t i j : ℕ) :
   have hout := List.length_take_le 2 ((stepOut d x)^[j'] (init d, [])).2
   have hval (o : ℕ) (ho : o ∈ ((stepOut d x)^[j'] (init d, [])).2.take 2) : o ≤ descLen d :=
     (inv_iterate d x j').2.2 o (List.mem_of_mem_take ho)
-  have hc : (eCfg (run d x j')).length ≤ max b (eCfg (init d)).length := by
-    rcases hb' with rfl | hb'
-    · exact le_max_right _ _
-    · exact hb'.trans (le_max_left _ _)
+  have hc : (eCfg (run d x j')).length ≤ max b (eCfg (init d)).length :=
+    hb'.elim (fun h0 => h0 ▸ le_max_right _ _) fun hb' => hb'.trans (le_max_left _ _)
   have hpos : (run d x j').inputPos ≤ x.length + 1 := (inv_iterate d x j').1.inputPos
   obtain ⟨hk, hcur⟩ := scan_take x (run d x j').inputPos 0 j
   have hr := length_encNat_mono (show t - i ≤ t by omega)
@@ -343,9 +341,8 @@ private lemma foldNextS_inO : ComputableInO foldNextS (encPair eSSt encBool) eSS
     (fun p => ((encPair eSSt encBool p).length + 1) ^ 2)
     fun p => (encPair eSSt encBool p).length + 1 := by
   have h₁ := fst eSSt encBool
-  have hn := foldNext_inO.comp (h₁.fst'.prod (snd eSSt encBool))
-  refine ((hn.prod h₁.snd').of_enc_eq (g := foldNextS) fun p => rfl).mono 20 (fun p => ?_)
-    fun p => ?_
+  refine (((foldNext_inO.comp (h₁.fst'.prod (snd eSSt encBool))).prod h₁.snd').of_enc_eq
+    (g := foldNextS) fun _ => rfl).mono 20 (fun p => ?_) fun p => ?_
   all_goals
     have : (encPair eSt encBool (p.1.1, p.2)).length ≤ (encPair eSSt encBool p).length := by
       simp only [length_encPair]; omega
@@ -493,9 +490,8 @@ private lemma foldEndS_inO : ComputableInO foldEndS eSSt eSSt
 lemma length_eSSt_le' (t i j : ℕ) :
     (eSSt (streamState (passState (foldInitS (d, x, t, b)) foldNextS foldEndS
       (inTr.events (eInS (d, x, t, b))) i) foldNextS (inTr.events (eInS (d, x, t, b))) j)).length ≤
-      budgetSpace (d, x, t, b) := by
-  rw [events_eInS]
-  exact length_eSSt_le d x b t i j
+      budgetSpace (d, x, t, b) :=
+  events_eInS d x b t ▸ length_eSSt_le d x b t i j
 
 local instance : FinEnum InState :=
   FinEnum.ofList [.descMarker, .descBit, .marker, .bit, .digitMarker, .digit, .steps]
@@ -540,13 +536,12 @@ public theorem computableInTimeAndSpace_budgetedUniversal : ∃ c,
     rintro ⟨d, x, t, b⟩ i - j -
     have := length_eSSt_le' d x b t i j
     rw [length_encPair, encBool_apply, List.length_singleton]
-    dsimp only
-    omega
+    dsimp only; omega
   case refine_5 =>
     rintro ⟨d, x, t, b⟩ i -
     have h₁ := length_eSSt_le' d x b t i (inTr.events (eInS (d, x, t, b))).length
-    have h₂ := length_eSSt_le' d x b t (i + 1) 0
-    rw [streamState_zero] at h₂
+    have h₂ := streamState_zero _ foldNextS (inTr.events (eInS (d, x, t, b))) ▸
+      length_eSSt_le' d x b t (i + 1) 0
     have h₃ := Nat.pow_le_pow_left (Nat.add_le_add_right h₁ 1) 3
     have h₄ := Nat.pow_le_pow_left (Nat.add_le_add_right h₂ 1) 3
     have h₅ : budgetSpace (d, x, t, b) + 1 ≤ (budgetSpace (d, x, t, b) + 1) ^ 3 :=
@@ -555,8 +550,8 @@ public theorem computableInTimeAndSpace_budgetedUniversal : ∃ c,
   case refine_6 =>
     rintro ⟨d, x, t, b⟩ i -
     have h₁ := length_eSSt_le' d x b t i (inTr.events (eInS (d, x, t, b))).length
-    have h₂ := length_eSSt_le' d x b t (i + 1) 0
-    rw [streamState_zero] at h₂
+    have h₂ := streamState_zero _ foldNextS (inTr.events (eInS (d, x, t, b))) ▸
+      length_eSSt_le' d x b t (i + 1) 0
     omega
   case refine_7 => exact fun ⟨d, x, t, b⟩ i _ j _ => length_eSSt_le' d x b t i j
   case refine_8 =>

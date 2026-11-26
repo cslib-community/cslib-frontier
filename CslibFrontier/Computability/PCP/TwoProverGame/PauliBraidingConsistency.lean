@@ -301,15 +301,14 @@ private theorem oddExpect_pauliBraidingRoundDistances_le
       ENNReal.toReal_natCast, ← mul_sum] at h
     simpa only [← div_eq_inv_mul, Fintype.expect_eq_sum_div_card] using h
   dsimp only
+  have hmul (roles : Bool) :=
+    mul_le_mul_of_nonneg_left (hround roles) (a := density) (by positivity)
   cases basis
-  · exact ⟨(oddExpect_expect_eq_dens_mul _).trans_le
-      (mul_le_mul_of_nonneg_left (hround false) (by positivity)),
-      (oddExpect_expect_eq_dens_mul _).trans_le
-        (mul_le_mul_of_nonneg_left (hround true) (by positivity))⟩
-  · exact ⟨((oddExpect_swap _).symm.trans (oddExpect_expect_eq_dens_mul _)).trans_le
-      (mul_le_mul_of_nonneg_left (hround false) (by positivity)),
-      ((oddExpect_swap _).symm.trans (oddExpect_expect_eq_dens_mul _)).trans_le
-        (mul_le_mul_of_nonneg_left (hround true) (by positivity))⟩
+  · exact ⟨(oddExpect_expect_eq_dens_mul _).trans_le (hmul false),
+      (oddExpect_expect_eq_dens_mul _).trans_le (hmul true)⟩
+  · exact ⟨(oddExpect_swap _).symm.trans_le
+      ((oddExpect_expect_eq_dens_mul _).trans_le (hmul false)),
+      (oddExpect_swap _).symm.trans_le ((oddExpect_expect_eq_dens_mul _).trans_le (hmul true))⟩
 
 /-- The combined verifier's consistency rejection controls the uniform average of the
 squared distance of the two averaged basis observables over the nonzero strings. The
@@ -405,8 +404,7 @@ theorem weighted_expect_norm_pauliBraidingAverage_sub_special_sq_le [Module ℚ�
   have hvar : density * (𝔼 p, S.state.norm (point p - avg p) ^ 2) ≤ 960 * density * δ := by
     have h := oddExpect_norm_pauliBraidingBasisObservable_sub_average_sq_le
       G special decode roles basis S
-    let f (x y : Fin n → Bool) := S.state.norm (a x y - (𝔼 z, a x z)) ^ 2
-    change oddExpect f ≤ _ at h
+    dsimp only at h
     cases basis
     · rwa [oddExpect_eq_dens_mul_expect] at h
     · rwa [← oddExpect_swap, oddExpect_eq_dens_mul_expect] at h
@@ -418,13 +416,10 @@ theorem weighted_expect_norm_pauliBraidingAverage_sub_special_sq_le [Module ℚ�
     simp only [Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
       ENNReal.toReal_natCast, ← mul_sum] at h
     rw [Fintype.expect_eq_sum_div_card, div_eq_inv_mul]
-    refine le_trans ?_ h
-    refine mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left ?_ (by positivity))
-      ENNReal.toReal_nonneg
-    refine sum_le_sum fun p _ => ?_
-    cases roles
-    · cases basis <;> exact le_rfl
-    · cases basis <;> exact (congrArg (· ^ 2) (S.state.norm_sub_comm (point p) (b p))).le
+    refine (mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left (sum_le_sum fun p _ => ?_)
+      (by positivity)) ENNReal.toReal_nonneg).trans h
+    cases roles <;> cases basis <;>
+      first | exact le_rfl | exact (congrArg (· ^ 2) (S.state.norm_sub_comm (point p) (b p))).le
   have htri : (𝔼 p, S.state.norm (avg p - b p) ^ 2) ≤
       2 * (𝔼 p, S.state.norm (point p - avg p) ^ 2) +
       2 * (𝔼 p, S.state.norm (point p - b p) ^ 2) := by

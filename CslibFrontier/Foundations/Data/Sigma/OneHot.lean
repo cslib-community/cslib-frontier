@@ -42,25 +42,20 @@ variable {D : Type*} {E : D → Type*} [∀ d, DecidableEq (E d)]
 
 theorem oneHot_injective : Function.Injective (oneHot (E := E)) := by
   intro g g' h
-  funext d
-  have := congrFun h ⟨d, g d⟩
-  simp only [oneHot_apply, decide_true] at this
-  exact (of_decide_eq_true this.symm).symm
+  refine funext fun d => Eq.symm ?_
+  simpa only [oneHot_apply, decide_true, decide_eq_true_eq] using (congrFun h ⟨d, g d⟩).symm
 
 /-- A family of bits is a one-hot encoding exactly when every point has one set bit. -/
 theorem exists_oneHot_eq_iff (a : (Σ d, E d) → Bool) :
     (∃ g, oneHot g = a) ↔ ∀ d, ∃! e, a ⟨d, e⟩ = true := by
-  constructor
+  refine ⟨?_, fun h => ?_⟩
   · rintro ⟨g, rfl⟩ d
     exact ⟨g d, by simp, fun e he => by simpa [eq_comm] using he⟩
-  · intro h
-    choose g hg hu using h
+  · choose g hg hu using h
     refine ⟨g, funext fun ⟨d, e⟩ => ?_⟩
     rw [oneHot_apply]
-    by_cases he : a ⟨d, e⟩ = true
-    · obtain rfl := hu d e he
-      simp [hg d]
-    · have : g d ≠ e := fun h' => he (h' ▸ hg d)
-      simp [this, Bool.eq_false_iff.2 he]
+    cases he : a ⟨d, e⟩
+    · exact decide_eq_false fun h' => Bool.false_ne_true (he.symm.trans (h' ▸ hg d))
+    · exact decide_eq_true (hu d e he).symm
 
 end Pi

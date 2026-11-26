@@ -133,9 +133,8 @@ private theorem snd_tr_mem (h : 1 ≤ ℓ * s) (w : Wire n g) :
     lowDegree ℝ (Fin n) ((ℓ * s) ^ P.wireDepths w)) (fun i => ?_) (fun k ih => ?_) w
   · simp only [Program.wireDepths_input, pow_zero]
     exact bitVal_mem_lowDegree i
-  · rw [Program.wireDepths_gateWire,
-      show P.depths k = (P.depths k - 1) + 1 by have := P.depths_pos k; omega, pow_succ',
-      show (tr ℓ s ν P (.gate k)).2 = _ from funext (snd_tr_gate ℓ s ν P k)]
+  · rw [Program.wireDepths_gateWire, ← Nat.sub_add_cancel (P.depths_pos k), pow_succ',
+      funext (snd_tr_gate ℓ s ν P k)]
     simpa only [Fintype.card_fin] using
       gateApprox_mem_lowDegree (by simpa only [Fintype.card_fin] using h) (P.lines k).op
         (sets ℓ s ν P k) (D := (ℓ * s) ^ (P.depths k - 1)) fun a =>
@@ -266,14 +265,13 @@ private theorem eval_andMissFormula (S : Fin t → Fin K → Bool) (w : Fin K �
     unfold clause
     split_ifs with hS
     · simp only [Formula.eval_gate, Unbounded.interpretation_or, decide_eq_true_eq]
-      constructor
+      refine ⟨?_, fun h => ?_⟩
       · rintro ⟨j', hj'⟩ ⟨-, hz⟩
         split_ifs at hj' with hjj hS'
         · simp_all
         · exact ⟨j', ⟨hS', (eval_lit ..).1 hj'⟩, hjj⟩
         · simp at hj'
-      · intro h
-        by_cases hz : y (w j) = pol
+      · by_cases hz : y (w j) = pol
         · obtain ⟨j', ⟨hS', hy'⟩, hne⟩ := h ⟨hS, hz⟩
           exact ⟨j', by simp [hne, hS', hy']⟩
         · exact ⟨j, by cases pol <;> cases h' : y (w j) <;> simp_all⟩
@@ -388,11 +386,8 @@ theorem exists_lowDegree_approx (ν : PMF (BitString n)) {ℓ s r : ℕ} (hℓs 
     simp only [circuit_simps, W, wf, Unbounded.interpretation_or, decide_eq_true_eq]
     refine exists_congr fun k => ?_
     split_ifs with hk
-    · have harg : (fun a => Cw.eval Unbounded.interpretation x (e ((P.lines k).wires a))) =
-          args ℓ s ν P k x := funext fun a =>
-        (hCw_eval x _ (by have := P.wireDepths_lines_lt k a; omega)).trans
-          (fst_tr ℓ s ν P _ x).symm
-      simp only [eval_missFormula, decide_eq_true_iff, harg, hk, true_and]
+    · simp only [eval_missFormula, decide_eq_true_iff, hk, true_and, funext fun a =>
+        (hCw_eval x _ ((P.wireDepths_lines_lt k a).le.trans hk)).trans (fst_tr ℓ s ν P _ x).symm]
     · simp [hk]
   refine ⟨(tr ℓ s ν P (C.outputs 0)).2,
     lowDegree_mono (Nat.pow_le_pow_right h1 (C.outputDepths_le_depth 0)) (snd_tr_mem ℓ s ν P h1 _),

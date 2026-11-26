@@ -477,12 +477,10 @@ theorem isPureNash_optOut_iff (hε : 0 < ε) (s : Fin k → Bool) :
     rw [optOut_cost (Function.update s j true), Function.update_self, ite_eq_left rfl] at hdev
     linarith
   · rintro rfl i (_ | _)
-    · rw [optOut_cost, optOut_cost, Function.update_self]
-      simp only [Bool.false_eq_true, ↓reduceIte]
+    · simp only [optOut_cost, Function.update_self, Bool.false_eq_true, ↓reduceIte]
       have hflt : (Finset.univ.filter fun j =>
-          Function.update (fun _ : Fin k => true) i false j = false) = {i} := by
-        ext j
-        by_cases hji : j = i <;> simp [hji]
+          Function.update (fun _ : Fin k => true) i false j = false) = {i} :=
+        Finset.ext fun j => by simp [Function.update_apply]
       rw [hflt, Finset.card_singleton, Nat.cast_one, div_one, div_le_iff₀ (by positivity)]
       nlinarith [Nat.cast_nonneg (α := ℝ) i]
     · rw [Function.update_eq_self]
@@ -490,12 +488,9 @@ theorem isPureNash_optOut_iff (hε : 0 < ε) (s : Fin k → Bool) :
 /-- In the opt-out game, the profile in which every player opts out has social cost `H k`. -/
 theorem socialCost_optOut_true :
     (optOut k ε).toCostGame.socialCost (fun _ => true) = harmonic k := by
-  have h (i : Fin k) : (optOut k ε).toCostGame.cost i (fun _ => true) = 1 / ((i : ℕ) + 1 : ℝ) := by
-    simp [optOut_cost]
   unfold CostGame.socialCost
-  rw [Finset.sum_congr rfl fun i _ => h i,
-    Fin.sum_univ_eq_sum_range (fun i : ℕ => 1 / ((i : ℝ) + 1)), cast_harmonic]
-  simp only [one_div]
+  simp only [optOut_cost, ↓reduceIte, one_div]
+  rw [Fin.sum_univ_eq_sum_range (fun i : ℕ => ((i : ℝ) + 1)⁻¹), ← cast_harmonic]
 
 /-- In the opt-out game with `k ≥ 1` players, the profile in which every player shares has social
 cost `1 + ε`. -/

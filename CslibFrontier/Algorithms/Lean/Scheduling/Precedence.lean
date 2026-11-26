@@ -116,10 +116,8 @@ theorem sum_card_running (p s : J → ℕ) :
   have hfilter : (range (makespan p s)).filter (fun t => s j ≤ t ∧ t < s j + p j) =
       Ico (s j) (s j + p j) := by
     ext t
-    simp only [mem_filter, mem_range, mem_Ico]
-    omega
-  rw [← card_filter, hfilter, Nat.card_Ico]
-  omega
+    simp only [mem_filter, mem_range, mem_Ico]; omega
+  rw [← card_filter, hfilter, Nat.card_Ico]; omega
 
 omit [Fintype J] in
 /-- A set of slots each covered by a job of a list `c` has at most `∑ j ∈ c, p j` elements. -/
@@ -353,11 +351,8 @@ private theorem GreedyInv.step {m : ℕ} {p : J → ℕ} {N : ℕ} {D : Finset J
       omega
     · rw [mem_running]
       rcases mem_union.mp hj with hj | hj
-      · rw [hs'D j (mem_inter.mp hj).2]
-        exact mem_running.mp (mem_inter.mp hj).1
-      · rw [hs'A j hj]
-        have := hp j
-        omega
+      · exact hs'D j (mem_inter.mp hj).2 ▸ mem_running.mp (mem_inter.mp hj).1
+      · exact hs'A j hj ▸ ⟨le_rfl, Nat.lt_add_of_pos_right (hp j)⟩
   -- If slot `N` is not full, every ready job was placed.
   have hAR_eq : #(running p s' N) < m → A = R := fun hlt => by
     rw [hrunN, card_union_of_disjoint hdisj] at hlt
@@ -394,22 +389,15 @@ private theorem GreedyInv.step {m : ℕ} {p : J → ℕ} {N : ℕ} {D : Finset J
     · rw [hrun_lt t ht] at hm
       have htj' : t < s j := if hj : j ∈ D then hs'D j hj ▸ htj else (hs'N j hj).1 ▸ ht
       obtain ⟨i, hij, hi⟩ := h.ready t ht j hm htj'
-      refine ⟨i, hij, ?_⟩
-      by_cases hiD : i ∈ D
-      · rwa [hs'D i hiD]
-      · have := hs'N i hiD
-        omega
+      exact ⟨i, hij, if hiD : i ∈ D then hs'D i hiD ▸ hi
+        else lt_of_lt_of_le ht (Nat.le_add_right_of_le (hs'N i hiD).2)⟩
     · have hjD : j ∉ D := fun hjD => (h.lt_of_mem j hjD).not_ge (hs'D j hjD ▸ htj).le
       have hjA : j ∉ A := fun hjA => (hs'A j hjA ▸ htj).false
       have hjR : j ∉ R := hAR_eq hm ▸ hjA
       simp only [hR, mem_filter, mem_univ, true_and, not_and, not_forall] at hjR
       obtain ⟨i, hij, hi⟩ := hjR hjD
-      refine ⟨i, hij, ?_⟩
-      by_cases hiD : i ∈ D
-      · exact hs'D i hiD ▸ not_le.mp (hi hiD)
-      · have := hp i
-        have := hs'N i hiD
-        omega
+      exact ⟨i, hij, if hiD : i ∈ D then hs'D i hiD ▸ not_le.mp (hi hiD)
+        else lt_of_le_of_lt (hs'N i hiD).2 (Nat.lt_add_of_pos_right (hp i))⟩
   · intro t ht hDA
     have hD : D ≠ univ := fun hD =>
       hDA (eq_univ_iff_forall.mpr fun x => mem_union_left _ (hD ▸ mem_univ x))

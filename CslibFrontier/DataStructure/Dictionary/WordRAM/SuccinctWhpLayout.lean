@@ -1027,28 +1027,19 @@ theorem hashEnvs_of_large {base c U V w n_max : ℕ}
   have hn_lt_w : n_max < 2 ^ w := hnU.trans_lt hU
   have htop_lt : BitPackedDoubleTabulation.topEntries (cTabWhp c) (dTabWhp c) (bCharWhp n_max) <
       2 ^ w := htop_le.trans_lt hn_lt_w
-  have hbot_le : BitPackedDoubleTabulation.botEntries (dTabWhp c) (bCharWhp n_max) ≤
-      BitPackedDoubleTabulation.topEntries (cTabWhp c) (dTabWhp c) (bCharWhp n_max) := by
-    dsimp only [BitPackedDoubleTabulation.botEntries, BitPackedDoubleTabulation.topEntries]
-    have : dTabWhp c ≤ (cTabWhp c + 1) * dTabWhp c := Nat.le_mul_of_pos_left _ (by omega)
-    exact Nat.mul_le_mul_right _ this
   have hbot_lt : BitPackedDoubleTabulation.botEntries (dTabWhp c) (bCharWhp n_max) < 2 ^ w :=
-    hbot_le.trans_lt htop_lt
+    (Nat.mul_le_mul_right _ (Nat.le_mul_of_pos_left _ (Nat.succ_pos _))).trans_lt htop_lt
   have hc1_lt : cTabWhp c + 1 < 2 ^ w := by
-    refine (?_ : cTabWhp c + 1 ≤
-      BitPackedDoubleTabulation.topEntries (cTabWhp c) (dTabWhp c)
-        (bCharWhp n_max)).trans_lt htop_lt
-    dsimp only [BitPackedDoubleTabulation.topEntries]
-    rw [mul_assoc]
-    exact Nat.le_mul_of_pos_right _ (Nat.mul_pos (dTabWhp_pos c) (Nat.two_pow_pos _))
+    refine (?_ : _ ≤ BitPackedDoubleTabulation.topEntries _ _ _).trans_lt htop_lt
+    simpa only [BitPackedDoubleTabulation.topEntries, mul_assoc] using
+      Nat.le_mul_of_pos_right (cTabWhp c + 1) (Nat.mul_pos (dTabWhp_pos c) (Nat.two_pow_pos _))
   have hd_lt : dTabWhp c < 2 ^ w :=
     (Nat.le_mul_of_pos_right _ (Nat.two_pow_pos _)).trans_lt hbot_lt
   have hfit1 : Fits w ((base + offHashBkt) + bktHashWords c w n_max) :=
     hfit.of_le (by dsimp only [largeSpaceWhp, offHashBkt, bktHashWords]; omega)
-  have hfit2 : Fits w ((base + offHashFp c w n_max) + fpHashWords c w n_max) := by
-    refine hfit.of_le ?_
-    dsimp only [largeSpaceWhp, offHashFp, offHashBkt, bktHashWords, fpHashWords]
-    omega
+  have hfit2 : Fits w ((base + offHashFp c w n_max) + fpHashWords c w n_max) :=
+    hfit.of_le (by
+      dsimp only [largeSpaceWhp, offHashFp, offHashBkt, bktHashWords, fpHashWords]; omega)
   exact ⟨⟨w0Whp U, rRedWhp c n_max, cTabWhp c, dTabWhp c, bCharWhp n_max, bWhp n_max,
       hw, w0Whp_pos U, w0Whp_le_w hw hU, hbc_lt, hb_le, htop_lt, hbot_lt, hc1_lt, hd_lt,
       hfit1, rfl⟩,
@@ -1106,8 +1097,7 @@ theorem fits_mkWhpParams {base c U V w n_max : ℕ}
       all_goals
         try dsimp only [offSmallVals, offSmallKeys, offSmallPres]
         exact hfit.of_le (by omega)
-    · dsimp only [mkWhpParams, wpHash1, wpHash2]
-      rw [ite_eq_left hsm]
+    · rw [mkWhpParams, ite_eq_left hsm]
       exact ⟨h0_fit, h0_fit⟩
   · have hth : whpThreshold c ≤ n_max := Nat.le_of_not_lt hsm
     obtain ⟨henv1, henv2⟩ := hashEnvs_of_large hw hth hnU hU hfit
@@ -1198,8 +1188,7 @@ theorem fits_mkWhpParams {base c U V w n_max : ℕ}
       · exact (by unfold nodeMetaBitsWhp; omega : nodeMetaBitsWhp n_max < w).trans hw_lt
       · exact hns_lt.trans hn_lt
       all_goals exact hfit.of_le (by omega)
-    · dsimp only [mkWhpParams]
-      rw [ite_eq_right hsm]
+    · rw [mkWhpParams, ite_eq_right hsm]
       exact ⟨BitPackedDoubleTabulation.fits_mkHashParams henv1 j,
         BitPackedDoubleTabulation.fits_mkHashParams henv2 j⟩
 

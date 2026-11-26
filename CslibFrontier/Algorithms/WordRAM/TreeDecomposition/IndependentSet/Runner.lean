@@ -192,8 +192,7 @@ theorem runMWISProg_spec {w : ℕ} (inst : MWISInstance)
     change (Memory.spec 0).clientResult s₂ (Memory.read descBase >>= _) = inst.result
     iterate 4 rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res]
     rw [hr_rp]
-    dsimp only [rpArgs, MWISInstance.result]
-    rw [h0_pow]
+    exact congrArg _ h0_pow
   · unfold runMWISProg
     dsimp only
     rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, hm1,
@@ -230,9 +229,8 @@ private theorem runMWISProg_init_helper {w : ℕ} (inst : MWISInstance)
       (2 * inst.numNodes + 1) * 2 ^ inst.maxBagLen :=
     Nat.mul_le_mul_right _ (by omega)
   have hfit_init_peak : Fits w ((Memory.State.init inst.encode).frontier +
-      4 * (inst.numNodes + 1) + (inst.numNodes + 1) * 2 ^ inst.maxBagLen) := hw.of_le (by
-    rw [hfr₀]
-    simp only [MWISInstance.wordBound]; omega)
+      4 * (inst.numNodes + 1) + (inst.numNodes + 1) * 2 ^ inst.maxBagLen) :=
+    hw.of_le (by simp only [hfr₀, MWISInstance.wordBound]; omega)
   have hfit_raw : Fits w (Memory.State.init inst.encode).frontier := hfit_init_peak.of_le (by omega)
   obtain ⟨_, hdesc_eq, hfr₁, hlay₁, _⟩ :=
     initNodesProg_spec (w := w) inst hwt₀ hadj₀ hpar₀ hbags₀ hfit_init_peak hfit_raw
@@ -258,9 +256,7 @@ theorem runMWISProg_realizes :
         (2 * inst.numNodes + 1) * 2 ^ inst.maxBagLen := Nat.mul_le_mul_right _ (by omega)
     exact ⟨inst.bags, inst.maxBagLen, inst.bags_len,
       fun B hB => List.mem_le_foldl_max (List.mem_map_of_mem hB), hbags₀,
-      hw.of_le (by
-        rw [hfr₀]
-        simp only [MWISInstance.wordBound]; omega)⟩
+      hw.of_le (by simp only [hfr₀, MWISInstance.wordBound]; omega)⟩
   · obtain ⟨_, hfr₁', hlay₁⟩ := runMWISProg_init_helper inst hw
     refine ⟨inst, fun i => List.replicate (2 ^ (inst.bagAt i).length) 0,
       rfl, rfl, rfl, rfl, hlay₁, prefixMaxSum_replicate_zero _ _, hw.of_le ?_,
@@ -320,9 +316,7 @@ theorem runMWISProg_realizes :
       hw.of_le (by have := inst.adjMatrix_len ▸ hlay₂.adj_holds.1; omega),
       hw.of_le (by have := inst.weights_len ▸ hlay₂.wt_holds.1; omega),
       hw.of_le (by have := h0_len ▸ h0_bag.1; omega),
-      hw.of_le (by
-        have := h0_tbl.1
-        rw [h0_pow, ← h0_tlen]; omega),
+      hw.of_le ((h0_tlen.trans h0_pow.symm ▸ h0_tbl.1).trans hfr₂_bound),
       hfit_val⟩
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

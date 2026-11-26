@@ -371,8 +371,7 @@ comparison reaches directly. -/
 theorem rpow_add_rpow_le_rpow_add_rpow_rpow {p q ρ a b : ℝ} (hq : 0 < q) (hqp : q ≤ p)
     (hp : p ≤ 1) (hρ : ρ ^ 2 * (1 - q) ≤ 1 - p) (hb : |b| ≤ a) :
     ((a + b) ^ p + (a - b) ^ p) / 2 ≤ (((a + ρ * b) ^ q + (a - ρ * b) ^ q) / 2) ^ (p / q) := by
-  rcases (hqp.trans hp).lt_or_eq with hq1 | rfl
-  swap
+  rcases eq_or_lt_of_le (hqp.trans hp) with rfl | hq1
   · obtain rfl : p = 1 := le_antisymm hp hqp
     simp only [Real.rpow_one, div_one]
     linarith only []
@@ -382,15 +381,12 @@ theorem rpow_add_rpow_le_rpow_add_rpow_rpow {p q ρ a b : ℝ} (hq : 0 < q) (hqp
     (le_of_mul_le_mul_right (hρ.trans (by linarith only [hq, hqp, hp])) (by linarith only [hq1]))
   rcases ha0.eq_or_lt with rfl | ha
   · obtain rfl : b = 0 := abs_eq_zero.1 (le_antisymm hb (abs_nonneg b))
-    simp only [add_zero, sub_zero, mul_zero, Real.zero_rpow hp0.ne', Real.zero_rpow hq.ne',
-      zero_div]
-    exact Real.rpow_nonneg le_rfl _
+    simp [Real.zero_rpow hp0.ne', Real.zero_rpow hq.ne', Real.rpow_nonneg]
   set t := b / a
   have hbt : b = a * t := by rw [mul_div_cancel₀ _ ha.ne']
-  have ht : |t| ≤ 1 := by rw [abs_div, abs_of_pos ha]; exact (div_le_one ha).2 hb
+  have ht : |t| ≤ 1 := by rwa [abs_div, abs_of_pos ha, div_le_one ha]
   have ht' := abs_le.1 ht
-  have hρt := abs_le.1 (show |ρ * t| ≤ 1 by
-    rw [abs_mul]; exact (mul_le_of_le_one_left (abs_nonneg t) hρ1).trans ht)
+  have hρt := abs_le.1 ((abs_mul ρ t).symm ▸ (mul_le_of_le_one_left (abs_nonneg t) hρ1).trans ht)
   have key := one_add_rpow_add_one_sub_rpow_le_rpow hq hqp hp hq1 hρ ht
   have hE : 0 ≤ ((1 + ρ * t) ^ q + (1 - ρ * t) ^ q) / 2 := div_nonneg (add_nonneg
     (Real.rpow_nonneg (by linarith only [hρt.1]) q)
@@ -425,9 +421,8 @@ theorem lpNorm_le_lpNorm_noiseOp_of_unit {p q ρ : ℝ} (hq : 0 < q) (hqp : q �
     rcases (hqp.trans hp).lt_or_eq with hq1 | rfl
     · exact (le_div_iff₀ (by linarith only [hq1])).1 hρ2
     · simp only [sub_self, mul_zero]; linarith only [hp]
-  have hρ1 : ρ ≤ 1 :=
-    hρ'.trans (Real.sqrt_le_one.2
-      (div_le_one_of_le₀ (by linarith only [hqp]) (by linarith only [hqp, hp])))
+  have hρ1 : ρ ≤ 1 := hρ'.trans <| Real.sqrt_le_one.2 <|
+    div_le_one_of_le₀ (sub_le_sub_left hqp 1) (sub_nonneg.2 (hqp.trans hp))
   set A := f fun _ => false
   set B := f fun _ => true
   have hA : 0 ≤ A := hf _

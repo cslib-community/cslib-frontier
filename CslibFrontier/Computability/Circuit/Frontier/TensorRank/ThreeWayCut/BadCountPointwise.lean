@@ -62,8 +62,7 @@ private theorem integrable_badCount {Q : Multigraph W F} (hdeg : Q.MaxDegreeLE 3
       fun ω => ∑ e ∈ (Q.incidenceSet B).toFinset,
         if ¬inOpenSector (blockColor Q q R ω B) (edgeVec2 Q q R ω e) then (1 : ℝ) else 0 := by
     funext ω
-    unfold badCount
-    rw [toFinset_eq_of_fintype (Q.incidenceSet B) _, Finset.card_filter, Nat.cast_sum]
+    rw [badCount, toFinset_eq_of_fintype (Q.incidenceSet B) _, Finset.card_filter, Nat.cast_sum]
     exact Finset.sum_congr rfl fun e _ => by split_ifs <;> simp
   have hm_bad : Measurable (fun ω : W → BlockSample => (badCount Q q R ω B : ℝ)) := by
     rw [hfn]
@@ -119,9 +118,7 @@ private theorem four_mul_badCount_le [Fintype F] {Q : Multigraph W F} {q : ℝ} 
   have hne {i j : Fin 3} {x y : F} (hx : inOpenSector i (z x)) (hy : inOpenSector j (z y))
       (hij : i ≠ j) : x ≠ y := by
     rintro rfl; exact hij (inOpenSector_unique hx hy)
-  have hs_card : s.card = 3 := by
-    dsimp only [s]
-    rw [Finset.card_insert_of_notMem (by simp [h01, h02]), Finset.card_pair h12]
+  have hs_card : s.card = 3 := Finset.card_eq_three.2 ⟨e₀, e₁, e₂, h01, h02, h12, rfl⟩
   have hs_eq {x y w : F} (hx : x ∈ s) (hy : y ∈ s) (hw : w ∈ s) (hxy : x ≠ y) (hyw : y ≠ w)
       (hxw : x ≠ w) : s = {x, y, w} :=
     (Finset.eq_of_subset_of_card_le (by simp [Finset.insert_subset_iff, hx, hy, hw]) (by
@@ -136,9 +133,7 @@ private theorem four_mul_badCount_le [Fintype F] {Q : Multigraph W F} {q : ℝ} 
       Finset.sum_pair, fn_swap y x, fn_swap w y, fn_swap x w]
     · ring
     all_goals simp [hxy, hyw, hwx, hxy.symm, hyw.symm, hwx.symm]
-  have he₀ : e₀ ∈ s := by simp [s]
-  have he₁ : e₁ ∈ s := by simp [s]
-  have he₂ : e₂ ∈ s := by simp [s]
+  obtain ⟨he₀, he₁, he₂⟩ : e₀ ∈ s ∧ e₁ ∈ s ∧ e₂ ∈ s := by simp [s]
   obtain ⟨s₀, hs₀⟩ := exists_inOpenSector_of_ne_zero (hray e₀ he₀)
   obtain ⟨s₁, hs₁⟩ := exists_inOpenSector_of_ne_zero (hray e₁ he₁)
   obtain ⟨s₂, hs₂⟩ := exists_inOpenSector_of_ne_zero (hray e₂ he₂)
@@ -192,8 +187,7 @@ private theorem four_mul_badCount_le [Fintype F] {Q : Multigraph W F} {q : ℝ} 
         rw [hcnt3, hsec_eq]
         exact (Finset.card_lt_card (Finset.filter_ssubset.mpr
           ⟨e₀, he₀, fun h => hc' (inOpenSector_unique h hs₀)⟩)).trans_eq hs_card
-      rw [hcol, hcnt3] at hbad_compl
-      omega
+      rw [hcol, hcnt3] at hbad_compl; omega
     · exact (case_two_one he₀ he₁ he₂ h01 h02 h12 hs02 hs₀ hs₁ hs₂).trans (Nat.le_add_right _ _)
   · by_cases hs02 : s₀ = s₂
     · subst hs02
@@ -252,13 +246,12 @@ private theorem four_mul_badCount_le [Fintype F] {Q : Multigraph W F} {q : ℝ} 
           · linarith [hsum_s fun _ => 1]
           · rw [hsum_s fun e => (z e).1, hx']
           · rw [hsum_s fun e => (z e).2, hy']
-        · rcases lt_or_gt_of_ne hd01 with hn | hp0
-          · have := hr0_2 hn; omega
-          rcases lt_or_gt_of_ne hd12 with hn | hp1
-          · have := hr1_2 hn; omega
-          rcases lt_or_gt_of_ne hd20 with hn | hp2
-          · have := hr2_2 hn; omega
-          exact absurd ⟨hp0, hp1, hp2⟩ hall_pos
+        · refine le_trans ?_ (Nat.le_add_right _ _)
+          by_contra hgt
+          exact hall_pos
+            ⟨(lt_or_gt_of_ne hd01).resolve_left fun h => by have := hr0_2 h; omega,
+             (lt_or_gt_of_ne hd12).resolve_left fun h => by have := hr1_2 h; omega,
+             (lt_or_gt_of_ne hd20).resolve_left fun h => by have := hr2_2 h; omega⟩
 
 
 open Classical in
@@ -275,19 +268,16 @@ private theorem sum_cutAny_le_sum_badCount [Fintype F] {Q : Multigraph W F}
           then 1 else 0)) := by
     rw [Finset.card_filter]
     refine Finset.sum_le_sum fun e _ => ?_
-    by_cases hcut : ω ∈ cutAnyEvent Q q R e
-    · by_cases hs : inOpenSector (blockColor Q q R ω (Q.src e)) (edgeVec2 Q q R ω e)
-      · simp [hcut, hs, mt (inOpenSector_unique hs) hcut]
-      · simp [hcut, hs]
-    · simp [hcut]
+    split_ifs with hcut hs ht
+    all_goals try omega
+    exact absurd (inOpenSector_unique hs ht) hcut
   refine h1.trans ?_
   have hbad_sum : (∑ B : W, badCount Q q R ω B) =
       ∑ B : W, ∑ e : F,
         if (Q.src e = B ∨ Q.tgt e = B) ∧
             ¬inOpenSector (blockColor Q q R ω B) (edgeVec2 Q q R ω e) then 1 else 0 := by
     refine Finset.sum_congr rfl fun B _ => ?_
-    unfold badCount
-    rw [toFinset_eq_of_fintype (Q.incidenceSet B) _, ← Finset.card_filter]
+    rw [badCount, toFinset_eq_of_fintype (Q.incidenceSet B) _, ← Finset.card_filter]
     congr 1; ext e; simp [Multigraph.mem_incidenceSet]
   rw [hbad_sum, Finset.sum_comm]
   refine Finset.sum_le_sum fun e _ => ?_
@@ -296,8 +286,7 @@ private theorem sum_cutAny_le_sum_badCount [Fintype F] {Q : Multigraph W F}
       = ∑ B ∈ ({Q.src e, Q.tgt e} : Finset W),
           if (Q.src e = B ∨ Q.tgt e = B) ∧
             ¬inOpenSector (blockColor Q q R ω B) (edgeVec2 Q q R ω e) then 1 else 0 := by
-        rw [Finset.sum_pair (hloop e)]
-        simp
+        simp [Finset.sum_pair (hloop e)]
     _ ≤ ∑ B : W,
           if (Q.src e = B ∨ Q.tgt e = B) ∧
             ¬inOpenSector (blockColor Q q R ω B) (edgeVec2 Q q R ω e) then 1 else 0 :=

@@ -142,19 +142,13 @@ theorem evalBucketProd_cost {args : BucketProdArgs} {bucket : List (FactorTable 
     intro cur prod ⟨hf, hrest⟩ hmax_fs
     have hstep_cost : memoryCost (bucketProdStep (env, ⟨cur, prod⟩)) s ≤
         5 + maxScope * (args.outLen + 1) := by
-      unfold bucketProdStep
-      dsimp only [env]
-      rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read,
-        memoryCost_bind', memoryCost_read, clientState_read, clientResult_read,
-        memoryCost_bind', memoryCost_read, clientState_read, clientResult_read,
-        memoryCost_bind', memoryCost_read, clientState_read, clientResult_read,
-        memoryCost_bind', evalScopeIdx_state, memoryCost_bind']
       have hev := evalScopeIdx_cost ⟨args.dom, args.x, args.a, args.outPtr, args.outLen, args.idx,
         s.mem cur, s.mem (cur + 1)⟩ s
-      dsimp only at hev
-      have hsc_le : s.mem (cur + 1) * (args.outLen + 1) ≤ maxScope * (args.outLen + 1) := by
-        rw [hf.2.1]
-        exact Nat.mul_le_mul_right _ (hmax_fs f (List.mem_cons_self ..))
+      have hsc_le : s.mem (cur + 1) * (args.outLen + 1) ≤ maxScope * (args.outLen + 1) :=
+        hf.2.1 ▸ Nat.mul_le_mul_right _ (hmax_fs f (List.mem_cons_self ..))
+      dsimp only [bucketProdStep, env] at hev ⊢
+      repeat rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read]
+      rw [memoryCost_bind', evalScopeIdx_state, memoryCost_bind']
       split_ifs <;> simp only [memoryCost_read, memoryCost_pure] <;> omega
     rw [List.length_cons, iterate, memoryCost_bind', bucketProdStep_state, bucketProdStep_result]
     refine (Nat.add_le_add hstep_cost
@@ -180,26 +174,18 @@ theorem evalBucketProd_valid {w : ℕ} {args : BucketProdArgs}
   | nil => intro _ _ _; exact validHistory_pure w s _
   | cons f rest ih =>
     intro cur prod ⟨⟨hd, hsl, hel, hsc, hent⟩, hrest⟩
-    have hstep : (Memory.spec w).ValidHistory s
-        ((Memory.spec w).clientHistory s (bucketProdStep (env, ⟨cur, prod⟩))) := by
-      unfold bucketProdStep
-      dsimp only [env]
-      refine validHistory_read_bind (by omega) ?_
-      refine validHistory_read_bind (by omega) ?_
-      refine validHistory_read_bind (by omega) ?_
-      refine validHistory_read_bind (by omega) ?_
-      refine validHistory_bind_step
-        (evalScopeIdx_valid _ hout (by dsimp only; rw [hsl]; exact hsc.1)) ?_
-      rw [evalScopeIdx_state]
-      refine validHistory_bind_step ?_ (validHistory_pure w _ _)
-      split_ifs with hlt
-      · rw [hel] at hlt
-        have hent_le : s.mem (cur + 2) + f.entries.size ≤ s.frontier := by
-          simpa [Array.length_toList] using hent.1
-        exact validHistory_read (by omega)
-      · exact validHistory_pure w s _
     rw [List.length_cons, iterate, validHistory_bind', bucketProdStep_state, bucketProdStep_result]
-    exact ⟨hstep, ih (cur + 4) _ hrest⟩
+    refine ⟨?_, ih (cur + 4) _ hrest⟩
+    dsimp only [bucketProdStep, env]
+    refine validHistory_read_bind (by omega) (validHistory_read_bind (by omega)
+      (validHistory_read_bind (by omega) (validHistory_read_bind (by omega) ?_)))
+    refine validHistory_bind_step (evalScopeIdx_valid _ hout (hsl ▸ hsc.1)) ?_
+    rw [evalScopeIdx_state]
+    refine validHistory_bind_step ?_ (validHistory_pure w _ _)
+    split_ifs with hlt
+    · have hent_le : s.mem (cur + 2) + s.mem (cur + 3) ≤ s.frontier := hel ▸ hent.1
+      exact validHistory_read (by omega)
+    · exact validHistory_pure w s _
 
 theorem evalBucketProd_result {args : BucketProdArgs} {outScope : List ℕ}
     {bucket : List (FactorTable ℕ ℕ)} {s : Memory.State}
@@ -231,8 +217,7 @@ theorem evalBucketProd_result {args : BucketProdArgs} {outScope : List ℕ}
         f.evalAt args.dom σ := by
       rw [hel, FactorTable.evalAt, Array.getD]
       split_ifs with hlt
-      · rw [hent.2.get _ (by simpa using hlt), Array.getElem_toList]
-        rfl
+      · exact (hent.2.get _ (Array.length_toList ▸ hlt)).trans (Array.getElem_toList _)
       · rfl
     dsimp only [env]
     rw [evalScopeIdx_result hout hout_len hsc.2 hsl.symm, hentry, ih (cur + 4) _ hrest,
@@ -262,38 +247,37 @@ theorem evalBucketProd_realizes :
       ⟨rfl, bucket, hblen, hbf, hmax, by simpa using hcapB⟩
     subst t
     dsimp only
-    rcases rem with _ | ⟨f, rem'⟩
-    · simp at hrem_len
-    simp only [List.length_cons, Nat.add_right_cancel_iff] at hrem_len
-    obtain ⟨hf, hrem'_holds⟩ := hrem_holds
-    have hent_le : ∀ fIdx,
-        (if fIdx < s.mem (st.curDesc + 3) then s.mem (s.mem (st.curDesc + 2) + fIdx) else 0) ≤
-          capFactor f := holdsFactor_read_entry_le hf
-    have hprod_cap : st.prod * capFactor f * (rem'.map capFactor).prod ≤ B := by
-      simpa [List.map_cons, List.prod_cons, Nat.mul_assoc] using hprod_le
-    have hprod_f : st.prod * capFactor f ≤ B :=
-      (Nat.le_mul_of_pos_right _ (List.one_le_prod_of_one_le (l := rem'.map capFactor)
-        (by simp [one_le_capFactor]))).trans hprod_cap
-    obtain ⟨hd, hsl, hel, hsc, hent⟩ := hf
-    have hpow_f : Fits w (d.dom ^ s.mem (st.curDesc + 1)) :=
-      hsl ▸ hdomPow.of_le (Nat.pow_le_pow_right hdom (hrem_max f (List.mem_cons_self ..)))
-    refine ⟨⟨hmem.frontier_fits.of_le (by omega), hmem.frontier_fits.of_le (by omega),
-      hmem.frontier_fits.of_le (by omega), ⟨hdom, ha, h1, hmem.frontier_fits.of_le hout,
-        hmem.frontier_fits.of_le (by rw [hsl]; exact hsc.1), hpow_f⟩, ?_⟩, ?_⟩
-    · rw [evalScopeIdx_state]
-      generalize (Memory.spec 0).clientResult s (evalScopeIdx _) = fIdx
-      have he := hent_le fIdx
-      split_ifs with hlt
-      · rw [ite_eq_left hlt] at he
-        have hent_sz : s.mem (st.curDesc + 2) + f.entries.size ≤ s.frontier := by
-          simpa [Array.length_toList] using hent.1
-        have hlt_sz : fIdx < f.entries.size := by simpa [hel] using hlt
-        exact ⟨hmem.frontier_fits.of_le (by omega), hmem.frontier_fits.of_le hd,
-          hB.of_le ((Nat.mul_le_mul_left st.prod he).trans hprod_f)⟩
-      · exact ⟨trivial, hmem.frontier_fits.of_le hd, Nat.mul_zero st.prod ▸ fits_zero w⟩
-    · rw [bucketProdStep_state, bucketProdStep_result]
-      exact ⟨rfl, rem', hrem_len, hrem'_holds, fun g hg => hrem_max g (List.mem_cons_of_mem f hg),
-        (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left st.prod (hent_le _))).trans hprod_cap⟩
+    cases rem with
+    | nil => simp at hrem_len
+    | cons f rem' =>
+      simp only [List.length_cons, Nat.add_right_cancel_iff] at hrem_len
+      obtain ⟨hf, hrem'_holds⟩ := hrem_holds
+      have hent_le := holdsFactor_read_entry_le hf
+      have hprod_cap : st.prod * capFactor f * (rem'.map capFactor).prod ≤ B := by
+        simpa [List.map_cons, List.prod_cons, Nat.mul_assoc] using hprod_le
+      have hprod_f : st.prod * capFactor f ≤ B :=
+        (Nat.le_mul_of_pos_right _ (List.one_le_prod_of_one_le (l := rem'.map capFactor)
+          (by simp [one_le_capFactor]))).trans hprod_cap
+      obtain ⟨hd, hsl, hel, hsc, hent⟩ := hf
+      have hpow_f : Fits w (d.dom ^ s.mem (st.curDesc + 1)) :=
+        hsl ▸ hdomPow.of_le (Nat.pow_le_pow_right hdom (hrem_max f (List.mem_cons_self ..)))
+      refine ⟨⟨hmem.frontier_fits.of_le (by omega), hmem.frontier_fits.of_le (by omega),
+        hmem.frontier_fits.of_le (by omega), ⟨hdom, ha, h1, hmem.frontier_fits.of_le hout,
+          hmem.frontier_fits.of_le (hsl ▸ hsc.1), hpow_f⟩, ?_⟩, ?_⟩
+      · rw [evalScopeIdx_state]
+        generalize (Memory.spec 0).clientResult s (evalScopeIdx _) = fIdx
+        have he := hent_le fIdx
+        split_ifs with hlt
+        · rw [ite_eq_left hlt] at he
+          have hent_sz : s.mem (st.curDesc + 2) + s.mem (st.curDesc + 3) ≤ s.frontier :=
+            hel ▸ hent.1
+          exact ⟨hmem.frontier_fits.of_le (by omega), hmem.frontier_fits.of_le hd,
+            hB.of_le ((Nat.mul_le_mul_left st.prod he).trans hprod_f)⟩
+        · exact ⟨trivial, hmem.frontier_fits.of_le hd, Nat.mul_zero st.prod ▸ fits_zero w⟩
+      · rw [bucketProdStep_state, bucketProdStep_result]
+        exact ⟨rfl, rem', hrem_len, hrem'_holds,
+          fun g hg => hrem_max g (List.mem_cons_of_mem f hg),
+          (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left st.prod (hent_le _))).trans hprod_cap⟩
 
 theorem evalBucketProd_le_cap {args : BucketProdArgs} {bucket : List (FactorTable ℕ ℕ)}
     {s : Memory.State} (hb : HoldsFactorList args.bucketPtr bucket s)

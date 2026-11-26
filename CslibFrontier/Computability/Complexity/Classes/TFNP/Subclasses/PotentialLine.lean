@@ -342,24 +342,22 @@ theorem endOfPotentialLineRel_of_violation {x : List Bool}
     endOfPotentialLineRel n P S V a x := by
   obtain ⟨hlen, h⟩ := h
   refine ⟨hlen, ?_⟩
-  by_cases hx : x = zeroVertex (n a)
-  · subst hx
-    rw [lineSourcePromise_potential_iff] at h
-    cases hout : hasPotentialOut n P S V a (zeroVertex (n a))
+  cases hout : hasPotentialOut n P S V a x
+  · rcases eq_or_ne x (zeroVertex (n a)) with rfl | hx
     · simp
-    · obtain ⟨hPS, -, -, hV⟩ := hasPotentialOut_eq_true_iff.mp hout
-      simp [hout, potentialPred_of_false (hasPotentialIn_zeroVertex n P S V a),
-        potentialSucc_of_true hout, potentialPred_of_true (hasPotentialIn_of_hasPotentialOut hout),
-        hPS, Nat.not_le.mpr hV] at h
-  · cases hin : hasPotentialIn n P S V a x <;> cases hout : hasPotentialOut n P S V a x
-    · simp [hx, potentialPred_of_false hin, potentialSucc_of_false hout] at h
-    · simp [hx]
-    · simp [hx]
-    · obtain ⟨hPS, -, -, hV⟩ := hasPotentialOut_eq_true_iff.mp hout
-      simp [hx, potentialPred_of_true hin, potentialSucc_of_true hout,
-        potentialSucc_of_true (hasPotentialOut_of_hasPotentialIn hin),
-        potentialPred_of_true (hasPotentialIn_of_hasPotentialOut hout),
-        hPS, (hasPotentialIn_eq_true_iff.mp hin).1, Nat.not_le.mpr hV] at h
+    · cases hin : hasPotentialIn n P S V a x <;>
+        simp_all [potentialPred_of_false, potentialSucc_of_false]
+  · obtain ⟨hPS, -, -, hV⟩ := hasPotentialOut_eq_true_iff.mp hout
+    rw [potentialSucc_of_true hout,
+      potentialPred_of_true (hasPotentialIn_of_hasPotentialOut hout)] at h
+    rcases eq_or_ne x (zeroVertex (n a)) with rfl | hx
+    · simp [lineSourcePromise_potential_iff, hout, hPS, Nat.not_le.mpr hV] at h
+    · cases hin : hasPotentialIn n P S V a x
+      · simp [hx]
+      · obtain ⟨hSP, -, -, -⟩ := hasPotentialIn_eq_true_iff.mp hin
+        simp [hx, potentialPred_of_true hin,
+          potentialSucc_of_true (hasPotentialOut_of_hasPotentialIn hin), hPS, hSP,
+          Nat.not_le.mpr hV] at h
 
 /-- **Pruned violations are sinks.** Every circuit-style sink violation of the pruned instance is a
 sink of the potential line, at the same vertex. -/
@@ -440,10 +438,9 @@ private theorem violation_of_properSource (hprom : LineSourcePromise n P S a)
   · simp only [Bool.and_eq_true, hasIn, decide_eq_true_eq] at hc
     obtain ⟨⟨hSP, hPu, -⟩, hV⟩ := hc
     exact ⟨hP u hlen, .inr (.inr (.inr ⟨by rwa [hSP], by rw [hSP], by rwa [hSP]⟩))⟩
-  · refine ⟨hlen, .inr (.inl ⟨fun hSP => ?_, hu⟩)⟩
+  · refine ⟨hlen, .inr (.inl ⟨fun hSP => hc ?_, hu⟩)⟩
     have hPu : P (a, u) ≠ u := fun hPu => hSu (by rwa [hPu] at hSP)
-    have hin' : hasIn n P S a u = true := by simp [hasIn, hSP, hPu, hu]
-    exact Bool.false_ne_true (hin ▸ hasPotentialIn_eq_true_iff.mpr ⟨hSP, hPu, hu, by grind⟩)
+    simpa [hasPotentialIn, hasIn, hSP, hPu, hu] using hin
 
 /-- **Ends yield circuit-style violations.** Every end `u` of the potential line yields the
 circuit-style violation `potentialLineBack (a, u)` of the raw instance. -/
@@ -819,8 +816,7 @@ private theorem length_soplNeighbor (hS : ∀ u, u.length = n a → (S (a, u)).l
     (hu : u.length = n a) : (soplNeighbor n P S V (a, u)).length = n a := by
   unfold soplNeighbor
   split_ifs
-  · exact length_potentialSucc hS hu
-  · exact length_zeroVertex _
+  exacts [length_potentialSucc hS hu, length_zeroVertex _]
 
 /-- Local optima of the simulating local-search family are sinks of the potential line. -/
 private theorem sinkOfPotentialLineRel_of_localOptRel {B : α → ℕ}
@@ -829,16 +825,15 @@ private theorem sinkOfPotentialLineRel_of_localOptRel {B : α → ℕ}
     (h : localOptRel n (soplNeighbor n P S V) (soplCost B n P S V) a u) :
     sinkOfPotentialLineRel n P S V a u := by
   obtain ⟨hlen, hle⟩ := h
-  by_cases hon : onPotentialLine n P S V (a, u) = true
+  cases hon : onPotentialLine n P S V (a, u)
+  · have hz : onPotentialLine n P S V (a, zeroVertex (n a)) = true := by simp [onPotentialLine]
+    simp only [soplCost, soplNeighbor, hon, Bool.false_eq_true, ↓reduceIte, hz] at hle; omega
   · refine ⟨hlen, Bool.eq_false_iff.mpr fun hout => ?_, by simpa [onPotentialLine] using hon⟩
     have hnext : onPotentialLine n P S V (a, S (a, u)) = true := by
       simp [onPotentialLine, hasPotentialIn_of_hasPotentialOut hout]
-    have hV := (hasPotentialOut_eq_true_iff.mp hout).2.2.2
+    obtain ⟨-, -, -, hV⟩ := hasPotentialOut_eq_true_iff.mp hout
     have hBS := hB _ (hS u hlen)
     simp only [soplCost, soplNeighbor, hon, ↓reduceIte, potentialSucc_of_true hout, hnext] at hle
-    omega
-  · have hz : onPotentialLine n P S V (a, zeroVertex (n a)) = true := by simp [onPotentialLine]
-    simp only [soplCost, soplNeighbor, hon, Bool.false_eq_true, ↓reduceIte, hz] at hle
     omega
 
 @[local fun_prop]

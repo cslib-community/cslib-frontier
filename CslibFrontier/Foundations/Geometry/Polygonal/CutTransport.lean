@@ -67,19 +67,16 @@ private theorem sourceSamples_ordered (p : Route) (S : Finset ℝ) (c : ℂ →�
     constructor
     · intro i _
       apply List.pairwise_map.mpr
-      have hc := (segmentCuts_sorted S
-        (c (p.point i.castSucc)) (c (p.point i.succ))).pairwise
-      exact (hc.sublist (List.dropLast_sublist _)).imp
-        (fun hab => by dsimp [sourcePosition]; linarith)
+      exact (((segmentCuts_sorted S (c (p.point i.castSucc))
+        (c (p.point i.succ))).pairwise).sublist (List.dropLast_sublist _)).imp
+        fun hab => by dsimp [sourcePosition]; linarith
     · apply (List.sortedLT_finRange p.segments).pairwise.imp
       intro i j hij x hx y hy
       obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hx
       obtain ⟨t, ht, rfl⟩ := List.mem_map.mp hy
       have hstep : (i.val : ℝ) + 1 ≤ j.val := by exact_mod_cast hij
-      have hs' := segmentCuts_dropLast_bounds hs
-      have ht' := segmentCuts_dropLast_bounds ht
       dsimp [sourcePosition]
-      linarith
+      linarith [segmentCuts_dropLast_bounds hs, segmentCuts_dropLast_bounds ht]
   · rintro x hx _ hy
     obtain ⟨i, _, ht⟩ := List.mem_flatMap.mp hx
     obtain ⟨t, hcut, rfl⟩ := List.mem_map.mp ht
@@ -188,18 +185,15 @@ private theorem sourceSamples_adjacent (p : Route) (S : Finset ℝ) (c : ℂ →
       exact ⟨i, k, by omega, rfl, rfl, rfl, rfl⟩
     · obtain ⟨k, hk, hi, hj⟩ := List.mem_consecutivePairs_iff_exists_getElem.mp hij
       have hji : j.val = i.val + 1 := by simp [← hi, ← hj, L]
-      rw [sourceBlock_last] at hx
-      rw [sourceBlock_head] at hy
-      subst hx hy
+      obtain rfl := hx.trans (sourceBlock_last p S c i)
+      obtain rfl := hy.trans (sourceBlock_head p S c j)
       let C := cuts S c (p.point i.castSucc) (p.point i.succ)
       have hlen := cuts_length_bounds S c (p.point i.castSucc) (p.point i.succ)
       have hend := final_cut_endpoint S c (p.point i.castSucc) (p.point i.succ)
       refine ⟨i, C.length - 2, by dsimp [C]; omega, rfl, ?_, rfl, ?_⟩
-      · rw [hend]
-        simp only [Route.eval, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one,
+      · simp only [C, hend, Route.eval, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one,
           (Fin.ext hji : j.castSucc = i.succ)]
-      · rw [hend]
-        simp only [sourcePosition, Route.position, hji, Nat.cast_add, Nat.cast_one]
+      · simp only [C, hend, sourcePosition, Route.position, hji, Nat.cast_add, Nat.cast_one]
         ring
   · rcases List.mem_cons.mp hxy with heq | hempty
     · have hlast : L.getLast hL = Fin.last p.bends :=
@@ -537,18 +531,16 @@ private theorem sourceSamples_piece (p : Route) (S : Finset ℝ)
         have hflat := List.flatMap_prefix_add_lt L f hj' hz
         have hq1 : prefLen + k + 1 = ((L.take j'.val).flatMap f).length + 0 := by
           simp only [j', hpref, add_zero]; omega
-        have hqlem : (sourceSamples p S c)[prefLen+k+1] =
+        have hqlem : (sourceSamples p S c)[prefLen + k + 1] =
             (f j')[0]'(by rw [← hhead]; exact hz) := by
-          have helem' : (sourceSamples p S c)[((L.take j'.val).flatMap f).length+0] =
-              (L.flatMap f)[((L.take j'.val).flatMap f).length+0] :=
-            List.getElem_append_left (bs := [(Fin.last p.bends,1)]) hflat
-          have heget := List.getElem_flatMap_prefix_add L f hj' hz
-          have hfinal := helem'.trans heget
-          simpa only [← hq1, hhead] using hfinal
-        rw [hqlem]
+          have helem' : (sourceSamples p S c)[((L.take j'.val).flatMap f).length + 0] =
+              (f L[j'.val])[0] :=
+            (List.getElem_append_left (bs := [(Fin.last p.bends, 1)]) hflat).trans
+              (List.getElem_flatMap_prefix_add L f hj' hz)
+          simpa only [← hq1, hhead] using helem'
         have hzero : (f j')[0]'(by rw [← hhead]; exact hz) = (j', 0) := by
           simpa only [List.head_eq_getElem] using sourceBlock_head p S c j'
-        rw [hzero, hfinish]
+        rw [hqlem, hzero, hfinish]
         simp only [Route.eval, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one]
         congr 1
       · have hjlast : j = Fin.last p.bends := Fin.ext <| by

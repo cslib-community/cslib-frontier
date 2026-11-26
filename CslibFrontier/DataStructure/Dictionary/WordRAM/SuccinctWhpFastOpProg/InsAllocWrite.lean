@@ -242,8 +242,7 @@ theorem realizes_fastInsertAllocGen :
   realize
   rcases d with ⟨⟨⟨cp, base⟩, b⟩, X⟩
   obtain ⟨c, U, V, w₀, n_max, fs, henv, rfl, hrep, hb, hX_tl, hcf_fn⟩ := h
-  have hw_eq := henv.2.2.1; subst hw_eq
-  have hth := henv.2.2.2.1
+  rcases henv.2.2 with ⟨rfl, hth, -⟩
   simp only [wp_large_capFront hth] at *
   have hcf : capFrontWhp n_max ≤ X := by omega
   obtain ⟨hpos, hle_ps, hp_lt⟩ := hcf_fn hcf
@@ -266,7 +265,6 @@ theorem fastInsertAllocGenProg_fastStep {c U V w n_max base b X : ℕ}
     FastStateStep base c U V w n_max θ (fastInsertAlloc n_max b X fs) s s' := by
   have hth := henv.2.2.2.1
   have hps_le := (large_index_bounds hth).2.2.2.1
-  dsimp only
   unfold fastInsertAllocGenProg fastInsertAlloc
   simp only [wp_large_capFront hth, pure_bind]
   by_cases hcf : capFrontWhp n_max ≤ X
@@ -274,9 +272,7 @@ theorem fastInsertAllocGenProg_fastStep {c U V w n_max base b X : ℕ}
     obtain ⟨hpos, hle_ps, hp_lt⟩ := hcf_fn hcf
     have hk : X - capFrontWhp n_max < capBackWhp n_max := by
       unfold totalLocalCoordsWhp at hX_tl; omega
-    set k := X - capFrontWhp n_max
     set top' := fs.poolFreeTop - 1
-    set pSlot := fs.poolFreeStack top'
     obtain ⟨ht_st, ht_res, ht_mc, ht_vp⟩ := readHdr_large_spec (c := c) (U := U) (V := V) (w := w)
       (n_max := n_max) (by decide) hrep.2.2.1
     obtain ⟨hp_st, hp_res, hp_mc, hp_vp⟩ :=
@@ -284,9 +280,8 @@ theorem fastInsertAllocGenProg_fastStep {c U V w n_max base b X : ℕ}
     obtain ⟨hwh_mc, hwh_vp, hwh_step⟩ := writeHdrProg_fastStep (hdrOff := hdrPoolFreeTop) henv
       (by decide) (henv.fits_of_le_n_max (by omega)) (by intro h; cases h) hseed hrep
       (val := top')
-    dsimp only [updateFastHdr] at hwh_step
     obtain ⟨hwb_mc, hwb_vp, hwb_step⟩ := writeBackPtrGenProg_fastStep henv hb hk
-      (by omega : pSlot ≤ n_max) hwh_step.2.1 hwh_step.2.2.1
+      (by omega : fs.poolFreeStack top' ≤ n_max) hwh_step.2.1 hwh_step.2.2.1
     obtain ⟨hwo_mc, hwo_vp, hwo_step⟩ := writePoolOwnerGenProg_fastStep henv hp_lt
       ((mul_add_lt_mul_bound hb hk).le.trans (large_index_bounds hth).1)
       hwb_step.2.1 hwb_step.2.2.1
@@ -367,7 +362,6 @@ theorem insWriteQVAtGenProg_fastStep {c U V w n_max base b X q_val v_val : ℕ}
     writeQuotGenProg_fastStep henv hps_lt hq_lt hseed hrep
   obtain ⟨hwv_mc, hwv_vp, hwv_step⟩ :=
     writeValGenProg_fastStep henv hps_lt hv_lt hwq_step.2.1 hwq_step.2.2.1
-  dsimp only
   unfold insWriteQVAtGenProg
   exact CostBoundedStep.elim (.bind ⟨hps_st, hps_res, hps_mc, hps_vp⟩ <|
     .bind ⟨rfl, rfl, hwq_mc.le, hwq_vp⟩ ⟨rfl, rfl, hwv_mc.le, hwv_vp⟩) (by omega)
@@ -659,7 +653,6 @@ theorem insFinishCollisionGenProg_fastStep {c U V w n_max base b X rKey : ℕ}
   obtain ⟨hbi_mc, hbi_vp, hbi_step⟩ :=
     bufInsertGenProg_fastStep henv hce hwc_step.2.1 hwc_step.2.2.1 hv_cur
       hna_cap hia_cap hb hX_tl (rKey := rKey)
-  dsimp only
   unfold insFinishCollisionGenProg
   simp only [pure_bind]
   exact CostBoundedStep.elim (.bind ⟨hep_st, hep_res, hep_mc.le, hep_vp⟩ <|
@@ -691,15 +684,13 @@ theorem insFinishDirectGenProg_fastStep {c U V w n_max base b X fp lIdx : ℕ}
         slices := Function.update fs.slices lIdx sl'
         liveInsCount := Function.update fs.liveInsCount b (fs.liveInsCount b + 1) } s s' := by
   subst hlIdx_eq
-  have hval_X := loc_lt_two_pow_valLaneBits hX_tl
   obtain ⟨hwc_mc, hwc_vp, hwc_step⟩ :=
     insWriteCntLocGenProg_fastStep henv hb hX_tl (by decide : 1 < 4) hseed hrep
   obtain ⟨hbi_mc, hbi_vp, hbi_step⟩ :=
     btreeInsertGenProg_fastStep henv hlIdx hlic
-      hwc_step.2.1 hwc_step.2.2.1 hv_l hfp_lt hval_X
+      hwc_step.2.1 hwc_step.2.2.1 hv_l hfp_lt (loc_lt_two_pow_valLaneBits hX_tl)
   obtain ⟨hic_mc, hic_vp, hic_step⟩ :=
     insIncLiveInsGenProg_fastStep henv hb (by exact hlic) hbi_step.2.1 hbi_step.2.2.1
-  dsimp only
   unfold insFinishDirectGenProg
   simp only [pure_bind]
   exact CostBoundedStep.elim (.bind ⟨rfl, rfl, hwc_mc, hwc_vp⟩ <|

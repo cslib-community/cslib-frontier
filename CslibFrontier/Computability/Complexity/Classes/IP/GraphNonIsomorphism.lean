@@ -108,9 +108,8 @@ theorem keyRank_injective (k : Fin n → ℕ) : Function.Injective (keyRank k) :
   by_contra hij
   rcases lt_trichotomy (k i) (k j) with hk | hk | hk
   · exact (keyRank_lt_keyRank k (Or.inl hk)).ne h
-  · rcases lt_or_gt_of_ne hij with hl | hl
-    · exact (keyRank_lt_keyRank k (Or.inr ⟨hk, hl⟩)).ne h
-    · exact (keyRank_lt_keyRank k (Or.inr ⟨hk.symm, hl⟩)).ne' h
+  · exact (lt_or_gt_of_ne hij).elim (fun hl => (keyRank_lt_keyRank k (Or.inr ⟨hk, hl⟩)).ne h)
+      fun hl => (keyRank_lt_keyRank k (Or.inr ⟨hk.symm, hl⟩)).ne' h
   · exact (keyRank_lt_keyRank k (Or.inl hk)).ne' h
 
 /-- Ordering positions by key, ties broken by position, as a permutation. -/
@@ -313,10 +312,8 @@ private theorem pow_succ_le_descFactorial_add (D n : ℕ) :
         have := Nat.mul_le_mul_left (n + 1) (Nat.descFactorial_le_pow D (n + 1))
         omega
       _ ≤ D.descFactorial (n + 2) + (n + 2) ^ 2 * D ^ (n + 1) := by
-        rw [Nat.add_assoc]
-        refine Nat.add_le_add_left ?_ _
-        rw [← Nat.add_mul]
-        exact Nat.mul_le_mul_right _ (by nlinarith)
+        rw [Nat.add_assoc, ← Nat.add_mul]
+        exact Nat.add_le_add_left (Nat.mul_le_mul_right _ (by nlinarith)) _
 
 open Classical in
 /-- **Birthday bound.** Among the functions from `Fin n` to a finite type with `D` elements, the
@@ -349,9 +346,8 @@ private theorem card_filter_not_injective_div_le (n : ℕ) :
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simp [Function.injective_of_subsingleton]
   let D := Fintype.card (BitString (keyWidth n))
-  have hclog : 16 * n * n ≤ D := by
-    rw [show D = 2 ^ keyWidth n by simp [D]]
-    exact Nat.le_pow_clog (by norm_num) _
+  have hD : D = 2 ^ keyWidth n := by simp [D]
+  have hclog : 16 * n * n ≤ D := hD.symm ▸ Nat.le_pow_clog one_lt_two _
   have key : (Finset.univ.filter fun R : Fin n → BitString (keyWidth n) =>
       ¬ Function.Injective R).card * 16 ≤ D ^ n := by
     refine Nat.le_of_mul_le_mul_right ?_ (Nat.mul_pos hn hn)

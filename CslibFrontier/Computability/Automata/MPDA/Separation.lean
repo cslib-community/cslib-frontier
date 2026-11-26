@@ -138,12 +138,10 @@ private theorem wellNested_of_replicate {c c' : Config 2 State Γ} {v : List (Le
       List.sum_append, List.sum_replicate, List.length_replicate, hx, hy, OpKind.net]
     split_ifs <;> simp
   · rintro ⟨i₁, i₂, p₁, p₂, z, hne, -, -, ⟨a₁, γ₁, h₁⟩, ⟨a₂, γ₂, h₂⟩, -⟩
-    have hstack : ∀ {i' : Fin 2} {t : ℕ} {l : Letter} {γ : Γ},
-        v[t]? = some (l, Op.push i' γ) → i' = i := by
-      intro i' t l γ ht
+    have hstack {i' : Fin 2} {t : ℕ} {l : Letter} {γ : Γ}
+        (ht : v[t]? = some (l, Op.push i' γ)) : i' = i := by
       have hk := hv _ (List.mem_of_getElem? ht)
-      have hmem : l ∈ v.map Prod.fst := List.mem_map.mpr ⟨_, List.mem_of_getElem? ht, rfl⟩
-      rw [hvp] at hmem
+      have hmem := hvp ▸ List.mem_map.mpr ⟨_, List.mem_of_getElem? ht, rfl⟩
       simp only [List.mem_append, List.mem_replicate] at hmem
       rcases hmem with ⟨-, rfl⟩ | ⟨-, rfl⟩
       · simpa [hx, Op.kind, eq_comm] using hk
@@ -342,8 +340,7 @@ private theorem extract_word (m : ℕ) (hm : 1 ≤ m) :
   obtain ⟨m, rfl⟩ : ∃ m', m = m' + 1 := ⟨m - 1, by omega⟩
   have hw : word (m + 1) = Letter.a :: ((List.replicate m .a ++ List.replicate (m + 1) .b ++
       (List.replicate m [Letter.c, .d]).flatten) ++ [.c, .d]) := by
-    rw [word, List.replicate_succ' (n := m) (a := [Letter.c, .d]), List.flatten_append]
-    simp [List.replicate_succ]
+    simp [word, List.replicate_succ' (n := m) (a := [Letter.c, .d]), List.replicate_succ]
   rw [hw, List.extract_eq_take_drop, List.drop_succ_cons, List.drop_zero,
     List.take_append_of_le_length (by simp; omega), List.take_of_length_le (by simp; omega)]
   simp
@@ -367,11 +364,9 @@ theorem not_scopeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
   have hkind := hM.kind_eq h
   have hlen : w.length = 4 * m := by rw [← List.length_map (f := Prod.fst), hw, length_word]
   -- The letter at each position.
-  have hlet : ∀ t : ℕ, (w.map Prod.fst)[t]? = (word m)[t]? := fun t => by rw [hw]
-  have hpos : ∀ {t : ℕ} {x : Letter}, (word m)[t]? = some x →
+  have hpos {t : ℕ} {x : Letter} (ht : (word m)[t]? = some x) :
       ∃ μ, w[t]? = some μ ∧ μ.1 = x ∧ μ.2.kind = kind x := by
-    intro t x ht
-    rw [← hlet, List.getElem?_map] at ht
+    rw [← hw, List.getElem?_map] at ht
     obtain ⟨μ, hμ, rfl⟩ := Option.map_eq_some_iff.mp ht
     exact ⟨μ, hμ, rfl, hkind μ (List.mem_of_getElem? hμ)⟩
   have hword_a (hm : 0 < m) : (word m)[0]? = some .a := by

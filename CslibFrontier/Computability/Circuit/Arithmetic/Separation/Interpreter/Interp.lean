@@ -103,11 +103,10 @@ theorem DW_none {w : List Bool} (h : decw w = none) : Ev θ DW (.cons DW.code (o
     cases b with
     | true => simp [decw] at h
     | false =>
-      simp only [decw, Option.map_eq_none_iff] at h
       exact Ev.ite_true_nil (.tl (.id _)) (by simp [ofBits]) (Ev.ite_false_nil (.hd (.tl (.id _)))
         (Ev.cons_nil_right (.quote _ _)
           (Ev.run_nil (.hd (.id _)) (.cons (.hd (.id _)) (.tl (.tl (.id _))))
-            (ev_hd_cons_ofTree_code (ih h)))))
+            (ev_hd_cons_ofTree_code (ih (by simpa [decw] using h))))))
 
 /-- Subtract 1 in a budget; the argument is (this program, (the name, the budget)). -/
 @[expose] def DC : Fm :=
@@ -191,22 +190,17 @@ theorem DC_none {t : Bt} {x : Tree} (h : Bt.dec x.path t = none) : Ev θ DC
     | nil => exact Ev.ite_false_nil (.hd (.tl (.id _))) (.fail _)
     | cons a b =>
       refine Ev.ite_true_nil (.hd (.tl (.id _))) (by simp) ?_
-      by_cases ha : a = .nil
-      · subst ha
-        simp only [path, ne_eq, not_true_eq_false, decide_false, Bt.dec, Option.map_eq_none_iff]
-            at h
-        exact Ev.ite_false_nil (.hd (.hd (.tl (.id _))))
+      rcases eq_or_ne a .nil with rfl | ha
+      · exact Ev.ite_false_nil (.hd (.hd (.tl (.id _))))
             (Ev.cons_nil_left (Ev.cons_nil_left (Ev.run_nil (.hd (.id _))
           (.cons (.hd (.id _)) (.cons (.tl (.hd (.tl (.id _)))) (.hd (.hd (.tl (.tl (.id _)))))))
-              (ev_hd_cons_ofTree_code (ihl h)))
+              (ev_hd_cons_ofTree_code (ihl (by simpa [path, Bt.dec] using h))))
           (Dt.tl (.hd (.tl (.tl (.id _)))))) (Dt.quote _ _))
-      · simp only [path, ne_eq, ha, not_false_eq_true, decide_true, Bt.dec, Option.map_eq_none_iff]
-          at h
-        exact Ev.ite_true_nil (.hd (.hd (.tl (.id _)))) (by simpa using ha)
+      · exact Ev.ite_true_nil (.hd (.hd (.tl (.id _)))) (by simpa using ha)
             (Ev.cons_nil_left (Ev.cons_nil_right
           (Dt.hd (.hd (.tl (.tl (.id _))))) (Ev.run_nil (.hd (.id _)) (.cons (.hd (.id _))
           (.cons (.tl (.hd (.tl (.id _)))) (.tl (.hd (.tl (.tl (.id _)))))))
-            (ev_hd_cons_ofTree_code (ihr h)))) (Dt.quote _ _))
+            (ev_hd_cons_ofTree_code (ihr (by simpa [path, Bt.dec, ha] using h))))) (Dt.quote _ _))
 
 /-- Check that a number is 0. -/
 @[expose] def AW : Fm := .ite (.tl .id)

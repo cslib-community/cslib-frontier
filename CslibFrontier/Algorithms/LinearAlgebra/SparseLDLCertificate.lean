@@ -283,8 +283,7 @@ private theorem getD_mulGo [Mul α] (C : List (List (ℕ × α))) :
     | zero =>
       simp only [mulGo, List.getD_cons_zero, h]
     | succ p =>
-      simp only [mulGo, List.getD_cons_succ]
-      exact getD_mulGo C rs (i + 1) _ _ (zget_step h) p
+      simpa only [mulGo, List.getD_cons_succ] using getD_mulGo C rs (i + 1) _ _ (zget_step h) p
 
 theorem length_sparseMul [Mul α] (B C : List (List (ℕ × α))) :
     (sparseMul B C).length = B.length := by
@@ -355,15 +354,11 @@ private theorem transGo_spec [Add α] [Zero α] [BEq α] [LawfulBEq α] (B : Lis
   | r :: rs, i, past, future, h, ht, p => by
     simp only [transGo, Bool.and_eq_true, List.all_eq_true, beq_iff_eq] at ht
     cases p with
-    | zero =>
-      intro e he
-      have := ht.1 e (by simpa using he)
-      rw [h] at this
-      simpa using this
+    | zero => exact fun e he => by simpa [h] using ht.1 e he
     | succ p =>
       intro e he
-      have := transGo_spec B rs (i + 1) _ _ (zget_step h) ht.2 p e (by simpa using he)
-      simpa [show i + (p + 1) = i + 1 + p by omega] using this
+      simpa [Nat.add_assoc, Nat.add_comm 1 p] using
+        transGo_spec B rs (i + 1) _ _ (zget_step h) ht.2 p e he
 
 /-- An accepted transpose check relates every entry of `A` to the transposed entry of `B`. -/
 theorem sparseGet_eq_of_isTransposeOf [AddMonoid α] [BEq α] [LawfulBEq α]
@@ -462,8 +457,7 @@ private theorem mem_flatten_of_mem_getD {β : Type*} {rows : List (List β)} {i 
   rw [List.getD_eq_getElem?_getD] at he
   rcases h : rows[i]? with _ | r
   · simp [h] at he
-  · rw [h, Option.getD_some] at he
-    exact List.mem_flatten.2 ⟨r, List.mem_of_getElem? h, he⟩
+  · exact List.mem_flatten.2 ⟨r, List.mem_of_getElem? h, by simpa [h] using he⟩
 
 /-- Scaling every row by a common multiple `s` of the denominators scales the matrix. -/
 theorem map_ofSparse_scaleSparse {m n s : ℕ} {rows : List (List (ℕ × ℚ))}
@@ -492,11 +486,7 @@ theorem getD_envRow {α : Type*} [Zero α] (f : ℕ) (r : List α) (k : ℕ) :
   | succ f ih =>
     cases k with
     | zero => simp [envRow]
-    | succ k =>
-      have := ih k
-      simp only [envRow, List.replicate_succ, List.cons_append, List.getD_cons_succ] at this ⊢
-      rw [this]
-      simp [Nat.add_sub_add_right]
+    | succ k => simpa [envRow, List.replicate_succ, Nat.add_sub_add_right] using ih k
 
 /-- The dot product of two rows given by their first columns, over the overlap. -/
 @[expose] def alignDot (f : ℕ) (u : List ℤ) (g : ℕ) (a : List ℤ) : ℤ :=
@@ -809,10 +799,8 @@ private theorem window_eq {D : List RowData} {i f : ℕ} (hi : i < D.length) (hf
 
 private theorem L_apply' (i k : Fin n) :
     c.toLDLCert.L n i k = (envRow (c.lower.getD i (0, []))).getD k 0 := by
-  have : (c.lower.map envRow).getD i [] = envRow (c.lower.getD i (0, [])) :=
-    List.getD_map _ (0, []) _
   simp only [toLDLCert, LDLCert.L, ofLists_apply, ofList_apply]
-  rw [this]
+  exact congrArg (List.getD · k 0) (List.getD_map (n := i) c.lower (0, []) envRow)
 
 private theorem length_envRow_scaleRow (f : ℕ) (s : ℕ) (u : List ℚ) :
     (envRow (f, scaleRow s u)).length = f + u.length := by
@@ -834,18 +822,14 @@ private theorem cast_alignDot {f g : ℕ} {r r' dw : List ℚ} {dg : ℕ → ℚ
   refine Finset.sum_congr rfl fun k _ => ?_
   rw [Int.cast_mul, getD_envRow, getD_envRow, getD_envRow, getD_envRow]
   split_ifs with h₁ h₂
-  rotate_left
-  · simp
-  · simp
-  · simp
-  rw [cast_getD_scaleRow (fun _ hq => den_dvd_denLcm hq),
-    cast_getD_scaleRow (fun _ hq => den_dvd_denLcm hq), getD_zipWith_mul]
-  rcases Nat.lt_or_ge (k - f) r.length with hk | hk
-  · rw [hdw _ hk, show f + (k - f) = k by omega]
-    push_cast
-    ring
-  · rw [List.getD_eq_default _ _ hk]
-    simp
+  · rw [cast_getD_scaleRow (fun _ hq => den_dvd_denLcm hq),
+      cast_getD_scaleRow (fun _ hq => den_dvd_denLcm hq), getD_zipWith_mul]
+    rcases Nat.lt_or_ge (k - f) r.length with hk | hk
+    · rw [hdw _ hk, Nat.add_sub_of_le h₁]
+      push_cast; ring
+    · rw [List.getD_eq_default _ _ hk]
+      simp
+  all_goals simp
 
 /-- The integer check of one entry, read back over `ℚ`. -/
 private theorem mul_eq_of_num_mul {v : ℚ} {S : ℕ} {D : ℤ} (h : v.num * (S : ℤ) = D * v.den) :
@@ -903,12 +887,8 @@ theorem eq_of_factorsLower {rows : List (List (ℕ × ℚ))}
     obtain ⟨hzero, hent⟩ := hc
     rcases Nat.lt_or_ge (j : ℕ) fr.1 with hjf | hjf
     · -- left of the envelope both sides vanish
-      have hv : ofSparse n n rows i j = 0 := by
-        rw [ofSparse_apply]
-        refine sparseGet_eq_zero fun e he hej => ?_
-        rcases hzero e he with h | h
-        · omega
-        · exact h
+      have hv : ofSparse n n rows i j = 0 :=
+        sparseGet_eq_zero fun e he hej => (hzero e he).resolve_left (by omega)
       rw [hv, hMapply]
       refine (Finset.sum_eq_zero fun k _ => ?_).symm
       obtain ⟨hfj, -⟩ := hshape' j j.is_lt
@@ -963,8 +943,7 @@ theorem eq_of_factorsLower {rows : List (List (ℕ × ℚ))}
   · have h₁ := congrFun (congrFun hsymm i) j
     have h₂ := congrFun (congrFun c.toLDLCert.transpose_LDLt i) j
     rw [transpose_apply] at h₁ h₂
-    rw [← h₁, hlow j i hij, hM]
-    exact h₂
+    exact h₁.symm.trans ((hlow j i hij).trans (hM ▸ h₂))
 
 /-- The shape facts recorded by an accepted `factorsWith`. -/
 private theorem shape_of_factorsWith {rows : List (List (ℕ × ℚ))}
