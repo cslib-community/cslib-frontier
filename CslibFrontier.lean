@@ -3995,6 +3995,7 @@ public import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.PathAss
 public import CslibFrontier.Computability.PolyTime.CSP.SortMetadataRuns
 public import CslibFrontier.Computability.Circuit.Monotone.BipartiteMatching.LowerBound
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Completeness
 public import CslibFrontier.Foundations.BooleanAnalysis.BucketWeight
 public import CslibFrontier.Computability.LogSpaceDerandomization.NormalizedAtomRows.SecondSignal
 public import CslibFrontier.Computability.Machines.Turing.TM2.WindowSpace
