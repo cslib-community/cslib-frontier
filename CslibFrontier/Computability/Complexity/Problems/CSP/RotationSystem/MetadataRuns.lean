@@ -336,27 +336,19 @@ private theorem split_first_run (keys : List ℕ) (hn : keys ≠ []) :
     cases keys with
     | nil => exact (hn rfl).elim
     | cons a ks => simp [pre,p]
-  have hall : ∀ b∈pre, b=keys.headD 0 := by
-    intro b hb
-    exact of_decide_eq_true (List.mem_takeWhile_imp (p := p) hb)
-  have hc : pre.IsChain (fun a b => decide (a=b)) := by
-    apply List.isChain_iff_getElem.mpr
-    intro i hi
-    have h1 := hall pre[i] (List.getElem_mem _)
-    have h2 := hall pre[i+1] (List.getElem_mem _)
-    simp [h1,h2]
-  have hb : ∀ x∈pre.getLast?, ∀ y∈rest.head?, decide (x=y)=false := by
-    intro x hx y hy
-    have hx' := hall x (List.mem_of_mem_getLast? hx)
-    have hnot := List.head?_dropWhile_not p keys
-    cases hr : rest with
-    | nil => simp [hr] at hy
-    | cons b bs =>
-      have hy' : y=b := by simpa only
-        [hr,List.head?_cons,Option.mem_def,Option.some.injEq,eq_comm] using hy
-      subst y
-      have hbad : p b=false := by simpa only [rest,hr,List.head?_cons] using hnot
-      simpa only [p,hx',eq_comm] using hbad
+  have hall (b) (hb : b ∈ pre) : b = keys.headD 0 :=
+    of_decide_eq_true (List.mem_takeWhile_imp (p := p) hb)
+  have hc : pre.IsChain (fun a b => decide (a = b)) :=
+    List.isChain_iff_getElem.mpr fun i hi =>
+      decide_eq_true ((hall _ (List.getElem_mem _)).trans (hall _ (List.getElem_mem _)).symm)
+  have hb : ∀ x ∈ pre.getLast?, ∀ y ∈ rest.head?, decide (x = y) = false := by
+    rintro x hx y hy
+    rcases hr : rest with _ | ⟨b, bs⟩
+    · simp [hr] at hy
+    · obtain rfl : b = y := by simpa [hr] using hy
+      have hbad : p b = false := by
+        simpa only [rest, hr, List.head?_cons] using List.head?_dropWhile_not p keys
+      simpa only [p, hall x (List.mem_of_mem_getLast? hx), eq_comm] using hbad
   rw [drop_runLength]
   change keys.splitBy (fun a b => decide (a=b))=pre::rest.splitBy (fun a b => decide (a=b))
   calc
@@ -511,34 +503,26 @@ private theorem first_run_agreement (keys : List ℕ) (values : List Bool)
   have hdrop : keys.drop (runLength keys)=rest := drop_runLength keys
   have hb : pre.length≤values.length := (List.takeWhile_sublist _).length_le.trans_eq hl
   have hp : pre.length=(values.take pre.length).length := by simp [Nat.min_eq_left hb]
-  have hall : ∀ q∈pre.zip (values.take pre.length), q.1=keys.headD 0 := by
-    intro q hq
-    exact of_decide_eq_true (List.mem_takeWhile_imp (p := p) (List.of_mem_zip hq).1)
+  have hall (q) (hq : q ∈ pre.zip (values.take pre.length)) : q.1 = keys.headD 0 :=
+    of_decide_eq_true (List.mem_takeWhile_imp (p := p) (List.of_mem_zip hq).1)
   have hprefix : (pre.zip (values.take pre.length)).IsChain
-      (fun a b => a.1=b.1 → a.2=b.2) ↔ (values.take pre.length).IsChain (· = ·) := by
-    conv_rhs => rw [← List.map_snd_zip hp.ge,List.isChain_map]
-    constructor
-    · intro h
-      exact h.imp_of_mem_imp (fun a b ha hb hab => hab ((hall a ha).trans (hall b hb).symm))
-    · intro h
-      exact h.imp (fun _ _ h _ => h)
-  have hboundary : ∀ a∈(pre.zip (values.take pre.length)).getLast?,
-      ∀ b∈(rest.zip (values.drop pre.length)).head?, a.1=b.1 → a.2=b.2 := by
+      (fun a b => a.1 = b.1 → a.2 = b.2) ↔ (values.take pre.length).IsChain (· = ·) := by
+    conv_rhs => rw [← List.map_snd_zip hp.ge, List.isChain_map]
+    exact ⟨fun h => h.imp_of_mem_imp fun a b ha hb hab =>
+        hab ((hall a ha).trans (hall b hb).symm),
+      fun h => h.imp fun _ _ h _ => h⟩
+  have hboundary : ∀ a ∈ (pre.zip (values.take pre.length)).getLast?,
+      ∀ b ∈ (rest.zip (values.drop pre.length)).head?, a.1 = b.1 → a.2 = b.2 := by
     intro a ha b hbb he
-    have ha' := hall a (List.mem_of_mem_getLast? ha)
-    have hnot := List.head?_dropWhile_not p keys
-    cases hrest : rest with
-    | nil => simp [hrest] at hbb
-    | cons x xs =>
-      cases hv : values.drop pre.length with
-      | nil => simp [hv] at hbb
-      | cons v vs =>
-        have hb' : b=(x,v) := by simpa only [hrest,hv,List.zip_cons_cons,List.head?_cons,
-          Option.mem_def,Option.some.injEq,eq_comm] using hbb
-        subst b
-        have hx : p x=false := by simpa only [rest,hrest,List.head?_cons] using hnot
-        simp only [p,← ha',he,decide_true] at hx
-        contradiction
+    rcases hrest : rest with _ | ⟨x, xs⟩
+    · simp [hrest] at hbb
+    · rcases hv : values.drop pre.length with _ | ⟨v, vs⟩
+      · simp [hv] at hbb
+      · obtain rfl : b = (x, v) := by simpa [hrest, hv, eq_comm] using hbb
+        have hx : p x = false := by
+          simpa only [rest, hrest, List.head?_cons] using List.head?_dropWhile_not p keys
+        exact absurd (he.symm.trans (hall a (List.mem_of_mem_getLast? ha)))
+          (of_decide_eq_false hx)
   have he : keys.zip values=(pre.zip (values.take pre.length))++
       (rest.zip (values.drop pre.length)) := by
     conv_lhs => rw [← hk,← List.take_append_drop pre.length values,List.zip_append hp]

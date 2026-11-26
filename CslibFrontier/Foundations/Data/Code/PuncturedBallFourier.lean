@@ -192,15 +192,12 @@ private theorem pow_four_lt {ρ : ℝ} (h0 : 3 / 20 < ρ) (h1 : ρ < 1 / 2) :
 theorem strictAntiOn_ksGamma : StrictAntiOn ksGamma (Icc (3 / 20) (1 / 2)) := by
   refine strictAntiOn_of_deriv_neg (convex_Icc _ _) ?_ ?_
   · intro x hx
-    have h0 : 0 < x := by linarith [hx.1]
-    have hlt : x < 2 / 3 := by linarith [hx.2]
-    unfold ksGamma
-    refine ContinuousAt.continuousWithinAt ?_
-    have : (1 - x) ≠ 0 := by linarith
-    have : (2 - 3 * x) ≠ 0 := by linarith
-    have : x ≠ 0 := h0.ne'
+    have : x ≠ 0 := by linarith [hx.1]
+    have : 1 - x ≠ 0 := by linarith [hx.2]
+    have : 2 - 3 * x ≠ 0 := by linarith [hx.2]
     have : (2 : ℝ) ≠ 0 := two_ne_zero
-    fun_prop (disch := assumption)
+    unfold ksGamma
+    exact ContinuousAt.continuousWithinAt (by fun_prop (disch := assumption))
   · intro x hx
     rw [interior_Icc] at hx
     have h0 : 0 < x := by linarith [hx.1]
@@ -295,10 +292,8 @@ private theorem ksTailIntegrand_arg {ρ z : ℝ} (hρ0 : 0 ≤ ρ) (hρ : ρ < 1
       rw [sqrt_le_left (mul_nonneg h1ρ.le h1z)]
       have h1 : (1 - 2 * ρ) ^ 2 ≤ 1 :=
         pow_le_one₀ h1ρ.le (sub_le_self _ (mul_nonneg zero_le_two hρ0))
-      have h2 : 0 ≤ z * (1 - z) :=
-        mul_nonneg hz0 (sub_nonneg.mpr (hz.trans (by norm_num)))
-      have hmul : (1 - 2 * ρ) ^ 2 * (z * (1 - z)) ≤ 1 * (z * (1 - z)) := by gcongr
-      linarith only [hmul]
+      have h2 : 0 ≤ z * (1 - z) := mul_nonneg hz0 (sub_nonneg.mpr (hz.trans (by norm_num)))
+      linarith [mul_le_mul_of_nonneg_right h1 h2]
     linarith only [hs]
 
 /-- **The tail exponent bound** [Saglam2027, Appendix A]: the integrand is at most
@@ -324,13 +319,10 @@ theorem ksTailExponent_le {ρ y : ℝ} (hρ0 : 0 ≤ ρ) (hρ : ρ < 1 / 2) (hy0
 /-- `ε ^ 2 ≤ 1 / 2 - √(ρ (1 - ρ))` for `0 ≤ ρ ≤ 1 / 2 - ε`. -/
 theorem sq_le_half_sub_sqrt {ε ρ : ℝ} (hε : 0 ≤ ε) (hρ0 : 0 ≤ ρ) (hρ : ρ ≤ 1 / 2 - ε) :
     ε ^ 2 ≤ 1 / 2 - √(ρ * (1 - ρ)) := by
-  have hε2 : ε ≤ 1 / 2 := (le_sub_comm.mp hρ).trans (sub_le_self _ hρ0)
-  have hεsq : ε ^ 2 ≤ 1 / 2 := (pow_le_pow_left₀ hε hε2 2).trans (by norm_num)
-  have h1 : ε ^ 2 ≤ (1 / 2 - ρ) ^ 2 := pow_le_pow_left₀ hε (le_sub_comm.mp hρ) 2
-  have h : √(ρ * (1 - ρ)) ≤ 1 / 2 - ε ^ 2 := by
-    rw [sqrt_le_left (sub_nonneg.mpr hεsq)]
-    linarith only [h1, sq_nonneg (ε ^ 2)]
-  exact le_sub_comm.mp h
+  have hεsq : ε ^ 2 ≤ 1 / 2 :=
+    (pow_le_pow_left₀ hε ((le_sub_comm.mp hρ).trans (sub_le_self _ hρ0)) 2).trans (by norm_num)
+  rw [le_sub_comm, sqrt_le_left (sub_nonneg.mpr hεsq)]
+  linarith only [pow_le_pow_left₀ hε (le_sub_comm.mp hρ) 2, sq_nonneg (ε ^ 2)]
 
 end Exponents
 

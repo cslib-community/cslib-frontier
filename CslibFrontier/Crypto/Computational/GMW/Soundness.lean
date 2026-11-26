@@ -280,12 +280,8 @@ private theorem satisfiable_of_verifyCopyBits {φ : CNF ℕ} {copy₀ copy₁ : 
       simp only [copyOpenFlags, ↓reduceIte]
       rw [List.getD_append_right _ _ _ _ (by simp [Nat.two_mul])]
       simpa [Nat.two_mul] using hact
-    have hcopy_eq := hagree (2 * φ.vars.length + j) hj_len hflag₀ hflag₁
-    have hpart₀ := List.getD_take_drop copy₀ (2 * φ.vars.length) hj false
-    have hpart₁ := List.getD_take_drop copy₁ (2 * φ.vars.length) hj false
-    rw [← htab₀]
-    change ((copy₀.drop (2 * φ.vars.length)).take (8 * φ.length)).getD j false = true
-    rw [hpart₀, hcopy_eq, ← hpart₁]
+    rw [← htab₀, tablePart, List.getD_take_drop copy₀ _ hj,
+      hagree _ hj_len hflag₀ hflag₁, ← List.getD_take_drop copy₁ _ hj]
     exact htab₁ j hj hact
   refine ⟨fun x => varBit φ v x ^^ varBit φ m x, CNF.eval_eq_true_iff _ _ |>.mpr ?_⟩
   intro c hc
@@ -298,11 +294,7 @@ private theorem satisfiable_of_verifyCopyBits {φ : CNF ℕ} {copy₀ copy₁ : 
   have hkt : k * 8 + t < 8 * φ.length := by omega
   have hrow (f : Clause ℕ → List Bool) (hf : ∀ c, (f c).length = 8) :
       BitString.listRow 8 k (φ.map f).flatten = f φ[k] := by
-    have hmem : ∀ u ∈ φ.map f, u.length = 8 := by
-      intro u hu
-      obtain ⟨c, _, rfl⟩ := List.mem_map.mp hu
-      exact hf c
-    rw [BitString.listRow_flatten hmem (by simpa using hk)]
+    rw [BitString.listRow_flatten (by simp [hf]) (by simpa using hk)]
     simp [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hk]
   have hact_true : (activeTableFlags φ v).getD (k * 8 + t) false = true := by
     rw [← BitString.getD_listRow (row := k) ht, activeTableFlags,
@@ -375,20 +367,17 @@ private theorem mem_ThreeSAT_of_verifyTranscript_false_true
   obtain ⟨⟨⟨⟨_, hv₁_0⟩, hv₁_1⟩, hv₁_2⟩, hc₁⟩ := hv₁
   refine ⟨hwidth, ?_⟩
   rcases hdiff with ⟨hb₀, hb₁⟩ | ⟨hb₀, hb₁⟩ | ⟨hb₀, hb₁⟩
-  · rw [hb₀] at hv₀_0; rw [hb₁] at hv₁_0
-    refine satisfiable_of_verifyCopyBits hwidth hv₀_0 hv₁_0 fun i hi hf₀ hf₁ => ?_
+  · refine satisfiable_of_verifyCopyBits hwidth (hb₀ ▸ hv₀_0) (hb₁ ▸ hv₁_0) fun i hi hf₀ hf₁ => ?_
     simpa [gmwCopy0, List.getD_eq_getElem?_getD, List.getElem?_take_of_lt hi] using
       verifyCommitments_eq_of_true hbind hc₀ hc₁ (idx := i)
         (by simp only [totalLen]; omega) (by rwa [getD_allOpenFlags_copy0 φ ch₀ opened₀ hi, hb₀])
         (by rwa [getD_allOpenFlags_copy0 φ ch₁ opened₁ hi, hb₁])
-  · rw [hb₀] at hv₀_1; rw [hb₁] at hv₁_1
-    refine satisfiable_of_verifyCopyBits hwidth hv₀_1 hv₁_1 fun i hi hf₀ hf₁ => ?_
+  · refine satisfiable_of_verifyCopyBits hwidth (hb₀ ▸ hv₀_1) (hb₁ ▸ hv₁_1) fun i hi hf₀ hf₁ => ?_
     simpa only [gmwCopy1, List.getD_take_drop _ _ hi] using
       verifyCommitments_eq_of_true hbind hc₀ hc₁ (idx := copyLen φ + i)
         (by simp only [totalLen]; omega) (by rwa [getD_allOpenFlags_copy1 φ ch₀ opened₀ hi, hb₀])
         (by rwa [getD_allOpenFlags_copy1 φ ch₁ opened₁ hi, hb₁])
-  · rw [hb₀] at hv₀_2; rw [hb₁] at hv₁_2
-    refine satisfiable_of_verifyCopyBits hwidth hv₀_2 hv₁_2 fun i hi hf₀ hf₁ => ?_
+  · refine satisfiable_of_verifyCopyBits hwidth (hb₀ ▸ hv₀_2) (hb₁ ▸ hv₁_2) fun i hi hf₀ hf₁ => ?_
     simpa only [gmwCopy2, List.getD_take_drop _ _ hi] using
       verifyCommitments_eq_of_true hbind hc₀ hc₁ (idx := 2 * copyLen φ + i)
         (by simp only [totalLen]; omega) (by rwa [getD_allOpenFlags_copy2 φ ch₀ opened₀ i, hb₀])

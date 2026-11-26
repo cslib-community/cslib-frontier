@@ -192,14 +192,9 @@ private theorem sum_fin_zero_left {M : Type*} [AddCommMonoid M] {N : ℕ} (k : F
   let z : Fin N := ⟨0, Nat.zero_lt_of_lt k.isLt⟩
   rw [Fintype.sum_eq_single z]
   · simp only [z, ↓reduceIte, Nat.zero_add, sum_filter]
-    rw [Fintype.sum_eq_single k]
-    · simp only [↓reduceIte]
-    · intro b hb
-      have hne : (b : ℕ) ≠ (k : ℕ) := fun h => hb (Fin.ext h)
-      simp only [hne, ↓reduceIte]
-  · intro a ha
-    have hne : (a : ℕ) ≠ 0 := fun h => ha (Fin.ext h)
-    simp only [hne, ↓reduceIte, sum_const_zero]
+    exact (Fintype.sum_eq_single k fun _ hb => ite_eq_right fun h => hb (Fin.ext h)).trans
+      (ite_eq_left rfl)
+  · exact fun _ ha => sum_eq_zero fun _ _ => ite_eq_right fun h => ha (Fin.ext h)
 
 private theorem sum_prod_assoc_left {J ℓ : ℕ} {M : Type*} [AddCommMonoid M]
     (p₁ p₂ p₃ q : Fin J × Fin ℓ) (x : M) :
@@ -644,15 +639,11 @@ private theorem sum_ite_coord_eq_le (a b : ℕ) (m : ℕ) :
     (∑ p : Fin J × Fin ℓ, if (p.1 : ℕ) = a ∧ (p.2 : ℕ) = b then m else 0) ≤ m := by
   by_cases h : a < J ∧ b < ℓ
   · let p₀ : Fin J × Fin ℓ := (⟨a, h.1⟩, ⟨b, h.2⟩)
-    rw [Fintype.sum_eq_single p₀]
-    · simp only [p₀, and_self, ↓reduceIte, le_rfl]
-    · intro p hp
-      have hne : ¬((p.1 : ℕ) = a ∧ (p.2 : ℕ) = b) :=
-        fun ⟨h1, h2⟩ => hp (Prod.ext (Fin.ext h1) (Fin.ext h2))
-      simp only [hne, ↓reduceIte]
-  · refine (sum_eq_zero fun p _ => ?_).trans_le (Nat.zero_le _)
-    have hne : ¬((p.1 : ℕ) = a ∧ (p.2 : ℕ) = b) := fun ⟨h1, h2⟩ => h ⟨h1 ▸ p.1.isLt, h2 ▸ p.2.isLt⟩
-    simp only [hne, ↓reduceIte]
+    rw [Fintype.sum_eq_single p₀
+      (fun _ hp => ite_eq_right fun ⟨h1, h2⟩ => hp (Prod.ext (Fin.ext h1) (Fin.ext h2)))]
+    simp only [p₀, and_self, ↓reduceIte, le_rfl]
+  · rw [sum_eq_zero fun p _ => ite_eq_right fun ⟨h1, h2⟩ => h ⟨h1 ▸ p.1.isLt, h2 ▸ p.2.isLt⟩]
+    exact Nat.zero_le _
 
 theorem l1Norm_const_le (c : ℤ) : l1Norm (const c : JetTable J ℓ ℤ) ≤ c.natAbs := by
   rw [l1Norm_eq_prod_sum]
