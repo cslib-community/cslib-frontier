@@ -29,6 +29,14 @@ unbounded fan-in AND or OR with `k` arguments is a binary tree of `k - 1` gates 
 which is decomposable or deterministic when the original gate is, so a d-D with unbounded fan-in and
 `s` wires gives a binary one with at most `s` AND and OR gates, besides its NOT gates and constants.
 
+**Positions, not predecessors.** Definition 3 compares the distinct predecessor gates of an AND or
+OR. Here the conditions compare argument positions, and two positions of a gate can read the same
+earlier line. Such a gate fails the conditions even with one distinct predecessor: `x ∨ x` is not
+deterministic at `x = true`, and `x ∧ x` is not decomposable, both arguments reading `{x}`. So the
+definitions agree with Definition 3 for circuits whose ANDs and ORs have distinct predecessors,
+which removing repeated arguments achieves (`x ∧ x` and `x ∨ x` are `x`). The positional form is
+the one the arithmetic simulation of #8623 uses, where an AND becomes a product of its arguments.
+
 The conditions are stated gate by gate on the lines of the program (`Cslib.Circuits.Program.lines`),
 so they are decidable, and they split along the last gate
 (`Cslib.Circuits.Program.isDecomposableAt_gate_iff`,

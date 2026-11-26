@@ -4003,6 +4003,8 @@ Mikaël Monet and Dan Olteanu.
 *Towards Deterministic Decomposable Circuits for Safe Queries* (`MonetOlteanu2018`).
 AMW 2018, CEUR Workshop Proceedings 2100, paper 19. https://ceur-ws.org/Vol-2100/paper19.pdf . Read in the CEUR-WS PDF on 2026-11-25 UTC: Definition 3 (PDF p. 4), a Boolean circuit with and, or, not and variable gates is decomposable when the inputs of every and-gate depend on pairwise disjoint sets of variables, and deterministic when no valuation makes two inputs of an or-gate true; a negation normal form has not-gates only on variables.
 [DeterministicDecomposable.lean](../CslibFrontier/Computability/Circuit/Boolean/DeterministicDecomposable.lean) formalizes Definition 3 on De Morgan circuits (`Circuit.IsDeterministicDecomposable`), with binary and- and or-gates and with Boolean constants, which Definition 3 does not list.
+Definition 3 compares distinct predecessor gates, while the Lean conditions compare argument positions, which may read the same gate: `x ∨ x` fails determinism at `x = true` and `x ∧ x` fails decomposability.
+The two agree on circuits whose and- and or-gates have distinct predecessors, which removing repeated arguments achieves.
 
 <a id="mosertardos10"></a>
 ## mosertardos10
