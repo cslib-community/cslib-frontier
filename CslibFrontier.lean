@@ -8662,6 +8662,7 @@ public import CslibFrontier.Foundations.Geometry.Polygonal.LocalSplitFan
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Cascade.ChildReductionLaw
 public import CslibFrontier.Computability.PointerMachine.Data
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Substitution.Genus
+public import CslibFrontier.Computability.Circuit.DepthReduction
 public import CslibFrontier.Computability.GenericRAM.Defs
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.QueryReplayAssignmentsCorrect
 public import CslibFrontier.DataStructure.Dictionary.Spec
