@@ -265,9 +265,7 @@ theorem not_holeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
         · subst h
           simp [kind, Op.kind] at hmk
       have hnet := hwn.net_eq_zero 1
-      have hsplit := w.extract_append_extract (a := 2 * i) (b := 2 * n) (c := m + 1)
-        (by omega) (by omega)
-      rw [← hsplit, net_append] at hnet
+      rw [← w.extract_append_extract (b := 2 * n) (by omega) (by omega), net_append] at hnet
       have h₁ := (net_of_ab (u := w.extract (2 * i) (2 * n)) (hkext _ _) (ab_of_lt hw le_rfl)).2
         ⟨ν, List.mem_extract_iff_getElem?.mpr ⟨_, by omega, by omega, hν⟩, hνb⟩
       -- The factor from `2 * n` to `m` carries only `c`s, which do not touch stack `1`.
@@ -290,8 +288,7 @@ theorem not_holeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
         rcases phaseWord_cases (hlet hp) with ⟨-, h⟩ | ⟨-, -, h⟩ | ⟨-, -, h⟩ <;>
           simp_all [kind, Op.kind]
       obtain ⟨ν', hν', -⟩ := hentry (2 * i - 1) (by omega)
-      have hodd' : (2 * i - 1) % 2 = 1 := by omega
-      have hν'b : ν'.1 = .b := by simpa [hodd'] using hlt (by omega) hν'
+      have hν'b : ν'.1 = .b := (hlt (by omega) hν').trans (ite_eq_right_iff.mpr (by omega))
       have h₁ := (net_of_ab (u := w.extract (p + 1) (2 * i)) (hkext _ _)
         (ab_of_lt hw (by omega))).2 ⟨ν', List.mem_extract_iff_getElem?.mpr
           ⟨_, by omega, by omega, hν'⟩, hν'b⟩
@@ -307,8 +304,7 @@ theorem not_holeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
   rw [Set.ncard_coe_finset, Finset.card_image_of_injective _ (mul_right_injective₀ two_ne_zero),
     Finset.card_range] at this
   have := hb (2 * n - 1) (by omega)
-  unfold openHoles at this
-  omega
+  simp only [openHoles] at this; omega
 
 end NotHoleBounded
 

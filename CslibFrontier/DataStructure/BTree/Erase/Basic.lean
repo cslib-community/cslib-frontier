@@ -537,17 +537,15 @@ theorem Underfull.rootKeys_eq_of_underflows {c : BTree α β} {h : ℕ} (hc : Un
 /-- A subtree that underflows has positive height. -/
 theorem Underfull.one_le_height_of_underflows {c : BTree α β} {h : ℕ} (hc : Underfull t h c)
     (hu : underflows t c = true) : 1 ≤ h := by
-  have hne := ne_leaf_of_underflows hu
   rw [← hc.height_eq]
-  exact Nat.one_le_iff_ne_zero.2 fun h0 => hne (height_eq_zero_iff.1 h0)
+  exact Nat.one_le_iff_ne_zero.2 fun h0 => ne_leaf_of_underflows hu (height_eq_zero_iff.1 h0)
 
 /-- Erasure from an occupied subtree leaves it at most one key short. -/
 theorem EraseFits.underfull {tr c : BTree α β} (hf : EraseFits t tr c) (ho : Occupied t tr) :
     Underfull t tr.height c := by
   refine ⟨hf.balanced, hf.height_eq, hf.children_occupied, hf.rootKeys_le.trans ho.rootKeys_le,
     fun hne => ?_⟩
-  have htr : tr ≠ .leaf := fun h => hne (height_eq_zero_iff.1 (by simpa [h] using hf.height_eq))
-  have := ho.le_rootKeys htr
+  have := ho.le_rootKeys fun h => hne (height_eq_zero_iff.1 (by simpa [h] using hf.height_eq))
   have := hf.rootKeys_le_succ
   omega
 
@@ -631,11 +629,9 @@ theorem good_rebalanceRight (ht : 2 ≤ t) {c s : BTree α β} {h : ℕ} (hc : U
       rest.length ≤ (rebalanceRight t c k v s rest).2.length ∧
       (rebalanceRight t c k v s rest).2.length ≤ rest.length + 1 := by
   rw [rebalanceRight_eq_ite]
-  split
-  · next hu =>
-    exact InsertResult.mended_withRest (hc.mended_merge_with ht hs hu k v).1 hr
-  · next hu =>
-    exact ⟨hc.good (by simpa using hu), List.forall_mem_cons.2 ⟨hs, hr⟩, Nat.le_succ _, le_rfl⟩
+  split_ifs with hu
+  · exact InsertResult.mended_withRest (hc.mended_merge_with ht hs hu k v).1 hr
+  · exact ⟨hc.good (by simpa using hu), List.forall_mem_cons.2 ⟨hs, hr⟩, Nat.le_succ _, le_rfl⟩
 
 /-- Repair of a last child against its left sibling: the results are good, with at most one
 triple. -/
@@ -645,13 +641,11 @@ theorem good_rebalanceLast (ht : 2 ≤ t) {prev c : BTree α β} {h : ℕ} (hp :
       (∀ e ∈ (rebalanceLast t prev k v c).2, Good t h e.child) ∧
       (rebalanceLast t prev k v c).2.length ≤ 1 := by
   rw [rebalanceLast_eq_ite]
-  split
-  · next hu =>
-    obtain ⟨h₁, h₂, -, h₃⟩ := InsertResult.mended_withRest (rest := [])
+  split_ifs with hu
+  · obtain ⟨h₁, h₂, -, h₃⟩ := InsertResult.mended_withRest (rest := [])
       (hc.mended_merge_with ht hp hu k v).2 (by simp)
     exact ⟨h₁, h₂, by simpa using h₃⟩
-  · next hu =>
-    exact ⟨hp, List.forall_mem_cons.2 ⟨hc.good (by simpa using hu), by simp⟩, by simp⟩
+  · exact ⟨hp, List.forall_mem_cons.2 ⟨hc.good (by simpa using hu), by simp⟩, by simp⟩
 
 /-- Shape of the removal of the least entry. -/
 theorem eraseFits_popMin (ht : 2 ≤ t) {tr : BTree α β} (hb : Balanced tr)
@@ -662,8 +656,7 @@ theorem eraseFits_popMin (ht : 2 ≤ t) {tr : BTree α β} (hb : Balanced tr)
   | node first rest ihf _ =>
     obtain ⟨hf, hr⟩ := good_of_balanced_node hb ho
     have hh := hb.height_node
-    have hpos := hpos (by simp)
-    simp only [rootKeys_node] at hpos
+    have hpos : 1 ≤ rest.length := by simpa only [rootKeys_node] using hpos (by simp)
     rw [popMin_node] at hp
     rcases rest with _ | ⟨⟨k, v, c⟩, rest⟩
     · rcases hpf : popMin t first with _ | ⟨e₁, first'⟩ <;> simp at hpos
@@ -674,8 +667,7 @@ theorem eraseFits_popMin (ht : 2 ≤ t) {tr : BTree α β} (hb : Balanced tr)
         obtain ⟨hb', hh', hco⟩ := node_of_good hc hrest
         exact ⟨hb', hh'.trans hh.symm, hco, by simp, by simp⟩
       · -- the least entry comes from the first child, which is then repaired
-        simp only [hpf, Option.some.injEq, Prod.mk.injEq] at hp
-        obtain ⟨-, rfl⟩ := hp
+        obtain ⟨-, rfl⟩ : e₁ = e ∧ _ = tr' := by simpa [hpf] using hp
         have hu := hf.underfull_of_eraseFits ht fun ho hpos => ihf hf.balanced ho hpos hpf
         obtain ⟨g₁, g₂, l₁, l₂⟩ := good_rebalanceRight ht hu hc k v hrest
         obtain ⟨hb', hh', hco⟩ := node_of_good g₁ g₂
