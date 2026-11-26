@@ -3115,6 +3115,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.ACC0.Basic
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxBatch.Width
 public import CslibFrontier.Tactic.FirstOrder.Init
 public import CslibFrontier.Foundations.Combinatorics.WeightBudget
+public import CslibFrontier.Computability.Complexity.FineGrained.CountingPowerSearch
 public import CslibFrontier.Computability.Communication.Lifting.UnsafeWitness
 public import CslibFrontier.Logics.FirstOrder.Operator.Relabel
 public import CslibFrontier.Computability.Complexity.Classes.Sparse.Kadin
