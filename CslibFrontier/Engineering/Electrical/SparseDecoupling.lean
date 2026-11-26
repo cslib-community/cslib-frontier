@@ -53,6 +53,16 @@ theorem sparseGet_vSparse (n p q j : ℕ) : sparseGet (vSparse n p q) j = vrow n
   sparseScale br.elem.stamp.fV (vSparse n br.pos br.neg) ++ [(n + b, br.elem.stamp.fI)] ++
     sparseScale br.elem.stamp.fC (vSparse n br.elem.stamp.cp br.elem.stamp.cn)
 
+/-- A voltage term and a current term of a stamp row. -/
+private theorem sparseGet_stamp (n b p q j : ℕ) (a x : ℚ) :
+    sparseGet (sparseScale a (vSparse n p q) ++ [(n + b, x)]) j =
+      a * vrow n p q j + x * crow n b j := by
+  simp only [sparseGet_append, sparseGet_sparseScale, sparseGet_vSparse, sparseGet_cons,
+    sparseGet_nil, crow, add_zero]
+  by_cases h : j = n + b
+  · rw [ite_eq_left h.symm, ite_eq_left h, mul_one]
+  · rw [ite_eq_right (Ne.symm h), ite_eq_right h, mul_zero]
+
 /-- The KCL row of node `k`: `-incidence` at the current column of each branch, from branch
 `b` on. -/
 @[expose] def kclRow (n k : ℕ) : ℕ → List Branch → List (ℕ × ℚ)
@@ -133,12 +143,7 @@ theorem mna_E_eq : c.mna.E = realOfSparse c.size c.size c.eSparse := by
   · rw [ite_eq_left hrn, eSparse, List.getD_append _ _ _ _ (by simpa using hrn)]
     simp [List.getD_eq_getElem?_getD, hrn]
   · rw [ite_eq_right hrn, eSparse, getD_branchRows (by simp) (by omega) hr,
-      sparseGet_filter_ne_zero, branchERow]
-    simp only [sparseGet_append, sparseGet_sparseScale, sparseGet_vSparse, sparseGet_cons,
-      sparseGet_nil, crow, add_zero]
-    by_cases h : j = c.nodes + (r - c.nodes)
-    · rw [ite_eq_left h.symm, ite_eq_left h]; ring
-    · rw [ite_eq_right (Ne.symm h), ite_eq_right h]; ring
+      sparseGet_filter_ne_zero, branchERow, sparseGet_stamp]
 
 theorem mna_F_eq : c.mna.F = realOfSparse c.size c.size c.fSparse := by
   refine (realOfSparse_eq_rowsOf fun r j hr hj => ?_).symm
@@ -154,12 +159,8 @@ theorem mna_F_eq : c.mna.F = realOfSparse c.size c.size c.fSparse := by
     · rw [ite_eq_left ⟨hjn, by omega⟩, ite_eq_left hjn, branch]
     · rw [ite_eq_right fun h => hjn h.1, ite_eq_right hjn]
   · rw [ite_eq_right hrn, fSparse, getD_branchRows (by simp) (by omega) hr,
-      sparseGet_filter_ne_zero, branchFRow]
-    simp only [sparseGet_append, sparseGet_sparseScale, sparseGet_vSparse, sparseGet_cons,
-      sparseGet_nil, crow, add_zero]
-    by_cases h : j = c.nodes + (r - c.nodes)
-    · rw [ite_eq_left h.symm, ite_eq_left h]; ring
-    · rw [ite_eq_right (Ne.symm h), ite_eq_right h]; ring
+      sparseGet_filter_ne_zero, branchFRow, sparseGet_append, sparseGet_stamp,
+      sparseGet_sparseScale, sparseGet_vSparse]
 
 variable {c : Netlist}
 
