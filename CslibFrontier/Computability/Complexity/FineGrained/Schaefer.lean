@@ -8,19 +8,27 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.FineGrained.SatisfiabilityHypothesis
-public import CslibFrontier.Computability.Complexity.Problems.CSP.Hardness
+public import CslibFrontier.Computability.Complexity.Problems.CSP.Basic
+import CslibFrontier.Computability.Complexity.Problems.CSP.Hardness
 
 /-!
 # Satisfiability Hypothesis lower bound for hard Boolean constraint languages
 
-The certified Schaefer reduction from 3SAT has linear combinatorial size. This gives the forward
-implication in [MITHardnessGroup2026SH, v2, §4, Corollary 4.1]. The exponent is measured in
-occurring variables, with polynomial overhead in the native binary input length.
+This module proves the forward implication in
+[MITHardnessGroup2026SH, v2, §4, Corollary 4.1] using the certified linear-size Schaefer reduction
+from 3SAT. The exponent is measured in occurring variables, with polynomial overhead in the
+native binary input length. The converse depends on the variable-count formulation of SH and
+remains open in [#8457](https://github.com/cslib-community/cslib-frontier/issues/8457).
 
 ## Main results
 
 * `Cslib.Complexity.SH.not_decidableInPowerExpTime_CSPSAT_numVars`: the variable-count bound
   for every fixed finite language without a common Schaefer polymorphism.
+
+## References
+
+* [MIT Hardness Group, *ETH is Dead, Long Live SH*][MITHardnessGroup2026SH], v2, §4,
+  Corollary 4.1.
 -/
 
 public section
@@ -29,11 +37,13 @@ namespace Cslib.Complexity
 
 open Cslib.Logic.PL Turing.MultiTapeTM
 
-/-- Under SH, exact-arity satisfiability for a fixed finite Boolean constraint language outside
-the six Schaefer cases has no deterministic multitape algorithm with a fixed power saving in
-the exponent measured in occurring variables. This is the forward implication of
-[MITHardnessGroup2026SH, v2, §4, Corollary 4.1]. The encoding uses binary variable labels, and the
-running time allows polynomial overhead in the encoded input length. -/
+/-- This step proves the forward implication of
+[MITHardnessGroup2026SH, v2, §4, Corollary 4.1]. Under SH, exact-arity satisfiability for a fixed
+finite Boolean constraint language outside the six Schaefer cases has no deterministic multitape
+algorithm with a fixed power saving in the exponent measured in occurring variables. The encoding
+uses binary variable labels, and the running time allows polynomial overhead in the encoded input
+length. The converse depends on the variable-count formulation of SH and remains open in
+[#8457](https://github.com/cslib-community/cslib-frontier/issues/8457). -/
 theorem SH.not_decidableInPowerExpTime_CSPSAT_numVars {Rel : Type} [Finite Rel]
     (hSH : SH) (encRel : Rel ↪ List Bool) (arity : Rel → ℕ) (sem : Rel → List Bool → Bool)
     (hHard : ¬ CSP.HasSchaeferPolymorphism arity sem) {p : ℝ} (hp : 0 < p) (hp₁ : p < 1) :
