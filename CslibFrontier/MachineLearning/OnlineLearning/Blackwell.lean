@@ -141,11 +141,8 @@ theorem distToSet_nonneg (S : Set E) (x : E) : 0 ≤ distToSet S x :=
 theorem distToSet_le_norm_sub {S : Set E} (hc : IsComplete S) (hS : Convex ℝ S)
     {s : E} (hs : s ∈ S) (x : E) :
     distToSet S x ≤ ‖x - s‖ := by
-  have hne : S.Nonempty := ⟨s, hs⟩
-  rw [distToSet, norm_sub_metricProjection hne hc hS x]
-  have hbd : BddBelow (Set.range fun w : S => ‖x - (w : E)‖) :=
-    ⟨0, Set.forall_mem_range.mpr fun _ => norm_nonneg _⟩
-  exact ciInf_le hbd ⟨s, hs⟩
+  rw [distToSet, norm_sub_metricProjection ⟨s, hs⟩ hc hS x]
+  exact ciInf_le ⟨0, Set.forall_mem_range.mpr fun _ => norm_nonneg _⟩ (⟨s, hs⟩ : S)
 
 theorem distToSet_eq_zero_of_mem {S : Set E} (hc : IsComplete S) (hS : Convex ℝ S)
     {x : E} (hx : x ∈ S) : distToSet S x = 0 :=
@@ -325,8 +322,7 @@ theorem bilinearPayoff_eq_sum_col (m : I → J → E) (p : I → ℝ) (q : J →
     bilinearPayoff m p q = ∑ j, q j • expectedPayoff m p j := by
   simp only [bilinearPayoff, expectedPayoff, smul_sum, smul_smul]
   rw [Finset.sum_comm]
-  refine Finset.sum_congr rfl fun j _ => Finset.sum_congr rfl fun i _ => ?_
-  rw [mul_comm]
+  exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by rw [mul_comm]
 
 /-- **Blackwell's response condition**: for every mixed column strategy `q ∈ Δ(J)`, there exists a
 mixed row strategy `p ∈ Δ(I)` placing the expected vector payoff `bilinearPayoff m p q` in `S`. -/
@@ -361,8 +357,7 @@ private theorem attainable_compact_convex [Nonempty I] (m : I → J → E) (q : 
   have hsim_ne : ({p : I → ℝ | (∀ i, 0 ≤ p i) ∧ ∑ i, p i = 1}).Nonempty := by
     obtain ⟨i₀⟩ := ‹Nonempty I›
     refine ⟨fun i => if i = i₀ then 1 else 0, fun i => ?_, by simp⟩
-    dsimp only
-    split_ifs <;> norm_num
+    by_cases h : i = i₀ <;> simp [h]
   have hsim_cvx : Convex ℝ {p : I → ℝ | (∀ i, 0 ≤ p i) ∧ ∑ i, p i = 1} := by
     intro p hp p' hp' a b ha hb hab
     refine ⟨fun i => add_nonneg (mul_nonneg ha (hp.1 i)) (mul_nonneg hb (hp'.1 i)), ?_⟩
@@ -392,10 +387,8 @@ private theorem exists_strict_sep_compact_complete {C S : Set E}
       (∀ v ∈ C,
         ⟪c₀ - metricProjection S c₀, metricProjection S c₀⟫ + δ ^ 2 ≤
           ⟪c₀ - metricProjection S c₀, v⟫) := by
-  have hproj_cont : Continuous (metricProjection S) :=
-    (lipschitzWith_metricProjection hSne hSc hScvx).continuous
   have hdist_cont : Continuous (distToSet S) :=
-    (continuous_id.sub hproj_cont).norm
+    (continuous_id.sub (lipschitzWith_metricProjection hSne hSc hScvx).continuous).norm
   obtain ⟨c₀, hc₀_mem, hc₀_min⟩ := hCcmp.exists_isMinOn hCne hdist_cont.continuousOn
   have hc₀_not : c₀ ∉ S := Set.disjoint_left.mp hdisj hc₀_mem
   set s₀ := metricProjection S c₀
@@ -541,9 +534,8 @@ theorem expectHistory_smul (strat : ApproachStrategy I) (t : ℕ) (h : List I)
   induction t generalizing h with
   | zero => rfl
   | succ t ih =>
-    simp only [expectHistory, ih]
-    rw [mul_sum]
-    refine sum_congr rfl fun i _ => by ring
+    simp only [expectHistory, ih, mul_sum]
+    exact sum_congr rfl fun _ _ => by ring
 
 theorem expectHistory_mono (strat : ApproachStrategy I) {t : ℕ} {h : List I}
     {f g : List I → ℝ} (hfg : ∀ x, x.length = h.length + t → f x ≤ g x) :
@@ -553,8 +545,7 @@ theorem expectHistory_mono (strat : ApproachStrategy I) {t : ℕ} {h : List I}
   | succ t ih =>
     refine sum_le_sum fun i _ => mul_le_mul_of_nonneg_left (ih fun x hx => hfg x ?_)
       (strat.nonneg h i)
-    simp only [List.length_cons] at hx
-    omega
+    simpa only [List.length_cons, Nat.succ_add, Nat.add_succ] using hx
 
 theorem expectHistory_nonneg (strat : ApproachStrategy I) {t : ℕ} {h : List I}
     {f : List I → ℝ} (hf : ∀ x, 0 ≤ f x) : 0 ≤ expectHistory strat t h f := by
@@ -595,14 +586,11 @@ theorem expectHistory_indicator_le (strat : ApproachStrategy I) (t : ℕ) (h : L
     (f : List I → ℝ) (hf : ∀ x, 0 ≤ f x) {c : ℝ} (hc : 0 < c) :
     expectHistory strat t h (fun x => if c ≤ f x then (1 : ℝ) else 0) ≤
       expectHistory strat t h f / c := by
-  have h1 : expectHistory strat t h (fun x => c * if c ≤ f x then (1 : ℝ) else 0) ≤
-      expectHistory strat t h f := by
-    refine expectHistory_mono strat fun x _ => ?_
-    split_ifs with hx
-    · linarith
-    · simpa using hf x
-  rw [expectHistory_smul] at h1
-  rwa [le_div_iff₀ hc, mul_comm]
+  rw [le_div_iff₀ hc, mul_comm, ← expectHistory_smul]
+  refine expectHistory_mono strat fun x _ => ?_
+  split_ifs with hx
+  · linarith
+  · simpa using hf x
 
 /-- Cumulative realized vector payoff along a reverse-ordered history `h : List I` against an
 adaptive adversary `adv : List I → J` (at step `h`, the adversary sees the realized prefix `h` and

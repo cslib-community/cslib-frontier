@@ -524,8 +524,8 @@ theorem forgetNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : ForgetNodeArgs
   dsimp only at hr_pw hc_pw
   let tblLen := a.q ^ bagLen
   let tblPtr := s₁.frontier
+  have hs_tbl : s.frontier ≤ tblPtr := by dsimp only [tblPtr, s₁]; omega
   let s₂ := (Memory.spec 0).clientState s₁ (Memory.allocDirty tblLen)
-  have hs₂_fr : s₂.frontier = tblPtr + tblLen := rfl
   have hp₂ : PreservesBelow tblPtr s₁ s₂ := preservesBelow_allocDirty s₁ tblLen
   have hfit_fr₂ : Fits w (s₁.frontier + tblLen) := by
     rw [hfr_er]; exact hfit_peak.of_le (by dsimp only [LB, tblLen, bagLen]; omega)
@@ -533,7 +533,7 @@ theorem forgetNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : ForgetNodeArgs
       ((Memory.spec w).clientHistory s₁ (Memory.allocDirty tblLen)) :=
     validHistory_allocDirty hfit_fr₂
   have hp_s_s₂ : PreservesBelow bagPtr s s₂ :=
-    hp_er.trans (hp₂.mono_bound (by dsimp only [tblPtr, bagPtr]; rw [hfr_er]; omega))
+    hp_er.trans (hp₂.mono_bound hs_tbl)
   obtain ⟨hv_bm, hst_bm, hr_bm, hc_bm⟩ :=
     bagMemProg_spec (w := w) ⟨a.v, a.varsPtr, a.varsLen⟩ (hvars.mono_frontier hp_s_s₂) hvars_len
   dsimp only at hr_bm hc_bm
@@ -549,30 +549,26 @@ theorem forgetNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : ForgetNodeArgs
       (hLB_s₁.mono_frontier hp₂) rfl
       (by dsimp only [fillArgs, tblPtr, bagPtr, bagLen, LB]; rw [hfr_er])
       (hchild.bag_holds.mono_frontier hp_s_s₂) rfl
-      (by have := hchild.bag_holds.1
-          dsimp only [fillArgs, cBagPtr, cBagLen, tblPtr]; rw [hfr_er]; omega)
+      (hchild.bag_holds.1.trans hs_tbl)
       (hchild.tbl_holds.mono_frontier hp_s_s₂)
-      (by have := hchild.tbl_holds.1; rw [length_dpInstTree] at this
-          dsimp only [fillArgs, cTblPtr, cBagLen, tblPtr]; rw [hfr_er]; omega)
-      rfl (by rw [hs₂_fr]) hfit_cap
+      ((length_dpInstTree counting a.q cs vars child ▸ hchild.tbl_holds.1).trans hs_tbl)
+      rfl le_rfl hfit_cap
   let s₃ := (Memory.spec 0).clientState s₂ (forgetFillProg fillArgs)
-  have hs₃_fr : s₃.frontier = tblPtr + tblLen := by rw [hfr_fill, hs₂_fr]
+  have hs₃_fr : s₃.frontier = tblPtr + tblLen := hfr_fill
   have hp_s_s₃ : PreservesBelow bagPtr s s₃ :=
-    hp_s_s₂.trans
-      (hp_fill.mono_bound (by dsimp only [fillArgs, tblPtr, bagPtr]; rw [hfr_er]; omega))
+    hp_s_s₂.trans (hp_fill.mono_bound hs_tbl)
   have hLB_s₃ : HoldsIn bagPtr LB s₃ :=
     (hLB_s₁.mono_frontier hp₂).mono (F := tblPtr)
       (by dsimp only [tblPtr, bagPtr, LB]; rw [hfr_er]) hp_fill
-  have hd_s₃ : a.dCur + 4 ≤ s₃.frontier := by
-    rw [hs₃_fr]; dsimp only [tblPtr]; rw [hfr_er]; omega
+  have hFlo_tbl : F_lo ≤ tblPtr := hFlo.trans hs_tbl
+  have hd_s₃ : a.dCur + 4 ≤ s₃.frontier :=
+    (hdCur.trans hFlo_tbl).trans (hs₃_fr ▸ Nat.le_add_right _ _)
   have hfit_bt : Fits w (s.frontier + bagLen + tblLen) := by rwa [hfr_er] at hfit_fr₂
   obtain ⟨hv_wd, hfr_wd, hframe_wd, hm0, hm1, hm2, hm3, hc_wd⟩ :=
     writeDescProg_spec (w := w) ⟨a.dCur, bagPtr, bagLen, tblPtr, tblLen⟩ hd_s₃
       (hfit_bt.of_le (by dsimp only [bagPtr, bagLen, tblLen]; omega))
       (hfit_bt.of_le (by dsimp only [bagPtr, bagLen, tblLen]; omega))
-      (hfit_bt.of_le (by
-        dsimp only [tblPtr, bagLen, tblLen] at hfit_bt ⊢
-        rw [hfr_er]; dsimp only [bagLen, LB]; omega))
+      (hfit_bt.of_le (by dsimp only [tblPtr, s₁, bagLen, LB]; omega))
       (hfit_bt.of_le (by dsimp only [bagPtr, bagLen, tblLen]; omega))
   dsimp only at hm0 hm1 hm2 hm3
   let sEnd := (Memory.spec 0).clientState s₃
@@ -610,14 +606,10 @@ theorem forgetNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : ForgetNodeArgs
     rw [hst_bm, hr_bm, ite_pure_do]
     exact validHistory_bind_step hv_fill hv_wd
   · rw [hsEnd_eq, hfr_wd, hs₃_fr]
-    dsimp only [tblPtr, tblLen, bagLen, LB]
-    rw [hfr_er]; omega
+    dsimp only [tblPtr, s₁, tblLen, bagLen, LB]; omega
   · rw [hsEnd_eq]
     exact (FrameOutsideRange.of_preservesBelow a.dCur (a.dCur + 4) hp_s_s₃).trans hframe_wd
   · rw [hsEnd_eq]
-    have hFlo_tbl : F_lo ≤ tblPtr := by
-      dsimp only [tblPtr]
-      rw [hfr_er]; omega
     exact ⟨hdCur, hm0 ▸ hFlo, hm1,
       hm0 ▸ hLB_s₃.frame_outsideRange (.inr (le_trans hdCur hFlo)) hframe_wd,
       hm2 ▸ hFlo_tbl, hm3,

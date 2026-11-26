@@ -483,11 +483,9 @@ theorem expandParent_spec (hfa : ∀ y ∈ C, a y (f y) = true) (hfC : ∀ y ∈
   · intro v
     by_cases hvC : v ∈ C
     · obtain ⟨k, hk⟩ := hR1 v hvC
-      obtain ⟨n, hn⟩ := hq.reach (q x0)
-      obtain ⟨m, hm⟩ := hR2 n (q x0) hwC hn
+      obtain ⟨m, hm⟩ := (hq.reach (q x0)).elim fun n => hR2 n (q x0) hwC
       exact ⟨m + k, by rw [Function.iterate_add_apply, hk, hm]⟩
-    · obtain ⟨n, hn⟩ := hq.reach v
-      exact hR2 n v hvC hn
+    · exact (hq.reach v).elim fun n => hR2 n v hvC
   · have hsub : C ⊆ Finset.univ.erase r := fun y hy =>
       Finset.mem_erase.mpr ⟨fun h => hrC (h ▸ hy), Finset.mem_univ y⟩
     unfold parentCost
@@ -497,10 +495,8 @@ theorem expandParent_spec (hfa : ∀ y ∈ C, a y (f y) = true) (hfC : ∀ y ∈
       have hvC : v ∉ C := (Finset.mem_sdiff.mp hv).2
       by_cases hqv : q v = x0
       · obtain ⟨y, -, -, hbi, hpy⟩ := hpO v hvC hqv
-        rw [hpy, hqv]
-        simp [contractCost, hvC, hbi]
-      · rw [hpO' v hvC hqv]
-        simp [contractCost, hvC, hqv]
+        simp [hpy, hqv, contractCost, hvC, hbi]
+      · simp [hpO' v hvC hqv, contractCost, hvC, hqv]
     · rw [← Finset.add_sum_erase C _ hxsC, ← Finset.add_sum_erase C _ hx0,
         hpC xs hxsC, ite_eq_left rfl]
       have h0 : ∑ v ∈ C.erase x0, contractCost a c f C x0 v (q v) = 0 :=
@@ -550,12 +546,10 @@ theorem exists_contract_le [IsOrderedAddMonoid β]
     | succ j ih =>
       intro hj w hw
       have hw0 := havoid w (j + 1) hj hw 0 (Nat.zero_le _)
-      have hw1 := havoid w (j + 1) hj hw 1 (by omega)
-      simp only [Function.iterate_zero, id_eq, Function.iterate_one] at hw0 hw1
+      have hw1 : t w ∉ C := havoid w (j + 1) hj hw 1 (by omega)
       rw [Function.iterate_succ_apply] at hw
       obtain ⟨n, hn⟩ := ih (by omega) (t w) hw
-      refine ⟨n + 1, ?_⟩
-      rw [Function.iterate_succ_apply, hqO w hw0, ite_eq_right hw1, hn]
+      exact ⟨n + 1, by rw [Function.iterate_succ_apply, hqO w hw0, ite_eq_right hw1, hn]⟩
   have hqx0 : ∃ n, q^[n] x0 = r := by
     obtain ⟨n, hn⟩ := hQ k' (by omega) (t x) htx
     exact ⟨n + 1, by rw [Function.iterate_succ_apply, hqC x0 hx0, ite_eq_left rfl, hn]⟩

@@ -305,14 +305,12 @@ theorem isSolution_pivot_iff {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.basis
       rw [hold, hxs]
       field_simp
       ring
-    · rw [hold, hxs, ← hnew_i i hi hir]
-      exact h i (D.mem_pivot_basis.2 (.inr ⟨hi, hir⟩))
+    · simpa only [hold, hxs, ← hnew_i i hi hir] using h i (D.mem_pivot_basis.2 (.inr ⟨hi, hir⟩))
   · intro h i hi
     have hxs : x s = (x r - D.rhs r - R r) / D.coeff r s := D.eq_div_of_isSolution hr hs ha h
     rcases D.mem_pivot_basis.1 hi with rfl | ⟨hi, hir⟩
     · rw [hnew_s, ← hxs]
-    · rw [hnew_i i hi hir, ← hxs, ← hold]
-      exact h i hi
+    · simpa only [hnew_i i hi hir, ← hxs, ← hold] using h i hi
 
 /-- A pivot on a nonzero coefficient preserves the objective on solutions. -/
 theorem value_pivot {r s : ι} (hr : r ∈ D.basis) (hs : s ∉ D.basis) (ha : D.coeff r s ≠ 0)
@@ -378,7 +376,6 @@ theorem basicSolution_pivot [Finite ι] {r s : ι} (hr : r ∈ D.basis) (hs : s 
     (ha : D.coeff r s ≠ 0) :
     (D.pivot r s).basicSolution = D.basicSolution + D.ratio s r • D.ray s := by
   have := Fintype.ofFinite ι
-  have hrs : r ≠ s := fun h => hs (h ▸ hr)
   refine ((D.pivot r s).eq_basicSolution_of_isSolution ((D.isSolution_pivot_iff hr hs ha).2
     (D.isSolution_add_smul_ray hs D.isSolution_basicSolution _)) fun j hj => ?_).symm
   rw [mem_pivot_basis, not_or, not_and_or, not_not] at hj
@@ -438,9 +435,7 @@ theorem feasible_pivot [Finite ι] (hD : D.Feasible) {r s : ι} (hr : r ∈ D.ba
   intro i
   simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply]
   by_cases his : i = s
-  · subst his
-    rw [D.basicSolution_of_notMem hs, D.ray_self, zero_add, mul_one]
-    exact hθ
+  · simpa only [his, D.basicSolution_of_notMem hs, D.ray_self, zero_add, mul_one] using hθ
   by_cases hi : i ∈ D.basis
   · rw [D.basicSolution_of_mem hi, D.ray_of_mem hi hs]
     rcases lt_or_ge (D.coeff i s) 0 with hneg | hnonneg
@@ -495,8 +490,7 @@ theorem not_bddAbove_value (hD : D.Feasible) {s : ι} (hs : s ∉ D.basis)
         (mul_nonneg ht (D.ray_nonneg hs h i))⟩
   have hle := hM ⟨_, hmem, rfl⟩
   rw [D.value_add_smul_ray hs, D.value_basicSolution, div_mul_cancel₀ _ hc.ne'] at hle
-  have := le_abs_self (M - D.objConst)
-  linarith
+  linarith [le_abs_self (M - D.objConst)]
 
 omit [IsStrictOrderedRing K] in
 theorem feasibleSet_eq {D' : Dictionary ι K} (h : D.Equivalent D') :

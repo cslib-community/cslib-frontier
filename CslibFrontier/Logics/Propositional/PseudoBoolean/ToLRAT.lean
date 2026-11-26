@@ -176,11 +176,9 @@ private theorem lookup_lratPart_eq_none {J : List Ent} {p : ℕ} (h : p ∉ J.ma
   | cons e J ih =>
     simp only [List.map_cons, List.mem_cons, not_or] at h
     have hne : (p == e.num) = false := by simpa using h.1
-    cases hc : e.clause with
-    | none => simpa [lratPart, hc] using ih h.2
-    | some d =>
-      simp only [lratPart, hc, List.filterMap_cons, Option.map_some, List.lookup_cons, hne]
-      exact ih h.2
+    cases hc : e.clause <;>
+      simpa only [lratPart, hc, List.filterMap_cons, Option.map_none, Option.map_some,
+        List.lookup_cons, hne] using ih h.2
 
 private theorem lookup_lratPart_cons {e : Ent} {J : List Ent} {p : ℕ} (hp : p ≠ e.num) :
     (lratPart (e :: J)).lookup p = (lratPart J).lookup p := by
@@ -306,13 +304,11 @@ private theorem negate_ok {c : PBConstr} (hd : c.normalize.degree = 1) (ρ t : L
     simp only [negate, hd, coeffSum, List.map_map, Function.comp_def]
     omega
   obtain ⟨ρ', hp⟩ : ∃ ρ', propagate ρ c.negate = some ρ' :=
-    ⟨_, by unfold propagate; rw [ite_eq_right hs]⟩
-  refine ⟨ρ', hp, fun l hl => ?_⟩
-  rcases mem_of_propagate hp hl with hl | hl
-  · exact hρ l hl
-  · simp only [negate, List.map_map, Function.comp_def, List.mem_map] at hl
-    obtain ⟨y, hy, rfl⟩ := hl
-    exact hmem y hy
+    ⟨_, by rw [propagate, ite_eq_right hs]⟩
+  refine ⟨ρ', hp, fun l hl => (mem_of_propagate hp hl).elim (hρ l) fun hl => ?_⟩
+  simp only [negate, List.map_map, Function.comp_def, List.mem_map] at hl
+  obtain ⟨y, hy, rfl⟩ := hl
+  exact hmem y hy
 
 /-- The negated clause of a normalized constraint is a consistent trail: its variables are
 distinct. -/
@@ -405,11 +401,9 @@ private theorem checkLRAT_aux (q : ℕ) : ∀ (ss : List Step) (J : List Ent) (n
     have hp : pbPart (J.filter fun e => !ids.contains e.num) =
         (pbPart J).filter fun e => !ids.contains e.1 := by
       simp [pbPart, List.filter_map, Function.comp_def]
-    have ih := checkLRAT_aux q ss _ n D m (hp ▸ hid.filter _)
-      (fun e he => hA e (List.mem_of_mem_filter he)) hcl (hp ▸ hrun) hq
-    simp only [toLRATAux, CNF.checkLRATAux]
-    rw [← lratPart_filter J (fun i => !ids.contains i)]
-    exact ih
+    simpa only [toLRATAux, CNF.checkLRATAux, ← lratPart_filter J (fun i => !ids.contains i)] using
+      checkLRAT_aux q ss _ n D m (hp ▸ hid.filter _)
+        (fun e he => hA e (List.mem_of_mem_filter he)) hcl (hp ▸ hrun) hq
   | .pol _ :: _, _, _, _, _, _, _, hcl, _, _ => by simp [Step.isClausal] at hcl
   | .rupSearch _ :: _, _, _, _, _, _, _, hcl, _, _ => by simp [Step.isClausal] at hcl
   | .pbc .. :: _, _, _, _, _, _, _, hcl, _, _ => by simp [Step.isClausal] at hcl

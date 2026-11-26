@@ -274,22 +274,20 @@ theorem IsGroupStrategyProof.isNonBossy {M : HousingMechanism n}
       ext k
       by_cases hki : k = i <;> by_cases hkj : k = j <;>
         simp [Instance.updatePrefs, Instance.updatePref_pref_of_ne, *]
-    refine h I {i, j} _ ⟨fun k hk => ?_, j, by simp, hupd.symm ▸ hlt⟩
-    rw [hupd]
-    rcases Finset.mem_insert.1 hk with rfl | hkj
-    · rw [heq]
-    · exact Finset.mem_singleton.1 hkj ▸ hlt.le
+    exact h I {i, j} _ ⟨(Finset.forall_mem_insert _ _ _).2 ⟨by rw [hupd, heq],
+      fun _ hk => by simpa only [Finset.mem_singleton.1 hk, hupd] using hlt.le⟩,
+      j, by simp, hupd.symm ▸ hlt⟩
   · set I' := I.updatePref i π
     have hupd' : I'.updatePrefs {i, j} I.pref = I := by
       ext k
       by_cases hki : k = i <;> by_cases hkj : k = j <;>
         simp [Instance.updatePrefs, I', Instance.updatePref_pref_of_ne, *]
     have hrj : I'.rank j = I.rank j := I.updatePref_rank_of_ne π hji
-    refine h I' {i, j} I.pref ⟨fun k hk => ?_, j, by simp, by rwa [hupd', hrj]⟩
-    rw [hupd']
-    rcases Finset.mem_insert.1 hk with rfl | hkj
-    · rw [heq]
-    · exact Finset.mem_singleton.1 hkj ▸ hrj ▸ hgt.le
+    have hj_lt : I'.rank j (M (I'.updatePrefs {i, j} I.pref) j) < I'.rank j (M I' j) := by
+      rwa [hupd', hrj]
+    exact h I' {i, j} I.pref ⟨(Finset.forall_mem_insert _ _ _).2 ⟨by rw [hupd', heq],
+      fun _ hk => by simpa only [Finset.mem_singleton.1 hk] using hj_lt.le⟩,
+      j, by simp, hj_lt⟩
 
 /-! #### Two-slot masking permutation for `(SP ∧ NonBossy) → GSP` -/
 
@@ -334,12 +332,10 @@ private theorem eq_or_eq_of_topTwoPerm_symm_le {a b x : Fin n}
       Nat.eq_zero_of_le_zero (by simpa only [Fin.le_def, ha0] using hle)
     exact Or.inl ((topTwoPerm a a).symm.injective ((Fin.ext hx0).trans ha0.symm))
   · have hn2 : 2 ≤ n := by have := Fin.val_ne_of_ne hab; omega
-    have hb1 : (topTwoPerm a b).symm b = ⟨1, hn2⟩ := by
-      apply (topTwoPerm a b).injective
-      simp [topTwoPerm, hab, Equiv.trans_apply]
-    have hx_le : ((topTwoPerm a b).symm x).val ≤ 1 := by
-      simpa only [Fin.le_def, hb1] using hle
-    rcases Nat.le_one_iff_eq_zero_or_eq_one.1 hx_le with hx0 | hx1
+    have hb1 : (topTwoPerm a b).symm b = ⟨1, hn2⟩ :=
+      (topTwoPerm a b).injective (by simp [topTwoPerm, hab, Equiv.trans_apply])
+    rcases Nat.le_one_iff_eq_zero_or_eq_one.1 (by simpa only [Fin.le_def, hb1] using hle) with
+      hx0 | hx1
     · exact Or.inl ((topTwoPerm a b).symm.injective ((Fin.ext hx0).trans ha0.symm))
     · exact Or.inr ((topTwoPerm a b).symm.injective ((Fin.ext hx1).trans hb1.symm))
 
@@ -363,12 +359,10 @@ theorem isGroupStrategyProof_iff {M : HousingMechanism n} :
       set JT := J.updatePrefs T πStar
       rw [J.updatePrefs_insert hiT]
       set J' := JT.updatePref i (πStar i)
-      have hsp : (J'.rank i (M J' i)).val ≤ (J'.rank i (M J i)).val := by
-        simpa [J', hT] using hSP J' i (JT.pref i)
-      have hzero : (J'.rank i (M J i)).val = 0 := by
-        rw [JT.updatePref_rank_self]
-        exact topTwoPerm_symm_fst_val (M J i) (M I i)
-      have heq_house : M J' i = M JT i := hT ▸ J'.rank_injective i (Fin.ext (by omega))
+      have hsp : ((πStar i).symm (M J' i)).val = 0 := by
+        simpa [J', hT, Fin.le_def, πStar, topTwoPerm_symm_fst_val] using hSP J' i (JT.pref i)
+      have heq_house : M J' i = M JT i := hT ▸ (πStar i).symm.injective
+        (Fin.ext (hsp.trans (topTwoPerm_symm_fst_val (M J i) (M I i)).symm))
       exact (hNB JT i (πStar i) heq_house).trans hT
   -- Step 2: moving `T ⊆ S` from `I` to `πStar` preserves `M _ = M I`.
   have hI_inv (T : Finset (Fin n)) : T ⊆ S → M (I.updatePrefs T πStar) = M I := by
@@ -396,9 +390,8 @@ theorem isGroupStrategyProof_iff {M : HousingMechanism n} :
   have hsame : J.updatePrefs S πStar = I.updatePrefs S πStar := by
     ext k
     by_cases hkS : k ∈ S <;> simp [Instance.updatePrefs, J, hkS]
-  have hMJ_eq_MI : M J = M I := by
-    rw [← hJ_inv S Finset.Subset.rfl, hsame, hI_inv S Finset.Subset.rfl]
-  exact lt_irrefl _ (hMJ_eq_MI ▸ hlt)
+  rw [← hJ_inv S Finset.Subset.rfl, hsame, hI_inv S Finset.Subset.rfl] at hlt
+  exact lt_irrefl _ hlt
 
 /-! ### Top trading cycles properties -/
 
