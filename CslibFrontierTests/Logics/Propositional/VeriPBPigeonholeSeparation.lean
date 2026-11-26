@@ -16,7 +16,7 @@ public import CslibFrontier.Logics.Propositional.PseudoBoolean.PigeonholeSeparat
 
 namespace CslibFrontierTests.Logics.Propositional.VeriPBPigeonholeSeparation
 
-open Cslib.Logic.PL Cslib.Logic.PL.VeriPB
+open Cslib Cslib.Logic.PL Cslib.Logic.PL.VeriPB
 
 /-- The variable of pigeon `i` and hole `j` is `i n + j`. -/
 def name (n : ℕ) (p : Fin (n + 1) × Fin n) : ℕ := (finProdFinEquiv p : ℕ)
@@ -24,15 +24,21 @@ def name (n : ℕ) (p : Fin (n + 1) × Fin n) : ℕ := (finProdFinEquiv p : ℕ)
 theorem name_injective (n : ℕ) : (name n).Injective :=
   Fin.val_injective.comp finProdFinEquiv.injective
 
--- Cubic-size VeriPB proofs of `PHP^{n+1}_n`, and exponential lower bounds for LRAT.
+-- Cubic-size VeriPB proofs of `PHP^{n+1}_n`.
 example (n : ℕ) :
-    (∃ P : Proof, check (((CNF.pigeonhole (n + 1) n).relabel (name n)).map Clause.toPB) P = true ∧
-      P.steps.length ≤ (n + 1) * (n + 2) ^ 2) ∧
-    ∀ cert, ((CNF.pigeonhole (n + 1) n).relabel (name n)).checkLRAT cert = true →
-      2 ^ (n / 24) ≤ (n + 1) + n * (n + 1) ^ 2 +
-        min (CNF.lratHintCount cert.toList) (cert.size * ((n + 1) * n)) :=
-  let ⟨⟨P, hP, hlen, _⟩, hlrat⟩ := pigeonhole_separation n (name_injective n)
-  ⟨⟨P, hP, hlen⟩, hlrat⟩
+    ∃ P : Proof, check (((CNF.pigeonhole (n + 1) n).relabel (name n)).map Clause.toPB) P = true ∧
+      P.steps.length ≤ (n + 1) * (n + 2) ^ 2 :=
+  let ⟨P, hP, hlen, _⟩ := exists_check_pigeonhole n.lt_succ_self (name_injective n)
+  ⟨P, hP, hlen⟩
+
+-- No polynomially bounded translation of these proofs into LRAT certificates.
+example :
+    ¬ ∃ g : ℕ → ℕ, PolynomiallyBounded g ∧ ∀ (n s : ℕ) (P : Proof),
+      check (((CNF.pigeonhole (n + 1) n).relabel (name n)).map Clause.toPB) P = true →
+      P.steps.all Step.IsCP → P.steps.length ≤ s →
+      ∃ cert, ((CNF.pigeonhole (n + 1) n).relabel (name n)).checkLRAT cert = true ∧
+        min (CNF.lratHintCount cert.toList) cert.size ≤ g s :=
+  not_exists_polynomiallyBounded_checkLRAT_pigeonhole name_injective
 
 end CslibFrontierTests.Logics.Propositional.VeriPBPigeonholeSeparation
 

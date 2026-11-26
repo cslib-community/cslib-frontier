@@ -7,32 +7,56 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
+public import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.CompileCuttingPlanes
-public import CslibFrontier.Logics.Propositional.CuttingPlanes.Pigeonhole
 public import CslibFrontier.Logics.Propositional.Resolution.LRATLowerBound
+import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
+import CslibFrontier.Logics.Propositional.CuttingPlanes.Pigeonhole
 
 /-!
 # VeriPB refutes the pigeonhole principle in polynomial size, LRAT does not
 
 Compiling the polynomial-size cutting planes refutation of the pigeonhole formula `PHP^m_n`
+[Cook, Coullard and Turán][CookCoullardTuran1987]
 (`Cslib.Logic.PL.CuttingPlanes.refutableInSize_pigeonhole`) into `pol` steps
 (`Cslib.Logic.PL.VeriPB.exists_check_cnf_of_refutableInSize`) gives, for `m > n`, a proof that the
-VeriPB kernel checker accepts on the clauses of `PHP^m_n` with at most `(n + 1) (m + 1)²` steps,
-each a `pol` step of at most three operations and no hints
-(`Cslib.Logic.PL.VeriPB.exists_check_pigeonhole`). The formula's variables `Fin m × Fin n` are
-renamed into `ℕ` along any injective map.
+VeriPB kernel checker [Bogaerts, Gocht, McCreesh and Nordström][BogaertsGochtMcCreeshNordstrom2023]
+accepts on the clauses of `PHP^m_n` with at most `(n + 1) (m + 1)²` steps, each a `pol` step of at
+most three operations and no hints (`Cslib.Logic.PL.VeriPB.exists_check_pigeonhole`). The
+formula's variables `Fin m × Fin n` are renamed into `ℕ` along any injective map.
 
 On `PHP^{n+1}_n`, every certificate that the LRAT checker accepts has
 `2 ^ (n / 24) ≤ (n + 1) + n (n + 1)² + min (H) (S · (n + 1) n)`, where `S` is its number of steps
 and `H` its number of hints (`Cslib.Logic.PL.CNF.two_pow_le_of_checkLRAT_pigeonhole`, from
-Haken's theorem). Together (`Cslib.Logic.PL.VeriPB.pigeonhole_separation`): VeriPB proofs of
-`PHP^{n+1}_n` have `O(n³)` steps, while LRAT certificates have `2 ^ Ω(n)` steps and hints. As in
-the cited results, the size of a proof counts steps and hints, not the bit size of coefficients.
+[Haken's theorem][Haken1985]). Hence any translation of the accepted VeriPB proofs of
+`PHP^{n+1}_n` with at most `s` steps into accepted LRAT certificates with `min (H) (S) ≤ g s`
+needs `2 ^ (n / 24) ≤ (n + 1) + n (n + 1)² + g ((n + 1) (n + 2)²) · ((n + 1) n + 1)`
+(`Cslib.Logic.PL.VeriPB.two_pow_le_of_forall_check_pigeonhole`), so no polynomially bounded `g`
+does it (`Cslib.Logic.PL.VeriPB.not_exists_polynomiallyBounded_checkLRAT_pigeonhole`). Bounding
+`min (H) (S)` rules out a polynomial simulation whether LRAT size counts steps, hints or both. The
+translation need only handle the proofs made of `pol` steps without saturation.
+
+As in the cited results, the size of a proof counts steps and hints, not the bit size of
+coefficients. These theorems are corollaries, original to this library, of the cited cutting planes
+upper bound and resolution lower bound through the translations between VeriPB, cutting planes and
+LRAT. That VeriPB also polynomially simulates LRAT on every formula is the embedding of LRAT
+certificates into `rup` steps, which this file does not state.
 
 ## Main results
 
 * `Cslib.Logic.PL.VeriPB.exists_check_pigeonhole`: polynomial-size VeriPB proofs of `PHP^m_n`.
-* `Cslib.Logic.PL.VeriPB.pigeonhole_separation`: the separation from LRAT on `PHP^{n+1}_n`.
+* `Cslib.Logic.PL.VeriPB.two_pow_le_of_forall_check_pigeonhole`: the quantitative separation from
+  LRAT on `PHP^{n+1}_n`.
+* `Cslib.Logic.PL.VeriPB.not_exists_polynomiallyBounded_checkLRAT_pigeonhole`: LRAT does not
+  polynomially simulate VeriPB.
+
+## References
+
+* [B. Bogaerts, S. Gocht, C. McCreesh, J. Nordström, *Certified Dominance and Symmetry Breaking for
+  Combinatorial Optimisation*][BogaertsGochtMcCreeshNordstrom2023]
+* [W. Cook, C. R. Coullard, Gy. Turán, *On the complexity of cutting-plane
+  proofs*][CookCoullardTuran1987]
+* [A. Haken, *The intractability of resolution*][Haken1985]
 -/
 
 public section
@@ -40,6 +64,7 @@ public section
 namespace Cslib.Logic.PL.VeriPB
 
 open CNF CuttingPlanes
+open Std.Tactic.BVDecide (LRAT.IntAction)
 
 /-- **Polynomial-size VeriPB proofs of the pigeonhole principle.** For `m > n` and an injective
 naming `f` of the variables `Fin m × Fin n` of `PHP^m_n` by `ℕ`, the VeriPB kernel checker accepts
@@ -53,34 +78,65 @@ theorem exists_check_pigeonhole {m n : ℕ} (h : n < m) {f : Fin m × Fin n → 
       P.steps.length ≤ (n + 1) * (m + 1) ^ 2 ∧ P.steps.all Step.IsCP ∧
       ∀ s ∈ P.steps, ∃ ops, s = .pol ops ∧ ops.length ≤ 3 := by
   obtain ⟨P, hP, hlen, hcp, ann, hann⟩ := exists_check_cnf_of_refutableInSize
-    (toIneqs_relabel hf (pigeonhole m n) ▸ (refutableInSize_pigeonhole h).relabel hf)
+    (toIneqs_relabel hf (pigeonhole m n) ▸ (refutableInSize_pigeonhole h).relabel f)
   refine ⟨P, hP, hlen, hcp, fun s hs => ?_⟩
   rw [hann, List.mem_map] at hs
   obtain ⟨l, -, rfl⟩ := hs
   obtain ⟨ops, hops, hlen, -⟩ := l.exists_toStep_eq_pol _
   exact ⟨ops, hops, hlen⟩
 
-/-- **VeriPB is exponentially more succinct than LRAT on the pigeonhole principle.** For an
-injective naming `f` of the variables of `PHP^{n+1}_n` by `ℕ`:
+/-- **Exponential separation of VeriPB from LRAT on `PHP^{n+1}_n`**
+[Cook, Coullard and Turán][CookCoullardTuran1987] [Haken][Haken1985]. Let `f` be an injective
+naming of the variables of `PHP^{n+1}_n` by `ℕ`. If every proof of `UNSAT` with at most `s` steps
+that the VeriPB kernel checker accepts on the clauses of `PHP^{n+1}_n`, made of `pol` steps without
+saturation, yields a certificate that the LRAT checker accepts with `min (H) (S) ≤ g s`, where `S`
+is its number of steps and `H` its number of hints, then
+`2 ^ (n / 24) ≤ (n + 1) + n (n + 1)² + g ((n + 1) (n + 2)²) · ((n + 1) n + 1)`. Size counts steps
+and hints; coefficient sizes are not measured, as in the cited results. -/
+theorem two_pow_le_of_forall_check_pigeonhole {n : ℕ} {f : Fin (n + 1) × Fin n → ℕ}
+    (hf : Function.Injective f) {g : ℕ → ℕ}
+    (hsim : ∀ (s : ℕ) (P : Proof),
+      check (((pigeonhole (n + 1) n).relabel f).map Clause.toPB) P = true →
+      P.steps.all Step.IsCP → P.steps.length ≤ s →
+      ∃ cert : Array LRAT.IntAction, ((pigeonhole (n + 1) n).relabel f).checkLRAT cert = true ∧
+        min (lratHintCount cert.toList) cert.size ≤ g s) :
+    2 ^ (n / 24) ≤
+      (n + 1) + n * (n + 1) ^ 2 + g ((n + 1) * (n + 2) ^ 2) * ((n + 1) * n + 1) := by
+  obtain ⟨P, hP, hlen, hcp, -⟩ := exists_check_pigeonhole n.lt_succ_self hf
+  obtain ⟨cert, hcert, hg⟩ := hsim _ P hP hcp hlen
+  have hmin : min (lratHintCount cert.toList) (cert.size * ((n + 1) * n)) ≤
+      min (lratHintCount cert.toList) cert.size * ((n + 1) * n + 1) := by
+    rcases le_total (lratHintCount cert.toList) cert.size with h | h
+    · rw [min_eq_left h]
+      exact (min_le_left _ _).trans (Nat.le_mul_of_pos_right _ (Nat.succ_pos _))
+    · rw [min_eq_right h]
+      exact (min_le_right _ _).trans (Nat.mul_le_mul_left _ (Nat.le_succ _))
+  exact (two_pow_le_of_checkLRAT_pigeonhole hf hcert).trans
+    (Nat.add_le_add_left (hmin.trans (Nat.mul_le_mul_right _ hg)) _)
 
-* the VeriPB kernel checker accepts a proof of `UNSAT` on its clauses with at most
-  `(n + 1) (n + 2)²` steps, each a `pol` step of at most three operations, without hints;
-* every certificate `cert` that the LRAT checker accepts on it has
-  `2 ^ (n / 24) ≤ (n + 1) + n (n + 1)² + min (H) (S · (n + 1) n)`, where `S = cert.size` is its
-  number of steps and `H` its number of hints
-  (`Cslib.Logic.PL.CNF.two_pow_le_of_checkLRAT_pigeonhole`), so `H` and `S` are `2 ^ Ω(n)`.
-
-Size counts steps and hints; coefficient sizes are not measured, as in the cited results. That
-VeriPB also polynomially simulates LRAT on every formula is the embedding of LRAT certificates
-into `rup` steps, which this theorem does not state. -/
-theorem pigeonhole_separation (n : ℕ) {f : Fin (n + 1) × Fin n → ℕ} (hf : Function.Injective f) :
-    (∃ P : Proof, check (((pigeonhole (n + 1) n).relabel f).map Clause.toPB) P = true ∧
-      P.steps.length ≤ (n + 1) * (n + 2) ^ 2 ∧ P.steps.all Step.IsCP ∧
-      ∀ s ∈ P.steps, ∃ ops, s = .pol ops ∧ ops.length ≤ 3) ∧
-    ∀ cert : Array Std.Tactic.BVDecide.LRAT.IntAction,
-      ((pigeonhole (n + 1) n).relabel f).checkLRAT cert = true →
-        2 ^ (n / 24) ≤ (n + 1) + n * (n + 1) ^ 2 +
-          min (lratHintCount cert.toList) (cert.size * ((n + 1) * n)) :=
-  ⟨exists_check_pigeonhole n.lt_succ_self hf, fun _ h => two_pow_le_of_checkLRAT_pigeonhole hf h⟩
+/-- **LRAT does not polynomially simulate VeriPB** [Cook, Coullard and
+Turán][CookCoullardTuran1987] [Haken][Haken1985]. For injective namings `f n` of the variables of
+`PHP^{n+1}_n` by `ℕ`, no polynomially bounded `g` turns every proof of `UNSAT` with at most `s`
+steps that the VeriPB kernel checker accepts on the clauses of `PHP^{n+1}_n`, for every `n`, made of
+`pol` steps without saturation, into a certificate that the LRAT checker accepts with
+`min (H) (S) ≤ g s`, where `S` is its number of steps and `H` its number of hints. So LRAT size
+counted in steps, in hints, or in both is not polynomial in VeriPB size counted in steps.
+Coefficient sizes are not measured, as in the cited results. -/
+theorem not_exists_polynomiallyBounded_checkLRAT_pigeonhole
+    {f : ∀ n, Fin (n + 1) × Fin n → ℕ} (hf : ∀ n, Function.Injective (f n)) :
+    ¬ ∃ g : ℕ → ℕ, PolynomiallyBounded g ∧ ∀ (n s : ℕ) (P : Proof),
+      check (((pigeonhole (n + 1) n).relabel (f n)).map Clause.toPB) P = true →
+      P.steps.all Step.IsCP → P.steps.length ≤ s →
+      ∃ cert : Array LRAT.IntAction, ((pigeonhole (n + 1) n).relabel (f n)).checkLRAT cert = true ∧
+        min (lratHintCount cert.toList) cert.size ≤ g s := by
+  rintro ⟨g, hg, hsim⟩
+  have hG : PolynomiallyBounded fun k => (24 * k + 1) + 24 * k * (24 * k + 1) ^ 2 +
+      g ((24 * k + 1) * (24 * k + 2) ^ 2) * ((24 * k + 1) * (24 * k) + 1) := by
+    have := hg.comp (g := fun k => (24 * k + 1) * (24 * k + 2) ^ 2) (by fun_prop)
+    fun_prop
+  obtain ⟨k, hk⟩ := hG.eventually_lt_two_pow.exists
+  have := two_pow_le_of_forall_check_pigeonhole (hf (24 * k)) (hsim (24 * k))
+  rw [show 24 * k / 24 = k by omega] at this
+  exact absurd hk (not_lt.2 this)
 
 end Cslib.Logic.PL.VeriPB
