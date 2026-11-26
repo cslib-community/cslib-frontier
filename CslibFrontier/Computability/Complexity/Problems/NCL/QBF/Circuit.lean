@@ -173,10 +173,9 @@ private theorem record_extend (D : Diagram Gate [B, B] []) {u : D.Edge → Bool}
       (extend D false u) (extend D true u) := by
   have hag := control_agrees D false u
   rw [hsat] at hag
-  have hp := innerReach_glueComp_left (OutputLatch.record (u (.inl 1))) hu hag
   unfold extend
   rw [hsat]
-  exact hp.reachable
+  exact (innerReach_glueComp_left (OutputLatch.record (u (.inl 1))) hu hag).reachable
 
 /-- **A true quantified matrix reaches the fixed target.** Execute the body, set the output
 record with three internal moves, and undo the body while retaining that record. -/
@@ -184,29 +183,24 @@ theorem reachable_target_of_truth (qs : List Quantifier) (ms : List (List Bool))
     (h : Chain.Truth (Matrix.Satisfies ms) qs []) :
     ((diagram qs ms).graph Gate.interp).Reachable (initial qs ms).orient (target qs ms).orient := by
   obtain ⟨t, ht, he⟩ := Matrix.canReverse_of_truth qs ms h
-  have hinit : (Initial.body qs ms).orient (.inl 0) = true := by
-    rw [Realization.orient_top]
-    rfl
-  have hsat : t (.inl 0) = false := Bool.eq_false_of_not_eq_true (by simpa only [hinit] using he)
+  have hsat : t (.inl 0) = false := Bool.eq_false_of_not_eq_true
+    (by rwa [Realization.orient_top] at he)
   have hp := (extend_reachable (Matrix.body qs ms) false ht).trans
     ((record_extend (Matrix.body qs ms) (ht.legal (Initial.body qs ms).legal) hsat).trans
       (extend_reachable (Matrix.body qs ms) true ht.symm))
-  rw [extend_initial, extend_initial] at hp
-  exact hp
+  rwa [extend_initial, extend_initial] at hp
 
 private theorem unlocked_of_step (qs : List Quantifier) (ms : List (List Bool))
     {s t : (diagram qs ms).Edge → Bool} (h : ((diagram qs ms).graph Gate.interp).Step s t)
     (hchange : t (output qs ms) ≠ s (output qs ms)) :
     s ((bodyOcc qs ms).emb (.inl 0)) = false := by
   obtain ⟨hs, ht, e, rfl⟩ := h
-  have he : e = output qs ms := by
+  obtain rfl : e = output qs ms := by
     by_contra hne
     exact hchange (reverse_of_ne s (Ne.symm hne))
-  subst e
-  have hl := Latch.not_step_mem ((latchOcc qs ms).legal hs) ((latchOcc qs ms).legal_reverse ht)
-  change s ((latchOcc qs ms).emb Latch.lock) = false at hl
-  rw [lock_body] at hl
-  exact hl
+  exact lock_body qs ms ▸
+    (Latch.not_step_mem ((latchOcc qs ms).legal hs) ((latchOcc qs ms).legal_reverse ht) :
+      s ((latchOcc qs ms).emb Latch.lock) = false)
 
 /-- **Closed-circuit soundness from any inactive legal start.** Changing the output memory
 requires a successful body at some step of the path. The initial output record may have either
@@ -222,9 +216,8 @@ theorem truth_of_output_changed (qs : List Quantifier) (ms : List (List Bool))
   | @tail u v hr hstep ih =>
     intro hchange
     by_cases he : u (output qs ms) = s (output qs ms)
-    · have hc : v (output qs ms) ≠ u (output qs ms) := fun hh => hchange (hh.trans he)
-      exact Matrix.truth_of_reachable qs ms (bodyOcc qs ms) hs hstart hr
-        (unlocked_of_step qs ms hstep hc)
+    · exact Matrix.truth_of_reachable qs ms (bodyOcc qs ms) hs hstart hr
+        (unlocked_of_step qs ms hstep fun hh => hchange (hh.trans he))
     · exact ih he
 
 /-- **Configuration-to-configuration correctness of the closed circuit.** Its explicit target
@@ -232,22 +225,17 @@ is reachable exactly when the quantified matrix is true. -/
 theorem reachable_target_iff_truth (qs : List Quantifier) (ms : List (List Bool)) :
     ((diagram qs ms).graph Gate.interp).Reachable (initial qs ms).orient (target qs ms).orient ↔
       Chain.Truth (Matrix.Satisfies ms) qs [] := by
-  constructor
-  · intro h
-    exact truth_of_output_changed qs ms (initial qs ms).legal (by simp [initial]) h
-      (by simp [initial, target])
-  · exact reachable_target_of_truth qs ms
+  refine ⟨fun h => truth_of_output_changed qs ms (initial qs ms).legal (by simp [initial]) h
+    (by simp [initial, target]), reachable_target_of_truth qs ms⟩
 
 /-- **Configuration-to-edge correctness of the closed circuit.** Its output memory can be
 reversed from the explicit initial configuration exactly when the quantified matrix is true. -/
 theorem canReverse_initial_iff_truth (qs : List Quantifier) (ms : List (List Bool)) :
     ((diagram qs ms).graph Gate.interp).CanReverse (initial qs ms).orient (output qs ms) ↔
       Chain.Truth (Matrix.Satisfies ms) qs [] := by
-  constructor
-  · rintro ⟨t, ht, he⟩
-    exact truth_of_output_changed qs ms (initial qs ms).legal (by simp [initial]) ht he
-  · intro h
-    exact ⟨(target qs ms).orient, reachable_target_of_truth qs ms h, by simp [initial, target]⟩
+  refine ⟨fun ⟨_, ht, he⟩ => truth_of_output_changed qs ms (initial qs ms).legal
+    (by simp [initial]) ht he, fun h =>
+      ⟨(target qs ms).orient, reachable_target_of_truth qs ms h, by simp [initial, target]⟩⟩
 
 /-- **Edge-to-edge correctness of the closed circuit.** A legal configuration with trying
 inactive can reach a satisfied body exactly when the quantified matrix is true. -/
@@ -255,20 +243,14 @@ theorem exists_reachable_sat_iff_truth (qs : List Quantifier) (ms : List (List B
     (∃ s t, ((diagram qs ms).graph Gate.interp).Legal s ∧ s (tryIn qs ms) = false ∧
       t (satOut qs ms) = false ∧ ((diagram qs ms).graph Gate.interp).Reachable s t) ↔
       Chain.Truth (Matrix.Satisfies ms) qs [] := by
-  constructor
-  · rintro ⟨s, t, hs, htry, hsat, ht⟩
-    exact Matrix.truth_of_reachable qs ms (bodyOcc qs ms) hs htry ht hsat
-  · intro h
-    obtain ⟨t, ht, he⟩ := Matrix.canReverse_of_truth qs ms h
-    have hinit : (Initial.body qs ms).orient (.inl 0) = true := by
-      rw [Realization.orient_top]
-      rfl
-    have hsat : t (.inl 0) = false := Bool.eq_false_of_not_eq_true (by simpa only [hinit] using he)
-    refine ⟨(initial qs ms).orient, extend (Matrix.body qs ms) false t,
-      (initial qs ms).legal, by simp [initial], ?_, ?_⟩
-    · exact (congrFun (extend_compRight (Matrix.body qs ms) false t) (.inl 0)).trans hsat
-    · have hp := extend_reachable (Matrix.body qs ms) false ht
-      rw [extend_initial] at hp
-      exact hp
+  refine ⟨fun ⟨s, t, hs, htry, hsat, ht⟩ =>
+    Matrix.truth_of_reachable qs ms (bodyOcc qs ms) hs htry ht hsat, fun h => ?_⟩
+  obtain ⟨t, ht, he⟩ := Matrix.canReverse_of_truth qs ms h
+  have hsat : t (.inl 0) = false := Bool.eq_false_of_not_eq_true
+    (by rwa [Realization.orient_top] at he)
+  exact ⟨(initial qs ms).orient, extend (Matrix.body qs ms) false t,
+    (initial qs ms).legal, by simp [initial],
+    (congrFun (extend_compRight (Matrix.body qs ms) false t) (.inl 0)).trans hsat,
+    extend_initial false qs ms ▸ extend_reachable (Matrix.body qs ms) false ht⟩
 
 end Cslib.Complexity.NCL.QBF.Circuit

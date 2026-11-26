@@ -234,40 +234,28 @@ noncomputable def inEpochFactor : ℕ :=
 
 theorem one_le_inEpochFactor : 1 ≤ inEpochFactor := le_max_left _ _
 
-theorem factor_wItemWords_le : wItemWords.factor ≤ inEpochFactor :=
-  le_max_of_le_right (le_max_left _ _)
-private theorem factor_wExtractQuot_le : wExtractQuot.factor ≤ inEpochFactor :=
-  le_max_of_le_right (le_max_of_le_right (le_max_left _ _))
-private theorem factor_wEvalHash_le : wEvalHash.factor ≤ inEpochFactor :=
-  le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_left _ _)))
-theorem factor_wQuery_le : wQuery.factor ≤ inEpochFactor :=
-  le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
-    (le_max_of_le_right (le_max_left _ _))))
-theorem factor_wInsSearch_le : wInsSearch.factor ≤ inEpochFactor :=
-  le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
-    (le_max_of_le_right (le_max_left _ _)))))
-theorem factor_wWriteVal_le : wWriteVal.factor ≤ inEpochFactor :=
-  le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
-    (le_max_of_le_right (le_max_of_le_right (le_max_left _ _))))))
-theorem factor_wGrowDelta_le : wGrowDelta.factor ≤ inEpochFactor :=
-  le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
-    (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_left _ _)))))))
-theorem factor_wInsAppend_le : wInsAppend.factor ≤ inEpochFactor :=
-  le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
-    (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
-      (le_max_of_le_right (le_max_left _ _))))))))
-theorem factor_wDelPrep_le : wDelPrep.factor ≤ inEpochFactor :=
-  le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
-    (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
-      (le_max_of_le_right (le_max_of_le_right (le_max_left _ _)))))))))
-theorem factor_wDelFin_le : wDelFin.factor ≤ inEpochFactor :=
-  le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
-    (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
-      (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_left _ _))))))))))
-theorem factor_wShrinkDelta_le : wShrinkDelta.factor ≤ inEpochFactor :=
-  le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
-    (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right
-      (le_max_of_le_right (le_max_of_le_right (le_max_of_le_right (le_max_right _ _))))))))))
+theorem factor_wItemWords_le : wItemWords.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
+private theorem factor_wExtractQuot_le : wExtractQuot.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
+private theorem factor_wEvalHash_le : wEvalHash.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
+theorem factor_wQuery_le : wQuery.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
+theorem factor_wInsSearch_le : wInsSearch.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
+theorem factor_wWriteVal_le : wWriteVal.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
+theorem factor_wGrowDelta_le : wGrowDelta.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
+theorem factor_wInsAppend_le : wInsAppend.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
+theorem factor_wDelPrep_le : wDelPrep.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
+theorem factor_wDelFin_le : wDelFin.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true, true_or]
+theorem factor_wShrinkDelta_le : wShrinkDelta.factor ≤ inEpochFactor := by
+  simp only [inEpochFactor, le_max_iff, le_refl, or_true]
 
 /-! ## Section 2: Generic Register-Wiring Combinators and Emitted Subroutines -/
 
@@ -678,13 +666,11 @@ private theorem outs2_query_inj : Function.Injective ![rOutTag, rOutVal] :=
 
 private theorem outs4_ins_inj : Function.Injective ![rFound, rPhys, rBucket, rMicro] := by
   intro a b h
-  have hv := congrArg Fin.val h
-  fin_cases a <;> fin_cases b <;> simp [rFound, rPhys, rBucket, rMicro] at hv ⊢
+  fin_cases a <;> fin_cases b <;> simp [rFound, rPhys, rBucket, rMicro] at h ⊢
 
 private theorem outs4_del_inj : Function.Injective ![rFound, rJDel, rPhys, rQuot] := by
   intro a b h
-  have hv := congrArg Fin.val h
-  fin_cases a <;> fin_cases b <;> simp [rFound, rJDel, rPhys, rQuot] at hv ⊢
+  fin_cases a <;> fin_cases b <;> simp [rFound, rJDel, rPhys, rQuot] at h ⊢
 
 private theorem tmpItemWords_inj : Function.Injective tmpItemWords :=
   mkTmp_injective _ (outs1_inj rCur) (fun i => by fin_cases i; exact eReg_lt_88 _)
@@ -927,16 +913,7 @@ noncomputable def decode {U : ℕ} : (o : Dynamic.Op U) → (Fin rEpoch → ℕ)
   | .delete _, _ => some ()
 
 theorem argMatch_encode {U : ℕ} (o : Dynamic.Op U) : argMatch o (encode o) := by
-  cases o with
-  | query u =>
-    exact ⟨by simp [encode], by simp [encode, show rArgU ≠ rTag from eReg_ne (by decide)]⟩
-  | insert u v =>
-    refine ⟨by simp [encode],
-      by simp [encode, show rArgU ≠ rTag from eReg_ne (by decide)],
-      by simp [encode, show rArgV ≠ rTag from eReg_ne (by decide),
-          show rArgV ≠ rArgU from eReg_ne (by decide)]⟩
-  | delete u =>
-    exact ⟨by simp [encode], by simp [encode, show rArgU ≠ rTag from eReg_ne (by decide)]⟩
+  cases o <;> simp [argMatch, encode, rTag, rArgU, rArgV]
 
 theorem decode_query_optionWords {U : ℕ} (u : Fin U) (res : Option ℕ)
     (regs : Fin rEpoch → ℕ)
@@ -977,13 +954,8 @@ theorem inEpochPeakWords_le_succinctWords {U V w N n : ℕ}
     (hev : EpochValid U n N) (hval : InEpochValid V N s_abs o) :
     inEpochPeakWords V w N n s_abs o ≤
       Dynamic.succinctWords 1355 441 U V w
-        (max n (Dictionary.dom ((Dynamic.spec U V U).stepFn s_abs o).1).card) := by
-  set n' := (Dictionary.dom ((Dynamic.spec U V U).stepFn s_abs o).1).card
-  have hev_max : EpochValid U (max n n') N := by
-    rcases le_total n n' with hle | hge
-    · rw [max_eq_right hle]; exact hval.2
-    · rw [max_eq_left hge]; exact hev
-  exact compactedEpochWords_le_succinctWords hw hU hU_pos hV_pos hev_max
+        (max n (Dictionary.dom ((Dynamic.spec U V U).stepFn s_abs o).1).card) :=
+  compactedEpochWords_le_succinctWords hw hU hU_pos hV_pos (max_rec' (EpochValid U · N) hev hval.2)
 
 /-- Scaled slab/tail hysteresis potential `(98 * inEpochFactor) * slotPotential` for in-epoch
 operations on the Resizable Word RAM. -/
@@ -1143,27 +1115,22 @@ theorem loadBlockUpTo_exec {r m w L_peak base : ℕ}
       ∀ reg, reg ≠ rTmp → (∀ i : Fin m, dst i ≠ reg) → y.regs reg = x.regs reg := by
   induction k with
   | zero =>
-    have hlt : base + startOff < x.frontier := by omega
-    have hoff_fit : Fits w startOff := hx.frontier_fits.of_le (by omega)
-    obtain ⟨hex, hyb⟩ := loadAtOffCode_exec (rDst := dst ⟨0, hk⟩) hx hL haddr_ne_tmp
-      hbase hoff_fit hlt
+    obtain ⟨hex, hyb⟩ := loadAtOffCode_exec (off := startOff) (rDst := dst ⟨0, hk⟩) hx hL
+      haddr_ne_tmp hbase (hx.frontier_fits.of_le (by omega)) (by omega)
     refine ⟨_, hex, hyb, rfl, rfl, fun i hi => ?_, fun reg hrc hrd => ?_⟩
-    · have hi0 : i = ⟨0, hk⟩ := Fin.ext (Nat.eq_zero_of_le_zero hi)
-      subst hi0; simp [RData.set]
+    · obtain rfl : i = ⟨0, hk⟩ := Fin.ext (Nat.eq_zero_of_le_zero hi)
+      simp [RData.set]
     · simp [RData.set, Function.update_of_ne (hrd ⟨0, hk⟩).symm, Function.update_of_ne hrc]
   | succ k ih =>
     obtain ⟨y₁, hex₁, hy₁b, hy₁m, hy₁f, hy₁d, hy₁r⟩ := ih (by omega) (by omega)
-    have hy₁_base : y₁.regs rAddr = base :=
-      (hy₁r rAddr haddr_ne_tmp (fun i => hne_base i)).trans hbase
-    have hlt : base + (startOff + (k + 1)) < y₁.frontier := by omega
-    have hoff_fit : Fits w (startOff + (k + 1)) := hy₁b.frontier_fits.of_le (by omega)
-    obtain ⟨hex₂, hy₂b⟩ := loadAtOffCode_exec (rDst := dst ⟨k + 1, hk⟩) hy₁b (hy₁f.le.trans hL)
-      haddr_ne_tmp hy₁_base hoff_fit hlt
+    obtain ⟨hex₂, hy₂b⟩ := loadAtOffCode_exec (off := startOff + (k + 1))
+      (rDst := dst ⟨k + 1, hk⟩) hy₁b (hy₁f.le.trans hL) haddr_ne_tmp
+      ((hy₁r rAddr haddr_ne_tmp hne_base).trans hbase)
+      (hy₁b.frontier_fits.of_le (by omega)) (by omega)
     refine ⟨_, (hex₁.seq_eq hex₂).mono (by omega) (fun _ h => h),
       hy₂b, hy₁m, hy₁f, fun i hi => ?_, fun reg hrc hrd => ?_⟩
     · by_cases hik : i.val = k + 1
-      · have hieq : i = ⟨k + 1, hk⟩ := Fin.ext hik
-        subst hieq
+      · obtain rfl : i = ⟨k + 1, hk⟩ := Fin.ext hik
         simp only [RData.set_regs, Function.update_self, hy₁m]
         congr 1; omega
       · have hne_d : dst i ≠ dst ⟨k + 1, hk⟩ := fun h => hik (congrArg Fin.val (hinj h))
@@ -1179,16 +1146,64 @@ theorem loadBlockUpTo_exec {r m w L_peak base : ℕ}
 theorem rootHeaderValid_bounds {U V w N n n_init base : ℕ} {r : ℕ} {x : RData r}
     (hx : x.Bounded w) (hhdr : RootHeaderValid U V w N n n_init base x.mem) :
     0 < w ∧ U < 2 ^ w ∧ V ≤ 2 ^ w := by
-  have hU_lt : U < 2 ^ w := hhdr.fits_U
-  have hU_pos : 0 < U := hhdr.pos_U
-  have hw_pos : 0 < w := by
-    by_contra hw0
-    have hwz : w = 0 := by omega
-    subst hwz; omega
-  have hv_mem : x.mem (base + 1) < 2 ^ w := hx.mem_fits (base + 1)
-  rw [hhdr.hdr_V] at hv_mem
-  have hV_pos : 0 < V := hhdr.pos_V
-  exact ⟨hw_pos, hU_lt, by omega⟩
+  have hU : U < 2 ^ w := hhdr.fits_U
+  have hV : x.mem (base + 1) < 2 ^ w := hx.mem_fits (base + 1)
+  rw [hhdr.hdr_V] at hV
+  have := hhdr.pos_U; have := hhdr.pos_V
+  refine ⟨Nat.pos_of_ne_zero fun hw => ?_, hU, by omega⟩
+  subst hw; omega
+
+private theorem rootHeaderValid_of_agree {U V w N n n_init base : ℕ} {mem mem' : ℕ → ℕ}
+    (hhdr : RootHeaderValid U V w N n n_init base mem) (hout : ∀ a < base + 8, mem' a = mem a) :
+    RootHeaderValid U V w N n n_init base mem' := by
+  obtain ⟨h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈, h₉, h₁₀, h₁₁⟩ := hhdr
+  refine ⟨h₁, h₂, h₃, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> exact (hout _ (by omega)).trans ‹_›
+
+/-- The stored parameters and the hash representation survive writes outside
+`[base + 8, base + 63) ∪ [base + 225, base + offCompLM)`. -/
+private theorem params_hash_of_agree {U V w N base : ℕ} {θ : QuotHashSeed U N}
+    {mem mem' : ℕ → ℕ} (hpar : EpochParamsStored U V w N base mem)
+    (hhash : ReducedKWise.Rep (base + epochHdrWords) w (qBits U N) (hashB N)
+      (totalMicroBits N) 3 θ mem)
+    (hout : ∀ a, base + 8 ≤ a → a < base + offCompLM U w N →
+      (a < base + offScratch ∨ base + epochHdrWords ≤ a) → mem' a = mem a) :
+    EpochParamsStored U V w N base mem' ∧
+      ReducedKWise.Rep (base + epochHdrWords) w (qBits U N) (hashB N)
+        (totalMicroBits N) 3 θ mem' := by
+  have heh : epochHdrWords = 225 := rfl
+  refine ⟨⟨fun i => (hout _ ?_ ?_ ?_).trans (hpar.hp_eq i),
+      fun i => (hout _ ?_ ?_ ?_).trans (hpar.cp_eq i)⟩,
+    ReducedKWise.tableRep_congr hhash.1 fun a h₁ h₂ => (hout a ?_ ?_ ?_).symm,
+    ReducedKWise.seedRep_congr (w := w) hhash.2 fun a h₁ h₂ => (hout a ?_ ?_ ?_).symm⟩
+  all_goals dsimp only [offHashParams, offCompParams, offScratch, offCompLM, epochHashSpace, qBits,
+    hashB, epochQBits, epochHashB] at *
+  all_goals omega
+
+/-- The fixed coupling and the global metadata survive writes below `base + offCompLM`. -/
+private theorem fixedCoupled_of_agree {U V w N base : ℕ} {s_fix s s' : Memory.State} (hw : 0 < w)
+    (hcpl : FixedCoupled base (base + offCompItems U w N) U V w N s_fix s)
+    (hout : ∀ a, base + offCompLM U w N ≤ a → s'.mem a = s.mem a) :
+    FixedCoupled base (base + offCompItems U w N) U V w N s_fix s' ∧
+      compGmAt base U w N s'.mem = compGmAt base U w N s.mem := by
+  have h₁ : offCompLM U w N ≤ offCompGM U w N := Nat.le_add_right _ _
+  have h₂ : offCompGM U w N ≤ offTailToDense U w N := Nat.le_add_right _ _
+  have h₃ : offTailToDense U w N ≤ offDenseToTail U w N := Nat.le_add_right _ _
+  have h₄ : offDenseToTail U w N ≤ offCompItems U w N := Nat.le_add_right _ _
+  have hlm := compLmAt_congr (metaBase := base) (U := U) (N := N) hw fun a ha => hout a ha.1
+  have hgm := compGmAt_congr (metaBase := base) (U := U) (N := N) hw fun a ha => hout a (by omega)
+  have htd := compTDAt_congr (metaBase := base) (U := U) (N := N) hw fun a ha => hout a (by omega)
+  have hdt := compDTAt_congr (metaBase := base) (U := U) (N := N) hw fun a ha => hout a (by omega)
+  have hq : ∀ m, compQuotAt (base + offCompItems U w N) U V w N m s'.mem =
+      compQuotAt (base + offCompItems U w N) U V w N m s.mem := fun _ =>
+    compQuotAt_congr hw fun a ha => hout a (by omega)
+  have hv : ∀ m, compValAt (base + offCompItems U w N) U V w N m s'.mem =
+      compValAt (base + offCompItems U w N) U V w N m s.mem := fun _ =>
+    compValAt_congr hw fun a ha => hout a (by omega)
+  refine ⟨⟨hgm.trans hcpl.gm_eq, hlm.trans hcpl.lm_eq, by rw [hgm, htd, hdt]; exact hcpl.win_inv,
+    fun i => by rw [htd]; exact hcpl.td_lt i, fun i => by rw [hdt]; exact hcpl.dt_lt i,
+    fun d hd => ?_, fun d hd => ?_⟩, hgm⟩
+  · rw [hgm, hq, hdt]; exact hcpl.quot_eq d (by simpa only [epochTotalSlots, hgm] using hd)
+  · rw [hgm, hv, hdt]; exact hcpl.val_eq d (by simpa only [epochTotalSlots, hgm] using hd)
 
 theorem compactedSplitRep_of_scratch_mod {U V w N n n_init base : ℕ}
     {θ : QuotHashSeed U N} {s_abs : Dictionary.State U} {s₀ s₁ : Memory.State}
@@ -1197,61 +1212,14 @@ theorem compactedSplitRep_of_scratch_mod {U V w N n n_init base : ℕ}
     (_hfr : s₁.frontier = s₀.frontier)
     (hout : ∀ a, (a < base + offScratch ∨ base + epochHdrWords ≤ a) → s₁.mem a = s₀.mem a) :
     CompactedSplitRep base (base + offCompItems U w N) U V w N n n_init θ s_abs s₁ := by
-  have hsc : offScratch = 63 := rfl
-  have heh : epochHdrWords = 225 := rfl
-  have h0_off : epochHdrWords ≤ offCompLM U w N := Nat.le_add_right _ _
-  have h1_off : offCompLM U w N ≤ offCompGM U w N := Nat.le_add_right _ _
-  have h2_off : offCompGM U w N ≤ offTailToDense U w N := Nat.le_add_right _ _
-  have h3_off : offTailToDense U w N ≤ offDenseToTail U w N := Nat.le_add_right _ _
-  have h4_off : offDenseToTail U w N ≤ offCompItems U w N := Nat.le_add_right _ _
-  have hhdr₁ : RootHeaderValid U V w N n n_init base s₁.mem :=
-    ⟨hsplit.root_hdr.fits_U, hsplit.root_hdr.pos_U, hsplit.root_hdr.pos_V,
-      (hout base (Or.inl (by omega))).trans hsplit.root_hdr.hdr_U,
-      (hout (base + 1) (Or.inl (by omega))).trans hsplit.root_hdr.hdr_V,
-      (hout (base + 2) (Or.inl (by omega))).trans hsplit.root_hdr.hdr_w,
-      (hout (base + 3) (Or.inl (by omega))).trans hsplit.root_hdr.hdr_keyBits,
-      (hout (base + 4) (Or.inl (by omega))).trans hsplit.root_hdr.hdr_valBits,
-      (hout (base + 5) (Or.inl (by omega))).trans hsplit.root_hdr.hdr_N,
-      (hout (base + 6) (Or.inl (by omega))).trans hsplit.root_hdr.hdr_n,
-      (hout (base + 7) (Or.inl (by omega))).trans hsplit.root_hdr.hdr_n_init⟩
-  have hpar₁ : EpochParamsStored U V w N base s₁.mem :=
-    ⟨fun i => (hout (base + offHashParams + i.val)
-        (Or.inl (by unfold offHashParams; omega))).trans (hsplit.params_stored.hp_eq i),
-     fun i => (hout (base + offCompParams + i.val)
-        (Or.inl (by unfold offCompParams; omega))).trans (hsplit.params_stored.cp_eq i)⟩
-  have hhash₁ : ReducedKWise.Rep (base + epochHdrWords) w (qBits U N) (hashB N)
-      (totalMicroBits N) 3 θ s₁.mem :=
-    ⟨ReducedKWise.tableRep_congr hsplit.hash_rep.1
-        (fun a h1 _ => (hout a (Or.inr (by omega))).symm),
-     ReducedKWise.seedRep_congr (w := w) hsplit.hash_rep.2
-       (fun a h1 _ => (hout a (Or.inr (by omega))).symm)⟩
+  have h₀ : epochHdrWords ≤ offCompLM U w N := Nat.le_add_right _ _
   obtain ⟨s_fix, hinv, htot, hcpl⟩ := hsplit.coupled
-  have hlm_eq := compLmAt_congr (metaBase := base) (U := U) (N := N) hw
-    fun a ha => hout a (Or.inr (by omega))
-  have hgm_eq := compGmAt_congr (metaBase := base) (U := U) (N := N) hw
-    fun a ha => hout a (Or.inr (by omega))
-  have htd_eq := compTDAt_congr (metaBase := base) (U := U) (N := N) hw
-    fun a ha => hout a (Or.inr (by omega))
-  have hdt_eq := compDTAt_congr (metaBase := base) (U := U) (N := N) hw
-    fun a ha => hout a (Or.inr (by omega))
-  have hq_eq : ∀ m, compQuotAt (base + offCompItems U w N) U V w N m s₁.mem =
-      compQuotAt (base + offCompItems U w N) U V w N m s₀.mem := fun _ =>
-    compQuotAt_congr hw fun a ha => hout a (Or.inr (by omega))
-  have hv_eq : ∀ m, compValAt (base + offCompItems U w N) U V w N m s₁.mem =
-      compValAt (base + offCompItems U w N) U V w N m s₀.mem := fun _ =>
-    compValAt_congr hw fun a ha => hout a (Or.inr (by omega))
-  refine ⟨hhdr₁, hpar₁, hhash₁, hsplit.card_eq, hsplit.vals_lt, s_fix, hinv,
-    by rw [hgm_eq]; exact htot,
-    ⟨hgm_eq.trans hcpl.gm_eq, hlm_eq.trans hcpl.lm_eq,
-      by rw [hgm_eq, htd_eq, hdt_eq]; exact hcpl.win_inv,
-      fun i => by rw [htd_eq]; exact hcpl.td_lt i,
-      fun i => by rw [hdt_eq]; exact hcpl.dt_lt i,
-      fun d hd => by
-        rw [hgm_eq, hq_eq, hdt_eq]
-        exact hcpl.quot_eq d (by simpa only [epochTotalSlots, hgm_eq] using hd),
-      fun d hd => by
-        rw [hgm_eq, hv_eq, hdt_eq]
-        exact hcpl.val_eq d (by simpa only [epochTotalSlots, hgm_eq] using hd)⟩⟩
+  obtain ⟨hpar, hhash⟩ := params_hash_of_agree hsplit.params_stored hsplit.hash_rep
+    fun a _ _ h => hout a h
+  obtain ⟨hcpl₁, hgm⟩ := fixedCoupled_of_agree hw hcpl fun a ha => hout a (Or.inr (by omega))
+  exact ⟨rootHeaderValid_of_agree hsplit.root_hdr fun a ha => hout a (Or.inl (by
+      unfold offScratch; omega)), hpar, hhash, hsplit.card_eq, hsplit.vals_lt, s_fix, hinv,
+    hgm ▸ htot, hcpl₁⟩
 
 theorem hdr_params_hash_of_opFrame {U V w N n n_init m_cap base : ℕ}
     {θ : QuotHashSeed U N} {s s' : Memory.State}
@@ -1271,26 +1239,9 @@ theorem hdr_params_hash_of_opFrame {U V w N n n_init m_cap base : ℕ}
   have heh : epochHdrWords = 225 := rfl
   have hbelow : ∀ a < base + offCompLM U w N, s'.mem a = s.mem a := fun a ha =>
     hfr.outside_eq a (by omega) (by omega)
-  refine ⟨⟨hhdr.fits_U, hhdr.pos_U, hhdr.pos_V,
-      (hbelow base (by omega)).trans hhdr.hdr_U,
-      (hbelow (base + 1) (by omega)).trans hhdr.hdr_V,
-      (hbelow (base + 2) (by omega)).trans hhdr.hdr_w,
-      (hbelow (base + 3) (by omega)).trans hhdr.hdr_keyBits,
-      (hbelow (base + 4) (by omega)).trans hhdr.hdr_valBits,
-      (hbelow (base + 5) (by omega)).trans hhdr.hdr_N,
-      (hbelow (base + 6) (by omega)).trans hhdr.hdr_n,
-      (hbelow (base + 7) (by omega)).trans hhdr.hdr_n_init⟩,
-    ⟨fun i => (hbelow (base + offHashParams + i.val)
-        (by unfold offHashParams; omega)).trans (hpar.hp_eq i),
-     fun i => (hbelow (base + offCompParams + i.val)
-        (by unfold offCompParams; omega)).trans (hpar.cp_eq i)⟩,
-    ⟨ReducedKWise.tableRep_congr hhash.1 (fun a _ h2 =>
-        (hbelow a (by dsimp only [offCompLM, epochHashSpace, qBits, hashB, epochQBits,
-          epochHashB] at *; omega)).symm),
-     ReducedKWise.seedRep_congr (w := w) hhash.2 (fun a _ h2 =>
-        (hbelow a (by dsimp only [offCompLM, epochHashSpace, qBits, hashB, epochQBits,
-          epochHashB, ReducedKWise.space] at *; omega)).symm)⟩,
-    fun addr haddr => hbelow addr (by omega)⟩
+  obtain ⟨hpar', hhash'⟩ := params_hash_of_agree hpar hhash fun a _ h _ => hbelow a h
+  exact ⟨rootHeaderValid_of_agree hhdr fun a ha => hbelow a (by omega), hpar', hhash',
+    fun a ha => hbelow a (by omega)⟩
 
 theorem update_hdr_n_preserves_split {U V w N n_old n_new n_init base : ℕ}
     {θ : QuotHashSeed U N} {s_abs : Dictionary.State U} {s_fix : Memory.State}
@@ -1308,62 +1259,17 @@ theorem update_hdr_n_preserves_split {U V w N n_old n_new n_init base : ℕ}
     CompactedSplitRep base (base + offCompItems U w N) U V w N n_new n_init θ s_abs ⟨mem', fr⟩ ∧
     compGmAt base U w N mem' = compGmAt base U w N mem := by
   intro mem'
-  have heh : epochHdrWords = 225 := rfl
-  have h0_off : epochHdrWords ≤ offCompLM U w N := Nat.le_add_right _ _
-  have h1_off : offCompLM U w N ≤ offCompGM U w N := Nat.le_add_right _ _
-  have h2_off : offCompGM U w N ≤ offTailToDense U w N := Nat.le_add_right _ _
-  have h3_off : offTailToDense U w N ≤ offDenseToTail U w N := Nat.le_add_right _ _
-  have h4_off : offDenseToTail U w N ≤ offCompItems U w N := Nat.le_add_right _ _
+  have h₀ : epochHdrWords ≤ offCompLM U w N := Nat.le_add_right _ _
   have hout : ∀ a, a ≠ base + 6 → mem' a = mem a := fun a hne =>
     Function.update_of_ne hne n_new mem
-  have hhdr' : RootHeaderValid U V w N n_new n_init base mem' :=
-    ⟨hhdr.fits_U, hhdr.pos_U, hhdr.pos_V,
-      (hout base (by omega)).trans hhdr.hdr_U,
-      (hout (base + 1) (by omega)).trans hhdr.hdr_V,
-      (hout (base + 2) (by omega)).trans hhdr.hdr_w,
-      (hout (base + 3) (by omega)).trans hhdr.hdr_keyBits,
-      (hout (base + 4) (by omega)).trans hhdr.hdr_valBits,
-      (hout (base + 5) (by omega)).trans hhdr.hdr_N,
-      Function.update_self (base + 6) n_new mem,
-      (hout (base + 7) (by omega)).trans hhdr.hdr_n_init⟩
-  have hpar' : EpochParamsStored U V w N base mem' :=
-    ⟨fun i => (hout _ (by unfold offHashParams; omega)).trans (hpar.hp_eq i),
-     fun i => (hout _ (by unfold offCompParams; omega)).trans (hpar.cp_eq i)⟩
-  have hhash' : ReducedKWise.Rep (base + epochHdrWords) w (qBits U N) (hashB N)
-      (totalMicroBits N) 3 θ mem' :=
-    ⟨ReducedKWise.tableRep_congr hhash.1 (fun a h1 _ => (hout a (by omega)).symm),
-     ReducedKWise.seedRep_congr (w := w) hhash.2 (fun a h1 _ => (hout a (by omega)).symm)⟩
-  have hlm_eq := compLmAt_congr (metaBase := base) (U := U) (N := N) hw
-    fun a ha => hout a (by omega)
-  have hgm_eq := compGmAt_congr (metaBase := base) (U := U) (N := N) hw
-    fun a ha => hout a (by omega)
-  have htd_eq := compTDAt_congr (metaBase := base) (U := U) (N := N) hw
-    fun a ha => hout a (by omega)
-  have hdt_eq := compDTAt_congr (metaBase := base) (U := U) (N := N) hw
-    fun a ha => hout a (by omega)
-  have hq_eq : ∀ m, compQuotAt (base + offCompItems U w N) U V w N m mem' =
-      compQuotAt (base + offCompItems U w N) U V w N m mem := fun _ =>
-    compQuotAt_congr hw fun a ha => hout a (by omega)
-  have hv_eq : ∀ m, compValAt (base + offCompItems U w N) U V w N m mem' =
-      compValAt (base + offCompItems U w N) U V w N m mem := fun _ =>
-    compValAt_congr hw fun a ha => hout a (by omega)
-  have htot_new : totalSlots N (compGmAt base U w N mem') = n_new := by
-    rw [hgm_eq]
-    have hgm_fix : compGmAt base U w N mem =
-        gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem := hcpl.gm_eq
-    rw [hgm_fix, hinv.htot, hcard]
-  refine ⟨⟨hhdr', hpar', hhash', hcard, hvals, s_fix, hinv, htot_new,
-    ⟨hgm_eq.trans hcpl.gm_eq, hlm_eq.trans hcpl.lm_eq,
-      by rw [hgm_eq, htd_eq, hdt_eq]; exact hcpl.win_inv,
-      fun i => by rw [htd_eq]; exact hcpl.td_lt i,
-      fun i => by rw [hdt_eq]; exact hcpl.dt_lt i,
-      fun d hd => by
-        rw [hgm_eq, hq_eq, hdt_eq]
-        exact hcpl.quot_eq d (by simpa only [epochTotalSlots, hgm_eq] using hd),
-      fun d hd => by
-        rw [hgm_eq, hv_eq, hdt_eq]
-        exact hcpl.val_eq d (by simpa only [epochTotalSlots, hgm_eq] using hd)⟩⟩,
-    hgm_eq⟩
+  obtain ⟨hpar', hhash'⟩ := params_hash_of_agree hpar hhash fun a h _ _ => hout a (by omega)
+  obtain ⟨hcpl', hgm⟩ := fixedCoupled_of_agree (s' := ⟨mem', fr⟩) hw hcpl fun a ha =>
+    hout a (by unfold epochHdrWords at h₀; omega)
+  refine ⟨⟨?_, hpar', hhash', hcard, hvals, s_fix, hinv, ?_, hcpl'⟩, hgm⟩
+  · obtain ⟨h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈, h₉, -, h₁₁⟩ := hhdr
+    refine ⟨h₁, h₂, h₃, ?_, ?_, ?_, ?_, ?_, ?_, Function.update_self .., ?_⟩ <;>
+      exact (hout _ (by omega)).trans ‹_›
+  · rw [hgm, show compGmAt base U w N mem = _ from hcpl.gm_eq]; exact hinv.htot.trans hcard
 
 /-! ## Section 8: Execution of `loadActiveCtxCode` and `evalKeyHashCode` -/
 
@@ -1457,8 +1363,7 @@ theorem loadActiveCtxCode_exec {U V w N n n_init base L_peak : ℕ}
     (congrArg Memory.State.mem hm_iw).trans (hx₂m.trans hx₁m)
   have hx₄_cur : x₄.regs rCur = compactedItemWords U V w N n := by
     have h0 := hout_iw 0
-    rw [tmpItemWords_out, clientResult_compItemWordsGenProg hw] at h0
-    exact h0
+    rwa [tmpItemWords_out, clientResult_compItemWordsGenProg hw] at h0
   have hpres₄_eReg : ∀ {c : Fin 88}, c.val < 32 → c ≠ 1 → c ≠ 9 →
       x₄.regs (eReg c) = x.regs (eReg c) := fun {c} hc hne1 hne9 => by
     rw [hframe_iw (eReg c) (eReg_ne hne1)
@@ -1492,7 +1397,7 @@ theorem loadActiveCtxCode_exec {U V w N n n_init base L_peak : ℕ}
   set x₈ := x₇.set rHashBase (base + epochHdrWords)
   set x₉ := x₈.set rItemBase (base + offCompItems U w N)
   set y := x₉.set rFr x.frontier
-  have hx₄_hL : x₄.frontier ≤ L_peak := by rw [hx₄_ff]; exact hL
+  have hx₄_hL : x₄.frontier ≤ L_peak := hx₄_ff.le.trans hL
   have s5 := RDemonicExec.const (B := .exact) (d := rIdx) (x := x₄) hx₄_hL hfit_sc
   have s6 := RDemonicExec.exactBin (f := .add) (d := rScratchBase) (i := rBase) (j := rIdx)
     (w := w) (L_peak := L_peak) (x := x₅) hx₄_hL (v := base + offScratch)
@@ -1501,20 +1406,13 @@ theorem loadActiveCtxCode_exec {U V w N n n_init base L_peak : ℕ}
   have s8 := RDemonicExec.exactBin (f := .add) (d := rHashBase) (i := rBase) (j := rIdx)
     (w := w) (L_peak := L_peak) (x := x₇) hx₄_hL (v := base + epochHdrWords)
     (by simp [BinOp.evalExact, x₇, x₆, x₅, hx₄_base]) hfit_bh
-  have hx₈_cp34 : x₈.regs (cpReg ⟨34, by decide⟩) = offCompItems U w N := by
-    simp only [x₈, x₇, x₆, x₅, RData.set_regs,
-      Function.update_of_ne (cpReg_ne_eReg (c := 15) _ (by decide)),
-      Function.update_of_ne (cpReg_ne_eReg (c := 10) _ (by decide)),
-      Function.update_of_ne (cpReg_ne_eReg (c := 16) _ (by decide))]
-    exact hx₄_cp ⟨34, by decide⟩
   have s9 := RDemonicExec.exactBin (f := .add) (d := rItemBase) (i := rBase)
     (j := cpReg ⟨34, by decide⟩) (w := w) (L_peak := L_peak) (x := x₈) hx₄_hL
     (v := base + offCompItems U w N)
     (by
-      change some (x₈.regs rBase + x₈.regs (cpReg ⟨34, by decide⟩)) =
-        some (base + offCompItems U w N)
-      rw [hx₈_cp34]
-      simp [x₈, x₇, x₆, x₅, hx₄_base]) hfit_bi
+      have hcp34 : x₄.regs (cpReg 34) = offCompItems U w N := hx₄_cp 34
+      simp [BinOp.evalExact, x₈, x₇, x₆, x₅, hx₄_base, hcp34,
+        Function.update_of_ne (cpReg_ne_eReg _ _)]) hfit_bi
   have s10 := RDemonicExec.exactBin (f := .add) (d := rFr) (i := rItemBase) (j := rCur)
     (w := w) (L_peak := L_peak) (x := x₉) hx₄_hL (v := x.frontier)
     (by simp [BinOp.evalExact, x₉, x₈, x₇, x₆, x₅, hx₄_cur, hfr_pos]) hfit_fr
@@ -1523,45 +1421,10 @@ theorem loadActiveCtxCode_exec {U V w N n n_init base L_peak : ℕ}
       (s5.seq_eq (s6.seq_eq (s7.seq_eq (s8.seq_eq (s9.seq_eq s10))))))))
   have hyb : y.Bounded w :=
     (((((hx₄b.set hfit_sc).set hfit_bs).set hfit_eh).set hfit_bh).set hfit_bi).set hfit_fr
-  have hy_unch : ∀ {c : Fin 88}, c.val < 32 →
-      c ≠ 1 → c ≠ 9 → c ≠ 10 → c ≠ 14 → c ≠ 15 → c ≠ 16 →
-      y.regs (eReg c) = x.regs (eReg c) := fun {c} hc h1 h9 h10 h14 h15 h16 => by
-    simp only [y, x₉, x₈, x₇, x₆, x₅, RData.set_regs,
-      Function.update_of_ne (eReg_ne h1), Function.update_of_ne (eReg_ne h14),
-      Function.update_of_ne (eReg_ne h15), Function.update_of_ne (eReg_ne h10),
-      Function.update_of_ne (eReg_ne h16)]
-    exact hpres₄_eReg hc h1 h9
-  refine ⟨y, hex_all.mono (by omega) (fun _ h => h), hyb, hx₄m, hx₄_ff,
-    (hy_unch (c := 0) (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide)).trans hbase,
-    (hy_unch (c := 13) (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide)).trans hcnt,
-    by simp [y, x₉, x₈, x₇, x₆, RData.set],
-    by simp [y, x₉, x₈, RData.set],
-    by simp [y, x₉, RData.set],
-    by simp [y, RData.set],
-    hy_unch (c := 2) (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide),
-    hy_unch (c := 3) (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide),
-    hy_unch (c := 4) (by decide) (by decide) (by decide) (by decide) (by decide)
-      (by decide) (by decide),
-    fun i => by
-      simp only [y, x₉, x₈, x₇, x₆, x₅, RData.set_regs,
-        Function.update_of_ne (hpReg_ne_eReg (c := 1) i (by decide)),
-        Function.update_of_ne (hpReg_ne_eReg (c := 14) i (by decide)),
-        Function.update_of_ne (hpReg_ne_eReg (c := 15) i (by decide)),
-        Function.update_of_ne (hpReg_ne_eReg (c := 10) i (by decide)),
-        Function.update_of_ne (hpReg_ne_eReg (c := 16) i (by decide))]
-      exact hx₄_hp i,
-    fun i => by
-      simp only [y, x₉, x₈, x₇, x₆, x₅, RData.set_regs,
-        Function.update_of_ne (cpReg_ne_eReg (c := 1) i (by decide)),
-        Function.update_of_ne (cpReg_ne_eReg (c := 14) i (by decide)),
-        Function.update_of_ne (cpReg_ne_eReg (c := 15) i (by decide)),
-        Function.update_of_ne (cpReg_ne_eReg (c := 10) i (by decide)),
-        Function.update_of_ne (cpReg_ne_eReg (c := 16) i (by decide))]
-      exact hx₄_cp i⟩
+  refine ⟨y, hex_all.mono (by omega) (fun _ h => h), hyb, hx₄m, hx₄_ff, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
+    ?_, ?_, fun i => ?_, fun i => ?_⟩ <;>
+    simp [y, x₉, x₈, x₇, x₆, x₅, hx₄_base, hpres₄_eReg, hcnt, hx₄_hp, hx₄_cp,
+      Function.update_of_ne (hpReg_ne_eReg _ _), Function.update_of_ne (cpReg_ne_eReg _ _)]
 
 theorem runEvalHashAtQuot {U V w N n n_init base L_peak q : ℕ}
     {θ : QuotHashSeed U N} {s_abs : Dictionary.State U} {x : RData rEpoch}
@@ -1595,10 +1458,9 @@ theorem runEvalHashAtQuot {U V w N n n_init base L_peak q : ℕ}
     unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLM epochHdrWords; omega
   have hfit_fr : Fits w x.frontier := hx.frontier_fits
   have hw2 : 2 ≤ w := by
-    have h225 : 225 < 2 ^ w := lt_of_le_of_lt (by omega) hfit_fr
-    by_contra hlt2
-    have hw1 : w ≤ 1 := by omega
-    have := Nat.pow_le_pow_right two_pos hw1
+    by_contra h
+    have := Nat.pow_le_pow_right two_pos (show w ≤ 1 by omega)
+    have : 225 < 2 ^ w := lt_of_le_of_lt (by omega) hfit_fr
     omega
   have hfr_h : (base + epochHdrWords) +
       ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3 ≤ x.frontier := by
@@ -1645,40 +1507,27 @@ theorem runEvalHashAtQuot {U V w N n n_init base L_peak q : ℕ}
     execWitness wEvalHash factor_wEvalHash_le rFr srcEvalHash tmpEvalHash
       tmpEvalHash_inj srcEvalHash_ne_tmp tmpEvalHash_ne_rFr srcEvalHash_ne_rFr
       d_eh hx hL hin_eh hpre_eh hv_eh hnoalloc_eh
-  have heval_bound : evalMemBound 3 = 45151 := by decide
   have hT_le : inEpochFactor * (memoryCost (evalHashGenProg d_eh) (memoryState rFr x.toData) + 1) ≤
       45206 * inEpochFactor := by
-    calc inEpochFactor * (memoryCost (evalHashGenProg d_eh) (memoryState rFr x.toData) + 1)
-        ≤ inEpochFactor * (evalMemBound 3 + 1) :=
-          Nat.mul_le_mul_left _ (Nat.add_le_add_right hcost_eh 1)
-      _ ≤ 45206 * inEpochFactor := by
-          rw [heval_bound, mul_comm]
-          exact Nat.mul_le_mul_right _ (by decide)
-  have hy_mem_eq : y.mem =
-      ((Memory.spec 0).clientState (memoryState rFr x.toData) (evalHashGenProg d_eh)).mem :=
-    congrArg Memory.State.mem hm_eh
+    have : evalMemBound 3 = 45151 := by decide
+    rw [mul_comm 45206]; exact Nat.mul_le_mul_left _ (by omega)
   have hy_rFr : y.regs rFr = y.frontier := by
     have hfr_m := congrArg Memory.State.frontier hm_eh
     change y.regs rFr = _ at hfr_m
     rw [hfr_m, hfr_eh, hms_eq, hyf]
   have hy_hout : y.regs rHashOut = hValOfSeed U N θ q := by
-    have h0 := hout_reg 0
-    rw [tmpEvalHash_out, hres_eh] at h0
-    change y.regs rHashOut =
-      (reducedPolyHash (2 ^ quotientBits U N) (qBits U N) (hashB N)
-        (totalMicroBits N) 3 θ u_q).val at h0
-    rw [h0]
-    unfold hValOfSeed evalQuotHash
     have hu_eq : u_q = ⟨q % 2 ^ quotientBits U N, Nat.mod_lt _ (Nat.two_pow_pos _)⟩ :=
       Fin.ext (Nat.mod_eq_of_lt hq_lt).symm
-    rw [hu_eq]
+    have h0 := hout_reg 0
+    rw [tmpEvalHash_out, hres_eh] at h0
+    unfold hValOfSeed evalQuotHash
+    rw [← hu_eq]
+    exact h0
   have hy_out_mem : ∀ a, (a < base + offScratch ∨ base + epochHdrWords ≤ a) →
-      y.mem a = x.mem a := fun a ha => by
-    rw [hy_mem_eq]; exact hout_eh a ha
-  have hsplit_y : CompactedSplitRep base (base + offCompItems U w N) U V w N n n_init θ s_abs
-      ⟨y.mem, y.frontier⟩ :=
-    compactedSplitRep_of_scratch_mod hw hsplit hyf hy_out_mem
-  refine ⟨y, hex_eh.mono hT_le (fun _ h => h), hyb, hyf, hy_rFr, hy_hout, hsplit_y, hy_out_mem,
+      y.mem a = x.mem a := fun a ha =>
+    (congrFun (congrArg Memory.State.mem hm_eh) a).trans (hout_eh a ha)
+  refine ⟨y, hex_eh.mono hT_le (fun _ h => h), hyb, hyf, hy_rFr, hy_hout,
+    compactedSplitRep_of_scratch_mod hw hsplit hyf hy_out_mem, hy_out_mem,
     fun reg hne_fr hlt88 hne_ho => hframe_eh reg hne_fr
       (mkTmp_ne_reg _ hlt88 (fun a => by fin_cases a; exact hne_ho.symm))⟩
 
@@ -1730,19 +1579,14 @@ theorem evalKeyHashCode_exec {U V w N n n_init base L_peak : ℕ}
   rw [memoryCost_compExtractQuotGenProg, zero_add, mul_one] at hex₁
   rw [clientState_compExtractQuotGenProg] at hm_eq
   have hx₁m : x₁.mem = x.mem := congrArg Memory.State.mem hm_eq
-  have hx₁_rFr : x₁.regs rFr = x₁.frontier := by
-    have hfm := congrArg Memory.State.frontier hm_eq
-    change x₁.regs rFr = x.regs rFr at hfm
-    rw [hfm, hrFr, hx₁f]
+  have hx₁_rFr : x₁.regs rFr = x₁.frontier :=
+    (congrArg Memory.State.frontier hm_eq).trans (hrFr.trans hx₁f.symm)
   have hx₁_quot : x₁.regs rQuot = keyQuotient (bucketBits N) u.val := by
     have h0 := hout_eq 0
-    rw [tmpExtractQuot_out, clientResult_compExtractQuotGenProg] at h0
-    exact h0
+    rwa [tmpExtractQuot_out, clientResult_compExtractQuotGenProg] at h0
   have hx₁_pres : ∀ reg, reg ≠ rFr → reg.val < 88 → reg ≠ rQuot → x₁.regs reg = x.regs reg :=
     fun reg h1 h88 hq => hframe_eq reg h1
       (mkTmp_ne_reg _ h88 (fun a => by fin_cases a; exact hq.symm))
-  have hq_lt : keyQuotient (bucketBits N) u.val < 2 ^ quotientBits U N :=
-    keyQuotient_lt_two_pow_quotientBits hNU u.isLt
   obtain ⟨y, hex₂, hyb, hyf, hy_rFr, hy_hout, hsplit_y, hy_out_mem, hy_pres⟩ :=
     runEvalHashAtQuot hx₁b hn hev (hx₁f.trans hfr) (hx₁f.le.trans hL)
       (by rw [hx₁m, hx₁f]; exact hsplit) hx₁_rFr
@@ -1752,7 +1596,7 @@ theorem evalKeyHashCode_exec {U V w N n n_init base L_peak : ℕ}
       hx₁_quot
       (fun i => (hx₁_pres (hpReg i) (hpReg_ne_eReg i (by decide)) (hpReg_lt_88 i)
         (hpReg_ne_eReg i (by decide))).trans (hhp i))
-      hq_lt
+      (keyQuotient_lt_two_pow_quotientBits hNU u.isLt)
   refine ⟨y, (hex₁.seq_eq hex₂).mono (by omega) (fun _ h => h),
     hyb, hyf.trans hx₁f, hy_rFr, hy_hout, hsplit_y,
     fun a ha => (hy_out_mem a ha).trans (congrFun hx₁m a),
@@ -1788,27 +1632,9 @@ theorem growZeroPost_bounded {r w : ℕ} {rK rRes rCur rIdx rZero rOne : Fin r} 
     (growZeroPost rK rRes rCur rIdx rZero rOne x).Bounded w := by
   refine ⟨⟨fun j => ?_, hx.mem_fits⟩, hfit, fun a ha => hx.zero_above ?_⟩
   · dsimp only [growZeroPost, RData.toData]
-    by_cases hj1 : j = rCur
-    · subst hj1; simp only [Function.update_self]; exact fits_zero w
-    by_cases hj2 : j = rIdx
-    · subst hj2; simp only [Function.update_of_ne hj1, Function.update_self]; exact hx.regs_fits rK
-    by_cases hj3 : j = rRes
-    · subst hj3
-      simp only [Function.update_of_ne hj1, Function.update_of_ne hj2, Function.update_self]
-      split_ifs <;> [exact hx.regs_fits j; exact hx.frontier_fits]
-    by_cases hj4 : j = rOne
-    · subst hj4
-      simp only [Function.update_of_ne hj1, Function.update_of_ne hj2, Function.update_of_ne hj3,
-        Function.update_self]
-      exact h1
-    by_cases hj5 : j = rZero
-    · subst hj5
-      simp only [Function.update_of_ne hj1, Function.update_of_ne hj2, Function.update_of_ne hj3,
-        Function.update_of_ne hj4, Function.update_self]
-      exact fits_zero w
-    simp only [Function.update_of_ne hj1, Function.update_of_ne hj2, Function.update_of_ne hj3,
-      Function.update_of_ne hj4, Function.update_of_ne hj5]
-    exact hx.regs_fits j
+    simp only [Function.update_apply]
+    split_ifs
+    all_goals first | exact fits_zero w | exact h1 | exact hx.regs_fits _ | exact hx.frontier_fits
   · dsimp only [growZeroPost] at ha; omega
 
 theorem shrinkPost_bounded {r w : ℕ} {rK rIdx rZero rOne : Fin r} {x : RData r}

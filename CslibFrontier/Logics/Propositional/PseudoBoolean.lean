@@ -301,25 +301,27 @@ def ceilDiv (a k : ℕ) : ℕ := (a + k - 1) / k
 
 /-- **Division** by `k`: normalize, then round every coefficient and the degree up. -/
 def div (k : ℕ) (c : PBConstr) : PBConstr :=
-  normalize ⟨c.normalize.terms.map fun t => (ceilDiv t.1 k, t.2), ceilDiv c.normalize.degree k⟩
+  let n := c.normalize
+  normalize ⟨n.terms.map fun t => (ceilDiv t.1 k, t.2), ceilDiv n.degree k⟩
 
 /-- **Saturation**: normalize, then cap every coefficient at the degree. -/
 def saturate (c : PBConstr) : PBConstr :=
-  normalize ⟨c.normalize.terms.map fun t => (min t.1 c.normalize.degree, t.2), c.normalize.degree⟩
+  let n := c.normalize
+  normalize ⟨n.terms.map fun t => (min t.1 n.degree, t.2), n.degree⟩
 
 /-- **Weakening** on the variable `v`: normalize, drop the terms on `v`, and lower the degree by
 their coefficients. -/
 def weaken (v : ℕ) (c : PBConstr) : PBConstr :=
-  normalize ⟨c.normalize.terms.filter (termVar · != v),
-    c.normalize.degree - coeffSum (c.normalize.terms.filter (termVar · == v))⟩
+  let n := c.normalize
+  normalize ⟨n.terms.filter (termVar · != v), n.degree - coeffSum (n.terms.filter (termVar · == v))⟩
 
 /-- **The literal axiom** `ℓ ≥ 0`. -/
 def litAxiom (l : Literal ℕ) : PBConstr := ⟨[(1, l)], 0⟩
 
 /-- **The negation** of the normal form of `∑ aᵢ ℓᵢ ≥ d`: `∑ aᵢ ¬ℓᵢ ≥ ∑ aᵢ - d + 1`. -/
 def negate (c : PBConstr) : PBConstr :=
-  ⟨c.normalize.terms.map fun t => (t.1, Std.Sat.Literal.negate t.2),
-    coeffSum c.normalize.terms + 1 - c.normalize.degree⟩
+  let n := c.normalize
+  ⟨n.terms.map fun t => (t.1, Std.Sat.Literal.negate t.2), coeffSum n.terms + 1 - n.degree⟩
 
 /-- A constraint whose coefficients sum to less than its degree: no assignment satisfies it. -/
 def IsContradiction (c : PBConstr) : Prop := coeffSum c.terms < c.degree
@@ -434,6 +436,7 @@ theorem holds_litAxiom (σ : ℕ → Bool) (l : Literal ℕ) : (litAxiom l).Hold
 theorem holds_negate (σ : ℕ → Bool) (c : PBConstr) : c.negate.Holds σ ↔ ¬ c.Holds σ := by
   rw [← holds_normalize σ c]
   unfold Holds negate
+  dsimp only
   generalize c.normalize.degree = D
   generalize c.normalize.terms = ts
   have hsum : lhs σ (ts.map fun t => (t.1, Std.Sat.Literal.negate t.2)) + lhs σ ts =
@@ -445,7 +448,6 @@ theorem holds_negate (σ : ℕ → Bool) (c : PBConstr) : c.negate.Holds σ ↔ 
       simp only [List.map_cons, lhs_cons, coeffSum_cons]
       have := termVal_add_negate σ a l
       omega
-  simp only
   omega
 
 /-! ### Clauses -/

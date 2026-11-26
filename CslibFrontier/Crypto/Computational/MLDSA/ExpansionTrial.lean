@@ -61,20 +61,15 @@ private theorem split_firstAccepted (step : ℕ) (tryAt : ℕ → Option (Option
   | succ pre ih =>
     rw [Nat.succ_add, Fin.findSome?_succ]
     have next (i : Fin pre) : start + i.succ.val * step = start + step + i.val * step := by
-      rw [Fin.val_succ, Nat.succ_mul]
-      lia
+      rw [Fin.val_succ, Nat.succ_mul]; omega
     simp only [Fin.val_zero, Nat.zero_mul, Nat.add_zero, next]
-    cases h : tryAt start with
-    | none => simp [signingRetryLoop, id_bind_eq, id_pure_eq, terminalReply, h]
-    | some r =>
-      cases r with
-      | some sig => simp [signingRetryLoop, id_bind_eq, id_pure_eq, terminalReply, h]
-      | none =>
-        have eq : start + (pre + 1) * step = start + step + pre * step := by
-          rw [Nat.succ_mul]
-          lia
-        simpa only [signingRetryLoop, id_bind_eq, id_pure_eq, id_eq, h, terminalReply,
-          Option.map_none, Option.none_or, eq] using ih (start + step)
+    rcases h : tryAt start with _ | (_ | sig)
+    · simp [signingRetryLoop, id_bind_eq, id_pure_eq, terminalReply, h]
+    · have eq : start + (pre + 1) * step = start + step + pre * step := by
+        rw [Nat.succ_mul]; omega
+      simpa only [signingRetryLoop, id_bind_eq, id_pure_eq, id_eq, h, terminalReply,
+        Option.map_none, Option.none_or, eq] using ih (start + step)
+    · simp [signingRetryLoop, id_bind_eq, id_pure_eq, terminalReply, h]
 
 
 private def tupleReply (s : Level) (G : Xofs) (A : PublicMatrix s) (sk : PrivateKey s)
@@ -134,20 +129,14 @@ private theorem find_updated (s : Level) (G : Xofs) (A : PublicMatrix s) (sk : P
     rw [Nat.one_add, firstAccepted, signingRetryLoop]
     have mid : attempt cutAt = G.attemptWithMask s sk A m y := by simp [attempt]
     simp only [id_bind_eq, id_pure_eq, id_eq, mid]
-    cases h : G.attemptWithMask s sk A m y with
-    | none => rfl
-    | some reply =>
-      cases reply with
-      | some sig => rfl
-      | none =>
-        change firstAccepted step attempt (813 - j.val) (cutAt + step) = _
-        have start : (j.val + 1) * step = cutAt + step := Nat.succ_mul j.val step
-        rw [firstAccepted_eq_terminal, firstAccepted_eq_terminal, start]
-        apply congrArg Option.join
-        apply congrArg Fin.findSome?
-        funext i
-        have ne : cutAt + step + i.val * step ≠ cutAt := by lia
-        simp [attempt, Function.update_of_ne ne, raw, step]
+    rcases h : G.attemptWithMask s sk A m y with _ | (_ | sig)
+    · rfl
+    · change firstAccepted step attempt (813 - j.val) (cutAt + step) = _
+      rw [firstAccepted_eq_terminal, firstAccepted_eq_terminal, Nat.succ_mul j.val step]
+      refine congrArg Option.join (congrArg Fin.findSome? (funext fun i => ?_))
+      have ne : cutAt + step + i.val * step ≠ cutAt := by lia
+      simp [attempt, Function.update_of_ne ne, raw, step, cutAt]
+    · rfl
 
 namespace QuantumSigningForger
 
@@ -255,21 +244,11 @@ private theorem cut_resume (C : QuantumSigningForger) (prog : C.Program Forgery)
   | pure f => rfl
   | liftBind cmd k ih =>
     rcases cmd with coin | op | q
-    · change PFunctor.FreeM.liftBind _ _ = PFunctor.FreeM.liftBind _ _
-      congr 1
-      funext r
-      exact ih r i
-    · change PFunctor.FreeM.liftBind _ _ = PFunctor.FreeM.liftBind _ _
-      congr 1
-      funext r
-      exact ih r i
+    · exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r i)
+    · exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r i)
     · cases i with
       | zero => rfl
-      | succ i =>
-        change PFunctor.FreeM.liftBind _ _ = PFunctor.FreeM.liftBind _ _
-        congr 1
-        funext r
-        exact ih r i
+      | succ i => exact congrArg (PFunctor.FreeM.liftBind _) (funext fun r => ih r i)
 
 private theorem prefixRun_mix {V : Type} (C : QuantumSigningForger) (s : Level)
     (G : Xofs) (keys : KeyPair) (μ : PMF V) (resume : V → Resume C s) (ref : Resume C s)
@@ -409,12 +388,10 @@ private theorem uniform_readUntil (C : QuantumSigningForger) (s : Level) (G : Xo
       C.readUntil s G A keys sk prog i j C.initialDevice [] (List.ofFn rs) y) =
     U.bind fun rs => C.expansionContinuation s G A keys prog C.initialDevice [] (List.ofFn rs) := by
   intro U μ prog
-  let left (t : List (Row s)) := μ.bind fun y =>
-    C.readUntil s G A keys sk prog i j C.initialDevice [] t y
-  let right (t : List (Row s)) := C.expansionContinuation s G A keys prog C.initialDevice [] t
-  apply uniform_tape_eq s i left right
-  intro pre rows len
-  simpa only [len] using C.readUntil_eq s G keys sk A key mat prog j C.initialDevice [] pre rows
+  exact uniform_tape_eq s i
+    (fun t => μ.bind fun y => C.readUntil s G A keys sk prog i j C.initialDevice [] t y)
+    (C.expansionContinuation s G A keys prog C.initialDevice []) fun pre rows len => by
+    simpa only [len] using C.readUntil_eq s G keys sk A key mat prog j C.initialDevice [] pre rows
 
 private theorem read_at_generated (C : QuantumSigningForger) (s : Level) (H : Xofs)
     (seed : FixedBytes 32) (keys : KeyPair) (kg : H.keyGen s seed = some keys)
@@ -514,14 +491,11 @@ private theorem seeded_gap_le (s : Level) (base : Xofs) (a b : ℕ)
   intro law matrices
   unfold matrices Xofs.uniformPrefixes
   simp only [PMF.bind_map, Function.comp_def, PMF.sum_bind_mul, PMF.sum_map_mul]
-  apply (PMF.abs_bind_sub_le_meanAbsDiffAt _ true _ _).trans
-  apply Finset.sum_le_sum
-  intro table _
-  apply mul_le_mul_of_nonneg_left _ ENNReal.toReal_nonneg
-  apply (PMF.abs_bind_sub_le_meanAbsDiffAt _ true _ _).trans
-  apply Finset.sum_le_sum
-  intro seed _
-  exact mul_le_mul_of_nonneg_left (point _ seed) ENNReal.toReal_nonneg
+  refine (PMF.abs_bind_sub_le_meanAbsDiffAt _ true _ _).trans
+    (Finset.sum_le_sum fun table _ => mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg)
+  exact (PMF.abs_bind_sub_le_meanAbsDiffAt _ true _ _).trans
+    (Finset.sum_le_sum fun seed _ =>
+      mul_le_mul_of_nonneg_left (point _ seed) ENNReal.toReal_nonneg)
 
 /-- At one attempt in the original private-expansion experiment, persistent reprogramming costs
 the average of the prior-query bound under the actual seeded matrix distribution. Failed key

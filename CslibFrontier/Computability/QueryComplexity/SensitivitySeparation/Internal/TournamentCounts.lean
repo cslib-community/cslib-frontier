@@ -60,24 +60,20 @@ theorem card_internalEdges (I : Finset (Fin k)) :
     (T.internalEdges I).card = I.card.choose 2 := by
   let U := T.internalEdges I
   let V := (I ×ˢ I).filter fun p => T.Adj p.2 p.1
-  have hd : Disjoint U V := by
-    apply Finset.disjoint_left.mpr
-    intro p hp hq
-    exact T.not_adj_reverse (Finset.mem_filter.mp hp).2 (Finset.mem_filter.mp hq).2
+  have hd : Disjoint U V := Finset.disjoint_left.mpr fun _ hp hq =>
+    T.not_adj_reverse (Finset.mem_filter.mp hp).2 (Finset.mem_filter.mp hq).2
   have hu : U.disjUnion V hd = I.offDiag := by
-    ext ⟨i,j⟩
+    ext ⟨i, j⟩
     simp only [Finset.mem_disjUnion, U, V, internalEdges, Finset.mem_filter,
       Finset.mem_product, Finset.mem_offDiag]
     constructor
-    · rintro (⟨⟨hi,hj⟩,h⟩ | ⟨⟨hi,hj⟩,h⟩)
-      · exact ⟨hi,hj,T.ne_of_adj h⟩
-      · exact ⟨hi,hj,(T.ne_of_adj h).symm⟩
-    · rintro ⟨hi,hj,hne⟩
-      exact (T.adj_or_reverse hne).imp (fun h => ⟨⟨hi,hj⟩,h⟩) (fun h => ⟨⟨hi,hj⟩,h⟩)
-  have hs : U.card = V.card := Finset.card_equiv (Equiv.prodComm (Fin k) (Fin k)) (by
-    intro p
-    simp only [U,V,internalEdges,Finset.mem_filter,Finset.mem_product,Equiv.prodComm_apply]
-    tauto)
+    · rintro (⟨⟨hi, hj⟩, h⟩ | ⟨⟨hi, hj⟩, h⟩)
+      · exact ⟨hi, hj, T.ne_of_adj h⟩
+      · exact ⟨hi, hj, (T.ne_of_adj h).symm⟩
+    · exact fun ⟨hi, hj, hne⟩ => (T.adj_or_reverse hne).imp (⟨⟨hi, hj⟩, ·⟩) (⟨⟨hi, hj⟩, ·⟩)
+  have hs : U.card = V.card := Finset.card_equiv (Equiv.prodComm (Fin k) (Fin k)) fun p => by
+    simp only [U, V, internalEdges, Finset.mem_filter, Finset.mem_product, Equiv.prodComm_apply]
+    tauto
   have hc := congrArg Finset.card hu
   rw [Finset.card_disjUnion, ← hs, Finset.offDiag_card] at hc
   rw [Nat.choose_two_right, Nat.mul_sub_one]
@@ -96,13 +92,11 @@ open scoped Classical in
 vertices. -/
 theorem card_le_three_of_outdegree_le_one (I : Finset (Fin k))
     (h : ∀ i ∈ I, (I.filter (T.Adj i)).card ≤ 1) : I.card ≤ 3 := by
-  have hsum := Finset.sum_le_sum h
   have hc : I.card.choose 2 ≤ I.card := by
     rw [← T.card_internalEdges, ← T.sum_outdegree_eq]
-    simpa only [Finset.sum_const_nat, mul_one] using hsum
+    simpa only [Finset.sum_const_nat, mul_one] using Finset.sum_le_sum h
   have hdouble : I.card * (I.card - 1) ≤ 2 * I.card + 1 := by grind [Nat.choose_two_right]
-  by_contra hn
-  have h4 : 4 ≤ I.card := by omega
+  by_contra! hn
   have ht : I.card - 1 + 1 = I.card := by omega
   nlinarith
 

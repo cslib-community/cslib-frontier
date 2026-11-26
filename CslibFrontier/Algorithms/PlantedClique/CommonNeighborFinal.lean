@@ -67,28 +67,22 @@ theorem prob_commonNeighborRecover_ne_le {n : ℕ} (S : Finset (Fin n)) (s : ℕ
   let nonunique : Set (Coins n) := {ω |
     ∃ Q : Finset (Fin n), (sample S ω).IsClique (Q : Set (Fin n)) ∧
       Q.card = S.card ∧ Q ≠ S}
-  have hsub : failure ⊆ reducedFailure ∪ nonunique := by
-    intro ω hω
-    by_cases hr : ω ∈ reducedFailure
-    · exact Or.inl hr
-    by_cases hu : ω ∈ nonunique
-    · exact Or.inr hu
-    exfalso
+  have hsub : failure ⊆ reducedFailure ∪ nonunique := fun ω hω => by
+    by_contra h
+    obtain ⟨hr, hu⟩ : ω ∉ reducedFailure ∧ ω ∉ nonunique := by simpa using h
     have hclique : (sample S ω).IsClique (S : Set (Fin n)) :=
       fun _ hi _ hj hij => sample_adj_of_mem S ω hi hj hij
-    have hunique : ∀ Q : Finset (Fin n), (sample S ω).IsClique (Q : Set (Fin n)) →
-        Q.card = S.card → Q = S := by
-      intro Q hQ hcard
-      by_contra hne
-      exact hu ⟨Q, hQ, hcard, hne⟩
+    have hunique (Q : Finset (Fin n)) (hQ : (sample S ω).IsClique (Q : Set (Fin n)))
+        (hcard : Q.card = S.card) : Q = S :=
+      Classical.byContradiction fun hne => hu ⟨Q, hQ, hcard, hne⟩
     have hrec : let U := (sample S ω).commonNeighborhood T
         let e := U.orderEmbOfFin rfl
         recover ((sample S ω).comap e) (S.card - T.card) =
           Finset.univ.filter fun i => e i ∈ S := by
       simpa only [reducedFailure, Set.mem_ofPred_eq, not_not] using hr
-    have hsuccess := commonNeighborRecover_ofGraph_eq_of_recover
-      (sample S ω) S T hT hclique hunique hrec
-    exact hω (by simpa only [hTs] using hsuccess)
+    refine hω ?_
+    simpa only [hTs] using
+      commonNeighborRecover_ofGraph_eq_of_recover (sample S ω) S T hT hclique hunique hrec
   have hprob : ((uniformOfFintype (Coins n)).toOuterMeasure failure).toReal ≤
       ((uniformOfFintype (Coins n)).toOuterMeasure reducedFailure).toReal +
         ((uniformOfFintype (Coins n)).toOuterMeasure nonunique).toReal := by

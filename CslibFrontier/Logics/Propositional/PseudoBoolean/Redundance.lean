@@ -1951,6 +1951,64 @@ def checkRed (F : List PBConstr) (obj : Option Objective) (P : RedProof)
   | some s => checkConclusion F obj s P.conclusion
   | none => false
 
+/-! ### Equations of the checker -/
+
+/-! The bodies of `Cslib.Logic.PL.VeriPB.stepTop` and `Cslib.Logic.PL.VeriPB.runTop` are not
+exposed; these equations are what a checker computing the same steps needs. -/
+
+theorem runTop_nil (F : List PBConstr) (obj : Option Objective) (s : State) :
+    runTop F obj s [] = some s := by
+  simp only [runTop]
+
+theorem runTop_cons (F : List PBConstr) (obj : Option Objective) (s : State) (t : TopStep)
+    (ts : List TopStep) :
+    runTop F obj s (t :: ts) = (stepTop F obj s t).bind fun s' => runTop F obj s' ts := by
+  simp only [runTop]
+  cases stepTop F obj s t <;> rfl
+
+/-- An implicational step that deletes nothing changes only the database and the next number. -/
+theorem stepTop_step_of_ne_del (F : List PBConstr) (obj : Option Objective) (s : State)
+    {st : Step} (h : ∀ ids, st ≠ .del ids) :
+    stepTop F obj s (.step st) =
+      (runStep s.db s.next st).map fun r => { s with db := r.1, next := r.2 } := by
+  have hd : st.delIds = [] := by cases st <;> simp_all [Step.delIds]
+  simp only [stepTop, hd]
+  cases runStep s.db s.next st <;> simp
+
+/-- The untyped deletion `del id ids` (§5.7.2). -/
+theorem stepTop_step_del (F : List PBConstr) (obj : Option Objective) (s : State) (ids : List ℕ) :
+    stepTop F obj s (.step (.del ids)) =
+      match runStep s.db s.next (.del ids) with
+      | some (db', n') =>
+        if (s.tcb || s.order.isSome) && s.core.any (fun e => ids.contains e.1) then none
+        else some { s with
+          db := db', next := n',
+          core := s.core.filter (fun e => !ids.contains e.1),
+          chk := s.chk && !s.core.any (fun e => ids.contains e.1) }
+      | none => none := by
+  simp only [stepTop, Step.delIds]
+  rfl
+
+/-- The deletion `deld ids` of derived constraints (§5.7.1). -/
+theorem stepTop_deld (F : List PBConstr) (obj : Option Objective) (s : State) (ids : List ℕ) :
+    stepTop F obj s (.deld ids) =
+      if decide ids.Nodup && ids.all (fun i => (lookup s.db i).isSome) &&
+          !s.core.any (fun e => ids.contains e.1) then
+        some { s with db := s.db.filter fun e => !ids.contains e.1 }
+      else none := by
+  simp only [stepTop]
+
+/-- The unchecked deletion `delc ids` of core constraints (§5.7.1). -/
+theorem stepTop_delc (F : List PBConstr) (obj : Option Objective) (s : State) (ids : List ℕ) :
+    stepTop F obj s (.delc ids) =
+      if decide ids.Nodup && ids.all (fun i => s.core.any (·.1 == i)) &&
+          (!s.tcb && s.order.isNone || s.db.all (s.core.contains ·)) then
+        some { s with
+          db := s.db.filter (fun e => !ids.contains e.1),
+          core := s.core.filter (fun e => !ids.contains e.1), chk := false }
+      else none := by
+  simp only [stepTop]
+
 /-! ### Soundness of `red` -/
 
 theorem linVal_subLinear (σ : ℕ → Bool) (L L' : List (ℕ × ℤ)) :

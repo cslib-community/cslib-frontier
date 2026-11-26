@@ -30,17 +30,10 @@ theorem flatMap_ite_key_eq {α β ι : Type*} [DecidableEq ι]
   | cons b l ih =>
     have hnd := List.nodup_cons.mp hn
     rcases List.mem_cons.mp ha with rfl | ha
-    · have ht : (l.flatMap fun b => if key b = key a then f b else []) = [] := by
-        apply List.flatMap_eq_nil_iff.mpr
-        intro b hb
-        apply ite_eq_right
-        intro he
-        exact hnd.1 (List.mem_map.mpr ⟨b, hb, he⟩)
-      rw [List.flatMap_cons, ite_eq_left rfl, ht, List.append_nil]
-    · have hne : key b ≠ key a := by
-        intro he
-        exact hnd.1 (List.mem_map.mpr ⟨a, ha, he.symm⟩)
-      rw [List.flatMap_cons, ite_eq_right hne, List.nil_append]
+    · rw [List.flatMap_cons, ite_eq_left rfl, List.flatMap_eq_nil_iff.mpr fun b hb =>
+        ite_eq_right fun he => hnd.1 (List.mem_map.mpr ⟨b, hb, he⟩), List.append_nil]
+    · rw [List.flatMap_cons,
+        ite_eq_right fun he => hnd.1 (List.mem_map.mpr ⟨a, ha, he.symm⟩), List.nil_append]
       exact ih hnd.2 ha
 
 end List

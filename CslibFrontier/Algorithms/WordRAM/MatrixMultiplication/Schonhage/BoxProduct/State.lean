@@ -68,22 +68,24 @@ theorem Geometry.catalogue {L m t N Q : ℕ} {μ : ℕ → ℕ} (h : Geometry L 
 theorem Geometry.reframe {L m t N Q : ℕ} {μ ν : ℕ → ℕ} (h : Geometry L m t N Q μ)
     (hf : ∀ p, directoryBase L m N Q ≤ p → p < valueBase L m t N Q → ν p = μ p) :
     Geometry L m t N Q ν := by
-  constructor
-  · intro s hs
-    rw [hf _ (by omega) (by unfold valueBase recordBase; omega)]
-    exact h.directory s hs
-  · intro s hs hv
+  have hrec (d : ℕ) {s : ℕ} (hs : s < (m - t + 1) * 10 ^ L) (hv : BoxTable.Eligible L (m - t) s)
+      (hd : d < 3) :
+      ν (recordBase L m t N Q + 3 * Nat.count (BoxTable.Eligible L (m - t)) s + d) =
+        μ (recordBase L m t N Q + 3 * Nat.count (BoxTable.Eligible L (m - t)) s + d) := by
     have hk := BoxTable.count_lt_card_boxes hs hv
-    rw [hf _ (by unfold recordBase; omega) (by unfold valueBase; omega)]
-    exact h.code s hs hv
-  · intro s hs hv
-    have hk := BoxTable.count_lt_card_boxes hs hv
-    rw [hf _ (by unfold recordBase; omega) (by unfold valueBase; omega)]
-    exact h.stars s hs hv
-  · intro s hs hv
-    have hk := BoxTable.count_lt_card_boxes hs hv
-    rw [hf _ (by unfold recordBase; omega) (by unfold valueBase; omega)]
-    exact h.stride s hs hv
+    apply hf
+    · unfold recordBase
+      omega
+    · unfold valueBase
+      omega
+  refine ⟨fun s hs => ?_, fun s hs hv => (hrec 0 hs hv (by decide)).trans (h.code s hs hv),
+    fun s hs hv => (hrec 1 hs hv (by decide)).trans (h.stars s hs hv),
+    fun s hs hv => (hrec 2 hs hv (by decide)).trans (h.stride s hs hv)⟩
+  rw [hf]
+  · exact h.directory s hs
+  · omega
+  · unfold valueBase recordBase
+    omega
 
 /-- Extending a low-bank execution leaves every higher caller register untouched. -/
 theorem boxBank_extend_high (z : Data 64) (x : Data 160) (i : Fin 160) (hi : 64 ≤ i.val) :
@@ -162,15 +164,8 @@ theorem band_before_grouped (L m N Q : ℕ) :
 theorem index_fits {W L m t N Q j : ℕ} (hfit : Fits W (wordBudget L m t N Q))
     (hj : j < numBands L m N ^ 2) : Fits W (j + 1) := by
   have ho := allocation_order L m t N Q
-  have hc : numBands L m N ^ 2 ≤ QueriedProduct.codeBase L m N Q := by
-    unfold QueriedProduct.codeBase
-    omega
-  have hcd : QueriedProduct.codeBase L m N Q ≤ directoryBase L m N Q :=
-    (Nat.le_add_right _ Q).trans ho.2.2.1
-  have hde : directoryBase L m N Q ≤ memoryEnd L m t N Q := by
-    have h := ho.2.2.2
-    unfold memoryEnd
-    omega
-  exact allocated_fits hfit (by omega)
+  apply allocated_fits hfit
+  simp only [QueriedProduct.codeBase, memoryEnd] at ho ⊢
+  omega
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct

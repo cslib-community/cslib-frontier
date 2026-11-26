@@ -127,61 +127,21 @@ private theorem insert_castSucc_range_castSucc {k : ℕ} (i : Fin k) :
       Set.range Fin.castSucc :=
   Set.insert_eq_of_mem ⟨i, rfl⟩
 
-private theorem update_snoc_last {α : Type*} {k : ℕ} (u : Fin k → α) (v c : α) :
-    Function.update (Fin.snoc u v : Fin (k + 1) → α) (Fin.last k) c = Fin.snoc u c := by
-  ext j
-  refine Fin.lastCases ?_ ?_ j
-  · simp only [Function.update_self, Fin.snoc_last]
-  · intro i
-    simp only [Function.update_of_ne (Fin.castSucc_ne_last i), Fin.snoc_castSucc]
-
-private theorem update_snoc_castSucc {α : Type*} {k : ℕ} (u : Fin k → α) (v c : α) (i : Fin k) :
-    Function.update (Fin.snoc u v : Fin (k + 1) → α) i.castSucc c =
-      Fin.snoc (Function.update u i c) v := by
-  ext j
-  refine Fin.lastCases ?_ ?_ j
-  · simp only [Function.update_of_ne (Fin.castSucc_ne_last i).symm, Fin.snoc_last]
-  · intro r
-    by_cases hri : r = i
-    · subst hri
-      simp only [Function.update_self, Fin.snoc_castSucc]
-    · have hne : r.castSucc ≠ i.castSucc := (Fin.castSucc_injective k).ne hri
-      simp only [Function.update_of_ne hne, Fin.snoc_castSucc, Function.update_of_ne hri]
-
 private theorem snoc_comp_swap_castSucc_last {α : Type*} {k : ℕ} (u : Fin k → α) (v : α)
     (i : Fin k) :
     Fin.snoc u v ∘ Equiv.swap i.castSucc (Fin.last k) =
       Fin.snoc (Function.update u i v) (u i) := by
   ext j
-  refine Fin.lastCases ?_ ?_ j
-  · simp only [Function.comp_apply, Equiv.swap_apply_right, Fin.snoc_castSucc, Fin.snoc_last]
-  · intro r
-    by_cases hri : r = i
-    · subst hri
-      simp only [Function.comp_apply, Equiv.swap_apply_left, Fin.snoc_last,
-        Fin.snoc_castSucc, Function.update_self]
-    · have hne1 : r.castSucc ≠ i.castSucc := (Fin.castSucc_injective k).ne hri
-      have hne2 : r.castSucc ≠ Fin.last k := Fin.castSucc_ne_last r
-      simp only [Function.comp_apply, Equiv.swap_apply_of_ne_of_ne hne1 hne2,
-        Fin.snoc_castSucc, Function.update_of_ne hri]
+  refine Fin.lastCases (by simp) (fun r => ?_) j
+  rcases eq_or_ne r i with rfl | hri
+  · simp
+  · simp [Equiv.swap_apply_of_ne_of_ne ((Fin.castSucc_injective k).ne hri) r.castSucc_ne_last, hri]
 
 private theorem update_snoc_castSucc_comp_swap {α : Type*} {k : ℕ} (u : Fin k → α) (v c : α)
     (i : Fin k) :
     Function.update (Fin.snoc u v) i.castSucc c ∘ Equiv.swap i.castSucc (Fin.last k) =
       Fin.snoc (Function.update u i v) c := by
-  ext j
-  refine Fin.lastCases ?_ ?_ j
-  · simp only [Function.comp_apply, Equiv.swap_apply_right, Function.update_self, Fin.snoc_last]
-  · intro r
-    by_cases hri : r = i
-    · subst hri
-      simp only [Function.comp_apply, Equiv.swap_apply_left,
-        Function.update_of_ne (Fin.castSucc_ne_last r).symm, Fin.snoc_last,
-        Fin.snoc_castSucc, Function.update_self]
-    · have hne1 : r.castSucc ≠ i.castSucc := (Fin.castSucc_injective k).ne hri
-      have hne2 : r.castSucc ≠ Fin.last k := Fin.castSucc_ne_last r
-      simp only [Function.comp_apply, Equiv.swap_apply_of_ne_of_ne hne1 hne2,
-        Function.update_of_ne hne1, Fin.snoc_castSucc, Function.update_of_ne hri]
+  rw [← Fin.snoc_update, snoc_comp_swap_castSucc_last, Function.update_idem, Function.update_self]
 
 end TupleHelpers
 
@@ -197,11 +157,8 @@ private theorem exists_equiv_stepProfile_iff (v₀ : V) (n : ℕ) (u : Fin k →
         G.wlStepProfile (G.wlColoring n) u c = H.wlStepProfile (H.wlColoring n) w (f c)) ↔
       G.wlColoring (n + 1) u = H.wlColoring (n + 1) w := by
   rw [wlColoring_succ_eq_iff, ← Equiv.exists_apply_eq_iff_map_univ_eq]
-  constructor
-  · rintro ⟨f, hf⟩
-    exact ⟨(hf v₀).1, f, fun c => ((hf c).2).symm⟩
-  · rintro ⟨huw, f, hf⟩
-    exact ⟨f, fun c => ⟨huw, (hf c).symm⟩⟩
+  exact ⟨fun ⟨f, hf⟩ => ⟨(hf v₀).1, f, fun c => (hf c).2.symm⟩,
+    fun ⟨huw, f, hf⟩ => ⟨f, fun c => ⟨huw, (hf c).symm⟩⟩⟩
 
 /-- With all `k + 1` pebbles placed on `Fin.snoc u v` and `Fin.snoc w z`, Duplicator wins the
 `n`-round bijective game iff `u` and `w` have the same round-`n` `k`-WL color and `(u, v)` and
@@ -212,87 +169,29 @@ theorem bijPebbleWins_graph_univ_snoc_iff (n : ℕ) (u : Fin k → V) (w : Fin k
       BijPebbleWins Language.graph n Set.univ (Fin.snoc u v) (Fin.snoc w z)) ↔
       G.wlColoring n u = H.wlColoring n w ∧
         G.wlStepProfile (G.wlColoring n) u v = H.wlStepProfile (H.wlColoring n) w z := by
+  let := G.structure; let := H.structure
   induction n generalizing u w v z with
   | zero =>
-    have hzero : (letI := G.structure; letI := H.structure
-        BijPebbleWins Language.graph 0 Set.univ (Fin.snoc u v) (Fin.snoc w z)) ↔
-        (letI := G.structure; letI := H.structure
-          PartialIsoOn Language.graph Set.univ (Fin.snoc u v) (Fin.snoc w z)) := by
-      let := G.structure
-      let := H.structure
-      exact bijPebbleWins_zero
-    rw [hzero, partialIsoOn_graph_univ_iff_tupleAtom, wlStepProfile_eq_iff, wlColoring_zero,
-      wlColoring_zero]
-    constructor
-    · intro hatom
-      have hu : G.tupleAtom u = H.tupleAtom w := by
-        simpa only [Function.comp_def, Fin.snoc_castSucc] using tupleAtom_comp_eq hatom Fin.castSucc
-      refine ⟨hu, hatom, fun i => ?_⟩
-      have hswap := tupleAtom_comp_eq hatom
-        (Equiv.swap i.castSucc (Fin.last k) ∘ Fin.castSucc)
-      have hL : (Fin.snoc u v ∘ Equiv.swap i.castSucc (Fin.last k)) ∘ Fin.castSucc =
-          Function.update u i v := by
-        rw [snoc_comp_swap_castSucc_last]
-        ext r
-        exact Fin.snoc_castSucc _ _ r
-      have hR : (Fin.snoc w z ∘ Equiv.swap i.castSucc (Fin.last k)) ∘ Fin.castSucc =
-          Function.update w i z := by
-        rw [snoc_comp_swap_castSucc_last]
-        ext r
-        exact Fin.snoc_castSucc _ _ r
-      rwa [← Function.comp_assoc, ← Function.comp_assoc, hL, hR] at hswap
-    · exact fun ⟨_, hatom, _⟩ => hatom
+    rw [bijPebbleWins_zero, partialIsoOn_graph_univ_iff_tupleAtom, wlStepProfile_eq_iff,
+      wlColoring_zero, wlColoring_zero]
+    refine ⟨fun hatom => ⟨?_, hatom, fun i => ?_⟩, fun ⟨_, hatom, _⟩ => hatom⟩
+    · exact (show G.tupleAtom u = H.tupleAtom w by
+        simpa only [Fin.snoc_comp_castSucc] using tupleAtom_comp_eq hatom Fin.castSucc)
+    · have hswap := tupleAtom_comp_eq hatom (Equiv.swap i.castSucc (Fin.last k) ∘ Fin.castSucc)
+      rwa [← Function.comp_assoc, ← Function.comp_assoc, snoc_comp_swap_castSucc_last,
+        snoc_comp_swap_castSucc_last, Fin.snoc_comp_castSucc, Fin.snoc_comp_castSucc] at hswap
   | succ n ih =>
-    have hsucc : (letI := G.structure; letI := H.structure
-        BijPebbleWins Language.graph (n + 1) Set.univ (Fin.snoc u v) (Fin.snoc w z)) ↔
-        (letI := G.structure; letI := H.structure
-          PartialIsoOn Language.graph Set.univ (Fin.snoc u v) (Fin.snoc w z)) ∧
-          ∀ j : Fin (k + 1), ∃ f : V ≃ W, ∀ c,
-            (letI := G.structure; letI := H.structure
-              BijPebbleWins Language.graph n Set.univ
-                (Function.update (Fin.snoc u v) j c)
-                (Function.update (Fin.snoc w z) j (f c))) := by
-      let := G.structure
-      let := H.structure
-      have hbij := bijPebbleWins_succ (L := Language.graph) (n := n) (S := Set.univ)
-        (a := Fin.snoc u v) (b := Fin.snoc w z)
-      simpa only [Set.mem_univ, Set.insert_eq_of_mem] using hbij
-    rw [hsucc, partialIsoOn_graph_univ_iff_tupleAtom, Fin.forall_iff_castSucc]
-    have hlast : (∃ f : V ≃ W, ∀ c,
-        (letI := G.structure; letI := H.structure
-          BijPebbleWins Language.graph n Set.univ
-            (Function.update (Fin.snoc u v) (Fin.last k) c)
-            (Function.update (Fin.snoc w z) (Fin.last k) (f c)))) ↔
-        G.wlColoring (n + 1) u = H.wlColoring (n + 1) w := by
-      simp only [update_snoc_last, ih]
-      exact exists_equiv_stepProfile_iff v n u w
-    have hcast : ∀ i : Fin k,
-        (∃ f : V ≃ W, ∀ c,
-          (letI := G.structure; letI := H.structure
-            BijPebbleWins Language.graph n Set.univ
-              (Function.update (Fin.snoc u v) i.castSucc c)
-              (Function.update (Fin.snoc w z) i.castSucc (f c)))) ↔
-          G.wlColoring (n + 1) (Function.update u i v) =
-            H.wlColoring (n + 1) (Function.update w i z) := by
-      intro i
-      let σ := Equiv.swap i.castSucc (Fin.last k)
-      have hreidx : ∀ (c : V) (d : W),
-          (letI := G.structure; letI := H.structure
-            BijPebbleWins Language.graph n Set.univ
-              (Function.update (Fin.snoc u v) i.castSucc c)
-              (Function.update (Fin.snoc w z) i.castSucc d)) ↔
-            (letI := G.structure; letI := H.structure
-              BijPebbleWins Language.graph n Set.univ
-                (Fin.snoc (Function.update u i v) c)
-                (Fin.snoc (Function.update w i z) d)) := by
-        intro c d
-        let := G.structure
-        let := H.structure
-        rw [← bijPebbleWins_comp_equiv_iff σ, Set.preimage_univ, update_snoc_castSucc_comp_swap,
-          update_snoc_castSucc_comp_swap]
-      simp only [hreidx, ih]
-      exact exists_equiv_stepProfile_iff v n (Function.update u i v) (Function.update w i z)
-    simp only [hlast, hcast, wlStepProfile_eq_iff]
+    have hreidx (i : Fin k) (c : V) (d : W) :
+        BijPebbleWins Language.graph n Set.univ (Function.update (Fin.snoc u v) i.castSucc c)
+          (Function.update (Fin.snoc w z) i.castSucc d) ↔
+        BijPebbleWins Language.graph n Set.univ (Fin.snoc (Function.update u i v) c)
+          (Fin.snoc (Function.update w i z) d) := by
+      rw [← bijPebbleWins_comp_equiv_iff (Equiv.swap i.castSucc (Fin.last k)), Set.preimage_univ,
+        update_snoc_castSucc_comp_swap, update_snoc_castSucc_comp_swap]
+    rw [bijPebbleWins_succ, partialIsoOn_graph_univ_iff_tupleAtom, Fin.forall_iff_castSucc]
+    simp only [Set.insert_eq_of_mem (Set.mem_univ _), Fin.update_snoc_last, hreidx, ih,
+      exists_equiv_stepProfile_iff v]
+    simp only [wlStepProfile_eq_iff]
     tauto
 
 /-- **Bijective `(k + 1)`-pebble game and `k`-WL tuple colors.** With the first `k` pebbles placed
@@ -304,48 +203,23 @@ theorem bijPebbleWins_graph_range_castSucc_iff (n : ℕ) (u : Fin k → V) (w : 
       BijPebbleWins Language.graph n (Set.range Fin.castSucc)
         (Fin.snoc u v₀) (Fin.snoc w w₀)) ↔
       G.wlColoring n u = H.wlColoring n w := by
+  let := G.structure; let := H.structure
   induction n generalizing u w with
   | zero =>
-    have hzero : (letI := G.structure; letI := H.structure
-        BijPebbleWins Language.graph 0 (Set.range Fin.castSucc)
-          (Fin.snoc u v₀) (Fin.snoc w w₀)) ↔
-        (letI := G.structure; letI := H.structure
-          PartialIsoOn Language.graph (Set.range Fin.castSucc)
-            (Fin.snoc u v₀) (Fin.snoc w w₀)) := by
-      let := G.structure
-      let := H.structure
-      exact bijPebbleWins_zero
-    rw [hzero, partialIsoOn_graph_range_castSucc_iff_tupleAtom, wlColoring_zero, wlColoring_zero]
+    rw [bijPebbleWins_zero, partialIsoOn_graph_range_castSucc_iff_tupleAtom, wlColoring_zero,
+      wlColoring_zero]
     exact Iff.rfl
   | succ n ih =>
-    have hsucc : (letI := G.structure; letI := H.structure
-        BijPebbleWins Language.graph (n + 1) (Set.range Fin.castSucc)
-          (Fin.snoc u v₀) (Fin.snoc w w₀)) ↔
-        (letI := G.structure; letI := H.structure
-          PartialIsoOn Language.graph (Set.range Fin.castSucc)
-            (Fin.snoc u v₀) (Fin.snoc w w₀)) ∧
-          ∀ j : Fin (k + 1), ∃ f : V ≃ W, ∀ c,
-            (letI := G.structure; letI := H.structure
-              BijPebbleWins Language.graph n (insert j (Set.range Fin.castSucc))
-                (Function.update (Fin.snoc u v₀) j c)
-                (Function.update (Fin.snoc w w₀) j (f c))) := by
-      let := G.structure
-      let := H.structure
-      exact bijPebbleWins_succ
-    rw [hsucc, partialIsoOn_graph_range_castSucc_iff_tupleAtom, Fin.forall_iff_castSucc]
-    simp only [insert_last_range_castSucc, update_snoc_last, bijPebbleWins_graph_univ_snoc_iff,
-      exists_equiv_stepProfile_iff v₀ n u w, insert_castSucc_range_castSucc,
-      update_snoc_castSucc, ih]
-    constructor
-    · exact fun ⟨_, hlast, _⟩ => hlast
-    · intro hcol
-      have hatom : G.tupleAtom u = H.tupleAtom w := by
-        rw [← wlColoring_zero, ← wlColoring_zero]
-        exact wlColoring_eq_of_le (Nat.zero_le (n + 1)) hcol
-      refine ⟨hatom, hcol, fun i => ?_⟩
-      obtain ⟨_, hmset⟩ := wlColoring_succ_eq_iff.1 hcol
-      obtain ⟨f, hf⟩ := Equiv.exists_apply_eq_iff_map_univ_eq.2 hmset
-      exact ⟨f, fun c => (wlStepProfile_eq_iff.1 (hf c).symm).2 i⟩
+    rw [bijPebbleWins_succ, partialIsoOn_graph_range_castSucc_iff_tupleAtom,
+      Fin.forall_iff_castSucc]
+    simp only [insert_last_range_castSucc, Fin.update_snoc_last, bijPebbleWins_graph_univ_snoc_iff,
+      exists_equiv_stepProfile_iff v₀ n u w, insert_castSucc_range_castSucc, ← Fin.snoc_update, ih]
+    refine ⟨fun ⟨_, hlast, _⟩ => hlast, fun hcol => ?_⟩
+    obtain ⟨_, hmset⟩ := wlColoring_succ_eq_iff.1 hcol
+    obtain ⟨f, hf⟩ := Equiv.exists_apply_eq_iff_map_univ_eq.2 hmset
+    refine ⟨?_, hcol, fun i => ⟨f, fun c => (wlStepProfile_eq_iff.1 (hf c).symm).2 i⟩⟩
+    rw [← wlColoring_zero, ← wlColoring_zero]
+    exact wlColoring_eq_of_le (Nat.zero_le (n + 1)) hcol
 
 /-- Duplicator wins the infinite bijective `(k + 1)`-pebble game from `(Set.range Fin.castSucc,
 Fin.snoc u v₀, Fin.snoc w w₀)` if and only if `u` and `w` receive the same `k`-WL color in every
@@ -356,17 +230,9 @@ theorem bijPebbleWinsForever_graph_range_castSucc_iff {u : Fin k → V} {w : Fin
       BijPebbleWinsForever Language.graph (Set.range Fin.castSucc)
         (Fin.snoc u v₀) (Fin.snoc w w₀)) ↔
       ∀ n, G.wlColoring n u = H.wlColoring n w := by
-  have hforever : (letI := G.structure; letI := H.structure
-      BijPebbleWinsForever Language.graph (Set.range Fin.castSucc)
-        (Fin.snoc u v₀) (Fin.snoc w w₀)) ↔
-      ∀ n, (letI := G.structure; letI := H.structure
-        BijPebbleWins Language.graph n (Set.range Fin.castSucc)
-          (Fin.snoc u v₀) (Fin.snoc w w₀)) := by
-    let := G.structure
-    let := H.structure
-    exact bijPebbleWinsForever_iff_forall_bijPebbleWins
-  rw [hforever]
-  exact forall_congr' fun n => bijPebbleWins_graph_range_castSucc_iff n u w v₀ w₀
+  let := G.structure; let := H.structure
+  exact bijPebbleWinsForever_iff_forall_bijPebbleWins.trans
+    (forall_congr' fun n => bijPebbleWins_graph_range_castSucc_iff n u w v₀ w₀)
 
 /-! ### Prefix placement and `k`-WL histograms -/
 
@@ -396,12 +262,8 @@ private theorem prefixPebbles_self (k : ℕ) :
     prefixPebbles k k = Set.range (Fin.castSucc : Fin k → Fin (k + 1)) := by
   ext j
   simp only [prefixPebbles, Set.mem_ofPred_eq, Set.mem_range]
-  refine Fin.lastCases ?_ ?_ j
-  · simp only [Fin.val_last, lt_self_iff_false, false_iff]
-    rintro ⟨i, hi⟩
-    exact Fin.castSucc_ne_last i hi
-  · intro i
-    exact iff_of_true i.isLt ⟨i, rfl⟩
+  refine Fin.lastCases ?_ (fun i => iff_of_true i.isLt ⟨i, rfl⟩) j
+  simp [Fin.castSucc_ne_last]
 
 private theorem insert_prefixPebbles {k m : ℕ} (hm : m < k) :
     insert (⟨m, by omega⟩ : Fin (k + 1)) (prefixPebbles k m) = prefixPebbles k (m + 1) := by
@@ -422,18 +284,15 @@ private theorem eqOn_update_extendPrefix {α : Type*} {k m : ℕ} (hm : m < k) (
     Set.EqOn (Function.update (extendPrefix k t a₀) ⟨m, Nat.lt_succ_of_lt hm⟩ c)
       (extendPrefix k (Fin.snoc t c) a₀) (prefixPebbles k (m + 1)) := by
   intro j hj
-  simp only [prefixPebbles, Set.mem_ofPred_eq] at hj
-  by_cases hjm : j.val = m
-  · have hj_eq : j = ⟨m, Nat.lt_succ_of_lt hm⟩ := Fin.ext hjm
-    rw [hj_eq]
-    simp only [Function.update_self, extendPrefix, Nat.lt_succ_self, ↓reduceDIte]
-    change c = (Fin.snoc t c : Fin (m + 1) → α) (Fin.last m)
-    rw [Fin.snoc_last]
-  · have hne : j ≠ ⟨m, Nat.lt_succ_of_lt hm⟩ := fun h => hjm (congrArg Fin.val h)
-    have hlt : j.val < m := by omega
-    simp only [Function.update_of_ne hne, extendPrefix, hlt, hj, ↓reduceDIte]
-    change t ⟨j.val, hlt⟩ = (Fin.snoc t c : Fin (m + 1) → α) (⟨j.val, hlt⟩ : Fin m).castSucc
-    rw [Fin.snoc_castSucc]
+  rcases eq_or_ne j.val m with hjm | hne
+  · rw [show j = ⟨m, Nat.lt_succ_of_lt hm⟩ from Fin.ext hjm, Function.update_self, extendPrefix,
+      dite_eq_left m.lt_succ_self]
+    exact (by rw [Fin.snoc_last] : (Fin.snoc t c : Fin (m + 1) → α) (Fin.last m) = c).symm
+  · have hlt : j.val < m := Nat.lt_of_le_of_ne (Nat.lt_succ_iff.mp hj) hne
+    rw [Function.update_of_ne fun h => hne (congrArg Fin.val h), extendPrefix, extendPrefix,
+      dite_eq_left hlt, dite_eq_left (show j.val < m + 1 from hj)]
+    exact (by rw [Fin.snoc_castSucc] :
+      (Fin.snoc t c : Fin (m + 1) → α) (⟨j.val, hlt⟩ : Fin m).castSucc = t ⟨j.val, hlt⟩).symm
 
 /-- If `G` and `H` have the same round-`n` `k`-WL histogram, then Duplicator wins the `n`-round
 bijective `(k + 1)`-pebble game from `∅`. -/
@@ -441,10 +300,8 @@ theorem bijPebbleWins_graph_empty_of_wlHistogram_eq {n : ℕ}
     (h : G.wlHistogram k n = H.wlHistogram k n) (a : Fin (k + 1) → V) (b : Fin (k + 1) → W) :
     (letI := G.structure; letI := H.structure; BijPebbleWins Language.graph n ∅ a b) := by
   let u₀ : Fin k → V := fun _ => a 0
-  have hmem : G.wlColoring n u₀ ∈ H.wlHistogram k n := by
-    rw [← h, mem_wlHistogram]
-    exact ⟨u₀, rfl⟩
-  obtain ⟨w₀, hw₀⟩ := mem_wlHistogram.1 hmem
+  obtain ⟨w₀, hw₀⟩ := mem_wlHistogram.1 (h ▸ mem_wlHistogram.2 ⟨u₀, rfl⟩ :
+    G.wlColoring n u₀ ∈ H.wlHistogram k n)
   have hcast := (bijPebbleWins_graph_range_castSucc_iff n u₀ w₀ (a 0) (b 0)).2 hw₀.symm
   let := G.structure
   let := H.structure
@@ -466,44 +323,28 @@ theorem wlHistogram_eq_of_bijPebbleWins_graph_empty {n : ℕ} {a : Fin (k + 1) �
     intro m hm
     induction m with
     | zero =>
-      refine ⟨{ toFun := fun _ => Fin.elim0
-                invFun := fun _ => Fin.elim0
-                left_inv := fun _ => Subsingleton.elim _ _
-                right_inv := fun _ => Subsingleton.elim _ _ }, fun t => ?_⟩
+      refine ⟨Equiv.ofUnique _ _, fun t => ?_⟩
       rw [Nat.sub_zero, prefixPebbles_zero]
       exact bijPebbleWins_congr (Set.eqOn_empty _ _) (Set.eqOn_empty _ _) h
     | succ m ih =>
       obtain ⟨F, hF⟩ := ih (Nat.le_of_succ_le hm)
-      have hm_lt : m < k := hm
       have hmove : ∀ t : Fin m → V, ∃ f : V ≃ W, ∀ c : V,
           BijPebbleWins Language.graph (n + (k - (m + 1))) (prefixPebbles k (m + 1))
             (extendPrefix k (Fin.snoc t c) (a 0))
-            (extendPrefix k (Fin.snoc (F t) (f c)) (b 0)) := by
-        intro t
-        have ht := hF t
-        have hround : n + (k - m) = n + (k - (m + 1)) + 1 := by omega
-        rw [hround] at ht
-        obtain ⟨f, hf⟩ := ht.move ⟨m, by omega⟩
-        refine ⟨f, fun c => ?_⟩
-        have hfc := hf c
-        rw [insert_prefixPebbles hm_lt] at hfc
-        exact bijPebbleWins_congr (eqOn_update_extendPrefix hm_lt t (a 0) c)
-          (eqOn_update_extendPrefix hm_lt (F t) (b 0) (f c)) hfc
+            (extendPrefix k (Fin.snoc (F t) (f c)) (b 0)) := fun t => by
+        obtain ⟨f, hf⟩ := ((show n + (k - m) = n + (k - (m + 1)) + 1 by omega) ▸ hF t).move
+          ⟨m, by omega⟩
+        exact ⟨f, fun c => bijPebbleWins_congr (eqOn_update_extendPrefix hm t (a 0) c)
+          (eqOn_update_extendPrefix hm (F t) (b 0) (f c)) (insert_prefixPebbles hm ▸ hf c)⟩
       choose g hg using hmove
       refine ⟨snocCongrEquiv F g, fun t' => ?_⟩
       have ht' := hg (Fin.init t') (t' (Fin.last m))
-      have hsnoc : snocCongrEquiv F g (Fin.snoc (Fin.init t') (t' (Fin.last m))) =
-          Fin.snoc (F (Fin.init t')) (g (Fin.init t') (t' (Fin.last m))) := by
-        simp only [snocCongrEquiv, Equiv.coe_fn_mk, Fin.init_snoc, Fin.snoc_last]
-      rw [← hsnoc, Fin.snoc_init_self] at ht'
-      exact ht'
+      rwa [Fin.snoc_init_self] at ht'
   obtain ⟨F, hF⟩ := hprefix k le_rfl
   rw [wlHistogram_eq, wlHistogram_eq]
-  refine Equiv.exists_apply_eq_iff_map_univ_eq.1 ⟨F, fun u => ?_⟩
-  have hu : BijPebbleWins Language.graph n (Set.range Fin.castSucc)
-      (Fin.snoc u (a 0)) (Fin.snoc (F u) (b 0)) := by
-    simpa only [Nat.sub_self, Nat.add_zero, prefixPebbles_self, extendPrefix_self] using hF u
-  exact ((bijPebbleWins_graph_range_castSucc_iff n u (F u) (a 0) (b 0)).1 hu).symm
+  refine Equiv.exists_apply_eq_iff_map_univ_eq.1
+    ⟨F, fun u => ((bijPebbleWins_graph_range_castSucc_iff n u (F u) (a 0) (b 0)).1 ?_).symm⟩
+  simpa only [Nat.sub_self, Nat.add_zero, prefixPebbles_self, extendPrefix_self] using hF u
 
 /-- With no pebbles placed, Duplicator wins the infinite bijective `(k + 1)`-pebble game on simple
 graphs if and only if their `k`-WL histograms agree in every round. -/
@@ -512,14 +353,8 @@ theorem bijPebbleWinsForever_graph_empty_iff_wlHistogram_eq {a : Fin (k + 1) →
     (letI := G.structure; letI := H.structure
       BijPebbleWinsForever Language.graph ∅ a b) ↔
       ∀ n, G.wlHistogram k n = H.wlHistogram k n := by
-  have hforever : (letI := G.structure; letI := H.structure
-      BijPebbleWinsForever Language.graph ∅ a b) ↔
-      ∀ n, (letI := G.structure; letI := H.structure
-        BijPebbleWins Language.graph n ∅ a b) := by
-    let := G.structure
-    let := H.structure
-    exact bijPebbleWinsForever_iff_forall_bijPebbleWins
-  rw [hforever]
+  let := G.structure; let := H.structure
+  rw [bijPebbleWinsForever_iff_forall_bijPebbleWins]
   exact ⟨fun h n => wlHistogram_eq_of_bijPebbleWins_graph_empty (h (n + k)),
     fun h n => bijPebbleWins_graph_empty_of_wlHistogram_eq (h n) a b⟩
 
@@ -542,18 +377,8 @@ theorem forall_realize_countingFormula_castSucc_le_iff {n : ℕ} {u : Fin k → 
         ((letI := G.structure; φ.Realize (Fin.snoc u v₀)) ↔
           (letI := H.structure; φ.Realize (Fin.snoc w w₀)))) ↔
       G.wlColoring n u = H.wlColoring n w := by
-  have hgame : (letI := G.structure; letI := H.structure
-      BijPebbleWins Language.graph n (Set.range (Fin.castSucc : Fin k → Fin (k + 1)))
-        (Fin.snoc u v₀) (Fin.snoc w w₀)) ↔
-      ∀ φ : FiniteVariable.CountingFormula Language.graph (k + 1),
-        φ.quantifierRank ≤ n →
-          ↑φ.freeVars ⊆ Set.range (Fin.castSucc : Fin k → Fin (k + 1)) →
-            ((letI := G.structure; φ.Realize (Fin.snoc u v₀)) ↔
-              (letI := H.structure; φ.Realize (Fin.snoc w w₀))) := by
-    let := G.structure
-    let := H.structure
-    exact bijPebbleWins_iff_forall_realize_iff
-  rw [← hgame, bijPebbleWins_graph_range_castSucc_iff]
+  let := G.structure; let := H.structure
+  rw [← bijPebbleWins_iff_forall_realize_iff, bijPebbleWins_graph_range_castSucc_iff]
 
 /-- **Cai–Fürer–Immerman theorem, tuple form** ([CaiFurerImmerman1992], Section 5, Theorem 5.2).
 Two `k`-tuples `u` of `G` and `w` of `H` satisfy the same `C^{k+1}` formulas in the first `k`
@@ -565,17 +390,8 @@ theorem forall_realize_countingFormula_castSucc_iff {u : Fin k → V} {w : Fin k
         ((letI := G.structure; φ.Realize (Fin.snoc u v₀)) ↔
           (letI := H.structure; φ.Realize (Fin.snoc w w₀)))) ↔
       ∀ n, G.wlColoring n u = H.wlColoring n w := by
-  have hgame : (letI := G.structure; letI := H.structure
-      BijPebbleWinsForever Language.graph (Set.range (Fin.castSucc : Fin k → Fin (k + 1)))
-        (Fin.snoc u v₀) (Fin.snoc w w₀)) ↔
-      ∀ φ : FiniteVariable.CountingFormula Language.graph (k + 1),
-        ↑φ.freeVars ⊆ Set.range (Fin.castSucc : Fin k → Fin (k + 1)) →
-          ((letI := G.structure; φ.Realize (Fin.snoc u v₀)) ↔
-            (letI := H.structure; φ.Realize (Fin.snoc w w₀))) := by
-    let := G.structure
-    let := H.structure
-    exact bijPebbleWinsForever_iff_forall_realize_iff
-  rw [← hgame, bijPebbleWinsForever_graph_range_castSucc_iff]
+  let := G.structure; let := H.structure
+  rw [← bijPebbleWinsForever_iff_forall_realize_iff, bijPebbleWinsForever_graph_range_castSucc_iff]
 
 /-- **Cai–Fürer–Immerman theorem, stabilized tuple form.** Two `k`-tuples `u` of `G` and `w` of `H`
 satisfy the same `C^{k+1}` formulas in the first `k` variables if and only if they receive the same
@@ -598,10 +414,8 @@ theorem realize_countingFormula_le_one_iff_of_card_eq (h : Fintype.card V = Fint
     (hr : φ.quantifierRank ≤ 1) (hφ : φ.freeVars = ∅)
     (a : Fin (k + 1) → V) (b : Fin (k + 1) → W) :
     (letI := G.structure; φ.Realize a) ↔ (letI := H.structure; φ.Realize b) := by
-  have hwin : (letI := G.structure; letI := H.structure
-      BijPebbleWins Language.graph 1 ∅ a b) := by
-    let := G.structure
-    let := H.structure
+  let := G.structure; let := H.structure
+  have hwin : BijPebbleWins Language.graph 1 ∅ a b := by
     rw [bijPebbleWins_succ]
     refine ⟨partialIsoOn_empty a b, fun j => ⟨Fintype.equivOfCardEq h, fun c => ?_⟩⟩
     rw [bijPebbleWins_zero]
@@ -610,8 +424,6 @@ theorem realize_countingFormula_le_one_iff_of_card_eq (h : Fintype.card V = Fint
       subst hx hy
       simp only [Function.update_self]
       exact ⟨trivial, iff_of_false G.irrefl H.irrefl⟩
-  let := G.structure
-  let := H.structure
   exact hwin.realize_iff hr (by simp only [hφ, Finset.coe_empty, Set.empty_subset])
 
 /-- If `G` and `H` have the same round-`n` `k`-WL histogram, then they agree on every `C^{k+1}`
@@ -622,10 +434,9 @@ theorem realize_countingFormula_iff_of_wlHistogram_eq {n : ℕ}
     (hr : φ.quantifierRank ≤ n) (hφ : φ.freeVars = ∅)
     (a : Fin (k + 1) → V) (b : Fin (k + 1) → W) :
     (letI := G.structure; φ.Realize a) ↔ (letI := H.structure; φ.Realize b) := by
-  have hwin := bijPebbleWins_graph_empty_of_wlHistogram_eq h a b
-  let := G.structure
-  let := H.structure
-  exact hwin.realize_iff hr (by simp only [hφ, Finset.coe_empty, Set.empty_subset])
+  let := G.structure; let := H.structure
+  exact (bijPebbleWins_graph_empty_of_wlHistogram_eq h a b).realize_iff hr
+    (by simp only [hφ, Finset.coe_empty, Set.empty_subset])
 
 /-- If two nonempty finite simple graphs agree on all `C^{k+1}` sentences of quantifier rank at most
 `n + k`, then their round-`n` `k`-WL histograms agree. -/
@@ -720,39 +531,18 @@ they have the same vertex refinement histogram in every round. -/
 theorem forall_wlHistogram_one_eq_iff :
     (∀ n, G.wlHistogram 1 n = H.wlHistogram 1 n) ↔
       ∀ n, G.colorHistogram (fun _ => ()) n = H.colorHistogram (fun _ => ()) n := by
-  rcases isEmpty_or_nonempty V with hV | hV
-  · rcases isEmpty_or_nonempty W with hW | hW
-    · have hcardV : Fintype.card V = 0 := Fintype.card_eq_zero
-      have hcardW : Fintype.card W = 0 := Fintype.card_eq_zero
-      refine iff_of_true (fun n => ?_) (fun n => ?_)
-      · have h0V : G.wlHistogram 1 n = 0 :=
-          Multiset.card_eq_zero.1 (by rw [card_wlHistogram, hcardV, zero_pow one_ne_zero])
-        have h0W : H.wlHistogram 1 n = 0 :=
-          Multiset.card_eq_zero.1 (by rw [card_wlHistogram, hcardW, zero_pow one_ne_zero])
-        rw [h0V, h0W]
-      · have h0V : G.colorHistogram (fun _ => ()) n = 0 := by
-          rw [colorHistogram_eq, Finset.univ_eq_empty, Finset.empty_val, Multiset.map_zero]
-        have h0W : H.colorHistogram (fun _ => ()) n = 0 := by
-          rw [colorHistogram_eq, Finset.univ_eq_empty, Finset.empty_val, Multiset.map_zero]
-        rw [h0V, h0W]
-    · refine iff_of_false (fun h => ?_) (fun h => ?_)
-      · have hc := congrArg Multiset.card (h 0)
-        rw [card_wlHistogram, card_wlHistogram, pow_one, pow_one, Fintype.card_eq_zero] at hc
-        exact Fintype.card_pos.ne hc
-      · have hc := (colorHistogram_zero_const_eq_iff ()).1 (h 0)
-        rw [Fintype.card_eq_zero] at hc
-        exact Fintype.card_pos.ne hc
-  · rcases isEmpty_or_nonempty W with hW | hW
-    · refine iff_of_false (fun h => ?_) (fun h => ?_)
-      · have hc := congrArg Multiset.card (h 0)
-        rw [card_wlHistogram, card_wlHistogram, pow_one, pow_one,
-          Fintype.card_eq_zero (α := W)] at hc
-        exact Fintype.card_pos.ne' hc
-      · have hc := (colorHistogram_zero_const_eq_iff ()).1 (h 0)
-        rw [Fintype.card_eq_zero (α := W)] at hc
-        exact Fintype.card_pos.ne' hc
-    · rw [← forall_realize_countingFormula_empty_iff_wlHistogram_eq,
-        ← forall_realize_countingFormula_empty_iff]
+  have hwl (h : ∀ n, G.wlHistogram 1 n = H.wlHistogram 1 n) : Fintype.card V = Fintype.card W := by
+    simpa only [card_wlHistogram, pow_one] using congrArg Multiset.card (h 0)
+  have hcol (h : ∀ n, G.colorHistogram (fun _ => ()) n = H.colorHistogram (fun _ => ()) n) :
+      Fintype.card V = Fintype.card W := (colorHistogram_zero_const_eq_iff ()).1 (h 0)
+  rcases isEmpty_or_nonempty V with hV | hV <;> rcases isEmpty_or_nonempty W with hW | hW
+  · exact iff_of_true (fun n => by simp [wlHistogram_eq]) fun n => by simp [colorHistogram_eq]
+  · exact iff_of_false (fun h => Fintype.card_pos.ne (Fintype.card_eq_zero.symm.trans (hwl h)))
+      fun h => Fintype.card_pos.ne (Fintype.card_eq_zero.symm.trans (hcol h))
+  · exact iff_of_false (fun h => Fintype.card_pos.ne' ((hwl h).trans Fintype.card_eq_zero))
+      fun h => Fintype.card_pos.ne' ((hcol h).trans Fintype.card_eq_zero)
+  · rw [← forall_realize_countingFormula_empty_iff_wlHistogram_eq,
+      ← forall_realize_countingFormula_empty_iff]
 
 end OneDimensional
 

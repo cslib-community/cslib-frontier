@@ -198,11 +198,8 @@ theorem readRow_scan (row : BitString (k + k)) (t i : ℕ) :
     rw [scan, Circuit.eval_comp, readRow_step]
     by_cases hi : i < k
     · rw [ite_eq_left hi, ih, ih, pow_succ, Nat.mul_two, rangeSummary_add]
-    · rw [ite_eq_right hi]
-      symm
-      apply rangeSummary_eq_unit
-      intro j hj
-      simp [readRow, show ¬ j < k by omega]
+    · exact (ite_eq_right hi).trans
+        (rangeSummary_eq_unit _ (fun j _ => by simp [readRow, show ¬ j < k by omega]) _).symm
 
 /-- Input bit `i` of the first word. -/
 def leftInput (w : ℕ) (i : Fin w) : Fin (w + w + 1) :=
@@ -301,14 +298,10 @@ private theorem rangeSummary_initial {w : ℕ} (u : BitString (w + w + 1)) (i : 
     rw [rangeSummary, rangeSummary, combine_unit_right]
     simpa [inputCarry] using readRow_initial u (Fin.last w)
   | succ i ih =>
-    rw [rangeSummary]
-    have hs : w - (i + 1) + 1 = w - i := by omega
-    rw [hs, ih (by omega)]
     have hr := readRow_initial u ⟨w - (i + 1), by omega⟩
-    have hj : w - (i + 1) < w := by omega
-    have hidx : w - 1 - (w - (i + 1)) = i := by omega
-    simp only [hj, ↓reduceDIte, hidx] at hr
-    rw [hr]
+    simp only [show w - (i + 1) < w by omega, ↓reduceDIte,
+      show w - 1 - (w - (i + 1)) = i by omega] at hr
+    rw [rangeSummary, show w - (i + 1) + 1 = w - i by omega, ih (by omega), hr]
     simp only [combine, Bool.and_false, inputCarry, BitVec.carry_succ,
       BitString.getLsbD_equivBitVec (u ∘ leftInput w) ⟨i, by omega⟩,
       BitString.getLsbD_equivBitVec (u ∘ rightInput w) ⟨i, by omega⟩, Function.comp_apply]
@@ -324,15 +317,11 @@ theorem eval_carries {w : ℕ} (u : BitString (w + w + 1)) (i : Fin (w + 1)) :
   have h := readRow_scan ((initial w).eval interpretation u) (Nat.clog 2 (w + 1)) (w - i.val)
   have he : 2 ^ Nat.clog 2 (w + 1) = (i.val + 1) +
       (2 ^ Nat.clog 2 (w + 1) - (i.val + 1)) := by omega
-  rw [he, rangeSummary_add, rangeSummary_initial u i.val (by omega)] at h
-  have hz : rangeSummary (readRow ((initial w).eval interpretation u))
-      (w - i.val + (i.val + 1)) (2 ^ Nat.clog 2 (w + 1) - (i.val + 1)) = (false, true) := by
-    apply rangeSummary_eq_unit
-    intro j hj
-    simp [readRow, show ¬j < w + 1 by omega]
-  rw [hz, combine_unit_right] at h
-  have hg := congrArg Prod.fst h
-  simpa [readRow, show w - i.val < w + 1 by omega, carries, Circuit.eval_comp] using hg
+  rw [he, rangeSummary_add, rangeSummary_initial u i.val (by omega),
+    rangeSummary_eq_unit _ (fun j _ => by simp [readRow, show ¬j < w + 1 by omega]),
+    combine_unit_right] at h
+  simpa [readRow, show w - i.val < w + 1 by omega, carries, Circuit.eval_comp] using
+    congrArg Prod.fst h
 
 end CarryLookahead
 
@@ -435,11 +424,9 @@ def carryLookaheadAdd (w : ℕ) : Circuit signature (w + w) w :=
 theorem val_eval_carryLookaheadAdd {w : ℕ} (a b : BitString w) :
     (BitString.equivFin w ((carryLookaheadAdd w).eval interpretation (Fin.append a b)) : ℕ) =
       ((BitString.equivFin w a : ℕ) + (BitString.equivFin w b : ℕ)) % 2 ^ w := by
-  have h := val_eval_carryLookahead a b false
-  rw [BitString.val_equivFin_succ] at h
-  simp only [Bool.toNat_false, Nat.add_zero] at h
-  have hm := congrArg (· % 2 ^ w) h
-  rw [Nat.add_mul_mod_self_right] at hm
+  have hm := congrArg (· % 2 ^ w) (val_eval_carryLookahead a b false)
+  simp only [BitString.val_equivFin_succ, Bool.toNat_false, Nat.add_zero,
+    Nat.add_mul_mod_self_right] at hm
   have he : (carryLookaheadAdd w).eval interpretation (Fin.append a b) =
       Fin.init ((carryLookahead w).eval interpretation
         (Fin.append (Fin.append a b) (fun _ => false))) := by

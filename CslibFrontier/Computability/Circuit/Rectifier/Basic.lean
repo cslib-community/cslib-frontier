@@ -289,10 +289,9 @@ def direct [Fintype α] [Fintype β] (A : Matrix α β Bool) : RectifierCircuit 
 theorem hasDepthLE_one_direct [Fintype α] [Fintype β] (A : Matrix α β Bool) :
     (direct A).HasDepthLE 1 := by
   refine hasDepthLE_of_layer (Sum.elim (fun _ => 0) (fun _ => 1)) ?_ ?_
-  · rintro u v huv
+  · rintro _ _ huv
     obtain ⟨⟨i, j⟩, -, heq⟩ := mem_map.mp huv
-    change (Sum.inl j, Sum.inr i) = (u, v) at heq
-    rw [← (Prod.mk.inj heq).1, ← (Prod.mk.inj heq).2]
+    cases heq
     rfl
   · rintro (j | i) <;> simp only [Sum.elim_inl, Sum.elim_inr, zero_le, le_refl]
 
@@ -307,20 +306,14 @@ theorem computes_direct [Fintype α] [Fintype β] (A : Matrix α β Bool) :
     (direct A).Computes A := by
   intro i j
   refine ⟨fun hij => ?_, fun ⟨p⟩ => ?_⟩
-  · refine ⟨.cons (mem_map.mpr ⟨(i, j), mem_filter.mpr ⟨mem_univ _, hij⟩, rfl⟩) (.nil _)⟩
-  · obtain ⟨v, h, ⟨q⟩⟩ := p.uncons ((direct A).inp_ne_out j i)
+  · exact ⟨.cons (mem_map.mpr ⟨(i, j), mem_filter.mpr ⟨mem_univ _, hij⟩, rfl⟩) (.nil _)⟩
+  · rcases p with _ | ⟨h, q⟩
     obtain ⟨⟨i', j'⟩, hmem, heq⟩ := mem_map.mp h
-    change (Sum.inl j', Sum.inr i') = (Sum.inl j, v) at heq
-    simp only [Prod.mk.injEq, Sum.inl.injEq] at heq
-    obtain ⟨rfl, rfl⟩ := heq
-    by_cases hi : i' = i
-    · subst hi
-      exact (mem_filter.mp hmem).2
-    · obtain ⟨_, h₂, -⟩ := q.uncons fun hsum => hi (Sum.inr.inj hsum)
-      obtain ⟨⟨_, _⟩, -, heq₂⟩ := mem_map.mp h₂
-      change (Sum.inl _, Sum.inr _) = (Sum.inr i', _) at heq₂
-      have hbad := (Prod.mk.inj heq₂).1
-      nomatch hbad
+    cases heq
+    rcases q with _ | ⟨h₂, _⟩
+    · exact (mem_filter.mp hmem).2
+    · obtain ⟨_, -, heq₂⟩ := mem_map.mp h₂
+      nomatch heq₂
 
 private theorem card_ite_filter_embedding_le {γ : Type*} [Fintype γ] [DecidableEq V]
     (S : Finset γ) (f : γ ↪ V) (v : V) {K : ℕ} (hK : 1 < K) :
@@ -343,8 +336,7 @@ theorem Computes.boolMatrixWeight_le_sq_pred_mul_size [Fintype α] [Fintype β]
   classical
   have hKpos : 0 < K := hA.pos
   rcases eq_or_lt_of_le (show 1 ≤ K by omega) with rfl | hK2
-  · rw [hA.boolMatrixWeight_eq_zero]
-    exact Nat.zero_le _
+  · exact hA.boolMatrixWeight_eq_zero ▸ Nat.zero_le _
   set inSet : V → Finset β := fun v => univ.filter fun j => Nonempty (C.Walk (C.inp j) v)
   set outSet : V → Finset α := fun v => univ.filter fun i => Nonempty (C.Walk v (C.out i))
   set smallIn : V → Finset β :=
@@ -378,9 +370,7 @@ theorem Computes.boolMatrixWeight_le_sq_pred_mul_size [Fintype α] [Fintype β]
       exact False.elim (hne rfl)
     | @cons u v z he q' ih =>
       intro hz _ hju huK
-      have hjin : j ∈ smallIn u := by
-        simp only [smallIn, huK, ↓reduceIte]
-        exact hju
+      have hjin : j ∈ smallIn u := by simpa only [smallIn, huK, ↓reduceIte] using hju
       by_cases hv_out : v = z
       · subst hv_out
         subst hz

@@ -47,11 +47,8 @@ theorem SecretExpansionViews.read_publicKey_of_mem {s : Level} {base : Xofs} {a 
     (hv : v ∈ (base.sampleSecretExpansionViews s ha hb).support) (t : Fin s.params.k → Poly)
     (n : ℕ) : v.shared.h256.readBytes (encodePublic s v.publicSeed.toList t) n =
       v.background.h256.readBytes (encodePublic s v.publicSeed.toList t) n := by
-  apply ExtendableOutput.read_eq_of_byteAt_eq
-  intro i _
-  apply (agree_of_mem hv).2 _ i
-  right
-  intro j e
+  refine ExtendableOutput.read_eq_of_byteAt_eq fun i _ =>
+    (agree_of_mem hv).2 _ i (Or.inr fun j e => ?_)
   have h := congrArg List.length e
   rw [Keccak.length_bytesToBitsLE, length_encodePublic, FixedBytes.length_toList,
     length_nonceInput_bits] at h
@@ -66,20 +63,17 @@ theorem SecretExpansionViews.publicHashMatch_iff {s : Level} {v : SecretExpansio
         (formatMessage [] []) = Keccak.bytesToBitsLE (nonceInput v.secretSeed.toList 0) := by
   let tr := v.shared.h256.readBytes (encodePublic s v.publicSeed.toList pk.t) 64
   obtain ⟨t, ht⟩ := FixedBytes.exists_toList (show tr.length = 64 from v.shared.h256.length_read ..)
-  change v.publicHashMatch = true ↔ representativeInput tr _ = _
   simp only [publicHashMatch, hp, Option.any_some, beq_iff_eq]
   change tr = v.secretSeed.toList ↔ representativeInput tr _ = _
   rw [← ht]
-  have eq := representativeInput_eq_nonceInput_iff t v.secretSeed [] [] (0 : Fin 65536)
-  simpa only [Fin.val_zero, and_self, and_true, FixedBytes.toList, List.ofFn_inj] using eq.symm
+  simpa only [Fin.val_zero, and_self, and_true, FixedBytes.toList, List.ofFn_inj] using
+    (representativeInput_eq_nonceInput_iff t v.secretSeed [] [] (0 : Fin 65536)).symm
 
 private theorem replace_expansion (H : Xofs) (s : Level) (seed : FixedBytes 32)
     (x y : FixedBytes 128) :
     (H.withKeySeedExpansion s seed x).withKeySeedExpansion s seed y =
       H.withKeySeedExpansion s seed y := by
-  apply congrArg (Xofs.mk H.h128)
-  apply ExtendableOutput.ext_byteAt
-  intro word i
+  refine congrArg (Xofs.mk H.h128) (ExtendableOutput.ext_byteAt fun word i => ?_)
   simp only [Xofs.withKeySeedExpansion, ExtendableOutput.byteAt_withPrefixes]
   by_cases h : word = keySeedInput s seed
   · simp only [h, ↓reduceIte, Option.bind_some, FixedBytes.toList, List.getElem?_ofFn]
@@ -107,20 +101,17 @@ private theorem score_programmed {s : Level} {α : Type} (H : Xofs) (xi rho : Fi
   let F := H.withKeySeedExpansion s xi (Fin.append rho (Fin.append r K))
   have ex : F.expandKeySeed s xi = rho.toList ++ (r.toList ++ K.toList) := by
     simp only [F, Xofs.expandKeySeed_withKeySeedExpansion, FixedBytes.toList, List.ofFn_fin_append]
-  have pub : matrixSeed F s xi = rho := by
-    apply List.ofFn_inj.mp
+  have pub : matrixSeed F s xi = rho := List.ofFn_inj.mp <| by
     change (matrixSeed F s xi).toList = rho.toList
     rw [matrixSeed_bytes, ex, List.take_left' (FixedBytes.length_toList rho)]
-  have sec : expansionSeed F s xi = r := by
-    apply List.ofFn_inj.mp
+  have sec : expansionSeed F s xi = r := List.ofFn_inj.mp <| by
     change (expansionSeed F s xi).toList = r.toList
     rw [expansionSeed_bytes, ex, List.drop_left' (FixedBytes.length_toList rho),
       List.take_left' (FixedBytes.length_toList r)]
-  have pq : gen F rho rows = gen H rho rows := rfl
   change (PMF.uniformOfFintype (FixedBytes 128)).bind (fun fresh =>
     score (F.withKeySeedExpansion s xi fresh) _ _ xi _) = _
-  rw [pub, sec, pq]
-  simp only [F, replace_expansion]
+  rw [pub, sec]
+  simp only [F, replace_expansion]; rfl
 
 private theorem refresh_fixed {s : Level} {α : Type} (base : Xofs) {a b : ℕ}
     (ha : 272 ≤ a) (hb : 128 ≤ b) (xi : FixedBytes 32) (rows : Nonce s × Fin 481 → Byte)
@@ -139,19 +130,16 @@ private theorem refresh_fixed {s : Level} {α : Type} (base : Xofs) {a b : ℕ}
         P.bind fun rho => U.bind fun r => B.bind fun fresh =>
           score (H.withKeySeedExpansion s xi fresh) rho (gen H rho rows) xi r := by
     rw [← PMF.uniformOfFintype_bind_bind_equiv (Fin.appendEquiv 32 96 (α := Byte))]
-    apply congrArg (PMF.bind P ·)
-    funext rho
+    refine congrArg (PMF.bind P ·) (funext fun rho => ?_)
     rw [← PMF.uniformOfFintype_bind_bind_equiv (Fin.appendEquiv 64 32 (α := Byte))]
     simp only [Fin.appendEquiv, Equiv.coe_fn_mk, score_programmed, PMF.bind_const, U, B]
   change (R.bind fun H => B.bind fun out => _) = _
   simp_rw [each]
   rw [PMF.bind_comm R P]
-  apply congrArg (PMF.bind P ·)
-  funext rho
+  refine congrArg (PMF.bind P ·) (funext fun rho => ?_)
   rw [PMF.bind_comm R U]
-  apply congrArg (PMF.bind U ·)
-  funext r
-  exact uniform_plant base s xi ha hb (fun H => score H rho (gen H rho rows) xi r)
+  exact congrArg (PMF.bind U ·) (funext fun r =>
+    uniform_plant base s xi ha hb (fun H => score H rho (gen H rho rows) xi r))
 
 /-- Replace the 128 bytes at the input which generated both seeds, preserving every other
 SHAKE response and the suffix at that input. The key pair has already been drawn. -/
@@ -179,12 +167,11 @@ private theorem refresh_law {s : Level} {α : Type} (base : Xofs) {a b : ℕ}
       PMF.bind_map, Function.comp_def, R, independent_tables, scoreRefresh, gen, matrixSeed_bytes]
     rfl
   rw [avg, PMF.bind_comm R S]
-  apply congrArg (PMF.bind S ·)
-  funext xi
+  refine congrArg (PMF.bind S ·) (funext fun xi => ?_)
   rw [PMF.bind_comm R V]
-  apply congrArg (PMF.bind V ·)
-  funext rows
-  exact refresh_fixed base (by lia) (by lia) xi rows score
+  refine congrArg (PMF.bind V ·) (funext fun rows => ?_)
+  exact refresh_fixed base (by lia)
+    (by lia) xi rows score
 
 private theorem independent_law {s : Level} {α : Type} (base : Xofs) {a b : ℕ}
     (ha : 528 ≤ a) (hb : 481 ≤ b) (score : SeedScore s α) :
@@ -200,11 +187,9 @@ private theorem independent_law {s : Level} {α : Type} (base : Xofs) {a b : ℕ
   let V := PMF.uniformOfFintype (Nonce s × Fin 481 → Byte)
   let R := base.uniformPrefixes a b
   rw [refresh_law base ha hb, PMF.bind_comm P V]
-  apply congrArg (PMF.bind V ·)
-  funext rows
+  refine congrArg (PMF.bind V ·) (funext fun rows => ?_)
   rw [PMF.bind_comm P P]
-  apply congrArg (PMF.bind P ·)
-  funext rho
+  refine congrArg (PMF.bind P ·) (funext fun rho => ?_)
   change (P.bind fun xi => U.bind fun r => R.bind fun H => _) = _
   simp_rw [PMF.bind_comm U R]
   rw [PMF.bind_comm P R]
@@ -256,16 +241,14 @@ theorem publicHashMatch_le (s : Level) (base : Xofs) {a b : ℕ} (ha : 528 ≤ a
       PMF.bind_const, SecretExpansionViews.publicHashMatch, v.read_publicKey_of_mem hv]
   change ((base.sampleSecretExpansionViews s ha hb).bind fun v =>
     PMF.pure v.publicHashMatch) true ≤ _
-  have eq := PMF.bind_congr_on_support V _ _ (fun v hv => (keep v hv).symm)
-  rw [eq]
-  rw [base.refreshKeySeed_independent ha hb test]
+  rw [PMF.bind_congr_on_support V _ _ (fun v hv => (keep v hv).symm),
+    base.refreshKeySeed_independent ha hb test]
   apply PMF.bind_apply_le_on_support
   intro v _
   apply PMF.bind_apply_le_on_support
   intro H _
   simp only [test, PMF.bind_const]
-  apply FixedBytes.uniform_test_le (n := 64)
-  intro x hx y hy
+  refine FixedBytes.uniform_test_le (n := 64) fun x hx y hy => ?_
   cases hp : v.pair with
   | none => simp [hp] at hx
   | some pk =>
@@ -291,13 +274,11 @@ private theorem uniform_hit_le (s : Level) (address : Option (List Bool)) :
       rw [PMF.bind_comm]
       apply PMF.bind_apply_le_on_support
       intro r _
-      apply FixedBytes.uniform_test_le (n := 32)
-      have off (j : Fin (s.params.ℓ + s.params.k)) :
-          x ≠ Keccak.bytesToBitsLE (nonceInput r.toList j.val) := by
-        intro h
+      refine FixedBytes.uniform_test_le (n := 32) fun i hi j hj => ?_
+      have off (k : Fin (s.params.ℓ + s.params.k)) :
+          x ≠ Keccak.bytesToBitsLE (nonceInput r.toList k.val) := fun h => by
         rw [h, length_nonceInput_bits] at width
         exact (by decide : (528 : ℕ) ≠ 272) width
-      intro i hi j hj
       simp only [Set.mem_ofPred_eq, hitsExpansionInput, Option.any_some, decide_eq_true_eq,
         off, exists_false, or_false] at hi hj
       exact List.ofFn_inj.mp (List.append_cancel_right
@@ -305,17 +286,17 @@ private theorem uniform_hit_le (s : Level) (address : Option (List Bool)) :
     · apply PMF.bind_apply_le_on_support
       intro xi _
       have off : x ≠ keySeedInput s xi := fun h => width (h ▸ length_keySeedInput s xi)
-      apply le_trans (FixedBytes.uniform_test_le (n := 64) ?_)
-      · exact ENNReal.inv_le_inv.mpr
-          (pow_le_pow_right₀ (by norm_num : (1 : ℝ≥0∞) ≤ 2) (by decide : 256 ≤ 8 * 64))
-      · intro r hr t ht
-        simp only [Set.mem_ofPred_eq, hitsExpansionInput, Option.any_some, decide_eq_true_eq,
-          off, false_or] at hr ht
-        obtain ⟨i, hi⟩ := hr
-        obtain ⟨j, hj⟩ := ht
-        have eq := congrArg (List.take 64) (Keccak.bytesToBitsLE_injective (hi.symm.trans hj))
-        simp only [nonceInput, List.take_left' (FixedBytes.length_toList _)] at eq
-        exact List.ofFn_inj.mp eq
+      refine (FixedBytes.uniform_test_le (n := 64) fun r hr t ht => ?_).trans
+        (ENNReal.inv_le_inv.mpr
+          (pow_le_pow_right₀ (by norm_num : (1 : ℝ≥0∞) ≤ 2)
+            (by decide : 256 ≤ 8 * 64)))
+      simp only [Set.mem_ofPred_eq, hitsExpansionInput, Option.any_some, decide_eq_true_eq,
+        off, false_or] at hr ht
+      obtain ⟨i, hi⟩ := hr
+      obtain ⟨j, hj⟩ := ht
+      have eq := congrArg (List.take 64) (Keccak.bytesToBitsLE_injective (hi.symm.trans hj))
+      simp only [nonceInput, List.take_left' (FixedBytes.length_toList _)] at eq
+      exact List.ofFn_inj.mp eq
 
 /-- In the refreshed background experiment any observation producing one raw SHAKE256 address
 hits either private expansion input family with probability at most 2⁻²⁵⁶. The observation sees

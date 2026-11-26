@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Protocols.FRI.BatchProtocol
 public import CslibFrontier.Crypto.Protocols.FRI.Soundness
 public import CslibFrontier.Foundations.Data.Code.ProximityGap.Curve
 import CslibFrontier.Foundations.Data.Hamming
+import CslibFrontier.Probability.PMF.UniformBound
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Positivity
 
@@ -278,13 +279,9 @@ theorem friSmoothBatchGoodStep_cons [DecidableEq F] (params : FRISmoothParams F)
     friSmoothBatchGoodStep params t B stmt ((π₀, c₀) :: rest) π c ↔
       friSmoothGoodStep params B (stmt.eval c₀.batchCoeffs)
         (friBatchTailTranscript rest) π c.toFRIChal := by
-  by_cases hlen : rest.length ≤ params.m
-  · simp only [friSmoothBatchGoodStep, List.length_cons, Nat.succ_le_succ_iff, hlen, ↓reduceIte,
-      List.cons_append, friSmoothBatchDoomed, friBatchTailTranscript_append,
-      friBatchTailTranscript_cons, friBatchTailTranscript_nil, friSmoothGoodStep,
-      length_friBatchTailTranscript]
-  · simp only [friSmoothBatchGoodStep, List.length_cons, Nat.succ_le_succ_iff, hlen, ↓reduceIte,
-      friSmoothGoodStep, length_friBatchTailTranscript]
+  simp only [friSmoothBatchGoodStep, List.length_cons, Nat.succ_le_succ_iff, List.cons_append,
+    friSmoothBatchDoomed, friBatchTailTranscript_append, friBatchTailTranscript_cons,
+    friBatchTailTranscript_nil, friSmoothGoodStep, length_friBatchTailTranscript]
 
 /-- **Unconditional round-by-round soundness invariant for `friSmoothBatchIOP`**: for every batch
 size `t : ℕ` and distance threshold `e : ℕ`, `friSmoothBatchIOP params t` satisfies
@@ -305,9 +302,8 @@ theorem friSmoothBatchIOP_rbrSound [DecidableEq F] (params : FRISmoothParams F) 
       | nil => exact absurd (Nat.zero_le _) h
       | cons head rest =>
         simp only [List.length_cons] at h
-        have hlen : (friBatchTailTranscript (rest ++ [(π, c)])).length = rest.length + 1 := by
-          simp
-        simp only [List.cons_append, friSmoothBatchDoomed, friSmoothDoomed]
+        simp only [List.cons_append, friSmoothBatchDoomed, friSmoothDoomed,
+          length_friBatchTailTranscript, List.length_append, List.length_singleton]
         split_ifs <;> omega
   reject_of_doomed stmt oracles chals hdoomed := by
     rw [iopVerify_friSmoothBatchIOP_eq_iopVerify_friSmoothIOP]
@@ -501,16 +497,8 @@ theorem friSmoothBatchRound0_escape_le_of_escape [Fintype F] [DecidableEq F]
     (π : OracleTable params.d F) :
     (PMF.uniformOfFintype (FRIBatchChal F params.d params.q t)).toOuterMeasure
         {c | ¬ friSmoothBatchGoodStep params t (2 ^ params.d - e - 1) stmt [] π c} ≤ ε_batch := by
-  have hset :
-      {c : FRIBatchChal F params.d params.q t |
-        ¬ friSmoothBatchGoodStep params t (2 ^ params.d - e - 1) stmt [] π c} =
-      {c | c.batchCoeffs ∈ {x : Fin t → F | ∃ c' ∈ params.initialCode,
-        2 ^ params.d - e - 1 <
-          (Finset.univ.filter fun s : Fin (2 ^ params.d) => stmt.eval x s = c' s).card}} := by
-    ext c
-    simp only [Set.mem_ofPred_eq, friSmoothBatchGoodStep_nil_iff, not_forall, not_le, exists_prop]
-  rw [hset, toOuterMeasure_uniform_friBatchChal_batchCoeffs]
-  exact hescape stmt hnot
+  simp only [friSmoothBatchGoodStep_nil_iff, not_forall, not_le, exists_prop]
+  exact (toOuterMeasure_uniform_friBatchChal_batchCoeffs _).trans_le (hescape stmt hnot)
 
 omit [Field F] in
 /-- Private helper: for `e < 2 ^ d`, agreement `> 2 ^ d - e - 1` is equivalent to Hamming distance
@@ -553,10 +541,10 @@ private theorem smoothBatchRound0Escape_of_real_density [Fintype F] [DecidableEq
   have hle_R : ((Finset.univ.filter (· ∈ S)).card : ℝ) / ((Fintype.card F : ℝ) ^ t) ≤
       R (2 ^ params.d : ℝ) := by
     by_contra hgt
-    have hR : R (Fintype.card (Fin (2 ^ params.d)) : ℝ) = R (2 ^ params.d : ℝ) := by
-      simp only [Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat]
-    obtain ⟨D', hD'_card, v₀, hv₀, v, hv, hagree⟩ := hca hα hk_le_n stmt _
-      (hR ▸ lt_of_not_ge hgt) fun x hx =>
+    obtain ⟨D', hD'_card, v₀, hv₀, v, hv, hagree⟩ := hca hα hk_le_n stmt
+      (Finset.univ.filter (· ∈ S))
+      (by simpa only [Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat] using lt_of_not_ge hgt)
+      fun x hx =>
         let ⟨c, hc, hc_gt⟩ := (Finset.mem_filter.mp hx).2
         ⟨c, hc, (lt_card_filter_eq_iff_hammingDist_le he_lt (stmt.eval x) c).mp hc_gt⟩
     exact hnot ⟨D', by rwa [Fintype.card_fin] at hD'_card, v₀, hv₀, v, hv, hagree⟩
@@ -660,12 +648,10 @@ theorem smoothBatchRound0GapBound_of_johnson [Fintype F] [DecidableEq F]
   obtain ⟨hk_sub, hinterp, hroot, hjb⟩ := ProximityGap.johnson_line_params_bound
     (params.one_le_dim 0) hk₀_le_n₀ hmJ (by simpa only [Nat.cast_pow, Nat.cast_ofNat] using he)
   have hmul := mul_le_mul_of_nonneg_right hjb (Nat.cast_nonneg (params.dim 0))
-  have hk₀_ne : (params.dim 0 : ℝ) ≠ 0 :=
-    Nat.cast_ne_zero.mpr (by have := params.one_le_dim 0; omega)
-  have hn₀_ne : ((2 ^ params.d : ℕ) : ℝ) ≠ 0 := by positivity
   have hrhs : (1800 * ((mJ + 1 : ℝ) ^ 6) * (((2 ^ params.d : ℕ) : ℝ) ^ 2) /
       ((params.dim 0 : ℝ) / ((2 ^ params.d : ℕ) : ℝ))) * (params.dim 0 : ℝ) =
       1800 * ((mJ + 1 : ℝ) ^ 6) * (((2 ^ params.d : ℕ) : ℝ) ^ 3) := by
+    have := params.one_le_dim 0
     field_simp
   exact smoothBatchRound0GapBound_of_johnson_discrete params t (by omega) hk_sub hinterp hroot
     ((Nat.le_div_iff_mul_le (params.one_le_dim 0)).mpr (by exact_mod_cast hrhs ▸ hmul))

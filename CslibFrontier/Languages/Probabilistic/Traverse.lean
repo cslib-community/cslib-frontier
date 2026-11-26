@@ -70,15 +70,9 @@ theorem eval_mapM_range {β : Type} :
     rw [List.range_succ_eq_map, List.mapM_cons, List.mapM_map]
     simp only [eval_bind, eval_pure, Cslib.Probability.PMF.piFin, PMF.map_bind, PMF.map_comp,
       Function.comp_def]
-    congr 1
-    funext first
-    have ih := eval_mapM_range k (fun n => f (n + 1))
-    have hbind : (eval ((List.range k).mapM fun n => f (n + 1))).bind
-        (fun tail => PMF.pure (first :: tail)) =
-        (eval ((List.range k).mapM fun n => f (n + 1))).map (first :: ·) := rfl
-    rw [hbind, ih, PMF.map_comp]
-    congr 1
-    funext rest
-    simp [List.ofFn_succ]
+    refine congrArg _ (funext fun first => ?_)
+    change ((eval ((List.range k).mapM fun n => f (n + 1))).map (first :: ·)) = _
+    rw [eval_mapM_range k (fun n => f (n + 1)), PMF.map_comp]
+    exact congrArg (PMF.map · _) (funext fun _ => by simp [List.ofFn_succ])
 
 end Cslib.ProbComp

@@ -106,21 +106,15 @@ theorem finish_prepareWords_of_parses {q : ℕ} (M : MultiTapeTM k Bool Q) (e : 
       previous providers hp hps
   rcases horigin : ScheduleRead.origin k 0 (σ, i) with ⟨positive, negative⟩
   have hinput : scheduleBlock schedule i none = (positive : ℤ) - negative := by
-    have ho := ScheduleRead.origin_sub_eq_scheduleBlock (k := k) (q := q)
-      σ i.val i.isLt.le none
-    change (let (p, n) := ScheduleRead.origin k 0 (σ, i.val);
-      (p : ℤ) - n = scheduleBlock schedule i none) at ho
-    rw [horigin] at ho
-    exact ho.symm
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj horigin.symm
+    exact (ScheduleRead.origin_sub_eq_scheduleBlock (k := k) (q := q) σ i.val i.isLt.le none).symm
   rw [prepareWords_eq_of_combined_some e w.length b σ i words raw hcombined,
     horigin, ScheduleRead.fullrow_eq_scheduleOfNat, CheckedGate.runFrom_inr]
   change (Gate.machine M e).finish ((Gate.machine M e).runFrom w
     ((positive, negative, schedule i), Load.load (w.length, b, (positive, negative), raw)) b) = _
-  have hf := Gate.finish_runFrom_load M e w b positive negative (schedule i) raw
-    hcanonical (scheduleBlock schedule i) hinput
-  dsimp only at hf
-  rw [hview] at hf
-  simpa [gate, MultiTapeTM.stepCoins_ofDeterministic, schedule] using hf
+  simpa [gate, MultiTapeTM.stepCoins_ofDeterministic, schedule, hview] using
+    Gate.finish_runFrom_load M e w b positive negative (schedule i) raw
+      hcanonical (scheduleBlock schedule i) hinput
 
 /-- When the previous and every provider label pass canonical parsing, the prepared supplier
 emits exactly the encoded existing block gate. Failed head-motion validation still emits FAIL.

@@ -157,22 +157,16 @@ theorem isTree_eq_true_iff {arity : τ → ℕ} {tokens : List τ} :
     simp only [Option.elim_none, Bool.false_eq_true, false_iff]
     intro hforest
     have h := splitTree_append hforest []
-    simp only [List.append_nil] at h
-    rw [hs] at h
+    simp only [List.append_nil, hs] at h
     contradiction
   | some p =>
     obtain ⟨front, rest⟩ := p
     simp only [Option.elim_some, List.isEmpty_iff]
     obtain ⟨hforest, hrest⟩ := splitTree_eq_some_iff.mp hs
-    constructor
-    · rintro rfl
-      rw [List.append_nil] at hrest
-      exact hrest ▸ hforest
-    · intro hfull
-      have h := splitTree_append hfull []
-      simp only [List.append_nil] at h
-      rw [hs] at h
-      exact congrArg Prod.snd (Option.some.inj h)
+    refine ⟨fun h => by subst h; simpa [← hrest] using hforest, fun hfull => ?_⟩
+    have h := splitTree_append hfull []
+    simp only [List.append_nil, hs, Option.some.injEq, Prod.mk.injEq] at h
+    exact h.2
 
 /-- The counter scanner's state. It stops counting at the end of its initial forest. -/
 private structure ScanState where
@@ -220,16 +214,12 @@ private theorem splitForest_eq_scan (arity : τ → ℕ) (tokens : List τ) (pen
       (fun p => some (token :: p.1, p.2)) = _
     rw [ih (count + 1)]
     simp only [List.foldl_cons, scanStep, Nat.succ_ne_zero, ite_false, Nat.succ_sub_one]
-    by_cases h : (tokens.foldl (scanStep arity)
-      ⟨pending + arity token, count + 1⟩).pending = 0
+    set state := tokens.foldl (scanStep arity) ⟨pending + arity token, count + 1⟩
+    by_cases h : state.pending = 0
     · simp only [h, ite_true, Option.bind_some]
-      have hc : count + 1 ≤
-          (tokens.foldl (scanStep arity) ⟨pending + arity token, count + 1⟩).consumed := by
-        exact consumed_le_scan arity tokens ⟨pending + arity token, count + 1⟩
-      have hsub :
-          (tokens.foldl (scanStep arity) ⟨pending + arity token, count + 1⟩).consumed - count =
-            ((tokens.foldl (scanStep arity) ⟨pending + arity token, count + 1⟩).consumed -
-              (count + 1)) + 1 := by omega
+      have hc : count + 1 ≤ state.consumed :=
+        consumed_le_scan arity tokens ⟨pending + arity token, count + 1⟩
+      have hsub : state.consumed - count = state.consumed - (count + 1) + 1 := by omega
       rw [hsub, List.take_succ_cons, List.drop_succ_cons]
     · simp [h]
 
@@ -283,7 +273,8 @@ private theorem scan_polyTime {encToken : τ ↪ List Bool} {arity : τ → ℕ}
   have hm := Nat.mul_le_mul_left maximum hi
   simp only [encScanState_apply, encScanStateFields, length_encPair,
     encUnary_apply, List.length_replicate] at hp hc ⊢
-  nlinarith
+  rw [Nat.add_mul, Nat.one_mul, Nat.mul_assoc]
+  omega
 
 /-- Splitting one typed tree has a native polynomial-time certificate, assuming only native
 arity recognition and a fixed arity bound. The returned prefix and suffix retain the token

@@ -165,61 +165,35 @@ theorem firstAfter_eq_some_iff {p : Fin q → Prop} [DecidablePred p] {i i' : Fi
     firstAfter p i = some i' ↔ i < i' ∧ p i' ∧ ∀ j, i < j → j < i' → ¬ p j := by
   unfold firstAfter
   split_ifs with h
-  · rw [Option.some_inj]
-    constructor
+  · obtain ⟨hmem1, hmem2⟩ := (Finset.mem_filter.mp (Finset.min'_mem _ h)).2
+    refine Option.some_inj.trans ⟨?_, fun ⟨hlt, hp, hmin⟩ => ?_⟩
     · rintro rfl
-      have hmem := Finset.mem_filter.mp (Finset.min'_mem _ h)
-      refine ⟨hmem.2.1, hmem.2.2, fun j hj hjlt hpj => ?_⟩
-      exact absurd (Finset.min'_le _ j (by simp [hj, hpj])) (not_le.mpr hjlt)
-    · rintro ⟨hlt, hp, hmin⟩
-      refine le_antisymm (Finset.min'_le _ _ (by simp [hlt, hp])) ?_
-      have hmem := Finset.mem_filter.mp (Finset.min'_mem _ h)
-      by_contra hcon
-      exact hmin _ hmem.2.1 (not_le.mp hcon) hmem.2.2
-  · simp only [false_iff]
-    rintro ⟨hlt, hp, -⟩
-    exact h ⟨i', by simp [hlt, hp]⟩
+      exact ⟨hmem1, hmem2, fun j hj hjlt hpj =>
+        hjlt.not_ge (Finset.min'_le _ j (by simp [hj, hpj]))⟩
+    · exact le_antisymm (Finset.min'_le _ _ (by simp [hlt, hp]))
+        (not_lt.mp fun hcon => hmin _ hmem1 hcon hmem2)
+  · exact iff_of_false (by simp) fun ⟨hlt, hp, _⟩ => h ⟨i', by simp [hlt, hp]⟩
 
 theorem lastBefore_eq_some_iff {p : Fin q → Prop} [DecidablePred p] {i i' : Fin q} :
     lastBefore p i = some i' ↔ i' < i ∧ p i' ∧ ∀ j, i' < j → j < i → ¬ p j := by
   unfold lastBefore
   split_ifs with h
-  · rw [Option.some_inj]
-    constructor
+  · obtain ⟨hmem1, hmem2⟩ := (Finset.mem_filter.mp (Finset.max'_mem _ h)).2
+    refine Option.some_inj.trans ⟨?_, fun ⟨hlt, hp, hmax⟩ => ?_⟩
     · rintro rfl
-      have hmem := Finset.mem_filter.mp (Finset.max'_mem _ h)
-      refine ⟨hmem.2.1, hmem.2.2, fun j hj hjlt hpj => ?_⟩
-      exact absurd (Finset.le_max' _ j (by simp [hjlt, hpj])) (not_le.mpr hj)
-    · rintro ⟨hlt, hp, hmax⟩
-      refine le_antisymm ?_ (Finset.le_max' _ _ (by simp [hlt, hp]))
-      have hmem := Finset.mem_filter.mp (Finset.max'_mem _ h)
-      by_contra hcon
-      exact hmax _ (not_le.mp hcon) hmem.2.1 hmem.2.2
-  · simp only [false_iff]
-    rintro ⟨hlt, hp, -⟩
-    exact h ⟨i', by simp [hlt, hp]⟩
+      exact ⟨hmem1, hmem2, fun j hj hjlt hpj =>
+        hj.not_ge (Finset.le_max' _ j (by simp [hjlt, hpj]))⟩
+    · exact le_antisymm (not_lt.mp fun hcon => hmax _ hcon hmem1 hmem2)
+        (Finset.le_max' _ _ (by simp [hlt, hp]))
+  · exact iff_of_false (by simp) fun ⟨hlt, hp, _⟩ => h ⟨i', by simp [hlt, hp]⟩
 
 theorem lastBefore_eq_none_iff {p : Fin q → Prop} [DecidablePred p] {i : Fin q} :
     lastBefore p i = none ↔ ∀ j, j < i → ¬ p j := by
-  unfold lastBefore
-  split_ifs with h
-  · simp only [false_iff, not_forall, not_not]
-    obtain ⟨j, hj⟩ := h
-    exact ⟨j, (Finset.mem_filter.mp hj).2.1, (Finset.mem_filter.mp hj).2.2⟩
-  · simp only [true_iff]
-    intro j hj hp
-    exact h ⟨j, by simp [hj, hp]⟩
+  simp [lastBefore]
 
 theorem firstAfter_eq_none_iff {p : Fin q → Prop} [DecidablePred p] {i : Fin q} :
     firstAfter p i = none ↔ ∀ j, i < j → ¬ p j := by
-  unfold firstAfter
-  split_ifs with h
-  · simp only [false_iff, not_forall, not_not]
-    obtain ⟨j, hj⟩ := h
-    exact ⟨j, (Finset.mem_filter.mp hj).2.1, (Finset.mem_filter.mp hj).2.2⟩
-  · simp only [true_iff]
-    intro j hj hp
-    exact h ⟨j, by simp [hj, hp]⟩
+  simp [firstAfter]
 
 /-- Consecutive appearances: the last appearance before `i` has `i` as its next appearance. -/
 theorem firstAfter_of_lastBefore {p : Fin q → Prop} [DecidablePred p] {i i' : Fin q}
@@ -322,10 +296,7 @@ private theorem edgeTarget_inl_pred {i : Fin q} (hi : i.val ≠ 0) :
     edgeTarget σ (.inl ⟨i - 1, by omega⟩) = .inl i := by
   simp only [edgeTarget]
   rw [dite_eq_left (by omega)]
-  congr 1
-  ext
-  simp only
-  omega
+  exact congrArg Sum.inl (Fin.ext (by simp only; omega))
 
 /-- Interval `i` reads the block edges of the previous appearances of its window blocks. -/
 private theorem edgeTarget_inWindow {i i' : Fin q} {h : Fin k} {d : Fin 3}
@@ -448,10 +419,8 @@ theorem notMem_blockWindow {c : Cfg k Bool State input} {h : Fin k} {j : ℤ}
   simp only [Cfg.blockIndex, Cfg.headPos_some, abs_le, not_and_or, not_le] at hj
   simp only [Cfg.blockWindow, Set.mem_Ico, not_and_or, not_le, not_lt]
   rcases hj with hj | hj
-  · right
-    nlinarith
-  · left
-    nlinarith
+  · exact .inr (by nlinarith)
+  · exact .inl (by nlinarith)
 
 /-- **The entering view is the true one.** If `x` agrees with the true run before interval `i`,
 then interval `i` reads the true control record and window contents, at the true block
@@ -529,23 +498,15 @@ private theorem intervalHolds_iff (y : Fin (q * b) → Bool)
   have hsched : machine.schedule b q (List.ofFn y) (Cfg.init machine.initial input) i = σ i ↔
       ∀ head, (trueRun machine input b y (i + 1)).blockIndex b head =
         (trueRun machine input b y i).blockIndex b head + σ i head := by
-    rw [funext_iff]
-    refine forall_congr' fun head => ?_
+    refine funext_iff.trans (forall_congr' fun head => ?_)
     have := machine.coe_schedule (Nat.pos_of_neZero b) q (List.ofFn y)
       (Cfg.init machine.initial input) i head
     simp only [Cfg.blockIndex, trueRun]
-    constructor
-    · intro h
-      rw [← h]
-      omega
-    · intro h
-      exact signType_cast_inj (by omega)
+    exact ⟨fun h => by simp only [← h]; omega,
+      fun h => signType_cast_inj (by omega)⟩
   simp only [trueLetters, ← hindex, hsched]
-  constructor
-  · rintro ⟨cOut, wOut, ⟨rfl, rfl, hmove⟩, hc, hw⟩
-    exact ⟨hmove, hc, hw⟩
-  · rintro ⟨hmove, hc, hw⟩
-    exact ⟨_, _, ⟨rfl, rfl, hmove⟩, hc, hw⟩
+  exact ⟨fun ⟨_, _, ⟨rfl, rfl, hm⟩, hc, hw⟩ => ⟨hm, hc, hw⟩,
+    fun ⟨hm, hc, hw⟩ => ⟨_, _, ⟨rfl, rfl, hm⟩, hc, hw⟩⟩
 
 /-- Satisfying the conditions of all intervals forces agreement with the true run. -/
 private theorem agreesBefore_of_forall (y : Fin (q * b) → Bool)
@@ -746,6 +707,11 @@ theorem blockNetwork_tensor_blockSink (e : Fin q × Fin k × Fin 3)
     (machine.blockNetwork input b σ).tensor (.inr (.inr e)) x = 1 := by
   unfold blockNetwork; rfl
 
+/-- An optional later appearance leads an edge to an interval only when it is present. -/
+private theorem eq_some_of_elim_eq_inl {α β : Type*} {o : Option α} {e : β} {i : α}
+    (h : o.elim (Sum.inr e) Sum.inl = Sum.inl i) : o = some i := by
+  cases o <;> simp_all
+
 omit [NeZero b] in
 /-- Every edge goes forward in time, from its interval to a later interval or to a sink. -/
 private theorem edgeTarget_eq_inl {e : BlockEdge k q} {i : Fin q}
@@ -756,12 +722,7 @@ private theorem edgeTarget_eq_inl {e : BlockEdge k q} {i : Fin q}
     · cases h
       fin_index [Sum.elim_inl, id_eq]
   · simp only [edgeTarget] at h
-    cases hf : firstAfter (InWindow σ hd (portBlock σ i' hd d)) i' with
-    | none => simp [hf] at h
-    | some i'' =>
-      simp only [hf, Option.elim_some, Sum.inl.injEq] at h
-      subst h
-      exact (firstAfter_eq_some_iff.mp hf).1
+    exact (firstAfter_eq_some_iff.mp (eq_some_of_elim_eq_inl h)).1
 
 omit [NeZero b] in
 /-- A block-counting network has no loops. -/
@@ -791,16 +752,8 @@ private theorem injOn_inEdges (i : Fin q) :
     obtain ⟨rfl, hport⟩ := heq
     simp only [Set.mem_ofPred_eq, edgeTarget] at he₁ he₂
     -- Both are previous appearances of the same block, read at the same window entry of `i`.
-    have hf : ∀ {i' : Fin q} {d' : Fin 3},
-        (firstAfter (InWindow σ h₁ (portBlock σ i' h₁ d')) i').elim
-          (Sum.inr (Sum.inr (i', h₁, d'))) Sum.inl = (Sum.inl i : Fin q ⊕ BlockEdge k q) →
-        firstAfter (InWindow σ h₁ (portBlock σ i' h₁ d')) i' = some i := by
-      intro i' d' h
-      cases hc : firstAfter (InWindow σ h₁ (portBlock σ i' h₁ d')) i' with
-      | none => simp [hc] at h
-      | some i'' => simp only [hc, Option.elim_some, Sum.inl.injEq] at h; rw [h]
-    have hf₁ := hf he₁
-    have hf₂ := hf he₂
+    have hf₁ := eq_some_of_elim_eq_inl he₁
+    have hf₂ := eq_some_of_elim_eq_inl he₂
     have hw₁ := (firstAfter_eq_some_iff.mp hf₁).2.1
     have hw₂ := (firstAfter_eq_some_iff.mp hf₂).2.1
     have hj : portBlock σ i₁ h₁ d₁ = portBlock σ i₂ h₁ d₂ := by
@@ -825,11 +778,9 @@ theorem maxDegreeLE_blockNetwork :
   · have hsplit : (machine.blockNetwork input b σ).incidenceSet (.inl i) ⊆
         {e | e.elim id Prod.fst = i} ∪ {e | edgeTarget σ e = .inl i} := by
       rintro e (he | he)
-      · left
-        rw [blockNetwork_src] at he
-        exact Sum.inl_injective he
-      · right
-        exact he
+      · rw [blockNetwork_src] at he
+        exact Or.inl (Sum.inl_injective he)
+      · exact Or.inr he
     have hout : {e : BlockEdge k q | e.elim id Prod.fst = i}.ncard ≤ 3 * k + 1 := by
       calc {e : BlockEdge k q | e.elim id Prod.fst = i}.ncard
           ≤ (Set.range (Sum.elim (fun _ : Unit => (Sum.inl i : BlockEdge k q))
@@ -867,15 +818,9 @@ theorem maxDegreeLE_blockNetwork :
         rcases e' with i' | ⟨i', h, d⟩
         · simp only [edgeTarget] at he'
           split_ifs at he'
-          cases he'
-          rfl
+          exact Set.mem_singleton_of_eq (Sum.inr.inj he')
         · simp only [edgeTarget] at he'
-          cases hc : firstAfter (InWindow σ h (portBlock σ i' h d)) i' with
-          | none =>
-            simp only [hc, Option.elim_none, Sum.inr.injEq] at he'
-            rw [he']
-            rfl
-          | some i'' => simp [hc] at he'
+          cases hc : firstAfter (InWindow σ h (portBlock σ i' h d)) i' <;> simp_all
     calc _ ≤ ({e} : Set (BlockEdge k q)).ncard := Set.ncard_le_ncard hsub (Set.toFinite _)
       _ = 1 := Set.ncard_singleton e
       _ ≤ 2 * (3 * k + 1) := by omega

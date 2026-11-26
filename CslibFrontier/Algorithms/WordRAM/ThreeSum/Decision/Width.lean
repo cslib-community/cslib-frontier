@@ -90,9 +90,7 @@ theorem callee_width {κ d n N H w : ℕ} (hN : N < (n + 2) ^ envelopeExponent �
   let L := Nat.clog 2 (n + 2)
   have hV : 1 ≤ V := Nat.one_le_pow _ _ (by omega)
   have ha := Host.area_le N
-  have ht : Host.sideLength N ≤ N + 1 := by
-    dsimp only [Host.sideLength]
-    exact Nat.add_le_add_right (Nat.sqrt_le_self N) 1
+  have ht : Host.sideLength N ≤ N + 1 := Nat.add_le_add_right (Nat.sqrt_le_self N) 1
   have hsize : H + 3 * (Host.sideLength N * Host.sideLength N) +
       (2 * V + 1) + Host.sideLength N + 2 ≤ 32 * V := by omega
   have hbound := hsize.trans (envelope_margin κ n)
@@ -101,7 +99,6 @@ theorem callee_width {κ d n N H w : ℕ} (hN : N < (n + 2) ^ envelopeExponent �
     simpa only [← pow_mul, Nat.mul_comm] using
       Nat.pow_le_pow_left (Nat.le_pow_clog (by decide : 1 < 2) (n + 2)) (envelopeExponent κ + 5)
   have hc := Nat.clog_le_of_le_pow (hbound.trans hpow)
-  have hL : 1 ≤ L := Nat.clog_pos (by decide) (by omega)
   have hd : d * (envelopeExponent κ + 5) * L ≤ w := by
     have hC : d * (envelopeExponent κ + 5) ≤ widthCoefficient κ d := by
       dsimp only [widthCoefficient]
@@ -113,13 +110,13 @@ theorem callee_width {κ d n N H w : ℕ} (hN : N < (n + 2) ^ envelopeExponent �
 theorem signed_margin {κ d n w : ℕ} (hw : width κ d n ≤ w) (z : ℤ)
     (hz : |z| ≤ ((n + 2) ^ (envelopeExponent κ + 5) : ℕ)) :
     Cslib.GenericRAM.Signed.Fits (w - 2) z := by
-  have hf := margin_fits hw
   have hw4 := (four_le_width κ d n).trans hw
   have hp : (((n + 2) ^ (envelopeExponent κ + 5) : ℕ) : ℤ) <
-      (2 : ℤ) ^ (w - 3) := by exact_mod_cast hf
-  have he : w - 2 - 1 = w - 3 := by omega
+      (2 : ℤ) ^ (w - 3) := by exact_mod_cast margin_fits hw
   obtain ⟨hlo, hhi⟩ := abs_le.mp hz
-  exact ⟨by omega, by rw [he]; omega, by rw [he]; omega⟩
+  dsimp only [Cslib.GenericRAM.Signed.Fits]
+  rw [show w - 2 - 1 = w - 3 by omega]
+  exact ⟨by omega, by omega, by omega⟩
 
 /-- The runtime exponent and every power-loop result fit without an extra input premise. -/
 theorem envelope_fits {κ d n w : ℕ} (hw : width κ d n ≤ w) :
@@ -127,11 +124,11 @@ theorem envelope_fits {κ d n w : ℕ} (hw : width κ d n ≤ w) :
       Fits w (n + 2) ∧ Fits w 3 := by
   let V := (n + 2) ^ envelopeExponent κ
   have hV : 1 ≤ V := Nat.one_le_pow _ _ (by omega)
-  have hE : envelopeExponent κ ≤ V := by
-    exact (Nat.lt_two_pow_self (n := envelopeExponent κ)).le.trans
+  have hE : envelopeExponent κ ≤ V :=
+    (Nat.lt_two_pow_self (n := envelopeExponent κ)).le.trans
       (Nat.pow_le_pow_left (by omega : 2 ≤ n + 2) _)
-  have hB : n + 2 ≤ V := by
-    exact (by simp : n + 2 = (n + 2) ^ 1) ▸
+  have hB : n + 2 ≤ V :=
+    (by simp : n + 2 = (n + 2) ^ 1) ▸
       Nat.pow_le_pow_right (by omega) (by dsimp only [envelopeExponent]; omega)
   have hf := (margin_fits hw).mono (show w - 3 ≤ w by omega)
   have hm := envelope_margin κ n
@@ -152,26 +149,17 @@ theorem caller_fits {κ d n N H w : ℕ} (hN : N < (n + 2) ^ envelopeExponent κ
   let V := (n + 2) ^ envelopeExponent κ
   have hV : 1 ≤ V := Nat.one_le_pow _ _ (by omega)
   have ha := Host.area_le N
-  have ht : Host.sideLength N ≤ N + 1 := by
-    dsimp only [Host.sideLength]
-    exact Nat.add_le_add_right (Nat.sqrt_le_self N) 1
+  have ht : Host.sideLength N ≤ N + 1 := Nat.add_le_add_right (Nat.sqrt_le_self N) 1
   have hm := envelope_margin κ n
   have hf := (margin_fits hw).mono (show w - 3 ≤ w by omega)
-  refine ⟨?_, ?_, ?_, ?_, hf.of_le (by omega), hf.of_le (by omega),
-    hf.of_le (by omega), hf.of_le (by omega)⟩
-  · intro s hs
-    apply signed_margin hw
-    rw [abs_of_nonneg (by positivity)]
-    exact_mod_cast (show 2 * (Host.sideLength N * Host.sideLength N) + s + 1 ≤
-      (n + 2) ^ (envelopeExponent κ + 5) by omega)
-  · apply signed_margin hw
-    rw [abs_of_nonneg (by positivity)]
-    exact_mod_cast (show 2 * V + 1 ≤ (n + 2) ^ (envelopeExponent κ + 5) by omega)
-  · apply signed_margin hw
-    rw [abs_neg, abs_of_nonneg (by positivity)]
-    exact_mod_cast (show 2 * V + 1 ≤ (n + 2) ^ (envelopeExponent κ + 5) by omega)
-  · intro z hz
-    apply signed_margin hw
-    exact hz.trans (by exact_mod_cast (show V ≤ (n + 2) ^ (envelopeExponent κ + 5) by omega))
+  have hsm {z : ℤ} (h0 : 0 ≤ z) (hz : z ≤ ((n + 2) ^ (envelopeExponent κ + 5) : ℕ)) :
+      Cslib.GenericRAM.Signed.Fits (w - 2) z :=
+    signed_margin hw z ((abs_of_nonneg h0).trans_le hz)
+  refine ⟨fun s hs => hsm (Nat.cast_nonneg _) (Nat.cast_le.mpr (by omega)),
+    hsm (by positivity) (by exact_mod_cast (show 2 * V + 1 ≤ _ by omega)),
+    signed_margin hw _ ((abs_neg _).trans_le
+      ((abs_of_nonneg (by positivity)).trans_le (by exact_mod_cast (show 2 * V + 1 ≤ _ by omega)))),
+    fun z hz => signed_margin hw z (hz.trans (Nat.cast_le.mpr (by omega))),
+    hf.of_le (by omega), hf.of_le (by omega), hf.of_le (by omega), hf.of_le (by omega)⟩
 
 end Cslib.Algorithms.WordRAM.ThreeSum.Decision

@@ -70,30 +70,22 @@ variable [Inhabited Q]
 theorem step_size {M : TM0.Machine Γ Q} {c d : Cfg Γ Q} (h : step M c = some d) :
     d.size = c.size := by
   rcases c with ⟨q, a, L, R⟩
-  cases hM : M q a with
-  | none => simp only [step, hM] at h; contradiction
-  | some result =>
-    rcases result with ⟨q', action⟩
-    cases action with
-    | write b => simp only [step, hM] at h; cases h; rfl
-    | move direction =>
-      cases direction with
-      | left =>
-        cases L with
-        | nil => simp only [step, hM] at h; contradiction
-        | cons b L =>
-          simp only [step, hM] at h
-          cases h
-          simp only [Cfg.size, List.length_cons]
-          omega
-      | right =>
-        cases R with
-        | nil => simp only [step, hM] at h; contradiction
-        | cons b R =>
-          simp only [step, hM] at h
-          cases h
-          simp only [Cfg.size, List.length_cons]
-          omega
+  unfold step at h
+  rcases hM : M q a with _ | ⟨q', (_ | _) | b⟩ <;> simp only [hM, reduceCtorEq] at h
+  · cases L with
+    | nil => contradiction
+    | cons b L =>
+      cases h
+      simp only [Cfg.size, List.length_cons]
+      omega
+  · cases R with
+    | nil => contradiction
+    | cons b R =>
+      cases h
+      simp only [Cfg.size, List.length_cons]
+      omega
+  · cases h
+    rfl
 
 /-- The window size is invariant on the entire computation. -/
 theorem reaches_size {M : TM0.Machine Γ Q} {c d : Cfg Γ Q}
@@ -112,31 +104,20 @@ variable [Inhabited Γ]
 theorem step_native {M : TM0.Machine Γ Q} {c d : Cfg Γ Q} (h : step M c = some d) :
     TM0.step M c.toNative = some d.toNative := by
   rcases c with ⟨q, a, L, R⟩
-  cases hM : M q a with
-  | none => simp only [step, hM] at h; contradiction
-  | some result =>
-    rcases result with ⟨q', action⟩
-    cases action with
-    | write b =>
-      simp only [step, hM] at h
+  unfold step at h
+  rcases hM : M q a with _ | ⟨q', (_ | _) | b⟩ <;> simp only [hM, reduceCtorEq] at h
+  · cases L with
+    | nil => contradiction
+    | cons b L =>
       cases h
-      exact TM0.step_of_eq_write hM L R
-    | move direction =>
-      cases direction with
-      | left =>
-        cases L with
-        | nil => simp only [step, hM] at h; contradiction
-        | cons b L =>
-          simp only [step, hM] at h
-          cases h
-          exact TM0.step_of_eq_left hM (b :: L) R
-      | right =>
-        cases R with
-        | nil => simp only [step, hM] at h; contradiction
-        | cons b R =>
-          simp only [step, hM] at h
-          cases h
-          exact TM0.step_of_eq_right hM L (b :: R)
+      exact TM0.step_of_eq_left hM (b :: L) R
+  · cases R with
+    | nil => contradiction
+    | cons b R =>
+      cases h
+      exact TM0.step_of_eq_right hM L (b :: R)
+  · cases h
+    exact TM0.step_of_eq_write hM L R
 
 /-- A finite-window computation is also a genuine computation of the original machine. -/
 theorem reaches_native {M : TM0.Machine Γ Q} {c d : Cfg Γ Q}

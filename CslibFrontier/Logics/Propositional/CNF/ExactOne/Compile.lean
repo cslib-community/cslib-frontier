@@ -60,10 +60,9 @@ def formula [DecidableEq V] (φ : CNF V) : CNF ℕ := (rawFormula φ).compact
 
 /-- Both local stages have constant size: at most 169 clauses per source clause. -/
 theorem length_rawFormula_le (φ : CNF V) : (rawFormula φ).length ≤ 169 * φ.length := by
-  have h := PositiveExactOne.length_formula_le
-    (fun c hc => (FromSAT.width_formula φ c hc).le)
+  have h : (rawFormula φ).length ≤ _ :=
+    PositiveExactOne.length_formula_le fun c hc => (FromSAT.width_formula φ c hc).le
   have hs := FromSAT.length_formula_le φ
-  change (rawFormula φ).length ≤ _ at h
   nlinarith
 
 /-- Every emitted clause has exactly three literal occurrences. -/
@@ -77,11 +76,10 @@ theorem positive_rawFormula (φ : CNF V) :
 
 /-- Every emitted clause has three distinct variables, including when source literals repeat. -/
 theorem nodup_rawFormula (φ : CNF V) :
-    ∀ c ∈ rawFormula φ, (c.map Prod.fst).Nodup := by
-  apply PositiveExactOne.nodup_formula
-  intro c hc
-  obtain ⟨⟨a, i⟩, _, hc⟩ := List.mem_flatMap.mp hc
-  exact FromSAT.nodup_clause i a c hc
+    ∀ c ∈ rawFormula φ, (c.map Prod.fst).Nodup :=
+  PositiveExactOne.nodup_formula fun c hc => by
+    obtain ⟨⟨a, i⟩, _, hc⟩ := List.mem_flatMap.mp hc
+    exact FromSAT.nodup_clause i a c hc
 
 /-- Occurrence-three inputs retain that bound through both local replacements. -/
 theorem count_vars_rawFormula_le [DecidableEq V] (φ : CNF V)
@@ -89,22 +87,14 @@ theorem count_vars_rawFormula_le [DecidableEq V] (φ : CNF V)
     ∀ v, (rawFormula φ).vars.count v ≤ 3 := by
   have eqCount {A : Type _} (b₁ b₂ : BEq A) (h₁ : @LawfulBEq A b₁)
       (h₂ : @LawfulBEq A b₂) (as : List A) (a : A) :
-      @List.count A b₁ a as = @List.count A b₂ a as := by
-    apply List.countP_congr
-    intro x _
-    exact (@beq_iff_eq A b₁ h₁ x a).trans (@beq_iff_eq A b₂ h₂ x a).symm
-  have h := PositiveExactOne.count_vars_formula_le (FromSAT.formula φ) (fun v => by
-    have hv := FromSAT.count_vars_formula_le φ hw ho v
-    have he := eqCount (instBEqOfDecidableEq : BEq (FromSAT.Variable V))
-      (inferInstance : BEq (FromSAT.Variable V)) inferInstance inferInstance
-      (FromSAT.formula φ).vars v
-    exact he.le.trans hv)
-  intro v
-  have hv := h v
-  have he := eqCount (inferInstance : BEq (Variable V))
+      @List.count A b₁ a as = @List.count A b₂ a as :=
+    List.countP_congr fun x _ => (@beq_iff_eq A b₁ h₁ x a).trans (@beq_iff_eq A b₂ h₂ x a).symm
+  have h := PositiveExactOne.count_vars_formula_le (FromSAT.formula φ) fun v =>
+    (eqCount instBEqOfDecidableEq inferInstance inferInstance inferInstance
+      (FromSAT.formula φ).vars v).le.trans (FromSAT.count_vars_formula_le φ hw ho v)
+  exact fun v => (eqCount inferInstance
     (@Sum.instBEq (FromSAT.Variable V) ((ℕ × ℕ) × ℕ) instBEqOfDecidableEq inferInstance)
-    inferInstance inferInstance (rawFormula φ).vars v
-  exact he.le.trans hv
+    inferInstance inferInstance (rawFormula φ).vars v).le.trans (h v)
 
 /-- Model counts are preserved through both uniquely extensible stages. -/
 theorem oneModelCount_rawFormula [DecidableEq V] (φ : CNF V)
@@ -136,25 +126,20 @@ theorem nodup_formula [DecidableEq V] (φ : CNF V) :
   intro c hc
   let : BEq (Variable V) := instBEqOfDecidableEq
   obtain ⟨d, hd, rfl⟩ := List.mem_map.mp hc
-  have hn := nodup_rawFormula φ d hd
-  have he : ((d.relabel (rawFormula φ).vars.idxOf).map Prod.fst) =
+  have hn : List.Pairwise _ _ := nodup_rawFormula φ d hd
+  have he : (d.relabel (rawFormula φ).vars.idxOf).map Prod.fst =
       (d.map Prod.fst).map (rawFormula φ).vars.idxOf := by
     simp [Clause.relabel, List.map_map, Function.comp_def]
   change ((d.relabel (rawFormula φ).vars.idxOf).map Prod.fst).Nodup
   rw [he]
-  change List.Pairwise _ _ at hn ⊢
-  rw [List.pairwise_map]
-  apply hn.imp_of_mem
-  intro a b ha _ hab heq
-  have hsource : a ∈ (rawFormula φ).vars := by
-    obtain ⟨l, hl, rfl⟩ := List.mem_map.mp ha
-    exact CNF.mem_vars.mpr ⟨d, hd, l.2, hl⟩
-  exact hab ((List.idxOf_inj hsource).mp heq)
+  refine List.pairwise_map.mpr (hn.imp_of_mem fun {a b} ha _ hab heq => hab ?_)
+  obtain ⟨l, hl, rfl⟩ := List.mem_map.mp ha
+  exact (List.idxOf_inj (CNF.mem_vars.mpr ⟨d, hd, l.2, hl⟩)).mp heq
 
 /-- The actual output has at most 507 literal occurrences per source clause. -/
 theorem length_vars_formula_le [DecidableEq V] (φ : CNF V) :
     (formula φ).vars.length ≤ 507 * φ.length := by
-  have h := CNF.length_vars_le_mul_length (fun c hc => (width_formula φ c hc).le)
+  have h := CNF.length_vars_le_mul_length fun c hc => (width_formula φ c hc).le
   have hs := length_formula_le φ
   nlinarith
 

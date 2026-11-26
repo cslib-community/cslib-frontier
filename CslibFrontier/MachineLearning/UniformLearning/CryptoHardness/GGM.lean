@@ -130,28 +130,18 @@ theorem eventually_le_of_isSubexponentiallySecure
 `2 ^ (c n)` gates has at most `2 ^ ((c + 4) n)` gates, for `n ≥ 4`. -/
 private theorem testSize_le {n c q S : ℕ} (hn : 4 ≤ n) (hq : 2 * q ≤ 2 ^ n)
     (hS : S ≤ 2 ^ (c * n)) : S + q * (2 ^ n * (2 * n + 3) + 1) + 7 ≤ 2 ^ ((c + 4) * n) := by
-  have hN : 16 ≤ 2 ^ n :=
-    (show 16 = 2 ^ 4 by norm_num) ▸ Nat.pow_le_pow_right two_pos hn
+  have hN : 16 ≤ 2 ^ n := Nat.pow_le_pow_right two_pos hn
   have hnN : n < 2 ^ n := Nat.lt_two_pow_self
   have hM : 1 ≤ 2 ^ (c * n) := Nat.one_le_two_pow
-  have he : 2 ^ ((c + 4) * n) = 2 ^ (c * n) * (2 ^ n) ^ 4 := by
-    rw [← pow_mul, ← pow_add]
-    congr 1
-    ring
-  rw [he]
+  rw [add_mul, pow_add, mul_comm 4 n, pow_mul 2 n 4]
   generalize 2 ^ n = N at *
   generalize 2 ^ (c * n) = M at *
-  have hX : N * (2 * n + 3) + 1 ≤ N * (2 * N + 1) + 1 :=
-    Nat.add_le_add_right (Nat.mul_le_mul_left N (by omega)) 1
   have hqX : 2 * (q * (N * (2 * n + 3) + 1)) ≤ N * (N * (2 * N + 1) + 1) := by
     rw [← mul_assoc]
-    exact Nat.mul_le_mul hq hX
-  have h2 : N * 16 ≤ N * N := Nat.mul_le_mul_left _ hN
-  have h3 : N ^ 2 * 16 ≤ N ^ 2 * N := Nat.mul_le_mul_left _ hN
-  have h4 : N ^ 3 * 16 ≤ N ^ 3 * N := Nat.mul_le_mul_left _ hN
-  have hN4 : 2 * N ^ 3 + N ^ 2 + N + 14 ≤ N ^ 4 := by nlinarith
-  have hMN : M + N ^ 4 ≤ 2 * (M * N ^ 4) := by nlinarith [Nat.one_le_pow 4 N (by omega)]
-  nlinarith
+    exact Nat.mul_le_mul hq (Nat.add_le_add_right (Nat.mul_le_mul_left N (by omega)) 1)
+  have hN4 : 1 ≤ N ^ 4 := Nat.one_le_pow 4 N (by omega)
+  nlinarith [Nat.mul_le_mul_left N hN, Nat.mul_le_mul_left (N ^ 2) hN,
+    Nat.mul_le_mul_left (N ^ 3) hN]
 
 /-- **Subexponentially secure generators make polynomial-size circuits unlearnable by learners
 with small circuits** [Valiant1984], [GGM1986] (locators unverified). Let `G` be a family of

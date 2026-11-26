@@ -75,9 +75,9 @@ open Classical in
 private lemma measurable_decide_mem {c : Set α} (hc : MeasurableSet c) :
     Measurable (fun x : α => decide (x ∈ c)) := by
   refine measurable_to_bool ?_
-  have hset : (fun x : α => decide (x ∈ c)) ⁻¹' {true} = c := by
-    ext x; exact decide_eq_true_iff
-  rw [hset]; exact hc
+  convert hc using 1
+  ext x
+  simp
 
 private lemma measurable_graph_of_bool {c : α → Bool} (hc : Measurable c) :
     Measurable (fun x : α => (x, c x)) :=
@@ -89,11 +89,10 @@ private lemma measurableSet_ne_bool (h : α → Bool) (hh : Measurable h) :
       ({x | h x = true} ×ˢ ({false} : Set Bool)) ∪
         ({x | h x = false} ×ˢ ({true} : Set Bool)) := by
     ext ⟨x, b⟩
-    cases b <;> cases hx : h x <;> simp [hx]
+    cases b <;> cases h x <;> simp
   rw [hrewrite]
-  refine MeasurableSet.union ?_ ?_
-  · exact (hh (measurableSet_singleton true)).prod (measurableSet_singleton false)
-  · exact (hh (measurableSet_singleton false)).prod (measurableSet_singleton true)
+  exact ((hh (measurableSet_singleton true)).prod (measurableSet_singleton false)).union
+    ((hh (measurableSet_singleton false)).prod (measurableSet_singleton true))
 
 open Classical in
 /-- The pi-product of pushforwards along `(x ↦ (x, decide (x ∈ c)))` equals the
@@ -107,11 +106,8 @@ theorem pi_map_sampleOf
     Measurable.prodMk measurable_id (measurable_decide_mem hc)
   -- vendored: the pinned Mathlib makes `IsProbabilityMeasure (P.map f)` a global instance and
   -- removes `Measure.isProbabilityMeasure_map`, so the local instances are dropped.
-  have hsampleOf_eq : (sampleOf c : (Fin m → α) → LabeledSample α Bool m) =
-      (fun xs i => (fun x : α => (x, decide (x ∈ c))) (xs i)) := by
-    funext xs i; rfl
-  rw [hsampleOf_eq]
-  exact (Measure.pi_map_pi (fun _ => hmeasf.aemeasurable)).symm
+  exact (Measure.pi_map_pi (f := fun _ (x : α) => (x, decide (x ∈ c)))
+    (fun _ => hmeasf.aemeasurable)).symm
 
 open Classical in
 /-- The realizable joint distribution `P.map (x ↦ (x, c x))` has zero error
@@ -147,23 +143,11 @@ private lemma map_graph_supportedOn_image
     {c : α → Bool} (hc_meas : Measurable c) :
     (P.map (fun x : α => (x, c x)))
         (↑(W.image (fun x : α => (x, c x))) : Set (α × Bool))ᶜ = 0 := by
-  have hmeasf := measurable_graph_of_bool hc_meas
   set V : Finset (α × Bool) := W.image (fun x : α => (x, c x))
-  have hVc_meas : MeasurableSet (↑V : Set (α × Bool))ᶜ :=
-    V.finite_toSet.measurableSet.compl
-  rw [Measure.map_apply hmeasf hVc_meas]
-  have hpre :
-      (fun x : α => (x, c x)) ⁻¹' (↑V : Set (α × Bool))ᶜ = (↑W : Set α)ᶜ := by
-    rw [Set.preimage_compl]
-    congr 1
-    ext x
-    rw [Set.mem_preimage, Finset.mem_coe, Finset.mem_image]
-    refine ⟨?_, ?_⟩
-    · rintro ⟨y, hy, hxy⟩
-      exact (Prod.mk.inj hxy).1 ▸ hy
-    · intro hxW
-      exact ⟨x, hxW, rfl⟩
-  rw [hpre]; exact hP_supp
+  rw [Measure.map_apply (measurable_graph_of_bool hc_meas) V.finite_toSet.measurableSet.compl]
+  convert hP_supp using 2
+  ext x
+  simp [V]
 
 open Classical in
 /-- **Key bridge lemma**: when `P` is supported on the finite set `↑W` and `c`
@@ -190,18 +174,9 @@ private lemma error_map_eq_hypothesisError_set_finite_supp
     (V.finite_toSet.subset Set.inter_subset_right).measurableSet
   have hSnull : NullMeasurableSet {p : α × Bool | h p.1 ≠ p.2}
       (P.map (fun x : α => (x, c x))) := by
-    have heq : {p : α × Bool | h p.1 ≠ p.2} =
-        ({p : α × Bool | h p.1 ≠ p.2} ∩ ↑V) ∪
-          ({p : α × Bool | h p.1 ≠ p.2} \ ↑V) := by
-      ext x; constructor
-      · intro hx; by_cases hxV : x ∈ (↑V : Set (α × Bool))
-        · exact Or.inl ⟨hx, hxV⟩
-        · exact Or.inr ⟨hx, hxV⟩
-      · rintro (⟨hxS, _⟩ | ⟨hxS, _⟩) <;> exact hxS
-    rw [heq]
-    refine NullMeasurableSet.union hSV_meas.nullMeasurableSet
-      (NullMeasurableSet.of_null ?_)
-    exact measure_mono_null (fun _ hx => hx.2) hVc_null
+    rw [← Set.inter_union_sdiff {p : α × Bool | h p.1 ≠ p.2} (↑V)]
+    exact hSV_meas.nullMeasurableSet.union
+      (NullMeasurableSet.of_null (measure_mono_null (fun _ hx => hx.2) hVc_null))
   simp only [error, hypothesisError]
   rw [Measure.map_apply₀ hmeasf.aemeasurable hSnull]
   congr 1
@@ -304,13 +279,11 @@ theorem sample_complexity_lower_bound_randomized
   set δE : ℝ≥0∞ := (δ.val : ℝ≥0∞) with hδE_def
   have hε'_pos : 0 < ε.val.toReal := NNReal.coe_pos.mpr ε.property.1
   have hεE_pos : 0 < εE := by rw [hεE_def]; exact_mod_cast ε.property.1
-  have nnreal_eq_ofReal_toReal : ∀ (x : NNReal),
-      (x : ℝ≥0∞) = ENNReal.ofReal x.toReal := fun _ => ENNReal.ofReal_coe_nnreal.symm
   have hεE_le : εE ≤ ENNReal.ofReal (1 / 8) := by
-    rw [hεE_def, nnreal_eq_ofReal_toReal]
+    rw [hεE_def, ← ENNReal.ofReal_coe_nnreal]
     exact ENNReal.ofReal_le_ofReal hε_le
   have hδE_lt : δE < ENNReal.ofReal (1 / 14) := by
-    rw [hδE_def, nnreal_eq_ofReal_toReal]
+    rw [hδE_def, ← ENNReal.ofReal_coe_nnreal]
     exact (ENNReal.ofReal_lt_ofReal_iff (by norm_num)).mpr hδ_lt
   have h32ε_pos : (0 : ℝ) < 32 * ε.val.toReal := by positivity
   have hW_sub : (0 : ℝ) < (W.card : ℝ) - 1 := by
@@ -442,17 +415,12 @@ theorem sample_complexity_lower_bound_vcDim
       P.map (fun x : α => (x, c x)) ∈ 𝒟)
     (hlearn : IsRPACLearnerFor m ε δ C 𝒟) :
     (vcDim C - 1 : ℝ) / (32 * ε.val.toReal) ≤ m := by
-  set S := {n : ℕ | ∃ W : Finset α, W.card = n ∧ SetShatters C (↑W)}
-  have hne : S.Nonempty := by
-    by_contra hempty
-    rw [Set.not_nonempty_iff_eq_empty] at hempty
-    have : (2 : ℕ) ≤ sSup (∅ : Set ℕ) := hempty ▸ hvc
-    simp at this
+  have hne : {n : ℕ | ∃ W : Finset α, W.card = n ∧ SetShatters C (↑W)}.Nonempty :=
+    Set.nonempty_iff_ne_empty.mpr fun h => by simpa using (h ▸ hvc : (2 : ℕ) ≤ sSup (∅ : Set ℕ))
   obtain ⟨W, hWcard, hW⟩ := Nat.sSup_mem hne hbdd
-  have hW_card : 2 ≤ W.card := hWcard ▸ hvc
   have hvc_eq : vcDim C = W.card := hWcard.symm
-  simp only [hvc_eq]
-  exact sample_complexity_lower_bound_randomized hW hW_card hε_le hδ_lt hC_meas
+  rw [hvc_eq]
+  exact sample_complexity_lower_bound_randomized hW (hvc_eq ▸ hvc) hε_le hδ_lt hC_meas
     h_real hlearn
 
 /-- Lower bound on deterministic sample complexity in terms of `vcDim`. -/
@@ -466,10 +434,9 @@ theorem sampleComplexity_lower_bound_vcDim
     (h_real : ∀ (P : Measure α), IsProbabilityMeasure P → ∀ c ∈ C,
       P.map (fun x : α => (x, c x)) ∈ 𝒟)
     (hlearnable : {n : ℕ | IsPACLearnerFor n ε δ C 𝒟}.Nonempty) :
-    (vcDim C - 1 : ℝ) / (32 * ε.val.toReal) ≤ sampleComplexity IsPACLearnerFor C ε δ 𝒟 := by
-  have hmem : IsPACLearnerFor _ ε δ C 𝒟 := Nat.sInf_mem hlearnable
-  exact sample_complexity_lower_bound_vcDim hε_le hδ_lt hvc hbdd hC_meas h_real
-    (IsPACLearnerFor.toIsRPACLearnerFor.{_, _, 0} hmem)
+    (vcDim C - 1 : ℝ) / (32 * ε.val.toReal) ≤ sampleComplexity IsPACLearnerFor C ε δ 𝒟 :=
+  sample_complexity_lower_bound_vcDim hε_le hδ_lt hvc hbdd hC_meas h_real
+    (IsPACLearnerFor.toIsRPACLearnerFor.{_, _, 0} (Nat.sInf_mem hlearnable))
 
 /-- Lower bound on randomized sample complexity in terms of `vcDim`. -/
 theorem rsampleComplexity_lower_bound_vcDim
@@ -482,9 +449,9 @@ theorem rsampleComplexity_lower_bound_vcDim
     (h_real : ∀ (P : Measure α), IsProbabilityMeasure P → ∀ c ∈ C,
       P.map (fun x : α => (x, c x)) ∈ 𝒟)
     (hlearnable : {n : ℕ | IsRPACLearnerFor.{_, _, 0} n ε δ C 𝒟}.Nonempty) :
-    (vcDim C - 1 : ℝ) / (32 * ε.val.toReal) ≤ rsampleComplexity C ε δ 𝒟 := by
-  have hmem : IsRPACLearnerFor _ ε δ C 𝒟 := Nat.sInf_mem hlearnable
-  exact sample_complexity_lower_bound_vcDim hε_le hδ_lt hvc hbdd hC_meas h_real hmem
+    (vcDim C - 1 : ℝ) / (32 * ε.val.toReal) ≤ rsampleComplexity C ε δ 𝒟 :=
+  sample_complexity_lower_bound_vcDim hε_le hδ_lt hvc hbdd hC_meas h_real
+    (Nat.sInf_mem hlearnable)
 
 end EHKVLowerBound
 

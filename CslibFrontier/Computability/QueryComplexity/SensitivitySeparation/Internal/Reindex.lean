@@ -50,9 +50,8 @@ def reindex (e : I ≃ J) (f : (I → Bool) → Bool) : (J → Bool) → Bool :=
 
 /-- Reindexing along `e` and then along `e.symm` recovers the original function. -/
 private theorem reindex_symm (e : I ≃ J) (f : (I → Bool) → Bool) :
-    reindex e.symm (reindex e f) = f := by
-  funext x
-  simp [reindex]
+    reindex e.symm (reindex e f) = f :=
+  funext fun _ => by simp [reindex]
 
 section Finite
 variable [Fintype I] [Fintype J]
@@ -76,16 +75,11 @@ private theorem sensitivityAt_reindex (e : I ≃ J) (f : (I → Bool) → Bool) 
 /-- Reindexing preserves sensitivity: `sensitivity (reindex e f) = sensitivity f`. -/
 theorem sensitivity_reindex (e : I ≃ J) (f : (I → Bool) → Bool) :
     sensitivity (reindex e f) = sensitivity f := by
-  apply Nat.le_antisymm
-  · apply sensitivity_le
-    intro x
-    rw [sensitivityAt_reindex]
+  refine Nat.le_antisymm (sensitivity_le _ fun x => ?_) (sensitivity_le _ fun x => ?_)
+  · rw [sensitivityAt_reindex]
     exact sensitivityAt_le_sensitivity f _
-  · apply sensitivity_le
-    intro x
-    have h := sensitivityAt_le_sensitivity (reindex e f) (fun j => x (e.symm j))
-    rw [sensitivityAt_reindex] at h
-    simpa only [Equiv.symm_apply_apply] using h
+  · have h := sensitivityAt_le_sensitivity (reindex e f) (fun j => x (e.symm j))
+    simpa only [sensitivityAt_reindex, Equiv.symm_apply_apply] using h
 
 /-- The block sensitivity of `f` at the pullback `fun i => x (e i)` is at most the block sensitivity
 of `reindex e f` at `x`. -/
@@ -93,20 +87,16 @@ private theorem blockSensitivityAt_le_reindex (e : I ≃ J) (f : (I → Bool) �
     (x : J → Bool) :
     blockSensitivityAt f (fun i => x (e i)) ≤ blockSensitivityAt (reindex e f) x := by
   classical
-  apply blockSensitivityAt_le
-  intro blocks hd hb
+  refine blockSensitivityAt_le _ _ fun blocks hd hb => ?_
   have h := le_blockSensitivityAt_of_family (reindex e f) x
     (fun B : blocks => B.val.map e.toEmbedding)
-    (fun B => (hb B.val B.property).1.map (f := e.toEmbedding))
-    (by
-      intro A B hAB
-      apply (Finset.disjoint_map e.toEmbedding).mpr
-      exact hd A.val A.property B.val B.property (fun h => hAB (Subtype.ext h)))
-    (by
-      intro B
+    (fun B => (hb B.val B.property).1.map)
+    (fun A B hAB => (Finset.disjoint_map e.toEmbedding).mpr
+      (hd A.val A.property B.val B.property fun h => hAB (Subtype.ext h)))
+    fun B => by
       change f (fun i => BitString.flipOn (B.val.map e.toEmbedding) x (e i)) ≠ _
       rw [BitString.flipOn_reindex]
-      exact (hb B.val B.property).2)
+      exact (hb B.val B.property).2
   simpa only [Fintype.card_coe] using h
 
 /-- The block sensitivity of `reindex e f` at `x` equals the block sensitivity of `f` at the
@@ -114,10 +104,9 @@ pullback `fun i => x (e i)`. -/
 theorem blockSensitivityAt_reindex (e : I ≃ J) (f : (I → Bool) → Bool)
     (x : J → Bool) :
     blockSensitivityAt (reindex e f) x = blockSensitivityAt f (fun i => x (e i)) := by
-  apply Nat.le_antisymm
-  · have h := blockSensitivityAt_le_reindex e.symm (reindex e f) (fun i => x (e i))
-    simpa only [Equiv.apply_symm_apply, reindex_symm] using h
-  · exact blockSensitivityAt_le_reindex e f x
+  refine Nat.le_antisymm ?_ (blockSensitivityAt_le_reindex e f x)
+  have h := blockSensitivityAt_le_reindex e.symm (reindex e f) (fun i => x (e i))
+  simpa only [Equiv.apply_symm_apply, reindex_symm] using h
 
 end Finite
 end Internal

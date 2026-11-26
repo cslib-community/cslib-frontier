@@ -121,15 +121,12 @@ theorem mem_layers {L : List ι} (hL : L.Nodup) {lo hi : ℕ} {X : Finset ι} :
     exact ⟨fun x hx => List.mem_toFinset.mpr (hsub.subset (List.mem_toFinset.mp hx)),
       hj.1, by omega⟩
   · rintro ⟨hX, hlo, hhi⟩
-    refine ⟨#X, ⟨hlo, by omega⟩, L.filter (· ∈ X), ⟨List.filter_sublist, ?_⟩, ?_⟩
-    · rw [← List.toFinset_card_of_nodup (hL.filter _), List.toFinset_filter]
-      congr 1
+    have hflt : (L.filter (· ∈ X)).toFinset = X := by
       ext x
-      simp only [mem_filter, List.mem_toFinset, decide_eq_true_eq]
-      exact ⟨fun h => h.2, fun h => ⟨List.mem_toFinset.mp (hX h), h⟩⟩
-    · ext x
       simp only [List.toFinset_filter, mem_filter, List.mem_toFinset, decide_eq_true_eq]
       exact ⟨fun h => h.2, fun h => ⟨List.mem_toFinset.mp (hX h), h⟩⟩
+    exact ⟨#X, ⟨hlo, by omega⟩, L.filter (· ∈ X),
+      ⟨List.filter_sublist, by rw [← List.toFinset_card_of_nodup (hL.filter _), hflt]⟩, hflt⟩
 
 /-- There are `∑_{lo ≤ j ≤ hi} (L.length choose j)` layered subsets. -/
 theorem length_layers (L : List ι) (lo hi : ℕ) :

@@ -256,17 +256,10 @@ theorem AuxiliaryInputZeroKnowledge.generableZeroKnowledge {α : Type} {enc : α
   intro Vstar hV
   obtain ⟨S, hS_ppt, hS_zk⟩ := h Vstar hV
   refine ⟨S, hS_ppt, fun a w z ha hw hz hw_sat adversary hadversary => ?_⟩
-  have ha_poly : PolynomiallyBounded (fun n => (enc (a n)).length) :=
-    ((encoding_length enc).comp ha).polynomiallyBounded
-  have hw_poly : PolynomiallyBounded (fun n => (w n).length) :=
-    ((encoding_length encBits).comp hw).polynomiallyBounded
-  have hz_poly : PolynomiallyBounded (fun n => (z n).length) :=
-    ((encoding_length encBits).comp hz).polynomiallyBounded
-  have htest : IsPPTOn (encPair (encPair encUnary (encPair enc encBits)) encBits) encBool
-      (fun p => adversary p.1.1 p.2) :=
-    hadversary.preprocess (by fun_prop) (by fun_prop)
-  exact hS_zk a w z z ha_poly hw_poly hz_poly hz_poly hw_sat
-    (fun n _ _ view => adversary n view) htest
+  have hz_poly := ((encoding_length encBits).comp hz).polynomiallyBounded
+  exact hS_zk a w z z (((encoding_length enc).comp ha).polynomiallyBounded)
+    (((encoding_length encBits).comp hw).polynomiallyBounded) hz_poly hz_poly hw_sat
+    (fun n _ _ view => adversary n view) (hadversary.preprocess (by fun_prop) (by fun_prop))
 
 /-- Under `GenerableZeroKnowledge`, any full-input uniform strict PPT distinguisher
 `adversary n (a n) (z n)` also has negligible distinguishing advantage on deterministic
@@ -289,15 +282,10 @@ theorem GenerableZeroKnowledge.advantage_negligible {α : Type} {enc : α ↪ Li
               (adversary n (a n) (z n)))
             (distinguishingGame (ProbComp.eval (S n (a n) (z n))) (adversary n (a n) (z n)))) := by
   obtain ⟨S, hS_ppt, hS_zk⟩ := h Vstar hV
-  refine ⟨S, hS_ppt, fun a w z ha hw hz hw_sat adversary hadversary => ?_⟩
-  have ha_plain := ha
-  have hz_plain := hz
-  have hD : IsPPT encBool (fun n view => adversary n (a n) (z n) view) :=
-    hadversary.preprocess
-      (input := encPair encUnary encBits)
-      (prepare := fun p => ((p.1, a p.1, z p.1), p.2))
-      (by fun_prop)
-  exact hS_zk a w z ha hw hz hw_sat (fun n view => adversary n (a n) (z n) view) hD
+  exact ⟨S, hS_ppt, fun a w z ha hw hz hw_sat adversary hadversary =>
+    hS_zk a w z ha hw hz hw_sat (fun n view => adversary n (a n) (z n) view)
+      (hadversary.preprocess (input := encPair encUnary encBits)
+        (prepare := fun p => ((p.1, a p.1, z p.1), p.2)) (by fun_prop))⟩
 
 /-! ### Bundled computational zero-knowledge proof systems -/
 
@@ -447,10 +435,9 @@ theorem isInteractiveProof (zk : ZKProof enc A soundness) (n : ℕ) :
 theorem mem_IP (zk : ZKProof enc A soundness) (h : ∃ n, soundness n ≤ 1 / 3) :
     A ∈ IP enc := by
   obtain ⟨n, hn⟩ := h
-  refine ⟨zk.verifier n, ?_, ⟨fun a ha => (zk.isInteractiveProof n).complete a ha,
-    fun a ha P => (zk.sound n a ha P).trans hn⟩⟩
   have hV := zk.isOraclePPT_verifier
-  fun_prop
+  exact ⟨zk.verifier n, by fun_prop, ⟨(zk.isInteractiveProof n).complete,
+    fun a ha P => (zk.sound n a ha P).trans hn⟩⟩
 
 /-- Fixed-instance computational zero-knowledge: for every fixed instance `a` and valid witness `w`
 (`zk.isWitness a w = true`), and every polynomial-time auxiliary input family `z : ℕ → List Bool`,

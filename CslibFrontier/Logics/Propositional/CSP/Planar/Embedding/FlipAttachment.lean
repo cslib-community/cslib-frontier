@@ -39,30 +39,19 @@ private theorem flip_body {n : ℕ} {R : Set (Fin n → Bool)}
   simp only [PPGadget.flip, PPGadget.project, PPGadget.retarget, PPGadget.substitute,
     PPGadget.conj, PPGadget.relabelFree, CSP.relabel, Constraint.relabel, List.map_append,
     List.map_map, Function.comp_def]
-  congr 1
-  · apply List.map_congr_left
-    rintro ⟨r, scope⟩ _
-    congr 1
-    apply List.map_congr_left
-    intro z _
-    cases z with
-    | inl i =>
-      by_cases hi : i = j
-      · subst i
+  refine congrArg₂ (· ++ ·) (List.map_congr_left fun ⟨_, _⟩ _ => congrArg _ <|
+    List.map_congr_left fun z _ => ?_) (List.map_congr_left fun ⟨_, _⟩ _ => congrArg _ <|
+      List.map_congr_left fun z _ => ?_)
+  · rcases z with i | i
+    · by_cases hi : i = j
+      · subst hi
         simp [attachPortLabel, PPGadget.flipPort, PPGadget.substitutePort]
-      · have hcast : i.castSucc ≠ j.castSucc := fun he => hi (Fin.castSucc_injective _ he)
-        simp [attachPortLabel, PPGadget.flipPort, PPGadget.substitutePort, hi,
-          Equiv.swap_apply_of_ne_of_ne hcast (Fin.castSucc_ne_last i)]
-    | inr i => simp [attachPortLabel, PPGadget.substitutePort]
-  · apply List.map_congr_left
-    rintro ⟨r, scope⟩ _
-    congr 1
-    apply List.map_congr_left
-    intro z _
-    cases z with
-    | inl i =>
-      fin_cases i <;> simp [attachPortLabel, PPGadget.substitutePort]
-    | inr i => simp [attachPortLabel, PPGadget.substitutePort]
+      · simp [attachPortLabel, PPGadget.flipPort, PPGadget.substitutePort, hi,
+          Equiv.swap_apply_of_ne_of_ne ((Fin.castSucc_injective _).ne hi) (Fin.castSucc_ne_last i)]
+    · simp [attachPortLabel, PPGadget.substitutePort]
+  · rcases z with i | i
+    · fin_cases i <;> simp [attachPortLabel, PPGadget.substitutePort]
+    · simp [attachPortLabel, PPGadget.substitutePort]
 
 /-- The exact existing flip interpreter has an actual ordered numerical witness. Its
 noncanonical enlarged boundary is used directly before hiding the old selected marker. -/

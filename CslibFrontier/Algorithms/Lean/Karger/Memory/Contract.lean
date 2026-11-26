@@ -87,9 +87,7 @@ variable {M : ℕ → ℕ → ℕ} {u v m c : ℕ}
 theorem mergedTo_succ_of_mem (hc : c = u ∨ c = v) : mergedTo M u v (c + 1) = mergedTo M u v c := by
   funext i j
   unfold mergedTo
-  have h₁ : (i = u ∧ j < c + 1 ∧ j ≠ u ∧ j ≠ v) ↔ (i = u ∧ j < c ∧ j ≠ u ∧ j ≠ v) := by omega
-  have h₂ : (j = u ∧ i < c + 1 ∧ i ≠ u ∧ i ≠ v) ↔ (j = u ∧ i < c ∧ i ≠ u ∧ i ≠ v) := by omega
-  simp only [h₁, h₂]
+  exact if_congr (by omega) rfl (if_congr (by omega) rfl rfl)
 
 /-- One merge step writes `(u, c)`, then `(c, u)`. -/
 theorem mergedTo_succ (hu : c ≠ u) (hv : c ≠ v) (i j : ℕ) :
@@ -99,15 +97,13 @@ theorem mergedTo_succ (hu : c ≠ u) (hv : c ≠ v) (i j : ℕ) :
       else mergedTo M u v c i j := by
   unfold mergedTo
   by_cases h₁ : i = c ∧ j = u
-  · obtain ⟨rfl, rfl⟩ := h₁
+  · rcases h₁ with ⟨rfl, rfl⟩
     simp [hu, hv]
   by_cases h₂ : i = u ∧ j = c
-  · obtain ⟨rfl, rfl⟩ := h₂
+  · rcases h₂ with ⟨rfl, rfl⟩
     simp [hu, hv]
   simp only [h₁, h₂, ite_false]
-  have e₁ : (i = u ∧ j < c + 1 ∧ j ≠ u ∧ j ≠ v) ↔ (i = u ∧ j < c ∧ j ≠ u ∧ j ≠ v) := by omega
-  have e₂ : (j = u ∧ i < c + 1 ∧ i ≠ u ∧ i ≠ v) ↔ (j = u ∧ i < c ∧ i ≠ u ∧ i ≠ v) := by omega
-  simp only [e₁, e₂]
+  exact if_congr (by omega) rfl (if_congr (by omega) rfl rfl)
 
 /-- The merge reads `(u, c)` before writing it. -/
 theorem mergedTo_left (hu : c ≠ u) : mergedTo M u v c u c = M u c := by
@@ -146,9 +142,7 @@ theorem mergedTo_eq_mergePair {k : ℕ} {W : Fin k → Fin k → ℕ} (hW : IsMu
 theorem compactedTo_succ_of_eq (hc : c = v) : compactedTo M v m (c + 1) = compactedTo M v m c := by
   funext i j
   unfold compactedTo
-  have h₁ : (i = v ∧ j < c + 1 ∧ j ≠ v) ↔ (i = v ∧ j < c ∧ j ≠ v) := by omega
-  have h₂ : (j = v ∧ i < c + 1 ∧ i ≠ v) ↔ (j = v ∧ i < c ∧ i ≠ v) := by omega
-  simp only [h₁, h₂]
+  exact if_congr (by omega) rfl (if_congr (by omega) rfl rfl)
 
 /-- One compaction step writes `(v, c)`, then `(c, v)`. -/
 theorem compactedTo_succ (hc : c ≠ v) (i j : ℕ) :
@@ -158,15 +152,13 @@ theorem compactedTo_succ (hc : c ≠ v) (i j : ℕ) :
       else compactedTo M v m c i j := by
   unfold compactedTo
   by_cases h₁ : i = c ∧ j = v
-  · obtain ⟨rfl, rfl⟩ := h₁
+  · rcases h₁ with ⟨rfl, rfl⟩
     simp [hc]
   by_cases h₂ : i = v ∧ j = c
-  · obtain ⟨rfl, rfl⟩ := h₂
+  · rcases h₂ with ⟨rfl, rfl⟩
     simp [hc]
   simp only [h₁, h₂, ite_false]
-  have e₁ : (i = v ∧ j < c + 1 ∧ j ≠ v) ↔ (i = v ∧ j < c ∧ j ≠ v) := by omega
-  have e₂ : (j = v ∧ i < c + 1 ∧ i ≠ v) ↔ (j = v ∧ i < c ∧ i ≠ v) := by omega
-  simp only [e₁, e₂]
+  exact if_congr (by omega) rfl (if_congr (by omega) rfl rfl)
 
 /-- Compaction reads `(m, c)`, which it never writes. -/
 theorem compactedTo_last (hm : m ≠ v) (hc : c ≠ v) : compactedTo M v m c m c = M m c := by
@@ -179,12 +171,9 @@ theorem compactedTo_eq (hsym : ∀ i < m, i ≠ v → M m i = M i m) (hdiag : M 
     compactedTo M v m m i j = M (if i = v then m else i) (if j = v then m else j) := by
   unfold compactedTo
   by_cases hiv : i = v <;> by_cases hjv : j = v
-  · subst hiv; subst hjv
-    simp [hdiag]
-  · subst hiv
-    simp [hj, hjv]
-  · subst hjv
-    simp [hi, hiv, hsym i hi hiv]
+  · simp [hiv, hjv, hdiag]
+  · simp [hiv, hjv, hj]
+  · simp [hiv, hjv, hi, hsym]
   · simp [hiv, hjv]
 
 /-- The index of `embedCompact v i`: `m` at the removed slot, `i` elsewhere. -/
@@ -197,13 +186,9 @@ theorem val_embedCompact {m : ℕ} (v : Fin (m + 1)) (i : Fin m) :
 theorem mergedTo_eq_contractMatrix {W : Fin (m + 1) → Fin (m + 1) → ℕ} (hW : IsMultigraph W)
     (hM : ∀ a b : Fin (m + 1), M a b = W a b) {u v : Fin (m + 1)} (hv : (v : ℕ) = m)
     (i j : Fin m) : mergedTo M u v (m + 1) i j = contractMatrix W u v i j := by
-  have hne (i : Fin m) : i.castSucc ≠ v := Fin.ne_of_val_ne (by
-    have := i.isLt
-    simp only [Fin.val_castSucc]
-    omega)
-  have he (i : Fin m) : embedCompact v i = i.castSucc := by
-    rw [embedCompact, ite_eq_right (by have := i.isLt; omega)]
-  rw [contractMatrix, he, he]
+  have hne (i : Fin m) : i.castSucc ≠ v := Fin.ne_of_val_ne (by simp; omega)
+  rw [contractMatrix, embedCompact, embedCompact,
+    ite_eq_right (by omega), ite_eq_right (by omega)]
   exact mergedTo_eq_mergePair hW hM (hne i) (hne j)
 
 /-- **The merge and the compaction compute `contractMatrix`** when `v` is not the last
@@ -610,24 +595,20 @@ theorem wp_contract {s : Memory.State} (hs : Inv L w s) {u v : ℕ}
   rintro _ s₂ t₂ ⟨hf₂, hfr₂, hm₂, ht₂⟩
   refine wp_mono ?_ (wp_shrink hs hW (fun _ _ => rfl) huv' hk hS hf₂ (fun a ha => ?_) ?_ ?_
     (by simpa using hm₂))
-  · rintro _ s' t ⟨hf, hfr, habs', hs', ht⟩
-    exact ⟨hf, hfr, habs', hs', by omega⟩
+  · exact fun _ s' t ⟨hf, hfr, habs', hs', ht⟩ => ⟨hf, hfr, habs', hs', by omega⟩
   · have hout := L.not_owns_of_not_mem ha
-    rw [hfr₂ a hout.1]
-    dsimp only
-    rw [Function.update_of_ne (hout.2.2.2 u (by omega)), Function.update_of_ne hout.2.2.1]
-  · rw [hfr₂ _ L.not_owns_total]
-    dsimp only
-    rw [Function.update_of_ne (L.total_ne_degree u), Function.update_self]
+    simp only [hfr₂ a hout.1, Function.update_of_ne (hout.2.2.2 u (by omega)),
+      Function.update_of_ne hout.2.2.1]
+  · simp only [hfr₂ _ L.not_owns_total, Function.update_of_ne (L.total_ne_degree u),
+      Function.update_self]
   · intro a ha
     rw [hfr₂ _ (L.not_owns_degree (by omega))]
     dsimp only
-    have hda : s.mem (L.degree.base + a) = rowDeg W a := hdeg a
     by_cases hau : a = u'
     · subst hau
       exact Function.update_self _ _ _
     · rw [Function.update_of_ne (fun h => hau (Fin.ext (show (a : ℕ) = u by omega))),
-        Function.update_of_ne (L.total_ne_degree a).symm, hda,
+        Function.update_of_ne (L.total_ne_degree a).symm, hdeg a,
         rowDeg_mergePair_other hW huv' hau ha]
 
 end Cslib.Algorithms.Lean.Karger.Memory

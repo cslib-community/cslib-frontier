@@ -167,14 +167,13 @@ private theorem crossIn_insert {W : V → V → ℕ} (hW : IsMultigraph W) {A : 
   by_cases hxC : x ∈ C
   · rw [Finset.filter_insert, ite_eq_left hxC, Finset.filter_insert, ite_eq_right (not_not.mpr hxC),
       Finset.sum_insert (by simp [hx]), add_comm]
-    congr 1
-    exact Finset.sum_congr (by ext a; simp [hxC]) fun a _ => hW.1 x a
-  · rw [Finset.filter_insert, ite_eq_right hxC, Finset.filter_insert, ite_eq_left hxC]
-    have hfilter : (A.filter fun a => ¬ (a ∈ C ↔ x ∈ C)) = A.filter (· ∈ C) := by
-      ext a
-      simp [hxC]
-    rw [hfilter, ← Finset.sum_add_distrib]
-    refine Finset.sum_congr rfl fun u _ => ?_
+    exact congrArg (_ + ·)
+      (Finset.sum_congr (Finset.ext fun _ => by simp [hxC]) fun a _ => hW.1 x a)
+  · have hfilter : (A.filter fun a => ¬(a ∈ C ↔ x ∈ C)) = A.filter (· ∈ C) :=
+      Finset.ext fun _ => by simp [hxC]
+    rw [Finset.filter_insert, ite_eq_right hxC, Finset.filter_insert, ite_eq_left hxC,
+      hfilter, ← Finset.sum_add_distrib]
+    refine Finset.sum_congr rfl fun _ _ => ?_
     rw [Finset.sum_insert (by simp [hx]), add_comm]
 
 omit [Fintype V] in
@@ -204,38 +203,30 @@ private theorem inv_cons {W : V → V → ℕ} (hW : IsMultigraph W) {A : Finset
     {l : List V} (hx : x ∉ A) (hma : ∀ y ∈ l, attachWeight W A y ≤ attachWeight W A x)
     (hinv : Inv W C A last (x :: l)) : Inv W C (insert x A) x l := by
   intro y hy hyx
-  have hsame : sameSide C (insert x A) y = sameSide C A y := by
-    unfold sameSide
-    rw [Finset.filter_insert, ite_eq_right fun h => hyx h.symm]
+  have hsame : sameSide C (insert x A) y = sameSide C A y :=
+    (Finset.filter_insert ..).trans (ite_eq_right fun h => hyx h.symm)
   rw [hsame]
   by_cases hxl : x ∈ C ↔ last ∈ C
-  · have hyl : ¬ (y ∈ C ↔ last ∈ C) := fun h => hyx (h.trans hxl.symm)
-    exact (hinv y (List.mem_cons_of_mem x hy) hyl).trans (crossIn_le_insert C hW hx)
-  · have hxx := attachWeight_le_crossIn_insert C hW hx (hinv x List.mem_cons_self hxl)
-    exact (attachWeight_mono W (Finset.filter_subset _ _) y).trans ((hma y hy).trans hxx)
+  · exact (hinv y (List.mem_cons_of_mem x hy) fun h => hyx (h.trans hxl.symm)).trans
+      (crossIn_le_insert C hW hx)
+  · exact (attachWeight_mono W (Finset.filter_subset _ _) y).trans
+      ((hma y hy).trans (attachWeight_le_crossIn_insert C hW hx (hinv x List.mem_cons_self hxl)))
 
 omit [Fintype V] in
 private theorem inv_append {W : V → V → ℕ} (hW : IsMultigraph W) :
     ∀ (p : List V) {A : Finset V} {last : V} {R : List V},
       (∀ x ∈ p, x ∉ A) → p.Nodup → IsMAOrderingFrom W A (p ++ R) → Inv W C A last (p ++ R) →
       Inv W C (p.toFinset ∪ A) (p.getLastD last) R
-  | [], A, last, R, _, _, _, hinv => by simpa using hinv
+  | [], _, _, _, _, _, _, hinv => by simpa using hinv
   | x :: p, A, last, R, hfresh, hnd, hma, hinv => by
     rw [List.cons_append, isMAOrderingFrom_cons] at hma
-    rw [List.cons_append] at hinv
-    have hx : x ∉ A := hfresh x List.mem_cons_self
-    have hstep := inv_cons C hW hx hma.1 hinv
-    have hfresh' : ∀ y ∈ p, y ∉ insert x A := by
-      intro y hy hyA
-      rcases Finset.mem_insert.mp hyA with rfl | hyA
-      · exact (List.nodup_cons.mp hnd).1 hy
-      · exact hfresh y (List.mem_cons_of_mem x hy) hyA
-    have h := inv_append hW p hfresh' (List.nodup_cons.mp hnd).2 hma.2 hstep
-    have hset : p.toFinset ∪ insert x A = (x :: p).toFinset ∪ A := by
-      ext a
-      simp only [Finset.mem_union, Finset.mem_insert, List.mem_toFinset, List.mem_cons]
-      tauto
-    rwa [List.getLastD_cons, ← hset]
+    obtain ⟨hxnd, hpnd⟩ := List.nodup_cons.mp hnd
+    have hfresh' : ∀ y ∈ p, y ∉ insert x A := fun y hy hyA =>
+      (Finset.mem_insert.mp hyA).elim (fun h => hxnd (h ▸ hy))
+        (hfresh y (List.mem_cons_of_mem x hy))
+    have h := inv_append hW p hfresh' hpnd hma.2
+      (inv_cons C hW (hfresh x List.mem_cons_self) hma.1 hinv)
+    rwa [List.getLastD_cons, show (x :: p).toFinset ∪ A = p.toFinset ∪ insert x A by simp]
 
 omit [Fintype V] in
 private theorem inv_empty (last : V) (R : List V) : Inv W C ∅ last R := by
@@ -244,10 +235,7 @@ private theorem inv_empty (last : V) (R : List V) : Inv W C ∅ last R := by
 
 private theorem crossIn_univ : crossIn W C Finset.univ = cutWeight W C := by
   unfold crossIn cutWeight
-  rw [Finset.sdiff_eq_filter]
-  congr 1
-  ext a
-  simp
+  simp [Finset.sdiff_eq_filter]
 
 end Lemma
 
@@ -258,38 +246,24 @@ theorem cutWeight_singleton_le_of_isMAOrdering {W : V → V → ℕ} (hW : IsMul
     {p : List V} {s t : V} (hl : IsMAOrdering W (p ++ [s, t])) {C : Finset V}
     (hsep : s ∈ C ↔ t ∉ C) :
     cutWeight W {t} ≤ cutWeight W C := by
-  have hnd := hl.nodup
-  have hinv := inv_append C hW (p ++ [s]) (A := ∅) (last := t) (R := [t])
-    (fun _ _ => Finset.notMem_empty _) (List.Nodup.sublist (by simp) hnd)
-    (by simpa using hl.isMAOrderingFrom) (inv_empty W C t _)
-  rw [List.getLastD_concat, Finset.union_empty] at hinv
-  set A := (p ++ [s]).toFinset with hA
-  have htA : t ∉ A := by
-    rw [hA, List.mem_toFinset]
-    intro ht
-    have h := List.nodup_append.mp hnd
-    rcases List.mem_append.mp ht with ht | ht
-    · exact h.2.2 t ht t (by simp) rfl
-    · have hst : s ≠ t := by simpa using h.2.1
-      exact hst (List.mem_singleton.mp ht).symm
-  have hAt : A = Finset.univ \ {t} := by
+  obtain ⟨hpnd, -, hdisj⟩ := List.nodup_append.mp
+    (by simpa using hl.nodup : ((p ++ [s]) ++ [t]).Nodup)
+  have htA : t ∉ (p ++ [s]).toFinset :=
+    List.mem_toFinset.not.mpr fun ht => hdisj t ht t (by simp) rfl
+  have hAt : (p ++ [s]).toFinset = Finset.univ \ {t} := by
     ext a
-    by_cases hat : a = t
-    · subst hat
-      simp [htA]
-    · have := hl.mem a
-      simp only [hA, List.mem_toFinset, Finset.mem_sdiff, Finset.mem_univ, Finset.mem_singleton,
-        hat, not_false_eq_true, and_true, iff_true]
-      simpa [hat] using this
-  have hts : ¬ (t ∈ C ↔ s ∈ C) := by tauto
-  have hkey := attachWeight_le_crossIn_insert C hW htA (hinv t List.mem_cons_self hts)
-  have huniv : insert t A = Finset.univ := by
-    rw [hAt, Finset.insert_eq, Finset.union_sdiff_of_subset (Finset.subset_univ _)]
-  rw [huniv, crossIn_univ] at hkey
+    rcases eq_or_ne a t with rfl | hat
+    · exact iff_of_false htA (by simp)
+    · simpa [hat] using (by simpa [hat] using hl.mem a : a ∈ p ∨ a = s).symm
+  have hinv := inv_append C hW (p ++ [s]) (A := ∅) (last := t) (R := [t])
+    (by simp) hpnd (by simpa using hl.isMAOrderingFrom) (inv_empty W C t _)
+  rw [List.getLastD_concat, Finset.union_empty] at hinv
+  have hkey := attachWeight_le_crossIn_insert C hW htA (hinv t List.mem_cons_self (by tauto))
+  rw [hAt, Finset.insert_eq, Finset.union_sdiff_of_subset (Finset.subset_univ _),
+    crossIn_univ] at hkey
   refine le_of_eq_of_le ?_ hkey
-  unfold cutWeight attachWeight
-  rw [Finset.sum_singleton, ← hAt]
-  exact Finset.sum_congr rfl fun a _ => hW.1 t a
+  simpa only [cutWeight, attachWeight, Finset.sum_singleton, hAt] using
+    Finset.sum_congr rfl fun a _ => hW.1 t a
 
 /-- The MA-ordering lemma in terms of the minimum `s`–`t` cut weight `λ(s, t)`
 (`Cslib.WeightedCut.minCutBetween`): if `s, t` are the last two vertices of a maximum adjacency
@@ -325,34 +299,22 @@ theorem maSearch_spec (W : V → V → ℕ) :
       (∀ y, key y = attachWeight W A y) → (∀ y ∈ R, y ∉ A) →
       (maSearch W fuel key R).Perm R ∧ IsMAOrderingFrom W A (maSearch W fuel key R)
   | 0, key, A, R, _, hlen, _, _ => by
-    rw [Nat.le_zero, List.length_eq_zero_iff] at hlen
-    subst hlen
-    exact ⟨List.Perm.refl _, trivial⟩
+    simp [List.eq_nil_of_length_eq_zero (Nat.le_zero.mp hlen), maSearch]
   | fuel + 1, key, A, R, hnd, hlen, hkey, hfresh => by
     rcases harg : R.argmax key with _ | v
-    · rw [List.argmax_eq_none] at harg
-      subst harg
-      simp [maSearch]
+    · simp [maSearch, List.argmax_eq_none.mp harg]
     · simp only [maSearch, harg]
-      have hvR : v ∈ R := List.argmax_mem harg
-      have hvA : v ∉ A := hfresh v hvR
+      have hvR := List.argmax_mem harg
       have hlen' : (R.erase v).length ≤ fuel := by
         rw [List.length_erase_of_mem hvR]
         omega
-      have hkey' : ∀ y, key y + W v y = attachWeight W (insert v A) y := by
-        intro y
-        rw [attachWeight_insert W hvA, hkey, add_comm]
-      have hfresh' : ∀ y ∈ R.erase v, y ∉ insert v A := by
-        intro y hy hyA
-        rw [hnd.mem_erase_iff] at hy
-        rcases Finset.mem_insert.mp hyA with rfl | hyA
-        · exact hy.1 rfl
-        · exact hfresh y hy.2 hyA
-      obtain ⟨hperm, hma⟩ := maSearch_spec W fuel _ (insert v A) _ (hnd.erase v) hlen' hkey'
-        hfresh'
-      refine ⟨(hperm.cons v).trans (List.perm_cons_erase hvR).symm, ?_, hma⟩
-      intro y hy
-      rw [← hkey, ← hkey]
-      exact List.le_of_mem_argmax (List.mem_of_mem_erase (hperm.subset hy)) harg
+      have hkey' (y : V) : key y + W v y = attachWeight W (insert v A) y := by
+        rw [attachWeight_insert W (hfresh v hvR), hkey, add_comm]
+      have hfresh' : ∀ y ∈ R.erase v, y ∉ insert v A := fun y hy hyA =>
+        let ⟨hyv, hyR⟩ := hnd.mem_erase_iff.mp hy
+        (Finset.mem_insert.mp hyA).elim hyv (hfresh y hyR)
+      obtain ⟨hperm, hma⟩ := maSearch_spec W fuel _ (insert v A) _ (hnd.erase v) hlen' hkey' hfresh'
+      refine ⟨(hperm.cons v).trans (List.perm_cons_erase hvR).symm, fun y hy => ?_, hma⟩
+      simpa only [← hkey] using List.le_of_mem_argmax (List.mem_of_mem_erase (hperm.subset hy)) harg
 
 end Cslib.WeightedCut

@@ -119,12 +119,10 @@ polynomial-time test, and it is the test built from the predictor, with advantag
 theorem not_pseudorandomGenerator (taps : ℕ → List Bool) (ℓ : ℕ → ℕ) :
     ¬ PseudorandomGenerator (wordGenerator taps ℓ) ℓ := by
   intro h
-  have hdecay := h.secure _ (isPPTBitStringTest_predictionTest_predictor h.polyTime h.stretch)
+  have ht := h.secure _ (isPPTBitStringTest_predictionTest_predictor h.polyTime h.stretch) 0
   have hadv (n : ℕ) : (wordFamily (wordGenerator taps ℓ) ℓ n).advantage
       (predictionTest ⟨n, h.stretch n⟩ (predictor (taps n) n n)) = 1 / 2 := by
-    rw [wordFamily_wordGenerator,
-      advantage_predictionTest_predictor (taps n) ⟨n, h.stretch n⟩ le_rfl]
-  have ht := hdecay 0
+    rw [wordFamily_wordGenerator, advantage_predictionTest_predictor _ ⟨n, h.stretch n⟩ le_rfl]
   simp only [hadv, pow_zero, one_mul] at ht
   exact absurd (tendsto_nhds_unique tendsto_const_nhds ht) (by norm_num)
 
@@ -153,23 +151,14 @@ private theorem computableInPolyTime_clock :
     ComputableInPolyTime
       (fun p : List Bool × (List Bool × List Bool) => clock p.1 p.2)
       (encPair encBits (encPair encBits encBits)) (encPair encBits encBits) := by
-  have hfeedback : ComputableInPolyTime
-      (fun p : List Bool × (List Bool × List Bool) => listDot p.1 p.2.2)
-      (encPair encBits (encPair encBits encBits)) encBool :=
-    ComputableInPolyTime.bitsListDot
-      (ComputableInPolyTime.fst encBits (encPair encBits encBits))
-      (ComputableInPolyTime.snd encBits (encPair encBits encBits)).snd'
-  have hp := ComputableInPolyTime.id'
-    (encIn := encPair encBits (encPair encBits encBits))
+  have hp := ComputableInPolyTime.id' (encIn := encPair encBits (encPair encBits encBits))
   have hstate := hp.snd'.snd'
-  have houtput := ComputableInPolyTime.bitsAppend hp.snd'.fst'
-    (ComputableInPolyTime.bitsCons
-      ((ComputableInPolyTime.headD (encA := encBool) (encL := encBits) false).comp hstate)
-      (.const []))
+  have hfeedback := ComputableInPolyTime.bitsListDot hp.fst' hstate
+  have hhead := (ComputableInPolyTime.headD (encA := encBool) (encL := encBits) false).comp hstate
   have hnext := ComputableInPolyTime.bitsTail.comp
-    (ComputableInPolyTime.bitsAppend hstate
-      (ComputableInPolyTime.bitsCons hfeedback (.const [])))
-  exact houtput.prod hnext
+    (ComputableInPolyTime.bitsAppend hstate (ComputableInPolyTime.bitsCons hfeedback (.const [])))
+  exact (ComputableInPolyTime.bitsAppend hp.snd'.fst'
+    (ComputableInPolyTime.bitsCons hhead (.const []))).prod hnext
 
 /-- The LFSR family is computable in polynomial time when its tap masks and its output length
 are. With `length_wordGenerator` this gives every condition of
@@ -179,21 +168,17 @@ theorem computableInPolyTime_wordGenerator {taps : ℕ → List Bool} {ℓ : ℕ
     (htaps : ComputableInPolyTime taps encUnary encBits)
     (hℓ : ComputableInPolyTime ℓ encUnary encUnary) :
     ComputableInPolyTime (wordGenerator taps ℓ) encBits encBits := by
-  have hloop : ComputableInPolyTime
-      (fun seed : List Bool => (clock (taps seed.length))^[ℓ seed.length] ([], seed))
-      encBits (encPair encBits encBits) :=
-    ComputableInPolyTime.iterateWith_of_bounded_growth
-      (α := List Bool) (β := List Bool × List Bool) (π := List Bool)
-      (encIn := encBits) (encPar := encBits) (encState := encPair encBits encBits)
-      (par := fun seed => taps seed.length)
-      (count := fun seed => ℓ seed.length) (init := fun seed => ([], seed)) (step := clock)
-      (htaps.comp ComputableInPolyTime.length_bits)
-      (hℓ.comp ComputableInPolyTime.length_bits)
-      ((ComputableInPolyTime.const []).prod ComputableInPolyTime.id') computableInPolyTime_clock
-      (growth := fun _ => 2) (.const 2) (fun seed state => by
-        simp only [clock, step, encPair_apply, encBits_apply, List.length_append, length_frame,
-          List.length_cons, List.length_nil, zero_add, List.length_tail, add_tsub_cancel_right]
-        omega)
+  have hloop := ComputableInPolyTime.iterateWith_of_bounded_growth
+    (α := List Bool) (β := List Bool × List Bool) (π := List Bool)
+    (encIn := encBits) (encPar := encBits) (encState := encPair encBits encBits)
+    (par := fun seed => taps seed.length) (count := fun seed => ℓ seed.length)
+    (init := fun seed => ([], seed)) (step := clock)
+    (htaps.comp ComputableInPolyTime.length_bits) (hℓ.comp ComputableInPolyTime.length_bits)
+    ((ComputableInPolyTime.const []).prod ComputableInPolyTime.id') computableInPolyTime_clock
+    (growth := fun _ => 2) (.const 2) fun _ _ => by
+      simp only [clock, step, encPair_apply, encBits_apply, List.length_append, length_frame,
+        List.length_cons, List.length_nil, zero_add, List.length_tail, add_tsub_cancel_right]
+      omega
   have h : wordGenerator taps ℓ =
       fun seed => ((clock (taps seed.length))^[ℓ seed.length] ([], seed)).1 := by
     funext seed

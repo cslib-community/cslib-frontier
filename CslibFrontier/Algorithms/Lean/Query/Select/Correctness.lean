@@ -143,26 +143,18 @@ private theorem three_mul_countP_eval_medians_le (oracle : {ι : Type} → LEQue
       rw [← List.cons_append, List.countP_append]
     rw [List.countP_cons (l := (medians (xs.drop 4)).eval oracle), hsplit]
     have hg := hgroup x (xs.take 4)
-    by_cases h4 : 4 ≤ xs.length
-    · have hlen : (xs.take 4).length = 4 := by simp [h4]
-      rw [hlen] at hg
-      by_cases hP : P ((groupMedian x (xs.take 4)).eval oracle)
-      · have := hg hP
-        simp only [hP, decide_true, ↓reduceIte]
-        omega
-      · simp only [hP, decide_false, Bool.false_eq_true, ↓reduceIte]
-        omega
-    · have hdrop : xs.drop 4 = [] := List.drop_eq_nil_of_le (by omega)
-      have hms : ((medians (xs.drop 4)).eval oracle) = [] := by
-        rw [hdrop, medians]
-        rfl
-      rw [hms]
-      by_cases hP : P ((groupMedian x (xs.take 4)).eval oracle)
-      · have := hg hP
-        simp only [hP, decide_true, ↓reduceIte, List.countP_nil]
-        omega
-      · simp only [hP, decide_false, Bool.false_eq_true, ↓reduceIte, List.countP_nil]
-        omega
+    rw [List.length_take] at hg
+    -- the last group may be partial, but then no medians follow it
+    have hms : 4 ≤ xs.length ∨ ((medians (xs.drop 4)).eval oracle).countP (fun y => P y) = 0 := by
+      refine or_iff_not_imp_left.2 fun h4 => ?_
+      rw [List.drop_eq_nil_of_le (by omega), medians]
+      rfl
+    by_cases hP : P ((groupMedian x (xs.take 4)).eval oracle)
+    · have := hg hP
+      simp only [hP, decide_true, ↓reduceIte]
+      omega
+    · simp only [hP, decide_false, Bool.false_eq_true, ↓reduceIte]
+      omega
 
 /-- Each group median at or above `p` contributes three elements of its group at or above `p`:
 `3 * #{medians ≥ p} ≤ #{xs ≥ p} + 2`. -/
@@ -205,14 +197,11 @@ theorem eval_partition3_of_total (r : α → α → Prop) [DecidableRel r] [Std.
         xs.filter (fun x => ¬ r x p)) := by
   rw [eval_partition3]
   simp only [horacle, Prod.mk.injEq]
-  refine ⟨List.filter_congr fun x _ => ?_, List.filter_congr fun x _ => ?_,
-    List.filter_congr fun x _ => ?_⟩
-  · by_cases h2 : r p x
-    · simp [h2]
-    · have h1 : r x p := (Std.Total.total x p).resolve_right h2
-      simp [h1, h2]
-  · simp
-  · simp
+  refine ⟨List.filter_congr fun x _ => ?_, List.filter_congr fun x _ => by simp,
+    List.filter_congr fun x _ => by simp⟩
+  by_cases h2 : r p x
+  · simp [h2]
+  · simp [h2, (Std.Total.total x p).resolve_right h2]
 
 /-! ## The median-of-medians counting bound -/
 
@@ -299,12 +288,10 @@ private theorem select_correct (r : α → α → Prop) [DecidableRel r] [Std.To
     rw [eval_mergeSort] at hperm hsorted
     refine ⟨fun hk => ?_, fun hk => ?_⟩
     · have hk' : k < (xs.mergeSort fun a b => oracle (.le a b)).length := by
-        rw [hperm.length_eq]
-        exact hk
+        rwa [hperm.length_eq]
       exact ⟨_, List.getElem?_eq_getElem hk',
         List.isOrderStatistic_getElem_of_perm hperm hsorted hk'⟩
-    · rw [List.getElem?_eq_none_iff, hperm.length_eq]
-      exact hk
+    · rwa [List.getElem?_eq_none_iff, hperm.length_eq]
   -- The pivot is an order statistic of the medians, by induction.
   have hMlen : ((medians xs).eval oracle).length = (xs.length + 4) / 5 :=
     length_eval_medians oracle xs
@@ -347,11 +334,8 @@ private theorem select_correct (r : α → α → Prop) [DecidableRel r] [Std.To
     have hpy : ¬ r p y := of_decide_eq_true (List.mem_filter.mp hyos.mem).2
     exact _root_.trans ((Std.Total.total y p).resolve_right hpy) hpx
   · -- Rank `k` is held by the pivot's equivalence class.
-    refine ⟨fun _ => ⟨p, rfl, ?_⟩, fun hk => by omega⟩
-    exact {
-      mem := mem_of_mem_eval_medians oracle hpos.mem
-      countP_lt_le := by omega
-      lt_countP_le := by omega }
+    exact ⟨fun _ => ⟨p, rfl, mem_of_mem_eval_medians oracle hpos.mem, by omega, by omega⟩,
+      fun hk => by omega⟩
   · -- Rank `k` lies strictly above the pivot.
     obtain ⟨h1, h2⟩ := ih _ hGlt (k - L.length - E.length) G rfl
     refine ⟨fun hk => ?_, fun hk => h2 (by omega)⟩

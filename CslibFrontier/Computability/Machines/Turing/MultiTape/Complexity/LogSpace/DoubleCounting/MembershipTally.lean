@@ -112,16 +112,14 @@ private theorem initial_bounded (ctx : Context) :
   simp [Registers.Bounded, Scan.Result.zero]
 
 private theorem Registers.Bounded.skip {r : Registers} (h : r.Bounded)
-    (hlive : r.cursor < r.context.size) : r.skip.Bounded := by
-  rcases h with ⟨_, hc, hs⟩
-  refine ⟨Nat.succ_le_of_lt hlive, hc.trans (Nat.le_succ _), ?_⟩
-  exact hs.trans (Nat.mul_le_mul_right _ (Nat.le_succ _))
+    (hlive : r.cursor < r.context.size) : r.skip.Bounded :=
+  ⟨Nat.succ_le_of_lt hlive, h.2.1.trans (Nat.le_succ _),
+    h.2.2.trans (Nat.mul_le_mul_right _ (Nat.le_succ _))⟩
 
 private theorem Registers.Bounded.record {r : Registers} (h : r.Bounded)
-    (hlive : r.cursor < r.context.size) (remaining : ℕ) : (r.record remaining).Bounded := by
-  rcases h with ⟨_, hc, hs⟩
-  refine ⟨Nat.succ_le_of_lt hlive, Nat.succ_le_succ hc, ?_⟩
-  exact (Nat.add_le_add hs (Nat.sub_le _ _)).trans_eq (Nat.succ_mul _ _).symm
+    (hlive : r.cursor < r.context.size) (remaining : ℕ) : (r.record remaining).Bounded :=
+  ⟨Nat.succ_le_of_lt hlive, Nat.succ_le_succ h.2.1,
+    (Nat.add_le_add h.2.2 (Nat.sub_le _ _)).trans_eq (Nat.succ_mul _ _).symm⟩
 
 private theorem skip_inSpace :
     ComputableInSpace Registers.skip encRegisters encRegisters (fun r => (encRegisters r).length) :=
@@ -609,11 +607,10 @@ theorem exists_scan_of_firstHalting {τ : Type} {N : ℕ}
             rw [Scan.tallyPrefix_succ edge source target radius _ hlive,
               (Scan.tallyPrefix_congr edge source target radius hlive.le (b := branch)
                 fun u hu => Function.update_of_ne (Fin.ne_of_lt (a := u) (b := v) hu)
-                  selection branch).trans htally]
-            rw [Option.bind_some]
+                  selection branch).trans htally,
+              Option.bind_some]
             dsimp only
-            rw [Function.update_self]
-            exact hselection
+            rwa [Function.update_self]
           have keep (selection : Option (List (Fin N))) (branch' : Scan.Branch N)
               (h : ∀ u : Fin N, u.val < n + 1 →
                 branch' u = Function.update branch v selection u) :
@@ -779,13 +776,11 @@ theorem length_replay_le {τ : Type} (encT : τ ↪ List Bool) (ctx : Context)
   generalize (machine ctx walk enter result).run input choices = s at hb ⊢
   rcases s with r | (⟨r, t⟩ | b)
   · obtain ⟨hr, h⟩ := hb
-    have hreg := length_registers_le r h
-    rw [hr] at hreg
+    have hreg := hr ▸ length_registers_le r h
     simp only [encState, encSum_inl, List.length_cons]
     omega
   · obtain ⟨hr, h, hlive, bits, rfl⟩ := hb
-    have hreg := length_registers_le r h
-    rw [hr] at hreg
+    have hreg := hr ▸ length_registers_le r h
     have ht := hwalk r hr h hlive bits
     simp only [encState, encSum_inr, encSum_inl, List.length_cons, length_encPair]
     omega
@@ -955,16 +950,15 @@ private theorem boundedWalk_replay (input : List Bool)
       ∃ tail, bits = BoundedWalk.selectors clock tail ∧
         (Scan.walkM Scan.readNext (fun u v => pure (adjacent u v)) v radius source tail).1 =
           some left := by
-  let regs : BoundedWalk.Registers N := ⟨source, v, radius⟩
   dsimp only [enterBoundedWalk]
   rw [walkRegisters_mk]
   have hreentry := BoundedWalk.machine_withInit edge start verdict clock
-    ⟨fallback, fallback, 0⟩ regs
-  have h := BoundedWalk.firstHalting_remainingFuel_iff edge start verdict clock regs
+    ⟨fallback, fallback, 0⟩ ⟨source, v, radius⟩
+  have h := BoundedWalk.firstHalting_remainingFuel_iff edge start verdict clock ⟨source, v, radius⟩
     input adjacent hclock hedge bits left
   rw [← hreentry, NondeterministicQueryMachine.run_withInit] at h
   simpa only [fixedWalk, NondeterministicQueryMachine.firstHalting_withInit,
-    NondeterministicQueryMachine.init_withInit, regs] using h
+    NondeterministicQueryMachine.init_withInit] using h
 
 /-- A successful first-halting tally uses exactly the selectors of a successful typed scan.
 The returned membership bit distinguishes successful negative replies from rejected traces. -/

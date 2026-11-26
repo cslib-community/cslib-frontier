@@ -89,19 +89,16 @@ cell in the window is listed exactly when it holds. -/
 theorem mem_trueFeatures_iff {w : List Bool} {c : FiniteCfg k Bool State × (Fin k → ℤ)}
     {cfg : Cfg k Bool State w} (h : TrackedAgrees c cfg) {T : ℕ} {φ : Feature k State}
     (hφ : InWindow T φ) : φ ∈ trueFeatures T c ↔ φ.Holds cfg := by
-  have hmem : ∀ ψ : Feature k State,
+  have hmem (ψ : Feature k State) :
       ψ ∈ cfg.state.elim [] (fun q => [sit (q, cfg.inputSymbol, cfg.workTapeSymbols)]) ↔
         ∃ q, cfg.state = some q ∧ ψ = sit (q, cfg.inputSymbol, cfg.workTapeSymbols) := by
-    intro ψ
     cases cfg.state <;> simp
   rw [trueFeatures_eq h]
   cases φ with
   | state q => simp [finiteFeatures, hmem, eq_comm]
   | inPos j => simp [finiteFeatures, hmem, eq_comm]
   | head i z => simp [finiteFeatures, hmem, eq_comm]
-  | cell i z s =>
-    simp only [InWindow] at hφ
-    simp [finiteFeatures, hmem, hφ, eq_comm]
+  | cell i z s => simp [finiteFeatures, hmem, show |z| ≤ T from hφ, eq_comm]
   | out o => simp [finiteFeatures, hmem, eq_comm]
   | read i s => simp [finiteFeatures, hmem, Cfg.workTapeSymbols, eq_comm]
   | inRead s => simp [finiteFeatures, hmem, eq_comm]
@@ -112,7 +109,7 @@ theorem mem_trueFeatures_iff {w : List Bool} {c : FiniteCfg k Bool State × (Fin
       hmem, reduceCtorEq, false_or, or_false, and_false, exists_false, sit.injEq,
       Prod.mk.injEq, List.mem_finRange]
     constructor
-    · rintro ⟨q', hq, rfl, rfl, rfl⟩
+    · rintro ⟨_, hq, rfl, rfl, rfl⟩
       exact ⟨hq, rfl, rfl⟩
     · rintro ⟨hq, rfl, rfl⟩
       exact ⟨q, hq, rfl, rfl, rfl⟩
@@ -141,29 +138,24 @@ noncomputable def trueVars (tm : MultiTapeTM k Bool State) (u w : List Bool) (T 
 theorem decide_mem_trueVars_eq_runAssignment {tm : MultiTapeTM k Bool State} {u w : List Bool}
     {T : ℕ} {v : Var k State} (hv : Determined (u.length + w.length) w.length T v) :
     decide (v ∈ trueVars tm u w T) = runAssignment tm u w v := by
-  have hite : ∀ (v : Var k State) j,
+  have hite (v : Var k State) (j : ℕ) :
       v ∈ (if w.getD j false then [Var.cert j] else []) ↔ w.getD j false = true ∧ v = .cert j := by
-    intro v j
     split <;> simp_all
-  have hholds : ∀ t ≤ T, ∀ φ : Feature k State, InWindow T φ →
+  have hholds (t : ℕ) (ht : t ≤ T) (φ : Feature k State) (hφ : InWindow T φ) :
       decide (Var.holds t φ ∈ trueVars tm u w T) = runAssignment tm u w (.holds t φ) := by
-    intro t ht φ hφ
     have hiff := mem_trueFeatures_iff (trackedAgrees_trackedRun tm (u ++ w) t) hφ
     simp only [trueVars, List.mem_append, List.mem_flatMap, List.mem_map, List.mem_range, hite,
       Var.holds.injEq, reduceCtorEq, and_false, exists_false, or_false, runAssignment]
-    refine decide_eq_decide.2 ⟨?_, fun h => ⟨t, by omega, φ, hiff.2 h, rfl, rfl⟩⟩
-    rintro ⟨t', -, φ', hφ', rfl, rfl⟩
-    exact hiff.1 hφ'
-  rcases hv with ⟨j, hj, rfl⟩ | ⟨t, ht, φ, hφ, rfl⟩ | ⟨t, ht, ⟨i, s, rfl⟩ | ⟨s, rfl⟩ | ⟨y, rfl⟩⟩
+    exact decide_eq_decide.2
+      ⟨fun ⟨_, _, _, hφ', rfl, rfl⟩ => hiff.1 hφ', fun h => ⟨t, by omega, φ, hiff.2 h, rfl, rfl⟩⟩
+  rcases hv with ⟨j, hj, rfl⟩ | ⟨t, ht, φ, hφ, rfl⟩ | ⟨t, ht, h⟩
   · have hmem : Var.cert j ∈ trueVars tm u w T ↔ w.getD j false = true := by
       simp only [trueVars, List.mem_append, List.mem_flatMap, List.mem_map, List.mem_range, hite,
         reduceCtorEq, and_false, exists_false, false_or, Var.cert.injEq]
-      exact ⟨fun ⟨a, _, h, e⟩ => e ▸ h, fun h => ⟨j, hj, h, rfl⟩⟩
+      exact ⟨fun ⟨_, _, h, e⟩ => e ▸ h, fun h => ⟨j, hj, h, rfl⟩⟩
     simp only [hmem, Bool.decide_eq_true, runAssignment]
   · exact hholds t ht φ (inWindow_of_mem_basic hφ)
-  · exact hholds t ht.le _ trivial
-  · exact hholds t ht.le _ trivial
-  · exact hholds t ht.le _ trivial
+  · rcases h with ⟨_, _, rfl⟩ | ⟨_, rfl⟩ | ⟨_, rfl⟩ <;> exact hholds t ht.le _ trivial
 
 /-- **The listed variables satisfy the tableau** of an accepting run: membership in
 `trueVars tm u w T` agrees with `runAssignment tm u w` on every variable of the tableau. -/

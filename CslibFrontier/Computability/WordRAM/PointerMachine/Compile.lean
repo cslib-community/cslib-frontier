@@ -81,8 +81,7 @@ private theorem fetch {p : Program .standard r} {pc n : ℕ} {i : Instr .standar
   apply Cslib.Program.getElem?_compileBlocks (block := block) (start := 0)
     (fun pc i _ => block_length pc i) get
   simp only [Nat.zero_add, block]
-  rw [List.getElem?_append_left (List.getElem?_eq_some_iff.mp localGet).1]
-  exact localGet
+  rwa [List.getElem?_append_left (List.getElem?_eq_some_iff.mp localGet).1]
 
 private theorem branch_run (p : Program .standard r) (pc dest : ℕ) (test : Test)
     (a b : Fin r) (s : Cslib.PointerMachine.State (model w) (layout r))
@@ -198,8 +197,7 @@ theorem halt_compile (p : Program .standard r) (x : State r) (v : ℕ)
       · simp [Cslib.PointerMachine.step, pc, first, Cslib.PointerMachine.Instr.effect,
           Cslib.PointerMachine.Instr.next, t]
       · simpa [t, Cslib.PointerMachine.State.setData, rep.registers] using value
-      · refine ⟨?_, rep.heap, rep.matched, rep.valid, rep.distinct, rep.memory, rep.root⟩
-        intro j
+      · refine ⟨fun j => ?_, rep.heap, rep.matched, rep.valid, rep.distinct, rep.memory, rep.root⟩
         have ne : register j ≠ 3 := register_ne_scratch j 3 (by decide)
         simp [t, Cslib.PointerMachine.State.setData, ne, rep.registers]
 

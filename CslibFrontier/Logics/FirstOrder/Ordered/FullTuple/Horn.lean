@@ -113,25 +113,14 @@ private theorem holds_onHornClause (hk : 0 < k) {V : Type} {arity : V → ℕ}
   let := I.inputStructure (n := n)
   let : Fact (2 ≤ n ^ k) := ⟨two_le_pow (n := n) hk⟩
   let eW := Operator.Tuple.blockEquiv (lexEquiv (n := n) (k := k)) C.width
-  refine eW.forall_congr ?_
-  intro xs
-  refine imp_congr ?_ (imp_congr ?_ ?_)
-  · change ((I.onFormula C.guard).relabel finProdFinEquiv).Realize xs ↔ C.guard.Realize (eW xs)
-    rw [Formula.realize_relabel]
-    have hcomp : xs ∘ finProdFinEquiv = fun p : Fin C.width × Fin k =>
-        xs (finProdFinEquiv (p.1, p.2)) :=
-      funext fun p => congrArg (xs ∘ finProdFinEquiv) p.eta.symm
-    rw [hcomp]
+  refine eW.forall_congr fun xs => imp_congr ?_ (imp_congr ?_ ?_)
+  · simp only [onHornClause, Formula.realize_relabel]
     exact I.realize_onFormula hk C.guard fun i j => xs (finProdFinEquiv (i, j))
   · change (∀ a' ∈ C.body.map (scaleAtom (k := k)), a'.Holds Rs xs) ↔
       ∀ a ∈ C.body, a.Holds Rt (eW xs)
     rw [List.forall_mem_map]
     exact forall₂_congr fun a _ => holds_scaleAtom a hrel xs
-  · change ((C.head.map (scaleAtom (k := k))).elim False fun a' => a'.Holds Rs xs) ↔
-      C.head.elim False fun a => a.Holds Rt (eW xs)
-    cases C.head with
-    | none => rfl
-    | some a => exact holds_scaleAtom a hrel xs
+  · cases h : C.head <;> simp [onHornClause, h, holds_scaleAtom _ hrel xs, eW]
 
 /-- **Full-tuple pullback preserves SO∃-Horn truth** on the canonical lexicographically ranked
 universe `Fin (n ^ k)`. -/
@@ -142,21 +131,15 @@ theorem realize_onHornSentence (hk : 0 < k) (Φ : ESO.Horn.Sentence (language L'
       Φ.Realize (Fin (n ^ k)) := by
   let := I.inputStructure (n := n)
   let : Fact (2 ≤ n ^ k) := ⟨two_le_pow (n := n) hk⟩
-  constructor
-  · rintro ⟨Rs, hRs⟩
-    let Rs₀ : ∀ i : Φ.Var, Set (Fin (Φ.arity i * k) → Fin n) := Rs
-    let Rt : ∀ i : Φ.Var, Set (Fin (Φ.arity i) → Fin (n ^ k)) :=
-      fun i => {ys | (Operator.Tuple.blockEquiv lexEquiv (Φ.arity i)).symm ys ∈ Rs₀ i}
-    have hrel : ∀ i xs, xs ∈ Rs₀ i ↔
-        Operator.Tuple.blockEquiv lexEquiv (Φ.arity i) xs ∈ Rt i := fun i xs =>
-      iff_of_eq <| congrArg (· ∈ Rs₀ i)
+  refine ⟨fun ⟨Rs, hRs⟩ => ?_, fun ⟨Rt, hRt⟩ => ?_⟩
+  · have hrel (i : Φ.Var) (xs : Fin (Φ.arity i * k) → Fin n) : xs ∈ Rs i ↔
+        Operator.Tuple.blockEquiv lexEquiv (Φ.arity i) xs ∈
+          {ys | (Operator.Tuple.blockEquiv lexEquiv (Φ.arity i)).symm ys ∈ Rs i} :=
+      iff_of_eq <| congrArg (· ∈ Rs i)
         ((Operator.Tuple.blockEquiv lexEquiv (Φ.arity i)).symm_apply_apply xs).symm
-    refine ⟨Rt, fun C hC => ?_⟩
-    exact (I.holds_onHornClause hk C hrel).mp (hRs _ (List.mem_map_of_mem hC))
-  · rintro ⟨Rt, hRt⟩
-    let Rs : ∀ i, Set (Fin (Φ.arity i * k) → Fin n) :=
-      fun i => {xs | Operator.Tuple.blockEquiv lexEquiv (Φ.arity i) xs ∈ Rt i}
-    refine ⟨Rs, fun C' hC' => ?_⟩
+    exact ⟨_, fun C hC => (I.holds_onHornClause hk C hrel).mp (hRs _ (List.mem_map_of_mem hC))⟩
+  · refine ⟨fun i => {xs | Operator.Tuple.blockEquiv lexEquiv (Φ.arity i) xs ∈ Rt i},
+      fun C' hC' => ?_⟩
     obtain ⟨C, hC, rfl⟩ := List.mem_map.mp hC'
     exact (I.holds_onHornClause hk C fun _ _ => Iff.rfl).mpr (hRt C hC)
 

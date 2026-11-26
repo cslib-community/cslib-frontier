@@ -588,15 +588,14 @@ theorem eval_sufCmaGame_etmToMACForger (E : SymmetricCipher) (M : MACScheme)
       rw [unframe_encPair_encBits, dropFrame_encPair_encBits]
       by_cases hlenEq : (msg.length == n) = true
       · simp only [hlenEq, ↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-          PMF.bind_map, Function.comp_def, PMF.map_bind, ProbComp.eval_bind,
-          ProbComp.eval_pure, PMF.bind_bind]
+          pmf_norm]
         apply PMF.bind_congr_on_support
         intro c hc
         have hcLen : c.length = M.msgLen n := hctLen n ke hke msg (beq_iff_eq.mp hlenEq) c hc
         simp only [ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
           MACScheme.signingPairOracle, MACScheme.signingPairOracleOn, hcLen, beq_self_eq_true,
           ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure]
-        simp only [PMF.map_bind, PMF.pure_map, PMF.pure_bind, Prod.map_apply, id_eq]
+        simp only [Prod.map_apply, id_eq, pmf_norm]
         apply PMF.bind_congr_on_support
         intro tag htag
         rw [List.take_of_length_le (htagBound km hkm c hcLen tag htag)]
@@ -770,10 +769,9 @@ theorem eval_sufOneTimeGame_etmToOneTimeMACForger (E : SymmetricCipher) (M : MAC
         let km ← M.keyGen n
         return encPair encBits encBits (ke, km)) := rfl
   simp only [MACScheme.sufOneTimeGame, SymmetricCipher.ciOneTimeGame, etmToOneTimeMACForger,
-    hkeyGen, ProbComp.eval_bind, ProbComp.eval_pure, ProbOracleComp.eval_run_interpret_eq_runWith,
-    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbOracleComp.runWith_map,
-    PMF.bind_bind, PMF.pure_bind, PMF.bind_map, Function.comp_def, Prod.map_fst, Prod.map_snd,
-    id_eq]
+    hkeyGen, ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_sample, ProbOracleComp.runWith_map, Prod.map_fst, Prod.map_snd, id_eq,
+    pmf_norm]
   rw [PMF.bind_comm]
   refine PMF.bind_congr_on_support _ _ _ fun ke hke => ?_
   refine PMF.bind_congr_on_support _ _ _ fun km hkm => ?_
@@ -792,14 +790,13 @@ theorem eval_sufOneTimeGame_etmToOneTimeMACForger (E : SymmetricCipher) (M : MAC
           Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_map]
       by_cases hlen : (msg.length == n) = true
       · simp only [hlen, ↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-          Probability.PMF.monad_bind_eq_bind, PMF.bind_map, Function.comp_def, PMF.map_bind]
+          pmf_norm]
         refine PMF.bind_congr_on_support _ _ _ fun c hc => ?_
         have hcLen : c.length = M.msgLen n := hctLen n ke hke msg (beq_iff_eq.mp hlen) c hc
         simp only [ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
           MACScheme.oneTimeSigningPairOracle, MACScheme.signingPairOracleOn, hcLen,
-          beq_self_eq_true, Bool.and_self, List.isEmpty_nil, ↓reduceIte, ProbComp.eval_bind,
-          ProbComp.eval_pure, Probability.PMF.monad_pure_eq_pure, PMF.map_bind, PMF.pure_map,
-          Prod.map_apply, id_eq]
+          beq_self_eq_true, Bool.and_self, List.isEmpty_nil, ↓reduceIte, Prod.map_apply, id_eq,
+          pmf_norm]
         refine PMF.bind_congr_on_support _ _ _ fun tag htag => ?_
         rw [List.take_of_length_le (htagBound km hkm c hcLen tag htag)]
         rfl
@@ -1089,9 +1086,8 @@ theorem eval_cpaOneTimeGame_etmToOneTimeCPAAdversary (E : SymmetricCipher) (M : 
         let km ← M.keyGen n
         return encPair encBits encBits (ke, km)) := rfl
   simp only [SymmetricCipher.cpaOneTimeGame, etmToOneTimeCPAAdversary, hkeyGen,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbOracleComp.eval_run_interpret_eq_runWith,
-    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbOracleComp.runWith_map,
-    PMF.bind_bind, PMF.pure_bind, PMF.bind_map, Function.comp_def]
+    ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_sample, ProbOracleComp.runWith_map, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun ke hke => ?_
   refine PMF.bind_congr_on_support _ _ _ fun km _ => ?_
   have hsim := ProbOracleComp.runWith_run_interpret_map
@@ -1111,9 +1107,8 @@ theorem eval_cpaOneTimeGame_etmToOneTimeCPAAdversary (E : SymmetricCipher) (M : 
         (!alreadyQueried && ((unframe payload).length == n) &&
           ((dropFrame payload).length == n)) = true
     · simp only [hcond, ↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
-        ProbOracleComp.runWith_query, ProbOracleComp.runWith_sample, ProbComp.eval_bind,
-        ProbComp.eval_pure, PMF.map_comp, PMF.map_bind, Function.comp_def, PMF.pure_map,
-        PMF.pure_bind, PMF.bind_bind, Prod.map_apply, id_eq]
+        ProbOracleComp.runWith_query, ProbOracleComp.runWith_sample, Prod.map_apply, id_eq,
+        pmf_norm]
       simp only [Bool.and_eq_true, beq_iff_eq] at hcond
       have hmbLen : (if bit then dropFrame payload else unframe payload).length = n := by
         cases bit <;> simp [hcond.1.2, hcond.2]
@@ -1601,9 +1596,7 @@ private theorem eval_prfIdealGame_cpaToPrfDistinguisher (adversary : OracleDisti
       by_cases hlenEq : ((unframe payload).length == n && (dropFrame payload).length == n) = true
       · simp only [hlenEq, ↓reduceIte, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
           ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, BitString.eval_sampleList,
-          Probability.PMF.monad_bind_eq_bind, PMF.monad_map_eq_map,
-          StateLens.zoom, PRFCipherBadState.cacheLens, PMF.map_bind, PMF.bind_map, PMF.map_comp,
-          Function.comp_def, Prod.map_apply, id_eq]
+          StateLens.zoom, PRFCipherBadState.cacheLens, Prod.map_apply, id_eq, pmf_norm]
         refine PMF.bind_congr_on_support _ _ _ fun r hr => ?_
         have hrLen : r.length = n := BitString.length_of_mem_support_uniformList hr
         simp only [cachedRandomFunctionOracle, cachedSamplerOracle, beq_iff_eq, hrLen, ↓reduceIte,
@@ -1631,8 +1624,7 @@ private theorem run_prfCipherForgetfulStep_map_fst (adversary : OracleDistinguis
     (fun ⟨⟨⟩, payload⟩ s _ => by
       unfold prfCipherForgetfulStep prfCipherOTPOracle
       by_cases hlenEq : ((unframe payload).length == n && (dropFrame payload).length == n) = true
-      · simp only [hlenEq, ↓reduceIte, Probability.PMF.monad_bind_eq_bind, PMF.map_bind,
-          PMF.map_comp, Function.comp_def, Prod.map_apply, id_eq]
+      · simp only [hlenEq, ↓reduceIte, Prod.map_apply, id_eq, pmf_norm]
         simp only [Bool.and_eq_true, beq_iff_eq] at hlenEq
         have hmsgLen : (if bit then dropFrame payload else unframe payload).length = n := by
           cases bit <;> simp [hlenEq]

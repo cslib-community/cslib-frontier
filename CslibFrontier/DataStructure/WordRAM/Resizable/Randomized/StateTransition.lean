@@ -575,46 +575,70 @@ theorem steps_expected_amortized (C : StateTransitionImpl P D w base params s₀
     let T_op (t : CoupledRState C.Seed D.State r_ds) := T_step (prepMap t)
     let ν₁ := ν.bind μ_op
     have hν₁_eq : ν₁ = ν_prep.bind μ_step := by simp [ν₁, ν_prep, μ_op, PMF.bind_map]; rfl
-    have hv₁ : ∀ q ∈ ν₁.support, D.ValidOpSeq q.state os := by
-      intro q hq; rw [PMF.mem_support_bind_iff] at hq; obtain ⟨t, ht, hq_op⟩ := hq
-      obtain ⟨a, hstep_a, _, _, _⟩ :=
+    have hnext₁ : ∀ q ∈ ν₁.support, D.ValidOpSeq q.state os ∧
+        PeakFitsOpSeq w base C.peakSpaceBound q.state os ∧ C.rep q.seed q.state q.data := by
+      intro q hq
+      rcases (PMF.mem_support_bind_iff _ _ _).mp hq with ⟨t, ht, hq_op⟩
+      obtain ⟨a, hstep_a, _, hr_q, _⟩ :=
         (hstep (prepMap t) ((PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩)).2 q hq_op
-      exact (hv t ht).2 q.state a hstep_a
-    have hfit₁ : ∀ q ∈ ν₁.support, PeakFitsOpSeq w base C.peakSpaceBound q.state os := by
-      intro q hq; rw [PMF.mem_support_bind_iff] at hq; obtain ⟨t, ht, hq_op⟩ := hq
-      obtain ⟨a, hstep_a, _, _, _⟩ :=
-        (hstep (prepMap t) ((PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩)).2 q hq_op
-      exact (hfit t ht).2 q.state a hstep_a
-    have hrep₁ : ∀ q ∈ ν₁.support, C.rep q.seed q.state q.data := by
-      intro q hq; rw [hν₁_eq, PMF.mem_support_bind_iff] at hq; obtain ⟨t', ht', hq_s⟩ := hq
-      obtain ⟨_, _, _, hr_q, _⟩ := (hstep t' ht').2 q hq_s; exact hr_q
+      exact ⟨(hv t ht).2 q.state a hstep_a, (hfit t ht).2 q.state a hstep_a, hr_q⟩
     let T₁ : ℝ≥0∞ := ∑' t, ν t * T_op t
     let C₁ : ℝ≥0∞ := ∑' t, ν t * (C.charge t.state o : ℝ≥0∞)
-    have hT₁_eq : T₁ = ∑' t', ν_prep t' * T_step t' :=
-      (Cslib.Probability.PMF.tsum_map_mul ν prepMap T_step).symm
     have hstep_split :
         T₁ + (∑' q, ν₁ q * (C.potential q.seed q.data : ℝ≥0∞)) =
           ∑' t', ν_prep t' *
             (T_step t' + ∑' q, μ_step t' q * (C.potential q.seed q.data : ℝ≥0∞)) := by
-      rw [hT₁_eq, hν₁_eq]
-      simp only [Cslib.Probability.PMF.tsum_bind_mul, ← tsum_add, mul_add]
-    have hcharge_split :
-        (∑' t, ν t * ((C.charge t.state o : ℝ≥0∞) + (C.potential t.seed t.data : ℝ≥0∞))) =
-          C₁ + ∑' t, ν t * (C.potential t.seed t.data : ℝ≥0∞) := by
-      simp_rw [mul_add, tsum_add]; rfl
-    refine ⟨ν₁, T₁, C₁, ⟨hv₁, hfit₁, hν₁_eq ▸ hseed₁, hrep₁, hν₁_eq ▸ hsingle₁⟩, ?_, ?_⟩
-    · rw [hstep_split, ← hcharge_split, ← hpot_prep]
-      exact hamort₁
-    · intro ν_final T_rest C_rest hex_rest
-      exact .cons (μ_step := μ_op) (T_step := T_op)
+      dsimp only [T₁, T_op]
+      rw [← Cslib.Probability.PMF.tsum_map_mul ν prepMap T_step, hν₁_eq]
+      simp only [ν_prep, Cslib.Probability.PMF.tsum_bind_mul, ← tsum_add, mul_add]
+    refine ⟨ν₁, T₁, C₁, ⟨fun q hq => (hnext₁ q hq).1, fun q hq => (hnext₁ q hq).2.1,
+      hν₁_eq ▸ hseed₁, fun q hq => (hnext₁ q hq).2.2, hν₁_eq ▸ hsingle₁⟩, ?_,
+      fun _ _ _ hex_rest => .cons (μ_step := μ_op) (T_step := T_op)
         (fun t ht => hstep (prepMap t) ((PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩))
-        hex_rest
+        hex_rest⟩
+    rw [hstep_split]
+    refine hamort₁.trans_eq ?_
+    simp_rw [hpot_prep, mul_add, tsum_add]
+    rfl
   obtain ⟨ν_final, T_ops, C_ops, hex, hfinal, hamort⟩ :=
     Cslib.DataStructure.expectedAmortizedSequence
       (fun μ => ∑' q, μ q * (C.potential q.seed q.data : ℝ≥0∞)) inv C.ExecSteps
       (fun μ => .nil μ) advance ops ν ⟨hv, hfit, hseed, hrep, hsingle⟩
   obtain ⟨_, _, hseed_final, hrep_final, _⟩ := hfinal
   exact ⟨ν_final, T_ops, C_ops, hex, hseed_final, hrep_final, hamort⟩
+
+private theorem steps_expected_amortized_map_state
+    (C : StateTransitionImpl P D w base params s₀) {s : D.State} (ops : List D.Op)
+    (ν : PMF (C.Seed × RData r_ds)) (hv : D.ValidOpSeq s ops)
+    (hfit : PeakFitsOpSeq w base C.peakSpaceBound s ops)
+    (hseed : ∀ θ, (ν.map Prod.fst) θ ≤ C.seedSlack * C.seedLaw s θ)
+    (hrep : ∀ p ∈ ν.support, C.rep p.1 s p.2) :
+    let ν_rel : PMF (CoupledRState C.Seed D.State r_ds) := ν.map fun p => ⟨p.1, s, p.2⟩
+    (∀ t ∈ ν_rel.support, t.state = s) ∧
+    ∃ ν_final T_ops C_ops, C.ExecSteps ops ν_rel ν_final T_ops C_ops ∧
+      (∀ s_fin, (∀ q ∈ ν_final.support, q.state = s_fin) →
+        ∀ θ, (ν_final.map CoupledRState.seed) θ ≤ C.seedSlack * C.seedLaw s_fin θ) ∧
+      (∀ q ∈ ν_final.support, C.rep q.seed q.state q.data) ∧
+      T_ops + (∑' q, ν_final q * (C.potential q.seed q.data : ℝ≥0∞)) ≤
+        C_ops + ∑' p, ν p * (C.potential p.1 p.2 : ℝ≥0∞) := by
+  let ν_rel : PMF (CoupledRState C.Seed D.State r_ds) := ν.map fun p => ⟨p.1, s, p.2⟩
+  have hs₀ : ∀ t ∈ ν_rel.support, t.state = s := fun _ ht =>
+    let ⟨_, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp ht
+    heq ▸ rfl
+  have hseed_rel : ∀ s', (∀ t ∈ ν_rel.support, t.state = s') →
+      ∀ θ, (ν_rel.map CoupledRState.seed) θ ≤ C.seedSlack * C.seedLaw s' θ := fun s' hs' θ => by
+    obtain ⟨t₀, ht₀⟩ := ν_rel.support_nonempty
+    obtain rfl : s' = s := (hs' t₀ ht₀).symm.trans (hs₀ t₀ ht₀)
+    rw [PMF.map_comp]
+    exact hseed θ
+  have hrep_rel : ∀ t ∈ ν_rel.support, C.rep t.seed t.state t.data := fun _ ht =>
+    let ⟨p, hp, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp ht
+    heq ▸ hrep p hp
+  obtain ⟨ν_final, T_ops, C_ops, hex, hseed_f, hrep_f, hamort⟩ :=
+    C.steps_expected_amortized ops ν_rel (fun t ht => hs₀ t ht ▸ hv)
+      (fun t ht => hs₀ t ht ▸ hfit) hseed_rel hrep_rel (fun _ => ⟨s, hs₀⟩)
+  rw [Cslib.Probability.PMF.tsum_map_mul] at hamort
+  exact ⟨hs₀, ν_final, T_ops, C_ops, hex, hseed_f, hrep_f, hamort⟩
 
 /-- **End-to-end expected-amortized sequence theorem (`seq_expected_amortized`).** -/
 theorem seq_expected_amortized (C : StateTransitionImpl P D w base params s₀)
@@ -633,29 +657,14 @@ theorem seq_expected_amortized (C : StateTransitionImpl P D w base params s₀)
       C.initTime + T_ops + (∑' q, ν_final q * (C.potential q.seed q.data : ℝ≥0∞)) ≤
         C.initTime + (C.initPotential : ℝ≥0∞) + C_ops := by
   obtain ⟨ν₀, he_init, hseed₀, hsupp₀⟩ := C.init_exec hx₀ hfr₀ hpar hfit₀
-  let ν₀_rel : PMF (CoupledRState C.Seed D.State r_ds) := ν₀.map fun p => ⟨p.1, s₀, p.2⟩
-  have hs₀_rel : ∀ t ∈ ν₀_rel.support, t.state = s₀ := by
-    intro t ht; rw [PMF.mem_support_map_iff] at ht; obtain ⟨_, _, rfl⟩ := ht; rfl
-  have hv₀ : ∀ t ∈ ν₀_rel.support, D.ValidOpSeq t.state ops :=
-    fun t ht => by rw [hs₀_rel t ht]; exact hv
-  have hfit₀_rel : ∀ t ∈ ν₀_rel.support, PeakFitsOpSeq w base C.peakSpaceBound t.state ops :=
-    fun t ht => by rw [hs₀_rel t ht]; exact hfit_ops
-  have hseed₀_rel : ∀ s, (∀ t ∈ ν₀_rel.support, t.state = s) →
-      ∀ θ, (ν₀_rel.map CoupledRState.seed) θ ≤ C.seedSlack * C.seedLaw s θ := fun s hs θ => by
-    obtain ⟨t₀, ht₀⟩ := ν₀_rel.support_nonempty
-    have hs_eq : s = s₀ := (hs t₀ ht₀).symm.trans (hs₀_rel t₀ ht₀)
-    subst hs_eq; rw [PMF.map_comp]; exact hseed₀ θ
-  have hrep₀ : ∀ t ∈ ν₀_rel.support, C.rep t.seed t.state t.data := by
-    intro t ht; rw [PMF.mem_support_map_iff] at ht; obtain ⟨p, hp, rfl⟩ := ht; exact (hsupp₀ p hp).1
-  obtain ⟨ν_final, T_ops, C_ops, hex_steps, hseed_final, hrep_final, hamort⟩ :=
-    C.steps_expected_amortized ops ν₀_rel hv₀ hfit₀_rel hseed₀_rel hrep₀ (fun _ => ⟨s₀, hs₀_rel⟩)
+  obtain ⟨_, ν_final, T_ops, C_ops, hex_steps, hseed_final, hrep_final, hamort⟩ :=
+    C.steps_expected_amortized_map_state ops ν₀ hv hfit_ops hseed₀ fun p hp => (hsupp₀ p hp).1
   have hcaller_final := hex_steps.caller_mem (mem₀ := x₀.mem) fun t ht => by
-    rw [PMF.mem_support_map_iff] at ht; obtain ⟨p, hp, rfl⟩ := ht; exact (hsupp₀ p hp).2.2
-  have hpot₀ : (∑' t, ν₀_rel t * (C.potential t.seed t.data : ℝ≥0∞)) ≤ (C.initPotential : ℝ≥0∞) :=
-    by
-      rw [Cslib.Probability.PMF.tsum_map_mul]
-      exact Cslib.Probability.PMF.tsum_mul_le_of_support ν₀ fun p hp =>
-        Nat.cast_le.mpr (hsupp₀ p hp).2.1
+    rcases (PMF.mem_support_map_iff _ _ _).mp ht with ⟨p, hp, rfl⟩
+    exact (hsupp₀ p hp).2.2
+  have hpot₀ : (∑' p, ν₀ p * (C.potential p.1 p.2 : ℝ≥0∞)) ≤ (C.initPotential : ℝ≥0∞) :=
+    Cslib.Probability.PMF.tsum_mul_le_of_support ν₀ fun p hp =>
+      Nat.cast_le.mpr (hsupp₀ p hp).2.1
   refine ⟨ν₀, ν_final, T_ops, C_ops, he_init, fun p hp => ⟨(hsupp₀ p hp).1, (hsupp₀ p hp).2.2⟩,
     hex_steps, hseed_final, fun q hq => ⟨hrep_final q hq, hcaller_final q hq⟩, ?_⟩
   rw [add_assoc, add_assoc, add_comm (C.initPotential : ℝ≥0∞)]
@@ -714,16 +723,15 @@ theorem ExecSteps.toOfFn {C : StateTransitionImpl P D w base params s₀}
       rw [PMF.bind_map, PMF.map_bind]; ext q
       simp only [PMF.bind_apply, Function.comp_apply, μ_det]
       exact Cslib.Probability.PMF.tsum_mul_congr_support ν_rel fun t ht => by rw [hlift_proj t ht]
-    have hT_eq : (∑' p, (ν_rel.map proj) p * T_det p) = ∑' t, ν_rel t * T_step t := by
-      rw [Cslib.Probability.PMF.tsum_map_mul]
-      exact Cslib.Probability.PMF.tsum_mul_congr_support ν_rel fun t ht => by
-        dsimp only [T_det]; rw [hlift_proj t ht]
+    have hT_eq : (∑' p, (ν_rel.map proj) p * T_det p) = ∑' t, ν_rel t * T_step t :=
+      (Cslib.Probability.PMF.tsum_map_mul ..).trans
+        (Cslib.Probability.PMF.tsum_mul_congr_support ν_rel fun t ht =>
+          congrArg T_step (hlift_proj t ht))
     have hC_eq : (∑' t, ν_rel t * (C.charge t.state o : ℝ≥0∞)) = (C.charge s o : ℝ≥0∞) :=
       (Cslib.Probability.PMF.tsum_mul_congr_support ν_rel fun t ht => by rw [hs t ht]).trans
         (by rw [ENNReal.tsum_mul_right, ν_rel.tsum_coe, one_mul])
-    refine ⟨?_, ?_, fun q hq => by simp only [StateTransitionSpec.run_cons]; exact hs_final q hq⟩
-    · rw [← hT_eq]
-      refine .cons (μ_step := μ_det) (T_step := T_det) ?_ (hbind_eq ▸ hex_rest_det)
+    refine ⟨?_, ?_, fun q hq => by simpa only [StateTransitionSpec.run_cons] using hs_final q hq⟩
+    · refine hT_eq ▸ .cons (μ_step := μ_det) (T_step := T_det) ?_ (hbind_eq ▸ hex_rest_det)
       intro p hp; rw [PMF.mem_support_map_iff] at hp; obtain ⟨t, ht, rfl⟩ := hp
       obtain ⟨he_rel, hq_rel⟩ := hstep (lift (proj t)) ((hlift_proj t ht).symm ▸ ht)
       refine ⟨he_rel.congr_dist (by dsimp only [μ_det]; rw [PMF.map_comp]; rfl) le_rfl, ?_⟩
@@ -748,39 +756,24 @@ theorem steps_expected_amortized_ofFn (C : StateTransitionImpl P D w base params
       (∀ p ∈ ν_final.support, C.rep p.1 (D.run s ops).1 p.2) ∧
       T_ops + (∑' q, ν_final q * (C.potential q.1 q.2 : ℝ≥0∞)) ≤
         (D.totalCost C.charge s ops : ℝ≥0∞) + ∑' p, ν p * (C.potential p.1 p.2 : ℝ≥0∞) := by
-  let lift : C.Seed × RData r_ds → CoupledRState C.Seed D.State r_ds := fun p => ⟨p.1, s, p.2⟩
   let proj : CoupledRState C.Seed D.State r_ds → C.Seed × RData r_ds := fun t => (t.seed, t.data)
-  let ν_rel := ν.map lift
-  have hs₀ : ∀ t ∈ ν_rel.support, t.state = s := by
-    intro t ht; rw [PMF.mem_support_map_iff] at ht; obtain ⟨_, _, rfl⟩ := ht; rfl
-  have hv_rel : ∀ t ∈ ν_rel.support, D.ValidOpSeq t.state ops :=
-    fun t ht => by rw [hs₀ t ht]; exact (D.validOpSeq_iff_validHistory s ops).mpr hv
-  have hfit_rel : ∀ t ∈ ν_rel.support, PeakFitsOpSeq w base C.peakSpaceBound t.state ops :=
-    fun t ht => by
-      rw [hs₀ t ht]
-      exact (peakFitsOpSeq_iff_peakFitsHistory w base C.peakSpaceBound s ops).mpr hfit
-  have hseed_rel : ∀ s', (∀ t ∈ ν_rel.support, t.state = s') →
-      ∀ θ, (ν_rel.map CoupledRState.seed) θ ≤ C.seedSlack * C.seedLaw s' θ := by
-    intro s' hs' θ
-    obtain ⟨t₀, ht₀⟩ := ν_rel.support_nonempty
-    have hs'_eq : s' = s := (hs' t₀ ht₀).symm.trans (hs₀ t₀ ht₀)
-    subst hs'_eq; rw [PMF.map_comp]; exact hseed θ
-  have hrep_rel : ∀ t ∈ ν_rel.support, C.rep t.seed t.state t.data := by
-    intro t ht; rw [PMF.mem_support_map_iff] at ht; obtain ⟨p, hp, rfl⟩ := ht; exact hrep p hp
-  obtain ⟨ν_final_rel, T_ops, C_ops, hex_rel, hseed_final, hrep_final, hamort⟩ :=
-    C.steps_expected_amortized ops ν_rel hv_rel hfit_rel hseed_rel hrep_rel (fun _ => ⟨s, hs₀⟩)
+  obtain ⟨hs₀, ν_final_rel, T_ops, _, hex_rel, hseed_final, hrep_final, hamort⟩ :=
+    C.steps_expected_amortized_map_state ops ν
+      ((D.validOpSeq_iff_validHistory s ops).mpr hv)
+      ((peakFitsOpSeq_iff_peakFitsHistory w base C.peakSpaceBound s ops).mpr hfit) hseed hrep
   obtain ⟨hex_det, rfl, hs_final⟩ := hex_rel.toOfFn hs₀
-  have hproj_lift : ν_rel.map proj = ν := by
-    dsimp only [ν_rel]; rw [PMF.map_comp]; exact PMF.map_id ν
+  have hproj_lift :
+      (ν.map fun p => (⟨p.1, s, p.2⟩ : CoupledRState C.Seed D.State r_ds)).map proj = ν := by
+    rw [PMF.map_comp]
+    exact PMF.map_id ν
   refine ⟨ν_final_rel.map proj, T_ops, hproj_lift ▸ hex_det,
-    fun θ => by rw [PMF.map_comp]; exact hseed_final (D.run s ops).1 hs_final θ,
-    fun p hp => by
-      rw [PMF.mem_support_map_iff] at hp; obtain ⟨q, hq, rfl⟩ := hp
-      exact hs_final q hq ▸ hrep_final q hq, ?_⟩
-  rw [Cslib.Probability.PMF.tsum_map_mul]
-  have hpot_init :=
-    Cslib.Probability.PMF.tsum_map_mul ν lift fun t => (C.potential t.seed t.data : ℝ≥0∞)
-  rw [← hpot_init]; exact hamort
+    fun θ => by
+      rw [PMF.map_comp]
+      exact hseed_final (D.run s ops).1 hs_final θ,
+    fun _ hp =>
+      let ⟨q, hq, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
+      heq ▸ hs_final q hq ▸ hrep_final q hq, ?_⟩
+  rwa [Cslib.Probability.PMF.tsum_map_mul]
 
 /-- `ExecStepsOfFn` preserves caller memory `[0, base)` across all support states. -/
 theorem ExecStepsOfFn.caller_mem {C : StateTransitionImpl P D w base params s₀}
@@ -892,9 +885,8 @@ theorem ExecSteps.toExecRProgramDist {C : StateTransitionImpl P D w base params 
   | nil ν => simpa using ExecProgramSteps.nil ν
   | @cons o ops ν ν_final μ_step T_step T_rest C_rest hstep _ ih =>
     rw [← tsum_add_one_add_length_cons ν T_step T_rest o ops]
-    refine .cons (μ_step := μ_step) (T_step := fun t => T_step t + 1) (fun t ht => ?_) ih
-    obtain ⟨he, hq⟩ := hstep t ht
-    exact ⟨he.toExecRProgramDist out, hq⟩
+    exact .cons (μ_step := μ_step) (T_step := fun t => T_step t + 1)
+      (fun t ht => ⟨(hstep t ht).1.toExecRProgramDist out, (hstep t ht).2⟩) ih
 
 /-- Compile a structured `C.ExecStepsOfFn` derivation to
 `C.ExecProgramStepsOfFn (P.opProg out) out`. -/
@@ -908,9 +900,8 @@ theorem ExecStepsOfFn.toExecRProgramDist {C : StateTransitionImpl P D w base par
   | nil s ν => simpa using ExecProgramStepsOfFn.nil s ν
   | @cons s o ops ν ν_final μ_step T_step T_rest hstep _ ih =>
     rw [← tsum_add_one_add_length_cons ν T_step T_rest o ops]
-    refine .cons (μ_step := μ_step) (T_step := fun p => T_step p + 1) (fun p hp => ?_) ih
-    obtain ⟨he, hq⟩ := hstep p hp
-    exact ⟨he.toExecRProgramDist out, hq⟩
+    exact .cons (μ_step := μ_step) (T_step := fun p => T_step p + 1)
+      (fun p hp => ⟨(hstep p hp).1.toExecRProgramDist out, (hstep p hp).2⟩) ih
 
 private theorem add_halt_amort_le {a b c d e L : ℝ≥0∞} (h : a + b + c ≤ a + d + e) :
     (a + 1) + (b + L) + c ≤ (a + 1) + d + e + L :=

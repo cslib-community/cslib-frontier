@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!
 # Stateful oracle substitution with bounded state growth
@@ -198,8 +199,7 @@ private theorem runWith_cappedHandler_eq {β : Type}
           PMF.bind_map, PMF.pure_map, Prod.map, Function.comp_def, rep]
         exact PMF.bind_pure_comp _ _
       · simp only [h₁, hbud, ProbOracleComp.runWith_map, PMF.map_comp, Function.comp_def,
-          Prod.map] at hmem
-        simp only [PMF.mem_support_map_iff] at hmem
+          Prod.map, PMF.mem_support_map_iff] at hmem
         obtain ⟨⟨⟨r, s''⟩, ext''⟩, -, heq⟩ := hmem
         obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq
         dsimp only [inv] at hinv ⊢
@@ -256,16 +256,10 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
   have hword : ComputableInPolyTime (fun a => source (prepare a)) input encBits :=
     hprepare.of_enc_eq (fun _ => rfl)
   have hQ : ComputableInPolyTime Q input encUnary := by
-    have hclock : ComputableInPolyTime (fun n => qC * (n + 1) ^ qD) encUnary encUnary := by
-      fun_prop
-    exact hclock.comp (ComputableInPolyTime.length_bits.comp hword)
-  have hQ_poly : PolyBounded (fun a => (input a).length) Q := by
-    simpa only [encUnary_apply, List.length_replicate] using hQ.polyBounded_length
+    dsimp only [Q]
+    fun_prop
   obtain ⟨gC, gD, hg_bound⟩ := hgrowth.exists_le
   let G (a : Caller) : ℕ := gC * (2 * (input a).length + Q a + 2) ^ gD
-  have hG_poly : PolyBounded (fun a => (input a).length) G :=
-    (PolyBounded.const gC).mul
-      (((((PolyBounded.const 2).mul .self).add hQ_poly).add (.const 2)).pow gD)
   have hG_le (a : Caller) {w : List Bool} (hw : w.length ≤ Q a) : growth a w ≤ G a := by
     have h := hg_bound (a, w)
     simp only [length_encPair, encBits_apply] at h
@@ -278,22 +272,12 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
     Finset.le_sup (f := fun op : Operation => (operationEncoding op).length) (Finset.mem_univ op)
   obtain ⟨rC, rD, hr_bound⟩ := hhandler.length_le
   let maxState (a : Caller) : ℕ := (stateEncoding (initial a)).length + Q a * G a
-  have hmaxState_poly : PolyBounded (fun a => (input a).length) maxState :=
-    hinitial.polyBounded_length.add (hQ_poly.mul hG_poly)
   let R (a : Caller) : ℕ :=
     rC * (2 * (input a).length + 4 * opMax + 2 * Q a + maxState a + 9) ^ rD
-  have hR_poly : PolyBounded (fun a => (input a).length) R :=
-    (PolyBounded.const rC).mul
-      (((((((PolyBounded.const 2).mul .self).add (.const (4 * opMax))).add
-        ((PolyBounded.const 2).mul hQ_poly)).add hmaxState_poly).add (.const 9)).pow rD)
   let resources' (a : Caller) (_ : List Bool) : ℕ := R a + (2 * G a + 1)
-  have hres'_caller : PolyBounded (fun a => (input a).length) (fun a => resources' a []) :=
-    hR_poly.add (((PolyBounded.const 2).mul hG_poly).add (.const 1))
   have hres'_poly : PolyBounded (fun pair : Caller × List Bool =>
-      (encPair input encBits pair).length) (fun pair => resources' pair.1 pair.2) :=
-    (hres'_caller.comp (PolyBounded.self.mono fun pair => by
-      simp only [length_encPair, encBits_apply]
-      omega)).mono fun _ => le_rfl
+      (encPair input encBits pair).length) (fun pair => resources' pair.1 pair.2) := by
+    growth_poly
   let inv' (a : Caller) (sk : State × ℕ) : Prop :=
     invariant a sk.1 ∧ sk.2 ≤ Q a ∧
       (stateEncoding sk.1).length ≤ (stateEncoding (initial a)).length + sk.2 * G a
@@ -318,17 +302,10 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
         rw [← ProbOracleComp.runWith_eq_run_interpret] at hmem
         have hresLen := hr_bound (a, request, s) ExtState oracle ext ext' res hmem
         have hop := hopMax request.1
-        have hcallLen :
-            (encHandlerCall input operationEncoding stateEncoding (a, request, s)).length ≤
-              2 * (input a).length + 4 * opMax + 2 * Q a + maxState a + 8 := by
-          simp only [encHandlerCall, length_encPair, encBits_apply]
-          omega
-        have hrep : res.1.length ≤ (encPair encBits stateEncoding res).length := by
-          simp only [length_encPair, encBits_apply]
-          omega
-        have hrepBound : res.1.length ≤ R a :=
-          hrep.trans (hresLen.trans (Nat.mul_le_mul_left rC
-            (Nat.pow_le_pow_left (by omega) rD)))
+        have hrepBound : res.1.length ≤ R a := by
+          refine le_trans ?_ (hresLen.trans (Nat.mul_le_mul_left rC (Nat.pow_le_pow_left ?_ rD)))
+          all_goals simp only [encHandlerCall, length_encPair, encBits_apply]
+          all_goals omega
         have hstateEnc :
             (encPair stateEncoding encUnary (res.2, k + 1)).length ≤
               (encPair stateEncoding encUnary (s, k)).length + resources' a request.2 := by
@@ -379,13 +356,6 @@ theorem IsOraclePPTOn.run_interpret_preprocess_of_bounded_growth
       ((ProbOracleComp.support_sample _).subset hresult)).congr fun a _ _ _ => ?_).isPPTOn
   rw [ProbOracleComp.sample_run_interpret]
 
-private theorem polyBounded_caller {Caller : Type} {input : Caller ↪ List Bool}
-    {bound : Caller → ℕ} (hbound : PolyBounded (fun a => (input a).length) bound) :
-    PolyBounded (fun pair : Caller × List Bool => (encPair input encBits pair).length)
-      fun ⟨a, _⟩ => bound a :=
-  hbound.comp (PolyBounded.self.mono fun pair => by
-    simp only [length_encPair, encBits_apply]; omega)
-
 /-- Open stateful substitution when every encoded state is bounded by a polynomial `bound` in the
 caller alone, requiring no invariant, growth allowance, or support case split. -/
 theorem IsOraclePPTOn.run_interpret_preprocess_open_of_state_le
@@ -405,7 +375,7 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_state_le
           (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n))) (handler a))
         (program (prepare a))).run (initial a)) :=
   hprogram.run_interpret_preprocess_open_of_bounded_growth hprepare hhandler hinitial
-    (fun _ _ => True) (fun _ => trivial) (growth := fun a _ => bound a) (polyBounded_caller hbound)
+    (fun _ _ => True) (fun _ => trivial) (growth := fun a _ => bound a) (by growth_poly)
     fun a _ _ _ result _ => ⟨trivial, (hstate a result.2).trans (Nat.le_add_left _ _)⟩
 
 /-- Closed `ProbComp` stateful substitution when every encoded state is bounded by a polynomial
@@ -426,7 +396,7 @@ theorem IsOraclePPTOn.run_interpret_preprocess_of_state_le
         (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifFin n)) (handler a))
         (program (prepare a))).run (initial a)) :=
   hprogram.run_interpret_preprocess_of_bounded_growth hprepare hhandler hinitial
-    (fun _ _ => True) (fun _ => trivial) (growth := fun a _ => bound a) (polyBounded_caller hbound)
+    (fun _ _ => True) (fun _ => trivial) (growth := fun a _ => bound a) (by growth_poly)
     fun a _ _ _ result _ => ⟨trivial, (hstate a result.2).trans (Nat.le_add_left _ _)⟩
 
 /-- Running an oracle-PPT program via `ProbOracleComp.run` against an efficient memoryless

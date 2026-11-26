@@ -127,17 +127,11 @@ private theorem colorPart_mul (c : σ → Fin r) (I : Finset (Fin r)) {P Q : MvP
   rw [← Finset.mem_antidiagonal.1 hx, map_add]
   simp only [Finsupp.ext_iff, Finsupp.add_apply, colorInd, colorOnes,
     Finsupp.equivFunOnFinite_symm_apply_apply, Finset.mem_compl]
-  refine ⟨fun h => ⟨fun j => ?_, fun j => ?_⟩, fun h j => ?_⟩
-  · have hj := h j
-    by_cases hjI : j ∈ I
-    · simpa [hjI, hw2 j hjI] using hj
-    · simp [hjI, hw1 j hjI]
-  · have hj := h j
-    by_cases hjI : j ∈ I
-    · simp [hjI, hw2 j hjI]
-    · simpa [hjI, hw1 j hjI] using hj
-  · rw [h.1 j, h.2 j]
-    by_cases hjI : j ∈ I <;> simp [hjI]
+  rw [← forall_and]
+  refine forall_congr' fun j => ?_
+  by_cases hjI : j ∈ I
+  · simp [hjI, hw2 j hjI]
+  · simp [hjI, hw1 j hjI]
 
 /-- The colour part of a polynomial inherits its split rank across the variables of a set of
 colours. -/
@@ -192,11 +186,9 @@ private theorem partialEval_mem_supported (c : σ → Fin r) (I : Finset (Fin r)
     {s : Set σ} {p : MvPolynomial σ F} (hp : p ∈ supported F s) :
     partialEval c I β p ∈ supported F {u | u ∈ s ∧ c u ∉ I} :=
   aeval_mem_of_mem_supported hp _ fun u hu => by
-    by_cases h : c u ∈ I
-    · simp only [h, ↓reduceIte]
-      exact Subalgebra.algebraMap_mem _ (β u)
-    · simp only [h, ↓reduceIte]
-      exact X_mem_supported.2 ⟨hu, h⟩
+    split_ifs with h
+    · exact Subalgebra.algebraMap_mem _ (β u)
+    · exact X_mem_supported.2 ⟨hu, h⟩
 
 private theorem pderiv_eq_zero_of_mem_supported {s : Set σ} {p : MvPolynomial σ F}
     (hp : p ∈ supported F s) {v : σ} (hv : v ∉ s) : pderiv v p = 0 :=

@@ -287,21 +287,15 @@ theorem initCode_demonicExec {U V w base : ℕ} {x₀ : RData rResize}
       hs_0.seq_eq <| hs_1.seq_eq <| hs_2.seq_eq <| hs_3.seq_eq hs_4).mono
       (by decide) (fun _ h => h)
   have hzero_ge5 : ∀ off, 5 ≤ off → y_fin.mem (base + off) = 0 := fun off hoff => by
-    have h4 : base + off ≠ base + 4 := fun h => by have := Nat.add_left_cancel h; omega
-    have h3 : base + off ≠ base + 3 := fun h => by have := Nat.add_left_cancel h; omega
-    have h2 : base + off ≠ base + 2 := fun h => by have := Nat.add_left_cancel h; omega
-    have h1 : base + off ≠ base + 1 := fun h => by have := Nat.add_left_cancel h; omega
-    have h0 : base + off ≠ base + 0 := fun h => by have := Nat.add_left_cancel h; omega
-    rw [hmy_ne (base + off) h4, hm₇_ne (base + off) h3, hm₆_ne (base + off) h2,
-      hm₅_ne (base + off) h1, hm₄_ne (base + off) h0]
-    exact (congrFun hx₃_mem (base + off)).trans
-      (hx₀.zero_above (by rw [hfr₀]; exact Nat.le_add_right base off))
+    have hne (k : ℕ) (hk : k < 5) : base + off ≠ base + k :=
+      (Nat.add_lt_add_left (hk.trans_le hoff) base).ne'
+    rw [hmy_ne _ (hne 4 (by decide)), hm₇_ne _ (hne 3 (by decide)), hm₆_ne _ (hne 2 (by decide)),
+      hm₅_ne _ (hne 1 (by decide)), hm₄_ne _ (hne 0 (by decide)), hx₃_mem]
+    exact hx₀.zero_above (by rw [hfr₀]; exact Nat.le_add_right base off)
   have hbelow : ∀ addr < base, y_fin.mem addr = x₀.mem addr := fun addr hlt => by
-    have hne (k : ℕ) : addr ≠ base + k :=
-      Nat.ne_of_lt (lt_of_lt_of_le hlt (Nat.le_add_right base k))
-    rw [hmy_ne addr (hne 4), hm₇_ne addr (hne 3), hm₆_ne addr (hne 2),
-      hm₅_ne addr (hne 1), hm₄_ne addr (hne 0)]
-    exact congrFun hx₃_mem addr
+    have hne (k : ℕ) : addr ≠ base + k := (hlt.trans_le (Nat.le_add_right base k)).ne
+    rw [hmy_ne _ (hne 4), hm₇_ne _ (hne 3), hm₆_ne _ (hne 2), hm₅_ne _ (hne 1), hm₄_ne _ (hne 0),
+      hx₃_mem]
   have hne_add {a b : ℕ} (hab : a ≠ b) : base + a ≠ base + b :=
     fun h => hab (Nat.add_left_cancel h)
   have hhdr : RootHeaderValid U V w 0 0 0 base y_fin.mem := by
@@ -318,14 +312,11 @@ theorem initCode_demonicExec {U V w base : ℕ} {x₀ : RData rResize}
       exact hm₆_2
     · rw [hmy_ne (base + 3) (hne_add (by decide))]
       exact hm₇_3
-  have hrep_empty : EpochRep U V w base (EpochState.empty U) (LatentSeed.empty U) y_fin := by
-    refine ⟨LatentSeed.empty_cap U, ?_, hy_base, fun hpos => ?_⟩
-    · dsimp only [EpochState.empty]
-      rw [Dictionary.dom_empty, Finset.card_empty]
-      exact compactedRep_empty hyb hy_fin_fr hhdr
-    · dsimp only [EpochState.empty] at hpos
-      rw [Dictionary.dom_empty, Finset.card_empty] at hpos
-      exact absurd hpos (Nat.not_lt_zero 0)
+  have hrep_empty : EpochRep U V w base (EpochState.empty U) (LatentSeed.empty U) y_fin :=
+    ⟨LatentSeed.empty_cap U, by
+      simpa only [EpochState.empty, Dictionary.dom_empty, Finset.card_empty] using
+        compactedRep_empty hyb hy_fin_fr hhdr,
+      hy_base, fun hpos => by simp [EpochState.empty] at hpos⟩
   exact ⟨y_fin, hex_all, hrep_empty, hbelow⟩
 
 /-- Relocatable `Resizable.SubroutineCode` over `Basis.exact` for the resizable succinct dynamic
@@ -369,15 +360,11 @@ theorem epochSpaceBound_le_succinctWords {U V w : ℕ}
     epochSpaceBound U V w prefOps ≤ Dynamic.succinctWords 1355 441 U V w n_t := by
   intro n_t
   have hanc := epochAnchorInv_run hU_pos (epochAnchorInv_empty U) hvh
-  have hd : (EpochState.run V (EpochState.empty U) prefOps).dict =
-      ((Dynamic.spec U V U).run (Dictionary.empty U) prefOps).1 :=
-    EpochState.dict_run V (EpochState.empty U) prefOps
-  have hev : EpochValid U n_t (EpochState.run V (EpochState.empty U) prefOps).cap := by
-    dsimp only [n_t]; rw [← hd]; exact hanc.1
+  have hd := EpochState.dict_run V (EpochState.empty U) prefOps
   unfold epochSpaceBound
-  dsimp only
+  dsimp only [n_t]
   rw [hd]
-  exact compactedEpochWords_le_succinctWords hw hU hU_pos hV_pos hev
+  exact compactedEpochWords_le_succinctWords hw hU hU_pos hV_pos (hd ▸ hanc.1)
 
 /-- **`1 · OPT` Resting Bit-Space Bound (`w_mul_epochSpaceBound_le_bits`):**
 After any admissible prefix `prefOps` reaching `n_t` active keys, `w * epochSpaceBound U V w
@@ -673,32 +660,21 @@ theorem seq_expected_amortized {U V w base : ℕ} {x₀ : RData rResize}
   have hob_fit : ObliviousPeakFits w base C.peakSpaceBound [] ops :=
     obliviousPeakFits_of_succinctWords hw_pos hU_pos hU hV_pos hvh hfit_ops
   have hfit₀' : Fits w (base + C.spaceBound []) := by
-    change Fits w (base + epochSpaceBound U V w [])
-    rwa [epochSpaceBound_nil]
+    simpa only [C, obliviousImpl, epochSpaceBound_nil] using hfit₀
   obtain ⟨ν₀, ν_final, T_ops, he_init, hcaller₀, hex, hfin, hcontract, hcost⟩ :=
     C.seq_expected ops hx₀ hfr₀ (fun j => Fin.elim0 j) hfit₀' hv_seq hob_fit
-  have he_init' : ExecRCodeDist w (initCode U V w) x₀ (ν₀.map LatentRState.data)
-      initSteps (base + 8) := by
-    change ExecRCodeDist w (initCode U V w) x₀ (ν₀.map LatentRState.data)
-      initSteps (base + epochSpaceBound U V w []) at he_init
-    rwa [epochSpaceBound_nil] at he_init
+  rw [show C.spaceBound [] = 8 from epochSpaceBound_nil U V w] at he_init
   have htr_eq : ∀ t ∈ ν_final.support,
       t.transcript = ((Dynamic.spec U V U).run (Dictionary.empty U) ops).2 := by
     rw [(Dynamic.spec U V U).toObliviousSequenceSpec_contract_iff_of_hasStepFn
       (Dictionary.empty U) hvh] at hcontract
-    intro t ht
-    exact hcontract t.transcript ((PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩)
+    exact fun t ht => hcontract t.transcript ((PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩)
   have hsp_le : C.spaceBound ops ≤ Dynamic.succinctWords 1355 441 U V w n_fin :=
     epochSpaceBound_le_succinctWords hw_pos hU_pos hU hV_pos hvh
-  refine ⟨ν₀, ν_final, T_ops, he_init', hcaller₀, hex, fun t ht => ?_, ?_⟩
+  refine ⟨ν₀, ν_final, T_ops, he_init, hcaller₀, hex, fun t ht => ?_, ?_⟩
   · obtain ⟨hbdd, ⟨hlo, hhi, hreg⟩, hmem⟩ := hfin t ht
     exact ⟨hbdd, ⟨hlo, hhi.trans (Nat.add_le_add_left hsp_le base), hreg⟩, hmem, htr_eq t ht⟩
-  · have htc : C.totalCharge ops = ops.length * resizableCharge := by
-      simp [C, obliviousImpl, ObliviousSequenceImpl.totalCharge]
-    change (initSteps : ℝ≥0∞) + T_ops ≤
-      (initSteps : ℝ≥0∞) + ((0 : ℕ) : ℝ≥0∞) + (C.totalCharge ops : ℝ≥0∞) at hcost
-    rw [Nat.cast_zero, add_zero, htc] at hcost
-    exact hcost
+  · simpa [C, obliviousImpl, ObliviousSequenceImpl.totalCharge] using hcost
 
 /-- **Standard-Basis End-to-End Expected-Amortized Resizable Succinct Dictionary
 (`seq_expected_amortized_standard`):**

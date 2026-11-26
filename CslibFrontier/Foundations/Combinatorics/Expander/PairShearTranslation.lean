@@ -125,8 +125,7 @@ theorem expect_sq_sub_expect_update_le_pairShearTranslation (ρ ρ' : Equiv.Perm
   have hGinv (p : Y × (Fin H → ZMod L)) (a b : ZMod L) : G (p.1, upd2 i j p.2 a b) = G p := by
     simp only [hG, upd2_upd2]
   refine (Fintype.expect_sq_sub_expect_update_le i f G fun p c ↦ ?_).trans ?_
-  · have := hGinv p c (update p.2 i c j)
-    simpa only [upd2, update_eq_self] using this
+  · simpa only [upd2, update_eq_self] using hGinv p c (update p.2 i c j)
   -- The relative Poincaré inequality, with everything but the pair as the spectator.
   set F : (Y × (Fin H → ZMod L)) × (ZMod L × ZMod L) → ℝ :=
     fun q ↦ f (q.1.1, upd2 i j q.1.2 q.2.1 q.2.2) with hF
@@ -141,14 +140,11 @@ theorem expect_sq_sub_expect_update_le_pairShearTranslation (ρ ρ' : Equiv.Perm
       (ρ'.prodCongr (Equiv.refl _)) L k q) - F q) ^ 2 =
       𝔼 p, (f (pairShearTranslationMove ρ ρ' i j k p) - f p) ^ 2 := by
     rw [← expect_upd2 i j fun p ↦ (f (pairShearTranslationMove ρ ρ' i j k p) - f p) ^ 2]
-    refine expect_congr rfl fun q _ ↦ ?_
-    obtain ⟨⟨y, w⟩, a, b⟩ := q
+    refine expect_congr rfl fun ⟨⟨y, w⟩, a, b⟩ _ ↦ ?_
     fin_cases k <;>
       simp [hF, twistedShearTranslationMove, pairShearTranslationMove, shearFst_apply,
         shearSnd_apply, upd2_apply_fst hij, update_upd2_fst hij, upd2]
-  rw [hL] at hA
-  refine hA.trans_eq ?_
-  simp only [hR]
+  simpa only [hL, hR] using hA
 
 /-- **All coordinates, from the moves of coordinate pairs**: if `σ i ≠ i` for every coordinate `i`,
 the second moment of `f` about its average over the whole tuple is at most `512` times the sum over
