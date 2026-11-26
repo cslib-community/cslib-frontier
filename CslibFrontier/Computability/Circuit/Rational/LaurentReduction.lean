@@ -215,11 +215,8 @@ private lemma nonempty_integralFrame_cons {ι : Type*}
             pairing := ?_
             reduced_independent := ?_ }⟩
   · intro i j
-    refine Fin.cases ?_ (fun a => ?_) i <;> refine Fin.cases ?_ (fun z => ?_) j
-    · simp [π, hxc]
-    · simp [π, hbc, Ne.symm (Fin.succ_ne_zero _)]
-    · simp [φ, π, hxc]
-    · simp [φ, π, hbc, b.pairing]
+    refine Fin.cases ?_ (fun _ => ?_) i <;> refine Fin.cases ?_ (fun _ => ?_) j <;>
+      simp [φ, π, hxc, hbc, b.pairing, Ne.symm (Fin.succ_ne_zero _)]
   · change LinearIndependent K (reduce ∘ Fin.cons x b.vector)
     rw [Fin.comp_cons, linearIndependent_finCons]
     refine ⟨b.reduced_independent, fun hx => one_ne_zero (α := K) ?_⟩
@@ -417,8 +414,7 @@ private theorem reduction_weighted_supported {ι : Type*} [Finite ι]
   classical
   obtain ⟨x, hxU, rfl⟩ := hyU
   by_cases hx : x = 0
-  · subst x
-    simp [weightMap, reduction]
+  · simp [hx, weightMap, reduction]
   obtain ⟨c, u, hu, hnI, hnc⟩ := normalize_vector x hx
   have hnU : u • x ∈ U := U.smul_mem u hxU
   have hr : reduce (u • x) ≠ 0 := fun he =>
@@ -475,15 +471,13 @@ private theorem exists_projection_subspace {ι : Type*} [Finite ι]
     rw [← hs, finrank_span_eq_card hi, Fintype.card_fin]
     exact b'.length_eq_finrank.symm
   · intro x hxU hxI hxP
-    have hx : reduce x ∈ Submodule.span K (Set.range (fun j => reduce (b'.vector j))) := by
-      rw [← SetLike.mem_coe, ← reducedSet_eq_span b']
-      exact ⟨x, hxU, hxI, rfl⟩
-    obtain ⟨c, hc⟩ := (Submodule.mem_span_range_iff_exists_fun K).mp hx
+    obtain ⟨c, hc⟩ := (Submodule.mem_span_range_iff_exists_fun K).mp
+      ((reducedSet_eq_span b').subset ⟨x, hxU, hxI, rfl⟩)
     have hh : ∑ j, c j • P (reduce (b.vector (a j))) = 0 := by
-      rw [← hxP, ← hc, map_sum]; simp only [map_smul]; rfl
+      simpa only [map_sum, map_smul, b', IntegralFrame.subframe, Function.comp_apply] using
+        (congrArg P hc).trans hxP
     have hz := Fintype.linearIndependent_iff.mp hi c hh
-    rw [← hc]
-    exact Finset.sum_eq_zero fun i _ => by rw [hz i, zero_smul]
+    simp [← hc, b', IntegralFrame.subframe, hz]
 
 /-- Low coordinate projection and its complementary support subspace. -/
 def lowProjection {ι : Type*} (w : ι → ℕ) (A : ℕ) :
@@ -601,9 +595,9 @@ private lemma reducedSubspace_liftEquiv (E : (ι → K) ≃ₗ[K] (κ → K))
   congr 1
   ext y
   constructor
-  · rintro ⟨z, ⟨x, hxU, rfl⟩, hzI, rfl⟩
-    have hxI := (integral_liftEquiv_iff E x).mp hzI
-    exact ⟨reduce x, ⟨x, hxU, hxI, rfl⟩, (reduction_liftMap E.toLinearMap x).symm⟩
+  · rintro ⟨_, ⟨x, hxU, rfl⟩, hzI, rfl⟩
+    exact ⟨reduce x, ⟨x, hxU, (integral_liftEquiv_iff E x).mp hzI, rfl⟩,
+      (reduction_liftMap E.toLinearMap x).symm⟩
   · rintro ⟨z, ⟨x, hxU, hxI, rfl⟩, rfl⟩
     exact ⟨liftEquiv E x, ⟨x, hxU, rfl⟩, liftMap_integral E.toLinearMap hxI,
       reduction_liftMap E.toLinearMap x⟩
