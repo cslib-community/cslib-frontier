@@ -613,8 +613,6 @@ theorem fillLoop_spec {w B e : ℕ} (hfit : Fits w (B + e)) :
     simp only [show ¬(B + x.regs iReg ≤ a ∧ a < B + e) by omega, ↓reduceIte]
   | d + 1, x, hb, he, hz, ho, hd => by
     set i := x.regs iReg with hi
-    have : Fits w (B + i) := hfit.of_le (by omega)
-    have : Fits w (i + 1) := hfit.of_le (by omega)
     refine WP.exists_execWithin (WP.loop_iter (by simp [Cond.holds_lt, he, ← hi]; omega) ?_)
     unfold fillBody
     wram_exec [hb, hz, ho, ← hi]
@@ -643,15 +641,9 @@ theorem ampSetup_exec (k c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
     ExecWithin w ampSetup (Data.init (k :: c :: encode φ)) (ampSetupData k c φ) 18 ∧
       RoundFrame φ 4 ((k :: c :: encode φ).length + 1) (ampSetupData k c φ).mem
         (ampSetupData k c φ) := by
-  have : Fits w 1 := hw.of_le (by omega)
-  have : Fits w 2 := hw.of_le (by simp [encode]; omega)
-  have : Fits w 3 := hw.of_le (by simp [encode]; omega)
-  have : Fits w 4 := hw.of_le (by simp [encode]; omega)
-  have : Fits w ((k :: c :: encode φ).length + 1 + n + n) := hw.of_le (by omega)
+  have hlen : 4 ≤ (k :: c :: encode φ).length + 1 := by simp [encode]
   have hkn : (k - 1) * n ≤ k * n := Nat.mul_le_mul_right n (Nat.sub_le k 1)
-  have : Fits w ((k - 1) * n + k) := hw.of_le (by omega)
-  have : Fits w (((k - 1) * n + k - 1) / k) := hw.of_le (by
-    have := Nat.div_le_self ((k - 1) * n + k - 1) k; omega)
+  have hdiv := Nat.div_le_self ((k - 1) * n + k - 1) k
   have hm0 : (Data.init (k :: c :: encode φ) : Data 32).mem 0 = (k :: c :: encode φ).length := rfl
   have hm1 : (Data.init (k :: c :: encode φ) : Data 32).mem 1 = k := rfl
   have hm2 : (Data.init (k :: c :: encode φ) : Data 32).mem 2 = c := rfl
@@ -680,8 +672,6 @@ theorem countSetup_spec {w B e c : ℕ} (x : Data 32) (hz : x.regs zero = 0) (ho
       y.regs bLen = (countDigits e c).length ∧ HoldsList B (countDigits e c) y.mem ∧
       ∀ a < B, y.mem a = x.mem a := by
   have hlen := length_countDigits_le e c
-  have : Fits w (B + e) := hw.of_le (by omega)
-  have : Fits w (e + 1) := hw.of_le (by omega)
   refine WP.exists_execWithin ?_
   unfold countSetup countTop
   wram_exec [hz]
@@ -700,11 +690,11 @@ theorem countSetup_spec {w B e c : ℕ} (x : Data 32) (hz : x.regs zero = 0) (ho
   · rintro ⟨t, ht⟩
     simp only [List.length_append, List.length_replicate, List.length_singleton] at ht
     change Function.update (β := fun _ => ℕ) _ (B + e) 1 (B + t) = (List.replicate e 0 ++ [1])[t]
-    by_cases hte : t = e
-    · simp [hte]
-    · simp only [Function.update_of_ne (show B + t ≠ B + e by omega)]
-      rw [ite_eq_left (by omega), List.getElem_append_left (by simp; omega),
-        List.getElem_replicate]
+    rcases eq_or_ne t e with rfl | hte
+    · simp
+    · have hne : B + t ≠ B + e := by omega
+      rw [Function.update_of_ne hne, ite_eq_left (by omega),
+        List.getElem_append_left (by simp; omega), List.getElem_replicate]
   · simp; omega
 
 /-- The instruction bound of the counter's setup. -/
@@ -795,11 +785,10 @@ theorem ampProgram_spec (k c : ℕ) (hk : 1 ≤ k) (φ : CNF (Fin n)) {w : ℕ}
   obtain ⟨hhalt, hcalls, hpost, hlaw⟩ := hall.program out (T' := ampTime k n c L)
     (by
       simp only [ampTime, ampRoundTime, roundCoreTime, countTime]
-      have h1 := Nat.mul_le_mul_left n
-        (show 28 * (encodeClauses φ).length + 40 ≤ 28 * L + 40 by omega)
-      have h2 := Nat.mul_le_mul_left (ppzRounds k n c)
-        (show n * (28 * (encodeClauses φ).length + 40) + 6 + 12 * (encodeClauses φ).length + 35 ≤
-          n * (28 * L + 40) + 12 * L + 41 by omega)
+      have h1 := Nat.mul_le_mul_left n hE
+      have h2 : n * (28 * (encodeClauses φ).length + 40) + 6 + 12 * (encodeClauses φ).length + 35 ≤
+          n * (28 * L + 40) + 12 * L + 41 := by linarith
+      have h3 := Nat.mul_le_mul_left (ppzRounds k n c) h2
       omega)
     RandCfg.accepts fun _ _ => rfl
   exact ⟨hhalt, hcalls, fun cfg hcfg =>

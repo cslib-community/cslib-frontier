@@ -96,12 +96,11 @@ theorem disequality_or_pin_of_missing_constant {R : Set (Fin m → Bool)}
     exact hmin (k + 2) _ ⟨.equalDrop c⟩ (by omega)
       ⟨⟨_, mem_adjacent (hu ⟨2, by omega⟩) false (by simp [spike])⟩, constant_not_mem_adjacent b hz⟩
   obtain rfl | rfl : n = 0 ∨ n = 1 := by omega
-  · have ha' : a = fun _ => !b := (eq_or_eq_not (fun _ => b) a).resolve_left fun h => hz (h ▸ ha)
+  · have ha' : (fun _ : Fin 1 => !b) ∈ S :=
+      (eq_or_eq_not (fun _ => b) a).resolve_left (fun h => hz (h ▸ ha)) ▸ ha
     have heq : S = pin (!b) := by
       ext x
-      rcases eq_or_eq_not (fun _ => b) x with rfl | rfl
-      · simp [pin, hz]
-      · simp [pin, show (fun _ : Fin 1 => !b) ∈ S from ha' ▸ ha]
+      rcases eq_or_eq_not (fun _ => b) x with rfl | rfl <;> simp [pin, hz, ha']
     exact .inr ⟨heq ▸ c⟩
   · have hlast : (fun _ : Fin 2 => !b) ∉ S := fun h => hmin 1 _ ⟨.equalDrop c⟩ (by omega)
       ⟨⟨_, mem_adjacent h false (by simp)⟩, constant_not_mem_adjacent b hz⟩
@@ -149,27 +148,23 @@ private theorem binary_minor_of_failure {R : Set (Fin m → Bool)}
     have heq : (fun i => f (fun q => j.removeNth (a q) i)) = fun _ : Fin n => b :=
       congrArg j.removeNth heout
     exact heq ▸ hp (fun q => j.removeNth (a q)) (fun q => remove_mem_project (ha q) j)
-  have hn2 : 2 ≤ n + 1 := by
-    by_contra hh
-    obtain rfl : n = 0 := by omega
+  have hn0 : n ≠ 0 := by
+    rintro rfl
     have heq (q : Fin 2) : a q = fun _ => !b :=
       (eq_or_eq_not (fun _ => b) (a q)).resolve_left fun h => hz (h ▸ ha q)
     exact bad_pair a ha hout 0 (by rw [heq 0, heq 1])
   have hnle : n + 1 ≤ 2 := by
     by_contra hh
-    let i : Fin (n + 1) := ⟨0, by omega⟩
-    let j : Fin (n + 1) := ⟨1, by omega⟩
-    let z : Fin 2 → Fin (n + 1) → Bool := ![spike b i, spike b j]
+    obtain ⟨k, rfl⟩ : ∃ k, n = k + 2 := ⟨n - 2, by omega⟩
+    let z : Fin 2 → Fin (k + 3) → Bool := ![spike b 0, spike b 1]
     have hez : (fun p => f (fun q => z q p)) = fun _ => b := funext fun p => by
-      by_cases hi : p = i
-      · exact hdiff _ (by simp [z, spike, hi, i, j])
-      by_cases hj : p = j
-      · exact hdiff _ (by simp [z, spike, hj, i, j])
-      have hconst : (fun q => z q p) = fun _ => b :=
-        funext fun q => by fin_cases q <;> simp [z, spike, hi, hj]
-      rw [hconst, hid]
-    exact bad_pair z (fun q => by fin_cases q <;> exact hu _) (hez.symm ▸ hz) ⟨2, by omega⟩
-      (by simp [z, spike, i, j])
+      by_cases h01 : p = 0 ∨ p = 1
+      · rcases h01 with rfl | rfl <;> exact hdiff _ (by simp [z, spike])
+      · have hconst : (fun q => z q p) = fun _ => b :=
+          funext fun q => by fin_cases q <;> simp [z, spike, not_or.1 h01]
+        rw [hconst, hid]
+    exact bad_pair z (Fin.forall_fin_two.2 ⟨hu 0, hu 1⟩) (hez.symm ▸ hz) ⟨2, by omega⟩
+      (by simp [z, spike, Fin.ext_iff])
   obtain rfl : n = 1 := by omega
   refine ⟨S, ⟨c⟩, fun x hx => ?_, hz⟩
   have rows : ∀ b (x : Fin 2 → Bool), x 0 ≠ x 1 → x = spike b 0 ∨ x = spike b 1 := by decide
@@ -183,21 +178,16 @@ theorem disequality_of_pins {R : Set (Fin m → Bool)} {S : Set (Fin n → Bool)
     (ha : ¬IsPolymorphism (fun a : Fin 2 → Bool => a 0 && a 1) R)
     (ho : ¬IsPolymorphism (fun a : Fin 2 → Bool => a 0 || a 1) S) :
     Available arity sem disequality := by
-  obtain ⟨P, ⟨p⟩, hinP, hzP⟩ := binary_minor_of_failure hR pins false
-    (fun a => a 0 && a 1) (fun b => by cases b <;> rfl)
-    (by intro a h; cases h0 : a 0 <;> cases h1 : a 1 <;> simp_all) ha
-  obtain ⟨Q, ⟨q⟩, hinQ, hzQ⟩ := binary_minor_of_failure hS pins true
-    (fun a => a 0 || a 1) (fun b => by cases b <;> rfl)
-    (by intro a h; cases h0 : a 0 <;> cases h1 : a 1 <;> simp_all) ho
+  obtain ⟨P, ⟨p⟩, hinP, hzP⟩ :=
+    binary_minor_of_failure hR pins false _ Bool.and_self (by decide) ha
+  obtain ⟨Q, ⟨q⟩, hinQ, hzQ⟩ :=
+    binary_minor_of_failure hS pins true _ Bool.or_self (by decide) ho
   have heq : P ∩ Q = disequality := by
     refine Set.Subset.antisymm (fun x ⟨hp, hq⟩ he => ?_) fun x hx => ⟨hinP hx, hinQ hx⟩
-    have hconst : x = fun _ => x 0 := by
-      ext i
-      fin_cases i
-      exacts [rfl, he.symm]
-    cases hb : x 0
-    · exact hzP (hconst.trans (funext fun _ => hb) ▸ hp)
-    · exact hzQ (hconst.trans (funext fun _ => hb) ▸ hq)
+    have hconst : ∀ y : Fin 2 → Bool, y 0 = y 1 → y = (fun _ => false) ∨ y = fun _ => true := by
+      decide
+    rcases hconst x he with rfl | rfl
+    exacts [hzP hp, hzQ hq]
   exact ⟨heq ▸ Construction.binaryMeet p q⟩
 
 /-- Disequality and failure of complement construct both unary pins. Each descent uses only
