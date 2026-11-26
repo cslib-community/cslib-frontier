@@ -139,4 +139,19 @@ theorem exists_isFixedPt_pi_simplex {ι : Type*} [Finite ι] {S : ι → Type*}
   · exact (continuous_pi fun z => (continuous_apply z.2).comp (continuous_apply z.1)).continuousOn
   · exact fun p hp => funext fun i => simplexRetraction_eq (hp i).1 (hp i).2
 
+/-- **Brouwer's fixed-point theorem** for the standard simplex
+`{p : S → ℝ | (∀ a, 0 ≤ p a) ∧ ∑ a, p a = 1}` over a finite nonempty type `S`. -/
+theorem exists_isFixedPt_simplex {S : Type*} [Fintype S] [Nonempty S] {f : (S → ℝ) → S → ℝ}
+    (hf : MapsTo f {p | (∀ a, 0 ≤ p a) ∧ ∑ a, p a = 1} {p | (∀ a, 0 ≤ p a) ∧ ∑ a, p a = 1})
+    (hc : ContinuousOn f {p | (∀ a, 0 ≤ p a) ∧ ∑ a, p a = 1}) :
+    ∃ p : S → ℝ, ((∀ a, 0 ≤ p a) ∧ ∑ a, p a = 1) ∧ IsFixedPt f p := by
+  let Δ : Set (S → ℝ) := {p | (∀ a, 0 ≤ p a) ∧ ∑ a, p a = 1}
+  let PiΔ : Set (Unit → S → ℝ) := {q | ∀ i : Unit, (∀ a, 0 ≤ q i a) ∧ ∑ a, q i a = 1}
+  let g : (Unit → S → ℝ) → Unit → S → ℝ := fun q _ => f (q ())
+  have hg : MapsTo g PiΔ PiΔ := fun q hq _ => hf (hq ())
+  have hgc : ContinuousOn g PiΔ := continuousOn_pi.2 fun _ =>
+    hc.comp ((continuous_apply ()).continuousOn) fun _ hq => hq ()
+  obtain ⟨q, hq, hfix⟩ := exists_isFixedPt_pi_simplex hg hgc
+  exact ⟨q (), hq (), congrFun hfix ()⟩
+
 end Cslib.Brouwer

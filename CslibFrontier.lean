@@ -368,6 +368,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Foundations.Data.Code.BallVolume
 public import CslibFrontier.Computability.PCP.ConstraintGraph
 public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.Design
+public import CslibFrontier.Foundations.Analysis.Berge
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.TowerPlan.Constants
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ScheduleCount
 public import CslibFrontier.Foundations.Probability.InvarianceSums
@@ -9825,6 +9826,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Measure.DTIME
 public import CslibFrontier.Computability.LogSpaceDerandomization.HierarchyTaskData
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.Static
 public import CslibFrontier.Foundations.Data.Nat.InverseAckermann
+public import CslibFrontier.Foundations.Analysis.Kakutani
 public import CslibFrontier.Computability.BlumComplexity.Speedup
 public import CslibFrontier.Computability.WordRAM.Realization.Reindex
 public import CslibFrontier.Algorithms.Lean.CYK.Basic
