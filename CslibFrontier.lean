@@ -5647,6 +5647,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Uni.Auto
 public import CslibFrontier.Computability.Circuit.Boolean.ShallowSymmetric.Construction
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Option
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT.Tracks
+public import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.CountingQuantitative
 public import CslibFrontier.Computability.Communication.Equality
 public import CslibFrontier.Algorithms.Lean.Huffman.Kraft
 public import CslibFrontier.Algorithms.Lean.Kruskal.SimpleGraph
