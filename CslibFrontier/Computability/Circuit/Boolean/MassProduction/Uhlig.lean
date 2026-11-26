@@ -123,18 +123,15 @@ theorem complexity_directProduct_two_pow_le {p m L H : ℕ}
   | succ d ih =>
     intro n hn hH f
     obtain rfl : n = p + (d * p + m) := by rw [hn]; ring
-    have hlayer := complexity_directProduct_two_mul_le (t := 2 ^ d)
-      (ih (d * p + m) rfl fun e he => hH e (Nat.lt_succ_of_lt he)) f
-    rw [show 2 ^ (d + 1) = 2 * 2 ^ d from pow_succ' 2 d]
-    refine hlayer.trans ?_
+    rw [pow_succ' 2 d, pow_succ' (2 ^ p + 1) d]
+    refine (complexity_directProduct_two_mul_le (t := 2 ^ d)
+      (ih (d * p + m) rfl fun e he => hH e (Nat.lt_succ_of_lt he)) f).trans ?_
     have hHd := hH d (Nat.lt_succ_self d)
-    rw [pow_succ']
     have hApos : 0 < (2 ^ p + 1) ^ d := by positivity
     generalize (2 ^ p + 1) ^ d = A at *
-    generalize 2 ^ d = T at *
     have hK : 1 ≤ 2 ^ p + 1 := Nat.le_add_left 1 _
-    generalize 2 ^ p + 1 = K at *
-    have hKA : 1 ≤ K * A := Nat.one_le_iff_ne_zero.mpr (Nat.mul_ne_zero (by omega) (by omega))
+    generalize 2 ^ d = T, 2 ^ p + 1 = K at *
+    have hKA : 1 ≤ K * A := Nat.mul_pos hK hApos
     calc K * (A * (L + d * T * H)) + T * layerOverhead p (d * p + m)
         ≤ K * (A * (L + d * T * H)) + K * A * (T * H) := by
           refine Nat.add_le_add_left ?_ _
@@ -159,12 +156,11 @@ theorem eventually_mul_complexity_single_le (Q : ℕ) :
   have hmpos : (0 : ℝ) < m := by exact_mod_cast (show 0 < m by omega)
   have hQpos : (0 : ℝ) < Q := by exact_mod_cast hQ
   rw [le_div_iff₀ hmpos] at h
-  have : (Q : ℝ) * m * complexity interpretation (single g) ≤ (Q + 1) * 2 ^ m :=
+  exact_mod_cast
     calc (Q : ℝ) * m * complexity interpretation (single g) =
           Q * (complexity interpretation (single g) * m) := by ring
       _ ≤ Q * ((1 + 1 / Q) * 2 ^ m) := by gcongr
       _ = (Q + 1) * 2 ^ m := by field_simp
-  exact_mod_cast this
 
 /-- The per-layer overhead with prefixes of `2 log₂ n + 2` bits is eventually below
 `2 ^ (n / 2)`, even after multiplication by `4 P n`. -/
@@ -222,13 +218,9 @@ theorem mul_complexity_directProduct_le {P X n d p m : ℕ}
   set L := (X + 1) * 2 ^ m / (X * m) with hLdef
   have hXm : 0 < X * m := Nat.mul_pos hX0 hm
   have hL' : ∀ g : BooleanFunction m, complexity interpretation (directProduct g 1) ≤ L :=
-    fun g => complexity_directProduct_one_le.trans <| (Nat.le_div_iff_mul_le hXm).mpr <| by
-      calc complexity interpretation (single g) * (X * m) =
-            X * m * complexity interpretation (single g) := by ring
-        _ ≤ (X + 1) * 2 ^ m := hL g
-  have hLspec : X * m * L ≤ (X + 1) * 2 ^ m := by
-    rw [mul_comm]
-    exact Nat.div_mul_le_self _ _
+    fun g => complexity_directProduct_one_le.trans <| (Nat.le_div_iff_mul_le hXm).mpr <|
+      (mul_comm _ _).trans_le (hL g)
+  have hLspec : X * m * L ≤ (X + 1) * 2 ^ m := (mul_comm _ _).trans_le (Nat.div_mul_le_self _ _)
   -- `d` layers.
   set H := layerOverhead p n with hHdef
   have hH' : ∀ e < d, layerOverhead p (e * p + m) ≤ H := fun e he =>
@@ -237,20 +229,13 @@ theorem mul_complexity_directProduct_le {P X n d p m : ℕ}
   have hmono := complexity_directProduct_mono (I := interpretation) (f := f) hk
   set K := 2 ^ p + 1 with hKdef
   have h2n : 2 ^ n = 2 ^ (p * d) * 2 ^ m := by rw [← pow_add, hnm, mul_comm d p]
-  have hKX : X * K ^ d ≤ (X + 1) * 2 ^ (p * d) := by
-    have := Nat.mul_add_one_pow_le (R := X) (M := 2 ^ p) (d := d) hd
-    rwa [← pow_mul] at this
+  have hKX : X * K ^ d ≤ (X + 1) * 2 ^ (p * d) :=
+    pow_mul 2 p d ▸ Nat.mul_add_one_pow_le (R := X) (M := 2 ^ p) (d := d) hd
   have hK1 : K ^ d ≤ 2 * 2 ^ (p * d) := by
-    have := Nat.mul_add_one_pow_le (R := 1) (M := 2 ^ p) (d := d)
-      (le_trans (Nat.mul_le_mul_right d (by omega : 1 + 1 ≤ X + 1)) hd)
-    rw [← pow_mul, ← hKdef] at this
-    omega
-  have hXn : X * n ≤ (X + 1) * m := by
-    generalize hD : d * p = D at hnm hdp
-    have e1 : X * n = X * D + X * m := by rw [hnm]; ring
-    have e2 : (X + 1) * D = X * D + D := by ring
-    have e3 : (X + 1) * m = X * m + m := by ring
-    omega
+    simpa only [one_mul, Nat.reduceAdd, ← pow_mul, ← hKdef] using
+      Nat.mul_add_one_pow_le (R := 1) (M := 2 ^ p) (d := d)
+        (le_trans (Nat.mul_le_mul_right d (by omega : 1 + 1 ≤ X + 1)) hd)
+  have hXn : X * n ≤ (X + 1) * m := by nlinarith only [hnm, hdp]
   -- The leading term.
   have main : 2 * P * n * (K ^ d * L) ≤ (2 * P + 1) * 2 ^ n := by
     have h3 : X ^ 3 * (n * K ^ d * L) ≤ (X + 1) ^ 3 * 2 ^ n := by
@@ -273,11 +258,7 @@ theorem mul_complexity_directProduct_le {P X n d p m : ℕ}
       _ ≤ 2 ^ n := hH
   calc P * n * complexity interpretation (directProduct f k)
       ≤ P * n * (K ^ d * (L + d * 2 ^ d * H)) := Nat.mul_le_mul_left _ (hmono.trans hT)
-    _ ≤ (P + 1) * 2 ^ n := by
-      have e1 : 2 * (P * n * (K ^ d * (L + d * 2 ^ d * H))) =
-          2 * P * n * (K ^ d * L) + 2 * P * n * (K ^ d * (d * 2 ^ d * H)) := by ring
-      have e2 : 2 * ((P + 1) * 2 ^ n) = (2 * P + 1) * 2 ^ n + 2 ^ n := by ring
-      omega
+    _ ≤ (P + 1) * 2 ^ n := by nlinarith only [main, over]
 
 /-- **Uhlig's theorem** for circuit size. If `d(n) log₂ n = o(n)`, then for every precision `P`,
 eventually every function on `n` inputs has `k ≤ 2 ^ d(n)` independent copies of size `s` with
@@ -296,9 +277,8 @@ theorem eventually_mul_complexity_directProduct_le {depth : ℕ → ℕ}
   set p := 2 * ℓ + 2 with hpdef
   have hℓ : 1 ≤ ℓ := Nat.log_pos (by norm_num) (by omega)
   have hltℓ : n < 2 * 2 ^ ℓ := by
-    have := Nat.lt_pow_succ_log_self (b := 2) (by norm_num) n
-    rw [← hℓdef, pow_succ] at this
-    omega
+    simpa only [← hℓdef, pow_succ, mul_comm _ 2] using
+      Nat.lt_pow_succ_log_self (b := 2) one_lt_two n
   have hdp : (X + 1) * (d * p) ≤ n :=
     calc (X + 1) * (d * p) ≤ (X + 1) * (d * (4 * ℓ)) := by gcongr; omega
       _ = 4 * (X + 1) * d * ℓ := by ring

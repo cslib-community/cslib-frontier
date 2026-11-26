@@ -137,27 +137,26 @@ theorem mem_Reach_configurationGraphInterpretation
     (configurationGraphInterpretation L inputFormula lengthFormula ntm).toDomainInterpretation.map
       hI M ∈ Reach ↔ ntm.Accepts w := by
   let E : (Fin (Fintype.card (Register k)) → Fin M.size) ≃ (Register k → Fin M.size) :=
-    { toFun := fun x r => x (Fintype.equivFin (Register k) r)
-      invFun := fun x i => x ((Fintype.equivFin (Register k)).symm i)
-      left_inv := fun x => funext fun i => by simp only [Equiv.apply_symm_apply]
-      right_inv := fun x => funext fun r => by simp only [Equiv.symm_apply_apply] }
+    Equiv.arrowCongr (Fintype.equivFin (Register k)).symm (Equiv.refl _)
   refine (mem_Reach_boundedReachInterpretation _ _ _ M).trans ?_
   rw [accepts_iff_registerStep_fin hfit]
   have hsrc (x : Fin (Fintype.card (Register k)) → Fin M.size) :
       (startFormula L ntm fun r => Term.var (Fintype.equivFin (Register k) r)).Realize x ↔
         ∀ r, (E x r).val = startRegisters ntm r := by
-    simp only [realize_startFormula, Term.realize_var, E, Equiv.coe_fn_mk]
+    simp only [realize_startFormula, Term.realize_var, E, Equiv.arrowCongr_apply,
+      Function.comp_apply, Equiv.symm_symm, Equiv.refl_apply]
   have hstep (a b : Fin (Fintype.card (Register k)) → Fin M.size) :
       (stepFormula L inputFormula lengthFormula ntm
         (fun r => Term.var (.inl (Fintype.equivFin (Register k) r)))
         (fun r => Term.var (.inr (Fintype.equivFin (Register k) r)))).Realize (Sum.elim a b) ↔
         RegisterStep ntm w (fun r => (E a r).val) (fun r => (E b r).val) := by
     simp only [realize_stepFormula hinput hlen hn, Term.realize_var, Sum.elim_inl, Sum.elim_inr,
-      E, Equiv.coe_fn_mk]
+      E, Equiv.arrowCongr_apply, Function.comp_apply, Equiv.symm_symm, Equiv.refl_apply]
   have htgt (y : Fin (Fintype.card (Register k)) → Fin M.size) :
       (acceptFormula L State fun r => Term.var (Fintype.equivFin (Register k) r)).Realize y ↔
         (E y .control).val = stateCode (none : Option State) ∧ (E y .output).val = 1 := by
-    simp only [realize_acceptFormula, Term.realize_var, E, Equiv.coe_fn_mk]
+    simp only [realize_acceptFormula, Term.realize_var, E, Equiv.arrowCongr_apply,
+      Function.comp_apply, Equiv.symm_symm, Equiv.refl_apply]
   constructor
   · rintro ⟨x, y, hx, hxy, hy⟩
     obtain ⟨hc, ho⟩ := (htgt y).mp hy
@@ -223,23 +222,17 @@ private theorem mem_Reach_comp {L L' : Language} [L'.IsRelational] {k l : ℕ}
   have hedge (x y : J.toDomainInterpretation.map hJ M') :
       graphAdj (J.toDomainInterpretation.map hJ M') x y ↔
         graphAdj ((J.comp I).toDomainInterpretation.map hcomp M) (e x) (e y) := by
-    rw [graphAdj, graphAdj, J.relMap_map_toDomainInterpretation hl,
-      (J.comp I).relMap_map_toDomainInterpretation (Nat.mul_pos hl hk)]
     have hcast : Fin.cast hc₂ ∘ ![e x, e y] = iso ∘ (Fin.cast hc₁ ∘ ![x, y]) := by
       funext b
       cases b using Fin.cases with
       | zero => rfl
-      | succ b' =>
-        have hb' : b' = 0 := Subsingleton.elim _ _
-        subst hb'
-        rfl
-    have hiso : (J.inputStructure (n := M.size ^ k)).RelMap Language.adj
-        (Fin.cast hc₁ ∘ ![x, y]) ↔
-        ((J.comp I).inputStructure (n := M.size)).RelMap Language.adj
-          (iso ∘ (Fin.cast hc₁ ∘ ![x, y])) :=
-      (iso.map_rel (.inl Language.adj) (Fin.cast hc₁ ∘ ![x, y])).symm
-    rw [← hcast] at hiso
-    exact hiso
+      | succ b' => exact Subsingleton.elim b' 0 ▸ rfl
+    rw [graphAdj, graphAdj, J.relMap_map_toDomainInterpretation hl,
+      (J.comp I).relMap_map_toDomainInterpretation (Nat.mul_pos hl hk)]
+    change (J.inputStructure (n := M.size ^ k)).RelMap Language.adj (Fin.cast hc₁ ∘ ![x, y]) ↔
+      ((J.comp I).inputStructure (n := M.size)).RelMap Language.adj (Fin.cast hc₂ ∘ ![e x, e y])
+    rw [hcast]
+    exact (iso.map_rel (.inl Language.adj) _).symm
   change Relation.ReflTransGen (graphAdj ((J.comp I).toDomainInterpretation.map hcomp M)) 0
       ((J.comp I).toDomainInterpretation.map hcomp M).maxElem ↔
     Relation.ReflTransGen (graphAdj (J.toDomainInterpretation.map hJ M')) 0
@@ -346,11 +339,9 @@ noncomputable def toSTCONInstance (M : Ordered.Structure Language.graph) : STCON
 @[simp]
 theorem toSTCONInstance_mem_STCON (M : Ordered.Structure Language.graph) :
     toSTCONInstance M ∈ STCON ↔ M ∈ Reach := by
-  rw [mem_STCON, mem_Reach]
-  have hadj : (toSTCONInstance M).Adj = graphAdj M := by
-    ext x y
-    simp only [STCONInstance.Adj, toSTCONInstance, decide_eq_true_eq]
-  rw [hadj]
+  have hadj : (toSTCONInstance M).Adj = graphAdj M :=
+    funext₂ fun _ _ => by simp [STCONInstance.Adj, toSTCONInstance]
+  rw [mem_STCON, mem_Reach, hadj]
   rfl
 
 end Cslib.Logic.FO.Ordered.Reach
@@ -401,18 +392,13 @@ theorem toOrderedGraph_mem_Reach (I : STCONInstance) :
         rcases ih with hu0 | ⟨a, rfl, hsa⟩ | ⟨hu_max, -⟩
         · rcases hedge with ⟨_, hw⟩ | ⟨a, b, ha, _, _⟩ | ⟨ht, _⟩
           · exact Or.inr (Or.inl ⟨I.s, Fin.ext hw, .refl⟩)
-          · omega
-          · omega
+          all_goals omega
         · rcases hedge with ⟨hu0, _⟩ | ⟨a', b, ha', hb, hab⟩ | ⟨ht, hw⟩
           · simp only [shift] at hu0
             omega
-          · have ha_eq : a = a' := by
-              fin_index [shift]
-            subst ha_eq
+          · obtain rfl : a = a' := by fin_index [shift]
             exact Or.inr (Or.inl ⟨b, Fin.ext hb, hsa.tail hab⟩)
-          · have ha_eq : a = I.t := by
-              fin_index [shift]
-            subst ha_eq
+          · obtain rfl : a = I.t := by fin_index [shift]
             exact Or.inr (Or.inr ⟨hw, hsa⟩)
         · rcases hedge with ⟨hu0, _⟩ | ⟨a, _, ha, _, _⟩ | ⟨ht, _⟩
           · omega
@@ -420,9 +406,7 @@ theorem toOrderedGraph_mem_Reach (I : STCONInstance) :
           · have := I.t.isLt; omega
     rcases hinv hpath with h0 | ⟨a, ha, -⟩ | ⟨_, hst⟩
     · omega
-    · have ha' := congrArg Fin.val ha
-      rw [hval] at ha'
-      simp only [shift] at ha'
+    · have ha' : a.val + 1 = I.n + 1 := (congrArg Fin.val ha).symm.trans hval
       have := a.isLt
       omega
     · exact hst
@@ -515,10 +499,9 @@ private theorem computableInLogSpace_splitUnary {γ : Type} {encIn : γ ↪ List
         List.length_replicate]
   have hdrop : ComputableInLogSpace (fun a => (w a).drop (f a + 1)) encIn encBits := by fun_prop
   refine ⟨hf, hdrop.congr_fun fun a => ?_⟩
-  have hlen : f a + 1 = (List.replicate (f a) true ++ [false]).length := by simp
-  have happ : List.replicate (f a) true ++ false :: rest a =
-      (List.replicate (f a) true ++ [false]) ++ rest a := by simp
-  rw [hsplit a, hlen, happ, List.drop_left]
+  rw [hsplit a]
+  simpa [List.append_assoc] using
+    (List.drop_left (l₁ := List.replicate (f a) true ++ [false]) (l₂ := rest a)).symm
 
 private def rawOneHot (n k : ℕ) : List Bool :=
   (List.replicate k false ++ ([true] ++ List.replicate n false)).take n
@@ -533,15 +516,12 @@ private theorem getD_rawOneHot {n k i : ℕ} (hk : k < n) (hi : i < n) :
   rw [rawOneHot, List.getD_eq_getElem?_getD, List.getElem?_take_of_lt hi]
   rcases lt_trichotomy i k with hik | rfl | hki
   · rw [List.getElem?_append_left (by simp only [List.length_replicate]; exact hik)]
-    have hne : i ≠ k := by omega
-    simp [hik, hne]
+    simp [hik, hik.ne]
   · rw [List.getElem?_append_right (by simp only [List.length_replicate]; exact le_rfl)]
     simp
   · rw [List.getElem?_append_right (by simp only [List.length_replicate]; omega)]
     obtain ⟨d, hd⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : i - k ≠ 0)
-    have hdn : d < n := by omega
-    have hne : i ≠ k := by omega
-    simp [hd, hdn, hne]
+    simp [hd, (by omega : d < n), hki.ne']
 
 private def yesSTEncoded : EncodedStructure :=
   (2, [ [false, false, false, false], [true, false], [true, false] ])
@@ -553,11 +533,8 @@ private theorem yesSTEncoded_mem_STReach :
     match i, hi with
     | 0, _ | 1, _ | 2, _ => rfl
   · rw [mem_STReach]
-    refine ⟨0, 0, ?_, ?_, .refl⟩
-    · change [true, false].getD (tupleIndex (![0] : Fin 1 → Fin 2)) false = true
-      decide
-    · change [true, false].getD (tupleIndex (![0] : Fin 1 → Fin 2)) false = true
-      decide
+    have h0 : [true, false].getD (tupleIndex (![0] : Fin 1 → Fin 2)) false = true := by decide
+    exact ⟨0, 0, h0, h0, .refl⟩
 
 private def stconToSTEncoded (I : STCONInstance) : EncodedStructure :=
   if I.n ≤ 1 then yesSTEncoded
@@ -567,28 +544,16 @@ private theorem stconToSTEncoded_mem_iff (I : STCONInstance) :
     stconToSTEncoded I ∈ STReach.encodedLanguage stGraphVocabulary ↔ I ∈ STCON := by
   by_cases hn1 : I.n ≤ 1
   · simp only [stconToSTEncoded, hn1, ↓reduceIte]
-    have hI : I ∈ STCON := by
-      rw [mem_STCON]
-      have hsub : I.s = I.t := by
-        omega
-      rw [hsub]
-    exact iff_of_true yesSTEncoded_mem_STReach hI
+    have hsub : I.s = I.t := by omega
+    exact iff_of_true yesSTEncoded_mem_STReach (by rw [mem_STCON, hsub])
   · have hn2 : 2 ≤ I.n := by omega
     simp only [stconToSTEncoded, hn1, ↓reduceIte]
     let tables : List (List Bool) := [I.matrix, rawOneHot I.n I.t.val, rawOneHot I.n I.s.val]
     have hwf : stGraphVocabulary.WellFormed (I.n, tables) := by
-      refine ⟨rfl, fun i => ?_⟩
-      rcases i with ⟨idx, hidx⟩
+      refine ⟨rfl, fun ⟨idx, hidx⟩ => ?_⟩
       match idx, hidx with
-      | 0, _ =>
-        change I.matrix.length = I.n ^ 2
-        rw [I.length_matrix, sq]
-      | 1, _ =>
-        change (rawOneHot I.n I.t.val).length = I.n ^ 1
-        rw [length_rawOneHot, pow_one]
-      | 2, _ =>
-        change (rawOneHot I.n I.s.val).length = I.n ^ 1
-        rw [length_rawOneHot, pow_one]
+      | 0, _ => exact I.length_matrix.trans (sq I.n).symm
+      | 1, _ | 2, _ => exact (length_rawOneHot I.n _).trans (pow_one I.n).symm
     change (stGraphVocabulary.WellFormed (I.n, tables) ∧
         ∃ hn : 2 ≤ I.n, decoded stGraphVocabulary (I.n, tables) hn ∈ STReach) ↔ I ∈ STCON
     simp only [hwf, true_and]
@@ -617,17 +582,13 @@ private theorem stconToSTEncoded_mem_iff (I : STCONInstance) :
           (![x, y] : Fin 2 → M) ↔ Function.swap I.Adj x y := by
       change I.matrix.getD (tupleIndex ![x, y]) false = true ↔ I.adj y x = true
       rw [htuple2, I.getD_matrix y x]
-    constructor
-    · rintro ⟨s', t', hs', ht', hpath⟩
-      rw [(hsrc s').mp hs', (htgt t').mp ht'] at hpath
-      have hswap : Relation.ReflTransGen (Function.swap I.Adj) I.t I.s :=
-        Relation.ReflTransGen.lift id (fun x y hxy => (hadj x y).mp hxy) I.t I.s hpath
-      exact Relation.reflTransGen_swap.mp hswap
-    · intro hst
-      refine ⟨I.t, I.s, (hsrc I.t).mpr rfl, (htgt I.s).mpr rfl, ?_⟩
-      have hswap : Relation.ReflTransGen (Function.swap I.Adj) I.t I.s :=
-        Relation.reflTransGen_swap.mpr hst
-      exact Relation.ReflTransGen.lift id (fun x y hxy => (hadj x y).mpr hxy) I.t I.s hswap
+    refine ⟨?_, fun hst => ⟨I.t, I.s, (hsrc I.t).mpr rfl, (htgt I.s).mpr rfl,
+      Relation.ReflTransGen.lift id (fun x y => (hadj x y).mpr) I.t I.s
+        (Relation.reflTransGen_swap.mpr hst)⟩⟩
+    rintro ⟨s', t', hs', ht', hpath⟩
+    rw [(hsrc s').mp hs', (htgt t').mp ht'] at hpath
+    exact Relation.reflTransGen_swap.mp
+      (Relation.ReflTransGen.lift id (fun x y => (hadj x y).mp) I.t I.s hpath)
 
 private theorem computableInLogSpace_stconToSTEncoded :
     ComputableInLogSpace stconToSTEncoded encSTCON encStructure := by

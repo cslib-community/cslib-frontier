@@ -124,9 +124,8 @@ noncomputable def empiricalDist (s : ℕ → X) (T : ℕ) (hT : 0 < T) : Convexi
 theorem empiricalDist_sum (s : ℕ → X) {T : ℕ} (hT : 0 < T) (f : X → ℝ) :
     (empiricalDist s T hT).weights.sum (fun x w => w * f x) = (∑ t ∈ range T, f (s t)) / T := by
   rw [empiricalDist, timeAverage_sum]
-  congr 1
-  refine sum_congr rfl fun t _ => ?_
-  simp only [Convexity.StdSimplex.weights_single, Finsupp.sum_single_index, zero_mul, one_mul]
+  exact congrArg (· / (T : ℝ)) <| sum_congr rfl fun t _ => by
+    simp only [Convexity.StdSimplex.weights_single, Finsupp.sum_single_index, zero_mul, one_mul]
 
 end EmpiricalDist
 
@@ -161,8 +160,8 @@ variable {G}
 theorem isApproxCoarseCorrelatedEquilibrium_zero_iff
     {σ : Convexity.StdSimplex ℝ (∀ i, S i)} :
     G.IsApproxCoarseCorrelatedEquilibrium 0 σ ↔ G.IsCoarseCorrelatedEquilibrium σ := by
-  dsimp [IsApproxCoarseCorrelatedEquilibrium, IsCoarseCorrelatedEquilibrium]
-  simp only [add_zero]
+  simp only [IsApproxCoarseCorrelatedEquilibrium, IsCoarseCorrelatedEquilibrium, Pi.zero_apply,
+    add_zero]
 
 /-- Every `ε`-approximate correlated equilibrium is an `ε`-approximate coarse correlated
 equilibrium, via constant switching functions `fun _ => a`. -/
@@ -187,33 +186,22 @@ theorem isApproxInternalCorrelatedEquilibrium_iff_switchAction [∀ i, Decidable
       σ.weights.sum (fun s w => w * G.cost i (update s i (switchAction a b (s i)))) =
         σ.weights.sum (fun s w => w * if s i = a then G.cost i (update s i b) else 0) +
           σ.weights.sum (fun s w => w * if s i = a then 0 else G.cost i s) := by
-    constructor
-    · rw [← Finsupp.sum_add]
-      refine Finsupp.sum_congr fun s _ => ?_
-      split_ifs <;> ring
-    · rw [← Finsupp.sum_add]
-      refine Finsupp.sum_congr fun s _ => ?_
-      split_ifs with hs
-      · rw [hs, switchAction_self]
-        ring
-      · rw [switchAction_of_ne hs, update_eq_self]
-        ring
-  constructor
-  · intro h i a b
-    obtain ⟨h1, h2⟩ := hsplit i a b
-    linarith [h i a b]
-  · intro h i a b
-    obtain ⟨h1, h2⟩ := hsplit i a b
-    linarith [h i a b]
+    refine ⟨?_, ?_⟩ <;> rw [← Finsupp.sum_add] <;> refine Finsupp.sum_congr fun s _ => ?_
+    · split_ifs <;> ring
+    · split_ifs with hs
+      · rw [hs, switchAction_self]; ring
+      · rw [switchAction_of_ne hs, update_eq_self]; ring
+  refine forall_congr' fun i => forall_congr' fun a => forall_congr' fun b => ?_
+  obtain ⟨h1, h2⟩ := hsplit i a b
+  constructor <;> intro h <;> linarith
 
 /-- At zero slack, Hart and Mas-Colell's pairwise correlated `0`-equilibrium coincides with
 `IsCorrelatedEquilibrium`. -/
 theorem isApproxInternalCorrelatedEquilibrium_zero_iff [∀ i, DecidableEq (S i)]
     {σ : Convexity.StdSimplex ℝ (∀ i, S i)} :
     G.IsApproxInternalCorrelatedEquilibrium 0 σ ↔ G.IsCorrelatedEquilibrium σ := by
-  rw [isCorrelatedEquilibrium_iff]
-  dsimp [IsApproxInternalCorrelatedEquilibrium]
-  simp only [add_zero]
+  simp only [isCorrelatedEquilibrium_iff, IsApproxInternalCorrelatedEquilibrium, Pi.zero_apply,
+    add_zero]
 
 /-- Every `ε`-approximate correlated equilibrium is a pairwise correlated `ε`-equilibrium. -/
 theorem IsApproxCorrelatedEquilibrium.isApproxInternalCorrelatedEquilibrium
@@ -238,8 +226,7 @@ theorem IsApproxInternalCorrelatedEquilibrium.isApproxCorrelatedEquilibrium
     _ = (∑ a, σ.weights.sum
           (fun s w => w * if s i = a then G.cost i (update s i (δ a)) else 0)) +
           Fintype.card (S i) * ε i := by
-        rw [sum_add_distrib]
-        simp [sum_const, nsmul_eq_mul]
+        simp [sum_add_distrib, sum_const, nsmul_eq_mul]
 
 end ApproxEquilibria
 
@@ -281,18 +268,8 @@ theorem empiricalDist_isApproxCorrelatedEquilibrium_iff
     G.IsApproxCorrelatedEquilibrium ε (empiricalDist s T hT) ↔
       ∀ i (δ : S i → S i),
         (∑ t ∈ range T, (G.cost i (s t) - G.cost i (update (s t) i (δ (s t i))))) / T ≤ ε i := by
-  have hT_pos : (0 : ℝ) < T := Nat.cast_pos.mpr hT
-  constructor
-  · intro h i δ
-    have hi := h i δ
-    rw [empiricalDist_sum, empiricalDist_sum] at hi
-    rw [sum_sub_distrib, sub_div]
-    linarith
-  · intro h i δ
-    have hi := h i δ
-    rw [sum_sub_distrib, sub_div] at hi
-    rw [empiricalDist_sum, empiricalDist_sum]
-    linarith
+  refine forall_congr' fun i => forall_congr' fun δ => ?_
+  rw [empiricalDist_sum, empiricalDist_sum, sum_sub_distrib, sub_div, sub_le_iff_le_add']
 
 /-- Zero-slack specialization: `empiricalDist s T hT` is an exact correlated equilibrium iff every
 player has nonpositive swap regret along `s 0, …, s (T - 1)`. -/
@@ -300,10 +277,9 @@ theorem empiricalDist_isCorrelatedEquilibrium_iff {s : ℕ → ∀ i, S i} {T : 
     G.IsCorrelatedEquilibrium (empiricalDist s T hT) ↔
       ∀ i (δ : S i → S i),
         ∑ t ∈ range T, G.cost i (s t) ≤ ∑ t ∈ range T, G.cost i (update (s t) i (δ (s t i))) := by
-  have hT_pos : (0 : ℝ) < T := Nat.cast_pos.mpr hT
   rw [← isApproxCorrelatedEquilibrium_zero_iff, empiricalDist_isApproxCorrelatedEquilibrium_iff hT]
   refine forall_congr' fun i => forall_congr' fun δ => ?_
-  rw [Pi.zero_apply, div_le_iff₀ hT_pos, zero_mul, sum_sub_distrib, sub_nonpos]
+  rw [Pi.zero_apply, div_le_iff₀ (Nat.cast_pos.mpr hT), zero_mul, sum_sub_distrib, sub_nonpos]
 
 /-- **Finite-horizon Proposition of [HartMasColell2000]** (§3, pp. 1133–1134):
 `empiricalDist s T hT` is a pairwise correlated `ε`-equilibrium if and only if every player `i`'s
@@ -315,24 +291,10 @@ theorem empiricalDist_isApproxInternalCorrelatedEquilibrium_iff [∀ i, Decidabl
       ∀ i (a b : S i),
         (∑ t ∈ range T,
           if s t i = a then G.cost i (s t) - G.cost i (update (s t) i b) else 0) / T ≤ ε i := by
-  have hdiff (i : ι) (a b : S i) :
-      (∑ t ∈ range T, if s t i = a then G.cost i (s t) else 0) -
-        (∑ t ∈ range T, if s t i = a then G.cost i (update (s t) i b) else 0) =
-      ∑ t ∈ range T, if s t i = a then G.cost i (s t) - G.cost i (update (s t) i b) else 0 := by
-    rw [← sum_sub_distrib]
-    refine sum_congr rfl fun t _ => ?_
-    split_ifs <;> ring
-  constructor
-  · intro h i a b
-    have hi := h i a b
-    rw [empiricalDist_sum, empiricalDist_sum] at hi
-    rw [← hdiff, sub_div]
-    linarith
-  · intro h i a b
-    have hi := h i a b
-    rw [← hdiff, sub_div] at hi
-    rw [empiricalDist_sum, empiricalDist_sum]
-    linarith
+  refine forall_congr' fun i => forall_congr' fun a => forall_congr' fun b => ?_
+  rw [empiricalDist_sum, empiricalDist_sum, ← sub_le_iff_le_add', ← sub_div, ← sum_sub_distrib]
+  refine (congrArg (fun x => x / T ≤ ε i) (sum_congr rfl fun t _ => ?_)).to_iff
+  split_ifs <;> ring
 
 /-- **Exact deterministic external-regret bridge**: `empiricalDist s T hT` is an `ε`-coarse
 correlated equilibrium if and only if every player `i`'s time-averaged external regret along `s` is
@@ -342,17 +304,8 @@ theorem empiricalDist_isApproxCoarseCorrelatedEquilibrium_iff
     G.IsApproxCoarseCorrelatedEquilibrium ε (empiricalDist s T hT) ↔
       ∀ i (a : S i),
         (∑ t ∈ range T, (G.cost i (s t) - G.cost i (update (s t) i a))) / T ≤ ε i := by
-  constructor
-  · intro h i a
-    have hi := h i a
-    rw [empiricalDist_sum, empiricalDist_sum] at hi
-    rw [sum_sub_distrib, sub_div]
-    linarith
-  · intro h i a
-    have hi := h i a
-    rw [sum_sub_distrib, sub_div] at hi
-    rw [empiricalDist_sum, empiricalDist_sum]
-    linarith
+  refine forall_congr' fun i => forall_congr' fun a => ?_
+  rw [empiricalDist_sum, empiricalDist_sum, sum_sub_distrib, sub_div, sub_le_iff_le_add']
 
 /-- Zero-slack specialization: `empiricalDist s T hT` is an exact coarse correlated equilibrium iff
 every player has nonpositive external regret along `s 0, …, s (T - 1)`. -/
@@ -361,11 +314,10 @@ theorem empiricalDist_isCoarseCorrelatedEquilibrium_iff
     G.IsCoarseCorrelatedEquilibrium (empiricalDist s T hT) ↔
       ∀ i (a : S i),
         ∑ t ∈ range T, G.cost i (s t) ≤ ∑ t ∈ range T, G.cost i (update (s t) i a) := by
-  have hT_pos : (0 : ℝ) < T := Nat.cast_pos.mpr hT
   rw [← isApproxCoarseCorrelatedEquilibrium_zero_iff,
     empiricalDist_isApproxCoarseCorrelatedEquilibrium_iff hT]
   refine forall_congr' fun i => forall_congr' fun a => ?_
-  rw [Pi.zero_apply, div_le_iff₀ hT_pos, zero_mul, sum_sub_distrib, sub_nonpos]
+  rw [Pi.zero_apply, div_le_iff₀ (Nat.cast_pos.mpr hT), zero_mul, sum_sub_distrib, sub_nonpos]
 
 /-! ### Elimination of `ε`-strictly dominated strategies (NRTV Theorem 4.13) -/
 
@@ -388,41 +340,27 @@ theorem average_epsDominated_le_div [∀ j, DecidableEq (S j)]
     (∑ t ∈ range T, (σ t).weights.sum (fun s w => w * if s i ∈ D then 1 else 0)) / T ≤
       R / (ε * T) := by
   let δ : S i → S i := fun a => if ha : a ∈ D then (hD a ha).choose else a
-  have hpoint : ∀ s : ∀ j, S j,
-      ε * (if s i ∈ D then 1 else 0) ≤ G.cost i s - G.cost i (update s i (δ (s i))) := fun s => by
+  have hpoint (s : ∀ j, S j) :
+      ε * (if s i ∈ D then 1 else 0) ≤ G.cost i s - G.cost i (update s i (δ (s i))) := by
     by_cases hs : s i ∈ D
-    · rw [ite_eq_left hs, mul_one]
-      have hdom := (hD (s i) hs).choose_spec s
+    · have hdom := (hD (s i) hs).choose_spec s
       rw [update_eq_self] at hdom
-      have hδ : δ (s i) = (hD (s i) hs).choose := dite_eq_left hs
-      rw [hδ]
-      linarith
-    · rw [ite_eq_right hs, mul_zero]
-      have hδ : δ (s i) = s i := dite_eq_right hs
-      rw [hδ, update_eq_self, sub_self]
-  have hround : ∀ t,
-      ε * (σ t).weights.sum (fun s w => w * if s i ∈ D then 1 else 0) ≤
-        (σ t).weights.sum (fun s w => w * G.cost i s) -
-          (σ t).weights.sum (fun s w => w * G.cost i (update s i (δ (s i)))) := fun t => by
-    rw [Finsupp.mul_sum, ← Finsupp.sum_sub]
-    refine Finsupp.sum_le_sum fun s _ => ?_
-    have hw : 0 ≤ (σ t).weights s := (σ t).nonneg s
-    have hp := mul_le_mul_of_nonneg_left (hpoint s) hw
-    linarith
+      rw [ite_eq_left hs, mul_one, show δ (s i) = _ from dite_eq_left hs]; linarith
+    · rw [ite_eq_right hs, mul_zero, show δ (s i) = s i from dite_eq_right hs,
+        update_eq_self, sub_self]
   have hsum : ε * ∑ t ∈ range T, (σ t).weights.sum (fun s w => w * if s i ∈ D then 1 else 0) ≤
       R := by
     rw [mul_sum]
-    have h1 := sum_le_sum fun t (_ : t ∈ range T) => hround t
-    rw [sum_sub_distrib] at h1
-    linarith [hR δ]
+    have h1 : ∑ t ∈ range T, ε * (σ t).weights.sum (fun s w => w * if s i ∈ D then 1 else 0) ≤
+        ∑ t ∈ range T, ((σ t).weights.sum (fun s w => w * G.cost i s) -
+          (σ t).weights.sum (fun s w => w * G.cost i (update s i (δ (s i))))) :=
+      sum_le_sum fun t _ => by
+        rw [Finsupp.mul_sum, ← Finsupp.sum_sub]
+        exact Finsupp.sum_le_sum fun s _ => by
+          linarith [mul_le_mul_of_nonneg_left (hpoint s) ((σ t).nonneg s)]
+    rw [sum_sub_distrib] at h1; linarith [hR δ]
   have hT_pos : (0 : ℝ) < T := Nat.cast_pos.mpr hT
-  rw [div_le_div_iff₀ hT_pos (mul_pos hε hT_pos)]
-  have heq : (∑ t ∈ range T, (σ t).weights.sum (fun s w => w * if s i ∈ D then 1 else 0)) *
-      (ε * T) =
-      (ε * ∑ t ∈ range T, (σ t).weights.sum (fun s w => w * if s i ∈ D then 1 else 0)) * T := by
-    ring
-  rw [heq]
-  exact mul_le_mul_of_nonneg_right hsum hT_pos.le
+  rw [div_le_div_iff₀ hT_pos (mul_pos hε hT_pos)]; nlinarith
 
 end DeterministicBridges
 
@@ -442,22 +380,13 @@ noncomputable def extRegretMatchingDynamics : ℕ → ∀ i, S i → ℝ :=
   WellFounded.fix Nat.lt_wfRel.wf fun t p i =>
     regretMatchingProb (fun s c => if h : s < t then G.deviationCost (p s h) i c else 0) t
 
-private theorem extRegretMatchingDynamics_eq (t : ℕ) (i : ι) :
-    G.extRegretMatchingDynamics t i =
-      regretMatchingProb
-        (fun s c => if _h : s < t then G.deviationCost (G.extRegretMatchingDynamics s) i c else 0)
-        t := by
-  rw [extRegretMatchingDynamics, WellFounded.fix_eq]
-
 /-- Each player in `extRegretMatchingDynamics` runs the single-learner `regretMatchingProb` against
 its realized expected cost sequence. -/
 theorem extRegretMatchingDynamics_eq_regretMatchingProb (t : ℕ) (i : ι) :
     G.extRegretMatchingDynamics t i =
       regretMatchingProb (fun s c => G.deviationCost (G.extRegretMatchingDynamics s) i c) t := by
-  rw [extRegretMatchingDynamics_eq]
-  refine regretMatchingProb_congr fun s hs => ?_
-  ext c
-  simp only [hs, dite_eq_left]
+  refine (congrFun (WellFounded.fix_eq _ _ t) i).trans (regretMatchingProb_congr fun s hs => ?_)
+  exact funext fun c => dite_eq_left hs
 
 theorem extRegretMatchingDynamics_nonneg (t : ℕ) (i : ι) (a : S i) :
     0 ≤ G.extRegretMatchingDynamics t i a := by
@@ -484,23 +413,15 @@ noncomputable def intRegretMatchingDynamics : ℕ → ∀ i, S i → ℝ :=
   WellFounded.fix Nat.lt_wfRel.wf fun t p i =>
     internalRegretMatchingProb (fun s c => if h : s < t then G.deviationCost (p s h) i c else 0) t
 
-private theorem intRegretMatchingDynamics_eq (t : ℕ) (i : ι) :
-    G.intRegretMatchingDynamics t i =
-      internalRegretMatchingProb
-        (fun s c => if _h : s < t then G.deviationCost (G.intRegretMatchingDynamics s) i c else 0)
-        t := by
-  rw [intRegretMatchingDynamics, WellFounded.fix_eq]
-
 /-- Each player in `intRegretMatchingDynamics` runs the single-learner `internalRegretMatchingProb`
 against its realized expected cost sequence. -/
 theorem intRegretMatchingDynamics_eq_internalRegretMatchingProb (t : ℕ) (i : ι) :
     G.intRegretMatchingDynamics t i =
       internalRegretMatchingProb
         (fun s c => G.deviationCost (G.intRegretMatchingDynamics s) i c) t := by
-  rw [intRegretMatchingDynamics_eq]
-  refine internalRegretMatchingProb_congr fun s hs => ?_
-  ext c
-  simp only [hs, dite_eq_left]
+  refine (congrFun (WellFounded.fix_eq _ _ t) i).trans
+    (internalRegretMatchingProb_congr fun s hs => ?_)
+  exact funext fun c => dite_eq_left hs
 
 variable [∀ i, Nonempty (S i)]
 
@@ -530,12 +451,10 @@ theorem extRegretMatching_isApproxCoarseCorrelatedEquilibrium {M : ℝ} (hM : 0 
     G.IsApproxCoarseCorrelatedEquilibrium
       (fun i => 2 * M * √(Fintype.card (S i) / T))
       (timeAverage G.extRegretMatchingDist T hT) := by
-  have hT' : (0 : ℝ) < T := Nat.cast_pos.mpr hT
-  have hslack : (fun i => 2 * M * √(Fintype.card (S i) / T)) =
-      fun i => (2 * M * √((T : ℝ) * Fintype.card (S i))) / T := by
-    ext i
-    rw [mul_div_assoc (2 * M), Real.sqrt_mul_div_self hT']
-  rw [hslack]
+  have hslack (i : ι) : 2 * M * √(Fintype.card (S i) / T) =
+      (2 * M * √((T : ℝ) * Fintype.card (S i))) / T := by
+    rw [mul_div_assoc (2 * M), Real.sqrt_mul_div_self (Nat.cast_pos.mpr hT)]
+  simp only [hslack]
   refine timeAverage_isApproxCoarseCorrelatedEquilibrium hT fun i a => ?_
   have hbd := regretMatching_externalRegret_le_of_abs_le
     (ℓ := fun s c => G.deviationCost (G.extRegretMatchingDynamics s) i c)
@@ -544,18 +463,9 @@ theorem extRegretMatching_isApproxCoarseCorrelatedEquilibrium {M : ℝ} (hM : 0 
       (G.sum_extRegretMatchingDynamics s) (hc i) b) a
   simp only [← G.extRegretMatchingDynamics_eq_regretMatchingProb, externalRegretOf,
     sum_sub_distrib] at hbd
-  have hL : ∑ t ∈ range T, (G.extRegretMatchingDist t).weights.sum (fun s w => w * G.cost i s) =
-      ∑ t ∈ range T, ∑ b, G.extRegretMatchingDynamics t i b *
-        G.deviationCost (G.extRegretMatchingDynamics t) i b := by
-    refine sum_congr rfl fun t _ => ?_
-    rw [extRegretMatchingDist, productDist_sum,
-      ← sum_mul_deviationCost G _ (G.sum_extRegretMatchingDynamics t i)]
-  have hR : ∑ t ∈ range T, (G.extRegretMatchingDist t).weights.sum
-        (fun s w => w * G.cost i (update s i a)) =
-      ∑ t ∈ range T, G.deviationCost (G.extRegretMatchingDynamics t) i a := by
-    refine sum_congr rfl fun t _ => ?_
-    rw [extRegretMatchingDist, productDist_sum, deviationCost_def]
-  rw [hL, hR, mul_comm (T : ℝ) (Fintype.card (S i))]
+  simp only [extRegretMatchingDist, productDist_sum,
+    ← sum_mul_deviationCost G _ (G.sum_extRegretMatchingDynamics _ i), ← deviationCost_def,
+    mul_comm (T : ℝ) (Fintype.card (S i))]
   linarith
 
 private theorem abs_deviationCost_sub_le {M : ℝ} (hc : ∀ i s, |G.cost i s| ≤ M)
@@ -590,31 +500,21 @@ theorem intRegretMatching_isApproxInternalCorrelatedEquilibrium {M : ℝ} (hM : 
     (T := T) (by positivity) (fun s _ c d => abs_deviationCost_sub_le hc s i c d) a b
   simp only [← G.intRegretMatchingDynamics_eq_internalRegretMatchingProb, pairInternalRegret,
     mul_sub, sum_sub_distrib] at hbd
+  have hterm (c : S i) : ∑ t ∈ range T, (G.intRegretMatchingDist t).weights.sum
+        (fun s w => w * if s i = a then G.cost i (update s i c) else 0) =
+      ∑ t ∈ range T, G.intRegretMatchingDynamics t i a *
+        G.deviationCost (G.intRegretMatchingDynamics t) i c :=
+    sum_congr rfl fun t _ => by
+      rw [intRegretMatchingDist, productDist_sum,
+        sum_ite_productWeight G _ (G.sum_intRegretMatchingDynamics t i) a c]
   have hL : ∑ t ∈ range T, (G.intRegretMatchingDist t).weights.sum
         (fun s w => w * if s i = a then G.cost i s else 0) =
       ∑ t ∈ range T, G.intRegretMatchingDynamics t i a *
-        G.deviationCost (G.intRegretMatchingDynamics t) i a := by
-    refine sum_congr rfl fun t _ => ?_
-    rw [intRegretMatchingDist, productDist_sum]
-    have heq : (∑ s, productWeight (G.intRegretMatchingDynamics t) s *
-          if s i = a then G.cost i s else 0) =
-        ∑ s, productWeight (G.intRegretMatchingDynamics t) s *
-          if s i = a then G.cost i (update s i a) else 0 := by
-      refine sum_congr rfl fun s _ => ?_
+        G.deviationCost (G.intRegretMatchingDynamics t) i a :=
+    (sum_congr rfl fun _ _ => Finsupp.sum_congr fun s _ => by
       split_ifs with hs
-      · rw [← hs, update_eq_self]
-      · rfl
-    rw [heq, sum_ite_productWeight G (G.intRegretMatchingDynamics t)
-      (G.sum_intRegretMatchingDynamics t i) a a]
-  have hR : ∑ t ∈ range T, (G.intRegretMatchingDist t).weights.sum
-        (fun s w => w * if s i = a then G.cost i (update s i b) else 0) =
-      ∑ t ∈ range T, G.intRegretMatchingDynamics t i a *
-        G.deviationCost (G.intRegretMatchingDynamics t) i b := by
-    refine sum_congr rfl fun t _ => ?_
-    rw [intRegretMatchingDist, productDist_sum,
-      sum_ite_productWeight G (G.intRegretMatchingDynamics t)
-        (G.sum_intRegretMatchingDynamics t i) a b]
-  rw [hL, hR]
+      exacts [by rw [← hs, update_eq_self], rfl]).trans (hterm a)
+  rw [hL, hterm b]
   dsimp only
   have hscale : 2 * M * √((Fintype.card (S i) - 1 : ℕ) / T) =
       (2 * M * √((Fintype.card (S i) - 1 : ℕ) * T)) / T := by
@@ -633,14 +533,11 @@ theorem intRegretMatching_isApproxCorrelatedEquilibrium {M : ℝ} (hM : 0 ≤ M)
     G.IsApproxCorrelatedEquilibrium
       (fun i => 2 * M * √(Fintype.card (S i) * (Fintype.card (S i) - 1 : ℕ) / T))
       (timeAverage G.intRegretMatchingDist T hT) := by
-  have hT' : (0 : ℝ) < T := Nat.cast_pos.mpr hT
-  have hslack :
-      (fun i => 2 * M * √(Fintype.card (S i) * (Fintype.card (S i) - 1 : ℕ) / T)) =
-        fun i =>
-          (2 * M * √((T : ℝ) * (Fintype.card (S i) * (Fintype.card (S i) - 1 : ℕ)))) / T := by
-    ext i
-    rw [mul_div_assoc (2 * M), Real.sqrt_mul_div_self hT']
-  rw [hslack]
+  have hslack (i : ι) :
+      2 * M * √(Fintype.card (S i) * (Fintype.card (S i) - 1 : ℕ) / T) =
+        (2 * M * √((T : ℝ) * (Fintype.card (S i) * (Fintype.card (S i) - 1 : ℕ)))) / T := by
+    rw [mul_div_assoc (2 * M), Real.sqrt_mul_div_self (Nat.cast_pos.mpr hT)]
+  simp only [hslack]
   refine timeAverage_productDist_isApproxCorrelatedEquilibrium G hT
     G.intRegretMatchingDynamics_nonneg G.sum_intRegretMatchingDynamics fun i δ => ?_
   have hbd := internalRegretMatching_swapRegret_le
@@ -648,9 +545,7 @@ theorem intRegretMatching_isApproxCorrelatedEquilibrium {M : ℝ} (hM : 0 ≤ M)
     (T := T) (by positivity) (fun s _ c d => abs_deviationCost_sub_le hc s i c d) δ
   simp only [← G.intRegretMatchingDynamics_eq_internalRegretMatchingProb, swapRegretOf,
     mul_sub, sum_sub_distrib] at hbd
-  have hcomm : (T : ℝ) * (Fintype.card (S i) * (Fintype.card (S i) - 1 : ℕ)) =
-      Fintype.card (S i) * (Fintype.card (S i) - 1 : ℕ) * T := by ring
-  rw [hcomm]
+  rw [mul_comm (T : ℝ)]
   linarith
 
 end RegretMatchingDynamics

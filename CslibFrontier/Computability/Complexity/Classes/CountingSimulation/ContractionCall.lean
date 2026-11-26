@@ -68,7 +68,7 @@ theorem ContractionAlgorithm.expTimePolySpace_branch
   refine ⟨Cg + Ci + Cf + K * (p + 1) ^ K, d, fun a => ?_⟩
   -- every time bound is a multiple of `2 ^ E a * Y` and every space bound a multiple of `Y`
   set Y := ((enc a).length + 1) ^ d
-  have hY {e : ℕ} (he : e ≤ d) : ((enc a).length + 1) ^ e ≤ Y :=
+  have hY {e : ℕ} (he : e ≤ d := by omega) : ((enc a).length + 1) ^ e ≤ Y :=
     Nat.pow_le_pow_right (Nat.succ_pos _) he
   have hT {c t e : ℕ} (he : e ≤ d) (h : t ≤ c * 2 ^ E a * ((enc a).length + 1) ^ e) :
       t ≤ c * (2 ^ E a * Y) := by
@@ -85,9 +85,7 @@ theorem ContractionAlgorithm.expTimePolySpace_branch
   dsimp only
   rw [NativeCertificate.branch_time, NativeCertificate.branch_space, NativeCertificate.comp_time,
     NativeCertificate.comp_space, Nat.mul_assoc]
-  have hsplit (c₁ c₂ c₃ c₄ Z : ℕ) :
-      (c₁ + c₂ + c₃ + c₄) * Z = c₁ * Z + c₂ * Z + c₃ * Z + c₄ * Z := by ring
-  rw [hsplit, hsplit]
+  simp only [Nat.add_mul]
   by_cases hga : guard a = true
   · -- the contraction, on an input of length polynomial in that of `a`
     obtain ⟨hs2, hP1, hPD, hadm⟩ := hs a hga
@@ -95,21 +93,18 @@ theorem ContractionAlgorithm.expTimePolySpace_branch
     have hlenK : ((encPair encNat encN (input a)).length + 1) ^ K ≤
         (p + 1) ^ K * ((enc a).length + 1) ^ (q * K) :=
       Nat.add_one_pow_le_of_le_mul_pow (Nat.succ_pos _) (hlen a) K
-    have hqK := hY (e := q * K) (by omega)
     have ta : A.certificate.time (input a) ≤ K * (p + 1) ^ K * (2 ^ E a * Y) :=
       calc A.certificate.time (input a)
           ≤ K * ((p + 1) ^ K * ((enc a).length + 1) ^ (q * K)) * 2 ^ E a :=
             hAt.trans (Nat.mul_le_mul (Nat.mul_le_mul_left _ hlenK)
               (Nat.pow_le_pow_right (by norm_num) (hE a hga)))
         _ = K * (p + 1) ^ K * (2 ^ E a * ((enc a).length + 1) ^ (q * K)) := by ring
-        _ ≤ _ := Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ hqK)
+        _ ≤ _ := Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ hY)
     have sa : A.certificate.space (input a) ≤ K * (p + 1) ^ K * Y :=
       calc A.certificate.space (input a)
           ≤ K * ((p + 1) ^ K * ((enc a).length + 1) ^ (q * K)) :=
             hAs.trans (Nat.mul_le_mul_left _ hlenK)
-        _ ≤ _ := by
-            rw [← Nat.mul_assoc]
-            exact Nat.mul_le_mul_left _ hqK
+        _ ≤ _ := Nat.mul_assoc _ _ _ ▸ Nat.mul_le_mul_left _ hY
     rw [ite_eq_left hga, ite_eq_left hga]
     omega
   · rw [ite_eq_right hga, ite_eq_right hga]

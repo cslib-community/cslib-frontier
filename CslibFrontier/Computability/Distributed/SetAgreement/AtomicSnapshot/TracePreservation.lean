@@ -50,11 +50,10 @@ private theorem clean_double_collect_memSnapshot (τ : SnapshotTrace ord dInit)
     memSnapshot (τ.stateAt u).reg = fun k => (st.collectBVal k).data := by
   choose tA _ htA₂ htA_eq using ha_all
   choose tB htB₁ htB₂ htB_eq using hb_all
-  have hseq_eq : ∀ k, ((τ.stateAt (tA k)).reg k).seq = ((τ.stateAt (tB k)).reg k).seq := by
-    intro k; have := hclean k; rwa [htA_eq k, htB_eq k] at this
-  have h31 := τ.memSnapshot_eq_of_clean_double_collect htA₂ le_rfl htB₁
-    (fun k => le_trans (htB₂ k) ht) hseq_eq le_rfl le_rfl
-  rw [h31]; funext k; rw [htB_eq k]
+  have hseq_eq : ∀ k, ((τ.stateAt (tA k)).reg k).seq = ((τ.stateAt (tB k)).reg k).seq :=
+    fun k => by rw [← htA_eq k, ← htB_eq k]; exact hclean k
+  exact (τ.memSnapshot_eq_of_clean_double_collect htA₂ le_rfl htB₁
+    (fun k => le_trans (htB₂ k) ht) hseq_eq le_rfl le_rfl).trans (funext fun k => by rw [htB_eq k])
 
 /-- Borrowed-view validity (after Lemma 3.2 of [AfekAttiyaDolevGafniMerrittShavit1993]): if
 updater `k` wrote at `w₁ ∈ [lo + 1, iterS)` during an earlier double collect and its register
@@ -86,23 +85,19 @@ private theorem borrowed_view_memSnapshot {τ : SnapshotTrace ord dInit} {t : �
       omega
   obtain ⟨w_star, hw_star_lt, hw_star_write, hw_star_reg, hnow_after⟩ :=
     τ.exists_last_writeStep_of_seq_pos k (le_trans htB₂ ht) hpos
-  have hw₂_le_star : w₂ ≤ w_star := by
-    by_contra hlt_star
-    exact hnow_after w₂ (by omega) hw₂_hi hw₂_write
+  have hw₂_le_star : w₂ ≤ w_star :=
+    by_contra fun _ => hnow_after w₂ (by omega) hw₂_hi hw₂_write
   -- After its earlier write `w₁`, process `k` returned to `.idle` before `w_star`, so the
   -- `update_k` writing at `w_star` started strictly after `w₁` (inside `[lo + 1, t]`).
   have hidle_w₁ : (τ.stateAt (w₁ + 1)).proc k = .idle := by
     rcases τ.reg_step_iff (t := w₁) k (by omega) with
         ⟨-, hnw⟩ | ⟨_, _, _, -, -, -, hidle'⟩
-    · exact absurd hw₁_write hnw
-    · exact hidle'
+    exacts [absurd hw₁_write hnw, hidle']
   have hlast_ge : w₁ + 1 ≤ τ.lastIdleStep k w_star :=
     τ.le_lastIdleStep_of_idle k (by omega) hidle_w₁
   obtain ⟨v_k, hv_k_lo, hv_k_hi, hv_k_snap⟩ :=
     inv.reg_view_valid k w_star (by omega) hw_star_write
-  have hview_eq : (st.collectBVal k).view = ((τ.stateAt (w_star + 1)).reg k).view := by
-    rw [htB_eq, hw_star_reg]
-  exact ⟨v_k, by omega, by omega, hv_k_snap.trans hview_eq.symm⟩
+  exact ⟨v_k, by omega, by omega, hv_k_snap.trans (by rw [htB_eq, hw_star_reg])⟩
 
 /-- Finishing a scan (`finishScan`) with an interval-valid `snap` preserves `TraceInv`. -/
 private theorem TraceInv.of_finishScan {τ : SnapshotTrace ord dInit} {t : ℕ}
@@ -117,8 +112,7 @@ private theorem TraceInv.of_finishScan {τ : SnapshotTrace ord dInit} {t : ℕ}
   obtain ⟨v_snap, hv₁, hv₂, hsnap_eq⟩ := hsnap
   cases hm : st.mode with
   | embedded val =>
-    rw [hm] at hfin
-    unfold finishScan at hfin
+    simp only [hm, finishScan] at hfin
     exact inv.of_local_active hpi hnow (.readyToWrite st.opId val snap) nofun hfin
       (Or.inr ⟨val, snap, rfl⟩)
       (fun _ _ _ heq => by
@@ -181,9 +175,7 @@ private theorem TraceInv.of_writeStep {τ : SnapshotTrace ord dInit} {t : ℕ}
     (by rw [← hstep, inv.stepCount_eq])
     (fun j hw => by
       obtain rfl := hji_of_write hw
-      have hview_eq : ((τ.stateAt (t + 1)).reg j).view = snap := by
-        simp only [← hstep, Function.update_self]
-      exact ⟨v_snap, hv₁, hv₂, hsnap_eq.trans hview_eq.symm⟩)
+      exact ⟨v_snap, hv₁, hv₂, hsnap_eq.trans (by simp only [← hstep, Function.update_self])⟩)
     (fun _ _ h => nomatch h)
     (fun resp hdone => by
       injection hdone with hresp; subst hresp
@@ -201,20 +193,15 @@ private theorem TraceInv.of_scanning {τ : SnapshotTrace ord dInit} {t : ℕ}
   have ht_le : t ≤ τ.events.length := Nat.le_of_lt ht_lt
   have hnow : ¬∃ j, τ.isWriteStep j t := by
     rintro ⟨j, _, _, _, _, h1, h2⟩
-    rw [hev] at h1; injection h1 with hji; subst hji
+    obtain rfl := SnapshotEvent.step.inj (h1.symm.trans hev)
     rw [hpi] at h2; cases h2
   obtain ⟨-, -, -, hloop⟩ := inv.proc_scan i st hpi
-  unfold stepSnapshot at hstep
-  simp only [hpi] at hstep
+  simp only [stepSnapshot, hpi] at hstep
   cases hph : st.phase with
   | collectA =>
-    cases hrem : st.rem with
-    | cons j rest =>
-      simp only [hph, hrem, Option.some.injEq] at hstep
-      exact inv.of_continueScan hpi hnow hstep rfl rfl (hloop.readA hph hrem)
-    | nil =>
-      simp only [hph, hrem, Option.some.injEq] at hstep
-      exact inv.of_continueScan hpi hnow hstep rfl rfl (hloop.finishA hph hrem)
+    cases hrem : st.rem <;> simp only [hph, hrem, Option.some.injEq] at hstep
+    · exact inv.of_continueScan hpi hnow hstep rfl rfl (hloop.finishA hph hrem)
+    · exact inv.of_continueScan hpi hnow hstep rfl rfl (hloop.readA hph hrem)
   | collectB =>
     cases hrem : st.rem with
     | cons j rest =>
@@ -239,12 +226,11 @@ private theorem TraceInv.of_scanning {τ : SnapshotTrace ord dInit} {t : ℕ}
           -- Process `k` moved twice (`Lemma 3.2`): borrow `(st.collectBVal k).view`.
           simp only [hfind, Option.some.injEq] at hstep
           have hk_bool := List.find?_some hfind
-          have hk_pred : (st.collectAVal k).seq ≠ (st.collectBVal k).seq ∧ k ∈ st.moved :=
-            of_decide_eq_true hk_bool
-          obtain ⟨w₁, hw₁_lo, hw₁_hi, hw₁_write⟩ := hmov k hk_pred.2
+          obtain ⟨hne, hmov_k⟩ := of_decide_eq_true hk_bool
+          obtain ⟨w₁, hw₁_lo, hw₁_hi, hw₁_write⟩ := hmov k hmov_k
           exact inv.of_finishScan hpi hnow _
             (borrowed_view_memSnapshot inv ht_le hw₁_lo hw₁_hi hw₁_write
-              (ha_all k) (hb_all k) hk_pred.1) hstep
+              (ha_all k) (hb_all k) hne) hstep
         | none =>
           -- Unsuccessful collect without repeat mover: record `changed` and restart.
           simp only [hfind, Option.some.injEq] at hstep
@@ -256,15 +242,11 @@ theorem traceInv_holds (τ : SnapshotTrace ord dInit) :
   intro t ht
   induction t with
   | zero =>
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · simp only [stateAt_zero, SnapshotState.init]
-    · intro _ w hw; omega
+    refine ⟨by simp only [stateAt_zero, SnapshotState.init], fun _ w hw => by omega, ?_, ?_, ?_, ?_,
+      ?_, fun _ w hw => by omega⟩
     · intro i _ _ _ hp; rw [stateAt_zero] at hp; cases hp
     · intro i _ hp; rw [stateAt_zero] at hp; cases hp
-    · intro id hId; rw [stateAt_zero] at hId; cases hId
-    · intro id hId; rw [stateAt_zero] at hId; cases hId
-    · intro id hId; rw [stateAt_zero] at hId; cases hId
-    · intro _ w hw; omega
+    all_goals intro id hId; rw [stateAt_zero] at hId; cases hId
   | succ t ih =>
     have ht_lt : t < τ.events.length := Nat.lt_of_succ_le ht
     have inv := ih (Nat.le_of_succ_le ht)
@@ -282,8 +264,7 @@ theorem traceInv_holds (τ : SnapshotTrace ord dInit) :
       cases hpi : (τ.stateAt t).proc i with
       | idle => unfold stepSnapshot at hstep; simp only [hpi] at hstep; nomatch hstep
       | readyToWrite opId val snap =>
-        unfold stepSnapshot at hstep
-        simp only [hpi, Option.some.injEq] at hstep
+        simp only [stepSnapshot, hpi, Option.some.injEq] at hstep
         exact inv.of_writeStep ht_lt hev hpi hstep
       | scanning st => exact inv.of_scanning ht_lt hev hpi hstep
 

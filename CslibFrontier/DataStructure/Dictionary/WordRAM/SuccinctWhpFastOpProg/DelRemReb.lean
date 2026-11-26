@@ -295,21 +295,13 @@ theorem realizes_delRemRebGen :
       simp only [pure_bind]
       rw [clientResult_bind, hst_ra, hres_ra, clientResult_bind, hst_rc, hres_rc,
         clientResult_bind, hst_o, hres_o]
-      intro h1
-      by_cases hcond : (if decide (fs.rebStage = 2 ∧ fs.dirtyIdx < fs.dirtyCount ∧
-            fs.dirtyBuckets fs.dirtyIdx = b ∧ fs.rebCandSalt < sMaxWhp c n_max ∧
-            fs.rebCollision = 0) then 1 else 0) = 1 ∧
-          loc_del < s.mem (base + hdrRebScanCursor) ∧ (st_del = 1 ∨ st_del = 2 + fs.oldEp)
-      · cases hd : decide (fs.rebStage = 2 ∧ fs.dirtyIdx < fs.dirtyCount ∧
-            fs.dirtyBuckets fs.dirtyIdx = b ∧ fs.rebCandSalt < sMaxWhp c n_max ∧
-            fs.rebCollision = 0)
-        · have h01 : (0 : ℕ) = 1 := by simpa [hd] using hcond.1
-          cases h01
-        · rfl
-      · rw [ite_eq_right hcond, clientResult_pure_whp] at h1
-        cases h1
-    simp only [hcp_eq] at *
-    simp only [hck_st] at *
+      by_cases hd : decide (fs.rebStage = 2 ∧ fs.dirtyIdx < fs.dirtyCount ∧
+          fs.dirtyBuckets fs.dirtyIdx = b ∧ fs.rebCandSalt < sMaxWhp c n_max ∧
+          fs.rebCollision = 0) = true
+      · exact fun _ => hd
+      · rw [ite_eq_right hd, ite_eq_right (by simp), clientResult_pure_whp]
+        omega
+    simp only [hcp_eq, hck_st] at *
     first
     | exact henv.fits_const (by decide)
     | exact ⟨c, U, V, w, n_max, fs, henv, rfl, hrep, hce⟩
@@ -371,41 +363,22 @@ theorem delRemRebGenProg_fastStep {c U V w n_max base b loc_del st_del : ℕ}
       (rebActiveB && decide (loc_del < fs.rebScanCursor ∧
         (st_del = 1 ∨ st_del = 2 + fs.oldEp))) = true := by
     cases rebActiveB <;> simp
-  have hck_st : (Memory.spec 0).clientState s
-      (delRemRebCheckProg ((((cp, base), b), loc_del), st_del)) = s := by
+  have hck : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
+      (delRemRebCheckProg ((((cp, base), b), loc_del), st_del)) s
+      (if (if rebActiveB then 1 else 0) = 1 ∧ loc_del < fs.rebScanCursor ∧
+        (st_del = 1 ∨ st_del = 2 + fs.oldEp) then 1 else 0) 10 := by
     unfold delRemRebCheckProg; simp only [pure_bind]
-    rw [clientState_bind, hst_ra, hres_ra, clientState_bind, hst_rc, hres_rc,
-      clientState_bind, hst_o, hres_o]
-    split_ifs <;> rfl
-  have hck_mc : memoryCost (delRemRebCheckProg ((((cp, base), b), loc_del), st_del)) s ≤ 10 := by
-    unfold delRemRebCheckProg
-    simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hst_ra, hres_ra, hst_rc, hres_rc, hmc_rc, hst_o, hres_o, hmc_o]
-    have hra_mc' : memoryCost (readRebActiveBGenProg ((cp, base), b)) s ≤ 7 := hmc_ra
-    split_ifs <;> (simp only [memoryCost_pure]; omega)
-  have hck_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s
-      (delRemRebCheckProg ((((cp, base), b), loc_del), st_del)) := by
-    unfold delRemRebCheckProg; simp only [pure_bind]
-    refine validProg_bind hvp_ra ?_; rw [hst_ra, hres_ra]
-    refine validProg_bind hvp_rc ?_; rw [hst_rc, hres_rc]
-    refine validProg_bind hvp_o ?_; rw [hst_o, hres_o]
-    split_ifs <;> exact validProg_pure _
-  dsimp only
+    exact .mono (.bind ⟨hst_ra, hres_ra, hmc_ra, hvp_ra⟩ <|
+      .bind ⟨hst_rc, hres_rc, hmc_rc.le, hvp_rc⟩ <|
+      .bind ⟨hst_o, hres_o, hmc_o.le, hvp_o⟩ (by split_ifs <;> exact .pure _ _)) (by omega)
   unfold delRemRebGenProg
   dsimp only
-  rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-  simp only [pure_bind]
+  simp only [hwp1, pure_bind]
   by_cases hcond : (rebActiveB && decide (loc_del < fs.rebScanCursor ∧
       (st_del = 1 ∨ st_del = 2 + fs.oldEp))) = true
   · rw [ite_eq_left hcond]
-    have hcond_n := hcond_iff.mpr hcond
-    have hck_res : (Memory.spec 0).clientResult s
-        (delRemRebCheckProg ((((cp, base), b), loc_del), st_del)) = 1 := by
-      unfold delRemRebCheckProg; simp only [pure_bind]
-      rw [clientResult_bind, hst_ra, hres_ra, clientResult_bind, hst_rc, hres_rc,
-        clientResult_bind, hst_o, hres_o, ite_eq_left hcond_n]; rfl
-    have hrbt : rebActiveB = true := (Bool.and_eq_true _ _).mp hcond |>.1
-    obtain ⟨hins_r, rm, hv_r⟩ := hreb_fn hrbt
+    rw [ite_eq_left (hcond_iff.mpr hcond)] at hck
+    obtain ⟨hins_r, rm, hv_r⟩ := hreb_fn ((Bool.and_eq_true _ _).mp hcond).1
     obtain ⟨hst_cs, hres_cs, hmc_cs, hvp_cs⟩ := readHdrProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebCandSalt)
       (by dsimp [hdrRebCandSalt]; omega) (s := s)
@@ -414,91 +387,27 @@ theorem delRemRebGenProg_fastStep {c U V w n_max base b loc_del st_del : ℕ}
       mkHashRtGenProg_spec (c := c) (U := U) (V := V) (w := w) (n_max := n_max) (base := base) hth s
     obtain ⟨hfp_st, hfp_res, hfp_mc, hfp_vp⟩ :=
       fpOfSaltOptRtProg_spec (salt := fs.rebCandSalt) (kv := u.val) henv hseed (s := s)
-    have hfp_eq : (if hs : fs.rebCandSalt < sMaxWhp c n_max then
-        if hu : u.val < U then fpHash c U n_max θ.2 ⟨fs.rebCandSalt, hs⟩ ⟨u.val, hu⟩ else 0
-       else 0) = fpOfSalt c U n_max θ.2 fs.rebCandSalt u := by
-      unfold fpOfSalt
-      split_ifs with hs hu <;> first | rfl | exact absurd u.isLt hu
-    rw [hfp_eq] at hfp_res
+    simp only [u.isLt, ↓reduceDIte] at hfp_res
+    change _ = fpOfSalt c U n_max θ.2 fs.rebCandSalt u at hfp_res
     obtain ⟨hrs_st, hrs_res, hrs_mc, hrs_vp⟩ := readRebSliceIdxGenProg_spec henv hb hrep (s := s)
     have hfp_lt : fpOfSalt c U n_max θ.2 fs.rebCandSalt u < 2 ^ fpBitsWhp n_max := by
-      rw [← hfp_eq]; exact fpOfSaltOpt_lt c U n_max _ _ θ.2
+      simpa only [fpOfSalt, u.isLt, ↓reduceDIte] using fpOfSaltOpt_lt c U n_max _ u.val θ.2
     obtain ⟨hbd_mc, hbd_vp, hbd_step⟩ :=
       btreeDeleteGenProg_fastStep henv hrIdx hins_r hseed hrep hv_r hfp_lt (s := s)
-    have hrc_st : (Memory.spec 0).clientState s
-        (readCandFpGenProg ((mkWhpParams c U V w n_max, base), u.val)) = s := by
-      unfold readCandFpGenProg
-      rw [clientState_bind, hst_cs, hres_cs, clientState_bind, hmh_st, hmh_res, hfp_st]
-    have hrc_res : (Memory.spec 0).clientResult s
-        (readCandFpGenProg ((mkWhpParams c U V w n_max, base), u.val)) =
-        fpOfSalt c U n_max θ.2 fs.rebCandSalt u := by
-      unfold readCandFpGenProg
-      rw [clientResult_bind, hst_cs, hres_cs, clientResult_bind, hmh_st, hmh_res, hfp_res]
-    have hs'_eq : (Memory.spec 0).clientState s
-        (delRemRebCheckProg ((((cp, base), b), loc_del), st_del) >>= fun act =>
-          if act = 1 then
-            delRemRebActiveProg (((mkWhpParams c U V w n_max, base), b), u.val)
-          else pure ()) =
-        (Memory.spec 0).clientState s
-          (btreeDeleteGenProg
-            (((cp, base), fs.rebSliceIdx b), fpOfSalt c U n_max θ.2 fs.rebCandSalt u)) := by
-      rw [clientState_bind, hck_st, hck_res, ite_eq_left rfl]
-      unfold delRemRebActiveProg; dsimp only
+    have hact : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
+        (delRemRebActiveProg (((mkWhpParams c U V w n_max, base), b), u.val))
+        ((Memory.spec 0).clientState s (btreeDeleteGenProg
+          (((cp, base), fs.rebSliceIdx b), fpOfSalt c U n_max θ.2 fs.rebCandSalt u))) ()
+        (hashEvalCostWhp c + 279) := by
+      unfold delRemRebActiveProg readCandFpGenProg; dsimp only
       rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-      rw [clientState_bind, hrc_st, hrc_res, clientState_bind, hrs_st, hrs_res]
-    rw [hs'_eq]
-    refine ⟨?_, ?_, hbd_step⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hck_st, hck_res, ite_eq_left rfl]
-      unfold delRemRebActiveProg; dsimp only
-      rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-      simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hrc_st, hrc_res, hrs_st, hrs_res, hrs_mc]
-      have hrc_mc : memoryCost (readCandFpGenProg ((mkWhpParams c U V w n_max, base), u.val)) s ≤
-          hashEvalCostWhp c + 1 := by
-        unfold readCandFpGenProg
-        simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [hst_cs, hres_cs, hmc_cs, hmh_st, hmh_res, hmh_mc]
-        have hfp_mc' : memoryCost (fpOfSaltOptRtProg ((mkHashRt c U w n_max base, fs.rebCandSalt),
-            u.val)) s ≤ hashEvalCostWhp c := hfp_mc
-        omega
-      dsimp only [cp] at hck_mc hbd_mc ⊢
-      omega
-    · refine validProg_bind hck_vp ?_; rw [hck_st, hck_res, ite_eq_left rfl]
-      unfold delRemRebActiveProg; dsimp only
-      rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-      have hrc_vp : ValidProg w (base + largeSpaceWhp c U V w n_max) s
-          (readCandFpGenProg ((mkWhpParams c U V w n_max, base), u.val)) := by
-        unfold readCandFpGenProg
-        refine validProg_bind hvp_cs ?_; rw [hst_cs, hres_cs]
-        refine validProg_bind hmh_vp ?_; rw [hmh_st, hmh_res]
-        exact hfp_vp
-      refine validProg_bind hrc_vp ?_; rw [hrc_st, hrc_res]
-      refine validProg_bind hrs_vp ?_; rw [hrs_st, hrs_res]
-      exact hbd_vp
+      exact .mono (.bind (.bind ⟨hst_cs, hres_cs, hmc_cs.le, hvp_cs⟩ <|
+        .bind ⟨hmh_st, hmh_res, hmh_mc.le, hmh_vp⟩ ⟨hfp_st, hfp_res, hfp_mc, hfp_vp⟩) <|
+        .bind ⟨hrs_st, hrs_res, hrs_mc.le, hrs_vp⟩ ⟨rfl, rfl, hbd_mc, hbd_vp⟩) (by omega)
+    exact CostBoundedStep.elim (.bind hck hact) (by omega) hbd_step
   · rw [ite_eq_right hcond]
-    have hncond_n : ¬((if rebActiveB then 1 else 0) = 1 ∧ loc_del < fs.rebScanCursor ∧
-        (st_del = 1 ∨ st_del = 2 + fs.oldEp)) :=
-      fun h => hcond (hcond_iff.mp h)
-    have hck_res : (Memory.spec 0).clientResult s
-        (delRemRebCheckProg ((((cp, base), b), loc_del), st_del)) = 0 := by
-      unfold delRemRebCheckProg; simp only [pure_bind]
-      rw [clientResult_bind, hst_ra, hres_ra, clientResult_bind, hst_rc, hres_rc,
-        clientResult_bind, hst_o, hres_o, ite_eq_right hncond_n]; rfl
-    have hs'_eq : (Memory.spec 0).clientState s
-        (delRemRebCheckProg ((((cp, base), b), loc_del), st_del) >>= fun act =>
-          if act = 1 then
-            delRemRebActiveProg (((mkWhpParams c U V w n_max, base), b), u.val)
-          else pure ()) = s := by
-      rw [clientState_bind, hck_st, hck_res, ite_eq_right (by decide : ¬(0 = 1))]; rfl
-    rw [hs'_eq]
-    refine ⟨?_, ?_, FastStateStep.refl hseed hrep⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hck_st, hck_res, ite_eq_right (by decide : ¬(0 = 1)), memoryCost_pure]
-      omega
-    · refine validProg_bind hck_vp ?_
-      rw [hck_st, hck_res, ite_eq_right (by decide : ¬(0 = 1))]
-      exact validProg_pure _
+    rw [ite_eq_right (fun h => hcond (hcond_iff.mp h))] at hck
+    exact CostBoundedStep.elim (.bind hck (.pure _ _)) (by omega) (FastStateStep.refl hseed hrep)
 
 /-- Read `(st_del, (rKey_u, fp_live_u))` for `fastDeleteRemoveGenProg` without mutating memory. -/
 @[irreducible] def delRemReadInfoGenProg :
@@ -589,40 +498,22 @@ theorem delRemReadInfoGenProg_spec {c U V w n_max base b loc_del : ℕ}
   simp only [getBktField] at hs1_res
   obtain ⟨hfp_st, hfp_res, hfp_mc, hfp_vp⟩ :=
     fpOfSaltOptRtProg_spec (salt := fs.bktSalt b) (kv := u.val) henv hseed (s := s)
-  have hrk_eq : (if hu' : u.val < U then fpReducedKey c U n_max θ.2 ⟨u.val, hu'⟩ else 0) =
-      fpReducedKey c U n_max θ.2 u := dite_eq_left u.isLt
-  have hfp_eq : (if hs : fs.bktSalt b < sMaxWhp c n_max then
-      if hu' : u.val < U then fpHash c U n_max θ.2 ⟨fs.bktSalt b, hs⟩ ⟨u.val, hu'⟩ else 0
-     else 0) = fpOfSalt c U n_max θ.2 (fs.bktSalt b) u := by
-    unfold fpOfSalt
-    split_ifs with hs hu' <;> first | rfl | exact absurd u.isLt hu'
-  rw [hrk_eq] at hrk_res
-  rw [hfp_eq] at hfp_res
+  simp only [u.isLt, ↓reduceDIte] at hrk_res hfp_res
+  change _ = fpOfSalt c U n_max θ.2 (fs.bktSalt b) u at hfp_res
   dsimp only
+  suffices h : CostBoundedStep w (base + largeSpaceWhp c U V w n_max) s
+      (delRemReadInfoGenProg ((((mkWhpParams c U V w n_max, base), b), loc_del), u.val)) s
+      (fs.locState b loc_del,
+        (fpReducedKey c U n_max θ.2 u, fpOfSalt c U n_max θ.2 (fs.bktSalt b) u))
+      (hashEvalCostWhp c + 5) from
+    ⟨h.clientState_eq, h.clientResult_eq, h.memoryCost_le, h.validProg⟩
   unfold delRemReadInfoGenProg
   dsimp only
-  rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hst_l, hres_l, clientState_bind, hmh_st, hmh_res,
-      clientState_bind, hrk_st, hrk_res, clientState_bind, hs1_st, hs1_res,
-      clientState_bind, hfp_st, hfp_res]; rfl
-  · rw [clientResult_bind, hst_l, hres_l, clientResult_bind, hmh_st, hmh_res,
-      clientResult_bind, hrk_st, hrk_res, clientResult_bind, hs1_st, hs1_res,
-      clientResult_bind, hfp_st, hfp_res]; rfl
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hst_l, hres_l, hmc_l, hmh_st, hmh_res, hmh_mc, hrk_st, hrk_res,
-      hs1_st, hs1_res, hs1_mc, hfp_st, hfp_res, memoryCost_pure]
-    have hrk_mc' : memoryCost (fpReducedKeyOptRtProg (mkHashRt c U w n_max base, u.val)) s ≤ 1 :=
-      hrk_mc
-    have hfp_mc' : memoryCost (fpOfSaltOptRtProg ((mkHashRt c U w n_max base, fs.bktSalt b),
-        u.val)) s ≤ hashEvalCostWhp c := hfp_mc
-    omega
-  · refine validProg_bind hvp_l ?_; rw [hst_l, hres_l]
-    refine validProg_bind hmh_vp ?_; rw [hmh_st, hmh_res]
-    refine validProg_bind hrk_vp ?_; rw [hrk_st, hrk_res]
-    refine validProg_bind hs1_vp ?_; rw [hs1_st, hs1_res]
-    refine validProg_bind hfp_vp ?_; rw [hfp_st, hfp_res]
-    exact validProg_pure _
+  rw [hwp1]
+  exact .mono (.bind ⟨hst_l, hres_l, hmc_l.le, hvp_l⟩ <|
+    .bind ⟨hmh_st, hmh_res, hmh_mc.le, hmh_vp⟩ <| .bind ⟨hrk_st, hrk_res, hrk_mc, hrk_vp⟩ <|
+    .bind ⟨hs1_st, hs1_res, hs1_mc.le, hs1_vp⟩ <|
+    .bind ⟨hfp_st, hfp_res, hfp_mc, hfp_vp⟩ (.pure _ _)) (by omega)
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

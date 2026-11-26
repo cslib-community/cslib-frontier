@@ -277,14 +277,12 @@ theorem fanInAtMost_tree (n s k : ℕ) :
     simp only [Nat.zero_mul, Nat.sub_zero]
     exact Nat.add_le_add (by unfold headerLength; omega) (le_max_left _ _)
   | j + 1, ℓ, N, out, hℓ => by
-    have hk : ℓ + k ≤ n := by rw [Nat.add_mul, Nat.one_mul] at hℓ; omega
+    rw [Nat.add_mul, Nat.one_mul] at hℓ
     refine Circuit.FanInAtMost.comp ((fanInAtMost_layer _ _ _ _ _ _ _).mono ?_) ?_
     · exact Nat.add_le_add (by unfold headerLength; omega) (le_max_right _ _)
-    · have h := fanInAtMost_tree n s k j (ℓ + k) _ finProdFinEquiv.symm
-        (by rw [Nat.add_mul, Nat.one_mul] at hℓ; omega)
-      have he : n - (ℓ + k) - j * k = n - ℓ - (j + 1) * k := by
+    · have he : n - (ℓ + k) - j * k = n - ℓ - (j + 1) * k := by
         rw [Nat.add_mul, Nat.one_mul]; omega
-      rwa [he] at h
+      exact he ▸ fanInAtMost_tree n s k j (ℓ + k) _ finProdFinEquiv.symm (by omega)
 
 /-- **Oracle gates of the merge-tree circuit**: `1 + W · ∑_{i < j} 2 ^ ((i + 1) k)`, where
 `W = stateWidth n s`. -/
@@ -357,8 +355,10 @@ private theorem sum_pow_le {k : ℕ} (hk : 1 ≤ k) :
 private theorem stateWidth_le {n s : ℕ} (hns : n ≤ s) (hs : 2 ≤ s) :
     stateWidth n s ≤ 8 * s ^ 2 := by
   unfold stateWidth certLength
-  have h1 : s * (3 + 2 * (n + s)) ≤ s * (3 + 4 * s) := Nat.mul_le_mul_left _ (by omega)
-  nlinarith
+  have h1 : s * (3 + 2 * (n + s)) ≤ 4 * s ^ 2 + 3 * s :=
+    (Nat.mul_le_mul_left s (show 3 + 2 * (n + s) ≤ 3 + 4 * s by omega)).trans_eq (by ring)
+  have hs2 : 2 * s ≤ s ^ 2 := (Nat.mul_le_mul_right s hs).trans_eq (by ring)
+  omega
 
 /-- **Oracle gates of the McKay–Murray–Williams circuit**: `O(N / s)`, namely
 `s · q ≤ s + 128 · 2 ^ n` for `q` oracle gates, when `n ≤ s`. -/
@@ -418,13 +418,9 @@ theorem mul_size_mmwCircuit_le {n s : ℕ} (hns : n ≤ s) :
     s * (mmwCircuit n s).size ≤ 129 * 2 ^ n + 3 * s := by
   have hc := mul_cost_program_mmwCircuit_le hns
   have hm := two_mul_mul_mmwLevels_le n s
-  have hsize : (mmwCircuit n s).size =
-      (mmwCircuit n s).program.cost OracleOp.queryWeight + 2 * (mmwLevels n s + 1) := by
-    rw [mmwCircuit, cost_program_circuit, size_circuit]
-  rw [hsize]
-  generalize (mmwCircuit n s).program.cost OracleOp.queryWeight = q at *
-  have h2 : s * (q + 2 * (mmwLevels n s + 1)) = s * q + 2 * (s * mmwLevels n s) + 2 * s := by
-    ring
+  rw [mmwCircuit, size_circuit]
+  rw [mmwCircuit, cost_program_circuit] at hc
+  simp only [Nat.mul_add, Nat.mul_one, Nat.mul_left_comm s 2] at hc ⊢
   omega
 
 /-- **Adaptivity of the McKay–Murray–Williams circuit**: at most `n / ⌊log₂ s⌋ + 1` oracle gates
@@ -450,20 +446,17 @@ theorem fanInAtMost_mmwCircuit {n s : ℕ} (hns : n ≤ s) (hs : 2 ≤ s) :
     calc 2 ^ (n - m * k) ≤ 2 ^ (4 * k) := Nat.pow_le_pow_right (by norm_num) (by omega)
       _ = (2 ^ k) ^ 4 := by ring
       _ ≤ s ^ 4 := Nat.pow_le_pow_left hks 4
-  have h2 : s ≤ s ^ 2 := by nlinarith
-  have h4' : 4 ≤ s ^ 2 := by nlinarith
+  have h2 : s ≤ s ^ 2 := Nat.le_self_pow two_ne_zero s
   have h4 : 4 * s ^ 2 ≤ s ^ 4 :=
-    calc 4 * s ^ 2 ≤ s ^ 2 * s ^ 2 := Nat.mul_le_mul_right _ h4'
-      _ = s ^ 4 := by ring
+    (Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hs 2)).trans_eq (by ring)
   have hmerge : 2 ^ k * stateWidth n s ≤ 4 * s ^ 4 :=
     calc 2 ^ k * stateWidth n s ≤ s * (8 * s ^ 2) := Nat.mul_le_mul hks hW
-      _ = 8 * s ^ 3 := by ring
-      _ ≤ 4 * s ^ 4 := by nlinarith
+      _ = 4 * 2 * s ^ 3 := by ring
+      _ ≤ 4 * s * s ^ 3 := by gcongr
+      _ = 4 * s ^ 4 := by ring
   have hmax : max (2 ^ (n - m * k)) (2 ^ k * stateWidth n s) ≤ 4 * s ^ 4 :=
     max_le (hleaf.trans (by omega)) hmerge
-  have hhead : headerLength n s n n ≤ 8 * s ^ 4 := by
-    unfold headerLength
-    omega
+  unfold headerLength
   omega
 
 /-- **The McKay–Murray–Williams circuit decides `MCSP[s]`** under the merge-tree oracle. -/

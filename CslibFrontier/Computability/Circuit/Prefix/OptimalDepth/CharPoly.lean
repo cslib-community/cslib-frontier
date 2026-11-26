@@ -148,16 +148,14 @@ noncomputable def alphaRoot (k : ℕ) : ℝ :=
 
 private theorem alphaRoot_mem_Icc {k : ℕ} (hk : 2 ≤ k) :
     alphaRoot k ∈ Set.Icc 1 Real.goldenRatio := by
-  unfold alphaRoot
-  simp only [hk, ↓reduceDIte]
+  rw [alphaRoot, dite_eq_left hk]
   exact (Classical.choose_spec (exists_root_mem_Icc hk)).1
 
 /-- `alphaRoot k` is a root of `prefixCharPoly k` for all `k ≥ 2`
 ([Sergeev2025PrefixDepth], p. 2). -/
 theorem prefixCharPoly_alphaRoot {k : ℕ} (hk : 2 ≤ k) :
     prefixCharPoly k (alphaRoot k) = 0 := by
-  unfold alphaRoot
-  simp only [hk, ↓reduceDIte]
+  rw [alphaRoot, dite_eq_left hk]
   exact (Classical.choose_spec (exists_root_mem_Icc hk)).2
 
 /-- `1 < alphaRoot k` for all `k ≥ 2`. -/
@@ -230,14 +228,10 @@ theorem alphaRoot_strictMonoOn : StrictMonoOn alphaRoot (Set.Ici 2) := by
     rw [prefixCharPoly_alphaRoot hk, sub_zero] at hdiff
     have hlt2 := (alphaRoot_lt_goldenRatio hk).trans Real.goldenRatio_lt_two
     exact lt_alphaRoot_of_pos_of_prefixCharPoly_pos (by omega) (alphaRoot_pos hk) (by linarith)
-  intro a ha b _ hab
-  simp only [Set.mem_Ici] at ha
-  obtain ⟨m, rfl⟩ : ∃ m, b = a + m + 1 := ⟨b - a - 1, by omega⟩
-  have hadd : ∀ n : ℕ, alphaRoot a < alphaRoot (a + n + 1) := fun n => by
-    induction n with
-    | zero => exact hstep a ha
-    | succ n ih => exact ih.trans (hstep (a + n + 1) (by omega))
-  exact hadd m
+  rintro a ha b - hab
+  induction b, hab using Nat.le_induction with
+  | base => exact hstep a ha
+  | succ b hab ih => exact ih.trans (hstep b (ha.trans (Nat.le_of_succ_le hab)))
 
 /-- As `k → ∞`, `alphaRoot k` converges to the golden ratio `φ = (1 + √5) / 2`
 ([Sergeev2025PrefixDepth], p. 2). -/

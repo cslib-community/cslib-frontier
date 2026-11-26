@@ -89,20 +89,16 @@ private theorem euclidConvergent_eq (i a b : ℕ) :
     euclidConvergent i (a, b) = Real.convergent ((a : ℝ) / b) i := by
   induction i generalizing a b with
   | zero =>
-    simp only [euclidConvergent, Real.convergent_zero]
-    rw [floor_nat_div_nat, Int.cast_natCast]
+    simp only [euclidConvergent, Real.convergent_zero, floor_nat_div_nat, Int.cast_natCast]
   | succ i ih =>
-    by_cases hb : b = 0
-    · subst b
-      simp [euclidConvergent_zero_den]
-    have hb' : (b : ℝ) ≠ 0 := by exact_mod_cast hb
+    rcases eq_or_ne b 0 with rfl | hb
+    · simp [euclidConvergent_zero_den]
+    have hb' : (b : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hb
     have hfract : Int.fract ((a : ℝ) / b) = (a % b : ℕ) / (b : ℝ) := by
-      rw [Int.fract, floor_nat_div_nat, Int.cast_natCast]
-      apply (eq_div_iff hb').2
-      rw [sub_mul, div_mul_cancel₀ _ hb']
-      have hrem : ((a % b : ℕ) : ℝ) + b * ((a / b : ℕ) : ℝ) = a := by
-        exact_mod_cast Nat.mod_add_div a b
-      linarith
+      rw [Int.fract, floor_nat_div_nat, Int.cast_natCast, eq_div_iff hb', sub_mul,
+        div_mul_cancel₀ _ hb']
+      linarith [show ((a % b : ℕ) : ℝ) + b * ((a / b : ℕ) : ℝ) = a by
+        exact_mod_cast Nat.mod_add_div a b]
     simp only [euclidConvergent, gcdStep, hb, ite_false, Real.convergent_succ, floor_nat_div_nat,
       Int.cast_natCast, hfract, inv_div, ih]
 
@@ -110,9 +106,8 @@ private theorem euclidConvergent_stable (i extra : ℕ) (p : ℕ × ℕ)
     (h : (gcdStep^[i] p).2 = 0) : euclidConvergent (i + extra) p = euclidConvergent i p := by
   induction i generalizing p with
   | zero =>
-    obtain ⟨a, b⟩ := p
-    change b = 0 at h
-    subst b
+    rcases p with ⟨a, b⟩
+    obtain rfl : b = 0 := h
     simp [euclidConvergent_zero_den]
   | succ i ih =>
     rw [Function.iterate_succ_apply] at h
@@ -158,10 +153,7 @@ private theorem euclidConvergent_height_size (i : ℕ) (p : ℕ × ℕ) :
   | succ i ih =>
     have hquot := quotient_height_size p
     let q := euclidConvergent i (gcdStep p)
-    have hinv : (q⁻¹).height = q.height := by
-      by_cases hq : q = 0
-      · simp [hq]
-      · exact height_inv hq
+    have hinv : (q⁻¹).height = q.height := by by_cases hq : q = 0 <;> simp [hq, height_inv]
     have hq : q.height.size ≤ (i + 1) * ((max p.1 p.2).size + 3) :=
       (ih (gcdStep p)).trans
         (Nat.mul_le_mul_left (i + 1) (Nat.add_le_add_right
@@ -206,65 +198,51 @@ private theorem mem_cellCandidates {N M k : ℕ} {q : ℚ}
   · simp [cellCandidates, heq]
   let a := 2 * k + 1
   let b := 2 * M
-  have hMr : (0 : ℝ) < M := by exact_mod_cast hM
+  have hMr : (0 : ℝ) < M := Nat.cast_pos.mpr hM
   have hlor : (k : ℝ) / M < q := by
-    simpa only [Rat.cast_div, Rat.cast_natCast, Rat.cast_add, Rat.cast_one] using
-      (Rat.cast_lt (K := ℝ)).2 hlo
+    simpa only [Rat.cast_div, Rat.cast_natCast] using (Rat.cast_lt (K := ℝ)).2 hlo
   have hhir : (q : ℝ) < (k + 1 : ℝ) / M := by
     simpa only [Rat.cast_div, Rat.cast_natCast, Rat.cast_add, Rat.cast_one] using
       (Rat.cast_lt (K := ℝ)).2 hhi
-  have hsq : (q.den : ℝ) ^ 2 ≤ M := by
-    exact_mod_cast (Nat.pow_le_pow_left hq 2).trans hscale
+  have hsq : (q.den : ℝ) ^ 2 ≤ M := mod_cast (Nat.pow_le_pow_left hq 2).trans hscale
   have hmid : (a : ℝ) / b = (k : ℝ) / M + 1 / (2 * M) := by
     push_cast [a, b]
     field_simp
-  have hclose : |(a : ℝ) / b - q| < 1 / (2 * (q.den : ℝ) ^ 2) := by
-    refine (show |(a : ℝ) / b - q| < 1 / (2 * (M : ℝ)) from ?_).trans_le ?_
-    · rw [hmid, abs_lt]
-      have hu : (k + 1 : ℝ) / M = (k : ℝ) / M + 2 * (1 / (2 * (M : ℝ))) := by
-        field_simp
-      rw [hu] at hhir
-      constructor <;> linarith
-    · exact one_div_le_one_div_of_le (by positivity) (by gcongr)
+  have hhu : (k + 1 : ℝ) / M = (k : ℝ) / M + 2 * (1 / (2 * (M : ℝ))) := by field_simp
+  have hclose : |(a : ℝ) / b - q| < 1 / (2 * (q.den : ℝ) ^ 2) :=
+    (abs_lt.mpr ⟨by linarith, by linarith⟩).trans_le
+      (one_div_le_one_div_of_le (by positivity) (mul_le_mul_of_nonneg_left hsq zero_le_two))
   obtain ⟨i, hi⟩ := Real.exists_rat_eq_convergent hclose
   let p : ℕ × ℕ := (a, b)
-  let j := min i (gcdCount p)
-  have hj : euclidConvergent j p = q := by
-    have hei : euclidConvergent i p = q := (euclidConvergent_eq i a b).trans hi.symm
-    rcases le_or_gt i (gcdCount p) with h | h
-    · simpa only [j, min_eq_left h] using hei
-    · change euclidConvergent (min i (gcdCount p)) p = q
-      rw [min_eq_right h.le, ← euclidConvergent_stable (gcdCount p)
-        (i - gcdCount p) p (snd_iterate_gcdStep_gcdCount p),
-        Nat.add_sub_of_le h.le]
-      exact hei
-  apply List.mem_cons_of_mem
-  exact List.mem_map.mpr ⟨j, List.mem_range.mpr (Nat.lt_succ_of_le (min_le_right ..)), hj⟩
+  have hei : euclidConvergent i p = q := (euclidConvergent_eq i a b).trans hi.symm
+  refine List.mem_cons_of_mem _ (List.mem_map.mpr
+    ⟨min i (gcdCount p), List.mem_range.mpr (Nat.lt_succ_of_le (min_le_right ..)), ?_⟩)
+  rcases le_or_gt i (gcdCount p) with h | h
+  · simpa only [min_eq_left h] using hei
+  · rw [min_eq_right h.le, ← euclidConvergent_stable (gcdCount p) (i - gcdCount p) p
+      (snd_iterate_gcdStep_gcdCount p), Nat.add_sub_of_le h.le]
+    exact hei
 
 private theorem eq_of_mem_cell {N M k : ℕ} {q r : ℚ} (hscale : N ^ 2 ≤ M)
     (hq : inCell N M k q = true) (hr : inCell N M k r = true) : q = r := by
   obtain ⟨hqd, hql, hqu⟩ := of_decide_eq_true hq
   obtain ⟨hrd, hrl, hru⟩ := of_decide_eq_true hr
   by_contra hne
-  have hsep := one_div_sq_le_abs_sub_of_den_le hqd hrd hne
   have hwidthRat : |q - r| < 1 / (M : ℚ) := by
     rw [add_div] at hqu hru
-    rw [abs_lt]
-    constructor <;> linarith
+    exact abs_lt.mpr ⟨by linarith, by linarith⟩
   have hwidth : |(q : ℝ) - r| < 1 / (M : ℝ) := by
     simpa only [Rat.cast_abs, Rat.cast_sub, Rat.cast_div, Rat.cast_one, Rat.cast_natCast] using
       (Rat.cast_lt (K := ℝ)).2 hwidthRat
-  have hN : (0 : ℝ) < N := Nat.cast_pos.2 (q.den_pos.trans_le hqd)
-  exact (hwidth.trans_le (one_div_le_one_div_of_le (pow_pos hN _)
-    (by exact_mod_cast hscale))).not_ge hsep
+  exact (hwidth.trans_le (one_div_le_one_div_of_le
+    (pow_pos (Nat.cast_pos.2 (q.den_pos.trans_le hqd)) _) (by exact_mod_cast hscale))).not_ge
+    (one_div_sq_le_abs_sub_of_den_le hqd hrd hne)
 
 private theorem recoverInCell_mem_cell {N M k : ℕ} {q : ℚ}
     (h : recoverInCell N M k = some q) :
     q.den ≤ N ∧ (k : ℚ) / M ≤ q ∧ q < (k + 1 : ℚ) / M := by
-  unfold recoverInCell at h
-  have ht := List.find?_some h
-  unfold inCell at ht
-  exact of_decide_eq_true ht
+  rw [recoverInCell] at h
+  simpa [inCell] using List.find?_some h
 
 private theorem recoverInCell_eq_some {N M k : ℕ} {q : ℚ}
     (hM : 0 < M) (hscale : N ^ 2 ≤ M) (hq : q.den ≤ N)
@@ -377,11 +355,8 @@ private theorem euclidConvergent_polyTime :
         have h : (encEuclidPair operands).length ≤ n :=
           length_le_encPair_left encEuclidPair encUnary x
         simp only [encEuclidPair, length_encPair, encNat_apply, Nat.size_eq_bits_len] at h
-        rcases le_total operands.1 operands.2 with hle | hle
-        · rw [max_eq_right hle]
-          omega
-        · rw [max_eq_left hle]
-          omega
+        rcases max_choice operands.1 operands.2 with hmax | hmax <;> rw [hmax]
+        all_goals omega
       let q := euclidConvergent j (gcdStep^[x.2 - j] x.1)
       have hq : q.height.size ≤ (n + 1) * (n + 3) :=
         (euclidConvergent_height_size j _).trans (Nat.mul_le_mul
@@ -396,10 +371,8 @@ private theorem euclidConvergent_polyTime :
       have := Nat.mul_le_mul_left 3 hq
       simp only [← Nat.mul_assoc] at this
       omega)
-  refine hloop.snd'.of_enc_eq fun x => ?_
-  dsimp only [init]
-  rw [convergentStep_iterate _ _ _ le_rfl, Nat.sub_self]
-  rfl
+  exact hloop.snd'.of_enc_eq fun x => by
+    simp only [init, convergentStep_iterate _ _ _ le_rfl, Nat.sub_self, Function.iterate_zero, id]
 
 private theorem midpointConvergents_polyTime :
     ComputableInPolyTime

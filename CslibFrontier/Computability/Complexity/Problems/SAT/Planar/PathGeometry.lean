@@ -61,26 +61,21 @@ private theorem neighbor_of_straight {r : Route} {p q d : Point}
     q = p - d ∨ q = p + d := by
   rcases h with h | h
   · obtain ⟨k, hk, hp, hq⟩ := consecutivePair_index h
-    have hh := ht.getD_neighbors hn (by omega) hp
-    have hd : r.getD (k + 1) p = q := by rw [List.getD_eq_getElem _ _ hk]; exact hq
-    rcases hh.2.2 with ⟨_, hnext⟩ | ⟨_, hnext⟩
-    · exact Or.inr (hd.symm.trans hnext)
-    · exact Or.inl (hd.symm.trans hnext)
+    have hd : r.getD (k + 1) p = q := (List.getD_eq_getElem _ _ hk).trans hq
+    exact (ht.getD_neighbors hn (by omega) hp).2.2.symm.imp
+      (fun h => hd.symm.trans h.2) (fun h => hd.symm.trans h.2)
   · obtain ⟨k, hk, hq, hp⟩ := consecutivePair_index h
-    have hh := ht.getD_neighbors hn hk hp
     have hd : r.getD (k + 1 - 1) p = q := by
       rw [Nat.add_sub_cancel, List.getD_eq_getElem _ _ (by omega)]
       exact hq
-    rcases hh.2.2 with ⟨hprev, _⟩ | ⟨hprev, _⟩
-    · exact Or.inl (hd.symm.trans hprev)
-    · exact Or.inr (hd.symm.trans hprev)
+    exact (ht.getD_neighbors hn hk hp).2.2.imp
+      (fun h => hd.symm.trans h.1) (fun h => hd.symm.trans h.1)
 
 private theorem horizontal_vertical_neighbors {p q : Point}
     (hx : q = p - (1, 0) ∨ q = p + (1, 0))
     (hy : q = p - (0, 1) ∨ q = p + (0, 1)) : False := by
-  rcases hx with hx | hx <;> rcases hy with hy | hy <;>
-    have h := hx.symm.trans hy <;>
-    have h' := congrArg Prod.fst h <;> simp at h'
+  rcases hx with rfl | rfl <;> rcases hy with hy | hy <;>
+    simpa using congrArg Prod.fst hy
 
 private theorem canonical_neighbor_unique (G : Graph)
     (hG : ∀ e ∈ G.edges, e.1 ∈ G.vertices ∧ e.2 ∈ G.vertices)
@@ -161,54 +156,42 @@ private theorem stepPorts_inter {e f : Point × Point} {x : Point × Fin 4}
   rcases e with ⟨a, b⟩
   rcases f with ⟨c, d⟩
   simp only [stepPorts, List.mem_cons, List.not_mem_nil, or_false] at hx hy
-  rcases hx with rfl | rfl <;> rcases hy with hy | hy
-  · obtain ⟨h, hs⟩ := Prod.mk.inj hy
-    subst c
-    have hb := side_injective_on_unit_neighbors he hf hs
-    exact Or.inl (Prod.ext rfl hb)
-  · obtain ⟨h, hs⟩ := Prod.mk.inj hy
-    subst d
-    have hb := side_injective_on_unit_neighbors he (unit_reverse hf) hs
-    exact Or.inr (Prod.ext rfl hb)
-  · obtain ⟨h, hs⟩ := Prod.mk.inj hy
-    subst c
-    have ha := side_injective_on_unit_neighbors (unit_reverse he) hf hs
-    exact Or.inr (Prod.ext ha rfl)
-  · obtain ⟨h, hs⟩ := Prod.mk.inj hy
-    subst d
-    have ha := side_injective_on_unit_neighbors (unit_reverse he) (unit_reverse hf) hs
-    exact Or.inl (Prod.ext ha rfl)
+  rcases hx with rfl | rfl <;> rcases hy with hy | hy <;> obtain ⟨rfl, hs⟩ := Prod.mk.inj hy
+  · exact Or.inl (Prod.ext rfl (side_injective_on_unit_neighbors he hf hs))
+  · exact Or.inr (Prod.ext rfl (side_injective_on_unit_neighbors he (unit_reverse hf) hs))
+  · exact Or.inr (Prod.ext (side_injective_on_unit_neighbors (unit_reverse he) hf hs) rfl)
+  · exact Or.inl (Prod.ext (side_injective_on_unit_neighbors (unit_reverse he) (unit_reverse hf) hs)
+      rfl)
 
 private theorem routePorts_nodup {r : Route} (hn : r.Nodup)
     (hu : ∀ e ∈ r.consecutivePairs, Orthogonal.length e.1 e.2 = 1) :
     (r.consecutivePairs.flatMap stepPorts).Nodup := by
-  apply List.nodup_flatMap.mpr
-  constructor
-  · intro e he
-    have hne := (axisAligned_of_length_eq_one (hu e he)).2
-    simp only [stepPorts, List.nodup_cons, List.not_mem_nil, List.nodup_nil,
+  refine List.nodup_flatMap.mpr ⟨fun e he => ?_,
+    List.pairwise_iff_getElem.mpr fun i j hi hj hij x hx hy => ?_⟩
+  · simp only [stepPorts, List.nodup_cons, List.not_mem_nil, List.nodup_nil,
       List.mem_singleton, not_false_eq_true, and_true]
-    exact fun h => hne (congrArg Prod.fst h)
-  · rw [List.pairwise_iff_getElem]
-    intro i j hi hj hij x hx hy
-    have hi' : i + 1 < r.length := by
-      simp only [List.consecutivePairs, List.length_zip, List.length_tail] at hi
+    exact fun h => (axisAligned_of_length_eq_one (hu e he)).2 (congrArg Prod.fst h)
+  · have hlen {k} (hk : k < r.consecutivePairs.length) : k + 1 < r.length := by
+      simp only [List.consecutivePairs, List.length_zip, List.length_tail] at hk
       omega
-    have hj' : j + 1 < r.length := by
-      simp only [List.consecutivePairs, List.length_zip, List.length_tail] at hj
-      omega
+    have hi' := hlen hi
+    have hj' := hlen hj
     rcases stepPorts_inter (hu _ (List.getElem_mem hi)) (hu _ (List.getElem_mem hj)) hx hy
         with heq | heq
-    · have heq' : r[i] = r[j] := by
-        simpa only [List.consecutivePairs, List.getElem_zip, List.getElem_tail] using
-          congrArg Prod.fst heq
-      have := hn.eq_of_getElem_eq (by omega) (by omega) heq'
-      omega
-    · have heq' : r[i] = r[j + 1] := by
-        simpa only [List.consecutivePairs, List.getElem_zip, List.getElem_tail] using
-          congrArg Prod.fst heq
-      have := hn.eq_of_getElem_eq (by omega) hj' heq'
-      omega
+    · exact hij.ne (hn.eq_of_getElem_eq (by omega) (by omega)
+        (show r[i] = r[j] by simpa [List.consecutivePairs] using congrArg Prod.fst heq))
+    · exact absurd (hn.eq_of_getElem_eq (by omega) hj'
+        (show r[i] = r[j + 1] by simpa [List.consecutivePairs] using congrArg Prod.fst heq))
+        (by omega)
+
+private theorem paths_step_unit {φ : CNF ℕ} {i : ℕ} (hi : i < (paths φ).length)
+    {e : Point × Point} (he : e ∈ ((paths φ)[i]).consecutivePairs) :
+    Orthogonal.length e.1 e.2 = 1 := by
+  apply Graph.unitPath_unit (SAT.incidenceGraph φ)
+    (fun _ => SAT.incidenceGraph_endpoints) (fun _ => SAT.incidenceGraph_loopless)
+    (by simpa only [paths_eq_unitPaths, Graph.unitPaths_length] using hi)
+  change e ∈ ((paths φ).getD i []).consecutivePairs
+  rwa [List.getD_eq_getElem _ _ hi]
 
 /-- All directed cell ports in the actual canonical paths are distinct. Both halves of every
 unit step are included, even the final clause-directed half. No path witness is assumed. -/
@@ -216,40 +199,23 @@ theorem pathPorts_nodup {φ : CNF ℕ}
     (hw : ∀ c ∈ φ, c.length ≤ 3) (hv : ∀ v, φ.vars.count v ≤ 3) :
     ((paths φ).flatMap fun r => r.consecutivePairs.flatMap fun e =>
       [(e.1, side e.1 e.2), (e.2, side e.2 e.1)]).Nodup := by
-  have hi_edge {i : ℕ} (hi : i < (paths φ).length) :
-      i < (SAT.incidenceGraph φ).edges.length := by
-    simpa only [paths_eq_unitPaths, Graph.unitPaths_length] using hi
-  have hn {i : ℕ} (hi : i < (paths φ).length) : ((paths φ)[i]).Nodup := by
-    have h := Graph.unitPath_nodup (SAT.incidenceGraph φ)
-      (fun _ => SAT.incidenceGraph_endpoints) (fun _ => SAT.incidenceGraph_loopless) (hi_edge hi)
-    change ((paths φ).getD i []).Nodup at h
-    rwa [List.getD_eq_getElem _ _ hi] at h
-  have hu {i : ℕ} (hi : i < (paths φ).length) {e : Point × Point}
-      (he : e ∈ ((paths φ)[i]).consecutivePairs) : Orthogonal.length e.1 e.2 = 1 := by
-    apply Graph.unitPath_unit (SAT.incidenceGraph φ)
-      (fun _ => SAT.incidenceGraph_endpoints) (fun _ => SAT.incidenceGraph_loopless) (hi_edge hi)
-    change e ∈ ((paths φ).getD i []).consecutivePairs
-    rwa [List.getD_eq_getElem _ _ hi]
   change ((paths φ).flatMap fun r => r.consecutivePairs.flatMap stepPorts).Nodup
-  apply List.nodup_flatMap.mpr
-  constructor
-  · intro r hr
-    obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hr
-    exact routePorts_nodup (hn hi) (fun _ he => hu hi he)
-  · rw [List.pairwise_iff_getElem]
-    intro i j hi hj hij x hx hy
-    obtain ⟨e, he, hx⟩ := List.mem_flatMap.mp hx
+  refine List.nodup_flatMap.mpr ⟨fun r hr => ?_,
+    List.pairwise_iff_getElem.mpr fun i j hi hj hij x hx hy => ?_⟩
+  · obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hr
+    have hn : ((paths φ).getD i []).Nodup := Graph.unitPath_nodup (SAT.incidenceGraph φ)
+      (fun _ => SAT.incidenceGraph_endpoints) (fun _ => SAT.incidenceGraph_loopless)
+      (by simpa only [paths_eq_unitPaths, Graph.unitPaths_length] using hi)
+    exact routePorts_nodup (by rwa [List.getD_eq_getElem _ _ hi] at hn) fun _ => paths_step_unit hi
+  · obtain ⟨e, he, hx⟩ := List.mem_flatMap.mp hx
     obtain ⟨f, hf, hy⟩ := List.mem_flatMap.mp hy
     have hi_step : e ∈ ((paths φ).getD i []).consecutivePairs := by
       rwa [List.getD_eq_getElem _ _ hi]
-    have hj_step : (e.1, e.2) ∈ ((paths φ).getD j []).consecutivePairs ∨
-        (e.2, e.1) ∈ ((paths φ).getD j []).consecutivePairs := by
-      rw [List.getD_eq_getElem _ _ hj]
-      rcases stepPorts_inter (hu hi he) (hu hj hf) hx hy with heq | heq
-      · exact Or.inl (heq.symm ▸ hf)
-      · exact Or.inr (by simpa only [heq] using hf)
-    have := paths_shared_step_index hw hv hi hj hi_step hj_step
-    omega
+    rcases stepPorts_inter (paths_step_unit hi he) (paths_step_unit hj hf) hx hy with rfl | heq
+    · exact hij.ne (paths_shared_step_index hw hv hi hj hi_step
+        (Or.inl (by rwa [List.getD_eq_getElem _ _ hj])))
+    · exact hij.ne (paths_shared_step_index hw hv hi hj hi_step
+        (Or.inr (by simpa only [List.getD_eq_getElem _ _ hj, heq] using hf)))
 
 /-- Equal boundary midpoints identify the same unordered unit grid edge. -/
 theorem cellPort_step_eq_cases {p q a b : Point}
@@ -272,28 +238,17 @@ theorem pathMidpoints_nodup {φ : CNF ℕ}
   have hu {e : Point × Point} (he : e ∈ steps) : Orthogonal.length e.1 e.2 = 1 := by
     obtain ⟨r, hr, he⟩ := List.mem_flatMap.mp he
     obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hr
-    have hi' : i < (SAT.incidenceGraph φ).edges.length := by
-      simpa only [paths_eq_unitPaths, Graph.unitPaths_length] using hi
-    apply Graph.unitPath_unit (SAT.incidenceGraph φ)
-      (fun _ => SAT.incidenceGraph_endpoints) (fun _ => SAT.incidenceGraph_loopless) hi'
-    change e ∈ ((paths φ).getD i []).consecutivePairs
-    rwa [List.getD_eq_getElem _ _ hi]
+    exact paths_step_unit hi he
   have hp : (steps.flatMap stepPorts).Nodup := by
     have h := pathPorts_nodup hw hv
     change ((paths φ).flatMap fun r => r.consecutivePairs.flatMap stepPorts).Nodup at h
     simpa only [steps, List.flatMap_assoc] using h
-  have hpair := (List.nodup_flatMap.mp hp).2
-  have hmid : (steps.map fun e => cellPort 120 e.1 (side e.1 e.2)).Nodup := by
-    apply List.pairwise_map.mpr
-    apply hpair.imp_of_mem
-    intro e f he hf hd heq
-    have hx : (e.1, side e.1 e.2) ∈ stepPorts e := by simp [stepPorts]
-    rcases cellPort_step_eq_cases (hu he) (hu hf) heq with ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩
-    · have heq' : e = f := Prod.ext h₁ h₂
-      exact hd hx (heq' ▸ hx)
-    · have heq' : e = (f.2, f.1) := Prod.ext h₁ h₂
-      exact hd hx (by simp [stepPorts, heq'])
-  simpa only [steps, List.map_flatMap] using hmid
+  rw [← List.map_flatMap, List.Nodup, List.pairwise_map]
+  refine (List.nodup_flatMap.mp hp).2.imp_of_mem fun {e f} he hf hd heq => ?_
+  have hx : (e.1, side e.1 e.2) ∈ stepPorts e := by simp [stepPorts]
+  rcases cellPort_step_eq_cases (hu he) (hu hf) heq with ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩
+  · exact hd hx (Prod.ext h₁ h₂ ▸ hx)
+  · exact hd hx (by simp [stepPorts, (Prod.ext h₁ h₂ : e = (f.2, f.1))])
 
 /-- Distinct integer cells have distinct displayed centers. -/
 theorem center_injective : Function.Injective center := by
@@ -336,20 +291,17 @@ theorem clause_cell_not_mem_path_dropLast {φ : CNF ℕ} {o : Occurrence ℕ}
     (ho : o ∈ Cslib.Logic.PL.occurrences φ) {i : ℕ} (hi : i < φ.length) :
     Layout.center (φ.distinctVars.length + i) ∉ (occurrencePath φ o).dropLast := by
   intro hp
-  have hi' := (occurrencePath_clause_center_iff ho hi).mp
-    ((List.dropLast_sublist _).subset hp)
-  subst i
+  obtain rfl := (occurrencePath_clause_center_iff ho hi).mp ((List.dropLast_sublist _).subset hp)
   obtain ⟨k, hk, hget⟩ := List.mem_iff_getElem.mp hp
   have hlen := occurrencePath_length_ge_two ho
   have hend := (occurrencePath_endpoints ho).2
   rw [List.getLast?_eq_getElem?, List.getElem?_eq_getElem (by omega)] at hend
-  have hk' : k < (occurrencePath φ o).length := by grind
-  have heq : (occurrencePath φ o)[k] =
+  have heq : (occurrencePath φ o)[k]'(by simp only [List.length_dropLast] at hk; omega) =
       (occurrencePath φ o)[(occurrencePath φ o).length - 1] := by
     rw [Option.some.inj hend]
     simpa only [List.getElem_dropLast] using hget
-  have hidx := (occurrencePath_nodup ho).eq_of_getElem_eq hk' (by omega) heq
   simp only [List.length_dropLast] at hk
+  have := (occurrencePath_nodup ho).eq_of_getElem_eq (by omega) (by omega) heq
   omega
 
 end Cslib.Complexity.SAT.PlanarCompile

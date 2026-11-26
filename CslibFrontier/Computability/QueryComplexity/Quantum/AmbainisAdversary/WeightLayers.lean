@@ -101,18 +101,18 @@ theorem one_sub_mul_sqrt_le_two_mul_mul_sub_of_le {ψ₀ : State N W} (hψ₀ : 
     intro p hp
     obtain ⟨h1, -, -⟩ := hmemR.1 hp
     rw [← h1, ← card_ge p.1]
-    refine card_le_card_of_injOn (fun y => (p.1, y)) (fun y hy => ?_) (fun y _ z _ h => ?_)
-    · obtain ⟨hy1, hy2⟩ := (mem_filter.1 hy).2
-      exact mem_filter.2 ⟨hmemR.2 ⟨h1, hy2, hy1⟩, rfl⟩
-    · exact congrArg Prod.snd h
+    refine card_le_card_of_injOn (fun y => (p.1, y)) (fun y hy => ?_) fun _ _ _ _ h =>
+      congrArg Prod.snd h
+    obtain ⟨hy1, hy2⟩ := (mem_filter.1 hy).2
+    exact mem_filter.2 ⟨hmemR.2 ⟨h1, hy2, hy1⟩, rfl⟩
   have hm' : ∀ p ∈ R, b.choose a ≤ #{q ∈ R | q.2 = p.2} := by
     intro p hp
     obtain ⟨-, h2, -⟩ := hmemR.1 hp
     rw [← h2, ← card_filter_le_and_weight_eq p.2 a]
-    refine card_le_card_of_injOn (fun x => (x, p.2)) (fun x hx => ?_) (fun x _ z _ h => ?_)
-    · obtain ⟨hx1, hx2⟩ := (mem_filter.1 hx).2
-      exact mem_filter.2 ⟨hmemR.2 ⟨hx2, h2, hx1⟩, rfl⟩
-    · exact congrArg Prod.fst h
+    refine card_le_card_of_injOn (fun x => (x, p.2)) (fun x hx => ?_) fun _ _ _ _ h =>
+      congrArg Prod.fst h
+    obtain ⟨hx1, hx2⟩ := (mem_filter.1 hx).2
+    exact mem_filter.2 ⟨hmemR.2 ⟨hx2, h2, hx1⟩, rfl⟩
   have hL : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i →
       #{q ∈ R | q.1 i ≠ q.2 i ∧ q.1 = p.1} * #{q ∈ R | q.1 i ≠ q.2 i ∧ q.2 = p.2} ≤
         (N - a - 1).choose (N - b) * (b - 1).choose a := by
@@ -122,29 +122,25 @@ theorem one_sub_mul_sqrt_le_two_mul_mul_sub_of_le {ψ₀ : State N W} (hψ₀ : 
     refine Nat.mul_le_mul ?_ ?_
     · have hw : weight (update p.1 i true) = a + 1 := by rw [weight_update_true hp1, h1]
       rw [show N - a - 1 = N - weight (update p.1 i true) by omega, ← card_ge _]
-      refine card_le_card_of_injOn Prod.snd (fun q hq => ?_) (fun q hq r hr h => ?_)
-      · obtain ⟨hqR, hqi, hq1⟩ := mem_filter.1 hq
-        obtain ⟨-, hq2, hq12⟩ := hmemR.1 hqR
-        obtain ⟨-, hqi2⟩ := Bool.lt_iff.1 (lt_of_le_of_ne (hq12 i) hqi)
-        exact mem_filter.2 ⟨mem_univ _,
-          update_le_iff.2 ⟨hqi2.ge, fun j _ => (congrFun hq1 j).ge.trans (hq12 j)⟩, hq2⟩
-      · obtain ⟨-, -, hq1⟩ := mem_filter.1 hq
-        obtain ⟨-, -, hr1⟩ := mem_filter.1 hr
-        exact Prod.ext (hq1.trans hr1.symm) h
+      refine card_le_card_of_injOn Prod.snd (fun q hq => ?_) fun q hq r hr h =>
+        Prod.ext ((mem_filter.1 hq).2.2.trans (mem_filter.1 hr).2.2.symm) h
+      obtain ⟨hqR, hqi, hq1⟩ := mem_filter.1 hq
+      obtain ⟨-, hq2, hq12⟩ := hmemR.1 hqR
+      obtain ⟨-, hqi2⟩ := Bool.lt_iff.1 (lt_of_le_of_ne (hq12 i) hqi)
+      exact mem_filter.2 ⟨mem_univ _,
+        update_le_iff.2 ⟨hqi2.ge, fun j _ => (congrFun hq1 j).ge.trans (hq12 j)⟩, hq2⟩
     · have hw : weight (update p.2 i false) = b - 1 := by
         have := weight_update_false hp2
         omega
       rw [show b - 1 = weight (update p.2 i false) from hw.symm,
         ← card_filter_le_and_weight_eq]
-      refine card_le_card_of_injOn Prod.fst (fun q hq => ?_) (fun q hq r hr h => ?_)
-      · obtain ⟨hqR, hqi, hq2⟩ := mem_filter.1 hq
-        obtain ⟨hq1, -, hq12⟩ := hmemR.1 hqR
-        obtain ⟨hqi1, -⟩ := Bool.lt_iff.1 (lt_of_le_of_ne (hq12 i) hqi)
-        exact mem_filter.2 ⟨mem_univ _,
-          le_update_iff.2 ⟨hqi1.le, fun j _ => (hq12 j).trans (congrFun hq2 j).le⟩, hq1⟩
-      · obtain ⟨-, -, hq2⟩ := mem_filter.1 hq
-        obtain ⟨-, -, hr2⟩ := mem_filter.1 hr
-        exact Prod.ext h (hq2.trans hr2.symm)
+      refine card_le_card_of_injOn Prod.fst (fun q hq => ?_) fun q hq r hr h =>
+        Prod.ext h ((mem_filter.1 hq).2.2.trans (mem_filter.1 hr).2.2.symm)
+      obtain ⟨hqR, hqi, hq2⟩ := mem_filter.1 hq
+      obtain ⟨hq1, -, hq12⟩ := hmemR.1 hqR
+      obtain ⟨hqi1, -⟩ := Bool.lt_iff.1 (lt_of_le_of_ne (hq12 i) hqi)
+      exact mem_filter.2 ⟨mem_univ _,
+        le_update_iff.2 ⟨hqi1.le, fun j _ => (hq12 j).trans (congrFun hq2 j).le⟩, hq1⟩
   have hcore := one_sub_mul_sqrt_le_two_mul_mul_sqrt U hψ₀ T hR hδR hm hm' hL
   -- the binomial identities `l (N - a) = m (b - a)` and `l' b = m' (b - a)`
   have hx := Nat.choose_mul_succ_eq (N - a - 1) (N - b)
@@ -162,26 +158,22 @@ theorem one_sub_mul_sqrt_le_two_mul_mul_sub_of_le {ψ₀ : State N W} (hψ₀ : 
       _ = (m * (b - a)) * (m' * (b - a)) := by rw [hx, hy]
       _ = (b - a) * (b - a) * (m * m') := by ring
   have hkeyR : ((N : ℝ) - a) * b * ((l : ℝ) * l') = ((b : ℝ) - a) * (b - a) * (m * m') := by
-    have := congrArg (Nat.cast : ℕ → ℝ) hkey
-    push_cast [Nat.cast_sub hab.le, Nat.cast_sub (hab.trans_le hbN).le] at this
-    exact this
+    rw [← Nat.cast_sub hab.le, ← Nat.cast_sub (hab.trans_le hbN).le]
+    exact_mod_cast hkey
   rw [Nat.cast_mul] at hcore
-  have habR : (a : ℝ) < b := by exact_mod_cast hab
-  have hbNR : (b : ℝ) ≤ N := by exact_mod_cast hbN
-  have hba : (0 : ℝ) ≤ b - a := by linarith
+  have hba : (0 : ℝ) ≤ b - a := sub_nonneg.2 (by exact_mod_cast hab.le)
   have hLpos : (0 : ℝ) < √((l : ℝ) * l') :=
     Real.sqrt_pos.2 (mul_pos (by exact_mod_cast hl) (by exact_mod_cast hl'))
-  have h0 : (0 : ℝ) ≤ (N - a) * b := mul_nonneg (by linarith) (Nat.cast_nonneg b)
+  have h0 : (0 : ℝ) ≤ (N - a) * b :=
+    mul_nonneg (sub_nonneg.2 (by exact_mod_cast (hab.trans_le hbN).le)) (Nat.cast_nonneg b)
   have hsq : √(((N : ℝ) - a) * b) * √((l : ℝ) * l') = √((m : ℝ) * m') * (b - a) := by
     rw [← Real.sqrt_mul h0, hkeyR, Real.sqrt_mul (mul_self_nonneg _), Real.sqrt_mul_self hba,
       mul_comm]
-  have key : (1 - δ) * √(((N : ℝ) - a) * b) * √((l : ℝ) * l') ≤
-      2 * T * (b - a) * √((l : ℝ) * l') := by
-    calc (1 - δ) * √(((N : ℝ) - a) * b) * √((l : ℝ) * l')
-        = (1 - δ) * √((m : ℝ) * m') * (b - a) := by rw [mul_assoc, hsq, ← mul_assoc]
-      _ ≤ 2 * T * √((l : ℝ) * l') * (b - a) := mul_le_mul_of_nonneg_right hcore hba
-      _ = 2 * T * (b - a) * √((l : ℝ) * l') := by ring
-  exact le_of_mul_le_mul_right key hLpos
+  refine le_of_mul_le_mul_right ?_ hLpos
+  calc (1 - δ) * √(((N : ℝ) - a) * b) * √((l : ℝ) * l')
+      = (1 - δ) * √((m : ℝ) * m') * (b - a) := by rw [mul_assoc, hsq, ← mul_assoc]
+    _ ≤ 2 * T * √((l : ℝ) * l') * (b - a) := mul_le_mul_of_nonneg_right hcore hba
+    _ = 2 * T * (b - a) * √((l : ℝ) * l') := by ring
 
 /-- **Telling weight `k` from weight `k'`** [Ambainis2002], Theorem 5, for general weights: if a
 `T`-query algorithm with a unit initial state accepts, by an outcome in `S`, every input of weight
@@ -208,9 +200,8 @@ theorem one_sub_mul_sqrt_le_two_mul_mul_abs_sub_of_weight {ψ₀ : State N W}
       fun x y hx hy _ => hδ x y hx hy
   · rw [min_eq_right h.le, max_eq_left h.le,
       abs_of_nonneg (sub_nonneg.2 (by exact_mod_cast h.le))]
-    exact one_sub_mul_sqrt_le_two_mul_mul_sub_of_le U hψ₀ T h hk fun x y hx hy _ => by
-      rw [norm_inner_symm]
-      exact hδ y x hy hx
+    exact one_sub_mul_sqrt_le_two_mul_mul_sub_of_le U hψ₀ T h hk fun x y hx hy _ =>
+      (norm_inner_symm (𝕜 := ℂ) _ _).trans_le (hδ y x hy hx)
 
 /-- **The Nayak–Wu bound** [NayakWu1999], Corollary 1.2, with the constants of this proof: if a
 `T`-query algorithm with a unit initial state accepts, by an outcome in `S`, every input of weight
@@ -235,11 +226,7 @@ theorem one_sub_mul_add_le_four_mul_mul_abs_sub_of_weight {ψ₀ : State N W}
   have hab : a ≤ b := min_le_max
   have hbN : b ≤ N := max_le hk hk'
   have habs : |(k : ℝ) - k'| = b - a := by
-    rcases le_total k k' with h | h
-    · rw [ha, hb, min_eq_left h, max_eq_right h, abs_sub_comm,
-        abs_of_nonneg (sub_nonneg.2 (by exact_mod_cast h))]
-    · rw [ha, hb, min_eq_right h, max_eq_left h,
-        abs_of_nonneg (sub_nonneg.2 (by exact_mod_cast h))]
+    rw [ha, hb, Nat.cast_max, Nat.cast_min, max_sub_min_eq_abs']
   rw [habs] at hmain ⊢
   have haR : (a : ℝ) ≤ b := by exact_mod_cast hab
   have hbR : (b : ℝ) ≤ N := by exact_mod_cast hbN

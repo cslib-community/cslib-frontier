@@ -94,27 +94,20 @@ theorem bfsMem_of_eq_below_outBase {inp : Input} {T : PTrie} {B : PBFS}
 
 /-- Initialize `BFSMem inp T PBFS.init` from a freshly built `TrieMem`. -/
 theorem bfsMem_init {inp : Input} {T : PTrie} {mem : ℕ → ℕ}
-    (hM : TrieMem inp T mem) : BFSMem inp T PBFS.init mem where
-  txt := hM.txt
-  trie_cell := hM.trie_cell
-  delta_cell := fun u hu c hc => by
-    have hlo := layout_order inp
-    have hlt := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
-    exact hM.zero_df _ (by omega) (by omega)
-  fail_cell := fun u hu => by
-    have hlo := layout_order inp
-    exact hM.zero_df _ (by omega) (by omega)
-  depth_cell := hM.depth_cell
-  term_cell := hM.term_cell
-  outHead_cell := fun u hu => by
-    have hlo := layout_order inp
-    exact hM.zero_rest _ (by omega) (by omega)
-  outNext_cell := fun u hu => by
-    have hlo := layout_order inp
-    exact hM.zero_rest _ (by omega) (by omega)
-  queue_cell := fun i hi => by
-    have hlo := layout_order inp
-    exact hM.zero_rest _ (by omega) (by omega)
+    (hM : TrieMem inp T mem) : BFSMem inp T PBFS.init mem := by
+  have hlo := layout_order inp
+  exact
+    { txt := hM.txt
+      trie_cell := hM.trie_cell
+      delta_cell := fun u hu c hc => by
+        have := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
+        exact hM.zero_df _ (by omega) (by omega)
+      fail_cell := fun u hu => hM.zero_df _ (by omega) (by omega)
+      depth_cell := hM.depth_cell
+      term_cell := hM.term_cell
+      outHead_cell := fun u hu => hM.zero_rest _ (by omega) (by omega)
+      outNext_cell := fun u hu => hM.zero_rest _ (by omega) (by omega)
+      queue_cell := fun i hi => hM.zero_rest _ (by omega) (by omega) }
 
 private theorem bfsMem_preserves_table {mem : ℕ → ℕ} {base s val : ℕ}
     {f : ℕ → ℕ} {lim : ℕ}
@@ -150,14 +143,14 @@ theorem bfsMem_of_set_delta {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → 
             obtain ⟨hc_eq, hu_eq⟩ := Nat.eq_of_add_mul_eq (b := u) (b' := u₀) hc ha (by omega)
             exact hrc ⟨hu_eq, hc_eq⟩
           rw [Function.update_of_ne hne]; exact hM.delta_cell u hu c hc
-      fail_cell := fun u hu => by rw [Function.update_of_ne (by omega)]; exact hM.fail_cell u hu
-      depth_cell := fun u hu => by rw [Function.update_of_ne (by omega)]; exact hM.depth_cell u hu
-      term_cell := fun u hu => by rw [Function.update_of_ne (by omega)]; exact hM.term_cell u hu
-      outHead_cell := fun u hu => by
-        rw [Function.update_of_ne (by omega)]; exact hM.outHead_cell u hu
-      outNext_cell := fun u hu => by
-        rw [Function.update_of_ne (by omega)]; exact hM.outNext_cell u hu
-      queue_cell := fun i hi => by rw [Function.update_of_ne (by omega)]; exact hM.queue_cell i hi }
+      fail_cell := fun u hu => (Function.update_of_ne (by omega) _ _).trans (hM.fail_cell u hu)
+      depth_cell := fun u hu => (Function.update_of_ne (by omega) _ _).trans (hM.depth_cell u hu)
+      term_cell := fun u hu => (Function.update_of_ne (by omega) _ _).trans (hM.term_cell u hu)
+      outHead_cell := fun u hu =>
+        (Function.update_of_ne (by omega) _ _).trans (hM.outHead_cell u hu)
+      outNext_cell := fun u hu =>
+        (Function.update_of_ne (by omega) _ _).trans (hM.outNext_cell u hu)
+      queue_cell := fun i hi => (Function.update_of_ne (by omega) _ _).trans (hM.queue_cell i hi) }
 
 private theorem bfsMem_of_set_fail_queue {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → ℕ}
     {s fval : ℕ} (hs : s < inp.maxS) (hM : BFSMem inp T B mem) :
@@ -183,18 +176,15 @@ private theorem bfsMem_of_set_fail_queue {inp : Input} {T : PTrie} {B : PBFS} {m
       fail_cell := fun u hu => by
         dsimp only; rw [Function.update_of_ne (by omega)]
         exact bfsMem_preserves_table hM.fail_cell u hu
-      depth_cell := fun u hu => by
-        simp (disch := omega) only [Function.update_of_ne]; exact hM.depth_cell u hu
-      term_cell := fun u hu => by
-        simp (disch := omega) only [Function.update_of_ne]; exact hM.term_cell u hu
-      outHead_cell := fun u hu => by
-        simp (disch := omega) only [Function.update_of_ne]; exact hM.outHead_cell u hu
-      outNext_cell := fun u hu => by
-        simp (disch := omega) only [Function.update_of_ne]; exact hM.outNext_cell u hu
-      queue_cell := fun i hi => by
-        dsimp only
-        exact bfsMem_preserves_table (fun j hj => by
-          rw [Function.update_of_ne (by omega)]; exact hM.queue_cell j hj) i hi }
+      depth_cell := fun _ hu => by simp (disch := omega) [Function.update_of_ne, hM.depth_cell _ hu]
+      term_cell := fun _ hu => by simp (disch := omega) [Function.update_of_ne, hM.term_cell _ hu]
+      outHead_cell := fun _ hu => by
+        simp (disch := omega) [Function.update_of_ne, hM.outHead_cell _ hu]
+      outNext_cell := fun _ hu => by
+        simp (disch := omega) [Function.update_of_ne, hM.outNext_cell _ hu]
+      queue_cell := fun i hi =>
+        bfsMem_preserves_table (fun j hj =>
+          (Function.update_of_ne (by omega) _ _).trans (hM.queue_cell j hj)) i hi }
 
 private theorem bfsMem_of_set_out {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → ℕ}
     {s onval ohval : ℕ} (hs : s < inp.maxS) (hM : BFSMem inp T B mem) :
@@ -216,21 +206,17 @@ private theorem bfsMem_of_set_out {inp : Input} {T : PTrie} {B : PBFS} {mem : �
       delta_cell := fun u hu c hc => by
         have := hmul u hu c hc; simp (disch := omega) only [Function.update_of_ne]
         exact hM.delta_cell u hu c hc
-      fail_cell := fun u hu => by
-        simp (disch := omega) only [Function.update_of_ne]; exact hM.fail_cell u hu
-      depth_cell := fun u hu => by
-        simp (disch := omega) only [Function.update_of_ne]; exact hM.depth_cell u hu
-      term_cell := fun u hu => by
-        simp (disch := omega) only [Function.update_of_ne]; exact hM.term_cell u hu
-      outHead_cell := fun u hu => by
-        dsimp only
-        exact bfsMem_preserves_table (fun v hv => by
-          rw [Function.update_of_ne (by omega)]; exact hM.outHead_cell v hv) u hu
+      fail_cell := fun _ hu => by simp (disch := omega) [Function.update_of_ne, hM.fail_cell _ hu]
+      depth_cell := fun _ hu => by simp (disch := omega) [Function.update_of_ne, hM.depth_cell _ hu]
+      term_cell := fun _ hu => by simp (disch := omega) [Function.update_of_ne, hM.term_cell _ hu]
+      outHead_cell := fun u hu =>
+        bfsMem_preserves_table (fun v hv =>
+          (Function.update_of_ne (by omega) _ _).trans (hM.outHead_cell v hv)) u hu
       outNext_cell := fun u hu => by
         dsimp only; rw [Function.update_of_ne (by omega)]
         exact bfsMem_preserves_table hM.outNext_cell u hu
-      queue_cell := fun i hi => by
-        simp (disch := omega) only [Function.update_of_ne]; exact hM.queue_cell i hi }
+      queue_cell := fun _ hi => by
+        simp (disch := omega) [Function.update_of_ne, hM.queue_cell _ hi] }
 
 /-- Combined five-write update preserving `BFSMem` when enqueuing child state `s`. -/
 theorem bfsMem_of_enqueue {inp : Input} {T : PTrie} {B : PBFS} {mem : ℕ → ℕ}
@@ -288,146 +274,46 @@ theorem exec_bfsRootLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     have h0_maxS : 0 < inp.maxS := by omega
     have ha_rm : a < inp.maxS * inp.alphabetSize := by
       simpa only [Nat.mul_zero, Nat.zero_add] using Nat.mul_add_lt_mul_of_lt_of_lt h0_maxS ha
-    have ht_read : x.mem (inp.trieBase + a) = inp.trie.trie 0 a := by
-      simpa only [Nat.zero_mul, Nat.add_zero] using hM.trie_cell 0 h0_maxS a ha
+    obtain ⟨s, hs⟩ : ∃ s, inp.trie.trie 0 a = s := ⟨_, rfl⟩
+    have ht_read : x.mem (inp.trieBase + a) = s := by
+      simpa only [Nat.zero_mul, Nat.add_zero, hs] using hM.trie_cell 0 h0_maxS a ha
     have hf_ta : Fits w (inp.trieBase + a) := fits_of_le_outBase hw (by omega)
     have hf_da : Fits w (inp.deltaBase + a) := fits_of_le_outBase hw (by omega)
     have hf_a1 : Fits w (a + 1) := fits_of_le_outBase hw (by omega)
-    have hinv_next := rootStep_spec hT hchar hterm ha hinv
-    set B' := PBFS.rootStep inp.trie B a
     have hstep : ∃ x₁, ExecWithin w bfsRootStepCode x x₁ 19 ∧
-        LayoutInv inp x₁ ∧ BFSMem inp inp.trie B' x₁.mem ∧
-        x₁.regs r1 = 0 ∧ x₁.regs r2 = B'.qTail ∧ x₁.regs r5 = a + 1 := by
-      have hld : ∃ x₀, ExecWithin w (ram[ r6 ← trieBase + r5; r6 ← *r6 ]) x x₀ 2 ∧
-          x₀.regs r6 = inp.trie.trie 0 a ∧ x₀.regs r1 = 0 ∧ x₀.regs r2 = B.qTail ∧
-          x₀.regs r5 = a ∧ x₀.mem = x.mem := by
-        refine WP.exists_execWithin ?_
-        wram_exec [hL.h_trieBase, hr5, ht_read, hf_ta]
-        exact ⟨by wram_simp, by wram_simp [hr1], by wram_simp [hr2], by wram_simp [hr5],
-          by wram_simp⟩
-      obtain ⟨x₀, he₀, hx₀_r6, hx₀_r1, hx₀_r2, hx₀_r5, hx₀_mem⟩ := hld
-      have hL₀ : LayoutInv inp x₀ :=
-        hL.of_preserves he₀
-      by_cases hs_pos : 0 < inp.trie.trie 0 a
-      · set s := inp.trie.trie 0 a
-        have hs_pos' : 0 < inp.trie.trie 0 a := hs_pos
-        have hcond_s : (Cond.lt zero r6).Holds x₀ := by
-          simp only [Cond.holds_lt, hL₀.h_zero, hx₀_r6]; exact hs_pos
-        have hs_lt : s < inp.trie.numStates := hT.trie_lt 0 hT.one_le a ha
-        have hs_maxS : s < inp.maxS := lt_of_lt_of_le hs_lt hT_maxS
-        have hqt_lt : B.qTail < inp.trie.numStates :=
-          qTail_lt_numStates hT.one_le
-            (fun i hi => ⟨(hinv.q_bounds i hi).1, (hinv.q_bounds i hi).2.1⟩) hinv.q_inj
-        have hqt_maxS : B.qTail < inp.maxS := lt_of_lt_of_le hqt_lt hT_maxS
+        BFSMem inp inp.trie (PBFS.rootStep inp.trie B a) x₁.mem ∧ x₁.regs r1 = 0 ∧
+        x₁.regs r2 = (PBFS.rootStep inp.trie B a).qTail ∧ x₁.regs r5 = a + 1 := by
+      refine WP.exists_execWithin ?_
+      unfold bfsRootStepCode
+      by_cases hs_pos : 0 < s
+      · have hs_maxS : s < inp.maxS := hs ▸ lt_of_lt_of_le (hT.trie_lt 0 hT.one_le a ha) hT_maxS
+        have hqt_maxS : B.qTail < inp.maxS := lt_of_lt_of_le (qTail_lt_numStates hT.one_le
+          (fun i hi => ⟨(hinv.q_bounds i hi).1, (hinv.q_bounds i hi).2.1⟩) hinv.q_inj) hT_maxS
         have hf_fs : Fits w (inp.failBase + s) := fits_of_le_outBase hw (by omega)
         have hf_qt : Fits w (inp.queueBase + B.qTail) := fits_of_le_outBase hw (by omega)
         have hf_qt1 : Fits w (B.qTail + 1) := fits_of_le_outBase hw (by omega)
         have hf_ons : Fits w (inp.outNextBase + s) := fits_of_le_outBase hw (by omega)
         have hf_tms : Fits w (inp.termBase + s) := fits_of_le_outBase hw (by omega)
         have hf_ohs : Fits w (inp.outHeadBase + s) := fits_of_le_outBase hw (by omega)
-        have htm_read : x₀.mem (inp.termBase + s) = inp.trie.isTerm s := by
-          rw [hx₀_mem]; exact hM.term_cell s hs_maxS
-        have hmid : ∃ x_m, ExecWithin w (ram[
-            r7 ← deltaBase + r5; *r7 ← r6;
-            r7 ← failBase + r6; *r7 ← zero;
-            r7 ← queueBase + r2; *r7 ← r6;
-            r2 ← r2 + one;
-            r7 ← outNextBase + r6; *r7 ← zero;
-            rState ← termBase + r6; rState ← *rState ]) x₀ x_m 11 ∧
-          x_m.regs rState = inp.trie.isTerm s ∧ x_m.regs r6 = s ∧
-          x_m.regs r1 = 0 ∧ x_m.regs r2 = B.qTail + 1 ∧ x_m.regs r5 = a ∧
-          x_m.mem = Function.update
-            (Function.update
-              (Function.update
-                (Function.update x.mem (inp.deltaBase + a) s)
-                (inp.failBase + s) 0)
-              (inp.queueBase + B.qTail) s)
-            (inp.outNextBase + s) 0 := by
-          refine WP.exists_execWithin ?_
-          have hne1 : inp.termBase + s ≠ inp.outNextBase + s := by omega
-          have hne2 : inp.termBase + s ≠ inp.queueBase + B.qTail := by omega
-          have hne3 : inp.termBase + s ≠ inp.failBase + s := by omega
-          have hne4 : inp.termBase + s ≠ inp.deltaBase + a := by omega
-          wram_exec [hL₀.h_deltaBase, hL₀.h_failBase, hL₀.h_queueBase, hL₀.h_outNextBase,
-            hL₀.h_termBase, hL₀.h_zero, hL₀.h_one, hx₀_r5, hx₀_r6, hx₀_r2, hf_da, hf_fs,
-            hf_qt, hf_qt1, hf_ons, hf_tms, htm_read, hne1, hne2, hne3, hne4]
-          exact ⟨by wram_simp, by wram_simp [hx₀_r6], by wram_simp [hx₀_r1], by wram_simp,
-            by wram_simp [hx₀_r5], by wram_simp [hx₀_mem]⟩
-        obtain ⟨x_m, he_m, hxm_rS, hxm_r6, hxm_r1, hxm_r2, hxm_r5, hxm_mem⟩ := hmid
-        have hL_m : LayoutInv inp x_m :=
-          hL₀.of_preserves he_m
-        have hoh_br : ∃ x₁, ExecWithin w
-            (.branch (.lt zero rState)
-              (ram[ r7 ← outHeadBase + r6; *r7 ← r6; r5 ← r5 + one ])
-              (ram[ r7 ← outHeadBase + r6; *r7 ← zero; r5 ← r5 + one ])) x_m x₁ 5 ∧
-            x₁.regs r1 = 0 ∧ x₁.regs r2 = B.qTail + 1 ∧ x₁.regs r5 = a + 1 ∧
-            x₁.mem = Function.update x_m.mem (inp.outHeadBase + s)
-              (if 0 < inp.trie.isTerm s then s else 0) := by
-          by_cases ht_pos : 0 < inp.trie.isTerm s
-          · have hct : (Cond.lt zero rState).Holds x_m := by
-              simp only [Cond.holds_lt, hL_m.h_zero, hxm_rS]; exact ht_pos
-            have hp : ∃ x₁, ExecWithin w
-                (ram[ r7 ← outHeadBase + r6; *r7 ← r6; r5 ← r5 + one ]) x_m x₁ 3 ∧
-                x₁.regs r1 = 0 ∧ x₁.regs r2 = B.qTail + 1 ∧ x₁.regs r5 = a + 1 ∧
-                x₁.mem = Function.update x_m.mem (inp.outHeadBase + s) s := by
-              refine WP.exists_execWithin ?_
-              wram_exec [hL_m.h_outHeadBase, hL_m.h_one, hxm_r6, hxm_r5, hf_ohs, hf_a1]
-              exact ⟨by wram_simp [hxm_r1], by wram_simp [hxm_r2], by wram_simp, by wram_simp⟩
-            obtain ⟨x₁, hep, h1, h2, h5, hm1⟩ := hp
-            simp only [ht_pos, ↓reduceIte]
-            exact ⟨x₁, (ExecWithin.branch_pos hct hep).mono (by omega), h1, h2, h5, hm1⟩
-          · have hct : ¬(Cond.lt zero rState).Holds x_m := by
-              simp only [Cond.holds_lt, hL_m.h_zero, hxm_rS]; exact ht_pos
-            have hn : ∃ x₁, ExecWithin w
-                (ram[ r7 ← outHeadBase + r6; *r7 ← zero; r5 ← r5 + one ]) x_m x₁ 3 ∧
-                x₁.regs r1 = 0 ∧ x₁.regs r2 = B.qTail + 1 ∧ x₁.regs r5 = a + 1 ∧
-                x₁.mem = Function.update x_m.mem (inp.outHeadBase + s) 0 := by
-              refine WP.exists_execWithin ?_
-              wram_exec [hL_m.h_outHeadBase, hL_m.h_zero, hL_m.h_one, hxm_r6, hxm_r5,
-                hf_ohs, hf_a1]
-              exact ⟨by wram_simp [hxm_r1], by wram_simp [hxm_r2], by wram_simp, by wram_simp⟩
-            obtain ⟨x₁, hen, h1, h2, h5, hm1⟩ := hn
-            simp only [ht_pos, ↓reduceIte]
-            exact ⟨x₁, ExecWithin.branch_neg hct hen, h1, h2, h5, hm1⟩
-        obtain ⟨x₁, he_oh, hx₁_r1, hx₁_r2, hx₁_r5, hx₁_mem⟩ := hoh_br
-        have he_tot : ExecWithin w bfsRootStepCode x x₁ 19 :=
-          (he₀.seq (ExecWithin.branch_pos hcond_s (he_m.seq he_oh))).mono (by omega)
-        have hL₁ : LayoutInv inp x₁ :=
-          hL.of_preserves he_tot
-        have hB'_qt : B'.qTail = B.qTail + 1 := by
-          dsimp only [B', PBFS.rootStep]; simp only [hs_pos', ↓reduceIte]
-        refine ⟨x₁, he_tot, hL₁, ?_, hx₁_r1, hx₁_r2.trans hB'_qt.symm, hx₁_r5⟩
-        rw [hx₁_mem, hxm_mem]
-        dsimp only [B', PBFS.rootStep]
-        simp only [hs_pos', ↓reduceIte]
-        simpa only [Nat.zero_mul, Nat.zero_add] using
-          bfsMem_of_enqueue h0_maxS ha hs_maxS hM
-      · have hs_pos' : ¬0 < inp.trie.trie 0 a := hs_pos
-        have hcond_s : ¬(Cond.lt zero r6).Holds x₀ := by
-          simp only [Cond.holds_lt, hL₀.h_zero, hx₀_r6]; exact hs_pos
-        have hneg : ∃ x₁, ExecWithin w
-            (ram[ r7 ← deltaBase + r5; *r7 ← zero; r5 ← r5 + one ]) x₀ x₁ 3 ∧
-            x₁.regs r1 = 0 ∧ x₁.regs r2 = B.qTail ∧ x₁.regs r5 = a + 1 ∧
-            x₁.mem = Function.update x.mem (inp.deltaBase + a) 0 := by
-          refine WP.exists_execWithin ?_
-          wram_exec [hL₀.h_deltaBase, hL₀.h_zero, hL₀.h_one, hx₀_r5, hf_da, hf_a1]
-          exact ⟨by wram_simp [hx₀_r1], by wram_simp [hx₀_r2], by wram_simp,
-            by wram_simp [hx₀_mem]⟩
-        obtain ⟨x₁, he_n, hx₁_r1, hx₁_r2, hx₁_r5, hx₁_mem⟩ := hneg
-        have he_tot : ExecWithin w bfsRootStepCode x x₁ 19 :=
-          (he₀.seq (ExecWithin.branch_neg hcond_s he_n)).mono (by omega)
-        have hL₁ : LayoutInv inp x₁ :=
-          hL.of_preserves he_tot
-        have hB'_qt : B'.qTail = B.qTail := by
-          dsimp only [B', PBFS.rootStep]; simp only [hs_pos', ↓reduceIte]
-        refine ⟨x₁, he_tot, hL₁, ?_, hx₁_r1, hx₁_r2.trans hB'_qt.symm, hx₁_r5⟩
-        rw [hx₁_mem]
-        dsimp only [B', PBFS.rootStep]
-        simp only [hs_pos', ↓reduceIte]
-        simpa only [Nat.zero_mul, Nat.zero_add] using bfsMem_of_set_delta h0_maxS ha hM
-    obtain ⟨x₁, he_st, hL₁, hM₁, hx₁_r1, hx₁_r2, hx₁_r5⟩ := hstep
-    obtain ⟨y, he_tl, hLy, hMy, hy_r1, hy_r2⟩ :=
-      ih (a + 1) B' x₁ (by omega) hL₁ hM₁ hinv_next hx₁_r1 hx₁_r2 hx₁_r5
+        have hM' := bfsMem_of_enqueue (fval := 0) (onval := 0)
+          (ohval := if 0 < inp.trie.isTerm s then s else 0) h0_maxS ha hs_maxS hM
+        simp only [Nat.zero_mul, Nat.zero_add] at hM'
+        wram_exec [hL.h_trieBase, hL.h_deltaBase, hL.h_failBase, hL.h_queueBase,
+          hL.h_outNextBase, hL.h_termBase, hL.h_outHeadBase, hL.h_zero, hL.h_one, hr1, hr2, hr5,
+          ht_read, hs_pos, hM.term_cell s hs_maxS, hf_ta, hf_da, hf_fs, hf_qt, hf_qt1, hf_ons,
+          hf_tms, hf_ohs, hf_a1]
+        all_goals
+          simp only [PBFS.rootStep, hs, hs_pos, hc, ↓reduceIte] at hM' ⊢
+          exact ⟨by wram_simp [hM'], by wram_simp [hr1], by wram_simp [hr2], by wram_simp⟩
+      · wram_exec [hL.h_trieBase, hL.h_deltaBase, hL.h_zero, hL.h_one, hr1, hr2, hr5, ht_read,
+          hs_pos, hf_ta, hf_da, hf_a1]
+        simp only [PBFS.rootStep, hs, hs_pos, ↓reduceIte]
+        have hM' := bfsMem_of_set_delta (dval := 0) h0_maxS ha hM
+        simp only [Nat.zero_mul, Nat.zero_add] at hM'
+        exact ⟨by wram_simp [hM'], by wram_simp [hr1], by wram_simp [hr2], by wram_simp⟩
+    obtain ⟨x₁, he_st, hM₁, hx₁_r1, hx₁_r2, hx₁_r5⟩ := hstep
+    obtain ⟨y, he_tl, hLy, hMy, hy_r1, hy_r2⟩ := ih (a + 1) _ x₁ (by omega) (hL.of_preserves he_st)
+      hM₁ (rootStep_spec hT hchar hterm ha hinv) hx₁_r1 hx₁_r2 hx₁_r5
     exact ⟨y, (ExecWithin.loop_iter hc he_st he_tl).mono (by omega), hLy, hMy, hy_r1, hy_r2⟩
 
 end Cslib.Algorithms.WordRAM.AhoCorasick

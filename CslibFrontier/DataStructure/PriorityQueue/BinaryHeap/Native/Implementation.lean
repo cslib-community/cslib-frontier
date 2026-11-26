@@ -52,15 +52,10 @@ theorem nativeObservation_eq_some_iff {n K : ℕ} (o : IndexedMinPQ.Op n)
     nativeObservation o regs = some a ↔
       (PQCode.nativeResultType n o).decode (regs ∘ Program.code.nativeResultBank) 0 =
         some (cast (PQCode.nativeResultType_eq n K o) a) := by
-  constructor
-  · intro h
-    obtain ⟨b, hb, ha⟩ := Option.map_eq_some_iff.mp h
-    rw [← ha]
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · obtain ⟨b, hb, rfl⟩ := Option.map_eq_some_iff.mp h
     simpa only [cast_cast, cast_eq] using hb
-  · intro h
-    simp only [nativeObservation, h, Option.map_some]
-    congr 1
-    exact cast_cast ..
+  · simp only [nativeObservation, h, Option.map_some, cast_cast, cast_eq]
 
 private theorem decode_body {w n K : ℕ} (L : Memory.Layout n) (e : Memory.State)
     (o : IndexedMinPQ.Op n) (y z : Data Program.registers)
@@ -79,113 +74,76 @@ private theorem decode_body {w n K : ℕ} (L : Memory.Layout n) (e : Memory.Stat
       some ((Memory.spec w).clientResult e (Memory.ops L o)) := by
   cases o with
   | isEmpty =>
-    have h0 := hout (0 : Fin 2)
-    dsimp only [backend] at h0
-    rw [Program.output_bank 0 (0 : Fin 2) 0 rfl] at h0
-    change y.regs (Program.bank 0) =
-      ((Memory.spec w).clientResult e (Memory.isEmpty L)).toNat at h0
-    constructor
-    · apply PQCode.decode_isEmpty
-      exact hflag.trans (by simpa only [Program.code_outFlag, Memory.ops] using h0)
-    · have hz : z.regs Program.code.outFlag =
-          ((Memory.spec w).clientResult e (Memory.isEmpty L)).toNat :=
-        hflag.trans (by simpa only [Program.code_outFlag] using h0)
-      cases hb : (Memory.spec w).clientResult e (Memory.isEmpty L) <;>
-        simp only [StateTransitionSpec.ofFn_result, nativeObservation, PQCode.nativeResultType,
-          ResultType.decode, Function.comp_apply, PQCode.nativeResultBank, ↓reduceIte, hz, hb,
-          Bool.toNat_false, Bool.toNat_true, one_ne_zero, Option.map_some, Memory.ops,
-          Option.some.injEq] <;> exact cast_eq _ _
+    have hz : z.regs Program.code.outFlag =
+        ((Memory.spec w).clientResult e (Memory.isEmpty L)).toNat := by
+      rw [hflag, Program.code_outFlag, ← Program.output_bank 0 (0 : Fin 2) 0 rfl]
+      exact hout (0 : Fin 2)
+    refine ⟨PQCode.decode_isEmpty _ _ (by simpa only [Memory.ops] using hz),
+      (nativeObservation_eq_some_iff _ _ _).mpr (cast_eq _ _ ▸ ?_)⟩
+    cases hb : (Memory.spec w).clientResult e (Memory.isEmpty L) <;>
+      simp [PQCode.nativeResultType, ResultType.decode, Function.comp_apply,
+        PQCode.nativeResultBank, hz, hb, Memory.ops]
   | getKey v =>
-    have h0 := hout (0 : Fin 2)
-    have h1 := hout (1 : Fin 2)
-    dsimp only [backend] at h0 h1
-    rw [Program.output_bank 1 (0 : Fin 2) 0 rfl] at h0
-    rw [Program.output_bank 1 (1 : Fin 2) 1 rfl] at h1
-    change y.regs (Program.bank 0) =
-      optionWords ((Memory.spec w).clientResult e (Memory.getKey L v)) 0 at h0
-    change y.regs (Program.bank 1) =
-      optionWords ((Memory.spec w).clientResult e (Memory.getKey L v)) 1 at h1
+    have hj (j : Fin 2) (a : Fin 4) (he : j.val = a.val) : y.regs (Program.bank a) =
+        optionWords ((Memory.spec w).clientResult e (Memory.getKey L v)) j := by
+      rw [← Program.output_bank 1 j a he]
+      exact hout j
     cases ha : (Memory.spec w).clientResult e (Memory.getKey L v) with
     | none =>
       have hf : z.regs Program.code.outFlag = 0 := hflag.trans (by
-        simpa only [Program.code_outFlag, ha, optionWords_none, Matrix.cons_val_zero] using h0)
-      constructor
-      · simpa only [Memory.ops, ha] using PQCode.decode_getKey_none Program.code z.regs v hf
-      · simp only [StateTransitionSpec.ofFn_result, nativeObservation, PQCode.nativeResultType,
-          ResultType.decode, Function.comp_apply, PQCode.nativeResultBank, ↓reduceIte, hf,
-          Option.map_some, Memory.ops, ha, Option.some.injEq]
-        exact cast_eq _ _
+        simpa only [Program.code_outFlag, ha, optionWords_none, Matrix.cons_val_zero] using
+          hj 0 0 rfl)
+      refine ⟨by simpa only [Memory.ops, ha] using PQCode.decode_getKey_none _ _ v hf,
+        (nativeObservation_eq_some_iff _ _ _).mpr (cast_eq _ _ ▸ ?_)⟩
+      simp [PQCode.nativeResultType, ResultType.decode, Function.comp_apply,
+        PQCode.nativeResultBank, hf, Memory.ops, ha]
     | some k =>
       have hf : z.regs Program.code.outFlag = 1 := hflag.trans (by
-        simpa only [Program.code_outFlag, ha, optionWords_some, Matrix.cons_val_zero] using h0)
-      have hk : z.regs Program.code.outK = k := hkey.trans (by
+        simpa only [Program.code_outFlag, ha, optionWords_some, Matrix.cons_val_zero] using
+          hj 0 0 rfl)
+      have h1' : y.regs Program.code.outV = k := by
         simpa only [Program.code_outV, ha, optionWords_some, Matrix.cons_val_one,
-          Matrix.cons_val_zero] using h1)
-      constructor
-      · simpa only [Memory.ops, ha] using
-          PQCode.decode_getKey_some Program.code z.regs v (by rw [hf]; decide) hk
-      · have hv : z.regs Program.code.outV = k := hvalue.trans (by
-          simpa only [Program.code_outV, ha, optionWords_some, Matrix.cons_val_one,
-            Matrix.cons_val_zero] using h1)
-        simp only [StateTransitionSpec.ofFn_result, nativeObservation, PQCode.nativeResultType,
-          ResultType.decode, Function.comp_apply, PQCode.nativeResultBank, ↓reduceIte, hf,
-          one_ne_zero, zero_add, hv, Option.map_some, Memory.ops, ha, Option.some.injEq]
-        exact cast_eq _ _
-  | insert v k =>
-    constructor <;> exact congrArg some (Subsingleton.elim _ _)
-  | decreaseKey v k =>
+          Matrix.cons_val_zero] using hj 1 1 rfl
+      refine ⟨by simpa only [Memory.ops, ha] using
+          PQCode.decode_getKey_some Program.code z.regs v (by simp [hf]) (hkey.trans h1'),
+        (nativeObservation_eq_some_iff _ _ _).mpr (cast_eq _ _ ▸ ?_)⟩
+      simp [PQCode.nativeResultType, ResultType.decode, Function.comp_apply,
+        PQCode.nativeResultBank, hf, hvalue.trans h1', Memory.ops, ha]
+  | insert v k | decreaseKey v k =>
     constructor <;> exact congrArg some (Subsingleton.elim _ _)
   | extractMin =>
-    have h0 := hout (0 : Fin 3)
-    have h1 := hout (1 : Fin 3)
-    have h2 := hout (2 : Fin 3)
-    dsimp only [backend] at h0 h1 h2
-    rw [Program.output_bank 4 (0 : Fin 3) 0 rfl] at h0
-    rw [Program.output_bank 4 (1 : Fin 3) 1 rfl] at h1
-    rw [Program.output_bank 4 (2 : Fin 3) 2 rfl] at h2
-    change y.regs (Program.bank 0) = WordEncoding.encode (α := Option (ℕ × ℕ))
-      ((Memory.spec w).clientResult e
-        ((Memory.extractMin L).map (Option.map fun a => (a.1.val, a.2)))) 0 at h0
-    change y.regs (Program.bank 1) = WordEncoding.encode (α := Option (ℕ × ℕ))
-      ((Memory.spec w).clientResult e
-        ((Memory.extractMin L).map (Option.map fun a => (a.1.val, a.2)))) 1 at h1
-    change y.regs (Program.bank 2) = WordEncoding.encode (α := Option (ℕ × ℕ))
-      ((Memory.spec w).clientResult e
-        ((Memory.extractMin L).map (Option.map fun a => (a.1.val, a.2)))) 2 at h2
-    rw [extractMin_result w ⟨n, L⟩ e] at h0 h1 h2
+    have hj (j : Fin 3) (a : Fin 4) (he : j.val = a.val) : y.regs (Program.bank a) =
+        WordEncoding.encode (α := Option (ℕ × ℕ))
+          ((Memory.spec w).clientResult e
+            ((Memory.extractMin L).map (Option.map fun a => (a.1.val, a.2)))) j := by
+      rw [← Program.output_bank 4 j a he]
+      exact hout j
+    simp only [extractMin_result w ⟨n, L⟩ e] at hj
     cases ha : (Memory.spec w).clientResult e (Memory.extractMin L) with
     | none =>
-      rw [ha] at h0
-      change y.regs (Program.bank 0) = 0 at h0
-      have hf : z.regs Program.code.outFlag = 0 := hflag.trans (by
-        simpa only [Program.code_outFlag] using h0)
-      constructor
-      · simpa only [Memory.ops, ha] using PQCode.decode_extractMin_none Program.code z.regs hf
-      · simp only [StateTransitionSpec.ofFn_result, nativeObservation, PQCode.nativeResultType,
-          ResultType.decode, Function.comp_apply, PQCode.nativeResultBank, ↓reduceIte, hf,
-          Option.map_some, Memory.ops, ha, Option.some.injEq]
-        exact cast_eq _ _
+      have hf : z.regs Program.code.outFlag = 0 := by
+        rw [hflag, Program.code_outFlag, hj 0 0 rfl, ha]
+        rfl
+      refine ⟨by simpa only [Memory.ops, ha] using PQCode.decode_extractMin_none _ _ hf,
+        (nativeObservation_eq_some_iff _ _ _).mpr (cast_eq _ _ ▸ ?_)⟩
+      simp [PQCode.nativeResultType, ResultType.decode, Function.comp_apply,
+        PQCode.nativeResultBank, hf, Memory.ops, ha]
     | some a =>
       rcases a with ⟨v, k⟩
-      rw [ha] at h0 h1 h2
-      change y.regs (Program.bank 0) = 1 at h0
-      change y.regs (Program.bank 1) = v.val at h1
-      change y.regs (Program.bank 2) = k at h2
-      have hf : z.regs Program.code.outFlag = 1 := hflag.trans (by
-        simpa only [Program.code_outFlag] using h0)
-      have hv : z.regs Program.code.outV = v.val := hvalue.trans (by
-        simpa only [Program.code_outV] using h1)
-      have hk : z.regs Program.code.outK = k := hkey.trans (by
-        simpa only [Program.code_outK] using h2)
-      constructor
-      · simpa only [Memory.ops, ha] using
-          PQCode.decode_extractMin_some Program.code z.regs v (by rw [hf]; decide) hv hk
-      · simp only [StateTransitionSpec.ofFn_result, nativeObservation, PQCode.nativeResultType,
-          ResultType.decode, Function.comp_apply, PQCode.nativeResultBank, ↓reduceIte, hf,
-          one_ne_zero, zero_add, hv, v.isLt, ↓reduceDIte, Fin.eta, ResultType.words, Nat.reduceAdd,
-          OfNat.ofNat_ne_zero, OfNat.ofNat_ne_one, hk, Option.pure_def, Option.bind_eq_bind,
-          Option.bind_some, Option.map_some, Memory.ops, ha, Option.some.injEq]
-        exact cast_eq _ _
+      have hf : z.regs Program.code.outFlag = 1 := by
+        rw [hflag, Program.code_outFlag, hj 0 0 rfl, ha]
+        rfl
+      have hv : z.regs Program.code.outV = v.val := by
+        rw [hvalue, Program.code_outV, hj 1 1 rfl, ha]
+        rfl
+      have hk : z.regs Program.code.outK = k := by
+        rw [hkey, Program.code_outK, hj 2 2 rfl, ha]
+        rfl
+      refine ⟨by simpa only [Memory.ops, ha] using
+          PQCode.decode_extractMin_some Program.code z.regs v (by simp [hf]) hv hk,
+        (nativeObservation_eq_some_iff _ _ _).mpr (cast_eq _ _ ▸ ?_)⟩
+      simp [PQCode.nativeResultType, ResultType.decode, ResultType.words, Function.comp_apply,
+        PQCode.nativeResultBank, hf, hv, v.isLt, hk, Memory.ops, ha]
 
 private theorem raw_exec
     {w n K base : ℕ} (hn : Fits w n) (hK : Fits w K)
@@ -238,8 +196,7 @@ private theorem raw_exec
     bound_extend Program.initialization L hL hr₀.1 hv hbe
   obtain ⟨s', hstep, hrepY⟩ := (Backend.implementation hI).correct hr₀.1 hv hbe
   have hlY : ∀ i : Fin 4,
-      y.regs (Program.argument (i.castAdd 2)) = layoutWords ⟨n, L⟩ i := by
-    intro i
+      y.regs (Program.argument (i.castAdd 2)) = layoutWords ⟨n, L⟩ i := fun i =>
     calc
       y.regs (Program.argument (i.castAdd 2)) = x₀.regs (Program.argument (i.castAdd 2)) :=
         hframe _ (by rw [Program.argument_source]; exact Backend.src_ne_frontier _ _ _)
@@ -250,19 +207,15 @@ private theorem raw_exec
   obtain ⟨z, hez, hbz, hmz, hfz, hlz, hflag, hvalue, hkey⟩ :=
     Program.wrap_body L x o ha (N := N) ⟨N, le_rfl, he⟩ hby
   have hzstate : memoryState (Backend.frontier Program.family) z =
-      memoryState (Backend.frontier Program.family) y := by
-    apply Memory.State.ext
-    · exact hmz
-    · change z.regs (Backend.frontier Program.family) = y.regs (Backend.frontier Program.family)
-      rwa [← Program.code_frontier]
+      memoryState (Backend.frontier Program.family) y :=
+    Memory.State.ext hmz (Program.code_frontier ▸ hfz)
   have hrZ : Representation.Rep base hn hK s' z := hrY.congr
     (fun c _ => congrFun hmz c) (le_of_eq (congrArg Memory.State.frontier hzstate).symm) hlz hbz
-  have hdecoded : Program.code.decode (K_max := K) o z.regs =
+  obtain ⟨hdecode, hnative⟩ : Program.code.decode (K_max := K) o z.regs =
       some ((Memory.spec w).clientResult e (Memory.ops L o)) ∧
       nativeObservation (K := K) o z.regs =
         some ((Memory.spec w).clientResult e (Memory.ops L o)) := by
     cases o <;> exact decode_body L e _ y z hout hflag hvalue hkey
-  obtain ⟨hdecode, hnative⟩ := hdecoded
   have hanswer : (Memory.spec w).clientResult e (Memory.ops L o) = a := congrArg Prod.fst hrun
   have hstateY : memoryState (Backend.frontier Program.family) y =
       (Memory.spec w).clientState e (Memory.ops L o) :=
@@ -271,13 +224,10 @@ private theorem raw_exec
   refine ⟨z, s', a, steps, hez, hstep, hdecode.trans (congrArg some hanswer), hrZ, ?_,
     by omega, ?_, hnative.trans (congrArg some hanswer)⟩
   · intro c hc
-    have hc' : c ∉ L.footprint := by
-      change c ∉ (Memory.compactLayout n base).footprint
-      rwa [Memory.compactLayout_footprint]
-    have hm := hmodY c (by
+    have hc' : c ∉ L.footprint := Memory.compactLayout_footprint n base ▸ hc
+    exact (congrFun hmz c).trans (hmodY c (by
       simpa only [Memory.Framed.region_eq_footprint (Memory.framed hL) rfl,
-        Memory.framed_footprint] using hc')
-    exact (congrFun hmz c).trans hm
+        Memory.framed_footprint] using hc'))
   · rw [hzstate, hstateY]
     exact congrArg (fun e => (Memory.spec w).clientState e (Memory.ops L o)) hm₀
 
@@ -327,14 +277,11 @@ theorem subroutineImpl_exec_memoryState {w n K base : ℕ}
     memoryState (Backend.frontier Program.family) y = (Memory.spec w).clientState
       (memoryState (Backend.frontier Program.family) x)
       (Memory.ops (Memory.compactLayout n base) o) := by
-  rw [subroutineImpl_toBase] at hr ha
-  have hn : Fits w n := hS.of_le (by wram_omega)
-  have hrep : Representation.Rep base hn hK s x :=
-    (subroutineBase_rep_iff hS hK s x).mp hr
-  rw [subroutineBase_argMatch] at ha
-  obtain ⟨z, _, _, _, hez, _, _, _, _, _, hstate, _⟩ := raw_exec hn hK o hrep hv ha
-  have hy : y = z := (he.unique hez).1
-  rwa [hy]
+  rw [subroutineImpl_toBase, subroutineBase_argMatch] at ha
+  rw [subroutineImpl_toBase] at hr
+  obtain ⟨_, _, _, _, hez, _, _, _, _, _, hstate, _⟩ :=
+    raw_exec (hS.of_le (by wram_omega)) hK o ((subroutineBase_rep_iff hS hK s x).mp hr) hv ha
+  rwa [(he.unique hez).1]
 
 /-- Every actual admissible body run already produces canonical fixed-bank observations.
 The lookup payload remains in the first payload slot even after the legacy key copy. -/
@@ -345,13 +292,10 @@ theorem subroutineImpl_exec_nativeObservation {w n K base : ℕ}
     (hv : IndexedMinPQ.valid K s o) (ha : (subroutineImpl hS hK).argMatch o x.regs)
     (he : Exec w Program.code.code x y N) :
     nativeObservation (K := K) o y.regs = Program.code.decode (K_max := K) o y.regs := by
-  rw [subroutineImpl_toBase] at hr ha
-  have hn : Fits w n := hS.of_le (by wram_omega)
-  have hrep : Representation.Rep base hn hK s x :=
-    (subroutineBase_rep_iff hS hK s x).mp hr
-  rw [subroutineBase_argMatch] at ha
-  obtain ⟨z, _, a, _, hez, _, hd, _, _, _, _, hnative⟩ := raw_exec hn hK o hrep hv ha
-  obtain ⟨rfl, _⟩ := he.unique hez
-  exact hnative.trans hd.symm
+  rw [subroutineImpl_toBase, subroutineBase_argMatch] at ha
+  rw [subroutineImpl_toBase] at hr
+  obtain ⟨_, _, _, _, hez, _, hd, _, _, _, _, hnative⟩ :=
+    raw_exec (hS.of_le (by wram_omega)) hK o ((subroutineBase_rep_iff hS hK s x).mp hr) hv ha
+  exact (he.unique hez).1 ▸ hnative.trans hd.symm
 
 end Cslib.DataStructure.PriorityQueue.BinaryHeap.Native

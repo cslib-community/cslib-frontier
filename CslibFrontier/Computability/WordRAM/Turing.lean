@@ -258,26 +258,18 @@ theorem step {p : GenericRAM.Program B.genericModel r} (h : WordBounded w s)
 theorem step_halt {p : GenericRAM.Program B.genericModel r} {v : ℕ} (h : WordBounded w s)
     (hs : FiniteState.step w p s = some (.inr v)) : v < 2 ^ w := by
   unfold FiniteState.step at hs
-  simp only [Basis.genericModel, ite_true] at hs
-  rw [dispatch_eq_getElem? w p 0 s (Nat.zero_le _), Nat.sub_zero] at hs
-  simp only [bind, Option.bind_eq_some_iff] at hs
+  simp only [Basis.genericModel, ite_true, dispatch_eq_getElem? w p 0 s (Nat.zero_le _),
+    Nat.sub_zero, bind, Option.bind_eq_some_iff] at hs
   obtain ⟨i, -, hs⟩ := hs
   cases i with
-  | op o =>
-    simp only [evalInstr, bind, Option.bind_eq_some_iff] at hs
-    obtain ⟨u, -, hr⟩ := hs
-    simp [resume, Basis.genericModel] at hr
-  | jump target => simp [evalInstr, resume, Basis.genericModel] at hs
+  | op o => simp [evalInstr, bind, Option.bind_eq_some_iff, resume] at hs
+  | jump target => simp [evalInstr, resume] at hs
   | branch c target =>
-    cases c with
-    | test f args =>
-      simp only [evalInstr, bind, Option.bind_eq_some_iff] at hs
-      obtain ⟨b, -, hr⟩ := hs
-      simp [resume, Basis.genericModel] at hr
+    cases c
+    simp [evalInstr, bind, Option.bind_eq_some_iff, resume] at hs
   | halt idx =>
-    simp only [evalInstr, Basis.genericModel, ite_true, Option.some.injEq, Sum.inr.injEq] at hs
-    subst hs
-    exact h.regs_lt idx
+    simp only [evalInstr, ite_true, Option.some.injEq, Sum.inr.injEq] at hs
+    exact hs ▸ h.regs_lt idx
 
 /-- Every outcome of a clocked run from a word-bounded state below the label bound is
 word-bounded: continuing states keep their words and labels, and halted values are words. -/
@@ -287,10 +279,7 @@ theorem run {p : GenericRAM.Program B.genericModel r} (h : WordBounded w s)
       (∀ v, FiniteState.run w p n s = some (.inr v) → v < 2 ^ w) := by
   induction n generalizing s with
   | zero =>
-    refine ⟨fun t ht => ?_, fun v hv => by simp at hv⟩
-    simp only [FiniteState.run_zero, Option.some.injEq, Sum.inl.injEq] at ht
-    subst ht
-    exact ⟨h, hpc⟩
+    simp +contextual [FiniteState.run_zero, h, hpc]
   | succ n ih =>
     rw [FiniteState.run_succ]
     cases hs : FiniteState.step w p s with
@@ -301,10 +290,7 @@ theorem run {p : GenericRAM.Program B.genericModel r} (h : WordBounded w s)
         obtain ⟨hu, hupc⟩ := h.step hs
         exact ih hu hupc
       | inr v =>
-        refine ⟨fun t ht => by simp at ht, fun v' hv => ?_⟩
-        simp only [Option.some.injEq, Sum.inr.injEq] at hv
-        subst hv
-        exact h.step_halt hs
+        simp +contextual [h.step_halt hs]
 
 /-- Encoded outcomes along a clocked run from a word-bounded state are bounded by `stateBound`,
 with at most one new stored cell per step. -/

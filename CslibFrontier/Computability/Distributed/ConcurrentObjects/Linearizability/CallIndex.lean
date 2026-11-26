@@ -47,17 +47,12 @@ theorem mem_of_mem_complete [DecidableEq P] {M : History P Op Resp} {e : Event P
   | nil => exact hm
   | cons a rest ih =>
     cases a with
-    | inv p y op =>
+    | inv _ _ _ =>
       simp only [complete] at hm
       split at hm
-      · rcases List.mem_cons.mp hm with rfl | hm'
-        · exact List.mem_cons_self
-        · exact List.mem_cons_of_mem _ (ih hm')
+      · exact List.mem_cons.mpr ((List.mem_cons.mp hm).imp_right ih)
       · exact List.mem_cons_of_mem _ (ih hm)
-    | resp _ _ _ =>
-      rcases List.mem_cons.mp hm with rfl | hm'
-      · exact List.mem_cons_self
-      · exact List.mem_cons_of_mem _ (ih hm')
+    | resp _ _ _ => exact List.mem_cons.mpr ((List.mem_cons.mp hm).imp_right ih)
 
 /-- Prefix closure of `IsSequential` under `++`. -/
 theorem isSequential_append_left :
@@ -105,11 +100,9 @@ theorem even_length_of_equivalent_complete [DecidableEq P] {H S : History P Op R
     S.length % 2 = 0 := by
   rcases isSequential_decomp hseq with ⟨cs, rfl⟩ | ⟨cs, p, x, op, rfl⟩
   · rw [length_flatMap_toEvents]; omega
-  · exfalso
-    have hp := heq p
-    rw [procSubhistory_complete] at hp
-    obtain ⟨_, hev_p⟩ := complete_isSequential (hwf p)
-    simp only [hp, procSubhistory_append, procSubhistory_flatMap_toEvents, procSubhistory_cons,
+  · obtain ⟨_, hev_p⟩ := complete_isSequential (hwf p)
+    rw [← procSubhistory_complete, heq p] at hev_p
+    simp only [procSubhistory_append, procSubhistory_flatMap_toEvents, procSubhistory_cons,
       Event.proc_inv, ↓reduceIte, procSubhistory_nil, List.length_append, length_flatMap_toEvents,
       List.length_singleton] at hev_p
     omega
@@ -176,14 +169,8 @@ theorem nthProcPos_isSome_iff [DecidableEq P] (p : P) (H : History P Op Resp) (n
 theorem nthProcPos_lt_length [DecidableEq P] {p : P} {H : History P Op Resp} {n pos : ℕ}
     (h : nthProcPos p H n = some pos) : pos < H.length ∧ H[pos]?.map Event.proc = some p := by
   obtain ⟨hlt, _, hpr⟩ := List.nthFilterPos_lt_length h
-  refine ⟨hlt, ?_⟩
-  cases hget : H[pos]? with
-  | none =>
-    rw [hget] at hpr
-    simp only [Option.map_none, reduceCtorEq] at hpr
-  | some a =>
-    rw [hget] at hpr
-    simpa only [Option.map_some, Option.some.injEq, decide_eq_true_eq] using hpr
+  rw [List.getElem?_eq_getElem hlt] at hpr ⊢
+  exact ⟨hlt, congrArg some (of_decide_eq_true (Option.some.inj hpr))⟩
 
 /-- Lookup at `nthProcPos p H n = some pos` agrees with `(H | p)[n]?`. -/
 theorem nthProcPos_getElem? [DecidableEq P] {p : P} {H : History P Op Resp} {n pos : ℕ}
@@ -228,16 +215,12 @@ theorem flatMap_toEvents_injective :
   | [], _ :: _, h | _ :: _, [], h => by
     simp only [List.flatMap_nil, List.flatMap_cons, OpCall.toEvents, List.cons_append] at h
     nomatch h
-  | c₁ :: rest₁, c₂ :: rest₂, h => by
+  | ⟨_, _, _, _⟩ :: rest₁, ⟨_, _, _, _⟩ :: rest₂, h => by
     simp only [List.flatMap_cons, OpCall.toEvents, List.cons_append, List.nil_append,
       List.cons.injEq] at h
-    obtain ⟨hinv, hresp, hrest⟩ := h
-    cases c₁; cases c₂
-    injection hinv with hp hx hop
-    subst hp hx
-    cases hop
-    injection hresp with _ _ hres
-    cases hres
+    rcases h with ⟨hinv, hresp, hrest⟩
+    cases hinv
+    cases hresp
     exact congrArg _ (flatMap_toEvents_injective hrest)
 
 /-- Even positions `2 * k` of `cs.flatMap OpCall.toEvents` hold the invocation of `cs[k]`. -/
@@ -249,11 +232,10 @@ theorem flatMap_toEvents_getElem?_even :
     simp only [Nat.mul_zero, List.flatMap_cons, OpCall.toEvents, List.cons_append,
       List.getElem?_cons_zero, List.getElem_cons_zero]
   | _ :: rest, k + 1, hk => by
-    have hk' : k < rest.length := by simp only [List.length_cons] at hk; omega
-    have h2 : 2 * (k + 1) = 2 * k + 1 + 1 := by omega
-    rw [h2]
+    rw [show 2 * (k + 1) = 2 * k + 1 + 1 by omega]
     simp only [List.flatMap_cons, OpCall.toEvents, List.cons_append, List.nil_append,
-      List.getElem?_cons_succ, List.getElem_cons_succ, flatMap_toEvents_getElem?_even rest k hk']
+      List.getElem?_cons_succ, List.getElem_cons_succ,
+      flatMap_toEvents_getElem?_even rest k (Nat.lt_of_succ_lt_succ hk)]
 
 /-- Every event at an even index `2 * k` of a sequential history is an invocation
 (`isResp = false`). -/
@@ -262,26 +244,17 @@ theorem isSequential_getElem?_even_isResp_false {L : History P Op Resp} {k : ℕ
     ev.isResp = false := by
   rcases History.isSequential_decomp hseq with ⟨cs, rfl⟩ | ⟨cs, p, x, op, rfl⟩
   · have hk : k < cs.length := by
-      obtain ⟨hlt, _⟩ := List.getElem?_eq_some_iff.mp hget
-      rw [History.length_flatMap_toEvents] at hlt; omega
-    rw [flatMap_toEvents_getElem?_even cs k hk, Option.some.injEq] at hget
-    rw [← hget]; rfl
-  · by_cases hk : k < cs.length
-    · have hlt : 2 * k < (cs.flatMap OpCall.toEvents).length := by
-        rw [History.length_flatMap_toEvents]; omega
-      rw [List.getElem?_append_left hlt, flatMap_toEvents_getElem?_even cs k hk,
-        Option.some.injEq] at hget
-      rw [← hget]; rfl
-    · have hge : (cs.flatMap OpCall.toEvents).length ≤ 2 * k := by
-        rw [History.length_flatMap_toEvents]; omega
-      rw [List.getElem?_append_right hge, History.length_flatMap_toEvents] at hget
-      cases hd : 2 * k - 2 * cs.length with
-      | zero =>
-        rw [hd, List.getElem?_cons_zero, Option.some.injEq] at hget
-        rw [← hget]; rfl
-      | succ m =>
-        rw [hd, List.getElem?_cons_succ, List.getElem?_nil] at hget
-        nomatch hget
+      have := (List.getElem?_eq_some_iff.mp hget).1
+      rw [History.length_flatMap_toEvents] at this; omega
+    rw [flatMap_toEvents_getElem?_even cs k hk] at hget
+    exact Option.some.inj hget ▸ rfl
+  · rw [List.getElem?_append, History.length_flatMap_toEvents] at hget
+    split_ifs at hget with hk
+    · rw [flatMap_toEvents_getElem?_even cs k (by omega)] at hget
+      exact Option.some.inj hget ▸ rfl
+    · rw [List.getElem?_singleton] at hget
+      split_ifs at hget
+      exact Option.some.inj hget ▸ rfl
 
 /-- Number of calls in `calls` invoked by process `p`. -/
 @[expose]
@@ -330,21 +303,17 @@ theorem nthFilterPos_flatMap_toEvents (pred : OpCall P Op Resp → Bool)
         List.nthFilterPos_cons_succ_of_true _ 0 ((hinv_p c).trans hpk),
         List.nthFilterPos_cons_zero_of_true _ ((hresp_p c).trans hpk), Option.map_some, and_self]
     | succ k' =>
-      have hk' : k' < rest.length := by simp only [List.length_cons] at hk; omega
-      simp only [List.getElem_cons_succ] at hpk
-      obtain ⟨hinv, hresp⟩ := ih k' hk' hpk
+      obtain ⟨hinv, hresp⟩ := ih k' (Nat.lt_of_succ_lt_succ hk) hpk
       simp only [List.take_succ_cons, List.flatMap_cons, OpCall.toEvents, List.cons_append,
         List.nil_append]
       cases hpc : pred c
-      · have hpc_ne : ¬ pred c = true := by simp only [hpc, Bool.false_eq_true, not_false_eq_true]
-        simp only [List.filter_cons_of_neg hpc_ne,
+      · simp only [List.filter_cons_of_neg (Bool.eq_false_iff.mp hpc),
           List.nthFilterPos_cons_of_false _ _ ((hinv_p c).trans hpc),
           List.nthFilterPos_cons_of_false _ _ ((hresp_p c).trans hpc), hinv, hresp, Option.map_some]
         exact ⟨congrArg some (by omega), congrArg some (by omega)⟩
       · simp only [List.filter_cons_of_pos hpc, List.length_cons]
-        have heq₁ : 2 * (((rest.take k').filter pred).length + 1) =
-            2 * ((rest.take k').filter pred).length + 1 + 1 := by omega
-        rw [heq₁]
+        rw [show 2 * (((rest.take k').filter pred).length + 1) =
+            2 * ((rest.take k').filter pred).length + 1 + 1 by omega]
         simp only [List.nthFilterPos_cons_succ_of_true _ _ ((hinv_p c).trans hpc),
           List.nthFilterPos_cons_succ_of_true _ _ ((hresp_p c).trans hpc), hinv, hresp,
           Option.map_some]
@@ -365,11 +334,10 @@ theorem invPos_respPos_opIdAt [DecidableEq P] (calls : List (OpCall P Op Resp))
 /-- `opIdAt calls` is injective on valid call indices. -/
 theorem opIdAt_injective [DecidableEq P] {calls : List (OpCall P Op Resp)}
     {j₁ j₂ : ℕ} (hj₁ : j₁ < calls.length) (hj₂ : j₂ < calls.length)
-    (heq : opIdAt calls j₁ hj₁ = opIdAt calls j₂ hj₂) : j₁ = j₂ := by
-  have h₁ := (invPos_respPos_opIdAt calls j₁ hj₁).1
-  have h₂ := (invPos_respPos_opIdAt calls j₂ hj₂).1
-  rw [heq, h₂] at h₁
-  injection h₁ with h; omega
+    (heq : opIdAt calls j₁ hj₁ = opIdAt calls j₂ hj₂) : j₁ = j₂ :=
+  Nat.mul_left_cancel Nat.zero_lt_two <| Option.some.inj <|
+    (invPos_respPos_opIdAt calls j₁ hj₁).1.symm.trans
+      (heq ▸ (invPos_respPos_opIdAt calls j₂ hj₂).1)
 
 /-- Real-time precedence in `calls.flatMap OpCall.toEvents` agrees with call-index order `j₁ < j₂`.
 -/
@@ -380,13 +348,10 @@ theorem prec_flatMap_toEvents_opIdAt_iff [DecidableEq P]
       (opIdAt calls j₁ hj₁) (opIdAt calls j₂ hj₂) ↔ j₁ < j₂ := by
   obtain ⟨_, hr₁⟩ := invPos_respPos_opIdAt calls j₁ hj₁
   obtain ⟨hi₂, _⟩ := invPos_respPos_opIdAt calls j₂ hj₂
-  constructor
-  · rintro ⟨r, i, hr, hi, hlt⟩
-    rw [hr₁] at hr; rw [hi₂] at hi
-    injection hr with hr'; injection hi with hi'
-    omega
-  · intro hlt
-    exact ⟨2 * j₁ + 1, 2 * j₂, hr₁, hi₂, by omega⟩
+  refine ⟨fun ⟨_, _, hr, hi, _⟩ => ?_, fun _ => ⟨2 * j₁ + 1, 2 * j₂, hr₁, hi₂, by omega⟩⟩
+  rw [hr₁, Option.some.injEq] at hr
+  rw [hi₂, Option.some.injEq] at hi
+  omega
 
 /-- Surjectivity of `opIdAt calls` onto all `e : OpId P` with `e.idx < countProcCalls e.proc calls`.
 -/
@@ -396,36 +361,17 @@ theorem exists_opIdAt_of_lt_countProcCalls [DecidableEq P]
   induction calls generalizing e with
   | nil => simp only [countProcCalls_nil] at hlt; omega
   | cons c rest ih =>
+    obtain ⟨q, n⟩ := e
+    dsimp only at hlt
     rw [countProcCalls_cons] at hlt
-    by_cases hcp : c.proc = e.proc
-    · simp only [hcp, ↓reduceIte] at hlt
-      cases hidx : e.idx with
-      | zero =>
-        refine ⟨0, Nat.zero_lt_succ _, ?_⟩
-        ext
-        · exact hcp
-        · simp only [opIdAt, List.take_zero, countProcCalls_nil, hidx]
-      | succ k =>
-        rw [hidx] at hlt
-        obtain ⟨j', hj', heq⟩ := ih ⟨e.proc, k⟩ (by dsimp only; omega)
-        refine ⟨j' + 1, Nat.succ_lt_succ hj', ?_⟩
-        have hproc : rest[j'].proc = e.proc := congrArg OpId.proc heq
-        have hcnt : countProcCalls rest[j'].proc (rest.take j') = k := congrArg OpId.idx heq
-        ext
-        · simp only [opIdAt, List.getElem_cons_succ, hproc]
-        · simp only [opIdAt, List.getElem_cons_succ, List.take_succ_cons, countProcCalls_cons,
-            hproc, hcp, ↓reduceIte, hidx]
-          rw [← hproc, hcnt]
-    · simp only [hcp, ↓reduceIte] at hlt
-      obtain ⟨j', hj', heq⟩ := ih e hlt
+    by_cases h0 : c.proc = q ∧ n = 0
+    · exact ⟨0, Nat.zero_lt_succ _, by
+        simp only [opIdAt, List.getElem_cons_zero, h0.1, h0.2, List.take_zero, countProcCalls_nil]⟩
+    · have hlt' : (if c.proc = q then n - 1 else n) < countProcCalls q rest := by grind
+      obtain ⟨j', hj', heq⟩ := ih ⟨q, if c.proc = q then n - 1 else n⟩ hlt'
       refine ⟨j' + 1, Nat.succ_lt_succ hj', ?_⟩
-      have hproc : rest[j'].proc = e.proc := congrArg OpId.proc heq
-      have hcnt : countProcCalls rest[j'].proc (rest.take j') = e.idx := congrArg OpId.idx heq
-      ext
-      · simp only [opIdAt, List.getElem_cons_succ, hproc]
-      · simp only [opIdAt, List.getElem_cons_succ, List.take_succ_cons, countProcCalls_cons,
-          hproc, hcp, ↓reduceIte]
-        rw [← hproc, hcnt]
+      simp only [opIdAt, List.getElem_cons_succ, List.take_succ_cons, countProcCalls_cons] at heq ⊢
+      grind
 
 end CallIndexing
 

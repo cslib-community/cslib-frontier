@@ -91,9 +91,8 @@ private theorem exists_eq_zero_of_step {Z : Type*} [MetricSpace Z] [CompleteSpac
     induction m, hnm using Nat.le_induction with
     | base => simp
     | succ m _ ih => linarith [dist_triangle (y n) (y m) (y (m + 1)), hstep m]
-  have hq0 : 0 ≤ 1 - 1 / 2 / L := by
-    have : 1 / 2 / L ≤ 1 / 2 := div_le_self (by norm_num) hL
-    linarith
+  have hq0 : 0 ≤ 1 - 1 / 2 / L :=
+    sub_nonneg.2 ((div_le_self (by norm_num) hL).trans one_half_lt_one.le)
   have hq1 : 1 - 1 / 2 / L < 1 := sub_lt_self _ (by positivity)
   have hFlim : Tendsto (fun n => F (y n)) atTop (𝓝 0) := by
     refine squeeze_zero (g := fun n => (1 - 1 / 2 / L) ^ n * F z) (fun n => hF0 _)
@@ -136,9 +135,8 @@ private theorem dist_P_P_sq_le_of_disjoint [CompleteCAT0Space Z] (A : IsoAct (U 
   · rw [P_eq_of_dist_add_dist (A.W p' n') (a := (A.W p n).P z) (q := q)
       (by rw [hq.dist_left hσ0.le hσ1, hq.dist_right hσ0.le hσ1]; ring), dist_comm q]
     exact mul_le_of_le_one_left (sq_nonneg _) (by linarith [sq_nonneg (ε / (2 * r + 1))])
-  · have : 2 * (ε / (2 * r + 1)) * r ≤ ε := by
-      rw [mul_div_assoc', div_mul_eq_mul_div, div_le_iff₀ (by positivity)]
-      linarith [show 2 * ε * r = ε * (2 * r) by ring]
+  · gcongr
+    rw [mul_div_assoc', div_mul_eq_mul_div, div_le_iff₀ (by positivity)]
     linarith
 
 variable {μ : ℕ} {s : ℝ} {u L : ℕ}
@@ -187,14 +185,13 @@ private theorem exists_windowSum_le [CompleteCAT0Space Z] (A : IsoAct (U h) Z) (
       if a = b then 2 * r a else 0 := fun a b => by
     rcases lt_trichotomy a b with hab | rfl | hab
     · have := hlt a b hab
-      have hne : a ≠ b := hab.ne
-      have hba : ¬ a.1 = b.1 + 1 := by have := Fin.lt_def.1 hab; omega
+      have hba : ¬ a.1 = b.1 + 1 := Nat.ne_of_lt (Nat.lt_succ_of_lt (Fin.lt_def.1 hab))
+      simp only [hab.ne, hba, ↓reduceIte]
       split_ifs at this ⊢ <;> linarith
     · simp [two_mul]
-    · have := hlt b a hab
-      have hne : a ≠ b := hab.ne'
-      have hba : ¬ b.1 = a.1 + 1 := by have := Fin.lt_def.1 hab; omega
-      rw [dist_comm]
+    · have := dist_comm (Q a) (Q b) ▸ hlt b a hab
+      have hba : ¬ b.1 = a.1 + 1 := Nat.ne_of_lt (Nat.lt_succ_of_lt (Fin.lt_def.1 hab))
+      simp only [hab.ne', hba, ↓reduceIte]
       split_ifs at this ⊢ <;> linarith
   have h1 : ∀ a : Fin L, #{b : Fin L | b.1 = a.1 + 1} ≤ 1 := fun a =>
     card_le_one.2 fun b hb b' hb' => Fin.ext (by simp at hb hb'; omega)
@@ -339,15 +336,13 @@ theorem exists_poincareBound {K : Type} [Field K] (hK : ContractingCase K) :
   obtain ⟨u, hu, hC⟩ := exists_kappa_le hμ hs hsm
   refine ⟨u, hu, 64 * (kappa μ s (2 * u) ^ 2 * (2 * u : ℕ)), by positivity, fun l hl w hw => ?_⟩
   obtain ⟨Y, _, _, f, hY, hf⟩ := Curvature.exists_completeCAT0Space_of_isPrice hw
-  have hb : (0 : ℝ) < Fintype.card (U (l * u)) := by exact_mod_cast Fintype.card_pos
   have e : ∀ g : U (l * u), dist (WithLp.toLp 2 f : PiLp 2 fun _ : U (l * u) => Y)
       ((transAct (U (l * u)) Y) g (WithLp.toLp 2 f)) ^ 2 = ∑ k, w k (g * k) ^ 2 := fun g => by
     rw [transAct_dist]
     exact sum_congr rfl fun k _ => by rw [dist_comm]; exact congrArg (· ^ 2) (hf _ _)
   have h1 := mean_dist_sq_le (transAct (U (l * u)) Y) hμ hs (contr_len_transAct hcase hY) hu
     (L := l - 1) (by omega) (by rw [Nat.sub_add_cancel (by omega)]) hC (WithLp.toLp 2 f)
-  simp only [e] at h1
-  rw [pow_two, ← div_div, ← sum_div, ← mul_div_assoc]
-  exact div_le_div_of_nonneg_right h1 hb.le
+  simp only [e, pow_two, ← div_div, ← sum_div, ← mul_div_assoc] at h1 ⊢
+  exact div_le_div_of_nonneg_right h1 (Nat.cast_nonneg _)
 
 end Cslib.Circuits.Arithmetic.Separation.Poincare

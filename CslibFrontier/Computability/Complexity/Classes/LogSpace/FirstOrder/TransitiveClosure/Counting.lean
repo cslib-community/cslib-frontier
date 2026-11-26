@@ -78,13 +78,9 @@ theorem codeEdge_code (xs ys : Fin k → Fin n) :
 
 private theorem graph_iff {c d : ℕ} :
     Graph (n ^ k) (codeEdge E) c d ↔ ∃ (hc : c < n ^ k) (hd : d < n ^ k),
-      E (finFunctionFinEquiv.symm ⟨c, hc⟩) (finFunctionFinEquiv.symm ⟨d, hd⟩) := by
-  constructor
-  · rintro ⟨hc, hd, he⟩
-    refine ⟨hc, hd, ?_⟩
-    simpa only [codeEdge, hc, hd, and_self, ↓reduceDIte, decide_eq_true_eq] using he
-  · rintro ⟨hc, hd, he⟩
-    exact ⟨hc, hd, by simpa only [codeEdge, hc, hd, and_self, ↓reduceDIte, decide_eq_true_eq]⟩
+      E (finFunctionFinEquiv.symm ⟨c, hc⟩) (finFunctionFinEquiv.symm ⟨d, hd⟩) :=
+  ⟨fun ⟨hc, hd, he⟩ => ⟨hc, hd, by simpa [codeEdge, hc, hd] using he⟩,
+    fun ⟨hc, hd, he⟩ => ⟨hc, hd, by simpa [codeEdge, hc, hd]⟩⟩
 
 private theorem relatesInSteps_of_graph {xs : Fin k → Fin n} {m : ℕ} :
     ∀ {d : ℕ}, Relation.RelatesInSteps (Graph (n ^ k) (codeEdge E)) (finFunctionFinEquiv xs) d m →
@@ -93,8 +89,8 @@ private theorem relatesInSteps_of_graph {xs : Fin k → Fin n} {m : ℕ} :
   | zero =>
     intro d h
     obtain rfl := h.zero
-    exact ⟨(finFunctionFinEquiv xs).isLt, by
-      rw [Fin.eta, Equiv.symm_apply_apply]; exact .refl _⟩
+    exact ⟨(finFunctionFinEquiv xs).isLt,
+      by simpa only [Fin.eta, Equiv.symm_apply_apply] using .refl xs⟩
   | succ m ih =>
     intro d h
     obtain ⟨c, hc, hcd⟩ := h.succ
@@ -106,15 +102,12 @@ private theorem relatesInSteps_of_graph {xs : Fin k → Fin n} {m : ℕ} :
 theorem relatesWithinSteps_codeEdge_iff {xs ys : Fin k → Fin n} {m : ℕ} :
     Relation.RelatesWithinSteps (Graph (n ^ k) (codeEdge E)) (finFunctionFinEquiv xs)
       (finFunctionFinEquiv ys) m ↔ Relation.RelatesWithinSteps E xs ys m := by
-  constructor
-  · rintro ⟨m', hm', h⟩
-    obtain ⟨_, h'⟩ := relatesInSteps_of_graph h
-    rw [Fin.eta, Equiv.symm_apply_apply] at h'
-    exact ⟨m', hm', h'⟩
-  · rintro ⟨m', hm', h⟩
-    refine ⟨m', hm', h.map (r' := Graph (n ^ k) (codeEdge E))
-      (fun x => (finFunctionFinEquiv x : ℕ)) fun a b hab => ?_⟩
-    exact ⟨(finFunctionFinEquiv a).isLt, (finFunctionFinEquiv b).isLt, (codeEdge_code a b).mpr hab⟩
+  refine ⟨fun ⟨m', hm', h⟩ => ?_, fun ⟨m', hm', h⟩ =>
+    ⟨m', hm', h.map (r' := Graph (n ^ k) (codeEdge E)) (fun x => (finFunctionFinEquiv x : ℕ))
+      fun a b hab =>
+        ⟨(finFunctionFinEquiv a).isLt, (finFunctionFinEquiv b).isLt, (codeEdge_code a b).mpr hab⟩⟩⟩
+  obtain ⟨_, h'⟩ := relatesInSteps_of_graph h
+  exact ⟨m', hm', by simpa only [Fin.eta, Equiv.symm_apply_apply] using h'⟩
 
 /-- **Rounds are bounded reachability**: the code of `ys` is in round `i` exactly when `ys` is
 reached from `xs` within `i` steps. -/
@@ -129,8 +122,7 @@ theorem mem_roundSet_pow_iff {xs ys : Fin k → Fin n} :
       Relation.ReflTransGen E xs ys := by
   rw [mem_roundSet_codeEdge_iff]
   refine ⟨Relation.RelatesWithinSteps.reflTransGen, fun h => ?_⟩
-  have hpos : 0 < n ^ k := Nat.pos_of_ne_zero fun h0 => by
-    have := (finFunctionFinEquiv xs).isLt; omega
+  have hpos : 0 < n ^ k := by have := (finFunctionFinEquiv xs).isLt; omega
   have hcard : Nat.card (Fin k → Fin n) ≤ n ^ k - 1 + 1 := by
     rw [Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin]; omega
   exact ((Relation.reflTransGen_iff_relatesWithinSteps hcard).mp h).mono (by omega)
@@ -208,29 +200,12 @@ theorem countTestCode_parts {b base k : ℕ} {src : Fin k → Expr} {wb et ef : 
     length_assignChain, List.length_cons, List.length_nil, length_tcCode] at hP
   obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨h1, h2, h3, h4, h5, h6, -⟩, h7⟩, h8⟩, h9⟩, h10, h11, h12, h13, h14, h15, h16, h17,
     -⟩, h18⟩, h19, -⟩, h20⟩, h21, h22, -⟩ := hP
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · exact instr_of_eq h1 (by omega)
-  · exact instr_of_eq h2 (by omega)
-  · exact instr_of_eq h3 (by omega)
-  · exact instr_of_eq h4 (by omega)
-  · exact instr_of_eq h5 (by omega)
-  · exact instr_of_eq h6 (by omega)
-  · exact codeAt_of_eq h7 (by omega)
-  · exact codeAt_of_eq h8 (by omega)
-  · exact codeAt_of_eq h9 (by omega)
-  · exact instr_of_eq h10 (by omega)
-  · exact instr_of_eq h11 (by omega)
-  · exact instr_of_eq h12 (by omega)
-  · exact instr_of_eq h13 (by omega)
-  · exact instr_of_eq h14 (by omega)
-  · exact instr_of_eq h15 (by omega)
-  · exact instr_of_eq h16 (by omega)
-  · exact instr_of_eq h17 (by omega)
-  · exact codeAt_of_eq h18 (by omega)
-  · exact instr_of_eq h19 (by omega)
-  · exact codeAt_of_eq h20 (by omega)
-  · exact instr_of_eq h21 (by omega)
-  · exact instr_of_eq h22 (by omega)
+  refine ⟨instr_of_eq h1 ?_, instr_of_eq h2 ?_, instr_of_eq h3 ?_, instr_of_eq h4 ?_,
+    instr_of_eq h5 ?_, instr_of_eq h6 ?_, codeAt_of_eq h7 ?_, codeAt_of_eq h8 ?_,
+    codeAt_of_eq h9 ?_, instr_of_eq h10 ?_, instr_of_eq h11 ?_, instr_of_eq h12 ?_,
+    instr_of_eq h13 ?_, instr_of_eq h14 ?_, instr_of_eq h15 ?_, instr_of_eq h16 ?_,
+    instr_of_eq h17 ?_, codeAt_of_eq h18 ?_, instr_of_eq h19 ?_, codeAt_of_eq h20 ?_,
+    instr_of_eq h21 ?_, instr_of_eq h22 ?_⟩ <;> omega
 
 theorem countCode_parts {b base k : ℕ} {dst : Fin k → Expr} {t₁ t₂ : List Instr} {T R : ℕ}
     (hP : P.CodeAt b (countCode b base k dst t₁ t₂ T R)) :
@@ -257,21 +232,10 @@ theorem countCode_parts {b base k : ℕ} {dst : Fin k → Expr} {t₁ t₂ : Lis
   simp only [countCode, codeAt_append, codeAt_cons, codeAt_nil, List.length_append,
     List.length_cons, List.length_nil] at hP
   obtain ⟨⟨⟨⟨⟨h1, h2, h3, h4, h5, h6, -⟩, h7⟩, h8, h9, h10, h11, h12, -⟩, h13⟩, h14, -⟩ := hP
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · exact instr_of_eq h1 (by omega)
-  · exact instr_of_eq h2 (by omega)
-  · exact instr_of_eq h3 (by omega)
-  · exact instr_of_eq h4 (by omega)
-  · exact instr_of_eq h5 (by omega)
-  · exact instr_of_eq h6 (by omega)
-  · exact codeAt_of_eq h7 (by omega)
-  · exact instr_of_eq h8 (by omega)
-  · exact instr_of_eq h9 (by omega)
-  · exact instr_of_eq h10 (by omega)
-  · exact instr_of_eq h11 (by omega)
-  · exact instr_of_eq h12 (by omega)
-  · exact codeAt_of_eq h13 (by omega)
-  · exact instr_of_eq h14 (by omega)
+  refine ⟨instr_of_eq h1 ?_, instr_of_eq h2 ?_, instr_of_eq h3 ?_, instr_of_eq h4 ?_,
+    instr_of_eq h5 ?_, instr_of_eq h6 ?_, codeAt_of_eq h7 ?_, instr_of_eq h8 ?_, instr_of_eq h9 ?_,
+    instr_of_eq h10 ?_, instr_of_eq h11 ?_, instr_of_eq h12 ?_, codeAt_of_eq h13 ?_,
+    instr_of_eq h14 ?_⟩ <;> omega
 
 end Parts
 
@@ -391,7 +355,7 @@ private theorem scan_start (hw : w₁ = b + 14 + 5 * k + wb.length)
     ((((Kept.refl hB).set_right (by omega) (Nat.zero_le B)).set_right (by omega)
       (Nat.zero_le B)).set_right le_rfl (Nat.zero_le B)), ?_, Finset.empty_subset _,
     fun c hc => absurd hc (Finset.notMem_empty c), ?_, ?_⟩
-  · rw [List.getD_set_self (by simp only [List.length_set]; omega)]
+  · exact List.getD_set_self (by simp only [List.length_set]; omega)
   · rw [List.getD_set_ne (by omega), List.getD_set_self (by simp only [List.length_set]; omega),
       Finset.card_empty]
   · rw [List.getD_set_ne (by omega), List.getD_set_ne (by omega),
@@ -419,12 +383,8 @@ private theorem scan_leave (hw : w₁ = b + 14 + 5 * k + wb.length)
 private theorem scan_post {i y x m : ℕ} {regsT regs : List ℕ} (hy : y < n ^ k)
     (hinv : ScanInv B base E s₀ i y x m (countRound E s₀ i) regsT regs) :
     Kept B (base + 4) regsT regs ∧
-      regs.getD (base + 6) 0 = if y ∈ countRound E s₀ (i + 1) then 1 else 0 := by
-  refine ⟨hinv.kept, ?_⟩
-  rw [hinv.hit]
-  by_cases h : y ∈ countRound E s₀ (i + 1)
-  · rw [ite_eq_left h, ite_eq_left ((mem_countRound_succ hy).mp h)]
-  · rw [ite_eq_right h, ite_eq_right fun h' => h ((mem_countRound_succ hy).mpr h')]
+      regs.getD (base + 6) 0 = if y ∈ countRound E s₀ (i + 1) then 1 else 0 :=
+  ⟨hinv.kept, by simp only [hinv.hit, mem_countRound_succ hy]⟩
 
 private theorem scan_check_sound (hw : w₁ = b + 14 + 5 * k + wb.length)
     (hP : P.CodeAt b (countTestCode b base k src wb et ef T R)) (hB1 : 1 ≤ B)
@@ -493,10 +453,9 @@ private theorem walk_sound (hw : w₁ = b + 14 + 5 * k + wb.length)
       ∀ j, (src j).eval regs = s₀ j := fun regs h =>
     hsrc regs fun j hj => (h j (by omega)).trans (hk.getD_eq j hj)
   obtain ⟨regsI, hrI, hinvI⟩ := loop_init (w := w) h9 (by omega) hnB hk.bounded hsrc'
-  refine Sound.of_oblivious hB1 hrI ?_
-  exact loop_sound h9 (by omega) hB1 hnB hNB hiB h0 hR hPost (walk_dst h0 hX hxs) (walk_M hI)
-    (fun us ws t regs₃ hmid => hwb regs₂ us ws t regs₃ hk hmid) _ 0 s₀ regsI rfl
-    (Nat.zero_le _) hinvI (Relation.RelatesWithinSteps.refl _)
+  exact Sound.of_oblivious hB1 hrI (loop_sound h9 (by omega) hB1 hnB hNB hiB h0 hR hPost
+    (walk_dst h0 hX hxs) (walk_M hI) (fun us ws t regs₃ hmid => hwb regs₂ us ws t regs₃ hk hmid)
+    _ 0 s₀ regsI rfl (Nat.zero_le _) hinvI (Relation.RelatesWithinSteps.refl _))
 
 private theorem walk_complete (hw : w₁ = b + 14 + 5 * k + wb.length)
     (hP : P.CodeAt b (countTestCode b base k src wb et ef T R)) (hnB : n ≤ B) (hNB : n ^ k ≤ B)
@@ -589,15 +548,12 @@ private theorem scanInv_hit {i y x : ℕ} {Sel : Finset ℕ} {regsT regs regs' :
   obtain ⟨hk₀, hX, hsub, hlt, -, -⟩ := hinv
   have hx : x ∉ Sel := fun h => Nat.lt_irrefl _ (hlt x h)
   refine ⟨hk₀.trans ((hk.mono (by omega)).set_right (by omega) hB1), ?_,
-    Finset.insert_subset hmem hsub, fun c hc => ?_, ?_, ?_⟩
+    Finset.insert_subset hmem hsub, fun c hc => (Finset.mem_insert.mp hc).elim
+      (· ▸ Nat.lt_succ_self _) fun hc => (hlt c hc).trans (Nat.lt_succ_self _), ?_, ?_⟩
   · rw [List.getD_set_ne (by omega), hk.getD_eq _ (by omega), hX]
-  · rcases Finset.mem_insert.mp hc with rfl | hc
-    · exact Nat.lt_succ_self _
-    · exact (hlt c hc).trans (Nat.lt_succ_self _)
   · rw [List.getD_set_ne (by omega), hS, Finset.card_insert_of_notMem hx]
-  · rw [List.getD_set_self (by omega),
-      ite_eq_left (show ∃ c ∈ insert x Sel, c = y ∨ codeEdge E c y = true from
-        ⟨x, Finset.mem_insert_self x Sel, hhit⟩)]
+  · rw [List.getD_set_self (by omega)]
+    simp only [Finset.exists_mem_insert, hhit, true_or, ↓reduceIte]
 
 private theorem scanInv_nohit {i y x : ℕ} {Sel : Finset ℕ} {regsT regs regs' : List ℕ}
     (hinv : ScanInv B base E s₀ i y x x Sel regsT regs) (hmem : x ∈ countRound E s₀ i)
@@ -607,26 +563,12 @@ private theorem scanInv_nohit {i y x : ℕ} {Sel : Finset ℕ} {regsT regs regs'
     ScanInv B base E s₀ i y x (x + 1) (insert x Sel) regsT regs' := by
   obtain ⟨hk₀, hX, hsub, hlt, -, hH₀⟩ := hinv
   have hx : x ∉ Sel := fun h => Nat.lt_irrefl _ (hlt x h)
-  have hiff : (∃ c ∈ insert x Sel, c = y ∨ codeEdge E c y = true) ↔
-      ∃ c ∈ Sel, c = y ∨ codeEdge E c y = true := by
-    constructor
-    · rintro ⟨c, hc, hcy⟩
-      rcases Finset.mem_insert.mp hc with rfl | hc
-      · exact absurd hcy hnohit
-      · exact ⟨c, hc, hcy⟩
-    · rintro ⟨c, hc, hcy⟩
-      exact ⟨c, Finset.mem_insert_of_mem hc, hcy⟩
-  refine ⟨hk₀.trans (hk.mono (by omega)), ?_, Finset.insert_subset hmem hsub, fun c hc => ?_,
-    ?_, ?_⟩
+  refine ⟨hk₀.trans (hk.mono (by omega)), ?_, Finset.insert_subset hmem hsub,
+    fun c hc => (Finset.mem_insert.mp hc).elim
+      (· ▸ Nat.lt_succ_self _) fun hc => (hlt c hc).trans (Nat.lt_succ_self _), ?_, ?_⟩
   · rw [hk.getD_eq _ (by omega), hX]
-  · rcases Finset.mem_insert.mp hc with rfl | hc
-    · exact Nat.lt_succ_self _
-    · exact (hlt c hc).trans (Nat.lt_succ_self _)
   · rw [hS, Finset.card_insert_of_notMem hx]
-  · rw [hH, hH₀]
-    by_cases h : ∃ c ∈ Sel, c = y ∨ codeEdge E c y = true
-    · rw [ite_eq_left h, ite_eq_left (hiff.mpr h)]
-    · rw [ite_eq_right h, ite_eq_right fun h' => h (hiff.mp h')]
+  · simp only [Finset.exists_mem_insert, hnohit, false_or, hH, hH₀]
 
 private theorem scanInv_weaken {i y x m : ℕ} {Sel : Finset ℕ} {regsT regs : List ℕ}
     (h : ScanInv B base E s₀ i y x m Sel regsT regs) :
@@ -753,15 +695,14 @@ private theorem scan_sound (hw : w₁ = b + 14 + 5 * k + wb.length)
       scan_mid (w := w) hw hP hNB hpre hinv hmem hk₂ hk₃ hxs₂ hys₂
     have hB₄ := hk₄.bounded
     have hedge : codeEdge E x y = true ↔ E xs ys := by rw [← hxs, ← hys]; exact codeEdge_code xs ys
-    have hlenH : base + 7 ≤ (regs₄.set (base + 6) 1).length := by
-      rw [List.length_set]; omega
     refine Sound.of_oblivious hB1 hr₄ (Sound.choice hB1 h12 hB₄ ?_ ?_)
     · -- a hit: `x = y` or an edge from `x` to `y`
       refine Sound.of_oblivious hB1 (reaches_noop h13 hB₄) (Sound.choice hB1 h14 hB₄ ?_ ?_)
       · by_cases hxy : x = y
         · refine Sound.of_oblivious hB1 ((reaches_dist_eq h15 hB₄ (by rw [hX₄, hY₄, hxy])).trans
             (reaches_setH h16 hB1 hB₄)) ?_
-          exact hnext _ _ (scanInv_hit hinv hmem hk₄ hS₄ (by omega) hB1 (Or.inl hxy)) hlenH
+          exact hnext _ _ (scanInv_hit hinv hmem hk₄ hS₄ (by omega) hB1 (Or.inl hxy))
+            (by simp only [List.length_set]; omega)
         · exact Sound.of_oblivious hB1 (reaches_dist_ne h15 hB₄ (by rw [hX₄, hY₄]; exact hxy))
             (Sound.halt hB1 hR (fun _ => hPost _ rfl) hB₄)
       · refine (het regs₄ xs ys hk₀₄ hxs₄ hys₄).bind fun regs₅ ⟨hk₅, hE⟩ => ?_
@@ -813,12 +754,7 @@ private theorem scan_complete (hw : w₁ = b + 14 + 5 * k + wb.length)
   | zero =>
     intro x regs he hinv
     have h0 := (hpre.of_kept hinv.kept).size
-    have hfull : (countRound E s₀ i).filter (· < x) = countRound E s₀ i :=
-      Finset.filter_true_of_mem fun c hc => by
-        have := lt_of_mem_countRound hc
-        change c < x
-        omega
-    rw [hfull] at hinv
+    rw [Finset.filter_true_of_mem fun c hc => (lt_of_mem_countRound hc).trans_le (by omega)] at hinv
     exact Complete.of_oblivious (scan_leave hw hP hinv.kept.bounded h0 hinv.cur (by omega))
       (scan_check_complete hw hP hpre hinv)
   | succ e ih =>
@@ -840,26 +776,24 @@ private theorem scan_complete (hw : w₁ = b + 14 + 5 * k + wb.length)
       obtain ⟨regs₂, xs, ys, hr₂, hk₂, hxs, hys, hxs₂, hys₂⟩ := scan_decode (w := w) hw hP hnB
         hlen h0' hB hinv.cur hx hY hy
       have hk₀₂ : Kept B base regs₀ regs₂ := hkR.trans (hk₂.mono (by omega))
-      have hpath : Relation.RelatesWithinSteps E s₀ xs i := by
-        rw [← hxs] at hmem; exact mem_countRound_iff.mp hmem
       refine Complete.of_oblivious hr₂ ((walk_complete (i := i) (x := x) (xs := xs) hw hP hnB hNB
         hsrc hwb hk₀₂
         (by rw [hk₂.length_eq]; omega) (by rw [hk₂.getD_eq 0 (by omega)]; exact h0')
         (by rw [hk₂.getD_eq _ (by omega)]; exact hI) hiB
-        (by rw [hk₂.getD_eq _ (by omega)]; exact hinv.cur) hxs hpath).bind fun regs₃ hk₃ => ?_)
+        ((hk₂.getD_eq _ (by omega)).trans hinv.cur) hxs
+        (mem_countRound_iff.mp (hxs ▸ hmem))).bind fun regs₃ hk₃ => ?_)
       obtain ⟨regs₄, hr₄, hk₄, hk₀₄, hlen₄, hX₄, hY₄, hS₄, hH₄, hxs₄, hys₄⟩ :=
         scan_mid (w := w) hw hP hNB hpre hinv hmem hk₂ hk₃ hxs₂ hys₂
       have hB₄ := hk₄.bounded
       have hedge : codeEdge E x y = true ↔ E xs ys := by
         rw [← hxs, ← hys]; exact codeEdge_code xs ys
-      have hlenH : base + 7 ≤ (regs₄.set (base + 6) 1).length := by
-        rw [List.length_set]; omega
       by_cases hxy : x = y
       · refine Complete.choice hr₄ (by omega) h12 (Or.inl ?_)
         refine Complete.choice (reaches_noop h13 hB₄) (by omega) h14 (Or.inl ?_)
         refine Complete.of_oblivious ((reaches_dist_eq h15 hB₄ (by rw [hX₄, hY₄, hxy])).trans
           (reaches_setH h16 hB1 hB₄)) ?_
-        exact hnext _ (scanInv_hit hinv hmem hk₄ hS₄ (by omega) hB1 (Or.inl hxy)) hlenH
+        exact hnext _ (scanInv_hit hinv hmem hk₄ hS₄ (by omega) hB1 (Or.inl hxy))
+          (by simp only [List.length_set]; omega)
       by_cases hE : E xs ys
       · refine Complete.choice hr₄ (by omega) h12 (Or.inl ?_)
         refine Complete.choice (reaches_noop h13 hB₄) (by omega) h14 (Or.inr ?_)
@@ -936,9 +870,7 @@ theorem test_complete (hw : w₁ = b + 14 + 5 * k + wb.length)
         regs'.getD (base + 6) 0 = if y ∈ countRound E s₀ (i + 1) then 1 else 0) := by
   obtain ⟨regs₁, hr₁, hinv₁⟩ := scan_start (w := w) (E := E) (s₀ := s₀) (i := i) (y := y) hw hP
     (by have := hpre.le_length; omega) hpre.kept.bounded
-  have hempty : (countRound E s₀ i).filter (· < 0) = ∅ :=
-    Finset.filter_false_of_mem fun c _ => Nat.not_lt_zero c
-  rw [← hempty] at hinv₁
+  rw [← Finset.filter_false_of_mem (s := countRound E s₀ i) fun c _ => Nat.not_lt_zero c] at hinv₁
   exact Complete.of_oblivious hr₁ (scan_complete hw hP hB1 hnB hNB hsrc hwb het hef hpre
     _ 0 regs₁ rfl hinv₁)
 
@@ -1029,9 +961,7 @@ private theorem count_y_record (hP : P.CodeAt b (countCode b base k dst t₁ t�
   obtain ⟨-, -, -, -, -, -, -, c8, c9, -⟩ := countCode_parts hP
   obtain ⟨⟨hk, hlen, h0, hI, hi, hC⟩, hi1, hD, hY⟩ := hinv
   have hlen' : regs'.length = regs.length := hk'.length_eq
-  have hD' : regs'.getD (base + 2) 0 =
-      prefixCount (n ^ k) (codeEdge E) (finFunctionFinEquiv s₀) i y := by
-    rw [hk'.getD_eq _ (by omega), hD]
+  have hD' := (hk'.getD_eq (base + 2) (by omega)).trans hD
   have hY' : regs'.getD (base + 3) 0 = y := by rw [hk'.getD_eq _ (by omega), hY]
   have hcard : prefixCount (n ^ k) (codeEdge E) (finFunctionFinEquiv s₀) i (y + 1) =
       prefixCount (n ^ k) (codeEdge E) (finFunctionFinEquiv s₀) i y +
@@ -1182,12 +1112,11 @@ private theorem count_round_sound (hP : P.CodeAt b (countCode b base k dst t₁ 
       have hB' := hk'.bounded
       by_cases hreach : Relation.ReflTransGen E s₀ z₀
       · rw [ite_eq_left (hmem.mpr hreach)] at hH
-        refine Sound.of_oblivious hB1 ?_ (Sound.halt hB1 hR (fun _ => hPost _ rfl) hB')
-        cp_step [hH]
+        exact Sound.of_oblivious hB1 (by cp_step [hH])
+          (Sound.halt hB1 hR (fun _ => hPost _ rfl) hB')
       · rw [ite_eq_right fun h => hreach (hmem.mp h)] at hH
-        refine Sound.of_oblivious hB1 ?_
+        exact Sound.of_oblivious hB1 (by cp_step [hH])
           (Sound.exit ⟨hpre.kept.trans (hk'.mono (by omega)), hreach⟩)
-        cp_step [hH]
 
 private theorem count_round_complete (hP : P.CodeAt b (countCode b base k dst t₁ t₂ T R))
     (hbase : 0 < base) (hNB : n ^ k ≤ B)
@@ -1218,9 +1147,8 @@ private theorem count_round_complete (hP : P.CodeAt b (countCode b base k dst t�
       refine Complete.of_oblivious hr ((ht₂ i _ _ hpre).bind fun regs' ⟨hk', hH⟩ => ?_)
       rw [ite_eq_right fun h => hreach (hmem.mp h)] at hH
       have hB' := hk'.bounded
-      refine Complete.of_oblivious (B := B) ?_
+      exact Complete.of_oblivious (B := B) (by cp_step [hH])
         (Complete.refl (hpre.kept.trans (hk'.mono (by omega))))
-      cp_step [hH]
 
 private theorem count_init (hP : P.CodeAt b (countCode b base k dst t₁ t₂ T R))
     (hbase : 0 < base) (hB1 : 1 ≤ B) {regs : List ℕ}

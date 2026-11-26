@@ -152,9 +152,7 @@ private theorem homogeneousLoss_pow_pow_bounds {a b : ℝ} (hb : 0 ≤ b) (hba :
   have ha : 0 ≤ a := hb.trans hba
   rw [homogeneousLoss_pow_pow hb hba]
   rcases ha.eq_or_lt with rfl | ha
-  · have : b = 0 := le_antisymm hba hb
-    subst this
-    simp [zero_pow hs]
+  · simp [le_antisymm hba hb, zero_pow hs]
   obtain ⟨hlo, hhi⟩ := pow_sub_pow_bounds hb hba hs
   have hab : 0 ≤ a - b := sub_nonneg.2 hba
   have hden : 0 < (a ^ s + b ^ s) ^ (s - 1) := by positivity
@@ -223,10 +221,9 @@ theorem homogeneousLoss_sum_le {ι : Type*} (t : Finset ι) (hs : s ≠ 0) {w F 
   · -- Every weighted pair vanishes, so the left side is `L(0, 0) = 0`.
     have hzero : ∀ i ∈ t, w i * S i = 0 :=
       (sum_eq_zero_iff_of_nonneg fun i hi => mul_nonneg (hw i hi) (hS i hi)).1 hA0.symm
-    have hD0 : ∑ i ∈ t, w i * D i = 0 := sum_eq_zero fun i hi => by
-      have := mul_le_mul_of_nonneg_left (hD i hi) (hw i hi)
-      have := mul_nonneg (hw i hi) (abs_nonneg (F i - F' i))
-      linarith [hzero i hi]
+    have hD0 : ∑ i ∈ t, w i * D i = 0 := sum_eq_zero fun i hi => le_antisymm
+      ((mul_le_mul_of_nonneg_left (hD i hi) (hw i hi)).trans_eq (hzero i hi))
+      (mul_nonneg (hw i hi) (abs_nonneg _))
     have hl : |∑ i ∈ t, w i * F i - ∑ i ∈ t, w i * F' i| = 0 :=
       le_antisymm (hD0 ▸ hdiff) (abs_nonneg _)
     rw [homogeneousLoss, hl, zero_pow hs, zero_div]
@@ -245,25 +242,21 @@ theorem homogeneousLoss_sum_le {ι : Type*} (t : Finset ι) (hs : s ≠ 0) {w F 
     · have : D i = 0 := le_antisymm (h0 ▸ hD i hi) (abs_nonneg _)
       simp only [lam, x, this, ← h0]; simp
     · simp only [lam, x]; field_simp
-  have hmeanpow : ∑ i ∈ t, lam i * x i ^ s =
-      (∑ i ∈ t, w i * homogeneousLoss s (F i) (F' i)) / A := by
+  obtain ⟨k, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero hs
+  have hmeanpow : ∑ i ∈ t, lam i * x i ^ (k + 1) =
+      (∑ i ∈ t, w i * homogeneousLoss (k + 1) (F i) (F' i)) / A := by
     rw [sum_div]
     refine sum_congr rfl fun i hi => ?_
-    obtain ⟨k, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero hs
     rcases (hS i hi).eq_or_lt with h0 | hpos
-    · have : D i = 0 := le_antisymm (h0 ▸ hD i hi) (abs_nonneg _)
-      simp only [lam, x, homogeneousLoss, this, ← h0]
-      simp only [show |F i - F' i| = 0 from this]; simp
+    · have hD0 : |F i - F' i| = 0 := le_antisymm (h0 ▸ hD i hi) (abs_nonneg _)
+      simp [lam, x, homogeneousLoss, D, hD0]
     · simp only [lam, x, homogeneousLoss, Nat.add_sub_cancel, D, S] at *
       rw [div_pow, pow_succ (F i + F' i) k]
       field_simp
-  rw [hmean, hmeanpow, div_pow, div_le_div_iff₀ (by positivity) hApos] at hjensen
-  rw [homogeneousLoss, hsumS]
-  obtain ⟨k, rfl⟩ := Nat.exists_eq_add_one_of_ne_zero hs
-  rw [Nat.add_sub_cancel, div_le_iff₀ (by positivity)]
-  have hk := pow_le_pow_left₀ (abs_nonneg _) hdiff (k + 1)
-  rw [pow_succ A k, ← mul_assoc] at hjensen
-  exact hk.trans (le_of_mul_le_mul_right hjensen hApos)
+  rw [hmean, hmeanpow, div_pow, div_le_div_iff₀ (by positivity) hApos, pow_succ A k,
+    ← mul_assoc] at hjensen
+  rw [homogeneousLoss, hsumS, Nat.add_sub_cancel, div_le_iff₀ (by positivity)]
+  exact (pow_le_pow_left₀ (abs_nonneg _) hdiff (k + 1)).trans (le_of_mul_le_mul_right hjensen hApos)
 
 /-- **The clipped relative error** [OpenAI2026LogSpace, (7.7)]. If `0 ≤ H ≤ C₀ G`, then for every
 `a > 0` and `H' ≥ 0`, `a · min (1, |H - H'| / (a + G))^s ≤ 2 (3 C₀ + 3)^{s-1} L(H, H')`. -/
@@ -279,10 +272,8 @@ theorem mul_min_pow_le_homogeneousLoss (hs : s ≠ 0) {C₀ G a : ℝ} (hC₀ : 
   · -- `H + H' ≤ (3 C₀ + 3) (a + G)`, and `a / (a + G)^{k+1} ≤ 1 / (a + G)^k`.
     have hsum : H + H' ≤ (3 * C₀ + 3) * (a + G) := by nlinarith
     rcases (add_nonneg hH hH').eq_or_lt with h0 | hpos
-    · have h1 : H = 0 := by linarith
-      have h2 : H' = 0 := by linarith
-      simp [h1, h2]
-    have hd : 0 ≤ |H - H'| := abs_nonneg _
+    · obtain ⟨rfl, rfl⟩ : H = 0 ∧ H' = 0 := ⟨by linarith, by linarith⟩
+      simp
     calc a * min 1 (|H - H'| / (a + G)) ^ (k + 1)
         ≤ a * (|H - H'| / (a + G)) ^ (k + 1) := by gcongr; exact min_le_right _ _
       _ ≤ |H - H'| ^ (k + 1) / (a + G) ^ k := by
@@ -294,8 +285,7 @@ theorem mul_min_pow_le_homogeneousLoss (hs : s ≠ 0) {C₀ G a : ℝ} (hC₀ : 
           rw [mul_pow]; field_simp
       _ ≤ (3 * C₀ + 3) ^ k * (|H - H'| ^ (k + 1) / (H + H') ^ k) := by gcongr
       _ ≤ 2 * (3 * C₀ + 3) ^ k * (|H - H'| ^ (k + 1) / (H + H') ^ k) := by
-          have : 0 ≤ (3 * C₀ + 3) ^ k * (|H - H'| ^ (k + 1) / (H + H') ^ k) := by positivity
-          linarith
+          rw [mul_assoc]; exact le_mul_of_one_le_left (by positivity) one_le_two
   · -- `|H - H'| > H' / 2`, `H + H' < 3 H' / 2` and `H' > a`, so the loss is at least
     -- `H' / (2 · 3^k) ≥ a / (2 · 3^k)`.
     push Not at hcase

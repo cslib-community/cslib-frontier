@@ -104,13 +104,8 @@ theorem packedWords_le {b d w : ℕ} (hd : 0 < d) (hdw : 2 * d ≤ w) :
   · push Not at hle
     rw [min_eq_right hle.le]
     set p := Nat.log 2 (w / (2 * d))
-    have hgt : w / (2 * d) < 2 ^ (p + 1) := Nat.lt_pow_succ_log_self one_lt_two _
-    have hw_lt : w < 2 ^ (p + 1) * (2 * d) := by
-      have h1 := Nat.div_add_mod w (2 * d)
-      have h2 : w % (2 * d) < 2 * d := Nat.mod_lt w (by omega)
-      have h3 : (w / (2 * d) + 1) * (2 * d) ≤ 2 ^ (p + 1) * (2 * d) :=
-        Nat.mul_le_mul_right (2 * d) hgt
-      nlinarith
+    have hw_lt : w < 2 ^ (p + 1) * (2 * d) :=
+      (Nat.div_lt_iff_lt_mul (by omega)).mp (Nat.lt_pow_succ_log_self one_lt_two _)
     have hpow_split : 2 ^ b = 2 ^ (b - p) * 2 ^ p := by
       rw [← pow_add, Nat.sub_add_cancel hle.le]
     have hmul_le : 2 ^ (b - p) * w ≤ 4 * (2 ^ b * d) := by
@@ -118,9 +113,7 @@ theorem packedWords_le {b d w : ℕ} (hd : 0 < d) (hdw : 2 * d ≤ w) :
           ≤ 2 ^ (b - p) * (2 ^ (p + 1) * (2 * d)) := Nat.mul_le_mul_left _ hw_lt.le
         _ = 4 * ((2 ^ (b - p) * 2 ^ p) * d) := by rw [pow_succ]; ring
         _ = 4 * (2 ^ b * d) := by rw [hpow_split]
-    have hdiv : 2 ^ (b - p) ≤ 4 * (2 ^ b * d) / w :=
-      Nat.le_div_iff_mul_le (by omega) |>.mpr hmul_le
-    omega
+    exact ((Nat.le_div_iff_mul_le (by omega)).mpr hmul_le).trans (Nat.le_succ _)
 
 theorem shiftRight_lt_packedWords (b d w : ℕ) (q : Fin (2 ^ b)) :
     q.val >>> slotPackShift b d w < packedWords b d w := by
@@ -176,17 +169,15 @@ theorem extractPacked_writePackedMem_self (arrBase b d w : ℕ) (mem : ℕ → �
   set subIdx := q.val &&& (2 ^ p - 1)
   set oldWord := mem (arrBase + wIdx)
   set oldLimb := getLimb d oldWord subIdx
-  have hold_lt : oldLimb < 2 ^ d := getLimb_lt d oldWord subIdx
-  have hdiff_lt : oldLimb ^^^ val.val < 2 ^ d := Nat.xor_lt_two_pow hold_lt val.isLt
+  have hdiff_lt : oldLimb ^^^ val.val < 2 ^ d :=
+    Nat.xor_lt_two_pow (getLimb_lt d oldWord subIdx) val.isLt
   rw [Function.update_self]
   change getLimb d (oldWord ^^^ ((oldLimb ^^^ val.val) <<< (subIdx * d))) subIdx = val.val
-  rw [getLimb_xor]
-  have hsh := getLimb_shiftLeft_mul_add d (oldLimb ^^^ val.val) subIdx 0
-  rw [add_zero] at hsh
+  have hsh := add_zero subIdx ▸ getLimb_shiftLeft_mul_add d (oldLimb ^^^ val.val) subIdx 0
   have h0 : getLimb d (oldLimb ^^^ val.val) 0 = oldLimb ^^^ val.val := by
-    dsimp only [getLimb]
-    rw [zero_mul, Nat.shiftRight_zero, Nat.and_two_pow_sub_one_eq_mod, Nat.mod_eq_of_lt hdiff_lt]
-  rw [hsh, h0, ← Nat.xor_assoc, Nat.xor_self, Nat.zero_xor]
+    simp only [getLimb, zero_mul, Nat.shiftRight_zero, Nat.and_two_pow_sub_one_eq_mod,
+      Nat.mod_eq_of_lt hdiff_lt]
+  rw [getLimb_xor, hsh, h0, ← Nat.xor_assoc, Nat.xor_self, Nat.zero_xor]
 
 theorem extractPacked_writePackedMem_of_ne (arrBase b d w : ℕ) (mem : ℕ → ℕ)
     (q q' : Fin (2 ^ b)) (val : Fin (2 ^ d)) (hne : q' ≠ q) :
@@ -200,18 +191,12 @@ theorem extractPacked_writePackedMem_of_ne (arrBase b d w : ℕ) (mem : ℕ → 
   set wIdx' := q'.val >>> p
   set subIdx' := q'.val &&& (2 ^ p - 1)
   by_cases hw : wIdx' = wIdx
-  · have hsub_ne : subIdx' ≠ subIdx := by
-      intro hsub
-      apply hne
-      apply Fin.ext
+  · have hsub_ne : subIdx' ≠ subIdx := fun hsub => hne <| Fin.ext <| by
       rw [← shiftRight_mul_add_and_eq q'.val p, ← shiftRight_mul_add_and_eq q.val p]
-      change wIdx' * 2 ^ p + subIdx' = wIdx * 2 ^ p + subIdx
-      rw [hw, hsub]
-    have hold_lt : getLimb d (mem (arrBase + wIdx)) subIdx < 2 ^ d := getLimb_lt d _ _
+      exact congrArg₂ (· * 2 ^ p + ·) hw hsub
     have hdiff_lt : getLimb d (mem (arrBase + wIdx)) subIdx ^^^ val.val < 2 ^ d :=
-      Nat.xor_lt_two_pow hold_lt val.isLt
-    have haddr : arrBase + wIdx' = arrBase + wIdx := by rw [hw]
-    rw [haddr, Function.update_self]
+      Nat.xor_lt_two_pow (getLimb_lt d _ _) val.isLt
+    rw [congrArg (arrBase + ·) hw, Function.update_self]
     exact getLimb_xor_shiftLeft_of_ne hdiff_lt hsub_ne
   · rw [Function.update_of_ne (by omega)]
 
@@ -245,15 +230,11 @@ theorem extractBit_writeBitMem (arrBase b w : ℕ) (mem : ℕ → ℕ)
       Function.update (extractBit arrBase b w mem) q bval := by
   ext q'
   dsimp only [extractBit, writeBitMem]
-  let v : Fin (2 ^ 1) := ⟨bval.toNat, toNat_lt_two bval⟩
-  have h1 := congrFun (extractPacked_writePackedMem arrBase b 1 w mem q v) q'
-  rw [h1]
+  rw [extractPacked_writePackedMem arrBase b 1 w mem q ⟨bval.toNat, toNat_lt_two bval⟩]
   by_cases hq : q' = q
   · subst hq
-    rw [Function.update_self, Function.update_self]
-    cases bval <;> rfl
-  · rw [Function.update_of_ne hq, Function.update_of_ne hq]
-    rfl
+    cases bval <;> simp
+  · simp [hq, extractBit]
 
 @[simp]
 theorem extractPacked_zero (arrBase b d w : ℕ) (q : Fin (2 ^ b)) :
@@ -265,9 +246,7 @@ theorem extractPacked_zero (arrBase b d w : ℕ) (q : Fin (2 ^ b)) :
 @[simp]
 theorem extractBit_zero (arrBase b w : ℕ) (q : Fin (2 ^ b)) :
     extractBit arrBase b w (fun _ => 0) q = false := by
-  dsimp only [extractBit]
-  rw [extractPacked_zero]
-  rfl
+  simp [extractBit]
 
 /-- A packed read only depends on the `packedWords b d w` words of its array. -/
 private theorem extractPacked_congr {arrBase b d w : ℕ} {mem₁ mem₂ : ℕ → ℕ}
@@ -377,30 +356,20 @@ theorem space_le {w w₀ n k : ℕ} (hw₀ : 0 < w₀) (hw : 2 * w₀ ≤ w) (hb
     space w w₀ n k ≤ 640 * ((n * k + w - 1) / w + 1) := by
   set b := quotBits w₀ n
   set f := remBits w₀ k
-  have hw₀_le : w₀ ≤ w := by omega
   have hw2 : 2 ≤ w := by omega
-  have hb3 : b ≤ 3 * b := by omega
   have hf_pos : 0 < f := remBits_pos hw₀
   have h2f_le : 2 * f ≤ w := by have := remBits_le_w₀ w₀ k; omega
   have hpow_b : 2 ^ b ≤ 16 * n := two_pow_quotBits_le_sixteen_mul hn
-  have hmax_b2 : max 8 (2 ^ (b / 2)) ≤ 16 * n := by
-    have hle : 2 ^ (b / 2) ≤ 2 ^ b := Nat.pow_le_pow_right two_pos (Nat.div_le_self b 2)
-    exact max_le (by omega) (hle.trans hpow_b)
+  have hmax_b2 : max 8 (2 ^ (b / 2)) ≤ 16 * n :=
+    max_le (by omega) ((Nat.pow_le_pow_right two_pos (Nat.div_le_self b 2)).trans hpow_b)
+  have hnk : n ≤ n * k := Nat.le_mul_of_pos_right n hk
   have hsp_kwise : ReducedKWise.space w w₀ b b 5 ≤ 272 + (32 * (n * k)) / w := by
-    have h1 := ReducedKWise.space_le (k := 5) hw₀_le hb3 hb_w hw2
-    have h2 : 2 * max 8 (2 ^ (b / 2)) ≤ 32 * (n * k) := by
-      calc 2 * max 8 (2 ^ (b / 2)) ≤ 2 * (16 * n) := Nat.mul_le_mul_left 2 hmax_b2
-        _ = 32 * (n * 1) := by ring
-        _ ≤ 32 * (n * k) := Nat.mul_le_mul_left 32 (Nat.mul_le_mul_left n hk)
-    have h3 : 2 * max 8 (2 ^ (b / 2)) / w ≤ (32 * (n * k)) / w := Nat.div_le_div_right h2
+    have h1 := ReducedKWise.space_le (k := 5)
+      ((Nat.le_mul_of_pos_left w₀ two_pos).trans hw) (Nat.le_mul_of_pos_left b (by decide)) hb_w hw2
+    have h3 : 2 * max 8 (2 ^ (b / 2)) / w ≤ (32 * (n * k)) / w := Nat.div_le_div_right (by omega)
     omega
-  have hbit_words : packedWords b 1 w ≤ (64 * (n * k)) / w + 1 := by
-    have h1 := packedWords_le (b := b) (d := 1) (w := w) one_pos hw2
-    have h2 : 4 * (2 ^ b * 1) ≤ 64 * (n * k) := by
-      calc 4 * (2 ^ b * 1) ≤ 4 * (16 * n) := by omega
-        _ = 64 * (n * 1) := by ring
-        _ ≤ 64 * (n * k) := Nat.mul_le_mul_left 64 (Nat.mul_le_mul_left n hk)
-    exact h1.trans (Nat.add_le_add_right (Nat.div_le_div_right h2) 1)
+  have hbit_words : packedWords b 1 w ≤ (64 * (n * k)) / w + 1 :=
+    (packedWords_le one_pos hw2).trans (Nat.add_le_add_right (Nat.div_le_div_right (by omega)) 1)
   have hrem_words : packedWords b f w ≤ (128 * (n * k)) / w + 1 := by
     have h1 := packedWords_le (b := b) (d := f) (w := w) hf_pos h2f_le
     have hf2k : f ≤ 2 * k := remBits_le_two_mul hk
@@ -410,16 +379,13 @@ theorem space_le {w w₀ n k : ℕ} (hw₀ : 0 < w₀) (hw : 2 * w₀ ≤ w) (hb
         _ = 128 * (n * k) := by ring
     exact h1.trans (Nat.add_le_add_right (Nat.div_le_div_right h2) 1)
   have hdiv_bound (c x : ℕ) : (c * x) / w ≤ c * (x / w) + c := by
-    have h1 := Nat.div_add_mod x w
-    have h2 : x % w < w := Nat.mod_lt x (by omega)
-    have h3 : c * x < w * (c * (x / w) + c + 1) := by
-      have h4 : c * x ≤ c * (w * (x / w)) + c * w := by
-        calc c * x = c * (w * (x / w) + x % w) := by conv_lhs => rw [← h1]
-          _ = c * (w * (x / w)) + c * (x % w) := by ring
-          _ ≤ c * (w * (x / w)) + c * w := Nat.add_le_add_left (Nat.mul_le_mul_left c h2.le) _
-      have h5 : c * (w * (x / w)) + c * w + w = w * (c * (x / w) + c + 1) := by ring
-      omega
-    exact Nat.le_of_lt_succ (Nat.div_lt_of_lt_mul h3)
+    refine Nat.div_le_of_le_mul ?_
+    calc c * x = w * (c * (x / w)) + c * (x % w) := by
+          conv_lhs => rw [← Nat.div_add_mod x w]
+          ring
+      _ ≤ w * (c * (x / w)) + c * w :=
+          Nat.add_le_add_left (Nat.mul_le_mul_left c (Nat.mod_lt x (by omega)).le) _
+      _ = w * (c * (x / w) + c) := by ring
   have h32 := hdiv_bound 32 (n * k)
   have h64 := hdiv_bound 64 (n * k)
   have h128 := hdiv_bound 128 (n * k)
@@ -544,9 +510,7 @@ theorem add_sub_and_eq_backSlot_val {b : ℕ} (q : Fin (2 ^ b)) {a : ℕ} (ha : 
 theorem extractPacked_one_val_eq_toNat (arrBase b w : ℕ) (mem : ℕ → ℕ) (q : Fin (2 ^ b)) :
     (extractPacked arrBase b 1 w mem q).val = (extractBit arrBase b w mem q).toNat := by
   dsimp only [extractBit]
-  have hlt : (extractPacked arrBase b 1 w mem q).val < 2 := (extractPacked arrBase b 1 w mem q).isLt
-  set v := (extractPacked arrBase b 1 w mem q).val
-  interval_cases v <;> rfl
+  rcases extractPacked arrBase b 1 w mem q with ⟨_ | _ | v, hv⟩ <;> first | rfl | omega
 
 /-- Offset of `remSeedAddr` from `base`. -/
 @[expose, wram_arith] def remSeedOff (w w₀ n : ℕ) : ℕ :=

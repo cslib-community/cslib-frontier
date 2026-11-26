@@ -39,9 +39,8 @@ variable {J ι β : Type*} [DecidableEq J]
   ∀ j, t.weightedDepth (fun p => if p.1 = j then 1 else 0) ≤ c j
 
 @[simp] theorem capped_leaf (b : β) (c : J → ℕ) :
-    (leaf b : DecisionTree (J × ι) β).Capped c := by
-  intro j
-  exact Nat.zero_le _
+    (leaf b : DecisionTree (J × ι) β).Capped c :=
+  fun _ => Nat.zero_le _
 
 /-- A node spends one unit from its queried coordinate on both branches. -/
 theorem capped_node_iff {j : J} {i : ι} {left right : DecisionTree (J × ι) β}
@@ -51,41 +50,23 @@ theorem capped_node_iff {j : J} {i : ι} {left right : DecisionTree (J × ι) β
         right.Capped (Function.update c j (c j - 1)) := by
   constructor
   · intro ht
-    have h0 : 0 < c j := by
-      have hj := ht j
-      simp only [weightedDepth_node, ↓reduceIte] at hj
-      omega
-    refine ⟨h0, ?_, ?_⟩
-    · intro k
-      have hk := ht k
-      by_cases hkj : k = j
-      · subst k
-        simp only [weightedDepth_node, ↓reduceIte] at hk
-        simp only [Function.update_self]
+    refine ⟨by
+        have := ht j
+        simp only [weightedDepth_node, ↓reduceIte] at this; omega,
+      fun k => ?_, fun k => ?_⟩ <;>
+    · have hk := ht k
+      rcases eq_or_ne k j with rfl | hkj
+      · simp only [weightedDepth_node, ↓reduceIte, Function.update_self] at hk ⊢; omega
+      · simp only [Function.update_of_ne hkj, weightedDepth_node, ite_eq_right hkj.symm,
+          Nat.add_zero] at hk ⊢
         omega
-      · rw [Function.update_of_ne hkj]
-        simp only [weightedDepth_node, ite_eq_right (Ne.symm hkj), Nat.add_zero] at hk
-        exact (le_max_left _ _).trans hk
-    · intro k
-      have hk := ht k
-      by_cases hkj : k = j
-      · subst k
-        simp only [weightedDepth_node, ↓reduceIte] at hk
-        simp only [Function.update_self]
-        omega
-      · rw [Function.update_of_ne hkj]
-        simp only [weightedDepth_node, ite_eq_right (Ne.symm hkj), Nat.add_zero] at hk
-        exact (le_max_right _ _).trans hk
   · rintro ⟨h0, hl, hr⟩ k
     have hlk := hl k
     have hrk := hr k
-    by_cases hkj : k = j
-    · subst k
-      simp only [Function.update_self] at hlk hrk
-      simp only [weightedDepth_node, ↓reduceIte]
-      omega
-    · simp only [Function.update_of_ne hkj] at hlk hrk
-      simp only [weightedDepth_node, ite_eq_right (Ne.symm hkj), Nat.add_zero]
+    rcases eq_or_ne k j with rfl | hkj
+    · simp only [Function.update_self, weightedDepth_node, ↓reduceIte] at hlk hrk ⊢; omega
+    · simp only [Function.update_of_ne hkj, weightedDepth_node, ite_eq_right hkj.symm,
+        Nat.add_zero] at hlk hrk ⊢
       exact max_le hlk hrk
 
 /-- Increasing any coordinate's cap preserves the cap condition. -/
@@ -95,14 +76,12 @@ theorem capped_mono {t : DecisionTree (J × ι) β} {c d : J → ℕ}
 
 /-- A bound on total structural depth gives the same bound for every coordinate. -/
 theorem capped_of_depth_le {t : DecisionTree (J × ι) β} {n : ℕ} {c : J → ℕ}
-    (ht : t.depth ≤ n) (hc : ∀ j, n ≤ c j) : t.Capped c := by
-  intro j
+    (ht : t.depth ≤ n) (hc : ∀ j, n ≤ c j) : t.Capped c := fun j =>
   calc
     t.weightedDepth (fun p => if p.1 = j then 1 else 0) ≤ t.depth * 1 :=
-      t.weightedDepth_le_depth_mul (fun p => by split_ifs <;> omega)
+      t.weightedDepth_le_depth_mul fun _ => by split_ifs <;> omega
     _ = t.depth := Nat.mul_one _
-    _ ≤ n := ht
-    _ ≤ c j := hc j
+    _ ≤ c j := ht.trans (hc j)
 
 /-- Separate structural caps also bound the queries executed on each actual input. -/
 theorem weightedCost_le_of_capped {t : DecisionTree (J × ι) β} {c : J → ℕ}

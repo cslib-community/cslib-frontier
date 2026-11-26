@@ -196,11 +196,8 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
   obtain ⟨k, h⟩ := hc.ite (hU.restrict _) (hg.restrict _)
   have e : (fun x => if tinyDesc x then ((Diagonal.verdict ∘ budgetedUniversal) ∘
       universalInput G) x else false) = spaceDiagonal G := by
-    funext x
-    simp only [spaceDiagonal, Function.comp_apply, universalInput]
-    split_ifs with hx
-    · rw [tinyCut_of_tinyDesc hx]
-    · rfl
+    ext x
+    by_cases hx : tinyDesc x <;> simp [spaceDiagonal, universalInput, hx, tinyCut_of_tinyDesc]
   rw [e] at h
   -- the sizes of the pieces, up to constants, in `G n + log₂ n`
   obtain ⟨cD, hcD⟩ := exists_length_eDesc_decodeDesc_tinyCut_le
@@ -217,8 +214,7 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
     have hB : budgetSpace (universalInput G x) ≤ _ :=
       budgetSpace_le (decodeDesc (tinyCut x)) (x.map eBit) (G x.length) (2 ^ G x.length)
     have hD : (eDesc (decodeDesc (tinyCut x))).length ≤ cD * (Nat.log2 x.length + 1) := hcD x
-    have hclk : (encNat (2 ^ G x.length)).length = G x.length + 1 := by
-      rw [length_encNat_two_pow]
+    have hclk := length_encNat_two_pow (G x.length)
     have hn : (encNat ((x.map eBit).length + 1)).length ≤ Nat.log2 x.length + 2 := by
       rw [List.length_map]; exact length_encNat_le_log2_add_two le_rfl
     have hmax : (x.map eBit).foldr max 0 ≤ 1 := listMax_le fun b _ => by cases b <;> decide
@@ -237,8 +233,7 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
         obtain ⟨c, -, rfl⟩ := List.mem_map.mp hb
         rw [encUnary_apply, List.length_replicate]
         cases c <;> decide
-    have hclk : (encNat (2 ^ G x.length)).length = G x.length + 1 := by
-      rw [length_encNat_two_pow]
+    have hclk := length_encNat_two_pow (G x.length)
     have hlen : (eInS (universalInput G x)).length + 1 ≤
         (2 * (eDesc (decodeDesc (tinyCut x))).length + 3 * G x.length + 12) * (x.length + 1) := by
       simp only [universalInput, eInS, length_encPair, encUnary_apply, List.length_replicate, hclk,
@@ -332,12 +327,8 @@ theorem setOf_spaceDiagonal_notMem_DSPACE {f G : ℕ → ℕ} (hlog : ∀ n, 4 *
       rw [pow_add]
       omega
     have hb : base ≤ 2 ^ base := Nat.lt_two_pow_self.le
-    have hes : 4 * (e * s) ≤ 4 * e * (c₁ + c₂) * f x.length + 4 * e * (c₁ + c₂) := by
-      have := Nat.mul_le_mul_left (4 * e) hsf
-      have e₁ : 4 * e * ((c₁ + c₂) * (f x.length + 1)) =
-          4 * e * (c₁ + c₂) * f x.length + 4 * e * (c₁ + c₂) := by ring
-      have e₂ : 4 * (e * s) = 4 * e * s := by ring
-      omega
+    have hes : 4 * (e * s) ≤ 4 * e * (c₁ + c₂) * f x.length + 4 * e * (c₁ + c₂) :=
+      (Nat.mul_le_mul_left 4 (Nat.mul_le_mul_left e hsf)).trans_eq (by ring)
     have hy : 4 * e * (c₁ + c₂) * f x.length ≤
         (4 * e * (c₁ + c₂) + 2 * base + 8) * f x.length := Nat.mul_le_mul_right _ (by omega)
     calc (x.length + 2) * storageBound Bool State k s
@@ -362,9 +353,7 @@ theorem setOf_spaceDiagonal_notMem_DSPACE {f G : ℕ → ℕ} (hlog : ∀ n, 4 *
     subst hx
     exact spaceDiagonal_desc eS tm pad G htiny hbudget hhalt hout
   have hgx := hg x
-  simp only [Set.mem_ofPred_eq, hd] at hgx
-  revert hgx
-  cases g x <;> decide
+  cases hgb : g x <;> simp [hd, hgb] at hgx
 
 /-! ### The space hierarchy theorem -/
 
@@ -393,11 +382,8 @@ theorem eventually_mul_log2_pow_add_le (k c : ℕ) :
   filter_upwards [eventually_ge_atTop (2 ^ (2 * c + 1))] with n hn
   have hl : 2 * c + 1 ≤ Nat.log2 n :=
     (Nat.le_log2 (by have := Nat.one_le_two_pow (n := 2 * c + 1); omega)).mpr hn
-  have h₁ : 1 ≤ Nat.log2 n ^ k := Nat.one_le_pow _ _ (by omega)
-  have h₂ := Nat.mul_le_mul_right (Nat.log2 n ^ k) hl
-  have h₃ := Nat.mul_le_mul_left c h₁
   rw [pow_succ]
-  nlinarith
+  nlinarith [Nat.one_le_pow k (Nat.log2 n) (by omega)]
 
 /-- **Polylogarithmic space has a strict hierarchy**:
 `DSPACE (log₂ n ^ (k + 1)) ⊂ DSPACE (log₂ n ^ (k + 2))`. -/

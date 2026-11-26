@@ -185,17 +185,7 @@ theorem computableInPolyTime_condUniversalTMRunFor :
       (fun pyt : List Bool × (List Bool × ℕ) => condUniversalTMRunFor pyt.1 pyt.2.1 pyt.2.2)
       (encPair encBits (encPair encBits encUnary)) (encOption encBits) := by
   unfold condUniversalTMRunFor
-  have hprogram := ComputableInPolyTime.fst encBits (encPair encBits encUnary)
-  have hinput := ComputableInPolyTime.snd encBits (encPair encBits encUnary)
-  have hcondition := hinput.fst'
-  have hclock := hinput.snd'
-  have hcode := computableInPolyTime_condUniversalTMProgram.comp
-    (hprogram.prod hcondition)
-  exact computableInPolyTime_universalTMRunFor.comp
-    (f := fun pt : List Bool × ℕ => universalTMRunFor pt.1 pt.2)
-    (g := fun pyt : List Bool × (List Bool × ℕ) =>
-      (condUniversalTMProgram pyt.1 pyt.2.1, pyt.2.2))
-    (hcode.prod hclock)
+  fun_prop
 
 /-! ### Clock-preserving conditional simulation of every binary `MultiTapeTM` -/
 
@@ -465,11 +455,9 @@ theorem natCast_condPlainNat (x y : List Bool) :
 theorem condLevinKt_ne_top (x y : List Bool) : condLevinKt x y ≠ ⊤ := by
   obtain ⟨q, c, _, _, hbound, _⟩ := exists_condTimeBoundedAt_le_length_add
   set T := q.eval (2 * x.length + 1 + y.length)
-  have hle : condLevinKt x y ≤ ((x.length + c + Nat.clog 2 T : ℕ) : ℕ∞) := by
-    refine (condLevinKt_le_condTimeBoundedAt_add T x y).trans ?_
-    rw [Nat.cast_add]
-    exact add_le_add_left (hbound x y le_rfl) _
-  exact ne_top_of_le_ne_top (ENat.natCast_ne_top _) hle
+  refine ne_top_of_le_ne_top (ENat.natCast_ne_top (x.length + c + Nat.clog 2 T)) ?_
+  simpa only [Nat.cast_add] using
+    (condLevinKt_le_condTimeBoundedAt_add T x y).trans (add_le_add_left (hbound x y le_rfl) _)
 
 /-- Casting `condLevinKtNat x y` to `ℕ∞` yields `condLevinKt x y`. -/
 @[simp]
@@ -487,11 +475,9 @@ theorem condLevinKtNat_le_iff {x y : List Bool} {k : ℕ} :
 /-- For every condition string `y`, step bound `t`, length `n`, and threshold `r`, fewer than
 `2 ^ r` strings `x` of length `n` have `condTimeBoundedAt t x y < r`. -/
 theorem encard_setOf_condTimeBoundedAt_lt (y : List Bool) (t n r : ℕ) :
-    {x : List Bool | x.length = n ∧ condTimeBoundedAt t x y < r}.encard < 2 ^ r := by
-  refine (Set.encard_le_encard ?_).trans_lt
+    {x : List Bool | x.length = n ∧ condTimeBoundedAt t x y < r}.encard < 2 ^ r :=
+  lt_of_le_of_lt (Set.encard_le_encard fun _ hx => hx.2)
     ((condUniversalTM y).encard_setOf_etimeBoundedComplexity_lt t r)
-  rintro x ⟨_, hx⟩
-  exact hx
 
 /-- **Existence of conditionally incompressible strings:** for every condition string `y` and length
 `n`, some string `x` of length `n` satisfies `n ≤ condPlain x y` (and hence

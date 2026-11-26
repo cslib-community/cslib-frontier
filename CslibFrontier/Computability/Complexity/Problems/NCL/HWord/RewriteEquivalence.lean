@@ -39,11 +39,7 @@ variable {n q r : ℕ} (rules : Fin r → Rule q)
 
 private theorem rewrite_length {s t : List (Fin q)} (h : Rewrites (RuleSet rules) s t) :
     t.length = s.length := by
-  obtain ⟨before, domino, after, ⟨i, hd | hd⟩, rfl, rfl⟩ := h
-  · subst domino
-    simp [Rule.domino]
-  · subst domino
-    simp [Rule.domino, Rule.reverse]
+  obtain ⟨_, _, _, ⟨_, rfl | rfl⟩, rfl, rfl⟩ := h <;> simp [Rule.domino, Rule.reverse]
 
 /-- Source reachability preserves word length because every rule has two letters on both sides. -/
 theorem source_path_length {s t : List (Fin q)}
@@ -60,22 +56,15 @@ private theorem word_reachable_of_source_path {s t : Fin n → Fin q}
         HWord.Reachable (compatibility rules) (word s) (word v) from this hr t rfl
   intro l hpath
   induction hpath with
-  | refl =>
-    intro v he
-    have hv : v = s := List.ofFn_injective he
-    subst v
-    exact .refl
+  | refl => exact fun _ hv => List.ofFn_injective hv ▸ .refl
   | @tail before after hbefore hstep ih =>
-    intro v hv
+    rintro v rfl
     have hlen : before.length = n := by
       simpa only [List.length_ofFn] using source_path_length rules hbefore
     let previous : Fin n → Fin q := fun i => before.get (Fin.cast hlen.symm i)
     have hp : List.ofFn previous = before :=
       (List.ofFn_congr hlen before.get).symm.trans (List.ofFn_get before)
-    have hs : Rewrites (RuleSet rules) (List.ofFn previous) (List.ofFn v) := by
-      rw [hp, hv]
-      exact hstep
-    exact (ih previous hp).trans (word_reachable_of_rewrites rules hs)
+    exact (ih previous hp).trans (word_reachable_of_rewrites rules (hp.symm ▸ hstep))
 
 /-- Every actual H-word trajectory with protected end markers decodes to real source rewriting. -/
 theorem readout_reachable

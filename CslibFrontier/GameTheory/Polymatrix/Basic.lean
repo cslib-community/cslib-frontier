@@ -184,17 +184,9 @@ theorem isMixedNash_toCostGame_iff (P : PolymatrixGame ι S) {p : ∀ i, S i →
         ∀ i (a' : S i),
           ∑ j ∈ univ.erase i, ∑ a : S i, ∑ b : S j, p i a * (p j b * P.edgeCost i j a b) ≤
             ∑ j ∈ univ.erase i, ∑ b : S j, p j b * P.edgeCost i j a' b := by
-  constructor
-  · rintro ⟨hmix, hbr⟩
-    have hp1 : ∀ k, ∑ c, p k c = 1 := fun k => (hmix k).sum_eq_one
-    refine ⟨hmix, fun i a' => ?_⟩
-    rw [← P.expectedCost_toCostGame hp1 i, ← P.deviationCost_toCostGame hp1 i a']
-    exact hbr i a'
-  · rintro ⟨hmix, hbr⟩
-    have hp1 : ∀ k, ∑ c, p k c = 1 := fun k => (hmix k).sum_eq_one
-    refine ⟨hmix, fun i a' => ?_⟩
-    rw [P.expectedCost_toCostGame hp1 i, P.deviationCost_toCostGame hp1 i a']
-    exact hbr i a'
+  refine and_congr_right fun hmix => forall₂_congr fun i a' => ?_
+  have hp1 : ∀ k, ∑ c, p k c = 1 := fun k => (hmix k).sum_eq_one
+  rw [P.expectedCost_toCostGame hp1 i, P.deviationCost_toCostGame hp1 i a']
 
 end Mixed
 
@@ -380,16 +372,10 @@ theorem exists_isExactPotential_toCostGame_iff_isPairwisePotential [∀ k, Nonem
     {P : PolymatrixGame ι S} :
     (∃ Φ, P.toCostGame.IsExactPotential Φ) ↔ P.IsPairwisePotential := by
   rw [CostGame.exists_isExactPotential_iff_fourCycleZero]
-  constructor
-  · intro h i j hij xᵢ yᵢ xⱼ yⱼ
-    let s : ∀ k, S k := fun k => Classical.arbitrary (S k)
-    have h4 := h hij s xᵢ yᵢ xⱼ yⱼ
-    dsimp only at h4
-    rwa [P.fourCycle_toCostGame_eq hij s xᵢ yᵢ xⱼ yⱼ] at h4
-  · intro h i j hij s xᵢ yᵢ xⱼ yⱼ
-    dsimp only
-    rw [P.fourCycle_toCostGame_eq hij s xᵢ yᵢ xⱼ yⱼ]
-    exact h hij xᵢ yᵢ xⱼ yⱼ
+  refine ⟨fun h i j hij xᵢ yᵢ xⱼ yⱼ => ?_, fun h i j hij s xᵢ yᵢ xⱼ yⱼ => ?_⟩
+  · let s : ∀ k, S k := fun k => Classical.arbitrary (S k)
+    simpa only [P.fourCycle_toCostGame_eq hij s xᵢ yᵢ xⱼ yⱼ] using h hij s xᵢ yᵢ xⱼ yⱼ
+  · simpa only [P.fourCycle_toCostGame_eq hij s xᵢ yᵢ xⱼ yⱼ] using h hij xᵢ yᵢ xⱼ yⱼ
 
 /-- **Separable skew-symmetry characterization of exact-potential polymatrix games**: a polymatrix
 game with nonempty strategy sets admits an exact potential if and only if each skew-symmetric edge
@@ -409,18 +395,11 @@ theorem isSymmetric_iff_exists_isExactPotential_of_zero_at_base {P : PolymatrixG
       (∀ b : S j, P.edgeCost i j (z i) b = 0) ∧ (∀ a : S i, P.edgeCost i j a (z j) = 0)) :
     P.IsSymmetric ↔ ∃ Φ, P.toCostGame.IsExactPotential Φ := by
   have : ∀ k, Nonempty (S k) := fun k => ⟨z k⟩
-  refine ⟨fun h => ⟨P.edgePotential, h.isExactPotential_edgePotential⟩, fun h => ?_⟩
-  have hpair := P.exists_isExactPotential_toCostGame_iff_isPairwisePotential.1 h
-  intro i j hij a b
-  have hrect := hpair hij (z i) a (z j) b
-  have hz_ij := hzero hij
-  have hz_ji := hzero hij.symm
-  have hs1 : P.skewEdge i j a (z j) = 0 := by simp only [skewEdge, hz_ij.2 a, hz_ji.1 a, sub_self]
-  have hs2 : P.skewEdge i j (z i) (z j) = 0 := by
-    simp only [skewEdge, hz_ij.1 (z j), hz_ji.1 (z i), sub_self]
-  have hs3 : P.skewEdge i j (z i) b = 0 := by simp only [skewEdge, hz_ij.1 b, hz_ji.2 b, sub_self]
-  rw [hs1, hs2, hs3] at hrect
-  simp only [skewEdge] at hrect
+  refine ⟨fun h => ⟨P.edgePotential, h.isExactPotential_edgePotential⟩, fun h i j hij a b => ?_⟩
+  have hrect :=
+    (P.exists_isExactPotential_toCostGame_iff_isPairwisePotential.1 h) hij (z i) a (z j) b
+  simp only [skewEdge, (hzero hij).1, (hzero hij).2, (hzero hij.symm).1, (hzero hij.symm).2,
+    sub_self] at hrect
   linarith
 
 end SymmetricAndPotential

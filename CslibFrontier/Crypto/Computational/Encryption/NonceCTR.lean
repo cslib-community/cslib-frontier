@@ -392,15 +392,12 @@ private theorem nonceCTRHandler_eq_ite (nonceLen : ℕ → ℕ) (n : ℕ) (b : B
   cases hdec : NonceCipher.unitCPACodec.decodeQuery ((), word) with
   | none =>
     have hfalse : (frame (unframe word) ++ frame (unframe (dropFrame word)) ++
-        dropFrame (dropFrame word) == word) = false := by
-      rw [beq_eq_false_iff_ne]
-      intro heq
-      have hsome : NonceCipher.unitCPACodec.decodeQuery ((), word) =
-          some (⟨unframe word, unframe (dropFrame word)⟩, (), dropFrame (dropFrame word)) :=
-        (NonceCipher.unitCPACodec.decodeQuery_eq_some_iff _ _).mpr (Prod.ext rfl heq)
-      simp [hdec] at hsome
-    rw [hfalse]
-    rfl
+        dropFrame (dropFrame word) == word) = false :=
+      beq_eq_false_iff_ne.mpr fun heq => nomatch hdec.symm.trans
+        ((NonceCipher.unitCPACodec.decodeQuery_eq_some_iff ((), word)
+          (⟨unframe word, unframe (dropFrame word)⟩, (), dropFrame (dropFrame word))).mpr
+          (Prod.ext rfl (by simpa [NonceCipher.unitCPACodec, List.append_assoc] using heq)))
+    simp only [hfalse, Bool.false_eq_true, ↓reduceIte]
   | some q =>
     rcases q with ⟨⟨m₀, m₁⟩, ⟨⟩, nonce⟩
     have hword : frame m₀ ++ (frame m₁ ++ nonce) = word := by
@@ -427,32 +424,12 @@ private theorem isOraclePPTOn_nonceCTRHandler {nonceLen : ℕ → ℕ}
     IsOraclePPTOn encHandlerCallNonceCTR (encPair encBits (encPair encBool (encList encBits)))
       (fun x : HandlerCall => nonceCTRHandler nonceLen x.1.1.1 x.1.2 x.2.1 x.2.2) := by
   simp_rw [nonceCTRHandler_eq_ite]
-  have hnCall : ComputableInPolyTime (fun x : HandlerCall => x.1.1.1)
-      encHandlerCallNonceCTR encUnary := by fun_prop
-  have hword : ComputableInPolyTime (fun x : HandlerCall => x.2.1.2)
-      encHandlerCallNonceCTR encBits := by fun_prop
-  have hok : ComputableInPolyTime (fun x : HandlerCall => x.2.2.1)
-      encHandlerCallNonceCTR encBool := by fun_prop
-  have hseen : ComputableInPolyTime (fun x : HandlerCall => x.2.2.2)
-      encHandlerCallNonceCTR (encList encBits) := by fun_prop
   have hm₀ : ComputableInPolyTime (fun x : HandlerCall => unframe x.2.1.2)
-      encHandlerCallNonceCTR encBits := ComputableInPolyTime.unframe.comp hword
-  have hrest : ComputableInPolyTime (fun x : HandlerCall => dropFrame x.2.1.2)
-      encHandlerCallNonceCTR encBits := ComputableInPolyTime.dropFrame.comp hword
+      encHandlerCallNonceCTR encBits := by fun_prop
   have hm₁ : ComputableInPolyTime (fun x : HandlerCall => unframe (dropFrame x.2.1.2))
-      encHandlerCallNonceCTR encBits := ComputableInPolyTime.unframe.comp hrest
+      encHandlerCallNonceCTR encBits := by fun_prop
   have hnonce : ComputableInPolyTime (fun x : HandlerCall => dropFrame (dropFrame x.2.1.2))
-      encHandlerCallNonceCTR encBits := ComputableInPolyTime.dropFrame.comp hrest
-  have hsCall : ComputableInPolyTime (fun x : HandlerCall => nonceLen x.1.1.1)
-      encHandlerCallNonceCTR encUnary := hnonceLen.comp hnCall
-  have hvalid := computableInPolyTime_nonceCTRValid hnonceLen hnCall hm₀ hm₁
-  have hvn : ComputableInPolyTime
-      (fun x : HandlerCall => nonceCTRValidNonce nonceLen x.1.1.1 (dropFrame (dropFrame x.2.1.2)))
-      encHandlerCallNonceCTR encBool := by
-    have hnl : ComputableInPolyTime (fun x : HandlerCall => (dropFrame (dropFrame x.2.1.2)).length)
-        encHandlerCallNonceCTR encUnary := ComputableInPolyTime.length_bits.comp hnonce
-    simpa only [nonceCTRValidNonce, beq_eq_decide] using
-      ComputableInPolyTime.decide_eq' hnl hsCall
+      encHandlerCallNonceCTR encBits := by fun_prop
   have hcondOuter : ComputableInPolyTime
       (fun x : HandlerCall =>
         frame (unframe x.2.1.2) ++ frame (unframe (dropFrame x.2.1.2)) ++
@@ -465,48 +442,17 @@ private theorem isOraclePPTOn_nonceCTRHandler {nonceLen : ℕ → ℕ}
         encHandlerCallNonceCTR encBits := by
       simpa only [encPair_apply, encBits_apply, List.append_assoc] using
         ComputableInPolyTime.encoding_comp (hm₀.prod (hm₁.prod hnonce))
-    simpa only [beq_eq_decide] using ComputableInPolyTime.decide_eq' henc3 hword
-  have hcondInner : ComputableInPolyTime
-      (fun x : HandlerCall =>
-        x.2.2.1 &&
-          nonceCTRValid nonceLen x.1.1.1 (unframe x.2.1.2) (unframe (dropFrame x.2.1.2)) &&
-          nonceCTRValidNonce nonceLen x.1.1.1 (dropFrame (dropFrame x.2.1.2)) &&
-          decide (dropFrame (dropFrame x.2.1.2) ∉ x.2.2.2))
-      encHandlerCallNonceCTR encBool :=
-    ComputableInPolyTime.bool_and'
-      (ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and' hok hvalid) hvn)
-      (ComputableInPolyTime.decide_not (ComputableInPolyTime.decide_mem hseen hnonce))
-  refine IsOraclePPTOn.cond hcondOuter (IsOraclePPTOn.cond hcondInner ?_ (by ppt)) (by ppt)
-  have hblocks : ComputableInPolyTime (fun x : HandlerCall => (unframe x.2.1.2).length / x.1.1.1)
-      encHandlerCallNonceCTR encUnary :=
-    ComputableInPolyTime.unary_div' (ComputableInPolyTime.length_bits.comp hm₀) hnCall
-  have hks := isOraclePPTOn_ctrKeystreamQueries hnCall
-    (computableInPolyTime_nonceCTRCounter_zero hnCall hsCall hnonce) hblocks
-  refine hks.map_with ?_
-  let fstP := ComputableInPolyTime.fst encHandlerCallNonceCTR encBits
-  let sndP := ComputableInPolyTime.snd encHandlerCallNonceCTR encBits
-  have hsel : ComputableInPolyTime
-      (fun p : HandlerCall × List Bool =>
-        (MessagePair.mk (unframe p.1.2.1.2) (unframe (dropFrame p.1.2.1.2))).select p.1.1.2)
-      (encPair encHandlerCallNonceCTR encBits) encBits := by
-    have : (fun p : HandlerCall × List Bool =>
-          (MessagePair.mk (unframe p.1.2.1.2) (unframe (dropFrame p.1.2.1.2))).select p.1.1.2) =
-        fun p => if p.1.1.2 then unframe (dropFrame p.1.2.1.2) else unframe p.1.2.1.2 := by
-      funext p; cases p.1.1.2 <;> rfl
-    rw [this]
-    have hbP : ComputableInPolyTime (fun p : HandlerCall × List Bool => p.1.1.2)
-        (encPair encHandlerCallNonceCTR encBits) encBool := by fun_prop
-    exact ComputableInPolyTime.ite hbP (hm₁.comp fstP) (hm₀.comp fstP)
-  have hxor : ComputableInPolyTime
-      (fun p : HandlerCall × List Bool =>
-        true :: xorWithStream
-          ((MessagePair.mk (unframe p.1.2.1.2) (unframe (dropFrame p.1.2.1.2))).select p.1.1.2)
-          p.2)
-      (encPair encHandlerCallNonceCTR encBits) encBits :=
-    ComputableInPolyTime.bitsCons (ComputableInPolyTime.const true)
-      (computableInPolyTime_xorWithStream hsel sndP)
-  exact hxor.prod ((ComputableInPolyTime.const true).prod
-    (ComputableInPolyTime.cons' (hnonce.comp fstP) (hseen.comp fstP)))
+    simpa only [beq_eq_decide] using ComputableInPolyTime.decide_eq' henc3 (by fun_prop)
+  have hvalid := computableInPolyTime_nonceCTRValid hnonceLen (n := fun x : HandlerCall => x.1.1.1)
+    (by fun_prop) hm₀ hm₁
+  refine IsOraclePPTOn.cond hcondOuter
+    (IsOraclePPTOn.cond (by unfold nonceCTRValidNonce; fun_prop) ?_ (by ppt)) (by ppt)
+  refine (isOraclePPTOn_ctrKeystreamQueries (by fun_prop)
+    (computableInPolyTime_nonceCTRCounter_zero (by fun_prop) (by fun_prop) hnonce)
+    (by fun_prop)).map_with ?_
+  simp only [MessagePair.select, Bool.cond_eq_ite]
+  exact (ComputableInPolyTime.bitsCons (.const true)
+    (computableInPolyTime_xorWithStream (by fun_prop) (by fun_prop))).prod (by fun_prop)
 
 /-- **Efficiency of the Theorem 5.6 reduction.** When `nonceLen` is computable in polynomial time
 in unary and `adversary` is uniform strict oracle PPT, `nonceCTRToPRF nonceLen adversary` is
@@ -549,14 +495,9 @@ theorem isOraclePPT_nonceCTRToPRF {nonceLen : ℕ → ℕ} {adversary : OracleDi
         have hselLen : ((MessagePair.mk m₀ m₁).select cb.2).length ≤ m₀.length + m₁.length := by
           cases cb.2 <;> simp [MessagePair.select]
         refine ⟨trivial, by simp only [List.length_cons, length_xorWithStream]; omega, ?_⟩
-        simp only [length_encPair, encBool_apply, List.length_singleton, encList_cons,
-          encBits_apply, List.length_append, length_frame]
-        omega
+        enc_len [List.length_singleton]
       · rw [OracleComp.eq_of_mem_supportWith_pure hresult]
-        refine ⟨trivial, by simp, ?_⟩
-        dsimp only
-        simp only [length_encPair, encBool_apply, List.length_singleton]
-        omega
+        exact ⟨trivial, by simp, by enc_len [List.length_singleton]⟩
   ppt [nonceCTRToPRF, nonceCTRSimView]
 
 /-! ### Real and ideal PRF worlds and Theorem 5.6 -/
@@ -590,7 +531,9 @@ private theorem eval_prfRealGame_nonceCTRSimView {family : List Bool → List Bo
     dsimp only
     by_cases hcond : (ok && nonceCTRValid nonceLen n pair.msg₀ pair.msg₁ &&
         nonceCTRValidNonce nonceLen n nonce && decide (nonce ∉ seen)) = true
-    · simp only [Bool.and_eq_true, decide_eq_true_eq] at hcond
+    · rw [ite_eq_left hcond, ProbOracleComp.run_map, run_ctrKeystreamQueries hlen hkLen,
+        map_pure, ProbComp.eval_pure]
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at hcond
       have hpair := hcond.1.1.2
       simp only [nonceCTRValid, blockPairValid, Bool.and_eq_true, beq_iff_eq] at hpair
       rcases hpair with ⟨⟨hlenPair, hmod⟩, _⟩
@@ -599,18 +542,13 @@ private theorem eval_prfRealGame_nonceCTRSimView {family : List Bool → List Bo
       have hselDiv : ((pair.select b).length + n - 1) / n = pair.msg₀.length / n := by
         rw [div_ceil_eq_div_of_mod_eq_zero hselMod]
         cases b <;> simp [MessagePair.select, hlenPair]
-      rw [ite_eq_left (by simpa only [Bool.and_eq_true, decide_eq_true_eq] using hcond),
-        ProbOracleComp.run_map, run_ctrKeystreamQueries hlen hkLen,
-        map_pure, ProbComp.eval_pure]
       dsimp only [Functor.map, StateT.map]
       simp [hcond.1.1.1, hcond.1.1.2, hcond.1.2, hcond.2, NonceCipher.unitCPACodec,
-        ProbComp.eval_pure, nonceCTRCipher, nonceStreamCipher_encrypt_eq, hselDiv]
-    · have hnot : ¬ (((ok = true ∧ nonceCTRValid nonceLen n pair.msg₀ pair.msg₁ = true) ∧
-          nonceCTRValidNonce nonceLen n nonce = true) ∧ nonce ∉ seen) := by
-        simpa only [Bool.and_eq_true, decide_eq_true_eq] using hcond
-      rw [ite_eq_right hcond, ProbOracleComp.run_pure, ProbComp.eval_pure]
+        nonceCTRCipher, nonceStreamCipher_encrypt_eq, hselDiv]
+    · rw [ite_eq_right hcond, ProbOracleComp.run_pure, ProbComp.eval_pure]
+      simp only [Bool.and_eq_true, decide_eq_true_eq] at hcond
       dsimp only [Functor.map, StateT.map]
-      simp [hnot, NonceCipher.unitCPACodec, ProbComp.eval_pure]
+      simp [hcond, NonceCipher.unitCPACodec]
 
 private noncomputable def nonceCTRIdealOracle (nonceLen : ℕ → ℕ) (n : ℕ)
     (request : Unit × List Bool) : StateT (Bool × List (List Bool)) PMF (List Bool)
@@ -740,20 +678,10 @@ private theorem runWith_ctrKeystreamQueries_lazy {n s : ℕ} (hs : s ≤ n)
           exact Or.inr ⟨hxkDrop, hxkTake ▸ Nat.lt_succ_self k⟩
         · rw [Function.update_of_ne hxx] at hx
           exact (hmidCache x hx).imp_right fun ⟨hd, hlt⟩ => ⟨hd, Nat.lt_succ_of_lt hlt⟩
-      · rw [PMF.map_bind]
-        trans (ProbOracleComp.runWith (fun req => lazyRandomFunctionOracle n n req.2)
-            (OracleComp.iterate k (ctrKeystreamStep n iv) (0, [])) cache).bind
-            (fun mid => (BitString.uniformList n).map (mid.1.2 ++ ·))
-        · refine PMF.bind_congr_on_support _ _ _ fun mid hmid => ?_
-          rw [hstep_of_supp mid hmid]
-          simp [BitString.uniformList, PMF.map_comp, Function.comp_def]
-        · trans ((ProbOracleComp.runWith (fun req => lazyRandomFunctionOracle n n req.2)
-              (OracleComp.iterate k (ctrKeystreamStep n iv) (0, [])) cache).map
-              (fun mid => mid.1.2)).bind
-              (fun stream => (BitString.uniformList n).map (stream ++ ·))
-          · exact (PMF.bind_map _ (fun mid : (ℕ × List Bool) × _ => mid.1.2)
-              (fun stream => (BitString.uniformList n).map (stream ++ ·))).symm
-          · rw [hlaw, ← BitString.uniformList_add, Nat.succ_mul]
+      · rw [PMF.map_bind, Nat.succ_mul, BitString.uniformList_add, ← hlaw, PMF.bind_map]
+        refine PMF.bind_congr_on_support _ _ _ fun mid hmid => ?_
+        rw [Function.comp_apply, hstep_of_supp mid hmid]
+        simp [BitString.uniformList, PMF.map_comp, Function.comp_def]
   obtain ⟨hsupp, hlaw⟩ := hloop blocks le_rfl
   dsimp only [ctrKeystreamQueries, iv]
   rw [ProbOracleComp.runWith_map]
@@ -825,8 +753,7 @@ private theorem eval_prfIdealGame_nonceCTRSimView {nonceLen : ℕ → ℕ} {n : 
         simp only [ProbOracleComp.runWith_map, PMF.map_comp, Function.comp_def, Prod.map, id_eq]
         refine ⟨fun a state' hmem => ?_, ?_⟩
         · rw [PMF.mem_support_map_iff] at hmem
-          obtain ⟨ksRes, hksRes, heq⟩ := hmem
-          cases heq
+          obtain ⟨ksRes, hksRes, ⟨⟩⟩ := hmem
           exact hsuppKs ksRes hksRes
         · trans ((ProbOracleComp.runWith (fun req => lazyRandomFunctionOracle n n req.2)
               (ctrKeystreamQueries n (nonceCTRCounter n (nonceLen n) nonce 0)
@@ -970,11 +897,7 @@ private theorem zipWith_xor_replicate_false :
 private theorem zipWith_xor_replicate_true_ne :
     ∀ w : List Bool, w ≠ [] → List.zipWith Bool.xor (List.replicate w.length true) w ≠ w
   | [], h => (h rfl).elim
-  | b :: w, _ => by
-    simp only [List.length_cons, List.replicate_succ, List.zipWith_cons_cons, ne_eq,
-      List.cons.injEq, not_and]
-    intro hb
-    cases b <;> cases hb
+  | b :: _, _ => by cases b <;> simp [List.replicate_succ]
 
 /-- At every parameter `n ≥ 1`, `unscaledNonceCTRAdversary` achieves CPA advantage `1` against
 `unscaledNonceCTRCipher family n` for any length-preserving `family` on whole-block message
@@ -1052,14 +975,15 @@ theorem advantage_cpaExperiment_unscaledNonceCTRAdversary
     rw [hwordCall z2 m1 (BitString.lowBits n 1) [BitString.lowBits n 0] hv1 (hvn 1)
       (by simp [hnonceNe])]
     simp only [PMF.pure_map, PMF.pure_bind, Prod.map, id_eq]
-    have hr1Take : (true :: (y 0 ++ y 1)).take (2 * n + 1) = true :: (y 0 ++ y 1) :=
-      List.take_of_length_le (by simp [hyLen, Nat.two_mul])
-    rw [hr1Take, List.drop_succ_cons, List.drop_zero, List.drop_left' (hyLen 0)]
+    have hrTake (ct : List Bool) (hct : ct.length = 2 * n) :
+        (true :: ct).take (2 * n + 1) = true :: ct :=
+      List.take_of_length_le (by rw [List.length_cons, hct])
+    rw [hrTake (y 0 ++ y 1) (by simp [hyLen, Nat.two_mul]), List.drop_succ_cons, List.drop_zero,
+      List.drop_left' (hyLen 0)]
     cases b
-    · have hr2Take : (true :: (y 1 ++ y 2)).take (2 * n + 1) = true :: (y 1 ++ y 2) :=
-        List.take_of_length_le (by simp [hyLen, Nat.two_mul])
-      dsimp only [MessagePair.select, cond]
-      rw [hct_z2 1 htwoPow, hr2Take, List.drop_succ_cons, List.drop_zero, List.take_left' (hyLen 1)]
+    · dsimp only [MessagePair.select, cond]
+      rw [hct_z2 1 htwoPow, hrTake (y 1 ++ y 2) (by simp [hyLen, Nat.two_mul]),
+        List.drop_succ_cons, List.drop_zero, List.take_left' (hyLen 1)]
       simp
     · have hct1True :
           (unscaledNonceCTRCipher family n).encrypt k m1 () (BitString.lowBits n 1) =
@@ -1071,17 +995,12 @@ theorem advantage_cpaExperiment_unscaledNonceCTRAdversary
         rw [List.zipWith_append (by simp [hyLen]), ← hyLen 2, zipWith_xor_replicate_false]
       have hxorLen : (List.zipWith Bool.xor (List.replicate n true) (y 1)).length = n := by
         simp [hyLen]
-      have hr2Take :
-          (true :: (List.zipWith Bool.xor (List.replicate n true) (y 1) ++ y 2)).take (2 * n + 1) =
-            true :: (List.zipWith Bool.xor (List.replicate n true) (y 1) ++ y 2) :=
-        List.take_of_length_le (by simp [hxorLen, hyLen, Nat.two_mul])
-      have hneBlock : List.zipWith Bool.xor (List.replicate n true) (y 1) ≠ y 1 := by
-        have hlen1 : (y 1).length = n := hyLen 1
-        rw [← hlen1]
-        exact zipWith_xor_replicate_true_ne (y 1) (List.ne_nil_of_length_pos (by omega))
+      have hneBlock : List.zipWith Bool.xor (List.replicate n true) (y 1) ≠ y 1 :=
+        hyLen 1 ▸ zipWith_xor_replicate_true_ne (y 1)
+          (List.ne_nil_of_length_pos ((hyLen 1).symm ▸ hn))
       dsimp only [MessagePair.select, cond]
-      rw [hct1True, hr2Take, List.drop_succ_cons, List.drop_zero, List.take_left' hxorLen,
-        beq_eq_false_iff_ne.mpr hneBlock]
+      rw [hct1True, hrTake _ (by simp [hxorLen, hyLen, Nat.two_mul]), List.drop_succ_cons,
+        List.drop_zero, List.take_left' hxorLen, beq_eq_false_iff_ne.mpr hneBlock]
       simp
   rw [heval false, heval true, Game.advantage]
   simp [Game.succProbability]

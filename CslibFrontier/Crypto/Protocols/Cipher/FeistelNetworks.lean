@@ -428,11 +428,8 @@ theorem feistelNetwork_replicate_zero (r : ℕ) (p : G × G) :
 
 private theorem add_self_cancel_left_of_neg_eq_self (hneg : ∀ a : G, -a = a) (a b : G) :
     b + (a + b) = a := by
-  have h2 (x : G) : x + x = 0 := by simpa [hneg x] using neg_add_cancel x
-  calc b + (a + b) = -(b + (a + b)) := (hneg _).symm
-    _ = -(a + b) + -b := neg_add_rev b (a + b)
-    _ = (a + b) + b := by rw [hneg, hneg]
-    _ = a := by rw [add_assoc, h2 b, add_zero]
+  calc b + (a + b) = -(a + b) + -b := (hneg _).symm.trans (neg_add_rev b (a + b))
+    _ = a := by rw [hneg (a + b), add_neg_cancel_right]
 
 /-- Over any group of exponent two (`∀ a : G, -a = a`), three Feistel rounds with the identity
 round function `id : G → G` compose to the identity permutation on `G × G`
@@ -512,12 +509,10 @@ private theorem card_biUnion_perm_div_le {β : Type*} (S : Finset β) {k : ℕ}
 
 private theorem card_erase_erase {x y : α} (hxy : x ≠ y) :
     (((Finset.univ.erase x).erase y).card : ℝ) = (Fintype.card α : ℝ) - 2 := by
-  have hy : y ∈ Finset.univ.erase x := by simp [Ne.symm hxy]
-  rw [Finset.card_erase_of_mem hy, Finset.card_erase_of_mem (Finset.mem_univ x), Finset.card_univ]
-  have h2 : 2 ≤ Fintype.card α := by
-    have hle := Finset.card_le_univ ({x, y} : Finset α)
-    rwa [Finset.card_pair hxy] at hle
-  rw [Nat.cast_sub (by omega), Nat.cast_sub (by omega)]
+  have h2 : 2 ≤ Fintype.card α := Finset.card_pair hxy ▸ Finset.card_le_univ ({x, y} : Finset α)
+  rw [Finset.card_erase_of_mem (by simp [Ne.symm hxy]),
+    Finset.card_erase_of_mem (Finset.mem_univ x), Finset.card_univ,
+    Nat.cast_sub (by omega), Nat.cast_sub (by omega)]
   push_cast; ring
 
 private theorem perm_decide_toReal_le_of_subset {P : Equiv.Perm α → Prop} [DecidablePred P]
@@ -527,11 +522,9 @@ private theorem perm_decide_toReal_le_of_subset {P : Equiv.Perm α → Prop} [De
       b := by
   rw [Cslib.Probability.PMF.bind_pure_decide_apply_true,
     Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_toReal, Fintype.card_perm]
-  refine le_trans ?_ hb
-  gcongr
-  intro π hπ
-  rw [Finset.mem_filter] at hπ
-  exact hcover π hπ.2
+  exact (div_le_div_of_nonneg_right (Nat.cast_le.mpr
+    (Finset.card_le_card fun π hπ => hcover π (Finset.mem_filter.mp hπ).2))
+    (Nat.cast_nonneg _)).trans hb
 
 private theorem perm_decide_toReal_le_biUnion {β : Type*} {P : Equiv.Perm α → Prop}
     [DecidablePred P] (S : Finset β) {k : ℕ}
@@ -626,12 +619,7 @@ omit [AddGroup G] in
 (original bound). -/
 theorem idealPermGame_feistel1CPAAttack_true_le [Nonempty G] (l₀ r₀ : G) :
     (idealPermGame (feistel1CPAAttack l₀ r₀) true).toReal ≤ (Fintype.card G : ℝ)⁻¹ := by
-  have hgame :
-      idealPermGame (feistel1CPAAttack l₀ r₀) =
-        (PMF.uniformOfFintype (Equiv.Perm (G × G))).bind fun π =>
-          PMF.pure (decide ((π (l₀, r₀)).1 = r₀)) := by
-    simp [idealPermGame, feistel1CPAAttack, PMF.monad_bind_eq_bind]
-  rw [hgame]
+  simp only [interp_norm, pmf_norm, idealPermGame, feistel1CPAAttack]
   refine (perm_decide_toReal_le_biUnion (Finset.univ : Finset G) (k := 1)
     (fun _ => ![(l₀, r₀)]) (fun _ _ => Function.injective_of_subsingleton _)
     (fun w => ![(r₀, w)])
@@ -688,24 +676,17 @@ theorem idealPermGame_feistel2CPAAttack_true_le [Nonempty G] {l₀ l₁ : G} (r�
     (h01 : l₀ ≠ l₁) (hG : 2 ≤ Fintype.card G) :
     (idealPermGame (feistel2CPAAttack l₀ l₁ r₀) true).toReal ≤
       (Fintype.card G : ℝ) / ((Fintype.card G : ℝ) ^ 2 - 1) := by
-  have hgame :
-      idealPermGame (feistel2CPAAttack l₀ l₁ r₀) =
-        (PMF.uniformOfFintype (Equiv.Perm (G × G))).bind fun π =>
-          PMF.pure (decide ((π (l₀, r₀)).1 - (π (l₁, r₀)).1 = l₀ - l₁)) := by
-    simp [idealPermGame, feistel2CPAAttack, PMF.monad_bind_eq_bind]
-  have hxy : ((l₀, r₀) : G × G) ≠ (l₁, r₀) := fun h => h01 (congrArg Prod.fst h)
-  rw [hgame]
+  simp only [interp_norm, pmf_norm, idealPermGame, feistel2CPAAttack]
   refine (perm_decide_toReal_le_biUnion (Finset.univ : Finset ((G × G) × G)) (k := 2)
-    (fun _ => ![(l₀, r₀), (l₁, r₀)]) (fun _ _ => injective_pair hxy)
+    (fun _ => ![(l₀, r₀), (l₁, r₀)]) (fun _ _ => injective_pair fun h => h01 (congrArg Prod.fst h))
     (fun aw => ![aw.1, (-(l₀ - l₁) + aw.1.1, aw.2)]) fun π hπ =>
       ⟨(π (l₀, r₀), (π (l₁, r₀)).2), Finset.mem_univ _, Fin.forall_fin_two.mpr
         ⟨rfl, Prod.ext (by dsimp; rw [← hπ, neg_sub, sub_add_cancel]) rfl⟩⟩).trans_eq ?_
   have hN : (2 : ℝ) ≤ Fintype.card G := by exact_mod_cast hG
-  rw [Finset.card_univ, Nat.cast_descFactorial_two ℝ _]
-  simp only [Fintype.card_prod, Nat.cast_mul]
   have hN0 : (Fintype.card G : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
   have hsq1 : (Fintype.card G : ℝ) ^ 2 - 1 ≠ 0 := by nlinarith
-  field_simp
+  rw [Finset.card_univ, Nat.cast_descFactorial_two ℝ _]
+  simp only [Fintype.card_prod, Nat.cast_mul]; field_simp
 
 /-- When `l₀ ≠ l₁` and `2 ≤ Fintype.card G`, `feistel2CPAAttack l₀ l₁ r₀` distinguishes any
 2-round Feistel network `feistelNetwork [f₁, f₂]` from `idealPermGame` with advantage at least
@@ -749,14 +730,13 @@ theorem eval_feistel3_repeated_feistel3RepeatedKeyCPAAttack
     (hneg : ∀ a : G, -a = a) (f : G → G) (x : G) :
     OracleComp.interpret (fun p => PMF.pure (feistel3 f f f p))
       (feistel3RepeatedKeyCPAAttack x) = PMF.pure true := by
-  have hrev := prodComm_trans_feistelNetwork_reverse_trans_prodComm hneg [f, f, f]
-  have happ := Equiv.congr_fun hrev (feistel3 f f f (x, x))
+  have happ := Equiv.congr_fun
+    (prodComm_trans_feistelNetwork_reverse_trans_prodComm hneg [f, f, f]) (feistel3 f f f (x, x))
   change (feistel3 f f f (feistel3 f f f (x, x)).swap).swap =
     (feistel3 f f f).symm (feistel3 f f f (x, x)) at happ
-  rw [Equiv.symm_apply_apply] at happ
-  have heq : feistel3 f f f ((feistel3 f f f (x, x)).2, (feistel3 f f f (x, x)).1) = (x, x) :=
-    Prod.swap_injective happ
-  simp [feistel3RepeatedKeyCPAAttack, heq]
+  have h : feistel3 f f f ((feistel3 f f f (x, x)).2, (feistel3 f f f (x, x)).1) = (x, x) :=
+    Prod.swap_injective (happ.trans (Equiv.symm_apply_apply (feistel3 f f f) (x, x)))
+  simp [feistel3RepeatedKeyCPAAttack, h]
 
 omit [AddGroup G] in
 /-- Against `idealPermGame`, when `2 ≤ Fintype.card G`, `feistel3RepeatedKeyCPAAttack x` accepts
@@ -765,12 +745,7 @@ theorem idealPermGame_feistel3RepeatedKeyCPAAttack_true_le [Nonempty G] (x : G)
     (hG : 2 ≤ Fintype.card G) :
     (idealPermGame (feistel3RepeatedKeyCPAAttack x) true).toReal ≤
       2 / (Fintype.card G : ℝ) ^ 2 := by
-  have hgame :
-      idealPermGame (feistel3RepeatedKeyCPAAttack x) =
-        (PMF.uniformOfFintype (Equiv.Perm (G × G))).bind fun π =>
-          PMF.pure (decide (π (π (x, x)).swap = (x, x))) := by
-    simp [idealPermGame, feistel3RepeatedKeyCPAAttack, Prod.swap, PMF.monad_bind_eq_bind]
-  rw [hgame]
+  simp only [interp_norm, pmf_norm, idealPermGame, feistel3RepeatedKeyCPAAttack]
   set p₀ : G × G := (x, x)
   refine (perm_decide_toReal_le_biUnion_union
     ({()} : Finset Unit) (k₁ := 1)
@@ -784,14 +759,12 @@ theorem idealPermGame_feistel3RepeatedKeyCPAAttack_true_le [Nonempty G] (x : G)
       · exact Or.inl ⟨(), Finset.mem_singleton_self _, Fin.forall_fin_one.mpr h⟩
       · exact Or.inr ⟨π p₀, Finset.mem_erase.mpr ⟨h, Finset.mem_univ _⟩,
           Fin.forall_fin_two.mpr ⟨rfl, hπ⟩⟩).trans_eq ?_
-  have hM1 : 1 ≤ Fintype.card (G × G) := Fintype.card_pos
   have hN : (2 : ℝ) ≤ Fintype.card G := by exact_mod_cast hG
-  rw [Finset.card_singleton, Nat.descFactorial_one,
-    Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_univ,
-    Nat.cast_descFactorial_two ℝ _, Nat.cast_sub hM1]
-  simp only [Fintype.card_prod, Nat.cast_mul, Nat.cast_one]
   have hN0 : (Fintype.card G : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
   have hM1r : (Fintype.card G : ℝ) ^ 2 - 1 ≠ 0 := by nlinarith
+  rw [Finset.card_singleton, Nat.descFactorial_one, Finset.card_erase_of_mem (Finset.mem_univ _),
+    Finset.card_univ, Nat.cast_descFactorial_two ℝ _, Nat.cast_sub Fintype.card_pos]
+  simp only [Fintype.card_prod, Nat.cast_mul, Nat.cast_one]
   field_simp
   ring
 
@@ -820,23 +793,13 @@ theorem idealStrongGame_feistel3CCAAttack_true_le_inv_card_sub_one [Nonempty G]
     {l₀ l₁ : G} (r₀ : G) (h01 : l₀ ≠ l₁) (hG : 2 ≤ Fintype.card G) :
     (idealStrongGame (feistel3CCAAttack l₀ l₁ r₀) true).toReal ≤
       ((Fintype.card G : ℝ) - 1)⁻¹ := by
-  have hgame :
-      idealStrongGame (feistel3CCAAttack l₀ l₁ r₀) =
-        (PMF.uniformOfFintype (Equiv.Perm (G × G))).bind fun π =>
-          let vw₀ := π (l₀, r₀)
-          let vw₁ := π (l₁, r₀)
-          let lr₂ := π.symm (vw₀.1, (l₁ - l₀) + vw₀.2)
-          PMF.pure (decide (-vw₀.1 + lr₂.2 = -vw₁.1 + r₀)) := by
-    simp [idealStrongGame, feistel3CCAAttack, feistelStrongOracle, PMF.monad_bind_eq_bind]
-  rw [hgame]
+  simp only [interp_norm, pmf_norm, idealStrongGame, feistel3CCAAttack, feistelStrongOracle]
   set x : G × G := (l₀, r₀)
   set y : G × G := (l₁, r₀)
   have hxy : x ≠ y := fun h => h01 (congrArg Prod.fst h)
   let q : G × G → G × G := fun a => (a.1, (l₁ - l₀) + a.2)
-  have hq : ∀ a, q a ≠ a := fun a h => by
-    have h2 := congrArg Prod.snd h
-    dsimp [q] at h2
-    exact h01 (sub_eq_zero.mp (add_right_cancel (h2.trans (zero_add a.2).symm))).symm
+  have hq (a) : q a ≠ a := fun h => h01 (sub_eq_zero.mp
+    (add_right_cancel ((congrArg Prod.snd h).trans (zero_add a.2).symm))).symm
   let S : Finset ((G × G) × ((G × G) × G)) :=
     ((Finset.univ.erase x).erase y) ×ˢ (Finset.univ ×ˢ Finset.univ)
   refine (perm_decide_toReal_le_biUnion_union
@@ -852,29 +815,22 @@ theorem idealStrongGame_feistel3CCAAttack_true_le_inv_card_sub_one [Nonempty G]
       set c := π.symm (q (π x))
       have hπc : π c = q (π x) := by simp [c]
       by_cases hcy : c = y
-      · exact Or.inl ⟨π x, Finset.mem_univ _,
-          Fin.forall_fin_two.mpr ⟨rfl, hcy ▸ hπc⟩⟩
-      · refine Or.inr ⟨(c, π x, (π y).2), ?_, ?_⟩
-        · simp only [S, Finset.mem_product, Finset.mem_erase, Finset.mem_univ, and_true]
-          exact ⟨hcy, fun h : c = x => hq (π x) (by rw [← hπc, h])⟩
-        · have h1 : -(π y).1 = (-(π x).1 + c.2) - r₀ := eq_sub_of_add_eq hπ.symm
-          have hy1 : (π y).1 = r₀ - (-(π x).1 + c.2) := by
-            simpa [neg_sub] using congrArg Neg.neg h1
-          exact Fin.forall_fin_succ.mpr
-            ⟨rfl, Fin.forall_fin_two.mpr ⟨hπc, Prod.ext hy1 rfl⟩⟩).trans_eq ?_
+      · exact Or.inl ⟨π x, Finset.mem_univ _, Fin.forall_fin_two.mpr ⟨rfl, hcy ▸ hπc⟩⟩
+      · refine Or.inr ⟨(c, π x, (π y).2), ?_, Fin.forall_fin_succ.mpr ⟨rfl,
+          Fin.forall_fin_two.mpr ⟨hπc, Prod.ext
+            (by simpa [neg_sub] using congrArg Neg.neg (eq_sub_of_add_eq hπ.symm)) rfl⟩⟩⟩
+        simp only [S, Finset.mem_product, Finset.mem_erase, Finset.mem_univ, and_true]
+        exact ⟨hcy, fun h : c = x => hq (π x) (by rw [← hπc, h])⟩).trans_eq ?_
   have hN : (2 : ℝ) ≤ Fintype.card G := by exact_mod_cast hG
-  have hM2 : 2 ≤ Fintype.card (G × G) := by
-    rw [Fintype.card_prod]; nlinarith
-  rw [Finset.card_univ, Nat.cast_descFactorial_two ℝ _,
-    cast_descFactorial_three hM2]
-  simp only [S, Finset.card_product, Finset.card_univ, Nat.cast_mul, card_erase_erase hxy,
-    Fintype.card_prod]
   have hN0 : (Fintype.card G : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
   have hN1 : (Fintype.card G : ℝ) - 1 ≠ 0 := by linarith
   have hM1 : (Fintype.card G : ℝ) ^ 2 - 1 ≠ 0 := by nlinarith
   have hM2r : (Fintype.card G : ℝ) ^ 2 - 2 ≠ 0 := by nlinarith
-  field_simp
-  ring
+  rw [Finset.card_univ, Nat.cast_descFactorial_two ℝ _,
+    cast_descFactorial_three (by rw [Fintype.card_prod]; nlinarith)]
+  simp only [S, Finset.card_product, Finset.card_univ, Nat.cast_mul, card_erase_erase hxy,
+    Fintype.card_prod]
+  field_simp; ring
 
 /-- **Sharper chosen-ciphertext advantage lower bound for `feistel3CCAAttack`** (attack from
 [KatzLindell2020], Exercise 8.17; original bound): when `l₀ ≠ l₁` and `2 ≤ Fintype.card G`,

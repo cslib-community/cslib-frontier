@@ -109,10 +109,9 @@ theorem constants_valid (hI : I.Admissible) : C.constants.Valid (Fin M.size) := 
   refine ⟨⟨I.unrank M ⟨c.index (I.card M), c.index_lt (hI M)⟩, realize_domain_unrank _⟩,
     (C.realize_const M c _).mpr rfl, ?_⟩
   intro x hx
-  apply Interpretation.Model.ext
-  change x.val = I.unrank M _
-  rw [← unrank_rank x.property] at hx ⊢
-  exact congrArg _ (Fin.ext ((C.realize_const M c _).mp hx))
+  refine Interpretation.Model.ext ((unrank_rank x.property).symm.trans (congrArg _ (Fin.ext ?_)))
+  rw [← unrank_rank x.property] at hx
+  exact (C.realize_const M c _).mp hx
 
 /-- The rank of the tuple selected by `C.constants` for `c` is `c.index (I.card M)`. -/
 theorem val_rank_value (hI : I.Admissible) (c : NumericFunction 0) :
@@ -198,10 +197,8 @@ theorem realize_onFormula (hI : I.Admissible) (φ : (language L').Formula α)
   change (C.constants.onFormula ((constantsLanguageMap L').onFormula φ)).Realize
       (fun p => (v' p.1).val p.2) ↔ _
   rw [C.constants.realize_onFormula (C.constants_valid hI), LHom.realize_onFormula]
-  refine (StrongHomClass.realize_formula (C.modelEquiv hI) φ).symm.trans ?_
-  apply iff_of_eq
-  congr 1 with a : 1
-  exact rank_unrank (v a)
+  exact (StrongHomClass.realize_formula (C.modelEquiv hI) φ).symm.trans
+    (iff_of_eq (congrArg φ.Realize (funext fun a => rank_unrank (v a))))
 
 /-- Pull back an ordered target sentence along a certified interpretation. -/
 noncomputable def onSentence (φ : (language L').Sentence) : (language L).Sentence :=
@@ -211,9 +208,8 @@ noncomputable def onSentence (φ : (language L').Sentence) : (language L).Senten
 theorem realize_onSentence (hI : I.Admissible) (φ : (language L').Sentence) :
     (C.onSentence φ).Realize M ↔ φ.Realize (I.map hI M) := by
   rw [onSentence, Sentence.Realize, Formula.realize_relabel, Sentence.Realize]
-  convert C.realize_onFormula hI φ (fun a => a.elim) using 1
-  · exact iff_of_eq (congrArg (C.onFormula φ).Realize (Subsingleton.elim _ _))
-  · exact iff_of_eq (congrArg (Formula.Realize (M := I.map hI M) φ) (Subsingleton.elim _ _))
+  convert C.realize_onFormula hI φ (fun a => a.elim) using 2
+  exact Subsingleton.elim _ _
 
 end Certificate
 

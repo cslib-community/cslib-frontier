@@ -145,11 +145,8 @@ theorem isOraclePPT_hashThenPRFWordReduction {keyLen outLen : ℕ → ℕ}
         split_ifs at hreply
         · obtain ⟨raw, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
           exact List.length_take_le _ raw
-        · have : reply = [] := by
-            simpa only [OracleComp.support, OracleComp.supportWith_pure, Set.mem_singleton_iff]
-              using hreply
-          subst reply
-          exact Nat.zero_le _)
+        · rw [OracleComp.support, OracleComp.supportWith_pure, Set.mem_singleton_iff] at hreply
+          simp [hreply])
   have hsample := (hkeyLen.comp (ComputableInPolyTime.fst encUnary encBits)).sampleList
   exact (hsample.isOraclePPTOn.bind_with hrun).isOraclePPT
 
@@ -195,16 +192,14 @@ theorem eval_prfRealGame_hashThenPRFWordReduction {keyLen inLen outLen : ℕ →
     ProbOracleComp.run_sample, ProbOracleComp.run_simulate, ProbComp.eval_bind,
     BitString.eval_sampleList]
   rw [PMF.bind_comm]
-  refine Probability.PMF.bind_congr_on_support _ _ _ fun hashKey hh => ?_
-  refine Probability.PMF.bind_congr_on_support _ _ _ fun prfKey hf => ?_
-  have hhashKey := BitString.length_of_mem_support_uniformList hh
+  refine Probability.PMF.bind_congr_on_support _ _ _ fun hashKey hh =>
+    Probability.PMF.bind_congr_on_support _ _ _ fun prfKey hf => ?_
   have hprfKey := BitString.length_of_mem_support_uniformList hf
-  apply congrArg (fun oracle => ProbComp.eval ((A n []).run oracle))
-  funext req
+  refine congrArg (fun oracle => ProbComp.eval ((A n []).run oracle)) (funext fun req => ?_)
   by_cases hv : valid n req.2 = true
-  · have hlen := hH n hashKey req.2 hhashKey hv
-    have hcap := hF prfKey (H n hashKey req.2) (hprfKey.symm ▸ hlen)
-    rw [hprfKey] at hcap
+  · have hlen := hH n hashKey req.2 (BitString.length_of_mem_support_uniformList hh) hv
+    have hcap :=
+      (hF prfKey (H n hashKey req.2) (hprfKey.symm ▸ hlen)).trans (congrArg outLen hprfKey)
     simp only [hashThenPRFWordHandler, hv, ite_true, ProbOracleComp.run_map,
       ProbOracleComp.run_query, prfOracle, hlen, map_pure, List.take_of_length_le hcap.le,
       hashThenPRF]
@@ -256,29 +251,15 @@ theorem nodup_valid_of_mem_support_hashThenPRFWordIdealQueries {outLen : ℕ →
     ProbComp.eval (cachedRandomFunctionOracle (valid n) (outLen n) request.2 s)
   let invariant (s : List (List Bool × List Bool)) :=
     (s.map Prod.fst).Nodup ∧ ∀ msg ∈ s.map Prod.fst, valid n msg = true
-  change (result, cache) ∈ (ProbOracleComp.runWith oracle (A n aux) []).support at hrun
-  change invariant cache
   refine ProbOracleComp.runWith_invariant oracle invariant ?_ (A n aux) []
     (by simp [invariant]) result cache hrun
   intro request s hs reply next hnext
-  rcases cachedSamplerOracle_cache_of_mem_support (valid := valid n)
-      (sampleReply := BitString.sampleList (outLen n)) (query := request.2) (cache := s)
-      (result := (reply, next)) hnext with
-    hsame | ⟨hv, hfresh, hcons⟩
-  · change next = s at hsame
-    rw [hsame]
-    exact hs
-  · change next = (request.2, reply) :: s at hcons
-    dsimp only [invariant] at hs ⊢
-    rw [hcons, List.map_cons, List.nodup_cons]
-    refine ⟨⟨?_, hs.1⟩, ?_⟩
-    · intro hmem
-      obtain ⟨entry, he, heq⟩ := List.mem_map.mp hmem
-      exact (bne_iff_ne.mp (List.lookup_eq_none_iff.mp hfresh entry he)) heq.symm
-    · intro msg hmem
-      rcases List.mem_cons.mp hmem with rfl | hmem
-      · exact hv
-      · exact hs.2 msg hmem
+  rcases cachedSamplerOracle_cache_of_mem_support hnext with hsame | ⟨hv, hfresh, hcons⟩
+  · exact (id hsame : next = s) ▸ hs
+  · rw [(id hcons : next = (request.2, reply) :: s)]
+    refine ⟨List.nodup_cons.mpr ⟨fun hmem => ?_, hs.1⟩, List.forall_mem_cons.mpr ⟨hv, hs.2⟩⟩
+    obtain ⟨entry, he, heq⟩ := List.mem_map.mp hmem
+    exact (bne_iff_ne.mp (List.lookup_eq_none_iff.mp hfresh entry he)) heq.symm
 
 /-- A supported list contains at most as many entries as the adversary can query. -/
 theorem length_le_of_mem_support_hashThenPRFWordIdealQueries {outLen : ℕ → ℕ}
@@ -311,13 +292,11 @@ private theorem eval_hashThenPRFWordIdealRun (outLen : ℕ → ℕ)
         (validWordProgram (valid n) (A n aux)) [] := by
   rw [hashThenPRFWordIdealRun, ProbOracleComp.eval_runState, validWordProgram,
     ProbOracleComp.runWith_simulate]
-  apply congrArg (fun oracle => ProbOracleComp.runWith oracle (A n aux) [])
-  funext req cache
-  by_cases h : valid n req.2 = true
-  · simp only [cachedRandomFunctionOracle, cachedSamplerOracle, ite_eq_left h,
-      ProbOracleComp.runWith_query, ProbComp.eval_memoize, BitString.eval_sampleList]
-  · simp only [cachedRandomFunctionOracle, cachedSamplerOracle, ite_eq_right h,
-      ProbOracleComp.runWith_pure, ProbComp.eval_pure]
+  refine congrArg (fun oracle => ProbOracleComp.runWith oracle (A n aux) [])
+    (funext fun req => funext fun cache => ?_)
+  by_cases h : valid n req.2 = true <;>
+    simp [cachedRandomFunctionOracle, cachedSamplerOracle, h, ProbOracleComp.runWith_query,
+      ProbComp.eval_memoize, BitString.eval_sampleList, ProbOracleComp.runWith_pure]
 
 private theorem map_fst_runWith_answer_uniformList_eq_eager (inLen outLen : ℕ)
     (program : ProbOracleComp (fun _ : BitString inLen => List Bool) Bool) :
@@ -354,20 +333,16 @@ private theorem eval_prfIdealGame_hashThenPRFWordReduction (keyLen inLen outLen 
     ProbOracleComp.run_sample, ProbOracleComp.run_simulate, ProbComp.eval_bind,
     ProbComp.eval_uniform, hsample, PMF.bind_map, Function.comp_def]
   rw [PMF.bind_comm]
-  apply congrArg (fun f => (PMF.uniformOfFintype (BitString (keyLen n))).bind f)
-  funext key
+  refine congrArg (PMF.bind _) (funext fun key => ?_)
   rw [map_fst_runWith_answer_uniformList_eq_eager]
-  apply congrArg ((PMF.uniformOfFintype (BitString (inLen n) → BitString (outLen n))).bind)
-  funext table
+  refine congrArg (PMF.bind _) (funext fun table => ?_)
   simp only [validWordProgram, ProbOracleComp.run_simulate]
-  apply congrArg (fun oracle => ProbComp.eval ((A n []).run oracle))
-  funext req
+  refine congrArg (fun oracle => ProbComp.eval ((A n []).run oracle)) (funext fun req => ?_)
   by_cases hv : valid n req.2 = true
   · have hwidth := hH n (List.ofFn key) req.2 List.length_ofFn hv
-    simp only [hashThenPRFWordHandler, ite_eq_left hv, ProbOracleComp.run_map,
-      ProbOracleComp.run_query, randomFunctionOracle, hwidth, ite_true, map_pure,
-      List.take_of_length_le List.length_ofFn.le]
-  · simp only [hashThenPRFWordHandler, ite_eq_right hv, ProbOracleComp.run_pure]
+    simp [hashThenPRFWordHandler, hv, ProbOracleComp.run_map, ProbOracleComp.run_query,
+      randomFunctionOracle, hwidth, List.take_of_length_le List.length_ofFn.le]
+  · simp [hashThenPRFWordHandler, hv, ProbOracleComp.run_pure]
 
 /-- Interpret the word hash's fixed-width keys and digests for the computational UHF games.
 The public setup supplies the key and digest widths. -/
@@ -415,16 +390,12 @@ theorem advantage_prfIdealGame_hashThenPRFWordReduction_le {keyLen inLen outLen 
       rw [hashThenPRFWordIdealQueries, ProbComp.eval_map, PMF.mem_support_map_iff]
       exact ⟨x, hx, rfl⟩
     have hv := (nodup_valid_of_mem_support_hashThenPRFWordIdealQueries hkeys).2
-    constructor
-    · rintro ⟨m, hm, m', hm', hne, _, _, heq⟩
-      exact ⟨m, hm, m', hm', hne, heq⟩
-    · rintro ⟨m, hm, m', hm', hne, heq⟩
-      exact ⟨m, hm, m', hm', hne, hv m hm, hv m' hm', heq⟩
+    exact ⟨fun ⟨m, hm, m', hm', hne, _, _, heq⟩ => ⟨m, hm, m', hm', hne, heq⟩,
+      fun ⟨m, hm, m', hm', hne, heq⟩ => ⟨m, hm, m', hm', hne, hv m hm, hv m' hm', heq⟩⟩
   rw [Game.advantage_comm, ← Game.closeTo_iff_coe_advantage_le, hprob,
     eval_prfIdealGame_hashThenPRFWordReduction keyLen inLen outLen valid H hH]
   change CloseTo (law.map Prod.fst) _ _
-  have hconst : law.map Prod.fst = seed.bind fun _ => law.map Prod.fst := (PMF.bind_const _ _).symm
-  nth_rw 1 [hconst]
+  nth_rw 1 [← PMF.bind_const seed (law.map Prod.fst)]
   exact CloseTo.bind_right_tsum seed fun key _ => by
     simpa only [law, eval_hashThenPRFWordIdealRun, digest, hashThenPRFWordHash] using
       RandomOracle.closeTo_runWith_memoize_simulate_query (digest key)
@@ -480,9 +451,8 @@ theorem advantage_hashThenPRFWord_le_add_collision {keyLen inLen outLen : ℕ �
   refine (advantage_hashThenPRFWord_le_add_multiQuery valid H F hH hF A n).trans ?_
   refine add_le_add le_rfl (UHF.succProbability_multiQueryGame_le_collisionPairReduction
     (fun k => pure k) (fun k _ => valid k) (hashThenPRFWordHash keyLen inLen H) []
-    (fun p => hashThenPRFWordIdealQueries outLen valid A (p.1, [])) n ?_)
-  intro _ _ _ hms
-  exact length_le_of_mem_support_hashThenPRFWordIdealQueries hQ hms
+    (fun p => hashThenPRFWordIdealQueries outLen valid A (p.1, [])) n
+    fun _ _ _ hms => length_le_of_mem_support_hashThenPRFWordIdealQueries hQ hms)
 
 /-- Theorem 7.7 of [BonehShoup2023], v0.6, §7.3, printed pp. 262–265, for product keys and
 uniform strict oracle-PPT tests. The components provide efficient hash evaluation, domain

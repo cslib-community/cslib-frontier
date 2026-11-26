@@ -100,10 +100,7 @@ private theorem runWith_verdict_ite (respond : Unit × List Bool → StateT S PM
     (s : S) :
     runWith respond (verdict I ⟨rest, St, b⟩ m) s =
       if b then runWith respond (verdict I ⟨rest, St, true⟩ m) s else PMF.pure (false, s) := by
-  cases b
-  · rw [verdict_of_passed_eq_false I rfl]
-    rfl
-  · rfl
+  cases b <;> simp [verdict_of_passed_eq_false, ProbOracleComp.runWith_pure]
 
 /-! ### The typed prover of a word prover -/
 
@@ -248,8 +245,7 @@ private theorem runWith_verdict_bin (o : ArithQBF.Connective) (e₁ e₂ : Arith
     refine congrArg _ (funext fun z => ?_)
     cases z.1
     · simp only [Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_bind]
-    · simp only [↓reduceIte]
-      exact ih₂ _ _ _ _ _ _
+    · exact ih₂ _ _ _ _ _ _
   · exact reject_case respond I _ _ _ _ _ (by simp)
 
 private theorem opNext_eq (o : ArithQBF.Operator) (v : ℕ) (e : ArithQBF ℕ)
@@ -445,11 +441,10 @@ theorem acceptProb_verifier_eq (hψ : ψ.Closed) (P : Prover Unit) :
   rw [← hinit, Nat.add_zero, tokens_arithOf] at hrun
   rw [acceptProb_eq_acceptProbWith, verifier, decide_eq_true hψ, ite_eq_left rfl]
   have hcont : (fun x : Bool × P.State => if x.1 then runWith P.respond
-      (verdict (loopInput ψ) ⟨[], [], true⟩ 0) x.2 else PMF.pure (false, x.2)) = PMF.pure := by
-    funext ⟨b, t⟩; cases b <;> simp [verdict_nil, ProbOracleComp.runWith_pure]
+      (verdict (loopInput ψ) ⟨[], [], true⟩ 0) x.2 else PMF.pure (false, x.2)) = PMF.pure :=
+    funext fun ⟨b, _⟩ => by cases b <;> simp [verdict_nil, ProbOracleComp.runWith_pure]
   rw [hcont, PMF.bind_pure] at hrun
-  rw [acceptProbWith, acceptProbWith, ← hrun]
-  rfl
+  exact congrArg (fun μ => (μ.map Prod.fst) true) hrun
 
 /-- The samples of the protocol give every residue probability at most `2 / p`. -/
 private theorem eval_samplerOf_le (I : LoopInput) (z : ZMod I.modulus) :
@@ -460,10 +455,8 @@ private theorem eval_samplerOf_le (I : LoopInput) (z : ZMod I.modulus) :
     · exact zero_le
   · intro n hn
     split_ifs with hz
-    · rw [PMF.apply_eq_zero_iff]
-      intro hsupp
-      have hnp : n < I.modulus := lt_of_mem_support_sampleMod hsupp
-      exact hn (by rw [hz, ZMod.val_natCast, Nat.mod_eq_of_lt hnp])
+    · exact (PMF.apply_eq_zero_iff _ _).mpr fun hsupp => hn <| by
+        rw [hz, ZMod.val_natCast, Nat.mod_eq_of_lt (lt_of_mem_support_sampleMod hsupp)]
     · rfl
 
 /-- A soundness error `N * (2 / p)` is at most `1 / 3` when `6 * N ≤ p`. -/
@@ -569,11 +562,9 @@ private theorem decodeTyped_honestWord (e : ArithQBF ℕ) (rest : List (ArithQBF
   have hex : ∃ q : QueryAt (ZMod (loopInput ψ).modulus),
       queryMessage (loopInput ψ) q = queryMessage (loopInput ψ) ⟨e, rest, r⟩ := ⟨_, rfl⟩
   obtain ⟨h₁, h₂⟩ := eq_of_queryMessage_eq hex.choose_spec
-  have h₁' : hex.choose.formula = e := h₁
   have hreply : honestReplyAt (loopInput ψ).degree hex.choose.formula hex.choose.point =
-      honestReplyAt (loopInput ψ).degree e r := by
-    rw [h₁']
-    exact honestReplyAt_congr _ fun w hw => h₂ w (he w hw)
+      honestReplyAt (loopInput ψ).degree e r :=
+    h₁ ▸ honestReplyAt_congr _ fun w hw => h₂ w (he w hw)
   have hlen : (honestReplyAt (loopInput ψ).degree e r).length ≤ (loopInput ψ).degree + 1 := by
     have := one_le_degree ψ
     cases e <;> simp only [honestReplyAt, length_coeffsBelow, List.length_cons, List.length_nil] <;>
@@ -585,11 +576,9 @@ private theorem decodeTyped_honestWord (e : ArithQBF ℕ) (rest : List (ArithQBF
     · intro a ha
       obtain ⟨b, -, rfl⟩ := List.mem_map.1 ha
       exact ZMod.val_lt b
-    · rw [List.length_map]
-      exact hlen
-  refine ⟨by rw [hdec, List.length_map, List.length_map, List.length_range], fun i => ?_⟩
-  rw [hdec]
-  exact getD_decoded _ _ hlen i
+    · simpa only [List.length_map] using hlen
+  exact ⟨by rw [hdec, List.length_map, List.length_map, List.length_range],
+    fun i => hdec ▸ getD_decoded _ _ hlen i⟩
 
 /-- The typed prover of the honest prover agrees with the honest replies. -/
 private theorem agreesAt_honest (e : ArithQBF ℕ) (rest : List (ArithQBF.Kind × ℕ))
@@ -605,9 +594,7 @@ private theorem agreesAt_honest (e : ArithQBF ℕ) (rest : List (ArithQBF.Kind �
     apply List.ext_getElem
     · rw [hlen, length_coeffsBelow]
     · intro i h₁ h₂
-      have := hget i
-      rw [List.getD_eq_getElem _ _ h₁] at this
-      rw [this, honestReplyAt, List.getD_eq_getElem _ _ h₂]
+      rw [← List.getD_eq_getElem _ _ h₁, hget i, honestReplyAt, List.getD_eq_getElem _ _ h₂]
   | _ => trivial
 
 /-- **Completeness of the verifier**: on a true closed formula, the honest prover is accepted with

@@ -58,8 +58,7 @@ private theorem endpoint_port (p : Port E) :
       else Subdivision.first (fun _ => 1) p.edge, p.dir⟩ :
       Port (Subdivision.Segment (fun _ : E => 1))).reorient mask).map segmentPortEquiv) =
       ⟨p, false⟩ := by
-  obtain ⟨e, d⟩ := p
-  cases d <;> rfl
+  rcases p with ⟨e, _ | _⟩ <;> rfl
 
 private theorem source_vertex (G : ConstraintGraph V E) (color : E → Color) (v : V)
     (hc : ∀ p ∈ (G v).ports, p.weight = (color p.port.edge).weight) :
@@ -69,16 +68,13 @@ private theorem source_vertex (G : ConstraintGraph V E) (color : E → Color) (v
   apply congrArg (Vertex.mk · (G v).minInflow)
   simp only [Vertex.reorient, ConstraintGraph.reorient, Subdivision.graph,
     List.map_map, Function.comp_def]
-  apply List.map_congr_left
-  intro p hp
-  exact congrArg₂ WeightedPort.mk (endpoint_port p.port) (hc p hp)
+  exact List.map_congr_left fun p hp => congrArg₂ WeightedPort.mk (endpoint_port p.port) (hc p hp)
 
 private theorem cap_vertex (G : ConstraintGraph V E) (color : E → Color) (e : E)
     (j : Fin 1) :
     (((Subdivision.graph G (fun _ => 1) (fun e => (color e).weight)).reorient mask)
       (.inr ⟨e, j⟩)).map segmentPortEquiv = (graph G color) (.inr e) := by
-  have hj : j = 0 := Subsingleton.elim ..
-  subst j
+  cases Subsingleton.elim j 0
   rfl
 
 private theorem legal_map (G : ConstraintGraph V E) (color : E → Color)
@@ -86,28 +82,12 @@ private theorem legal_map (G : ConstraintGraph V E) (color : E → Color)
     ((((Subdivision.graph G (fun _ => 1) (fun e => (color e).weight)).reorient mask).map
       segmentPortEquiv).Legal s) ↔ (graph G color).Legal s := by
   let H := Subdivision.graph G (fun _ => 1) (fun e => (color e).weight)
-  constructor
-  · intro h v
-    cases v with
-    | inl v =>
-      have hs := h (.inl v)
-      change ((H.reorient mask) (.inl v)).map segmentPortEquiv |>.Sat s at hs
-      rwa [source_vertex G color v (hc v)] at hs
-    | inr e =>
-      have hs := h (.inr ⟨e, 0⟩)
-      change ((H.reorient mask) (.inr ⟨e, (0 : Fin 1)⟩)).map
-        segmentPortEquiv |>.Sat s at hs
-      rwa [cap_vertex] at hs
-  · intro h v
-    cases v with
-    | inl v =>
-      change ((H.reorient mask) (.inl v)).map segmentPortEquiv |>.Sat s
-      rw [source_vertex G color v (hc v)]
-      exact h (.inl v)
-    | inr p =>
-      change ((H.reorient mask) (.inr p)).map segmentPortEquiv |>.Sat s
-      rw [cap_vertex]
-      exact h (.inr p.1)
+  change (∀ v, (((H.reorient mask) v).map segmentPortEquiv).Sat s) ↔
+    ∀ v, ((graph G color) v).Sat s
+  simp only [Sum.forall]
+  refine and_congr (forall_congr' fun v => by rw [source_vertex G color v (hc v)]) ⟨?_, ?_⟩
+  · exact fun h e => by simpa only [H, cap_vertex] using h ⟨e, 0⟩
+  · exact fun h ⟨e, j⟩ => by simpa only [H, cap_vertex] using h e
 
 variable [DecidableEq E]
 

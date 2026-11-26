@@ -63,30 +63,20 @@ theorem numbered_singleton (c : Clause ℕ) (j : ℕ) : numbered [c] j = [(j, c)
 
 theorem fst_lt_of_mem_numbered {ψ : CNF ℕ} {j : ℕ} {e : ℕ × Clause ℕ} (he : e ∈ numbered ψ j) :
     e.1 < j + ψ.length := by
-  induction ψ generalizing j with
-  | nil => simp [numbered] at he
-  | cons c ψ ih =>
-    simp only [numbered, List.zipIdx_cons, List.map_cons, List.mem_cons] at he
-    rcases he with rfl | he
-    · simp
-    · have := ih (j := j + 1) (by simpa [numbered] using he)
-      simp only [List.length_cons]; omega
+  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp he
+  simp only [numbered, List.length_map, List.length_zipIdx] at hi
+  simp only [numbered, List.getElem_map, List.getElem_zipIdx]
+  omega
 
 /-- The database `checkLRAT` starts from. -/
 theorem zipIdx_map_eq_numbered (φ : CNF ℕ) :
     φ.zipIdx.map (fun e => (e.2 + 1, e.1)) = numbered φ 1 := by
-  suffices ∀ n, (φ.zipIdx n).map (fun e => (e.2 + 1, e.1)) = numbered φ (n + 1) from this 0
-  induction φ with
-  | nil => simp [numbered]
-  | cons c φ ih =>
-    intro n
-    simp only [List.zipIdx_cons, List.map_cons, numbered] at ih ⊢
-    rw [ih (n + 1)]
+  refine List.ext_getElem (by simp [numbered]) fun i _ _ => ?_
+  simp only [numbered, List.getElem_map, List.getElem_zipIdx]
+  exact Prod.ext (by omega) rfl
 
-theorem map_snd_numbered (ψ : CNF ℕ) (j : ℕ) : (numbered ψ j).map Prod.snd = ψ := by
-  induction ψ generalizing j with
-  | nil => rfl
-  | cons c ψ ih => simpa [numbered, List.zipIdx_cons] using ih (j + 1)
+theorem map_snd_numbered (ψ : CNF ℕ) (j : ℕ) : (numbered ψ j).map Prod.snd = ψ :=
+  List.ext_getElem (by simp [numbered]) fun _ _ _ => by simp [numbered]
 
 theorem snd_mem_of_mem_numbered {ψ : CNF ℕ} {j : ℕ} {e : ℕ × Clause ℕ} (he : e ∈ numbered ψ j) :
     e.2 ∈ ψ := by
@@ -98,8 +88,12 @@ theorem TableAt.snoc {mem : ℕ → ℕ} {T : ℕ} {db : List (ℕ × Clause ℕ
     (i : ℕ) (c : Clause ℕ) (hi : db.find? (·.1 == i) = none) (a : ℕ) (ha : 0 < a)
     (haT : a + c.length + 1 ≤ T) (hc : HoldsList a (encodeClause c) mem) :
     TableAt (Function.update mem (tcell T i) a) T (db ++ [(i, c)]) := by
-  have hfr : ∀ b, b < T → Function.update mem (tcell T i) a b = mem b := fun b hb =>
-    Function.update_of_ne (by simp only [tcell]; omega) _ _
+  have hfr {x : ℕ} {cl : Clause ℕ} (hlt : x + cl.length + 1 ≤ T)
+      (hl : HoldsList x (encodeClause cl) mem) :
+      HoldsList x (encodeClause cl) (Function.update mem (tcell T i) a) :=
+    hl.frame fun b _ hb => Function.update_of_ne (by
+      simp only [tcell, encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb ⊢
+      omega) _ _
   intro j
   by_cases hj : i = j
   · subst hj
@@ -107,19 +101,13 @@ theorem TableAt.snoc {mem : ℕ → ℕ} {T : ℕ} {db : List (ℕ × Clause ℕ
     simp only [List.find?_append, hi, Option.none_or, List.find?_cons, beq_self_eq_true,
       Option.some.injEq] at he
     subst he
-    simp only [Function.update_self]
-    refine ⟨ha, haT, hc.frame fun b _ hb => hfr b ?_⟩
-    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb
-    omega
-  · have hne : tcell T j ≠ tcell T i := by simp only [tcell]; omega
-    have hfind : (db ++ [(i, c)]).find? (·.1 == j) = db.find? (·.1 == j) := by
+    simpa only [Function.update_self] using ⟨ha, haT, hfr haT hc⟩
+  · have hfind : (db ++ [(i, c)]).find? (·.1 == j) = db.find? (·.1 == j) := by
       simp [List.find?_append, hj]
-    rw [hfind, Function.update_of_ne hne]
-    refine ⟨(h j).1, fun e he => ?_⟩
-    obtain ⟨hpos, hlt, hl⟩ := (h j).2 e he
-    refine ⟨hpos, hlt, hl.frame fun b _ hb => hfr b ?_⟩
-    simp only [encodeClause, encodeClauseBy, List.length_cons, List.length_map] at hb
-    omega
+    rw [hfind, Function.update_of_ne (by simp only [tcell]; omega)]
+    exact ⟨(h j).1, fun e he =>
+      let ⟨hpos, hlt, hl⟩ := (h j).2 e he
+      ⟨hpos, hlt, hfr hlt hl⟩⟩
 
 /-! ### Loading the formula -/
 
@@ -233,7 +221,7 @@ theorem checker_spec (φ : CNF ℕ) (cert : Array LRAT.IntAction)
     rfl
   obtain ⟨hF, hC⟩ := holdsList_append_iff.mp hFC
   have hm1 : (Data.init input : Data 28).mem 1 = φ.length := by
-    rw [Data.init_mem_succ]; simp [hinputeq]
+    simp [Data.init_mem_succ, hinputeq]
   have hφM : φ.length + 1 ≤ M := hM _ (by simp [hinputeq])
   have hFl : (List.flatMap encodeClause φ).length = F.length := rfl
   have hLl : input.length = L := rfl
@@ -333,17 +321,15 @@ theorem certWork_le (φ : CNF ℕ) (cert : Array LRAT.IntAction) :
       omega
     | addRup i c hints =>
       have h1 := hintsWork_le hdb hints.toList
-      have h2 := ih' ((i, Clause.ofDIMACS c.toList) :: db) fun e he => by
-        rcases List.mem_cons.mp he with rfl | he
-        · exact hl' i c hints List.mem_cons_self
-        · exact hdb e he
+      have h2 := ih' ((i, Clause.ofDIMACS c.toList) :: db) <| List.forall_mem_cons.mpr
+        ⟨hl' i c hints List.mem_cons_self, hdb⟩
       simp only [stepsWork, CNF.lratHintCount, Array.length_toList, Nat.add_mul] at h1 ⊢
       omega
     | addRat => simp [stepsWork]
     | del ids =>
-      have := ih' (db.filter fun e => !ids.toList.contains e.1) fun e he =>
-        hdb e (List.mem_filter.mp he).1
-      simpa [stepsWork, CNF.lratHintCount] using this
+      simpa [stepsWork, CNF.lratHintCount] using
+        ih' (db.filter fun e => !ids.toList.contains e.1) fun e he =>
+          hdb e (List.mem_filter.mp he).1
 
 /-- **The hints are part of the certificate**: there are at most as many as the words encoding
 `cert`. -/
@@ -372,8 +358,7 @@ theorem program_spec_dbWidth (φ : CNF ℕ) (cert : Array LRAT.IntAction) {w : �
   refine ⟨n, ?_, he⟩
   have hL : (encode φ cert).length =
       1 + (φ.flatMap encodeClause).length + (stepWords cert.toList).length := by
-    simp [encode, stepWords]
-    omega
+    simp [encode, stepWords]; omega
   have hW := (certWork_le φ cert).trans <| Nat.mul_le_mul
     (lratHintCount_le_length_stepWords cert.toList) (le_max_right 1 (dbWidth φ cert))
   have hC : (stepWords cert.toList).length ≤

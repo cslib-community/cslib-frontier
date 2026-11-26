@@ -156,13 +156,12 @@ private theorem bad_fs_step_cases {r d : ℕ} {Stmt Sym Chal : Type} {S : Set St
   unfold BCSChainDoomed at hbad
   push Not at hbad
   obtain ⟨x, hx, rts, chals, hr, ⟨hlen, hsteps⟩, hnot_doomed⟩ := hbad
-  have hex_new : ∃ (i₀ : ℕ) (hi₀ : i₀ < rts.length),
+  have ⟨i₀, hi₀, heq₀⟩ : ∃ (i₀ : ℕ) (hi₀ : i₀ < rts.length),
       ((x, rts.take (i₀ + 1), chals.take i₀), chals[i₀]'(hlen ▸ hi₀)) =
         ((x₀, rts₀, prev₀), c) := by
     by_contra! hall_old
     exact hnot_doomed <| hdoomed x hx rts chals hr ⟨hlen, fun i hi =>
       (List.mem_cons.mp (hsteps i hi)).resolve_left (hall_old i hi)⟩
-  obtain ⟨i₀, hi₀, heq₀⟩ := hex_new
   simp only [Prod.mk.injEq] at heq₀
   obtain ⟨⟨rfl, hrts₀_eq, hprev₀_eq⟩, hc_eq⟩ := heq₀
   have hrts₀_len : rts₀.length = i₀ + 1 := by
@@ -196,14 +195,9 @@ private theorem bad_fs_step_cases {r d : ℕ} {Stmt Sym Chal : Type} {S : Set St
     have hrts_split : rts =
         rts₀.take (rts₀.length - 1) ++ [(rts₀[rts₀.length - 1]?).getD []] := by
       subst hrts_eq
-      have h1 := List.take_succ_eq_append_getElem hi₀
-      rw [hlast, List.take_length] at h1
-      simpa [hi₀_eq, List.getElem?_eq_getElem hi₀] using h1
+      simp [hi₀_eq, hlast, List.getElem?_eq_getElem hi₀]
     have hchals_split : chals = prev₀ ++ [c] := by
-      have hi₀_ch : i₀ < chals.length := hlen ▸ hi₀
-      have h1 := List.take_succ_eq_append_getElem hi₀_ch
-      rw [show i₀ + 1 = chals.length from by omega, List.take_length] at h1
-      simpa [← hprev₀_eq, ← hc_eq] using h1
+      simp [hlast.trans hlen, ← hprev₀_eq, ← hc_eq]
     have hlen_p : (rts₀.take (rts₀.length - 1)).length = prev₀.length := by
       simp [hi₀_eq, ← hprev₀_eq, Nat.min_eq_left (by omega : i₀ ≤ rts₀.length),
         Nat.min_eq_left (by omega : i₀ ≤ chals.length)]
@@ -256,11 +250,9 @@ theorem toOuterMeasure_memoize_not_bcsChainDoomed_step {r d : ℕ} {Stmt Sym Cha
       · refine (PMF.toOuterMeasure_uniformOfFintype_mem_list_le _).trans ?_
         gcongr
         exact length_fsOutOfOrderTargets_le _ tr_FS
-    · have hempty : {c : Chal | ¬ BCSChainDoomed r d S doomed decSym defaultSym tr_MT
-          (((x₀, rts₀, prev₀), c) :: tr_FS)} = ∅ :=
-        Set.eq_empty_iff_forall_notMem.mpr fun _ hbad =>
-          hx₀ (bad_fs_step_cases hstep hdoomed hbad).1
-      simp [hempty]
+    · exact (MeasureTheory.measure_mono_null
+        (fun _ hbad => False.elim (hx₀ (bad_fs_step_cases hstep hdoomed hbad).1))
+        MeasureTheory.measure_empty).trans_le zero_le
 
 
 /-! The sticky-bad wrapper `bcsStickyMemoize` runs `bcsMemoize` and records in a flag whether
@@ -383,8 +375,8 @@ private theorem toOuterMeasure_bcsStickyMemoize_step [BEq Stmt] [BEq Chal]
       refine ((BitString.uniformList σ).toOuterMeasure.mono
           (s₂ := {ans | ans ∈ bcsForbiddenDigests r (tr_MT, tr_FS)}) fun ans hbad => by
         rcases hbad with hflag | hng
-        · dsimp only at hflag; rw [Bool.false_or] at hflag
-          rcases of_decide_eq_true hflag with hng | ⟨_, _, hcons, hmem⟩
+        · rcases of_decide_eq_true ((Bool.false_or _).symm.trans hflag) with
+            hng | ⟨_, _, hcons, hmem⟩
           · exact mem_bcsForbiddenDigests_of_not_bcsGoodState_cons hst hng
           · exact (Prod.mk.inj (List.cons.inj hcons).1).2 ▸ hmem
         · exact mem_bcsForbiddenDigests_of_not_bcsGoodState_cons hst hng).trans
@@ -398,8 +390,8 @@ private theorem toOuterMeasure_bcsStickyMemoize_step [BEq Stmt] [BEq Chal]
           (s₂ := {x | ¬ BCSChainDoomed r d S doomed decSym defaultSym tr_MT x.2})
           fun x hbad hfs => by
         rcases hbad with hflag | hng
-        · dsimp only at hflag; rw [Bool.false_or] at hflag
-          rcases of_decide_eq_true hflag with hng | ⟨_, _, heq, -⟩
+        · rcases of_decide_eq_true ((Bool.false_or _).symm.trans hflag) with
+            hng | ⟨_, _, heq, -⟩
           · exact hng ⟨hst.1, hfs⟩
           · exact absurd (congrArg List.length heq) (by simp)
         · exact hng ⟨hst.1, hfs⟩).trans
@@ -487,11 +479,9 @@ theorem toOuterMeasure_bcsMemoize_not_goodState_step {r d : ℕ} {Stmt Sym Chal 
         (ε_rbr + (st.2.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal)) := by
   rcases st with ⟨tr_MT, tr_FS⟩
   have h := toOuterMeasure_bcsStickyMemoize_step (r := r) hstep hescape decSym defaultSym σ q
-    (p := ((tr_MT, tr_FS), false)) fun hbad => Or.elim hbad Bool.false_ne_true (· hst)
-  dsimp only [bcsStickyMemoize] at h
-  rw [PMF.toOuterMeasure_map_apply] at h
-  exact le_trans ((bcsMemoize σ q (tr_MT, tr_FS)).toOuterMeasure.mono
-    fun out hout => Or.inr hout) h
+    (p := ((tr_MT, tr_FS), false)) fun hbad => hbad.elim Bool.false_ne_true (· hst)
+  rw [bcsStickyMemoize, PMF.toOuterMeasure_map_apply] at h
+  exact ((bcsMemoize σ q (tr_MT, tr_FS)).toOuterMeasure.mono fun _ => Or.inr).trans h
 
 /-- **Accumulated bad-state bound for `bcsMemoize`**: any program with Merkle query budget `Q_MT`
 and Fiat–Shamir query budget `Q_FS` starting from `([], [])` violates `BCSGoodState` with
@@ -517,9 +507,8 @@ theorem toOuterMeasure_run_bcsMemoize_not_goodState_le {r d : ℕ} {Stmt Sym Cha
         (Q_MT : ℝ≥0∞) * (((3 * Q_MT + r * Q_FS : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)) := by
   rw [← run_interpret_bcsStickyMemoize_map (r := r) S doomed decSym defaultSym σ prog ([], [])
     false, PMF.toOuterMeasure_map_apply]
-  refine le_trans ?_
+  exact ((PMF.toOuterMeasure _).mono fun _ => Or.inr).trans
     (toOuterMeasure_run_bcsStickyMemoize_bad_le hinit hstep hescape decSym defaultSym σ hMT hFS)
-  exact (PMF.toOuterMeasure _).mono fun out hout => Or.inr hout
 
 
 end Cslib.Crypto.Protocols.BCS

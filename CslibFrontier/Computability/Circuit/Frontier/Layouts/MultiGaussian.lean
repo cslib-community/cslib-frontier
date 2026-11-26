@@ -91,17 +91,14 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
   let score (ω : V → ℝ) (v : V) : ℝ := ⟪row v, WithLp.toLp 2 ω⟫
   let vEvent (f : ℝ → Prop) (v : V) : Set (V → ℝ) := {ω | f (score ω v)}
   let cEvent (t : ℝ) (e : E) : Set (V → ℝ) := {ω | t ∈ Ι (score ω (G.src e)) (score ω (G.tgt e))}
-  have hmeas_score (v : V) : Measurable fun ω : V → ℝ => score ω v := by
-    dsimp only [score]
-    fun_prop
+  have hmeas_score (v : V) : Measurable fun ω : V → ℝ => score ω v := by fun_prop
   have hcongr_score {v : V} {ω ω' : V → ℝ}
       (hω : ∀ z ∈ closedBall G.toSimpleGraph v R, ω z = ω' z) : score ω v = score ω' v :=
     inner_toLp_congr (fun z hz => hsupp v z (lt_of_not_ge hz)) hω
   have hball_succ (v : V) :
       closedBall G.toSimpleGraph v R ⊆ closedBall G.toSimpleGraph v (R + 1) :=
     fun _ (hz : G.toSimpleGraph.edist v _ ≤ R) =>
-      (show G.toSimpleGraph.edist v _ ≤ ((R + 1 : ℕ) : ℕ∞) from
-        hz.trans (by exact_mod_cast Nat.le_succ R))
+      hz.trans (Nat.cast_le.mpr (Nat.le_succ R))
   have hdep_v (f : ℝ → Prop) (v : V) :
       DependsOn (· ∈ vEvent f v) (closedBall G.toSimpleGraph v (R + 1)) := by
     intro ω ω' hω
@@ -113,18 +110,16 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
     simp only [cEvent, mem_ofPred_eq]
     rw [hcongr_score fun z hz => hω z (hball_succ _ hz),
       hcongr_score fun z hz => hω z (closedBall_tgt_subset e R hz)]
-  have crossDev (t : ℝ) : P.real (deviation (cEvent t) c) ≤ m * D / c ^ 2 := by
-    have := measureReal_deviation_le
+  have crossDev (t : ℝ) : P.real (deviation (cEvent t) c) ≤ m * D / c ^ 2 :=
+    hcardE ▸ measureReal_deviation_le
       (fun e => measurableSet_setOf_mem_uIoc (hmeas_score _) (hmeas_score _) t)
       (fun e => closedBall G.toSimpleGraph (G.src e) (R + 1)) (hdep_c t)
       (fun e => card_not_disjoint_closedBall_src_le hdeg R e) hcpos
-    rwa [hcardE] at this
   have vertexDev {f : ℝ → Prop} (hf : MeasurableSet {x | f x}) :
-      P.real (deviation (vEvent f) c) ≤ h * D / c ^ 2 := by
-    have := measureReal_deviation_le (fun v => hmeas_score v hf)
+      P.real (deviation (vEvent f) c) ≤ h * D / c ^ 2 :=
+    hcardV ▸ measureReal_deviation_le (fun v => hmeas_score v hf)
       (fun v => closedBall G.toSimpleGraph v (R + 1)) (hdep_v f)
       (fun v => card_not_disjoint_closedBall_le hdeg (by omega) R v) hcpos
-    rwa [hcardV] at this
   have hsmall : M * (m * D / c ^ 2 + h * D / c ^ 2) + h * D / c ^ 2 + h * D / c ^ 2 < 1 := by
     calc _ ≤ M * (d * h * D / c ^ 2 + h * D / c ^ 2) + h * D / c ^ 2 + h * D / c ^ 2 := by gcongr
       _ = (M * (d + 1) + 2) * D * h / c ^ 2 := by ring
@@ -148,13 +143,10 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
       vertexMean fun v => (measureReal_mono (μ := P) fun ω' hω' => hf _ hω').trans
         (measureReal_le_abs_le (hunit v) hT)
     have hbound : ({v | ω ∈ vEvent f v}.ncard : ℝ) ≤ h / T ^ 2 + c := by grind
-    have hmult := mul_le_mul_of_nonneg_left hbound (Nat.cast_nonneg (α := ℝ) d)
     have hnonneg : 0 ≤ S_cross + h * (d * δ / √(2 * π) + ε) := by positivity
     have hidentity : B = d * (h / T ^ 2 + c) + (S_cross + h * (d * δ / √(2 * π) + ε)) := by
-      simp only [B, hc]
-      ring
-    rw [hidentity]
-    linarith
+      simp only [B, hc]; ring
+    linarith [mul_le_mul_of_nonneg_left hbound (Nat.cast_nonneg (α := ℝ) d)]
   have crossCount (t : ℝ) : (G.edgeCut {v | score ω v < t}).ncard =
       {e | ω ∈ cEvent t e}.ncard := by
     congr 1
@@ -167,10 +159,7 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
     refine (measureReal_mem_uIoc_le (hu.trans hv.symm) t).trans ?_
     rw [InnerProductGeometry.angle_eq_arccos_inner_of_norm_eq_one hu hv]
     exact div_le_div_of_nonneg_right (arccos_le_arccos (hcorr e)) pi_pos.le
-  have htop : -T + M * δ = T := by
-    rw [hδ]
-    field_simp
-    ring
+  have htop : -T + M * δ = T := by rw [hδ]; field_simp; ring
   obtain ⟨σ, hσ⟩ := G.exists_width_le_of_vertexScore hdeg (score ω) hδpos M (a := -T) (B := B)
     (tail (· < -T) (fun x hx => by rw [abs_of_neg (by linarith)]; linarith) hlow)
     (by
@@ -178,8 +167,7 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
       exact tail (T ≤ ·) (fun x hx => hx.trans (le_abs_self x)) hhigh)
     (by
       intro i hi
-      have hthr : -T + ((i : ℝ) + 1) * δ = -T + i * δ + δ := by ring
-      rw [hthr]
+      rw [show -T + ((i : ℝ) + 1) * δ = -T + i * δ + δ by ring]
       have hC := ncard_lt_of_notMem_deviation (hmid i hi).1
       have hW := ncard_lt_of_notMem_deviation (hmid i hi).2
       have hCm : ∑ e, P.real (cEvent (-T + i * δ) e) ≤ S_cross :=
@@ -187,20 +175,13 @@ theorem exists_width_le_of_unitRows [Fintype V] [Fintype E] (G : Multigraph V E)
       have hWm := vertexMean (f := fun x => -T + i * δ ≤ x ∧ x < -T + i * δ + δ)
         (b := δ / √(2 * π)) fun v => measureReal_window_le (hunit v) (-T + i * δ) hδpos.le
       have h1 : ((G.edgeCut {v | score ω v < -T + i * δ}).ncard : ℝ) ≤ S_cross + c := by
-        rw [crossCount]
-        linarith
+        rw [crossCount]; linarith
       have h2 : ({v | -T + i * δ ≤ score ω v ∧ score ω v < -T + i * δ + δ}.ncard : ℝ) ≤
-          h * (δ / √(2 * π)) + c := by
-        have : ({v | -T + i * δ ≤ score ω v ∧ score ω v < -T + i * δ + δ}.ncard : ℝ) <
-            ∑ v, P.real (vEvent (fun x => -T + i * δ ≤ x ∧ x < -T + i * δ + δ) v) + c := hW
-        linarith
-      have hmult := mul_le_mul_of_nonneg_left h2 (Nat.cast_nonneg (α := ℝ) d)
+          h * (δ / √(2 * π)) + c := by dsimp [vEvent] at hW; linarith
       have hnonneg : 0 ≤ h * (d / T ^ 2) := by positivity
       have hidentity : B = (S_cross + c) + d * (h * (δ / √(2 * π)) + c) + h * (d / T ^ 2) := by
-        simp only [B, hc]
-        ring
-      rw [hidentity]
-      linarith)
+        simp only [B, hc]; ring
+      linarith [mul_le_mul_of_nonneg_left h2 (Nat.cast_nonneg (α := ℝ) d)])
   exact ⟨σ, hσ⟩
 
 /-- **A good sample.** Let `G` be a loopless multigraph of maximum degree `d ≥ 2`, and let `ρ`
@@ -247,19 +228,13 @@ theorem exists_width_le_of_unitRows_add_mul {d : ℕ} (hd : 2 ≤ d) (R : ℕ) {
   have hT : 0 < T := by positivity
   have hε : 0 < ε := by positivity
   have hM : 0 < M := Nat.succ_pos _
-  have hMR : 8 * D * T / ξ ≤ (M : ℝ) := by
-    simp only [M]
-    push_cast
-    linarith [Nat.le_ceil (8 * D * T / ξ)]
+  have hMR : 8 * D * T / ξ ≤ (M : ℝ) := (Nat.le_ceil _).trans (by simp [M])
   have htail : D / T ^ 2 ≤ ξ / 4 := by
-    rw [div_le_iff₀ (sq_pos_of_pos hT)]
-    have hx : 0 ≤ 4 * D / ξ := by positivity
     have hsq : 4 * D / ξ ≤ T ^ 2 := by
-      simp only [T]
-      nlinarith [sq_nonneg (4 * D / ξ)]
-    have H := mul_le_mul_of_nonneg_left hsq hξ.le
-    rw [mul_div_cancel₀ _ hξ.ne'] at H
-    linarith
+      have hx : 0 ≤ 4 * D / ξ := by positivity
+      simp only [T]; nlinarith [sq_nonneg (4 * D / ξ)]
+    rw [div_le_iff₀ (sq_pos_of_pos hT)]
+    linarith [(div_le_iff₀ hξ).mp hsq]
   have hgrid : D * (2 * T / M) / √(2 * π) ≤ ξ / 4 := by
     have hsqrt : 1 ≤ √(2 * π) :=
       (le_sqrt (by norm_num) (by positivity)).mpr (by linarith [two_le_pi])
@@ -269,18 +244,14 @@ theorem exists_width_le_of_unitRows_add_mul {d : ℕ} (hd : 2 ≤ d) (R : ℕ) {
       linarith
     exact (div_le_self (by positivity) hsqrt).trans hfrac
   have herr : D / T ^ 2 + D * (2 * T / M) / √(2 * π) + (D + 1) * ε ≤ ξ := by
-    have heq : (D + 1) * ε = ξ / 4 := by
-      simp only [ε]
-      field_simp
-    linarith
+    linarith [show (D + 1) * ε = ξ / 4 by simp only [ε]; field_simp]
   refine ⟨⌈((M : ℝ) * (D + 1) + 2) * (vertexOverlap d R : ℝ) / ε ^ 2⌉₊,
     fun V E _ _ G hdeg large row hunit hsupp ρ hcorr => ?_⟩
   have hlarge : ((M : ℝ) * (D + 1) + 2) * (vertexOverlap d R : ℝ) / ε ^ 2 < Nat.card V :=
     (Nat.le_ceil _).trans_lt (Nat.cast_lt.mpr large)
   obtain ⟨σ, hσ⟩ := exists_width_le_of_unitRows G hd hdeg R row hunit hsupp ρ hcorr hT hε hM hlarge
-  refine ⟨σ, hσ.trans ?_⟩
-  have hV := mul_le_mul_of_nonneg_left herr (Nat.cast_nonneg (α := ℝ) (Nat.card V))
-  linarith
+  exact ⟨σ, hσ.trans
+    (by linarith [mul_le_mul_of_nonneg_left herr (Nat.cast_nonneg (α := ℝ) (Nat.card V))])⟩
 
 /-- **Gaussian vertex layouts of multigraphs.** For every `ξ > 0`, every large enough loopless
 multigraph of maximum degree `d ≥ 2` has a layout of width at most
@@ -290,28 +261,22 @@ theorem exists_width_le_vertexCoefficient {d : ℕ} (hd : 2 ≤ d) {ξ : ℝ} (h
       G.MaxDegreeLE d → N₀ < Nat.card V →
         ∃ σ : Layout V, (G.width σ : ℝ) ≤ vertexCoefficient d * Nat.card E + ξ * Nat.card V := by
   set D : ℝ := (d : ℝ)
-  have hD : 2 ≤ D := by
-    simp only [D]
-    exact_mod_cast hd
+  have hD : 2 ≤ D := by simp only [D]; exact_mod_cast hd
   set g := vertexCorrelation d
   have hg : 0 < g := vertexCorrelation_pos hd
   obtain ⟨η, hη, hcont⟩ := Metric.continuousAt_iff.mp
     (continuous_arccos.continuousAt (x := g)) (π * ξ / (4 * D)) (by positivity)
   set ρ := g - min η g / 2
   have hmin : 0 < min η g := lt_min hη hg
-  have hρg : ρ < g := by
-    simp only [ρ]
-    linarith
+  have hρg : ρ < g := by simp only [ρ]; linarith
   have hcoef : arccos ρ / π ≤ vertexCoefficient d + ξ / (4 * D) := by
     have hdist : dist ρ g < η := by
       rw [Real.dist_eq, show ρ - g = -(min η g / 2) by simp only [ρ]; ring, abs_neg,
         abs_of_pos (by positivity)]
       linarith [min_le_left η g]
     have H := (le_abs_self _).trans (hcont hdist).le
-    rw [div_le_iff₀ pi_pos]
-    have heq : (arccos g / π + ξ / (4 * D)) * π = arccos g + π * ξ / (4 * D) := by
-      field_simp
-    rw [vertexCoefficient, show vertexCorrelation d = g from rfl, heq]
+    rw [vertexCoefficient, show vertexCorrelation d = g from rfl, div_le_iff₀ pi_pos, add_mul,
+      div_mul_cancel₀ _ pi_pos.ne', ← mul_div_right_comm, mul_comm ξ π]
     linarith
   obtain ⟨q, R, hq, hcorr⟩ := exists_decay_radius_degree hd hρg
   obtain ⟨N₀, hN₀⟩ := exists_width_le_of_unitRows_add_mul hd R (ξ := 3 * ξ / 4) (by positivity)
@@ -323,15 +288,12 @@ theorem exists_width_le_vertexCoefficient {d : ℕ} (hd : 2 ≤ d) {ξ : ℝ} (h
     (norm_unitKernelRow q R) (fun _ _ h => unitKernelRow_eq_zero_of_lt h) (fun _ => ρ)
     (fun e => hcorr.trans (le_inner_unitKernelRow_src_tgt hl hd hdeg hq R e))
   refine ⟨σ, hσ.trans ?_⟩
-  have hsum : (∑ _e : E, arccos ρ / π) = arccos ρ / π * Nat.card E := by
-    rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← Nat.card_eq_fintype_card, mul_comm]
-  rw [hsum]
+  rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← Nat.card_eq_fintype_card, mul_comm]
   have hE : (Nat.card E : ℝ) ≤ D * Nat.card V := by
     simp only [D]
     exact_mod_cast G.card_le_mul_card hdeg
   have herror : ξ / (4 * D) * Nat.card E ≤ ξ / 4 * Nat.card V := by
-    have h := mul_le_mul_of_nonneg_left hE (by positivity : 0 ≤ ξ / (4 * D))
-    convert h using 1
+    refine (mul_le_mul_of_nonneg_left hE (by positivity)).trans_eq ?_
     field_simp
   have h1 := mul_le_mul_of_nonneg_right hcoef (Nat.cast_nonneg (α := ℝ) (Nat.card E))
   nlinarith

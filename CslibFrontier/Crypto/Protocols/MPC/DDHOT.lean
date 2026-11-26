@@ -489,10 +489,7 @@ private theorem evalWith_ddhOTSteps (g : G) (q : ℕ) [Module (ZMod q) G]
     (ddhOTProtocolWith g q sample₀ sample₁ proj₀ proj₁).steps.evalWith noOracleWorld st =
       PMF.pure (ddhOTReceivedWith g proj₀ proj₁ st) := by
   dsimp only [ddhOTProtocolWith]
-  refine (Steps.evalWith_message _ _ _ _).trans ?_
-  refine (congrArg (PMF.map _) (Steps.evalWith_message _ _ _ _)).trans ?_
-  refine (congrArg (PMF.map _ ∘ PMF.map _) (Steps.evalWith_message _ _ _ _)).trans ?_
-  simp only [Function.comp_apply, Steps.evalWith_done, PMF.pure_map]
+  simp only [Steps.evalWith_message, Steps.evalWith_done, PMF.pure_map]
   rfl
 
 /-- Independent coin sampling draws the sender's and receiver's coins. -/
@@ -503,14 +500,9 @@ private theorem eval_pi_ddhOTSampleCoins (g : G) (q : ℕ) [Module (ZMod q) G]
         (OracleComp.pi (ddhOTProtocolWith g q sample₀ sample₁ proj₀ proj₁).sampleCoins) =
       (ProbComp.eval sample₀).bind fun raw₀ =>
         (ProbComp.eval sample₁).map fun raw₁ => ddhOTCoinsWith raw₀ raw₁ := by
-  simp only [ddhOTProtocolWith, OracleComp.pi_succ, OracleComp.pi_zero, ProbComp.eval_bind,
-    ProbComp.eval_map, ProbComp.eval_pure]
-  refine congrArg (PMF.bind _) (funext fun raw₀ => ?_)
-  erw [PMF.map_bind]
-  simp only [PMF.pure_map]
-  rw [← PMF.bind_pure_comp]
-  refine congrArg (PMF.bind _) (funext fun raw₁ => congrArg PMF.pure
-    (funext (β := DDHOTCoinsWith C₀ C₁) fun i => ?_))
+  simp only [ddhOTProtocolWith, OracleComp.pi_succ, OracleComp.pi_zero, pmf_norm]
+  refine congrArg (PMF.bind _) (funext fun raw₀ => congrArg (PMF.bind _) (funext fun raw₁ =>
+    congrArg PMF.pure (funext (β := DDHOTCoinsWith C₀ C₁) fun i => ?_)))
   fin_cases i <;> rfl
 
 /-- Receiver's view in a run with coins `(raw₀, raw₁)`. -/
@@ -559,11 +551,9 @@ private theorem outputOfView_ddhOT_one (g : G) (q : ℕ) [Module (ZMod q) G]
     (ddhOTSenderReply g (x 0) c (ddhOTReceiverMsg g σ (proj₁ raw₁) (c.exponent • g))) =
     if σ then (x 0).2 else (x 0).1
   simp only [ddhOTSenderReply, ddhOTReceiverMsg_add, ↓reduceIte, ddhOTReceiverOutput]
-  cases σ
-  · simp only [Bool.false_eq_true, ↓reduceIte, ddhOTReceiverMsg]
-    exact ddhOTReceiverOutput_encryptBranch g (x 0).1 c.exponent (proj₁ raw₁) c.coinR₀ c.coinS₀
-  · simp only [↓reduceIte, ddhOTReceiverMsg]
-    exact ddhOTReceiverOutput_encryptBranch g (x 0).2 c.exponent (proj₁ raw₁) c.coinR₁ c.coinS₁
+  cases σ <;> simp only [Bool.false_eq_true, ↓reduceIte, ddhOTReceiverMsg]
+  · exact ddhOTReceiverOutput_encryptBranch g (x 0).1 c.exponent (proj₁ raw₁) c.coinR₀ c.coinS₀
+  · exact ddhOTReceiverOutput_encryptBranch g (x 0).2 c.exponent (proj₁ raw₁) c.coinR₁ c.coinS₁
 
 /-- **Execution law of `ddhOTProtocolWith`**: for any party coin samplers `sample₀, sample₁` and
 projections `proj₀, proj₁`, `evalWith` draws `raw₀ ← sample₀` and `raw₁ ← sample₁` and returns
@@ -824,27 +814,20 @@ theorem real_receiver_eq_ddhRealExperiment_of (g : G) (q : ℕ) [NeZero q] [Modu
           (ddhOTReceiverMsg g (x 1) (proj₁ raw₁) (c₀.exponent • g)))), otOutputs x))) =
       ProbComp.eval (ddhRealExperiment q g (ddhOTReductionOf g q sample₁ proj₁ x D)) := by
   simp only [pmf_norm, sampleDDHOTSenderCoins, ddhRealExperiment, ddhOTReductionOf,
-    ddhOTReductionWithCoinsOf, ProbComp.eval_uniform]
+    ProbComp.eval_uniform]
   congr 1 with a : 1
   obtain ⟨σ, hσ⟩ : ∃ σ : Bool, x 1 = σ := ⟨_, rfl⟩
-  let m : G × G := x 0
-  simp_rw [hσ]
   refine Eq.trans ?_ (uniform_bind_branch (ProbComp.eval sample₁) a σ fun raw₁ r s k =>
-    let b := proj₁ raw₁
-    let u := a • g
-    let u' := k • g
-    let w_ddh := (a * k) • g
-    let e_σ := r • g + s • u
-    let m_σ := if σ then m.2 else m.1
-    let m_other := if σ then m.1 else m.2
-    let c_σ := b • e_σ + m_σ
-    let c_other := w_ddh - b • u' + m_other
-    let reply := if σ then ((u', c_other), (e_σ, c_σ)) else ((e_σ, c_σ), (u', c_other))
-    ProbComp.eval (D (singletonView (ddhOTReceiverViewWith σ raw₁ u reply), otOutputs x)))
-  congr 1 with r₀ : 1; congr 1 with s₀ : 1; congr 1 with r₁ : 1; congr 1 with s₁ : 1
+    ProbComp.eval (ddhOTReductionWithCoinsOf g proj₁ x D raw₁ r s (a • g) (k • g) ((a * k) • g)))
+  simp only [PMF.monad_bind_eq_bind]
+  congr 1 with r₀ : 1
+  congr 1 with s₀ : 1
+  congr 1 with r₁ : 1
+  congr 1 with s₁ : 1
   congr 1 with raw₁ : 1
+  simp_rw [ddhOTReductionWithCoinsOf, hσ]
   cases σ <;> simp only [ddhOTReceiverMsg, ddhOTSenderReplyUnchecked, Bool.false_eq_true,
-    ↓reduceIte, chosen_branch_eq, unchosen_branch_eq] <;> rfl
+    ↓reduceIte, chosen_branch_eq, unchosen_branch_eq]
 
 /-- The real execution for a corrupted receiver is the real DDH world
 `Cslib.Crypto.ddhRealExperiment q g` run on `ddhOTReduction`. -/
@@ -1040,24 +1023,19 @@ theorem succProbability_ddhOTUncheckedIdealGame_le
       ProbComp.eval (ddhOTUncheckedIdealGame S) true ≤ (Fintype.card G : ENNReal)⁻¹ := by
     simp only [ddhOTUncheckedIdealGame, ProbComp.eval_bind, ProbComp.eval_pure,
       ProbComp.eval_uniform]
-    refine PMF.bind_apply_le_on_support _ fun s _ => ?_
-    obtain ⟨τ, guess⟩ := s
-    cases τ
-    · simp only [Bool.false_eq_true, ↓reduceIte]
-      refine PMF.bind_apply_le_on_support _ fun m₀ _ => ?_
+    refine PMF.bind_apply_le_on_support _ fun ⟨τ, guess⟩ _ => ?_
+    cases τ <;> simp only [Bool.false_eq_true, ↓reduceIte]
+    · refine PMF.bind_apply_le_on_support _ fun m₀ _ => ?_
       rw [PMF.bind_comm]
-      refine PMF.bind_apply_le_on_support _ fun pair _ => ?_
-      exact PMF.uniformOfFintype_bind_pure_apply_true_le fun y hy y' hy' =>
-        (congrArg Prod.snd (of_decide_eq_true hy)).symm.trans
-          (congrArg Prod.snd (of_decide_eq_true hy'))
-    · simp only [↓reduceIte]
-      rw [PMF.bind_comm]
+      refine PMF.bind_apply_le_on_support _ fun pair _ =>
+        PMF.uniformOfFintype_bind_pure_apply_true_le fun y hy y' hy' =>
+          congrArg Prod.snd ((of_decide_eq_true hy).symm.trans (of_decide_eq_true hy'))
+    · rw [PMF.bind_comm]
       refine PMF.bind_apply_le_on_support _ fun m₁ _ => ?_
       rw [PMF.bind_comm]
-      refine PMF.bind_apply_le_on_support _ fun pair _ => ?_
-      exact PMF.uniformOfFintype_bind_pure_apply_true_le fun y hy y' hy' =>
-        (congrArg Prod.fst (of_decide_eq_true hy)).symm.trans
-          (congrArg Prod.fst (of_decide_eq_true hy'))
+      refine PMF.bind_apply_le_on_support _ fun pair _ =>
+        PMF.uniformOfFintype_bind_pure_apply_true_le fun y hy y' hy' =>
+          congrArg Prod.fst ((of_decide_eq_true hy).symm.trans (of_decide_eq_true hy'))
   rw [Game.coe_succProbability, ← ENNReal.toReal_natCast, ← ENNReal.toReal_inv]
   exact ENNReal.toReal_mono (by simp) h_ennreal
 

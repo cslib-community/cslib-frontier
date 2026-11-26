@@ -103,24 +103,14 @@ private theorem hedge_regret_le_of_exp_bound {η c : ℝ} (hη : 0 < η)
         1 - η * ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j +
           (c * η) * ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j ^ 2 := by
       simp only [mul_add, mul_sub, mul_one, sum_add_distrib, sum_sub_distrib, sum_prob hφt,
-        mul_sum]
-      congr 1
-      · congr 1
-        exact sum_congr rfl fun j _ => by ring
-      · exact sum_congr rfl fun j _ => by ring
+        mul_sum, mul_left_comm]
     linarith [log_le_sub_one_of_pos hpos]
   have hup' := sum_le_sum hup
   rw [sum_add_distrib, sum_neg_distrib, ← mul_sum, ← mul_sum] at hup'
-  have hlhs : ∑ s ∈ range T, -(η * ℓ s i) = -(η * ∑ t ∈ range T, ℓ t i) := by
-    rw [sum_neg_distrib, mul_sum]
-  rw [hlhs] at hmaster
-  have key : η * ∑ t ∈ range T, ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j ≤
-      η * (∑ t ∈ range T, ℓ t i +
-        c * ∑ t ∈ range T, ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j ^ 2 +
-          log (Fintype.card ι) / η) := by
-    rw [mul_add, mul_add, mul_div_cancel₀ _ hη.ne']
-    nlinarith
-  exact le_of_mul_le_mul_left key hη
+  rw [sum_neg_distrib, ← mul_sum] at hmaster
+  refine le_of_mul_le_mul_left ?_ hη
+  rw [mul_add, mul_add, mul_div_cancel₀ _ hη.ne']
+  nlinarith
 
 /-- **Regret of Hedge for nonnegative losses**: for `0 < η`, losses `ℓ ≥ 0`, and every expert `i`,
 `∑ t, ⟨p t, ℓ t⟩ ≤ ∑ t, ℓ t i + (η / 2) ∑ t, ⟨p t, ℓ t ^ 2⟩ + ln n / η`. Using

@@ -216,12 +216,7 @@ theorem append_exec {w : ℕ} {vs : List ℕ} {x : Data 12} (hr : Rep vs x)
       (∀ a, a < x.regs ptr ∨ y.regs frontier ≤ a → y.mem a = x.mem a) ∧
       n + potential (vs ++ [x.regs arg]) y ≤ 49 + potential vs x ∧
       n + potential (vs ++ [x.regs arg]) y - potential vs x ≤ 49 := by
-  have hcap_pos := hr.capacity_pos
-  have hlen_eq := hr.length_eq
-  have hlen_le := hr.length_le
-  have hcap_le := hr.capacity_le
-  have hptr_eq := hr.pointer_eq
-  have hfront_eq := hr.frontier_eq
+  have ⟨hlen_eq, hcap_pos, hlen_le, hcap_le, hptr_eq, hfront_eq, _⟩ := hr
   have h1 : Fits w 1 := hw.of_le (by omega)
   unfold program writeAt
   wram_exec
@@ -236,14 +231,12 @@ theorem append_exec {w : ℕ} {vs : List ℕ} {x : Data 12} (hr : Rep vs x)
     all_goals wram_simp [hz_ptr, hz_cap, hz_front, potential, List.length_append,
       List.length_singleton, hlen_eq]
     any_goals omega
-    · have := i.isLt
-      simp only [List.length_append, List.length_singleton] at this
-      by_cases hi : i.val < vs.length
+    · rcases lt_or_eq_of_le (Nat.lt_succ_iff.mp (by simpa using i.isLt)) with hi | hi
       · wram_simp
         rw [← hz_ptr, hz_copy _ (by omega)]
         exact (hr.contents ⟨i, hi⟩).trans (List.getElem_append_left hi).symm
       · wram_simp
-        simp [show i.val = vs.length by omega]
+        simp [hi]
     · intro a ha
       wram_simp
       exact hz_frame a (by omega)
@@ -251,13 +244,11 @@ theorem append_exec {w : ℕ} {vs : List ℕ} {x : Data 12} (hr : Rep vs x)
     refine ⟨⟨?_, ?_, ?_, ?_, ?_, ?_, fun i => ?_⟩, ?_, ?_, ?_⟩
     all_goals wram_simp [potential, List.length_append, List.length_singleton, hlen_eq]
     any_goals omega
-    · have := i.isLt
-      simp only [List.length_append, List.length_singleton] at this
-      by_cases hi : i.val < vs.length
+    · rcases lt_or_eq_of_le (Nat.lt_succ_iff.mp (by simpa using i.isLt)) with hi | hi
       · wram_simp
         exact (hr.contents ⟨i, hi⟩).trans (List.getElem_append_left hi).symm
       · wram_simp
-        simp [show i.val = vs.length by omega]
+        simp [hi]
     · intro a ha
       wram_simp
 
@@ -362,27 +353,14 @@ structure BoundedRep (w : ℕ) (vs : List ℕ) (x : Data 12) : Prop where
 theorem arguments_fit {w : ℕ} (h1 : Fits w 1) {vs : List ℕ} (o : Op)
     (hv : (spec w).valid vs o) (i : Fin 12) : Fits w ((implementation w).encode o i) := by
   cases o with
-  | append v =>
-    change Fits w (if i = dest then 0 else v)
-    split
-    · exact fits_zero w
-    · exact hv.1
-  | get idx =>
-    change Fits w (if i = dest then 1 else idx)
-    split
-    · exact h1
-    · exact hv.2
+  | append v => by_cases hi : i = dest <;> simp [implementation, hi, fits_zero, hv.1]
+  | get idx => by_cases hi : i = dest <;> simp [implementation, hi, h1, hv.2]
 
 /-- Argument delivery preserves `Rep` because `dest` and `arg` are not persistent representation
 registers. -/
 private theorem prepare_rep {vs : List ℕ} {x : Data 12} (hr : Rep vs x) (w : ℕ) (o : Op) :
-    Rep vs ((implementation w).prepare o x) :=
-  hr.of_eq
-    (by simp +decide [implementation, DynamicProgram.prepare])
-    (by simp +decide [implementation, DynamicProgram.prepare])
-    (by simp +decide [implementation, DynamicProgram.prepare])
-    (by simp +decide [implementation, DynamicProgram.prepare])
-    rfl
+    Rep vs ((implementation w).prepare o x) := by
+  refine hr.of_eq ?_ ?_ ?_ ?_ rfl <;> simp +decide [implementation, DynamicProgram.prepare]
 
 /-- Every admissible operation executes `dispatch`, preserves `BoundedRep`, modifies only
 cells below `y.regs frontier`, and satisfies the potential inequality with `charge o`
@@ -409,9 +387,8 @@ theorem dispatch_exec {w : ℕ} (h1 : Fits w 1) {vs : List ℕ} {x : Data 12}
   | append v =>
     have harg : x₁.regs arg = v := by
       simp +decide [x₁, x₀, Data.set, implementation, DynamicProgram.prepare]
-    have hw : Fits w (x₁.regs frontier + 2 * x₁.regs cap) := by
-      have hle := hx₁_rep.frontier_add_two_cap_le
-      exact hv.2.of_le (by omega)
+    have hw : Fits w (x₁.regs frontier + 2 * x₁.regs cap) :=
+      hv.2.of_le (by have := hx₁_rep.frontier_add_two_cap_le; omega)
     obtain ⟨y, n, he, hy_rep, hy_frame, hy_pot, _⟩ := append_exec hx₁_rep hw
     rw [harg] at hy_rep hy_pot
     have hdest : ((implementation w).prepare (.append v) x).regs dest = 0 := by
@@ -454,8 +431,7 @@ theorem amortized {w : ℕ} (h1 : Fits w 1) :
   DataStructure.Amortized.ofFn fun hr hv he => by
     obtain ⟨z, n, hz, _, _, _, hpot⟩ := dispatch_exec h1 hr _ hv
     obtain ⟨rfl, hk⟩ := he.eq_of_exec hz
-    rw [hk]
-    exact hpot
+    exact hk ▸ hpot
 
 /-- Uniform amortized instruction-cost certificate (`52` instructions per operation). -/
 theorem amortized_uniform {w : ℕ} (h1 : Fits w 1) :
@@ -463,8 +439,7 @@ theorem amortized_uniform {w : ℕ} (h1 : Fits w 1) :
       DynamicProgram.OperationTrace.instructions potential (fun _ _ => 52) :=
   DataStructure.Amortized.ofFn fun {vs c o a c' trace} hr hv he => by
     obtain ⟨s', hstep, _, h⟩ := (amortized h1).step hr hv he
-    have hs : s' = ((spec w).stepFn vs o).1 := congrArg Prod.fst hstep
-    subst hs
+    obtain rfl : s' = ((spec w).stepFn vs o).1 := congrArg Prod.fst hstep
     cases o <;> simp only [charge] at h ⊢ <;> omega
 
 /-- Every concrete call modifies only cells below `y.regs frontier`. -/
@@ -473,10 +448,9 @@ theorem modifies {w : ℕ} (h1 : Fits w 1) {vs : List ℕ} {x y : Data 12} {o : 
     (hr : BoundedRep w vs x) (hv : (spec w).valid vs o)
     (he : (implementation w).ExecOp w x o a y trace) :
     Modifies (Finset.range (y.regs frontier)) x.mem y.mem := by
-  obtain ⟨z, n, hz, _, _, hf, _⟩ := dispatch_exec h1 hr o hv
+  obtain ⟨_, _, hz, _, _, hf, _⟩ := dispatch_exec h1 hr o hv
   obtain ⟨rfl, _⟩ := he.eq_of_exec hz
-  intro addr haddr
-  exact hf addr (Nat.le_of_not_lt (Finset.mem_range.not.mp haddr))
+  exact fun addr haddr => hf addr (Nat.le_of_not_lt (Finset.mem_range.not.mp haddr))
 
 /-- Disjoint heap assertions above `y.regs frontier` survive every dynamic-array call. -/
 theorem frame {w : ℕ} (h1 : Fits w 1) {vs : List ℕ} {x y : Data 12} {o : Op}
@@ -520,10 +494,8 @@ theorem run_initialized {w : ℕ} (h1 : Fits w 1) {α : Type} (p : (spec w).Clie
       (((spec w).clientState [] p) ≠ [] →
         y.regs frontier < 4 * ((spec w).clientState [] p).length) := by
   obtain ⟨ready, hi, hr_init, _, hpot_init, _, _⟩ := init_exec x h1
-  have hready : BoundedRep w [] ready := ⟨hi.bounded hx, hr_init⟩
-  obtain ⟨y, traces, he, hy, hb, hspace⟩ := run_client h1 p hready hv
-  refine ⟨ready, y, traces, hi, he, hy, ?_, hspace⟩
-  omega
+  obtain ⟨y, traces, he, hy, hb, hspace⟩ := run_client h1 p ⟨hi.bounded hx, hr_init⟩ hv
+  exact ⟨ready, y, traces, hi, he, hy, by omega, hspace⟩
 
 /-- Client that appends each element of `us` in order. -/
 @[expose] def appendAll {w : ℕ} : List ℕ → (spec w).Client Unit
@@ -569,14 +541,10 @@ theorem run_appendAll {w : ℕ} (h1 : Fits w 1) {vs : List ℕ} {x : Data 12}
       15 + DataStructure.total DynamicProgram.OperationTrace.instructions traces +
         potential vs y ≤ 15 + vs.length * 52 ∧
       (vs ≠ [] → y.regs frontier < 4 * vs.length) := by
-  have hv : (spec w).ValidHistory [] ((spec w).clientHistory [] (appendAll vs)) :=
-    validHistory_appendAll hvals (by simpa using hlen)
-  have h := run_initialized h1 (appendAll vs) hx hv
-  dsimp only [DataStructure.StateTransitionSpec.clientResult,
+  simpa [DataStructure.StateTransitionSpec.clientResult,
     DataStructure.StateTransitionSpec.clientState,
-    DataStructure.StateTransitionSpec.clientHistory] at h
-  rw [runClient_appendAll] at h
-  simpa using h
+    DataStructure.StateTransitionSpec.clientHistory] using
+    run_initialized h1 (appendAll vs) hx (validHistory_appendAll hvals (by simpa using hlen))
 
 end Cslib.DataStructure.DynamicArray.WordRAM
 

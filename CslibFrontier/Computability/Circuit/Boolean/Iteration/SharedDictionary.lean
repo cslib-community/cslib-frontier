@@ -77,17 +77,13 @@ theorem lookupOr_of_eq {keys : Fin M → BitString k} (values : Fin M → BitStr
   funext bit
   apply Bool.eq_iff_iff.mpr
   simp only [lookupOr, decide_eq_true_eq]
-  constructor
-  · rintro ⟨i, hi, hv⟩
-    rwa [hkeys (hi.trans h.symm)] at hv
-  · exact fun hv => ⟨j, h, hv⟩
+  exact ⟨fun ⟨i, hi, hv⟩ => hkeys (hi.trans h.symm) ▸ hv, fun hv => ⟨j, h, hv⟩⟩
 
 /-- When `key` is absent from `keys`, `lookupOr` returns the all-false bit string. -/
 theorem lookupOr_of_forall_ne {keys : Fin M → BitString k} (values : Fin M → BitString v)
     {key : BitString k} (h : ∀ j, keys j ≠ key) : lookupOr keys values key = fun _ => false := by
   funext bit
-  simp only [lookupOr, decide_eq_false_iff_not, not_exists, not_and]
-  exact fun j hj => absurd hj (h j)
+  simp [lookupOr, h]
 
 /-- **Shared lookup.** Answering `Q` available queries against one hardwired table of `M` keys
 costs one `batchOrCircuit`: at most `48 * (Q + M + 1) * (⌈log₂ (Q + M)⌉ + 1) ^ 2 * (k + v + 1)`

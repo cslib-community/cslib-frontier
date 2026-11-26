@@ -114,33 +114,24 @@ theorem isAdviceNonMalleableExtractor_zero_iff {X Seed Adv : Type*} [Fintype See
       dist
         (source.bind fun x => (PMF.uniformOfFintype Seed).map fun r => (r, nmExt x r a₀))
         (PMF.uniformOfFintype (Seed × Bool)) := by
+    have hv (x : X) (r : Seed) : (r, nmExt x r a₀, fun j => nmExt x (f j r).1 (f j r).2) =
+        e (r, nmExt x r a₀) := Prod.ext rfl (Prod.ext rfl (funext fun j => j.elim0))
     have hL :
         (source.bind fun x => (PMF.uniformOfFintype Seed).map fun r =>
           (r, nmExt x r a₀, fun j => nmExt x (f j r).1 (f j r).2)) =
         (source.bind fun x => (PMF.uniformOfFintype Seed).map fun r =>
           (r, nmExt x r a₀)).map e := by
-      rw [PMF.map_bind]
-      refine congrArg (source.bind ·) (funext fun x => ?_)
-      rw [PMF.map_comp]
-      refine congrArg (fun g => (PMF.uniformOfFintype Seed).map g) (funext fun r => ?_)
-      dsimp only [Function.comp_def, e]
-      exact Prod.ext rfl (Prod.ext rfl (funext fun j => Fin.elim0 j))
+      simp only [hv, PMF.map_bind, PMF.map_comp, Function.comp_def]
     have hR :
         (source.bind fun x => (PMF.uniformOfFintype Seed).bind fun r =>
           (PMF.uniformOfFintype Bool).map fun b =>
             (r, b, fun j => nmExt x (f j r).1 (f j r).2)) =
         (PMF.uniformOfFintype (Seed × Bool)).map e := by
-      have hinner (x : X) :
-          ((PMF.uniformOfFintype Seed).bind fun r => (PMF.uniformOfFintype Bool).map fun b =>
-            (r, b, fun j => nmExt x (f j r).1 (f j r).2)) =
-          (PMF.uniformOfFintype (Seed × Bool)).map e := by
-        rw [← uniformOfFintype_prod, PMF.map_bind]
-        refine congrArg ((PMF.uniformOfFintype Seed).bind ·) (funext fun r => ?_)
-        rw [PMF.map_comp]
-        refine congrArg (fun g => (PMF.uniformOfFintype Bool).map g) (funext fun b => ?_)
-        dsimp only [Function.comp_def, e]
-        exact Prod.ext rfl (Prod.ext rfl (funext fun j => Fin.elim0 j))
-      simp_rw [hinner, PMF.bind_const]
+      have hb (x : X) (r : Seed) (b : Bool) :
+          (r, b, fun j => nmExt x (f j r).1 (f j r).2) = e (r, b) :=
+        Prod.ext rfl (Prod.ext rfl (funext fun j => j.elim0))
+      simp only [hb, ← uniformOfFintype_prod, PMF.map_bind, PMF.map_comp, Function.comp_def,
+        PMF.bind_const]
     rw [hL, hR, dist_map_of_injective _ _ e.injective]
   constructor
   · intro hnm a₀ source hsource
@@ -153,6 +144,16 @@ theorem isAdviceNonMalleableExtractor_zero_iff {X Seed Adv : Type*} [Fintype See
 
 /-! ### Seeded correlation and strong-extractor Markov bounds -/
 
+/-- An expectation of a score bounded by `C` on the support has absolute value at most `C`. -/
+private theorem abs_sum_toReal_mul_le {α : Type*} [Fintype α] (ν : PMF α) {F : α → ℝ} {C : ℝ}
+    (hF : ∀ a ∈ ν.support, |F a| ≤ C) : |∑ a, (ν a).toReal * F a| ≤ C := by
+  calc _ ≤ ∑ a, (ν a).toReal * C := (abs_sum_le_sum_abs _ _).trans <| sum_le_sum fun a _ => by
+          rw [abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
+          by_cases ha : a ∈ ν.support
+          · exact mul_le_mul_of_nonneg_left (hF a ha) ENNReal.toReal_nonneg
+          · simp [(ν.apply_eq_zero_iff a).mpr ha]
+    _ = C := by rw [← sum_mul, sum_toReal, one_mul]
+
 private theorem sum_abs_signVal_mul_prod_le {X Seed Adv : Type*} [Fintype X] [Fintype Seed]
     [Nonempty Seed] {nmExt : X → Seed → Adv → Bool} {t : ℕ} {k ε : ℝ}
     (hnm : IsAdviceNonMalleableExtractor nmExt t k ε) {p : PMF X} (hp : k ≤ minEntropy p)
@@ -164,155 +165,36 @@ private theorem sum_abs_signVal_mul_prod_le {X Seed Adv : Type*} [Fintype X] [Fi
           ∏ j : Fin m, BitString.signVal (nmExt x (f j r).1 (f j r).2))| ≤
       2 * (Fintype.card Seed : ℝ) * ε := by
   classical
-  let g (x : X) (r : Seed) : Fin m → Bool := fun j => nmExt x (f j r).1 (f j r).2
-  let P₁ := p.bind fun x => (PMF.uniformOfFintype Seed).map fun r => (r, nmExt x r a₀, g x r)
-  let P₂ := p.bind fun x => (PMF.uniformOfFintype Seed).bind fun r =>
-    (PMF.uniformOfFintype Bool).map fun b => (r, b, g x r)
-  have hdist : dist P₁ P₂ ≤ ε := hnm p hp a₀ m hm f hf
-  let cTrue (r : Seed) (v : Fin m → Bool) : ℝ :=
-    ∑ x : X, if nmExt x r a₀ = true ∧ g x r = v then (p x).toReal else 0
-  let cFalse (r : Seed) (v : Fin m → Bool) : ℝ :=
-    ∑ x : X, if nmExt x r a₀ = false ∧ g x r = v then (p x).toReal else 0
-  have hcardS : (Fintype.card Seed : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
-  have hP₁ (r : Seed) (b : Bool) (v : Fin m → Bool) :
-      (P₁ (r, b, v)).toReal =
-        (∑ x : X, if nmExt x r a₀ = b ∧ g x r = v then (p x).toReal else 0) /
-          Fintype.card Seed := by
-    simp only [P₁, bind_apply_toReal, map_apply_toReal, PMF.uniformOfFintype_apply,
-      ENNReal.toReal_inv, ENNReal.toReal_natCast]
-    have hinner (x : X) :
-        (∑ r' : Seed, if (r, b, v) = (r', nmExt x r' a₀, g x r') then
-          (Fintype.card Seed : ℝ)⁻¹ else 0) =
-          if nmExt x r a₀ = b ∧ g x r = v then (Fintype.card Seed : ℝ)⁻¹ else 0 := by
-      have hr' : (∑ r' : Seed, if (r, b, v) = (r', nmExt x r' a₀, g x r') then
-            (Fintype.card Seed : ℝ)⁻¹ else 0) =
-          ∑ r' : Seed, if r' = r then
-            (if nmExt x r a₀ = b ∧ g x r = v then (Fintype.card Seed : ℝ)⁻¹ else 0) else 0 := by
-        refine sum_congr rfl fun r' _ => ?_
-        by_cases hrr' : r' = r
-        · subst hrr'
-          simp [eq_comm]
-        · have hne : (r, b, v) ≠ (r', nmExt x r' a₀, g x r') :=
-            fun h => hrr' (congrArg Prod.fst h).symm
-          simp [hrr', hne]
-      rw [hr', sum_ite_eq', ite_eq_left (mem_univ r)]
-    simp_rw [hinner, sum_div]
-    refine sum_congr rfl fun x _ => ?_
-    split_ifs <;> ring
-  have hP₁_true (r : Seed) (v : Fin m → Bool) :
-      (P₁ (r, true, v)).toReal = cTrue r v / Fintype.card Seed := hP₁ r true v
-  have hP₁_false (r : Seed) (v : Fin m → Bool) :
-      (P₁ (r, false, v)).toReal = cFalse r v / Fintype.card Seed := hP₁ r false v
-  have hP₂ (r : Seed) (b : Bool) (v : Fin m → Bool) :
-      (P₂ (r, b, v)).toReal = (cTrue r v + cFalse r v) / (2 * Fintype.card Seed) := by
-    dsimp only [P₂]
-    rw [bind_apply_toReal]
-    have hinner (x : X) :
-        (((PMF.uniformOfFintype Seed).bind fun r' =>
-          (PMF.uniformOfFintype Bool).map fun b' => (r', b', g x r')) (r, b, v)).toReal =
-          (Fintype.card Seed : ℝ)⁻¹ * (if g x r = v then (2 : ℝ)⁻¹ else 0) := by
-      rw [bind_apply_toReal]
-      have hr' : (∑ r' : Seed, ((PMF.uniformOfFintype Seed r').toReal) *
-            (((PMF.uniformOfFintype Bool).map fun b' => (r', b', g x r')) (r, b, v)).toReal) =
-          ∑ r' : Seed, if r' = r then (Fintype.card Seed : ℝ)⁻¹ *
-            (if g x r = v then (2 : ℝ)⁻¹ else 0) else 0 := by
-        refine sum_congr rfl fun r' _ => ?_
-        rw [map_apply_toReal, PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
-          ENNReal.toReal_natCast]
-        by_cases hrr' : r' = r
-        · subst hrr'
-          rw [ite_eq_left rfl]
-          refine congrArg ((Fintype.card Seed : ℝ)⁻¹ * ·) ?_
-          rw [Fintype.sum_bool]
-          simp only [PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
-            Fintype.card_bool, Nat.cast_ofNat]
-          by_cases hg : g x r' = v
-          · cases b <;> simp [hg]
-          · have hgv : v ≠ g x r' := Ne.symm hg
-            cases b <;> simp [hg, hgv]
-        · have hzero :
-              ∑ b' : Bool, (if (r, b, v) = (r', b', g x r') then
-                (PMF.uniformOfFintype Bool b').toReal else 0) = 0 :=
-            sum_eq_zero fun b' _ => ite_eq_right fun h => hrr' (congrArg Prod.fst h).symm
-          rw [ite_eq_right hrr', hzero, mul_zero]
-      rw [hr', sum_ite_eq', ite_eq_left (mem_univ r)]
-    simp_rw [hinner]
-    dsimp only [cTrue, cFalse]
-    rw [← sum_add_distrib, sum_div]
-    refine sum_congr rfl fun x _ => ?_
-    cases nmExt x r a₀ <;> by_cases hg : g x r = v <;> simp [hg] <;> ring
-  have hdist_eq :
-      2 * (Fintype.card Seed : ℝ) * dist P₁ P₂ =
-        ∑ r : Seed, ∑ v : Fin m → Bool, |cTrue r v - cFalse r v| := by
-    rw [dist_eq, Fintype.sum_prod_type]
-    have hswap : (∑ r : Seed, ∑ bv : Bool × (Fin m → Bool),
-          |(P₁ (r, bv)).toReal - (P₂ (r, bv)).toReal|) =
-        ∑ r : Seed, ∑ v : Fin m → Bool, |cTrue r v - cFalse r v| / Fintype.card Seed := by
-      refine sum_congr rfl fun r _ => ?_
-      rw [Fintype.sum_prod_type, Fintype.sum_bool, ← sum_add_distrib]
-      refine sum_congr rfl fun v _ => ?_
-      rw [hP₁_true, hP₁_false, hP₂, hP₂]
-      have h2S : 0 < 2 * (Fintype.card Seed : ℝ) := by
-        have hSpos : (0 : ℝ) < Fintype.card Seed := Nat.cast_pos.mpr Fintype.card_pos
-        positivity
-      have h1 :
-          |cTrue r v / Fintype.card Seed -
-              (cTrue r v + cFalse r v) / (2 * Fintype.card Seed)| =
-            |cTrue r v - cFalse r v| / (2 * Fintype.card Seed) := by
-        rw [show cTrue r v / Fintype.card Seed -
-                (cTrue r v + cFalse r v) / (2 * Fintype.card Seed) =
-              (cTrue r v - cFalse r v) / (2 * Fintype.card Seed) by field_simp; ring,
-          abs_div, abs_of_pos h2S]
-      have h2 :
-          |cFalse r v / Fintype.card Seed -
-              (cTrue r v + cFalse r v) / (2 * Fintype.card Seed)| =
-            |cTrue r v - cFalse r v| / (2 * Fintype.card Seed) := by
-        rw [show cFalse r v / Fintype.card Seed -
-                (cTrue r v + cFalse r v) / (2 * Fintype.card Seed) =
-              (-(cTrue r v - cFalse r v)) / (2 * Fintype.card Seed) by field_simp; ring,
-          abs_div, abs_neg, abs_of_pos h2S]
-      rw [h1, h2]
-      ring
-    rw [hswap]
-    simp_rw [← sum_div]
-    field_simp
-  have hr_le (r : Seed) :
-      |∑ x : X, (p x).toReal *
-          (BitString.signVal (nmExt x r a₀) * ∏ j : Fin m, BitString.signVal (g x r j))| ≤
-        ∑ v : Fin m → Bool, |cTrue r v - cFalse r v| := by
-    have hsplit : (∑ x : X, (p x).toReal *
-          (BitString.signVal (nmExt x r a₀) * ∏ j : Fin m, BitString.signVal (g x r j))) =
-        ∑ v : Fin m → Bool, (∏ j : Fin m, BitString.signVal (v j)) * (cFalse r v - cTrue r v) := by
-      have hfib : (∑ x : X, (p x).toReal *
-            (BitString.signVal (nmExt x r a₀) * ∏ j : Fin m, BitString.signVal (g x r j))) =
-          ∑ v : Fin m → Bool, ∑ x : X, if g x r = v then (p x).toReal *
-            (BitString.signVal (nmExt x r a₀) * ∏ j : Fin m, BitString.signVal (v j)) else 0 := by
-        rw [sum_comm]
-        refine sum_congr rfl fun x _ => ?_
-        have hite : (∑ v : Fin m → Bool, if g x r = v then (p x).toReal *
-              (BitString.signVal (nmExt x r a₀) * ∏ j : Fin m, BitString.signVal (v j)) else 0) =
-            ∑ v : Fin m → Bool, if v = g x r then (p x).toReal *
-              (BitString.signVal (nmExt x r a₀) * ∏ j : Fin m, BitString.signVal (v j)) else 0 :=
-          sum_congr rfl fun v _ => by simp only [eq_comm]
-        rw [hite, sum_ite_eq', ite_eq_left (mem_univ _)]
-      rw [hfib]
-      refine sum_congr rfl fun v _ => ?_
-      simp only [cFalse, cTrue, mul_sub, mul_sum]
-      rw [← sum_sub_distrib]
-      refine sum_congr rfl fun x _ => ?_
-      cases nmExt x r a₀ <;> by_cases hg : g x r = v <;> simp [hg] <;> ring
-    rw [hsplit]
-    refine (abs_sum_le_sum_abs _ _).trans (sum_le_sum fun v _ => ?_)
-    have hprod_abs : |∏ j : Fin m, BitString.signVal (v j)| = 1 := by
-      rw [Finset.abs_prod]
-      exact prod_eq_one fun j _ => abs_signVal (v j)
-    rw [abs_mul, hprod_abs, one_mul, abs_sub_comm]
-  calc ∑ r : Seed, |∑ x : X, (p x).toReal *
-          (BitString.signVal (nmExt x r a₀) * ∏ j : Fin m, BitString.signVal (g x r j))|
-      ≤ ∑ r : Seed, ∑ v : Fin m → Bool, |cTrue r v - cFalse r v| := sum_le_sum fun r _ => hr_le r
-    _ = 2 * (Fintype.card Seed : ℝ) * dist P₁ P₂ := hdist_eq.symm
-    _ ≤ 2 * (Fintype.card Seed : ℝ) * ε := by
-        gcongr
+  let inner (r : Seed) : ℝ := ∑ x : X, (p x).toReal *
+    (BitString.signVal (nmExt x r a₀) *
+      ∏ j : Fin m, BitString.signVal (nmExt x (f j r).1 (f j r).2))
+  change ∑ r, |inner r| ≤ _
+  let s (r : Seed) : ℝ := if 0 ≤ inner r then 1 else -1
+  have hs (r : Seed) : |inner r| = s r * inner r := by
+    by_cases h : 0 ≤ inner r
+    · simp [s, h, abs_of_nonneg h]
+    · simp [s, h, abs_of_neg (not_le.mp h)]
+  -- Test the two distributions against `s r * signVal b * χ v`, which averages to `0` under the
+  -- uniform bit and to `(∑ r, |inner r|) / |Seed|` under the extractor output.
+  let φ (z : Seed × Bool × (Fin m → Bool)) : ℝ :=
+    s z.1 * (BitString.signVal z.2.1 * ∏ j, BitString.signVal (z.2.2 j))
+  have hφ (z : Seed × Bool × (Fin m → Bool)) : |φ z| ≤ 1 := by
+    have : |s z.1| = 1 := by by_cases h : 0 ≤ inner z.1 <;> simp [s, h]
+    simp [φ, abs_mul, this, Finset.abs_prod]
+  have h := (abs_sum_mul_sub_le _ _ φ hφ).trans
+    (mul_le_mul_of_nonneg_left (hnm p hp a₀ m hm f hf) (by norm_num))
+  simp only [sum_bind_mul, sum_map_mul, Fintype.sum_bool, φ, BitString.signVal_true,
+    BitString.signVal_false, PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
+    ENNReal.toReal_natCast] at h
+  simp only [neg_one_mul, one_mul, mul_neg, neg_add_cancel, mul_zero, sum_const_zero, sub_zero,
+    mul_left_comm (p _).toReal (Fintype.card Seed : ℝ)⁻¹, ← mul_sum, abs_mul, abs_inv,
+    Nat.abs_cast] at h
+  rw [inv_mul_le_iff₀ (by positivity)] at h
+  convert (le_abs_self _).trans h using 1
+  · simp_rw [hs, inner, mul_sum]
+    rw [sum_comm]
+    exact sum_congr rfl fun x _ => sum_congr rfl fun r _ => by ring
+  · ring
 
 /-- **Markov lemma for strong extractors**: if `cond : Y → Fin D → Seed₂` is a strong
 `(k₂, ε_ext)`-extractor, then for every `k₂`-source `q` on `Y` and every `δ > 0`, there is a
@@ -328,57 +210,22 @@ theorem exists_badSet_isSource_of_isStrongExtractor {Y Seed₂ : Type*} {D : ℕ
   have hstrong := hcond q hq
   have hpairL : (q.bind fun y => (PMF.uniformOfFintype (Fin D)).map fun i => (i, cond y i)) =
       (PMF.uniformOfFintype (Fin D)).bind fun i => (q.map fun y => cond y i).map (i, ·) := by
-    ext ⟨i, r⟩
-    rw [bind_map_prodMk_apply, PMF.bind_apply]
-    have hinner (y : Y) :
-        ((PMF.uniformOfFintype (Fin D)).map fun i' => (i', cond y i')) (i, r) =
-          if r = cond y i then PMF.uniformOfFintype (Fin D) i else 0 := by
-      rw [PMF.map_apply, tsum_eq_single i]
-      · simp [Prod.mk.injEq]
-      · intro i' hi'
-        exact ite_eq_right fun h => hi' (congrArg Prod.fst h).symm
-    have hL : (∑' y : Y, q y *
-          ((PMF.uniformOfFintype (Fin D)).map fun i' => (i', cond y i')) (i, r)) =
-        ∑' y : Y, q y * (if r = cond y i then PMF.uniformOfFintype (Fin D) i else 0) :=
-      tsum_congr fun y => congrArg (q y * ·) (hinner y)
-    rw [hL, PMF.map_apply, ← ENNReal.tsum_mul_left]
-    refine tsum_congr fun y => ?_
-    split_ifs <;> simp [mul_comm]
-  have hpairR : PMF.uniformOfFintype (Fin D × Seed₂) =
-      (PMF.uniformOfFintype (Fin D)).bind fun i =>
-        (PMF.uniformOfFintype Seed₂).map (i, ·) := by
-    rw [uniformOfFintype_prod]
-  rw [hpairL, hpairR, dist_bind_pair] at hstrong
-  have hsum_le : ∑ i : Fin D, dist (q.map fun y => cond y i) (PMF.uniformOfFintype Seed₂) ≤
-      (D : ℝ) * ε_ext := by
-    have havg : (∑ i : Fin D, ((PMF.uniformOfFintype (Fin D) i).toReal *
-          dist (q.map fun y => cond y i) (PMF.uniformOfFintype Seed₂))) =
-        (D : ℝ)⁻¹ * ∑ i : Fin D, dist (q.map fun y => cond y i) (PMF.uniformOfFintype Seed₂) := by
-      simp_rw [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
-        Fintype.card_fin, ← mul_sum]
-    rw [havg] at hstrong
-    have hD : (0 : ℝ) < D := Nat.cast_pos.mpr (NeZero.pos D)
-    rwa [inv_mul_le_iff₀ hD] at hstrong
+    simp only [PMF.map, Function.comp_def, PMF.bind_bind, PMF.pure_bind]
+    exact PMF.bind_comm _ _ _
+  rw [hpairL, ← uniformOfFintype_prod, dist_bind_pair] at hstrong
+  simp only [PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
+    Fintype.card_fin, ← mul_sum] at hstrong
+  rw [inv_mul_le_iff₀ (Nat.cast_pos.mpr (NeZero.pos D))] at hstrong
   let B : Finset (Fin D) := univ.filter fun i =>
     (δ : ℝ) < dist (q.map fun y => cond y i) (PMF.uniformOfFintype Seed₂)
-  have hB_le : (#B : ℝ) * (δ : ℝ) ≤ (D : ℝ) * ε_ext := by
-    calc (#B : ℝ) * (δ : ℝ)
-        = ∑ _i ∈ B, (δ : ℝ) := by rw [sum_const, nsmul_eq_mul]
-      _ ≤ ∑ i ∈ B, dist (q.map fun y => cond y i) (PMF.uniformOfFintype Seed₂) :=
-          sum_le_sum fun i hi => (mem_filter.mp hi).2.le
-      _ ≤ ∑ i : Fin D, dist (q.map fun y => cond y i) (PMF.uniformOfFintype Seed₂) :=
-          sum_le_sum_of_subset_of_nonneg (subset_univ B) fun _ _ _ => dist_nonneg
-      _ ≤ (D : ℝ) * ε_ext := hsum_le
-  refine ⟨B, Nat.le_floor ?_, ?_⟩
+  refine ⟨B, Nat.le_floor ?_, fun i hiB => ⟨_, minEntropy_uniformOfFintype.ge, ?_⟩⟩
   · rw [le_div_iff₀ (NNReal.coe_pos.mpr hδ)]
-    linarith
-  · intro i hiB
-    refine ⟨PMF.uniformOfFintype Seed₂, minEntropy_uniformOfFintype.ge, ?_⟩
-    rw [StatisticallyClose]
-    have hle : dist (q.map fun y => cond y i) (PMF.uniformOfFintype Seed₂) ≤ δ := by
-      by_contra hlt
-      exact hiB (mem_filter.mpr ⟨mem_univ i, not_le.mp hlt⟩)
-    exact_mod_cast hle
+    calc (#B : ℝ) * δ
+        ≤ ∑ i ∈ B, dist (q.map fun y => cond y i) (PMF.uniformOfFintype Seed₂) := by
+          simpa using B.card_nsmul_le_sum _ (δ : ℝ) fun i hi => (mem_filter.mp hi).2.le
+      _ ≤ _ := sum_le_sum_of_subset_of_nonneg (subset_univ B) fun _ _ _ => dist_nonneg
+      _ ≤ _ := hstrong.trans_eq (mul_comm _ _)
+  · simpa [B, StatisticallyClose] using hiB
 
 /-! ### Conditional small-bias and the two-source extractor reduction -/
 
@@ -448,59 +295,24 @@ theorem isKWiseSmallBias_map_restrict_of_condenser
         ∑ y : Y, (τ r y).toReal * chi ℝ S' (fun i => nmExt x (cond y i) i)
     else 0
   have hbias_Z : bias Z S' = ∑ r : Seed₂, (R r).toReal * evalCond r := by
-    rw [bias, sum_bind_mul]
-    have hx_eq (x : X) :
-        ∑ z : BitString D, ((q.map fun y => fun i => nmExt x (cond y i) i) z).toReal * chi ℝ S' z =
-          ∑ r : Seed₂, (R r).toReal *
-            if r ∈ R.support then
-              ∑ y : Y, (τ r y).toReal * chi ℝ S' (fun i => nmExt x (cond y i) i)
-            else 0 := by
-      rw [sum_map_mul]
-      conv_lhs => rw [← hbind_τ]
-      rw [sum_bind_mul]
-      refine sum_congr rfl fun r _ => ?_
-      by_cases hr : r ∈ R.support
-      · rw [ite_eq_left hr]
-      · have hzero : (R r).toReal = 0 := by
-          rw [(R.apply_eq_zero_iff r).mpr hr, ENNReal.toReal_zero]
-        rw [hzero, zero_mul, zero_mul]
-    simp_rw [hx_eq, mul_sum]
+    simp only [bias, Z, sum_bind_mul, sum_map_mul]
+    conv_lhs => rw [← hbind_τ]
+    simp only [sum_bind_mul, mul_sum]
     rw [sum_comm]
     refine sum_congr rfl fun r _ => ?_
-    dsimp only [evalCond]
     by_cases hr : r ∈ R.support
-    · simp_rw [ite_eq_left hr]
-      rw [mul_sum]
-      refine sum_congr rfl fun x _ => by ring
-    · have hzero : (R r).toReal = 0 := by
-        rw [(R.apply_eq_zero_iff r).mpr hr, ENNReal.toReal_zero]
-      simp [hzero]
+    · simp only [evalCond, hr, ↓reduceIte, mul_sum]
+      exact sum_congr rfl fun x _ => sum_congr rfl fun y _ => by ring
+    · simp [(R.apply_eq_zero_iff r).mpr hr]
   have heval_abs (r : Seed₂) : |evalCond r| ≤ 1 := by
-    dsimp only [evalCond]
-    by_cases hr : r ∈ R.support
-    · rw [ite_eq_left hr]
-      refine (abs_sum_le_sum_abs _ _).trans ?_
-      calc ∑ x : X, |(p x).toReal *
-              ∑ y : Y, (τ r y).toReal * chi ℝ S' (fun i => nmExt x (cond y i) i)|
-          ≤ ∑ x : X, (p x).toReal * 1 := by
-            refine sum_le_sum fun x _ => ?_
-            rw [abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
-            refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
-            refine (abs_sum_le_sum_abs _ _).trans_eq ?_
-            calc ∑ y : Y, |(τ r y).toReal * chi ℝ S' (fun i => nmExt x (cond y i) i)|
-                = ∑ y : Y, (τ r y).toReal * 1 := by
-                  refine sum_congr rfl fun y _ => ?_
-                  rw [abs_mul, abs_of_nonneg ENNReal.toReal_nonneg, abs_chi]
-              _ = 1 := by rw [← sum_mul, sum_toReal, one_mul]
-        _ = 1 := by rw [← sum_mul, sum_toReal, one_mul]
-    · rw [ite_eq_right hr, abs_zero]
-      exact zero_le_one
+    unfold evalCond
+    split_ifs
+    · exact abs_sum_toReal_mul_le p fun x _ => abs_sum_toReal_mul_le (τ r) fun y _ =>
+        (abs_chi ..).le
+    · simp
   have hswap_R : |bias Z S' - ∑ r : Seed₂, (R' r).toReal * evalCond r| ≤ 2 * (γ : ℝ) := by
     rw [hbias_Z]
-    have hdist := abs_sum_mul_sub_le R R' evalCond heval_abs
-    rw [StatisticallyClose] at hR'_close
-    have hγ : dist R R' ≤ γ := by exact_mod_cast hR'_close
-    linarith
+    linarith [abs_sum_mul_sub_le R R' evalCond heval_abs, show dist R R' ≤ γ from hR'_close]
   let μ : PMF (Seed₂ → Y) := Probability.PMF.pi τ
   have hμ_exp (x : X) (r : Seed₂) :
       ∑ y : Y, (τ r y).toReal * chi ℝ S' (fun i => nmExt x (cond y i) i) =
@@ -514,23 +326,14 @@ theorem isKWiseSmallBias_map_restrict_of_condenser
             if r ∈ R.support then
               ∑ x : X, (p x).toReal * chi ℝ S' (fun i => nmExt x (cond (g r) i) i)
             else 0 := by
-    have hterm (r : Seed₂) :
-        evalCond r = ∑ g : Seed₂ → Y, (μ g).toReal *
-          if r ∈ R.support then
-            ∑ x : X, (p x).toReal * chi ℝ S' (fun i => nmExt x (cond (g r) i) i)
-          else 0 := by
-      dsimp only [evalCond]
-      by_cases hr : r ∈ R.support
-      · rw [ite_eq_left hr]
-        simp_rw [ite_eq_left hr, hμ_exp]
-        simp_rw [mul_sum]
-        rw [sum_comm]
-        refine sum_congr rfl fun g _ => sum_congr rfl fun x _ => by ring
-      · simp only [ite_eq_right hr, mul_zero, sum_const_zero]
-    simp_rw [hterm]
     simp_rw [mul_sum]
     rw [sum_comm]
-    refine sum_congr rfl fun g _ => sum_congr rfl fun r _ => by ring
+    refine sum_congr rfl fun r _ => ?_
+    by_cases hr : r ∈ R.support
+    · simp only [evalCond, hr, ↓reduceIte, hμ_exp, mul_sum]
+      rw [sum_comm]
+      exact sum_congr rfl fun g _ => sum_congr rfl fun x _ => by ring
+    · simp only [evalCond, hr, ↓reduceIte, mul_zero, sum_const_zero]
   have hg_le (g : Seed₂ → Y) (hg : g ∈ μ.support) :
       |∑ r : Seed₂, (R' r).toReal *
           if r ∈ R.support then
@@ -561,64 +364,27 @@ theorem isKWiseSmallBias_map_restrict_of_condenser
           Real.rpow_neg zero_le_two (Real.logb 2 (Fintype.card Seed₂)),
           Real.rpow_logb two_pos (by norm_num) hpos, div_eq_mul_inv]
       exact hle.trans_eq hpow
-    have hnm_sum := sum_abs_signVal_mul_prod_le hnm hp a₀ hm f hf
-    calc |∑ r : Seed₂, (R' r).toReal *
-            if r ∈ R.support then
-              ∑ x : X, (p x).toReal * chi ℝ S' (fun i => nmExt x (cond (g r) i) i)
-            else 0|
-        ≤ ∑ r : Seed₂, |(R' r).toReal *
-            if r ∈ R.support then
-              ∑ x : X, (p x).toReal * chi ℝ S' (fun i => nmExt x (cond (g r) i) i)
-            else 0| := abs_sum_le_sum_abs _ _
-      _ ≤ ∑ r : Seed₂, (2 ^ Δ / (Fintype.card Seed₂ : ℝ)) *
+    have hcoef : 0 ≤ (2 : ℝ) ^ Δ / Fintype.card Seed₂ := by positivity
+    calc _ ≤ ∑ r : Seed₂, (2 ^ Δ / (Fintype.card Seed₂ : ℝ)) *
             |∑ x : X, (p x).toReal *
               (BitString.signVal (nmExt x r a₀) *
                 ∏ j : Fin m, BitString.signVal (nmExt x (f j r).1 (f j r).2))| := by
-          refine sum_le_sum fun r _ => ?_
+          refine (abs_sum_le_sum_abs _ _).trans (sum_le_sum fun r _ => ?_)
           rw [abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
-          by_cases hr : r ∈ R.support
-          · rw [ite_eq_left hr]
-            have hsum_eq :
-                (∑ x : X, (p x).toReal * chi ℝ S' (fun i => nmExt x (cond (g r) i) i)) =
-                  ∑ x : X, (p x).toReal *
-                    (BitString.signVal (nmExt x r a₀) *
-                      ∏ j : Fin m, BitString.signVal (nmExt x (f j r).1 (f j r).2)) :=
-              sum_congr rfl fun x _ => congrArg (_ * ·) (hχ x hr)
-            rw [hsum_eq]
+          split_ifs with hr
+          · rw [sum_congr rfl fun x _ => congrArg (_ * ·) (hχ x hr)]
             exact mul_le_mul_of_nonneg_right (hR'_mass r) (abs_nonneg _)
-          · rw [ite_eq_right hr, abs_zero, mul_zero]
-            exact mul_nonneg (div_nonneg (Real.rpow_nonneg zero_le_two _) (Nat.cast_nonneg _))
-              (abs_nonneg _)
-      _ = (2 ^ Δ / (Fintype.card Seed₂ : ℝ)) *
-            ∑ r : Seed₂, |∑ x : X, (p x).toReal *
-              (BitString.signVal (nmExt x r a₀) *
-                ∏ j : Fin m, BitString.signVal (nmExt x (f j r).1 (f j r).2))| :=
-          (mul_sum _ _ _).symm
-      _ ≤ (2 ^ Δ / (Fintype.card Seed₂ : ℝ)) * (2 * (Fintype.card Seed₂ : ℝ) * ε_nm) :=
-          mul_le_mul_of_nonneg_left hnm_sum
-            (div_nonneg (Real.rpow_nonneg zero_le_two _) (Nat.cast_nonneg _))
+          · simpa using mul_nonneg hcoef (abs_nonneg _)
+      _ ≤ (2 ^ Δ / (Fintype.card Seed₂ : ℝ)) * (2 * (Fintype.card Seed₂ : ℝ) * ε_nm) := by
+          rw [← mul_sum]
+          exact mul_le_mul_of_nonneg_left (sum_abs_signVal_mul_prod_le hnm hp a₀ hm f hf) hcoef
       _ = 2 ^ (Δ + 1) * ε_nm := by
-          have hcard : (Fintype.card Seed₂ : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr Fintype.card_ne_zero
           rw [Real.rpow_add two_pos, Real.rpow_one]
           field_simp
   have hR'_le : |∑ r : Seed₂, (R' r).toReal * evalCond r| ≤ 2 ^ (Δ + 1) * ε_nm := by
     rw [hR'_eq]
-    refine (abs_sum_le_sum_abs _ _).trans ?_
-    calc ∑ g : Seed₂ → Y, |(μ g).toReal *
-            ∑ r : Seed₂, (R' r).toReal *
-              if r ∈ R.support then
-                ∑ x : X, (p x).toReal * chi ℝ S' (fun i => nmExt x (cond (g r) i) i)
-              else 0|
-        ≤ ∑ g : Seed₂ → Y, (μ g).toReal * (2 ^ (Δ + 1) * ε_nm) := by
-          refine sum_le_sum fun g _ => ?_
-          rw [abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
-          by_cases hg : g ∈ μ.support
-          · exact mul_le_mul_of_nonneg_left (hg_le g hg) ENNReal.toReal_nonneg
-          · rw [(μ.apply_eq_zero_iff g).mpr hg, ENNReal.toReal_zero, zero_mul, zero_mul]
-      _ = 2 ^ (Δ + 1) * ε_nm := by rw [← sum_mul, sum_toReal, one_mul]
-  have htri := abs_sub_le (bias Z S') (∑ r : Seed₂, (R' r).toReal * evalCond r) 0
-  rw [sub_zero, sub_zero] at htri
-  linarith
+    exact abs_sum_toReal_mul_le μ hg_le
+  linarith [abs_sub_abs_le_abs_sub (bias Z S') (∑ r : Seed₂, (R' r).toReal * evalCond r)]
 
 /-- **Chattopadhyay–Zuckerman two-source extractor reduction**: combining a strong seeded
 condenser `cond` (missing at most `q_bad` bad seeds, with min-entropy deficiency `Δ` and error

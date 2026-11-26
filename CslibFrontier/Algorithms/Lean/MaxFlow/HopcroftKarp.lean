@@ -419,9 +419,7 @@ private theorem bfsInit_foldl (ml : Vector Bool m) (l : List (Fin m))
       · by_cases hx : vget ml x = true <;> simp [hx, hux, vget_vset_ne _ _ hux.symm]
     · rw [ih2 u]
       unfold hkBfsInitStep
-      rcases eq_or_ne u x with rfl | hux
-      · by_cases hx : vget ml u = true <;> simp [hx]
-      · split_ifs <;> simp [hux]
+      rcases eq_or_ne u x with rfl | hux <;> split_ifs with hx <;> simp [*]
 
 private theorem bfsInit_nodup (ml : Vector Bool m) (l : List (Fin m))
     (p : Vector (Option ℕ) m × List (Fin m)) (hl : l.Nodup) (hp : p.2.Nodup)
@@ -434,10 +432,7 @@ private theorem bfsInit_nodup (ml : Vector Bool m) (l : List (Fin m))
     split_ifs with hx
     · exact ih p hl hp fun y hy => hdisj y (List.mem_cons_of_mem _ hy)
     · have hp' : (p.2 ++ [x]).Nodup :=
-        List.nodup_append.mpr ⟨hp, List.nodup_singleton x, fun a ha b hb hab => by
-          obtain rfl := List.mem_singleton.mp hb
-          subst hab
-          exact hdisj a List.mem_cons_self ha⟩
+        List.concat_eq_append ▸ hp.concat (hdisj x List.mem_cons_self)
       refine ih _ hl hp' fun y hy h => ?_
       rcases List.mem_append.mp h with h | h
       · exact hdisj y (List.mem_cons_of_mem _ hy) h
@@ -481,14 +476,8 @@ private theorem hkBfsStep_inv {j : ℕ} {u : Fin m} (hu : u ∈ altLeft G (mateM
           rcases Nat.lt_or_eq_of_le hi with hlt | rfl
           · exact absurd ((hs.exact w i (by omega)).mpr hwi) (by simp [hd])
           · exact hwi
-        have hw_not_next : w ∉ s.next := fun h => by
-          have h' := (hs.next_iff w).mpr h
-          simp [hd] at h'
-        have hnd' : (s.next ++ [w]).Nodup :=
-          List.nodup_append.mpr ⟨hs.nodup, List.nodup_singleton w, fun a ha b hb hab => by
-            obtain rfl := List.mem_singleton.mp hb
-            subst hab
-            exact hw_not_next ha⟩
+        have hw_not_next : w ∉ s.next := fun h => by simpa [hd] using (hs.next_iff w).mpr h
+        have hnd' : (s.next ++ [w]).Nodup := List.concat_eq_append ▸ hs.nodup.concat hw_not_next
         refine ⟨fun x i hi => ?_, fun x i hx => ?_, fun x => ?_,
           fun x hx => (List.mem_append.mp hx).elim (hs.next_layer x)
             fun hx => List.mem_singleton.mp hx ▸ hwl,
@@ -496,11 +485,9 @@ private theorem hkBfsStep_inv {j : ℕ} {u : Fin m} (hu : u ∈ altLeft G (mateM
         · rcases eq_or_ne x w with rfl | hxw
           · exact ⟨fun h => by simp at h; omega,
               fun h => absurd ((hs.exact x i hi).mpr h) (by simp [hd])⟩
-          · rw [vget_vset_ne _ _ hxw.symm]
-            exact hs.exact x i hi
+          · simp [vget_vset_ne _ _ hxw.symm, hs.exact x i hi]
         · rcases eq_or_ne x w with rfl | hxw
-          · simp only [vget_vset_self, Option.some.injEq] at hx
-            omega
+          · simp at hx; omega
           · exact hs.bound x i (by rwa [vget_vset_ne _ _ hxw.symm] at hx)
         · rcases eq_or_ne x w with rfl | hxw
           · simp
@@ -757,9 +744,7 @@ theorem bfsInit_potential (ml : Vector Bool m) (c : Fin m → ℕ) (l : List (Fi
     split_ifs
     · omega
     · have := vecPotential_vset_le (p := (· = none)) (c := c) p.1 x (x := some 0) (by simp)
-      simp only [List.map_append, List.sum_append, List.map_cons, List.map_nil, List.sum_cons,
-        List.sum_nil]
-      omega
+      simp; omega
 
 private theorem hkBfsStep_potential (G : Fin m × Fin r → Bool) (mate : Vector (Option (Fin m)) r)
     (c : Fin m → ℕ) (j : ℕ) (u : Fin m) (s : HKBfsState m) (v : Fin r) :
@@ -775,9 +760,7 @@ private theorem hkBfsStep_potential (G : Fin m × Fin r → Bool) (mate : Vector
       split_ifs with hd
       · have := vecPotential_vset_add (c := c) (p := (· = none)) (t := s.dist)
           (x := some (j + 1)) hd (by simp)
-        simp only [List.map_append, List.sum_append, List.map_cons, List.map_nil, List.sum_cons,
-          List.sum_nil]
-        omega
+        simp; omega
       · rfl
   · rfl
 
@@ -787,18 +770,14 @@ theorem layerFold_potential (G : Fin m × Fin r → Bool) (adj : Fin m → List 
     vecPotential (· = none) c (hkBfsLayer G adj mate j us s).dist +
         ((hkBfsLayer G adj mate j us s).next.map c).sum =
       vecPotential (· = none) c s.dist + (s.next.map c).sum := by
-  have step : ∀ (u : Fin m) (l : List (Fin r)) (st : HKBfsState m),
-      vecPotential (· = none) c (l.foldl (hkBfsStep G mate j u) st).dist +
-          ((l.foldl (hkBfsStep G mate j u) st).next.map c).sum =
-        vecPotential (· = none) c st.dist + (st.next.map c).sum := by
-    intro u l
-    induction l with
-    | nil => intro _; rfl
-    | cons _ _ ih => intro _; rw [List.foldl_cons, ih, hkBfsStep_potential]
   unfold hkBfsLayer
   induction us generalizing s with
   | nil => rfl
-  | cons _ _ ih => rw [List.foldl_cons, ih, step]
+  | cons u _ ih =>
+    rw [List.foldl_cons, ih]
+    induction adj u generalizing s with
+    | nil => rfl
+    | cons _ _ ihl => rw [List.foldl_cons, ihl, hkBfsStep_potential]
 
 end BfsLoop
 
@@ -1153,16 +1132,10 @@ theorem hkApplyEdges_eq_of_toFinset_eq (mate : Vector (Option (Fin m)) r)
   ext j hj u
   let v : Fin r := ⟨j, hj⟩
   change vget (hkApplyEdges mate es₁) v = some u ↔ vget (hkApplyEdges mate es₂) v = some u
-  rw [hkApplyEdges, hkApplyEdges, vget_foldl_apply mate es₁ hnd₁ u v,
-    vget_foldl_apply mate es₂ hnd₂ u v]
-  have hmem : ∀ w, (w, v) ∈ es₁ ↔ (w, v) ∈ es₂ := fun w => by
-    rw [← List.mem_toFinset, heq, List.mem_toFinset]
-  have hsnd : v ∈ es₁.map Prod.snd ↔ v ∈ es₂.map Prod.snd := by
-    simp only [List.mem_map, Prod.exists]
-    constructor
-    · rintro ⟨w, _, hm, rfl⟩; exact ⟨w, v, (hmem w).mp hm, rfl⟩
-    · rintro ⟨w, _, hm, rfl⟩; exact ⟨w, v, (hmem w).mpr hm, rfl⟩
-  rw [hmem u, hsnd]
+  rw [hkApplyEdges, hkApplyEdges, vget_foldl_apply mate es₁ hnd₁, vget_foldl_apply mate es₂ hnd₂]
+  have hmem (w : Fin m) : (w, v) ∈ es₁ ↔ (w, v) ∈ es₂ := by
+    simpa using Finset.ext_iff.mp heq (w, v)
+  simp [Prod.exists, hmem]
 
 /-- Rematching a mate table along a compatible edge list realizes `augment`. -/
 theorem mateMatching_applyEdges (mate : Vector (Option (Fin m)) r)
@@ -1219,9 +1192,8 @@ theorem hkLoop_spec (hadj : BipAdjValid G adj) :
   intro fuel
   induction fuel with
   | zero =>
-    intro _ mate hM hfuel
-    have := hM.card_le_card_left
-    simp only [Fintype.card_fin] at this
+    intro _ mate hM _
+    have : (mateMatching mate).card ≤ m := by simpa using hM.card_le_card_left
     omega
   | succ fuel ih =>
     intro n mate hM hfuel
@@ -1239,10 +1211,8 @@ theorem hkLoop_spec (hadj : BipAdjValid G adj) :
       have hpost := ih (n + 1) _ hM' (by omega)
       have hle := hpost.le_phases
       refine ⟨hpost.isMatching, by omega, ?_, hpost.closed⟩
-      have : (hkLoop G adj fuel (n + 1) (hkPhase G adj mate b.dist b.k)).phases - n =
-          (hkLoop G adj fuel (n + 1) (hkPhase G adj mate b.dist b.k)).phases -
-            (n + 1) + 1 := by omega
-      exact this ▸ .step hb.noShort ht hfree hN (hmate' ▸ hpost.run)
+      rw [← Nat.sub_add_cancel (Nat.sub_pos_of_lt hle), Nat.sub_sub]
+      exact .step hb.noShort ht hfree hN (hmate' ▸ hpost.run)
     · obtain ⟨hstable, hsub, hdist⟩ := hb.found_false (Bool.eq_false_iff.mpr hf)
       exact ⟨hM, le_rfl, Nat.sub_self n ▸ .done, b.k, hstable, hsub, hdist⟩
 
@@ -1264,19 +1234,17 @@ private theorem foldl_filter_of_id {α β : Type*} (step : α → β → α) (p 
 
 private theorem hkBfs_exactBipAdj (G : Fin m × Fin r → Bool) (mate : Vector (Option (Fin m)) r) :
     hkBfs G (exactBipAdj G) mate = hkBfs G (denseBipAdj m r) mate := by
-  have hlayer : ∀ j us s,
+  have hlayer (j us s) :
       hkBfsLayer G (exactBipAdj G) mate j us s = hkBfsLayer G (denseBipAdj m r) mate j us s := by
-    intro j us s
     unfold hkBfsLayer exactBipAdj denseBipAdj
     congr 1
     funext s' u
     exact foldl_filter_of_id _ _ (fun st v hG => by simp [hkBfsStep, hG]) _ _
-  have hloop : ∀ fuel j dist frontier,
+  have hloop (fuel) : ∀ j dist frontier,
       hkBfsLoop G (exactBipAdj G) mate fuel j dist frontier =
         hkBfsLoop G (denseBipAdj m r) mate fuel j dist frontier := by
-    intro fuel
     induction fuel with
-    | zero => intros; rfl
+    | zero => exact fun _ _ _ => rfl
     | succ fuel ih =>
       intro j dist frontier
       simp only [hkBfsLoop, hlayer]
@@ -1304,24 +1272,18 @@ private theorem hkDfsLevel_filter (G : Fin m × Fin r → Bool) (mate : Vector (
 private theorem hkPhase_exactBipAdj (G : Fin m × Fin r → Bool) (mate : Vector (Option (Fin m)) r)
     (dist : Vector (Option ℕ) m) (k : ℕ) :
     hkPhase G (exactBipAdj G) mate dist k = hkPhase G (denseBipAdj m r) mate dist k := by
-  have hdfs : ∀ f i, hkDfs G (exactBipAdj G) mate dist f i =
+  have hdfs (f) : ∀ i, hkDfs G (exactBipAdj G) mate dist f i =
       hkDfs G (denseBipAdj m r) mate dist f i := by
-    intro f
     induction f with
-    | zero =>
-      intro i
-      funext u vis acc
-      exact hkDfsLevel_filter G mate dist true i _ _ rfl u (List.finRange r) vis acc
-    | succ f ih =>
-      intro i
-      funext u vis acc
-      exact hkDfsLevel_filter G mate dist false i _ _ (ih (i + 1)) u (List.finRange r) vis acc
-  have hroots : ∀ us vis acc,
+    | zero => exact fun i => funext fun u => funext fun vis => funext fun acc =>
+        hkDfsLevel_filter G mate dist true i _ _ rfl u (List.finRange r) vis acc
+    | succ f ih => exact fun i => funext fun u => funext fun vis => funext fun acc =>
+        hkDfsLevel_filter G mate dist false i _ _ (ih (i + 1)) u (List.finRange r) vis acc
+  have hroots (us) : ∀ vis acc,
       hkDfsRoots G (exactBipAdj G) mate dist k us vis acc =
         hkDfsRoots G (denseBipAdj m r) mate dist k us vis acc := by
-    intro us
     induction us with
-    | nil => intros; rfl
+    | nil => exact fun _ _ => rfl
     | cons u us ih =>
       intro vis acc
       simp only [hkDfsRoots, hdfs]
@@ -1332,9 +1294,8 @@ private theorem hkPhase_exactBipAdj (G : Fin m × Fin r → Bool) (mate : Vector
 same output as `hopcroftKarpDense G`. -/
 theorem hopcroftKarp_exactBipAdj (G : Fin m × Fin r → Bool) :
     hopcroftKarp G (exactBipAdj G) = hopcroftKarpDense G := by
-  have hloop : ∀ fuel n mate,
+  have hloop (fuel) : ∀ n mate,
       hkLoop G (exactBipAdj G) fuel n mate = hkLoop G (denseBipAdj m r) fuel n mate := by
-    intro fuel
     induction fuel with
     | zero => intros; rfl
     | succ fuel ih =>
@@ -1414,24 +1375,17 @@ theorem hopcroftKarp_correct (hadj : BipAdjValid G adj) :
       (hopcroftKarp G adj).matching.card = (hopcroftKarp G adj).cover.size ∧
       (hopcroftKarp G adj).phases ≤ 2 * Nat.sqrt (hopcroftKarp G adj).matching.card := by
   have hpost := hkLoop_start (G := G) hadj
-  unfold hopcroftKarp
   obtain ⟨k, hstable, hsub, hdist⟩ := hpost.closed
   have hM := hpost.isMatching
   set out := hkLoop G adj (m + 1) 0 (Vector.replicate r none)
-  have hmatch : (List.finRange r).foldl (hkMatchingStep out.mate) ∅ = mateMatching out.mate := by
-    ext ⟨u, v⟩
-    simp [mem_foldl_hkMatchingStep]
-  have hcover : (⟨(List.finRange m).foldl (hkCoverLeftStep out.dist) ∅,
-      (List.finRange r).foldl (hkCoverRightStep out.mate out.dist) ∅⟩ :
-        VertexCover (Fin m) (Fin r)) = layerCover G (mateMatching out.mate) k := by
-    simp only [layerCover, VertexCover.mk.injEq]
-    refine ⟨by ext u; simp [mem_foldl_hkCoverLeftStep, hdist u], by
-      ext v
-      simp only [mem_foldl_hkCoverRightStep, mem_altRight_iff_of_stable hM hstable hsub,
-        Finset.notMem_empty, List.mem_finRange, true_and, false_or, mem_mateMatching]
-      exact exists_congr fun w => and_congr_right fun _ => by simp [hdist w]⟩
-  dsimp only
-  rw [hmatch, hcover]
+  have hcover : (hopcroftKarp G adj).cover = layerCover G (mateMatching out.mate) k := by
+    simp only [hopcroftKarp, layerCover, VertexCover.mk.injEq]
+    refine ⟨?_, ?_⟩
+    · ext u
+      simp [mem_foldl_hkCoverLeftStep, out, hdist]
+    · ext v
+      simp [mem_foldl_hkCoverRightStep, mem_altRight_iff_of_stable hM hstable hsub, out, hdist]
+  rw [hopcroftKarp_matching_eq_mateMatching, hcover]
   obtain ⟨hmax, hmin⟩ := isMaxMatching_isMinVertexCover_of_stable hM hstable hsub
   exact ⟨hmax, hmin, (size_layerCover_of_stable hM hstable hsub).symm,
     (mateMatching_replicate_none ▸ Nat.sub_zero _ ▸ hpost.run).le_two_mul_sqrt hmax⟩
@@ -1447,9 +1401,8 @@ theorem hopcroftKarpDense_correct (G : Fin m × Fin r → Bool) :
 /-- Hopcroft–Karp returns a matching of the same cardinality as any maximum matching `M` of `G`. -/
 theorem card_hopcroftKarp_matching_eq {M : Finset (Fin m × Fin r)}
     (hadj : BipAdjValid G adj) (hM : IsMaxMatching G M) :
-    (hopcroftKarp G adj).matching.card = M.card := by
-  have h1 := (hopcroftKarp_correct hadj).1
-  exact le_antisymm (hM.2 _ h1.1) (h1.2 _ hM.1)
+    (hopcroftKarp G adj).matching.card = M.card :=
+  le_antisymm (hM.2 _ (hopcroftKarp_correct hadj).1.1) ((hopcroftKarp_correct hadj).1.2 _ hM.1)
 
 end Main
 
@@ -1468,10 +1421,8 @@ theorem decidePerfectMatchingHK_eq_true_iff (hadj : BipAdjValid G adj) :
   simp only [decidePerfectMatchingHK, decide_eq_true_iff,
     hasPerfectMatching_iff_exists_matching_card, Fintype.card_fin]
   obtain ⟨hmax, -⟩ := hopcroftKarp_correct hadj
-  refine ⟨fun h => ⟨_, hmax.1, h⟩, fun ⟨M, hM, hcard⟩ => ?_⟩
-  have hle : M.card ≤ (hopcroftKarp G adj).matching.card := hmax.2 M hM
-  have hge : (hopcroftKarp G adj).matching.card ≤ n := by simpa using hmax.1.card_le_card_left
-  omega
+  exact ⟨fun h => ⟨_, hmax.1, h⟩, fun ⟨M, hM, hcard⟩ =>
+    le_antisymm (by simpa using hmax.1.card_le_card_left) (hcard.symm.le.trans (hmax.2 M hM))⟩
 
 end Perfect
 

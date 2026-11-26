@@ -106,29 +106,28 @@ theorem integral_trueRisk_average_le (hT : 0 < T) (hK : Convex ℝ K)
     (hfresh : ∀ t S z, w t (Function.update S t z) = w t S) :
     ∫ S, trueRisk ℓ D ((T : ℝ)⁻¹ • ∑ t, w t S) ∂Measure.pi (fun _ => D) ≤
       (T : ℝ)⁻¹ * ∑ t, ∫ S, ℓ (w t S) (S t) ∂Measure.pi (fun _ => D) := by
-  have hTr : (0 : ℝ) < T := by exact_mod_cast hT
-  have hsum1 : ∑ _t : Fin T, (T : ℝ)⁻¹ = 1 := by simp [hTr.ne']
-  have hwbarK : ∀ S, (T : ℝ)⁻¹ • ∑ t, w t S ∈ K := fun S => by
+  have hsum1 : ∑ _t : Fin T, (T : ℝ)⁻¹ = 1 := by simp [(Nat.cast_pos (α := ℝ).2 hT).ne']
+  have hwbarK (S : Fin T → Z) : (T : ℝ)⁻¹ • ∑ t, w t S ∈ K := by
     rw [Finset.smul_sum]
     exact hK.sum_mem (fun _ _ => by positivity) hsum1 fun t _ => hwK t S
-  have hwbarm : Measurable fun S => (T : ℝ)⁻¹ • ∑ t, w t S :=
-    (Finset.measurable_sum Finset.univ fun t _ => hwm t).const_smul _
   -- Jensen's inequality for each sample.
-  have hjensen : ∀ S, trueRisk ℓ D ((T : ℝ)⁻¹ • ∑ t, w t S) ≤
-      (T : ℝ)⁻¹ * ∑ t, trueRisk ℓ D (w t S) := fun S => by
-    have h := (convexOn_trueRisk hK hconv fun v hv => integrable_loss hℓ hb hbound hv).map_sum_le
-      (t := Finset.univ) (w := fun _ => (T : ℝ)⁻¹) (p := fun t => w t S)
-      (fun _ _ => by positivity) hsum1 fun t _ => hwK t S
-    simpa only [Finset.smul_sum, Finset.mul_sum, smul_eq_mul] using h
+  have hjensen (S : Fin T → Z) : trueRisk ℓ D ((T : ℝ)⁻¹ • ∑ t, w t S) ≤
+      (T : ℝ)⁻¹ * ∑ t, trueRisk ℓ D (w t S) := by
+    simpa only [Finset.smul_sum, Finset.mul_sum, smul_eq_mul] using
+      (convexOn_trueRisk hK hconv fun _ => integrable_loss hℓ hb hbound).map_sum_le
+        (t := Finset.univ) (w := fun _ => (T : ℝ)⁻¹) (p := fun t => w t S)
+        (fun _ _ => by positivity) hsum1 fun t _ => hwK t S
   -- The online loss is an unbiased estimate of the true risk of the current point.
-  have hfresh' : ∀ t, ∫ S, ℓ (w t S) (S t) ∂Measure.pi (fun _ => D) =
-      ∫ S, trueRisk ℓ D (w t S) ∂Measure.pi (fun _ => D) := fun t => by
+  have hfresh' (t : Fin T) : ∫ S, ℓ (w t S) (S t) ∂Measure.pi (fun _ => D) =
+      ∫ S, trueRisk ℓ D (w t S) ∂Measure.pi (fun _ => D) := by
     simp only [trueRisk_def]
     exact integral_apply_eval_eq_integral_integral (fun _ => D) (Φ := fun S z => ℓ (w t S) z)
       (fun S z => by simp only [hfresh]) (integrable_loss_eval hℓ hb hbound (hwm t) (hwK t) t)
   calc ∫ S, trueRisk ℓ D ((T : ℝ)⁻¹ • ∑ t, w t S) ∂Measure.pi (fun _ => D)
       ≤ ∫ S, (T : ℝ)⁻¹ * ∑ t, trueRisk ℓ D (w t S) ∂Measure.pi (fun _ => D) :=
-        integral_mono (integrable_trueRisk_comp hℓ hb hbound hwbarm hwbarK)
+        integral_mono
+          (integrable_trueRisk_comp hℓ hb hbound
+            ((Finset.measurable_sum Finset.univ fun t _ => hwm t).const_smul _) hwbarK)
           ((integrable_finsetSum _ fun t _ =>
             integrable_trueRisk_comp hℓ hb hbound (hwm t) (hwK t)).const_mul _) hjensen
     _ = (T : ℝ)⁻¹ * ∑ t, ∫ S, ℓ (w t S) (S t) ∂Measure.pi (fun _ => D) := by
@@ -150,23 +149,19 @@ theorem integral_trueRisk_average_le_add (hT : 0 < T) (hK : Convex ℝ K)
       trueRisk ℓ D u + R / T := by
   refine (integral_trueRisk_average_le hT hK hℓ hconv hb hbound hwK hwm hfresh).trans ?_
   have hTr : (0 : ℝ) < T := by exact_mod_cast hT
-  have hintW : ∀ t : Fin T, Integrable (fun S : Fin T → Z => ℓ (w t S) (S t))
-      (Measure.pi fun _ => D) := fun t => integrable_loss_eval hℓ hb hbound (hwm t) (hwK t) t
-  have hintU : ∀ t : Fin T, Integrable (fun S : Fin T → Z => ℓ u (S t))
-      (Measure.pi fun _ => D) := fun t =>
-    integrable_loss_eval hℓ hb hbound measurable_const (fun _ => hu) t
-  have hu_eval : ∀ t : Fin T, ∫ S, ℓ u (S t) ∂Measure.pi (fun _ => D) = trueRisk ℓ D u :=
-    fun t => by
-      rw [trueRisk_def]
-      exact integral_comp_eval (integrable_loss hℓ hb hbound hu).aestronglyMeasurable
+  have hintW (t : Fin T) := integrable_loss_eval hℓ hb hbound (hwm t) (hwK t) t
+  have hintU (t : Fin T) := integrable_loss_eval hℓ hb hbound measurable_const (fun _ => hu) t
   have h1 : ∫ S, ∑ t, ℓ (w t S) (S t) ∂Measure.pi (fun _ => D) ≤
       ∫ S, (R + ∑ t, ℓ u (S t)) ∂Measure.pi (fun _ => D) :=
     integral_mono (integrable_finsetSum _ fun t _ => hintW t)
-      ((integrable_const R).add (integrable_finsetSum _ fun t _ => hintU t))
-      fun S => by have := hR S; rw [Finset.sum_sub_distrib] at this; linarith
+      ((integrable_const R).add (integrable_finsetSum _ fun t _ => hintU t)) fun S => by
+        have := hR S
+        rw [Finset.sum_sub_distrib] at this; linarith
   rw [integral_finsetSum _ fun t _ => hintW t,
     integral_add (integrable_const R) (integrable_finsetSum _ fun t _ => hintU t),
     integral_finsetSum _ fun t _ => hintU t] at h1
+  have hu_eval (t : Fin T) : ∫ S, ℓ u (S t) ∂Measure.pi (fun _ => D) = trueRisk ℓ D u :=
+    trueRisk_def ℓ D u ▸ integral_comp_eval (integrable_loss hℓ hb hbound hu).aestronglyMeasurable
   simp only [hu_eval, integral_const, probReal_univ, smul_eq_mul, one_mul, Finset.sum_const,
     Finset.card_univ, Fintype.card_fin, nsmul_eq_mul] at h1
   calc (T : ℝ)⁻¹ * ∑ t, ∫ S, ℓ (w t S) (S t) ∂Measure.pi (fun _ => D)

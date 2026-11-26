@@ -116,14 +116,10 @@ positive `k`. -/
 theorem mem_no_iff {S : SetSystem} {k : ℕ} :
     (S, k) ∈ (GapSetCover 3).no ↔ S.Coverable ∧ 3 * k ≤ S.optCoverSize ∧ 0 < k := by
   rw [GapSetCover, mem_no_GapSetCoverFn]
-  refine and_congr_right fun _ => and_congr (by exact_mod_cast Iff.rfl) ?_
-  constructor
-  · intro h
-    by_contra hk
-    rw [show k = 0 by omega] at h
-    norm_num at h
+  refine and_congr_right fun _ => and_congr (by exact_mod_cast Iff.rfl) ⟨?_, ?_⟩
+  · exact fun h => Nat.pos_of_ne_zero fun hk => by norm_num [hk] at h
   · intro hk
-    have : (0 : ℝ) < k := by exact_mod_cast hk
+    have hk_pos : (0 : ℝ) < k := by exact_mod_cast hk
     linarith
 
 /-- The optimum of a coverable system is at most its number of sets. -/
@@ -141,9 +137,7 @@ theorem ground_ne_nil_of_mem_no {S : SetSystem} {k : ℕ} (hno : (S, k) ∈ (Gap
     S.ground ≠ [] := by
   obtain ⟨-, hopt, hk⟩ := mem_no_iff.mp hno
   intro hS
-  have hnil : S.IsCover ∅ := fun u hu => by simp [hS] at hu
-  have h0 := SetSystem.optCoverSize_le hnil
-  simp only [card_empty] at h0
+  have : S.optCoverSize ≤ 0 := SetSystem.optCoverSize_le (C := ∅) fun _ hu => by simp [hS] at hu
   omega
 
 /-! ### Positions and parameters -/
@@ -156,11 +150,8 @@ are not in the ground list give no position, so they are ignored. -/
 theorem mem_residues {S : SetSystem} {i : Fin S.sets.length} {j : ℕ} :
     j ∈ residues S i ↔ ∃ h : j < S.ground.length, S.ground[j] ∈ S.sets[i] := by
   simp only [residues, mem_filter, mem_range]
-  constructor
-  · rintro ⟨h, hj⟩
-    exact ⟨h, by rwa [List.getD_eq_getElem _ _ h] at hj⟩
-  · rintro ⟨h, hj⟩
-    exact ⟨h, by rwa [List.getD_eq_getElem _ _ h]⟩
+  exact ⟨fun ⟨h, hj⟩ => ⟨h, by rwa [List.getD_eq_getElem _ _ h] at hj⟩,
+    fun ⟨h, hj⟩ => ⟨h, by rwa [List.getD_eq_getElem _ _ h]⟩⟩
 
 /-- **Relabelling.** The sets `C` cover every position of the ground list exactly when they cover
 `S`. A repeated ground element repeats a covering obligation, and set elements outside the ground
@@ -208,13 +199,9 @@ theorem bound_pow_six_lt (S : SetSystem) : bound S ^ 6 < 2 ^ arity S := by
 /-- `2^p` is at most `64 (N + t + 4)^6`. -/
 theorem two_pow_arity_le (S : SetSystem) : 2 ^ arity S ≤ 64 * bound S ^ 6 := by
   have h3 := three_le_size S
-  have hle : 2 ^ (Nat.size (bound S) - 1) ≤ bound S := Nat.lt_size.mp (by omega)
   have h2 : 2 ^ Nat.size (bound S) ≤ 2 * bound S := by
-    calc 2 ^ Nat.size (bound S) = 2 * 2 ^ (Nat.size (bound S) - 1) := by
-          rw [← pow_succ']
-          congr 1
-          omega
-      _ ≤ 2 * bound S := Nat.mul_le_mul_left 2 hle
+    rw [show Nat.size (bound S) = (Nat.size (bound S) - 1) + 1 by omega, pow_succ']
+    exact Nat.mul_le_mul_left 2 (Nat.lt_size.mp (by omega))
   calc 2 ^ arity S = (2 ^ Nat.size (bound S)) ^ 6 := by rw [arity, Nat.mul_comm, pow_mul]
     _ ≤ (2 * bound S) ^ 6 := Nat.pow_le_pow_left h2 6
     _ = 64 * bound S ^ 6 := by ring
@@ -278,10 +265,8 @@ theorem reduce_positive (x : (SetSystem × ℕ) × List Bool) : (reduce x).Posit
     refine mem_nonInputComponents.mpr ⟨⟨_, rfl⟩, fun i h => ?_⟩
     have := congrFun h fun _ => false
     simp [Window.template_equivFin] at this
-  have hpos := card_pos.mpr ⟨_, hmem⟩
-  refine ⟨(eighteen_le_arity S).trans_lt' (by norm_num), Nat.succ_pos _, ?_⟩
-  change 0 < _ + _
-  omega
+  exact ⟨(eighteen_le_arity S).trans_lt' (by norm_num), Nat.succ_pos _,
+    Nat.add_pos_left (card_pos.mpr ⟨_, hmem⟩) _⟩
 
 /-! ### Correctness -/
 
@@ -295,8 +280,7 @@ theorem reduce_mem_of_yes {S : SetSystem} {k : ℕ} (hyes : (S, k) ∈ (GapSetCo
   obtain ⟨hcov, hopt⟩ := mem_yes_iff.mp hyes
   by_cases hS : S.ground = []
   · rw [reduce_of_ground_eq_nil hS, fallback, ofFunction_mem_iff]
-    have h := ecomplexity_wiring (I := I) (fun _ : Fin 1 => (0 : Fin 1))
-    exact h.le.trans zero_le
+    exact (ecomplexity_wiring (I := I) fun _ : Fin 1 => (0 : Fin 1)).le.trans zero_le
   rw [reduce_of_ground_ne_nil hS, ofTable_mem_iff]
   obtain ⟨C, hC, hcard⟩ := SetSystem.exists_isCover_optCoverSize hcov
   have hCt : #C ≤ S.sets.length := (card_le_univ C).trans_eq (Fintype.card_fin _)
@@ -329,30 +313,26 @@ theorem three_mul_card_ofTable_mem_le {S : SetSystem} {k : ℕ}
   have hNb : S.ground.length ≤ bound S := by simp only [bound]; omega
   have htb : S.sets.length ≤ bound S := by simp only [bound]; omega
   have hb2 : bound S ≤ bound S ^ 6 := Nat.le_self_pow (by norm_num) _
-  have ht : S.sets.length ≤ 2 ^ arity S := by omega
   have h64 : 64 ≤ 2 ^ arity S :=
     (Nat.pow_le_pow_right (by norm_num) (eighteen_le_arity S)).trans' (by norm_num)
   have hd : arity S * (5 * k + 5) ≤ 2 ^ arity S / S.ground.length := by
     rw [Nat.le_div_iff_mul_le hN]
-    have hkb : 5 * k + 5 ≤ 5 * bound S := by omega
     calc arity S * (5 * k + 5) * S.ground.length
         ≤ (6 * bound S) * (5 * bound S) * bound S :=
-          Nat.mul_le_mul (Nat.mul_le_mul (arity_le S) hkb) hNb
+          Nat.mul_le_mul (Nat.mul_le_mul (arity_le S) (by omega)) hNb
       _ = 30 * bound S ^ 3 := by ring
       _ ≤ bound S ^ 6 := by
-          have : 30 ≤ bound S ^ 3 := by
+          have h30 : 30 ≤ bound S ^ 3 := by
             calc 30 ≤ 4 ^ 3 := by norm_num
               _ ≤ bound S ^ 3 := Nat.pow_le_pow_left hb 3
-          calc 30 * bound S ^ 3 ≤ bound S ^ 3 * bound S ^ 3 := Nat.mul_le_mul_right _ this
+          calc 30 * bound S ^ 3 ≤ bound S ^ 3 * bound S ^ 3 := Nat.mul_le_mul_right _ h30
             _ = bound S ^ 6 := by ring
       _ ≤ 2 ^ arity S := hM.le
-  have hcount := Window.three_mul_card_cheap_lift_le (I := I) hN (residues S) k hmiss ht
-    (by omega) h64 hd
-  refine (Nat.mul_le_mul_left 3 (card_le_card fun T hT => ?_)).trans hcount
+  refine (Nat.mul_le_mul_left 3 (card_le_card fun T hT => ?_)).trans
+    (Window.three_mul_card_cheap_lift_le (I := I) hN (residues S) k hmiss (by omega)
+      (by omega) h64 hd)
   rw [mem_filter] at hT ⊢
-  refine ⟨mem_univ _, ?_⟩
-  have := ofTable_mem_iff.mp hT.2
-  rwa [hmin] at this
+  exact ⟨mem_univ _, hmin ▸ ofTable_mem_iff.mp hT.2⟩
 
 /-! ### The randomized reduction -/
 
@@ -369,15 +349,13 @@ theorem two_pow_arity_le_seedLength (S : SetSystem) (k : ℕ) :
   rw [seedLength_eval]
   have hN := length_le_length_encList encNat S.ground
   have ht := length_le_length_encList (encList encNat) S.sets
-  have hS : S.ground.length + S.sets.length ≤ (encSetSystem S).length := by
+  have henc : S.ground.length + S.sets.length ≤ (encSetCover (S, k)).length := by
+    refine le_trans ?_ (length_le_encPair_left _ _ (S, k))
     rw [encSetSystem_apply, encSetSystemFields, length_encPair]
     simp only [encNatSetList] at ht ⊢
     omega
-  have henc : S.ground.length + S.sets.length ≤ (encSetCover (S, k)).length :=
-    hS.trans (length_le_encPair_left _ _ (S, k))
-  refine (two_pow_arity_le S).trans (Nat.mul_le_mul_left 64 (Nat.pow_le_pow_left ?_ 6))
-  simp only [bound]
-  omega
+  exact (two_pow_arity_le S).trans
+    (Nat.mul_le_mul_left 64 (Nat.pow_le_pow_left (by simp only [bound]; omega) 6))
 
 open scoped Classical in
 /-- At most a third of the random strings give a yes-instance on a no-instance. -/
@@ -386,28 +364,18 @@ theorem three_mul_card_reduce_mem_le {S : SetSystem} {k : ℕ} (hno : (S, k) ∈
     3 * #{r : Fin q → Bool | reduce ((S, k), List.ofFn r) ∈ MultiMCSP I} ≤ 2 ^ q := by
   have hS := ground_ne_nil_of_mem_no hno
   -- The table is the first `2^p` bits of the random string.
-  have htable (l : List Bool) :
-      (fun y : Fin (2 ^ arity S) => l.getD y false) =
-        fun y : Fin (2 ^ arity S) => (l.take (2 ^ arity S)).getD y false :=
-    funext fun y => by
-      rw [List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD,
-        List.getElem?_take_of_lt y.isLt]
   let g : List Bool → Prop := fun l => ofTable S k (fun y => l.getD y false) ∈ MultiMCSP I
   have hcard : #{r : Fin q → Bool | reduce ((S, k), List.ofFn r) ∈ MultiMCSP I} =
-      2 ^ (q - 2 ^ arity S) * #{T : Fin (2 ^ arity S) → Bool | g (List.ofFn T)} := by
-    refine Eq.trans ?_ (BitString.card_filter_take hq g)
-    congr 1
-    ext r
-    simp only [mem_filter, mem_univ, true_and, g, reduce_of_ground_ne_nil hS]
-    rw [htable (List.ofFn r)]
-  have hofFn : #{T : Fin (2 ^ arity S) → Bool | g (List.ofFn T)} =
-      #{T : Fin (2 ^ arity S) → Bool | ofTable S k T ∈ MultiMCSP I} := by
-    congr 1
-    ext T
-    have hT : (fun y : Fin (2 ^ arity S) => (List.ofFn T).getD y false) = T :=
-      funext fun y => by rw [List.getD_eq_getElem _ _ (by simp), List.getElem_ofFn]
-    simp only [mem_filter, mem_univ, true_and, g, hT]
-  rw [hcard, hofFn]
+      2 ^ (q - 2 ^ arity S) * #{T : Fin (2 ^ arity S) → Bool | ofTable S k T ∈ MultiMCSP I} := by
+    refine Eq.trans ?_ ((BitString.card_filter_take hq g).trans (congrArg _ ?_))
+    · exact congrArg card (Finset.ext fun r => by
+        simp only [mem_filter, mem_univ, true_and, g, reduce_of_ground_ne_nil hS,
+          List.getD_eq_getElem?_getD,
+          fun y : Fin (2 ^ arity S) => List.getElem?_take_of_lt (l := List.ofFn r) y.isLt])
+    · exact congrArg card (Finset.ext fun T => by
+        simp only [mem_filter, mem_univ, true_and, g, List.getD_eq_getElem?_getD,
+          List.getElem?_ofFn, Fin.is_lt, ↓reduceDIte, Option.getD_some])
+  rw [hcard]
   calc 3 * (2 ^ (q - 2 ^ arity S) * #{T : Fin (2 ^ arity S) → Bool | ofTable S k T ∈ MultiMCSP I})
       = 2 ^ (q - 2 ^ arity S) * (3 * #{T : Fin (2 ^ arity S) → Bool |
           ofTable S k T ∈ MultiMCSP I}) := by ring

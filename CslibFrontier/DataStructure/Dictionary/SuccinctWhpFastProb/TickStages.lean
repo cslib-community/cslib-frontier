@@ -40,38 +40,11 @@ private theorem tickStage0_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
   rw [ite_eq_left (by omega : fs.rebStage ≤ 3)] at hbo
   have hia_le : (fs.buf fs.oldEp).itemAlloc ≤ 2 * sMaxWhp c n_max := hbo.1
   dsimp only [epochTickStage0]
-  by_cases hlt : fs.stageCursor < (fs.buf fs.oldEp).itemAlloc
-  · rw [ite_eq_left hlt]
-    cases bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with
-    | some p =>
-      rcases p with ⟨b₀, loc₀⟩; dsimp only
-      by_cases hdone : (fs.buf fs.oldEp).itemAlloc ≤ fs.stageCursor + 1
-      · rw [ite_eq_left hdone]
-        refine ⟨rfl, rfl, ?_, by intro h; cases h⟩
-        dsimp only [stageWorkRemaining]
-        simp only [hs0, show ¬(1 = 0) by decide, ↓reduceIte, Nat.min_zero]
-        unfold stage1Max; omega
-      · rw [ite_eq_right hdone]
-        refine ⟨rfl, rfl, ?_, by intro h; rw [hs0] at h; cases h⟩
-        dsimp only [stageWorkRemaining]
-        simp only [hs0, ↓reduceIte]; omega
-    | none =>
-      dsimp only
-      by_cases hdone : (fs.buf fs.oldEp).itemAlloc ≤ fs.stageCursor + 1
-      · rw [ite_eq_left hdone]
-        refine ⟨rfl, rfl, ?_, by intro h; cases h⟩
-        dsimp only [stageWorkRemaining]
-        simp only [hs0, show ¬(1 = 0) by decide, ↓reduceIte, Nat.min_zero]
-        unfold stage1Max; omega
-      · rw [ite_eq_right hdone]
-        refine ⟨rfl, rfl, ?_, by intro h; rw [hs0] at h; cases h⟩
-        dsimp only [stageWorkRemaining]
-        simp only [hs0, ↓reduceIte]; omega
-  · rw [ite_eq_right hlt]
-    refine ⟨rfl, rfl, ?_, by intro h; cases h⟩
-    dsimp only [stageWorkRemaining]
-    simp only [hs0, show ¬(1 = 0) by decide, ↓reduceIte, Nat.min_zero]
-    unfold stage1Max; omega
+  -- Every branch either advances `stageCursor` below `itemAlloc` or enters Stage 1.
+  split_ifs with hlt <;> (try split) <;>
+    refine ⟨rfl, rfl, ?_, fun h => by simp [hs0] at h⟩ <;>
+    dsimp only [stageWorkRemaining] <;>
+    simp only [hs0, Nat.reduceEqDiff, ↓reduceIte, Nat.min_zero] <;> unfold stage1Max <;> omega
 
 private theorem tickStage1Fin_props {c U n_max : ℕ} {θ : SeedWhp c U n_max}
     {W_keys : Finset (Fin U)} (s : FastState) (sc₀ : ℕ)
@@ -93,26 +66,20 @@ private theorem tickStage1Fin_props {c U n_max : ℕ} {θ : SeedWhp c U n_max}
   · rw [ite_eq_left hdc0]
     refine ⟨rfl, rfl, ?_, by intro h; cases h⟩
     dsimp only [stageWorkRemaining]
-    simp only [show ¬(3 = 0) by decide, show ¬(3 = 1) by decide, show ¬(3 = 2) by decide,
-      ↓reduceIte, Nat.min_zero]
+    simp only [Nat.reduceEqDiff, ↓reduceIte, Nat.min_zero]
     unfold stage2Max stage3Max; omega
   · rw [ite_eq_right hdc0]
     refine ⟨rfl, rfl, ?_, ?_⟩
     · dsimp only [stageWorkRemaining]
-      simp only [show ¬(2 = 0) by decide, show ¬(2 = 1) by decide, ↓reduceIte,
-        Nat.sub_zero, Nat.min_zero]
+      simp only [Nat.reduceEqDiff, ↓reduceIte, Nat.sub_zero, Nat.min_zero]
       have hs_pos : 0 < sMaxWhp c n_max := sMaxWhp_pos c n_max
       have hb_eq : (sMaxWhp c n_max - 1) * (3 * (slabScale n_max) ^ 12 + 1) +
           3 * (slabScale n_max) ^ 12 + 1 = bktWorkUnit c n_max := by
         have := bktWorkUnit_eq c n_max; omega
       have htot_dc : (s.dirtyCount - 1) * bktWorkUnit c n_max + bktWorkUnit c n_max ≤
           (2 * sMaxWhp c n_max) * bktWorkUnit c n_max := by
-        calc (s.dirtyCount - 1) * bktWorkUnit c n_max + bktWorkUnit c n_max
-            = s.dirtyCount * bktWorkUnit c n_max := by
-                cases hdc_eq : s.dirtyCount with
-                | zero => exact absurd hdc_eq hdc0
-                | succ d => simp [Nat.succ_mul]
-          _ ≤ (2 * sMaxWhp c n_max) * bktWorkUnit c n_max := Nat.mul_le_mul_right _ hdc_le
+        rw [← Nat.succ_mul, Nat.succ_eq_add_one, Nat.sub_add_cancel (Nat.pos_of_ne_zero hdc0)]
+        exact Nat.mul_le_mul_right _ hdc_le
       unfold stage2Max; omega
     · intro _ hdi
       obtain ⟨s_opt, hs_opt⟩ := hsalt_all ⟨s.dirtyBuckets 0, hd_lt 0 hdi⟩
@@ -145,48 +112,25 @@ private theorem tickStage1_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     dsimp only [stageWorkRemaining]; rw [ite_eq_right hs0, ite_eq_left hs1]
   rw [hrem_eq]
   dsimp only [epochTickStage1]
-  by_cases hlt : fs.stageCursor < (fs.buf fs.oldEp).itemAlloc
-  · rw [ite_eq_left hlt]
-    cases hchk : bufCheckSlot (fs.buf fs.oldEp) fs.stageCursor with
-    | some p =>
-      rcases p with ⟨b₀, loc₀⟩; dsimp only
+  split_ifs with hlt hdone
+  · split
+    · rename_i b₀ loc₀ hchk
       obtain ⟨_, k, _, _, hmk⟩ := hv_o.checkSlot_some hchk
       have hb₀ : b₀ < numBucketsWhp n_max := ((hrel_o.2 k b₀ loc₀).mp hmk).1
-      by_cases hq0 : fs.rebQueued b₀ = 0
-      · rw [ite_eq_left hq0]
-        by_cases hdone : (fs.buf fs.oldEp).itemAlloc ≤ fs.stageCursor + 1
-        · rw [ite_eq_left hdone]
-          refine tickStage1Fin_props _ fs.stageCursor (by dsimp only; omega) (fun j hj => ?_)
-            hsalt_all
-          dsimp only at hj ⊢
-          rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hj' | rfl
-          · rw [Function.update_of_ne (by omega)]; exact (hd_props j hj').1
-          · simp [hb₀]
-        · rw [ite_eq_right hdone]
-          refine ⟨rfl, rfl, ?_, by intro h; rw [hs1] at h; cases h⟩
-          dsimp only [stageWorkRemaining]
-          rw [ite_eq_right hs0, ite_eq_left hs1]; omega
-      · rw [ite_eq_right hq0]
-        by_cases hdone : (fs.buf fs.oldEp).itemAlloc ≤ fs.stageCursor + 1
-        · rw [ite_eq_left hdone]
-          exact tickStage1Fin_props _ fs.stageCursor (by dsimp only; omega)
-            (fun j hj => (hd_props j hj).1) hsalt_all
-        · rw [ite_eq_right hdone]
-          refine ⟨rfl, rfl, ?_, by intro h; rw [hs1] at h; cases h⟩
-          dsimp only [stageWorkRemaining]
-          rw [ite_eq_right hs0, ite_eq_left hs1]; omega
-    | none =>
-      dsimp only
-      by_cases hdone : (fs.buf fs.oldEp).itemAlloc ≤ fs.stageCursor + 1
-      · rw [ite_eq_left hdone]
-        exact tickStage1Fin_props _ fs.stageCursor (by dsimp only; omega)
+      split_ifs
+      · refine tickStage1Fin_props _ fs.stageCursor (by dsimp only; omega) (fun j hj => ?_)
+          hsalt_all
+        dsimp only at hj ⊢
+        rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hj' | rfl
+        · rw [Function.update_of_ne (by omega)]; exact (hd_props j hj').1
+        · simp [hb₀]
+      · exact tickStage1Fin_props _ fs.stageCursor (by dsimp only; omega)
           (fun j hj => (hd_props j hj).1) hsalt_all
-      · rw [ite_eq_right hdone]
-        refine ⟨rfl, rfl, ?_, by intro h; rw [hs1] at h; cases h⟩
-        dsimp only [stageWorkRemaining]
-        rw [ite_eq_right hs0, ite_eq_left hs1]; omega
-  · rw [ite_eq_right hlt]
-    exact tickStage1Fin_props fs fs.stageCursor (hdc_sc.trans (hsc_le.trans hia_le))
+    · exact tickStage1Fin_props _ fs.stageCursor (by dsimp only; omega)
+        (fun j hj => (hd_props j hj).1) hsalt_all
+  · split <;> (try split_ifs) <;> refine ⟨rfl, rfl, ?_, fun h => by simp [hs1] at h⟩ <;>
+      dsimp only [stageWorkRemaining] <;> rw [ite_eq_right hs0, ite_eq_left hs1] <;> omega
+  · exact tickStage1Fin_props fs fs.stageCursor (hdc_sc.trans (hsc_le.trans hia_le))
       (fun j hj => (hd_props j hj).1) hsalt_all
 
 private theorem tickStage2_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
@@ -241,26 +185,21 @@ private theorem tickStage2_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         rcases hcur_r with ⟨_, hi0⟩ | ⟨_, hc_le, hins_le⟩ <;> omega
       refine rebScanSteps_rebCollision_eq_zero_of_inj hc.hth θ 16 fs hc.rebCollision_zero
         hcnt_3L hins_ub (fun l₁ hl₁ l₂ hl₂ _ _ hfp_eq => ?_) ⟨rm0, hvr0, hrr0⟩
-      obtain ⟨hm₁, hfb₁⟩ := hc.mem_dom_of_loc hb hl₁
-      obtain ⟨hm₂, hfb₂⟩ := hc.mem_dom_of_loc hb hl₂
-      let u₁ : Fin U := ⟨fs.keyValAt c U n_max θ.1 b l₁, (hc.active_item b hb l₁ hl₁).1⟩
-      let u₂ : Fin U := ⟨fs.keyValAt c U n_max θ.1 b l₂, (hc.active_item b hb l₂ hl₂).1⟩
-      have hw₁ : u₁ ∈ W_keys.filter
-          (fun u => feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val = b) :=
-        mem_filter.mpr ⟨hdom_sub hm₁, hfb₁⟩
-      have hw₂ : u₂ ∈ W_keys.filter
-          (fun u => feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val = b) :=
-        mem_filter.mpr ⟨hdom_sub hm₂, hfb₂⟩
-      have hf₁ : fs.fpAt c U n_max θ fs.rebCandSalt b l₁ = fpHash c U n_max θ.2 s_opt u₁ := by
-        dsimp only [FastState.fpAt]; simp [heq_s, s_opt.isLt, u₁.isLt, u₁]
-      have hf₂ : fs.fpAt c U n_max θ fs.rebCandSalt b l₂ = fpHash c U n_max θ.2 s_opt u₂ := by
-        dsimp only [FastState.fpAt]; simp [heq_s, s_opt.isLt, u₂.isLt, u₂]
-      have hu_eq : u₁ = u₂ := hs_opt_inj hw₁ hw₂ (hf₁.symm.trans (hfp_eq.trans hf₂))
+      have hmem_fp {l : ℕ} (hl : l < fs.bktCount b) :
+          ∃ u ∈ W_keys.filter
+              (fun u => feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val = b),
+            u.val = fs.keyValAt c U n_max θ.1 b l ∧
+            fs.fpAt c U n_max θ fs.rebCandSalt b l = fpHash c U n_max θ.2 s_opt u := by
+        obtain ⟨hm, hfb⟩ := hc.mem_dom_of_loc hb hl
+        refine ⟨⟨_, (hc.active_item b hb l hl).1⟩, mem_filter.mpr ⟨hdom_sub hm, hfb⟩, rfl, ?_⟩
+        simp [FastState.fpAt, heq_s, s_opt.isLt, (hc.active_item b hb l hl).1]
+      obtain ⟨u₁, hw₁, hk₁, hf₁⟩ := hmem_fp hl₁
+      obtain ⟨u₂, hw₂, hk₂, hf₂⟩ := hmem_fp hl₂
       have hkv_eq : fs.keyValAt c U n_max θ.1 b l₁ = fs.keyValAt c U n_max θ.1 b l₂ :=
-        congrArg Fin.val hu_eq
-      have hq₁ := (hc.active_item b hb l₁ hl₁).2.2.1
-      have hq₂ := (hc.active_item b hb l₂ hl₂).2.2.1
-      exact hc.quot_inj b hb l₁ hl₁ l₂ hl₂ (hq₁.symm.trans (hkv_eq ▸ hq₂))
+        hk₁ ▸ hk₂ ▸ congrArg Fin.val (hs_opt_inj hw₁ hw₂ (hf₁.symm.trans (hfp_eq.trans hf₂)))
+      exact hc.quot_inj b hb l₁ hl₁ l₂ hl₂
+        ((hc.active_item b hb l₁ hl₁).2.2.1.symm.trans
+          (hkv_eq ▸ (hc.active_item b hb l₂ hl₂).2.2.1))
     have hlt_s_opt : fs.rebCandSalt < s_opt.val := Nat.lt_of_le_of_ne hc_le_s_opt hne_s_opt
     refine ⟨hm_clk, by dsimp only; rw [hm_buf, hm_ep], ?_, ?_⟩
     · dsimp only [stageWorkRemaining]
@@ -270,10 +209,11 @@ private theorem tickStage2_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       have hsub1 : sMaxWhp c n_max - 1 - fs.rebCandSalt =
           (sMaxWhp c n_max - 1 - (fs.rebCandSalt + 1)) + 1 := by omega
       rw [hsub1, Nat.add_mul, one_mul]; omega
-    · intro _ _
-      refine ⟨s_opt, ?_, ?_⟩
-      · dsimp only; rw [hm_db, hm_di]; exact hs_opt_inj
-      · dsimp only; rw [hm_cs]; omega
+    · refine fun _ _ => ⟨s_opt, ?_, ?_⟩
+      · dsimp only
+        rwa [hm_db, hm_di]
+      · dsimp only
+        rw [hm_cs]; omega
   · rw [ite_eq_right hcoll_nz]
     have hm_cur := rebScanSteps_cursor_of_zero c U n_max b θ 16 fs
       (Classical.not_not.mp hcoll_nz)
@@ -283,9 +223,7 @@ private theorem tickStage2_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       by_cases hall_done : fsScan.dirtyCount ≤ fsScan.dirtyIdx + 1
       · rw [ite_eq_left hall_done]
         refine ⟨hm_clk, by dsimp only; rw [hm_buf, hm_ep], ?_, by intro h; cases h⟩
-        dsimp only [stageWorkRemaining]
-        simp only [show ¬(3 = 0) by decide, show ¬(3 = 1) by decide, show ¬(3 = 2) by decide,
-          ↓reduceIte, Nat.min_zero]
+        simp only [stageWorkRemaining, Nat.reduceEqDiff, ↓reduceIte, Nat.min_zero]
         unfold stage3Max; omega
       · rw [ite_eq_right hall_done]
         refine ⟨hm_clk, by dsimp only; rw [hm_buf, hm_ep], ?_, ?_⟩
@@ -359,9 +297,7 @@ private theorem tickStage3_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
           fs.stageCursor + 1
       · rw [ite_eq_left hdone]
         refine ⟨rfl, Function.update_of_ne hne_ep _ _, ?_, by intro h; cases h⟩
-        dsimp only [stageWorkRemaining]
-        simp only [show ¬(4 = 0) by decide, show ¬(4 = 1) by decide, show ¬(4 = 2) by decide,
-          show ¬(4 = 3) by decide, ↓reduceIte]
+        simp only [stageWorkRemaining, Nat.reduceEqDiff, ↓reduceIte]
         change (Function.update fs.buf fs.oldEp tr' fs.oldEp).nodeAlloc < _
         rw [hbuf_o', hna_eq]; unfold stage4Max; omega
       · rw [ite_eq_right hdone]
@@ -374,9 +310,7 @@ private theorem tickStage3_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       by_cases hdone : (fs.buf fs.oldEp).itemAlloc ≤ fs.stageCursor + 1
       · rw [ite_eq_left hdone]
         refine ⟨rfl, rfl, ?_, by intro h; cases h⟩
-        dsimp only [stageWorkRemaining]
-        simp only [show ¬(4 = 0) by decide, show ¬(4 = 1) by decide, show ¬(4 = 2) by decide,
-          show ¬(4 = 3) by decide, ↓reduceIte]
+        simp only [stageWorkRemaining, Nat.reduceEqDiff, ↓reduceIte]
         change (fs.buf fs.oldEp).nodeAlloc < _
         unfold stage4Max; omega
       · rw [ite_eq_right hdone]
@@ -385,9 +319,7 @@ private theorem tickStage3_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         rw [ite_eq_right hs0, ite_eq_right hs1, ite_eq_right hs2, ite_eq_left hs3]; omega
   · rw [ite_eq_right hlt]
     refine ⟨rfl, rfl, ?_, by intro h; cases h⟩
-    dsimp only [stageWorkRemaining]
-    simp only [show ¬(4 = 0) by decide, show ¬(4 = 1) by decide, show ¬(4 = 2) by decide,
-      show ¬(4 = 3) by decide, ↓reduceIte]
+    simp only [stageWorkRemaining, Nat.reduceEqDiff, ↓reduceIte]
     change (fs.buf fs.oldEp).nodeAlloc < _
     unfold stage4Max; omega
 
@@ -414,20 +346,13 @@ private theorem tickStage4_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
     rw [ite_eq_right hs0, ite_eq_right hs1, ite_eq_right hs2, ite_eq_right hs3, ite_eq_left hs4]
   rw [hrem_fs]
   dsimp only [epochTickStage4]
-  by_cases hle8 : (fs.buf fs.oldEp).nodeAlloc ≤ 8
-  · rw [decide_eq_true hle8, ite_eq_left rfl]
-    refine ⟨rfl, Function.update_of_ne hne_ep _ _, ?_, by intro h; cases h⟩
-    dsimp only [stageWorkRemaining]
-    simp only [show ¬(5 = 0) by decide, show ¬(5 = 1) by decide, show ¬(5 = 2) by decide,
-      show ¬(5 = 3) by decide, show ¬(5 = 4) by decide, ↓reduceIte]
-    omega
-  · rw [decide_eq_false hle8, ite_eq_right Bool.false_ne_true]
-    refine ⟨rfl, Function.update_of_ne hne_ep _ _, ?_, by intro h; cases h⟩
-    dsimp only [stageWorkRemaining]
-    simp only [show ¬(4 = 0) by decide, show ¬(4 = 1) by decide, show ¬(4 = 2) by decide,
-      show ¬(4 = 3) by decide, ↓reduceIte]
-    change (Function.update fs.buf fs.oldEp (bufClearSteps 8 (fs.buf fs.oldEp)) fs.oldEp).nodeAlloc
+  split_ifs with hle8 <;>
+      refine ⟨rfl, Function.update_of_ne hne_ep _ _, ?_, fun h => by cases h⟩ <;>
+      dsimp only [stageWorkRemaining] <;> simp only [Nat.reduceEqDiff, ↓reduceIte]
+  · omega
+  · change (Function.update fs.buf fs.oldEp (bufClearSteps 8 (fs.buf fs.oldEp)) fs.oldEp).nodeAlloc
       < _
+    simp only [decide_eq_true_eq] at hle8
     rw [Function.update_self, hclr.clearSteps_nodeAlloc_eq 8]; omega
 
 /-- Under bounded remaining rebuild work and collision-free window salts `< sMaxWhp c n_max`,
@@ -459,34 +384,22 @@ theorem epochTick_some_of_work_bound {c U V n_max : ℕ} {θ : SeedWhp c U n_max
        SaltBoundAt c U n_max θ W_keys fs1) ∨
       (fs.rebStage = 5 ∧ fs1 = fs) := by
     dsimp only [fs1, epochTickStage]
-    by_cases hs0 : fs.rebStage = 0
-    · rw [ite_eq_left hs0]; exact Or.inl ⟨by omega, tickStage0_props hc hs0⟩
-    rw [ite_eq_right hs0]
-    by_cases hs1 : fs.rebStage = 1
-    · rw [ite_eq_left hs1]; exact Or.inl ⟨by omega, tickStage1_props hc hs1 hpre hsalt_all⟩
-    rw [ite_eq_right hs1]
-    by_cases hs2 : fs.rebStage = 2
-    · rw [ite_eq_left hs2]
-      exact Or.inl ⟨by omega, tickStage2_props hc hs2 hpre hdom_sub hsalt_all hsalt_cur⟩
-    rw [ite_eq_right hs2]
-    by_cases hs3 : fs.rebStage = 3
-    · rw [ite_eq_left hs3]; exact Or.inl ⟨by omega, tickStage3_props hc hs3⟩
-    rw [ite_eq_right hs3]
-    by_cases hs4 : fs.rebStage = 4
-    · rw [ite_eq_left hs4]; exact Or.inl ⟨by omega, tickStage4_props hc hs4⟩
-    rw [ite_eq_right hs4]
-    exact Or.inr ⟨by have := hc.rebStage_le; omega, rfl⟩
+    split_ifs with hs0 hs1 hs2 hs3 hs4
+    · exact .inl ⟨by omega, tickStage0_props hc hs0⟩
+    · exact .inl ⟨by omega, tickStage1_props hc hs1 hpre hsalt_all⟩
+    · exact .inl ⟨by omega, tickStage2_props hc hs2 hpre hdom_sub hsalt_all hsalt_cur⟩
+    · exact .inl ⟨by omega, tickStage3_props hc hs3⟩
+    · exact .inl ⟨by omega, tickStage4_props hc hs4⟩
+    · exact .inr ⟨by have := hc.rebStage_le; omega, rfl⟩
   rcases h1 with ⟨_, hclk1, hbuf1, hw_lt, hsalt1⟩ | ⟨hs5, hfs1_eq⟩
   · have hno_roll : ¬(qEpochWhp n_max ≤ fs1.epochClock + 1) := by omega
     have htick_some :
         epochTick c U n_max θ fs = some { fs1 with epochClock := fs1.epochClock + 1 } := by
       unfold epochTick epochTickRollover; dsimp only; exact ite_eq_right hno_roll
     have hv' := epochTick_spec hc hom hpre htick_some
-    refine ⟨{ fs1 with epochClock := fs1.epochClock + 1 }, htick_some, hv', ?_, hsalt1,
-      Or.inl hbuf1⟩
-    have hw_eq : stageWorkRemaining c n_max { fs1 with epochClock := fs1.epochClock + 1 } =
-        stageWorkRemaining c n_max fs1 := rfl
-    rw [hw_eq]; dsimp only; omega
+    exact ⟨{ fs1 with epochClock := fs1.epochClock + 1 }, htick_some, hv',
+      show (fs1.epochClock + 1) + stageWorkRemaining c n_max fs1 + 1 ≤ _ by omega,
+      hsalt1, Or.inl hbuf1⟩
   · have hw0 : stageWorkRemaining c n_max fs = 0 := by
       dsimp only [stageWorkRemaining]; simp [hs5]
     change epochTickStage c U n_max θ fs = fs at hfs1_eq
@@ -502,20 +415,18 @@ theorem epochTick_some_of_work_bound {c U V n_max : ℕ} {θ : SeedWhp c U n_max
       have hbo5 := hc.bufOld_valid
       rw [ite_eq_right (by omega : ¬(fs.rebStage ≤ 3)),
         ite_eq_right (by omega : ¬(fs.rebStage = 4))] at hbo5
-      refine ⟨fs', htick_some, hv', ?_, (fun h => by cases h),
-        Or.inr hbo5.2.2.2⟩
-      have hw_le := stageWorkRemaining_le_max hv'.toCore hv'.stage_valid
-      have hmax_le := stageWorkMax_add_one_le_qEpoch hc.hth
-      have hclk0 : fs'.epochClock = 0 := rfl
+      refine ⟨fs', htick_some, hv', ?_, (fun h => by cases h), Or.inr hbo5.2.2.2⟩
+      have := stageWorkRemaining_le_max hv'.toCore hv'.stage_valid
+      have := stageWorkMax_add_one_le_qEpoch hc.hth
+      change 0 + stageWorkRemaining c n_max fs' + 1 ≤ _
       omega
     · have htick_some :
           epochTick c U n_max θ fs = some { fs with epochClock := fs.epochClock + 1 } := by
         unfold epochTick; rw [hfs1_eq]; unfold epochTickRollover; dsimp only
         exact ite_eq_right hroll
       have hv' := epochTick_spec hc hom hpre htick_some
-      refine ⟨{ fs with epochClock := fs.epochClock + 1 }, htick_some, hv', ?_, hsalt_cur,
-        Or.inl rfl⟩
-      have hw_eq : stageWorkRemaining c n_max { fs with epochClock := fs.epochClock + 1 } = 0 := hw0
-      rw [hw_eq]; dsimp only; omega
+      exact ⟨{ fs with epochClock := fs.epochClock + 1 }, htick_some, hv',
+        show (fs.epochClock + 1) + stageWorkRemaining c n_max fs + 1 ≤ _ by omega,
+        hsalt_cur, Or.inl rfl⟩
 
 end Cslib.DataStructure.Dictionary.SuccinctWhp

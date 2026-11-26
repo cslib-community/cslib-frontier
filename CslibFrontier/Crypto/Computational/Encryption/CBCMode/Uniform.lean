@@ -204,12 +204,9 @@ private theorem length_of_mem_cbcChainWords {g : List Bool → List Bool} {n : �
   induction ms generalizing prev with
   | nil => simp [cbcChainWords] at hc
   | cons m ms ih =>
-    have hm : m.length = n := hms m List.mem_cons_self
-    have hxor : (List.zipWith xor prev m).length = n := by simp [hprev, hm]
-    have hgLen : (g (List.zipWith xor prev m)).length = n := hg _ hxor
-    have hc' : ((g (List.zipWith xor prev m)).take n).length = n := by simp [hgLen]
-    simp only [cbcChainWords, List.mem_cons] at hc
-    rcases hc with rfl | hc
+    have hc' : ((g (List.zipWith xor prev m)).take n).length = n := by
+      rw [List.length_take, hg _ (by simp [hprev, hms m List.mem_cons_self]), Nat.min_self]
+    rcases List.mem_cons.mp hc with rfl | hc
     · exact hc'
     · exact ih hc' (fun b hb => hms b (List.mem_cons_of_mem _ hb)) hc
 
@@ -227,13 +224,9 @@ private theorem foldl_cbcDecStep_cbcChainWords {g gInv : List Bool → List Bool
     have hm : m.length = n := hms m List.mem_cons_self
     have hxor : (List.zipWith xor prev m).length = n := by simp [hprev, hm]
     have hgLen : (g (List.zipWith xor prev m)).length = n := hg _ hxor
-    have htakeC : (g (List.zipWith xor prev m)).take n = g (List.zipWith xor prev m) :=
-      List.take_of_length_le hgLen.le
-    have hdec : (gInv (g (List.zipWith xor prev m))).take n = List.zipWith xor prev m := by
-      rw [hinv _ hxor, List.take_of_length_le hxor.le]
-    have hrec : List.zipWith xor prev (List.zipWith xor prev m) = m :=
-      BitString.zipWith_xor_self_left prev m (hprev.trans hm.symm)
-    simp only [cbcChainWords, List.foldl_cons, htakeC, hdec, hrec, List.flatten_cons]
+    simp only [cbcChainWords, List.foldl_cons, List.take_of_length_le hgLen.le, hinv _ hxor,
+      List.take_of_length_le hxor.le, BitString.zipWith_xor_self_left prev m (hprev.trans hm.symm),
+      List.flatten_cons]
     rw [ih hgLen (acc ++ m) fun b hb => hms b (List.mem_cons_of_mem _ hb), List.append_assoc]
 
 /-- **Decryption inverts encryption** on whole-block messages whenever `encFamily k` preserves
@@ -247,23 +240,24 @@ theorem cbcWordDecrypt_cbcWordEncrypt {encFamily decFamily : List Bool → List 
     cbcWordDecrypt decFamily n k ct = some msg := by
   set ms := BitString.listRows (msg.length / n) n msg
   have hms : ∀ m ∈ ms, m.length = n := fun _ hm => BitString.length_of_mem_listRows hm
+  have hcs (iv : List Bool) (hivLen : iv.length = n) :
+      ∀ c ∈ cbcChainWords (encFamily k) n iv ms, c.length = n :=
+    fun _ hc => length_of_mem_cbcChainWords hlen hivLen hms hc
   have hbodyLen (iv : List Bool) (hivLen : iv.length = n) :
       (cbcWordBody encFamily n k iv msg).length = msg.length := by
-    set cs := cbcChainWords (encFamily k) n iv ms
-    have hcs : ∀ c ∈ cs, c.length = n := fun _ hc => length_of_mem_cbcChainWords hlen hivLen hms hc
-    rw [cbcWordBody_eq_flatten_cbcChainWords, List.length_flatten, List.map_congr_left hcs,
-      List.map_const', List.sum_replicate_nat, length_cbcChainWords, BitString.length_listRows,
+    rw [cbcWordBody_eq_flatten_cbcChainWords, List.length_flatten,
+      List.map_congr_left (hcs iv hivLen), List.map_const', List.sum_replicate_nat,
+      length_cbcChainWords, BitString.length_listRows,
       Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)]
   refine ivModeDecrypt_ivModeEncrypt hbodyLen (fun iv hivLen => ?_) hmsg hct
   set cs := cbcChainWords (encFamily k) n iv ms
-  have hcs : ∀ c ∈ cs, c.length = n := fun _ hc => length_of_mem_cbcChainWords hlen hivLen hms hc
   have hcsLen : cs.length = msg.length / n := by simp [cs, length_cbcChainWords, ms]
   have hbodyEq : cbcWordBody encFamily n k iv msg = cs.flatten :=
     cbcWordBody_eq_flatten_cbcChainWords encFamily n k iv msg
   have hflatLen : cs.flatten.length = msg.length := hbodyEq ▸ hbodyLen iv hivLen
   rw [hbodyEq, cbcWordDecBody, hflatLen, ← hcsLen,
-    BitString.listRows_flatten cs hcs, foldl_cbcDecStep_cbcChainWords hlen hinv hivLen [] hms,
-    List.nil_append]
+    BitString.listRows_flatten cs (hcs iv hivLen),
+    foldl_cbcDecStep_cbcChainWords hlen hinv hivLen [] hms, List.nil_append]
   exact BitString.flatten_listRows_of_length
     (Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)).symm
 
@@ -316,27 +310,12 @@ private theorem computableInPolyTime_cbcWordBody_param
     ComputableInPolyTime.bitsRowsWithInput
       (ComputableInPolyTime.unary_div' (ComputableInPolyTime.length_bits.comp hmsg) hwidth)
       hwidth hmsg
-  have hc : ComputableInPolyTime
-      (fun p : ((ℕ × ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
-        (encFamily p.1.1.1 p.1.1.2.2 (List.zipWith xor p.1.2.1 p.2)).take p.1.1.2.1)
-      EFold encBits :=
-    ComputableInPolyTime.bitsTakeWithInput
-      (hpoly.comp
-        ((show ComputableInPolyTime (fun p => p.1.1.1) EFold encUnary by
-            dsimp only [EFold, EPar, EState]; fun_prop).prod
-          ((show ComputableInPolyTime (fun p => p.1.1.2.2) EFold encBits by
-              dsimp only [EFold, EPar, EState]; fun_prop).prod
-            (ComputableInPolyTime.bitsZipWithInput xor
-              (by dsimp only [EFold, EPar, EState]; fun_prop)
-              (by dsimp only [EFold, EPar, EState]; fun_prop)))))
-      (by dsimp only [EFold, EPar, EState]; fun_prop)
   have hstep : ComputableInPolyTime
       (fun p : ((ℕ × ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
         let c := (encFamily p.1.1.1 p.1.1.2.2 (List.zipWith xor p.1.2.1 p.2)).take p.1.1.2.1
         (c, p.1.2.2 ++ c))
-      EFold EState :=
-    hc.prod (ComputableInPolyTime.bitsAppend
-      (by dsimp only [EFold, EPar, EState]; fun_prop) hc)
+      EFold EState := by
+    polytime
   have hfold := ComputableInPolyTime.foldlWith_of_bounded_growth
     (encA := encBits) (encL := encList encBits) (encP := EPar) (encB := EState)
     (par := fun a => (par a, width a, k a))
@@ -376,28 +355,12 @@ private theorem computableInPolyTime_cbcWordDecBody_param
     ComputableInPolyTime.bitsRowsWithInput
       (ComputableInPolyTime.unary_div' (ComputableInPolyTime.length_bits.comp hbody) hwidth)
       hwidth hbody
-  have hplain : ComputableInPolyTime
-      (fun p : ((ℕ × ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
-        List.zipWith xor p.1.2.1 ((decFamily p.1.1.1 p.1.1.2.2 p.2).take p.1.1.2.1))
-      EFold encBits :=
-    ComputableInPolyTime.bitsZipWithInput xor
-      (by dsimp only [EFold, EPar, EState]; fun_prop)
-      (ComputableInPolyTime.bitsTakeWithInput
-        (hpoly.comp
-          ((show ComputableInPolyTime (fun p => p.1.1.1) EFold encUnary by
-              dsimp only [EFold, EPar, EState]; fun_prop).prod
-            ((show ComputableInPolyTime (fun p => p.1.1.2.2) EFold encBits by
-                dsimp only [EFold, EPar, EState]; fun_prop).prod
-              (by dsimp only [EFold, EPar, EState]; fun_prop))))
-        (by dsimp only [EFold, EPar, EState]; fun_prop))
   have hstep : ComputableInPolyTime
       (fun p : ((ℕ × ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
         (p.2, p.1.2.2 ++
           List.zipWith xor p.1.2.1 ((decFamily p.1.1.1 p.1.1.2.2 p.2).take p.1.1.2.1)))
-      EFold EState :=
-    (show ComputableInPolyTime (fun p => p.2) EFold encBits by
-      dsimp only [EFold, EPar, EState]; fun_prop).prod
-      (ComputableInPolyTime.bitsAppend (by dsimp only [EFold, EPar, EState]; fun_prop) hplain)
+      EFold EState := by
+    polytime
   have hfold := ComputableInPolyTime.foldlWith_of_bounded_growth
     (encA := encBits) (encL := encList encBits) (encP := EPar) (encB := EState)
     (par := fun a => (par a, width a, k a))
@@ -626,13 +589,9 @@ private theorem cbcChainWords_randomFunction_map_ofFn {n : ℕ} (f : BitString n
   induction ms generalizing iv with
   | nil => rfl
   | cons m ms ih =>
-    have hxor : List.zipWith xor (List.ofFn iv) (List.ofFn m) = List.ofFn (iv + m) :=
-      (BitString.ofFn_add iv m).symm
-    have horacle : (randomFunctionOracle n f (List.ofFn (iv + m))).take n =
-        List.ofFn (f (iv + m)) := by
-      simp [randomFunctionOracle]
-    simp only [List.map_cons, cbcChainWords, hxor, horacle, cbcEncryptBlocks_cons]
-    rw [ih]
+    simp only [List.map_cons, cbcChainWords, ← BitString.ofFn_add iv m, randomFunctionOracle,
+      List.length_ofFn, ↓reduceIte, BitString.ofList_ofFn,
+      List.take_of_length_le (List.length_ofFn (f := f (iv + m))).le, cbcEncryptBlocks_cons, ih]
 
 private theorem cbcWordBody_randomFunction_ofFn {n : ℕ} (f : BitString n → BitString n)
     (iv : BitString n) (m : List Bool) :
@@ -739,9 +698,7 @@ theorem BlockCipher.eval_prpRealGame_cbcToPrpDistinguisher (E : BlockCipher)
     (body := fun m _ iv msg => cbcWordBody (E.encrypt n) m k iv msg)
     (family := constFamily) (n := w)
     (fun k' _ iv hiv msg _ => by
-      rw [show (fun request : Unit × List Bool => pure (prfOracle constFamily w k' request.2)) =
-          fun request => pure (E.prpOracle n k request.2) by
-        funext request; rw [horacle]]
+      simp only [horacle]
       rw [run_cbcBodyQueries, cbcWordBody_eq_flatten_cbcChainWords,
         cbcWordBody_eq_flatten_cbcChainWords]
       congr 2
@@ -787,26 +744,19 @@ theorem BlockCipher.advantage_cbcEncrypt_le (E : BlockCipher) (adversary : Oracl
   rw [← E.eval_prpRealGame_cbcToPrpDistinguisher adversary false n,
     ← E.eval_prpRealGame_cbcToPrpDistinguisher adversary true n]
   let A' : OracleDistinguisher := fun _ _ => adversary n []
-  have hQ' : (A' (E.blockLen n) []).IsQueryBounded Q := hQ
-  have hL' : (A' (E.blockLen n) []).QueriesSatisfy fun request => request.2.length ≤ L := hL
   have hperm := advantage_cbcCpaGame_randomPermutation_le L
-    (isCostBounded_blockModeWordAdversary hQ' L)
+    (isCostBounded_blockModeWordAdversary (adversary := A') (n := E.blockLen n) hQ L)
   have hideal (bit : Bool) :
       ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary bit) n) =
         cbcCpaGame (fun π : Equiv.Perm (BitString (E.blockLen n)) => ⇑π) L bit
           (blockModeWordAdversary A' (E.blockLen n)) :=
-    eval_prpIdealGame_cbcToPrfDistinguisher A' bit hL'
+    eval_prpIdealGame_cbcToPrfDistinguisher A' bit hL
   rw [← hideal false, ← hideal true] at hperm
-  have htri₁ : (Game.advantage
-      (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary false) n))
-      (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary true) n)) : ℝ) ≤
-      Game.advantage
-        (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary false) n))
-        (ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary false) n)) +
-      Game.advantage
-        (ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary false) n))
-        (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary true) n)) := by
-    exact_mod_cast Game.advantage_triangle _ _ _
+  have htri₁ := NNReal.coe_le_coe.mpr (Game.advantage_triangle
+    (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary false) n))
+    (ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary false) n))
+    (ProbComp.eval (E.prpRealGame (E.cbcToPrpDistinguisher adversary true) n)))
+  rw [NNReal.coe_add] at htri₁
   have htri₂ := advantage_le_two
     (ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary false) n))
     (ProbComp.eval (prpIdealGame E.blockLen (E.cbcToPrpDistinguisher adversary true) n))

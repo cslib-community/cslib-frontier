@@ -85,9 +85,7 @@ private def natBits (L t : ℕ) : BitString L := fun r => t.testBit r
 
 private theorem val_equivFin_natBits {L t : ℕ} (ht : t < 2 ^ L) :
     (BitString.equivFin L (natBits L t) : ℕ) = t := by
-  have : natBits L t = (BitString.equivFin L).symm ⟨t, ht⟩ := by
-    funext r
-    simp [natBits]
+  have : natBits L t = (BitString.equivFin L).symm ⟨t, ht⟩ := funext fun r => by simp [natBits]
   rw [this, Equiv.apply_symm_apply]
 
 /-! ### The hard-wired table -/
@@ -110,12 +108,10 @@ private theorem hardTable_apply {f : VarFunctions I lam} {S : Finset ℕ} {o : �
     hardTable f S o L y = evalVar f v (natBits (varLength I lam v) s) := by
   unfold hardTable
   rw [Bool.eq_iff_iff, decide_eq_true_iff, hy]
-  constructor
-  · rintro ⟨u, hu, hu₁, hu₂, hu₃⟩
-    obtain rfl := hdisj u hu v hv (o v + s) hu₁ hu₂ (Nat.le_add_right _ _) (by omega)
-    simpa using hu₃
-  · intro h
-    exact ⟨v, hv, Nat.le_add_right _ _, by omega, by simpa using h⟩
+  refine ⟨fun ⟨u, hu, hu₁, hu₂, hu₃⟩ => ?_,
+    fun h => ⟨v, hv, Nat.le_add_right _ _, by omega, by simpa using h⟩⟩
+  obtain rfl := hdisj u hu v hv (o v + s) hu₁ hu₂ (Nat.le_add_right _ _) (by omega)
+  simpa using hu₃
 
 /-! ### Addresses and the output -/
 
@@ -165,17 +161,12 @@ theorem exists_satTerm {S : Finset ℕ}
     · have hφ := hsat _ (List.getElem_mem hj)
       obtain ⟨c, hc, hct⟩ := List.any_eq_true.1 hφ
       obtain ⟨t, ht, rfl⟩ := List.mem_iff_getElem.1 hc
-      have hjD : I.formulas.getD j [] = I.formulas[j] := by
-        simp [List.getD_eq_getElem?_getD, hj]
-      refine ⟨t, fun _ => ⟨hjD ▸ ht, fun q hq => ?_⟩⟩
+      refine ⟨t, fun _ => ⟨by simpa [List.getD_eq_getElem?_getD, hj] using ht, fun q hq => ?_⟩⟩
       have htD : term I j t = I.formulas[j][t] := term_eq_getElem hj ht
       rw [htD] at hq
       have hq' := (Term.eval_eq_true_iff _ _).1 hct _ (List.getElem_mem hq)
       rw [hmono _ (List.getElem_mem hj) _ (List.getElem_mem ht) _ (List.getElem_mem hq)] at hq'
-      have hvar : var I j t q = I.formulas[j][t][q].1 := by
-        simp [var, htD, List.getD_eq_getElem?_getD, hq]
-      rw [hvar]
-      simpa using hq'
+      simpa [var, htD, List.getD_eq_getElem?_getD, hq] using hq'
     · exact ⟨0, fun h => absurd h hj⟩
   choose τ hτ using h
   exact ⟨τ, fun j hj => hτ j hj⟩
@@ -214,22 +205,16 @@ private theorem addrBit_eq {τ o : ℕ → ℕ} {x : BitString (inputLength I Δ
   rw [hc, Nat.testBit_two_pow_mul_add _ hlt]
   unfold addrBit
   by_cases h : τ j < Δ ∧ r < varLength I lam (var I j (τ j) q) ∧ r < seedWidth I lam
-  · rw [dite_eq_left h]
-    have htt : (⟨_, h.1⟩ : Fin Δ) = t := Fin.ext ht
-    rw [htt]
+  · rw [dite_eq_left h, show (⟨_, h.1⟩ : Fin Δ) = t from Fin.ext ht]
     rw [ht, hv] at h
-    rw [ite_eq_left h.2.1]
-    have hbit := BitString.testBit_equivFin
-      (BitString.zeroExtend (d' := varLength I lam v) (seed x t q i)) ⟨r, h.2.1⟩
-    simp only at hbit
-    rw [hbit]
+    rw [ite_eq_left h.2.1, BitString.testBit_equivFin
+      (BitString.zeroExtend (d' := varLength I lam v) (seed x t q i)) ⟨r, h.2.1⟩]
     simp [BitString.zeroExtend, h.2.2]
   · rw [dite_eq_right h]
     rw [ht, hv] at h ⊢
-    by_cases hr : r < varLength I lam v
-    · exact absurd ⟨t.isLt, hr, by omega⟩ h
-    · rw [ite_eq_right hr, hc, Nat.testBit_two_pow_mul]
-      simp [show varLength I lam v ≤ r by omega]
+    have hr : ¬ r < varLength I lam v := fun hr => h ⟨t.isLt, hr, by omega⟩
+    rw [ite_eq_right hr, hc, Nat.testBit_two_pow_mul]
+    simp [show varLength I lam v ≤ r by omega]
 
 /-- **The Yes circuit agrees with the table.** -/
 private theorem combine_append_eq {S : Finset ℕ} {f : VarFunctions I lam} {τ : ℕ → ℕ}
@@ -270,14 +255,9 @@ private theorem combine_append_eq {S : Finset ℕ} {f : VarFunctions I lam} {τ 
     simp only [directProduct, hin]
     rw [hardTable_apply hdisj hvS hs _ (val_equivFin_natBits hlt)]
     have hbits : natBits (varLength I lam v) s =
-        BitString.zeroExtend (d' := varLength I lam v) (seed x ⟨_, htΔ⟩ q i) := by
-      funext r
-      simp only [natBits, hs_def]
-      exact BitString.testBit_equivFin _ r
-    rw [hbits]
-    unfold evalVar
-    rw [dite_eq_left hvn, dite_eq_left hvn]
-    exact congrArg _ (BitString.zeroExtend_self _)
+        BitString.zeroExtend (d' := varLength I lam v) (seed x ⟨_, htΔ⟩ q i) :=
+      funext fun r => BitString.testBit_equivFin _ r
+    simp only [hbits, evalVar, hvn, ↓reduceDIte, BitString.zeroExtend_self]
   · rfl
 
 /-! ### Size -/
@@ -297,12 +277,9 @@ private theorem complexity_addr_le (L : ℕ) (τ o : ℕ → ℕ) :
     · exact card_image_le.trans (by simp)
     · simp
   · intro x y hxy
-    have hj : formulaIndex x = formulaIndex y := by
-      have : (fun i => x (indexPos I Δ k lam i)) = fun i => y (indexPos I Δ k lam i) :=
-        funext fun i => hxy _ (mem_union_left _ (mem_image_of_mem _ (mem_univ i)))
-      simp only [formulaIndex, this]
-    simp only [addr, Equiv.symm_apply_apply]
-    rw [hj]
+    have hidx : (fun i => x (indexPos I Δ k lam i)) = fun i => y (indexPos I Δ k lam i) :=
+      funext fun i => hxy _ (mem_union_left _ (mem_image_of_mem _ (mem_univ i)))
+    simp only [addr, Equiv.symm_apply_apply, formulaIndex, hidx]
     unfold addrBit
     split_ifs with h
     · exact hxy _ (mem_union_right _ (by
@@ -324,13 +301,10 @@ private theorem complexity_combine_le (τ : ℕ → ℕ) :
     simp only [card_univ, Fintype.card_fin, Fintype.card_prod]
     omega
   · intro x y hxy
-    have hj : formulaIndex (I := I) (Δ := Δ) (k := k) (lam := lam)
-        (fun i => x (Fin.castAdd _ i)) = formulaIndex fun i => y (Fin.castAdd _ i) := by
-      have : (fun i => x (Fin.castAdd (Δ * k) (indexPos I Δ k lam i))) =
-          fun i => y (Fin.castAdd (Δ * k) (indexPos I Δ k lam i)) :=
-        funext fun i => hxy _ (mem_union_left _ (mem_union_left _
-          (mem_image_of_mem _ (mem_univ i))))
-      simp only [formulaIndex, this]
+    have hidx : (fun i => x (Fin.castAdd (Δ * k) (indexPos I Δ k lam i))) =
+        fun i => y (Fin.castAdd (Δ * k) (indexPos I Δ k lam i)) :=
+      funext fun i => hxy _ (mem_union_left _ (mem_union_left _
+        (mem_image_of_mem _ (mem_univ i))))
     have hm : (fun t q => x (Fin.castAdd (Δ * k) (maskPos I Δ k lam t q))) =
         fun t q => y (Fin.castAdd (Δ * k) (maskPos I Δ k lam t q)) :=
       funext fun t => funext fun q => hxy _ (mem_union_left _ (mem_union_right _
@@ -338,8 +312,7 @@ private theorem complexity_combine_le (τ : ℕ → ℕ) :
     have hv : (fun p => x (Fin.natAdd (inputLength I Δ k lam) p)) =
         fun p => y (Fin.natAdd (inputLength I Δ k lam) p) :=
       funext fun p => hxy _ (mem_union_right _ (mem_image_of_mem _ (mem_univ p)))
-    simp only [combine]
-    rw [hj, hm, hv]
+    simp only [combine, formulaIndex, hidx, hm, hv]
 
 /-- A junta on `a + e` inputs, with `2 ^ a ≤ 2 (m + 1)` and `a ≤ L`, costs `O((m + 1) (L + 1))`. -/
 private theorem junta_le {a L m : ℕ} (e : ℕ) (ha : 2 ^ a ≤ 2 * (m + 1)) (haL : a ≤ L) :
@@ -396,50 +369,40 @@ theorem exists_toInstance_mem_PartialMCSP (Δ k P : ℕ) (hP : 0 < P) :
   let F := hardTable f S o L
   let C : BooleanFunction (inputLength I Δ k lam) := fun x =>
     combine I lam τ (Fin.append x (directProduct F (Δ * k) (addr L τ o x))) 0
-  refine mem_iff_exists_total_extension.2 ⟨C, fun y b hy => ?_, ?_⟩
-  · have hy' : entry f y = some b := by
-      have h : entry f ((BitString.equivFin _).symm (BitString.equivFin _ y)) = some b := hy
-      convert h using 2
-      exact congrArg (entry f)
-        ((BitString.equivFin (inputLength I Δ k lam)).symm_apply_apply y).symm
-    exact combine_append_eq hS hwf hτ hfit' hdisj hy'
-  · have hC : single C =
-        fun x => combine I lam τ (Fin.append x (directProduct F (Δ * k) (addr L τ o x))) := rfl
-    have hU := hUhlig F (addr (I := I) (Δ := Δ) (k := k) (lam := lam) L τ o) (combine I lam τ)
-    have h1 := (complexity_addr_le (I := I) (Δ := Δ) (k := k) (lam := lam) L τ o).trans
-      (Nat.mul_le_mul_left _ (junta_le Δ ha haL))
-    have h2 := (complexity_combine_le (I := I) (Δ := Δ) (k := k) (lam := lam) τ).trans
-      (by simpa using junta_le (Δ * Δ + Δ * k) ha haL)
-    have hover : complexity interpretation (addr (I := I) (Δ := Δ) (k := k) (lam := lam) L τ o) +
-        complexity interpretation (combine I lam (Δ := Δ) (k := k) τ) ≤
-          (m + 1) * (L + 1) ^ 2 * K :=
-      calc _ ≤ _ := Nat.add_le_add h1 h2
-        _ ≤ Δ * k * (L + 1) * ((m + 1) * (L + 1) * (2 ^ (Δ + 1) * (2 * Δ + 4))) +
-            (m + 1) * (L + 1) * (2 ^ (Δ * Δ + Δ * k + 1) * (2 * (Δ * Δ + Δ * k) + 4)) * (L + 1) :=
-          Nat.add_le_add (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ (Nat.le_succ L)))
-            (Nat.le_mul_of_pos_right _ (Nat.succ_pos L))
-        _ = (m + 1) * (L + 1) ^ 2 * K := by rw [hK]; ring
-    obtain ⟨X, hX⟩ : ∃ X, X = P * K * L * (L + 1) ^ 2 := ⟨_, rfl⟩
-    have hX2 : X ^ 2 ≤ 2 ^ L := by
-      have h : (L + 1) ^ 2 ≤ 4 * L ^ 2 := by nlinarith
-      calc X ^ 2 = (P * K) ^ 2 * L ^ 2 * ((L + 1) ^ 2) ^ 2 := by rw [hX]; ring
-        _ ≤ (P * K) ^ 2 * L ^ 2 * (4 * L ^ 2) ^ 2 := by gcongr
-        _ = 16 * (P * K) ^ 2 * L ^ 6 := by ring
-        _ ≤ 2 ^ L := hpoly
-    have hmX : (m + 1) * X ≤ 2 ^ L := by
-      have : ((m + 1) * X) ^ 2 ≤ (2 ^ L) ^ 2 := by
-        rw [mul_pow, sq (2 ^ L)]
-        exact Nat.mul_le_mul hm2 hX2
-      exact (Nat.pow_le_pow_iff_left two_ne_zero).1 this
-    have hfinal : complexity interpretation (single C) * (P * L) ≤ (P + 2) * 2 ^ L := by
-      rw [hC, Nat.mul_comm]
-      calc _ ≤ (P + 1) * 2 ^ L + P * L *
-            (complexity interpretation (addr (I := I) (Δ := Δ) (k := k) (lam := lam) L τ o) +
-              complexity interpretation (combine I lam (Δ := Δ) (k := k) τ)) := hU
-        _ ≤ (P + 1) * 2 ^ L + P * L * ((m + 1) * (L + 1) ^ 2 * K) := by gcongr
-        _ = (P + 1) * 2 ^ L + (m + 1) * X := by rw [hX]; ring
-        _ ≤ (P + 1) * 2 ^ L + 2 ^ L := by gcongr
-        _ = (P + 2) * 2 ^ L := by ring
-    exact (Nat.le_div_iff_mul_le (Nat.mul_pos hP hL1)).2 hfinal
+  refine mem_iff_exists_total_extension.2 ⟨C, fun y b hy =>
+    combine_append_eq hS hwf hτ hfit' hdisj
+      ((congrArg (entry f) ((BitString.equivFin _).symm_apply_apply y)).symm.trans hy), ?_⟩
+  have hU := hUhlig F (addr (I := I) (Δ := Δ) (k := k) (lam := lam) L τ o) (combine I lam τ)
+  have h1 := (complexity_addr_le (I := I) (Δ := Δ) (k := k) (lam := lam) L τ o).trans
+    (Nat.mul_le_mul_left _ (junta_le Δ ha haL))
+  have h2 := (complexity_combine_le (I := I) (Δ := Δ) (k := k) (lam := lam) τ).trans
+    (by simpa using junta_le (Δ * Δ + Δ * k) ha haL)
+  have hover : complexity interpretation (addr (I := I) (Δ := Δ) (k := k) (lam := lam) L τ o) +
+      complexity interpretation (combine I lam (Δ := Δ) (k := k) τ) ≤
+        (m + 1) * (L + 1) ^ 2 * K :=
+    calc _ ≤ _ := Nat.add_le_add h1 h2
+      _ ≤ Δ * k * (L + 1) * ((m + 1) * (L + 1) * (2 ^ (Δ + 1) * (2 * Δ + 4))) +
+          (m + 1) * (L + 1) * (2 ^ (Δ * Δ + Δ * k + 1) * (2 * (Δ * Δ + Δ * k) + 4)) * (L + 1) :=
+        Nat.add_le_add (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ (Nat.le_succ L)))
+          (Nat.le_mul_of_pos_right _ (Nat.succ_pos L))
+      _ = (m + 1) * (L + 1) ^ 2 * K := by rw [hK]; ring
+  set X := P * K * L * (L + 1) ^ 2 with hX
+  have hX2 : X ^ 2 ≤ 2 ^ L := by
+    have h : (L + 1) ^ 2 ≤ 4 * L ^ 2 := by nlinarith
+    calc X ^ 2 = (P * K) ^ 2 * L ^ 2 * ((L + 1) ^ 2) ^ 2 := by rw [hX]; ring
+      _ ≤ (P * K) ^ 2 * L ^ 2 * (4 * L ^ 2) ^ 2 := by gcongr
+      _ = 16 * (P * K) ^ 2 * L ^ 6 := by ring
+      _ ≤ 2 ^ L := hpoly
+  have hmX : (m + 1) * X ≤ 2 ^ L := (Nat.pow_le_pow_iff_left two_ne_zero).1
+    ((mul_pow _ _ 2).trans_le ((Nat.mul_le_mul hm2 hX2).trans_eq (sq _).symm))
+  refine (Nat.le_div_iff_mul_le (Nat.mul_pos hP hL1)).2 ?_
+  rw [Nat.mul_comm]
+  calc _ ≤ (P + 1) * 2 ^ L + P * L *
+        (complexity interpretation (addr (I := I) (Δ := Δ) (k := k) (lam := lam) L τ o) +
+          complexity interpretation (combine I lam (Δ := Δ) (k := k) τ)) := hU
+    _ ≤ (P + 1) * 2 ^ L + P * L * ((m + 1) * (L + 1) ^ 2 * K) := by gcongr
+    _ = (P + 1) * 2 ^ L + (m + 1) * X := by rw [hX]; ring
+    _ ≤ (P + 1) * 2 ^ L + 2 ^ L := by gcongr
+    _ = (P + 2) * 2 ^ L := by ring
 
 end Cslib.PartialMCSP.FromCMMSA

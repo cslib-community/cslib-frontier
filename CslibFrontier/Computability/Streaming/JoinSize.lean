@@ -147,13 +147,9 @@ private theorem stateFrom_joinSketch (ω : Fin (2 * r) → Fin k → ι) (q : Jo
       add_zero]
   | cons x s ih =>
     rw [Algorithm.stateFrom_cons, ih]
-    cases x with
-    | inl a =>
-      simp only [joinSketch, Sum.elim_inl, List.filterMap_cons, Sum.getLeft?_inl,
-        Sum.getRight?_inl, List.map_cons, List.sum_cons, add_assoc]
-    | inr a =>
-      simp only [joinSketch, Sum.elim_inr, List.filterMap_cons, Sum.getLeft?_inr,
-        Sum.getRight?_inr, List.map_cons, List.sum_cons, add_assoc]
+    cases x <;> simp only [joinSketch, Sum.elim_inl, Sum.elim_inr, List.filterMap_cons,
+      Sum.getLeft?_inl, Sum.getRight?_inl, Sum.getLeft?_inr, Sum.getRight?_inr,
+      List.map_cons, List.sum_cons, add_assoc]
 
 /-- After the stream `s`, the counters with seed `θ` hold `∑_{a ∈ F} sgn (h θ a)` and
 `∑_{a ∈ G} sgn (h θ a)`, where `F` and `G` are the items tagged `Sum.inl` and `Sum.inr`. -/
@@ -222,13 +218,9 @@ private theorem dens_medianOfMeans_joinSize_error_le [Fintype ι] [DecidableEq �
     rw [ha, Nat.cast_zero, zero_mul]
   have hF {w : List α} (hw : w.toFinset ⊆ T) :
       ((freqMoment 2 w : ℕ) : ℝ) = ∑ a ∈ T, ((w.count a : ℝ)) ^ 2 := by
-    rw [freqMoment_eq_sum_of_subset two_ne_zero hw]
-    push_cast
-    rfl
+    simp only [freqMoment_eq_sum_of_subset two_ne_zero hw, Nat.cast_sum, Nat.cast_pow]
   have hJ : ((joinSize u v : ℕ) : ℝ) = ∑ a ∈ T, (u.count a : ℝ) * v.count a := by
-    rw [joinSize_eq_sum_of_subset (T := T) subset_union_left]
-    push_cast
-    rfl
+    simp only [joinSize_eq_sum_of_subset (T := T) subset_union_left, Nat.cast_sum, Nat.cast_mul]
   set g : ι → ℝ := fun θ => (∑ a ∈ T, (u.count a : ℝ) * sgn (h θ a)) *
     ∑ a ∈ T, (v.count a : ℝ) * sgn (h θ a)
   have hg : (fun θ => (∑ a ∈ u.toFinset, (u.count a : ℝ) * sgn (h θ a)) *
@@ -245,28 +237,26 @@ private theorem dens_medianOfMeans_joinSize_error_le [Fintype ι] [DecidableEq �
     rw [hmean, hJ]
     exact hh.expect_sq_sum_mul_sign_mul_sum_mul_sign_sub_le hε hε₀ T _ _
   rw [hg, hB, ← hmean]
+  have hk0 : NeZero k := ⟨by rintro rfl; norm_num at hk⟩
   rcases (show 0 ≤ B by positivity).eq_or_lt with hB0 | hBpos
   · -- If one relation is empty, every estimate is exact.
     set μ := 𝔼 θ, g θ
-    have hconst : ∀ θ, g θ = μ := by
+    have hconst (θ : ι) : g θ = μ := by
       have h0 : 𝔼 θ, (g θ - μ) ^ 2 = 0 :=
         le_antisymm (by rw [← hB0, mul_zero] at hvar; exact hvar)
           (Finset.expect_nonneg fun _ _ => sq_nonneg _)
-      intro θ
-      have := (Finset.expect_eq_zero_iff_of_nonneg (fun _ _ => sq_nonneg _)).1 h0 θ (mem_univ θ)
-      exact sub_eq_zero.1 (pow_eq_zero_iff two_ne_zero |>.1 this)
+      exact sub_eq_zero.1 <| (pow_eq_zero_iff two_ne_zero).1 <|
+        (Finset.expect_eq_zero_iff_of_nonneg (fun _ _ => sq_nonneg _)).1 h0 θ (mem_univ θ)
     have hempty : ({ω : Fin (2 * r) → Fin k → ι |
         η * √B < |medianOfMeans g ω - μ|} : Finset _) = ∅ := by
       have : Nonempty (Fin (2 * r)) := ⟨⟨0, by omega⟩⟩
       refine filter_false_of_mem fun ω _ => ?_
-      have hk0 : NeZero k := ⟨by rintro rfl; norm_num at hk⟩
       simp only [medianOfMeans, hconst, Fintype.expect_const, median_const, sub_self, abs_zero,
         not_lt]
       positivity
     rw [hempty, dens_empty, NNRat.cast_zero]
     positivity
-  · have hk0 : NeZero k := ⟨by rintro rfl; norm_num at hk⟩
-    have hvar3 : 3 * 𝔼 θ, (g θ - 𝔼 θ', g θ') ^ 2 ≤ k * (η * √B) ^ 2 := by
+  · have hvar3 : 3 * 𝔼 θ, (g θ - 𝔼 θ', g θ') ^ 2 ≤ k * (η * √B) ^ 2 := by
       rw [mul_pow, Real.sq_sqrt hBpos.le]
       nlinarith
     exact dens_abs_medianOfMeans_sub_gt_le g (mul_pos hη (Real.sqrt_pos.2 hBpos)) hvar3

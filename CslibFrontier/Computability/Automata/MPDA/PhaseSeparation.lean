@@ -81,10 +81,7 @@ theorem not_phaseBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
     (hw : w.map Prod.fst = word m) {K : ℕ} (hK : K < 2 * m) : ¬PhaseBounded K w := by
   intro hs
   have hkind := hM.kind_eq h
-  have hlen : w.length = 4 * m := by
-    rw [← List.length_map (f := Prod.fst), hw]
-    simp [word]
-    omega
+  have hlen : w.length = 4 * m := by rw [← List.length_map (f := Prod.fst), hw]; simp [word]; omega
   -- The `j`-th pop pops from stack `j % 2`.
   have hpop : ∀ j < 2 * m, ∃ μ γ, w[2 * m + j]? = some μ ∧
       μ.2 = .pop (⟨j % 2, Nat.mod_lt _ (by omega)⟩ : Fin 2) γ := by
@@ -104,16 +101,10 @@ theorem not_phaseBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
       rcases Nat.mod_two_eq_zero_or_one j with hj2 | hj2 <;> simp [hj2, kind]
     exact ⟨μ, γ, hμ, hγ⟩
   have hcard := List.Splits.card_le (fun _ _ huv hv => IsPhase.of_isInfix huv hv) hs
-    ((Finset.range (2 * m)).image (2 * m + ·)) (by
-      intro t ht
-      obtain ⟨j, hj, rfl⟩ := Finset.mem_image.mp ht
-      have := Finset.mem_range.mp hj
-      omega) (by
-      intro t ht t' ht' htt'
-      obtain ⟨j, hj, rfl⟩ := Finset.mem_image.mp ht
-      obtain ⟨j', hj', rfl⟩ := Finset.mem_image.mp ht'
-      have hj := Finset.mem_range.mp hj
-      have hj' := Finset.mem_range.mp hj'
+    ((Finset.range (2 * m)).image (2 * m + ·))
+    (by simp only [Finset.forall_mem_image, Finset.mem_range]; intros; omega) (by
+      simp only [Finset.forall_mem_image, Finset.mem_range]
+      intro j hj j' hj' htt'
       obtain ⟨μ₁, γ₁, hμ₁, hp₁⟩ := hpop j hj
       obtain ⟨μ₂, γ₂, hμ₂, hp₂⟩ := hpop (j + 1) (by omega)
       exact not_isPhase_extract (s₂ := 2 * m + (j + 1)) (by simp [Fin.ext_iff]; omega)
@@ -135,9 +126,7 @@ private theorem getElem?_phaseWord (n t : ℕ) :
     (phaseWord n)[t]? =
       if t < 2 * n then some (if t % 2 = 0 then .a else .b)
       else if t < 3 * n then some .c else if t < 4 * n then some .d else none := by
-  have hab : (List.replicate n [Letter.a, .b]).flatten.length = 2 * n := by
-    simp
-    omega
+  have hab : (List.replicate n [Letter.a, .b]).flatten.length = 2 * n := by simp; omega
   rw [phaseWord]
   by_cases h₁ : t < 2 * n
   · rw [List.getElem?_append_left (by simp; omega), List.getElem?_append_left (by simp; omega),
@@ -151,9 +140,7 @@ private theorem getElem?_phaseWord (n t : ℕ) :
     simp only [h₁, h₂, show t - 2 * n < n by omega, ↓reduceIte]
   · rw [List.getElem?_append_right (by simp; omega), List.length_append, hab,
       List.length_replicate, List.getElem?_replicate]
-    by_cases h₃ : t < 4 * n
-    · simp only [h₁, h₂, h₃, show t - (2 * n + n) < n by omega, ↓reduceIte]
-    · simp only [h₁, h₂, h₃, show ¬t - (2 * n + n) < n by omega, ↓reduceIte]
+    simp only [h₁, h₂, show t - (2 * n + n) < n ↔ t < 4 * n by omega, ↓reduceIte]
 
 /-- The positions of the letters of `(a b)ⁿ cⁿ dⁿ`. -/
 private theorem phaseWord_cases {n t : ℕ} {x : Letter} (h : (phaseWord n)[t]? = some x) :
@@ -184,27 +171,21 @@ theorem phaseBounded_two (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
   have hphase : ∀ (u : List (Letter × Op 2 Γ)) (o : Fin 2), (∀ μ ∈ u, μ.2.kind = kind μ.1) →
       (∀ x ∈ u.map Prod.fst, ∀ i, kind x = .pop i → i = o) → IsPhase u := by
     intro u o hu hx
-    have hpop : ∀ μ ∈ u, ∀ i γ, μ.2 = .pop i γ → i = o := by
-      intro μ hμ i γ hpop
-      refine hx μ.1 (List.mem_map_of_mem hμ) i ?_
-      rw [← hu μ hμ, hpop]
-      rfl
+    have hpop : ∀ μ ∈ u, ∀ i γ, μ.2 = .pop i γ → i = o := fun μ hμ i γ hpop =>
+      hx μ.1 (List.mem_map_of_mem hμ) i (by rw [← hu μ hμ, hpop]; rfl)
     exact fun μ hμ ν hν i j γ δ hμp hνp => (hpop μ hμ i γ hμp).trans (hpop ν hν j δ hνp).symm
   intro v hv
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hv
   rcases hv with rfl | rfl
   · refine hphase _ 0 (fun μ hμ => hkind μ (by simp [hμ])) fun x hx i hi => ?_
-    have hx' : x = .a ∨ x = .b ∨ x = .c := by
-      rw [hw₁] at hx
-      simp only [List.mem_append, List.mem_flatten, List.mem_replicate] at hx
-      rcases hx with ⟨l, ⟨-, rfl⟩, hl⟩ | ⟨-, rfl⟩
-      · simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
-        tauto
-      · simp
-    rcases hx' with rfl | rfl | rfl <;> simp_all [kind]
+    rw [hw₁] at hx
+    simp only [List.mem_append, List.mem_flatten, List.mem_replicate] at hx
+    rcases hx with ⟨l, ⟨-, rfl⟩, hl⟩ | ⟨-, rfl⟩
+    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
+      rcases hl with rfl | rfl <;> simp_all [kind]
+    · simp_all [kind]
   · refine hphase _ 1 (fun μ hμ => hkind μ (by simp [hμ])) fun x hx i hi => ?_
-    rw [hw₂] at hx
-    obtain ⟨-, rfl⟩ := List.mem_replicate.mp hx
+    obtain ⟨-, rfl⟩ := List.mem_replicate.mp (hw₂ ▸ hx)
     simp_all [kind]
 
 /-! ## `L'` is not hole-bounded -/
@@ -237,10 +218,8 @@ private theorem ab_of_lt (hw : w.map Prod.fst = phaseWord n) {a b : ℕ} (hb : b
   intro μ hμ
   obtain ⟨t, -, htb, ht⟩ := List.mem_extract_iff_getElem?.mp hμ
   have hl : (phaseWord n)[t]? = some μ.1 := by rw [← hw, List.getElem?_map, ht]; rfl
-  rcases phaseWord_cases hl with ⟨-, h⟩ | ⟨h₁, -, -⟩ | ⟨h₁, -, -⟩
-  · split_ifs at h <;> simp [h]
-  · omega
-  · omega
+  rcases phaseWord_cases hl with ⟨-, h⟩ | ⟨h₁, -, -⟩ | ⟨h₁, -, -⟩ <;>
+    [(split_ifs at h <;> simp [h]); omega; omega]
 
 /-- **`L'` is not hole-bounded**: a run of a visibly MPDA on `(a b)ⁿ cⁿ dⁿ` is not `K`-hole-bounded
 for `K < n`. After `(a b)ⁿ`, each pending `a` is a hole push, since the `b` after it stays pending
@@ -253,9 +232,7 @@ theorem not_holeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
   intro hb
   have hkind := hM.kind_eq h
   have hlen : w.length = 4 * n := by
-    rw [← List.length_map (f := Prod.fst), hw, phaseWord]
-    simp
-    omega
+    rw [← List.length_map (f := Prod.fst), hw, phaseWord]; simp; omega
   have hlet : ∀ {t : ℕ} {μ : Letter × Op 2 Γ}, w[t]? = some μ → (phaseWord n)[t]? = some μ.1 :=
     fun ht => by rw [← hw, List.getElem?_map, ht]; rfl
   have hkext : ∀ a b, ∀ μ ∈ w.extract a b, μ.2.kind = kind μ.1 := fun a b μ hμ =>
@@ -264,10 +241,8 @@ theorem not_holeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
       μ.1 = if t % 2 = 0 then .a else .b := by
     rcases phaseWord_cases (hlet hμ) with ⟨-, h⟩ | ⟨h, -⟩ | ⟨h, -⟩ <;> [exact h; omega; omega]
   -- The entry at a position, with its letter.
-  have hentry : ∀ t < 4 * n, ∃ μ, w[t]? = some μ ∧ (phaseWord n)[t]? = some μ.1 := by
-    intro t ht
-    obtain ⟨μ, hμ⟩ : ∃ μ, w[t]? = some μ := ⟨w[t]'(by omega), List.getElem?_eq_getElem _⟩
-    exact ⟨μ, hμ, hlet hμ⟩
+  have hentry : ∀ t < 4 * n, ∃ μ, w[t]? = some μ ∧ (phaseWord n)[t]? = some μ.1 := fun t ht =>
+    ⟨w[t]'(by omega), List.getElem?_eq_getElem _, hlet (List.getElem?_eq_getElem _)⟩
   -- Every position `2 * i` with `i < n` is the first pending push of a hole after `(a b)ⁿ`.
   have hmem : ∀ i < n, OpenHolePush w (2 * n - 1) (2 * i) ∧
       ¬∃ p, SameHole w (2 * n - 1) p (2 * i) := by
@@ -290,8 +265,7 @@ theorem not_holeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
     · -- The `b` after the push stays pending until after the matching pop.
       rintro ⟨m, hm, hwn⟩
       obtain ⟨-, j, ⟨a', γ', hj⟩, ⟨b', δ, hmpop⟩, -, -⟩ := hm
-      rw [hpush] at hj
-      simp only [Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at hj
+      simp only [hpush, Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at hj
       obtain ⟨-, rfl, -⟩ := hj
       have hm := hlet hmpop
       have hmk := hkind _ (List.mem_of_getElem? hmpop)
@@ -313,16 +287,12 @@ theorem not_holeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
         obtain ⟨l, hl, rfl⟩ := List.mem_map.mp hx
         obtain ⟨μ', hμ', rfl⟩ := List.mem_map.mp hl
         obtain ⟨t, ht₁, ht₂, ht⟩ := List.mem_extract_iff_getElem?.mp hμ'
-        rcases phaseWord_cases (hlet ht) with ⟨h, -⟩ | ⟨-, -, h⟩ | ⟨h, -⟩
-        · omega
-        · rw [h]
-          simp [kind, OpKind.net]
-        · omega
+        rcases phaseWord_cases (hlet ht) with ⟨h, -⟩ | ⟨-, -, h⟩ | ⟨h, -⟩ <;>
+          [omega; simp [h, kind, OpKind.net]; omega]
       omega
     · -- A `b` separates any earlier pending `a` from this one.
       rintro ⟨p, hpq, -, -, ⟨j, ⟨a₁, γ₁, hp⟩, ⟨a₂, γ₂, hq⟩⟩, hwn⟩
-      rw [hpush] at hq
-      simp only [Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at hq
+      simp only [hpush, Option.some.injEq, Prod.mk.injEq, Op.push.injEq] at hq
       obtain ⟨-, rfl, -⟩ := hq
       have hpl := hlet hp
       have hpk := hkind _ (List.mem_of_getElem? hp)
@@ -342,10 +312,8 @@ theorem not_holeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
   -- So at least `n` holes are open after `(a b)ⁿ`.
   have hsubset : ((Finset.range n).image (2 * ·) : Set ℕ) ⊆
       {q | OpenHolePush w (2 * n - 1) q ∧ ¬∃ p, SameHole w (2 * n - 1) p q} := by
-    intro q hq
-    simp only [Finset.coe_image, Finset.coe_range, Set.mem_image, Set.mem_Iio] at hq
-    obtain ⟨i, hi, rfl⟩ := hq
-    exact hmem i hi
+    rw [Finset.coe_image, Set.image_subset_iff]
+    exact fun i hi => hmem i (Finset.mem_range.mp hi)
   have hfin : {q | OpenHolePush w (2 * n - 1) q ∧ ¬∃ p, SameHole w (2 * n - 1) p q}.Finite :=
     (Set.finite_le_nat (2 * n - 1)).subset fun q hq => hq.1.2.1
   have := Set.ncard_le_ncard hsubset hfin
@@ -485,26 +453,16 @@ private theorem accepts_of_mem_phaseLanguage {w : List Letter} (h : w ∈ phaseL
     (List.replicate (m + 1) ()) m []
   have hds := configLTS_mTr_replicate_pop_one (M := phaseAutomaton) PhaseStep.ds_d [] m []
   simp only [List.append_nil] at hcs hds
-  have hc : phaseAutomaton.configLTS.MTr
-      ⟨.x, Stacks.pair (List.replicate (m + 1) ()) (List.replicate (m + 1) ())⟩
-      ((Letter.c, Op.pop 0 ()) :: List.replicate m (.c, .pop 0 ()))
-      ⟨.cs, Stacks.pair [] (List.replicate (m + 1) ())⟩ :=
-    .stepL (phaseStep_iff.mpr ⟨.x_c, Op.apply_pop_zero_pair.mpr ⟨_, rfl, rfl⟩⟩)
-      hcs
-  have hd : phaseAutomaton.configLTS.MTr ⟨.cs, Stacks.pair [] (List.replicate (m + 1) ())⟩
-      ((Letter.d, Op.pop 1 ()) :: List.replicate m (.d, .pop 1 ()))
-      ⟨.ds, Stacks.pair [] []⟩ :=
-    .stepL (phaseStep_iff.mpr ⟨.cs_d, Op.apply_pop_one_pair.mpr ⟨_, rfl, rfl⟩⟩)
-      hds
   refine ⟨.x, rfl, .ds, .inr rfl,
     (List.replicate (m + 1) [(Letter.a, Op.push 0 ()), (.b, .push 1 ())]).flatten ++
     ((Letter.c, Op.pop 0 ()) ::
     List.replicate m (.c, .pop 0 ())) ++ ((Letter.d, Op.pop 1 ()) :: List.replicate m
     (.d, .pop 1 ())), ?_, ?_⟩
   · simp [phaseWord, List.replicate_succ, List.append_assoc]
-  · have := (hab.comp _ hc).comp _ hd
-    rw [Stacks.empty_eq_pair]
-    exact this
+  · rw [Stacks.empty_eq_pair]
+    exact (hab.comp _
+      (.stepL (phaseStep_iff.mpr ⟨.x_c, Op.apply_pop_zero_pair.mpr ⟨_, rfl, rfl⟩⟩) hcs)).comp _
+      (.stepL (phaseStep_iff.mpr ⟨.cs_d, Op.apply_pop_one_pair.mpr ⟨_, rfl, rfl⟩⟩) hds)
 
 /-- `phaseAutomaton` recognizes exactly `L'`. -/
 theorem language_phaseAutomaton : Acceptor.language phaseAutomaton = phaseLanguage :=

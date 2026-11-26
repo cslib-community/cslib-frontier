@@ -133,8 +133,7 @@ private theorem mem_foldl_uncoveredStep (C : VertexCover (Fin n) (Fin n)) (l : L
 theorem foldl_uncoveredStep (C : VertexCover (Fin n) (Fin n)) :
     (List.finRange n).foldl (uncoveredStep C) ∅ = C.uncovered := by
   ext i
-  rw [mem_foldl_uncoveredStep, mem_uncovered]
-  simp
+  simp [mem_foldl_uncoveredStep, mem_uncovered]
 
 private theorem chainLabels_append (M : Finset (Fin n × Fin n))
     (ps₁ ps₂ : List (Fin n × Fin n)) (labels : Vector (Fin n) n) :
@@ -166,25 +165,10 @@ theorem chainLabels_eq_foldl_rowMate {M : Finset (Fin n × Fin n)}
       cases rm i <;> rfl
     | cons j₀ js ih =>
       obtain ⟨hj₀, hnd'⟩ := List.nodup_cons.mp hnd
-      simp only [List.map_cons, chainLabels]
-      cases hrmi : rm i with
-      | none =>
-        have hnot : (i, j₀) ∉ M := fun hm => by
-          have := (hrm i j₀).mpr hm
-          rw [hrmi] at this
-          exact nomatch this
-        rw [ite_eq_right hnot]
-        simpa [hrmi] using ih hnd' lab
-      | some j₁ =>
-        by_cases heq : j₀ = j₁
-        · subst heq
-          have hin : (i, j₀) ∈ M := (hrm i j₀).mp hrmi
-          rw [ite_eq_left hin, ih hnd']
-          simp [hrmi, hj₀]
-        · have hnot : (i, j₀) ∉ M := fun hm =>
-            heq (Option.some.inj (((hrm i j₀).mpr hm).symm.trans hrmi))
-          rw [ite_eq_right hnot, ih hnd']
-          simp [hrmi, Ne.symm heq]
+      simp only [List.map_cons, chainLabels, ← hrm, ih hnd']
+      cases rm i with
+      | none => rfl
+      | some j₁ => by_cases heq : j₁ = j₀ <;> simp [heq, hj₀]
   have houter : ∀ (is : List (Fin n)) (lab : Vector (Fin n) n),
       chainLabels M (is.flatMap fun i => (List.finRange n).map fun j => (i, j)) lab =
         is.foldl (fun lab i => match rm i with | some j => mergeChains lab (i, j) | none => lab)
@@ -196,9 +180,7 @@ theorem chainLabels_eq_foldl_rowMate {M : Finset (Fin n × Fin n)}
       intro lab
       rw [List.flatMap_cons, chainLabels_append, List.foldl_cons,
         hrow i (List.finRange n) (List.nodup_finRange n) lab, ih]
-      cases rm i with
-      | none => rfl
-      | some j => simp [List.mem_finRange j]
+      cases rm i <;> simp [List.mem_finRange]
   exact houter (List.finRange n) labels₀
 
 /-- One merge step on the label table is `mergeLabel` on the label function. -/
@@ -218,13 +200,7 @@ private theorem chainLabels_spec (e : Fin n ≃ α) (M : Finset (Fin n × Fin n)
   induction ps generalizing labels with
   | nil => rfl
   | cons p ps ih =>
-    by_cases hp : p ∈ M
-    · rw [List.filter_cons_of_pos (by simpa using hp), List.map_cons, List.foldl_cons]
-      simp only [chainLabels, hp, ite_true, ih]
-      rw [vget_mergeChains]
-      rfl
-    · rw [List.filter_cons_of_neg (by simpa using hp)]
-      simp only [chainLabels, hp, ite_false, ih]
+    by_cases hp : p ∈ M <;> simp [chainLabels, hp, ih, vget_mergeChains, Prod.map_def]
 
 /-- Scanning all pairs of indices visits each element of `M` exactly once. -/
 private theorem nodup_filter_pairs (M : Finset (Fin n × Fin n)) :
@@ -283,16 +259,12 @@ theorem minChainCover_correct (e : Fin n ≃ α) :
   have hmemL : ∀ a b : α, (a, b) ∈ L ↔ (e.symm a, e.symm b) ∈ M := by
     intro a b
     simp only [L, ps, List.mem_map, mem_filter_pairs, Prod.exists, Prod.map, Prod.mk.injEq]
-    constructor
-    · rintro ⟨i, j, h, rfl, rfl⟩
-      simpa using h
-    · intro h
-      exact ⟨_, _, h, by simp, by simp⟩
+    exact ⟨fun ⟨i, j, h, hi, hj⟩ => by simpa [← hi, ← hj] using h,
+      fun h => ⟨_, _, h, by simp, by simp⟩⟩
   have hmatch : IsMatching (ltGraph (α := α)) L.toFinset := by
     refine ⟨fun ⟨a, b⟩ h => ?_, fun a b₁ b₂ h₁ h₂ => ?_, fun a₁ a₂ b h₁ h₂ => ?_⟩
     · rw [List.mem_toFinset, hmemL] at h
-      have := hmax.1.1 _ h
-      simpa [enumLtGraph] using this
+      simpa [enumLtGraph] using hmax.1.1 _ h
     · rw [List.mem_toFinset, hmemL] at h₁ h₂
       exact e.symm.injective (hmax.1.2.1 _ _ _ h₁ h₂)
     · rw [List.mem_toFinset, hmemL] at h₁ h₂
@@ -307,18 +279,12 @@ theorem minChainCover_correct (e : Fin n ≃ α) :
       (List.finRange n ×ˢ List.finRange n) (Vector.ofFn id))) := by
     ext c
     simp only [Finset.mem_image, Finset.mem_univ, true_and]
-    constructor
-    · rintro ⟨x, rfl⟩
-      exact ⟨e.symm x, rfl⟩
-    · rintro ⟨i, rfl⟩
-      exact ⟨e i, by simp [lab, ChainCoverOutput.label]⟩
+    exact ⟨fun ⟨x, hx⟩ => ⟨e.symm x, hx⟩,
+      fun ⟨i, hi⟩ => ⟨e i, by simp [← hi, lab, ChainCoverOutput.label]⟩⟩
   have hanti : IsAntichain (· ≤ ·) (e '' C.uncovered) := by
     rintro _ ⟨i, hi, rfl⟩ _ ⟨j, hj, rfl⟩ hij hle
     rw [Finset.mem_coe, mem_uncovered] at hi hj
-    have hlt : e i < e j := lt_of_le_of_ne hle hij
-    rcases hmin.1 i j (by simpa [enumLtGraph] using hlt) with h | h
-    · exact hi.1 h
-    · exact hj.2 h
+    exact (hmin.1 i j (by simpa [enumLtGraph] using lt_of_le_of_ne hle hij)).elim hi.1 hj.2
   have hle : n - M.card ≤ C.uncovered.card := by
     have := card_sub_size_le_card_uncovered C
     rwa [Fintype.card_fin, ← hcard] at this

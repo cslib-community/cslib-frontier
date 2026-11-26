@@ -100,6 +100,17 @@ theorem addResidue_spec (a b r : BitVec k) (T : ℕ)
       Nat.mod_eq_of_lt ((Nat.mod_lt _ ha).trans a.isLt)]
   · simp [addResidue, BitVec.ult, h, advance]
 
+/-- The counter-state bits of `power T` on modulus `x` and initial state `0` are
+`remainder T x`. -/
+private theorem power_pack_zero (T : ℕ) (x : BitString k) (i : Fin k) :
+    power T (pack (equivBitVec x) 0) (Fin.natAdd k i) = remainder T x i := by
+  dsimp only [power]
+  rw [leftWord_pack, rightWord_pack]
+  simp only [pack, Fin.append_right]
+  by_cases hz : (equivBitVec x).toNat = 0
+  · simp [advance, remainder, hz]
+  · simp [advance, remainder, hz, Nat.pos_of_ne_zero hz]
+
 /-- A circuit for `power T` yields a circuit for `remainder T` with at most one extra gate. -/
 theorem remainder_of_power (T : ℕ) (c : Circuit signature (k + k) (k + k))
     (hc : c.Computes interpretation (power T)) :
@@ -109,35 +120,66 @@ theorem remainder_of_power (T : ℕ) (c : Circuit signature (k + k) (k + k))
   let init := fun x : BitString k => pack (equivBitVec x) (0 : BitVec k)
   have hi (i : Fin (k + k)) : (fun x => init x i) ∈ s := by
     induction i using Fin.addCases with
-    | left i =>
-      simpa only [init, pack, Fin.append_left, Equiv.symm_apply_apply] using
-        (show (fun x : BitString k => x i) ∈ s from Or.inl ⟨i, rfl⟩)
+    | left i => exact Or.inl ⟨i, funext fun x => by simp [init, pack]⟩
     | right i =>
-      right
-      funext x
-      simp only [init, pack, Fin.append_right, BitVec.ofNat_eq_ofNat,
-        BitString.equivBitVec_symm_zero, Pi.zero_apply, Bool.zero_eq_false]
+      exact Or.inr (funext fun x => by
+        simp only [init, pack, Fin.append_right, BitVec.ofNat_eq_ofNat,
+          BitString.equivBitVec_symm_zero, Pi.zero_apply, Bool.zero_eq_false])
   have h := (Synthesis.const (s := inputs k) false).trans
     (Synthesis.circuit (I := interpretation) (s := s) c (fun i x => init x i) hi)
   have hout : wires (remainder (k := k) T) ⊆
       wires (fun x => c.eval interpretation (init x)) := by
     rintro _ ⟨i, rfl⟩
-    refine ⟨Fin.natAdd k i, ?_⟩
-    funext x
-    change c.eval interpretation (init x) (Fin.natAdd k i) = remainder T x i
-    rw [hc (init x)]
-    dsimp only [power, init]
-    rw [leftWord_pack, rightWord_pack]
-    rw [show (0 : BitVec k).toNat = 0 by simp]
-    simp only [pack, Fin.append_right]
-    by_cases hz : (equivBitVec x).toNat = 0
-    · simp only [advance, remainder, hz, lt_self_iff_false, and_self, ite_false, ite_true]
-      rfl
-    · simp only [advance, remainder, hz, Nat.pos_of_ne_zero hz, and_self, ite_true, ite_false,
-        Nat.zero_add]
-      rfl
+    exact ⟨Fin.natAdd k i,
+      funext fun x => (congrFun (hc (init x)) _).trans (power_pack_zero T x i)⟩
   obtain ⟨out, ho, hs⟩ := (h.mono Set.Subset.rfl hout le_rfl).exists_circuit_outputs
   exact ⟨out, ho, by nlinarith⟩
+
+/-- The construction behind `power_of_remainder`: if `c`, read on the input bits `init x`, returns
+the remainder of `time x` modulo `(a x).toNat`, then `100 * (k + 1)` further gates compute
+`pack (a x) (advance (a x).toNat (b x).toNat (time x))`. -/
+private theorem exists_pack_advance {n m : ℕ} (a b : BitString n → BitVec k)
+    (time : BitString n → ℕ) (init : BitString n → BitString m) (c : Circuit signature m k)
+    (ha : wordWires a ⊆ inputs n) (hb : wordWires b ⊆ inputs n)
+    (hinit : ∀ i, (fun x => init x i) ∈ inputs n)
+    (hc : ∀ x, equivBitVec (c.eval interpretation (init x)) =
+      BitVec.ofNat k (if (a x).toNat = 0 then 0 else time x % (a x).toNat))
+    (f : BitString n → BitString (k + k))
+    (hf : ∀ x, f x = pack (a x) (BitVec.ofNat k (advance (a x).toNat (b x).toNat (time x)))) :
+    ∃ out : Circuit signature n (k + k),
+      out.Computes interpretation f ∧ out.size ≤ c.size + 100 * (k + 1) := by
+  let r := fun x => equivBitVec (c.eval interpretation (init x))
+  let s := inputs n ∪ wires (fun x => c.eval interpretation (init x))
+  have ha' : wordWires a ⊆ s := ha.trans Set.subset_union_left
+  have hr : wordWires r ⊆ s := by
+    rintro _ ⟨i, rfl⟩
+    simpa only [r, getLsbD_equivBitVec] using
+      (show (fun x => c.eval interpretation (init x) i) ∈ s from Or.inr ⟨i, rfl⟩)
+  have hs := synthesis_addResidue s a b r ha' (hb.trans Set.subset_union_left) hr
+  have hcirc := Synthesis.circuit (I := interpretation) (s := inputs n) c (fun i x => init x i)
+    hinit
+  have h : Synthesis interpretation (inputs n)
+      (s ∪ wordWires (fun x => addResidue (a x) (b x) (r x))) (c.size + 100 * (k + 1)) := by
+    simpa only [s, wires, Set.union_assoc, Nat.zero_add] using
+      (Synthesis.of_subset (I := interpretation)
+        (s := inputs n) (t := inputs n) Set.Subset.rfl).union (hcirc.comp hs)
+  have hspec (x : BitString n) : addResidue (a x) (b x) (r x) =
+      BitVec.ofNat k (advance (a x).toNat (b x).toNat (time x)) := by
+    refine addResidue_spec _ _ _ _ fun hpos => ?_
+    simp only [r, hc x, Nat.ne_of_gt hpos, ite_false, BitVec.toNat_ofNat,
+      Nat.mod_eq_of_lt ((Nat.mod_lt _ hpos).trans (a x).isLt)]
+  have hout : wires f ⊆ s ∪ wordWires (fun x => addResidue (a x) (b x) (r x)) := by
+    rintro _ ⟨i, rfl⟩
+    induction i using Fin.addCases with
+    | left i =>
+      exact Or.inl (by simpa only [hf, pack, Fin.append_left, BitString.equivBitVec_symm_apply,
+        BitVec.getLsbD_eq_getElem, i.isLt] using ha' ⟨i, rfl⟩)
+    | right i =>
+      exact Or.inr ⟨i, funext fun x => by
+        simp only [hspec, hf, pack, Fin.append_right, BitString.equivBitVec_symm_apply,
+          BitVec.getLsbD_eq_getElem, i.isLt]⟩
+  obtain ⟨out, ho, hsize⟩ := (h.mono Set.Subset.rfl hout le_rfl).exists_circuit_outputs
+  exact ⟨out, ho, by simpa only [Nat.zero_add] using hsize⟩
 
 /-- A circuit for `remainder T` yields a circuit for `power T` with at most `100 * (k + 1)` extra
 gates. -/
@@ -145,56 +187,13 @@ theorem power_of_remainder (T : ℕ) (c : Circuit signature k k)
     (hc : c.Computes interpretation (remainder T)) :
     ∃ out : Circuit signature (k + k) (k + k),
       out.Computes interpretation (power T) ∧ out.size ≤ c.size + 100 * (k + 1) := by
-  let a := fun x : BitString (k + k) => leftWord x
-  let b := fun x : BitString (k + k) => rightWord x
-  let init := fun x : BitString (k + k) => fun i : Fin k => x (Fin.castAdd k i)
-  let r := fun x => equivBitVec (c.eval interpretation (init x))
-  let s := inputs (k + k) ∪ wires (fun x => c.eval interpretation (init x))
-  have ha : wordWires a ⊆ s := by
-    rintro _ ⟨i, rfl⟩
-    simpa only [a, leftWord, getLsbD_equivBitVec] using
-      (show (fun x : BitString (k + k) => x (Fin.castAdd k i)) ∈ s from Or.inl ⟨_, rfl⟩)
-  have hb : wordWires b ⊆ s := by
-    rintro _ ⟨i, rfl⟩
-    simpa only [b, rightWord, getLsbD_equivBitVec] using
-      (show (fun x : BitString (k + k) => x (Fin.natAdd k i)) ∈ s from Or.inl ⟨_, rfl⟩)
-  have hr : wordWires r ⊆ s := by
-    rintro _ ⟨i, rfl⟩
-    simpa only [r, getLsbD_equivBitVec] using
-      (show (fun x => c.eval interpretation (init x) i) ∈ s from Or.inr ⟨i, rfl⟩)
-  have hs := synthesis_addResidue s a b r ha hb hr
-  have hcirc := Synthesis.circuit (I := interpretation)
-    (s := inputs (k + k)) c (fun i x => init x i) (fun i => ⟨Fin.castAdd k i, rfl⟩)
-  have h : Synthesis interpretation (inputs (k + k))
-      (s ∪ wordWires (fun x => addResidue (a x) (b x) (r x))) (c.size + 100 * (k + 1)) := by
-    simpa only [s, wires, Set.union_assoc, Nat.zero_add] using
-      (Synthesis.of_subset (I := interpretation)
-        (s := inputs (k + k)) (t := inputs (k + k)) Set.Subset.rfl).union (hcirc.comp hs)
-  have hspec (x : BitString (k + k)) : addResidue (a x) (b x) (r x) =
-      BitVec.ofNat k (advance (a x).toNat (b x).toNat T) := by
-    apply addResidue_spec
-    intro ha
-    change (equivBitVec (c.eval interpretation (init x))).toNat = _
-    rw [hc (init x), remainder_word]
-    simp only [show equivBitVec (init x) = a x from rfl,
-      Nat.ne_of_gt ha, ite_false, BitVec.toNat_ofNat,
-      Nat.mod_eq_of_lt ((Nat.mod_lt _ ha).trans (a x).isLt)]
-  have hout : wires (power (k := k) T) ⊆
-      s ∪ wordWires (fun x => addResidue (a x) (b x) (r x)) := by
-    rintro _ ⟨i, rfl⟩
-    induction i using Fin.addCases with
-    | left i =>
-      left
-      simpa only [power, pack, Fin.append_left, BitString.equivBitVec_symm_apply,
-        BitVec.getLsbD_eq_getElem, i.isLt, a] using ha ⟨i, rfl⟩
-    | right i =>
-      right
-      refine ⟨i, ?_⟩
-      funext x
-      simp only [hspec, power, pack, Fin.append_right, BitString.equivBitVec_symm_apply,
-        BitVec.getLsbD_eq_getElem, i.isLt, a, b]
-  obtain ⟨out, ho, hsize⟩ := (h.mono Set.Subset.rfl hout le_rfl).exists_circuit_outputs
-  exact ⟨out, ho, by simpa only [Nat.zero_add] using hsize⟩
+  refine exists_pack_advance leftWord rightWord (fun _ => T) (fun x i => x (Fin.castAdd k i)) c
+    ?_ ?_ (fun i => ⟨Fin.castAdd k i, rfl⟩)
+    (fun x => (congrArg equivBitVec (hc _)).trans (remainder_word _ _)) _ fun _ => rfl
+  · rintro _ ⟨i, rfl⟩
+    exact ⟨Fin.castAdd k i, funext fun x => by simp only [leftWord, getLsbD_equivBitVec]⟩
+  · rintro _ ⟨i, rfl⟩
+    exact ⟨Fin.natAdd k i, funext fun x => by simp only [rightWord, getLsbD_equivBitVec]⟩
 
 /-! ### Short-exponent upper bounds and exponent-length lower bounds -/
 
@@ -249,9 +248,7 @@ theorem short_remainder_circuit (k m T : ℕ) (hT : T < 2 ^ m) :
   have hout : wires (remainder (k := k) T) ⊆
       wordWires (fun x => if decide (equivBitVec x = (0 : BitVec k)) then 0 else r x) := by
     rintro _ ⟨i, rfl⟩
-    refine ⟨i, ?_⟩
-    funext x
-    simp only [hval, getLsbD_equivBitVec]
+    exact ⟨i, funext fun x => by simp only [hval, getLsbD_equivBitVec]⟩
   obtain ⟨out, ho, hs⟩ := (h.mono Set.Subset.rfl hout le_rfl).exists_circuit_outputs
   exact ⟨out, ho, by nlinarith⟩
 
@@ -306,19 +303,6 @@ def counterInput (x : BitString k) : BitString (k + k) :=
     (ModulusCounter.rightWord (counterInput x)).toNat = 0 := by
   simp [counterInput]
 
-private theorem counterRemainder_spec (T : ℕ) (x : BitString k) :
-    BitString.sndBits ((counterStep k)^[T] (counterInput x)) = ModulusCounter.remainder T x := by
-  rw [counterStep, ModulusCounter.iterate_power]
-  funext i
-  rw [BitString.sndBits_apply]
-  dsimp only [counterInput, ModulusCounter.power]
-  rw [ModulusCounter.leftWord_pack, ModulusCounter.rightWord_pack]
-  simp only [ModulusCounter.pack, Fin.append_right]
-  by_cases hz : (equivBitVec x).toNat = 0
-  · simp [ModulusCounter.advance, ModulusCounter.remainder, hz]
-  · simp [ModulusCounter.advance, ModulusCounter.remainder, hz,
-      Nat.pos_of_ne_zero hz]
-
 /-- Computing `ModulusCounter.power T` and computing `ModulusCounter.remainder T` are equivalent up
 to linear additive overhead. -/
 theorem counter_powers_compute_remainders (k T : ℕ) :
@@ -363,107 +347,47 @@ theorem variable_time_counter_iff_remainder (m k : ℕ) :
       | left i =>
         induction i using Fin.addCases with
         | left i =>
-          simpa only [init, Fin.append_left, counterInput, ModulusCounter.pack,
-            Equiv.symm_apply_apply] using
-            (show (fun x : BitString (m + k) => x (Fin.natAdd m i)) ∈ s from Or.inl ⟨_, rfl⟩)
+          exact Or.inl ⟨Fin.natAdd m i,
+            funext fun x => by simp [init, counterInput, ModulusCounter.pack]⟩
         | right i =>
-          right
-          funext x
-          simp only [init, Fin.append_left, counterInput, ModulusCounter.pack, Fin.append_right,
-            BitVec.ofNat_eq_ofNat, BitString.equivBitVec_symm_zero, Pi.zero_apply,
-            Bool.zero_eq_false]
-      | right j =>
-        simpa only [init, Fin.append_right] using
-          (show (fun x : BitString (m + k) => x (Fin.castAdd k j)) ∈ s from Or.inl ⟨_, rfl⟩)
+          exact Or.inr (funext fun x => by
+            simp only [init, Fin.append_left, counterInput, ModulusCounter.pack, Fin.append_right,
+              BitVec.ofNat_eq_ofNat, BitString.equivBitVec_symm_zero, Pi.zero_apply,
+              Bool.zero_eq_false])
+      | right j => exact Or.inl ⟨Fin.castAdd k j, funext fun x => by simp [init]⟩
     have h := (Synthesis.const (s := inputs (m + k)) false).trans
       (Synthesis.circuit (I := interpretation) (s := s) c (fun i x => init x i) hi)
     have hout : wires (inputTimeRemainder m k) ⊆
         wires (fun x => c.eval interpretation (init x)) := by
       rintro _ ⟨i, rfl⟩
-      refine ⟨Fin.natAdd k i, ?_⟩
-      funext x
-      change c.eval interpretation (init x) (Fin.natAdd k i) =
-        inputTimeRemainder m k x i
-      rw [hc (init x)]
-      simp only [inputTimeIterate, init, Fin.append_right, Fin.append_left]
-      exact congrFun (counterRemainder_spec
-        (equivBitVec fun j : Fin m => x (Fin.castAdd k j)).toNat
-        (fun i : Fin k => x (Fin.natAdd m i))) i
+      refine ⟨Fin.natAdd k i, funext fun x => (congrFun (hc (init x)) _).trans ?_⟩
+      simpa only [inputTimeIterate, inputTimeRemainder, init, Fin.append_right, Fin.append_left,
+        counterInput, counterStep, ModulusCounter.iterate_power] using
+        ModulusCounter.power_pack_zero _ _ i
     obtain ⟨out, ho, hs⟩ := (h.mono Set.Subset.rfl hout le_rfl).exists_circuit_outputs
     exact ⟨out, ho, by omega⟩
   · intro c hc
-    let a := fun x : BitString ((k + k) + m) =>
-      ModulusCounter.leftWord fun i => x (Fin.castAdd m i)
-    let b := fun x : BitString ((k + k) + m) =>
-      ModulusCounter.rightWord fun i => x (Fin.castAdd m i)
     let init := fun x : BitString ((k + k) + m) =>
       Fin.append (fun j : Fin m => x (Fin.natAdd (k + k) j))
         (fun i : Fin k => x (Fin.castAdd m (Fin.castAdd k i)))
-    let r := fun x => equivBitVec (c.eval interpretation (init x))
-    let s := inputs ((k + k) + m) ∪ wires (fun x => c.eval interpretation (init x))
-    have ha : wordWires a ⊆ s := by
-      rintro _ ⟨i, rfl⟩
-      simpa only [a, ModulusCounter.leftWord, getLsbD_equivBitVec] using
-        (show (fun x : BitString ((k + k) + m) => x (Fin.castAdd m (Fin.castAdd k i))) ∈ s from
-          Or.inl ⟨_, rfl⟩)
-    have hb : wordWires b ⊆ s := by
-      rintro _ ⟨i, rfl⟩
-      simpa only [b, ModulusCounter.rightWord, getLsbD_equivBitVec] using
-        (show (fun x : BitString ((k + k) + m) => x (Fin.castAdd m (Fin.natAdd k i))) ∈ s from
-          Or.inl ⟨_, rfl⟩)
-    have hr : wordWires r ⊆ s := by
-      rintro _ ⟨i, rfl⟩
-      simpa only [r, getLsbD_equivBitVec] using
-        (show (fun x => c.eval interpretation (init x) i) ∈ s from Or.inr ⟨i, rfl⟩)
-    have hs := synthesis_addResidue s a b r ha hb hr
-    have hhi (i : Fin (m + k)) : (fun x => init x i) ∈ inputs ((k + k) + m) := by
-      induction i using Fin.addCases with
-      | left j =>
-        exact ⟨Fin.natAdd (k + k) j, funext fun x => by simp [init]⟩
-      | right i =>
-        exact ⟨Fin.castAdd m (Fin.castAdd k i), funext fun x => by simp [init]⟩
-    have hcirc := Synthesis.circuit (I := interpretation)
-      (s := inputs ((k + k) + m)) c (fun i x => init x i) hhi
-    have h : Synthesis interpretation (inputs ((k + k) + m))
-        (s ∪ wordWires (fun x => addResidue (a x) (b x) (r x)))
-        (c.size + 100 * (k + 1)) := by
-      simpa only [s, wires, Set.union_assoc, Nat.zero_add] using
-        (Synthesis.of_subset (I := interpretation)
-          (s := inputs ((k + k) + m)) (t := inputs ((k + k) + m)) Set.Subset.rfl).union
-          (hcirc.comp hs)
-    have hspec (x : BitString ((k + k) + m)) :
-        addResidue (a x) (b x) (r x) =
-          BitVec.ofNat k (ModulusCounter.advance (a x).toNat (b x).toNat
-            (equivBitVec fun j : Fin m => x (Fin.natAdd (k + k) j)).toNat) := by
-      apply ModulusCounter.addResidue_spec
-      intro hpos
-      change (equivBitVec (c.eval interpretation (init x))).toNat = _
-      rw [hc (init x), inputTimeRemainder, ModulusCounter.remainder_word]
-      have hinit_m : (fun j : Fin m => init x (Fin.castAdd k j)) =
-          fun j : Fin m => x (Fin.natAdd (k + k) j) := by
-        funext j; simp [init]
-      have hinit_k : equivBitVec (fun i : Fin k => init x (Fin.natAdd m i)) = a x := by
-        congr 1 with i : 1; simp [init]
-      rw [hinit_m, hinit_k]
-      simp only [Nat.ne_of_gt hpos, ite_false, BitVec.toNat_ofNat,
-        Nat.mod_eq_of_lt ((Nat.mod_lt _ hpos).trans (a x).isLt)]
-    have hout : wires (inputTimeIterate (counterStep k) m) ⊆
-        s ∪ wordWires (fun x => addResidue (a x) (b x) (r x)) := by
-      rintro _ ⟨i, rfl⟩
-      induction i using Fin.addCases with
-      | left i =>
-        left
-        simpa only [inputTimeIterate, counterStep, ModulusCounter.iterate_power,
-          ModulusCounter.power, ModulusCounter.pack, Fin.append_left,
-          BitString.equivBitVec_symm_apply, BitVec.getLsbD_eq_getElem, i.isLt, a] using ha ⟨i, rfl⟩
-      | right i =>
-        right
-        refine ⟨i, ?_⟩
-        funext x
-        simp only [hspec, inputTimeIterate, counterStep, ModulusCounter.iterate_power,
-          ModulusCounter.power, ModulusCounter.pack, Fin.append_right,
-          BitString.equivBitVec_symm_apply, BitVec.getLsbD_eq_getElem, i.isLt, a, b]
-    obtain ⟨out, ho, hsize⟩ := (h.mono Set.Subset.rfl hout le_rfl).exists_circuit_outputs
-    exact ⟨out, ho, by simpa only [Nat.zero_add] using hsize⟩
+    refine ModulusCounter.exists_pack_advance
+      (fun x => ModulusCounter.leftWord fun i => x (Fin.castAdd m i))
+      (fun x => ModulusCounter.rightWord fun i => x (Fin.castAdd m i))
+      (fun x => (equivBitVec fun j : Fin m => x (Fin.natAdd (k + k) j)).toNat) init c ?_ ?_
+      (fun i => ?_) (fun x => ?_) _ fun x => ?_
+    · rintro _ ⟨i, rfl⟩
+      exact ⟨Fin.castAdd m (Fin.castAdd k i), funext fun x => by
+        simp only [ModulusCounter.leftWord, getLsbD_equivBitVec]⟩
+    · rintro _ ⟨i, rfl⟩
+      exact ⟨Fin.castAdd m (Fin.natAdd k i), funext fun x => by
+        simp only [ModulusCounter.rightWord, getLsbD_equivBitVec]⟩
+    · induction i using Fin.addCases with
+      | left j => exact ⟨Fin.natAdd (k + k) j, funext fun x => by simp [init]⟩
+      | right i => exact ⟨Fin.castAdd m (Fin.castAdd k i), funext fun x => by simp [init]⟩
+    · simp only [hc (init x), inputTimeRemainder, ModulusCounter.remainder_word, init,
+        Fin.append_left, Fin.append_right]
+      rfl
+    · rw [inputTimeIterate, counterStep, ModulusCounter.iterate_power]
+      rfl
 
 end Cslib.Circuits.Boolean.Iteration

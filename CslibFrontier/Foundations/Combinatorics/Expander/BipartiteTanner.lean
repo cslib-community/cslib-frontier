@@ -163,40 +163,32 @@ theorem mem_submodule {S M : Type*} [Semiring S] [AddCommMonoid M] [Module S M]
 /-- Hamming distance decomposes by left vertices. -/
 theorem hammingDist_eq_sum_left [Fintype L] [Fintype D] [DecidableEq α] (x y : L × D → α) :
     hammingDist x y = ∑ u : L, hammingDist (leftWord x u) (leftWord y u) := by
-  rw [hammingDist, Finset.card_filter, Fintype.sum_prod_type]
-  refine Finset.sum_congr rfl fun u _ => by
-    rw [hammingDist, Finset.card_filter]
-    rfl
+  simp_rw [hammingDist, Finset.card_filter, Fintype.sum_prod_type]
+  rfl
 
 /-- Hamming distance decomposes by right vertices. -/
 theorem hammingDist_eq_sum_right [Fintype L] [Fintype R] [Fintype D] [DecidableEq α]
     (B : BipartiteRotationMap L R D) (x y : L × D → α) :
     hammingDist x y = ∑ v : R, hammingDist (rightWord B x v) (rightWord B y v) := by
-  rw [hammingDist, Finset.card_filter]
+  simp_rw [hammingDist, Finset.card_filter]
   rw [Fintype.sum_equiv B.toRight (fun p => if x p ≠ y p then (1 : ℕ) else 0)
     (fun q => if x (B.toRight.symm q) ≠ y (B.toRight.symm q) then 1 else 0)
     fun p => by simp only [Equiv.symm_apply_apply], Fintype.sum_prod_type]
-  refine Finset.sum_congr rfl fun v _ => by
-    rw [hammingDist, Finset.card_filter]
-    rfl
+  rfl
 
 /-- Hamming weight decomposes by left vertices. -/
 theorem hammingNorm_eq_sum_left [Fintype L] [Fintype D] [Zero α] [DecidableEq α]
     (x : L × D → α) :
     hammingNorm x = ∑ u : L, hammingNorm (leftWord x u) := by
-  rw [← hammingDist_zero_right, hammingDist_eq_sum_left]
-  refine Finset.sum_congr rfl fun u _ => ?_
-  rw [← hammingDist_zero_right]
-  rfl
+  simp_rw [← hammingDist_zero_right]
+  exact hammingDist_eq_sum_left x 0
 
 /-- Hamming weight decomposes by right vertices. -/
 theorem hammingNorm_eq_sum_right [Fintype L] [Fintype R] [Fintype D] [Zero α] [DecidableEq α]
     (B : BipartiteRotationMap L R D) (x : L × D → α) :
     hammingNorm x = ∑ v : R, hammingNorm (rightWord B x v) := by
-  rw [← hammingDist_zero_right, hammingDist_eq_sum_right B]
-  refine Finset.sum_congr rfl fun v _ => ?_
-  rw [← hammingDist_zero_right]
-  rfl
+  simp_rw [← hammingDist_zero_right]
+  exact hammingDist_eq_sum_right B x 0
 
 end LocalWords
 
@@ -261,17 +253,15 @@ theorem hammingNorm_checkMatrix_row_le [Fintype L] [Fintype D]
   · refine (card_le_card_of_injOn (t := (univ : Finset D)) Prod.snd
       (fun _ _ => mem_univ _) ?_).trans (by simp)
     intro p hp p' hp' hpp'
-    simp only [mem_coe, checkMatrix, Matrix.of_apply] at hp hp'
-    have hpu : p.1 = u := by by_contra h; simp [h] at hp
-    have hp'u : p'.1 = u := by by_contra h; simp [h] at hp'
-    exact Prod.ext (hpu.trans hp'u.symm) hpp'
+    simp only [mem_coe, mem_filter, mem_univ, true_and, checkMatrix, Matrix.of_apply, ne_eq,
+      ite_eq_right_iff, Classical.not_forall] at hp hp'
+    exact Prod.ext (hp.1.trans hp'.1.symm) hpp'
   · refine (card_le_card_of_injOn (t := (univ : Finset D)) (fun p => (B.toRight p).2)
       (fun _ _ => mem_univ _) ?_).trans (by simp)
     intro p hp p' hp' hpp'
-    simp only [mem_coe, checkMatrix, Matrix.of_apply] at hp hp'
-    have hpv : (B.toRight p).1 = v := by by_contra h; simp [h] at hp
-    have hp'v : (B.toRight p').1 = v := by by_contra h; simp [h] at hp'
-    exact B.toRight.injective (Prod.ext (hpv.trans hp'v.symm) hpp')
+    simp only [mem_coe, mem_filter, mem_univ, true_and, checkMatrix, Matrix.of_apply, ne_eq,
+      ite_eq_right_iff, Classical.not_forall] at hp hp'
+    exact B.toRight.injective (Prod.ext (hp.1.trans hp'.1.symm) hpp')
 
 /-- Restricting columns along an embedding `emb : ι' ↪ ι` cannot increase any row's Hamming weight.
 -/
@@ -307,10 +297,10 @@ theorem rate_submodule_ge [Fintype L] [Finite R] [Fintype D] [CommRing α] [Fint
   have _ : Finite ((D → α) ⧸ CL) := Finite.of_surjective _ CL.mkQ_surjective
   have _ : Finite ((D → α) ⧸ CR) := Finite.of_surjective _ CR.mkQ_surjective
   have hrange_le : Nat.card φ.toAddMonoidHom.range ≤
-      Nat.card ((D → α) ⧸ CL) ^ Fintype.card L * Nat.card ((D → α) ⧸ CR) ^ Fintype.card R := by
+      Nat.card ((D → α) ⧸ CL) ^ Fintype.card L * Nat.card ((D → α) ⧸ CR) ^ Fintype.card L := by
     refine (Nat.card_le_card_of_injective _ Subtype.val_injective).trans_eq ?_
     rw [Nat.card_prod, Nat.card_fun, Nat.card_fun, Nat.card_eq_fintype_card (α := L),
-      Nat.card_eq_fintype_card (α := R)]
+      Nat.card_eq_fintype_card (α := R), hLR]
   have hdom : Nat.card (L × D → α) = Fintype.card α ^ (Fintype.card L * Fintype.card D) := by
     rw [Nat.card_fun, Nat.card_eq_fintype_card (α := L × D),
       Nat.card_eq_fintype_card (α := α), Fintype.card_prod]
@@ -323,63 +313,33 @@ theorem rate_submodule_ge [Fintype L] [Finite R] [Fintype D] [CommRing α] [Fint
   have hpow_le :
       (Nat.card CL * Nat.card CR) ^ Fintype.card L ≤
         Nat.card (submodule B CL CR) * (Fintype.card α ^ Fintype.card D) ^ Fintype.card L := by
-    have hmul : Fintype.card α ^ (Fintype.card L * Fintype.card D) ≤
+    have hmul : (Fintype.card α ^ Fintype.card D) ^ Fintype.card L ≤
         Nat.card (submodule B CL CR) *
-          (Nat.card ((D → α) ⧸ CL) ^ Fintype.card L *
-            Nat.card ((D → α) ⧸ CR) ^ Fintype.card R) := by
-      rw [← hdom, ← hcard, hker_card]
+          (Nat.card ((D → α) ⧸ CL) * Nat.card ((D → α) ⧸ CR)) ^ Fintype.card L := by
+      rw [← pow_mul, mul_comm (Fintype.card D), ← hdom, ← hcard, hker_card, mul_pow]
       exact Nat.mul_le_mul_left _ hrange_le
-    rw [← hLR] at hmul
-    have hmul2 := Nat.mul_le_mul_right (Nat.card CL ^ Fintype.card L * Nat.card CR ^ Fintype.card L)
-      hmul
-    have hpos : 0 < (Fintype.card α ^ Fintype.card D) ^ Fintype.card L := by positivity
-    have hrew : (Fintype.card α ^ Fintype.card D) ^ Fintype.card L =
-        Fintype.card α ^ (Fintype.card L * Fintype.card D) := by
-      rw [← pow_mul, mul_comm]
-    have hpow2 :
-        (Nat.card CL * Nat.card CR) ^ Fintype.card L *
-            (Fintype.card α ^ Fintype.card D) ^ Fintype.card L ≤
-          (Nat.card (submodule B CL CR) * (Fintype.card α ^ Fintype.card D) ^ Fintype.card L) *
-            (Fintype.card α ^ Fintype.card D) ^ Fintype.card L := by
-      calc
-        (Nat.card CL * Nat.card CR) ^ Fintype.card L *
-            (Fintype.card α ^ Fintype.card D) ^ Fintype.card L
-          = Fintype.card α ^ (Fintype.card L * Fintype.card D) *
-              (Nat.card CL ^ Fintype.card L * Nat.card CR ^ Fintype.card L) := by
-            rw [mul_pow, hrew]; ring
-        _ ≤ Nat.card (submodule B CL CR) *
-              (Nat.card ((D → α) ⧸ CL) ^ Fintype.card L *
-                Nat.card ((D → α) ⧸ CR) ^ Fintype.card L) *
-              (Nat.card CL ^ Fintype.card L * Nat.card CR ^ Fintype.card L) := hmul2
-        _ = Nat.card (submodule B CL CR) *
-              ((Nat.card CL * Nat.card ((D → α) ⧸ CL)) ^ Fintype.card L *
-                (Nat.card CR * Nat.card ((D → α) ⧸ CR)) ^ Fintype.card L) := by
-            simp only [mul_pow]; ring
-        _ = (Nat.card (submodule B CL CR) * (Fintype.card α ^ Fintype.card D) ^ Fintype.card L) *
-              (Fintype.card α ^ Fintype.card D) ^ Fintype.card L := by
-            rw [hqL, hqR]; ring
-    exact Nat.le_of_mul_le_mul_right hpow2 hpos
+    refine Nat.le_of_mul_le_mul_right (c := (Fintype.card α ^ Fintype.card D) ^ Fintype.card L)
+      ?_ (by positivity)
+    calc _ ≤ (Nat.card CL * Nat.card CR) ^ Fintype.card L * (Nat.card (submodule B CL CR) *
+          (Nat.card ((D → α) ⧸ CL) * Nat.card ((D → α) ⧸ CR)) ^ Fintype.card L) :=
+          Nat.mul_le_mul_left _ hmul
+      _ = Nat.card (submodule B CL CR) * ((Nat.card CL * Nat.card ((D → α) ⧸ CL)) *
+          (Nat.card CR * Nat.card ((D → α) ⧸ CR))) ^ Fintype.card L := by ring
+      _ = _ := by simp only [hqL, hqR]; ring
   have hα : (1 : ℝ) < Fintype.card α := by exact_mod_cast Fintype.one_lt_card
-  have hα0 : (0 : ℝ) < Fintype.card α := by linarith
-  have hCL_pos : (0 : ℝ) < Nat.card CL := by exact_mod_cast Nat.card_pos (α := CL)
-  have hCR_pos : (0 : ℝ) < Nat.card CR := by exact_mod_cast Nat.card_pos (α := CR)
-  have hSub_pos : (0 : ℝ) < Nat.card (submodule B CL CR) := by
-    exact_mod_cast Nat.card_pos (α := submodule B CL CR)
-  have hpow_r :
-      ((Nat.card CL : ℝ) * Nat.card CR) ^ Fintype.card L ≤
-        (Nat.card (submodule B CL CR) : ℝ) *
-          ((Fintype.card α : ℝ) ^ Fintype.card D) ^ Fintype.card L := by
-    exact_mod_cast hpow_le
-  have hlog := Real.logb_le_logb_of_le hα (by positivity) hpow_r
+  have hCL_pos : (0 : ℝ) < Nat.card CL := Nat.cast_pos.2 Nat.card_pos
+  have hCR_pos : (0 : ℝ) < Nat.card CR := Nat.cast_pos.2 Nat.card_pos
+  have hSub_pos : (0 : ℝ) < Nat.card (submodule B CL CR) := Nat.cast_pos.2 Nat.card_pos
+  have hpow_real : ((Nat.card CL : ℝ) * Nat.card CR) ^ Fintype.card L ≤
+      Nat.card (submodule B CL CR) * ((Fintype.card α : ℝ) ^ Fintype.card D) ^ Fintype.card L :=
+    mod_cast hpow_le
+  have hlog := Real.logb_le_logb_of_le hα (by positivity) hpow_real
   rw [Real.logb_pow, Real.logb_mul hCL_pos.ne' hCR_pos.ne',
     Real.logb_mul hSub_pos.ne' (by positivity), Real.logb_pow,
-    Real.logb_self_pow hα0 hα.ne'] at hlog
+    Real.logb_self_pow (zero_lt_one.trans hα) hα.ne'] at hlog
   have hL0 : (0 : ℝ) < Fintype.card L := by exact_mod_cast hL
   have hD0 : (0 : ℝ) < Fintype.card D := by exact_mod_cast hD
-  have hcardL : Nat.card (CL : Set (D → α)) = Nat.card CL := rfl
-  have hcardR : Nat.card (CR : Set (D → α)) = Nat.card CR := rfl
-  have hcardS : Nat.card (submodule B CL CR : Set (L × D → α)) = Nat.card (submodule B CL CR) := rfl
-  simp only [Code.rate, hcardL, hcardR, hcardS, Fintype.card_prod, Nat.cast_mul]
+  simp only [Code.rate, SetLike.coe_sort_coe, Fintype.card_prod, Nat.cast_mul]
   refine le_of_mul_le_mul_right ?_ (mul_pos hL0 hD0)
   field_simp
   linarith
@@ -404,9 +364,8 @@ theorem one_sub_card_div_card_le_rate_parityCheck [Fintype L] [Finite R] [Fintyp
   rw [parityCheckCode_checkMatrix, coe_submodule] at h
   have hcard_eq : (Fintype.card (L × ιL ⊕ R × ιR) : ℝ) / Fintype.card (L × D) =
       ((Fintype.card ιL : ℝ) + Fintype.card ιR) / Fintype.card D := by
+    have : 0 < Fintype.card R := hLR ▸ hL
     simp only [Fintype.card_sum, Fintype.card_prod, Nat.cast_add, Nat.cast_mul, hLR]
-    have hR0 : (Fintype.card R : ℝ) ≠ 0 := by exact_mod_cast (hLR ▸ hL).ne'
-    have hD0 : (Fintype.card D : ℝ) ≠ 0 := by exact_mod_cast hD.ne'
     field_simp
   linarith
 
@@ -442,20 +401,12 @@ private theorem hammingDist_le_card_interedges [Fintype L] [Fintype R] [Fintype 
       #(B.interedges {u | leftWord x u ≠ leftWord y u}
         {v | rightWord B x v ≠ rightWord B y v}) := by
   classical
-  rw [hammingDist]
-  refine card_le_card fun p hp => ?_
-  rcases p with ⟨u, i⟩
+  refine card_le_card fun ⟨u, i⟩ hp => ?_
   simp only [mem_filter, mem_univ, true_and] at hp
   rw [B.mem_interedges]
-  refine ⟨?_, ?_⟩
-  · simp only [mem_filter, mem_univ, true_and]
-    intro h0
-    exact hp (congrFun h0 i)
-  · simp only [mem_filter, mem_univ, true_and, BipartiteRotationMap.neighborRight]
-    intro h0
-    have hval := congrFun h0 (B.toRight (u, i)).2
-    simp only [rightWord_toRight] at hval
-    exact hp hval
+  simp only [mem_filter, mem_univ, true_and, BipartiteRotationMap.neighborRight]
+  exact ⟨fun h0 => hp (congrFun h0 i),
+    fun h0 => hp (by simpa only [rightWord_toRight] using congrFun h0 (B.toRight (u, i)).2)⟩
 
 /-- **Asymmetric bipartite Tanner code distance bound**: if distinct words in `CL` are separated
 by at least `kL ≥ 0` and distinct words in `CR` are separated by at least `kR ≥ 0`, and
@@ -500,8 +451,7 @@ theorem sqrt_mul_sub_card_le_of_hammingDist [Fintype L] [Fintype R] [Fintype D]
   have hmix := B.card_interedges_le_of_nontrivialSingularValue_le hlam U W
   have hup : (hammingDist x y : ℝ) ≤
       Fintype.card D * (#U * #W) / Fintype.card L + lam * Fintype.card D * √((#U : ℝ) * #W) := by
-    have hmul_assoc : (Fintype.card D : ℝ) * (#U * #W) / Fintype.card L =
-        Fintype.card D * #U * #W / Fintype.card L := by ring
+    rw [mul_assoc (Fintype.card D : ℝ)] at hmix
     linarith
   have hk2 : √(kL * kR) ^ 2 * ((#U : ℝ) * #W) ≤ (hammingDist x y : ℝ) ^ 2 := by
     rw [Real.sq_sqrt (mul_nonneg hkL hkR)]
@@ -559,9 +509,8 @@ theorem le_minDist_of_relDist [Fintype L] [Fintype R] [Fintype D]
     (hlam : B.nontrivialSingularValue ≤ lam) {n : ℕ}
     (hn : (n : ℝ) ≤ δ * (δ - lam) * Fintype.card (L × D)) :
     (n : ℕ∞) ≤ Code.minDist (code B CL CR) := by
-  refine Code.le_minDist_iff.2 fun x hx y hy hxy => Nat.cast_le.2 ?_
-  have h := relDist_mul_sub_le_hammingDist B hδ hCL hCR hlam hx hy hxy
-  exact Nat.cast_le.1 (hn.trans h)
+  exact Code.le_minDist_iff.2 fun x hx y hy hxy => Nat.cast_le.2 <| Nat.cast_le.1 <|
+    hn.trans (relDist_mul_sub_le_hammingDist B hδ hCL hCR hlam hx hy hxy)
 
 /-- Minimum-weight bound `δ * (δ - lam) * |L × D| ≤ hammingNorm x` for nonzero words in a linear
 bipartite Tanner code `submodule B CL CR`. -/

@@ -167,9 +167,7 @@ position `(i + k) mod n`. -/
 theorem cyclicShiftPerm_injective {n : ℕ} : Function.Injective (cyclicShiftPerm (n := n)) := by
   intro k₁ k₂ h
   let : NeZero n := ⟨k₁.pos.ne'⟩
-  have h0 : (cyclicShiftPerm k₁).symm 0 = (cyclicShiftPerm k₂).symm 0 :=
-    congrArg (fun e => e.symm 0) h
-  change (0 : Fin n) + k₁ = (0 : Fin n) + k₂ at h0
+  have h0 : (0 : Fin n) + k₁ = (0 : Fin n) + k₂ := congrArg (fun e => e.symm 0) h
   simpa using h0
 
 /-- A monotone circuit `c` computes the monotone cyclic shift operator `S_{q, A}` for control
@@ -216,29 +214,16 @@ private theorem not_le_of_eval_permuteVec {ι : Type*} {n q m : ℕ}
     (hc : ∀ X r, c.eval interpretation (Fin.append X (γ r)) = permuteVec X (φ r))
     (hq : 0 < q) {r₁ r₂ : ι} (hne : φ r₁ ≠ φ r₂) : ¬ γ r₁ ≤ γ r₂ := by
   intro hle
-  obtain ⟨j, hj⟩ : ∃ j, φ r₁ j ≠ φ r₂ j := by
-    by_contra h
-    simp only [not_exists, Decidable.not_not] at h
-    exact hne (Equiv.ext h)
-  let b₀ : Fin q := ⟨0, hq⟩
-  let u₁ : Fin (n * q) := finProdFinEquiv (φ r₁ j, b₀)
-  let out : Fin (n * q) := finProdFinEquiv (j, b₀)
+  obtain ⟨j, hj⟩ : ∃ j, φ r₁ j ≠ φ r₂ j := not_forall.1 fun h => hne (Equiv.ext h)
+  let u₁ : Fin (n * q) := finProdFinEquiv (φ r₁ j, ⟨0, hq⟩)
   let X : Fin (n * q) → Bool := fun u => decide (u = u₁)
-  have happ : Fin.append X (γ r₁) ≤ Fin.append X (γ r₂) := by
-    intro idx
-    refine Fin.addCases (fun _ => ?_) (fun t => ?_) idx
-    · simp only [Fin.append_left]; exact le_rfl
-    · simp only [Fin.append_right]; exact hle t
-  have hmono := eval_mono c happ out
+  have happ : Fin.append X (γ r₁) ≤ Fin.append X (γ r₂) :=
+    Fin.addCases (fun _ => by simp) (fun t => by simpa using hle t)
+  have hmono := eval_mono c happ (finProdFinEquiv (j, ⟨0, hq⟩))
   rw [hc X r₁, hc X r₂] at hmono
-  have hu₁ : permuteVec X (φ r₁) out = true := by
-    simp [out, X, u₁]
-  have hu₂ : permuteVec X (φ r₂) out = false := by
-    simp only [out, permuteVec_finProdFinEquiv, X, decide_eq_false_iff_not]
-    intro heq
-    exact hj (Prod.mk.inj (finProdFinEquiv.injective heq.symm)).1
-  rw [hu₁, hu₂] at hmono
-  exact not_true_le_false hmono
+  simp only [permuteVec_finProdFinEquiv, X, u₁, decide_true] at hmono
+  exact hj (Prod.mk.inj (finProdFinEquiv.injective
+    (of_decide_eq_true (Bool.eq_true_of_true_le hmono)).symm)).1
 
 private theorem injective_and_isAntichain_of_not_le {ι : Type*} {m : ℕ} {γ : ι → Fin m → Bool}
     (hnot : ∀ {r₁ r₂ : ι}, r₁ ≠ r₂ → ¬ γ r₁ ≤ γ r₂) :
@@ -317,9 +302,7 @@ abbrev dualRailShiftAntichain (n : ℕ) : Fin n → Fin (2 * Nat.clog 2 n) → B
 
 private theorem eq_of_dualRailShiftCode_le {n b : ℕ} (hb : n ≤ 2 ^ b) {k₁ k₂ : Fin n}
     (h : dualRailShiftCode n b k₁ ≤ dualRailShiftCode n b k₂) : k₁ = k₂ := by
-  apply Fin.ext
-  apply Nat.eq_of_testBit_eq
-  intro i
+  refine Fin.ext (Nat.eq_of_testBit_eq fun i => ?_)
   by_cases hi : i < b
   · have hpos := h ⟨i, by omega⟩
     have hneg := h ⟨b + i, by omega⟩
@@ -330,11 +313,9 @@ private theorem eq_of_dualRailShiftCode_le {n b : ℕ} (hb : n ≤ 2 ^ b) {k₁ 
     · rw [hb₁, hb₂] at hneg; exact False.elim (not_true_le_false hneg)
     · rw [hb₁, hb₂] at hpos; exact False.elim (not_true_le_false hpos)
     · rfl
-  · have hlt₁ : k₁.val < 2 ^ i :=
-      k₁.isLt.trans_le (hb.trans (Nat.pow_le_pow_right (by decide) (by omega)))
-    have hlt₂ : k₂.val < 2 ^ i :=
-      k₂.isLt.trans_le (hb.trans (Nat.pow_le_pow_right (by decide) (by omega)))
-    rw [Nat.testBit_lt_two_pow hlt₁, Nat.testBit_lt_two_pow hlt₂]
+  · have hlt (k : Fin n) : k.val < 2 ^ i :=
+      k.isLt.trans_le (hb.trans (Nat.pow_le_pow_right (by decide) (by omega)))
+    rw [Nat.testBit_lt_two_pow (hlt k₁), Nat.testBit_lt_two_pow (hlt k₂)]
 
 /-- Whenever `n ≤ 2 ^ b` (in particular for `b = Nat.clog 2 n` and `b = Nat.log 2 n + 1`),
 `dualRailShiftCode n b` is injective. -/
@@ -365,17 +346,15 @@ private theorem shiftByNat_zero {n q : ℕ} (X : Fin (n * q) → Bool) :
   obtain ⟨⟨j, b⟩, rfl⟩ := finProdFinEquiv.surjective idx
   let : NeZero n := ⟨j.pos.ne'⟩
   simp only [shiftByNat, Equiv.symm_apply_apply]
-  have h0 : Fin.ofNat n 0 = (0 : Fin n) := rfl
-  rw [h0, sub_zero]
+  exact congrArg (fun j' => X (finProdFinEquiv (j', b))) (sub_zero j)
 
 private theorem shiftByNat_add {n q : ℕ} (X : Fin (n * q) → Bool) (s₁ s₂ : ℕ) :
     shiftByNat (shiftByNat X s₁) s₂ = shiftByNat X (s₁ + s₂) := by
   funext idx
   obtain ⟨⟨j, b⟩, rfl⟩ := finProdFinEquiv.surjective idx
   let : NeZero n := ⟨j.pos.ne'⟩
-  have hofNat : Fin.ofNat n (s₁ + s₂) = Fin.ofNat n s₁ + Fin.ofNat n s₂ := by
-    ext
-    simp [Fin.ofNat, Fin.add_def, Nat.add_mod]
+  have hofNat : Fin.ofNat n (s₁ + s₂) = Fin.ofNat n s₁ + Fin.ofNat n s₂ :=
+    Fin.ext (by simp [Fin.ofNat, Fin.add_def, Nat.add_mod])
   simp only [shiftByNat, Equiv.symm_apply_apply]
   rw [hofNat, sub_sub, add_comm]
 
@@ -384,9 +363,7 @@ private theorem shiftByNat_coe {n q : ℕ} (X : Fin (n * q) → Bool) (k : Fin n
   funext idx
   obtain ⟨⟨j, b⟩, rfl⟩ := finProdFinEquiv.surjective idx
   let : NeZero n := ⟨k.pos.ne'⟩
-  have hk : Fin.ofNat n k.val = k := by
-    ext
-    exact Nat.mod_eq_of_lt k.isLt
+  have hk : Fin.ofNat n k.val = k := Fin.ext (Nat.mod_eq_of_lt k.isLt)
   simp only [shiftByNat, Equiv.symm_apply_apply, cyclicShiftVec, permuteVec_finProdFinEquiv, hk]
   rfl
 
@@ -401,13 +378,8 @@ private theorem eval_monotoneMux (v : Fin 4 → Bool) :
     monotoneMux.eval interpretation v 0 = ((v 0 && v 1) || (v 2 && v 3)) := by
   simp only [monotoneMux, Circuit.eval_comp, Circuit.eval_oneGate, interpretation_or,
     Circuit.eval_append, Matrix.cons_val_zero, Matrix.cons_val_one]
-  have h0 : Fin.append ((Circuit.oneGate (σ := signature) Op.and ![0, 1]).eval interpretation v)
-      ((Circuit.oneGate (σ := signature) Op.and ![2, 3]).eval interpretation v) (0 : Fin 2) =
-      (v 0 && v 1) := Fin.append_left _ _ (0 : Fin 1)
-  have h1 : Fin.append ((Circuit.oneGate (σ := signature) Op.and ![0, 1]).eval interpretation v)
-      ((Circuit.oneGate (σ := signature) Op.and ![2, 3]).eval interpretation v) (1 : Fin 2) =
-      (v 2 && v 3) := Fin.append_right _ _ (0 : Fin 1)
-  rw [h0, h1]
+  erw [Fin.append_left _ _ (0 : Fin 1), Fin.append_right _ _ (0 : Fin 1)]
+  simp
 
 private theorem cost_monotoneMux : monotoneMux.program.cost binaryCost = 3 := by
   simp only [circuit_simps, monotoneMux, binaryCost_or, binaryCost_and]
@@ -457,9 +429,7 @@ private theorem eval_barrelStage (n q L i : ℕ) (hi : i < L)
       Matrix.cons_val, Equiv.symm_apply_apply, Fin.append_right, Fin.append_left, hpos, hneg]
     rw [jShift_eq_sub_ofNat]
     cases bit
-    · simp only [Bool.false_eq_true, ↓reduceIte, Bool.not_false, Bool.false_and, Bool.true_and,
-        Bool.false_or]
-      rw [shiftByNat_zero]
+    · simp [shiftByNat_zero]
     · simp [shiftByNat]
   · simp [barrelStage]
 
@@ -534,15 +504,8 @@ private theorem eval_orInputList (n : ℕ) :
   | r :: r' :: rs, z => by
     simp only [orInputList, Circuit.eval_comp, Circuit.eval_oneGate, interpretation_or,
       Circuit.eval_append, Matrix.cons_val_zero, Matrix.cons_val_one]
-    have h0 : Fin.append ((Circuit.wiring signature fun _ : Fin 1 => r).eval interpretation z)
-        ((orInputList n (r' :: rs)).eval interpretation z) (0 : Fin 2) = z r :=
-      Fin.append_left _ _ (0 : Fin 1)
-    have h1 : Fin.append ((Circuit.wiring signature fun _ : Fin 1 => r).eval interpretation z)
-        ((orInputList n (r' :: rs)).eval interpretation z) (1 : Fin 2) =
-        (orInputList n (r' :: rs)).eval interpretation z 0 :=
-      Fin.append_right _ _ (0 : Fin 1)
-    rw [h0, h1, eval_orInputList n (r' :: rs) z]
-    rfl
+    erw [Fin.append_left _ _ (0 : Fin 1), Fin.append_right _ _ (0 : Fin 1)]
+    simp [eval_orInputList n (r' :: rs) z]
 
 private theorem cost_orInputList_le (n : ℕ) :
     ∀ idxs : List (Fin n), (orInputList n idxs).program.cost binaryCost ≤ idxs.length
@@ -627,25 +590,18 @@ private theorem computesMonotoneShift_monotoneShiftCircuit_of_oneHot {n q m : �
     (hcA : ∀ k : Fin n, cA.eval interpretation (α k) = fun r => decide (r = k)) :
     ComputesMonotoneShift (monotoneShiftCircuit q cA) α := by
   cases q with
-  | zero =>
-    intro X k
-    funext idx
-    exact idx.elim0
+  | zero => exact fun _ _ => funext fun idx => idx.elim0
   | succ q' =>
     intro X k
-    set L := Nat.clog 2 n
     simp only [monotoneShiftCircuit, Circuit.eval_comp, Circuit.eval_parallel,
       Fin.append_comp_castAdd, Fin.append_comp_natAdd, Circuit.eval_wiring, Function.comp_id,
       hcA k]
-    set R := (railBitsOfOneHot n L).eval interpretation (fun r => decide (r = k))
-    have hpos : ∀ i (hi : i < L), R ⟨i, by omega⟩ = k.val.testBit i := by
-      intro i hi
-      simpa [R, hi] using eval_railBitsOfOneHot_oneHot n L k ⟨i, by omega⟩
-    have hneg : ∀ i (hi : i < L), R ⟨L + i, by omega⟩ = !k.val.testBit i := by
-      intro i hi
-      have hnot : ¬ (L + i < L) := by omega
-      simpa [R, hnot] using eval_railBitsOfOneHot_oneHot n L k ⟨L + i, by omega⟩
-    exact eval_barrelShiftCircuit n (q' + 1) X k R hpos hneg
+    exact eval_barrelShiftCircuit n (q' + 1) X k _
+      (fun i hi => by
+        simpa [hi] using eval_railBitsOfOneHot_oneHot n (Nat.clog 2 n) k ⟨i, by omega⟩)
+      (fun i hi => by
+        simpa using
+          eval_railBitsOfOneHot_oneHot n (Nat.clog 2 n) k ⟨Nat.clog 2 n + i, by omega⟩)
 
 /-- **Theorem 1 (correctness)** ([Sergeev2020MonotoneShift], pp. 3–4): if `α` injectively indexes
 an antichain in `Fin m → Bool` and `cA` computes the antichain monomials
@@ -658,11 +614,8 @@ theorem computesMonotoneShift_monotoneShiftCircuit {n q m : ℕ}
     ComputesMonotoneShift (monotoneShiftCircuit q cA) α := by
   refine computesMonotoneShift_monotoneShiftCircuit_of_oneHot fun k => ?_
   rw [hcA (α k)]
-  funext r
-  by_cases hrk : r = k
-  · subst hrk; simp
-  · simp only [hrk, decide_false, decide_eq_false_iff_not]
-    exact hanti ⟨r, rfl⟩ ⟨k, rfl⟩ (hinj.ne hrk)
+  exact funext fun r => decide_eq_decide.2
+    ⟨fun h => by_contra fun hrk => hanti ⟨r, rfl⟩ ⟨k, rfl⟩ (hinj.ne hrk) h, fun h => h ▸ le_rfl⟩
 
 /-- **Theorem 1 (cost bound)** ([Sergeev2020MonotoneShift], pp. 3–4): `monotoneShiftCircuit q cA`
 has binary monotone gate cost at most `cA.program.cost binaryCost + 4 * q * n * Nat.clog 2 n`
@@ -695,20 +648,13 @@ def oneHotShiftCircuit (n q : ℕ) : Circuit signature (n * q + n) (n * q) :=
 theorem computesMonotoneShift_oneHotShiftCircuit (n q : ℕ) :
     ComputesMonotoneShift (oneHotShiftCircuit n q) (oneHotShiftAntichain n) := by
   refine computesMonotoneShift_monotoneShiftCircuit (injective_oneHotShiftAntichain n)
-    (isAntichain_range_oneHotShiftAntichain n) fun Y => ?_
-  funext r
+    (isAntichain_range_oneHotShiftAntichain n) fun Y => funext fun r => ?_
   change Y r = decide (oneHotShiftAntichain n r ≤ Y)
   apply Bool.eq_iff_iff.mpr
   simp only [decide_eq_true_eq]
-  constructor
-  · intro hYr i
-    by_cases hir : i = r
-    · subst hir; simp [oneHotShiftAntichain, hYr]
-    · simp [oneHotShiftAntichain, hir]
-  · intro hle
-    have hr := hle r
-    simp only [oneHotShiftAntichain, decide_true] at hr
-    exact Bool.eq_true_of_true_le hr
+  refine ⟨fun hYr i => ?_, fun hle => ?_⟩
+  · by_cases hir : i = r <;> simp [oneHotShiftAntichain, hir, hYr]
+  · exact Bool.eq_true_of_true_le (by simpa [oneHotShiftAntichain] using hle r)
 
 /-- `oneHotShiftCircuit n q` uses at most `4 * q * n * Nat.clog 2 n` binary monotone gates
 ([Sergeev2020MonotoneShift], p. 3). -/
@@ -735,19 +681,9 @@ theorem computesMonotoneShift_dualRailShiftCircuit (n q b : ℕ) (hb : Nat.clog 
   set L := Nat.clog 2 n
   simp only [dualRailShiftCircuit, Circuit.eval_comp, Circuit.eval_parallel,
     Fin.append_comp_castAdd, Fin.append_comp_natAdd, Circuit.eval_wiring, Function.comp_id]
-  set R : Fin (2 * L) → Bool :=
-    dualRailShiftCode n b k ∘ fun t : Fin (2 * L) =>
-      if h : t.val < L then ⟨t.val, by omega⟩ else ⟨b + (t.val - L), by omega⟩
-  have hpos : ∀ i (hi : i < L), R ⟨i, by omega⟩ = k.val.testBit i := by
-    intro i hi
-    have hib : i < b := hi.trans_le hb
-    simp [R, dualRailShiftCode, hi, hib]
-  have hneg : ∀ i (hi : i < L), R ⟨L + i, by omega⟩ = !k.val.testBit i := by
-    intro i hi
-    have hnotL : ¬ (L + i < L) := by omega
-    have hnotb : ¬ (b + i < b) := by omega
-    simp [R, dualRailShiftCode, hnotL, hnotb]
-  exact eval_barrelShiftCircuit n q X k R hpos hneg
+  exact eval_barrelShiftCircuit n q X k _
+    (fun i hi => by simp [dualRailShiftCode, hi, hi.trans_le hb])
+    (fun i hi => by simp [dualRailShiftCode, show ¬ b + i < b by omega])
 
 /-- `dualRailShiftCircuit n q b hb` uses **exact** binary monotone gate cost
 `3 * q * n * Nat.clog 2 n`. -/
@@ -772,10 +708,7 @@ theorem eq_proj_or_eq_proj_of_or {N : ℕ} {f g : (Fin N → Bool) → Bool} {i 
     intro h hh hfalse htrue x
     cases hxi : x i
     · exact hfalse x hxi
-    · have hle : ei ≤ x := fun r => by
-        by_cases hri : r = i
-        · subst hri; simp [ei, hxi]
-        · simp [ei, hri]
+    · have hle : ei ≤ x := fun r => by by_cases hri : r = i <;> simp [ei, hri, hxi]
       exact Bool.eq_true_of_true_le (htrue ▸ hh hle)
   have hei : (f ei || g ei) = true := by simpa [ei] using hor ei
   rcases Bool.or_eq_true_iff.mp hei with hfi | hgi
@@ -793,18 +726,13 @@ theorem eq_proj_or_eq_proj_of_and {N : ℕ} {f g : (Fin N → Bool) → Bool} {i
       (∀ x, x i = true → h x = true) → h ci = false → ∀ x, h x = x i := by
     intro h hh htrue hfalse x
     cases hxi : x i
-    · have hle : x ≤ ci := fun r => by
-        by_cases hri : r = i
-        · subst hri; simp [ci, hxi]
-        · simp [ci, hri]
+    · have hle : x ≤ ci := fun r => by by_cases hri : r = i <;> simp [ci, hri, hxi]
       exact Bool.eq_false_of_le_false (hfalse ▸ hh hle)
     · exact htrue x hxi
   have hci : (f ci && g ci) = false := by simpa [ci] using hand ci
   rcases Bool.and_eq_false_iff.mp hci with hfi | hgi
-  · refine Or.inl (one_side hf (fun x hxi => ?_) hfi)
-    have hx := hand x; rw [hxi] at hx; simp only [Bool.and_eq_true] at hx; exact hx.1
-  · refine Or.inr (one_side hg (fun x hxi => ?_) hgi)
-    have hx := hand x; rw [hxi] at hx; simp only [Bool.and_eq_true] at hx; exact hx.2
+  · exact Or.inl (one_side hf (fun x hxi => (Bool.and_eq_true_iff.mp ((hand x).trans hxi)).1) hfi)
+  · exact Or.inr (one_side hg (fun x hxi => (Bool.and_eq_true_iff.mp ((hand x).trans hxi)).2) hgi)
 
 /-- Input wires reachable backward from wire `w` in `p` via a directed path of at most `d` gates. -/
 private def inputsWithin {N G : ℕ} (p : Program signature N G) :
@@ -818,27 +746,17 @@ private def inputsWithin {N G : ℕ} (p : Program signature N G) :
 
 private theorem inputsWithin_mono {N G : ℕ} (p : Program signature N G) :
     ∀ {d₁ d₂ : ℕ}, d₁ ≤ d₂ → ∀ w : Wire N G, inputsWithin p d₁ w ⊆ inputsWithin p d₂ w := by
-  have hstep : ∀ (d : ℕ) (w : Wire N G), inputsWithin p d w ⊆ inputsWithin p (d + 1) w := by
-    intro d
+  have hstep (d : ℕ) : ∀ w : Wire N G, inputsWithin p d w ⊆ inputsWithin p (d + 1) w := by
     induction d with
-    | zero =>
-      intro w
-      cases w with
-      | input idx => exact Subset.rfl
-      | gate g => exact empty_subset _
+    | zero => rintro (_ | _) <;> simp [inputsWithin]
     | succ d ih =>
-      intro w
-      cases w with
-      | input idx => exact Subset.rfl
-      | gate g =>
-        intro x hx
+      rintro (_ | g)
+      · exact Subset.rfl
+      · intro x hx
         rw [inputsWithin, mem_biUnion] at hx ⊢
-        obtain ⟨a, ha, hx⟩ := hx
-        exact ⟨a, ha, ih _ hx⟩
-  intro d₁ d₂ hd
-  induction d₂, hd using Nat.le_induction with
-  | base => intro _; exact Subset.rfl
-  | succ d₂ _ ih => intro w; exact (ih w).trans (hstep d₂ w)
+        exact hx.imp fun a ha => ⟨ha.1, ih _ ha.2⟩
+  intro d₁ d₂ hd w
+  exact monotone_nat_of_le_succ (f := fun d => inputsWithin p d w) (hstep · w) hd
 
 private theorem arity_le_two (op : Op) : signature.Arity op ≤ 2 := by
   cases op <;> simp
@@ -870,13 +788,9 @@ private theorem exists_arg_eq_proj_of_interpretation_eq_proj {N : ℕ} (op : Op)
   | const b =>
     exact False.elim (Bool.false_ne_true ((heval fun _ => false).symm.trans (heval fun _ => true)))
   | and =>
-    rcases eq_proj_or_eq_proj_of_and (hmono 0) (hmono 1) heval with h0 | h1
-    · exact ⟨0, rfl, h0⟩
-    · exact ⟨1, rfl, h1⟩
+    exact (eq_proj_or_eq_proj_of_and (hmono 0) (hmono 1) heval).elim (⟨0, rfl, ·⟩) (⟨1, rfl, ·⟩)
   | or =>
-    rcases eq_proj_or_eq_proj_of_or (hmono 0) (hmono 1) heval with h0 | h1
-    · exact ⟨0, rfl, h0⟩
-    · exact ⟨1, rfl, h1⟩
+    exact (eq_proj_or_eq_proj_of_or (hmono 0) (hmono 1) heval).elim (⟨0, rfl, ·⟩) (⟨1, rfl, ·⟩)
 
 /-- Tracing backward along `p` from any wire `w` that computes `X u` under control `Y` selects a
 set `S` of `{∧, ∨}` gates, all computing `X u` under `Y`, such that input `Fin.castAdd m u` reaches
@@ -906,9 +820,7 @@ private theorem exists_projection_path {D m G : ℕ} (p : Program signature (D +
         simp only [Program.trace, Wire.elim_input, Fin.append_right] at h0 h1
         exact False.elim (Bool.false_ne_true (h0.symm.trans h1))
     subst hv_eq
-    refine ⟨∅, by simp [inputsWithin], by simp, ?_, fun _ _ => rfl⟩
-    intro j hj
-    cases hj
+    refine ⟨∅, by simp [inputsWithin], by simp, (fun _ hj => nomatch hj), fun _ _ => rfl⟩
   · have hmono_arg : ∀ a, Monotone fun X : Fin D → Bool =>
         p.trace interpretation (Fin.append X Y) ((p.lines g).wires a) := by
       intro a X₁ X₂ hle
@@ -923,22 +835,14 @@ private theorem exists_projection_path {D m G : ℕ} (p : Program signature (D +
     have hg_notMem : g ∉ S' := by
       cases hw : (p.lines g).wires a with
       | input v => rw [hemp' v hw]; exact notMem_empty g
-      | gate j =>
-        have hjlt : j < g := p.lt_of_lines_wires_eq_gate g a j hw
-        intro hmem
-        exact hjlt.not_ge (hle' j hw g hmem)
+      | gate j => exact fun hmem => (p.lt_of_lines_wires_eq_gate g a j hw).not_ge (hle' j hw g hmem)
     refine ⟨insert g S', ?_, ?_, ?_, fun _ h => by cases h⟩
     · rw [card_insert_of_notMem hg_notMem, inputsWithin, mem_biUnion]
       exact ⟨a, mem_univ a, hin'⟩
-    · intro g' hg'
-      rcases mem_insert.mp hg' with rfl | hg'
-      · exact ⟨hg, hcost⟩
-      · exact hS' g' hg'
-    · intro j hj g' hg'
-      cases hj
-      rcases mem_insert.mp hg' with rfl | hg'
-      · exact le_rfl
-      · cases hw : (p.lines g).wires a with
+    · exact (forall_mem_insert _ _ _).2 ⟨⟨hg, hcost⟩, hS'⟩
+    · rintro j ⟨⟩
+      refine (forall_mem_insert _ _ _).2 ⟨le_rfl, fun g' hg' => ?_⟩
+      cases hw : (p.lines g).wires a with
         | input v => rw [hemp' v hw] at hg'; exact absurd hg' (notMem_empty _)
         | gate j' =>
           exact (hle' j' hw g' hg').trans (p.lt_of_lines_wires_eq_gate g a j' hw).le
@@ -960,8 +864,7 @@ private theorem sum_clog_le_sum_of_card_filter_le_two_pow {α : Type*}
     have hclog : Nat.clog 2 (k + 1) ≤ L xm := by
       rw [Nat.clog_le_iff_le_pow Nat.one_lt_two, ← hn, ← hfilt]
       exact hcard (L xm)
-    have hs' : (s.erase xm).card = k := by
-      have := card_erase_of_mem hxm; omega
+    have hs' : (s.erase xm).card = k := by rw [card_erase_of_mem hxm, hn, Nat.add_sub_cancel]
     have hih := ih (s.erase xm) (fun d => (card_le_card
       (filter_subset_filter _ (erase_subset xm s))).trans (hcard d)) hs'
     have hIcc : Icc 1 (k + 1) = insert (k + 1) (Icc 1 k) := by
@@ -980,11 +883,9 @@ private theorem mul_log_sub_le_sum_clog (n : ℕ) :
     intro t _
     rw [← sum_filter, ← card_eq_sum_ones]
     calc ((range L).filter (fun j => 2 ^ j < t)).card
-        ≤ (range (Nat.clog 2 t)).card := card_le_card fun j hj => by
-          rw [mem_filter] at hj
-          rw [mem_range]
-          by_contra hle
-          exact hj.2.not_ge ((Nat.clog_le_iff_le_pow Nat.one_lt_two).mp (Nat.not_lt.mp hle))
+        ≤ (range (Nat.clog 2 t)).card := card_le_card fun j hj =>
+          mem_range.2 <| by_contra fun hle => (mem_filter.1 hj).2.not_ge
+            ((Nat.clog_le_iff_le_pow Nat.one_lt_two).mp (not_lt.1 hle))
       _ = Nat.clog 2 t := card_range _
   have hswap : (∑ j ∈ range L, (n - 2 ^ j)) ≤ ∑ t ∈ Icc 1 n, Nat.clog 2 t := by
     calc ∑ j ∈ range L, (n - 2 ^ j)
@@ -1046,19 +947,15 @@ theorem mul_sum_clog_le_cost_of_computesMonotoneShift {n q m : ℕ}
         (↑(univ : Finset (Fin (n * q))) : Set (Fin (n * q))).PairwiseDisjoint (pathGates k) := by
       intro u₁ _ u₂ _ hne
       change Disjoint (pathGates k u₁) (pathGates k u₂)
-      rw [disjoint_left]
-      intro g hg₁ hg₂
-      have heq₁ := ((hpath k u₁).2.1 g hg₁).1 (fun r => decide (r = u₁))
-      have heq₂ := ((hpath k u₂).2.1 g hg₂).1 (fun r => decide (r = u₁))
-      have hcontra := heq₁.symm.trans heq₂
-      simp [hne.symm] at hcontra
+      refine disjoint_left.2 fun g hg₁ hg₂ => ?_
+      have := (((hpath k u₁).2.1 g hg₁).1 fun r => decide (r = u₁)).symm.trans
+        (((hpath k u₂).2.1 g hg₂).1 fun r => decide (r = u₁))
+      simp [hne.symm] at this
     rw [← card_biUnion hdisj, card_eq_sum_ones, c.program.cost_eq_sum]
     calc ∑ g ∈ univ.biUnion (pathGates k), 1
-        = ∑ g ∈ univ.biUnion (pathGates k), binaryCost (c.program.lines g).op := by
-          refine sum_congr rfl fun g hg => ?_
-          rw [mem_biUnion] at hg
-          obtain ⟨u, _, hgu⟩ := hg
-          exact (((hpath k u).2.1 g hgu).2).symm
+        = ∑ g ∈ univ.biUnion (pathGates k), binaryCost (c.program.lines g).op :=
+          sum_congr rfl fun g hg => by
+            obtain ⟨u, _, hgu⟩ := mem_biUnion.1 hg; exact ((hpath k u).2.1 g hgu).2.symm
       _ ≤ ∑ g : Fin c.size, binaryCost (c.program.lines g).op :=
           sum_le_univ_sum_of_nonneg fun _ => Nat.zero_le _
   -- Step (c): for each output `(j, b)`, the `n` shifts `k = j - i` have path-length sum ≥ ∑ clog.
@@ -1072,27 +969,19 @@ theorem mul_sum_clog_le_cost_of_computesMonotoneShift {n q m : ℕ}
       intro d
       let inWire : Fin n → Fin (n * q + m) :=
         fun i => Fin.castAdd m (finProdFinEquiv (i, b))
-      have hinj : Function.Injective inWire := fun i₁ i₂ h => by
-        have h' := Fin.castAdd_injective (n * q) m h
-        exact (Prod.mk.inj (finProdFinEquiv.injective h')).1
+      have hinj : Function.Injective inWire := fun i₁ i₂ h =>
+        (Prod.mk.inj (finProdFinEquiv.injective (Fin.castAdd_injective (n * q) m h))).1
       calc ((univ : Finset (Fin n)).filter fun i => L i ≤ d).card
           = (((univ : Finset (Fin n)).filter fun i => L i ≤ d).image inWire).card :=
             (card_image_of_injective _ hinj).symm
         _ ≤ (inputsWithin c.program d w).card := by
             refine card_le_card fun v hv => ?_
-            rw [mem_image] at hv
-            obtain ⟨i, hi, rfl⟩ := hv
-            rw [mem_filter] at hi
+            obtain ⟨i, hi, rfl⟩ := mem_image.1 hv
+            have hji : (cyclicShiftPerm (cyclicShiftPerm i j)).symm i = j :=
+              show i + (j - i) = j by rw [add_comm, sub_add_cancel]
             have hmem := (hpath (cyclicShiftPerm i j) (finProdFinEquiv (i, b))).1
-            have hout_eq :
-                outIdx (cyclicShiftPerm i j) (finProdFinEquiv (i, b)) =
-                  finProdFinEquiv (j, b) := by
-              have hji : (cyclicShiftPerm (cyclicShiftPerm i j)).symm i = j := by
-                change i + (j - i) = j
-                rw [add_comm, sub_add_cancel]
-              simp only [outIdx, Equiv.symm_apply_apply, hji]
-            rw [hout_eq] at hmem
-            exact inputsWithin_mono c.program hi.2 w hmem
+            simp only [outIdx, Equiv.symm_apply_apply, hji] at hmem
+            exact inputsWithin_mono c.program (mem_filter.1 hi).2 w hmem
         _ ≤ 2 ^ d := card_inputsWithin_le_two_pow c.program d w
     simpa [L] using sum_clog_le_sum_of_card_filter_le_two_pow (univ : Finset (Fin n)) L hcard
   -- Combine Steps (b) and (c) by reindexing `k = cyclicShiftPerm i j = j - i`.
@@ -1103,29 +992,17 @@ theorem mul_sum_clog_le_cost_of_computesMonotoneShift {n q m : ℕ}
       _ ≤ ∑ j : Fin n, ∑ b : Fin q,
             ∑ i : Fin n, (pathGates (cyclicShiftPerm i j) (finProdFinEquiv (i, b))).card :=
           sum_le_sum fun j _ => sum_le_sum fun b _ => hper_output j b
-      _ = ∑ j : Fin n, ∑ i : Fin n,
-            ∑ b : Fin q, (pathGates (cyclicShiftPerm i j) (finProdFinEquiv (i, b))).card :=
-          sum_congr rfl fun _ _ => Finset.sum_comm
-      _ = ∑ i : Fin n, ∑ j : Fin n,
-            ∑ b : Fin q, (pathGates (cyclicShiftPerm i j) (finProdFinEquiv (i, b))).card :=
-          Finset.sum_comm
       _ = ∑ i : Fin n, ∑ b : Fin q,
             ∑ j : Fin n, (pathGates (cyclicShiftPerm i j) (finProdFinEquiv (i, b))).card :=
-          sum_congr rfl fun _ _ => Finset.sum_comm
+          (sum_congr rfl fun _ _ => Finset.sum_comm).trans
+            (Finset.sum_comm.trans (sum_congr rfl fun _ _ => Finset.sum_comm))
       _ = ∑ i : Fin n, ∑ b : Fin q,
-            ∑ k : Fin n, (pathGates k (finProdFinEquiv (i, b))).card := by
-          refine sum_congr rfl fun i _ => sum_congr rfl fun b _ => ?_
-          exact Equiv.sum_comp (cyclicShiftPerm i)
+            ∑ k : Fin n, (pathGates k (finProdFinEquiv (i, b))).card :=
+          sum_congr rfl fun i _ => sum_congr rfl fun b _ => Equiv.sum_comp (cyclicShiftPerm i)
             fun k => (pathGates k (finProdFinEquiv (i, b))).card
-      _ = ∑ i : Fin n, ∑ k : Fin n,
-            ∑ b : Fin q, (pathGates k (finProdFinEquiv (i, b))).card :=
-          sum_congr rfl fun _ _ => Finset.sum_comm
-      _ = ∑ k : Fin n, ∑ i : Fin n,
-            ∑ b : Fin q, (pathGates k (finProdFinEquiv (i, b))).card :=
-          Finset.sum_comm
-      _ = ∑ k : Fin n, ∑ u : Fin (n * q), (pathGates k u).card := by
-          refine sum_congr rfl fun k _ => ?_
-          rw [← finProdFinEquiv.sum_comp, Fintype.sum_prod_type]
+      _ = ∑ k : Fin n, ∑ u : Fin (n * q), (pathGates k u).card :=
+          (sum_congr rfl fun _ _ => Finset.sum_comm).trans (Finset.sum_comm.trans
+            (sum_congr rfl fun k _ => by rw [← finProdFinEquiv.sum_comp, Fintype.sum_prod_type]))
       _ ≤ ∑ _k : Fin n, c.program.cost binaryCost := sum_le_sum fun k _ => hper_shift k
       _ = n * c.program.cost binaryCost := by simp
   exact Nat.le_of_mul_le_mul_left htotal (Nat.pos_of_ne_zero hn)

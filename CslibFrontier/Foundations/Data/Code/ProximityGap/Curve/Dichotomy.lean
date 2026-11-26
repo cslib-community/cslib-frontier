@@ -134,8 +134,7 @@ theorem proximityGap_affine_johnson_exact
         ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 (Fintype.card ι) *
           (Fintype.card F) ^ ℓ < Fintype.card F * T'.card)
     Nat.le_of_not_lt
-    fun T' hT' hcl =>
-      exists_correlatedAgreement_affine_johnson hα hk hm hk_le hinterp hroot u₀ u T' hT' hcl
+    (exists_correlatedAgreement_affine_johnson hα hk hm hk_le hinterp hroot u₀ u)
 
 /-- **Explicit-parameter `ℕ`-weighted proximity-gap dichotomy on affine spaces up to the Johnson
 bound** (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4], accepted
@@ -173,9 +172,8 @@ theorem weighted_proximityGap_affine_johnson_exact
         ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 W_tot *
           (Fintype.card F) ^ ℓ < Fintype.card F * T'.card)
     Nat.le_of_not_lt
-    fun T' hT' hcl =>
-      exists_weighted_correlatedAgreement_affine_johnson hα hk hm hM hW_le hW_sum hk_le_t hinterp
-        hroot u₀ u T' hT' hcl
+    (exists_weighted_correlatedAgreement_affine_johnson hα hk hm hM hW_le hW_sum hk_le_t hinterp
+      hroot u₀ u)
 
 /-- **Explicit-parameter `ℚ`-weighted proximity-gap dichotomy on affine spaces up to the Johnson
 bound** (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4], accepted
@@ -215,9 +213,8 @@ theorem ratWeighted_proximityGap_affine_johnson_exact
         ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 (M * Fintype.card ι) *
           (Fintype.card F) ^ ℓ < Fintype.card F * T'.card)
     Nat.le_of_not_lt
-    fun T' hT' hcl =>
-      exists_ratWeighted_correlatedAgreement_affine_johnson hα hk hm hM hμ_le hμ_den hk_le hinterp
-        hroot u₀ u T' hT' hcl
+    (exists_ratWeighted_correlatedAgreement_affine_johnson hα hk hm hM hμ_le hμ_den hk_le hinterp
+      hroot u₀ u)
 
 /-- **Original explicit-constant proximity-gap dichotomy on affine spaces up to the Johnson bound**
 (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.2 and 1.6], accepted JACM
@@ -257,8 +254,7 @@ theorem proximityGap_affine_johnson
           (((k : ℝ) / (Fintype.card ι : ℝ)) * (Fintype.card F : ℝ)) <
         (#T' : ℝ) / ((Fintype.card F : ℝ) ^ ℓ))
     le_of_not_gt
-    fun T' hT' hcl =>
-      exists_correlatedAgreement_affine_johnson_of_multiplicity hα hk hkn hm he u₀ u T' hT' hcl
+    (exists_correlatedAgreement_affine_johnson_of_multiplicity hα hk hkn hm he u₀ u)
 
 /-- **Original explicit-constant proximity-gap dichotomy on affine spaces up to `1 - √ρ - η`**
 (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.2 and 1.6], accepted JACM
@@ -292,8 +288,7 @@ theorem proximityGap_affine_johnson_of_eta
           (((k : ℝ) / (Fintype.card ι : ℝ)) * (η ^ 6) * (Fintype.card F : ℝ)) <
         (#T' : ℝ) / ((Fintype.card F : ℝ) ^ ℓ))
     le_of_not_gt
-    fun T' hT' hcl =>
-      exists_correlatedAgreement_affine_johnson_of_eta hα hk hkn hη he u₀ u T' hT' hcl
+    (exists_correlatedAgreement_affine_johnson_of_eta hα hk hkn hη he u₀ u)
 
 /-- **Original explicit-constant `ℕ`-weighted proximity-gap dichotomy on affine spaces up to the
 Johnson bound** (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4],
@@ -333,9 +328,8 @@ theorem weighted_proximityGap_affine_johnson
           (((k : ℝ) / (Fintype.card ι : ℝ)) * (Fintype.card F : ℝ)) <
         (#T' : ℝ) / ((Fintype.card F : ℝ) ^ ℓ))
     le_of_not_gt
-    fun T' hT' hcl =>
-      exists_weighted_correlatedAgreement_affine_johnson_of_multiplicity hα hk hkn hm hM hW hB
-        u₀ u T' hT' hcl
+    (exists_weighted_correlatedAgreement_affine_johnson_of_multiplicity hα hk hkn hm hM hW hB
+      u₀ u)
 
 /-- **Original explicit-constant `ℚ`-weighted proximity-gap dichotomy on affine spaces up to the
 Johnson bound** (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4],
@@ -378,8 +372,7 @@ theorem ratWeighted_proximityGap_affine_johnson
           (((k : ℝ) / (Fintype.card ι : ℝ)) * (Fintype.card F : ℝ)) <
         (#T' : ℝ) / ((Fintype.card F : ℝ) ^ ℓ))
     le_of_not_gt
-    fun T' hT' hcl =>
-      exists_ratWeighted_correlatedAgreement_affine_johnson_of_multiplicity hα hk hkn hm hM hμ_le
-        hμ_den hθ u₀ u T' hT' hcl
+    (exists_ratWeighted_correlatedAgreement_affine_johnson_of_multiplicity hα hk hkn hm hM hμ_le
+      hμ_den hθ u₀ u)
 
 end Cslib.Code

@@ -53,17 +53,14 @@ theorem rho_one_sub_le {a c : ℝ} (ha : 0 < a) (hc : 1 < c) (hca : c * a < 1) :
     rho (1 - a) (1 - c * a) ≤ 1 / c := by
   have hc0 : 0 < c := one_pos.trans hc
   have hb : 0 < 1 - c * a := by linarith
-  have hw : 0 ≤ 1 - 1 / c := by
-    rw [sub_nonneg, div_le_one hc0]
-    exact hc.le
+  have hw : 0 ≤ 1 - 1 / c := sub_nonneg.2 ((div_le_one hc0).2 hc.le)
   -- concavity of `log` between `1 - c a` and `1`
   have hconc := strictConcaveOn_log_Ioi.concaveOn.2 (Set.mem_Ioi.2 hb) (Set.mem_Ioi.2 one_pos)
     (one_div_pos.2 hc0).le hw (by ring)
-  have hpt : (1 / c) • (1 - c * a) + (1 - 1 / c) • (1 : ℝ) = 1 - a := by
-    simp only [smul_eq_mul]
+  have hpt : 1 / c * (1 - c * a) + (1 - 1 / c) * 1 = 1 - a := by
     field_simp
     ring
-  rw [hpt, smul_eq_mul, smul_eq_mul, Real.log_one, mul_zero, add_zero] at hconc
+  simp only [smul_eq_mul, hpt, Real.log_one, mul_zero, add_zero] at hconc
   have hlog : Real.log (1 - c * a) < 0 := Real.log_neg hb (by linarith [mul_pos hc0 ha])
   rw [rho, one_div (1 - a), one_div (1 - c * a), Real.log_inv, Real.log_inv, neg_div_neg_eq,
     div_le_iff_of_neg hlog]
@@ -90,12 +87,8 @@ theorem toOuterMeasure_query_bitSampling_eq_none_le {r c : ℝ} (hr : 0 < r) (hc
   have hd : (0 : ℝ) < Fintype.card κ := by exact_mod_cast Fintype.card_pos
   have hc0 : 0 < c := one_pos.trans hc
   refine toOuterMeasure_query_numTables_eq_none_le (isLocalitySensitive_bitSampling r (c * r))
-    ?_ ?_ ?_ hx₀ hnear
-  · rw [sub_pos, div_lt_one hd]
-    exact hcr
-  · have : r < c * r := by nlinarith
-    linarith [div_lt_div_of_pos_right this hd]
-  · linarith [div_pos hr hd]
+    (sub_pos.2 ((div_lt_one hd).2 hcr)) ?_ (by linarith [div_pos hr hd]) hx₀ hnear
+  linarith [div_lt_div_of_pos_right (by nlinarith : r < c * r) hd]
 
 /-- With bit sampling, the number of tables is `L < n ^ (1 / c) / p₁ + 1`. -/
 theorem numTables_bitSampling_lt {r c d : ℝ} (hr : 0 < r) (hc : 1 < c) (hcr : c * r < d)
@@ -103,13 +96,10 @@ theorem numTables_bitSampling_lt {r c d : ℝ} (hr : 0 < r) (hc : 1 < c) (hcr : 
     (numTables n (1 - r / d) (1 - c * r / d) : ℝ) < (n : ℝ) ^ (1 / c) / (1 - r / d) + 1 := by
   have hc0 : 0 < c := one_pos.trans hc
   have hd : 0 < d := by nlinarith
-  have hrd : r / d < 1 := by
-    rw [div_lt_one hd]
-    nlinarith
-  have hp₁ : 0 < 1 - r / d := by linarith
+  have hp₁ : 0 < 1 - r / d := sub_pos.2 ((div_lt_one hd).2 (by nlinarith))
   have hρ : rho (1 - r / d) (1 - c * r / d) ≤ 1 / c := by
-    have h := rho_one_sub_le (div_pos hr hd) hc (by rw [← mul_div_assoc, div_lt_one hd]; exact hcr)
-    rwa [← mul_div_assoc] at h
+    simpa only [← mul_div_assoc] using
+      rho_one_sub_le (div_pos hr hd) hc (mul_div_assoc c r d ▸ (div_lt_one hd).2 hcr)
   have hpow : (n : ℝ) ^ rho (1 - r / d) (1 - c * r / d) ≤ (n : ℝ) ^ (1 / c) :=
     Real.rpow_le_rpow_of_exponent_le (Nat.one_le_cast.2 hn) hρ
   have := div_le_div_of_nonneg_right hpow hp₁.le

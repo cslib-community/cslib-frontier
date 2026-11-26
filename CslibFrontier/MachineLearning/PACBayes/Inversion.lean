@@ -70,10 +70,6 @@ private theorem integral_empiricalRisk_eq_one_of_integral_trueRisk_eq_one {m : �
     (hS : ∀ i, trueRisk ℓ D i = 1 → empiricalRisk ℓ S i = 1)
     {Q : Measure ι} [IsProbabilityMeasure Q] (h1 : ∫ i, trueRisk ℓ D i ∂Q = 1) :
     ∫ i, empiricalRisk ℓ S i ∂Q = 1 := by
-  have hint_sub : Integrable (fun i => 1 - trueRisk ℓ D i) Q :=
-    Integrable.of_mem_Icc 0 1 (measurable_of_countable _).aemeasurable
-      (ae_of_all _ fun i => ⟨sub_nonneg.2 (trueRisk_mem_Icc ℓ D (hℓ01 i)).2,
-        sub_le_self _ (trueRisk_mem_Icc ℓ D (hℓ01 i)).1⟩)
   have hint_tr : Integrable (trueRisk ℓ D) Q :=
     Integrable.of_mem_Icc 0 1 (measurable_of_countable _).aemeasurable
       (ae_of_all _ fun i => trueRisk_mem_Icc ℓ D (hℓ01 i))
@@ -82,14 +78,11 @@ private theorem integral_empiricalRisk_eq_one_of_integral_trueRisk_eq_one {m : �
       one_mul, h1, sub_self]
   have hae : ∀ᵐ i ∂Q, trueRisk ℓ D i = 1 := by
     filter_upwards [(integral_eq_zero_iff_of_nonneg
-      (fun i => sub_nonneg.2 (trueRisk_mem_Icc ℓ D (hℓ01 i)).2) hint_sub).1 hzero] with i hi
+      (fun i => sub_nonneg.2 (trueRisk_mem_Icc ℓ D (hℓ01 i)).2)
+      ((integrable_const 1).sub hint_tr)).1 hzero] with i hi
     rw [Pi.zero_apply] at hi
     linarith
-  have hae_emp : empiricalRisk ℓ S =ᵐ[Q] fun _ => (1 : ℝ) := by
-    filter_upwards [hae] with i hi
-    exact hS i hi
-  rw [integral_congr_ae hae_emp]
-  simp
+  simpa using integral_congr_ae (hae.mono hS)
 
 private theorem integral_risk_mem_Icc {g : ι → ℝ} (hg : ∀ i, g i ∈ Icc (0 : ℝ) 1)
     (Q : Measure ι) [IsProbabilityMeasure Q] :
@@ -104,11 +97,10 @@ private theorem integral_risk_mem_Icc {g : ι → ℝ} (hg : ∀ i, g i ∈ Icc 
 omit [Countable ι] [MeasurableSingletonClass ι] in
 private theorem kl_rhs_nonneg {m : ℕ} (hm : 0 < m) (P Q : Measure ι)
     {δ : ℝ} (hδ : 0 < δ) (hδ1 : δ ≤ 1) :
-    0 ≤ ((klDiv Q P).toReal + log ((m + 1) / δ)) / m := by
-  have hmR : (0 : ℝ) < m := Nat.cast_pos.2 hm
-  have hlog : 0 ≤ log ((m + 1) / δ) :=
-    log_nonneg ((one_le_div hδ).2 (by linarith [Nat.cast_nonneg (α := ℝ) m]))
-  exact div_nonneg (add_nonneg ENNReal.toReal_nonneg hlog) hmR.le
+    0 ≤ ((klDiv Q P).toReal + log ((m + 1) / δ)) / m :=
+  div_nonneg (add_nonneg ENNReal.toReal_nonneg
+    (log_nonneg ((one_le_div hδ).2 (by linarith [Nat.cast_nonneg (α := ℝ) m]))))
+    (Nat.cast_pos.2 hm).le
 
 /-- Shared almost-everywhere reduction from a risk inequality on `(q, p, c)` to the PAC-Bayes-kl
 bound, excluding the `p = 1` boundary via `ae_forall_empiricalRisk_eq`. -/
@@ -148,21 +140,14 @@ theorem measure_pi_exists_pinsker_risk_gt_of_binaryKL (hℓ : ∀ i, Measurable 
       klDiv Q P ≠ ⊤ ∧ ∫ i, empiricalRisk ℓ S i ∂Q +
         sqrt (((klDiv Q P).toReal + log ((m + 1) / δ)) / (2 * m)) <
         ∫ i, trueRisk ℓ D i ∂Q} ≤ ENNReal.ofReal δ := by
-  have heq : ∀ Q : Measure ι,
-      ((klDiv Q P).toReal + log ((m + 1) / δ)) / (2 * m) =
-        (((klDiv Q P).toReal + log ((m + 1) / δ)) / m) / 2 := fun _ => by ring
-  simp_rw [heq]
+  simp_rw [show ∀ Q : Measure ι, ((klDiv Q P).toReal + log ((m + 1) / δ)) / (2 * m) =
+    (((klDiv Q P).toReal + log ((m + 1) / δ)) / m) / 2 from fun _ => by ring]
   refine measure_pi_exists_risk_gt_of_binaryKL_step hℓ hℓ01 hm P hδ
     (fun q p c => q + sqrt (c / 2) < p) fun q p c hq hp _ h1 hlt => ?_
   have hp0 : 0 < p := lt_of_le_of_lt (add_nonneg hq.1 (sqrt_nonneg _)) hlt
-  have hp1 : p < 1 := lt_of_le_of_ne hp.2 fun hpeq => by
-    have hq1 := h1 hpeq
-    have hsq := sqrt_nonneg (c / 2)
-    linarith
-  by_contra hkle
-  push Not at hkle
-  have habs := abs_sub_le_sqrt_of_binaryKL_le hq hp0 hp1 hkle
-  linarith [(abs_le.mp habs).2]
+  have hp1 : p < 1 := hp.2.lt_of_ne fun hpeq => by linarith [h1 hpeq, sqrt_nonneg (c / 2)]
+  by_contra! hkle
+  linarith [(abs_le.mp (abs_sub_le_sqrt_of_binaryKL_le hq hp0 hp1 hkle)).2]
 
 /-- **Sharp quadratic fast-rate inversion of PAC-Bayes-kl** [TolstikhinSeldin2013] (locator
 unverified): setting `c = (KL(Q ‖ P) + log ((m + 1) / δ)) / m`, with probability at least `1 - δ`,
@@ -178,13 +163,10 @@ theorem measure_pi_exists_fastRate_risk_gt_of_binaryKL (hℓ : ∀ i, Measurable
         q + c + sqrt (c ^ 2 + 2 * q * c) < ∫ i, trueRisk ℓ D i ∂Q} ≤ ENNReal.ofReal δ := by
   refine measure_pi_exists_risk_gt_of_binaryKL_step hℓ hℓ01 hm P hδ
     (fun q p c => q + c + sqrt (c ^ 2 + 2 * q * c) < p) fun q p c hq hp hc h1 hlt => ?_
-  have hp1 : p < 1 := lt_of_le_of_ne hp.2 fun hpeq => by
-    have hq1 := h1 hpeq
-    have hsr := sqrt_nonneg (c ^ 2 + 2 * q * c)
-    linarith
-  by_contra hkle
-  push Not at hkle
-  exact absurd (le_add_add_sqrt_of_binaryKL_le hq.1 hp1 hc hkle) (not_le_of_gt hlt)
+  have hp1 : p < 1 := hp.2.lt_of_ne fun hpeq => by
+    linarith [h1 hpeq, sqrt_nonneg (c ^ 2 + 2 * q * c)]
+  by_contra! hkle
+  linarith [le_add_add_sqrt_of_binaryKL_le hq.1 hp1 hc hkle]
 
 /-- **Relaxed square-root fast-rate PAC-Bayes bound** [TolstikhinSeldin2013] (locator unverified):
 `𝔼_Q L_D ≤ 𝔼_Q L_S + √(2 * 𝔼_Q L_S * c) + 2 * c` where
@@ -199,13 +181,10 @@ theorem measure_pi_exists_tolstikhin_risk_gt_of_binaryKL (hℓ : ∀ i, Measurab
         q + sqrt (2 * q * c) + 2 * c < ∫ i, trueRisk ℓ D i ∂Q} ≤ ENNReal.ofReal δ := by
   refine measure_pi_exists_risk_gt_of_binaryKL_step hℓ hℓ01 hm P hδ
     (fun q p c => q + sqrt (2 * q * c) + 2 * c < p) fun q p c hq hp hc h1 hlt => ?_
-  have hp1 : p < 1 := lt_of_le_of_ne hp.2 fun hpeq => by
-    have hq1 := h1 hpeq
-    have hsr := sqrt_nonneg (2 * q * c)
-    linarith
-  by_contra hkle
-  push Not at hkle
-  exact absurd (le_add_sqrt_two_mul_add_two_mul_of_binaryKL_le hq.1 hp1 hc hkle) (not_le_of_gt hlt)
+  have hp1 : p < 1 := hp.2.lt_of_ne fun hpeq => by
+    linarith [h1 hpeq, sqrt_nonneg (2 * q * c)]
+  by_contra! hkle
+  linarith [le_add_sqrt_two_mul_add_two_mul_of_binaryKL_le hq.1 hp1 hc hkle]
 
 /-- **Realizable `1 - exp (-c)` corollary of the PAC-Bayes-kl bound**: when `𝔼_Q L_S = 0`,
 `𝔼_Q L_D ≤ 1 - exp (-((KL(Q ‖ P) + log ((m + 1) / δ)) / m))` (strictly tighter than `c`). -/
@@ -216,19 +195,11 @@ theorem measure_pi_exists_zero_risk_gt_of_binaryKL (hℓ : ∀ i, Measurable (�
       klDiv Q P ≠ ⊤ ∧ ∫ i, empiricalRisk ℓ S i ∂Q = 0 ∧
         1 - exp (-(((klDiv Q P).toReal + log ((m + 1) / δ)) / m)) <
           ∫ i, trueRisk ℓ D i ∂Q} ≤ ENNReal.ofReal δ := by
-  refine le_trans (measure_mono_ae ?_)
-    (measure_pi_exists_binaryKL_integral_risk_gt hℓ hℓ01 hm P hδ)
-  filter_upwards [ae_forall_empiricalRisk_eq hℓ hℓ01 hm] with S hS hbad
-  obtain ⟨Q, hQ, hQP, hq0, hlt⟩ := hbad
-  have hp := integral_risk_mem_Icc (fun i => trueRisk_mem_Icc ℓ D (hℓ01 i)) Q
-  have hp1 : ∫ i, trueRisk ℓ D i ∂Q < 1 := lt_of_le_of_ne hp.2 fun hpeq => by
-    have hq1 := integral_empiricalRisk_eq_one_of_integral_trueRisk_eq_one hℓ01
-      (fun i hi => (hS i).2 hi) hpeq
-    linarith
-  refine ⟨Q, hQ, hQP, ?_⟩
-  rw [hq0]
-  by_contra hkle
-  push Not at hkle
-  exact absurd (le_one_sub_exp_neg_of_binaryKL_zero_le hp.1 hp1 hkle) (not_le_of_gt hlt)
+  refine measure_pi_exists_risk_gt_of_binaryKL_step hℓ hℓ01 hm P hδ
+    (fun q p c => q = 0 ∧ 1 - exp (-c) < p) ?_
+  rintro q p c - hp - h1 ⟨rfl, hlt⟩
+  have hp1 : p < 1 := hp.2.lt_of_ne fun hpeq => by linarith [h1 hpeq]
+  by_contra! hkle
+  linarith [le_one_sub_exp_neg_of_binaryKL_zero_le hp.1 hp1 hkle]
 
 end Cslib.MachineLearning.PACBayes

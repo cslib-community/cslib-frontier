@@ -81,39 +81,34 @@ theorem DTIME_two_pow_mul_subset_ASPACE_of_spaceConstructible {s : ℕ → ℕ}
     ((of_inO hsO).of_encIn_eq (fun a => enc a) fun _ => rfl).mono_le fun _ => Nat.le_succ _
   have hE : ComputableInSpace E enc encNat S :=
     budget_natAdd (budget_natAdd (budget_natMul (budget_const c) hsn) (budget_const (c₁ + c₂))) hsn
-  have hT : ComputableInSpace T enc encNat S := by
-    refine budget_natPow_variable (budget_const 2) hE ⟨3 * (c + c₁ + c₂ + 2), fun a => ?_⟩
-    have h2 : (encNat 2).length = 2 := rfl
-    have hEl : (encNat (E a)).length ≤ E a := length_encNat_le_of_lt_two_pow Nat.lt_two_pow_self
-    simp only [h2, E, S] at hEl ⊢
-    nlinarith
-  obtain ⟨C, hC⟩ : ∃ C, ∀ a, Nat.size (T a) ≤ C * S a :=
-    ⟨c + c₁ + c₂ + 2, fun a => by simp only [T, S, E, Nat.size_pow]; nlinarith⟩
+  have hT : ComputableInSpace T enc encNat S :=
+    budget_natPow_variable (budget_const 2) hE ⟨3 * (c + c₁ + c₂ + 2), fun a => by
+      have h2 : (encNat 2).length = 2 := rfl
+      have hEl : (encNat (E a)).length ≤ E a := length_encNat_le_of_lt_two_pow Nat.lt_two_pow_self
+      simp only [h2, E, S] at hEl ⊢
+      nlinarith⟩
   have hnT (a : α) : (enc a).length < 2 * T a := by
-    have hE : Nat.log2 (n a) ≤ E a := by
-      have := hlog (n a)
-      simp only [E]
-      omega
-    have h' : 2 ^ (Nat.log2 (n a) + 1) ≤ 2 * T a := by
-      rw [pow_succ, mul_comm]
-      exact Nat.mul_le_mul_left 2 (Nat.pow_le_pow_right (by norm_num) hE)
-    exact Nat.lt_log2_self.trans_le h'
+    refine Nat.lt_log2_self.trans_le ?_
+    rw [pow_succ, mul_comm]
+    refine Nat.mul_le_mul_left 2 (Nat.pow_le_pow_right (by norm_num) ?_)
+    have := hlog (enc a).length
+    simp only [E, n]
+    omega
   have hA (a : α) :
       a ∈ A ↔ OutView.ofList (tm.runFrom (tm.initCfg (enc a)) (T a)).output = .one true := by
-    have h₁ : c₁ + c₂ < 2 ^ (c₁ + c₂) := Nat.lt_two_pow_self
-    have h₂ : 1 ≤ 2 ^ (c * s (n a)) := Nat.one_le_two_pow
-    have h₃ : 1 ≤ 2 ^ s (n a) := Nat.one_le_two_pow
     have hle : c₁ * 2 ^ (c * s (enc a).length) + c₂ ≤ T a :=
-      calc c₁ * 2 ^ (c * s (n a)) + c₂ ≤ (c₁ + c₂) * 2 ^ (c * s (n a)) := by nlinarith
-        _ ≤ 2 ^ (c₁ + c₂) * 2 ^ (c * s (n a)) := Nat.mul_le_mul_right _ h₁.le
-        _ ≤ 2 ^ (c₁ + c₂) * 2 ^ (c * s (n a)) * 2 ^ s (n a) := Nat.le_mul_of_pos_right _ h₃
+      calc c₁ * 2 ^ (c * s (n a)) + c₂ ≤ (c₁ + c₂) * 2 ^ (c * s (n a)) := by
+            nlinarith [Nat.one_le_two_pow (n := c * s (n a))]
+        _ ≤ 2 ^ (c₁ + c₂) * 2 ^ (c * s (n a)) := Nat.mul_le_mul_right _ Nat.lt_two_pow_self.le
+        _ ≤ 2 ^ (c₁ + c₂) * 2 ^ (c * s (n a)) * 2 ^ s (n a) :=
+            Nat.le_mul_of_pos_right _ Nat.one_le_two_pow
         _ = T a := by simp only [T, E, pow_add]; ring
-    obtain ⟨-, hout⟩ := (htm a).runFrom_of_le hle
-    rw [hout]
+    rw [((htm a).runFrom_of_le hle).2]
     by_cases h : a ∈ A <;> simp [h, indicator, OutView.ofList]
   obtain ⟨k', State', hfin', atm, c', hatm⟩ := exists_decidesInSpace_of_runFrom tm T S hT
-    (fun a => Nat.succ_le_succ (hlog _)) ⟨C, hC⟩ hnT hA
-  refine ⟨k', State', hfin', atm, c', c', hatm.mono fun a => ?_⟩
-  simp only [S, n, Nat.mul_succ, le_refl]
+    (fun _ => Nat.succ_le_succ (hlog _))
+    ⟨c + c₁ + c₂ + 2, fun a => by simp only [T, S, E, Nat.size_pow]; nlinarith⟩ hnT hA
+  exact ⟨k', State', hfin', atm, c', c', hatm.mono fun _ => by
+    simp only [S, n, Nat.mul_succ, le_refl]⟩
 
 end Cslib.Complexity

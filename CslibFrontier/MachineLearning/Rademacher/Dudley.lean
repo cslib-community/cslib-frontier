@@ -169,16 +169,19 @@ theorem empiricalCoveringNumber_anti {Z : Type*} (F : Set (Z → ℝ)) {m : ℕ}
     empiricalCoveringNumber F S ε₂ ≤ empiricalCoveringNumber F S ε₁ :=
   coveringNumber_anti _ hε
 
+private theorem totallyBounded_image_empiricalL2Vec {Z : Type*} {F : Set (Z → ℝ)} {m : ℕ}
+    {S : Fin m → Z} {f₀ : Z → ℝ} {R : ℝ}
+    (hF : ∀ f ∈ F, dist (empiricalL2Vec S f) (empiricalL2Vec S f₀) ≤ R) :
+    TotallyBounded (empiricalL2Vec S '' F) :=
+  (isCompact_closedBall (empiricalL2Vec S f₀) R).totallyBounded.subset <| by
+    rintro _ ⟨f, hf, rfl⟩
+    exact Metric.mem_closedBall.2 (hF f hf)
+
 theorem empiricalCoveringNumber_lt_top {Z : Type*} {F : Set (Z → ℝ)} {m : ℕ} {S : Fin m → Z}
     {f₀ : Z → ℝ} {R : ℝ} (hF : ∀ f ∈ F, dist (empiricalL2Vec S f) (empiricalL2Vec S f₀) ≤ R)
     {ε : ℝ} (hε : 0 < ε) :
-    empiricalCoveringNumber F S ε < ⊤ := by
-  have hsub : empiricalL2Vec S '' F ⊆ Metric.closedBall (empiricalL2Vec S f₀) R := by
-    rintro _ ⟨f, hf, rfl⟩
-    exact Metric.mem_closedBall.2 (hF f hf)
-  have htb : TotallyBounded (empiricalL2Vec S '' F) :=
-    (isCompact_closedBall (empiricalL2Vec S f₀) R).totallyBounded.subset hsub
-  exact coveringNumber_lt_top_of_totallyBounded htb hε
+    empiricalCoveringNumber F S ε < ⊤ :=
+  coveringNumber_lt_top_of_totallyBounded (totallyBounded_image_empiricalL2Vec hF) hε
 
 /-! ### Dyadic sum to continuous `intervalIntegral` helpers -/
 
@@ -202,6 +205,11 @@ private theorem antitoneOn_intervalIntegrable {g : ℝ → ℝ} {a b R : ℝ}
   rw [Set.uIcc_of_le hab] at hx
   exact ⟨lt_of_lt_of_le ha hx.1, hx.2.trans hb⟩
 
+/-- `n ↦ R / 2 ^ n` is antitone for `0 ≤ R`. -/
+private theorem div_two_pow_le {R : ℝ} (hR : 0 ≤ R) {k n : ℕ} (h : k ≤ n) :
+    R / 2 ^ n ≤ R / 2 ^ k :=
+  div_le_div_of_nonneg_left hR (by positivity) (pow_le_pow_right₀ one_le_two h)
+
 /-- Lower Riemann-sum inequality turning a dyadic sum of an antitone nonnegative function `g` on
 `(0, R]` into `4 * ∫ ε in (R / 2 ^ (K + 1))..(R / 2), g ε`. -/
 private theorem sum_dyadic_le_intervalIntegral {g : ℝ → ℝ} {R : ℝ} (hR : 0 < R)
@@ -212,45 +220,20 @@ private theorem sum_dyadic_le_intervalIntegral {g : ℝ → ℝ} {R : ℝ} (hR :
   | zero => simp
   | succ K ih =>
     have hK_pos : 0 < R / 2 ^ (K + 2) := by positivity
-    have hmid_pos : 0 < R / 2 ^ (K + 1) := by positivity
-    have ha_le_b : R / 2 ^ (K + 2) ≤ R / 2 ^ (K + 1) :=
-      div_le_div_of_nonneg_left hR.le (by positivity)
-        (pow_le_pow_right₀ (by norm_num) (by omega))
-    have hb_le_c : R / 2 ^ (K + 1) ≤ R / 2 := by
-      have : (2 : ℝ) ^ 1 ≤ 2 ^ (K + 1) := pow_le_pow_right₀ (by norm_num) (by omega)
-      simpa using div_le_div_of_nonneg_left hR.le (by positivity) this
-    have hc_le_R : R / 2 ≤ R := by linarith
-    have hint_ab : IntervalIntegrable g volume (R / 2 ^ (K + 2)) (R / 2 ^ (K + 1)) :=
-      antitoneOn_intervalIntegrable hanti hK_pos ha_le_b (hb_le_c.trans hc_le_R)
-    have hint_bc : IntervalIntegrable g volume (R / 2 ^ (K + 1)) (R / 2) :=
-      antitoneOn_intervalIntegrable hanti hmid_pos hb_le_c hc_le_R
-    have hstep : (R / 2 ^ K) * g (R / 2 ^ (K + 1)) ≤
-        4 * ∫ ε in (R / 2 ^ (K + 2))..(R / 2 ^ (K + 1)), g ε := by
-      have hwidth : (R / 2 ^ (K + 1) - R / 2 ^ (K + 2)) * 4 = R / 2 ^ K := by
-        rw [show (2 : ℝ) ^ (K + 2) = 4 * 2 ^ K by ring,
-          show (2 : ℝ) ^ (K + 1) = 2 * 2 ^ K by ring]
-        field_simp
-        ring
-      have hmono : ∫ _ε in (R / 2 ^ (K + 2))..(R / 2 ^ (K + 1)), g (R / 2 ^ (K + 1)) ≤
-          ∫ ε in (R / 2 ^ (K + 2))..(R / 2 ^ (K + 1)), g ε := by
-        refine intervalIntegral.integral_mono_on ha_le_b intervalIntegrable_const hint_ab
-          fun x hx => hanti ⟨lt_of_lt_of_le hK_pos hx.1, hx.2.trans (hb_le_c.trans hc_le_R)⟩
-            ⟨hmid_pos, hb_le_c.trans hc_le_R⟩ hx.2
-      rw [intervalIntegral.integral_const, smul_eq_mul] at hmono
-      calc (R / 2 ^ K) * g (R / 2 ^ (K + 1))
-          = 4 * ((R / 2 ^ (K + 1) - R / 2 ^ (K + 2)) * g (R / 2 ^ (K + 1))) := by
-              rw [← hwidth]; ring
-        _ ≤ 4 * ∫ ε in (R / 2 ^ (K + 2))..(R / 2 ^ (K + 1)), g ε :=
-              mul_le_mul_of_nonneg_left hmono (by norm_num)
-    rw [sum_range_succ]
-    calc ∑ n ∈ range K, R / 2 ^ n * g (R / 2 ^ (n + 1)) + R / 2 ^ K * g (R / 2 ^ (K + 1))
-        ≤ 4 * (∫ ε in (R / 2 ^ (K + 1))..(R / 2), g ε) +
-            4 * (∫ ε in (R / 2 ^ (K + 2))..(R / 2 ^ (K + 1)), g ε) :=
-          add_le_add ih hstep
-      _ = 4 * ((∫ ε in (R / 2 ^ (K + 2))..(R / 2 ^ (K + 1)), g ε) +
-            (∫ ε in (R / 2 ^ (K + 1))..(R / 2), g ε)) := by ring
-      _ = 4 * ∫ ε in (R / 2 ^ (K + 2))..(R / 2), g ε := by
-          rw [intervalIntegral.integral_add_adjacent_intervals hint_ab hint_bc]
+    have hab : R / 2 ^ (K + 2) ≤ R / 2 ^ (K + 1) := div_two_pow_le hR.le (by omega)
+    have hbc : R / 2 ^ (K + 1) ≤ R / 2 := by simpa using div_two_pow_le hR.le (k := 1) (by omega)
+    have hbR : R / 2 ^ (K + 1) ≤ R := hbc.trans (by linarith)
+    have hint_ab := antitoneOn_intervalIntegrable hanti hK_pos hab hbR
+    have hint_bc := antitoneOn_intervalIntegrable hanti (by positivity) hbc (by linarith)
+    -- Lower rectangle on `[R / 2 ^ (K + 2), R / 2 ^ (K + 1)]`, of width `R / 2 ^ K / 4`.
+    have hmono : ∫ _ε in (R / 2 ^ (K + 2))..(R / 2 ^ (K + 1)), g (R / 2 ^ (K + 1)) ≤
+        ∫ ε in (R / 2 ^ (K + 2))..(R / 2 ^ (K + 1)), g ε :=
+      intervalIntegral.integral_mono_on hab intervalIntegrable_const hint_ab fun x hx =>
+        hanti ⟨hK_pos.trans_le hx.1, hx.2.trans hbR⟩ ⟨by positivity, hbR⟩ hx.2
+    rw [intervalIntegral.integral_const, smul_eq_mul,
+      show R / 2 ^ (K + 1) - R / 2 ^ (K + 2) = R / 2 ^ K / 4 by ring] at hmono
+    rw [sum_range_succ, ← intervalIntegral.integral_add_adjacent_intervals hint_ab hint_bc]
+    linarith
 
 /-- Pick a dyadic truncation depth `K` for `0 < α ≤ R / 2` with `α ≤ R / 2 ^ (K + 1)` and
 `R / 2 ^ K < 4 * α`. -/
@@ -258,26 +241,17 @@ private theorem exists_dyadic_cutoff {α R : ℝ} (hα : 0 < α) (hαR : α ≤ 
     ∃ K : ℕ, α ≤ R / 2 ^ (K + 1) ∧ R / 2 ^ K < 4 * α := by
   classical
   have hex : ∃ k : ℕ, R / 2 ^ (k + 2) < α := by
-    obtain ⟨k, hk⟩ := pow_unbounded_of_one_lt (R / α) (by norm_num : (1 : ℝ) < 2)
-    refine ⟨k, ?_⟩
-    have hpow : (2 : ℝ) ^ k ≤ 2 ^ (k + 2) :=
-      pow_le_pow_right₀ (by norm_num) (by omega)
-    rw [div_lt_iff₀ (by positivity)]
-    have h1 : R < α * 2 ^ k := by rwa [div_lt_iff₀ hα, mul_comm] at hk
-    have h2 : α * 2 ^ k ≤ α * 2 ^ (k + 2) := mul_le_mul_of_nonneg_left hpow hα.le
-    linarith
-  let K := Nat.find hex
-  refine ⟨K, ?_, ?_⟩
-  · rcases Nat.eq_zero_or_pos K with h0 | hpos
+    obtain ⟨k, hk⟩ := pow_unbounded_of_one_lt (R / α) one_lt_two
+    refine ⟨k, (div_two_pow_le (k := k) (n := k + 2) (by linarith) (by omega)).trans_lt ?_⟩
+    rw [div_lt_iff₀ (by positivity), mul_comm]
+    exact (div_lt_iff₀ hα).1 hk
+  refine ⟨Nat.find hex, ?_, ?_⟩
+  · rcases Nat.eq_zero_or_pos (Nat.find hex) with h0 | hpos
     · simpa [h0] using hαR
-    · have hmin : ¬ R / 2 ^ ((K - 1) + 2) < α :=
-        Nat.find_min hex (by omega : K - 1 < K)
-      rw [show K - 1 + 2 = K + 1 by omega] at hmin
-      exact le_of_not_gt hmin
-  · have hspec : R / 2 ^ (K + 2) < α := Nat.find_spec hex
-    have hpow : R / (2 : ℝ) ^ (K + 2) = (R / 2 ^ K) / 4 := by
-      rw [show (2 : ℝ) ^ (K + 2) = 2 ^ K * 4 by ring, ← div_div]
-    rw [hpow] at hspec
+    · simpa [show Nat.find hex - 1 + 2 = Nat.find hex + 1 by omega] using
+        Nat.find_min hex (by omega : Nat.find hex - 1 < Nat.find hex)
+  · have hspec := Nat.find_spec hex
+    rw [show R / 2 ^ (Nat.find hex + 2) = R / 2 ^ Nat.find hex / 4 by ring] at hspec
     linarith
 
 private theorem intervalIntegrable_sqrt_log_div {α R C : ℝ} (hα : 0 < α) (hαR : α ≤ R)
@@ -293,88 +267,48 @@ private theorem intervalIntegrable_sqrt_log_div {α R C : ℝ} (hα : 0 < α) (h
 private theorem intervalIntegral_sqrt_log_div_le {α R C : ℝ} (hα : 0 < α) (hαR : α ≤ R)
     (hRC : R ≤ C) :
     ∫ x in α..R, Real.sqrt (Real.log (C / x)) ≤ R * Real.sqrt (1 + Real.log (C / R)) := by
-  have hR : 0 < R := lt_of_lt_of_le hα hαR
-  have hC : 0 < C := lt_of_lt_of_le hR hRC
-  have hlogR_nonneg : 0 ≤ Real.log (C / R) :=
-    Real.log_nonneg ((one_le_div hR).2 hRC)
-  have ht_pos : 0 < Real.sqrt (1 + Real.log (C / R)) :=
-    Real.sqrt_pos.2 (by linarith)
+  have hR : 0 < R := hα.trans_le hαR
+  have hC : 0 < C := hR.trans_le hRC
+  have hlog_nonneg {x : ℝ} (hx : 0 < x) (hxC : x ≤ C) : 0 ≤ Real.log (C / x) :=
+    Real.log_nonneg ((one_le_div hx).2 hxC)
   set t := Real.sqrt (1 + Real.log (C / R))
-  have ht_sq : t ^ 2 = 1 + Real.log (C / R) := Real.sq_sqrt (by linarith)
-  -- `∫ x in α..R, log (C / x) = R (log (C / R) + 1) - α (log (C / α) + 1)`.
-  have hlog_eq : ∫ x in α..R, Real.log (C / x) =
-      R * (Real.log (C / R) + 1) - α * (Real.log (C / α) + 1) := by
-    let F : ℝ → ℝ := fun x => x * Real.log C - x * Real.log x + x
-    have hF_eq (x : ℝ) (hx : 0 < x) : F x = x * (Real.log (C / x) + 1) := by
-      simp only [F, Real.log_div hC.ne' hx.ne']
-      ring
-    have hderiv : ∀ x ∈ Set.uIcc α R, HasDerivAt F (Real.log (C / x)) x := by
-      intro x hx
-      rw [Set.uIcc_of_le hαR] at hx
-      have hxpos : 0 < x := lt_of_lt_of_le hα hx.1
-      have h1 : HasDerivAt (fun y : ℝ => y * Real.log C) (1 * Real.log C) x :=
-        (hasDerivAt_id x).mul_const _
-      have h2 : HasDerivAt (fun y : ℝ => y * Real.log y) (1 * Real.log x + x * x⁻¹) x :=
-        (hasDerivAt_id x).mul (Real.hasDerivAt_log hxpos.ne')
-      have h3 : HasDerivAt (fun y : ℝ => y) 1 x := hasDerivAt_id x
-      have hcomb := (h1.sub h2).add h3
-      convert hcomb using 1
-      rw [Real.log_div hC.ne' hxpos.ne', mul_inv_cancel₀ hxpos.ne']
-      ring
-    have hcont : ContinuousOn (fun x => Real.log (C / x)) (Set.uIcc α R) := by
-      rw [Set.uIcc_of_le hαR]
-      refine ContinuousOn.log
-        (continuousOn_const.div continuousOn_id fun y (hy : y ∈ Set.Icc α R) =>
-          (lt_of_lt_of_le hα hy.1).ne')
-        fun y (hy : y ∈ Set.Icc α R) => div_ne_zero hC.ne' (lt_of_lt_of_le hα hy.1).ne'
-    rw [intervalIntegral.integral_eq_sub_of_hasDerivAt hderiv (hcont.intervalIntegrable),
-      hF_eq R hR, hF_eq α hα]
-  have hlog_le : ∫ x in α..R, Real.log (C / x) ≤ R * (1 + Real.log (C / R)) := by
-    have hlogα : 0 ≤ Real.log (C / α) :=
-      Real.log_nonneg ((one_le_div hα).2 (hαR.trans hRC))
-    rw [hlog_eq]
-    nlinarith
-  have hint_log : IntervalIntegrable (fun x => Real.log (C / x)) volume α R := by
-    refine antitoneOn_intervalIntegrable ?_ hα hαR le_rfl
-    intro x hx y hy hxy
-    exact Real.log_le_log (div_pos hC hy.1) (div_le_div_of_nonneg_left hC.le hx.1 hxy)
-  have hint_sqrt : IntervalIntegrable (fun x => Real.sqrt (Real.log (C / x))) volume α R :=
-    intervalIntegrable_sqrt_log_div hα hαR hC
-  have hint_rhs : IntervalIntegrable (fun x => (t + Real.log (C / x) / t) / 2) volume α R :=
-    (intervalIntegrable_const.add (hint_log.div_const t)).div_const 2
+  have ht_pos : 0 < t := Real.sqrt_pos.2 (by linarith [hlog_nonneg hR hRC])
+  have ht_sq : t ^ 2 = 1 + Real.log (C / R) := Real.sq_sqrt (by linarith [hlog_nonneg hR hRC])
+  -- `∫ x in α..R, log (C / x) = R (log (C / R) + 1) - α (log (C / α) + 1) ≤ R t ^ 2`.
+  have hlog_le : ∫ x in α..R, Real.log (C / x) ≤ R * t ^ 2 := by
+    have hcongr : Set.EqOn (fun x => Real.log (C / x)) (fun x => Real.log C - Real.log x)
+        (Set.uIcc α R) := fun x hx =>
+      Real.log_div hC.ne' (hα.trans_le (Set.uIcc_of_le hαR ▸ hx).1).ne'
+    have hα_log := mul_nonneg hα.le (hlog_nonneg hα (hαR.trans hRC))
+    rw [Real.log_div hC.ne' hα.ne'] at hα_log
+    rw [intervalIntegral.integral_congr hcongr,
+      intervalIntegral.integral_sub intervalIntegrable_const
+        intervalIntegral.intervalIntegrable_log',
+      integral_log, intervalIntegral.integral_const, smul_eq_mul, ht_sq,
+      Real.log_div hC.ne' hR.ne']
+    linarith
+  have hint_log : IntervalIntegrable (fun x => Real.log (C / x)) volume α R :=
+    antitoneOn_intervalIntegrable (fun x hx y hy hxy =>
+      Real.log_le_log (div_pos hC hy.1) (div_le_div_of_nonneg_left hC.le hx.1 hxy)) hα hαR le_rfl
+  -- Pointwise AM-GM: `√y ≤ (t + y / t) / 2`.
   have hpt : ∀ x ∈ Set.Icc α R,
       Real.sqrt (Real.log (C / x)) ≤ (t + Real.log (C / x) / t) / 2 := by
     intro x hx
-    have hlogx : 0 ≤ Real.log (C / x) :=
-      Real.log_nonneg ((one_le_div (lt_of_lt_of_le hα hx.1)).2 (hx.2.trans hRC))
-    have hsq := sq_nonneg (t - Real.sqrt (Real.log (C / x)))
-    have h1 : 2 * t * Real.sqrt (Real.log (C / x)) ≤ t ^ 2 + Real.log (C / x) := by
-      nlinarith [Real.sq_sqrt hlogx]
-    have hmul : Real.sqrt (Real.log (C / x)) * 2 ≤ t + Real.log (C / x) / t := by
-      refine le_of_mul_le_mul_left ?_ ht_pos
-      calc t * (Real.sqrt (Real.log (C / x)) * 2)
-          = 2 * t * Real.sqrt (Real.log (C / x)) := by ring
-        _ ≤ t ^ 2 + Real.log (C / x) := h1
-        _ = t * (t + Real.log (C / x) / t) := by
-            have htne : t ≠ 0 := ht_pos.ne'
-            field_simp
-    exact (le_div_iff₀ (by norm_num : (0 : ℝ) < 2)).2 hmul
+    have hy := hlog_nonneg (hα.trans_le hx.1) (hx.2.trans hRC)
+    have : 2 * Real.sqrt (Real.log (C / x)) - t ≤ Real.log (C / x) / t := by
+      rw [le_div_iff₀ ht_pos]
+      nlinarith [sq_nonneg (t - Real.sqrt (Real.log (C / x))), Real.sq_sqrt hy]
+    linarith
   calc ∫ x in α..R, Real.sqrt (Real.log (C / x))
       ≤ ∫ x in α..R, (t + Real.log (C / x) / t) / 2 :=
-        intervalIntegral.integral_mono_on hαR hint_sqrt hint_rhs hpt
-    _ = ((∫ _x in α..R, t) + (∫ x in α..R, Real.log (C / x)) / t) / 2 := by
+        intervalIntegral.integral_mono_on hαR (intervalIntegrable_sqrt_log_div hα hαR hC)
+          ((intervalIntegrable_const.add (hint_log.div_const t)).div_const 2) hpt
+    _ = ((R - α) * t + (∫ x in α..R, Real.log (C / x)) / t) / 2 := by
         rw [intervalIntegral.integral_div,
           intervalIntegral.integral_add intervalIntegrable_const (hint_log.div_const t),
-          intervalIntegral.integral_div]
-    _ = ((R - α) * t + (∫ x in α..R, Real.log (C / x)) / t) / 2 := by
-        rw [intervalIntegral.integral_const, smul_eq_mul]
-    _ ≤ (R * t + R * (1 + Real.log (C / R)) / t) / 2 := by
-        gcongr
-        linarith
-    _ = R * t := by
-        rw [← ht_sq]
-        field_simp
-        ring
+          intervalIntegral.integral_div, intervalIntegral.integral_const, smul_eq_mul]
+    _ ≤ (R * t + R * t ^ 2 / t) / 2 := by gcongr; linarith
+    _ = R * t := by rw [sq, ← mul_assoc, mul_div_cancel_right₀ _ ht_pos.ne']; ring
 
 /-! ### Dudley's continuous entropy integral -/
 
@@ -397,71 +331,51 @@ theorem rademacherAverage_le_dudley_integral {ι : Type*} {m : ℕ} (hm : 0 < m)
             (coveringNumber
               (Set.range fun j => WithLp.toLp 2 fun i => a j i / Real.sqrt m) ε).toNat) := by
   classical
-  have hR : 0 < R := lt_of_lt_of_le hα hαR
+  have hR : 0 < R := hα.trans_le hαR
   have hm_pos : (0 : ℝ) < m := Nat.cast_pos.2 hm
   have hsqrtm_pos : 0 < Real.sqrt m := Real.sqrt_pos.2 hm_pos
   let A : Set (EuclideanSpace ℝ (Fin m)) := Set.range fun j => vecL2 (a j)
   let g : ℝ → ℝ := fun ε => Real.sqrt (Real.log (coveringNumber A ε).toNat)
   have hAtb : TotallyBounded A := by
-    have hsub : A ⊆ Metric.closedBall (vecL2 c₀) R := by
-      rintro _ ⟨j, rfl⟩
-      refine Metric.mem_closedBall.2 ((sq_le_sq₀ dist_nonneg hR.le).1 ?_)
-      rw [dist_sq_vecL2 hm]
-      exact ha j
-    exact (isCompact_closedBall (vecL2 c₀) R).totallyBounded.subset hsub
-  have hg_nonneg (ε : ℝ) : 0 ≤ g ε := Real.sqrt_nonneg _
+    refine (isCompact_closedBall (vecL2 c₀) R).totallyBounded.subset ?_
+    rintro _ ⟨j, rfl⟩
+    refine Metric.mem_closedBall.2 ((sq_le_sq₀ dist_nonneg hR.le).1 ?_)
+    rw [dist_sq_vecL2 hm]
+    exact ha j
+  have hcov_lt (n : ℕ) : coveringNumber A (R / 2 ^ n) < ⊤ :=
+    coveringNumber_lt_top_of_totallyBounded hAtb (by positivity)
   have hg_anti : AntitoneOn g (Set.Ioc 0 R) := antitoneOn_sqrt_log_coveringNumber hAtb R
+  have hint_nn : 0 ≤ ∫ ε in α..R, g ε :=
+    intervalIntegral.integral_nonneg hαR fun x _ => Real.sqrt_nonneg _
+  have hrest_nn : 0 ≤ 16 / Real.sqrt m * ∫ ε in α..R, g ε := by positivity
   rcases isEmpty_or_nonempty ι with hι | hι
   · rw [rademacherAverage_of_isEmpty]
-    have hint_nn : 0 ≤ ∫ ε in α..R, g ε :=
-      intervalIntegral.integral_nonneg hαR fun x _ => hg_nonneg x
-    exact add_nonneg (by positivity) (mul_nonneg (by positivity) hint_nn)
+    exact add_nonneg (by positivity) hrest_nn
   -- Center `a` around `c₀`; shifting leaves both `rademacherAverage` and `coveringNumber` equal.
   let a' : ι → Fin m → ℝ := fun j i => a j i - c₀ i
   have ha'_sq (j : ι) : ∑ i, a' j i ^ 2 ≤ (R * Real.sqrt m) ^ 2 := by
-    calc ∑ i, a' j i ^ 2 = (∑ i, (a j i - c₀ i) ^ 2) / m * m := by
-          rw [div_mul_cancel₀ _ hm_pos.ne']
-      _ ≤ R ^ 2 * m := mul_le_mul_of_nonneg_right (ha j) hm_pos.le
-      _ = (R * Real.sqrt m) ^ 2 := by rw [mul_pow, Real.sq_sqrt hm_pos.le]
-  have ha'_abs (j : ι) (i : Fin m) : |a' j i| ≤ R * Real.sqrt m := by
-    refine (sq_le_sq₀ (abs_nonneg _) (by positivity)).1 ?_
-    rw [sq_abs]
-    calc a' j i ^ 2 ≤ ∑ k : Fin m, a' j k ^ 2 :=
-          single_le_sum (fun k _ => sq_nonneg (a' j k)) (mem_univ i)
-      _ ≤ (R * Real.sqrt m) ^ 2 := ha'_sq j
+    rw [mul_pow, Real.sq_sqrt hm_pos.le, ← div_le_iff₀ hm_pos]
+    exact ha j
+  have ha'_abs (j : ι) (i : Fin m) : |a' j i| ≤ R * Real.sqrt m :=
+    abs_le_of_sq_le_sq ((single_le_sum (fun k _ => sq_nonneg (a' j k)) (mem_univ i)).trans
+      (ha'_sq j)) (by positivity)
   have hshift : rademacherAverage a = rademacherAverage a' := by
-    have heq : a = fun j i => c₀ i + 1 * (signVal false * a' j i) := by
-      funext j i
-      simp only [a', signVal, one_mul]
-      norm_num
-    calc rademacherAverage a
-        = rademacherAverage (fun j i => c₀ i + 1 * (signVal false * a' j i)) := by rw [← heq]
-      _ = 1 * rademacherAverage a' :=
-          rademacherAverage_add_mul_signVal_mul ha'_abs c₀ (fun _ => false) zero_le_one
-      _ = rademacherAverage a' := one_mul _
+    simpa [a', signVal] using
+      rademacherAverage_add_mul_signVal_mul ha'_abs c₀ (fun _ => false) zero_le_one
   let A' : Set (EuclideanSpace ℝ (Fin m)) := Set.range fun j => vecL2 (a' j)
-  have hA_eq : A = (fun x => x + vecL2 c₀) '' A' := by
-    ext y
-    constructor
-    · rintro ⟨j, rfl⟩
-      refine ⟨vecL2 (a' j), ⟨j, rfl⟩, ?_⟩
-      ext i
-      simp only [vecL2, a', PiLp.add_apply, WithLp.ofLp_toLp, ← add_div, sub_add_cancel]
-    · rintro ⟨_, ⟨j, rfl⟩, rfl⟩
-      refine ⟨j, ?_⟩
-      ext i
-      simp only [vecL2, a', PiLp.add_apply, WithLp.ofLp_toLp, ← add_div, sub_add_cancel]
   have hcov_eq (ε : ℝ) : coveringNumber A' ε = coveringNumber A ε := by
+    have hA_eq : A = (fun x => x + vecL2 c₀) '' A' := by
+      simp only [A, A', ← Set.range_comp]
+      congr 1; funext j; ext i
+      simp only [Function.comp_apply, vecL2, a', PiLp.add_apply, WithLp.ofLp_toLp, ← add_div,
+        sub_add_cancel]
     rw [hA_eq, coveringNumber_vadd]
-  have hA'_ne : A'.Nonempty := ⟨vecL2 (a' (Classical.arbitrary ι)), Classical.arbitrary ι, rfl⟩
   -- Build the finite covering sequence `T : ℕ → Finset (Fin m → ℝ)` at dyadic scales `R / 2 ^ n`.
   have hnet (n : ℕ) : ∃ C : Finset (EuclideanSpace ℝ (Fin m)),
       (C.card : ℕ∞) = coveringNumber A (R / 2 ^ n) ∧
         ∀ x ∈ A', ∃ u ∈ C, dist x u ≤ R / 2 ^ n := by
-    have hlt : coveringNumber A' (R / 2 ^ n) < ⊤ := by
-      rw [hcov_eq]
-      exact coveringNumber_lt_top_of_totallyBounded hAtb (by positivity)
-    obtain ⟨C, hcard, hcov⟩ := exists_cover_of_coveringNumber_lt_top hlt
+    obtain ⟨C, hcard, hcov⟩ :=
+      exists_cover_of_coveringNumber_lt_top ((hcov_eq _).trans_lt (hcov_lt n))
     exact ⟨C, hcov_eq _ ▸ hcard, hcov⟩
   choose C hC_card hC_cov using hnet
   let T : ℕ → Finset (Fin m → ℝ) := fun n =>
@@ -473,170 +387,95 @@ theorem rademacherAverage_le_dudley_integral {ι : Type*} {m : ℕ} (hm : 0 < m)
     rcases Nat.eq_zero_or_pos n with rfl | hn
     · refine ⟨0, by simp [T], ?_⟩
       simpa only [Pi.zero_apply, sub_zero, pow_zero, div_one] using ha'_sq j
-    · obtain ⟨u, huC, hdu⟩ := hC_cov n (vecL2 (a' j)) ⟨j, rfl⟩
-      have hmem : (fun i => u i * Real.sqrt m) ∈ T n := by
-        simp only [T, ite_eq_right_iff.2 fun h => (hn.ne' h).elim]
-        exact mem_image_of_mem _ huC
-      refine ⟨fun i => u i * Real.sqrt m, hmem, ?_⟩
-      have hdist_sq : dist (vecL2 (a' j)) u ^ 2 =
-          (∑ i, (a' j i - u i * Real.sqrt m) ^ 2) / m := by
-        rw [dist_eq_norm, EuclideanSpace.norm_sq_eq]
-        simp only [PiLp.sub_apply, vecL2, Real.norm_eq_abs, sq_abs]
-        have hterm (i : Fin m) : (a' j i / Real.sqrt m - u i) ^ 2 =
-            (a' j i - u i * Real.sqrt m) ^ 2 / m := by
-          have : a' j i / Real.sqrt m - u i = (a' j i - u i * Real.sqrt m) / Real.sqrt m := by
-            field_simp
-          rw [this, div_pow, Real.sq_sqrt hm_pos.le]
-        rw [sum_congr rfl fun i _ => hterm i, ← sum_div]
-      have hbound : dist (vecL2 (a' j)) u ^ 2 ≤ (R / 2 ^ n) ^ 2 :=
-        (sq_le_sq₀ dist_nonneg (by positivity)).2 hdu
-      rw [hdist_sq, div_le_iff₀ hm_pos] at hbound
-      refine hbound.trans_eq ?_
-      rw [div_pow, div_pow, mul_pow, Real.sq_sqrt hm_pos.le]
-      ring
+    obtain ⟨u, huC, hdu⟩ := hC_cov n (vecL2 (a' j)) ⟨j, rfl⟩
+    refine ⟨fun i => u i * Real.sqrt m, ?_, ?_⟩
+    · simp only [T, hn.ne', ↓reduceIte]
+      exact mem_image_of_mem _ huC
+    have hu : vecL2 (fun i => u i * Real.sqrt m) = u := by
+      ext i
+      simp [vecL2, hsqrtm_pos.ne']
+    have hbound := (sq_le_sq₀ dist_nonneg (by positivity)).2 hdu
+    rw [← hu, dist_sq_vecL2 hm, div_le_iff₀ hm_pos] at hbound
+    refine hbound.trans_eq ?_
+    rw [div_pow, div_pow, mul_pow, Real.sq_sqrt hm_pos.le]
+    ring
   have hT_ne (n : ℕ) : (T n).Nonempty := by
     obtain ⟨u, hu, -⟩ := hT_cov n (Classical.arbitrary ι)
     exact ⟨u, hu⟩
   have hT0_card : (T 0).card = 1 := by simp [T]
-  have hT_card_le (n : ℕ) : (T (n + 1)).card ≤ (coveringNumber A (R / 2 ^ (n + 1))).toNat := by
-    have h1 : (T (n + 1)).card ≤ (C (n + 1)).card := by
-      simp only [T, Nat.succ_ne_zero, ↓reduceIte]
-      exact card_image_le
-    exact h1.trans_eq (by rw [← hC_card (n + 1), ENat.toNat_natCast])
-  have hTn_card_le (n : ℕ) : (T n).card ≤ (coveringNumber A (R / 2 ^ (n + 1))).toNat := by
+  -- `|T n| ≤ N_2(A, R / 2 ^ n) ≤ N_2(A, R / 2 ^ (n + 1))`.
+  have hT_card (n : ℕ) : (T n).card ≤ (coveringNumber A (R / 2 ^ n)).toNat := by
     rcases Nat.eq_zero_or_pos n with rfl | hn
-    · rw [hT0_card]
-      have hlt : coveringNumber A (R / 2 ^ 1) < ⊤ :=
-        coveringNumber_lt_top_of_totallyBounded hAtb (by positivity)
-      have h1 : 1 ≤ coveringNumber A (R / 2 ^ 1) := by
-        rw [← hcov_eq]
-        exact one_le_coveringNumber hA'_ne _
-      exact_mod_cast (ENat.natCast_toNat hlt.ne).symm ▸ h1
-    · have hle_scale : R / 2 ^ (n + 1) ≤ R / 2 ^ n :=
-        div_le_div_of_nonneg_left hR.le (by positivity)
-          (pow_le_pow_right₀ (by norm_num) (by omega))
-      have hlt : coveringNumber A (R / 2 ^ (n + 1)) < ⊤ :=
-        coveringNumber_lt_top_of_totallyBounded hAtb (by positivity)
-      have hmono : coveringNumber A (R / 2 ^ n) ≤ coveringNumber A (R / 2 ^ (n + 1)) :=
-        coveringNumber_anti A hle_scale
-      have hnat : (C n).card ≤ (coveringNumber A (R / 2 ^ (n + 1))).toNat := by
-        exact_mod_cast (hC_card n).symm ▸ hmono.trans_eq (ENat.natCast_toNat hlt.ne).symm
-      have hsub : (T n).card ≤ (C n).card := by
-        simp only [T, ite_eq_right_iff.2 fun h => (hn.ne' h).elim]
-        exact card_image_le
-      exact hsub.trans hnat
+    · have h1 := (one_le_coveringNumber (s := A') ⟨_, Classical.arbitrary ι, rfl⟩ _).trans_eq
+        (hcov_eq (R / 2 ^ 0))
+      simpa [hT0_card] using ENat.toNat_le_toNat h1 (hcov_lt 0).ne
+    · simp only [T, hn.ne', ↓reduceIte]
+      exact card_image_le.trans_eq (by rw [← hC_card n, ENat.toNat_natCast])
+  have hTn_card (n : ℕ) : (T n).card ≤ (coveringNumber A (R / 2 ^ (n + 1))).toNat :=
+    (hT_card n).trans (ENat.toNat_le_toNat
+      (coveringNumber_anti A (div_two_pow_le hR.le n.le_succ)) (hcov_lt _).ne)
+  have hsum_term (n : ℕ) :
+      2 * (R * Real.sqrt m) / 2 ^ n *
+          Real.sqrt (2 * Real.log ((T (n + 1)).card * (T n).card)) ≤
+        4 * Real.sqrt m * ((R / 2 ^ n) * g (R / 2 ^ (n + 1))) := by
+    have hpos_prod : (0 : ℝ) < (T (n + 1)).card * (T n).card := by
+      have h1 := (hT_ne (n + 1)).card_pos
+      have h2 := (hT_ne n).card_pos
+      positivity
+    set N := (coveringNumber A (R / 2 ^ (n + 1))).toNat
+    have hlog : Real.log ((T (n + 1)).card * (T n).card) ≤ 2 * Real.log N := by
+      calc Real.log ((T (n + 1)).card * (T n).card)
+          ≤ Real.log ((N : ℝ) ^ 2) := Real.log_le_log hpos_prod <| by
+            rw [sq]
+            exact mul_le_mul (Nat.cast_le.2 (hT_card (n + 1))) (Nat.cast_le.2 (hTn_card n))
+              (Nat.cast_nonneg _) (Nat.cast_nonneg _)
+        _ = 2 * Real.log N := by rw [Real.log_pow]; norm_num
+    have hsqrt : Real.sqrt (2 * Real.log ((T (n + 1)).card * (T n).card)) ≤
+        2 * Real.sqrt (Real.log N) := by
+      rw [show 2 * Real.sqrt (Real.log N) = Real.sqrt (2 ^ 2 * Real.log N) by
+        rw [Real.sqrt_mul (by norm_num), Real.sqrt_sq (by norm_num)]]
+      exact Real.sqrt_le_sqrt (by linarith)
+    calc 2 * (R * Real.sqrt m) / 2 ^ n *
+            Real.sqrt (2 * Real.log ((T (n + 1)).card * (T n).card))
+        ≤ 2 * (R * Real.sqrt m) / 2 ^ n * (2 * Real.sqrt (Real.log N)) := by gcongr
+      _ = 4 * Real.sqrt m * ((R / 2 ^ n) * g (R / 2 ^ (n + 1))) := by ring
+  rw [hshift, rademacherAverage_eq_expect_ciSup_sum_div]
   -- Split between `α ≤ R / 2` (apply chaining at cutoff `K`) and `R / 2 < α ≤ R` (`K = 0`).
   rcases le_or_gt α (R / 2) with hα_half | hα_big
   · obtain ⟨K, hα_le, hK_lt⟩ := exists_dyadic_cutoff hα hα_half
     have hch := expect_ciSup_sum_mul_signVal_le_chaining a' (by positivity) ha'_sq T hT_cov K
     simp only [hT0_card, Nat.cast_one, Real.log_one, mul_zero, Real.sqrt_zero, zero_add,
       Fintype.card_fin] at hch
-    have hrad : rademacherAverage a' ≤
-        (∑ n ∈ range K, 2 * (R * Real.sqrt m) / 2 ^ n *
-          Real.sqrt (2 * Real.log ((T (n + 1)).card * (T n).card)) +
-          R * Real.sqrt m / 2 ^ K * Real.sqrt m) / m := by
-      rw [rademacherAverage_eq_expect_ciSup_sum_div]
-      exact div_le_div_of_nonneg_right hch hm_pos.le
-    have hsum_term (n : ℕ) :
-        2 * (R * Real.sqrt m) / 2 ^ n *
-            Real.sqrt (2 * Real.log ((T (n + 1)).card * (T n).card)) ≤
-          4 * Real.sqrt m * ((R / 2 ^ n) * g (R / 2 ^ (n + 1))) := by
-      have hpos_prod : (0 : ℝ) < (T (n + 1)).card * (T n).card := by
-        have h1 : 0 < (T (n + 1)).card := (hT_ne (n + 1)).card_pos
-        have h2 : 0 < (T n).card := (hT_ne n).card_pos
-        positivity
-      set N := (coveringNumber A (R / 2 ^ (n + 1))).toNat
-      have hprod_le : ((T (n + 1)).card : ℝ) * (T n).card ≤ (N : ℝ) ^ 2 := by
-        rw [sq]
-        exact mul_le_mul (Nat.cast_le.2 (hT_card_le n)) (Nat.cast_le.2 (hTn_card_le n))
-          (Nat.cast_nonneg _) (Nat.cast_nonneg _)
-      have hlog : Real.log ((T (n + 1)).card * (T n).card) ≤ 2 * Real.log N := by
-        calc Real.log ((T (n + 1)).card * (T n).card)
-            ≤ Real.log ((N : ℝ) ^ 2) := Real.log_le_log hpos_prod hprod_le
-          _ = 2 * Real.log N := by rw [Real.log_pow]; norm_num
-      have hsqrt : Real.sqrt (2 * Real.log ((T (n + 1)).card * (T n).card)) ≤
-          2 * Real.sqrt (Real.log N) := by
-        calc Real.sqrt (2 * Real.log ((T (n + 1)).card * (T n).card))
-            ≤ Real.sqrt (4 * Real.log N) := Real.sqrt_le_sqrt (by linarith)
-          _ = 2 * Real.sqrt (Real.log N) := by
-              rw [Real.sqrt_mul (by norm_num), show (4 : ℝ) = 2 ^ 2 by norm_num,
-                Real.sqrt_sq (by norm_num)]
-      calc 2 * (R * Real.sqrt m) / 2 ^ n *
-              Real.sqrt (2 * Real.log ((T (n + 1)).card * (T n).card))
-          ≤ 2 * (R * Real.sqrt m) / 2 ^ n * (2 * Real.sqrt (Real.log N)) :=
-            mul_le_mul_of_nonneg_left hsqrt (by positivity)
-        _ = 4 * Real.sqrt m * ((R / 2 ^ n) * g (R / 2 ^ (n + 1))) := by ring
     have hsum_le : (∑ n ∈ range K, 2 * (R * Real.sqrt m) / 2 ^ n *
           Real.sqrt (2 * Real.log ((T (n + 1)).card * (T n).card))) ≤
         4 * Real.sqrt m * (4 * ∫ ε in (R / 2 ^ (K + 1))..(R / 2), g ε) := by
-      calc _ ≤ ∑ n ∈ range K, 4 * Real.sqrt m * ((R / 2 ^ n) * g (R / 2 ^ (n + 1))) :=
-            sum_le_sum fun n _ => hsum_term n
-        _ = 4 * Real.sqrt m * ∑ n ∈ range K, (R / 2 ^ n) * g (R / 2 ^ (n + 1)) := by
-            rw [← mul_sum]
-        _ ≤ 4 * Real.sqrt m * (4 * ∫ ε in (R / 2 ^ (K + 1))..(R / 2), g ε) :=
-            mul_le_mul_of_nonneg_left (sum_dyadic_le_intervalIntegral hR hg_anti K) (by positivity)
-    have hint_sub : ∫ ε in (R / 2 ^ (K + 1))..(R / 2), g ε ≤ ∫ ε in α..R, g ε := by
-      have hmid_le : R / 2 ^ (K + 1) ≤ R / 2 := by
-        have : (2 : ℝ) ^ 1 ≤ 2 ^ (K + 1) := pow_le_pow_right₀ (by norm_num) (by omega)
-        simpa using div_le_div_of_nonneg_left hR.le (by positivity) this
-      have hint_low : IntervalIntegrable g volume α (R / 2 ^ (K + 1)) :=
-        antitoneOn_intervalIntegrable hg_anti hα hα_le (hmid_le.trans (by linarith))
-      have hint_mid : IntervalIntegrable g volume (R / 2 ^ (K + 1)) (R / 2) :=
-        antitoneOn_intervalIntegrable hg_anti (by positivity) hmid_le (by linarith)
-      have hint_hi : IntervalIntegrable g volume (R / 2) R :=
-        antitoneOn_intervalIntegrable hg_anti (by positivity) (by linarith) le_rfl
-      have h1 : 0 ≤ ∫ ε in α..(R / 2 ^ (K + 1)), g ε :=
-        intervalIntegral.integral_nonneg hα_le fun x _ => hg_nonneg x
-      have h2 : 0 ≤ ∫ ε in (R / 2)..R, g ε :=
-        intervalIntegral.integral_nonneg (by linarith) fun x _ => hg_nonneg x
-      have hsplit : ∫ ε in α..R, g ε =
-          (∫ ε in α..(R / 2 ^ (K + 1)), g ε) +
-            (∫ ε in (R / 2 ^ (K + 1))..(R / 2), g ε) +
-              (∫ ε in (R / 2)..R, g ε) := by
-        rw [intervalIntegral.integral_add_adjacent_intervals hint_low hint_mid,
-          intervalIntegral.integral_add_adjacent_intervals (hint_low.trans hint_mid) hint_hi]
-      linarith
-    have hsqrt_div : Real.sqrt m / (m : ℝ) = 1 / Real.sqrt m := by
-      have hm_eq : Real.sqrt m * Real.sqrt m = m := Real.mul_self_sqrt hm_pos.le
-      rw [div_eq_div_iff hm_pos.ne' hsqrtm_pos.ne', one_mul, hm_eq]
-    have hres_eq : R * Real.sqrt m / 2 ^ K * Real.sqrt m / m = R / 2 ^ K := by
-      have hm_eq : Real.sqrt m * Real.sqrt m = m := Real.mul_self_sqrt hm_pos.le
-      calc R * Real.sqrt m / 2 ^ K * Real.sqrt m / m
-          = R / 2 ^ K * (Real.sqrt m * Real.sqrt m / m) := by ring
-        _ = R / 2 ^ K := by rw [hm_eq, div_self hm_pos.ne', mul_one]
-    rw [hshift]
-    calc rademacherAverage a'
-        ≤ (∑ n ∈ range K, 2 * (R * Real.sqrt m) / 2 ^ n *
-              Real.sqrt (2 * Real.log ((T (n + 1)).card * (T n).card))) / m +
-            R * Real.sqrt m / 2 ^ K * Real.sqrt m / m := by
-          simpa only [add_div] using hrad
-      _ ≤ (4 * Real.sqrt m * (4 * ∫ ε in (R / 2 ^ (K + 1))..(R / 2), g ε)) / m +
-            R / 2 ^ K := by
-          rw [hres_eq]
-          gcongr
+      refine (sum_le_sum fun n _ => hsum_term n).trans ?_
+      rw [← mul_sum]
+      gcongr
+      exact sum_dyadic_le_intervalIntegral hR hg_anti K
+    have hmid_le : R / 2 ^ (K + 1) ≤ R / 2 := by
+      simpa using div_two_pow_le hR.le (k := 1) (by omega)
+    have hint_sub : ∫ ε in (R / 2 ^ (K + 1))..(R / 2), g ε ≤ ∫ ε in α..R, g ε :=
+      intervalIntegral.integral_mono_interval hα_le hmid_le (by linarith)
+        (Filter.Eventually.of_forall fun x => Real.sqrt_nonneg _)
+        (antitoneOn_intervalIntegrable hg_anti hα hαR le_rfl)
+    have hsq : Real.sqrt m * Real.sqrt m = m := Real.mul_self_sqrt hm_pos.le
+    calc _ ≤ (4 * Real.sqrt m * (4 * ∫ ε in (R / 2 ^ (K + 1))..(R / 2), g ε) +
+            R * Real.sqrt m / 2 ^ K * Real.sqrt m) / m :=
+          div_le_div_of_nonneg_right (by linarith) hm_pos.le
       _ = R / 2 ^ K + 16 / Real.sqrt m * ∫ ε in (R / 2 ^ (K + 1))..(R / 2), g ε := by
-          have : 4 * Real.sqrt m * (4 * ∫ ε in (R / 2 ^ (K + 1))..(R / 2), g ε) / m =
-              16 * (Real.sqrt m / m) * ∫ ε in (R / 2 ^ (K + 1))..(R / 2), g ε := by ring
-          rw [this, hsqrt_div]
+          conv_lhs => arg 2; rw [← hsq]
+          field_simp
           ring
-      _ ≤ 4 * α + 16 / Real.sqrt m * ∫ ε in α..R, g ε := by
-          exact add_le_add hK_lt.le (mul_le_mul_of_nonneg_left hint_sub (by positivity))
+      _ ≤ 4 * α + 16 / Real.sqrt m * ∫ ε in α..R, g ε := by gcongr
   · -- When `R / 2 < α ≤ R`, `K = 0` already yields `rademacherAverage a' ≤ R ≤ 4 α`.
     have hch := expect_ciSup_sum_mul_signVal_le_chaining a' (by positivity) ha'_sq T hT_cov 0
     simp only [hT0_card, Nat.cast_one, Real.log_one, mul_zero, Real.sqrt_zero, zero_add,
       range_zero, sum_empty, add_zero, pow_zero, div_one, Fintype.card_fin] at hch
-    have hres : rademacherAverage a' ≤ R := by
-      rw [rademacherAverage_eq_expect_ciSup_sum_div]
+    have hres : (𝔼 σ : Fin m → Bool, ⨆ j, ∑ i, a' j i * signVal (σ i)) / m ≤ R := by
       refine (div_le_div_of_nonneg_right hch hm_pos.le).trans_eq ?_
       rw [mul_assoc, Real.mul_self_sqrt hm_pos.le, mul_div_cancel_right₀ _ hm_pos.ne']
-    have hint_nn : 0 ≤ ∫ ε in α..R, g ε :=
-      intervalIntegral.integral_nonneg hαR fun x _ => hg_nonneg x
-    rw [hshift]
-    calc rademacherAverage a'
-        ≤ R := hres
-      _ ≤ 4 * α := by linarith
-      _ ≤ 4 * α + 16 / Real.sqrt m * (∫ ε in α..R, g ε) :=
-          le_add_of_nonneg_right (mul_nonneg (by positivity) hint_nn)
+    exact hres.trans ((by linarith : R ≤ 4 * α).trans (le_add_of_nonneg_right hrest_nn))
 
 /-- **Truncated Dudley entropy integral for `empiricalRademacherComplexity`** [Dudley1967;
 Vershynin2018, Theorem 8.1.3] (locators unverified). For any class `F : Set (Z → ℝ)` lying within
@@ -665,6 +504,13 @@ theorem empiricalRademacherComplexity_le_dudley_integral {Z : Type*} {F : Set (Z
     (fun (f : F) i => (f : Z → ℝ) (S i)) (fun i => f₀ (S i)) hα hαR ha
   simpa only [hrange, empiricalCoveringNumber] using h
 
+/-- Absorb the residual `4 α` of a truncated Dudley bound by letting `α → 0⁺`. -/
+private theorem le_of_forall_four_mul_add {X Y R : ℝ} (hR : 0 < R)
+    (h : ∀ α, 0 < α → α ≤ R → X ≤ 4 * α + Y) : X ≤ Y := by
+  refine le_of_forall_pos_le_add fun δ hδ => ?_
+  have := h (min (δ / 4) R) (lt_min (by positivity) hR) (min_le_right _ _)
+  linarith [min_le_left (δ / 4) R]
+
 /-- **Full `[0, R]` Dudley entropy integral** [Dudley1967; Vershynin2018, Theorem 8.1.3]
 (locators unverified): when the metric entropy integrand `ε ↦ √(log N_2(F, S, ε))` is
 `IntervalIntegrable` on `0..R`, sending `α → 0⁺` removes the residual term `4 α`. -/
@@ -676,29 +522,11 @@ theorem empiricalRademacherComplexity_le_dudley_integral_zero {Z : Type*} {F : S
     empiricalRademacherComplexity F S ≤
       16 / Real.sqrt m *
         ∫ ε in (0 : ℝ)..R, Real.sqrt (Real.log (empiricalCoveringNumber F S ε).toNat) := by
-  let g : ℝ → ℝ := fun ε => Real.sqrt (Real.log (empiricalCoveringNumber F S ε).toNat)
-  refine le_of_forall_pos_le_add fun δ hδ => ?_
-  set α := min (δ / 4) R
-  have hα_pos : 0 < α := lt_min (by positivity) hR
-  have hαR : α ≤ R := min_le_right _ _
-  have h4α : 4 * α ≤ δ := by
-    have : α ≤ δ / 4 := min_le_left _ _
-    linarith
-  have h0α : 0 ≤ α := hα_pos.le
-  have hsplit := intervalIntegral.integral_add_adjacent_intervals
-    (hint.mono_set (Set.uIcc_subset_uIcc_left (Set.mem_uIcc.2 (Or.inl ⟨h0α, hαR⟩))))
-    (hint.mono_set (Set.uIcc_subset_uIcc_right (Set.mem_uIcc.2 (Or.inl ⟨h0α, hαR⟩))))
-  have hnonneg : 0 ≤ ∫ ε in (0 : ℝ)..α, g ε :=
-    intervalIntegral.integral_nonneg h0α fun _ _ => Real.sqrt_nonneg _
-  have hint_mono : ∫ ε in α..R, g ε ≤ ∫ ε in (0 : ℝ)..R, g ε := by
-    change (∫ ε in (0 : ℝ)..α, g ε) + ∫ ε in α..R, g ε = ∫ ε in (0 : ℝ)..R, g ε at hsplit
-    linarith
-  calc empiricalRademacherComplexity F S
-      ≤ 4 * α + 16 / Real.sqrt m * (∫ ε in α..R, g ε) :=
-        empiricalRademacherComplexity_le_dudley_integral hm S f₀ hα_pos hαR hF
-    _ ≤ δ + 16 / Real.sqrt m * (∫ ε in (0 : ℝ)..R, g ε) :=
-        add_le_add h4α (mul_le_mul_of_nonneg_left hint_mono (by positivity))
-    _ = 16 / Real.sqrt m * (∫ ε in (0 : ℝ)..R, g ε) + δ := add_comm _ _
+  refine le_of_forall_four_mul_add hR fun α hα hαR =>
+    (empiricalRademacherComplexity_le_dudley_integral hm S f₀ hα hαR hF).trans ?_
+  gcongr
+  exact intervalIntegral.integral_mono_interval hα.le hαR le_rfl
+    (Filter.Eventually.of_forall fun _ => Real.sqrt_nonneg _) hint
 
 /-- **Truncated Dudley entropy integral with an antitone upper bound `M` on the covering numbers**
 (handles arbitrary non-negative real-valued majorants `M : ℝ → ℝ`). -/
@@ -709,14 +537,10 @@ theorem empiricalRademacherComplexity_le_dudley_of_bound {Z : Type*} {F : Set (Z
     (hM : ∀ ε ∈ Set.Icc α R, ((empiricalCoveringNumber F S ε).toNat : ℝ) ≤ M ε) :
     empiricalRademacherComplexity F S ≤
       4 * α + 16 / Real.sqrt m * ∫ ε in α..R, Real.sqrt (Real.log (M ε)) := by
-  have hsub : empiricalL2Vec S '' F ⊆ Metric.closedBall (empiricalL2Vec S f₀) R := by
-    rintro _ ⟨f, hf, rfl⟩
-    exact Metric.mem_closedBall.2 (hF f hf)
-  have htb : TotallyBounded (empiricalL2Vec S '' F) :=
-    (isCompact_closedBall (empiricalL2Vec S f₀) R).totallyBounded.subset hsub
   have hint_emp : IntervalIntegrable
       (fun ε => Real.sqrt (Real.log (empiricalCoveringNumber F S ε).toNat)) volume α R :=
-    antitoneOn_intervalIntegrable (antitoneOn_sqrt_log_coveringNumber htb R) hα hαR le_rfl
+    antitoneOn_intervalIntegrable
+      (antitoneOn_sqrt_log_coveringNumber (totallyBounded_image_empiricalL2Vec hF) R) hα hαR le_rfl
   refine (empiricalRademacherComplexity_le_dudley_integral hm S f₀ hα hαR hF).trans ?_
   gcongr
   refine intervalIntegral.integral_mono_on hαR hint_emp hM_int fun ε hε => ?_
@@ -741,55 +565,24 @@ theorem empiricalRademacherComplexity_le_of_polynomial_covering {Z : Type*} {F :
     (hcov : ∀ ε ∈ Set.Ioc 0 R, ((empiricalCoveringNumber F S ε).toNat : ℝ) ≤ (C / ε) ^ d) :
     empiricalRademacherComplexity F S ≤
       16 * R * Real.sqrt (d * (1 + Real.log (C / R)) / m) := by
-  have hm_pos : (0 : ℝ) < m := Nat.cast_pos.2 hm
-  have hC_pos : 0 < C := lt_of_lt_of_le hR hRC
-  refine le_of_forall_pos_le_add fun δ hδ => ?_
-  set α := min (δ / 4) R
-  have hα_pos : 0 < α := lt_min (by positivity) hR
-  have hαR : α ≤ R := min_le_right _ _
-  have h4α : 4 * α ≤ δ := by
-    have : α ≤ δ / 4 := min_le_left _ _
-    linarith
-  have hM_eq (ε : ℝ) (hε : 0 < ε) :
+  have hC_pos : 0 < C := hR.trans_le hRC
+  have hM_eq (ε : ℝ) :
       Real.sqrt (Real.log ((C / ε) ^ d)) = Real.sqrt d * Real.sqrt (Real.log (C / ε)) := by
     rw [Real.log_pow, Real.sqrt_mul (Nat.cast_nonneg d)]
-  have hint_sqrt : IntervalIntegrable (fun ε => Real.sqrt (Real.log (C / ε))) volume α R :=
-    intervalIntegrable_sqrt_log_div hα_pos hαR hC_pos
-  have hint_M : IntervalIntegrable
-      (fun ε => Real.sqrt (Real.log ((C / ε) ^ d))) volume α R := by
-    refine (hint_sqrt.const_mul (Real.sqrt d)).congr ?_
-    intro ε hε
-    rw [Set.uIoc_of_le hαR] at hε
-    exact (hM_eq ε (lt_trans hα_pos hε.1)).symm
-  have hdud := empiricalRademacherComplexity_le_dudley_of_bound hm S f₀ hα_pos hαR hF hint_M
-    fun ε hε => hcov ε ⟨lt_of_lt_of_le hα_pos hε.1, hε.2⟩
-  have hint_eval : ∫ ε in α..R, Real.sqrt (Real.log ((C / ε) ^ d)) =
-      Real.sqrt d * ∫ ε in α..R, Real.sqrt (Real.log (C / ε)) := by
-    have hcongr : ∫ ε in α..R, Real.sqrt (Real.log ((C / ε) ^ d)) =
-        ∫ ε in α..R, Real.sqrt d * Real.sqrt (Real.log (C / ε)) :=
-      intervalIntegral.integral_congr fun ε hε => by
-        rw [Set.uIcc_of_le hαR] at hε
-        exact hM_eq ε (lt_of_lt_of_le hα_pos hε.1)
-    rw [hcongr, intervalIntegral.integral_const_mul]
-  have hbound_int := intervalIntegral_sqrt_log_div_le hα_pos hαR hRC
   have hlogR_nn : 0 ≤ 1 + Real.log (C / R) := by
-    have : 0 ≤ Real.log (C / R) := Real.log_nonneg ((one_le_div hR).2 hRC)
-    linarith
-  have hprod_eq : 16 / Real.sqrt m * (Real.sqrt d * (R * Real.sqrt (1 + Real.log (C / R)))) =
-      16 * R * Real.sqrt (d * (1 + Real.log (C / R)) / m) := by
-    rw [Real.sqrt_div (mul_nonneg (Nat.cast_nonneg d) hlogR_nn),
-      Real.sqrt_mul (Nat.cast_nonneg d)]
-    ring
-  calc empiricalRademacherComplexity F S
-      ≤ 4 * α + 16 / Real.sqrt m * ∫ ε in α..R, Real.sqrt (Real.log ((C / ε) ^ d)) := hdud
-    _ = 4 * α + 16 / Real.sqrt m * (Real.sqrt d * ∫ ε in α..R, Real.sqrt (Real.log (C / ε))) := by
-        rw [hint_eval]
-    _ ≤ δ + 16 / Real.sqrt m * (Real.sqrt d * (R * Real.sqrt (1 + Real.log (C / R)))) := by
-        refine add_le_add h4α ?_
-        exact mul_le_mul_of_nonneg_left
-          (mul_le_mul_of_nonneg_left hbound_int (Real.sqrt_nonneg _)) (by positivity)
-    _ = 16 * R * Real.sqrt (d * (1 + Real.log (C / R)) / m) + δ := by
-        rw [hprod_eq, add_comm]
+    linarith [Real.log_nonneg ((one_le_div hR).2 hRC)]
+  refine le_of_forall_four_mul_add hR fun α hα hαR => ?_
+  have hdud := empiricalRademacherComplexity_le_dudley_of_bound hm S f₀ hα hαR hF
+    (M := fun ε => (C / ε) ^ d) (by
+      simpa only [hM_eq] using (intervalIntegrable_sqrt_log_div hα hαR hC_pos).const_mul _)
+    fun ε hε => hcov ε ⟨hα.trans_le hε.1, hε.2⟩
+  simp only [hM_eq, intervalIntegral.integral_const_mul] at hdud
+  refine hdud.trans ?_
+  rw [show 16 * R * Real.sqrt (d * (1 + Real.log (C / R)) / m) =
+      16 / Real.sqrt m * (Real.sqrt d * (R * Real.sqrt (1 + Real.log (C / R)))) by
+    rw [Real.sqrt_div (by positivity), Real.sqrt_mul (Nat.cast_nonneg d)]; ring]
+  gcongr
+  exact intervalIntegral_sqrt_log_div_le hα hαR hRC
 
 /-! ### Application 1: Lipschitz parametric classes on finite-dimensional normed spaces -/
 
@@ -861,16 +654,9 @@ theorem empiricalRademacherComplexity_lipschitz_ball_le {Z : Type*} {m : ℕ} (S
   rcases eq_or_lt_of_le hL with rfl | hL_pos
   · -- `L = 0`: every `f ∈ Φ '' Θ` equals `Φ θ₁` on `S`, so empirical Rademacher complexity is `0`.
     have hconst (θ : E) (hθ : θ ∈ Θ) (i : Fin m) : Φ θ (S i) = Φ θ₁ (S i) := by
-      have hd : dist (empiricalL2Vec S (Φ θ)) (empiricalL2Vec S (Φ θ₁)) = 0 :=
-        le_antisymm (by simpa using hΦ θ (hΘ hθ) θ₁ (hΘ hθ₁)) dist_nonneg
-      have hsq : (∑ k, (Φ θ (S k) - Φ θ₁ (S k)) ^ 2) / m = 0 := by
-        rw [← dist_sq_empiricalL2Vec hm, hd, sq, zero_mul]
-      have hsum : ∑ k : Fin m, (Φ θ (S k) - Φ θ₁ (S k)) ^ 2 = 0 := by
-        have hm0 : (m : ℝ) ≠ 0 := Nat.cast_ne_zero.2 hm.ne'
-        rwa [div_eq_zero_iff, or_iff_left hm0] at hsq
-      have hsqi := (sum_eq_zero_iff_of_nonneg fun k _ => sq_nonneg (Φ θ (S k) - Φ θ₁ (S k))).1
-        hsum i (mem_univ i)
-      linarith [sq_eq_zero_iff.1 hsqi]
+      have hd := congrArg (fun v : EuclideanSpace ℝ (Fin m) => v.ofLp i)
+        (dist_le_zero.1 (by simpa using hΦ θ (hΘ hθ) θ₁ (hΘ hθ₁)))
+      simpa [empiricalL2Vec, div_left_inj₀ (Real.sqrt_pos.2 (Nat.cast_pos.2 hm)).ne'] using hd
     have huniq : rademacherAverage (fun f : ↥(Φ '' Θ) => fun i => (f : Z → ℝ) (S i)) =
         rademacherAverage (fun _ : Unit => fun i => Φ θ₁ (S i)) := by
       refine rademacherAverage_eq_of_forall_exists (B := ⨆ i : Fin m, |Φ θ₁ (S i)|) ?_ ?_ ?_ ?_
@@ -888,19 +674,9 @@ theorem empiricalRademacherComplexity_lipschitz_ball_le {Z : Type*} {m : ℕ} (S
     simp
   rcases eq_or_lt_of_le hr with rfl | hr_pos
   · -- `r = 0`: `closedBall θ₀ 0 = {θ₀}`, so `Φ '' Θ` is a singleton `{Φ θ₀}`.
-    have hsub : Φ '' Θ = {Φ θ₀} := by
-      ext f
-      simp only [Set.mem_image, Set.mem_singleton_iff]
-      constructor
-      · rintro ⟨θ, hθ, rfl⟩
-        have hθeq : θ = θ₀ := by
-          have := hΘ hθ; rw [Metric.closedBall_zero] at this; exact this
-        rw [hθeq]
-      · rintro rfl
-        have hθ₁eq : θ₁ = θ₀ := by
-          have := hΘ hθ₁; rw [Metric.closedBall_zero] at this; exact this
-        exact ⟨θ₀, hθ₁eq ▸ hθ₁, rfl⟩
-    rw [hsub, empiricalRademacherComplexity_singleton]
+    rw [Metric.closedBall_zero] at hΘ
+    rw [(Set.nonempty_of_mem hθ₁).subset_singleton_iff.1 hΘ, Set.image_singleton,
+      empiricalRademacherComplexity_singleton]
     simp
   -- General case: `R = L * r > 0`, `C = 3 * L * r`.
   have hR_pos : 0 < L * r := mul_pos hL_pos hr_pos
@@ -991,16 +767,10 @@ theorem empiricalCoveringNumber_bitClass_le_of_vcDim {α : Type*} {C : ConceptCl
     ((empiricalCoveringNumber (bitClass C) S ε).toNat : ℝ) ≤
       (Real.sqrt 8 / ε) ^ (4 * d) := by
   classical
-  have hone_le : (1 : ℝ) ≤ (Real.sqrt 8 / ε) ^ (4 * d) := by
-    refine one_le_pow₀ ((one_le_div hε).2 ?_)
-    have : (1 : ℝ) ≤ Real.sqrt 8 := by
-      rw [← Real.sqrt_one]
-      exact Real.sqrt_le_sqrt (by norm_num)
-    linarith
+  have hone_le : (1 : ℝ) ≤ (Real.sqrt 8 / ε) ^ (4 * d) :=
+    one_le_pow₀ ((one_le_div hε).2 (hε1.trans (Real.one_le_sqrt.2 (by norm_num))))
   have hpow_eq : (Real.sqrt 8 / ε) ^ (4 * d) = (8 / ε ^ 2) ^ (2 * d) := by
-    calc (Real.sqrt 8 / ε) ^ (4 * d)
-        = ((Real.sqrt 8 / ε) ^ 2) ^ (2 * d) := by rw [← pow_mul]; ring_nf
-      _ = (8 / ε ^ 2) ^ (2 * d) := by rw [div_pow, Real.sq_sqrt (by norm_num)]
+    rw [show 4 * d = 2 * (2 * d) by ring, pow_mul, div_pow, Real.sq_sqrt (by norm_num)]
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · have hle1 : empiricalCoveringNumber (bitClass C) S ε ≤ 1 :=
       coveringNumber_le_one_of_subset_closedBall (x₀ := 0) fun v _ => by
@@ -1021,60 +791,41 @@ theorem empiricalCoveringNumber_bitClass_le_of_vcDim {α : Type*} {C : ConceptCl
       obtain ⟨f, hf, hfv⟩ := hP v hv
       obtain ⟨c, hc, rfl⟩ := mem_bitClass.1 hf
       exact ⟨c, hc, hfv⟩
-    let toWord : EuclideanSpace ℝ (Fin m) → (Fin m → Bool) := fun v =>
-      if hv : v ∈ P then fun i => Classical.choose (hpick v hv) (S i) else fun _ => false
-    have htoWord_eq (v : EuclideanSpace ℝ (Fin m)) (hv : v ∈ P) :
-        toWord v = fun i => Classical.choose (hpick v hv) (S i) :=
-      dite_eq_left_of_eq_true (eq_true hv)
-    have hvec_eq (v : EuclideanSpace ℝ (Fin m)) (hv : v ∈ P) :
-        empiricalL2Vec S (fun x => bitVal ℝ (Classical.choose (hpick v hv) x)) = v :=
-      (Classical.choose_spec (hpick v hv)).2
+    choose! c hcC hcv using hpick
+    let toWord : EuclideanSpace ℝ (Fin m) → (Fin m → Bool) := fun v i => c v (S i)
     have hdist_ham (v : EuclideanSpace ℝ (Fin m)) (hv : v ∈ P)
         (w : EuclideanSpace ℝ (Fin m)) (hw : w ∈ P) :
         dist v w ^ 2 = (hammingDist (toWord v) (toWord w) : ℝ) / m := by
       calc dist v w ^ 2
-          = dist (empiricalL2Vec S (fun x => bitVal ℝ (Classical.choose (hpick v hv) x)))
-              (empiricalL2Vec S (fun x => bitVal ℝ (Classical.choose (hpick w hw) x))) ^ 2 := by
-            rw [hvec_eq v hv, hvec_eq w hw]
-        _ = (∑ i : Fin m, (bitVal ℝ (Classical.choose (hpick v hv) (S i)) -
-              bitVal ℝ (Classical.choose (hpick w hw) (S i))) ^ 2) / m :=
-            dist_sq_empiricalL2Vec hm S _ _
-        _ = (∑ i : Fin m, if toWord v i ≠ toWord w i then (1 : ℝ) else 0) / m := by
+          = (∑ i : Fin m, if toWord v i ≠ toWord w i then (1 : ℝ) else 0) / m := by
+            conv_lhs => rw [← hcv v hv, ← hcv w hw]
+            rw [dist_sq_empiricalL2Vec hm]
             congr 1
             refine sum_congr rfl fun i _ => ?_
-            rw [htoWord_eq v hv, htoWord_eq w hw]
-            have hbit : ∀ b₁ b₂ : Bool,
+            have hbit (b₁ b₂ : Bool) :
                 (bitVal ℝ b₁ - bitVal ℝ b₂) ^ 2 = if b₁ ≠ b₂ then (1 : ℝ) else 0 := by
-              intro b₁ b₂; cases b₁ <;> cases b₂ <;> norm_num [bitVal]
+              cases b₁ <;> cases b₂ <;> norm_num [bitVal]
             exact hbit _ _
         _ = (hammingDist (toWord v) (toWord w) : ℝ) / m := by
             rw [sum_boole]; rfl
-    have hinj : Set.InjOn toWord (P : Set (EuclideanSpace ℝ (Fin m))) := by
-      intro v hv w hw hvw
-      by_contra hne
-      have h0 : dist v w ^ 2 = 0 := by rw [hdist_ham v hv w hw, hvw, hammingDist_self]; simp
-      have hlt : 0 < dist v w := lt_trans hε (hsep v hv w hw hne)
-      have hpos : 0 < dist v w ^ 2 := sq_pos_of_pos hlt
-      linarith
+    have hinj : Set.InjOn toWord (P : Set (EuclideanSpace ℝ (Fin m))) := fun v hv w hw hvw => by
+      simpa [hvw] using hdist_ham v hv w hw
     let Q : Finset (Fin m → Bool) := P.image toWord
-    have hQcard : Q.card = P.card := card_image_of_injOn hinj
     have hQC : ∀ u ∈ Q, u ∈ restriction C S := by
       intro u hu
       obtain ⟨v, hv, rfl⟩ := mem_image.1 hu
-      refine mem_restriction.2 ⟨Classical.choose (hpick v hv),
-        (Classical.choose_spec (hpick v hv)).1, fun i => ?_⟩
-      simp [htoWord_eq v hv]
+      exact mem_restriction.2 ⟨c v, hcC v hv, fun i => rfl⟩
     have hQsep : ∀ u ∈ Q, ∀ u' ∈ Q, u ≠ u' → ε ^ 2 * m ≤ hammingDist u u' := by
       intro u hu u' hu' hne
       obtain ⟨v, hv, rfl⟩ := mem_image.1 hu
       obtain ⟨w, hw, rfl⟩ := mem_image.1 hu'
-      have hvw : v ≠ w := fun h => hne (congrArg toWord h)
-      have hd : ε ^ 2 < dist v w ^ 2 := by gcongr; exact hsep v hv w hw hvw
+      have hd : ε ^ 2 < dist v w ^ 2 := by
+        gcongr; exact hsep v hv w hw fun h => hne (congrArg toWord h)
       rw [hdist_ham v hv w hw, lt_div_iff₀ hm_pos] at hd
       exact hd.le
     have hε2_pos : 0 < ε ^ 2 := sq_pos_of_pos hε
     have hε2_le1 : ε ^ 2 ≤ 1 := by nlinarith
-    rw [← hQcard]
+    rw [← card_image_of_injOn hinj]
     exact card_le_div_pow_of_le_hammingDist hC hQC hε2_pos hε2_le1 hQsep
   have hpack_le : packingNumber (empiricalL2Vec S '' bitClass C) ε ≤
       ⌊(8 / ε ^ 2) ^ (2 * d)⌋₊ :=

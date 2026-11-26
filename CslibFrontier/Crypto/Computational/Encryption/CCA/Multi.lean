@@ -380,10 +380,8 @@ theorem eval_cca2MultiHybridGameOn_of_le {Msg Out : Type}
     ProbComp.eval (cca2MultiHybridGameOn valid encOut keyGen encrypt decrypt adversary split n) =
       ProbComp.eval (cca2MultiGameOn valid encOut keyGen encrypt decrypt adversary true n) := by
   simp only [cca2MultiHybridGameOn, cca2MultiHybridCont, cca2MultiGameOn, ProbComp.eval_bind]
-  apply PMF.bind_congr_on_support
-  intro keys hkeys
-  apply PMF.bind_congr_on_support
-  rintro ⟨⟨challenges, stateA⟩, ⟨⟩⟩ hchoice
+  refine PMF.bind_congr_on_support _ _ _ fun keys hkeys =>
+    PMF.bind_congr_on_support _ _ _ fun ⟨⟨challenges, stateA⟩, ⟨⟩⟩ hchoice => ?_
   have hle := hbound keys hkeys challenges stateA hchoice
   simp [List.take_of_length_le hle, List.drop_eq_nil_of_le hle]
 
@@ -581,9 +579,7 @@ theorem isQueryBounded_cca2MultiToSingle {Msg : Type} [Inhabited Msg]
     (cca2MultiToSingle valid encrypt decBound Q adversary).IsQueryBounded Q₁ Q₂ := by
   have hat := isQueryBounded_cca2MultiToSingleAt valid encrypt decBound hQ
   refine ⟨fun n pk => ?_, fun n state ct => (hat 0).2 n state ct⟩
-  unfold cca2MultiToSingle
-  dsimp only
-  simpa only [Nat.zero_add] using
+  simpa only [cca2MultiToSingle, Nat.zero_add] using
     (ProbOracleComp.IsQueryBounded.sample (ProbComp.sampleDyadicIndex (Q n))).bind
       fun split => (hat split).1 n pk
 
@@ -605,10 +601,7 @@ theorem eval_cca2GameOn_cca2MultiToSingle {Msg Out : Type} [Inhabited Msg]
           ProbComp.eval
             (cca2GameOn valid encOut keyGen encrypt decrypt
               (cca2MultiToSingleAt valid encrypt decBound adversary i.val) bit n)) := by
-  have hguess (i : ℕ) :
-      (cca2MultiToSingleAt valid encrypt decBound adversary i).guess =
-        (cca2MultiToSingleAt valid encrypt decBound adversary 0).guess := rfl
-  simp only [cca2GameOn, cca2MultiToSingle, ProbComp.eval_sampleDyadicIndex, hguess,
+  simp only [cca2GameOn, cca2MultiToSingle, ProbComp.eval_sampleDyadicIndex,
     runWith_norm, pmf_norm]
   exact PMF.bind_comm _ _ _
 
@@ -672,12 +665,10 @@ private theorem eval_cca2GameOn_cca2MultiToSingleAt {Msg Out : Type} [Inhabited 
     · simp only [↓reduceIte, cca2MultiHybridCont, ProbComp.eval_bind]
       rw [List.take_add_one, List.getElem?_eq_getElem hlt, Option.toList_some, ← htarget_eq,
         List.mapM_append, List.mapM_cons, List.mapM_nil]
-      simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+      simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind,
+        List.append_assoc, List.singleton_append]
       congr 1 with ctsFront : 1
-      rw [PMF.bind_comm]
-      congr 1 with ct : 1
-      congr 1 with ctsBack : 1
-      rw [List.append_assoc, List.singleton_append]
+      exact PMF.bind_comm _ _ _
   · simp only [hcond, Bool.false_eq_true, ↓reduceIte, ChoiceOut.msg₀, ChoiceOut.msg₁,
       ChoiceOut.state, ChoiceOut.msgs, OracleComp.interpret_pure, StateT.run_pure,
       ProbComp.eval_pure, PMF.pure_bind, decode_rejectMultiCCA2State]
@@ -735,10 +726,9 @@ theorem cca2MultiHybridGameOn_step_gap {Msg Out : Type} [Inhabited Msg]
     · by_cases hlt : split < challenges.length
       · simp [hall, decide_eq_true hlt, add_comm]
       · have hle : challenges.length ≤ split := Nat.le_of_not_lt hlt
-        have hle1 : challenges.length ≤ split + 1 := Nat.le_add_right_of_le hle
-        simp [hall, decide_eq_false hlt, cca2MultiHybridCont,
-          List.take_of_length_le hle, List.take_of_length_le hle1,
-          List.drop_eq_nil_of_le hle, List.drop_eq_nil_of_le hle1]
+        simp [hall, decide_eq_false hlt, cca2MultiHybridCont, List.take_of_length_le hle,
+          List.take_of_length_le (Nat.le_add_right_of_le hle), List.drop_eq_nil_of_le hle,
+          List.drop_eq_nil_of_le (Nat.le_add_right_of_le hle)]
     · simp [hall, ProbComp.eval_pure]
   have hreal := congrArg ENNReal.toReal hadd
   rw [ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _),
@@ -782,28 +772,15 @@ theorem cca2MultiGameOn_gap {Msg Out : Type} [Inhabited Msg]
             (cca2GameOn valid encOut keyGen encrypt decrypt
               (cca2MultiToSingle valid encrypt decBound Q adversary) true n))) := by
   have : NeZero (dyadicSize (Q n)) := ⟨(dyadicSize_pos (Q n)).ne'⟩
-  have h0 := eval_cca2MultiHybridGameOn_zero valid encOut keyGen encrypt decrypt adversary n
   have htop := eval_cca2MultiHybridGameOn_of_le valid encOut keyGen encrypt decrypt adversary
     (dyadicSize (Q n)) n fun keys hkeys challenges stateA hchoice =>
       (hQ keys hkeys challenges stateA hchoice).trans (Nat.le_of_lt (lt_dyadicSize (Q n)))
-  have hred := Game.succProbability_hybrid_reduction
-    (games := fun split =>
-      ProbComp.eval (cca2MultiHybridGameOn valid encOut keyGen encrypt decrypt adversary split n))
-    (game1 := fun split =>
-      ProbComp.eval
-        (cca2GameOn valid encOut keyGen encrypt decrypt
-          (cca2MultiToSingleAt valid encrypt decBound adversary split) false n))
-    (game2 := fun split =>
-      ProbComp.eval
-        (cca2GameOn valid encOut keyGen encrypt decrypt
-          (cca2MultiToSingleAt valid encrypt decBound adversary split) true n))
-    (dyadicSize (Q n)) (dyadicSize (Q n)) le_rfl 1
-    (fun split _ => by
-      rw [one_mul]
-      exact cca2MultiHybridGameOn_step_gap valid encOut keyGen encrypt decrypt decBound adversary
-        split n hdecBound)
-  rw [← h0, ← htop, hred, mul_one, eval_cca2GameOn_cca2MultiToSingle,
-    eval_cca2GameOn_cca2MultiToSingle]
+  have hred := Game.succProbability_hybrid_reduction _ _ _
+    (dyadicSize (Q n)) (dyadicSize (Q n)) le_rfl 1 fun split _ =>
+      (cca2MultiHybridGameOn_step_gap valid encOut keyGen encrypt decrypt decBound adversary
+        split n hdecBound).trans (one_mul _).symm
+  rw [← eval_cca2MultiHybridGameOn_zero valid encOut keyGen encrypt decrypt adversary n, ← htop,
+    hred, mul_one, eval_cca2GameOn_cca2MultiToSingle, eval_cca2GameOn_cca2MultiToSingle]
   simp only [Fin.is_lt, ↓reduceIte]
 
 /-- Hybrid advantage identity for batch-challenge multi-challenge CCA, a step toward

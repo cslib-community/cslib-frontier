@@ -58,18 +58,14 @@ private theorem shortLength_of_return (f : BitString n → BitString n) (z : Bit
 
 private theorem shortLength_of_no_return (f : BitString n → BitString n) (z : BitString n)
     (hr : ¬ ∃ j : Fin K, f^[j.val + 1] z = z) : shortLength (w := w) f K z = 0 := by
-  have hz (i : Fin (K + 1)) : decide (0 < i.rev.val ∧ f^[i.rev.val] z = z) = false := by
-    apply decide_eq_false
-    rintro ⟨hp, he⟩
-    obtain ⟨j, hj⟩ := Nat.exists_eq_succ_of_ne_zero hp.ne'
-    refine hr ⟨⟨j, by have := i.rev.isLt; lia⟩, ?_⟩
-    change f^[j + 1] z = z
-    simpa only [hj, Nat.succ_eq_add_one] using he
+  have hz (i : Fin (K + 1)) : decide (0 < i.rev.val ∧ f^[i.rev.val] z = z) = false :=
+    decide_eq_false fun ⟨hp, he⟩ =>
+      let ⟨j, hj⟩ := Nat.exists_eq_succ_of_ne_zero hp.ne'
+      hr ⟨⟨j, by omega⟩, hj ▸ he⟩
   unfold shortLength firstIndex chooseFirst
-  rw [chooseRecord_of_forall_eq_false _ _ _ hz]
-  have he : (fun _ : Fin w => false) = (fun i : Fin w => (0 : BitVec w).getLsbD i.val) :=
+  have he : (fun _ : Fin w => false) = fun i => (0 : BitVec w).getLsbD i.val :=
     funext fun _ => BitVec.getLsbD_zero.symm
-  rw [he, BitString.equivBitVec_getLsbD]
+  rw [chooseRecord_of_forall_eq_false _ _ _ hz, he, BitString.equivBitVec_getLsbD]
 
 private theorem synthesis_time_lt (s : Set (BooleanFunction a)) (bits : BitString a → BitString m)
     (hb : wires bits ⊆ s) (hc : ∀ b : Bool, (fun _ : BitString a => b) ∈ s) (K : ℕ) :
@@ -93,14 +89,9 @@ private theorem liveShortReady_iff (f : BitString n → BitString n) (x : BitStr
   simp only [LiveShortReady, Bool.or_eq_true, Bool.not_eq_true', decide_eq_true_eq,
     decide_eq_false_iff_not]
   by_cases hr : ∃ j : Fin K, f^[j.val + 1] (f^[K] x) = f^[K] x
-  · have hp := (shortLength_of_return f _ hKw hr).1
-    have hn : shortLength (w := w) f K (f^[K] x) ≠ 0 := by
-      intro h
-      rw [h] at hp
-      exact (Nat.lt_irrefl 0) hp
-    exact ⟨fun _ => Or.inr hr, fun _ => Or.inr hn⟩
-  · rw [shortLength_of_no_return f _ hr]
-    simp only [not_true_eq_false, or_false, hr]
+  · exact ⟨fun _ => .inr hr, fun _ => .inr fun h => by
+      simpa [h] using (shortLength_of_return f _ hKw hr).1⟩
+  · simp only [shortLength_of_no_return f _ hr, not_true_eq_false, or_false, hr]
 
 private theorem liveShortValue (f : BitString n → BitString n) (x : BitString n)
     (bits : BitString m) (hK : 0 < K) (hw : 2 * K ≤ 2 ^ w)
@@ -111,25 +102,27 @@ private theorem liveShortValue (f : BitString n → BitString n) (x : BitString 
       f^[(BitString.equivBitVec bits).toNat] x := by
   let t := (BitString.equivBitVec bits).toNat
   let d := shortLength (w := w) f K (f^[K] x)
-  let index := periodicTimeIndex K d bits (decide ((BitString.equivBitVec bits).toNat < K))
+  let index := periodicTimeIndex K d bits (decide (t < K))
   have hKw : K < 2 ^ w := by lia
   change selectBits index _ = f^[t] x
   by_cases ht : t < K
   · have he : index.toNat = t := by
-      simp only [index, periodicTimeIndex, show (BitString.equivBitVec bits).toNat < K from ht,
-        decide_true, ↓reduceIte, BitVec.toNat_setWidth, Nat.mod_eq_of_lt (ht.trans hKw), t]
-    rw [selectBits_of_toNat_lt _ _ (by rw [he]; lia)]
-    exact congrArg (fun j => f^[j] x) he
+      simp [index, periodicTimeIndex, ht, Nat.mod_eq_of_lt (ht.trans hKw), t]
+    rw [selectBits_of_toNat_lt _ _ (by lia)]
+    exact congrArg (f^[·] x) he
   · obtain ⟨hp, hpK, hret⟩ := shortLength_of_return f _ hKw (hready.resolve_left ht)
     have he : index.toNat = K + (t - K) % d.toNat := by
-      change (periodicTimeIndex K d bits (decide (t < K))).toNat = _
-      rw [decide_eq_false ht]
-      exact toNat_periodicTimeIndex_long K d bits (le_of_not_gt ht) hp (by lia) (by lia)
-    rw [selectBits_of_toNat_lt _ _ (by rw [he]; have := Nat.mod_lt (t - K) hp; lia)]
+      simpa only [index, decide_eq_false ht] using
+        toNat_periodicTimeIndex_long K d bits (le_of_not_gt ht) hp
+          (by lia)
+          (by lia)
+    have hlt : index.toNat < 2 * K := by
+      have := Nat.mod_lt (t - K) hp
+      lia
+    rw [selectBits_of_toNat_lt _ _ hlt]
     change f^[index.toNat] x = f^[t] x
-    rw [he, Nat.add_comm K, iterate_add_apply]
-    have hperiod : IsPeriodicPt f d.toNat (f^[K] x) := hret
-    rw [hperiod.iterate_mod_apply, ← iterate_add_apply, Nat.sub_add_cancel (le_of_not_gt ht)]
+    rw [he, Nat.add_comm K, iterate_add_apply, IsPeriodicPt.iterate_mod_apply hret,
+      ← iterate_add_apply, Nat.sub_add_cancel (le_of_not_gt ht)]
 
 /-- A joint circuit returns a ready bit followed by `n` state bits. Whenever the time is below
 `K` or the orbit returns from its `K`-th state within `K` steps, the state bits give the input-time
@@ -163,42 +156,48 @@ theorem live_short_circuit (c : Circuit signature n n) (m K : ℕ) (hK : 0 < K)
   let src : Set (BooleanFunction (n + m)) := inputs (n + m)
   have hx (i : Fin n) : (fun y => x y i) ∈ src := ⟨Fin.castAdd m i, rfl⟩
   have hb : wires bits ⊆ src := fun _ ⟨i, h⟩ => h ▸ ⟨Fin.natAdd n i, rfl⟩
-  let b := Synthesis.Builder.start interpretation src
-  let b := b.add (Synthesis.const false)
-  let b := b.add (Synthesis.const true)
+  let b := ((Synthesis.Builder.start interpretation src).add
+    (Synthesis.const false)).add (Synthesis.const true)
   have hc (v : Bool) : (fun _ : BitString (n + m) => v) ∈ b.wires := by
     cases v <;> synthesis_available
-  let trace := Synthesis.stages (fun j => wires fun y => f^[j] (x y)) (2 * K)
-  have htrace : Synthesis interpretation b.wires trace (2 * K * c.size) :=
-    Synthesis.orbit c x (fun i => by synthesis_available) (2 * K)
-  let b := b.add htrace
+  let b := b.add (Synthesis.orbit c x (fun _ => by synthesis_available) (2 * K))
   have hs (j : ℕ) (hj : j ≤ 2 * K) (i : Fin n) : (fun y => f^[j] (x y) i) ∈ b.wires :=
     Or.inr (Synthesis.subset_stages _ hj ⟨i, rfl⟩)
   have hlast (j : Fin (K + 1)) (i : Fin n) : (fun y => f^[j.val] (last y) i) ∈ b.wires := by
-    simpa only [last, ← iterate_add_apply] using hs (j.val + K) (by have := j.isLt; lia) i
+    simpa only [last, ← iterate_add_apply] using hs (j.val + K) (by omega) i
   let b := b.add (synthesis_shortLength (w := w) b.wires f last K hlast
-    (fun q => by synthesis_available))
+    (fun _ => by synthesis_available))
   let b := b.add (synthesis_time_lt b.wires bits (by synthesis_available)
-    (fun q => by synthesis_available) K)
-  let b := b.add (Synthesis.word_eq_const period (fun i => by synthesis_available) 0)
+    (fun _ => by synthesis_available) K)
+  let b := b.add (Synthesis.word_eq_const period (fun _ => by synthesis_available) 0)
   let b := b.add ((Synthesis.of_mem (I := interpretation) (s := b.wires)
     (show (fun y => decide (period y = 0)) ∈ b.wires by synthesis_available)).not)
   let b := b.add ((Synthesis.of_mem (I := interpretation) (s := b.wires)
     (show short ∈ b.wires by synthesis_available)).or
     (Synthesis.of_mem (show (fun y => !decide (period y = 0)) ∈ b.wires by synthesis_available)))
-  let b := b.add (synthesis_periodicTimeIndex b.wires K period bits short (by synthesis_available)
-    (fun i => by synthesis_available) (fun v => by synthesis_available) (by synthesis_available))
-  let b := b.add (Synthesis.selectBits index rows (fun i => by synthesis_available)
-    (fun j i => by
+  let b := b.add (synthesis_periodicTimeIndex b.wires K period bits short
+    (by synthesis_available)
+    (fun _ => by synthesis_available)
+    (fun _ => by synthesis_available)
+    (by synthesis_available))
+  let b := b.add (Synthesis.selectBits index rows
+    (fun _ => by synthesis_available)
+    fun j i => by
       have h := hs j.val j.isLt.le i
-      synthesis_available))
+      synthesis_available)
   have hpack : wires packed ⊆ b.wires := by
     rintro _ ⟨i, rfl⟩
     induction i using Fin.addCases with
-    | left i => simp only [packed, Fin.append_left]; synthesis_available
-    | right i => simp only [packed, Fin.append_right]; synthesis_available
-  have hw : 2 * K ≤ 2 ^ w := by dsimp [w]; rw [pow_add]; norm_num; lia
-  have hKw : K < 2 ^ w := by lia
+    | left =>
+      simp only [packed, Fin.append_left]
+      synthesis_available
+    | right =>
+      simp only [packed, Fin.append_right]
+      synthesis_available
+  have hw : 2 * K ≤ 2 ^ w := by
+    change 2 * K ≤ 2 ^ (n + 2)
+    rw [pow_add]
+    omega
   obtain ⟨out, he, hsize⟩ := (b.finish hpack (k := 2 * K * c.size +
     1200 * (K + 1) * (n + 1) ^ 2 + 100 * (m + 1) * (n + 1)) (by
       dsimp +zetaDelta [Synthesis.Builder.start, Synthesis.Builder.add]
@@ -206,7 +205,7 @@ theorem live_short_circuit (c : Circuit signature n n) (m K : ℕ) (hK : 0 < K)
       lia)).exists_circuit_outputs
   refine ⟨out, fun y => ?_, hsize⟩
   simp only [he y, packed, Fin.append_left, Fin.append_right]
-  exact ⟨liveShortReady_iff (w := w) f (x y) (t y) hKw,
-    fun hr => liveShortValue f (x y) (bits y) hK hw hr⟩
+  exact ⟨liveShortReady_iff (w := w) f (x y) (t y) (by lia),
+    liveShortValue f (x y) (bits y) hK hw⟩
 
 end Cslib.Circuits.Boolean.Iteration

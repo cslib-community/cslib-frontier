@@ -70,7 +70,6 @@ theorem isPPTOn_publicKeyGame (bit : Bool) :
     apply ComputableInPolyTime.prod (hn.comp houter)
     apply ComputableInPolyTime.prod (hfirst.comp houter)
     cases bit <;> dsimp only [baseEncoding, choiceEncoding, encPublicKey] <;> fun_prop
-  have hcipher := hencrypt.preprocess hencryptArg
   have hguessArg : ComputableInPolyTime
       (fun p : ((ℕ × (List (List Bool) × List (List (List Bool)))) ×
         ((Bool × Bool) × List Bool)) × List Bool =>
@@ -78,14 +77,14 @@ theorem isPPTOn_publicKeyGame (bit : Bool) :
       (encPair encUnary (encPair encBits encBits)) := by
     dsimp only [baseEncoding, choiceEncoding, encPublicKey]
     fun_prop
-  have hlast := hadversary.guess.preprocess hguessArg
-  have hbody := hcipher.bind_with
-    (second := fun p ciphertext => adversary.guess p.1.1 p.2.2 (false :: ciphertext)) hlast
   simpa only [publicKeyGame, baseEncoding, choiceEncoding, Function.comp_def] using
     hchoose.bind_with (second := fun p choice => do
       let ciphertext ← E.encrypt p.1 (p.2.1.getD 0 [])
         (if bit then choice.1.2 else choice.1.1)
-      adversary.guess p.1 choice.2 (false :: ciphertext)) hbody
+      adversary.guess p.1 choice.2 (false :: ciphertext))
+      ((hencrypt.preprocess hencryptArg).bind_with
+        (second := fun p ciphertext => adversary.guess p.1.1 p.2.2 (false :: ciphertext))
+        (hadversary.guess.preprocess hguessArg))
 
 /-- The all-zero simulation is strict PPT with the parameter, complete input public key and
 saved state charged. The supported-width hypothesis is needed only for the semantic proof. -/
@@ -93,8 +92,6 @@ theorem isPPT_zeroLinkAdversary
     (hkeyGen : IsPPTOn encUnary (encPair encBits encBits) E.keyGen)
     {depth : ℕ → ℕ} (hdepth : ComputableInPolyTime depth encUnary encUnary) :
     (zeroLinkAdversary E depth adversary).IsPPT := by
-  have hchoose := hadversary.choose
-  have hguess := hadversary.guess
   constructor
   · change IsPPTOn (encPair encUnary encBits) (encPair (encPair encBool encBool) encBits)
       (fun p => (zeroLinkAdversary E depth adversary).choose p.1 p.2)
@@ -116,7 +113,7 @@ theorem isPPT_zeroLinkAdversary
           (encList (encList encBits))) encPublicKey := by
       unfold encPublicKey
       fun_prop
-    exact hchoose.on.preprocess
+    exact hadversary.choose.on.preprocess
       (((ComputableInPolyTime.fst _ _).fst'.fst').prod (hpublic.of_enc_eq fun _ => rfl))
   · change IsPPTOn (encPair encUnary (encPair encBits encBits)) encBool
       (fun p => adversary.guess p.1 p.2.1 (false :: p.2.2))
@@ -168,12 +165,10 @@ theorem isPPT_leveledAdversary
           (hdepth.comp (by fun_prop)) (by fun_prop)).bind_with
         apply (isPPTOn_sampleDyadicCoin
           (hcapacity.comp (by fun_prop)) (by fun_prop)).bind_with
-        apply IsPPTOn.cond (by polytime)
-        · apply IsPPTOn.cond (by polytime)
-          · exact (hzero.choose.on.preprocess (by fun_prop)).map
-              (computableInPolyTime_tagLeveledChoice true false)
-          · exact (ComputableInPolyTime.const rejectLeveledChoice).isPPTOn
-        · exact (ComputableInPolyTime.const rejectLeveledChoice).isPPTOn
+        refine .cond (by polytime) ?_ (ComputableInPolyTime.const rejectLeveledChoice).isPPTOn
+        refine .cond (by polytime) ?_ (ComputableInPolyTime.const rejectLeveledChoice).isPPTOn
+        exact (hzero.choose.on.preprocess (by fun_prop)).map
+          (computableInPolyTime_tagLeveledChoice true false)
     · apply IsPPTOn.cond (by fun_prop)
       · exact (hlinkTrue.choose.on.preprocess (by fun_prop)).map
           ((computableInPolyTime_tagLeveledChoice false true).comp
@@ -181,24 +176,13 @@ theorem isPPT_leveledAdversary
       · exact (hlinkFalse.choose.on.preprocess (by fun_prop)).map
           (computableInPolyTime_tagLeveledChoice false false)
   · dsimp only [leveledAdversary]
-    have hstate : ComputableInPolyTime
-        (fun p : ℕ × List Bool × List Bool => p.2.1)
-        (encPair encUnary (encPair encBits encBits)) encBits := by fun_prop
-    have htail1 := ComputableInPolyTime.bitsTail.comp hstate
-    have htail2 := ComputableInPolyTime.bitsTail.comp htail1
-    have hhead1 := (ComputableInPolyTime.headD (encA := encBool) true).comp hstate
-    have hhead2 := (ComputableInPolyTime.headD (encA := encBool) true).comp htail1
     have hforward : ComputableInPolyTime
         (fun p : ℕ × List Bool × List Bool => (p.1, p.2.1.tail.tail, p.2.2))
         (encPair encUnary (encPair encBits encBits))
-        (encPair encUnary (encPair encBits encBits)) :=
-      (ComputableInPolyTime.fst _ _).prod (htail2.prod (by fun_prop))
-    apply IsPPTOn.cond (by polytime)
-    · apply IsPPTOn.cond (by polytime)
-      · exact (ComputableInPolyTime.const false).isPPTOn
-      · exact hzero.guess.preprocess hforward
-    · apply IsPPTOn.cond (by polytime)
-      · exact hlinkTrue.guess.preprocess hforward
-      · exact hlinkFalse.guess.preprocess hforward
+        (encPair encUnary (encPair encBits encBits)) := by fun_prop
+    refine .cond (by polytime) ?_ (.cond
+      (by polytime) (hlinkTrue.guess.preprocess hforward) (hlinkFalse.guess.preprocess hforward))
+    exact .cond (by polytime) (ComputableInPolyTime.const false).isPPTOn
+      (hzero.guess.preprocess hforward)
 
 end Cslib.Crypto.Homomorphic.Leveled

@@ -147,35 +147,27 @@ private theorem exists_shiftedQuery (c q : Circuit signature n n) (hL : 0 < L) (
   refine ⟨out, fun x t ht0 hinj => ?_, by lia⟩
   let y := Fin.append x (BitString.equivBitVec.symm t)
   have hx : start y = x := funext fun j => by simp [start, y]
-  have htime : time y = t := by
-    simp only [time, y, Fin.append_right, Equiv.apply_symm_apply]
+  have htime : time y = t := by simp only [time, y, Fin.append_right, Equiv.apply_symm_apply]
   have hraw : raw y = Fin.append ((c.eval interpretation)^[delay x] x)
-      (fun j : Fin n => (BitVec.ofNat n (delay x)).getLsbD j.val) := by
-    dsimp only [raw]
-    rw [hx, hp x]
+      (fun j : Fin n => (BitVec.ofNat n (delay x)).getLsbD j.val) :=
+    (congrArg (scan.eval interpretation) hx).trans (hp x)
   have hmark : mark y = (c.eval interpretation)^[delay x] x := funext fun j => by
     simp only [mark, hraw, Fin.append_left]
   have hoff : offset y = BitVec.ofNat n (delay x) := by
     simp only [offset, hraw, Fin.append_right, BitString.equivBitVec_getLsbD]
   have hdLt := (hd x).1
   have hsub : (remTime y).toNat = t.toNat - delay x := by
-    have hdN := hdLt.trans_le hLN
-    have htN := t.isLt.trans_le (Nat.pow_le_pow_right (by decide : 0 < 2) (show m ≤ n + m by lia))
-    have hdN' := hdN.trans_le (Nat.pow_le_pow_right (by decide : 0 < 2) (show n ≤ n + m by lia))
-    have htw : (t.setWidth (n + m)).toNat = t.toNat := by
-      rw [BitVec.toNat_setWidth, Nat.mod_eq_of_lt htN]
+    have htw : (t.setWidth (n + m)).toNat = t.toNat := BitVec.toNat_setWidth_of_le (by lia)
     have hdw' : ((BitVec.ofNat n (delay x)).setWidth (n + m)).toNat = delay x := by
-      rw [BitVec.toNat_setWidth, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hdN, Nat.mod_eq_of_lt hdN']
+      rw [BitVec.toNat_setWidth_of_le (by lia), BitVec.toNat_ofNat,
+        Nat.mod_eq_of_lt (hdLt.trans_le hLN)]
     dsimp only [remTime]
-    rw [htime, hoff, BitVec.toNat_sub_of_le, htw, hdw']
-    rw [BitVec.le_def, htw, hdw']
-    lia
-  change out.eval interpretation y = _
-  rw [ho y]
+    rw [htime, hoff, BitVec.toNat_sub_of_le (by rw [BitVec.le_def, htw, hdw']; omega), htw, hdw']
+  refine (ho y).trans ?_
   change query.eval interpretation
     (Fin.append (mark y) (BitString.equivBitVec.symm (remTime y))) = _
   rw [hmark, hq _ ((hd x).2 hinj), hsub, ← Function.iterate_add_apply,
-    Nat.sub_add_cancel (by lia)]
+    Nat.sub_add_cancel (by omega)]
 
 /-- Select the state returned by a flagged branch or the value of the fallback circuit. -/
 private theorem exists_branch {a b : ℕ} (branch : Circuit signature a b)
@@ -263,12 +255,10 @@ theorem input_time_endpoint_tradeoff (c : Circuit signature n n) (m L : ℕ)
     · rw [ite_eq_left (hs.1.mpr ready)]
       exact hs.2 ready
     · rw [ite_eq_right (fun he => ready (hs.1.mp he))]
-      have hh := hlong x t (Nat.le_of_not_gt (fun ht => ready (.inl ht)))
-        (injective_of_not_liveShortReady ready)
-      have hy : Fin.append x (BitString.equivBitVec.symm t) = y := by
-        rw [show BitString.equivBitVec.symm t = bits from Equiv.symm_apply_apply _ _]
-        exact Fin.append_castAdd_natAdd
-      rwa [hy] at hh
+      simpa only [inputTimeIterate, t, x, bits, Equiv.symm_apply_apply,
+        Fin.append_castAdd_natAdd] using
+        hlong x t (Nat.le_of_not_gt (fun ht => ready (.inl ht)))
+          (injective_of_not_liveShortReady ready)
   · have hcard : H.card ≤ 512 * (2 ^ n / L + 1) := by
       apply Nat.le_of_lt
       apply Nat.lt_of_mul_lt_mul_right (a := L)

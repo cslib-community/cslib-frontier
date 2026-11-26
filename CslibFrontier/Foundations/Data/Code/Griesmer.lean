@@ -139,32 +139,21 @@ private theorem sum_hammingNorm_sub_smul {ι F : Type*} [Fintype ι] [Field F] [
     rw [hzero, ← mul_sum]
     congr 1
     rw [← card_filter, hammingNorm]
-    symm
-    refine card_bij (fun (j : {i : ι // c i = 0}) _ => j.1)
-      (fun j hj => ?_) (fun _ _ _ _ h => Subtype.ext h) (fun i hi => ?_)
-    · simp only [mem_filter, mem_univ, true_and, Function.comp_apply] at hj ⊢
-      exact ⟨j.2, hj⟩
-    · simp only [mem_filter, mem_univ, true_and] at hi
-      exact ⟨⟨i, hi.1⟩, mem_filter.2 ⟨mem_univ _, hi.2⟩, rfl⟩
+    refine (card_bij (fun (j : {i : ι // c i = 0}) _ => j.1)
+      (fun j hj => mem_filter.2 ⟨mem_filter.2 ⟨mem_univ _, j.2⟩, (mem_filter.1 hj).2⟩)
+      (fun _ _ _ _ h => Subtype.ext h) fun i hi => ⟨⟨i, (mem_filter.1 (mem_filter.1 hi).1).2⟩,
+        mem_filter.2 ⟨mem_univ _, (mem_filter.1 hi).2⟩, rfl⟩).symm
   · have hsupp :
         ∑ i ∈ univ.filter (fun i : ι => c i ≠ 0),
             ∑ a : F, (if x i - a * c i ≠ 0 then 1 else 0) =
           ∑ _i ∈ univ.filter (fun i : ι => c i ≠ 0), (Fintype.card F - 1) := by
       refine sum_congr rfl fun i hi => ?_
-      have hci : c i ≠ 0 := (mem_filter.1 hi).2
-      rw [← card_filter]
-      have hfilt : (univ.filter fun a : F => x i - a * c i ≠ 0) =
-          univ.filter fun a : F => ¬ a = x i / c i := by
+      have hfilt : (univ.filter fun a : F => x i - a * c i ≠ 0) = univ.erase (x i / c i) := by
         ext a
-        simp only [mem_filter, mem_univ, true_and, ne_eq, sub_eq_zero]
-        exact not_congr ⟨fun h => (eq_div_iff hci).2 h.symm, fun h => ((eq_div_iff hci).1 h).symm⟩
-      rw [hfilt]
-      have hpart := card_filter_add_card_filter_not (s := (univ : Finset F))
-        (fun a : F => a = x i / c i)
-      have hone : #{a : F | a = x i / c i} = 1 := by
-        rw [filter_eq', ite_eq_left (mem_univ _), card_singleton]
-      rw [card_univ, hone] at hpart
-      omega
+        simp only [mem_filter, mem_univ, true_and, mem_erase, and_true, ne_eq, sub_eq_zero,
+          eq_div_iff (mem_filter.1 hi).2]
+        exact not_congr eq_comm
+      rw [← card_filter, hfilt, card_erase_of_mem (mem_univ _), card_univ]
     rw [hsupp, sum_const, smul_eq_mul, mul_comm]
     rfl
 
@@ -190,12 +179,9 @@ theorem le_minDist_residualLinear {ι F : Type*} [Fintype ι] [Field F] [Fintype
       minDist (residualLinear C c : Set ({i : ι // c i = 0} → F)) := by
   refine (le_minDist_iff_hammingNorm (residualLinear C c)).2 fun y hy hy0 => ?_
   obtain ⟨x, hx, rfl⟩ := mem_residualLinear.1 hy
-  have hsum_ge := card_mul_le_of_forall_sub_smul_ne_zero hx hc hd fun a h0 => hy0 <| by
-    ext i
-    have hi := congrFun h0 i.1
-    simp only [Pi.sub_apply, Pi.smul_apply, smul_eq_mul, i.2, mul_zero, sub_zero,
-      Pi.zero_apply] at hi
-    exact hi
+  have hsum_ge := card_mul_le_of_forall_sub_smul_ne_zero hx hc hd fun a h0 => hy0 <| funext fun i =>
+    by simpa only [Pi.sub_apply, Pi.smul_apply, smul_eq_mul, i.2, mul_zero, sub_zero,
+      Pi.zero_apply, Function.comp_apply] using congrFun h0 i.1
   refine Nat.cast_le.2 ((ceilDiv_le_iff_le_mul Fintype.card_pos).2 ?_)
   omega
 
@@ -220,18 +206,13 @@ theorem finrank_residualLinear_add_one {ι F : Type*} [Fintype ι] [Field F] [Fi
     refine le_antisymm (fun xSub hxker => ?_) ?_
     · by_contra hx_not
       have hsum_ge := card_mul_le_of_forall_sub_smul_ne_zero xSub.2 hc hd fun a h0 => hx_not <| by
-        have hEq : xSub = a • cSub := Subtype.ext (sub_eq_zero.1 h0)
-        rw [hEq]
-        exact Submodule.smul_mem _ a (Submodule.mem_span_singleton_self cSub)
+        exact Submodule.mem_span_singleton.2 ⟨a, Subtype.ext (sub_eq_zero.1 h0).symm⟩
       have hres0 : xSub.1 ∘ (Subtype.val : {i : ι // c i = 0} → ι) = 0 := hxker
       rw [hres0, hammingNorm_zero, mul_zero, zero_add] at hsum_ge
       omega
-    · rw [Submodule.span_singleton_le_iff_mem, LinearMap.mem_ker]
-      ext i
-      exact i.2
+    · exact (Submodule.span_singleton_le_iff_mem _ _).2 (funext fun i => i.2)
   have hrn := LinearMap.finrank_range_add_finrank_ker resMap
-  rw [hrange, hker, finrank_span_singleton hcSub0] at hrn
-  exact hrn
+  rwa [hrange, hker, finrank_span_singleton hcSub0] at hrn
 
 /-! ### The Griesmer bound -/
 
@@ -250,10 +231,7 @@ private theorem sum_ceilDiv_pow_le_card_of_finrank {F : Type*} [Field F] [Fintyp
   | k + 1, ι, _, C, hk, d, hd => by
     rcases Nat.eq_zero_or_pos d with rfl | hd_pos
     · simp
-    have hC_ne : C ≠ ⊥ := by
-      intro hbot
-      rw [hbot, finrank_bot] at hk
-      omega
+    have hC_ne : C ≠ ⊥ := fun hbot => by rw [hbot, finrank_bot] at hk; omega
     obtain ⟨v, hv, hv0⟩ := Submodule.exists_mem_ne_zero_of_ne_bot hC_ne
     obtain ⟨x, hx, y, hy, hxy, hmin⟩ :=
       exists_hammingDist_eq_minDist (C := (C : Set (ι → F))) ⟨v, hv, 0, C.zero_mem, hv0⟩
@@ -267,9 +245,8 @@ private theorem sum_ceilDiv_pow_le_card_of_finrank {F : Type*} [Field F] [Fintyp
     have hd₀_pos : 0 < d₀ := lt_of_lt_of_le hd_pos hd_le_d₀
     have hq_pos : 0 < Fintype.card F := Fintype.card_pos
     have hq_gt : 1 < Fintype.card F := Fintype.one_lt_card
-    have hw : (Fintype.card F - 1) * d₀ < Fintype.card F * d₀ := by
-      have hsub : Fintype.card F - 1 < Fintype.card F := by omega
-      exact Nat.mul_lt_mul_of_pos_right hsub hd₀_pos
+    have hw : (Fintype.card F - 1) * d₀ < Fintype.card F * d₀ :=
+      Nat.mul_lt_mul_of_pos_right (by omega) hd₀_pos
     have hfinrank_res : Module.finrank F (residualLinear C c) = k := by
       have := finrank_residualLinear_add_one hc hc0 hd₀_eq.le hw
       omega
@@ -277,17 +254,12 @@ private theorem sum_ceilDiv_pow_le_card_of_finrank {F : Type*} [Field F] [Fintyp
       change Fintype.card F * d₀ - (Fintype.card F - 1) * d₀ = d₀
       zify [Nat.le_of_lt hq_gt, hw.le]
       ring
-    have hmin_res₀ :
-        ((d₀ ⌈/⌉ Fintype.card F : ℕ) : ℕ∞) ≤
-          minDist (residualLinear C c : Set ({i : ι // c i = 0} → F)) := by
-      have hres := le_minDist_residualLinear hc hd₀_eq.le
-      rwa [hsub_eq] at hres
-    have hceil_mono : d ⌈/⌉ Fintype.card F ≤ d₀ ⌈/⌉ Fintype.card F :=
-      (gc_mul_ceilDiv hq_pos).monotone_l hd_le_d₀
     have hmin_res :
         ((d ⌈/⌉ Fintype.card F : ℕ) : ℕ∞) ≤
-          minDist (residualLinear C c : Set ({i : ι // c i = 0} → F)) :=
-      (Nat.cast_le.2 hceil_mono).trans hmin_res₀
+          minDist (residualLinear C c : Set ({i : ι // c i = 0} → F)) := by
+      have hres := le_minDist_residualLinear hc hd₀_eq.le
+      rw [hsub_eq] at hres
+      exact (Nat.cast_le.2 ((gc_mul_ceilDiv hq_pos).monotone_l hd_le_d₀)).trans hres
     have hih := sum_ceilDiv_pow_le_card_of_finrank k (residualLinear C c) hfinrank_res hmin_res
     have htower :
         ∑ i ∈ range k, d ⌈/⌉ Fintype.card F ^ (i + 1) =
@@ -313,14 +285,10 @@ theorem add_sub_one_le_sum_ceilDiv_pow {d k q : ℕ} (hd : 1 ≤ d) (hk : 1 ≤ 
   obtain ⟨m, rfl⟩ : ∃ m, k = m + 1 := Nat.exists_eq_succ_of_ne_zero (by omega)
   rw [sum_range_succ', pow_zero, ceilDiv_one, add_tsub_cancel_right, add_comm _ d]
   refine Nat.add_le_add_left ?_ d
-  calc m = ∑ _i ∈ range m, 1 := by rw [sum_const, card_range, smul_eq_mul, mul_one]
-    _ ≤ ∑ i ∈ range m, d ⌈/⌉ q ^ (i + 1) := by
-      refine sum_le_sum fun i _ => ?_
-      by_contra hlt
-      have h0 : d ⌈/⌉ q ^ (i + 1) ≤ 0 := by omega
-      have hd0 : d ≤ 0 := by
-        have := (ceilDiv_le_iff_le_mul (pow_pos (show 0 < q by omega) (i + 1))).1 h0
-        simpa using this
+  calc m = ∑ _i ∈ range m, 1 := by simp
+    _ ≤ ∑ i ∈ range m, d ⌈/⌉ q ^ (i + 1) := sum_le_sum fun i _ => Nat.pos_of_ne_zero fun h0 => by
+      have := (ceilDiv_le_iff_le_mul (pow_pos (show 0 < q by omega) (i + 1))).1 h0.le
+      rw [mul_zero] at this
       omega
 
 /-! ### `$q$-ary simplex codes and tightness of the Griesmer bound -/
@@ -332,10 +300,8 @@ abbrev SimplexPoint (F : Type*) [Zero F] [One F] (k : ℕ) : Type _ :=
 private theorem simplexPoint_smul_ne_zero {F : Type*} [Field F] {k : ℕ}
     (p : SimplexPoint F k) (u : Fˣ) : (u : F) • p.1 ≠ 0 := by
   obtain ⟨i, hi1, -⟩ := p.2
-  intro h0
-  have := congrFun h0 i
-  simp only [Pi.smul_apply, smul_eq_mul, hi1, mul_one, Pi.zero_apply] at this
-  exact u.ne_zero this
+  exact fun h0 => u.ne_zero <| by
+    simpa only [Pi.smul_apply, smul_eq_mul, hi1, mul_one, Pi.zero_apply] using congrFun h0 i
 
 private noncomputable def simplexPointProdUnitsEquivNeZero (F : Type*) [Field F] [DecidableEq F]
     (k : ℕ) : SimplexPoint F k × Fˣ ≃ {w : Fin k → F // w ≠ 0} where
@@ -343,18 +309,12 @@ private noncomputable def simplexPointProdUnitsEquivNeZero (F : Type*) [Field F]
   invFun w :=
     let S : Finset (Fin k) := univ.filter fun i => w.1 i ≠ 0
     have hS : S.Nonempty := by
-      by_contra hEmpty
-      apply w.2
-      ext i
-      by_contra hi
-      exact hEmpty ⟨i, mem_filter.2 ⟨mem_univ i, hi⟩⟩
+      obtain ⟨i, hi⟩ := Function.ne_iff.1 w.2; exact ⟨i, mem_filter.2 ⟨mem_univ i, hi⟩⟩
     let i₀ : Fin k := S.min' hS
     have hi₀ : w.1 i₀ ≠ 0 := (mem_filter.1 (S.min'_mem hS)).2
     ⟨⟨(w.1 i₀)⁻¹ • w.1, i₀, by simp [hi₀], fun j hj => by
         have hj_not : j ∉ S := fun hjS => not_le_of_gt hj (S.min'_le j hjS)
-        have hj0 : w.1 j = 0 := by
-          by_contra hne
-          exact hj_not (mem_filter.2 ⟨mem_univ j, hne⟩)
+        have hj0 : w.1 j = 0 := not_not.1 fun hne => hj_not (mem_filter.2 ⟨mem_univ j, hne⟩)
         simp [hj0]⟩,
       Units.mk0 (w.1 i₀) hi₀⟩
   left_inv := by
@@ -366,15 +326,11 @@ private noncomputable def simplexPointProdUnitsEquivNeZero (F : Type*) [Field F]
       simp only [S, mem_filter, mem_univ, true_and, w, Pi.smul_apply, smul_eq_mul, hi1, mul_one]
       exact u.ne_zero
     have hmin_eq : S.min' ⟨i, hiS⟩ = i := by
-      refine le_antisymm (S.min'_le i hiS) ?_
-      by_contra hlt
-      have hlt' : S.min' ⟨i, hiS⟩ < i := not_le.1 hlt
+      refine le_antisymm (S.min'_le i hiS) (not_lt.1 fun hlt' => ?_)
       have hmem := (mem_filter.1 (S.min'_mem ⟨i, hiS⟩)).2
       simp only [w, Pi.smul_apply, smul_eq_mul, hzero _ hlt', mul_zero, ne_eq, not_true_eq_false]
         at hmem
-    have hwi : w (S.min' ⟨i, hiS⟩) = (u : F) := by
-      rw [hmin_eq]
-      simp [w, hi1]
+    have hwi : w (S.min' ⟨i, hiS⟩) = (u : F) := by rw [hmin_eq]; simp [w, hi1]
     refine Prod.ext (Subtype.ext ?_) (Units.ext hwi)
     change (w (S.min' _) )⁻¹ • w = v
     rw [hwi, smul_smul, inv_mul_cancel₀ u.ne_zero, one_smul]
@@ -385,11 +341,7 @@ private noncomputable def simplexPointProdUnitsEquivNeZero (F : Type*) [Field F]
     simp only [Pi.smul_apply, smul_eq_mul]
     set S : Finset (Fin k) := univ.filter fun i => w i ≠ 0
     have hS : S.Nonempty := by
-      by_contra hEmpty
-      apply hw
-      ext i
-      by_contra hi
-      exact hEmpty ⟨i, mem_filter.2 ⟨mem_univ i, hi⟩⟩
+      obtain ⟨i, hi⟩ := Function.ne_iff.1 hw; exact ⟨i, mem_filter.2 ⟨mem_univ i, hi⟩⟩
     have hi₀ : w (S.min' hS) ≠ 0 := (mem_filter.1 (S.min'_mem hS)).2
     rw [← mul_assoc, mul_inv_cancel₀ hi₀, one_mul]
 
@@ -400,14 +352,7 @@ theorem card_simplexPoint (F : Type*) [Field F] [Fintype F] [DecidableEq F] (k :
   have hbij := Fintype.card_congr (simplexPointProdUnitsEquivNeZero F k)
   rw [Fintype.card_prod, Fintype.card_units] at hbij
   have hne : Fintype.card {w : Fin k → F // w ≠ 0} = Fintype.card F ^ k - 1 := by
-    rw [Fintype.card_subtype]
-    have hpart := card_filter_add_card_filter_not (s := (univ : Finset (Fin k → F)))
-      (fun w => w = 0)
-    have h0 : #{w : Fin k → F | w = 0} = 1 := by
-      rw [filter_eq', ite_eq_left (mem_univ 0), card_singleton]
-    rw [card_univ, Fintype.card_fun, Fintype.card_fin, h0] at hpart
-    simp only [ne_eq]
-    omega
+    rw [Fintype.card_subtype_compl, Fintype.card_subtype_eq, Fintype.card_fun, Fintype.card_fin]
   rw [hne] at hbij
   have hq : 1 < Fintype.card F := Fintype.one_lt_card
   refine Nat.mul_right_cancel (m := Fintype.card F - 1) (by omega) ?_
@@ -443,17 +388,11 @@ theorem simplexEncode_injective (F : Type*) [Field F] (k : ℕ) :
     Function.Injective (simplexEncode F k) := by
   classical
   intro x y hxy
-  by_contra hne
-  have hex : ∃ i : Fin k, x i ≠ y i := by
-    by_contra hall
-    push Not at hall
-    exact hne (funext hall)
-  obtain ⟨i, hi⟩ := hex
+  funext i
   let p : SimplexPoint F k :=
     ⟨Pi.single i 1, i, Pi.single_eq_same i 1, fun j hj => Pi.single_eq_of_ne hj.ne 1⟩
   have heval : x ⬝ᵥ Pi.single i (1 : F) = y ⬝ᵥ Pi.single i (1 : F) := congrFun hxy p
-  simp only [dotProduct_single, mul_one] at heval
-  exact hi heval
+  simpa only [dotProduct_single, mul_one] using heval
 
 /-- The `$q$-ary simplex code` `simplexCode F k` has dimension `k`. -/
 @[simp]
@@ -467,14 +406,8 @@ every nonzero message `x : Fin k → F` encodes to a codeword of Hamming weight 
 theorem hammingNorm_simplexEncode {F : Type*} [Field F] [Fintype F] [DecidableEq F] {k : ℕ}
     {x : Fin k → F} (hx : x ≠ 0) :
     hammingNorm (simplexEncode F k x) = Fintype.card F ^ (k - 1) := by
-  have hex : ∃ i₀ : Fin k, x i₀ ≠ 0 := by
-    by_contra hall
-    push Not at hall
-    exact hx (funext hall)
-  obtain ⟨i₀, hi₀⟩ := hex
-  have hk_pos : 1 ≤ k := by
-    have := i₀.isLt
-    omega
+  obtain ⟨i₀, hi₀⟩ : ∃ i₀ : Fin k, x i₀ ≠ 0 := Function.ne_iff.1 hx
+  have hk_pos : 1 ≤ k := Fin.pos i₀
   have hfiber (b : F) :
       #{w : Fin k → F | x ⬝ᵥ w = b} = #{w : Fin k → F | x ⬝ᵥ w = 0} := by
     symm
@@ -489,46 +422,32 @@ theorem hammingNorm_simplexEncode {F : Type*} [Field F] [Fintype F] [DecidableEq
       refine ⟨w - shift, mem_filter.2 ⟨mem_univ _, ?_⟩, sub_add_cancel w shift⟩
       rw [dotProduct_sub, hw, hx_shift, sub_self]
   have hq_pos : 0 < Fintype.card F := Fintype.card_pos
+  have hpow : Fintype.card F ^ k = Fintype.card F ^ (k - 1) * Fintype.card F := by
+    rw [← pow_succ, Nat.sub_add_cancel hk_pos]
   have hker_eq : #{w : Fin k → F | x ⬝ᵥ w = 0} = Fintype.card F ^ (k - 1) := by
     have htot := card_eq_sum_card_fiberwise (s := (univ : Finset (Fin k → F)))
       (t := (univ : Finset F)) (f := fun w => x ⬝ᵥ w) (fun _ _ => mem_univ _)
     rw [card_univ, Fintype.card_fun, Fintype.card_fin,
       sum_congr rfl (fun b _ => hfiber b), sum_const, card_univ, smul_eq_mul] at htot
     refine Nat.mul_left_cancel hq_pos ?_
-    rw [← htot, mul_comm, ← pow_succ, Nat.sub_add_cancel hk_pos]
+    rw [← htot, mul_comm, hpow]
   have hnonzero_dot :
       #{w : Fin k → F | x ⬝ᵥ w ≠ 0} = Fintype.card F ^ (k - 1) * (Fintype.card F - 1) := by
     have hpart := card_filter_add_card_filter_not (s := (univ : Finset (Fin k → F)))
       (fun w => x ⬝ᵥ w = 0)
-    rw [card_univ, Fintype.card_fun, Fintype.card_fin, hker_eq] at hpart
-    have hpow : Fintype.card F ^ k = Fintype.card F ^ (k - 1) * Fintype.card F := by
-      rw [← pow_succ, Nat.sub_add_cancel hk_pos]
-    rw [hpow] at hpart
-    have hq_le : 1 ≤ Fintype.card F := hq_pos
-    zify [hq_le]
-    have hpartZ : (Fintype.card F ^ (k - 1) : ℤ) + #{w : Fin k → F | x ⬝ᵥ w ≠ 0} =
-        (Fintype.card F ^ (k - 1) : ℤ) * Fintype.card F := by
-      exact_mod_cast hpart
-    linarith
+    rw [card_univ, Fintype.card_fun, Fintype.card_fin, hker_eq, hpow] at hpart
+    rw [Nat.mul_sub_one, ← hpart, Nat.add_sub_cancel_left]
   have hbij_dot :
       #{w : Fin k → F | x ⬝ᵥ w ≠ 0} =
         hammingNorm (simplexEncode F k x) * (Fintype.card F - 1) := by
     let e := simplexPointProdUnitsEquivNeZero F k
-    have hsub :
-        #{w : {w : Fin k → F // w ≠ 0} | x ⬝ᵥ w.1 ≠ 0} = #{w : Fin k → F | x ⬝ᵥ w ≠ 0} := by
-      refine card_bij (fun w _ => w.1) (fun w hw => ?_) (fun _ _ _ _ h => Subtype.ext h)
-        (fun w hw => ?_)
-      · exact mem_filter.2 ⟨mem_univ _, (mem_filter.1 hw).2⟩
-      · have hne0 : w ≠ 0 := fun h0 => (mem_filter.1 hw).2 (by simp [h0])
-        exact ⟨⟨w, hne0⟩, mem_filter.2 ⟨mem_univ _, (mem_filter.1 hw).2⟩, rfl⟩
-    rw [← hsub]
     have hev :
-        #{pu : SimplexPoint F k × Fˣ | x ⬝ᵥ (e pu).1 ≠ 0} =
-          #{w : {w : Fin k → F // w ≠ 0} | x ⬝ᵥ w.1 ≠ 0} := by
-      refine card_bij (fun pu _ => e pu) (fun pu hpu => ?_) (fun _ _ _ _ h => e.injective h)
-        (fun w hw => ⟨e.symm w, ?_, e.apply_symm_apply w⟩)
-      · exact mem_filter.2 ⟨mem_univ _, (mem_filter.1 hpu).2⟩
-      · simpa [mem_filter] using (mem_filter.1 hw).2
+        #{pu : SimplexPoint F k × Fˣ | x ⬝ᵥ (e pu).1 ≠ 0} = #{w : Fin k → F | x ⬝ᵥ w ≠ 0} := by
+      refine card_bij (fun pu _ => (e pu).1)
+        (fun pu hpu => mem_filter.2 ⟨mem_univ _, (mem_filter.1 hpu).2⟩)
+        (fun _ _ _ _ h => e.injective (Subtype.ext h)) fun w hw => ?_
+      have hw0 := (mem_filter.1 hw).2
+      exact ⟨e.symm ⟨w, fun h0 => hw0 (by simp [h0])⟩, by simpa using hw0, by simp⟩
     rw [← hev]
     have hprod :
         (univ.filter fun pu : SimplexPoint F k × Fˣ => x ⬝ᵥ (e pu).1 ≠ 0) =
@@ -541,10 +460,8 @@ theorem hammingNorm_simplexEncode {F : Type*} [Field F] [Fintype F] [DecidableEq
       exact ⟨fun h => mem_filter.2 ⟨mem_univ p, h.2⟩, fun h => ⟨u.ne_zero, (mem_filter.1 h).2⟩⟩
     rw [hprod, card_product, card_univ, Fintype.card_units]
     rfl
-  have hq1 : 0 < Fintype.card F - 1 := by
-    have := Fintype.one_lt_card (α := F)
-    omega
-  exact Nat.mul_right_cancel hq1 (hbij_dot.symm.trans hnonzero_dot)
+  exact Nat.mul_right_cancel (Nat.sub_pos_of_lt Fintype.one_lt_card)
+    (hbij_dot.symm.trans hnonzero_dot)
 
 /-- For `k ≥ 1`, the `$q$-ary simplex code` `simplexCode F k` has minimum distance `q ^ (k - 1)`. -/
 @[simp]
@@ -554,9 +471,7 @@ theorem minDist_simplexCode {F : Type*} [Field F] [Fintype F] [DecidableEq F] {k
   refine le_antisymm ?_ ?_
   · let i₀ : Fin k := ⟨0, hk⟩
     let x₀ : Fin k → F := fun j => if j = i₀ then 1 else 0
-    have hx₀ : x₀ ≠ 0 := fun h => by
-      have h10 : (1 : F) = 0 := by simpa [x₀] using congrFun h i₀
-      exact one_ne_zero h10
+    have hx₀ : x₀ ≠ 0 := fun h => by simpa [x₀] using congrFun h i₀
     have hw₀ : simplexEncode F k x₀ ≠ 0 := fun h =>
       hx₀ (simplexEncode_injective F k (h.trans (simplexEncode F k).map_zero.symm))
     have hle := minDist_le_hammingDist (mem_simplexCode.2 ⟨x₀, rfl⟩) (simplexCode F k).zero_mem hw₀
@@ -565,8 +480,7 @@ theorem minDist_simplexCode {F : Type*} [Field F] [Fintype F] [DecidableEq F] {k
   · refine (le_minDist_iff_hammingNorm (simplexCode F k)).2 fun w hw hw0 => ?_
     obtain ⟨x, rfl⟩ := mem_simplexCode.1 hw
     have hx0 : x ≠ 0 := fun h0 => hw0 (by simp [h0])
-    rw [hammingNorm_simplexEncode hx0]
-    exact mod_cast le_rfl
+    exact mod_cast (hammingNorm_simplexEncode hx0).ge
 
 /-- **Tightness of the Griesmer bound**: for every finite field `F` and every dimension `k ≥ 1`,
 `simplexCode F k` meets `sum_ceilDiv_pow_le_card` with exact equality. -/
@@ -575,19 +489,10 @@ theorem sum_ceilDiv_pow_simplexCode (F : Type*) [Field F] [Fintype F] [Decidable
     ∑ i ∈ range (Module.finrank F (simplexCode F k)),
         Fintype.card F ^ (k - 1) ⌈/⌉ Fintype.card F ^ i =
       Fintype.card (SimplexPoint F k) := by
-  rw [finrank_simplexCode, card_simplexPoint]
-  have hq : 0 < Fintype.card F := Fintype.card_pos
-  have hterm :
-      ∑ i ∈ range k, Fintype.card F ^ (k - 1) ⌈/⌉ Fintype.card F ^ i =
-        ∑ i ∈ range k, Fintype.card F ^ (k - 1 - i) := by
-    refine sum_congr rfl fun i hi => ?_
-    have hi_le : i ≤ k - 1 := by
-      have := mem_range.1 hi
-      omega
-    have hpow : Fintype.card F ^ (k - 1) = Fintype.card F ^ i • Fintype.card F ^ (k - 1 - i) := by
-      rw [smul_eq_mul, ← pow_add, Nat.add_sub_cancel' hi_le]
-    rw [hpow, smul_ceilDiv (pow_pos hq i)]
-  rw [hterm]
-  exact sum_range_reflect (fun i => Fintype.card F ^ i) k
+  rw [finrank_simplexCode, card_simplexPoint, ← sum_range_reflect (fun i => Fintype.card F ^ i) k]
+  refine sum_congr rfl fun i hi => ?_
+  have hpow : Fintype.card F ^ (k - 1) = Fintype.card F ^ i • Fintype.card F ^ (k - 1 - i) := by
+    rw [smul_eq_mul, ← pow_add, Nat.add_sub_cancel' (by have := mem_range.1 hi; omega)]
+  rw [hpow, smul_ceilDiv (pow_pos Fintype.card_pos i)]
 
 end Cslib.Code

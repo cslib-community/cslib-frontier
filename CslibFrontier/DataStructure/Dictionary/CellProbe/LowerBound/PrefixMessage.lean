@@ -104,15 +104,14 @@ private theorem dom_eq_of_ite_some_eq {α β : Type*} [DecidableEq α] {S₁ S�
     S₁ = S₂ ∧ ∀ u ∈ S₁, f₁ u = f₂ u := by
   have hS : S₁ = S₂ := Finset.ext fun u => by
     have hu := congrFun h u
-    by_cases h1 : u ∈ S₁ <;> by_cases h2 : u ∈ S₂
-    · exact iff_of_true h1 h2
-    · rw [ite_eq_left h1, ite_eq_right h2] at hu; cases hu
-    · rw [ite_eq_right h1, ite_eq_left h2] at hu; cases hu
-    · exact iff_of_false h1 h2
-  refine ⟨hS, fun u hu => ?_⟩
-  have hu' := congrFun h u
-  rw [ite_eq_left hu, ite_eq_left (hS ▸ hu)] at hu'
-  exact Option.some.inj hu'
+    by_cases h1 : u ∈ S₁ <;> by_cases h2 : u ∈ S₂ <;> simp [h1, h2] at hu ⊢
+  exact ⟨hS, fun u hu => by simpa [hu, hS ▸ hu] using congrFun h u⟩
+
+private theorem ite_mem_congr {α β : Type*} [DecidableEq α] {S₁ S₂ : Finset α}
+    {f₁ f₂ : α → β} (z : β) (hS : S₁ = S₂) (hf : ∀ u ∈ S₁, f₁ u = f₂ u) :
+    (fun u => if u ∈ S₁ then f₁ u else z) = fun u => if u ∈ S₂ then f₂ u else z := by
+  subst hS
+  exact funext fun u => if_ctx_congr Iff.rfl (hf u) fun _ => rfl
 
 open Classical in
 theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cells w : ℕ}
@@ -157,15 +156,8 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
     refine Finset.sum_le_sum fun sb _ => ?_
     dsimp only [W_cons, W, W_bad]
     by_cases hc : IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t sb.1 sb.2 <;>
-      by_cases hle : ((stateFiber D_det step_end (pairBOf t₀ m ht₀ sb).val).card : ℝ) ≤ M_cap
-    · simp only [hc, hle, and_self, decide_true, ↓reduceIte, not_lt.mpr hle, decide_false,
-        Bool.true_eq_false, add_zero, le_rfl]
-    · simp only [hc, hle, and_false, decide_false, Bool.true_eq_false, ↓reduceIte,
-        lt_of_not_ge hle, decide_true, zero_add, le_rfl]
-    · simp only [hc, false_and, decide_false, Bool.true_eq_false, ↓reduceIte, zero_add]
-      split_ifs <;> positivity
-    · simp only [hc, false_and, decide_false, Bool.true_eq_false, ↓reduceIte, zero_add]
-      split_ifs <;> positivity
+      by_cases hle : ((stateFiber D_det step_end (pairBOf t₀ m ht₀ sb).val).card : ℝ) ≤ M_cap <;>
+      simp [hc, hle, not_lt.2, lt_of_not_ge]
   have hpW_gt : (1 / 2) * (U : ℝ) ^ (-γ * (m : ℝ)) < ((μ_g.map W) true).toReal := by
     change (U : ℝ) ^ (-γ * (m : ℝ)) < ((μ_g.map W_cons) true).toReal at hgt; linarith
   have hpW_pos : 0 < ((μ_g.map W) true).toReal := lt_trans (by positivity) hpW_gt
@@ -243,11 +235,9 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
       (ctx.hdisj sb.1).mono_left (ctx.hA sb.1)
     have hdec_bef : decodeDict D_det step₀ (C_bef sb) =
         fun u => if u ∈ sb.1.activeKeys t₀ ht₀_n then some (sb.1.kv u).val else none := by
-      have hvh_b := sb.1.validHistory_take_modeOps withQueries ht₀_n
       have hlen_b := sb.1.length_take_modeOps withQueries ht₀_n
-      have hle_b : ((sb.1.modeOps withQueries).take step₀).length ≤ modeHorizon withQueries n := by
-        rw [hlen_b]; exact Nat.add_le_add_left (Nat.mul_le_mul_left _ ht₀_n) n
-      have hd := decodeDict_runSeq_eq hcorr hvh_b hle_b
+      have hd := decodeDict_runSeq_eq hcorr (sb.1.validHistory_take_modeOps withQueries ht₀_n)
+        (hlen_b.trans_le (Nat.add_le_add_left (Nat.mul_le_mul_left _ ht₀_n) n))
       rw [hlen_b] at hd
       exact hd.trans (run_take_modeOps_eq_ite withQueries sb.1 ht₀_n)
     have hdec_A : decodeDict D_det step_end (C_A sb) =
@@ -255,17 +245,13 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
             Finset.univ.image (segDeletedKeys sb.1.keys sb.1.delPerm t₀ m ht₀)) ∪
             sb.1.insertedSet t₀ m ht₀
           then some (sb.1.kv u).val else none := by
-      have hopsA_cand : ops_A sb = sb.1.modeCandidateOps withQueries t₀ m ht₀
-          (sb.1.insertedSet t₀ m ht₀) (card_insertedSet sb.1 ht₀) :=
-        sb.1.elemSlice_modeOps_eq_trueCandidate withQueries ht₀
-      dsimp only [C_A]; rw [hopsA_cand]
+      dsimp only [C_A, ops_A]
+      rw [sb.1.elemSlice_modeOps_eq_trueCandidate withQueries ht₀]
       exact decodeDict_modeCandidateOps_eq withQueries hcorr sb.1 ht₀ _ hdisj_A
     have hCB_mem : C_B sb ∈ stateFiber D_det step_end (dict_B sb) := by
-      have hopsB_eq : ops_B sb = sb.1.modeCandidateOps withQueries t₀ m ht₀ sb.2 hB_card :=
-        dite_eq_left hB_card
       refine Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩
-      dsimp only [C_B, dict_B]
-      rw [hopsB_eq, val_pairBOf_eq sb.1 ht₀ hB_card hdisj_B]
+      dsimp only [C_B, ops_B, dict_B]
+      rw [dite_eq_left hB_card, val_pairBOf_eq sb.1 ht₀ hB_card hdisj_B]
       exact decodeDict_modeCandidateOps_eq withQueries hcorr sb.1 ht₀ hB_card hdisj_B
     exact ⟨hB_card, hdisj_B, hdisj_A, hdec_bef, hdec_A, hCB_mem⟩
   -- Prefix-freeness and target8 injectivity on each obs8 fiber of p.support
@@ -276,12 +262,8 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
     obtain ⟨hFg₂, _, hcap₂⟩ := hp_supp sb₂ hsb₂
     obtain ⟨hBc₁, hdisjB₁, hdisjA₁, hdec_bef₁, hdec_A₁, hCB_mem₁⟩ := hstate sb₁ hFg₁
     obtain ⟨hBc₂, hdisjB₂, hdisjA₂, hdec_bef₂, hdec_A₂, hCB_mem₂⟩ := hstate sb₂ hFg₂
-    have ha : (fun r => segInsertedKeys sb₁.1.keys t₀ m ht₀ r) =
-        fun r => segInsertedKeys sb₂.1.keys t₀ m ht₀ r := (Prod.mk.inj hobs).1
-    have hB : sb₁.2 = sb₂.2 := (Prod.mk.inj (Prod.mk.inj hobs).2).1
-    have hd : (fun r => segDeletedKeys sb₁.1.keys sb₁.1.delPerm t₀ m ht₀ r) =
-        fun r => segDeletedKeys sb₂.1.keys sb₂.1.delPerm t₀ m ht₀ r :=
-      (Prod.mk.inj (Prod.mk.inj hobs).2).2
+    obtain ⟨ha, hobs_rest⟩ := Prod.mk.inj hobs
+    obtain ⟨hB, hd⟩ := Prod.mk.inj hobs_rest
     have hA_eq : sb₁.1.insertedSet t₀ m ht₀ = sb₂.1.insertedSet t₀ m ht₀ := by
       dsimp only [HardKeyValSeed.insertedSet]
       rw [Function.Embedding.ext (congrFun ha)]
@@ -336,59 +318,45 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
     rw [hdec_A₁, hdec_A₂] at hdecA_eq
     obtain ⟨hKDA_eq, hkv_KDA_val⟩ := dom_eq_of_ite_some_eq hdecA_eq
     have hKD_eq : KD₁ = KD₂ := by
-      have hs₁ : (KD₁ ∪ sb₁.1.insertedSet t₀ m ht₀) \ sb₁.1.insertedSet t₀ m ht₀ = KD₁ :=
-        Finset.union_sdiff_cancel_right
-          (Finset.disjoint_of_subset_left Finset.sdiff_subset hdisjA₁.symm)
-      have hs₂ : (KD₂ ∪ sb₂.1.insertedSet t₀ m ht₀) \ sb₂.1.insertedSet t₀ m ht₀ = KD₂ :=
-        Finset.union_sdiff_cancel_right
-          (Finset.disjoint_of_subset_left Finset.sdiff_subset hdisjA₂.symm)
-      rw [← hs₁, ← hs₂, hKDA_eq, hA_eq]
+      dsimp only [KD₁, KD₂]
+      rw [← Finset.union_sdiff_cancel_right
+            (Finset.disjoint_of_subset_left Finset.sdiff_subset hdisjA₁.symm),
+          ← Finset.union_sdiff_cancel_right
+            (Finset.disjoint_of_subset_left Finset.sdiff_subset hdisjA₂.symm),
+          hKDA_eq, hA_eq]
     have hkv_KDA (u : Fin U) (hu : u ∈ KD₁ ∪ sb₁.1.insertedSet t₀ m ht₀) :
         sb₁.1.kv u = sb₂.1.kv u := Fin.ext (hkv_KDA_val u hu)
     -- Recover dict_B, C_B, and C_bef
     have hdictB : dict_B sb₁ = dict_B sb₂ := by
       dsimp only [dict_B]
       rw [val_pairBOf_eq sb₁.1 ht₀ hBc₁ hdisjB₁, val_pairBOf_eq sb₂.1 ht₀ hBc₂ hdisjB₂]
-      funext u
-      have hun_eq : KD₁ ∪ sb₁.2 = KD₂ ∪ sb₂.2 := by rw [hKD_eq, hB]
-      by_cases hu : u ∈ KD₁ ∪ sb₁.2
-      · rw [ite_eq_left hu, ite_eq_left (hun_eq ▸ hu)]
-        rcases Finset.mem_union.mp hu with huKD | huB
-        · rw [hkv_KDA u (Finset.mem_union_left _ huKD)]
-        · rw [hkvB u huB]
-      · rw [ite_eq_right hu, ite_eq_right (hun_eq ▸ hu)]
+      refine ite_mem_congr none (congrArg₂ (· ∪ ·) hKD_eq hB) fun u hu => ?_
+      rcases Finset.mem_union.mp hu with huKD | huB
+      · rw [hkv_KDA u (Finset.mem_union_left _ huKD)]
+      · rw [hkvB u huB]
     have hCB : C_B sb₁ = C_B sb₂ :=
       encodeMemFinset_inj hCB_mem₁ (hdictB ▸ hCB_mem₂) (Nat.le_floor hcap₁)
         (by simpa only [m₆, hdictB] using hm₆)
     have hCbef : C_bef sb₁ = C_bef sb₂ := funext fun j => by
       by_cases hj : j ∈ S_B sb₁
-      · have h1 : C_mix sb₁ j = C_bef sb₁ j := mixMem_of_mem hj
-        have h2 : C_mix sb₂ j = C_bef sb₂ j := mixMem_of_mem (hSB ▸ hj)
-        rw [← h1, ← h2, hcm]
-      · have h1 : C_B sb₁ j = C_bef sb₁ j :=
-          D_det.nextMem_runInterval_eq_of_notMem_probedCellsInterval step₀ (C_bef sb₁)
-            (ops_B sb₁) hj
-        have h2 : C_B sb₂ j = C_bef sb₂ j :=
-          D_det.nextMem_runInterval_eq_of_notMem_probedCellsInterval step₀ (C_bef sb₂)
-            (ops_B sb₂) (show j ∉ S_B sb₂ from hSB ▸ hj)
-        rw [← h1, ← h2, hCB]
+      · exact (mixMem_of_mem hj : C_mix sb₁ j = C_bef sb₁ j).symm.trans
+          ((congrFun hcm j).trans (mixMem_of_mem (hSB ▸ hj) : C_mix sb₂ j = C_bef sb₂ j))
+      · exact (D_det.nextMem_runInterval_eq_of_notMem_probedCellsInterval step₀ (C_bef sb₁)
+          (ops_B sb₁) hj).symm.trans ((congrFun hCB j).trans
+            (D_det.nextMem_runInterval_eq_of_notMem_probedCellsInterval step₀ (C_bef sb₂)
+              (ops_B sb₂) (hSB ▸ hj : j ∉ S_B sb₂)))
     have hdec_bef_eq := congrArg (decodeDict D_det step₀) hCbef
     rw [hdec_bef₁, hdec_bef₂] at hdec_bef_eq
     obtain ⟨hK_eq, hkv_K_val⟩ := dom_eq_of_ite_some_eq hdec_bef_eq
-    refine ⟨by dsimp only [msg]; rw [hm₁, hm₂, hm₃, hm₄, hm₅, hm₆],
-      Prod.ext hKD_eq (funext fun u => ?_)⟩
+    refine ⟨by simp only [msg, hm₁, hm₂, hm₃, hm₄, hm₅, hm₆], Prod.ext hKD_eq ?_⟩
     dsimp only [target8]
-    have hcov_eq : sb₁.1.activeKeys t₀ ht₀_n ∪ sb₁.1.insertedSet t₀ m ht₀ ∪ sb₁.2 =
-        sb₂.1.activeKeys t₀ ht₀_n ∪ sb₂.1.insertedSet t₀ m ht₀ ∪ sb₂.2 := by
-      rw [hK_eq, hA_eq, hB]
-    by_cases hu : u ∈ sb₁.1.activeKeys t₀ ht₀_n ∪ sb₁.1.insertedSet t₀ m ht₀ ∪ sb₁.2
-    · rw [ite_eq_left hu, ite_eq_left (hcov_eq ▸ hu)]
-      rcases Finset.mem_union.mp hu with huKA | huB
-      · rcases Finset.mem_union.mp huKA with huK | huA
-        · rw [Fin.ext (hkv_K_val u huK)]
-        · rw [hkv_KDA u (Finset.mem_union_right _ huA)]
-      · rw [hkvB u huB]
-    · rw [ite_eq_right hu, ite_eq_right (hcov_eq ▸ hu)]
+    refine ite_mem_congr _
+      (congrArg₂ (· ∪ ·) (congrArg₂ (· ∪ ·) hK_eq hA_eq) hB) fun u hu => ?_
+    rcases Finset.mem_union.mp hu with huKA | huB
+    · rcases Finset.mem_union.mp huKA with huK | huA
+      · rw [Fin.ext (hkv_K_val u huK)]
+      · rw [hkv_KDA u (Finset.mem_union_right _ huA)]
+    · rw [hkvB u huB]
   -- Prefix-free entropy compression vs conditioned fiber entropy lower bound
   let joint_ot := p.map fun sb => (obs8 t₀ m ht₀ sb, target8 t₀ m ht₀ sb)
   have hcomp_bound : PMF.conditionalEntropy joint_ot ≤
@@ -463,14 +431,12 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
       exact mul_le_mul_of_nonneg_right hΔ_cap (Nat.cast_nonneg w)
     have hm6 : ((m₆ sb).length : ℝ) ≤ R + 2 + γ * (m : ℝ) * Real.logb 2 U := by
       dsimp only [m₆]; rw [length_encodeMemFinset]
-      have hfib_pos : 1 ≤ (stateFiber D_det step_end (dict_B sb)).card :=
-        Finset.card_pos.mpr ⟨C_B sb, hCB_mem⟩
-      have hK_pos : 1 ≤ K_cap := hfib_pos.trans (Nat.le_floor hcap)
+      have hK_pos : 1 ≤ K_cap :=
+        (Finset.card_pos.mpr ⟨C_B sb, hCB_mem⟩).trans_le (Nat.le_floor hcap)
       have hclog := (clog_two_lt_logb_add_one hK_pos).le
-      have hK_le_M : (K_cap : ℝ) ≤ M_cap := Nat.floor_le (by dsimp only [M_cap]; positivity)
       have hlogK : Real.logb 2 (K_cap : ℝ) ≤ R + 1 + γ * (m : ℝ) * Real.logb 2 U := by
         refine (Real.logb_le_logb_of_le (by norm_num) (by exact_mod_cast hK_pos)
-          hK_le_M).trans_eq ?_
+          (Nat.floor_le (by dsimp only [M_cap]; positivity))).trans_eq ?_
         dsimp only [M_cap]
         rw [Real.logb_mul (by positivity) (by positivity),
           Real.logb_rpow (by norm_num) (by norm_num),
@@ -480,15 +446,11 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
   set C_upper := benchmarkBits U V n + (m : ℝ) * Real.logb 2 V + 2 * R +
     2 * (m : ℝ) * t + γ * (m : ℝ) * (w : ℝ) + γ * (m : ℝ) * Real.logb 2 U + 3
   have hexp_msg : (∑ sb : Ω, (p sb).toReal * ((msg sb).length : ℝ)) ≤ C_upper := by
-    calc (∑ sb : Ω, (p sb).toReal * ((msg sb).length : ℝ))
-        ≤ ∑ sb : Ω, (p sb).toReal * C_upper := by
-          refine Finset.sum_le_sum fun sb _ => ?_
-          by_cases h0 : (p sb).toReal = 0
-          · simp only [h0, zero_mul, le_rfl]
-          · have hsb : sb ∈ p.support := (_root_.PMF.mem_support_iff p sb).mpr fun h =>
-              h0 (by simp only [h, ENNReal.toReal_zero])
-            exact mul_le_mul_of_nonneg_left (hlen_pt sb hsb) ENNReal.toReal_nonneg
-      _ = C_upper := by rw [← Finset.sum_mul, PMF.sum_toReal p, one_mul]
+    refine (Finset.sum_le_sum fun sb _ => ?_).trans_eq
+      (by rw [← Finset.sum_mul, PMF.sum_toReal p, one_mul] : ∑ sb, (p sb).toReal * C_upper = _)
+    by_cases hsb : sb ∈ p.support
+    · exact mul_le_mul_of_nonneg_left (hlen_pt sb hsb) ENNReal.toReal_nonneg
+    · simp [(_root_.PMF.apply_eq_zero_iff p sb).2 hsb]
   have hm_real : (2 : ℝ) ≤ (m : ℝ) := by exact_mod_cast hm
   dsimp only [C_upper] at hexp_msg
   linarith

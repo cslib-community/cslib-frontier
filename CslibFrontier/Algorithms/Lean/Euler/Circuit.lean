@@ -139,12 +139,11 @@ theorem consecutivePairs_append_append {A c B : List α} {x : α} (hc1 : c.head?
       ((A ++ x :: B).consecutivePairs ++ c.consecutivePairs) := by
   obtain ⟨c₁, rfl⟩ := List.head?_eq_some_iff.mp hc1
   obtain ⟨c₂, hc₂⟩ := List.getLast?_eq_some_iff.mp hc2
-  have e1 : A ++ x :: c₁ ++ B = A ++ x :: (c₁ ++ B) := by simp
   have e2 : x :: (c₁ ++ B) = c₂ ++ x :: B := by
-    rw [← List.cons_append, hc₂]
-    simp
-  rw [e1, consecutivePairs_append_cons A x (c₁ ++ B), e2, consecutivePairs_append_cons c₂ x B,
-    ← hc₂, consecutivePairs_append_cons A x B, List.append_assoc]
+    simpa [List.append_assoc] using congrArg (· ++ B) hc₂
+  rw [List.append_assoc, List.cons_append, consecutivePairs_append_cons A x (c₁ ++ B), e2,
+    consecutivePairs_append_cons c₂ x B, ← hc₂, consecutivePairs_append_cons A x B,
+    List.append_assoc]
   exact List.Perm.append_left _ List.perm_append_comm
 
 theorem head?_append_append {A c B : List α} {x : α} (hc1 : c.head? = some x) :
@@ -183,19 +182,13 @@ theorem eqvGen_of_isEulerCircuit {H : List (α × α)} {u : α} {w : List α}
     rcases hce with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
     · exact .rel _ _ hcd
     · exact .symm _ _ (.rel _ _ hcd)
-  intro e he
-  have hm : undirected e ∈ (u :: w').consecutivePairs.map undirected :=
-    h.perm.symm.subset (List.mem_map_of_mem he)
-  obtain ⟨f, hf, hfe⟩ := List.mem_map.mp hm
+  intro ⟨a, b⟩ he
+  obtain ⟨⟨c, d⟩, hf, hfe⟩ := List.mem_map.mp (h.perm.symm.subset (List.mem_map_of_mem he))
   have hf12 := mem_of_mem_consecutivePairs hf
-  have he1 : e.1 ∈ u :: w' := by
-    obtain ⟨a, b⟩ := e
-    obtain ⟨c, d⟩ := f
-    simp only [undirected_mk, Sym2.eq_iff] at hfe
-    rcases hfe with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-    · exact hf12.1
-    · exact hf12.2
-  exact .symm _ _ (eqvGen_of_mem_cons hstep _ he1)
+  simp only [undirected_mk, Sym2.eq_iff] at hfe
+  rcases hfe with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  · exact .symm _ _ (eqvGen_of_mem_cons hstep _ hf12.1)
+  · exact .symm _ _ (eqvGen_of_mem_cons hstep _ hf12.2)
 
 /-- An Euler circuit from `u` visits every vertex connected to `u` by edges of `H`. -/
 theorem mem_of_isEulerCircuit {H : List (α × α)} {u : α} {w : List α} (h : IsEulerCircuit H u w)
@@ -225,11 +218,9 @@ theorem sum_map_consecutivePairs_eq {β : Type*} [AddCommMonoid β] {δ : α →
     (hsymm : ∀ a b, δ a b = δ b a) {H : List (α × α)} {u : α} {w : List α}
     (h : IsEulerCircuit H u w) :
     (w.consecutivePairs.map fun e => δ e.1 e.2).sum = (H.map fun e => δ e.1 e.2).sum := by
-  have hd : ∀ L : List (α × α), (L.map fun e => δ e.1 e.2).sum =
+  have hd (L : List (α × α)) : (L.map fun e => δ e.1 e.2).sum =
       ((L.map undirected).map (Sym2.lift ⟨δ, hsymm⟩)).sum := by
-    intro L
-    simp only [List.map_map]
-    rfl
+    rw [List.map_map]; rfl
   rw [hd, hd]
   exact (h.perm.map _).sum_eq
 
@@ -256,12 +247,10 @@ theorem degree_append (H K : List (α × α)) (x : α) :
 /-- The degree depends only on the edges up to orientation. -/
 theorem degree_eq_of_perm {H K : List (α × α)}
     (h : (H.map undirected).Perm (K.map undirected)) (x : α) : degree H x = degree K x := by
-  have hd : ∀ L : List (α × α), degree L x = ((L.map undirected).map (Sym2.lift
+  have hd (L : List (α × α)) : degree L x = ((L.map undirected).map (Sym2.lift
       ⟨fun a b => (if x = a then 1 else 0) + (if x = b then 1 else 0),
         fun _ _ => Nat.add_comm _ _⟩)).sum := by
-    intro L
-    simp only [degree, List.map_map]
-    rfl
+    rw [degree, List.map_map]; rfl
   rw [hd, hd]
   exact (h.map _).sum_eq
 
@@ -272,17 +261,15 @@ theorem degree_consecutivePairs_cons (a : α) (l : List α) (x : α) :
       (if x = (a :: l).getLast (List.cons_ne_nil a l) then 1 else 0) = 2 * (a :: l).count x := by
   induction l generalizing a with
   | nil =>
-    by_cases h : x = a
-    · subst h
-      simp
+    rcases eq_or_ne x a with rfl | h
+    · simp
     · simp [h, Ne.symm h]
   | cons b l ih =>
     have := ih b
     rw [List.consecutivePairs_cons_cons, degree_cons, List.getLast_cons_cons, List.count_cons]
     simp only [ends, beq_iff_eq] at this ⊢
-    by_cases h : x = a
-    · subst h
-      simp only [ite_true] at this ⊢
+    rcases eq_or_ne x a with rfl | h
+    · simp only [ite_true] at this ⊢
       omega
     · simp only [h, ite_false, Ne.symm h] at this ⊢
       omega
@@ -292,14 +279,11 @@ vertices of even degree. -/
 theorem even_degree_of_isEulerCircuit {H : List (α × α)} {u : α} {w : List α}
     (h : IsEulerCircuit H u w) (x : α) : Even (degree H x) := by
   obtain ⟨w', rfl⟩ := List.head?_eq_some_iff.mp h.head
-  have hl : (u :: w').getLast (List.cons_ne_nil _ _) = u := by
-    have := h.getLast
-    rw [List.getLast?_eq_some_getLast (List.cons_ne_nil _ _)] at this
-    exact Option.some.inj this
-  have := degree_consecutivePairs_cons u w' x
-  rw [hl] at this
-  rw [← degree_eq_of_perm h.perm]
-  exact Nat.even_iff.mpr (by split_ifs at this <;> omega)
+  have hl : (u :: w').getLast (List.cons_ne_nil _ _) = u :=
+    Option.some.inj ((List.getLast?_eq_some_getLast _).symm.trans h.getLast)
+  have hdeg := degree_consecutivePairs_cons u w' x
+  rw [degree_eq_of_perm h.perm, hl] at hdeg
+  exact Nat.even_iff.mpr (by split_ifs at hdeg <;> omega)
 
 /-! ### Greedy walks -/
 
@@ -313,36 +297,25 @@ theorem undirected_eq_of_touches {x : α} {e : α × α} (h : touches x e = true
     undirected e = undirected (x, other x e) := by
   obtain ⟨a, b⟩ := e
   simp only [touches, Bool.or_eq_true, decide_eq_true_eq] at h
-  by_cases ha : x = a
-  · subst ha
-    simp [other]
-  · have hb : x = b := h.resolve_left ha
-    subst hb
-    simp only [other, ha, ↓reduceIte, undirected_mk]
-    exact Sym2.eq_swap
+  rcases eq_or_ne x a with rfl | ha
+  · simp only [other, ↓reduceIte]
+  · simpa only [other, ha, ↓reduceIte, ← h.resolve_left ha, undirected_mk] using Sym2.eq_swap
 
 theorem ends_of_touches {x : α} {e : α × α} (h : touches x e = true) (y : α) :
     ends y e = (if y = x then 1 else 0) + (if y = other x e then 1 else 0) := by
   obtain ⟨a, b⟩ := e
   simp only [touches, Bool.or_eq_true, decide_eq_true_eq] at h
-  by_cases ha : x = a
-  · subst ha
-    simp [other, ends]
-  · have hb : x = b := h.resolve_left ha
-    subst hb
-    simp only [other, ends, ha, ↓reduceIte]
-    exact Nat.add_comm _ _
+  rcases eq_or_ne x a with rfl | ha
+  · simp only [other, ends, ↓reduceIte]
+  · simpa only [other, ends, ha, ↓reduceIte, ← h.resolve_left ha] using Nat.add_comm _ _
 
 theorem degree_eq_zero_of_find?_eq_none {H : List (α × α)} {u : α}
     (h : H.find? (touches u) = none) : degree H u = 0 := by
-  rw [List.find?_eq_none] at h
-  unfold degree
-  apply List.sum_eq_zero
-  intro n hn
+  refine List.sum_eq_zero fun n hn => ?_
   obtain ⟨e, he, rfl⟩ := List.mem_map.mp hn
-  have := h e he
-  simp only [touches, Bool.or_eq_true, decide_eq_true_eq, not_or] at this
-  simp [ends, this.1, this.2]
+  have hne := List.find?_eq_none.mp h e he
+  simp only [touches, Bool.or_eq_true, decide_eq_true_eq, not_or] at hne
+  simp only [ends, hne.1, hne.2, ↓reduceIte]; rfl
 
 /-- Follow unused edges of `H` greedily from `u`, for at most `fuel` steps. Returns the walk and
 the edges it did not use. -/
@@ -396,25 +369,15 @@ theorem walkFrom_spec (fuel : ℕ) (H : List (α × α)) (u t : α) (hfuel : H.l
       ∀ y, degree (walkFrom fuel H u).2 y % 2 = 0 := by
   fun_induction walkFrom fuel H u with
   | case1 H u =>
-    have hH : H = [] := List.eq_nil_of_length_eq_zero (Nat.le_zero.mp hfuel)
-    subst hH
-    have hu := hpar u
-    have hut : u = t := by
-      by_contra h
-      simp [h] at hu
-    subst hut
+    obtain rfl : H = [] := List.eq_nil_of_length_eq_zero (Nat.le_zero.mp hfuel)
+    obtain rfl : u = t := by_contra fun h => by simpa [h] using hpar u
     simp
   | case2 fuel H u hfind =>
     have hdeg := degree_eq_zero_of_find?_eq_none hfind
-    have hut : u = t := by
-      by_contra h
-      have hu := hpar u
-      simp [h, hdeg] at hu
-    subst hut
+    obtain rfl : u = t := by_contra fun h => by simpa [h, hdeg] using hpar u
     refine ⟨rfl, rfl, by simp, fun y => ?_⟩
     change degree H y % 2 = 0
-    have := hpar y
-    split_ifs at this <;> omega
+    have := hpar y; split_ifs at this <;> omega
   | case3 fuel H u e hfind r ih =>
     have he : e ∈ H := List.mem_of_find?_eq_some hfind
     have hte : touches u e = true := List.find?_some hfind
@@ -476,10 +439,9 @@ theorem eq_nil_of_forall_not_touches {H R : List (α × α)} {w : List α} {u : 
     | refl => exact Iff.rfl
     | symm _ _ _ ih => exact ih.symm
     | trans _ _ _ _ _ ih1 ih2 => exact ih1.trans ih2
-  cases R with
-  | nil => rfl
-  | cons e R' =>
-    exfalso
+  obtain _ | ⟨e, R'⟩ := R
+  · rfl
+  · exfalso
     have hm : undirected e ∈ H.map undirected := hperm.symm.subset (by simp)
     obtain ⟨h, hh, hhe⟩ := List.mem_map.mp hm
     have h1w : h.1 ∈ w := (key _ _ (hconn h hh)).mpr hu
@@ -512,19 +474,13 @@ theorem eulerLoop_spec {H : List (α × α)} {u : α}
   fun_induction eulerLoop fuel w R with
   | case1 w R =>
     intro h1 h2 h3 _ h5
-    have : R = [] := List.eq_nil_of_length_eq_zero (Nat.le_zero.mp h5)
-    subst this
+    obtain rfl : R = [] := List.eq_nil_of_length_eq_zero (Nat.le_zero.mp h5)
     exact ⟨h1, h2, by simpa using h3.symm⟩
   | case2 fuel w R hfind =>
     intro h1 h2 h3 _ _
-    have hR : R = [] := by
-      refine eq_nil_of_forall_not_touches (List.mem_of_mem_head? h1) hconn h3 ?_
-      intro x hx e he
-      rw [List.find?_eq_none] at hfind
-      have := hfind x hx
-      simp only [List.any_eq_true, not_exists, not_and, Bool.not_eq_true] at this
-      exact this e he
-    subst hR
+    obtain rfl : R = [] := eq_nil_of_forall_not_touches (List.mem_of_mem_head? h1) hconn h3
+      fun x hx e he => Bool.eq_false_iff.mpr fun ht =>
+        List.find?_eq_none.mp hfind x hx (List.any_eq_true.mpr ⟨e, he, ht⟩)
     exact ⟨h1, h2, by simpa using h3.symm⟩
   | case3 fuel w R x hfind r ih =>
     intro h1 h2 h3 h4 h5
@@ -534,9 +490,7 @@ theorem eulerLoop_spec {H : List (α × α)} {u : α}
     obtain ⟨e, he, hte⟩ := List.any_eq_true.mp hxR
     have hpar : ∀ y,
         (degree R y + (if y = x then 1 else 0) + (if y = x then 1 else 0)) % 2 = 0 :=
-      fun y => by
-        have := h4 y
-        split_ifs <;> omega
+      fun y => by have := h4 y; split_ifs <;> omega
     obtain ⟨s1, s2, s3, s4⟩ := walkFrom_spec R.length R x x le_rfl hpar
     obtain ⟨A, B, hw, hsp⟩ := exists_splice (walkFrom R.length R x).1 hxw
     have hlt := length_walkFrom_snd_lt (List.length_pos_of_mem he) he hte
@@ -546,9 +500,8 @@ theorem eulerLoop_spec {H : List (α × α)} {u : α}
     · rw [hsp]
       have hw' := consecutivePairs_append_append (A := A) (B := B) s1 s2
       rw [← hw] at hw'
-      refine h3.trans ?_
-      rw [List.map_append]
-      refine (List.Perm.append_left _ s3).trans ?_
+      rw [List.map_append] at h3
+      refine (h3.trans (List.Perm.append_left _ s3)).trans ?_
       rw [← List.map_append, ← List.append_assoc]
       exact ((hw'.append_right _).map _).symm
     · exact s4

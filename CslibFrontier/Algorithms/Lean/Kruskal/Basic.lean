@@ -240,6 +240,15 @@ theorem rel_edgePartitionFrom_iff_eqvGen {n : ℕ} {W : Type} (p : Partition n)
   rw [edgePartitionFrom_eq_eval_spanningForestEdges]
   exact DisjointSet.spanningForestEdges_rel_iff_eqvGen WeightedEdge.endpoints es p a b
 
+private theorem eqvGen_of_imp {α : Type*} {r s : α → α → Prop}
+    (h : ∀ a b, r a b → Relation.EqvGen s a b) {a b : α} (hab : Relation.EqvGen r a b) :
+    Relation.EqvGen s a b := by
+  induction hab with
+  | rel _ _ hr => exact h _ _ hr
+  | refl => exact .refl _
+  | symm _ _ _ ih => exact .symm _ _ ih
+  | trans _ _ _ _ _ ih₁ ih₂ => exact .trans _ _ _ ih₁ ih₂
+
 /-- Two vertices are in the same component of `edgePartition es` iff they are connected by the
 equivalence closure of the edges in `es`. -/
 theorem rel_edgePartition_iff_eqvGen {n : ℕ} {W : Type}
@@ -247,19 +256,9 @@ theorem rel_edgePartition_iff_eqvGen {n : ℕ} {W : Type}
     (edgePartition es).rel a b = true ↔
       Relation.EqvGen (fun x y => ∃ e ∈ es, x = e.u ∧ y = e.v) a b := by
   rw [edgePartition, rel_edgePartitionFrom_iff_eqvGen]
-  constructor
-  · intro h
-    induction h with
-    | rel x y hxy =>
-      rcases hxy with hxy | he
-      · rw [Partition.rel_discrete_eq_true.mp hxy]
-        exact .refl y
-      · exact .rel _ _ he
-    | refl x => exact .refl x
-    | symm _ _ _ ih => exact .symm _ _ ih
-    | trans _ _ _ _ _ ih₁ ih₂ => exact .trans _ _ _ ih₁ ih₂
-  · intro h
-    exact h.mono fun _ _ hxy => .inr hxy
+  refine ⟨eqvGen_of_imp fun x y h => h.elim
+    (fun hxy => Partition.rel_discrete_eq_true.mp hxy ▸ .refl x) (fun he => .rel x y he),
+    fun h => h.mono fun _ _ => .inr⟩
 
 /-- Every edge in `es` relates its endpoints in `edgePartitionFrom p es`. -/
 theorem rel_edgePartitionFrom_of_mem {n : ℕ} {W : Type} (p : Partition n)
@@ -273,13 +272,7 @@ theorem Perm.edgePartitionFrom_eq {n : ℕ} {W : Type}
     edgePartitionFrom p es₁ = edgePartitionFrom p es₂ := by
   ext a b
   rw [Bool.eq_iff_iff, rel_edgePartitionFrom_iff_eqvGen, rel_edgePartitionFrom_iff_eqvGen]
-  constructor
-  · intro hab
-    exact hab.mono fun _ _ hxy =>
-      hxy.elim .inl fun ⟨e, he, hu, hv⟩ => .inr ⟨e, h.mem_iff.mp he, hu, hv⟩
-  · intro hab
-    exact hab.mono fun _ _ hxy =>
-      hxy.elim .inl fun ⟨e, he, hu, hv⟩ => .inr ⟨e, h.mem_iff.mpr he, hu, hv⟩
+  simp only [h.mem_iff]
 
 /-- `edgePartition` is invariant under edge-list permutations. -/
 theorem Perm.edgePartition_eq {n : ℕ} {W : Type}
@@ -293,29 +286,17 @@ theorem edgePartitionFrom_merge {n : ℕ} {W : Type} (p : Partition n) (x y : Fi
     edgePartitionFrom (p.merge x y) es = (edgePartitionFrom p es).merge x y := by
   ext a b
   rw [Bool.eq_iff_iff, rel_edgePartitionFrom_iff_eqvGen, Partition.rel_merge_iff_eqvGen]
-  constructor
-  · intro h
-    induction h with
-    | rel u v huv =>
-      rcases huv with huv | ⟨e, he, rfl, rfl⟩
-      · exact (Partition.rel_merge_iff_eqvGen.mp huv).mono fun w z hwz =>
-          hwz.elim (fun hwz' => .inl ((rel_edgePartitionFrom_iff_eqvGen p es w z).mpr
-            (.rel _ _ (.inl hwz')))) .inr
-      · exact .rel _ _ (.inl (rel_edgePartitionFrom_of_mem p he))
-    | refl u => exact .refl u
-    | symm _ _ _ ih => exact .symm _ _ ih
-    | trans _ _ _ _ _ ih₁ ih₂ => exact .trans _ _ _ ih₁ ih₂
-  · intro h
-    induction h with
-    | rel u v huv =>
-      rcases huv with huv | ⟨rfl, rfl⟩
-      · exact ((rel_edgePartitionFrom_iff_eqvGen p es u v).mp huv).mono fun w z hwz =>
-          hwz.elim (fun hwz' => .inl (Partition.rel_merge_eq_true.mpr (.inl hwz'))) .inr
-      · exact .rel _ _ (.inl (Partition.rel_merge_eq_true.mpr
-          (.inr (.inl ⟨p.refl u, p.refl v⟩))))
-    | refl u => exact .refl u
-    | symm _ _ _ ih => exact .symm _ _ ih
-    | trans _ _ _ _ _ ih₁ ih₂ => exact .trans _ _ _ ih₁ ih₂
+  refine ⟨eqvGen_of_imp fun _ _ huv => ?_, eqvGen_of_imp fun _ _ huv => ?_⟩
+  · rcases huv with huv | ⟨e, he, rfl, rfl⟩
+    · exact (Partition.rel_merge_iff_eqvGen.mp huv).mono fun w z hwz =>
+        hwz.elim (fun hwz' => .inl ((rel_edgePartitionFrom_iff_eqvGen p es w z).mpr
+          (.rel _ _ (.inl hwz')))) .inr
+    · exact .rel _ _ (.inl (rel_edgePartitionFrom_of_mem p he))
+  · rcases huv with huv | ⟨rfl, rfl⟩
+    · exact ((rel_edgePartitionFrom_iff_eqvGen p es _ _).mp huv).mono fun w z hwz =>
+        hwz.elim (fun hwz' => .inl (Partition.rel_merge_eq_true.mpr (.inl hwz'))) .inr
+    · exact .rel _ _ (.inl (Partition.rel_merge_eq_true.mpr
+        (.inr (.inl ⟨p.refl _, p.refl _⟩))))
 
 /-- Each edge reduces the number of connected components by at most `1`. -/
 theorem numComponents_le_edgePartitionFrom_add_length {n : ℕ} {W : Type} (p : Partition n)
@@ -435,15 +416,11 @@ private theorem exists_perm_cons_of_numComponents_add_length_eq_succ {n : ℕ} {
     rw [edgePartitionFrom_cons, List.length_cons] at h
     cases hrel : p.rel e.u e.v
     · have hm := Partition.numComponents_merge_of_not_rel hrel
-      have h' : (edgePartitionFrom (p.merge e.u e.v) L₀).numComponents + L₀.length =
-          (p.merge e.u e.v).numComponents + 1 := by omega
-      obtain ⟨f, L₁, hperm, hpart, hacyc⟩ := ih h'
-      refine ⟨f, e :: L₁, ?_, ?_, isAcyclicFrom_cons.mpr ⟨hrel, hacyc⟩⟩
-      · exact (hperm.cons e).trans (List.Perm.swap f e L₁)
-      · simpa only [edgePartitionFrom_cons] using hpart
+      obtain ⟨f, L₁, hperm, hpart, hacyc⟩ := ih (p := p.merge e.u e.v) (by omega)
+      exact ⟨f, e :: L₁, (hperm.cons e).trans (List.Perm.swap f e L₁),
+        by simpa only [edgePartitionFrom_cons] using hpart, isAcyclicFrom_cons.mpr ⟨hrel, hacyc⟩⟩
     · rw [Partition.merge_of_rel hrel] at h
-      have hacyc : IsAcyclicFrom p L₀ := by grind [IsAcyclicFrom]
-      refine ⟨e, L₀, List.Perm.refl _, ?_, hacyc⟩
+      refine ⟨e, L₀, List.Perm.refl _, ?_, by unfold IsAcyclicFrom; omega⟩
       rw [edgePartitionFrom_cons, Partition.merge_of_rel hrel]
 
 /-- Relative spanning forest of `es` starting from partition `p`. -/
@@ -485,10 +462,6 @@ spanning forest, and vice versa. -/
 theorem isSpanningTree_iff_isSpanningForest_of_connected {n : ℕ} {W : Type}
     {es T : List (WeightedEdge n W)} (hconn : (edgePartition es).numComponents = 1) :
     IsSpanningTree es T ↔ IsSpanningForest es T := by
-  have hn : 0 < n := by
-    rcases Nat.eq_zero_or_pos n with rfl | hpos
-    · simp at hconn
-    · exact hpos
   constructor
   · rintro ⟨hsub, hacyc, hcomp⟩
     refine ⟨hsub, hacyc, ?_⟩
@@ -496,8 +469,7 @@ theorem isSpanningTree_iff_isSpanningForest_of_connected {n : ℕ} {W : Type}
     -- and likewise in `es` because `(edgePartition es).numComponents = 1`.
     have hall_one : ∀ {q : Partition n}, q.numComponents = 1 → ∀ x y : Fin n, q.rel x y = true := by
       intro q hq x y
-      have hcard : q.components.card = 1 := hq
-      obtain ⟨c, hc⟩ := Finset.card_eq_one.mp hcard
+      obtain ⟨c, hc⟩ := Finset.card_eq_one.mp hq
       have hx : q.classOf x = c := Finset.mem_singleton.mp (hc ▸ q.classOf_mem_components x)
       have hy : q.classOf y = c := Finset.mem_singleton.mp (hc ▸ q.classOf_mem_components y)
       exact Partition.classOf_eq_iff.mp (hx.trans hy.symm)
@@ -679,12 +651,8 @@ theorem totalWeight_kruskalScan_le {n : ℕ} {W : Type}
     · -- Kruskal accepts `e`; it replaces an edge `f` of `H` that is no lighter.
       simp only [Bool.not_false, ↓reduceIte, totalWeight_cons]
       obtain ⟨f, H', hHperm, hf, hH'⟩ := exists_perm_cons_isSpanningForestFrom_merge hrel hH
-      have hef : e.weight ≤ f.weight := by
-        rcases hf with rfl | hf_es
-        · exact le_rfl
-        · exact he_le f hf_es
       rw [Perm.totalWeight_eq hHperm, totalWeight_cons]
-      exact add_le_add hef (ih _ hes_sorted hH')
+      exact add_le_add (hf.elim (· ▸ le_rfl) (he_le f)) (ih _ hes_sorted hH')
     · -- Kruskal rejects the redundant edge `e`, which `H` cannot use either.
       simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte]
       exact ih p hes_sorted (isSpanningForestFrom_of_cons_of_rel hrel hH)
@@ -708,8 +676,7 @@ theorem perm_kruskalScan_of_totalWeight_le_of_nodup_weights {n : ℕ} {W : Type}
     obtain ⟨he_not_mem, hes_nodup⟩ := List.nodup_cons.mp hnodup
     rw [kruskalScan_cons] at hopt ⊢
     cases hrel : p.rel e.u e.v
-    · rw [hrel] at hopt
-      simp only [Bool.not_false, ↓reduceIte] at hopt ⊢
+    · simp only [hrel, Bool.not_false, ↓reduceIte] at hopt ⊢
       obtain ⟨f, H', hHperm, hf, hH'⟩ := exists_perm_cons_isSpanningForestFrom_merge hrel hH
       rw [Perm.totalWeight_eq hHperm, totalWeight_cons, totalWeight_cons] at hopt
       rcases hf with rfl | hf_es
@@ -718,12 +685,9 @@ theorem perm_kruskalScan_of_totalWeight_le_of_nodup_weights {n : ℕ} {W : Type}
       · -- `H` trades `e` for a strictly heavier `f ∈ es`, contradicting `hopt`.
         have hlt_w : e.weight < f.weight := (he_le f hf_es).lt_of_ne fun heq =>
           he_not_mem (heq ▸ List.mem_map_of_mem hf_es)
-        have hstrict : e.weight + totalWeight (kruskalScan (p.merge e.u e.v) es) <
-            f.weight + totalWeight H' :=
-          add_lt_add_of_lt_of_le hlt_w (totalWeight_kruskalScan_le _ hes_sorted hH')
-        exact absurd hopt (not_le_of_gt hstrict)
-    · rw [hrel] at hopt
-      simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hopt ⊢
+        exact absurd hopt (not_le_of_gt
+          (add_lt_add_of_lt_of_le hlt_w (totalWeight_kruskalScan_le _ hes_sorted hH')))
+    · simp only [hrel, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hopt ⊢
       exact ih p hes_sorted hes_nodup (isSpanningForestFrom_of_cons_of_rel hrel hH) hopt
 
 /-- Sort an edge list by nondecreasing weight using `List.mergeSort`. -/
@@ -819,6 +783,12 @@ theorem kruskalEdges_isSpanningForest {n : ℕ} {W : Type} [LE W] [DecidableLE W
     IsSpanningForest es (kruskalEdges es) :=
   ⟨kruskalEdges_subperm es, kruskalEdges_isAcyclic es, edgePartition_kruskalEdges es⟩
 
+private theorem isSpanningForestFrom_sortEdges {n : ℕ} {W : Type} [LE W] [DecidableLE W]
+    {es F : List (WeightedEdge n W)} (hF : IsSpanningForest es F) :
+    IsSpanningForestFrom (Partition.discrete n) (sortEdges es) F :=
+  ⟨hF.1.trans (sortEdges_perm es).symm.subperm, hF.2.1,
+    hF.2.2.trans (Perm.edgePartition_eq (sortEdges_perm es)).symm⟩
+
 /-- **Kruskal's minimum spanning forest theorem** (generalizing [Cormen et al., Section 23.2,
 `MST-KRUSKAL`, p. 631][CLRS2009] from connected simple real-weighted graphs to arbitrary finite
 multigraphs): for any weighted multigraph `es` on `Fin n` with weights in an ordered additive
@@ -826,14 +796,10 @@ commutative monoid, `kruskalEdges es` is a minimum-weight spanning forest of `es
 theorem kruskalEdges_isMinSpanningForest {n : ℕ} {W : Type}
     [AddCommMonoid W] [LinearOrder W] [IsOrderedAddMonoid W]
     (es : List (WeightedEdge n W)) :
-    IsMinSpanningForest es (kruskalEdges es) := by
-  refine ⟨kruskalEdges_isSpanningForest es, fun F ⟨hsub, hacyc, hpart⟩ => ?_⟩
-  have hsub' : F.Subperm (sortEdges es) := hsub.trans (sortEdges_perm es).symm.subperm
-  have hpart' : edgePartitionFrom (Partition.discrete n) F =
-      edgePartitionFrom (Partition.discrete n) (sortEdges es) :=
-    hpart.trans (Perm.edgePartition_eq (sortEdges_perm es)).symm
-  exact totalWeight_kruskalScan_le (Partition.discrete n) (sortEdges_sorted es)
-    ⟨hsub', hacyc, hpart'⟩
+    IsMinSpanningForest es (kruskalEdges es) :=
+  ⟨kruskalEdges_isSpanningForest es, fun _ hF =>
+    totalWeight_kruskalScan_le (Partition.discrete n) (sortEdges_sorted es)
+      (isSpanningForestFrom_sortEdges hF)⟩
 
 /-- With nonnegative weights, Kruskal's forest weighs at most its whole input. -/
 theorem totalWeight_kruskalEdges_le {n : ℕ} {W : Type}
@@ -864,18 +830,11 @@ theorem perm_kruskalEdges_of_isMinSpanningForest_of_nodup_weights {n : ℕ} {W :
     {es F : List (WeightedEdge n W)}
     (hnodup : (es.map WeightedEdge.weight).Nodup)
     (hF : IsMinSpanningForest es F) :
-    F.Perm (kruskalEdges es) := by
-  obtain ⟨⟨hsub, hacyc, hpart⟩, hmin⟩ := hF
-  have hsub' : F.Subperm (sortEdges es) := hsub.trans (sortEdges_perm es).symm.subperm
-  have hpart' : edgePartitionFrom (Partition.discrete n) F =
-      edgePartitionFrom (Partition.discrete n) (sortEdges es) :=
-    hpart.trans (Perm.edgePartition_eq (sortEdges_perm es)).symm
-  have hnodup' : ((sortEdges es).map WeightedEdge.weight).Nodup :=
-    ((sortEdges_perm es).map WeightedEdge.weight).nodup_iff.mpr hnodup
-  have hopt : totalWeight F ≤ totalWeight (kruskalEdges es) :=
-    hmin (kruskalEdges es) (kruskalEdges_isSpanningForest es)
-  exact perm_kruskalScan_of_totalWeight_le_of_nodup_weights (Partition.discrete n)
-    (sortEdges_sorted es) hnodup' ⟨hsub', hacyc, hpart'⟩ hopt
+    F.Perm (kruskalEdges es) :=
+  perm_kruskalScan_of_totalWeight_le_of_nodup_weights (Partition.discrete n)
+    (sortEdges_sorted es) (((sortEdges_perm es).map WeightedEdge.weight).nodup_iff.mpr hnodup)
+    (isSpanningForestFrom_sortEdges hF.1)
+    (hF.2 (kruskalEdges es) (kruskalEdges_isSpanningForest es))
 
 /-- Distinct-weight uniqueness specialized to connected multigraphs: when edge weights in `es` are
 pairwise distinct and `es` is connected, every minimum spanning tree of `es` is a permutation of
@@ -914,15 +873,10 @@ theorem eval_kruskalClient {n : ℕ} {W : Type} (p : Partition n)
 theorem runClient_kruskalClient {n : ℕ} {W : Type} (p : Partition n)
     (es : List (WeightedEdge n W)) :
     (DisjointSet.spec n).runClient p (kruskalClient es) =
-      (kruskalScan p es, edgePartitionFrom p es, es.map fun e => DisjointSet.Op.union e.u e.v) := by
-  have hev := eval_kruskalClient p es
-  unfold eval at hev
-  have h₁ : (DisjointSet.spec n).clientResult p (kruskalClient es) = kruskalScan p es :=
-    congrArg Prod.fst hev
-  have h₂ : (DisjointSet.spec n).clientState p (kruskalClient es) = edgePartitionFrom p es :=
-    congrArg Prod.snd hev
-  have hhist := DisjointSet.runClient_spanningForestEdges_history WeightedEdge.endpoints es p
-  exact Prod.ext h₁ (Prod.ext h₂ hhist)
+      (kruskalScan p es, edgePartitionFrom p es, es.map fun e => DisjointSet.Op.union e.u e.v) :=
+  Prod.ext (kruskalScan_eq_eval_spanningForestEdges p es).symm
+    (Prod.ext (edgePartitionFrom_eq_eval_spanningForestEdges p es).symm
+      (DisjointSet.runClient_spanningForestEdges_history WeightedEdge.endpoints es p))
 
 /-- Projecting endpoints of `kruskalClient` matches unweighted
 `DisjointSet.spanningForestEdges id`. -/

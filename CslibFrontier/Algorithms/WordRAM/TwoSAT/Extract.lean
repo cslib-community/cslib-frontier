@@ -76,52 +76,37 @@ theorem extractVarLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound)
     exact hout_prev v (by have := v.isLt; omega) hne
   | v :: vs, idx, ok, x, hidx, hvs, hcomp, hout_prev, hc0, hc1, hc2, hnv, hob, hcb, hi, hok => by
     simp only [List.length_cons] at hidx
-    have hv_val : v.val = idx := by
-      have h0 := hvs 0 (by simp)
-      rwa [List.getElem_cons_zero, Nat.add_zero] at h0
+    have hv_val : v.val = idx := by simpa using hvs 0 (Nat.zero_lt_succ _)
     set compBase := kCompAddr G.workBase (2 * G.n) (2 * G.φ.length)
-    have hm_f : x.mem (compBase + 2 * idx) = compIdx (v, false) := by
-      have hu := hcomp (litEquiv G.n (v, false))
+    have hm (b : Bool) : x.mem (compBase + 2 * idx + b.toNat) = compIdx (v, b) := by
+      have hu := hcomp (litEquiv G.n (v, b))
       rw [Equiv.symm_apply_apply] at hu
-      simpa [litEquiv, litCodeBy, hv_val] using hu
-    have hm_t : x.mem (compBase + 2 * idx + 1) = compIdx (v, true) := by
-      have hu := hcomp (litEquiv G.n (v, true))
-      rw [Equiv.symm_apply_apply] at hu
-      simpa [litEquiv, litCodeBy, hv_val, Nat.add_assoc] using hu
-    have hf_2i : Fits w (2 * idx) := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
-    have hf_cf : Fits w (compBase + 2 * idx) :=
-      G.fits_of_le hfit (by
-        simp only [compBase, kCompAddr, Instance.workBase, Instance.outAddrBase,
-          G.encode_length, Instance.wordBound]; omega)
+      cases b <;> simpa [litEquiv, litCodeBy, hv_val, Nat.add_assoc] using hu
+    have hm_f : x.mem (compBase + 2 * idx) = compIdx (v, false) := hm false
+    have hm_t : x.mem (compBase + 2 * idx + 1) = compIdx (v, true) := hm true
     have hf_ct : Fits w (compBase + 2 * idx + 1) :=
       G.fits_of_le hfit (by
         simp only [compBase, kCompAddr, Instance.workBase, Instance.outAddrBase,
           G.encode_length, Instance.wordBound]; omega)
-    have hf_ob2 : Fits w (G.outAddrBase + 2) :=
-      G.fits_of_le hfit (by
-        simp only [Instance.outAddrBase, G.encode_length, Instance.wordBound]; omega)
     have hf_ob2i : Fits w (G.outAddrBase + 2 + idx) :=
       G.fits_of_le hfit (by
         simp only [Instance.outAddrBase, G.encode_length, Instance.wordBound]; omega)
-    have hf_i1 : Fits w (idx + 1) := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
-    let VarPost (x₁ : Data 28) : Prop :=
-      (∀ u : Fin (2 * G.n), x₁.mem (compBase + u.val) = compIdx ((litEquiv G.n).symm u)) ∧
-        (∀ q : Fin G.n, q.val < idx + 1 → compIdx (q, true) ≠ compIdx (q, false) →
-          x₁.mem (G.outAddrBase + 2 + q.val) =
-            (decide (compIdx (q, false) < compIdx (q, true))).toNat) ∧
-        x₁.regs cZero = 0 ∧ x₁.regs cOne = 1 ∧ x₁.regs cTwo = 2 ∧ x₁.regs nv = G.n ∧
-        x₁.regs outBase = G.outAddrBase ∧ x₁.regs compB = compBase ∧
-        x₁.regs iReg = idx + 1 ∧
-        x₁.regs compIdxReg = (ok && decide (compIdx (v, true) ≠ compIdx (v, false))).toNat
-    have hstep : ∃ x₁, ExecWithin w extractVarBody x x₁ 14 ∧ VarPost x₁ := by
+    obtain ⟨x₁, hx₁_ex, hx₁_comp, hx₁_prev, hx₁_0, hx₁_1, hx₁_2, hx₁_nv, hx₁_ob, hx₁_cb,
+      hx₁_i, hx₁_ok⟩ : ∃ x₁, ExecWithin w extractVarBody x x₁ 14 ∧
+        (∀ u : Fin (2 * G.n), x₁.mem (compBase + u.val) = compIdx ((litEquiv G.n).symm u)) ∧
+          (∀ q : Fin G.n, q.val < idx + 1 → compIdx (q, true) ≠ compIdx (q, false) →
+            x₁.mem (G.outAddrBase + 2 + q.val) =
+              (decide (compIdx (q, false) < compIdx (q, true))).toNat) ∧
+          x₁.regs cZero = 0 ∧ x₁.regs cOne = 1 ∧ x₁.regs cTwo = 2 ∧ x₁.regs nv = G.n ∧
+          x₁.regs outBase = G.outAddrBase ∧ x₁.regs compB = compBase ∧
+          x₁.regs iReg = idx + 1 ∧
+          x₁.regs compIdxReg = (ok && decide (compIdx (v, true) ≠ compIdx (v, false))).toNat := by
       unfold extractVarBody
-      wram_exec [hc0, hc1, hc2, hnv, hob, hcb, hi, hok, hm_f, hm_t,
-        hf_2i, hf_cf, hf_ct, hf_ob2, hf_ob2i, hf_i1]
+      wram_exec [hc0, hc1, hc2, hnv, hob, hcb, hi, hok, hm_f, hm_t, hf_ct, hf_ob2i]
       · -- equal components: compIdx (v, false) = compIdx (v, true)
-        dsimp only [VarPost]
-        refine ⟨hcomp, fun q hq hne_q => ?_, by wram_simp; exact hc0, by wram_simp; exact hc1,
-          by wram_simp; exact hc2, by wram_simp; exact hnv, by wram_simp; exact hob,
-          by wram_simp; exact hcb, by wram_simp, ?_⟩
+        refine ⟨hcomp, fun q hq hne_q => ?_, by wram_simp [hc0], by wram_simp [hc1],
+          by wram_simp [hc2], by wram_simp [hnv], by wram_simp [hob], by wram_simp [hcb],
+          by wram_simp, ?_⟩
         · by_cases hqi : q = v
           · subst hqi
             exact absurd ‹compIdx (q, false) = compIdx (q, true)›.symm hne_q
@@ -129,11 +114,11 @@ theorem extractVarLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound)
             exact hout_prev q (by omega) hne_q
         · wram_simp
           simp [‹compIdx (v, false) = compIdx (v, true)›]
-      · -- compIdx (v, false) < compIdx (v, true)
-        dsimp only [VarPost]
-        refine ⟨fun u => ?_, fun q hq hne_q => ?_, by wram_simp; exact hc0,
-          by wram_simp; exact hc1, by wram_simp; exact hc2, by wram_simp; exact hnv,
-          by wram_simp; exact hob, by wram_simp; exact hcb, by wram_simp, ?_⟩
+      all_goals
+        -- unequal components: the bit is written
+        refine ⟨fun u => ?_, fun q hq hne_q => ?_, by wram_simp [hc0], by wram_simp [hc1],
+          by wram_simp [hc2], by wram_simp [hnv], by wram_simp [hob], by wram_simp [hcb],
+          by wram_simp, ?_⟩
         · mem_upd
           rw [Function.update_of_ne (by
             simp only [compBase, kCompAddr, Instance.workBase]; omega)]
@@ -142,48 +127,22 @@ theorem extractVarLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound)
           by_cases hqi : q = v
           · subst hqi
             rw [hv_val, Function.update_self]
-            simp [‹compIdx (q, false) < compIdx (q, true)›]
+            by_cases h : compIdx (q, false) < compIdx (q, true) <;> simp [h]; omega
           · have hqv : q.val ≠ idx := fun h => hqi (Fin.ext (h.trans hv_val.symm))
             rw [Function.update_of_ne (by omega)]
             exact hout_prev q (by omega) hne_q
         · wram_simp
           have hne_v : compIdx (v, true) ≠ compIdx (v, false) := by omega
           simp [hne_v, hok]
-      · -- compIdx (v, false) > compIdx (v, true)
-        dsimp only [VarPost]
-        refine ⟨fun u => ?_, fun q hq hne_q => ?_, by wram_simp; exact hc0,
-          by wram_simp; exact hc1, by wram_simp; exact hc2, by wram_simp; exact hnv,
-          by wram_simp; exact hob, by wram_simp; exact hcb, by wram_simp, ?_⟩
-        · mem_upd
-          rw [Function.update_of_ne (by
-            simp only [compBase, kCompAddr, Instance.workBase]; omega)]
-          exact hcomp u
-        · mem_upd
-          by_cases hqi : q = v
-          · subst hqi
-            rw [hv_val, Function.update_self]
-            simp [‹¬ compIdx (q, false) < compIdx (q, true)›]
-          · have hqv : q.val ≠ idx := fun h => hqi (Fin.ext (h.trans hv_val.symm))
-            rw [Function.update_of_ne (by omega)]
-            exact hout_prev q (by omega) hne_q
-        · wram_simp
-          have hne_v : compIdx (v, true) ≠ compIdx (v, false) :=
-            fun h => ‹compIdx (v, false) ≠ compIdx (v, true)› h.symm
-          simp [hne_v, hok]
-    obtain ⟨x₁, hx₁_ex, hx₁_comp, hx₁_prev, hx₁_0, hx₁_1, hx₁_2, hx₁_nv, hx₁_ob, hx₁_cb,
-      hx₁_i, hx₁_ok⟩ := hstep
     obtain ⟨y, hy_ex, hy_ob, hy_nv, hy_0, hy_1, hy_ok, hy_bits⟩ :=
       extractVarLoop_spec G hfit compIdx vs (idx + 1)
         (ok && decide (compIdx (v, true) ≠ compIdx (v, false))) x₁ (by omega)
         (fun q hq => by
-          have h := hvs (q + 1) (by simp; omega)
-          simpa [Nat.add_assoc, Nat.add_comm 1 q] using h)
+          simpa [Nat.add_assoc, Nat.add_comm 1 q] using hvs (q + 1) (Nat.succ_lt_succ hq))
         hx₁_comp hx₁_prev hx₁_0 hx₁_1 hx₁_2 hx₁_nv hx₁_ob hx₁_cb hx₁_i hx₁_ok
-    obtain ⟨t₁, ht₁, he₁⟩ := hx₁_ex
-    obtain ⟨t₂, ht₂, he₂⟩ := hy_ex
     have hlt : (Cond.lt iReg nv).Holds x := by
       change x.regs iReg < x.regs nv; omega
-    exact ⟨y, ⟨t₁ + t₂ + 2, by simp only [List.length_cons]; omega, Exec.loop_iter hlt he₁ he₂⟩,
+    exact ⟨y, (hx₁_ex.loop_iter hlt hy_ex).mono (by simp only [List.length_cons]; omega),
       hy_ob, hy_nv, hy_0, hy_1, hy_ok, hy_bits⟩
 
 /-- Populate all `DFS` scratch base-address registers starting at `G.workBase`. -/

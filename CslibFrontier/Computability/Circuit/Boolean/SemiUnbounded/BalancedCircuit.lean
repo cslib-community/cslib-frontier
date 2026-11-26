@@ -143,15 +143,13 @@ theorem reindex_andLevel (C : LayeredSemiUnboundedCircuit G) (e : G ≃ G') (g :
 
 theorem reindex_inNormalForm {C : LayeredSemiUnboundedCircuit G} (h : C.InNormalForm)
     (e : G ≃ G') : (C.reindex e).InNormalForm where
-  leaf_of_layer_zero {g'} h0 := by
-    obtain ⟨b, hb⟩ := h.leaf_of_layer_zero h0
-    exact ⟨b, by simp [reindex, hb, GateKind.map]⟩
-  and_of_odd {g'} hodd := by
-    obtain ⟨inp, hinp⟩ := h.and_of_odd hodd
-    exact ⟨inp.map e, by simp [reindex, hinp, GateKind.map]⟩
-  or_of_pos_even {g'} hpos heven := by
-    have hor := h.or_of_pos_even hpos heven
-    simp [reindex, hor, GateKind.map]
+  leaf_of_layer_zero h0 :=
+    let ⟨b, hb⟩ := h.leaf_of_layer_zero h0
+    ⟨b, by simp [reindex, hb, GateKind.map]⟩
+  and_of_odd hodd :=
+    let ⟨inp, hinp⟩ := h.and_of_odd hodd
+    ⟨inp.map e, by simp [reindex, hinp, GateKind.map]⟩
+  or_of_pos_even hpos heven := by simp [reindex, h.or_of_pos_even hpos heven, GateKind.map]
 
 /-- Reindexing along a bijection preserves Boolean gate evaluation at every gate. -/
 theorem reindex_eval_iff (C : LayeredSemiUnboundedCircuit G) (e : G ≃ G') (g : G) :
@@ -161,6 +159,7 @@ theorem reindex_eval_iff (C : LayeredSemiUnboundedCircuit G) (e : G ≃ G') (g :
   induction n using Nat.strong_induction_on with
   | ind n ih =>
     intro g hn
+    subst hn
     match hk : C.kind g with
     | .leaf b =>
       have hk' : (C.reindex e).kind (e g) = .leaf b := by simp [reindex, hk, GateKind.map]
@@ -168,27 +167,23 @@ theorem reindex_eval_iff (C : LayeredSemiUnboundedCircuit G) (e : G ≃ G') (g :
     | .and (.unary c) =>
       have hk' : (C.reindex e).kind (e g) = .and (.unary (e c)) := by
         simp [reindex, hk, GateKind.map, AndInputs.map]
-      have hlc : C.layer c < n := by have := C.layer_andUnary hk; omega
+      have := C.layer_andUnary hk
       rw [(C.reindex e).eval_andUnary hk', C.eval_andUnary hk]
-      exact ih _ hlc c rfl
+      exact ih _ (by omega) c rfl
     | .and (.binary l r) =>
       have hk' : (C.reindex e).kind (e g) = .and (.binary (e l) (e r)) := by
         simp [reindex, hk, GateKind.map, AndInputs.map]
-      have hlr := C.layer_andBinary hk
+      have := C.layer_andBinary hk
       rw [(C.reindex e).eval_andBinary hk', C.eval_andBinary hk]
       exact and_congr (ih _ (by omega) l rfl) (ih _ (by omega) r rfl)
     | .or =>
-      have hk' : (C.reindex e).kind (e g) = .or := by simp [reindex, hk, GateKind.map]
-      rw [(C.reindex e).eval_or hk', C.eval_or hk]
-      constructor
-      · rintro ⟨c', hch', hev'⟩
-        have hch : C.orChild g (e.symm c') := by simpa [reindex] using hch'
-        have hlc : C.layer (e.symm c') < n := by have := C.layer_orChild hk hch; omega
-        refine ⟨e.symm c', hch, (ih _ hlc (e.symm c') rfl).mp ?_⟩
-        simpa only [Equiv.apply_symm_apply] using hev'
-      · rintro ⟨c, hch, hev⟩
-        have hlc : C.layer c < n := by have := C.layer_orChild hk hch; omega
-        exact ⟨e c, by simpa [reindex] using hch, (ih _ hlc c rfl).mpr hev⟩
+      rw [(C.reindex e).eval_or (by simp [reindex, hk, GateKind.map]), C.eval_or hk]
+      refine ⟨fun ⟨c', hch', hev'⟩ => ?_, fun ⟨c, hch, hev⟩ => ?_⟩
+      · have hch : C.orChild g (e.symm c') := by simpa [reindex] using hch'
+        have := C.layer_orChild hk hch
+        exact ⟨e.symm c', hch, (ih _ (by omega) _ rfl).mp (by simpa using hev')⟩
+      · have := C.layer_orChild hk hch
+        exact ⟨e c, by simpa [reindex] using hch, (ih _ (by omega) c rfl).mpr hev⟩
 
 end LayeredSemiUnboundedCircuit
 
@@ -253,30 +248,29 @@ private lemma realTree_split_le {V : Type*} {stay : V → V → Prop}
       ∃ (C : RealCtx stay pushPop u v x y) (sub : RealTree stay pushPop x y),
         sub.size ≤ M ∧ (M + 1) / 2 ≤ sub.size ∧ C.size + sub.size = T.size := by
   induction T with
-  | refl _ => simp [RealTree.size] at hgt; omega
-  | stay _ => simp [RealTree.size] at hgt; omega
+  | refl _ | stay _ => simp [RealTree.size] at hgt; omega
   | @pushPop u u' v' v h sub ih =>
     simp only [RealTree.size] at hgt
     by_cases hsub : M < sub.size
     · obtain ⟨x, y, -, C, sub', hle, hge, hsum⟩ := ih hsub
-      exact ⟨x, y, ⟨.pushPop h C⟩, .pushPop h C, sub', hle, hge, by
-        simp only [RealCtx.size, RealTree.size]; omega⟩
-    · refine ⟨u', v', ⟨.pushPop h (.hole u' v')⟩, .pushPop h (.hole u' v'), sub, by omega,
+      exact ⟨x, y, ⟨.pushPop h C⟩, .pushPop h C, sub', hle, hge,
+        by simp only [RealCtx.size, RealTree.size]; omega⟩
+    · exact ⟨u', v', ⟨.pushPop h (.hole u' v')⟩, .pushPop h (.hole u' v'), sub, by omega,
         by omega, by simp [RealCtx.size, RealTree.size]⟩
   | @trans u w v l r ihl ihr =>
     simp only [RealTree.size] at hgt
     by_cases hl : M < l.size
     · obtain ⟨x, y, -, C, sub', hle, hge, hsum⟩ := ihl hl
-      exact ⟨x, y, ⟨.transRight C r⟩, .transRight C r, sub', hle, hge, by
-        simp only [RealCtx.size, RealTree.size]; omega⟩
+      exact ⟨x, y, ⟨.transRight C r⟩, .transRight C r, sub', hle, hge,
+        by simp only [RealCtx.size, RealTree.size]; omega⟩
     · by_cases hr : M < r.size
       · obtain ⟨x, y, -, C, sub', hle, hge, hsum⟩ := ihr hr
-        exact ⟨x, y, ⟨.transLeft l C⟩, .transLeft l C, sub', hle, hge, by
-          simp only [RealCtx.size, RealTree.size]; omega⟩
+        exact ⟨x, y, ⟨.transLeft l C⟩, .transLeft l C, sub', hle, hge,
+          by simp only [RealCtx.size, RealTree.size]; omega⟩
       · by_cases hgeL : (M + 1) / 2 ≤ l.size
-        · refine ⟨u, w, ⟨.transRight (.hole u w) r⟩, .transRight (.hole u w) r, l, by omega,
+        · exact ⟨u, w, ⟨.transRight (.hole u w) r⟩, .transRight (.hole u w) r, l, by omega,
             hgeL, by simp only [RealCtx.size, RealTree.size]; omega⟩
-        · refine ⟨w, v, ⟨.transLeft l (.hole w v)⟩, .transLeft l (.hole w v), r, by omega,
+        · exact ⟨w, v, ⟨.transLeft l (.hole w v)⟩, .transLeft l (.hole w v), r, by omega,
             by omega, by simp only [RealCtx.size, RealTree.size]; omega⟩
 
 private lemma realCtx_split_lift {V : Type*} {stay : V → V → Prop}
@@ -319,34 +313,27 @@ private lemma realCtx_split_at {V : Type*} {stay : V → V → Prop}
           (b' = b ∧ ∃ L : RealTree stay pushPop a a', L.size < C.size) ∨
           (a' = a ∧ ∃ R : RealTree stay pushPop b' b, R.size < C.size)) := by
   induction C with
-  | hole _ _ =>
-    intro K h1 hle
-    simp [RealCtx.size] at hle
-    omega
+  | hole _ _ => exact fun h1 hle => absurd (h1.trans hle) (Nat.not_succ_le_zero 0)
   | @pushPop u u' v' v x y h rest ih =>
     intro K h1 hle
     simp only [RealCtx.size] at hle ⊢
     by_cases hK : K = 1
-    · refine ⟨u, v, u', v', .hole u v, rest, by simp [RealCtx.size]; omega,
-        by omega, .inl h⟩
+    · exact ⟨u, v, u', v', .hole u v, rest, h1, by omega, .inl h⟩
     · exact realCtx_split_lift (.pushPop h) (fun _ => rfl) Nat.one_pos (by omega)
         (ih (by omega) (by omega))
   | @transLeft u w v x y l rest ih =>
     intro K h1 hle
     simp only [RealCtx.size] at hle ⊢
     by_cases hK : K ≤ 1 + l.size
-    · refine ⟨u, v, w, v, .hole u v, rest, by simp [RealCtx.size]; omega, by omega,
-        .inr (.inl ⟨rfl, l, by omega⟩)⟩
+    · exact ⟨u, v, w, v, .hole u v, rest, h1, by omega, .inr (.inl ⟨rfl, l, by omega⟩)⟩
     · exact realCtx_split_lift (.transLeft l) (fun _ => rfl) (by omega) (by omega)
         (ih (by omega) (by omega))
   | @transRight u w v x y rest r ih =>
     intro K h1 hle
     simp only [RealCtx.size] at hle ⊢
     by_cases hK : K ≤ 1 + r.size
-    · refine ⟨u, v, u, w, .hole u v, rest, by simp [RealCtx.size]; omega, by omega,
-        .inr (.inr ⟨rfl, r, by omega⟩)⟩
-    · have hcomm : 1 + rest.size + r.size = (1 + r.size) + rest.size := by omega
-      rw [hcomm]
+    · exact ⟨u, v, u, w, .hole u v, rest, h1, by omega, .inr (.inr ⟨rfl, r, by omega⟩)⟩
+    · rw [show 1 + rest.size + r.size = (1 + r.size) + rest.size by omega]
       exact realCtx_split_lift (stepSz := 1 + r.size) (fun Ctop => .transRight Ctop r)
         (fun _ => by simp only [RealCtx.size]; omega) (by omega) (by omega)
         (ih (by omega) (by omega))
@@ -365,7 +352,7 @@ lemma growthBound_pos (k : ℕ) : 1 ≤ growthBound k := by
   | succ k ih => simp only [growthBound]; omega
 
 lemma two_mul_growthBound_le (k : ℕ) : 2 * growthBound k ≤ growthBound (k + 2) := by
-  have hk := growthBound_pos k
+  have := growthBound_pos k
   simp only [growthBound]
   omega
 
@@ -385,11 +372,9 @@ def roundsForSize (sz : ℕ) : ℕ :=
   6 * (Nat.log2 sz + 1)
 
 theorem le_growthBound_roundsForSize (sz : ℕ) :
-    sz ≤ growthBound (2 * (Nat.log2 sz + 1)) := by
-  have hlt : sz < 2 ^ (Nat.log2 sz + 1) := by
-    rw [Nat.log2_eq_log_two]
-    exact Nat.lt_pow_succ_log_self (by decide) sz
-  exact hlt.le.trans (two_pow_le_growthBound_two_mul (Nat.log2 sz + 1))
+    sz ≤ growthBound (2 * (Nat.log2 sz + 1)) :=
+  (Nat.log2_eq_log_two ▸ Nat.lt_pow_succ_log_self (by decide) sz).le.trans
+    (two_pow_le_growthBound_two_mul _)
 
 /-! ### Alternating normal-form balanced-depth circuit -/
 
@@ -543,16 +528,16 @@ theorem balancedCircuit_inNormalForm {V : Type*} (start : V) (accept : V → Pro
     cases g <;> simp only [balancedCircuit, BalancedGate.layer] at h0
     · exact ⟨true, rfl⟩
     all_goals omega
-  and_of_odd {g} hodd := by
-    cases g <;> first | exact ⟨_, rfl⟩ | (
-      rcases hodd with ⟨m, hm⟩
-      simp only [balancedCircuit, BalancedGate.layer] at hm
-      omega)
-  or_of_pos_even {g} hpos heven := by
-    cases g <;> first | rfl | (
-      rcases heven with ⟨m, hm⟩
-      simp only [balancedCircuit, BalancedGate.layer] at hpos hm
-      omega)
+  and_of_odd {g} := fun ⟨m, hm⟩ => by
+    cases g <;> first
+      | exact ⟨_, rfl⟩
+      | simp only [balancedCircuit, BalancedGate.layer] at hm
+        omega
+  or_of_pos_even {g} hpos := fun ⟨m, hm⟩ => by
+    cases g <;> first
+      | rfl
+      | simp only [balancedCircuit, BalancedGate.layer] at hpos hm
+        omega
 
 /-- Every gate in `balancedCircuit … R` has `andLevel` at most `R + 2`. -/
 theorem balancedCircuit_andLevel_le {V : Type*} (start : V) (accept : V → Prop)
@@ -561,16 +546,11 @@ theorem balancedCircuit_andLevel_le {V : Type*} (start : V) (accept : V → Prop
     (balancedCircuit start accept stay pushPop R).andLevel g ≤ R + 2 := by
   cases g with
   | leafTrue | andTrue | andAccept _ | output =>
-    simp only [LayeredSemiUnboundedCircuit.andLevel, balancedCircuit, BalancedGate.layer]
-    omega
-  | orP r _ _ | orQ r _ _ _ _ =>
+    simp only [LayeredSemiUnboundedCircuit.andLevel, balancedCircuit, BalancedGate.layer]; omega
+  | orP r _ _ | orQ r _ _ _ _ | andPPlug r _ _ _ _ | andQComp r _ _ _ _ _ _
+  | andQLeft r _ _ _ _ _ | andQRight r _ _ _ _ _ =>
     have := r.isLt
-    simp only [LayeredSemiUnboundedCircuit.andLevel, balancedCircuit, BalancedGate.layer]
-    omega
-  | andPPlug r _ _ _ _ | andQComp r _ _ _ _ _ _ | andQLeft r _ _ _ _ _ | andQRight r _ _ _ _ _ =>
-    have := r.isLt
-    simp only [LayeredSemiUnboundedCircuit.andLevel, balancedCircuit, BalancedGate.layer]
-    omega
+    simp only [LayeredSemiUnboundedCircuit.andLevel, balancedCircuit, BalancedGate.layer]; omega
 
 /-! ### Exact evaluation equations, soundness, and `O(log sz)` completeness -/
 
@@ -598,18 +578,12 @@ private lemma eval_or_andTrue_iff {g : BalancedGate V R} {P : Prop}
 
 private lemma eval_orP_zero_iff (u v : V) :
     (C start accept stay pushPop R).Eval (.orP ⟨0, Nat.succ_pos R⟩ u v) ↔ u = v ∨ stay u v :=
-  eval_or_andTrue_iff rfl
-    (fun c hch => by
-      cases c <;> simp only [C, balancedCircuit, BalancedGate.orChild] at hch; exact hch)
-    id
+  eval_or_andTrue_iff rfl (fun | .andTrue, hch => hch) id
 
 private lemma eval_orQ_zero_iff (u v x y : V) :
     (C start accept stay pushPop R).Eval (.orQ ⟨0, Nat.succ_pos R⟩ u v x y) ↔
       (u = x ∧ v = y) ∨ pushPop u x y v :=
-  eval_or_andTrue_iff rfl
-    (fun c hch => by
-      cases c <;> simp only [C, balancedCircuit, BalancedGate.orChild] at hch; exact hch)
-    id
+  eval_or_andTrue_iff rfl (fun | .andTrue, hch => hch) id
 
 private lemma eval_andBinary_castSucc {r : ℕ} (hr : r + 1 < R + 1) {r' : Fin R}
     (hr' : r'.val = r) {c : BalancedGate V R}
@@ -619,9 +593,8 @@ private lemma eval_andBinary_castSucc {r : ℕ} (hr : r + 1 < R + 1) {r' : Fin R
     (hev : (C start accept stay pushPop R).Eval c) :
     (C start accept stay pushPop R).Eval (g₁ ⟨r, by omega⟩) ∧
       (C start accept stay pushPop R).Eval (g₂ ⟨r, by omega⟩) := by
-  rw [(C start accept stay pushPop R).eval_andBinary hkind] at hev
-  have hreq : r'.castSucc = ⟨r, by omega⟩ := Fin.ext hr'
-  rwa [hreq] at hev
+  simpa only [(C start accept stay pushPop R).eval_andBinary hkind,
+    show r'.castSucc = ⟨r, by omega⟩ from Fin.ext hr'] using hev
 
 private lemma eval_or_of_andBinary {g c g₁ g₂ : BalancedGate V R}
     (hor : (C start accept stay pushPop R).kind g = .or)
@@ -631,27 +604,21 @@ private lemma eval_or_of_andBinary {g c g₁ g₂ : BalancedGate V R}
     (h₂ : (C start accept stay pushPop R).Eval g₂) :
     (C start accept stay pushPop R).Eval g := by
   rw [(C start accept stay pushPop R).eval_or hor]
-  refine ⟨c, hch, ?_⟩
-  rw [(C start accept stay pushPop R).eval_andBinary hand]
-  exact ⟨h₁, h₂⟩
+  exact ⟨c, hch, ((C start accept stay pushPop R).eval_andBinary hand).mpr ⟨h₁, h₂⟩⟩
 
 private lemma eval_orP_succ_iff {r : ℕ} (hr : r + 1 < R + 1) (u v : V) :
     (C start accept stay pushPop R).Eval (.orP ⟨r + 1, hr⟩ u v) ↔
       ∃ x y,
         (C start accept stay pushPop R).Eval (.orQ ⟨r, by omega⟩ u v x y) ∧
         (C start accept stay pushPop R).Eval (.orP ⟨r, by omega⟩ x y) := by
-  constructor
-  · intro hev
-    rw [(C start accept stay pushPop R).eval_or rfl] at hev
-    obtain ⟨c, hch, hev⟩ := hev
-    cases c <;> simp only [C, balancedCircuit, BalancedGate.orChild] at hch
-    rename_i r' u' v' x y
-    obtain ⟨hr', rfl, rfl⟩ := hch
-    exact ⟨x, y, eval_andBinary_castSucc hr hr'
-      (g₁ := fun t => .orQ t u' v' x y) (g₂ := fun t => .orP t x y) rfl hev⟩
-  · rintro ⟨x, y, hq, hp⟩
-    exact eval_or_of_andBinary rfl (c := .andPPlug ⟨r, by omega⟩ u v x y)
-      ⟨rfl, rfl, rfl⟩ rfl hq hp
+  refine ⟨fun hev => ?_, fun ⟨x, y, hq, hp⟩ =>
+    eval_or_of_andBinary rfl (c := .andPPlug ⟨r, by omega⟩ u v x y) ⟨rfl, rfl, rfl⟩ rfl hq hp⟩
+  obtain ⟨c, hch, hevc⟩ := ((C start accept stay pushPop R).eval_or rfl).mp hev
+  cases c <;> simp only [C, balancedCircuit, BalancedGate.orChild] at hch
+  rename_i r' u' v' x y
+  rcases hch with ⟨hr', rfl, rfl⟩
+  exact ⟨x, y, eval_andBinary_castSucc hr hr'
+    (g₁ := fun t => .orQ t u' v' x y) (g₂ := fun t => .orP t x y) rfl hevc⟩
 
 private lemma eval_orQ_succ_iff {r : ℕ} (hr : r + 1 < R + 1) (u v x y : V) :
     (C start accept stay pushPop R).Eval (.orQ ⟨r + 1, hr⟩ u v x y) ↔
@@ -666,21 +633,20 @@ private lemma eval_orQ_succ_iff {r : ℕ} (hr : r + 1 < R + 1) (u v x y : V) :
         (C start accept stay pushPop R).Eval (.orP ⟨r, by omega⟩ w v)) := by
   constructor
   · intro hev
-    rw [(C start accept stay pushPop R).eval_or rfl] at hev
-    obtain ⟨c, hch, hev⟩ := hev
+    obtain ⟨c, hch, hevc⟩ := ((C start accept stay pushPop R).eval_or rfl).mp hev
     cases c <;> simp only [C, balancedCircuit, BalancedGate.orChild] at hch
     · rename_i r' u' v' a b x' y'
-      obtain ⟨hr', rfl, rfl, rfl, rfl⟩ := hch
+      rcases hch with ⟨hr', rfl, rfl, rfl, rfl⟩
       exact .inl ⟨a, b, eval_andBinary_castSucc hr hr'
-        (g₁ := fun t => .orQ t u' v' a b) (g₂ := fun t => .orQ t a b x' y') rfl hev⟩
+        (g₁ := fun t => .orQ t u' v' a b) (g₂ := fun t => .orQ t a b x' y') rfl hevc⟩
     · rename_i r' u' w v' x' y'
-      obtain ⟨hr', rfl, rfl, rfl, rfl⟩ := hch
+      rcases hch with ⟨hr', rfl, rfl, rfl, rfl⟩
       exact .inr (.inl ⟨w, eval_andBinary_castSucc hr hr'
-        (g₁ := fun t => .orP t u' w) (g₂ := fun t => .orQ t w v' x' y') rfl hev⟩)
+        (g₁ := fun t => .orP t u' w) (g₂ := fun t => .orQ t w v' x' y') rfl hevc⟩)
     · rename_i r' u' w v' x' y'
-      obtain ⟨hr', rfl, rfl, rfl, rfl⟩ := hch
+      rcases hch with ⟨hr', rfl, rfl, rfl, rfl⟩
       exact .inr (.inr ⟨w, eval_andBinary_castSucc hr hr'
-        (g₁ := fun t => .orQ t u' w x' y') (g₂ := fun t => .orP t w v') rfl hev⟩)
+        (g₁ := fun t => .orQ t u' w x' y') (g₂ := fun t => .orP t w v') rfl hevc⟩)
   · rintro (⟨a, b, h1, h2⟩ | ⟨w, h1, h2⟩ | ⟨w, h1, h2⟩)
     · exact eval_or_of_andBinary rfl (c := .andQComp ⟨r, by omega⟩ u v a b x y)
         ⟨rfl, rfl, rfl, rfl, rfl⟩ rfl h1 h2
@@ -702,8 +668,8 @@ private lemma eval_orQ_mono {r₁ r₂ : ℕ} (hle : r₁ ≤ r₂) (hr₂ : r�
     (C start accept stay pushPop R).Eval (.orQ ⟨r₂, hr₂⟩ u v x y) := by
   induction r₂ with
   | zero =>
-    have hr1 : r₁ = 0 := by omega
-    subst hr1; exact h
+    obtain rfl := Nat.eq_zero_of_le_zero hle
+    exact h
   | succ r₂ ih =>
     rcases lt_or_eq_of_le hle with hlt | rfl
     · exact (eval_orQ_succ_iff hr₂ u v x y).mpr
@@ -715,8 +681,8 @@ private lemma eval_orP_mono {r₁ r₂ : ℕ} (hle : r₁ ≤ r₂) (hr₂ : r�
     (C start accept stay pushPop R).Eval (.orP ⟨r₂, hr₂⟩ u v) := by
   induction r₂ with
   | zero =>
-    have hr1 : r₁ = 0 := by omega
-    subst hr1; exact h
+    obtain rfl := Nat.eq_zero_of_le_zero hle
+    exact h
   | succ r₂ ih =>
     rcases lt_or_eq_of_le hle with hlt | rfl
     · exact (eval_orP_succ_iff hr₂ u v).mpr
@@ -730,41 +696,28 @@ private lemma eval_orP_orQ_sound :
       (∀ u v x y, (C start accept stay pushPop R).Eval (.orQ ⟨r, hr⟩ u v x y) →
         Nonempty (RealTree stay pushPop x y) → Nonempty (RealTree stay pushPop u v))
   | 0, _ =>
-    ⟨fun u v h => by
-        rcases (eval_orP_zero_iff u v).mp h with rfl | hstay
-        · exact ⟨.refl u⟩
-        · exact ⟨.stay hstay⟩,
-     fun u v x y h ⟨T⟩ => by
-        rcases (eval_orQ_zero_iff u v x y).mp h with ⟨rfl, rfl⟩ | hpp
-        · exact ⟨T⟩
-        · exact ⟨.pushPop hpp T⟩⟩
+    ⟨fun u v h => ((eval_orP_zero_iff u v).mp h).elim (fun e => e ▸ ⟨.refl u⟩) (⟨.stay ·⟩),
+     fun u v x y h ⟨T⟩ => ((eval_orQ_zero_iff u v x y).mp h).elim
+       (fun ⟨hu, hv⟩ => hu ▸ hv ▸ ⟨T⟩) (⟨.pushPop · T⟩)⟩
   | r + 1, hr => by
     obtain ⟨ihP, ihQ⟩ := eval_orP_orQ_sound r (by omega)
-    refine ⟨fun u v h => ?_, fun u v x y h hT => ?_⟩
-    · obtain ⟨x, y, hq, hp⟩ := (eval_orP_succ_iff hr u v).mp h
-      exact ihQ u v x y hq (ihP x y hp)
-    · rcases (eval_orQ_succ_iff hr u v x y).mp h with
-        ⟨a, b, h1, h2⟩ | ⟨w, h1, h2⟩ | ⟨w, h1, h2⟩
-      · exact ihQ u v a b h1 (ihQ a b x y h2 hT)
-      · obtain ⟨Tl⟩ := ihP u w h1
-        obtain ⟨Tr⟩ := ihQ w v x y h2 hT
-        exact ⟨.trans Tl Tr⟩
-      · obtain ⟨Tl⟩ := ihQ u w x y h1 hT
-        obtain ⟨Tr⟩ := ihP w v h2
-        exact ⟨.trans Tl Tr⟩
+    refine ⟨fun u v h => let ⟨x, y, hq, hp⟩ := (eval_orP_succ_iff hr u v).mp h
+      ihQ u v x y hq (ihP x y hp), fun u v x y h hT => ?_⟩
+    rcases (eval_orQ_succ_iff hr u v x y).mp h with ⟨a, b, h1, h2⟩ | ⟨w, h1, h2⟩ | ⟨w, h1, h2⟩
+    · exact ihQ u v a b h1 (ihQ a b x y h2 hT)
+    · exact (ihP u w h1).elim fun Tl => (ihQ w v x y h2 hT).elim fun Tr => ⟨.trans Tl Tr⟩
+    · exact (ihQ u w x y h1 hT).elim fun Tl => (ihP w v h2).elim fun Tr => ⟨.trans Tl Tr⟩
 
 /-- **Soundness of `balancedCircuit`**: if the output gate evaluates to `true` (at any round
 count `R`), there exists an accepting vertex `v` and a `RealTree` from `start` to `v`. -/
 theorem balancedCircuit_eval_output_sound
     (h : (balancedCircuit start accept stay pushPop R).Eval .output) :
     ∃ v, accept v ∧ Nonempty (RealTree stay pushPop start v) := by
-  rw [(balancedCircuit start accept stay pushPop R).eval_or rfl] at h
-  obtain ⟨c, hch, hev⟩ := h
+  obtain ⟨c, hch, hev⟩ := ((balancedCircuit start accept stay pushPop R).eval_or rfl).mp h
   cases c <;> simp only [balancedCircuit, BalancedGate.orChild] at hch
-  rename_i v
   rw [(balancedCircuit start accept stay pushPop R).eval_andUnary rfl] at hev
-  exact ⟨v, hch, (eval_orP_orQ_sound (start := start) (accept := accept) (stay := stay)
-    (pushPop := pushPop) (R := R) R (Nat.lt_succ_self R)).1 start v hev⟩
+  exact ⟨_, hch, (eval_orP_orQ_sound (start := start) (accept := accept) (stay := stay)
+    (pushPop := pushPop) (R := R) R (Nat.lt_succ_self R)).1 start _ hev⟩
 
 private lemma eval_orP_orQ_complete :
     ∀ (k : ℕ) (hk : 3 * k < R + 1),
@@ -773,103 +726,71 @@ private lemma eval_orP_orQ_complete :
       (∀ {u v x y} (Ctx : RealCtx stay pushPop u v x y), Ctx.size ≤ growthBound k →
         (C start accept stay pushPop R).Eval (.orQ ⟨3 * k, hk⟩ u v x y))
   | 0, hk =>
-    ⟨fun {u v} T hsz => by
+    ⟨fun T hsz => by
         cases T with
         | refl _ => exact (eval_orP_zero_iff _ _).mpr (.inl rfl)
         | stay h => exact (eval_orP_zero_iff _ _).mpr (.inr h)
-        | pushPop _ sub =>
+        | pushPop _ sub | trans sub _ =>
           have := sub.size_pos
-          simp only [RealTree.size, growthBound] at hsz
-          omega
-        | trans l r =>
-          have := l.size_pos
-          have := r.size_pos
-          simp only [RealTree.size, growthBound] at hsz
-          omega,
-     fun {u v x y} Ctx hsz => by
+          simp only [RealTree.size, growthBound] at hsz; omega,
+     fun Ctx hsz => by
         cases Ctx with
         | hole _ _ => exact (eval_orQ_zero_iff _ _ _ _).mpr (.inl ⟨rfl, rfl⟩)
         | pushPop h rest =>
           cases rest with
           | hole _ _ => exact (eval_orQ_zero_iff _ _ _ _).mpr (.inr h)
           | pushPop _ _ => simp [RealCtx.size, growthBound] at hsz
-          | transLeft l _ =>
-            have := l.size_pos; simp only [RealCtx.size, growthBound] at hsz; omega
-          | transRight _ r =>
-            have := r.size_pos; simp only [RealCtx.size, growthBound] at hsz; omega
-        | transLeft l _ =>
-          have := l.size_pos; simp only [RealCtx.size, growthBound] at hsz; omega
-        | transRight _ r =>
-          have := r.size_pos; simp only [RealCtx.size, growthBound] at hsz; omega⟩
+          | transLeft l _ | transRight _ l =>
+            have := l.size_pos
+            simp only [RealCtx.size, growthBound] at hsz; omega
+        | transLeft l _ | transRight _ l =>
+          have := l.size_pos
+          simp only [RealCtx.size, growthBound] at hsz; omega⟩
   | k + 1, hk => by
     obtain ⟨ihP, ihQ⟩ := eval_orP_orQ_complete k (by omega)
-    have hP1 : ∀ {u v} (T : RealTree stay pushPop u v), T.size ≤ growthBound (k + 1) →
+    have hP1 {u v} (T : RealTree stay pushPop u v) (hsz : T.size ≤ growthBound (k + 1)) :
         (C start accept stay pushPop R).Eval (.orP ⟨3 * k + 1, by omega⟩ u v) := by
-      intro u v T hsz
       by_cases hle : T.size ≤ growthBound k
       · exact eval_orP_mono (by omega) (by omega) (ihP T hle)
       · obtain ⟨x, y, -, Ctx, sub, hsubLe, hsubGe, hsum⟩ :=
           realTree_split_le T (growthBound_pos k) (by omega)
-        have hctxLe : Ctx.size ≤ growthBound k := by
-          simp only [growthBound] at hsz
-          omega
-        exact (eval_orP_succ_iff (by omega) u v).mpr ⟨x, y, ihQ Ctx hctxLe, ihP sub hsubLe⟩
+        exact (eval_orP_succ_iff (by omega) u v).mpr
+          ⟨x, y, ihQ Ctx (by simp only [growthBound] at hsz; omega), ihP sub hsubLe⟩
     refine ⟨fun T hsz => eval_orP_mono (by omega) hk (hP1 T hsz), fun {u v x y} Ctx hsz => ?_⟩
     by_cases hle : Ctx.size ≤ growthBound k
     · exact eval_orQ_mono (by omega) hk (ihQ Ctx hle)
-    · let K := Ctx.size - growthBound k
-      have hK1 : 1 ≤ K := by dsimp only [K]; omega
-      have hKLe : K ≤ Ctx.size := Nat.sub_le _ _
-      obtain ⟨a, b, a', b', Ctop, Cbot, htopLt, hbotLe, hmid⟩ := realCtx_split_at Ctx hK1 hKLe
+    · obtain ⟨a, b, a', b', Ctop, Cbot, htopLt, hbotLe, hmid⟩ :=
+        realCtx_split_at (K := Ctx.size - growthBound k) Ctx (by omega) (Nat.sub_le _ _)
+      have hkpos := growthBound_pos k
       have htopLe : Ctop.size ≤ growthBound k := by
-        have hkpos := growthBound_pos k
         simp only [growthBound] at hsz
-        dsimp only [K] at htopLt
-        omega
-      have hbotLe' : Cbot.size ≤ growthBound k := by
-        dsimp only [K] at hbotLe
         omega
       have hEvalTop : (C start accept stay pushPop R).Eval (.orQ ⟨3 * k + 2, by omega⟩ u v a b) :=
         eval_orQ_mono (by omega) (by omega) (ihQ Ctop htopLe)
       have hEvalBot : (C start accept stay pushPop R).Eval (.orQ ⟨3 * k + 1, by omega⟩ a' b' x y) :=
-        eval_orQ_mono (by omega) (by omega) (ihQ Cbot hbotLe')
-      have hEvalMidBot :
-          (C start accept stay pushPop R).Eval (.orQ ⟨3 * k + 2, by omega⟩ a b x y) := by
-        rcases hmid with hp | ⟨rfl, L, hL⟩ | ⟨rfl, Rtree, hR⟩
-        · have hp0 : (C start accept stay pushPop R).Eval
-              (.orQ ⟨0, Nat.succ_pos R⟩ a b a' b') :=
-            (eval_orQ_zero_iff a b a' b').mpr (.inr hp)
-          have hp1 : (C start accept stay pushPop R).Eval
-              (.orQ ⟨3 * k + 1, by omega⟩ a b a' b') :=
-            eval_orQ_mono (Nat.zero_le _) (by omega) hp0
-          exact (eval_orQ_succ_iff (by omega) a b x y).mpr (.inl ⟨a', b', hp1, hEvalBot⟩)
-        · have hL1 : (C start accept stay pushPop R).Eval (.orP ⟨3 * k + 1, by omega⟩ a a') :=
-            hP1 L (by omega)
-          exact (eval_orQ_succ_iff (by omega) a b' x y).mpr (.inr (.inl ⟨a', hL1, hEvalBot⟩))
-        · have hR1 : (C start accept stay pushPop R).Eval (.orP ⟨3 * k + 1, by omega⟩ b' b) :=
-            hP1 Rtree (by omega)
-          exact (eval_orQ_succ_iff (by omega) a' b x y).mpr (.inr (.inr ⟨b', hEvalBot, hR1⟩))
-      exact (eval_orQ_succ_iff hk u v x y).mpr (.inl ⟨a, b, hEvalTop, hEvalMidBot⟩)
+        eval_orQ_mono (by omega) (by omega) (ihQ Cbot (by omega))
+      refine (eval_orQ_succ_iff hk u v x y).mpr (.inl ⟨a, b, hEvalTop, ?_⟩)
+      rcases hmid with hp | ⟨rfl, L, hL⟩ | ⟨rfl, Rtree, hR⟩
+      · exact (eval_orQ_succ_iff (r := 3 * k + 1) (by omega) a b x y).mpr (.inl ⟨a', b',
+          eval_orQ_mono (r₁ := 0) (Nat.zero_le _) (by omega)
+            ((eval_orQ_zero_iff a b a' b').mpr (.inr hp)), hEvalBot⟩)
+      · exact (eval_orQ_succ_iff (r := 3 * k + 1) (by omega) a b' x y).mpr
+          (.inr (.inl ⟨a', hP1 L (hL.le.trans hsz), hEvalBot⟩))
+      · exact (eval_orQ_succ_iff (r := 3 * k + 1) (by omega) a' b x y).mpr
+          (.inr (.inr ⟨b', hEvalBot, hP1 Rtree (hR.le.trans hsz)⟩))
 
 /-- **Balanced-depth completeness of `balancedCircuit`**: whenever `R ≥ roundsForSize sz`, any
 accepting realizability tree of size at most `sz` makes the output gate evaluate to `true`. -/
 theorem balancedCircuit_eval_output_complete {sz : ℕ} (hR : roundsForSize sz ≤ R)
     {v : V} (hacc : accept v) (T : RealTree stay pushPop start v) (hsz : T.size ≤ sz) :
     (balancedCircuit start accept stay pushPop R).Eval .output := by
-  let k := 2 * (Nat.log2 sz + 1)
-  have h3k : 3 * k ≤ R := by
-    dsimp only [k, roundsForSize] at hR ⊢
-    omega
-  have hT : T.size ≤ growthBound k := hsz.trans (le_growthBound_roundsForSize sz)
+  have h3k : 3 * (2 * (Nat.log2 sz + 1)) ≤ R := by rw [roundsForSize] at hR; omega
   have hev3k := (eval_orP_orQ_complete (start := start) (accept := accept) (stay := stay)
-    (pushPop := pushPop) (R := R) k (by omega)).1 T hT
-  have hevR : (balancedCircuit start accept stay pushPop R).Eval
-      (.orP (Fin.last R) start v) :=
-    eval_orP_mono h3k (Nat.lt_succ_self R) hev3k
+    (pushPop := pushPop) (R := R) (2 * (Nat.log2 sz + 1)) (by omega)).1 T
+    (hsz.trans (le_growthBound_roundsForSize sz))
   rw [(balancedCircuit start accept stay pushPop R).eval_or rfl]
-  refine ⟨.andAccept v, hacc, ?_⟩
-  rw [(balancedCircuit start accept stay pushPop R).eval_andUnary rfl]
-  exact hevR
+  exact ⟨.andAccept v, hacc, ((balancedCircuit start accept stay pushPop R).eval_andUnary rfl).mpr
+    (eval_orP_mono h3k (Nat.lt_succ_self R) hev3k)⟩
 
 end Eval
 
@@ -965,30 +886,17 @@ theorem le_balancedGateCount (S R : ℕ) : S + 3 ≤ balancedGateCount S R := by
 theorem balancedGateCount_le (S R : ℕ) :
     balancedGateCount S R ≤ 6 * (R + 1) * (S + 1) ^ 6 := by
   unfold balancedGateCount
-  have hS1 : S ≤ (S + 1) ^ 6 := by
-    have : S + 1 ≤ (S + 1) ^ 6 := Nat.le_self_pow (by decide) (S + 1)
-    omega
-  have h1 : 1 ≤ (S + 1) ^ 6 := Nat.one_le_pow _ _ (Nat.succ_pos S)
-  have hS2 : S * S ≤ (S + 1) ^ 6 := by
-    have h : S * S = S ^ 2 := by ring
-    rw [h]
-    exact (Nat.pow_le_pow_left (Nat.le_succ S) 2).trans
-      (Nat.pow_le_pow_right (Nat.succ_pos S) (by decide))
-  have hS4 : (S * S) * (S * S) ≤ (S + 1) ^ 6 := by
-    have h : (S * S) * (S * S) = S ^ 4 := by ring
-    rw [h]
-    exact (Nat.pow_le_pow_left (Nat.le_succ S) 4).trans
-      (Nat.pow_le_pow_right (Nat.succ_pos S) (by decide))
-  have hS5 : ((S * S) * (S * S)) * S ≤ (S + 1) ^ 6 := by
-    have h : ((S * S) * (S * S)) * S = S ^ 5 := by ring
-    rw [h]
-    exact (Nat.pow_le_pow_left (Nat.le_succ S) 5).trans
-      (Nat.pow_le_pow_right (Nat.succ_pos S) (by decide))
-  have hS6 : ((S * S) * (S * S)) * (S * S) ≤ (S + 1) ^ 6 := by
-    have h : ((S * S) * (S * S)) * (S * S) = S ^ 6 := by ring
-    rw [h]
-    exact Nat.pow_le_pow_left (Nat.le_succ S) 6
-  nlinarith
+  have hd (d : ℕ) (hd6 : d ≤ 6) : S ^ d ≤ (S + 1) ^ 6 :=
+    (Nat.pow_le_pow_left (Nat.le_succ S) d).trans (Nat.pow_le_pow_right (Nat.succ_pos S) hd6)
+  have h2 : S * S ≤ (S + 1) ^ 6 := by simpa only [sq] using hd 2 (by decide)
+  have h4 : (S * S) * (S * S) ≤ (S + 1) ^ 6 := by
+    simpa only [show (S * S) * (S * S) = S ^ 4 by ring] using hd 4 (by decide)
+  have h5 : ((S * S) * (S * S)) * S ≤ (S + 1) ^ 6 := by
+    simpa only [show ((S * S) * (S * S)) * S = S ^ 5 by ring] using hd 5 (by decide)
+  have h6 : ((S * S) * (S * S)) * (S * S) ≤ (S + 1) ^ 6 := by
+    simpa only [show ((S * S) * (S * S)) * (S * S) = S ^ 6 by ring] using hd 6 le_rfl
+  nlinarith [Nat.one_le_pow 6 (S + 1) (Nat.succ_pos S),
+    (Nat.le_succ S).trans (Nat.le_self_pow (by decide : 6 ≠ 0) (S + 1))]
 
 /-- The `Fin N`-indexed balanced-depth normal-form semi-unbounded circuit over `Fin S`. -/
 def balancedCircuitFin {S : ℕ} (start : Fin S) (accept : Fin S → Prop)
@@ -1018,10 +926,9 @@ theorem balancedCircuitFin_andLevel_le {S : ℕ} (start : Fin S) (accept : Fin S
     (stay : Fin S → Fin S → Prop) (pushPop : Fin S → Fin S → Fin S → Fin S → Prop) (R : ℕ)
     (g : Fin (balancedGateCount S R)) :
     (balancedCircuitFin start accept stay pushPop R).andLevel g ≤ R + 2 := by
-  have h := balancedCircuit_andLevel_le start accept stay pushPop R
-    ((balancedGateEquivFin S R).symm g)
   simpa only [balancedCircuitFin, LayeredSemiUnboundedCircuit.andLevel,
-    LayeredSemiUnboundedCircuit.reindex] using h
+    LayeredSemiUnboundedCircuit.reindex] using
+    balancedCircuit_andLevel_le start accept stay pushPop R ((balancedGateEquivFin S R).symm g)
 
 theorem balancedCircuitFin_eval_output_sound {S : ℕ} {start : Fin S} {accept : Fin S → Prop}
     {stay : Fin S → Fin S → Prop} {pushPop : Fin S → Fin S → Fin S → Fin S → Prop} {R : ℕ}

@@ -146,13 +146,9 @@ theorem enumList_listMaskCount_budget {n precision L : ℕ} (hn : n ≤ L) (hp :
     calc
       n * precision ^ 4 ≤ L * L ^ 4 := Nat.mul_le_mul hn hpow4
       _ = L ^ 5 := by ring
-  have hguess : 2 ^ listMaskCount n precision ≤ 16 * L ^ 5 + 2 := by
-    have h := guessCount_listMaskCount_le n precision
-    linarith
-  have hmask : 2 * listMaskCount n precision + 1 ≤ 16 * L ^ 5 + 3 := by
-    have h := listMaskCount_le n precision
-    linarith
-  exact Nat.mul_le_mul hguess hmask
+  exact Nat.mul_le_mul
+    (by linarith [guessCount_listMaskCount_le n precision])
+    (by linarith [listMaskCount_le n precision])
 
 /-- Enumerating all `2 ^ listMaskCount p.1 p.2` parity guesses is polynomial-time jointly in
 `p : ℕ × ℕ` under `(encPair encUnary encUnary)`. -/
@@ -162,13 +158,9 @@ theorem polyTime_enumList_listMaskCount_pair :
       (encPair encUnary encUnary) (encList encBits) := by
   refine ComputableInPolyTime.bitsEnumList (by fun_prop)
     (size := fun L => (16 * L ^ 5 + 2) * (16 * L ^ 5 + 3)) (by fun_prop) ?_
-  intro p
-  have hn : p.1 ≤ (encPair encUnary encUnary p).length := by
-    simp [encPair_apply, encUnary_apply]
-    omega
-  have hp : p.2 ≤ (encPair encUnary encUnary p).length := by
-    simp [encPair_apply, encUnary_apply]
-  exact enumList_listMaskCount_budget hn hp
+  refine fun p => enumList_listMaskCount_budget ?_ ?_
+  · simp [encPair_apply, encUnary_apply]; omega
+  · simp [encPair_apply, encUnary_apply]
 
 private theorem comp_prod_eq {α β γ δ : Type*} (f : β → γ → δ) (g : α → β) (h : α → γ) :
     ((fun p : β × γ => f p.1 p.2) ∘ fun a => (g a, h a)) = fun a => f (g a) (h a) :=
@@ -405,14 +397,10 @@ theorem wordEmpiricalHits_eq_empiricalHits {n m : ℕ} (predictor : List Bool �
     (samples : Fin m → BitString n) (x : BitString n) :
     wordEmpiricalHits predictor (List.ofFn (fun j => List.ofFn (samples j))) (List.ofFn x) =
       empiricalHits (fun query => predictor (List.ofFn query)) samples x := by
-  have hnodup : (List.finRange m).Nodup := List.nodup_finRange m
-  have huniv : (List.finRange m).toFinset = (Finset.univ : Finset (Fin m)) := by
-    ext j
-    simp
   rw [wordEmpiricalHits, List.countP_eq_length_filter,
-    List.ofFn_eq_map (f := fun j => List.ofFn (samples j)), List.filter_map,
-    List.length_map, ← List.toFinset_card_of_nodup (hnodup.filter _), List.toFinset_filter,
-    huniv, empiricalHits]
+    List.ofFn_eq_map (f := fun j => List.ofFn (samples j)), List.filter_map, List.length_map,
+    ← List.toFinset_card_of_nodup ((List.nodup_finRange m).filter _), List.toFinset_filter,
+    empiricalHits]
   congr 1
   ext j
   simp [listDot_ofFn]
@@ -500,12 +488,9 @@ theorem toFinset_wordListDecodePruned (predictor : List Bool → Bool) (dimensio
   simp only [Finset.mem_filter, Finset.mem_image, List.length_ofFn, mem_prunedCandidates]
   constructor
   · rintro ⟨⟨x, hx, rfl⟩, hpass⟩
-    rw [wordEmpiricalHits_eq_empiricalHits, decide_eq_true_eq] at hpass
-    exact ⟨x, ⟨hx, hpass⟩, rfl⟩
+    exact ⟨x, ⟨hx, by simpa [wordEmpiricalHits_eq_empiricalHits] using hpass⟩, rfl⟩
   · rintro ⟨x, ⟨hx, hpass⟩, rfl⟩
-    refine ⟨⟨x, hx, rfl⟩, ?_⟩
-    rw [wordEmpiricalHits_eq_empiricalHits, decide_eq_true_eq]
-    exact hpass
+    exact ⟨⟨x, hx, rfl⟩, by simpa [wordEmpiricalHits_eq_empiricalHits] using hpass⟩
 
 /-- For `x : BitString n`, `List.ofFn x` belongs to `wordListDecodePruned` if and only if `x`
 belongs to `prunedCandidates`. -/
@@ -689,8 +674,7 @@ theorem lookupReply_map_of_mem (predictor : List Bool → Bool)
     lookupReply queries (queries.map predictor) query = predictor query := by
   unfold lookupReply
   have hlt : queries.idxOf query < queries.length := List.idxOf_lt_length_of_mem hq
-  have hlt' : queries.idxOf query < (queries.map predictor).length := by simp [hlt]
-  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlt', Option.getD_some,
+  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by simp [hlt]), Option.getD_some,
     List.getElem_map, List.getElem_idxOf hlt]
 
 /-- `wordCandidate` depends on `predictor` only at queries in `candidateQueries`. -/
@@ -703,12 +687,8 @@ theorem wordCandidate_congr {predictor₁ predictor₂ : List Bool → Bool} (di
   refine List.map_congr_left fun coordinate hcoord => ?_
   congr 1
   refine List.map_congr_left fun selector hsel => ?_
-  have hmem :
-      coordinate.zipWith Bool.xor (listXorSelected dimension selector rows) ∈
-        candidateQueries dimension rows selectors := by
-    unfold candidateQueries
-    exact List.mem_flatMap.mpr ⟨coordinate, hcoord, List.mem_map.mpr ⟨selector, hsel, rfl⟩⟩
-  rw [hagree _ hmem]
+  rw [hagree _
+    (List.mem_flatMap.mpr ⟨coordinate, hcoord, List.mem_map.mpr ⟨selector, hsel, rfl⟩⟩)]
 
 /-- `wordCandidates` depends on `predictor` only at queries in `candidateQueries`. -/
 theorem wordCandidates_congr {predictor₁ predictor₂ : List Bool → Bool} (dimension : ℕ)
@@ -748,15 +728,12 @@ theorem wordListDecodePruned_congr {predictor₁ predictor₂ : List Bool → Bo
     wordListDecodePruned predictor₁ dimension precision masks samples =
       wordListDecodePruned predictor₂ dimension precision masks samples := by
   unfold wordListDecodePruned wordPruneCandidates
-  have h1 : ∀ q ∈ listDecodeQueries dimension precision masks, predictor₁ q = predictor₂ q :=
-    fun q hq => hagree q (List.mem_append_left _ hq)
-  have h2 : ∀ q ∈ listRows (pruneSampleCount dimension precision) dimension samples,
-      predictor₁ q = predictor₂ q :=
-    fun q hq => hagree q (List.mem_append_right _ hq)
-  rw [wordListDecode_congr dimension precision masks h1]
+  rw [wordListDecode_congr dimension precision masks fun q hq =>
+    hagree q (List.mem_append_left _ hq)]
   congr 1
   refine List.filter_congr fun candidate _ => ?_
-  rw [wordEmpiricalHits_congr _ candidate h2]
+  rw [wordEmpiricalHits_congr _ candidate fun q hq =>
+    hagree q (List.mem_append_right _ hq)]
 
 /-- Running `wordListDecode` with `lookupReply queries (queries.map predictor)` where
 `queries = listDecodeQueries dimension precision masks` equals `wordListDecode predictor`. -/
@@ -856,14 +833,12 @@ private theorem runWith_iterate_queryBatchStep (predictor : List Bool → Bool)
   | succ t ih =>
     rw [OracleComp.iterate_succ, ProbOracleComp.runWith_bind, ih (Nat.le_of_succ_le ht),
       PMF.pure_bind]
-    have hlt : t < queries.length := ht
-    have hlen : ((queries.take t).map predictor).length = t := by
-      rw [List.length_map, List.length_take, Nat.min_eq_left (Nat.le_of_lt hlt)]
     have hget : queries.getD ((queries.take t).map predictor).length [] = queries[t] := by
-      rw [hlen, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlt, Option.getD_some]
+      rw [List.length_map, List.length_take, Nat.min_eq_left (Nat.le_of_succ_le ht),
+        List.getD_eq_getElem?_getD, List.getElem?_eq_getElem ht, Option.getD_some]
     have htake : (queries.take (t + 1)).map predictor =
         (queries.take t).map predictor ++ [predictor queries[t]] := by
-      rw [List.take_add_one, List.getElem?_eq_getElem hlt, Option.toList_some, List.map_append,
+      rw [List.take_add_one, List.getElem?_eq_getElem ht, Option.toList_some, List.map_append,
         List.map_singleton]
     rw [htake, queryBatchStep, ProbOracleComp.runWith_map, ProbOracleComp.runWith_map,
       ProbOracleComp.runWith_query, hget, predictorOracle]
@@ -935,9 +910,7 @@ theorem oracleListDecode_bitStringOracle_simultaneous_success_ge_half
           L.Nodup ∧
           L.length ≤ 16 * p.dimension * p.precision ^ 4 + 2} := by
   rw [bitStringOracle, runWith_oracleListDecode_predictorOracle, PMF.map_comp]
-  have hfst : Prod.fst ∘ (fun L : List (List Bool) => (L, ())) = id := rfl
-  rw [hfst, PMF.map_id]
-  simpa [bitStringPredictor_ofFn] using
+  simpa [Function.comp_def, bitStringPredictor_ofFn] using
     wordListDecode_simultaneous_success_ge_half (bitStringPredictor B) p.dimension p.precision hprec
 
 /-- Uniform strict oracle-PPT Goldreich–Levin pruned list decoder: sample `listMaskCount` random
@@ -1008,9 +981,7 @@ theorem oracleListDecodePruned_bitStringOracle_simultaneous_success_ge_half
           L.Nodup ∧
           L.length ≤ p.precision ^ 2} := by
   rw [bitStringOracle, runWith_oracleListDecodePruned_predictorOracle, PMF.map_comp]
-  have hfst : Prod.fst ∘ (fun L : List (List Bool) => (L, ())) = id := rfl
-  rw [hfst, PMF.map_id]
-  simpa [bitStringPredictor_ofFn] using
+  simpa [Function.comp_def, bitStringPredictor_ofFn] using
     wordListDecodePruned_simultaneous_success_ge_half (bitStringPredictor B) p.dimension p.precision
       hprec
 

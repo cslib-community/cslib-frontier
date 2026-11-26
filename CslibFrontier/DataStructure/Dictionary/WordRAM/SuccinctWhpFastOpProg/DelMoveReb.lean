@@ -152,23 +152,14 @@ private theorem delMoveRebCollisionProg_fastStep {c U V w n_max base rIdx : ℕ}
   dsimp only
   unfold delMoveRebCollisionProg
   simp only [cp, pure_bind]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (resetBTreeSliceGenProg ((cp, base), rIdx) >>= fun _ =>
-        readHdrProg (base, hdrRebCandSalt) >>= fun cand =>
-        writeHdrProg ((base, hdrRebCandSalt), cand + 1) >>= fun _ =>
-        writeHdrProg ((base, hdrRebScanCursor), 0) >>= fun _ =>
-        writeHdrProg ((base, hdrRebInsCount), 0)) =
-      (Memory.spec 0).clientState s3 (writeHdrProg ((base, hdrRebInsCount), 0)) := by
-    rw [clientState_bind, clientState_bind, hst_c, hres_c, clientState_bind,
-      clientState_bind]
-  rw [hs'_eq]
-  refine ⟨?_, ?_, ((hrs_step.trans hw1_step).trans hw2_step).trans hw3_step⟩
+  refine ⟨?_, validProg_bind hrs_vp (validProg_bind hvp_c ?_), ?_⟩
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
     dsimp only [s1, s2, s3, cp] at hrs_mc hst_c hres_c hmc_c hw1_mc hw2_mc hw3_mc ⊢
     rw [hst_c, hres_c, hmc_c]; omega
-  · refine validProg_bind hrs_vp ?_
-    refine validProg_bind hvp_c ?_; rw [hst_c, hres_c]
+  · rw [hst_c, hres_c]
     exact validProg_bind hw1_vp (validProg_bind hw2_vp hw3_vp)
+  · rw [clientState_bind, clientState_bind, hst_c, hres_c, clientState_bind, clientState_bind]
+    exact ((hrs_step.trans hw1_step).trans hw2_step).trans hw3_step
 
 /-- Sub-helper 6.2c (insert+inc): insert `(fp_cand_last, loc_del)` into `rIdx` and increment
 `rebInsCount`. -/
@@ -280,23 +271,10 @@ private theorem delMoveRebInsertIncProg_fastStep {c U V w n_max base rIdx loc_de
   dsimp only
   unfold delMoveRebInsertIncProg
   simp only [cp, pure_bind]
-  have hs'_eq : (Memory.spec 0).clientState s
-      (btreeInsertGenProg ((((cp, base), rIdx), fp_cand_last), loc_del) >>= fun _ =>
-        readHdrProg (base, hdrRebInsCount) >>= fun ins =>
-        writeHdrProg ((base, hdrRebInsCount), ins + 1)) =
-      (Memory.spec 0).clientState s_bi
-        (writeHdrProg ((base, hdrRebInsCount), fs.rebInsCount + 1)) := by
-    rw [clientState_bind, clientState_bind]
-    dsimp only [s_bi, cp] at hst_i hres_i ⊢
-    rw [hst_i, hres_i]
-  rw [hs'_eq]
-  refine ⟨?_, ?_, hbi_step.trans hwh_step⟩
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    dsimp only [s_bi, cp] at hbi_mc hst_i hres_i hmc_i hwh_mc ⊢
-    rw [hst_i, hres_i, hmc_i]; omega
-  · refine validProg_bind hbi_vp ?_
-    dsimp only [s_bi, cp] at hst_i hres_i hvp_i hwh_vp ⊢
-    refine validProg_bind hvp_i ?_; rw [hst_i, hres_i]; exact hwh_vp
+  exact CostBoundedStep.elim
+    (.bind ⟨rfl, rfl, hbi_mc, hbi_vp⟩ <|
+      .bind ⟨hst_i, hres_i, hmc_i.le, hvp_i⟩ ⟨rfl, rfl, hwh_mc.le, hwh_vp⟩)
+    (by omega) (hbi_step.trans hwh_step)
 
 /-- Sub-helper 6.2c (active branch): relocate `loc_last → loc_del` in `rebSlice[b]` once
 `rebAct = 1` and `st_last ∈ {1, 2 + oldEp}` hold. -/
@@ -433,6 +411,22 @@ theorem realizes_delMoveRebGen :
          hld, hfp, hcs_lt, hins_lt, hv_r⟩)
   )
 
+/-- A prefix `p` that leaves the state unchanged and returns `r` peels off `p >>= k`: the state,
+result and validity of `p >>= k` are those of `k r`, and its cost is that of `p` plus `k r`. -/
+private theorem bind_of_readOnly {α : Type} {w F : ℕ} {s : Memory.State} {p : Memory.Prog α}
+    {r : α} (hst : (Memory.spec 0).clientState s p = s)
+    (hres : (Memory.spec 0).clientResult s p = r) (hvp : ValidProg w F s p) :
+    ∀ (β : Type) (k : α → Memory.Prog β),
+    (Memory.spec 0).clientState s (p >>= k) = (Memory.spec 0).clientState s (k r) ∧
+    (Memory.spec 0).clientResult s (p >>= k) = (Memory.spec 0).clientResult s (k r) ∧
+    memoryCost (p >>= k) s = memoryCost p s + memoryCost (k r) s ∧
+    (ValidProg w F s (p >>= k) ↔ ValidProg w F s (k r)) := fun _ k => by
+  refine ⟨by rw [clientState_bind, hst, hres], by rw [clientResult_bind, hst, hres],
+    by rw [memoryCost_bind', hst, hres], fun h hm => ?_, fun h => validProg_bind hvp ?_⟩
+  · have := ((validHistory_bind' w p k s).1 (h hm)).2
+    rwa [hst, hres] at this
+  · rwa [hst, hres]
+
 theorem delMoveRebGenProg_fastStep
     {c U V w n_max base b loc_del loc_last st_last fp_cand_last : ℕ}
     {rebActiveB : Bool} {θ : SeedWhp c U n_max} {fs : FastState} {s : Memory.State}
@@ -485,200 +479,61 @@ theorem delMoveRebGenProg_fastStep
   have hth := henv.2.2.2.1
   have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
   have hval_ld := loc_lt_two_pow_valLaneBits hld
-  set cp := mkWhpCoreParams c U V w n_max
   obtain ⟨hst_o, hres_o, hmc_o, hvp_o⟩ := readOldEpProg_spec (w := w)
     (F := base + largeSpaceWhp c U V w n_max) (by dsimp [hdrCurEp]; omega) hce
     hrep.2.2.2.1 (s := s)
+  have hO := bind_of_readOnly hst_o hres_o hvp_o
   have hcond_iff :
       ((if rebActiveB then 1 else 0) = 1 ∧ (st_last = 1 ∨ st_last = 2 + fs.oldEp)) ↔
       (rebActiveB && decide (st_last = 1 ∨ st_last = 2 + fs.oldEp)) = true := by
     cases rebActiveB <;> simp
   dsimp only
   unfold delMoveRebGenProg
-  simp only [cp, pure_bind]
+  simp only [pure_bind]
+  rw [(hO _ _).1, (hO _ _).2.2.1, (hO _ _).2.2.2, hmc_o]
   by_cases hcond : (rebActiveB && decide (st_last = 1 ∨ st_last = 2 + fs.oldEp)) = true
-  · rw [ite_eq_left hcond]
-    have hcond_n := hcond_iff.mpr hcond
-    have hrbt : rebActiveB = true := (Bool.and_eq_true _ _).mp hcond |>.1
-    obtain ⟨hcs_lt, hins_lt, rm, hv_r⟩ := hreb_fn hrbt
+  · rw [ite_eq_left hcond, ite_eq_left (hcond_iff.mpr hcond)]
+    obtain ⟨hcs_lt, hins_lt, rm, hv_r⟩ := hreb_fn ((Bool.and_eq_true _ _).mp hcond).1
     obtain ⟨hst_rc, hres_rc, hmc_rc, hvp_rc⟩ := readHdrProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebScanCursor)
       (by dsimp [hdrRebScanCursor]; omega) (s := s)
     rw [hrep.2.2.2.2.2.2.2.2.2.2.1] at hres_rc
     obtain ⟨hrs_st, hrs_res, hrs_mc, hrs_vp⟩ := readRebSliceIdxGenProg_spec henv hb hrep (s := s)
+    have hR := bind_of_readOnly hst_rc hres_rc hvp_rc
+    have hI := bind_of_readOnly hrs_st hrs_res hrs_vp
     unfold delMoveRebActiveProg
     simp only [pure_bind]
+    rw [(hR _ _).1, (hR _ _).2.2.1, (hR _ _).2.2.2, hmc_rc,
+      (hI _ _).1, (hI _ _).2.2.1, (hI _ _).2.2.2, hrs_mc]
     by_cases hll_r : loc_last < fs.rebScanCursor
-    · rw [ite_eq_left hll_r]
+    · simp only [hll_r, ↓reduceIte]
       obtain ⟨hbu_mc, hbu_vp, hbu_step⟩ :=
         btreeUpdateGenProg_fastStep henv hrIdx hins_lt.le hseed hrep hv_r hfp hval_ld (s := s)
-      have hs'_eq : (Memory.spec 0).clientState s
-          (readOldEpProg base >>= fun oldEp =>
-            if (if rebActiveB = true then 1 else 0) = 1 ∧ (st_last = 1 ∨ st_last = 2 + oldEp) then
-              readHdrProg (base, hdrRebScanCursor) >>= fun rebCur =>
-              readRebSliceIdxGenProg ((cp, base), b) >>= fun rIdx =>
-              if loc_last < rebCur then
-                btreeUpdateGenProg ((((cp, base), rIdx), fp_cand_last), loc_del)
-              else if loc_del < rebCur then
-                btreeLookupGenProg (((cp, base), rIdx), fp_cand_last) >>= fun lk =>
-                if lk.1 = 1 then delMoveRebCollisionProg ((cp, base), rIdx)
-                else delMoveRebInsertIncProg (((cp, base), rIdx), (fp_cand_last, loc_del))
-              else pure ()
-            else pure ()) =
-          (Memory.spec 0).clientState s
-            (btreeUpdateGenProg ((((cp, base), fs.rebSliceIdx b), fp_cand_last), loc_del)) := by
-        rw [clientState_bind, hst_o, hres_o, ite_eq_left hcond_n,
-          clientState_bind, hst_rc, hres_rc, clientState_bind, hrs_st, hrs_res,
-          ite_eq_left hll_r]
-      rw [hs'_eq]
-      refine ⟨?_, ?_, hbu_step⟩
-      · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [hst_o, hres_o, hmc_o, ite_eq_left hcond_n]
-        simp only [memoryCost_bind]
-        rw [hst_rc, hres_rc, hmc_rc, hrs_st, hrs_res, hrs_mc, ite_eq_left hll_r]
-        omega
-      · refine validProg_bind hvp_o ?_; rw [hst_o, hres_o, ite_eq_left hcond_n]
-        refine validProg_bind hvp_rc ?_; rw [hst_rc, hres_rc]
-        refine validProg_bind hrs_vp ?_; rw [hrs_st, hrs_res, ite_eq_left hll_r]
-        exact hbu_vp
-    · rw [ite_eq_right hll_r]
-      by_cases hld_r : loc_del < fs.rebScanCursor
-      · rw [ite_eq_left hld_r]
-        obtain ⟨hbl_st, hbl_res, hbl_mc, hbl_vp⟩ :=
-          btreeLookupGenProg_spec henv hrIdx hins_lt.le (hrep.slice_rep hrIdx) hv_r hfp (s := s)
-        rw [← hv_r.lookup_eq hth hins_lt.le hfp] at hbl_res
-        cases hlk : btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-            (fs.slices (fs.rebSliceIdx b)) fp_cand_last with
-        | some v_hit =>
-          rw [hlk] at hbl_res
-          obtain ⟨hrc_mc, hrc_vp, hrc_step⟩ :=
-            delMoveRebCollisionProg_fastStep henv hrIdx hcs_lt hseed hrep (s := s)
-          have hs'_eq : (Memory.spec 0).clientState s
-              (readOldEpProg base >>= fun oldEp =>
-                if (if rebActiveB = true then 1 else 0) = 1 ∧
-                    (st_last = 1 ∨ st_last = 2 + oldEp) then
-                  readHdrProg (base, hdrRebScanCursor) >>= fun rebCur =>
-                  readRebSliceIdxGenProg ((cp, base), b) >>= fun rIdx =>
-                  if loc_last < rebCur then
-                    btreeUpdateGenProg ((((cp, base), rIdx), fp_cand_last), loc_del)
-                  else if loc_del < rebCur then
-                    btreeLookupGenProg (((cp, base), rIdx), fp_cand_last) >>= fun lk =>
-                    if lk.1 = 1 then delMoveRebCollisionProg ((cp, base), rIdx)
-                    else delMoveRebInsertIncProg (((cp, base), rIdx), (fp_cand_last, loc_del))
-                  else pure ()
-                else pure ()) =
-              (Memory.spec 0).clientState s
-                (delMoveRebCollisionProg ((cp, base), fs.rebSliceIdx b)) := by
-            rw [clientState_bind, hst_o, hres_o, ite_eq_left hcond_n,
-              clientState_bind, hst_rc, hres_rc, clientState_bind, hrs_st, hrs_res,
-              ite_eq_right hll_r, ite_eq_left hld_r, clientState_bind, hbl_st, hbl_res,
-              ite_eq_left rfl]
-          rw [hs'_eq]
-          refine ⟨?_, ?_, hrc_step⟩
-          · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-            rw [hst_o, hres_o, hmc_o, ite_eq_left hcond_n]
-            simp only [memoryCost_bind]
-            rw [hst_rc, hres_rc, hmc_rc, hrs_st, hrs_res, hrs_mc, ite_eq_right hll_r,
-              ite_eq_left hld_r]
-            simp only [memoryCost_bind]
-            dsimp only [cp] at hbl_st hbl_res hbl_mc hrc_mc ⊢
-            rw [hbl_st, hbl_res, ite_eq_left rfl]; omega
-          · refine validProg_bind hvp_o ?_; rw [hst_o, hres_o, ite_eq_left hcond_n]
-            refine validProg_bind hvp_rc ?_; rw [hst_rc, hres_rc]
-            refine validProg_bind hrs_vp ?_; rw [hrs_st, hrs_res, ite_eq_right hll_r,
-              ite_eq_left hld_r]
-            refine validProg_bind hbl_vp ?_
-            dsimp only [cp] at hbl_st hbl_res hrc_vp ⊢
-            rw [hbl_st, hbl_res, ite_eq_left rfl]; exact hrc_vp
-        | none =>
-          rw [hlk] at hbl_res
-          obtain ⟨hri_mc, hri_vp, hri_step⟩ :=
-            delMoveRebInsertIncProg_fastStep henv hrIdx hld hfp hins_lt hv_r hseed hrep (s := s)
-          have hs'_eq : (Memory.spec 0).clientState s
-              (readOldEpProg base >>= fun oldEp =>
-                if (if rebActiveB = true then 1 else 0) = 1 ∧
-                    (st_last = 1 ∨ st_last = 2 + oldEp) then
-                  readHdrProg (base, hdrRebScanCursor) >>= fun rebCur =>
-                  readRebSliceIdxGenProg ((cp, base), b) >>= fun rIdx =>
-                  if loc_last < rebCur then
-                    btreeUpdateGenProg ((((cp, base), rIdx), fp_cand_last), loc_del)
-                  else if loc_del < rebCur then
-                    btreeLookupGenProg (((cp, base), rIdx), fp_cand_last) >>= fun lk =>
-                    if lk.1 = 1 then delMoveRebCollisionProg ((cp, base), rIdx)
-                    else delMoveRebInsertIncProg (((cp, base), rIdx), (fp_cand_last, loc_del))
-                  else pure ()
-                else pure ()) =
-              (Memory.spec 0).clientState s
-                (delMoveRebInsertIncProg
-                  (((cp, base), fs.rebSliceIdx b), (fp_cand_last, loc_del))) := by
-            rw [clientState_bind, hst_o, hres_o, ite_eq_left hcond_n,
-              clientState_bind, hst_rc, hres_rc, clientState_bind, hrs_st, hrs_res,
-              ite_eq_right hll_r, ite_eq_left hld_r, clientState_bind, hbl_st, hbl_res,
-              ite_eq_right (by decide : ¬(0 = 1))]
-          rw [hs'_eq]
-          refine ⟨?_, ?_, hri_step⟩
-          · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-            rw [hst_o, hres_o, hmc_o, ite_eq_left hcond_n]
-            simp only [memoryCost_bind]
-            rw [hst_rc, hres_rc, hmc_rc, hrs_st, hrs_res, hrs_mc, ite_eq_right hll_r,
-              ite_eq_left hld_r]
-            simp only [memoryCost_bind]
-            dsimp only [cp] at hbl_st hbl_res hbl_mc hri_mc ⊢
-            rw [hbl_st, hbl_res, ite_eq_right (by decide : ¬(0 = 1))]; omega
-          · refine validProg_bind hvp_o ?_; rw [hst_o, hres_o, ite_eq_left hcond_n]
-            refine validProg_bind hvp_rc ?_; rw [hst_rc, hres_rc]
-            refine validProg_bind hrs_vp ?_; rw [hrs_st, hrs_res, ite_eq_right hll_r,
-              ite_eq_left hld_r]
-            refine validProg_bind hbl_vp ?_
-            dsimp only [cp] at hbl_st hbl_res hri_vp ⊢
-            rw [hbl_st, hbl_res, ite_eq_right (by decide : ¬(0 = 1))]; exact hri_vp
-      · rw [ite_eq_right hld_r]
-        have hs'_eq : (Memory.spec 0).clientState s
-            (readOldEpProg base >>= fun oldEp =>
-              if (if rebActiveB = true then 1 else 0) = 1 ∧
-                  (st_last = 1 ∨ st_last = 2 + oldEp) then
-                readHdrProg (base, hdrRebScanCursor) >>= fun rebCur =>
-                readRebSliceIdxGenProg ((cp, base), b) >>= fun rIdx =>
-                if loc_last < rebCur then
-                  btreeUpdateGenProg ((((cp, base), rIdx), fp_cand_last), loc_del)
-                else if loc_del < rebCur then
-                  btreeLookupGenProg (((cp, base), rIdx), fp_cand_last) >>= fun lk =>
-                  if lk.1 = 1 then delMoveRebCollisionProg ((cp, base), rIdx)
-                  else delMoveRebInsertIncProg (((cp, base), rIdx), (fp_cand_last, loc_del))
-                else pure ()
-              else pure ()) = s := by
-          rw [clientState_bind, hst_o, hres_o, ite_eq_left hcond_n,
-            clientState_bind, hst_rc, hres_rc, clientState_bind, hrs_st, hrs_res,
-            ite_eq_right hll_r, ite_eq_right hld_r]; rfl
-        rw [hs'_eq]
-        refine ⟨?_, ?_, FastStateStep.refl hseed hrep⟩
-        · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-          rw [hst_o, hres_o, hmc_o, ite_eq_left hcond_n]
-          simp only [memoryCost_bind]
-          rw [hst_rc, hres_rc, hmc_rc, hrs_st, hrs_res, hrs_mc, ite_eq_right hll_r,
-            ite_eq_right hld_r, memoryCost_pure]; omega
-        · refine validProg_bind hvp_o ?_; rw [hst_o, hres_o, ite_eq_left hcond_n]
-          refine validProg_bind hvp_rc ?_; rw [hst_rc, hres_rc]
-          refine validProg_bind hrs_vp ?_; rw [hrs_st, hrs_res, ite_eq_right hll_r,
-            ite_eq_right hld_r]
-          exact validProg_pure _
-  · rw [ite_eq_right hcond]
-    have hncond_n : ¬((if rebActiveB then 1 else 0) = 1 ∧
-        (st_last = 1 ∨ st_last = 2 + fs.oldEp)) :=
-      fun h => hcond (hcond_iff.mp h)
-    have hs'_eq : (Memory.spec 0).clientState s
-        (readOldEpProg base >>= fun oldEp =>
-          if (if rebActiveB = true then 1 else 0) = 1 ∧
-              (st_last = 1 ∨ st_last = 2 + oldEp) then
-            delMoveRebActiveProg ((((cp, base), b), (loc_del, loc_last)), fp_cand_last)
-          else pure ()) = s := by
-      rw [clientState_bind, hst_o, hres_o, ite_eq_right hncond_n]; rfl
-    rw [hs'_eq]
-    refine ⟨?_, ?_, FastStateStep.refl hseed hrep⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hst_o, hres_o, hmc_o, ite_eq_right hncond_n, memoryCost_pure]; omega
-    · refine validProg_bind hvp_o ?_; rw [hst_o, hres_o, ite_eq_right hncond_n]
-      exact validProg_pure _
+      exact ⟨by omega, hbu_vp, hbu_step⟩
+    simp only [hll_r, ↓reduceIte]
+    by_cases hld_r : loc_del < fs.rebScanCursor
+    · simp only [hld_r, ↓reduceIte]
+      obtain ⟨hbl_st, hbl_res, hbl_mc, hbl_vp⟩ :=
+        btreeLookupGenProg_spec henv hrIdx hins_lt.le (hrep.slice_rep hrIdx) hv_r hfp (s := s)
+      rw [← hv_r.lookup_eq hth hins_lt.le hfp] at hbl_res
+      have hL := bind_of_readOnly hbl_st hbl_res hbl_vp
+      rw [(hL _ _).1, (hL _ _).2.2.1, (hL _ _).2.2.2]
+      cases btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
+          (fs.slices (fs.rebSliceIdx b)) fp_cand_last with
+      | some v_hit =>
+        obtain ⟨hrc_mc, hrc_vp, hrc_step⟩ :=
+          delMoveRebCollisionProg_fastStep henv hrIdx hcs_lt hseed hrep (s := s)
+        simp only [↓reduceIte]
+        exact ⟨by omega, hrc_vp, hrc_step⟩
+      | none =>
+        obtain ⟨hri_mc, hri_vp, hri_step⟩ :=
+          delMoveRebInsertIncProg_fastStep henv hrIdx hld hfp hins_lt hv_r hseed hrep (s := s)
+        simp only [Nat.zero_ne_one, ↓reduceIte]
+        exact ⟨by omega, hri_vp, hri_step⟩
+    simp only [hld_r, ↓reduceIte]
+    exact ⟨by rw [memoryCost_pure]; omega, validProg_pure _, FastStateStep.refl hseed hrep⟩
+  rw [ite_eq_right hcond, ite_eq_right fun h => hcond (hcond_iff.mp h)]
+  exact ⟨by rw [memoryCost_pure]; omega, validProg_pure _, FastStateStep.refl hseed hrep⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

@@ -149,26 +149,18 @@ theorem intPrefix_succ (x : ℕ → ℤ) (K : ℕ) :
   rw [sum_range_succ, Nat.sub_self, pow_zero, mul_one, mul_sum]
   congr 1
   refine sum_congr rfl fun j hj => ?_
-  have hjle : j ≤ K := Nat.lt_succ_iff.mp (mem_range.mp hj)
-  have hsub : K + 1 - j = (K - j) + 1 := by omega
-  rw [hsub, pow_succ]
+  rw [Nat.succ_sub (Nat.lt_succ_iff.mp (mem_range.mp hj)), pow_succ]
   ring
 
 theorem abs_intPrefix_le {x : ℕ → ℤ} (hx : IsSignedStream x) (K : ℕ) :
     |intPrefix x K| ≤ 12 * (2 : ℤ) ^ K - 6 := by
   induction K with
-  | zero =>
-    have h0 : |x 0| ≤ 6 := hx 0
-    simp only [intPrefix_zero, pow_zero, mul_one]
-    omega
+  | zero => simpa [IsSignedDigit] using hx 0
   | succ K ih =>
-    rw [intPrefix_succ]
+    rw [intPrefix_succ, pow_succ]
     have hxK : |x (K + 1)| ≤ 6 := hx (K + 1)
-    have hpow : (2 : ℤ) ^ (K + 1) = 2 * (2 : ℤ) ^ K := by ring
-    have htri : |2 * intPrefix x K + x (K + 1)| ≤ 2 * |intPrefix x K| + |x (K + 1)| := by
-      calc |2 * intPrefix x K + x (K + 1)|
-          ≤ |2 * intPrefix x K| + |x (K + 1)| := abs_add_le _ _
-        _ = 2 * |intPrefix x K| + |x (K + 1)| := by rw [abs_mul]; norm_num
+    have htri := abs_add_le (2 * intPrefix x K) (x (K + 1))
+    rw [abs_mul, abs_of_nonneg (by decide : (0 : ℤ) ≤ 2)] at htri
     omega
 
 @[simp]
@@ -193,28 +185,26 @@ theorem streamPrefix_eq_intPrefix_div (x : ℕ → ℤ) (K : ℕ) :
 
 theorem abs_streamPrefix_le {x : ℕ → ℤ} (hx : IsSignedStream x) (K : ℕ) :
     |streamPrefix x K| ≤ 12 - 6 / (2 : ℝ) ^ K := by
-  rw [streamPrefix_eq_intPrefix_div, abs_div, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ K)]
+  have h2 : (0 : ℝ) < (2 : ℝ) ^ K := by positivity
+  rw [streamPrefix_eq_intPrefix_div, abs_div, abs_of_pos h2, div_le_iff₀ h2]
   have hint : |(intPrefix x K : ℝ)| ≤ 12 * (2 : ℝ) ^ K - 6 := by
     exact_mod_cast abs_intPrefix_le hx K
-  rw [div_le_iff₀ (by positivity : (0 : ℝ) < (2 : ℝ) ^ K)]
-  calc |(intPrefix x K : ℝ)|
-      ≤ 12 * (2 : ℝ) ^ K - 6 := hint
-    _ = (12 - 6 / (2 : ℝ) ^ K) * (2 : ℝ) ^ K := by field_simp
+  exact hint.trans_eq (by field_simp)
 
 theorem IsSignedStream.summable {x : ℕ → ℤ} (hx : IsSignedStream x) :
     Summable (fun j : ℕ => (x j : ℝ) / (2 : ℝ) ^ j) := by
   refine Summable.of_norm_bounded (summable_geometric_two.mul_left 6) fun j => ?_
-  rw [Real.norm_eq_abs, abs_div, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ j),
-    one_div_pow, mul_one_div]
-  exact div_le_div_of_nonneg_right (hx.abs_cast_le j) (by positivity)
+  have h2 : (0 : ℝ) < (2 : ℝ) ^ j := by positivity
+  rw [Real.norm_eq_abs, abs_div, abs_of_pos h2, one_div_pow, mul_one_div]
+  exact div_le_div_of_nonneg_right (hx.abs_cast_le j) h2.le
 
 /-- **Tail truncation bound** [OpenAI2026LogSpace, (10.2)]: truncating a signed-digit stream after
 place `K` incurs error at most `6 / 2 ^ K`. -/
 theorem abs_streamVal_sub_streamPrefix_le {x : ℕ → ℤ} (hx : IsSignedStream x) (K : ℕ) :
     |streamVal x - streamPrefix x K| ≤ 6 / (2 : ℝ) ^ K := by
-  have hsplit := hx.summable.sum_add_tsum_nat_add (K + 1)
   have hsub : streamVal x - streamPrefix x K =
       ∑' m : ℕ, (x (m + (K + 1)) : ℝ) / (2 : ℝ) ^ (m + (K + 1)) := by
+    have := hx.summable.sum_add_tsum_nat_add (K + 1)
     unfold streamVal streamPrefix
     linarith
   rw [hsub, ← Real.norm_eq_abs]
@@ -224,49 +214,41 @@ theorem abs_streamVal_sub_streamPrefix_le {x : ℕ → ℤ} (hx : IsSignedStream
     field_simp
     ring
   refine tsum_of_norm_bounded hgeom fun m => ?_
-  rw [Real.norm_eq_abs, abs_div, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ (m + (K + 1)))]
-  have hxm : |(x (m + (K + 1)) : ℝ)| ≤ 6 := hx.abs_cast_le (m + (K + 1))
-  have hpow : (2 : ℝ) ^ (m + (K + 1)) = (2 : ℝ) ^ (K + 1) * (2 : ℝ) ^ m := by ring
-  rw [hpow, one_div_pow]
-  calc |(x (m + (K + 1)) : ℝ)| / ((2 : ℝ) ^ (K + 1) * (2 : ℝ) ^ m)
-      ≤ 6 / ((2 : ℝ) ^ (K + 1) * (2 : ℝ) ^ m) := by gcongr
+  rw [Real.norm_eq_abs, abs_div, abs_of_pos (by positivity : (0 : ℝ) < (2 : ℝ) ^ (m + (K + 1))),
+    pow_add, one_div_pow]
+  calc |(x (m + (K + 1)) : ℝ)| / ((2 : ℝ) ^ m * (2 : ℝ) ^ (K + 1))
+      ≤ 6 / ((2 : ℝ) ^ m * (2 : ℝ) ^ (K + 1)) := by gcongr; exact hx.abs_cast_le _
     _ = 6 / (2 : ℝ) ^ (K + 1) * (1 / (2 : ℝ) ^ m) := by ring
 
 theorem abs_streamVal_le_twelve {x : ℕ → ℤ} (hx : IsSignedStream x) :
     |streamVal x| ≤ 12 := by
-  have h0 := abs_streamVal_sub_streamPrefix_le hx 0
-  have hp0 : |streamPrefix x 0| ≤ 6 := by
-    simpa only [streamPrefix_zero] using hx.abs_cast_le 0
-  have hpow : (6 : ℝ) / (2 : ℝ) ^ (0 : ℕ) = 6 := by norm_num
+  have h0 : |streamVal x - streamPrefix x 0| ≤ 6 := by
+    simpa only [pow_zero, div_one] using abs_streamVal_sub_streamPrefix_le hx 0
+  have hp0 : |streamPrefix x 0| ≤ 6 := by simpa only [streamPrefix_zero] using hx.abs_cast_le 0
   linarith [abs_sub_abs_le_abs_sub (streamVal x) (streamPrefix x 0)]
 
 theorem suffixStream_isSignedStream {x : ℕ → ℤ} (hx : IsSignedStream x) (K : ℕ) :
-    IsSignedStream (suffixStream x K) := by
-  intro j
+    IsSignedStream (suffixStream x K) := fun j => by
   unfold suffixStream
   split_ifs
   · exact isSignedDigit_zero
   · exact hx j
 
 theorem streamPrefix_suffixStream_le (x : ℕ → ℤ) {K M : ℕ} (hM : M ≤ K) :
-    streamPrefix (suffixStream x K) M = 0 := by
-  unfold streamPrefix suffixStream
-  refine sum_eq_zero fun j hj => ?_
-  have hjK : j ≤ K := (Nat.lt_succ_iff.mp (mem_range.mp hj)).trans hM
-  simp [hjK]
+    streamPrefix (suffixStream x K) M = 0 :=
+  sum_eq_zero fun j hj => by
+    have hjK : j ≤ K := (Nat.lt_succ_iff.mp (mem_range.mp hj)).trans hM
+    simp [suffixStream, hjK]
 
 theorem streamVal_suffixStream {x : ℕ → ℤ} (hx : IsSignedStream x) (K : ℕ) :
     streamVal (suffixStream x K) = streamVal x - streamPrefix x K := by
   have hsx := hx.summable.sum_add_tsum_nat_add (K + 1)
   have hss := (suffixStream_isSignedStream hx K).summable.sum_add_tsum_nat_add (K + 1)
-  have hpre0 : ∑ j ∈ range (K + 1), (suffixStream x K j : ℝ) / (2 : ℝ) ^ j = 0 :=
-    streamPrefix_suffixStream_le x le_rfl
   have htail : (fun m : ℕ => (suffixStream x K (m + (K + 1)) : ℝ) / (2 : ℝ) ^ (m + (K + 1))) =
-      fun m : ℕ => (x (m + (K + 1)) : ℝ) / (2 : ℝ) ^ (m + (K + 1)) := by
-    ext m
-    have hnot : ¬ m + (K + 1) ≤ K := by omega
-    simp [suffixStream, hnot]
-  rw [hpre0, zero_add, htail] at hss
+      fun m : ℕ => (x (m + (K + 1)) : ℝ) / (2 : ℝ) ^ (m + (K + 1)) :=
+    funext fun m => by simp [suffixStream, show ¬ m + (K + 1) ≤ K by omega]
+  rw [show ∑ j ∈ range (K + 1), (suffixStream x K j : ℝ) / (2 : ℝ) ^ j = 0 from
+    streamPrefix_suffixStream_le x le_rfl, zero_add, htail] at hss
   unfold streamVal streamPrefix
   linarith
 
@@ -277,29 +259,21 @@ section ResidueStream
 theorem abs_diffDigit_zero_le {z : ℝ} {N : ℕ → ℤ} (hz : |z| ≤ 1) (hN : IsScaledApprox z N) :
     |diffDigit N 0| ≤ 2 := by
   have h0 : |(N 0 : ℝ) - z| < 2 := by simpa only [pow_zero, one_mul] using hN 0
-  have habs : |(N 0 : ℝ)| < 3 := by
-    linarith [abs_sub_abs_le_abs_sub (N 0 : ℝ) z]
-  have hint : |N 0| < 3 := by exact_mod_cast habs
-  simp only [diffDigit]
-  omega
+  have hint : |N 0| < 3 := by
+    exact_mod_cast (by linarith [abs_sub_abs_le_abs_sub (N 0 : ℝ) z] : |(N 0 : ℝ)| < 3)
+  simpa only [diffDigit] using Int.le_of_lt_add_one hint
 
 theorem abs_diffDigit_succ_le {z : ℝ} {N : ℕ → ℤ} (hN : IsScaledApprox z N) (t : ℕ) :
     |diffDigit N (t + 1)| ≤ 5 := by
-  have ht : |(N t : ℝ) - (2 : ℝ) ^ t * z| < 2 := hN t
-  have ht1 : |(N (t + 1) : ℝ) - (2 : ℝ) ^ (t + 1) * z| < 2 := hN (t + 1)
   have hdecomp : (diffDigit N (t + 1) : ℝ) =
       ((N (t + 1) : ℝ) - (2 : ℝ) ^ (t + 1) * z) - 2 * ((N t : ℝ) - (2 : ℝ) ^ t * z) := by
-    unfold diffDigit
-    push_cast
-    ring
+    unfold diffDigit; push_cast; ring
   have habs : |(diffDigit N (t + 1) : ℝ)| < 6 := by
     rw [hdecomp]
     have htri := abs_sub ((N (t + 1) : ℝ) - (2 : ℝ) ^ (t + 1) * z)
       (2 * ((N t : ℝ) - (2 : ℝ) ^ t * z))
-    have hmul : |2 * ((N t : ℝ) - (2 : ℝ) ^ t * z)| = 2 * |(N t : ℝ) - (2 : ℝ) ^ t * z| := by
-      rw [abs_mul]
-      norm_num
-    linarith
+    rw [abs_mul, abs_of_nonneg (by norm_num : (0 : ℝ) ≤ 2)] at htri
+    linarith [hN t, hN (t + 1)]
   have hint : |diffDigit N (t + 1)| < 6 := by exact_mod_cast habs
   omega
 
@@ -326,35 +300,23 @@ theorem streamPrefix_diffDigit (N : ℕ → ℤ) (T : ℕ) :
 theorem abs_streamPrefix_diffDigit_sub_lt {z : ℝ} {N : ℕ → ℤ}
     (hN : IsScaledApprox z N) (T : ℕ) :
     |streamPrefix (diffDigit N) T - z| < 2 / (2 : ℝ) ^ T := by
-  rw [streamPrefix_diffDigit]
   have hpos : (0 : ℝ) < (2 : ℝ) ^ T := by positivity
-  have heq : (N T : ℝ) / (2 : ℝ) ^ T - z = ((N T : ℝ) - (2 : ℝ) ^ T * z) / (2 : ℝ) ^ T := by
-    field_simp
-  rw [heq, abs_div, abs_of_pos hpos]
+  rw [streamPrefix_diffDigit, div_sub' hpos.ne', abs_div, abs_of_pos hpos]
   exact div_lt_div_of_pos_right (hN T) hpos
 
 /-- **Lemma 10.1 (exact representation)** [OpenAI2026LogSpace, Lemma 10.1]: the difference digits
 of `N` sum to `z`. -/
 theorem streamVal_diffDigit {z : ℝ} {N : ℕ → ℤ} (hz : |z| ≤ 1) (hN : IsScaledApprox z N) :
     streamVal (diffDigit N) = z := by
-  have hstream := diffDigit_isSignedStream hz hN
   by_contra hne
   have hgap : 0 < |streamVal (diffDigit N) - z| := abs_sub_pos.mpr hne
   obtain ⟨T, hT⟩ := exists_pow_lt_of_lt_one (div_pos hgap (by norm_num : (0 : ℝ) < 8))
     (by norm_num : (1 / 2 : ℝ) < 1)
-  have h1 := abs_streamVal_sub_streamPrefix_le hstream T
+  have h1 := abs_streamVal_sub_streamPrefix_le (diffDigit_isSignedStream hz hN) T
   have h2 := abs_streamPrefix_diffDigit_sub_lt hN T
-  have htri : |streamVal (diffDigit N) - z| < 8 / (2 : ℝ) ^ T := by
-    have hsub := abs_sub_le (streamVal (diffDigit N)) (streamPrefix (diffDigit N) T) z
-    have hsum : (6 : ℝ) / (2 : ℝ) ^ T + 2 / (2 : ℝ) ^ T = 8 / (2 : ℝ) ^ T := by ring
-    linarith
-  have hpow : (1 / 2 : ℝ) ^ T = 1 / (2 : ℝ) ^ T := one_div_pow 2 T
-  rw [hpow] at hT
-  have hmul := mul_lt_mul_of_pos_left hT (by norm_num : (0 : ℝ) < 8)
-  have hrw : (8 : ℝ) * (1 / (2 : ℝ) ^ T) = 8 / (2 : ℝ) ^ T := by ring
-  have hcancel : (8 : ℝ) * (|streamVal (diffDigit N) - z| / 8) =
-      |streamVal (diffDigit N) - z| := by ring
-  linarith
+  have htri := abs_sub_le (streamVal (diffDigit N)) (streamPrefix (diffDigit N) T) z
+  rw [one_div_pow] at hT
+  linarith [show (8 : ℝ) * (1 / (2 : ℝ) ^ T) = 6 / (2 : ℝ) ^ T + 2 / (2 : ℝ) ^ T by ring]
 
 theorem hasSum_diffDigit {z : ℝ} {N : ℕ → ℤ} (hz : |z| ≤ 1) (hN : IsScaledApprox z N) :
     HasSum (fun j : ℕ => (diffDigit N j : ℝ) / (2 : ℝ) ^ j) z := by
@@ -364,33 +326,20 @@ theorem hasSum_diffDigit {z : ℝ} {N : ℕ → ℤ} (hz : |z| ≤ 1) (hN : IsSc
 @[simp]
 theorem centeredResidue_emod (q : ℕ) (r : ℤ) :
     centeredResidue q (r % (2 : ℤ) ^ q) = centeredResidue q r := by
-  unfold centeredResidue
-  simp only [Int.emod_emod]
+  simp only [centeredResidue, Int.emod_emod]
 
 theorem centeredResidue_eq_self {q : ℕ} (hq : 4 ≤ q) {d : ℤ} (hd : IsSignedDigit d) :
     centeredResidue q d = d := by
   unfold centeredResidue
-  have hq1 : (8 : ℤ) ≤ (2 : ℤ) ^ (q - 1) := by
-    have hle : 3 ≤ q - 1 := by omega
-    calc (8 : ℤ) = (2 : ℤ) ^ 3 := by decide
-      _ ≤ (2 : ℤ) ^ (q - 1) := pow_le_pow_right₀ (by decide) hle
+  have hq1 : (8 : ℤ) ≤ (2 : ℤ) ^ (q - 1) :=
+    (by decide : (8 : ℤ) = 2 ^ 3).trans_le (pow_le_pow_right₀ (by decide) (by omega))
   have hpow : (2 : ℤ) ^ q = 2 * (2 : ℤ) ^ (q - 1) := by
-    have hqeq : q = (q - 1) + 1 := by omega
-    conv_lhs => rw [hqeq, pow_succ]
-    ring
+    conv_lhs => rw [show q = (q - 1) + 1 by omega, pow_succ, mul_comm]
   have hd_bounds := isSignedDigit_iff_le.mp hd
   by_cases hd0 : 0 ≤ d
-  · have hmod : d % (2 : ℤ) ^ q = d := Int.emod_eq_of_lt hd0 (by omega)
-    have hle : d ≤ (2 : ℤ) ^ (q - 1) := by omega
-    simp [hmod, hle]
-  · have hadd0 : 0 ≤ d + (2 : ℤ) ^ q := by omega
-    have haddlt : d + (2 : ℤ) ^ q < (2 : ℤ) ^ q := by omega
-    have hmod : d % (2 : ℤ) ^ q = d + (2 : ℤ) ^ q := by
-      have hcongr : (d + (2 : ℤ) ^ q) % (2 : ℤ) ^ q = d % (2 : ℤ) ^ q :=
-        Int.add_emod_right d ((2 : ℤ) ^ q)
-      rw [← hcongr, Int.emod_eq_of_lt hadd0 haddlt]
-    have hnotle : ¬ d + (2 : ℤ) ^ q ≤ (2 : ℤ) ^ (q - 1) := by omega
-    simp [hmod, hnotle]
+  · rw [Int.emod_eq_of_lt hd0 (by omega), ite_eq_left (by omega)]
+  · rw [← Int.add_emod_right d ((2 : ℤ) ^ q), Int.emod_eq_of_lt (by omega) (by omega)]
+    simp [show ¬ d + (2 : ℤ) ^ q ≤ (2 : ℤ) ^ (q - 1) by omega]
 
 /-- **Lemma 10.1 (residue decoding)** [OpenAI2026LogSpace, Lemma 10.1]: for `q ≥ 4`, the place-`t`
 difference digit is uniquely determined by `N t % 2 ^ q` and `N (t - 1) % 2 ^ q`. -/
@@ -400,17 +349,13 @@ theorem decodeDiffResidue_eq_diffDigit {q : ℕ} (hq : 4 ≤ q) {z : ℝ} {N : �
   have hdig : IsSignedDigit (diffDigit N t) := diffDigit_isSignedStream hz hN t
   cases t with
   | zero =>
-    unfold decodeDiffResidue
-    rw [centeredResidue_emod]
-    exact centeredResidue_eq_self hq hdig
+    simpa only [decodeDiffResidue, centeredResidue_emod, diffDigit] using
+      centeredResidue_eq_self hq hdig
   | succ t =>
-    simp only [decodeDiffResidue, Nat.add_sub_cancel]
     have hmod : (N (t + 1) % (2 : ℤ) ^ q - 2 * (N t % (2 : ℤ) ^ q)) % (2 : ℤ) ^ q =
         diffDigit N (t + 1) % (2 : ℤ) ^ q := by
-      unfold diffDigit
-      conv_rhs => rw [Int.sub_emod, Int.mul_emod]
-      rw [Int.sub_emod, Int.emod_emod, Int.mul_emod (2 : ℤ) (N t % (2 : ℤ) ^ q), Int.emod_emod]
-    rw [← centeredResidue_emod, hmod, centeredResidue_emod]
+      simp [diffDigit, Int.sub_emod, Int.mul_emod]
+    rw [decodeDiffResidue, Nat.add_sub_cancel, ← centeredResidue_emod, hmod, centeredResidue_emod]
     exact centeredResidue_eq_self hq hdig
 
 /-- **Signed floor-shift residue identity** [OpenAI2026LogSpace, (10.11)]: discarding the low `s`
@@ -419,36 +364,17 @@ floor quotient `a / 2 ^ s` for every signed integer `a : ℤ`. -/
 theorem ediv_two_pow_emod_eq (a : ℤ) (q s : ℕ) :
     (a / (2 : ℤ) ^ s) % (2 : ℤ) ^ q = (a % (2 : ℤ) ^ (q + s)) / (2 : ℤ) ^ s := by
   have hs_pos : (0 : ℤ) < (2 : ℤ) ^ s := by positivity
-  have hq_pos : (0 : ℤ) < (2 : ℤ) ^ q := by positivity
   have hqs_pos : (0 : ℤ) < (2 : ℤ) ^ (q + s) := by positivity
-  set M := (2 : ℤ) ^ (q + s)
-  set r := a % M
-  have hr0 : 0 ≤ r := Int.emod_nonneg a hqs_pos.ne'
-  have hrlt : r < (2 : ℤ) ^ s * (2 : ℤ) ^ q := by
-    have hpow : M = (2 : ℤ) ^ s * (2 : ℤ) ^ q := by
-      dsimp [M]
-      rw [pow_add]
-      ring
-    rw [← hpow]
-    exact Int.emod_lt_of_pos a hqs_pos
-  have ha : a = (2 : ℤ) ^ s * ((2 : ℤ) ^ q * (a / M)) + r := by
-    have hdiv : M * (a / M) + r = a := by
-      dsimp [r]
-      linarith [Int.emod_def a M]
-    have hpow : M = (2 : ℤ) ^ s * (2 : ℤ) ^ q := by
-      dsimp [M]
-      rw [pow_add]
-      ring
-    calc a = M * (a / M) + r := hdiv.symm
-      _ = (2 : ℤ) ^ s * (2 : ℤ) ^ q * (a / M) + r := by rw [hpow]
-      _ = (2 : ℤ) ^ s * ((2 : ℤ) ^ q * (a / M)) + r := by ring
-  have hediv : a / (2 : ℤ) ^ s = (2 : ℤ) ^ q * (a / M) + r / (2 : ℤ) ^ s := by
-    conv_lhs => rw [ha, add_comm]
-    rw [Int.add_mul_ediv_left _ _ hs_pos.ne', add_comm]
-  have hdiv0 : 0 ≤ r / (2 : ℤ) ^ s := Int.ediv_nonneg hr0 hs_pos.le
-  have hdivlt : r / (2 : ℤ) ^ s < (2 : ℤ) ^ q :=
-    Int.ediv_lt_of_lt_mul hs_pos (by linarith)
-  rw [hediv, add_comm, Int.add_mul_emod_self_left, Int.emod_eq_of_lt hdiv0 hdivlt]
+  have hpow : (2 : ℤ) ^ (q + s) = (2 : ℤ) ^ s * (2 : ℤ) ^ q := by rw [pow_add, mul_comm]
+  have hediv : a / (2 : ℤ) ^ s =
+      (a % (2 : ℤ) ^ (q + s)) / (2 : ℤ) ^ s + (2 : ℤ) ^ q * (a / (2 : ℤ) ^ (q + s)) := by
+    conv_lhs => rw [← Int.mul_ediv_add_emod a ((2 : ℤ) ^ (q + s)), hpow, mul_assoc, add_comm]
+    rw [Int.add_mul_ediv_left _ _ hs_pos.ne', ← hpow]
+  have hdiv0 : 0 ≤ (a % (2 : ℤ) ^ (q + s)) / (2 : ℤ) ^ s :=
+    Int.ediv_nonneg (Int.emod_nonneg a hqs_pos.ne') hs_pos.le
+  have hdivlt : (a % (2 : ℤ) ^ (q + s)) / (2 : ℤ) ^ s < (2 : ℤ) ^ q :=
+    Int.ediv_lt_of_lt_mul hs_pos (by rw [mul_comm, ← hpow]; exact Int.emod_lt_of_pos a hqs_pos)
+  rw [hediv, Int.add_mul_emod_self_left, Int.emod_eq_of_lt hdiv0 hdivlt]
 
 end ResidueStream
 

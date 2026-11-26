@@ -86,11 +86,9 @@ theorem abs_increment_le_of_clippedError_le {ι : Type*} {Δ : ℕ → ι → Fi
         (uncompressedRow Δ raw₀ i y ν - truth ν) := by
     rw [uncompressedRow_succ]
     ring
-  constructor
-  · rw [heq 0]
-    exact (abs_sub _ _).trans (by linarith [hb.1, ha.1])
-  · rw [heq 1]
-    exact (abs_sub _ _).trans (by linarith [hb.2, ha.2])
+  rw [heq 0, heq 1]
+  exact ⟨(abs_sub _ _).trans (by linarith [hb.1, ha.1]),
+    (abs_sub _ _).trans (by linarith [hb.2, ha.2])⟩
 
 /-- The finite `28`-weighted error budget for an initial raw prefix and subsequent prefixes. -/
 @[expose] def prefixErrorBudget (ε : ℕ → ℝ) (m : ℕ) : ℝ :=
@@ -98,11 +96,10 @@ theorem abs_increment_le_of_clippedError_le {ι : Type*} {Δ : ℕ → ι → Fi
 
 /-- A nonnegative prefix envelope gives a nonnegative propagation budget. -/
 theorem prefixErrorBudget_nonneg {ε : ℕ → ℝ} {m : ℕ} (hε : ∀ i ≤ m, 0 ≤ ε i) :
-    0 ≤ prefixErrorBudget ε m := by
-  apply add_nonneg (mul_nonneg (by positivity) (hε 0 (Nat.zero_le m)))
-  refine sum_nonneg fun i hi => mul_nonneg (by positivity) (add_nonneg ?_ ?_)
-  · exact hε i (mem_range.mp hi).le
-  · exact hε (i + 1) (mem_range.mp hi)
+    0 ≤ prefixErrorBudget ε m :=
+  add_nonneg (mul_nonneg (by positivity) (hε 0 (Nat.zero_le m))) <| sum_nonneg fun i hi =>
+    mul_nonneg (by positivity)
+      (add_nonneg (hε i (mem_range.mp hi).le) (hε (i + 1) (mem_range.mp hi)))
 
 /-- Extending a nonnegative prefix envelope can only increase its propagated budget. -/
 theorem prefixErrorBudget_mono {ε : ℕ → ℝ} {j m : ℕ}
@@ -178,20 +175,16 @@ private theorem sentinel_reference_bounds {s : Finset ι} {K : ℕ} {η L₀ z :
     (∀ y ∈ s, -η ≤ b.row y 0) ∧ (∀ y ∈ s, |b.row y 1| ≤ η) ∧
       firstRank s K b.defaultValue b.row ≤ 2 * L₀ := by
   classical
-  let marked := {y ∈ s | 16 * (L₀ + 1) < truth y 0}
-  let b := sentinelState marked (16 * (L₀ + 1)) ⟨z, truth + loss⟩
-  change (∀ y ∈ s, -η ≤ b.row y 0) ∧ (∀ y ∈ s, |b.row y 1| ≤ η) ∧
-    firstRank s K b.defaultValue b.row ≤ 2 * L₀
+  intro marked b
   have hL₀0 : 0 ≤ L₀ := hη.trans hL₀
   have hshape : (∀ y ∈ s, -η ≤ b.row y 0) ∧ (∀ y ∈ s, |b.row y 1| ≤ η) := by
     constructor
     · intro y hy
+      change -η ≤ sentinelFirst marked (16 * (L₀ + 1)) (truth + loss) y 0
       by_cases hm : y ∈ marked
-      · change -η ≤ sentinelFirst marked (16 * (L₀ + 1)) (truth + loss) y 0
-        rw [sentinelFirst_zero_of_mem hm]
+      · rw [sentinelFirst_zero_of_mem hm]
         linarith
-      · change -η ≤ sentinelFirst marked (16 * (L₀ + 1)) (truth + loss) y 0
-        rw [sentinelFirst_of_not_mem hm]
+      · rw [sentinelFirst_of_not_mem hm]
         have hl := (abs_le.mp (hloss y hy 0)).1
         change -η ≤ truth y 0 + loss y 0
         linarith [hfirst y hy]
@@ -241,63 +234,47 @@ theorem iterate_sentinelState_stability_of_clippedError_le {s : Finset ι} {n : 
       ∀ y ∈ s, ∀ ν, |(A j).row y ν - (B j).row y ν| ≤
         (1 + L) * prefixErrorBudget ε j := by
   classical
+  intro marked a b Δ' A B
   let c := 1 + L
-  let marked := {y ∈ s | L < truth y 0}
-  let a : State ι := ⟨z, raw₀ + loss⟩
-  let b : State ι := ⟨z, truth + loss⟩
   let a' := sentinelState marked L a
   let b' := sentinelState marked L b
-  let Δ' := fun i => sentinelFirst marked 0 (Δ i)
-  let A := iterate s n (fun _ => K) ρ Δ' a'
-  let B := iterate s n (fun _ => K) ρ (fun _ => 0) b'
   have hc1 : 1 ≤ c := le_add_of_nonneg_right hL
-  have hc0 : 0 ≤ c := (by norm_num : (0 : ℝ) ≤ 1).trans hc1
-  have hraw (i : ℕ) (hi : i ≤ m) (y : ι) (hy : y ∈ s) :
-      |uncompressedRow Δ raw₀ i y 0 - truth y 0| ≤ (1 + truth y 0) * ε i ∧
-        |uncompressedRow Δ raw₀ i y 1 - truth y 1| ≤ ε i :=
-    abs_sub_le_of_clippedError_le (hfirst y hy) (hεlt i hi) (herr i hi y hy)
-  have hincr (i : ℕ) (hi : i < m) (y : ι) (hy : y ∈ s) :
-      |Δ i y 0| ≤ (1 + truth y 0) * (ε i + ε (i + 1)) ∧
-        |Δ i y 1| ≤ ε i + ε (i + 1) :=
-    abs_increment_le_of_clippedError_le (truth := truth y) (hfirst y hy)
-      (hεlt i hi.le) (hεlt (i + 1) hi) (herr i hi.le y hy) (herr (i + 1) hi y hy)
-  have hoff (y : ι) (hy : y ∈ s) (hm : y ∉ marked) : truth y 0 ≤ L := by
-    exact not_lt.mp fun h => hm (mem_filter.mpr ⟨hy, h⟩)
+  have hc0 : 0 ≤ c := zero_le_one.trans hc1
+  have hoff (y : ι) (hy : y ∈ s) (hm : y ∉ marked) : truth y 0 ≤ L :=
+    not_lt.mp fun h => hm (mem_filter.mpr ⟨hy, h⟩)
   have hinit (y : ι) (hy : y ∈ s) (ν : Fin 2) : |a'.row y ν - b'.row y ν| ≤ c * ε 0 := by
-    have hr := hraw 0 (Nat.zero_le m) y hy
+    have hr := abs_sub_le_of_clippedError_le (hfirst y hy) (hεlt 0 (Nat.zero_le m))
+      (herr 0 (Nat.zero_le m) y hy)
     simp only [uncompressedRow_zero] at hr
     fin_cases ν
-    · by_cases hm : y ∈ marked
-      · change |sentinelFirst marked L a.row y 0 - sentinelFirst marked L b.row y 0| ≤ _
-        rw [sentinelFirst_zero_of_mem hm, sentinelFirst_zero_of_mem hm, sub_self, abs_zero]
+    · change |sentinelFirst marked L a.row y 0 - sentinelFirst marked L b.row y 0| ≤ _
+      by_cases hm : y ∈ marked
+      · rw [sentinelFirst_zero_of_mem hm, sentinelFirst_zero_of_mem hm, sub_self, abs_zero]
         exact mul_nonneg hc0 (hε 0 (Nat.zero_le m))
-      · change |sentinelFirst marked L a.row y 0 - sentinelFirst marked L b.row y 0| ≤ _
-        rw [sentinelFirst_of_not_mem hm, sentinelFirst_of_not_mem hm]
-        change |raw₀ y 0 + loss y 0 - (truth y 0 + loss y 0)| ≤ _
-        rw [add_sub_add_right_eq_sub]
+      · rw [sentinelFirst_of_not_mem hm, sentinelFirst_of_not_mem hm]
+        simp only [a, b, Pi.add_apply, add_sub_add_right_eq_sub]
         exact hr.1.trans (mul_le_mul_of_nonneg_right (by dsimp only [c]; linarith [hoff y hy hm])
           (hε 0 (Nat.zero_le m)))
     · change |sentinelFirst marked L a.row y 1 - sentinelFirst marked L b.row y 1| ≤ _
-      rw [sentinelFirst_one, sentinelFirst_one]
-      change |raw₀ y 1 + loss y 1 - (truth y 1 + loss y 1)| ≤ _
-      rw [add_sub_add_right_eq_sub]
+      simp only [sentinelFirst_one, a, b, Pi.add_apply, add_sub_add_right_eq_sub]
       exact hr.2.trans (le_mul_of_one_le_left (hε 0 (Nat.zero_le m)) hc1)
   have hΔ' (i : ℕ) (hi : i < m) (y : ι) (hy : y ∈ s) (ν : Fin 2) :
       |Δ' i y ν - (0 : ι → Fin 2 → ℝ) y ν| ≤ c * (ε i + ε (i + 1)) := by
     have hsum0 := add_nonneg (hε i hi.le) (hε (i + 1) hi)
+    have hincr := abs_increment_le_of_clippedError_le (truth := truth y) (hfirst y hy)
+      (hεlt i hi.le) (hεlt (i + 1) hi) (herr i hi.le y hy) (herr (i + 1) hi y hy)
     simp only [Pi.zero_apply, sub_zero]
     fin_cases ν
-    · by_cases hm : y ∈ marked
-      · change |sentinelFirst marked 0 (Δ i) y 0| ≤ _
-        rw [sentinelFirst_zero_of_mem hm, abs_zero]
+    · change |sentinelFirst marked 0 (Δ i) y 0| ≤ _
+      by_cases hm : y ∈ marked
+      · rw [sentinelFirst_zero_of_mem hm, abs_zero]
         exact mul_nonneg hc0 hsum0
-      · change |sentinelFirst marked 0 (Δ i) y 0| ≤ _
-        rw [sentinelFirst_of_not_mem hm]
-        exact (hincr i hi y hy).1.trans (mul_le_mul_of_nonneg_right
+      · rw [sentinelFirst_of_not_mem hm]
+        exact hincr.1.trans (mul_le_mul_of_nonneg_right
           (by dsimp only [c]; linarith [hoff y hy hm]) hsum0)
     · change |sentinelFirst marked 0 (Δ i) y 1| ≤ _
       rw [sentinelFirst_one]
-      exact (hincr i hi y hy).2.trans (le_mul_of_one_le_left hsum0 hc1)
+      exact hincr.2.trans (le_mul_of_one_le_left hsum0 hc1)
   have hstates (i : ℕ) (hi : i ≤ m) :
       |(A i).defaultValue - (B i).defaultValue| ≤ c * prefixErrorBudget ε i ∧
         ∀ y ∈ s, ∀ ν, |(A i).row y ν - (B i).row y ν| ≤ c * prefixErrorBudget ε i := by
@@ -313,13 +290,8 @@ theorem iterate_sentinelState_stability_of_clippedError_le {s : Finset ι} {n : 
     have heq : (28 : ℝ) ^ i * (c * ε 0) +
         ∑ k ∈ range i, 28 ^ (i - k) * (c * (ε k + ε (k + 1))) = c * prefixErrorBudget ε i := by
       simp only [prefixErrorBudget, mul_add, mul_sum]
-      congr 1
-      · ring
-      · apply sum_congr rfl
-        intro k _
-        ring
-    rw [heq] at hs
-    exact hs
+      exact congrArg₂ (· + ·) (by ring) (sum_congr rfl fun k _ => by ring)
+    rwa [heq] at hs
   exact ⟨fun i hi y hy ν => by simpa only [Pi.zero_apply, sub_zero] using hΔ' i hi y hy ν,
     hstates⟩
 
@@ -356,16 +328,12 @@ theorem iterate_sentinelState_of_clippedError_le {s : Finset ι} {n : ℕ → �
         firstRank s K (modified j).defaultValue (modified j).row ∧
           firstRank s K (modified j).defaultValue (modified j).row ≤ R) := by
   classical
-  let L := 16 * (L₀ + 1)
-  let R := 2 * L₀ + 1
+  intro L R marked a original modified
   let c := 1 + L
-  let marked := {y ∈ s | L < truth y 0}
-  let a : State ι := ⟨z, raw₀ + loss⟩
   let b : State ι := ⟨z, truth + loss⟩
   let a' := sentinelState marked L a
   let b' := sentinelState marked L b
   let Δ' := fun i => sentinelFirst marked 0 (Δ i)
-  let A := iterate s n (fun _ => K) ρ Δ' a'
   let B := iterate s n (fun _ => K) ρ (fun _ => 0) b'
   have hL₀0 : 0 ≤ L₀ := hη.trans hL₀
   have hc1 : 1 ≤ c := by dsimp only [c, L]; linarith
@@ -378,25 +346,12 @@ theorem iterate_sentinelState_of_clippedError_le {s : Finset ι} {n : ℕ → �
   have hεlt (i : ℕ) (hi : i ≤ m) : ε i < 1 := by
     have h := (le_prefixErrorBudget hε hi).trans hE
     linarith
-  have hraw (i : ℕ) (hi : i ≤ m) (y : ι) (hy : y ∈ s) :
-      |uncompressedRow Δ raw₀ i y 0 - truth y 0| ≤ (1 + truth y 0) * ε i ∧
-        |uncompressedRow Δ raw₀ i y 1 - truth y 1| ≤ ε i :=
-    abs_sub_le_of_clippedError_le (hfirst y hy) (hεlt i hi) (herr i hi y hy)
-  have hincr (i : ℕ) (hi : i < m) (y : ι) (hy : y ∈ s) :
-      |Δ i y 0| ≤ (1 + truth y 0) * (ε i + ε (i + 1)) ∧
-        |Δ i y 1| ≤ ε i + ε (i + 1) :=
-    abs_increment_le_of_clippedError_le (truth := truth y) (hfirst y hy)
-      (hεlt i hi.le) (hεlt (i + 1) hi) (herr i hi.le y hy) (herr (i + 1) hi y hy)
   have hreference := sentinel_reference_bounds hη hL₀ hK hzη hfirst hsecond hloss hcount
-  change (∀ y ∈ s, -η ≤ b'.row y 0) ∧ (∀ y ∈ s, |b'.row y 1| ≤ η) ∧
-    firstRank s K b'.defaultValue b'.row ≤ 2 * L₀ at hreference
   obtain ⟨hΔbound, hstates⟩ := iterate_sentinelState_stability_of_clippedError_le
     (ρ := ρ) (z := z) (loss := loss) (L := L) m (by dsimp only [L]; positivity) hK
     (fun i hi => hK.trans_le (hKn i hi)) hfirst hε hεlt herr
-  change ∀ i ≤ m, |(A i).defaultValue - (B i).defaultValue| ≤ c * prefixErrorBudget ε i ∧
-    ∀ y ∈ s, ∀ ν, |(A i).row y ν - (B i).row y ν| ≤ c * prefixErrorBudget ε i at hstates
   have hceil (i : ℕ) (hi : i < m) :
-      firstRank s K (A i).defaultValue (inputRow s n (fun _ => K) ρ Δ' a' i) ≤ R ∧
+      firstRank s K (modified i).defaultValue (inputRow s n (fun _ => K) ρ Δ' a' i) ≤ R ∧
         stepThreshold s n (fun _ => K) ρ Δ' a' i ≤ R := by
     let D := c * (prefixErrorBudget ε i + (ε i + ε (i + 1)))
     have hD0 : 0 ≤ D := mul_nonneg hc0 (add_nonneg
@@ -405,16 +360,16 @@ theorem iterate_sentinelState_of_clippedError_le {s : Finset ι} {n : ℕ → �
     have hD : D ≤ 1 / 8 :=
       (mul_le_mul_of_nonneg_left (prefixErrorBudget_add_le hε hi) hc0).trans hsmall'
     have hs := hstates i hi.le
-    have hzD : |(A i).defaultValue - (B i).defaultValue| ≤ D :=
+    have hzD : |(modified i).defaultValue - (B i).defaultValue| ≤ D :=
       hs.1.trans (mul_le_mul_of_nonneg_left (le_add_of_nonneg_right
         (add_nonneg (hε i hi.le) (hε (i + 1) hi))) hc0)
     have hwD (y : ι) (hy : y ∈ s) (ν : Fin 2) :
         |inputRow s n (fun _ => K) ρ Δ' a' i y ν - (B i).row y ν| ≤ D := by
       have hd := hΔbound i hi y hy ν
-      change |(A i).row y ν + Δ' i y ν - (B i).row y ν| ≤ _
+      change |(modified i).row y ν + Δ' i y ν - (B i).row y ν| ≤ _
       calc
-        _ = |((A i).row y ν - (B i).row y ν) + Δ' i y ν| := by congr 1; ring
-        _ ≤ |(A i).row y ν - (B i).row y ν| + |Δ' i y ν| := abs_add_le _ _
+        _ = |((modified i).row y ν - (B i).row y ν) + Δ' i y ν| := congrArg abs (by ring)
+        _ ≤ |(modified i).row y ν - (B i).row y ν| + |Δ' i y ν| := abs_add_le _ _
         _ ≤ c * prefixErrorBudget ε i + c * (ε i + ε (i + 1)) := add_le_add (hs.2 y hy ν) hd
         _ = D := by dsimp only [D]; ring
     have hqref : firstRank s K (B i).defaultValue (B i).row ≤ 2 * L₀ :=
@@ -425,39 +380,34 @@ theorem iterate_sentinelState_of_clippedError_le {s : Finset ι} {n : ℕ → �
         hreference.2.2 i (fun k hk => hKn k (hk.trans_lt hi))
         (fun k hk => hρ k (hk.trans_lt hi))
       simpa only [stepThreshold, inputRow, add_zero] using h
-    have hqdiff : |firstRank s K (A i).defaultValue
+    have hqdiff : |firstRank s K (modified i).defaultValue
         (inputRow s n (fun _ => K) ρ Δ' a' i) -
           firstRank s K (B i).defaultValue (B i).row| ≤ D :=
       (abs_max_sub_max_le_max _ _ _ _).trans
         (max_le hzD (abs_kthLargest_sub_kthLargest_le hK hD0 (fun y hy => hwD y hy 0)))
     have hudiff := abs_threshold_sub_threshold_le (ρ := ρ i) (hK.trans_le (hKn i hi))
       hD0 hzD hwD
-    constructor
-    · have h := (le_abs_self _).trans hqdiff
-      change firstRank s K (A i).defaultValue (inputRow s n (fun _ => K) ρ Δ' a' i) -
-        firstRank s K (B i).defaultValue (B i).row ≤ D at h
-      dsimp only [R]
-      linarith
-    · have h := (le_abs_self _).trans hudiff
-      change threshold s (n i) (ρ i) (A i).defaultValue
-        (inputRow s n (fun _ => K) ρ Δ' a' i) -
-          threshold s (n i) (ρ i) (B i).defaultValue (B i).row ≤ D at h
-      change threshold s (n i) (ρ i) (A i).defaultValue
-        (inputRow s n (fun _ => K) ρ Δ' a' i) ≤ R
-      dsimp only [R]
-      linarith
+    refine ⟨?_, ?_⟩ <;> dsimp only [R]
+    · linarith [(abs_le.1 hqdiff).2]
+    · change threshold s (n i) (ρ i) (modified i).defaultValue
+        (inputRow s n (fun _ => K) ρ Δ' a' i) ≤ _
+      linarith [(abs_le.1 hudiff).2]
   have hvar (y : ι) (hy : y ∈ marked) :
       3 * R + ∑ i ∈ range m, |Δ i y 0| < a.row y 0 := by
     have hys := hmarked hy
     have hd := (mem_filter.mp hy).2
-    have hraw₀ := (hraw 0 (Nat.zero_le m) y hys).1
+    have hraw₀ := (abs_sub_le_of_clippedError_le (hfirst y hys) (hεlt 0 (Nat.zero_le m))
+      (herr 0 (Nat.zero_le m) y hys)).1
     simp only [uncompressedRow_zero] at hraw₀
     have hlo := (abs_le.mp hraw₀).1
     have hlosslo := (abs_le.mp (hloss y hys 0)).1
     have hs : ∑ i ∈ range m, |Δ i y 0| ≤
         (1 + truth y 0) * ∑ i ∈ range m, (ε i + ε (i + 1)) := by
       rw [mul_sum]
-      exact sum_le_sum fun i hi => (hincr i (mem_range.mp hi) y hys).1
+      refine sum_le_sum fun i hi => ?_
+      have hi := mem_range.mp hi
+      exact (abs_increment_le_of_clippedError_le (truth := truth y) (hfirst y hys)
+        (hεlt i hi.le) (hεlt (i + 1) hi) (herr i hi.le y hys) (herr (i + 1) hi y hys)).1
     have he : (1 + truth y 0) * (ε 0 + ∑ i ∈ range m, (ε i + ε (i + 1))) ≤
         (1 + truth y 0) / 8 := by
       have h := mul_le_mul_of_nonneg_left ((sum_add_le_prefixErrorBudget hε).trans hE)

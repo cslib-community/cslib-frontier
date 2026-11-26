@@ -47,7 +47,7 @@ private theorem holdsIn_encodeFactor_cons {curRaw : ℕ} {f : FactorTable ℕ �
     List.append_assoc] at hraw
   obtain ⟨h1, hm_sc, hr1⟩ := holdsIn_cons_shift hraw
   obtain ⟨h2, hm_en, hr2⟩ := holdsIn_cons_shift hr1
-  rw [show curRaw + 1 + 1 = curRaw + 2 by omega] at hr2
+  rw [Nat.add_assoc] at hr2
   obtain ⟨hsc, hr3⟩ := holdsIn_append_split hr2
   obtain ⟨hen, hrest⟩ := holdsIn_append_split hr3
   exact ⟨h1, h2, hm_sc, hm_en, hsc, hen, by simpa [Array.length_toList] using hrest⟩
@@ -65,6 +65,47 @@ def initFactors (args : ℕ × ℕ) : Memory.Prog ℕ :=
   iterate initFactorStep () args.2 (args.1, descBase) >>= fun _ =>
   pure descBase
 
+/-- One `initFactorStep`: read the two length words of the record at `curRaw` and write its
+4-word descriptor at `curDesc`, leaving everything below `curDesc` untouched. -/
+private theorem initFactorStep_spec {w curRaw curDesc : ℕ} {f : FactorTable ℕ ℕ}
+    {rest : List (FactorTable ℕ ℕ)} {s₀ t : Memory.State} (hwf : Memory.WellFormed w t)
+    (hF : s₀.frontier ≤ curDesc) (hdst : curDesc + 4 ≤ t.frontier)
+    (hpres : PreservesBelow s₀.frontier s₀ t)
+    (hraw : HoldsIn curRaw ((f :: rest).flatMap encodeFactor) s₀) :
+    let p := initFactorStep ((), (curRaw, curDesc))
+    let t₁ := (Memory.spec 0).clientState t p
+    (Memory.spec w).ValidHistory t ((Memory.spec w).clientHistory t p) ∧
+      (Memory.spec 0).clientResult t p =
+        (curRaw + 2 + f.scope.length + f.entries.size, curDesc + 4) ∧
+      t₁.frontier = t.frontier ∧ Memory.WellFormed w t₁ ∧ PreservesBelow curDesc t t₁ ∧
+      PreservesBelow s₀.frontier s₀ t₁ ∧
+      (∀ t', PreservesBelow (curDesc + 4) t₁ t' → HoldsFactor curDesc f t') ∧
+      memoryCost p t = 6 ∧
+      HoldsIn (curRaw + 2 + f.scope.length + f.entries.size) (rest.flatMap encodeFactor) s₀ := by
+  obtain ⟨h1, h2, hm_sc, hm_en, hsc, hen, hrest⟩ := holdsIn_encodeFactor_cons hraw
+  have hen_bd := hen.1
+  rw [Array.length_toList] at hen_bd
+  have hr₀ : t.mem curRaw = f.scope.length := (hpres.2.2 _ h1).trans hm_sc
+  have hr₁ : t.mem (curRaw + 1) = f.entries.size := (hpres.2.2 _ h2).trans hm_en
+  obtain ⟨hv, hfr, hwf₁, hpF, hout, hhf, hm0, hm2⟩ := writeDesc_spec (w := w) (F := s₀.frontier)
+    ⟨curDesc, curRaw + 2, f.scope.length, curRaw + 2 + f.scope.length, f.entries.size⟩ hwf hF
+    hdst hsc.1 hen_bd rfl rfl (hsc.mono_frontier hpres) (hen.mono_frontier hpres)
+  dsimp only at hout hhf hm0 hm2
+  have hst : (Memory.spec 0).clientState t (initFactorStep ((), (curRaw, curDesc))) =
+      (Memory.spec 0).clientState t (writeDesc ⟨curDesc, curRaw + 2, t.mem curRaw,
+        curRaw + 2 + t.mem curRaw, t.mem (curRaw + 1)⟩) := rfl
+  rw [hr₀, hr₁] at hst
+  dsimp only
+  rw [hst]
+  refine ⟨?_, ?_, hfr, hwf₁, ⟨by omega, hfr.ge, fun a ha => hout a (Or.inl ha)⟩, hpres.trans hpF,
+    fun t' hp => hhf.mono (by omega) (by rw [hm0]; omega) (by rw [hm2]; omega) hp, rfl, hrest⟩
+  · refine validHistory_read_bind (lt_of_lt_of_le h1 hpres.2.1) ?_
+    refine validHistory_read_bind (lt_of_lt_of_le h2 hpres.2.1) ?_
+    rw [hr₀, hr₁]
+    exact validHistory_bind_step hv (validHistory_pure _ _ _)
+  · change (curRaw + 2 + t.mem curRaw + t.mem (curRaw + 1), curDesc + 4) = _
+    rw [hr₀, hr₁]
+
 private theorem initFactors_loop {w : ℕ} {s₀ : Memory.State} :
     ∀ (rem : List (FactorTable ℕ ℕ)) (curRaw curDesc : ℕ) (t : Memory.State),
       Memory.WellFormed w t →
@@ -80,135 +121,21 @@ private theorem initFactors_loop {w : ℕ} {s₀ : Memory.State} :
         PreservesBelow s₀.frontier s₀ t' ∧
         HoldsFactorList curDesc rem t' ∧
         memoryCost p t ≤ 6 * rem.length
-  | [], curRaw, curDesc, t, _, _, hbd, hpres, _ => by
-      dsimp only
-      have h0 : iterate initFactorStep () 0 (curRaw, curDesc) = pure (curRaw, curDesc) := rfl
-      simp only [List.length_nil] at hbd ⊢
-      rw [h0]
+  | [], _, curDesc, t, _, _, hbd, hpres, _ => by
+      simp only [List.length_nil] at hbd
       exact ⟨validHistory_pure w t _, rfl, PreservesBelow.refl (by omega), hpres,
-        by change curDesc ≤ t.frontier; omega,
-        by simp [memoryCost_pure]⟩
-  | f :: rest, curRaw, curDesc, t, hwf, hF_le, hbd, hpres, hraw => by
-      dsimp only
-      obtain ⟨h1, h2, hm_scLen, hm_enLen, hsc_s0, hen_s0, hrest_raw⟩ :=
-        holdsIn_encodeFactor_cons hraw
-      have ht_scLen : t.mem curRaw = f.scope.length := by
-        rw [hpres.2.2 curRaw h1, hm_scLen]
-      have ht_enLen : t.mem (curRaw + 1) = f.entries.size := by
-        rw [hpres.2.2 (curRaw + 1) h2, hm_enLen]
-      let wdArgs : WriteDescArgs :=
-        ⟨curDesc, curRaw + 2, f.scope.length, curRaw + 2 + f.scope.length, f.entries.size⟩
-      have hsc_t : HoldsIn (curRaw + 2) f.scope t := hsc_s0.mono hsc_s0.1 hpres
-      have hen_t : HoldsIn (curRaw + 2 + f.scope.length) f.entries.toList t :=
-        hen_s0.mono hen_s0.1 hpres
-      simp only [List.length_cons] at hbd
-      have hdst_lt : curDesc + 4 ≤ t.frontier := by omega
-      have hfit_scPtr : Fits w (curRaw + 2) :=
-        hwf.frontier_fits.of_le (by have := hsc_t.1; omega)
-      have hfit_scLen : Fits w f.scope.length :=
-        hwf.frontier_fits.of_le (by have := hsc_t.1; omega)
-      have hfit_enPtr : Fits w (curRaw + 2 + f.scope.length) :=
-        hwf.frontier_fits.of_le (by have := hen_t.1; omega)
-      have hfit_enLen : Fits w f.entries.size :=
-        hwf.frontier_fits.of_le (by have := hen_t.1; rw [Array.length_toList] at this; omega)
-      have hwd_val := writeDesc_valid wdArgs hdst_lt hfit_scPtr hfit_scLen hfit_enPtr hfit_enLen
-      have hwd_fr_p := writeDesc_frame wdArgs t
-      have hst1_def : (Memory.spec 0).clientState t (writeDesc wdArgs) =
-          ⟨Function.update (Function.update (Function.update
-            (Function.update t.mem curDesc (curRaw + 2))
-            (curDesc + 1) f.scope.length)
-            (curDesc + 2) (curRaw + 2 + f.scope.length))
-            (curDesc + 3) f.entries.size, t.frontier⟩ := rfl
-      generalize ht₁ : (Memory.spec 0).clientState t (writeDesc wdArgs) = t₁ at hwd_fr_p hst1_def
-      obtain ⟨ht1_fr, hwd_out⟩ := hwd_fr_p
-      dsimp only [wdArgs] at hwd_out
-      have hwf₁ : Memory.WellFormed w t₁ :=
-        by rw [← ht₁]; exact wellFormed_clientState hwf hwd_val
-      have hpres_cd : PreservesBelow curDesc t t₁ :=
-        ⟨by omega, by rw [ht1_fr], fun a ha => hwd_out a (Or.inl ha)⟩
-      have hpres₁ : PreservesBelow s₀.frontier s₀ t₁ := by
-        refine ⟨hpres.1, by rw [ht1_fr]; exact hpres.2.1, fun a ha => ?_⟩
-        rw [hwd_out a (Or.inl (lt_of_lt_of_le ha hF_le))]
-        exact hpres.2.2 a ha
-      have hih := initFactors_loop rest
-        (curRaw + 2 + f.scope.length + f.entries.size) (curDesc + 4) t₁ hwf₁
-        (by omega) (by rw [ht1_fr]; omega) hpres₁ hrest_raw
-      dsimp only at hih
-      obtain ⟨hih_val, hih_fr, hih_pres_cd, hih_pres_F, hih_holds, hih_cost⟩ := hih
-      have hr_st (addr : ℕ) : (Memory.spec 0).clientState t (Memory.read addr) = t := rfl
-      have hr_res (addr : ℕ) : (Memory.spec 0).clientResult t (Memory.read addr) = t.mem addr := rfl
-      have hpure_st {α : Type} (x : α) (u : Memory.State) :
-          (Memory.spec 0).clientState u (pure x) = u := rfl
-      have hpure_res {α : Type} (x : α) (u : Memory.State) :
-          (Memory.spec 0).clientResult u (pure x) = x := rfl
-      have hstep_val : (Memory.spec w).ValidHistory t
-          ((Memory.spec w).clientHistory t (initFactorStep ((), (curRaw, curDesc)))) := by
-        unfold initFactorStep
-        dsimp only
-        refine validHistory_read_bind (lt_of_lt_of_le h1 hpres.2.1) ?_
-        rw [ht_scLen]
-        refine validHistory_read_bind (lt_of_lt_of_le h2 hpres.2.1) ?_
-        rw [ht_enLen]
-        refine validHistory_bind_step hwd_val ?_
-        rw [ht₁]
-        exact validHistory_pure w t₁ _
-      have hstep_st : (Memory.spec 0).clientState t (initFactorStep ((), (curRaw, curDesc))) =
-          t₁ := by
-        unfold initFactorStep
-        dsimp only
-        rw [StateTransitionSpec.clientState_bind, hr_st, hr_res, ht_scLen,
-          StateTransitionSpec.clientState_bind, hr_st, hr_res, ht_enLen,
-          StateTransitionSpec.clientState_bind, ht₁, hpure_st]
-      have hstep_res : (Memory.spec 0).clientResult t (initFactorStep ((), (curRaw, curDesc))) =
-          (curRaw + 2 + f.scope.length + f.entries.size, curDesc + 4) := by
-        unfold initFactorStep
-        dsimp only
-        rw [StateTransitionSpec.clientResult_bind, hr_st, hr_res, ht_scLen,
-          StateTransitionSpec.clientResult_bind, hr_st, hr_res, ht_enLen,
-          StateTransitionSpec.clientResult_bind, ht₁, hpure_res]
-      have hstep_cost : memoryCost (initFactorStep ((), (curRaw, curDesc))) t ≤ 6 := by
-        unfold initFactorStep
-        dsimp only
-        rw [memoryCost_bind', memoryCost_read, hr_st, hr_res, ht_scLen,
-          memoryCost_bind', memoryCost_read, hr_st, hr_res, ht_enLen,
-          memoryCost_bind', ht₁, writeDesc_cost, memoryCost_pure, Nat.add_zero]
-      have hf_final : HoldsFactor curDesc f
-          ((Memory.spec 0).clientState t₁
-            (iterate initFactorStep () rest.length
-              (curRaw + 2 + f.scope.length + f.entries.size, curDesc + 4))) := by
-        have hm0 : t₁.mem curDesc = curRaw + 2 := by
-          rw [hst1_def]; dsimp only
-          rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-            Function.update_of_ne (by omega), Function.update_self]
-        have hm1 : t₁.mem (curDesc + 1) = f.scope.length := by
-          rw [hst1_def]; dsimp only
-          rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-            Function.update_self]
-        have hm2 : t₁.mem (curDesc + 2) = curRaw + 2 + f.scope.length := by
-          rw [hst1_def]; dsimp only
-          rw [Function.update_of_ne (by omega), Function.update_self]
-        have hm3 : t₁.mem (curDesc + 3) = f.entries.size := by
-          rw [hst1_def]; dsimp only; rw [Function.update_self]
-        unfold HoldsFactor
-        rw [hih_pres_cd.2.2 curDesc (by omega),
-          hih_pres_cd.2.2 (curDesc + 1) (by omega),
-          hih_pres_cd.2.2 (curDesc + 2) (by omega),
-          hih_pres_cd.2.2 (curDesc + 3) (by omega),
-          hm0, hm1, hm2, hm3]
-        exact ⟨by rw [hih_fr, ht1_fr]; exact hdst_lt, rfl, rfl,
-          hsc_s0.mono hsc_s0.1 hih_pres_F,
-          hen_s0.mono hen_s0.1 hih_pres_F⟩
-      simp only [List.length_cons]
-      have hiter_eq : iterate initFactorStep () (rest.length + 1) (curRaw, curDesc) =
-          (initFactorStep ((), (curRaw, curDesc)) >>= iterate initFactorStep () rest.length) := rfl
-      rw [hiter_eq, StateTransitionSpec.clientState_bind, hstep_st, hstep_res]
-      refine ⟨validHistory_bind_step hstep_val ?_,
-        by rw [hih_fr, ht1_fr],
-        hpres_cd.trans (hih_pres_cd.mono_bound (by omega)),
-        hih_pres_F,
-        ⟨hf_final, hih_holds⟩, ?_⟩
-      · rw [hstep_st, hstep_res]; exact hih_val
-      · rw [memoryCost_bind', hstep_st, hstep_res]; omega
+        show curDesc ≤ t.frontier by omega, (memoryCost_pure _ _).le⟩
+  | f :: rest, curRaw, curDesc, t, hwf, hF, hbd, hpres, hraw => by
+      simp only [List.length_cons] at hbd ⊢
+      obtain ⟨hv, hres, hfr, hwf₁, hpcd, hpF, hhf, hcost, hrest⟩ :=
+        initFactorStep_spec hwf hF (by omega) hpres hraw
+      obtain ⟨hv', hfr', hpcd', hpF', hholds, hcost'⟩ :=
+        initFactors_loop rest _ (curDesc + 4) _ hwf₁ (by omega) (by rw [hfr]; omega) hpF hrest
+      rw [show iterate initFactorStep () (rest.length + 1) (curRaw, curDesc) =
+          (initFactorStep ((), (curRaw, curDesc)) >>= iterate initFactorStep () rest.length)
+          from rfl, StateTransitionSpec.clientState_bind, memoryCost_bind', hres]
+      exact ⟨validHistory_bind_step hv (by rwa [hres]), hfr'.trans hfr,
+        hpcd.trans (hpcd'.mono_bound (by omega)), hpF', ⟨hhf _ hpcd', hholds⟩, by omega⟩
 
 theorem initFactors_spec {w : ℕ} {rawPtr facLen : ℕ}
     {factors : List (FactorTable ℕ ℕ)} {s : Memory.State}
@@ -226,39 +153,18 @@ theorem initFactors_spec {w : ℕ} {rawPtr facLen : ℕ}
       HoldsFactorList res factors s' ∧
       memoryCost (initFactors (rawPtr, facLen)) s ≤ 1 + 6 * facLen := by
   subst hlen
-  dsimp only
-  unfold initFactors
-  dsimp only
-  have hv_alloc : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (Memory.allocDirty (4 * factors.length))) :=
-    validHistory_allocDirty hfit
-  let s₁ : Memory.State := ⟨s.mem, s.frontier + 4 * factors.length⟩
-  have ha_st :
-      (Memory.spec 0).clientState s (Memory.allocDirty (4 * factors.length)) = s₁ := rfl
-  have ha_res :
-      (Memory.spec 0).clientResult s (Memory.allocDirty (4 * factors.length)) = s.frontier := rfl
-  have hwf₁ : Memory.WellFormed w s₁ := ⟨hfit, hwf.mem_fits⟩
-  have hpres₁ : PreservesBelow s.frontier s s₁ :=
-    ⟨le_rfl, by dsimp only [s₁]; omega, fun _ _ => rfl⟩
-  obtain ⟨hl_val, hl_fr, _, hl_pres, hl_holds, hl_cost⟩ :=
-    initFactors_loop factors rawPtr s.frontier s₁ hwf₁ le_rfl
-      (by dsimp only [s₁]; omega) hpres₁ hraw
-  have hpure_st {α : Type} (x : α) (u : Memory.State) :
-      (Memory.spec 0).clientState u (pure x) = u := rfl
-  have hpure_res {α : Type} (x : α) (u : Memory.State) :
-      (Memory.spec 0).clientResult u (pure x) = x := rfl
+  obtain ⟨hv, hfr, -, hpres, hholds, hcost⟩ :=
+    initFactors_loop factors rawPtr s.frontier ⟨s.mem, s.frontier + 4 * factors.length⟩
+      ⟨hfit, hwf.mem_fits⟩ le_rfl (by dsimp only; omega)
+      ⟨le_rfl, by dsimp only; omega, fun _ _ => rfl⟩ hraw
+  dsimp only [initFactors]
   rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-    ha_st, ha_res,
-    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-    hpure_st, hpure_res]
-  refine ⟨validHistory_bind_step hv_alloc ?_,
-    by rw [hl_fr],
-    hl_pres, rfl, hl_holds, ?_⟩
-  · rw [ha_st, ha_res]
-    exact validHistory_bind_step hl_val (validHistory_pure w _ _)
-  · rw [memoryCost_bind', memoryCost_allocDirty, ha_st, ha_res,
-      memoryCost_bind', memoryCost_pure, Nat.add_zero]
-    omega
+    clientState_allocDirty, clientResult_allocDirty, StateTransitionSpec.clientState_bind,
+    StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_pure,
+    StateTransitionSpec.clientResult_pure, memoryCost_bind', memoryCost_allocDirty,
+    clientState_allocDirty, clientResult_allocDirty, memoryCost_bind', memoryCost_pure]
+  exact ⟨validHistory_allocDirty_bind hfit (validHistory_bind_step hv (validHistory_pure w _ _)),
+    hfr, hpres, rfl, hholds, by omega⟩
 
 theorem initFactors_realizes :
     Realizes .exact initFactors WordEncoding.encode WordEncoding.encode
@@ -274,75 +180,30 @@ theorem initFactors_realizes :
   · obtain ⟨_, _, hfit, _, _⟩ := h; exact hfit.of_le (by omega)
   · obtain ⟨_, h4, _, _, _⟩ := h; exact h4
   · obtain ⟨factors₀, _, hfit, hlen₀, hraw₀⟩ := h
-    let s₁ : Memory.State := ⟨s.mem, s.frontier + 4 * d.2⟩
-    have hwf₁ : Memory.WellFormed w s₁ := ⟨hfit, hmem.mem_fits⟩
-    have hpres₁ : PreservesBelow s.frontier s s₁ :=
-      ⟨le_rfl, by dsimp only [s₁]; omega, fun _ _ => rfl⟩
     refine iterationSafe_of_stepInv _ _ w _
       (fun (j : ℕ) (st : ℕ × ℕ) (t : Memory.State) =>
-        Memory.WellFormed w t ∧
-        t.frontier = s.frontier + 4 * d.2 ∧
-        s.frontier ≤ st.2 ∧
-        st.2 + 4 * j ≤ t.frontier ∧
-        PreservesBelow s.frontier s t ∧
-        ∃ rem,
-          rem.length = j ∧
-          HoldsIn st.1 (rem.flatMap encodeFactor) s)
-      (fun j st t ⟨hwf_t, hfr_t, hlo_t, hbd_t, hpres_t, rem, hrem_l, hraw_t⟩ => ?_)
-      ⟨hwf₁, rfl, le_rfl, by dsimp only [s₁]; omega, hpres₁, factors₀, hlen₀, hraw₀⟩
-    dsimp only
+        Memory.WellFormed w t ∧ s.frontier ≤ st.2 ∧ st.2 + 4 * j ≤ t.frontier ∧
+          PreservesBelow s.frontier s t ∧
+          ∃ rem : List (FactorTable ℕ ℕ), rem.length = j ∧
+            HoldsIn st.1 (rem.flatMap encodeFactor) s)
+      (fun j st t ⟨hwf_t, hlo_t, hbd_t, hpres_t, rem, hrem_l, hraw_t⟩ => ?_)
+      ⟨⟨hfit, hmem.mem_fits⟩, le_rfl, by dsimp only; omega,
+        ⟨le_rfl, by dsimp only; omega, fun _ _ => rfl⟩, factors₀, hlen₀, hraw₀⟩
     rcases rem with _ | ⟨f, rest⟩
     · cases hrem_l
     simp only [List.length_cons, Nat.add_right_cancel_iff] at hrem_l
     subst hrem_l
-    obtain ⟨h1, h2, hm_scLen, hm_enLen, hsc_s0, hen_s0, hrest_raw⟩ :=
-      holdsIn_encodeFactor_cons hraw_t
-    have ht_scLen : t.mem st.1 = f.scope.length := by
-      rw [hpres_t.2.2 st.1 h1, hm_scLen]
-    have ht_enLen : t.mem (st.1 + 1) = f.entries.size := by
-      rw [hpres_t.2.2 (st.1 + 1) h2, hm_enLen]
-    have hr_st (addr : ℕ) : (Memory.spec 0).clientState t (Memory.read addr) = t := rfl
-    have hr_res (addr : ℕ) : (Memory.spec 0).clientResult t (Memory.read addr) = t.mem addr := rfl
-    have hpure_st {α : Type} (x : α) (u : Memory.State) :
-        (Memory.spec 0).clientState u (pure x) = u := rfl
-    have hpure_res {α : Type} (x : α) (u : Memory.State) :
-        (Memory.spec 0).clientResult u (pure x) = x := rfl
-    have hraw_end : st.1 + 2 + f.scope.length + f.entries.size ≤ s.frontier := by
-      have hbd := hen_s0.1
-      rw [Array.length_toList] at hbd
-      omega
-    have ht_le : s.frontier ≤ t.frontier := hpres_t.2.1
-    refine ⟨?_, ?_⟩
-    · refine ⟨hwf_t.frontier_fits.of_le (by omega), ?_⟩
-      simp only [ht_scLen, ht_enLen]
-      repeat (any_goals refine ⟨?_, ?_⟩)
-      all_goals exact hwf_t.frontier_fits.of_le (by omega)
-    · let wdArgs : WriteDescArgs :=
-        ⟨st.2, st.1 + 2, f.scope.length, st.1 + 2 + f.scope.length, f.entries.size⟩
-      have hwd_val := writeDesc_valid (w := w) (s := t) wdArgs (by dsimp only [wdArgs]; omega)
-        (hwf_t.frontier_fits.of_le (by dsimp only [wdArgs]; omega))
-        (hwf_t.frontier_fits.of_le (by dsimp only [wdArgs]; omega))
-        (hwf_t.frontier_fits.of_le (by dsimp only [wdArgs]; omega))
-        (hwf_t.frontier_fits.of_le (by dsimp only [wdArgs]; omega))
-      have hwd_fr_p := writeDesc_frame wdArgs t
-      generalize ht₁ : (Memory.spec 0).clientState t (writeDesc wdArgs) = t₁ at hwd_fr_p
-      obtain ⟨ht1_fr, hwd_out⟩ := hwd_fr_p
-      dsimp only [wdArgs] at hwd_out
-      have hwf₁ : Memory.WellFormed w t₁ :=
-        by rw [← ht₁]; exact wellFormed_clientState hwf_t hwd_val
-      have hpres_next : PreservesBelow s.frontier s t₁ := by
-        refine ⟨hpres_t.1, by rw [ht1_fr]; exact hpres_t.2.1, fun a ha => ?_⟩
-        rw [hwd_out a (Or.inl (lt_of_lt_of_le ha hlo_t))]
-        exact hpres_t.2.2 a ha
-      unfold initFactorStep
-      dsimp only
-      rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-        hr_st, hr_res, ht_scLen,
-        StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-        hr_st, hr_res, ht_enLen,
-        StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-        ht₁, hpure_st, hpure_res]
-      exact ⟨hwf₁, by rw [ht1_fr]; exact hfr_t, by dsimp only; omega,
-        by dsimp only; rw [ht1_fr]; omega, hpres_next, rest, rfl, hrest_raw⟩
+    obtain ⟨h1, h2, hm_sc, hm_en, -, hen, -⟩ := holdsIn_encodeFactor_cons hraw_t
+    have hen_bd := hen.1
+    rw [Array.length_toList] at hen_bd
+    have hle := hpres_t.2.1
+    obtain ⟨-, hres, hfr, hwf₁, -, hpF, -, -, hrest⟩ :=
+      initFactorStep_spec hwf_t hlo_t (by omega) hpres_t hraw_t
+    dsimp only
+    rw [hpres_t.2.2 _ h1, hpres_t.2.2 _ h2, hm_sc, hm_en, hres]
+    refine ⟨⟨hwf_t.frontier_fits.of_le (by omega), ?_⟩, hwf₁, by omega, by rw [hfr]; omega, hpF,
+      rest, rfl, hrest⟩
+    repeat (any_goals refine ⟨?_, ?_⟩)
+    all_goals exact hwf_t.frontier_fits.of_le (by omega)
 
 end Cslib.Algorithms.WordRAM.VariableElimination

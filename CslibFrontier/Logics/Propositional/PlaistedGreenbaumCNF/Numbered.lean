@@ -237,14 +237,11 @@ theorem eval_of_eval_plaistedGreenbaumNumberedCNF {σ : ℕ → Bool} {A : Propo
 /-- **The numbered Plaisted–Greenbaum transformation preserves satisfiability.** -/
 theorem satisfiable_plaistedGreenbaumNumberedCNF_iff (A : Proposition (Fin n)) :
     A.plaistedGreenbaumNumberedCNF.Satisfiable ↔ ∃ v : Fin n → Bool, A.eval v = true := by
-  constructor
-  · rintro ⟨σ, hσ⟩
-    exact ⟨_, eval_of_eval_plaistedGreenbaumNumberedCNF hσ⟩
-  · rintro ⟨v, hv⟩
-    refine ⟨tseitinExtend v ∘ A.plaistedGreenbaumNumberedVar, ?_⟩
-    rw [← CNF.eval_relabel]
-    exact (perm_relabel_plaistedGreenbaumNumberedCNF A).all_eq.trans
-      ((eval_plaistedGreenbaumCNF_tseitinExtend v A).trans hv)
+  refine ⟨fun ⟨σ, hσ⟩ => ⟨_, eval_of_eval_plaistedGreenbaumNumberedCNF hσ⟩, fun ⟨v, hv⟩ =>
+    ⟨tseitinExtend v ∘ A.plaistedGreenbaumNumberedVar, ?_⟩⟩
+  rw [← CNF.eval_relabel]
+  exact (perm_relabel_plaistedGreenbaumNumberedCNF A).all_eq.trans
+    ((eval_plaistedGreenbaumCNF_tseitinExtend v A).trans hv)
 
 /-! ### Size -/
 

@@ -129,9 +129,6 @@ when `y = (1 + √5) / 2 * x`. -/
 theorem sq_add_mul_le_golden_smooth (x y : ℝ) :
     x ^ 2 + x * y ≤ (5 + Real.sqrt 5) / 4 * x ^ 2 + (Real.sqrt 5 - 1) / 4 * y ^ 2 := by
   have hs5 : Real.sqrt 5 ^ 2 = 5 := Real.sq_sqrt (by norm_num)
-  have hgt2 : 2 < Real.sqrt 5 := sqrt_five_bounds.1
-  have hnonneg : 0 ≤ (Real.sqrt 5 - 1) / 4 * ((Real.sqrt 5 + 1) / 2 * x - y) ^ 2 :=
-    mul_nonneg (by linarith) (sq_nonneg _)
   have hid : (Real.sqrt 5 - 1) / 4 * ((Real.sqrt 5 + 1) / 2 * x - y) ^ 2 =
       (1 + Real.sqrt 5) / 4 * x ^ 2 - x * y + (Real.sqrt 5 - 1) / 4 * y ^ 2 := by
     calc (Real.sqrt 5 - 1) / 4 * ((Real.sqrt 5 + 1) / 2 * x - y) ^ 2
@@ -139,16 +136,15 @@ theorem sq_add_mul_le_golden_smooth (x y : ℝ) :
             (Real.sqrt 5 ^ 2 - 1) / 4 * x * y + (Real.sqrt 5 - 1) / 4 * y ^ 2 := by ring
       _ = (1 + Real.sqrt 5) / 4 * x ^ 2 - x * y + (Real.sqrt 5 - 1) / 4 * y ^ 2 := by
             rw [hs5]; ring
-  linarith
+  linarith [mul_nonneg (by linarith [sqrt_five_bounds.1] : 0 ≤ (Real.sqrt 5 - 1) / 4)
+    (sq_nonneg ((Real.sqrt 5 + 1) / 2 * x - y))]
 
 private lemma golden_smooth_ratio :
     ((5 + Real.sqrt 5) / 4) / (1 - (Real.sqrt 5 - 1) / 4) = (3 + Real.sqrt 5) / 2 := by
   have hs5 : Real.sqrt 5 ^ 2 = 5 := Real.sq_sqrt (by norm_num)
-  have hlt3 : Real.sqrt 5 < 3 := sqrt_five_bounds.2
-  rw [div_eq_iff (by linarith)]
+  rw [div_eq_iff (by linarith [sqrt_five_bounds.2])]
   calc (5 + Real.sqrt 5) / 4
-    _ = (15 + 2 * Real.sqrt 5 - 5) / 8 := by ring
-    _ = (15 + 2 * Real.sqrt 5 - Real.sqrt 5 ^ 2) / 8 := by rw [hs5]
+    _ = (15 + 2 * Real.sqrt 5 - Real.sqrt 5 ^ 2) / 8 := by rw [hs5]; ring
     _ = (3 + Real.sqrt 5) / 2 * (1 - (Real.sqrt 5 - 1) / 4) := by ring
 
 private lemma goldenRatio_identities {φ : ℝ} (hφ : φ = (1 + Real.sqrt 5) / 2) :
@@ -160,7 +156,7 @@ private lemma goldenRatio_identities {φ : ℝ} (hφ : φ = (1 + Real.sqrt 5) / 
     calc ((1 + Real.sqrt 5) / 2) ^ 2
       _ = (1 + 2 * Real.sqrt 5 + Real.sqrt 5 ^ 2) / 4 := by ring
       _ = (1 + Real.sqrt 5) / 2 + 1 := by rw [hs5]; ring
-  exact ⟨by linarith, hφ_sq, by linarith [hφ_sq]⟩
+  exact ⟨by linarith, hφ_sq, by linarith⟩
 
 /-! ### Equilibrium inequalities, smoothness, and `(3 + √5) / 2` Price of Anarchy -/
 
@@ -178,10 +174,7 @@ theorem unitCost_update_le {a b : E → ℝ} (ha : ∀ e, 0 ≤ a e)
     W.unitCost i (Function.update s i a') ≤
       ∑ e ∈ W.resources i a', (a e * (W.load s e + W.weight i) + b e) := by
   simp only [unitCost, Function.update_self]
-  refine Finset.sum_le_sum fun e _ => ?_
-  rw [hl]
-  have hload := W.load_update_le (s := s) hi a' e
-  nlinarith [ha e]
+  exact Finset.sum_le_sum fun e _ => by rw [hl]; nlinarith [ha e, W.load_update_le (s := s) hi a' e]
 
 /-- **Equilibrium condition for weighted affine congestion games**
 ([NisanRoughgardenTardosVazirani2007], Chapter 18, Lemma 18.24; locator not re-verified against
@@ -193,13 +186,9 @@ theorem unitCost_le_of_isPureNash {a b : E → ℝ} (ha : ∀ e, 0 ≤ a e)
     (hs : W.toCostGame.IsPureNash s) {i : ι} (hi : 0 < W.weight i) (a' : S i) :
     ∑ e ∈ W.resources i (s i), (a e * W.load s e + b e) ≤
       ∑ e ∈ W.resources i a', (a e * (W.load s e + W.weight i) + b e) := by
-  have hne : W.unitCost i s ≤ W.unitCost i (Function.update s i a') := by
-    have hcost := hs i a'
-    simp only [toCostGame_cost, mul_le_mul_iff_right₀ hi] at hcost
-    exact hcost
-  have hlhs : ∑ e ∈ W.resources i (s i), (a e * W.load s e + b e) = W.unitCost i s := by
-    simp only [unitCost, hl]
-  exact hlhs.le.trans (hne.trans (W.unitCost_update_le ha hl hi.le a'))
+  have hcost := hs i a'
+  simp only [toCostGame_cost, mul_le_mul_iff_right₀ hi] at hcost
+  simpa only [unitCost, hl] using hcost.trans (W.unitCost_update_le ha hl hi.le a')
 
 omit [DecidableEq ι] in
 /-- Sum-of-squares domination on a resource: for nonnegative weights,
@@ -207,14 +196,11 @@ omit [DecidableEq ι] in
 private lemma sum_sq_weight_le_sq_load (hw : ∀ i, 0 ≤ W.weight i) (s' : ∀ i, S i) (e : E) :
     ∑ i with e ∈ W.resources i (s' i), W.weight i ^ 2 ≤ W.load s' e ^ 2 := by
   calc ∑ i with e ∈ W.resources i (s' i), W.weight i ^ 2
-    _ ≤ ∑ i with e ∈ W.resources i (s' i), W.weight i * W.load s' e := by
-          refine Finset.sum_le_sum fun i hi => ?_
-          have hle : W.weight i ≤ W.load s' e := by
-            rw [load]
-            exact Finset.single_le_sum (fun j _ => hw j) hi
-          nlinarith [hw i]
-    _ = W.load s' e ^ 2 := by
-          rw [← Finset.sum_mul, ← load, sq]
+    _ ≤ ∑ i with e ∈ W.resources i (s' i), W.weight i * W.load s' e :=
+          Finset.sum_le_sum fun i hi => by
+            have hle : W.weight i ≤ W.load s' e := Finset.single_le_sum (fun j _ => hw j) hi
+            nlinarith [hw i]
+    _ = W.load s' e ^ 2 := by rw [← Finset.sum_mul, ← load, sq]
 
 /-- **Deviation-sum inequality** underlying Lemma 18.25: for arbitrary profiles `s` and `s'`,
 `∑ i, cost i (update s i (s' i)) ≤ socialCost s' + ∑ e, a e * load s e * load s' e`. -/
@@ -223,27 +209,20 @@ theorem sum_cost_update_le_socialCost_add [Fintype E] {a b : E → ℝ} (ha : �
     (s s' : ∀ i, S i) :
     ∑ i, W.toCostGame.cost i (Function.update s i (s' i)) ≤
       W.toCostGame.socialCost s' + ∑ e, a e * W.load s e * W.load s' e := by
-  have hdev : ∀ i, W.toCostGame.cost i (Function.update s i (s' i)) ≤
+  have hdev (i : ι) : W.toCostGame.cost i (Function.update s i (s' i)) ≤
       (W.weight i * ∑ e ∈ W.resources i (s' i), (a e * W.load s e + b e)) +
-        ∑ e ∈ W.resources i (s' i), a e * W.weight i ^ 2 := fun i => by
-    have hu := mul_le_mul_of_nonneg_left
-      (W.unitCost_update_le ha hl (s := s) (hw i) (s' i)) (hw i)
-    have hsplit :
-        W.weight i * ∑ e ∈ W.resources i (s' i), (a e * (W.load s e + W.weight i) + b e) =
-          (W.weight i * ∑ e ∈ W.resources i (s' i), (a e * W.load s e + b e)) +
-            ∑ e ∈ W.resources i (s' i), a e * W.weight i ^ 2 := by
-      rw [Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
-      refine Finset.sum_congr rfl fun e _ => by ring
-    simpa only [toCostGame_cost, hsplit] using hu
+        ∑ e ∈ W.resources i (s' i), a e * W.weight i ^ 2 := by
+    refine (mul_le_mul_of_nonneg_left (W.unitCost_update_le ha hl (hw i) (s' i)) (hw i)).trans_eq ?_
+    rw [Finset.mul_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
+    exact Finset.sum_congr rfl fun _ _ => by ring
   have hexch_sq : (∑ i, ∑ e ∈ W.resources i (s' i), a e * W.weight i ^ 2) =
       ∑ e, a e * ∑ i with e ∈ W.resources i (s' i), W.weight i ^ 2 := by
-    have h1 : ∀ i, (∑ e ∈ W.resources i (s' i), a e * W.weight i ^ 2) =
-        ∑ e : E, if e ∈ W.resources i (s' i) then a e * W.weight i ^ 2 else 0 := fun i => by
+    have h1 (i : ι) : (∑ e ∈ W.resources i (s' i), a e * W.weight i ^ 2) =
+        ∑ e : E, if e ∈ W.resources i (s' i) then a e * W.weight i ^ 2 else 0 := by
       rw [Finset.sum_ite_mem, Finset.univ_inter]
     simp only [h1]
     rw [Finset.sum_comm]
-    refine Finset.sum_congr rfl fun e _ => ?_
-    rw [← Finset.sum_filter, Finset.mul_sum]
+    exact Finset.sum_congr rfl fun e _ => by rw [← Finset.sum_filter, Finset.mul_sum]
   calc ∑ i, W.toCostGame.cost i (Function.update s i (s' i))
     _ ≤ (∑ i, W.weight i * ∑ e ∈ W.resources i (s' i), (a e * W.load s e + b e)) +
           ∑ i, ∑ e ∈ W.resources i (s' i), a e * W.weight i ^ 2 := by
@@ -252,17 +231,12 @@ theorem sum_cost_update_le_socialCost_add [Fintype E] {a b : E → ℝ} (ha : �
     _ = (∑ e, W.load s' e * (a e * W.load s e + b e)) +
           ∑ e, a e * ∑ i with e ∈ W.resources i (s' i), W.weight i ^ 2 := by
           rw [W.sum_weight_mul_sum_resources s' (fun e => a e * W.load s e + b e), hexch_sq]
-    _ ≤ (∑ e, W.load s' e * (a e * W.load s e + b e)) + ∑ e, a e * W.load s' e ^ 2 := by
-          have hsq_sum : (∑ e, a e * ∑ i with e ∈ W.resources i (s' i), W.weight i ^ 2) ≤
-              ∑ e, a e * W.load s' e ^ 2 :=
-            Finset.sum_le_sum fun e _ =>
-              mul_le_mul_of_nonneg_left (W.sum_sq_weight_le_sq_load hw s' e) (ha e)
-          linarith
+    _ ≤ (∑ e, W.load s' e * (a e * W.load s e + b e)) + ∑ e, a e * W.load s' e ^ 2 :=
+          add_le_add_right (Finset.sum_le_sum fun e _ =>
+            mul_le_mul_of_nonneg_left (W.sum_sq_weight_le_sq_load hw s' e) (ha e)) _
     _ = W.toCostGame.socialCost s' + ∑ e, a e * W.load s e * W.load s' e := by
           rw [W.socialCost_toCostGame s', ← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
-          refine Finset.sum_congr rfl fun e _ => ?_
-          rw [hl]
-          ring
+          exact Finset.sum_congr rfl fun e _ => by rw [hl]; ring
 
 /-- **Equilibrium inequality for weighted affine congestion games**
 ([NisanRoughgardenTardosVazirani2007], Chapter 18, Lemma 18.25; locator not re-verified against
@@ -291,20 +265,14 @@ theorem isSmooth_of_hasAffineLatencies (h : W.HasAffineLatencies) (hw : ∀ i, 0
           W.sum_cost_update_le_socialCost_add ha hl hw s s'
     _ = ∑ e, (a e * (W.load s' e ^ 2 + W.load s' e * W.load s e) + b e * W.load s' e) := by
           rw [W.socialCost_toCostGame s', ← Finset.sum_add_distrib]
-          refine Finset.sum_congr rfl fun e _ => ?_
-          rw [hl]
-          ring
+          exact Finset.sum_congr rfl fun e _ => by rw [hl]; ring
     _ ≤ ∑ e, ((5 + Real.sqrt 5) / 4 * (W.load s' e * W.latency e (W.load s' e)) +
-            (Real.sqrt 5 - 1) / 4 * (W.load s e * W.latency e (W.load s e))) := by
-          refine Finset.sum_le_sum fun e _ => ?_
-          rw [hl, hl]
-          have hq := mul_le_mul_of_nonneg_left
-            (sq_add_mul_le_golden_smooth (W.load s' e) (W.load s e)) (ha e)
-          have hbx' : 0 ≤ b e * W.load s' e := mul_nonneg (hb e) (W.load_nonneg hw s' e)
-          have hbx : 0 ≤ b e * W.load s e := mul_nonneg (hb e) (W.load_nonneg hw s e)
-          have hb_le : b e * W.load s' e ≤ (5 + Real.sqrt 5) / 4 * (b e * W.load s' e) +
-              (Real.sqrt 5 - 1) / 4 * (b e * W.load s e) := by nlinarith
-          nlinarith
+            (Real.sqrt 5 - 1) / 4 * (W.load s e * W.latency e (W.load s e))) :=
+          Finset.sum_le_sum fun e _ => by
+            rw [hl, hl]
+            nlinarith [mul_le_mul_of_nonneg_left
+              (sq_add_mul_le_golden_smooth (W.load s' e) (W.load s e)) (ha e),
+              mul_nonneg (hb e) (W.load_nonneg hw s' e), mul_nonneg (hb e) (W.load_nonneg hw s e)]
     _ = (5 + Real.sqrt 5) / 4 * W.toCostGame.socialCost s' +
           (Real.sqrt 5 - 1) / 4 * W.toCostGame.socialCost s := by
           rw [W.socialCost_toCostGame s', W.socialCost_toCostGame s, Finset.sum_add_distrib,
@@ -316,10 +284,9 @@ locator not re-verified against primary PDF). -/
 theorem socialCost_le_of_isPureNash (h : W.HasAffineLatencies) (hw : ∀ i, 0 ≤ W.weight i)
     {s : ∀ i, S i} (hs : W.toCostGame.IsPureNash s) (s' : ∀ i, S i) :
     W.toCostGame.socialCost s ≤ (3 + Real.sqrt 5) / 2 * W.toCostGame.socialCost s' := by
-  have hlt3 : Real.sqrt 5 < 3 := sqrt_five_bounds.2
-  have hsm := (W.isSmooth_of_hasAffineLatencies h hw).socialCost_le_of_isPureNash
-    (by linarith) hs s'
-  rwa [golden_smooth_ratio] at hsm
+  simpa only [golden_smooth_ratio] using
+    (W.isSmooth_of_hasAffineLatencies h hw).socialCost_le_of_isPureNash
+      (by linarith [sqrt_five_bounds.2]) hs s'
 
 /-- **Robust Price of Anarchy at most `(3 + √5) / 2` for coarse correlated equilibria**
 ([AwerbuchAzarEpstein2005]; [Roughgarden2015], Theorem 3.2). -/
@@ -328,10 +295,9 @@ theorem expected_socialCost_le (h : W.HasAffineLatencies) (hw : ∀ i, 0 ≤ W.w
     (s' : ∀ i, S i) :
     σ.weights.sum (fun s w => w * W.toCostGame.socialCost s) ≤
       (3 + Real.sqrt 5) / 2 * W.toCostGame.socialCost s' := by
-  have hlt3 : Real.sqrt 5 < 3 := sqrt_five_bounds.2
-  have hsm := (W.isSmooth_of_hasAffineLatencies h hw).expected_socialCost_le
-    (by linarith) hσ s'
-  rwa [golden_smooth_ratio] at hsm
+  simpa only [golden_smooth_ratio] using
+    (W.isSmooth_of_hasAffineLatencies h hw).expected_socialCost_le
+      (by linarith [sqrt_five_bounds.2]) hσ s'
 
 /-- **Mixed Nash Price of Anarchy at most `(3 + √5) / 2`** ([AwerbuchAzarEpstein2005]). -/
 theorem expected_socialCost_le_of_isMixedNash [∀ i, Fintype (S i)] (h : W.HasAffineLatencies)
@@ -374,11 +340,10 @@ strategy `false` is the unique `2`-hop simple path. -/
   latency e x := if e.val < 4 then x else 0
 
 theorem hasAffineLatencies_aaeTriangleGame (wHeavy wLight : ℝ) :
-    (aaeTriangleGame wHeavy wLight).HasAffineLatencies := by
-  refine ⟨fun e => if e.val < 4 then 1 else 0, fun _ => 0, fun e => ?_, fun _ => le_rfl,
-    fun e x => ?_⟩
-  · by_cases h : e.val < 4 <;> simp [h]
-  · by_cases h : e.val < 4 <;> simp [aaeTriangleGame, h]
+    (aaeTriangleGame wHeavy wLight).HasAffineLatencies :=
+  ⟨fun e => if e.val < 4 then 1 else 0, fun _ => 0,
+    fun e => by by_cases h : e.val < 4 <;> simp [h], fun _ => le_rfl,
+    fun e x => by by_cases h : e.val < 4 <;> simp [aaeTriangleGame, h]⟩
 
 private lemma aaeTriangleLoad_eq (wH wL : ℝ) (s : Fin 4 → Bool) (e : Fin 6) :
     (aaeTriangleGame wH wL).load s e =
@@ -386,23 +351,9 @@ private lemma aaeTriangleLoad_eq (wH wL : ℝ) (s : Fin 4 → Bool) (e : Fin 6) 
       (if e ∈ aaeTrianglePaths 1 (s 1) then wH else 0) +
       (if e ∈ aaeTrianglePaths 2 (s 2) then wL else 0) +
       (if e ∈ aaeTrianglePaths 3 (s 3) then wL else 0) := by
-  have hsum4 : ∀ f : Fin 4 → ℝ, ∑ i : Fin 4, f i = f 0 + f 1 + f 2 + f 3 := fun f => by
-    have huniv : (Finset.univ : Finset (Fin 4)) = {0, 1, 2, 3} := by decide
-    rw [huniv, Finset.sum_insert (by decide), Finset.sum_insert (by decide),
-      Finset.sum_insert (by decide), Finset.sum_singleton]
-    ring
-  have heq : (aaeTriangleGame wH wL).load s e =
-      ∑ i : Fin 4,
-        if e ∈ (aaeTriangleGame wH wL).resources i (s i) then
-          (aaeTriangleGame wH wL).weight i
-        else 0 := by
-    rw [load, ← Finset.sum_filter]
-  rw [heq, hsum4]
-  have h0 : (0 : Fin 4).val < 2 := by decide
-  have h1 : (1 : Fin 4).val < 2 := by decide
-  have h2 : ¬ (2 : Fin 4).val < 2 := by decide
-  have h3 : ¬ (3 : Fin 4).val < 2 := by decide
-  simp only [aaeTriangleGame, h0, h1, h2, h3, ↓reduceIte]
+  rw [load, Finset.sum_filter, show (Finset.univ : Finset (Fin 4)) = {0, 1, 2, 3} by decide]
+  norm_num [aaeTriangleGame, Fin.isValue]
+  ring
 
 /-- **Unweighted bidirected-triangle `5 / 2` witness** ([NisanRoughgardenTardosVazirani2007],
 Chapter 18, Example 18.6; locator not re-verified against primary PDF): at unit weights `(1, 1)`,
@@ -414,14 +365,10 @@ theorem aaeTriangleGame_unweighted_five_halves :
       (aaeTriangleGame 1 1).toCostGame.socialCost (fun _ => true) = 4 ∧
       (aaeTriangleGame 1 1).toCostGame.socialCost (fun _ => false) = 10 := by
   have huniv4 : (Finset.univ : Finset (Fin 4)) = {0, 1, 2, 3} := by decide
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · intro i a
-    fin_cases i <;> cases a <;>
-      simp only [toCostGame_cost, unitCost, aaeTriangleLoad_eq] <;>
+  refine ⟨fun i a => ?_, fun i a => ?_, ?_, ?_⟩
+  · fin_cases i <;> cases a <;> simp only [toCostGame_cost, unitCost, aaeTriangleLoad_eq] <;>
       norm_num [aaeTriangleGame, aaeTrianglePaths, Function.update, Fin.isValue]
-  · intro i a
-    fin_cases i <;> cases a <;>
-      simp only [toCostGame_cost, unitCost, aaeTriangleLoad_eq] <;>
+  · fin_cases i <;> cases a <;> simp only [toCostGame_cost, unitCost, aaeTriangleLoad_eq] <;>
       norm_num [aaeTriangleGame, aaeTrianglePaths, Function.update, Fin.isValue]
   · simp only [CostGame.socialCost, huniv4, toCostGame_cost, unitCost, aaeTriangleLoad_eq]
     norm_num [aaeTriangleGame, aaeTrianglePaths, Fin.isValue]
@@ -445,24 +392,20 @@ theorem aaeTriangleGame_weighted_golden :
     simp only [CostGame.socialCost, huniv4, toCostGame_cost, unitCost, aaeTriangleLoad_eq]
     norm_num [aaeTriangleGame, aaeTrianglePaths, Fin.isValue]
     ring
-  refine ⟨?_, ?_, ?_⟩
-  · intro i a
-    fin_cases i <;> cases a <;>
-      simp only [toCostGame_cost, unitCost, aaeTriangleLoad_eq] <;>
+  refine ⟨fun i a => ?_, ?_, ?_⟩
+  · fin_cases i <;> cases a <;> simp only [toCostGame_cost, unitCost, aaeTriangleLoad_eq] <;>
       norm_num [aaeTriangleGame, aaeTrianglePaths, Function.update, Fin.isValue] <;>
       nlinarith [hφ_sq, hφ_pos]
   · rw [htrue]
     positivity
-  · have hfalse : (aaeTriangleGame φ 1).toCostGame.socialCost (fun _ => false) =
-        2 * φ * (φ + (φ + 1)) + 2 * (φ + 1) := by
-      simp only [CostGame.socialCost, huniv4, toCostGame_cost, unitCost, aaeTriangleLoad_eq]
-      norm_num [aaeTriangleGame, aaeTrianglePaths, Fin.isValue]
-      ring
-    rw [htrue, hfalse, hgolden]
-    calc 2 * φ * (φ + (φ + 1)) + 2 * (φ + 1)
-      _ = 2 * φ * (φ + φ ^ 2) + 2 * φ ^ 2 := by rw [← hφ_sq]
-      _ = 2 * φ ^ 2 * (φ + 1) + 2 * φ ^ 2 := by ring
-      _ = φ ^ 2 * (2 * φ ^ 2 + 2) := by rw [← hφ_sq]; ring
+  · calc (aaeTriangleGame φ 1).toCostGame.socialCost (fun _ => false)
+      _ = 2 * φ * (φ + (φ + 1)) + 2 * (φ + 1) := by
+            simp only [CostGame.socialCost, huniv4, toCostGame_cost, unitCost, aaeTriangleLoad_eq]
+            norm_num [aaeTriangleGame, aaeTrianglePaths, Fin.isValue]
+            ring
+      _ = (3 + Real.sqrt 5) / 2 * (aaeTriangleGame φ 1).toCostGame.socialCost (fun _ => true) := by
+            rw [htrue, hgolden]
+            nlinarith [hφ_sq]
 
 /-- Resource sets of a **three-player** weighted game attaining `(3 + √5) / 2`
 ([NisanRoughgardenTardosVazirani2007], Chapter 18, Exercise 18.2(b); locator not re-verified
@@ -492,47 +435,35 @@ theorem exists_three_player_socialCost_eq_golden_mul :
     { resources := threePlayerGoldenPaths
       weight := fun i => if i = 0 then 1 else φ
       latency := fun _ x => x }
-  have hload : ∀ (t : Fin 3 → Bool) (e : Fin 4),
+  have huniv3 : (Finset.univ : Finset (Fin 3)) = {0, 1, 2} := by decide
+  have hload (t : Fin 3 → Bool) (e : Fin 4) :
       W.load t e = (if e ∈ threePlayerGoldenPaths 0 (t 0) then 1 else 0) +
         (if e ∈ threePlayerGoldenPaths 1 (t 1) then φ else 0) +
-        (if e ∈ threePlayerGoldenPaths 2 (t 2) then φ else 0) := fun t e => by
-    have hsum3 : ∀ f : Fin 3 → ℝ, ∑ i : Fin 3, f i = f 0 + f 1 + f 2 := fun f => by
-      have huniv3 : (Finset.univ : Finset (Fin 3)) = {0, 1, 2} := by decide
-      rw [huniv3, Finset.sum_insert (by decide), Finset.sum_insert (by decide),
-        Finset.sum_singleton]
-      ring
-    have heq : W.load t e =
-        ∑ i : Fin 3, if e ∈ W.resources i (t i) then W.weight i else 0 := by
-      rw [load, ← Finset.sum_filter]
-    rw [heq, hsum3]
+        (if e ∈ threePlayerGoldenPaths 2 (t 2) then φ else 0) := by
+    rw [load, Finset.sum_filter, huniv3]
     norm_num [W, Fin.isValue]
-  have huniv3 : (Finset.univ : Finset (Fin 3)) = {0, 1, 2} := by decide
+    ring
   have htrue : W.toCostGame.socialCost (fun _ => true) = 2 + 2 * φ ^ 2 := by
     simp only [CostGame.socialCost, huniv3, toCostGame_cost, unitCost, hload]
     norm_num [W, threePlayerGoldenPaths, Fin.isValue]
     ring
-  refine ⟨W, fun _ => false, fun _ => true, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨W, fun _ => false, fun _ => true, ?_, ?_, fun i a => ?_, ?_, ?_⟩
   · exact ⟨fun _ => 1, fun _ => 0, fun _ => zero_le_one, fun _ => le_rfl, fun _ x => by simp [W]⟩
   · intro i
     fin_cases i <;> simp [W, hφ_pos]
-  · intro i a
-    fin_cases i <;> cases a <;>
-      simp only [toCostGame_cost, unitCost, hload] <;>
+  · fin_cases i <;> cases a <;> simp only [toCostGame_cost, unitCost, hload] <;>
       norm_num [W, threePlayerGoldenPaths, Function.update, Fin.isValue] <;>
       nlinarith [hφ_sq, hφ_pos]
   · rw [htrue]
     positivity
-  · have hfalse : W.toCostGame.socialCost (fun _ => false) =
-        2 * (1 + φ) + 2 * φ * (φ + (1 + φ)) := by
-      simp only [CostGame.socialCost, huniv3, toCostGame_cost, unitCost, hload]
-      norm_num [W, threePlayerGoldenPaths, Fin.isValue]
-      ring
-    have h1φ : 1 + φ = φ ^ 2 := by linarith [hφ_sq]
-    rw [htrue, hfalse, hgolden]
-    calc 2 * (1 + φ) + 2 * φ * (φ + (1 + φ))
-      _ = 2 * φ ^ 2 + 2 * φ * (φ + φ ^ 2) := by rw [h1φ]
-      _ = 2 * φ ^ 2 + 2 * φ ^ 2 * (φ + 1) := by ring
-      _ = φ ^ 2 * (2 + 2 * φ ^ 2) := by rw [← hφ_sq]; ring
+  · calc W.toCostGame.socialCost (fun _ => false)
+      _ = 2 * (1 + φ) + 2 * φ * (φ + (1 + φ)) := by
+            simp only [CostGame.socialCost, huniv3, toCostGame_cost, unitCost, hload]
+            norm_num [W, threePlayerGoldenPaths, Fin.isValue]
+            ring
+      _ = (3 + Real.sqrt 5) / 2 * W.toCostGame.socialCost (fun _ => true) := by
+            rw [htrue, hgolden]
+            nlinarith [hφ_sq]
 
 end TightnessWitnesses
 
@@ -548,28 +479,21 @@ section TwoPlayersWeighted
 @[simp]
 theorem twoPlayerRatio_self {w : ℝ} (hw : w ≠ 0) : twoPlayerRatio w w = 2 := by
   unfold twoPlayerRatio
-  have hden : w ^ 3 + w ^ 2 * w + w ^ 3 = 3 * w ^ 3 := by ring
-  have hnum : (w + w) * (w ^ 2 + w * w + w ^ 2) = 6 * w ^ 3 := by ring
-  rw [hden, hnum]
-  have hw3 : w ^ 3 ≠ 0 := pow_ne_zero 3 hw
-  field_simp
-  ring
+  rw [show w ^ 3 + w ^ 2 * w + w ^ 3 = 3 * w ^ 3 by ring]
+  field_simp [pow_ne_zero 3 hw]; ring
 
 /-- Across all nonnegative weight pairs `(w₀, w₁)` with `0 < w₁`, `twoPlayerRatio w₀ w₁` is at most
 `21 / 10` (strictly below `5 / 2` and `(3 + √5) / 2`). -/
 theorem twoPlayerRatio_le_twenty_one_tenths {w₀ w₁ : ℝ} (hw₀ : 0 ≤ w₀) (hw₁ : 0 < w₁) :
     twoPlayerRatio w₀ w₁ ≤ 21 / 10 := by
   unfold twoPlayerRatio
-  have hden : 0 < w₀ ^ 3 + w₀ ^ 2 * w₁ + w₁ ^ 3 := by positivity
-  rw [div_le_iff₀ hden]
+  rw [div_le_iff₀ (by positivity)]
   have hid : 21 / 10 * (w₀ ^ 3 + w₀ ^ 2 * w₁ + w₁ ^ 3) -
       (w₀ + w₁) * (w₀ ^ 2 + w₀ * w₁ + w₁ ^ 2) =
       11 / 160 * w₁ * (4 * w₁ - 5 * w₀) ^ 2 +
         3 / 4 * w₀ * (w₁ - 259 / 240 * w₀) ^ 2 + 17399 / 76800 * w₀ ^ 3 := by ring
-  have hsq1 : 0 ≤ 11 / 160 * w₁ * (4 * w₁ - 5 * w₀) ^ 2 := by positivity
-  have hsq2 : 0 ≤ 3 / 4 * w₀ * (w₁ - 259 / 240 * w₀) ^ 2 := by positivity
-  have hsq3 : 0 ≤ 17399 / 76800 * w₀ ^ 3 := by positivity
-  linarith
+  linarith [show 0 ≤ 11 / 160 * w₁ * (4 * w₁ - 5 * w₀) ^ 2 +
+    3 / 4 * w₀ * (w₁ - 259 / 240 * w₀) ^ 2 + 17399 / 76800 * w₀ ^ 3 by positivity]
 
 private lemma twoPlayer_linear_edge_le {w₀ w₁ : ℝ} (hw₀ : 0 ≤ w₀) (hw₀₁ : w₀ ≤ w₁)
     (b'_0 b'_1 b_0 b_1 : Bool) :
@@ -585,12 +509,9 @@ private lemma twoPlayer_linear_edge_le {w₀ w₁ : ℝ} (hw₀ : 0 ≤ w₀) (h
   intro D N Y₁ ld' ld ld0 ld1
   set d := w₁ - w₀
   have hd : 0 ≤ d := sub_nonneg.mpr hw₀₁
-  have hw₁_eq : w₁ = w₀ + d := by dsimp [d]; ring
-  suffices hdiff : 0 ≤ N * ld' ^ 2 - D * ld ^ 2 -
-      D * (w₀ * ((if b'_0 then ld0 else 0) - (if b_0 then ld else 0))) -
-      Y₁ * (w₁ * ((if b'_1 then ld1 else 0) - (if b_1 then ld else 0))) by linarith
+  rw [← sub_nonneg]
   dsimp only [D, N, Y₁, ld', ld, ld0, ld1]
-  rw [hw₁_eq]
+  rw [show w₁ = w₀ + d by dsimp [d]; ring]
   cases b'_0 <;> cases b'_1 <;> cases b_0 <;> cases b_1 <;>
     simp only [Bool.false_eq_true, ↓reduceIte] <;> ring_nf <;> positivity
 
@@ -606,12 +527,9 @@ private lemma twoPlayer_const_edge_le {w₀ w₁ : ℝ} (hw₀ : 0 ≤ w₀) (hw
   intro D N Y₁ ld' ld
   set d := w₁ - w₀
   have hd : 0 ≤ d := sub_nonneg.mpr hw₀₁
-  have hw₁_eq : w₁ = w₀ + d := by dsimp [d]; ring
-  suffices hdiff : 0 ≤ N * ld' - D * ld -
-      D * (w₀ * ((if b'_0 then 1 else 0) - (if b_0 then 1 else 0))) -
-      Y₁ * (w₁ * ((if b'_1 then 1 else 0) - (if b_1 then 1 else 0))) by linarith
+  rw [← sub_nonneg]
   dsimp only [D, N, Y₁, ld', ld]
-  rw [hw₁_eq]
+  rw [show w₁ = w₀ + d by dsimp [d]; ring]
   cases b'_0 <;> cases b'_1 <;> cases b_0 <;> cases b_1 <;>
     simp only [Bool.false_eq_true, ↓reduceIte] <;> ring_nf <;> positivity
 
@@ -634,24 +552,21 @@ theorem socialCost_le_twoPlayerRatio_mul_of_isPureNash {S : Fin 2 → Type*} {E 
   let Y₁ := w₁ * (w₀ ^ 2 + w₀ * w₁ + w₁ ^ 2)
   have hD_pos : 0 < D := by dsimp [D, w₀, w₁]; positivity
   have hY₁_nonneg : 0 ≤ Y₁ := by dsimp [Y₁, w₀, w₁]; positivity
-  have hload2 : ∀ (t : ∀ i, S i) (e : E),
+  have hload2 (t : ∀ i, S i) (e : E) :
       W.load t e = (if decide (e ∈ W.resources 0 (t 0)) then w₀ else 0) +
-        (if decide (e ∈ W.resources 1 (t 1)) then w₁ else 0) := fun t e => by
-    rw [W.load_eq_ite_add_erase t 0 e]
-    have h1 : (Finset.univ.erase (0 : Fin 2)) = {1} := by decide
-    rw [h1, Finset.sum_singleton]
+        (if decide (e ∈ W.resources 1 (t 1)) then w₁ else 0) := by
+    rw [W.load_eq_ite_add_erase t 0 e, show (Finset.univ.erase (0 : Fin 2)) = {1} by decide]
     simp [w₀, w₁]
-  have hcost_diff : ∀ (i : Fin 2) (t' : S i),
+  have hcost_diff (i : Fin 2) (t' : S i) :
       W.toCostGame.cost i (Function.update s i t') - W.toCostGame.cost i s =
         W.weight i * ∑ e : E,
           ((if decide (e ∈ W.resources i t') then
               W.latency e (W.load (Function.update s i t') e) else 0) -
             (if decide (e ∈ W.resources i (s i)) then W.latency e (W.load s e) else 0)) := by
-    intro i t'
     simp only [toCostGame_cost, unitCost, Function.update_self, Finset.sum_sub_distrib,
       decide_eq_true_eq, Finset.sum_ite_mem, Finset.univ_inter]
     ring
-  have hpt : ∀ e : E,
+  have hpt (e : E) :
       D * (W.load s e * W.latency e (W.load s e)) +
           D * (w₀ * ((if decide (e ∈ W.resources 0 (s' 0)) then
               W.latency e (W.load (Function.update s 0 (s' 0)) e) else 0) -
@@ -660,20 +575,18 @@ theorem socialCost_le_twoPlayerRatio_mul_of_isPureNash {S : Fin 2 → Type*} {E 
               W.latency e (W.load (Function.update s 1 (s' 1)) e) else 0) -
             (if decide (e ∈ W.resources 1 (s 1)) then W.latency e (W.load s e) else 0))) ≤
         N * (W.load s' e * W.latency e (W.load s' e)) := by
-    intro e
     rw [hl, hl, hl, hl, hload2 (Function.update s 0 (s' 0)) e,
       hload2 (Function.update s 1 (s' 1)) e, hload2 s e, hload2 s' e]
     simp only [Function.update_self, Function.update_of_ne (by decide : (1 : Fin 2) ≠ 0),
       Function.update_of_ne (by decide : (0 : Fin 2) ≠ 1)]
-    obtain ⟨b'_0, hb'_0⟩ : ∃ x, decide (e ∈ W.resources 0 (s' 0)) = x := ⟨_, rfl⟩
-    obtain ⟨b'_1, hb'_1⟩ : ∃ x, decide (e ∈ W.resources 1 (s' 1)) = x := ⟨_, rfl⟩
-    obtain ⟨b_0, hb_0⟩ : ∃ x, decide (e ∈ W.resources 0 (s 0)) = x := ⟨_, rfl⟩
-    obtain ⟨b_1, hb_1⟩ : ∃ x, decide (e ∈ W.resources 1 (s 1)) = x := ⟨_, rfl⟩
-    rw [hb'_0, hb'_1, hb_0, hb_1]
-    have hlin := mul_le_mul_of_nonneg_left
-      (twoPlayer_linear_edge_le hw₀ hw₀₁ b'_0 b'_1 b_0 b_1) (ha e)
-    have hcon := mul_le_mul_of_nonneg_left
-      (twoPlayer_const_edge_le hw₀ hw₀₁ b'_0 b'_1 b_0 b_1) (hb e)
+    generalize decide (e ∈ W.resources 0 (s' 0)) = b'_0,
+      decide (e ∈ W.resources 1 (s' 1)) = b'_1,
+      decide (e ∈ W.resources 0 (s 0)) = b_0,
+      decide (e ∈ W.resources 1 (s 1)) = b_1
+    have hlin :=
+      mul_le_mul_of_nonneg_left (twoPlayer_linear_edge_le hw₀ hw₀₁ b'_0 b'_1 b_0 b_1) (ha e)
+    have hcon :=
+      mul_le_mul_of_nonneg_left (twoPlayer_const_edge_le hw₀ hw₀₁ b'_0 b'_1 b_0 b_1) (hb e)
     dsimp only [D, N, Y₁, w₀, w₁] at hlin hcon ⊢
     cases b'_0 <;> cases b'_1 <;> cases b_0 <;> cases b_1 <;>
       simp only [Bool.false_eq_true, ↓reduceIte] at hlin hcon ⊢ <;>
@@ -682,15 +595,10 @@ theorem socialCost_le_twoPlayerRatio_mul_of_isPureNash {S : Fin 2 → Type*} {E 
   simp only [Finset.sum_add_distrib, ← Finset.mul_sum] at hsum
   rw [← W.socialCost_toCostGame s, ← W.socialCost_toCostGame s',
     ← hcost_diff 0 (s' 0), ← hcost_diff 1 (s' 1)] at hsum
-  have hne0 : 0 ≤ D * (W.toCostGame.cost 0 (Function.update s 0 (s' 0)) - W.toCostGame.cost 0 s) :=
-    mul_nonneg hD_pos.le (sub_nonneg.mpr (hs 0 (s' 0)))
-  have hne1 : 0 ≤ Y₁ * (W.toCostGame.cost 1 (Function.update s 1 (s' 1)) - W.toCostGame.cost 1 s) :=
-    mul_nonneg hY₁_nonneg (sub_nonneg.mpr (hs 1 (s' 1)))
-  have hmul_le : D * W.toCostGame.socialCost s ≤ N * W.toCostGame.socialCost s' := by linarith
   unfold twoPlayerRatio
   rw [div_mul_eq_mul_div, le_div_iff₀ hD_pos]
-  dsimp only [D, N, w₀, w₁] at hmul_le
-  linarith
+  linarith [mul_nonneg hD_pos.le (sub_nonneg.mpr (hs 0 (s' 0))),
+    mul_nonneg hY₁_nonneg (sub_nonneg.mpr (hs 1 (s' 1)))]
 
 /-- Resource sets of `twoPlayerTightGame`: player `0` chooses between `{0}` and `{1, 2}`, while
 player `1` chooses between `{1}` and `{0}`. -/
@@ -714,21 +622,19 @@ def twoPlayerTightGame (w₀ w₁ : ℝ) :
     | 2 => w₀ ^ 2 + w₀ * w₁ + w₁ ^ 2
 
 theorem hasAffineLatencies_twoPlayerTightGame {w₀ w₁ : ℝ} (hw₀ : 0 ≤ w₀) (hw₁ : 0 ≤ w₁) :
-    (twoPlayerTightGame w₀ w₁).HasAffineLatencies := by
-  refine ⟨fun e => match e with | 0 => w₀ + w₁ | 1 => w₁ | 2 => 0,
-    fun e => match e with | 0 => 0 | 1 => 0 | 2 => w₀ ^ 2 + w₀ * w₁ + w₁ ^ 2,
-    fun e => ?_, fun e => ?_, fun e x => ?_⟩
-  · fin_cases e <;> dsimp <;> positivity
-  · fin_cases e <;> dsimp <;> positivity
-  · fin_cases e <;> simp [twoPlayerTightGame]
+    (twoPlayerTightGame w₀ w₁).HasAffineLatencies :=
+  ⟨fun | 0 => w₀ + w₁ | 1 => w₁ | 2 => 0,
+   fun | 0 => 0 | 1 => 0 | 2 => w₀ ^ 2 + w₀ * w₁ + w₁ ^ 2,
+   fun e => by fin_cases e <;> dsimp <;> positivity,
+   fun e => by fin_cases e <;> dsimp <;> positivity,
+   fun e _ => by fin_cases e <;> simp [twoPlayerTightGame]⟩
 
 private lemma twoPlayerTightLoad_eq (w₀ w₁ : ℝ) (s : Fin 2 → Bool) (e : Fin 3) :
     (twoPlayerTightGame w₀ w₁).load s e =
       (if e ∈ twoPlayerTightPaths 0 (s 0) then w₀ else 0) +
       (if e ∈ twoPlayerTightPaths 1 (s 1) then w₁ else 0) := by
-  rw [(twoPlayerTightGame w₀ w₁).load_eq_ite_add_erase s 0 e]
-  have h1 : (Finset.univ.erase (0 : Fin 2)) = {1} := by decide
-  rw [h1, Finset.sum_singleton]
+  rw [(twoPlayerTightGame w₀ w₁).load_eq_ite_add_erase s 0 e,
+    show (Finset.univ.erase (0 : Fin 2)) = {1} by decide]
   simp [twoPlayerTightGame]
 
 /-- **Tightness of `twoPlayerRatio w₀ w₁`**: for all `0 < w₀` and `0 < w₁`,
@@ -748,20 +654,13 @@ theorem exists_two_player_socialCost_eq_twoPlayerRatio_mul {w₀ w₁ : ℝ}
     norm_num [twoPlayerTightGame, twoPlayerTightPaths, Fin.isValue]
     ring
   have hden_pos : 0 < w₀ ^ 3 + w₀ ^ 2 * w₁ + w₁ ^ 3 := by positivity
-  refine ⟨?_, ?_, ?_⟩
-  · intro i a
-    fin_cases i <;> cases a <;>
-      simp only [toCostGame_cost, unitCost, twoPlayerTightLoad_eq] <;>
-      norm_num [twoPlayerTightGame, twoPlayerTightPaths, Function.update, Fin.isValue] <;>
-      nlinarith
-  · rw [htrue]
-    exact hden_pos
-  · have hfalse : (twoPlayerTightGame w₀ w₁).toCostGame.socialCost (fun _ => false) =
-        (w₀ + w₁) * (w₀ ^ 2 + w₀ * w₁ + w₁ ^ 2) := by
-      simp only [CostGame.socialCost, huniv2, toCostGame_cost, unitCost, twoPlayerTightLoad_eq]
-      norm_num [twoPlayerTightGame, twoPlayerTightPaths, Fin.isValue]
-      ring
-    rw [htrue, hfalse, twoPlayerRatio, div_mul_cancel₀ _ hden_pos.ne']
+  refine ⟨fun i a => ?_, htrue ▸ hden_pos, ?_⟩
+  · fin_cases i <;> cases a <;> simp only [toCostGame_cost, unitCost, twoPlayerTightLoad_eq] <;>
+      norm_num [twoPlayerTightGame, twoPlayerTightPaths, Function.update, Fin.isValue] <;> nlinarith
+  · rw [htrue, twoPlayerRatio, div_mul_cancel₀ _ hden_pos.ne']
+    simp only [CostGame.socialCost, huniv2, toCostGame_cost, unitCost, twoPlayerTightLoad_eq]
+    norm_num [twoPlayerTightGame, twoPlayerTightPaths, Fin.isValue]
+    ring
 
 end TwoPlayersWeighted
 
@@ -785,29 +684,20 @@ theorem isSmooth_two_zero_of_card_le_two (hcard : Fintype.card ι ≤ 2) (h : C.
   have hmono := HasAffineLatencies.monotone_latency h
   obtain ⟨a, b, ha, hb, hl⟩ := h
   intro s s'
-  have hload_le_two : ∀ (t : ∀ i, S i) (e : E), C.load t e ≤ 2 := fun t e =>
-    (Finset.card_le_univ _).trans hcard
-  have hdev : ∀ i, C.toCostGame.cost i (Function.update s i (s' i)) ≤
-      ∑ e ∈ C.resources i (s' i), C.latency e 2 := fun i => by
-    rw [toCostGame_cost, Function.update_self]
-    refine Finset.sum_le_sum fun e _ => ?_
-    exact hmono e (hload_le_two _ e)
   calc ∑ i, C.toCostGame.cost i (Function.update s i (s' i))
     _ ≤ ∑ i, ∑ e ∈ C.resources i (s' i), C.latency e 2 :=
-          Finset.sum_le_sum fun i _ => hdev i
-    _ = ∑ e, (C.load s' e : ℝ) * C.latency e 2 :=
-          C.sum_sum_resources_eq_sum_load_mul s' _
-    _ ≤ ∑ e, 2 * ((C.load s' e : ℝ) * C.latency e (C.load s' e)) := by
-          refine Finset.sum_le_sum fun e _ => ?_
-          rw [hl, hl]
-          have hk_sq : C.load s' e ≤ C.load s' e ^ 2 := by
-            rcases Nat.eq_zero_or_pos (C.load s' e) with h0 | hpos
-            · simp [h0]
-            · exact Nat.le_self_pow two_ne_zero _
-          have hk_sqR : (C.load s' e : ℝ) ≤ (C.load s' e : ℝ) ^ 2 := by exact_mod_cast hk_sq
-          have hk_nonneg : (0 : ℝ) ≤ C.load s' e := Nat.cast_nonneg _
-          push_cast
-          nlinarith [mul_le_mul_of_nonneg_left hk_sqR (ha e), hb e]
+          Finset.sum_le_sum fun i _ => by
+            rw [toCostGame_cost, Function.update_self]
+            exact Finset.sum_le_sum fun e _ => hmono e ((Finset.card_le_univ _).trans hcard)
+    _ = ∑ e, (C.load s' e : ℝ) * C.latency e 2 := C.sum_sum_resources_eq_sum_load_mul s' _
+    _ ≤ ∑ e, 2 * ((C.load s' e : ℝ) * C.latency e (C.load s' e)) :=
+          Finset.sum_le_sum fun e _ => by
+            rw [hl, hl]
+            have hk_sq : (C.load s' e : ℝ) ≤ (C.load s' e : ℝ) ^ 2 := by
+              exact_mod_cast Nat.le_self_pow two_ne_zero (C.load s' e)
+            push_cast
+            nlinarith [mul_le_mul_of_nonneg_left hk_sq (ha e), hb e,
+              (Nat.cast_nonneg (C.load s' e) : (0 : ℝ) ≤ C.load s' e)]
     _ = 2 * C.toCostGame.socialCost s' + 0 * C.toCostGame.socialCost s := by
           rw [C.socialCost_toCostGame s', Finset.mul_sum, zero_mul, add_zero]
 
@@ -817,9 +707,8 @@ against primary PDF). -/
 theorem socialCost_le_two_mul_of_card_le_two (hcard : Fintype.card ι ≤ 2)
     (h : C.HasAffineLatencies) {s : ∀ i, S i} (hs : C.toCostGame.IsPureNash s) (s' : ∀ i, S i) :
     C.toCostGame.socialCost s ≤ 2 * C.toCostGame.socialCost s' := by
-  have hsm := (C.isSmooth_two_zero_of_card_le_two hcard h).socialCost_le_of_isPureNash
-    zero_lt_one hs s'
-  simpa only [sub_zero, div_one] using hsm
+  simpa only [sub_zero, div_one] using
+    (C.isSmooth_two_zero_of_card_le_two hcard h).socialCost_le_of_isPureNash zero_lt_one hs s'
 
 /-- **Robust unweighted two-player affine Price of Anarchy is at most `2`** for coarse correlated
 equilibria. -/
@@ -828,9 +717,8 @@ theorem expected_socialCost_le_two_mul_of_card_le_two (hcard : Fintype.card ι �
     (hσ : C.toCostGame.IsCoarseCorrelatedEquilibrium σ) (s' : ∀ i, S i) :
     σ.weights.sum (fun s w => w * C.toCostGame.socialCost s) ≤
       2 * C.toCostGame.socialCost s' := by
-  have hsm := (C.isSmooth_two_zero_of_card_le_two hcard h).expected_socialCost_le
-    zero_lt_one hσ s'
-  simpa only [sub_zero, div_one] using hsm
+  simpa only [sub_zero, div_one] using
+    (C.isSmooth_two_zero_of_card_le_two hcard h).expected_socialCost_le zero_lt_one hσ s'
 
 /-- **Tightness of the unweighted two-player bound `2`**
 ([NisanRoughgardenTardosVazirani2007], Chapter 18, Exercise 18.2(c); locator not re-verified
@@ -848,14 +736,13 @@ theorem exists_two_player_socialCost_eq_two_mul :
   obtain ⟨hne, hpos, heq⟩ :=
     WeightedCongestionGame.exists_two_player_socialCost_eq_twoPlayerRatio_mul
       zero_lt_one zero_lt_one
-  refine ⟨C, fun _ => false, fun _ => true, ?_, ?_, ?_, ?_⟩
-  · obtain ⟨a, b, ha, hb, hl⟩ :=
-      WeightedCongestionGame.hasAffineLatencies_twoPlayerTightGame zero_le_one zero_le_one
-    refine ⟨a, b, ha, hb, fun e k => ?_⟩
-    simp only [C, W, WeightedCongestionGame.toUniformCongestionGame, mul_one, one_mul, hl]
-  · rwa [hto]
-  · rwa [hto]
-  · rw [hto, heq, WeightedCongestionGame.twoPlayerRatio_self one_ne_zero]
+  obtain ⟨a, b, ha, hb, hl⟩ :=
+    WeightedCongestionGame.hasAffineLatencies_twoPlayerTightGame zero_le_one zero_le_one
+  exact ⟨C, fun _ => false, fun _ => true,
+    ⟨a, b, ha, hb, fun e k => by
+      simp [C, W, WeightedCongestionGame.toUniformCongestionGame, hl]⟩,
+    hto ▸ hne, hto ▸ hpos,
+    by rw [hto, heq, WeightedCongestionGame.twoPlayerRatio_self one_ne_zero]⟩
 
 end TwoPlayersUnweighted
 

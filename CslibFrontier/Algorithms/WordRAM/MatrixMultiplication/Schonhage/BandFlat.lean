@@ -37,8 +37,7 @@ theorem catalogueValue_left {L m N : ℕ} (hm : m ≤ L)
     catalogueValue L m N false matrix β (Encoding.leafIndex τ).val =
       encodingL (bandArrayL (MaskTable.layout hm) X β) τ := by
   apply Encoding.value_final_left
-  intro u
-  simpa only [Equiv.symm_apply_apply] using
+  exact fun u => by simpa only [Equiv.symm_apply_apply] using
     (bandValue_left hm X matrix hX β (finFunctionFinEquiv u))
 
 /-- The right catalogue uses the same original flat leaf order. -/
@@ -48,8 +47,7 @@ theorem catalogueValue_right {L m N : ℕ} (hm : m ≤ L)
     catalogueValue L m N true matrix β (Encoding.leafIndex τ).val =
       encodingR (bandArrayR (MaskTable.layout hm) Y β) τ := by
   apply Encoding.value_final_right
-  intro u
-  simpa only [Equiv.symm_apply_apply] using
+  exact fun u => by simpa only [Equiv.symm_apply_apply] using
     (bandValue_right hm Y matrix (fun i k => hY k i) β (finFunctionFinEquiv u))
 
 /-- One finite code-size bound for the 96-register program and its final halt. -/
@@ -90,18 +88,15 @@ theorem runs {w L m N : ℕ} (hw : 0 < w) (hm : m ≤ L)
           (MaskTable.selectedMask gh).val) ∧
       (∀ b, ¬(inputEnd m N ≤ b ∧ b < memoryEnd L m N) →
         y.mem b = (State.init (input L m N X Y) : State 96).data.mem b) := by
-  obtain ⟨hi, y, he, hb, hp, hv, ht, hf, hframe⟩ :=
+  obtain ⟨hi, y, ⟨n, hn, he⟩, hb, hp, hv, ht, hf, hframe⟩ :=
     exec_input hw hm X Y A hA hX hY hmag hfit
-  obtain ⟨n, hn, he⟩ := he
   refine ⟨hi, y, n, hn, ?_, ?_, hb, ?_, ?_, ht, hf, hframe⟩
   · simpa only [Nat.zero_add, State.init] using he.runs (pc := 0)
       (p := program.program catalogue) (Program.Contains.self _).append_left
   · simpa only [hp.catalogue, State.init] using he.executes catalogue
-  · intro β hβ τ
-    rw [hv false β hβ _ (Encoding.leafIndex τ).isLt,
-      catalogueValue_left hm X _ (by intro i k; simp [matrixValues])]
-  · intro β hβ τ
-    rw [hv true β hβ _ (Encoding.leafIndex τ).isLt,
-      catalogueValue_right hm Y _ (by intro k i; simp [matrixValues])]
+  · exact fun β hβ τ => (hv false β hβ _ (Encoding.leafIndex τ).isLt).trans
+      (congrArg encode (catalogueValue_left hm X _ (fun i k => by simp [matrixValues]) β τ))
+  · exact fun β hβ τ => (hv true β hβ _ (Encoding.leafIndex τ).isLt).trans
+      (congrArg encode (catalogueValue_right hm Y _ (fun k i => by simp [matrixValues]) β τ))
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation

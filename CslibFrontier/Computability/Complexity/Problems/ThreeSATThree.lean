@@ -98,14 +98,11 @@ theorem isVerifier : IsVerifier encCNF Polynomial.X verifier ThreeSATThree := by
     ext φ
     simp only [ThreeSATThree, Set.mem_ofPred_eq, Bool.and_eq_true, List.all_eq_true,
       decide_eq_true_eq, mem_SAT]
-    constructor
-    · rintro ⟨hw, ho, hs⟩
-      exact ⟨⟨hw, fun v _ => ho v⟩, hs⟩
-    · rintro ⟨⟨hw, ho⟩, hs⟩
-      refine ⟨hw, fun v => ?_, hs⟩
-      by_cases hv : v ∈ φ.vars
-      · exact ho v hv
-      · simp [List.count_eq_zero.2 hv]
+    refine ⟨fun ⟨hw, ho, hs⟩ => ⟨⟨hw, fun v _ => ho v⟩, hs⟩,
+      fun ⟨⟨hw, ho⟩, hs⟩ => ⟨hw, fun v => ?_, hs⟩⟩
+    by_cases hv : v ∈ φ.vars
+    · exact ho v hv
+    · simp [List.count_eq_zero.2 hv]
   rw [he]
   exact SAT.isVerifier.guard
 
@@ -130,22 +127,19 @@ def toThreeSATThree (φ : CNF ℕ) : CNF ℕ :=
 /-- For a width-three input, numbering preserves the splitter's exact clause count. -/
 theorem length_toThreeSATThree (φ : CNF ℕ) (hφ : ∀ c ∈ φ, c.length ≤ 3) :
     (toThreeSATThree φ).length = φ.length + φ.vars.length := by
-  have hg : φ.all (fun c => decide (c.length ≤ 3)) = true := by simpa using hφ
-  simp [toThreeSATThree, hg, CNF.relabel, CNF.length_toThreeOccurrence]
+  simp +contextual [toThreeSATThree, hφ, CNF.relabel, CNF.length_toThreeOccurrence]
 
 /-- For a width-three input, numbering preserves the exact literal-occurrence count. -/
 theorem length_vars_toThreeSATThree (φ : CNF ℕ) (hφ : ∀ c ∈ φ, c.length ≤ 3) :
     (toThreeSATThree φ).vars.length = 3 * φ.vars.length := by
-  have hg : φ.all (fun c => decide (c.length ≤ 3)) = true := by simpa using hφ
-  simp [toThreeSATThree, hg, CNF.vars_relabel, CNF.length_vars_toThreeOccurrence]
+  simp +contextual [toThreeSATThree, hφ, CNF.vars_relabel, CNF.length_vars_toThreeOccurrence]
 
 /-- For a width-three input, occurrence splitting and injective numbering preserve the number of
 satisfying assignments on occurring variables. -/
 theorem modelCount_toThreeSATThree (φ : CNF ℕ) (hφ : ∀ c ∈ φ, c.length ≤ 3) :
     (toThreeSATThree φ).modelCount = φ.modelCount := by
-  have hg : φ.all (fun c => decide (c.length ≤ 3)) = true := by simpa using hφ
-  simp only [toThreeSATThree, hg, ↓reduceIte]
-  rw [CNF.modelCount_relabel ThreeSATThree.numberCopy_injective, CNF.modelCount_toThreeOccurrence]
+  rw [toThreeSATThree, ite_eq_left (by simpa using hφ),
+    CNF.modelCount_relabel ThreeSATThree.numberCopy_injective, CNF.modelCount_toThreeOccurrence]
 
 /-- The total splitter is polynomial-time under binary `encCNF`. -/
 @[fun_prop]

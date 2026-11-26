@@ -225,8 +225,7 @@ variable {T : ℕ}
 theorem gateCode_wire {n T t : ℕ} {l : Loc k State} {c : ℕ} (hl : l.ColOK T c) :
     gateCode tm n T (wire n T t l c - n) = gateAt tm n T t c l := by
   obtain ⟨hdiv, hmod⟩ := div_mod_wire (n := n) (t := t) hl
-  have h2 : ¬ wire n T t l c - n < 2 := by rw [wire_sub]; omega
-  rw [gateCode, ite_eq_right h2]
+  rw [gateCode, ite_eq_right (by rw [wire_sub]; omega)]
   simp only [hdiv, hmod, posOf_offset hl]
 
 /-! ### Well-formedness -/
@@ -252,26 +251,23 @@ omit [DecidableEq State] in
 private theorem resolve_prev_lt (ht : 1 ≤ t) {l' : Loc k State} {cs : ColSel} {g : Guard}
     (h : g.test n T c = true → cs.apply T c < numCols T) :
     (Ref.node true l' cs g).resolve n T t c < wire n T t l c := by
-  simp only [Ref.resolve, ↓reduceIte]
+  simp only [Ref.resolve, wire, ↓reduceIte]
   split_ifs with hg
   · have := Loc.offset_lt_of_lt (l := l') (h hg)
-    simp only [wire]
     have : (t - 1) * blockSize k State T + blockSize k State T = t * blockSize k State T := by
       rw [← Nat.succ_mul, Nat.succ_eq_add_one, Nat.sub_add_cancel ht]
     omega
-  · simp only [wire]; omega
+  · omega
 
 omit [DecidableEq State] in
 /-- A reference to an earlier position of the current block reads an earlier wire. -/
 private theorem resolve_cur_lt {l' : Loc k State} {cs : ColSel} {g : Guard}
     (h : g.test n T c = true → l'.offset T (cs.apply T c) < l.offset T c) :
     (Ref.node false l' cs g).resolve n T t c < wire n T t l c := by
-  simp only [Ref.resolve, Bool.false_eq_true, ↓reduceIte]
+  simp only [Ref.resolve, wire, Bool.false_eq_true, ↓reduceIte]
   split_ifs with hg
-  · have := h hg
-    simp only [wire]
-    omega
-  · simp only [wire]; omega
+  · exact Nat.add_lt_add_left (h hg) _
+  · omega
 
 end Earlier
 
@@ -303,21 +299,17 @@ private theorem resolve_lt_of_gfStart_le {n T t c : ℕ} (ht : 1 ≤ t) (hc : c 
   · exact resolve_fls_lt
   · exact resolve_tru_lt
   · exact resolve_inp_lt
-  · rcases l' with l' | (⟨_, _⟩ | ⟨v, j⟩) | _ | _
+  · rcases l' with l' | (⟨_, _⟩ | ⟨v, j⟩) | _ | _ <;> try contradiction
     · cases cs <;> try contradiction
       exact resolve_cur_lt fun _ =>
         ((scan_offset_lt_globStart hc l').trans_le globStart_le_gfStart).trans_le hl
-    · contradiction
     · exact resolve_cur_lt fun _ => (attr_offset_lt v j).trans_le hl
-    · contradiction
-    · contradiction
   · refine resolve_prev_lt ht fun hg => ?_
     cases cs with
     | same => exact hc
     | prev => simp only [ColSel.apply]; omega
     | next =>
-      have := hr rfl
-      subst this
+      cases hr rfl
       simpa only [ColSel.apply, Guard.test, decide_eq_true_eq] using hg
     | last => simp [ColSel.apply, numCols]
 
@@ -404,17 +396,13 @@ private theorem resolve_table_lt {n T t c : ℕ} (ht : 1 ≤ t) {l : Loc k State
         simp only [Loc.offset, ColSel.apply]; omega
     rcases l with ⟨j, i⟩ | ⟨v, j⟩
     · cases i using Fin.cases with
-      | zero =>
-        simp only [table, Fin.cases_zero]
-        exact ⟨resolve_prev_lt ht fun _ => by simp [ColSel.apply, numCols], hlast _ _⟩
+      | zero => exact ⟨resolve_prev_lt ht fun _ => by simp [ColSel.apply, numCols], hlast _ _⟩
       | succ i =>
         simp only [table, Fin.cases_succ]
         refine ⟨resolve_cur_lt fun _ => ?_, hlast _ _⟩
         simp only [Loc.offset, GlobLoc.idx, Fin.val_castSucc, Fin.val_succ]; omega
     · cases j using Fin.cases with
-      | zero =>
-        simp only [table, Fin.cases_zero]
-        exact ⟨resolve_fls_lt, resolve_fls_lt⟩
+      | zero => exact ⟨resolve_fls_lt, resolve_fls_lt⟩
       | succ j =>
         simp only [table, Fin.cases_succ]
         refine ⟨resolve_cur_lt fun _ => ?_, ?_⟩
@@ -422,8 +410,7 @@ private theorem resolve_table_lt {n T t c : ℕ} (ht : 1 ≤ t) {l : Loc k State
         · split_ifs
           · refine resolve_cur_lt fun _ => ?_
             simp only [Loc.offset, GlobLoc.idx, Fin.val_last]
-            have := Nat.mul_le_mul_right (k + 1) j.isLt
-            rw [Nat.succ_mul] at this
+            have := (Nat.succ_mul (j : ℕ) (k + 1)).symm.trans_le (Nat.mul_le_mul_right _ j.isLt)
             omega
           · exact resolve_fls_lt
   · simp only [Loc.ColOK] at hl; subst hl
@@ -455,8 +442,7 @@ private theorem length_gateAt (n T t c : ℕ) (l : Loc k State) :
     (gateAt tm n T t c l).2.length = signature.Arity (gateAt tm n T t c l).1 := by
   unfold gateAt
   split_ifs
-  · rfl
-  · exact length_argsOf _ _ _
+  exacts [rfl, length_argsOf _ _ _]
 
 /-- A gate at a position reads earlier wires. -/
 private theorem lt_of_mem_gateAt {n T t c : ℕ} {l : Loc k State} (hl : l.ColOK T c) {i : ℕ}
@@ -490,8 +476,7 @@ earlier wires. -/
 theorem gateCode_wf {n T g : ℕ} (hg : g < numGates k State T) :
     (gateCode tm n T g).2.length = signature.Arity (gateCode tm n T g).1 ∧
       ∀ i ∈ (gateCode tm n T g).2, i < n + g := by
-  have h := (isCodeFrom_gates tm n T).getElem g (by simpa [gates] using hg)
-  simpa [gates] using h
+  simpa [gates] using (isCodeFrom_gates tm n T).getElem g (by simpa [gates] using hg)
 
 omit [DecidableEq State] in
 /-- The output wire index is strictly less than the total number of wires
@@ -499,20 +484,16 @@ omit [DecidableEq State] in
 theorem outWire_lt (n T : ℕ) : outWire k State n T < n + numGates k State T := by
   have := Loc.offset_lt (k := k) (State := State) (T := T)
     (l := .gf (.out (.one true)) true 7) (c := 0) rfl
-  simp only [outWire, wire, numGates]
-  rw [Nat.succ_mul]
+  simp only [outWire, wire, numGates, Nat.succ_mul]
   omega
 
 /-- The raw gate list `gates tm n T` and output wire `outWire k State n T` form a valid circuit
 code. -/
 theorem isSome_ofCode (n T : ℕ) :
     (Circuit.ofCode n 1 (gates tm n T, [outWire k State n T]) :
-      Option (Circuit signature n 1)).isSome := by
-  rw [Circuit.isSome_ofCode_iff]
-  refine ⟨isCodeFrom_gates tm n T, rfl, fun i hi => ?_⟩
-  simp only [List.mem_singleton] at hi
-  subst hi
-  simpa [gates] using outWire_lt (k := k) (State := State) n T
+      Option (Circuit signature n 1)).isSome :=
+  Circuit.isSome_ofCode_iff.mpr
+    ⟨isCodeFrom_gates tm n T, rfl, by simpa [gates] using outWire_lt (k := k) (State := State) n T⟩
 
 /-- **The tableau circuit** of `tm` for `T` steps on inputs of length `n`. -/
 noncomputable def circuit (n T : ℕ) : Circuit signature n 1 :=

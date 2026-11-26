@@ -107,19 +107,14 @@ theorem scaleByLevel_inSpace :
   let B (p : ℕ × ℕ) := (encPair encNat encNat p).length + p.1
   have hin : (fun p : ℕ × ℕ => (encPair encNat encNat p).length) ≼ B :=
     .of_le fun _ => Nat.le_add_right _ _
-  have hlevel := (fst encNat encNat).weaken hin
-  have hacc := (snd encNat encNat).weaken hin
-  have hpow : ComputableInSpace (fun p : ℕ × ℕ => 6 ^ p.1)
-      (encPair encNat encNat) encNat B := by
-    refine budget_natPow_variable (budget_const 6) hlevel ?_
-    refine .of_le_linear 4 4 fun p => ?_
-    rw [show (encNat 6).length = 3 from rfl]
-    have hlen : (encNat p.1).length ≤ (encPair encNat encNat p).length := by
-      simp only [length_encPair]
-      omega
-    dsimp only [B]
-    omega
-  exact (budget_natMul hpow hacc).of_enc_eq fun _ => rfl
+  have hpow : ComputableInSpace (fun p : ℕ × ℕ => 6 ^ p.1) (encPair encNat encNat) encNat B :=
+    budget_natPow_variable (budget_const 6) ((fst encNat encNat).weaken hin) <|
+      .of_le_linear 4 4 fun p => by
+        rw [show (encNat 6).length = 3 from rfl]
+        have : (encNat p.1).length ≤ (encPair encNat encNat p).length := by
+          simp only [length_encPair]; omega
+        dsimp only [B]; omega
+  exact (budget_natMul hpow ((snd encNat encNat).weaken hin)).of_enc_eq fun _ => rfl
 
 namespace WeightGenerator
 
@@ -181,26 +176,16 @@ theorem gateWeightRank_inSpace [Inhabited κ] (encContext : κ ↪ List Bool) (c
     ComputableInSpace (gateWeightRank code) (encGateRequest encContext) encNat
       (fun q => (encGateRequest encContext q).length + q.seed.width + q.andLevel) := by
   let B (q : GateRequest κ) := (encGateRequest encContext q).length + q.seed.width + q.andLevel
-  have hin : (fun q => (encGateRequest encContext q).length) ≼ B :=
-    .of_le fun _ => by dsimp only [B]; omega
-  have hid := budget_id hin
-  have hs := encGateRequest_seed_budget encContext hid
-  have hl := encGateRequest_andLevel_budget encContext hid
-  have haFlag := encGateRequest_isAnd_budget encContext hid
-  have hwidth : (fun q : GateRequest κ =>
-      (SeedRank.encRequest encContext q.seed).length + q.seed.width) ≼ B := by
-    refine .of_le fun q => ?_
-    simp only [B, encGateRequest_apply, encGateRequestFields, length_encPair]
-    omega
-  have hacc := budget_comp (SeedRank.accumulateRank_inSpace encContext code hc) hs hwidth
-  have hpair := budget_prod hl hacc
-  have hscaleBudget : (fun q : GateRequest κ =>
-      (encPair encNat encNat (q.andLevel, SeedRank.accumulateRank code q.seed)).length +
-        q.andLevel) ≼ B :=
-    hpair.length_le.add (.of_le fun _ => by dsimp only [B]; omega)
-  have hscaled := budget_comp scaleByLevel_inSpace hpair hscaleBudget
-  exact (budget_ite haFlag hscaled (budget_const 0)).of_enc_eq fun q => by
-    simp [gateWeightRank]
+  have hid := budget_id (show (fun q => (encGateRequest encContext q).length) ≼ B from
+    .of_le fun _ => (Nat.le_add_right _ _).trans (Nat.le_add_right _ _))
+  have hacc := budget_comp (SeedRank.accumulateRank_inSpace encContext code hc)
+    (encGateRequest_seed_budget encContext hid) (.of_le fun q => by
+      simp only [B, encGateRequest_apply, encGateRequestFields, length_encPair]; omega)
+  have hpair := budget_prod (encGateRequest_andLevel_budget encContext hid) hacc
+  exact (budget_ite (encGateRequest_isAnd_budget encContext hid)
+    (budget_comp scaleByLevel_inSpace hpair
+      (hpair.length_le.add (.of_le fun _ => by dsimp only [B]; omega)))
+    (budget_const 0)).of_enc_eq fun q => by simp [gateWeightRank]
 
 /-- Code-bit callback reading one indexed Justesen coordinate from a retained field context and
 binary gate index. -/
@@ -247,9 +232,7 @@ theorem gateWeightRank_inLogSpace [Inhabited κ] {α : Type} {encIn : α ↪ Lis
   have hCa := hC a
   dsimp only
   rw [Nat.mul_assoc]
-  exact Nat.mul_le_mul_left c (by
-    rw [Nat.add_mul, Nat.one_mul]
-    omega)
+  exact Nat.mul_le_mul_left c (by rw [Nat.add_mul, Nat.one_mul]; omega)
 
 /-- Computing the seed-independent gate-weight bound `6 ^ (maxAndLevel + codeLength gateCount 0)`
 uses workspace linear in the encoded binary pair `(gateCount, maxAndLevel)` plus the numeric
@@ -260,22 +243,18 @@ theorem generatedGateWeightBound_inSpace :
       (fun p => (encPair encNat encNat p).length + p.2) := by
   have hin : (fun p : ℕ × ℕ => (encPair encNat encNat p).length) ≼
       fun p => (encPair encNat encNat p).length + p.2 := .of_le fun _ => Nat.le_add_right _ _
-  have hcode := budget_comp_linear codeLength_inSpace
-    (budget_prod ((fst encNat encNat).weaken hin) (budget_const 0))
-  have hexp := budget_natAdd ((snd encNat encNat).weaken hin) hcode
+  have hexp := budget_natAdd ((snd encNat encNat).weaken hin) <| budget_comp_linear
+    codeLength_inSpace (budget_prod ((fst encNat encNat).weaken hin) (budget_const 0))
   have hpair := budget_prod hexp (budget_const (encB := encNat) 1)
-  have hbudget : (fun p : ℕ × ℕ =>
-      (encPair encNat encNat (p.2 + codeLength p.1 0, 1)).length +
-        (p.2 + codeLength p.1 0)) ≼ fun p => (encPair encNat encNat p).length + p.2 := by
-    refine hpair.length_le.add (.of_le_linear (268435456 + 1) 268435456 fun p => ?_)
-    have hc := codeLength_le_encodedDimensions (p.1, 0)
-    dsimp only at hc
-    have hpairLen : (encPair encNat encNat (p.1, 0)).length ≤ (encPair encNat encNat p).length := by
-      simp only [length_encPair, show (encNat 0).length = 0 from rfl]
-      omega
-    omega
-  exact (budget_comp scaleByLevel_inSpace hpair hbudget).of_enc_eq fun p =>
-    congrArg encNat (by simp [generatedGateWeightBound, scaleByLevel])
+  refine (budget_comp scaleByLevel_inSpace hpair <| hpair.length_le.add
+    (show (fun p : ℕ × ℕ => p.2 + codeLength p.1 0) ≼ _ from
+      .of_le_linear (268435456 + 1) 268435456 fun p => ?_)).of_enc_eq fun p =>
+      congrArg encNat (by simp [generatedGateWeightBound, scaleByLevel])
+  have hc := codeLength_le_encodedDimensions (p.1, 0)
+  dsimp only at hc
+  have : (encPair encNat encNat (p.1, 0)).length ≤ (encPair encNat encNat p).length := by
+    simp only [length_encPair, show (encNat 0).length = 0 from rfl]; omega
+  omega
 
 /-- Binary circuit size and gate metadata supplied by the circuit interface for a standalone
 gate-weight query. -/
@@ -331,11 +310,11 @@ theorem evalInput_eq_gateWeightRank (x : Input) :
   split_ifs
   · congr 1
     unfold SeedDigits.maskedPrefix SeedRank.accumulateRank
+    have hlsb : ofBits x.seed = Cslib.BitString.lsbValue x.seed :=
+      (Cslib.BitString.lsbValue_eq_foldr_bit x.seed).symm
     congr 1
     funext j
-    rw [show ofBits x.seed = Cslib.BitString.lsbValue x.seed from
-        (Cslib.BitString.lsbValue_eq_foldr_bit x.seed).symm,
-      Cslib.BitString.testBit_lsbValue]
+    rw [hlsb, Cslib.BitString.testBit_lsbValue]
     rfl
   · rfl
 
@@ -358,33 +337,23 @@ theorem evalInput_inSpace :
     ComputableInSpace evalInput encInput encNat
       (fun x => (encInput x).length + x.header.andLevel + 1) := by
   let B (x : Input) := (encInput x).length + x.header.andLevel + 1
-  have hin : (fun x => (encInput x).length) ≼ B := .of_le fun _ => by dsimp only [B]; omega
-  have hid := budget_id hin
+  have hid := budget_id (show (fun x => (encInput x).length) ≼ B from
+    .of_le fun _ => (Nat.le_add_right _ _).trans (Nat.le_add_right _ _))
   have hheader := encInput_header_budget hid
   have hseed := encInput_seed_budget hid
-  have hgateCount := encHeader_gateCount_budget hheader
-  have handLevel := encHeader_andLevel_budget hheader
-  have hisAnd := encHeader_isAnd_budget hheader
-  have hgate := encHeader_gate_budget hheader
-  have hfield := budget_comp_linear fieldContext_inSpace (budget_prod hgateCount (budget_const 0))
-  have hrank := budget_comp_linear (of_inO ComputableInO.bitsToNat) hseed
-  have hwidth := budget_comp_linear (of_inO ComputableInO.lengthNat) hseed
+  have hfield := budget_comp_linear fieldContext_inSpace
+    (budget_prod (encHeader_gateCount_budget hheader) (budget_const 0))
   have hseedReq := SeedRank.encRequest_mk_budget (encPair encFieldContext encNat)
-    (budget_prod hfield hgate) hrank hwidth
-  have hreq := encGateRequest_mk_budget (encPair encFieldContext encNat)
-    hseedReq handLevel hisAnd
+    (budget_prod hfield (encHeader_gate_budget hheader))
+    (budget_comp_linear (of_inO ComputableInO.bitsToNat) hseed)
+    (budget_comp_linear (of_inO ComputableInO.lengthNat) hseed)
+  have hreq := encGateRequest_mk_budget (encPair encFieldContext encNat) hseedReq
+    (encHeader_andLevel_budget hheader) (encHeader_isAnd_budget hheader)
   have hseedLe : (fun x : Input => x.seed.length) ≼ B := .of_le fun x => by
-    simp only [B, encInput_apply, encInputFields, length_encPair, encBits_apply]
-    omega
-  have hlevelLe : (fun x : Input => x.header.andLevel) ≼ B :=
-    .of_le fun _ => by dsimp only [B]; omega
-  have hreqBudget : (fun x : Input =>
-      (encGateRequest (encPair encFieldContext encNat)
-        ⟨⟨(fieldContext x.header.gateCount 0, x.header.gate), ofBits x.seed, x.seed.length⟩,
-          x.header.andLevel, x.header.isAnd⟩).length + x.seed.length + x.header.andLevel) ≼ B :=
-    (hreq.length_le.add hseedLe).add hlevelLe
-  exact (budget_comp gateWeightRank_justesen_inSpace hreq hreqBudget).of_enc_eq fun x =>
-    congrArg encNat (evalInput_eq_gateWeightRank x)
+    simp only [B, encInput_apply, encInputFields, length_encPair, encBits_apply]; omega
+  exact (budget_comp gateWeightRank_justesen_inSpace hreq
+    ((hreq.length_le.add hseedLe).add (.of_le fun _ => by dsimp only [B]; omega))).of_enc_eq
+      fun x => congrArg encNat (evalInput_eq_gateWeightRank x)
 
 private theorem length_canonicalInput_add_level_le {N : ℕ}
     (C : LayeredSemiUnboundedCircuit (Fin N)) (seed : Fin (codeLength N 0) → Bool) (g : Fin N) :
@@ -396,12 +365,10 @@ private theorem length_canonicalInput_add_level_le {N : ℕ}
   have hlev : (encNat (C.andLevel g)).length ≤ C.andLevel g :=
     length_encNat_eq_size _ ▸ Nat.size_le_self _
   have hseed : codeLength N 0 ≤ 268435456 * L := by
-    have h := (codeLength_bounds N 0).2
-    simpa only [Nat.zero_add, Nat.mul_one, ← Nat.log2_eq_log_two] using h
+    simpa only [Nat.zero_add, Nat.mul_one, ← Nat.log2_eq_log_two] using (codeLength_bounds N 0).2
   simp only [canonicalInput, encInput_apply, encInputFields, encHeader_apply, encHeaderFields,
     length_encPair, encBits_apply, encBool_apply, List.length_ofFn, List.length_singleton]
-  dsimp only [L] at *
-  omega
+  dsimp only [L] at *; omega
 
 /-- One fixed deterministic multitape Turing machine evaluates `C.generatedGateWeight seed g` on
 every canonical input in workspace and binary output length `O(C.andLevel g + Nat.log2 N + 1)`. -/
@@ -418,15 +385,13 @@ theorem generatedGateWeight_computesInTimeAndSpace :
   obtain ⟨time, A, ⟨k, State, hfinite, tm, hrun⟩, hout⟩ := evalInput_inSpace
   refine ⟨time, A * (268435456 + 20), k, State, hfinite, tm, fun {N} C seed g => ?_⟩
   intro x budget
-  have hval : evalInput x = C.generatedGateWeight seed g := evalInput_canonicalInput C seed g
   have hbound : A * ((encInput x).length + x.header.andLevel + 1 + 1) ≤ budget := by
     dsimp only [budget, x, canonicalInput]
     rw [Nat.mul_assoc]
-    exact Nat.mul_le_mul_left A (by
-      have h := length_canonicalInput_add_level_le C seed g
-      simpa only [canonicalInput] using h)
+    exact Nat.mul_le_mul_left A
+      (by simpa only [canonicalInput] using length_canonicalInput_add_level_le C seed g)
   obtain ⟨houtput, htime, hspace⟩ := hrun x
-  rw [← hval]
+  rw [← evalInput_canonicalInput C seed g]
   exact ⟨⟨houtput, htime, hspace.mono hbound⟩, (hout x).trans hbound⟩
 
 /-- Joint isolation, seed-length, magnitude, and native logspace evaluation certificate for
@@ -467,17 +432,13 @@ theorem generatedGateWeight_certified :
   refine ⟨268435456, spaceFactor, weightDegree, time, k, State, hfinite, tm, fun N => ?_⟩
   refine ⟨?_, fun C hnorm => C.exists_generatedGateWeight_isMinIsolating hnorm,
     fun c C seed g hdepth => ?_⟩
-  · have h := (codeLength_bounds N 0).2
-    simpa only [Nat.zero_add, Nat.mul_one, ← Nat.log2_eq_log_two] using h
-  · have hdepth' : C.andLevel g ≤ c * (Nat.log 2 N + 1) := by
-      simpa only [← Nat.log2_eq_log_two] using hdepth
-    obtain ⟨⟨houtput, htime, hspace⟩, -⟩ := hrun C seed g
-    refine ⟨C.generatedGateWeight_lt_pow seed g, hpoly c N C seed g hdepth',
+  · simpa only [Nat.zero_add, Nat.mul_one, ← Nat.log2_eq_log_two] using (codeLength_bounds N 0).2
+  · obtain ⟨⟨houtput, htime, hspace⟩, -⟩ := hrun C seed g
+    refine ⟨C.generatedGateWeight_lt_pow seed g,
+      hpoly c N C seed g (by simpa only [← Nat.log2_eq_log_two] using hdepth),
       ⟨houtput, htime, hspace.mono ?_⟩⟩
     rw [Nat.mul_assoc]
-    exact Nat.mul_le_mul_left spaceFactor (by
-      rw [Nat.add_mul, Nat.one_mul]
-      omega)
+    exact Nat.mul_le_mul_left spaceFactor (by rw [Nat.add_mul, Nat.one_mul]; omega)
 
 end WeightGenerator
 

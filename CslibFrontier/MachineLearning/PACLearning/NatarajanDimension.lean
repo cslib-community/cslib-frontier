@@ -173,18 +173,8 @@ theorem NatarajanShatters.image_comp {C : ConceptClass α β} {W : Set α} {g : 
 @[simp] theorem natarajanShatters_image_equiv_comp {C : ConceptClass α β} {W : Set α}
     (e : β ≃ γ) : NatarajanShatters ((e ∘ ·) '' C) W ↔ NatarajanShatters C W := by
   refine ⟨fun h => ?_, fun h => h.image_comp e.injective⟩
-  have h' := h.image_comp e.symm.injective
-  have himg : (e.symm ∘ ·) '' ((e ∘ ·) '' C) = C := by
-    ext c
-    simp only [Set.mem_image, exists_exists_and_eq_and]
-    constructor
-    · rintro ⟨c', hc', rfl⟩
-      convert hc'
-      ext x
-      exact e.symm_apply_apply (c' x)
-    · intro hc
-      exact ⟨c, hc, funext fun x => e.symm_apply_apply (c x)⟩
-  rwa [himg] at h'
+  simpa only [Set.image_image, ← Function.comp_assoc, Equiv.symm_comp_self, Function.id_comp,
+    Set.image_id'] using h.image_comp e.symm.injective
 
 /-- The Natarajan dimension is invariant under relabeling by an equivalence `e : β ≃ γ`. -/
 @[simp] theorem natarajanDim_image_equiv_comp (C : ConceptClass α β) (e : β ≃ γ) :
@@ -198,19 +188,19 @@ theorem natarajanShatters_iff_setShatters {C : ConceptClass α Bool} {W : Set α
   constructor
   · rintro ⟨f₀, f₁, hne, h⟩ W' hW'
     obtain ⟨c, hc, h₀, h₁⟩ := h {x ∈ W | f₀ x = decide (x ∈ W')} (fun x hx => hx.1)
-    refine ⟨c, hc, Set.ext fun x => ?_⟩
-    simp only [Set.mem_inter_iff, Set.mem_preimage, Set.mem_singleton_iff]
-    refine ⟨fun ⟨hcx, hx⟩ => ?_, fun hx => ⟨?_, hW' hx⟩⟩
-    · by_cases hB : f₀ x = decide (x ∈ W')
-      · simpa [hB, hcx] using (h₀ x ⟨hx, hB⟩).symm
-      · have := h₁ x ⟨hx, fun h => hB h.2⟩
-        have hne' := hne x hx
-        cases hf : f₀ x <;> cases hg : f₁ x <;> simp_all
-    · by_cases hB : f₀ x = decide (x ∈ W')
-      · simpa [hx] using (h₀ x ⟨hW' hx, hB⟩).trans hB
-      · have := h₁ x ⟨hW' hx, fun h => hB h.2⟩
-        have hne' := hne x (hW' hx)
-        cases hf : f₀ x <;> cases hg : f₁ x <;> simp_all
+    -- On `W`, `c` agrees with `f₀` where `f₀` is the indicator of `W'`, and otherwise with the
+    -- other Boolean `f₁`, so `c` is the indicator of `W'` there.
+    have hcx : ∀ x ∈ W, c x = decide (x ∈ W') := fun x hx => by
+      by_cases hB : f₀ x = decide (x ∈ W')
+      · exact (h₀ x ⟨hx, hB⟩).trans hB
+      · rw [h₁ x ⟨hx, fun h => hB h.2⟩]
+        revert hB
+        have := hne x hx
+        revert this
+        cases f₀ x <;> cases f₁ x <;> cases decide (x ∈ W') <;> decide
+    refine ⟨c, hc, Set.ext fun x => ⟨fun ⟨hcx', hx⟩ => ?_, fun hx => ⟨?_, hW' hx⟩⟩⟩
+    · simpa [hcx x hx] using hcx'
+    · simpa [hx] using hcx x (hW' hx)
   · intro h
     refine ⟨fun _ => true, fun _ => false, fun _ _ => by simp, fun B hB => ?_⟩
     obtain ⟨c, hc, hcB⟩ := h B hB
@@ -295,9 +285,7 @@ is exposed so that clients can evaluate the bound. -/
   ∑ i ∈ range (d + 1), n.choose i * k.choose 2 ^ i
 
 @[simp] theorem natarajanSum_zero_left (k d : ℕ) : natarajanSum 0 k d = 1 := by
-  simp only [natarajanSum]
-  rw [sum_range_succ']
-  simp
+  simp [natarajanSum, sum_range_succ']
 
 @[simp] theorem natarajanSum_zero_right (n k : ℕ) : natarajanSum n k 0 = 1 := by
   simp [natarajanSum]
@@ -305,9 +293,7 @@ is exposed so that clients can evaluate the bound. -/
 /-- With at most one label no pair of distinct labels exists, so `natarajanSum n k d = 1`. -/
 @[simp] theorem natarajanSum_of_le_one (n d : ℕ) {k : ℕ} (hk : k ≤ 1) : natarajanSum n k d = 1 := by
   have hk2 : k.choose 2 = 0 := Nat.choose_eq_zero_of_lt (by omega)
-  simp only [natarajanSum, hk2]
-  rw [sum_range_succ']
-  simp
+  simp [natarajanSum, hk2, sum_range_succ']
 
 /-- At `k = 2` labels, `(2 choose 2) = 1`, so `natarajanSum` reduces to the binary Sauer–Shelah
 sum `∑_{i ≤ d} (n choose i)`. -/
@@ -344,9 +330,8 @@ private theorem natarajanShatters_image_succ {n : ℕ} {R : Set (Fin (n + 1) →
   refine ⟨Fin.cons (f 0) f₀, Fin.cons (f 0) f₁, ?_, fun B hB => ?_⟩
   · rintro _ ⟨i, hi, rfl⟩
     simpa only [Fin.cons_succ] using hne i hi
-  · obtain ⟨_, ⟨c, hc, rfl⟩, h₀, h₁⟩ := h (Fin.succ ⁻¹' B) fun i hi => by
-      obtain ⟨j, hj, hji⟩ := hB hi
-      rwa [Fin.succ_inj.1 hji] at hj
+  · obtain ⟨_, ⟨c, hc, rfl⟩, h₀, h₁⟩ :=
+      h (Fin.succ ⁻¹' B) fun i hi => (Fin.succ_injective n).mem_set_image.1 (hB hi)
     refine ⟨c, hc, ?_, ?_⟩
     · intro x hx
       obtain ⟨i, -, rfl⟩ := hB hx
@@ -362,6 +347,8 @@ private theorem natarajanShatters_insert_zero {n : ℕ} {R : Set (Fin (n + 1) �
     NatarajanShatters R (insert 0 (Fin.succ '' W)) := by
   classical
   obtain ⟨f₀, f₁, hne, h⟩ := hW
+  have hmem : ∀ i, Fin.succ i ∈ insert (0 : Fin (n + 1)) (Fin.succ '' W) → i ∈ W := fun i h =>
+    (Fin.succ_injective n).mem_set_image.1 (h.resolve_left (Fin.succ_ne_zero i))
   refine ⟨Fin.cons b₀ f₀, Fin.cons b₁ f₁, ?_, fun B hB => ?_⟩
   · intro x hx
     rcases hx with rfl | ⟨i, hi, rfl⟩
@@ -369,25 +356,15 @@ private theorem natarajanShatters_insert_zero {n : ℕ} {R : Set (Fin (n + 1) �
     · simpa only [Fin.cons_succ] using hne i hi
   · obtain ⟨g, ⟨hg₀, hg₁⟩, h₀, h₁⟩ := h (W ∩ Fin.succ ⁻¹' B) Set.inter_subset_left
     refine ⟨Fin.cons (if (0 : Fin (n + 1)) ∈ B then b₀ else b₁) g, ?_, ?_, ?_⟩
-    · split_ifs
-      · exact hg₀
-      · exact hg₁
+    · split_ifs <;> assumption
     · intro x hx
       rcases Fin.eq_zero_or_eq_succ x with rfl | ⟨i, rfl⟩
       · simp only [Fin.cons_zero, hx, ↓reduceIte]
-      · have hi : i ∈ W := by
-          rcases hB hx with h0 | ⟨j, hj, hji⟩
-          · exact absurd h0 (Fin.succ_ne_zero i)
-          · rwa [Fin.succ_inj.1 hji] at hj
-        simpa only [Fin.cons_succ] using h₀ i ⟨hi, hx⟩
+      · simpa only [Fin.cons_succ] using h₀ i ⟨hmem i (hB hx), hx⟩
     · rintro x ⟨hx, hxB⟩
       rcases Fin.eq_zero_or_eq_succ x with rfl | ⟨i, rfl⟩
       · simp only [Fin.cons_zero, hxB, ↓reduceIte]
-      · have hi : i ∈ W := by
-          rcases hx with h0 | ⟨j, hj, hji⟩
-          · exact absurd h0 (Fin.succ_ne_zero i)
-          · rwa [Fin.succ_inj.1 hji] at hj
-        simpa only [Fin.cons_succ] using h₁ i ⟨hi, fun h => hxB h.2⟩
+      · simpa only [Fin.cons_succ] using h₁ i ⟨hmem i hx, fun h => hxB h.2⟩
 
 /-- **Natarajan's lemma** for finite sets of labelings of `Fin n`. -/
 private theorem card_le_natarajanSum [Fintype β] :
@@ -409,24 +386,16 @@ private theorem card_le_natarajanSum [Fintype β] :
     set Rp : Finset β → Finset (Fin n → β) := fun p =>
       R'.filter fun g => p ⊆ V g
     -- Each member of `R` is determined by its tail and its label at `0`.
-    have hfib : ∀ g ∈ R', (R.filter fun f => Fin.tail f = g).card = (V g).card := by
-      intro g _
-      refine card_nbij' (fun f => f 0) (fun b => Fin.cons b g) ?_ ?_ ?_ ?_
-      · intro f hf
-        simp only [mem_coe, mem_filter] at hf
-        simp only [mem_coe, mem_filter, mem_univ, true_and, V]
-        rw [← hf.2, Fin.cons_self_tail]
-        exact hf.1
-      · intro b hb
-        simp only [mem_coe, mem_filter, mem_univ, true_and, V] at hb
-        simp only [mem_coe, mem_filter, Fin.tail_cons, and_true]
-        exact hb
-      · intro f hf
-        simp only [mem_coe, mem_filter] at hf
-        dsimp only
-        rw [← hf.2, Fin.cons_self_tail]
-      · intro b _
-        simp only [Fin.cons_zero]
+    have hfib : ∀ g ∈ R', (R.filter fun f => Fin.tail f = g).card = (V g).card := fun g _ => by
+      refine card_nbij' (fun f => f 0) (fun b => Fin.cons b g) (fun f hf => ?_) (fun b hb => ?_)
+        (fun f hf => ?_) fun b _ => Fin.cons_zero _ _
+      · simp only [mem_coe, mem_filter] at hf
+        simpa only [mem_coe, mem_filter, mem_univ, true_and, V, ← hf.2, Fin.cons_self_tail]
+          using hf.1
+      · simp only [mem_coe, mem_filter, mem_univ, true_and, V] at hb
+        exact mem_filter.2 ⟨hb, Fin.tail_cons _ _⟩
+      · dsimp only
+        rw [← (mem_filter.1 hf).2, Fin.cons_self_tail]
     have hcount : R.card ≤ R'.card + ∑ p ∈ univ.powersetCard 2, (Rp p).card := by
       calc R.card = ∑ g ∈ R', (R.filter fun f => Fin.tail f = g).card :=
             card_eq_sum_card_fiberwise fun f hf => mem_image_of_mem _ hf
@@ -476,18 +445,13 @@ private theorem card_le_natarajanSum [Fintype β] :
       rwa [card_insert_of_notMem h0, card_map] at this
     rcases d with _ | d
     · -- With `d = 0` no pair of labels extends a common tail.
-      have hzero : ∀ p ∈ (univ : Finset β).powersetCard 2, (Rp p).card = 0 := by
-        intro p hp
-        rw [card_eq_zero, ← not_nonempty_iff_eq_empty]
-        intro hne
-        have := hRp p hp ∅ (by
-          rw [coe_empty]
-          exact natarajanShatters_empty (hne.coe_sort.elim fun g => ⟨g, g.2⟩))
-        simp at this
+      have hzero : ∀ p ∈ (univ : Finset β).powersetCard 2, (Rp p).card = 0 := fun p hp =>
+        card_eq_zero.2 <| not_nonempty_iff_eq_empty.1 fun hne => by
+          simpa using hRp p hp ∅ (by
+            rw [coe_empty]
+            exact natarajanShatters_empty (coe_nonempty.2 hne))
       rw [sum_congr rfl hzero, sum_const_zero, add_zero] at hcount
-      have hR'1 : R'.card ≤ natarajanSum n (Fintype.card β) 0 := ih 0 R' hR'
-      rw [natarajanSum_zero_right] at hR'1 ⊢
-      omega
+      simpa only [natarajanSum_zero_right] using hcount.trans (ih 0 R' hR')
     · have hle : ∀ p ∈ (univ : Finset β).powersetCard 2,
           (Rp p).card ≤ natarajanSum n (Fintype.card β) d :=
         fun p hp => ih d (Rp p) fun W hW => by have := hRp p hp W hW; omega
@@ -532,10 +496,8 @@ theorem natarajanSum_le_sum_choose_mul (n d : ℕ) {k : ℕ} (hk : 0 < k) :
     natarajanSum n k d ≤ (∑ i ∈ range (d + 1), n.choose i) * k ^ (2 * d) := by
   have hK : k.choose 2 ≤ k ^ 2 := by have := two_mul_choose_two_le k; omega
   calc natarajanSum n k d ≤ ∑ i ∈ range (d + 1), n.choose i * (k ^ 2) ^ d := by
-        refine sum_le_sum fun i hi => Nat.mul_le_mul_left _ ?_
-        calc k.choose 2 ^ i ≤ (k ^ 2) ^ i := Nat.pow_le_pow_left hK i
-          _ ≤ (k ^ 2) ^ d :=
-            Nat.pow_le_pow_right (by positivity) (Nat.lt_succ_iff.1 (mem_range.1 hi))
+        refine sum_le_sum fun i hi => Nat.mul_le_mul_left _ ((Nat.pow_le_pow_left hK i).trans ?_)
+        exact Nat.pow_le_pow_right (by positivity) (Nat.lt_succ_iff.1 (mem_range.1 hi))
     _ = (∑ i ∈ range (d + 1), n.choose i) * (k ^ 2) ^ d := (sum_mul _ _ _).symm
     _ = (∑ i ∈ range (d + 1), n.choose i) * k ^ (2 * d) := by rw [← pow_mul]
 

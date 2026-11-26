@@ -111,10 +111,8 @@ theorem length_of_mem_support_iopRunRounds {d : ℕ} {Sym Chal : Type}
     rw [iopRunRounds, PMF.support_pure, Set.mem_singleton_iff] at hmem
     simp only [hmem, Nat.add_zero]
   | k + 1, pref, tr, hmem => by
-    rw [iopRunRounds, PMF.mem_support_bind_iff] at hmem
-    obtain ⟨π, _, hmem⟩ := hmem
-    rw [PMF.mem_support_bind_iff] at hmem
-    obtain ⟨c, _, hmem⟩ := hmem
+    simp only [iopRunRounds, PMF.mem_support_bind_iff] at hmem
+    obtain ⟨π, _, c, _, hmem⟩ := hmem
     have ih := length_of_mem_support_iopRunRounds P k (pref ++ [(π, c)]) tr hmem
     simp only [List.length_append, List.length_singleton] at ih
     omega
@@ -145,10 +143,8 @@ private theorem iopRunRounds_escape_le_sum_aux {d : ℕ} {Sym Chal : Type}
         (PMF.uniformOfFintype Chal).toOuterMeasure {c | ¬ goodStep pref' π c} ≤ ε t) →
       (iopRunRounds P m pref).toOuterMeasure {tr | ¬ doomed tr} ≤ ∑ t ∈ Finset.range m, ε t
   | 0, _, pref, _, _, hdoomed, _ => by
-    have hzero : (PMF.pure pref).toOuterMeasure {tr | ¬ doomed tr} = 0 := by
-      rw [PMF.toOuterMeasure_pure_apply]
-      simp [hdoomed]
-    simp only [iopRunRounds, hzero, Finset.range_zero, Finset.sum_empty, le_refl]
+    simp only [iopRunRounds, PMF.toOuterMeasure_pure_apply, Set.mem_ofPred_eq, hdoomed,
+      not_true_eq_false, ↓reduceIte, Finset.range_zero, Finset.sum_empty, le_refl]
   | m + 1, j, pref, ε, hlen, hdoomed, hesc => by
     rw [iopRunRounds]
     refine (Cslib.Probability.PMF.toOuterMeasure_bind_le (P pref) _ _
@@ -156,19 +152,14 @@ private theorem iopRunRounds_escape_le_sum_aux {d : ℕ} {Sym Chal : Type}
     · refine (Cslib.Probability.PMF.toOuterMeasure_bind_le_add (PMF.uniformOfFintype Chal)
         (fun c => iopRunRounds P m (pref ++ [(π, c)]))
         {c | ¬ goodStep pref π c} {tr | ¬ doomed tr}
-        (∑ t ∈ Finset.range m, ε (t + 1)) ?_).trans
+        (∑ t ∈ Finset.range m, ε (t + 1)) fun c _ hc_good => ?_).trans
         (add_le_add (hesc 0 pref π (Nat.zero_lt_succ m) (by omega) hdoomed) le_rfl)
-      intro c _ hc_good
-      have hc' : goodStep pref π c := by
-        simpa only [Set.mem_ofPred_eq, not_not] using hc_good
-      have hdoomed' : doomed (pref ++ [(π, c)]) := hstep pref π c hdoomed hc'
-      have hlen' : (pref ++ [(π, c)]).length = j + 1 := by
-        simp only [List.length_append, List.length_singleton, hlen]
       exact iopRunRounds_escape_le_sum_aux P hstep m (j + 1) (pref ++ [(π, c)])
-        (fun t => ε (t + 1)) hlen' hdoomed' (fun t pref' π' ht hlen'' hd' =>
-          hesc (t + 1) pref' π' (Nat.succ_lt_succ ht) (by omega) hd')
-    · rw [Finset.sum_range_succ']
-      exact le_of_eq (add_comm _ _)
+        (fun t => ε (t + 1)) (by simp only [List.length_append, List.length_singleton, hlen])
+        (hstep pref π c hdoomed (by simpa only [Set.mem_ofPred_eq, not_not] using hc_good))
+        fun t pref' π' ht hlen'' hd' =>
+          hesc (t + 1) pref' π' (Nat.succ_lt_succ ht) (by omega) hd'
+    · rw [Finset.sum_range_succ', add_comm]
 
 /-- **Prefix union bound for interactive public-coin IOPs**: if the empty transcript is doomed,
 `goodStep` preserves `doomed`, and round `j < k` escapes `goodStep` with probability at most
@@ -223,12 +214,9 @@ theorem iopCommitPhase_map_true_le_sum {d : ℕ} {Stmt Sym Chal : Type}
     have hlen : pref.length = k := by
       simpa only [List.length_nil, Nat.zero_add] using
         length_of_mem_support_iopRunRounds P k [] pref hsupp
-    have hd : doomed x pref := by simpa only [Set.mem_ofPred_eq, not_not] using hgood
-    rw [PMF.toOuterMeasure_map_apply]
-    have hempty : badFinal pref ⁻¹' {true} = ∅ := by
-      ext πFinal
-      simp [hfinal pref πFinal hlen hd]
-    rw [hempty]
+    have hempty : badFinal pref ⁻¹' {true} = ∅ := Set.ext fun πFinal => by
+      simp [hfinal pref πFinal hlen (by simpa only [Set.mem_ofPred_eq, not_not] using hgood)]
+    rw [PMF.toOuterMeasure_map_apply, hempty]
     exact (MeasureTheory.OuterMeasure.empty _).le
   · rw [add_zero]
     exact iopPrefixEscape_le_sum hinit hstep k ε_round hescape P
@@ -250,13 +238,7 @@ theorem iopInteractiveGame_le_sum {r d : ℕ} {Stmt Wit Sym Chal : Type}
     iopInteractiveGame iop x P true ≤ ∑ j : Fin r, ε_round j := by
   let defaultEntry : OracleTable d Sym × Chal :=
     ((P []).support_nonempty.some, Classical.arbitrary Chal)
-  let acceptFn : List (OracleTable d Sym × Chal) → Bool := fun tr =>
-    iopVerify iop x (fun j => (tr[j.val]?.getD defaultEntry).2)
-      (fun j => (tr[j.val]?.getD defaultEntry).1)
-  have hgame : iopInteractiveGame iop x P true =
-      (iopRunRounds P r []).toOuterMeasure (acceptFn ⁻¹' {true}) := by
-    rw [← PMF.toOuterMeasure_apply_singleton, iopInteractiveGame, PMF.toOuterMeasure_map_apply]
-  rw [hgame]
+  rw [← PMF.toOuterMeasure_apply_singleton, iopInteractiveGame, PMF.toOuterMeasure_map_apply]
   refine ((iopRunRounds P r []).toOuterMeasure_mono ?_).trans
     (iopPrefixEscape_le_sum (hrbr.init_doomed x hx) (hrbr.step_doomed x)
       r ε_round (hescape x hx) P)
@@ -368,17 +350,11 @@ private theorem iopRunRounds_ofCausal_aux {r d : ℕ} {Sym Chal : Type}
     · have hk1 : k.val < j + 1 := by omega
       simp only [hk, hk1, ↓reduceDIte]
       exact Fin.snoc_castSucc (α := fun _ => Chal) (rest 0) hist ⟨k.val, hk⟩
-    · have hk1 : k.val < j + 1 := by omega
-      have hnot : ¬ k.val < j := by omega
-      simp only [hnot, hk1, ↓reduceDIte]
-      have hlast : (⟨k.val, hk1⟩ : Fin (j + 1)) = Fin.last j := Fin.ext hkeq
-      have hzero : (⟨k.val - j, by omega⟩ : Fin (m + 1)) = 0 := Fin.ext (by simp [hkeq])
-      rw [hlast, Fin.snoc_last, hzero]
-    · have hnot1 : ¬ k.val < j := by omega
-      have hnot2 : ¬ k.val < j + 1 := by omega
-      simp only [hnot1, hnot2, ↓reduceDIte, Fin.tail]
-      congr 1
-      ext
+    · simp only [hkeq, lt_irrefl, Nat.lt_succ_self, ↓reduceDIte]
+      rw [show (⟨j, Nat.lt_succ_self j⟩ : Fin (j + 1)) = Fin.last j from rfl, Fin.snoc_last]
+      exact congrArg rest (Fin.ext (Nat.sub_self j).symm)
+    · simp only [not_lt.mpr hk.le, not_lt.mpr (Nat.succ_le_of_lt hk), ↓reduceDIte, Fin.tail]
+      refine congrArg rest (Fin.ext ?_)
       simp only [Fin.val_succ]
       omega
 
@@ -392,23 +368,17 @@ theorem iopInteractiveGame_ofCausal_eq {r d : ℕ} {Stmt Wit Sym Chal : Type}
       (PMF.uniformOfFintype (Fin r → Chal)).map fun chals =>
         iopVerify iop x chals (fun j => P j fun i => chals ⟨i.val, lt_trans i.isLt j.isLt⟩) := by
   have hrun := iopRunRounds_ofCausal_aux P r 0 (Nat.zero_add r) Fin.elim0
-  have hnil : causalPref P 0 (Nat.zero_le r) Fin.elim0 = [] := rfl
-  rw [hnil] at hrun
+  dsimp only [causalPref] at hrun
   simp only [iopInteractiveGame]
   change (iopRunRounds (InteractiveIOPProver.ofCausal P) r []).map _ = _
   rw [hrun, PMF.map_comp]
-  congr 1
-  funext chals
-  simp only [Function.comp_apply, Nat.not_lt_zero, ↓reduceDIte, Nat.sub_zero, Fin.eta]
+  congr 1 with chals : 1
   have hget (j : Fin r) (d0 : OracleTable d Sym × Chal) :
       (causalPref P r le_rfl chals)[j.val]?.getD d0 =
         (P j (fun i => chals ⟨i.val, lt_trans i.isLt j.isLt⟩), chals j) := by
-    have hj : j.val < (causalPref P r le_rfl chals).length := by
-      rw [length_causalPref]
-      exact j.isLt
-    rw [List.getElem?_eq_getElem hj, Option.getD_some,
-      getElem_causalPref P r le_rfl chals j.val j.isLt]
-  simp only [hget]
+    rw [List.getElem?_eq_getElem ((length_causalPref P r le_rfl chals).symm ▸ j.isLt),
+      Option.getD_some, getElem_causalPref P r le_rfl chals j.val j.isLt]
+  simp only [Function.comp_apply, Nat.not_lt_zero, ↓reduceDIte, Nat.sub_zero, Fin.eta, hget]
 
 /-- Bridge from per-round escape budgets `ε_round : Fin r → ℝ≥0∞` to the uniform all-prefix escape
 bound `≤ Finset.univ.sup ε_round` consumed by `Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound`
@@ -429,10 +399,8 @@ theorem iopEscape_le_sup_of_perRound {r d : ℕ} {Stmt Sym Chal : Type}
   by_cases hlt : pref.length < r
   · exact (hescape x hx ⟨pref.length, hlt⟩ pref π rfl hdoomed).trans
       (Finset.le_sup (Finset.mem_univ (⟨pref.length, hlt⟩ : Fin r)))
-  · have hge : r ≤ pref.length := Nat.le_of_not_lt hlt
-    have hempty : {c : Chal | ¬ goodStep x pref π c} = ∅ := by
-      ext c
-      simp [hlong x hx pref π c hge]
+  · have hempty : {c : Chal | ¬ goodStep x pref π c} = ∅ :=
+      Set.ext fun c => by simp [hlong x hx pref π c (Nat.le_of_not_lt hlt)]
     rw [hempty]
     exact (MeasureTheory.OuterMeasure.empty _).trans_le zero_le
 

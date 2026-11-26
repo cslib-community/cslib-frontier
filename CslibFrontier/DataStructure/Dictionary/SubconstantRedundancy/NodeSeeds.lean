@@ -174,15 +174,12 @@ instance instInhabitedRouterSeed (ℓ : ℕ) : Inhabited (P.RouterSeed ℓ) :=
 theorem card_routerSeed (ℓ : ℕ) :
     Fintype.card (P.RouterSeed ℓ) = 2 ^ P.routerSeedBits ℓ := by
   dsimp only [routerSeedBits]
-  by_cases h : P.usesDoubleTabRouter ℓ
-  · have hth : FeistelPerm.childRouterThreshold P.epsInv P.alphaInv ≤ P.nLow ℓ := h
-    rw [ite_eq_left hth, ← Fintype.card_congr (P.routerSeedDoubleTabEquiv h)]
+  split_ifs with h
+  · rw [← Fintype.card_congr (P.routerSeedDoubleTabEquiv h)]
     exact FeistelPerm.card_childRouterSeed _ _ _ _
-  · have hth : ¬ FeistelPerm.childRouterThreshold P.epsInv P.alphaInv ≤ P.nLow ℓ := h
-    rw [ite_eq_right hth, ← Fintype.card_congr (P.routerSeedTrinomialEquiv h)]
+  · rw [← Fintype.card_congr (P.routerSeedTrinomialEquiv h)]
     simp only [SmallRouterSeed, Fintype.card_fun, Fintype.card_fin, ← Nat.pow_mul]
-    congr 1
-    ring
+    exact congrArg (2 ^ ·) (by ring)
 
 /-- Below `childRouterThreshold`, the trinomial child-router polynomial degree is bounded by the
 capacity-independent constant `smallRouterMaxDegree P.epsInv P.alphaInv`. -/
@@ -193,18 +190,14 @@ theorem smallRouterDegree_le (hcr : P.ConcentrationReady) {ℓ : ℕ} (hℓ : �
   have hlt : P.nLow ℓ < FeistelPerm.childRouterThreshold P.epsInv P.alphaInv := not_le.mp hsmall
   have hnhi : P.nHigh ℓ ≤ 4 * FeistelPerm.childRouterThreshold P.epsInv P.alphaInv := by
     rcases Nat.eq_zero_or_pos ℓ with rfl | hpos
-    · have hcap : 2 ≤ P.cap := P.two_le_cap
+    · have := P.two_le_cap
       simp only [nLow, nHigh, ↓reduceIte] at hlt ⊢
       omega
-    · have h2d := hcr.two_mul_delta_le_nFloor ℓ hpos hℓ.le
-      dsimp only [nLow, nHigh] at hlt ⊢
-      rw [ite_eq_right hpos.ne'] at hlt ⊢
+    · have := hcr.two_mul_delta_le_nFloor ℓ hpos hℓ.le
+      simp only [nLow, nHigh, hpos.ne', ↓reduceIte] at hlt ⊢
       omega
-  dsimp only [smallRouterMaxDegree]
-  rw [FeistelPerm.childRouterHalfInd_eq, FeistelPerm.childRouterHalfInd_eq]
-  have hclog : Nat.clog 2 (max (P.nHigh ℓ) 2) ≤
-      Nat.clog 2 (max (4 * FeistelPerm.childRouterThreshold P.epsInv P.alphaInv) 2) :=
-    Nat.clog_mono_right 2 (max_le_max_right 2 hnhi)
+  have := Nat.clog_mono_right 2 (max_le_max_right 2 hnhi)
+  simp only [smallRouterMaxDegree, FeistelPerm.childRouterHalfInd_eq]
   omega
 
 /-- Zero-pad a small-node trinomial router seed from `2 * childRouterHalfInd (nHigh ℓ)`
@@ -248,26 +241,22 @@ theorem routerRound_trinomial_eq_padded (hcr : P.ConcentrationReady) {ℓ : ℕ}
         (trinomialStep (P.routerRightUniv ℓ) (P.branchBits ℓ))
         (smallRouterMaxDegree P.epsInv P.alphaInv)
         (P.routerRightUniv ℓ) (P.branchBits ℓ) (P.padSmallRouterSeed ℓ seed) x := by
-  have hkM : 2 * FeistelPerm.childRouterHalfInd (P.nHigh ℓ) ≤
-      smallRouterMaxDegree P.epsInv P.alphaInv := P.smallRouterDegree_le hcr hℓ hsmall
+  have hkM := P.smallRouterDegree_le hcr hℓ hsmall
   let t := trinomialStep (P.routerRightUniv ℓ) (P.branchBits ℓ)
   let k := 2 * FeistelPerm.childRouterHalfInd (P.nHigh ℓ)
   let M := smallRouterMaxDegree P.epsInv P.alphaInv
   apply Fin.ext
   dsimp only [routerRound, trinomialPolyHash, trinomialPolyEval, polynomialHash,
     SmallRouterSeed, trinomialDeg] at seed ⊢
-  apply congrArg (· % 2 ^ P.branchBits ℓ)
-  apply congrArg Fin.val
-  apply congrArg (TrinomialField.equivFin t)
+  refine congrArg (fun z => (TrinomialField.equivFin t z).val % 2 ^ P.branchBits ℓ) ?_
   rw [← Finset.sum_filter_add_sum_filter_not (s := (Finset.univ : Finset (Fin M)))
     (p := fun i : Fin M => i.val < k)]
   have htail : ∑ i ∈ Finset.univ.filter (fun i : Fin M => ¬ i.val < k),
       (TrinomialField.equivFin t).symm (P.padSmallRouterSeed ℓ seed i) *
         AdjoinRoot.mk (trinomial t) (polyOfCode x.val) ^ (i : ℕ) = 0 := by
     refine Finset.sum_eq_zero fun i hi => ?_
-    have hnot : ¬ i.val < 2 * FeistelPerm.childRouterHalfInd (P.nHigh ℓ) := (mem_filter.mp hi).2
     dsimp only [padSmallRouterSeed, trinomialDeg]
-    rw [dite_eq_right hnot, TrinomialField.equivFin_symm_eq_mk_polyOfCode]
+    rw [dite_eq_right (mem_filter.mp hi).2, TrinomialField.equivFin_symm_eq_mk_polyOfCode]
     simp
   rw [htail, add_zero]
   refine Finset.sum_bij (fun (j : Fin k) _ => (⟨j.val, j.isLt.trans_le hkM⟩ : Fin M))
@@ -275,8 +264,7 @@ theorem routerRound_trinomial_eq_padded (hcr : P.ConcentrationReady) {ℓ : ℕ}
     (fun _ _ _ _ h => Fin.ext (Fin.mk.inj h))
     (fun i hi => ⟨⟨i.val, (mem_filter.mp hi).2⟩, mem_univ _, rfl⟩)
     fun j _ => ?_
-  dsimp only [padSmallRouterSeed, trinomialDeg]
-  rw [dite_eq_left j.isLt]
+  simp only [padSmallRouterSeed, j.isLt, ↓reduceDIte]
 
 /-- Regime-switched child-router Feistel involution on
 `Fin (2 ^ branchBits ℓ) × Fin (routerRightUniv ℓ)`. -/
@@ -301,13 +289,12 @@ private theorem nFloor_le_two_mul_of_nLow_le (hcr : P.ConcentrationReady) {ℓ m
     (hℓ : ℓ ≤ P.depth) (hlo : P.nLow ℓ ≤ m) :
     P.nFloor ℓ ≤ 2 * m := by
   rcases Nat.eq_zero_or_pos ℓ with rfl | hpos
-  · have h6 := hcr.six_le_nFloor 0 (Nat.zero_le _)
-    have h0 := P.nFloor_zero
-    simp only [nLow, ↓reduceIte] at hlo
+  · simp only [nLow, ↓reduceIte] at hlo
+    have := hcr.six_le_nFloor 0 (Nat.zero_le _)
+    have := P.nFloor_zero
     omega
-  · have h2d := hcr.two_mul_delta_le_nFloor ℓ hpos hℓ
-    dsimp only [nLow] at hlo
-    rw [ite_eq_right hpos.ne'] at hlo
+  · simp only [nLow, hpos.ne', ↓reduceIte] at hlo
+    have := hcr.two_mul_delta_le_nFloor ℓ hpos hℓ
     omega
 
 open scoped Classical in
@@ -338,9 +325,8 @@ theorem dens_routerRound_outside_bounds_le (hcr : P.ConcentrationReady) {ℓ : �
         (FeistelPerm.bucketLoad f S b : ℝ) ≤ μ + a) →
       ∀ b : Fin (2 ^ s),
         P.nLow (ℓ + 1) ≤ FeistelPerm.bucketLoad f S b ∧
-          FeistelPerm.bucketLoad f S b ≤ P.nHigh (ℓ + 1) := by
-    intro f hf b
-    exact hcr.window_contained ℓ hℓ #S (FeistelPerm.bucketLoad f S b) hlo hhi (hf b).1 (hf b).2
+          FeistelPerm.bucketLoad f S b ≤ P.nHigh (ℓ + 1) := fun f hf b =>
+    hcr.window_contained ℓ hℓ #S (FeistelPerm.bucketLoad f S b) hlo hhi (hf b).1 (hf b).2
   by_cases hdt : P.usesDoubleTabRouter ℓ
   · rw [← Fintype.dens_filter_comp_equiv (P.routerSeedDoubleTabEquiv hdt)]
     have hthresh : FeistelPerm.childRouterThreshold P.epsInv P.alphaInv ≤ #S := hdt.trans hlo
@@ -352,107 +338,50 @@ theorem dens_routerRound_outside_bounds_le (hcr : P.ConcentrationReady) {ℓ : �
     have hconc : 2 ^ s * (150 * FeistelPerm.childRouterHalfInd #S) ^ 3 ≤ #S :=
       (Nat.mul_le_mul_left (2 ^ s) (Nat.pow_le_pow_left (by omega) 3)).trans
         ((hcr.conc_bound ℓ hℓ).trans hlo)
-    have hsub : (Finset.univ.filter fun seed : P.LargeRouterSeed ℓ =>
-        ¬ ∀ b : Fin (2 ^ s),
-          P.nLow (ℓ + 1) ≤ FeistelPerm.bucketLoad (P.routerRound ℓ
-            ((P.routerSeedDoubleTabEquiv hdt) seed)) S b ∧
-            FeistelPerm.bucketLoad (P.routerRound ℓ
-              ((P.routerSeedDoubleTabEquiv hdt) seed)) S b ≤ P.nHigh (ℓ + 1)) ⊆
-        Finset.univ.filter fun seed : P.LargeRouterSeed ℓ =>
-          ¬ ∀ b : Fin (2 ^ s),
-            μ - a ≤ (FeistelPerm.bucketLoad
-              (FeistelPerm.childRouterRound (FeistelPerm.childRouterChars P.epsInv)
-                (FeistelPerm.childRouterRep P.epsInv P.alphaInv)
-                (FeistelPerm.childRouterCharBits (FeistelPerm.childRouterChars P.epsInv) T)
-                s T seed) S b : ℝ) ∧
-              (FeistelPerm.bucketLoad
-                (FeistelPerm.childRouterRound (FeistelPerm.childRouterChars P.epsInv)
-                  (FeistelPerm.childRouterRep P.epsInv P.alphaInv)
-                  (FeistelPerm.childRouterCharBits (FeistelPerm.childRouterChars P.epsInv) T)
-                  s T seed) S b : ℝ) ≤ μ + a := by
-      intro seed hseed
-      simp only [mem_filter, Finset.mem_univ, true_and, routerSeedDoubleTabEquiv_apply,
-        routerRound] at hseed ⊢
-      exact fun hgood => hseed (hwin_imp _ hgood)
-    have hbase := FeistelPerm.dens_childRouter_bucketLoad_outside_le_of_threshold
-      (hcr.gap_bound ℓ hℓ) S hthresh hconc
     have h4S : (P.nFloor ℓ : ℝ) ^ 2 ≤ 4 * (#S : ℝ) ^ 2 := by
-      have hnat : (P.nFloor ℓ) ^ 2 ≤ 4 * #S ^ 2 := by
-        calc (P.nFloor ℓ) ^ 2 ≤ (2 * #S) ^ 2 := Nat.pow_le_pow_left h2m 2
-          _ = 4 * #S ^ 2 := by rw [Nat.mul_pow, show (2 : ℕ) ^ 2 = 4 by decide]
-      exact_mod_cast hnat
-    exact ((NNRat.cast_le.mpr (dens_le_dens hsub)).trans hbase).trans
-      (one_div_le_one_div_of_le (sq_pos_of_pos hnF_pos) h4S)
+      have : (P.nFloor ℓ : ℝ) ≤ 2 * #S := by exact_mod_cast h2m
+      nlinarith
+    refine (NNRat.cast_le.mpr (dens_le_dens fun seed hseed => ?_)).trans
+      ((FeistelPerm.dens_childRouter_bucketLoad_outside_le_of_threshold (hcr.gap_bound ℓ hℓ) S
+        hthresh hconc).trans (one_div_le_one_div_of_le (sq_pos_of_pos hnF_pos) h4S))
+    simp only [mem_filter, Finset.mem_univ, true_and, routerSeedDoubleTabEquiv_apply,
+      routerRound] at hseed ⊢
+    exact fun hgood => hseed (hwin_imp _ hgood)
   · rw [← Fintype.dens_filter_comp_equiv (P.routerSeedTrinomialEquiv hdt)]
     let m_hi := FeistelPerm.childRouterHalfInd (P.nHigh ℓ)
     let L_hi := Nat.clog 2 (max (P.nHigh ℓ) 2)
     have hm_eq : m_hi = 3 * L_hi + 4 := FeistelPerm.childRouterHalfInd_eq (P.nHigh ℓ)
-    have hm4 : 4 ≤ m_hi := by omega
     have hm1 : 1 ≤ m_hi := by omega
     have hconc_hi : 2 ^ s * (150 * m_hi) ^ 3 ≤ #S := (hcr.conc_bound ℓ hℓ).trans hlo
-    have hS_pos : 1 ≤ #S := by
-      have h1 : 1 ≤ 2 ^ s * (150 * m_hi) ^ 3 := Nat.mul_pos (Nat.two_pow_pos s) (by positivity)
-      omega
+    have hS_pos : 0 < #S := (by positivity : 0 < 2 ^ s * (150 * m_hi) ^ 3).trans_le hconc_hi
     have hμ_pos : 0 < μ := div_pos (Nat.cast_pos.mpr hS_pos) (pow_pos two_pos s)
     let u : ℝ := μ ^ ((1 : ℝ) / 3)
     have hu_pos : 0 < u := Real.rpow_pos_of_pos hμ_pos _
-    have hu3 : u ^ 3 = μ := by
-      dsimp only [u]
+    have hu_pow (k : ℕ) : μ ^ ((k : ℝ) / 3) = u ^ k := by
       rw [← Real.rpow_natCast, ← Real.rpow_mul hμ_pos.le]
-      norm_num
-    have hu2 : μ ^ ((2 : ℝ) / 3) = u ^ 2 := by
-      dsimp only [u]
-      rw [← Real.rpow_natCast, ← Real.rpow_mul hμ_pos.le]
-      norm_num
-    have h150_cube : (150 * (m_hi : ℝ)) ^ 3 ≤ u ^ 3 := by
-      rw [hu3]
-      dsimp only [μ]
-      rw [le_div_iff₀ (pow_pos two_pos s), mul_comm]
+      exact congrArg (μ ^ ·) (by ring)
+    have hu3 : u ^ 3 = μ := by rw [← hu_pow]; norm_num
+    have h150 : 150 * (m_hi : ℝ) ≤ u := by
+      refine (pow_le_pow_iff_left₀ (by positivity) hu_pos.le (Nat.succ_ne_zero 2)).mp ?_
+      rw [hu3, le_div_iff₀ (pow_pos two_pos s), mul_comm]
       exact_mod_cast hconc_hi
-    have h150 : 150 * (m_hi : ℝ) ≤ u :=
-      (pow_le_pow_iff_left₀ (mul_nonneg (by norm_num) (Nat.cast_nonneg _)) hu_pos.le
-        (by decide : 3 ≠ 0)).mp h150_cube
     have ha_pos : 0 < a := mul_pos (by norm_num) (Real.rpow_pos_of_pos hμ_pos _)
-    have hm_real : (4 : ℝ) ≤ m_hi := by exact_mod_cast hm4
+    have hm_real : (1 : ℝ) ≤ m_hi := by exact_mod_cast hm1
     have hmμ : 2 * (m_hi : ℝ) ≤ 3 * μ := by
       rw [← hu3]
-      have hu1 : (1 : ℝ) ≤ u := by linarith only [h150, hm_real]
-      have hu_le : u ≤ u ^ 3 := le_self_pow₀ hu1 (by norm_num)
-      linarith only [h150, hu_le]
+      linarith [le_self_pow₀ (by linarith : (1 : ℝ) ≤ u) (by norm_num : 3 ≠ 0)]
     have hrat : 3 * (m_hi : ℝ) * μ / a ^ 2 ≤ (1 : ℝ) / 2 := by
-      rw [div_le_iff₀ (pow_pos ha_pos 2)]
-      have ha2 : a ^ 2 = ((1 : ℝ) / 25) * u ^ 4 := by dsimp only [a]; rw [hu2]; ring
-      rw [ha2, ← hu3]
-      calc 3 * (m_hi : ℝ) * u ^ 3
-          = ((1 : ℝ) / 50) * (150 * (m_hi : ℝ) * u ^ 3) := by ring
-        _ ≤ ((1 : ℝ) / 50) * (u * u ^ 3) :=
-            mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_right h150 (pow_nonneg hu_pos.le 3))
-              (by norm_num)
-        _ = (1 : ℝ) / 2 * (((1 : ℝ) / 25) * u ^ 4) := by ring
+      have ha2 : a ^ 2 = ((1 : ℝ) / 25) * u ^ 4 := by
+        dsimp only [a]
+        rw [show (2 : ℝ) / 3 = ((2 : ℕ) : ℝ) / 3 by norm_num, hu_pow]
+        ring
+      rw [div_le_iff₀ (pow_pos ha_pos 2), ha2, ← hu3]
+      linarith [mul_le_mul_of_nonneg_right h150 (pow_nonneg hu_pos.le 3)]
     have hkw : IsKWiseIndependentHash (2 * m_hi)
         (trinomialPolyHash (trinomialStep T s) (2 * m_hi) T s) :=
       isKWiseIndependentHash_trinomialPolyHash (le_two_pow_trinomialDeg T s) (le_trinomialDeg T s)
-    have hsub : (Finset.univ.filter fun seed : P.SmallRouterSeed ℓ =>
-        ¬ ∀ b : Fin (2 ^ s),
-          P.nLow (ℓ + 1) ≤ FeistelPerm.bucketLoad (P.routerRound ℓ
-            ((P.routerSeedTrinomialEquiv hdt) seed)) S b ∧
-            FeistelPerm.bucketLoad (P.routerRound ℓ
-              ((P.routerSeedTrinomialEquiv hdt) seed)) S b ≤ P.nHigh (ℓ + 1)) ⊆
-        Finset.univ.filter fun seed : P.SmallRouterSeed ℓ => ∃ b : Fin (2 ^ s),
-          a ≤ |(FeistelPerm.bucketLoad
-            (trinomialPolyHash (trinomialStep T s) (2 * m_hi) T s seed) S b : ℝ) - μ| := by
-      intro seed hseed
-      simp only [mem_filter, Finset.mem_univ, true_and, routerSeedTrinomialEquiv_apply,
-        routerRound] at hseed ⊢
-      by_contra hno
-      simp only [not_exists, not_le] at hno
-      refine hseed (hwin_imp _ fun b => ?_)
-      have hb := abs_lt.mp (hno b)
-      exact ⟨by linarith only [hb.1], by linarith only [hb.2]⟩
-    have htail := FeistelPerm.dens_exists_bucketLoad_sub_ge_le hm1 hkw S hmμ ha_pos
-    have h2s_le : 2 ^ s ≤ 2 ^ L_hi := by
-      calc 2 ^ s ≤ 2 ^ s * (150 * m_hi) ^ 3 :=
-            Nat.le_mul_of_pos_right _ (by positivity)
+    have h2s_le : 2 ^ s ≤ 2 ^ L_hi :=
+      calc 2 ^ s ≤ 2 ^ s * (150 * m_hi) ^ 3 := Nat.le_mul_of_pos_right _ (by positivity)
         _ ≤ #S := hconc_hi
         _ ≤ max (P.nHigh ℓ) 2 := hhi.trans (le_max_left _ 2)
         _ ≤ 2 ^ L_hi := Nat.le_pow_clog Nat.one_lt_two _
@@ -463,26 +392,31 @@ theorem dens_routerRound_outside_bounds_le (hcr : P.ConcentrationReady) {ℓ : �
         · simp [P.nFloor_zero]
         · rw [ite_eq_right hpos.ne']; omega
       exact (hnF_hi.trans (le_max_left _ 2)).trans (Nat.le_pow_clog Nat.one_lt_two _)
-    have hpow_nat : 2 ^ (s + 1) * (P.nFloor ℓ) ^ 2 ≤ 2 ^ m_hi := by
+    have hpow_nat : 2 ^ (s + 1) * (P.nFloor ℓ) ^ 2 ≤ 2 ^ m_hi :=
       calc 2 ^ (s + 1) * (P.nFloor ℓ) ^ 2
-          = 2 * 2 ^ s * (P.nFloor ℓ) ^ 2 := by rw [Nat.pow_succ']
-        _ ≤ 2 * 2 ^ L_hi * (2 ^ L_hi) ^ 2 :=
-            Nat.mul_le_mul (Nat.mul_le_mul_left 2 h2s_le) (Nat.pow_le_pow_left hnF_le 2)
+          ≤ 2 * 2 ^ L_hi * (2 ^ L_hi) ^ 2 := by
+            rw [Nat.pow_succ']
+            exact Nat.mul_le_mul (Nat.mul_le_mul_left 2 h2s_le) (Nat.pow_le_pow_left hnF_le 2)
         _ = 2 ^ (3 * L_hi + 1) := by
             rw [← Nat.pow_mul, ← Nat.pow_succ', ← Nat.pow_add]
             congr 1; omega
-        _ ≤ 2 ^ m_hi :=
-            Nat.pow_le_pow_right Nat.two_pos (by omega)
+        _ ≤ 2 ^ m_hi := Nat.pow_le_pow_right Nat.two_pos (by omega)
     have hpow_real : (2 ^ (s + 1) : ℝ) * ((1 : ℝ) / 2) ^ m_hi ≤
         1 / (P.nFloor ℓ : ℝ) ^ 2 := by
       rw [one_div_pow, mul_one_div, div_le_div_iff₀ (pow_pos two_pos m_hi) (sq_pos_of_pos hnF_pos),
         one_mul]
       exact_mod_cast hpow_nat
-    have hrat_nonneg : (0 : ℝ) ≤ 3 * (m_hi : ℝ) * μ / a ^ 2 :=
-      div_nonneg (mul_nonneg (mul_nonneg (by norm_num) (Nat.cast_nonneg _)) hμ_pos.le) (sq_nonneg a)
-    exact (((NNRat.cast_le.mpr (dens_le_dens hsub)).trans htail).trans
-      (mul_le_mul_of_nonneg_left (pow_le_pow_left₀ hrat_nonneg hrat m_hi)
-        (pow_nonneg (by norm_num) _))).trans hpow_real
+    refine (NNRat.cast_le.mpr (dens_le_dens fun seed hseed => ?_)).trans
+      (((FeistelPerm.dens_exists_bucketLoad_sub_ge_le hm1 hkw S hmμ ha_pos).trans
+        (mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (by positivity) hrat m_hi)
+          (pow_nonneg (by norm_num) _))).trans hpow_real)
+    simp only [mem_filter, Finset.mem_univ, true_and, routerSeedTrinomialEquiv_apply,
+      routerRound] at hseed
+    refine mem_filter.mpr ⟨mem_univ _, ?_⟩
+    by_contra! hno
+    refine hseed (hwin_imp _ fun b => ?_)
+    have hb := abs_lt.mp (hno b)
+    exact ⟨by linarith only [hb.1], by linarith only [hb.2]⟩
 
 /-! ## Section 2: Grouped per-node hash seeds `g_u` and unified `3 / n_ℓ ^ 2` bound -/
 
@@ -642,27 +576,15 @@ theorem dens_not_isGoodNodeSeed_le (hcr : P.ConcentrationReady) {ℓ : ℕ} (h�
     (S : Finset (P.PrimId ℓ)) (hlo : P.nLow ℓ ≤ #S) (hhi : #S ≤ P.nHigh ℓ) :
     (dens {g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S} : ℝ) ≤
       3 / (P.nFloor ℓ : ℝ) ^ 2 := by
-  have hnF_pos : (0 : ℝ) < (P.nFloor ℓ : ℝ) := Nat.cast_pos.mpr (P.nFloor_pos ℓ hℓ)
+  have hle (c : ℝ) (hc : c ≤ 3) : c / (P.nFloor ℓ : ℝ) ^ 2 ≤ 3 / (P.nFloor ℓ : ℝ) ^ 2 := by
+    gcongr
   cases ℓ with
   | zero =>
     rw [← Fintype.dens_filter_comp_equiv P.nodeSeedZeroEquiv]
-    have hsub0 : (Finset.univ.filter fun a : P.RouterSeed 0 =>
-        ¬ P.IsGoodNodeSeed 0 (P.nodeSeedZeroEquiv a) S) ⊆
-        Finset.univ.filter fun θ : P.RouterSeed 0 =>
-          ¬ ∀ b : Fin (2 ^ P.branchBits 0),
-            P.nLow 1 ≤ FeistelPerm.bucketLoad (P.routerRound 0 θ) S b ∧
-              FeistelPerm.bucketLoad (P.routerRound 0 θ) S b ≤ P.nHigh 1 := by
-      intro θ hθ
-      simp only [mem_filter, Finset.mem_univ, true_and, nodeSeedZeroEquiv_apply,
-        IsGoodNodeSeed] at hθ ⊢
-      exact hθ
-    have h0 := P.dens_routerRound_outside_bounds_le hcr (Nat.lt_of_lt_of_le Nat.zero_lt_two
-      P.two_le_depth) S hlo hhi
-    calc (dens _ : ℝ)
-        ≤ _ := by exact_mod_cast dens_le_dens hsub0
-      _ ≤ 1 / (P.nFloor 0 : ℝ) ^ 2 := h0
-      _ ≤ 3 / (P.nFloor 0 : ℝ) ^ 2 := by
-          rw [div_le_div_iff_of_pos_right (sq_pos_of_pos hnF_pos)]; norm_num
+    refine (NNRat.cast_le.mpr (dens_le_dens fun θ hθ => ?_)).trans
+      ((P.dens_routerRound_outside_bounds_le hcr (by have := P.two_le_depth; omega) S hlo
+        hhi).trans (hle 1 (by norm_num)))
+    simpa [IsGoodNodeSeed] using hθ
   | succ j =>
     let S0 : Finset (Fin (2 ^ P.idBits (j + 1)) × Fin (P.idCompRightUniv (j + 1))) := S
     have hid_le := FeistelPerm.dens_not_injOn_idCompressorHead_le_two_div_sq S0 hhi
@@ -672,68 +594,23 @@ theorem dens_not_isGoodNodeSeed_le (hcr : P.ConcentrationReady) {ℓ : ℕ} (h�
       have hsL : P.branchBits (j + 1) ≤ P.idBits (j + 1) := by
         have := P.idBits_step_le (j + 1) (by omega) hlt
         omega
-      have hprod := dens_prod_le_add_of_good
-        (good := fun idS : FeistelPerm.IdCompressorSeed (P.idBits (j + 1))
-          (P.idCompRightUniv (j + 1)) =>
-          Set.InjOn (FeistelPerm.idCompressorHead (P.idBits (j + 1)) (P.idCompRightUniv (j + 1))
-            idS) (S0 : Set (Fin (2 ^ P.idBits (j + 1)) × Fin (P.idCompRightUniv (j + 1)))))
-        (bad := fun p : FeistelPerm.IdCompressorSeed (P.idBits (j + 1))
-          (P.idCompRightUniv (j + 1)) × P.RouterSeed (j + 1) =>
-          ¬ P.IsGoodNodeSeed (j + 1) (.inner hlt p.1 p.2) S)
-        (δ := 2 / (P.nFloor (j + 1) : ℝ) ^ 2)
-        (p := 1 / (P.nFloor (j + 1) : ℝ) ^ 2)
-        hid_le
-        (by positivity)
-        (fun idS hinj => by
-          let S_id := (S0.image
-            (FeistelPerm.idCompressorHead (P.idBits (j + 1)) (P.idCompRightUniv (j + 1)) idS)).map
-            (FeistelPerm.bitDomainEquiv hsL).toEmbedding
-          have hcard_id : #S_id = #S := (card_map _).trans (card_image_of_injOn hinj)
-          have hsub_r : (Finset.univ.filter fun r : P.RouterSeed (j + 1) =>
-              ¬ P.IsGoodNodeSeed (j + 1) (.inner hlt idS r) S) ⊆
-              Finset.univ.filter fun r : P.RouterSeed (j + 1) =>
-                ¬ ∀ b : Fin (2 ^ P.branchBits (j + 1)),
-                  P.nLow (j + 2) ≤ FeistelPerm.bucketLoad (P.routerRound (j + 1) r) S_id b ∧
-                    FeistelPerm.bucketLoad (P.routerRound (j + 1) r) S_id b ≤ P.nHigh (j + 2) := by
-            intro r hr
-            simp only [mem_filter, Finset.mem_univ, true_and, IsGoodNodeSeed] at hr ⊢
-            exact fun hall => hr ⟨hinj, hall⟩
-          exact (NNRat.cast_le.mpr (dens_le_dens hsub_r)).trans
-            (P.dens_routerRound_outside_bounds_le hcr hlt S_id
-              (hcard_id.symm ▸ hlo) (hcard_id.symm ▸ hhi)))
-      have hsub_in : (Finset.univ.filter
-          fun p : FeistelPerm.IdCompressorSeed (P.idBits (j + 1))
-            (P.idCompRightUniv (j + 1)) × P.RouterSeed (j + 1) =>
-            ¬ P.IsGoodNodeSeed (j + 1) ((P.nodeSeedInnerEquiv hlt) p) S) ⊆
-          Finset.univ.filter
-            fun p : FeistelPerm.IdCompressorSeed (P.idBits (j + 1))
-              (P.idCompRightUniv (j + 1)) × P.RouterSeed (j + 1) =>
-              ¬ P.IsGoodNodeSeed (j + 1) (.inner hlt p.1 p.2) S := by
-        intro p hp
-        simp only [mem_filter, Finset.mem_univ, true_and, nodeSeedInnerEquiv_apply] at hp ⊢
-        exact hp
-      calc (dens _ : ℝ)
-          ≤ _ := by exact_mod_cast dens_le_dens hsub_in
-        _ ≤ 2 / (P.nFloor (j + 1) : ℝ) ^ 2 + 1 / (P.nFloor (j + 1) : ℝ) ^ 2 := hprod
-        _ = 3 / (P.nFloor (j + 1) : ℝ) ^ 2 := by ring
+      refine (dens_prod_le_add_of_good _
+        (fun p => ¬ P.IsGoodNodeSeed (j + 1) (.inner hlt p.1 p.2) S)
+        (p := 1 / (P.nFloor (j + 1) : ℝ) ^ 2) hid_le (by positivity) fun idS hinj => ?_).trans_eq
+        (by ring)
+      let S_id := (S0.image
+        (FeistelPerm.idCompressorHead (P.idBits (j + 1)) (P.idCompRightUniv (j + 1)) idS)).map
+        (FeistelPerm.bitDomainEquiv hsL).toEmbedding
+      have hcard_id : #S_id = #S := (card_map _).trans (card_image_of_injOn hinj)
+      refine (NNRat.cast_le.mpr (dens_le_dens fun r hr => ?_)).trans
+        (P.dens_routerRound_outside_bounds_le hcr hlt S_id (hcard_id.symm ▸ hlo)
+          (hcard_id.symm ▸ hhi))
+      simp only [mem_filter, Finset.mem_univ, true_and, IsGoodNodeSeed] at hr ⊢
+      exact fun hall => hr ⟨hinj, hall⟩
     · rw [← Fintype.dens_filter_comp_equiv (P.nodeSeedLeafEquiv hlt)]
-      have hsub_lf : (Finset.univ.filter fun idS : FeistelPerm.IdCompressorSeed (P.idBits (j + 1))
-          (P.idCompRightUniv (j + 1)) =>
-          ¬ P.IsGoodNodeSeed (j + 1) ((P.nodeSeedLeafEquiv hlt) idS) S) ⊆
-          Finset.univ.filter fun θ : FeistelPerm.IdCompressorSeed (P.idBits (j + 1))
-            (P.idCompRightUniv (j + 1)) =>
-            ¬ Set.InjOn
-              (FeistelPerm.idCompressorHead (P.idBits (j + 1)) (P.idCompRightUniv (j + 1)) θ)
-              (S0 : Set (Fin (2 ^ P.idBits (j + 1)) × Fin (P.idCompRightUniv (j + 1)))) := by
-        intro θ hθ
-        simp only [mem_filter, Finset.mem_univ, true_and, nodeSeedLeafEquiv_apply,
-          IsGoodNodeSeed] at hθ ⊢
-        exact hθ
-      calc (dens _ : ℝ)
-          ≤ _ := by exact_mod_cast dens_le_dens hsub_lf
-        _ ≤ 2 / (P.nFloor (j + 1) : ℝ) ^ 2 := hid_le
-        _ ≤ 3 / (P.nFloor (j + 1) : ℝ) ^ 2 := by
-            rw [div_le_div_iff_of_pos_right (sq_pos_of_pos hnF_pos)]; norm_num
+      refine (NNRat.cast_le.mpr (dens_le_dens fun θ hθ => ?_)).trans
+        (hid_le.trans (hle 2 (by norm_num)))
+      simpa [IsGoodNodeSeed] using hθ
 
 open scoped Classical in
 /-- Under `P.ConcentrationReady`, at least `(1 - 3 / n_ℓ ^ 2) ≥ 11 / 12` of all seeds in
@@ -743,33 +620,27 @@ theorem card_isGoodNodeSeed_ge (hcr : P.ConcentrationReady) {ℓ : ℕ} (hℓ : 
     ((P.nFloor ℓ) ^ 2 - 3) * Fintype.card (P.NodeSeed ℓ) ≤
       (P.nFloor ℓ) ^ 2 * #{g : P.NodeSeed ℓ | P.IsGoodNodeSeed ℓ g S} := by
   have hbad := P.dens_not_isGoodNodeSeed_le hcr hℓ S hlo hhi
-  rw [dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast] at hbad
-  have hN_pos : (0 : ℝ) < (Fintype.card (P.NodeSeed ℓ) : ℝ) := Nat.cast_pos.mpr Fintype.card_pos
-  have hnF6 := hcr.six_le_nFloor ℓ hℓ
-  have hsq_pos : (0 : ℝ) < (P.nFloor ℓ : ℝ) ^ 2 := by positivity
-  rw [div_le_div_iff₀ hN_pos hsq_pos] at hbad
-  have hpart : #{g : P.NodeSeed ℓ | P.IsGoodNodeSeed ℓ g S} +
-      #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S} = Fintype.card (P.NodeSeed ℓ) :=
-    card_filter_add_card_filter_not _
-  have hpart_real : (#{g : P.NodeSeed ℓ | P.IsGoodNodeSeed ℓ g S} : ℝ) +
-      (#{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S} : ℝ) =
-      (Fintype.card (P.NodeSeed ℓ) : ℝ) := by exact_mod_cast hpart
-  have h36 : 36 ≤ (P.nFloor ℓ) ^ 2 := by rw [sq]; exact Nat.mul_le_mul hnF6 hnF6
-  have hsub_ge : 3 ≤ (P.nFloor ℓ) ^ 2 := by omega
-  have hgoal_real : (((P.nFloor ℓ) ^ 2 - 3 : ℕ) : ℝ) * (Fintype.card (P.NodeSeed ℓ) : ℝ) ≤
-      ((P.nFloor ℓ : ℝ) ^ 2) * (#{g : P.NodeSeed ℓ | P.IsGoodNodeSeed ℓ g S} : ℝ) := by
-    rw [Nat.cast_sub hsub_ge, Nat.cast_pow, Nat.cast_ofNat]
-    have hmul_part : (P.nFloor ℓ : ℝ) ^ 2 * (#{g : P.NodeSeed ℓ | P.IsGoodNodeSeed ℓ g S} : ℝ) +
-        (P.nFloor ℓ : ℝ) ^ 2 * (#{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S} : ℝ) =
-        (P.nFloor ℓ : ℝ) ^ 2 * (Fintype.card (P.NodeSeed ℓ) : ℝ) := by
-      rw [← mul_add, hpart_real]
-    have hsub_mul : ((P.nFloor ℓ : ℝ) ^ 2 - 3) * (Fintype.card (P.NodeSeed ℓ) : ℝ) =
-        (P.nFloor ℓ : ℝ) ^ 2 * (Fintype.card (P.NodeSeed ℓ) : ℝ) -
-          3 * (Fintype.card (P.NodeSeed ℓ) : ℝ) := sub_mul ..
-    have hbad_comm : (#{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S} : ℝ) * (P.nFloor ℓ : ℝ) ^ 2 =
-        (P.nFloor ℓ : ℝ) ^ 2 * (#{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S} : ℝ) := mul_comm ..
-    linarith only [hbad, hmul_part, hsub_mul, hbad_comm]
-  exact_mod_cast hgoal_real
+  have := P.nFloor_pos ℓ hℓ
+  rw [dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast,
+    div_le_div_iff₀ (Nat.cast_pos.mpr Fintype.card_pos) (by positivity)] at hbad
+  have hbad' : #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S} * (P.nFloor ℓ) ^ 2 ≤
+      3 * Fintype.card (P.NodeSeed ℓ) := by exact_mod_cast hbad
+  have hpart : (P.nFloor ℓ) ^ 2 * #{g : P.NodeSeed ℓ | P.IsGoodNodeSeed ℓ g S} +
+      #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S} * (P.nFloor ℓ) ^ 2 =
+      (P.nFloor ℓ) ^ 2 * Fintype.card (P.NodeSeed ℓ) := by
+    rw [Nat.mul_comm _ ((P.nFloor ℓ) ^ 2), ← Nat.mul_add, card_filter_add_card_filter_not,
+      card_univ]
+  rw [Nat.sub_mul]
+  omega
+
+open scoped Classical in
+private theorem dens_not_isGoodNodeSeed_lt_half (hcr : P.ConcentrationReady) {ℓ : ℕ}
+    (hℓ : ℓ ≤ P.depth) (S : Finset (P.PrimId ℓ)) (hlo : P.nLow ℓ ≤ #S) (hhi : #S ≤ P.nHigh ℓ) :
+    (dens {g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S} : ℝ) < 1 / 2 := by
+  have h6 : (6 : ℝ) ≤ P.nFloor ℓ := by exact_mod_cast hcr.six_le_nFloor ℓ hℓ
+  refine (P.dens_not_isGoodNodeSeed_le hcr hℓ S hlo hhi).trans_lt ?_
+  rw [div_lt_iff₀ (by positivity)]
+  nlinarith
 
 /-- Every valid primitive-ID set `S` (`nLow ℓ ≤ #S ≤ nHigh ℓ`) admits at least one good seed
 `g : P.NodeSeed ℓ`. -/
@@ -777,17 +648,10 @@ theorem exists_isGoodNodeSeed (hcr : P.ConcentrationReady) {ℓ : ℕ} (hℓ : �
     (S : Finset (P.PrimId ℓ)) (hlo : P.nLow ℓ ≤ #S) (hhi : #S ≤ P.nHigh ℓ) :
     ∃ g : P.NodeSeed ℓ, P.IsGoodNodeSeed ℓ g S := by
   classical
-  have hge := P.card_isGoodNodeSeed_ge hcr hℓ S hlo hhi
-  have hnF6 := hcr.six_le_nFloor ℓ hℓ
-  have h36 : 36 ≤ (P.nFloor ℓ) ^ 2 := by rw [sq]; exact Nat.mul_le_mul hnF6 hnF6
-  have hcard_pos : 0 < Fintype.card (P.NodeSeed ℓ) := Fintype.card_pos
-  have hgood_pos : 0 < #{g : P.NodeSeed ℓ | P.IsGoodNodeSeed ℓ g S} := by
-    have h33 : 33 ≤ (P.nFloor ℓ) ^ 2 - 3 := by omega
-    have lhs_pos : 0 < ((P.nFloor ℓ) ^ 2 - 3) * Fintype.card (P.NodeSeed ℓ) :=
-      Nat.mul_pos (by omega) hcard_pos
-    exact Nat.pos_of_mul_pos_left (lhs_pos.trans_le hge)
-  obtain ⟨g, hg⟩ := card_pos.mp hgood_pos
-  exact ⟨g, (mem_filter.mp hg).2⟩
+  by_contra hno
+  have h := P.dens_not_isGoodNodeSeed_lt_half hcr hℓ S hlo hhi
+  rw [filter_true_of_mem fun g _ => not_exists.mp hno g, dens_univ, NNRat.cast_one] at h
+  norm_num at h
 
 /-- Every pair of valid primitive-ID sets `S₁, S₂` (`nLow ℓ ≤ #Sᵢ ≤ nHigh ℓ`) admits a single
 seed `g : P.NodeSeed ℓ` simultaneously satisfying `IsGoodNodeSeed` on both `S₁` and `S₂`. -/
@@ -798,56 +662,16 @@ theorem exists_isGoodNodeSeed_pair (hcr : P.ConcentrationReady) {ℓ : ℕ} (h�
     ∃ g : P.NodeSeed ℓ, P.IsGoodNodeSeed ℓ g S₁ ∧ P.IsGoodNodeSeed ℓ g S₂ := by
   classical
   by_contra hno
-  simp only [not_exists, not_and] at hno
-  have huniv : (Finset.univ : Finset (P.NodeSeed ℓ)) ⊆
+  have hcov : (Finset.univ : Finset (P.NodeSeed ℓ)) ⊆
       (Finset.univ.filter fun g => ¬ P.IsGoodNodeSeed ℓ g S₁) ∪
-        (Finset.univ.filter fun g => ¬ P.IsGoodNodeSeed ℓ g S₂) := by
-    intro g _
+        Finset.univ.filter fun g => ¬ P.IsGoodNodeSeed ℓ g S₂ := fun g _ => by
     rw [mem_union, mem_filter, mem_filter]
-    by_cases hg₁ : P.IsGoodNodeSeed ℓ g S₁
-    · exact Or.inr ⟨mem_univ g, hno g hg₁⟩
-    · exact Or.inl ⟨mem_univ g, hg₁⟩
-  have h1 := P.card_isGoodNodeSeed_ge hcr hℓ S₁ hlo₁ hhi₁
-  have h2 := P.card_isGoodNodeSeed_ge hcr hℓ S₂ hlo₂ hhi₂
-  have hp1 : #{g : P.NodeSeed ℓ | P.IsGoodNodeSeed ℓ g S₁} +
-      #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S₁} = Fintype.card (P.NodeSeed ℓ) :=
-    card_filter_add_card_filter_not _
-  have hp2 : #{g : P.NodeSeed ℓ | P.IsGoodNodeSeed ℓ g S₂} +
-      #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S₂} = Fintype.card (P.NodeSeed ℓ) :=
-    card_filter_add_card_filter_not _
-  have hcard_le : Fintype.card (P.NodeSeed ℓ) ≤
-      #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S₁} +
-        #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S₂} := by
-    rw [← Finset.card_univ]
-    exact (card_le_card huniv).trans (card_union_le _ _)
-  have hnF6 := hcr.six_le_nFloor ℓ hℓ
-  have h36 : 36 ≤ (P.nFloor ℓ) ^ 2 := by rw [sq]; exact Nat.mul_le_mul hnF6 hnF6
-  have hc_pos : 0 < Fintype.card (P.NodeSeed ℓ) := Fintype.card_pos
-  have hsub : ((P.nFloor ℓ) ^ 2 - 3) * Fintype.card (P.NodeSeed ℓ) +
-      3 * Fintype.card (P.NodeSeed ℓ) = (P.nFloor ℓ) ^ 2 * Fintype.card (P.NodeSeed ℓ) := by
-    rw [← Nat.add_mul, Nat.sub_add_cancel (by omega)]
-  have hd1 : (P.nFloor ℓ) ^ 2 * #{g : P.NodeSeed ℓ | P.IsGoodNodeSeed ℓ g S₁} +
-      (P.nFloor ℓ) ^ 2 * #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S₁} =
-      (P.nFloor ℓ) ^ 2 * Fintype.card (P.NodeSeed ℓ) := by
-    rw [← Nat.mul_add, hp1]
-  have hd2 : (P.nFloor ℓ) ^ 2 * #{g : P.NodeSeed ℓ | P.IsGoodNodeSeed ℓ g S₂} +
-      (P.nFloor ℓ) ^ 2 * #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S₂} =
-      (P.nFloor ℓ) ^ 2 * Fintype.card (P.NodeSeed ℓ) := by
-    rw [← Nat.mul_add, hp2]
-  have hb1 : (P.nFloor ℓ) ^ 2 * #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S₁} ≤
-      3 * Fintype.card (P.NodeSeed ℓ) := by omega
-  have hb2 : (P.nFloor ℓ) ^ 2 * #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S₂} ≤
-      3 * Fintype.card (P.NodeSeed ℓ) := by omega
-  have htot : (P.nFloor ℓ) ^ 2 * Fintype.card (P.NodeSeed ℓ) ≤
-      6 * Fintype.card (P.NodeSeed ℓ) := by
-    calc (P.nFloor ℓ) ^ 2 * Fintype.card (P.NodeSeed ℓ)
-        ≤ (P.nFloor ℓ) ^ 2 * (#{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S₁} +
-            #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S₂}) := Nat.mul_le_mul_left _ hcard_le
-      _ = (P.nFloor ℓ) ^ 2 * #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S₁} +
-            (P.nFloor ℓ) ^ 2 * #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S₂} := Nat.mul_add ..
-      _ ≤ 6 * Fintype.card (P.NodeSeed ℓ) := by omega
-  have hle6 : (P.nFloor ℓ) ^ 2 ≤ 6 := Nat.le_of_mul_le_mul_right htot hc_pos
-  omega
+    exact (not_and_or.mp (not_exists.mp hno g)).imp (⟨mem_univ g, ·⟩) (⟨mem_univ g, ·⟩)
+  have h : ((dens (Finset.univ : Finset (P.NodeSeed ℓ)) : ℚ≥0) : ℝ) ≤ _ :=
+    NNRat.cast_le.mpr ((dens_le_dens hcov).trans (dens_union_le _ _))
+  rw [dens_univ, NNRat.cast_one, NNRat.cast_add] at h
+  linarith [P.dens_not_isGoodNodeSeed_lt_half hcr hℓ S₁ hlo₁ hhi₁,
+    P.dens_not_isGoodNodeSeed_lt_half hcr hℓ S₂ hlo₂ hhi₂]
 
 end TreeSchedule
 

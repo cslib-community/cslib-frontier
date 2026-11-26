@@ -88,10 +88,8 @@ theorem expectedLoad_eq_sum_productWeight (G : LoadBalancingGame ι M) {p : ι �
   simp_rw [hload, mul_sum]
   rw [sum_comm]
   refine sum_congr rfl fun i _ => ?_
-  rw [sum_productWeight_mul_apply (fun k _ => hp k)
-    (fun m => if m = j then G.weight i / G.speed j else 0)]
-  rw [sum_eq_single j (fun m _ hm => by simp [hm]) (fun h => absurd (mem_univ j) h),
-    ite_eq_left rfl]
+  rw [sum_productWeight_mul_apply (fun k _ => hp k) (fun m => if m = j then _ else 0)]
+  simp
 
 omit [DecidableEq ι] [DecidableEq M] in
 /-- Speed-weighted expected loads sum to the total job weight. -/
@@ -101,11 +99,10 @@ theorem sum_speed_mul_expectedLoad (G : LoadBalancingGame ι M) {p : ι → M �
   simp only [expectedLoad, mul_sum]
   rw [sum_comm]
   refine sum_congr rfl fun i _ => ?_
-  have hterm : ∀ j, G.speed j * (p i j * (G.weight i / G.speed j)) = p i j * G.weight i :=
-    fun j => by
-      have hs := (G.speed_pos j).ne'
-      field_simp
-  simp_rw [hterm, ← sum_mul, hp i, one_mul]
+  have hterm (j : M) : G.speed j * (p i j * (G.weight i / G.speed j)) = p i j * G.weight i := by
+    have := (G.speed_pos j).ne'
+    field_simp
+  simp [hterm, ← sum_mul, hp i]
 
 /-- Point-mass mixed profiles recover the deterministic makespan. -/
 theorem expectedMakespan_single [Nonempty M] (G : LoadBalancingGame ι M) (A : ι → M) :
@@ -126,28 +123,21 @@ theorem deviationCost_toCostGame (G : LoadBalancingGame ι M) {p : ι → M → 
     G.toCostGame.deviationCost p i j =
       G.expectedLoad p j + (1 - p i j) * (G.weight i / G.speed j) := by
   rw [CostGame.deviationCost_def]
-  have hcost : ∀ A : ι → M, G.toCostGame.cost i (Function.update A i j) =
+  have hcost (A : ι → M) : G.toCostGame.cost i (Function.update A i j) =
       G.weight i / G.speed j +
-        ∑ k ∈ univ.erase i, if A k = j then G.weight k / G.speed j else 0 := fun A => by
+        ∑ k ∈ univ.erase i, if A k = j then G.weight k / G.speed j else 0 := by
     change G.load (Function.update A i j) (Function.update A i j i) = _
     rw [Function.update_self, load, UnrelatedLoadBalancingGame.load, sum_filter,
       ← add_sum_erase _ _ (mem_univ i), Function.update_self, ite_eq_left rfl]
-    change G.weight i / G.speed j + _ = _
-    congr 1
-    exact sum_congr rfl fun k hk => by
-      simp only [toUnrelated, Function.update_of_ne (ne_of_mem_erase hk)]
+    exact congrArg (G.weight i / G.speed j + ·) (sum_congr rfl fun k hk => by
+      simp only [toUnrelated, Function.update_of_ne (ne_of_mem_erase hk)])
   simp_rw [hcost, mul_add, sum_add_distrib, ← sum_mul, sum_productWeight hp, one_mul, mul_sum]
   rw [sum_comm]
-  have hrest :
-      ∑ k ∈ univ.erase i, ∑ A : ι → M,
-        productWeight p A * (if A k = j then G.weight k / G.speed j else 0) =
-      ∑ k ∈ univ.erase i, p k j * (G.weight k / G.speed j) := by
-    refine sum_congr rfl fun k _ => ?_
-    rw [sum_productWeight_mul_apply (fun r _ => hp r)
-      (fun m => if m = j then G.weight k / G.speed j else 0)]
-    rw [sum_eq_single j (fun m _ hm => by simp [hm]) (fun h => absurd (mem_univ j) h),
-      ite_eq_left rfl]
-  rw [hrest, expectedLoad, ← add_sum_erase _ _ (mem_univ i)]
+  have hrest (k : ι) : ∑ A : ι → M,
+      productWeight p A * (if A k = j then G.weight k / G.speed j else 0) =
+      p k j * (G.weight k / G.speed j) := by
+    simpa using sum_productWeight_mul_apply (fun r _ => hp r) (fun m => if m = j then _ else 0)
+  simp_rw [hrest, expectedLoad, ← add_sum_erase _ _ (mem_univ i)]
   ring
 
 /-- **Mixed Nash characterization** ([Vocking2007]): a profile `p` is a mixed
@@ -193,34 +183,29 @@ theorem eq_of_isTotallyMixedNash (G : LoadBalancingGame ι M) (hw : ∀ i, 0 < G
     (hn : Fintype.card ι ≠ 1) {p q : ι → M → ℝ}
     (hp : G.toCostGame.IsTotallyMixedNash p) (hq : G.toCostGame.IsTotallyMixedNash q) :
     p = q := by
-  by_cases hM : IsEmpty M
-  · funext i j
-    exact hM.elim j
-  have : Nonempty M := not_isEmpty_iff.mp hM
-  have hp1 : ∀ i, ∑ j, p i j = 1 := fun i => (hp.1.1 i).sum_eq_one
-  have hq1 : ∀ i, ∑ j, q i j = 1 := fun i => (hq.1.1 i).sum_eq_one
+  rcases isEmpty_or_nonempty M with hM | _
+  · exact funext fun _ => funext hM.elim
   have hS_pos : 0 < ∑ j : M, G.speed j :=
     sum_pos (fun j _ => G.speed_pos j) univ_nonempty
+  have heq_j {r : ι → M → ℝ} (hr : G.toCostGame.IsTotallyMixedNash r) (i : ι) (j : M) :
+      G.speed j * G.toCostGame.expectedCost r i =
+        G.speed j * G.expectedLoad r j + (1 - r i j) * G.weight i := by
+    have hdev := hr.1.deviationCost_eq_of_pos i (hr.2 i j)
+    rw [G.deviationCost_toCostGame (fun k => (hr.1.1 k).sum_eq_one) i j] at hdev
+    have hs := (G.speed_pos j).ne'
+    rw [← hdev, mul_add]
+    congr 1
+    field_simp
   -- For any totally mixed NE `r`, player `i`'s common cost `C_i` is uniquely determined by `G`.
   have hcost_eq : ∀ r : ι → M → ℝ, G.toCostGame.IsTotallyMixedNash r → ∀ i,
       (∑ j : M, G.speed j) * G.toCostGame.expectedCost r i =
         (∑ k, G.weight k) + ((Fintype.card M : ℝ) - 1) * G.weight i := by
     intro r hr i
     have hr1 : ∀ k, ∑ m, r k m = 1 := fun k => (hr.1.1 k).sum_eq_one
-    have heq_j : ∀ j : M,
-        G.speed j * G.toCostGame.expectedCost r i =
-          G.speed j * G.expectedLoad r j + (1 - r i j) * G.weight i := by
-      intro j
-      have hdev := hr.1.deviationCost_eq_of_pos i (hr.2 i j)
-      rw [G.deviationCost_toCostGame hr1 i j] at hdev
-      have hs := (G.speed_pos j).ne'
-      rw [← hdev, mul_add]
-      congr 1
-      field_simp
     calc (∑ j : M, G.speed j) * G.toCostGame.expectedCost r i
         = ∑ j : M, G.speed j * G.toCostGame.expectedCost r i := sum_mul _ _ _
       _ = ∑ j : M, (G.speed j * G.expectedLoad r j + (1 - r i j) * G.weight i) :=
-          sum_congr rfl fun j _ => heq_j j
+          sum_congr rfl fun j _ => heq_j hr i j
       _ = (∑ j : M, G.speed j * G.expectedLoad r j) +
             ∑ j : M, (1 - r i j) * G.weight i := sum_add_distrib
       _ = (∑ k, G.weight k) + ((Fintype.card M : ℝ) - 1) * G.weight i := by
@@ -230,49 +215,24 @@ theorem eq_of_isTotallyMixedNash (G : LoadBalancingGame ι M) (hw : ∀ i, 0 < G
     mul_left_cancel₀ hS_pos.ne' ((hcost_eq p hp i).trans (hcost_eq q hq i).symm)
   -- Express `p i j - q i j` in terms of `expectedLoad p j - expectedLoad q j`.
   have hdiff : ∀ i j,
-      (p i j - q i j) * G.weight i = G.speed j * (G.expectedLoad p j - G.expectedLoad q j) := by
-    intro i j
-    have hpj := hp.1.deviationCost_eq_of_pos i (hp.2 i j)
-    have hqj := hq.1.deviationCost_eq_of_pos i (hq.2 i j)
-    rw [G.deviationCost_toCostGame hp1 i j] at hpj
-    rw [G.deviationCost_toCostGame hq1 i j] at hqj
-    have hsub : (G.expectedLoad p j - G.expectedLoad q j) -
-        (p i j - q i j) * (G.weight i / G.speed j) = 0 := by linarith [hCi i]
-    have hs := (G.speed_pos j).ne'
-    have hmul := congrArg (G.speed j * ·) hsub
-    simp only [mul_zero] at hmul
-    have hsimp : G.speed j * ((G.expectedLoad p j - G.expectedLoad q j) -
-        (p i j - q i j) * (G.weight i / G.speed j)) =
-        G.speed j * (G.expectedLoad p j - G.expectedLoad q j) - (p i j - q i j) * G.weight i := by
-      field_simp
-    linarith
+      (p i j - q i j) * G.weight i = G.speed j * (G.expectedLoad p j - G.expectedLoad q j) :=
+    fun i j => by linarith [heq_j hp i j, heq_j hq i j, congrArg (G.speed j * ·) (hCi i)]
   -- Sum over `i` to force `expectedLoad p j = expectedLoad q j` since `|ι| ≠ 1`.
   have hload_eq : ∀ j, G.expectedLoad p j = G.expectedLoad q j := by
     intro j
+    have hs := (G.speed_pos j).ne'
     have hsum_lhs : ∑ i : ι, (p i j - q i j) * G.weight i =
         G.speed j * (G.expectedLoad p j - G.expectedLoad q j) := by
-      simp only [expectedLoad, mul_sub, mul_sum]
-      rw [← sum_sub_distrib]
-      refine sum_congr rfl fun i _ => ?_
-      have hs := (G.speed_pos j).ne'
-      field_simp
+      simp only [expectedLoad, mul_sub, mul_sum, ← sum_sub_distrib]
+      exact sum_congr rfl fun i _ => by field_simp
     have hsum_rhs : ∑ i : ι, (p i j - q i j) * G.weight i =
         (Fintype.card ι : ℝ) * (G.speed j * (G.expectedLoad p j - G.expectedLoad q j)) := by
       simp_rw [hdiff _ j, sum_const, card_univ, nsmul_eq_mul]
-    have hprod : ((Fintype.card ι : ℝ) - 1) *
-        (G.speed j * (G.expectedLoad p j - G.expectedLoad q j)) = 0 := by linarith
-    have hn_ne : (Fintype.card ι : ℝ) - 1 ≠ 0 := by
-      intro h0
-      have h1 : (Fintype.card ι : ℝ) = (1 : ℕ) := by push_cast; linarith
-      exact hn (Nat.cast_injective h1)
-    have h0 := (mul_eq_zero.mp hprod).resolve_left hn_ne
-    have h0' := (mul_eq_zero.mp h0).resolve_left (G.speed_pos j).ne'
-    linarith
+    have h0 : G.speed j * (G.expectedLoad p j - G.expectedLoad q j) = 0 :=
+      mul_left_cancel₀ (sub_ne_zero.mpr (mod_cast hn : (Fintype.card ι : ℝ) ≠ 1)) (by linarith)
+    linarith [(mul_eq_zero.mp h0).resolve_left hs]
   funext i j
-  have h0 := hdiff i j
-  rw [hload_eq j, sub_self, mul_zero] at h0
-  have hsub0 := (mul_eq_zero.mp h0).resolve_right (hw i).ne'
-  linarith
+  linarith [(mul_eq_zero.mp ((hdiff i j).trans (by simp [hload_eq j]))).resolve_right (hw i).ne']
 
 end TotallyMixedUniqueness
 
@@ -300,23 +260,16 @@ private theorem isTotallyMixedNash_twoUnitRelated_profile {s : ℝ} (hs : 0 < s)
       Matrix.cons_val_fin_one]
     field_simp [hpos_sp.ne']
     ring
-  refine G.toCostGame.isTotallyMixedNash_iff.mpr ⟨?_, hp1, ?_⟩
-  · intro _ j
-    fin_cases j
-    · exact div_pos (by linarith) hpos_sp
-    · exact div_pos (by linarith) hpos_sp
-  · intro i a b
-    rw [G.deviationCost_toCostGame hp1 i a, G.deviationCost_toCostGame hp1 i b]
+  refine G.toCostGame.isTotallyMixedNash_iff.mpr ⟨fun _ j => ?_, hp1, fun i a b => ?_⟩
+  · fin_cases j <;> exact div_pos (by linarith) hpos_sp
+  · rw [G.deviationCost_toCostGame hp1 i a, G.deviationCost_toCostGame hp1 i b]
     have hval : ∀ j : Fin 2,
         G.expectedLoad p j + (1 - p i j) * (G.weight i / G.speed j) = 3 / (s + 1) := fun j => by
-      rcases (eq_or_ne j 0).imp_right (Fin.eq_one_of_ne_zero _) with rfl | rfl
-      · simp only [expectedLoad, Fin.sum_univ_two, G, twoUnitRelated, p, Matrix.cons_val_zero,
-          div_one, mul_one]
-        field_simp [hpos_sp.ne']
-        ring
-      · simp only [expectedLoad, Fin.sum_univ_two, G, twoUnitRelated, p, Matrix.cons_val_one,
-          Matrix.cons_val_fin_one]
-        field_simp [hs.ne', hpos_sp.ne']
+      fin_cases j <;>
+        simp only [expectedLoad, Fin.sum_univ_two, Fin.zero_eta, Fin.mk_one, Fin.isValue, G,
+          twoUnitRelated, p, Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.cons_val_fin_one,
+          div_one, mul_one] <;>
+        field_simp [hs.ne', hpos_sp.ne'] <;>
         ring
     rw [hval a, hval b]
 
@@ -326,49 +279,25 @@ equilibrium exists if and only if `1 / 2 < s < 2`, in which case it is uniquely 
 theorem exists_isTotallyMixedNash_twoUnitRelated_iff {s : ℝ} (hs : 0 < s) :
     (∃ p, (twoUnitRelated s hs).toCostGame.IsTotallyMixedNash p) ↔ 1 / 2 < s ∧ s < 2 := by
   let G := twoUnitRelated s hs
-  have hpos_sp : 0 < s + 1 := by linarith
-  constructor
-  · rintro ⟨p, hp⟩
-    have hp1 : ∀ i, p i 0 + p i 1 = 1 := fun i => by
-      simpa only [Fin.sum_univ_two] using (hp.1.1 i).sum_eq_one
-    have hdev : ∀ i : Fin 2,
-        G.expectedLoad p 0 + (1 - p i 0) * (1 / 1) =
-          G.expectedLoad p 1 + (1 - p i 1) * (1 / s) := fun i => by
-      have h := (G.toCostGame.isTotallyMixedNash_iff.mp hp).2.2 i 0 1
-      have hp1' : ∀ k, ∑ m, p k m = 1 := fun k => (hp.1.1 k).sum_eq_one
-      rw [G.deviationCost_toCostGame hp1' i 0, G.deviationCost_toCostGame hp1' i 1] at h
-      simpa [G, twoUnitRelated] using h
-    have hE0 : G.expectedLoad p 0 = p 0 0 + p 1 0 := by
-      simp [expectedLoad, Fin.sum_univ_two, G, twoUnitRelated]
-    have hE1 : G.expectedLoad p 1 = (p 0 1 + p 1 1) / s := by
-      simp only [expectedLoad, Fin.sum_univ_two, G, twoUnitRelated, Matrix.cons_val_one,
-        Matrix.cons_val_fin_one]
-      ring
-    have h0 := hdev 0
-    have h1 := hdev 1
-    rw [hE0, hE1] at h0 h1
-    have hp0_eq : p 0 0 = (2 - s) / (s + 1) := by
-      have h0' : s * (p 0 0 + p 1 0 + (1 - p 0 0)) = (p 0 1 + p 1 1) + (1 - p 0 1) := by
-        have := congrArg (s * ·) h0
-        field_simp [hs.ne'] at this ⊢
-        linarith
-      have h1' : s * (p 0 0 + p 1 0 + (1 - p 1 0)) = (p 0 1 + p 1 1) + (1 - p 1 1) := by
-        have := congrArg (s * ·) h1
-        field_simp [hs.ne'] at this ⊢
-        linarith
-      have hsym : p 0 0 = p 1 0 := by
-        have hp01 := hp1 0; have hp11 := hp1 1
-        nlinarith
-      have hp01 := hp1 0; have hp11 := hp1 1
-      rw [eq_div_iff hpos_sp.ne']
-      nlinarith
-    have hgt0 : 0 < p 0 0 := hp.2 0 0
-    have hlt1 : p 0 0 < 1 := by linarith [hp1 0, hp.2 0 1]
-    rw [hp0_eq, div_pos_iff_of_pos_right hpos_sp] at hgt0
-    rw [hp0_eq, div_lt_one hpos_sp] at hlt1
-    exact ⟨by linarith, by linarith⟩
-  · rintro ⟨hs1, hs2⟩
-    exact ⟨_, isTotallyMixedNash_twoUnitRelated_profile hs hs1 hs2⟩
+  refine ⟨?_, fun ⟨hs1, hs2⟩ => ⟨_, isTotallyMixedNash_twoUnitRelated_profile hs hs1 hs2⟩⟩
+  rintro ⟨p, hp⟩
+  have hp1 (i : Fin 2) : p i 0 + p i 1 = 1 := by
+    simpa only [Fin.sum_univ_two] using (hp.1.1 i).sum_eq_one
+  have hdev (i : Fin 2) :
+      p 0 0 + p 1 0 + (1 - p i 0) = (p 0 1 + p 1 1) / s + (1 - p i 1) * (1 / s) := by
+    have h := (G.toCostGame.isTotallyMixedNash_iff.mp hp).2.2 i 0 1
+    have hp1' : ∀ k, ∑ m, p k m = 1 := fun k => (hp.1.1 k).sum_eq_one
+    rw [G.deviationCost_toCostGame hp1' i 0, G.deviationCost_toCostGame hp1' i 1] at h
+    simp only [expectedLoad, Fin.sum_univ_two, G, twoUnitRelated, Matrix.cons_val_zero,
+      Matrix.cons_val_one, Matrix.cons_val_fin_one, div_one, mul_one] at h
+    rw [h]; ring
+  have hp0_eq : p 0 0 * (s + 1) = 2 - s := by
+    have h0' := congrArg (s * ·) (hdev 0)
+    have h1' := congrArg (s * ·) (hdev 1)
+    field_simp [hs.ne'] at h0' h1'
+    nlinarith [hp1 0, hp1 1]
+  exact ⟨by nlinarith [hp1 0, hp.2 0 1],
+    by nlinarith [hp.2 0 0]⟩
 
 /-- Closed form of the unique totally mixed Nash equilibrium of `twoUnitRelated s hs` for
 `1 / 2 < s < 2` ([Vocking2007]). -/
@@ -404,10 +333,8 @@ theorem IsIdentical.expectedMakespan_le_three_halves_mul_optMakespan
   let heaviest : (ι → Fin 2) → Fin 2 := fun A => if G.load A 1 ≤ G.load A 0 then 0 else 1
   have hms_eq : ∀ A : ι → Fin 2, G.makespan A = G.load A (heaviest A) := fun A => by
     refine le_antisymm ((G.makespan_le_iff A).mpr fun j => ?_) (G.load_le_makespan A (heaviest A))
-    simp only [heaviest]
-    split_ifs with h
-    · rcases (eq_or_ne j 0).imp_right (Fin.eq_one_of_ne_zero _) with rfl | rfl <;> linarith
-    · rcases (eq_or_ne j 0).imp_right (Fin.eq_one_of_ne_zero _) with rfl | rfl <;> linarith
+    fin_cases j <;> simp only [heaviest, Fin.zero_eta, Fin.mk_one, Fin.isValue] <;>
+      split_ifs <;> linarith
   -- `q i` is the probability that job `i` lands on `heaviest A`.
   let q : ι → ℝ := fun i => ∑ A : ι → Fin 2, productWeight p A * if A i = heaviest A then 1 else 0
   have hq_le1 : ∀ i, q i ≤ 1 := fun i => by
@@ -438,67 +365,44 @@ theorem IsIdentical.expectedMakespan_le_three_halves_mul_optMakespan
       rw [G.deviationCost_toCostGame hp1 i 0, hId 0, div_one] at h0
       rw [G.deviationCost_toCostGame hp1 i 1, hId 1, div_one] at h1
       have hsumE : G.expectedLoad p 0 + G.expectedLoad p 1 = W := by
-        have := G.sum_speed_mul_expectedLoad hp1
-        simpa only [Fin.sum_univ_two, hId 0, hId 1, one_mul] using this
-      have hsumP : p i 0 + p i 1 = 1 := by
-        simpa only [Fin.sum_univ_two] using hp1 i
-      have hsumW : (1 - p i 0) * G.weight i + (1 - p i 1) * G.weight i = G.weight i := by
-        rw [← add_mul]
-        have : 1 - p i 0 + (1 - p i 1) = 1 := by linarith
-        rw [this, one_mul]
+        simpa only [Fin.sum_univ_two, hId 0, hId 1, one_mul] using G.sum_speed_mul_expectedLoad hp1
+      have hsumW : p i 0 * G.weight i + p i 1 * G.weight i = G.weight i := by
+        rw [← add_mul, ← Fin.sum_univ_two, hp1 i, one_mul]
       linarith
     -- Pointwise gap bound: `makespan A - cost i A ≤ (1_{A i ≠ heaviest A}) * (W - 2 * w_i)`.
-    have hpt : ∀ A : ι → Fin 2,
+    have hpt (A : ι → Fin 2) :
         G.makespan A - G.toCostGame.cost i A ≤
           (if A i = heaviest A then (0 : ℝ) else 1) * (W - 2 * G.weight i) := by
-      intro A
-      by_cases hAi : A i = heaviest A
-      · rw [ite_eq_left hAi, zero_mul, hms_eq A]
-        change G.load A (heaviest A) - G.load A (A i) ≤ 0
-        rw [hAi, sub_self]
-      · rw [ite_eq_right hAi, one_mul, hms_eq A]
-        change G.load A (heaviest A) - G.load A (A i) ≤ W - 2 * G.weight i
-        have hsum_loads : G.load A (heaviest A) + G.load A (A i) = W := by
-          have htot : G.load A 0 + G.load A 1 = W := by
-            simpa only [Fin.sum_univ_two] using hId.sum_load A
-          rcases (eq_or_ne (heaviest A) 0).imp_right (Fin.eq_one_of_ne_zero _) with h1 | h1 <;>
-            rcases (eq_or_ne (A i) 0).imp_right (Fin.eq_one_of_ne_zero _) with h2 | h2
-          · exact absurd (h2.trans h1.symm) hAi
-          · rw [h1, h2]; exact htot
-          · rw [h1, h2]; linarith
-          · exact absurd (h2.trans h1.symm) hAi
-        have hw_le_load : G.weight i ≤ G.load A (A i) := by
+      rw [hms_eq A]
+      change G.load A (heaviest A) - G.load A (A i) ≤ _
+      split_ifs with hAi
+      · simp [hAi]
+      · have htot : G.load A 0 + G.load A 1 = W := by
+          simpa only [Fin.sum_univ_two] using hId.sum_load A
+        have hw_le : G.weight i ≤ G.load A (A i) := by
           simpa only [hId (A i), div_one] using G.weight_div_speed_le_load A i
-        linarith
+        generalize heaviest A = m, A i = a at hAi hw_le ⊢
+        fin_cases m <;> fin_cases a <;>
+          simp only [Fin.zero_eta, Fin.mk_one, Fin.isValue, one_mul] at hAi hw_le ⊢ <;>
+          first | contradiction | linarith
     -- Average the pointwise bound under `productWeight p`.
     have hgap : G.expectedMakespan p - G.toCostGame.expectedCost p i ≤
         (1 - q i) * (W - 2 * G.weight i) := by
       rw [expectedMakespan, CostGame.expectedCost_def, ← sum_sub_distrib]
-      have hlhs : ∑ A : ι → Fin 2, (productWeight p A * G.makespan A -
-          productWeight p A * G.toCostGame.cost i A) =
-          ∑ A : ι → Fin 2, productWeight p A * (G.makespan A - G.toCostGame.cost i A) :=
-        sum_congr rfl fun A _ => by ring
-      rw [hlhs]
+      simp_rw [← mul_sub]
       calc ∑ A : ι → Fin 2, productWeight p A * (G.makespan A - G.toCostGame.cost i A)
           ≤ ∑ A : ι → Fin 2, productWeight p A *
               ((if A i = heaviest A then (0 : ℝ) else 1) * (W - 2 * G.weight i)) :=
             sum_le_sum fun A _ => mul_le_mul_of_nonneg_left (hpt A) (productWeight_nonneg hp0 A)
         _ = (∑ A : ι → Fin 2, productWeight p A * if A i = heaviest A then (0 : ℝ) else 1) *
-              (W - 2 * G.weight i) := by
-            rw [sum_mul]
-            refine sum_congr rfl fun A _ => by ring
+              (W - 2 * G.weight i) := by simp only [sum_mul, mul_assoc]
         _ = (1 - q i) * (W - 2 * G.weight i) := by
             congr 1
-            have hcomp : ∀ A : ι → Fin 2,
-                productWeight p A * (if A i = heaviest A then (0 : ℝ) else 1) =
-                  productWeight p A -
-                    productWeight p A * (if A i = heaviest A then (1 : ℝ) else 0) := fun A => by
-              split_ifs <;> ring
-            simp_rw [hcomp, sum_sub_distrib, sum_productWeight hp1]
-            rfl
-    have hwi_le : G.weight i ≤ G.optMakespan := hId.weight_le_optMakespan i
-    have hqi_le1 : q i ≤ 1 := hq_le1 i
-    nlinarith
+            refine (sum_congr (g := fun A => productWeight p A -
+                productWeight p A * if A i = heaviest A then 1 else 0) rfl fun A _ => ?_).trans
+              (by rw [sum_sub_distrib, sum_productWeight hp1])
+            split_ifs <;> ring
+    nlinarith [hId.weight_le_optMakespan i, hq_le1 i]
 
 /-- **Tightness witness for Koutsoupias–Papadimitriou `3 / 2`** ([KoutsoupiasPapadimitriou1999]):
 two unit-weight jobs on two identical machines. -/
@@ -519,37 +423,30 @@ theorem isMixedNash_kpTwoUnitUniform : kpTwoUnit.toCostGame.IsMixedNash kpTwoUni
 theorem optMakespan_kpTwoUnit : kpTwoUnit.optMakespan = 1 := by
   have hload_id : ∀ j : Fin 2, kpTwoUnit.load id j = 1 := fun j => by
     rw [LoadBalancingGame.load_eq_sum_div, sum_filter, Fin.sum_univ_two]
-    rcases (eq_or_ne j 0).imp_right (Fin.eq_one_of_ne_zero _) with rfl | rfl <;>
-      simp [kpTwoUnit, identical]
-  refine le_antisymm ?_ ?_
-  · exact (kpTwoUnit.optMakespan_le id).trans
-      ((kpTwoUnit.makespan_le_iff id).mpr fun j => (hload_id j).le)
-  · have h := (isIdentical_identical (M := Fin 2) (fun _ : Fin 2 => (1 : ℝ))
+    fin_cases j <;> simp [kpTwoUnit, identical]
+  refine le_antisymm
+    ((kpTwoUnit.optMakespan_le id).trans ((kpTwoUnit.makespan_le_iff id).mpr fun j =>
+      (hload_id j).le)) ?_
+  simpa [kpTwoUnit, identical] using
+    (isIdentical_identical (M := Fin 2) (fun _ : Fin 2 => (1 : ℝ))
       (fun _ => zero_le_one)).weight_le_optMakespan (0 : Fin 2)
-    simpa [kpTwoUnit, identical] using h
 
 /-- The uniform mixed Nash equilibrium on two unit jobs and two identical machines achieves
 expected makespan `(3 / 2) * optMakespan` ([KoutsoupiasPapadimitriou1999]). -/
 theorem expectedMakespan_kpTwoUnitUniform :
     kpTwoUnit.expectedMakespan kpTwoUnitUniform = (3 / 2 : ℝ) * kpTwoUnit.optMakespan := by
   rw [optMakespan_kpTwoUnit, mul_one, expectedMakespan]
-  have hprod : ∀ A : Fin 2 → Fin 2, productWeight kpTwoUnitUniform A = 1 / 4 := fun A => by
-    rw [productWeight_def, Fin.prod_univ_two]
-    simp [kpTwoUnitUniform]
-    norm_num
+  have hprod (A : Fin 2 → Fin 2) : productWeight kpTwoUnitUniform A = 1 / 4 := by
+    simp only [productWeight_def, Fin.prod_univ_two, kpTwoUnitUniform]; norm_num
   have hms : ∀ A : Fin 2 → Fin 2, kpTwoUnit.makespan A = if A 0 = A 1 then 2 else 1 := fun A => by
     have hl : ∀ j : Fin 2, kpTwoUnit.load A j =
         (if A 0 = j then (1 : ℝ) else 0) + (if A 1 = j then 1 else 0) := fun j => by
       rw [LoadBalancingGame.load_eq_sum_div, sum_filter, Fin.sum_univ_two]
       simp [kpTwoUnit, identical]
-    refine le_antisymm ?_ ?_
-    · rw [kpTwoUnit.makespan_le_iff]
-      intro j
-      rw [hl j]
-      rcases (eq_or_ne (A 0) 0).imp_right (Fin.eq_one_of_ne_zero _) with h0 | h0 <;>
-        rcases (eq_or_ne (A 1) 0).imp_right (Fin.eq_one_of_ne_zero _) with h1 | h1 <;>
-        rcases (eq_or_ne j 0).imp_right (Fin.eq_one_of_ne_zero _) with rfl | rfl <;>
-        (simp only [h0, h1, ↓reduceIte, Fin.reduceEq]; norm_num)
+    refine le_antisymm ((kpTwoUnit.makespan_le_iff A).mpr fun j => ?_) ?_
+    · rw [hl j]
+      (by_cases h0 : A 0 = j <;> by_cases h1 : A 1 = j <;> simp only [h0, h1, ↓reduceIte]) <;>
+        (try split_ifs) <;> norm_num
     · split_ifs with h
       · calc (2 : ℝ) = kpTwoUnit.load A (A 0) := by
               rw [hl (A 0), ite_eq_left rfl, ite_eq_left h.symm]; norm_num
@@ -557,32 +454,10 @@ theorem expectedMakespan_kpTwoUnitUniform :
       · calc (1 : ℝ) ≤ kpTwoUnit.load A (A 0) := by
               rw [hl (A 0), ite_eq_left rfl, ite_eq_right (Ne.symm h)]; norm_num
           _ ≤ kpTwoUnit.makespan A := kpTwoUnit.load_le_makespan A (A 0)
-  simp_rw [hprod, hms]
-  rw [← mul_sum]
-  have hsum4 : ∑ A : Fin 2 → Fin 2, (if A 0 = A 1 then (2 : ℝ) else 1) = 6 := by
-    have heq : (univ : Finset (Fin 2 → Fin 2)) =
-        {![0, 0], ![0, 1], ![1, 0], ![1, 1]} := by
-      ext A
-      simp only [mem_univ, mem_insert, mem_singleton, true_iff]
-      rcases (eq_or_ne (A 0) 0).imp_right (Fin.eq_one_of_ne_zero _) with h0 | h0 <;>
-        rcases (eq_or_ne (A 1) 0).imp_right (Fin.eq_one_of_ne_zero _) with h1 | h1
-      · left; funext i
-        rcases (eq_or_ne i 0).imp_right (Fin.eq_one_of_ne_zero _) with rfl | rfl <;> simp [h0, h1]
-      · right; left; funext i
-        rcases (eq_or_ne i 0).imp_right (Fin.eq_one_of_ne_zero _) with rfl | rfl <;> simp [h0, h1]
-      · right; right; left; funext i
-        rcases (eq_or_ne i 0).imp_right (Fin.eq_one_of_ne_zero _) with rfl | rfl <;> simp [h0, h1]
-      · right; right; right; funext i
-        rcases (eq_or_ne i 0).imp_right (Fin.eq_one_of_ne_zero _) with rfl | rfl <;> simp [h0, h1]
-    rw [heq]
-    have h12 : (![0, 0] : Fin 2 → Fin 2) ∉ ({![0, 1], ![1, 0], ![1, 1]} : Finset (Fin 2 → Fin 2)) :=
-      by decide
-    have h23 : (![0, 1] : Fin 2 → Fin 2) ∉ ({![1, 0], ![1, 1]} : Finset (Fin 2 → Fin 2)) :=
-      by decide
-    have h34 : (![1, 0] : Fin 2 → Fin 2) ≠ (![1, 1] : Fin 2 → Fin 2) := by decide
-    rw [sum_insert h12, sum_insert h23, sum_pair h34]
-    norm_num
-  rw [hsum4]
+  simp_rw [hprod, hms, ← mul_sum]
+  rw [← (finTwoArrowEquiv (Fin 2)).symm.sum_comp, Fintype.sum_prod_type]
+  simp only [Fin.sum_univ_two, finTwoArrowEquiv_symm_apply, Matrix.cons_val_zero,
+    Matrix.cons_val_one, Matrix.cons_val_fin_one, ↓reduceIte, Fin.reduceEq]
   norm_num
 
 end KoutsoupiasPapadimitriouTwoMachine

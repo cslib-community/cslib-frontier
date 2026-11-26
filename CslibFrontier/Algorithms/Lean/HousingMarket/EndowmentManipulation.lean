@@ -90,45 +90,30 @@ private theorem eq_empty_of_strict_preTrade_rounds {σ : Allocation n} {S : Fins
       (∀ h ∈ R, (I.reendow σ).ttc h ∈ R) →
       (∀ i ∈ S, I.rank i (I.preTradeTTC σ i) < I.rank i (I.ttcRounds k R i)) →
       S = ∅ := by
-  have hσ_maps_S : ∀ i ∈ S, σ i ∈ S := by
-    intro i hi
+  have hσ_maps_S {i : Fin n} (hi : i ∈ S) : σ i ∈ S := by
     by_contra hnot
-    have hfix : σ (σ i) = σ i := hsupp (σ i) hnot
-    have heq : σ i = i := σ.injective hfix
-    exact hnot (heq.symm ▸ hi)
+    exact hnot ((σ.injective (hsupp (σ i) hnot)).symm ▸ hi)
   intro k
   induction k with
   | zero =>
     intro R hk hSR _ _
-    have hR0 : R = ∅ := Finset.card_eq_zero.1 (Nat.eq_zero_of_le_zero hk)
-    exact Finset.subset_empty.1 (hR0 ▸ hSR)
+    exact Finset.subset_empty.1 (Finset.card_eq_zero.1 (Nat.eq_zero_of_le_zero hk) ▸ hSR)
   | succ k ih =>
     intro R hk hSR hR hlt
-    by_cases hR_emp : R = ∅
-    · exact Finset.subset_empty.1 (hR_emp ▸ hSR)
-    have hRne : R.Nonempty := Finset.nonempty_iff_ne_empty.2 hR_emp
+    rcases R.eq_empty_or_nonempty with rfl | hRne
+    · exact Finset.subset_empty.1 hSR
     set C := I.cycleAgents R
-    have hk' : (R \ C).card ≤ k := by
-      have hlt_c : (R \ C).card < R.card := I.card_sdiff_cycleAgents_lt hRne
-      omega
+    have hk' : (R \ C).card ≤ k :=
+      Nat.le_of_lt_succ ((I.card_sdiff_cycleAgents_lt hRne).trans_le hk)
     -- Step 1: No agent in `C` can belong to `S`.
-    have hdisj : ∀ a ∈ C, a ∉ S := by
-      intro a haC haS
-      have hσa_R : σ a ∈ R := hSR (hσ_maps_S a haS)
-      have hpre_R : I.preTradeTTC σ a ∈ R := hR (σ a) hσa_R
-      have htop_le : I.rank a (I.topChoice R a) ≤ I.rank a (I.preTradeTTC σ a) :=
-        I.rank_topChoice_le hpre_R a
-      have hstrict := hlt a haS
-      rw [I.ttcRounds_succ_of_mem haC] at hstrict
-      exact not_lt_of_ge htop_le hstrict
+    have hdisj {a : Fin n} (haC : a ∈ C) (haS : a ∈ S) : False :=
+      not_lt_of_ge (I.rank_topChoice_le (hR _ (hSR (hσ_maps_S haS))) a)
+        (I.ttcRounds_succ_of_mem haC ▸ hlt a haS)
     -- Step 2: Every agent in `C` is fixed by `σ` (and `σ.symm`), so `(I.reendow σ).ttc` agrees
     -- with `I.topChoice R` on `C` by `(I.reendow σ).inStrictCore_ttc`.
-    have hsymm_C : ∀ a ∈ C, σ.symm a = a := by
-      intro a haC
-      apply σ.injective
-      rw [Equiv.apply_symm_apply, hsupp a (hdisj a haC)]
+    have hsymm_C {a : Fin n} (haC : a ∈ C) : σ.symm a = a :=
+      σ.injective (by rw [Equiv.apply_symm_apply, hsupp a (hdisj haC)])
     let μ' : Allocation n := (I.reendow σ).ttc
-    have hμ'_strict : (I.reendow σ).InStrictCore μ' := (I.reendow σ).inStrictCore_ttc
     classical
     let g : Fin n → Fin n := fun a => if a ∈ C then I.topChoice R a else a
     have hg : Function.Injective g := by
@@ -140,50 +125,39 @@ private theorem eq_empty_of_strict_preTrade_rounds {σ : Allocation n} {S : Fins
       · exact absurd (hab ▸ I.topChoice_mem_cycleAgents hb) ha
       · exact hab
     let ν : Allocation n := StableMatching.permOfInjective g hg
-    have hνC : ∀ a ∈ C, ν a = I.topChoice R a := fun a ha => ite_eq_left ha
-    have hμ'C : ∀ a ∈ C, μ' a = I.topChoice R a := by
-      have hle : ∀ a ∈ C, I.rank a (I.topChoice R a) ≤ I.rank a (μ' a) :=
-        fun a ha => I.rank_topChoice_le (hR a (I.cycleAgents_subset R ha)) a
-      intro a ha
+    have hνC {a : Fin n} (ha : a ∈ C) : ν a = I.topChoice R a := ite_eq_left ha
+    have hμ'C {a : Fin n} (ha : a ∈ C) : μ' a = I.topChoice R a := by
+      have hle {b : Fin n} (hb : b ∈ C) : I.rank b (I.topChoice R b) ≤ I.rank b (μ' b) :=
+        I.rank_topChoice_le (hR b (I.cycleAgents_subset R hb)) b
       by_contra hne
-      refine hμ'_strict C ⟨ν, fun b hb => ?_, fun b hb => ?_, a, ha, ?_⟩
-      · rw [hνC b hb]
-        exact I.topChoice_mem_cycleAgents hb
-      · rw [reendow_rank, reendow_rank, hsymm_C b hb, hνC b hb]
-        exact hle b hb
-      · rw [reendow_rank, reendow_rank, hsymm_C a ha, hνC a ha]
-        exact lt_of_le_of_ne (hle a ha) fun heq => hne (I.rank_injective a heq).symm
+      refine (I.reendow σ).inStrictCore_ttc C ⟨ν,
+        fun b hb => hνC hb ▸ I.topChoice_mem_cycleAgents hb,
+        fun b hb => by simpa [hsymm_C hb, hνC hb] using hle hb, a, ha, ?_⟩
+      simpa [hsymm_C ha, hνC ha] using
+        lt_of_le_of_ne (hle ha) fun heq => hne (I.rank_injective a heq).symm
     -- Step 3: `μ'` maps `C` onto itself, hence `R \ C` into itself; recurse on `R \ C`.
     have himg_C : C.image μ' = C :=
       Finset.eq_of_subset_of_card_le
-        (Finset.image_subset_iff.2 fun b hb => hμ'C b hb ▸ I.topChoice_mem_cycleAgents hb)
+        (Finset.image_subset_iff.2 fun _ hb => hμ'C hb ▸ I.topChoice_mem_cycleAgents hb)
         (by rw [Finset.card_image_of_injective C μ'.injective])
-    have hR' : ∀ h ∈ R \ C, μ' h ∈ R \ C := by
-      intro h hh
+    have hR' : ∀ h ∈ R \ C, μ' h ∈ R \ C := fun h hh => by
       obtain ⟨hhR, hhC⟩ := Finset.mem_sdiff.1 hh
       refine Finset.mem_sdiff.2 ⟨hR h hhR, fun hmem => hhC ?_⟩
       obtain ⟨b, hbC, hbh⟩ := Finset.mem_image.1 (himg_C.symm ▸ hmem)
       exact μ'.injective hbh ▸ hbC
-    have hSR' : S ⊆ R \ C := fun i hi => Finset.mem_sdiff.2 ⟨hSR hi, fun hiC => hdisj i hiC hi⟩
-    refine ih hk' hSR' hR' fun i hi => ?_
-    have hi_not_C : i ∉ C := (Finset.mem_sdiff.1 (hSR' hi)).2
-    have hstrict := hlt i hi
-    rwa [I.ttcRounds_succ_of_notMem hi_not_C] at hstrict
+    refine ih hk' (fun i hi => Finset.mem_sdiff.2 ⟨hSR hi, fun hiC => hdisj hiC hi⟩) hR'
+      fun i hi => ?_
+    simpa [I.ttcRounds_succ_of_notMem fun hiC => hdisj hiC hi] using hlt i hi
 
 /-- **NRTV Exercise 10.7** ([SchummerVohra2007], p. 265): no nonempty coalition `S` can make **all**
 of its members strictly better off by permuting its initial endowments (`∀ i ∉ S, σ i = i`) before
 top trading cycles is run. -/
 theorem not_forall_rank_preTradeTTC_lt {S : Finset (Fin n)} (hS : S.Nonempty)
     {σ : Allocation n} (hsupp : ∀ i, i ∉ S → σ i = i) :
-    ¬ ∀ i ∈ S, I.rank i (I.preTradeTTC σ i) < I.rank i (I.ttc i) := by
-  intro hlt
-  have hemp : S = ∅ :=
-    I.eq_empty_of_strict_preTrade_rounds hsupp (k := n)
-      (by rw [Finset.card_univ, Fintype.card_fin])
-      (Finset.subset_univ S)
-      (fun _ _ => Finset.mem_univ _)
-      (fun i hi => by simpa only [ttc_apply] using hlt i hi)
-  exact hS.ne_empty hemp
+    ¬ ∀ i ∈ S, I.rank i (I.preTradeTTC σ i) < I.rank i (I.ttc i) := fun hlt =>
+  hS.ne_empty <| I.eq_empty_of_strict_preTrade_rounds hsupp
+    (by simp : Finset.univ.card ≤ n) (Finset.subset_univ S) (fun _ _ => Finset.mem_univ _)
+    fun i hi => by simpa only [ttc_apply] using hlt i hi
 
 /-- Coalition-free form of `not_forall_rank_preTradeTTC_lt`: under any nontrivial pre-trade
 endowment permutation `σ ≠ 1`, at least one agent `i` who trades its endowment (`σ i ≠ i`) is no
@@ -191,22 +165,13 @@ better off than under honest TTC. -/
 theorem exists_moved_rank_ttc_le {σ : Allocation n} (hσ : σ ≠ 1) :
     ∃ i : Fin n, σ i ≠ i ∧ I.rank i (I.ttc i) ≤ I.rank i (I.preTradeTTC σ i) := by
   let S : Finset (Fin n) := Finset.univ.filter fun i => σ i ≠ i
-  have hSne : S.Nonempty := by
-    by_contra hnot
-    rw [Finset.not_nonempty_iff_eq_empty] at hnot
-    apply hσ
-    refine Equiv.ext fun i => ?_
-    by_contra hne
-    have hiS : i ∈ S := Finset.mem_filter.2 ⟨Finset.mem_univ i, hne⟩
-    rw [hnot] at hiS
-    exact Finset.notMem_empty i hiS
-  have hsupp : ∀ i, i ∉ S → σ i = i := by
-    intro i hi
-    by_contra hne
-    exact hi (Finset.mem_filter.2 ⟨Finset.mem_univ i, hne⟩)
-  have hnot_all := I.not_forall_rank_preTradeTTC_lt hSne hsupp
-  push Not at hnot_all
-  obtain ⟨i, hiS, hle⟩ := hnot_all
+  have hSne : S.Nonempty := Finset.nonempty_iff_ne_empty.2 fun hemp =>
+    hσ (Equiv.ext fun i => Classical.byContradiction fun hne =>
+      Finset.notMem_empty i (hemp ▸ Finset.mem_filter.2 ⟨Finset.mem_univ i, hne⟩))
+  have hnot := I.not_forall_rank_preTradeTTC_lt hSne fun i hi =>
+    Classical.byContradiction fun hne => hi (Finset.mem_filter.2 ⟨Finset.mem_univ i, hne⟩)
+  push Not at hnot
+  obtain ⟨i, hiS, hle⟩ := hnot
   exact ⟨i, (Finset.mem_filter.1 hiS).2, hle⟩
 
 end Instance
@@ -239,11 +204,7 @@ theorem exists_weak_preTradeTTC_manipulation :
       S.Nonempty ∧
       (∀ i, i ∉ S → σ i = i) ∧
       (∀ i ∈ S, I.rank i (I.preTradeTTC σ i) ≤ I.rank i (I.ttc i)) ∧
-      (∃ i ∈ S, I.rank i (I.preTradeTTC σ i) < I.rank i (I.ttc i)) := by
-  refine ⟨weakPreTradeInstance, {0, 2}, Equiv.swap 0 2, ?_, ?_, ?_, ?_⟩
-  · decide
-  · decide
-  · decide
-  · decide
+      (∃ i ∈ S, I.rank i (I.preTradeTTC σ i) < I.rank i (I.ttc i)) :=
+  ⟨weakPreTradeInstance, {0, 2}, Equiv.swap 0 2, by decide, by decide, by decide, by decide⟩
 
 end Cslib.Algorithms.Lean.HousingMarket

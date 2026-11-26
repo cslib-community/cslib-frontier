@@ -117,11 +117,8 @@ theorem integral_mulVec_dotProduct_eq
       Icc_subset_Ici_self)
     (fun t ht => (hasDerivWithinAt_dotProduct_mulVec (P := W) hx (le_of_lt ht.1)).hasDerivAt
       (Ici_mem_nhds ht.1)) (hint _)
-  have hsplit : (fun t => x t ⬝ᵥ (Aᵀ * W + W * A + Cᵀ * C) *ᵥ x t) =
-      fun t => x t ⬝ᵥ (Aᵀ * W + W * A) *ᵥ x t + x t ⬝ᵥ (Cᵀ * C) *ᵥ x t := by
-    funext t
-    rw [add_mulVec, dotProduct_add]
-  rw [hsplit, intervalIntegral.integral_add (hint _) (hint _), hV]
+  conv_rhs => rw [intervalIntegral.integral_congr fun _ _ => by rw [add_mulVec, dotProduct_add]]
+  rw [intervalIntegral.integral_add (hint _) (hint _), hV]
   simp only [dotProduct_transpose_mul_mulVec]
   ring
 
@@ -177,8 +174,7 @@ theorem integrableOn_Ioi_and_integral_eq
       ∫ t in Ioi 0, C *ᵥ x t ⬝ᵥ C *ᵥ x t = x 0 ⬝ᵥ W *ᵥ x 0 := by
   have hpart : ∀ T, 0 ≤ T →
       ∫ t in 0..T, C *ᵥ x t ⬝ᵥ C *ᵥ x t = x 0 ⬝ᵥ W *ᵥ x 0 - x T ⬝ᵥ W *ᵥ x T := fun T hT => by
-    rw [integral_mulVec_dotProduct_eq (W := W) hx hT, hR]
-    simp
+    simp [integral_mulVec_dotProduct_eq (W := W) hx hT, hR]
   have hV : Tendsto (fun T => x T ⬝ᵥ W *ᵥ x T) atTop (𝓝 0) := by
     simpa [Function.comp_def] using ((continuous_dotProduct_mulVec W).tendsto 0).comp hx₀
   have hlim : Tendsto (fun T => ∫ t in 0..T, C *ᵥ x t ⬝ᵥ C *ᵥ x t) atTop
@@ -266,14 +262,11 @@ theorem mulVec_dotProduct_le_exp_neg_mul [DecidableEq n] {p : Type*} [Fintype p]
 theorem hasDerivWithinAt_exp_smul_mulVec [DecidableEq n] (A : Matrix n n ℝ) (y : n → ℝ) :
     ∀ t ∈ Ici (0 : ℝ),
       HasDerivWithinAt (fun τ => exp (τ • A) *ᵥ y) (A *ᵥ (exp (t • A) *ᵥ y)) (Ici 0) t := by
-  have h := ContinuousLinearMap.isTrajectoryOn_exp_smul_apply (toEuclideanCLM (𝕜 := ℝ) A)
-    (WithLp.toLp 2 y) (Ici 0)
   have e : (fun t : ℝ => exp (t • toEuclideanCLM (𝕜 := ℝ) A) (WithLp.toLp 2 y)) =
-      fun t => WithLp.toLp 2 (exp (t • A) *ᵥ y) := by
-    funext t
-    rw [← ofLp_exp_smul_toEuclideanCLM_apply, WithLp.toLp_ofLp]
-  rw [e] at h
-  exact isTrajectoryOn_toEuclideanCLM_iff.1 h
+      fun t => WithLp.toLp 2 (exp (t • A) *ᵥ y) :=
+    funext fun t => by rw [← ofLp_exp_smul_toEuclideanCLM_apply, WithLp.toLp_ofLp]
+  exact isTrajectoryOn_toEuclideanCLM_iff.1
+    (e ▸ ContinuousLinearMap.isTrajectoryOn_exp_smul_apply _ _ _)
 
 /-- An exponentially stable `ẋ = A x` drives every `exp (t • A) *ᵥ y` to `0`. -/
 theorem tendsto_exp_smul_mulVec [DecidableEq n]
@@ -299,10 +292,9 @@ private theorem gramian_key {W : Matrix n n ℝ} {p : Type*} [Fintype p] [Decida
     (hA : (toEuclideanCLM (𝕜 := ℝ) A).IsExponentiallyStable) (u : n → ℝ) :
     IntegrableOn (fun t : ℝ => C *ᵥ (exp (t • A) *ᵥ u) ⬝ᵥ C *ᵥ (exp (t • A) *ᵥ u)) (Ioi 0) ∧
       ∫ t in Ioi (0 : ℝ), C *ᵥ (exp (t • A) *ᵥ u) ⬝ᵥ C *ᵥ (exp (t • A) *ᵥ u) = u ⬝ᵥ W *ᵥ u := by
-  have h := integrableOn_Ioi_and_integral_eq (hasDerivWithinAt_exp_smul_mulVec A u) hR
-    (tendsto_exp_smul_mulVec hA u)
-  simp only [zero_smul, NormedSpace.exp_zero, one_mulVec] at h
-  exact h
+  simpa only [zero_smul, NormedSpace.exp_zero, one_mulVec] using
+    integrableOn_Ioi_and_integral_eq (hasDerivWithinAt_exp_smul_mulVec A u) hR
+      (tendsto_exp_smul_mulVec hA u)
 
 /-- **The observability Gramian as an integral.** If `W` is symmetric, `Aᵀ W + W A + Cᵀ C = 0`
 and `ẋ = A x` is exponentially stable, then for all `y`, `z`
@@ -350,12 +342,10 @@ variable {n m p : Type*} [Fintype n] [DecidableEq n] [Fintype m] [Fintype p]
   {S : LTISystem n m p} {W P : Matrix n n ℝ}
 
 omit [Fintype p] in
-/-- For `t ≥ 0`, `h t *ᵥ v` is the output of the unforced trajectory from `B *ᵥ v`. -/
-private theorem responseKernel_mulVec_eq' {t : ℝ} (ht : 0 ≤ t) (v : m → ℝ) :
-    S.responseKernel t *ᵥ v = S.C *ᵥ (exp (t • S.A) *ᵥ (S.B *ᵥ v)) :=
-  responseKernel_mulVec_eq (x := fun τ => exp (τ • S.A) *ᵥ (S.B *ᵥ v))
-    (fun τ hτ => by simpa using hasDerivWithinAt_exp_smul_mulVec S.A (S.B *ᵥ v) τ hτ)
-    (by simp) ht
+/-- `h t *ᵥ v = C *ᵥ (exp (t A) *ᵥ (B *ᵥ v))`, for every `t`. -/
+private theorem responseKernel_mulVec_eq' (t : ℝ) (v : m → ℝ) :
+    S.responseKernel t *ᵥ v = S.C *ᵥ (exp (t • S.A) *ᵥ (S.B *ᵥ v)) := by
+  rw [responseKernel_eq, mulVec_mulVec, mulVec_mulVec]
 
 omit [Fintype n] [DecidableEq n] [Fintype p] in
 /-- The squared Frobenius norm is the sum of the squared Euclidean norms of the columns. -/
@@ -379,19 +369,12 @@ private theorem trace_eq_sum [DecidableEq m] (B : Matrix n m ℝ) (W : Matrix n 
   rw [← dotProduct_transpose_mul_mul_mulVec, diag_apply, mulVec_single_one, single_one_dotProduct,
     col_apply]
 
-/-- For `t ≥ 0`, the squared Frobenius norm of `h t` is the output energy density of the
-trajectories from the columns of `B`. -/
-private theorem frobeniusSq_eq [DecidableEq m] {t : ℝ} (ht : 0 ≤ t) :
+/-- The squared Frobenius norm of `h t` is the output energy density of the trajectories from the
+columns of `B`. -/
+private theorem frobeniusSq_eq [DecidableEq m] (t : ℝ) :
     ∑ i, ∑ j, S.responseKernel t i j ^ 2 = ∑ j, S.C *ᵥ (exp (t • S.A) *ᵥ (S.B *ᵥ Pi.single j 1)) ⬝ᵥ
       S.C *ᵥ (exp (t • S.A) *ᵥ (S.B *ᵥ Pi.single j 1)) := by
-  simp only [sum_sq_eq_sum_mulVec_single, responseKernel_mulVec_eq' ht]
-
-/-- The response kernel agrees on `(0, ∞)` with the output of the unforced trajectory. -/
-private theorem eqOn_responseKernel (v : m → ℝ) :
-    EqOn (fun t => S.responseKernel t *ᵥ v ⬝ᵥ S.responseKernel t *ᵥ v)
-      (fun t => S.C *ᵥ (exp (t • S.A) *ᵥ (S.B *ᵥ v)) ⬝ᵥ S.C *ᵥ (exp (t • S.A) *ᵥ (S.B *ᵥ v)))
-      (Ioi 0) := fun t ht => by
-  simp only [responseKernel_mulVec_eq' (le_of_lt ht)]
+  simp only [sum_sq_eq_sum_mulVec_single, responseKernel_mulVec_eq']
 
 /-! ### Exact energy from the Gramian equation -/
 
@@ -403,8 +386,7 @@ theorem integral_frobeniusSq_eq (hR : S.Aᵀ * W + W * S.A + S.Cᵀ * S.C = 0)
     ∫ t in 0..T, ∑ i, ∑ j, S.responseKernel t i j ^ 2 =
       trace (S.Bᵀ * W * S.B) - trace ((exp (T • S.A) * S.B)ᵀ * W * (exp (T • S.A) * S.B)) := by
   classical
-  rw [intervalIntegral.integral_congr fun t ht => frobeniusSq_eq
-      (by rw [uIcc_of_le hT] at ht; exact ht.1),
+  rw [intervalIntegral.integral_congr fun t _ => frobeniusSq_eq t,
     intervalIntegral.integral_finsetSum fun j _ =>
       (intervalIntegrable_iff_integrableOn_Ioc_of_le hT).2
         (integrableOn_Ioc_mulVec_dotProduct (hasDerivWithinAt_exp_smul_mulVec S.A _) T),
@@ -421,9 +403,8 @@ theorem integrableOn_Ioi_and_integral_mulVec_eq (hR : S.Aᵀ * W + W * S.A + S.C
     IntegrableOn (fun t => S.responseKernel t *ᵥ v ⬝ᵥ S.responseKernel t *ᵥ v) (Ioi 0) ∧
       ∫ t in Ioi 0, S.responseKernel t *ᵥ v ⬝ᵥ S.responseKernel t *ᵥ v =
         S.B *ᵥ v ⬝ᵥ W *ᵥ (S.B *ᵥ v) := by
-  have h := gramian_key hR hA (S.B *ᵥ v)
-  exact ⟨h.1.congr_fun (eqOn_responseKernel v).symm measurableSet_Ioi,
-    (setIntegral_congr_fun measurableSet_Ioi (eqOn_responseKernel v)).trans h.2⟩
+  simp only [responseKernel_mulVec_eq']
+  exact gramian_key hR hA (S.B *ᵥ v)
 
 /-- **Exact impulse-response energy.** If `Aᵀ W + W A + Cᵀ C = 0` and `ẋ = A x` is exponentially
 stable, then `‖h t‖_F² = ∑ i, ∑ j, h t i j ^ 2` is integrable on `(0, ∞)` and
@@ -456,9 +437,7 @@ theorem integrableOn_Ioi_and_integral_mulVec_le (hW : W.PosSemidef)
       simp only [star_trivial, neg_mulVec, dotProduct_neg] at this
       linarith)
     (fun y => by simpa using hW.dotProduct_mulVec_nonneg y)
-  simp only [zero_smul, NormedSpace.exp_zero, one_mulVec] at h
-  exact ⟨h.1.congr_fun (eqOn_responseKernel v).symm measurableSet_Ioi,
-    (setIntegral_congr_fun measurableSet_Ioi (eqOn_responseKernel v)).trans_le h.2⟩
+  simpa only [zero_smul, NormedSpace.exp_zero, one_mulVec, responseKernel_mulVec_eq'] using h
 
 /-- **Impulse-response energy bound.** If `W ⪰ 0` and `Aᵀ W + W A + Cᵀ C ⪯ 0`, then
 `‖h t‖_F²` is integrable on `(0, ∞)` and `∫₀^∞ ‖h t‖_F² ≤ tr (Bᵀ W B)`. No stability of `A` is
@@ -486,7 +465,7 @@ private theorem responseKernel_mulVec_sq_le_aux {α γ : ℝ}
   simp only [zero_smul, NormedSpace.exp_zero, one_mulVec] at hd
   have hc := dotProduct_mulVec_le_of_posSemidef_sub hC (exp (t • S.A) *ᵥ (S.B *ᵥ v))
   rw [dotProduct_transpose_mul_mulVec, smul_mulVec, dotProduct_smul, smul_eq_mul] at hc
-  rw [responseKernel_mulVec_eq' ht, mul_assoc]
+  rw [responseKernel_mulVec_eq', mul_assoc]
   exact hc.trans (mul_le_mul_of_nonneg_left hd hγ)
 
 /-- **Certified impulse-response envelope.** If `Aᵀ P + P A + 2 α P ⪯ 0`, `Cᵀ C ⪯ γ P` with
@@ -539,7 +518,7 @@ theorem integrableOn_Ioi_and_integral_Ioi_frobeniusSq_le {α γ : ℝ} (hα : 0 
   have hcont : ContinuousOn (fun t => ∑ i, ∑ j, S.responseKernel t i j ^ 2) (Ioi T) := by
     refine ContinuousOn.congr (f := fun t => ∑ j, S.C *ᵥ (exp (t • S.A) *ᵥ (S.B *ᵥ
       Pi.single j 1)) ⬝ᵥ S.C *ᵥ (exp (t • S.A) *ᵥ (S.B *ᵥ Pi.single j 1))) ?_
-      fun t ht => frobeniusSq_eq (hT.trans (le_of_lt ht))
+      fun t _ => frobeniusSq_eq t
     refine continuousOn_finsetSum _ fun j _ => ?_
     have hx : ContinuousOn (fun t => exp (t • S.A) *ᵥ (S.B *ᵥ Pi.single j 1)) (Ioi T) :=
       fun t ht => ((hasDerivWithinAt_exp_smul_mulVec S.A _ t

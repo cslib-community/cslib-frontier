@@ -126,14 +126,14 @@ theorem lastMidpoint_eq_some_iff {i : ℕ} {z : List Bool} {d : Bool} {m : List 
       getD_drop_level, drop_drop_level]
     constructor
     · rintro (⟨j, hj, h1, h2, h3⟩ | ⟨hn, hs⟩)
-      · refine ⟨j + 1, by omega, h1, h2, fun j' hj' hj'' => ?_⟩
-        obtain ⟨k, rfl⟩ : ∃ k, j' = k + 1 := ⟨j' - 1, by omega⟩
-        exact h3 k (by omega) (by omega)
+      · refine ⟨j + 1, by omega, h1, h2, fun
+          | 0, hj', _ => by omega
+          | k + 1, hj', hj'' => h3 k (by omega) (by omega)⟩
       · obtain ⟨hd, rfl⟩ : z.getD (2 * w + 1) false = d ∧ midpointMoves w z = m := by
           simpa using hs
-        refine ⟨0, by omega, by simpa using hd, by simp, fun j' hj' hj'' => ?_⟩
-        obtain ⟨k, rfl⟩ : ∃ k, j' = k + 1 := ⟨j' - 1, by omega⟩
-        exact hn k (by omega)
+        refine ⟨0, by omega, by simpa using hd, by simp, fun
+          | 0, hj', _ => by omega
+          | k + 1, _, hj'' => hn k (by omega)⟩
     · rintro ⟨j, hj, h1, h2, h3⟩
       cases j with
       | zero =>
@@ -152,28 +152,14 @@ theorem iterate_midpointStep (i : ℕ) (u v z : List Bool) :
   induction i generalizing u v z with
   | zero => simp [lastMidpoint]
   | succ i ih =>
-    have hdrop : (z.drop (2 * w + 2)).drop ((2 * w + 2) * i) = z.drop ((2 * w + 2) * (i + 1)) := by
-      rw [List.drop_drop]
-      congr 1
-      ring
-    have hstep : midpointStep w (u, v, z) = if z.getD (2 * w + 1) false then
+    rw [Function.iterate_succ_apply, lastMidpoint, lastMidpoint]
+    change (midpointStep w)^[i] (if z.getD (2 * w + 1) false then
         (midpointMoves w z, v, z.drop (2 * w + 2))
-      else (u, midpointMoves w z, z.drop (2 * w + 2)) := rfl
-    rw [Function.iterate_succ_apply, hstep]
-    by_cases h : z.getD (2 * w + 1) false = true
-    · simp only [h, ite_true]
-      rw [ih, hdrop]
-      cases hl : lastMidpoint w i (z.drop (2 * w + 2)) true <;>
-        cases hr : lastMidpoint w i (z.drop (2 * w + 2)) false <;>
-        simp only [lastMidpoint, h, hl, hr, Bool.true_eq_false, ite_true, ite_false,
-          Option.none_or, Option.some_or, Option.getD_some, Option.getD_none]
-    · have h' : z.getD (2 * w + 1) false = false := by simpa using h
-      simp only [h', Bool.false_eq_true, ite_false]
-      rw [ih, hdrop]
-      cases hl : lastMidpoint w i (z.drop (2 * w + 2)) true <;>
-        cases hr : lastMidpoint w i (z.drop (2 * w + 2)) false <;>
-        simp only [lastMidpoint, h', hl, hr, Bool.false_eq_true, ite_true, ite_false,
-          Option.none_or, Option.some_or, Option.getD_some, Option.getD_none]
+      else (u, midpointMoves w z, z.drop (2 * w + 2))) = _
+    cases z.getD (2 * w + 1) false <;>
+      simp only [Bool.false_eq_true, ↓reduceIte, ih, drop_drop_level] <;>
+      cases lastMidpoint w i (z.drop (2 * w + 2)) true <;>
+      cases lastMidpoint w i (z.drop (2 * w + 2)) false <;> rfl
 
 /-- **The midpoint game depends on two levels.** The existential player wins a play of the
 midpoint game at level `i` between `u` and `v` exactly when the edge test accepts the midpoint of
@@ -276,10 +262,8 @@ private theorem blockT_run_true (n : ℕ) :
   induction n with
   | zero => rfl
   | succ n ih =>
-    rw [List.replicate_succ, Transducer.run_cons]
-    simp only [blockT, ite_true] at ih ⊢
-    rw [ih, show 2 * (n + 1) + 2 = (2 * n + 2) + 1 + 1 by ring]
-    rfl
+    simpa [List.replicate_succ, Transducer.run_cons, blockT, Nat.mul_succ] using
+      congrArg (false :: false :: ·) ih
 
 /-- `blockT` writes one level of the level marks. -/
 private theorem blockT_run (n : ℕ) :
@@ -287,11 +271,8 @@ private theorem blockT_run (n : ℕ) :
   cases n with
   | zero => rfl
   | succ n =>
-    rw [List.replicate_succ, Transducer.run_cons]
-    have := blockT_run_true n
-    simp only [blockT, Bool.false_eq_true, ite_false] at this ⊢
-    rw [this, show 2 * (n + 1) + 1 = (2 * n + 2) + 1 by ring]
-    rfl
+    simpa [List.replicate_succ, Transducer.run_cons, blockT, Nat.mul_succ] using
+      congrArg (true :: false :: ·) (blockT_run_true n)
 
 /-- The level marks have one mark per move. -/
 private theorem length_levelMarks (w i : ℕ) : (levelMarks w i).length = (2 * w + 2) * i := by
@@ -466,13 +447,8 @@ private theorem run_seek_levelMarks (d : Bool) :
     have hz' : z'.length = (2 * w + 2) * i := by simp at hz; omega
     have hlast : lastMidpoint w (i + 1) (m ++ x :: h :: z') d = (lastMidpoint w i z' d).or
         (if h = d then some (midpointMoves w (m ++ x :: h :: z')) else none) := by
-      have h1 : (m ++ x :: h :: z').drop (2 * w + 2) = z' := by
-        rw [List.drop_append, List.drop_eq_nil_of_le (by omega),
-          show 2 * w + 2 - m.length = 2 by omega]
-        rfl
-      have h2 : (m ++ x :: h :: z').getD (2 * w + 1) false = h := by
-        simp [List.getD_eq_getElem?_getD, hm]
-      simp only [lastMidpoint, h1, h2]
+      rw [lastMidpoint, List.drop_append, List.drop_eq_nil_of_le (by omega)]
+      simp [List.getD_eq_getElem?_getD, hm]
     have hrun : ∀ b e, levelMarks w (i + 1) ++ b = levelMarks w i ++
         (true :: List.replicate (2 * w + 1) false ++ b) ∧
         (m ++ x :: h :: z').reverse ++ e = z'.reverse ++ (h :: x :: m.reverse ++ e) :=
@@ -495,15 +471,12 @@ option. -/
 private theorem endpointWord_eq (d : Bool) {i : ℕ} {z : List Bool}
     (hz : z.length = (2 * w + 2) * i) :
     endpointWord d (w, i, z) = encOption encBits (lastMidpoint w i z d) := by
-  rcases run_seek_levelMarks d i z hz with ⟨hn, hseek⟩ | ⟨m, q, hs, hq, hseek⟩
-  · have h := hseek [] []
-    simp only [List.append_nil] at h
-    simp only [endpointWord, h, hn, ZipTransducer.run_nil_nil]
-    rfl
-  · have h := hseek [] []
-    simp only [List.append_nil] at h
-    rcases hq with rfl | rfl <;> simp only [endpointWord, h, hs, ZipTransducer.run_nil_nil] <;>
-      simp [endpointZip, encBits_apply]
+  rcases run_seek_levelMarks d i z hz with ⟨hn, hseek⟩ | ⟨m, _, hs, rfl | rfl, hseek⟩
+  · simpa [endpointWord, hn, ZipTransducer.run_nil_nil, endpointZip] using
+      congrArg List.reverse (hseek [] [])
+  all_goals
+    simpa [endpointWord, hs, ZipTransducer.run_nil_nil, endpointZip, encBits_apply] using
+      congrArg List.reverse (hseek [] [])
 
 /-- **The endpoint machine runs in linear time.** The word `endpointWord d (w, i, z)` is computed
 on a multi-tape machine within time and space `O((2 * w + 2) * i + w + |z|)`, linear in the number

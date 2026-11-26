@@ -248,10 +248,9 @@ noncomputable abbrev markingStrategy (k : ℕ) (hk : 0 < k) :
 theorem stepExpectedCost_markingStrategy {k : ℕ} (hk : 0 < k) (m : MarkMem α) (p : α) :
     (markingStrategy k hk).stepExpectedCost m p = if p ∈ m.cache then 0 else 1 := by
   simp only [BehavioralStrategy.stepExpectedCost, markingStrategy, problem, stepCost]
-  by_cases hp : p ∈ m.cache
-  · simp only [hp, ↓reduceIte, Nat.cast_zero, mul_zero, tsum_zero]
-  · simp only [hp, ↓reduceIte, Nat.cast_one, mul_one]
-    exact (markingStep k m p).tsum_coe
+  split_ifs with hp
+  · simp only [Nat.cast_zero, mul_zero, tsum_zero]
+  · simp only [Nat.cast_one, mul_one, PMF.tsum_coe]
 
 /-- Expected cost of `markingStrategy` on any valid initial cache and request sequence `reqs` is at
 most `reqs.length`, hence finite (`≠ ⊤`). -/
@@ -338,27 +337,15 @@ theorem validTracker_step {k : ℕ} (hk : 0 < k) {tr : MarkTracker α} (htr : Va
     (p : α) : ValidTracker k (stepTracker k tr p) := by
   obtain ⟨hdisj, hst, hsk, hmk, hfull⟩ := htr
   unfold stepTracker
-  by_cases hpM : p ∈ tr.marked
-  · simp only [hpM, ↓reduceIte]
-    exact ⟨hdisj, hst, hsk, hmk, hfull⟩
-  · simp only [hpM, ↓reduceIte]
-    by_cases ht0 : tr.staleCached = 0
-    · simp only [ht0, ↓reduceIte]
-      by_cases hlt : tr.marked.card < k
-      · simp only [hlt, ↓reduceIte]; dsimp only [ValidTracker]
-        exact ⟨Finset.disjoint_empty_right _, le_rfl, Nat.zero_le k, by finset_card,
-          fun h => absurd h (Nat.lt_irrefl 0)⟩
-      · simp only [hlt, ↓reduceIte]; dsimp only [ValidTracker]
-        exact ⟨by finset_card, by finset_card, by omega, by finset_card, fun _ => by finset_card⟩
-    · have htpos : 0 < tr.staleCached := Nat.pos_of_ne_zero ht0
-      have hsum : tr.marked.card + tr.staleCached = k := hfull htpos
-      simp only [ht0, ↓reduceIte]
-      by_cases hpS : p ∈ tr.stale
-      · simp only [hpS, ↓reduceIte]; dsimp only [ValidTracker]
-        exact ⟨by finset_card, by finset_card, by finset_card, by finset_card,
-          fun _ => by finset_card⟩
-      · simp only [hpS, ↓reduceIte]; dsimp only [ValidTracker]
-        exact ⟨by finset_card, by omega, hsk, by finset_card, fun _ => by finset_card⟩
+  split_ifs with hpM ht0 hlt hpS <;> dsimp only [ValidTracker]
+  · exact ⟨hdisj, hst, hsk, hmk, hfull⟩
+  · exact ⟨Finset.disjoint_empty_right _, le_rfl, Nat.zero_le k, by finset_card,
+      fun h => absurd h (Nat.lt_irrefl 0)⟩
+  · exact ⟨by finset_card, by finset_card, by omega, by finset_card, fun _ => by finset_card⟩
+  · have hsum := hfull (Nat.pos_of_ne_zero ht0)
+    exact ⟨by finset_card, by finset_card, by finset_card, by finset_card, fun _ => by finset_card⟩
+  · have hsum := hfull (Nat.pos_of_ne_zero ht0)
+    exact ⟨by finset_card, by omega, hsk, by finset_card, fun _ => by finset_card⟩
 
 /-- Exact memory distribution associated with tracker `tr`: the cache is `tr.marked ∪ U` for a
 uniform `tr.staleCached`-subset `U` of `tr.stale`, and the marked set is `tr.marked`. -/
@@ -380,9 +367,7 @@ theorem markLaw_of_staleCached_eq_zero {M S : Finset α} :
   · simp only [Finset.powersetCard_zero, Finset.mem_singleton, uniformOfFinset_apply, ↓reduceIte,
       Finset.card_singleton, Nat.cast_one, inv_one, Finset.union_empty, PMF.pure_apply]
     split_ifs <;> rfl
-  · intro U hU
-    simp only [Finset.powersetCard_zero, uniformOfFinset_apply, Finset.mem_singleton, hU,
-      ↓reduceIte, ite_self]
+  · exact fun U hU => by simp [Finset.powersetCard_zero, uniformOfFinset_apply, hU]
 
 theorem markLaw_initTracker (s₀ : Finset α) :
     markLaw (initTracker s₀) = PMF.pure ⟨s₀, s₀⟩ :=
@@ -410,12 +395,8 @@ private theorem markingStep_on_union {k : ℕ} {M U : Finset α} {p : α}
       rw [Finset.insert_union, ← Finset.union_comm (U.erase p) M, ← Finset.insert_union,
         Finset.insert_erase hpU, Finset.union_comm U M]
     simp only [markingStep, hpMU, hpU, ↓reduceIte, PMF.pure_map, hunion]
-  · have hpMU : p ∉ M ∪ U := by
-      rw [Finset.mem_union, not_or]
-      exact ⟨hpM, hpU⟩
-    have hunm_sdiff : ((M ∪ U) \ M).Nonempty := by
-      rw [hsdiff]
-      exact hU
+  · have hpMU : p ∉ M ∪ U := by simp [hpM, hpU]
+    have hunm_sdiff : ((M ∪ U) \ M).Nonempty := by rwa [hsdiff]
     simp only [markingStep, hpMU, hpU, hnotlt, hnot_sub, ↓reduceIte, dite_eq_left hunm_sdiff,
       uniformErase, dite_eq_left hU, PMF.map_comp]
     rw [uniformOfFinset_congr (h₂ := hU) hsdiff]
@@ -464,12 +445,7 @@ theorem markLaw_bind_markingStep {k : ℕ} (hk : 0 < k) {tr : MarkTracker α}
               (Finset.powersetCard_nonempty.mpr (by omega)) = PMF.pure M := by
           ext U
           have hself : M.powersetCard k = {M} := hMcard ▸ Finset.powersetCard_self M
-          by_cases hUM : U = M
-          · subst hUM
-            simp only [hself, uniformOfFinset_apply, Finset.mem_singleton, ↓reduceIte,
-              Finset.card_singleton, Nat.cast_one, inv_one, PMF.pure_apply]
-          · simp only [hself, uniformOfFinset_apply, Finset.mem_singleton, hUM, ↓reduceIte,
-              PMF.pure_apply]
+          by_cases hUM : U = M <;> simp [hself, uniformOfFinset_apply, hUM, PMF.pure_apply]
         have herase := uniformOfFinset_powersetCard_erase (S := M) (t := k) hk (by omega)
         rw [hpure, PMF.pure_bind, uniformErase, dite_eq_left hMne] at herase
         rw [← herase, PMF.map_comp]
@@ -534,8 +510,6 @@ theorem stepExpectedCost_markLaw {k : ℕ} (hk : 0 < k) {tr : MarkTracker α}
     · simp only [stepTrackerCost, hpM, ht0, ↓reduceIte]
       by_cases hpS : p ∈ tr.stale
       · simp only [hpS, ↓reduceIte]
-        have hnotMem : ∀ U : Finset α, (p ∈ tr.marked ∪ U) ↔ p ∈ U := fun U => by
-          simp only [Finset.mem_union, hpM, false_or]
         have hind :
             (∑' U, uniformOfFinset (tr.stale.powersetCard tr.staleCached) hne U *
               if p ∈ tr.marked ∪ U then (0 : ℝ≥0∞) else 1) =
@@ -543,28 +517,18 @@ theorem stepExpectedCost_markLaw {k : ℕ} (hk : 0 < k) {tr : MarkTracker α}
                 {U | p ∉ U} := by
           rw [PMF.toOuterMeasure_apply]
           refine tsum_congr fun U => ?_
-          simp only [hnotMem]
-          by_cases hpU : p ∈ U <;> simp [hpU]
+          by_cases hpU : p ∈ U <;> simp [hpU, hpM]
         rw [hind, toOuterMeasure_uniformOfFinset_powersetCard_notMem hpS hst]
         have hSpos : (0 : ℝ) < (tr.stale.card : ℝ) := by
           exact_mod_cast Finset.card_pos.mpr ⟨p, hpS⟩
         rw [Rat.cast_div, Rat.cast_natCast, Rat.cast_natCast, ENNReal.ofReal_div_of_pos hSpos,
           ENNReal.ofReal_natCast, ENNReal.ofReal_natCast, div_eq_mul_inv]
       · simp only [hpS, ↓reduceIte, Rat.cast_one, ENNReal.ofReal_one]
-        calc (∑' U, uniformOfFinset (tr.stale.powersetCard tr.staleCached) hne U *
-              if p ∈ tr.marked ∪ U then (0 : ℝ≥0∞) else 1)
-            = ∑' U, uniformOfFinset (tr.stale.powersetCard tr.staleCached) hne U * 1 := by
-              refine tsum_congr fun U => ?_
-              by_cases hU : U ∈ tr.stale.powersetCard tr.staleCached
-              · have hpU : p ∉ U := fun hp => hpS ((Finset.mem_powersetCard.mp hU).1 hp)
-                have hpMU : p ∉ tr.marked ∪ U := by
-                  rw [Finset.mem_union, not_or]
-                  exact ⟨hpM, hpU⟩
-                simp only [hpMU, ↓reduceIte]
-              · simp only [uniformOfFinset_apply, hU, ↓reduceIte, zero_mul]
-          _ = 1 := by
-              simp only [mul_one]
-              exact (uniformOfFinset _ hne).tsum_coe
+        refine (tsum_congr fun U => ?_).trans (uniformOfFinset _ hne).tsum_coe
+        by_cases hU : U ∈ tr.stale.powersetCard tr.staleCached
+        · have hpU : p ∉ U := fun hp => hpS ((Finset.mem_powersetCard.mp hU).1 hp)
+          simp [hpM, hpU]
+        · simp [uniformOfFinset_apply, hU]
 
 /-- Expected continuation cost of `markingStrategy` from `markLaw tr` equals
 `ENNReal.ofReal (trackerExpectedCost k tr reqs)`. -/
@@ -603,51 +567,32 @@ theorem stepTrackerCost_add_potential_le {k : ℕ} (hk : 0 < k) {tr : MarkTracke
       (if isCleanReq tr p then harmonic k else 0) + trackerPotential tr := by
   obtain ⟨_, hst, hsk, _, _⟩ := htr
   by_cases hpM : p ∈ tr.marked
-  · have hclean : isCleanReq tr p = false := by simp [isCleanReq, hpM]
-    simp only [stepTrackerCost, stepTracker, hpM, hclean, ↓reduceIte, Bool.false_eq_true, zero_add,
-      le_rfl]
+  · simp [isCleanReq, stepTrackerCost, stepTracker, hpM]
   · by_cases ht0 : tr.staleCached = 0
-    · have hclean : isCleanReq tr p = true := by simp [isCleanReq, hpM, ht0]
-      have hpot0 : trackerPotential tr = 0 := by
-        simp only [trackerPotential, ht0, Nat.sub_zero, sub_self, mul_zero]
-      simp only [stepTrackerCost, stepTracker, hpM, ht0, hclean, ↓reduceIte, hpot0, add_zero]
+    · simp only [isCleanReq, stepTrackerCost, stepTracker, hpM, ht0, and_self, decide_true,
+        not_false_eq_true, true_or, ↓reduceIte, trackerPotential, Nat.sub_zero, sub_self, mul_zero,
+        add_zero]
       by_cases hlt : tr.marked.card < k
-      · simp only [hlt, ↓reduceIte, trackerPotential, Finset.card_empty, Nat.sub_zero,
-          Nat.cast_zero, zero_mul, add_zero]
-        exact one_le_harmonic hk.ne'
+      · simp [hlt, one_le_harmonic hk.ne']
       · have hMcard : tr.marked.card = k := by omega
-        have hsub1 : k - (k - 1) = 1 := by omega
-        simp only [hlt, ↓reduceIte, trackerPotential]
-        rw [hMcard, hsub1]
+        have hk1 : k - (k - 1) = 1 := by omega
+        simp only [hlt, ↓reduceIte]
+        rw [hMcard, hk1]
         simp only [Nat.cast_one, one_mul, harmonic_succ 0, harmonic_zero, zero_add, inv_one]
         linarith
-    · have htpos : 0 < tr.staleCached := Nat.pos_of_ne_zero ht0
-      by_cases hpS : p ∈ tr.stale
-      · have hclean : isCleanReq tr p = false := by simp [isCleanReq, hpM, ht0, hpS]
-        simp only [stepTrackerCost, stepTracker, hpM, ht0, hpS, hclean, ↓reduceIte,
-          Bool.false_eq_true, zero_add, trackerPotential]
-        have hm1 : 1 ≤ tr.stale.card := Finset.card_pos.mpr ⟨p, hpS⟩
-        have herase_card : (tr.stale.erase p).card = tr.stale.card - 1 :=
-          Finset.card_erase_of_mem hpS
-        have hc_eq : (tr.stale.card - 1) - (tr.staleCached - 1) = tr.stale.card - tr.staleCached :=
-          by omega
-        have hharm_m :
-            harmonic tr.stale.card = harmonic (tr.stale.card - 1) + ((tr.stale.card : ℚ))⁻¹ := by
-          have hm_succ : tr.stale.card = (tr.stale.card - 1) + 1 := by omega
-          conv_lhs => rw [hm_succ, harmonic_succ]
-          have hcast :
-              (((tr.stale.card - 1 : ℕ) + 1 : ℕ) : ℚ) = (tr.stale.card : ℚ) := by
-            exact_mod_cast hm_succ.symm
-          rw [hcast]
-        rw [herase_card, hc_eq, hharm_m, div_eq_mul_inv]
+    · by_cases hpS : p ∈ tr.stale
+      · have hm1 : 1 ≤ tr.stale.card := Finset.card_pos.mpr ⟨p, hpS⟩
+        have hc_eq : (tr.stale.card - 1) - (tr.staleCached - 1) =
+            tr.stale.card - tr.staleCached := by omega
+        have hharm_m : harmonic tr.stale.card =
+            harmonic (tr.stale.card - 1) + (tr.stale.card : ℚ)⁻¹ := by
+          simpa only [Nat.sub_add_cancel hm1] using harmonic_succ (tr.stale.card - 1)
+        simp only [isCleanReq, stepTrackerCost, stepTracker, hpM, ht0, hpS, not_true_eq_false,
+          or_false, and_false, decide_false, Bool.false_eq_true, ↓reduceIte, zero_add,
+          trackerPotential, Finset.card_erase_of_mem hpS, hc_eq, hharm_m, div_eq_mul_inv]
         linarith
-      · have hclean : isCleanReq tr p = true := by simp [isCleanReq, hpM, hpS]
-        simp only [stepTrackerCost, stepTracker, hpM, ht0, hpS, hclean, ↓reduceIte,
-          trackerPotential]
-        have hc_succ : tr.stale.card - (tr.staleCached - 1) =
-            (tr.stale.card - tr.staleCached) + 1 := by omega
-        rw [hc_succ, harmonic_succ (tr.stale.card - tr.staleCached)]
-        set c := tr.stale.card - tr.staleCached
+      · set c := tr.stale.card - tr.staleCached
+        have hc_succ : tr.stale.card - (tr.staleCached - 1) = c + 1 := by omega
         have hc1_ne : ((c + 1 : ℕ) : ℚ) ≠ 0 := by positivity
         have hident :
             1 + ((c + 1 : ℕ) : ℚ) *
@@ -657,10 +602,9 @@ theorem stepTrackerCost_add_potential_le {k : ℕ} (hk : 0 < k) {tr : MarkTracke
           push_cast
           field_simp [hc1_ne]
           ring
-        rw [hident]
-        have hhm : harmonic tr.stale.card ≤ harmonic k := harmonic_mono hsk
-        have hhc : 0 ≤ harmonic c := harmonic_nonneg c
-        linarith
+        simp only [isCleanReq, stepTrackerCost, stepTracker, hpM, ht0, hpS, not_false_eq_true,
+          or_true, and_self, decide_true, ↓reduceIte, trackerPotential, hc_succ, harmonic_succ c]
+        linarith [hident, harmonic_mono hsk, harmonic_nonneg c]
 
 /-- Telescoped harmonic potential inequality over any request list `reqs`. -/
 theorem trackerExpectedCost_add_potential_le {k : ℕ} (hk : 0 < k) {tr : MarkTracker α}
@@ -675,15 +619,11 @@ theorem trackerExpectedCost_add_potential_le {k : ℕ} (hk : 0 < k) {tr : MarkTr
     simp only [trackerExpectedCost, runTracker, cleanCount]
     have hstep := stepTrackerCost_add_potential_le hk htr p
     have hih := ih (validTracker_step hk htr p)
-    have hcast :
-        harmonic k * (((if isCleanReq tr p then 1 else 0) +
-          cleanCount k (stepTracker k tr p) rs : ℕ) : ℚ) =
-          (if isCleanReq tr p then harmonic k else 0) +
-            harmonic k * (cleanCount k (stepTracker k tr p) rs : ℚ) := by
-      push_cast
-      split_ifs <;> ring
-    rw [hcast]
-    linarith
+    cases h : isCleanReq tr p
+    · simp only [h, ↓reduceIte, Bool.false_eq_true, zero_add] at hstep ⊢
+      linarith
+    · simp only [h, ↓reduceIte, Nat.cast_add, Nat.cast_one, mul_add, mul_one] at hstep ⊢
+      linarith
 
 /-- **Harmonic phase bound (`E[MARK] ≤ H_k · #clean`).** From any valid initial cache `s₀`, the
 rational expected cost of `markingStrategy` is at most `harmonic k` times the number of clean
@@ -733,25 +673,15 @@ private theorem cleanCount_active_bound {k : ℕ} (hk : 0 < k) {tr : MarkTracker
     | cons s_off' ss =>
       obtain ⟨hstep, hrest⟩ := hv
       have hs_off_card : s_off.card ≤ k := hstep.1
-      set B' : Finset α := if p ∈ s_off then B else insert p B
-      have hp_in_B' : p ∈ s_start ∪ B' := by
+      obtain ⟨B', hp_in_B', hs_off'_sub, hM_sub', hB'_card⟩ : ∃ B' : Finset α,
+          p ∈ s_start ∪ B' ∧ s_off' ⊆ s_start ∪ B' ∧ tr.marked ⊆ s_start ∪ B' ∧
+            B'.card ≤ B.card + stepCost s_off p s_off' := by
         by_cases hp_off : p ∈ s_off
-        · simp only [hp_off, ↓reduceIte, B']
-          exact hs_off_sub hp_off
-        · simp only [hp_off, ↓reduceIte, B', Finset.union_insert, Finset.mem_insert_self]
-      have hs_off'_sub : s_off' ⊆ s_start ∪ B' := by
-        by_cases hp_off : p ∈ s_off
-        · simp only [hp_off, ↓reduceIte, validStep_hit_eq hstep hp_off, B']
-          exact hs_off_sub
-        · simp only [hp_off, ↓reduceIte, B']
-          finset_card [validStep_miss_subset hstep hp_off]
-      have hM_sub' : tr.marked ⊆ s_start ∪ B' := by
-        refine hM_sub.trans (Finset.union_subset_union_right ?_)
-        by_cases hp_off : p ∈ s_off <;> simp [hp_off, B', Finset.subset_insert]
-      have hB'_card : B'.card ≤ B.card + stepCost s_off p s_off' := by
-        by_cases hp_off : p ∈ s_off
-        · simp only [hp_off, ↓reduceIte, stepCost_of_mem hp_off, add_zero, B', le_rfl]
-        · simp only [hp_off, ↓reduceIte, stepCost_of_notMem hp_off, B']
+        · exact ⟨B, hs_off_sub hp_off, validStep_hit_eq hstep hp_off ▸ hs_off_sub, hM_sub,
+            by simp [stepCost_of_mem hp_off]⟩
+        · refine ⟨insert p B, by simp, by finset_card [validStep_miss_subset hstep hp_off],
+            hM_sub.trans (Finset.union_subset_union_right (Finset.subset_insert _ _)), ?_⟩
+          rw [stepCost_of_notMem hp_off]
           finset_card
       simp only [cleanCount]
       change (tr.marked \ P_prev).card +
@@ -759,32 +689,27 @@ private theorem cleanCount_active_bound {k : ℕ} (hk : 0 < k) {tr : MarkTracker
         (s_start \ P_prev).card + 2 * B.card +
           2 * (stepCost s_off p s_off' + (problem α k).scheduleCost s_off' rs ss)
       have htr' := validTracker_step hk htr p
+      have hM'_sub : insert p tr.marked ⊆ s_start ∪ B' := Finset.insert_subset hp_in_B' hM_sub'
       by_cases hpM : p ∈ tr.marked
-      · have hclean : isCleanReq tr p = false := by simp [isCleanReq, hpM]
-        have hstep_tr : stepTracker k tr p = tr := by simp [stepTracker, hpM]
-        rw [hclean, hstep_tr]
-        simp only [Bool.false_eq_true, ↓reduceIte, zero_add]
+      · simp only [isCleanReq, stepTracker, hpM, not_true_eq_false, false_and, decide_false,
+          Bool.false_eq_true, ↓reduceIte, zero_add]
         have hih := ih htr hP_card hstale hsum hs_start hs_off'_sub hM_sub' hrest
         omega
       · by_cases ht0 : tr.staleCached = 0
         · have hM_card : tr.marked.card = k := by omega
           have hnotlt : ¬ tr.marked.card < k := by omega
-          have hclean : isCleanReq tr p = true := by simp [isCleanReq, hpM, ht0]
           have hstep_tr : stepTracker k tr p = ⟨{p}, tr.marked, k - 1⟩ := by
             simp [stepTracker, hpM, ht0, hnotlt]
-          rw [hclean, hstep_tr]
-          simp only [↓reduceIte]
-          set B_new : Finset α := if p ∈ s_off then ∅ else {p}
-          have hs_off'_new : s_off' ⊆ s_off ∪ B_new := by
+          simp only [isCleanReq, hpM, not_false_eq_true, ht0, true_or, and_self, decide_true,
+            hstep_tr, ↓reduceIte]
+          obtain ⟨B_new, hs_off'_new, hp_new, hB_new_card⟩ : ∃ B_new : Finset α,
+              s_off' ⊆ s_off ∪ B_new ∧ {p} ⊆ s_off ∪ B_new ∧
+                B_new.card = stepCost s_off p s_off' := by
             by_cases hp_off : p ∈ s_off
-            · simp only [hp_off, ↓reduceIte, validStep_hit_eq hstep hp_off, Finset.union_empty,
-                B_new, Finset.Subset.refl]
-            · simp only [hp_off, ↓reduceIte, Finset.union_singleton, B_new]
-              exact validStep_miss_subset hstep hp_off
-          have hp_new : ({p} : Finset α) ⊆ s_off ∪ B_new := by
-            by_cases hp_off : p ∈ s_off <;> simp only [hp_off, ↓reduceIte, B_new] <;> finset_card
-          have hB_new_card : B_new.card = stepCost s_off p s_off' := by
-            by_cases hp_off : p ∈ s_off <;> simp [hp_off, B_new]
+            · exact ⟨∅, by simp [validStep_hit_eq hstep hp_off], by simpa using hp_off,
+                by simp [stepCost_of_mem hp_off]⟩
+            · exact ⟨{p}, by rw [Finset.union_singleton]; exact validStep_miss_subset hstep hp_off,
+                by simp, by simp [hp_off]⟩
           have htr_new : ValidTracker k ⟨{p}, tr.marked, k - 1⟩ := hstep_tr ▸ htr'
           have hih := ih (tr := ⟨{p}, tr.marked, k - 1⟩) (P_prev := tr.marked)
             (s_start := s_off) (B := B_new) htr_new hM_card
@@ -796,28 +721,22 @@ private theorem cleanCount_active_bound {k : ℕ} (hk : 0 < k) {tr : MarkTracker
           have hc2 := card_sdiff_le_card_of_full hs_off_sub hM_sub hM_card hs_start
           omega
         · by_cases hpS : p ∈ tr.stale
-          · have hclean : isCleanReq tr p = false := by simp [isCleanReq, hpM, ht0, hpS]
-            have hstep_tr : stepTracker k tr p =
+          · have hstep_tr : stepTracker k tr p =
                 ⟨insert p tr.marked, tr.stale.erase p, tr.staleCached - 1⟩ := by
               simp [stepTracker, hpM, ht0, hpS]
-            rw [hclean, hstep_tr]
-            simp only [Bool.false_eq_true, ↓reduceIte, zero_add]
-            have hM'_sub : insert p tr.marked ⊆ s_start ∪ B' :=
-              Finset.insert_subset hp_in_B' hM_sub'
+            simp only [isCleanReq, hpM, ht0, hpS, not_true_eq_false, or_false, and_false,
+              decide_false, hstep_tr, Bool.false_eq_true, ↓reduceIte, zero_add]
             have hih := ih (tr := ⟨insert p tr.marked, tr.stale.erase p, tr.staleCached - 1⟩)
               (hstep_tr ▸ htr') hP_card (by dsimp only; finset_card)
               (by dsimp only; finset_card) hs_start hs_off'_sub hM'_sub hrest
             dsimp only at hih
             rw [show insert p tr.marked \ P_prev = tr.marked \ P_prev by finset_card] at hih
             omega
-          · have hclean : isCleanReq tr p = true := by simp [isCleanReq, hpM, hpS]
-            have hstep_tr :
+          · have hstep_tr :
                 stepTracker k tr p = ⟨insert p tr.marked, tr.stale, tr.staleCached - 1⟩ := by
               simp [stepTracker, hpM, ht0, hpS]
-            rw [hclean, hstep_tr]
-            simp only [↓reduceIte]
-            have hM'_sub : insert p tr.marked ⊆ s_start ∪ B' :=
-              Finset.insert_subset hp_in_B' hM_sub'
+            simp only [isCleanReq, hpM, hpS, not_false_eq_true, or_true, and_self, decide_true,
+              hstep_tr, ↓reduceIte]
             have hih := ih (tr := ⟨insert p tr.marked, tr.stale, tr.staleCached - 1⟩)
               (hstep_tr ▸ htr') hP_card (by dsimp only; finset_card)
               (by dsimp only; finset_card) hs_start hs_off'_sub hM'_sub hrest
@@ -847,26 +766,19 @@ private theorem cleanCount_warmup_bound {k : ℕ} (hk : 0 < k) {M s_off : Finset
           cleanCount k (stepTracker k ⟨M, ∅, 0⟩ p) rs ≤
         2 * (stepCost s_off p s_off' + (problem α k).scheduleCost s_off' rs ss)
       by_cases hpM : p ∈ M
-      · have hclean : isCleanReq ⟨M, ∅, 0⟩ p = false := by simp [isCleanReq, hpM]
-        have hstep_tr : stepTracker k ⟨M, ∅, 0⟩ p = ⟨M, ∅, 0⟩ := by simp [stepTracker, hpM]
-        have hs_off'_sub : s_off' ⊆ M := by
+      · have hs_off'_sub : s_off' ⊆ M := by
           by_cases hp_off : p ∈ s_off
-          · rw [validStep_hit_eq hstep hp_off]
-            exact hsub
+          · exact validStep_hit_eq hstep hp_off ▸ hsub
           · exact (validStep_miss_subset hstep hp_off).trans (Finset.insert_subset hpM hsub)
-        rw [hclean, hstep_tr]
-        simp only [Bool.false_eq_true, ↓reduceIte, zero_add]
+        simp only [isCleanReq, stepTracker, hpM, not_true_eq_false, false_and, decide_false,
+          Bool.false_eq_true, ↓reduceIte, zero_add]
         have hih := ih hM_card hs_off'_sub hrest
         omega
       · have hp_off : p ∉ s_off := fun hp => hpM (hsub hp)
-        have hcost1 : stepCost s_off p s_off' = 1 := stepCost_of_notMem hp_off
-        have hclean : isCleanReq ⟨M, ∅, 0⟩ p = true := by simp [isCleanReq, hpM]
-        rw [hclean, hcost1]
-        simp only [↓reduceIte]
+        simp only [isCleanReq, hpM, not_false_eq_true, true_or, and_self, decide_true, ↓reduceIte,
+          stepCost_of_notMem hp_off]
         by_cases hlt : M.card < k
-        · have hstep_tr : stepTracker k ⟨M, ∅, 0⟩ p = ⟨insert p M, ∅, 0⟩ := by
-            simp [stepTracker, hpM, hlt]
-          rw [hstep_tr]
+        · simp only [stepTracker, hpM, ↓reduceIte, hlt]
           have hs_off'_sub : s_off' ⊆ insert p M :=
             (validStep_miss_subset hstep hp_off).trans (Finset.insert_subset_insert p hsub)
           have hih := ih (by finset_card) hs_off'_sub hrest
@@ -881,8 +793,7 @@ private theorem cleanCount_warmup_bound {k : ℕ} (hk : 0 < k) {M s_off : Finset
           have htr_new : ValidTracker k ⟨{p}, M, k - 1⟩ :=
             hstep_tr ▸ validTracker_step hk htr_init p
           have hs_off'_sub : s_off' ⊆ s_off ∪ {p} := by
-            rw [Finset.union_singleton]
-            exact validStep_miss_subset hstep hp_off
+            simpa only [Finset.union_singleton] using validStep_miss_subset hstep hp_off
           have hact := cleanCount_active_bound hk (tr := ⟨{p}, M, k - 1⟩) (P_prev := M)
             (s_start := s_off) (B := {p}) htr_new hM_eq
             (by dsimp only; finset_card) (by dsimp only; finset_card)
@@ -907,14 +818,11 @@ theorem trackerExpectedCost_le_two_mul_harmonic_mul_scheduleCost {k : ℕ} (hk :
     (hv : (problem α k).ValidSchedule s₀ reqs offStates) :
     trackerExpectedCost k (initTracker s₀) reqs ≤
       2 * harmonic k * ((problem α k).scheduleCost s₀ reqs offStates : ℚ) := by
-  have h1 := trackerExpectedCost_le_harmonic_mul_cleanCount hk hs₀ reqs
   have h2 : (cleanCount k (initTracker s₀) reqs : ℚ) ≤
       2 * ((problem α k).scheduleCost s₀ reqs offStates : ℚ) := by
     exact_mod_cast cleanCount_le_two_mul_scheduleCost hk hs₀ hv
-  have h3 : harmonic k * (cleanCount k (initTracker s₀) reqs : ℚ) ≤
-      harmonic k * (2 * ((problem α k).scheduleCost s₀ reqs offStates : ℚ)) :=
-    mul_le_mul_of_nonneg_left h2 (harmonic_nonneg k)
-  linarith
+  linarith [trackerExpectedCost_le_harmonic_mul_cleanCount hk hs₀ reqs,
+    mul_le_mul_of_nonneg_left h2 (harmonic_nonneg k)]
 
 /-- **FKLMSY Theorem 1 (`ℝ≥0∞` cost bound)** [FiatKarpLubyMcGeochSleatorYoung1991]: for every
 admissible initial cache `s₀` (`|s₀| ≤ k`), request sequence `reqs`, and valid offline schedule
@@ -949,8 +857,7 @@ for demand paging against an oblivious adversary. -/
 theorem markingStrategy_isCompetitive {k : ℕ} (hk : 0 < k) :
     (markingStrategy (α := α) k hk).IsCompetitive (2 * ENNReal.ofReal (harmonic k)) 0 := by
   intro s₀ hs₀ reqs offStates hv
-  rw [add_zero]
-  exact markingStrategy_expectedCost_le hk hs₀ hv
+  simpa only [add_zero] using markingStrategy_expectedCost_le hk hs₀ hv
 
 /-- Real-valued expectation form of FKLMSY Theorem 1. -/
 theorem markingStrategy_expectedCost_toReal_le {k : ℕ} (hk : 0 < k) {s₀ : Finset α}

@@ -126,23 +126,17 @@ theorem lexRank_tupleZero : lexRank (tupleZero (n := n) (k := k)) = 0 := by
 theorem lexRank_tupleOne : lexRank (tupleOne (n := n) (k := k)) = 1 := by
   rw [lexRank_apply, Fintype.sum_eq_single (Fin.last k)]
   · simp [tupleOne]
-  · intro i hi
-    simp [tupleOne, hi, tupleZero]
+  · exact fun i hi => by simp [tupleOne, hi, tupleZero]
 
 /-- The tuple of maximal coordinates has the largest rank, `n ^ k - 1`. -/
 theorem lexRank_tupleMax : lexRank (tupleMax (n := n) (k := k)) = n ^ k - 1 := by
-  have hn : 0 < n := by have := Fact.out (p := 2 ≤ n); lia
-  have hp := Nat.pow_pos hn (n := k)
-  have hb := lexRank_lt (tupleMax (n := n) (k := k))
-  by_contra h
-  have hl : lexRank (tupleMax (n := n) (k := k)) < n ^ k - 1 := by lia
-  let r : Fin (n ^ k) := ⟨n ^ k - 1, by lia⟩
+  let r : Fin (n ^ k) :=
+    ⟨n ^ k - 1, Nat.sub_one_lt (Nat.pow_pos (Nat.zero_lt_two.trans_le Fact.out)).ne'⟩
   have hr : lexRank (lexEquiv.symm r) = n ^ k - 1 :=
     congrArg Fin.val (lexEquiv.apply_symm_apply r)
-  rw [← hr, lexRank_lt_iff] at hl
-  obtain ⟨i, hi, _⟩ := hl
-  have hi' := (lexEquiv.symm r i).isLt
-  change n - 1 < (lexEquiv.symm r i).val at hi
-  lia
+  refine Nat.le_antisymm (Nat.le_sub_one_of_lt (lexRank_lt _)) (Nat.not_lt.mp ?_)
+  rw [← hr, lexRank_lt_iff]
+  rintro ⟨i, hi, -⟩
+  exact Nat.not_lt.mpr (Nat.le_sub_one_of_lt (lexEquiv.symm r i).isLt) hi
 
 end Cslib.Logic.FO.Ordered

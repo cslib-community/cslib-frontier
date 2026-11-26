@@ -157,13 +157,10 @@ private theorem isBoundedComp_foldlM_coinStep (t : ℕ) (r : List Bool) :
       (∀ op, (cfg.channels op).1.length ≤ i) → i + r.length ≤ t →
       IsBoundedComp t r.length (r.foldlM (coinStep M t) cfg) := by
   induction r with
-  | nil =>
-    intro i cfg _ _
-    exact .pure 0 cfg
+  | nil => exact fun _ cfg _ _ => .pure 0 cfg
   | cons b r ih =>
     intro i cfg hbuf hit
-    simp only [List.length_cons] at hit
-    simp only [List.foldlM_cons, List.length_cons]
+    simp only [List.foldlM_cons, List.length_cons] at hit ⊢
     exact isBoundedComp_coinStep_bind M hbuf (by lia) b fun cfg' hbuf' =>
       ih (i + 1) cfg' hbuf' (by lia)
 
@@ -251,16 +248,10 @@ private theorem mapM_lookup_eq [BEq α] [LawfulBEq α] (f : α → PMF β) (quer
       Function.comp_def]
     by_cases hma : m = a
     · subst hma
-      have hhead (b : β) (tbl : List (α × β)) : List.lookup m ((m, b) :: tbl) = some b := by
-        rw [List.lookup, beq_self_eq_true]
-      simp only [hhead, PMF.bind_const]
+      simp only [List.lookup, beq_self_eq_true, PMF.bind_const]
       rfl
-    · have htail (b : β) (tbl : List (α × β)) :
-          List.lookup m ((a, b) :: tbl) = List.lookup m tbl := by
-        rw [List.lookup, beq_false_of_ne hma]
-      have hm' : m ∈ rest := List.mem_of_ne_of_mem hma hm
-      simp only [htail, PMF.bind_const]
-      exact ih hm'
+    · simp only [List.lookup, beq_false_of_ne hma, PMF.bind_const]
+      exact ih (List.mem_of_ne_of_mem hma hm)
 
 /-- Stepping a presampled tree of depth `d + 1` on `m ∈ queries` has the exact same distribution
 as running `Q.respond ((), m)` once, truncating the reply to `L` bits, and presampling a depth-`d`
@@ -319,10 +310,8 @@ private theorem listPiPMF_extract [DecidableEq ι] (default : α) (μ : ι → P
     by_cases h : i₀ = i
     · subst h
       simp [listPiPMF]
-    · have hi₀_rest : i₀ ∈ rest := List.mem_of_ne_of_mem h hi₀
-      have herase : (i :: rest).erase i₀ = i :: rest.erase i₀ := by
-        simp [Ne.symm h]
-      rw [herase, listPiPMF, ih hl_rest hi₀_rest]
+    · have herase : (i :: rest).erase i₀ = i :: rest.erase i₀ := by simp [Ne.symm h]
+      rw [herase, listPiPMF, ih hl_rest (List.mem_of_ne_of_mem h hi₀)]
       simp only [listPiPMF, Probability.PMF.monad_bind_eq_bind, PMF.map_bind, PMF.map_comp,
         Function.comp_def]
       rw [PMF.bind_comm]
@@ -358,16 +347,12 @@ private theorem piPresample_step [Fintype ι] [DecidableEq ι] (P : ι → Prove
   have hl : (Finset.univ : Finset ι).toList.Nodup := Finset.nodup_toList Finset.univ
   have hi₀ : i₀ ∈ (Finset.univ : Finset ι).toList := Finset.mem_toList.mpr (Finset.mem_univ i₀)
   change (listPiPMF defaultTree (μ d s) (Finset.univ : Finset ι).toList).map _ = _
-  rw [listPiPMF_extract defaultTree (μ d s) (Finset.univ : Finset ι).toList hl hi₀]
-  have hμi₀ : μ d s i₀ =
-      (presampleTree (P i₀) L queries (d' + 1) (s i₀)).map fun t => ⟨d' + 1, t⟩ := by
-    change mkLayer i₀ (d i₀) (s i₀) = mkLayer i₀ (d' + 1) (s i₀)
-    rw [hd]
-  rw [hμi₀]
+  rw [listPiPMF_extract defaultTree (μ d s) (Finset.univ : Finset ι).toList hl hi₀,
+    show μ d s i₀ = mkLayer i₀ (d' + 1) (s i₀) from congrArg (mkLayer i₀ · (s i₀)) hd]
   have hupd (x : ι → Sigma TreeStrategy) (a : TreeStrategy (d' + 1)) :
       (Function.update x i₀ (Sigma.mk (d' + 1) a) i₀).2.step m = a.step m := by
     rw [Function.update_self]
-  simp only [PMF.map_bind, PMF.bind_map, PMF.map_comp, Function.comp_def,
+  simp only [mkLayer, PMF.map_bind, PMF.bind_map, PMF.map_comp, Function.comp_def,
     hupd, Function.update_idem]
   have hstep := congrArg (PMF.bind · fun (res : List Bool × Sigma TreeStrategy) =>
       (listPiPMF defaultTree (μ d s) ((Finset.univ : Finset ι).toList.erase i₀)).map fun f =>
@@ -378,23 +363,16 @@ private theorem piPresample_step [Fintype ι] [DecidableEq ι] (P : ι → Prove
   congr 1 with ys : 1
   have hcongr : listPiPMF defaultTree (μ d s) ((Finset.univ : Finset ι).toList.erase i₀) =
       listPiPMF defaultTree (μ (Function.update d i₀ d') (Function.update s i₀ ys.2))
-        ((Finset.univ : Finset ι).toList.erase i₀) := by
-    refine listPiPMF_congr defaultTree _ fun j hj => ?_
-    have hjne : j ≠ i₀ := (List.Nodup.mem_erase_iff hl).mp hj |>.1
-    simp only [μ, Function.update_of_ne hjne]
-  rw [hcongr]
-  have hextract2 := listPiPMF_extract defaultTree
-    (μ (Function.update d i₀ d') (Function.update s i₀ ys.2)) (Finset.univ : Finset ι).toList hl hi₀
-  have hμ' : μ (Function.update d i₀ d') (Function.update s i₀ ys.2) i₀ =
-      (presampleTree (P i₀) L queries d' ys.2).map fun child => ⟨d', child⟩ := by
-    change mkLayer i₀ (Function.update d i₀ d' i₀) (Function.update s i₀ ys.2 i₀) =
-      mkLayer i₀ d' ys.2
-    rw [Function.update_self, Function.update_self]
+        ((Finset.univ : Finset ι).toList.erase i₀) :=
+    listPiPMF_congr defaultTree _ fun j hj => by
+      simp only [μ, Function.update_of_ne ((List.Nodup.mem_erase_iff hl).mp hj).1]
+  have hμ' : μ (Function.update d i₀ d') (Function.update s i₀ ys.2) i₀ = mkLayer i₀ d' ys.2 := by
+    simp only [μ, Function.update_self]
   change _ = (listPiPMF defaultTree
     (μ (Function.update d i₀ d') (Function.update s i₀ ys.2)) (Finset.univ : Finset ι).toList).map
       fun f' => (ys.1.take L, f')
-  rw [hextract2, hμ']
-  simp only [PMF.map_bind, PMF.bind_map, PMF.map_comp, Function.comp_def]
+  rw [hcongr, listPiPMF_extract defaultTree _ _ hl hi₀, hμ']
+  simp only [mkLayer, PMF.map_bind, PMF.bind_map, PMF.map_comp, Function.comp_def]
 
 theorem independent_respond [DecidableEq ι] (P : ι → Prover Unit) (q : ι × List Bool)
     (s : ∀ i, (P i).State) :
@@ -496,13 +474,11 @@ private theorem support_presampleTree_subset (Q : Prover Unit) (L : ℕ)
   intro d
   induction d with
   | zero =>
-    intro _ t _
-    cases t
+    rintro _ ⟨⟩ _
     exact List.mem_singleton_self PUnit.unit
   | succ d ih =>
     intro s t ht
-    simp only [presampleTree] at ht
-    simp only [allTrees]
+    simp only [presampleTree, allTrees] at ht ⊢
     refine mem_listMapM (fun m _ entry hentry => ?_) t ht
     supp_cases hentry with ⟨ys, _, child, hchild, rfl⟩
     simp only [List.mem_flatMap, List.mem_map]
@@ -705,62 +681,33 @@ theorem validFrom_candidateProver (H : List (List (List Bool × List Bool)))
       match h' with
       | (q', r') :: rest' => if q' == q then some (r', rest') else none
       | [] => none
-    have hmem_match : (r, rest) ∈ cand.filterMap filterFn := by
-      rw [List.mem_filterMap]
-      exact ⟨(q, r) :: rest, hh, by simp [filterFn]⟩
+    have hmemF {r' : List Bool} {t : List (List Bool × List Bool)} :
+        (r', t) ∈ cand.filterMap filterFn ↔ (q, r') :: t ∈ cand := by
+      refine List.mem_filterMap.trans ⟨?_, fun hmem => ⟨_, hmem, by simp [filterFn]⟩⟩
+      rintro ⟨_ | ⟨⟨q', r''⟩, t'⟩, hmem, hf⟩
+      · simp [filterFn] at hf
+      · simp only [filterFn, beq_iff_eq] at hf
+        split_ifs at hf with hq
+        obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj hf)
+        exact hq ▸ hmem
+    have hmem_match : (r, rest) ∈ cand.filterMap filterFn := hmemF.mpr hh
     cases hm : cand.filterMap filterFn with
-    | nil =>
-      rw [hm] at hmem_match
-      cases hmem_match
+    | nil => simp [hm] at hmem_match
     | cons first more =>
       obtain ⟨r₀, rest₀⟩ := first
-      have hfirst_mem : (r₀, rest₀) ∈ cand.filterMap filterFn := by grind
-      rw [List.mem_filterMap] at hfirst_mem
-      obtain ⟨h₀, hh₀, hfilter₀⟩ := hfirst_mem
-      cases h₀ with
-      | nil => simp [filterFn] at hfilter₀
-      | cons e₀ tail₀ =>
-        obtain ⟨q₀, r₀'⟩ := e₀
-        simp only [filterFn, beq_iff_eq] at hfilter₀
-        split_ifs at hfilter₀ with hq₀
-        subst q₀
-        simp only [Option.some.injEq, Prod.mk.injEq] at hfilter₀
-        obtain ⟨rfl, rfl⟩ := hfilter₀
-        have hc := hcons ((q, r₀') :: tail₀) hh₀ ((q, r) :: rest) hh
-        simp only [consistentHist, beq_self_eq_true, ↓reduceIte, Bool.and_eq_true,
-          beq_iff_eq] at hc
-        have hstep : (candidateProver H).respond q cand =
-            (r₀', (cand.filterMap filterFn).map Prod.snd) := by
-          simp only [candidateProver, stepCandidates, filterFn, hm]
-        refine ⟨?_, ?_⟩
-        · rw [hstep, hc.1]
-        · rw [hstep]
-          refine ih ((cand.filterMap filterFn).map Prod.snd) ?_
-            (List.mem_map_of_mem hmem_match)
-          intro t₁ ht₁ t₂ ht₂
-          rw [List.mem_map] at ht₁ ht₂
-          obtain ⟨⟨r₁, s₁⟩, hs₁, rfl⟩ := ht₁
-          obtain ⟨⟨r₂, s₂⟩, hs₂, rfl⟩ := ht₂
-          rw [List.mem_filterMap] at hs₁ hs₂
-          obtain ⟨h₁, hh₁, hf₁⟩ := hs₁
-          obtain ⟨h₂, hh₂, hf₂⟩ := hs₂
-          cases h₁ with
-          | nil => simp [filterFn] at hf₁
-          | cons e₁ tail₁ =>
-            obtain ⟨q₁, r₁'⟩ := e₁
-            cases h₂ with
-            | nil => simp [filterFn] at hf₂
-            | cons e₂ tail₂ =>
-              obtain ⟨q₂, r₂'⟩ := e₂
-              simp only [filterFn, beq_iff_eq] at hf₁ hf₂
-              split_ifs at hf₁ with hq₁
-              split_ifs at hf₂ with hq₂
-              subst q₁ q₂
-              simp only [Option.some.injEq, Prod.mk.injEq] at hf₁ hf₂
-              obtain ⟨rfl, rfl⟩ := hf₁
-              obtain ⟨rfl, rfl⟩ := hf₂
-              have hc12 := hcons ((q, r₁') :: tail₁) hh₁ ((q, r₂') :: tail₂) hh₂
-              simp only [consistentHist, beq_self_eq_true, ↓reduceIte, Bool.and_eq_true] at hc12
-              exact hc12.2
+      have hc := hcons _ (hmemF.mp (hm ▸ List.mem_cons_self)) _ hh
+      simp only [consistentHist, beq_self_eq_true, ↓reduceIte, Bool.and_eq_true,
+        beq_iff_eq] at hc
+      have hstep : (candidateProver H).respond q cand =
+          (r₀, (cand.filterMap filterFn).map Prod.snd) := by
+        simp only [candidateProver, stepCandidates, filterFn, hm]
+      refine ⟨by rw [hstep, hc.1], ?_⟩
+      rw [hstep]
+      refine ih _ (fun t₁ ht₁ t₂ ht₂ => ?_) (List.mem_map_of_mem hmem_match)
+      obtain ⟨⟨r₁, s₁⟩, hs₁, rfl⟩ := List.mem_map.mp ht₁
+      obtain ⟨⟨r₂, s₂⟩, hs₂, rfl⟩ := List.mem_map.mp ht₂
+      have hc12 := hcons _ (hmemF.mp hs₁) _ (hmemF.mp hs₂)
+      simp only [consistentHist, beq_self_eq_true, ↓reduceIte, Bool.and_eq_true] at hc12
+      exact hc12.2
 
 end Cslib.Complexity.MIP

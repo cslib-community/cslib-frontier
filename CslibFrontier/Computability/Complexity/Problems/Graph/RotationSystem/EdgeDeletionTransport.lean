@@ -69,34 +69,24 @@ theorem exists_numericalGenusZero_deleteNonloopEdge {G : Graph} (r : RotationSys
     fun _ _ h => Option.some.inj (Option.some.inj
       ((lastEdgeDartEquiv H u v).symm.injective (E.symm.injective h)))⟩
   have drop (tag : Bool) : E (i, tag) = lastEdgeDart H u v tag := by
-    cases tag
-    · exact Prod.ext hlast rfl
-    · exact Prod.ext hlast rfl
+    cases tag <;> exact Prod.ext hlast rfl
   refine ⟨H, t.deleteLastEdge, lift, hV, hEdges,
     t.numericalGenusZero_deleteLastEdge hL ht, ?_, ?_⟩
   · intro d
     have hx : (E (lift d)).vertex = (lift d).vertex := hvertex (lift d)
     rw [show E (lift d) = retain d from E.apply_symm_apply _] at hx
     refine ⟨hx.symm.trans (vertex_retainedLastEdgeDart H u v d), ?_, ?_⟩
-    · rcases d with ⟨j, tag⟩
-      cases tag <;> rfl
-    · have hne : (lift d).1 ≠ i := by
-        intro he
-        have hp := congrArg p he
-        change p (p.symm (retain d).1) = p i at hp
+    · rcases d with ⟨_, _ | _⟩ <;> rfl
+    · have hne : (lift d).1 ≠ i := fun he => by
+        have hp : p (p.symm (retain d).1) = p i := congrArg p he
         rw [p.apply_symm_apply, hlast] at hp
-        have hval : d.1.val = H.edges.length := congrArg Fin.val hp
-        exact (Nat.ne_of_lt d.1.isLt) hval
+        exact (Nat.ne_of_lt d.1.isLt) (congrArg Fin.val hp)
       have hp := hpos (lift d).1 hne
       change (p (p.symm (retain d).1)).val = _ at hp
       rw [p.apply_symm_apply] at hp
       change d.1.val = if (lift d).1 < i then (lift d).1.val else (lift d).1.val - 1 at hp
       have hn : (lift d).1.val ≠ i.val := fun h => hne (Fin.ext h)
-      split at hp
-      · rw [ite_eq_left (by omega)]
-        omega
-      · rw [ite_eq_right (by omega)]
-        omega
+      split at hp <;> split_ifs <;> omega
   · intro a b
     have skip (x y : Dart (lastEdgeGraph H u v)) :
         t.rotate x = y ↔ r.rotate (E.symm x) = E.symm y := by

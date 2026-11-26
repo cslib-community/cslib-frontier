@@ -65,29 +65,23 @@ namespace Cslib.BitString
 private theorem snoc_lt_of_lt {k : ℕ} {x y : BitString k} (a b : Bool)
     (h : toLex x < toLex y) :
     toLex (Fin.snoc (α := fun _ => Bool) x a) <
-      toLex (Fin.snoc (α := fun _ => Bool) y b) := by
-  obtain ⟨i, heq, hlt⟩ := h
-  refine ⟨i.castSucc, ?_, ?_⟩
-  · intro j hj
-    obtain ⟨j, rfl⟩ := Fin.eq_castSucc_of_ne_last
-      (ne_of_lt (hj.trans (Fin.castSucc_lt_last i)))
-    simpa using heq j (by simpa using hj)
-  · simpa using hlt
+      toLex (Fin.snoc (α := fun _ => Bool) y b) :=
+  let ⟨i, heq, hlt⟩ := h
+  ⟨i.castSucc, fun j hj => by
+    obtain ⟨j, rfl⟩ := Fin.eq_castSucc_of_ne_last (ne_of_lt (hj.trans (Fin.castSucc_lt_last i)))
+    simpa using heq j (by simpa using hj), by simpa using hlt⟩
 
 private theorem prefix_le_of_snoc_le {k : ℕ} {x y : BitString k} {a b : Bool}
     (h : toLex (Fin.snoc (α := fun _ => Bool) x a) ≤
-      toLex (Fin.snoc (α := fun _ => Bool) y b)) : toLex x ≤ toLex y := by
-  by_contra hn
-  exact (not_lt_of_ge h) (snoc_lt_of_lt b a (lt_of_not_ge hn))
+      toLex (Fin.snoc (α := fun _ => Bool) y b)) : toLex x ≤ toLex y :=
+  not_lt.1 fun hn => not_lt_of_ge h (snoc_lt_of_lt b a hn)
 
 private theorem false_lt_true {k : ℕ} (key : BitString k) :
     toLex (Fin.snoc (α := fun _ => Bool) key false) <
       toLex (Fin.snoc (α := fun _ => Bool) key true) := by
-  refine ⟨Fin.last k, ?_, ?_⟩
-  · intro i hi
-    obtain ⟨i, rfl⟩ := Fin.eq_castSucc_of_ne_last (ne_of_lt hi)
-    simp
-  · simp
+  refine ⟨Fin.last k, fun i hi => ?_, by simp⟩
+  obtain ⟨i, rfl⟩ := Fin.eq_castSucc_of_ne_last (ne_of_lt hi)
+  simp
 
 /-- At a destination in key/tag order, propagation is the OR of all matching source values.
 False tags mark sources and true tags mark destinations. Sources and destinations may repeat,
@@ -99,23 +93,17 @@ theorem propagate_sorted_tagged_eq_true_iff {k n d : ℕ} (key : ℕ → BitStri
     propagate (fun i => !tag i && payload i)
       (keyLinks (fun i => toLex (key i))) (d + 1) = true ↔
         ∃ s, s < n ∧ key s = key d ∧ tag s = false ∧ payload s = true := by
-  have monoKey : MonotoneOn (fun i => toLex (key i)) (Set.Iio (d + 1)) := by
-    intro a ha b hb hab
-    apply prefix_le_of_snoc_le
-    exact sorted (Nat.lt_of_le_of_lt (Nat.le_of_lt_succ ha) hd)
-      (Nat.lt_of_le_of_lt (Nat.le_of_lt_succ hb) hd) hab
+  have monoKey : MonotoneOn (fun i => toLex (key i)) (Set.Iio (d + 1)) := fun _ ha _ hb hab =>
+    prefix_le_of_snoc_le (sorted (Nat.lt_of_le_of_lt (Nat.le_of_lt_succ ha) hd)
+      (Nat.lt_of_le_of_lt (Nat.le_of_lt_succ hb) hd) hab)
   rw [propagate_sorted_eq_true_iff (fun i => toLex (key i))
     (fun i => !tag i && payload i) (d + 1) monoKey]
   simp only [Bool.and_eq_true, Bool.not_eq_true', Nat.add_sub_cancel_right, toLex_inj]
-  constructor
-  · rintro ⟨s, hs, ⟨htag, hpayload⟩, hkey⟩
-    exact ⟨s, by lia, hkey, htag, hpayload⟩
-  · rintro ⟨s, hs, hkey, hsource, hpayload⟩
-    have hsd : s < d := by
-      apply sorted.reflect_lt hs hd
-      rw [hsource, htag, hkey]
-      exact false_lt_true _
-    exact ⟨s, by lia, ⟨hsource, hpayload⟩, hkey⟩
+  refine ⟨fun ⟨s, hs, ⟨ht, hp⟩, hk⟩ => ⟨s, by lia, hk, ht, hp⟩, fun ⟨s, hs, hk, hsrc, hp⟩ => ?_⟩
+  have hsd : s < d := sorted.reflect_lt hs hd <| by
+    rw [hsrc, htag, hk]
+    exact false_lt_true _
+  exact ⟨s, by lia, ⟨hsrc, hp⟩, hk⟩
 
 end Cslib.BitString
 
@@ -203,13 +191,10 @@ private theorem eval_links {input count keyWidth : ℕ} (key : Fin count → Fin
       BitString.keyLinks (fun i => toLex (inputKey key x i)) record.val := by
   by_cases h : 0 < record.val
   · simp only [circuit_simps, adjacentEqualityCircuit, dite_eq_left h]
-    apply Bool.eq_iff_iff.mpr
-    rw [Formula.eval_equalBits_iff]
-    simp only [BitString.keyLinks, ite_eq_right (by lia : record.val ≠ 0),
-      decide_eq_true_eq, toLex_inj]
-    rw [inputKey_fin key x record, inputKey_fin key x ⟨record.val - 1, by lia⟩]
-  · have hz : record.val = 0 := by lia
-    simp [adjacentEqualityCircuit, BitString.keyLinks, hz]
+    rw [Bool.eq_iff_iff, Formula.eval_equalBits_iff]
+    simp only [BitString.keyLinks, ite_eq_right (by lia : record.val ≠ 0), decide_eq_true_eq,
+      toLex_inj, inputKey_fin key x record, inputKey_fin key x ⟨record.val - 1, by lia⟩]
+  · simp [adjacentEqualityCircuit, BitString.keyLinks, show record.val = 0 by lia]
 
 private theorem eval_values {input count keyWidth width : ℕ}
     (key : Fin count → Fin keyWidth → Fin input) (tag : Fin count → Fin input)
@@ -222,21 +207,18 @@ private theorem eval_values {input count keyWidth width : ℕ}
   rw [values, Circuit.eval_comp, Circuit.eval_append]
   have hs : (sources tag payload).eval interpretation x =
       fun index => !x (tag (finProdFinEquiv.symm index).2) &&
-        x (payload (finProdFinEquiv.symm index).2 (finProdFinEquiv.symm index).1) := by
-    funext index
-    obtain ⟨⟨bit, record⟩, rfl⟩ := finProdFinEquiv.surjective index
-    simp only [eval_sources, Equiv.symm_apply_apply]
+        x (payload (finProdFinEquiv.symm index).2 (finProdFinEquiv.symm index).1) :=
+    funext fun index => let ⟨⟨b, r⟩, hr⟩ := finProdFinEquiv.surjective index
+      hr ▸ by simp only [eval_sources, Equiv.symm_apply_apply]
   rw [hs, eval_scans (fun bit record => !x (tag record) && x (payload record bit)),
     eval_propagateCircuit]
   simp only [Function.comp_def, Fin.append_left, Fin.append_right]
   apply BitString.propagate_congr
-  · intro index before
-    have hi : index < count := by lia
-    simp only [inputBlock, dite_eq_left hi]
-  · intro index before
-    have hi : index < count := by lia
-    simp only [inputBlock, dite_eq_left hi]
-    exact eval_links key x ⟨index, hi⟩
+  · intro i hi
+    simp only [inputBlock, dite_eq_left (by lia : i < count)]
+  · intro i hi
+    simp only [inputBlock, dite_eq_left (by lia : i < count)]
+    exact eval_links key x ⟨i, by lia⟩
 
 /-- At a destination in sorted key/tag order, each output bit is the OR of all matching
 source bits. The selectors may overlap or repeat; source keys need not be unique. -/
@@ -252,30 +234,22 @@ theorem eval_values_eq_true_iff {input count keyWidth width : ℕ}
   rw [eval_values]
   have sortedNat : MonotoneOn (fun i =>
       toLex (Fin.snoc (α := fun _ => Bool) (inputKey key x i) (inputBlock (x ∘ tag) i)))
-      (Set.Iio count) := by
-    intro a ha b hb hab
+      (Set.Iio count) := fun a ha b hb hab => by
     change a < count at ha
     change b < count at hb
     have hs := sorted (a := ⟨a, ha⟩) (b := ⟨b, hb⟩) hab
-    dsimp only
-    rw [inputKey_fin key x ⟨a, ha⟩, inputKey_fin key x ⟨b, hb⟩]
-    simpa only [inputBlock, dite_eq_left ha, dite_eq_left hb, Function.comp_apply] using hs
+    simpa only [inputKey_fin key x ⟨a, ha⟩, inputKey_fin key x ⟨b, hb⟩,
+      inputBlock, dite_eq_left ha, dite_eq_left hb, Function.comp_apply] using hs
   rw [BitString.propagate_sorted_tagged_eq_true_iff (inputKey key x) (inputBlock (x ∘ tag))
     (inputBlock (fun r => x (payload r bit))) destination.isLt
     (by simpa only [inputBlock, dite_eq_left destination.isLt, Function.comp_apply] using htag)
-    sortedNat]
-  rw [inputKey_fin]
-  constructor
-  · rintro ⟨source, before, hkey, htag, hpayload⟩
-    refine ⟨⟨source, before⟩, ?_, ?_, ?_⟩
-    · exact (inputKey_fin key x ⟨source, before⟩).symm.trans hkey
-    · simpa only [inputBlock, dite_eq_left before, Function.comp_apply] using htag
-    · simpa only [inputBlock, dite_eq_left before] using hpayload
-  · rintro ⟨source, hkey, htag, hpayload⟩
-    refine ⟨source.val, source.isLt, ?_, ?_, ?_⟩
-    · exact (inputKey_fin key x source).trans hkey
-    · simpa only [inputBlock, dite_eq_left source.isLt, Function.comp_apply] using htag
-    · simpa only [inputBlock, dite_eq_left source.isLt] using hpayload
+    sortedNat, inputKey_fin]
+  exact ⟨fun ⟨s, hs, hk, ht, hp⟩ => ⟨⟨s, hs⟩, (inputKey_fin key x ⟨s, hs⟩).symm.trans hk,
+      by simpa only [inputBlock, dite_eq_left hs, Function.comp_apply] using ht,
+      by simpa only [inputBlock, dite_eq_left hs] using hp⟩,
+    fun ⟨s, hk, ht, hp⟩ => ⟨s.val, s.isLt, (inputKey_fin key x s).trans hk,
+      by simpa only [inputBlock, dite_eq_left s.isLt, Function.comp_apply] using ht,
+      by simpa only [inputBlock, dite_eq_left s.isLt] using hp⟩⟩
 
 /-- Read the retained header of a row-major record array. -/
 def header {count headerWidth width : ℕ} (x : BitString (count * (headerWidth + width)))
@@ -361,13 +335,10 @@ theorem eval_broadcastCircuit_value_of_unique_source {count headerWidth keyWidth
     value ((broadcastCircuit key tag count width).eval interpretation x) destination =
       value x source := by
   funext bit
-  apply Bool.eq_iff_iff.mpr
-  rw [eval_broadcastCircuit_value_eq_true_iff key tag x sorted destination hdestination bit]
-  constructor
-  · rintro ⟨record, hrecord, htag, hvalue⟩
-    exact unique record (hrecord.trans hkey.symm) htag ▸ hvalue
-  · intro hvalue
-    exact ⟨source, hkey, hsource, hvalue⟩
+  rw [Bool.eq_iff_iff, eval_broadcastCircuit_value_eq_true_iff key tag x sorted destination
+    hdestination bit]
+  exact ⟨fun ⟨r, hr, ht, hv⟩ => unique r (hr.trans hkey.symm) ht ▸ hv,
+    fun hv => ⟨source, hkey, hsource, hv⟩⟩
 
 /-- Exact arbitrary weighted cost: shared adjacent-key tests plus one scan per value bit. -/
 theorem cost_program_broadcastCircuit {headerWidth keyWidth : ℕ}

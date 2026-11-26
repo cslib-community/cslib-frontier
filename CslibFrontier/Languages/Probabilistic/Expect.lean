@@ -60,10 +60,8 @@ noncomputable def expect (m : ProbComp α) (f : α → ℝ≥0∞) : ℝ≥0∞ 
 @[simp]
 theorem expect_pure (a : α) (f : α → ℝ≥0∞) : expect (pure a) f = f a := by
   classical
-  rw [expect, eval_pure, tsum_eq_single a]
-  · simp
-  · intro b hb
-    simp [hb]
+  rw [expect, eval_pure, tsum_eq_single a (fun _ hb => by simp [hb])]
+  simp
 
 /-- The expected value of a constant function `c` is `c`. -/
 @[simp]
@@ -102,8 +100,7 @@ theorem expect_bind (m : ProbComp α) (k : α → ProbComp β) (f : β → ℝ�
 /-- Expectation after mapping `g` over `m` equals the expectation of `f ∘ g` under `m`. -/
 theorem expect_map (g : α → β) (m : ProbComp α) (f : β → ℝ≥0∞) :
     expect (g <$> m) f = expect m (fun a => f (g a)) := by
-  rw [← bind_pure_comp, expect_bind]
-  simp only [expect_pure]
+  simp only [← bind_pure_comp, expect_bind, expect_pure]
 
 /-- Two functions that agree on the support of `m` have the same expectation under `m`. -/
 theorem expect_congr_on_support {m : ProbComp α} {f g : α → ℝ≥0∞}
@@ -128,8 +125,7 @@ theorem expect_le_of_forall_support {m : ProbComp α} {f : α → ℝ≥0∞} {B
 /-- If `f` takes the value `⊤` at some outcome in the support of `m`, then `expect m f = ⊤`. -/
 theorem expect_eq_top_of_mem_support {m : ProbComp α} {f : α → ℝ≥0∞} {a : α}
     (ha : a ∈ m.support) (hf : f a = ⊤) : expect m f = ⊤ := by
-  have hpos : (eval m) a ≠ 0 :=
-    (PMF.mem_support_iff (eval m) a).mp (by rwa [support_eval])
+  have hpos : (eval m) a ≠ 0 := (PMF.mem_support_iff (eval m) a).mp (support_eval m ▸ ha)
   refine top_unique ?_
   calc
     (⊤ : ℝ≥0∞) = (eval m) a * f a := by rw [hf, ENNReal.mul_top hpos]
@@ -139,9 +135,9 @@ theorem expect_eq_top_of_mem_support {m : ProbComp α} {f : α → ℝ≥0∞} {
 theorem expect_unifFin (n : ℕ) (f : Fin (n + 1) → ℝ≥0∞) :
     expect (unifFin n) f = (∑ k : Fin (n + 1), f k) / (n + 1 : ℝ≥0∞) := by
   rw [expect, eval_unifFin, tsum_fintype]
-  simp only [Probability.PMF.uniformOfFintype_apply, Fintype.card_fin]
-  rw [← Finset.mul_sum, div_eq_mul_inv, mul_comm]
-  simp
+  simp only [Probability.PMF.uniformOfFintype_apply, Fintype.card_fin, Nat.cast_add, Nat.cast_one,
+    ← Finset.mul_sum, div_eq_mul_inv]
+  exact mul_comm _ _
 
 /-- Expectation under `uniform α` is the arithmetic average of `f` over `α`. -/
 theorem expect_uniform [Fintype α] [Nonempty α] (f : α → ℝ≥0∞) :

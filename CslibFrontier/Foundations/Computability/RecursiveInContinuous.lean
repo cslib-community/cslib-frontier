@@ -25,19 +25,30 @@ that the total maps computable relative to some oracle are exactly the continuou
   principle (`Nat.RecursiveIn.Code.exists_use`), a convergent computation relative to `p ⊕ x`
   reads only finitely many entries of `x`, so each output entry is constant on a cylinder.
 * *Continuous implies computable, through one fixed code*
-  (`Nat.RecursiveIn.Code.exists_code_continuous`). A single code `e` serves every continuous `F`:
-  the oracle `p_F` answers a query `⟨n, σ⟩` by `v + 1` when every input extending the finite
-  sequence `σ` has `n`-th output `v`, and by `0` otherwise. The code searches for the least `k`
-  such that `p_F` answers the prefix of length `k` of the input with a nonzero value. By
-  continuity the search terminates.
+  (`Nat.RecursiveIn.Code.exists_code_continuous`). A single code `e` serves every map `F` with an
+  *associate* (`Nat.RecursiveIn.Code.IsAssociate`), an oracle `α` that answers a query `⟨n, σ⟩`
+  for a finite sequence `σ` with a nonzero value on some prefix of every input, and with
+  `F x n + 1` whenever it answers a prefix of `x` with a nonzero value. The code searches for the
+  least `k` such that `α` answers the prefix of length `k` of the input with a nonzero value
+  (`Nat.RecursiveIn.Code.exists_code_isAssociate`). A continuous `F` has the associate `p_F` that
+  answers `⟨n, σ⟩` by `v + 1` when every input extending `σ` has `n`-th output `v`, and by `0`
+  otherwise.
+
+## Main definitions
+
+* `Nat.RecursiveIn.Code.IsAssociate`: an associate (neighbourhood function) of a total map.
 
 ## Main results
 
 * `Partrec.join_coe`: the join of two total functions is total.
 * `Nat.RecursiveIn.Code.continuous_iff_forall_exists_cylinder`: continuity on Baire space as
   dependence of each output entry on a finite prefix of the input.
+* `Nat.RecursiveIn.Code.exists_code_isAssociate`: one code computes every map relative to an
+  associate of the map.
 * `Nat.RecursiveIn.Code.exists_code_continuous`: one code computes every continuous map relative
   to an oracle that encodes the map.
+* `Nat.RecursiveIn.Code.exists_cylinder_of_mem_eval_join`: the use principle for the input of a
+  joined oracle.
 * `Nat.RecursiveIn.Code.continuous_of_eval`: a total map computable relative to an oracle is
   continuous.
 * `Nat.RecursiveIn.Code.continuous_iff_exists_code`: the continuity theorem.
@@ -45,17 +56,16 @@ that the total maps computable relative to some oracle are exactly the continuou
 ## Implementation notes
 
 The statements take a total map with values in `ℕ → ℕ` in curried form, `(ℕ → ℕ) → ℕ → ℕ`, and
-compare it with code evaluation entry by entry. Partial maps, closure under composition and the
-notion of a stream function computable relative to an oracle as a definition (the first milestone
-of the type-2 computability issue #6830) are not developed here.
+compare it with code evaluation entry by entry. Partial maps, the definition of a map computable
+relative to an oracle, closure under composition and the effective form of the continuity theorem
+are in `CslibFrontier.Foundations.Computability.RecursiveInStream`.
 
 ## References
 
-* [K. Weihrauch, *Computable Analysis: An Introduction*][Weihrauch2000], Chapters 2 and 3
-  (type-2 machines and the continuity of computable functions; the precise locators are to be
-  checked).
-* [J. van Oosten, *Realizability: An Introduction to its Categorical Side*][vanOosten2008], §1.4
-  (Kleene's second model, whose elements code continuous functionals; to be checked).
+* [K. Weihrauch, *Computable Analysis: An Introduction*][Weihrauch2000]: background on type-2
+  machines and the continuity of computable functions.
+* [J. van Oosten, *Realizability: An Introduction to its Categorical Side*][vanOosten2008]:
+  background on Kleene's second model, whose elements code continuous functionals.
 -/
 
 public section
@@ -82,8 +92,7 @@ theorem continuous_iff_forall_exists_cylinder {F : (ℕ → ℕ) → ℕ → ℕ
       (isOpen_discrete _).preimage (continuous_pi_iff.1 hF n)
     obtain ⟨_, ⟨z, k, rfl⟩, hx, hsub⟩ := (isTopologicalBasis_cylinders fun _ : ℕ => ℕ)
       |>.exists_subset_of_mem_open (Set.mem_preimage.2 rfl) ho
-    refine ⟨k, fun y hy => hsub ?_⟩
-    rwa [← mem_cylinder_iff_eq.1 hx]
+    exact ⟨k, fun y hy => hsub (by rwa [← mem_cylinder_iff_eq.1 hx])⟩
   · obtain ⟨k, hk⟩ := h x n
     exact ⟨cylinder x k, fun y hy => (hk y hy).trans hx, isOpen_cylinder (fun _ : ℕ => ℕ) x k,
       self_mem_cylinder x k⟩
@@ -93,8 +102,7 @@ theorem continuous_iff_forall_exists_cylinder {F : (ℕ → ℕ) → ℕ → ℕ
 private theorem prefixOf_eq_iff {x y : ℕ → ℕ} {k : ℕ} :
     prefixOf y k = prefixOf x k ↔ y ∈ cylinder x k := by
   refine ⟨fun h i hi => ?_, fun h => List.map_congr_left fun i hi => h i (List.mem_range.1 hi)⟩
-  have := congrArg (·[i]?) h
-  simpa [prefixOf, hi] using this
+  simpa [prefixOf, hi] using congrArg (·[i]?) h
 
 /-- The answer of the oracle encoding `F` at `⟨n, σ⟩`: `v + 1` when every input whose prefix is
 `σ` has `n`-th output `v`, and `0` if there is no such `v`. -/
@@ -127,11 +135,10 @@ join of the oracle with the input `x`. -/
 private theorem hasUniformCode_query :
     HasUniformCode joined fun i m =>
       Part.some (i.1 (Nat.pair m.unpair.1 (encode (prefixOf i.2 m.unpair.2)))) := by
-  have hp : HasUniformCode joined fun i => (i.1 : ℕ →. ℕ) :=
-    ⟨joinLeft, fun i => eval_joinLeft _ _⟩
-  have hpre : HasUniformCode joined fun i k => Part.some (encode (prefixOf i.2 k)) := by
-    obtain ⟨c, hc⟩ := hasUniformCode_prefixOf
-    exact ⟨c.subst joinRight, fun i => by rw [eval_subst, eval_joinRight, hc]⟩
+  have hp : HasUniformCode joined fun i => (i.1 : ℕ →. ℕ) := ⟨joinLeft, fun _ => eval_joinLeft ..⟩
+  obtain ⟨c, hc⟩ := hasUniformCode_prefixOf
+  have hpre : HasUniformCode joined fun i k => Part.some (encode (prefixOf i.2 k)) :=
+    ⟨c.subst joinRight, fun i => by rw [eval_subst, eval_joinRight, hc]⟩
   refine (hp.comp ((HasUniformCode.of_computable (Computable.fst.comp Computable.unpair)).pair
     (hpre.comp (HasUniformCode.of_computable (Computable.snd.comp Computable.unpair))))).of_eq
     fun i m => ?_
@@ -145,19 +152,56 @@ private theorem hasUniformCode_search :
       (Nat.rfind fun k => Part.some (decide
         (1 - i.1 (Nat.pair n (encode (prefixOf i.2 k))) = 0))).map
         fun k => i.1 (Nat.pair n (encode (prefixOf i.2 k))) - 1 := by
-  have hsub : ∀ {f : ℕ → ℕ}, Computable f →
-      HasUniformCode joined fun i m =>
-        Part.some (f (i.1 (Nat.pair m.unpair.1 (encode (prefixOf i.2 m.unpair.2))))) :=
-    fun hf => ((HasUniformCode.of_computable hf).comp hasUniformCode_query).of_eq fun i m => by
-      simp
-  have htest := hsub (f := fun v => 1 - v)
+  have hsub {f : ℕ → ℕ} (hf : Computable f) : HasUniformCode joined fun i m =>
+      Part.some (f (i.1 (Nat.pair m.unpair.1 (encode (prefixOf i.2 m.unpair.2))))) :=
+    ((HasUniformCode.of_computable hf).comp hasUniformCode_query).of_eq fun _ _ => by simp
+  have htest := hsub
     (_root_.Primrec.nat_sub.comp (_root_.Primrec.const 1) _root_.Primrec.id).to_comp
-  have hval := hsub (f := fun v => v - 1)
+  have hval := hsub
     (_root_.Primrec.nat_sub.comp _root_.Primrec.id (_root_.Primrec.const 1)).to_comp
   refine (hval.comp ((HasUniformCode.of_computable Computable.id).pair htest.rfind)).of_eq
     fun i n => ?_
   simp only [Seq.seq, Part.bind_eq_bind, Part.map_eq_map, Part.map_some, Part.bind_some,
     Nat.unpair_pair, id_eq, Part.bind_some_eq_map, Part.map_map, Function.comp_def]
+
+/-- `α` is an *associate* of the total map `F` on Baire space, in Kleene's sense of a
+neighbourhood function: `α` answers the query `⟨n, σ⟩` for a finite sequence `σ`, every input `x`
+has a prefix on which the answer for `n` is nonzero, and every nonzero answer on a prefix of `x` is
+`F x n + 1`. -/
+structure IsAssociate (α : ℕ → ℕ) (F : (ℕ → ℕ) → ℕ → ℕ) : Prop where
+  /-- Every input has a prefix on which the answer is nonzero. -/
+  exists_ne_zero : ∀ x n, ∃ k, α (Nat.pair n (encode (prefixOf x k))) ≠ 0
+  /-- A nonzero answer on a prefix of `x` is one more than the `n`-th output on `x`. -/
+  eq_of_ne_zero : ∀ x n k, α (Nat.pair n (encode (prefixOf x k))) ≠ 0 →
+    α (Nat.pair n (encode (prefixOf x k))) = F x n + 1
+
+/-- **Maps with an associate are computable through one fixed code.** A single oracle code `e`
+computes every total map `F` on Baire space relative to the join of an associate `α` of `F` with
+the input: `F x n = Φₑ^{α ⊕ x}(n)`. The code searches for the least `k` such that `α` answers the
+prefix of length `k` of `x` with a nonzero value. -/
+theorem exists_code_isAssociate :
+    ∃ e : Code, ∀ (F : (ℕ → ℕ) → ℕ → ℕ) (α : ℕ → ℕ), IsAssociate α F → ∀ (x : ℕ → ℕ) n,
+      eval ((α : ℕ →. ℕ) ⊕ (x : ℕ →. ℕ)) e n = Part.some (F x n) := by
+  obtain ⟨e, he⟩ := hasUniformCode_search
+  refine ⟨e, fun F α hα x n => ?_⟩
+  rw [he (_, x)]
+  dsimp only
+  obtain ⟨k, hk⟩ := hα.exists_ne_zero x n
+  have hdom : (Nat.rfind fun k => Part.some (decide
+      (1 - α (Nat.pair n (encode (prefixOf x k))) = 0))).Dom :=
+    Nat.rfind_dom.2 ⟨k, Part.mem_some_iff.2 (decide_eq_true (by omega)).symm, fun _ => trivial⟩
+  have hspec :=
+    of_decide_eq_true (Part.mem_some_iff.1 (Nat.rfind_spec (Part.get_mem hdom))).symm
+  rw [← Part.some_get hdom, Part.map_some, hα.eq_of_ne_zero x n _ (by omega)]
+  simp
+
+/-- The oracle `nbhd F` is an associate of every continuous `F`. -/
+private theorem isAssociate_nbhd {F : (ℕ → ℕ) → ℕ → ℕ} (hF : Continuous F) :
+    IsAssociate (fun m => nbhd F m.unpair.1 (ofNat (List ℕ) m.unpair.2)) F where
+  exists_ne_zero x n := by
+    obtain ⟨k, hk⟩ := continuous_iff_forall_exists_cylinder.1 hF x n
+    exact ⟨k, by simpa using nbhd_ne_zero hk⟩
+  eq_of_ne_zero x n k h := by simpa using nbhd_eq (by simpa using h)
 
 /-- **Continuous maps are computable through one fixed code.** A single oracle code `e` computes
 every continuous map `F` on Baire space relative to the join of an oracle `p` encoding `F` with
@@ -165,19 +209,21 @@ the input: `F x n = Φₑ^{p ⊕ x}(n)`. -/
 theorem exists_code_continuous :
     ∃ e : Code, ∀ F : (ℕ → ℕ) → ℕ → ℕ, Continuous F → ∃ p : ℕ → ℕ, ∀ (x : ℕ → ℕ) n,
       eval ((p : ℕ →. ℕ) ⊕ (x : ℕ →. ℕ)) e n = Part.some (F x n) := by
-  obtain ⟨e, he⟩ := hasUniformCode_search
-  refine ⟨e, fun F hF => ⟨fun m => nbhd F m.unpair.1 (ofNat (List ℕ) m.unpair.2), fun x n => ?_⟩⟩
-  rw [he (_, x)]
-  simp only [Nat.unpair_pair, ofNat_encode]
-  obtain ⟨k, hk⟩ := continuous_iff_forall_exists_cylinder.1 hF x n
-  have hdom : (Nat.rfind fun k => Part.some (decide (1 - nbhd F n (prefixOf x k) = 0))).Dom :=
-    Nat.rfind_dom.2 ⟨k, Part.mem_some_iff.2 (decide_eq_true (by
-      have := nbhd_ne_zero hk
-      omega)).symm, fun _ => trivial⟩
-  have hspec :=
-    of_decide_eq_true (Part.mem_some_iff.1 (Nat.rfind_spec (Part.get_mem hdom))).symm
-  rw [← Part.some_get hdom, Part.map_some, nbhd_eq (by omega)]
-  simp
+  obtain ⟨e, he⟩ := exists_code_isAssociate
+  exact ⟨e, fun F hF => ⟨_, he F _ (isAssociate_nbhd hF)⟩⟩
+
+/-- **The use principle for a joined input.** A convergent computation relative to `p ⊕ x`
+converges to the same value relative to `p ⊕ y` for every `y` in some cylinder around `x`. -/
+theorem exists_cylinder_of_mem_eval_join {p x : ℕ → ℕ} {c : Code} {n v : ℕ}
+    (h : v ∈ eval ((p : ℕ →. ℕ) ⊕ (x : ℕ →. ℕ)) c n) :
+    ∃ N, ∀ y ∈ cylinder x N, v ∈ eval ((p : ℕ →. ℕ) ⊕ (y : ℕ →. ℕ)) c n := by
+  rw [Partrec.join_coe] at h
+  obtain ⟨N, hN⟩ := exists_use h
+  refine ⟨N, fun y hy => ?_⟩
+  rw [Partrec.join_coe]
+  refine hN _ fun i hi => ?_
+  have hdiv : i.div2 < N := lt_of_le_of_lt (by simp [Nat.div2_val, Nat.div_le_self]) hi
+  cases i.bodd <;> simp [mem_cylinder_iff.1 hy _ hdiv]
 
 /-- **Computable maps are continuous.** A total map on Baire space that one code computes
 relative to the join of a fixed oracle `p` with the input is continuous. -/
@@ -185,15 +231,8 @@ theorem continuous_of_eval {F : (ℕ → ℕ) → ℕ → ℕ} {p : ℕ → ℕ}
     (h : ∀ (x : ℕ → ℕ) n, eval ((p : ℕ →. ℕ) ⊕ (x : ℕ →. ℕ)) c n = Part.some (F x n)) :
     Continuous F := by
   refine continuous_iff_forall_exists_cylinder.2 fun x n => ?_
-  have hx := h x n
-  rw [Partrec.join_coe] at hx
-  obtain ⟨N, hN⟩ := exists_use (Part.eq_some_iff.1 hx)
-  refine ⟨N, fun y hy => ?_⟩
-  have hy' := h y n
-  rw [Partrec.join_coe] at hy'
-  refine Part.mem_unique (hy' ▸ Part.mem_some _) (hN _ fun i hi => ?_)
-  have hdiv : i.div2 < N := lt_of_le_of_lt (by simp [Nat.div2_val, Nat.div_le_self]) hi
-  cases i.bodd <;> simp [mem_cylinder_iff.1 hy _ hdiv]
+  obtain ⟨N, hN⟩ := exists_cylinder_of_mem_eval_join (h x n ▸ Part.mem_some (F x n))
+  exact ⟨N, fun y hy => Part.mem_unique (h y n ▸ Part.mem_some _) (hN y hy)⟩
 
 /-- **The continuity theorem.** A total map on Baire space is continuous if and only if it is
 computable relative to some oracle: some code computes it from the join of the oracle with the
@@ -201,7 +240,7 @@ input. -/
 theorem continuous_iff_exists_code {F : (ℕ → ℕ) → ℕ → ℕ} :
     Continuous F ↔ ∃ (p : ℕ → ℕ) (c : Code), ∀ (x : ℕ → ℕ) n,
       eval ((p : ℕ →. ℕ) ⊕ (x : ℕ →. ℕ)) c n = Part.some (F x n) := by
-  refine ⟨fun hF => ?_, fun ⟨p, c, h⟩ => continuous_of_eval h⟩
+  refine ⟨fun hF => ?_, fun ⟨_, _, h⟩ => continuous_of_eval h⟩
   obtain ⟨e, he⟩ := exists_code_continuous
   obtain ⟨p, hp⟩ := he F hF
   exact ⟨p, e, hp⟩

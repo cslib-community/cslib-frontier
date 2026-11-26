@@ -241,16 +241,12 @@ theorem allConsistent_garbleGates (H : L → ℕ → L) (col : L →+ ZMod 2) (�
       (garbleGate H col Δ i K g).1
     cases g with
     | affine terms b y =>
-      have hy := heq (.inr y) (Set.mem_insert _ _)
       refine ⟨rfl, ?_⟩
-      rw [hy, termSum_congr terms fun p hp => hfin p.1 (hg.1 p hp)]
+      rw [heq (.inr y) (Set.mem_insert _ _), termSum_congr terms fun p hp => hfin p.1 (hg.1 p hp)]
       exact Function.update_self _ _ _
     | switch x y c =>
-      have hy := heq (.inr y) (Set.mem_insert _ _)
-      have hx := hfin x hg.1
-      have hc := hfin c hg.2.1
-      refine ⟨by rw [hc]; rfl, ?_⟩
-      rw [hy, hx, hc]
+      refine ⟨by rw [hfin c hg.2.1]; rfl, ?_⟩
+      rw [heq (.inr y) (Set.mem_insert _ _), hfin x hg.1, hfin c hg.2.1]
       exact Function.update_self _ _ _
     | join x y =>
       change Material.shift (K y - K x) = Material.shift (_ - _)
@@ -358,8 +354,7 @@ private theorem lockstep_evalGate [DecidableEq R] {H : L → ℕ → L} {col : L
       simp only [Option.map_some, col_wireLabel_add hΔ (K c) hbit, Option.some.injEq]
       by_cases hv0 : v = 0
       · subst hv0
-        have hk : wireLabel Δ (K c) (0 : R) = K c := by simp [wireLabel]
-        simp only [ite_true, hk]
+        simp only [ite_true, wireLabel, zero_smul, add_zero]
         exact lockstep_pair hmap x (.inr y) (H (K c) i) hy
       · simp only [hv0, ite_false]
         exact hmap
@@ -394,14 +389,10 @@ theorem evaluate_garbleWith [DecidableEq R] {S : SwitchSystem n m N R} (hS : S.W
     allConsistent_garbleGates H col Δ S.gates _ 0 (Sum.elim K 0) hS
   have hinit : Lockstep Δ (zeroLabels S H col Δ K) σ (SwitchSystem.initState x)
       (Sum.elim (fun i => some ((garbleWith S H col Δ K).encode x i)) fun _ => none) := by
-    refine ⟨?_, ?_⟩
-    · rintro (i | j)
-      · simp only [Sum.elim_inl, SwitchSystem.initState, Option.map_some, Garbled.encode,
-          garbleWith, zeroLabels]
-        rw [hinp (.inl i) ⟨i, rfl⟩]
-        rfl
-      · rfl
-    · rintro (i | j) a ha
+    refine ⟨fun | .inl i => ?_ | .inr _ => rfl, ?_⟩
+    · simp only [Sum.elim_inl, SwitchSystem.initState, Option.map_some, Garbled.encode,
+        garbleWith, zeroLabels, hinp (.inl i) ⟨i, rfl⟩]
+    · rintro (i | _) _ ha
       · simp only [SwitchSystem.initState, Sum.elim_inl, Option.some.injEq] at ha
         rw [← ha, hσ.1 i]
       · simp [SwitchSystem.initState] at ha

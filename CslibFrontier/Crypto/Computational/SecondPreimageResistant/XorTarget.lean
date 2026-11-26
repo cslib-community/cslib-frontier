@@ -131,15 +131,11 @@ uniformly strict PPT. -/
 theorem isPPT_xorTargetToSecondPreimage {adversary : TargetCollisionFinder}
     (ha : adversary.IsPPT) :
     IsPPT encBits (xorTargetToSecondPreimage adversary) := by
-  refine IsPPTOn.bind_with (by apply ha.choose.preprocess (prepare := Prod.fst); fun_prop) ?_
-  refine IsPPTOn.bind_with
-    (by
-      apply ha.find.preprocess
-        (prepare := fun p : (ℕ × List Bool) × (List Bool × List Bool) =>
-          (p.1.1, p.2.2, BitString.listXor p.1.1 [p.1.2, p.2.1]))
-      fun_prop) ?_
-  apply ComputableInPolyTime.isPPTOn
-  fun_prop
+  refine IsPPTOn.bind_with (ha.choose.preprocess (by fun_prop)) ?_
+  refine IsPPTOn.bind_with (ha.find.preprocess (prepare :=
+    fun p : (ℕ × List Bool) × (List Bool × List Bool) =>
+      (p.1.1, p.2.2, BitString.listXor p.1.1 [p.1.2, p.2.1])) (by fun_prop)) ?_
+  exact ComputableInPolyTime.isPPTOn (by fun_prop)
 
 /-- **Theorem 8.12, concrete bound** ([BonehShoup2023], Section 8.11.3, pp. 338–339): for every
 target-collision adversary `adversary` attacking `xorTargetHash H` on `n`-bit messages and any
@@ -169,11 +165,7 @@ theorem succProbability_targetCollisionGame_xorTargetHash_le
       ProbComp.eval_pure, BitString.eval_sampleList, PMF.bind_bind, PMF.pure_bind]
     rw [PMF.bind_comm]
     refine PMF.bind_congr_on_support _ _ _ fun choice _ => ?_
-    have hmask :
-        (BitString.uniformList n).map (fun m => BitString.listXor n [m, choice.1]) =
-          BitString.uniformList n :=
-      BitString.uniformList_map_listXor n choice.1
-    conv_rhs => rw [← hmask, PMF.bind_map]
+    conv_rhs => rw [← BitString.uniformList_map_listXor n choice.1, PMF.bind_map]
     refine PMF.bind_congr_on_support _ _ _ fun m hm => ?_
     have hm_len : m.length = n := BitString.mem_support_uniformList_iff.mp hm
     have hrec : BitString.listXor n [choice.1, BitString.listXor n [m, choice.1]] = m := by

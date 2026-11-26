@@ -47,38 +47,25 @@ private theorem inverse_rotate_eq_iff_interval {G : Graph} (r : RotationSystem G
     r.rotate.symm a = c ↔ b ∈ r.rotationInterval a c := by
   classical
   have noFixedA := rotate_ne_self r hab hab'
-  have noFixedC := rotate_ne_self r hac.symm hac'.symm
   have rotA := (hall (r.rotate a) (r.vertex_rotate a)).resolve_left noFixedA
   have comparison : r.rotate.symm a = c ↔ r.rotate a = b := by
     rw [Equiv.symm_apply_eq]
-    constructor
-    · intro h
-      apply rotA.resolve_right
-      intro he
-      have bFixed := hall (r.rotate b) ((r.vertex_rotate b).trans hab.symm)
-      rcases bFixed with hba | hbb | hbc
+    refine ⟨fun h => rotA.resolve_right fun he => ?_, fun h => ?_⟩
+    · rcases hall (r.rotate b) ((r.vertex_rotate b).trans hab.symm) with hba | hbb | hbc
       · exact hbc' (r.rotate.injective (hba.trans h))
       · exact rotate_ne_self r hab.symm hab'.symm hbb
       · exact hab' (r.rotate.injective (he.trans hbc.symm))
-    · intro h
-      rcases hall (r.rotate c) ((r.vertex_rotate c).trans hac.symm) with hc | hc | hc
+    · rcases hall (r.rotate c) ((r.vertex_rotate c).trans hac.symm) with hc | hc | hc
       · exact hc.symm
       · exact (hac' (r.rotate.injective (h.trans hc.symm))).elim
-      · exact (noFixedC hc).elim
+      · exact (rotate_ne_self r hac.symm hac'.symm hc).elim
   rw [comparison]
-  have oneStep : r.rotationDistance a (r.rotate a) = 1 := by
-    rw [r.rotationDistance_rotate_of_ne a a rfl noFixedA, r.rotationDistance_self]
-  constructor
-  · intro he
-    exact Finset.mem_image.mpr
-      ⟨0, Finset.mem_range.mpr (r.rotationDistance_pos_of_ne a c hac hac'.symm),
-        by simpa only [zero_add, pow_one] using he⟩
-  · intro hm
-    rcases rotA with hb | hc
-    · exact hb
-    · have hdist := (r.mem_rotationInterval_iff_lt_distance a b c hab hac hab' hbc' hac').mp hm
-      rw [← hc, oneStep] at hdist
-      exact (not_lt_of_ge (r.rotationDistance_pos_of_ne a b hab hab'.symm) hdist).elim
+  refine ⟨fun he => Finset.mem_image.mpr
+    ⟨0, Finset.mem_range.mpr (r.rotationDistance_pos_of_ne a c hac hac'.symm),
+      by simpa only [zero_add, pow_one] using he⟩, fun hm => rotA.resolve_right fun hc => ?_⟩
+  have hdist := (r.mem_rotationInterval_iff_lt_distance a b c hab hac hab' hbc' hac').mp hm
+  rw [← hc, r.rotationDistance_rotate_of_ne a a rfl noFixedA, r.rotationDistance_self] at hdist
+  exact (not_lt_of_ge (r.rotationDistance_pos_of_ne a b hab hab'.symm) hdist).elim
 
 /-- Three nonempty indexed paths between distinct vertices have opposite strict cyclic
 orders at their two ends if all crossings between different paths are even. Their interiors
@@ -109,10 +96,7 @@ theorem HasRegularContacts.opposite_three_path_orders {G : Graph} {D : Polygonal
     (finCongr (List.length_ofFn (f := fun j => G.edges[edge (coords.symm j)]))).trans coords.symm
   let edges : Fin H.edges.length ↪ Fin G.edges.length :=
     ⟨fun j => edge (index j), hedges.comp index.injective⟩
-  have edgeEq (j : Fin H.edges.length) : H.edges[j] = G.edges[edges j] := by
-    change (List.ofFn fun k => G.edges[edge (coords.symm k)])[j.val]'j.isLt = _
-    rw [List.getElem_ofFn]
-    rfl
+  have edgeEq (j : Fin H.edges.length) : H.edges[j] = G.edges[edges j] := List.getElem_ofFn ..
   have hEnds (j : Fin H.edges.length) (b : Bool) :
       Dart.vertex (G := G) (edges j, b) = Dart.vertex (G := H) (j, b) := by
     have he := (Dart.edge_eq_vertices (G := G) (edges j)).symm.trans
@@ -120,14 +104,13 @@ theorem HasRegularContacts.opposite_three_path_orders {G : Graph} {D : Polygonal
     cases b
     · exact congrArg Prod.fst he
     · exact congrArg Prod.snd he
-  let lift : Dart H ↪ Dart G := ⟨fun d => (edges d.1, d.2), fun _ _ h => by
-    obtain ⟨he, hb⟩ := Prod.mk.inj h
-    exact Prod.ext (edges.injective he) hb⟩
+  let lift : Dart H ↪ Dart G := ⟨fun d => (edges d.1, d.2), fun _ _ h =>
+    Prod.ext (edges.injective (Prod.mk.inj h).1) (Prod.mk.inj h).2⟩
   have liftVertex (d : Dart H) : (lift d).vertex = d.vertex := hEnds d.1 d.2
   let arm (k : Fin 3) (i : Fin (length k + 1)) : Dart H :=
     (index.symm ⟨k, i⟩, (path k i).2)
-  have liftArm (k : Fin 3) (i : Fin (length k + 1)) : lift (arm k i) = path k i := by
-    exact Prod.ext (congrArg edge (index.apply_symm_apply ⟨k, i⟩)) rfl
+  have liftArm (k : Fin 3) (i : Fin (length k + 1)) : lift (arm k i) = path k i :=
+    Prod.ext (congrArg edge (index.apply_symm_apply ⟨k, i⟩)) rfl
   have liftReverse (d : Dart H) : lift d.reverse = (lift d).reverse := rfl
   have startVertex (k : Fin 3) (i : Fin (length k + 1)) :
       (arm k i).vertex = Fin.cases u (site k) i := by
@@ -135,32 +118,23 @@ theorem HasRegularContacts.opposite_three_path_orders {G : Graph} {D : Polygonal
   have finishVertex (k : Fin 3) (i : Fin (length k + 1)) :
       (arm k i).reverse.vertex = Fin.lastCases v (site k) i := by
     rw [← liftVertex, liftReverse, liftArm, hfinish]
-  have allDarts (d : Dart H) : ∃ k i, d = arm k i ∨ d = (arm k i).reverse := by
-    let j := index d.1
-    refine ⟨j.1, j.2, ?_⟩
-    have h := index.symm_apply_apply d.1
-    change d = (index.symm j, (path j.1 j.2).2) ∨
-      d = (index.symm j, !(path j.1 j.2).2)
-    rcases Bool.eq_or_eq_not d.2 (path j.1 j.2).2 with he | he
-    · exact Or.inl (Prod.ext h.symm he)
-    · exact Or.inr (Prod.ext h.symm he)
-  have hH : ∀ w ∈ H.incidenceVertices, w ∈ H.vertices := by
-    intro w hw
+  have allDarts (d : Dart H) : ∃ k i, d = arm k i ∨ d = (arm k i).reverse :=
+    ⟨(index d.1).1, (index d.1).2, (Bool.eq_or_eq_not d.2 (path (index d.1).1 (index d.1).2).2).imp
+      (Prod.ext (index.symm_apply_apply d.1).symm)
+      (Prod.ext (index.symm_apply_apply d.1).symm)⟩
+  have hH : ∀ w ∈ H.incidenceVertices, w ∈ H.vertices := fun w hw => by
     obtain ⟨e, he, hwe⟩ := List.mem_flatMap.mp hw
     obtain ⟨j, hj⟩ := List.mem_iff_get.mp he
-    apply hG
-    refine List.mem_flatMap.mpr ⟨e, List.mem_iff_get.mpr ⟨edges j, ?_⟩, hwe⟩
-    exact (edgeEq j).symm.trans hj
+    exact hG w (List.mem_flatMap.mpr ⟨e, List.mem_iff_get.mpr ⟨edges j, (edgeEq j).symm.trans hj⟩,
+      hwe⟩)
   let A := D.subdrawing edges id hEnds
   have hA : A.HasRegularContacts :=
     hD.subdrawing edges id hEnds hH (fun _ h => h) (fun _ _ _ _ h => h)
   have dirEq (d : Dart H) : A.direction d = D.direction (lift d) := rfl
   have dirInj (a b : Dart H) (hab : a.vertex = b.vertex)
-      (he : A.direction a = A.direction b) : a = b := by
-    apply lift.injective
-    apply hR.directions_injective
-    · simpa only [liftVertex] using hab
-    · rwa [← dirEq a, ← dirEq b]
+      (he : A.direction a = A.direction b) : a = b :=
+    lift.injective (hR.directions_injective (lift a) (lift b)
+      (by simpa only [liftVertex] using hab) he)
   let s := A.rotationOfDirections dirInj
   have hS : A.Realizes s := A.realizes_rotationOfDirections (fun d => hR.nonzero (lift d)) dirInj
   have startAt (k : Fin 3) : (arm k 0).vertex = u := startVertex k 0
@@ -169,96 +143,50 @@ theorem HasRegularContacts.opposite_three_path_orders {G : Graph} {D : Polygonal
   have armsNe {a b : Fin 3} (hab : a ≠ b) (i : Fin (length a + 1)) (j : Fin (length b + 1)) :
       (arm a i).1 ≠ (arm b j).1 := fun he =>
     hab (congrArg Sigma.fst (index.symm.injective he))
-  have leftFiber (d : Dart H) (hd : d.vertex = u) : ∃ k, d = arm k 0 := by
-    obtain ⟨k, i, hi | hi⟩ := allDarts d
-    · subst d
-      refine Fin.cases (motive := fun i => (arm k i).vertex = u → ∃ j, arm k i = arm j 0)
-        (fun _ => ⟨k, rfl⟩) (fun j hv => ?_) i hd
-      exact ((havoid k j).1 ((startVertex k j.succ).symm.trans hv)).elim
-    · subst d
-      refine Fin.lastCases
-        (motive := fun i => (arm k i).reverse.vertex = u → ∃ j, (arm k i).reverse = arm j 0)
-        (fun hv => (huv (hv.symm.trans (finishAt k))).elim) (fun j hv => ?_) i hd
-      have he := (finishVertex k j.castSucc).symm.trans hv
-      rw [Fin.lastCases_castSucc] at he
-      exact ((havoid k j).1 he).elim
-  have rightFiber (d : Dart H) (hd : d.vertex = v) :
-      ∃ k, d = (arm k (Fin.last (length k))).reverse := by
-    obtain ⟨k, i, hi | hi⟩ := allDarts d
-    · subst d
-      refine Fin.cases (motive := fun i => (arm k i).vertex = v →
-        ∃ j, arm k i = (arm j (Fin.last (length j))).reverse)
-        (fun hv => (huv ((startAt k).symm.trans hv)).elim) (fun j hv => ?_) i hd
-      exact ((havoid k j).2 ((startVertex k j.succ).symm.trans hv)).elim
-    · subst d
-      refine Fin.lastCases (motive := fun i => (arm k i).reverse.vertex = v →
-        ∃ j, (arm k i).reverse = (arm j (Fin.last (length j))).reverse)
-        (fun _ => ⟨k, rfl⟩) (fun j hv => ?_) i hd
-      have he := (finishVertex k j.castSucc).symm.trans hv
-      rw [Fin.lastCases_castSucc] at he
-      exact ((havoid k j).2 he).elim
+  have classifyDart (d : Dart H) :
+      (∃ k, d = arm k 0 ∧ d.vertex = u) ∨
+      (∃ k, d = (arm k (Fin.last (length k))).reverse ∧ d.vertex = v) ∨
+      ∃ k j, (d = arm k j.succ ∨ d = (arm k j.castSucc).reverse) ∧ d.vertex = site k j := by
+    obtain ⟨k, i, rfl | rfl⟩ := allDarts d
+    · exact Fin.cases (Or.inl ⟨k, rfl, startAt k⟩)
+        (fun j => Or.inr (Or.inr ⟨k, j, Or.inl rfl, startVertex k j.succ⟩)) i
+    · exact Fin.lastCases (Or.inr (Or.inl ⟨k, rfl, finishAt k⟩))
+        (fun j => Or.inr (Or.inr ⟨k, j, Or.inr rfl,
+          by rw [finishVertex, Fin.lastCases_castSucc]⟩)) i
   let start : Fin 3 ≃ {d : Dart H // d.vertex = u} :=
     Equiv.ofBijective (fun k => ⟨arm k 0, startAt k⟩)
-      ⟨fun a b he => by
-        by_contra hab
-        exact armsNe hab 0 0 (congrArg (fun d => d.val.1) he),
-      fun d => by
-        obtain ⟨k, hk⟩ := leftFiber d.val d.property
-        exact ⟨k, Subtype.ext hk.symm⟩⟩
+      ⟨fun _ _ he => by_contra fun hab => armsNe hab 0 0 (congrArg (·.val.1) he), fun d => by
+        rcases classifyDart d.val with ⟨k, hk, _⟩ | ⟨_, _, hv⟩ | ⟨k, j, _, hs⟩
+        · exact ⟨k, Subtype.ext hk.symm⟩
+        · exact absurd (d.property.symm.trans hv) huv
+        · exact absurd (hs.symm.trans d.property) (havoid k j).1⟩
   let finish : Fin 3 ≃ {d : Dart H // d.vertex = v} :=
     Equiv.ofBijective (fun k => ⟨(arm k (Fin.last (length k))).reverse, finishAt k⟩)
-      ⟨fun a b he => by
-        by_contra hab
-        exact armsNe hab _ _ (congrArg (fun d => d.val.1) he),
-      fun d => by
-        obtain ⟨k, hk⟩ := rightFiber d.val d.property
-        exact ⟨k, Subtype.ext hk.symm⟩⟩
+      ⟨fun _ _ he => by_contra fun hab => armsNe hab _ _ (congrArg (·.val.1) he), fun d => by
+        rcases classifyDart d.val with ⟨_, _, hu⟩ | ⟨k, hk, _⟩ | ⟨k, j, _, hs⟩
+        · exact absurd (hu.symm.trans d.property) huv
+        · exact ⟨k, Subtype.ext hk.symm⟩
+        · exact absurd (hs.symm.trans d.property) (havoid k j).2⟩
   have step (k : Fin 3) (j : Fin (length k)) :
       s.rotate.symm (arm k j.castSucc).reverse = arm k j.succ := by
     have ha : (arm k j.castSucc).reverse.vertex = site k j := by
       rw [finishVertex, Fin.lastCases_castSucc]
-    have hb : (arm k j.succ).vertex = site k j := startVertex k j.succ
-    refine inverse_rotate_eq_of_two s (ha.trans hb.symm) (fun h => ?_) (fun d hd => ?_)
-    · have he := congrArg (fun i : I => i.2.val)
-        (index.symm.injective (congrArg Prod.fst h))
-      exact Nat.succ_ne_self _ he.symm
-    · have hd' := hd.trans ha
-      obtain ⟨a, i, hi | hi⟩ := allDarts d
-      · subst d
-        refine Fin.cases (motive := fun i => (arm a i).vertex = site k j →
-          arm a i = (arm k j.castSucc).reverse ∨ arm a i = arm k j.succ)
-          (fun h => ((havoid k j).1 ((startAt a).symm.trans h).symm).elim)
-          (fun l h => ?_) i hd'
-        have he := hsite (a₁ := ⟨a, l⟩) (a₂ := ⟨k, j⟩)
-          ((startVertex a l.succ).symm.trans h)
-        have ha' : a = k := congrArg Sigma.fst he
-        subst a
-        obtain rfl : l = j :=
-          Fin.ext (congrArg (fun i : (a : Fin 3) × Fin (length a) => i.2.val) he)
-        exact Or.inr rfl
-      · subst d
-        refine Fin.lastCases (motive := fun i => (arm a i).reverse.vertex = site k j →
-          (arm a i).reverse = (arm k j.castSucc).reverse ∨ (arm a i).reverse = arm k j.succ)
-          (fun h => ((havoid k j).2 ((finishAt a).symm.trans h).symm).elim)
-          (fun l h => ?_) i hd'
-        have he := (finishVertex a l.castSucc).symm.trans h
-        rw [Fin.lastCases_castSucc] at he
-        have he' := hsite (a₁ := ⟨a, l⟩) (a₂ := ⟨k, j⟩) he
-        have ha' : a = k := congrArg Sigma.fst he'
-        subst a
-        obtain rfl : l = j :=
-          Fin.ext (congrArg (fun i : (a : Fin 3) × Fin (length a) => i.2.val) he')
-        exact Or.inl rfl
-  have hArm : Function.Injective
-      (fun i : I => (arm i.1 i.2).1) := index.symm.injective
+    refine inverse_rotate_eq_of_two s (ha.trans (startVertex k j.succ).symm)
+      (fun h => Nat.succ_ne_self _
+        (congrArg (fun i : I => i.2.val) (index.symm.injective (congrArg Prod.fst h))).symm)
+      fun d hd => ?_
+    rcases classifyDart d with ⟨_, _, hu⟩ | ⟨_, _, hv⟩ | ⟨a, l, hdl, hs⟩
+    · exact absurd (ha.symm.trans (hd.symm.trans hu)) (havoid k j).1
+    · exact absurd (ha.symm.trans (hd.symm.trans hv)) (havoid k j).2
+    · cases @hsite ⟨a, l⟩ ⟨k, j⟩ (hs.symm.trans (hd.trans ha))
+      exact hdl.symm
   have even (a b : Fin 3) (hab : a ≠ b) (i : Fin (length a + 1)) (j : Fin (length b + 1)) :
       (A.route (arm a i).1).intersectionParity (A.route (arm b j).1) = false := by
-    change (D.route (lift (arm a i)).1).intersectionParity (D.route (lift (arm b j)).1) = false
-    rw [liftArm, liftArm]
-    exact heven a b hab i j
+    simpa only [show ∀ d : Dart H, A.route d.1 = D.route (lift d).1 from fun _ => rfl,
+      liftArm] using heven a b hab i j
   have compare := hA.inverse_rotate_iff_not_inverse_rotate_of_three_paths
     (fun e => hsimple (edges e)) hS hH arm start finish (fun _ => rfl) (fun _ => rfl)
-    step hArm even
+    step index.symm.injective even
   have interval {w : ℕ} (ports : Fin 3 ≃ {d : Dart H // d.vertex = w}) :
       s.rotate.symm (ports 0).val = (ports 2).val ↔
         lift (ports 1).val ∈ r.rotationInterval (lift (ports 0).val) (lift (ports 2).val) := by
@@ -274,17 +202,13 @@ theorem HasRegularContacts.opposite_three_path_orders {G : Graph} {D : Polygonal
     have nac : a ≠ c := ne (by decide)
     have hall (d : Dart H) (hd : d.vertex = a.vertex) : d = a ∨ d = b ∨ d = c := by
       obtain ⟨i, hi⟩ := ports.surjective ⟨d, hd.trans (ports 0).property⟩
-      have h := congrArg Subtype.val hi.symm
-      fin_cases i
-      · exact Or.inl h
-      · exact Or.inr (Or.inl h)
-      · exact Or.inr (Or.inr h)
+      have h : d = (ports i).val := congrArg Subtype.val hi.symm
+      fin_cases i <;> simp [h, a, b, c]
     have hlab : (lift a).vertex = (lift b).vertex := by simpa only [liftVertex] using hab
     have hlbc : (lift b).vertex = (lift c).vertex := by simpa only [liftVertex] using hbc
     have small := hS.clockwise a b c hab hbc nab nbc nac
     have large := hR.clockwise (lift a) (lift b) (lift c) hlab hlbc
       (lift.injective.ne nab) (lift.injective.ne nbc) (lift.injective.ne nac)
-    rw [dirEq, dirEq, dirEq] at small
     exact (inverse_rotate_eq_iff_interval s hab (hab.trans hbc) nab nac nbc hall).trans
       (small.symm.trans large)
   have out := (interval start).symm.trans (compare.trans (interval finish).not)

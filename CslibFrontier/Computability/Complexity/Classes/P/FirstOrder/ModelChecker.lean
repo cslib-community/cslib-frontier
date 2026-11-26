@@ -191,16 +191,11 @@ omit [L.IsRelational] in
 private theorem relBit_eq_true_iff {k : ℕ} (r : (Ordered.language L).Relations k)
     (xs : Fin k → Fin a.1) :
     relBit v a r (fun j => (xs j : ℕ)) = true ↔ Language.Structure.RelMap r xs := by
-  cases r with
-  | inl r =>
-    change (v.table a ⟨k, r⟩).getD (valuesIndex a.1 (fun j => (xs j : ℕ))) false = true ↔
-      Language.Structure.RelMap r xs
-    rw [valuesIndex_val]
+  rcases r with r | (_ | _)
+  · rw [relBit, valuesIndex_val]
     exact hinput r xs
-  | inr r =>
-    cases r with
-    | le => change decide ((xs 0).val ≤ (xs 1).val) = true ↔ xs 0 ≤ xs 1; simp
-    | bit => rfl
+  · exact decide_eq_true_iff
+  · rfl
 
 /-- The first-order evaluator decides Mathlib's bounded-formula semantics. -/
 private theorem foEval_eq_true_iff {α : Type w} (σ : α → Fin a.1) {k : ℕ}
@@ -233,12 +228,10 @@ private theorem eval_correct {Γ : List ℕ} {α : Type w}
       φ.Realize interpretation (relations Γ a.1 tables) σ := by
   induction φ generalizing tables with
   | ofFO φ =>
-    have h := foEval_eq_true_iff v hinput σ φ Fin.elim0
-    have hzero : (fun j : Fin 0 => (Fin.elim0 j : Fin a.1).val) = Fin.elim0 :=
-      Subsingleton.elim _ _
-    have hdefault : (default : Fin 0 → Fin a.1) = Fin.elim0 := Subsingleton.elim _ _
     simpa only [eval, Operator.Formula.realize_ofFO, FirstOrder.Language.Formula.Realize,
-      hzero, hdefault] using h
+      Subsingleton.elim (fun j : Fin 0 => (Fin.elim0 j : Fin a.1).val) Fin.elim0,
+      Subsingleton.elim (default : Fin 0 → Fin a.1) Fin.elim0] using
+      foEval_eq_true_iff v hinput σ φ Fin.elim0
   | rel r ts =>
     simp only [eval, termValue_eq, valuesIndex_val, Operator.Formula.realize_rel,
       relations, tableRelation, Set.mem_ofPred_eq]

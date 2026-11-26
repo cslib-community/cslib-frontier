@@ -80,19 +80,13 @@ private theorem hybrid_update_u (E : ∀ t, Z t → Bool) (i : Fin T) (b : Bool)
     (u : Fin T → Bool) (y : Bool) :
     hybrid E i (b, z, update u i y) = update (hybrid E i (b, z, u)) i (z i, y) := by
   funext t
-  by_cases h : t = i
-  · subst h
-    simp [hybrid]
-  · simp [hybrid, update_of_ne h]
+  rcases eq_or_ne t i with rfl | h <;> simp [hybrid, *]
 
 private theorem hybrid_update_z (E : ∀ t, Z t → Bool) (i : Fin T) (b : Bool) (z : ∀ t, Z t)
     (u : Fin T → Bool) (x : Z i) :
     hybrid E i (b, update z i x, u) = update (hybrid E i (b, z, u)) i (x, u i) := by
   funext t
-  by_cases h : t = i
-  · subst h
-    simp [hybrid]
-  · simp [hybrid, update_of_ne h]
+  rcases eq_or_ne t i with rfl | h <;> simp [hybrid, *]
 
 private theorem hybrid_succ (E : ∀ t, Z t → Bool) (i : Fin T) (b : Bool) (z : ∀ t, Z t)
     (u : Fin T → Bool) :
@@ -143,18 +137,15 @@ private theorem guesses_step (E : ∀ t, Z t → Bool) (D : (∀ t, Z t × Bool)
       G (b, z, u) + G (τ (b, z, u)) + H i (b, z, u) + H i (τ (b, z, u)) =
         1 + 2 * H ((i : ℕ) + 1) (b, z, u) := by
     simp only [G, H, τ, hybrid_update_u, update_self, hybrid_succ]
-    have h := pair_identity (fun y => D (update (hybrid E i (b, z, u)) i (z i, y))) (u i)
-      (!u i) (E i (z i)) b rfl
-    rw [update_hybrid_self] at h
-    exact h
+    simpa only [update_hybrid_self] using pair_identity
+      (fun y => D (update (hybrid E i (b, z, u)) i (z i, y))) (u i) (!u i) (E i (z i)) b rfl
   have htot : ∑ ω, (G ω + G (τ ω) + H i ω + H i (τ ω)) =
       ∑ ω, (1 + 2 * H ((i : ℕ) + 1) ω) :=
     sum_congr rfl fun ⟨b, z, u⟩ _ => key b z u
   simp only [sum_add_distrib, hG, hH, ← mul_sum, sum_const, card_univ, smul_eq_mul,
     mul_one] at htot
-  have hg : guesses E D i = ∑ ω, G ω := card_filter _ _
-  have hh (j : ℕ) : hits E D j = ∑ ω, H j ω := card_filter _ _
-  rw [hg, hh, hh]
+  dsimp only [G, H] at htot
+  simp only [guesses, hits, card_filter]
   omega
 
 /-- In hybrid `0` the decoder's input does not depend on the secret, so it returns the secret on
@@ -207,28 +198,16 @@ theorem exists_card_add_decode_update_eq [∀ t, Nonempty (Z t)]
   have hT : 0 < T := by
     refine Nat.pos_of_ne_zero fun hT0 => ?_
     subst hT0
-    have h₀ := hD (fun t => t.elim0) false
-    have h₁ := hD (fun t => t.elim0) true
-    have : (fun t : Fin 0 => ((fun t => t.elim0 : ∀ t, Z t) t,
-        E t ((fun t => t.elim0 : ∀ t, Z t) t) + false)) =
-        fun t => ((fun t => t.elim0 : ∀ t, Z t) t, E t ((fun t => t.elim0 : ∀ t, Z t) t) + true) :=
-      funext fun t => t.elim0
-    rw [this] at h₀
-    exact Bool.false_ne_true (h₀.symm.trans h₁)
+    exact Bool.false_ne_true <| (hD (fun t => t.elim0) false).symm.trans
+      ((congrArg D (Subsingleton.elim _ _)).trans (hD (fun t => t.elim0) true))
   -- The hybrid gaps telescope.
   have hsumG : 2 * ∑ i, guesses E D i = (T + 1) * Fintype.card (Sample Z) := by
     have h1 := sum_congr rfl fun i (_ : i ∈ (univ : Finset (Fin T))) => guesses_step E D i
     simp only [sum_add_distrib, ← mul_sum, sum_const, card_univ, Fintype.card_fin,
-      smul_eq_mul] at h1
-    have r1 : ∑ i : Fin T, hits E D i = ∑ i ∈ range T, hits E D i :=
-      Fin.sum_univ_eq_sum_range (hits E D) T
-    have r2 : ∑ i : Fin T, hits E D ((i : ℕ) + 1) = ∑ i ∈ range T, hits E D (i + 1) :=
-      Fin.sum_univ_eq_sum_range (fun i => hits E D (i + 1)) T
-    have h2 := sum_range_succ (hits E D) T
-    have h3 := sum_range_succ' (hits E D) T
-    have h4 := two_mul_hits_zero E D
-    have h5 := hits_top E D hD
-    linarith
+      smul_eq_mul, Fin.sum_univ_eq_sum_range (hits E D),
+      Fin.sum_univ_eq_sum_range (fun i => hits E D (i + 1))] at h1
+    linarith [sum_range_succ (hits E D) T, sum_range_succ' (hits E D) T, two_mul_hits_zero E D,
+      hits_top E D hD]
   -- Some channel's predictor beats the average.
   obtain ⟨i, -, hi⟩ := exists_le_of_sum_le (s := univ) (f := fun _ => (T + 1) *
       Fintype.card (Sample Z)) (g := fun i => 2 * T * guesses E D i) ⟨⟨0, hT⟩, mem_univ _⟩ (by

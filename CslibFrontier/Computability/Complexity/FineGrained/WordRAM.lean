@@ -59,7 +59,7 @@ theorem exists_decidableInTimeAndSpace_KSAT (k : ℕ) :
   obtain ⟨count, A, e, b, hspec, hcount⟩ := exists_modelCounter k
   obtain ⟨c₀, -, hlen⟩ := id hcount
   obtain ⟨dw, _, hw⟩ := (computableInPolyTime_all_length_le k).exists_degree
-  obtain ⟨dp, _, hp⟩ := computableInPolyTime_pos_nat.exists_degree
+  obtain ⟨dp, _, hp⟩ := ComputableInPolyTime.binary_pos.exists_degree
   obtain ⟨c, htm, -⟩ := hw.inO.ite (hp.inO.comp hcount) (ComputableInO.const false)
   set E := dw + e + b + b * dp + 1
   set F := 4 + (2 * c₀ + 1) ^ dp

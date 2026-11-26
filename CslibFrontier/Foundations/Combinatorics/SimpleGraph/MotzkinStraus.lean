@@ -92,40 +92,19 @@ private theorem dotProduct_adjMatrix_eq_of_isClique [Fintype V] [CommRing K]
     {S : Finset V} (hS : G.IsClique (S : Set V)) {x : V → K} (hx : ∀ v, v ∉ S → x v = 0) :
     x ⬝ᵥ G.adjMatrix K *ᵥ x = (∑ v ∈ S, x v) ^ 2 - ∑ v ∈ S, x v ^ 2 := by
   classical
-  rw [dotProduct_adjMatrix_eq_sum]
-  have hzero : ∀ u, u ∉ S → ∑ v : V, (if G.Adj u v then x u * x v else 0) = 0 := fun u hu =>
-    Finset.sum_eq_zero fun v _ => by split_ifs <;> simp only [hx u hu, zero_mul]
-  rw [← Finset.sum_subset (Finset.subset_univ S) fun u _ hu => hzero u hu]
-  have hinner : ∀ u ∈ S, ∑ v : V, (if G.Adj u v then x u * x v else 0) =
-      ∑ v ∈ S, if u = v then 0 else x u * x v := fun u hu => by
-    have hsub : ∀ v, v ∉ S → (if G.Adj u v then x u * x v else 0) = 0 := fun v hv => by
-      split_ifs <;> simp only [hx v hv, mul_zero]
-    rw [← Finset.sum_subset (Finset.subset_univ S) fun v _ hv => hsub v hv]
-    refine Finset.sum_congr rfl fun v hv => ?_
+  -- On the support, adjacency is exactly `u ≠ v`.
+  have key (u v : V) :
+      (if G.Adj u v then x u * x v else 0) = x u * x v - if u = v then x u * x v else 0 := by
     by_cases huv : u = v
-    · subst huv
-      simp only [G.loopless.irrefl u, ↓reduceIte]
-    · simp only [huv, ↓reduceIte, hS hu hv huv]
-  rw [Finset.sum_congr rfl hinner]
-  have hsq : (∑ v ∈ S, x v) ^ 2 =
-      (∑ u ∈ S, ∑ v ∈ S, if u = v then 0 else x u * x v) + ∑ v ∈ S, x v ^ 2 := by
-    rw [sq, Finset.sum_mul]
-    have hsplit : ∀ u ∈ S, ∑ v ∈ S, x u * x v =
-        (∑ v ∈ S, if u = v then 0 else x u * x v) + x u ^ 2 := fun u hu => by
-      have heq : ∑ v ∈ S, x u * x v =
-          ∑ v ∈ S, ((if u = v then 0 else x u * x v) + if u = v then x u * x u else 0) :=
-        Finset.sum_congr rfl fun v _ => by
-          split_ifs with h
-          · rw [h, zero_add]
-          · rw [add_zero]
-      have heq' : (∑ v ∈ S, if u = v then x u * x u else 0) = x u ^ 2 := by
-        rw [Finset.sum_ite_eq S u (fun _ => x u * x u)]
-        split_ifs
-        exact (sq (x u)).symm
-      rw [heq, Finset.sum_add_distrib, heq']
-    simp_rw [Finset.mul_sum]
-    rw [Finset.sum_congr rfl hsplit, Finset.sum_add_distrib]
-  exact eq_sub_of_add_eq hsq.symm
+    · simp [huv]
+    · by_cases hmem : u ∈ S ∧ v ∈ S
+      · simp [hS hmem.1 hmem.2 huv, huv]
+      · rcases not_and_or.mp hmem with h | h <;> simp [hx _ h]
+  rw [dotProduct_adjMatrix_eq_sum, Finset.sum_subset (Finset.subset_univ S) fun v _ hv => hx v hv,
+    Finset.sum_subset (f := fun v => x v ^ 2) (Finset.subset_univ S) fun v _ hv => by
+      simp [hx v hv]]
+  simp only [key, Finset.sum_sub_distrib, Finset.sum_ite_eq, Finset.mem_univ, ↓reduceIte,
+    ← Finset.mul_sum, ← Finset.sum_mul, sq]
 
 /-- Linear variation along `Pi.single u 1 - Pi.single v 1` when `u ≠ v` are nonadjacent. -/
 private theorem dotProduct_adjMatrix_add_smul [Fintype V] [DecidableEq V] [CommRing K]
@@ -136,7 +115,7 @@ private theorem dotProduct_adjMatrix_add_smul [Fintype V] [DecidableEq V] [CommR
       x ⬝ᵥ G.adjMatrix K *ᵥ x + 2 * t * ((G.adjMatrix K *ᵥ x) u - (G.adjMatrix K *ᵥ x) v) := by
   intro d
   set A := G.adjMatrix K
-  have hdAx : d ⬝ᵥ (A *ᵥ x) = (A *ᵥ x) u - (A *ᵥ x) v := by
+  have hd (y : V → K) : d ⬝ᵥ y = y u - y v := by
     simp only [d, Pi.sub_apply, dotProduct, Pi.single_apply, sub_mul, Finset.sum_sub_distrib,
       ite_mul, one_mul, zero_mul, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
   have hdAd : d ⬝ᵥ (A *ᵥ d) = 0 := by
@@ -144,15 +123,10 @@ private theorem dotProduct_adjMatrix_add_smul [Fintype V] [DecidableEq V] [CommR
       simp only [d, mulVec, dotProduct, Pi.sub_apply, Pi.single_apply, mul_sub,
         Finset.sum_sub_distrib, mul_ite, mul_one, mul_zero, Finset.sum_ite_eq',
         Finset.mem_univ, ↓reduceIte]
-    have hAd : d ⬝ᵥ (A *ᵥ d) = (A *ᵥ d) u - (A *ᵥ d) v := by
-      simp only [d, Pi.sub_apply, dotProduct, Pi.single_apply, sub_mul, Finset.sum_sub_distrib,
-        ite_mul, one_mul, zero_mul, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
-    rw [hAd, hrow u, hrow v]
-    have hadj' : ¬G.Adj v u := fun h => hadj h.symm
-    have huu : ¬G.Adj u u := G.loopless.irrefl u
-    have hvv : ¬G.Adj v v := G.loopless.irrefl v
-    simp only [A, adjMatrix_apply, huu, hvv, hadj, hadj', ↓reduceIte, sub_self]
-  rw [Matrix.dotProduct_add_smul_symm G.transpose_adjMatrix x d t, hdAx, hdAd, mul_zero, add_zero]
+    rw [hd, hrow u, hrow v]
+    simp only [A, adjMatrix_apply, G.loopless.irrefl, hadj, adj_comm (G := G) v u, ↓reduceIte,
+      sub_self]
+  rw [Matrix.dotProduct_add_smul_symm G.transpose_adjMatrix x d t, hd, hdAd, mul_zero, add_zero]
 
 private theorem quadraticForm_adjMatrix_le_aux [Fintype V]
     [Field K] [LinearOrder K] [IsStrictOrderedRing K]
@@ -161,41 +135,20 @@ private theorem quadraticForm_adjMatrix_le_aux [Fintype V]
     x ⬝ᵥ G.adjMatrix K *ᵥ x ≤ 1 - 1 / (G.cliqueNum : K) := by
   classical
   set S : Finset V := {v | x v ≠ 0}
-  have hSne : S.Nonempty := by
-    by_contra hemp
-    rw [Finset.not_nonempty_iff_eq_empty] at hemp
-    have hz : ∑ v, x v = 0 := Finset.sum_eq_zero fun v _ => by
-      by_contra hne
-      have : v ∈ S := by simp [S, hne]
-      rw [hemp] at this
-      exact Finset.notMem_empty v this
-    linarith
+  have hxout : ∀ v, v ∉ S → x v = 0 := fun v hv => by
+    simpa only [S, Finset.mem_filter, Finset.mem_univ, true_and, not_not] using hv
+  have hsum : ∑ v ∈ S, x v = 1 := by
+    rw [← hx1]
+    exact Finset.sum_subset (Finset.subset_univ S) fun v _ hv => hxout v hv
+  have hSne : S.Nonempty := Finset.nonempty_of_sum_ne_zero (by rw [hsum]; exact one_ne_zero)
   by_cases hclique : G.IsClique (S : Set V)
-  · have hquad : x ⬝ᵥ G.adjMatrix K *ᵥ x = 1 - ∑ v ∈ S, x v ^ 2 := by
-      have hxout : ∀ v, v ∉ S → x v = 0 := fun v hv => by
-        simpa only [S, Finset.mem_filter, Finset.mem_univ, true_and, not_not] using hv
-      rw [dotProduct_adjMatrix_eq_of_isClique G hclique hxout]
-      have hsum : ∑ v ∈ S, x v = 1 := by
-        rw [← hx1]
-        exact Finset.sum_subset (Finset.subset_univ S) fun v _ hv => hxout v hv
-      rw [hsum, one_pow]
+  · -- On a clique support the form is `1 - ∑ x_v ^ 2`, and Cauchy–Schwarz bounds `∑ x_v ^ 2`.
     have hcs : (1 : K) ≤ (S.card : K) * ∑ v ∈ S, x v ^ 2 := by
-      have hsum : ∑ v ∈ S, x v = 1 := by
-        rw [← hx1]
-        exact Finset.sum_subset (Finset.subset_univ S) fun v _ hv => by
-          simpa only [S, Finset.mem_filter, Finset.mem_univ, true_and, not_not] using hv
       simpa only [hsum, one_pow] using (sq_sum_le_card_mul_sum_sq (s := S) (f := x))
-    have hScard_pos : 0 < S.card := Finset.card_pos.2 hSne
-    have hScard_le : S.card ≤ G.cliqueNum := hclique.card_le_cliqueNum
-    have hScardK : (0 : K) < S.card := by exact_mod_cast hScard_pos
-    have homegaK : (S.card : K) ≤ G.cliqueNum := by exact_mod_cast hScard_le
-    have hinv_le : 1 / (G.cliqueNum : K) ≤ 1 / (S.card : K) :=
-      one_div_le_one_div_of_le hScardK homegaK
-    have hinv_sum : 1 / (S.card : K) ≤ ∑ v ∈ S, x v ^ 2 := by
-      rw [div_le_iff₀' hScardK]
-      exact hcs
-    rw [hquad]
-    linarith
+    have hScardK : (0 : K) < S.card := by exact_mod_cast Finset.card_pos.2 hSne
+    have homegaK : (S.card : K) ≤ G.cliqueNum := by exact_mod_cast hclique.card_le_cliqueNum
+    rw [dotProduct_adjMatrix_eq_of_isClique G hclique hxout, hsum, one_pow]
+    linarith [one_div_le_one_div_of_le hScardK homegaK, (div_le_iff₀' hScardK).2 hcs]
   · simp only [SimpleGraph.IsClique, Set.Pairwise, Finset.mem_coe, not_forall] at hclique
     obtain ⟨u, huS, v, hvS, huv, hadj⟩ := hclique
     have hxu_pos : 0 < x u := lt_of_le_of_ne (hx0 u) (Ne.symm (by simpa [S] using huS))
@@ -207,53 +160,38 @@ private theorem quadraticForm_adjMatrix_le_aux [Fintype V]
         (∀ w, 0 ≤ (x + t • d) w) ∧ ∑ w, (x + t • d) w = 1 := by
       refine ⟨fun w => ?_, ?_⟩
       · simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, d, Pi.sub_apply, Pi.single_apply]
-        by_cases hwu : w = u
-        · subst hwu
-          simpa [huv] using ht1
-        · by_cases hwv : w = v
-          · subst hwv
-            simpa [Ne.symm huv] using ht2
-          · simpa [hwu, hwv] using hx0 w
+        split_ifs with hwu hwv hwv
+        · exact absurd (hwu.symm.trans hwv) huv
+        · subst hwu; linarith
+        · subst hwv; linarith
+        · linarith [hx0 w]
       · simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Finset.sum_add_distrib,
           ← Finset.mul_sum, hdsum, mul_zero, add_zero, hx1]
     have hlt_supp (t : K) (hzero : (x + t • d) u = 0 ∨ (x + t • d) v = 0) :
         #{w | (x + t • d) w ≠ 0} < #S := by
       apply Finset.card_lt_card
       refine ⟨fun w hw => ?_, fun hsub => ?_⟩
-      · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hw ⊢
+      · simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hw
         by_contra hxw
-        simp only [S, Finset.mem_filter, Finset.mem_univ, true_and, not_not] at hxw
-        have hwu : w ≠ u := fun h => by subst h; exact hxu_pos.ne' hxw
-        have hwv : w ≠ v := fun h => by subst h; exact hxv_pos.ne' hxw
-        apply hw
-        simp [d, hxw, hwu, hwv]
-      · rcases hzero with hzu | hzv
-        · have := hsub huS
-          simp only [Finset.mem_filter, Finset.mem_univ, true_and] at this
-          exact this hzu
-        · have := hsub hvS
-          simp only [Finset.mem_filter, Finset.mem_univ, true_and] at this
-          exact this hzv
+        have hxw := hxout w hxw
+        have hwu : w ≠ u := by rintro rfl; exact hxu_pos.ne' hxw
+        have hwv : w ≠ v := by rintro rfl; exact hxv_pos.ne' hxw
+        exact hw (by simp [d, hxw, hwu, hwv])
+      · rcases hzero with h | h
+        exacts [(Finset.mem_filter.mp (hsub huS)).2 h, (Finset.mem_filter.mp (hsub hvS)).2 h]
     rcases le_total ((G.adjMatrix K *ᵥ x) v) ((G.adjMatrix K *ᵥ x) u) with hle | hle
     · have ht := hstep (x v) (by linarith) (by linarith)
       have hlt := hlt_supp (x v) (Or.inr (by simp [d, Ne.symm huv]))
       have hih := quadraticForm_adjMatrix_le_aux G ht.1 ht.2
       have hlin := dotProduct_adjMatrix_add_smul G hadj x (x v)
       dsimp only at hlin
-      have hnonneg : 0 ≤ 2 * x v * ((G.adjMatrix K *ᵥ x) u - (G.adjMatrix K *ᵥ x) v) :=
-        mul_nonneg (mul_nonneg (by norm_num) hxv_pos.le) (sub_nonneg.2 hle)
-      linarith
+      linarith [mul_nonneg hxv_pos.le (sub_nonneg.2 hle)]
     · have ht := hstep (-x u) (by linarith) (by linarith)
       have hlt := hlt_supp (-x u) (Or.inl (by simp [d, huv]))
       have hih := quadraticForm_adjMatrix_le_aux G ht.1 ht.2
       have hlin := dotProduct_adjMatrix_add_smul G hadj x (-x u)
       dsimp only at hlin
-      have hnonneg : 0 ≤ 2 * (-x u) * ((G.adjMatrix K *ᵥ x) u - (G.adjMatrix K *ᵥ x) v) := by
-        have : 2 * (-x u) * ((G.adjMatrix K *ᵥ x) u - (G.adjMatrix K *ᵥ x) v) =
-            2 * x u * ((G.adjMatrix K *ᵥ x) v - (G.adjMatrix K *ᵥ x) u) := by ring
-        rw [this]
-        exact mul_nonneg (mul_nonneg (by norm_num) hxu_pos.le) (sub_nonneg.2 hle)
-      linarith
+      linarith [mul_nonneg hxu_pos.le (sub_nonneg.2 hle)]
 termination_by #{v | x v ≠ 0}
 decreasing_by all_goals assumption
 
@@ -279,11 +217,13 @@ theorem exists_stdSimplex_quadraticForm_adjMatrix_eq_of_isNClique [Fintype V]
   have hkpos : (0 : K) < k := by exact_mod_cast hk
   have hk_ne : (k : K) ≠ 0 := hkpos.ne'
   have hx0 : ∀ v, 0 ≤ xVec v := fun v => by dsimp only [xVec]; split_ifs <;> positivity
+  have hxout : ∀ v, v ∉ S → xVec v = 0 := fun v hv => by simp [xVec, hv]
+  have hval : ∀ v ∈ S, xVec v = 1 / (k : K) := fun v hv => by simp [xVec, hv]
+  have hs1 : ∑ v ∈ S, xVec v = 1 := by
+    rw [Finset.sum_congr rfl hval, Finset.sum_const, hS.card_eq, nsmul_eq_mul,
+      mul_one_div_cancel hk_ne]
   have hx1 : ∑ v : V, xVec v = 1 := by
-    have hite : ∑ v : V, xVec v = ∑ _v ∈ S, (1 / (k : K)) := by
-      dsimp only [xVec]
-      rw [Finset.sum_ite_mem, Finset.univ_inter]
-    rw [hite, Finset.sum_const, hS.card_eq, nsmul_eq_mul, mul_one_div_cancel hk_ne]
+    rw [← Finset.sum_subset (Finset.subset_univ S) fun v _ hv => hxout v hv, hs1]
   let x : Convexity.StdSimplex K V :=
     { weights := Finsupp.equivFunOnFinite.symm xVec
       nonneg := fun v => by
@@ -292,28 +232,10 @@ theorem exists_stdSimplex_quadraticForm_adjMatrix_eq_of_isNClique [Fintype V]
         rw [Finsupp.sum_fintype _ _ (fun _ => rfl)]
         simpa only [Finsupp.coe_equivFunOnFinite_symm] using hx1 }
   refine ⟨x, ?_⟩
-  rw [show (x.weights : V → K) = xVec from Finsupp.coe_equivFunOnFinite_symm xVec]
-  have hxout : ∀ v, v ∉ S → xVec v = 0 := fun v hv => by
-    dsimp only [xVec]
-    split_ifs
-    rfl
-  rw [dotProduct_adjMatrix_eq_of_isClique G hS.isClique hxout]
-  have hs1 : ∑ v ∈ S, xVec v = 1 := by
-    have heq : ∑ v ∈ S, xVec v = ∑ _v ∈ S, (1 / (k : K)) :=
-      Finset.sum_congr rfl fun v hv => by
-        dsimp only [xVec]
-        split_ifs
-        rfl
-    rw [heq, Finset.sum_const, hS.card_eq, nsmul_eq_mul, mul_one_div_cancel hk_ne]
-  have hs2 : ∑ v ∈ S, xVec v ^ 2 = 1 / (k : K) := by
-    have heq : ∑ v ∈ S, xVec v ^ 2 = ∑ _v ∈ S, (1 / (k : K)) ^ 2 :=
-      Finset.sum_congr rfl fun v hv => by
-        dsimp only [xVec]
-        split_ifs
-        rfl
-    rw [heq, Finset.sum_const, hS.card_eq, nsmul_eq_mul, sq, ← mul_assoc,
-      mul_one_div_cancel hk_ne, one_mul]
-  rw [hs1, hs2, one_pow]
+  rw [show (x.weights : V → K) = xVec from Finsupp.coe_equivFunOnFinite_symm xVec,
+    dotProduct_adjMatrix_eq_of_isClique G hS.isClique hxout, hs1, one_pow,
+    Finset.sum_congr rfl fun v hv => congrArg (· ^ 2) (hval v hv), Finset.sum_const,
+    hS.card_eq, nsmul_eq_mul, sq, ← mul_assoc, mul_one_div_cancel hk_ne, one_mul]
 
 /-- **The Motzkin–Straus theorem** (library generalization to arbitrary linearly ordered fields `K`;
 [MotzkinStraus1965] is cited at paper level without inspecting the published text): on a nonempty
@@ -328,14 +250,10 @@ theorem isGreatest_quadraticForm_adjMatrix [Fintype V]
       (Set.range fun x : Convexity.StdSimplex K V =>
         (x.weights : V → K) ⬝ᵥ G.adjMatrix K *ᵥ (x.weights : V → K))
       (1 - 1 / (G.cliqueNum : K)) := by
-  refine ⟨?_, ?_⟩
-  · obtain ⟨S, hS⟩ := G.exists_isNClique_cliqueNum
-    have hpos : 1 ≤ G.cliqueNum := Nat.one_le_iff_ne_zero.2 G.cliqueNum_ne_zero_of_finite
-    obtain ⟨x, hxeq⟩ :=
-      exists_stdSimplex_quadraticForm_adjMatrix_eq_of_isNClique (K := K) G hpos hS
-    exact ⟨x, hxeq⟩
-  · rintro _ ⟨x, rfl⟩
-    exact quadraticForm_adjMatrix_le_stdSimplex G x
+  refine ⟨?_, fun _ ⟨x, hx⟩ => hx ▸ quadraticForm_adjMatrix_le_stdSimplex G x⟩
+  obtain ⟨S, hS⟩ := G.exists_isNClique_cliqueNum
+  exact exists_stdSimplex_quadraticForm_adjMatrix_eq_of_isNClique G
+    (Nat.one_le_iff_ne_zero.2 G.cliqueNum_ne_zero_of_finite) hS
 
 /-- **The Motzkin–Straus theorem** over `ℝ` in `sSup` form (attributed to [MotzkinStraus1965];
 the published text is uninspected, and [MotzkinStraus1965] includes a factor of `1 / 2` from
@@ -384,10 +302,7 @@ theorem dotProduct_copositiveCliqueMatrix [Fintype V] [CommRing K]
     · refine Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun v _ => ?_
       split_ifs <;> push_cast <;> ring
     · simp only [Finset.sum_sub_distrib, ← Finset.mul_sum]
-  have hprod : (∑ u : V, ∑ v : V, x u * x v) = ∑ v : V, x v * ∑ v' : V, x v' :=
-    Finset.sum_congr rfl fun u _ => (Finset.mul_sum _ _ _).symm
-  rw [lhs_eq, sq, Finset.sum_mul, hprod]
-  congr 1
+  rw [lhs_eq, sq, Finset.sum_mul]
   simp only [Finset.mul_sum]
 
 /-- For `k ≥ 2` on a nonempty finite graph, `copositiveCliqueMatrix G k` is non-copositive iff
@@ -403,69 +318,26 @@ theorem exists_nonneg_dotProduct_copositiveCliqueMatrix_lt_zero_iff [Fintype V]
     obtain ⟨y, hylt⟩ := (Matrix.exists_nonneg_dotProduct_lt_zero_iff_stdSimplex _).1 h
     rw [dotProduct_copositiveCliqueMatrix, y.total_of_fintype, one_pow, mul_one] at hylt
     have hms := quadraticForm_adjMatrix_le_stdSimplex G y
-    have hk1 : (0 : K) < (k : K) - 1 := by
-      have : (2 : K) ≤ k := by exact_mod_cast hk
+    -- If `ω < k`, then `(k - 1) * (1 - 1 / ω) ≤ k - 2`, contradicting `hylt`.
+    by_contra hlt
+    have hωk : (G.cliqueNum : K) + 1 ≤ k := mod_cast Nat.not_le.mp hlt
+    have hωK : (0 : K) < G.cliqueNum := mod_cast Nat.pos_of_ne_zero G.cliqueNum_ne_zero_of_finite
+    have hk1 : (1 : K) ≤ k := mod_cast le_trans (by decide : 1 ≤ 2) hk
+    have h1 : 1 ≤ ((k : K) - 1) * (1 / G.cliqueNum) := by
+      rw [mul_one_div, le_div_iff₀ hωK]
       linarith
-    have homega_pos : 0 < G.cliqueNum := Nat.pos_of_ne_zero G.cliqueNum_ne_zero_of_finite
-    have homegaK : (0 : K) < G.cliqueNum := by exact_mod_cast homega_pos
-    have hstep : ((k : K) - 2) / ((k : K) - 1) <
-        (y.weights : V → K) ⬝ᵥ G.adjMatrix K *ᵥ (y.weights : V → K) := by
-      rw [div_lt_iff₀ hk1]
-      linarith
-    have hcmp : ((k : K) - 2) / ((k : K) - 1) < 1 - 1 / (G.cliqueNum : K) := hstep.trans_le hms
-    have hid : 1 - 1 / ((k : K) - 1) = ((k : K) - 2) / ((k : K) - 1) := by
-      field_simp [hk1.ne']
-      ring
-    rw [← hid] at hcmp
-    have hinv : 1 / (G.cliqueNum : K) < 1 / ((k : K) - 1) := by linarith
-    have hltK : (k : K) - 1 < (G.cliqueNum : K) := by
-      rwa [one_div_lt_one_div homegaK hk1] at hinv
-    have hlt_nat : k - 1 < G.cliqueNum := by
-      have : ((k - 1 : ℕ) : K) < G.cliqueNum := by
-        rwa [Nat.cast_sub (by omega : 1 ≤ k), Nat.cast_one]
-      exact_mod_cast this
-    omega
+    linarith [mul_le_mul_of_nonneg_left hms (sub_nonneg.2 hk1)]
   · intro hle
-    classical
-    obtain ⟨S, hS⟩ := G.exists_isNClique_cliqueNum
-    let x : V → K := fun v => if v ∈ S then 1 else 0
-    refine ⟨x, fun v => by dsimp [x]; split_ifs <;> positivity, ?_⟩
-    rw [dotProduct_copositiveCliqueMatrix]
-    have hxout : ∀ v, v ∉ S → x v = 0 := fun v hv => by
-      dsimp only [x]
-      split_ifs
-      rfl
-    have hsum : ∑ v, x v = (G.cliqueNum : K) := by
-      have heq : ∑ v, x v = ∑ _v ∈ S, (1 : K) := by
-        dsimp [x]
-        rw [Finset.sum_ite_mem, Finset.univ_inter]
-      rw [heq, Finset.sum_const, hS.card_eq, nsmul_eq_mul, mul_one]
-    have hquad : x ⬝ᵥ G.adjMatrix K *ᵥ x = (G.cliqueNum : K) ^ 2 - G.cliqueNum := by
-      rw [dotProduct_adjMatrix_eq_of_isClique G hS.isClique hxout]
-      have hs1 : ∑ v ∈ S, x v = G.cliqueNum := by
-        have heq : ∑ v ∈ S, x v = ∑ _v ∈ S, (1 : K) :=
-          Finset.sum_congr rfl fun v hv => by
-            dsimp only [x]
-            split_ifs
-            rfl
-        rw [heq, Finset.sum_const, hS.card_eq, nsmul_eq_mul, mul_one]
-      have hs2 : ∑ v ∈ S, x v ^ 2 = G.cliqueNum := by
-        have heq : ∑ v ∈ S, x v ^ 2 = ∑ _v ∈ S, (1 : K) ^ 2 :=
-          Finset.sum_congr rfl fun v hv => by
-            dsimp only [x]
-            split_ifs
-            rfl
-        rw [heq, Finset.sum_const, hS.card_eq, nsmul_eq_mul, one_pow, mul_one]
-      rw [hs1, hs2]
-    rw [hsum, hquad]
-    have homegaK : (0 : K) < G.cliqueNum := by
-      exact_mod_cast (lt_of_lt_of_le (by omega : 0 < 2) (hk.trans hle))
-    have hleK : (k : K) ≤ G.cliqueNum := by exact_mod_cast hle
-    have hcalc : ((k : K) - 2) * (G.cliqueNum : K) ^ 2 -
-        ((k : K) - 1) * ((G.cliqueNum : K) ^ 2 - G.cliqueNum) =
-        (G.cliqueNum : K) * ((k : K) - 1 - G.cliqueNum) := by ring
-    rw [hcalc]
-    exact mul_neg_of_pos_of_neg homegaK (by linarith)
+    obtain ⟨y, hy⟩ := (isGreatest_quadraticForm_adjMatrix (K := K) G).1
+    dsimp only at hy
+    refine (Matrix.exists_nonneg_dotProduct_lt_zero_iff_stdSimplex _).2 ⟨y, ?_⟩
+    rw [dotProduct_copositiveCliqueMatrix, y.total_of_fintype, one_pow, mul_one, hy]
+    have hωK : (0 : K) < G.cliqueNum := mod_cast Nat.pos_of_ne_zero G.cliqueNum_ne_zero_of_finite
+    have hleK : (k : K) ≤ G.cliqueNum := mod_cast hle
+    have hlt1 : ((k : K) - 1) * (1 / G.cliqueNum) < 1 := by
+      rw [mul_one_div, div_lt_one hωK]
+      linarith
+    linarith
 
 end MotzkinStraus
 

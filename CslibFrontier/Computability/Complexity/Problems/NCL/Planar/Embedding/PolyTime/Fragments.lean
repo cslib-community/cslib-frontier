@@ -154,14 +154,10 @@ theorem Opcode.computableInPolyTime_source {α : Type} {input : α ↪ List Bool
     (hy : ComputableInPolyTime y input encBool) (hz : ComputableInPolyTime z input encBool) :
     ComputableInPolyTime (fun a => Opcode.source (c a) (d a) (e a) (x a) (y a) (z a))
       input fragments.encOpcode := by
-  have htable : ComputableInPolyTime
-      (fun p : (Color × Bool) × (Color × Bool) × (Color × Bool) =>
-        Opcode.source p.1.1 p.2.1.1 p.2.2.1 p.1.2 p.2.1.2 p.2.2.2)
-      (encPair encSignal (encPair encSignal encSignal)) fragments.encOpcode := .of_finite _
-  have hp : ComputableInPolyTime (fun a => ((c a, x a), (d a, y a), (e a, z a))) input
-      (encPair encSignal (encPair encSignal encSignal)) :=
-    (hc.prod hx).prod ((hd.prod hy).prod (he.prod hz))
-  simpa only [Function.comp_def] using htable.comp hp
+  simpa only [Function.comp_def] using (ComputableInPolyTime.of_finite
+    (fun p : (Color × Bool) × (Color × Bool) × (Color × Bool) =>
+      Opcode.source p.1.1 p.2.1.1 p.2.2.1 p.1.2 p.2.1.2 p.2.2.2)).comp
+    ((hc.prod hx).prod ((hd.prod hy).prod (he.prod hz)))
 
 /-- Assemble a cap instruction from its computed color and boundary directions. -/
 @[fun_prop]
@@ -169,11 +165,8 @@ theorem Opcode.computableInPolyTime_cap {α : Type} {input : α ↪ List Bool}
     {c : α → Color} {x y : α → Bool} (hc : ComputableInPolyTime c input encColor)
     (hx : ComputableInPolyTime x input encBool) (hy : ComputableInPolyTime y input encBool) :
     ComputableInPolyTime (fun a => Opcode.cap (c a) (x a) (y a)) input fragments.encOpcode := by
-  have htable : ComputableInPolyTime (fun p : Color × Bool × Bool => Opcode.cap p.1 p.2.1 p.2.2)
-      (encPair encColor (encPair encBool encBool)) fragments.encOpcode := .of_finite _
-  have hp : ComputableInPolyTime (fun a => (c a, x a, y a)) input
-      (encPair encColor (encPair encBool encBool)) := hc.prod (hx.prod hy)
-  simpa only [Function.comp_def] using htable.comp hp
+  simpa only [Function.comp_def] using (ComputableInPolyTime.of_finite
+    (fun p : Color × Bool × Bool => Opcode.cap p.1 p.2.1 p.2.2)).comp (hc.prod (hx.prod hy))
 
 /-- Assemble a crossing instruction from its computed colors and top directions. -/
 @[fun_prop]
@@ -183,22 +176,16 @@ theorem Opcode.computableInPolyTime_cross {α : Type} {input : α ↪ List Bool}
     (hy : ComputableInPolyTime y input encBool) :
     ComputableInPolyTime (fun a => Opcode.cross (c a) (d a) (x a) (y a))
       input fragments.encOpcode := by
-  have htable : ComputableInPolyTime (fun p : (Color × Bool) × (Color × Bool) =>
-      Opcode.cross p.1.1 p.2.1 p.1.2 p.2.2)
-      (encPair encSignal encSignal) fragments.encOpcode := .of_finite _
-  have hp : ComputableInPolyTime (fun a => ((c a, x a), (d a, y a))) input
-      (encPair encSignal encSignal) := (hc.prod hx).prod (hd.prod hy)
-  simpa only [Function.comp_def] using htable.comp hp
+  simpa only [Function.comp_def] using (ComputableInPolyTime.of_finite
+    (fun p : (Color × Bool) × (Color × Bool) => Opcode.cross p.1.1 p.2.1 p.1.2 p.2.2)).comp
+    ((hc.prod hx).prod (hd.prod hy))
 
 /-- Finite-table lookup and list concatenation serialize configurations in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_configurationBits :
     ComputableInPolyTime configurationBits encProgram (encList encBool) := by
-  have hop : ComputableInPolyTime Opcode.configuration fragments.encOpcode (encList encBool) :=
-    .of_finite _
-  have he : ComputableInPolyTime (fun p : Program × (ℕ × Opcode) =>
-      p.2.2.configuration) (encPair encProgram (encPair encUnary fragments.encOpcode))
-      (encList encBool) := hop.comp ((ComputableInPolyTime.snd _ _).snd')
-  exact ComputableInPolyTime.flatMapWithInput (ComputableInPolyTime.id') he
+  exact .flatMapWithInput .id' ((ComputableInPolyTime.of_finite
+    (encIn := fragments.encOpcode) Opcode.configuration).comp
+    ((ComputableInPolyTime.snd _ _).snd'))
 
 end Cslib.Complexity.NCL.Planar.Embedding.PolyTime

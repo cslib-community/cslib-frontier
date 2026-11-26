@@ -189,14 +189,10 @@ theorem IsSetMultilinear.subst {blk : Fin n → Fin d} {blk' : Fin m → Fin d}
     · rw [subst_input, h, ← hρ i j h]
       exact .input j
   | const a =>
-    have h : SPFormula.subst ρ (SPFormula.const a : SPFormula K n) = SPFormula.const a := by
-      rw [subst_gate]
-      congr 1 with j : 1
-      exact j.elim0
-    rw [h]
-    exact .const a
-  | add c F S _ ih => exact .add c _ S ih
-  | mul F T hT _ ih => exact .mul _ T hT ih
+    exact (show SPFormula.subst ρ (.const a) = .const a from
+      congrArg (Formula.gate _) (funext fun j : Fin 0 => j.elim0)).symm ▸ .const a
+  | add c _ S _ ih => exact .add c _ S ih
+  | mul _ T hT _ ih => exact .mul _ T hT ih
 
 end SPFormula
 
@@ -248,13 +244,10 @@ theorem IsSetMultilinear.two_rpow_le_nodeCount_of_imm (e : Fin N → Fin d × Fi
   have hρ : ∀ v j, ρ v = some j → blk' j = (e v).1 := by
     intro v j hv
     simp only [ρ, immSubst] at hv
-    rcases h : wordSubst w 0 n K (e v) with x | a
-    · rw [h] at hv
-      obtain rfl := (Option.some.inj hv).symm
-      simp only [blk', Equiv.symm_apply_apply]
-      exact wordSubst_eq_inl h
-    · rw [h] at hv
-      exact absurd hv (by simp)
+    rcases h : wordSubst w 0 n K (e v) with x | a <;>
+      simp only [h, Sum.elim_inl, Sum.elim_inr, Option.some.injEq, reduceCtorEq] at hv
+    · subst hv
+      simpa only [blk', Equiv.symm_apply_apply] using wordSubst_eq_inl h
   have hG : G.IsSetMultilinear blk' Finset.univ := hF.subst hρ
   -- The substituted formula computes the word polynomial, renamed.
   have hGP : G.polynomial = rename f (wordPoly K w 0) := by
@@ -268,8 +261,7 @@ theorem IsSetMultilinear.two_rpow_le_nodeCount_of_imm (e : Fin N → Fin d × Fi
       immSubst]
     rcases h : wordSubst w 0 n K (e v) with x | a
     · simp
-    · obtain rfl := wordSubst_eq_inr h
-      simp
+    · simp [wordSubst_eq_inr h]
   -- Block `i` of the renamed variables has `2 ^ |w i|` variables.
   have hblk : ∀ i, Fintype.card {x // blk' x = i} = 2 ^ (w i).natAbs := by
     intro i
@@ -287,8 +279,7 @@ theorem IsSetMultilinear.two_rpow_le_nodeCount_of_imm (e : Fin N → Fin d × Fi
   have hsplit : (2 : ℝ) ^ ((k : ℝ) * (D / 20 - 1 / 2)) * 2 ^ (-(k * D / 20)) =
       2 ^ (-(k : ℝ) / 2) := by
     rw [← Real.rpow_add two_pos]
-    congr 1
-    ring
+    ring_nf
   have hx : (0 : ℝ) < 2 ^ (-(k * D / 20)) := Real.rpow_pos_of_pos two_pos _
   exact le_of_mul_le_mul_right (hsplit.trans_le (hsum.trans hup)) hx
 
@@ -326,10 +317,10 @@ theorem productDepth_immFormula_le [Zero K] [One K] :
 
 /-- The sum over paths is set-multilinear on all blocks of `IMM_{n,d}`. -/
 theorem isSetMultilinear_immFormula [Zero K] [One K] :
-    (immFormula K n d).IsSetMultilinear (fun v => (immVarEquiv n d v).1) Finset.univ := by
-  refine .add _ _ _ fun j => isSetMultilinear_mul_iff.2
-    ⟨fun i => {i}, fun i i' h => Finset.disjoint_singleton.2 h, fun i => ?_, by simp⟩
-  exact isSetMultilinear_input_iff.2 (by simp)
+    (immFormula K n d).IsSetMultilinear (fun v => (immVarEquiv n d v).1) Finset.univ :=
+  .add _ _ _ fun _ => isSetMultilinear_mul_iff.2
+    ⟨fun i => {i}, fun _ _ h => Finset.disjoint_singleton.2 h,
+      fun _ => isSetMultilinear_input_iff.2 (by simp), by simp⟩
 
 /-- The sum over paths computes `IMM_{n,d}` on the numbered variables. -/
 theorem rename_polynomial_immFormula [CommSemiring K] :

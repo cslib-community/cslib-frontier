@@ -101,16 +101,12 @@ private theorem cache_append {α : Type} (parents : List (List Bool)) (rows : Li
   funext key
   by_cases heq : key = parent
   · subst key
-    rw [Function.update_self, List.idxOf_append_of_notMem hfresh, List.idxOf_cons_self,
-      Nat.add_zero, hlen, List.getElem?_append_right le_rfl, Nat.sub_self]
-    rfl
+    simp [List.idxOf_append_of_notMem hfresh, hlen]
   · rw [Function.update_of_ne heq]
     by_cases hmem : key ∈ parents
     · rw [List.idxOf_append_of_mem hmem,
         List.getElem?_append_left (hlen ▸ List.idxOf_lt_length_iff.mpr hmem)]
-    · rw [List.idxOf_append_of_notMem hmem, List.idxOf_eq_length_iff.mpr hmem,
-        List.idxOf_eq_length_iff.mpr (by simpa using heq : key ∉ [parent])]
-      simp [hlen]
+    · simp [List.idxOf_append_of_notMem hmem, List.idxOf_eq_length_iff.mpr hmem, heq, hlen]
 
 private abbrev RoutedState (width n : ℕ) :=
   CascadeChildRouterState × List (BitString width → BitString n)
@@ -153,52 +149,45 @@ private theorem routedOracle_step (valid : List Bool → Bool) (inLen : ℕ → 
           (suffix.drop (inLen n))
       by_cases hmem : parent ∈ parents
       · have hi : parents.idxOf parent < parents.length := List.idxOf_lt_length_iff.mpr hmem
-        have hi' : parents.idxOf parent < rows.length := hstate ▸ hi
-        let row := rows[parents.idxOf parent]'hi'
-        have hrow : rows[parents.idxOf parent]? = some row := List.getElem?_eq_getElem hi'
-        have hroute :
-            routedOracle valid inLen family n depth distribution query (⟨parents, short⟩, rows) =
-              PMF.pure (respond row, ⟨parents, short⟩, rows) := by
+        have hrow : rows[parents.idxOf parent]? = some (rows[parents.idxOf parent]'(hstate ▸ hi)) :=
+          List.getElem?_eq_getElem (hstate ▸ hi)
+        have hrouted : routedOracle valid inLen family n depth distribution query
+              (⟨parents, short⟩, rows) =
+            PMF.pure (respond (rows[parents.idxOf parent]'(hstate ▸ hi)),
+              ⟨parents, short⟩, rows) := by
           simp [routedOracle, cascadeChildRoute, hv, hl, parent, suffix, hi.ne, hrow,
             cascadeChildChannelOracle, pmf_norm, respond, List.take_of_length_le]
-        rw [hroute]
-        constructor
-        · simp [cascadeChildPrefixOracle, hv, hl, toPrefixState, RandomOracle.answer,
-            parent, suffix, hrow, respond, pmf_norm]
-        · intro reply next hnext
-          simp only [PMF.mem_support_pure_iff] at hnext
-          exact (Prod.mk.inj hnext).2 ▸ hstate
+        rw [hrouted]
+        refine ⟨by simp [cascadeChildPrefixOracle, hv, hl, toPrefixState, RandomOracle.answer,
+            parent, suffix, hrow, respond, pmf_norm], fun _ _ hnext => ?_⟩
+        exact (Prod.mk.inj ((PMF.mem_support_pure_iff _ _).mp hnext)).2 ▸ hstate
       · have hi : parents.idxOf parent = parents.length := List.idxOf_eq_length_iff.mpr hmem
-        have hrow : rows[parents.idxOf parent]? = none :=
-          List.getElem?_eq_none (hi.trans hstate).ge
-        have hroute :
-            routedOracle valid inLen family n depth distribution query (⟨parents, short⟩, rows) =
-              distribution.map (fun row => (respond row, ⟨parents ++ [parent], short⟩,
-                rows ++ [row])) := by
+        have hrow : rows[parents.idxOf parent]? = none := List.getElem?_eq_none (hi.trans hstate).ge
+        have hrouted : routedOracle valid inLen family n depth distribution query
+              (⟨parents, short⟩, rows) =
+            distribution.map (fun row => (respond row, ⟨parents ++ [parent], short⟩,
+              rows ++ [row])) := by
           simp [routedOracle, cascadeChildRoute, hv, hl, cascadeChildChannelOracle,
             parent, suffix, hi, hstate, respond, List.take_of_length_le, pmf_norm]
-        rw [hroute]
-        constructor
-        · have hcache := cache_append parents rows hstate parent hmem
-          simp [cascadeChildPrefixOracle, hv, hl, toPrefixState, RandomOracle.answer,
-            hrow, parent, suffix, hcache, respond, PMF.map_comp, Function.comp_def]
-        · intro reply next hnext
-          obtain ⟨row, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hnext
-          obtain rfl := (Prod.mk.inj heq).2
-          simp [alignedState, hstate]
-    · have hroute :
-          routedOracle valid inLen family n depth distribution query (⟨parents, short⟩, rows) =
-            (cachedDistOracle (fun _ => true) (BitString.uniformList n) query short).map
-              (fun (reply, short') => (reply, ⟨parents, short'⟩, rows)) := by
-        simp [routedOracle, cascadeChildRoute, hv, hl,
-          cachedRandomFunctionOracle, eval_cachedSamplerOracle, BitString.eval_sampleList,
-          PMF.map_comp, Function.comp_def, pmf_norm]
-      rw [hroute]
-      constructor
-      · simp [cascadeChildPrefixOracle, hv, hl, toPrefixState, PMF.map_comp, Function.comp_def]
-      · intro reply next hnext
-        obtain ⟨⟨label, short'⟩, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hnext
-        exact (Prod.mk.inj heq).2 ▸ hstate
+        rw [hrouted]
+        refine ⟨by simp [cascadeChildPrefixOracle, hv, hl, toPrefixState, RandomOracle.answer,
+            hrow, parent, suffix, cache_append parents rows hstate parent hmem, respond,
+            PMF.map_comp, Function.comp_def], fun _ _ hnext => ?_⟩
+        obtain ⟨_, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hnext
+        obtain rfl := (Prod.mk.inj heq).2
+        simp [alignedState, hstate]
+    · have hrouted : routedOracle valid inLen family n depth distribution query
+            (⟨parents, short⟩, rows) =
+          (cachedDistOracle (fun _ => true) (BitString.uniformList n) query short).map
+            (fun (reply, short') => (reply, ⟨parents, short'⟩, rows)) := by
+        simp [routedOracle, cascadeChildRoute, hv, hl, cachedRandomFunctionOracle,
+          eval_cachedSamplerOracle, BitString.eval_sampleList, PMF.map_comp, Function.comp_def,
+          pmf_norm]
+      rw [hrouted]
+      refine ⟨by simp [cascadeChildPrefixOracle, hv, hl, toPrefixState, PMF.map_comp,
+          Function.comp_def], fun _ _ hnext => ?_⟩
+      obtain ⟨⟨_, _⟩, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hnext
+      exact (Prod.mk.inj heq).2 ▸ hstate
   · simp [routedOracle, cascadeChildRoute, cascadeChildPrefixOracle, hv, hstate, alignedState,
       PMF.pure_map]
 
@@ -212,20 +201,17 @@ theorem runWith_cascadeChildRouter_eq_prefixGame (valid : List Bool → Bool) (i
     (ProbOracleComp.runWith (cascadeChildChannelOracle distribution)
       (cascadeChildRouter valid inLen family n depth program) []).map Prod.fst =
       cascadeChildPrefixGame valid inLen family n depth distribution program := by
-  have h := ProbOracleComp.runWith_map_state_of_invariant
-    (fun (request : Unit × List Bool) state =>
-      routedOracle valid inLen family n depth distribution request.2 state)
-    (fun request => cascadeChildPrefixOracle valid inLen family n depth distribution request.2)
-    toPrefixState alignedState
-    (fun request state hstate =>
-      (routedOracle_step valid inLen family n depth distribution request.2 state hstate).2)
-    (fun request state hstate =>
-      (routedOracle_step valid inLen family n depth distribution request.2 state hstate).1)
-    program (⟨[], []⟩, []) rfl
-  have h' := congrArg (PMF.map Prod.fst) h
   unfold cascadeChildRouter cascadeChildPrefixGame
   rw [ProbOracleComp.runWith_map, ProbOracleComp.runWith_run_interpret]
   simpa only [routedOracle, toPrefixState, StateT.run, List.getElem?_nil, PMF.map_comp,
-    Function.comp_def, Prod.map_apply, id_eq] using h'
+    Function.comp_def, Prod.map_apply, id_eq] using congrArg (PMF.map Prod.fst)
+      (ProbOracleComp.runWith_map_state_of_invariant
+        (fun (req : Unit × List Bool) s =>
+          routedOracle valid inLen family n depth distribution req.2 s)
+        (fun req => cascadeChildPrefixOracle valid inLen family n depth distribution req.2)
+        toPrefixState alignedState
+        (fun req s hs => (routedOracle_step valid inLen family n depth distribution req.2 s hs).2)
+        (fun req s hs => (routedOracle_step valid inLen family n depth distribution req.2 s hs).1)
+        program (⟨[], []⟩, []) rfl)
 
 end Cslib.Crypto

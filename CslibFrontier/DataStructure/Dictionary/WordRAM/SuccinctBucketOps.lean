@@ -456,8 +456,7 @@ private theorem bucketStateInv_updateVal {U V w₀ n_max h_space base b j₀ q_t
   · rw [hgm, hq]
     rcases eq_or_ne b' b with rfl | hbeq
     · rcases eq_or_ne q q_target with rfl | hqeq
-      · simp only [Function.update_self, Option.isSome_some, true_iff]
-        exact ⟨j₀, hj₀, hq₀⟩
+      · simpa using ⟨j₀, hj₀, hq₀⟩
       · simp [hqeq, hinv.hmap_dom b' hb' q]
     · simp [hbeq, hinv.hmap_dom b' hb' q]
 
@@ -522,11 +521,9 @@ private theorem bucketStateInv_pushBack
       wlog hle : j₁ ≤ j₂ generalizing j₁ j₂
       · exact (this j₂ hj₂ j₁ hj₁ hq_eq.symm (by omega)).symm
       rcases eq_or_ne j₂ j_new with rfl | h2
-      · rcases eq_or_ne j₁ j_new with rfl | h1
-        · rfl
-        · have hj1 : j₁ < j_new := by omega
-          rw [(hold b' hb' j₁ hj1).1, hq_new] at hq_eq
-          exact False.elim (habs ⟨j₁, hj1, hq_eq⟩)
+      · by_contra h1
+        have hj1 : j₁ < j_new := by omega
+        exact habs ⟨j₁, hj1, ((hold b' hb' j₁ hj1).1.symm.trans hq_eq).trans hq_new⟩
       · have hj1 : j₁ < j_new := by omega
         have hj2 : j₂ < j_new := by omega
         rw [(hold b' hb' j₁ hj1).1, (hold b' hb' j₂ hj2).1] at hq_eq
@@ -548,15 +545,14 @@ private theorem bucketStateInv_pushBack
   · rcases eq_or_ne b' b with rfl | hbeq
     · rw [Function.update_self, hbc_b]
       rcases eq_or_ne q q_target with rfl | hqeq
-      · simp only [Function.update_self, Option.isSome_some, true_iff]
-        exact ⟨j_new, by omega, hq_new⟩
+      · simpa using ⟨j_new, le_rfl, hq_new⟩
       · rw [Function.update_of_ne hqeq, hinv.hmap_dom b' hb' q]
-        refine ⟨fun ⟨j, hj, hq⟩ => ⟨j, by omega, by rw [(hold b' hb' j hj).1]; exact hq⟩,
+        refine ⟨fun ⟨j, hj, hq⟩ => ⟨j, by omega, (hold b' hb' j hj).1.trans hq⟩,
           fun ⟨j, hj, hq⟩ => ?_⟩
         rcases eq_or_ne j j_new with rfl | hjeq
-        · exact False.elim (hqeq (hq.symm.trans hq_new))
+        · exact absurd (hq.symm.trans hq_new) hqeq
         · have hj_lt : j < j_new := by omega
-          exact ⟨j, hj_lt, by rw [(hold b' hb' j hj_lt).1] at hq; exact hq⟩
+          exact ⟨j, hj_lt, (hold b' hb' j hj_lt).1.symm.trans hq⟩
     · rw [Function.update_of_ne hbeq, hbc_other b' hb' hbeq, hinv.hmap_dom b' hb' q]
       exact exists_congr fun j => and_congr_right fun hj => by simp [(hold b' hb' j hj).1]
 

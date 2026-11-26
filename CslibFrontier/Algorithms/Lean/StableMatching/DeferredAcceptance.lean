@@ -109,13 +109,9 @@ theorem step_cases (s : State n) :
   unfold step
   split
   · rename_i p hp
-    right
-    exact ⟨p, by simpa using List.find?_some hp, rfl⟩
+    exact .inr ⟨p, by simpa using List.find?_some hp, rfl⟩
   · rename_i hp
-    left
-    refine ⟨rfl, fun p hd => ?_⟩
-    have := List.find?_eq_none.1 hp p (List.mem_finRange p)
-    simp_all
+    exact .inl ⟨rfl, fun p => by simpa using List.find?_eq_none.1 hp p (List.mem_finRange p)⟩
 
 /-- Within the list, `target` is the choice of rank `s p`. -/
 theorem target_of_lt {s : State n} {p : Fin n} (h : s p < n) :
@@ -140,11 +136,8 @@ structure Inv (s : State n) : Prop where
 theorem inv_init : I.Inv (fun _ => 0) where
   lt p := by have := p.isLt; omega
   rejected p k hk := absurd hk (Nat.not_lt_zero _)
-  last_unique p q hp hq := by
-    have h1 := p.isLt
-    have h2 := q.isLt
-    ext
-    omega
+  last_unique p q hp _ := Fin.ext ((Nat.lt_one_iff.mp (hp.symm ▸ p.isLt)).trans
+    (Nat.lt_one_iff.mp (hp.symm ▸ q.isLt)).symm)
 
 private theorem target_update_ne (s : State n) {p x : Fin n} (h : x ≠ p) (v : ℕ) :
     I.target (Function.update s p v) x = I.target s x := by
@@ -158,10 +151,7 @@ private theorem held_step {s : State n} {p : Fin n} (hp : I.Outranked s p)
   · subst hqp
     obtain ⟨y, hy, hyp⟩ := hp
     have hyq : y ≠ q := fun h => lt_irrefl _ (h ▸ hyp)
-    refine ⟨y, ?_, ?_⟩
-    · rw [I.target_update_ne s hyq, hy, hq]
-    · rw [← hq]
-      exact lt_trans hyp (hq ▸ hx)
+    exact ⟨y, by rw [I.target_update_ne s hyq, hy, hq], lt_trans (hq ▸ hyp) hx⟩
   · exact ⟨q, by rw [I.target_update_ne s hqp, hq], hx⟩
 
 private theorem ne_of_outranks {s : State n} {p q : Fin n}
@@ -178,13 +168,9 @@ private theorem target_surjective_of_last {s : State n} (hs : I.Inv s) {p : Fin 
   rcases Nat.lt_or_ge k.val (s p) with h | h
   · obtain ⟨q, hq, -⟩ := hs.rejected p k h
     exact ⟨q, hq.trans hr⟩
-  · refine ⟨p, ?_⟩
-    rw [I.target_of_lt (hs.lt p), ← hr]
-    congr 1
-    ext
-    have := k.isLt
-    simp only
-    omega
+  · have := k.isLt
+    have hk_eq : k = ⟨s p, hs.lt p⟩ := Fin.ext (by simp only; omega)
+    exact ⟨p, by rw [I.target_of_lt (hs.lt p), ← hk_eq, hr]⟩
 
 private theorem not_outranked_of_last {s : State n} (hs : I.Inv s) {p : Fin n}
     (hp : s p + 1 = n) (x : Fin n) : ¬ I.Outranked s x := by
@@ -244,43 +230,32 @@ theorem inv_run (k : ℕ) : I.Inv (I.run k) := by
     exact I.inv_step ih
 
 private theorem sq_aux (n : ℕ) :
-    (n - 1) * (n - 2) + (n - 1) = (n - 1) ^ 2 ∧ n * (n - 2) ≤ (n - 1) ^ 2 := by
-  rcases n with _ | _ | m
-  · simp
-  · simp
-  · have h1 : m + 1 + 1 - 1 = m + 1 := rfl
-    have h2 : m + 1 + 1 - 2 = m := rfl
-    rw [h1, h2]
-    constructor
-    · ring
-    · nlinarith
+    (n - 1) * (n - 2) + (n - 1) = (n - 1) ^ 2 ∧ n * (n - 2) ≤ (n - 1) ^ 2 :=
+  match n with
+  | 0 | 1 => by simp
+  | m + 2 => show (m + 1) * m + (m + 1) = (m + 1) ^ 2 ∧ (m + 2) * m ≤ (m + 1) ^ 2 from
+    ⟨by ring,
+      by nlinarith⟩
 
 /-- The total number of rejections in an invariant state is at most `(n - 1)^2`. -/
 theorem sum_le {s : State n} (hs : I.Inv s) : ∑ p, s p ≤ (n - 1) ^ 2 := by
   by_cases hlast : ∃ p, s p + 1 = n
   · obtain ⟨p, hp⟩ := hlast
     rw [← Finset.add_sum_erase _ _ (Finset.mem_univ p)]
-    have hrest : ∑ x ∈ Finset.univ.erase p, s x ≤ (Finset.univ.erase p).card * (n - 2) := by
-      rw [← smul_eq_mul]
-      refine Finset.sum_le_card_nsmul _ _ _ fun x hx => ?_
-      have hxp := Finset.ne_of_mem_erase hx
-      have h1 := hs.lt x
-      have h2 : s x + 1 ≠ n := fun h => hxp (hs.last_unique x p h hp)
-      omega
-    rw [Finset.card_erase_of_mem (Finset.mem_univ p), Finset.card_univ, Fintype.card_fin] at hrest
+    have hrest : ∑ x ∈ Finset.univ.erase p, s x ≤ (n - 1) * (n - 2) := by
+      simpa [Finset.card_univ] using Finset.sum_le_card_nsmul (Finset.univ.erase p) s (n - 2)
+        fun x hx => by
+          have := hs.lt x
+          have : s x + 1 ≠ n := fun h => Finset.ne_of_mem_erase hx (hs.last_unique x p h hp)
+          omega
     have := (sq_aux n).1
-    have hsp : s p = n - 1 := by omega
-    rw [hsp]
-    linarith
+    omega
   · push Not at hlast
-    have h : ∑ x, s x ≤ (Finset.univ : Finset (Fin n)).card * (n - 2) := by
-      rw [← smul_eq_mul]
-      refine Finset.sum_le_card_nsmul _ _ _ fun x _ => ?_
-      have h1 := hs.lt x
-      have h2 := hlast x
+    refine le_trans ?_ (sq_aux n).2
+    simpa using Finset.sum_le_card_nsmul Finset.univ s (n - 2) fun x _ => by
+      have := hs.lt x
+      have := hlast x
       omega
-    rw [Finset.card_univ, Fintype.card_fin] at h
-    exact h.trans (sq_aux n).2
 
 
 private theorem sum_update_succ (s : State n) (p : Fin n) :
@@ -311,21 +286,13 @@ theorem run_fixed_of_le {j k : ℕ} (hjk : j ≤ k) (h : I.step (I.run j) = I.ru
 
 /-- Deferred acceptance stops after at most `(n - 1)^2` rejections. -/
 theorem step_run_fixed : I.step (I.run ((n - 1) ^ 2)) = I.run ((n - 1) ^ 2) := by
-  rcases I.run_fixed_or_sum ((n - 1) ^ 2 + 1) with ⟨j, hj, hfix⟩ | hsum
-  · rcases Nat.lt_or_ge j ((n - 1) ^ 2 + 1) with hlt | hge
-    · rw [I.run_fixed_of_le (by omega : j ≤ (n - 1) ^ 2) hfix, hfix]
-    · have hj' : j = (n - 1) ^ 2 + 1 := by omega
-      subst hj'
-      have h1 := I.run_fixed_or_sum ((n - 1) ^ 2)
-      rcases h1 with ⟨i, hi, hfix'⟩ | hsum'
-      · rw [I.run_fixed_of_le hi hfix', hfix']
-      · rcases I.step_cases (I.run ((n - 1) ^ 2)) with ⟨h, -⟩ | ⟨p, -, h⟩
-        · exact h
-        · have := I.sum_le (I.inv_step (I.inv_run ((n - 1) ^ 2)))
-          rw [h, sum_update_succ, hsum'] at this
-          omega
-  · have := I.sum_le (I.inv_run ((n - 1) ^ 2 + 1))
-    omega
+  rcases I.run_fixed_or_sum ((n - 1) ^ 2) with ⟨i, hi, hfix⟩ | hsum
+  · rw [I.run_fixed_of_le hi hfix, hfix]
+  · rcases I.step_cases (I.run ((n - 1) ^ 2)) with ⟨h, -⟩ | ⟨p, -, h⟩
+    · exact h
+    · have := I.sum_le (I.inv_step (I.inv_run ((n - 1) ^ 2)))
+      rw [h, sum_update_succ, hsum] at this
+      omega
 
 
 /-- The state reached by deferred acceptance. -/
@@ -345,9 +312,7 @@ theorem run_le_run_succ (k : ℕ) (p : Fin n) : I.run k p ≤ I.run (k + 1) p :=
   rcases I.step_cases (I.run k) with ⟨h, -⟩ | ⟨q, -, h⟩
   · rw [h]
   · rw [h]
-    by_cases hpq : p = q
-    · subst hpq; rw [Function.update_self]; omega
-    · rw [Function.update_of_ne hpq]
+    grind [Function.update_apply]
 
 /-- Rejection counts are monotone in the number of rounds. -/
 theorem run_mono {j k : ℕ} (hjk : j ≤ k) (p : Fin n) : I.run j p ≤ I.run k p := by
@@ -401,15 +366,12 @@ theorem propRank_deferredAcceptance (p : Fin n) :
 /-- Deferred acceptance outputs a stable matching ([GaleShapley1962], Theorem 1). -/
 theorem isStable_deferredAcceptance : I.IsStable I.deferredAcceptance := by
   rintro p r ⟨hp, hr⟩
-  have hs := I.inv_finalState
-  have hk : (I.propRank p r).val < I.finalState p := by
-    rw [← propRank_deferredAcceptance]; exact hp
-  obtain ⟨q, hq, hqp⟩ := hs.rejected p _ hk
+  obtain ⟨q, hq, hqp⟩ := I.inv_finalState.rejected p (I.propRank p r)
+    (by rwa [← propRank_deferredAcceptance])
   rw [propPref_propRank] at hq hqp
-  have hq' : I.deferredAcceptance q = r := hq
-  have : I.deferredAcceptance.symm r = q := by rw [← hq', Equiv.symm_apply_apply]
-  rw [this] at hr
-  exact lt_asymm hr hqp
+  have hsymm : I.deferredAcceptance.symm r = q :=
+    I.deferredAcceptance.injective (by simp [deferredAcceptance_apply, hq])
+  exact lt_asymm (hsymm ▸ hr) hqp
 
 
 /-- No proposer has been turned down by a receiver it is matched to in the stable matching `ν`. -/
@@ -433,21 +395,16 @@ private theorem noStableRejected_update {ν : Matching n} (hν : I.IsStable ν) 
       rw [ht]
       intro hνx
       obtain ⟨y, hy, hyx⟩ := hp
-      have hyx' : y ≠ x := I.ne_of_outranks hyx
-      have hνy : ν y ≠ I.target s x := by
-        rw [← hνx]
-        exact fun h => hyx' (ν.injective h)
+      have hνy : ν y ≠ I.target s x := fun h =>
+        I.ne_of_outranks hyx (ν.injective (h.trans hνx.symm))
       have hrank : I.propRank y (I.target s y) < I.propRank y (ν y) := by
         have hge : ¬ (I.propRank y (ν y)).val < s y := fun hlt =>
           hN y _ hlt (propPref_propRank I y (ν y)).symm
         rw [I.target_of_lt (hs.lt y), propRank_propPref]
         refine lt_of_le_of_ne (by simp only [Fin.le_def]; omega) fun h => hνy ?_
         rw [← hy, I.target_of_lt (hs.lt y), h, propPref_propRank]
-      apply hν y (I.target s x)
-      refine ⟨hy ▸ hrank, ?_⟩
-      have : ν.symm (I.target s x) = x := by rw [← hνx, Equiv.symm_apply_apply]
-      rw [this]
-      exact hyx
+      exact hν y (I.target s x) ⟨hy ▸ hrank,
+        ((congrArg ν.symm hνx).symm.trans (Equiv.symm_apply_apply ν x)).symm ▸ hyx⟩
   · rw [Function.update_of_ne hxp] at hk
     exact hN x k hk
 
@@ -484,17 +441,12 @@ theorem proposals_eq :
 /-- Deferred acceptance makes at most `n^2 - n + 1` proposals (see [GusfieldIrving1989]). -/
 theorem proposals_le : I.proposals ≤ n ^ 2 - n + 1 := by
   have h := I.sum_le I.inv_finalState
-  have hp : I.proposals = ∑ p, I.finalState p + n := by
-    rw [proposals, Finset.sum_add_distrib]
-    simp
-  rw [hp]
+  rw [proposals, Finset.sum_add_distrib]
   rcases n with _ | m
   · simp at h ⊢
-  · have : (m + 1) ^ 2 - (m + 1) + 1 = m ^ 2 + (m + 1) := by
-      rw [show (m + 1) ^ 2 = m ^ 2 + (m + 1) + m by ring]
-      omega
-    rw [this]
-    simp only [Nat.add_sub_cancel] at h
+  · simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_one,
+      Nat.add_sub_cancel] at h ⊢
+    have : (m + 1) ^ 2 = m ^ 2 + (m + 1) + m := by ring
     omega
 
 /-- Deferred acceptance is the proposer-optimal stable matching. -/
@@ -518,10 +470,9 @@ theorem isProposerOptimal_iff (μ : Matching n) :
 /-- Receiver-proposing deferred acceptance: run deferred acceptance on the swapped market. -/
 @[expose] def receiverDeferredAcceptance : Matching n := I.swap.deferredAcceptance.symm
 
-theorem isStable_receiverDeferredAcceptance : I.IsStable I.receiverDeferredAcceptance := by
-  have h := I.swap.isStable_deferredAcceptance
-  rw [← Equiv.symm_symm I.swap.deferredAcceptance] at h
-  exact (I.isStable_swap_iff _).1 h
+theorem isStable_receiverDeferredAcceptance : I.IsStable I.receiverDeferredAcceptance :=
+  (I.isStable_swap_iff _).1
+    (Equiv.symm_symm I.swap.deferredAcceptance ▸ I.swap.isStable_deferredAcceptance)
 
 /-- Receiver-proposing deferred acceptance is receiver-optimal. -/
 theorem isReceiverOptimal_receiverDeferredAcceptance :

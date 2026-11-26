@@ -84,10 +84,8 @@ def lengthPrependedBlocks {L : ℕ} (x : LengthPrependedInput n L) : List (BitSt
 theorem lengthPrependedBlocks_injective {L : ℕ} :
     Function.Injective (lengthPrependedBlocks (n := n) (L := L)) := by
   rintro ⟨k, f⟩ ⟨k', f'⟩ h
-  have hk : k = k' := Fin.ext (by simpa using congrArg List.length h)
-  subst hk
-  have hf : f = f' := List.ofFn_injective h
-  rw [hf]
+  obtain rfl : k = k' := Fin.ext (by simpa using congrArg List.length h)
+  exact congrArg (Sigma.mk k) (List.ofFn_injective h)
 /-- Prepend the encoded block count `encodeLength x.1` to a block-aligned message `x`, giving a
   nonempty CBC-MAC input of `x.1 + 1 ≤ L + 1` blocks. -/
 @[expose]
@@ -241,8 +239,8 @@ theorem cbcUniformFunctionSuccess_map_prependLengthQueries {L : ℕ}
     cbcUniformFunctionSuccess n (L + 1) (D.map (prependLengthQueries encodeLength)) =
       lengthPrependedUniformFunctionSuccess encodeLength D := by
   unfold cbcUniformFunctionSuccess lengthPrependedUniformFunctionSuccess
-  simp only [Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.bind_map]
-  simp only [Function.comp_def, cbcQueryRun_fst, interpret_prependLengthQueries]
+  simp only [Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.bind_map,
+    Function.comp_def, cbcQueryRun_fst, interpret_prependLengthQueries]
   rfl
 /-- The translated distinguisher has the same ideal-world acceptance probability: a uniform
   random function on CBC-MAC inputs, precomposed with the injective map `prependLength`, is a
@@ -254,8 +252,8 @@ theorem cbcIdealSuccess_map_prependLengthQueries {L : ℕ}
       lengthPrependedIdealSuccess n L D := by
   unfold cbcIdealSuccess lengthPrependedIdealSuccess
   rw [← PMF.uniformOfFintype_map_comp (prependLength_injective encodeLength)]
-  simp only [Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.bind_map]
-  simp only [Function.comp_def, cbcQueryRun_fst, interpret_prependLengthQueries]
+  simp only [Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.bind_map,
+    Function.comp_def, cbcQueryRun_fst, interpret_prependLengthQueries]
 /-- Information-theoretic uniform-random-function step (#6046) toward length-prepended CBC-MAC PRF
   security ([BonehShoup2023], Section 6.4.1, Theorem 6.3, pp. 226–229, and Sections 6.6–6.6.1,
   Theorem 6.8, pp. 235–236; [KatzLindell2020], Section 4.4, pp. 120–127), bounding length-prepended
@@ -272,13 +270,11 @@ theorem abs_lengthPrependedUniformFunctionSuccess_sub_lengthPrependedIdealSucces
       (q : ℝ) ^ 2 * ((L : ℝ) + 1) ^ 2 / (2 * (2 : ℝ) ^ n) := by
   rw [← cbcUniformFunctionSuccess_map_prependLengthQueries,
     ← cbcIdealSuccess_map_prependLengthQueries encodeLength D]
-  have h := abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le n q (L + 1)
+  exact_mod_cast abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le n q (L + 1)
     (D.map (prependLengthQueries encodeLength)) fun tree htree oracle => by
       obtain ⟨T, hT, rfl⟩ :=
         (PMF.mem_support_map_iff _ _ _).mp ((PMF.mem_support_iff _ _).mpr htree)
       obtain ⟨hrange, hlength⟩ := cbcQueryRun_prependLengthQueries encodeLength
         (hD T ((PMF.mem_support_iff _ _).mp hT)) oracle
       exact ⟨cbcPrefixFree_of_forall_mem_range he hrange, hlength⟩
-  push_cast at h
-  exact h
 end Cslib.Crypto

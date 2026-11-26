@@ -135,19 +135,13 @@ theorem pairKey_mem {α : Type*} [LinearOrder α] (a b c d : α) :
   unfold pairKey
   rcases min_choice (max a b) (max (min a b) (min c d)) with h | h
   · rw [h]
-    rcases max_choice a b with h' | h'
-    · exact Or.inl h'
-    · exact Or.inr (Or.inl h')
+    exact (max_choice a b).imp id Or.inl
   · rw [h]
     rcases max_choice (min a b) (min c d) with h' | h'
     · rw [h']
-      rcases min_choice a b with h'' | h''
-      · exact Or.inl h''
-      · exact Or.inr (Or.inl h'')
+      exact (min_choice a b).imp id Or.inl
     · rw [h']
-      rcases min_choice c d with h'' | h''
-      · exact Or.inr (Or.inr (Or.inl h''))
-      · exact Or.inr (Or.inr (Or.inr h''))
+      exact Or.inr (Or.inr (min_choice c d))
 
 /-- Disagreement count at a single cubic vertex with three incident edge colors `a, b, c` and
 vertex color `x`. -/
@@ -299,12 +293,9 @@ private theorem eq_of_mem_isMatching {M : Set E} (hM : G.IsMatching M) {e f : E}
     (he : e ∈ M) (hf : f ∈ M) {v : V} (hev : e ∈ G.incidenceSet v) (hfv : f ∈ G.incidenceSet v) :
     e = f := by
   by_contra hne
-  have hdis := hM he hf hne
-  have hv1 : v ∈ ({G.src e, G.tgt e} : Set V) := by
-    rcases hev with h | h <;> simp [h]
-  have hv2 : v ∈ ({G.src f, G.tgt f} : Set V) := by
-    rcases hfv with h | h <;> simp [h]
-  exact disjoint_left.mp hdis hv1 hv2
+  exact disjoint_left.mp (hM he hf hne)
+    (by rcases hev with h | h <;> simp [h] : v ∈ _)
+    (by rcases hfv with h | h <;> simp [h])
 
 /-- Mate of a vertex `v` under matching `M` (returning `v` when `v` is unmatched). -/
 noncomputable def mate (G : Multigraph V E) (M : Set E) (v : V) : V :=
@@ -362,20 +353,10 @@ private theorem pairKey_eq_of_eq_pair {α : Type*} [LinearOrder α] (score : E �
     (h2 : S₂ = {c, d}) (h2' : S₂ = {c', d'}) (hcd' : c' ≠ d') :
     pairKey (score a) (score b) (score c) (score d) =
       pairKey (score a') (score b') (score c') (score d') := by
-  have hset1 : ({a, b} : Set E) = {a', b'} := h1.symm.trans h1'
-  have hset2 : ({c, d} : Set E) = {c', d'} := h2.symm.trans h2'
-  have ha' : a' = a ∨ a' = b := by
-    have : a' ∈ ({a, b} : Set E) := hset1 ▸ by simp
-    simpa using this
-  have hb' : b' = a ∨ b' = b := by
-    have : b' ∈ ({a, b} : Set E) := hset1 ▸ by simp
-    simpa using this
-  have hc' : c' = c ∨ c' = d := by
-    have : c' ∈ ({c, d} : Set E) := hset2 ▸ by simp
-    simpa using this
-  have hd' : d' = c ∨ d' = d := by
-    have : d' ∈ ({c, d} : Set E) := hset2 ▸ by simp
-    simpa using this
+  have hmem1 {x} (hx : x ∈ ({a', b'} : Set E)) : x = a ∨ x = b := by
+    simpa [← h1', h1] using hx
+  have hmem2 {x} (hx : x ∈ ({c', d'} : Set E)) : x = c ∨ x = d := by
+    simpa [← h2', h2] using hx
   have hcd_case : ∀ x y, (x = c ∨ x = d) → (y = c ∨ y = d) → x ≠ y →
       ∀ u v : α, pairKey u v (score c) (score d) = pairKey u v (score x) (score y) := by
     intro x y hx hy hxy u v
@@ -384,11 +365,11 @@ private theorem pairKey_eq_of_eq_pair {α : Type*} [LinearOrder α] (score : E �
     · rfl
     · exact pairKey_comm_right u v (score y) (score x)
     · exact (hxy rfl).elim
-  rcases ha' with rfl | rfl <;> rcases hb' with rfl | rfl
+  rcases hmem1 (Or.inl rfl) with rfl | rfl <;> rcases hmem1 (Or.inr rfl) with rfl | rfl
   · exact (hab' rfl).elim
-  · exact hcd_case c' d' hc' hd' hcd' (score a') (score b')
+  · exact hcd_case c' d' (hmem2 (Or.inl rfl)) (hmem2 (Or.inr rfl)) hcd' (score a') (score b')
   · rw [pairKey_comm_left (score b') (score a')]
-    exact hcd_case c' d' hc' hd' hcd' (score a') (score b')
+    exact hcd_case c' d' (hmem2 (Or.inl rfl)) (hmem2 (Or.inr rfl)) hcd' (score a') (score b')
   · exact (hab' rfl).elim
 
 private theorem matchingKey_endpoint [Finite E] {α : Type*} [LinearOrder α] [Inhabited α]
@@ -460,18 +441,10 @@ private theorem starCost_eq_ite_edgeStraddles {α : Type*} [LinearOrder α]
     starCost (decide (score e₀ < t)) (decide (score e₁ < t)) (decide (score e₂ < t)) =
       letI := Classical.propDecidable
       if G.EdgeStraddles score t v then 1 else 0 := by
-  have hiff : G.EdgeStraddles score t v ↔
-      ¬(decide (score e₀ < t) = decide (score e₁ < t) ∧
-        decide (score e₁ < t) = decide (score e₂ < t)) := by
-    simp only [EdgeStraddles, StraddlesOn, hs, mem_insert_iff, mem_singleton_iff]
-    by_cases h0 : score e₀ < t <;> by_cases h1 : score e₁ < t <;> by_cases h2 : score e₂ < t <;>
-      simp [h0, h1, h2, not_lt.mp]
-  simp only [starCost]
-  split_ifs with h1 h2 h2
-  · exact (hiff.mp h2 h1).elim
-  · rfl
-  · rfl
-  · exact (h2 (hiff.mpr h1)).elim
+  simp only [starCost, EdgeStraddles, StraddlesOn, hs, mem_insert_iff, mem_singleton_iff,
+    or_and_right, exists_or, exists_eq_left]
+  by_cases h0 : score e₀ < t <;> by_cases h1 : score e₁ < t <;> by_cases h2 : score e₂ < t <;>
+    simp [h0, h1, h2, not_lt.mp, not_le.mpr]
 
 /-- Helper expressing `twoVertexCost` in terms of `PairStraddlesAny` and `PairStraddlesBoth`. -/
 private theorem twoVertexCost_eq_pairStraddles {α : Type*} [LinearOrder α]
@@ -483,41 +456,11 @@ private theorem twoVertexCost_eq_pairStraddles {α : Type*} [LinearOrder α]
       letI := Classical.propDecidable
       (if G.PairStraddlesAny score t e then 1 else 0) +
         (if G.PairStraddlesBoth score t e then 1 else 0) := by
-  have hany : G.PairStraddlesAny score t e ↔
-      ¬(decide (score a < t) = decide (score b < t) ∧
-        decide (score b < t) = decide (score c < t) ∧
-        decide (score c < t) = decide (score d < t)) := by
-    simp only [PairStraddlesAny, StraddlesOn, hsrc, htgt, mem_union, mem_insert_iff,
-      mem_singleton_iff]
-    have hex (p : E → Prop) : (∃ f, ((f = a ∨ f = b) ∨ f = c ∨ f = d) ∧ p f) ↔
-        p a ∨ p b ∨ p c ∨ p d := by
-      constructor
-      · rintro ⟨f, (rfl | rfl) | (rfl | rfl), h⟩ <;> simp [h]
-      · rintro (h | h | h | h)
-        · exact ⟨a, Or.inl (Or.inl rfl), h⟩
-        · exact ⟨b, Or.inl (Or.inr rfl), h⟩
-        · exact ⟨c, Or.inr (Or.inl rfl), h⟩
-        · exact ⟨d, Or.inr (Or.inr rfl), h⟩
-    rw [hex (score · < t), hex (t ≤ score ·)]
-    by_cases ha : score a < t <;> by_cases hb : score b < t <;>
-      by_cases hc : score c < t <;> by_cases hd : score d < t <;>
-      simp [ha, hb, hc, hd, not_lt.mp]
-  have hboth : G.PairStraddlesBoth score t e ↔
-      (decide (score a < t) ≠ decide (score b < t) ∧
-        decide (score c < t) ≠ decide (score d < t)) := by
-    simp only [PairStraddlesBoth, hsrc, htgt, straddlesOn_pair_iff]
-  simp only [twoVertexCost]
-  congr 1
-  · split_ifs with h1 h2 h2
-    · exact (hany.mp h2 h1).elim
-    · rfl
-    · rfl
-    · exact (h2 (hany.mpr h1)).elim
-  · split_ifs with h1 h2 h2
-    · rfl
-    · exact (h2 (hboth.mpr h1)).elim
-    · exact (h1 (hboth.mp h2)).elim
-    · rfl
+  simp only [twoVertexCost, PairStraddlesAny, PairStraddlesBoth, hsrc, htgt, StraddlesOn,
+    mem_union, mem_insert_iff, mem_singleton_iff, or_and_right, exists_or, exists_eq_left]
+  by_cases ha : score a < t <;> by_cases hb : score b < t <;>
+    by_cases hc : score c < t <;> by_cases hd : score d < t <;>
+    simp [ha, hb, hc, hd, not_lt.mp, not_le.mpr]
 
 /-- Extract the two outer incident edges at each endpoint of `e` in a cubic multigraph. -/
 private theorem exists_outer_edges [Finite E] (h3 : ∀ v, (G.incidenceSet v).ncard = 3)
@@ -665,16 +608,7 @@ theorem ncard_edgeCut_threshold_add_slack_le_matchingCost [Finite V] [Finite E]
       simp only [mem_ofPred_eq, Finset.coe_filter, Finset.mem_compl, Mfin, Finset.mem_filter,
         Finset.mem_univ, true_and, slack, col, ecol, P₀, decide_eq_true_eq,
         decide_eq_false_iff_not, not_lt]
-      constructor
-      · rintro ⟨hm, hs, ht, hsc⟩
-        exact ⟨hm, ite_eq_left ⟨hs, ht, hsc⟩⟩
-      · rintro ⟨hm, h1⟩
-        refine ⟨hm, ?_⟩
-        by_contra hnot
-        have h0 : (if G.matchingKey M score (G.src e) < t ∧
-            G.matchingKey M score (G.tgt e) < t ∧ t ≤ score e then 1 else 0) = 0 :=
-          ite_eq_right hnot
-        omega
+      split_ifs with h <;> simp [h]
     rw [hset, ncard_coe_finset, Finset.card_filter]
     refine Finset.sum_congr rfl fun e _ => ?_
     dsimp only [slack]
@@ -694,30 +628,11 @@ theorem ncard_edgeCut_threshold_add_slack_le_matchingCost [Finite V] [Finite E]
       ∑ e ∈ Mfinᶜ, (boolDiff (col (G.src e)) (ecol e) + boolDiff (col (G.tgt e)) (ecol e)) =
       ∑ v : V, ∑ e ∈ Finset.univ.filter (fun e => e ∉ M ∧ e ∈ G.incidenceSet v),
         boolDiff (col v) (ecol e) := by
-    have hinner (e : E) :
-        boolDiff (col (G.src e)) (ecol e) + boolDiff (col (G.tgt e)) (ecol e) =
-        ∑ v : V, if e ∈ G.incidenceSet v then boolDiff (col v) (ecol e) else 0 := by
-      have hpair : (Finset.univ.filter fun v : V => e ∈ G.incidenceSet v) =
-          {G.src e, G.tgt e} := by
-        ext v; simp [mem_incidenceSet, eq_comm]
-      rw [← Finset.sum_filter, hpair, Finset.sum_pair (hloop e)]
-    calc ∑ e ∈ Mfinᶜ, (boolDiff (col (G.src e)) (ecol e) + boolDiff (col (G.tgt e)) (ecol e))
-        = ∑ e : E, if e ∉ M then
-            ∑ v : V, if e ∈ G.incidenceSet v then boolDiff (col v) (ecol e) else 0 else 0 := by
-          have hmf : Mfinᶜ = Finset.univ.filter (· ∉ M) := by
-            ext e; simp [Mfin]
-          rw [hmf, Finset.sum_filter]
-          refine Finset.sum_congr rfl fun e _ => ?_
-          by_cases he : e ∈ M <;> simp [he, hinner]
-      _ = ∑ e : E, ∑ v : V, if e ∉ M ∧ e ∈ G.incidenceSet v then
-            boolDiff (col v) (ecol e) else 0 := by
-          refine Finset.sum_congr rfl fun e _ => ?_
-          by_cases he : e ∈ M <;> simp [he]
-      _ = ∑ v : V, ∑ e : E, if e ∉ M ∧ e ∈ G.incidenceSet v then
-            boolDiff (col v) (ecol e) else 0 := Finset.sum_comm
-      _ = ∑ v : V, ∑ e ∈ Finset.univ.filter (fun e => e ∉ M ∧ e ∈ G.incidenceSet v),
-            boolDiff (col v) (ecol e) := by
-          refine Finset.sum_congr rfl fun v _ => (Finset.sum_filter _ _).symm
+    rw [Finset.sum_comm' (t' := Mfinᶜ) (s' := fun e => {G.src e, G.tgt e}) ?_]
+    · exact Finset.sum_congr rfl fun e _ => by rw [Finset.sum_pair (hloop e)]
+    · intro v e
+      simp [Mfin, mem_incidenceSet, eq_comm]
+      tauto
   -- Split vertex sum into unmatched vertices and matched pairs.
   let vsum (v : V) : ℕ :=
     ∑ e ∈ Finset.univ.filter (fun e => e ∉ M ∧ e ∈ G.incidenceSet v), boolDiff (col v) (ecol e)
@@ -816,53 +731,27 @@ theorem ncard_matchingKey_pred_le [Finite V] [Finite E]
   have hsub : (Finset.univ.filter fun v => p (G.matchingKey M score v)) ⊆ Efin.biUnion hit := by
     intro v hv
     have hpv : p (G.matchingKey M score v) := (Finset.mem_filter.mp hv).2
+    have hmem {u : V} (f : E) (hpf : p (score f)) (hf : u ∈ hit f) : u ∈ Efin.biUnion hit :=
+      Finset.mem_biUnion.mpr ⟨f, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hpf⟩, hf⟩
+    have hhit {w : V} {f : E} (hf : f ∈ G.incidenceSet w) : w ∈ hit f ∧ G.mate M w ∈ hit f := by
+      rcases hf with rfl | rfl <;> simp [hit]
     by_cases hmat : v ∈ G.matchedVertices M
     · obtain ⟨e, heM, hev⟩ := hmat
       obtain ⟨a, b, c, d, _, _, hsrc, htgt⟩ := exists_outer_edges h3 e
       obtain ⟨hks, hkt⟩ := matchingKey_matched hM hloop h3 score heM hsrc htgt
-      have hinc_a : a ∈ G.incidenceSet (G.src e) :=
-        ((show a ∈ G.incidenceSet (G.src e) \ {e} by rw [hsrc]; simp)).1
-      have hinc_b : b ∈ G.incidenceSet (G.src e) :=
-        ((show b ∈ G.incidenceSet (G.src e) \ {e} by rw [hsrc]; simp)).1
-      have hinc_c : c ∈ G.incidenceSet (G.tgt e) :=
-        ((show c ∈ G.incidenceSet (G.tgt e) \ {e} by rw [htgt]; simp)).1
-      have hinc_d : d ∈ G.incidenceSet (G.tgt e) :=
-        ((show d ∈ G.incidenceSet (G.tgt e) \ {e} by rw [htgt]; simp)).1
-      have hmem_s (f : E) (hf : f ∈ G.incidenceSet (G.src e)) : G.src e ∈ hit f := by
-        rcases hf with h | h <;> simp [hit, h]
-      have hmem_t (f : E) (hf : f ∈ G.incidenceSet (G.tgt e)) : G.tgt e ∈ hit f := by
-        rcases hf with h | h <;> simp [hit, h]
-      have hmem_ms (f : E) (hf : f ∈ G.incidenceSet (G.tgt e)) : G.src e ∈ hit f := by
-        rcases hf with h | h
-        · simp [hit, h, mate_tgt hM hloop heM]
-        · simp [hit, h, mate_tgt hM hloop heM]
-      have hmem_mt (f : E) (hf : f ∈ G.incidenceSet (G.src e)) : G.tgt e ∈ hit f := by
-        rcases hf with h | h
-        · simp [hit, h, mate_src hM heM]
-        · simp [hit, h, mate_src hM heM]
-      rcases hev with hvs | hvt
-      · rw [← hvs, hks] at hpv
-        rw [← hvs]
-        rcases pairKey_mem (score a) (score b) (score c) (score d) with h | h | h | h
-        · exact Finset.mem_biUnion.mpr
-            ⟨a, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩, hmem_s a hinc_a⟩
-        · exact Finset.mem_biUnion.mpr
-            ⟨b, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩, hmem_s b hinc_b⟩
-        · exact Finset.mem_biUnion.mpr
-            ⟨c, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩, hmem_ms c hinc_c⟩
-        · exact Finset.mem_biUnion.mpr
-            ⟨d, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩, hmem_ms d hinc_d⟩
-      · rw [← hvt, hkt] at hpv
-        rw [← hvt]
-        rcases pairKey_mem (score c) (score d) (score a) (score b) with h | h | h | h
-        · exact Finset.mem_biUnion.mpr
-            ⟨c, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩, hmem_t c hinc_c⟩
-        · exact Finset.mem_biUnion.mpr
-            ⟨d, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩, hmem_t d hinc_d⟩
-        · exact Finset.mem_biUnion.mpr
-            ⟨a, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩, hmem_mt a hinc_a⟩
-        · exact Finset.mem_biUnion.mpr
-            ⟨b, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩, hmem_mt b hinc_b⟩
+      have hpair {u w : V} {x₁ x₂ y₁ y₂ : E}
+          (hu : G.incidenceSet u \ {e} = {x₁, x₂}) (hw : G.incidenceSet w \ {e} = {y₁, y₂})
+          (hmate : G.mate M w = u)
+          (hp : p (pairKey (score x₁) (score x₂) (score y₁) (score y₂))) :
+          u ∈ Efin.biUnion hit := by
+        rcases pairKey_mem (score x₁) (score x₂) (score y₁) (score y₂) with h | h | h | h
+        · exact hmem x₁ (h ▸ hp) (hhit (hu.symm.subset (mem_insert x₁ _)).1).1
+        · exact hmem x₂ (h ▸ hp) (hhit (hu.symm.subset (mem_insert_of_mem _ rfl)).1).1
+        · exact hmem y₁ (h ▸ hp) (hmate ▸ (hhit (hw.symm.subset (mem_insert y₁ _)).1).2)
+        · exact hmem y₂ (h ▸ hp) (hmate ▸ (hhit (hw.symm.subset (mem_insert_of_mem _ rfl)).1).2)
+      rcases hev with rfl | rfl
+      · exact hpair hsrc htgt (mate_tgt hM hloop heM) (hks ▸ hpv)
+      · exact hpair htgt hsrc (mate_src hM heM) (hkt ▸ hpv)
     · obtain ⟨e₀, e₁, e₂, _, _, _, hinc, hkey⟩ := matchingKey_unmatched h3 score hmat
       rw [hkey] at hpv
       have hmed : median3 (score e₀) (score e₁) (score e₂) = score e₀ ∨
@@ -871,44 +760,25 @@ theorem ncard_matchingKey_pred_le [Finite V] [Finite E]
         unfold median3
         rcases max_choice (min (score e₀) (score e₁)) (min (max (score e₀) (score e₁)) (score e₂))
           with h | h
-        · rw [h]; rcases min_choice (score e₀) (score e₁) with h' | h'
-          · exact Or.inl h'
-          · exact Or.inr (Or.inl h')
-        · rw [h]; rcases min_choice (max (score e₀) (score e₁)) (score e₂) with h' | h'
-          · rw [h']; rcases max_choice (score e₀) (score e₁) with h'' | h''
-            · exact Or.inl h''
-            · exact Or.inr (Or.inl h'')
+        · rw [h]
+          exact (min_choice (score e₀) (score e₁)).imp id Or.inl
+        · rw [h]
+          rcases min_choice (max (score e₀) (score e₁)) (score e₂) with h' | h'
+          · exact h'.symm ▸ (max_choice (score e₀) (score e₁)).imp id Or.inl
           · exact Or.inr (Or.inr h')
-      have hmem_v (f : E) (hf : f ∈ G.incidenceSet v) : v ∈ hit f := by
-        rcases hf with h | h <;> simp [hit, h]
       rcases hmed with h | h | h
-      · exact Finset.mem_biUnion.mpr
-          ⟨e₀, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩,
-            hmem_v e₀ (by rw [hinc]; simp)⟩
-      · exact Finset.mem_biUnion.mpr
-          ⟨e₁, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩,
-            hmem_v e₁ (by rw [hinc]; simp)⟩
-      · exact Finset.mem_biUnion.mpr
-          ⟨e₂, Finset.mem_filter.mpr ⟨Finset.mem_univ _, h ▸ hpv⟩,
-            hmem_v e₂ (by rw [hinc]; simp)⟩
-  have hcard_hit (e : E) : (hit e).card ≤ 4 := by
-    refine (Finset.card_insert_le _ _).trans ?_
-    refine Nat.add_le_add_right ((Finset.card_insert_le _ _).trans ?_) 1
-    refine Nat.add_le_add_right ((Finset.card_insert_le _ _).trans ?_) 1
-    simp
-  have h1 : {v | p (G.matchingKey M score v)}.ncard =
-      (Finset.univ.filter fun v => p (G.matchingKey M score v)).card := by
-    have : {v | p (G.matchingKey M score v)} =
-        ((Finset.univ.filter fun v => p (G.matchingKey M score v)) : Set V) := by ext v; simp
-    rw [this, ncard_coe_finset]
-  have h2 : {e | p (score e)}.ncard = Efin.card := by
-    have : {e | p (score e)} = (Efin : Set E) := by ext e; simp [Efin]
-    rw [this, ncard_coe_finset]
-  rw [h1, h2]
+      · exact hmem e₀ (h ▸ hpv) (hhit (hinc.symm.subset (mem_insert e₀ _))).1
+      · exact hmem e₁ (h ▸ hpv) (hhit (hinc.symm.subset (mem_insert_of_mem _ (mem_insert e₁ _)))).1
+      · exact hmem e₂ (h ▸ hpv)
+          (hhit (hinc.symm.subset (mem_insert_of_mem _ (mem_insert_of_mem _ rfl)))).1
+  have h1 : {v | p (G.matchingKey M score v)} =
+      ((Finset.univ.filter fun v => p (G.matchingKey M score v)) : Set V) := by ext v; simp
+  have h2 : {e | p (score e)} = (Efin : Set E) := by ext e; simp [Efin]
+  rw [h1, h2, ncard_coe_finset, ncard_coe_finset]
   calc (Finset.univ.filter fun v => p (G.matchingKey M score v)).card
       ≤ (Efin.biUnion hit).card := Finset.card_le_card hsub
     _ ≤ ∑ e ∈ Efin, (hit e).card := Finset.card_biUnion_le
-    _ ≤ ∑ _e ∈ Efin, 4 := Finset.sum_le_sum fun e _ => hcard_hit e
+    _ ≤ ∑ _e ∈ Efin, 4 := Finset.sum_le_sum fun _ _ => Finset.card_le_four
     _ = 4 * Efin.card := by rw [Finset.sum_const, smul_eq_mul, mul_comm]
 
 /-- Adding vertices `P \ P₀` to a vertex set `P₀ ⊆ P` increases the edge cut by at most

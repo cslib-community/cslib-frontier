@@ -90,18 +90,12 @@ private theorem swapVerifier_apply {L P q : ℕ} (g' : List (AMMove × ℕ)) (k 
     {s : List Bool} (hs : s.length = L) (R : Fin P → Bool) (y : Fin q → Bool) (t : List Bool) :
     swapVerifier L P q g' k V (s ++ (List.ofFn R ++ (List.ofFn y ++ t))) =
       majority g' k (fun u => V (s ++ (List.ofFn y ++ u))) (List.ofFn R ++ t) := by
-  have h1 : s ++ (List.ofFn R ++ (List.ofFn y ++ t)) = (s ++ List.ofFn R) ++ (List.ofFn y ++ t) :=
-    by simp
-  have h2 : s ++ (List.ofFn R ++ (List.ofFn y ++ t)) = (s ++ List.ofFn R ++ List.ofFn y) ++ t :=
-    by simp
-  have e1 : (s ++ (List.ofFn R ++ (List.ofFn y ++ t))).take L = s := List.take_left' hs
   have e2 : ((s ++ (List.ofFn R ++ (List.ofFn y ++ t))).drop (L + P)).take q = List.ofFn y := by
-    rw [h1, List.drop_left' (by simp [hs]), List.take_left' List.length_ofFn]
-  have e3 : ((s ++ (List.ofFn R ++ (List.ofFn y ++ t))).drop L).take P = List.ofFn R := by
-    rw [List.drop_left' hs, List.take_left' List.length_ofFn]
+    rw [← List.append_assoc, List.drop_left' (by simp [hs]), List.take_left' List.length_ofFn]
   have e4 : (s ++ (List.ofFn R ++ (List.ofFn y ++ t))).drop (L + P + q) = t := by
-    rw [h2, List.drop_left' (by simp [hs]; omega)]
-  rw [swapVerifier, e1, e2, e3, e4]
+    rw [← List.append_assoc, ← List.append_assoc, List.drop_left' (by simp [hs]; omega)]
+  rw [swapVerifier, List.take_left' hs, e2, List.drop_left' hs, List.take_left' List.length_ofFn,
+    e4]
 
 private theorem value_repeatShape_cons_arthur (b : Bool) (k p : ℕ) (τ : List (AMMove × ℕ))
     (f : List Bool → ℚ) :
@@ -182,14 +176,12 @@ private theorem swap_pointwise_ge (τ : List (AMMove × ℕ)) (q p k : ℕ)
   by_cases hc : 2 ≤ 3 * value true ((.arthur, p) :: τ) (fun u => ((W y₀ u).toNat : ℚ))
   · have hF := value_majority_ge ((.arthur, p) :: τ) k (W y₀) hc
     rw [value_repeatShape_cons_arthur] at hF
-    have hF' : 1 - (8 / 9) ^ k ≤ (∑ R, H R y₀) / 2 ^ (2 * k * p) := hF
     have : (∑ R, H R y₀) / 2 ^ (2 * k * p) ≤
         (∑ R, univ.sup' univ_nonempty (H R)) / 2 ^ (2 * k * p) := by
       gcongr with R
       exact le_sup' (H R) (mem_univ y₀)
     linarith
-  · push Not at hc
-    linarith
+  · linarith [not_le.mp hc]
 
 /-- **The swap, upper bound.** -/
 theorem value_swap_le (σ τ : List (AMMove × ℕ)) (q p k : ℕ) (V : List Bool → Bool) :
@@ -220,14 +212,10 @@ theorem value_swap_ge (σ τ : List (AMMove × ℕ)) (q p k : ℕ) (V : List Boo
 
 private theorem two_pow_mul_eight_ninths_le (q : ℕ) :
     (2 : ℚ) ^ q * ((8 / 9) ^ (6 * (q + 4)) / 2) ≤ 1 / 32 := by
-  have h1 := eight_ninths_pow_le (q + 4)
-  have h2 : (2 : ℚ) ^ q * (1 / 2) ^ (q + 4) = 1 / 16 := by
-    rw [pow_add, ← mul_assoc, ← mul_pow]
-    norm_num
-  calc (2 : ℚ) ^ q * ((8 / 9) ^ (6 * (q + 4)) / 2) ≤ 2 ^ q * ((1 / 2) ^ (q + 4) / 2) := by
-        gcongr
+  have := eight_ninths_pow_le (q + 4)
+  calc (2 : ℚ) ^ q * ((8 / 9) ^ (6 * (q + 4)) / 2) ≤ 2 ^ q * ((1 / 2) ^ (q + 4) / 2) := by gcongr
     _ = 1 / 32 := by
-      rw [← mul_div_assoc, h2]
+      rw [pow_add, ← mul_div_assoc, ← mul_assoc, ← mul_pow]
       norm_num
 
 /-- The numerical heart of the swap: amplify with `48` copies, then swap with `2 k` copies. -/
@@ -252,11 +240,9 @@ private theorem swap_game_bounds (σ τ : List (AMMove × ℕ)) (q p k : ℕ)
       repeatShape (2 * 24) τ = repeatShape (2 * 24) (σ ++ (.merlin, q) :: (.arthur, p) :: τ) := by
     simp [repeatShape]
   have hle := value_swap_le (repeatShape (2 * 24) σ) (repeatShape (2 * 24) τ) (2 * 24 * q)
-    (2 * 24 * p) k
-    (majority (σ ++ (.merlin, q) :: (.arthur, p) :: τ) 24 V)
+    (2 * 24 * p) k (majority (σ ++ (.merlin, q) :: (.arthur, p) :: τ) 24 V)
   have hge := value_swap_ge (repeatShape (2 * 24) σ) (repeatShape (2 * 24) τ) (2 * 24 * q)
-    (2 * 24 * p) k
-    (majority (σ ++ (.merlin, q) :: (.arthur, p) :: τ) 24 V)
+    (2 * 24 * p) k (majority (σ ++ (.merlin, q) :: (.arthur, p) :: τ) 24 V)
   rw [hrep] at hle hge
   have hε : (2 : ℚ) ^ (2 * 24 * q) * ((8 / 9) ^ k / 2) ≤ 1 / 32 := by
     rw [hk]; exact two_pow_mul_eight_ninths_le _
@@ -267,11 +253,8 @@ private theorem swap_game_bounds (σ τ : List (AMMove × ℕ)) (q p k : ℕ)
       _ ≤ (1 / 2) ^ 4 := pow_le_pow_of_le_one (by norm_num) (by norm_num) (by omega)
       _ = 1 / 16 := by norm_num
   have h24 : (8 / 9 : ℚ) ^ 24 ≤ 1 / 16 := by norm_num
-  refine ⟨fun hP => ?_, fun hP => ?_⟩
-  · have := value_majority_ge _ 24 V (h₁ hP)
-    linarith
-  · have := value_majority_le _ 24 V (h₂ hP)
-    linarith
+  exact ⟨fun hP => by linarith [value_majority_ge _ 24 V (h₁ hP)],
+    fun hP => by linarith [value_majority_le _ 24 V (h₂ hP)]⟩
 
 end AMGame
 
@@ -333,33 +316,11 @@ theorem AMGameClass_swap {enc : α ↪ List Bool} (σ τ : List AMMove) :
     have hM : M₀.eval (enc a).length = 48 := Polynomial.eval_C
     have hK : K.eval (enc a).length = 6 * (2 * 24 * qM.eval (enc a).length + 4) := by
       simp only [hKdef, Polynomial.eval_mul, Polynomial.eval_add, Polynomial.eval_ofNat, hM]
-    have h3 : evalShape (repeatShapePoly M₀ Gσ ++ (.arthur, 2 * K * (M₀ * pA)) ::
-        (.merlin, M₀ * qM) ::
-        repeatShapePoly (2 * K) (repeatShapePoly M₀ Gτ)) (enc a).length =
-        repeatShape (2 * 24) (evalShape Gσ (enc a).length) ++
-          (.arthur, 2 * K.eval (enc a).length * (2 * 24 * pA.eval (enc a).length)) ::
-          (.merlin, 2 * 24 * qM.eval (enc a).length) ::
-          repeatShape (2 * K.eval (enc a).length)
-            (repeatShape (2 * 24) (evalShape Gτ (enc a).length)) := by
-      simp only [evalShape_append, evalShape_cons, evalShape_repeatShapePoly, Polynomial.eval_mul,
-        Polynomial.eval_ofNat, hM]
-    have hV₃ (t : List Bool) : V₃ (a, t) =
-        swapVerifier (transcriptLength (repeatShape (2 * 24) (evalShape Gσ (enc a).length)))
-          (2 * K.eval (enc a).length * (2 * 24 * pA.eval (enc a).length))
-          (2 * 24 * qM.eval (enc a).length)
-          ((.arthur, 2 * 24 * pA.eval (enc a).length) ::
-            repeatShape (2 * 24) (evalShape Gτ (enc a).length)) (K.eval (enc a).length)
-          (majority (evalShape Gσ (enc a).length ++ (.merlin, qM.eval (enc a).length) ::
-            (.arthur, pA.eval (enc a).length) :: evalShape Gτ (enc a).length) 24
-            fun t => V (a, t)) t := by
-      simp only [hV₃def, hV₁def, amplifiedVerifier, ← transcriptLength_evalShape,
-        evalShape_repeatShapePoly,
-        evalShape_append, evalShape_cons, evalShape_repeatShapePoly, Polynomial.eval_mul,
-        Polynomial.eval_ofNat, hM]
     have hA' := hA a
     rw [evalShape_append, evalShape_cons, evalShape_cons] at hA'
-    rw [h3]
-    simp only [hV₃]
+    simp only [hV₃def, hV₁def, amplifiedVerifier, ← transcriptLength_evalShape,
+      evalShape_append, evalShape_cons, evalShape_repeatShapePoly, Polynomial.eval_mul,
+      Polynomial.eval_ofNat, hM]
     exact swap_game_bounds _ _ _ _ _ hK _ _ hA'.1 hA'.2
 
 private theorem AMGameClass_arthur_merlin_append_subset {enc : α ↪ List Bool} (τ : List AMMove) :

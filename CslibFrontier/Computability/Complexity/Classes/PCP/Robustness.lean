@@ -156,11 +156,7 @@ theorem one_le_acceptProb_iff (a : α) (π : List Bool) :
     1 ≤ V.acceptProb a π ↔
       ∀ ρ : List Bool, ρ.length = V.coins a → V.accepts a π ρ = true := by
   rw [← V.acceptCount_eq_two_pow_iff a π, acceptProb, le_div_iff₀ (by positivity), one_mul]
-  have hle := V.acceptCount_le_two_pow a π
-  have hcast : (2 : ℝ) ^ V.coins a ≤ V.acceptCount a π ↔
-      2 ^ V.coins a ≤ V.acceptCount a π := by norm_cast
-  rw [hcast]
-  omega
+  exact ⟨fun h => le_antisymm (V.acceptCount_le_two_pow a π) (mod_cast h), fun h => mod_cast h.ge⟩
 
 /-- Acceptance probability at most `1 / 2` is equivalent to `2 * V.acceptCount a π ≤ 2 ^ V.coins a`.
 -/
@@ -206,18 +202,13 @@ theorem mem_PCPWith {c s : ℝ} {r q : ℕ → ℕ} {A : Set α} :
 /-- At completeness `1` and soundness `1 / 2`, `IsPCPVerifierWith` is equivalent to
 `IsPCPVerifier`. -/
 theorem isPCPVerifierWith_one_half_iff {r q : ℕ → ℕ} {V : PCPVerifier α} {A : Set α} :
-    IsPCPVerifierWith enc 1 (1 / 2) r q V A ↔ IsPCPVerifier enc r q V A := by
-  constructor
-  · rintro ⟨hcoins, hq, hcomp, hsound⟩
-    refine ⟨hcoins, hq, fun a ha => ?_, fun a ha π => ?_⟩
-    · obtain ⟨π, hπ⟩ := hcomp a ha
-      exact ⟨π, (V.one_le_acceptProb_iff a π).mp hπ⟩
-    · exact (V.acceptProb_le_half_iff a π).mp (hsound a ha π)
-  · rintro ⟨hcoins, hq, hcomp, hsound⟩
-    refine ⟨hcoins, hq, fun a ha => ?_, fun a ha π => ?_⟩
-    · obtain ⟨π, hπ⟩ := hcomp a ha
-      exact ⟨π, (V.one_le_acceptProb_iff a π).mpr hπ⟩
-    · exact (V.acceptProb_le_half_iff a π).mpr (hsound a ha π)
+    IsPCPVerifierWith enc 1 (1 / 2) r q V A ↔ IsPCPVerifier enc r q V A :=
+  ⟨fun ⟨hcoins, hq, hcomp, hsound⟩ => ⟨hcoins, hq,
+      fun a ha => (hcomp a ha).imp fun π => (V.one_le_acceptProb_iff a π).mp,
+      fun a ha π => (V.acceptProb_le_half_iff a π).mp (hsound a ha π)⟩,
+    fun ⟨hcoins, hq, hcomp, hsound⟩ => ⟨hcoins, hq,
+      fun a ha => (hcomp a ha).imp fun π => (V.one_le_acceptProb_iff a π).mpr,
+      fun a ha π => (V.acceptProb_le_half_iff a π).mpr (hsound a ha π)⟩⟩
 
 /-- `PCPWith 1 (1 / 2) r q enc` coincides with `PCP r q enc`. -/
 theorem PCPWith_one_half (r q : ℕ → ℕ) : PCPWith 1 (1 / 2) r q enc = PCP r q enc := by
@@ -315,26 +306,17 @@ theorem length_queries_repeatAll_le (k : ℕ) {a : α} {ρ : List Bool} {B : ℕ
     (hq : ∀ word : List Bool, word.length = V.coins a → (V.queries (a, word)).length ≤ B) :
     ((V.repeatAll k).queries (a, ρ)).length ≤ k * B := by
   cases k with
-  | zero =>
-    clear hq
-    simp [repeatAll, repeatQueries]
+  | zero => simp [repeatAll, repeatQueries]
   | succ k =>
-    have hle : V.coins a ≤ ρ.length := by
-      rw [hρ, coins_repeatAll]
-      exact Nat.le_mul_of_pos_left _ (Nat.succ_pos k)
+    have hle : V.coins a ≤ ρ.length :=
+      hρ.symm ▸ Nat.le_mul_of_pos_left _ (Nat.succ_pos k)
     rw [queries_repeatAll, repeatQueries]
     dsimp only
     rw [V.repeatRowWidth_of_le hle, List.length_flatMap]
-    have hbound : ∀ i ∈ List.range (k + 1),
-        (V.queries (a, BitString.listRow (V.coins a) i ρ)).length ≤ B :=
-      fun i _ => hq _ (BitString.length_listRow (V.coins a) i ρ)
     simpa [List.length_range, smul_eq_mul] using
-      List.sum_le_length_nsmul ((List.range (k + 1)).map
-        fun i => (V.queries (a, BitString.listRow (V.coins a) i ρ)).length) B
-        (by
-          intro x hx
-          obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hx
-          exact hbound i hi)
+      List.sum_le_length_nsmul ((List.range (k + 1)).map _) B fun x hx => by
+        obtain ⟨i, -, rfl⟩ := List.mem_map.mp hx
+        exact hq _ (BitString.length_listRow (V.coins a) i ρ)
 
 /-- First-occurrence lookup in `V.repeatQueries k` recovers each trial's individual verdict. -/
 theorem accepts_repeatAll_eq (k : ℕ) (a : α) (π ρ : List Bool) :
@@ -343,12 +325,10 @@ theorem accepts_repeatAll_eq (k : ℕ) (a : α) (π ρ : List Bool) :
         V.accepts a π (BitString.listRow (V.repeatRowWidth a ρ) i ρ) := by
   apply Bool.eq_iff_iff.mpr
   simp only [PCPVerifier.accepts, repeatAll, List.all_eq_true]
-  refine forall_congr' fun i => forall_congr' fun hi => ?_
-  apply Iff.of_eq
+  refine forall_congr' fun i => forall_congr' fun hi => Iff.of_eq ?_
   congr 3
-  unfold answers
-  refine List.map_congr_left fun addr haddr => ?_
-  exact getD_answers_idxOf π (V.mem_repeatQueries hi haddr)
+  exact List.map_congr_left fun addr haddr =>
+    getD_answers_idxOf π (V.mem_repeatQueries hi haddr)
 
 /-- On any random string of length `k * V.coins a`, `V.repeatAll k` accepts iff every coin block
 of width `V.coins a` accepts. -/
@@ -360,10 +340,7 @@ theorem accepts_repeatAll (k : ℕ) (a : α) (π ρ : List Bool)
   cases k with
   | zero => rfl
   | succ k =>
-    have hle : V.coins a ≤ ρ.length := by
-      rw [hρ, coins_repeatAll]
-      exact Nat.le_mul_of_pos_left _ (Nat.succ_pos k)
-    rw [V.repeatRowWidth_of_le hle]
+    rw [V.repeatRowWidth_of_le (hρ.symm ▸ Nat.le_mul_of_pos_left _ (Nat.succ_pos k))]
 
 /-- Independent `k`-fold repetition raises the acceptance probability to the `k`-th power. -/
 theorem acceptProb_repeatAll (k : ℕ) (a : α) (π : List Bool) :
@@ -434,9 +411,7 @@ theorem IsPCPVerifierWith.repeatAll {c s : ℝ} {r q : ℕ → ℕ} {V : PCPVeri
   coins_le a := Nat.mul_le_mul_left k (h.coins_le a)
   length_queries_le a ρ hρ :=
     V.length_queries_repeatAll_le k hρ (h.length_queries_le a)
-  complete a ha := by
-    obtain ⟨π, hπ⟩ := h.complete a ha
-    refine ⟨π, ?_⟩
+  complete a ha := (h.complete a ha).imp fun π hπ => by
     rw [V.acceptProb_repeatAll]
     exact pow_le_pow_left₀ hc hπ k
   sound a ha π := by
@@ -514,10 +489,8 @@ accept its query table with arbitrary trailing padding. -/
 theorem majorityTableVerifier_complete (a : α) (proof padding : List Bool)
     (h : 1 / 2 < V.acceptProb a proof) :
     V.majorityTableVerifier (a, answers proof (V.queryTable a) ++ padding) = true := by
-  simp only [majorityTableVerifier, BitString.length_enumList, decide_eq_true_eq,
-    V.tableAcceptCount_answers_append]
-  have hnot : ¬ V.acceptProb a proof ≤ 1 / 2 := not_le.mpr h
-  rwa [V.acceptProb_le_half_iff, not_le] at hnot
+  simpa only [majorityTableVerifier, BitString.length_enumList, decide_eq_true_eq,
+    V.tableAcceptCount_answers_append, ← not_le, ← V.acceptProb_le_half_iff] using not_le.mpr h
 
 variable {V} {c : ℕ}
 
@@ -532,17 +505,11 @@ theorem isPolyTime_tableAcceptCount (hV : V.PolyTime enc)
 /-- Majority table verification is polynomial-time under a logarithmic coin bound. -/
 theorem isPolyTime_majorityTableVerifier (hV : V.PolyTime enc)
     (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1)) :
-    ComputableInPolyTime V.majorityTableVerifier (encPair enc encBits) encBool := by
-  have he := V.isPolyTime_enumCoins hV hcoins
-  have htotal : ComputableInPolyTime
-      (fun input : α × List Bool => (BitString.enumList (V.coins input.1)).length)
-      (encPair enc encBits) encUnary :=
-    (ComputableInPolyTime.length_list encBits).comp
-      (he.comp (ComputableInPolyTime.fst enc encBits))
-  have hcount := V.isPolyTime_tableAcceptCount hV hcoins
-  have htwo : ComputableInPolyTime (fun _ : α × List Bool => 2) (encPair enc encBits) encUnary :=
-    .const 2
-  exact (htotal.unary_lt' (htwo.unary_mul' hcount))
+    ComputableInPolyTime V.majorityTableVerifier (encPair enc encBits) encBool :=
+  (((ComputableInPolyTime.length_list encBits).comp
+    ((V.isPolyTime_enumCoins hV hcoins).comp
+      (ComputableInPolyTime.fst enc encBits))).unary_lt'
+    ((ComputableInPolyTime.const 2).unary_mul' (V.isPolyTime_tableAcceptCount hV hcoins)))
 
 end PCPVerifier
 
@@ -555,12 +522,10 @@ theorem IsPCPVerifierWith.mem_iff_exists_majorityTableVerifier {c : ℝ} {r q : 
   refine ⟨fun ha => ?_, fun ⟨table, htable⟩ => ?_⟩
   · obtain ⟨proof, hproof⟩ := h.complete a ha
     exact ⟨_, by simpa using V.majorityTableVerifier_complete a proof [] (hc.trans_le hproof)⟩
-  · by_contra ha
-    simp only [PCPVerifier.majorityTableVerifier, BitString.length_enumList,
-      decide_eq_true_eq, V.tableAcceptCount_eq_acceptCount_proofOfTable] at htable
-    have hsound := (V.acceptProb_le_half_iff a (V.proofOfTable a table)).mp
-      (h.sound a ha (V.proofOfTable a table))
-    omega
+  · rw [PCPVerifier.majorityTableVerifier, BitString.length_enumList, decide_eq_true_eq,
+      V.tableAcceptCount_eq_acceptCount_proofOfTable, ← not_le,
+      ← V.acceptProb_le_half_iff] at htable
+    exact Classical.byContradiction fun ha => htable (h.sound a ha _)
 
 /-- Logarithmically many random bits with completeness `c > 1 / 2` and soundness `1 / 2` can be
 checked exhaustively in `NP`, regardless of the query bound `q`. -/
@@ -587,11 +552,8 @@ completeness threshold `1 / 2 < c ≤ 1`,
   PCP (fun n => Nat.log 2 n + 1) (fun _ => q) enc`. -/
 theorem PCPWith_log_const {c : ℝ} {q : ℕ} (hc : 1 / 2 < c) (hc1 : c ≤ 1) (hq : 1 ≤ q) :
     PCPWith c (1 / 2) (fun n => Nat.log 2 n + 1) (fun _ => q) enc =
-      PCP (fun n => Nat.log 2 n + 1) (fun _ => q) enc := by
-  refine Set.Subset.antisymm ?_ ?_
-  · rw [PCP_log_const hq]
-    exact PCPWith_log_subset_NP hc _
-  · rw [← PCPWith_one_half]
-    exact PCPWith_mono_thresholds hc1 le_rfl
+      PCP (fun n => Nat.log 2 n + 1) (fun _ => q) enc :=
+  Set.Subset.antisymm (PCP_log_const hq ▸ PCPWith_log_subset_NP hc _)
+    (PCPWith_one_half _ _ ▸ PCPWith_mono_thresholds hc1 le_rfl)
 
 end Cslib.Complexity

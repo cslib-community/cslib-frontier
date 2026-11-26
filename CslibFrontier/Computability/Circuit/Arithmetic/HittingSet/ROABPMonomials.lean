@@ -59,16 +59,15 @@ noncomputable def monomialsLE (L : List (Fin n)) (δ : ℕ) : Finset (Fin n →�
 theorem mem_monomialsLE {L : List (Fin n)} {δ : ℕ} {m : Fin n →₀ ℕ} :
     m ∈ monomialsLE L δ ↔ (∀ i, m i ≤ δ) ∧ ∀ i ∉ L, m i = 0 := by
   classical
-  rw [monomialsLE, mem_map_equiv, Fintype.mem_piFinset]
-  refine ⟨fun h => ⟨fun i => ?_, fun i hi => ?_⟩, fun h i => ?_⟩
+  simp only [monomialsLE, mem_map_equiv, Fintype.mem_piFinset, Equiv.symm_symm,
+    Finsupp.equivFunOnFinite_apply]
+  refine ⟨fun h => ⟨fun i => ?_,
+    fun i hi => by simpa only [hi, ↓reduceIte, mem_singleton] using h i⟩, fun h i => ?_⟩
   · have hi := h i
-    split_ifs at hi with hL
+    split_ifs at hi
     · exact Nat.lt_succ_iff.1 (mem_range.1 hi)
-    · rw [show m i = 0 from mem_singleton.1 hi]
+    · rw [mem_singleton.1 hi]
       exact Nat.zero_le δ
-  · have h' := h i
-    simp only [hi, ↓reduceIte] at h'
-    exact mem_singleton.1 h'
   · split_ifs with hL
     · exact mem_range.2 (Nat.lt_succ_of_le (h.1 i))
     · exact mem_singleton.2 (h.2 i hL)
@@ -85,11 +84,9 @@ theorem monomialsLE_append {L₁ L₂ : List (Fin n)} (hd : L₁.Disjoint L₂) 
     refine ⟨m.filter (· ∈ L₁), mem_monomialsLE.2 ⟨fun i => ?_, fun i hi => ?_⟩,
       m.filter (· ∉ L₁), mem_monomialsLE.2 ⟨fun i => ?_, fun i hi => ?_⟩,
       Finsupp.filter_add_filter_not m _⟩
-    · rw [Finsupp.filter_apply]
-      split_ifs <;> first | exact h1 i | exact Nat.zero_le _
+    · by_cases hL : i ∈ L₁ <;> simp [hL, h1 i]
     · exact Finsupp.filter_apply_neg _ m hi
-    · rw [Finsupp.filter_apply]
-      split_ifs <;> first | exact h1 i | exact Nat.zero_le _
+    · by_cases hL : i ∈ L₁ <;> simp [hL, h1 i]
     · by_cases hi1 : i ∈ L₁
       · exact Finsupp.filter_apply_neg _ m (not_not.2 hi1)
       · rw [Finsupp.filter_apply_pos _ m hi1]
@@ -100,10 +97,8 @@ theorem monomialsLE_append {L₁ L₂ : List (Fin n)} (hd : L₁.Disjoint L₂) 
     refine mem_monomialsLE.2 ⟨fun i => ?_, fun i hi => ?_⟩
     · rw [Finsupp.add_apply]
       by_cases hi : i ∈ L₁
-      · rw [h2' i fun h => hd hi h, add_zero]
-        exact h1 i
-      · rw [h1' i hi, zero_add]
-        exact h2 i
+      · simpa only [h2' i (hd hi), add_zero] using h1 i
+      · simpa only [h1' i hi, zero_add] using h2 i
     · rw [Finsupp.add_apply, h1' i fun h => hi (List.mem_append_left _ h),
         h2' i fun h => hi (List.mem_append_right _ h)]
 
@@ -139,10 +134,7 @@ theorem weight_le_of_mem_monomialsLE {L : List (Fin n)} {δ N : ℕ} {c : Fin n 
 theorem weight_mul_add (B : ℕ) (c c' : Fin n → ℕ) (m : Fin n →₀ ℕ) :
     Finsupp.weight (fun i => B * c i + c' i) m =
       B * Finsupp.weight c m + Finsupp.weight c' m := by
-  rw [Finsupp.weight_apply, Finsupp.weight_apply, Finsupp.weight_apply, Finsupp.sum,
-    Finsupp.sum, Finsupp.sum, mul_sum, ← sum_add_distrib]
-  exact sum_congr rfl fun i _ => by
-    simp only [smul_eq_mul]
-    ring
+  simp only [Finsupp.weight_apply, Finsupp.sum, mul_sum, ← sum_add_distrib, smul_eq_mul]
+  exact sum_congr rfl fun _ _ => by ring
 
 end Cslib.Circuits.Arithmetic

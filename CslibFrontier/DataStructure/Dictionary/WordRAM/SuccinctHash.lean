@@ -113,9 +113,8 @@ theorem two_pow_quotientBits_le_two_pow_qBits (U n_max : ℕ) :
   Nat.pow_le_pow_right two_pos (quotientBits_le_qBits U n_max)
 
 theorem qBits_le_of_le_pow {U w n_max : ℕ} (hw : 0 < w) (hU : U ≤ 2 ^ w) :
-    qBits U n_max ≤ w := by
-  unfold qBits
-  exact max_le (quotientBits_le_of_le_pow hU) hw
+    qBits U n_max ≤ w :=
+  max_le (quotientBits_le_of_le_pow hU) hw
 
 theorem totalMicroBits_le_three_mul_hashB (n_max : ℕ) :
     totalMicroBits n_max ≤ 3 * hashB n_max := by wram_omega
@@ -147,13 +146,8 @@ theorem reducedTableBits_hash_le (U n_max : ℕ) :
 theorem two_pow_two_mul_reducedChunkBits_hash_le (U n_max : ℕ) :
     2 ^ (2 * reducedChunkBits
       (reducedTrinomialStep (qBits U n_max) (hashB n_max) (totalMicroBits n_max))) ≤ 8 + n_max := by
-  set t := reducedTrinomialStep (qBits U n_max) (hashB n_max) (totalMicroBits n_max)
-  have hc_pos : 0 < 2 * reducedChunkBits t := by
-    have := reducedChunkBits_pos t; omega
-  have hle : 2 ^ (2 * reducedChunkBits t) ≤ reducedTableBits t := by
-    dsimp only [reducedTableBits]
-    exact Nat.le_mul_of_pos_left _ hc_pos
-  exact hle.trans (reducedTableBits_hash_le U n_max)
+  refine (Nat.le_mul_of_pos_left _ ?_).trans (reducedTableBits_hash_le U n_max)
+  exact Nat.mul_pos two_pos (reducedChunkBits_pos _)
 
 /-- Explicit linear bound on `initSteps U n_max`: `initSteps U n_max ≤ 31 * n_max + 1091`. -/
 theorem initSteps_le (U n_max : ℕ) :
@@ -184,14 +178,9 @@ theorem eight_le_hashSpace (U w n_max : ℕ) : 8 ≤ hashSpace U w n_max := by
 
 theorem two_le_w_of_fits_space {U V w n_max base : ℕ}
     (hfit : Fits w (base + space U V w n_max)) : 2 ≤ w := by
-  have h8 : 8 ≤ space U V w n_max := by
-    unfold space totalSpace offGM offLM offVal offQuot
-    have := eight_le_hashSpace U w n_max
-    omega
-  have hlt : 8 < 2 ^ w := lt_of_le_of_lt (by omega) hfit
-  by_contra h
-  have hw1 : w ≤ 1 := by omega
-  have hpow : 2 ^ w ≤ 2 ^ 1 := Nat.pow_le_pow_right two_pos hw1
+  refine (Nat.pow_lt_pow_iff_right (n := 1) one_lt_two).mp (lt_of_le_of_lt ?_ hfit)
+  unfold space totalSpace offGM offLM offVal offQuot
+  have := eight_le_hashSpace U w n_max
   omega
 
 theorem two_mul_reducedChunkBits_hash_le {U w n_max : ℕ}
@@ -208,12 +197,9 @@ theorem two_mul_reducedChunkBits_hash_lt {U V w n_max base : ℕ}
     (hfit : Fits w (base + space U V w n_max)) :
     2 * reducedChunkBits
       (reducedTrinomialStep (qBits U n_max) (hashB n_max) (totalMicroBits n_max)) < w := by
-  have hw2 := two_le_w_of_fits_space hfit
-  have hfit_hash : Fits w (base + hashSpace U w n_max) := by
-    refine hfit.of_le ?_
-    wram_omega
   exact ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space
-    (two_mul_reducedChunkBits_hash_le hw2 hnU hU) hfit_hash
+    (two_mul_reducedChunkBits_hash_le (two_le_w_of_fits_space hfit) hnU hU)
+    (show Fits w (base + hashSpace U w n_max) from hfit.of_le (by wram_omega))
 
 theorem tableWords_hash_le {U w n_max : ℕ} (hw : 0 < w) (hnU : n_max ≤ U) (hU : U ≤ 2 ^ w) :
     ReducedKWise.tableWords w (qBits U n_max) (hashB n_max) (totalMicroBits n_max) ≤
@@ -237,38 +223,26 @@ theorem tableWords_hash_le {U w n_max : ℕ} (hw : 0 < w) (hnU : n_max ≤ U) (h
       omega
     simp only [packedWords, Nat.mul_one]
     omega
-  · have hw1 : w = 1 := by omega
-    subst hw1
-    have hU2 : U ≤ 2 := hU
-    have hn2 : n_max ≤ 2 := hnU.trans hU2
+  · obtain rfl : w = 1 := by omega
     have hq1 : qBits U n_max = 1 := by
       unfold qBits quotientBits keyBits
       have : Nat.clog 2 U ≤ 1 := by
-        calc Nat.clog 2 U ≤ Nat.clog 2 2 := Nat.clog_mono_right 2 hU2
+        calc Nat.clog 2 U ≤ Nat.clog 2 2 := Nat.clog_mono_right 2 hU
           _ = 1 := by decide
       omega
     have htm1 : totalMicroBits n_max ≤ 1 := by
       rw [totalMicroBits_eq_log]
-      calc Nat.log 2 n_max ≤ Nat.log 2 2 := Nat.log_mono_right hn2
+      calc Nat.log 2 n_max ≤ Nat.log 2 2 := Nat.log_mono_right (hnU.trans hU)
         _ = 1 := by decide
-    have hB : reducedTargetBits (qBits U n_max) (hashB n_max) (totalMicroBits n_max) ≤ 1 := by
-      unfold reducedTargetBits
-      rw [hq1]
-      omega
     have ht0 :
         reducedTrinomialStep (qBits U n_max) (hashB n_max) (totalMicroBits n_max) = 0 := by
-      unfold reducedTrinomialStep trinomialStepAux
-      rw [ite_eq_left (by omega)]
-    have hc1 :
-        reducedChunkBits
-          (reducedTrinomialStep (qBits U n_max) (hashB n_max) (totalMicroBits n_max)) = 1 := by
-      rw [ht0]
-      decide
+      unfold reducedTrinomialStep trinomialStepAux reducedTargetBits
+      rw [hq1, ite_eq_left (by omega)]
     have htw4 :
         ReducedKWise.tableWords 1 (qBits U n_max) (hashB n_max) (totalMicroBits n_max) ≤ 4 := by
       unfold ReducedKWise.tableWords reducedTableWords
-      rw [hc1]
-      exact Nat.pow_le_pow_right two_pos (Nat.sub_le 2 _)
+      rw [ht0]
+      decide
     omega
 
 theorem hashSpace_le {U w n_max : ℕ} (hw : 0 < w) (hnU : n_max ≤ U) (hU : U ≤ 2 ^ w) :
@@ -291,20 +265,15 @@ theorem space_le_succinctWords {U V w n_max : ℕ}
     (Dynamic.optBits U V n_max + 79 * n_max * Dynamic.logLogFactor n_max) 35
     (2 * n_max) 1 w
   have hll := Dynamic.one_le_logLogFactor n_max
-  have h2n : (2 * n_max) * 1 ≤ 2 * n_max * Dynamic.logLogFactor n_max := by
-    calc (2 * n_max) * 1 = 2 * n_max * 1 := by ring
-      _ ≤ 2 * n_max * Dynamic.logLogFactor n_max := by gcongr
-  have hnum :
-      Dynamic.optBits U V n_max + 79 * n_max * Dynamic.logLogFactor n_max +
-        (2 * n_max) * 1 + w - 1 ≤
-      Dynamic.optBits U V n_max + 81 * n_max * Dynamic.logLogFactor n_max + w - 1 := by
-    have : 81 * n_max * Dynamic.logLogFactor n_max =
-        79 * n_max * Dynamic.logLogFactor n_max + 2 * n_max * Dynamic.logLogFactor n_max := by ring
-    omega
+  have h2n : 2 * n_max * 1 ≤ 2 * n_max * Dynamic.logLogFactor n_max := by gcongr
   have hdiv :
       (Dynamic.optBits U V n_max + 79 * n_max * Dynamic.logLogFactor n_max +
         (2 * n_max) * 1 + w - 1) / w ≤
-      (Dynamic.optBits U V n_max + 81 * n_max * Dynamic.logLogFactor n_max + w - 1) / w := by gcongr
+      (Dynamic.optBits U V n_max + 81 * n_max * Dynamic.logLogFactor n_max + w - 1) / w := by
+    refine Nat.div_le_div_right ?_
+    have : 81 * n_max * Dynamic.logLogFactor n_max =
+        79 * n_max * Dynamic.logLogFactor n_max + 2 * n_max * Dynamic.logLogFactor n_max := by ring
+    omega
   wram_omega [htab]
 
 /-! ## Section 2: Expected `probeExcess` bound (`≤ 5`) under `ReducedPolySeed` -/
@@ -365,50 +334,37 @@ theorem tsum_uniform_probeExcess_reducedPolyHash_le_five {U n_max : ℕ} (hnU : 
     exact keyQuotient_eq_of_quotientFin_eq hnU u₁ u₂ (hinj hq₁ hq₂ hcoll)
   have hbad : #(univ \ G) * (2 * #(S.erase u)) ≤
       2 * Fintype.card (ReducedTopSeed (qBits U n_max)) := by
-    have hcard_SQ : #S_Q ≤ #(S.erase u) + 1 :=
-      card_image_le.trans (card_insert_le u (S.erase u))
-    have h1 : #S_Q ≤ n_max + 1 := hcard_SQ.trans (by omega)
-    have h2 : #S_Q - 1 ≤ n_max := by omega
-    have h3 : 2 * #(S.erase u) ≤ 2 * (n_max + 1) := by omega
+    have h1 : #S_Q ≤ n_max + 1 :=
+      (card_image_le.trans (card_insert_le u (S.erase u))).trans (by omega)
     have hpow_B : n_max + 1 ≤ 2 ^ hashB n_max := by
       unfold hashB
       rw [totalMicroBits_eq_log]
       rcases Nat.eq_zero_or_pos n_max with rfl | hn
       · decide
       · exact Nat.lt_pow_succ_log_self one_lt_two n_max
-    have hcube : (n_max + 1) ^ 3 ≤ 2 ^ (3 * hashB n_max) := by
-      calc (n_max + 1) ^ 3
-          ≤ (2 ^ hashB n_max) ^ 3 := Nat.pow_le_pow_left hpow_B 3
-        _ = 2 ^ (3 * hashB n_max) := by rw [← Nat.pow_mul, Nat.mul_comm]
-    have hprod_le : (#S_Q * (#S_Q - 1)) * (2 * #(S.erase u)) ≤ 2 * 2 ^ (3 * hashB n_max) := by
-      have hm1 : #S_Q * (#S_Q - 1) ≤ (n_max + 1) * (n_max + 1) :=
-        Nat.mul_le_mul h1 (by omega)
-      have hm2 : (#S_Q * (#S_Q - 1)) * (2 * #(S.erase u)) ≤
-          ((n_max + 1) * (n_max + 1)) * (2 * (n_max + 1)) :=
-        Nat.mul_le_mul hm1 h3
-      have hring : ((n_max + 1) * (n_max + 1)) * (2 * (n_max + 1)) = 2 * (n_max + 1) ^ 3 := by
-        ring
-      rw [hring] at hm2
-      exact hm2.trans (Nat.mul_le_mul_left 2 hcube)
+    have hprod_le : (#S_Q * (#S_Q - 1)) * (2 * #(S.erase u)) ≤ 2 * 2 ^ (3 * hashB n_max) :=
+      calc (#S_Q * (#S_Q - 1)) * (2 * #(S.erase u))
+          ≤ ((n_max + 1) * (n_max + 1)) * (2 * (n_max + 1)) := by gcongr <;> omega
+        _ = 2 * (n_max + 1) ^ 3 := by ring
+        _ ≤ 2 * (2 ^ hashB n_max) ^ 3 := by gcongr
+        _ = 2 * 2 ^ (3 * hashB n_max) := by rw [← Nat.pow_mul, Nat.mul_comm (hashB n_max) 3]
     have hunion := card_not_injOn_multiplyShiftReduced_le
       (U := 2 ^ quotientBits U n_max) (w₀ := qBits U n_max) (R := 3 * hashB n_max)
       (qBits_pos U n_max) (two_pow_quotientBits_le_two_pow_qBits U n_max) S_Q
     have hmul :
         (#(univ \ G) * (2 * #(S.erase u))) * 2 ^ (3 * hashB n_max) ≤
-          (2 * 2 ^ (qBits U n_max - 1)) * 2 ^ (3 * hashB n_max) := by
+          (2 * 2 ^ (qBits U n_max - 1)) * 2 ^ (3 * hashB n_max) :=
       calc (#(univ \ G) * (2 * #(S.erase u))) * 2 ^ (3 * hashB n_max)
           = (#(univ \ G) * 2 ^ (3 * hashB n_max)) * (2 * #(S.erase u)) := by ring
         _ ≤ ((#S_Q * (#S_Q - 1)) * 2 ^ (qBits U n_max - 1)) * (2 * #(S.erase u)) := by gcongr
         _ = ((#S_Q * (#S_Q - 1)) * (2 * #(S.erase u))) * 2 ^ (qBits U n_max - 1) := by ring
-        _ ≤ (2 * 2 ^ (3 * hashB n_max)) * 2 ^ (qBits U n_max - 1) :=
-            Nat.mul_le_mul_right _ hprod_le
+        _ ≤ (2 * 2 ^ (3 * hashB n_max)) * 2 ^ (qBits U n_max - 1) := by gcongr
         _ = (2 * 2 ^ (qBits U n_max - 1)) * 2 ^ (3 * hashB n_max) := by ring
-    have hcancel := Nat.le_of_mul_le_mul_right hmul (Nat.two_pow_pos (3 * hashB n_max))
-    simpa [ReducedTopSeed] using hcancel
-  have hmain := tsum_uniform_probeExcess_twoStage_le
+    simpa [ReducedTopSeed] using
+      Nat.le_of_mul_le_mul_right hmul (Nat.two_pow_pos (3 * hashB n_max))
+  simpa using tsum_uniform_probeExcess_twoStage_le
     (qOf := qStage1 U n_max) (H := polyStage2 U n_max) (C_bad := 2)
     (isKWiseIndependentHash_polyStage2 U n_max) S u hS G hG hbad
-  simpa using hmain
 
 /-! ## Section 3: `bucketMapOfState`, `DictStateInv`, and probe-excess cardinality bounds -/
 
@@ -436,11 +392,8 @@ theorem hValOfSeed_lt (U n_max : ℕ) (θ : QuotHashSeed U n_max) (q : ℕ) :
 
 theorem mOfSeed_lt (U n_max : ℕ) (θ : QuotHashSeed U n_max) (q : ℕ) :
     mOfSeed U n_max θ q < numMicroPerBucket n_max := by
-  unfold mOfSeed numMicroPerBucket
-  rw [Nat.shiftRight_eq_div_pow]
-  apply Nat.div_lt_of_lt_mul
-  rw [← Nat.pow_add]
-  exact hValOfSeed_lt U n_max θ q
+  rw [mOfSeed, numMicroPerBucket, Nat.shiftRight_eq_div_pow]
+  exact Nat.div_lt_of_lt_mul (Nat.pow_add 2 _ _ ▸ hValOfSeed_lt U n_max θ q)
 
 theorem evalQuotHash_keyQuotient_eq (U n_max : ℕ) (θ : QuotHashSeed U n_max) (u : Fin U) :
     evalQuotHash U n_max θ (keyQuotient (bucketBits n_max) u.val) =
@@ -484,20 +437,9 @@ theorem bucketMapOfState_feistelBucket {U n_max : ℕ} (hnU : n_max ≤ U) (h1 :
       (keyQuotient (bucketBits n_max) u.val) = s_abs u := by
   unfold bucketMapOfState
   have hrec := feistelReconstruct_feistelBucket (bucketBits n_max) h1 u.val
-  have hb : feistelBucket (bucketBits n_max) h1 u.val < numBuckets n_max :=
-    feistelBucket_lt (bucketBits n_max) h1 u.val
-  have hq : keyQuotient (bucketBits n_max) u.val < 2 ^ quotientBits U n_max :=
-    keyQuotient_lt_two_pow_quotientBits hnU u.isLt
-  have hcond : feistelReconstruct (bucketBits n_max) h1
-      (feistelBucket (bucketBits n_max) h1 u.val)
-      (keyQuotient (bucketBits n_max) u.val) < U ∧
-      feistelBucket (bucketBits n_max) h1 u.val < numBuckets n_max ∧
-      keyQuotient (bucketBits n_max) u.val < 2 ^ quotientBits U n_max := by
-    rw [hrec]
-    exact ⟨u.isLt, hb, hq⟩
-  rw [dite_eq_left hcond]
-  congr 1
-  exact Fin.ext hrec
+  rw [dite_eq_left ⟨hrec.symm ▸ u.isLt, feistelBucket_lt (bucketBits n_max) h1 u.val,
+    keyQuotient_lt_two_pow_quotientBits hnU u.isLt⟩]
+  exact congrArg s_abs (Fin.ext hrec)
 
 theorem bucketMapOfState_update {U n_max : ℕ} (hnU : n_max ≤ U) (h1 : ℕ → ℕ)
     (s_abs : Dictionary.State U) (u : Fin U) (v_opt : Option ℕ) :
@@ -507,37 +449,29 @@ theorem bucketMapOfState_update {U n_max : ℕ} (hnU : n_max ≤ U) (h1 : ℕ �
       (Function.update (bucketMapOfState U n_max h1 s_abs b) q v_opt) =
     bucketMapOfState U n_max h1 (Function.update s_abs u v_opt) := by
   intro b q
-  funext b' q'
-  by_cases hbeq : b' = b
-  · subst hbeq
-    rw [Function.update_self]
-    by_cases hqeq : q' = q
-    · subst hqeq
-      rw [Function.update_self, bucketMapOfState_feistelBucket hnU h1 _ u, Function.update_self]
-    · rw [Function.update_of_ne hqeq]
-      unfold bucketMapOfState
-      split_ifs with h
-      · have hne : (⟨feistelReconstruct (bucketBits n_max) h1 b q', h.1⟩ : Fin U) ≠ u := by
-          intro heq
-          have hval : feistelReconstruct (bucketBits n_max) h1 b q' = u.val :=
-            congrArg Fin.val heq
-          have hqr := (feistelBucket_feistelReconstruct h1 h.2.1 q').2
-          rw [hval] at hqr
-          exact hqeq hqr.symm
-        rw [Function.update_of_ne hne]
-      · rfl
-  · rw [Function.update_of_ne hbeq]
+  have hne_pair : ∀ b' q', (b' ≠ b ∨ q' ≠ q) →
+      bucketMapOfState U n_max h1 s_abs b' q' =
+        bucketMapOfState U n_max h1 (Function.update s_abs u v_opt) b' q' := by
+    intro b' q' hne
     unfold bucketMapOfState
     split_ifs with h
-    · have hne : (⟨feistelReconstruct (bucketBits n_max) h1 b' q', h.1⟩ : Fin U) ≠ u := by
+    · have hne_u : (⟨feistelReconstruct (bucketBits n_max) h1 b' q', h.1⟩ : Fin U) ≠ u := by
         intro heq
-        have hval : feistelReconstruct (bucketBits n_max) h1 b' q' = u.val :=
-          congrArg Fin.val heq
-        have hbr := (feistelBucket_feistelReconstruct h1 h.2.1 q').1
-        rw [hval] at hbr
-        exact hbeq hbr.symm
-      rw [Function.update_of_ne hne]
+        have hval : feistelReconstruct (bucketBits n_max) h1 b' q' = u.val := congrArg Fin.val heq
+        have hrec := feistelBucket_feistelReconstruct h1 h.2.1 q'
+        rw [hval] at hrec
+        exact hne.elim (· hrec.1.symm) (· hrec.2.symm)
+      rw [Function.update_of_ne hne_u]
     · rfl
+  funext b' q'
+  rcases eq_or_ne b' b with rfl | hbeq
+  · rw [Function.update_self]
+    rcases eq_or_ne q' q with rfl | hqeq
+    · rw [Function.update_self, bucketMapOfState_feistelBucket hnU h1 _ u, Function.update_self]
+    · rw [Function.update_of_ne hqeq]
+      exact hne_pair b q' (Or.inr hqeq)
+  · rw [Function.update_of_ne hbeq]
+    exact hne_pair b' q' (Or.inl hbeq)
 
 /-- Full dictionary state invariant coupling `s_abs : Dictionary.State U` with `BucketStateInv` at
 `base` under quotient hash seed `θ`. -/
@@ -559,10 +493,8 @@ theorem dictStateInv_of_zero {U V w₀ n_max base : ℕ} (θ : QuotHashSeed U n_
   obtain ⟨hinv, htot0, hpot0⟩ :=
     bucketStateInv_of_zero (U := U) (V := V) (w₀ := w₀) (n_max := n_max)
       (h_space := hashSpace U w₀ n_max) (base := base) (mOfSeed U n_max θ) hgm0 hlm0
-  refine ⟨⟨⟨fun _ _ => [], ?_⟩, ?_⟩, hpot0⟩
-  · rwa [bucketMapOfState_empty]
-  · rw [htot0]
-    simp [Dictionary.dom_empty]
+  exact ⟨⟨⟨fun _ _ => [], by rwa [bucketMapOfState_empty]⟩,
+    by simp [htot0, Dictionary.dom_empty]⟩, hpot0⟩
 
 /-- Under `BucketStateInv ... (bucketMapOfState U n_max (hValOfSeed U n_max θ) s_abs)`, the length
 of the micro-chain `L b m` for key `u` is at most `1 + microCollCount` and the bucket overflow
@@ -608,27 +540,18 @@ theorem chain_and_overflow_le_probeExcess {U V w₀ n_max base : ℕ}
     refine ⟨hcond.1, Dictionary.mem_dom_iff_isSome.mpr (by rw [hsome]; rfl), ?_⟩
     exact feistelBucket_feistelReconstruct h1 hb (qSlot j)
   let keyAt (j : ℕ) : Fin U :=
-    if hj : j < bCount n_max gm b then
-      ⟨uVal j, (hslot_key j hj).1⟩
-    else
-      u
+    if hj : j < bCount n_max gm b then ⟨uVal j, (hslot_key j hj).1⟩ else u
   have hkeyAt_props : ∀ j (hj : j < bCount n_max gm b),
       keyAt j ∈ Dictionary.dom s_abs ∧
       feistelBucketHash n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2 (keyAt j) =
         feistelBucketHash n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2 u ∧
       keyQuotient (bucketBits n_max) (keyAt j).val = qSlot j := by
     intro j hj
-    have hval : (keyAt j).val = uVal j := by
-      dsimp only [keyAt]
-      rw [dite_eq_left hj]
     obtain ⟨hu_j, hdom, hb_j, hq_j⟩ := hslot_key j hj
-    refine ⟨?_, ?_, ?_⟩
-    · dsimp only [keyAt]
-      rw [dite_eq_left hj]
-      exact hdom
-    · apply Fin.ext
-      rw [feistelBucketHash_val_eq_hValOfSeed, feistelBucketHash_val_eq_hValOfSeed, hval, hb_j]
-    · rw [hval, hq_j]
+    have hk_eq : keyAt j = ⟨uVal j, hu_j⟩ := dite_eq_left hj
+    refine ⟨hk_eq ▸ hdom, Fin.ext ?_, by rw [hk_eq]; exact hq_j⟩
+    rw [feistelBucketHash_val_eq_hValOfSeed, feistelBucketHash_val_eq_hValOfSeed, hk_eq]
+    exact hb_j
   have hkeyAt_inj : ∀ j₁ < bCount n_max gm b, ∀ j₂ < bCount n_max gm b,
       keyAt j₁ = keyAt j₂ → j₁ = j₂ := by
     intro j₁ hj₁ j₂ hj₂ heq
@@ -640,10 +563,7 @@ theorem chain_and_overflow_le_probeExcess {U V w₀ n_max base : ℕ}
   have hlen : (L b m).length ≤
       1 + microCollCount n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
         (Dictionary.dom s_abs) u := by
-    have hnodup : (L b m).Nodup := (hinv.hchains.1 b hb m hm).nodup
-    have hcard_eq : (L b m).length = #(L b m).toFinset :=
-      (List.toFinset_card_of_nodup hnodup).symm
-    rw [hcard_eq]
+    rw [← List.toFinset_card_of_nodup (hinv.hchains.1 b hb m hm).nodup]
     refine card_microSlots_le (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
       (Dictionary.dom s_abs) u (L b m).toFinset keyAt ?_ ?_
     · intro j₁ hj₁ j₂ hj₂ heq
@@ -653,10 +573,8 @@ theorem chain_and_overflow_le_probeExcess {U V w₀ n_max base : ℕ}
     · intro j hj
       obtain ⟨hj_lt, _, hm_j⟩ := (hinv.hchain_mem b hb m hm j).mp (List.mem_toFinset.mp hj)
       obtain ⟨hdom, hb_eq, hq_eq⟩ := hkeyAt_props j hj_lt
-      refine ⟨hdom, (feistelMicroHash_eq_iff n_max _ _ θ.2 (keyAt j) u).mpr ⟨hb_eq, ?_⟩⟩
-      apply Fin.ext
-      rw [feistelLocalMicro_val_eq_mOfSeed, feistelLocalMicro_val_eq_mOfSeed, hq_eq]
-      exact hm_j
+      refine ⟨hdom, (feistelMicroHash_eq_iff n_max _ _ θ.2 (keyAt j) u).mpr ⟨hb_eq, Fin.ext ?_⟩⟩
+      simpa only [feistelLocalMicro_val_eq_mOfSeed, hq_eq] using hm_j
   -- Bound 2: bucket overflow
   have hovf : bCount n_max gm b - effBucketCap n_max ≤
       1 + bucketOvfCount n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
@@ -737,6 +655,14 @@ theorem fits_bucketBits_and_mask {U V w₀ n_max h_space w base : ℕ}
     fits_of_le_max_n_one henv hw hnU hU h2b_le
   exact ⟨hfit_2b.of_le (le_of_lt Nat.lt_two_pow_self), hfit_2b.of_le (Nat.sub_le _ _)⟩
 
+private theorem fits_and_mask_xor {U V w₀ n_max h_space w base : ℕ}
+    (henv : DictEnvGen w (mkDictParams U V w₀ n_max h_space) base) (hw : 0 < w₀) (hnU : n_max ≤ U)
+    (hU : U < 2 ^ w₀) (h_q u : ℕ) :
+    Fits w ((h_q &&& (2 ^ bucketBits n_max - 1)) ^^^ (u &&& (2 ^ bucketBits n_max - 1))) := by
+  rw [and_mask_xor_eq_feistelBucket]
+  exact (fits_bucketBits_and_mask henv hw hnU hU).2.of_le
+    (Nat.le_sub_one_of_lt (feistelBucket_lt (bucketBits n_max) (fun _ => h_q) u))
+
 /-- Parameter-free Feistel-dispatched `query` in `Memory.Prog` (`d = (dp, ((base, u), h_q))`). -/
 @[expose]
 def queryWithHashGenProg (d : DictParams × ((ℕ × ℕ) × ℕ)) : Memory.Prog (Option ℕ) := do
@@ -803,9 +729,7 @@ theorem realizes_queryWithHashGen :
     simpDictParamsWith [queryWithHashGenPre_mk, QueryWithHashPre,
       searchMicroChainGenPre_mk, SearchMicroChainPre, queryBodyGenProg_mk]
   )
-  · rw [and_mask_xor_eq_feistelBucket]
-    exact (fits_bucketBits_and_mask h.2.2.2.1 hw hnU hU).2.of_le
-      (Nat.le_sub_one_of_lt (feistelBucket_lt (bucketBits n_max) (fun _ => d.2) d.1.2))
+  · exact fits_and_mask_xor h.2.2.2.1 hw hnU hU d.2 d.1.2
   · exact h.2.2.2
 
 section
@@ -888,9 +812,7 @@ theorem realizes_insertWithHashGen :
     simpDictParamsWith [insertWithHashGenPre_mk, InsertWithHashPre,
       insertBodyGenPre_mk, InsertBodyPre, SearchMicroChainPre, insertBodyGenProg_mk]
   )
-  · rw [and_mask_xor_eq_feistelBucket]
-    exact (fits_bucketBits_and_mask h.2.2.2.1.1 hw hnU hU).2.of_le
-      (Nat.le_sub_one_of_lt (feistelBucket_lt (bucketBits n_max) (fun _ => d.2) d.1.1.2))
+  · exact fits_and_mask_xor h.2.2.2.1.1 hw hnU hU d.2 d.1.1.2
   · exact h.2.2.2
 
 section
@@ -949,9 +871,7 @@ theorem realizes_deletePrepWithHashGen :
     simpDictParamsWith [queryWithHashGenPre_mk, QueryWithHashPre,
       searchMicroChainGenPre_mk, SearchMicroChainPre, deletePrepGenProg_mk]
   )
-  · rw [and_mask_xor_eq_feistelBucket]
-    exact (fits_bucketBits_and_mask h.2.2.2.1 hw hnU hU).2.of_le
-      (Nat.le_sub_one_of_lt (feistelBucket_lt (bucketBits n_max) (fun _ => d.2) d.1.2))
+  · exact fits_and_mask_xor h.2.2.2.1 hw hnU hU d.2 d.1.2
   · exact h.2.2.2
 
 section
@@ -1046,9 +966,7 @@ theorem realizes_deleteFinishWithHashGen :
     simpDictParamsWith [deleteFinishWithHashGenPre_mk, DeleteFinishWithHashPre,
       deleteFinishGenPre_mk, DeleteFinishPre, DeleteFoundPre, deleteFinishGenProg_mk]
   )
-  · rw [and_mask_xor_eq_feistelBucket]
-    exact (fits_bucketBits_and_mask h.2.2.2.1 hw hnU hU).2.of_le
-      (Nat.le_sub_one_of_lt (feistelBucket_lt (bucketBits n_max) (fun _ => d.1.1.2) d.1.1.1.2))
+  · exact fits_and_mask_xor h.2.2.2.1 hw hnU hU d.1.1.2 d.1.1.1.2
   · exact h.2.2.2
 
 section
@@ -1130,18 +1048,12 @@ theorem queryWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
     rw [hb_eq, hq_eq, hm_eq]
   have hspec := queryBodyProg_bucket_spec hb_inv henv hb_lt (q_target := q) (m := m) rfl hm_lt
   have hprobe := (chain_and_overflow_le_probeExcess θ hb_inv u).2.2
-  have hcost_prog : memoryCost prog s =
-      memoryCost (queryBodyProg U V w₀ n_max (hashSpace U w₀ n_max) (((base, b), q), m)) s :=
-    congrArg (memoryCost · s) hprog_eq
-  refine ⟨hpre, ?_, ?_, ?_⟩
-  · rw [congrArg ((Memory.spec 0).clientState s) hprog_eq]
-    exact hspec.1
-  · rw [congrArg ((Memory.spec 0).clientResult s) hprog_eq, hspec.2.2,
-      bucketMapOfState_feistelBucket hwf.2.1 h1 s_abs u]
-  · rw [hcost_prog]
-    have hcost := hspec.2.1
-    dsimp only [b, q, m, h1] at hcost hprobe ⊢
-    omega
+  rw [hprog_eq]
+  refine ⟨hpre, hspec.1,
+    hspec.2.2.trans (bucketMapOfState_feistelBucket hwf.2.1 h1 s_abs u), ?_⟩
+  have hcost := hspec.2.1
+  dsimp only [b, q, m, h1] at hcost hprobe ⊢
+  omega
 
 /-- Dictionary-level specification of `insertWithHashProg`: establishes `InsertWithHashPre`,
 preserves `DictStateInv` for `Function.update s_abs u (some v)`, preserves memory outside the
@@ -1177,8 +1089,7 @@ theorem insertWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
   obtain ⟨hb_eq, hq_eq, hm_eq, hb_lt, hm_lt, -, hu, hh_q, hsearch⟩ :=
     dispatch_spec (w := w) hwf henv θ hinv u
   have hq_lt : q < 2 ^ quotientBits U n_max := keyQuotient_lt_two_pow_quotientBits hwf.2.1 u.isLt
-  have hv_lt : v < 2 ^ valBits V :=
-    hval.2.trans_le (Nat.le_pow_clog (by decide) V)
+  have hv_lt : v < 2 ^ valBits V := hval.2.trans_le (Nat.le_pow_clog (by decide) V)
   have hpre : InsertWithHashPre U V w₀ n_max w d s :=
     ⟨hwf, hu, hh_q, hsearch, hq_eq.trans_lt hq_lt, hv_lt⟩
   have hprog_eq : prog =
@@ -1186,46 +1097,24 @@ theorem insertWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
     dsimp only [prog, d, insertWithHashProg, insertWithHashGenProg]
     simp only [p_bucketBits_mk, p_bucketMask_mk, pure_bind, insertBodyGenProg_mk]
     rw [hb_eq, hq_eq, hm_eq]
-  have hs'_eq : s' = (Memory.spec 0).clientState s
-      (insertBodyProg U V w₀ n_max (hashSpace U w₀ n_max) ((((base, b), q), v), m)) :=
-    congrArg ((Memory.spec 0).clientState s) hprog_eq
-  have hcost_prog : memoryCost prog s =
-      memoryCost (insertBodyProg U V w₀ n_max (hashSpace U w₀ n_max) ((((base, b), q), v), m)) s :=
-    congrArg (memoryCost · s) hprog_eq
   have hB_eq : bucketMapOfState U n_max h1 s_abs b q = s_abs u :=
     bucketMapOfState_feistelBucket hwf.2.1 h1 s_abs u
   have hcap : (bucketMapOfState U n_max h1 s_abs b q).isSome ∨ totalSlots n_max gm₀ < n_max := by
-    rw [hB_eq, hinv.htot]
-    exact hval.1.symm
-  have hspec := insertBodyProg_bucket_spec hwf.1 hb_inv henv hb_lt (q_target := q) (v_new := v)
-    (m := m) rfl hm_lt hq_lt hv_lt hcap
-  obtain ⟨hf, hout, ⟨L', hinv'⟩, htot', hcost⟩ := hspec
+    rw [hB_eq, hinv.htot]; exact hval.1.symm
+  obtain ⟨hf, hout, ⟨L', hinv'⟩, htot', hcost⟩ :=
+    insertBodyProg_bucket_spec hwf.1 hb_inv henv hb_lt (q_target := q) (v_new := v)
+      (m := m) rfl hm_lt hq_lt hv_lt hcap
   rw [bucketMapOfState_update hwf.2.1 h1 s_abs u (some v)] at hinv'
-  have hgm'_eq : gm' = gmAt base U V w₀ n_max (hashSpace U w₀ n_max)
-      ((Memory.spec 0).clientState s
-        (insertBodyProg U V w₀ n_max (hashSpace U w₀ n_max) ((((base, b), q), v), m))).mem := by
-    dsimp only [gm']
-    rw [hs'_eq]
-  have htot_dom : totalSlots n_max gm' =
-      (Dictionary.dom (Function.update s_abs u (some v))).card := by
-    rw [hgm'_eq, htot', hB_eq, hinv.htot]
+  have hprobe := (chain_and_overflow_le_probeExcess θ hb_inv u).2.2
+  dsimp only [gm', s']
+  rw [hprog_eq]
+  refine ⟨hpre, hf, hout, ⟨⟨L', hinv'⟩, ?_⟩, ?_⟩
+  · rw [htot', hB_eq, hinv.htot]
     split_ifs with his
     · exact (Dictionary.card_dom_insert_eq_of_isSome his v).symm
     · exact (Dictionary.card_dom_insert_eq_of_eq_none (Option.not_isSome_iff_eq_none.mp his) v).symm
-  have hprobe := (chain_and_overflow_le_probeExcess θ hb_inv u).2.2
-  refine ⟨hpre, ?_, ?_, ⟨⟨L', ?_⟩, htot_dom⟩, ?_⟩
-  · rw [hs'_eq]; exact hf
-  · intro a ha
-    rw [hs'_eq]
-    exact hout a ha
-  · rw [hs'_eq]; exact hinv'
-  · rw [hcost_prog, hgm'_eq]
-    dsimp only [b, q, m, h1, gm₀] at hcost hprobe ⊢
+  · dsimp only [b, q, m, h1, gm₀] at hcost hprobe ⊢
     omega
-
-private theorem exists_quad_eq (x : ((ℕ × ℕ) × ℕ) × ℕ) :
-    ∃ found j_del phys_del q_last : ℕ, x = (((found, j_del), phys_del), q_last) :=
-  ⟨x.1.1.1, x.1.1.2, x.1.2, x.2, rfl⟩
 
 /-- Dictionary-level specification of the two-phase `delete` (`deletePrepWithHashProg` followed by
 `deleteFinishWithHashProg`): establishes both preconditions, preserves `DictStateInv` for
@@ -1275,9 +1164,9 @@ theorem deleteWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
   have hprep_spec := deletePrepProg_bucket_spec hb_inv henv hb_lt (q_target := q) (m := m) rfl hm_lt
   have hfin_spec := deleteFinishProg_bucket_spec hwf.1 hb_inv henv hb_lt (q_target := q) (m := m)
     rfl hm_lt (fun q' _ => mOfSeed_lt U n_max θ q')
-  obtain ⟨found, j_del, phys_del, q_last, hprep_val⟩ :=
-    exists_quad_eq ((Memory.spec 0).clientResult s
-      (deletePrepProg U V w₀ n_max (hashSpace U w₀ n_max) (((base, b), q), m)))
+  rcases hprep_val : (Memory.spec 0).clientResult s
+      (deletePrepProg U V w₀ n_max (hashSpace U w₀ n_max) (((base, b), q), m)) with
+    ⟨⟨⟨found, j_del⟩, phys_del⟩, q_last⟩
   dsimp only at hprep_spec hfin_spec
   rw [hprep_val] at hprep_spec hfin_spec
   dsimp only [deletePrepFound, deletePrepIdx, deletePrepPhys, deletePrepHdr] at hprep_spec hfin_spec
@@ -1288,8 +1177,7 @@ theorem deleteWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
         (((((base, b), (found, j_del)), phys_del), m), mOfSeed U n_max θ q_last) := by
     dsimp only [prog_fin, d_fin, deleteFinishWithHashProg, deleteFinishWithHashGenProg]
     simp only [p_bucketBits_mk, p_bucketMask_mk, pure_bind, deleteFinishGenProg_mk]
-    rw [hb_eq, hm_eq]
-    rfl
+    rw [hb_eq, hm_eq]; rfl
   obtain ⟨hpre_fin_inner, hf, hout, ⟨L', hinv'⟩, htot', hcost_fin⟩ := hfin_spec
   rw [bucketMapOfState_update hwf.2.1 h1 s_abs u none] at hinv'
   have hpre_fin : DeleteFinishWithHashPre U V w₀ n_max w d_fin s := by
@@ -1297,44 +1185,19 @@ theorem deleteWithHashProg_dict_spec {U V w₀ n_max w base : ℕ}
     dsimp only [d_fin]
     rw [hb_eq, hm_eq]
     exact hpre_fin_inner
-  have hs'_eq : s' = (Memory.spec 0).clientState s
-      (deleteFinishProg U V w₀ n_max (hashSpace U w₀ n_max)
-        (((((base, b), (found, j_del)), phys_del), m), mOfSeed U n_max θ q_last)) :=
-    congrArg ((Memory.spec 0).clientState s) hfin_eq
-  have hgm'_eq : gm' = gmAt base U V w₀ n_max (hashSpace U w₀ n_max)
-      ((Memory.spec 0).clientState s
-        (deleteFinishProg U V w₀ n_max (hashSpace U w₀ n_max)
-          (((((base, b), (found, j_del)), phys_del), m), mOfSeed U n_max θ q_last))).mem := by
-    dsimp only [gm']
-    rw [hs'_eq]
-  have hcost_prep_eq : memoryCost prog_prep s =
-      memoryCost (deletePrepProg U V w₀ n_max (hashSpace U w₀ n_max) (((base, b), q), m)) s :=
-    congrArg (memoryCost · s) hprep_eq
-  have hcost_fin_eq : memoryCost prog_fin s =
-      memoryCost (deleteFinishProg U V w₀ n_max (hashSpace U w₀ n_max)
-        (((((base, b), (found, j_del)), phys_del), m), mOfSeed U n_max θ q_last)) s :=
-    congrArg (memoryCost · s) hfin_eq
   have hB_eq : bucketMapOfState U n_max h1 s_abs b q = s_abs u :=
     bucketMapOfState_feistelBucket hwf.2.1 h1 s_abs u
-  have htot_dom : totalSlots n_max gm' =
-      (Dictionary.dom (Function.update s_abs u none)).card := by
-    rw [hgm'_eq, htot', hB_eq, hinv.htot]
+  have hprobe := (chain_and_overflow_le_probeExcess θ hb_inv u).2.2
+  have hcost_prep := hprep_spec.2.1
+  dsimp only [gm', s']
+  rw [hprep_eq, hfin_eq]
+  refine ⟨hprep_val, hpre_prep, hprep_spec.1, hprep_spec.2.2.1, hpre_fin, hf, hout,
+    ⟨⟨L', hinv'⟩, ?_⟩, ?_⟩
+  · rw [htot', hB_eq, hinv.htot]
     split_ifs with his
     · exact (Dynamic.card_dom_delete_eq_of_isSome his).symm
     · exact (Dynamic.card_dom_delete_eq_of_eq_none (Option.not_isSome_iff_eq_none.mp his)).symm
-  have hprobe := (chain_and_overflow_le_probeExcess θ hb_inv u).2.2
-  have hcost_prep := hprep_spec.2.1
-  refine ⟨(congrArg ((Memory.spec 0).clientResult s) hprep_eq).trans hprep_val,
-    hpre_prep, ?_, hprep_spec.2.2.1, hpre_fin, ?_, ?_, ⟨⟨L', ?_⟩, htot_dom⟩, ?_⟩
-  · rw [congrArg ((Memory.spec 0).clientState s) hprep_eq]
-    exact hprep_spec.1
-  · rw [hs'_eq]; exact hf
-  · intro a ha
-    rw [hs'_eq]
-    exact hout a ha
-  · rw [hs'_eq]; exact hinv'
-  · rw [hcost_prep_eq, hcost_fin_eq, hgm'_eq]
-    dsimp only [b, q, m, h1, gm₀] at hcost_prep hcost_fin hprobe ⊢
+  · dsimp only [b, q, m, h1, gm₀] at hcost_prep hcost_fin hprobe ⊢
     omega
 
 end

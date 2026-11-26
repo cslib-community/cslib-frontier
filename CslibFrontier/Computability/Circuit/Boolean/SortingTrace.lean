@@ -95,14 +95,9 @@ private theorem unlayer_input {n r : ℕ} (flags : BitString n)
           (fun bit => Fin.natAdd (n * 2) (finProdFinEquiv (Fin.natAdd n j, bit)))) bit)) =
       Fin.append ![flags j, !flags j] (Fin.append (x (Fin.castAdd n j)) (x (Fin.natAdd n j))) := by
   funext bit
-  cases bit using Fin.addCases with
-  | left bit =>
-    simp only [Fin.addCases_left, pack, Fin.append_left, BitString.blocksEquiv_symm_apply,
-      Equiv.symm_apply_apply, pairs]
-  | right bit =>
-    cases bit using Fin.addCases <;>
-      simp only [Fin.addCases_right, Fin.addCases_left, pack, Fin.append_right, Fin.append_left,
-        BitString.blocksEquiv_symm_apply, Equiv.symm_apply_apply]
+  refine Fin.addCases (fun bit => ?_) (Fin.addCases (fun bit => ?_) (fun bit => ?_)) bit <;>
+    simp only [Fin.addCases_left, Fin.addCases_right, pack, Fin.append_left, Fin.append_right,
+      BitString.blocksEquiv_symm_apply, Equiv.symm_apply_apply, pairs]
 
 private theorem eval_unlayer (n r : ℕ) (flags : BitString n) (x : Fin (n + n) → BitString r) :
     BitString.block ((unlayer n r).eval interpretation (pack (pairs flags) x)) =

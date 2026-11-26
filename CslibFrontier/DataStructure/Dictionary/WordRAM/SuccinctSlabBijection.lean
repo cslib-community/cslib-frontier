@@ -256,14 +256,12 @@ theorem slabBijection_gmPushSlab {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
     split_ifs with hc
     · rw [hOwnB, ite_eq_left rfl, hc.1]
     · have ho := hs_old_of_ne b' hb' s hs hc
-      have hp := hslab.ptr_lt b' hb' s ho
-      rw [hOwnB, ite_eq_right (by omega)]; exact hslab.ownerB_ptr b' hb' s ho
+      rw [hOwnB, ite_eq_right (hslab.ptr_lt b' hb' s ho).ne]; exact hslab.ownerB_ptr b' hb' s ho
   · intro b' hb' s hs
     split_ifs with hc
     · rw [hOwnS, ite_eq_left rfl, hc.2]
     · have ho := hs_old_of_ne b' hb' s hs hc
-      have hp := hslab.ptr_lt b' hb' s ho
-      rw [hOwnS, ite_eq_right (by omega)]; exact hslab.ownerS_ptr b' hb' s ho
+      rw [hOwnS, ite_eq_right (hslab.ptr_lt b' hb' s ho).ne]; exact hslab.ownerS_ptr b' hb' s ho
   · intro p hp
     rw [h0] at hp
     rw [hOwnB p, hOwnS p]
@@ -283,21 +281,19 @@ theorem slabBijection_gmPushSlab {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
   · intro b' hb' s hs htop
     rw [hTop b' hb']
     rw [hQ b' hb'] at hs htop
-    by_cases hbeq : b' = b
-    · subst hbeq
-      simp only [↓reduceIte, true_and] at hs htop ⊢
-      rw [ite_eq_left (by omega)]
-    · simp only [hbeq, ↓reduceIte, false_and] at hs htop ⊢
-      exact hslab.top_eq b' hb' s hs htop
+    split_ifs at hs htop ⊢ with hbeq hc hc
+    · rfl
+    · exact absurd ⟨hbeq, by omega⟩ hc
+    · exact absurd hc.1 hbeq
+    · exact hslab.top_eq b' hb' s hs htop
   · intro b' hb' s hs hpos
     by_cases hc : b' = b ∧ s = gm (gmQIdx b)
     · rcases hc with ⟨rfl, rfl⟩
       rw [ite_eq_left ⟨rfl, rfl⟩, ite_eq_right (by omega), hBel, ite_eq_left rfl]
       exact hslab.top_eq b' hb' (gm (gmQIdx b') - 1) (by omega) (by omega)
     · have ho := hs_old_of_ne b' hb' s hs hc
-      have hp := hslab.ptr_lt b' hb' s ho
       have hc1 : ¬(b' = b ∧ s - 1 = gm (gmQIdx b)) := by rintro ⟨rfl, heq⟩; omega
-      rw [ite_eq_right hc, ite_eq_right hc1, hBel, ite_eq_right (by omega)]
+      rw [ite_eq_right hc, ite_eq_right hc1, hBel, ite_eq_right (hslab.ptr_lt b' hb' s ho).ne]
       exact hslab.below_eq b' hb' s ho hpos
   · intro b' hb' s hs habv
     have hnot1 : ¬(b' = b ∧ s = gm (gmQIdx b)) := by
@@ -563,29 +559,23 @@ private theorem slabBijection_gmPopSlab_eq {n_max : ℕ} {gm : ℕ → ℕ} {b :
     (fun b' hb' s hs => by
       rw [hQ] at hs; obtain ⟨hs_old, hne⟩ := hact_s b' hb' s hs
       have := hslab.ptr_lt b' hb' s hs_old; rw [h0]; omega)
-    (fun b' hb' s hs => by
-      rw [hhi _ (by wram_omega)]
-      exact hslab.ownerB_ptr b' hb' s (hact_s b' hb' s (hQ b' ▸ hs)).1)
-    (fun b' hb' s hs => by
-      rw [hhi _ (by wram_omega)]
-      exact hslab.ownerS_ptr b' hb' s (hact_s b' hb' s (hQ b' ▸ hs)).1)
+    (fun b' hb' s hs => (hhi _ (by wram_omega)).trans
+      (hslab.ownerB_ptr b' hb' s (hact_s b' hb' s (hQ b' ▸ hs)).1))
+    (fun b' hb' s hs => (hhi _ (by wram_omega)).trans
+      (hslab.ownerS_ptr b' hb' s (hact_s b' hb' s (hQ b' ▸ hs)).1))
     (fun p hp => by
       rw [h0] at hp
       rw [hhi _ (by wram_omega), hhi _ (by wram_omega), hQ]
       obtain ⟨hb_p, -, hptr_p⟩ := hslab.owner_valid p (by omega)
       exact ⟨hb_p, hact_own p (by omega) (by omega), hptr_p⟩)
-    (fun b' hb' s hs hd => by
-      rw [hhi _ (by wram_omega)]
-      exact hslab.dir_eq b' hb' s (hact_s b' hb' s (hQ b' ▸ hs)).1 hd)
-    (fun b' hb' s hs ht => by
-      rw [htop]; exact hact_top b' hb' s (hQ b' ▸ hs) (hQ b' ▸ ht))
-    (fun b' hb' s hs hpos => by
-      rw [hhi _ (by wram_omega)]
-      exact hslab.below_eq b' hb' s (hact_s b' hb' s (hQ b' ▸ hs)).1 hpos)
-    (fun b' hb' s hs ha => by
-      rw [hhi _ (by wram_omega)]
-      exact hslab.above_eq b' hb' s (hact_s b' hb' s (hQ b' ▸ hs)).1
-        (hact_s b' hb' (s + 1) (hQ b' ▸ ha)).1)
+    (fun b' hb' s hs hd => (hhi _ (by wram_omega)).trans
+      (hslab.dir_eq b' hb' s (hact_s b' hb' s (hQ b' ▸ hs)).1 hd))
+    (fun b' hb' s hs ht => (htop b').trans (hact_top b' hb' s (hQ b' ▸ hs) (hQ b' ▸ ht)))
+    (fun b' hb' s hs hpos => (hhi _ (by wram_omega)).trans
+      (hslab.below_eq b' hb' s (hact_s b' hb' s (hQ b' ▸ hs)).1 hpos))
+    (fun b' hb' s hs ha => (hhi _ (by wram_omega)).trans
+      (hslab.above_eq b' hb' s (hact_s b' hb' s (hQ b' ▸ hs)).1
+        (hact_s b' hb' (s + 1) (hQ b' ▸ ha)).1))
   refine ⟨fun b' hb' s hs => ?_, hbij⟩
   have hne := (hact_s b' hb' s (hQ b' ▸ hs)).2
   rw [hptr b' hb' s hs, ite_eq_right (by omega)]
@@ -622,10 +612,8 @@ private theorem slabBijection_gmPopSlab_lt {n_max : ℕ} {gm : ℕ → ℕ} {b :
       gm (gmSlabAboveIdx n_max p) := fun _ => huGe _ (by wram_omega)
   have hDir : ∀ b' s, gmUnlinkTopSlab n_max gm b (gmSlabDirIdx n_max b' s) =
       gm (gmSlabDirIdx n_max b' s) := fun _ _ => huGe _ (by wram_omega)
-  have hb_last' : gmUnlinkTopSlab n_max gm b
-      (gmSlabOwnerBIdx n_max (gmUnlinkTopSlab n_max gm b 0 - 1)) < numBuckets n_max := by
-    rw [hu0, hB]; exact hb_last
-  have hc := gmCompactSlab_fields_lt (gmUnlinkTopSlab n_max gm b) (by rwa [hu0]) hb_last'
+  have hc := gmCompactSlab_fields_lt (n_max := n_max) (gmUnlinkTopSlab n_max gm b) (by rwa [hu0])
+    (by simpa only [hu0, hB] using hb_last)
   dsimp only at hc
   rw [hu0, hB, hS, hBel, hAbv] at hc
   rcases hc with ⟨hc0, -, -, hcQ, -, hcTop, hcDir, hcOwnB, hcOwnS, hcBel, hcAbv⟩
@@ -660,11 +648,11 @@ private theorem slabBijection_gmPopSlab_lt {n_max : ℕ} {gm : ℕ → ℕ} {b :
     by_cases hp_eq : p = p_del
     · subst hp_eq
       rw [ite_eq_left rfl, ite_eq_left rfl]
-      exact ⟨hb_last, by rw [hcQ _ hb_last]; exact hact_own p_last (by omega) (by omega),
+      exact ⟨hb_last, hcQ _ hb_last ▸ hact_own p_last (by omega) (by omega),
         ite_eq_left hptr_last⟩
     · rw [ite_eq_right hp_eq, ite_eq_right hp_eq]
       obtain ⟨hb_p, -, hptr_p⟩ := hslab.owner_valid p (by omega)
-      exact ⟨hb_p, by rw [hcQ _ hb_p]; exact hact_own p (by omega) hp_eq,
+      exact ⟨hb_p, hcQ _ hb_p ▸ hact_own p (by omega) hp_eq,
         by rw [hptr_p, ite_eq_right (by omega)]⟩
   · intro b' hb' s hs hdir
     have hs_old := (hact_s b' hb' s (hcQ b' hb' ▸ hs)).1
@@ -696,13 +684,10 @@ private theorem slabBijection_gmPopSlab_lt {n_max : ℕ} {gm : ℕ → ℕ} {b :
       (bwd_last := gm (gmSlabAboveIdx n_max p_last))
       (fun p => by rw [hcBel p, hBel p]) hb' hs_old hs1_old (by omega) hne_del
       (hslab.below_eq b' hb' s hs_old hpos)
-      (fun hbeq hseq => by
-        subst hbeq
-        have heq : s = s_last + 1 := by omega
-        rwa [← heq])
+      (fun hbeq hseq => by subst hbeq; rwa [show s_last + 1 = s by omega])
       (fun hq_lt => ⟨s_last + 1, (hact_s _ hb_last _ hq_lt).1,
-        by have h := hslab.above_eq _ hb_last _ hs_last_old (hact_s _ hb_last _ hq_lt).1
-           rw [hptr_last] at h; exact h,
+        (congrArg (fun p => gm (gmSlabAboveIdx n_max p)) hptr_last.symm).trans
+          (hslab.above_eq _ hb_last _ hs_last_old (hact_s _ hb_last _ hq_lt).1),
         by omega⟩)
   · intro b' hb' s hs habv
     rw [hcQ b' hb'] at hs habv
@@ -717,8 +702,8 @@ private theorem slabBijection_gmPopSlab_lt {n_max : ℕ} {gm : ℕ → ℕ} {b :
       (hslab.above_eq b' hb' s hs_old hs1_old)
       (fun _ hseq => by omega)
       (fun hpos => ⟨s_last - 1, by omega,
-        by have h := hslab.below_eq _ hb_last _ hs_last_old hpos
-           rw [hptr_last] at h; exact h,
+        (congrArg (fun p => gm (gmSlabBelowIdx n_max p)) hptr_last.symm).trans
+          (hslab.below_eq _ hb_last _ hs_last_old hpos),
         by omega⟩)
 
 /-- `gmPopSlab` relocates the last physical slab `gm 0 - 1` into `gm (gmSlabTopIdx b)` and

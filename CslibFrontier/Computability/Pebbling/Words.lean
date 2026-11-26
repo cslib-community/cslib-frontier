@@ -91,23 +91,18 @@ theorem wordStep_indicatorList_iff
     · rw [decide_eq_false hC, Bool.not_false, ← indicatorList_insert C ⟨i, hi⟩,
         indicatorList_inj] at hD
       subst hD
-      have hready' := hlegal.resolve_left (by simp [hC])
-      exact ⟨(Finset.insert_ne_self.2 hC).symm, _, .place ((hready C _).1 hready'), hcard⟩
+      exact ⟨(Finset.insert_ne_self.2 hC).symm, _,
+        .place ((hready C _).1 (hlegal.resolve_left (by simp [hC]))), hcard⟩
   · rintro ⟨hne, m, hstep, hcard⟩
     cases hstep with
     | @place v hv =>
       have hvC : v ∉ C := fun h => hne (Finset.insert_eq_of_mem h).symm
-      refine ⟨v, v.isLt, ⟨?_, ?_⟩, hcard⟩
-      · exact Or.inr ((hready C v).2 hv)
-      · rw [getD_indicatorList, decide_eq_false hvC, Bool.not_false, indicatorList_insert]
+      refine ⟨v, v.isLt, ⟨Or.inr ((hready C v).2 hv), ?_⟩, hcard⟩
+      rw [getD_indicatorList, decide_eq_false hvC, Bool.not_false, indicatorList_insert]
     | @remove v =>
-      have hvC : v ∈ C := by
-        by_contra h
-        exact hne (Finset.erase_eq_of_notMem h).symm
-      refine ⟨v, v.isLt, ⟨?_, ?_⟩, hcard⟩
-      · rw [getD_indicatorList, decide_eq_true hvC]
-        exact Or.inl rfl
-      · rw [getD_indicatorList, decide_eq_true hvC, Bool.not_true, indicatorList_erase]
+      have hvC : v ∈ C := not_not.1 fun h => hne (Finset.erase_eq_of_notMem h).symm
+      refine ⟨v, v.isLt, ⟨Or.inl ((getD_indicatorList C v).trans (decide_eq_true hvC)), ?_⟩, hcard⟩
+      rw [getD_indicatorList, decide_eq_true hvC, Bool.not_true, indicatorList_erase]
 
 /-- Steps that stay put can be dropped from a walk. -/
 private theorem reflTransGen_ne {α : Type*} {r : α → α → Prop} {a b : α}

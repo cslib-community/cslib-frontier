@@ -96,32 +96,23 @@ private theorem sum_satisfies_le_unsatVal {β γ : Type} [DecidableEq γ]
       else 0) ≤
     g.edges.length * (1 - (g.toGraph projectionEval).unsatVal) := by
   let σ : ℕ → β × γ := fun v => (ℓ v, r v)
-  have hcompl (i : Fin g.edges.length) :
-      (if (g.edges.get i).constraint (ℓ (g.edges.get i).src) = r (g.edges.get i).dst then (1 : ℝ)
-        else 0) +
-      (if i ∈ (g.toGraph projectionEval).unsatEdges σ then (1 : ℝ) else 0) = 1 := by
-    simp only [ConstraintGraph.mem_unsatEdges, satisfies_toGraph_projectionEval_iff, σ]
-    split_ifs <;> ring
   have hsum :
       (∑ i : Fin g.edges.length,
         if (g.edges.get i).constraint (ℓ (g.edges.get i).src) = r (g.edges.get i).dst then (1 : ℝ)
-        else 0) +
-      #((g.toGraph projectionEval).unsatEdges σ) = g.edges.length := by
-    have h1 := sum_congr (s₁ := univ) rfl (fun i _ => hcompl i)
-    have h2 :
-        (∑ i : Fin g.edges.length,
-          if i ∈ (g.toGraph projectionEval).unsatEdges σ then (1 : ℝ) else 0) =
-        #((g.toGraph projectionEval).unsatEdges σ) := by
-      rw [sum_boole, filter_mem_eq_inter, univ_inter]
-    rw [sum_add_distrib, h2, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one] at h1
-    exact h1
+        else 0) + #((g.toGraph projectionEval).unsatEdges σ) = g.edges.length := by
+    have h1 : ∑ i : Fin g.edges.length,
+        ((if (g.edges.get i).constraint (ℓ (g.edges.get i).src) = r (g.edges.get i).dst then (1 : ℝ)
+          else 0) + (if i ∈ (g.toGraph projectionEval).unsatEdges σ then 1 else 0)) =
+        ∑ _ : Fin g.edges.length, (1 : ℝ) :=
+      sum_congr rfl fun i _ => by
+        simp only [ConstraintGraph.mem_unsatEdges, satisfies_toGraph_projectionEval_iff, σ]
+        split_ifs <;> ring
+    simpa only [sum_add_distrib, sum_boole, filter_mem_eq_inter, univ_inter, sum_const,
+      card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one] using h1
   have hcard := (g.toGraph projectionEval).card_mul_unsatFrac σ
   simp only [Fintype.card_fin] at hcard
-  have hle : (g.edges.length : ℝ) * (g.toGraph projectionEval).unsatVal ≤
-      #((g.toGraph projectionEval).unsatEdges σ) := by
-    rw [← hcard]
-    exact mul_le_mul_of_nonneg_left ((g.toGraph projectionEval).unsatVal_le σ) (Nat.cast_nonneg _)
-  linarith
+  linarith [hcard ▸ mul_le_mul_of_nonneg_left ((g.toGraph projectionEval).unsatVal_le σ)
+    (Nat.cast_nonneg g.edges.length)]
 
 variable {β γ : Type} [Fintype β] [DecidableEq β] [Nonempty β]
   [Fintype γ] [DecidableEq γ] [Nonempty γ]
@@ -282,12 +273,9 @@ private theorem exists_params {ε δ : ℝ} (hε : 0 < ε) (hδ0 : 0 < δ) (hδ1
   have hρ1 : 1 - 2 * δ < 1 := by linarith
   obtain ⟨N, hN⟩ := exists_pow_lt_of_lt_one (by positivity : 0 < (8 * ε) ^ 2 / 2) hρ1
   refine ⟨N + 1, (8 * ε) ^ 2 / (2 * ((N + 1 : ℕ) : ℝ) ^ 2), by positivity, ?_⟩
-  have hpow : (1 - 2 * δ) ^ (2 * (N + 1)) ≤ (1 - 2 * δ) ^ N :=
-    pow_le_pow_of_le_one hρ0 hρ1.le (by omega)
+  have hpow := pow_le_pow_of_le_one hρ0 hρ1.le (show N ≤ 2 * (N + 1) by omega)
   have hmul : ((N + 1 : ℕ) : ℝ) ^ 2 * ((8 * ε) ^ 2 / (2 * ((N + 1 : ℕ) : ℝ) ^ 2)) =
-      (8 * ε) ^ 2 / 2 := by
-    have hpos : ((N + 1 : ℕ) : ℝ) ^ 2 ≠ 0 := by positivity
-    field_simp
+      (8 * ε) ^ 2 / 2 := by field_simp
   linarith
 
 end LabelCoverSoundness
@@ -321,26 +309,20 @@ theorem gapLabelCover_dichotomy_lt_one {ε δ : ℝ} (hε : 0 < ε) (hδ0 : 0 < 
             graphLinearProb g δ B A ≤ 1 / 2 + 4 * ε) := by
   obtain ⟨k, θ, hθ, hparam⟩ := exists_params hε hδ0 hδ1
   let η := min θ (1 / 2)
-  have hη : 0 < η := lt_min hθ (by norm_num)
-  have hη1 : η < 1 := (min_le_right _ _).trans_lt (by norm_num)
   have hparam' : (1 - 2 * δ) ^ (2 * k) + (k : ℝ) ^ 2 * η ≤ (8 * ε) ^ 2 :=
     (add_le_add le_rfl
       (mul_le_mul_of_nonneg_left (min_le_left θ (1 / 2)) (sq_nonneg (k : ℝ)))).trans hparam
-  refine ⟨η, hη, hη1, fun {β γ} _ _ _ _ _ _ {g} hg => ⟨?_, ?_⟩⟩
-  · intro hyes
-    simp only [GapLabelCover, PromiseProblem.mem_yes_gapMax] at hyes
-    have hunsat0 : (g.toGraph projectionEval).unsatVal = 0 :=
-      le_antisymm (by linarith) (g.toGraph projectionEval).unsatVal_nonneg
-    have hsat : (g.toGraph projectionEval).Satisfiable :=
-      (g.toGraph projectionEval).unsatVal_eq_zero_iff.1 hunsat0
-    obtain ⟨ℓ, r, hℓr⟩ := (satisfiable_toGraph_projectionEval_iff g).1 hsat
+  refine ⟨η, lt_min hθ (by norm_num), (min_le_right _ _).trans_lt (by norm_num),
+    fun {β γ} _ _ _ _ _ _ {g} hg => ⟨fun hyes => ?_, fun hno B A hB => ?_⟩⟩
+  · simp only [GapLabelCover, PromiseProblem.mem_yes_gapMax] at hyes
+    obtain ⟨ℓ, r, hℓr⟩ := (satisfiable_toGraph_projectionEval_iff g).1
+      ((g.toGraph projectionEval).unsatVal_eq_zero_iff.1
+        (le_antisymm (by linarith) (g.toGraph projectionEval).unsatVal_nonneg))
     obtain ⟨hfold, hlin⟩ := graphLinearProb_longCode_of_satisfies hg δ hℓr
     exact ⟨fun w => longCode (r w), fun u => longCode (ℓ u), hfold, hlin⟩
-  · intro hno B A hB
-    simp only [GapLabelCover, PromiseProblem.mem_no_gapMax] at hno
-    have hcorr := graphLinearCorr_le_of_unsatVal g hδ0.le hδ1.le k hε.le hno.1 hparam' hB A
-    have hlin := graphLinearProb_eq_add_graphLinearCorr hg δ B A
-    linarith
+  · simp only [GapLabelCover, PromiseProblem.mem_no_gapMax] at hno
+    linarith [graphLinearCorr_le_of_unsatVal g hδ0.le hδ1.le k hε.le hno.1 hparam' hB A,
+      graphLinearProb_eq_add_graphLinearCorr hg δ B A]
 
 /-- Compatibility form of `gapLabelCover_dichotomy_lt_one`, retaining the original public
 statement. Use the stronger theorem when a nontrivial Label Cover gap is needed. -/

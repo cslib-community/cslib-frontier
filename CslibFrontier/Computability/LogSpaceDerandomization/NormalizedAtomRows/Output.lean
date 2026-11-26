@@ -59,13 +59,10 @@ private lemma denominatorRoot_bounds (v : ℝ) : 1 ≤ denominatorRoot v ∧ den
   have hp := denominatorRoot_pow v
   have hi1 : 1 ≤ (clip v)⁻¹ := (one_le_inv₀ hpos).mpr hc.2
   have hi2 : (clip v)⁻¹ ≤ 2 := (inv_le_comm₀ hpos (by norm_num : (0:ℝ)<2)).mpr (by simpa using hc.1)
-  constructor
-  · by_contra h
-    have hlt : denominatorRoot v ^ 4 < (1:ℝ)^4 := pow_lt_pow_left₀ (not_le.mp h) hr0 (by decide)
+  refine ⟨by_contra fun h => ?_, by_contra fun h => ?_⟩
+  · have := pow_lt_pow_left₀ (not_le.mp h) hr0 four_ne_zero
     nlinarith
-  · by_contra h
-    have hlt : (2:ℝ)^4 < denominatorRoot v ^ 4 := pow_lt_pow_left₀ (not_le.mp h) (by norm_num)
-      (by decide)
+  · have := pow_lt_pow_left₀ (not_le.mp h) (by norm_num) four_ne_zero
     nlinarith
 private lemma denominatorRoot_dist (v w : ℝ) :
     |denominatorRoot v - denominatorRoot w| ≤ 4 * |v-w| := by
@@ -91,11 +88,9 @@ private lemma denominatorRoot_dist (v w : ℝ) :
     rw [← abs_of_pos hc0, ← abs_div]
     congr 1
     field_simp [ne_of_gt (show 0 < clip v by linarith), ne_of_gt (show 0 < clip w by linarith)]
-  apply hpoly.trans
-  rw [hid, abs_sub_comm]
-  apply (div_le_iff₀ hc0).mpr
-  have hprod : 1/4 ≤ clip v*clip w := by nlinarith
-  nlinarith [clip_dist v w, abs_nonneg (v-w)]
+  refine hpoly.trans ?_
+  rw [hid, abs_sub_comm, div_le_iff₀ hc0]
+  nlinarith [clip_dist v w, abs_nonneg (v - w), show 1 / 4 ≤ clip v * clip w by nlinarith]
 
 /-- Actual uncentered decoder: bounded atom cutoff, core rank gate and clipped second signal. -/
 @[expose] noncomputable def output (scale x v q : ℝ) : ℝ :=
@@ -206,21 +201,14 @@ lemma root_dist {scale : ℝ} (hs : 0 < scale) :
     calc _ ≤ B*1*(4*(|v-v'|/scale)) := mul_le_mul (mul_le_mul (hbound x') (hrbound q')
       (abs_nonneg _) hB) hh (abs_nonneg _) (by positivity)
          _ = _ := by ring
-  have htri : |(a-a')*b*c+a'*(b-b')*c+a'*b'*(c-c')| ≤
-      |(a-a')*b*c|+|a'*(b-b')*c|+|a'*b'*(c-c')| :=
-    (abs_add_le _ _).trans (add_le_add (abs_add_le _ _) le_rfl)
-  apply htri.trans
-  have hn1 : 0 ≤ 2*Lq := by positivity
-  have hn2 : 0 ≤ 2*B*(Lr:ℝ) := by positivity
-  have hn3 : 0 ≤ 4*B/scale := by positivity
-  nlinarith [abs_nonneg (x-x'), abs_nonneg (v-v'), abs_nonneg (q-q')]
+  refine ((abs_add_le _ _).trans (add_le_add (abs_add_le _ _) le_rfl)).trans ?_
+  linarith [h1, h2, h3, show 0 ≤ 2 * Lq * (|v - v'| + |q - q'|) +
+    4 * B / scale * (|x - x'| + |q - q'|) + 2 * B * Lr * (|x - x'| + |v - v'|) by positivity]
 
 /-- The actual hierarchy rank is positive. -/
 lemma rank_pos : 0 < HP.K := by
-  have hg := HP.gate
   have hh : 0 ≤ 32 * (HP.k : ℝ) / HP.η := by positivity
-  have h : (0 : ℝ) < HP.K := by linarith
-  exact_mod_cast h
+  exact_mod_cast (by linarith [HP.gate] : (0 : ℝ) < HP.K)
 
 /-- The fourth root has a uniform range independent of input magnitudes. -/
 lemma root_range (scale x v q : ℝ) :
@@ -244,18 +232,13 @@ lemma root_range (scale x v q : ℝ) :
 
 /-- The actual entry threshold is separated from the closed rank gate. -/
 lemma threshold_margin : 3*HP.η₂ < HP.θ := by
-  have h1 := HP.η₂_lt
-  have h2 := HP.δ₁_lt
-  have h3 := HP.δ₀_lt_δ₁
-  linarith [HP.θ_pos]
+  linarith [HP.θ_pos, HP.η₂_lt, HP.δ₁_lt, HP.δ₀_lt_δ₁]
 
 
 /-- The actual hierarchy rank exceeds the singleton domain. -/
 lemma rank_gt_one : 1 < HP.K := by
-  have hg := HP.gate
   have hh : 0 ≤ 32 * (HP.k : ℝ) / HP.η := by positivity
-  have h : (1 : ℝ) < HP.K := by linarith
-  exact_mod_cast h
+  exact_mod_cast (by linarith [HP.gate] : (1 : ℝ) < HP.K)
 
 /-- All actual normalized compressed states have fewer than K nonzero retained endpoints,
 including arbitrary defaults and arbitrary second signals. -/
@@ -315,11 +298,9 @@ lemma default_zero {ι : Type*} (s : Finset ι) (a : State ι) (scale : ℝ) :
     output HP scale a.defaultValue 0 (firstRank s HP.K a.defaultValue a.row) = 0 := by
   by_cases hz : a.defaultValue ≤ HP.θ
   · exact entry_zero HP hz
-  · apply gate_zero HP
-    have hsep := threshold_margin HP
-    have hp := HP.η_pos.trans HP.η_lt_η₂
-    have hdefault := default_le_firstRank (s := s) (K := HP.K) (z := a.defaultValue) (w := a.row)
-    linarith [not_le.mp hz]
+  · exact gate_zero HP (by
+      linarith [threshold_margin HP, HP.η_pos, HP.η_lt_η₂,
+        default_le_firstRank (s := s) (K := HP.K) (z := a.defaultValue) (w := a.row)])
 
 
 

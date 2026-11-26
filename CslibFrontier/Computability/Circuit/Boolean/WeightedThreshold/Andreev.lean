@@ -140,16 +140,12 @@ theorem card_andreevBottomIndex (b m : ℕ) :
     rw [Fintype.card_sigma, Fintype.sum_bool]
     simp only [Fintype.card_fin, andreevStairLength, ↓reduceIte, Bool.false_eq_true]
     ring
-  rw [Fintype.card_sigma]
-  simp only [hS]
-  have h1 : (∑ _S : Finset (Fin b), 2 * 2 ^ b) = 2 * 4 ^ b := by
-    simp only [sum_const, card_univ, Fintype.card_finset, Fintype.card_fin, smul_eq_mul]
-    rw [show (4 : ℕ) ^ b = (2 * 2) ^ b from rfl, mul_pow]; ring
-  have h2 : (∑ S : Finset (Fin b), 2 * (#S * m)) = b * m * 2 ^ b := by
-    rw [show (∑ S : Finset (Fin b), 2 * (#S * m)) = (2 * ∑ S : Finset (Fin b), #S) * m by
-      rw [mul_sum, sum_mul]; exact sum_congr rfl fun _ _ => by ring,
-      two_mul_sum_card_finset]; ring
-  rw [← h1, ← h2, ← sum_add_distrib]
+  have h2 : (∑ S : Finset (Fin b), 2 * (#S * m)) = (2 * ∑ S : Finset (Fin b), #S) * m := by
+    simp_rw [← mul_assoc, ← sum_mul, ← mul_sum]
+  have h4 : (4 : ℕ) ^ b = (2 * 2) ^ b := rfl
+  simp only [Fintype.card_sigma, hS, sum_add_distrib, sum_const, card_univ, Fintype.card_finset,
+    Fintype.card_fin, smul_eq_mul, h4, mul_pow, h2, two_mul_sum_card_finset]
+  ring
 
 /-- Equivalence between `AndreevBottomIndex b m` and `Fin (2 * 4 ^ b + b * m * 2 ^ b)`. -/
 noncomputable def andreevBottomEquiv (b m : ℕ) :
@@ -356,9 +352,8 @@ theorem sum_andreevStairWeightInt_mul (b m : ℕ) (S : Finset (Fin b)) (τ : Boo
     cases τ
     · simp [andreevStairWeightInt]
     simp only [andreevStairWeightInt, Fin.addCases_left, ↓reduceIte]
-    rw [← (BitString.equivFin b).sum_comp
-      (fun idx => -2 * chi ℤ S ((BitString.equivFin b).symm idx) *
-        ((w (Fin.castAdd (b * m) idx)).toNat : ℤ))]
+    rw [← (BitString.equivFin b).sum_comp fun idx =>
+      -2 * chi ℤ S ((BitString.equivFin b).symm idx) * ((w (Fin.castAdd (b * m) idx)).toNat : ℤ)]
     simp only [Equiv.symm_apply_apply, andreevTableScore, andreevTableOffset, ← sum_sub_distrib,
       andreevTable, andreevTableIndex]
     exact sum_congr rfl fun _ _ => by ring
@@ -367,13 +362,10 @@ theorem sum_andreevStairWeightInt_mul (b m : ℕ) (S : Finset (Fin b)) (τ : Boo
         andreevStairWeightInt b m S τ (Fin.natAdd (2 ^ b) u) *
           (w (Fin.natAdd (2 ^ b) u)).toNat) = andreevBlockSum b m S w := by
     simp only [andreevStairWeightInt, Fin.addCases_right]
-    rw [← finProdFinEquiv.sum_comp
-      (fun u => (if (finProdFinEquiv.symm u).1 ∈ S then (1 : ℤ) else 0) *
-        ((w (Fin.natAdd (2 ^ b) u)).toNat : ℤ)),
-      Fintype.sum_prod_type]
-    simp only [Equiv.symm_apply_apply, ite_mul, one_mul, zero_mul, sum_ite_irrel, sum_const_zero,
-      andreevBlockSum, andreevBlockVar]
-    simp [sum_ite_mem]
+    rw [← finProdFinEquiv.sum_comp fun u =>
+      (if (finProdFinEquiv.symm u).1 ∈ S then (1 : ℤ) else 0) *
+        ((w (Fin.natAdd (2 ^ b) u)).toNat : ℤ), Fintype.sum_prod_type]
+    simp [ite_mul, sum_ite_irrel, andreevBlockSum, andreevBlockVar, sum_ite_mem]
   rw [hleft, hright]
   cases τ <;> simp only [andreevStairForm, ↓reduceIte, Bool.false_eq_true] <;> ring
 
@@ -426,14 +418,11 @@ theorem sum_andreevTableScore_mul_chi (b m : ℕ) (w : BitString (2 ^ b + b * m)
     (∑ S : Finset (Fin b),
       (andreevTableScore b m S w : ℝ) * chi ℝ S (andreevParities b m w)) =
       (2 ^ b : ℝ) * signVal (andreev b m w) := by
-  let f : BitString b → ℝ :=
-    fun c => signVal (andreevTable b m w c)
-  have hX (S : Finset (Fin b)) :
-      (andreevTableScore b m S w : ℝ) = (2 ^ b : ℝ) * BitString.fourierCoeff f S := by
-    rw [BitString.fourierCoeff_eq_sum]; simp only [Fintype.card_fin]
-    rw [mul_div_cancel₀ _ (by positivity)]
+  have hX (S : Finset (Fin b)) : (andreevTableScore b m S w : ℝ) =
+      (2 ^ b : ℝ) * BitString.fourierCoeff (fun c => signVal (andreevTable b m w c)) S := by
+    rw [BitString.fourierCoeff_eq_sum, Fintype.card_fin, mul_div_cancel₀ _ (by positivity)]
     simp only [andreevTableScore, Int.cast_sum, Int.cast_mul, cast_chi_int,
-      cast_one_sub_two_mul_toNat, f, mul_comm (chi ℝ S _)]
+      cast_one_sub_two_mul_toNat, mul_comm (chi ℝ S _)]
   simp_rw [hX, mul_assoc, ← mul_sum, BitString.sum_fourierCoeff_mul_chi]; rfl
 
 /-- Summing the top-gate weighted bottom-gate outputs minus the top-gate threshold gives
@@ -448,28 +437,21 @@ theorem sum_andreevTopWeightInt_sub_threshold (b m : ℕ) (w : BitString (2 ^ b 
   refine sum_congr rfl fun S _ => ?_
   rw [← sum_add_distrib, ← sum_andreevStairSign_mul_altLinear]
   refine sum_congr rfl fun τ _ => ?_
-  have hbds := andreevStairForm_bounds b m S τ w
-  have hsum := sum_sub_mul_decide_le altLinear hbds.1 hbds.2
+  obtain ⟨hl, hu⟩ := andreevStairForm_bounds b m S τ w
   simp only [andreevTopWeightInt, andreevBottomEvalInt_eq_decide, AndreevBottomIndex.subset,
-    AndreevBottomIndex.stair, AndreevBottomIndex.step, mul_assoc, ← mul_sum]
-  rw [← hsum]
+    AndreevBottomIndex.stair, AndreevBottomIndex.step, mul_assoc, ← mul_sum,
+    ← sum_sub_mul_decide_le altLinear hl hu]
   ring
 
 /-- The computable integer evaluation `andreevCircuitEvalInt b m` computes `andreev b m` on every
 input. -/
 theorem andreevCircuitEvalInt_eq_andreev (b m : ℕ) (w : BitString (2 ^ b + b * m)) :
     andreevCircuitEvalInt b m w = andreev b m w := by
-  rw [andreevCircuitEvalInt]
-  have hint := sum_andreevTopWeightInt_sub_threshold b m w
-  have hreal :
-      (((∑ S : Finset (Fin b), ∑ τ : Bool, ∑ k : Fin (andreevStairLength b m S τ),
-        andreevTopWeightInt b m ⟨S, τ, k⟩ *
-          (andreevBottomEvalInt b m ⟨S, τ, k⟩ w).toNat) -
-        andreevTopThresholdInt b : ℤ) : ℝ) =
-      -(2 ^ b : ℝ) * signVal (andreev b m w) := by
-    rw [hint]; push_cast; simp_rw [cast_chi_int]; rw [sum_andreevTableScore_mul_chi]; ring
+  rw [andreevCircuitEvalInt, Bool.eq_iff_iff, decide_eq_true_eq, ← sub_nonneg,
+    ← @Int.cast_nonneg_iff ℝ, sum_andreevTopWeightInt_sub_threshold]
+  simp only [Int.cast_neg, Int.cast_sum, Int.cast_mul, cast_chi_int,
+    sum_andreevTableScore_mul_chi]
   have h2pow : (0 : ℝ) < (2 ^ b : ℝ) := by positivity
-  rw [Bool.eq_iff_iff, decide_eq_true_eq, ← sub_nonneg, ← @Int.cast_nonneg_iff ℝ, hreal]
   cases andreev b m w <;> simp [h2pow, h2pow.le]
 
 /-! ### Explicit `WeightedThreshold` depth-two circuit -/
@@ -497,24 +479,20 @@ theorem interpretation_andreevBottomOp (b m : ℕ) (j : Fin (2 * 4 ^ b + b * m *
     (w : BitString (2 ^ b + b * m)) :
     interpretation (andreevBottomOp b m j) w =
       andreevBottomEvalInt b m ((andreevBottomEquiv b m).symm j) w := by
-  unfold interpretation andreevBottomOp andreevBottomEvalInt
-  dsimp only
-  exact decide_eq_decide.mpr (by rw [← @Int.cast_le ℝ]; push_cast; rfl)
+  dsimp only [interpretation, andreevBottomOp, andreevBottomEvalInt]
+  exact decide_eq_decide.mpr (mod_cast Iff.rfl)
 
 /-- Evaluating `andreevCircuit b m` agrees with `andreevCircuitEvalInt b m`. -/
 theorem eval_andreevCircuit_eq_evalInt (b m : ℕ) (w : BitString (2 ^ b + b * m)) (o : Fin 1) :
     (andreevCircuit b m).eval interpretation w o = andreevCircuitEvalInt b m w := by
   rw [andreevCircuit, eval_depthTwo]
   simp only [id, interpretation_andreevBottomOp]
-  unfold interpretation andreevTopOp andreevCircuitEvalInt
-  dsimp only
-  rw [← (andreevBottomEquiv b m).sum_comp
-    (fun j => (andreevTopWeightInt b m ((andreevBottomEquiv b m).symm j) : ℝ) *
-      (andreevBottomEvalInt b m ((andreevBottomEquiv b m).symm j) w).toNat)]
-  simp only [Equiv.symm_apply_apply]
-  rw [Fintype.sum_sigma]
-  simp only [Fintype.sum_sigma]
-  exact decide_eq_decide.mpr (by rw [← @Int.cast_le ℝ]; push_cast; rfl)
+  dsimp only [interpretation, andreevTopOp, andreevCircuitEvalInt]
+  rw [← (andreevBottomEquiv b m).sum_comp fun j =>
+    (andreevTopWeightInt b m ((andreevBottomEquiv b m).symm j) : ℝ) *
+      (andreevBottomEvalInt b m ((andreevBottomEquiv b m).symm j) w).toNat]
+  simp only [Equiv.symm_apply_apply, Fintype.sum_sigma]
+  exact decide_eq_decide.mpr (mod_cast Iff.rfl)
 
 /-- **`andreevCircuit b m` computes `Boolean.andreev b m`.** -/
 theorem computes_andreevCircuit (b m : ℕ) :
@@ -569,8 +547,7 @@ theorem abs_andreevStairWeightInt_le (b m : ℕ) (S : Finset (Fin b)) (τ : Bool
 theorem abs_weight_andreevBottomOp_le (b m : ℕ) (j : Fin (2 * 4 ^ b + b * m * 2 ^ b))
     (i : Fin (2 ^ b + b * m)) :
     |(andreevBottomOp b m j).weight i| ≤ 2 := by
-  unfold andreevBottomOp
-  dsimp only
+  dsimp only [andreevBottomOp]
   exact_mod_cast abs_andreevStairWeightInt_le b m
     ((andreevBottomEquiv b m).symm j).subset ((andreevBottomEquiv b m).symm j).stair i
 
@@ -592,15 +569,11 @@ theorem abs_andreevTopWeightInt_le (b m : ℕ) (idx : AndreevBottomIndex b m) :
   rcases idx with ⟨S, τ, k⟩
   have hsign : |andreevStairSign b τ| = 1 := by cases τ <;> simp [andreevStairSign]
   dsimp only [andreevTopWeightInt, AndreevBottomIndex.stair, AndreevBottomIndex.step]
-  rw [altLinear_add_one_sub, abs_mul, abs_mul, hsign, Int.abs_negOnePow, one_mul, one_mul]
-  have hS : #S ≤ b := (card_le_univ S).trans_eq (Fintype.card_fin b)
-  have hSm : (#S * m : ℤ) ≤ (b * m : ℤ) := by exact_mod_cast Nat.mul_le_mul_right m hS
-  have hk_lt : (k : ℤ) < (andreevStairLength b m S τ : ℤ) := by exact_mod_cast k.isLt
-  have hk_nonneg : (0 : ℤ) ≤ (k : ℤ) := Nat.cast_nonneg k
-  have hpow_pos : (1 : ℤ) ≤ (2 ^ b : ℤ) := by exact_mod_cast Nat.one_le_two_pow
-  have hbm_nonneg : (0 : ℤ) ≤ (b : ℤ) * (m : ℤ) :=
-    mul_nonneg (Nat.cast_nonneg b) (Nat.cast_nonneg m)
-  rw [abs_le]
+  rw [altLinear_add_one_sub, abs_mul, abs_mul, hsign, Int.abs_negOnePow, one_mul, one_mul, abs_le]
+  have hSm : (#S * m : ℤ) ≤ b * m := mod_cast
+    Nat.mul_le_mul_right m ((card_le_univ S).trans_eq (Fintype.card_fin b))
+  have hk_lt : (k : ℤ) < andreevStairLength b m S τ := mod_cast k.isLt
+  have : (1 : ℤ) ≤ 2 ^ b ∧ (0 : ℤ) ≤ (b : ℤ) * m := ⟨mod_cast Nat.one_le_two_pow, by positivity⟩
   cases τ <;>
     simp only [andreevStairLower, andreevStairLength, ↓reduceIte, Bool.false_eq_true,
       Nat.cast_add, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat] at hk_lt ⊢ <;>
@@ -610,8 +583,7 @@ theorem abs_andreevTopWeightInt_le (b m : ℕ) (idx : AndreevBottomIndex b m) :
 `2 * (2 ^ b + b * m) - 1`. -/
 theorem abs_weight_andreevTopOp_le (b m : ℕ) (j : Fin (2 * 4 ^ b + b * m * 2 ^ b)) :
     |(andreevTopOp b m).weight j| ≤ 2 * (2 ^ b + b * m : ℝ) - 1 := by
-  unfold andreevTopOp
-  dsimp only
+  dsimp only [andreevTopOp]
   exact_mod_cast abs_andreevTopWeightInt_le b m ((andreevBottomEquiv b m).symm j)
 
 /-- Gate by gate, every gate of `andreevCircuit b m` is either a bottom gate, reading only original
@@ -625,21 +597,15 @@ theorem lines_andreevCircuit_bottom_or_top (b m : ℕ) (k : Fin (andreevCircuit 
         ((andreevCircuit b m).program.lines k).op.weight a = z) := by
   obtain ⟨j, hj⟩ | ⟨ws, hws⟩ :=
     lines_depthTwo_bottom_or_top (andreevTopOp b m) (andreevBottomOp b m) (fun _ => id) k
-  · have hj' : (andreevCircuit b m).program.lines k =
-        ⟨andreevBottomOp b m j, fun a => .input a⟩ := hj
+  · have hj' : (andreevCircuit b m).program.lines k = _ := hj
     rw [hj']
-    let idx := (andreevBottomEquiv b m).symm j
-    exact .inl ⟨fun a => ⟨a, rfl⟩, fun a => ⟨andreevStairWeightInt b m idx.subset idx.stair a,
-      abs_andreevStairWeightInt_le b m idx.subset idx.stair a, rfl⟩⟩
-  · have hws' : (andreevCircuit b m).program.lines k =
-        ⟨andreevTopOp b m, fun a => .gate (ws a)⟩ := hws
+    exact .inl ⟨fun a => ⟨a, rfl⟩, fun a => ⟨_, abs_andreevStairWeightInt_le b m _ _ a, rfl⟩⟩
+  · have hws' : (andreevCircuit b m).program.lines k = _ := hws
     rw [hws']
-    refine .inr ⟨fun a => ⟨ws a, rfl⟩, fun a =>
-      ⟨andreevTopWeightInt b m ((andreevBottomEquiv b m).symm a), ?_, ?_, rfl⟩⟩
-    · exact Int.odd_iff.mpr (Int.emod_two_ne_zero.mp (andreevTopWeightInt_emod_two_ne_zero b m _))
-    · refine (abs_andreevTopWeightInt_le b m _).trans_lt ?_
-      push_cast
-      exact sub_one_lt _
+    exact .inr ⟨fun a => ⟨ws a, rfl⟩, fun a =>
+      ⟨andreevTopWeightInt b m ((andreevBottomEquiv b m).symm a),
+        Int.odd_iff.mpr (Int.emod_two_ne_zero.mp (andreevTopWeightInt_emod_two_ne_zero b m _)),
+        (abs_andreevTopWeightInt_le b m _).trans_lt (by push_cast; omega), rfl⟩⟩
 
 /-- **Exact quadratic depth-two threshold circuit upper bound for Andreev's function**:
 for all `b, m : ℕ`, there is a depth-two weighted threshold circuit with
