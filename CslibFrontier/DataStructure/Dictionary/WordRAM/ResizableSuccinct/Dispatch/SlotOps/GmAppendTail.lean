@@ -225,18 +225,15 @@ theorem compAppendTailGMGenProg_effect {metaBase itemBase U V w N m_items b : �
   have hread := clientResult_compAppendTailReadGMProg
     (U := U) (V := V) (w := w) (metaBase := metaBase) hb_pos hb s
   refine ⟨?_, ?_⟩
-  · rw [compAppendTailGMGenProg, StateTransitionSpec.clientResult_bind,
-      clientState_compAppendTailReadGMProg, hread]
-    simp only [compAppendTailWriteGMProg, compAppendTailWrite1Prog, compAppendTailWrite2Prog,
-      StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_pure]
-    rfl
+  · simp [compAppendTailGMGenProg, StateTransitionSpec.clientResult_bind, hread,
+      compAppendTailWriteGMProg, compAppendTailWrite1Prog, compAppendTailWrite2Prog, gm]
   dsimp only [s', compAppendTailGMGenProg]
   rw [StateTransitionSpec.clientState_bind, clientState_compAppendTailReadGMProg, hread]
   dsimp only [compAppendTailWriteGMProg, compAppendTailWrite1Prog, compAppendTailWrite2Prog,
     cpTailCap_mk, cpGmTailPtrBase_mk, cpGmTailOwnerBase_mk]
-  rw [hr_eq]
-  repeat rw [StateTransitionSpec.clientState_bind]
-  rw [StateTransitionSpec.clientState_pure]
+  rw [hr_eq, bind_assoc, StateTransitionSpec.clientState_bind,
+    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind,
+    StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_pure]
   obtain ⟨hf1, hg1⟩ := compGmFrame_writeCompGMGenProg (m_items := m_items) hw hitem hptr_lt ht_val s
   obtain ⟨hf2, hg2⟩ := compGmFrame_writeCompGMGenProg (m_items := m_items) hw hitem hown_lt hd_val _
   obtain ⟨hf3, hg3⟩ := compGmFrame_writeCompGMGenProg (m_items := m_items) hw hitem hr_idx_lt
@@ -306,11 +303,10 @@ theorem validProg_compAppendTailGMGen {w : ℕ} {d : (CompParams × ℕ) × ℕ}
   have hown_lt := gmTailOwnerIdx_lt hb_pos (ntails_lt_maxTailItems_of_r_lt hb hr_lt htail)
   dsimp only [compAppendTailGMGenProg]
   refine validProg_bind ?_ ?_
-  · dsimp only [compAppendTailReadGMProg]
-    rw [hr_eq]
-    refine validProg_bind (validProg_readCompGMGen ⟨mkEnv s rfl, hr_idx_lt⟩) ?_
-    rw [clientState_readCompGMGenProg]
-    exact validProg_bind (validProg_readCompGMGen ⟨mkEnv s rfl, h1_lt⟩) (validProg_pure _)
+  · rw [compAppendTailReadGMProg, hr_eq]
+    exact validProg_bind (validProg_readCompGMGen ⟨mkEnv s rfl, hr_idx_lt⟩)
+      ((clientState_readCompGMGenProg ..).symm ▸
+        validProg_bind (validProg_readCompGMGen ⟨mkEnv s rfl, h1_lt⟩) (validProg_pure _))
   rw [clientState_compAppendTailReadGMProg, clientResult_compAppendTailReadGMProg hb_pos hb s]
   dsimp only [compAppendTailWriteGMProg, compAppendTailWrite1Prog, compAppendTailWrite2Prog,
     cpTailCap_mk, cpGmTailPtrBase_mk, cpGmTailOwnerBase_mk]

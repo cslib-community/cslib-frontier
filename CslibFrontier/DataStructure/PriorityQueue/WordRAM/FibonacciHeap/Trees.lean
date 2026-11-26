@@ -235,9 +235,7 @@ theorem forestNodes_perm {n : ℕ} {ts₁ ts₂ : List (FHTree n)} (hp : ts₁.P
     (forestNodes ts₁).Perm (forestNodes ts₂) := by
   induction hp with
   | nil => exact List.Perm.nil
-  | cons T _ ih =>
-    simp only [forestNodes]
-    exact List.Perm.append_left T.nodes ih
+  | cons T _ ih => exact List.Perm.append_left T.nodes ih
   | swap T₁ T₂ ts =>
     simp only [forestNodes, ← List.append_assoc]
     exact List.Perm.append_right (forestNodes ts) List.perm_append_comm
@@ -248,10 +246,8 @@ theorem forestNodes_length_ge {n : ℕ} (ts : List (FHTree n)) :
   induction ts with
   | nil => simp only [List.length_nil, forestNodes, le_rfl]
   | cons T rest ih =>
-    simp only [List.length_cons, forestNodes, List.length_append]
-    have hpos := T.size_pos
-    unfold FHTree.size at hpos
-    omega
+    have hpos : 1 ≤ T.nodes.length := T.size_pos
+    simp only [List.length_cons, forestNodes, List.length_append]; omega
 
 theorem forestNodes_nodup_tree {n : ℕ} {ts : List (FHTree n)} (hnd : (forestNodes ts).Nodup)
     {T : FHTree n} (hT : T ∈ ts) : T.nodes.Nodup := by
@@ -348,17 +344,13 @@ theorem ValidSubtree.weaken_pending {n : ℕ} {st : RawState n} (pending : Optio
   induction hT with
   | @mk u cs hin hmark hdeg hchild hpar hprio hrank _ ih =>
     refine ⟨hin, hmark, hdeg, hchild, hpar, hprio, fun i hi => ?_, ih⟩
-    have hr := hrank i hi
-    simp only [reduceCtorEq, ↓reduceIte, Nat.add_zero] at hr
-    omega
+    exact le_trans (by simpa using hrank i hi) (Nat.le_add_right _ _)
 
 theorem ValidSubtree.clear_pending {n : ℕ} {st : RawState n} {z : Fin n} {T : FHTree n}
     (hT : ValidSubtree st (some z) T) (hz : z ∉ forestNodes T.children) :
     ValidSubtree st none T :=
-  hT.frame (fun _ _ => ⟨rfl, rfl, rfl, rfl, rfl⟩) fun x hx =>
-    ⟨rfl, rfl, rfl, by
-      have hne : x ≠ z := fun e => hz (e ▸ hx)
-      simp only [reduceCtorEq, Option.some.injEq, hne]⟩
+  hT.frame (fun _ _ => ⟨rfl, rfl, rfl, rfl, rfl⟩) fun _ hx =>
+    ⟨rfl, rfl, rfl, iff_of_false nofun fun h => hz (Option.some.inj h ▸ hx)⟩
 
 theorem ValidSubtree.prioLT_of_mem_children {n : ℕ} {st : RawState n} {pending : Option (Fin n)}
     {T : FHTree n} (hT : ValidSubtree st pending T) :
@@ -404,9 +396,8 @@ private theorem fib_range_le_forestNodes {n : ℕ} :
     have h0 := h 0 (Nat.zero_lt_succ _)
     simp only [Nat.add_zero, List.getElem_cons_zero, FHTree.size] at h0
     have hrest := fib_range_le_forestNodes (k + 1) rest fun j hj => by
-      have hj' := h (j + 1) (Nat.succ_lt_succ hj)
-      have hk : k + (j + 1) = k + 1 + j := by omega
-      simpa only [hk, List.getElem_cons_succ] using hj'
+      simpa only [Nat.add_right_comm k 1 j, Nat.add_assoc k j 1, List.getElem_cons_succ] using
+        h (j + 1) (Nat.succ_lt_succ hj)
     have hsum_eq : (∑ j ∈ Finset.range rest.length, Nat.fib (k + (j + 1) - 1 + 2)) =
         ∑ j ∈ Finset.range rest.length, Nat.fib (k + 1 + j - 1 + 2) :=
       Finset.sum_congr rfl fun j _ => by rw [Nat.add_comm j 1, ← Nat.add_assoc]

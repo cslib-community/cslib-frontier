@@ -265,14 +265,12 @@ private theorem may_atLeast_iff_card_le [Fintype V] {B : Type*}
       Finset.disjoint_left.2 fun i hi₁ hi₂ =>
         hasymm (Q i) (Finset.mem_filter.1 hi₁).2 (Finset.mem_filter.1 hi₂).2
     obtain ⟨σ, hσ₁, hσ₂⟩ := exists_perm_swap_disjoint (hd Q₁) (hd Q₂) hc₁ hc₂
-    have hrel : (fun i => relab (Equiv.swap a b) (Q₁ (σ i))) = Q₂ := funext fun i => by
-      rw [hswap]
-      refine hext _ _ ?_ ?_
-      · simpa only [Finset.mem_filter, Finset.mem_univ, true_and, hrev] using (hσ₁ i).symm
-      · simpa only [Finset.mem_filter, Finset.mem_univ, true_and, hrev] using (hσ₂ i).symm
-    have hFQ : F Q₂ = (F Q₁).relabel (Equiv.swap a b) := by
-      rw [← hrel]
-      exact (hneut (Equiv.swap a b) (Q₁ ∘ σ)).trans (by rw [hanon σ Q₁])
+    have hrel : (fun i => relab (Equiv.swap a b) (Q₁ (σ i))) = Q₂ := funext fun i =>
+      (hswap _).trans <| hext _ _
+        (by simpa only [Finset.mem_filter, Finset.mem_univ, true_and, hrev] using (hσ₁ i).symm)
+        (by simpa only [Finset.mem_filter, Finset.mem_univ, true_and, hrev] using (hσ₂ i).symm)
+    have hFQ : F Q₂ = (F Q₁).relabel (Equiv.swap a b) :=
+      (congrArg F hrel.symm).trans ((hneut (Equiv.swap a b) (Q₁ ∘ σ)).trans (by rw [hanon σ Q₁]))
     simp only [hFQ, WeakRanking.relabel_atLeast, Equiv.symm_swap, Equiv.swap_apply_left,
       Equiv.swap_apply_right, and_self]
   -- Strict majority in either direction forces strict social preference.
@@ -306,10 +304,9 @@ private theorem may_atLeast_iff_card_le [Fintype V] {B : Type*}
       rcases huv with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
       · exact (hswap_counts hc_vu.symm hc_uv.symm).1.2 hvu
       · exact (hswap_counts hc_uv.symm hc_vu.symm).2.2 hvu
-    have hSne : S.Nonempty := Finset.card_pos.1 (by omega)
-    refine hpr_finset hSne (fun j hj => by simp [P₀, hj]) (fun i hi => ?_) hP₀_uv hvu
-    simp only [P₀, hi, ite_true, hrev]
-    exact ⟨hasymm (P i) (hi_uv i hi), hi_uv i hi⟩
+    refine hpr_finset ((Finset.card_pos (s := S)).1 (by omega)) (fun j hj => by simp [P₀, hj])
+      (fun i hi => ?_) hP₀_uv hvu
+    simpa only [P₀, hi, ite_true, hrev] using ⟨hasymm (P i) (hi_uv i hi), hi_uv i hi⟩
   rcases lt_trichotomy
       (Finset.univ.filter fun i => pref (P i) b a).card
       (Finset.univ.filter fun i => pref (P i) a b).card
@@ -327,11 +324,8 @@ private theorem swap_rel_iff_of_cover [DecidableEq A] {x y : A} (hxy : x ≠ y)
     rel (Equiv.swap x y u) (Equiv.swap x y v) ↔ rel v u := by
   by_cases huv : u = v
   · exact hdiag huv
-  rcases hcover u with rfl | rfl <;> rcases hcover v with rfl | rfl
-  · exact absurd rfl huv
-  · rw [Equiv.swap_apply_left, Equiv.swap_apply_right]
-  · rw [Equiv.swap_apply_right, Equiv.swap_apply_left]
-  · exact absurd rfl huv
+  rcases hcover u with rfl | rfl <;> rcases hcover v with rfl | rfl <;>
+    first | exact absurd rfl huv | simp only [Equiv.swap_apply_left, Equiv.swap_apply_right]
 
 end SharedCore
 

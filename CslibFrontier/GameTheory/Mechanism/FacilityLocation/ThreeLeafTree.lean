@@ -186,10 +186,9 @@ private lemma branch_eq_outward_or_inward (hT : W.graph.IsTree) {r : Fin 3} {y q
     (hy : y ∈ interval T.center (T.leaf r)) (hyc : y ≠ T.center) (hqy : q ≠ y) :
     (y ≠ T.leaf r ∧ branch y q = branch y (T.leaf r)) ∨ branch y q = branch y T.center := by
   by_cases h : q ∈ interval T.center (T.leaf r) ∧ dist T.center y < dist T.center q
-  · have hyl : y ≠ T.leaf r := by
-      rintro rfl
-      have hm := mem_interval_iff.mp h.1
-      linarith [dist_nonneg (x := q) (y := T.leaf r), h.2]
+  · have hyl : y ≠ T.leaf r := fun e => by
+      linarith [mem_interval_iff.mp h.1, dist_nonneg (x := q) (y := T.leaf r),
+        congrArg (dist T.center) e, h.2]
     exact Or.inl ⟨hyl, branch_eq_of_mem hT ((mem_branch_outward_iff hT hy hyl q).mpr h)⟩
   · exact Or.inr (branch_eq_of_mem hT ((mem_branch_inward_iff hT hy hyc q).mpr ⟨hqy, h⟩))
 
@@ -255,10 +254,8 @@ private lemma high_nonneg (P : ThreeLeafScheme T) (r : Fin 3) : 0 ≤ P.high r :
   (P.low_nonneg r).trans (P.low_le_high r)
 
 private lemma low_eq_zero_of_high_pos (P : ThreeLeafScheme T) {r s : Fin 3} (hrs : r ≠ s)
-    (hpos : 0 < P.high r) : P.low s = 0 := by
-  by_contra hne
-  have hls : 0 < P.low s := lt_of_le_of_ne (P.low_nonneg s) (Ne.symm hne)
-  linarith [P.exclusive_legs hrs.symm hls]
+    (hpos : 0 < P.high r) : P.low s = 0 :=
+  le_antisymm (le_of_not_gt fun hls => hpos.ne' (P.exclusive_legs hrs.symm hls)) (P.low_nonneg s)
 
 /-- The `TreeEMVS W (Fin 3)` induced by a `ThreeLeafScheme T`. -/
 noncomputable def toTreeEMVS (hT : W.graph.IsTree) (P : ThreeLeafScheme T) :
@@ -737,8 +734,7 @@ private lemma eval_twoVal_mem_branch_iff [Nonempty V] (hT : W.graph.IsTree)
     have hy_qz : y ∈ interval q z := Classical.not_not.mp hnot
     have hq_in : q ∈ branch z y := fun hz_yq => by
       rw [mem_interval_iff, _root_.dist_comm q y, _root_.dist_comm q z] at hy_qz
-      rw [mem_interval_iff] at hz_yq
-      linarith [dist_pos.mpr hzy.symm]
+      linarith [mem_interval_iff.mp hz_yq, dist_pos.mpr hzy.symm]
     refine hEq y hzy.symm Finset.univ (fun i => ?_) (E.univ_true hzy.symm)
     by_cases hi : i ∈ S <;> simp [x, hi, hq_in, mem_branch_self hzy.symm]
 
@@ -771,8 +767,7 @@ theorem isStrategyProof_surjective_anonymous_iff_threeLeafScheme [Nonempty V]
       y ≠ T.leaf r ∧ dist T.center y = d ∧ E.win y (T.leaf r) S}
   have hleg_le {r : Fin 3} {y : MetricGraph W} (hy : y ∈ interval T.center (T.leaf r)) :
       dist T.center y ≤ dist T.center (T.leaf r) := by
-    rw [mem_interval_iff] at hy
-    linarith [dist_nonneg (x := y) (y := T.leaf r)]
+    linarith [mem_interval_iff.mp hy, dist_nonneg (x := y) (y := T.leaf r)]
   have hthr_bdd (S : Finset (Fin 3)) (r : Fin 3) : BddAbove (thrSet S r) :=
     ⟨dist T.center (T.leaf r), fun _ h => h.elim (fun e => e ▸ dist_nonneg)
       fun ⟨_, hy, _, e, _⟩ => e ▸ hleg_le hy⟩
@@ -787,8 +782,8 @@ theorem isStrategyProof_surjective_anonymous_iff_threeLeafScheme [Nonempty V]
       have hp_leg : p ∈ interval T.center (T.leaf r) :=
         interval_subset_of_mem hT hy (right_mem_interval _ _) hp_int
       have hlt : dist T.center y < dist T.center p := by
-        rw [mem_interval_iff] at hy hp_int
-        linarith [mem_interval_iff.mp hp_leg, dist_pos.mpr hpy.symm]
+        linarith [mem_interval_iff.mp hy, mem_interval_iff.mp hp_int,
+          mem_interval_iff.mp hp_leg, dist_pos.mpr hpy.symm]
       exact hlt.trans_le (le_csSup (hthr_bdd S r) (Or.inr ⟨p, hp_leg, hpl, rfl, hwp⟩))
     · obtain ⟨d, rfl | ⟨p, hp_leg, hpl, rfl, hwp⟩, hyd⟩ :=
         (lt_csSup_iff (hthr_bdd S r) (hthr_ne S r)).mp hlt
@@ -828,11 +823,10 @@ theorem isStrategyProof_surjective_anonymous_iff_threeLeafScheme [Nonempty V]
       E.win y T.center S ↔ thr r < dist T.center y := by
     refine ⟨fun hw => ?_, fun hlt => ?_⟩
     · obtain ⟨p, hp_int, hpy, hpc, hwp⟩ := E.open_interior hyc.symm hw
-      have hp_leg : p ∈ interval T.center (T.leaf r) :=
-        interval_subset_of_mem hT (left_mem_interval _ _) hy (interval_comm y T.center ▸ hp_int)
+      rw [interval_comm] at hp_int
+      have hp_leg := interval_subset_of_mem hT (left_mem_interval _ _) hy hp_int
       have hdp_lt : dist T.center p < dist T.center y := by
-        rw [interval_comm, mem_interval_iff] at hp_int
-        linarith [dist_pos.mpr hpy]
+        linarith [mem_interval_iff.mp hp_int, dist_pos.mpr hpy]
       have hpl : p ≠ T.leaf r := fun h => hdp_lt.not_ge (h ▸ hleg_le hy)
       have hle : thr r ≤ dist T.center p := le_of_not_gt fun hlt =>
         E.exclusive hpc.symm hpl.symm (branch_outward_ne_inward hT hp_leg hpc hpl).symm

@@ -314,23 +314,18 @@ theorem clusterMarkers_guard {s x i : ℕ} (hs : 0 < s) (hx : x < 2 ^ (s * s))
     Nat.testBit_land, clusterMask_bit hs hi (by omega),
     clusterDifference_guard hs hx hi]
   simp only [decide_true, Bool.and_true, Bool.true_bne]
-  have hbit : x.testBit (s - 1 + s * i) =
-      (x / 2 ^ (s * i) % 2 ^ s).testBit (s - 1) := by
-    simp only [Nat.testBit_mod_two_pow, decide_eq_true (by omega : s - 1 < s),
-      Bool.true_and, Nat.testBit_div_two_pow]
-  rw [hbit]
-  have hl : (x / 2 ^ (s * i) % 2 ^ s) % 2 ^ (s - 1) = x / 2 ^ (s * i) % 2 ^ (s - 1) :=
-    Nat.mod_mod_of_dvd _ (Nat.pow_dvd_pow 2 (by omega))
   let v := x / 2 ^ (s * i) % 2 ^ s
-  have hv : v < 2 ^ s := Nat.mod_lt _ (Nat.two_pow_pos _)
+  have hbit : x.testBit (s - 1 + s * i) = v.testBit (s - 1) := by
+    simp only [v, Nat.testBit_mod_two_pow, decide_eq_true (Nat.sub_lt hs zero_lt_one),
+      Bool.true_and, Nat.testBit_div_two_pow]
+  have hl : v % 2 ^ (s - 1) = x / 2 ^ (s * i) % 2 ^ (s - 1) :=
+    Nat.mod_mod_of_dvd _ (Nat.pow_dvd_pow 2 (by omega))
   have hsplit : v = v % 2 ^ (s - 1) + 2 ^ (s - 1) * (v / 2 ^ (s - 1) % 2) := by
-    rw [← Nat.mod_pow_succ, Nat.sub_add_cancel hs, Nat.mod_eq_of_lt hv]
+    rw [← Nat.mod_pow_succ, Nat.sub_add_cancel hs,
+      Nat.mod_eq_of_lt (Nat.mod_lt _ (Nat.two_pow_pos _))]
   apply Bool.eq_iff_iff.mpr
-  simp only [Bool.or_eq_true, Bool.not_eq_true', decide_eq_false_iff_not,
-    decide_eq_true_eq]
-  rw [← hl]
-  change v.testBit (s - 1) = true ∨ ¬v % 2 ^ (s - 1) = 0 ↔ v ≠ 0
-  rw [Nat.testBit_eq_decide_div_mod_eq, decide_eq_true_eq]
+  simp only [hbit, ← hl, Bool.or_eq_true, Bool.not_eq_true', decide_eq_false_iff_not,
+    decide_eq_true_eq, Nat.testBit_eq_decide_div_mod_eq]
   have := Nat.two_pow_pos (s - 1)
   rcases Nat.mod_two_eq_zero_or_one (v / 2 ^ (s - 1)) with h | h <;> rw [h] at hsplit ⊢ <;> omega
 
@@ -430,14 +425,11 @@ theorem msb_eq_log2 {s x : ℕ} (hs : 0 < s) (hx : x < 2 ^ (s * s)) :
     msb s x = x.log2 := by
   by_cases hx0 : x = 0
   · simp [msb, hx0]
-  · have hxpos : 0 < x := by omega
-    obtain ⟨hz, hlog⟩ := clusterSummary_log2 hs hxpos hx
-    have hc : smallMSB s (clusterSummary s x) = x.log2 / s := by
-      rw [smallMSB_eq_log2 hz (clusterSummary_lt s x), hlog]
-    obtain ⟨_, hv, hvlog, _⟩ := highestCluster hs hxpos hx
-    rw [msb, ite_eq_right hx0, hc]
+  · obtain ⟨hz, hlog⟩ := clusterSummary_log2 hs (Nat.pos_of_ne_zero hx0) hx
+    obtain ⟨_, hv, hvlog, _⟩ := highestCluster hs (Nat.pos_of_ne_zero hx0) hx
+    rw [msb, ite_eq_right hx0]
     dsimp only
-    rw [Nat.and_two_pow_sub_one_eq_mod,
+    rw [smallMSB_eq_log2 hz (clusterSummary_lt s x), hlog, Nat.and_two_pow_sub_one_eq_mod,
       Nat.shiftRight_eq_div_pow, Nat.mul_comm (x.log2 / s) s,
       smallMSB_eq_log2 hv (Nat.mod_lt _ (Nat.two_pow_pos _)), hvlog]
     exact Nat.div_add_mod _ _

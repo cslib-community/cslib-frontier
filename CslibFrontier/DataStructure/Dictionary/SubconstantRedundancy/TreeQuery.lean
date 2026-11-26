@@ -102,9 +102,8 @@ theorem nodeQuery_match_iff
     obtain ⟨hy_act, hsl_y⟩ := mem_filter.mp hy_filt
     obtain ⟨hy_dom, hny⟩ := SeedAssignment.mem_activeAt_iff.mp hy_act
     obtain ⟨vy, hvy⟩ := Option.isSome_iff_exists.mp ((P.mem_paddedDom_iff d y).mp hy_dom)
-    have hqy := hwf.query_eq_of_storeLvl ℓ h1 hℓ _ y vy hvy hny hsl_y
-    rw [hid_eq, hq, Option.some.injEq, Prod.mk.injEq] at hqy
-    obtain ⟨rfl, rfl⟩ := hqy
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj <| Option.some.inj <|
+      hq.symm.trans (hid_eq ▸ hwf.query_eq_of_storeLvl ℓ h1 hℓ _ y vy hvy hny hsl_y)
     by_cases hqx : st.seeds.quotAt ℓ h1 hℓ y == st.seeds.quotAt ℓ h1 hℓ x
     · obtain rfl : y = x := (st.seeds.levelCoordEquiv ℓ h1 hℓ).injective <| Prod.ext
         (by rw [st.seeds.levelCoordEquiv_fst, st.seeds.levelCoordEquiv_fst, hny])
@@ -460,17 +459,15 @@ theorem wellFormedPadded_rawOverwrite
       | succ k ih =>
         intro m hsum h1 hmL
         have hm_lt_d : m < P.depth := by omega
+        have hne_m : storeLvl x ≠ m := by omega
         have hnm := nodeQuery_match_iff hwf h1 (hmL.trans hhi_x) x
-        rw [ite_eq_right (by omega : storeLvl x ≠ m)] at hnm
+        rw [ite_eq_right hne_m] at hnm
         simp only [SeedAssignment.idAt, SeedAssignment.quotAt] at hnm
-        have hrec (hlt : m < P.depth) : st.rawOverwriteLoop scheme v_new (m + 1) (by omega) hlt
-            (st.seeds.stepCoordEquiv h1 hlt (st.seeds.levelCoordEquiv m h1 (hmL.trans hhi_x) x)) =
-            st_target := by
-          rw [← Equiv.trans_apply, ← st.seeds.levelCoordEquiv_succ h1 hlt]
-          exact ih (m + 1) (by omega) (by omega) (by omega)
+        have hih := ih (m + 1) (by omega) (by omega) (by omega)
         unfold rawOverwriteLoop
         rw [st.seeds.levelCoordEquiv_fst h1 _ x]
-        simp only [hrec, dite_eq_ite, hm_lt_d, ite_true]
+        simp only [dite_eq_left hm_lt_d, ← Equiv.trans_apply,
+          ← st.seeds.levelCoordEquiv_succ h1 hm_lt_d, hih]
         rcases hqm : st.nodeQuery scheme m h1 (hmL.trans hhi_x)
             (st.seeds.nodeAt m (hmL.trans hhi_x) x)
             (st.seeds.levelCoordEquiv m h1 (hmL.trans hhi_x) x).id with _ | ⟨q, w⟩ <;>
@@ -504,9 +501,8 @@ theorem wellFormedPadded_rawOverwrite
         simpa only [st.nodeWait_overwriteAtNode scheme hlo_x hhi_x uL idL (qL, v_new) h2' hℓ' u,
           hseeds] using hwf.wait_lookup_eq ℓ h2' hℓ' u y hy hsly }
   rw [hseeds] at hny ⊢
-  by_cases hyx : y = x
-  · subst y
-    rw [Function.update_self, Option.some.injEq] at hdy
+  rcases eq_or_ne y x with rfl | hyx
+  · rw [Function.update_self, Option.some.injEq] at hdy
     obtain rfl : ℓ = L := hsly.symm
     subst hdy hny
     rw [st.nodeQuery_overwriteAtNode_same _ _ _ _ _ _ _ hmemL, Function.update_self]

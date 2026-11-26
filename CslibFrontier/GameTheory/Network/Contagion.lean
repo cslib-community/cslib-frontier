@@ -292,11 +292,9 @@ theorem isPureNash_of_bestResponseStep_eq [DecidableEq V] {s : V → Bool}
     simpa only [mem_bestResponseStep_iff, ← p.payoff_update_false G v s,
       ← p.payoff_update_true G v s, Set.mem_ofPred_eq] using Set.ext_iff.mp h v
   conv_rhs => rw [← Function.update_eq_self v s]
-  cases a <;> cases hsv : s v
-  · exact le_rfl
+  cases a <;> cases hsv : s v <;> try exact le_rfl
   · exact hiff.mpr hsv
   · exact le_of_not_ge (mt hiff.mp (by simp [hsv]))
-  · exact le_rfl
 
 end GraphPayoffs
 
@@ -587,13 +585,13 @@ theorem exists_finset_isContagious_bestResponseStep_iff_progressiveStep {q : ℝ
             bestResponseStep_sdiff_isolated]
           exact (hstep_eq ℓ le_rfl).symm
       | succ m ih =>
-          rw [Function.iterate_succ_apply', ih, ← hstep_eq (ℓ + m + 1) (by omega)]
-          rfl
+          have hle_m : ℓ ≤ ℓ + m + 1 := by omega
+          rw [Function.iterate_succ_apply', ih, ← hstep_eq (ℓ + m + 1) hle_m]; rfl
     refine ⟨T, fun w => ?_⟩
     obtain ⟨k, hk⟩ := hS w
     refine ⟨k + 1, fun j hj => ?_⟩
     obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le' hj
-    rw [show m + (k + 1) = (m + k) + 1 by omega, hiter (m + k)]
+    rw [← Nat.add_assoc, hiter (m + k)]
     exact hk (ℓ + (m + k) + 1) (by omega)
 
 /-- Progressive and nonprogressive contagion have the exact same contagion threshold on every
@@ -602,11 +600,8 @@ theorem contagionThreshold_eq_sSup_progressive :
     contagionThreshold G =
       sSup {q ∈ Set.Icc (0 : ℝ) 1 |
         ∃ S : Finset V, IsContagious (progressiveStep G q) (S : Set V)} := by
-  unfold contagionThreshold
-  congr 1
-  ext q
-  exact and_congr_right fun hq =>
-    exists_finset_isContagious_bestResponseStep_iff_progressiveStep G hq.2
+  exact congrArg sSup (Set.ext fun _ => and_congr_right fun hq =>
+    exists_finset_isContagious_bestResponseStep_iff_progressiveStep G hq.2)
 
 /-! ## Theorem 24.2: Morris's 1/2 contagion threshold bound -/
 
@@ -721,11 +716,8 @@ theorem not_isContagious_progressiveStep_of_half_lt [Infinite V]
       intro n
       induction n with
       | zero => omega
-      | succ n ih =>
-        have := hdec n (hno n)
-        omega
-    have := hbound (edgeBoundaryCard G (Sfin 0) + 1)
-    omega
+      | succ n ih => linarith [hdec n (hno n)]
+    linarith [hbound (edgeBoundaryCard G (Sfin 0) + 1)]
   obtain ⟨k, hk⟩ := hstop
   have hconst : ∀ m, (progressiveStep G q)^[k + m] (S : Set V) = (Sfin k : Set V) := by
     intro m

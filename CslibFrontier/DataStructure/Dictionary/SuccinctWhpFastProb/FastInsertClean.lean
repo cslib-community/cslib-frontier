@@ -243,31 +243,19 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
         obtain ⟨_, _, _, hvc, _⟩ := hc.bufCur_valid
         have hins := hvc.insert_spec (b := b) (loc := fs.bktCount b) hrk_lt
         set tr' := bufInsert (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey b (fs.bktCount b)
-        have hsub_ev : BadIns.filter (fun x =>
-            bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp)
-              (fpReducedKey c U n_max θ.2 x)) ⊆
-            BadIns.filter (fun x =>
-              bufEverPresent (cTabWhp c) (bCharWhp n_max) tr'
-                (fpReducedKey c U n_max θ.2 x)) := fun x hx => by
+        let filt (t : BufTrie) := BadIns.filter fun x =>
+          bufEverPresent (cTabWhp c) (bCharWhp n_max) t (fpReducedKey c U n_max θ.2 x)
+        have hsub_ev : filt (fs.buf fs.curEp) ⊆ filt tr' := fun x hx => by
           obtain ⟨hx1, hx2⟩ := mem_filter.mp hx
-          rw [mem_filter, hins.2.2.2.2.1 _ (fpReducedKey_lt c U n_max θ.2 x), hx2, ite_self]
-          exact ⟨hx1, rfl⟩
+          exact mem_filter.mpr
+            ⟨hx1, by rw [hins.2.2.2.2.1 _ (fpReducedKey_lt c U n_max θ.2 x), hx2, ite_self]⟩
         by_cases hev : bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey = true
         · rw [(hins.2.2.2.2.2.1 hev).2]
           exact hcw.buf_alloc.trans (Finset.card_le_card hsub_ev)
-        · have hu_nin : u ∉ BadIns.filter (fun x =>
-              bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp)
-                (fpReducedKey c U n_max θ.2 x)) := fun hm => hev (mem_filter.mp hm).2
-          have hu_in' : u ∈ BadIns.filter (fun x =>
-              bufEverPresent (cTabWhp c) (bCharWhp n_max) tr'
-                (fpReducedKey c U n_max θ.2 x)) :=
+        · have hu_nin : u ∉ filt (fs.buf fs.curEp) := fun hm => hev (mem_filter.mp hm).2
+          have hu_in' : u ∈ filt tr' :=
             mem_filter.mpr ⟨hu_bad, by rw [hins.2.2.2.2.1 _ hrk_lt, ite_eq_left rfl]⟩
-          have hins_sub : insert u (BadIns.filter (fun x =>
-              bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp)
-                (fpReducedKey c U n_max θ.2 x))) ⊆
-              BadIns.filter (fun x =>
-                bufEverPresent (cTabWhp c) (bCharWhp n_max) tr'
-                  (fpReducedKey c U n_max θ.2 x)) :=
+          have hins_sub : insert u (filt (fs.buf fs.curEp)) ⊆ filt tr' :=
             Finset.insert_subset_iff.mpr ⟨hu_in', hsub_ev⟩
           calc tr'.itemAlloc
               ≤ (fs.buf fs.curEp).itemAlloc + 1 := by rw [hins.2.2.2.1]; split_ifs; omega

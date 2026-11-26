@@ -389,13 +389,13 @@ theorem IsQuasiDemand.mem_demandSet_of_budget_pos {u : (G → ℝ) → ℝ} {p :
   have hm_le : m ≤ c * expenditure p b := by
     rw [← expenditure_smul_right]
     exact hq.2 (c • b) (fun g => mul_nonneg hc_pos.le (hb.1 g)) (by linarith [(abs_lt.1 hclose).1])
-  have hexp_nn : 0 ≤ expenditure p b := expenditure_nonneg hp hb.1
+  have _ := expenditure_nonneg hp hb.1
   have hc_exp_lt : c * expenditure p b < m :=
     calc
       c * expenditure p b ≤ c * m := mul_le_mul_of_nonneg_left hb.2 hc_pos.le
       _ < 1 * m := mul_lt_mul_of_pos_right hc_lt_1 hm
       _ = m := one_mul m
-  linarith
+  exact (hm_le.trans_lt hc_exp_lt).false
 
 end ConsumerWelfare
 
@@ -600,8 +600,7 @@ theorem exists_priceQuasiEquilibrium_reendow_of_isParetoOptimal [Nonempty I]
         (half_pos (sub_pos.2 (not_le.1 hlt)))
     have hge0 := hexp_excess y ▸ hsep _ ⟨y, hy_nn, hy_gt, fun _ => le_rfl⟩
     have hsub := hy_sum univ
-    rw [sum_sub_distrib] at hsub
-    linarith
+    rw [sum_sub_distrib] at hsub; linarith
   have hsum_eq : ∑ i : I, expenditure p (x i) = expenditure p E.totalSupply :=
     le_antisymm (hpo.1.sum_expenditure_le_totalSupply hp_nn) hsum_ge
   have hcs : ∀ g : G, p g * E.excessDemand x g = 0 :=
@@ -630,9 +629,7 @@ theorem exists_priceQuasiEquilibrium_reendow_of_isParetoOptimal [Nonempty I]
         congrArg₂ (· - ·) (congrArg _ (Function.update_of_ne (mem_erase.1 hj).1 b yNear)) rfl)
     linarith [hyNear_sum (univ.erase i)]
   refine ⟨p, ⟨hp_nn, hp_pos,
-    fun i => by simpa only [reendow_utility, reendow_income] using hquasi i,
-    fun g => by simp [reendow_excessDemand],
-    fun g => by simp [reendow_excessDemand]⟩, hcs⟩
+    fun i => by simpa only [reendow_utility, reendow_income] using hquasi i, by simp⟩, hcs⟩
 
 /-- **Second Fundamental Theorem of Welfare Economics (full competitive equilibrium with lump-sum
 transfers)** ([Arrow1951Welfare]; [ArrowDebreu1954]): if utilities are locally nonsatiated,
@@ -748,10 +745,9 @@ theorem IsEquilibrium.envyFree_of_budget_eq {M : LinearFisherMarket I G}
     {x : I → G → ℝ} {p : G → ℝ} (heq : M.IsEquilibrium x p) {i j : I}
     (hbud : M.budget i = M.budget j) :
     linearUtility (M.utility i) (x j) ≤ M.buyerUtility x i := by
-  have hle : M.toFisherMarket.budget j ≤ M.toFisherMarket.budget i := by
-    simpa only [M.toFisherMarket_budget] using hbud.symm.le
+  rw [← M.toFisherMarket_budget] at hbud
   simpa only [M.toFisherMarket_utility, M.buyerUtility_eq] using
-    FisherMarket.IsEquilibrium.utility_le_of_budget_le heq hle
+    FisherMarket.IsEquilibrium.utility_le_of_budget_le heq hbud.symm.le
 
 /-- **Proportional-share guarantee for linear Fisher equilibria:** when every buyer desires at least
 one good (`buyer_nonsatiated`) and `0 < ∑ k, M.budget k`, every buyer `i` achieves at least fraction

@@ -66,13 +66,10 @@ theorem fits_hash_of_fits_offCompItems {w U N dstMetaBase : ℕ}
 /-- Exact ceiling-to-floor binary logarithm identity `⌈log₂ x⌉ = ⌊log₂ (x - 1)⌋ + 1` for `1 < x`. -/
 theorem clog2_eq_log2_pred_add_one {x : ℕ} (hx : 1 < x) :
     Nat.clog 2 x = Nat.log 2 (x - 1) + 1 := by
-  apply le_antisymm
-  · rw [Nat.clog_le_iff_le_pow one_lt_two]
-    have hlt := Nat.lt_pow_succ_log_self one_lt_two (x - 1)
-    omega
-  · have hle_c := Nat.le_pow_clog one_lt_two x
-    refine (Nat.log_lt_iff_lt_pow one_lt_two (by omega)).mpr ?_
-    omega
+  have hlt := Nat.lt_pow_succ_log_self one_lt_two (x - 1)
+  have hle_c := Nat.le_pow_clog one_lt_two x
+  exact le_antisymm ((Nat.clog_le_iff_le_pow one_lt_two).mpr (by omega))
+    ((Nat.log_lt_iff_lt_pow one_lt_two (by omega)).mpr (by omega))
 
 /-- Shifted ceiling-to-floor binary logarithm identity `⌈log₂ (m + 1)⌉ = ⌊log₂ m⌋ + 1` for
 `1 ≤ m`. -/
@@ -105,10 +102,8 @@ private theorem log2CapAux_step (k rem acc : ℕ) :
     next.2 + (log2CapAux k next.1).2 = acc + (log2CapAux (k + 1) rem).2 := by
   dsimp only [log2CapAux]
   split_ifs with h1
-  · dsimp only; omega
-  · have h0 : (log2CapAux k rem).2 = 0 := by
-      rw [log2CapAux_snd, Nat.log_of_lt (by omega), Nat.min_zero]
-    dsimp only; omega
+  · exact Nat.add_right_comm acc 1 _
+  · simp [log2CapAux_snd, Nat.log_of_lt (Nat.lt_succ_of_le (Nat.not_lt.mp h1))]
 
 private def log2StepProg : ℕ × (ℕ × ℕ) → Memory.Prog (ℕ × ℕ)
   | (hdrAddr, (rem, acc)) => do
@@ -197,8 +192,9 @@ private theorem log2Loop_spec {w hdrAddr K x₀ : ℕ} {s₀ : Memory.State}
           (fun _ _ => by rw [hs']),
           hs', ?_⟩
         have hst := log2CapAux_step (K - (k + 1)) rem acc
+        have hKk : K - (k + 1) + 1 = K - k := by omega
         dsimp only at hst
-        rw [show K - (k + 1) + 1 = K - k by omega] at hst
+        rw [hKk] at hst
         rw [hres]
         split_ifs at hst ⊢ with h1 <;> dsimp only at hst ⊢
         · have hpos : 1 ≤ (log2CapAux (K - k) rem).2 := by
@@ -544,11 +540,13 @@ theorem writeTwoBlock4Fin_spec {w n : ℕ} (base : ℕ) (g : Fin n → ℕ) (off
       (by omega) (hfit_end.of_le (by omega)) (hg _) (hg _) (hg _) (hg _)
   have hs'_eq : s' = (Memory.spec 0).clientState s1 (writeBlock4Prog (base + 4, b1)) :=
     StateTransitionSpec.clientState_bind ..
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · dsimp only [prog]; rw [validHistory_bind']; exact ⟨hv0, hv1⟩
-  · rw [hs'_eq, hfr1, hfr0]
-  · intro j hj
-    rw [hs'_eq]
+  refine ⟨?_, by rw [hs'_eq, hfr1, hfr0], fun j hj => ?_,
+    fun a ha => by rw [hs'_eq, hframe1 a (by omega), hframe0 a (by omega)],
+    (Realization.memoryCost_bind' (writeBlock4Prog (base, b0)) _ s).trans (by rw [hc0, hc1])⟩
+  · dsimp only [prog]
+    rw [validHistory_bind']
+    exact ⟨hv0, hv1⟩
+  · rw [hs'_eq]
     obtain ⟨m00, m01, m02, m03⟩ := hm0
     obtain ⟨m10, m11, m12, m13⟩ := hm1
     rcases (show j = 0 ∨ j = 1 ∨ j = 2 ∨ j = 3 ∨ j = 4 ∨ j = 5 ∨ j = 6 ∨ j = 7 by omega) with
@@ -556,9 +554,6 @@ theorem writeTwoBlock4Fin_spec {w n : ℕ} (base : ℕ) (g : Fin n → ℕ) (off
     all_goals first
       | exact m10 | exact m11 | exact m12 | exact m13
       | (rw [hframe1 _ (by omega)]; first | exact m00 | exact m01 | exact m02 | exact m03)
-  · intro a ha
-    rw [hs'_eq, hframe1 a (by omega), hframe0 a (by omega)]
-  · dsimp only [prog]; rw [Realization.memoryCost_bind', hc0, hc1]
 
 /-- Specification for two consecutive `writeBlock4Prog` calls followed by `pure ret`. -/
 theorem writeTwoBlock4FinRet_spec {w n : ℕ} (base : ℕ) (g : Fin n → ℕ) (off : ℕ)

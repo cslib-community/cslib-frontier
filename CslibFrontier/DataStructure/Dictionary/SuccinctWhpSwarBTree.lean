@@ -168,7 +168,7 @@ private theorem laneGet_add_shiftLeft {W j a c : ℕ} (ha : a < 2 ^ (j * W)) (i 
       have ha0 : a.testBit (i * W + b) = false :=
         Nat.testBit_lt_two_pow (ha.trans_le (Nat.pow_le_pow_right (by decide) (by omega)))
       have hsub : i * W + b - j * W = (i - j) * W + b := by rw [Nat.sub_mul]; omega
-      simp [testBit_laneGet, Nat.testBit_shiftLeft, hb, ha0, hsub, show j * W ≤ i * W + b by omega]
+      simp [testBit_laneGet, Nat.testBit_shiftLeft, hb, ha0, hsub, hle.trans (Nat.le_add_right _ b)]
   · split_ifs <;> simp [testBit_laneGet, hb]
 
 /-- Lane `i` of `wordDropLow W j word` equals lane `j + i` of `word`. -/
@@ -194,19 +194,17 @@ theorem laneGet_wordInsertAt {W j v word : ℕ} (hv : v < 2 ^ W) (i : ℕ) :
   rcases lt_trichotomy i j with h | rfl | h
   · simp [h]
   · simp [laneGet_eq_div_mod, Nat.mod_eq_of_lt hv]
-  · simp [show ¬i < j by omega, h.ne', show ¬i - j < 1 by omega,
-      show j + (i - j - 1) = i - 1 by omega]
+  · have hij : j + (i - j - 1) = i - 1 := by omega
+    simp [Nat.not_lt.mpr h.le, h.ne', Nat.not_lt.mpr (Nat.sub_pos_of_lt h), hij]
 
 /-- Lane extraction after deleting lane `j`. -/
 theorem laneGet_wordDeleteAt (W j word i : ℕ) :
     laneGet W (wordDeleteAt W j word) i =
       if i < j then laneGet W word i else laneGet W word (i + 1) := by
   rw [wordDeleteAt, laneGet_add_shiftLeft (wordTakeLow_lt W j word), laneGet_wordTakeLow,
-    show word >>> ((j + 1) * W) = wordDropLow W (j + 1) word from rfl, laneGet_wordDropLow]
+    ← wordDropLow, laneGet_wordDropLow]
   split_ifs with h
-  · rfl
-  · congr 1
-    omega
+  exacts [rfl, congrArg _ (by omega)]
 
 private theorem wordUpdateAt_eq_wordInsertAt_wordDeleteAt (W j v word : ℕ) :
     wordUpdateAt W j v word = wordInsertAt W j v (wordDeleteAt W j word) := by
@@ -230,8 +228,8 @@ theorem laneGet_wordUpdateAt {W j v word : ℕ} (hv : v < 2 ^ W) (i : ℕ) :
   rcases lt_trichotomy i j with hlt | rfl | hgt
   · simp [hlt, hlt.ne, laneGet_wordDeleteAt]
   · simp
-  · simp [show ¬i < j by omega, hgt.ne', laneGet_wordDeleteAt, show ¬i - 1 < j by omega,
-      show i - 1 + 1 = i by omega]
+  · simp [Nat.not_lt.mpr hgt.le, hgt.ne', laneGet_wordDeleteAt,
+      Nat.not_lt.mpr (Nat.le_sub_one_of_lt hgt), Nat.sub_add_cancel (Nat.one_le_of_lt hgt)]
 
 /-- `a + c <<< (j * W) < 2 ^ ((j + n) * W)` when `a < 2 ^ (j * W)` and `c < 2 ^ (n * W)`. -/
 private theorem add_shiftLeft_lt {W j n a c : ℕ} (ha : a < 2 ^ (j * W)) (hc : c < 2 ^ (n * W)) :
@@ -250,15 +248,15 @@ theorem wordInsertAt_lt {W j m v word : ℕ} (hj : j ≤ m) (hv : v < 2 ^ W)
     wordDropLow_lt (by rwa [Nat.add_sub_cancel' hj])
   have hmid := add_shiftLeft_lt (j := 1) (by rwa [one_mul]) hdrop
   rw [one_mul] at hmid
+  have hjm : j + (1 + (m - j)) = m + 1 := by omega
   have h := add_shiftLeft_lt (wordTakeLow_lt W j word) hmid
-  rwa [show j + (1 + (m - j)) = m + 1 by omega] at h
+  rwa [hjm] at h
 
 /-- Deleting lane `j ≤ m` of a word `< 2 ^ ((m + 1) * W)` produces a word `< 2 ^ (m * W)`. -/
 theorem wordDeleteAt_lt {W j m word : ℕ} (hj : j ≤ m) (hw : word < 2 ^ ((m + 1) * W)) :
     wordDeleteAt W j word < 2 ^ (m * W) := by
-  have hhi : word >>> ((j + 1) * W) < 2 ^ ((m - j) * W) :=
-    wordDropLow_lt (by rwa [show j + 1 + (m - j) = m + 1 by omega])
-  have h := add_shiftLeft_lt (wordTakeLow_lt W j word) hhi
+  have hjm : j + 1 + (m - j) = m + 1 := by omega
+  have h := add_shiftLeft_lt (wordTakeLow_lt W j word) (wordDropLow_lt (by rwa [hjm]))
   rwa [Nat.add_sub_cancel' hj] at h
 
 /-- Overwriting lane `j < m` with `v < 2 ^ W` preserves the `< 2 ^ (m * W)` bound. -/
@@ -395,16 +393,14 @@ theorem swarRank_eq_count_lt {fpBits capLanes m q keysWord : ℕ}
           refine card_le_card_of_injOn Prod.fst (fun p hp => ?_) ?_
           · exact (mem_product.mp (mem_filter.mp hp).1).1
           · rintro ⟨j₁, i₁⟩ h₁ ⟨j₂, i₂⟩ h₂ (rfl : j₁ = j₂)
-            have e₁ := (mem_filter.mp h₁).2
-            have e₂ := (mem_filter.mp h₂).2
-            exact Prod.ext rfl (by omega)
+            exact Prod.ext rfl
+              (Nat.add_left_cancel ((mem_filter.mp h₁).2.trans (mem_filter.mp h₂).2.symm))
       _ < 2 ^ W := by rw [card_range]; exact hm.trans hcap
   have hprod_eq : ltMask fpBits m q keysWord * swarOnes W capLanes =
       ∑ s ∈ range (2 * capLanes), c s * 2 ^ (s * W) := by
     rw [hlt_eq, swarOnes_eq_sum hW capLanes, sum_mul_sum, ← sum_product']
     have hmaps : ∀ p ∈ P, p.1 + p.2 ∈ range (2 * capLanes) := fun p hp => by
-      simp only [P, mem_product, mem_range] at hp ⊢
-      omega
+      simp only [P, mem_product, mem_range] at hp ⊢; omega
     rw [← sum_fiberwise_of_maps_to hmaps]
     refine sum_congr rfl fun s _ => ?_
     simp only [c, sum_mul]
@@ -421,12 +417,9 @@ theorem swarRank_eq_count_lt {fpBits capLanes m q keysWord : ℕ}
       (fun j hj => by
         have hjm : j < m := mem_range.mp hj
         exact mem_filter.mpr ⟨mem_product.mpr ⟨hj, mem_range.mpr (by omega)⟩, by omega⟩)
-      (fun p hp => by
-        rcases p with ⟨j, i⟩
-        have he := (mem_filter.mp hp).2
-        exact Prod.ext rfl (by dsimp at he ⊢; omega))
-      (fun _ _ => rfl)
-      (fun _ _ => rfl)
+      (fun p hp => Prod.ext rfl
+        ((congrArg (· - p.1) (mem_filter.mp hp).2).symm.trans (Nat.add_sub_cancel_left p.1 p.2)))
+      (fun _ _ => rfl) (fun _ _ => rfl)
   simp only [hbij, b, ← sum_filter, sum_const, nsmul_eq_mul, Nat.cast_id, mul_one]
 
 /-! ## Section 2: Iterative Top-Down Split-Only SWAR B+-Tree -/
