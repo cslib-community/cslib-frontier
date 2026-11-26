@@ -86,19 +86,23 @@ theorem exists_computableInO_searchDeclared_powerBudget {C : Type} (encC : C ↪
     {g t s : (C × ℕ) × CNF ℕ → ℕ} {R Q : C × ℕ × CNF ℕ → ℕ}
     (hcounter : ComputableInO g (encPair (encPair encC encUnary) encCNF) encNat t s)
     (hcorrect : ∀ p ψ, (∀ c ∈ ψ, c.length ≤ k) → g (p, ψ) = ψ.modelCount)
-    (hresources : ∀ (x : C × ℕ × CNF ℕ) (ψ : CNF ℕ), (∀ c ∈ ψ, c.length ≤ k) →
-      ψ.vars.toFinset ⊆ Finset.range x.2.1 →
-      ψ.length ≤ occBound k (countingThresholdBase k (countingPowerBudget d x.2.1)) * x.2.1 + 1 →
-      t ((x.1, x.2.1), ψ) ≤ R x ∧ s ((x.1, x.2.1), ψ) ≤ Q x)
+    (hresources : ∀ (x : C × ℕ × CNF ℕ) (ψ : CNF ℕ),
+      let (context, declared, _) := x
+      (∀ c ∈ ψ, c.length ≤ k) → ψ.vars.toFinset ⊆ Finset.range declared →
+      ψ.length ≤ occBound k (countingThresholdBase k (countingPowerBudget d declared)) *
+        declared + 1 →
+      t ((context, declared), ψ) ≤ R x ∧ s ((context, declared), ψ) ≤ Q x)
     (hQ : PolyBounded (fun x => (encPair encC (encPair encUnary encCNF) x).length) Q) :
     let encInput := encPair encC (encPair encUnary encCNF)
     ∃ (count T S : C × ℕ × CNF ℕ → ℕ) (c e : ℕ),
       ComputableInO count encInput encNat T S ∧
       PolyBounded (fun x => (encInput x).length) S ∧
-      (∀ x, count x = if validDeclaredInput k x.2.1 x.2.2 then
-        x.2.2.modelCountOn (Finset.range x.2.1) else 0) ∧
-      ∀ x, validDeclaredInput k x.2.1 x.2.2 = true →
-        (T x : ℝ) ≤ 6 * 2 ^ (3 * (x.2.1 + 1 : ℝ) ^ (1 - (d : ℝ)⁻¹)) *
+      (∀ x, let (_, declared, formula) := x
+        count x = if validDeclaredInput k declared formula then
+          formula.modelCountOn (Finset.range declared) else 0) ∧
+      ∀ x, let (_, declared, formula) := x
+        validDeclaredInput k declared formula = true →
+        (T x : ℝ) ≤ 6 * 2 ^ (3 * (declared + 1 : ℝ) ^ (1 - (d : ℝ)⁻¹)) *
           (c * (((encInput x).length : ℝ) + 1) ^ e + R x) := by
   intro encInput
   have hB : ComputableInPolyTime (budget (C := C) d) (encPair encC encUnary) encNat :=
