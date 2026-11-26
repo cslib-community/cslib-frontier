@@ -150,13 +150,12 @@ private theorem exists_bisection_step {V_fin : Type}
   have hstep : ∀ t < Nat.card V_fin, f (t + 1) ≤ f t + 1 := by
     intro t ht
     simp only [f, lay.initial_succ ht]
-    have hsub : {i : Fin n | leaf i ∈ insert (lay.symm ⟨t, ht⟩) (lay.initial t)} ⊆
-        {i : Fin n | leaf i = lay.symm ⟨t, ht⟩} ∪ {i : Fin n | leaf i ∈ lay.initial t} :=
-      fun _ hi => hi
     have hle1 : {i : Fin n | leaf i = lay.symm ⟨t, ht⟩}.ncard ≤ 1 :=
       (ncard_le_one (toFinite _)).mpr fun a (ha : leaf a = _) b (hb : leaf b = _) =>
         leaf.injective (ha.trans hb.symm)
-    have h1 := (ncard_le_ncard hsub (toFinite _)).trans (ncard_union_le _ _)
+    have h1 := (ncard_le_ncard (s := {i : Fin n | leaf i ∈ insert (lay.symm ⟨t, ht⟩)
+        (lay.initial t)}) (t := {i | leaf i = lay.symm ⟨t, ht⟩} ∪ {i | leaf i ∈ lay.initial t})
+      (fun _ hi => hi) (toFinite _)).trans (ncard_union_le _ _)
     omega
   have hgoal_le : n / 2 ≤ f (Nat.card V_fin) := by rw [hfV]; exact Nat.div_le_self n 2
   have hP : ∃ t, n / 2 ≤ f t := ⟨_, hgoal_le⟩
@@ -212,9 +211,8 @@ private theorem finite_bisection_supply_demand {V_fin E_fin : Type}
     · refine Or.inr ?_
       have hQc_cut : G.edgeCut Qsetᶜ = ∅ :=
         G.edgeCut_eq_empty_iff.mpr fun e' => not_iff_not.mpr (G.edgeCut_eq_empty_iff.mp hQ e')
-      have hsum_m : {j | leaf j ∈ Qset}.ncard + {j | leaf j ∈ Qsetᶜ}.ncard = m := by
-        change {j | leaf j ∈ Qset}.ncard + ({j | leaf j ∈ Qset}ᶜ).ncard = m
-        rw [ncard_add_ncard_compl, Nat.card_eq_fintype_card, Fintype.card_fin]
+      have hsum_m : {j | leaf j ∈ Qset}.ncard + {j | leaf j ∈ Qsetᶜ}.ncard = m :=
+        (ncard_add_ncard_compl {j | leaf j ∈ Qset}).trans (by simp)
       linarith [hsmall_side Qsetᶜ hQc_cut (by omega),
         (Nat.cast_add _ _).symm.trans (congrArg (Nat.cast (R := ℝ)) hsum_m)]
   set W := G.component (lay.symm ⟨t, ht_lt⟩)
@@ -316,13 +314,10 @@ private theorem isLittleO_sqrt_defic :
   have h20 : 0 ≤ 20 / δ := by positivity
   have hroot : 16 / δ ≤ √n := Real.le_sqrt_of_sq_le (by linarith)
   have h8 : 8 * √n ≤ δ / 2 * n := by
-    have hm := mul_le_mul_of_nonneg_left hroot (by positivity : (0 : ℝ) ≤ δ / 2 * √n)
-    have e1 : δ / 2 * √n * (16 / δ) = 8 * √n := by field_simp; ring
-    have e2 : δ / 2 * √n * √n = δ / 2 * n := by rw [mul_assoc, hss]
+    have hmul := mul_le_mul_of_nonneg_right ((div_le_iff₀ hδ).mp hroot) (Real.sqrt_nonneg n)
+    rw [mul_right_comm, hss] at hmul
     linarith
-  have h10 : 10 ≤ δ / 2 * n := by
-    have : 20 / δ * δ = 20 := by field_simp
-    nlinarith [sq_nonneg (16 / δ)]
+  have h10 : 10 ≤ δ / 2 * n := by nlinarith [sq_nonneg (16 / δ), div_mul_cancel₀ 20 hδ.ne']
   simp only [Real.norm_eq_abs, Nat.abs_cast]
   push_cast
   linarith
@@ -369,9 +364,8 @@ private theorem eventually_compiledQuantumNet_contradiction {d : ℕ} {A : ℝ} 
     filter_upwards [isLittleO_sqrt_defic.bound (by norm_num : (0 : ℝ) < 1 / 16),
       eventually_ge_atTop 24] with n hn hn24
     simp only [Real.norm_eq_abs, Nat.abs_cast] at hn
-    have hd1 : (defic n : ℝ) ≤ 1 / 16 * n := by linarith [le_abs_self (defic n : ℝ)]
-    have hn24' : (24 : ℝ) ≤ n := by exact_mod_cast hn24
-    exact ⟨hn24, by linarith⟩
+    have hn24' : (24 : ℝ) ≤ n := mod_cast hn24
+    exact ⟨hn24, by dsimp only [defic]; linarith [le_abs_self (defic n : ℝ)]⟩
   filter_upwards [herr_o.bound (show (0 : ℝ) < w_r * c_edge * A * ε₀ / 4 by positivity), hsmall_d]
     with n herrn ⟨hn24, hdn⟩
   simp only [Real.norm_eq_abs, Nat.abs_cast] at herrn

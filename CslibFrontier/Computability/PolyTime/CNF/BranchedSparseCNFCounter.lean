@@ -159,12 +159,10 @@ theorem exists_leafDensityRatio_le_mul_clog_pow (k : ℕ) :
   let B₁ := 2 * (∑ j ∈ Finset.range (max 2 k), countingThresholdBase (max 2 k) 1 ^ j) + 1
   refine ⟨max C₀ B₁, fun N hN => ?_⟩
   rcases Nat.eq_zero_or_pos (ReplacementParams.numGroups N) with hs0 | hs_pos
-  · have h0 : leafDensityRatio k N = B₁ := by
-      simp only [leafDensityRatio, leafOccBound_eq_sum, leafThresholdBase, leafSearchDivisor,
-        hs0, max_eq_left (Nat.zero_le 1), B₁]
-    have hlam1 : 1 ≤ Nat.clog 2 N :=
-      (Nat.lt_clog_iff_pow_lt Nat.one_lt_two).mpr (by omega : 2 ^ 0 < N)
-    rw [h0]; exact (le_max_right C₀ B₁).trans (Nat.le_mul_of_pos_right _ (Nat.one_le_pow _ _ hlam1))
+  · simp only [leafDensityRatio, leafOccBound_eq_sum, leafThresholdBase, leafSearchDivisor,
+      hs0, max_eq_left (Nat.zero_le 1)]
+    exact (le_max_right C₀ B₁).trans (Nat.le_mul_of_pos_right _
+      (Nat.one_le_pow _ _ ((Nat.lt_clog_iff_pow_lt Nat.one_lt_two).mpr (by omega : 2 ^ 0 < N))))
   · rw [leafDensityRatio_eq_prop64LeafClauseRatio hs_pos]
     exact (hC₀ N hN).trans (Nat.mul_le_mul_right _ (le_max_left C₀ B₁))
 
@@ -272,11 +270,10 @@ theorem branchedSparseCNFDeclaredCounter_eq_modelCountOn {k N₀_leaf N₀_top N
       ψ.modelCountOn (Finset.range N) := by
   have hv : validDeclaredInput k N ψ = true := validDeclaredInput_eq_true_iff.mpr ⟨hw, hsub⟩
   unfold branchedSparseCNFDeclaredCounter; dsimp only
-  by_cases hgt : leafDensityRatio k N * N < ψ.length
-  · simp only [hv, decide_eq_true hgt, Bool.and_true, ↓reduceIte]
-    exact countCNFExhaustive_eq_modelCountOn_range N ψ
-  · simp only [hv, decide_eq_false hgt, Bool.and_false, Bool.false_eq_true, ↓reduceIte]
-    exact sparseCNFDeclaredCounter_eq_modelCountOn hw hsub (Or.inl (Nat.le_of_not_lt hgt))
+  simp only [hv, Bool.true_and, decide_eq_true_eq]
+  split_ifs with hgt
+  · exact countCNFExhaustive_eq_modelCountOn_range N ψ
+  · exact sparseCNFDeclaredCounter_eq_modelCountOn hw hsub (Or.inl (Nat.le_of_not_lt hgt))
       fun _ _ hsys => branchedPolyCounter_eq_commonZeroCount hbranch hsys
 
 /-- **Exactness of `branchedSparseCNFLeafCounter` without a density restriction**
@@ -756,10 +753,9 @@ private theorem polySys_time_bound_of_branchPolylog (k N₀_top N₀_branch : �
       (subexp_mul_rpow hS_pow_r hinner_r (by dsimp only [A_sys]; push_cast; ring) (by positivity))
   have hmk_r := nat_poly_le_subexp (hMkT (N, sys))
     ((le_max_right _ _).trans (le_max_right _ _) : d_mk ≤ d_in) (Nat.cast_nonneg A_sys) hrho_nn
-  have htot : (branchedPolyCertificate k N₀_top N₀_branch cBranch hbound).time (N, sys) =
-      (NativeCertificate.ofPolyTime hmk).time (N, sys) +
-        (sparsePolyCounterCertificate N₀_top N₀_branch cBranch hbound).time inp := rfl
-  rw [htot, Nat.cast_add]
+  change (((NativeCertificate.ofPolyTime hmk).time (N, sys) +
+      (sparsePolyCounterCertificate N₀_top N₀_branch cBranch hbound).time inp : ℕ) : ℝ) ≤ _
+  rw [Nat.cast_add]
   exact subexp_add_le hmk_r hsp_r le_rfl
 
 private theorem exists_branchedSparseCNFLeafCertificate_time_le
@@ -1066,8 +1062,7 @@ theorem exists_branchedSparseCNF_time_bound (k N₀_branch : ℕ)
               (2 : ℝ) ^ ((A_t : ℝ) * interpolationScale N) := by
   obtain ⟨N_min, _, hBound⟩ :=
     exists_threshold_branchedSparseCNF_time_bound k 0 N₀_branch cBranch hbound hs_br hbr_time
-  obtain ⟨C_t, d_t, A_t, hA, hT⟩ := hBound N_min le_rfl
-  exact ⟨N_min, 0, C_t, d_t, A_t, hA, hT⟩
+  exact ⟨N_min, 0, hBound N_min le_rfl⟩
 
 end
 end Cslib.Complexity.BranchedSparseCNFCounter

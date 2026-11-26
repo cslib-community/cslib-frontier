@@ -299,14 +299,11 @@ private theorem resolve_lt_of_gfStart_le {n T t c : ℕ} (ht : 1 ≤ t) (hc : c 
   · exact resolve_fls_lt
   · exact resolve_tru_lt
   · exact resolve_inp_lt
-  · rcases l' with l' | (⟨_, _⟩ | ⟨v, j⟩) | _ | _
+  · rcases l' with l' | (⟨_, _⟩ | ⟨v, j⟩) | _ | _ <;> try contradiction
     · cases cs <;> try contradiction
       exact resolve_cur_lt fun _ =>
         ((scan_offset_lt_globStart hc l').trans_le globStart_le_gfStart).trans_le hl
-    · contradiction
     · exact resolve_cur_lt fun _ => (attr_offset_lt v j).trans_le hl
-    · contradiction
-    · contradiction
   · refine resolve_prev_lt ht fun hg => ?_
     cases cs with
     | same => exact hc
@@ -399,17 +396,13 @@ private theorem resolve_table_lt {n T t c : ℕ} (ht : 1 ≤ t) {l : Loc k State
         simp only [Loc.offset, ColSel.apply]; omega
     rcases l with ⟨j, i⟩ | ⟨v, j⟩
     · cases i using Fin.cases with
-      | zero =>
-        simp only [table, Fin.cases_zero]
-        exact ⟨resolve_prev_lt ht fun _ => by simp [ColSel.apply, numCols], hlast _ _⟩
+      | zero => exact ⟨resolve_prev_lt ht fun _ => by simp [ColSel.apply, numCols], hlast _ _⟩
       | succ i =>
         simp only [table, Fin.cases_succ]
         refine ⟨resolve_cur_lt fun _ => ?_, hlast _ _⟩
         simp only [Loc.offset, GlobLoc.idx, Fin.val_castSucc, Fin.val_succ]; omega
     · cases j using Fin.cases with
-      | zero =>
-        simp only [table, Fin.cases_zero]
-        exact ⟨resolve_fls_lt, resolve_fls_lt⟩
+      | zero => exact ⟨resolve_fls_lt, resolve_fls_lt⟩
       | succ j =>
         simp only [table, Fin.cases_succ]
         refine ⟨resolve_cur_lt fun _ => ?_, ?_⟩
@@ -449,8 +442,7 @@ private theorem length_gateAt (n T t c : ℕ) (l : Loc k State) :
     (gateAt tm n T t c l).2.length = signature.Arity (gateAt tm n T t c l).1 := by
   unfold gateAt
   split_ifs
-  · rfl
-  · exact length_argsOf _ _ _
+  exacts [rfl, length_argsOf _ _ _]
 
 /-- A gate at a position reads earlier wires. -/
 private theorem lt_of_mem_gateAt {n T t c : ℕ} {l : Loc k State} (hl : l.ColOK T c) {i : ℕ}

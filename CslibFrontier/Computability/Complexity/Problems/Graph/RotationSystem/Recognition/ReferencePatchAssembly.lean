@@ -80,8 +80,7 @@ private theorem append_word_point_order {α : Type*} [Preorder α]
     (f : ℂ → α) (a b : ℂ) (nodes : List ℂ)
     (hword : (a :: b :: nodes).Pairwise (fun x y => f x < f y)) :
     StrictMono fun k => f ((nodes.foldl Route.append (Route.line a b)).point k) := by
-  apply Fin.strictMono_iff_lt_succ.mpr
-  intro i
+  refine Fin.strictMono_iff_lt_succ.mpr fun i => ?_
   have h0 := Route.eval_foldl_append_line a b nodes i 0
   have h1 := Route.eval_foldl_append_line a b nodes i 1
   simp only [Route.eval, AffineMap.lineMap_apply_zero, AffineMap.lineMap_apply_one] at h0 h1
@@ -123,10 +122,8 @@ private theorem append_word_support (a b : ℂ) (nodes : List ℂ) (S : Set ℂ)
   intro w hw
   obtain ⟨i, t, ht, heval⟩ := (Route.mem_support_iff _ w).mp hw
   have hi : i.val + 1 < (a :: b :: nodes).length := by
-    have hh : i.val < 1 + nodes.length :=
-      Route.segments_foldl_append (Route.line a b) nodes ▸ i.isLt
-    simp only [List.length_cons]
-    omega
+    have : i.val < 1 + nodes.length := Route.segments_foldl_append (Route.line a b) nodes ▸ i.isLt
+    simp only [List.length_cons]; omega
   rw [← heval, Route.eval_foldl_append_line]
   exact (List.isChain_iff_getElem.mp hword i.val hi) (lineMap_mem_segment ℝ _ _ ht)
 
@@ -716,8 +713,7 @@ private theorem assembled_route_germs {I : FixedRotationInput}
   cases frozen
   · cases L with
     | nil =>
-      refine ⟨1, zero_lt_one, ?_⟩
-      simp only [Bool.false_eq_true, ↓reduceIte, free_route, one_smul]
+      exact ⟨1, zero_lt_one, by simp only [Bool.false_eq_true, ↓reduceIte, free_route, one_smul]⟩
     | cons z zs =>
       cases tag
       · refine ⟨cutα z, (hmargins z).1, ?_⟩
@@ -730,8 +726,7 @@ private theorem assembled_route_germs {I : FixedRotationInput}
         rw [free_route_last_germ e (z :: zs) (by simp), hright last]
         exact AffineMap.lineMap_vsub_right (k := ℝ)
           ((referenceDrawing I).route e).start ((referenceDrawing I).route e).finish (cutβ last)
-  · refine ⟨1, zero_lt_one, ?_⟩
-    simp only [↓reduceIte, one_smul]
+  · exact ⟨1, zero_lt_one, by simp only [↓reduceIte, one_smul]⟩
 
 private theorem assembled_patch_embedding {I : FixedRotationInput}
     (e : Fin (subdivisionGraph I).edges.length) (frozen : Bool) {ι : Type*}
@@ -944,13 +939,11 @@ theorem exists_reference_patch_assembly {I : FixedRotationInput} (hI : Valid I) 
         free_route_word_support e (site e) (L e) (cutα e) (cutβ e) (left e) (middle e) (right e)
           (fun _ => rfl) (fun _ => rfl) (hmargins e) (hαball e) (hmiddle_ball e hf) (hβball e)
           (hsorted e)
-    · simp only [Q, hf, ↓reduceIte]
-      exact fun _ hw => Or.inl hw
+    · exact fun _ hw => Or.inl (by simpa only [Q, hf, ↓reduceIte] using hw)
   let D' : PolygonalDrawing H :=
     ⟨D.vertex, Q, fun e tag => by
-      cases tag
-      · exact (hends e).1.trans (D.endpoint_eq e false)
-      · exact (hends e).2.trans (D.endpoint_eq e true)⟩
+      cases tag <;> simp only [Route.endpoint, Bool.false_eq_true, ↓reduceIte,
+        (hends e).1, (hends e).2, ← D.endpoint_eq]⟩
   have hsegfree (e : E) (he : F e = false) (z : Z e) :
       (P (site e z) (occurrence e z)).segments = 2 := by
     rw [hfree e he z]

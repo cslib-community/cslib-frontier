@@ -739,13 +739,11 @@ private theorem crashFree_sweep_alive_to {s : ThreePCState P} {ph : ThreePCPhase
   have hcf := crashFree_sweep (votes := votes) (target := fun _ => dst) hcf_act hstep_of R
     (Finset.filter_subset _ _) s.localState (fun _ hr => (Finset.mem_filter.mp hr).2)
   have hfinal_eq : (fun p => if p ∈ R then dst else s.localState p) =
-      (fun p => if p ∈ s.alive then dst else s.localState p) := by
-    funext p
-    by_cases hpal : p ∈ s.alive
-    · by_cases hp : pred (s.localState p)
-      · simp [R, hpal, hp]
-      · simp [R, hpal, halive_exhaust p hpal hp]
-    · simp [R, hpal]
+      (fun p => if p ∈ s.alive then dst else s.localState p) := funext fun p => by
+    by_cases hpal : p ∈ s.alive <;>
+      simp only [R, Finset.mem_filter, hpal, true_and, false_and, ↓reduceIte]
+    split_ifs with hp
+    exacts [rfl, halive_exhaust p hpal hp]
   rwa [hfinal_eq] at hcf
 
 private theorem crashFree_castVotes (c : P) (al : Finset P) :
@@ -1222,9 +1220,7 @@ omit [DecidableEq M] in
 private theorem intraMsgs_eq_zero_of_src_notMem {G : Finset P} {p : P} (hp : p ∉ G)
     {out : Multiset (CommitEnvelope P M)} (hout : ∀ m ∈ out, m.src = p) :
     intraMsgs G out = 0 := by
-  rw [intraMsgs, Multiset.filter_eq_nil]
-  intro m hm hmem
-  exact hp (hout m hm ▸ hmem.1)
+  exact Multiset.filter_eq_nil.mpr fun m hm hmem => hp (hout m hm ▸ hmem.1)
 
 /-- Any step by a process `p ∉ G` leaves `G`'s local states and `intraMsgs G` completely
 unchanged. -/
@@ -1395,21 +1391,16 @@ private theorem not_canGroupCommit_init_left {π : CommitProtocol P S M} {G₁ G
   rintro ⟨cfg₁, hsteps₁, p₁, hp₁, hdec₁⟩
   let votes₁ : P → Vote := fun r => if r ∈ G₁ then .yes else .no
   obtain ⟨q₀, hq₀⟩ := hG₂
-  have hq₀_not : q₀ ∉ G₁ := Finset.disjoint_right.mp hdisj hq₀
-  have hv_no : ∃ r, votes₁ r = .no := ⟨q₀, by simp [votes₁, hq₀_not]⟩
   have hview : GroupViewEq G₁ (cutCfg G₁ G₂ (π.initConfig (fun _ => .yes)))
-      (cutCfg G₁ G₂ (π.initConfig votes₁)) := by
-    refine ⟨fun p hp => ?_, rfl⟩
-    simp [cutCfg, initConfig, votes₁, hp]
+      (cutCfg G₁ G₂ (π.initConfig votes₁)) :=
+    ⟨fun p hp => by simp [cutCfg, initConfig, votes₁, hp], rfl⟩
   obtain ⟨cfg₁', hsteps₁', heq'⟩ := groupSteps_congr hsteps₁ hview
-  have hcut_tr : (π.lts G₁ G₂).Tr (π.start votes₁) .cutPartition
-      ⟨true, cutCfg G₁ G₂ (π.initConfig votes₁)⟩ := ⟨rfl, rfl⟩
   have hreach : (π.lts G₁ G₂).CanReach (π.start votes₁) ⟨true, cfg₁'⟩ :=
-    partition_canReach_trans ⟨[.cutPartition], LTS.MTr.single _ hcut_tr⟩
+    partition_canReach_trans ⟨[.cutPartition], LTS.MTr.single _ ⟨rfl, rfl⟩⟩
       (canReach_of_groupSteps (G₁ := G₁) (G₂ := G₂) false hsteps₁')
-  have hdec₁' : π.configDecision cfg₁' p₁ = some .commit := by
-    simpa [configDecision, ← heq'.1 p₁ hp₁] using hdec₁
-  exact hres.abortValidity votes₁ ⟨true, cfg₁'⟩ hreach hv_no p₁ hdec₁'
+  exact hres.abortValidity votes₁ ⟨true, cfg₁'⟩ hreach
+    ⟨q₀, ite_eq_right (Finset.disjoint_right.mp hdisj hq₀)⟩ p₁
+    (by simpa [configDecision, ← heq'.1 p₁ hp₁] using hdec₁)
 
 /-- Core split-decision contradiction at the critical single-site step `c_prev →[pStar] c_next`
 when `pStar ∉ G₂`: `G₂` sees the same view at `c_next` as at `c_prev` and must decide `.abort`,
@@ -1446,11 +1437,9 @@ private theorem contradiction_of_crossing_outside_right {π : CommitProtocol P S
   obtain ⟨cfg₁₂, hsteps₂', heq₂'⟩ := groupSteps_congr hsteps₂ hpres₂
   have hpres₁ : GroupViewEq G₁ cfg₁ cfg₁₂ :=
     groupSteps_preserve_outside hdisj.symm hsteps₂'
-  have hcut_tr : (π.lts G₁ G₂).Tr ⟨false, c_next⟩ .cutPartition
-      ⟨true, cutCfg G₁ G₂ c_next⟩ := ⟨rfl, rfl⟩
   have hreach₁₂ : (π.lts G₁ G₂).CanReach (π.start allYes) ⟨true, cfg₁₂⟩ :=
     partition_canReach_trans (canReach_of_normalSteps hnext_steps)
-      (partition_canReach_trans ⟨[.cutPartition], LTS.MTr.single _ hcut_tr⟩
+      (partition_canReach_trans ⟨[.cutPartition], LTS.MTr.single _ ⟨rfl, rfl⟩⟩
         (partition_canReach_trans
           (canReach_of_groupSteps (G₁ := G₁) (G₂ := G₂) false hsteps₁)
           (canReach_of_groupSteps (G₁ := G₁) (G₂ := G₂) true hsteps₂')))
@@ -1458,8 +1447,7 @@ private theorem contradiction_of_crossing_outside_right {π : CommitProtocol P S
     simpa [configDecision, ← hpres₁.1 u₁ hu₁] using hcommit₁
   have hdec_u₂ : π.configDecision cfg₁₂ u₂ = some .abort := by
     simpa [configDecision, ← heq₂'.1 u₂ hu₂] using hd₂
-  have := hres.agreement allYes ⟨true, cfg₁₂⟩ hreach₁₂ u₁ u₂ .commit .abort hdec_u₁ hdec_u₂
-  cases this
+  cases hres.agreement allYes ⟨true, cfg₁₂⟩ hreach₁₂ u₁ u₂ .commit .abort hdec_u₁ hdec_u₂
 
 end CommitProtocol
 
@@ -1515,16 +1503,13 @@ theorem not_exists_partitionCutResilient_atomicCommit {P S M : Type*} [Decidable
     ¬ (∀ G₁ G₂ : Finset P, G₁.Nonempty → G₂.Nonempty → Disjoint G₁ G₂ →
         G₁ ∪ G₂ = Finset.univ → π.IsPartitionCutResilient G₁ G₂) := by
   intro hall
-  have hnt : Nontrivial P := Fintype.one_lt_card_iff_nontrivial.mp (by omega)
-  obtain ⟨p, q, hpq⟩ := hnt
-  let G₁ : Finset P := {p}
-  let G₂ : Finset P := Finset.univ.erase p
-  have hG₁ : G₁.Nonempty := Finset.singleton_nonempty p
-  have hG₂ : G₂.Nonempty := ⟨q, Finset.mem_erase.mpr ⟨hpq.symm, Finset.mem_univ q⟩⟩
-  have hdisj : Disjoint G₁ G₂ := Finset.disjoint_singleton_left.mpr (Finset.notMem_erase p _)
-  have hunion : G₁ ∪ G₂ = Finset.univ := by
-    ext r; by_cases hrp : r = p <;> simp [G₁, G₂, hrp]
+  obtain ⟨p, q, hpq⟩ := Fintype.one_lt_card_iff_nontrivial.mp (by omega : 1 < Fintype.card P)
+  have hG₁ : ({p} : Finset P).Nonempty := Finset.singleton_nonempty p
+  have hG₂ : (Finset.univ.erase p).Nonempty :=
+    ⟨q, Finset.mem_erase.mpr ⟨hpq.symm, Finset.mem_univ q⟩⟩
+  have hdisj : Disjoint ({p} : Finset P) (Finset.univ.erase p) :=
+    Finset.disjoint_singleton_left.mpr (Finset.notMem_erase p _)
   exact not_nonblocking_atomicCommit_of_partitionCut hG₁ hG₂ hdisj π
-    (hall G₁ G₂ hG₁ hG₂ hdisj hunion)
+    (hall _ _ hG₁ hG₂ hdisj (by simp))
 
 end Cslib.Distributed.AtomicCommit

@@ -158,9 +158,7 @@ theorem hardnessEncode_append_eq_concat (enc : F ≃ BitString w) (h : BitString
 private theorem le_half_of_agree {N : ℕ} {C E : BooleanFunction N} {ε : ℝ}
     (hagree : (1 / 2 + ε) * 2 ^ N ≤ #{y | C y = E y}) : ε ≤ 1 / 2 := by
   have hN : (#{y | C y = E y} : ℝ) ≤ 2 ^ N := by
-    have := card_le_univ (univ.filter fun y : BitString N => C y = E y)
-    rw [BitString.card] at this
-    exact_mod_cast this
+    exact_mod_cast (card_le_univ _).trans_eq BitString.card
   linarith only [le_of_mul_le_mul_right
     (hagree.trans (by linarith only [hN]) : (1 / 2 + ε) * 2 ^ N ≤ 1 * 2 ^ N)
     (by positivity : (0 : ℝ) < 2 ^ N)]
@@ -321,8 +319,7 @@ private theorem reconstruction_ranges {q d D K m : ℕ} {ε : ℝ} (hq2 : 2 ≤ 
         _ ≤ 2 ^ (K + 3) := pow_le_pow_right₀ (by norm_num) (by omega)
     have h8D : 8 * (D : ℝ) ≤ q / 2 :=
       (mul_le_mul_of_nonneg_right h8 (Nat.cast_nonneg D)).trans (hmargin.trans hqε)
-    have : (D : ℝ) < q := by linarith only [h8D, hq1]
-    exact_mod_cast this
+    exact_mod_cast (by linarith only [h8D, hq1] : (D : ℝ) < q)
   refine ⟨hD1, hDq, ?_⟩
   have hpos_sum : (0 : ℝ) ≤ 1 / (q : ℝ) ^ m + 2 ^ (K + 4) / (q * ε) := by positivity
   have h6 : 6 * ((d : ℝ) + 1) * (D / (q - 1)) ≤ 1 :=
@@ -374,10 +371,7 @@ theorem complexity_le_of_agree_hardnessEncode (enc : F ≃ BitString w) (h : Bit
   set q := Fintype.card F with hq_def
   set p := truthTableExtension h f
   have hp : p ∈ reedMuller F m d := truthTableExtension_mem_reedMuller h f
-  have hqw : q = 2 ^ w := by
-    rw [hq_def, Fintype.card_congr enc, BitString.card]
-  have hQnat : Fintype.card (Fin m → F) = 2 ^ (m * w) := by
-    rw [Fintype.card_fun, Fintype.card_fin, ← hq_def, hqw, ← pow_mul, mul_comm]
+  have hqw : q = 2 ^ w := (Fintype.card_congr enc).trans BitString.card
   have hq2 : 2 ≤ q := Fintype.one_lt_card
   have hq1 : (1 : ℝ) < q := by exact_mod_cast hq2
   -- the Goldreich–Levin stage

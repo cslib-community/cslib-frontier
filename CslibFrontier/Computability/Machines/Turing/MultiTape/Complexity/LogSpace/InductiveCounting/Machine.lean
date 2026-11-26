@@ -181,13 +181,10 @@ theorem localAnswer_eq (B : ℕ) (checked : Bool) (c : Cslib.InductiveCounting.S
     localAnswer ntm B input.length checked c input[controllerQuery k B c]? =
       Cslib.InductiveCounting.answer (graphEdge ntm B input) (graphBad ntm input B checked) c := by
   unfold localAnswer Cslib.InductiveCounting.answer
-  cases h : Cslib.InductiveCounting.query c with
-  | none => rfl
-  | some q =>
-    cases q with
-    | edge u v => simp [controllerQuery, h, graphEdge]
-    | bad u =>
-      cases checked <;> simp [controllerQuery, h, modeBad, graphBad, graphOverflow, graphAccepting]
+  rcases h : Cslib.InductiveCounting.query c with _ | ⟨u, v⟩ | u
+  · rfl
+  · simp [controllerQuery, h, graphEdge]
+  · cases checked <;> simp [controllerQuery, h, modeBad, graphBad, graphOverflow, graphAccepting]
 
 /-- A controller step from a state at the final count check halts. -/
 theorem halted_ctlStep_of_done {B : ℕ} {checked : Bool} {c : Cslib.InductiveCounting.State}
@@ -274,9 +271,8 @@ theorem replay_unchecked_of_done {B : ℕ} (c : Cslib.InductiveCounting.State)
     have hna : c.phase ≠ .accept := fun hp => by
       rw [halted_ctlReplay ntm input (by simp [Cslib.InductiveCounting.halted, hp]), hp] at hd
       exact absurd hd.1 (by decide)
-    have hno : overflowed c = false := by
-      by_contra hc
-      rw [ctlReplay_cons_of_overflowed ntm input (by simpa using hc)] at hd
+    have hno : overflowed c = false := Bool.eq_false_iff.mpr fun hc => by
+      rw [ctlReplay_cons_of_overflowed ntm input hc] at hd
       exact absurd hd.1 (by decide)
     rw [NondeterministicQueryMachine.replay_cons,
       step_counting ntm input (by simp [hno]) (by simp [hna]), ih _ hd]
@@ -293,9 +289,8 @@ theorem exists_replay_unchecked_of_accept {B : ℕ} (c : Cslib.InductiveCounting
   | cons choice choices ih =>
     by_cases hp : c.phase = .accept
     · exact ⟨[], c, rfl, hp⟩
-    have hno : overflowed c = false := by
-      by_contra hc
-      rw [ctlReplay_cons_of_overflowed ntm input (by simpa using hc)] at ha
+    have hno : overflowed c = false := Bool.eq_false_iff.mpr fun hc => by
+      rw [ctlReplay_cons_of_overflowed ntm input hc] at ha
       exact absurd ha (by decide)
     obtain ⟨choices', t, h, ht⟩ := ih (ctlStep ntm input B false c choice) ha
     refine ⟨choice :: choices', t, ?_, ht⟩
@@ -324,9 +319,8 @@ theorem replay_scan (choices : List Bool) {j : ℕ} (hj : j + choices.length ≤
   | nil => simp [NondeterministicQueryMachine.replay]
   | cons choice choices ih =>
     simp only [List.length_cons] at hj ⊢
-    rw [NondeterministicQueryMachine.replay_cons, step_scan ntm input (by omega), ih (by omega)]
-    congr 1
-    omega
+    rw [NondeterministicQueryMachine.replay_cons, step_scan ntm input (by omega), ih (by omega),
+      Nat.add_assoc, Nat.add_comm 1]
 
 /-- Every choice sequence of bootstrap length reaches exactly the installed controller. -/
 theorem run_bootstrap (choices : List Bool) (hlen : choices.length = input.length + 1) :

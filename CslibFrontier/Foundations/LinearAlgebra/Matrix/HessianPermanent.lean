@@ -129,16 +129,12 @@ private theorem rank_of_ite_sandwich (o : ι) {p s : K} (hN : (Fintype.card ι :
       Fintype.card ι * Fintype.card ι := by
   set J : Matrix ι ι K := Matrix.of fun _ _ => 1 with hJ
   set D : Matrix ι ι K := Matrix.diagonal fun i => if i = o then 0 else 1 with hD
-  have hJJ : J * J = (Fintype.card ι : K) • J := by
-    ext i j
-    simp [hJ, Matrix.mul_apply]
-  have hJDJ : J * D * J = ((Fintype.card ι : K) - 1) • J := by
-    ext i j
-    simp only [hJ, hD]
-    rw [Matrix.mul_apply]
-    simp only [Matrix.mul_diagonal, Matrix.of_apply, one_mul, mul_one, Matrix.smul_apply,
-      smul_eq_mul]
-    exact sum_ite_eq_zero_else_one (K := K) o
+  have hJJ : J * J = (Fintype.card ι : K) • J :=
+    Matrix.ext fun _ _ => by simp [hJ, Matrix.mul_apply]
+  have hJDJ : J * D * J = ((Fintype.card ι : K) - 1) • J :=
+    Matrix.ext fun _ _ => by
+      rw [Matrix.mul_apply]
+      simp [hJ, hD, sum_ite_eq_zero_else_one]
   have hDD : D * D = D := by
     rw [hD, Matrix.diagonal_mul_diagonal]
     congr 1 with i : 1
@@ -227,10 +223,7 @@ private theorem card_perm_two (r c r' c' : ι) :
       rcases hx with hx | hx <;> rcases hy with hy | hy <;> rw [hx, hy] at hxy ⊢ <;>
         simp [hrr, hcc, Ne.symm hrr] at hxy ⊢)
     rw [card_pair (Ne.symm hcc)] at this
-    rw [← this]
-    congr 1
-    ext σ
-    simp [hcc, Ne.symm hcc]
+    exact (congrArg Finset.card (Finset.ext fun _ => by simp [hcc, Ne.symm hcc])).trans this
 
 private theorem card_perm_three (o r c r' c' : ι) :
     #{σ : Perm ι | (c ≠ c' ∧ σ c = r ∧ σ c' = r') ∧ (o ≠ c ∧ o ≠ c' ∧ σ o = o)} =
@@ -256,10 +249,9 @@ private theorem card_perm_three (o r c r' c' : ι) :
         simp [hrr, hro, hr'o, hcc, Ne.symm hrr, Ne.symm hro, Ne.symm hr'o, Ne.symm hc'o,
           Ne.symm hco] at hxy ⊢)
     rw [card_insert_of_notMem (by simp [Ne.symm hcc, hco]), card_pair hc'o] at this
-    rw [← this]
-    congr 1
-    ext σ
-    simp [hcc, Ne.symm hcc, Ne.symm hco, Ne.symm hc'o, and_assoc]
+    exact (congrArg Finset.card
+      (Finset.ext fun _ => by simp [hcc, Ne.symm hcc, Ne.symm hco, Ne.symm hc'o,
+        and_assoc])).trans this
 
 /-- **The Hessian of the permanent at the Mignon–Ressayre point**: with `N = card ι`, its entry at
 `(r, c)` and `(r', c')` is `(N - 2)! · [r ≠ r'][c ≠ c'] - N · (N - 3)! · [r, r', o distinct]

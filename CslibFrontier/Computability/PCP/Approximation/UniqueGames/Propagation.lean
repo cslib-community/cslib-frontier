@@ -371,11 +371,9 @@ private theorem unvisited_push {S : State α} {w : ℕ} (hw : w < S.table.length
   ext v
   simp only [State.unvisited, Finset.mem_filter, Finset.mem_range, Finset.mem_erase,
     length_push]
-  by_cases hv : w = v
-  · subst hv
-    simp [get_push_self hw]
-  · rw [get_push_ne S hv]
-    simp [Ne.symm hv]
+  rcases eq_or_ne w v with rfl | hv
+  · simp [get_push_self hw]
+  · simp [get_push_ne S hv, Ne.symm hv]
 
 /-- An unvisited slot in range is in `unvisited`. -/
 private theorem mem_unvisited {S : State α} {w : ℕ} (hw : w < S.table.length)
@@ -515,16 +513,12 @@ correct. -/
 private theorem SemInv.val_push {τ : ℕ → α} {s : ℕ} {S : State α} (h : SemInv τ s S) {w : ℕ}
     {g : α → α} (hg : g (τ s) = τ w) {v : ℕ} {f : α → α} (hv : (push S w g).get v = some f) :
     f (τ s) = τ v := by
-  by_cases hw : w = v
-  · subst hw
-    by_cases hlt : w < S.table.length
-    · rw [get_push_self hlt] at hv
-      cases hv
-      exact hg
+  rcases eq_or_ne w v with rfl | hw
+  · by_cases hlt : w < S.table.length
+    · exact Option.some.inj ((get_push_self hlt _).symm.trans hv) ▸ hg
     · rw [push, State.get, List.set_eq_of_length_le (by omega)] at hv
       exact h.val _ _ hv
-  · rw [get_push_ne S hw] at hv
-    exact h.val _ _ hv
+  · exact h.val _ _ ((get_push_ne S hw g).symm.trans hv)
 
 private theorem sem_extend {labels : List α} (hlabels : ∀ a, a ∈ labels) {τ : ℕ → α} {s : ℕ}
     {S : State α} {e : Edge (α → α)} (hπ : Function.Injective e.constraint)
@@ -584,12 +578,9 @@ private theorem foldl_visit_settled (labels : List α) {u : ℕ} (l : List (Edge
     have hu' : ((visit labels S e).get u).isSome := by rw [h1.get u f hf]; rfl
     rw [List.forall_mem_cons]
     refine ⟨?_, ih hl' (fun d hd => hinc d (List.mem_cons_of_mem _ hd)) hu'⟩
-    have hs : (visit labels S e).Settled e := by
-      apply visit_settled labels hb.1 hb.2
-      rcases hinc e (by simp) with h | h
-      · exact Or.inl (h ▸ hu)
-      · exact Or.inr (h ▸ hu)
-    exact hs.mono (foldl_visit_step labels l hl')
+    exact (visit_settled labels hb.1 hb.2 ((hinc e List.mem_cons_self).imp
+      (fun h : e.src = u => h ▸ hu) (fun h : e.dst = u => h ▸ hu))).mono
+      (foldl_visit_step labels l hl')
 
 private theorem foldl_visit_sem {labels : List α} (hlabels : ∀ a, a ∈ labels) {τ : ℕ → α}
     {s : ℕ} (l : List (Edge (α → α))) {S : State α}
@@ -864,16 +855,11 @@ private theorem foldl_freeze_get (c : α) (l : List ℕ) (t : List (Option (α �
   | nil => simp
   | cons w l ih =>
     rw [List.foldl_cons, ih]
-    by_cases hvw : w = v
-    · subst hvw
-      by_cases hlt : w < t.length
+    rcases eq_or_ne w v with rfl | hvw
+    · by_cases hlt : w < t.length
       · rw [List.getD_set_self hlt]
-        have hidem : freeze c (freeze c (t.getD w none)) = freeze c (t.getD w none) := by
-          cases t.getD w none <;> rfl
-        split_ifs <;> simp_all
-      · rw [List.set_eq_of_length_le (by omega)]
-        have : t.getD w none = none := List.getD_eq_default _ _ (by omega)
-        rw [this]
+        cases t.getD w none <;> split_ifs <;> simp_all [freeze]
+      · rw [List.set_eq_of_length_le (by omega), List.getD_eq_default _ _ (by omega)]
         split_ifs <;> rfl
     · rw [List.getD_set_ne hvw]
       simp [Ne.symm hvw]
@@ -1095,10 +1081,8 @@ theorem solve_eq_some_labelling [Inhabited α] {labels : List α} (hlabels : ∀
 theorem solve_isSome_iff [Inhabited α] {labels : List α} (hlabels : ∀ a, a ∈ labels)
     {g : Graph (α → α)} (hg : IsUniqueGame g) :
     (solve labels g).isSome ↔ (g.toGraph permutationEval).Satisfiable := by
-  refine ⟨fun h => ?_, fun h => ?_⟩
-  · obtain ⟨σ, hσ⟩ := Option.isSome_iff_exists.1 h
-    exact ⟨σ, solve_sound hσ⟩
-  · rw [solve_eq_some_labelling hlabels (fun e he => (hg e he).1) h]; rfl
+  refine ⟨fun h => (Option.isSome_iff_exists.1 h).imp fun _ => solve_sound, fun h => ?_⟩
+  rw [solve_eq_some_labelling hlabels (fun e he => (hg e he).1) h]; rfl
 
 /-- On unique games, `solve` succeeds exactly on the instances of value `1`, those with no
 unsatisfied proportion. -/
@@ -1126,9 +1110,7 @@ theorem mem_yes_gapUniqueGames_one_iff [DecidableEq α] [Nonempty α] {s : ℝ}
     PromiseProblem.mem_yes_gapMax, Set.mem_ofPred_eq]
   rw [← (g.toGraph permutationEval).unsatVal_eq_zero_iff]
   have := (g.toGraph permutationEval).unsatVal_nonneg
-  constructor
-  · rintro ⟨h1, h2⟩; exact ⟨h2, by linarith⟩
-  · rintro ⟨h1, h2⟩; exact ⟨by linarith, h1⟩
+  exact ⟨fun ⟨h1, h2⟩ => ⟨h2, by linarith⟩, fun ⟨h1, h2⟩ => ⟨by linarith, h1⟩⟩
 
 /-- **Satisfiable unique games are easy** [Khot, Section 2.4][Khot2010]: label propagation
 decides `GapUniqueGames α 1 s` for every soundness `s`, given a list of all labels. This is the

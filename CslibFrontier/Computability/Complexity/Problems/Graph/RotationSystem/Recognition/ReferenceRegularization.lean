@@ -221,39 +221,33 @@ private theorem patch_word_pair_cases {ι : Type*} (L : List ι) (a b : ℂ)
         simpa only [emit, List.consecutivePairs_cons_cons, List.consecutivePairs_singleton,
           List.mem_cons, List.not_mem_nil, or_false, Prod.mk.injEq] using hp⟩
   · dsimp only [tags] at hp
-    cases hL : L with
+    cases L with
     | nil =>
       obtain ⟨rfl, rfl⟩ : tag = .inl false ∧ next = .inl true := by
-        simpa only [hL, List.map_nil, List.cons_append, List.nil_append,
+        simpa only [List.map_nil, List.cons_append, List.nil_append,
           List.consecutivePairs_cons_cons, List.consecutivePairs_singleton,
           List.mem_singleton, Prod.mk.injEq] using hp
       exact Or.inr (Or.inl ⟨rfl, hx, hy⟩)
     | cons z zs =>
-      rw [hL] at hp
-      change (tag, next) ∈ List.consecutivePairs
-        ((Sum.inl false :: (z :: zs).map Sum.inr) ++ [Sum.inl true]) at hp
       rw [List.consecutivePairs_append (by simp) (by simp), List.mem_append] at hp
       rcases hp with hp | hp
       · rw [List.map_cons, List.consecutivePairs_cons_cons, List.mem_cons] at hp
         rcases hp with hp | hp
         · rcases Prod.mk.inj hp with ⟨rfl, rfl⟩
-          exact Or.inr (Or.inr (Or.inl ⟨by simp, hx, hy⟩))
-        · obtain ⟨k, hk, htag, hnext⟩ := List.mem_consecutivePairs_iff_exists_getElem.mp hp
-          have hk' : k + 1 < (z :: zs).length := by
-            simpa only [List.length_cons, List.length_map] using hk
-          rw [show tag = Sum.inr ((z :: zs)[k]) from by
-              simpa only [← List.map_cons, List.getElem_map] using htag.symm,
-            show next = Sum.inr ((z :: zs)[k + 1]) from by
-              simpa only [← List.map_cons, List.getElem_map] using hnext.symm] at hx hy
-          simp only [emit, List.getLast_cons_cons, List.getLast_singleton, List.head_cons] at hx hy
+          exact Or.inr (Or.inr (Or.inl ⟨List.cons_ne_nil _ _, hx, hy⟩))
+        · obtain ⟨k, hk, rfl, rfl⟩ :
+              ∃ k, ∃ hk : k + 1 < (z :: zs).length,
+                Sum.inr (z :: zs)[k] = tag ∧ Sum.inr (z :: zs)[k + 1] = next := by
+            simpa only [← List.map_cons, List.mem_consecutivePairs_iff_exists_getElem,
+              List.length_map, List.getElem_map] using hp
           exact Or.inr (Or.inr (Or.inr (Or.inr ⟨(z :: zs)[k], (z :: zs)[k + 1],
-            by simpa only [hL] using List.getElem_mem_consecutivePairs (z :: zs) k hk', hx, hy⟩)))
-      · have htail : ((z :: zs).map Sum.inr : List (Bool ⊕ ι)) ≠ [] := by simp
-        obtain ⟨rfl, rfl⟩ :
+            List.getElem_mem_consecutivePairs (z :: zs) k hk, hx, hy⟩)))
+      · obtain ⟨rfl, rfl⟩ :
             tag = Sum.inr ((z :: zs).getLast (List.cons_ne_nil _ _)) ∧ next = Sum.inl true := by
           simpa only [List.consecutivePairs_singleton, List.mem_cons, List.not_mem_nil, or_false,
-            List.head_cons, List.getLast_cons htail, List.getLast_map, Prod.mk.injEq] using hp
-        exact Or.inr (Or.inr (Or.inr (Or.inl ⟨by simp, hx, hy⟩)))
+            List.head_cons, List.getLast_cons (by simp : (z :: zs).map Sum.inr ≠ []),
+            List.getLast_map, Prod.mk.injEq] using hp
+        exact Or.inr (Or.inr (Or.inr (Or.inl ⟨List.cons_ne_nil _ _, hx, hy⟩)))
 
 private theorem gap_interpolation_avoids_cuts {ι : Type*}
     (L : List ι) (α β : ι → ℝ) (a b : ℂ)
@@ -546,24 +540,22 @@ private theorem old_gap_outside_slab {I : FixedRotationInput} (hI : Valid I)
     (ht : t ∉ Set.Ioo (A.startParam z e) (A.finishParam z e)) :
     (((referenceDrawing I).route e.val).eval 0 t).re ≤ z.val.re - A.extent z ∨
       z.val.re + A.extent z ≤ (((referenceDrawing I).route e.val).eval 0 t).re := by
-  let a := ((referenceDrawing I).route e.val).start.re
-  let b := ((referenceDrawing I).route e.val).finish.re
+  have hends := patch_real_ends A z e
+  dsimp only at hends
+  set a := ((referenceDrawing I).route e.val).start.re
+  set b := ((referenceDrawing I).route e.val).finish.re
   have hne : a ≠ b := fun heq =>
     (Route.isSimple_line_iff _ _).mp (referenceDrawing_simple hI e.val) (congrArg parabolaPoint heq)
   have hproj (u : ℝ) : (AffineMap.lineMap ((referenceDrawing I).route e.val).start
       ((referenceDrawing I).route e.val).finish u).re = AffineMap.lineMap a b u :=
     Complex.reCLM.toLinearMap.toAffineMap.apply_lineMap _ _ u
-  have hends := patch_real_ends A z e
-  change (_ = z.val.re + (if b < a then _ else _)) ∧
-    (_ = z.val.re + (if b < a then _ else _)) at hends
   rw [A.patch_start, A.patch_finish, hproj, hproj] at hends
   have hside : t ≤ A.startParam z e ∨ A.finishParam z e ≤ t :=
     (not_and_or.mp ht).imp le_of_not_gt le_of_not_gt
-  change (AffineMap.lineMap ((referenceDrawing I).route e.val).start
-    ((referenceDrawing I).route e.val).finish t).re ≤ _ ∨ _ ≤
-    (AffineMap.lineMap ((referenceDrawing I).route e.val).start
-      ((referenceDrawing I).route e.val).finish t).re
-  rw [hproj]
+  have hev : ((referenceDrawing I).route e.val).eval 0 t =
+      AffineMap.lineMap ((referenceDrawing I).route e.val).start
+        ((referenceDrawing I).route e.val).finish t := rfl
+  rw [hev, hproj]
   rcases lt_or_gt_of_ne hne with hab | hba
   · simp only [not_lt.mpr hab.le, ↓reduceIte] at hends
     rcases hside with ht | ht

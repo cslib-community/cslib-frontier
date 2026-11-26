@@ -123,18 +123,15 @@ theorem complexity_directProduct_two_pow_le {p m L H : ℕ}
   | succ d ih =>
     intro n hn hH f
     obtain rfl : n = p + (d * p + m) := by rw [hn]; ring
-    have hlayer := complexity_directProduct_two_mul_le (t := 2 ^ d)
-      (ih (d * p + m) rfl fun e he => hH e (Nat.lt_succ_of_lt he)) f
-    rw [show 2 ^ (d + 1) = 2 * 2 ^ d from pow_succ' 2 d]
-    refine hlayer.trans ?_
+    rw [pow_succ' 2 d, pow_succ' (2 ^ p + 1) d]
+    refine (complexity_directProduct_two_mul_le (t := 2 ^ d)
+      (ih (d * p + m) rfl fun e he => hH e (Nat.lt_succ_of_lt he)) f).trans ?_
     have hHd := hH d (Nat.lt_succ_self d)
-    rw [pow_succ']
     have hApos : 0 < (2 ^ p + 1) ^ d := by positivity
     generalize (2 ^ p + 1) ^ d = A at *
-    generalize 2 ^ d = T at *
     have hK : 1 ≤ 2 ^ p + 1 := Nat.le_add_left 1 _
-    generalize 2 ^ p + 1 = K at *
-    have hKA : 1 ≤ K * A := Nat.one_le_iff_ne_zero.mpr (Nat.mul_ne_zero (by omega) (by omega))
+    generalize 2 ^ d = T, 2 ^ p + 1 = K at *
+    have hKA : 1 ≤ K * A := Nat.mul_pos hK hApos
     calc K * (A * (L + d * T * H)) + T * layerOverhead p (d * p + m)
         ≤ K * (A * (L + d * T * H)) + K * A * (T * H) := by
           refine Nat.add_le_add_left ?_ _
@@ -159,12 +156,11 @@ theorem eventually_mul_complexity_single_le (Q : ℕ) :
   have hmpos : (0 : ℝ) < m := by exact_mod_cast (show 0 < m by omega)
   have hQpos : (0 : ℝ) < Q := by exact_mod_cast hQ
   rw [le_div_iff₀ hmpos] at h
-  have : (Q : ℝ) * m * complexity interpretation (single g) ≤ (Q + 1) * 2 ^ m :=
+  exact_mod_cast
     calc (Q : ℝ) * m * complexity interpretation (single g) =
           Q * (complexity interpretation (single g) * m) := by ring
       _ ≤ Q * ((1 + 1 / Q) * 2 ^ m) := by gcongr
       _ = (Q + 1) * 2 ^ m := by field_simp
-  exact_mod_cast this
 
 /-- The per-layer overhead with prefixes of `2 log₂ n + 2` bits is eventually below
 `2 ^ (n / 2)`, even after multiplication by `4 P n`. -/

@@ -139,9 +139,8 @@ theorem rmEncode_zero_slope (b : Bool) : rmEncode ⟨b, 0⟩ = fun _ => b := by
 
 /-- The encoder is the Hadamard word shifted by the source byte's most significant bit. -/
 theorem rmEncode_eq_add_hadamardCode (m : RMMessage) :
-    rmEncode m = (fun _ => m.sign) + hadamardCode m.slope := by
-  funext x
-  rfl
+    rmEncode m = (fun _ => m.sign) + hadamardCode m.slope :=
+  funext fun _ => rfl
 
 /-- The 128 points of `RM(1, 7)`. -/
 theorem card_rmPoint : Fintype.card RMPoint = 128 := by
@@ -333,12 +332,10 @@ private theorem drmEncode_true_eq_not (μ : ℕ) (a : RMPoint) :
 
 private theorem hammingDist_not_left_add {I : Type*} [Fintype I] (f g : I → Bool) :
     hammingDist (fun i => !f i) g + hammingDist f g = Fintype.card I := by
-  rw [hammingDist_eq_weight_add, hammingDist_eq_weight_add]
-  have hcomplement : (fun i => !f i) + g = fun i => !((f + g) i) := by
-    funext i
+  have hcomplement : (fun i => !f i) + g = fun i => !((f + g) i) := funext fun i => by
     simp only [Pi.add_apply, Bool.add_eq_xor]
     cases f i <;> cases g i <;> decide
-  rw [hcomplement]
+  rw [hammingDist_eq_weight_add, hammingDist_eq_weight_add, hcomplement]
   exact weight_not_add (f + g)
 
 private theorem hammingDist_drmEncode_true_add_false {μ : ℕ} (w : DRMWord μ) (a : RMPoint) :
@@ -355,9 +352,8 @@ theorem drmHadamardCoeff_encode (μ : ℕ) (m : RMMessage) :
   rw [drmHadamardCoeff_eq_hammingDist_sub]
   cases b
   · simp only [Bool.false_eq_true, ite_false, hammingDist_self, Nat.cast_zero, zero_sub]
-  · simp only [ite_true]
-    have htotal := hammingDist_drmEncode_true_add_false (drmEncode μ ⟨true, a⟩) a
-    rw [hammingDist_self, zero_add] at htotal
+  · have htotal := hammingDist_drmEncode_true_add_false (drmEncode μ ⟨true, a⟩) a
+    simp only [ite_true, hammingDist_self, zero_add] at htotal ⊢
     omega
 
 private theorem hammingDist_chosenSign_add_natAbs {μ : ℕ} (w : DRMWord μ) (a : RMPoint) :
@@ -395,15 +391,12 @@ theorem drmDecode_isNearestDecoder (μ : ℕ) :
   omega
 
 @[simp] private theorem rmEncode_false (a : RMPoint) :
-    rmEncode ⟨false, a⟩ = hadamardCode a := by
-  funext x
-  simp only [rmEncode, Bool.false_xor]
+    rmEncode ⟨false, a⟩ = hadamardCode a :=
+  funext fun _ => Bool.false_xor _
 
 private theorem rmEncode_true (a : RMPoint) :
-    rmEncode ⟨true, a⟩ = fun x => !hadamardCode a x := by
-  funext x
-  simp only [rmEncode]
-  cases hadamardCode a x <;> decide
+    rmEncode ⟨true, a⟩ = fun x => !hadamardCode a x :=
+  funext fun x => Bool.true_xor (hadamardCode a x)
 
 private theorem two_mul_hammingDist_rmEncode_of_slope_ne (b c : Bool) {a a' : RMPoint}
     (haa' : a ≠ a') :
@@ -442,8 +435,7 @@ theorem hammingDist_drmEncode (μ : ℕ) (m m' : RMMessage) :
       μ * hammingDist (rmEncode m) (rmEncode m') := by
   change hammingDist (concat rmEncode (fun _ : Fin μ => m))
       (concat rmEncode (fun _ : Fin μ => m')) = _
-  rw [hammingDist_concat]
-  simp
+  simp [hammingDist_concat]
 
 /-- Messages with distinct slopes are exactly `64 * μ` bits apart, independently of their sign
 bits.  Thus the lower bound is attained for every positive multiplicity. -/

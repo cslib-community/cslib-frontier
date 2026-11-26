@@ -335,8 +335,7 @@ theorem eval_eq_error {op : ArithOp} {a b : ℤ} {e : EvalError} (h : op.eval a 
 theorem exists_eval_eq_ok {op : ArithOp} {a b : ℤ} (h : op.isDivision → b ≠ 0) :
     ∃ z, op.eval a b = .ok z := by
   rcases hr : op.eval a b with e | z
-  · obtain ⟨-, hd, hb⟩ := eval_eq_error hr
-    exact absurd hb (h hd)
+  · exact absurd (eval_eq_error hr).2.2 (h (eval_eq_error hr).2.1)
   · exact ⟨z, rfl⟩
 
 end ArithOp
@@ -425,15 +424,14 @@ theorem eval_eq_ok_true_iff {a b : Datum} :
 /-- A comparison succeeds exactly when the operands have a common type (`NULL` has every type). -/
 theorem exists_eval_eq_ok_iff {op : CmpOp} {a b : Datum} :
     (∃ t, op.eval a b = .ok t) ↔ ∃ τ, a.HasType τ ∧ b.HasType τ := by
-  rcases a with _ | a
-  · cases b <;> simp
-  rcases b with _ | b
-  · simp
-  simp only [eval_some_some, Except.map_eq_ok, Datum.hasType_some]
-  refine ⟨fun ⟨_, o, h, _⟩ => ⟨a.type, rfl, (Value.exists_cmp_eq_ok_iff.mp ⟨o, h⟩).symm⟩, ?_⟩
-  rintro ⟨τ, ha, hb⟩
-  obtain ⟨o, h⟩ := Value.exists_cmp_eq_ok_iff.mpr (ha.trans hb.symm)
-  exact ⟨_, o, h, rfl⟩
+  match a, b with
+  | none, b => cases b <;> simp
+  | some _, none => simp
+  | some a, some b =>
+    simp only [eval_some_some, Except.map_eq_ok, Datum.hasType_some]
+    exact ⟨fun ⟨_, o, h, _⟩ => ⟨a.type, rfl, (Value.exists_cmp_eq_ok_iff.mp ⟨o, h⟩).symm⟩,
+      fun ⟨_, ha, hb⟩ => let ⟨o, h⟩ := Value.exists_cmp_eq_ok_iff.mpr (ha.trans hb.symm)
+        ⟨_, o, h, rfl⟩⟩
 
 /-- A comparison of datums of a common type succeeds. -/
 theorem exists_eval_eq_ok {op : CmpOp} {a b : Datum} {τ : SqlType} (ha : a.HasType τ)
@@ -765,15 +763,13 @@ theorem isTrue_not_inList_iff_iff {e : Datum} {vs : List Datum} {τ : SqlType} {
   have hfalse := inList_eq_ok_false_iff he hvs
   rw [ht, Except.ok.injEq] at htrue hfalse
   rw [hmatch, Truth.isTrue_iff, Truth.not_eq_true_iff]
-  refine ⟨fun h => ?_, ?_⟩
-  · by_cases hm : e ≠ none ∧ e ∈ vs
-    · exact .inr (.inl hm)
-    · exact (hfalse.mp (h.mpr hm)).elim .inl fun ⟨hne, hnull, _⟩ => .inr (.inr ⟨hne, hnull⟩)
-  · rintro (h | h | ⟨hne, hnull⟩)
-    · exact ⟨fun _ ⟨_, hv⟩ => by simp [h] at hv, fun _ => hfalse.mpr (.inl h)⟩
-    · exact ⟨fun hf hm => by simp [htrue.mpr hm] at hf, fun hm => absurd h hm⟩
-    · exact ⟨fun hf hm => by simp [htrue.mpr hm] at hf,
-        fun hm => hfalse.mpr (.inr ⟨hne, hnull, fun hv => hm ⟨hne, hv⟩⟩)⟩
+  refine ⟨fun h => if hm : e ≠ none ∧ e ∈ vs then .inr (.inl hm)
+    else (hfalse.mp (h.mpr hm)).elim .inl fun ⟨hne, hnull, _⟩ => .inr (.inr ⟨hne, hnull⟩), ?_⟩
+  rintro (h | h | ⟨hne, hnull⟩)
+  · exact ⟨fun _ ⟨_, hv⟩ => by simp [h] at hv, fun _ => hfalse.mpr (.inl h)⟩
+  · exact ⟨fun hf hm => by simp [htrue.mpr hm] at hf, fun hm => absurd h hm⟩
+  · exact ⟨fun hf hm => by simp [htrue.mpr hm] at hf,
+      fun hm => hfalse.mpr (.inr ⟨hne, hnull, fun hv => hm ⟨hne, hv⟩⟩)⟩
 
 end Datum
 

@@ -66,17 +66,11 @@ private theorem params_union_aux_swap {x Q : ℕ} (hx : x ∈ C.params) (hQ : Q 
     (C.swap x Q).params ∪ (C.swap x Q).aux = C.params ∪ C.aux := by
   ext i
   change i ∈ insert Q (C.params.erase x) ∪ insert x (C.aux.erase Q) ↔ _
-  by_cases hix : i = x
-  · subst hix; simp [hx]
-  · by_cases hiQ : i = Q
-    · subst hiQ; simp [hQ]
-    · simp [hix, hiQ]
+  by_cases hix : i = x <;> by_cases hiQ : i = Q <;> simp_all
 
 private theorem live_swap {x Q : ℕ} (hx : x ∈ C.params) (hQ : Q ∈ C.aux) :
     (C.swap x Q).live = C.live := by
-  change (C.swap x Q).params ∪ (C.swap x Q).aux ∪ C.gates = _
-  rw [params_union_aux_swap hx hQ]
-  rfl
+  exact congrArg (· ∪ C.gates) (params_union_aux_swap hx hQ)
 
 /-- Exchanging a parameter `x` with an auxiliary variable depending on it preserves
 well-formedness. -/
@@ -145,12 +139,8 @@ def quad (C : SemiCircuit) (z G D : ℕ) : SemiCircuit :=
 /-- Any live node of `C` distinct from `z` and `G` remains live in `C.quad z G D`. -/
 theorem mem_live_quad {z G D i : ℕ} (hi : i ∈ C.live) (hiz : i ≠ z) (hiG : i ≠ G) :
     i ∈ (C.quad z G D).live := by
-  simp only [live, Finset.mem_union] at hi ⊢
-  change (i ∈ insert D (C.params.erase z) ∨ i ∈ C.aux) ∨ i ∈ (C.gates.erase D).erase G
-  simp only [Finset.mem_insert, Finset.mem_erase]
-  by_cases hiD : i = D
-  · exact Or.inl (Or.inl (Or.inl hiD))
-  · tauto
+  simp only [live, quad, Finset.mem_union, Finset.mem_insert, Finset.mem_erase] at hi ⊢
+  by_cases hiD : i = D <;> tauto
 
 /-- The configuration of the quadratic reparameterisation: an AND-type gate
 `G = (x + α)(y + β) + γ` on the distinct parameters `x` and `y`, whose only child is the XOR-type

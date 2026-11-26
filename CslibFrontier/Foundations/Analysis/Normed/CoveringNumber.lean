@@ -144,10 +144,9 @@ theorem packingNumber_empty (ε : ℝ) : packingNumber (∅ : Set X) ε = 0 := b
 theorem one_le_coveringNumber {s : Set X} (hs : s.Nonempty) (ε : ℝ) :
     1 ≤ coveringNumber s ε := by
   obtain ⟨x, hx⟩ := hs
-  refine le_sInf ?_
-  rintro n ⟨T, rfl, hT⟩
-  obtain ⟨y, hy, -⟩ := hT x hx
-  exact_mod_cast Finset.card_pos.2 ⟨y, hy⟩
+  exact le_sInf fun _ ⟨T, hcard, hT⟩ =>
+    let ⟨y, hy, _⟩ := hT x hx
+    hcard ▸ mod_cast Finset.card_pos.2 ⟨y, hy⟩
 
 theorem coveringNumber_le_one_of_subset_closedBall {s : Set X} {x₀ : X} {ε : ℝ}
     (hs : ∀ x ∈ s, dist x x₀ ≤ ε) : coveringNumber s ε ≤ 1 := by
@@ -203,8 +202,8 @@ theorem internalCoveringNumber_le_packingNumber (s : Set X) {ε : ℝ} (hε : 0 
   have hne : {n : ℕ∞ | ∃ P : Finset X, (P.card : ℕ∞) = n ∧ (∀ x ∈ P, x ∈ s) ∧
       ∀ x ∈ P, ∀ y ∈ P, x ≠ y → ε < dist x y}.Nonempty := ⟨0, ∅, rfl, by simp, by simp⟩
   have := hne.to_subtype
-  obtain ⟨P, hPcard, hPs, hsep⟩ := ENat.sSup_mem_of_nonempty_of_lt_top hlt
-  change (P.card : ℕ∞) = packingNumber s ε at hPcard
+  obtain ⟨P, hPcard : (P.card : ℕ∞) = packingNumber s ε, hPs, hsep⟩ :=
+    ENat.sSup_mem_of_nonempty_of_lt_top hlt
   rw [← hPcard]
   refine internalCoveringNumber_le_card hPs fun x hx => ?_
   by_contra! hfar
@@ -358,9 +357,7 @@ theorem card_le_of_separated_closedBall {x₀ : E} {R ε : ℝ} (hR : 0 ≤ R) (
       ENNReal.ofReal_le_ofReal_iff (by positivity)] at hcancel
   refine ((le_div_iff₀ (pow_pos hhalf_pos _)).2 hreal).trans_eq ?_
   rw [← div_pow]
-  congr 1
-  field_simp
-  ring
+  exact congrArg (· ^ _) (by field_simp; ring)
 
 /-- Finite real bound on `packingNumber (Metric.closedBall x₀ R) ε` for `R ≥ 0, ε > 0`. -/
 theorem packingNumber_closedBall_lt_top (x₀ : E) {R ε : ℝ} (hR : 0 ≤ R) (hε : 0 < ε) :
@@ -386,12 +383,11 @@ theorem packingNumber_closedBall_toNat_le (x₀ : E) {R ε : ℝ} (hR : 0 ≤ R)
 theorem internalCoveringNumber_closedBall_toNat_le (x₀ : E) {R ε : ℝ} (hR : 0 ≤ R) (hε : 0 < ε) :
     ((internalCoveringNumber (Metric.closedBall x₀ R) ε).toNat : ℝ) ≤
       (1 + 2 * R / ε) ^ Module.finrank ℝ E := by
-  have hle := internalCoveringNumber_le_packingNumber (Metric.closedBall x₀ R) hε.le
   have hlt_p := packingNumber_closedBall_lt_top x₀ hR hε
-  have hnat : (internalCoveringNumber (Metric.closedBall x₀ R) ε).toNat ≤
-      (packingNumber (Metric.closedBall x₀ R) ε).toNat :=
-    ENat.toNat_le_of_le_natCast (by simpa [ENat.natCast_toNat hlt_p.ne] using hle)
-  exact (Nat.cast_le.2 hnat).trans (packingNumber_closedBall_toNat_le x₀ hR hε)
+  refine (Nat.cast_le.2 (ENat.toNat_le_of_le_natCast ?_)).trans
+    (packingNumber_closedBall_toNat_le x₀ hR hε)
+  simpa only [ENat.natCast_toNat hlt_p.ne] using
+    internalCoveringNumber_le_packingNumber (Metric.closedBall x₀ R) hε.le
 
 /-- **Volumetric external covering bound**: for `0 < ε ≤ R`,
 `coveringNumber (closedBall x₀ R) ε ≤ (3 * R / ε) ^ dim E`. -/
@@ -405,12 +401,10 @@ theorem coveringNumber_closedBall_toNat_le_three_pow (x₀ : E) {R ε : ℝ} (h�
       (packingNumber_closedBall_lt_top x₀ hR hε)
   have hnat : (coveringNumber (Metric.closedBall x₀ R) ε).toNat ≤
       (internalCoveringNumber (Metric.closedBall x₀ R) ε).toNat :=
-    ENat.toNat_le_of_le_natCast <| by
-      simpa [ENat.natCast_toNat hlt_int.ne] using
-        coveringNumber_le_internalCoveringNumber (Metric.closedBall x₀ R) ε
-  refine (Nat.cast_le.2 hnat).trans
-    ((internalCoveringNumber_closedBall_toNat_le x₀ hR hε).trans ?_)
-  refine pow_le_pow_left₀ (by positivity) ?_ _
+    ENat.toNat_le_of_le_natCast (by simpa [ENat.natCast_toNat hlt_int.ne] using
+      coveringNumber_le_internalCoveringNumber (Metric.closedBall x₀ R) ε)
+  refine (Nat.cast_le.2 hnat).trans ((internalCoveringNumber_closedBall_toNat_le x₀ hR hε).trans
+    (pow_le_pow_left₀ (by positivity) ?_ _))
   linarith [(one_le_div hε).2 hεR, show 3 * R / ε = R / ε + 2 * R / ε by ring]
 
 end Volumetric

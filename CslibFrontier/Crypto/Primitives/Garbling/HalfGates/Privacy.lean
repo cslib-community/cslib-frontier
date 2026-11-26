@@ -195,13 +195,11 @@ theorem evalLabels_congr (X : Fin n → K × Bool) {ct ct' : Slot C → K × Boo
     (isLocal_evalStep_const C H tw ct X).isFixed_iterate 0
   have hE' : evalStep C H tw ct' X (evalLabels C H tw ct' X) = evalLabels C H tw ct' X :=
     (isLocal_evalStep_const C H tw ct' X).isFixed_iterate 0
-  have key : ∀ N (w : Wire n C.size), w.toNat < N → w.toNat < n + k →
+  have key (N : ℕ) (w : Wire n C.size) (hN : w.toNat < N) (hk : w.toNat < n + k) :
       evalLabels C H tw ct X w = evalLabels C H tw ct' X w := by
-    intro N
-    induction N with
-    | zero => exact fun _ hw => absurd hw (Nat.not_lt_zero _)
+    induction N generalizing w with
+    | zero => exact absurd hN (Nat.not_lt_zero _)
     | succ N ih =>
-      intro w hN hk
       rw [← hE, ← hE']
       cases w with
       | input _ => rfl
@@ -342,9 +340,8 @@ theorem run_tableRun (f : CCR.Query (K × Bool) T → K × Bool) (X : Fin n → 
 
 theorem detRun_eq (f : CCR.Query (K × Bool) T → K × Bool) (X : Fin n → K × Bool) :
     detRun C H tw x f X C.size = oracleTable C H tw x f X := by
-  have key : ∀ k (s : Slot C), (s.gate : ℕ) < k →
+  have key (k : ℕ) : ∀ (s : Slot C), (s.gate : ℕ) < k →
       detRun C H tw x f X k s = oracleTable C H tw x f X s := by
-    intro k
     induction k with
     | zero => exact fun _ hs => absurd hs (Nat.not_lt_zero _)
     | succ k ih =>
@@ -474,16 +471,14 @@ noncomputable def reduction (D : View C K → ProbComp Bool) :
 /-- The reduction asks at most one query per slot of the garbled table. -/
 theorem isQueryBounded_reduction (D : View C K → ProbComp Bool) :
     (reduction C H tw x D).IsQueryBounded (Fintype.card (Slot C)) := by
-  have h := (ProbOracleComp.IsQueryBounded.sample
-    (spec := fun _ : CCR.Query (K × Bool) T => K × Bool)
-    (ProbComp.uniform (Fin n → K × Bool))).bind fun X =>
-    (isQueryBounded_tableRun C H tw x X C.size).bind fun ct =>
-    ProbOracleComp.IsQueryBounded.sample
-      (D (simulateWith C H tw (C.eval interpretation x) X ct))
   have hcard : (Finset.univ.filter fun s : Slot C => (s.gate : ℕ) < C.size).card =
       Fintype.card (Slot C) := by
     rw [Finset.filter_true_of_mem fun s _ => s.gate.isLt, Finset.card_univ]
-  simpa only [reduction, hcard, Nat.zero_add, Nat.add_zero] using h
+  simpa only [reduction, hcard, Nat.zero_add, Nat.add_zero] using
+    (ProbOracleComp.IsQueryBounded.sample (ProbComp.uniform (Fin n → K × Bool))).bind fun X =>
+      (isQueryBounded_tableRun C H tw x X C.size).bind fun ct =>
+        ProbOracleComp.IsQueryBounded.sample
+          (D (simulateWith C H tw (C.eval interpretation x) X ct))
 
 /-- When distinct slots have distinct tweaks, the reduction makes at most one query with each
 tweak. -/
@@ -543,9 +538,8 @@ theorem simGame_reduction (htw : Function.Injective tw) (D : View C K → ProbCo
   simp only [PRF.idealExperiment, simGame, simulate, ProbComp.eval_bind, ProbComp.eval_uniform,
     eval_run_reduction, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
   rw [PMF.bind_comm]
-  congr 1 with X : 1
-  rw [← map_oracleTable C H tw x htw X, PMF.bind_map]
-  rfl
+  exact congrArg (PMF.bind _ ·)
+    (funext fun X => by simp [← map_oracleTable C H tw x htw X, PMF.bind_map, Function.comp_def])
 
 /-- **Simulation privacy of half-gates garbling.** For every circuit `C`, input `x` and
 distinguisher `D`, if distinct slots have distinct tweaks and every element of `K` is its own

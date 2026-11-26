@@ -225,9 +225,7 @@ theorem Valid.step_of_degeneratePair {S : State n} (hS : S.Valid f) (hexcl : S.E
           config_weight, weight_zero] at this
         omega
       · exact Nat.add_le_add_right (Reduction.wt_le_of_exclusive h hS hexcl
-          (fun x hx hxu => by
-            obtain rfl := Finset.mem_singleton.1 hx
-            exact hup (hS.isPartner_unique hxu hpr.symm))
+          (fun _ hx hxu => hup (hS.isPartner_unique (Finset.mem_singleton.1 hx ▸ hxu) hpr.symm))
           fun _ hN => absurd hN List.not_mem_nil) _
     simp only [Finset.sum_singleton, Finset.card_singleton, wt_of_paired hpr.symm.paired,
       hS.card_pairsMeeting_singleton, ite_eq_left hpr.symm.paired,
@@ -404,12 +402,9 @@ theorem Valid.step_of_pairInSystem {S : State n} {d : ℕ} (hS : S.Valid f)
     rcases eq_or_ne u p with rfl | hup
     · rw [wt_of_mem hpu₂, config_weight, ite_eq_left rfl]; omega
     · rw [ite_eq_right hup]
-      refine Nat.add_le_add_right (Reduction.wt_le_of_exclusive h hS hexcl (fun x hx hxu => ?_)
-        fun N hN _ => ?_) 0
-      · obtain rfl := Finset.mem_singleton.1 hx
-        exact hup (hS.isPartner_unique hxu hpr.symm)
-      · obtain rfl := List.mem_singleton.1 hN
-        exact ⟨r, hr, Ne.symm (by simpa using hur), hHr⟩
+      refine Nat.add_le_add_right (Reduction.wt_le_of_exclusive h hS hexcl
+        (fun _ hx hxu => hup (hS.isPartner_unique (Finset.mem_singleton.1 hx ▸ hxu) hpr.symm))
+        fun _ hN _ => ⟨r, hr, Ne.symm (by simpa using hur), List.mem_singleton.1 hN ▸ hHr⟩) 0
   have hpr' : p ∈ S.params \ {r} := Finset.mem_sdiff.2 ⟨hp, by simpa using hrp.symm⟩
   rw [Finset.sum_ite_eq' (S.params \ {r}) p, ite_eq_left hpr', Finset.sum_singleton,
     wt_of_paired hpr.symm.paired, hS.card_pairsMeeting_singleton,
@@ -497,12 +492,10 @@ theorem Valid.step_of_andOnPair {S : State n} (hS : S.Valid f) (hexcl : S.Exclus
       · rw [ite_eq_left hwu]; have := S'.wt_le_bound u; rw [config_weightBound] at this; omega
       · rw [ite_eq_right hwu]
         refine Nat.add_le_add_right (Reduction.wt_le_of_exclusive h hS hexcl (fun x hx hxu => ?_)
-          fun N hN _ => ?_) _
-        · rcases Finset.mem_insert.1 hx with rfl | hx
-          · exact hup (hS.isPartner_unique hxu hpr.symm)
-          · obtain rfl := Finset.mem_singleton.1 hx; exact hwu hxu
-        · obtain rfl := List.mem_singleton.1 hN
-          exact ⟨r, hr, Ne.symm huF.1, hHr⟩
+          fun _ hN _ => ⟨r, hr, Ne.symm huF.1, List.mem_singleton.1 hN ▸ hHr⟩) _
+        rcases Finset.mem_insert.1 hx with rfl | hx
+        · exact hup (hS.isPartner_unique hxu hpr.symm)
+        · exact hwu (Finset.mem_singleton.1 hx ▸ hxu)
   have hk : (S.pairsMeeting {r, w}).card = (if S.Paired w then 1 else 0) + 1 := by
     rw [hS.card_pairsMeeting_insert (by simpa using hwr.symm) (by simpa using hwpart),
       hS.card_pairsMeeting_singleton, ite_eq_left hrpaired]

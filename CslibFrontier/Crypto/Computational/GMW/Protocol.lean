@@ -216,12 +216,8 @@ def activeTableFlags (φ : CNF ℕ) (v : List Bool) : List Bool :=
 
 private theorem length_flatten_map_eight {α : Type} (xs : List α) (f : α → List Bool)
     (hf : ∀ x ∈ xs, (f x).length = 8) : (xs.map f).flatten.length = 8 * xs.length := by
-  induction xs with
-  | nil => simp
-  | cons x xs ih =>
-    simp only [List.map_cons, List.flatten_cons, List.length_append, List.length_cons,
-      hf x List.mem_cons_self, ih (fun y hy => hf y (List.mem_cons_of_mem _ hy))]
-    omega
+  rw [List.length_flatten, List.map_map]
+  simp [Function.comp_def, List.map_congr_left (g := fun _ => 8) hf, Nat.mul_comm]
 
 @[simp] theorem length_tableBits (φ : CNF ℕ) (m : List Bool) :
     (tableBits φ m).length = 8 * φ.length :=
@@ -562,10 +558,9 @@ theorem length_proverReply2_any (s : ℕ) (φ : CNF ℕ) (ch bits : List Bool)
     (seeds : List (List Bool)) :
     (proverReply2 s φ ch bits seeds).length = bits.length * (s + 1) := by
   have hmap : List.map List.length (naorSelectSeeds s (allOpenFlags φ ch bits) bits seeds) =
-      List.replicate bits.length s := by
-    apply List.ext_getElem (by simp); intro i hi _
-    simp only [List.getElem_map, List.getElem_replicate]
-    exact length_mem_naorSelectSeeds (List.getElem_mem _)
+      List.replicate bits.length s :=
+    List.eq_replicate_iff.mpr ⟨by simp,
+      List.forall_mem_map.mpr fun _ h => length_mem_naorSelectSeeds h⟩
   simp only [proverReply2, List.length_append, length_naorMaskBits,
     List.length_flatten, hmap, List.sum_replicate, smul_eq_mul]; ring
 

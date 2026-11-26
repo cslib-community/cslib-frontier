@@ -473,21 +473,17 @@ private theorem broadcastIn_append_none {xl : List (BSSAction P V)} {act : BSSAc
 
 private theorem broadcastIn_append_some {xl : List (BSSAction P V)} {act : BSSAction P V}
     {pkt : Packet P V} (hsome : emittedPacket (bssRun (bssInit P V) xl) act = some pkt) :
-    BroadcastIn (xl ++ [act]) = insert pkt (BroadcastIn xl) := by
-  rw [broadcastIn_append, hsome, Set.insert_eq, Set.union_comm]
-  simp
+    BroadcastIn (xl ++ [act]) = insert pkt (BroadcastIn xl) :=
+  Set.ext fun _ => by simp [broadcastIn_append, hsome]
 
 /-- One step of `bssStep` never decreases any coordinate of any process's vector clock. -/
 private theorem bssStep_vt_le (s : BSSState P V) (act : BSSAction P V) (q : P) :
     (s.proc q).vt ≤ ((bssStep s act).proc q).vt := by
   cases act with
   | broadcast p _ | crashBroadcast p _ _ | deliver p _ =>
-    rcases eq_or_ne q p with rfl | hqp
-    · simp only [bssStep, bssExecBroadcast, bssExecCrashBroadcast, bssExecDeliver,
-        Function.update_self, bssBroadcastPacket, bssNextTimestamp]
-      exact le_update_self_iff.mpr (Nat.le_succ _)
-    · simp only [bssStep, bssExecBroadcast, bssExecCrashBroadcast, bssExecDeliver,
-        Function.update_of_ne hqp, le_rfl]
+    simp only [bssStep, bssExecBroadcast, bssExecCrashBroadcast, bssExecDeliver,
+      Function.update_apply, bssBroadcastPacket, bssNextTimestamp]
+    split_ifs with h <;> simp [h, le_update_self_iff]
   | recv _ | crash _ =>
     simp only [bssStep, bssExecRecv, bssExecCrash,
       Function.apply_update (fun _ => BSSProcState.vt), Function.update_eq_self, le_rfl]
@@ -505,11 +501,9 @@ private theorem bssStep_delivered_prefix (s : BSSState P V) (act : BSSAction P V
     (s.proc q).delivered <+: ((bssStep s act).proc q).delivered := by
   cases act with
   | broadcast p _ | crashBroadcast p _ _ | deliver p _ =>
-    rcases eq_or_ne q p with rfl | hqp
-    · simp only [bssStep, bssExecBroadcast, bssExecCrashBroadcast, bssExecDeliver,
-        Function.update_self, List.prefix_append]
-    · simp only [bssStep, bssExecBroadcast, bssExecCrashBroadcast, bssExecDeliver,
-        Function.update_of_ne hqp, List.prefix_refl]
+    simp only [bssStep, bssExecBroadcast, bssExecCrashBroadcast, bssExecDeliver,
+      Function.update_apply]
+    split_ifs with h <;> simp [h]
   | recv _ | crash _ =>
     simp only [bssStep, bssExecRecv, bssExecCrash,
       Function.apply_update (fun _ => BSSProcState.delivered), Function.update_eq_self,
@@ -572,9 +566,7 @@ private theorem bssInv_nil (F : Set P) : BSSInv F [] (bssInit P V) where
   delivered_mem q pkt hd := by simp [bssInit] at hd
   ts_le_vt q pkt hd := by simp [bssInit] at hd
   delivered_nodup q := by simp [bssInit]
-  exists_delivered_of_le_vt q r k hk1 hkle := by
-    simp only [bssInit, Pi.zero_apply] at hkle
-    omega
+  exists_delivered_of_le_vt q r k hk1 hkle := by simp [bssInit] at hkle; omega
   bcast_sender_bounds b hb := by simp [BroadcastIn] at hb
   bcast_emitted_spec i hi := by simp at hi
   same_sender_lt i j hi := by simp at hi
@@ -597,10 +589,8 @@ private theorem nonBroadcast_emitted_spec {F : Set P} {xl : List (BSSAction P V)
     b.ts = bssNextTimestamp ((bssStateAt (xl ++ [act]) i).proc b.sender).vt b.sender := by
   rcases bssAppendSingleton_at xl act hi with ⟨hlt, hst, hget⟩ | ⟨_, hst, hget⟩
   · rw [hst, hget] at hbi
-    rw [hst]
-    exact hinv.bcast_emitted_spec i hlt b hbi
-  · rw [hst, hget, hnone] at hbi
-    cases hbi
+    exact hst ▸ hinv.bcast_emitted_spec i hlt b hbi
+  · simp [hst, hget, hnone] at hbi
 
 private theorem nonBroadcast_same_sender_lt {F : Set P} {xl : List (BSSAction P V)}
     {s : BSSState P V} (hinv : BSSInv F xl s) {act : BSSAction P V}
@@ -616,8 +606,7 @@ private theorem nonBroadcast_same_sender_lt {F : Set P} {xl : List (BSSAction P 
     rw [bssStateAt_append_of_le xl act (Nat.le_of_lt hilt), List.getElem_append_left hilt] at hbi
     rw [hst_j, hget_j] at hbj
     exact hinv.same_sender_lt i j hilt hjlt b₁ b₂ hij hbi hbj hsend
-  · rw [hst_j, hget_j, hnone] at hbj
-    cases hbj
+  · simp [hst_j, hget_j, hnone] at hbj
 
 /-! ### Step-preservation lemmas for `BSSInv` -/
 
@@ -685,15 +674,14 @@ private theorem bssInv_of_append_delivered {F : Set P} {xl : List (BSSAction P V
     rw [hs'_proc] at hkle ⊢
     rcases eq_or_ne q p with rfl | hqp
     · simp only [Function.update_self, List.mem_append, List.mem_singleton] at hkle ⊢
-      rcases eq_or_ne r pkt.sender with rfl | hrs
-      · simp only [Function.update_self] at hkle
-        rcases Nat.of_le_succ hkle with hlt | rfl
-        · obtain ⟨b, hb, hbs, hbk⟩ := hinv.exists_delivered_of_le_vt q _ k hk1 hlt
-          exact ⟨b, Or.inl hb, hbs, hbk⟩
-        · exact ⟨pkt, Or.inr rfl, rfl, hpkt_ts_sender⟩
-      · rw [Function.update_of_ne hrs] at hkle
-        obtain ⟨b, hb, hbs, hbk⟩ := hinv.exists_delivered_of_le_vt q r k hk1 hkle
-        exact ⟨b, Or.inl hb, hbs, hbk⟩
+      by_cases h : r = pkt.sender ∧ k = (s.proc q).vt pkt.sender + 1
+      · exact ⟨pkt, Or.inr rfl, h.1.symm, h.1 ▸ hpkt_ts_sender.trans h.2.symm⟩
+      · have hle : k ≤ (s.proc q).vt r := by
+          rcases eq_or_ne r pkt.sender with rfl | hrs
+          · simp only [Function.update_self, true_and] at hkle h; omega
+          · rwa [Function.update_of_ne hrs] at hkle
+        exact (hinv.exists_delivered_of_le_vt q r k hk1 hle).imp fun _ ⟨hb, hs, hk⟩ =>
+          ⟨Or.inl hb, hs, hk⟩
     · rw [Function.update_of_ne hqp] at hkle ⊢; exact hinv.exists_delivered_of_le_vt q r k hk1 hkle
   bcast_sender_bounds := hbcast_bounds
   bcast_emitted_spec := hemitted
@@ -763,9 +751,8 @@ private theorem bssInv_step_broadcast {F : Set P} {xl : List (BSSAction P V)} {s
         · exact hsend ▸ (hinv.bcast_sender_bounds b₁ hb₁_mem).2
         · rw [hb₁_spec, bssNextTimestamp, Function.update_of_ne hr, hsend]; exact hvt_mono r
       refine ⟨lt_of_le_of_lt hb₁_le_s hvt_lt_pkt, ?_⟩
-      have hle_p : b₁.ts p ≤ (s.proc p).vt p := hb₁_le_s p
-      rw [hsend, show pkt.sender = p from rfl, hpkt_ts_p]
-      omega
+      have hpkt_s : pkt.sender = p := rfl
+      simpa only [hsend, hpkt_s, hpkt_ts_p] using Nat.lt_succ_of_le (hb₁_le_s p)
 
 private theorem bssInv_of_vt_delivered_eq {F : Set P} {xl : List (BSSAction P V)}
     {s : BSSState P V} (hinv : BSSInv F xl s) {act : BSSAction P V}
@@ -785,12 +772,10 @@ private theorem bssInv_of_vt_delivered_eq {F : Set P} {xl : List (BSSAction P V)
       delivered_mem := fun q b hb => hbcast_eq ▸ hinv.delivered_mem q b ((hdeliv q) ▸ hb)
       ts_le_vt := fun q b hb => (hvt q).symm ▸ hinv.ts_le_vt q b ((hdeliv q) ▸ hb)
       delivered_nodup := fun q => (hdeliv q).symm ▸ hinv.delivered_nodup q
-      exists_delivered_of_le_vt := fun q r k hk1 hkle => by
-        rw [hdeliv q]
-        exact hinv.exists_delivered_of_le_vt q r k hk1 ((hvt q) ▸ hkle)
-      bcast_sender_bounds := fun b hb => by
-        rw [hvt b.sender]
-        exact hinv.bcast_sender_bounds b (hbcast_eq ▸ hb)
+      exists_delivered_of_le_vt := fun q r k hk1 hkle =>
+        (hdeliv q).symm ▸ hinv.exists_delivered_of_le_vt q r k hk1 ((hvt q) ▸ hkle)
+      bcast_sender_bounds := fun b hb =>
+        (hvt b.sender).symm ▸ hinv.bcast_sender_bounds b (hbcast_eq ▸ hb)
       bcast_emitted_spec := nonBroadcast_emitted_spec hinv hnone
       same_sender_lt := nonBroadcast_same_sender_lt hinv hnone }
 
@@ -841,10 +826,7 @@ private theorem bssInv_of_validTrace {F : Set P} {xl : List (BSSAction P V)}
         (fun m hm => hbcast_eq ▸ hinv.inFlight_wf m hm)
         (fun b hb => hbcast_eq ▸ hinv.pending_wf p b (Multiset.mem_of_mem_erase hb))
         hdeliv.1
-        (fun r => by
-          rcases eq_or_ne r pkt.sender with rfl | hrs
-          · simp [hdeliv.1]
-          · simp [Function.update_of_ne hrs, hdeliv.2 r hrs])
+        (fun r => by by_cases hrs : r = pkt.sender <;> simp [hrs, hdeliv.1, hdeliv.2])
         (fun b hb => ⟨(hinv.bcast_sender_bounds b (hbcast_eq ▸ hb)).1,
           le_trans (hinv.bcast_sender_bounds b (hbcast_eq ▸ hb)).2
             (bssStep_vt_le s (.deliver p pkt) b.sender b.sender)⟩)
@@ -1252,9 +1234,7 @@ theorem bss_live_of_packetSentTo {F : Set P} {ss : ωSequence (BSSState P V)}
   -- that `b.sender` had delivered before broadcasting `b`.
   obtain ⟨k₁, hk₁_ge, hrecv⟩ := hfair.fair_recv ⟨q, b⟩ hq (k₀ + 1) hinFlight
   have hb_pend : b ∈ ((ss (k₁ + 1)).proc q).pending := by
-    obtain ⟨_, hstep⟩ := he k₁
-    rw [hstep, hrecv]
-    simp [bssStep, bssExecRecv]
+    simp [(he k₁).2, hrecv, bssStep, bssExecRecv]
   have hinv₀ := bssInv_of_mTr (omega_mTr_prefix hinit he k₀)
   have hcoord : ∀ r, ∃ kr, ((ss k₀).proc b.sender).vt r ≤ ((ss kr).proc q).vt r := by
     intro r

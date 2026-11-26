@@ -311,10 +311,7 @@ private theorem elim_litWire (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^ 
     (x : Fin p → Bool) (y : Fin (2 ^ p)) (b : Fin p) :
     Wire.elim x (template A T x) (litWire y b) = decide (x b = (y : ℕ).testBit b) := by
   unfold litWire
-  split <;> rename_i h
-  · simp [h]
-  · rw [elim_gateWire]
-    simp [h]
+  split_ifs with h <;> simp [h]
 
 /-- The last prefix conjunction of `y` recognizes `y`. -/
 private theorem value_grid_last (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^ p) → Bool)
@@ -323,10 +320,8 @@ private theorem value_grid_last (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2
   rw [value_grid]
   refine decide_eq_decide.mpr ⟨fun h => ?_, ?_⟩
   · rw [← Equiv.eq_symm_apply]
-    funext b
-    rw [BitString.equivFin_symm_apply]
-    refine h b ?_
-    fin_index [lastBit]
+    exact funext fun b => (h b (by fin_index [lastBit])).trans
+      (BitString.equivFin_symm_apply y b).symm
   · rintro rfl b _
     rw [← BitString.equivFin_symm_apply, Equiv.symm_apply_apply]
 
@@ -376,15 +371,12 @@ private def Early (κ : Gate p t) (w : Wire p (gateCount p t)) : Prop :=
 
 omit [NeZero p] in
 private theorem early_input (κ : Gate p t) (i : Fin p) : Early κ (.input i) := by
-  intro s h
-  cases h
+  rintro _ ⟨⟩
 
 omit [NeZero p] in
 private theorem early_gateWire {κ κ' : Gate p t}
     (h : (Gate.equivFin p t κ' : ℕ) < Gate.equivFin p t κ) : Early κ (gateWire κ') := by
-  rintro s hs
-  cases hs
-  exact h
+  exact fun _ hs => Wire.gate.inj hs ▸ h
 
 omit [NeZero p] in
 private theorem early_litWire (κ : Gate p t) (y : Fin (2 ^ p)) (b : Fin p)
@@ -445,8 +437,7 @@ theorem exists_program (A : Fin t → Finset (Fin (2 ^ p))) (T : Fin (2 ^ p) →
     (fun j a s hs => by
       simpa only [Equiv.apply_symm_apply] using line_early A T _ a s hs)
     (fun x j => value_eq_eval A T x _)
-  refine ⟨P, hP, fun κ => ?_⟩
-  rw [hop, Equiv.symm_apply_apply, line_op]
+  exact ⟨P, hP, fun κ => by rw [hop, Equiv.symm_apply_apply, line_op]⟩
 
 end Lines
 

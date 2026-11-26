@@ -53,11 +53,9 @@ variable {V A : Type} [Fintype V] [DecidableEq V] [Fintype A] [DecidableEq A]
 /-- A power of two below the geometric mean of two powers of two. -/
 private theorem le_mean_of_two_rpow_le {r s t : ℝ}
     (h : (2 : ℝ) ^ r ≤ ∏ l : Fin 2, ((2 : ℝ) ^ (![s, t] l)) ^ (1 / 2 : ℝ)) : r ≤ (s + t) / 2 := by
-  rw [Fin.prod_univ_two] at h
-  simp only [Matrix.cons_val_zero, Matrix.cons_val_one] at h
-  rw [← Real.rpow_mul (by norm_num), ← Real.rpow_mul (by norm_num), ← Real.rpow_add (by norm_num)]
-    at h
-  linarith [(Real.rpow_le_rpow_left_iff (by norm_num : (1 : ℝ) < 2)).1 h]
+  simp only [Fin.prod_univ_two, Matrix.cons_val_zero, Matrix.cons_val_one,
+    ← Real.rpow_mul zero_le_two, ← Real.rpow_add zero_lt_two] at h
+  linarith [(Real.rpow_le_rpow_left_iff one_lt_two).1 h]
 
 /-- A spectral point `F` over `V` extends to `F'` with a new party for every element of `A`,
 placed half at `a` and half at `b`. The wire exponents and the unit exponent at `m` stay; the wire
@@ -73,8 +71,7 @@ private theorem exists_mix [Nonempty V] (F : SpectralPoint K V) (a b m : A → V
     (fun _ => by norm_num) (by norm_num) ![a, b] (push m (unit K A 2))
     (lt_of_lt_of_le one_pos (F.toUpperFunctional.one_le_unit m (by norm_num)))
   refine ⟨F', he, ?_, fun x y => (hd x y).trans_eq ?_, ?_⟩
-  · simp only [SpectralPoint.unitExponent]
-    rw [← F'.congr (antisymmRel_push_push Sum.inl m _), hC]
+  · simp only [SpectralPoint.unitExponent, ← F'.congr (antisymmRel_push_push Sum.inl m _), hC]
   · simp [Fin.sum_univ_two]
     ring
   · have h := hle (push Sum.inr (unit K A 2))
@@ -94,10 +91,8 @@ variable {V A : Type} [Fintype V] [DecidableEq V] [Fintype A] [DecidableEq A]
 private theorem sq_dist_midpoint_le {Y : Type} {w : Y → Y → ℝ} (hw : IsPrice K w) {x y v z : Y}
     {δ : ℝ} (hx : w x v ≤ w x y / 2) (hy : w y v ≤ w x y / 2) (hzx : w z x ≤ w x y / 2 + δ)
     (hzy : w z y ≤ w x y / 2 + δ) : w z v ^ 2 ≤ w x y * δ + δ ^ 2 := by
-  have h := Curvature.isPrice_sq_le_of_mid hw x y v z hx hy (by ring)
-  have h3 : w z x ^ 2 ≤ (w x y / 2 + δ) ^ 2 := pow_le_pow_left₀ (hw.nonneg z x) hzx 2
-  have h4 : w z y ^ 2 ≤ (w x y / 2 + δ) ^ 2 := pow_le_pow_left₀ (hw.nonneg z y) hzy 2
-  nlinarith
+  nlinarith [Curvature.isPrice_sq_le_of_mid hw x y v z hx hy (by ring),
+    pow_le_pow_left₀ (hw.nonneg z x) hzx 2, pow_le_pow_left₀ (hw.nonneg z y) hzy 2]
 
 /-- If, for the scaled wire exponents `c d_F`, every `m v` is a midpoint of `a v` and `b v` up to
 `δ`, then the scaled unit exponent at `m` is at most the mean of those at `a` and `b`, up to the
@@ -161,10 +156,9 @@ private theorem unitExponent_convex (w : V → V → ℝ) {ε : ℝ} (hε : 0 < 
         (fun _ _ => Finset.sum_nonneg fun _ _ => abs_nonneg _) (Finset.mem_univ u)))
   set n : ℝ := (Fintype.card A : ℝ) with hn
   have hden : 0 < (n ^ 2 + 1) * (2 * R + 4) := by positivity
-  refine ⟨min 1 (ε ^ 2 / ((n ^ 2 + 1) * (2 * R + 4))), lt_min one_pos (by positivity), ?_⟩
-  intro F c hc hF a b m ha hb
   set δ : ℝ := min 1 (ε ^ 2 / ((n ^ 2 + 1) * (2 * R + 4)))
   have hδ0 : 0 < δ := lt_min one_pos (by positivity)
+  refine ⟨δ, hδ0, fun F c hc hF a b m ha hb => ?_⟩
   have hδ1 : δ ≤ 1 := min_le_left _ _
   have hδ2 : δ * ((n ^ 2 + 1) * (2 * R + 4)) ≤ ε ^ 2 := (le_div_iff₀ hden).1 (min_le_right _ _)
   have key := unitExponent_le_mean_add F hc a b m (δ := 3 / 2 * δ)
@@ -222,12 +216,10 @@ private def cubeSign {k : ℕ} (j : ℕ) (χ : Fin k → Bool) (d : Fin k) (s : 
 /-- At level `0` the image lies on a main diagonal of the cube. -/
 private theorem cubeSign_zero {k : ℕ} (χ : Fin k → Bool) (d : Fin k) (s : Bool) :
     cubeSign 0 χ d s = (fun x => boolSign (χ x)) ∨ cubeSign 0 χ d s = fun x => -boolSign (χ x) := by
-  unfold cubeSign
-  cases s <;> cases χ d
-  · left; funext x; cases χ x <;> simp [boolSign]
-  · right; funext x; cases χ x <;> simp [boolSign]
-  · right; funext x; cases χ x <;> simp [boolSign]
-  · left; funext x; cases χ x <;> simp [boolSign]
+  have h : boolSign s * boolSign (χ d) = 1 ∨ boolSign s * boolSign (χ d) = -1 := by
+    cases s <;> cases χ d <;> decide
+  exact h.imp (fun h => funext fun x => by simp [cubeSign, h]) fun h =>
+    funext fun x => by simp [cubeSign, h]
 
 /-- At level `k` every centre stays where it is. -/
 private theorem cubePoint_cubeSign_top {k : ℕ} (χ : Fin k → Bool) (d : Fin k) (s : Bool) :
@@ -323,7 +315,7 @@ theorem exists_spectralPoint_cube (hK : FlatCase K) {k : ℕ} (V : Finset (Eucli
   · have e : incl ∘ (fun x : P => (⟨x.1, hPV x.2⟩ : V)) = α k fun _ => true :=
       funext fun x => Subtype.ext ((hjb x).trans (cubePoint_cubeSign_top _ _ _).symm)
     rw [F.pull_unitExponent, e]
-    refine (hlevel k le_rfl _).trans (le_of_eq ?_)
+    refine (hlevel k le_rfl _).trans_eq ?_
     field_simp
     ring
 

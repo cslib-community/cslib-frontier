@@ -193,14 +193,13 @@ private theorem inv_fill {q : State} (hb : Bounds I q) (hc : q.ctl = .fill) (hp 
     (hv : q.ev.vertex = ((I.s : ℕ), (I.s : ℕ))) (hlow : q.ev.lower.length ≤ depthOf I)
     (hfr : q.ev.frames = []) (hw : q.w = q.c) (hj : q.j = lenOf I) :
     Inv I (step q (machine.readBit I.encode q)).1 := by
-  have hp' := hp
-  obtain ⟨hn, hs, ht, hd, hl⟩ := hp
+  have ⟨_, _, _, hd, _⟩ := hp
   rw [readBit_of_addr_none (by simp [addr, hc])]
   by_cases hlen : q.ev.lower.length = q.depth
   · simp only [step, hc, hlen, ite_true]
-    exact ⟨{ hb with cnt := hb.cnt }, hp', by rw [hlen, hd], hfr, by simp [hw, hj]⟩
+    exact ⟨{ hb with cnt := hb.cnt }, hp, by rw [hlen, hd], hfr, by simp [hw, hj]⟩
   · simp only [step, hc, hlen, ite_false]
-    refine ⟨{ hb with lower := ?_ }, hp', hv, ?_, hfr, hw, hj⟩ <;>
+    refine ⟨{ hb with lower := ?_ }, hp, hv, ?_, hfr, hw, hj⟩ <;>
       simp only [List.length_cons] <;> omega
 
 private theorem inv_next {q : State} (hb : Bounds I q) (hc : q.ctl = .next) (hp : WalkParams I q)
@@ -216,8 +215,7 @@ private theorem inv_next {q : State} (hb : Bounds I q) (hc : q.ctl = .next) (hp 
     refine ⟨{ hb with
         w := (Nat.div_le_self _ _).trans hb.w, j := (by dsimp only; omega), frames := (by simp) },
       hp, by simp [hlow], by dsimp only; omega, ?_⟩
-    simp only [hw]
-    exact div_pow_sub_succ hj hjT
+    simpa only [hw] using div_pow_sub_succ hj hjT
 
 private theorem inv_eval {q : State} (hb : Bounds I q) (hc : q.ctl = .eval) (hp : WalkParams I q)
     (hlen : q.ev.lower.length + q.ev.frames.length = depthOf I + 1) (hj : q.j < lenOf I)
@@ -242,18 +240,16 @@ private theorem inv_check {q : State} (hb : Bounds I q) (hc : q.ctl = .check) (h
     (hw : q.w = q.c / numLabels ^ lenOf I) :
     Inv I (step q (machine.readBit I.encode q)).1 := by
   rw [readBit_of_addr_none (by simp [addr, hc])]
-  by_cases hw₀ : q.w ≠ 0
+  rcases eq_or_ne q.w 0 with hw₀ | hw₀
+  · by_cases hvt : q.ev.vertex.1 = q.t
+    · simp only [step, hc, hw₀, hvt, ne_eq, not_true_eq_false, ite_false, ite_true]
+      exact ⟨{ hb with w := Nat.zero_le _ }, trivial⟩
+    · simp only [step, hc, hw₀, hvt, ne_eq, not_true_eq_false, ite_false]
+      have hlt := ((Nat.div_eq_zero_iff).mp (hw.symm.trans hw₀)).resolve_left
+        (pow_pos numLabels_pos _).ne'
+      exact ⟨{ hb with c := hlt, w := Nat.zero_le _ }, hp⟩
   · simp only [step, hc, hw₀, ne_eq, not_false_eq_true, ite_true]
     exact ⟨{ hb with cnt := hb.cnt }, trivial⟩
-  · have hw₀' : q.w = 0 := by simpa using hw₀
-    by_cases hvt : q.ev.vertex.1 = q.t
-    · simp only [step, hc, hw₀', hvt, ne_eq, not_true_eq_false, ite_false, ite_true]
-      exact ⟨{ hb with w := Nat.zero_le _ }, trivial⟩
-    · simp only [step, hc, hw₀', hvt, ne_eq, not_true_eq_false, ite_false]
-      have hlt : q.c < numLabels ^ lenOf I := by
-        rw [hw₀', eq_comm, Nat.div_eq_zero_iff] at hw
-        exact hw.resolve_left (pow_pos numLabels_pos _).ne'
-      exact ⟨{ hb with c := hlt, w := Nat.zero_le _ }, hp⟩
 
 /-- **The invariant is kept by a step.** -/
 private theorem inv_step {q : State} (h : Inv I q) (hd : q.ctl ≠ .done) :

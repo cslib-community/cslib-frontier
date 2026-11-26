@@ -120,12 +120,9 @@ theorem mem_lits_iff (φ : CNF V) (ℓ : Literal V) : ℓ ∈ lits φ ↔ ℓ.1 
 
 private theorem card_lits_toFinset_le (φ : CNF V) :
     (lits φ).toFinset.card ≤ φ.numVars + φ.numVars := by
-  have hsub : (lits φ).toFinset ⊆ φ.vars.toFinset ×ˢ (Finset.univ : Finset Bool) := by
-    intro ℓ hℓ
-    rw [Finset.mem_product]
-    exact ⟨List.mem_toFinset.mpr ((mem_lits_iff φ ℓ).mp (List.mem_toFinset.mp hℓ)),
-      Finset.mem_univ _⟩
-  have hle := Finset.card_le_card hsub
+  have hle : (lits φ).toFinset.card ≤ (φ.vars.toFinset ×ˢ (Finset.univ : Finset Bool)).card :=
+    Finset.card_le_card fun ℓ hℓ => Finset.mem_product.mpr
+      ⟨List.mem_toFinset.mpr ((mem_lits_iff φ ℓ).mp (List.mem_toFinset.mp hℓ)), Finset.mem_univ _⟩
   rw [Finset.card_product, Finset.card_univ, Fintype.card_bool, ← CNF.numVars] at hle
   omega
 
@@ -236,12 +233,10 @@ theorem foldl_chooseStep_sublist (φ : CNF V) :
     ∀ (vs : List V) (s : Clause V), s <+ lits φ → vs.foldl (chooseStep φ) s <+ lits φ
   | [], s, hs => hs
   | v :: vs, s, hs => by
-    rw [List.foldl_cons]
     refine foldl_chooseStep_sublist φ vs _ ?_
-    dsimp only [chooseStep]
+    unfold chooseStep
     split_ifs
-    · exact hs
-    · exact List.filter_sublist
+    exacts [hs, List.filter_sublist]
 
 /-- Invariant maintained by `chooseStep`: occurring variables, consistency, and implication
 closure. -/
@@ -263,14 +258,12 @@ private theorem extendGoodSet {φ : CNF V} {s : Clause V} (hg : GoodSet φ s)
     let s' := (lits φ).filter fun m => s.contains m || (reach φ ℓ).contains m
     GoodSet φ s' ∧ s ⊆ s' ∧ ℓ ∈ s' := by
   intro s'
-  have hmem_s' : ∀ m, m ∈ s' ↔ m ∈ s ∨ Relation.ReflTransGen φ.Implies ℓ m := by
-    intro m
+  have hmem_s' : ∀ m, m ∈ s' ↔ m ∈ s ∨ Relation.ReflTransGen φ.Implies ℓ m := fun m => by
     simp only [s', List.mem_filter, mem_lits_iff, Bool.or_eq_true, List.contains_iff_mem,
       mem_reach_iff hℓv]
     exact ⟨fun h => h.2, fun h => ⟨h.elim (hg.vars m) (mem_vars_of_reach hℓv), h⟩⟩
-  refine ⟨⟨?_, ?_, ?_⟩, fun m hm => (hmem_s' m).mpr (.inl hm), (hmem_s' ℓ).mpr (.inr .refl)⟩
-  · intro m hm
-    exact ((hmem_s' m).mp hm).elim (hg.vars m) (mem_vars_of_reach hℓv)
+  refine ⟨⟨fun m hm => ((hmem_s' m).mp hm).elim (hg.vars m) (mem_vars_of_reach hℓv), ?_, ?_⟩,
+    fun m hm => (hmem_s' m).mpr (.inl hm), (hmem_s' ℓ).mpr (.inr .refl)⟩
   · intro m hm hmn
     rcases (hmem_s' m).mp hm with hms | hrm <;> rcases (hmem_s' m.negate).mp hmn with hmns | hrmn
     · exact hg.consistent m hms hmns
@@ -413,18 +406,10 @@ theorem computableInPolyTime_stepReach :
 private theorem computableInPolyTime_reachPair :
     ComputableInPolyTime (fun p : CNF ℕ × Literal ℕ => reach p.1 p.2)
       (encPair encCNF (encPair encNat encBool)) (encClause encNat) := by
-  have hcount :
-      ComputableInPolyTime (fun p : CNF ℕ × Literal ℕ => p.1.numVars + p.1.numVars + 1)
-        (encPair encCNF (encPair encNat encBool)) encUnary := by
-    fun_prop
-  have hinit :
-      ComputableInPolyTime (fun p : CNF ℕ × Literal ℕ => (lits p.1).filter (· == p.2))
-        (encPair encCNF (encPair encNat encBool)) (encClause encNat) := by
-    fun_prop
   exact ComputableInPolyTime.iterateWith
     (.fst encCNF (encPair encNat encBool))
-    hcount
-    hinit
+    (by fun_prop)
+    (by fun_prop)
     computableInPolyTime_stepReach
     (computableInPolyTime_lits (.fst encCNF (encPair encNat encBool))).polyBounded_length
     (fun p i _ => length_encList_sublist (encPair encNat encBool) (reachFrom_sublist p.1 p.2 i))

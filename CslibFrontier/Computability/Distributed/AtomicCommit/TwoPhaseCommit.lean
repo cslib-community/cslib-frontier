@@ -437,20 +437,19 @@ private theorem twoPCInvariant_start : TwoPCInvariant coord votes (twoPCStart P)
   aborted_imp_no_or_coord _ h := by simp [twoPCStart] at h
 
 private theorem mem_of_mem_add_map_ne {α β : Type*} {ms : Multiset β} {xs : Multiset α}
-    {f : α → β} {m : β} (hne : ∀ x, f x ≠ m) (hm : m ∈ ms + xs.map f) : m ∈ ms := by
-  simp only [Multiset.mem_add, Multiset.mem_map] at hm
-  rcases hm with hm | ⟨x, _, hx⟩
-  · exact hm
-  · exact False.elim (hne x hx)
+    {f : α → β} {m : β} (hne : ∀ x, f x ≠ m) (hm : m ∈ ms + xs.map f) : m ∈ ms :=
+  (Multiset.mem_add.mp hm).resolve_right fun h =>
+    let ⟨x, _, hx⟩ := Multiset.mem_map.mp h
+    hne x hx
 
 omit [Fintype P] in
 private theorem not_committed_update_coord {st : P → TwoPCLocalState} {newSt : TwoPCLocalState}
     (hnew : newSt ≠ .committed) (hnc : st coord ≠ .committed)
     (himp : ∀ p, st p = .committed → st coord = .committed) {p : P}
     (hp : Function.update st coord newSt p = .committed) : False := by
-  by_cases hpc : p = coord
-  · subst hpc; rw [Function.update_self] at hp; exact hnew hp
-  · rw [Function.update_of_ne hpc _ _] at hp; exact hnc (himp p hp)
+  rcases eq_or_ne p coord with rfl | hpc
+  · exact hnew (by simpa using hp)
+  · exact hnc (himp p (by simpa [hpc] using hp))
 
 omit [Fintype P] in
 private theorem aborted_imp_no_update_coord {st : P → TwoPCLocalState} {newSt : TwoPCLocalState}
@@ -458,10 +457,9 @@ private theorem aborted_imp_no_update_coord {st : P → TwoPCLocalState} {newSt 
     (hab : ∀ p, st p = .aborted → votes p = .no ∨ st coord = .aborted) {p : P}
     (hp : Function.update st coord newSt p = .aborted) :
     votes p = .no ∨ Function.update st coord newSt coord = .aborted := by
-  by_cases hpc : p = coord
-  · subst hpc; rw [Function.update_self] at hp; exact False.elim (hnew hp)
-  · rw [Function.update_of_ne hpc _ _] at hp
-    exact Or.inl ((hab p hp).resolve_right hna)
+  rcases eq_or_ne p coord with rfl | hpc
+  · exact False.elim (hnew (by simpa using hp))
+  · exact Or.inl ((hab p (by simpa [hpc] using hp)).resolve_right hna)
 
 omit [Fintype P] in
 private theorem twoPCInvariant_coord_noncommit {s : TwoPCState P} {newSt : TwoPCLocalState}
@@ -857,9 +855,8 @@ theorem twoPC_failureFree_abort_failStop (coord : P) (hno : ∃ p, votes p = .no
     refine ⟨tr, s₅, hff, hmtr, fun p => ?_, halive₅⟩
     rcases eq_or_ne p coord with rfl | hpc
     · simp [TwoPCState.decision, hloc₅, C', C, s₄]
-    rcases eq_or_ne p p₀ with rfl | hpp₀
-    · simp [TwoPCState.decision, hloc₅, C', s₄, s₃, s₂, hp₀c]
-    · simp [TwoPCState.decision, hloc₅, C', C, hpc, hpp₀]
+    · by_cases hpp₀ : p = p₀ <;>
+        simp [TwoPCState.decision, hloc₅, C', C, s₄, s₃, s₂, hpc, hpp₀, hp₀c]
 
 /-! ### Coordinator-crash uncertainty and inherent blocking of `2PC` -/
 
@@ -906,10 +903,9 @@ private theorem canReach_crash_set :
     have hstep : twoPCStep? coord votes s (.crash p) =
         some { s with alive := s.alive.erase p } := by
       simp [twoPCStep?, hsub (Finset.mem_insert_self p dead)]
-    have hreach := twoPC_canReach_trans ⟨[TwoPCAction.crash p], LTS.MTr.single _ hstep⟩
+    convert twoPC_canReach_trans ⟨[TwoPCAction.crash p], LTS.MTr.single _ hstep⟩
       (ih { s with alive := s.alive.erase p } fun r hr => Finset.mem_erase.mpr
-        ⟨ne_of_mem_of_not_mem hr hp, hsub (Finset.mem_insert_of_mem hr)⟩)
-    convert hreach using 2
+        ⟨ne_of_mem_of_not_mem hr hp, hsub (Finset.mem_insert_of_mem hr)⟩) using 2
     ext r
     simp [and_assoc, and_comm, and_left_comm]
 
@@ -977,8 +973,8 @@ theorem twoPC_uncertain_bivalent_failStop (hcard : 2 ≤ Fintype.card P) (coord 
     twoPC_canReach_trans ⟨tr_c, hmtr_c⟩
       (twoPC_canReach_trans (canReach_drop_all_msgs sc₃)
         (canReach_crash_set (Finset.univ.erase q) sc₄ (by simp [sc₄, halive_sc₃])))
-  have halive_q : Finset.univ \ (Finset.univ.erase q) = ({q} : Finset P) := by
-    ext r; simp
+  have halive_q : Finset.univ \ (Finset.univ.erase q) = ({q} : Finset P) :=
+    Finset.ext fun _ => by simp
   have halive_sc : sCommit.alive = {q} := by simp [sCommit, sc₄, halive_sc₃, halive_q]
   have hsa_q : sAbort.localState q = .uncertain := by
     simp [sAbort, sa₄, sa₃, sa₂, Function.update, hqc]

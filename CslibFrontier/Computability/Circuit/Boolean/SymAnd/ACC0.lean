@@ -222,12 +222,7 @@ theorem run_lift (Ls : List (SLayer F S)) (v : F × S → Bool) (r : F) (s : S) 
   induction Ls generalizing s with
   | nil => rfl
   | cons L Ls ih =>
-    have h : (fun s' => ModPolyLayer.run (Ls.map lift) v (r, s')) =
-        ModPolyLayer.run (Ls.map fun L => L.atSeed r) (fun s' => v (r, s')) := funext ih
-    change decide (L.q r s (fun s' => ModPolyLayer.run (Ls.map lift) v (r, s')) % (L.p : ℤ) ≠ 0) =
-      decide (L.q r s (ModPolyLayer.run (Ls.map fun L => L.atSeed r) (fun s' => v (r, s'))) %
-        (L.p : ℤ) ≠ 0)
-    rw [h]
+    simp only [List.map_cons, ModPolyLayer.run_cons, ModPolyLayer.step, lift, atSeed, ih]
 
 end SLayer
 
@@ -372,10 +367,9 @@ private theorem digits_run (P : Program Unbounded.extSignature n g) (ps : List �
           and_self, ↓reduceIte, digitPoly, sum_powersetCard_monomial, ihw]
         refine decide_eq_decide.2 ?_
         rw [ne_eq, ← Int.dvd_iff_emod_eq_zero, Int.natCast_dvd_natCast]
-      · have hmem' : (pi.1 : ℕ) ∈ ps := (List.mem_cons.1 hmem).resolve_left hpp
-        simp only [List.map_cons, ModPolyLayer.run_cons, ModPolyLayer.step, digitQ, hpp,
-          false_and, ↓reduceIte, decide_bitVal_emod hp₀.one_lt]
-        rw [iha k pi hpi hmem']
+      · simp only [List.map_cons, ModPolyLayer.run_cons, ModPolyLayer.step, digitQ, hpp,
+          false_and, ↓reduceIte, decide_bitVal_emod hp₀.one_lt,
+          iha k pi hpi ((List.mem_cons.1 hmem).resolve_left hpp)]
 
 /-- The layers of one round at seed `r`. -/
 theorem map_atSeed_macroS (P : Program Unbounded.extSignature n g) (r : Seed ℓ) :
@@ -545,15 +539,12 @@ theorem decide_majority {F : Type*} [Fintype F] (G : F → Prop) [DecidablePred 
     rw [← card_univ]
     exact card_filter_add_card_filter_not G
   cases b
-  · have h : #{r | f r = true} ≤ #{r | ¬ G r} := card_le_card fun r hr => by
-      simp only [mem_filter, mem_univ, true_and] at hr ⊢
-      intro h
-      simp [hG r h] at hr
+  · have h : #{r | f r = true} ≤ #{r | ¬ G r} := card_le_card fun r => by
+      simpa only [mem_filter, mem_univ, true_and] using mt (hG r) ∘ Bool.ne_false_of_eq_true
     simp only [decide_eq_false_iff_not, not_lt]
     omega
-  · have h : #{r | G r} ≤ #{r | f r = true} := card_le_card fun r hr => by
-      simp only [mem_filter, mem_univ, true_and] at hr ⊢
-      exact hG r hr
+  · have h : #{r | G r} ≤ #{r | f r = true} := card_le_card fun r => by
+      simpa only [mem_filter, mem_univ, true_and] using hG r
     simp only [decide_eq_true_eq]
     omega
 

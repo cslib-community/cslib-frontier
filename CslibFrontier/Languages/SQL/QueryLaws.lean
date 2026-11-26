@@ -85,10 +85,9 @@ predicate is `TRUE`. -/
 theorem IsSafePredicate.filterRows_eq_ok {Γ : Fin n → SqlType} {p : Expr n}
     (hp : p.IsSafePredicate Γ) {rs : List (Row n)} (hrs : ∀ r ∈ rs, r.Conforms Γ) :
     p.filterRows rs = .ok (rs.filter fun r => (p.evalTruth r).toOption = some .true) := by
-  have hall : ∀ r ∈ rs, (p.evalTruth r).toOption.isSome := fun r hr => by
+  rw [← Except.toOption_eq_some_iff, toOption_filterRows, ite_eq_left fun r hr => by
     obtain ⟨t, ht⟩ := hp.exists_evalTruth_eq_ok (hrs r hr)
-    simp [ht]
-  rw [← Except.toOption_eq_some_iff, toOption_filterRows, ite_eq_left hall]
+    simp [ht]]
 
 /-- `TRUE` keeps every row. -/
 @[simp] theorem filterRows_true (rs : List (Row n)) :
@@ -125,9 +124,8 @@ theorem toOption_filterRows_append (p : Expr n) (rs ss : List (Row n)) :
     (p.filterRows (rs ++ ss)).toOption =
       (p.filterRows rs).toOption.bind fun a => (p.filterRows ss).toOption.map (a ++ ·) := by
   simp only [toOption_filterRows, List.forall_mem_append, List.filter_append]
-  by_cases h₁ : ∀ r ∈ rs, (p.evalTruth r).toOption.isSome
-  · by_cases h₂ : ∀ r ∈ ss, (p.evalTruth r).toOption.isSome <;> simp +contextual [h₁, h₂]
-  · simp [h₁]
+  by_cases h₁ : ∀ r ∈ rs, (p.evalTruth r).toOption.isSome <;>
+    by_cases h₂ : ∀ r ∈ ss, (p.evalTruth r).toOption.isSome <;> simp +contextual [h₁, h₂]
 
 /-- A `SELECT` list depends on the row only through the results of its expressions. -/
 theorem evalRow_congr {es : Fin k → Expr n} {es' : Fin k → Expr m} {r : Row n} {r' : Row m}
@@ -349,9 +347,8 @@ theorem select_unionAll (p : Expr n) (q₁ q₂ : Query S n) :
   simp only [eval_select, eval_unionAll, bind_assoc, pure_bind, Except.toOption_bind,
     Expr.toOption_filterRows_append, Except.toOption_pure]
   -- The right side filters `q₁` before evaluating `q₂`; observed in `Option`, binds commute.
-  congr 1
-  funext rs
-  simpa only [Option.map_eq_bind, Function.comp_def] using Option.bind_comm _ _
+  exact congrArg (Option.bind _) (funext fun _ => by
+    simpa only [Option.map_eq_bind, Function.comp_def] using Option.bind_comm _ _)
 
 /-- A `SELECT` list distributes over `UNION ALL`. -/
 theorem project_unionAll (es : Fin k → Expr n) (q₁ q₂ : Query S n) :
@@ -360,9 +357,7 @@ theorem project_unionAll (es : Fin k → Expr n) (q₁ q₂ : Query S n) :
   simp only [eval_project, eval_unionAll, bind_assoc, pure_bind, List.mapM_append,
     Except.toOption_bind]
   -- The right side evaluates `q₂` after projecting `q₁`; observed in `Option`, binds commute.
-  congr 1
-  funext rs
-  exact Option.bind_comm _ _
+  exact congrArg (Option.bind _) (funext fun _ => Option.bind_comm _ _)
 
 /-- `UNION ALL` is associative. -/
 theorem unionAll_assoc (q₁ q₂ q₃ : Query S n) :
@@ -431,9 +426,7 @@ theorem select_distinct (p : Expr n) (q : Query S n) :
   · rfl
   simp only [Except.ok_bind, pure_bind, Except.toOption_bind, Except.toOption_pure,
     Expr.toOption_filterRows, List.mem_dedup]
-  split_ifs
-  · rw [Option.bind_some, List.dedup_filter]
-  · rfl
+  split_ifs <;> simp [List.dedup_filter]
 
 end Query
 

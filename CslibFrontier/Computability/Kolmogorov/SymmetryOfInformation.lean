@@ -327,8 +327,7 @@ theorem exists_complexity_universal_add_condUniversal_le :
         : ℕ) + cX :=
     hcX _ x (by simpa [heavyDecoder, decodeSelfDelimiting_selfDelimitingCode_append,
       Nat.foldr_bit_append_replicate_false, hrest, show k + 1 - (k + 1 - l) = l by omega] using hix)
-  rw [← natCast_complexity_universal] at hX
-  rw [← natCast_complexity_condUniversal] at hY
+  simp only [← natCast_complexity_universal, ← natCast_complexity_condUniversal] at hX hY
   norm_cast at hX hY
   simp only [List.length_append, hrest, length_selfDelimitingCode, Nat.size_eq_bits_len] at hX hY
   omega
@@ -347,14 +346,11 @@ theorem exists_abs_complexity_universal_pair_sub_le :
   have e₂ := h₂ x y
   have e₃ : universal.complexity x ≤ universal.complexity (Nat.pair x y) + c₃ := by
     simpa using h₃ (Nat.pair x y)
-  have e₄ : (universal.complexity x).size ≤
-      (universal.complexity (Nat.pair x y)).size + c₃ + 1 :=
-    (Nat.size_le_size e₃).trans <| (Nat.size_add_le _ _).trans <| by
-      have := Nat.size_le_self c₃
-      omega
+  have e₄ := (Nat.size_le_size e₃).trans (Nat.size_add_le _ _)
+  have := Nat.size_le_self c₃
   have e₅ := Nat.size_le_self (universal.complexity (Nat.pair x y)).size
   rw [abs_le]
-  constructor <;> omega
+  omega
 
 end DescriptionMethod
 
@@ -407,12 +403,9 @@ theorem exists_abs_algorithmicInformation_sub_algorithmicInformation_le :
     simpa using hd (Nat.pair x y)
   have e₂ : universal.complexity (Nat.pair x y) ≤ universal.complexity (Nat.pair y x) + d := by
     simpa using hd (Nat.pair y x)
-  have e₃ : (universal.complexity (Nat.pair y x)).size ≤
-      (universal.complexity (Nat.pair x y)).size + d + 1 :=
-    (Nat.size_le_size e₁).trans <| (Nat.size_add_le _ _).trans <| by
-      have := Nat.size_le_self d
-      omega
+  have e₃ := (Nat.size_le_size e₁).trans (Nat.size_add_le _ _)
+  have := Nat.size_le_self d
   rw [abs_le]
-  constructor <;> omega
+  omega
 
 end Cslib.Kolmogorov

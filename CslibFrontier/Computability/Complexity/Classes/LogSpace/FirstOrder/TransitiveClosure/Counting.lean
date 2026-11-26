@@ -102,14 +102,12 @@ private theorem relatesInSteps_of_graph {xs : Fin k → Fin n} {m : ℕ} :
 theorem relatesWithinSteps_codeEdge_iff {xs ys : Fin k → Fin n} {m : ℕ} :
     Relation.RelatesWithinSteps (Graph (n ^ k) (codeEdge E)) (finFunctionFinEquiv xs)
       (finFunctionFinEquiv ys) m ↔ Relation.RelatesWithinSteps E xs ys m := by
-  constructor
-  · rintro ⟨m', hm', h⟩
-    obtain ⟨_, h'⟩ := relatesInSteps_of_graph h
-    exact ⟨m', hm', by simpa only [Fin.eta, Equiv.symm_apply_apply] using h'⟩
-  · rintro ⟨m', hm', h⟩
-    exact ⟨m', hm', h.map (r' := Graph (n ^ k) (codeEdge E)) (fun x => (finFunctionFinEquiv x : ℕ))
+  refine ⟨fun ⟨m', hm', h⟩ => ?_, fun ⟨m', hm', h⟩ =>
+    ⟨m', hm', h.map (r' := Graph (n ^ k) (codeEdge E)) (fun x => (finFunctionFinEquiv x : ℕ))
       fun a b hab =>
-        ⟨(finFunctionFinEquiv a).isLt, (finFunctionFinEquiv b).isLt, (codeEdge_code a b).mpr hab⟩⟩
+        ⟨(finFunctionFinEquiv a).isLt, (finFunctionFinEquiv b).isLt, (codeEdge_code a b).mpr hab⟩⟩⟩
+  obtain ⟨_, h'⟩ := relatesInSteps_of_graph h
+  exact ⟨m', hm', by simpa only [Fin.eta, Equiv.symm_apply_apply] using h'⟩
 
 /-- **Rounds are bounded reachability**: the code of `ys` is in round `i` exactly when `ys` is
 reached from `xs` within `i` steps. -/
@@ -550,11 +548,9 @@ private theorem scanInv_hit {i y x : ℕ} {Sel : Finset ℕ} {regsT regs regs' :
   obtain ⟨hk₀, hX, hsub, hlt, -, -⟩ := hinv
   have hx : x ∉ Sel := fun h => Nat.lt_irrefl _ (hlt x h)
   refine ⟨hk₀.trans ((hk.mono (by omega)).set_right (by omega) hB1), ?_,
-    Finset.insert_subset hmem hsub, fun c hc => ?_, ?_, ?_⟩
+    Finset.insert_subset hmem hsub, fun c hc => (Finset.mem_insert.mp hc).elim
+      (· ▸ Nat.lt_succ_self _) fun hc => (hlt c hc).trans (Nat.lt_succ_self _), ?_, ?_⟩
   · rw [List.getD_set_ne (by omega), hk.getD_eq _ (by omega), hX]
-  · rcases Finset.mem_insert.mp hc with rfl | hc
-    · exact Nat.lt_succ_self _
-    · exact (hlt c hc).trans (Nat.lt_succ_self _)
   · rw [List.getD_set_ne (by omega), hS, Finset.card_insert_of_notMem hx]
   · rw [List.getD_set_self (by omega)]
     simp only [Finset.exists_mem_insert, hhit, true_or, ↓reduceIte]
@@ -567,12 +563,10 @@ private theorem scanInv_nohit {i y x : ℕ} {Sel : Finset ℕ} {regsT regs regs'
     ScanInv B base E s₀ i y x (x + 1) (insert x Sel) regsT regs' := by
   obtain ⟨hk₀, hX, hsub, hlt, -, hH₀⟩ := hinv
   have hx : x ∉ Sel := fun h => Nat.lt_irrefl _ (hlt x h)
-  refine ⟨hk₀.trans (hk.mono (by omega)), ?_, Finset.insert_subset hmem hsub, fun c hc => ?_,
-    ?_, ?_⟩
+  refine ⟨hk₀.trans (hk.mono (by omega)), ?_, Finset.insert_subset hmem hsub,
+    fun c hc => (Finset.mem_insert.mp hc).elim
+      (· ▸ Nat.lt_succ_self _) fun hc => (hlt c hc).trans (Nat.lt_succ_self _), ?_, ?_⟩
   · rw [hk.getD_eq _ (by omega), hX]
-  · rcases Finset.mem_insert.mp hc with rfl | hc
-    · exact Nat.lt_succ_self _
-    · exact (hlt c hc).trans (Nat.lt_succ_self _)
   · rw [hS, Finset.card_insert_of_notMem hx]
   · simp only [Finset.exists_mem_insert, hnohit, false_or, hH, hH₀]
 
@@ -701,15 +695,14 @@ private theorem scan_sound (hw : w₁ = b + 14 + 5 * k + wb.length)
       scan_mid (w := w) hw hP hNB hpre hinv hmem hk₂ hk₃ hxs₂ hys₂
     have hB₄ := hk₄.bounded
     have hedge : codeEdge E x y = true ↔ E xs ys := by rw [← hxs, ← hys]; exact codeEdge_code xs ys
-    have hlenH : base + 7 ≤ (regs₄.set (base + 6) 1).length := by
-      rw [List.length_set]; omega
     refine Sound.of_oblivious hB1 hr₄ (Sound.choice hB1 h12 hB₄ ?_ ?_)
     · -- a hit: `x = y` or an edge from `x` to `y`
       refine Sound.of_oblivious hB1 (reaches_noop h13 hB₄) (Sound.choice hB1 h14 hB₄ ?_ ?_)
       · by_cases hxy : x = y
         · refine Sound.of_oblivious hB1 ((reaches_dist_eq h15 hB₄ (by rw [hX₄, hY₄, hxy])).trans
             (reaches_setH h16 hB1 hB₄)) ?_
-          exact hnext _ _ (scanInv_hit hinv hmem hk₄ hS₄ (by omega) hB1 (Or.inl hxy)) hlenH
+          exact hnext _ _ (scanInv_hit hinv hmem hk₄ hS₄ (by omega) hB1 (Or.inl hxy))
+            (by simp only [List.length_set]; omega)
         · exact Sound.of_oblivious hB1 (reaches_dist_ne h15 hB₄ (by rw [hX₄, hY₄]; exact hxy))
             (Sound.halt hB1 hR (fun _ => hPost _ rfl) hB₄)
       · refine (het regs₄ xs ys hk₀₄ hxs₄ hys₄).bind fun regs₅ ⟨hk₅, hE⟩ => ?_
@@ -783,26 +776,24 @@ private theorem scan_complete (hw : w₁ = b + 14 + 5 * k + wb.length)
       obtain ⟨regs₂, xs, ys, hr₂, hk₂, hxs, hys, hxs₂, hys₂⟩ := scan_decode (w := w) hw hP hnB
         hlen h0' hB hinv.cur hx hY hy
       have hk₀₂ : Kept B base regs₀ regs₂ := hkR.trans (hk₂.mono (by omega))
-      have hpath : Relation.RelatesWithinSteps E s₀ xs i := by
-        rw [← hxs] at hmem; exact mem_countRound_iff.mp hmem
       refine Complete.of_oblivious hr₂ ((walk_complete (i := i) (x := x) (xs := xs) hw hP hnB hNB
         hsrc hwb hk₀₂
         (by rw [hk₂.length_eq]; omega) (by rw [hk₂.getD_eq 0 (by omega)]; exact h0')
         (by rw [hk₂.getD_eq _ (by omega)]; exact hI) hiB
-        (by rw [hk₂.getD_eq _ (by omega)]; exact hinv.cur) hxs hpath).bind fun regs₃ hk₃ => ?_)
+        ((hk₂.getD_eq _ (by omega)).trans hinv.cur) hxs
+        (mem_countRound_iff.mp (hxs ▸ hmem))).bind fun regs₃ hk₃ => ?_)
       obtain ⟨regs₄, hr₄, hk₄, hk₀₄, hlen₄, hX₄, hY₄, hS₄, hH₄, hxs₄, hys₄⟩ :=
         scan_mid (w := w) hw hP hNB hpre hinv hmem hk₂ hk₃ hxs₂ hys₂
       have hB₄ := hk₄.bounded
       have hedge : codeEdge E x y = true ↔ E xs ys := by
         rw [← hxs, ← hys]; exact codeEdge_code xs ys
-      have hlenH : base + 7 ≤ (regs₄.set (base + 6) 1).length := by
-        rw [List.length_set]; omega
       by_cases hxy : x = y
       · refine Complete.choice hr₄ (by omega) h12 (Or.inl ?_)
         refine Complete.choice (reaches_noop h13 hB₄) (by omega) h14 (Or.inl ?_)
         refine Complete.of_oblivious ((reaches_dist_eq h15 hB₄ (by rw [hX₄, hY₄, hxy])).trans
           (reaches_setH h16 hB1 hB₄)) ?_
-        exact hnext _ (scanInv_hit hinv hmem hk₄ hS₄ (by omega) hB1 (Or.inl hxy)) hlenH
+        exact hnext _ (scanInv_hit hinv hmem hk₄ hS₄ (by omega) hB1 (Or.inl hxy))
+          (by simp only [List.length_set]; omega)
       by_cases hE : E xs ys
       · refine Complete.choice hr₄ (by omega) h12 (Or.inl ?_)
         refine Complete.choice (reaches_noop h13 hB₄) (by omega) h14 (Or.inr ?_)

@@ -136,8 +136,7 @@ theorem length_hermiteRows (nodes : List ℤ) (J : ℕ) :
 /-- Every row of `hermiteRows nodes J` has length `nodes.length * J`. -/
 theorem length_of_mem_hermiteRows {nodes : List ℤ} {J : ℕ} {row : List ℤ}
     (hrow : row ∈ hermiteRows nodes J) : row.length = nodes.length * J := by
-  rw [hermiteRows, List.mem_flatMap] at hrow
-  obtain ⟨_, -, hmem⟩ := hrow
+  obtain ⟨_, -, hmem⟩ := List.mem_flatMap.mp hrow
   obtain ⟨_, -, rfl⟩ := List.mem_map.mp hmem
   simp
 
@@ -152,12 +151,10 @@ has length `mat.length`. -/
 theorem length_of_mem_cramerColZeroRows {mat : List (List ℤ)} {rhs : List ℤ}
     (hmat : ∀ r ∈ mat, r.length = mat.length) {row : List ℤ}
     (hrow : row ∈ cramerColZeroRows mat rhs) : row.length = mat.length := by
-  rw [cramerColZeroRows, List.mem_map] at hrow
-  obtain ⟨⟨r, k⟩, hmem, rfl⟩ := hrow
+  obtain ⟨⟨r, k⟩, hmem, rfl⟩ := List.mem_map.mp hrow
   have hr_mem : r ∈ mat := (List.mem_zipIdx hmem).2.2 ▸ List.getElem_mem _
-  have hr_len : r.length = mat.length := hmat r hr_mem
-  have hpos : 0 < mat.length := List.length_pos_of_mem hr_mem
-  simp only [List.length_cons, List.length_tail, hr_len]
+  have := List.length_pos_of_mem hr_mem
+  simp only [List.length_cons, List.length_tail, hmat r hr_mem]
   omega
 
 /-- Every row of `cramerColZeroRows (hermiteRows nodes J) rhs` has length `nodes.length * J`. -/
@@ -339,10 +336,8 @@ theorem detRows_cramerColZeroRows_eq_mul_eval_zero {nodes : List ℤ} {J : ℕ} 
       ((Polynomial.hermiteMatrix t J).map (Int.cast : ℤ → ℚ)).updateCol c0
         (fun r => (rowEntry jets r.1 r.2 : ℚ)) =
       (((Polynomial.hermiteMatrix t J).updateCol c0
-        fun r => rowEntry jets r.1 r.2).map (Int.cast : ℤ → ℚ)) := by
-    ext r c
-    simp only [Matrix.map_apply, Matrix.updateCol_apply]
-    split_ifs <;> rfl
+        fun r => rowEntry jets r.1 r.2).map (Int.cast : ℤ → ℚ)) :=
+    Matrix.ext fun r c => by by_cases h : c = c0 <;> simp [h]
   rw [hmap_update, ← Int.cast_det] at hcramer
   rw [detRows_cramerColZeroRows_hermiteRows nodes J jets hQ hJ hjets_row,
     detRows_hermiteRows]

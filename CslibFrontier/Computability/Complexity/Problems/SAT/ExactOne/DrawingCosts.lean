@@ -186,10 +186,8 @@ private theorem sourceEdgeIndex_occurrence (φ : CNF ℕ) {o : Occurrence ℕ}
     (ho : o ∈ Cslib.Logic.PL.occurrences φ) :
     sourceEdgeIndex φ o.clause o.pos = (Cslib.Logic.PL.occurrences φ).idxOf o := by
   obtain ⟨hi, hj, he⟩ := Cslib.Logic.PL.mem_occurrences.mp ho
-  unfold sourceEdgeIndex
-  congr 1
-  unfold sourceOccurrence
-  rw [List.getD_eq_getElem _ _ hi, List.getD_eq_getElem _ _ hj, ← he]
+  simp only [sourceEdgeIndex, sourceOccurrence, List.getD_eq_getElem _ _ hi,
+    List.getD_eq_getElem _ _ hj, ← he]
 
 private theorem source_edge_weight_sum {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
     (hd : Graph.IsPlanarOrthogonalDrawing (SAT.incidenceGraph φ) d) (weight : Route → ℕ) :
@@ -212,8 +210,7 @@ private theorem source_edge_weight_sum {φ : CNF ℕ} {d : Graph.OrthogonalDrawi
       simp only [List.map_map, Function.comp_def]
     _ = ((Cslib.Logic.PL.occurrences φ).map fun o =>
         weight (d.2.getD ((Cslib.Logic.PL.occurrences φ).idxOf o) [])).sum := by
-      apply congrArg List.sum
-      exact List.map_congr_left fun o ho => by rw [sourceEdgeIndex_occurrence φ ho]
+      exact congrArg _ (List.map_congr_left fun _ ho => by rw [sourceEdgeIndex_occurrence φ ho])
     _ = _ := congrArg List.sum hlist
 
 private theorem exterior_segment_sum {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
@@ -232,21 +229,17 @@ private theorem exterior_wire_sum_le {φ : CNF ℕ} {d : Graph.OrthogonalDrawing
   calc
     _ ≤ (φ.zipIdx.map fun a => (a.1.zipIdx.map fun l =>
         1080000 * wireLength (d.2.getD (sourceEdgeIndex φ a.2 l.2) [])).sum).sum := by
-      apply List.sum_le_sum
-      intro ⟨c, i⟩ hci
+      refine List.sum_le_sum fun ⟨c, i⟩ hci => ?_
       obtain ⟨hi, hc⟩ := List.mem_zipIdx' hci
       rw [hc]
-      apply List.sum_le_sum
-      intro ⟨l, j⟩ hlj
+      refine List.sum_le_sum fun ⟨l, j⟩ hlj => ?_
       have hj : j < φ[i].length := (List.mem_zipIdx' hlj).1
-      have he := exteriorRoute_wireLength hd (sourceEdgeIndex_lt φ hi hj)
-        (by decide : positiveRadius < positiveScale)
       have hw : wireLength (positiveExterior φ d i j) + positiveRadius =
           1080000 * wireLength (d.2.getD (sourceEdgeIndex φ i j) []) := by
-        simpa only [positiveExterior, wireLength_translate, positiveScale] using he
-      change wireLength (positiveExterior φ d i j) ≤
-        1080000 * wireLength (d.2.getD (sourceEdgeIndex φ i j) [])
-      omega
+        simpa only [positiveExterior, wireLength_translate, positiveScale] using
+          exteriorRoute_wireLength hd (sourceEdgeIndex_lt φ hi hj)
+            (by decide : positiveRadius < positiveScale)
+      exact Nat.le.intro hw
     _ = 1080000 * (φ.zipIdx.map fun a => (a.1.zipIdx.map fun l =>
         wireLength (d.2.getD (sourceEdgeIndex φ a.2 l.2) [])).sum).sum := by
       simp only [List.sum_map_mul_left]

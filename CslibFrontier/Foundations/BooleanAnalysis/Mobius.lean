@@ -76,15 +76,11 @@ private theorem subset_kernel (S E : Finset ι) :
       · rw [card_sdiff_of_subset (mem_powerset.mp (mem_filter.mp hU).1)]
     have hcancel : (∑ Z ∈ (E \ S).powerset, (-1 : R) ^ #Z) =
         if E \ S = ∅ then 1 else 0 := by
-      have h := congrArg (Int.castRingHom R)
-        (sum_powerset_neg_one_pow_card (x := E \ S))
-      simp only [map_sum, map_pow, map_neg, map_one] at h
-      split_ifs at h ⊢ <;> simpa using h
-    simp only [mul_ite, mul_one, mul_zero]
-    rw [← sum_filter, hbij, hcancel]
-    congr 1
-    exact propext ⟨fun h => hSE.antisymm (sdiff_eq_empty_iff_subset.mp h),
-      fun h => by simp [h]⟩
+      simpa only [map_sum, map_pow, map_neg, map_one, apply_ite, map_zero] using
+        congrArg (Int.castRingHom R) (sum_powerset_neg_one_pow_card (x := E \ S))
+    simp only [mul_ite, mul_one, mul_zero, ← sum_filter, hbij, hcancel]
+    exact if_congr ⟨fun h => hSE.antisymm (sdiff_eq_empty_iff_subset.mp h), fun h => by simp [h]⟩
+      rfl rfl
   · rw [ite_eq_right fun h : S = E => hSE h.subset]
     exact sum_eq_zero fun U hU =>
       mul_eq_zero_of_right _ (ite_eq_right fun hSU => hSE (hSU.trans (mem_powerset.mp hU)))
@@ -167,16 +163,13 @@ public theorem subsetMobius_eq_zero_of_mem_lowDegree [DecidableEq ι] {D : ℕ}
   induction hf using Submodule.span_induction with
   | mem g hg =>
     obtain ⟨U, hU, rfl⟩ := hg
-    have hU' : #U ≤ D := hU
-    rw [subsetMobius_monomial, ite_eq_right]
-    rintro rfl
-    omega
+    exact (subsetMobius_monomial (R := R) U S).trans
+      (ite_eq_right fun h => absurd (h ▸ hU) hS.not_ge)
   | zero => simp only [Pi.zero_apply, subsetMobius, smul_zero, sum_const_zero]
   | add g h _ _ hg hh => simp only [Pi.add_apply, subsetMobius_add, hg, hh, add_zero]
   | smul c g _ hg =>
-    have h := map_subsetMobius (AddMonoidHom.mulLeft c) (fun T => g fun i => decide (i ∈ T)) S
-    simp only [AddMonoidHom.coe_mulLeft, hg, mul_zero] at h
-    simpa only [Pi.smul_apply, smul_eq_mul] using h.symm
+    simpa only [AddMonoidHom.coe_mulLeft, hg, mul_zero, Pi.smul_apply, smul_eq_mul] using
+      (map_subsetMobius (AddMonoidHom.mulLeft c) (fun T => g fun i => decide (i ∈ T)) S).symm
 
 /-- The subset Möbius transform commutes with subtraction. -/
 public theorem subsetMobius_sub (f g : Finset ι → M) (S : Finset ι) :
@@ -329,14 +322,13 @@ public theorem lowDegree_reconstruction [Fintype ι] {q : ℕ} {f : (ι → Bool
         ∑ U ∈ E.powerset, (-1 : R) ^ (#E - #U) * f (fun i => decide (i ∈ U))
       else 0 := by
   rw [← reconstruction_apply]
-  refine Submodule.span_induction (p := fun f _ => f x = reconstruction q x f) ?_ ?_ ?_ ?_ hf
-  · rintro _ ⟨S, hS, rfl⟩
+  induction hf using Submodule.span_induction with
+  | mem _ h =>
+    obtain ⟨S, hS, rfl⟩ := h
     exact (reconstruction_monomial q x S hS).symm
-  · simp
-  · intro f g _ _ hf hg
-    simp only [Pi.add_apply, map_add, hf, hg]
-  · intro c f _ hf
-    simp only [Pi.smul_apply, map_smul, hf]
+  | zero => simp
+  | add _ _ _ _ hf hg => simp only [Pi.add_apply, map_add, hf, hg]
+  | smul _ _ _ hf => simp only [Pi.smul_apply, map_smul, hf]
 
 private theorem aeval_bit_apply (p : MvPolynomial ι R) (x : ι → Bool) :
     (MvPolynomial.aeval (fun i (y : ι → Bool) => bitVal R (y i)) p) x =

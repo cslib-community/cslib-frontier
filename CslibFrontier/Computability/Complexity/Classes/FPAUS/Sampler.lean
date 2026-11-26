@@ -212,10 +212,8 @@ section Branch
 private theorem card_coinOutcome_some_true (k g₀ g₁ : ℕ) :
     Nat.card {i : Fin (2 ^ k) // coinOutcome g₀ g₁ i.val = some true} = min (2 ^ k) g₁ := by
   rw [Nat.card_eq_fintype_card, Fintype.card_subtype, ← Fin.card_filter_val_lt]
-  congr 1
-  ext i
-  rw [Finset.mem_filter, Finset.mem_filter]
-  unfold coinOutcome
+  refine congrArg Finset.card (Finset.ext fun i => ?_)
+  rw [Finset.mem_filter, Finset.mem_filter, coinOutcome]
   split_ifs <;> simp_all
 
 private theorem card_coinOutcome_some_false (k g₀ g₁ : ℕ) :
@@ -351,9 +349,8 @@ private theorem eval_bind_descend_some_cons (μ : PMF (Option Bool))
     (μ.bind fun o => ProbComp.eval (descend next o)) (some (c :: v)) =
       μ (some c) * ProbComp.eval (next c) (some v) := by
   rw [PMF.bind_apply, tsum_fintype, Fintype.sum_option, Fintype.sum_bool]
-  simp only [descend, ProbComp.eval_pure, ProbComp.eval_map, PMF.pure_apply, reduceCtorEq,
-    ite_false, mul_zero, zero_add, eval_map_cons_some_cons]
-  cases c <;> simp
+  cases c <;> simp only [descend, ProbComp.eval_pure, ProbComp.eval_map, PMF.pure_apply,
+    reduceCtorEq, eval_map_cons_some_cons, ↓reduceIte, mul_zero, zero_add, add_zero]
 
 private theorem eval_bind_descend_some_nil (μ : PMF (Option Bool))
     (next : Bool → ProbComp (Option (List Bool))) :
@@ -412,13 +409,11 @@ noncomputable def invEstimate (e : ℕ × ℕ) : ℝ := (e.2 : ℝ) / e.1
 
 /-- The level factor is nonnegative. -/
 theorem levelFactor_nonneg (m : ℕ) : 0 ≤ levelFactor m := by
-  unfold levelFactor
-  positivity
+  exact div_nonneg (Nat.cast_nonneg _) (Nat.cast_nonneg _)
 
 /-- The inverse of an estimate is nonnegative. -/
 theorem invEstimate_nonneg (e : ℕ × ℕ) : 0 ≤ invEstimate e := by
-  unfold invEstimate
-  positivity
+  exact div_nonneg (Nat.cast_nonneg _) (Nat.cast_nonneg _)
 
 private theorem ratio_eq {M' M a b ac bc bc' : ℝ} (hac : ac ≠ 0) (hbc : bc ≠ 0)
     (hbc' : bc' ≠ 0) :
@@ -633,8 +628,7 @@ theorem le_eval_walk (R : SelfReducible enc W) {A : α → ℕ → ℕ → ProbC
               (some (c :: w)) := by
         intro e₀ he₀ e₁ he₁
         rw [eval_bind_descend_some_cons]
-        have gc : R.GoodEstimate p (R.child y c) (cond c e₁ e₀) := by
-          cases c; exacts [he₀, he₁]
+        have gc : R.GoodEstimate p (R.child y c) (cond c e₁ e₀) := by cases c <;> assumption
         have hbc' : 0 < (cond c e₀ e₁).2 := by cases c; exacts [he₁.1.1, he₀.1.1]
         have hNc : 1 ≤ (W (R.child y c)).card := Finset.card_pos.2 ⟨w, hw⟩
         have hac := pos_of_approx gc.1 hNc hp2

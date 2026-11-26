@@ -116,16 +116,8 @@ private theorem vertex_injective (P : DiagramDrawing I D₁) (Q : DiagramDrawing
     Function.Injective (vertex P Q) := by
   rintro (v | v) (w | w) he
   · exact congrArg Sum.inl (P.vertex_injective he)
-  · have hy := congrArg Prod.snd he
-    have := (P.vertex_rows v).2
-    have := (Q.vertex_rows w).1
-    simp only [vertex, Sum.elim_inl, Sum.elim_inr, Function.comp_def, shift] at hy
-    omega
-  · have hy := congrArg Prod.snd he
-    have := (Q.vertex_rows v).1
-    have := (P.vertex_rows w).2
-    simp only [vertex, Sum.elim_inl, Sum.elim_inr, Function.comp_def, shift] at hy
-    omega
+  · exact absurd (congrArg Prod.snd he) ((P.vertex_rows v).2.trans_le (Nat.le_add_left _ _)).ne
+  · exact absurd (congrArg Prod.snd he).symm ((P.vertex_rows w).2.trans_le (Nat.le_add_left _ _)).ne
   · simp only [vertex, Sum.elim_inr, Function.comp_def, shift, Prod.mk.injEq,
       Nat.add_right_cancel_iff] at he
     exact congrArg Sum.inr (Q.vertex_injective (Prod.ext he.1 he.2))
@@ -163,16 +155,10 @@ private theorem vertex_separation (P : DiagramDrawing I D₁) (Q : DiagramDrawin
       (vertex P Q w).2 + 1 < (vertex P Q v).2 := by
   rcases v with v | v <;> rcases w with w | w
   · exact P.vertex_separation v w (fun he => hvw (congrArg Sum.inl he))
-  · have := (P.vertex_rows v).2
-    have := (Q.vertex_rows w).1
-    left
-    change (P.vertex v).2 + 1 < (Q.vertex w).2 + P.height
-    omega
-  · have := (Q.vertex_rows v).1
-    have := (P.vertex_rows w).2
-    right
-    change (P.vertex w).2 + 1 < (Q.vertex v).2 + P.height
-    omega
+  · exact Or.inl ((Nat.succ_le_of_lt (P.vertex_rows v).2).trans_lt
+      (Nat.lt_add_of_pos_left (Q.vertex_rows w).1))
+  · exact Or.inr ((Nat.succ_le_of_lt (P.vertex_rows w).2).trans_lt
+      (Nat.lt_add_of_pos_left (Q.vertex_rows v).1))
   · have := Q.vertex_separation v w (fun he => hvw (congrArg Sum.inr he))
     simp only [vertex, Sum.elim_inr, Function.comp_def, shift]
     omega

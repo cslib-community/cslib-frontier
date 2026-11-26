@@ -158,57 +158,48 @@ variable {m : ℕ} {f : Fin m → ZMod 2}
     (hα : ∑ w, α w = f v) (e : Sym2 (Fin m)) (he : ¬ e.IsDiag) (b : ZMod 2) :
     (cfiGraph m f).Adj (.gadget v α hα) (.edge e he b) ↔
       ∃ w : {w : Fin m // w ≠ v}, e = s(v, w.val) ∧ b = α w := by
-  rw [cfiGraph]
   rfl
 
 @[simp] theorem cfiGraph_adj_edge_gadget (e : Sym2 (Fin m)) (he : ¬ e.IsDiag) (b : ZMod 2)
     (v : Fin m) (α : {w : Fin m // w ≠ v} → ZMod 2) (hα : ∑ w, α w = f v) :
     (cfiGraph m f).Adj (.edge e he b) (.gadget v α hα) ↔
       ∃ w : {w : Fin m // w ≠ v}, e = s(v, w.val) ∧ b = α w := by
-  rw [cfiGraph]
   rfl
 
 @[simp] theorem cfiGraph_adj_edge_edge (e₁ : Sym2 (Fin m)) (he₁ : ¬ e₁.IsDiag) (b₁ : ZMod 2)
     (e₂ : Sym2 (Fin m)) (he₂ : ¬ e₂.IsDiag) (b₂ : ZMod 2) :
     (cfiGraph m f).Adj (.edge e₁ he₁ b₁) (.edge e₂ he₂ b₂) ↔ e₁ = e₂ ∧ b₁ ≠ b₂ := by
-  rw [cfiGraph]
   rfl
 
 @[simp] theorem cfiGraph_adj_edge_apex (e₁ : Sym2 (Fin m)) (he₁ : ¬ e₁.IsDiag) (b : ZMod 2)
     (e₂ : Sym2 (Fin m)) (he₂ : ¬ e₂.IsDiag) :
     (cfiGraph m f).Adj (.edge e₁ he₁ b) (.apex e₂ he₂) ↔ e₁ = e₂ := by
-  rw [cfiGraph]
   rfl
 
 @[simp] theorem cfiGraph_adj_apex_edge (e₁ : Sym2 (Fin m)) (he₁ : ¬ e₁.IsDiag)
     (e₂ : Sym2 (Fin m)) (he₂ : ¬ e₂.IsDiag) (b : ZMod 2) :
     (cfiGraph m f).Adj (.apex e₁ he₁) (.edge e₂ he₂ b) ↔ e₁ = e₂ := by
-  rw [cfiGraph]
   rfl
 
 @[simp] theorem not_cfiGraph_adj_gadget_gadget (v₁ : Fin m) (α₁ : {w : Fin m // w ≠ v₁} → ZMod 2)
     (hα₁ : ∑ w, α₁ w = f v₁) (v₂ : Fin m) (α₂ : {w : Fin m // w ≠ v₂} → ZMod 2)
     (hα₂ : ∑ w, α₂ w = f v₂) :
     ¬ (cfiGraph m f).Adj (.gadget v₁ α₁ hα₁) (.gadget v₂ α₂ hα₂) := by
-  rw [cfiGraph]
   exact id
 
 @[simp] theorem not_cfiGraph_adj_gadget_apex (v : Fin m) (α : {w : Fin m // w ≠ v} → ZMod 2)
     (hα : ∑ w, α w = f v) (e : Sym2 (Fin m)) (he : ¬ e.IsDiag) :
     ¬ (cfiGraph m f).Adj (.gadget v α hα) (.apex e he) := by
-  rw [cfiGraph]
   exact id
 
 @[simp] theorem not_cfiGraph_adj_apex_gadget (e : Sym2 (Fin m)) (he : ¬ e.IsDiag)
     (v : Fin m) (α : {w : Fin m // w ≠ v} → ZMod 2) (hα : ∑ w, α w = f v) :
     ¬ (cfiGraph m f).Adj (.apex e he) (.gadget v α hα) := by
-  rw [cfiGraph]
   exact id
 
 @[simp] theorem not_cfiGraph_adj_apex_apex (e₁ : Sym2 (Fin m)) (he₁ : ¬ e₁.IsDiag)
     (e₂ : Sym2 (Fin m)) (he₂ : ¬ e₂.IsDiag) :
     ¬ (cfiGraph m f).Adj (.apex e₁ he₁) (.apex e₂ he₂) := by
-  rw [cfiGraph]
   exact id
 
 end AdjSimp

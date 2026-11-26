@@ -418,14 +418,11 @@ theorem sum_andreevTableScore_mul_chi (b m : ℕ) (w : BitString (2 ^ b + b * m)
     (∑ S : Finset (Fin b),
       (andreevTableScore b m S w : ℝ) * chi ℝ S (andreevParities b m w)) =
       (2 ^ b : ℝ) * signVal (andreev b m w) := by
-  let f : BitString b → ℝ :=
-    fun c => signVal (andreevTable b m w c)
-  have hX (S : Finset (Fin b)) :
-      (andreevTableScore b m S w : ℝ) = (2 ^ b : ℝ) * BitString.fourierCoeff f S := by
-    rw [BitString.fourierCoeff_eq_sum]; simp only [Fintype.card_fin]
-    rw [mul_div_cancel₀ _ (by positivity)]
+  have hX (S : Finset (Fin b)) : (andreevTableScore b m S w : ℝ) =
+      (2 ^ b : ℝ) * BitString.fourierCoeff (fun c => signVal (andreevTable b m w c)) S := by
+    rw [BitString.fourierCoeff_eq_sum, Fintype.card_fin, mul_div_cancel₀ _ (by positivity)]
     simp only [andreevTableScore, Int.cast_sum, Int.cast_mul, cast_chi_int,
-      cast_one_sub_two_mul_toNat, f, mul_comm (chi ℝ S _)]
+      cast_one_sub_two_mul_toNat, mul_comm (chi ℝ S _)]
   simp_rw [hX, mul_assoc, ← mul_sum, BitString.sum_fourierCoeff_mul_chi]; rfl
 
 /-- Summing the top-gate weighted bottom-gate outputs minus the top-gate threshold gives
@@ -576,8 +573,7 @@ theorem abs_andreevTopWeightInt_le (b m : ℕ) (idx : AndreevBottomIndex b m) :
   have hSm : (#S * m : ℤ) ≤ b * m := mod_cast
     Nat.mul_le_mul_right m ((card_le_univ S).trans_eq (Fintype.card_fin b))
   have hk_lt : (k : ℤ) < andreevStairLength b m S τ := mod_cast k.isLt
-  have hpow_pos : (1 : ℤ) ≤ 2 ^ b := mod_cast Nat.one_le_two_pow
-  have hbm_nonneg : (0 : ℤ) ≤ (b : ℤ) * m := by positivity
+  have : (1 : ℤ) ≤ 2 ^ b ∧ (0 : ℤ) ≤ (b : ℤ) * m := ⟨mod_cast Nat.one_le_two_pow, by positivity⟩
   cases τ <;>
     simp only [andreevStairLower, andreevStairLength, ↓reduceIte, Bool.false_eq_true,
       Nat.cast_add, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat] at hk_lt ⊢ <;>
@@ -606,11 +602,10 @@ theorem lines_andreevCircuit_bottom_or_top (b m : ℕ) (k : Fin (andreevCircuit 
     exact .inl ⟨fun a => ⟨a, rfl⟩, fun a => ⟨_, abs_andreevStairWeightInt_le b m _ _ a, rfl⟩⟩
   · have hws' : (andreevCircuit b m).program.lines k = _ := hws
     rw [hws']
-    refine .inr ⟨fun a => ⟨ws a, rfl⟩, fun a =>
+    exact .inr ⟨fun a => ⟨ws a, rfl⟩, fun a =>
       ⟨andreevTopWeightInt b m ((andreevBottomEquiv b m).symm a),
         Int.odd_iff.mpr (Int.emod_two_ne_zero.mp (andreevTopWeightInt_emod_two_ne_zero b m _)),
-        (abs_andreevTopWeightInt_le b m _).trans_lt ?_, rfl⟩⟩
-    exact_mod_cast sub_one_lt (2 * (2 ^ b + b * m : ℤ))
+        (abs_andreevTopWeightInt_le b m _).trans_lt (by push_cast; omega), rfl⟩⟩
 
 /-- **Exact quadratic depth-two threshold circuit upper bound for Andreev's function**:
 for all `b, m : ℕ`, there is a depth-two weighted threshold circuit with

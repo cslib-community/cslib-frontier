@@ -372,15 +372,10 @@ theorem copyStage_mem_copyCover [DecidableEq V] {A O : Finset V}
   obtain ⟨⟨hr, hD⟩, hs⟩ := h
   have hxy := hA _ _ hD
   simp only [copyCover, mem_union, mem_product, mem_singleton, mem_erase, mem_univ, and_true]
-  constructor
-  · by_cases hi : a.2 = 0
-    · exact Or.inl ⟨hxy.1, hi⟩
-    · exact Or.inr ⟨hrO _ _ hi hr, hi⟩
-  · by_cases hj : b.2 = 0
-    · exact Or.inl ⟨hxy.2, hj⟩
-    · refine Or.inr ⟨hcolO a.1 b.1 ?_, hj⟩
-      by_contra hle
-      exact hs (by simp [copyFraction_of_eq_zero (hχ₀ _ (not_lt.mp hle)), hj])
+  refine ⟨(em (a.2 = 0)).imp (⟨hxy.1, ·⟩) fun hi => ⟨hrO _ _ hi hr, hi⟩,
+    (em (b.2 = 0)).imp (⟨hxy.2, ·⟩) fun hj => ⟨hcolO a.1 b.1 ?_, hj⟩⟩
+  by_contra hle
+  exact hs (by simp [copyFraction_of_eq_zero (hχ₀ _ (not_lt.mp hle)), hj])
 
 end Stage
 
@@ -476,8 +471,7 @@ theorem copyStage_rates (hC : C.IsStrictUpperTriangular) (hC0 : ∀ x y, 0 ≤ C
       (cutoffCorrection_residual_le_mul hC0 hφ0 hφθ hθf hCf hf.le hC1 k) hχ0 hχ1 hχ₁ hτ₁ hK,
     copyStage_mul_copyWeight hr0 hχ₀ fun x y h => (hbig x y h).1,
     copyStage_mem_copyCover (cutoffCorrection_residual_mem hφ0 hφθ hθf hA k) hrO hχ₀
-      fun x y h => (hbig x y h).2, ?_⟩
-  exact (card_copyCover_le A O).trans (by omega)
+      fun x y h => (hbig x y h).2, (card_copyCover_le A O).trans (by omega)⟩
 
 end Rates
 

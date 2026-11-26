@@ -210,9 +210,7 @@ private theorem approxCount_disjoint_step {n : ℕ} {W : Type*} [Fintype W]
       linarith [(mem_filter.mp hp).2, (mem_filter.mp hp').2]
     have hmono := measureProb_mono (run U ψ₀ y T) hdisj
     rw [measureProb_compl, norm_run, hψ₀, one_pow] at hmono
-    have hy' : 1 - ε ≤ measureProb (run U ψ₀ y T) S' := by
-      simpa [S', hy] using h y
-    linarith
+    linarith [show 1 - ε ≤ measureProb (run U ψ₀ y T) S' by simpa [S', hy] using h y]
 
 /-- **Core step of Theorem 1.11** ([NayakWu1999]): for `0 < Δ` and `d = ⌈2Δ⌉₊` with either
 `t + d ≤ n` or `d ≤ t`, any `T`-query algorithm approximating `weight x` within `< Δ` with error
@@ -231,14 +229,11 @@ theorem one_sub_mul_add_le_of_approxCount_aux {n : ℕ} {W : Type*} [Fintype W]
   have hd_ge : 2 * Δ ≤ d := Nat.le_ceil (2 * Δ)
   rcases hstep with hup | hdn
   · have habs : |(t : ℝ) - (t + d : ℕ)| = d := by
-      push_cast
-      rw [abs_of_nonpos (by linarith)]
-      ring
+      rw [Nat.cast_add, sub_add_cancel_left, abs_neg, abs_of_nonneg (Nat.cast_nonneg d)]
     simpa [habs] using approxCount_disjoint_step U hψ₀ T out ht hup (by omega : t ≠ t + d)
       (by linarith) h hε
   · have habs : |(t : ℝ) - ((t - d : ℕ) : ℝ)| = d := by
-      rw [Nat.cast_sub hdn, abs_of_nonneg (by linarith [Nat.cast_nonneg (α := ℝ) d])]
-      ring
+      rw [Nat.cast_sub hdn, sub_sub_cancel, abs_of_nonneg (Nat.cast_nonneg d)]
     simpa [habs] using approxCount_disjoint_step U hψ₀ T out ht (by omega : t - d ≤ n)
       (by omega : t ≠ t - d) (by linarith) h hε
 
@@ -319,19 +314,16 @@ private theorem card_filter_embedSeq_lt {ι α : Type*} [Fintype ι] [LinearOrde
   have hcard : #{i : ι | b (e i) = false} = n - weight b := by
     rw [card_filter_comp_equiv e b false, ← hnot]
     exact congrArg card (filter_congr fun j _ => by cases hb : b j <;> simp [hb])
-  refine hcard ▸ card_le_card fun i hi => ?_
-  rw [mem_filter] at hi ⊢
-  exact ⟨mem_univ i, by simp [embedSeq, hi.2, hy]⟩
+  exact hcard ▸ card_le_card fun i hi =>
+    mem_filter.mpr ⟨mem_univ i, by simp [embedSeq, (mem_filter.mp hi).2, hy]⟩
 
 private theorem card_filter_embedSeq_gt {ι α : Type*} [Fintype ι] [LinearOrder α]
     {n : ℕ} (e : ι ≃ Fin n) {a₀ a₁ : α} (ha : a₀ < a₁) (b : BitString n) (y : α)
     (hy : y ≤ a₀) :
     weight b ≤ #{i : ι | y < embedSeq e a₀ a₁ b i} := by
-  unfold weight
-  rw [← card_filter_comp_equiv e b true]
-  refine card_le_card fun i hi => ?_
-  rw [mem_filter] at hi ⊢
-  exact ⟨mem_univ i, by simp [embedSeq, hi.2, lt_of_le_of_lt hy ha]⟩
+  rw [weight, ← card_filter_comp_equiv e b true]
+  exact card_le_card fun i hi =>
+    mem_filter.mpr ⟨mem_univ i, by simp [embedSeq, (mem_filter.mp hi).2, lt_of_le_of_lt hy ha]⟩
 
 private theorem measureProb_le_of_sep {ι V W α : Type*} [Fintype ι] [Fintype V] [Fintype W]
     [LinearOrder α]
@@ -384,21 +376,18 @@ private theorem measureProb_sim_sep {ι V W α : Type*} [Fintype ι] [Fintype V]
 private theorem le_of_card_embedSeq_lt {ι α : Type*} [Fintype ι] [LinearOrder α]
     {n : ℕ} (e : ι ≃ Fin n) {a₀ a₁ : α} (ha : a₀ < a₁) (b : BitString n) {y : α}
     (hlt : (#{i : ι | embedSeq e a₀ a₁ b i < y} : ℝ) < (n : ℝ) - weight b) :
-    y ≤ a₀ := by
-  by_contra hnot
-  have hcard : ((n - weight b : ℕ) : ℝ) ≤ #{i : ι | embedSeq e a₀ a₁ b i < y} := by
-    exact_mod_cast card_filter_embedSeq_lt e ha b y (lt_of_not_ge hnot)
-  rw [Nat.cast_sub (weight_le_length b)] at hcard
-  linarith
+    y ≤ a₀ :=
+  le_of_not_gt fun hnot => by
+    have hcard : ((n - weight b : ℕ) : ℝ) ≤ #{i : ι | embedSeq e a₀ a₁ b i < y} :=
+      mod_cast card_filter_embedSeq_lt e ha b y hnot
+    linarith [Nat.cast_sub (R := ℝ) (weight_le_length b)]
 
 private theorem lt_of_card_lt_embedSeq {ι α : Type*} [Fintype ι] [LinearOrder α]
     {n : ℕ} (e : ι ≃ Fin n) {a₀ a₁ : α} (ha : a₀ < a₁) (b : BitString n) {y : α}
     (hlt : (#{i : ι | y < embedSeq e a₀ a₁ b i} : ℝ) < weight b) :
-    a₀ < y := by
-  by_contra hnot
-  have hcard : (weight b : ℝ) ≤ #{i : ι | y < embedSeq e a₀ a₁ b i} := by
-    exact_mod_cast card_filter_embedSeq_gt e ha b y (le_of_not_gt hnot)
-  linarith
+    a₀ < y :=
+  lt_of_not_ge fun hnot =>
+    (hlt.trans_le (mod_cast card_filter_embedSeq_gt e ha b y hnot)).false
 
 private theorem index_to_value_bound_of_twoValues {ι V W α : Type*}
     [Fintype ι] [Fintype V] [Fintype W] [LinearOrder α] [Nonempty ι]
@@ -639,9 +628,8 @@ private theorem measureProb_isApproxKthSmallestRelaxed_ge {ι V W α : Type*}
       measureProb (runValue step U ψ₀ X T)
         (univ.filter fun p => IsApproxKthSmallestRelaxed X k Δ (out p))) := by
   classical
-  refine h.trans (measureProb_mono _ fun p hp => ?_)
-  rw [mem_filter] at hp ⊢
-  exact ⟨mem_univ p, hp.2.relaxed⟩
+  exact h.trans (measureProb_mono _ fun p hp =>
+    mem_filter.mpr ⟨mem_univ p, (mem_filter.mp hp).2.relaxed⟩)
 
 private theorem kthSmallest_one_third_of_le {n k : ℕ} {Δ B : ℝ} (hkn : k ≤ n) (hΔ : 0 ≤ Δ)
     (h : (1 - 2 * √((1 / 3 : ℝ) * (1 - 1 / 3))) *

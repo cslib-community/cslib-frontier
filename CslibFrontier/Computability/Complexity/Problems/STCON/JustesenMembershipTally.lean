@@ -94,20 +94,17 @@ theorem justesenSourceMembershipMachine_parts_inSpace
   intro M E encStep
   let edge := justesenWeightedSubdivisionCallback ntm
   let start := fun ctx u v => justesenSubdivisionEdgeStart (ctx, u, v)
-  let initial := tallyWalkInitial ntm c
   let ctx := configurationJustesenSubdivisionContext ntm c [] 0
-  let params : MembershipTally.Context := ⟨0, 0, 0, 0, ⟨0, 0⟩⟩
-  let encCtx := encJustesenSubdivisionContext
-  let encCallee := encJustesenSubdivisionState
   obtain ⟨hq, hn, hh, _, _⟩ := justesenWeightedSubdivisionCallback_parts_inSpace ntm
   exact ⟨MembershipTally.retainedMachine_query_inSpace edge start callbackVerdict 3
-      initial ctx encCtx encCallee params hq,
+      (tallyWalkInitial ntm c) ctx encJustesenSubdivisionContext encJustesenSubdivisionState _ hq,
     MembershipTally.retainedMachine_next_inSpace edge start callbackVerdict 3
-      initial ctx encCtx encCallee params justesenSubdivisionEdgeStart_inSpace hn hh
-      (callbackVerdict_inSpace _ _),
+      (tallyWalkInitial ntm c) ctx encJustesenSubdivisionContext encJustesenSubdivisionState _
+      justesenSubdivisionEdgeStart_inSpace hn hh (callbackVerdict_inSpace _ _),
     MembershipTally.retainedMachine_halted_inSpace edge start callbackVerdict 3
-      initial ctx encCtx encCallee params,
-    MembershipTally.retainedReply_inSpace encCtx encCallee⟩
+      (tallyWalkInitial ntm c) ctx encJustesenSubdivisionContext encJustesenSubdivisionState _,
+    MembershipTally.retainedReply_inSpace encJustesenSubdivisionContext
+      encJustesenSubdivisionState⟩
 
 /-- Changing the original word, rank, and query parameters changes only the tally entry. -/
 theorem configurationJustesenMembershipTally_withInit (ntm : MultiTapeNTM k Bool State) (c : ℕ)
@@ -295,10 +292,8 @@ theorem configurationJustesenMembershipTally_stateBound_le_log_of_loop_caps
     (Nat.log2_le_size _).trans_eq (length_encNat_eq_size _).symm
   have hlogSum : Nat.log2 (n * radius) ≤ 2 * (encNat n).length := by
     have hlen := length_encNat_mul_le n radius
-    have hlog : Nat.log2 (n * radius) ≤ (encNat (n * radius)).length :=
-      (Nat.log2_le_size _).trans_eq (length_encNat_eq_size _).symm
-    dsimp only [n] at hlen hlog ⊢
-    omega
+    have hlog := (Nat.log2_le_size (n * radius)).trans_eq (length_encNat_eq_size _).symm
+    dsimp only [n] at hlen hlog ⊢; omega
   have hb : 1 ≤ b := Nat.succ_le_succ (Nat.zero_le _)
   change MembershipTally.retainedStateBound 3 params
     (encJustesenSubdivisionContext ctx).length calleeBound ≤ _ * b + _
@@ -309,8 +304,7 @@ theorem configurationJustesenMembershipTally_stateBound_le_log_of_loop_caps
       4 * (Nat.log2 (n * radius) + 1) +
       BoundedWalk.Runtime.stateBound n radius 3
         (encJustesenSubdivisionContext ctx).length calleeBound + 15) ≤ _
-  dsimp only [n] at hn hW hparams hlogN hlogSum ⊢
-  omega
+  dsimp only [n] at hn hW hparams hlogN hlogSum ⊢; omega
 
 /-- The tally envelope is logarithmic apart from the charged adjacency callback state. -/
 theorem configurationJustesenMembershipTally_stateBound_le_log
@@ -330,8 +324,7 @@ theorem configurationJustesenMembershipTally_stateBound_le_log
           (encJustesenSubdivisionContext ctx).length calleeBound ≤
           C * (Nat.log2 w.length + 1) + calleeBound := by
   obtain ⟨C, h⟩ := configurationJustesenMembershipTally_stateBound_le_log_of_loop_caps ntm c
-  refine ⟨C, fun w => ?_⟩
-  intro I size seed source target radius expected calleeBound hr hc hs
+  refine ⟨C, fun w seed source target radius expected calleeBound hr hc hs => ?_⟩
   obtain ⟨hc', hs'⟩ := loopCaps_of_tightCaps (Nat.zero_lt_of_lt source.isLt) hc hs
   exact h w seed source target radius expected calleeBound hr hc' hs'
 
@@ -386,8 +379,7 @@ theorem configurationJustesenMembershipTally_length_run_le_log
         ∀ bits, (MembershipTally.encRetainedState encJustesenSubdivisionContext
           encJustesenSubdivisionState (M.run w bits)).length ≤ C * (Nat.log2 w.length + 1) := by
   obtain ⟨C, h⟩ := configurationJustesenMembershipTally_length_run_le_log_of_loop_caps ntm c
-  refine ⟨C, fun w => ?_⟩
-  intro I size seed source target radius expected hr hc hs
+  refine ⟨C, fun w seed source target radius expected hr hc hs => ?_⟩
   obtain ⟨hc', hs'⟩ := loopCaps_of_tightCaps (Nat.zero_lt_of_lt source.isLt) hc hs
   exact h w seed source target radius expected hr hc' hs'
 

@@ -564,17 +564,14 @@ private theorem ev_verdict (law : List Bool → PMF Bool) (P : Params) (bits : L
       (countLaw (law bits) P.verifierSamples).map fun count : Fin (P.verifierSamples + 1) =>
         decide (|(claim.val : ℝ) / P.grid - (count.val : ℝ) / P.verifierSamples| <
           P.verifierTolerance) := by
-  rw [verdict, ev_bind, ev_countTrue]
-  rfl
+  exact (ev_bind _ _ _).trans (by rw [ev_countTrue]; rfl)
 
 /-- The law of the honest proposer's claim. -/
 private theorem ev_honestProposer_claim (law : List Bool → PMF Bool) (P : Params)
     (history : History P.grid) (state : (honestProposer P).State) :
     ev law (((honestProposer P).claim history).run state) =
       (countLaw (law history.bits) P.grid).map fun count => (count, state) := by
-  change ev law ((countTrue history.bits P.grid) >>= fun count => pure (count, state)) = _
-  rw [ev_bind, ev_countTrue]
-  rfl
+  exact (ev_bind _ _ _).trans (by rw [ev_countTrue]; rfl)
 
 /-- The law of the honest challenger's decision to abort. -/
 private noncomputable def abortLaw (P : Params) (ν : PMF Bool) (claim : Fin (P.grid + 1)) :
@@ -608,18 +605,14 @@ private theorem ev_runFrom_succ (law : List Bool → PMF Bool) (P : Params) (A :
 
 private theorem one_sub_le_of_add_eq_one {a a' q : ℝ≥0∞} (h : a + a' = 1) (ha : a ≤ q) :
     1 - q ≤ a' := by
-  rw [tsub_le_iff_right, ← h, add_comm]
-  exact add_le_add_right ha a'
+  exact tsub_le_iff_right.2 (h ▸ add_comm a a' ▸ add_le_add_right ha a')
 
 /-- Moving weight from the smaller value to the larger one increases a mixture. -/
 private theorem mix_le_of_le {x x' z z' a b : ℝ≥0∞} (hx : x + x' = 1) (hz : z + z' = 1)
     (hxz : x ≤ z) (hba : b ≤ a) : x * a + x' * b ≤ z * a + z' * b := by
   obtain ⟨d, rfl⟩ := exists_add_of_le hxz
   have hx_top : x ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top (hx ▸ le_self_add)
-  have hx' : x' = d + z' := by
-    apply (ENNReal.add_right_inj hx_top).1
-    rw [hx, ← hz, add_assoc]
-  rw [hx']
+  rw [(ENNReal.add_right_inj hx_top).1 (by rw [hx, ← hz, add_assoc] : x + x' = x + (d + z'))]
   calc x * a + (d + z') * b = x * a + z' * b + d * b := by ring
     _ ≤ x * a + z' * b + d * a := by gcongr
     _ = (x + d) * a + z' * b := by ring
@@ -629,10 +622,7 @@ private theorem mix_le_of_ge {x x' z z' a b : ℝ≥0∞} (hx : x + x' = 1) (hz 
     (hzx : z ≤ x) (hab : a ≤ b) : x * a + x' * b ≤ z * a + z' * b := by
   obtain ⟨d, rfl⟩ := exists_add_of_le hzx
   have hz_top : z ≠ ⊤ := ne_top_of_le_ne_top ENNReal.one_ne_top (hz ▸ le_self_add)
-  have hz' : z' = d + x' := by
-    apply (ENNReal.add_right_inj hz_top).1
-    rw [hz, ← hx, add_assoc]
-  rw [hz']
+  rw [(ENNReal.add_right_inj hz_top).1 (by rw [hz, ← hx, add_assoc] : z + z' = z + (d + x'))]
   calc (z + d) * a + x' * b = z * a + x' * b + d * a := by ring
     _ ≤ z * a + x' * b + d * b := by gcongr
     _ = z * a + (d + x') * b := by ring
@@ -962,13 +952,11 @@ private theorem accept_ge (law : List Bool → PMF Bool) (P : Params) [NeZero P.
       rw [hmix]
       refine tsum_mul_le_tsum_mul_add _ fun coinB => ?_
       refine le_bind_apply_add _ fun r => ?_
-      by_cases hr : r.1 = true
-      · simp only [hr, ↓reduceIte]
-        have hv := PMF.apply_true_add_apply_false (ev law (verdict P history.bits k))
-        have hacc := one_sub_le_of_add_eq_one ((add_comm _ _).trans hv) (hver _ _ hk'.le)
-        exact ((mul_le_of_le_one_right' (PMF.coe_le_one _ _)).trans hacc).trans le_self_add
-      · simp only [hr]
-        exact accept_ge law P B hfar hver n (⟨k, coinA, coinB⟩ :: history) stateA r.2
+      cases hr : r.1
+      · exact accept_ge law P B hfar hver n (⟨k, coinA, coinB⟩ :: history) stateA r.2
+      · have hv := PMF.apply_true_add_apply_false (ev law (verdict P history.bits k))
+        exact ((mul_le_of_le_one_right' (PMF.coe_le_one _ _)).trans
+          (one_sub_le_of_add_eq_one ((add_comm _ _).trans hv) (hver _ _ hk'.le))).trans le_self_add
     · have hT := map_coinBit_uniformOfFintype_right k (0 : ZMod P.grid)
       have hF := apply_false_of_apply_true k _ hT
       rw [← hT, ← hF]
