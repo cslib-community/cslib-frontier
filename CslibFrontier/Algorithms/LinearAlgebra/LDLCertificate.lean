@@ -17,6 +17,7 @@ import Mathlib.Algebra.Order.Star.Rat
 import Mathlib.Data.List.GetD
 import Mathlib.Data.Rat.Cast.Order
 import Mathlib.LinearAlgebra.Matrix.ConjTranspose
+import Mathlib.LinearAlgebra.Matrix.Integer
 import Mathlib.Tactic.LinearCombination
 
 /-!
@@ -244,6 +245,12 @@ theorem trace_mul_ofLists [NonUnitalNonAssocSemiring α] (l m : ℕ) (A B : List
     (ofLists l m A * ofLists m l B).trace = rowsTrace l (rowsMul l m l A B) := by
   rw [← ofLists_rowsMul, trace_ofLists]
 
+/-- `List.zipWith (· * ·)`, read entrywise with zero padding. -/
+theorem getD_zipWith_mul [MulZeroClass α] (a b : List α) (k : ℕ) :
+    (List.zipWith (· * ·) a b).getD k 0 = a.getD k 0 * b.getD k 0 := by
+  simp only [List.getD_eq_getElem?_getD, List.getElem?_zipWith]
+  cases a[k]? <;> cases b[k]? <;> simp
+
 /-- Whether `rows` has exactly `m` rows of exactly `n` entries. -/
 @[expose] def isShape (m n : ℕ) (rows : List (List α)) : Bool :=
   rows.length == m && rows.all (·.length == n)
@@ -451,12 +458,6 @@ private theorem L_apply_self {c : LDLCert} (hlen : c.lower.length = n)
   rw [L_apply, List.getD_eq_getElem _ _ hi, List.getD_eq_getElem _ _ (by omega)]
   simpa using hlast
 
-/-- `List.zipWith (· * ·)`, read entrywise with zero padding. -/
-private theorem getD_zipWith_mul (a b : List ℤ) (k : ℕ) :
-    (List.zipWith (· * ·) a b).getD k 0 = a.getD k 0 * b.getD k 0 := by
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_zipWith]
-  cases a[k]? <;> cases b[k]? <;> simp
-
 /-- The integer check of one entry, read over `ℚ`: when `a` stands for `v * b` with `b > 0` and
 `D` for `S * X` with `S > 0`, the check `a * S = D * b` holds exactly when `v = X`. -/
 private theorem scaled_eq_iff {v X : ℚ} {a D : ℤ} {b S : ℕ} (hb : 0 < b) (hS : 0 < S)
@@ -563,12 +564,6 @@ theorem eq_of_factors {rows : List (List ℚ)} (h : c.factors n rows = true) :
   · rw [ofLists_apply, ofList_apply, Rat.mul_den_eq_num]
   · rw [← ofLists_transpose, h.1]
 
-/-- Casting a product of rational matrices to `ℝ`. -/
-theorem map_ratCast_mul {l m k : ℕ} (A : Matrix (Fin l) (Fin m) ℚ)
-    (B : Matrix (Fin m) (Fin k) ℚ) :
-    (A * B).map ((↑) : ℚ → ℝ) = A.map ((↑) : ℚ → ℝ) * B.map ((↑) : ℚ → ℝ) :=
-  Matrix.map_mul (f := Rat.castHom ℝ)
-
 /-- The real form of a factorization by a well-formed witness, with `L` unit lower
 triangular. -/
 theorem map_eq_of_eq {v : Matrix (Fin n) (Fin n) ℚ} (hlen : c.lower.length = n)
@@ -583,7 +578,7 @@ theorem map_eq_of_eq {v : Matrix (Fin n) (Fin n) ℚ} (hlen : c.lower.length = n
     exact List.getElem_mem hi
   · rw [map_apply, isLowerTriangular_L hlen hl hij, Rat.cast_zero]
   · rw [map_apply, L_apply_self hlen hl i, Rat.cast_one]
-  · rw [conjTranspose_eq_transpose_of_trivial, hM, map_ratCast_mul, map_ratCast_mul,
+  · rw [conjTranspose_eq_transpose_of_trivial, hM, Matrix.map_mul_ratCast, Matrix.map_mul_ratCast,
       diagonal_map Rat.cast_zero, transpose_map]
 
 /-- A well-formed witness with positive diagonal proves the matrix it factors positive
@@ -767,12 +762,6 @@ rows of `A` and `P` scaled by the lcm of all their denominators. It is
 @[expose] def scaledLyapunovResidual (n : ℕ) (A P : List (List ℚ)) : List (List ℤ) :=
   lyapunovResidual n (A.map (scaleRow (denLcm A.flatten))) (P.map (scaleRow (denLcm P.flatten)))
 
-/-- Casting a product of integer matrices to `ℚ`. -/
-theorem map_intCast_mul {l m k : ℕ} (A : Matrix (Fin l) (Fin m) ℤ)
-    (B : Matrix (Fin m) (Fin k) ℤ) :
-    (A * B).map ((↑) : ℤ → ℚ) = A.map ((↑) : ℤ → ℚ) * B.map ((↑) : ℤ → ℚ) :=
-  Matrix.map_mul (f := Int.castRingHom ℚ)
-
 /-- The fraction-free residual agrees with `lyapunovResidual`. -/
 theorem map_ofLists_scaledLyapunovResidual (n : ℕ) (A P : List (List ℚ)) :
     (ofLists n n (scaledLyapunovResidual n A P)).map ((↑) : ℤ → ℚ) =
@@ -782,8 +771,8 @@ theorem map_ofLists_scaledLyapunovResidual (n : ℕ) (A P : List (List ℚ)) :
   have hP := map_ofLists_scaleRow (m := n) (n := n) (s := denLcm P.flatten) (A := P)
     fun _ hq => den_dvd_denLcm hq
   rw [scaledLyapunovResidual, ofLists_lyapunovResidual, ofLists_lyapunovResidual,
-    Matrix.map_neg _ Int.cast_neg, Matrix.map_add _ Int.cast_add, map_intCast_mul,
-    map_intCast_mul, transpose_map, hA, hP, lyapunovScale]
+    Matrix.map_neg _ Int.cast_neg, Matrix.map_add _ Int.cast_add, Matrix.map_mul_intCast,
+    Matrix.map_mul_intCast, transpose_map, hA, hP, lyapunovScale]
   simp only [transpose_smul, Matrix.smul_mul, Matrix.mul_smul, smul_smul, smul_add, smul_neg,
     Nat.cast_mul]
   rw [mul_comm (denLcm P.flatten : ℚ)]
@@ -841,7 +830,7 @@ theorem posDef_of_check {c : LyapunovCert} {n : ℕ} {A P : List (List ℚ)}
   have hQpos := c.Q.posDef_of_eq hs.1 hs.2.1 hs.2.2 hd hM
   rw [hR, ofLists_lyapunovResidual] at hQpos
   rwa [Matrix.map_neg _ Rat.cast_neg, Matrix.map_add _ Rat.cast_add,
-    LDLCert.map_ratCast_mul, LDLCert.map_ratCast_mul, transpose_map] at hQpos
+    Matrix.map_mul_ratCast, Matrix.map_mul_ratCast, transpose_map] at hQpos
 
 end LyapunovCert
 

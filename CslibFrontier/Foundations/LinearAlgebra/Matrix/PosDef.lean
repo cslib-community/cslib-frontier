@@ -16,18 +16,21 @@ import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
 # Positive (semi)definiteness criteria
 
 A symmetric `2 × 2` real matrix `!![a, b; b, c]` with `a, c ≥ 0` and `b² ≤ ac` is positive
-semidefinite (`Matrix.posSemidef_fin_two`). An `LDLᴴ` product `L * diagonal d * Lᴴ` with `L`
-unit lower triangular is positive definite exactly when every `d i` is positive, and positive
-semidefinite exactly when every `d i` is nonnegative. Since `L` is invertible, this is a case of
-Sylvester's law of inertia for the congruence by `L`. Conversely, over a field with trivial star,
-such as `ℚ`, every positive semidefinite (definite) matrix has such a factorization with `d ≥ 0`
-(`d > 0`), found by symmetric elimination without pivoting; Mathlib's `LDL.lower_conj_diag` covers
-only positive definite matrices over `RCLike` fields.
+semidefinite (`Matrix.posSemidef_fin_two`), and so is a symmetric real matrix that is diagonally
+dominant, `∑_{j ≠ i} |R i j| ≤ R i i` (`Matrix.posSemidef_of_diagDominant`). An `LDLᴴ` product
+`L * diagonal d * Lᴴ` with `L` unit lower triangular is positive definite exactly when every `d i`
+is positive, and positive semidefinite exactly when every `d i` is nonnegative. Since `L` is
+invertible, this is a case of Sylvester's law of inertia for the congruence by `L`. Conversely,
+over a field with trivial star, such as `ℚ`, every positive semidefinite (definite) matrix has
+such a factorization with `d ≥ 0` (`d > 0`), found by symmetric elimination without pivoting;
+Mathlib's `LDL.lower_conj_diag` covers only positive definite matrices over `RCLike` fields.
 
 ## Main results
 
 * `Matrix.posSemidef_fin_two`: the diagonal-and-determinant criterion for a symmetric `2 × 2` real
   matrix to be positive semidefinite.
+* `Matrix.posSemidef_of_diagDominant`: a symmetric, diagonally dominant real matrix is positive
+  semidefinite.
 * `Matrix.posDef_mul_diagonal_mul_conjTranspose_iff`,
   `Matrix.posSemidef_mul_diagonal_mul_conjTranspose_iff`: the `LDLᴴ` criteria.
 * `Matrix.exists_LDL_of_posSemidef`, `Matrix.exists_LDL_of_posDef`: their converses over a field
@@ -56,6 +59,46 @@ theorem posSemidef_fin_two {a b c : ℝ} (ha : 0 ≤ a) (hc : 0 ≤ c) (h : b ^ 
       nlinarith [mul_nonneg hc (sq_nonneg (x 1))]
     · refine (mul_nonneg_iff_of_pos_left hapos).1 ?_
       nlinarith [sq_nonneg (a * x 0 + b * x 1), mul_nonneg (sub_nonneg.2 h) (sq_nonneg (x 1))]
+
+/-- **Diagonal dominance.** A symmetric real matrix with `∑_{j ≠ i} |R i j| ≤ R i i` for every
+`i` is positive semidefinite. -/
+theorem posSemidef_of_diagDominant {n : Type*} [Fintype n] [DecidableEq n] {R : Matrix n n ℝ}
+    (hR : Rᵀ = R) (h : ∀ i, ∑ j, (if i = j then 0 else |R i j|) ≤ R i i) : R.PosSemidef := by
+  rw [posSemidef_iff_dotProduct_mulVec]
+  refine ⟨by rw [IsHermitian, conjTranspose_eq_transpose_of_trivial, hR], fun x => ?_⟩
+  simp only [star_trivial, dotProduct, mulVec, Finset.mul_sum]
+  set c : n → n → ℝ := fun i j => if i = j then 0 else |R i j| with hc
+  have hsymm : ∀ i j, R j i = R i j := fun i j => by
+    rw [← transpose_apply R i j, hR]
+  have hcs : ∀ i j, c j i = c i j := fun i j => by
+    simp only [hc, hsymm, eq_comm]
+  -- each off-diagonal pair is bounded below
+  have hT : ∀ i j, 0 ≤ 2 * (x i * (R i j * x j)) + c i j * x i ^ 2 + c i j * x j ^ 2 -
+      (if i = j then 2 * (x i * (R i j * x j)) else 0) := by
+    intro i j
+    simp only [hc]
+    split_ifs with hij
+    · simp
+    · rcases abs_cases (R i j) with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> rw [h1]
+      · nlinarith [mul_nonneg h2 (sq_nonneg (x i + x j))]
+      · nlinarith [mul_nonneg (neg_nonneg.2 h2.le) (sq_nonneg (x i - x j))]
+  have hsum := Finset.sum_nonneg fun i (_ : i ∈ Finset.univ) =>
+    Finset.sum_nonneg fun j (_ : j ∈ Finset.univ) => hT i j
+  simp only [Finset.sum_sub_distrib, Finset.sum_add_distrib, Finset.sum_ite_eq,
+    Finset.mem_univ, ite_true] at hsum
+  have hswap : ∑ i, ∑ j, c i j * x j ^ 2 = ∑ i, ∑ j, c i j * x i ^ 2 := by
+    rw [Finset.sum_comm]
+    exact Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => by rw [hcs]
+  have hdiag : ∑ i, ∑ j, c i j * x i ^ 2 ≤ ∑ i, x i * (R i i * x i) := by
+    refine Finset.sum_le_sum fun i _ => ?_
+    rw [← Finset.sum_mul]
+    nlinarith [mul_le_mul_of_nonneg_right (h i) (sq_nonneg (x i))]
+  have h2 : ∑ i, ∑ j, 2 * (x i * (R i j * x j)) = 2 * ∑ i, ∑ j, x i * (R i j * x j) := by
+    simp only [Finset.mul_sum]
+  have h3 : ∑ i, 2 * (x i * (R i i * x i)) = 2 * ∑ i, x i * (R i i * x i) := by
+    simp only [Finset.mul_sum]
+  rw [hswap] at hsum
+  linarith [hsum, hdiag, h2, h3]
 
 section LDL
 

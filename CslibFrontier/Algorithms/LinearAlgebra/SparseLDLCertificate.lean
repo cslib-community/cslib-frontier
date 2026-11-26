@@ -12,6 +12,7 @@ import CslibFrontier.Foundations.Data.Rat.ClearDenom
 import Mathlib.Data.List.GetD
 import Mathlib.Data.Rat.Cast.Order
 import Mathlib.LinearAlgebra.Matrix.ConjTranspose
+import Mathlib.LinearAlgebra.Matrix.Integer
 import Mathlib.Tactic.LinearCombination
 
 /-!
@@ -51,7 +52,7 @@ A certificate `Cslib.LinearAlgebra.EnvLDLCert` for a symmetric `M` gives a unit 
 dense certificate `EnvLDLCert.toLDLCert`, with the rows padded by zeros, so `L` and `d` are the
 matrices `LDLCert.L` and `LDLCert.d` of the dense checker. `R` must be diagonally dominant,
 `∑_{j ≠ i} |R i j| ≤ R i i` (`Cslib.LinearAlgebra.ddGo`), hence positive semidefinite
-(`Cslib.LinearAlgebra.posSemidef_of_diagDominant`); with positive pivots `M ≻ 0` follows.
+(`Matrix.posSemidef_of_diagDominant`); with positive pivots `M ≻ 0` follows.
 
 The remainder keeps the certificate small. The exact factor of a banded matrix stays in the
 band, but its entries grow by a few bits per row: about 10⁴ bits, and megabytes of source, for a
@@ -109,7 +110,6 @@ linear time. The kernel evaluates `mkRat` like the division it replaces.
 * `Cslib.LinearAlgebra.ofSparse_toSparse`, `Cslib.LinearAlgebra.ofSparse_sparseMul`,
   `Cslib.LinearAlgebra.ofSparse_eq_transpose_of_isTransposeOf`,
   `Cslib.LinearAlgebra.ofSparse_sparseResidual`: the operations compute the matrix ones.
-* `Cslib.LinearAlgebra.posSemidef_of_diagDominant`: diagonal dominance gives `⪰ 0`.
 * `Cslib.LinearAlgebra.EnvLDLCert.eq_add_of_factorsWith`: an accepted certificate writes `M` as
   `L * diagonal d * Lᵀ + R`.
 * `Cslib.LinearAlgebra.EnvLDLCert.posDef_of_checkPosDef`,
@@ -210,9 +210,8 @@ theorem sparseGet_toSparseFrom [AddMonoid α] (k : ℕ) (r : List α) (j : ℕ) 
 theorem ofSparse_toSparse [AddMonoid α] (m n : ℕ) (rows : List (List α)) :
     ofSparse m n (rows.map (toSparseFrom 0)) = ofLists m n rows := by
   ext i j
-  have hrow : (rows.map (toSparseFrom 0)).getD i [] = toSparseFrom 0 (rows.getD i []) := by
-    simp only [List.getD_eq_getElem?_getD, List.getElem?_map]
-    cases rows[(i : ℕ)]? <;> rfl
+  have hrow : (rows.map (toSparseFrom 0)).getD i [] = toSparseFrom 0 (rows.getD i []) :=
+    List.getD_map _ [] _
   rw [ofSparse_apply, hrow, sparseGet_toSparseFrom]
   simp [ofLists_apply, ofList_apply]
 
@@ -400,7 +399,7 @@ theorem ofSparse_eq_transpose_of_isTransposeOf [AddMonoid α] [BEq α] [LawfulBE
     else bif Nat.beq e.1 x.1 then (x.1, e.2 + x.2) :: r
     else x :: insertAdd e r
 
-theorem insertAdd_cons [Add α] (e x : ℕ × α) (r : List (ℕ × α)) :
+private theorem insertAdd_cons [Add α] (e x : ℕ × α) (r : List (ℕ × α)) :
     insertAdd e (x :: r) = if e.1 < x.1 then e :: x :: r
       else if e.1 = x.1 then (x.1, e.2 + x.2) :: r else x :: insertAdd e r := by
   simp only [insertAdd, cond_eq_ite, Nat.blt_eq, Nat.beq_eq]
@@ -466,18 +465,14 @@ private theorem mem_flatten_of_mem_getD {β : Type*} {rows : List (List β)} {i 
   · rw [h, Option.getD_some] at he
     exact List.mem_flatten.2 ⟨r, List.mem_of_getElem? h, he⟩
 
-private theorem getD_map_of_nil {β γ : Type*} {f : List β → List γ} (hf : f [] = [])
-    (l : List (List β)) (i : ℕ) : (l.map f).getD i [] = f (l.getD i []) := by
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_map]
-  cases l[i]? <;> simp [hf]
-
 /-- Scaling every row by a common multiple `s` of the denominators scales the matrix. -/
 theorem map_ofSparse_scaleSparse {m n s : ℕ} {rows : List (List (ℕ × ℚ))}
     (hs : ∀ e ∈ rows.flatten, e.2.den ∣ s) :
     (ofSparse m n (rows.map (scaleSparse s))).map ((↑) : ℤ → ℚ) = (s : ℚ) • ofSparse m n rows := by
   ext i j
   simp only [map_apply, Matrix.smul_apply, smul_eq_mul, ofSparse_apply]
-  rw [getD_map_of_nil rfl,
+  rw [show (rows.map (scaleSparse s)).getD i [] = scaleSparse s (rows.getD i []) from
+    List.getD_map _ [] _,
     cast_sparseGet_scaleSparse fun e he => hs e (mem_flatten_of_mem_getD he)]
 
 theorem den_dvd_sparseDenLcm {rows : List (List (ℕ × ℚ))} :
@@ -593,7 +588,7 @@ theorem length_subRows :
   | [] => 0
   | e :: r => (bif Nat.beq e.1 i then 0 else |e.2|) + offAbs i r
 
-theorem offAbs_cons (i : ℕ) (e : ℕ × ℚ) (r : List (ℕ × ℚ)) :
+private theorem offAbs_cons (i : ℕ) (e : ℕ × ℚ) (r : List (ℕ × ℚ)) :
     offAbs i (e :: r) = (if e.1 = i then 0 else |e.2|) + offAbs i r := by
   simp only [offAbs, cond_eq_ite, Nat.beq_eq]
 
@@ -622,7 +617,7 @@ private theorem sum_ite_le_abs {m : ℕ} (k i : ℕ) (x : ℚ) :
 
 /-- The off-diagonal absolute values of a sparse row, read over `Fin m`, are bounded by
 `offAbs`. -/
-theorem sum_abs_le_offAbs {m : ℕ} (r : List (ℕ × ℚ)) (i : ℕ) :
+private theorem sum_abs_le_offAbs {m : ℕ} (r : List (ℕ × ℚ)) (i : ℕ) :
     ∑ j : Fin m, (if i = (j : ℕ) then 0 else |sparseGet r j|) ≤ offAbs i r := by
   induction r with
   | nil => simp [offAbs]
@@ -663,46 +658,6 @@ theorem diagDominant_of_ddGo {n : ℕ} {rows : List (List (ℕ × ℚ))} (h : dd
   · simp [List.getElem?_eq_none hi]
 
 end Dominance
-
-/-- **Diagonal dominance.** A symmetric real matrix with `∑_{j ≠ i} |R i j| ≤ R i i` for every
-`i` is positive semidefinite. -/
-theorem posSemidef_of_diagDominant {n : ℕ} {R : Matrix (Fin n) (Fin n) ℝ} (hR : Rᵀ = R)
-    (h : ∀ i, ∑ j, (if i = j then 0 else |R i j|) ≤ R i i) : R.PosSemidef := by
-  rw [posSemidef_iff_dotProduct_mulVec]
-  refine ⟨by rw [IsHermitian, conjTranspose_eq_transpose_of_trivial, hR], fun x => ?_⟩
-  simp only [star_trivial, dotProduct, mulVec, Finset.mul_sum]
-  set c : Fin n → Fin n → ℝ := fun i j => if i = j then 0 else |R i j| with hc
-  have hsymm : ∀ i j, R j i = R i j := fun i j => by
-    rw [← transpose_apply R i j, hR]
-  have hcs : ∀ i j, c j i = c i j := fun i j => by
-    simp only [hc, hsymm, eq_comm]
-  -- each off-diagonal pair is bounded below
-  have hT : ∀ i j, 0 ≤ 2 * (x i * (R i j * x j)) + c i j * x i ^ 2 + c i j * x j ^ 2 -
-      (if i = j then 2 * (x i * (R i j * x j)) else 0) := by
-    intro i j
-    simp only [hc]
-    split_ifs with hij
-    · simp
-    · rcases abs_cases (R i j) with ⟨h1, h2⟩ | ⟨h1, h2⟩ <;> rw [h1]
-      · nlinarith [mul_nonneg h2 (sq_nonneg (x i + x j))]
-      · nlinarith [mul_nonneg (neg_nonneg.2 h2.le) (sq_nonneg (x i - x j))]
-  have hsum := Finset.sum_nonneg fun i (_ : i ∈ Finset.univ) =>
-    Finset.sum_nonneg fun j (_ : j ∈ Finset.univ) => hT i j
-  simp only [Finset.sum_sub_distrib, Finset.sum_add_distrib, Finset.sum_ite_eq,
-    Finset.mem_univ, ite_true] at hsum
-  have hswap : ∑ i, ∑ j, c i j * x j ^ 2 = ∑ i, ∑ j, c i j * x i ^ 2 := by
-    rw [Finset.sum_comm]
-    exact Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => by rw [hcs]
-  have hdiag : ∑ i, ∑ j, c i j * x i ^ 2 ≤ ∑ i, x i * (R i i * x i) := by
-    refine Finset.sum_le_sum fun i _ => ?_
-    rw [← Finset.sum_mul]
-    nlinarith [mul_le_mul_of_nonneg_right (h i) (sq_nonneg (x i))]
-  have h2 : ∑ i, ∑ j, 2 * (x i * (R i j * x j)) = 2 * ∑ i, ∑ j, x i * (R i j * x j) := by
-    simp only [Finset.mul_sum]
-  have h3 : ∑ i, 2 * (x i * (R i i * x i)) = 2 * ∑ i, x i * (R i i * x i) := by
-    simp only [Finset.mul_sum]
-  rw [hswap] at hsum
-  linarith [hsum, hdiag, h2, h3]
 
 /-! ### Envelope `LDLᵀ` certificates -/
 
@@ -852,16 +807,10 @@ private theorem window_eq {D : List RowData} {i f : ℕ} (hi : i < D.length) (hf
     show i - (i - f) = f by omega, List.take_add_one, List.getElem?_eq_getElem hi,
     Option.toList_some, List.drop_append_of_le_length (by simp; omega)]
 
-private theorem getD_zipWith_mul' (a b : List ℚ) (k : ℕ) :
-    (List.zipWith (· * ·) a b).getD k 0 = a.getD k 0 * b.getD k 0 := by
-  simp only [List.getD_eq_getElem?_getD, List.getElem?_zipWith]
-  cases a[k]? <;> cases b[k]? <;> simp
-
 private theorem L_apply' (i k : Fin n) :
     c.toLDLCert.L n i k = (envRow (c.lower.getD i (0, []))).getD k 0 := by
-  have : (c.lower.map envRow).getD i [] = envRow (c.lower.getD i (0, [])) := by
-    simp only [List.getD_eq_getElem?_getD, List.getElem?_map]
-    cases c.lower[(i : ℕ)]? <;> rfl
+  have : (c.lower.map envRow).getD i [] = envRow (c.lower.getD i (0, [])) :=
+    List.getD_map _ (0, []) _
   simp only [toLDLCert, LDLCert.L, ofLists_apply, ofList_apply]
   rw [this]
 
@@ -890,7 +839,7 @@ private theorem cast_alignDot {f g : ℕ} {r r' dw : List ℚ} {dg : ℕ → ℚ
   · simp
   · simp
   rw [cast_getD_scaleRow (fun _ hq => den_dvd_denLcm hq),
-    cast_getD_scaleRow (fun _ hq => den_dvd_denLcm hq), getD_zipWith_mul']
+    cast_getD_scaleRow (fun _ hq => den_dvd_denLcm hq), getD_zipWith_mul]
   rcases Nat.lt_or_ge (k - f) r.length with hk | hk
   · rw [hdw _ hk, show f + (k - f) = k by omega]
     push_cast
@@ -1140,7 +1089,9 @@ theorem ofSparse_sparseResidual {n : ℕ} {A At P : List (List (ℕ × ℚ))} (h
       (denLcm_pos (P.flatten.map (·.2)))
     exact_mod_cast this.ne'
   ext i j
-  rw [ofSparse_apply, sparseResidual, getD_map_of_nil (by simp [sparseMap]),
+  rw [ofSparse_apply, sparseResidual, show ∀ f : ℤ → ℚ, ((sparseScaledResidual A At P).map
+    (sparseMap f)).getD i [] = sparseMap f ((sparseScaledResidual A At P).getD i []) from
+    fun _ => List.getD_map _ [] _,
     sparseGet_sparseMap (by simp) (fun a b => by push_cast; ring), sparseScaledResidual]
   set sA := sparseDenLcm (A ++ At)
   set sP := sparseDenLcm P
@@ -1157,8 +1108,8 @@ theorem ofSparse_sparseResidual {n : ℕ} {A At P : List (List (ℕ × ℚ))} (h
     den_dvd_sparseDenLcm e (by simp only [List.flatten_append, List.mem_append]; exact .inl he)
   have hdAt : ∀ e ∈ At.flatten, e.2.den ∣ sA := fun e he =>
     den_dvd_sparseDenLcm e (by simp only [List.flatten_append, List.mem_append]; exact .inr he)
-  have hX := map_intCast_mul (ofSparse n n hAt) (ofSparse n n hP)
-  have hY := map_intCast_mul (ofSparse n n hP) (ofSparse n n hA)
+  have hX := Matrix.map_mul_intCast (α := ℚ) (ofSparse n n hAt) (ofSparse n n hP)
+  have hY := Matrix.map_mul_intCast (α := ℚ) (ofSparse n n hP) (ofSparse n n hA)
   rw [← ofSparse_sparseMul _ _ (by simp [hP, hPl]), map_ofSparse_scaleSparse hdAt,
     map_ofSparse_scaleSparse den_dvd_sparseDenLcm, ofSparse_eq_transpose_of_isTransposeOf hT]
     at hX
@@ -1219,7 +1170,7 @@ theorem posDef_of_check {c : SparseLyapunovCert} {n : ℕ} {A P : List (List (�
       ← hPs, add_comm]
   have := c.Q.posDef_of_factorsWith hlen hsymm hQ hd
   rwa [hR, Matrix.map_neg _ Rat.cast_neg, Matrix.map_add _ Rat.cast_add,
-    LDLCert.map_ratCast_mul, LDLCert.map_ratCast_mul, transpose_map] at this
+    Matrix.map_mul_ratCast, Matrix.map_mul_ratCast, transpose_map] at this
 
 end SparseLyapunovCert
 
