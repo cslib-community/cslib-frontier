@@ -85,13 +85,15 @@ private theorem eq_malformed_not_mem : [⟨(), [0]⟩] ∉ CSPSAT eqArity eqSem 
   have := h.1 ⟨(), [0]⟩ (by simp)
   simp [eqArity] at this
 
--- A single reduction preserves the variable bound and rejects malformed scopes.
+-- A single reduction bounds clause width and variable count and rejects malformed scopes.
 example (encUnit : Unit ↪ List Bool) :
-    ∃ f : CSP Unit ℕ → CNF ℕ,
+    ∃ (f : CSP Unit ℕ → CNF ℕ) (k : ℕ),
       (f [⟨(), [2 ^ 80, 2 ^ 80]⟩]).numVars ≤ 1 ∧
+      (∀ F, ∀ c ∈ f F, c.length ≤ k) ∧
       f [⟨(), [2 ^ 80, 2 ^ 80]⟩] ∈ SAT ∧ f [⟨(), [0]⟩] ∉ SAT := by
-  obtain ⟨f, _, hmem, hsize⟩ := CSPSAT.exists_reduction_toSAT_numVars encUnit eqArity eqSem
-  exact ⟨f, (hsize _).trans (by decide), (hmem _).mp eq_repeated_mem,
+  obtain ⟨f, k, _, hmem, hsize, hwidth⟩ :=
+    CSPSAT.exists_boundedWidth_reduction_toSAT encUnit eqArity eqSem
+  exact ⟨f, k, (hsize _).trans (by decide), hwidth, (hmem _).mp eq_repeated_mem,
     mt (hmem _).mpr eq_malformed_not_mem⟩
 
 private def naeArity (_ : Unit) : ℕ := 3
