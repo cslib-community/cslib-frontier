@@ -11,7 +11,8 @@ import CslibFrontier.Computability.Complexity.FineGrained.CountingNativeModelCou
 import CslibFrontier.Computability.Complexity.FineGrained.SparseCountingScale
 import CslibFrontier.Tactic.EncLen
 
-/-! Exercise the power-budget search on a native counter with a superpolynomial allowance. -/
+/-! Exercise the power-budget search on a native counter with a superpolynomial allowance
+and use the size-to-variable transfer for a counting lower bound. -/
 
 public section
 
@@ -110,5 +111,18 @@ theorem powerBudget_counts_with_superpolynomial_allowance :
         CNF.modelCountOn [[(0, true)]] (Finset.range 0) else 0) at hvalue
     rwa [ite_eq_right hinvalid] at hvalue
   · exact hT ((), 0, [[(0, true)]])
+
+-- A variable-count lower bound rules out a square-root size exponent for #3SAT.
+example (hhard : ∀ q : ℝ, 0 < q → q < 1 →
+    ¬ ComputableInPowerExpTime SharpThreeSAT encCNF encNat CNF.numVars q) :
+    ¬ ComputableInPowerExpTime SharpThreeSAT encCNF encNat
+      (fun φ => φ.numVars + φ.length) (1 / 2) := by
+  intro h
+  have hthree : ComputableInPowerExpTime (SharpKSAT 3) encCNF encNat
+      (fun φ => φ.numVars + φ.length) (1 / 2) := by
+    simpa only [SharpKSAT_three] using h
+  obtain ⟨q, hq, hq1, hcount⟩ :=
+    hthree.SharpKSAT_numVars_of_size (by decide) (by norm_num) (by norm_num)
+  exact hhard q hq hq1 (by simpa only [SharpKSAT_three] using hcount)
 
 end CslibFrontierTests.CountingPowerSearch

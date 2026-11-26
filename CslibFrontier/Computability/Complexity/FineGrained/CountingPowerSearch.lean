@@ -24,7 +24,8 @@ the disjoint sparse-leaf sum over the original declared variables. The certifica
 the encoded input, including the unary declared size, and the supplied leaf computation.
 Its round factor uses the power saving from [MITHardnessGroup2026SH, Lemma 2.2, §2.2].
 A size-bounded counter therefore yields a counter with a fixed power saving in the
-occurring variable count after polynomial-time dense relabeling.
+occurring variable count after polynomial-time dense relabeling. The decision transfer and
+the variable-count hypothesis equivalences remain open in #8457.
 
 ## Main results
 
@@ -379,12 +380,13 @@ namespace Cslib.Complexity
 
 open Cslib.Logic.PL Turing.MultiTapeTM
 
-/-- Fixed-width model counting transfers from a power saving in variables plus clauses to a
-power saving in occurring variables, charging a polynomial in the original encoded length.
+/-- The contrapositive size-to-variable counting step of
+[MITHardnessGroup2026SH, v2, §2.2, Corollary 2.3], extended to fixed widths `k ≥ 2`.
+A power saving in variables plus clauses yields a power saving in occurring variables.
 
-This is the size-to-variable counting direction of
-[MITHardnessGroup2026SH, §2.2, Corollary 2.3]. Polynomial-time dense relabeling preserves clause
-width and model count, so the bound also covers inputs with large labels or repeated clauses. -/
+Polynomial-time dense relabeling preserves clause width and model count. The polynomial factor
+charges the original encoded length, including large labels and repeated clauses. The decision
+transfer and the variable-count hypothesis equivalences remain open in #8457. -/
 theorem ComputableInPowerExpTime.SharpKSAT_numVars_of_size {k : ℕ} (hk : 2 ≤ k) {p : ℝ}
     (hp : 0 < p) (hp1 : p < 1)
     (h : ComputableInPowerExpTime (SharpKSAT k) encCNF encNat (fun φ => φ.numVars + φ.length) p) :
