@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingSparsificationUniform
 public import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.CountingQuantitative
 import CslibFrontier.Logics.Propositional.ClauseSet.Sparsification.CountingParametersPolyTime
+import CslibFrontier.Computability.PolyTime.CNF.DeclaredInput
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -100,9 +101,9 @@ private theorem rounds_bound {d : ℕ} (hd : 1 ≤ d) {φ : CNF ℕ} {n : ℕ}
         (by norm_num)
 
 /-- For unary declared variable counts, a fixed power budget gives a native counter from
-a certified leaf counter exact on sparse, supported leaves. On valid inputs, time is bounded
-by the power-saving round factor times the sum of a polynomial and one leaf-time allowance.
-Workspace is polynomial whenever the leaf workspace allowance is polynomial. -/
+a certified leaf counter exact on sparse, supported leaves. The time bound holds on all inputs:
+a polynomial-time guard rejects invalid formulas before incurring traversal costs. Workspace is
+polynomial whenever the leaf workspace allowance is polynomial. -/
 theorem exists_computableInO_searchDeclared_powerBudget {C : Type} (encC : C ↪ List Bool)
     {k d : ℕ} (hk : 2 ≤ k) (hd : 1 ≤ d)
     {g t s : (C × ℕ) × CNF ℕ → ℕ} {R Q : C × ℕ × CNF ℕ → ℕ}
@@ -128,8 +129,7 @@ theorem exists_computableInO_searchDeclared_powerBudget {C : Type} (encC : C ↪
       (∀ x, let (_, declared, formula) := x
         count x = if validDeclaredInput k declared formula then
           formula.modelCountOn (Finset.range declared) else 0) ∧
-      ∀ x, let (_, declared, formula) := x
-        validDeclaredInput k declared formula = true →
+      ∀ x, let (_, declared, _) := x
         (T x : ℝ) ≤ 6 * 2 ^ (3 * (declared + 1 : ℝ) ^ (1 - (d : ℝ)⁻¹)) *
           (c * (((encInput x).length : ℝ) + 1) ^ e + R x) := by
   intro encInput
@@ -172,25 +172,84 @@ theorem exists_computableInO_searchDeclared_powerBudget {C : Type} (encC : C ↪
     (fun x hx i _ hi => (hleaf x hx i hi).1)
     (fun x hx i _ hi => (hleaf x hx i hi).2.1)
     (fun x hx i _ hi => (hleaf x hx i hi).2.2)
-  refine ⟨_, _, _, c, e, hc, hs, ?_, ?_⟩
+  let valid (x : C × ℕ × CNF ℕ) := validDeclaredInput k x.2.1 x.2.2
+  let count (x : C × ℕ × CNF ℕ) :=
+    searchDeclaredWith Prod.snd (base k d) (budget d) k k g (x.1, x.2.1) x.2.2
+  let L (x : C × ℕ × CNF ℕ) := (encInput x).length
+  let W (x : C × ℕ × CNF ℕ) := c * (L x + 1) ^ e
+  let T₀ (x : C × ℕ × CNF ℕ) :=
+    W x + (rounds (budget d (x.1, x.2.1)) x.2.2 + 1) * (W x + R x)
+  let S₀ (x : C × ℕ × CNF ℕ) := W x + Q x
+  change ComputableInO count encInput encNat T₀ S₀ at hc
+  have hv : ComputableInPolyTime valid encInput encBool :=
+    (CNF.computableInPolyTime_validDeclaredInput k ComputableInPolyTime.id').comp
+      (ComputableInPolyTime.snd encC (encPair encUnary encCNF))
+  obtain ⟨b, _, hb⟩ := hv.exists_degree
+  have hguard := hb.inO.ite hc (ComputableInO.const (encIn := encInput) 0)
+  refine ⟨_, _, _, c + 2, b + e + 1, hguard, ?_, ?_, ?_⟩
+  · intro hQ
+    exact (((PolyBounded.self.add (.const 1)).pow b).add ((hs hQ).add PolyBounded.self)).mono
+      fun x => by
+        change (L x + 1) ^ b + (if valid x then S₀ x else L x) ≤
+          (L x + 1) ^ b + (S₀ x + L x)
+        split <;> omega
   · intro x
-    exact searchDeclaredWith_eq_ite_modelCountOn_of_normalized
-      (hM _) hK (hM2 _) le_rfl (htree _)
-      (fun ψ _ hw hsp hsub hlen => hcorrect _ ψ hw hsp hsub hlen) x.2.2
-  · intro x hx
-    have hr := rounds_bound hd (hvars x hx)
+    change (if valid x then count x else 0) =
+      (if valid x then x.2.2.modelCountOn (Finset.range x.2.1) else 0)
+    have hvalue : count x = if valid x then x.2.2.modelCountOn (Finset.range x.2.1) else 0 :=
+      searchDeclaredWith_eq_ite_modelCountOn_of_normalized
+        (hM _) hK (hM2 _) le_rfl (htree _)
+        (fun ψ _ hw hsp hsub hlen => hcorrect _ ψ hw hsp hsub hlen) x.2.2
+    rw [hvalue]
+    split_ifs <;> rfl
+  · rintro ⟨context, declared, formula⟩
+    let x : C × ℕ × CNF ℕ := (context, declared, formula)
+    let Z := (L x + 1) ^ (b + e + 1)
+    let P := (c + 2) * Z
     let Y : ℝ := 2 ^ (3 * (x.2.1 + 1 : ℝ) ^ (1 - (d : ℝ)⁻¹))
-    let W : ℝ := c * (((encInput x).length : ℝ) + 1) ^ e + R x
+    let E : ℝ := (P : ℝ) + R x
     have hY : 1 ≤ Y := Real.one_le_rpow one_le_two (by positivity)
-    have hW : 0 ≤ W := by dsimp [W]; positivity
-    push_cast
-    change c * (((encInput x).length : ℝ) + 1) ^ e +
-      ((rounds (budget d (x.1, x.2.1)) x.2.2 : ℝ) + 1) * W ≤ 6 * Y * W
-    push_cast at hr
-    have hp := mul_le_mul_of_nonneg_right hr hW
-    change ((rounds (budget d (x.1, x.2.1)) x.2.2 : ℝ) + 1) * W ≤ 5 * Y * W at hp
-    have hfirst : (c : ℝ) * (((encInput x).length : ℝ) + 1) ^ e ≤ Y * W :=
-      (le_add_of_nonneg_right (Nat.cast_nonneg (R x))).trans (le_mul_of_one_le_left hW hY)
-    linarith
+    have hE : 0 ≤ E := by dsimp [E]; positivity
+    have hYE : E ≤ Y * E := le_mul_of_one_le_left hE hY
+    have hbZ : (L x + 1) ^ b ≤ Z :=
+      Nat.pow_le_pow_right (by omega) (by omega)
+    have heZ : (L x + 1) ^ e ≤ Z :=
+      Nat.pow_le_pow_right (by omega) (by omega)
+    have hLZ : L x ≤ Z := (Nat.le_succ _).trans (Nat.le_self_pow (by omega) _)
+    have hP : (L x + 1) ^ b + (W x + L x) ≤ P := by
+      calc
+        _ ≤ Z + (c * Z + Z) :=
+          Nat.add_le_add hbZ (Nat.add_le_add (Nat.mul_le_mul_left c heZ) hLZ)
+        _ = P := by dsimp only [P]; ring
+    have hbound : (((L x + 1) ^ b + (W x + L x) : ℕ) : ℝ) ≤ E :=
+      (Nat.cast_le.mpr hP).trans (le_add_of_nonneg_right (Nat.cast_nonneg (R x)))
+    have hleafBound : ((W x + R x : ℕ) : ℝ) ≤ E := by
+      have h : ((W x + R x : ℕ) : ℝ) ≤ ((P + R x : ℕ) : ℝ) :=
+        Nat.cast_le.mpr (Nat.add_le_add_right (show W x ≤ P by omega) (R x))
+      exact h.trans_eq (Nat.cast_add _ _ : ((P + R x : ℕ) : ℝ) = E)
+    have hE_eq : E = (↑(c + 2) : ℝ) * ((L x : ℝ) + 1) ^ (b + e + 1) + R x := by
+      dsimp only [E, P, Z]
+      push_cast
+      rfl
+    change (((L x + 1) ^ b + (if valid x then T₀ x else L x) : ℕ) : ℝ) ≤ 6 * Y * _
+    rw [← hE_eq]
+    by_cases hx : valid x = true
+    · have hr := rounds_bound hd (hvars x hx)
+      have hprod := mul_le_mul hr hleafBound (by positivity) (by positivity)
+      have hfirst : (((L x + 1) ^ b + W x : ℕ) : ℝ) ≤ Y * E :=
+        (Nat.cast_le.mpr (Nat.add_le_add_left (Nat.le_add_right _ _) _)).trans
+          (hbound.trans hYE)
+      rw [ite_eq_left hx]
+      calc
+        _ = (((L x + 1) ^ b + W x : ℕ) : ℝ) +
+          ((rounds (budget d (x.1, x.2.1)) x.2.2 + 1 : ℕ) : ℝ) * ((W x + R x : ℕ) : ℝ) := by
+            simp only [T₀, Nat.cast_add, Nat.cast_mul]
+            ring
+        _ ≤ Y * E + 5 * Y * E := add_le_add hfirst hprod
+        _ = _ := by ring
+    · rw [ite_eq_right hx]
+      have hcost : (((L x + 1) ^ b + L x : ℕ) : ℝ) ≤ E :=
+        (Nat.cast_le.mpr (Nat.add_le_add_left (Nat.le_add_left _ _) _)).trans hbound
+      exact (hcost.trans hYE).trans (by nlinarith [mul_nonneg (zero_le_one.trans hY) hE])
 
 end Cslib.Complexity.CountingSparsify

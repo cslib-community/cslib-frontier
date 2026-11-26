@@ -53,12 +53,13 @@ private noncomputable def expAllowance (A n : ℕ) : ℕ :=
   (Finset.range (n + 1)).sup fun m => ⌈(2 : ℝ) ^ ((A : ℝ) * interpolationScale m)⌉₊
 
 /-- A native width-two counter with a padded, superpolynomial workspace allowance yields exact
-counts on the empty CNF both with no declared variables and with three unused variables. -/
+counts on the empty CNF with zero or three declared variables and rejects invalid support. -/
 theorem powerBudget_counts_with_superpolynomial_allowance :
     ∃ (Q count T S : Unit × ℕ × CNF ℕ → ℕ),
       ¬ PolyBounded (fun x => (encPair encUnit (encPair encUnary encCNF) x).length) Q ∧
       ComputableInO count (encPair encUnit (encPair encUnary encCNF)) encNat T S ∧
-      count ((), 0, []) = 1 ∧ count ((), 3, []) = 8 := by
+      count ((), 0, []) = 1 ∧ count ((), 3, []) = 8 ∧
+      count ((), 0, [[(0, true)]]) = 0 := by
   obtain ⟨g, A, e, b, hg, hcounter⟩ := CountingNativeEndpoint.exists_modelCounter 2
   have hproj : ComputableInPolyTime
       (Prod.snd : (Unit × ℕ) × CNF ℕ → CNF ℕ) encLeaf encCNF :=
@@ -93,6 +94,12 @@ theorem powerBudget_counts_with_superpolynomial_allowance :
     have hvalid : CNF.validDeclaredInput 2 n [] = true :=
       CNF.validDeclaredInput_eq_true_iff.mpr ⟨by simp, by simp [CNF.vars]⟩
     simpa only [hvalid, ↓reduceIte, CNF.modelCountOn_nil, Finset.card_range] using hspec ((), n, [])
-  exact ⟨hempty 0, hempty 3⟩
+  have hinvalid : CNF.validDeclaredInput 2 0 [[(0, true)]] ≠ true := by decide
+  refine ⟨hempty 0, hempty 3, ?_⟩
+  have hvalue := hspec ((), 0, [[(0, true)]])
+  change count ((), 0, [[(0, true)]]) =
+    (if CNF.validDeclaredInput 2 0 [[(0, true)]] then
+      CNF.modelCountOn [[(0, true)]] (Finset.range 0) else 0) at hvalue
+  rwa [ite_eq_right hinvalid] at hvalue
 
 end CslibFrontierTests.CountingPowerSearch
