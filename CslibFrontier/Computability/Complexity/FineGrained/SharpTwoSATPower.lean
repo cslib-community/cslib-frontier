@@ -8,8 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.FineGrained.SharpSatisfiabilityHypothesis
-public import CslibFrontier.Computability.Complexity.Problems.SharpTwoSATParity
+public import CslibFrontier.Computability.Complexity.Problems.SharpTwoSAT
 import CslibFrontier.Computability.Complexity.FineGrained.ThreeOccurrenceReduction
+import CslibFrontier.Computability.Complexity.Problems.SharpTwoSATParity
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 
 /-!
@@ -25,6 +26,11 @@ binary CNF encoding and only needs to give an answer within its bound on promise
 
 * `Cslib.Complexity.SharpSH.not_computableInPowerExpTime_sharpTwoSAT_threeOccurrence`:
   the lower bound on the width-two, three-occurrence promise.
+
+## References
+
+* [MIT Hardness Group, *ETH is Dead, Long Live SH*][MITHardnessGroup2026SH], v2, §6,
+  Corollary 6.1.
 -/
 
 public section

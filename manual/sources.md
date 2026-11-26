@@ -3968,7 +3968,9 @@ The independent source review checked §1 and footnotes 1–2 (pp. 1–2) for th
 The library uses occurring variables in `CNF ℕ` and allows polynomial overhead in the native binary encoding length.
 The independent counting review checked the definition of #SH in §2 (p. 5) and the fixed-width equivalence in §2.1, Lemma 2.1 (pp. 5–6), including the declared-variable convention and the parsimonious reduction.
 The independent implication review checked that SH implies #SH in §2 (p. 5), including the declared-variable convention and the binary count length bound.
-Quantitative sparsification, the Weak #ETH equivalence, and the #2SAT counting lower bound remain tracked in [#8457](https://github.com/cslib-community/cslib-frontier/issues/8457).
+The independent bounded-degree counting review checked §6, Corollary 6.1 (p. 10), including the three-occurrence promise, the exponent in occurring variables plus clauses, and the polynomial overhead in the native binary encoding length.
+Quantitative sparsification, the Weak #ETH equivalence, and other open applications remain tracked in [#8457](https://github.com/cslib-community/cslib-frontier/issues/8457).
+[Independent bounded-degree counting review](https://github.com/cslib-community/cslib-frontier/pull/8762#issuecomment-7189165403).
 [Independent counting review](https://github.com/cslib-community/cslib-frontier/pull/8614#issuecomment-7169443584).
 [Independent implication review](https://github.com/cslib-community/cslib-frontier/pull/8625#issuecomment-7172993110).
 [Independent review](https://github.com/cslib-community/cslib-frontier/pull/8539#pullrequestreview-6055020260).
