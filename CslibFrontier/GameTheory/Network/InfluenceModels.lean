@@ -167,9 +167,9 @@ theorem LinearThresholdModel.toGeneralThresholdModel_thresholdFn {V : Type*} [De
     (v : V) (X : Finset V) :
     L.toGeneralThresholdModel.thresholdFn v X = ∑ u ∈ X, L.weight u v := by
   change ∑ u ∈ X ∩ inNeighbors G v, L.weight u v = ∑ u ∈ X, L.weight u v
-  refine Finset.sum_subset Finset.inter_subset_left fun u huX hnot => ?_
-  have hadj : ¬ G.Adj u v := fun h => hnot (Finset.mem_inter.mpr ⟨huX, mem_inNeighbors.mpr h⟩)
-  exact L.weight_eq_zero_of_not_adj u v hadj
+  exact Finset.sum_subset Finset.inter_subset_left fun u huX hnot =>
+    L.weight_eq_zero_of_not_adj u v fun h =>
+      hnot (Finset.mem_inter.mpr ⟨huX, mem_inNeighbors.mpr h⟩)
 
 /-! ## Uniform `[0, 1]` product measure -/
 
@@ -305,10 +305,9 @@ private theorem fixed_iterate_card {f : Finset V → Finset V} (hsub : ∀ X, X 
       rw [Function.iterate_succ_apply']
       exact Nat.succ_le_of_lt <| lt_of_le_of_lt (ih (Nat.le_of_succ_le hk)) <|
         Finset.card_lt_card (Finset.ssubset_iff_subset_ne.mpr ⟨hsub _, Ne.symm hne_k⟩)
-  have hcard := hstrict _ le_rfl
-  have hlt := Finset.card_lt_card (Finset.ssubset_iff_subset_ne.mpr ⟨hsub _, Ne.symm hne⟩)
-  have hle_univ := Finset.card_le_univ (f (f^[Fintype.card V] S))
-  omega
+  exact absurd ((hstrict _ le_rfl).trans_lt
+    (Finset.card_lt_card (Finset.ssubset_iff_subset_ne.mpr ⟨hsub _, Ne.symm hne⟩)))
+    (not_lt_of_ge (Finset.card_le_univ _))
 
 theorem thresholdStep_thresholdFinal (θ : V → ℝ) (S : Finset V) :
     M.thresholdStep θ (M.thresholdFinal θ S) = M.thresholdFinal θ S :=
@@ -506,15 +505,14 @@ theorem influence_eq_card_univ_of_forall_eq_one {S : Finset V}
     have hstep_univ : M.thresholdStep θ S = Finset.univ := Finset.eq_univ_of_forall fun v =>
       M.mem_thresholdStep.mpr <| (em (v ∈ S)).imp_right fun hv =>
         (hθ v).2.le.trans (hone v hv).symm.le
-    have hfin_univ : M.thresholdFinal θ S = Finset.univ := by
-      rcases isEmpty_or_nonempty V with hE | hNE
-      · exact Subsingleton.elim _ _
-      · obtain ⟨k, hk⟩ := Nat.exists_eq_add_of_le (Fintype.card_pos (α := V))
-        rw [thresholdFinal, hk, Nat.add_comm 1 k, Function.iterate_add_apply, Function.iterate_one,
-          hstep_univ]
-        exact Finset.eq_univ_of_forall fun v =>
-          M.subset_thresholdStep_iterate θ Finset.univ k (Finset.mem_univ v)
-    rw [hfin_univ, Finset.card_univ]
+    cases hcard : Fintype.card V with
+    | zero =>
+      have := Fintype.card_eq_zero_iff.mp hcard
+      simp [Subsingleton.elim (M.thresholdFinal θ S) Finset.univ]
+    | succ k =>
+      rw [thresholdFinal, hcard, Function.iterate_succ_apply, hstep_univ,
+        Finset.eq_univ_of_forall fun v => M.subset_thresholdStep_iterate θ _ k (Finset.mem_univ v),
+        Finset.card_univ, hcard]
   rw [influence, integral_congr_ae hae, integral_const, probReal_univ, one_smul]
 
 @[simp]
@@ -984,7 +982,7 @@ private theorem survivalProd_mul_cascadeProbFrom_eq
     · obtain ⟨⟨u, v⟩, huv_mem, hnext⟩ := (hvalid active tried).1 hne
       rcases mem_untriedEdges.mp huv_mem with ⟨hu_act, hv_inact, hadj, hu_untried⟩
       dsimp only at hu_act hv_inact hadj hu_untried
-      let tried' := Function.update tried v (insert u (tried v))
+      set tried' := Function.update tried v (insert u (tried v)) with htried'_def
       have hm_lt : Fintype.card V * Fintype.card V - ∑ w : V, (tried' w).card < n :=
         hn ▸ card_sq_sub_sum_card_update_lt hu_untried
       have hinv_succ : ∀ w ∉ insert v active, tried' w ⊆ insert v active ∩ inNeighbors G w :=
@@ -1013,16 +1011,9 @@ private theorem survivalProd_mul_cascadeProbFrom_eq
         rw [hprod_split, mul_right_comm, ← C.survivalProb_insert v hu_untried, ← hcompl_erase,
           ← Finset.mul_prod_erase activeᶜ (fun w => C.survivalProb w (tried' w)) hv_compl]
         simp only [tried', Function.update_self]
-      rw [cascadeProbFrom]
-      simp only [hnext, huv_mem, ↓reduceDIte]
-      change (∏ w ∈ activeᶜ, C.survivalProb w (tried w)) *
-          (C.prob v u (tried v) * C.cascadeProbFrom nextEdge (insert v active) tried' A +
-            (1 - C.prob v u (tried v)) * C.cascadeProbFrom nextEdge active tried' A) =
-        F active tried
-      rw [hstep active tried hinv u v hu_act hv_inact hadj hu_untried]
-      change _ = C.prob v u (tried v) * C.survivalProb v (tried v) * F (insert v active) tried' +
-          F active tried'
-      rw [← ih_succ, ← ih_fail, ← hprod_fail, hprod_split]
+      rw [cascadeProbFrom, hstep active tried hinv u v hu_act hv_inact hadj hu_untried]
+      simp only [hnext, huv_mem, ↓reduceDIte, ← htried'_def, ← ih_succ, ← ih_fail, ← hprod_fail,
+        hprod_split]
       ring
     · have hemp := Finset.not_nonempty_iff_eq_empty.mp hne
       have htr_eq : ∀ w ∉ active, tried w = active ∩ inNeighbors G w := fun w hw =>
@@ -1096,17 +1087,13 @@ theorem activeSetProb_eq_toGeneralThresholdModel
           fun θ ⟨hsurv, hfin⟩ => hA ((hfin_const θ hsurv).symm.trans hfin)
         simp [hA, hemp_set])
     (fun active tried hinv u v hu_act hv_inact hadj hu_untried => by
-      let tried' := Function.update tried v (insert u (tried v))
+      set tried' := Function.update tried v (insert u (tried v))
       set g0 := M.thresholdFn v (tried v)
       set g1 := M.thresholdFn v (insert u (tried v))
       have hg_diff : C.prob v u (tried v) * C.survivalProb v (tried v) = g1 - g0 := by
         simp only [g0, g1, M, toGeneralThresholdModel_thresholdFn,
           C.survivalProb_insert v hu_untried]
         ring
-      change (thresholdMeasure V).real (survEvent M active tried A) =
-        C.prob v u (tried v) * C.survivalProb v (tried v) *
-          (thresholdMeasure V).real (survEvent M (insert v active) tried' A) +
-          (thresholdMeasure V).real (survEvent M active tried' A)
       rw [hg_diff]
       let E1 : Set (V → ℝ) := {θ ∈ survEvent M active tried A | θ v ≤ g1}
       let E2 : Set (V → ℝ) := survEvent M active tried' A
@@ -1188,9 +1175,8 @@ theorem activeSetProb_eq_toGeneralThresholdModel
         (fun _ : V => unitMeasure)
         (fun θ z => funext fun y => by simp only [Φ, hS_indep θ z])
         (hΦ_diag.symm ▸ (integrable_const (1 : ℝ)).indicator hmE1)
-      change ∫ θ, Φ θ (θ v) ∂thresholdMeasure V =
-        ∫ θ, ∫ z, Φ θ z ∂unitMeasure ∂thresholdMeasure V at hcalc
-      rw [hΦ_diag, integral_indicator_const _ hmE1, smul_eq_mul, mul_one] at hcalc
+      rw [← thresholdMeasure_def, hΦ_diag, integral_indicator_const _ hmE1, smul_eq_mul,
+        mul_one] at hcalc
       have hinner : ∀ θ, (∫ z, Φ θ z ∂unitMeasure) =
           (g1 - g0) * S_succ.indicator (fun _ => (1 : ℝ)) θ := fun θ => by
         simp only [Φ, integral_mul_const]
@@ -1429,8 +1415,8 @@ theorem nonprogStepInfluence_eq_toTimeLayered (T : ℕ) (t : Fin (T + 1)) (S : F
   refine integral_congr_ae ?_
   filter_upwards [ae_mem_Ioo_thresholdMeasure (V × Fin (T + 1))] with θ hθ
   congr 1
-  let emb : V ↪ V × Fin (T + 1) := ⟨fun v => (v, t), fun _ _ h => congrArg Prod.fst h⟩
-  have hemb : ∀ a, emb a = (a, t) := fun _ => rfl
+  let emb : V ↪ V × Fin (T + 1) := ⟨(·, t), fun _ _ h => congrArg Prod.fst h⟩
+  have hemb (a : V) : emb a = (a, t) := rfl
   rw [← Finset.card_map emb]
   congr 2
   ext ⟨v, s⟩

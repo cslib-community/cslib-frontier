@@ -275,11 +275,8 @@ def RegsEncode {r : ℕ} {α : Type} [WordEncoding α] {k : ℕ} (x : RData r)
 
 theorem RegsEncode.eq {r : ℕ} {α : Type} [WordEncoding α] {x : RData r}
     {s : Fin (WordEncoding.width α) → Fin r} {a : α} (h : RegsEncode x s a) :
-    x.regs ∘ s = WordEncoding.encode a := by
-  obtain ⟨hk, hf⟩ := h
-  have hk_rfl : hk = rfl := Subsingleton.elim _ _
-  subst hk_rfl
-  exact funext hf
+    x.regs ∘ s = WordEncoding.encode a :=
+  funext h.2
 
 theorem regs_reg1_eq {r : ℕ} {x : RData r} (reg : Fin r) {v : ℕ}
     (hv : x.regs reg = v) :
@@ -1015,10 +1012,7 @@ theorem execWitness {r k l : ℕ} {δ α : Type}
   obtain ⟨yd, hy_eb, hm, hout, hframe⟩ := hrun w d x.toData hx.1 hin hsafe hv
   rw [clientState_width] at hm
   rw [clientResult_width] at hout
-  have hy_fr : yd.regs rFr ≤ x.frontier := by
-    have hm_fr := congrArg Memory.State.frontier hm
-    change yd.regs rFr = _ at hm_fr
-    omega
+  have hy_fr : yd.regs rFr ≤ x.frontier := (congrArg Memory.State.frontier hm).le.trans hnoalloc
   obtain ⟨n_st, hn_st, hy_ex⟩ := hy_eb
   have hy_bdd : (⟨yd.regs, yd.mem, x.frontier⟩ : RData r).Bounded w :=
     ⟨hy_ex.bounded hx.1, hx.2.1, fun a ha =>
@@ -1245,7 +1239,7 @@ theorem update_hdr_n_preserves_split {U V w N n_old n_new n_init base : ℕ}
   · obtain ⟨h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈, h₉, -, h₁₁⟩ := hhdr
     refine ⟨h₁, h₂, h₃, ?_, ?_, ?_, ?_, ?_, ?_, Function.update_self .., ?_⟩ <;>
       exact (hout _ (by omega)).trans ‹_›
-  · rw [hgm, show compGmAt base U w N mem = _ from hcpl.gm_eq]; exact hinv.htot.trans hcard
+  · exact (congrArg (totalSlots N) (hgm.trans hcpl.gm_eq)).trans (hinv.htot.trans hcard)
 
 /-! ## Section 8: Execution of `loadActiveCtxCode` and `evalKeyHashCode` -/
 
@@ -1385,10 +1379,8 @@ theorem loadActiveCtxCode_exec {U V w N n n_init base L_peak : ℕ}
   have s9 := RDemonicExec.exactBin (f := .add) (d := rItemBase) (i := rBase)
     (j := cpReg ⟨34, by decide⟩) (w := w) (L_peak := L_peak) (x := x₈) hx₄_hL
     (v := base + offCompItems U w N)
-    (by
-      have hcp34 : x₄.regs (cpReg 34) = offCompItems U w N := hx₄_cp 34
-      simp [BinOp.evalExact, x₈, x₇, x₆, x₅, hx₄_base, hcp34,
-        Function.update_of_ne (cpReg_ne_eReg _ _)]) hfit_bi
+    (by simp [BinOp.evalExact, x₈, x₇, x₆, x₅, hx₄_base, hx₄_cp 34, mkCompParams,
+      Function.update_of_ne (cpReg_ne_eReg _ _)]) hfit_bi
   have s10 := RDemonicExec.exactBin (f := .add) (d := rFr) (i := rItemBase) (j := rCur)
     (w := w) (L_peak := L_peak) (x := x₉) hx₄_hL (v := x.frontier)
     (by simp [BinOp.evalExact, x₉, x₈, x₇, x₆, x₅, hx₄_cur, hfr_pos]) hfit_fr

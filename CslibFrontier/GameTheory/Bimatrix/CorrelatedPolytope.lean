@@ -139,8 +139,8 @@ def correlatedPolytope (G : BimatrixGame M N) : Set (Matrix M N ℝ) :=
 
 @[simp]
 theorem mem_correlatedPolytope_iff {G : BimatrixGame M N} {P : Matrix M N ℝ} :
-    P ∈ G.correlatedPolytope ↔ G.IsCorrelated P := by
-  rw [correlatedPolytope, Set.mem_ofPred_eq]
+    P ∈ G.correlatedPolytope ↔ G.IsCorrelated P :=
+  Iff.rfl
 
 theorem IsCorrelated.nonneg {G : BimatrixGame M N} {P : Matrix M N ℝ}
     (hP : G.IsCorrelated P) (i : M) (j : N) : 0 ≤ P i j :=
@@ -590,8 +590,9 @@ private theorem row_eq_sum_mul_of_tight {G : BimatrixGame M N} (hG : G.IsNondege
   set s : ℝ := ∑ j' : N, P i j'
   rcases (sum_nonneg fun j' _ => hP.nonneg i j' : 0 ≤ s).eq_or_lt with hs0 | hs_pos
   · intro j
+    dsimp only [s]
     rw [(sum_eq_zero_iff_of_nonneg fun j' _ => hP.nonneg i j').1 hs0.symm j (mem_univ j),
-      show s = 0 from hs0.symm, zero_mul]
+      ← hs0, zero_mul]
   · have hxi_pos : 0 < x i := (hx.nonneg i).lt_of_ne' fun hxi0 =>
       hs_pos.ne' (sum_eq_zero fun j' _ => hzero i j' (.inl hxi0))
     have hPi_ne : (fun j' => P i j') ≠ 0 := fun h0 => by
@@ -619,7 +620,7 @@ private theorem row_eq_sum_mul_of_tight {G : BimatrixGame M N} (hG : G.IsNondege
     have hyi_eq := hG.eq_of_support_subset_of_isPureBestResponse₁ hy hyi hsupp_yi hcard_y hbr_yi
     intro j
     calc P i j = s * (s⁻¹ * P i j) := by rw [← mul_assoc, mul_inv_cancel₀ hs_pos.ne', one_mul]
-      _ = s * y j := by rw [show s⁻¹ * P i j = y j from congrFun hyi_eq j]
+      _ = s * y j := congrArg (s * ·) (congrFun hyi_eq j)
 
 /-- **Every Nash equilibrium of a nondegenerate bimatrix game is the unique correlated-equilibrium
 maximizer of some linear objective** ([Papadimitriou2007], Section 2.7.1, p. 47): for any
@@ -650,11 +651,6 @@ theorem IsNondegenerate.exists_unique_maximizer_correlatedPolytope {G : Bimatrix
           if 0 < x i ∧ 0 < x i' then ∑ j : N, P i j * (G.A i j - G.A i' j) else 0) +
         (∑ j : N, ∑ j' : N,
           if 0 < y j ∧ 0 < y j' then ∑ i : M, P i j * (G.B i j - G.B i j') else 0) := by
-    have hW_expand : -(∑ i : M, ∑ j : N, W i j * P i j) =
-        (∑ i : M, ∑ j : N, c₁ i j * P i j) +
-        (∑ i : M, ∑ j : N, c₂ i j * P i j) +
-        (∑ i : M, ∑ j : N, c₃ i j * P i j) := by
-      simp only [W, of_apply, neg_mul, sum_neg_distrib, neg_neg, add_mul, sum_add_distrib]
     have hc₂_sum : (∑ i : M, ∑ j : N, c₂ i j * P i j) =
         ∑ i : M, ∑ i' : M,
           if 0 < x i ∧ 0 < x i' then ∑ j : N, P i j * (G.A i j - G.A i' j) else 0 :=
@@ -674,7 +670,8 @@ theorem IsNondegenerate.exists_unique_maximizer_correlatedPolytope {G : Bimatrix
           rw [sum_comm]
           exact sum_congr rfl fun j' _ => by split_ifs <;> simp [mul_comm]
         · simp [c₃, hyj]
-    rw [hW_expand, hc₂_sum, hc₃_sum]
+    simp only [W, of_apply, neg_mul, sum_neg_distrib, neg_neg, add_mul, sum_add_distrib]
+    rw [hc₂_sum, hc₃_sum]
   -- At `vecMulVec x y`, all three slack penalties vanish.
   have hopt_zero : ∑ i : M, ∑ j : N, W i j * Matrix.vecMulVec x y i j = 0 := by
     suffices -(∑ i : M, ∑ j : N, W i j * Matrix.vecMulVec x y i j) = 0 by linarith
@@ -895,36 +892,36 @@ theorem chickenGame_isNash_iff {x y : Fin 2 → ℝ} :
     rcases lt_trichotomy (y 0) (1 / 2) with hylt | hyeq | hygt
     · have hx1 : x 1 = 0 := hzero_of_lt h₁ 1 0 (by linarith)
       have hy0 : y 0 = 0 := hzero_of_lt h₂' 0 1 (by linarith)
-      exact Or.inr <| Or.inl ⟨by rw [fin2_eq_pair x, hx1, show x 0 = 1 by linarith],
-        by rw [fin2_eq_pair y, hy0, show y 1 = 1 by linarith]⟩
+      have hx0 : x 0 = 1 := by linarith
+      have hy1 : y 1 = 1 := by linarith
+      exact Or.inr <| Or.inl ⟨by rw [fin2_eq_pair x, hx0, hx1], by rw [fin2_eq_pair y, hy0, hy1]⟩
     · have hbr0 := isPureBestResponse₁_iff.1 ((isBestResponse₁_iff.1 h₂').2 0 (by linarith)) 1
       have hbr1 := isPureBestResponse₁_iff.1 ((isBestResponse₁_iff.1 h₂').2 1 (by linarith)) 0
-      exact Or.inr <| Or.inr
-        ⟨by rw [fin2_eq_pair x, show x 0 = 1 / 2 by linarith, show x 1 = 1 / 2 by linarith],
-        by rw [fin2_eq_pair y, hyeq, show y 1 = 1 / 2 by linarith]⟩
+      have hx0 : x 0 = 1 / 2 := by linarith
+      have hx1 : x 1 = 1 / 2 := by linarith
+      have hy1 : y 1 = 1 / 2 := by linarith
+      exact Or.inr <| Or.inr ⟨by rw [fin2_eq_pair x, hx0, hx1], by rw [fin2_eq_pair y, hyeq, hy1]⟩
     · have hx0 : x 0 = 0 := hzero_of_lt h₁ 0 1 (by linarith)
       have hy1 : y 1 = 0 := hzero_of_lt h₂' 1 0 (by linarith)
-      exact Or.inl ⟨by rw [fin2_eq_pair x, hx0, show x 1 = 1 by linarith],
-        by rw [fin2_eq_pair y, show y 0 = 1 by linarith, hy1]⟩
-  · have hbr (u v w z : ℝ) (hu : 0 ≤ u) (hv : 0 ≤ v) (huv : u + v = 1)
-        (h : ∀ i i' : Fin 2, 0 < (![u, v] : Fin 2 → ℝ) i →
-          (chickenGame.A *ᵥ ![w, z]) i' ≤ (chickenGame.A *ᵥ ![w, z]) i) :
-        chickenGame.IsBestResponse₁ ![u, v] ![w, z] :=
-      isBestResponse₁_iff.2 ⟨isMixedStrategy_iff.2 ⟨fun i => by fin_cases i <;> assumption,
-        by simp [Fin.sum_univ_two, huv]⟩, fun i hi => isPureBestResponse₁_iff.2 (h i · hi)⟩
-    have h01 : chickenGame.IsBestResponse₁ ![0, 1] ![1, 0] :=
-      hbr 0 1 1 0 le_rfl zero_le_one (zero_add 1) fun i i' => by
-        fin_cases i <;> fin_cases i' <;>
-          norm_num [chickenGame, mulVec, dotProduct, Fin.sum_univ_two]
-    have h10 : chickenGame.IsBestResponse₁ ![1, 0] ![0, 1] :=
-      hbr 1 0 0 1 zero_le_one le_rfl (add_zero 1) fun i i' => by
-        fin_cases i <;> fin_cases i' <;>
-          norm_num [chickenGame, mulVec, dotProduct, Fin.sum_univ_two]
-    have hhalf : chickenGame.IsBestResponse₁ ![1 / 2, 1 / 2] ![1 / 2, 1 / 2] :=
-      hbr (1 / 2) (1 / 2) (1 / 2) (1 / 2) (half_pos zero_lt_one).le (half_pos zero_lt_one).le
-        (add_halves 1) fun i i' => by
-          fin_cases i <;> fin_cases i' <;>
-            norm_num [chickenGame, mulVec, dotProduct, Fin.sum_univ_two]
+      have hx1 : x 1 = 1 := by linarith
+      have hy0 : y 0 = 1 := by linarith
+      exact Or.inl ⟨by rw [fin2_eq_pair x, hx0, hx1], by rw [fin2_eq_pair y, hy0, hy1]⟩
+  · have hbr (u v w z : ℝ)
+        (h : 0 ≤ u ∧ 0 ≤ v ∧ u + v = 1 ∧ w + z = 1 ∧
+          (0 < u → 5 * w ≤ 3 * w + 1) ∧ (0 < v → 3 * w + 1 ≤ 5 * w)) :
+        chickenGame.IsBestResponse₁ ![u, v] ![w, z] := by
+      obtain ⟨hu, hv, huv, hwz, h0, h1⟩ := h
+      have hr0 := chickenGame_mulVec_zero (y := ![w, z]) hwz
+      have hr1 := chickenGame_mulVec_one ![w, z]
+      exact isBestResponse₁_iff.2 ⟨isMixedStrategy_iff.2 ⟨Fin.forall_fin_two.2 ⟨hu, hv⟩,
+        by simp only [Fin.sum_univ_two, cons_val_zero, cons_val_one, huv]⟩,
+        Fin.forall_fin_two.2 ⟨fun hi => isPureBestResponse₁_iff.2
+          (Fin.forall_fin_two.2 ⟨le_rfl, hr1.trans_le ((h0 hi).trans_eq hr0.symm)⟩),
+          fun hi => isPureBestResponse₁_iff.2
+            (Fin.forall_fin_two.2 ⟨hr0.trans_le ((h1 hi).trans_eq hr1.symm), le_rfl⟩)⟩⟩
+    have h01 := hbr 0 1 1 0 (by norm_num)
+    have h10 := hbr 1 0 0 1 (by norm_num)
+    have hhalf := hbr (1 / 2) (1 / 2) (1 / 2) (1 / 2) (by norm_num)
     rintro (⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩)
     · exact isNash_iff.2 ⟨h01, chickenGame_isSymmetric.isBestResponse₂_iff_isBestResponse₁.2 h10⟩
     · exact isNash_iff.2 ⟨h10, chickenGame_isSymmetric.isBestResponse₂_iff_isBestResponse₁.2 h01⟩
@@ -1009,8 +1006,7 @@ theorem chickenGame_socialWelfare_le_six_of_mem_convexHull_isNash {P : Matrix (F
         a * chickenGame.socialWelfare Q₁ + b * chickenGame.socialWelfare Q₂ := by
       simp only [socialWelfare, Matrix.add_apply, Matrix.smul_apply, smul_eq_mul, add_mul,
         mul_assoc, sum_add_distrib, ← mul_sum]
-    linarith [mul_le_mul_of_nonneg_left h₁ ha, mul_le_mul_of_nonneg_left h₂ hb,
-      show a * 6 + b * 6 = (6 : ℝ) by rw [← add_mul, hab, one_mul]]
+    linarith [mul_le_mul_of_nonneg_left h₁ ha, mul_le_mul_of_nonneg_left h₂ hb]
   refine convexHull_min (fun Q hQ => ?_) hconv hP
   rcases hQ with ⟨x, y, hNash, rfl⟩
   rw [Set.mem_ofPred_eq]

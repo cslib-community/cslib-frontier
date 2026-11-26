@@ -794,8 +794,7 @@ theorem ValidBufTrie.insert_spec {cTab bChar rKey b loc : ℕ} {tr : BufTrie}
     · intro k _
       by_cases heq : k = rKey
       · simp [heq, bufEverPresent, hw_rKey, hid1]
-      · rw [ite_eq_right heq, ← htr1_eq]
-        rfl
+      · rw [ite_eq_right heq, ← htr1_eq]; rfl
     · have hact_nz : tr1.nodeActive leaf ≠ 0 := fun hact0 =>
         hmap_ne (by rw [hmap rKey hk, ← htr1_eq]; simp [bufLookup, hw_rKey, hact0])
       refine ⟨congrArg BufTrie.nodeAlloc htr1_eq, hia, fun id hnone => ?_⟩
@@ -859,9 +858,9 @@ theorem ValidBufTrie.exists_checkSlot_of_map_some {cTab bChar k b loc : ℕ} {tr
     have hleaf_lt := (bufWalk_props (fun u h1 h2 => (hedge u h1 h2).2.2.1) hiff
       cTab 0 0 leaf k halloc hd0 hwk).1
     obtain ⟨_, hle_ia, hil_eq, _⟩ := hleaf leaf hleaf_lt hcond.1
-    refine ⟨tr.nodeLeafItem leaf - 1, by omega, ?_⟩
-    simp [bufCheckSlot, show tr.nodeLeafItem leaf - 1 < tr.itemAlloc by omega, hil_eq,
-      Nat.sub_add_cancel (Nat.pos_of_ne_zero hcond.1), hcond.2]
+    have hid_lt : tr.nodeLeafItem leaf - 1 < tr.itemAlloc := by omega
+    exact ⟨_, hid_lt, by simp [bufCheckSlot, hid_lt, hil_eq,
+      Nat.sub_add_cancel (Nat.pos_of_ne_zero hcond.1), hcond.2]⟩
 
 /-! ## Section 3: Incremental single-pop cleanup (`ClearableBufTrie`, `clearSteps_spec`) -/
 
@@ -900,27 +899,23 @@ theorem ClearableBufTrie.clearOne_step {tr : BufTrie} (hc : ClearableBufTrie tr)
   by_cases hgt : 1 < tr.nodeAlloc
   · simp only [hgt, ↓reduceIte]
     set u := tr.nodeAlloc - 1; set p := tr.nodeParent u; set ch := tr.nodeChar u
-    refine ⟨⟨by dsimp; omega, fun w hw_ge => by
-        dsimp only at hw_ge ⊢
-        by_cases hw_eq : w = u
-        · subst hw_eq; simp
-        · rw [Function.update_of_ne hw_eq]; exact hzero w (by omega),
+    refine ⟨⟨by dsimp; omega,
+      fun w hw_ge => if hw_eq : w = u then by simp [hw_eq]
+        else (Function.update_of_ne hw_eq _ _).trans (hzero w (by dsimp at hw_ge; omega)),
       fun w hw1 hw_lt => by
         dsimp only at hw_lt ⊢
         obtain ⟨hp_w, hc_w⟩ := hedge w hw1 (by omega)
-        refine ⟨hp_w, ?_⟩
-        by_cases hvc : tr.nodeParent w = p ∧ tr.nodeChar w = ch
-        · have : w = u := by rw [← hc_w, hvc.1, hvc.2, (hedge u (by omega) (by omega)).2]
+        have hvc : ¬(tr.nodeParent w = p ∧ tr.nodeChar w = ch) := fun hvc => by
+          have : w = u := by rw [← hc_w, hvc.1, hvc.2, (hedge u (by omega) (by omega)).2]
           omega
-        · rw [Function.update_update_apply_of_ne hvc, hc_w],
+        exact ⟨hp_w, (Function.update_update_apply_of_ne hvc ..).trans hc_w⟩,
       fun v c hnz => by
         dsimp only at hnz ⊢
-        by_cases hvc : v = p ∧ c = ch
-        · rcases hvc with ⟨rfl, rfl⟩; simp at hnz
-        · rw [Function.update_update_apply_of_ne hvc] at hnz ⊢
-          obtain ⟨h1, h2, h3, h4⟩ := hchild v c hnz
-          have hne_u : tr.trieChild v c ≠ u := fun heq => hvc ⟨h3 ▸ heq ▸ rfl, h4 ▸ heq ▸ rfl⟩
-          exact ⟨h1, by omega, h3, h4⟩⟩, by omega⟩
+        have hvc : ¬(v = p ∧ c = ch) := fun ⟨rfl, rfl⟩ => by simp at hnz
+        rw [Function.update_update_apply_of_ne hvc] at hnz ⊢
+        obtain ⟨h1, h2, h3, h4⟩ := hchild v c hnz
+        have hne_u : tr.trieChild v c ≠ u := fun heq => hvc ⟨h3 ▸ heq ▸ rfl, h4 ▸ heq ▸ rfl⟩
+        exact ⟨h1, by omega, h3, h4⟩⟩, by omega⟩
   · simp only [hgt, ↓reduceIte]
     refine ⟨⟨le_rfl, fun w hw_ge => by
       dsimp only at hw_ge ⊢; rw [Function.update_of_ne (by omega)]; exact hzero w (by omega),
@@ -940,8 +935,7 @@ private theorem ClearableBufTrie.clearOne_of_one (cTab bChar : ℕ) {tr : BufTri
   obtain ⟨_, hzero, _, hchild⟩ := hc
   have hchild0 : ∀ v c, tr.trieChild v c = 0 := fun v c => by_contra fun hnz => by
     obtain ⟨h1, h2, _⟩ := hchild v c hnz; omega
-  dsimp only [bufClearOne]
-  simp only [show ¬ (1 < tr.nodeAlloc) by omega, ↓reduceIte]
+  simp only [bufClearOne, ha1, Nat.lt_irrefl, ↓reduceIte]
   have hz_all (w : ℕ) : Function.update tr.nodeLeafItem 0 0 w = 0 :=
     if hw0 : w = 0 then by simp [hw0]
     else (Function.update_of_ne hw0 0 tr.nodeLeafItem).trans (hzero w (by omega))
@@ -987,8 +981,7 @@ theorem ValidBufTrie.insert_nodeAlloc_le {cTab bChar rKey b loc : ℕ} {tr : Buf
   by_cases hev : bufEverPresent cTab bChar tr rKey = true
   · obtain ⟨ha_eq, hia_eq⟩ := hreuse hev; rw [ha_eq, hia_eq]; exact hlin
   · simp only [hev, Bool.false_eq_true, ↓reduceIte] at hia
-    rw [hia, Nat.mul_add, Nat.mul_one]
-    omega
+    rw [hia, Nat.mul_add, Nat.mul_one]; omega
 
 end Cslib.DataStructure.Dictionary.SuccinctWhp
 

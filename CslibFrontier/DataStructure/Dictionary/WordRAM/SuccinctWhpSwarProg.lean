@@ -413,9 +413,9 @@ theorem totalBTreeNodesWhp_le_n_max {c n_max : ℕ} (hth : whpThreshold c ≤ n_
   have hq_ge : 6400 ≤ q := by omega
   have hm_lt_pow : m < 2 ^ (Nat.log 2 q + 11) := by
     have hq_lt := Nat.lt_pow_succ_log_self Nat.one_lt_two q
-    rw [show 11 = 1 + 10 from rfl, ← Nat.add_assoc, Nat.pow_add]
     have hm_lt : m < (q + 1) * 1024 := by dsimp only [q]; omega
-    exact hm_lt.trans_le (Nat.mul_le_mul_right 1024 hq_lt)
+    exact hm_lt.trans_le
+      ((Nat.mul_le_mul_right 1024 hq_lt).trans_eq (by rw [Nat.pow_add, Nat.pow_succ]; ring))
   have hlog_m : Nat.log 2 m ≤ Nat.log 2 q + 10 :=
     Nat.le_of_lt_succ (Nat.log_lt_of_lt_pow (by omega : m ≠ 0) hm_lt_pow)
   have hn4 : 4 ≤ n_max := by
@@ -1054,8 +1054,6 @@ theorem realizes_splitFullNodeGen :
     have ht8 := eight_le_tMinWhp hth
     have hkw_lt : 2 * tMinWhp n_max * keyLaneBitsWhp n_max < w := henv.keysWordBits_lt_w
     have hvw_lt : 2 * tMinWhp n_max * valLaneBitsWhp n_max < w := henv.valsWordBits_lt_w
-    have h2t_lt : 2 * tMinWhp n_max < w :=
-      (Nat.le_mul_of_pos_right _ (by unfold keyLaneBitsWhp; positivity)).trans_lt hkw_lt
     have hkl_ge2 : 2 ≤ keyLaneBitsWhp n_max := by unfold keyLaneBitsWhp fpBitsWhp; omega
     have hkl_lt : keyLaneBitsWhp n_max < w :=
       (Nat.le_mul_of_pos_left _ (by omega)).trans_lt hkw_lt
@@ -1227,7 +1225,6 @@ theorem resetBTreeSliceGenProg_spec {c U V w n_max base sIdx : ℕ}
       packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w ≤
       base + largeSpaceWhp c U V w n_max := by omega
   have hgk : globalPtrBits n_max ≤ w := globalPtrBits_le_w hnU hU
-  have hg_pos : 0 < globalPtrBits n_max := globalPtrBits_pos_of_large hth
   have h0_lt : 0 < 2 ^ globalPtrBits n_max := Nat.two_pow_pos _
   set idxA := 16 * (sIdx / 3) + 10 + 2 * (sIdx % 3)
   set idxR := 16 * (sIdx / 3) + 11 + 2 * (sIdx % 3)
@@ -1244,12 +1241,9 @@ theorem resetBTreeSliceGenProg_spec {c U V w n_max base sIdx : ℕ}
           ((((base, offBktMeta c U V w n_max), (globalPtrBits n_max, w)), idxR), 0)) =
       { mem := mem₂, frontier := s.frontier } := rfl
   have hout : ∀ a, a < base + offBktMeta c U V w n_max ∨ base + offFbStart c U V w n_max ≤ a →
-      mem₂ a = s.mem a := fun a ha => by
-    have hdisj : a < base + offBktMeta c U V w n_max ∨
-        base + offBktMeta c U V w n_max +
-          packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w ≤ a := by omega
-    exact (writePacked_outside hw _ hidxR _ (by cases hdisj <;> omega)).trans
-      (writePacked_outside hw _ hidxA _ (by cases hdisj <;> omega))
+      mem₂ a = s.mem a := fun a ha =>
+    (writePacked_outside hw _ hidxR _ (by omega)).trans
+      (writePacked_outside hw _ hidxA _ (by omega))
   have hother_bm : ∀ idx < 16 * numBucketsWhp n_max, idx ≠ idxA → idx ≠ idxR →
       readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w mem₂ idx =
         readPacked (base + offBktMeta c U V w n_max) (globalPtrBits n_max) w s.mem idx :=
