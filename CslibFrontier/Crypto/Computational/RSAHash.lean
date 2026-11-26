@@ -283,8 +283,7 @@ private theorem rsaEval_rsaHashRoot_of_isCollisionFor (desc : RSADesc) (he : des
     rsaEval desc.modulus desc.e (rsaHashRoot desc.modulus desc.e y (rsaHashDecoder.decode m₁).1
       (rsaHashDecoder.decode m₁).2 (rsaHashDecoder.decode m₂).1 (rsaHashDecoder.decode m₂).2) =
       y := by
-  rw [isCollisionFor_eq_true_iff] at hcoll
-  obtain ⟨hv₁, hv₂, hne, hH⟩ := hcoll
+  obtain ⟨hv₁, hv₂, hne, hH⟩ := isCollisionFor_eq_true_iff.mp hcoll
   simp only [validRSAHashInput, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at hv₁ hv₂
   obtain ⟨⟨⟨hc₁, ha₁⟩, hu₁⟩, hb₁⟩ := hv₁
   obtain ⟨⟨⟨hc₂, ha₂⟩, hu₂⟩, hb₂⟩ := hv₂
@@ -295,13 +294,10 @@ private theorem rsaEval_rsaHashRoot_of_isCollisionFor (desc : RSADesc) (he : des
   set b' := (rsaHashDecoder.decode m₂).2
   have hmod : a ^ desc.e * y ^ b ≡ a' ^ desc.e * y ^ b' [MOD desc.modulus] := by
     rwa [Nat.ModEq, Nat.mul_mod, Nat.mul_mod (a' ^ desc.e)]
-  have hbb' : b ≠ b' := by
-    intro hbb
-    rw [← hbb] at hmod
-    have hae : a ^ desc.e ≡ a' ^ desc.e [MOD desc.modulus] :=
-      Nat.ModEq.cancel_right_of_coprime (Nat.Coprime.symm (Nat.Coprime.pow_left b hyN)) hmod
-    have haa : a = a' := congrArg Fin.val
-      ((rsaEval_bijective_fin desc).injective (a₁ := ⟨a, ha₁⟩) (a₂ := ⟨a', ha₂⟩) (Fin.ext hae))
+  have hbb' : b ≠ b' := fun hbb => by
+    have haa : a = a' := congrArg Fin.val ((rsaEval_bijective_fin desc).injective
+      (a₁ := ⟨a, ha₁⟩) (a₂ := ⟨a', ha₂⟩)
+      (Fin.ext (Nat.ModEq.cancel_right_of_coprime (hyN.pow_left b).symm (hbb ▸ hmod))))
     exact hne (hc₁.symm.trans ((congrArg (encPair encNat encNat) (Prod.ext haa hbb)).trans hc₂))
   have hef : Nat.Coprime desc.e (b.dist b') :=
     (Nat.Prime.coprime_iff_not_dvd he).mpr
@@ -331,9 +327,8 @@ theorem succProbability_collisionGameFor_rsaHash_le_rsaUnitInversionGame (gen : 
   have hchal (x : (ZMod desc.modulus)ˣ) :
       desc.publicKey.eval (desc.unitResidue x) = desc.unitResidue (x ^ desc.e) := by
     ext
-    rw [RSAPublicKey.val_eval]
-    simp only [RSADesc.unitResidue, rsaEval, Units.val_pow_eq_pow_val]
-    rw [← ZMod.val_natCast, Nat.cast_pow, ZMod.natCast_zmod_val]
+    simp only [RSAPublicKey.val_eval, RSADesc.unitResidue, rsaEval, Units.val_pow_eq_pow_val,
+      ← ZMod.val_natCast, Nat.cast_pow, ZMod.natCast_zmod_val]
   have hwin (x : (ZMod desc.modulus)ˣ) (r : Fin desc.modulus) :
       r = desc.unitResidue x ↔
         rsaEval desc.modulus desc.e r = (desc.unitResidue (x ^ desc.e) : ℕ) := by
@@ -348,13 +343,12 @@ theorem succProbability_collisionGameFor_rsaHash_le_rsaUnitInversionGame (gen : 
     (congrArg (· true)
       (PMF.uniformOfFintype_bind_bijective (rsaEval_bijective_units desc) (k := G)
         fun x => ?_).symm)
-  · refine PMF.bind_apply_mono_on_support _ true fun y _ => ?_
-    refine PMF.bind_apply_mono_on_support _ true fun pair _ => ?_
+  · refine PMF.bind_apply_mono_on_support _ true fun y _ =>
+      PMF.bind_apply_mono_on_support _ true fun pair _ => ?_
     by_cases hcoll : isCollisionFor (Param := RSAHashKey) (Digest := fun _ => ℕ) rsaHash
         validRSAHashInput n ⟨desc.publicKey, (y : ZMod desc.modulus).val⟩ pair.1 pair.2 = true
-    · have hroot := rsaEval_rsaHashRoot_of_isCollisionFor desc (hprime desc hdesc)
-        (ZMod.val_lt _) (ZMod.val_coe_unit_coprime y) hcoll
-      exact (PMF.coe_le_one _ _).trans_eq (by simp [hroot])
+    · simp only [hcoll, rsaEval_rsaHashRoot_of_isCollisionFor desc (hprime desc hdesc)
+          (ZMod.val_lt _) (ZMod.val_coe_unit_coprime y) hcoll, decide_true, le_refl]
     · simp [Bool.eq_false_iff.mpr hcoll]
   · simp only [G, hwin, hchal]
     rfl

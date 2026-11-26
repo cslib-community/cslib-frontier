@@ -156,16 +156,14 @@ private theorem extend_eq_add_lcpLen (w : Array α) (j i h : ℕ) :
     extend w j i h = h + List.lcpLen (w.toList.drop (j + h)) (w.toList.drop (i + h)) := by
   fun_induction extend w j i h with
   | case1 h hlt heq ih =>
-    rw [ih, List.drop_eq_getElem_cons (i := j + h) (l := w.toList) (by simpa using hlt.1),
-      List.drop_eq_getElem_cons (i := i + h) (l := w.toList) (by simpa using hlt.2),
+    rw [ih, List.drop_eq_getElem_cons hlt.1, List.drop_eq_getElem_cons hlt.2,
       Array.getElem_toList, Array.getElem_toList, heq, List.lcpLen_cons_cons_self,
-      show j + (h + 1) = j + h + 1 by omega, show i + (h + 1) = i + h + 1 by omega]
+      ← Nat.add_assoc, ← Nat.add_assoc]
     omega
   | case2 h hlt hne =>
-    rw [List.drop_eq_getElem_cons (i := j + h) (l := w.toList) (by simpa using hlt.1),
-      List.drop_eq_getElem_cons (i := i + h) (l := w.toList) (by simpa using hlt.2),
-      Array.getElem_toList, Array.getElem_toList, List.lcpLen_cons_cons]
-    simp only [hne, ↓reduceIte, Nat.add_zero]
+    rw [List.drop_eq_getElem_cons hlt.1, List.drop_eq_getElem_cons hlt.2,
+      Array.getElem_toList, Array.getElem_toList, List.lcpLen_cons_cons, ite_eq_right hne,
+      Nat.add_zero]
   | case3 h hlt =>
     have h1 := List.lcpLen_le_length_left (w.toList.drop (j + h)) (w.toList.drop (i + h))
     have h2 := List.lcpLen_le_length_right (w.toList.drop (j + h)) (w.toList.drop (i + h))
@@ -255,9 +253,8 @@ private theorem kasaiLoop_spec {w : Array α} {sa rk : Array ℕ}
     fun r r' hr hr' h => (hsa.nodup.getElem_inj_iff (i := r) (j := r')
       (hi := by simpa using hr) (hj := by simpa using hr')).1
       (by simpa only [Array.getElem_toList] using h)
-  have hsalt : ∀ (r : ℕ) (hr : r < sa.size), sa[r] < w.size := fun r hr => by
-    have := hsa.getElem_lt (r := r) (by simpa using hr)
-    simpa only [Array.getElem_toList, Array.length_toList] using this
+  have hsalt : ∀ (r : ℕ) (hr : r < sa.size), sa[r] < w.size := fun r hr =>
+    by simpa only [Array.getElem_toList, Array.length_toList] using hsa.getElem_lt hr
   have hrank : ∀ {i : ℕ}, i < w.size →
       ∃ r, ∃ hr : r < sa.size, sa[r] = i ∧ rk[i]! = r := fun {i} hiw => by
     obtain ⟨r, hr, hri⟩ := hsa.exists_getElem_eq (by simpa only [Array.length_toList] using hiw)
@@ -300,14 +297,13 @@ private theorem kasaiLoop_spec {w : Array α} {sa rk : Array ℕ}
     · simp only [hrki, hext, Array.set!_eq_setIfInBounds]
       rcases eq_or_ne r r' with rfl | hrr
       · rw [Array.getElem_setIfInBounds_self]
-      · rw [Array.getElem_setIfInBounds_ne (by omega) hrr]
+      · have hr'lcp : r' < lcp.size := by omega
+        rw [Array.getElem_setIfInBounds_ne hr'lcp hrr]
         exact hdone r' hr' (hprev hr hr' hri hrr hr'd)
   | case3 i h lcp hiw =>
-    apply List.ext_getElem (by simp only [Array.length_toList, length_lcpArray]; omega)
-    intro r h1 h2
-    simp only [Array.length_toList] at h1
-    rw [Array.getElem_toList]
-    exact hdone r (by omega) (Or.inr (by have := hsalt r (by omega); omega))
+    refine List.ext_getElem (by simp [hsize, hsa.length_eq]) fun r h1 _ => ?_
+    have hr : r < sa.size := by simp only [Array.length_toList] at h1; omega
+    exact hdone r hr (Or.inr ((hsalt r hr).trans_le (not_lt.mp hiw)))
 
 /-- **Correctness of Kasai et al.'s algorithm**: on a suffix array, `kasaiArray` returns the LCP
 array. -/
@@ -315,9 +311,8 @@ theorem kasaiArray_toList {w : Array α} {sa : Array ℕ} (hsa : IsSuffixArray w
     (kasaiArray w sa).toList = lcpArray w.toList sa.toList := by
   refine kasaiLoop_spec hsa (fun r hr => ?_) (Nat.zero_le _) Array.size_replicate
     (fun _ _ _ => Nat.zero_le _) (fun r hr hr0 => ?_)
-  · have := getElem!_rankArray (n := w.size) hsa.nodup (fun i hi => by
-      simpa only [Array.length_toList] using hsa.mem_iff.mp hi) (r := r) (by simpa using hr)
-    simpa only [Array.getElem_toList] using this
+  · simpa only [Array.getElem_toList] using getElem!_rankArray (n := w.size) hsa.nodup
+      (fun i hi => by simpa only [Array.length_toList] using hsa.mem_iff.mp hi) hr
   · rcases hr0 with rfl | hlt
     · rw [Array.getElem_replicate, getElem_lcpArray_zero]
     · omega

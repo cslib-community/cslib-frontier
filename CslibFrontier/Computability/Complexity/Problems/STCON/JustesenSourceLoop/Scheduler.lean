@@ -231,10 +231,9 @@ theorem configurationJustesenSeedScheduler_replay {k : ℕ} {State : Type} [Fint
   change (NondeterministicQueryMachine.retain e family (configurationFieldContext ntm c [])).replay
     w bits (e.symm (field, entered.init)) = (field, entered.run w bits)
   rw [NondeterministicQueryMachine.replay_retain]
-  have hentry : (family field).withInit entered.init = entered :=
-    SeedSchedulerMachine.machine_withInit empty setup (justesenSeedSchedulerScan ntm c)
-      (fun request => justesenSourceLoopEntryOfRequest request field) SourceRoundLoop.reply
-  exact congrArg (fun M : NondeterministicQueryMachine _ => (field, M.run w bits)) hentry
+  exact congrArg (fun M : NondeterministicQueryMachine _ => (field, M.run w bits))
+    (SeedSchedulerMachine.machine_withInit empty setup (justesenSeedSchedulerScan ntm c)
+      (fun request => justesenSourceLoopEntryOfRequest request field) SourceRoundLoop.reply)
 
 private theorem justesenSeedSchedulerScan_withInit_of_valid {k : ℕ} {State : Type}
     [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool)
@@ -282,11 +281,8 @@ theorem configurationJustesenSeedSchedulerScan_existsUnique_firstHalting
     (configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w).2⟩
   let context : JustesenSourceContext :=
     ⟨configurationJustesenSubdivisionContext ntm c w seed.val, source.val, target.val⟩
-  let loop := justesenSourceLoop ntm c context n
-  let entered := scan.withInit entry
-  change entered = loop at hreenter
-  change ∃! bits, entered.FirstHalting w bits entered.init ∧
-    (SourceRoundLoop.reply (entered.run w bits)).isSome
+  change ∃! bits, (scan.withInit entry).FirstHalting w bits (scan.withInit entry).init ∧
+    (SourceRoundLoop.reply ((scan.withInit entry).run w bits)).isSome
   rw [hreenter]
   exact (existsUnique_congr (justesenSourceLoop_firstHalting_reply_iff ntm c context n w)).mpr
     (configurationJustesenSourceLoop_existsUnique_firstHalting ntm c w seed source target)
@@ -613,21 +609,13 @@ theorem configurationJustesenSeedScheduler_acceptCount {k : ℕ} {State : Type}
       exact ⟨rfl, hreach.mp hhit⟩
     · rintro ⟨rfl, hmem⟩
       exact ⟨hfirst, answer, hreply, hreach.mpr hmem⟩
-  have hset : {trace : List Bool |
-      M.FirstHalting w trace entry ∧ M.accept (M.replay w trace entry) = true} =
-        if I ∈ STCON then {bits} else ∅ := by
-    ext trace
-    rw [Set.mem_ofPred_eq, htrace]
-    by_cases h : I ∈ STCON <;> simp [h]
   rw [← Nat.cast_inj (R := ℕ∞)]
   calc
     _ = {trace : List Bool |
         M.FirstHalting w trace entry ∧ M.accept (M.replay w trace entry) = true}.encard :=
       R.acceptCount_eq_encard_firstHalting w hclock
     _ = _ := by
-      rw [hset]
-      change (if I ∈ STCON then ({bits} : Set (List Bool)) else ∅).encard =
-        ↑(if I ∈ STCON then (1 : ℕ) else 0)
-      by_cases hmem : I ∈ STCON <;> simp [hmem]
+      simp only [htrace]
+      by_cases hmem : I ∈ STCON <;> simp [I, hmem]
 
 end Cslib.Complexity.STCON

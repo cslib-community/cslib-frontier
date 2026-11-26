@@ -92,7 +92,8 @@ private theorem lintegral_eq_lintegral_ennreal_lt {α : Type*} [MeasurableSpace 
     simp only [Pi.one_apply, lintegral_const, MeasurableSet.univ, Measure.restrict_apply,
       Set.univ_inter, one_mul]
     by_cases htop : f x = ⊤
-    · rw [show Tx = Set.Ioi 0 by ext t; simp [Tx, htop], Real.volume_Ioi, htop]
+    · have hset : Tx = Set.Ioi 0 := Set.ext fun t => by simp [Tx, htop]
+      rw [hset, Real.volume_Ioi, htop]
     · have hset : Tx = Set.Ioo 0 (f x).toReal := Set.ext fun t =>
         and_congr_right fun ht0 => ENNReal.ofReal_lt_iff_lt_toReal ht0.le htop
       rw [hset, Real.volume_Ioo, sub_zero, ENNReal.ofReal_toReal htop]
@@ -349,10 +350,9 @@ theorem add_prod {α : Type*} [MeasurableSpace α] [Preorder α] [AddCommMonoid 
     StochasticallyDominates ((μ₁.prod μ₂).map fun p => p.1 + p.2)
       ((ν₁.prod ν₂).map fun p => p.1 + p.2) := by
   intro U hUm hU
-  have hpre : MeasurableSet {p : α × α | p.1 + p.2 ∈ U} := measurable_add hUm
-  rw [Measure.map_apply measurable_add hUm, Measure.map_apply measurable_add hUm]
-  change (ν₁.prod ν₂) {p : α × α | p.1 + p.2 ∈ U} ≤ (μ₁.prod μ₂) {p : α × α | p.1 + p.2 ∈ U}
-  rw [Measure.prod_apply hpre, Measure.prod_apply hpre]
+  have hpre : MeasurableSet ((fun p : α × α => p.1 + p.2) ⁻¹' U) := measurable_add hUm
+  rw [Measure.map_apply measurable_add hUm, Measure.map_apply measurable_add hUm,
+    Measure.prod_apply hpre, Measure.prod_apply hpre]
   calc
     ∫⁻ x, ν₂ (Prod.mk x ⁻¹' {p : α × α | p.1 + p.2 ∈ U}) ∂ν₁
       ≤ ∫⁻ x, μ₂ (Prod.mk x ⁻¹' {p : α × α | p.1 + p.2 ∈ U}) ∂ν₁ := by
@@ -631,9 +631,8 @@ theorem toMeasure [MeasurableSpace α] (h : StochasticallyDominates p q) :
 theorem tsum_mul_le (h : StochasticallyDominates p q) {f : α → ℝ≥0∞} (hf : Monotone f) :
     ∑' x, q x * f x ≤ ∑' x, p x * f x := by
   let _ : MeasurableSpace α := ⊤
-  have hl := h.toMeasure.lintegral_le measurable_from_top hf
-  rwa [PMF.lintegral_toMeasure p measurable_from_top,
-    PMF.lintegral_toMeasure q measurable_from_top] at hl
+  simpa only [PMF.lintegral_toMeasure _ measurable_from_top] using
+    h.toMeasure.lintegral_le measurable_from_top hf
 
 /-- Real-valued expectation inequality for stochastically ordered `PMF`s and integrable monotone
 functions. -/
@@ -722,10 +721,8 @@ theorem stochasticallyDominates_iff_toMeasure {α : Type*} [Preorder α] [Measur
     StochasticallyDominates p q ↔
       Cslib.Probability.StochasticallyDominates p.toMeasure q.toMeasure := by
   refine ⟨StochasticallyDominates.toMeasure, fun h U hU => ?_⟩
-  have hUm : MeasurableSet U := hupper U hU
-  rw [← PMF.toMeasure_apply_eq_toOuterMeasure_apply p hUm,
-    ← PMF.toMeasure_apply_eq_toOuterMeasure_apply q hUm]
-  exact h U hUm hU
+  simpa only [PMF.toMeasure_apply_eq_toOuterMeasure_apply _ (hupper U hU)] using
+    h U (hupper U hU) hU
 
 /-- Equivalence between `PMF.StochasticallyDominates` on `ℕ` and `Measure`-level stochastic
 domination on `p.toMeasure`. -/
@@ -777,7 +774,6 @@ theorem stochasticallyDominates_bool_iff {p q : PMF Bool} :
           StochasticallyDominates.compl_le_of_le (p := q) (q := p) (U := ∅) (by simp)
       · have hUs : U = {true} := Set.ext fun b => by cases b <;> simp [ht, hf]
         simpa [hUs, PMF.toOuterMeasure_apply_singleton] using h
-    · have hUe : U = ∅ := Set.eq_empty_iff_forall_notMem.mpr fun b => mt (hU (Bool.le_true b)) ht
-      simp [hUe]
+    · simp [Set.eq_empty_iff_forall_notMem.mpr fun b => mt (hU (Bool.le_true b)) ht]
 
 end Cslib.Probability.PMF

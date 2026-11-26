@@ -218,21 +218,16 @@ theorem advantage_blindedCDHGame_cdhGame_le (setup : ℕ → PMF F.Desc)
     Game.advantage (F.blindedCDHGame setup adversary n)
       (F.cdhGame setup (F.blindedCDHToCDHAdversary adversary) n) ≤ 2 / 2 ^ n := by
   refine Game.advantage_withSetup_le _ _ _ fun d _ => ?_
-  have hred : ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
-        (F.blindedCDHToCDHAdversary adversary n d)) =
-      (ProbComp.eval (F.sampleExp n d)).bind fun μ =>
-        (ProbComp.eval (F.sampleExp n d)).bind fun ν =>
-          ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
-            (blindedCDHToCDHWith (F.order d) (F.generator d) (adversary n d)
-              (μ : ZMod (F.order d)) (ν : ZMod (F.order d)))) := by
-    refine (eval_cdhExperiment_bind _ _ (F.sampleExp n d) fun μ s t => do
-      let ν ← F.sampleExp n d
-      blindedCDHToCDHWith (F.order d) (F.generator d) (adversary n d) (μ : ZMod (F.order d))
-        (ν : ZMod (F.order d)) s t).trans ?_
-    refine congrArg (PMF.bind _) (funext fun μ => ?_)
-    exact eval_cdhExperiment_bind _ _ (F.sampleExp n d) fun ν =>
-      blindedCDHToCDHWith (F.order d) (F.generator d) (adversary n d) (μ : ZMod (F.order d))
-        (ν : ZMod (F.order d))
+  have hred := (eval_cdhExperiment_bind (F.order d) (F.generator d) (F.sampleExp n d)
+      fun μ s t => do
+        let ν ← F.sampleExp n d
+        blindedCDHToCDHWith (F.order d) (F.generator d) (adversary n d) (μ : ZMod (F.order d))
+          (ν : ZMod (F.order d)) s t).trans
+    (congrArg (PMF.bind _) (funext fun μ =>
+      eval_cdhExperiment_bind _ _ (F.sampleExp n d) fun ν =>
+        blindedCDHToCDHWith (F.order d) (F.generator d) (adversary n d) (μ : ZMod (F.order d))
+          (ν : ZMod (F.order d))))
+  unfold blindedCDHToCDHAdversary
   rw [Experiment.advantage, eval_blindedCDHExperiment, hred, Game.advantage_comm]
   exact F.advantage_bind_sampleExp_pair_le n d fun μ ν =>
     ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
@@ -438,26 +433,16 @@ theorem succProbability_blindedCDHPairGame_le (setup : ℕ → PMF F.Desc)
     Game.succProbability (F.blindedCDHPairGame setup adversary n) ≤
       Game.succProbability (F.cdhGame setup (F.blindedCDHPairToCDHAdversary adversary) n) +
         1 / 2 ^ n := by
-  have h₁ : Game.succProbability (F.blindedCDHPairGame setup adversary n) ≤
-      Game.succProbability ((setup n).bind fun d =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun μ =>
-          ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
-            (blindedCDHPairToCDHWith (F.order d) (F.generator d) (adversary n d) μ))) :=
-    Game.succProbability_mono (PMF.bind_apply_mono_on_support _ _ fun d _ =>
-      eval_blindedCDHPairExperiment_true_le _ _ _)
-  have h₂ : Game.advantage ((setup n).bind fun d =>
-        (PMF.uniformOfFintype (ZMod (F.order d))).bind fun μ =>
-          ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
-            (blindedCDHPairToCDHWith (F.order d) (F.generator d) (adversary n d) μ)))
-      (F.cdhGame setup (F.blindedCDHPairToCDHAdversary adversary) n) ≤ 1 / 2 ^ n := by
-    refine Game.advantage_bind_le_of_support (setup n) _ _ fun d _ => ?_
-    erw [eval_cdhExperiment_bind _ _ (F.sampleExp n d) fun μ =>
-      blindedCDHPairToCDHWith (F.order d) (F.generator d) (adversary n d) (μ : ZMod (F.order d)),
-      Game.advantage_comm]
-    exact F.advantage_bind_sampleExp_le n d fun μ =>
-      ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
-        (blindedCDHPairToCDHWith (F.order d) (F.generator d) (adversary n d) μ))
-  exact h₁.trans (Game.succProbability_le_add_of_advantage_le h₂)
+  refine (Game.succProbability_mono (PMF.bind_apply_mono_on_support _ _ fun d _ =>
+    eval_blindedCDHPairExperiment_true_le _ _ _)).trans
+    (Game.succProbability_le_add_of_advantage_le ?_)
+  refine Game.advantage_bind_le_of_support (setup n) _ _ fun d _ => ?_
+  erw [eval_cdhExperiment_bind _ _ (F.sampleExp n d) fun μ =>
+    blindedCDHPairToCDHWith (F.order d) (F.generator d) (adversary n d) (μ : ZMod (F.order d)),
+    Game.advantage_comm]
+  exact F.advantage_bind_sampleExp_le n d fun μ =>
+    ProbComp.eval (cdhExperiment (F.order d) (F.generator d)
+      (blindedCDHPairToCDHWith (F.order d) (F.generator d) (adversary n d) μ))
 
 /-- **[BonehShoup2023], Lemma 21.8**, Section 21.11.5, p. 911: under the CDH assumption, every PPT
 adversary wins the two-point blinded CDH game with negligible probability. -/

@@ -262,7 +262,7 @@ theorem advantage_uniform_bind_of_eq_of_ne {q : ℕ} [NeZero q] (x₀ : ZMod q)
   have hadv := advantage_bind_le_succProbability_bind (PMF.uniformOfFintype (ZMod q)) g₁ g₂ err
     fun x => by
       by_cases hx : x = x₀
-      · rw [show err x true = 1 by simp [err, hx]]
+      · simp only [err, hx, decide_true, PMF.pure_apply, ↓reduceIte]
         exact ⟨le_add_of_le_right (PMF.coe_le_one _ _),
           le_add_of_le_right (PMF.coe_le_one _ _)⟩
       · rw [heq x hx]; exact ⟨le_self_add, le_self_add⟩
@@ -333,21 +333,17 @@ theorem runFinderOracle_true_of_good {α : Type} (o₂ : List Bool → List Bool
     ∀ (s : Option (List Bool)), s.elim false isGood = true →
       runFinderOracle o₂ isBad extract prog s isGood true = 1 := by
   induction prog using OracleComp.induction with
-  | pure a =>
-    intro s hs
-    simp [hs]
+  | pure a => exact fun s hs => by simp [hs]
   | query_bind q k ih =>
+    intro s hs
     rw [PFunctor.FreeM.bind_eq_bind]
     rcases q with m | req
-    · intro s hs
-      rw [runFinderOracle_query_inl, PMF.bind_apply]
+    · rw [runFinderOracle_query_inl, PMF.bind_apply]
       simp_rw [ih _ s hs, mul_one, PMF.tsum_coe]
-    · intro s hs
-      rw [runFinderOracle_query_inr]
-      apply ih
-      by_cases hb : isBad req.2 = true
-      · simp [hb, hbad_good req.2 hb]
-      · simp [hb, hs]
+    · rw [runFinderOracle_query_inr]
+      cases hb : isBad req.2
+      · exact ih _ s hs
+      · exact ih _ _ (hbad_good req.2 hb)
 
 /-- **Finder-oracle until-bad bound**: if `o₁ req = o₂ req` whenever `isBad req = false` and every
 query with `isBad req = true` satisfies `isGood (extract req) = true`, then the difference between
@@ -380,14 +376,11 @@ theorem runStatelessOracle_le_runFinderOracle {α : Type}
       · exact le_of_le_of_eq (tsum_le_tsum fun x => mul_le_mul_of_nonneg_left (ih x).2 zero_le)
           (by simp only [mul_add, tsum_add])
     · rw [runStatelessOracle_query_inr, runStatelessOracle_query_inr, runFinderOracle_query_inr]
-      by_cases hb : isBad req.2 = true
-      · simp only [hb, ↓reduceIte]
-        rw [runFinderOracle_true_of_good o₂ isBad extract isGood hbad_good (k (o₂ req.2))
-          (some (extract req.2)) (hbad_good req.2 hb)]
+      cases hb : isBad req.2
+      · simpa only [Bool.false_eq_true, ↓reduceIte, hagree req.2 hb] using ih (o₂ req.2)
+      · simp only [↓reduceIte, runFinderOracle_true_of_good o₂ isBad extract isGood hbad_good
+          (k (o₂ req.2)) (some (extract req.2)) (hbad_good req.2 hb)]
         exact ⟨le_add_of_le_right (PMF.coe_le_one _ _),
           le_add_of_le_right (PMF.coe_le_one _ _)⟩
-      · simp only [Bool.not_eq_true] at hb
-        simp only [hb, Bool.false_eq_true, ↓reduceIte, hagree req.2 hb]
-        exact ih (o₂ req.2)
 
 end Cslib.Crypto.Game

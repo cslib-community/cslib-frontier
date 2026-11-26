@@ -64,12 +64,11 @@ theorem scopeLength_append_last_argument (F : CSP Rel V) (r : Rel)
   unfold scopeLength
   simp only [List.map_append, List.map_singleton, List.length_append, List.length_singleton]
   by_cases hi : i < F.length
-  · rw [List.getD_append _ _ _ _ (by simpa only [List.length_map] using hi),
-      List.getD_append _ _ _ _ (by simpa only [List.length_map] using hi), ite_eq_right (by omega)]
+  · have hi₁ : i < (F.map fun c => c.scope.length).length := by simp [hi]
+    rw [List.getD_append _ _ _ _ hi₁, List.getD_append _ _ _ _ hi₁, ite_eq_right hi.ne]
     omega
-  · rw [List.getD_append_right _ _ _ _ (by simpa only [List.length_map] using Nat.le_of_not_gt hi),
-      List.getD_append_right _ _ _ _ (by simpa only [List.length_map] using Nat.le_of_not_gt hi)]
-    simp only [List.length_map]
+  · have hi₁ : (F.map fun c => c.scope.length).length ≤ i := by simpa using hi
+    rw [List.getD_append_right _ _ _ _ hi₁, List.getD_append_right _ _ _ _ hi₁, List.length_map]
     rcases eq_or_ne i F.length with rfl | he
     · simp
     · obtain ⟨k, hk⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : i - F.length ≠ 0)
@@ -79,8 +78,9 @@ omit [DecidableEq V] in
 /-- The last declared constraint has its literal supplied scope length, including zero. -/
 theorem scopeLength_last_constraint (F : CSP Rel V) (r : Rel) (scope : List V) :
     scopeLength (F ++ [Constraint.mk r scope]) F.length = scope.length := by
+  have hle : (F.map fun c => c.scope.length).length ≤ F.length := by simp
   unfold scopeLength
-  rw [List.map_append, List.map_singleton, List.getD_append_right _ _ _ _ (by simp)]
+  rw [List.map_append, List.map_singleton, List.getD_append_right _ _ _ _ hle]
   simp
 
 omit [DecidableEq V] in
@@ -103,10 +103,10 @@ theorem argumentNextIndex_append_last_argument (F : CSP Rel V) (r : Rel)
       have h := argumentPositions_nodup (F ++ [Constraint.mk r (scope ++ [v])])
       rw [argumentPositions_append_last_argument] at h
       exact fun hm => (List.nodup_append.mp h).2.2 _ hm _ (by simp) rfl
+    have hlt : j + 1 < scope.length + 1 := by omega
     unfold argumentNextIndex
-    rw [hi, scopeLength_last_constraint]
-    simp only [List.length_append, List.length_singleton]
-    rw [ite_eq_left (by omega), hj, argumentPositions_append_last_argument,
+    rw [hi, scopeLength_last_constraint, List.length_append, List.length_singleton,
+      ite_eq_left hlt, hj, argumentPositions_append_last_argument,
       List.idxOf_append_of_notMem hnot]
     simp [argumentPositions]
   · rw [ite_eq_right hlast]
@@ -114,15 +114,16 @@ theorem argumentNextIndex_append_last_argument (F : CSP Rel V) (r : Rel)
     unfold argumentNextIndex
     rw [argumentPositions_append_last_argument, scopeLength_append_last_argument]
     rcases eq_or_ne o.1.val F.length with hi | hi
-    · have hlen : scopeLength (F ++ [Constraint.mk r scope]) o.1 = scope.length := by
-        simpa only [hi] using scopeLength_last_constraint F r scope
-      have hj : o.2.val + 1 < scopeLength (F ++ [Constraint.mk r scope]) o.1 := by
+    · have hj : o.2.val + 1 < scopeLength (F ++ [Constraint.mk r scope]) o.1 := by
         have hlt : o.2.val < scopeLength (F ++ [Constraint.mk r scope]) o.1 := by
           rw [scopeLength_occurrence]
           exact o.2.isLt
-        have : o.2.val + 1 ≠ scope.length := fun he => hlast ⟨hi, he⟩
+        have hlen : scopeLength (F ++ [Constraint.mk r scope]) o.1 = scope.length := by
+          simpa only [hi] using scopeLength_last_constraint F r scope
         omega
-      rw [ite_eq_left (by split_ifs; omega), ite_eq_left hj]
+      have hj' : o.2.val + 1 < scopeLength (F ++ [Constraint.mk r scope]) o.1 +
+          if o.1.val = F.length then 1 else 0 := by omega
+      rw [ite_eq_left hj', ite_eq_left hj]
       exact List.idxOf_append_of_mem (by simpa only [ite_eq_left hj] using hq)
     · rw [ite_eq_right hi, Nat.add_zero]
       exact List.idxOf_append_of_mem hq
@@ -145,9 +146,9 @@ theorem argumentNextIndex_append_last_argument_wrap (F : CSP Rel V) (r : Rel)
       argumentPositions (F ++ [Constraint.mk r scope]) := argumentNextPosition_mem o
   rw [hi, scopeLength_last_constraint] at hq
   unfold argumentNextIndex
-  rw [hi, scopeLength_last_constraint, scopeLength_last_constraint]
-  simp only [List.length_append, List.length_singleton]
-  rw [ite_eq_right (by omega), ite_eq_right (by omega), argumentPositions_append_last_argument]
+  rw [hi, scopeLength_last_constraint, scopeLength_last_constraint, List.length_append,
+    List.length_singleton, ite_eq_right (Nat.not_lt.mpr le_rfl),
+    ite_eq_right (Nat.not_lt.mpr hj.ge), argumentPositions_append_last_argument]
   exact List.idxOf_append_of_mem (by simpa only [hj, Nat.lt_irrefl, ite_false] using hq)
 
 /-- The actual source incidence prefix before its last argument edge. Its declarations
@@ -186,13 +187,13 @@ theorem vertex_lastArgumentDartEquiv_symm (F : CSP Rel V) (r : Rel) (scope : Lis
     List.idxOf_lt_length_of_mem (CSP.mem_occurrences.mpr ⟨o, rfl⟩)
   have he : (lastArgumentPrefixGraph F r scope v).edges.getD (incidenceEdgeIndex o) (0, 0) =
       (S.distinctVars.idxOf o.var, S.numVars + o.1) := by
-    change (T.occurrences.map fun a => (S.distinctVars.idxOf a.2.2, S.numVars + a.1)).getD
-      (incidenceEdgeIndex o) (0, 0) = _
-    rw [List.getD_eq_getElem _ _ (by
-      rw [List.length_map]
-      exact hidx), List.getElem_map]
-    exact congrArg (fun a => (S.distinctVars.idxOf a.2.2, S.numVars + a.1))
-      (List.getElem_idxOf hidx)
+    let f : ℕ × ℕ × V → ℕ × ℕ := fun (c, _, varName) =>
+      (S.distinctVars.idxOf varName, S.numVars + c)
+    change (T.occurrences.map f).getD (incidenceEdgeIndex o) (0, 0) = _
+    have hidx' : (incidenceEdgeIndex o : ℕ) < (T.occurrences.map f).length :=
+      (List.length_map _).symm ▸ hidx
+    rw [List.getD_eq_getElem _ _ hidx', List.getElem_map]
+    exact congrArg f (List.getElem_idxOf hidx)
   change (if side then ((lastArgumentPrefixGraph F r scope v).edges.getD
     (incidenceEdgeIndex o) (0, 0)).2 else ((lastArgumentPrefixGraph F r scope v).edges.getD
       (incidenceEdgeIndex o) (0, 0)).1) = _
@@ -218,22 +219,10 @@ theorem vertex_lastArgumentDartEquiv_symm_eq_iff (F : CSP Rel V) (r : Rel)
   rw [vertex_lastArgumentDartEquiv_symm, vertex_lastArgumentDartEquiv_symm,
     vertex_incidenceDart, vertex_incidenceDart]
   cases side <;> cases other
-  · change S.distinctVars.idxOf o.var = S.distinctVars.idxOf p.var ↔
-      T.distinctVars.idxOf o.var = T.distinctVars.idxOf p.var
-    rw [List.idxOf_inj (hm o), List.idxOf_inj (CSP.mem_distinctVars.mpr o.var_mem)]
-  · have := hS o
-    have := hT o
-    change S.distinctVars.idxOf o.var = S.numVars + p.1.val ↔
-      T.distinctVars.idxOf o.var = T.numVars + p.1.val
-    omega
-  · have := hS p
-    have := hT p
-    change S.numVars + o.1.val = S.distinctVars.idxOf p.var ↔
-      T.numVars + o.1.val = T.distinctVars.idxOf p.var
-    omega
-  · change S.numVars + o.1.val = S.numVars + p.1.val ↔
-      T.numVars + o.1.val = T.numVars + p.1.val
-    omega
+  · exact (List.idxOf_inj (hm o)).trans (List.idxOf_inj (CSP.mem_distinctVars.mpr o.var_mem)).symm
+  · exact iff_of_false (Nat.lt_add_right _ (hS o)).ne (Nat.lt_add_right _ (hT o)).ne
+  · exact iff_of_false (Nat.lt_add_right _ (hS p)).ne.symm (Nat.lt_add_right _ (hT p)).ne.symm
+  · exact (add_right_inj _).trans (add_right_inj _).symm
 
 /-- The positional dart equivalence has the exact endpoint-fiber contract required by
 generic rotation transport. No injection on old variable labels is assumed. -/

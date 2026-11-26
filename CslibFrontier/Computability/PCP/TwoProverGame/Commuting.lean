@@ -311,7 +311,7 @@ theorem sum_ite_prob_eq (S : CommutingStrategy X Y Bool B 𝒜) (g : B → Bool)
       (S.state ((S.alice x).effect γ * ((S.bob y).map g).effect γ)).re := by
     rw [Measurement.map_effect, mul_sum, map_sum, Complex.re_sum, sum_filter]
     exact sum_congr rfl fun r _ => by simp only [prob, eq_comm]
-  simp only [h, Fintype.sum_bool]
+  simp only [h, Fintype.sum_bool, Measurement.observable]
   set s := (S.alice x).effect false
   set t := (S.alice x).effect true
   set u := ((S.bob y).map g).effect false
@@ -320,15 +320,12 @@ theorem sum_ite_prob_eq (S : CommutingStrategy X Y Bool B 𝒜) (g : B → Bool)
     eq_sub_of_add_eq (by simpa [Fintype.sum_bool] using (S.alice x).sum_effect)
   have huv : v = 1 - u :=
     eq_sub_of_add_eq (by simpa [Fintype.sum_bool] using ((S.bob y).map g).sum_effect)
-  rw [Measurement.observable, Measurement.observable, ← Complex.add_re, ← map_add]
-  change _ = (1 + (S.state ((s - t) * (u - v))).re) / 2
-  have hring : 1 + (s - t) * (u - v) = (t * v + s * u) + (t * v + s * u) := by
+  have hring : 1 + (s - t) * (u - v) = (s * u + t * v) + (s * u + t * v) := by
     rw [hst, huv]
     noncomm_ring
-  rw [show (1 : ℝ) = (S.state 1).re by rw [S.state.map_one, Complex.one_re],
-    ← Complex.add_re, ← map_add, hring]
-  simp only [map_add, Complex.add_re]
-  ring
+  have hre := congrArg (fun a => (S.state a).re) hring
+  simp only [map_add, S.state.map_one, Complex.add_re, Complex.one_re] at hre
+  linarith
 
 end Correlation
 
@@ -485,8 +482,7 @@ theorem prob_toCommuting_swap_of_symmetric {Q C J : Type*}
     (hψ : ∀ a b, S.state.ofLp (a, b) = S.state.ofLp (b, a))
     (x y : Q) (a b : C) :
     S.toCommuting.prob y x b a = S.toCommuting.prob x y a b := by
-  rw [prob_toCommuting, prob_toCommuting]
-  simp only [prob_eq, hM]
+  simp only [prob_toCommuting, prob_eq, hM]
   exact congrArg Complex.re (AlgState.vector_kronecker_swap S.state S.norm_state hψ
     ((S.alice y).effect b) ((S.alice x).effect a))
 
@@ -513,11 +509,9 @@ theorem commutingWinProb_swap_of_symmetric {Q C J : Type*}
     (G : TwoProverGame Q Q C C) (S : QuantumStrategy Q Q C C J J)
     (hM : S.bob = S.alice) (hψ : ∀ a b, S.state.ofLp (a, b) = S.state.ofLp (b, a)) :
     G.commutingWinProb S.toCommuting.swap = G.commutingWinProb S.toCommuting := by
-  classical
-  unfold commutingWinProb
+  rw [commutingWinProb, commutingWinProb]
   congr 1
-  funext x y
-  ext ⟨a, b⟩
+  ext x y ⟨a, b⟩
   simp only [CommutingStrategy.answers_apply, CommutingStrategy.prob_swap,
     S.prob_toCommuting_swap_of_symmetric hM hψ x y a b]
 

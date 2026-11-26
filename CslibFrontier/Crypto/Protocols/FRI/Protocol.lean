@@ -238,8 +238,7 @@ abbrev totalWordQueries (params : FRIParams F) : ℕ :=
 /-- Closed-form expression `kFinal + q * (3 * m + 3)` for `totalWordQueries`. -/
 theorem totalWordQueries_eq (params : FRIParams F) :
     params.totalWordQueries = params.kFinal + params.q * (3 * params.m + 3) := by
-  simp only [totalWordQueries, inputWordReads, proofOracleQueries]
-  ring
+  simp only [totalWordQueries, inputWordReads, proofOracleQueries]; ring
 
 /-- First `kFinal` evaluation points of the final coset `L_m`. -/
 @[expose] def finalAnchorPoints (params : FRIParams F) : Fin params.kFinal → F :=
@@ -422,8 +421,7 @@ abbrev totalWordQueries (params : FRISmoothParams F) : ℕ :=
 /-- Closed-form expression `kFinal + q * (aritySum + m + 3)` for `totalWordQueries`. -/
 theorem totalWordQueries_eq (params : FRISmoothParams F) :
     params.totalWordQueries = params.kFinal + params.q * (params.aritySum + params.m + 3) := by
-  simp only [totalWordQueries, inputWordReads, proofOracleQueries, singleRepQueries]
-  ring
+  simp only [totalWordQueries, inputWordReads, proofOracleQueries, singleRepQueries]; ring
 
 /-- First `kFinal` evaluation points of the final coset `L_m`. -/
 @[expose] def finalAnchorPoints (params : FRISmoothParams F) : Fin params.kFinal → F :=
@@ -622,8 +620,7 @@ theorem toSmooth_completenessRel (params : FRIParams F) :
 @[simp]
 theorem toSmooth_singleRepQueries (params : FRIParams F) :
     params.toSmooth.singleRepQueries = 3 * params.m + 2 := by
-  simp only [FRISmoothParams.singleRepQueries, params.toSmooth_aritySum]
-  omega
+  simp only [FRISmoothParams.singleRepQueries, params.toSmooth_aritySum]; omega
 
 /-- Under `toSmooth`, total committed proof oracle openings match `params.proofOracleQueries`. -/
 @[simp]
@@ -718,11 +715,10 @@ Reed–Solomon codeword of dimension `k` for injective nodes `pts : Fin k → F`
 theorem evalLagrange_mem_reedSolomon {k n : ℕ} {pts : Fin k → F} (hpts : Function.Injective pts)
     (vals : Fin k → F) (α : Fin n → F) :
     (fun j => evalLagrange pts vals (α j)) ∈ reedSolomon α k := by
-  refine mem_reedSolomon.mpr ⟨Lagrange.interpolate Finset.univ pts vals, ?_, ?_⟩
-  · simpa only [Finset.card_univ, Fintype.card_fin] using
-      Lagrange.degree_interpolate_lt (s := Finset.univ) vals (Set.injOn_of_injective hpts)
-  · ext j
-    exact (evalLagrange_eq_eval_interpolate pts vals (α j)).symm
+  refine mem_reedSolomon.mpr ⟨Lagrange.interpolate Finset.univ pts vals, ?_,
+    funext fun j => (evalLagrange_eq_eval_interpolate pts vals (α j)).symm⟩
+  simpa only [Finset.card_univ, Fintype.card_fin] using
+    Lagrange.degree_interpolate_lt (s := Finset.univ) vals (Set.injOn_of_injective hpts)
 
 /-- Exact recovery for codewords of `reedSolomon α k` interpolated from the first `k` nodes of `α`.
 -/
@@ -950,12 +946,11 @@ theorem friHonestWord_mem_rsCode (params : FRIParams F) {f₀ : OracleTable para
     friHonestWord params f₀ j hj zs ∈ params.rsCode j := by
   obtain ⟨p, hp, hpeq⟩ := mem_reedSolomon.mp <| friSmoothHonestWord_mem_rsCode params.toSmooth
     (by simpa only [FRIParams.toSmooth_initialCode] using hf₀) j hj zs
-  have hcj : params.toSmooth.cumLog j = j := params.toSmooth_cumLog hj
   refine mem_reedSolomon.mpr ⟨p, params.toSmooth_dim hj ▸ hp, funext fun k => ?_⟩
-  have hk' : k.val < 2 ^ (params.d - params.toSmooth.cumLog j) := by simpa only [hcj] using k.isLt
-  rw [padOracle_eq_apply (padOracle_friHonestWord_eq_smooth params f₀ j hj zs)
-      (b := ⟨k.val, hk'⟩) rfl, ← congrFun hpeq ⟨k.val, hk'⟩]
-  simp [FRIParams.eval, FRISmoothParams.eval, cosetEval, cosetPoint, hcj]
+  let k' : Fin (2 ^ (params.d - params.toSmooth.cumLog j)) := ⟨k.val, by simp [hj]⟩
+  rw [padOracle_eq_apply (padOracle_friHonestWord_eq_smooth params f₀ j hj zs) (b := k') rfl,
+    ← congrFun hpeq k']
+  simp [k', FRIParams.eval, FRISmoothParams.eval, cosetEval, cosetPoint, hj]
 
 /-- Prefix challenge independence: `friHonestWord` depends only on `zs` up to round `j`. -/
 theorem friHonestWord_congr (params : FRIParams F) (f₀ : OracleTable params.d F) :
@@ -1232,9 +1227,8 @@ theorem friSmoothDecide_congr_inputQueries [DecidableEq F] (params : FRISmoothPa
     (answers : List F) :
     friSmoothDecide params stmt₁ chals answers = friSmoothDecide params stmt₂ chals answers := by
   simp only [friSmoothDecide]
-  congr 1
-  exact friSmoothCheckRepsList_congr_stmt params _ chals (List.finRange params.q)
-    (fun a ha => hagree _ (List.mem_map.mpr ⟨a, ha, rfl⟩)) _
+  exact congrArg (_ && ·) <| friSmoothCheckRepsList_congr_stmt params _ chals
+    (List.finRange params.q) (fun a ha => hagree _ (List.mem_map.mpr ⟨a, ha, rfl⟩)) _
 
 /-- **Multi-round smooth `2^{sᵢ}`-to-1 FRI as a `PublicCoinIOP`**
 ([BenSassonCarmonIshaiKoppartySaraf2020], Section 8.2, printed pp. 36–38):
@@ -1696,9 +1690,9 @@ theorem foldFiber_toSmooth_eq_fold2Fiber (params : FRIParams F) (i : Fin params.
 theorem friIOP_eq_friSmoothIOP [DecidableEq F] (params : FRIParams F) :
     friIOP params = friSmoothIOP params.toSmooth := by
   dsimp only [friIOP, friSmoothIOP]
-  congr 1
-  funext j stmt _ prevChals
-  exact padOracle_friHonestWord_eq_smooth params stmt j.val (Nat.le_of_lt_succ j.isLt) _
+  congr 1 with j stmt _ prevChals idx
+  exact congrFun (padOracle_friHonestWord_eq_smooth params stmt j.val (Nat.le_of_lt_succ j.isLt) _)
+    idx
 
 /-- Exact equivalence between binary `friSingleAccepts` and smooth
 `friSmoothSingleAccepts params.toSmooth`. -/

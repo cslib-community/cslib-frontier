@@ -67,7 +67,7 @@ rotation loops. Invalid positions preserve the entire raw input before insertion
 /-- Out-of-range binary positions preserve every row, name and raw table entry. -/
 theorem transposeAdjacent_invalid (I : State Rel) (j : ℕ)
     (h : I.ports.length ≤ j + 1) : transposeAdjacent g w I j = I := by
-  rw [transposeAdjacent, ite_eq_right (by omega)]
+  rw [transposeAdjacent, ite_eq_right (not_lt.mpr h)]
 
 private theorem left_body (I : State Rel) (n : ℕ) :
     ((rotateLeft^[n]) I).body = I.body := by
@@ -264,8 +264,7 @@ theorem counts_transposeAdjacent (I : State Rel) (j : ℕ) :
         congrArg (fun S => S.ports.length) hI
     rw [hL, ← hI] at hc
     simpa only [ite_eq_left h, one_mul, ← hp] using hc
-  · rw [transposeAdjacent_invalid g w I j (by omega)]
-    simp [h]
+  · simp [transposeAdjacent, h]
 
 /-- Each successful request appends the fixed template's relation-symbol word after all
 old rows; invalid requests preserve the word exactly. This includes arbitrary encoded Rel. -/
@@ -277,7 +276,7 @@ theorem relations_transposeAdjacent (I : State Rel) (j : ℕ) :
     rw [transposeAdjacent, ite_eq_left h, left_body, relations_transposeTail, right_body,
       right_ports]
     simp [hlt2, h]
-  · rw [transposeAdjacent_invalid g w I j (by omega), ite_eq_right h, List.append_nil]
+  · rw [transposeAdjacent_invalid g w I j (not_lt.mp h), ite_eq_right h, List.append_nil]
 
 /-- One positioned operation adds at most one bit to old names. Rotations preserve
 name multisets; no accumulated repeated-swap bound is asserted. -/
@@ -330,11 +329,11 @@ private theorem turn_table (b : Bool) (I : State Rel) (B : ℕ)
   | x :: y :: ps =>
     let N := (x :: y :: ps).length
     let M := F.occurrences.length
-    have hN : 1 < N := by simp [N]
+    have hlen1 : ¬(x :: y :: ps).length ≤ 1 := by simp
     have hread (i : ℕ) : (c.successor.getD i 0).size ≤ B := by
       by_cases hi : i < c.successor.length
       · simpa only [List.getD_eq_getElem _ _ hi] using he _ (List.getElem_mem hi)
-      · rw [List.getD_eq_default _ _ (by omega)]
+      · rw [List.getD_eq_default _ _ (not_lt.mp hi)]
         simp
     have hentry (shift : ℕ → ℕ) (hs : ∀ j, shift j < N) (i : ℕ) :
         (boundaryIndexMap M N shift (c.successor.getD i 0)).size ≤ B :=
@@ -342,12 +341,12 @@ private theorem turn_table (b : Bool) (I : State Rel) (B : ℕ)
     cases b <;>
       simp only [turn, Bool.false_eq_true, ↓reduceIte, rotateLeft, rotateRight,
         rotateBoundaryCertificate, rotateBoundaryCertificateRight_eq_reindex_mod,
-        show ¬(x :: y :: ps).length ≤ 1 from by simp, ↓reduceIte]
+        hlen1, ↓reduceIte]
     all_goals
       refine ⟨(RotationCertificate.length_reindex _ _ _ _).trans_le (le_max_right _ _),
         fun v hv => ?_⟩
       obtain ⟨i, _, rfl⟩ := List.mem_map.mp hv
-      exact hentry _ (fun _ => Nat.mod_lt _ (by omega)) _
+      exact hentry _ (fun _ => Nat.mod_lt _ (Nat.succ_pos _)) _
 
 private theorem enc_ports_perm {xs ys : List ℕ} (h : xs.Perm ys) :
     (encList encNat xs).length = (encList encNat ys).length :=
@@ -409,14 +408,11 @@ private theorem loop_size (encRel : Rel ↪ List Bool) (b : Bool) (I : State Rel
       exact (h.2.2.2 v hv).trans (by dsimp only [S, D]; omega)
     exact (length_encList_le encNat _ hwidth).trans
       (Nat.mul_le_mul_right _ (h.2.2.1.trans (max_le (by omega) (by omega))))
-  have hbody : (encCSP encRel encNat I.body).length ≤ S := by
-    dsimp only [S]
-    enc_len [encState_apply, encStateFields, Graph.encRotationCertificate_apply,
-      Graph.encRotationCertificateFields]
-  have hports : (encList encNat I.ports).length ≤ S := by
-    dsimp only [S]
-    enc_len [encState_apply, encStateFields, Graph.encRotationCertificate_apply,
-      Graph.encRotationCertificateFields]
+  have hbp : (encCSP encRel encNat I.body).length ≤ S ∧
+      (encList encNat I.ports).length ≤ S := by
+    constructor <;> dsimp only [S] <;>
+      enc_len [encState_apply, encStateFields, Graph.encRotationCertificate_apply,
+        Graph.encRotationCertificateFields]
   change (encState encRel ((turn b)^[n] I)).length ≤
     4 * S + 4 + D * (2 * (S + D) + 1)
   simp only [encState_apply, encStateFields, Graph.encRotationCertificate_apply,
@@ -464,11 +460,9 @@ private theorem tail_ports_length (I : State Rel) :
   | append_singleton ps y _ =>
     cases ps using List.reverseRecOn with
     | nil => rfl
-    | append_singleton L x =>
-      rw [show (L ++ [x]) ++ [y] = L ++ [x, y] by
-        simp only [List.append_assoc, List.cons_append, List.nil_append],
-        length_transposeTail_ports]
-      simp only [List.length_append, List.length_cons, List.length_nil]
+      | append_singleton L x =>
+        have hassoc : (L ++ [x]) ++ [y] = L ++ [x, y] := by simp
+        simp [hassoc, length_transposeTail_ports]
 
 /-- Plain polynomial time on EVERY raw state and binary position for any encoded alphabet.
 The position is capped by actual unary port length before either loop. Reachable rotation
@@ -525,17 +519,11 @@ private theorem normalized_loop_storage (b : Bool) (I : State Rel) (n B : ℕ)
   | zero => exact ⟨rfl, rfl, hl, he⟩
   | succ n ih =>
     rw [Function.iterate_succ_apply']
-    have hl' : ((turn b)^[n] I).rotation.successor.length =
-        2 * (((turn b)^[n] I).body.occurrences.length + ((turn b)^[n] I).ports.length) := by
-      simpa only [ih.1, ih.2.1] using ih.2.2.1
-    have hb' : (2 * (((turn b)^[n] I).body.occurrences.length +
-        ((turn b)^[n] I).ports.length)).size ≤ B := by
-      simpa only [ih.1, ih.2.1] using hb
-    have ht := turn_table b ((turn b)^[n] I) B ih.2.2.2 hb'
-    refine ⟨(turn_body _ _).trans ih.1, (turn_ports_perm _ _).length_eq.trans ih.2.1, ?_, ht.2⟩
-    have hn := normalized_turn_length b ((turn b)^[n] I) hl'
-    simpa only [turn_body, (turn_ports_perm b ((turn b)^[n] I)).length_eq,
-      ih.1, ih.2.1] using hn
+    obtain ⟨hbody, hplen, hslen, hsize⟩ := ih
+    have ht := turn_table b ((turn b)^[n] I) B hsize (by simpa only [hbody, hplen] using hb)
+    refine ⟨(turn_body _ _).trans hbody, (turn_ports_perm _ _).length_eq.trans hplen, ?_, ht.2⟩
+    simpa only [turn_body, (turn_ports_perm b ((turn b)^[n] I)).length_eq, hbody, hplen] using
+      normalized_turn_length b ((turn b)^[n] I) (by simpa only [hbody, hplen] using hslen)
 
 /-- A valid raw step emits the actual dart count, with entry widths reset by its final
 restriction. Arbitrary malformed source entries require no input bound or acceptance. -/
