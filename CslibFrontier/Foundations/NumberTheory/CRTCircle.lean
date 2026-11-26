@@ -82,37 +82,27 @@ theorem crt_circle_identity (m c : ι → ℤ) (n : ℤ)
     (hc : ∀ i, c i * crtCofactor m i ≡ n [ZMOD m i]) :
     ∃ z : ℤ, (∑ i, (c i : ℚ) / m i) - (n : ℚ) / (∏ i, m i : ℤ) = z := by
   let T : ℤ := ∑ i, c i * crtCofactor m i
-  have hdiv : (∏ i, m i) ∣ T - n := by
-    apply Fintype.prod_dvd_of_coprime hcop
-    intro i
+  have hdiv : (∏ i, m i) ∣ T - n := Fintype.prod_dvd_of_coprime hcop fun i => by
     have heq : T - n = (∑ j ∈ univ.erase i, c j * crtCofactor m j) +
         (c i * crtCofactor m i - n) := by
       dsimp only [T]
-      rw [← sum_erase_add _ _ (mem_univ i)]
-      ring
+      rw [← sum_erase_add _ _ (mem_univ i)]; ring
     rw [heq]
-    apply dvd_add
-    · apply dvd_sum
-      intro j hj
-      apply dvd_mul_of_dvd_right
-      exact dvd_prod_of_mem m (mem_erase.mpr ⟨(mem_erase.mp hj).1.symm, mem_univ i⟩)
-    · exact (hc i).symm.dvd
+    exact dvd_add (dvd_sum fun j hj => dvd_mul_of_dvd_right
+      (dvd_prod_of_mem m (mem_erase.mpr ⟨(mem_erase.mp hj).1.symm, mem_univ i⟩)) _) (hc i).symm.dvd
   obtain ⟨z, hz⟩ := hdiv
   have hP : (∏ i, m i : ℤ) ≠ 0 := prod_ne_zero_iff.mpr fun i _ => (hm i).ne'
   have hsum : (∑ i, (c i : ℚ) / m i) = (T : ℚ) / (∏ i, m i : ℤ) := by
     simp only [T, Int.cast_sum, Int.cast_mul, sum_div]
-    apply sum_congr rfl
-    intro i _
-    rw [← mul_crtCofactor m i, Int.cast_mul]
+    refine sum_congr rfl fun i _ => ?_
     have hi : (m i : ℚ) ≠ 0 := by exact_mod_cast (hm i).ne'
     have hco : (crtCofactor m i : ℚ) ≠ 0 := by
-      have := mul_crtCofactor m i
-      exact_mod_cast (right_ne_zero_of_mul (this ▸ hP))
+      exact_mod_cast right_ne_zero_of_mul (mul_crtCofactor m i ▸ hP)
+    rw [← mul_crtCofactor m i, Int.cast_mul]
     field_simp
   refine ⟨z, ?_⟩
-  rw [hsum, ← sub_div]
-  have hzq : (T : ℚ) - n = (∏ i, m i : ℤ) * (z : ℚ) := by exact_mod_cast hz
-  rw [hzq, mul_div_cancel_left₀ _ (by exact_mod_cast hP)]
+  rw [hsum, ← sub_div, show (T : ℚ) - n = (∏ i, m i : ℤ) * (z : ℚ) by exact_mod_cast hz,
+    mul_div_cancel_left₀ _ (by exact_mod_cast hP)]
 
 /-- Dyadic rounding of normalized CRT coefficients approximates the represented integer
 modulo the product, for every sign of the integer. The precision condition is explicit. -/

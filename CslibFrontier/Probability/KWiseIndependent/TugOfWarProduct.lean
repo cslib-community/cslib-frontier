@@ -78,10 +78,9 @@ theorem expect_sum_mul_sign_mul_sum_mul_sign (hh : IsKWiseIndependentHash 2 h)
   have hsplit (i : ι) : (∑ x ∈ S, f x * ε (h i x)) * (∑ x ∈ S, g x * ε (h i x)) =
       ∑ x ∈ S, f x * g x + ∑ p ∈ S.offDiag, f p.1 * g p.2 * (ε (h i p.1) * ε (h i p.2)) := by
     rw [sum_mul_sum_eq_sum_mul_add_sum_offDiag]
-    congr 1
-    · refine sum_congr rfl fun x _ => ?_
-      linear_combination f x * g x * hε (h i x)
-    · exact sum_congr rfl fun p _ => by ring
+    exact congrArg₂ (· + ·)
+      (sum_congr rfl fun x _ => by linear_combination f x * g x * hε (h i x))
+      (sum_congr rfl fun p _ => by ring)
   simp only [hsplit, expect_add_distrib, Fintype.expect_const, expect_sum_comm]
   rw [add_eq_left]
   refine Finset.sum_eq_zero fun p hp => ?_
@@ -109,9 +108,7 @@ theorem expect_sq_sum_mul_sign_mul_sum_mul_sign_sub (hh : IsKWiseIndependentHash
   rw [hh.expect_sq_sum_offDiag_mul_sign_mul_sign hε hε₀ S f g, sum_add_distrib]
   have h1 := sum_mul_sum_eq_sum_mul_add_sum_offDiag S (fun x => f x ^ 2) fun x => g x ^ 2
   have h2 := sq_sum_eq_sum_sq_add_sum_offDiag S fun x => f x * g x
-  have h3 : ∑ x ∈ S, (f x * g x) ^ 2 = ∑ x ∈ S, f x ^ 2 * g x ^ 2 :=
-    sum_congr rfl fun x _ => by ring
-  rw [h3] at h2
+  simp only [mul_pow] at h2
   linear_combination -h1 - h2
 
 /-- **The variance bound for the tug-of-war join signature** [AlonGibbonsMatiasSzegedy1999,

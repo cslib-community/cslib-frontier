@@ -111,15 +111,10 @@ private theorem bind_keyTable_reindex [Fintype M] [Fintype CT] [Finite K]
       (S.readIndex_injective G pk sk),
     PMF.bind_map]
   congr 1 with f : 1
-  simp only [Function.comp_apply]
-  refine congrArg₂ F ?_ ?_
-  · funext x
-    rcases x with ⟨_ | _, m, c⟩
-    · simp only [readIndex, coupledH]
-      split_ifs <;> rfl
-    · rfl
-  · funext c
-    simp only [readIndex, coupledFb]
+  refine congrArg₂ F (funext fun | (false, m, c) => ?_ | (true, _, _) => rfl) (funext fun c => ?_)
+  · simp only [readIndex, coupledH]
+    split_ifs <;> rfl
+  · simp only [readIndex, coupledFb]
     split_ifs <;> rfl
 
 /-- Reading the independent tables `(Hq, Hraw)` through `coupledH` gives an independent table
@@ -139,8 +134,7 @@ private theorem eagerFbHandler_reindex (S : Scheme PK SK M R CT K) (G : M → R)
         { sk := sk, pk := pk, fallback := s } cStar q =
       S.eagerCoupledHandler G Hq Hraw pk sk cStar q := by
   cases q with
-  | G m => rfl
-  | H x => rfl
+  | G m | H x => rfl
   | decaps c =>
     simp only [eagerFbHandler, eagerCoupledHandler, ROQuery.dispatch]
     by_cases hc : c = cStar
@@ -149,10 +143,8 @@ private theorem eagerFbHandler_reindex (S : Scheme PK SK M R CT K) (G : M → R)
       cases hd : decT S.pke G pk sk c with
       | none => simp [coupledFb, hd]
       | some m' =>
-        have henc := encT_of_decT_eq_some hd
-        have hdec := dec_of_decT_eq_some hd
-        simp only [encT] at henc
-        simp [coupledH, henc, hdec]
+        have henc : S.pke.encDet pk m' (G m') = c := encT_of_decT_eq_some hd
+        simp [coupledH, henc, dec_of_decT_eq_some hd]
 
 /-- **Re-indexing the random oracles of `FO-notbot`**: the eager coupled game and the eager game
 with decoupled implicit-rejection keys have the same output distribution. -/
@@ -179,14 +171,10 @@ theorem eagerCoupledGame_eq_eagerFbGame [Fintype M] [Finite R] [Fintype CT] [Fin
         congr 1 with s : 1
         congr 1 with G : 1
         rw [bind_keyTable_reindex S G pk sk]
-        congr 1 with Hq : 1
-        congr 1 with Hraw : 1
-        congr 1 with Hfb' : 1
-        congr 1 with mStar : 1
-        congr 1 with kRand : 1
+        iterate 5 refine congrArg (PMF.bind _) (funext fun _ => ?_)
         congr 1
         funext q
-        exact S.eagerFbHandler_reindex G Hq Hfb' Hraw pk sk s _ q
+        exact S.eagerFbHandler_reindex G _ _ _ pk sk s _ q
     _ = _ := by simp only [PMF.bind_const]
 
 end Scheme

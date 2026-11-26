@@ -58,24 +58,18 @@ variable {k : ℕ} {α : Type} {input : α ↪ List Bool}
 private theorem digit_eq {σ pos δ : α → ℕ} (hσ : ComputableInPolyTime σ input encNat)
     (hpos : ComputableInPolyTime pos input encUnary)
     (hδ : ComputableInPolyTime δ input encUnary) :
-    ComputableInPolyTime (fun a => decide (σ a / 3 ^ pos a % 3 = δ a)) input encBool := by
-  have hpow : ComputableInPolyTime (fun a => 3 ^ pos a) input encNat :=
-    binary_pow' (const 3) hpos
-  have hdigit : ComputableInPolyTime (fun a => σ a / 3 ^ pos a % 3) input encNat :=
-    binary_mod.comp ((binary_div.comp (hσ.prod hpow)).prod (const 3))
-  exact decide_eq' hdigit (unary_to_binary.comp hδ)
+    ComputableInPolyTime (fun a => decide (σ a / 3 ^ pos a % 3 = δ a)) input encBool :=
+  decide_eq'
+    (binary_mod.comp ((binary_div.comp (hσ.prod (binary_pow' (const 3) hpos))).prod (const 3)))
+    (unary_to_binary.comp hδ)
 
 /-- **Digit counts are polynomial-time.** -/
 theorem computableInPolyTime_digitCount {σ c δ i : α → ℕ}
     (hσ : ComputableInPolyTime σ input encNat) (hc : ComputableInPolyTime c input encUnary)
     (hδ : ComputableInPolyTime δ input encUnary) (hi : ComputableInPolyTime i input encUnary) :
-    ComputableInPolyTime (fun a => digitCount k (σ a) (c a) (δ a) (i a)) input encUnary := by
-  unfold digitCount
-  refine countPWithInput (range.comp hi) ?_
-  have hpos : ComputableInPolyTime (fun p : α × ℕ => c p.1 + (k + 1) * p.2)
-      (encPair input encUnary) encUnary :=
-    unary_add' (hc.comp (fst _ _)) (unary_mul' (const _) (snd _ _))
-  exact digit_eq (hσ.comp (fst _ _)) hpos (hδ.comp (fst _ _))
+    ComputableInPolyTime (fun a => digitCount k (σ a) (c a) (δ a) (i a)) input encUnary :=
+  countPWithInput (range.comp hi) <| digit_eq (hσ.comp (fst _ _))
+    (unary_add' (hc.comp (fst _ _)) (unary_mul' (const _) (snd _ _))) (hδ.comp (fst _ _))
 
 /-- Windows on numbers are polynomial-time. -/
 theorem computableInPolyTime_inWindowNum {σ c i δ i' : α → ℕ}
@@ -88,7 +82,6 @@ theorem computableInPolyTime_inWindowNum {σ c i δ i' : α → ℕ}
     computableInPolyTime_digitCount (k := k) hσ hc (const 2) hj
   have h0 := fun {j : α → ℕ} (hj : ComputableInPolyTime j input encUnary) =>
     computableInPolyTime_digitCount (k := k) hσ hc (const 0) hj
-  unfold inWindowNum
   exact decide_and
     (unary_le' (unary_add' (unary_add' (h2 hi') (h0 hi)) (const 1))
       (unary_add' (unary_add' (unary_add' (h0 hi') (h2 hi)) hδ) (const 1)))
@@ -101,50 +94,42 @@ theorem computableInPolyTime_firstAfterNum {q σ c i δ : α → ℕ}
     (hc : ComputableInPolyTime c input encUnary) (hi : ComputableInPolyTime i input encUnary)
     (hδ : ComputableInPolyTime δ input encUnary) :
     ComputableInPolyTime (fun a => firstAfterNum k (q a) (σ a) (c a) (i a) (δ a)) input
-      (encOption encUnary) := by
-  unfold firstAfterNum
-  refine findWithInput (range.comp hq) (bool_and' (unary_lt' (hi.comp (fst _ _)) (snd _ _)) ?_)
-  exact computableInPolyTime_inWindowNum (hσ.comp (fst _ _)) (hc.comp (fst _ _))
-    (hi.comp (fst _ _)) (hδ.comp (fst _ _)) (snd _ _)
+      (encOption encUnary) :=
+  findWithInput (range.comp hq) <| bool_and' (unary_lt' (hi.comp (fst _ _)) (snd _ _)) <|
+    computableInPolyTime_inWindowNum (hσ.comp (fst _ _)) (hc.comp (fst _ _))
+      (hi.comp (fst _ _)) (hδ.comp (fst _ _)) (snd _ _)
 
 /-- **Edge targets are polynomial-time.** -/
 theorem computableInPolyTime_edgeTargetNum {q σ n : α → ℕ}
     (hq : ComputableInPolyTime q input encUnary) (hσ : ComputableInPolyTime σ input encNat)
     (hn : ComputableInPolyTime n input encUnary) :
     ComputableInPolyTime (fun a => edgeTargetNum k (q a) (σ a) (n a)) input encUnary := by
-  have hr : ComputableInPolyTime (fun a => n a - q a) input encUnary := unary_sub' hn hq
-  have hk3 : ComputableInPolyTime (fun _ : α => k * 3) input encUnary := const _
-  have hsink : ComputableInPolyTime (fun a => q a + n a) input encUnary := unary_add' hq hn
-  unfold edgeTargetNum
-  refine ite_decide (unary_lt' hn hq)
-    (ite_decide (unary_lt' (unary_add' hn (const 1)) hq) (unary_add' hn (const 1)) hsink) ?_
-  refine optionGetDWithInput (computableInPolyTime_firstAfterNum hq hσ ?_ ?_ ?_) hsink
-  · exact unary_add' (unary_div.comp ((unary_mod.comp (hr.prod hk3)).prod (const 3))) (const 1)
-  · exact unary_div.comp (hr.prod hk3)
-  · exact unary_mod.comp (hr.prod (const 3))
+  let hr := unary_sub' hn hq
+  let hk3 : ComputableInPolyTime (fun _ : α => k * 3) input encUnary := const _
+  let hsink := unary_add' hq hn
+  exact ite_decide (unary_lt' hn hq)
+    (ite_decide (unary_lt' (unary_add' hn (const 1)) hq) (unary_add' hn (const 1)) hsink)
+    (optionGetDWithInput (computableInPolyTime_firstAfterNum hq hσ
+      (unary_add' (unary_div.comp ((unary_mod.comp (hr.prod hk3)).prod (const 3))) (const 1))
+      (unary_div.comp (hr.prod hk3)) (unary_mod.comp (hr.prod (const 3)))) hsink)
 
 /-- **The sources of the explicit edges are polynomial-time.** -/
 theorem computableInPolyTime_explicitSrcNum {q m σ j : α → ℕ}
     (hq : ComputableInPolyTime q input encUnary) (hm : ComputableInPolyTime m input encUnary)
     (hσ : ComputableInPolyTime σ input encNat) (hj : ComputableInPolyTime j input encUnary) :
     ComputableInPolyTime (fun a => explicitSrcNum k (q a) (m a) (σ a) (j a)) input encUnary := by
-  have hcard : ComputableInPolyTime (fun a => q a * (3 * k + 1) * m a) input encUnary :=
-    unary_mul' (unary_mul' hq (const _)) hm
-  unfold explicitSrcNum blockSrcNum
-  refine ite_decide (unary_lt' hj hcard) ?_ ?_
-  · have hn : ComputableInPolyTime (fun a => j a / m a) input encUnary :=
-      unary_div.comp (hj.prod hm)
-    exact ite_decide (unary_lt' hn hq) hn (unary_div.comp ((unary_sub' hn hq).prod (const _)))
-  · exact computableInPolyTime_edgeTargetNum hq hσ (unary_div.comp ((unary_sub' hj hcard).prod hm))
+  let hcard := unary_mul' (unary_mul' hq (const (3 * k + 1))) hm
+  let hn := unary_div.comp (hj.prod hm)
+  exact ite_decide (unary_lt' hj hcard)
+    (ite_decide (unary_lt' hn hq) hn (unary_div.comp ((unary_sub' hn hq).prod (const _))))
+    (computableInPolyTime_edgeTargetNum hq hσ (unary_div.comp ((unary_sub' hj hcard).prod hm)))
 
 /-- **The targets of the explicit edges are polynomial-time.** -/
 theorem computableInPolyTime_explicitTgtNum {q m j : α → ℕ}
     (hq : ComputableInPolyTime q input encUnary) (hm : ComputableInPolyTime m input encUnary)
     (hj : ComputableInPolyTime j input encUnary) :
     ComputableInPolyTime (fun a => explicitTgtNum k (q a) (m a) (j a)) input encUnary := by
-  have hcard : ComputableInPolyTime (fun a => q a * (3 * k + 1) * m a) input encUnary :=
-    unary_mul' (unary_mul' hq (const _)) hm
-  unfold explicitTgtNum
+  let hcard := unary_mul' (unary_mul' hq (const (3 * k + 1))) hm
   exact unary_add' (unary_mul' hq (const _))
     (ite_decide (unary_lt' hj hcard) hj (unary_sub' hj hcard))
 

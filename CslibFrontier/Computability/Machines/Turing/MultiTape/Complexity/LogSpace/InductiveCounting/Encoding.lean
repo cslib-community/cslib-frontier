@@ -61,25 +61,10 @@ def stateData (s : State) : ℕ × List ℕ × Bool × Bool :=
   (phaseCode s.phase, registers s, s.hit, s.finalScan)
 
 theorem stateData_injective : Function.Injective stateData := by
-  intro s t h
-  cases s
-  cases t
+  rintro ⟨_, _, _, _, _, _, _, _, _, _, _, _, _⟩ ⟨_, _, _, _, _, _, _, _, _, _, _, _, _⟩ h
   simp only [stateData, registers, Prod.mk.injEq, List.cons.injEq, and_true] at h
-  obtain ⟨hp, ⟨hr, hc, ht, hn, hu, hd, hk, hv, hg, hb⟩, hh, hf⟩ := h
-  have hp' := phaseCode_injective hp
-  cases hp'
-  cases hr
-  cases hc
-  cases ht
-  cases hn
-  cases hu
-  cases hd
-  cases hk
-  cases hv
-  cases hg
-  cases hb
-  cases hh
-  cases hf
+  obtain ⟨hp, ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩, rfl, rfl⟩ := h
+  cases phaseCode_injective hp
   rfl
 
 /-- The encoded finite phase, binary registers and flags. -/

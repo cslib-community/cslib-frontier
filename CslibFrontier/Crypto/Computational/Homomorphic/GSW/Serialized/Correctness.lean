@@ -50,12 +50,8 @@ theorem encryptEntry_eq (n m w : ℕ) (publicWord : List Bool) (message : Bool)
   rw [Nat.cast_add, Nat.cast_sum, _root_.Matrix.add_apply, _root_.Matrix.smul_apply,
     _root_.Matrix.mul_apply, gadgetMatrix_apply]
   congr 1
-  · by_cases h : i = j
-    · simp [h]
-    · have hv : i.val ≠ j.val := fun hij => h (Fin.ext hij)
-      simp [h, hv]
-  · apply Finset.sum_congr rfl
-    intro r hr
+  · by_cases h : i = j <;> simp [h, Fin.val_inj]
+  · refine Finset.sum_congr rfl fun r _ => ?_
     rw [bitMatrix_apply, Cslib.Matrix.ofBinary_apply]
     cases h : ((coins.getD i.val []).getD k.val []).getD r.val false <;>
       simp only [decodeCoins, h, Bool.false_eq_true, ↓reduceIte,

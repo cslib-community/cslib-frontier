@@ -63,15 +63,11 @@ theorem pairFlip_comm (f : OccurrenceLabeling F Bool) (a b : Occurrence F) :
 /-- Two pair moves sharing their middle occurrence cancel that occurrence. -/
 theorem pairFlip_cancel (f : OccurrenceLabeling F Bool) (a b c : Occurrence F) :
     pairFlip (pairFlip f a b) b c = pairFlip f a c := by
-  funext q
-  by_cases ha : q = a <;> by_cases hb : q = b <;>
-    by_cases hc : q = c <;> simp [pairFlip, flipOn_apply, ha, hb, hc]
+  simp only [pairFlip, flipOn_flipOn]
 
 private theorem pairFlip_at_other (f : OccurrenceLabeling F Bool) {a b q : Occurrence F}
     (ha : q.1 ≠ a.1) (hb : q.1 ≠ b.1) : pairFlip f a b q = f q := by
-  have hqa : q ≠ a := fun h => ha (congrArg Sigma.fst h)
-  have hqb : q ≠ b := fun h => hb (congrArg Sigma.fst h)
-  simp [pairFlip, flipOn_apply, hqa, hqb]
+  simp [pairFlip, flipOn_apply, mt (congrArg Sigma.fst) ha, mt (congrArg Sigma.fst) hb]
 
 private theorem localTuple_pairFlip (f : OccurrenceLabeling F Bool) (i : Fin F.length)
     (a b : Fin F[i].scope.length) (hab : a ≠ b) :
@@ -87,14 +83,10 @@ theorem validLabeling_pairFlip_iff {sem : Rel → List Bool → Bool}
     {f : OccurrenceLabeling F Bool} (hf : ValidLabeling sem f)
     (i : Fin F.length) (a b : Fin F[i].scope.length) (hab : a ≠ b) :
     ValidLabeling sem (pairFlip f ⟨i, a⟩ ⟨i, b⟩) ↔
-      sem F[i].rel (List.ofFn (flipOn {a, b} (fun j => f ⟨i, j⟩))) = true := by
-  constructor
-  · intro hv
-    have h := hv i
-    rwa [localTuple_pairFlip f i a b hab] at h
-  · intro hv
+      sem F[i].rel (List.ofFn (flipOn {a, b} (fun j => f ⟨i, j⟩))) = true :=
+  ⟨fun hv => localTuple_pairFlip f i a b hab ▸ hv i, fun hv => by
     rw [pairFlip_eq f (sigma_mk_injective.ne hab)]
-    exact EdgeInstance.validLabeling_flipOn_pair hf i a b hv
+    exact EdgeInstance.validLabeling_flipOn_pair hf i a b hv⟩
 
 private theorem four_eq (f : OccurrenceLabeling F Bool) (i : Fin F.length)
     {a b c d : Fin F[i].scope.length}
@@ -140,10 +132,9 @@ theorem not_valid_pairFlip_pairFlip_of_no_cross {sem : Rel → List Bool → Boo
     (hadf : ¬ ValidLabeling sem (pairFlip f ⟨i, a⟩ ⟨i, d⟩)) :
     ¬ ValidLabeling sem (pairFlip (pairFlip f ⟨i, a⟩ ⟨i, b⟩) ⟨i, c⟩ ⟨i, d⟩) := by
   intro h
-  have hfour := (validLabeling_pairFlip_iff habf i c d hcd).mp h
-  rw [four_eq f i hab hac had hbc hbd hcd] at hfour
   rcases (hM i).mem_pair_or_mem_cross_of_mem_flipOn_four hab hac had hbc hbd hcd
-      (hf i) hfour with h | h | h
+      (hf i) (four_eq f i hab hac had hbc hbd hcd ▸
+        (validLabeling_pairFlip_iff habf i c d hcd).mp h) with h | h | h
   · exact hcdf ((validLabeling_pairFlip_iff hf i c d hcd).mpr h)
   · exact hacf ((validLabeling_pairFlip_iff hf i a c hac).mpr h)
   · exact hadf ((validLabeling_pairFlip_iff hf i a d had).mpr h)
@@ -159,12 +150,8 @@ private theorem valid_four_occurrences {sem : Rel → List Bool → Bool}
     (hacf : ¬ ValidLabeling sem (pairFlip f a c))
     (hadf : ¬ ValidLabeling sem (pairFlip f a d)) :
     ValidLabeling sem (pairFlip (pairFlip f a b) c d) := by
-  rcases a with ⟨i, a⟩
-  rcases b with ⟨j, b⟩
-  rcases c with ⟨k, c⟩
-  rcases d with ⟨l, d⟩
-  dsimp only at hiab hiac hiad
-  subst j; subst k; subst l
+  rcases a, b, c, d with ⟨⟨i, a⟩, ⟨_, b⟩, ⟨_, c⟩, ⟨_, d⟩⟩
+  obtain ⟨rfl, rfl, rfl⟩ : _ = _ ∧ _ = _ ∧ _ = _ := ⟨hiab, hiac, hiad⟩
   exact valid_pairFlip_pairFlip_of_no_cross hM hf i
     (fun h => hab (h ▸ rfl)) (fun h => hac (h ▸ rfl)) (fun h => had (h ▸ rfl))
     (fun h => hbc (h ▸ rfl)) (fun h => hbd (h ▸ rfl)) (fun h => hcd (h ▸ rfl))
@@ -181,12 +168,8 @@ private theorem not_valid_four_occurrences {sem : Rel → List Bool → Bool}
     (hacf : ¬ ValidLabeling sem (pairFlip f a c))
     (hadf : ¬ ValidLabeling sem (pairFlip f a d)) :
     ¬ ValidLabeling sem (pairFlip (pairFlip f a b) c d) := by
-  rcases a with ⟨i, a⟩
-  rcases b with ⟨j, b⟩
-  rcases c with ⟨k, c⟩
-  rcases d with ⟨l, d⟩
-  dsimp only at hiab hiac hiad
-  subst j; subst k; subst l
+  rcases a, b, c, d with ⟨⟨i, a⟩, ⟨_, b⟩, ⟨_, c⟩, ⟨_, d⟩⟩
+  obtain ⟨rfl, rfl, rfl⟩ : _ = _ ∧ _ = _ ∧ _ = _ := ⟨hiab, hiac, hiad⟩
   exact not_valid_pairFlip_pairFlip_of_no_cross hM hf i
     (fun h => hab (h ▸ rfl)) (fun h => hac (h ▸ rfl)) (fun h => had (h ▸ rfl))
     (fun h => hbc (h ▸ rfl)) (fun h => hbd (h ▸ rfl)) (fun h => hcd (h ▸ rfl))
@@ -199,21 +182,13 @@ private theorem valid_pairFlip_other_iff {sem : Rel → List Bool → Bool}
     ValidLabeling sem (pairFlip (pairFlip f a b) c d) ↔
       ValidLabeling sem (pairFlip f c d) := by
   by_cases hcd : c = d
-  · subst d
-    simp only [pairFlip_self]
-    exact iff_of_true hv hf
-  rcases c with ⟨i, c⟩
-  rcases d with ⟨j, d⟩
-  dsimp only at hicd hic
-  subst j
+  · simp [hcd, pairFlip_self, hv, hf]
+  rcases c, d with ⟨⟨i, c⟩, ⟨_, d⟩⟩
+  cases hicd
   have hne : c ≠ d := fun h => hcd (h ▸ rfl)
-  rw [validLabeling_pairFlip_iff hv i c d hne,
-    validLabeling_pairFlip_iff hf i c d hne]
-  have he : (fun j => pairFlip f a b ⟨i, j⟩) = (fun j => f ⟨i, j⟩) := by
-    funext j
-    exact pairFlip_at_other f hic (hiab ▸ hic)
-  exact Iff.of_eq (congrArg
-    (fun bits => sem F[i].rel (List.ofFn (flipOn {c, d} bits)) = true) he)
+  rw [validLabeling_pairFlip_iff hv i c d hne, validLabeling_pairFlip_iff hf i c d hne]
+  exact Iff.of_eq (congrArg (fun bits => sem F[i].rel (List.ofFn (flipOn {c, d} bits)) = true)
+    (funext fun _ => pairFlip_at_other f hic (hiab ▸ hic)))
 
 variable {sem : Rel → List Bool → Bool} {f : OccurrenceLabeling F Bool} {T : DAG F}
 
@@ -240,20 +215,17 @@ theorem IsFDAG.feasible_after_earlier (h : T.IsFDAG sem f)
       x.occurrence y.occurrence) := by
   have hv := h.feasible a ha b hb hai hab
   by_cases he : x.occurrence = y.occurrence
-  · rw [he, pairFlip_self]
-    exact hv
+  · rwa [he, pairFlip_self]
   have hbt : a.time = b.time := congrArg Prod.snd hab
   have hyt : x.time = y.time := congrArg Prod.snd hxy
   by_cases hc : x.occurrence.1 = a.occurrence.1
-  · have hac := h.occurrence_ne_of_time_ne ha hx (by omega)
-    have had := h.occurrence_ne_of_time_ne ha hy (by omega)
-    have hbc := h.occurrence_ne_of_time_ne hb hx (by omega)
-    have hbd := h.occurrence_ne_of_time_ne hb hy (by omega)
-    exact valid_four_occurrences hM h.valid (congrArg Prod.fst hab) hc.symm
-      (hc.symm.trans (congrArg Prod.fst hxy))
-      hne hac had hbc hbd he
-      hv (h.feasible x hx y hy hxi hxy)
-      (h.noShortcut a ha x hx hai hc.symm ht)
+  · exact valid_four_occurrences hM h.valid (congrArg Prod.fst hab) hc.symm
+      (hc.symm.trans (congrArg Prod.fst hxy)) hne
+      (h.occurrence_ne_of_time_ne ha hx (by omega))
+      (h.occurrence_ne_of_time_ne ha hy (by omega))
+      (h.occurrence_ne_of_time_ne hb hx (by omega))
+      (h.occurrence_ne_of_time_ne hb hy (by omega)) he hv
+      (h.feasible x hx y hy hxi hxy) (h.noShortcut a ha x hx hai hc.symm ht)
       (h.noShortcut a ha y hy hai (hc.symm.trans (congrArg Prod.fst hxy)) (by omega))
   · exact (valid_pairFlip_other_iff h.valid (congrArg Prod.fst hab)
       (congrArg Prod.fst hxy) hc hv).mpr (h.feasible x hx y hy hxi hxy)
@@ -281,9 +253,8 @@ theorem IsFDAG.noShortcut_after_earlier (h : T.IsFDAG sem f)
       (h.noShortcut x hx y hy hxi hxy hxytime)
       (h.noShortcut a ha x hx hai hc.symm ht)
       (h.noShortcut a ha y hy hai (hc.symm.trans hxy) (by omega))
-  · intro hn
-    exact h.noShortcut x hx y hy hxi hxy hxytime
-      ((valid_pairFlip_other_iff h.valid (congrArg Prod.fst hab) hxy hc hv).mp hn)
+  · exact mt (valid_pairFlip_other_iff h.valid (congrArg Prod.fst hab) hxy hc hv).mp
+      (h.noShortcut x hx y hy hxi hxy hxytime)
 
 /-- A supported copy has minimum timestamp, including among isolated constraint copies. -/
 @[expose] def Earliest (T : DAG F) (c : Copy F) : Prop :=
@@ -294,11 +265,7 @@ theorem IsFDAG.time_lt_of_earliest (h : T.IsFDAG sem f) {c : Copy F}
     (hc : T.Earliest c) {a : Arc F} (ha : a ∈ T.arcs) (hne : a.copy ≠ c) :
     c.2 < a.time := by
   have ham := (h.supported a ha).2
-  have hle := hc.2 a.copy ham
-  have hne' : c.2 ≠ a.time := by
-    intro he
-    exact hne (h.ordered.1 a.copy ham c hc.1 he.symm)
-  exact lt_of_le_of_ne hle hne'
+  exact (hc.2 a.copy ham).lt_of_ne fun he => hne (h.ordered.1 a.copy ham c hc.1 he.symm)
 
 section Surgery
 
@@ -324,6 +291,21 @@ theorem mem_reroot_arcs {a b e : Arc F} :
 @[expose] def removeRootCopy (T : DAG F) (u : V) (c : Copy F) : DAG F :=
   T.restrict (T.vars.erase u) (T.copies.erase c)
 
+private theorem IsFDAG.restrict_erase_copy (h : T.IsFDAG sem f)
+    (hM : EdgeInstance.EvenConstraints sem F) (V' : Finset V) {a b : Arc F}
+    (ha : a ∈ T.arcs) (hb : b ∈ T.arcs) (hai : a.incoming = true)
+    (hne : a.occurrence ≠ b.occurrence) (hab : a.copy = b.copy) (he : T.Earliest a.copy) :
+    (T.restrict V' (T.copies.erase a.copy)).IsFDAG sem (pairFlip f a.occurrence b.occurrence) := by
+  have hs := h.restrict V' (T.copies.erase a.copy)
+  refine ⟨h.feasible a ha b hb hai hab, hs.supported, hs.unique, hs.indegree, hs.ordered,
+    fun x hx y hy hxi hxy => ?_, fun x hx y hy hxi hxy ht => ?_⟩
+  · obtain ⟨hxt, _, hxc⟩ := mem_filter.mp hx
+    exact h.feasible_after_earlier hM ha hb hxt (mem_filter.mp hy).1 hai hne hab hxi hxy
+      (h.time_lt_of_earliest he hxt (mem_erase.mp hxc).1)
+  · obtain ⟨hxt, _, hxc⟩ := mem_filter.mp hx
+    exact h.noShortcut_after_earlier hM ha hb hxt (mem_filter.mp hy).1 hai hne hab hxi hxy
+      (h.time_lt_of_earliest he hxt (mem_erase.mp hxc).1) ht
+
 /-- Earliest-copy deletion preserves the full f-DAG invariant after its two-port move.
 This stronger form deletes every incident arc at the selected root and copy; the degree
 hypotheses in Lemma 35 identify these with precisely its two displayed arcs. -/
@@ -333,22 +315,9 @@ theorem IsFDAG.removeRootCopy (h : T.IsFDAG sem f)
     (hai : a.incoming = true) (hbo : b.incoming = false) (hab : a.copy = b.copy)
     (he : T.Earliest a.copy) :
     (T.removeRootCopy a.occurrence.var a.copy).IsFDAG sem
-      (pairFlip f a.occurrence b.occurrence) := by
-  have hs := h.restrict (T.vars.erase a.occurrence.var) (T.copies.erase a.copy)
-  refine ⟨h.feasible a ha b hb hai hab, hs.supported, hs.unique, hs.indegree,
-    hs.ordered, ?_, ?_⟩
-  · intro x hx y hy hxi hxy
-    obtain ⟨hxt, _, hxc⟩ := mem_filter.mp hx
-    obtain ⟨hyt, _, _⟩ := mem_filter.mp hy
-    exact h.feasible_after_earlier hM ha hb hxt hyt hai
-      (h.occurrence_ne_of_orientation_ne ha hb (by simp [hai, hbo])) hab hxi hxy
-      (h.time_lt_of_earliest he hxt (mem_erase.mp hxc).1)
-  · intro x hx y hy hxi hxy ht
-    obtain ⟨hxt, _, hxc⟩ := mem_filter.mp hx
-    obtain ⟨hyt, _, _⟩ := mem_filter.mp hy
-    exact h.noShortcut_after_earlier hM ha hb hxt hyt hai
-      (h.occurrence_ne_of_orientation_ne ha hb (by simp [hai, hbo])) hab hxi hxy
-      (h.time_lt_of_earliest he hxt (mem_erase.mp hxc).1) ht
+      (pairFlip f a.occurrence b.occurrence) :=
+  h.restrict_erase_copy hM _ ha hb hai
+    (h.occurrence_ne_of_orientation_ne ha hb (by simp [hai, hbo])) hab he
 
 /-- Lemma 35, KKR v6, printed pp. 16–17: flip `u C v`, remove `u,C^s` and exactly
 the two displayed arcs. Both local feasibility and no shortcuts are proved by even exchange. -/
@@ -363,26 +332,14 @@ theorem IsFDAG.delete_earliest_pair (h : T.IsFDAG sem f)
       (T.removeRootCopy a.occurrence.var a.copy).IsFDAG sem
         (pairFlip f a.occurrence b.occurrence) ∧
       (T.removeRootCopy a.occurrence.var a.copy).arcs = (T.arcs.erase a).erase b := by
-  refine ⟨h.feasible a ha b hb hai hab, h.removeRootCopy hM ha hb hai hbo hab he, ?_⟩
-  apply Finset.ext
-  intro e
-  change e ∈ T.arcs.filter (fun z => z.occurrence.var ∈ T.vars.erase a.occurrence.var ∧
-    z.copy ∈ T.copies.erase a.copy) ↔ e ∈ (T.arcs.erase a).erase b
+  refine ⟨h.feasible a ha b hb hai hab, h.removeRootCopy hM ha hb hai hbo hab he,
+    Finset.ext fun e => ?_⟩
+  change e ∈ T.arcs.filter _ ↔ _
   simp only [mem_filter, mem_erase]
-  constructor
-  · rintro ⟨het, ⟨hvar, _⟩, hcopy, _⟩
-    refine ⟨?_, ?_, het⟩
-    · intro he
-      subst e
-      exact hcopy hab.symm
-    · intro he
-      subst e
-      exact hvar rfl
-  · rintro ⟨heb, hea, het⟩
-    refine ⟨het, ⟨?_, (h.supported e het).1⟩, ?_, (h.supported e het).2⟩
-    · exact fun hv => hea (hleaf e het hv)
-    · intro hc
-      exact (hdegree e het hc).elim hea heb
+  exact ⟨fun ⟨het, ⟨hvar, _⟩, hcopy, _⟩ =>
+      ⟨fun h => hcopy (h ▸ hab.symm), fun h => hvar (h ▸ rfl), het⟩,
+    fun ⟨heb, hea, het⟩ => ⟨het, ⟨fun hv => hea (hleaf e het hv), (h.supported e het).1⟩,
+      fun hc => (hdegree e het hc).elim hea heb, (h.supported e het).2⟩⟩
 
 /-- Lemma 37, KKR v6, printed pp. 18–19: an earliest copy with a single incoming root
 arc can be rerooted at any outgoing child. Other outgoing children are retained. -/
@@ -395,13 +352,14 @@ theorem IsFDAG.reroot_earliest (h : T.IsFDAG sem f)
     (hin : ∀ e ∈ T.arcs, e.incoming = true → e.copy = a.copy → e = a) :
     (T.reroot a b).IsFDAG sem (pairFlip f a.occurrence b.occurrence) := by
   have hv := h.feasible a ha b hb hai hab
-  have hba : b ≠ a := by intro hh; have := congrArg Arc.incoming hh; simp_all
-  have hvars : b.occurrence.var ≠ a.occurrence.var := fun hh => hba (hleaf b hb hh)
+  have hne : a.occurrence ≠ b.occurrence :=
+    h.occurrence_ne_of_orientation_ne ha hb (by simp [hai, hbo])
+  have hvars : b.occurrence.var ≠ a.occurrence.var := fun hh =>
+    hne (congrArg Arc.occurrence (hleaf b hb hh).symm)
   have hbt : a.time = b.time := congrArg Prod.snd hab
   have hbi : a.occurrence.1 = b.occurrence.1 := congrArg Prod.fst hab
-  have hcopy : ∀ x ∈ T.arcs, x ≠ a → x.incoming = true → x.copy ≠ a.copy := by
-    intro x hx hxa hxi hxc
-    exact hxa (hin x hx hxi hxc)
+  have hcopy : ∀ x ∈ T.arcs, x ≠ a → x.incoming = true → x.copy ≠ a.copy :=
+    fun x hx hxa hxi hxc => hxa (hin x hx hxi hxc)
   refine ⟨hv, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro e hem
     rcases mem_reroot_arcs.mp hem with rfl | ⟨het, hea, _⟩
@@ -416,66 +374,49 @@ theorem IsFDAG.reroot_earliest (h : T.IsFDAG sem f)
     · exact (hxb (h.unique x hxt b hb hxy)).elim
     · exact h.unique x hxt y hyt hxy
   · intro x hx y hy hxo hyo hxy
-    rcases mem_reroot_arcs.mp hx with rfl | ⟨hxt, _, _⟩
-    · simp [Arc.reverse, hbo] at hxo
-    rcases mem_reroot_arcs.mp hy with rfl | ⟨hyt, _, _⟩
-    · simp [Arc.reverse, hbo] at hyo
-    exact h.indegree x hxt y hyt hxo hyo hxy
-  · refine ⟨h.ordered.1, ?_⟩
-    obtain ⟨rank, hr⟩ := h.ordered.2
+    have hnt {e} (he : e ∈ (T.reroot a b).arcs) (ho : e.incoming = false) : e ∈ T.arcs :=
+      (mem_reroot_arcs.mp he).elim (fun hh => by simp [hh, Arc.reverse, hbo] at ho) And.left
+    exact h.indegree x (hnt hx hxo) y (hnt hy hyo) hxo hyo hxy
+  · obtain ⟨rank, hr⟩ := h.ordered.2
     let rank' : Node F → ℕ := Sum.elim
       (fun v => if v = b.occurrence.var then 0 else rank (.inl v) + 1)
       (fun c => rank (.inr c) + 1)
-    refine ⟨rank', ?_⟩
-    intro x y hxy
-    rcases hxy with ⟨e, hem, rfl, rfl⟩ | ⟨c, hc, d, hd, hcd, rfl, rfl⟩
+    refine ⟨h.ordered.1, rank', ?_⟩
+    rintro x y (⟨e, hem, rfl, rfl⟩ | ⟨c, hc, d, hd, hcd, rfl, rfl⟩)
     · rcases mem_reroot_arcs.mp hem with rfl | ⟨het, _, heb⟩
       · simp [rank', Arc.source, Arc.target, Arc.reverse, hbo]
       · have heold := hr e.source e.target (Or.inl ⟨e, het, rfl, rfl⟩)
-        cases hei : e.incoming
-        · have hnev : e.occurrence.var ≠ b.occurrence.var := by
-            intro hh
-            exact heb (h.indegree e het b hb hei hbo hh)
-          simpa only [Arc.source, Arc.target, hei, Bool.false_eq_true, ↓reduceIte,
-            rank', Sum.elim_inl, Sum.elim_inr, ite_eq_right hnev, Nat.add_lt_add_iff_right]
-            using heold
-        · by_cases hev : e.occurrence.var = b.occurrence.var
-          · simp [Arc.source, Arc.target, hei, rank', hev]
-          · simpa only [Arc.source, Arc.target, hei, ↓reduceIte, rank', Sum.elim_inl,
-              Sum.elim_inr, ite_eq_right hev, Nat.add_lt_add_iff_right] using heold
+        by_cases hev : e.occurrence.var = b.occurrence.var
+        · have hei : e.incoming = true := Bool.eq_true_of_not_eq_false fun h0 =>
+            heb (h.indegree e het b hb h0 hbo hev)
+          simp [Arc.source, Arc.target, hei, rank', hev]
+        · cases hei : e.incoming <;>
+            simpa only [Arc.source, Arc.target, hei, Bool.false_eq_true, ↓reduceIte,
+              rank', Sum.elim_inl, Sum.elim_inr, ite_eq_right hev, Nat.add_lt_add_iff_right]
+              using heold
     · exact Nat.add_lt_add_right
         (hr (.inr c) (.inr d) (Or.inr ⟨c, hc, d, hd, hcd, rfl, rfl⟩)) 1
   · intro x hx y hy hxi hxy
     rcases mem_reroot_arcs.mp hx with rfl | ⟨hxt, hxa, _⟩
     · rcases mem_reroot_arcs.mp hy with rfl | ⟨hyt, _, _⟩
       · simpa only [pairFlip_self] using hv
-      · change ValidLabeling sem (pairFlip (pairFlip f a.occurrence b.occurrence)
-          b.occurrence y.occurrence)
-        rw [pairFlip_cancel]
-        exact h.feasible a ha y hyt hai (hab.trans hxy)
+      · simpa only [Arc.reverse, pairFlip_cancel] using h.feasible a ha y hyt hai (hab.trans hxy)
     · have hxc := hcopy x hxt hxa hxi
       rcases mem_reroot_arcs.mp hy with rfl | ⟨hyt, _, _⟩
       · exact (hxc (hxy.trans hab.symm)).elim
-      · exact h.feasible_after_earlier hM ha hb hxt hyt hai
-          (h.occurrence_ne_of_orientation_ne ha hb (by simp [hai, hbo])) hab hxi hxy
+      · exact h.feasible_after_earlier hM ha hb hxt hyt hai hne hab hxi hxy
           (h.time_lt_of_earliest he hxt hxc)
   · intro x hx y hy hxi hxy htime
     rcases mem_reroot_arcs.mp hx with rfl | ⟨hxt, hxa, _⟩
     · rcases mem_reroot_arcs.mp hy with rfl | ⟨hyt, _, _⟩
       · exact (Nat.lt_irrefl b.time htime).elim
-      · change ¬ ValidLabeling sem (pairFlip (pairFlip f a.occurrence b.occurrence)
-          b.occurrence y.occurrence)
-        rw [pairFlip_cancel]
-        exact h.noShortcut a ha y hyt hai (hbi.trans hxy)
-          (by simpa only [Arc.reverse, ← hbt] using htime)
+      · simpa only [Arc.reverse, pairFlip_cancel] using
+          h.noShortcut a ha y hyt hai (hbi.trans hxy) (hbt.symm ▸ htime)
     · have hxc := hcopy x hxt hxa hxi
       have htx := h.time_lt_of_earliest he hxt hxc
       rcases mem_reroot_arcs.mp hy with rfl | ⟨hyt, _, _⟩
-      · change x.time < b.time at htime
-        change a.time < x.time at htx
-        omega
-      · exact h.noShortcut_after_earlier hM ha hb hxt hyt hai
-          (h.occurrence_ne_of_orientation_ne ha hb (by simp [hai, hbo])) hab hxi hxy htx htime
+      · exact absurd (lt_trans htx htime) (hbt ▸ lt_irrefl a.time)
+      · exact h.noShortcut_after_earlier hM ha hb hxt hyt hai hne hab hxi hxy htx htime
 
 /-- Delete a constraint copy, retaining its variable endpoints as isolated nodes if necessary. -/
 @[expose] def removeCopy (T : DAG F) (c : Copy F) : DAG F :=
@@ -488,20 +429,8 @@ theorem IsFDAG.removeCopy (h : T.IsFDAG sem f)
     (ha : a ∈ T.arcs) (hb : b ∈ T.arcs) (hai : a.incoming = true)
     (hne : a.occurrence ≠ b.occurrence) (hab : a.copy = b.copy)
     (he : T.Earliest a.copy) :
-    (T.removeCopy a.copy).IsFDAG sem (pairFlip f a.occurrence b.occurrence) := by
-  have hs := h.restrict T.vars (T.copies.erase a.copy)
-  refine ⟨h.feasible a ha b hb hai hab, hs.supported, hs.unique, hs.indegree,
-    hs.ordered, ?_, ?_⟩
-  · intro x hx y hy hxi hxy
-    obtain ⟨hxt, _, hxc⟩ := mem_filter.mp hx
-    obtain ⟨hyt, _, _⟩ := mem_filter.mp hy
-    exact h.feasible_after_earlier hM ha hb hxt hyt hai hne hab hxi hxy
-      (h.time_lt_of_earliest he hxt (mem_erase.mp hxc).1)
-  · intro x hx y hy hxi hxy ht
-    obtain ⟨hxt, _, hxc⟩ := mem_filter.mp hx
-    obtain ⟨hyt, _, _⟩ := mem_filter.mp hy
-    exact h.noShortcut_after_earlier hM ha hb hxt hyt hai hne hab hxi hxy
-      (h.time_lt_of_earliest he hxt (mem_erase.mp hxc).1) ht
+    (T.removeCopy a.copy).IsFDAG sem (pairFlip f a.occurrence b.occurrence) :=
+  h.restrict_erase_copy hM _ ha hb hai hne hab he
 
 /-- Each supported constraint copy has precisely two incident arcs, at least one incoming.
 This purely graph-theoretic condition includes directed paths and two paths meeting at a copy.
@@ -518,13 +447,9 @@ theorem PairedCopies.removeCopy (hp : T.PairedCopies) (hs : T.Supported) (c : Co
   obtain ⟨hdt, hderase⟩ := mem_inter.mp hd
   have hdc := (mem_erase.mp hderase).1
   obtain ⟨a, ha, b, hb, hai, hac, hbc, hab, hpair⟩ := hp d hdt
-  refine ⟨a, ?_, b, ?_, hai, hac, hbc, hab, ?_⟩
-  · exact mem_filter.mpr ⟨ha, (hs a ha).1,
-      mem_erase.mpr ⟨hac ▸ hdc, (hs a ha).2⟩⟩
-  · exact mem_filter.mpr ⟨hb, (hs b hb).1,
-      mem_erase.mpr ⟨hbc ▸ hdc, (hs b hb).2⟩⟩
-  · intro e hem hed
-    exact hpair e (mem_filter.mp hem).1 hed
+  exact ⟨a, mem_filter.mpr ⟨ha, (hs a ha).1, mem_erase.mpr ⟨hac ▸ hdc, (hs a ha).2⟩⟩,
+    b, mem_filter.mpr ⟨hb, (hs b hb).1, mem_erase.mpr ⟨hbc ▸ hdc, (hs b hb).2⟩⟩,
+    hai, hac, hbc, hab, fun e hem hed => hpair e (mem_filter.mp hem).1 hed⟩
 
 /-- Flip every used original incidence of a DAG, independently of isolated node support. -/
 @[expose] def flip (T : DAG F) (f : OccurrenceLabeling F Bool) : OccurrenceLabeling F Bool :=
@@ -537,22 +462,15 @@ private theorem image_removeCopy (h : T.IsFDAG sem f) {a b : Arc F}
       T.arcs.image Arc.occurrence \ {a.occurrence, b.occurrence} := by
   ext o
   simp only [mem_image, mem_sdiff, mem_insert, mem_singleton, not_or]
-  constructor
-  · rintro ⟨e, hem, rfl⟩
-    obtain ⟨het, _, hcerase⟩ := mem_filter.mp hem
-    have hc := (mem_erase.mp hcerase).1
-    refine ⟨⟨e, het, rfl⟩, ?_, ?_⟩
-    · intro he
-      exact hc (congrArg Arc.copy (h.unique e het a ha he))
-    · intro he
-      exact hc ((congrArg Arc.copy (h.unique e het b hb he)).trans hab.symm)
-  · rintro ⟨⟨e, het, rfl⟩, hea, heb⟩
-    refine ⟨e, mem_filter.mpr ⟨het, (h.supported e het).1,
-      mem_erase.mpr ⟨?_, (h.supported e het).2⟩⟩, rfl⟩
-    intro hc
-    rcases hp e het hc with rfl | rfl
-    · exact hea rfl
-    · exact heb rfl
+  refine ⟨?_, fun ⟨⟨e, het, he⟩, hea, heb⟩ =>
+    ⟨e, mem_filter.mpr ⟨het, (h.supported e het).1,
+      mem_erase.mpr ⟨fun hc => (hp e het hc).elim (fun r => hea (he ▸ congrArg _ r))
+        fun r => heb (he ▸ congrArg _ r), (h.supported e het).2⟩⟩, he⟩⟩
+  rintro ⟨e, hem, rfl⟩
+  obtain ⟨het, _, hcerase⟩ := mem_filter.mp hem
+  have hc := (mem_erase.mp hcerase).1
+  exact ⟨⟨e, het, rfl⟩, fun he => hc (congrArg Arc.copy (h.unique e het a ha he)),
+    fun he => hc ((congrArg Arc.copy (h.unique e het b hb he)).trans hab.symm)⟩
 
 /-- Removing a two-arc constraint copy factors the full DAG flip into its first pair move
 and the remaining incidence flip. Original incidences are not counted twice. -/
@@ -582,29 +500,23 @@ theorem IsFDAG.valid_flip_of_pairedCopies (h : T.IsFDAG sem f)
   induction n using Nat.strong_induction_on generalizing T f with
   | ind n ih =>
     by_cases ht : T.copies.Nonempty
-    · have hex : ∃ t, ∃ c ∈ T.copies, c.2 = t := by
-        obtain ⟨c, hc⟩ := ht
-        exact ⟨c.2, c, hc, rfl⟩
+    · have hex : ∃ t, ∃ c ∈ T.copies, c.2 = t := ht.elim fun c hc => ⟨c.2, c, hc, rfl⟩
       obtain ⟨c, hc, hct⟩ := Nat.find_spec hex
-      have he : T.Earliest c := ⟨hc, fun d hd => by
-        rw [hct]
-        exact Nat.find_min' hex ⟨d, hd, rfl⟩⟩
+      have he : T.Earliest c := ⟨hc, fun d hd => hct ▸ Nat.find_min' hex ⟨d, hd, rfl⟩⟩
       obtain ⟨a, ha, b, hb, hai, hac, hbc, hab, hpair⟩ := hp c hc
       have hcopies : a.copy = b.copy := hac.trans hbc.symm
       have hne : a.occurrence ≠ b.occurrence := fun hh => hab (h.unique a ha b hb hh)
       have hs := h.removeCopy hM ha hb hai hne hcopies (hac ▸ he)
       have hsmall : (T.removeCopy a.copy).copies.card < n := by
         change (T.copies ∩ T.copies.erase a.copy).card < n
-        rw [inter_eq_right.mpr (erase_subset _ _), ← hn]
-        exact card_erase_lt_of_mem (hac ▸ hc)
-      have hv := ih _ hsmall hs (hp.removeCopy h.supported a.copy) rfl
-      rwa [h.flip_removeCopy ha hb hcopies hne (fun e hem hec => hpair e hem (hec.trans hac))] at hv
-    · have hc : T.copies = ∅ := not_nonempty_iff_eq_empty.mp ht
-      have ha : T.arcs = ∅ := by
-        apply eq_empty_iff_forall_notMem.mpr
-        intro a ham
-        have := (h.supported a ham).2
-        simp only [hc, Finset.notMem_empty] at this
+        simpa only [inter_eq_right.mpr (erase_subset _ _), ← hn] using
+          card_erase_lt_of_mem (hac ▸ hc)
+      simpa only [h.flip_removeCopy ha hb hcopies hne
+          fun e hem hec => hpair e hem (hec.trans hac)] using
+        ih _ hsmall hs (hp.removeCopy h.supported a.copy) rfl
+    · simp only [not_nonempty_iff_eq_empty] at ht
+      have ha : T.arcs = ∅ := eq_empty_iff_forall_notMem.mpr fun a ham =>
+        notMem_empty _ (ht ▸ (h.supported a ham).2)
       simpa only [flip, ha, image_empty, flipOn_empty] using h.valid
 
 end Surgery
@@ -622,8 +534,7 @@ theorem IsFDAG.external_pair (h : T.IsFDAG sem f)
   refine ⟨hv, h.supported, h.unique, h.indegree, h.ordered, ?_, ?_⟩
   · intro x hx y hy hxi hxy
     by_cases he : x.occurrence = y.occurrence
-    · rw [he, pairFlip_self]
-      exact hv
+    · rwa [he, pairFlip_self]
     by_cases hc : a.1 = x.occurrence.1
     · exact valid_four_occurrences hM h.valid hab hc
         (hc.trans (congrArg Prod.fst hxy)) hne (hdis x hx).1 (hdis y hy).1
@@ -638,9 +549,8 @@ theorem IsFDAG.external_pair (h : T.IsFDAG sem f)
         (h.occurrence_ne_of_time_ne hx hy (Nat.ne_of_lt ht)) hv
         (h.noShortcut x hx y hy hxi hxy ht)
         (hcross x hx hc) (hcross y hy (hc.trans hxy))
-    · intro hn
-      exact h.noShortcut x hx y hy hxi hxy ht
-        ((valid_pairFlip_other_iff h.valid hab hxy (Ne.symm hc) hv).mp hn)
+    · exact mt (valid_pairFlip_other_iff h.valid hab hxy (Ne.symm hc) hv).mp
+        (h.noShortcut x hx y hy hxi hxy ht)
 
 section ExternalWalk
 
@@ -657,78 +567,49 @@ theorem IsFDAG.flip_walk_of_no_prefix_extension (h : T.IsFDAG sem f)
         ¬ ((w.take n).snoc o e.occurrence).IsFWalk sem f) :
     T.IsFDAG sem (w.flip f) := by
   classical
-  have hprefix : ∀ n, n ≤ w.steps.length → T.IsFDAG sem ((w.take n).flip f) := by
-    intro n
+  have hprefix (n : ℕ) (hn : n ≤ w.steps.length) : T.IsFDAG sem ((w.take n).flip f) := by
     induction n with
     | zero =>
-      intro _
       simpa only [Walk.take, List.take_zero, Walk.flip, Walk.edges, Walk.edgesOf,
         List.flatMap_nil, List.toFinset_nil, flipOn_empty] using h
     | succ n ih =>
-      intro hn
-      have hlt : n < w.steps.length := by omega
-      have hcurrent := ih (by omega)
+      have hlt : n < w.steps.length := Nat.lt_of_succ_le hn
       let o := w.steps[n].1
       let p := w.steps[n].2
-      have hstep : w.steps[n] = (o, p) := rfl
-      have hs : (w.take (n + 1)).steps = (w.take n).steps ++ [(o, p)] := by
-        exact (List.take_succ_eq_append_getElem hlt).trans (by rw [hstep]; rfl)
-      have hsnoc : w.take (n + 1) = (w.take n).snoc o p := by
-        cases w
-        exact congrArg (Walk.mk _) hs
+      have hs : (w.take (n + 1)).steps = (w.take n).steps ++ [(o, p)] :=
+        List.take_succ_eq_append_getElem hlt
+      have hsnoc : w.take (n + 1) = (w.take n).snoc o p := congrArg (Walk.mk w.start) hs
       have hwalk := hw.1.1.take (n + 1)
-      have hl := (Walk.linked_append_iff w.start (w.take n).steps [(o, p)]).mp
-        (hs ▸ hwalk.1)
-      have ho : o.var = (w.take n).finish := hl.2.1
-      have hc : o.1 = p.1 := hl.2.2.1
-      have hnd : ((w.take n).edges ++ [o, p]).Nodup := by
-        have he : (w.take (n + 1)).edges = (w.take n).edges ++ [o, p] := by
-          change Walk.edgesOf (w.take (n + 1)).steps = _
-          rw [hs, Walk.edgesOf_append]
-          rfl
-        simpa only [he] using hwalk.2
-      have hnd' := List.nodup_append.mp hnd
-      have hop : o ≠ p := (List.nodup_cons.mp hnd'.2.1).1 ∘ List.mem_singleton.mpr
-      have hnoo : o ∉ (w.take n).edges := fun hh => hnd'.2.2 o hh o (by simp) rfl
-      have hnop : p ∉ (w.take n).edges := fun hh => hnd'.2.2 p hh p (by simp) rfl
-      have hmem : ∀ q ∈ [o, p], q ∈ w.edges := by
-        intro q hq
-        exact List.mem_flatMap.mpr ⟨w.steps[n], List.getElem_mem hlt,
-          by simpa only [hstep] using hq⟩
-      have hom := hmem o (by simp)
-      have hpm := hmem p (by simp)
-      have hdis : ∀ e ∈ T.arcs, o ≠ e.occurrence ∧ p ≠ e.occurrence := by
-        intro e he
-        exact ⟨fun hh => hvars o hom (hh ▸ (h.supported e he).1),
-          fun hh => hvars p hpm (hh ▸ (h.supported e he).1)⟩
-      have hv : ValidLabeling sem (pairFlip ((w.take n).flip f) o p) := by
-        rw [pairFlip_eq _ hop]
-        have hv := hw.1.valid_take (n + 1) hn
-        rwa [hsnoc, Walk.flip_snoc _ _ _ _ (hw.1.1.take n) hnoo hnop hop] at hv
+      rcases (Walk.linked_append_iff w.start (w.take n).steps [(o, p)]).mp (hs ▸ hwalk.1) with
+        ⟨_, ho, hc, _⟩
+      obtain ⟨_, hndp, hndcross⟩ := List.nodup_append.mp
+        (by simpa only [Walk.edges, hs, Walk.edgesOf_append] using hwalk.2)
+      have hop : o ≠ p := (List.nodup_cons.mp hndp).1 ∘ List.mem_singleton.mpr
+      have hnoo : o ∉ (w.take n).edges := fun hh => hndcross o hh o (by simp) rfl
+      have hnop : p ∉ (w.take n).edges := fun hh => hndcross p hh p (by simp) rfl
+      have hnotT {q} (hq : q ∈ [o, p]) {e} (he : e ∈ T.arcs) : q ≠ e.occurrence := fun hh =>
+        hvars q (List.mem_flatMap.mpr ⟨w.steps[n], List.getElem_mem hlt, hq⟩)
+          (hh ▸ (h.supported e he).1)
+      have hfl : (w.take (n + 1)).flip f = pairFlip ((w.take n).flip f) o p := by
+        rw [hsnoc, Walk.flip_snoc _ _ _ _ (hw.1.1.take n) hnoo hnop hop, ← pairFlip_eq _ hop]
+      have hv : ValidLabeling sem (pairFlip ((w.take n).flip f) o p) :=
+        hfl ▸ hw.1.valid_take (n + 1) hn
       have hcross : ∀ e ∈ T.arcs, o.1 = e.occurrence.1 →
           ¬ ValidLabeling sem (pairFlip ((w.take n).flip f) o e.occurrence) := by
         intro e he hce hv
-        have hne := (hdis e he).1
-        have hnew : e.occurrence ∉ (w.take n).edges := by
-          intro hm
-          have hem : e.occurrence ∈ w.edges := by
-            exact ((List.take_sublist n w.steps).flatMap fun (o, p) => [o, p]).subset hm
-          exact hvars e.occurrence hem (h.supported e he).1
+        have hne := hnotT (q := o) (by simp) he
+        have hnew : e.occurrence ∉ (w.take n).edges := fun hm => hvars e.occurrence
+          (((List.take_sublist n w.steps).flatMap fun (o, p) => [o, p]).subset hm)
+          (h.supported e he).1
         have hi : (w.take n).steps = [] ∨ ¬ Inconsistent f (w.take n).finish := by
-          by_cases hn0 : n = 0
-          · subst n
-            exact Or.inl rfl
-          · exact Or.inr (hw.1.not_inconsistent_finish_take (by omega) hlt)
-        have hsn := (hw.1.take n).snoc ho hce hne hnoo hnew hi
-          (by rwa [pairFlip_eq _ hne] at hv)
-        have hends : (w.take n).start ≠ ((w.take n).snoc o e.occurrence).finish := by
-          rw [Walk.finish_snoc]
-          exact fun hh => hstart (hh ▸ (h.supported e he).1)
-        exact hno n hlt e he o ho hce ⟨hsn, hends⟩
-      rw [hsnoc, Walk.flip_snoc _ _ _ _ (hw.1.1.take n) hnoo hnop hop, ← pairFlip_eq _ hop]
-      exact hcurrent.external_pair hM hc hop hv hdis hcross
-  have hv := hprefix w.steps.length (Nat.le_refl _)
-  simpa only [Walk.take, List.take_length] using hv
+          rcases Nat.eq_zero_or_pos n with rfl | hn0
+          exacts [Or.inl rfl, Or.inr (hw.1.not_inconsistent_finish_take hn0 hlt)]
+        exact hno n hlt e he o ho hce ⟨(hw.1.take n).snoc ho hce hne hnoo hnew hi
+            (by rwa [pairFlip_eq _ hne] at hv),
+          Walk.finish_snoc _ _ _ ▸ fun hh => hstart (hh ▸ (h.supported e he).1)⟩
+      exact hfl.symm ▸ (ih hlt.le).external_pair hM hc hop hv
+        (fun e he => ⟨hnotT (by simp) he, hnotT (by simp) he⟩) hcross
+  simpa only [Walk.take, List.take_length] using hprefix w.steps.length le_rfl
 
 end ExternalWalk
 

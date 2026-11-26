@@ -38,26 +38,27 @@ open Primrec
 
 variable {α : Type*} [Primcodable α]
 
+private lemma primrec_tag {f g : α → ℕ} (hf : Primrec f) (hg : Primrec g) (k : ℕ)
+    {h : α → RawFormula} (hh : ∀ a, 4 * Nat.pair (f a) (g a) + k = Encodable.encode (h a)) :
+    Primrec h :=
+  Primrec.encode_iff.1 <|
+    (nat_add.comp (nat_mul.comp (const 4) (Primrec₂.natPair.comp hf hg)) (const k)).of_eq hh
+
 theorem primrec_equal {f g : α → ℕ} (hf : Primrec f) (hg : Primrec g) :
     Primrec fun a => equal (f a) (g a) :=
-  Primrec.encode_iff.1 <| (nat_add.comp (nat_mul.comp (const 4) (Primrec₂.natPair.comp hf hg))
-    (const 1)).of_eq fun _ => rfl
+  primrec_tag hf hg 1 fun _ => rfl
 
 theorem primrec_rel {f : α → ℕ} {g : α → List ℕ} (hf : Primrec f) (hg : Primrec g) :
     Primrec fun a => rel (f a) (g a) :=
-  Primrec.encode_iff.1 <| (nat_add.comp (nat_mul.comp (const 4)
-    (Primrec₂.natPair.comp hf (Primrec.encode_iff.2 hg))) (const 2)).of_eq fun _ => rfl
+  primrec_tag hf (Primrec.encode_iff.2 hg) 2 fun _ => rfl
 
 theorem primrec_imp {f g : α → RawFormula} (hf : Primrec f) (hg : Primrec g) :
     Primrec fun a => imp (f a) (g a) :=
-  Primrec.encode_iff.1 <| (nat_add.comp (nat_mul.comp (const 4)
-    (Primrec₂.natPair.comp (Primrec.encode_iff.2 hf) (Primrec.encode_iff.2 hg))) (const 3)).of_eq
-    fun _ => rfl
+  primrec_tag (Primrec.encode_iff.2 hf) (Primrec.encode_iff.2 hg) 3 fun _ => rfl
 
 theorem primrec_all {f : α → ℕ} {g : α → RawFormula} (hf : Primrec f) (hg : Primrec g) :
     Primrec fun a => all (f a) (g a) :=
-  Primrec.encode_iff.1 <| (nat_add.comp (nat_mul.comp (const 4)
-    (Primrec₂.natPair.comp hf (Primrec.encode_iff.2 hg))) (const 4)).of_eq fun _ => rfl
+  primrec_tag hf (Primrec.encode_iff.2 hg) 4 fun _ => rfl
 
 theorem primrec_neg {f : α → RawFormula} (hf : Primrec f) : Primrec fun a => neg (f a) :=
   primrec_imp hf (const falsum)
@@ -97,27 +98,26 @@ theorem primrec₂_of_rec {σ : Type*} [Primcodable σ] (F : α → RawFormula �
       IH[q.unpair.1]?.bind fun s₁ => IH[q.unpair.2]?.map fun s₂ =>
         i a ((ofNat q.unpair.1, ofNat q.unpair.2), (s₁, s₂))
     else IH[q.unpair.2]?.map fun s => l a ((q.unpair.1, ofNat q.unpair.2), s)
-  have hq : Primrec fun p : (α × List σ) × ℕ => p.2 / 4 := nat_div.comp snd (const 4)
-  have hq1 := fst.comp (Primrec.unpair.comp hq)
-  have hq2 := snd.comp (Primrec.unpair.comp hq)
+  have hq : Primrec fun p : (α × List σ) × ℕ => (p.2 / 4).unpair :=
+    Primrec.unpair.comp (nat_div.comp snd (const 4))
+  have hq1 := fst.comp hq
+  have hq2 := snd.comp hq
   have hmod : Primrec fun p : (α × List σ) × ℕ => p.2 % 4 := nat_mod.comp snd (const 4)
   have ha : Primrec fun p : (α × List σ) × ℕ => p.1.1 := fst.comp fst
   have hIH : Primrec fun p : (α × List σ) × ℕ => p.1.2 := snd.comp fst
-  have hofNat : Primrec ofNat := Primrec.ofNat RawFormula
-  have hG₁ : Primrec G₁ := by
-    refine Primrec.ite (Primrec.eq.comp hmod (const 0))
-      (option_some.comp (he.comp ha (Primrec.unpair.comp hq))) ?_
-    refine Primrec.ite (Primrec.eq.comp hmod (const 1))
-      (option_some.comp (hr.comp ha (Primrec.pair hq1 ((Primrec.ofNat (List ℕ)).comp hq2)))) ?_
-    refine Primrec.ite (Primrec.eq.comp hmod (const 2)) ?_ ?_
-    · refine option_bind (list_getElem?.comp hIH hq1) ?_
-      refine option_map ((list_getElem?.comp hIH hq2).comp fst) ?_
-      exact hi.comp (ha.comp (fst.comp fst))
-        (Primrec.pair (Primrec.pair (hofNat.comp (hq1.comp (fst.comp fst)))
-          (hofNat.comp (hq2.comp (fst.comp fst)))) (Primrec.pair (snd.comp fst) snd))
-    · refine option_map (list_getElem?.comp hIH hq2) ?_
-      exact hl.comp (ha.comp fst)
-        (Primrec.pair (Primrec.pair (hq1.comp fst) (hofNat.comp (hq2.comp fst))) snd)
+  have hof : Primrec ofNat := Primrec.ofNat RawFormula
+  have hG₁ : Primrec G₁ :=
+    Primrec.ite (Primrec.eq.comp hmod (const 0)) (option_some.comp (he.comp ha hq)) <|
+    Primrec.ite (Primrec.eq.comp hmod (const 1))
+      (option_some.comp (hr.comp ha (Primrec.pair hq1 ((Primrec.ofNat (List ℕ)).comp hq2)))) <|
+    Primrec.ite (Primrec.eq.comp hmod (const 2))
+      (option_bind (list_getElem?.comp hIH hq1) <|
+        option_map ((list_getElem?.comp hIH hq2).comp fst) <|
+        hi.comp (ha.comp (fst.comp fst)) (Primrec.pair
+          (Primrec.pair (hof.comp (hq1.comp (fst.comp fst))) (hof.comp (hq2.comp (fst.comp fst))))
+          (Primrec.pair (snd.comp fst) snd)))
+      (option_map (list_getElem?.comp hIH hq2) <| hl.comp (ha.comp fst)
+        (Primrec.pair (Primrec.pair (hq1.comp fst) (hof.comp (hq2.comp fst))) snd))
   let G : α → List σ → Option σ := fun a IH =>
     Nat.casesOn IH.length (some (z a)) fun m => G₁ ((a, IH), m)
   have hG : Primrec₂ G :=
@@ -130,59 +130,51 @@ theorem primrec₂_of_rec {σ : Type*} [Primcodable σ] (F : α → RawFormula �
       have h1 := unpair_fst_div_four_lt m
       have h2 := unpair_snd_div_four_lt m
       rw [ofNat_succ]
-      split_ifs <;>
-        simp [He, Hr, Hi, Hl, h1, h2]
-  exact (h.comp fst (Primrec.encode.comp snd)).of_eq fun p => by
+      split_ifs <;> simp [He, Hr, Hi, Hl, h1, h2]
+  exact (h.comp fst (Primrec.encode.comp snd)).of_eq fun _ => by
     simp only [encode_eq_toNat, ofNat_toNat]
 
-theorem primrec₂_rename : Primrec₂ rename := by
-  refine primrec₂_of_rec (α := List ℕ) (σ := RawFormula) rename (const falsum)
-    (e := fun _ p => equal p.1 p.2) (primrec_equal (fst.comp snd) (snd.comp snd)).to₂
-    (r := fun σ p => rel ((σ[p.1]?).getD p.1) p.2)
+theorem primrec₂_rename : Primrec₂ rename :=
+  primrec₂_of_rec rename (const falsum)
+    (primrec_equal (fst.comp snd) (snd.comp snd)).to₂
     (primrec_rel (option_getD.comp (list_getElem?.comp fst (fst.comp snd)) (fst.comp snd))
       (snd.comp snd)).to₂
-    (i := fun _ p => imp p.2.1 p.2.2)
     (primrec_imp (fst.comp (snd.comp snd)) (snd.comp (snd.comp snd))).to₂
-    (l := fun _ p => all p.1.1 p.2)
     (primrec_all (fst.comp (fst.comp snd)) (snd.comp snd)).to₂
-    (fun _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => ?_) (fun _ _ _ => rfl) (fun _ _ _ => rfl)
-  simp only [rename, List.getD_eq_getElem?_getD]
+    (fun _ => rfl) (fun _ _ _ => rfl)
+    (fun _ _ _ => by simp only [rename, List.getD_eq_getElem?_getD])
+    (fun _ _ _ => rfl) (fun _ _ _ => rfl)
 
-theorem primrec_varBound : Primrec varBound := by
-  have h := primrec₂_of_rec (α := Unit) (σ := ℕ) (fun _ φ => varBound φ) (const 0)
-    (e := fun _ p => max p.1 p.2 + 1)
-    (succ.comp (nat_max.comp (fst.comp snd) (snd.comp snd))).to₂
-    (r := fun _ p => (p.2.map (· + 1)).foldr max 0)
-    (list_foldr (list_map (snd.comp snd) (succ.comp snd).to₂) (const 0)
-      (nat_max.comp (fst.comp snd) (snd.comp snd)).to₂).to₂
-    (i := fun _ p => max p.2.1 p.2.2)
-    (nat_max.comp (fst.comp (snd.comp snd)) (snd.comp (snd.comp snd))).to₂
-    (l := fun _ p => max (p.1.1 + 1) p.2)
-    (nat_max.comp (succ.comp (fst.comp (fst.comp snd))) (snd.comp snd)).to₂
-    (fun _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl)
-  exact h.comp (const ()) Primrec.id
+private lemma primrec_of_rec {σ : Type*} [Primcodable σ] (F : RawFormula → σ) (z : σ)
+    {e : ℕ × ℕ → σ} (he : Primrec e) {r : ℕ × List ℕ → σ} (hr : Primrec r)
+    {i : (RawFormula × RawFormula) × (σ × σ) → σ} (hi : Primrec i)
+    {l : (ℕ × RawFormula) × σ → σ} (hl : Primrec l)
+    (Hz : F falsum = z) (He : ∀ x y, F (equal x y) = e (x, y))
+    (Hr : ∀ x as, F (rel x as) = r (x, as))
+    (Hi : ∀ φ ψ, F (imp φ ψ) = i ((φ, ψ), (F φ, F ψ)))
+    (Hl : ∀ x φ, F (all x φ) = l ((x, φ), F φ)) : Primrec F :=
+  (primrec₂_of_rec (α := Unit) (fun _ => F) (const z) (he.comp snd).to₂ (hr.comp snd).to₂
+    (hi.comp snd).to₂ (hl.comp snd).to₂ (fun _ => Hz) (fun _ => He) (fun _ => Hr)
+    (fun _ => Hi) (fun _ => Hl)).comp (const ()) Primrec.id
 
-theorem primrec_atoms : Primrec atoms := by
-  have h := primrec₂_of_rec (α := Unit) (σ := List (ℕ × ℕ)) (fun _ φ => atoms φ) (const [])
-    (e := fun _ _ => []) (const []).to₂
-    (r := fun _ p => [(p.1, p.2.length)])
-    (list_cons.comp (Primrec.pair (fst.comp snd) (list_length.comp (snd.comp snd)))
-      (const [])).to₂
-    (i := fun _ p => p.2.1 ++ p.2.2)
-    (list_append.comp (fst.comp (snd.comp snd)) (snd.comp (snd.comp snd))).to₂
-    (l := fun _ p => p.2) (snd.comp snd).to₂
-    (fun _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl)
-  exact h.comp (const ()) Primrec.id
+theorem primrec_varBound : Primrec varBound :=
+  primrec_of_rec varBound 0 (succ.comp (nat_max.comp fst snd))
+    (list_foldr (list_map snd (succ.comp snd).to₂) (const 0)
+      (nat_max.comp (fst.comp snd) (snd.comp snd)).to₂)
+    (nat_max.comp (fst.comp snd) (snd.comp snd))
+    (nat_max.comp (succ.comp (fst.comp fst)) snd)
+    rfl (fun _ _ => rfl) (fun _ _ => rfl) (fun _ _ => rfl) (fun _ _ => rfl)
 
-theorem primrec_quantifierDepth : Primrec quantifierDepth := by
-  have h := primrec₂_of_rec (α := Unit) (σ := ℕ) (fun _ φ => quantifierDepth φ) (const 0)
-    (e := fun _ _ => 0) (const 0).to₂
-    (r := fun _ _ => 0) (const 0).to₂
-    (i := fun _ p => max p.2.1 p.2.2)
-    (nat_max.comp (fst.comp (snd.comp snd)) (snd.comp (snd.comp snd))).to₂
-    (l := fun _ p => p.2 + 1) (succ.comp (snd.comp snd)).to₂
-    (fun _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl) (fun _ _ _ => rfl)
-  exact h.comp (const ()) Primrec.id
+theorem primrec_atoms : Primrec atoms :=
+  primrec_of_rec atoms [] (const [])
+    (list_cons.comp (Primrec.pair fst (list_length.comp snd)) (const []))
+    (list_append.comp (fst.comp snd) (snd.comp snd)) snd
+    rfl (fun _ _ => rfl) (fun _ _ => rfl) (fun _ _ => rfl) (fun _ _ => rfl)
+
+theorem primrec_quantifierDepth : Primrec quantifierDepth :=
+  primrec_of_rec quantifierDepth 0 (const 0) (const 0)
+    (nat_max.comp (fst.comp snd) (snd.comp snd)) (succ.comp snd)
+    rfl (fun _ _ => rfl) (fun _ _ => rfl) (fun _ _ => rfl) (fun _ _ => rfl)
 
 end RawFormula
 

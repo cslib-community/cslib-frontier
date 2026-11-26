@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Notation
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.PackedCount
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Counting packed flags on the word RAM
@@ -75,30 +76,21 @@ theorem exec {w e n : ℕ} (f : ℕ → Bool) (x : Data 5) (hb : n < 2 ^ e)
     Exec w code x (result x) 3 ∧
       (result x).regs out = ∑ i ∈ Finset.range n, (f i).toNat ∧
       (result x).mem = x.mem := by
-  have hp : packRadix (2 ^ e) n (fun i => (f i).toNat) < (2 ^ e) ^ n := by
-    apply packRadix_lt
-    intro i hi
-    cases f i <;> simp only [Bool.toNat_false, Bool.toNat_true] <;> omega
+  have hp : packRadix (2 ^ e) n (fun i => (f i).toNat) < (2 ^ e) ^ n :=
+    packRadix_lt _ fun i hi => by
+      cases f i <;> simp only [Bool.toNat_false, Bool.toNat_true] <;> omega
   have hones : packRadix (2 ^ e) n (fun _ => 1) < (2 ^ e) ^ n :=
-    packRadix_lt _ (fun _ hi => by omega)
+    packRadix_lt _ fun _ hi => by omega
   have hprod : Fits w (x.regs flags * x.regs ones) := by
     rw [hf, ho]
-    have hm := Nat.mul_lt_mul_of_lt_of_lt hp hones
+    refine (Nat.mul_lt_mul_of_lt_of_lt hp hones).trans_le ?_
     have he : (2 ^ e) ^ n * (2 ^ e) ^ n = 2 ^ (2 * e * n) := by
-      rw [← pow_add, ← pow_mul]
-      congr 1
-      simp only [Nat.mul_add, Nat.two_mul, Nat.add_mul]
-    rw [he] at hm
-    exact hm.trans_le (Nat.pow_le_pow_right (by decide) hw)
-  have hdiv : Fits w (x.regs flags * x.regs ones / x.regs divisor) :=
-    hprod.of_le (Nat.div_le_self _ _)
-  have hmod : Fits w (x.regs flags * x.regs ones / x.regs divisor % x.regs base) :=
-    hdiv.of_le (Nat.mod_le _ _)
-  refine ⟨?_, ?_, rfl⟩
-  · ram_eval [code, result, hprod, hdiv, hmod]
-  · rcases Nat.eq_zero_or_pos n with rfl | hn
-    · simp [result, Data.set_regs, hf, packRadix]
-    · simpa only [result, Data.set_regs, Function.update_self, hf, ho, hd, hbase] using
-        countPackedFlags f hn hb
+      rw [← pow_add, ← pow_mul]; congr 1; simp only [Nat.mul_add, Nat.two_mul, Nat.add_mul]
+    exact he ▸ Nat.pow_le_pow_right (by decide) hw
+  refine ⟨by unfold code result; wram_exec, ?_, rfl⟩
+  rcases Nat.eq_zero_or_pos n with rfl | hn
+  · simp [result, Data.set_regs, hf, packRadix]
+  · simpa only [result, Data.set_regs, Function.update_self, hf, ho, hd, hbase] using
+      countPackedFlags f hn hb
 
 end Cslib.WordRAM.PackedCount

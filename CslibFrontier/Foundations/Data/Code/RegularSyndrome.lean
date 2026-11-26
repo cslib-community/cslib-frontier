@@ -90,22 +90,15 @@ theorem hammingNorm_eq_sum_chunks {chunks chunkSize : ℕ}
     (x : Fin chunks × Fin chunkSize → Bool) :
     hammingNorm x = ∑ i, hammingNorm (fun j => x (i, j)) := by
   classical
-  let e :
-      {p : Fin chunks × Fin chunkSize // x p ≠ 0} ≃
-        Σ i : Fin chunks, {j : Fin chunkSize // x (i, j) ≠ 0} :=
-    { toFun := fun p => ⟨p.1.1, ⟨p.1.2, p.2⟩⟩
-      invFun := fun p => ⟨(p.1, p.2.1), p.2.2⟩
-      left_inv := fun _ => rfl
-      right_inv := fun _ => rfl }
-  rw [hammingNorm, ← Fintype.card_subtype]
-  rw [Fintype.card_congr e, Fintype.card_sigma]
-  simp only [Fintype.card_subtype, hammingNorm]
+  let e : {p : Fin chunks × Fin chunkSize // x p ≠ 0} ≃
+      Σ i : Fin chunks, {j : Fin chunkSize // x (i, j) ≠ 0} :=
+    ⟨fun p => ⟨p.1.1, p.1.2, p.2⟩, fun p => ⟨(p.1, p.2.1), p.2.2⟩, fun _ => rfl, fun _ => rfl⟩
+  simp only [hammingNorm, ← Fintype.card_subtype, Fintype.card_congr e, Fintype.card_sigma]
 
 @[simp]
 theorem isRegular_regularWord {chunks chunkSize : ℕ}
-    (positions : Fin chunks → Fin chunkSize) : IsRegularWord (regularWord positions) := by
-  intro i
-  exact ⟨positions i, rfl⟩
+    (positions : Fin chunks → Fin chunkSize) : IsRegularWord (regularWord positions) :=
+  fun i => ⟨positions i, rfl⟩
 
 /-- The per-chunk unit-vector predicate is equivalent to the source's description as a
 concatenation of elementary words. -/
@@ -113,23 +106,16 @@ theorem isRegularWord_iff_exists_positions {chunks chunkSize : ℕ}
     (x : Fin chunks × Fin chunkSize → Bool) :
     IsRegularWord x ↔ ∃ positions : Fin chunks → Fin chunkSize, x = regularWord positions := by
   classical
-  constructor
-  · intro hx
-    choose positions hpositions using hx
-    refine ⟨positions, funext fun p => ?_⟩
-    exact congrFun (hpositions p.1) p.2
-  · rintro ⟨positions, rfl⟩
-    exact isRegular_regularWord positions
+  refine ⟨fun hx => ?_, fun ⟨positions, h⟩ => h ▸ isRegular_regularWord positions⟩
+  choose positions hpositions using hx
+  exact ⟨positions, funext fun p => congrFun (hpositions p.1) p.2⟩
 
 /-- Every binary regular word has exactly one nonzero coordinate per chunk. -/
 theorem IsRegularWord.hammingNorm_eq {chunks chunkSize : ℕ}
     {x : Fin chunks × Fin chunkSize → Bool} (hx : IsRegularWord x) :
     hammingNorm x = chunks := by
-  rw [hammingNorm_eq_sum_chunks]
-  have hweight : ∀ i, hammingNorm (fun j => x (i, j)) = 1 :=
-    fun i => (Cslib.BitString.hammingNorm_eq_one_iff_isSingle _).mpr (hx i)
-  simp_rw [hweight]
-  simp
+  simp [hammingNorm_eq_sum_chunks,
+    fun i => (Cslib.BitString.hammingNorm_eq_one_iff_isSingle _).mpr (hx i)]
 
 @[simp]
 theorem hammingNorm_regularWord {chunks chunkSize : ℕ}

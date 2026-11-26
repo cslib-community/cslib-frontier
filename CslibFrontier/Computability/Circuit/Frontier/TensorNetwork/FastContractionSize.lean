@@ -184,7 +184,7 @@ theorem reducedAt_value (ev : T → List Bool → List ℕ)
             (slots x) (levels x) (step x) (shift x) (points x) k (W.getD k []))) S) := by
       intro l
       induction l with
-      | nil => exact fun S hS => hS
+      | nil => exact fun _ hS => hS
       | cons k l ih =>
         intro S hS
         rw [List.foldl_cons]
@@ -442,17 +442,13 @@ theorem Shape.length_le (ev : T → List Bool → List ℕ) (h₀s : x₀.scale 
   have hV : x.net.vertices.length ≤ x₀.net.vertices.length + (m + 1) * m ^ 2 :=
     h.vertices_le.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ hd) _)
   have hm5 : m + 1 ≤ (m + 1) ^ 5 := Nat.le_self_pow (by norm_num) _
-  have hP1 : P + 1 ≤ (m + 1) ^ 5 * (P + 1) := Nat.le_mul_of_pos_left _ (by positivity)
   have hmP : 2 * (m + 1) * (P + 1) ≤ 256 * (m + 1) ^ 5 * (P + 1) := by
-    have : (m + 1) * (P + 1) ≤ (m + 1) ^ 5 * (P + 1) := Nat.mul_le_mul_right _ hm5
-    rw [Nat.mul_assoc 2, Nat.mul_assoc 256]
-    exact Nat.mul_le_mul (by norm_num) this
-  have hmZ : 2 * (m + 1) ≤ Z := by
-    have : 2 * (m + 1) ≤ 2 * (m + 1) * (P + 1) := Nat.le_mul_of_pos_right _ (by omega)
-    omega
-  have hPZ : P + 1 ≤ Z := by
-    have : P + 1 ≤ 2 * (m + 1) * (P + 1) := Nat.le_mul_of_pos_left _ (by omega)
-    omega
+    gcongr
+    norm_num
+  have hmZ : 2 * (m + 1) ≤ Z :=
+    (Nat.le_mul_of_pos_right _ (by omega)).trans (hmP.trans (by omega))
+  have hPZ : P + 1 ≤ Z :=
+    (Nat.le_mul_of_pos_left _ (by omega)).trans (hmP.trans (by omega))
   have hflZ : x₀.fl.length ≤ Z := by omega
   have hsc : x.scale = m := h.scale_eq.trans h₀s
   have hE : x.edges ≤ 2 * m := h.edges_le
@@ -500,13 +496,11 @@ theorem Shape.length_le (ev : T → List Bool → List ℕ) (h₀s : x₀.scale 
     have hfb : frameBound x ≤ Z := by
       unfold frameBound
       rw [hsc, h.fl_eq]
-      have : 256 * (m + 1) ^ 5 * (x.prec + 1) ≤ 256 * (m + 1) ^ 5 * (P + 1) :=
-        Nat.mul_le_mul_left _ (by omega)
+      have : 256 * (m + 1) ^ 5 * (x.prec + 1) ≤ 256 * (m + 1) ^ 5 * (P + 1) := by gcongr
       omega
     have hfZ : (frameBound x + 1) ^ 3 ≤ (Z + 1) ^ 3 := Nat.pow_le_pow_left (by omega) 3
-    have hl := length_encPair (enc₁ := encCall encT) (enc₂ := encFrame) (x, frameAt x vals c)
-    simp only at hl
-    rw [hl]
+    rw [length_encPair]
+    dsimp only
     omega
 
 end Sizes

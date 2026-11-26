@@ -203,20 +203,14 @@ private theorem State.represents_push {s : State C n g m} {v : Wire n g → R}
     {out : Fin m → R} (h : s.Represents constant x v out) (op : ArithOp C)
     (args : Fin op.arity → Wire n s.size) :
     (s.push op args).Represents constant x v out := by
-  obtain ⟨hv, ho⟩ := h
-  refine ⟨?_, ?_⟩
-  · funext w
-    exact (s.trace_push_castSucc op args _).trans (congrFun hv w)
-  · funext k
-    exact (s.trace_push_castSucc op args _).trans (congrFun ho k)
+  exact ⟨funext fun w => (s.trace_push_castSucc op args _).trans (congrFun h.1 w),
+    funext fun k => (s.trace_push_castSucc op args _).trans (congrFun h.2 k)⟩
 
 private theorem State.adjointSum_push (s : State C n g m) (op : ArithOp C)
     (args : Fin op.arity → Wire n s.size) (v : Wire n g → R) :
-    (s.push op args).adjointSum constant x D v = s.adjointSum constant x D v := by
-  unfold State.adjointSum
-  refine Finset.sum_congr rfl fun w _ => ?_
-  rw [show (s.push op args).adjoint w = (s.adjoint w).castSucc from rfl,
-    s.trace_push_castSucc]
+    (s.push op args).adjointSum constant x D v = s.adjointSum constant x D v :=
+  Finset.sum_congr rfl fun w _ =>
+    congrArg (· • D (v w)) (s.trace_push_castSucc op args (s.adjoint w))
 
 private theorem State.trace_accumulate_castSucc (s : State C n g m) (w : Wire n g)
     (t : Wire n s.size) (u : Wire n s.size) :
@@ -226,37 +220,27 @@ private theorem State.trace_accumulate_castSucc (s : State C n g m) (w : Wire n 
 private theorem State.represents_accumulate {s : State C n g m} {v : Wire n g → R}
     {out : Fin m → R} (h : s.Represents constant x v out) (w : Wire n g) (t : Wire n s.size) :
     (s.accumulate w t).Represents constant x v out := by
-  obtain ⟨hv, ho⟩ := h
-  refine ⟨?_, ?_⟩
-  · funext u
-    exact (s.trace_accumulate_castSucc w t _).trans (congrFun hv u)
-  · funext k
-    exact (s.trace_accumulate_castSucc w t _).trans (congrFun ho k)
+  exact ⟨funext fun u => (s.trace_accumulate_castSucc w t _).trans (congrFun h.1 u),
+    funext fun k => (s.trace_accumulate_castSucc w t _).trans (congrFun h.2 k)⟩
 
 private theorem State.trace_adjoint_accumulate (s : State C n g m) (w : Wire n g)
     (t : Wire n s.size) (u : Wire n g) :
     (s.accumulate w t).program.trace I x ((s.accumulate w t).adjoint u) =
       s.program.trace I x (s.adjoint u) + if u = w then s.program.trace I x t else 0 := by
-  by_cases hu : u = w
-  · subst hu
-    simp only [State.accumulate, Function.update_self, ite_true]
+  rcases eq_or_ne u w with rfl | hu
+  · simp only [State.accumulate, Function.update_self, ite_true]
     exact Program.trace_gate_last _ _ _ _
-  · simp only [State.accumulate, Function.update_of_ne hu, Function.comp_apply, hu, ite_false,
-      add_zero]
-    exact Program.trace_gate_castSucc _ _ _ _ _
+  · simp [State.accumulate, hu]
 
 private theorem State.adjointSum_accumulate (s : State C n g m) (w : Wire n g)
     (t : Wire n s.size) (v : Wire n g → R) :
     (s.accumulate w t).adjointSum constant x D v =
       s.adjointSum constant x D v + s.program.trace I x t • D (v w) := by
-  have h : ∀ u, (s.accumulate w t).program.trace I x ((s.accumulate w t).adjoint u) • D (v u) =
+  have h (u) : (s.accumulate w t).program.trace I x ((s.accumulate w t).adjoint u) • D (v u) =
       s.program.trace I x (s.adjoint u) • D (v u) +
         if u = w then s.program.trace I x t • D (v w) else 0 := by
-    intro u
-    rw [State.trace_adjoint_accumulate, add_smul, ite_smul, zero_smul]
-    by_cases hu : u = w
-    · subst hu; rfl
-    · rw [ite_eq_right hu, ite_eq_right hu]
+    rw [State.trace_adjoint_accumulate, add_smul]
+    rcases eq_or_ne u w with rfl | hu <;> simp [*]
   rw [State.adjointSum, Finset.sum_congr rfl fun u _ => h u, Finset.sum_add_distrib,
     Finset.sum_ite_eq' Finset.univ w, ite_eq_left (Finset.mem_univ w)]
   rfl
@@ -275,10 +259,8 @@ private theorem sum_wire_zero {N : Type*} [AddCommMonoid N] (f : Wire n 0 → N)
 private theorem State.adjointSum_restrict (s : State C n (g + 1) m) (v : Wire n (g + 1) → R) :
     s.adjointSum constant x D v =
       s.restrict.adjointSum constant x D (v ∘ Wire.castSucc) +
-        s.program.trace I x (s.adjoint (.gate (Fin.last g))) • D (v (.gate (Fin.last g))) := by
-  unfold State.adjointSum
-  rw [sum_wire_succ]
-  rfl
+        s.program.trace I x (s.adjoint (.gate (Fin.last g))) • D (v (.gate (Fin.last g))) :=
+  sum_wire_succ _
 
 private theorem State.represents_restrict {s : State C n (g + 1) m} {v : Wire n (g + 1) → R}
     {out : Fin m → R} (h : s.Represents constant x v out) :
@@ -327,11 +309,9 @@ private theorem backward_represents : ∀ {g : ℕ} (p : Program (arithSignature
     (backward p s).Represents constant x (Program.empty.trace I x) out
   | _, .empty, _, _, h => h
   | _, .gate p line, s, out, h => by
-    refine backward_represents p ?_
-    have h' := State.represents_step h line.op line.wires
-    convert h' using 2
-    funext w
-    exact (Program.trace_gate_castSucc p line I x w).symm
+    have hv : (p.gate line).trace I x ∘ Wire.castSucc = p.trace I x :=
+      funext (Program.trace_gate_castSucc p line I x)
+    exact backward_represents p (hv ▸ State.represents_step h line.op line.wires)
 
 private theorem backward_adjointSum (hadd : ∀ a b, D (a + b) = D a + D b)
     (hmul : ∀ a b, D (a * b) = a • D b + b • D a) (hconst : ∀ c, D (constant c) = 0) :
@@ -341,17 +321,13 @@ private theorem backward_adjointSum (hadd : ∀ a b, D (a + b) = D a + D b)
       s.adjointSum constant x D (p.trace I x)
   | _, .empty, _, _, _ => rfl
   | _, .gate p line, s, out, h => by
-    have hv : (p.gate line).trace I x ∘ Wire.castSucc = p.trace I x := by
-      funext w
-      exact Program.trace_gate_castSucc p line I x w
-    have hs := State.represents_step h line.op line.wires
-    rw [hv] at hs
-    refine (backward_adjointSum hadd hmul hconst p hs).trans ?_
+    have hv : (p.gate line).trace I x ∘ Wire.castSucc = p.trace I x :=
+      funext (Program.trace_gate_castSucc p line I x)
+    refine (backward_adjointSum hadd hmul hconst p
+      (hv ▸ State.represents_step h line.op line.wires)).trans ?_
     rw [← State.adjointSum_step hadd hmul hconst h line.op line.wires
-      (by
-        rw [Program.trace_gate_last]
-        congr 1 with a : 1
-        exact (Program.trace_gate_castSucc p line I x _).symm), hv]
+      ((Program.trace_gate_last p line I x).trans (congrArg (I line.op)
+        (funext fun _ => (Program.trace_gate_castSucc p line I x _).symm))), hv]
 
 private theorem init_represents (c : Circuit (arithSignature C) n m) (j : Fin m)
     (seed zero : C) :
@@ -363,18 +339,13 @@ private theorem init_adjointSum (c : Circuit (arithSignature C) n m) (j : Fin m)
     (seed zero : C) (hzero : constant zero = 0) :
     (init c j seed zero).adjointSum constant x D (c.program.trace I x) =
       constant seed • D (c.eval I x j) := by
-  have h : ∀ w, (init c j seed zero).program.trace I x ((init c j seed zero).adjoint w) •
+  have h (w) : (init c j seed zero).program.trace I x ((init c j seed zero).adjoint w) •
       D (c.program.trace I x w) =
         if w = c.outputs j then constant seed • D (c.eval I x j) else 0 := by
-    intro w
-    by_cases hw : w = c.outputs j
-    · subst hw
-      simp only [init, ite_true]
-      rw [Program.trace_gate_castSucc, Program.trace_gate_last]
-      rfl
-    · simp only [init, hw, ite_false]
-      rw [Program.trace_gate_last]
-      simp only [arithInterpretationWith_const, hzero, zero_smul]
+    rcases eq_or_ne w (c.outputs j) with rfl | hw
+    · simp only [init, ite_true, Program.trace_gate_castSucc, Program.trace_gate_last]; rfl
+    · simp only [init, hw, ite_false, Program.trace_gate_last, arithInterpretationWith, hzero,
+        zero_smul]
   rw [State.adjointSum, Finset.sum_congr rfl fun w _ => h w, Finset.sum_ite_eq' Finset.univ,
     ite_eq_left (Finset.mem_univ _)]
 
@@ -392,15 +363,8 @@ private theorem State.cost_step (s : State C n (g + 1) m) (op : ArithOp C)
     (wires : Fin op.arity → Wire n g) (cost : ArithOp C → ℕ) :
     (s.step op wires).program.cost cost = s.program.cost cost + backwardCost cost op := by
   cases op with
-  | add =>
-    change s.program.cost cost + cost .add + cost .add = _
-    simp only [backwardCost]
-    omega
-  | mul =>
-    change s.program.cost cost + cost .mul + cost .add + cost .mul + cost .add = _
-    simp only [backwardCost]
-    omega
-  | const c => rfl
+  | add | mul => simp only [State.step, Program.cost_gate, backwardCost]; omega
+  | const _ => rfl
 
 private theorem cost_backward (cost : ArithOp C → ℕ) :
     ∀ {g : ℕ} (p : Program (arithSignature C) n g) (s : State C n g m),
@@ -433,12 +397,11 @@ variable {m : ℕ}
 /-- An arithmetic program has at most as many additions and multiplications together as gates. -/
 theorem Program.cost_addCost_add_cost_mulCost_le {g : ℕ} (p : Program (arithSignature C) n g) :
     p.cost ArithOp.addCost + p.cost ArithOp.mulCost ≤ g := by
-  have h : p.cost ArithOp.addCost + p.cost ArithOp.mulCost =
-      p.cost fun op => op.addCost + op.mulCost := by
-    simp only [Program.cost_eq_sum, Finset.sum_add_distrib]
-  rw [h]
-  refine (p.cost_le_mul (b := 1) fun op => ?_).trans_eq (one_mul g)
-  cases op <;> simp [ArithOp.addCost, ArithOp.mulCost]
+  refine (le_of_eq ?_).trans
+    ((p.cost_le_mul (cost := fun op => op.addCost + op.mulCost) (b := 1) fun op => ?_).trans_eq
+      (one_mul g))
+  · simp [Program.cost_eq_sum, Finset.sum_add_distrib]
+  · cases op <;> simp [ArithOp.addCost, ArithOp.mulCost]
 
 section Evaluation
 
@@ -513,18 +476,14 @@ theorem Circuit.mulCost_withGradient (c : Circuit (arithSignature C) n m) (j : F
     (seed zero : C) :
     (c.withGradient j seed zero).program.cost ArithOp.mulCost =
       3 * c.program.cost ArithOp.mulCost := by
-  rw [c.cost_program_withGradient]
-  simp only [ArithOp.mulCost]
-  omega
+  simp only [c.cost_program_withGradient, ArithOp.mulCost]; omega
 
 /-- The number of additions after reverse-mode differentiation. -/
 theorem Circuit.addCost_withGradient (c : Circuit (arithSignature C) n m) (j : Fin m)
     (seed zero : C) :
     (c.withGradient j seed zero).program.cost ArithOp.addCost =
       3 * c.program.cost ArithOp.addCost + 2 * c.program.cost ArithOp.mulCost := by
-  rw [c.cost_program_withGradient]
-  simp only [ArithOp.addCost]
-  omega
+  simp only [c.cost_program_withGradient, ArithOp.addCost]; omega
 
 end Cost
 
@@ -559,12 +518,11 @@ theorem Circuit.exists_gradient (c : Circuit (arithSignature K) n m) (j : Fin m)
       d.program.cost ArithOp.mulCost = 3 * c.program.cost ArithOp.mulCost ∧
       d.polynomial 0 = c.polynomial j ∧ ∀ i, d.polynomial i.succ = pderiv i (c.polynomial j) := by
   let e := c.withGradient j 1 0
-  refine ⟨⟨e.program, Fin.cons (e.outputs (j.castAdd n)) fun i => e.outputs (Fin.natAdd m i)⟩,
-    c.size_withGradient_le j 1 0, c.mulCost_withGradient j 1 0, ?_, fun i => ?_⟩
-  · exact c.polynomial_withGradient_castAdd j 1 0 j
-  · have h := c.polynomial_withGradient_natAdd j 1 i
-    rw [map_one, one_mul] at h
-    exact h
+  exact ⟨⟨e.program, Fin.cons (e.outputs (j.castAdd n)) fun i => e.outputs (Fin.natAdd m i)⟩,
+    c.size_withGradient_le j 1 0, c.mulCost_withGradient j 1 0,
+    c.polynomial_withGradient_castAdd j 1 0 j, fun i => by
+      have h := c.polynomial_withGradient_natAdd j 1 i
+      rwa [map_one, one_mul] at h⟩
 
 /-- **Lower-bound transfer for size.** If every circuit computing the gradient of `f` has at least
 `S` gates, then every circuit computing `f` has at least `(S - 2) / 5` gates. -/
@@ -597,13 +555,10 @@ theorem Circuit.exists_pow_of_psum {d : ℕ} {u : K} (hu : u * (d + 1) = 1)
   let g := c.withGradient j u 0
   refine ⟨⟨g.program, fun i => g.outputs (Fin.natAdd m i)⟩, c.size_withGradient_le j u 0,
     c.mulCost_withGradient j u 0, fun i => ?_⟩
-  have h := c.polynomial_withGradient_natAdd j u i
-  rw [hc, pderiv_psum_succ, ← mul_assoc] at h
-  refine h.trans ?_
-  have hu' : MvPolynomial.C u * (d + 1 : MvPolynomial (Fin n) K) = 1 := by
-    rw [show (d + 1 : MvPolynomial (Fin n) K) = MvPolynomial.C ((d : K) + 1) by
-      rw [map_add, map_natCast, map_one], ← map_mul, hu, map_one]
-  rw [hu', one_mul]
+  change g.polynomial (Fin.natAdd m i) = _
+  rw [c.polynomial_withGradient_natAdd j u i, hc, pderiv_psum_succ, ← mul_assoc,
+    ← map_natCast MvPolynomial.C d, ← map_one MvPolynomial.C, ← map_add, ← map_mul, hu, map_one,
+    one_mul]
 
 /-- **Lower-bound transfer for power sums.** If `d + 1` is invertible in `K` and every circuit
 computing the power map `(X 0 ^ d, …, X (n - 1) ^ d)` has at least `S` multiplications, then every

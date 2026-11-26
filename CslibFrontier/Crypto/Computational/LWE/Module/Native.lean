@@ -73,35 +73,27 @@ theorem entryResidues_encodeMatrix {d k n q : ℕ}
     entryResidues d k n ((Decoder.list (Decoder.list Decoder.nat)).decode
       (ModuleSIS.encodeMatrix A)) = List.ofFn fun i => polyVecResidues (A i) := by
   rw [ModuleSIS.encodeMatrix, SIS.encodeMatrix, Decoder.decode_enc]
-  apply List.ext_getElem (by simp [entryResidues])
-  intro i h₁ h₂
+  refine List.ext_getElem (by simp [entryResidues]) fun i h₁ _ =>
+    List.ext_getElem (by simp [entryResidues, polyVecResidues]) fun j h₃ _ =>
+      List.ext_getElem (by simp [entryResidues, polyVecResidues, polyResidues]) fun t h₅ _ => ?_
   have hi : i < d := by simpa [entryResidues] using h₁
-  apply List.ext_getElem (by simp [entryResidues, polyVecResidues])
-  intro j h₃ h₄
   have hj : j < k := by simpa [entryResidues] using h₃
-  apply List.ext_getElem (by simp [entryResidues, polyVecResidues, polyResidues])
-  intro t h₅ h₆
   have ht : t < n := by simpa [entryResidues] using h₅
   have hrow : t + n * i < d * n := by nlinarith
   have hcol : n * j < k * n := by nlinarith
-  simp only [entryResidues, List.getElem_map, List.getElem_range, List.getElem_ofFn,
-    polyVecResidues, polyResidues, List.getD_eq_getElem?_getD, List.getElem?_ofFn, hrow]
-  simp only [dite_true, Option.getD_some, List.getElem?_ofFn, hcol]
   have hr : (⟨t + n * i, hrow⟩ : Fin (d * n)) = finProdFinEquiv (⟨i, hi⟩, ⟨t, ht⟩) :=
     Fin.ext (by simp [finProdFinEquiv_apply_val])
   have hc : (⟨n * j, hcol⟩ : Fin (k * n)) = finProdFinEquiv (⟨j, hj⟩, ⟨0, by omega⟩) :=
     Fin.ext (by simp [finProdFinEquiv_apply_val])
-  simp only [hr, hc, expandModuleMatrix_apply]
-  simp [rotMatrix]
+  simp [entryResidues, polyVecResidues, polyResidues, List.getD_eq_getElem?_getD, hrow, hcol,
+    hr, hc, expandModuleMatrix_apply, rotMatrix]
 
 /-- Chunking the flattened residues of a polynomial vector recovers its residue lists. -/
 theorem chunkResidues_flattenPolyVec {k n q : ℕ} (v : Fin k → Fin n → ZMod q) :
     chunkResidues k n (List.ofFn fun c => (flattenPolyVec v c).val) = polyVecResidues v := by
-  apply List.ext_getElem (by simp [chunkResidues, polyVecResidues])
-  intro j h₁ h₂
+  refine List.ext_getElem (by simp [chunkResidues, polyVecResidues]) fun j h₁ _ =>
+    List.ext_getElem (by simp [chunkResidues, polyVecResidues, polyResidues]) fun t h₃ _ => ?_
   have hj : j < k := by simpa [chunkResidues] using h₁
-  apply List.ext_getElem (by simp [chunkResidues, polyVecResidues, polyResidues])
-  intro t h₃ h₄
   have ht : t < n := by simpa [chunkResidues] using h₃
   have hidx : t + n * j < k * n := by nlinarith
   have hc : (⟨t + n * j, hidx⟩ : Fin (k * n)) = finProdFinEquiv (⟨j, hj⟩, ⟨t, ht⟩) :=
@@ -129,19 +121,14 @@ theorem entryResidues {d k n : α → ℕ} {rows : α → List (List ℕ)}
       input (encList Cslib.Crypto.encPolyVecResidues) := by
   unfold Cslib.Crypto.ModuleLWE.entryResidues
   let I := encPair (encPair input encUnary) encUnary
+  have hn' : ComputableInPolyTime (fun p : ((α × ℕ) × ℕ) × ℕ => n p.1.1.1)
+      (encPair I encUnary) encUnary := hn.comp (by fun_prop)
   have hcoeff : ComputableInPolyTime (fun p : ((α × ℕ) × ℕ) × ℕ =>
       ((rows p.1.1.1).getD (p.2 + n p.1.1.1 * p.1.1.2) []).getD (n p.1.1.1 * p.1.2) 0)
-      (encPair I encUnary) encNat := by
-    have hr : ComputableInPolyTime (fun p : ((α × ℕ) × ℕ) × ℕ => rows p.1.1.1)
-        (encPair I encUnary) Cslib.Crypto.encPolyVecResidues := hrows.comp (by fun_prop)
-    have hn' : ComputableInPolyTime (fun p : ((α × ℕ) × ℕ) × ℕ => n p.1.1.1)
-        (encPair I encUnary) encUnary := hn.comp (by fun_prop)
-    have hi : ComputableInPolyTime (fun p : ((α × ℕ) × ℕ) × ℕ => p.2 + n p.1.1.1 * p.1.1.2)
-        (encPair I encUnary) encUnary :=
-      unary_add' (by fun_prop) (unary_mul' hn' (by fun_prop))
-    have hj : ComputableInPolyTime (fun p : ((α × ℕ) × ℕ) × ℕ => n p.1.1.1 * p.1.2)
-        (encPair I encUnary) encUnary := unary_mul' hn' (by fun_prop)
-    exact listGetDWithInput (listGetDWithInput hr hi []) hj 0
+      (encPair I encUnary) encNat :=
+    listGetDWithInput (listGetDWithInput (hrows.comp (by fun_prop))
+      (unary_add' (by fun_prop) (unary_mul' hn' (by fun_prop))) [])
+      (unary_mul' hn' (by fun_prop)) 0
   have hpoly : ComputableInPolyTime (fun p : (α × ℕ) × ℕ => (List.range (n p.1.1)).map fun t =>
       ((rows p.1.1).getD (t + n p.1.1 * p.1.2) []).getD (n p.1.1 * p.2) 0) I (encList encNat) :=
     mapWithInput (range.comp (hn.comp (by fun_prop))) hcoeff

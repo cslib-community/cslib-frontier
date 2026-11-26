@@ -10,6 +10,9 @@ module
 public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Init.Table
 public import CslibFrontier.Computability.WordRAM.Defs
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.StructFrame
 import Mathlib.Tactic.Ring
 
 /-!
@@ -71,28 +74,6 @@ def DfsConst (base d : ℕ) (s : Data 32) : Prop :=
     s.regs low = base + span d + 2 * (d + 1) ∧
     TableInv (base + span d) d s.mem
 
-/-- Extract the lookup-table invariant from `DfsConst`. -/
-private theorem DfsConst.tableInv {base d : ℕ} {s : Data 32} (hc : DfsConst base d s) :
-    TableInv (base + span d) d s.mem :=
-  hc.2.2.2.2.2.2.2.2.2.2.2.2
-
-/-- Transfer `DfsConst` across a state update that preserves the twelve constant registers and
-establishes the lookup-table invariant on the new memory. -/
-private theorem DfsConst.of_regs {base d : ℕ} {s s' : Data 32} (hc : DfsConst base d s)
-    (r0 : s'.regs zero = s.regs zero) (r1 : s'.regs one = s.regs one)
-    (r2 : s'.regs two = s.regs two) (r3 : s'.regs three = s.regs three)
-    (r4 : s'.regs four = s.regs four) (r5 : s'.regs five = s.regs five)
-    (rr : s'.regs root = s.regs root) (rd : s'.regs depth = s.regs depth)
-    (rp : s'.regs payload = s.regs payload) (rt : s'.regs tableBase = s.regs tableBase)
-    (rs : s'.regs stackBase = s.regs stackBase) (rl : s'.regs low = s.regs low)
-    (hinv : TableInv (base + span d) d s'.mem) :
-    DfsConst base d s' :=
-  ⟨r0.trans hc.1, r1.trans hc.2.1, r2.trans hc.2.2.1, r3.trans hc.2.2.2.1,
-    r4.trans hc.2.2.2.2.1, r5.trans hc.2.2.2.2.2.1, rr.trans hc.2.2.2.2.2.2.1,
-    rd.trans hc.2.2.2.2.2.2.2.1, rp.trans hc.2.2.2.2.2.2.2.2.1,
-    rt.trans hc.2.2.2.2.2.2.2.2.2.1, rs.trans hc.2.2.2.2.2.2.2.2.2.2.1,
-    rl.trans hc.2.2.2.2.2.2.2.2.2.2.2.1, hinv⟩
-
 /-- Active DFS state at pointer `ptr`, subtree depth `k`, and phase `kindVal` (`0` = enter,
 `1` = exit). -/
 def DfsState (base d ptr k kindVal : ℕ) (s : Data 32) : Prop :=
@@ -104,15 +85,6 @@ private theorem dfsState_cond_holds {base d ptr k kindVal : ℕ} {s : Data 32}
     (hs : DfsState base d ptr k kindVal s) : (Cond.lt zero runFlag).Holds s := by
   obtain ⟨⟨h0, _⟩, _, _, _, hrun⟩ := hs
   simp [Cond.holds_lt, h0, hrun]
-
-/-- `TableInv` depends only on the `2 * (d + 1)` table words starting at `tbl`. -/
-private theorem tableInv_congr {tbl d : ℕ} {m m' : ℕ → ℕ}
-    (hinv : TableInv tbl d m)
-    (h : ∀ a, tbl ≤ a → a < tbl + 2 * (d + 1) → m' a = m a) :
-    TableInv tbl d m' := by
-  intro j hj
-  rw [h (tbl + 2 * j) (by omega) (by omega), h (tbl + 2 * j + 1) (by omega) (by omega)]
-  exact hinv j hj
 
 /-- One `dfsBody` step entering a leaf (`kind = 0`, `x = 0`): writes the five-word empty leaf
 header at `ptr` and switches to exit mode at `ptr + span 0`. -/
@@ -133,24 +105,11 @@ private theorem dfsBody_leaf_spec {w base d ptr : ℕ} {s : Data 32}
   apply WP.exists_execWithin
   unfold dfsBody dfsEnterBody
   wram_exec [h0, h1, h2, h3, h5, htbl, hp, hx, hkind, htbl0, htbl1]
-  have haway : ∀ a, a < ptr ∨ ptr + 5 ≤ a →
-      Function.update (Function.update (Function.update s.mem ptr 0) (ptr + 3) 0)
-        (ptr + 3 + 1) 0 a = s.mem a := by
-    intro a ha_out
-    rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-      Function.update_of_ne (by omega)]
-  refine ⟨⟨hc.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-      (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-      (by wram_simp) (by wram_simp) (by wram_simp) ?_,
-    by wram_simp [span], by wram_simp [hx], by wram_simp, by wram_simp [hrun]⟩, ?_, ?_⟩
-  · apply tableInv_congr hinv
-    intro a ha_lo _
-    simpa only [Data.set_mem, Data.write_mem] using haway a (Or.inr (by omega))
-  · change Header 0 none ptr _
-    simp only [Header, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, splitSize, childSpan]
-    exact ⟨by wram_simp, trivial, by wram_simp, by wram_simp [Nat.add_assoc]⟩
-  · intro a ha_out
-    simpa only [Data.set_mem, Data.write_mem] using haway a ha_out
+  refine ⟨⟨by struct_frame hc, by wram_simp [span], by wram_simp [hx], by wram_simp,
+    by wram_simp [hrun]⟩, ?_, by mem_frame⟩
+  change Header 0 none ptr _
+  simp only [Header, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, splitSize, childSpan]
+  exact ⟨by wram_simp, trivial, by wram_simp, by wram_simp [Nat.add_assoc]⟩
 
 /-- One `dfsBody` step entering an internal node (`kind = 0`, `x = k + 1`): writes the empty depth
 `k + 1` header at `ptr`, initializes the cluster counter at `low + (k + 1)` to `universeSize k`,
@@ -178,28 +137,10 @@ private theorem dfsBody_enter_succ_spec {w base d ptr k : ℕ} {s : Data 32}
   apply WP.exists_execWithin
   unfold dfsBody dfsEnterBody
   wram_exec [h0, h1, h2, h3, h5, htbl, hlow, hp, hx, hkind, htbl0, htbl1, hne]
-  let lw := base + span d + 2 * (d + 1)
-  have haway : ∀ a, (a < ptr ∨ ptr + 5 ≤ a) → a ≠ lw + (k + 1) →
-      Function.update
-        (Function.update
-          (Function.update (Function.update s.mem ptr 0) (ptr + 3) (universeSize k))
-          (ptr + 3 + 1) (span k))
-        (lw + (k + 1)) (universeSize k) a = s.mem a := by
-    intro a ha_ptr ha_lw
-    rw [Function.update_of_ne ha_lw, Function.update_of_ne (by omega),
-      Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
-  refine ⟨⟨hc.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-      (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-      (by wram_simp) (by wram_simp) (by wram_simp) ?_,
-    by wram_simp, by wram_simp, by wram_simp [hkind], by wram_simp [hrun]⟩,
-    ?_, by wram_simp, ?_⟩
-  · apply tableInv_congr hinv
-    intro a ha_lo ha_hi
-    simpa only [Data.set_mem, Data.write_mem] using haway a (Or.inr (by omega)) (by omega)
-  · simp only [Header, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, splitSize, childSpan]
-    exact ⟨by wram_simp, trivial, by wram_simp, by wram_simp [Nat.add_assoc]⟩
-  · intro a ha_ptr ha_lw
-    simpa only [Data.set_mem, Data.write_mem] using haway a ha_ptr ha_lw
+  refine ⟨⟨by struct_frame hc, by wram_simp, by wram_simp, by wram_simp [hkind],
+    by wram_simp [hrun]⟩, ?_, by wram_simp, by mem_frame⟩
+  simp only [Header, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, splitSize, childSpan]
+  exact ⟨by wram_simp, trivial, by wram_simp, by wram_simp [Nat.add_assoc]⟩
 
 /-- One `dfsBody` step advancing from a completed child to the next cluster (`kind = 1`, `x = k`,
 `mem (low + k + 1) = cnt + 1`): decrements the counter and re-enters at depth `k`. -/
@@ -212,22 +153,15 @@ private theorem dfsBody_next_cluster_spec {w base d ptr k cnt : ℕ} {s : Data 3
       s₁.mem (base + span d + 2 * (d + 1) + (k + 1)) = cnt ∧
       (∀ a, a ≠ base + span d + 2 * (d + 1) + (k + 1) → s₁.mem a = s.mem a) := by
   have ⟨hc, hp, hx, hkind, hrun⟩ := hs
-  have ⟨h0, h1, _, _, _, _, _, hdepth, _, _, _, hlow, hinv⟩ := hc
+  have ⟨h0, h1, _, _, _, _, _, hdepth, _, _, _, hlow, _⟩ := hc
   have hf_lw : Fits w (base + span d + 2 * (d + 1) + (k + 1)) := ha.of_le (by omega)
   have hnot_lt : ¬d < k + 1 := by omega
   have hne : cnt + 1 ≠ 0 := by omega
   apply WP.exists_execWithin
   unfold dfsBody dfsExitBody
   wram_exec [h0, h1, hdepth, hlow, hx, hkind, hcnt, hnot_lt, hne]
-  refine ⟨⟨hc.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-      (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-      (by wram_simp) (by wram_simp) (by wram_simp) ?_,
-    by wram_simp [hp], by wram_simp, by wram_simp, by wram_simp [hrun]⟩,
-    by wram_simp, fun a ha_ne => by wram_simp⟩
-  apply tableInv_congr hinv
-  intro a _ ha_hi
-  have ha_ne : a ≠ base + span d + 2 * (d + 1) + (k + 1) := by omega
-  wram_simp
+  exact ⟨⟨by struct_frame hc, by wram_simp [hp], by wram_simp, by wram_simp,
+    by wram_simp [hrun]⟩, by wram_simp, by mem_frame⟩
 
 /-- One `dfsBody` step finishing all clusters of a depth `k + 1` node (`kind = 1`, `x = k`,
 `mem (low + k + 1) = 0`). -/
@@ -238,16 +172,14 @@ private theorem dfsBody_exit_node_spec {w base d ptr k : ℕ} {s : Data 32}
     ∃ s', ExecWithin w dfsBody s s' 9 ∧
       DfsState base d ptr (k + 1) 1 s' ∧ s'.mem = s.mem := by
   have ⟨hc, hp, hx, hkind, hrun⟩ := hs
-  have ⟨h0, h1, _, _, _, _, _, hdepth, _, _, _, hlow, hinv⟩ := hc
+  have ⟨h0, h1, _, _, _, _, _, hdepth, _, _, _, hlow, _⟩ := hc
   have hf_lw : Fits w (base + span d + 2 * (d + 1) + (k + 1)) := ha.of_le (by omega)
   have hnot_lt : ¬d < k + 1 := by omega
   apply WP.exists_execWithin
   unfold dfsBody dfsExitBody
   wram_exec [h0, h1, hdepth, hlow, hx, hkind, hrem, hnot_lt]
-  exact ⟨⟨hc.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-      (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-      (by wram_simp) (by wram_simp) (by wram_simp) (by simpa only [Data.set_mem] using hinv),
-    by wram_simp [hp], by wram_simp, by wram_simp, by wram_simp [hrun]⟩, by wram_simp⟩
+  exact ⟨⟨by struct_frame hc, by wram_simp [hp], by wram_simp, by wram_simp,
+    by wram_simp [hrun]⟩, by wram_simp⟩
 
 /-- Final `dfsBody` step exiting the root (`kind = 1`, `x = d`): clears `runFlag` and preserves
 `zero`, `root`, `payload`, `stackBase`, and memory. -/
@@ -323,10 +255,9 @@ private theorem dfs_clusters_spec {w base d ptr k : ℕ}
     have hs₂_p_eq : p_m + span k = ptr + 5 + (m + 1 + 1) * span k := by
       dsimp only [p_m]; ring
     have hs₂_cnt : s₂.mem (lw + (k + 1)) = cnt := by
-      rw [hs₂_frame (lw + (k + 1))
-        (Or.inr (by have := hp_m_end.trans hptr_end; dsimp only [lw]; omega))
-        (Or.inr (by dsimp only [lw]; omega))]
-      exact hs₁_cnt
+      have := hp_m_end.trans hptr_end
+      dsimp only [lw]
+      mem_frame
     have hs₂_prev : ∀ i : Fin (universeSize k), i.val < m + 1 →
         Rep (Tree.empty k) (ptr + clusterOffset k i.val) s₂.mem := by
       intro i hi
@@ -336,8 +267,7 @@ private theorem dfs_clusters_spec {w base d ptr k : ℕ}
         have hce := cluster_end_le_clusterOffset k him
         have hce_span := cluster_end_le_span k i.isLt
         have hp_m_eq : p_m = ptr + clusterOffset k m := by dsimp only [p_m, clusterOffset]; omega
-        rw [hs₂_frame a (Or.inl (by omega)) (Or.inl (by omega))]
-        exact hs₁_away a (by omega)
+        rw [hs₂_frame a (by omega) (by omega), hs₁_away a (by omega)]
       · have hi_eq : i.val = m := by omega
         have hp_eq : ptr + clusterOffset k i.val = p_m := by
           dsimp only [p_m, clusterOffset]; rw [hi_eq]; omega
@@ -346,19 +276,9 @@ private theorem dfs_clusters_spec {w base d ptr k : ℕ}
       ih_cnt (m := m + 1) (s := s₂) (by omega)
         (hs₂_p_eq ▸ hs₂_state) hs₂_cnt hs₂_prev
     refine ⟨s', hs'_state, hs'_cnt, hs'_all, ?_, ?_⟩
-    · intro a ha_tree ha_cnt
-      have ha_tree₂ : a < ptr + 5 + (m + 1 + 1) * span k ∨ ptr + span (k + 1) ≤ a := by
-        rcases ha_tree with hlt | hge
-        · exact Or.inl (by omega)
-        · exact Or.inr hge
-      rw [hs'_frame a ha_tree₂ ha_cnt]
-      have ha_tree₁ : a < p_m ∨ p_m + span k ≤ a := by
-        rcases ha_tree with hlt | hge
-        · exact Or.inl hlt
-        · exact Or.inr (hp_m_end.trans hge)
-      have ha_cnt₁ : a < lw + 1 ∨ lw + k < a := by omega
-      rw [hs₂_frame a ha_tree₁ ha_cnt₁]
-      exact hs₁_away a (by omega)
+    · have := hp_m_end.trans hptr_end
+      dsimp only [p_m, lw] at *
+      mem_frame
     · intro z T_cont hcont
       have h1 := hs'_cps z T_cont hcont
       have h2 := hs₂_cps z (cnt * (8 * span k) + T_cont) h1
@@ -405,37 +325,27 @@ private theorem dfs_subtree_spec {w base d : ℕ} (k : ℕ) (hk : k ≤ d)
     obtain ⟨s₁, hs₁_state, hs₁_sum_rep, hs₁_frame, hs₁_cps⟩ := ih' hs₀_state hsum_end
     have hs₁_p_eq : ptr + 5 + span k = ptr + 5 + (0 + 1) * span k := by ring
     have hs₁_cnt : s₁.mem (lw + (k + 1)) = universeSize k := by
-      rw [hs₁_frame (lw + (k + 1)) (Or.inr (by dsimp only [lw]; omega))
-        (Or.inr (by dsimp only [lw]; omega))]
-      exact hs₀_cnt
+      dsimp only [lw]
+      mem_frame
     obtain ⟨s₂, hs₂_state, hs₂_cnt, hs₂_clusters, hs₂_frame, hs₂_cps⟩ :=
       dfs_clusters_spec hk ha hptr_end ih' (universeSize k) (m := 0) (s := s₁)
         (by omega) (hs₁_p_eq ▸ hs₁_state) hs₁_cnt (fun i hi => by omega)
     obtain ⟨s', hstep_exit, hs'_state, hs'_mem⟩ :=
       dfsBody_exit_node_spec hs₂_state hk hs₂_cnt ha
     have hs'_hdr : Header (k + 1) none ptr s'.mem := by
-      have h5_le := five_le_span (k + 1)
-      apply (header_congr ?_).mp hs₀_hdr
-      intro a ha_lt5
-      rw [hs'_mem,
-        hs₂_frame (ptr + a) (Or.inl (by omega)) (Or.inl (by omega)),
-        hs₁_frame (ptr + a) (Or.inl (by omega)) (Or.inl (by omega))]
+      have := five_le_span (k + 1); have := five_le_span k
+      refine (header_congr fun a ha_lt5 => ?_).mp hs₀_hdr
+      rw [hs'_mem, hs₂_frame (ptr + a) (by omega) (by omega),
+        hs₁_frame (ptr + a) (by omega) (by omega)]
     have hs'_sum : Rep (Tree.empty k) (ptr + summaryOffset) s'.mem := by
       have hsum_le := summary_end_le_span k
-      have hso : summaryOffset = 5 := rfl
-      apply rep_frame hs₁_sum_rep
-      intro a ha_lo ha_hi
-      rw [hs'_mem]
-      exact hs₂_frame a (Or.inl (by omega)) (Or.inl (by omega))
+      dsimp only [summaryOffset] at hsum_le ⊢
+      exact rep_frame hs₁_sum_rep fun a ha_lo ha_hi => by mem_frame
     refine ⟨s', hs'_state, ⟨hs'_hdr, hs'_sum, hs'_mem.symm ▸ hs₂_clusters⟩, ?_, ?_⟩
-    · intro a ha_tree ha_cnt
-      have h5_le := five_le_span k
+    · have := five_le_span k
       have hsum_le := summary_end_le_span k
       dsimp only [summaryOffset] at hsum_le
-      rw [hs'_mem,
-        hs₂_frame a (by omega) ha_cnt,
-        hs₁_frame a (by omega) (by omega),
-        hs₀_away a (by omega) (by omega)]
+      mem_frame
     · intro z T_cont hcont
       have h_exit := ExecWithin.loop_iter (dfsState_cond_holds hs₂_state) hstep_exit hcont
       have h_clus := hs₂_cps z (9 + T_cont + 2) h_exit
@@ -500,67 +410,32 @@ theorem init_dispatch_spec {w base d : ℕ} {s : Data 32}
   apply WP.exists_execWithin
   unfold initProgram initSetup
   wram_exec
-  apply WP.name; intro s₁ hs₁
-  have hs₁_root : s₁.regs root = base := by subst hs₁; wram_simp [hroot]
-  have hs₁_mem : s₁.mem = s.mem := by subst hs₁; rfl
-  obtain ⟨s₂, h2, hs₂0, hs₂1, hs₂2, hs₂3, hs₂4, hs₂5, hs₂r, hs₂d, _, hs₂t, hs₂m⟩ :=
-    sizeLoop_spec d (k := 0) (s := s₁) (by omega) hspan hd
-      (by subst hs₁; wram_simp) (by subst hs₁; wram_simp) (by subst hs₁; wram_simp)
-      (by subst hs₁; wram_simp) (by subst hs₁; wram_simp) (by subst hs₁; wram_simp)
-      (by subst hs₁; wram_simp [hdepth]) (by subst hs₁; wram_simp [universeSize])
-      (by subst hs₁; wram_simp [span]) (by subst hs₁; wram_simp)
-  clear hs₁
-  have hs₂_root : s₂.regs root = base := hs₂r.trans hs₁_root
-  have hs₂_mem : s₂.mem = s.mem := hs₂m.trans hs₁_mem
-  refine WP.of_execWithin h2 ?_
+  wram_call (sizeLoop_spec (w := w) (d := d) d (k := 0) (by omega) hspan hd)
+    [hdepth, universeSize, span]
+    with s₂ ⟨hs₂0, hs₂1, hs₂2, hs₂3, hs₂4, hs₂5, _, hs₂d, _, hs₂t, hs₂m⟩
+  have hs₂_root : s₂.regs root = base := by regs_frame
   unfold tableSetup
   wram_exec [hs₂0, hs₂1, hs₂2, hs₂5, hs₂_root, hs₂t]
-  apply WP.name; intro s₃ hs₃
-  have hs₃_inv : TableInv (base + span d) 0 s₃.mem := by
-    intro j hj
+  wram_call (tableLoop_spec (w := w) (base := base) (d := d) d (k := 0) (by omega) ha)
+    [hs₂0, hs₂1, hs₂2, hs₂3, hs₂4, hs₂5, hs₂_root, hs₂d, universeSize, span]
+    with s₄ ⟨hs₄0, hs₄1, hs₄2, hs₄3, hs₄4, hs₄5, hs₄r, hs₄d, hs₄p, hs₄tbl, hs₄stk,
+      hs₄sp, hs₄inv, hs₄frame⟩
+  · unfold dfsSetup
+    wram_exec [hs₄0, hs₄1, hs₄r, hs₄d, hs₄sp]
+    wram_call (dfsLoop_spec ⟨⟨by wram_simp [hs₄0], by wram_simp [hs₄1], by wram_simp [hs₄2],
+        by wram_simp [hs₄3], by wram_simp [hs₄4], by wram_simp [hs₄5],
+        by wram_simp [hs₄r], by wram_simp [hs₄d], by wram_simp [hs₄p],
+        by wram_simp [hs₄tbl], by wram_simp [hs₄stk], by wram_simp, hs₄inv⟩,
+        by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩ ha)
+      with s₆ ⟨hs₆_rep, hs₆r, hs₆p, hs₆stk, hs₆frame⟩
+    wram_exec [hs₆p]
+    refine ⟨by simpa only [Data.set_mem] using hs₆_rep, by wram_simp [hs₆r],
+      by wram_simp [hs₆stk], by wram_simp, fun a ha => ?_⟩
+    clear *- ha hs₆frame hs₄frame hs₂m
+    wram_simp [hs₆frame a (by omega) (by omega), hs₄frame a (by omega), hs₂m]
+  · intro j hj
     obtain rfl : j = 0 := by omega
-    subst hs₃
     exact ⟨by wram_simp [splitSize], by wram_simp [childSpan]⟩
-  have hs₃_away : ∀ a, a < base + span d ∨ base + span d + 2 ≤ a → s₃.mem a = s.mem a := by
-    intro a ha_out
-    have hne0 : a ≠ base + span d := by omega
-    have hne1 : a ≠ base + span d + 1 := by omega
-    subst hs₃
-    wram_simp [hs₂_mem]
-  obtain ⟨s₄, h4, hs₄0, hs₄1, hs₄2, hs₄3, hs₄4, hs₄5, hs₄r, hs₄d, hs₄p, hs₄tbl, hs₄stk,
-      hs₄sp, hs₄inv, hs₄frame⟩ :=
-    tableLoop_spec d (k := 0) (s := s₃) (by omega) ha
-      (by subst hs₃; wram_simp [hs₂0]) (by subst hs₃; wram_simp [hs₂1])
-      (by subst hs₃; wram_simp [hs₂2]) (by subst hs₃; wram_simp [hs₂3])
-      (by subst hs₃; wram_simp [hs₂4]) (by subst hs₃; wram_simp [hs₂5])
-      (by subst hs₃; wram_simp [hs₂_root]) (by subst hs₃; wram_simp [hs₂d])
-      (by subst hs₃; wram_simp) (by subst hs₃; wram_simp) (by subst hs₃; wram_simp)
-      (by subst hs₃; wram_simp)
-      (by subst hs₃; wram_simp [universeSize]) (by subst hs₃; wram_simp [span])
-      (by subst hs₃; wram_simp) hs₃_inv
-  clear hs₃ hs₂0 hs₂1 hs₂2 hs₂3 hs₂4 hs₂5 hs₂r hs₂d hs₂t hs₂m hs₂_root hs₁_root
-  refine WP.of_execWithin h4 ?_
-  unfold dfsSetup
-  wram_exec [hs₄0, hs₄1, hs₄r, hs₄d, hs₄sp]
-  apply WP.name; intro s₅ hs₅
-  have hs₅_mem : s₅.mem = s₄.mem := by subst hs₅; rfl
-  have hs₅_state : DfsState base d base d 0 s₅ := by
-    subst hs₅
-    exact ⟨⟨by wram_simp [hs₄0], by wram_simp [hs₄1], by wram_simp [hs₄2],
-      by wram_simp [hs₄3], by wram_simp [hs₄4], by wram_simp [hs₄5],
-      by wram_simp [hs₄r], by wram_simp [hs₄d], by wram_simp [hs₄p],
-      by wram_simp [hs₄tbl], by wram_simp [hs₄stk], by wram_simp, hs₄inv⟩,
-      by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
-  clear hs₅ hs₄0 hs₄1 hs₄2 hs₄3 hs₄4 hs₄5 hs₄r hs₄d hs₄p hs₄tbl hs₄stk hs₄sp hs₄inv
-  obtain ⟨s₆, h6, hs₆_rep, hs₆r, hs₆p, hs₆stk, hs₆frame⟩ := dfsLoop_spec hs₅_state ha
-  refine WP.of_execWithin h6 ?_
-  wram_exec [hs₆p]
-  refine ⟨by simpa only [Data.set_mem] using hs₆_rep, by wram_simp [hs₆r],
-    by wram_simp [hs₆stk], by wram_simp, ?_⟩
-  intro a ha_out
-  dsimp only [Data.set_mem]
-  rw [hs₆frame a (by omega) (by omega), hs₅_mem, hs₄frame a (by omega)]
-  exact hs₃_away a (by omega)
 
 /-- Bounded-caller initialization certificate: from any bounded state with `s.regs root = base`
 and `s.regs depth = d`, `initProgram` executes in at most `8 * span d + 20 * d + 25` instructions

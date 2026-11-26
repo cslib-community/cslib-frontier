@@ -61,33 +61,30 @@ theorem mul_div_pow_eq_div {p N k e m x : ℕ} (hp : 0 < p) (hN : 0 < N)
   set P := p ^ (k + e)
   set q := x / N
   have hP : 0 < P := pow_pos hp _
-  have hqN : q * N ≤ x := Nat.div_mul_le_self x N
   have hxq : x < (q + 1) * N := by
     rw [add_mul, one_mul]
     exact Nat.lt_div_mul_add hN
   have hlow : q * P ≤ m * x := by
     refine Nat.le_of_mul_le_mul_left ?_ hN
     calc N * (q * P) = q * N * P := by ring
-      _ ≤ x * (m * N) := Nat.mul_le_mul hqN hlo
+      _ ≤ x * (m * N) := Nat.mul_le_mul (Nat.div_mul_le_self x N) hlo
       _ = N * (m * x) := by ring
   have hhigh : m * x < (q + 1) * P := by
     have hpe : 0 < p ^ e := pow_pos hp e
-    have hsplit : P = p ^ k * p ^ e := pow_add p k e
-    have h1 : m * N * x < P * (x + 1) := by
+    have h1 : m * N * x < P * (x + 1) :=
       calc m * N * x ≤ (P + (p ^ e - 1)) * x := Nat.mul_le_mul_right x (by omega)
         _ = P * x + (p ^ e - 1) * x := add_mul _ _ _
         _ < P * x + p ^ e * p ^ k := by
-          have : (p ^ e - 1) * x < p ^ e * p ^ k :=
-            Nat.mul_lt_mul_of_lt_of_lt (by omega) hx
+          have hpe' : p ^ e - 1 < p ^ e := by omega
+          have := Nat.mul_lt_mul_of_lt_of_lt hpe' hx
           omega
-        _ = P * (x + 1) := by rw [hsplit]; ring
-    refine (Nat.mul_lt_mul_left hN).mp ?_
-    calc N * (m * x) = m * N * x := by ring
+        _ = P * (x + 1) := by rw [show P = p ^ k * p ^ e from pow_add p k e]; ring
+    exact (Nat.mul_lt_mul_left hN).mp <| calc N * (m * x) = m * N * x := by ring
       _ < P * (x + 1) := h1
       _ ≤ P * ((q + 1) * N) := Nat.mul_le_mul_left P hxq
       _ = N * ((q + 1) * P) := by ring
-  have h1 : q ≤ m * x / P := (Nat.le_div_iff_mul_le hP).mpr hlow
-  have h2 : m * x / P < q + 1 := (Nat.div_lt_iff_lt_mul hP).mpr hhigh
+  have := (Nat.le_div_iff_mul_le hP).mpr hlow
+  have := (Nat.div_lt_iff_lt_mul hP).mpr hhigh
   omega
 
 /-- The multiplier `⌈p ^ (k + e) / N⌉` for `e = ⌈log_p N⌉`. -/
@@ -102,23 +99,18 @@ theorem constDivMultiplier_bounds {p N : ℕ} (k : ℕ) (hp : 1 < p) (hN : 0 < N
   set e := Nat.clog p N
   set P := p ^ (k + e)
   set m := constDivMultiplier p k N
-  have hdiv : m * N + (P + N - 1) % N = P + N - 1 := by
-    rw [mul_comm]
-    exact Nat.div_add_mod (P + N - 1) N
+  have hdiv : m * N + (P + N - 1) % N = P + N - 1 :=
+    mul_comm N m ▸ Nat.div_add_mod (P + N - 1) N
   have hrem : (P + N - 1) % N < N := Nat.mod_lt _ hN
   have hNe : N ≤ p ^ e := Nat.le_pow_clog hp N
   refine ⟨by omega, by omega, ?_⟩
   rcases Nat.eq_zero_or_pos e with he | he
-  · have hN1 : N = 1 := by
-      have : N ≤ 1 := by simpa [he] using hNe
-      omega
-    have hm : m = p ^ k := by simp [m, constDivMultiplier, hN1]
-    rw [hm, pow_succ]
-    exact Nat.le_mul_of_pos_right _ (by omega)
+  · have : N ≤ 1 := by simpa [he] using hNe
+    obtain rfl : N = 1 := by omega
+    simpa [m, constDivMultiplier, pow_succ] using Nat.le_mul_of_pos_right (p ^ k) (by omega)
   · obtain ⟨c, hc⟩ := Nat.exists_eq_succ_of_ne_zero he.ne'
-    have hpc : p ^ c < N := by
-      by_contra h
-      have : e ≤ c := (Nat.clog_le_iff_le_pow hp).mpr (not_lt.mp h)
+    have hpc : p ^ c < N := not_le.mp fun h => by
+      have := (Nat.clog_le_iff_le_pow hp).mpr h
       omega
     have hP : P = p ^ (k + 1) * p ^ c := by
       rw [← pow_add]

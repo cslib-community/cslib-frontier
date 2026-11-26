@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Primitives.CorrelationRobust
 public import CslibFrontier.Crypto.Protocols.MPC.Advantage
 public import CslibFrontier.Crypto.Protocols.MPC.BatchOT
+import CslibFrontier.Languages.Probabilistic.Norm
 
 /-!
 # IKNP oblivious-transfer extension
@@ -266,8 +267,7 @@ private theorem evalWith_iknpSteps (H : Fin m → BitString κ → L)
 private theorem eval_pi_iknpSampleCoins (H : Fin m → BitString κ → L) :
     ProbComp.eval (OracleComp.pi (iknpProtocol H).sampleCoins) =
       (ProbComp.eval (sampleIKNPCoins κ m)).map iknpCoins := by
-  simp only [OracleComp.pi_succ, OracleComp.pi_zero, ProbComp.eval_bind, ProbComp.eval_map,
-    ProbComp.eval_pure, sampleIKNPCoins, PMF.map_bind, PMF.pure_map]
+  simp only [OracleComp.pi_succ, OracleComp.pi_zero, sampleIKNPCoins, pmf_norm]
   refine congrArg _ (funext fun s => ?_)
   exact congrArg (PMF.bind (ProbComp.eval (ProbComp.uniform (Fin m → BitString κ))))
     (funext fun T => congrArg PMF.pure (funext fun i => by fin_cases i <;> rfl))
@@ -300,10 +300,7 @@ private theorem evalWith_iknp (H : Fin m → BitString κ → L)
   rw [Protocol.evalWith_eq, eval_pi_iknpSampleCoins]
   simp only [evalWith_iknpSteps, PMF.pure_map, PMF.bind_map]
   rw [← PMF.bind_pure_comp]
-  refine congrArg _ (funext fun c => ?_)
-  simp only [Function.comp_apply]
-  refine congrArg PMF.pure (Prod.ext rfl ?_)
-  funext i
+  refine congrArg _ (funext fun c => congrArg PMF.pure (Prod.ext rfl (funext fun i => ?_)))
   fin_cases i
   · rfl
   · exact outputOfView_iknp_one H x c
@@ -317,7 +314,7 @@ theorem iknp_output_of_mem_support (H : Fin m → BitString κ → L)
     (hres : res ∈ ((iknpProtocol H).evalWith (batchOTWorld κ (BitString m)) x).support) :
     res.2 = batchOTAnswer x := by
   rw [evalWith_iknp, PMF.mem_support_map_iff] at hres
-  obtain ⟨c, -, rfl⟩ := hres
+  obtain ⟨_, -, rfl⟩ := hres
   rfl
 
 /-! ### Privacy against the sender -/
@@ -337,12 +334,11 @@ private theorem iknpReceived_zero (H : Fin m → BitString κ → L)
     (⟨x 0, iknpCoins c 0, iknpReceived H (fun i => (x i, iknpCoins c i)) 0⟩ :
         PartyView ((batchOTSpec m L).Query ()) (IKNPCoins κ m) (iknpSchedule κ m L) 0) =
       iknpSenderView (x 0) c.1 (fun i => iknpColumns (x 1) c.2 i (c.1 i)) := by
-  refine PartyView.ext rfl rfl (Prod.ext ?_ (Prod.ext ?_ rfl))
-  · refine Round.received_oracle_ext fun sl hsl => ?_
-    fin_cases sl
-    · exact absurd hsl (by simp [iknpRoleReversal])
-    · rfl
-  · exact Round.received_message_eq_of_ne (by simp) _ _
+  refine PartyView.ext rfl rfl (Prod.ext (Round.received_oracle_ext fun sl hsl => ?_)
+    (Prod.ext (Round.received_message_eq_of_ne (by simp) _ _) rfl))
+  fin_cases sl
+  · exact absurd hsl (by simp [iknpRoleReversal])
+  · rfl
 
 /-- The real joint distribution for a corrupted sender: its choice string and the columns it
 receives, with `T` uniform. -/
@@ -365,8 +361,7 @@ theorem idealJoint_iknp_sender (H : Fin m → BitString κ → L)
       (iknpProtocol H).realJoint (batchOTWorld κ (BitString m)) {0} x := by
   rw [realJoint_iknp_sender]
   simp only [idealJoint, batchOTFunctionality, Functionality.ofDeterministic, iknpSenderSim,
-    sampleIKNPCoins, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, PMF.pure_bind,
-    PMF.bind_bind, PMF.map_bind, PMF.pure_map]
+    sampleIKNPCoins, ProbComp.eval_uniform, pmf_norm]
   refine congrArg _ (funext fun s => ?_)
   rw [← PMF.uniformOfFintype_map_equiv (iknpColumnsEquiv (x 1) s), PMF.bind_map]
   rfl
@@ -439,12 +434,11 @@ private theorem iknpReceived_one (H : Fin m → BitString κ → L)
         PartyView ((batchOTSpec m L).Query ()) (IKNPCoins κ m) (iknpSchedule κ m L) 1) =
       iknpReceiverView (x 1) c.2
         (fun j b => x 0 j b + if b = x 1 j then H j (c.2 j) else H j (c.2 j + c.1)) := by
-  refine PartyView.ext rfl rfl (Prod.ext ?_ (Prod.ext ?_ rfl))
-  · refine Round.received_oracle_ext fun sl hsl => ?_
-    fin_cases sl
-    · rfl
-    · exact absurd hsl (by simp [iknpRoleReversal])
-  · exact Round.received_message_ext fun _ => iknpMasked_eq H (x 0) (x 1) c.2 c.1
+  refine PartyView.ext rfl rfl (Prod.ext (Round.received_oracle_ext fun sl hsl => ?_)
+    (Prod.ext (Round.received_message_ext fun _ => iknpMasked_eq H (x 0) (x 1) c.2 c.1) rfl))
+  fin_cases sl
+  · rfl
+  · exact absurd hsl (by simp [iknpRoleReversal])
 
 /-- The real joint distribution for a corrupted receiver. -/
 theorem realJoint_iknp_receiver (H : Fin m → BitString κ → L)
@@ -471,8 +465,7 @@ theorem realJoint_iknp_receiver_bind (H : Fin m → BitString κ → L)
         (fun res => ProbComp.eval (D res)) =
       CorrelationRobust.realGame H (iknpReduction H x D) := by
   rw [realJoint_iknp_receiver, PMF.bind_map]
-  simp only [CorrelationRobust.realGame, sampleIKNPCoins, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.bind_bind, PMF.pure_bind]
+  simp only [CorrelationRobust.realGame, sampleIKNPCoins, pmf_norm]
   rfl
 
 /-- The ideal joint distribution for a corrupted receiver with `iknpReceiverSim`, tested by `D`,
@@ -486,8 +479,7 @@ theorem idealJoint_iknp_receiver_bind [Fintype L] (H : Fin m → BitString κ �
     ProbComp.eval (idealJoint (batchOTFunctionality m L) {1} (iknpReceiverSim H) x >>= D) =
       CorrelationRobust.idealGame (iknpReduction H x D) := by
   simp only [CorrelationRobust.idealGame, idealJoint, batchOTFunctionality,
-    Functionality.ofDeterministic, iknpReceiverSim, iknpReduction, ProbComp.eval_bind,
-    ProbComp.eval_pure, ProbComp.eval_uniform, PMF.pure_bind, PMF.bind_bind]
+    Functionality.ofDeterministic, iknpReceiverSim, iknpReduction, ProbComp.eval_uniform, pmf_norm]
   refine congrArg _ (funext fun T => ?_)
   conv_lhs => rw [← PMF.uniformOfFintype_map_add_left (fun j => x 0 j (!x 1 j) : Fin m → L)]
   rw [PMF.bind_map]

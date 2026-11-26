@@ -67,8 +67,7 @@ private theorem sat_sweep {v : Vertex E} {rank : E → ℕ} (hv : v.Forward rank
     v.Sat (sweep rank s t n) := by
   obtain ⟨k, hk⟩ := hv
   by_cases hn : n ≤ k
-  · apply hs.mono
-    intro p hp hin
+  · refine hs.mono fun p hp hin => ?_
     cases hd : p.port.dir with
     | false =>
       have hr : ¬rank p.port.edge < n := by have := (hk p hp).2 hd; omega
@@ -78,8 +77,7 @@ private theorem sat_sweep {v : Vertex E} {rank : E → ℕ} (hv : v.Forward rank
       · exact (ite_eq_left hr).trans (Bool.le_iff_imp.1 (hle _)
           (by simpa only [Port.In, hd] using hin)) |>.trans hd.symm
       · simpa only [Port.In, sweep, ite_eq_right hr] using hin
-  · apply ht.mono
-    intro p hp hin
+  · refine ht.mono fun p hp hin => ?_
     cases hd : p.port.dir with
     | true =>
       have hr : rank p.port.edge < n := by have := (hk p hp).1 hd; omega
@@ -96,30 +94,26 @@ private theorem sweep_reverse [DecidableEq E] {rank : E → ℕ} (hrank : Functi
     (s t : E → Bool) (n : ℕ) (e : E) (he : rank e = n) (hne : s e ≠ t e) :
     sweep rank s t (n + 1) = reverse (sweep rank s t n) e := by
   funext f
-  by_cases hf : f = e
-  · subst f
-    simp only [sweep, he, Nat.lt_succ_self, Nat.lt_irrefl, ite_true, ite_false, reverse_self]
-    cases hs : s e <;> cases ht : t e <;> simp_all
+  rcases eq_or_ne f e with rfl | hf
+  · simp only [sweep, he, Nat.lt_succ_self, Nat.lt_irrefl, ite_true, ite_false, reverse_self]
+    cases hs : s f <;> cases ht : t f <;> simp_all
   · have hn : rank f ≠ n := fun h => hf (hrank (h.trans he.symm))
+    have hlt : rank f < n + 1 ↔ rank f < n := ⟨by omega, by omega⟩
     rw [reverse_of_ne _ hf]
-    have hlt : rank f < n + 1 ↔ rank f < n := by omega
     simp only [sweep, hlt]
 
 private theorem sweep_path {rank : E → ℕ} (s t : E → Bool) {r : (E → Bool) → (E → Bool) → Prop}
     (hstep : ∀ n e, rank e = n → s e ≠ t e → r (sweep rank s t n) (sweep rank s t (n + 1))) :
     ∀ n, Relation.ReflTransGen r s (sweep rank s t n)
-  | 0 => by
-    rw [show sweep rank s t 0 = s from funext fun e => by simp [sweep]]
+  | 0 => (funext fun _ => ite_eq_right (Nat.not_lt_zero _) : sweep rank s t 0 = s) ▸ .refl
   | n + 1 => by
     classical
     by_cases h : ∃ e, rank e = n ∧ s e ≠ t e
     · obtain ⟨e, he, hne⟩ := h
       exact (sweep_path s t hstep n).tail (hstep n e he hne)
-    · have heq : sweep rank s t (n + 1) = sweep rank s t n := by
-        funext e
+    · have heq : sweep rank s t (n + 1) = sweep rank s t n := funext fun e => by
         by_cases he : rank e = n
-        · have hst : s e = t e := not_not.1 fun hne => h ⟨e, he, hne⟩
-          simp [sweep, he, hst]
+        · simp [sweep, he, not_not.1 fun hne => h ⟨e, he, hne⟩]
         · have hlt : rank e < n + 1 ↔ rank e < n := by omega
           simp only [sweep, hlt]
       rw [heq]
@@ -138,27 +132,19 @@ variable {Γ : List Color → List Color → Type} {I : Interp Γ} {a b c d : Li
 theorem legal_top_mono (hI : I.Forward) (D : Diagram Γ a b) {s t : D.Edge → Bool}
     (hs : (D.graph I).Legal s) (htop : ∀ i, s (.inl i) ≤ t (.inl i))
     (hinner : ∀ e, s (.inr e) = t (.inr e)) : (D.graph I).Legal t := by
-  have hle : ∀ e, s e ≤ t e := fun e => by
-    cases e with
-    | inl i => exact htop i
-    | inr e => exact (hinner e).le
+  have hle : ∀ e, s e ≤ t e := fun | .inl i => htop i | .inr e => (hinner e).le
   induction D with
   | gen g =>
-    intro v
-    refine Vertex.Sat.mono (fun p hp hin => ?_) (hs v)
+    refine fun v => Vertex.Sat.mono (fun p hp hin => ?_) (hs v)
     have hd := hI g _ (List.get_mem _ v) p hp
     change s p.port.edge = p.port.dir at hin
-    rcases he : p.port.edge with i | e
-    · have hdir : p.port.dir = true := by rw [he] at hd; exact hd
-      change t p.port.edge = p.port.dir
-      rw [he, hdir]
-      have hsin : s (.inl i) = true := by simpa only [he, hdir] using hin
-      exact Bool.eq_true_of_true_le (by simpa only [hsin] using htop i)
-    · change t p.port.edge = p.port.dir
-      rw [he, ← hinner e]
-      simpa only [he] using hin
-  | id a => exact fun v => v.elim
-  | swap x y => exact fun v => v.elim
+    change t p.port.edge = p.port.dir
+    rcases he : p.port.edge with i | e <;> rw [he] at hd hin
+    · have hdir : p.port.dir = true := hd
+      rw [hdir] at hin ⊢
+      exact Bool.eq_true_of_true_le (hin ▸ htop i)
+    · exact (hinner e).symm.trans hin
+  | id a | swap x y => exact fun v => v.elim
   | comp D₁ D₂ ih₁ ih₂ =>
     obtain ⟨h₁, h₂⟩ := (legal_comp_iff D₁ D₂ s).1 hs
     exact (legal_comp_iff D₁ D₂ t).2
@@ -181,26 +167,24 @@ private theorem forward_gen (hI : I.Forward) {a b : List Color} (g : Γ a b)
   have hd := hI g v hv p hp
   rcases he : p.port.edge with i | j
   · have hd' : p.port.dir = true := by simpa only [he, Sum.elim_inl] using hd
-    refine ⟨fun _ => ?_, fun h => Bool.noConfusion (hd'.symm.trans h)⟩
-    simpa only [name, Inner, he, Sum.elim_inl] using htop i
+    exact ⟨fun _ => by simpa only [name, Inner, he, Sum.elim_inl] using htop i,
+      fun h => Bool.noConfusion (hd'.symm.trans h)⟩
   · have hd' : p.port.dir = false := by simpa only [he, Sum.elim_inr] using hd
-    refine ⟨fun h => Bool.noConfusion (hd'.symm.trans h), fun _ => ?_⟩
-    simpa only [name, Inner, he, Sum.elim_inr, idx] using Nat.le_add_right k (j : ℕ)
+    exact ⟨fun h => Bool.noConfusion (hd'.symm.trans h),
+      fun _ => by simpa only [name, Inner, he, Sum.elim_inr, idx] using Nat.le_add_right k (j : ℕ)⟩
 
 private theorem forward_vertexList (hI : I.Forward) (D : Diagram Γ a b)
     (top : Fin a.length → ℕ) (k : ℕ) (htop : ∀ i, top i < k) :
     ∀ v ∈ vertexList I D, v.Forward (D.name top k) := by
   induction D generalizing k with
   | gen g => exact forward_gen hI g top k htop
-  | id a => simp [vertexList]
-  | swap x y => simp [vertexList]
+  | id a | swap x y => simp [vertexList]
   | comp D₁ D₂ ih₁ ih₂ =>
     simp only [vertexList, List.forall_mem_append, List.forall_mem_map, Vertex.forward_map]
-    constructor
-    · simpa only [Function.comp_def, name_compLeft] using ih₁ top k htop
-    · simpa only [Function.comp_def, name_compRight] using
+    exact ⟨by simpa only [Function.comp_def, name_compLeft] using ih₁ top k htop,
+      by simpa only [Function.comp_def, name_compRight] using
         ih₂ (fun j => D₁.name top k (D₁.bottom j)) (k + D₁.innerCount)
-          (fun j => name_lt D₁ top k htop (D₁.bottom j))
+          (fun j => name_lt D₁ top k htop (D₁.bottom j))⟩
   | @tensor a b c d D₁ D₂ ih₁ ih₂ =>
     simp only [vertexList, List.forall_mem_append, List.forall_mem_map, Vertex.forward_map]
     constructor
@@ -212,11 +196,10 @@ private theorem forward_vertexList (hI : I.Forward) (D : Diagram Γ a b)
 
 private theorem legal_sweep (hI : I.Forward) (D : Diagram Γ a b) {s t : D.Edge → Bool}
     (hs : (D.graph I).Legal s) (ht : (D.graph I).Legal t) (hle : ∀ e, s e ≤ t e) (n : ℕ) :
-    (D.graph I).Legal (sweep D.num s t n) := by
-  apply (forall_vertexList_iff D _).1
-  intro v hv
-  exact sat_sweep (forward_vertexList hI D Fin.val a.length (fun i => i.isLt) v hv)
-    ((forall_vertexList_iff D _).2 hs v hv) ((forall_vertexList_iff D _).2 ht v hv) hle n
+    (D.graph I).Legal (sweep D.num s t n) :=
+  (forall_vertexList_iff D _).1 fun v hv =>
+    sat_sweep (forward_vertexList hI D Fin.val a.length (fun i => i.isLt) v hv)
+      ((forall_vertexList_iff D _).2 hs v hv) ((forall_vertexList_iff D _).2 ht v hv) hle n
 
 /-- Increasing legal orientations are connected inside any invariant that holds on their
 Boolean interval. The path scans the edges in creation order. -/
@@ -225,71 +208,59 @@ theorem reachable_of_le_within (hI : I.Forward) (D : Diagram Γ a b) {s t : D.Ed
     {P : (D.Edge → Bool) → Prop}
     (hP : ∀ u, (∀ e, s e ≤ u e) → (∀ e, u e ≤ t e) → P u) :
     Relation.ReflTransGen (Within (D.graph I).Step P) s t := by
-  have hp (n : ℕ) : P (sweep D.num s t n) := by
-    apply hP
-    · intro e
-      dsimp only [sweep]
-      split <;> first | exact hle e | exact le_rfl
-    · intro e
-      dsimp only [sweep]
-      split <;> first | exact hle e | exact le_rfl
-  have h := sweep_path s t (rank := D.num) (r := Within (D.graph I).Step P) fun n e he hne =>
-    ⟨hp n, legal_sweep hI D hs ht hle n, legal_sweep hI D hs ht hle (n + 1), e,
-      sweep_reverse D.num_injective s t n e he hne⟩
+  have hp (n : ℕ) : P (sweep D.num s t n) := hP _
+    (fun e => by by_cases h : D.num e < n <;> simp [sweep, h, hle e])
+    (fun e => by by_cases h : D.num e < n <;> simp [sweep, h, hle e])
   have hfinal : sweep D.num s t (a.length + D.innerCount) = t :=
     funext fun e => ite_eq_left (D.num_lt e)
-  exact hfinal ▸ h _
+  exact hfinal ▸
+    sweep_path s t (rank := D.num) (r := Within (D.graph I).Step P) (fun n e he hne =>
+      ⟨hp n, legal_sweep hI D hs ht hle n, legal_sweep hI D hs ht hle (n + 1), e,
+        sweep_reverse D.num_injective s t n e he hne⟩) (a.length + D.innerCount)
 
 /-- When the boundaries agree, creation-order activation moves only internal edges. -/
 theorem innerReach_of_le (hI : I.Forward) (D : Diagram Γ a b) {s t : D.Edge → Bool}
     (hs : (D.graph I).Legal s) (ht : (D.graph I).Legal t) (hle : ∀ e, s e ≤ t e)
     (hboundary : ∀ e, D.IsBoundary e → s e = t e) : InnerReach I D s t := by
-  have h := sweep_path s t (rank := D.num) (r := InnerStep I D) fun n e he hne =>
-    ⟨legal_sweep hI D hs ht hle n, legal_sweep hI D hs ht hle (n + 1), e,
-      fun hb => hne (hboundary e hb), sweep_reverse D.num_injective s t n e he hne⟩
   have hfinal : sweep D.num s t (a.length + D.innerCount) = t :=
     funext fun e => ite_eq_left (D.num_lt e)
-  exact hfinal ▸ h _
+  exact hfinal ▸
+    sweep_path s t (rank := D.num) (r := InnerStep I D) (fun n e he hne =>
+      ⟨legal_sweep hI D hs ht hle n, legal_sweep hI D hs ht hle (n + 1), e,
+        fun hb => hne (hboundary e hb), sweep_reverse D.num_injective s t n e he hne⟩)
+      (a.length + D.innerCount)
 
 /-- Keep the top directions of an orientation and clear every wire created inside the diagram. -/
 @[expose] def off (D : Diagram Γ a b) (t : D.Edge → Bool) : D.Edge → Bool :=
   Sum.elim (fun i => t (.inl i)) (fun _ => false)
 
-@[simp] theorem off_false (D : Diagram Γ a b) : D.off (fun _ => false) = (fun _ => false) := by
-  funext e
-  cases e <;> rfl
+@[simp] theorem off_false (D : Diagram Γ a b) : D.off (fun _ => false) = (fun _ => false) :=
+  funext fun | .inl _ | .inr _ => rfl
 
 @[simp] theorem off_id (a : List Color) (t : (Diagram.id a : Diagram Γ a a).Edge → Bool) :
-    (Diagram.id a).off t = t := by
-  funext e
-  rcases e with i | e
-  · rfl
-  · exact e.elim
+    (Diagram.id a).off t = t :=
+  funext fun | .inl _ => rfl | .inr e => e.elim
 
 @[simp] theorem off_glueComp (D₁ : Diagram Γ a b) (D₂ : Diagram Γ b c)
     (s : D₁.Edge → Bool) (t : D₂.Edge → Bool) :
     (D₁.comp D₂).off (glueComp D₁ D₂ s t) =
-      glueComp D₁ D₂ (D₁.off s) (D₂.off t) := by
-  funext e
-  rcases e with i | e | e <;> rfl
+      glueComp D₁ D₂ (D₁.off s) (D₂.off t) :=
+  funext fun | .inl _ | .inr (.inl _) | .inr (.inr _) => rfl
 
 @[simp] theorem off_glueTensor (D₁ : Diagram Γ a b) (D₂ : Diagram Γ c d)
     (s : D₁.Edge → Bool) (t : D₂.Edge → Bool) :
     (D₁.tensor D₂).off (glueTensor D₁ D₂ s t) =
-      glueTensor D₁ D₂ (D₁.off s) (D₂.off t) := by
-  funext e
-  rcases e with i | e | e
-  · simp only [off, glueTensor, Sum.elim_inl]
-  · rfl
-  · rfl
+      glueTensor D₁ D₂ (D₁.off s) (D₂.off t) :=
+  funext fun
+    | .inl _ => by simp only [off, glueTensor, Sum.elim_inl]
+    | .inr (.inl _) | .inr (.inr _) => rfl
 
 /-- The inactive version of a legal orientation is legal when all-false is legal. -/
 theorem legal_off (hI : I.Forward) (D : Diagram Γ a b)
     (hzero : (D.graph I).Legal (fun _ => false)) {t : D.Edge → Bool}
     (ht : (D.graph I).Legal t) : (D.graph I).Legal (D.off t) := by
-  have heq : sweep D.num (fun _ => false) t a.length = D.off t := by
-    funext e
-    rcases e with i | e
+  have heq : sweep D.num (fun _ => false) t a.length = D.off t := funext fun e => by
+    rcases e with i | _
     · exact ite_eq_left i.isLt
     · exact ite_eq_right (by simp [num, name])
   exact heq ▸ legal_sweep hI D hzero ht (fun _ => Bool.false_le _) a.length

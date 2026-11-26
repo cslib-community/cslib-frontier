@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted.Setup
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # One charged native tile-count update
@@ -59,14 +60,14 @@ theorem exec_countStep {w L m N Q n : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ �
   let β := bandOf L m I
   let γ := bandOf L m J
   let key := tileKey L m N ∘ pairs
-  let c := Nat.count (fun k => key k = (key n)) n
+  let c := Nat.count (fun k => key k = key n) n
   have ht : key n < B ^ 2 := tileKey_lt hm _ hpair.1 hpair.2
   have hβ : β < B := bandOf_lt_numBands hm N I hpair.1
   have hγ : γ < B := bandOf_lt_numBands hm N J hpair.2
-  have hB : B ≤ B ^ 2 := by nlinarith only [hβ]
+  have hB : B ≤ B ^ 2 := Nat.le_self_pow (by decide) B
   have hBeq : B ^ 2 = numBands L m N ^ 2 := rfl
   have h10 := Nat.zero_le (10 ^ L)
-  have hprod : β * B ≤ key n := by dsimp [key, tileKey, Function.comp_def, β, B, I]; omega
+  have hprod : β * B ≤ key n := Nat.le_add_right _ _
   have hcle : c ≤ n := Nat.count_le _
   have hl := local_fits hfit
   have hend := memoryLimit_eq L m N Q
@@ -80,44 +81,33 @@ theorem exec_countStep {w L m N Q n : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ �
   have hγf : Fits w γ := hf _ (by omega)
   have hpf : Fits w (β * B) := hf _ (by omega)
   have hkf : Fits w (key n) := hf _ (by omega)
-  have hcf : Fits w (countAddress L Q + key n) := hf _ (by
-    unfold countAddress tableAddress inputLimit
-    omega)
+  have hcf : Fits w (countAddress L Q + key n) :=
+    hf _ (by unfold countAddress tableAddress inputLimit; omega)
   have hload : x.mem (countAddress L Q + key n) = c := hcounts _ ht
-  have hI : x.mem (n * 2 + 5) = I :=
-    (congrArg x.mem (by omega : n * 2 + 5 = 5 + 2 * n)).trans hinput.1
-  have hJ : x.mem (n * 2 + 5 + 1) = J :=
-    (congrArg x.mem (by omega : n * 2 + 5 + 1 = 5 + 2 * n + 1)).trans hinput.2
-  let y := ((((((((((((((x.set pointer (n * 2)).set pointer (n * 2 + 5)).set queryRow I).set
-    pointer (n * 2 + 5 + 1)).set queryCol J).set rowBand β).set colBand γ).set
-    tile (β * B)).set tile (key n)).set pointer (countAddress L Q + key n)).set count c).set
-    count (c + 1)).write (countAddress L Q + key n) (c + 1)).set index (n + 1))
-  have he : ExecWithin w countStep x y 14 := by
-    dsimp only [β, γ, B, I, J, bandOf] at hβf hγf hpf
-    dsimp only [I, J] at hI hJ
-    dsimp only [key, Function.comp_def, tileKey, bandOf] at hkf hcf hload
-    ram_eval [countStep, loadQuery, tileCode, y, hx.queries, hx.queryCount, hx.counts,
-      hx.route.bandWidth, hx.route.bands, hx.tables.one, hx.tables.two, hi,
-      hI, hJ, hload, hn2, ha, ha1, hβf, hγf, hpf, hkf, hcf, hcn, hn1,
-      I, J, β, γ, B, key, Function.comp_def, tileKey, bandOf,
-      pointer, index, queries, queryRow, queryCol, rowBand, colBand, tile, bandWidth,
-      counts, count, BandPreparation.bands, BandPreparation.one, BandPreparation.two,
-      Fin.mk.injEq]
-  refine ⟨y, he, hx.of_exec he (by decide +kernel), by simp [y, index], ?_, ?_⟩
-  · intro t ht'
-    change y.mem (countAddress L Q + t) = Nat.count (fun k => key k = t) (n + 1)
-    rw [Nat.count_succ]
-    change (Function.update x.mem (countAddress L Q + key n) (c + 1))
-      (countAddress L Q + t) = _
+  obtain ⟨hI, hJ⟩ : x.mem (n * 2 + 5) = I ∧ x.mem (n * 2 + 5 + 1) = J := by
+    simpa only [Nat.mul_comm n 2, Nat.add_comm (2 * n) 5] using hinput
+  dsimp only [β, γ, B, I, J, bandOf] at hβf hγf hpf
+  dsimp only [I, J] at hI hJ
+  dsimp only [key, Function.comp_def, tileKey, bandOf] at hkf hcf hload
+  refine WP.exists_execWithin ?_
+  unfold countStep loadQuery tileCode
+  wram_exec * [hI, hJ, hload, hn2, ha, ha1, hβf, hγf, hpf, hkf, hcf, hcn, hn1]
+  refine ⟨by regs_frame, by wram_simp, fun t ht' => ?_, fun a ha' => ?_⟩
+  · rw [Nat.count_succ]
     by_cases h : key n = t
-    · subst t
-      simp only [Function.update_self, ↓reduceIte]
-      rfl
-    · have hc' : x.mem (countAddress L Q + t) = Nat.count (fun k => key k = t) n := hcounts t ht'
-      rw [Function.update_of_ne (by omega), hc', ite_eq_right h]
-      omega
-  · intro a ha
-    change Function.update x.mem (countAddress L Q + key n) (c + 1) a = x.mem a
-    rw [Function.update_of_ne (by rcases ha with ha | ha <;> omega)]
+    · subst h
+      dsimp only [key, Function.comp_def, tileKey, bandOf]; wram_simp; rfl
+    · have hne : countAddress L Q + t ≠
+          countAddress L Q + ((pairs n).1 / bandSize L m * numBands L m N +
+            (pairs n).2 / bandSize L m) := by
+        dsimp only [key, Function.comp_def, tileKey, bandOf] at h
+        omega
+      wram_simp [hne, hcounts t ht']
+      dsimp only [key] at h
+      rw [ite_eq_right h, Nat.add_zero]
+  · have hne : a ≠ countAddress L Q + ((pairs n).1 / bandSize L m * numBands L m N +
+        (pairs n).2 / bandSize L m) := by
+      change a ≠ countAddress L Q + key n; omega
+    wram_simp [hne]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted

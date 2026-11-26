@@ -9,11 +9,9 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Signed.Arithmetic
 public import CslibFrontier.Computability.WordRAM.Copy
-import Mathlib.Tactic.FinCases
-import Mathlib.Tactic.NormNum
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Havoc
 
 /-!
 # Native Euclidean residue arrays
@@ -128,31 +126,28 @@ theorem exec {w M : ℕ} (x : Data 16) (values : ℕ → ℤ) (hM : 0 < M)
     unfold body
     wram_exec [ha, hread, hmod', hmodreg]
     wram_call (Signed.exec_modulo (hfit _ hlt) hmod _ (by wram_simp) (by wram_simp))
-      with z ⟨hzval, hzmem, hzreg⟩
-    have hdecode : z.regs result / 2 = (values (y.regs idx) % (M : ℤ)).toNat := by
+      framed with v m ⟨hzval, hzmem, _⟩
+    wram_simp at hzmem
+    have hdecode : v result / 2 = (values (y.regs idx) % (M : ℤ)).toNat := by
       rw [hzval, GenericRAM.Signed.Arithmetic.eval, encode_div_two]
       omega
-    have hzi : z.regs idx = y.regs idx := by
-      rw [hzreg idx (Or.inr (by decide))]; wram_simp
-    have hzo : z.regs one = 1 := by
-      rw [hzreg one (Or.inr (by decide))]; wram_simp [ho]
-    have hzd : z.regs dst = x.regs dst := by
-      rw [hzreg dst (Or.inr (by decide))]; wram_simp [hdst]
-    have hb : Fits (w + 2) (x.regs dst + y.regs idx) := hd.of_le (by omega)
-    have hn : Fits (w + 2) (y.regs idx + 1) := hs.of_le (by omega)
-    wram_exec [htwo, hrem, hb, hn, hzo, hdecode, hzd, hzi]
-    refine ⟨⟨fun i hi => ?_, by wram_simp [hzo], ?_⟩, by wram_simp [hzi]⟩
-    · have hri := hr i hi
-      fin_cases i <;> norm_num at hi <;>
-        (wram_simp; rw [hzreg _ (Or.inr (by decide))]; wram_simp [hri])
-    · wram_simp [hzmem]
-      rw [hm, ← memory_succ]
+    have hpres : ∀ i : Fin 16, 9 ≤ i.val ∧ i.val ≤ 12 → Signed.modulo.Preserves i :=
+      by decide +kernel
+    wram_exec [htwo, hrem, ho, hdecode, hdst]
+    refine ⟨⟨fun i hi => ?_, by wram_simp [ho],
+      by wram_simp [hzmem, hm, ← memory_succ]⟩, by wram_simp⟩
+    simp only [Data.set_regs, Data.write_regs, Function.update_apply, Fin.ext_iff,
+      two, result, addr, idx,
+      Data.havoc_regs_of_preserves (hpres i hi), hr i hi]
+    split_ifs <;> omega
   have h1 : Fits (w + 2) 1 := (show Fits 2 1 from by decide).mono (by omega)
   refine WP.exists_execWithin ?_
   unfold program
   wram_exec [h1]
   wram_call (ExecWithin.loop_count P (fun _ hy => hy.1 len (by decide)) hbody
-    (by wram_simp; omega) ⟨fun i hi => by fin_cases i <;> norm_num at hi <;> wram_simp,
+    (by wram_simp; omega) ⟨fun i hi => by
+      simp only [Data.set_regs, Function.update_apply, Fin.ext_iff, idx, one]
+      split_ifs <;> omega,
       by wram_simp, by wram_simp [memory_zero]⟩)
     with y ⟨⟨hr, _, hm⟩, _⟩
   exact ⟨by wram_simp; omega, hm, hr⟩

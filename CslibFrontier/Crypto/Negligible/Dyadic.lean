@@ -60,6 +60,7 @@ positive constant).
 * `Cslib.Crypto.negligible_of_coe_le`, `Cslib.Crypto.negligible_of_eventually_coe_le`: comparison
   against real-valued upper bounds via `Real.toNNReal`.
 * `Cslib.Crypto.sqrt_pow_two_div_pow_two_le`,
+  `Cslib.Crypto.negligible_sqrt_pow_two_div_pow_two`,
   `Cslib.Crypto.negligible_mul_sqrt_pow_two_div_pow_two`: square-root dyadic entropy estimates.
 -/
 
@@ -86,9 +87,9 @@ variable {P Q : ℕ → ℝ≥0}
 
 /-- Nonnegative constants are polynomially bounded. -/
 @[fun_prop]
-protected theorem const (c : ℝ≥0) : PolynomiallyBoundedNNReal (fun _ => c) := by
-  obtain ⟨m, hm⟩ := exists_nat_ge c
-  exact ⟨fun _ => m, .const m, fun _ => hm⟩
+protected theorem const (c : ℝ≥0) : PolynomiallyBoundedNNReal (fun _ => c) :=
+  let ⟨m, hm⟩ := exists_nat_ge c
+  ⟨fun _ => m, .const m, fun _ => hm⟩
 
 /-- Natural-cast polynomially bounded functions are polynomially bounded in `ℝ≥0`. -/
 @[fun_prop]
@@ -99,31 +100,28 @@ protected theorem natCast {p : ℕ → ℕ} (hp : PolynomiallyBounded p) :
 /-- Sums of polynomially bounded `ℝ≥0` functions are polynomially bounded. -/
 @[fun_prop]
 protected theorem add (hP : PolynomiallyBoundedNNReal P) (hQ : PolynomiallyBoundedNNReal Q) :
-    PolynomiallyBoundedNNReal (fun n => P n + Q n) := by
-  obtain ⟨p, hp, hPle⟩ := hP
-  obtain ⟨q, hq, hQle⟩ := hQ
-  refine ⟨fun n => p n + q n, hp.add hq, fun n => ?_⟩
-  rw [Nat.cast_add]
-  exact add_le_add (hPle n) (hQle n)
+    PolynomiallyBoundedNNReal (fun n => P n + Q n) :=
+  let ⟨p, hp, hPle⟩ := hP
+  let ⟨q, hq, hQle⟩ := hQ
+  ⟨fun n => p n + q n, hp.add hq,
+    fun n => (add_le_add (hPle n) (hQle n)).trans_eq (Nat.cast_add _ _).symm⟩
 
 /-- Products of polynomially bounded `ℝ≥0` functions are polynomially bounded. -/
 @[fun_prop]
 protected theorem mul (hP : PolynomiallyBoundedNNReal P) (hQ : PolynomiallyBoundedNNReal Q) :
-    PolynomiallyBoundedNNReal (fun n => P n * Q n) := by
-  obtain ⟨p, hp, hPle⟩ := hP
-  obtain ⟨q, hq, hQle⟩ := hQ
-  refine ⟨fun n => p n * q n, hp.mul hq, fun n => ?_⟩
-  rw [Nat.cast_mul]
-  exact mul_le_mul' (hPle n) (hQle n)
+    PolynomiallyBoundedNNReal (fun n => P n * Q n) :=
+  let ⟨p, hp, hPle⟩ := hP
+  let ⟨q, hq, hQle⟩ := hQ
+  ⟨fun n => p n * q n, hp.mul hq,
+    fun n => (mul_le_mul' (hPle n) (hQle n)).trans_eq (Nat.cast_mul _ _).symm⟩
 
 /-- Fixed powers of polynomially bounded `ℝ≥0` functions are polynomially bounded. -/
 @[fun_prop]
 protected theorem pow (hP : PolynomiallyBoundedNNReal P) (d : ℕ) :
-    PolynomiallyBoundedNNReal (fun n => P n ^ d) := by
-  obtain ⟨p, hp, hPle⟩ := hP
-  refine ⟨fun n => p n ^ d, hp.pow d, fun n => ?_⟩
-  rw [Nat.cast_pow]
-  exact pow_le_pow_left' (hPle n) d
+    PolynomiallyBoundedNNReal (fun n => P n ^ d) :=
+  let ⟨p, hp, hPle⟩ := hP
+  ⟨fun n => p n ^ d, hp.pow d,
+    fun n => (pow_le_pow_left' (hPle n) d).trans_eq (Nat.cast_pow _ _).symm⟩
 
 /-- Dividing by a nonnegative constant preserves a polynomial bound in `ℝ≥0`. -/
 @[fun_prop]
@@ -136,9 +134,9 @@ protected theorem div_const (hP : PolynomiallyBoundedNNReal P) (c : ℝ≥0) :
 @[fun_prop]
 protected theorem comp_polynomiallyBounded (hP : PolynomiallyBoundedNNReal P) {g : ℕ → ℕ}
     (hg : PolynomiallyBounded g) :
-    PolynomiallyBoundedNNReal (fun n => P (g n)) := by
-  obtain ⟨p, hp, hPle⟩ := hP
-  exact ⟨fun n => p (g n), hp.comp hg, fun n => hPle (g n)⟩
+    PolynomiallyBoundedNNReal (fun n => P (g n)) :=
+  let ⟨p, hp, hPle⟩ := hP
+  ⟨fun n => p (g n), hp.comp hg, fun n => hPle (g n)⟩
 
 end PolynomiallyBoundedNNReal
 
@@ -161,17 +159,15 @@ theorem tendsto_atTop (hg : PolynomiallyLowerBounded g) :
   obtain ⟨c, d, hg⟩ := hg
   refine Filter.tendsto_atTop_atTop.mpr fun b => ⟨c * b ^ d + 1, fun n hn => ?_⟩
   by_contra! hlt
-  have hle : c * (g n + 1) ^ d ≤ c * b ^ d :=
-    Nat.mul_le_mul_left c (Nat.pow_le_pow_left hlt d)
-  have := (hg n).trans hle
+  have := (hg n).trans (Nat.mul_le_mul_left c (Nat.pow_le_pow_left hlt d))
   omega
 
 /-- Pointwise larger schedules remain polynomially lower-bounded. -/
 theorem mono_of_le (hg : PolynomiallyLowerBounded g) (hle : ∀ n, g n ≤ f n) :
-    PolynomiallyLowerBounded f := by
-  obtain ⟨c, d, hg⟩ := hg
-  refine ⟨c, d, fun n => (hg n).trans ?_⟩
-  exact Nat.mul_le_mul_left c (Nat.pow_le_pow_left (Nat.add_le_add_right (hle n) 1) d)
+    PolynomiallyLowerBounded f :=
+  let ⟨c, d, hg⟩ := hg
+  ⟨c, d, fun n => (hg n).trans
+    (Nat.mul_le_mul_left c (Nat.pow_le_pow_left (Nat.add_le_add_right (hle n) 1) d))⟩
 
 /-- The identity parameter is polynomially lower-bounded. -/
 @[fun_prop]
@@ -230,10 +226,10 @@ protected theorem comp (hf : PolynomiallyLowerBounded f) (hg : PolynomiallyLower
   obtain ⟨c₁, d₁, hf⟩ := hf
   obtain ⟨c₂, d₂, hg⟩ := hg
   refine ⟨c₂ * (c₁ + 1) ^ d₂, d₁ * d₂, fun n => ?_⟩
-  have hinner : g n + 1 ≤ (c₁ + 1) * (f (g n) + 1) ^ d₁ := by
-    have hp : 1 ≤ (f (g n) + 1) ^ d₁ := Nat.one_le_pow _ _ (Nat.succ_pos _)
+  have hinner : g n + 1 ≤ (c₁ + 1) * (f (g n) + 1) ^ d₁ :=
     calc
-      g n + 1 ≤ c₁ * (f (g n) + 1) ^ d₁ + (f (g n) + 1) ^ d₁ := Nat.add_le_add (hf (g n)) hp
+      g n + 1 ≤ c₁ * (f (g n) + 1) ^ d₁ + (f (g n) + 1) ^ d₁ :=
+        Nat.add_le_add (hf (g n)) (Nat.one_le_pow _ _ (Nat.succ_pos _))
       _ = (c₁ + 1) * (f (g n) + 1) ^ d₁ := by ring
   calc
     n ≤ c₂ * (g n + 1) ^ d₂ := hg n
@@ -350,10 +346,9 @@ theorem Negligible.inv_pow_add_const {b : ℝ≥0} {f : ℕ → ℕ} (c : ℕ)
 theorem Negligible.pow {ε : ℕ → ℝ≥0} (hε : Negligible ε) {k : ℕ} (hk : 0 < k) :
     Negligible (fun n => ε n ^ k) := by
   obtain ⟨m, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hk.ne'
-  clear hk
   induction m with
   | zero => simpa only [pow_one] using hε
-  | succ m ih => simpa only [pow_succ] using ih.mul_fun hε
+  | succ m ih => simpa only [pow_succ] using (ih (Nat.succ_pos m)).mul_fun hε
 
 /-- Shifting the security parameter by a left-hand additive constant preserves negligibility. -/
 theorem Negligible.shift_left {ε : ℕ → ℝ≥0} (hε : Negligible ε) (c : ℕ) :
@@ -460,9 +455,19 @@ theorem sqrt_pow_two_div_pow_two_le {outputBits sourceBits n : ℕ}
       div_le_div_of_nonneg_left (by positivity) (by positivity)
         (pow_le_pow_right₀ (by norm_num) hmargin)
     _ = _ := by
-      rw [pow_add, mul_comm 2 n, pow_mul]
-      simp only [one_div, inv_pow]
+      rw [pow_add, mul_comm 2 n, pow_mul, one_div, inv_pow]
       field_simp
+
+open Filter in
+/-- A square-root dyadic ratio `√(2 ^ outputBits n / 2 ^ sourceBits n)` is negligible under an
+eventual entropy surplus of twice the security parameter. -/
+theorem negligible_sqrt_pow_two_div_pow_two {outputBits sourceBits : ℕ → ℕ}
+    (hmargin : ∀ᶠ n in atTop, outputBits n + 2 * n ≤ sourceBits n) :
+    Negligible (fun n => NNReal.sqrt ((2 : ℝ≥0) ^ outputBits n / 2 ^ sourceBits n)) := by
+  refine negligible_of_eventually_le
+    (negligible_geometric (ratio := (1 / 2 : ℝ≥0)) (by norm_num)) ?_
+  filter_upwards [hmargin] with n hn
+  exact sqrt_pow_two_div_pow_two_le hn
 
 open Filter in
 /-- A polynomial number of square-root dyadic errors is negligible under an eventual entropy
@@ -471,12 +476,8 @@ theorem negligible_mul_sqrt_pow_two_div_pow_two
     {count outputBits sourceBits : ℕ → ℕ} (hcount : PolynomiallyBounded count)
     (hmargin : ∀ᶠ n in atTop, outputBits n + 2 * n ≤ sourceBits n) :
     Negligible (fun n => (count n : ℝ≥0) *
-      NNReal.sqrt ((2 : ℝ≥0) ^ outputBits n / 2 ^ sourceBits n)) := by
-  apply negligible_of_eventually_le
-    ((negligible_geometric (ratio := (1 / 2 : ℝ≥0)) (by norm_num)).polynomiallyBounded_mul
-      hcount)
-  filter_upwards [hmargin] with n hn
-  exact mul_le_mul' le_rfl (sqrt_pow_two_div_pow_two_le hn)
+      NNReal.sqrt ((2 : ℝ≥0) ^ outputBits n / 2 ^ sourceBits n)) :=
+  (negligible_sqrt_pow_two_div_pow_two hmargin).polynomiallyBounded_mul hcount
 
 end Cslib.Crypto
 

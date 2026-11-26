@@ -18,15 +18,12 @@ with one row port and zero exponents is the local form, a single kernel value; a
 correctness theorem applies to these packets.
 -/
 
-@[expose] public section
+public section
 
 namespace CslibFrontierTests.TensorNetworkPacketEvaluator
 
 open Cslib Cslib.Circuits.Frontier Cslib.Circuits.Frontier.NativePacket
   Cslib.Circuits.Frontier.TensorNetwork
-
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
 
 -- The valuation by halving.
 example : twoVal 12 = 2 ∧ twoVal (-8) = 3 ∧ twoVal 0 = 0 := by decide

@@ -122,35 +122,28 @@ theorem DirectedPath.subgraph {T : DAG F} {w : Walk F} {time : Occurrence F → 
 /-- Every copied constraint of a directed path has precisely its incoming and outgoing arc. -/
 theorem DirectedPath.pairedCopies {T : DAG F} {w : Walk F} {time : Occurrence F → ℕ}
     (hp : DirectedPath T w time) : (pathDAG w time).PairedCopies := by
+  have hcopy : ∀ {d s}, s ∈ w.steps → d ∈ ({inArc time s, outArc time s} : Finset (Arc F)) →
+      d.copy = (inArc time s).copy := by
+    intro d s hs hd
+    rcases (show d = inArc time s ∨ d = outArc time s from by
+      simpa only [mem_insert, mem_singleton] using hd) with rfl | rfl
+    · rfl
+    · exact Eq.symm (Prod.ext (linked_constraint hp.walk.1 hs) rfl)
   intro c hc
   obtain ⟨e, hem, rfl⟩ := mem_image.mp hc
   obtain ⟨s, hsm, he⟩ := mem_biUnion.mp hem
   have hs := List.mem_toFinset.mp hsm
-  have hsc : (inArc time s).copy = (outArc time s).copy :=
-    Prod.ext (linked_constraint hp.walk.1 hs) rfl
-  have hec : e.copy = (inArc time s).copy := by
-    rcases (show e = inArc time s ∨ e = outArc time s from by
-      simpa only [mem_insert, mem_singleton] using he) with rfl | rfl
-    · rfl
-    · exact hsc.symm
+  have hec := hcopy hs he
   refine ⟨inArc time s, mem_biUnion.mpr ⟨s, hsm, (by simp)⟩,
     outArc time s, mem_biUnion.mpr ⟨s, hsm, (by simp)⟩,
-    rfl, hec.symm, hsc.symm.trans hec.symm, ?_, ?_⟩
+    rfl, hec.symm, (hcopy (d := outArc time s) hs (by simp)).trans hec.symm, ?_, ?_⟩
   · intro hh
     have := congrArg Arc.incoming hh
     contradiction
   · intro d hdm hdc
     obtain ⟨t, htm, hd⟩ := mem_biUnion.mp hdm
     have ht := List.mem_toFinset.mp htm
-    have htc : (inArc time t).copy = (outArc time t).copy :=
-      Prod.ext (linked_constraint hp.walk.1 ht) rfl
-    have hdc' : d.copy = (inArc time t).copy := by
-      rcases (show d = inArc time t ∨ d = outArc time t from by
-        simpa only [mem_insert, mem_singleton] using hd) with rfl | rfl
-      · rfl
-      · exact htc.symm
-    have hts := hp.copies_injective t ht s hs (hdc'.symm.trans (hdc.trans hec))
-    subst t
+    obtain rfl := hp.copies_injective t ht s hs ((hcopy ht hd).symm.trans (hdc.trans hec))
     simpa only [mem_insert, mem_singleton] using hd
 
 omit [DecidableEq V] in

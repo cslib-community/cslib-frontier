@@ -185,13 +185,9 @@ theorem axisWinProbAtDegrees_eq (n d D : ℕ)
     (branchGameWithDiagonalCap (F := F) n d D .axis).commutingWinProb S =
       (branchGame (F := F) n d .axis).commutingWinProb S := by
   rw [branchGame_eq_withDiagonalCap, axisScoreAtDegrees_eq_expect, axisScoreAtDegrees_eq_expect]
-  refine expect_congr rfl fun u _ => expect_congr rfl fun i _ => ?_
-  unfold lineScoreAtDegrees
-  refine congrArg (· / 2) (congrArg₂ (· + ·) ?_ ?_)
-  all_goals
-    apply acceptScoreAtDegrees_congr_cutoff
-    intro a b
-    cases a <;> cases b <;> rfl
+  refine expect_congr rfl fun u _ => expect_congr rfl fun i _ =>
+    congrArg (· / 2) (congrArg₂ (· + ·) ?_ ?_) <;>
+    exact acceptScoreAtDegrees_congr_cutoff _ _ _ _ _ _ fun a b => by cases a <;> cases b <;> rfl
 
 /-- The diagonal cutoff has no effect on the consistency branch's winning probability. -/
 theorem consistencyWinProbAtDegrees_eq (n d D : ℕ)
@@ -201,10 +197,8 @@ theorem consistencyWinProbAtDegrees_eq (n d D : ℕ)
       (branchGame (F := F) n d .consistency).commutingWinProb S := by
   rw [branchGame_eq_withDiagonalCap, consistencyScoreAtDegrees_eq_expect,
     consistencyScoreAtDegrees_eq_expect]
-  refine expect_congr rfl fun u _ => ?_
-  apply acceptScoreAtDegrees_congr_cutoff
-  intro a b
-  cases a <;> cases b <;> rfl
+  exact expect_congr rfl fun u _ =>
+    acceptScoreAtDegrees_congr_cutoff _ _ _ _ _ _ fun a b => by cases a <;> cases b <;> rfl
 
 /-- Average acceptance with the point and axis fixed and the roles chosen uniformly. -/
 @[expose] noncomputable def axisScoreAt
@@ -231,8 +225,7 @@ theorem axisLossAt_le (n d : ℕ)
       (n + 1 : ℝ) * (1 - (branchGame (F := F) n d .axis).commutingWinProb S) := by
   rw [axisScore_eq_expect, expect_comm univ univ]
   let f (j : Fin (n + 1)) := 𝔼 u : Point F (n + 1), (1 - axisScoreAt S d u j)
-  have h0 (j : Fin (n + 1)) : 0 ≤ f j := by
-    refine expect_nonneg fun u _ => sub_nonneg.mpr ?_
+  have h0 (j : Fin (n + 1)) : 0 ≤ f j := expect_nonneg fun u _ => sub_nonneg.mpr <| by
     unfold axisScoreAt
     linarith [acceptScore_le_one S d (.point u) (.axis (linePoints u (Pi.single j (1 : F)))),
       acceptScore_le_one S d (.axis (linePoints u (Pi.single j (1 : F)))) (.point u)]
@@ -282,9 +275,8 @@ theorem diagonalPointLossAtDegrees_le (n d D : ℕ)
   let score (u : Point F (n + 1)) (i : Fin (n + 1)) (v : Fin (i.val + 1) → F) :=
     lineScoreAtDegrees S d D u (.diagonal (linePoints u (prefixDirection i v)))
   let loss (i : Fin (n + 1)) := 𝔼 u : Point F (n + 1), 𝔼 v, (1 - score u i v)
-  have h0 (i : Fin (n + 1)) : 0 ≤ loss i := by
-    refine expect_nonneg fun u _ => expect_nonneg fun v _ => ?_
-    exact sub_nonneg.mpr (lineScoreAtDegrees_le_one S d D u _)
+  have h0 (i : Fin (n + 1)) : 0 ≤ loss i := expect_nonneg fun u _ => expect_nonneg fun _ _ =>
+    sub_nonneg.mpr (lineScoreAtDegrees_le_one S d D u _)
   have hselected : loss j ≤ (n + 1 : ℝ) * (1 - 𝔼 i : Fin (n + 1),
       𝔼 u : Point F (n + 1), 𝔼 v, score u i v) := by
     calc

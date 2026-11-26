@@ -94,9 +94,8 @@ theorem eval_chooseLinkAt_eq_map_coins (E : Scheme)
     ProbComp.eval (E.chooseLinkAt n beforeCount afterCount bitIndex challengePk) =
       (BitString.uniformList ((beforeCount + afterCount + 1) * keyCoins)).map
         (chooseLinkAtCoins evaluateKey n keyCoins beforeCount afterCount bitIndex challengePk) := by
-  have hsize : (beforeCount + afterCount + 1) * keyCoins =
-      beforeCount * keyCoins + (keyCoins + afterCount * keyCoins) := by ring
-  rw [hsize]
+  rw [show (beforeCount + afterCount + 1) * keyCoins =
+    beforeCount * keyCoins + (keyCoins + afterCount * keyCoins) by ring]
   unfold chooseLinkAtCoins
   dsimp only
   rw [BitString.uniformList_map_split3 (beforeCount * keyCoins) keyCoins (afterCount * keyCoins)
@@ -111,9 +110,7 @@ theorem eval_chooseLinkAt_eq_map_coins (E : Scheme)
   simp only [pmf_norm, chooseLinkAt,
     ProbComp.eval_replicate_of_uniformList beforeCount keyCoins _ _ hkey,
     ProbComp.eval_replicate_of_uniformList afterCount keyCoins _ _ hkey, hkey]
-  congr 1 with front : 1
-  congr 1 with middle : 1
-  congr 1 with back : 1
+  refine congrArg _ (funext fun _ => congrArg _ (funext fun _ => congrArg _ (funext fun _ => ?_)))
   split <;> rfl
 
 /-- The original modular choice is realized by two index blocks and one key block per level.
@@ -143,17 +140,18 @@ theorem eval_modLinkAdversary_choose_eq_map_coins (E : Scheme)
       else rejectLinkChoice)]
   simp only [pmf_norm, modLinkAdversary, ProbComp.sampleModIndex, ProbComp.sampleModNat,
     ProbComp.sampleBinaryNat, BitString.eval_sampleList]
-  congr 1 with first : 1
-  congr 1 with second : 1
+  refine congrArg _ (funext fun first => congrArg _ (funext fun second => ?_))
   split_ifs with hi hj
-  · have hsize : depth n - index (depth n) first - 1 + index (depth n) first + 1 =
-        depth n := by dsimp only [index]; omega
-    simpa only [hsize, index] using
+  · have hidx : depth n - index (depth n) first - 1 + index (depth n) first + 1 = depth n := by
+      dsimp only [index]
+      omega
+    simpa only [hidx, index] using
       E.eval_chooseLinkAt_eq_map_coins evaluateKey n keyCoins
         (depth n - index (depth n) first - 1) (index (depth n) first)
         (index (capacity n) second) challengePk hkey
-  · rw [ProbComp.eval_pure]; exact (PMF.map_const _ _).symm
-  · rw [ProbComp.eval_pure]; exact (PMF.map_const _ _).symm
+  all_goals
+    rw [ProbComp.eval_pure]
+    exact (PMF.map_const _ _).symm
 
 /-- Replay is polynomial time in unary coordinates and key budget, the challenge word, and the
 supplied tape whenever the component key evaluator is polynomial time. -/
@@ -176,19 +174,17 @@ supplied tape whenever the component key evaluator is polynomial time. -/
       input (Encryption.encChoiceOut encBool) := by
   have hstep : ComputableInPolyTime (fun (a, row) => evaluateKey (n a) row)
       (encPair input encBits) (encPair encBits encBits) :=
-    hevaluate.comp ((hn.comp (ComputableInPolyTime.fst _ _)).prod
-      (ComputableInPolyTime.snd _ _))
+    hevaluate.comp ((hn.comp (.fst _ _)).prod (.snd _ _))
   have hfront := ComputableInPolyTime.mapWithInput (f := fun a row => evaluateKey (n a) row)
-    (show ComputableInPolyTime (fun a => BitString.listRows (beforeCount a) (keyCoins a)
-      ((tape a).take (beforeCount a * keyCoins a))) input (encList encBits) by fun_prop) hstep
+    (by fun_prop : ComputableInPolyTime (fun a => BitString.listRows (beforeCount a) (keyCoins a)
+      ((tape a).take (beforeCount a * keyCoins a))) input (encList encBits)) hstep
   have hback := ComputableInPolyTime.mapWithInput (f := fun a row => evaluateKey (n a) row)
-    (show ComputableInPolyTime (fun a => BitString.listRows (afterCount a) (keyCoins a)
+    (by fun_prop : ComputableInPolyTime (fun a => BitString.listRows (afterCount a) (keyCoins a)
       (((tape a).drop (beforeCount a * keyCoins a)).drop (keyCoins a)))
-      input (encList encBits) by fun_prop) hstep
+      input (encList encBits)) hstep
   have hpredecessor := hevaluate.comp (hn.prod
-    (show ComputableInPolyTime (fun a =>
-      ((tape a).drop (beforeCount a * keyCoins a)).take (keyCoins a))
-      input encBits by fun_prop))
+    (by fun_prop : ComputableInPolyTime (fun a =>
+      ((tape a).drop (beforeCount a * keyCoins a)).take (keyCoins a)) input encBits))
   have hstate : ComputableInPolyTime (fun a =>
       (true, (BitString.listRows (beforeCount a) (keyCoins a)
         ((tape a).take (beforeCount a * keyCoins a))).map (evaluateKey (n a)),
@@ -200,14 +196,12 @@ supplied tape whenever the component key evaluator is polynomial time. -/
     unfold encLinkState
     fun_prop
   unfold chooseLinkAtCoins
-  apply ComputableInPolyTime.ite_decide
-  · polytime
-  · exact (show ComputableInPolyTime (fun a =>
+  exact ComputableInPolyTime.ite_decide (by polytime)
+    ((by fun_prop : ComputableInPolyTime (fun a =>
       ((evaluateKey (n a) (((tape a).drop (beforeCount a * keyCoins a)).take
         (keyCoins a))).2.getD (bitIndex a) false, false))
-      input (encPair encBool encBool) by fun_prop).prod
-        (hstate.of_enc_eq fun _ => rfl)
-  · exact .const _
+      input (encPair encBool encBool)).prod (hstate.of_enc_eq fun _ => rfl))
+    (.const _)
 
 /-- Modular replay uses binary division followed by a unary cap; its clock is polynomial in
 all supplied unary parameters and words, including for a zero depth or capacity. -/
@@ -228,24 +222,20 @@ all supplied unary parameters and words, including for a zero depth or capacity.
     ComputableInPolyTime (fun a => chooseModLinkCoins evaluateKey (n a) (indexCoins a)
       (keyCoins a) (depth a) (capacity a) (challengePk a) (tape a))
       input (Encryption.encChoiceOut encBool) := by
-  have hfirstBits := ComputableInPolyTime.bitsBinaryValue.comp
-    (htape.bitsTakeWithInput hindexCoins)
-  have hsecondBits := ComputableInPolyTime.bitsBinaryValue.comp
-    ((htape.bitsDropWithInput hindexCoins).bitsTakeWithInput hindexCoins)
   have hfirst := ComputableInPolyTime.binary_min_unary' hdepth
-    (ComputableInPolyTime.binary_mod.comp (hfirstBits.prod
-      (ComputableInPolyTime.unary_to_binary.comp hdepth)))
+    (ComputableInPolyTime.binary_mod.comp
+      ((ComputableInPolyTime.bitsBinaryValue.comp (htape.bitsTakeWithInput hindexCoins)).prod
+        (ComputableInPolyTime.unary_to_binary.comp hdepth)))
   have hsecond := ComputableInPolyTime.binary_min_unary' hcapacity
-    (ComputableInPolyTime.binary_mod.comp (hsecondBits.prod
-      (ComputableInPolyTime.unary_to_binary.comp hcapacity)))
+    (ComputableInPolyTime.binary_mod.comp
+      ((ComputableInPolyTime.bitsBinaryValue.comp
+        ((htape.bitsDropWithInput hindexCoins).bitsTakeWithInput hindexCoins)).prod
+        (ComputableInPolyTime.unary_to_binary.comp hcapacity)))
   unfold chooseModLinkCoins
-  apply ComputableInPolyTime.ite_decide
-  · exact ComputableInPolyTime.unary_lt.comp (hfirst.prod hdepth)
-  · apply ComputableInPolyTime.ite_decide
-    · exact ComputableInPolyTime.unary_lt.comp (hsecond.prod hcapacity)
-    · apply computableInPolyTime_chooseLinkAtCoins hevaluate <;> fun_prop
-    · exact .const _
-  · exact .const _
+  refine ComputableInPolyTime.ite_decide (ComputableInPolyTime.unary_lt.comp (hfirst.prod hdepth))
+    (ComputableInPolyTime.ite_decide (ComputableInPolyTime.unary_lt.comp (hsecond.prod hcapacity))
+      ?_ (.const _)) (.const _)
+  apply computableInPolyTime_chooseLinkAtCoins hevaluate <;> fun_prop
 
 /-- A strict-PPT key generator supplies a concrete polynomial component budget. The resulting
 native evaluator realizes the original modular choice from a tape of
@@ -262,16 +252,15 @@ theorem exists_modLinkAdversary_choose_coin_evaluator {E : Scheme}
       ComputableInPolyTime (fun ((n, pk), tape) =>
         chooseModLinkCoins evaluateKey n (coins n) (c * (n + 1) ^ d) (depth n) (capacity n)
           pk tape)
-        (encPair (encPair encUnary encBits) encBits) (Encryption.encChoiceOut encBool) ∧
+        Leveled.encChooseCoinsInput (Encryption.encChoiceOut encBool) ∧
       ∀ n pk,
         ProbComp.eval ((E.modLinkAdversary coins depth capacity test).choose n pk) =
           (BitString.uniformList (2 * coins n + depth n * (c * (n + 1) ^ d))).map
             (chooseModLinkCoins evaluateKey n (coins n) (c * (n + 1) ^ d)
               (depth n) (capacity n) pk) := by
   obtain ⟨c, d, evaluateKey, hevaluate, _, hlaw⟩ := hkeyGen.exists_total_seeded_evaluator
-  refine ⟨c, d, evaluateKey, ?_, fun n pk => ?_⟩
-  · apply computableInPolyTime_chooseModLinkCoins hevaluate <;> fun_prop
-  · apply E.eval_modLinkAdversary_choose_eq_map_coins
-    exact hlaw n _ (by simp)
+  exact ⟨c, d, evaluateKey,
+    by apply computableInPolyTime_chooseModLinkCoins hevaluate <;> fun_prop,
+    fun n pk => E.eval_modLinkAdversary_choose_eq_map_coins _ _ _ _ _ _ _ _ (hlaw n _ (by simp))⟩
 
 end Cslib.Crypto.Homomorphic.Scheme

@@ -164,8 +164,7 @@ theorem runClient_pop_of_pos (s : Memory.State) (h : s.mem L.count.base ≠ 0) :
         [.read L.count.base, .read (L.items.base + (s.mem L.count.base - 1)),
           .write L.count.base (s.mem L.count.base - 1)]) := by
   unfold pop
-  simp only [Block.runClient_get_bind, Nat.add_zero, h, ↓reduceIte]
-  rfl
+  simp only [Block.runClient_get_bind, Nat.add_zero, h, ↓reduceIte]; rfl
 
 /-- A size query reads the count. -/
 theorem runClient_size (s : Memory.State) :
@@ -188,12 +187,9 @@ theorem abs_update_count (hL : L.Valid w C) (m : ℕ → ℕ) (f : ℕ) {n : ℕ
 /-- The abstraction and the invariant read only the layout's cells and the frontier. -/
 theorem abs_congr {s s' : Memory.State} (hL : L.Valid w C) (hs : Inv L s)
     (h : ∀ a ∈ L.footprint, s'.mem a = s.mem a) : abs L s' = abs L s := by
-  have hc : s'.mem L.count.base = s.mem L.count.base :=
-    h _ (L.count_mem_footprint hL.count_length)
-  simp only [abs, hc]
-  rw [Block.entries_congr _ _ fun i hi => h _ (L.item_mem_footprint (by
-    have := hs.count_le
-    omega))]
+  simp only [abs, h _ (L.count_mem_footprint hL.count_length)]
+  have := hs.count_le
+  rw [Block.entries_congr _ _ fun i hi => h _ (L.item_mem_footprint (by omega))]
 
 /-- The invariant reads only the layout's cells and survives a growing frontier. -/
 theorem Inv.congr {s s' : Memory.State} (hL : L.Valid w C) (hs : Inv L s)
@@ -290,18 +286,15 @@ theorem modifies_methods (hL : L.Valid w C) {s : Memory.State} (o : StackOp ℕ)
   have hc : L.count.base ∈ L.footprint := L.count_mem_footprint hL.count_length
   cases o with
   | push v =>
-    obtain ⟨hlen, -⟩ := hv
-    rw [length_abs] at hlen
     have hi : L.items.base + s.mem L.count.base ∈ L.footprint :=
-      L.item_mem_footprint (by rw [hL.items_length]; exact hlen)
+      L.item_mem_footprint (hL.items_length.symm ▸ length_abs (L := L) s ▸ hv.1)
     simp only [methods, StateTransitionSpec.clientState, runClient_push]
     exact ⟨fun a ha => by
       rw [Function.update_of_ne (ne_of_mem_of_not_mem hc ha).symm,
         Function.update_of_ne (ne_of_mem_of_not_mem hi ha).symm], trivial⟩
   | pop =>
     by_cases h0 : s.mem L.count.base = 0
-    · simp only [methods, StateTransitionSpec.clientState, runClient_pop_of_eq_zero L s h0]
-      exact ⟨fun _ _ => trivial, trivial⟩
+    · simp [methods, StateTransitionSpec.clientState, runClient_pop_of_eq_zero L s h0]
     · simp only [methods, StateTransitionSpec.clientState, runClient_pop_of_pos L s h0]
       exact ⟨fun a ha => Function.update_of_ne (ne_of_mem_of_not_mem hc ha).symm _ _, trivial⟩
   | size => exact ⟨fun _ _ => rfl, rfl⟩
@@ -329,18 +322,18 @@ theorem amortized (hL : L.Valid w C) :
   apply Refinement.Amortized.ofFn
   intro s o _ _
   cases o with
-  | push v =>
-    simp [framed, Memory.Framed.ofStatic, refinement, methods,
-      StateTransitionSpec.clientHistory, runClient_push]
+  | push _ =>
+    simp [framed, Memory.Framed.ofStatic, refinement, methods, StateTransitionSpec.clientHistory,
+      runClient_push]
   | pop =>
     by_cases h0 : s.mem L.count.base = 0
-    · simp [framed, Memory.Framed.ofStatic, refinement, methods,
-        StateTransitionSpec.clientHistory, runClient_pop_of_eq_zero L s h0]
-    · simp [framed, Memory.Framed.ofStatic, refinement, methods,
-        StateTransitionSpec.clientHistory, runClient_pop_of_pos L s h0]
+    · simp [framed, Memory.Framed.ofStatic, refinement, methods, StateTransitionSpec.clientHistory,
+        runClient_pop_of_eq_zero L s h0]
+    · simp [framed, Memory.Framed.ofStatic, refinement, methods, StateTransitionSpec.clientHistory,
+        runClient_pop_of_pos L s h0]
   | size =>
-    simp [framed, Memory.Framed.ofStatic, refinement, methods,
-      StateTransitionSpec.clientHistory, runClient_size]
+    simp [framed, Memory.Framed.ofStatic, refinement, methods, StateTransitionSpec.clientHistory,
+      runClient_size]
 
 /-- The footprint of a stack is its layout's cells. -/
 @[simp] theorem framed_footprint (hL : L.Valid w C) (s : Memory.State) :
@@ -378,16 +371,9 @@ theorem inv_allocLayout (s : Memory.State) :
       abs ⟨⟨s.frontier, 1⟩, ⟨s.frontier + 1, C⟩⟩
         ⟨clear s.mem s.frontier 1, s.frontier + 1 + C⟩ = [] := by
   have h0 : clear s.mem s.frontier 1 s.frontier = 0 :=
-    clear_of_owns ⟨le_rfl, show s.frontier < s.frontier + 1 from Nat.lt_add_one _⟩
-  refine ⟨⟨?_, ?_, ?_⟩, ?_⟩
-  · change s.frontier + 1 ≤ s.frontier + 1 + C
-    omega
-  · change s.frontier + 1 + C ≤ s.frontier + 1 + C
-    exact le_rfl
-  · change clear s.mem s.frontier 1 s.frontier ≤ C
-    rw [h0]
-    exact Nat.zero_le C
-  · simp [abs, h0]
+    clear_of_owns ⟨le_rfl, Nat.lt_add_one s.frontier⟩
+  exact ⟨⟨show s.frontier + 1 ≤ s.frontier + 1 + C by omega, le_rfl,
+    show clear s.mem s.frontier 1 s.frontier ≤ C by simp [h0]⟩, by simp [abs, h0]⟩
 
 /-- Allocation returns the layout at the frontier, clears the count cell, and advances the
 frontier past the items. -/

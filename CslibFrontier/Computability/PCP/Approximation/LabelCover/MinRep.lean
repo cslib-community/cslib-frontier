@@ -384,24 +384,11 @@ private theorem exists_labelling_ge {ι V W α α' : Type} [Fintype ι] [Finite 
       rw [Fintype.card_filter_piFinset_eq_of_mem _ _ hb, Fintype.card_piFinset, mul_comm]
       exact Finset.mul_prod_erase Finset.univ (fun j => #(B j)) (Finset.mem_univ _)
     have hpos : (0 : ℝ) < #(A (s i)) * #(B (t i)) := by
-      have := (hA (s i)).card_pos
-      have := (hB (t i)).card_pos
-      positivity
-    rw [div_le_iff₀ hpos]
-    have hle : (#((Fintype.piFinset A).filter fun f => f (s i) = a) : ℝ) *
-        #((Fintype.piFinset B).filter fun h => h (t i) = b) ≤
-          #(Ω.filter fun p => P i (p.1 (s i)) (p.2 (t i))) := by
-      have := Finset.card_le_card hsub
-      rw [Finset.card_product] at this
-      exact_mod_cast this
-    have hΩcard : (#Ω : ℝ) = #((Fintype.piFinset A).filter fun f => f (s i) = a) *
-        #((Fintype.piFinset B).filter fun h => h (t i) = b) * (#(A (s i)) * #(B (t i))) := by
-      simp only [Ω, Finset.card_product]
-      rw [← hcardA, ← hcardB]
-      push_cast
-      ring
-    rw [hΩcard]
-    exact mul_le_mul_of_nonneg_right hle hpos.le
+      have := (hA (s i)).card_pos; have := (hB (t i)).card_pos; positivity
+    rw [div_le_iff₀ hpos, show #Ω = _ from Finset.card_product _ _]
+    have hle := Nat.mul_le_mul_right (#(A (s i)) * #(B (t i))) (Finset.card_le_card hsub)
+    rw [Finset.card_product, mul_mul_mul_comm, hcardA, hcardB] at hle
+    exact_mod_cast hle
   have hsum : ∑ _p ∈ Ω, ∑ i, (1 / (#(A (s i)) * #(B (t i))) : ℝ) ≤
       ∑ p ∈ Ω, (#(Finset.univ.filter fun i => P i (p.1 (s i)) (p.2 (t i))) : ℝ) := by
     rw [Finset.sum_const, nsmul_eq_mul, Finset.mul_sum]
@@ -438,8 +425,7 @@ private theorem card_div_le_sum_one_div {ι : Type} [Fintype ι] {a b : ι → �
     three_div_sub_le_one_div_mul (ha i) (hb i) hg
   rw [Finset.sum_sub_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
     ← Finset.sum_div] at hle
-  have hdiv : (∑ i, (a i + b i)) / g ^ 3 ≤ g * (2 * Fintype.card ι) / g ^ 3 :=
-    div_le_div_of_nonneg_right hsum (by positivity)
+  have hdiv : (∑ i, (a i + b i)) / g ^ 3 ≤ g * (2 * Fintype.card ι) / g ^ 3 := by gcongr
   have hcalc : g * (2 * Fintype.card ι) / g ^ 3 = 2 * (Fintype.card ι / g ^ 2) := by
     field_simp
   have hcalc' : (Fintype.card ι : ℝ) * (3 / g ^ 2) = 3 * (Fintype.card ι / g ^ 2) := by ring
@@ -476,11 +462,8 @@ theorem minRep_mem_no [Nonempty β] [DecidableEq γ] {G : Graph (β → γ)} {Δ
     rw [ConstraintGraph.unsatVal_of_isEmpty (G.toGraph projectionEval)] at hG
     linarith
   -- The weight bound.
-  have hth : (minRep eβ eγ G).threshold = 2 * G.edges.length := by
-    simp only [minRep]
-    omega
   have hweight : ((minRep eβ eγ G).weight T : ℝ) ≤ g * (2 * G.edges.length) := by
-    rw [hth] at hT
+    rw [show (minRep eβ eγ G).threshold = 2 * G.edges.length by simp only [minRep]; omega] at hT
     exact_mod_cast hT
   have hcard := sum_card_labels_le eβ eγ G T
   -- The selected labels at every end of an edge.
@@ -533,25 +516,16 @@ theorem minRep_mem_no [Nonempty β] [DecidableEq γ] {G : Graph (β → γ)} {Δ
     (a := fun i => (#(labels T (srcs G) 0 nβ (G.edges.get i).src) : ℝ))
     (b := fun i => (#(labels T (dsts G) ((srcs G).length * nβ) nγ (G.edges.get i).dst) : ℝ))
     (fun i => by exact_mod_cast (hA (s i)).card_pos)
-    (fun i => by exact_mod_cast (hB (t i)).card_pos) hg0 (by
-      rw [Fintype.card_fin]
-      calc ∑ i : Fin G.edges.length,
-            ((#(labels T (srcs G) 0 nβ (G.edges.get i).src) : ℝ) +
-              #(labels T (dsts G) ((srcs G).length * nβ) nγ (G.edges.get i).dst))
-          ≤ ((minRep eβ eγ G).weight T : ℝ) := by exact_mod_cast hcard
-        _ ≤ g * (2 * G.edges.length) := hweight)
+    (fun i => by exact_mod_cast (hB (t i)).card_pos) hg0
+    (by rw [Fintype.card_fin]; refine le_trans ?_ hweight; exact_mod_cast hcard)
   rw [Fintype.card_fin] at hjensen
   have hm' : (0 : ℝ) < G.edges.length := by exact_mod_cast hm
-  have hcount' : (#(Finset.univ.filter fun i : Fin G.edges.length =>
-      eγ ((G.edges.get i).constraint (eβ.symm (f (s i)))) = h (t i)) : ℝ) +
-        #((G.toGraph projectionEval).unsatEdges σ) ≤ G.edges.length := by
-    exact_mod_cast hcount
-  have hmul : (G.edges.length : ℝ) * (1 - (G.toGraph projectionEval).unsatFrac σ) ≤
-      G.edges.length * δ :=
-    mul_le_mul_of_nonneg_left (by linarith) hm'.le
-  have hδm : (G.edges.length : ℝ) * δ < G.edges.length / g ^ 2 := by
-    rw [div_eq_mul_one_div]
-    exact mul_lt_mul_of_pos_left hδ hm'
+  replace hcount := (Nat.cast_le (α := ℝ)).2 hcount
+  push_cast at hcount
+  have hmul := mul_le_mul_of_nonneg_left
+    (show 1 - (G.toGraph projectionEval).unsatFrac σ ≤ δ by linarith) hm'.le
+  have hδm := mul_lt_mul_of_pos_left hδ hm'
+  rw [mul_one_div] at hδm
   nlinarith
 
 /-! ### Running time -/
@@ -585,20 +559,29 @@ private theorem isPolyTime_blockWeights {L : Input → List ℕ} {n : ℕ}
 
 variable [Finite β] [Finite γ] {encC : (β → γ) ↪ List Bool}
 
+omit [Finite β] [Finite γ] in
+private theorem isPolyTime_srcs {G : Input → Graph (β → γ)}
+    (hG : ComputableInPolyTime G input (Graph.encoding encC)) :
+    ComputableInPolyTime (fun x => srcs (G x)) input (encList encUnary) := by
+  unfold srcs
+  exact ComputableInPolyTime.mapWithInput (f := fun _ (e : Edge (β → γ)) => e.src)
+    (Graph.isPolyTime_edges hG) (Edge.isPolyTime_src (.snd _ _))
+
+omit [Finite β] [Finite γ] in
+private theorem isPolyTime_dsts {G : Input → Graph (β → γ)}
+    (hG : ComputableInPolyTime G input (Graph.encoding encC)) :
+    ComputableInPolyTime (fun x => dsts (G x)) input (encList encUnary) := by
+  unfold dsts
+  exact ComputableInPolyTime.mapWithInput (f := fun _ (e : Edge (β → γ)) => e.dst)
+    (Graph.isPolyTime_edges hG) (Edge.isPolyTime_dst (.snd _ _))
+
 private theorem isPolyTime_formula {G : Input → Graph (β → γ)} {d : Input → Edge (β → γ)}
     (hG : ComputableInPolyTime G input (Graph.encoding encC))
     (hd : ComputableInPolyTime d input (Edge.encoding encC)) :
     ComputableInPolyTime (fun x => formula eβ eγ (G x) (d x)) input
       (encDNFOver encNat) := by
-  have hedges := Graph.isPolyTime_edges hG
-  have hsrcs : ComputableInPolyTime (fun x => srcs (G x)) input (encList encUnary) := by
-    unfold srcs
-    exact ComputableInPolyTime.mapWithInput (f := fun _ (e : Edge (β → γ)) => e.src) hedges
-      (Edge.isPolyTime_src (.snd _ _))
-  have hdsts : ComputableInPolyTime (fun x => dsts (G x)) input (encList encUnary) := by
-    unfold dsts
-    exact ComputableInPolyTime.mapWithInput (f := fun _ (e : Edge (β → γ)) => e.dst) hedges
-      (Edge.isPolyTime_dst (.snd _ _))
+  have hsrcs := isPolyTime_srcs hG
+  have hdsts := isPolyTime_dsts hG
   have hoff : ComputableInPolyTime (fun x => (srcs (G x)).length * nβ) input encUnary :=
     ComputableInPolyTime.unary_mul' ((ComputableInPolyTime.length_list encUnary).comp hsrcs)
       (.const nβ)
@@ -632,16 +615,8 @@ theorem isPolyTime_minRep :
   have hG : ComputableInPolyTime (fun G : Graph (β → γ) => G) (Graph.encoding encC)
       (Graph.encoding encC) := .id'
   have hedges := Graph.isPolyTime_edges hG
-  have hsrcs : ComputableInPolyTime (fun G : Graph (β → γ) => srcs G) (Graph.encoding encC)
-      (encList encUnary) := by
-    unfold srcs
-    exact ComputableInPolyTime.mapWithInput (f := fun _ (e : Edge (β → γ)) => e.src) hedges
-      (Edge.isPolyTime_src (.snd _ _))
-  have hdsts : ComputableInPolyTime (fun G : Graph (β → γ) => dsts G) (Graph.encoding encC)
-      (encList encUnary) := by
-    unfold dsts
-    exact ComputableInPolyTime.mapWithInput (f := fun _ (e : Edge (β → γ)) => e.dst) hedges
-      (Edge.isPolyTime_dst (.snd _ _))
+  have hsrcs := isPolyTime_srcs hG
+  have hdsts := isPolyTime_dsts hG
   have hlen : ComputableInPolyTime (fun G : Graph (β → γ) => G.edges.length) (Graph.encoding encC)
       encUnary := (ComputableInPolyTime.length_list _).comp hedges
   have hweights : ComputableInPolyTime

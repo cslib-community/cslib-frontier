@@ -128,16 +128,8 @@ private theorem computableInPolyTime_conjoinRow :
     ComputableInPolyTime (fun p : (ℕ × ℕ × List (List Bool)) × List Bool =>
       scan p.1.1 p.1.2.1 p.2 false ++ [(p.1.1 + p.1.2.1, Opcode.conj)])
       (encPair encNetwork (encList encBool)) encProgram := by
-  have hc : ComputableInPolyTime (fun p : (ℕ × ℕ × List (List Bool)) × List Bool =>
-      scan p.1.1 p.1.2.1 p.2 false) (encPair encNetwork (encList encBool)) encProgram := by
-    apply computableInPolyTime_scan
-    all_goals unfold encNetwork; fun_prop
-  have hj : ComputableInPolyTime
-      (fun p : (ℕ × ℕ × List (List Bool)) × List Bool => [(p.1.1 + p.1.2.1, Opcode.conj)])
-      (encPair encNetwork (encList encBool)) encProgram := by
-    unfold encNetwork encProgram
-    fun_prop
-  exact hc.listAppend' hj
+  unfold encNetwork encProgram
+  fun_prop
 
 private theorem computableInPolyTime_conjoinData :
     ComputableInPolyTime (fun p : ℕ × ℕ × List (List Bool) => conjoin p.1 p.2.1 p.2.2)
@@ -158,10 +150,7 @@ theorem computableInPolyTime_conjoin {α : Type} {input : α ↪ List Bool}
   change ComputableInPolyTime
     ((fun p : ℕ × ℕ × List (List Bool) => conjoin p.1 p.2.1 p.2.2) ∘
       (fun x => (k x, n x, ms x))) input encProgram
-  have hp : ComputableInPolyTime (fun x => (k x, n x, ms x)) input encNetwork := by
-    unfold encNetwork
-    exact hk.prod (hn.prod hm)
-  exact computableInPolyTime_conjoinData.comp hp
+  exact computableInPolyTime_conjoinData.comp (hk.prod (hn.prod hm))
 
 private theorem computableInPolyTime_networkData :
     ComputableInPolyTime (fun p : ℕ × ℕ × List (List Bool) => network p.1 p.2.1 p.2.2)

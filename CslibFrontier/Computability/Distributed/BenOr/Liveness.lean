@@ -9,6 +9,10 @@ module
 
 public import CslibFrontier.Computability.Distributed.BenOr.Basic
 public import Cslib.Probability.PMF
+import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.EventBind
+import CslibFrontier.Tactic.ENNRealToReal
+import CslibFrontier.Tactic.SuppCases
 import Mathlib.Analysis.SpecificLimits.Basic
 import Mathlib.Data.Fintype.Pi
 
@@ -127,11 +131,10 @@ theorem half_le_commonCoinLaw (P : Type*) (b : Bool) :
     (1 / 2 : ℝ≥0∞) ≤ commonCoinLaw P (fun _ => b) := by
   classical
   rw [commonCoinLaw, PMF.map_apply, tsum_fintype]
-  have hle := Finset.single_le_sum
+  simpa [uniformOfFintype_apply, one_div] using Finset.single_le_sum
     (f := fun a : Bool =>
       if (fun _ : P => b) = (fun _ : P => a) then uniformOfFintype Bool a else 0)
     (fun _ _ => bot_le) (Finset.mem_univ b)
-  simpa [uniformOfFintype_apply, one_div] using hle
 
 /-- On a nonempty process set `P`, `commonCoinLaw P` assigns probability `1 / 2` to each constant
 coin vector `fun _ => b`. -/
@@ -141,9 +144,7 @@ theorem commonCoinLaw_const {P : Type*} [Nonempty P] (b : Bool) :
   obtain ⟨p₀⟩ := ‹Nonempty P›
   rw [commonCoinLaw, PMF.map_apply, tsum_eq_single b]
   · simp [uniformOfFintype_apply, one_div]
-  · intro b' hb'
-    have hne : (fun _ : P => b) ≠ (fun _ : P => b') := fun h => hb' (congrFun h p₀).symm
-    simp [hne]
+  · exact fun _ hb' => ite_eq_right fun h => hb' (congrFun h p₀).symm
 
 /-- Under `localCoinLaw P`, every coin assignment `c : P → Bool` has probability `(1 / 2) ^ |P|`. -/
 @[simp]
@@ -155,30 +156,16 @@ theorem localCoinLaw_apply {P : Type*} [Fintype P] (c : P → Bool) :
 
 /-! ### Support invariants and single-phase probability bounds -/
 
-private lemma toOuterMeasure_le_one_sub_of_notMem {α : Type*} (ν : PMF α) {E : Set α} {a₀ : α}
-    (ha₀ : a₀ ∉ E) : ν.toOuterMeasure E ≤ 1 - ν a₀ := by
-  let _ : MeasurableSpace α := ⊤
-  have hsub : ({a₀} : Set α) ⊆ Eᶜ := Set.singleton_subset_iff.mpr ha₀
-  have hmono : ν a₀ ≤ ν.toMeasure Eᶜ := by
-    rw [← ν.toMeasure_apply_singleton a₀ trivial]
-    exact MeasureTheory.measure_mono hsub
-  rw [← ν.toMeasure_apply_eq_toOuterMeasure_apply trivial,
-    ← compl_compl E, MeasureTheory.prob_compl_eq_one_sub (s := Eᶜ) trivial]
-  exact tsub_le_tsub_left hmono 1
-
 private lemma singlePhase_not_unanimous_le {P : Type*} [Fintype P] (t : ℕ)
     {coinLaw : PMF (P → Bool)} {p : ℝ≥0∞}
     (hcoin : ∀ b : Bool, p ≤ coinLaw (fun _ => b))
     (sched : PhaseSchedule P) (st : P → ProcState) :
     (coinLaw.map fun c => phaseStep t sched c st).toOuterMeasure {st' | ¬ IsUnanimous st'} ≤
       1 - p := by
-  rw [PMF.toOuterMeasure_map_apply]
   obtain ⟨b, hb⟩ := phaseStep_lucky_coin t sched st
-  have hnotMem :
-      (fun _ : P => b) ∉ (fun c => phaseStep t sched c st) ⁻¹' {st' | ¬ IsUnanimous st'} :=
-    fun h => h ⟨b, hb⟩
-  exact (toOuterMeasure_le_one_sub_of_notMem coinLaw hnotMem).trans
-    (tsub_le_tsub_left (hcoin b) 1)
+  refine toOuterMeasure_compl_le_one_sub _ {st' | IsUnanimous st'} ((hcoin b).trans ?_)
+  rw [PMF.toOuterMeasure_map_apply, ← coinLaw.toOuterMeasure_apply_singleton]
+  exact coinLaw.toOuterMeasure.mono (Set.singleton_subset_iff.mpr ⟨b, hb⟩)
 
 private lemma singlePhase_not_unanimous_eq_zero {P : Type*} [Fintype P] {t : ℕ}
     (ht : 2 * t < Fintype.card P) (coinLaw : PMF (P → Bool))
@@ -186,9 +173,8 @@ private lemma singlePhase_not_unanimous_eq_zero {P : Type*} [Fintype P] {t : ℕ
     {st : P → ProcState} (hu : IsUnanimous st) :
     (coinLaw.map fun c => phaseStep t sched c st).toOuterMeasure {st' | ¬ IsUnanimous st'} = 0 := by
   rw [PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
-  intro st' hsupp hnot
-  rw [PMF.mem_support_map_iff] at hsupp
-  obtain ⟨c, _, rfl⟩ := hsupp
+  intro _ hsupp hnot
+  supp_cases hsupp with ⟨c, _, rfl⟩
   exact hnot (hu.phaseStep ht hv c)
 
 private lemma probRun_support_estimateLocked {P : Type*} [Fintype P] {t : ℕ}
@@ -198,17 +184,13 @@ private lemma probRun_support_estimateLocked {P : Type*} [Fintype P] {t : ℕ}
     ∀ k, (∀ r < k, ∀ st, (strat r st).Valid t) →
       ∀ st ∈ (probRun t coinLaw strat inp k).support, EstimateLocked st
   | 0, _, st, hst => by
-    rw [probRun, PMF.support_pure, Set.mem_singleton_iff] at hst
-    subst hst
+    supp_cases hst [probRun]
     exact estimateLocked_initState inp
   | k + 1, hv, st', hst' => by
-    rw [probRun, PMF.mem_support_bind_iff] at hst'
-    obtain ⟨st, hst, hmap⟩ := hst'
-    rw [PMF.mem_support_map_iff] at hmap
-    obtain ⟨c, _, rfl⟩ := hmap
-    have hprev := probRun_support_estimateLocked ht coinLaw inp k
-      (fun r hr => hv r (Nat.lt_succ_of_lt hr)) st hst
-    exact hprev.phaseStep ht (hv k (Nat.lt_succ_self k) st) c
+    supp_cases hst' [probRun] with ⟨st, hst, c, _, rfl⟩
+    exact (probRun_support_estimateLocked ht coinLaw inp k
+      (fun r hr => hv r (Nat.lt_succ_of_lt hr)) st hst).phaseStep ht
+      (hv k (Nat.lt_succ_self k) st) c
 
 private lemma singlePhase_not_allDecided_eq_zero {P : Type*} [Fintype P] {t : ℕ}
     (ht : 2 * t < Fintype.card P) (coinLaw : PMF (P → Bool))
@@ -217,9 +199,8 @@ private lemma singlePhase_not_allDecided_eq_zero {P : Type*} [Fintype P] {t : �
     (coinLaw.map fun c => phaseStep t sched c st).toOuterMeasure {st' | ¬ AllDecided st'} = 0 := by
   obtain ⟨b, hb⟩ := hu
   rw [PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
-  intro st' hsupp hnot
-  rw [PMF.mem_support_map_iff] at hsupp
-  obtain ⟨c, _, rfl⟩ := hsupp
+  intro _ hsupp hnot
+  supp_cases hsupp with ⟨c, _, rfl⟩
   exact hnot ⟨b, phaseStep_allDecided_of_est_eq ht hv c hlock hb⟩
 
 /-! ### Parametric multi-phase tail bounds under pre-coin phase schedulers -/
@@ -235,33 +216,15 @@ theorem probRun_not_unanimous_le {P : Type*} [Fintype P] {t : ℕ}
     {strat : ℕ → (P → ProcState) → PhaseSchedule P} (inp : P → Bool)
     (k : ℕ) (hv : ∀ r < k, ∀ st, (strat r st).Valid t) :
     (probRun t coinLaw strat inp k).toOuterMeasure {st | ¬ IsUnanimous st} ≤ (1 - p) ^ k := by
-  let _ : MeasurableSpace (P → ProcState) := ⊤
   induction k with
-  | zero =>
-    simp only [pow_zero]
-    exact ((probRun t coinLaw strat inp 0).toOuterMeasure_apply_le_toMeasure_apply _).trans
-      MeasureTheory.prob_le_one
+  | zero => simpa only [pow_zero] using toOuterMeasure_le_one _ _
   | succ k ih =>
-    let BadU : Set (P → ProcState) := {st | ¬ IsUnanimous st}
-    let μ := probRun t coinLaw strat inp k
-    have hstep : (probRun t coinLaw strat inp (k + 1)).toOuterMeasure BadU ≤
-        μ.toOuterMeasure BadU * (1 - p) := by
-      rw [probRun, PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply,
-        ← ENNReal.tsum_mul_right]
-      refine tsum_le_tsum fun st => ?_
-      by_cases hbad : st ∈ BadU
-      · simp only [Set.indicator_of_mem hbad]
-        have h1 := singlePhase_not_unanimous_le t hcoin (strat k st) st
-        gcongr
-      · have hu : IsUnanimous st := Classical.not_not.mp hbad
-        rw [singlePhase_not_unanimous_eq_zero ht coinLaw (hv k (Nat.lt_succ_self k) st) hu,
-          mul_zero]
-        exact bot_le
-    have hih := ih fun r hr => hv r (Nat.lt_succ_of_lt hr)
-    calc (probRun t coinLaw strat inp (k + 1)).toOuterMeasure BadU
-      _ ≤ μ.toOuterMeasure BadU * (1 - p) := hstep
-      _ ≤ (1 - p) ^ k * (1 - p) := by gcongr
-      _ = (1 - p) ^ (k + 1) := (pow_succ (1 - p) k).symm
+    rw [probRun, pow_succ]
+    exact toOuterMeasure_bind_le_mul_ennreal _ _ {st | ¬ IsUnanimous st} {st | ¬ IsUnanimous st}
+      (ih fun r hr => hv r (Nat.lt_succ_of_lt hr))
+      (fun st _ _ => singlePhase_not_unanimous_le t hcoin (strat k st) st)
+      (fun st _ h => singlePhase_not_unanimous_eq_zero ht coinLaw (hv k (Nat.lt_succ_self k) st)
+        (Classical.not_not.mp h))
 
 /-- Pre-coin phase-scheduler non-decision tail step: when each phase's `PhaseSchedule` is committed
 from the phase boundary state before `coinLaw` is sampled, after `k + 1` phases (`k` coin-alignment
@@ -273,36 +236,17 @@ theorem probRun_not_allDecided_le {P : Type*} [Fintype P] {t : ℕ}
     {strat : ℕ → (P → ProcState) → PhaseSchedule P} (inp : P → Bool)
     (k : ℕ) (hv : ∀ r < k + 1, ∀ st, (strat r st).Valid t) :
     (probRun t coinLaw strat inp (k + 1)).toOuterMeasure {st | ¬ AllDecided st} ≤ (1 - p) ^ k := by
-  let _ : MeasurableSpace (P → ProcState) := ⊤
-  let BadU : Set (P → ProcState) := {st | ¬ IsUnanimous st}
-  let BadD : Set (P → ProcState) := {st | ¬ AllDecided st}
-  let μ := probRun t coinLaw strat inp k
-  have hle : (probRun t coinLaw strat inp (k + 1)).toOuterMeasure BadD ≤
-      μ.toOuterMeasure BadU := by
-    rw [probRun, PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply]
-    refine tsum_le_tsum fun st => ?_
-    change μ st * (coinLaw.map fun c => phaseStep t (strat k st) c st).toOuterMeasure BadD ≤
-      BadU.indicator μ st
-    by_cases hsupp : st ∈ μ.support
-    · by_cases hbad : st ∈ BadU
-      · simp only [Set.indicator_of_mem hbad]
-        have h1 : (coinLaw.map fun c => phaseStep t (strat k st) c st).toOuterMeasure BadD ≤ 1 :=
-          ((coinLaw.map _).toOuterMeasure_apply_le_toMeasure_apply BadD).trans
-            MeasureTheory.prob_le_one
-        calc μ st * (coinLaw.map fun c => phaseStep t (strat k st) c st).toOuterMeasure BadD
-          _ ≤ μ st * 1 := by gcongr
-          _ = μ st := mul_one (μ st)
-      · have hu : IsUnanimous st := Classical.not_not.mp hbad
-        have hlock : EstimateLocked st :=
-          probRun_support_estimateLocked ht coinLaw inp k
-            (fun r hr => hv r (Nat.lt_succ_of_lt hr)) st hsupp
-        rw [singlePhase_not_allDecided_eq_zero ht coinLaw (hv k (Nat.lt_succ_self k) st) hlock hu,
-          mul_zero]
-        exact bot_le
-    · have hzero : μ st = 0 := (PMF.apply_eq_zero_iff μ st).mpr hsupp
-      rw [hzero, zero_mul]
-      exact bot_le
-  exact hle.trans (probRun_not_unanimous_le ht hcoin inp k fun r hr => hv r (Nat.lt_succ_of_lt hr))
+  simpa only [probRun, mul_one] using toOuterMeasure_bind_le_mul_ennreal
+    (probRun t coinLaw strat inp k)
+    (fun st => coinLaw.map fun c => phaseStep t (strat k st) c st)
+    {st | ¬ IsUnanimous st} {st | ¬ AllDecided st}
+    (probRun_not_unanimous_le ht hcoin inp k fun r hr => hv r (Nat.lt_succ_of_lt hr))
+    (fun _ _ _ => toOuterMeasure_le_one _ _)
+    (fun st hsupp h => singlePhase_not_allDecided_eq_zero ht coinLaw
+      (hv k (Nat.lt_succ_self k) st)
+      (probRun_support_estimateLocked ht coinLaw inp k
+        (fun r hr => hv r (Nat.lt_succ_of_lt hr)) st hsupp)
+      (Classical.not_not.mp h))
 
 /-- Pre-coin phase-scheduler convergence step: whenever `0 < p`, `∀ b, p ≤ coinLaw (fun _ => b)`,
 and `strat` commits valid `n - t` phase quorums from each phase boundary state before `coinLaw` is
@@ -327,10 +271,9 @@ theorem tendsto_probRun_not_allDecided {P : Type*} [Fintype P] {t : ℕ}
 /-! ### Separate common-coin variant (`≤ (1 / 2) ^ k`) -/
 
 private lemma one_sub_half_ennreal : (1 : ℝ≥0∞) - (1 / 2 : ℝ≥0∞) = 1 / 2 := by
-  have htwo : (1 / 2 : ℝ≥0∞) + (1 / 2 : ℝ≥0∞) = 1 := by
-    simp only [one_div]
-    exact ENNReal.inv_two_add_inv_two
-  exact ENNReal.sub_eq_of_eq_add (by simp) htwo.symm
+  have : (1 / 2 : ℝ≥0∞) ≤ 1 := by norm_num
+  ennreal_to_real
+  norm_num
 
 /-- Pre-coin phase-scheduler tail bound for the separate common-coin variant (`commonCoinLaw P`,
 not in [BenOr1983]): when each phase's quorums are committed from the phase boundary state before
@@ -353,9 +296,8 @@ theorem tendsto_probRun_commonCoin_not_allDecided {P : Type*} [Fintype P] {t : �
     (hv : ∀ r st, (strat r st).Valid t) (inp : P → Bool) :
     Tendsto
       (fun m => (probRun t (commonCoinLaw P) strat inp m).toOuterMeasure {st | ¬ AllDecided st})
-      atTop (nhds 0) := by
-  have hp : (0 : ℝ≥0∞) < 1 / 2 := by simp [one_div]
-  exact tendsto_probRun_not_allDecided ht hp (half_le_commonCoinLaw P) hv inp
+      atTop (nhds 0) :=
+  tendsto_probRun_not_allDecided ht (by simp [one_div]) (half_le_commonCoinLaw P) hv inp
 
 /-! ### Independent local fair coins: pre-coin phase-scheduler step (`≤ (1 - (1 / 2) ^ |P|) ^ k`) -/
 
@@ -382,10 +324,8 @@ theorem tendsto_probRun_localCoin_not_allDecided {P : Type*} [Fintype P] {t : �
     (hv : ∀ r st, (strat r st).Valid t) (inp : P → Bool) :
     Tendsto
       (fun m => (probRun t (localCoinLaw P) strat inp m).toOuterMeasure {st | ¬ AllDecided st})
-      atTop (nhds 0) := by
-  have hp : (0 : ℝ≥0∞) < (1 / 2 : ℝ≥0∞) ^ Fintype.card P :=
-    pos_iff_ne_zero.mpr (pow_ne_zero _ (by simp [one_div]))
-  exact tendsto_probRun_not_allDecided ht hp
+      atTop (nhds 0) :=
+  tendsto_probRun_not_allDecided ht (pos_iff_ne_zero.mpr (pow_ne_zero _ (by simp [one_div])))
     (fun b => (localCoinLaw_apply (fun _ => b)).ge) hv inp
 
 end Cslib.Distributed.BenOr

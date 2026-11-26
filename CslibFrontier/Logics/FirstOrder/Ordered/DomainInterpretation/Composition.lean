@@ -80,33 +80,29 @@ theorem realize_comp_domain (x : Fin (l * k) → Fin M.size) :
     (J.comp C).domain.Realize x ↔
       (∀ j, I.domain.Realize fun i => x (finProdFinEquiv (j, i))) ∧
         (C.onFormula J.domain).Realize fun p => x (finProdFinEquiv p) := by
-  fo_simp [comp, Function.comp_def]
+  fo_simp [comp]
 
 private theorem exists_unrank_comp (hI : I.Admissible) :
     ∃ h : (J.comp C).card M = J.card (I.map hI M), ∀ i, (J.comp C).unrank M i =
       flattenTuple fun j => I.unrank M (J.unrank (I.map hI M) (Fin.cast h i) j) := by
   have hdom (i : Fin (J.card (I.map hI M))) :
       (J.comp C).domain.Realize (flattenTuple fun j => I.unrank M (J.unrank (I.map hI M) i j)) := by
-    rw [realize_comp_domain]
-    simp only [flattenTuple_finProdFinEquiv_apply]
-    exact ⟨fun j => realize_domain_unrank _,
-      (C.realize_onFormula hI J.domain (J.unrank (I.map hI M) i)).mpr (realize_domain_unrank i)⟩
+    simpa only [realize_comp_domain, flattenTuple_finProdFinEquiv_apply] using
+      ⟨fun _ => realize_domain_unrank _,
+        (C.realize_onFormula hI J.domain _).mpr (realize_domain_unrank i)⟩
   have hsurj (x : Fin (l * k) → Fin M.size) (hx : (J.comp C).domain.Realize x) :
       ∃ i, (flattenTuple fun j => I.unrank M (J.unrank (I.map hI M) i j)) = x := by
-    rw [realize_comp_domain] at hx
-    obtain ⟨hb, hJ⟩ := hx
+    obtain ⟨hb, hJ⟩ := (J.realize_comp_domain C x).mp hx
     let r : Fin l → I.map hI M := fun j => I.rank M _ (hb j)
     have hr : (fun p : Fin l × Fin k => x (finProdFinEquiv p)) =
-        fun p => I.unrank M (r p.1) p.2 := by
-      funext p
-      exact (congrFun (unrank_rank (hb p.1)) p.2).symm
+        fun p => I.unrank M (r p.1) p.2 :=
+      funext fun p => (congrFun (unrank_rank (hb p.1)) p.2).symm
     rw [hr, C.realize_onFormula hI J.domain r] at hJ
     obtain ⟨i, hi⟩ := exists_unrank_eq hJ
     refine ⟨i, ?_⟩
     rw [hi]
-    conv_rhs => rw [← flattenTuple_finProdFinEquiv x]
-    congr 1 with j : 1
-    exact unrank_rank (hb j)
+    exact (congrArg flattenTuple (funext fun j => unrank_rank (hb j))).trans
+      (flattenTuple_finProdFinEquiv x)
   have hφ : StrictMono fun r : Fin (I.card M) => lexEquiv (I.unrank M r) :=
     fun _ _ h => Fin.lt_def.mpr (strictMono_lexRank_unrank h)
   have hmono : StrictMono fun i : Fin (J.card (I.map hI M)) =>
@@ -138,7 +134,7 @@ theorem realize_pullback_comp (hI : I.Admissible) {β : Type*}
     (C.pullback φ).Realize (fun p => (J.comp C).unrank M (v p.1) p.2) ↔
       φ.Realize (M := I.map hI M)
         (fun p => J.unrank (I.map hI M) (Fin.cast (J.card_comp C hI M) (v p.1)) p.2) := by
-  fo_simp [Certificate.pullback, Function.comp_def, J.unrank_comp C hI, flattenTuple_apply]
+  fo_simp [Certificate.pullback, J.unrank_comp C hI, flattenTuple_apply]
   exact C.realize_onFormula hI φ
     (fun q => J.unrank (I.map hI M) (Fin.cast (J.card_comp C hI M) (v q.1)) q.2)
 
@@ -166,7 +162,7 @@ noncomputable def comp {J : DomainInterpretation L' L'' l} (C' : J.Certificate)
     exact (C'.realize_bit (I.map hI M) fun a => Fin.cast _ (v a)).trans
       (by simp only [Fin.val_cast])
   realize_const M c i := by
-    fo_simp [Function.comp_def, J.unrank_comp C hI, flattenTuple_finProdFinEquiv_apply]
+    fo_simp [J.unrank_comp C hI, flattenTuple_finProdFinEquiv_apply]
     rw [C.realize_onFormula hI (C'.const c) (J.unrank (I.map hI M) (Fin.cast _ i)),
       C'.realize_const (I.map hI M), Fin.val_cast, ← J.card_comp C hI M]
 

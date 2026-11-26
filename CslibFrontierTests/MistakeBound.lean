@@ -61,7 +61,7 @@ example : vcDim (thresholdClassUpTo 7) = 1 ∧ littlestoneDim (thresholdClassUpT
 
 /-- Every deterministic learner can be forced to err three times on some sequence of three
 examples labelled by a threshold `θ ≤ 7`. -/
-example (A : OnlineLearner ℕ) :
+example (A : OnlineLearner ℕ Bool) :
     ∃ S : List (ℕ × Bool), S.length = 3 ∧ Realizable (thresholdClassUpTo 7) S ∧
       mistakes A S = 3 := by
   refine exists_realizable_mistakes_eq A (hasMistakeTree_of_le_littlestoneDim ?_ ?_)
@@ -83,8 +83,8 @@ example : optimalMistakeBound (Set.univ : ConceptClass (Fin 3) Bool) = 3 ∧
   simp
 
 /-- The class of all thresholds admits no finite mistake bound, for any learner. -/
-example (A : OnlineLearner ℕ) : mistakeBound A thresholdClass = ⊤ :=
-  top_le_iff.mp (littlestoneDim_thresholdClass ▸ littlestoneDim_le_mistakeBound A _)
+example (A : OnlineLearner ℕ Bool) : mistakeBound A (thresholdClass ℕ) = ⊤ :=
+  top_le_iff.mp (littlestoneDim_thresholdClass (α := ℕ) ▸ littlestoneDim_le_mistakeBound A _)
 
 /-- A class with one concept: the learner that predicts with this concept never errs. -/
 example (c : ℕ → Bool) : optimalMistakeBound ({c} : ConceptClass ℕ Bool) = 0 := by

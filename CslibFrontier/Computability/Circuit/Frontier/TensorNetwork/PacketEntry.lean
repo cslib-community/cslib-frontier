@@ -88,9 +88,6 @@ namespace Cslib.Circuits.Frontier
 
 open Finset
 
-/-- The subring `ℤ_(2)` of rationals with odd denominator. -/
-local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
-
 namespace TensorNetwork
 
 /-! ### The remaining fields of the Cauchy mode splitting -/
@@ -603,22 +600,14 @@ theorem packetTensor_cauchyModeSplitting (β : P × Fin (2 ^ (i + 1)) × Fin p �
     ext ⟨q', Z⟩
     simp only [S, mem_filter, mem_univ, true_and, mem_map, targetBlock_eq_iff, packetModes_apply,
       Prod.mk.injEq]
-    constructor
-    · rintro ⟨rfl, h⟩
-      exact ⟨Z, h, rfl, rfl⟩
-    · rintro ⟨Z', h, rfl, rfl⟩
-      exact ⟨rfl, h⟩
+    exact ⟨fun ⟨rfl, h⟩ => ⟨Z, h, rfl, rfl⟩, fun ⟨_, h, hq, hZ⟩ => ⟨hq.symm, hZ ▸ h⟩⟩
   have hsource : ({Z | S.sourceBlock Z = (q, g)} : Finset (P × Fin (2 ^ (i + 1)) × Fin p)) =
       ({Z | modeSources i (decide ((sym q).1 = g)) (decide ((sym q).2 = g)) Z.1 = true} :
         Finset (Fin (2 ^ (i + 1)) × Fin p)).map (packetModes q) := by
     ext ⟨q', Z⟩
     simp only [S, mem_filter, mem_univ, true_and, mem_map, sourceBlock_eq_iff, packetModes_apply,
       Prod.mk.injEq]
-    constructor
-    · rintro ⟨rfl, h⟩
-      exact ⟨Z, h, rfl, rfl⟩
-    · rintro ⟨Z', h, rfl, rfl⟩
-      exact ⟨rfl, h⟩
+    exact ⟨fun ⟨rfl, h⟩ => ⟨Z, h, rfl, rfl⟩, fun ⟨_, h, hq, hZ⟩ => ⟨hq.symm, hZ ▸ h⟩⟩
   rw [ModeSplitting.packetTensor, packetEntry, S.blockCoeff_eq_listCoeff (q, g) β Y X hrows
     (fun e => (hrows' e).trans (by rw [ModeSplitting.rowBlock, Prod.mk.injEq]; exact Iff.rfl)),
     htarget, listCoeff_map, hsource, prod_map,

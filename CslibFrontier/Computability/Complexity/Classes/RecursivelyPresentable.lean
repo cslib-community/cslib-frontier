@@ -83,11 +83,10 @@ different from one of its members. -/
 theorem exists_notMem_and_mem_of_notMem_P {α : Type} {enc : α ↪ List Bool} {B : Set α}
     (hB : B ∉ P enc) : (∃ y₀, y₀ ∉ B) ∧ (∃ y₁, y₁ ∈ B) := by
   refine ⟨?_, ?_⟩
-  · by_contra h
-    exact hB ((Set.eq_univ_of_forall fun y => not_not.mp fun hy => h ⟨y, hy⟩) ▸ univ_mem_P)
-  · by_contra h
-    have heq : B = ∅ := Set.ext fun y => ⟨fun hy => absurd ⟨y, hy⟩ h, False.elim⟩
-    exact hB (heq ▸ empty_mem_P)
+  · contrapose! hB
+    exact Set.eq_univ_of_forall hB ▸ univ_mem_P
+  · contrapose! hB
+    exact Set.eq_empty_of_forall_notMem hB ▸ empty_mem_P
 
 /-- A set outside a class closed under finite variations is infinitely different from each of its
 members. -/
@@ -132,22 +131,16 @@ presentation. -/
 theorem RecursivelyPresentable.compl {α : Type} {enc : α ↪ List Bool} {C : Set (Set α)}
     (hC : RecursivelyPresentable enc C) : RecursivelyPresentable enc (compl ⁻¹' C) := by
   obtain ⟨F, hF, rfl⟩ := hC
+  have hnot (i : ℕ) : {a | F (i, a) = false} = {a | F (i, a) = true}ᶜ := by
+    ext a
+    simp
   refine ⟨fun p => !F p,
     (IsComputable.of_finite (encIn := encBool) (encMid := encBool) Bool.not).comp hF, ?_⟩
   ext A
-  simp only [Set.mem_preimage, Set.mem_range, Bool.not_eq_true']
-  constructor
-  · rintro ⟨i, hi⟩
-    refine ⟨i, ?_⟩
-    ext a
-    have ha := Set.ext_iff.mp hi a
-    simp only [Set.mem_ofPred_eq, Set.mem_compl_iff] at ha ⊢
-    cases h : F (i, a) <;> simp_all
-  · rintro ⟨i, rfl⟩
-    refine ⟨i, ?_⟩
-    ext a
-    simp only [Set.mem_ofPred_eq, Set.mem_compl_iff]
-    cases F (i, a) <;> simp
+  simp only [Set.mem_preimage, Set.mem_range, Bool.not_eq_true', hnot]
+  exact exists_congr fun _ =>
+    ⟨fun h => by rw [h, compl_compl],
+     fun h => by rw [← h, compl_compl]⟩
 
 /-- A countable union `⋃ k, C k` of classes uniformly presented by one computable function of
 `((k, i), a)` is recursively presentable via `Nat.unpair`. -/

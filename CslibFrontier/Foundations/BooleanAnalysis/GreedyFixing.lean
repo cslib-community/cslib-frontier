@@ -77,10 +77,7 @@ theorem projectionAverage_fixCoord_false_add_true (f : (ι → Bool) → ℝ) {i
   have key (b : Bool) : resample (update sel i true) y (update x i b) =
       resample sel (update y i b) x := by
     funext j
-    by_cases hj : j = i
-    · subst hj
-      simp [resample, hi]
-    · simp [resample, Set.piecewise, update_of_ne hj]
+    obtain rfl | hj := eq_or_ne j i <;> simp [resample, Set.piecewise, *]
   rw [key, key]
 
 /-- **Greedy fixing by conditional expectations.** Starting from any point with no fixed
@@ -111,10 +108,8 @@ theorem expect_le_greedy_fixCoord (f : (ι → Bool) → ℝ) (coords : List ι)
   obtain ⟨⟨-, hend⟩, hle⟩ := greedy_spec_of_add_le fixCoord Φ Inv hbranch havg coords _ hinit
   set e := greedy fixCoord Φ coords (x, fun _ => false)
   have hsel : e.2 = fun _ => true := funext fun i => by simp [hend i]
-  have h0 : Φ (x, fun _ => false) = -𝔼 y, f y := by
-    simp only [Φ, projectionAverage, resample_false]
-  have h1 : Φ e = -f e.1 := by
-    simp only [Φ, projectionAverage, hsel, resample_true, expect_const univ_nonempty]
+  simp only [Φ, projectionAverage, hsel, resample_false, resample_true,
+    expect_const univ_nonempty] at hle
   linarith
 
 end Cslib.BitString

@@ -95,48 +95,37 @@ theorem Ordered.notMem_elements_union {a : α} {l r : BinaryTree α} (h : Ordere
   (Finset.mem_union.mp ha).elim (fun hl => lt_irrefl a (h.2.2.1 a hl))
     fun hr => lt_irrefl a (h.2.2.2 a hr)
 
+private theorem mem_node_iff_left {a x : α} {l r : BinaryTree α} (ht : Ordered (.node a l r))
+    (hx : x < a) : x ∈ elements (.node a l r) ↔ x ∈ elements l := by
+  rw [mem_elements_node]
+  exact ⟨fun h => h.elim (fun h => (ne_of_lt hx h).elim)
+    (·.resolve_right fun h => lt_asymm hx (ht.2.2.2 x h)), fun h => Or.inr (Or.inl h)⟩
+
+private theorem mem_node_iff_right {a x : α} {l r : BinaryTree α} (ht : Ordered (.node a l r))
+    (hx : a < x) : x ∈ elements (.node a l r) ↔ x ∈ elements r := by
+  rw [mem_elements_node]
+  exact ⟨fun h => h.elim (fun h => (ne_of_gt hx h).elim)
+    (·.resolve_left fun h => lt_asymm hx (ht.2.2.1 x h)), fun h => Or.inr (Or.inr h)⟩
+
 /-- Search is correct for any shape satisfying the invariant. -/
 theorem contains_eq_true {t : BinaryTree α} (ht : Ordered t) (x : α) :
     contains x t = true ↔ x ∈ elements t := by
-  induction t with
-  | nil => simp [contains, elements]
-  | node a l r il ir =>
-    obtain ⟨hl, hr, hla, har⟩ := ht
-    simp only [contains, mem_elements_node]
-    split <;> rename_i hx
-    · rw [il hl]
-      constructor
-      · exact fun h => Or.inr (Or.inl h)
-      · rintro (h | h | h)
-        · exact (ne_of_lt hx h).elim
-        · exact h
-        · exact (lt_asymm hx (har x h)).elim
-    · split <;> rename_i ha
-      · rw [ir hr]
-        constructor
-        · exact fun h => Or.inr (Or.inr h)
-        · rintro (h | h | h)
-          · exact (ne_of_gt ha h).elim
-          · exact (lt_asymm ha (hla x h)).elim
-          · exact h
-      · have he : x = a := le_antisymm (le_of_not_gt ha) (le_of_not_gt hx)
-        simp [he]
+  fun_induction contains x t with
+  | case1 => simp [elements] -- nil
+  | case2 a l r hx il => rw [il ht.1, mem_node_iff_left ht hx] -- x < a: search l
+  | case3 a l r _ ha ir => rw [ir ht.2.1, mem_node_iff_right ht ha] -- a < x: search r
+  | case4 a l r hx ha => simp [le_antisymm (le_of_not_gt ha) (le_of_not_gt hx)] -- x = a
 
 /-- Insertion adds exactly the requested key, even when it was already present. -/
 theorem elements_insert (x : α) (t : BinaryTree α) :
     elements (insert x t) = Insert.insert x (elements t) := by
-  induction t with
-  | nil => simp [insert, elements]
-  | node a l r il ir =>
-    simp only [insert]
-    split <;> rename_i hx
-    · ext y
-      simp [elements, il, or_left_comm]
-    · split <;> rename_i ha
-      · ext y
-        simp [elements, ir, or_left_comm]
-      · have he : x = a := le_antisymm (le_of_not_gt ha) (le_of_not_gt hx)
-        simp [elements, he]
+  fun_induction insert x t with
+  | case1 => simp [elements] -- nil
+  | case2 _ _ _ _ ih | case3 _ _ _ _ _ ih => -- x < a: insert into l; a < x: into r
+    ext y
+    simp [elements, ih, or_left_comm]
+  -- x = a
+  | case4 a l r hx ha => simp [elements, le_antisymm (le_of_not_gt ha) (le_of_not_gt hx)]
 
 /-- The binary-search-tree invariant survives insertion. -/
 theorem ordered_insert {t : BinaryTree α} (ht : Ordered t) (x : α) :
@@ -147,44 +136,23 @@ theorem ordered_insert {t : BinaryTree α} (ht : Ordered t) (x : α) :
     obtain ⟨hl, hr, hla, har⟩ := ht
     simp only [insert]
     split <;> rename_i hx
-    · refine ⟨il hl, hr, ?_, har⟩
-      intro y hy
+    · refine ⟨il hl, hr, fun y hy => ?_, har⟩
       rw [elements_insert, Finset.mem_insert] at hy
-      rcases hy with rfl | hy
-      · exact hx
-      · exact hla y hy
+      exact hy.elim (· ▸ hx) (hla y)
     · split <;> rename_i ha
-      · refine ⟨hl, ir hr, hla, ?_⟩
-        intro y hy
+      · refine ⟨hl, ir hr, hla, fun y hy => ?_⟩
         rw [elements_insert, Finset.mem_insert] at hy
-        rcases hy with rfl | hy
-        · exact ha
-        · exact har y hy
+        exact hy.elim (· ▸ ha) (har y)
       · exact ⟨hl, hr, hla, har⟩
 
 /-- Re-inserting a present key preserves the entire tree, not just its represented set. -/
 theorem insert_eq_self {t : BinaryTree α} (ht : Ordered t) {x : α}
     (hx : x ∈ elements t) : insert x t = t := by
-  induction t with
-  | nil => simp [elements] at hx
-  | node a l r il ir =>
-    obtain ⟨hl, hr, hla, har⟩ := ht
-    simp only [insert]
-    split <;> rename_i hxa
-    · have hxl : x ∈ elements l := by
-        rcases mem_elements_node.mp hx with h | h | h
-        · exact (ne_of_lt hxa h).elim
-        · exact h
-        · exact (lt_asymm hxa (har x h)).elim
-      rw [il hl hxl]
-    · split <;> rename_i hax
-      · have hxr : x ∈ elements r := by
-          rcases mem_elements_node.mp hx with h | h | h
-          · exact (ne_of_gt hax h).elim
-          · exact (lt_asymm hax (hla x h)).elim
-          · exact h
-        rw [ir hr hxr]
-      · rfl
+  fun_induction insert x t with
+  | case1 => simp [elements] at hx -- nil
+  | case2 a l r hxa il => rw [il ht.1 ((mem_node_iff_left ht hxa).mp hx)] -- x < a: insert into l
+  | case3 a l r _ hax ir => rw [ir ht.2.1 ((mem_node_iff_right ht hax).mp hx)] -- a < x: into r
+  | case4 => rfl -- x = a
 
 /-- A strict search tree stores each represented key in exactly one node. -/
 theorem card_elements {t : BinaryTree α} (ht : Ordered t) :
@@ -256,17 +224,11 @@ theorem successor_spec {t : BinaryTree α} (ht : Ordered t) (x : α) :
         · exact (hla b hbl).le
         · exact ih.2 c (Finset.mem_filter.mpr ⟨hc, hxc⟩)
         · exact (lt_trans (hla b hbl) (har c hc)).le
-    · have he : (elements (.node a l r)).filter (x < ·) =
-          (elements r).filter (x < ·) := by
-        ext b
-        simp only [Finset.mem_filter, mem_elements_node]
-        constructor
-        · rintro ⟨rfl | hb | hb, hxb⟩
-          · exact (hx hxb).elim
-          · exact (hx (lt_trans hxb (hla b hb))).elim
-          · exact ⟨hb, hxb⟩
-        · rintro ⟨hb, hxb⟩
-          exact ⟨Or.inr (Or.inr hb), hxb⟩
+    · have he : (elements (.node a l r)).filter (x < ·) = (elements r).filter (x < ·) :=
+        Finset.ext fun b => by
+          simp only [Finset.mem_filter]
+          exact and_congr_left fun hxb =>
+            mem_node_iff_right ⟨hl, hr, hla, har⟩ ((not_lt.mp hx).trans_lt hxb)
       rw [he]
       exact ir hr
 

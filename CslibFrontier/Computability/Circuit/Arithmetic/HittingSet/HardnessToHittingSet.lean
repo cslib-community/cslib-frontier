@@ -79,20 +79,15 @@ theorem isHittingSet_generatorHittingSet_of_hard {f : MvPolynomial (Fin m) K}
   classical
   rintro _ ⟨C, rfl, hΔ, hs⟩ hC0
   by_cases hvan : aeval (nwGenerator f S) C.polynomial = 0
-  · exfalso
-    have : Infinite K := Infinite.of_injective Nat.cast Nat.cast_injective
+  · have : Infinite K := Infinite.of_injective Nat.cast Nat.cast_injective
     obtain ⟨F, hFΔ, hFsize, hF0, hFroot⟩ :=
       exists_root_formula_of_generator_vanishing hmul hS hΔ hC0 hvan
     obtain ⟨G, hGf, hGΔ, hGsize⟩ := SPFormula.exists_formula_of_root hFΔ hF0 hFroot
-    refine (hhard G hGf hGΔ).not_ge (hGsize.trans (SPFormula.rootCost_mono ?_ hd))
-    exact hFsize.trans (Nat.mul_le_mul_right _ hs)
+    exact absurd (hGsize.trans (SPFormula.rootCost_mono
+      (hFsize.trans (Nat.mul_le_mul_right _ hs)) hd)) (hhard G hGf hGΔ).not_ge
   · obtain ⟨x, hx, hne⟩ := exists_mem_generatorHittingSet_eval_ne_zero hd hvan
-    refine ⟨x, ?_, hne⟩
-    rw [generatorHittingSet] at hx ⊢
-    obtain ⟨z, hz, rfl⟩ := mem_image.1 hx
-    refine mem_image.2 ⟨z, Fintype.mem_piFinset.2 fun l => ?_, rfl⟩
-    obtain ⟨k, hk, hzk⟩ := mem_image.1 (Fintype.mem_piFinset.1 hz l)
-    exact mem_image.2 ⟨k, mem_range.2 (lt_of_lt_of_le (mem_range.1 hk)
-      (Nat.succ_le_succ (Nat.mul_le_mul_right _ hs))), hzk⟩
+    refine ⟨x, image_subset_image (Fintype.piFinset_subset _ _ fun _ =>
+      image_subset_image ?_) hx, hne⟩
+    exact Finset.range_mono (Nat.succ_le_succ (Nat.mul_le_mul_right _ hs))
 
 end Cslib.Circuits.Arithmetic

@@ -84,13 +84,10 @@ private theorem value_replay (I : State Rel) (keys : List ℕ)
     (compute keys).requests.foldl (fun ps j => ps.swap j (j+1)) (I.ports.map σ) =
       ((compute keys).requests.foldl (fun ps j => ps.swap j (j+1))
         (List.range keys.length)).map (fun i => (I.ports.map σ).getD i false) := by
-  have hp := (indices_payload keys).2.1 (fun i => (I.ports.map σ).getD i false)
   have hinit : (List.range keys.length).map (fun i => (I.ports.map σ).getD i false) =
-      I.ports.map σ := by
-    rw [hl, ← List.length_map (f := σ)]
-    exact List.map_getD_range _ false
-  rw [hinit] at hp
-  exact hp
+      I.ports.map σ := by simpa [hl] using List.map_getD_range (I.ports.map σ) false
+  conv_lhs => rw [← hinit]
+  exact (indices_payload keys).2.1 _
 
 /-- Exact rows, occurrences, port count and relation-symbol word after the computed trace.
 `T` is the actual emitted length (at most `choose P 2`), and every request is valid. -/
@@ -161,9 +158,7 @@ theorem eval_sortBoundaryMetadata_iff (I : State Rel) (keys : List ℕ)
     · rw [sortBoundaryMetadata, ite_eq_left hl]
       exact hv.trans (value_replay I keys hl σ)
   · rintro ⟨τ, ht, ha, _⟩
-    have hr := (recover_sortBoundaryMetadata g w I keys hl τ ht).1
-    simpa only [show (fun z => τ (2^((compute keys).requests.length)*z))=σ
-      from funext ha] using hr
+    simpa [funext ha] using (recover_sortBoundaryMetadata g w I keys hl τ ht).1
 
 /-- The length-guarded generator/executor composition is plain polynomial time on EVERY
 raw State and binary metadata list, for any encoded target alphabet. The generator proves
@@ -181,10 +176,9 @@ theorem computableInPolyTime_sortBoundaryMetadata (encRel : Rel ↪ List Bool) :
   have hex := (computableInPolyTime_transposeSchedule g w encRel).comp (hi.prod hj)
   have hg : ComputableInPolyTime
       (fun p : State Rel × List ℕ => decide (p.2.length=p.1.ports.length))
-      (encPair (encState encRel) (encList encNat)) encBool := by
-    have hkl := (ComputableInPolyTime.length_list encNat).comp hk
-    have hpl := (ComputableInPolyTime.length_list encNat).comp (encState_ports_polyTime encRel hi)
-    exact hkl.decide_eq' hpl
+      (encPair (encState encRel) (encList encNat)) encBool :=
+    ((ComputableInPolyTime.length_list encNat).comp hk).decide_eq'
+      ((ComputableInPolyTime.length_list encNat).comp (encState_ports_polyTime encRel hi))
   exact ComputableInPolyTime.ite_decide hg hex hi
 
 end Cslib.Complexity.CSP.CrossInsertion

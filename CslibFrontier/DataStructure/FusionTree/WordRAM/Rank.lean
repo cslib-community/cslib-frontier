@@ -11,6 +11,7 @@ public import CslibFrontier.DataStructure.FusionTree.WordRAM.Packed
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.Sparse
 public import CslibFrontier.Foundations.Data.Nat.Bitwise.PackedCount
 public import CslibFrontier.Computability.WordRAM.Notation
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 
 /-!
@@ -62,12 +63,9 @@ private theorem guardMask_eq_sum (b n : ℕ) :
 private theorem guardMask_testBit (b n k : ℕ) :
     (guardMask b n).testBit k = true ↔
       ∃ i ∈ Finset.range n, b + (b + 1) * i = k := by
-  have hf : Function.Injective (fun i : ℕ => b + (b + 1) * i) := by
-    intro i j he
-    exact Nat.mul_left_cancel (by omega) (Nat.add_left_cancel he)
   simpa only [guardMask_eq_sum, Bool.toNat_true, one_mul, true_and] using
     Nat.testBit_sum_injective (Finset.range n) (fun i => b + (b + 1) * i)
-      (fun _ _ _ _ he => hf he) (fun _ => true) k
+      (fun _ _ _ _ he => Nat.mul_left_cancel (by omega) (Nat.add_left_cancel he)) (fun _ => true) k
 
 /-- Move each comparison's guard to the lowest bit of its radix field. -/
 def guardFlags (b n : ℕ) (s : ℕ → ℕ) (q : ℕ) : ℕ :=
@@ -78,24 +76,14 @@ theorem guardFlags_eq {b n q : ℕ} (s : ℕ → ℕ)
     (hs : ∀ i < n, s i < 2 ^ b) (hq : q < 2 ^ b) :
     guardFlags b n s q =
       packRadix (2 ^ (b + 1)) n (fun i => (decide (q ≤ s i)).toNat) := by
-  have hf : Function.Injective (fun i : ℕ => (b + 1) * i) := by
-    intro i j he
-    exact Nat.mul_left_cancel (by omega) he
-  apply Nat.eq_of_testBit_eq
-  intro k
-  apply Bool.eq_iff_iff.mpr
+  refine Nat.eq_of_testBit_eq fun k => Bool.eq_iff_iff.mpr ?_
   simp only [guardFlags, Nat.testBit_shiftRight, Nat.testBit_land, Bool.and_eq_true,
     guardMask_testBit, packRadix, ← pow_mul]
-  rw [Nat.testBit_sum_injective _ _ (fun _ _ _ _ he => hf he)]
-  constructor
-  · rintro ⟨hd, i, hi, he⟩
-    refine ⟨i, hi, ?_, Nat.add_left_cancel he⟩
-    rw [← he, packedDifference_guard s hs hq (Finset.mem_range.mp hi)] at hd
-    exact hd
-  · rintro ⟨i, hi, hc, he⟩
-    refine ⟨?_, i, hi, by omega⟩
-    rw [← he, packedDifference_guard s hs hq (Finset.mem_range.mp hi)]
-    exact hc
+  rw [Nat.testBit_sum_injective _ _ (fun _ _ _ _ he => Nat.mul_left_cancel (by omega) he)]
+  refine ⟨fun ⟨hd, i, hi, he⟩ => ⟨i, hi, ?_, Nat.add_left_cancel he⟩,
+    fun ⟨i, hi, hc, he⟩ => ⟨?_, i, hi, by omega⟩⟩
+  · rwa [← he, packedDifference_guard s hs hq (Finset.mem_range.mp hi)] at hd
+  · rwa [← he, packedDifference_guard s hs hq (Finset.mem_range.mp hi)]
 
 /-- Count all set comparison guards through the middle field of one product. -/
 def countGuards (b n : ℕ) (s : ℕ → ℕ) (q : ℕ) : ℕ :=
@@ -146,11 +134,8 @@ theorem upperRankExpr_eq_card {b n q : ℕ} (s : ℕ → ℕ) (hn : 0 < n)
     (hb : n < 2 ^ (b + 1)) (hs : ∀ i < n, s i < 2 ^ b) (hq : q < 2 ^ b) :
     upperRankExpr b n s q = ((Finset.range n).filter (fun i => s i ≤ q)).card := by
   have hp := Nat.two_pow_pos b
-  have hs' (i : ℕ) (hi : i < n) : 2 ^ b - 1 - s i < 2 ^ b := by omega
-  have hq' : 2 ^ b - 1 - q < 2 ^ b := by omega
-  rw [upperRankExpr, countGuards_eq _ hn hb hs' hq', Finset.card_filter]
-  apply Finset.sum_congr rfl
-  intro i hi
+  rw [upperRankExpr, countGuards_eq _ hn hb (fun _ _ => by omega) (by omega), Finset.card_filter]
+  refine Finset.sum_congr rfl fun i hi => ?_
   have hi' := hs i (Finset.mem_range.mp hi)
   by_cases he : s i ≤ q <;> simp [he, show 2 ^ b - 1 - q ≤ 2 ^ b - 1 - s i ↔ s i ≤ q by omega]
 
@@ -220,18 +205,14 @@ theorem exec {w b n q : ℕ} (s : ℕ → ℕ) (x : Data 10) (hn : 0 < n)
   let cs := fun i => 2 ^ b - 1 - s i
   have hp := Nat.two_pow_pos b
   have hcq : cq < 2 ^ b := by omega
-  have hcs (i : ℕ) (_ : i < n) : cs i < 2 ^ b := by dsimp only [cs]; omega
-  have hbitwidth : b ≤ w := by
-    have := Nat.le_mul_of_pos_right (b + 1) hn
-    omega
+  have hbitwidth : b ≤ w := by have := Nat.le_mul_of_pos_right (b + 1) hn; omega
   have hqfit : Fits w cq := hcq.trans_le (Nat.pow_le_pow_right (by decide) hbitwidth)
-  obtain ⟨hrep, hdiff, hmask, hflag, hcount, hdiv, hmod⟩ := countGuards_fits cs hcs hcq hw
-  simp only [cq, cs, countGuards, guardFlags,
-    packedDifference] at hqfit hrep hdiff hmask hflag hcount hdiv hmod
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7⟩ :=
+    countGuards_fits cs (fun _ _ => by dsimp only [cs]; omega) hcq hw
+  simp only [cq, cs, countGuards, guardFlags, packedDifference] at hqfit h1 h2 h3 h4 h5 h6 h7
   refine ⟨?_, ?_, rfl⟩
-  · ram_eval [code, result, hxq, hxn, hxc, hxg, hxb, hxm, hxr, hxmax,
-      hqfit, hrep, hdiff, hmask, hflag, hcount, hdiv, hmod,
-      cq, cs, upperRankExpr, countGuards, guardFlags, packedDifference]
+  · simp only [code, result, upperRankExpr, countGuards, guardFlags, packedDifference]
+    wram_exec *
   · simpa only [result, Data.set_regs, Function.update_self] using
       upperRankExpr_eq_card s hn hb hs hq
 

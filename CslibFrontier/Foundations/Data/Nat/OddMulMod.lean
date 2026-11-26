@@ -44,30 +44,22 @@ theorem card_odd_mul_mod_eq_le (M Δ r : ℕ) (hΔ : 0 < Δ) :
       _ = 1 := by simp
       _ ≤ Δ := hΔ
   | succ m =>
-    let S := (Finset.univ : Finset (Fin (2 ^ m))).filter
-      (fun s => (Δ * (2 * s.val + 1)) % (2 ^ (m + 1)) = r)
-    have hmaps : ∀ s ∈ S, (Δ * (2 * s.val + 1)) / (2 ^ (m + 1)) ∈ Finset.range Δ := by
-      intro s _
-      rw [Finset.mem_range]
-      have hs : 2 * s.val + 1 < 2 ^ (m + 1) := by
-        have hlt := s.isLt
+    refine (Finset.card_le_card_of_injOn (t := Finset.range Δ)
+      (fun s : Fin (2 ^ m) => (Δ * (2 * s.val + 1)) / 2 ^ (m + 1))
+      (fun s _ => Finset.mem_range.mpr <| Nat.div_lt_of_lt_mul <| by
+        have := s.isLt
         rw [Nat.pow_succ']
-        omega
-      exact Nat.div_lt_of_lt_mul (by nlinarith)
-    have hinj : Set.InjOn (fun s : Fin (2 ^ m) => (Δ * (2 * s.val + 1)) / (2 ^ (m + 1))) S := by
-      intro s₁ hs₁ s₂ hs₂ hq
-      have hmod₁ : (Δ * (2 * s₁.val + 1)) % (2 ^ (m + 1)) = r :=
-        (Finset.mem_filter.mp (Finset.mem_coe.mp hs₁)).2
-      have hmod₂ : (Δ * (2 * s₂.val + 1)) % (2 ^ (m + 1)) = r :=
-        (Finset.mem_filter.mp (Finset.mem_coe.mp hs₂)).2
-      have h1 := Nat.div_add_mod (Δ * (2 * s₁.val + 1)) (2 ^ (m + 1))
-      have h2 := Nat.div_add_mod (Δ * (2 * s₂.val + 1)) (2 ^ (m + 1))
-      dsimp only at hq
-      have hmul : Δ * (2 * s₁.val + 1) = Δ * (2 * s₂.val + 1) := by
-        rw [← h1, ← h2, hq, hmod₁, hmod₂]
-      have hodd : 2 * s₁.val + 1 = 2 * s₂.val + 1 := Nat.eq_of_mul_eq_mul_left hΔ hmul
-      ext
-      omega
-    simpa [S] using Finset.card_le_card_of_injOn _ hmaps hinj
+        nlinarith)
+      fun s₁ hs₁ s₂ hs₂ hq => ?_).trans_eq (Finset.card_range Δ)
+    have hmod₁ := (Finset.mem_filter.mp (Finset.mem_coe.mp hs₁)).2
+    have hmod₂ := (Finset.mem_filter.mp (Finset.mem_coe.mp hs₂)).2
+    have h1 := Nat.div_add_mod (Δ * (2 * s₁.val + 1)) (2 ^ (m + 1))
+    have h2 := Nat.div_add_mod (Δ * (2 * s₂.val + 1)) (2 ^ (m + 1))
+    dsimp only at hq
+    have hmul : Δ * (2 * s₁.val + 1) = Δ * (2 * s₂.val + 1) := by
+      rw [← h1, ← h2, hq, hmod₁, hmod₂]
+    have := Nat.eq_of_mul_eq_mul_left hΔ hmul
+    ext
+    omega
 
 end Nat

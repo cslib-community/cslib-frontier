@@ -60,10 +60,7 @@ private theorem one_le_mul_norm_sub_one_of_pow_eq_one {ell : ℕ} (hell : ell �
 theorem one_le_mul_norm_sub_of_pow_eq_one {ell : ℕ} (hell : ell ≠ 0)
     {z w : ℂ} (hz : z ^ ell = 1) (hw : w ^ ell = 1) (hne : z ≠ w) :
     1 ≤ (ell : ℝ) * ‖z - w‖ := by
-  have hw0 : w ≠ 0 := by
-    intro h
-    rw [h, zero_pow hell] at hw
-    exact zero_ne_one hw
+  have hw0 : w ≠ 0 := fun h => zero_ne_one ((zero_pow hell).symm.trans (h ▸ hw))
   have hratio : (z / w) ^ ell = 1 := by rw [div_pow, hz, hw, div_self one_ne_zero]
   have hratio1 : z / w ≠ 1 := fun h => hne ((div_eq_one_iff_eq hw0).mp h)
   have h := one_le_mul_norm_sub_one_of_pow_eq_one hell hratio hratio1
@@ -79,11 +76,9 @@ theorem eq_of_weighted_sum_eq_of_pow_eq_one {ell R n : ℕ} (hell : ell ≠ 0)
   by_contra hne
   obtain ⟨i, hi⟩ : ∃ i, z i ≠ w i := by simpa only [funext_iff, not_forall] using hne
   let P := Polynomial.ofFn n (fun i => z i - w i)
-  have hP : P ≠ 0 := by
-    intro h
-    have hc := congrArg (fun p : ℂ[X] => p.coeff i.val) h
-    rw [show P.coeff i.val = z i - w i from ofFn_coeff_eq_val_of_lt _ i.isLt, coeff_zero] at hc
-    exact hi (sub_eq_zero.mp hc)
+  have hP : P ≠ 0 := fun h => hi (sub_eq_zero.mp
+    ((show P.coeff i.val = z i - w i from ofFn_coeff_eq_val_of_lt _ i.isLt).symm.trans
+      (by simp [h])))
   have hdeg : P.natDegree < n := ofFn_natDegree_lt (by have := i.isLt; omega) _
   have hcoeff (k : ℕ) : ‖P.coeff k‖₊ ≤ (2 : ℝ≥0) := by
     by_cases hk : k < n
@@ -96,9 +91,8 @@ theorem eq_of_weighted_sum_eq_of_pow_eq_one {ell R n : ℕ} (hell : ell ≠ 0)
     · rw [show P.coeff k = 0 from ofFn_coeff_eq_zero_of_ge _ (by omega)]
       simp
   let j : Fin n := ⟨P.natDegree, hdeg⟩
-  have hlead : P.leadingCoeff = z j - w j := by
-    rw [← coeff_natDegree]
-    exact ofFn_coeff_eq_val_of_lt _ hdeg
+  have hlead : P.leadingCoeff = z j - w j :=
+    coeff_natDegree.symm.trans (ofFn_coeff_eq_val_of_lt _ hdeg)
   have hj : z j ≠ w j := fun h => (leadingCoeff_ne_zero.mpr hP) (by rw [hlead, h, sub_self])
   have hsep : 1 ≤ (ell : ℝ≥0) * ‖P.leadingCoeff‖₊ := by
     apply NNReal.coe_le_coe.mp

@@ -198,10 +198,10 @@ theorem permOn_split (M : Matrix V V R) {S S' : Finset V} (hS' : S' ⊆ S) (T : 
     have himg : S'.image (glue S' f₁ f₂) = T' := by
       ext t
       simp only [mem_image, glue]
-      constructor
-      · rintro ⟨i, hi, rfl⟩; simp only [hi, ite_true]; exact h₁m i hi
-      · intro ht
-        obtain ⟨i, hi, rfl⟩ := h₁s t ht
+      refine ⟨?_, fun ht => ?_⟩
+      · rintro ⟨i, hi, rfl⟩
+        simpa only [hi, ite_true] using h₁m i hi
+      · obtain ⟨i, hi, rfl⟩ := h₁s t ht
         exact ⟨i, hi, by simp [hi]⟩
     simp only [Sigma.mk.injEq, himg, true_and]
     refine heq_of_eq (Prod.ext (funext fun i => ?_) (funext fun i => ?_))
@@ -211,21 +211,16 @@ theorem permOn_split (M : Matrix V V R) {S S' : Finset V} (hS' : S' ⊆ S) (T : 
       · exact (h₁o i h).symm
     · simp only [restrictTo, glue]
       by_cases h : i ∈ S'
-      · simp only [h, ite_true, mem_sdiff, not_true_eq_false, and_false, ite_false]
-        exact (h₂o i fun h' => (mem_sdiff.1 h').2 h).symm
+      · simpa [h] using (h₂o i fun h' => (mem_sdiff.1 h').2 h).symm
       · by_cases h' : i ∈ S
         · simp [h, h']
-        · simp only [h, ite_false, mem_sdiff, h', false_and]
-          exact (h₂o i fun h'' => h' (mem_sdiff.1 h'').1).symm
+        · simpa [h, h'] using (h₂o i fun h'' => h' (mem_sdiff.1 h'').1).symm
   · intro f hf
     obtain ⟨-, -, -, ho⟩ := mem_bijOn.1 hf
     funext i
-    simp only [glue, restrictTo]
     by_cases h : i ∈ S'
-    · simp [h]
-    · by_cases h' : i ∈ S
-      · simp [h, h']
-      · simp [h, h', ho i h']
+    · simp [glue, restrictTo, h]
+    · by_cases h' : i ∈ S <;> simp [glue, restrictTo, h, h', ho i]
   · rintro ⟨T', f₁, f₂⟩ -
     rw [← prod_sdiff hS', mul_comm]
     congr 1

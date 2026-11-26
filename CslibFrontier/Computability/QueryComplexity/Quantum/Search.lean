@@ -139,13 +139,8 @@ theorem regProb_eq_sum (ψ : State N W) (i : Fin N) :
       univ.map ⟨fun w => (i, w), fun _ _ h => (Prod.mk.inj h).2⟩ := by
     ext ⟨j, w⟩
     simp only [mem_filter, mem_univ, true_and, mem_map]
-    constructor
-    · rintro rfl
-      exact ⟨w, rfl⟩
-    · rintro ⟨w', h⟩
-      exact (Prod.mk.inj h).1.symm
-  rw [regProb, measureProb, h, sum_map]
-  rfl
+    exact ⟨fun h => ⟨w, h ▸ rfl⟩, fun ⟨_, h⟩ => (Prod.mk.inj h).1.symm⟩
+  rw [regProb, measureProb, h, sum_map]; rfl
 
 /-- The projection `Π_z` onto query index `z`. -/
 noncomputable def proj (z : Fin N) (ψ : State N W) : State N W :=
@@ -173,8 +168,7 @@ theorem norm_proj_le (z : Fin N) (ψ : State N W) : ‖proj z ψ‖ ≤ ‖ψ‖
 
 /-- The measurement probabilities of all query indices sum to `‖ψ‖²`. -/
 theorem sum_regProb (ψ : State N W) : ∑ i, regProb ψ i = ‖ψ‖ ^ 2 := by
-  simp only [regProb_eq_sum]
-  rw [EuclideanSpace.norm_sq_eq, Fintype.sum_prod_type]
+  simp only [regProb_eq_sum, EuclideanSpace.norm_sq_eq, Fintype.sum_prod_type]
 
 /-- The projection onto query index `z` with control bit `1`: the part of the state the oracle
 of `e_z` acts on. -/
@@ -198,12 +192,9 @@ theorem phaseOracle_marked_sub (z : Fin N) (ψ : State N W) :
     phaseOracle (marked z) ψ - ψ = (-2 : ℂ) • ctrlProj z ψ := by
   ext p
   simp only [PiLp.sub_apply, phaseOracle_apply, marked, PiLp.smul_apply, ctrlProj, smul_eq_mul]
-  by_cases h : p.1 = z <;> cases p.2.1
-  · simp [h]
-  · simp only [h, decide_true, Bool.and_self, ite_true, and_self]
-    ring
-  · simp [h]
-  · simp [h]
+  cases p.2.1
+  · simp
+  · by_cases h : p.1 = z <;> simp [h]; ring
 
 /-- **The hybrid argument** for one marked item: on the inputs `e_z` and `0`, the states after `t`
 queries differ by at most `2 ∑_{s < t} ‖Π_z φ_s‖`, where `φ_s` is the state on the all-zero input
@@ -244,8 +235,7 @@ theorem sum_sq_norm_run_sub_le (U : ℕ → State N W →ₗᵢ[ℂ] State N W) 
       refine sum_le_sum fun z _ => ?_
       rw [mul_pow]
       norm_num
-      have := sq_sum_le_card_mul_sum_sq (s := range T) (f := fun s => ‖ctrlProj z (φ s)‖)
-      simpa using this
+      simpa using sq_sum_le_card_mul_sum_sq (s := range T) (f := fun s => ‖ctrlProj z (φ s)‖)
     _ = 4 * (T * ∑ s ∈ range T, ∑ z, ‖ctrlProj z (φ s)‖ ^ 2) := by
       rw [← mul_sum, ← mul_sum, sum_comm]
     _ ≤ 4 * (T * ∑ s ∈ range T, ∑ z, regProb (φ s) z) := by
@@ -269,8 +259,10 @@ theorem regProb_sub_le {ψ φ : State N W} (hψ : ‖ψ‖ = 1) (hφ : ‖φ‖ 
       _ ≤ ‖ψ - φ‖ := norm_proj_le _ _
   have h2 : ‖proj z ψ‖ + ‖proj z φ‖ ≤ 2 := by
     linarith [norm_proj_le z ψ, norm_proj_le z φ]
-  have h3 : 0 ≤ ‖proj z ψ‖ + ‖proj z φ‖ := by positivity
-  nlinarith [norm_nonneg (ψ - φ), norm_nonneg (proj z ψ), norm_nonneg (proj z φ)]
+  calc ‖proj z ψ‖ ^ 2 - ‖proj z φ‖ ^ 2
+      = (‖proj z ψ‖ + ‖proj z φ‖) * (‖proj z ψ‖ - ‖proj z φ‖) := by ring
+    _ ≤ (‖proj z ψ‖ + ‖proj z φ‖) * ‖ψ - φ‖ := by gcongr
+    _ ≤ 2 * ‖ψ - φ‖ := by gcongr
 
 /-- **The quantum search lower bound** by the hybrid argument of [Bennett, Bernstein, Brassard,
 Vazirani][BBBV1997]: if a `T`-query algorithm with a unit initial state outputs `z` with probability
@@ -304,8 +296,7 @@ theorem card_sub_two_le (U : ℕ → State N W →ₗᵢ[ℂ] State N W) {ψ₀ 
     intro z hz
     have hz' : regProb φ z ≤ 1 / 3 := by simpa [B] using hz
     have hd := regProb_sub_le (by rw [norm_run, hψ₀]) hφ z (ψ := run U ψ₀ (marked z) T)
-    have h6 : (1 / 6 : ℝ) ≤ ‖run U ψ₀ (marked z) T - φ‖ := by linarith [hsucc z]
-    nlinarith
+    nlinarith [hsucc z, norm_nonneg (run U ψ₀ (marked z) T - φ)]
   have hsum := sum_sq_norm_run_sub_le U hψ₀ T
   have hcompl : ((univ \ B).card : ℝ) * (1 / 36) ≤
       ∑ z, ‖run U ψ₀ (marked z) T - φ‖ ^ 2 := by
@@ -316,11 +307,9 @@ theorem card_sub_two_le (U : ℕ → State N W →ₗᵢ[ℂ] State N W) {ψ₀ 
         sum_le_sum fun z hz => hfar z (mem_sdiff.mp hz).2
       _ ≤ ∑ z, ‖run U ψ₀ (marked z) T - φ‖ ^ 2 :=
         sum_le_sum_of_subset_of_nonneg (subset_univ _) fun _ _ _ => by positivity
-  have hcard : (N : ℝ) - 2 ≤ (univ \ B).card := by
-    rw [card_sdiff_of_subset (subset_univ _), card_univ, Fintype.card_fin]
-    have : (B.card : ℝ) ≤ 2 := by exact_mod_cast hB
-    rw [Nat.cast_sub (card_le_univ B |>.trans_eq (Fintype.card_fin N))]
-    linarith
-  nlinarith
+  have hB' : (B.card : ℝ) ≤ 2 := Nat.cast_le.mpr hB
+  rw [card_sdiff_of_subset (subset_univ _), card_univ, Fintype.card_fin,
+    Nat.cast_sub ((card_le_univ B).trans_eq (Fintype.card_fin N))] at hcompl
+  linarith
 
 end Cslib.Quantum

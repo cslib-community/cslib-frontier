@@ -96,10 +96,8 @@ theorem boundedMean_concentrates {X : Type*} (D : PMF X) (f : X → ℝ) {a b : 
     ext S
     rw [Probability.PMF.iid_apply, Probability.PMF.seqProcess_apply]
   have hsumm : Summable fun x : X => (D x).toReal * f x :=
-    Probability.PMF.summable_toReal_mul_of_abs_le D f (C := max |a| |b|) fun x hx => by
-      obtain ⟨hlo, hhi⟩ := hf x hx
-      exact abs_le.mpr ⟨by linarith [neg_abs_le a, le_max_left |a| |b|],
-        by linarith [le_abs_self b, le_max_right |a| |b|]⟩
+    Probability.PMF.summable_toReal_mul_of_abs_le D f (C := max |a| |b|) fun x hx =>
+      abs_le_max_abs_abs (hf x hx).1 (hf x hx).2
   let Xproc : ∀ k : ℕ, (Fin k → X) → ℝ := fun k S => ∑ j : Fin k, (f (S j) - distExpectation D f)
   have hsnoc (k : ℕ) (S : Fin k → X) (x : X) :
       Xproc (k + 1) (Fin.snoc S x) = Xproc k S + (f x - distExpectation D f) := by
@@ -169,61 +167,40 @@ theorem exists_replicableMeanProg (f : X → ℝ) {a b ε ρ β : ℝ}
     ∃ (w : ℝ) (N m : ℕ) (_ : NeZero N) (_ : NeZero m), 0 < w ∧
       IsReplicable (replicableMeanProg f w N m).toAlgorithm ρ ∧
       Estimates (replicableMeanProg f w N m).toAlgorithm (fun D => distExpectation D f) ε β := by
-  let w : ℝ := ε
-  have hw : 0 < w := hε
-  let δ : ℝ := min (ε / 2) ((ρ / 8) * w)
+  let δ : ℝ := min (ε / 2) (ρ / 8 * ε)
   have hδ : 0 < δ := lt_min (by positivity) (by positivity)
   obtain ⟨N, hN_gt⟩ := exists_nat_gt (4 / ρ)
-  have hNpos : 0 < N := by
-    have : 0 < 4 / ρ := by positivity
-    exact_mod_cast this.trans hN_gt
-  have hN_inst : NeZero N := ⟨Nat.ne_of_gt hNpos⟩
+  have hNR : (0 : ℝ) < N := (by positivity : (0 : ℝ) < 4 / ρ).trans hN_gt
+  have hN_inst : NeZero N := ⟨by exact_mod_cast hNR.ne'⟩
   have hN_bound : (1 : ℝ) / N ≤ ρ / 4 := by
-    have hNR : (0 : ℝ) < N := Nat.cast_pos.mpr hNpos
-    have hmul : 4 < (N : ℝ) * ρ := (div_lt_iff₀ hρ).mp hN_gt
     rw [div_le_div_iff₀ hNR (by norm_num : (0 : ℝ) < 4), one_mul]
-    linarith
+    linarith [(div_lt_iff₀ hρ).mp hN_gt]
   let width : ℝ := max (b - a) 1
   have hwidth : 0 < width := lt_of_lt_of_le zero_lt_one (le_max_right _ _)
   let errTarget : ℝ := min (ρ / 4) β
   have herrTarget : 0 < errTarget := lt_min (by positivity) hβ
   let t : ℝ := Real.log (2 / errTarget) * width ^ 2 / (2 * δ ^ 2)
   obtain ⟨m, hm_gt⟩ := exists_nat_gt (max t 0)
-  have hmpos : 0 < m := by
-    exact_mod_cast lt_of_le_of_lt (le_max_right t 0) hm_gt
-  have hm_inst : NeZero m := ⟨Nat.ne_of_gt hmpos⟩
+  have hm_inst : NeZero m := ⟨by exact_mod_cast ((le_max_right t 0).trans_lt hm_gt).ne'⟩
   have hm_bound : 2 * Real.exp (-2 * (m : ℝ) * δ ^ 2 / width ^ 2) ≤ errTarget := by
-    have hmt : t < (m : ℝ) := lt_of_le_of_lt (le_max_left t 0) hm_gt
-    have hdenom : 0 < 2 * δ ^ 2 := by positivity
-    have hw2 : 0 < width ^ 2 := by positivity
+    have hmt : t < m := (le_max_left t 0).trans_lt hm_gt
     have harg : Real.log (2 / errTarget) < 2 * (m : ℝ) * δ ^ 2 / width ^ 2 := by
-      have hmul : Real.log (2 / errTarget) * width ^ 2 < (m : ℝ) * (2 * δ ^ 2) := by
-        calc Real.log (2 / errTarget) * width ^ 2
-            = t * (2 * δ ^ 2) := by
-              dsimp only [t]
-              field_simp [hdenom.ne']
-          _ < (m : ℝ) * (2 * δ ^ 2) := mul_lt_mul_of_pos_right hmt hdenom
-      rw [lt_div_iff₀ hw2]
-      linarith
-    have hexp : Real.exp (-2 * (m : ℝ) * δ ^ 2 / width ^ 2) ≤ errTarget / 2 := by
-      rw [show -2 * (m : ℝ) * δ ^ 2 / width ^ 2 = -(2 * (m : ℝ) * δ ^ 2 / width ^ 2) by ring,
-        Real.exp_neg, inv_eq_one_div, one_div_le (Real.exp_pos _) (div_pos herrTarget two_pos),
-        one_div_div]
-      calc 2 / errTarget = Real.exp (Real.log (2 / errTarget)) :=
-            (Real.exp_log (div_pos two_pos herrTarget)).symm
-        _ ≤ Real.exp (2 * (m : ℝ) * δ ^ 2 / width ^ 2) := Real.exp_le_exp.mpr harg.le
+      rw [lt_div_iff₀ (by positivity)]
+      linarith [(div_lt_iff₀ (by positivity : (0 : ℝ) < 2 * δ ^ 2)).1 hmt]
+    have := Real.exp_le_exp.2 (show -2 * (m : ℝ) * δ ^ 2 / width ^ 2 ≤ Real.log (errTarget / 2) by
+      rw [neg_mul, neg_mul, neg_div, ← inv_div 2 errTarget, Real.log_inv, neg_le_neg_iff]
+      exact harg.le)
+    rw [Real.exp_log (by positivity)] at this
     linarith
-  refine ⟨w, N, m, hN_inst, hm_inst, hw, ?_, ?_⟩
-  · refine (isReplicable_replicableMeanProg f hf hw hδ.le N m).mono ?_
-    have h1 : 2 * δ / w ≤ ρ / 4 := by
-      have hle : δ ≤ (ρ / 8) * w := min_le_right _ _
-      calc 2 * δ / w ≤ 2 * ((ρ / 8) * w) / w := by gcongr
-        _ = ρ / 4 := by field_simp [hw.ne']; ring
+  refine ⟨ε, N, m, hN_inst, hm_inst, hε, ?_, ?_⟩
+  · refine (isReplicable_replicableMeanProg f hf hε hδ.le N m).mono ?_
+    have hle : δ ≤ ρ / 8 * ε := min_le_right _ _
+    have h1 : 2 * δ / ε ≤ ρ / 4 := by rw [div_le_iff₀ hε]; linarith
     have h2 : 2 * Real.exp (-2 * (m : ℝ) * δ ^ 2 / (max (b - a) 1) ^ 2) ≤ ρ / 4 :=
       hm_bound.trans (min_le_left _ _)
     linarith
-  · exact (estimates_replicableMeanProg f hf hw hδ.le N m).mono
-      (by have : δ ≤ ε / 2 := min_le_left _ _; dsimp only [w]; linarith)
+  · exact (estimates_replicableMeanProg f hf hε hδ.le N m).mono
+      (by have : δ ≤ ε / 2 := min_le_left _ _; linarith)
       (hm_bound.trans (min_le_right _ _))
 
 end BoundedMean
@@ -263,37 +240,28 @@ private theorem replicableBiasProg_toAlgorithm_eq (w : ℝ) (N m : ℕ) [NeZero 
   ext S i
   simp [empiricalBias_eq_empiricalMean]
 
+private theorem boolIndicator_mem_Icc (b : Bool) :
+    (if b then (1 : ℝ) else 0) ∈ Set.Icc (0 : ℝ) 1 := by
+  cases b <;> simp
+
 /-- Strong `(w / 2 + δ, 2 * exp (-2 * m * δ^2))`-estimation accuracy of `replicableBiasProg`
 for estimating `coinBias D` across all Bernoulli distributions `D : PMF Bool`. -/
 theorem estimates_replicableBiasProg {w δ : ℝ} (hw : 0 < w) (hδ : 0 ≤ δ) (N m : ℕ)
     [NeZero N] [NeZero m] :
     Estimates (replicableBiasProg w N m).toAlgorithm coinBias
       (w / 2 + δ) (2 * Real.exp (-2 * (m : ℝ) * δ ^ 2)) := by
-  have hf : ∀ b : Bool, (if b then (1 : ℝ) else 0) ∈ Set.Icc (0 : ℝ) 1 := fun b => by
-    cases b <;> simp
-  have hest := estimates_replicableMeanProg (fun b : Bool => if b then (1 : ℝ) else 0) hf hw hδ
-    N m
-  have hmax : max ((1 : ℝ) - 0) 1 = 1 := by norm_num
-  rw [hmax, one_pow, div_one] at hest
   intro D hD
-  dsimp only
-  rw [replicableBiasProg_toAlgorithm_eq, coinBias_eq_distExpectation]
-  exact hest D hD
+  simpa [replicableBiasProg_toAlgorithm_eq, coinBias_eq_distExpectation] using
+    estimates_replicableMeanProg _ boolIndicator_mem_Icc hw hδ N m D hD
 
 /-- Strong `ρ`-replicability of `replicableBiasProg` across all distributions `D : PMF Bool`. -/
 theorem isReplicable_replicableBiasProg {w δ : ℝ} (hw : 0 < w) (hδ : 0 ≤ δ) (N m : ℕ)
     [NeZero N] [NeZero m] :
     IsReplicable (replicableBiasProg w N m).toAlgorithm
       (2 * δ / w + 1 / N + 2 * (2 * Real.exp (-2 * (m : ℝ) * δ ^ 2))) := by
-  have hf : ∀ b : Bool, (if b then (1 : ℝ) else 0) ∈ Set.Icc (0 : ℝ) 1 := fun b => by
-    cases b <;> simp
-  have hrep := isReplicable_replicableMeanProg (fun b : Bool => if b then (1 : ℝ) else 0) hf hw hδ
-    N m
-  have hmax : max ((1 : ℝ) - 0) 1 = 1 := by norm_num
-  rw [hmax, one_pow, div_one] at hrep
   intro D hD
-  rw [replicableBiasProg_toAlgorithm_eq]
-  exact hrep D hD
+  simpa [replicableBiasProg_toAlgorithm_eq] using
+    isReplicable_replicableMeanProg _ boolIndicator_mem_Icc hw hδ N m D hD
 
 /-- **Replicable coin bias-estimation theorem** [ImpagliazzoLeiPitassiSorrell2022]: for any
 `ε > 0`, `ρ > 0`, and `β > 0`, there exist `w > 0` and `N, m ≥ 1` such that
@@ -303,16 +271,12 @@ theorem exists_replicableBiasProg {ε ρ β : ℝ} (hε : 0 < ε) (hρ : 0 < ρ)
     ∃ (w : ℝ) (N m : ℕ) (_ : NeZero N) (_ : NeZero m), 0 < w ∧
       IsReplicable (replicableBiasProg w N m).toAlgorithm ρ ∧
       Estimates (replicableBiasProg w N m).toAlgorithm coinBias ε β := by
-  have hf : ∀ b : Bool, (if b then (1 : ℝ) else 0) ∈ Set.Icc (0 : ℝ) 1 := fun b => by
-    cases b <;> simp
   obtain ⟨w, N, m, hN, hm, hw, hrep, hest⟩ :=
-    exists_replicableMeanProg (fun b : Bool => if b then (1 : ℝ) else 0) hf hε hρ hβ
-  refine ⟨w, N, m, hN, hm, hw, fun D hD => ?_, fun D hD => ?_⟩
-  · rw [replicableBiasProg_toAlgorithm_eq]
-    exact hrep D hD
-  · dsimp only
-    rw [replicableBiasProg_toAlgorithm_eq, coinBias_eq_distExpectation]
-    exact hest D hD
+    exists_replicableMeanProg _ boolIndicator_mem_Icc hε hρ hβ
+  exact ⟨w, N, m, hN, hm, hw,
+    fun D hD => by simpa [replicableBiasProg_toAlgorithm_eq] using hrep D hD,
+    fun D hD => by
+      simpa [replicableBiasProg_toAlgorithm_eq, coinBias_eq_distExpectation] using hest D hD⟩
 
 end CoinBias
 

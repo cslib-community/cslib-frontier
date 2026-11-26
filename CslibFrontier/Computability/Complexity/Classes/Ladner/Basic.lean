@@ -103,8 +103,7 @@ theorem word_index (w : List Bool) : word (index w) = w := by
 theorem index_add_two_le (w : List Bool) : index w + 2 ≤ 2 ^ (w.length + 1) := by
   have h₁ := Nat.foldr_bit_one_lt w
   have h₂ := Nat.foldr_bit_one_ne_zero w
-  rw [index]
-  omega
+  rw [index]; omega
 
 /-- **The word with index `j` has length at most `log₂ (j + 1)`.** -/
 theorem two_pow_length_word_le (j : ℕ) : 2 ^ (word j).length ≤ j + 1 := by
@@ -129,10 +128,8 @@ theorem index_word (j : ℕ) : index (word j) = j := by
   rw [word] at hlt hle
   rw [index, word]
   cases hl : (j + 1).bits.getLast hne
-  · rw [hl, show Nat.bit false 0 = 0 from rfl] at h
-    omega
-  · rw [hl, show Nat.bit true 0 = 1 from rfl] at h
-    omega
+  · rw [hl, show Nat.bit false 0 = 0 from rfl] at h; omega
+  · rw [hl, show Nat.bit true 0 = 1 from rfl] at h; omega
 
 theorem word_injective : Function.Injective word := fun i j h => by
   rw [← index_word i, h, index_word]
@@ -155,9 +152,8 @@ theorem length_pad (u : List Bool) (k : ℕ) : (pad u k).length = u.length + 1 +
 /-- **Padding is undone.** -/
 @[simp]
 theorem unpad_pad (u : List Bool) (k : ℕ) : unpad (pad u k) = (u, k) := by
-  have hrev : (pad u k).reverse = List.replicate k true ++ false :: u.reverse := by
-    simp [pad]
-  rw [unpad, hrev, List.idxOf_false_replicate_append, length_pad,
+  rw [unpad, show (pad u k).reverse = List.replicate k true ++ false :: u.reverse by simp [pad],
+    List.idxOf_false_replicate_append, length_pad,
     show u.length + 1 + k - (k + 1) = u.length by omega, pad, List.take_left' rfl]
 
 theorem pad_inj {u u' : List Bool} {k k' : ℕ} : pad u k = pad u' k' ↔ u = u' ∧ k = k' :=
@@ -166,12 +162,11 @@ theorem pad_inj {u u' : List Bool} {k k' : ℕ} : pad u k = pad u' k' ↔ u = u'
 /-- **A word with a `false` is its padded split.** -/
 theorem pad_unpad {y : List Bool} (hy : (unpad y).2 < y.length) :
     pad (unpad y).1 (unpad y).2 = y := by
-  have hmem : false ∈ y.reverse :=
-    List.idxOf_lt_length_iff.mp (by simpa [unpad] using hy)
-  obtain ⟨v, k, rfl⟩ : ∃ v k, y = pad v k := by
-    refine ⟨(y.reverse.drop (y.reverse.idxOf false + 1)).reverse, y.reverse.idxOf false, ?_⟩
-    conv_lhs => rw [← List.reverse_reverse y, List.eq_replicate_idxOf_false hmem]
-    simp [pad]
+  have hmem : false ∈ y.reverse := List.idxOf_lt_length_iff.mp (by simpa [unpad] using hy)
+  obtain ⟨v, k, rfl⟩ : ∃ v k, y = pad v k :=
+    ⟨(y.reverse.drop (y.reverse.idxOf false + 1)).reverse, y.reverse.idxOf false, by
+      conv_lhs => rw [← List.reverse_reverse y, List.eq_replicate_idxOf_false hmem]
+      simp [pad]⟩
   rw [unpad_pad]
 
 /-! ### Padded satisfiability -/
@@ -183,7 +178,7 @@ def padSAT (e : ℕ → ℕ) : Set (List Bool) :=
 
 theorem pad_mem_padSAT_iff {e : ℕ → ℕ} {φ : Logic.PL.CNF ℕ} {k : ℕ} :
     pad (encCNF φ) k ∈ padSAT e ↔ φ ∈ SAT ∧ k = (encCNF φ).length ^ e (encCNF φ).length := by
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨ψ, hψ, h⟩
     obtain ⟨h₁, rfl⟩ := pad_inj.mp h
     obtain rfl := encCNF.injective h₁
@@ -217,8 +212,7 @@ theorem universal_desc_of_halted_map {k : ℕ} {State : Type} [Fintype State] (e
     universal (desc eS eBit tm, x.map eBit, T) = ((f x).map eBit, true) := by
   obtain ⟨hhalt, hout⟩ := h x
   simp only [Cfg.Halted] at hhalt
-  rw [universal_desc, MultiTapeTM.runFrom_eq_of_halt tm _ hT hhalt, hout, hhalt]
-  rfl
+  rw [universal_desc, MultiTapeTM.runFrom_eq_of_halt tm _ hT hhalt, hout, hhalt]; rfl
 
 open Turing in
 /-- A finite binary machine halting within time `t x` with output `[f x]`, simulated by the
@@ -275,9 +269,8 @@ theorem le_clock {c e i : ℕ} (h : c + e ≤ i) (l : ℕ) : c * (l + 1) ^ e ≤
 theorem clock_le_two_pow (i l : ℕ) : clock i l ≤ 2 ^ ((l + 1) * i) := by
   rw [clock, pow_mul]
   refine Nat.pow_le_pow_left ?_ i
-  have h : l + 1 ≤ 2 ^ l := Nat.lt_two_pow_self
-  rw [pow_succ]
-  omega
+  have := Nat.lt_two_pow_self (n := l)
+  rw [pow_succ]; omega
 
 /-- The machine with index `i`, allowed `clock i l` steps on a word of length `l` but never more
 than `cap`, halts on the `j`-th word with output `[b]` where `b` decides membership in
@@ -289,9 +282,8 @@ def Agrees (e : ℕ → ℕ) (cap i j : ℕ) : Prop :=
 /-- Agreement on the `j`-th word depends only on the exponents of lengths below `j`. -/
 theorem agrees_congr {e e' : ℕ → ℕ} {cap i j : ℕ} (h : ∀ m < j, e m = e' m) :
     Agrees e cap i j ↔ Agrees e' cap i j := by
-  have h' : ∀ m < (word j).length, e m = e' m := fun m hm =>
-    h m (hm.trans_le (Nat.lt_succ_iff.mp (length_word_lt j)))
-  simp only [Agrees, mem_padSAT_congr h']
+  simp only [Agrees, mem_padSAT_congr fun m hm =>
+    h m (hm.trans_le (Nat.lt_succ_iff.mp (length_word_lt j)))]
 
 /-! ### The exponent function -/
 
@@ -327,29 +319,22 @@ theorem agrees_Htable_iff {n i j : ℕ} (hj : j < n) :
 theorem H_eq (n : ℕ) :
     H n = sInf {i | i = Nat.log 2 (Nat.log 2 n) ∨ ∀ j < n, Agrees H n i j} := by
   rw [H, Hstep, length_Htable]
-  congr 1
-  ext i
-  simp only [Set.mem_ofPred_eq]
-  exact or_congr_right (forall₂_congr fun j hj => agrees_Htable_iff hj)
+  exact congrArg sInf (Set.ext fun _ => or_congr_right (forall₂_congr fun _ => agrees_Htable_iff))
 
 /-- **`H` grows slowly**: `H n ≤ log₂ (log₂ n)`. -/
-theorem H_le (n : ℕ) : H n ≤ Nat.log 2 (Nat.log 2 n) := by
-  rw [H_eq]
-  exact Nat.sInf_le (Or.inl rfl)
+theorem H_le (n : ℕ) : H n ≤ Nat.log 2 (Nat.log 2 n) :=
+  H_eq n ▸ Nat.sInf_le (.inl rfl)
 
 theorem H_le_self (n : ℕ) : H n ≤ n :=
   (H_le n).trans ((Nat.log_le_self 2 _).trans (Nat.log_le_self 2 n))
 
 /-- **`H n` is at most the index of every machine agreeing with `SATH` below `n`.** -/
-theorem H_le_of_agrees {n i : ℕ} (h : ∀ j < n, Agrees H n i j) : H n ≤ i := by
-  rw [H_eq]
-  exact Nat.sInf_le (Or.inr h)
+theorem H_le_of_agrees {n i : ℕ} (h : ∀ j < n, Agrees H n i j) : H n ≤ i :=
+  H_eq n ▸ Nat.sInf_le (.inr h)
 
 /-- **If `H n < log₂ (log₂ n)`, the machine with index `H n` agrees with `SATH` below `n`.** -/
-theorem agrees_H {n : ℕ} (h : H n < Nat.log 2 (Nat.log 2 n)) : ∀ j < n, Agrees H n (H n) j := by
-  have hmem : H n ∈ {i | i = Nat.log 2 (Nat.log 2 n) ∨ ∀ j < n, Agrees H n i j} := by
-    rw [H_eq]
-    exact Nat.sInf_mem ⟨_, Or.inl rfl⟩
-  exact hmem.resolve_left h.ne
+theorem agrees_H {n : ℕ} (h : H n < Nat.log 2 (Nat.log 2 n)) : ∀ j < n, Agrees H n (H n) j :=
+  (H_eq n ▸ Nat.sInf_mem (s := {i | i = Nat.log 2 (Nat.log 2 n) ∨ ∀ j < n, Agrees H n i j})
+    ⟨_, .inl rfl⟩).resolve_left h.ne
 
 end Cslib.Complexity.Ladner

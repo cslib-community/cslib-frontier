@@ -143,9 +143,8 @@ theorem IsEmbeddable.trans {U V : Type*} [Fintype U] [Fintype V] {P₀ : PMF (X 
       (gA (z.1.1, z.2.1) r, gB (z.1.2, z.2.2) r))
   let M₁ := P₀.bind fun xy => ρ₁.map fun r => (xy, (fA xy.1 r, fB xy.2 r))
   have hM₂ : ((P₁.map fun ((x, y), (s, t)) => ((x, s), (y, t))).bind fun w =>
-      ρ₂.map fun r => (w, (gA w.1 r, gB w.2 r))) = P₁.bind Φ := by
-    rw [PMF.bind_map]
-    rfl
+      ρ₂.map fun r => (w, (gA w.1 r, gB w.2 r))) = P₁.bind Φ :=
+    PMF.bind_map _ _ _
   -- Independent shared strings for the two protocols; each party runs both.
   let ρ := ρ₁.bind fun r₁ => ρ₂.map (r₁, ·)
   let hA : X → R₁ × R₂ → S × U := fun x r => (fA x r.1, gA (x, fA x r.1) r.2)
@@ -199,8 +198,7 @@ theorem isEmbeddable_withKernel (P₀ : PMF (X × Y)) (KX : X → PMF S) (KY : Y
   refine IsEmbeddable.of_dist_le (shared (embedFamily KX KY K))
     (fun x => sample (embedFamily KX KY K) (.inl x))
     (fun y => sample (embedFamily KX KY K) (.inr (.inl y))) ?_
-  rw [← localSample_eq]
-  exact dist_embed_le P₀ KX KY K
+  exact localSample_eq P₀ KX KY K ▸ dist_embed_le P₀ KX KY K
 
 /-- **Holenstein's Lemma 5.2** [Holenstein, Lemma 5.2][Holenstein2009]: a joint law `J` of
 `((x, y), s)` embeds its marginal in `((x, y), (s, s))` with error `2 ε₁ + 2 ε₂`, where `ε₁` and
@@ -211,8 +209,7 @@ theorem isEmbeddable_diag (J : PMF ((X × Y) × S)) :
         2 * dist J (withKernel (J.map Prod.fst) fun xy => condY J xy.2)) := by
   have h := isEmbeddable_withKernel (J.map Prod.fst) (condX J) (condY J) (conditionalSnd J)
   have hJ : withKernel (J.map Prod.fst) (conditionalSnd J) = J := bind_conditionalSnd J
-  rw [hJ, ← diag_eq, dist_comm (withKernel _ _) J, dist_comm (withKernel _ _) J] at h
-  exact h
+  rwa [hJ, ← diag_eq, dist_comm (withKernel _ _) J, dist_comm (withKernel _ _) J] at h
 
 /-- **Holenstein's Corollary 5.3** [Holenstein, Corollary 5.3][Holenstein2009], with the constant
 `7 ε₁ + 2 ε₂` of this proof: if `J` is within `ε₁` of `P₀ P_{S | X}` and within `ε₂` of
@@ -226,29 +223,22 @@ theorem isEmbeddable_diag_of_dist_le (J : PMF ((X × Y) × S)) (P₀ : PMF (X ×
   refine ⟨R, ρ, fA, fB, ?_⟩
   set P := J.map Prod.fst
   set K := conditionalSnd J
-  have hJ : withKernel P K = J := bind_conditionalSnd J
   -- The input laws are within `ε₁`.
   have hP : dist P P₀ ≤ ε₁ := by
     simpa only [withKernel, Cslib.Probability.PMF.map_fst_bind_pair] using
       (dist_map_le J (withKernel P₀ fun xy => condX J xy.1) Prod.fst).trans h₁
-  have hK : dist J (withKernel P₀ K) ≤ ε₁ := by
-    rw [← hJ]
-    exact (dist_bind_le P P₀ _).trans hP
+  have hK : dist J (withKernel P₀ K) ≤ ε₁ :=
+    bind_conditionalSnd J ▸ (dist_bind_le P P₀ _).trans hP
   set A := withKernel P₀ fun xy => condX J xy.1
   set B := withKernel P₀ fun xy => condY J xy.2
   set C := withKernel P₀ K
-  have hX := dist_triangle_left A C J
-  have hY := dist_triangle_left B C J
   set E := P₀.bind fun xy => ((K xy).map fun s => (s, s)).map (xy, ·)
   set Out := P₀.bind fun xy => ρ.map fun r => (xy, (fA xy.1 r, fB xy.2 r))
   set Tgt := J.map fun z => (z.1, (z.2, z.2))
   have hdiag : dist E Tgt ≤ ε₁ := by
-    change dist E (J.map fun z => (z.1, (z.2, z.2))) ≤ ε₁
-    rw [diag_eq, dist_comm]
-    exact (dist_bind_le P P₀ _).trans hP
-  have := dist_triangle Out E Tgt
-  have hemb' : dist Out E ≤ 2 * dist A C + 2 * dist B C := hemb
-  linarith
+    simpa only [Tgt, diag_eq, dist_comm] using (dist_bind_le P P₀ _).trans hP
+  linarith [dist_triangle_left A C J, dist_triangle_left B C J, dist_triangle Out E Tgt,
+    (hemb : dist Out E ≤ 2 * dist A C + 2 * dist B C)]
 
 /-- **Holenstein's Lemma 5.4** [Holenstein, Lemma 5.4][Holenstein2009], for the factorized law it
 characterizes: if `s` is drawn from `KS x` and `t` from `KT y`, independently, then `P₀` embeds
@@ -311,11 +301,9 @@ theorem isEmbeddable_map_fst_of_apply_eq_mul (J : PMF ((X × Y) × (S × T)))
     ext ⟨⟨x, y⟩, s, t⟩
     rw [bind_prod_apply, hmarg, hJ]
     by_cases hF0 : ∑' s, f x s = 0
-    · rw [tsum_eq_zero_iff.mp hF0 s, hF0]
-      simp only [mul_zero, zero_mul]
+    · simp only [tsum_eq_zero_iff.mp hF0 s, hF0, mul_zero, zero_mul]
     by_cases hG0 : ∑' t, g y t = 0
-    · rw [tsum_eq_zero_iff.mp hG0 t, hG0]
-      simp only [mul_zero, zero_mul]
+    · simp only [tsum_eq_zero_iff.mp hG0 t, hG0, mul_zero, zero_mul]
     simp only [KS, KT, dite_eq_right hF0, dite_eq_right hG0, PMF.normalize_apply]
     calc c x y * (∑' s, f x s) * (∑' t, g y t) *
           (f x s * (∑' s, f x s)⁻¹ * (g y t * (∑' t, g y t)⁻¹))
@@ -324,8 +312,7 @@ theorem isEmbeddable_map_fst_of_apply_eq_mul (J : PMF ((X × Y) × (S × T)))
       _ = c x y * f x s * g y t := by
         rw [ENNReal.mul_inv_cancel hF0 (hF x), ENNReal.mul_inv_cancel hG0 (hG y), mul_one,
           mul_one]
-  have h := isEmbeddable_bind_prod (J.map Prod.fst) KS KT
-  rwa [hfactor] at h
+  simpa only [hfactor] using isEmbeddable_bind_prod (J.map Prod.fst) KS KT
 
 /-- **Holenstein's Claim 6.1** [Holenstein, Claim 6.1][Holenstein2009]: conditioning two
 distributions on an event of probability `1 / 2` under both at most doubles their statistical
@@ -350,6 +337,35 @@ theorem dist_filter_le_two_mul {Z : Type*} [Fintype Z] (p q : PMF Z) (E : Set Z)
 
 section RedrawnInput
 
+private theorem dist_withKernel_cond_le {A B : Type*} [Fintype A]
+    (J : PMF ((X × Y) × S)) (P₀ : PMF (X × Y)) (proj : X × Y → A) (rebuild : A → B → X × Y)
+    (hproj : ∀ a b, proj (rebuild a b) = a) (K : A → PMF B)
+    (hK : (P₀.map proj).bind (fun a => (K a).map (rebuild a)) = P₀) :
+    dist J (withKernel P₀ fun xy => conditionalSnd (J.map (Prod.map proj id)) (proj xy)) ≤
+      dist J ((J.map (Prod.map proj id)).bind fun (a, s) => (K a).map fun b =>
+        (rebuild a b, s)) +
+        dist ((J.map Prod.fst).map proj) (P₀.map proj) := by
+  set M := J.map (Prod.map proj id)
+  -- Both laws draw `a` and then `b` and `s` independently, from `K a` and `P_{S | A = a}`.
+  set Λ : A → PMF ((X × Y) × S) := fun a =>
+    (conditionalSnd M a).bind fun s => (K a).map fun b => (rebuild a b, s)
+  have hR : (M.bind fun (a, s) => (K a).map fun b => (rebuild a b, s)) =
+      (M.map Prod.fst).bind Λ := by
+    conv_lhs => rw [← bind_conditionalSnd M]
+    simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def, Λ]
+  have hT : withKernel P₀ (fun xy => conditionalSnd M (proj xy)) = (P₀.map proj).bind Λ := by
+    conv_lhs => rw [← hK]
+    simp only [withKernel, PMF.bind_bind, PMF.bind_map, Function.comp_def, hproj, Λ]
+    pmf_swap
+  have hM : M.map Prod.fst = (J.map Prod.fst).map proj := by simp only [M, PMF.map_comp]; rfl
+  rw [hR, hT]
+  calc _ ≤ dist J ((M.map Prod.fst).bind Λ) +
+        dist ((M.map Prod.fst).bind Λ) ((P₀.map proj).bind Λ) := dist_triangle _ _ _
+    _ ≤ _ := by
+      gcongr
+      rw [hM]
+      exact dist_bind_le _ _ _
+
 /-- **The triangle step of Holenstein's (6.13)–(6.15)** [Holenstein, proof of Lemma 6.4,
 (6.13)–(6.15)][Holenstein2009]. Let `K` draw `x` given `y` under `P₀`, so that `P₀ = P_Y K`. A
 joint law `J` of `((x, y), s)` is within `ε₁ + ε₂` of `P₀ P_{S | Y}`, the left side of the second
@@ -359,28 +375,8 @@ theorem dist_withKernel_condY_le (J : PMF ((X × Y) × S)) (P₀ : PMF (X × Y))
     (hK : (P₀.map Prod.snd).bind (fun y => (K y).map (·, y)) = P₀) :
     dist J (withKernel P₀ fun xy => condY J xy.2) ≤
       dist J ((J.map (Prod.map Prod.snd id)).bind fun (y, s) => (K y).map fun x => ((x, y), s)) +
-        dist ((J.map Prod.fst).map Prod.snd) (P₀.map Prod.snd) := by
-  set M := J.map (Prod.map Prod.snd id)
-  -- Both laws draw `y` and then `x` and `s` independently, from `K y` and `P_{S | Y = y}`.
-  set Λ : Y → PMF ((X × Y) × S) := fun y =>
-    (condY J y).bind fun s => (K y).map fun x => ((x, y), s)
-  have hR : (M.bind fun (y, s) => (K y).map fun x => ((x, y), s)) = (M.map Prod.fst).bind Λ := by
-    conv_lhs => rw [← bind_conditionalSnd M]
-    simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def, Λ, condY, M]
-  have hT : withKernel P₀ (fun xy => condY J xy.2) = (P₀.map Prod.snd).bind Λ := by
-    conv_lhs => rw [← hK]
-    simp only [withKernel, PMF.bind_bind, PMF.bind_map, Function.comp_def, Λ]
-    pmf_swap
-  have hM : M.map Prod.fst = (J.map Prod.fst).map Prod.snd := by
-    simp only [M, PMF.map_comp]
-    rfl
-  rw [hR, hT]
-  calc _ ≤ dist J ((M.map Prod.fst).bind Λ) +
-        dist ((M.map Prod.fst).bind Λ) ((P₀.map Prod.snd).bind Λ) := dist_triangle _ _ _
-    _ ≤ _ := by
-      gcongr
-      rw [hM]
-      exact dist_bind_le _ _ _
+        dist ((J.map Prod.fst).map Prod.snd) (P₀.map Prod.snd) :=
+  dist_withKernel_cond_le J P₀ Prod.snd (fun y x => (x, y)) (fun _ _ => rfl) K hK
 
 /-- **The triangle step of Holenstein's (6.16)** [Holenstein, proof of Lemma 6.4,
 (6.16)][Holenstein2009], the mirror image of `dist_withKernel_condY_le`. Let `K` draw `y` given
@@ -391,28 +387,8 @@ theorem dist_withKernel_condX_le (J : PMF ((X × Y) × S)) (P₀ : PMF (X × Y))
     (hK : (P₀.map Prod.fst).bind (fun x => (K x).map (x, ·)) = P₀) :
     dist J (withKernel P₀ fun xy => condX J xy.1) ≤
       dist J ((J.map (Prod.map Prod.fst id)).bind fun (x, s) => (K x).map fun y => ((x, y), s)) +
-        dist ((J.map Prod.fst).map Prod.fst) (P₀.map Prod.fst) := by
-  set M := J.map (Prod.map Prod.fst id)
-  -- Both laws draw `x` and then `y` and `s` independently, from `K x` and `P_{S | X = x}`.
-  set Λ : X → PMF ((X × Y) × S) := fun x =>
-    (condX J x).bind fun s => (K x).map fun y => ((x, y), s)
-  have hR : (M.bind fun (x, s) => (K x).map fun y => ((x, y), s)) = (M.map Prod.fst).bind Λ := by
-    conv_lhs => rw [← bind_conditionalSnd M]
-    simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def, Λ, condX, M]
-  have hT : withKernel P₀ (fun xy => condX J xy.1) = (P₀.map Prod.fst).bind Λ := by
-    conv_lhs => rw [← hK]
-    simp only [withKernel, PMF.bind_bind, PMF.bind_map, Function.comp_def, Λ]
-    pmf_swap
-  have hM : M.map Prod.fst = (J.map Prod.fst).map Prod.fst := by
-    simp only [M, PMF.map_comp]
-    rfl
-  rw [hR, hT]
-  calc _ ≤ dist J ((M.map Prod.fst).bind Λ) +
-        dist ((M.map Prod.fst).bind Λ) ((P₀.map Prod.fst).bind Λ) := dist_triangle _ _ _
-    _ ≤ _ := by
-      gcongr
-      rw [hM]
-      exact dist_bind_le _ _ _
+        dist ((J.map Prod.fst).map Prod.fst) (P₀.map Prod.fst) :=
+  dist_withKernel_cond_le J P₀ Prod.fst (fun x y => (x, y)) (fun _ _ => rfl) K hK
 
 end RedrawnInput
 

@@ -44,8 +44,7 @@ abbrev diagram : Diagram Prim (left ++ (as ++ right)) (left ++ (bs ++ right)) :=
 /-- A padded boundary has prefix, cell and suffix widths. -/
 theorem boundary_length (left middle right : List Color) :
     (left ++ (middle ++ right)).length = left.length + middle.length + right.length := by
-  simp only [List.length_append]
-  omega
+  simp only [List.length_append]; omega
 
 /-- Read a diagram edge as its full-layer strand. -/
 @[expose] def toStrand : (diagram left as bs right v).Edge →
@@ -69,8 +68,7 @@ theorem boundary_length (left middle right : List Color) :
 private theorem fromStrand_of_input (e : Strand left.length as.length bs.length right.length)
     (i : Fin (left.length + as.length + right.length)) (hi : inputIndex e = some i) :
     fromStrand left as bs right v e = .inl (i.cast (boundary_length left as right).symm) := by
-  rcases e with j | ((j | j) | j)
-  all_goals simp only [inputIndex, Option.some.injEq] at hi
+  rcases e with j | ((j | j) | j) <;> simp only [inputIndex, Option.some.injEq] at hi
   all_goals cases hi
   all_goals rfl
 
@@ -119,9 +117,8 @@ private theorem toStrand_embed (q : Fin as.length ⊕ Fin bs.length) :
   cases q with
   | inl i =>
     simp only [embed, tensorLeft, tensorRight, toStrand]
-    apply inputStrand_of_index
-    simp only [Cell.embed, Function.comp_apply, inputIndex, Option.some.injEq, Fin.ext_iff]
-    simp [List.appendIndexEquiv]
+    exact inputStrand_of_index _ _
+      (by simp [Cell.embed, inputIndex, Fin.ext_iff, List.appendIndexEquiv])
   | inr j => rfl
 
 /-- The padded graph is exactly the declared vertex with its local edges embedded. -/
@@ -129,8 +126,7 @@ private theorem graph_vertex (x : (diagram left as bs right v).Vtx Prim.interp) 
     (diagram left as bs right v).graph Prim.interp x = v.map (embed left as bs right v) := by
   rcases x with e | (i | e)
   · exact e.elim
-  · have hi : i = (show Fin 1 from 0) := Fin.eq_zero i
-    subst i
+  · obtain rfl : i = (show Fin 1 from 0) := Fin.eq_zero i
     change (v.map (tensorLeft (cell as bs v) (Diagram.id right))).map
       (tensorRight (Diagram.id left) ((cell as bs v).tensor (Diagram.id right))) =
         v.map (embed left as bs right v)
@@ -148,12 +144,9 @@ theorem hasPort_iff (x : (diagram left as bs right v).Vtx Prim.interp)
       (Cell.embed (k := left.length) (r := right.length))) ()
       (edgeEquiv left as bs right v e) d
   rw [hasPort_map_iff, hasPort_map_iff]
-  constructor
-  · rintro ⟨q, hq, he⟩
-    exact ⟨q, hq, by rw [← he]; exact (toStrand_embed left as bs right v q).symm⟩
-  · rintro ⟨q, hq, he⟩
-    refine ⟨q, hq, (edgeEquiv left as bs right v).injective ?_⟩
-    exact (toStrand_embed left as bs right v q).trans he
+  exact ⟨fun ⟨q, hq, he⟩ => ⟨q, hq, he ▸ (toStrand_embed left as bs right v q).symm⟩,
+    fun ⟨q, hq, he⟩ => ⟨q, hq, (edgeEquiv left as bs right v).injective
+      ((toStrand_embed left as bs right v q).trans he)⟩⟩
 
 /-- The padded diagram's bottom interface is the layout's ordered bottom interface. -/
 theorem toStrand_bottom (j : Fin (left ++ (bs ++ right)).length) :
@@ -166,18 +159,14 @@ theorem toStrand_bottom (j : Fin (left ++ (bs ++ right)).length) :
   obtain ⟨j | t, rfl⟩ := (List.appendIndexEquiv bs right).surjective j
   · simp only [diagram, pad, bottom_tensor_right, bottom, tensorLeft, tensorRight,
       toStrand, Sum.elim_inl, Equiv.symm_apply_apply]
-    change (Sum.inr (.inl (.inr j)) : Strand left.length as.length bs.length right.length) = _
-    symm
-    apply outputStrand_of_index
-    simp [outputIndex, Fin.ext_iff, List.appendIndexEquiv]
+    exact (outputStrand_of_index (.inr (.inl (.inr j))) _
+      (by simp [outputIndex, Fin.ext_iff, List.appendIndexEquiv])).symm
   · simp only [diagram, pad, bottom_tensor_right, bottom, tensorRight,
       Sum.elim_inr, Equiv.symm_apply_apply, toStrand]
-    refine (inputStrand_of_index (.inr (.inr t)) _ ?_).trans
-      (outputStrand_of_index (.inr (.inr t)) _ ?_).symm
-    · simp only [inputIndex, Option.some.injEq, Fin.ext_iff]
-      simp [List.appendIndexEquiv, Nat.add_assoc]
-    · simp only [outputIndex, Option.some.injEq, Fin.ext_iff]
-      simp [List.appendIndexEquiv, Nat.add_assoc]
+    exact (inputStrand_of_index (.inr (.inr t)) _
+      (by simp [inputIndex, Fin.ext_iff, List.appendIndexEquiv, Nat.add_assoc])).trans
+      (outputStrand_of_index (.inr (.inr t)) _
+        (by simp [outputIndex, Fin.ext_iff, List.appendIndexEquiv, Nat.add_assoc])).symm
 
 /-- A grid layer draws the exact padded single-vertex diagram, including all bypasses. -/
 noncomputable def drawing (hp : v.ports.Perm (genVertex as bs 0).ports)

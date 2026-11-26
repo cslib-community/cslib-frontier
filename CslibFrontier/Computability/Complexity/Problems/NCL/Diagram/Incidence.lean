@@ -77,9 +77,7 @@ private theorem boundaryPorts_append {E : Type*} (a b : List Color)
   unfold boundaryPorts
   rw [List.ofFn_appendIndexEquiv a b, Multiset.coe_add]
   congr 1
-  congr 1 <;> apply congrArg List.ofFn <;> funext i
-  · simp [List.appendIndexEquiv]
-  · simp [List.appendIndexEquiv]
+  congr 1 <;> apply congrArg List.ofFn <;> funext i <;> simp [List.appendIndexEquiv]
 private def listedPorts {E : Type*} (vs : List (Vertex E)) : Multiset (WeightedPort E) :=
   ↑(vs.flatMap Vertex.ports)
 private theorem listedPorts_map {E E' : Type*} (vs : List (Vertex E)) (f : E → E') :
@@ -111,26 +109,15 @@ private theorem portBalance_comp (I : Interp Γ) {a b c : List Color}
   have hb : boundaryPorts _ (D₁.comp D₂).bottom true =
       (boundaryPorts _ D₂.bottom true).map g := by
     rw [boundaryPorts_map]
-    congr 1
-    funext i
-    exact bottom_comp D₁ D₂ i
-  have ht : (boundaryPorts _ Sum.inl true).map g =
-      (boundaryPorts _ D₁.bottom true).map f := (boundaryPorts_comp D₁ D₂ true).symm
-  have hp : (boundaryPorts _ Sum.inl true).map f = boundaryPorts _ Sum.inl true := by
-    rw [boundaryPorts_map]
-    rfl
+    exact congrArg (boundaryPorts _ · true) (funext (bottom_comp D₁ D₂))
   simp only [vertexList, listedPorts_append, listedPorts_map, createdPorts, hb]
   change (listedPorts (D₁.vertexList I)).map f + (listedPorts (D₂.vertexList I)).map g +
     (boundaryPorts _ D₂.bottom true).map g = _
-  calc
-    _ = (listedPorts (D₁.vertexList I)).map f +
-        ((listedPorts (D₂.vertexList I)).map g + (boundaryPorts _ D₂.bottom true).map g) :=
-      add_assoc ..
-    _ = (listedPorts (D₁.vertexList I)).map f +
-        ((boundaryPorts _ Sum.inl true).map g +
-          (createdPorts D₂ false).map g + (createdPorts D₂ true).map g) := by rw [h₂]
-    _ = ((listedPorts (D₁.vertexList I)).map f + (boundaryPorts _ D₁.bottom true).map f) +
-        (createdPorts D₂ false).map g + (createdPorts D₂ true).map g := by rw [ht]; ac_rfl
+  have hp : (boundaryPorts a Sum.inl true).map f = boundaryPorts a Sum.inl true :=
+    boundaryPorts_map a Sum.inl _ true
+  rw [add_assoc, h₂, (boundaryPorts_comp D₁ D₂ true).symm]
+  calc _ = ((listedPorts (D₁.vertexList I)).map f + (boundaryPorts _ D₁.bottom true).map f) +
+        (createdPorts D₂ false).map g + (createdPorts D₂ true).map g := by ac_rfl
     _ = _ := by rw [h₁, hp]; ac_rfl
 
 private theorem portBalance_tensor (I : Interp Γ) {a b c d : List Color}
@@ -163,21 +150,18 @@ private theorem portBalance_of_checkGens (I : Interp Γ) {a b : List Color}
     (D : Diagram Γ a b) (h : D.checkGens I.checkPorts = true) : PortBalance I D := by
   induction D with
   | @gen a b g =>
-    have hg : ((I.verts g).flatMap Vertex.ports).Perm (genVertex a b 0).ports :=
-      of_decide_eq_true h
     unfold PortBalance
     change (↑((I.verts g).flatMap Vertex.ports) :
       Multiset (WeightedPort (Fin a.length ⊕ Fin b.length))) + _ = _
-    rw [Multiset.coe_eq_coe.2 hg]
+    rw [Multiset.coe_eq_coe.2 (of_decide_eq_true h)]
     simp only [genVertex, createdPorts, bottom, boundaryPorts,
       List.ofFn_eq_map, ← Multiset.coe_add]
     rfl
   | id a => simp [PortBalance, vertexList, listedPorts, createdPorts, boundaryPorts, bottom]
   | swap x y =>
-    unfold PortBalance
-    simp only [vertexList, listedPorts, List.flatMap_nil, Multiset.coe_nil, createdPorts,
-      zero_add, add_zero, boundaryPorts, bottom, List.ofFn_succ, Fin.rev]
-    simp only [List.get_eq_getElem, List.ofFn_zero, Multiset.coe_eq_coe]
+    simp only [PortBalance, vertexList, listedPorts, List.flatMap_nil, Multiset.coe_nil,
+      createdPorts, zero_add, add_zero, boundaryPorts, bottom, List.ofFn_succ, Fin.rev,
+      List.get_eq_getElem, List.ofFn_zero, Multiset.coe_eq_coe]
     exact List.Perm.swap ..
   | comp D₁ D₂ ih₁ ih₂ =>
     simp only [checkGens, Bool.and_eq_true] at h
@@ -247,10 +231,8 @@ theorem ports_genVertex (a b : List Color) (need : ℕ) :
     (↑(genVertex a b need).ports : Multiset (WeightedPort (Fin a.length ⊕ Fin b.length))) =
       (∑ i : Fin a.length, {⟨⟨Sum.inl i, true⟩, (a.get i).weight⟩}) +
       ∑ j : Fin b.length, {⟨⟨Sum.inr j, false⟩, (b.get j).weight⟩} := by
-  calc
-    _ = boundaryPorts a Sum.inl true + boundaryPorts b Sum.inr false := by
-      simp only [genVertex, boundaryPorts, List.ofFn_eq_map, Multiset.coe_add]
-    _ = _ := by rw [boundaryPorts_eq_sum, boundaryPorts_eq_sum]
+  rw [← boundaryPorts_eq_sum, ← boundaryPorts_eq_sum]
+  simp only [genVertex, boundaryPorts, List.ofFn_eq_map, Multiset.coe_add]
 
 /-- Closing every boundary wire by an opposite endpoint gives two consistent ports per wire. -/
 theorem portMultiset_add_boundary (I : Interp Γ) {a b : List Color} (D : Diagram Γ a b)
@@ -267,19 +249,10 @@ theorem portMultiset_add_boundary (I : Interp Γ) {a b : List Color} (D : Diagra
         ∑ j : Fin b.length, {⟨⟨D.bottom j, true⟩, (b.get j).weight⟩}) +
         ∑ i : Fin a.length, {⟨⟨Sum.inl i, false⟩, (a.get i).weight⟩} := by ac_rfl
     _ = _ := by
-      rw [hp]
+      rw [hp, add_comm _ (∑ i : Fin a.length, _)]
       simp only [Fintype.sum_sum_type, edgeWeight, Sum.elim_inl, Sum.elim_inr,
-        Finset.sum_add_distrib]
-      let A : Multiset (WeightedPort D.Edge) :=
-        ∑ i : Fin a.length, {⟨⟨Sum.inl i, true⟩, (a.get i).weight⟩}
-      let B : Multiset (WeightedPort D.Edge) :=
-        ∑ i : Fin a.length, {⟨⟨Sum.inl i, false⟩, (a.get i).weight⟩}
-      let C : Multiset (WeightedPort D.Edge) :=
-        ∑ e : D.Inner, {⟨⟨Sum.inr e, false⟩, (innerColor D e).weight⟩}
-      let F : Multiset (WeightedPort D.Edge) :=
-        ∑ e : D.Inner, {⟨⟨Sum.inr e, true⟩, (innerColor D e).weight⟩}
-      change (A + C + F) + B = (B + C) + (A + F)
-      ac_rfl
+        Finset.sum_add_distrib, add_assoc]
+      exact congrArg (_ + ·) (add_left_comm _ _ _)
 
 /-- A checked outgoing wire has its declared color weight. -/
 theorem edgeWeight_bottom (I : Interp Γ) {a b : List Color} (D : Diagram Γ a b)
@@ -294,8 +267,7 @@ theorem edgeWeight_bottom (I : Interp Γ) {a b : List Color} (D : Diagram Γ a b
   simp only [Multiset.mem_sum, Finset.mem_univ, true_and, Multiset.mem_add,
     Multiset.mem_singleton] at hm
   obtain ⟨e, he | he⟩ := hm
-  · have hdir : true = false := congrArg (fun q => q.port.dir) he
-    cases hdir
+  · cases congrArg (fun q => q.port.dir) he
   · exact (congrArg D.edgeWeight (congrArg (fun q => q.port.edge) he)).trans
       (congrArg WeightedPort.weight he).symm
 
@@ -307,11 +279,9 @@ theorem wellFormed_of_checkGens (I : Interp Γ) (D : Diagram Γ [] [])
     at hp
   refine ⟨Sum.elim Fin.elim0 (fun e => (innerColor D e).weight), ?_⟩
   rw [portMultiset_vertexList]
-  change listedPorts (D.vertexList I) = _
-  rw [hp, createdPorts_eq_sum, createdPorts_eq_sum]
-  change _ = ∑ e : Fin 0 ⊕ D.Inner, _
-  rw [Fintype.sum_sum_type]
-  simp only [Finset.univ_eq_empty, Finset.sum_empty, zero_add, Sum.elim_inr]
-  rw [Finset.sum_add_distrib]
+  change listedPorts (D.vertexList I) = ∑ e : Fin 0 ⊕ D.Inner, _
+  rw [hp, createdPorts_eq_sum, createdPorts_eq_sum, Fintype.sum_sum_type]
+  simp only [Finset.univ_eq_empty, Finset.sum_empty, zero_add, Sum.elim_inr,
+    Finset.sum_add_distrib]
 
 end Cslib.Complexity.NCL.Diagram
