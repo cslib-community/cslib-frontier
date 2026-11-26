@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick.Phase3Mem
+import all CslibFrontier.Algorithms.WordRAM.AhoCorasick.Layout
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
@@ -56,11 +57,7 @@ private theorem exec_bfsInnerStore (inp : Input) (w : ℕ) (hw : Fits w inp.word
           (inp.failBase + s) df)
         (inp.queueBase + qt) s := by
   have hlo := layout_order inp
-  have hrm_r := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hr_maxS ha
-  have hf_mr : Fits w (r * inp.alphabetSize) := fits_of_le_outBase hw (by omega)
-  have hf_ra : Fits w (r * inp.alphabetSize + a) := fits_of_le_outBase hw (by omega)
-  have hf_dra : Fits w (inp.deltaBase + (r * inp.alphabetSize + a)) :=
-    fits_of_le_outBase hw (by omega)
+  obtain ⟨hf_mr, hf_ra, hf_dra⟩ := fits_matrix_cell (base := inp.deltaBase) hw hr_maxS ha (by lia)
   have hf_fs : Fits w (inp.failBase + s) := fits_of_le_outBase hw (by omega)
   have hf_qt : Fits w (inp.queueBase + qt) := fits_of_le_outBase hw (by omega)
   have hf_qt1 : Fits w (qt + 1) := fits_of_le_outBase hw (by omega)
@@ -214,10 +211,6 @@ private theorem exec_bfsInnerStep (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     · exact hT.one_le
     · exact (hinv.q_bounds i (lt_trans hi hqh_lt)).2
   have hfr_maxS : fr < inp.maxS := lt_of_lt_of_le hfr_lt hT_maxS
-  have hrm_r : r * inp.alphabetSize + a < inp.maxS * inp.alphabetSize :=
-    Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hr_maxS ha
-  have hrm_fr : fr * inp.alphabetSize + a < inp.maxS * inp.alphabetSize :=
-    Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hfr_maxS ha
   have ht_read : x.mem (inp.trieBase + (r * inp.alphabetSize + a)) = inp.trie.trie r a := by
     rw [← Nat.add_assoc]; exact hM.trie_cell r hr_maxS a ha
   have hd_read : x.mem (inp.deltaBase + (fr * inp.alphabetSize + a)) = B.delta fr a := by
@@ -225,16 +218,11 @@ private theorem exec_bfsInnerStep (inp : Input) (w : ℕ) (hvalid : inp.Valid)
   have hdf_lt : B.delta fr a < inp.trie.numStates :=
     mem_disc_lt hT.one_le hinv.q_bounds (hinv.delta_exp fr hinv.fr_mem a ha).1
   have hdf_maxS : B.delta fr a < inp.maxS := lt_of_lt_of_le hdf_lt hT_maxS
-  have hf_mr : Fits w (r * inp.alphabetSize) := fits_of_le_outBase hw (by omega)
-  have hf_ra : Fits w (r * inp.alphabetSize + a) := fits_of_le_outBase hw (by omega)
-  have hf_tra : Fits w (inp.trieBase + (r * inp.alphabetSize + a)) :=
-    fits_of_le_outBase hw (by omega)
-  have hf_dra : Fits w (inp.deltaBase + (r * inp.alphabetSize + a)) :=
-    fits_of_le_outBase hw (by omega)
-  have hf_mfr : Fits w (fr * inp.alphabetSize) := fits_of_le_outBase hw (by omega)
-  have hf_fra : Fits w (fr * inp.alphabetSize + a) := fits_of_le_outBase hw (by omega)
-  have hf_dfra : Fits w (inp.deltaBase + (fr * inp.alphabetSize + a)) :=
-    fits_of_le_outBase hw (by omega)
+  obtain ⟨hf_mr, hf_ra, hf_tra⟩ := fits_matrix_cell (base := inp.trieBase) hw hr_maxS ha (by lia)
+  obtain ⟨_, _, hf_dra⟩ := fits_matrix_cell (base := inp.deltaBase) hw hr_maxS ha (by lia)
+  obtain ⟨hf_mfr, hf_fra, hf_dfra⟩ :=
+    fits_matrix_cell (base := inp.deltaBase) hw hfr_maxS ha (by lia)
+  have hrm_r := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hr_maxS ha
   have hf_a1 : Fits w (a + 1) := fits_of_le_outBase hw (by omega)
   obtain ⟨x₀, he₀, hx₀_r6, hx₀_r7, hx₀_r1, hx₀_r2, hx₀_r3, hx₀_r4, hx₀_r5, hx₀_mem⟩ :
       ∃ x₀, ExecWithin w (ram[

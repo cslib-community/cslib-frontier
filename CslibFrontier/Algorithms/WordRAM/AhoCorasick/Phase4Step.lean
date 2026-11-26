@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick.Phase3Mem
+import all CslibFrontier.Algorithms.WordRAM.AhoCorasick.Layout
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
@@ -48,13 +49,8 @@ private theorem exec_computeFailCond (inp : Input) (w : ℕ) (hw : Fits w inp.wo
       y.regs r7 =
         (if 0 < x.regs rState ∧ T.trie (x.regs rState) (x.regs r5) = 0 then 1 else 0) := by
   have hlo := layout_order inp
-  have hrm := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu ha
   have hf1 : Fits w 1 := fits_of_le_outBase hw (by omega)
-  have hf_m : Fits w (x.regs rState * inp.alphabetSize) := fits_of_le_outBase hw (by omega)
-  have hf_a : Fits w (x.regs rState * inp.alphabetSize + x.regs r5) :=
-    fits_of_le_outBase hw (by omega)
-  have hf_t : Fits w (inp.trieBase + (x.regs rState * inp.alphabetSize + x.regs r5)) :=
-    fits_of_le_outBase hw (by omega)
+  obtain ⟨hf_m, hf_a, hf_t⟩ := fits_matrix_cell (base := inp.trieBase) hw hu ha (by lia)
   have ht_read : x.mem (inp.trieBase + (x.regs rState * inp.alphabetSize + x.regs r5)) =
       T.trie (x.regs rState) (x.regs r5) := by
     rw [← Nat.add_assoc]; exact hM.trie_cell _ hu _ ha
@@ -180,13 +176,9 @@ theorem exec_stepCode (inp : Input) (w : ℕ) (hvalid : inp.Valid)
   set u' := inp.trie.trie u_ex a
   have hu'_lt : u' < inp.trie.numStates := hT.trie_lt u_ex hu_ex_lt a ha_lt
   have hu_ex_maxS : u_ex < inp.maxS := lt_of_lt_of_le hu_ex_lt hT_maxS
-  have hrm := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu_ex_maxS ha_lt
   have ht_read : x₂.mem (inp.trieBase + (u_ex * inp.alphabetSize + a)) = u' := by
     rw [hm2, hm1, ← Nat.add_assoc]; exact hM.trie_cell u_ex hu_ex_maxS a ha_lt
-  have hf_m : Fits w (u_ex * inp.alphabetSize) := fits_of_le_outBase hw (by omega)
-  have hf_a : Fits w (u_ex * inp.alphabetSize + a) := fits_of_le_outBase hw (by omega)
-  have hf_t : Fits w (inp.trieBase + (u_ex * inp.alphabetSize + a)) :=
-    fits_of_le_outBase hw (by omega)
+  obtain ⟨hf_m, hf_a, hf_t⟩ := fits_matrix_cell (base := inp.trieBase) hw hu_ex_maxS ha_lt (by lia)
   obtain ⟨y, he_fin, hsy, h1y, h2y, h3y, h5y, hmy⟩ :
       ∃ y, ExecWithin w (ram[
         r6 ← rState * sigma; r6 ← r6 + r5; r6 ← trieBase + r6; rState ← *r6 ]) x₂ y 4 ∧
