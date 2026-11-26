@@ -49,10 +49,10 @@ Saturation is not a rule of cutting planes, so proofs using it are excluded.
 
 **Sizes.** The translation derives each constraint of the database once, as a line that later
 steps reference again: a cutting planes proof is a list of lines whose premises are any earlier
-lines (`Cslib.Logic.PL.VeriPB.Reach`). A proof with `m` operations on the constraints `F` gives a
-refutation with at most `16 (|S| + 1) (|F| + m + 1)` lines, when the variables of `F` and of the
-literal axioms of the proof are in `S` (`Cslib.Logic.PL.VeriPB.refutableInSize_of_check`). The
-factor `|S| + 1` bounds the number of terms of a normalized constraint: rounding-up division,
+lines (`Cslib.Logic.PL.CuttingPlanes.IsProof`). A proof with `m` operations on the constraints `F`
+gives a refutation with at most `16 (|S| + 1) (|F| + m + 1)` lines, when the variables of `F` and
+of the literal axioms of the proof are in `S` (`Cslib.Logic.PL.VeriPB.refutableInSize_of_check`).
+The factor `|S| + 1` bounds the number of terms of a normalized constraint: rounding-up division,
 weakening, a normalization that clamps the degree at `0`, and the final contradiction each add a
 literal axiom per term. It cannot be dropped: no bound in `|F|`, the number of steps and the number
 of operations alone exists (`Cslib.Logic.PL.VeriPB.not_exists_refutableInSize_of_check`). The
@@ -64,8 +64,9 @@ while every cutting planes refutation of it uses each axiom `-xᵥ ≥ -1` for `
 
 * `Cslib.Logic.PL.PBConstr.toIneq`: a constraint as an inequality.
 * `Cslib.Logic.PL.VeriPB.Step.IsCP`: a `pol` step without saturation, or a deletion.
-* `Cslib.Logic.PL.VeriPB.opCount`: the number of `pol` operations of a list of steps.
-* `Cslib.Logic.PL.VeriPB.Reach`: extending a cutting planes proof by at most `k` lines.
+* `Cslib.Logic.PL.VeriPB.Step.opCount`, `Cslib.Logic.PL.VeriPB.opCount`: the number of `pol`
+  operations of a step and of a list of steps.
+* `Cslib.Logic.PL.VeriPB.wideContra`: the constraint `x₀ + ⋯ + x_{w-1} ≥ w + 1`.
 
 ## Main results
 
@@ -77,6 +78,9 @@ while every cutting planes refutation of it uses each axiom `-xᵥ ≥ -1` for `
 * `Cslib.Logic.PL.VeriPB.refutableInSize_of_check`,
   `Cslib.Logic.PL.VeriPB.exists_isProof_contra_of_check`: a checked proof of `UNSAT` made of
   such steps gives a cutting planes refutation, with at most `16 (|S| + 1) (|F| + m + 1)` lines.
+* `Cslib.Logic.PL.VeriPB.check_wideContra`,
+  `Cslib.Logic.PL.VeriPB.le_of_refutableInSize_wideContra`: the kernel refutes `wideContra w` with
+  no steps, cutting planes need at least `w` lines.
 * `Cslib.Logic.PL.VeriPB.not_exists_refutableInSize_of_check`: no line count in the number of
   constraints, steps and operations alone.
 * `Cslib.Logic.PL.VeriPB.exists_isProof_contra_of_check_cnf`: the same for the clauses of a CNF.
@@ -87,6 +91,34 @@ public section
 namespace Cslib.Logic.PL
 
 open Ineq PBConstr
+
+/-! ### Operation counts -/
+
+namespace VeriPB
+
+mutual
+
+/-- The number of operations of a step: those of a `pol` step, and those of the steps of a `pbc`
+subproof. -/
+@[expose] def Step.opCount : Step → ℕ
+  | .pol ops => ops.length
+  | .pbc _ sub _ => VeriPB.opCount sub
+  | _ => 0
+
+/-- The number of `pol` operations of a list of steps, including those of `pbc` subproofs
+(`Cslib.Logic.PL.VeriPB.Step.opCount`). -/
+@[expose] def opCount : List Step → ℕ
+  | [] => 0
+  | s :: ss => s.opCount + VeriPB.opCount ss
+
+end
+
+@[simp] theorem opCount_nil : opCount [] = 0 := rfl
+
+@[simp] theorem opCount_cons (s : Step) (ss : List Step) :
+    opCount (s :: ss) = s.opCount + opCount ss := rfl
+
+end VeriPB
 
 noncomputable section
 
@@ -428,7 +460,7 @@ open CuttingPlanes
 the property `p`: `ls` is a suffix of `ls'`. The lines of `ls` stay lines of `ls'`, so a line is
 derived once and referenced again at no cost, as the premises of
 `Cslib.Logic.PL.CuttingPlanes.IsProof` are any earlier lines. -/
-@[expose] def Reach (Γ : Set (Ineq ℕ)) (ls : List (Ineq ℕ)) (k : ℕ)
+private def Reach (Γ : Set (Ineq ℕ)) (ls : List (Ineq ℕ)) (k : ℕ)
     (p : List (Ineq ℕ) → Prop) : Prop :=
   ∃ ls', IsProof Γ ls' ∧ ls <:+ ls' ∧ ls'.length ≤ ls.length + k ∧ p ls'
 
@@ -480,14 +512,14 @@ theorem filter_not_bne (v : ℕ) (ts : List (ℕ × Literal ℕ)) :
 
 namespace Reach
 
-theorem refl (h : IsProof Γ ls) (hp : p ls) : Reach Γ ls k p :=
+private theorem refl (h : IsProof Γ ls) (hp : p ls) : Reach Γ ls k p :=
   ⟨ls, h, List.suffix_refl ls, Nat.le_add_right _ _, hp⟩
 
-theorem le (h : Reach Γ ls k p) (hk : k ≤ k') : Reach Γ ls k' p :=
+private theorem le (h : Reach Γ ls k p) (hk : k ≤ k') : Reach Γ ls k' p :=
   let ⟨ls', h', hs, hl, hp⟩ := h
   ⟨ls', h', hs, hl.trans (Nat.add_le_add_left hk _), hp⟩
 
-theorem bind (h : Reach Γ ls k p)
+private theorem bind (h : Reach Γ ls k p)
     (f : ∀ ls', IsProof Γ ls' → ls <:+ ls' → p ls' → Reach Γ ls' k' q) :
     Reach Γ ls (k + k') q := by
   obtain ⟨ls₁, h₁, hs₁, hl₁, hp₁⟩ := h
@@ -495,41 +527,42 @@ theorem bind (h : Reach Γ ls k p)
   exact ⟨ls₂, h₂, hs₁.trans hs₂, by omega, hq₂⟩
 
 /-- New lines on top of `ls`. -/
-theorem append (new : List (Ineq ℕ)) (h : IsProof Γ (new ++ ls)) (hk : new.length ≤ k)
+private theorem append (new : List (Ineq ℕ)) (h : IsProof Γ (new ++ ls)) (hk : new.length ≤ k)
     (hp : p (new ++ ls)) : Reach Γ ls k p :=
   ⟨_, h, List.suffix_append new ls, by rw [List.length_append]; omega, hp⟩
 
-theorem of_eq (h : Reach Γ ls k (I ∈ ·)) (hIJ : I = J) : Reach Γ ls k (J ∈ ·) := hIJ ▸ h
+private theorem of_eq (h : Reach Γ ls k (I ∈ ·)) (hIJ : I = J) : Reach Γ ls k (J ∈ ·) := hIJ ▸ h
 
 /-! #### The rules of cutting planes -/
 
-theorem hyp (h : IsProof Γ ls) (hI : I ∈ Γ) : Reach Γ ls 1 (I ∈ ·) :=
+private theorem hyp (h : IsProof Γ ls) (hI : I ∈ Γ) : Reach Γ ls 1 (I ∈ ·) :=
   append [I] (h.hyp hI) le_rfl List.mem_cons_self
 
-theorem add (h : IsProof Γ ls) (hI : I ∈ ls) (hJ : J ∈ ls) : Reach Γ ls 1 (I + J ∈ ·) :=
+private theorem add (h : IsProof Γ ls) (hI : I ∈ ls) (hJ : J ∈ ls) : Reach Γ ls 1 (I + J ∈ ·) :=
   append [_] (h.add hI hJ) le_rfl List.mem_cons_self
 
-theorem smul (h : IsProof Γ ls) {c : ℕ} (hc : 0 < c) (hI : I ∈ ls) : Reach Γ ls 1 (c • I ∈ ·) :=
+private theorem smul (h : IsProof Γ ls) {c : ℕ} (hc : 0 < c) (hI : I ∈ ls) :
+    Reach Γ ls 1 (c • I ∈ ·) :=
   append [_] (h.smul c hc hI) le_rfl List.mem_cons_self
 
-theorem div (h : IsProof Γ ls) {c : ℕ} (hc : 0 < c) (hdvd : ∀ v, (c : ℤ) ∣ I.coeff v)
+private theorem div (h : IsProof Γ ls) {c : ℕ} (hc : 0 < c) (hdvd : ∀ v, (c : ℤ) ∣ I.coeff v)
     (hI : I ∈ ls) : Reach Γ ls 1 (I.div c ∈ ·) :=
   append [_] (h.div c hc hdvd hI) le_rfl List.mem_cons_self
 
 /-- `0 ≥ -1`, in three lines. -/
-theorem negContra (h : IsProof Γ ls) : Reach Γ ls 3 (-Ineq.contra ∈ ·) := by
+private theorem negContra (h : IsProof Γ ls) : Reach Γ ls 3 (-Ineq.contra ∈ ·) := by
   have h' := ((h.nonneg 0).leOne 0).add (I := Ineq.nonneg 0) (J := Ineq.leOne 0)
     (by simp) (by simp)
   rw [Ineq.nonneg_add_leOne] at h'
   exact append [_, _, _] h' le_rfl List.mem_cons_self
 
-theorem div_neg_contra_two : (-Ineq.contra : Ineq ℕ).div 2 = 0 :=
+private theorem div_neg_contra_two : (-Ineq.contra : Ineq ℕ).div 2 = 0 :=
   Ineq.div_eq_of Nat.zero_lt_two
     (by simp only [coeff_neg, coeff_contra, coeff_zero, smul_zero, neg_zero])
     (by simp only [bound_neg, bound_contra, bound_zero]; decide) (by decide)
 
 /-- `0 ≥ 0`, in four lines. -/
-theorem zero (h : IsProof Γ ls) : Reach Γ ls 4 ((0 : Ineq ℕ) ∈ ·) := by
+private theorem zero (h : IsProof Γ ls) : Reach Γ ls 4 ((0 : Ineq ℕ) ∈ ·) := by
   have h₁ := ((h.nonneg 0).leOne 0).add (I := Ineq.nonneg 0) (J := Ineq.leOne 0)
     (by simp) (by simp)
   rw [Ineq.nonneg_add_leOne] at h₁
@@ -538,7 +571,8 @@ theorem zero (h : IsProof Γ ls) : Reach Γ ls 4 ((0 : Ineq ℕ) ∈ ·) := by
   exact append [_, _, _, _] h₂ le_rfl List.mem_cons_self
 
 /-- **Lowering the bound**, in five lines. -/
-theorem lower (h : IsProof Γ ls) (hI : I ∈ ls) (hc : J.coeff = I.coeff) (hb : J.bound ≤ I.bound) :
+private theorem lower (h : IsProof Γ ls) (hI : I ∈ ls) (hc : J.coeff = I.coeff)
+    (hb : J.bound ≤ I.bound) :
     Reach Γ ls 5 (J ∈ ·) := by
   obtain ⟨k, hk⟩ : ∃ k : ℕ, I.bound = J.bound + k := ⟨(I.bound - J.bound).toNat, by omega⟩
   rcases Nat.eq_zero_or_pos k with rfl | hk0
@@ -555,7 +589,7 @@ theorem lower (h : IsProof Γ ls) (hI : I ∈ ls) (hc : J.coeff = I.coeff) (hb :
 /-! #### Constraints -/
 
 /-- The inequality of a term, in at most four lines. -/
-theorem term (h : IsProof Γ ls) (t : ℕ × Literal ℕ) : Reach Γ ls 4 (termIneq t ∈ ·) := by
+private theorem term (h : IsProof Γ ls) (t : ℕ × Literal ℕ) : Reach Γ ls 4 (termIneq t ∈ ·) := by
   obtain ⟨a, v, b⟩ := t
   rcases Nat.eq_zero_or_pos a with rfl | ha
   · exact (zero h).of_eq (by simp only [PBConstr.termIneq, zero_smul])
@@ -565,7 +599,7 @@ theorem term (h : IsProof Γ ls) (t : ℕ × Literal ℕ) : Reach Γ ls 4 (termI
     exact append [_, _] h' (by simp) List.mem_cons_self
 
 /-- **A constraint of degree `0` is a sum of literal axioms**: at most five lines per term. -/
-theorem degreeZero (h : IsProof Γ ls) :
+private theorem degreeZero (h : IsProof Γ ls) :
     ∀ ts : List (ℕ × Literal ℕ), Reach Γ ls (5 * ts.length + 4) ((⟨ts, 0⟩ : PBConstr).toIneq ∈ ·)
   | [] => (zero h).of_eq (by ext <;>
       simp only [PBConstr.toIneq, List.map_nil, List.sum_nil, zero_add, coeff_zero, bound_zero,
@@ -576,7 +610,7 @@ theorem degreeZero (h : IsProof Γ ls) :
     simp only [PBConstr.toIneq, List.map_cons, List.sum_cons, add_assoc]
 
 /-- **Normalization**, in at most five lines per term of the normal form, plus five. -/
-theorem normalize (h : IsProof Γ ls) {c : PBConstr} (hc : c.toIneq ∈ ls) :
+private theorem normalize (h : IsProof Γ ls) {c : PBConstr} (hc : c.toIneq ∈ ls) :
     Reach Γ ls (5 * c.normalize.terms.length + 5) (c.normalize.toIneq ∈ ·) := by
   by_cases hd : c.normalize.degree = 0
   · have e : (⟨c.normalize.terms, 0⟩ : PBConstr) = c.normalize := by rw [← hd]
@@ -588,7 +622,8 @@ theorem normalize (h : IsProof Γ ls) {c : PBConstr} (hc : c.toIneq ∈ ls) :
     omega
 
 /-- Addition, then normalization. -/
-theorem pbAdd (h : IsProof Γ ls) {c d : PBConstr} (hc : c.toIneq ∈ ls) (hd : d.toIneq ∈ ls) :
+private theorem pbAdd (h : IsProof Γ ls) {c d : PBConstr} (hc : c.toIneq ∈ ls)
+    (hd : d.toIneq ∈ ls) :
     Reach Γ ls (5 * (c.add d).terms.length + 6) ((c.add d).toIneq ∈ ·) :=
   ((add h hc hd).bind fun _ h₁ _ hs =>
     (normalize h₁ (c := ⟨c.terms ++ d.terms, c.degree + d.degree⟩) (by rwa [toIneq_append]) :
@@ -598,7 +633,7 @@ theorem pbAdd (h : IsProof Γ ls) {c d : PBConstr} (hc : c.toIneq ∈ ls) (hd : 
     omega)
 
 /-- Multiplication by a positive `k`, then normalization. -/
-theorem pbMul (h : IsProof Γ ls) {c : PBConstr} (hc : c.toIneq ∈ ls) {k : ℕ} (hk : 0 < k) :
+private theorem pbMul (h : IsProof Γ ls) {c : PBConstr} (hc : c.toIneq ∈ ls) {k : ℕ} (hk : 0 < k) :
     Reach Γ ls (5 * (c.mul k).terms.length + 6) ((c.mul k).toIneq ∈ ·) :=
   ((smul h hk hc).bind fun _ h₁ _ hs =>
     (normalize h₁ (c := ⟨c.terms.map fun t => (k * t.1, t.2), k * c.degree⟩)
@@ -610,7 +645,7 @@ theorem pbMul (h : IsProof Γ ls) {c : PBConstr} (hc : c.toIneq ∈ ls) {k : ℕ
 
 /-- Rounding-up division by a positive `k`: normalize, add the literal axioms
 `(k ⌈aᵢ / k⌉ - aᵢ) • ℓᵢ ≥ 0`, divide, and normalize. -/
-theorem pbDiv (h : IsProof Γ ls) {c : PBConstr} (hc : c.toIneq ∈ ls) {k : ℕ} (hk : 0 < k) :
+private theorem pbDiv (h : IsProof Γ ls) {c : PBConstr} (hc : c.toIneq ∈ ls) {k : ℕ} (hk : 0 < k) :
     Reach Γ ls (10 * c.normalize.terms.length + 5 * (c.div k).terms.length + 16)
       ((c.div k).toIneq ∈ ·) := by
   simp only [PBConstr.div]
@@ -646,7 +681,7 @@ theorem pbDiv (h : IsProof Γ ls) {c : PBConstr} (hc : c.toIneq ∈ ls) {k : ℕ
   exact dvd_mul_right _ _
 
 /-- Weakening on `v`: normalize, add `aᵢ • ¬ℓᵢ ≥ 0` for the terms on `v`, and normalize. -/
-theorem pbWeaken (h : IsProof Γ ls) {c : PBConstr} (hc : c.toIneq ∈ ls) (v : ℕ) :
+private theorem pbWeaken (h : IsProof Γ ls) {c : PBConstr} (hc : c.toIneq ∈ ls) (v : ℕ) :
     Reach Γ ls (10 * c.normalize.terms.length + 5 * (c.weaken v).terms.length + 15)
       ((c.weaken v).toIneq ∈ ·) := by
   simp only [PBConstr.weaken]
@@ -679,7 +714,8 @@ theorem pbWeaken (h : IsProof Γ ls) {c : PBConstr} (hc : c.toIneq ∈ ls) (v : 
     exact (degreeZero h₁ _).le (by omega)
 
 /-- **A contradiction gives `0 ≥ 1`**, in at most five lines per term, plus ten. -/
-theorem contra (h : IsProof Γ ls) {c : PBConstr} (hc : c.toIneq ∈ ls) (hcon : c.IsContradiction) :
+private theorem contra (h : IsProof Γ ls) {c : PBConstr} (hc : c.toIneq ∈ ls)
+    (hcon : c.IsContradiction) :
     Reach Γ ls (5 * c.terms.length + 10) (Ineq.contra ∈ ·) := by
   have hneg := negSum_add_negSum_negate c.terms
   unfold IsContradiction at hcon
@@ -693,7 +729,8 @@ theorem contra (h : IsProof Γ ls) {c : PBConstr} (hc : c.toIneq ∈ ls) (hcon :
     omega
 
 /-- A literal axiom, in nine lines. -/
-theorem litAxiom (h : IsProof Γ ls) (l : Literal ℕ) : Reach Γ ls 9 ((litAxiom l).toIneq ∈ ·) :=
+private theorem litAxiom (h : IsProof Γ ls) (l : Literal ℕ) :
+    Reach Γ ls 9 ((litAxiom l).toIneq ∈ ·) :=
   degreeZero h [(1, l)]
 
 end Reach
@@ -701,12 +738,12 @@ end Reach
 /-! #### Widths -/
 
 /-- The terms of `c` are on variables of `S`, and there are at most `|S|` of them. -/
-@[expose] def Fits (S : Finset ℕ) (c : PBConstr) : Prop :=
+private def Fits (S : Finset ℕ) (c : PBConstr) : Prop :=
   (∀ t ∈ c.terms, termVar t ∈ S) ∧ c.terms.length ≤ S.card
 
 /-- **A normal form on the variables of `S` has at most `|S|` terms**: its variables are those of
 the constraint with a nonzero coefficient, each once. -/
-theorem fits_normalize {S : Finset ℕ} {c : PBConstr} (h : ∀ t ∈ c.terms, termVar t ∈ S) :
+private theorem fits_normalize {S : Finset ℕ} {c : PBConstr} (h : ∀ t ∈ c.terms, termVar t ∈ S) :
     Fits S c.normalize := by
   have hnd := nodup_termVar_normalize c
   have hvar : ∀ t ∈ c.normalize.terms, termVar t ∈ S := by
@@ -739,24 +776,10 @@ theorem fits_normalize {S : Finset ℕ} {c : PBConstr} (h : ∀ t ∈ c.terms, t
   | .del _ => true
   | _ => false
 
-/-- The number of operations of a `pol` step, and `0` for other steps. -/
-@[expose] def Step.opCount : Step → ℕ
-  | .pol ops => ops.length
-  | _ => 0
-
-/-- The number of `pol` operations of a list of steps. -/
-@[expose] def opCount (ss : List Step) : ℕ := (ss.map Step.opCount).sum
-
-@[simp] theorem opCount_nil : opCount [] = 0 := rfl
-
-@[simp] theorem opCount_cons (s : Step) (ss : List Step) :
-    opCount (s :: ss) = s.opCount + opCount ss := by
-  simp only [opCount, List.map_cons, List.sum_cons]
-
 /-- **The operations of a `pol` step derive their constraints** in at most `16 (|S| + 1)` lines
 each, when the literal axioms are on variables of `S` and the constraints of the database and of
 the stack fit `S`. -/
-theorem polEval_reach {S : Finset ℕ} {db : List (ℕ × PBConstr)} :
+private theorem polEval_reach {S : Finset ℕ} {db : List (ℕ × PBConstr)} :
     ∀ (ops : List PolOp) (st st' : List PBConstr) (ls : List (Ineq ℕ)), IsProof Γ ls →
       ops.all PolOp.IsCP → (∀ l, PolOp.lit l ∈ ops → l.1 ∈ S) →
       (∀ e ∈ db, e.2.toIneq ∈ ls ∧ Fits S e.2) → (∀ c ∈ st, c.toIneq ∈ ls ∧ Fits S c) →
@@ -833,8 +856,9 @@ theorem polEval_reach {S : Finset ℕ} {db : List (ℕ × PBConstr)} :
         exact step (by have := hf.2; have := hn.2; omega) (Reach.pbWeaken hls hst.1.1 v) hf hst.2 h
 
 /-- **The steps derive the database**, in at most `16 (|S| + 1)` lines per operation. -/
-theorem runSteps_reach {S : Finset ℕ} : ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (ss : List Step)
-    (db' : List (ℕ × PBConstr)) (n' : ℕ) (ls : List (Ineq ℕ)), IsProof Γ ls →
+private theorem runSteps_reach {S : Finset ℕ} :
+    ∀ (db : List (ℕ × PBConstr)) (n : ℕ) (ss : List Step) (db' : List (ℕ × PBConstr)) (n' : ℕ)
+    (ls : List (Ineq ℕ)), IsProof Γ ls →
     ss.all Step.IsCP → (∀ ops, Step.pol ops ∈ ss → ∀ l, PolOp.lit l ∈ ops → l.1 ∈ S) →
     (∀ e ∈ db, e.2.toIneq ∈ ls ∧ Fits S e.2) → runSteps db n ss = some (db', n') →
     Reach Γ ls (16 * (S.card + 1) * opCount ss) fun ls' => ∀ e ∈ db', e.2.toIneq ∈ ls' ∧ Fits S e.2
@@ -874,7 +898,7 @@ theorem runSteps_reach {S : Finset ℕ} : ∀ (db : List (ℕ × PBConstr)) (n :
     · cases h
 
 /-- The hypotheses `F`, normalized, in at most `5 |S| + 6` lines each. -/
-theorem reach_normalize_hyps {S : Finset ℕ} :
+private theorem reach_normalize_hyps {S : Finset ℕ} :
     ∀ (F : List PBConstr), (∀ c ∈ F, c.toIneq ∈ Γ) → (∀ c ∈ F, ∀ t ∈ c.terms, termVar t ∈ S) →
     ∀ {ls : List (Ineq ℕ)}, IsProof Γ ls →
       Reach Γ ls ((5 * S.card + 6) * F.length)
@@ -960,7 +984,7 @@ theorem exists_isProof_contra_of_check_cnf {φ : CNF ℕ} {P : Proof}
 /-- The constraint `x₀ + ⋯ + x_{w-1} ≥ w + 1`, a contradiction on `w` variables. -/
 @[expose] def wideContra (w : ℕ) : PBConstr := ⟨(List.range w).map fun j => (1, (j, true)), w + 1⟩
 
-theorem nodup_termVar_wideContra (w : ℕ) : ((wideContra w).terms.map termVar).Nodup := by
+private theorem nodup_termVar_wideContra (w : ℕ) : ((wideContra w).terms.map termVar).Nodup := by
   simpa [wideContra, List.map_map, Function.comp_def] using List.nodup_range
 
 /-- **The kernel checker refutes `x₀ + ⋯ + x_{w-1} ≥ w + 1` with no steps**: the conclusion names

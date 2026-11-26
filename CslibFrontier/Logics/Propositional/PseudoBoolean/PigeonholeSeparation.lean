@@ -77,7 +77,7 @@ theorem exists_check_pigeonhole {m n : ℕ} (h : n < m) {f : Fin m × Fin n → 
     ∃ P : Proof, check (((pigeonhole m n).relabel f).map Clause.toPB) P = true ∧
       P.steps.length ≤ (n + 1) * (m + 1) ^ 2 ∧ P.steps.all Step.IsCP ∧
       ∀ s ∈ P.steps, ∃ ops, s = .pol ops ∧ ops.length ≤ 3 := by
-  obtain ⟨P, hP, hlen, hcp, ann, hann⟩ := exists_check_cnf_of_refutableInSize
+  obtain ⟨P, hP, hlen, -, hcp, ann, hann⟩ := exists_check_cnf_of_refutableInSize
     (toIneqs_relabel hf (pigeonhole m n) ▸ (refutableInSize_pigeonhole h).relabel f)
   refine ⟨P, hP, hlen, hcp, fun s hs => ?_⟩
   rw [hann, List.mem_map] at hs

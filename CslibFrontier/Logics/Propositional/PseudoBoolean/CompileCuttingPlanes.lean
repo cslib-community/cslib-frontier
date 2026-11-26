@@ -48,16 +48,15 @@ operations without saturation. With `Cslib.Logic.PL.VeriPB.exists_isProof_contra
 `pol` fragment of VeriPB without saturation and cutting planes refute the same sets
 (`Cslib.Logic.PL.VeriPB.exists_check_iff_exists_refutableInSize`).
 
-**Sizes.** A refutation with `s` lines compiles into at most `s` steps and `3 s` operations.
+**Sizes.** A refutation with `s` lines compiles into at most `s` steps and `3 s` operations
+(`Cslib.Logic.PL.VeriPB.exists_check_of_refutableInSize`).
 Conversely, a checked proof with `m` operations on constraints `F` whose variables, and those of its
 literal axioms, are in `S` gives a refutation with at most `16 (|S| + 1) (|F| + m + 1)` lines
 (`Cslib.Logic.PL.VeriPB.refutableInSize_of_check`). This is linear in `|F| + m` for a fixed number
 of variables. The factor `|S| + 1` is needed: a rounding-up division, a weakening, a normalization
 whose degree is clamped at `0`, or the final contradiction adds a literal axiom for every term, and
 no bound in the number of constraints, steps and operations alone exists
-(`Cslib.Logic.PL.VeriPB.not_exists_refutableInSize_of_check`). Both bounds are in
-`Cslib.Logic.PL.VeriPB.exists_check_and_refutableInSize_sizes`. Coefficient sizes are not
-measured.
+(`Cslib.Logic.PL.VeriPB.not_exists_refutableInSize_of_check`). Coefficient sizes are not measured.
 
 ## Main definitions
 
@@ -71,12 +70,10 @@ measured.
 * `Cslib.Logic.PL.VeriPB.exists_runSteps_of_isProof`: cutting planes proofs from a database
   compile into accepted `pol` steps, one per line.
 * `Cslib.Logic.PL.VeriPB.exists_check_of_refutableInSize`: refutations compile into checked
-  proofs of `UNSAT`, with as many steps as lines.
+  proofs of `UNSAT`, with as many steps as lines and three operations per line.
 * `Cslib.Logic.PL.VeriPB.exists_check_iff_exists_refutableInSize`,
   `Cslib.Logic.PL.VeriPB.exists_check_cnf_iff_exists_refutableInSize`: the `pol` fragment without
   saturation and cutting planes refute the same sets.
-* `Cslib.Logic.PL.VeriPB.exists_check_and_refutableInSize_sizes`: with sizes related linearly up to
-  the factor `|S| + 1` for constraints on the variables `S`.
 -/
 
 public section
@@ -377,15 +374,27 @@ theorem exists_runSteps_of_isProof {Γ : Set (Ineq ℕ)} {db : List (ℕ × PBCo
     exact Compiled.cons ann E hlen hrun hE hls (.div (k' + 1) p) _ rfl _
       (by simp only [polEval, hc, Option.bind_some]) (hcI.1.represents_div hk hdvd)
 
+/-- **At most three operations per line**: the compiled steps of `ann` have at most
+`3 |ann|` operations. -/
+theorem opCount_map_toStep_le (n : ℕ) :
+    ∀ ann : List CPLine, opCount (ann.map (CPLine.toStep n)) ≤ 3 * ann.length
+  | [] => by simp
+  | l :: ann => by
+    obtain ⟨ops, hops, hlen, -⟩ := l.exists_toStep_eq_pol n
+    have := opCount_map_toStep_le n ann
+    simp only [List.map_cons, opCount_cons, hops, Step.opCount, List.length_cons]
+    omega
+
 /-! ### Refutations -/
 
 /-- **Cutting planes refutations compile into checked VeriPB proofs.** A cutting planes refutation
 of the inequalities of the constraints `F` with at most `s` lines gives a proof that the checker
-accepts on `F`, with at most `s` steps, each the `pol` step of a line
+accepts on `F`, with at most `s` steps and `3 s` operations, each step the `pol` step of a line
 (`Cslib.Logic.PL.VeriPB.CPLine.toStep`): at most three operations, without saturation. -/
 theorem exists_check_of_refutableInSize {F : List PBConstr} {s : ℕ}
     (h : RefutableInSize {I | ∃ c ∈ F, c.toIneq = I} s) :
-    ∃ P : Proof, check F P = true ∧ P.steps.length ≤ s ∧ P.steps.all Step.IsCP ∧
+    ∃ P : Proof, check F P = true ∧ P.steps.length ≤ s ∧ opCount P.steps ≤ 3 * s ∧
+      P.steps.all Step.IsCP ∧
       ∃ ann : List CPLine, P.steps = ann.map (CPLine.toStep (F.length + 1)) := by
   obtain ⟨ls, hls, hcontra, hlen⟩ := h
   have hid := idOk_initDb F
@@ -397,71 +406,35 @@ theorem exists_check_of_refutableInSize {F : List PBConstr} {s : ℕ}
       hid.lookup_eq (List.mem_map_of_mem (f := fun e => (e.2 + 1, e.1.normalize)) hj),
       (dominates_toIneq c').normalize⟩) hls
   obtain ⟨p, c, hc, hcI⟩ := exists_lookup_of_mem hrep hcontra
+  have hops := opCount_map_toStep_le (F.length + 1) ann
   refine ⟨⟨ann.map (CPLine.toStep (F.length + 1)), F.length + 1 + p⟩, ?_,
-    by simpa [hann] using hlen, by simp [CPLine.isCP_toStep], ann, rfl⟩
+    by simpa [hann] using hlen, (by dsimp only; omega), by simp [CPLine.isCP_toStep], ann, rfl⟩
   simp only [check, hrun, namesContra, hc, Option.any_some, decide_eq_true_eq]
   exact hcI.isContradiction
 
 /-- **Cutting planes refutations of CNFs compile into checked VeriPB proofs**: a cutting planes
 refutation of `φ.toIneqs` with at most `s` lines gives a proof that the checker accepts on the
-clauses of `φ`, with at most `s` steps, each the `pol` step of a line. -/
+clauses of `φ`, with at most `s` steps and `3 s` operations, each step the `pol` step of a line. -/
 theorem exists_check_cnf_of_refutableInSize {φ : CNF ℕ} {s : ℕ}
     (h : RefutableInSize φ.toIneqs s) :
     ∃ P : Proof, check (φ.map Clause.toPB) P = true ∧ P.steps.length ≤ s ∧
-      P.steps.all Step.IsCP ∧
+      opCount P.steps ≤ 3 * s ∧ P.steps.all Step.IsCP ∧
       ∃ ann : List CPLine, P.steps = ann.map (CPLine.toStep ((φ.map Clause.toPB).length + 1)) :=
   exists_check_of_refutableInSize (CNF.toIneqs_eq_toPB φ ▸ h)
 
 /-- **The `pol` fragment of VeriPB without saturation and cutting planes refute the same sets.** The
 constraints `F` have a checked proof of `UNSAT` made of `pol` steps without saturation and of
 deletions iff the inequalities of `F` have a cutting planes refutation. A refutation with `s` lines
-gives a proof with at most `s` steps (`Cslib.Logic.PL.VeriPB.exists_check_of_refutableInSize`).
-The sizes in both directions are in `Cslib.Logic.PL.VeriPB.exists_check_and_refutableInSize_sizes`.
--/
+gives a proof with at most `s` steps and `3 s` operations
+(`Cslib.Logic.PL.VeriPB.exists_check_of_refutableInSize`). Conversely, a proof with `m` operations
+on constraints `F` over the variables `S` gives a refutation with at most
+`16 (|S| + 1) (|F| + m + 1)` lines (`Cslib.Logic.PL.VeriPB.refutableInSize_of_check`). -/
 theorem exists_check_iff_exists_refutableInSize {F : List PBConstr} :
     (∃ P : Proof, check F P = true ∧ P.steps.all Step.IsCP) ↔
       ∃ s, RefutableInSize {I | ∃ c ∈ F, c.toIneq = I} s :=
   ⟨fun ⟨_, h, hP⟩ => exists_isProof_contra_of_check h hP, fun ⟨_, h⟩ =>
-    let ⟨P, hP, _, hcp, _⟩ := exists_check_of_refutableInSize h
+    let ⟨P, hP, _, _, hcp, _⟩ := exists_check_of_refutableInSize h
     ⟨P, hP, hcp⟩⟩
-
-private theorem opCount_map_toStep_le (n : ℕ) :
-    ∀ ann : List CPLine, opCount (ann.map (CPLine.toStep n)) ≤ 3 * ann.length
-  | [] => by simp
-  | l :: ann => by
-    obtain ⟨ops, hops, hlen, -⟩ := l.exists_toStep_eq_pol n
-    have := opCount_map_toStep_le n ann
-    simp only [List.map_cons, opCount_cons, hops, Step.opCount, List.length_cons]
-    omega
-
-/-- **The sizes of the two translations.** Let the constraints `F` be on the variables of `S`.
-
-* A cutting planes refutation of the inequalities of `F` with at most `s` lines gives a proof that
-  the checker accepts on `F`, made of `pol` steps without saturation, with at most `s` steps and
-  `3 s` operations.
-* A proof that the checker accepts on `F` with `m` operations, made of `pol` steps without
-  saturation and of deletions, whose literal axioms are on variables of `S`, gives a cutting
-  planes refutation with at most `16 (|S| + 1) (|F| + m + 1)` lines.
-
-So the `pol` fragment without saturation and cutting planes refute the same sets with sizes
-related linearly for a fixed number of variables. The factor `|S| + 1` in the second bound cannot
-be dropped (`Cslib.Logic.PL.VeriPB.not_exists_refutableInSize_of_check`). Coefficient sizes are not
-measured. -/
-theorem exists_check_and_refutableInSize_sizes {F : List PBConstr} {S : Finset ℕ}
-    (hF : ∀ c ∈ F, ∀ t ∈ c.terms, termVar t ∈ S) :
-    (∀ s, RefutableInSize {I | ∃ c ∈ F, c.toIneq = I} s → ∃ P : Proof, check F P = true ∧
-      P.steps.all Step.IsCP ∧ P.steps.length ≤ s ∧ opCount P.steps ≤ 3 * s) ∧
-    ∀ P : Proof, check F P = true → P.steps.all Step.IsCP →
-      (∀ ops, Step.pol ops ∈ P.steps → ∀ l, PolOp.lit l ∈ ops → l.1 ∈ S) →
-      RefutableInSize {I | ∃ c ∈ F, c.toIneq = I}
-        (16 * (S.card + 1) * (F.length + opCount P.steps + 1)) := by
-  refine ⟨fun s h => ?_, fun P hP hcp hS => refutableInSize_of_check hP hcp hF hS⟩
-  obtain ⟨P, hP, hlen, hcp, ann, hann⟩ := exists_check_of_refutableInSize h
-  refine ⟨P, hP, hcp, hlen, ?_⟩
-  have := opCount_map_toStep_le (F.length + 1) ann
-  have hl : P.steps.length = ann.length := by rw [hann, List.length_map]
-  rw [hann]
-  omega
 
 /-- **The same for CNFs**: the clauses of `φ` have a checked proof of `UNSAT` made of `pol` steps
 without saturation and of deletions iff their cutting planes inequalities `φ.toIneqs` have a
