@@ -472,13 +472,13 @@ example (p q : Prop) (_hpq : p → q) (_hnq : ¬q) : (p → q) → ¬q → ¬p :
 
 /-- Terms are premises like the hypotheses: here an instance of the universally quantified `h`,
 which is an atom as a hypothesis, and of the lemma `Nat.le_total`. -/
-theorem terms_used (f : ℕ → ℕ) (h : ∀ a, f a = 0 ∨ f a = 1) (a x y : ℕ) (hne : f a ≠ 0)
+private theorem terms_used (f : ℕ → ℕ) (h : ∀ a, f a = 0 ∨ f a = 1) (a x y : ℕ) (hne : f a ≠ 0)
     (hxy : ¬x ≤ y) : f a = 1 ∧ y ≤ x := by
   fail_if_success lrat_tauto
   lrat_tauto [h a, Nat.le_total x y]
 
 /-- Terms that the certificate does not need are dropped with the unused hypotheses. -/
-theorem terms_dropped (p q : ℕ → Prop) (h : ∀ n, p n → q n) (h₀ : p 0) : q 0 := by
+private theorem terms_dropped (p q : ℕ → Prop) (h : ∀ n, p n → q n) (h₀ : p 0) : q 0 := by
   lrat_tauto [Nat.le_total 0 1, h 0, Nat.lt_irrefl 2]
 
 -- The proof of `terms_used` cites both terms, that of `terms_dropped` neither of the unused ones.
@@ -507,6 +507,11 @@ for `Or.inl rfl` is `3 = 3 ∨ 3 ∈ {4}`, which is not the atom `3 ∈ {3, 4}` 
 transparency. -/
 example : 3 ∈ ({3, 4} : Set ℕ) ∨ False := by
   lrat_tauto [(Or.inl rfl : 3 ∈ ({3, 4} : Set ℕ))]
+
+/-- The ascribed type is elaborated as for `have h : T := t`: a hole in it may be filled by
+elaborating the term. -/
+example : 3 ∈ ({3, 4} : Set ℕ) ∨ False := by
+  lrat_tauto [(Or.inl rfl : _ ∈ ({3, 4} : Set ℕ))]
 
 /-- With `-hyps`, the terms are still premises. -/
 example (p q : Prop) (hp : p) (hpq : p → q) : q := by
@@ -563,6 +568,34 @@ error: lrat_tauto: the term `x` is not a proof of a proposition: its type is
 #guard_msgs in
 example (x : ℕ) (h : x = x) : x = x := by
   lrat_tauto [x]
+
+-- So is a type ascription that is not a proposition.
+/--
+error: lrat_tauto: the term `(x : ℕ)` is not a proof of a proposition: its type is
+  ℕ
+-/
+#guard_msgs in
+example (x : ℕ) (h : x = x) : x = x := by
+  lrat_tauto [(x : ℕ)]
+
+-- An ascription that is not a type is an elaboration error.
+/-- error: type expected, got -/
+#guard_msgs (substring := true) in
+example (x : ℕ) (h : x = x) : x = x := by
+  lrat_tauto [(h : x)]
+
+-- An ill-typed term is an error, not a premise elaborated with `sorry`, also for `lrat_tauto?`,
+-- which would otherwise discard the error with the rest of its state.
+/-- error: Application type mismatch -/
+#guard_msgs (substring := true) in
+example (p q : Prop) (h : ℕ → p → q) : p → q := by
+  lrat_tauto? [h "bad"]
+  exact h 0
+
+/-- error: Application type mismatch -/
+#guard_msgs (substring := true) in
+example (p q : Prop) (h : ℕ → p → q) (hp : p) : q := by
+  lrat_tauto [h "bad"]
 
 /-! ### Leaves closed by `rfl` and by a hypothesis -/
 

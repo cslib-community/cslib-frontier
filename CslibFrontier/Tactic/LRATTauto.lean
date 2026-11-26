@@ -80,7 +80,8 @@ premises are:
   other tactic runs on the atoms. The leaves `tauto` closes by `assumption` are covered by the
   hypotheses: an atom that is a hypothesis `h : a`, or whose negation is one, `h : ¬a`, is fixed
   by that premise.
- Premises that a certificate does not need would still cost the kernel their clauses, so they are
+
+Premises that a certificate does not need would still cost the kernel their clauses, so they are
 dropped, terms as well as hypotheses: an unused term does not appear in the proof. The solver
 refutes the formula with all the premises; those with a clause among the hints of the trimmed
 certificate (one of the definitional clauses of its subformulas, or the clause of its `imp` node
@@ -381,19 +382,21 @@ private def contextPremises : MetaM (Array Premise) := do
 
 /-- The terms of `lrat_tauto [t₁, …, tₙ]`, elaborated in the context of the goal, as premises in
 the order given. Each must elaborate fully, with no metavariables left, to a proof of a
-proposition. The premise of a type ascription `(t : T)` is `T`, as for `have h : T := t`, rather
-than the type inferred for `t`. -/
+proposition; an elaboration error is thrown rather than recovered from with `sorry`. The premise
+of a type ascription `(t : T)` is `T`, elaborated as for `have h : T := t`, rather than the type
+inferred for `t`. -/
 private def termPremises (ts : Array Term) : TacticM (Array Premise) :=
-  ts.mapM fun t => withRef t do
+  withoutRecover <| ts.mapM fun t => withRef t do
     let (e, ty) ← match t with
-      | `(($e : $ty)) => do
-        let ty ← Tactic.elabTerm ty none
-        let e ← Tactic.elabTermEnsuringType e ty
-        let ty ← instantiateMVars ty
-        pure (← mkExpectedTypeHint (← instantiateMVars e) ty, ty)
+      | `(($e : $ty)) => Tactic.runTermElab do
+        let ty ← Term.withSynthesize (postpone := .yes) (Term.elabType ty)
+        let e ← Term.elabTermEnsuringType e ty
+        pure (e, ty)
       | _ => do
-        let e ← instantiateMVars (← Tactic.elabTerm t none)
-        pure (e, ← instantiateMVars (← inferType e))
+        let e ← Tactic.elabTerm t none
+        pure (e, ← inferType e)
+    let e ← instantiateMVars e
+    let ty ← instantiateMVars ty
     if e.hasMVar || ty.hasMVar then
       throwError "lrat_tauto: the term `{t}` must elaborate fully, but it has metavariables:\
         {indentExpr e}\nof type{indentExpr ty}\nGive its arguments explicitly."
@@ -751,6 +754,7 @@ elab_rules : tactic
     let ts := (ts.map (·.getElems)).getD #[]
     let msg ← withoutModifyingState do
       let g ← introNonProps (← getMainGoal)
+      replaceMainGoal [g]
       g.withContext do
         let f ← readFormula g (← termPremises ts) false
         let φ := f.cnf
