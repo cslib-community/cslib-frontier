@@ -25,8 +25,12 @@ refutable iff it has no 0/1 solution
 (`Cslib.Logic.PL.CuttingPlanes.exists_refutableInSize_iff_not_exists_holds`). The system may be
 infinite and over any type of variables; the refutations may be exponentially long.
 
-The proof follows the route of [Cook, Coullard and Turán][CookCoullardTuran1987]: reduce to
-clauses, then use completeness of resolution.
+Completeness of cutting planes over nonempty bounded polyhedra goes back to
+[Chvátal][Chvatal1973]. The proof here is this module's own route, specific to 0/1 solutions:
+compactness reduces to a finite system, a clause excluding each assignment is derived from an
+inequality that the assignment falsifies, and the resulting unsatisfiable CNF is refuted by the
+simulation of resolution by cutting planes
+([Cook, Coullard and Turán, Section 3, pp. 34–35][CookCoullardTuran1987]).
 
 1. **Compactness.** The 0/1 solutions of an inequality form a closed subset of the compact space
    `V → Bool`, since an inequality mentions finitely many variables. So some finite subsystem of
@@ -42,7 +46,7 @@ clauses, then use completeness of resolution.
    only the axioms for literals false under `σ`: the literals true under `σ` are weakened away
    implicitly, since their coefficients are brought to the right multiple of `M` directly.
 3. **Resolution.** The `2^|S|` clauses excluding the assignments of `S` form an unsatisfiable CNF,
-   which cutting planes refute
+   which cutting planes refute by simulating resolution
    (`Cslib.Logic.PL.CuttingPlanes.exists_refutableInSize_iff_not_satisfiable`). Replaying that
    refutation on top of the derivations of its clauses
    (`Cslib.Logic.PL.CuttingPlanes.DerivableInSize.extend`) refutes `Γ`.
@@ -59,6 +63,7 @@ proved here.
 
 ## References
 
+* [V. Chvátal, *Edmonds polytopes and a hierarchy of combinatorial problems*][Chvatal1973]
 * [W. Cook, C. R. Coullard, Gy. Turán, *On the complexity of cutting-plane
   proofs*][CookCoullardTuran1987]
 -/
