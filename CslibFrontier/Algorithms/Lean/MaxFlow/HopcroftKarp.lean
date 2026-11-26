@@ -412,13 +412,11 @@ private theorem bfsInit_foldl (ml : Vector Bool m) (l : List (Fin m))
     rw [List.foldl_cons]
     obtain ⟨ih1, ih2⟩ := ih (hkBfsInitStep ml p x)
     refine ⟨fun u => ?_, fun u => ?_⟩
-    · rw [ih1 u]
-      unfold hkBfsInitStep
+    · rw [ih1 u, hkBfsInitStep]
       rcases eq_or_ne u x with rfl | hux
       · by_cases hx : vget ml u = true <;> simp [hx]
       · by_cases hx : vget ml x = true <;> simp [hx, hux, vget_vset_ne _ _ hux.symm]
-    · rw [ih2 u]
-      unfold hkBfsInitStep
+    · rw [ih2 u, hkBfsInitStep]
       rcases eq_or_ne u x with rfl | hux <;> split_ifs with hx <;> simp [*]
 
 private theorem bfsInit_nodup (ml : Vector Bool m) (l : List (Fin m))
@@ -1317,8 +1315,7 @@ theorem mem_foldl_hkMatchingStep (mate : Vector (Option (Fin m)) r) (l : List (F
   induction l generalizing a with
   | nil => simp
   | cons x l ih =>
-    rw [List.foldl_cons, ih]
-    unfold hkMatchingStep
+    rw [List.foldl_cons, ih, hkMatchingStep]
     grind
 
 theorem mem_foldl_hkCoverLeftStep (dist : Vector (Option ℕ) m) (l : List (Fin m))
@@ -1327,8 +1324,7 @@ theorem mem_foldl_hkCoverLeftStep (dist : Vector (Option ℕ) m) (l : List (Fin 
   induction l generalizing a with
   | nil => simp
   | cons x l ih =>
-    rw [List.foldl_cons, ih]
-    unfold hkCoverLeftStep
+    rw [List.foldl_cons, ih, hkCoverLeftStep]
     grind
 
 theorem mem_foldl_hkCoverRightStep (mate : Vector (Option (Fin m)) r)
@@ -1338,8 +1334,7 @@ theorem mem_foldl_hkCoverRightStep (mate : Vector (Option (Fin m)) r)
   induction l generalizing a with
   | nil => simp
   | cons x l ih =>
-    rw [List.foldl_cons, ih]
-    unfold hkCoverRightStep
+    rw [List.foldl_cons, ih, hkCoverRightStep]
     grind
 
 end Extract
@@ -1380,11 +1375,9 @@ theorem hopcroftKarp_correct (hadj : BipAdjValid G adj) :
   set out := hkLoop G adj (m + 1) 0 (Vector.replicate r none)
   have hcover : (hopcroftKarp G adj).cover = layerCover G (mateMatching out.mate) k := by
     simp only [hopcroftKarp, layerCover, VertexCover.mk.injEq]
-    refine ⟨?_, ?_⟩
-    · ext u
-      simp [mem_foldl_hkCoverLeftStep, out, hdist]
-    · ext v
-      simp [mem_foldl_hkCoverRightStep, mem_altRight_iff_of_stable hM hstable hsub, out, hdist]
+    exact ⟨Finset.ext fun u => by simp [mem_foldl_hkCoverLeftStep, out, hdist],
+      Finset.ext fun v => by
+        simp [mem_foldl_hkCoverRightStep, mem_altRight_iff_of_stable hM hstable hsub, out, hdist]⟩
   rw [hopcroftKarp_matching_eq_mateMatching, hcover]
   obtain ⟨hmax, hmin⟩ := isMaxMatching_isMinVertexCover_of_stable hM hstable hsub
   exact ⟨hmax, hmin, (size_layerCover_of_stable hM hstable hsub).symm,

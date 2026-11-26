@@ -325,16 +325,13 @@ theorem LearnsStateless.card_mul_sq_sub_one_le_two_mul {κ : Type} [Fintype κ] 
   have hγε : 1 / d < (1 - 2 * 0) ^ 2 := by rwa [mul_zero, sub_zero, one_pow]
   have h := hA.card_le_of_corr_le hq hf hcorr hτ le_rfl (by norm_num) hγτ hγε
   rw [mul_zero, sub_zero, one_pow, div_self (sub_pos.2 hγ1).ne'] at h
-  have h4 : (d - 1) * (τ ^ 2 - 1 / d) ≤ 2 * q * (1 - 1 / d) := by
-    have := mul_le_mul_of_nonneg_right
-      (show d - 1 ≤ 2 * q * ((1 - 1 / d) / (τ ^ 2 - 1 / d)) by linarith) (sub_pos.2 hγτ).le
-    rwa [mul_assoc (2 * (q : ℝ)), div_mul_cancel₀ _ (sub_pos.2 hγτ).ne'] at this
-  have h5 : (d - 1) * (d * τ ^ 2 - 1) ≤ (d - 1) * (2 * q) := by
-    have e : (d - 1) * (τ ^ 2 - 1 / d) * d = (d - 1) * (d * τ ^ 2 - 1) := by field_simp
-    have e' : 2 * q * (1 - 1 / d) * d = (d - 1) * (2 * q) := by field_simp
-    rw [← e, ← e']
-    exact mul_le_mul_of_nonneg_right h4 hdpos.le
-  exact le_of_mul_le_mul_left h5 (by linarith)
+  have h4 := mul_le_mul_of_nonneg_right
+    (by linarith : d - 1 ≤ 2 * q * ((1 - 1 / d) / (τ ^ 2 - 1 / d))) (sub_pos.2 hγτ).le
+  rw [mul_assoc (2 * (q : ℝ)), div_mul_cancel₀ _ (sub_pos.2 hγτ).ne'] at h4
+  have h5 := mul_le_mul_of_nonneg_right h4 hdpos.le
+  have e : (d - 1) * (τ ^ 2 - 1 / d) * d = (d - 1) * (d * τ ^ 2 - 1) := by field_simp
+  have e' : 2 * q * (1 - 1 / d) * d = (d - 1) * (2 * q) := by field_simp
+  exact le_of_mul_le_mul_left (e ▸ e' ▸ h5) (by linarith)
 
 /-- **The statistical query dimension bound for weak learning** [Reyzin, Theorem 12][Reyzin2020].
 If `C` contains `d` concepts with pairwise correlations at most `1 / d` under `D`, and `A` learns
@@ -371,8 +368,7 @@ theorem LearnsStateless.card_mul_sq_sub_one_le_two_mul_add_one {κ : Type} [Fint
         ≤ (2 * q + 1) * ((1 - 1 / d) / (τ ^ 2 - 1 / d)) * (τ ^ 2 - 1 / d) := by gcongr
       _ = _ := by rw [mul_assoc, div_mul_cancel₀ _ hpos.ne']
   have h4 : d * (τ ^ 2 - 1 / d) = d * τ ^ 2 - 1 := by field_simp
-  have h5 : (2 * q + 1) * (1 - 1 / d) ≤ 2 * q + 1 := by
-    nlinarith [show 0 ≤ (2 * q + 1 : ℝ) * (1 / d) by positivity]
+  have h5 : 0 ≤ (2 * q + 1 : ℝ) * (1 / d) := by positivity
   linarith
 
 end Cslib.MachineLearning.StatisticalQuery

@@ -104,8 +104,7 @@ theorem longestNodeSuffix_nil (P : List (List α)) : longestNodeSuffix P [] = []
 
 theorem longestNodeSuffix_cons_of_not_isNode {P : List (List α)} {b : α} {w : List α}
     (h : ¬ IsNode P (b :: w)) : longestNodeSuffix P (b :: w) = longestNodeSuffix P w := by
-  rw [longestNodeSuffix]
-  simp only [h, ↓reduceIte]
+  simp only [longestNodeSuffix, h, ↓reduceIte]
 
 theorem longestNodeSuffix_suffix (P : List (List α)) (w : List α) :
     longestNodeSuffix P w <:+ w := by
@@ -219,19 +218,16 @@ decreasing_by exact length_failure_lt P _hu
 
 theorem nextMove_of_isNode {P : List (List α)} {u : List α} {a : α} (h : IsNode P (u ++ [a])) :
     nextMove P u a = u ++ [a] := by
-  rw [nextMove]
-  simp only [h, ↓reduceIte]
+  rw [nextMove, ite_eq_left h]
 
 theorem nextMove_of_not_isNode_of_eq_nil {P : List (List α)} {u : List α} {a : α}
     (h : ¬ IsNode P (u ++ [a])) (hu : u = []) : nextMove P u a = [] := by
   subst hu
-  rw [nextMove]
-  simp only [h, ↓reduceIte, ↓reduceDIte]
+  rw [nextMove, ite_eq_right h, dite_eq_left rfl]
 
 theorem nextMove_of_not_isNode {P : List (List α)} {u : List α} {a : α}
     (h : ¬ IsNode P (u ++ [a])) (hu : u ≠ []) : nextMove P u a = nextMove P (failure P u) a := by
-  rw [nextMove]
-  simp only [h, hu, ↓reduceIte, ↓reduceDIte]
+  rw [nextMove, ite_eq_right h, dite_eq_right hu]
 
 theorem nextMove_eq_longestNodeSuffix (P : List (List α)) (u : List α) (a : α) :
     nextMove P u a = longestNodeSuffix P (u ++ [a]) := by
@@ -283,14 +279,11 @@ theorem mem_output_iff {P : List (List α)} {w v : List α} :
     rw [List.suffix_cons_iff, List.mem_cons, ih]
     refine ⟨?_, fun ⟨hv, hvP, h⟩ => h.elim .inl fun hvw => .inr ⟨hv, hvP, hvw⟩⟩
     rintro (rfl | ⟨hv, hvP, hvw⟩)
-    · exact ⟨List.cons_ne_nil b w, hmem, .inl rfl⟩
-    · exact ⟨hv, hvP, .inr hvw⟩
+    exacts [⟨List.cons_ne_nil b w, hmem, .inl rfl⟩, ⟨hv, hvP, .inr hvw⟩]
   | case3 b w hmem ih => -- b :: w ∉ P
     rw [List.suffix_cons_iff, ih]
-    refine ⟨fun ⟨hv, hvP, hvw⟩ => ⟨hv, hvP, .inr hvw⟩, ?_⟩
-    rintro ⟨hv, hvP, rfl | hvw⟩
-    · exact (hmem hvP).elim
-    · exact ⟨hv, hvP, hvw⟩
+    exact ⟨fun ⟨hv, hvP, hvw⟩ => ⟨hv, hvP, .inr hvw⟩,
+      fun ⟨hv, hvP, h⟩ => ⟨hv, hvP, h.resolve_left fun heq => hmem (heq ▸ hvP)⟩⟩
 
 theorem pairwise_length_gt_output (P : List (List α)) (w : List α) :
     (output P w).Pairwise (fun x y => y.length < x.length) := by

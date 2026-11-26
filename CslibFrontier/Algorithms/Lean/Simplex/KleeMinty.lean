@@ -185,12 +185,10 @@ private theorem bitSign_succ (N k : ℕ) :
   cases N.testBit k <;> cases N.testBit (k + 1) <;> simp
 
 private theorem bitSign_of_testBit_false {N k : ℕ} (h : N.testBit k = false) :
-    (bitSign N k : K) = 1 := by
-  unfold bitSign; rw [h]; simp
+    (bitSign N k : K) = 1 := by simp [bitSign, h]
 
 private theorem bitSign_of_testBit_true {N k : ℕ} (h : N.testBit k = true) :
-    (bitSign N k : K) = -1 := by
-  unfold bitSign; rw [h]; simp
+    (bitSign N k : K) = -1 := by simp [bitSign, h]
 
 private theorem zVal_zero (N : ℕ) : (zVal N 0 : K) = 0 := by simp only [zVal]
 
@@ -450,16 +448,14 @@ theorem pivot_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false)
   have hrs : r ≠ s := fun h => hsb (h ▸ hrb)
   have hr1 : ¬Basic (N + 1) r := by rw [basic_succ_iff hj hlow, hpr]; simp [hrb]
   have hs1 : Basic (N + 1) s := by rw [basic_succ_iff hj hlow, hps]; simp [hsb]
-  have hcases : ∀ v, v = r ∨ v = s ∨ (pair v ≠ j ∧ v ≠ r ∧ v ≠ s) := by
-    intro v
+  have hcases (v) : v = r ∨ v = s ∨ (pair v ≠ j ∧ v ≠ r ∧ v ≠ s) := by
     by_cases h : pair v = j
-    · by_cases hb : Basic N v
-      · exact .inl (hr ▸ eq_var_self_iff.2 ⟨h, hb⟩)
-      · exact .inr (.inl (hs ▸ eq_var_not_iff.2 ⟨h, hb⟩))
+    · exact (em (Basic N v)).imp (fun hb => hr ▸ eq_var_self_iff.2 ⟨h, hb⟩)
+        fun hb => .inl (hs ▸ eq_var_not_iff.2 ⟨h, hb⟩)
     · exact .inr (.inr ⟨h, fun e => h (e ▸ hpr), fun e => h (e ▸ hps)⟩)
   have hne : ∀ v : Fin (n + n), pair v ≠ j → (pair v : ℕ) ≠ j := fun v h e => h (Fin.ext e)
-  have hb1 : ∀ v : Fin (n + n), pair v ≠ j → (Basic (N + 1) v ↔ Basic N v) := fun v h => by
-    rw [basic_succ_iff hj hlow]; simp [h]
+  have hb1 (v) (h : pair v ≠ j) : Basic (N + 1) v ↔ Basic N v := by
+    simp [basic_succ_iff hj hlow, h]
   apply Dictionary.ext
   · ext v
     simp only [Dictionary.mem_pivot_basis, mem_dict_basis]
@@ -468,8 +464,7 @@ theorem pivot_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false)
     · simp [hs1]
     · simp [hvr, hvs, hb1 v h]
   · funext v
-    simp only [Dictionary.pivot]
-    rw [hcrs, hrr]
+    simp only [Dictionary.pivot, hcrs, hrr]
     rcases hcases v with rfl | rfl | ⟨h, hvr, hvs⟩
     · simp [dict, hr1, hrs]
     · simp [dict, hs1, hps, rowConst_succ_self hj hlow]
@@ -477,8 +472,7 @@ theorem pivot_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false)
         simp [dict, hvr, hvs, hb, hb1 v h, hsb, hps, rowConst_succ_of_ne hj hlow (hne v h),
           div_neg, sub_neg_eq_add]
   · funext v u
-    simp only [Dictionary.pivot]
-    rw [hcrs]
+    simp only [Dictionary.pivot, hcrs]
     rcases hcases u with rfl | rfl | ⟨hu, hur, hus⟩
     · rcases hcases v with rfl | rfl | ⟨h, hvr, hvs⟩
       · simp [dict, hr1, hrs]
@@ -496,20 +490,16 @@ theorem pivot_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false)
         · by_cases hb : Basic N v <;>
             simp [dict, hvr, hvs, hb, hb1 v h, hus, hur, hbu, hb1 u hu, hsb, hrb, hps, hpr,
               rowCoeff_succ hj hlow (hne v h) (hne u hu), div_neg, sub_neg_eq_add]
-  · simp only [Dictionary.pivot]
-    rw [hcs, hrr, hcrs]
+  · simp only [Dictionary.pivot, hcs, hrr, hcrs]
     simp [dict, zVal_succ_top hj hlow j.isLt, div_neg, sub_neg_eq_add]
   · funext u
-    simp only [Dictionary.pivot]
-    rw [hcs]
+    simp only [Dictionary.pivot, hcs, hcrs]
     rcases hcases u with rfl | rfl | ⟨hu, hur, hus⟩
-    · rw [hcrs]
-      simp [dict, hr1, hrs, hpr, cost_succ_self hj hlow j.isLt, div_neg]
+    · simp [dict, hr1, hrs, hpr, cost_succ_self hj hlow j.isLt, div_neg]
     · simp [dict, hs1]
     · by_cases hbu : Basic N u
       · simp [dict, hus, hur, hbu, hb1 u hu]
-      · rw [hcrs]
-        simp [dict, hus, hur, hbu, hb1 u hu, hrb, hpr, cost_succ_of_ne hj hlow j.isLt (hne u hu),
+      · simp [dict, hus, hur, hbu, hb1 u hu, hrb, hpr, cost_succ_of_ne hj hlow j.isLt (hne u hu),
           div_neg, sub_neg_eq_add]
 
 /-! ### Dantzig's rule on the dictionaries -/
