@@ -8,8 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
+-- Reads private `Trace`, `parse`, `signedTail`, and `inBall_signedTail`, plus `sampleInBallBytes`.
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Primitives.ByteString
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Data.Fintype.Sort
 
@@ -45,18 +45,13 @@ private theorem Trace.parse_raw {i n : ℕ} (t : Trace i n) : parse i n t.raw = 
 
 private theorem raw_of_parse {i n : ℕ} {xs : List Byte} {t : Trace i n}
     (h : parse i n xs = some t) : t.raw = xs := by
-  induction xs generalizing i n with
-  | nil =>
-    cases n with
-    | zero => simp only [parse, Option.some.injEq] at h; subst t; rfl
-    | succ => simp [parse] at h
-  | cons b xs ih =>
-    cases n with
-    | zero => simp only [parse, Option.some.injEq] at h; subst t; rfl
-    | succ k =>
-      rw [parse] at h
-      split at h <;> obtain ⟨u, hu, rfl⟩ := Option.map_eq_some_iff.mp h <;>
-        exact congrArg (b :: ·) (ih hu)
+  fun_induction parse i n xs with
+  | case1 => cases Option.some.inj h; rfl -- 0, tail: done
+  | case2 => cases h -- k + 1, []: out of bytes
+  -- k + 1, b :: rest: reject (`i < b`) or accept (`b ≤ i`)
+  | case3 _ _ b _ _ ih | case4 _ _ b _ _ ih =>
+    obtain ⟨u, hu, rfl⟩ := Option.map_eq_some_iff.mp h
+    exact congrArg (b :: ·) (ih hu)
 
 @[ext] private structure FixedAbove (i : ℕ) where
   e : Equiv.Perm Byte
@@ -68,9 +63,7 @@ private def FixedAbove.symm {i : ℕ} (p : FixedAbove i) : FixedAbove i :=
 private theorem FixedAbove.below {i : ℕ} (p : FixedAbove (i + 1)) (b : Byte) (hb : b.val ≤ i) :
     (p.e b).val ≤ i := by
   by_contra h
-  have fix := p.fixes (p.e b) (by lia)
-  have eq := p.e.injective fix
-  rw [eq] at h
+  rw [← p.e.injective (p.fixes (p.e b) (by lia))] at hb
   exact h hb
 
 -- Before the insertion, conjugating by its old and new swaps leaves the current index fixed.
@@ -122,24 +115,18 @@ private theorem Trace.move_symm {i n : ℕ} (t : Trace i n) (h : i + n ≤ 256)
     (t.move h p).1.move h p.symm = (t, (t.move h p).2.symm) := by
   induction t with
   | done => rfl
-  | reject b hb t ih =>
-    simp only [Trace.move]
-    rw [ih]
+  | reject b hb t ih => simp only [Trace.move, ih]
   | @accept i n b hb t ih =>
     let q : FixedAbove ((i + 1) + n) := ⟨p.e, fun k hk => p.fixes k (by lia)⟩
     let out := t.move (by lia) q
-    have back := ih (by lia) q
-    change out.1.move _ q.symm = (t, out.2.symm) at back
     let rebuild (z : Trace (i + 1) n × FixedAbove (i + 1)) :=
       (Trace.accept (z.2.e (out.2.e b)) (z.2.below _ (out.2.below b hb)) z.1,
         z.2.step (out.2.e b) (out.2.below b hb) (by lia))
     change rebuild (out.1.move _ q.symm) = _
-    refine (congrArg rebuild back).trans ?_
-    apply Prod.ext
-    · simp [rebuild, FixedAbove.symm]
-    · apply FixedAbove.ext
-      ext j
-      simp [rebuild, Trace.move, FixedAbove.step, FixedAbove.symm, out, q]
+    refine (congrArg rebuild (ih (by lia) q : out.1.move _ q.symm = (t, out.2.symm))).trans ?_
+    refine Prod.ext (by simp [rebuild, FixedAbove.symm, out])
+      (FixedAbove.ext <| Equiv.ext fun j => ?_)
+    simp [rebuild, Trace.move, FixedAbove.step, FixedAbove.symm, out, q]
 
 private def Trace.pattern {i n : ℕ} : Trace i n → List (Option Byte)
   | .done tail => tail.map some
@@ -178,11 +165,10 @@ private theorem Target.left_positions {s : Level} (c : Target s) (i : Fin s.para
 
 private theorem Target.right_positions {s : Level} (c : Target s) (i : Fin (256 - s.params.τ)) :
     c.val (c.positions (.inr i)) = 0 := by
-  have h : c.positions (.inr i) ∈ c.supportᶜ :=
-    (c.supportᶜ.orderIsoOfFin (by
-      rw [Finset.card_compl, Fintype.card_fin]
-      exact congrArg (256 - ·) c.property.2) i).property
-  exact not_not.mp fun hn => (Finset.mem_compl.mp h) (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hn⟩)
+  have h := (c.supportᶜ.orderIsoOfFin (by
+    rw [Finset.card_compl, Fintype.card_fin]
+    exact congrArg (256 - ·) c.property.2) i).property
+  exact not_not.mp fun hn => Finset.mem_compl.mp h (Finset.mem_filter.mpr ⟨Finset.mem_univ _, hn⟩)
 
 private def Target.transfer {s : Level} (c d : Target s) : FixedAbove 256 :=
   ⟨c.positions.symm.trans d.positions, fun j h => by have := j.isLt; lia⟩
@@ -214,13 +200,11 @@ private theorem label_coeff {s : Level} (signs : Fin 64 → Bool) {j : ℕ} (hj 
 private theorem Target.coeff_of_ne {s : Level} (c : Target s) (j : Byte) (h : c.val j ≠ 0) :
     (if c.val j = -1 then -1 else 1) = c.val j := by
   have b := abs_le.mp (c.property.1 j)
-  have hz : (c.val j).valMinAbs ≠ 0 := fun e => h (by
-    simpa using congrArg (fun a : ℤ => (a : ZMod 8380417)) e)
-  have cases : (c.val j).valMinAbs = -1 ∨ (c.val j).valMinAbs = 1 := by lia
-  rcases cases with e | e <;>
-    have v := congrArg (fun a : ℤ => (a : ZMod 8380417)) e <;> simp only [ZMod.coe_valMinAbs] at v
-  · rw [v]; decide
-  · rw [v]; decide
+  have hz : (c.val j).valMinAbs ≠ 0 :=
+    fun e => h (by simpa using congrArg (Int.cast (R := ZMod 8380417)) e)
+  rcases (by lia : (c.val j).valMinAbs = -1 ∨ (c.val j).valMinAbs = 1) with e | e <;>
+  · rw [← ZMod.coe_valMinAbs (c.val j), e]
+    decide
 
 @[ext] private structure Success (s : Level) where
   signs : Fin 64 → Bool
@@ -248,24 +232,19 @@ private theorem Success.challenge_program {s : Level} (x : Success s) (d : Targe
   rw [Equiv.symm_apply_apply]
   let k' := u.2.e.symm k
   have route : u.1.perm k = (x.challenge.transfer d).e (x.trace.perm k') := by
-    have h := x.trace.move_perm (span_level s).le
-      (FixedAbove.mk (x.challenge.transfer d).e (fun k h => (x.challenge.transfer d).fixes k
-        (by rwa [span_level] at h))) k'
-    change u.1.perm (u.2.e k') = _ at h
-    simpa [k'] using h
+    simpa only [u, moved, k', Equiv.apply_symm_apply] using x.trace.move_perm (span_level s).le
+      ⟨(x.challenge.transfer d).e, fun j hj =>
+        (x.challenge.transfer d).fixes j (by rwa [span_level] at hj)⟩ k'
   have supp := x.challenge.transfer_nonzero d (x.trace.perm k')
   rw [← route] at supp
-  change d.val (u.1.perm k) ≠ 0 ↔ signedTail s (List.ofFn x.signs)
-    (x.trace.perm.symm (x.trace.perm k')) ≠ 0 at supp
-  rw [Equiv.symm_apply_apply] at supp
+  simp only [Success.challenge, Function.comp_apply, Equiv.symm_apply_apply] at supp
   by_cases hk : k.val < start s
   · have hk' : k'.val < start s := by
       by_contra! h
-      have he := u.2.fixes k' h
-      have eq : k = k' := by simpa [k'] using he
+      have eq : k = k' := by simpa [k'] using u.2.fixes k' h
       lia
-    simpa [signedTail, hk] using (show d.val (u.1.perm k) = 0 by
-      simpa [signedTail, hk'] using supp).symm
+    have hd0 : d.val (u.1.perm k) = 0 := by simpa [signedTail, hk'] using supp
+    simp [signedTail, hk, hd0]
   · let a := k.val - start s
     have ha : a < s.params.τ := by have := span_level s; have := k.isLt; dsimp [a]; lia
     have key : label a ha = k := Fin.ext (by dsimp [label, a]; lia)
@@ -278,26 +257,19 @@ private theorem Success.challenge_program {s : Level} (x : Success s) (d : Targe
 
 private theorem Success.program_back {s : Level} (x : Success s) (d : Target s) :
     (x.program d).program x.challenge = x := by
-  let u := moved x.trace x.challenge d
-  have back : (moved u.1 d x.challenge).1 = x.trace := by
-    exact congrArg Prod.fst (x.trace.move_symm (span_level s).le
-      (FixedAbove.mk (x.challenge.transfer d).e (fun k h => (x.challenge.transfer d).fixes k
-        (by rwa [span_level] at h))))
   have tr : (moved (x.program d).trace (x.program d).challenge x.challenge).1 = x.trace := by
     rw [x.challenge_program]
-    exact back
+    exact congrArg Prod.fst (x.trace.move_symm (span_level s).le
+      ⟨(x.challenge.transfer d).e, fun k h => (x.challenge.transfer d).fixes k
+        (by rwa [span_level] at h)⟩)
+  generalize hy : x.program d = y at tr ⊢
   apply Success.ext ?_ tr
   funext j
   by_cases hj : j.val < s.params.τ
-  · change (if h : j.val < s.params.τ then decide (x.challenge.val
-      ((moved (x.program d).trace (x.program d).challenge x.challenge).1.perm (label j.val h)) = -1)
-      else (x.program d).signs j) = x.signs j
-    rw [dite_eq_left hj, tr]
-    change decide (signedTail s (List.ofFn x.signs)
-      (x.trace.perm.symm (x.trace.perm (label j.val hj))) = -1) = x.signs j
-    rw [Equiv.symm_apply_apply, label_coeff]
-    cases x.signs j <;> decide
-  · simp [Success.program, hj]
+  · simp only [Success.program, hj, ↓reduceDIte, tr]
+    simp only [Success.challenge, Function.comp_apply, Equiv.symm_apply_apply, label_coeff, Fin.eta]
+    cases hb : x.signs j <;> decide
+  · simp [← hy, Success.program, hj]
 
 private def readSigns (head : List Byte) (j : Fin 64) : Bool :=
   (Keccak.bytesToBitsLE head)[j.val]!
@@ -317,11 +289,7 @@ private theorem length_signBytes (signs : Fin 64 → Bool) : (signBytes signs).l
 private theorem ofFn_read! {α : Type} [Inhabited α] {xs : List α} {n : ℕ} (h : xs.length = n) :
     List.ofFn (fun j : Fin n => xs[j.val]!) = xs := by
   subst n
-  trans List.ofFn xs.get
-  · congr 1
-    funext j
-    exact getElem!_pos xs j.val j.isLt
-  · exact List.ofFn_get _
+  exact (congrArg List.ofFn (funext fun j => getElem!_pos xs j.val j.isLt)).trans (List.ofFn_get _)
 
 private theorem bits_readSigns {head : List Byte} (h : head.length = 8) :
     List.ofFn (readSigns head) = Keccak.bytesToBitsLE head :=
@@ -353,10 +321,8 @@ private theorem Success.raw_of_decode {s : Level} {xs : List Byte} (h : 8 ≤ xs
 
 private theorem Success.length_program {s : Level} (x : Success s) (d : Target s) :
     (x.program d).raw.length = x.raw.length := by
-  simp only [Success.raw, List.length_append, length_signBytes]
-  congr 1
-  rw [← Trace.length_pattern, ← Trace.length_pattern x.trace]
-  exact congrArg List.length (x.trace.pattern_move ..)
+  simp only [Success.raw, List.length_append, length_signBytes, ← Trace.length_pattern]
+  exact congrArg (8 + List.length ·) (x.trace.pattern_move ..)
 
 private theorem sample_decode (s : Level) (xs : List Byte) (h : 8 ≤ xs.length) :
     sampleInBallBytes s xs = (decode s xs).map fun x => x.challenge.val := by
@@ -413,10 +379,8 @@ def retainedCandidates (s : Level) (row : FixedBytes 221) : Option (List (Option
 theorem exchangeSampleInBall_of_none {s : Level} {row : FixedBytes 221}
     (h : sampleInBallBytes s row.toList = none) (d : Target s) :
     exchangeSampleInBall s (row, d) = (row, d) := by
-  rw [sample_decode s _ (by simp)] at h
-  cases hd : decode s row.toList with
-  | none => simp [exchangeSampleInBall, Function.Involutive.toPerm, exchange, hd]
-  | some x => simp [hd] at h
+  rw [sample_decode s _ (by simp), Option.map_eq_none_iff] at h
+  simp [exchangeSampleInBall, Function.Involutive.toPerm, exchange, h]
 
 /-- On success the programmed bytes decode to the supplied challenge, and the second output
 is the challenge originally decoded from the row. -/
@@ -468,14 +432,12 @@ theorem exchangeSampleInBall_retains (s : Level) (row : FixedBytes 221) (d : Tar
     simp only [exchangeSampleInBall, Function.Involutive.toPerm, Equiv.coe_fn_mk, exchange, hx,
       toList_bytesOfList len, retainedCandidates, Success.decode_raw, Option.map_some,
       Option.some.injEq]
-    constructor
-    · rw [← hr]
-      simp only [Success.raw, List.take_left' (length_signBytes _), bits_signBytes]
-      apply List.ext_getElem (by simp only [List.length_drop, List.length_ofFn])
-      intro j hj hj'
-      simp only [List.getElem_drop, List.getElem_ofFn]
-      exact dite_eq_right (by lia)
-    · exact x.trace.pattern_move ..
+    refine ⟨?_, x.trace.pattern_move ..⟩
+    rw [← hr]
+    simp only [Success.raw, List.take_left' (length_signBytes _), bits_signBytes]
+    refine List.ext_getElem (by simp only [List.length_drop, List.length_ofFn]) fun j _ _ => ?_
+    simp only [List.getElem_drop, List.getElem_ofFn]
+    exact dite_eq_right (by lia)
 
 /-- Joint law of the complete 221-byte raw row and its Algorithm 29 result. Start with uniform
 bytes and an independent uniform signed weight-τ challenge. Program the row and report the

@@ -110,21 +110,13 @@ private theorem foEval_poly {α : Type w} {k : ℕ}
   | falsum => intros; exact const false
   | equal s t =>
     intro γ enc a σ xs ha hσ hxs
-    have hv (z) : ComputableInPolyTime
-        (fun y => Sum.elim (σ y) (xs y) z) enc encUnary := by
-      cases z with
-      | inl x => exact hσ x
-      | inr j => exact hxs j
+    have hv (z) : ComputableInPolyTime (fun y => Sum.elim (σ y) (xs y) z) enc encUnary :=
+      z.casesOn hσ hxs
     exact beq (termValue_poly s ha.fst' hv) (termValue_poly t ha.fst' hv)
   | rel r ts =>
     intro γ enc a σ xs ha hσ hxs
-    apply relBit_poly v r ha
-    intro j
-    apply termValue_poly (ts j) ha.fst'
-    intro z
-    cases z with
-    | inl x => exact hσ x
-    | inr j => exact hxs j
+    exact relBit_poly v r ha fun j =>
+      termValue_poly (ts j) ha.fst' fun z => z.casesOn hσ hxs
   | imp φ ψ ihφ ihψ =>
     intro γ enc a σ xs ha hσ hxs
     exact bool_or.comp ((bool_not.comp (ihφ ha hσ hxs)).prod (ihψ ha hσ hxs))
@@ -162,12 +154,9 @@ private theorem eval_poly {Γ : List ℕ} {α : Type w}
     exact bool_and.comp ((ihφ ha ht hσ).prod (ihψ ha ht hσ))
   | ex φ ih =>
     intro γ enc a tables σ ha ht hσ
-    apply anyWithInput (range.comp ha.fst')
-    apply ih (ha.comp (fst enc encUnary)) (ht.comp (fst enc encUnary))
-    intro z
-    cases z with
-    | none => exact snd enc encUnary
-    | some x => exact (hσ x).comp (fst enc encUnary)
+    exact anyWithInput (range.comp ha.fst') <|
+      ih (ha.comp (fst enc encUnary)) (ht.comp (fst enc encUnary)) fun z =>
+        z.casesOn (snd enc encUnary) fun x => (hσ x).comp (fst enc encUnary)
   | @op Γ α k body ts ih =>
     intro γ enc a tables σ ha ht hσ
     let tableStep (x : γ) (table : List Bool) :=
@@ -244,17 +233,11 @@ theorem LFPDefinable.encodedLanguage_mem_P {L : Language} [L.IsRelational]
     exact nomatch r
   have hempty : (fun x : Empty => (Empty.elim x : Fin a.1).val) = Empty.elim :=
     Subsingleton.elim _ _
-  constructor
-  · rintro ⟨hshape, hn, hmem⟩
-    refine ⟨hshape, hn, ?_⟩
-    have hreal := (hφ (decoded v a hn)).mp hmem
-    have heval := eval_eq_true_iff v hn φ.val φ.property [] (Empty.elim : Empty → Fin a.1)
+  refine and_congr_right fun _ => ?_
+  by_cases hn : 2 ≤ a.1
+  · have heval := eval_eq_true_iff v hn φ.val φ.property [] (Empty.elim : Empty → Fin a.1)
     rw [hrels, hempty] at heval
-    exact heval.mpr hreal
-  · rintro ⟨hshape, hn, heval⟩
-    refine ⟨hshape, hn, (hφ (decoded v a hn)).mpr ?_⟩
-    have hreal := eval_eq_true_iff v hn φ.val φ.property [] (Empty.elim : Empty → Fin a.1)
-    rw [hrels, hempty] at hreal
-    exact hreal.mp heval
+    simp [hn, (hφ (decoded v a hn)).trans heval.symm]
+  · simp [hn]
 
 end Cslib.Logic.FO.Ordered

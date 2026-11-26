@@ -7,17 +7,22 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-public import CslibFrontier.Init
-public import CslibFrontier.Algorithms.Lean.MaxFlow.ChainCover
-public import CslibFrontier.Foundations.Combinatorics.ErdosSzekeres
+import CslibFrontier.Init
+import CslibFrontier.Algorithms.Lean.MaxFlow.ChainCover
+import CslibFrontier.Algorithms.WordRAM.ChainCover
+meta import CslibFrontier.Algorithms.WordRAM.ChainCover
+meta import CslibFrontier.Computability.WordRAM.Structured.FastEval
+import CslibFrontier.Foundations.Combinatorics.ErdosSzekeres
 import Mathlib.Data.Fintype.Powerset
 
 /-!
 # Dilworth, Mirsky and Erdős–Szekeres tests
 
-Kernel-checked examples (without `native_decide`) for `CslibFrontier.Foundations.Order.Mirsky`,
-`CslibFrontier.Algorithms.Lean.MaxFlow.Dilworth`, `CslibFrontier.Algorithms.Lean.MaxFlow.ChainCover`
-and `CslibFrontier.Foundations.Combinatorics.ErdosSzekeres`:
+Kernel-checked examples (without `native_decide`) and Word-RAM execution checks for
+`CslibFrontier.Foundations.Order.Mirsky`, `CslibFrontier.Algorithms.Lean.MaxFlow.Dilworth`,
+`CslibFrontier.Algorithms.Lean.MaxFlow.ChainCover`,
+`CslibFrontier.Algorithms.WordRAM.ChainCover`, and
+`CslibFrontier.Foundations.Combinatorics.ErdosSzekeres`:
 
 1. **Divisibility on `{1, …, 12}`:** width `6` (the antichain `{7, …, 12}` and the chains
    `{1, 2, 4, 8}`, `{3, 6, 12}`, `{5, 10}`, `{7}`, `{9}`, `{11}`) and height `4` (the chain
@@ -27,20 +32,23 @@ and `CslibFrontier.Foundations.Combinatorics.ErdosSzekeres`:
    chain rule out coverings with one fewer part.
 2. **Boolean lattice `Finset (Fin 3)`:** width `3` (the singletons and the chains
    `∅ ⊂ {0} ⊂ {0, 1} ⊂ {0, 1, 2}`, `{1} ⊂ {1, 2}`, `{2} ⊂ {0, 2}`) and height `4` (rank layers).
-3. **Solver runs:** complete runs of `minChainCoverM` on divisibility on `{1, …, 6}` (labels into
-   `3` chains, the antichain `{4, 5, 6}`, a matching of size `3`) and on the Boolean lattice of
-   rank `3` encoded as bitmasks of `Fin 8` (`3` chains, an antichain of size `3`). The
-   certificate lemma `card_le_card_antichain_of_isAntichain` then bounds every antichain, and
-   `minChainCoverM_time_le` is instantiated.
+3. **Pure and Word-RAM `O(n^{5/2})` solver runs:** complete runs of `minChainCover` on divisibility
+   on `{1, …, 6}` (`3` chains, antichain `{4, 5, 6}`, matching of size `3`) and on the Boolean
+   lattice of rank `3` encoded as bitmasks of `Fin 8` (`3` chains, antichain of size `3`), using
+   `card_le_card_antichain_of_isAntichain` to bound every antichain, together with Word-RAM
+   `executesList_chainLabels` and `executesList_maxAntichain` instantiations and compiled runs of
+   `chainLabelsProgram` and `maxAntichainProgram`.
 4. **Erdős–Szekeres:** a positive instance and the tight sequence `2, 1, 4, 3`, which has
    `n = r * s = 4` terms and neither a monotone nor a strictly decreasing subsequence of `3` terms.
 -/
 
-public section
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Dilworth
 
 open Cslib.Algorithms.Lean.MaxFlow
+open Cslib.WordRAM
+open Cslib.Algorithms.WordRAM.ChainCover
 
 /-- Antichain check through explicit quantifiers over a `Finset`. -/
 theorem isAntichain_of_forall {α : Type*} [LE α] {s : Finset α}
@@ -63,7 +71,7 @@ theorem isAntichain_fibre_of_forall {α ι : Type*} [LE α] {f : α → ι}
 /-! ### 1. Divisibility on `{1, …, 12}` -/
 
 /-- `Fin n` ordered by divisibility of `i + 1`: the divisibility order on `{1, …, n}`. -/
-@[expose] def DivPos (n : ℕ) : Type := Fin n
+def DivPos (n : ℕ) : Type := Fin n
 
 instance (n : ℕ) : DecidableEq (DivPos n) := inferInstanceAs (DecidableEq (Fin n))
 instance (n : ℕ) : Fintype (DivPos n) := inferInstanceAs (Fintype (Fin n))
@@ -80,32 +88,32 @@ instance (n : ℕ) : DecidableLE (DivPos n) := fun i j =>
 instance (n : ℕ) : DecidableLT (DivPos n) := fun _ _ => inferInstanceAs (Decidable (_ ∧ _))
 
 /-- The element `k ∈ {1, …, n}` of `DivPos n`. -/
-@[expose] def dp {n : ℕ} (k : ℕ) (h : 0 < k ∧ k ≤ n := by decide) : DivPos n :=
+def dp {n : ℕ} (k : ℕ) (h : 0 < k ∧ k ≤ n := by decide) : DivPos n :=
   (⟨k - 1, by omega⟩ : Fin n)
 
 example : (dp 3 : DivPos 12) ≤ dp 12 := by decide
 example : ¬ (dp 4 : DivPos 12) ≤ dp 6 := by decide
 
 /-- The antichain `{7, …, 12}`. -/
-@[expose] def div12Antichain : Finset (DivPos 12) := {dp 7, dp 8, dp 9, dp 10, dp 11, dp 12}
+def div12Antichain : Finset (DivPos 12) := {dp 7, dp 8, dp 9, dp 10, dp 11, dp 12}
 
 theorem div12Antichain_isAntichain : IsAntichain (· ≤ ·) (div12Antichain : Set (DivPos 12)) :=
   isAntichain_of_forall (by decide)
 
 /-- The chains `{1, 2, 4, 8}`, `{3, 6, 12}`, `{5, 10}`, `{7}`, `{9}`, `{11}`. -/
-@[expose] def div12Chains (i : DivPos 12) : Fin 6 := ![0, 0, 1, 0, 2, 1, 3, 0, 4, 2, 5, 1] i
+def div12Chains (i : DivPos 12) : Fin 6 := ![0, 0, 1, 0, 2, 1, 3, 0, 4, 2, 5, 1] i
 
 theorem div12Chains_isChain : ∀ c, IsChain (· ≤ ·) (div12Chains ⁻¹' {c}) :=
   isChain_fibre_of_forall (by decide)
 
 /-- The chain `{1, 2, 4, 8}`. -/
-@[expose] def div12Chain : Finset (DivPos 12) := {dp 1, dp 2, dp 4, dp 8}
+def div12Chain : Finset (DivPos 12) := {dp 1, dp 2, dp 4, dp 8}
 
 theorem div12Chain_isChain : IsChain (· ≤ ·) (div12Chain : Set (DivPos 12)) :=
   isChain_of_forall (by decide)
 
 /-- The antichains of numbers with `0, 1, 2, 3` prime factors (with multiplicity). -/
-@[expose] def div12Layers (i : DivPos 12) : Fin 4 := ![0, 1, 1, 2, 1, 2, 1, 3, 2, 2, 1, 3] i
+def div12Layers (i : DivPos 12) : Fin 4 := ![0, 1, 1, 2, 1, 2, 1, 3, 2, 2, 1, 3] i
 
 theorem div12Layers_isAntichain : ∀ c, IsAntichain (· ≤ ·) (div12Layers ⁻¹' {c}) :=
   isAntichain_fibre_of_forall (by decide)
@@ -147,7 +155,7 @@ theorem div12_not_three_antichains :
 /-! ### 2. Boolean lattice `Finset (Fin 3)` -/
 
 /-- The chains `∅ ⊂ {0} ⊂ {0, 1} ⊂ {0, 1, 2}`, `{1} ⊂ {1, 2}` and `{2} ⊂ {0, 2}`. -/
-@[expose] def boolChains (s : Finset (Fin 3)) : Fin 3 :=
+def boolChains (s : Finset (Fin 3)) : Fin 3 :=
   if s = {1} ∨ s = {1, 2} then 1 else if s = {2} ∨ s = {0, 2} then 2 else 0
 
 theorem boolChains_isChain : ∀ c, IsChain (· ≤ ·) (boolChains ⁻¹' {c}) :=
@@ -158,7 +166,7 @@ theorem bool_singletons_isAntichain :
   isAntichain_of_forall (by decide)
 
 /-- The rank layers `s ↦ |s|`. -/
-@[expose] def boolRank (s : Finset (Fin 3)) : Fin 4 :=
+def boolRank (s : Finset (Fin 3)) : Fin 4 :=
   ⟨s.card, Nat.lt_succ_of_le (by simpa using s.card_le_univ)⟩
 
 theorem boolRank_isAntichain : ∀ c, IsAntichain (· ≤ ·) (boolRank ⁻¹' {c}) :=
@@ -182,32 +190,28 @@ example : (∀ C : Finset (Finset (Fin 3)), IsChain (· ≤ ·) (C : Set (Finset
   ⟨exists_antichain_coloring_iff.mp ⟨boolRank, boolRank_isAntichain⟩,
     fun h => absurd (exists_antichain_coloring_iff.mp h _ bool_chain_isChain) (by decide)⟩
 
-/-! ### 3. Solver runs -/
+/-! ### 3. Pure and Word-RAM `O(n^{5/2})` solver runs -/
 
 /-- Enumeration of divisibility on `{1, …, 6}`. -/
-@[expose] def div6Enum : Fin 6 ≃ DivPos 6 := Equiv.refl _
+def div6Enum : Fin 6 ≃ DivPos 6 := Equiv.refl _
 
-example : (minChainCoverM div6Enum).ret.numChains = 3 := by decide
+example : (minChainCover div6Enum).numChains = 3 := by decide
 
-example : (minChainCoverM div6Enum).ret.antichain = {3, 4, 5} := by decide
+example : (minChainCover div6Enum).antichain = {3, 4, 5} := by decide
 
-example : (minChainCoverM div6Enum).ret.matching.card = 3 := by decide
+example : (minChainCover div6Enum).matching.card = 3 := by decide
 
 /-- Every antichain of divisibility on `{1, …, 6}` has at most `3` elements, from the solver's
 certificate. -/
 example (A : Finset (DivPos 6)) (hA : IsAntichain (· ≤ ·) (A : Set (DivPos 6))) : A.card ≤ 3 := by
   have h := card_le_card_antichain_of_isAntichain div6Enum hA
-  rwa [show (minChainCoverM div6Enum).ret.antichain.card = 3 by decide] at h
-
-example : (minChainCoverM div6Enum).time ≤
-    (2 * Nat.sqrt 6 + 1) * (10 * 6 + 1 + 4 * (6 * 6)) + 2 * (6 * 6) + 6 * 6 :=
-  minChainCoverM_time_le div6Enum
+  rwa [show (minChainCover div6Enum).antichain.card = 3 by decide] at h
 
 /-- `Fin 8` ordered by bitwise inclusion of the binary digits: the Boolean lattice of rank `3`. -/
-@[expose] def BitPos : Type := Fin 8
+def BitPos : Type := Fin 8
 
 /-- Bitwise inclusion. -/
-@[expose] def bitLe (i j : Fin 8) : Prop := i.val &&& j.val = i.val
+def bitLe (i j : Fin 8) : Prop := i.val &&& j.val = i.val
 
 instance (i j : Fin 8) : Decidable (bitLe i j) :=
   inferInstanceAs (Decidable (i.val &&& j.val = i.val))
@@ -229,17 +233,80 @@ instance : DecidableLT BitPos := fun i j =>
     ¬ (j : Fin 8).val &&& (i : Fin 8).val = (j : Fin 8).val))
 
 /-- Enumeration of the Boolean lattice of rank `3` by bitmasks. -/
-@[expose] def bitEnum : Fin 8 ≃ BitPos := Equiv.refl _
+def bitEnum : Fin 8 ≃ BitPos := Equiv.refl _
 
-example : (minChainCoverM bitEnum).ret.numChains = 3 := by decide
+example : (minChainCover bitEnum).numChains = 3 := by decide +kernel
 
-example : (minChainCoverM bitEnum).ret.antichain.card = 3 := by decide
+example : (minChainCover bitEnum).antichain.card = 3 := by decide +kernel
 
 /-- The solver's certificate: every antichain of the Boolean lattice of rank `3` has at most `3`
 elements. -/
 example (A : Finset BitPos) (hA : IsAntichain (· ≤ ·) (A : Set BitPos)) : A.card ≤ 3 := by
   have h := card_le_card_antichain_of_isAntichain bitEnum hA
-  rwa [show (minChainCoverM bitEnum).ret.antichain.card = 3 by decide] at h
+  rwa [show (minChainCover bitEnum).antichain.card = 3 by decide +kernel] at h
+
+private def emptyPoset : PosetInstance := ⟨0, fun _ => false⟩
+private def chain4Poset : PosetInstance := ⟨4, fun e => decide (e.1.val < e.2.val)⟩
+private def antichain4Poset : PosetInstance := ⟨4, fun _ => false⟩
+private def div6Poset : PosetInstance := PosetInstance.ofEnum div6Enum
+private def bitPoset : PosetInstance := PosetInstance.ofEnum bitEnum
+
+example : div6Poset.antichainList = [3, 4, 5] := by decide
+
+/-- Ordinary `module` client instantiations of `executesList_chainLabels` and
+`executesList_maxAntichain` on `div6Poset` (`n = 6`, `w = 16`) and `emptyPoset` (`n = 0`,
+`w = 5`). -/
+example :
+    (∃ steps, ExecutesList 16 chainLabelsProgram (.init div6Poset.encode)
+      div6Poset.chainLabelsList steps ∧ steps ≤ chainCoverTime 6) ∧
+    (∃ steps, ExecutesList 16 maxAntichainProgram (.init div6Poset.encode) [3, 4, 5] steps ∧
+      steps ≤ chainCoverTime 6) ∧
+    (∃ steps, ExecutesList 5 maxAntichainProgram (.init emptyPoset.encode) [] steps ∧
+      steps ≤ chainCoverTime 0) := by
+  have h1 := executesList_chainLabels div6Poset (w := 16) (by decide)
+  have h2 := executesList_maxAntichain div6Poset (w := 16) (by decide)
+  have h3 := executesList_maxAntichain emptyPoset (w := 5) (by decide)
+  have ha : div6Poset.antichainList = [3, 4, 5] := by decide
+  rw [ha] at h2
+  exact ⟨h1, h2, h3⟩
+
+private meta def checkPoset (w : ℕ) (inst : PosetInstance) (expectedNumChains : ℕ)
+    (expectedAntichainLen : ℕ) : Bool :=
+  let budget := chainCoverTime inst.n
+  match Program.runFastList w budget chainLabelsProgram inst.encode,
+      Program.runFastList w budget maxAntichainProgram inst.encode with
+  | some (labs, s₁), some (anti, s₂) =>
+    labs == inst.chainLabelsList && anti == inst.antichainList &&
+      labs.eraseDups.length == expectedNumChains && anti.length == expectedAntichainLen &&
+      s₁ ≤ budget && s₂ ≤ budget
+  | _, _ => false
+
+/-- info: true -/
+#guard_msgs in
+#eval checkPoset 16 emptyPoset 0 0
+
+/-- info: true -/
+#guard_msgs in
+#eval checkPoset 16 chain4Poset 1 1
+
+/-- info: true -/
+#guard_msgs in
+#eval checkPoset 16 antichain4Poset 4 4
+
+/-- info: true -/
+#guard_msgs in
+#eval checkPoset 16 div6Poset 3 3
+
+/-- info: true -/
+#guard_msgs in
+#eval checkPoset 16 bitPoset 3 3
+
+-- Width invariance (`w = 16` vs `w = 64`) and narrow-width fault (`w = 2`).
+/-- info: true -/
+#guard_msgs in
+#eval decide (Program.runFastList 16 100000 chainLabelsProgram div6Poset.encode =
+    Program.runFastList 64 100000 chainLabelsProgram div6Poset.encode ∧
+  Program.runFastList 2 5000 chainLabelsProgram chain4Poset.encode = none)
 
 /-! ### 4. Erdős–Szekeres -/
 
@@ -252,7 +319,7 @@ example : (∃ t : Finset (Fin 5), 2 < t.card ∧ StrictMonoOn ![(2 : ℕ), 1, 4
   exists_strictMonoOn_or_strictAntiOn_of_mul_lt (by decide) (by decide)
 
 /-- The tight sequence `2, 1, 4, 3`: `n = r * s` for `r = s = 2`. -/
-@[expose] def tightSeq : Fin 4 → ℕ := ![2, 1, 4, 3]
+def tightSeq : Fin 4 → ℕ := ![2, 1, 4, 3]
 
 /-- `2, 1, 4, 3` has no monotone subsequence of `3` terms. -/
 theorem tightSeq_not_monotoneOn (t : Finset (Fin 4)) (ht : 2 < t.card) :

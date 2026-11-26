@@ -85,34 +85,40 @@ private theorem copyRegs_read_ge {R m v i : ℕ} (values : List ℕ) (hi : 5 ≤
 
 private theorem copyRegs_read_source {R m v : ℕ} (values : List ℕ) (hR : 5 ≤ R) :
     (copyRegs R values (m + 1) v).read (5 + m) = values.getD m 0 := by
-  rw [copyRegs_read_ge values (by lia)]
-  simp [show ¬R + (m + 1) ≤ 5 + m by lia, show 5 + m - 5 = m by lia]
+  rw [copyRegs_read_ge values (Nat.le_add_right 5 m), ite_eq_right (by lia),
+    Nat.add_sub_cancel_left]
+
+private theorem copyRegs_read_scratch {R m v : ℕ} (values : List ℕ) (hR : 5 ≤ R) :
+    (copyRegs R values (m + 1) v).read 0 = 1 ∧
+      (copyRegs R values (m + 1) v).read 1 = m + 1 ∧
+      (copyRegs R values (m + 1) v).read 2 = 5 + m ∧
+      (copyRegs R values (m + 1) v).read 3 = R + m :=
+  ⟨rfl, rfl, by change 4 + (m + 1) = 5 + m; omega, by change R - 1 + (m + 1) = R + m; omega⟩
 
 private theorem run_copy_round {R : ℕ} (hR : 5 ≤ R) (tail : Program)
     (values : List ℕ) (m v : ℕ) :
     run (prepare R ++ tail) 6 (copyState R values (m + 1) v) =
       copyState R values m (values.getD m 0) := by
   have hsrc := copyRegs_read_source (m := m) (v := v) values hR
-  have hdst : R - 1 + (m + 1) = R + m := by lia
-  have hd : 5 ≤ R + m := by lia
-  have r0 : (copyRegs R values (m + 1) v).read 0 = 1 := rfl
-  have r1 : (copyRegs R values (m + 1) v).read 1 = m + 1 := rfl
-  have r2 : (copyRegs R values (m + 1) v).read 2 = 5 + m := by
-    change 4 + (m + 1) = 5 + m
-    lia
-  have r3 : (copyRegs R values (m + 1) v).read 3 = R + m := hdst
+  obtain ⟨r0, r1, r2, r3⟩ := copyRegs_read_scratch (m := m) (v := v) values hR
   norm_num [run, Function.iterate_succ_apply, step, prepare, Instr.exec, copyState,
-    r0, r1, r2, r3, hsrc, URM.Regs.write_read_of_ne, show R + m ≠ 0 by lia,
-    show R + m ≠ 1 by lia, show R + m ≠ 2 by lia, show R + m ≠ 3 by lia,
-    show R + m ≠ 4 by lia, show 0 ≠ R + m by lia, show 1 ≠ R + m by lia,
-    show 2 ≠ R + m by lia, show 3 ≠ R + m by lia]
+    r0, r1, r2, r3, hsrc, URM.Regs.write_read_of_ne, show R + m ≠ 0 by omega,
+    show R + m ≠ 1 by omega, show R + m ≠ 2 by omega, show R + m ≠ 3 by omega,
+    show R + m ≠ 4 by omega, show 0 ≠ R + m by omega, show 1 ≠ R + m by omega,
+    show 2 ≠ R + m by omega, show 3 ≠ R + m by omega]
   constructor
-  · split <;> split <;> lia
+  · split <;> split <;> omega
   · funext i
     rcases i with _ | _ | _ | _ | _ | i
-    all_goals simp only [URM.Regs.write, Function.update_apply]
-    all_goals simp only [copyRegs]
-    all_goals split_ifs <;> grind
+    · simp [URM.Regs.write, copyRegs, show 0 ≠ R + m by omega]
+    · simp [URM.Regs.write, copyRegs]
+    · simp [URM.Regs.write, copyRegs]
+    · simp only [URM.Regs.write, Function.update_apply, copyRegs, ↓reduceIte]; omega
+    · simp [URM.Regs.write, copyRegs, show 4 ≠ R + m by omega]
+    · simp only [URM.Regs.write, Function.update_apply, copyRegs,
+        show i + 5 ≠ 3 by omega, show i + 5 ≠ 2 by omega, show i + 5 ≠ 1 by omega,
+        show i + 5 ≠ 4 by omega, ↓reduceIte, List.getD_eq_getElem?_getD]
+      split_ifs <;> first | rfl | omega | (congr 2; omega)
 
 private theorem run_copy_loop {R : ℕ} (hR : 5 ≤ R) (tail : Program)
     (values : List ℕ) (m v : ℕ) :
@@ -122,18 +128,17 @@ private theorem run_copy_loop {R : ℕ} (hR : 5 ≤ R) (tail : Program)
   | zero => exact ⟨v, rfl⟩
   | succ m ih =>
     obtain ⟨v', hv'⟩ := ih (values.getD m 0)
-    refine ⟨v', ?_⟩
-    rw [show 6 * (m + 1) = 6 + 6 * m by lia, run_add, run_copy_round hR, hv']
+    exact ⟨v', by rw [Nat.mul_succ, Nat.add_comm _ 6, run_add, run_copy_round hR, hv']⟩
 
 private theorem read_padded (R : ℕ) (values : List ℕ) (i : ℕ) :
     (URM.Regs.ofInputs (List.replicate R 0 ++ values)).read i =
       if i < R then 0 else values.getD (i - R) 0 := by
   change (List.replicate R 0 ++ values).getD i 0 = _
   by_cases hi : i < R
-  · rw [List.getD_append _ _ _ _ (by simpa using hi), List.getD_replicate 0 hi]
-    simp [hi]
-  · rw [List.getD_append_right _ _ _ _ (by simp only [List.length_replicate]; lia)]
-    simp [hi]
+  · rw [ite_eq_left hi, List.getD_append _ _ _ _ (by simpa using hi), List.getD_replicate 0 hi]
+  · rw [ite_eq_right hi,
+      List.getD_append_right _ _ _ _ (by simp only [List.length_replicate]; omega),
+      List.length_replicate]
 
 private theorem run_setup {R : ℕ} (hR : 5 ≤ R) (tail : Program) (input : List ℕ) :
     run (prepare R ++ tail) 6 (State.init (encode 5 input)) =
@@ -186,16 +191,15 @@ theorem run_prepare_append {R : ℕ} (hR : 5 ≤ R) (tail : Program) (input : Li
   rw [prepareSteps, run_add, run_add, run_setup hR, hv]
   change run (prepare R ++ tail) R ⟨12, copyRegs R (input.length :: input) 0 v⟩ = _
   rw [run_clear tail le_rfl, length_prepare]
-  ext1
+  congr 1
+  funext i
+  change (if i < R then 0 else (copyRegs R (input.length :: input) 0 v).read i) =
+    (URM.Regs.ofInputs (List.replicate R 0 ++ input.length :: input)).read i
+  rw [read_padded]
+  split_ifs with hi
   · rfl
-  · funext i
-    change (if i < R then 0 else (copyRegs R (input.length :: input) 0 v).read i) =
-      (URM.Regs.ofInputs (List.replicate R 0 ++ input.length :: input)).read i
-    rw [read_padded]
-    by_cases hi : i < R
-    · simp [hi]
-    · rw [ite_eq_right hi, ite_eq_right hi, copyRegs_read_ge _ (by lia)]
-      simp [show R ≤ i by lia]
+  · rw [copyRegs_read_ge _ (hR.trans (Nat.le_of_not_lt hi)), Nat.add_zero,
+      ite_eq_left (Nat.le_of_not_lt hi)]
 
 private theorem time_copy_round_le {R B : ℕ} (hR : 5 ≤ R) (tail : Program)
     (values : List ℕ) (m v : ℕ) (hB : 1 ≤ B)
@@ -204,21 +208,14 @@ private theorem time_copy_round_le {R B : ℕ} (hR : 5 ≤ R) (tail : Program)
     (hv : bitLength (values.getD m 0) ≤ B) :
     time logCost (prepare R ++ tail) 6 (copyState R values (m + 1) v) ≤ 12 * B := by
   have hsrc := copyRegs_read_source (m := m) (v := v) values hR
-  have r0 : (copyRegs R values (m + 1) v).read 0 = 1 := rfl
-  have r1 : (copyRegs R values (m + 1) v).read 1 = m + 1 := rfl
-  have r2 : (copyRegs R values (m + 1) v).read 2 = 5 + m := by
-    change 4 + (m + 1) = 5 + m
-    lia
-  have r3 : (copyRegs R values (m + 1) v).read 3 = R + m := by
-    change R - 1 + (m + 1) = R + m
-    lia
+  obtain ⟨r0, r1, r2, r3⟩ := copyRegs_read_scratch (m := m) (v := v) values hR
   norm_num [time_succ, stepCost, run, Function.iterate_succ_apply, step, prepare,
     Instr.exec, copyState, logCost, r0, r1, r2, r3, hsrc, URM.Regs.write_read_of_ne,
-    show 0 ≠ R + m by lia, show 1 ≠ R + m by lia,
-    show 2 ≠ R + m by lia, show 3 ≠ R + m by lia]
+    show 0 ≠ R + m by omega, show 1 ≠ R + m by omega,
+    show 2 ≠ R + m by omega, show 3 ≠ R + m by omega]
   have h1 : bitLength 1 = 1 := rfl
   simp only [List.getD_eq_getElem?_getD] at hv
-  lia
+  omega
 
 private theorem time_copy_loop_le {R n m b : ℕ} (hR : 5 ≤ R) (tail : Program)
     (values : List ℕ) (v : ℕ) (hm : m ≤ n + 1) (hn : bitLength n ≤ b)
@@ -266,10 +263,7 @@ theorem time_prepare_append_le {R b : ℕ} (hR : 5 ≤ R) (tail : Program) (inpu
   have hvalues (i : ℕ) : bitLength ((input.length :: input).getD i 0) ≤ b := by
     by_cases hi : i < (input.length :: input).length
     · rw [List.getD_eq_getElem _ 0 hi]
-      rcases List.mem_cons.mp (List.getElem_mem hi) with h | h
-      · rw [h]
-        exact hlen
-      · exact hinput _ h
+      exact (List.mem_cons.mp (List.getElem_mem hi)).elim (fun h => h.symm ▸ hlen) (hinput _)
     · rw [List.getD_eq_default _ 0 (by lia)]
       exact hb
   obtain ⟨v, hv⟩ := run_copy_loop hR tail (input.length :: input) (input.length + 1) 0
@@ -280,18 +274,17 @@ theorem time_prepare_append_le {R b : ℕ} (hR : 5 ≤ R) (tail : Program) (inpu
     ⟨12, copyRegs R (input.length :: input) 0 v⟩ ≤ _
   rw [time_clear tail le_rfl]
   have hbound : bitLength (R + 5) + b + 1 ≤ (bitLength (R + 5) + 2) * b := by
-    nlinarith
-  have hcost := add_le_add (add_le_add hsetup hcopy) (Nat.le_refl R)
-  refine hcost.trans ?_
+    have := Nat.le_mul_of_pos_right (bitLength (R + 5)) hb
+    rw [Nat.add_mul]; omega
+  refine (add_le_add (add_le_add hsetup hcopy) (Nat.le_refl R)).trans ?_
   calc
-    _ ≤ (24 + R) * (input.length + 1) * (bitLength (R + 5) + b + 1) := by
-      have hfirst : 12 * (bitLength (R + 5) + b + 1) ≤
-          12 * (input.length + 1) * (bitLength (R + 5) + b + 1) := by
-        gcongr
-        lia
-      have hclear : R ≤ R * ((input.length + 1) * (bitLength (R + 5) + b + 1)) := by
-        exact Nat.le_mul_of_pos_right _ (by positivity)
-      nlinarith only [hfirst, hclear]
+    _ ≤ 12 * (input.length + 1) * (bitLength (R + 5) + b + 1) +
+          12 * (input.length + 1) * (bitLength (R + 5) + b + 1) +
+          R * ((input.length + 1) * (bitLength (R + 5) + b + 1)) := by
+      gcongr
+      · exact Nat.le_mul_of_pos_right 12 (Nat.succ_pos _)
+      · exact Nat.le_mul_of_pos_right R (by positivity)
+    _ = (24 + R) * (input.length + 1) * (bitLength (R + 5) + b + 1) := by ring
     _ ≤ (24 + R) * (input.length + 1) * ((bitLength (R + 5) + 2) * b) := by gcongr
     _ = _ := by ring
 

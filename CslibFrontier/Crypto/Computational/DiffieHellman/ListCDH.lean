@@ -158,12 +158,9 @@ theorem eval_listCDHExperiment_le_mul_add_of_index (Q : ℕ) (index : ProbComp �
   refine PMF.bind_apply_le_mul_bind_apply_add _ fun a => ?_
   refine PMF.bind_apply_le_mul_bind_apply_add _ fun b => ?_
   refine PMF.bind_apply_le_mul_bind_apply_add _ fun l => ?_
-  have hmap : ((ProbComp.eval index).bind fun i => PMF.pure (decide (l.getD i g = (a * b) • g))) =
-      ((ProbComp.eval index).map fun i => l.getD i g).bind
-        fun z => PMF.pure (decide (z = (a * b) • g)) := by
-    rw [PMF.bind_map]
-    rfl
-  rw [hmap, PMF.bind_pure_decide_eq_apply_true']
+  change _ ≤ c * ((ProbComp.eval index).bind
+      ((fun z => PMF.pure (decide (z = (a * b) • g))) ∘ fun i => l.getD i g)) true + ε
+  rw [← PMF.bind_map, PMF.bind_pure_decide_eq_apply_true']
   by_cases hx : (a * b) • g ∈ l.take Q
   · simpa [hx] using hindex l _ hx
   · simp [hx]
@@ -235,10 +232,8 @@ theorem eval_listCDHExperiment_le_mul_add (width Q : ℕ) (A : G → G → ProbC
         ProbComp.one_le_mul_eval_sampleModNat_add hiQ
     _ ≤ _ := by
         gcongr
-        have hget : (l.take Q)[i] = l.getD i g := by
-          simp [List.getElem_take, List.getD_eq_getElem?_getD, hil]
-        rw [hget]
-        exact PMF.le_map_apply _ (fun j => l.getD j g) i
+        simpa [List.getElem_take, List.getD_eq_getElem?_getD, hil] using
+          PMF.le_map_apply _ (fun j => l.getD j g) i
 
 /-- **More entries that count cannot hurt the adversary**: if `Q ≤ Q'`, the list experiment with
 bound `Q'` accepts with probability at least that with bound `Q`, since the first `Q` entries of a
@@ -250,9 +245,7 @@ theorem eval_listCDHExperiment_mono {Q Q' : ℕ} (hle : Q ≤ Q') (A : G → G �
   refine PMF.bind_apply_mono_on_support _ _ fun a _ => ?_
   refine PMF.bind_apply_mono_on_support _ _ fun b _ => ?_
   refine PMF.bind_apply_mono_on_support _ _ fun l _ => ?_
-  by_cases hx : (a * b) • g ∈ l.take Q
-  · simp [hx, List.take_subset_take_left l hle hx]
-  · simp [hx]
+  by_cases hx : (a * b) • g ∈ l.take Q <;> simp [hx, fun h => List.take_subset_take_left l hle h]
 
 end Experiments
 

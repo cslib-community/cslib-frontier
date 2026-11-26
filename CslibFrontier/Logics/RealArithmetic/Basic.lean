@@ -101,9 +101,7 @@ Negation, conjunction, and disjunction give complement, intersection, and union.
     MvPolynomial.eval₂ (Int.castRingHom ℝ) x t.toPolynomial = t.eval x := by
   induction t with
   | const z => exact MvPolynomial.eval₂_C (Int.castRingHom ℝ) x z
-  | var i => exact MvPolynomial.eval₂_X (Int.castRingHom ℝ) x i
-  | add a b ha hb => simp [toPolynomial, eval, ha, hb]
-  | mul a b ha hb => simp [toPolynomial, eval, ha, hb]
+  | _ => simp_all [toPolynomial, eval]
 
 /-- Rename the free coordinates of a formula. -/
 @[expose] def Formula.rename {n m : ℕ} (f : Fin n → Fin m) : Formula n → Formula m
@@ -138,17 +136,11 @@ theorem Formula.existsForallSolutionSet_rename_castLE {r s t : ℕ}
     (p.rename (Fin.castLE (Nat.add_le_add_left h r))).existsForallSolutionSet
       (r := r) (s := t) = p.existsForallSolutionSet (r := r) (s := s) := by
   ext x
-  have hrestriction (z : Fin t → ℝ) :
-      Fin.addCases x z ∘ Fin.castLE (Nat.add_le_add_left h r) =
-        Fin.addCases x (z ∘ Fin.castLE h) := by
-    exact Fin.take_append_right (n := r) s h x z
-  simp only [existsForallSolutionSet, Set.mem_ofPred_eq, solutionSet_rename,
-    Set.mem_preimage, hrestriction]
-  constructor
-  · intro hx y
-    obtain ⟨z, rfl⟩ := (Fin.castLE_injective h).surjective_comp_right y
-    exact hx z
-  · intro hx z
-    exact hx (z ∘ Fin.castLE h)
+  have hres (z : Fin t → ℝ) : Fin.addCases x z ∘ Fin.castLE (Nat.add_le_add_left h r) =
+      Fin.addCases x (z ∘ Fin.castLE h) := Fin.take_append_right s h x z
+  simp only [existsForallSolutionSet, Set.mem_ofPred_eq, solutionSet_rename, Set.mem_preimage, hres]
+  refine ⟨fun hx y => ?_, fun hx z => hx (z ∘ Fin.castLE h)⟩
+  obtain ⟨z, rfl⟩ := (Fin.castLE_injective h).surjective_comp_right y
+  exact hx z
 
 end Cslib.Logic.RealArithmetic

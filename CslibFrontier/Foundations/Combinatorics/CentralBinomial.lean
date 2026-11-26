@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Data.Nat.Choose.Central
 public import Mathlib.Data.Nat.Choose.Central
 public import Mathlib.Data.Fintype.Powerset
 public import Mathlib.Data.Fintype.Card
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Data.Nat.Choose.Sum
 import Mathlib.Algebra.Order.Group.Nat
 import Mathlib.Tactic.Positivity
@@ -56,45 +57,34 @@ theorem two_pow_succ_le_centralBinom {B : ℕ} (hB : 3 ≤ B) : 2 ^ (B + 1) ≤ 
   induction B, hB using Nat.le_induction with
   | base => decide
   | succ B hB ih =>
-    have hrec := Nat.succ_mul_centralBinom_succ B
-    have : (B + 1) * (2 * 2 ^ (B + 1)) ≤ (B + 1) * (B + 1).centralBinom := by
-      rw [hrec]
-      calc
-        (B + 1) * (2 * 2 ^ (B + 1)) = ((B + 1) * 2) * 2 ^ (B + 1) := by ring
-        _ ≤ (2 * (2 * B + 1)) * 2 ^ (B + 1) := Nat.mul_le_mul_right _ (by omega)
-        _ ≤ 2 * (2 * B + 1) * B.centralBinom := Nat.mul_le_mul_left _ ih
-    rw [pow_succ, mul_comm (2 ^ (B + 1))]
-    exact Nat.le_of_mul_le_mul_left this (Nat.succ_pos B)
+    refine Nat.le_of_mul_le_mul_left ?_ (Nat.succ_pos B)
+    rw [Nat.succ_mul_centralBinom_succ, pow_succ']
+    calc (B + 1) * (2 * 2 ^ (B + 1)) = (2 * B + 2) * 2 ^ (B + 1) := by ring
+      _ ≤ 2 * (2 * B + 1) * B.centralBinom := Nat.mul_le_mul (by omega) ih
 
 /-- The middle binomial coefficient satisfies `C(n, ⌊n/2⌋)² (n + 1) ≤ 4^n`. -/
 theorem choose_half_sq_mul_le (n : ℕ) :
     n.choose (n / 2) ^ 2 * (n + 1) ≤ 4 ^ n := by
   obtain ⟨m, rfl | rfl⟩ := Nat.even_or_odd' n
-  · have hhalf : 2 * m / 2 = m := by omega
-    rw [hhalf, ← Nat.centralBinom_eq_two_mul_choose, pow_mul]
+  · rw [Nat.mul_div_right _ zero_lt_two, ← Nat.centralBinom_eq_two_mul_choose, pow_mul]
     simpa using Nat.centralBinom_sq_mul_le m
-  · have hhalf : (2 * m + 1) / 2 = m := by omega
-    rw [hhalf]
-    have hc : 2 * (2 * m + 1).choose m = (m + 1).centralBinom := by
-      rw [Nat.centralBinom_eq_two_mul_choose,
-        show 2 * (m + 1) = (2 * m + 1) + 1 by ring, Nat.choose_succ_succ',
-        Nat.choose_symm_half]
-      ring
-    have hcentral := Nat.centralBinom_sq_mul_le (m + 1)
-    rw [← hc] at hcentral
+  · have hc : 2 * (2 * m + 1).choose m = (m + 1).centralBinom := by
+      have h2m : 2 * (m + 1) = (2 * m + 1) + 1 := by omega
+      rw [Nat.centralBinom_eq_two_mul_choose, h2m, Nat.choose_succ_succ', Nat.choose_symm_half]
+      omega
     have h16 : (16 : ℕ) ^ (m + 1) = 4 * 4 ^ (2 * m + 1) := by
       rw [pow_succ, pow_succ, pow_mul]
       norm_num
       ring
-    rw [h16] at hcentral
-    have hmain : 4 * ((2 * m + 1).choose m ^ 2 * (2 * m + 1 + 1)) ≤ 4 * 4 ^ (2 * m + 1) :=
-      calc
-        4 * ((2 * m + 1).choose m ^ 2 * (2 * m + 1 + 1)) ≤
-            (2 * (2 * m + 1).choose m) ^ 2 * (2 * (m + 1) + 1) := by
-          ring_nf
-          omega
-        _ ≤ 4 * 4 ^ (2 * m + 1) := hcentral
-    omega
+    have hcentral := Nat.centralBinom_sq_mul_le (m + 1)
+    rw [← hc, h16] at hcentral
+    rw [show (2 * m + 1) / 2 = m by omega]
+    have hle : 4 * ((2 * m + 1).choose m ^ 2 * (2 * m + 1 + 1)) ≤
+        (2 * (2 * m + 1).choose m) ^ 2 * (2 * (m + 1) + 1) :=
+      calc 4 * ((2 * m + 1).choose m ^ 2 * (2 * m + 1 + 1))
+          = (2 * (2 * m + 1).choose m) ^ 2 * (2 * m + 2) := by ring
+        _ ≤ (2 * (2 * m + 1).choose m) ^ 2 * (2 * (m + 1) + 1) := Nat.mul_le_mul_left _ (by omega)
+    exact Nat.le_of_mul_le_mul_left (hle.trans hcentral) (by decide)
 
 /-- Complementation shows that at most half of all subsets have fewer than
 `n / 2` elements. -/
@@ -102,27 +92,18 @@ theorem two_mul_card_small_le (n : ℕ) :
     2 * (univ.filter fun S : Finset (Fin n) => 2 * S.card < n).card ≤ 2 ^ n := by
   set A := univ.filter fun S : Finset (Fin n) => 2 * S.card < n
   set B := univ.filter fun S : Finset (Fin n) => n < 2 * S.card
-  have hAB : A.card ≤ B.card := by
-    refine Finset.card_le_card_of_injOn (fun S => Sᶜ) ?_ ?_
-    · intro S hS
-      simp only [A, B, Finset.coe_filter, Finset.mem_univ, true_and,
-        Set.mem_ofPred_eq] at hS ⊢
-      rw [Finset.card_compl, Fintype.card_fin]
-      have := Finset.card_le_univ S
-      simp only [Fintype.card_fin] at this
-      omega
-    · intro S _ T _ hST
-      exact compl_injective hST
-  have hdisj : Disjoint A B := by
-    rw [Finset.disjoint_filter]
-    intro S _ hS
-    omega
-  have hunion : A.card + B.card ≤ 2 ^ n := by
-    rw [← Finset.card_union_of_disjoint hdisj]
-    calc
-      (A ∪ B).card ≤ (univ : Finset (Finset (Fin n))).card := Finset.card_le_univ _
-      _ = 2 ^ n := by rw [Finset.card_univ, Fintype.card_finset, Fintype.card_fin]
-  omega
+  have hAB : A.card ≤ B.card := card_le_card_of_injOn (·ᶜ)
+    (fun S hS => by
+      simp only [A, B, coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hS ⊢
+      finset_card)
+    compl_injective.injOn
+  have hdisj : Disjoint A B := disjoint_filter.2 fun _ _ => by omega
+  finset_card [show Fintype.card (Finset (Fin n)) = 2 ^ n by simp]
+
+private lemma card_filter_card_eq_le {n : ℕ} (X : Finset (Finset (Fin n))) (k : ℕ) :
+    (X.filter fun S => S.card = k).card ≤ n.choose k := by
+  simpa [card_powersetCard] using card_le_card (t := powersetCard k (univ : Finset (Fin n)))
+    fun S hS => mem_powersetCard.2 ⟨subset_univ S, (mem_filter.1 hS).2⟩
 
 /-- Subsets of size between `n / 2` and `n / 2 + t` number at most
 `(t + 1) · C(n, ⌊n/2⌋)`. -/
@@ -131,31 +112,16 @@ theorem card_middle_le (n t : ℕ) :
       n ≤ 2 * S.card ∧ S.card ≤ n / 2 + t).card ≤ (t + 1) * n.choose (n / 2) := by
   classical
   have hmaps : ∀ S ∈ (univ.filter fun S : Finset (Fin n) =>
-      n ≤ 2 * S.card ∧ S.card ≤ n / 2 + t), S.card ∈ Finset.Icc ((n + 1) / 2) (n / 2 + t) := by
+      n ≤ 2 * S.card ∧ S.card ≤ n / 2 + t), S.card ∈ Icc ((n + 1) / 2) (n / 2 + t) := by
     intro S hS
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hS
-    rw [Finset.mem_Icc]
+    simp only [mem_filter, mem_univ, true_and] at hS
+    rw [mem_Icc]
     omega
-  have hfiber : ∀ b ∈ Finset.Icc ((n + 1) / 2) (n / 2 + t),
-      ((univ.filter fun S : Finset (Fin n) =>
-        n ≤ 2 * S.card ∧ S.card ≤ n / 2 + t).filter fun S => S.card = b).card ≤
-          n.choose (n / 2) := by
-    intro b _
-    calc
-      _ ≤ (Finset.powersetCard b (univ : Finset (Fin n))).card := by
-        apply Finset.card_le_card
-        intro S hS
-        simp only [Finset.mem_filter] at hS
-        exact Finset.mem_powersetCard.mpr ⟨Finset.subset_univ S, hS.2⟩
-      _ = n.choose b := by rw [Finset.card_powersetCard, Finset.card_univ, Fintype.card_fin]
-      _ ≤ n.choose (n / 2) := Nat.choose_le_middle b n
-  calc
-    _ ≤ n.choose (n / 2) * (Finset.Icc ((n + 1) / 2) (n / 2 + t)).card :=
-      Finset.card_le_mul_card_image_of_maps_to hmaps _ hfiber
-    _ ≤ n.choose (n / 2) * (t + 1) := by
-      apply Nat.mul_le_mul_left
-      rw [Nat.card_Icc]
-      omega
+  calc _ ≤ n.choose (n / 2) * (Icc ((n + 1) / 2) (n / 2 + t)).card :=
+        card_le_mul_card_image_of_maps_to hmaps _ fun b _ => calc
+          _ ≤ n.choose b := card_filter_card_eq_le _ b
+          _ ≤ n.choose (n / 2) := Nat.choose_le_middle b n
+    _ ≤ n.choose (n / 2) * (t + 1) := Nat.mul_le_mul_left _ (by rw [Nat.card_Icc]; omega)
     _ = (t + 1) * n.choose (n / 2) := Nat.mul_comm _ _
 
 /-- When `100 (t + 1)² ≤ n + 1`, at most `6/10` of the subsets of `Fin n` have
@@ -164,31 +130,25 @@ theorem ten_mul_card_filter_card_le_le (n t : ℕ) (h : 100 * (t + 1) ^ 2 ≤ n 
     10 * (univ.filter fun S : Finset (Fin n) => S.card ≤ n / 2 + t).card ≤ 6 * 2 ^ n := by
   set A := univ.filter fun S : Finset (Fin n) => 2 * S.card < n
   set M := univ.filter fun S : Finset (Fin n) => n ≤ 2 * S.card ∧ S.card ≤ n / 2 + t
-  have hsub : (univ.filter fun S : Finset (Fin n) => S.card ≤ n / 2 + t) ⊆ A ∪ M := by
-    intro S hS
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hS
-    simp only [A, M, Finset.mem_union, Finset.mem_filter, Finset.mem_univ, true_and]
-    omega
+  have hsub : (univ.filter fun S : Finset (Fin n) => S.card ≤ n / 2 + t) ⊆ A ∪ M := fun S hS => by
+    simp only [A, M, mem_union, mem_filter, mem_univ, true_and] at hS ⊢; omega
   have hA : 2 * A.card ≤ 2 ^ n := two_mul_card_small_le n
-  have hM : M.card ≤ (t + 1) * n.choose (n / 2) := card_middle_le n t
-  have hC := choose_half_sq_mul_le n
-  have hmid : 10 * ((t + 1) * n.choose (n / 2)) ≤ 2 ^ n := by
-    have hsq : (10 * ((t + 1) * n.choose (n / 2))) ^ 2 ≤ (2 ^ n) ^ 2 := by
-      calc
-        (10 * ((t + 1) * n.choose (n / 2))) ^ 2 =
-            (100 * (t + 1) ^ 2) * n.choose (n / 2) ^ 2 := by ring
-        _ ≤ (n + 1) * n.choose (n / 2) ^ 2 := Nat.mul_le_mul_right _ h
-        _ = n.choose (n / 2) ^ 2 * (n + 1) := Nat.mul_comm _ _
-        _ ≤ 4 ^ n := hC
-        _ = (2 ^ n) ^ 2 := by rw [← pow_mul, mul_comm, pow_mul]; norm_num
-    exact (pow_le_pow_iff_left₀ (by positivity) (by positivity) (by norm_num)).mp hsq
+  have hM : 10 * M.card ≤ 10 * ((t + 1) * n.choose (n / 2)) :=
+    Nat.mul_le_mul_left 10 (card_middle_le n t)
+  have h4 : 4 ^ n = (2 ^ n) ^ 2 := by
+    rw [← pow_mul, mul_comm, pow_mul]
+    norm_num
+  have hmid : 10 * ((t + 1) * n.choose (n / 2)) ≤ 2 ^ n :=
+    (pow_le_pow_iff_left₀ (by positivity) (by positivity) two_ne_zero).mp <| calc
+      (10 * ((t + 1) * n.choose (n / 2))) ^ 2
+        = 100 * (t + 1) ^ 2 * n.choose (n / 2) ^ 2 := by ring
+      _ ≤ (n + 1) * n.choose (n / 2) ^ 2 := Nat.mul_le_mul_right _ h
+      _ ≤ (2 ^ n) ^ 2 := by simpa only [mul_comm (n + 1), h4] using choose_half_sq_mul_le n
   calc
-    10 * (univ.filter fun S : Finset (Fin n) => S.card ≤ n / 2 + t).card ≤
-        10 * (A.card + M.card) :=
-      Nat.mul_le_mul_left _ ((Finset.card_le_card hsub).trans (Finset.card_union_le _ _))
-    _ ≤ 6 * 2 ^ n := by
-      have : 10 * M.card ≤ 10 * ((t + 1) * n.choose (n / 2)) := Nat.mul_le_mul_left _ hM
-      omega
+    10 * (univ.filter fun S : Finset (Fin n) => S.card ≤ n / 2 + t).card
+      ≤ 10 * (A.card + M.card) :=
+        Nat.mul_le_mul_left 10 ((card_le_card hsub).trans (card_union_le A M))
+    _ ≤ 6 * 2 ^ n := by omega
 
 /-- Below `n / 2`, the binomial coefficients `C(n, k)` increase with `k`. -/
 theorem choose_le_choose_of_le_of_le_half {n k a : ℕ} (hka : k ≤ a) (ha : a ≤ n / 2) :
@@ -215,30 +175,23 @@ theorem four_mul_two_pow_le_mul_choose_sub {n s : ℕ} (hs : 1 ≤ s) (h : 100 *
       2 ^ n := by
     rw [card_filter_add_card_filter_not, card_univ, Fintype.card_finset, Fintype.card_fin]
   -- complementation maps the large sets into the sets of at most `a` elements
-  have hcompl : (univ.filter fun S : Finset (Fin n) => ¬S.card ≤ n / 2 + (s - 1)).card ≤
-      A.card := by
-    refine card_le_card_of_injOn (fun S => Sᶜ) (fun S hS => ?_) compl_injective.injOn
-    simp only [A, coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hS ⊢
-    rw [card_compl, Fintype.card_fin]
-    omega
+  have hcompl : (univ.filter fun S : Finset (Fin n) => ¬S.card ≤ n / 2 + (s - 1)).card ≤ A.card :=
+    card_le_card_of_injOn (·ᶜ)
+      (fun S hS => by
+        simp only [A, coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at hS ⊢
+        finset_card)
+      compl_injective.injOn
   -- each size `k ≤ a` contributes at most `C(n, k) ≤ C(n, a)` sets
-  have hA : A.card ≤ n.choose a * (range (a + 1)).card := by
-    refine card_le_mul_card_image_of_maps_to (f := card) (fun S hS => ?_) _ fun k hk => ?_
-    · simp only [A, mem_filter, mem_univ, true_and] at hS
-      exact mem_range.mpr (Nat.lt_succ_of_le hS)
-    · calc (A.filter fun S => S.card = k).card
-          ≤ (powersetCard k (univ : Finset (Fin n))).card := by
-            refine card_le_card fun S hS => ?_
-            simp only [mem_filter] at hS
-            exact mem_powersetCard.mpr ⟨subset_univ S, hS.2⟩
-        _ = n.choose k := by rw [card_powersetCard, card_univ, Fintype.card_fin]
-        _ ≤ n.choose a := choose_le_choose_of_le_of_le_half (Nat.lt_succ_iff.mp
-            (mem_range.mp hk)) ha
-  rw [card_range] at hA
+  have hA : A.card ≤ n.choose a * (a + 1) := by
+    rw [← card_range (a + 1)]
+    refine card_le_mul_card_image_of_maps_to (f := card)
+      (fun S hS => mem_range.2 (Nat.lt_succ_of_le (mem_filter.1 hS).2)) _ fun k hk => ?_
+    calc (A.filter fun S => S.card = k).card
+        ≤ n.choose k := card_filter_card_eq_le A k
+      _ ≤ n.choose a := choose_le_choose_of_le_of_le_half (Nat.lt_succ_iff.1 (mem_range.1 hk)) ha
   have hmul : 10 * (n.choose a * (a + 1)) ≤ 5 * (n + 1) * n.choose a := by
-    have : 10 * (a + 1) ≤ 5 * (n + 1) := by omega
     calc 10 * (n.choose a * (a + 1)) = 10 * (a + 1) * n.choose a := by ring
-      _ ≤ 5 * (n + 1) * n.choose a := Nat.mul_le_mul_right _ this
+      _ ≤ 5 * (n + 1) * n.choose a := Nat.mul_le_mul_right _ (by omega)
   omega
 
 end Cslib

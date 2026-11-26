@@ -78,21 +78,18 @@ private theorem expansion_list (xs : List ℤ) (g : ℤ) :
     rw [mul_one, ← List.ofFn_getElem_eq_map xs (fun z => z - g), List.prod_ofFn]
     rfl
   rw [he, prod_sub_mul_eq_sum]
-  apply sum_congr rfl
-  intro w _
-  rw [selectedProduct_ofFn, mul_comm]
+  exact sum_congr rfl fun w _ => by rw [selectedProduct_ofFn, mul_comm]
 
 private theorem polyTime_selectedProduct {α : Type} {enc : α ↪ List Bool} {f : α → List ℤ}
     (hf : ComputableInPolyTime f enc (encList encIntBin)) :
     ComputableInPolyTime (fun x : α × List Bool => selectedProduct (f x.1) x.2)
       (encPair enc encBits) encIntBin := by
   unfold selectedProduct
-  refine ComputableInPolyTime.intBin_prod.comp ?_
-  apply ComputableInPolyTime.mapWithInput
-  · exact ComputableInPolyTime.range.comp
-      ((ComputableInPolyTime.length_list encIntBin).comp (hf.comp (.fst enc encBits)))
-  · fun_prop
-
+  exact ComputableInPolyTime.intBin_prod.comp
+    (ComputableInPolyTime.mapWithInput
+      (ComputableInPolyTime.range.comp
+        ((ComputableInPolyTime.length_list encIntBin).comp (hf.comp (.fst enc encBits))))
+      (by fun_prop))
 
 /-- A product of differences between a uniformly computed list of binary FP targets and one GapP
 value is GapP. The list length and its total encoded size may depend polynomially on the input. -/
@@ -100,16 +97,14 @@ theorem GapP.prod_sub_mem {α : Type} {enc : α ↪ List Bool}
     {f : α → List ℤ} {g : α → ℤ}
     (hf : ComputableInPolyTime f enc (encList encIntBin)) (hg : g ∈ GapP enc) :
     (fun a => ((f a).map (fun z => z - g a)).prod) ∈ GapP enc := by
-  have hc := mem_GapP_of_polyTime (polyTime_selectedProduct hf)
-  have hp := GapP.pow_mem_polyTime (GapP.comp_mem (GapP.neg_mem hg) (.fst enc encBits))
-    (show ComputableInPolyTime (fun x : α × List Bool => x.2.countP id)
-      (encPair enc encBits) encUnary by fun_prop)
-  have hs := GapP.sum_bits_mem (GapP.mul_mem hc hp)
-    (show ComputableInPolyTime (fun a => (f a).length) enc encUnary by fun_prop)
-  convert hs using 1
+  convert GapP.sum_bits_mem
+    (GapP.mul_mem (mem_GapP_of_polyTime (polyTime_selectedProduct hf))
+      (GapP.pow_mem_polyTime (GapP.comp_mem (GapP.neg_mem hg) (.fst enc encBits))
+        (by fun_prop : ComputableInPolyTime (fun x : α × List Bool => x.2.countP id)
+          (encPair enc encBits) encUnary)))
+    (by fun_prop : ComputableInPolyTime (fun a => (f a).length) enc encUnary) using 1
   ext a
-  rw [expansion_list]
-  rfl
+  exact expansion_list _ _
 
 private theorem targetWitness {α : Type} {enc : α ↪ List Bool} {A : Set α}
     {g : α → ℤ} {f : α → List ℤ} (hg : g ∈ GapP enc)
@@ -120,24 +115,14 @@ private theorem targetWitness {α : Type} {enc : α ↪ List Bool} {A : Set α}
       ∀ a, a ∈ A ↔ G a = (f a).prod := by
   let F : α → ℤ := fun a => (f a).prod
   let P : α → ℤ := fun a => ((f a).map (fun z => z - g a)).prod
-  have hF := ComputableInPolyTime.intBin_prod.comp hf
-  have hP := GapP.prod_sub_mem hf hg
-  have hFn (a : α) : F a ≠ 0 := List.prod_ne_zero (hn a)
-  have hyes (a : α) (ha : a ∈ A) : P a = 0 := by
-    apply List.prod_eq_zero_iff.mpr
-    exact List.mem_map.mpr ⟨g a, hy a ha, sub_self _⟩
-  have hnon (a : α) (ha : a ∉ A) : P a = F a := by
-    simp [P, F, hno a ha]
-  refine ⟨F - P, GapP.sub_mem' (mem_GapP_of_polyTime hF) hP,
-    fun a => ?_, fun a => ?_⟩
-  · change (F - P) a = 0 ∨ (F - P) a = F a
-    by_cases ha : a ∈ A
-    · exact Or.inr (by simp [Pi.sub_apply, hyes a ha])
-    · exact Or.inl (by simp [Pi.sub_apply, hnon a ha])
-  · change a ∈ A ↔ (F - P) a = F a
-    by_cases ha : a ∈ A
-    · simp [ha, Pi.sub_apply, hyes a ha]
-    · simp [ha, Pi.sub_apply, hnon a ha, Ne.symm (hFn a)]
+  have hyes (a : α) (ha : a ∈ A) : P a = 0 :=
+    List.prod_eq_zero_iff.mpr (List.mem_map.mpr ⟨g a, hy a ha, sub_self _⟩)
+  have hnon (a : α) (ha : a ∉ A) : P a = F a := by simp [P, F, hno a ha]
+  refine ⟨F - P, GapP.sub_mem' (mem_GapP_of_polyTime (ComputableInPolyTime.intBin_prod.comp hf))
+    (GapP.prod_sub_mem hf hg), fun a => ?_, fun a => ?_⟩
+  · by_cases ha : a ∈ A <;> simp [F, Pi.sub_apply, hyes, hnon, ha]
+  · by_cases ha : a ∈ A <;>
+      simp [F, ha, Pi.sub_apply, hyes, hnon, Ne.symm (List.prod_ne_zero (hn a))]
 
 
 /-- **Polynomial-family robustness of WPP.** A GapP value which is zero on nonmembers and
@@ -196,12 +181,10 @@ theorem mem_WPP_of_indexed_targets {α : Type} {enc : α ↪ List Bool} {A : Set
     (hn : ∀ a i, i < r a → f (a, i) ≠ 0)
     (hy : ∀ a, a ∈ A → ∃ i < r a, g a = f (a, i))
     (hno : ∀ a, a ∉ A → g a = 0) : A ∈ WPP enc := by
-  apply mem_WPP_of_polyTime_targets hg (polyTime_indexedTargets hf hr)
-  · intro a hz
-    obtain ⟨i, hi, he⟩ := List.mem_map.mp hz
-    exact hn a i (List.mem_range.mp hi) he
-  · exact fun a ha => mem_indexedTargets (hy a ha)
-  · exact hno
+  refine mem_WPP_of_polyTime_targets hg (polyTime_indexedTargets hf hr) (fun a hz => ?_)
+    (fun a ha => mem_indexedTargets (hy a ha)) hno
+  obtain ⟨i, hi, he⟩ := List.mem_map.mp hz
+  exact hn a i (List.mem_range.mp hi) he
 
 /-- Indexed polynomial-family LWPP robustness: both the target family and its size depend only
 on unary input length. Zero-based indexing translates the one-based family in
@@ -213,12 +196,10 @@ theorem mem_LWPP_of_indexed_targets {α : Type} {enc : α ↪ List Bool} {A : Se
     (hn : ∀ n i, i < r n → f (n, i) ≠ 0)
     (hy : ∀ a, a ∈ A → ∃ i < r (enc a).length, g a = f ((enc a).length, i))
     (hno : ∀ a, a ∉ A → g a = 0) : A ∈ LWPP enc := by
-  apply mem_LWPP_of_polyTime_targets hg (polyTime_indexedTargets hf hr)
-  · intro n hz
-    obtain ⟨i, hi, he⟩ := List.mem_map.mp hz
-    exact hn n i (List.mem_range.mp hi) he
-  · exact fun a ha => mem_indexedTargets (hy a ha)
-  · exact hno
+  refine mem_LWPP_of_polyTime_targets hg (polyTime_indexedTargets hf hr) (fun n hz => ?_)
+    (fun a ha => mem_indexedTargets (hy a ha)) hno
+  obtain ⟨i, hi, he⟩ := List.mem_map.mp hz
+  exact hn n i (List.mem_range.mp hi) he
 
 /-- **Poly-WPP = WPP**, stated through uniformly computed lists of nonzero binary integer targets.
 A polynomial number of targets of polynomial bit length can be computed as one such list,
@@ -229,18 +210,13 @@ theorem mem_WPP_iff_exists_polyTime_targets {α : Type} {enc : α ↪ List Bool}
       ComputableInPolyTime f enc (encList encIntBin) ∧
       (∀ a, (0 : ℤ) ∉ f a) ∧ (∀ a, a ∈ A → g a ∈ f a) ∧
       ∀ a, a ∉ A → g a = 0 := by
-  constructor
-  · rw [mem_WPP]
-    rintro ⟨g, hg, f, hf, hn, hr, hA⟩
-    refine ⟨g, hg, fun a => [f a], by fun_prop, ?_, ?_, ?_⟩
-    · intro a
-      simpa only [List.mem_singleton] using Ne.symm (hn a)
-    · intro a ha
-      simpa only [List.mem_singleton] using (hA a).mp ha
-    · intro a ha
-      exact (hr a).resolve_right (fun h => ha ((hA a).mpr h))
-  · rintro ⟨g, hg, f, hf, hn, hy, hno⟩
-    exact mem_WPP_of_polyTime_targets hg hf hn hy hno
+  refine ⟨?_, fun ⟨g, hg, f, hf, hn, hy, hno⟩ => mem_WPP_of_polyTime_targets hg hf hn hy hno⟩
+  rw [mem_WPP]
+  rintro ⟨g, hg, f, hf, hn, hr, hA⟩
+  exact ⟨g, hg, fun a => [f a], by fun_prop,
+    fun a => by simpa only [List.mem_singleton] using Ne.symm (hn a),
+    fun a ha => by simpa only [List.mem_singleton] using (hA a).mp ha,
+    fun a ha => (hr a).resolve_right fun h => ha ((hA a).mpr h)⟩
 
 /-- **Poly-LWPP = LWPP**, with the target list computed from unary input length. This is the
 verifier-based form of [Hemaspaandra et al., Theorem 3.1][HemaspaandraEtAl2018]; the accepting
@@ -250,17 +226,12 @@ theorem mem_LWPP_iff_exists_polyTime_targets {α : Type} {enc : α ↪ List Bool
       ComputableInPolyTime f encUnary (encList encIntBin) ∧
       (∀ n, (0 : ℤ) ∉ f n) ∧ (∀ a, a ∈ A → g a ∈ f (enc a).length) ∧
       ∀ a, a ∉ A → g a = 0 := by
-  constructor
-  · rw [mem_LWPP]
-    rintro ⟨g, hg, f, hf, hn, hr, hA⟩
-    refine ⟨g, hg, fun n => [f n], by fun_prop, ?_, ?_, ?_⟩
-    · intro n
-      simpa only [List.mem_singleton] using Ne.symm (hn n)
-    · intro a ha
-      simpa only [List.mem_singleton] using (hA a).mp ha
-    · intro a ha
-      exact (hr a).resolve_right (fun h => ha ((hA a).mpr h))
-  · rintro ⟨g, hg, f, hf, hn, hy, hno⟩
-    exact mem_LWPP_of_polyTime_targets hg hf hn hy hno
+  refine ⟨?_, fun ⟨g, hg, f, hf, hn, hy, hno⟩ => mem_LWPP_of_polyTime_targets hg hf hn hy hno⟩
+  rw [mem_LWPP]
+  rintro ⟨g, hg, f, hf, hn, hr, hA⟩
+  exact ⟨g, hg, fun n => [f n], by fun_prop,
+    fun n => by simpa only [List.mem_singleton] using Ne.symm (hn n),
+    fun a ha => by simpa only [List.mem_singleton] using (hA a).mp ha,
+    fun a ha => (hr a).resolve_right fun h => ha ((hA a).mpr h)⟩
 
 end Cslib.Complexity

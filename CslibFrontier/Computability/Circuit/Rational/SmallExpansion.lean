@@ -66,8 +66,8 @@ lemma polynomialMap_injective (M : ℕ) : Function.Injective (polynomialMap (K :
 
 /-- For `j : Fin M`, the `j`-th coefficient of `polynomialMap M x` is `x j`. -/
 @[simp] lemma polynomialMap_coeff (M : ℕ) (x : Fin M → K) (j : Fin M) :
-    (polynomialMap M x).coeff j = x j := by
-  exact congrFun ((Polynomial.degreeLTEquiv K M).apply_symm_apply x) j
+    (polynomialMap M x).coeff j = x j :=
+  congrFun ((Polynomial.degreeLTEquiv K M).apply_symm_apply x) j
 
 /-- `polynomialMap M x` has degree strictly less than `M`. -/
 lemma polynomialMap_mem (M : ℕ) (x : Fin M → K) :
@@ -76,9 +76,9 @@ lemma polynomialMap_mem (M : ℕ) (x : Fin M → K) :
 
 /-- Every coefficient of `polynomialMap M x` of index `j ≥ M` is zero. -/
 lemma polynomialMap_coeff_high (M : ℕ) (x : Fin M → K) (j : ℕ) (hj : M ≤ j) :
-    (polynomialMap M x).coeff j = 0 := by
-  apply coeff_eq_zero_of_degree_lt
-  exact (Polynomial.mem_degreeLT.mp (polynomialMap_mem M x)).trans_le (by exact_mod_cast hj)
+    (polynomialMap M x).coeff j = 0 :=
+  coeff_eq_zero_of_degree_lt <|
+    (Polynomial.mem_degreeLT.mp (polynomialMap_mem M x)).trans_le (by exact_mod_cast hj)
 
 /-- The polynomial subspace corresponding to a subspace of coefficient vectors. -/
 def polynomialSpace {M : ℕ} (V : Submodule K (Fin M → K)) : Submodule K K[X] :=
@@ -132,17 +132,12 @@ private lemma map_taylor_projection_kernel (M : ℕ) (a : K) (A : ℕ)
     refine ⟨⟨x, hxV, rfl⟩, ?_⟩
     intro j hj
     by_cases hjM : j < M
-    · have he := congrFun hx (⟨⟨j, hjM⟩, by change j ≤ A; omega⟩ : {i : Fin M // i.val ≤ A})
-      exact he
-    · apply coeff_eq_zero_of_degree_lt
-      have hdeg := Polynomial.mem_degreeLT.mp (polynomialMap_mem M x)
-      rw [degree_taylor]
-      exact hdeg.trans_le (by exact_mod_cast (Nat.le_of_not_gt hjM))
+    · exact congrFun hx ⟨⟨j, hjM⟩, Nat.lt_succ_iff.mp hj⟩
+    · refine coeff_eq_zero_of_degree_lt ?_
+      simpa only [degree_taylor] using (Polynomial.mem_degreeLT.mp (polynomialMap_mem M x)).trans_le
+        (Nat.cast_le.mpr (Nat.le_of_not_gt hjM))
   · rintro ⟨⟨x, hxV, rfl⟩, hx⟩
-    refine ⟨x, ⟨hxV, ?_⟩, rfl⟩
-    change (lowProjection Fin.val A) (taylorCoordinates M a x) = 0
-    funext j
-    exact hx j.val.val (by have := j.property; omega)
+    exact ⟨x, ⟨hxV, funext fun j => hx j.1.1 (Nat.lt_succ_of_le j.2)⟩, rfl⟩
 
 /-- The output-side low reverse coordinates mean high ordinary Taylor order. -/
 private lemma map_reverseTaylor_lowSupported (M : ℕ) (a : K) (A : ℕ)
@@ -161,11 +156,8 @@ private lemma map_reverseTaylor_lowSupported (M : ℕ) (a : K) (A : ℕ)
     change taylorCoordinates M a x ((Fin.rev ⟨j, hjM⟩).rev) = 0 at hh
     simpa only [Fin.rev_rev, taylorCoordinates_apply] using hh
   · rintro ⟨⟨x, hxV, rfl⟩, hx⟩
-    refine ⟨reverseTaylorCoordinates M a x, ⟨⟨x, hxV, rfl⟩, ?_⟩, ?_⟩
-    · intro j hj
-      change taylorCoordinates M a x j.rev = 0
-      exact hx j.rev.val (by simp only [Fin.val_rev]; omega)
-    · simp
+    refine ⟨reverseTaylorCoordinates M a x, ⟨⟨x, hxV, rfl⟩, fun j hj => ?_⟩, by simp⟩
+    exact hx j.rev.val (by simp only [Fin.val_rev]; omega)
 
 private lemma finrank_lowTaylor (M : ℕ) (a : K) (A : ℕ)
     (V : Submodule K (Fin M → K)) {h : ℕ}
@@ -219,29 +211,20 @@ private lemma sum_threshold_counts {h : ℕ} (d : Fin h → ℕ) (L : ℕ) :
     (∑ A ∈ Finset.range L, Fintype.card {j : Fin h // d j ≤ A}) =
       ∑ j, (L - d j) := by
   classical
-  simp only [Fintype.card_subtype]
-  simp only [Finset.card_filter]
+  simp only [Fintype.card_subtype, Finset.card_filter]
   rw [Finset.sum_comm]
-  apply Finset.sum_congr rfl
-  intro j _
+  refine Finset.sum_congr rfl fun j _ => ?_
   have he : (Finset.range L).filter (fun A => d j ≤ A) = Finset.Ico (d j) L := by
-    ext A
-    simp only [Finset.mem_filter, Finset.mem_range, Finset.mem_Ico]
-    tauto
+    ext A; simp only [Finset.mem_filter, Finset.mem_range, Finset.mem_Ico]; omega
   rw [← Finset.card_filter, he, Nat.card_Ico]
 
 private lemma sum_reversed_counts {h : ℕ} (d : Fin h → ℕ) (L : ℕ) (hd : ∀ j, d j ≤ L) :
     (∑ A ∈ Finset.range L, Fintype.card {j : Fin h // L - A ≤ d j}) = ∑ j, d j := by
-  have he : ∀ A, (fun j : Fin h => L - A ≤ d j) = (fun j : Fin h => L - d j ≤ A) := by
-    intro A
-    funext j
-    exact propext (by omega)
+  have he (A : ℕ) : (fun j : Fin h => L - A ≤ d j) = (fun j : Fin h => L - d j ≤ A) :=
+    funext fun j => propext (by omega)
   simp_rw [he]
   rw [sum_threshold_counts]
-  apply Finset.sum_congr rfl
-  intro j _
-  have := hd j
-  omega
+  exact Finset.sum_congr rfl fun j _ => by have := hd j; omega
 
 /-- Every basis polynomial of the polynomial space of a subspace of `K^M` has a root of
 multiplicity at most `M - 1` at `a`. -/
@@ -283,43 +266,32 @@ private lemma expansion_numeric (w B M N k l : ℕ) (hw : 1 ≤ w) (hN : 1 ≤ N
       (l * (M - 1) + w * (∑ j : Fin l, j.val))) :
     (w - 1) * k < l := by
   by_contra! hl
-  have hk2 := Fin.sum_val_le_mul_self k
-  have hl2 := Fin.sum_val_le_mul_self l
-  have hh' : w * (k * (M - 1)) ≤ k * (N - 1) + w * (k * k) +
-      (l * (M - 1) + w * (l * l)) := by
-    exact hh.trans (by gcongr)
-  have hgap : M - 1 = N - 1 + 2 * w ^ 3 * B := by omega
-  have hw' : w - 1 + 1 = w := by omega
-  have hmul := Nat.mul_le_mul_right (M - 1) hl
-  have hlSq : l * l ≤ ((w - 1) * k) * ((w - 1) * k) := Nat.mul_self_le_mul_self hl
-  have hwSq : (w - 1) * (w - 1) + 1 ≤ w * w := by nlinarith
+  have hh' : w * (k * (M - 1)) ≤ k * (N - 1) + w * (k * k + l * l) + (w - 1) * k * (M - 1) := by
+    calc w * (k * (M - 1))
+        ≤ k * (N - 1) + w * (k * k) + ((w - 1) * k * (M - 1) + w * (l * l)) :=
+          hh.trans (by gcongr; exacts [Fin.sum_val_le_mul_self k, Fin.sum_val_le_mul_self l])
+      _ = _ := by ring
+  have hbase : k * (M - 1) ≤ k * (N - 1) + w * (k * k + l * l) :=
+    Nat.le_of_add_le_add_right <| by
+      have hw1 : k * (M - 1) + (w - 1) * k * (M - 1) = w * (k * (M - 1)) := by
+        rw [mul_assoc (w - 1), ← one_add_mul, add_comm 1, Nat.sub_add_cancel hw]
+      rwa [← hw1] at hh'
   have hsq : k * k + l * l ≤ w * w * (k * k) := by
-    have hm := Nat.mul_le_mul_right (k * k) hwSq
-    nlinarith
-  have hkSq : k * k ≤ B * k := Nat.mul_le_mul_right k hkB
-  have hfinal : w * (k * k + l * l) ≤ w ^ 3 * B * k := by
-    calc
-      _ ≤ w * (w * w * (k * k)) := Nat.mul_le_mul_left w hsq
+    have hwSq : 1 + (w - 1) * (w - 1) ≤ w * w :=
+      calc 1 + (w - 1) * (w - 1) ≤ 1 + (w - 1) * w := by gcongr; omega
+        _ ≤ w + (w - 1) * w := by omega
+        _ = w * w := by rw [add_comm, ← Nat.add_one_mul, Nat.sub_add_cancel hw]
+    calc k * k + l * l ≤ k * k + ((w - 1) * k) * ((w - 1) * k) := by gcongr
+      _ = (1 + (w - 1) * (w - 1)) * (k * k) := by ring
+      _ ≤ w * w * (k * k) := by gcongr
+  have hfinal : w * (k * k + l * l) ≤ w ^ 3 * B * k :=
+    calc w * (k * k + l * l) ≤ w * (w * w * (k * k)) := by gcongr
       _ ≤ w * (w * w * (B * k)) := by gcongr
       _ = w ^ 3 * B * k := by ring
-  have hB : 0 < B := by omega
-  have hpos : 0 < w ^ 3 * B * k := by positivity
-  have hbase : k * (M - 1) ≤ k * (N - 1) + w * (k * k + l * l) := by
-    have he : w * (k * (M - 1)) = k * (M - 1) + (w - 1) * k * (M - 1) := by
-      calc
-        _ = (1 + (w - 1)) * (k * (M - 1)) := by congr 1; omega
-        _ = _ := by ring
-    have hb : w * (k * (M - 1)) ≤ k * (N - 1) + w * (k * k + l * l) + (w - 1) * k * (M - 1) := by
-      calc
-        _ ≤ k * (N - 1) + w * (k * k) + ((w - 1) * k * (M - 1) + w * (l * l)) :=
-          hh'.trans (by gcongr)
-        _ = _ := by ring
-    rw [he] at hb
-    exact Nat.le_of_add_le_add_right hb
-  have hneed : k * (2 * w ^ 3 * B) ≤ w * (k * k + l * l) := by
-    rw [hgap] at hbase
-    nlinarith only [hbase]
-  nlinarith
+  rw [show M - 1 = N - 1 + 2 * w ^ 3 * B by omega, mul_add,
+    show k * (2 * w ^ 3 * B) = 2 * (w ^ 3 * B * k) by ring] at hbase
+  have hpos : 0 < w ^ 3 * B * k := Nat.mul_pos (Nat.mul_pos (pow_pos hw 3) (by omega)) hk
+  omega
 
 private lemma reduced_degree_bound {M N : ℕ} (U : Submodule (F K) (Fin M → F K))
     (hU : ∀ x ∈ U, ∀ j : Fin M, N ≤ j.val → x j = 0) :
@@ -357,10 +329,8 @@ theorem small_expansion [CharZero K] (w B M N : ℕ) (hw : 1 ≤ w) (hN : 1 ≤ 
   let Z := polynomialSpace (reducedSubspace W)
   let : Module.Finite K V := Module.Finite.map (reducedSubspace U) (polynomialMap M)
   let : Module.Finite K Z := Module.Finite.map (reducedSubspace W) (polynomialMap M)
-  have hVdim : finrank K V = k := by
-    rw [finrank_polynomialSpace, finrank_reducedSubspace]
-  have hZdim : finrank K Z = l := by
-    rw [finrank_polynomialSpace, finrank_reducedSubspace]
+  have hVdim : finrank K V = k := (finrank_polynomialSpace _).trans (finrank_reducedSubspace U)
+  have hZdim : finrank K Z = l := (finrank_polynomialSpace _).trans (finrank_reducedSubspace W)
   let b : Basis (Fin k) K V := (Module.finBasis K V).reindex (finCongr hVdim)
   let c : Basis (Fin l) K Z := (Module.finBasis K Z).reindex (finCongr hZdim)
   have hV := reduced_degree_bound U hU

@@ -24,6 +24,20 @@ namespace Cslib.Complexity.Graph.PolygonalDrawing
 
 open Polygonal RotationSystem
 
+private theorem target_vertex_of_eq_lastEdgeDart {G : Graph} {u v : ℕ} {side : Bool}
+    {x : Dart (contractLastEdgeGraph G u v)}
+    (hx : (contractionLift G u v x).vertex = (lastEdgeDart G u v side).vertex) :
+    x.vertex = v := by
+  apply (contractionLift_vertex_eq_iff G u v x).mpr
+  cases side
+  · exact Or.inl (by simpa only [vertex_lastEdgeDart, Bool.false_eq_true, ↓reduceIte] using hx)
+  · exact Or.inr (by simpa only [vertex_lastEdgeDart, ↓reduceIte] using hx)
+
+private theorem restoredVertex_lastEdgeDart {G : Graph} {u v : ℕ} (huv : u ≠ v)
+    (D : PolygonalDrawing (contractLastEdgeGraph G u v)) (a b : ℂ) (side : Bool) :
+    D.restoredVertex a b (lastEdgeDart G u v side).vertex = if side then b else a := by
+  cases side <;> simp [vertex_lastEdgeDart, restoredVertex, huv.symm]
+
 /-- Retained triples preserve the exact source clockwise order at every vertex. -/
 theorem Realizes.clockwise_restoration_retained {G : Graph} {u v : ℕ}
     (r : RotationSystem (lastEdgeGraph G u v)) (huv : u ≠ v)
@@ -47,48 +61,34 @@ theorem Realizes.clockwise_restoration_retained {G : Graph} {u v : ℕ}
       ((congrArg (Function.update id u v) h).trans (vertex_contractionLift G u v y))
   have htxy := htarget x y hxy
   have htyz := htarget y z hyz
-  have hcenter (x : Dart (contractLastEdgeGraph G u v)) (hx : x.vertex = v) :
-      (D.restoration huv ρ a b).direction (contractionLift G u v x) =
-        ((D.cutPort ρ x - D.restoredVertex a b (contractionLift G u v x).vertex).arg :
-          Real.Angle) := by
-    rw [direction, D.germ_restoration_lift_active huv ρ a b x hx]
-  by_cases hxu : (contractionLift G u v x).vertex = u
-  · have hyu := hxy.symm.trans hxu
-    have hzu := hyz.symm.trans hyu
-    have hx : x.vertex = v := (contractionLift_vertex_eq_iff G u v x).mpr (Or.inl hxu)
+  have hactive (side : Bool) (hxside : (contractionLift G u v x).vertex =
+      (lastEdgeDart G u v side).vertex) :
+      sbtw ((D.restoration huv ρ a b).direction (contractionLift G u v z))
+        ((D.restoration huv ρ a b).direction (contractionLift G u v y))
+        ((D.restoration huv ρ a b).direction (contractionLift G u v x)) ↔
+        contractionLift G u v y ∈ r.rotationInterval (contractionLift G u v x)
+          (contractionLift G u v z) := by
+    have hyside := hxy.symm.trans hxside
+    have hzside := hyz.symm.trans hyside
+    have hx : x.vertex = v := target_vertex_of_eq_lastEdgeDart hxside
     have hy : y.vertex = v := htxy.symm.trans hx
     have hz : z.vertex = v := htyz.symm.trans hy
-    rw [hcenter x hx, hcenter y hy, hcenter z hz]
-    simp only [restoredVertex, ite_eq_left hxu, ite_eq_left hyu, ite_eq_left hzu]
-    apply (hR.cutPort_clockwise hD v hρ ha x y z hx hy hz hneXY hneYZ hneXZ).trans
-    exact r.mem_rotationInterval_contractionLift_active huv ⟨x, hx⟩ ⟨y, hy⟩ ⟨z, hz⟩ false
+    have hball : (if side then b else a) ∈ Metric.ball (D.vertex v) ρ := by
+      cases side <;> [exact ha; exact hb]
+    simp only [direction, D.germ_restoration_lift_active huv ρ a b x hx,
+      D.germ_restoration_lift_active huv ρ a b y hy, D.germ_restoration_lift_active huv ρ a b z hz,
+      hxside, hyside, hzside, restoredVertex_lastEdgeDart huv D a b side]
+    exact (hR.cutPort_clockwise v hρ hball x y z hx hy hz hneXY hneYZ hneXZ).trans
+      (r.mem_rotationInterval_contractionLift_active huv ⟨x, hx⟩ ⟨y, hy⟩ ⟨z, hz⟩ side
+        hxside hyside hzside (fun h => hneXY (congrArg Subtype.val h))
+        (fun h => hneYZ (congrArg Subtype.val h)) (fun h => hneXZ (congrArg Subtype.val h)))
+  by_cases hxu : (contractionLift G u v x).vertex = u
+  · exact hactive false
       (by simpa only [vertex_lastEdgeDart, Bool.false_eq_true, ↓reduceIte] using hxu)
-      (by simpa only [vertex_lastEdgeDart, Bool.false_eq_true, ↓reduceIte] using hyu)
-      (by simpa only [vertex_lastEdgeDart, Bool.false_eq_true, ↓reduceIte] using hzu)
-      (fun h => hneXY (congrArg Subtype.val h)) (fun h => hneYZ (congrArg Subtype.val h))
-      (fun h => hneXZ (congrArg Subtype.val h))
   · by_cases hxv : (contractionLift G u v x).vertex = v
-    · have hyv := hxy.symm.trans hxv
-      have hzv := hyz.symm.trans hyv
-      have hyu : (contractionLift G u v y).vertex ≠ u := fun h => hxu (hxy.trans h)
-      have hzu : (contractionLift G u v z).vertex ≠ u := fun h => hxu (hxy.trans (hyz.trans h))
-      have hx : x.vertex = v := (contractionLift_vertex_eq_iff G u v x).mpr (Or.inr hxv)
-      have hy : y.vertex = v := htxy.symm.trans hx
-      have hz : z.vertex = v := htyz.symm.trans hy
-      rw [hcenter x hx, hcenter y hy, hcenter z hz]
-      simp only [restoredVertex, ite_eq_right hxu, ite_eq_right hyu, ite_eq_right hzu,
-        ite_eq_left hxv, ite_eq_left hyv, ite_eq_left hzv]
-      apply (hR.cutPort_clockwise hD v hρ hb x y z hx hy hz hneXY hneYZ hneXZ).trans
-      exact r.mem_rotationInterval_contractionLift_active huv ⟨x, hx⟩ ⟨y, hy⟩ ⟨z, hz⟩ true
-        (by simpa only [vertex_lastEdgeDart, ↓reduceIte] using hxv)
-        (by simpa only [vertex_lastEdgeDart, ↓reduceIte] using hyv)
-        (by simpa only [vertex_lastEdgeDart, ↓reduceIte] using hzv)
-        (fun h => hneXY (congrArg Subtype.val h)) (fun h => hneYZ (congrArg Subtype.val h))
-        (fun h => hneXZ (congrArg Subtype.val h))
-    · have hx : x.vertex ≠ v := fun h => by
-        rcases (contractionLift_vertex_eq_iff G u v x).mp h with h | h
-        · exact hxu h
-        · exact hxv h
+    · exact hactive true (by simpa only [vertex_lastEdgeDart, ↓reduceIte] using hxv)
+    · have hx : x.vertex ≠ v := fun h =>
+        ((contractionLift_vertex_eq_iff G u v x).mp h).elim hxu hxv
       have hy : y.vertex ≠ v := fun h => hx (htxy.trans h)
       have hz : z.vertex ≠ v := fun h => hy (htyz.trans h)
       rw [hD.direction_restoration_lift_inactive huv hρ hlen a b x hx,
@@ -120,31 +120,18 @@ theorem clockwise_restoration_selected {G : Graph} {u v : ℕ}
       ((D.restoration huv ρ a b).direction (lastEdgeDart G u v side)) ↔
       contractionLift G u v y ∈ r.rotationInterval (lastEdgeDart G u v side)
         (contractionLift G u v z) := by
-  have htarget (x : Dart (contractLastEdgeGraph G u v))
-      (hx : (contractionLift G u v x).vertex = (lastEdgeDart G u v side).vertex) :
-      x.vertex = v := by
-    apply (contractionLift_vertex_eq_iff G u v x).mpr
-    cases side
-    · exact Or.inl (by simpa only [vertex_lastEdgeDart, Bool.false_eq_true, ↓reduceIte] using hx)
-    · exact Or.inr (by simpa only [vertex_lastEdgeDart, ↓reduceIte] using hx)
-  have hcenter : D.restoredVertex a b (lastEdgeDart G u v side).vertex =
-      if side then b else a := by
-    cases side <;> simp [vertex_lastEdgeDart, restoredVertex, huv.symm]
-  have hdir (x : Dart (contractLastEdgeGraph G u v))
-      (hx : (contractionLift G u v x).vertex = (lastEdgeDart G u v side).vertex) :
-      (D.restoration huv ρ a b).direction (contractionLift G u v x) =
-        ((D.cutPort ρ x - (if side then b else a)).arg : Real.Angle) := by
-    rw [direction, D.germ_restoration_lift_active huv ρ a b x (htarget x hx), hx, hcenter]
-  have hdir0 : (D.restoration huv ρ a b).direction (lastEdgeDart G u v side) =
-      ((if side then a - b else b - a).arg : Real.Angle) := by
-    rw [direction, D.germ_restoration_last]
-  rw [hdir y hy, hdir z hz, hdir0, sbtw_cyclic]
-  apply (horder side ⟨z, htarget z hz⟩ ⟨y, htarget y hy⟩ hz hy
-    (fun h => hyz (congrArg Subtype.val h).symm)).trans
-  exact (r.mem_rotationInterval_iff_lt_distance _ _ _ hy.symm hz.symm
-    (contractionLift_ne_lastEdgeDart G u v y side).symm
-    (fun h => hyz (contractionLift_injective G u v h))
-    (contractionLift_ne_lastEdgeDart G u v z side).symm).symm
+  have hy' := target_vertex_of_eq_lastEdgeDart hy
+  have hz' := target_vertex_of_eq_lastEdgeDart hz
+  simp only [direction, D.germ_restoration_lift_active huv ρ a b y hy',
+    D.germ_restoration_lift_active huv ρ a b z hz', hy, hz,
+    restoredVertex_lastEdgeDart huv D a b side, D.germ_restoration_last]
+  rw [sbtw_cyclic]
+  exact (horder side ⟨z, hz'⟩ ⟨y, hy'⟩ hz hy
+      (fun h => hyz (congrArg Subtype.val h).symm)).trans
+    (r.mem_rotationInterval_iff_lt_distance _ _ _ hy.symm hz.symm
+      (contractionLift_ne_lastEdgeDart G u v y side).symm
+      (fun h => hyz (contractionLift_injective G u v h))
+      (contractionLift_ne_lastEdgeDart G u v z side).symm).symm
 
 /-- The actual restored drawing realizes the exact source rotation when its internally
 constructed connector has the prescribed complementary gap order. -/
@@ -168,13 +155,7 @@ theorem Realizes.restoration {G : Graph} {u v : ℕ}
   have hselected (side tag : Bool)
       (h : (lastEdgeDart G u v side).vertex = (lastEdgeDart G u v tag).vertex) :
       lastEdgeDart G u v side = lastEdgeDart G u v tag := by
-    cases side <;> cases tag
-    · rfl
-    · exact False.elim (huv (by simpa only [vertex_lastEdgeDart,
-        Bool.false_eq_true, ↓reduceIte] using h))
-    · exact False.elim (huv (by simpa only [vertex_lastEdgeDart,
-        Bool.false_eq_true, ↓reduceIte] using h.symm))
-    · rfl
+    cases side <;> cases tag <;> simp [vertex_lastEdgeDart, huv, huv.symm] at h ⊢
   refine ⟨hnew.germ_ne_zero, hnew.directions_injective, ?_⟩
   intro x y z hxy hyz hneXY hneYZ hneXZ
   rcases contraction_dart_cases G u v x with ⟨x, rfl⟩ | ⟨side, rfl⟩

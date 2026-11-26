@@ -157,16 +157,13 @@ theorem complexity_trialGuess_answers_le (D : Design ℓ n a m) (test : BooleanF
     complexity_nextBitGuess_le test t.pos t.bit t.pad bit (Nat.le_add_left 1 _) fun j => ?_,
     fun f z hz x => ?_⟩
   · refine (complexity_select_le (O j) (sel j)).trans ?_
-    have := D.card_overlap_le <|
-      Fin.ne_of_gt (show Fin.castLE t.pos.isLt.le j < t.pos from j.isLt)
+    have := D.card_overlap_le (Fin.ne_of_gt (show Fin.castLE t.pos.isLt.le j < t.pos from j.isLt))
     gcongr
   · simp only [trialGuess]
     congr 1
     funext j
     have hpt : pt j (ext j fun i => x i) = pt j x :=
-      D.dependsOn_restrict_extend t.pos _ t.seed fun k hk => by
-        simp only [ext]
-        exact dite_eq_left (Finset.mem_coe.1 hk)
+      D.dependsOn_restrict_extend t.pos _ t.seed fun k hk => dite_eq_left (Finset.mem_coe.1 hk)
     simp only [Fin.take_apply, generator_apply, bit, Fin.append_right, Fin.append_left]
     rw [hz _ (hlt j _)]
     simp only [sel, List.getElem_idxOf, hpt]

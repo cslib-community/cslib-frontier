@@ -55,20 +55,12 @@ def ofRejected : Semifilter U where
     ofRejected rejected hempty hunion s ↔ ∀ t ∈ rejected, ¬ s ⊆ t := Iff.rfl
 
 /-- Two rejected supersets of complementary sets would cover the universe. -/
-theorem isUltra_ofRejected : (ofRejected rejected hempty hunion).IsUltra := by
+theorem isUltra_ofRejected : (ofRejected rejected hempty hunion).IsUltra := fun s => by
   classical
-  intro s
-  by_cases hs : ofRejected rejected hempty hunion s
-  · exact Or.inl hs
-  · right
-    obtain ⟨t, ht, hst⟩ := by simpa only [ofRejected_apply_iff, not_forall, not_not] using hs
-    intro r hr hsr
-    apply hunion t ht r hr
-    apply Set.eq_univ_of_forall
-    intro x
-    by_cases hx : x ∈ s
-    · exact Or.inl (hst hx)
-    · exact Or.inr (hsr hx)
+  refine or_iff_not_imp_left.2 fun hs => ?_
+  obtain ⟨t, ht, hst⟩ := by simpa only [ofRejected_apply_iff, not_forall, not_not] using hs
+  exact fun r hr hsr => hunion t ht r hr <| Set.eq_univ_of_forall fun x =>
+    if hx : x ∈ s then Or.inl (hst hx) else Or.inr (hsr hx)
 
 /-- Every prescribed rejection is respected. -/
 theorem not_ofRejected_of_mem {s : Set U} (hs : s ∈ rejected) :
@@ -89,20 +81,11 @@ theorem exists_isUltra_of_labels {ι : Type*} (sets : ι → Set U) (labels : ι
   have hunion : ∀ s ∈ rejected, ∀ t ∈ rejected, s ∪ t ≠ Set.univ := by
     rintro s ⟨i, hi, rfl⟩ t ⟨j, hj, rfl⟩ h
     rcases hcover i j h with h | h <;> simp_all
-  refine ⟨ofRejected rejected hempty hunion, isUltra_ofRejected rejected hempty hunion, ?_, ?_⟩
-  · intro i
-    constructor
-    · intro h
-      by_contra hi
-      exact h _ ⟨i, by simpa using hi, rfl⟩ (Set.Subset.refl _)
-    · rintro hi s ⟨j, hj, rfl⟩ hsub
-      have := hmono i j hsub hi
-      simp_all
-  · intro s
-    constructor
-    · intro h i hi
-      exact h _ ⟨i, hi, rfl⟩
-    · rintro h t ⟨i, hi, rfl⟩
-      exact h i hi
+  refine ⟨ofRejected rejected hempty hunion, isUltra_ofRejected rejected hempty hunion,
+    fun i => ⟨fun h => by_contra fun hi => h _ ⟨i, by simpa using hi, rfl⟩ (Set.Subset.refl _),
+      fun hi s ⟨j, hj, hjs⟩ hsub => by
+        have := hmono i j (hjs ▸ hsub) hi
+        simp_all⟩,
+    fun s => ⟨fun h i hi => h _ ⟨i, hi, rfl⟩, fun h _ ⟨i, hi, his⟩ => his ▸ h i hi⟩⟩
 
 end Cslib.Circuits.Fusion.Semifilter

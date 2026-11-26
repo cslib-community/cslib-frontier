@@ -49,10 +49,8 @@ variable {f : ℤ[X]} (hf : f.Monic) (hirr : Irreducible (f.map (Int.castRingHom
 /-- `2 ^ n = 0` in `O / (2 ^ n)`. -/
 private theorem two_pow_eq_zero_quotient : (2 : ((padicValuation 2 hf hirr).integer ⧸
     Ideal.span {(2 : (padicValuation 2 hf hirr).integer) ^ n})) ^ n = 0 := by
-  have : Ideal.Quotient.mk (Ideal.span {(2 : (padicValuation 2 hf hirr).integer) ^ n})
-      ((2 : (padicValuation 2 hf hirr).integer) ^ n) = 0 :=
-    Ideal.Quotient.eq_zero_iff_mem.mpr (Ideal.mem_span_singleton_self _)
-  rwa [map_pow, map_ofNat] at this
+  rw [← map_ofNat (Ideal.Quotient.mk _), ← map_pow, Ideal.Quotient.eq_zero_iff_mem]
+  exact Ideal.mem_span_singleton_self _
 
 /-- The scalars `ℤ / 2 ^ n → O / (2 ^ n)`. -/
 private noncomputable def scalarLift : ZMod (2 ^ n) →+* ((padicValuation 2 hf hirr).integer ⧸
@@ -92,26 +90,20 @@ theorem reductionLift_comp_reduction :
     (reductionLift hf hirr n).comp (reduction hf hirr n) = Ideal.Quotient.mk _ := by
   -- `U` of `O` is the class of `U` of `ℤ[X] / (f)`.
   have hroot : integerEquiv hf hirr (root _) = ⟨map (Int.castRingHom ℚ) f _ dvd_rfl (root f),
-      (Valuation.mem_integer_iff _ _).mpr (padicValuation_map_le_one hf hirr _)⟩ := by
-    apply Subtype.ext
-    change (integerEquiv hf hirr (root _) : AdjoinRoot (f.map (Int.castRingHom ℚ))) =
-      map (Int.castRingHom ℚ) f _ dvd_rfl (root f)
-    rw [map_root, coe_integerEquiv]
-    conv_lhs => rw [← mk_X]
-    rw [integerMap_mk, Polynomial.map_X, mk_X]
+      (Valuation.mem_integer_iff _ _).mpr (padicValuation_map_le_one hf hirr _)⟩ :=
+    Subtype.ext <| by
+      dsimp only
+      rw [← mk_X, coe_integerEquiv, integerMap_mk, Polynomial.map_X, mk_X, map_root]
   have key : (reductionLift hf hirr n).comp (integerReduction 2 f n) =
       (Ideal.Quotient.mk _).comp (integerEquiv hf hirr).toRingHom := by
-    refine ringHom_ext ?_ ?_
-    · exact padicInteger_ringHom_ext
-        (two_pow_eq_zero_quotient hf hirr n) _ _
-    · rw [RingHom.comp_apply, ← reduction_integerEquiv hf hirr, hroot, reduction_toRat hf hirr,
-        map_root,
-        reductionLift, lift_root, rootClass]
-      rfl
+    refine ringHom_ext (padicInteger_ringHom_ext (two_pow_eq_zero_quotient hf hirr n) _ _) ?_
+    rw [RingHom.comp_apply, ← reduction_integerEquiv hf hirr, hroot, reduction_toRat hf hirr,
+      map_root, reductionLift, lift_root, rootClass]
+    rfl
   ext x
   obtain ⟨y, rfl⟩ := (integerEquiv hf hirr).surjective x
-  rw [RingHom.comp_apply, reduction_integerEquiv, ← RingHom.comp_apply, key]
-  rfl
+  rw [RingHom.comp_apply, reduction_integerEquiv]
+  exact RingHom.congr_fun key y
 
 /-- `reductionLift (reduction x)` is the class of `x`. -/
 theorem reductionLift_reduction (x : (padicValuation 2 hf hirr).integer) :

@@ -22,6 +22,9 @@ and the output types record the 32-byte or 64-byte digest length.
 The public input predicates record the source domains `ℓ < 2^64` for SHA-256 and `ℓ < 2^128`
 for SHA-512, specialized to byte-aligned messages. The hash functions are total executable
 extensions; callers that specify standard-domain inputs can use those predicates separately.
+`sha256Bytes` and `sha512Bytes` are the same digests as byte lists. When executed they compute the
+hash state once, whereas enumerating the bytes of the function-valued `sha256` or `sha512` result
+computes it once for each byte.
 This module does not prove functional correctness against an independent FIPS model and is not a
 constant-time or machine-costed implementation, a security proof, or a claim of NIST validation.
 
@@ -31,6 +34,7 @@ constant-time or machine-costed implementation, a security proof, or a claim of 
 * `Cslib.Crypto.SHA2.sha256Pad`, `sha512Pad`: byte-aligned Section 5.1 padding.
 * `Cslib.Crypto.SHA2.sha256Compress`, `sha512Compress`: one-block compression functions.
 * `Cslib.Crypto.SHA2.sha256`, `sha512`: typed 32-byte and 64-byte digests.
+* `Cslib.Crypto.SHA2.sha256Bytes`, `sha512Bytes`: the same digests as byte lists.
 
 ## Main results
 
@@ -279,5 +283,21 @@ def sha256 (input : List Byte) : FixedBytes 32 :=
 input domain separately. -/
 def sha512 (input : List Byte) : FixedBytes 64 :=
   sha512StateBytes (sha512State input)
+
+/-- The 32 bytes of the SHA-256 digest as a list. Execution computes the hash state once. -/
+def sha256Bytes (input : List Byte) : List Byte :=
+  (sha256StateBytes (sha256State input)).toList
+
+/-- The 64 bytes of the SHA-512 digest as a list. Execution computes the hash state once. -/
+def sha512Bytes (input : List Byte) : List Byte :=
+  (sha512StateBytes (sha512State input)).toList
+
+/-- `sha256Bytes` lists the bytes of `sha256`. -/
+theorem sha256Bytes_eq_toList (input : List Byte) : sha256Bytes input = (sha256 input).toList :=
+  (rfl)
+
+/-- `sha512Bytes` lists the bytes of `sha512`. -/
+theorem sha512Bytes_eq_toList (input : List Byte) : sha512Bytes input = (sha512 input).toList :=
+  (rfl)
 
 end Cslib.Crypto.SHA2

@@ -70,21 +70,15 @@ theorem Circuit.exists_encoded_boolean {σ : Signature.{v}} (I : Interpretation 
     bitsOf (_root_.id : BitString w → BitString w)
       (fun y => d.eval fullInterpretation (fun i => φ i y) (finProdFinEquiv.symm k).1)
       (finProdFinEquiv.symm k).2
-  have hout : Synthesis Boolean.interpretation (inputs (N * w)) (Set.range output)
-      (d.size * bitBlastCost w) := by
-    refine hs.mono Set.Subset.rfl ?_ le_rfl
-    rintro _ ⟨k, rfl⟩
-    exact ⟨finProdFinEquiv.symm k, rfl⟩
-  obtain ⟨b, hb, hbsize⟩ := hout.exists_circuit_outputs
-  refine ⟨b, hbsize.trans (Nat.mul_le_mul_right _ hle), ?_⟩
-  intro x
+  obtain ⟨b, hb, hbsize⟩ :=
+    (hs.mono Set.Subset.rfl (Set.range_subset_iff.mpr fun k => ⟨finProdFinEquiv.symm k, rfl⟩)
+      le_rfl).exists_circuit_outputs
+  refine ⟨b, hbsize.trans (Nat.mul_le_mul_right _ hle), fun x => ?_⟩
   rw [hb]
-  have hmap := c.map_eval hom x
   ext k
-  simp only [output, bitsOf, id_eq, φ, BitString.blocksEquiv_symm_apply, Equiv.symm_apply_apply]
-  rw [hd]
-  change (c.eval J (enc ∘ x) (finProdFinEquiv.symm k).1)
-      (finProdFinEquiv.symm k).2 = _
-  rw [← hmap]
+  simpa only [output, bitsOf, id_eq, φ, BitString.blocksEquiv_symm_apply,
+    Equiv.symm_apply_apply, hd, hom] using
+    congrArg (fun f => f (finProdFinEquiv.symm k).1 (finProdFinEquiv.symm k).2)
+      (c.map_eval hom x).symm
 
 end Cslib.Circuits

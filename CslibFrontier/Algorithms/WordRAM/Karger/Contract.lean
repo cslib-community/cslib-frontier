@@ -16,6 +16,7 @@ public import CslibFrontier.Computability.WordRAM.Heap
 public import CslibFrontier.Computability.WordRAM.Notation
 public import CslibFrontier.Computability.WordRAM.Randomized.Law
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.StructFrame
 
 /-!
 # Workspace-relocatable randomized contraction on the word RAM
@@ -191,9 +192,7 @@ theorem getElem_flattenMatrix {n : ℕ} (W : Fin n → Fin n → ℕ) (u v : Fin
 theorem mem_flattenMatrix_le_totalDoubledWeight {n : ℕ} (W : Fin n → Fin n → ℕ)
     {x : ℕ} (hx : x ∈ flattenMatrix W) :
     x ≤ totalDoubledWeight W := by
-  unfold flattenMatrix at hx
-  rw [List.mem_ofFn] at hx
-  rcases hx with ⟨idx, rfl⟩
+  rcases List.mem_ofFn.mp hx with ⟨_, rfl⟩
   exact entry_le_totalDoubledWeight W _ _
 
 /-! ### Relocatable workspace representation and address geometry -/
@@ -226,14 +225,10 @@ theorem holdsMatrix_init_single {r n : ℕ} (W : Fin n → Fin n → ℕ) :
 the input length `1 + n * n` and the leading word `a`, and the matrix total fits. -/
 theorem inputFits_cons_flattenMatrix {w a n B : ℕ} {W : Fin n → Fin n → ℕ} (hB : Fits w B)
     (hlen : 1 + n * n ≤ B) (ha : a ≤ B) (htot : Fits w (totalDoubledWeight W)) :
-    InputFits w (a :: flattenMatrix W) := by
-  refine ⟨?_, ?_⟩
-  · simp only [List.length_cons, length_flattenMatrix]
-    exact hB.of_le (by omega)
-  · intro v hv
-    rcases List.mem_cons.mp hv with rfl | hmem
-    · exact hB.of_le ha
-    · exact htot.of_le (mem_flattenMatrix_le_totalDoubledWeight W hmem)
+    InputFits w (a :: flattenMatrix W) :=
+  ⟨by simpa only [List.length_cons, length_flattenMatrix] using hB.of_le (by omega),
+    List.forall_mem_cons.mpr ⟨hB.of_le ha, fun _ hmem =>
+      htot.of_le (mem_flattenMatrix_le_totalDoubledWeight W hmem)⟩⟩
 
 /-- Memory `mem` stores `W : Fin k → Fin k → ℕ` at `(wb, str)` and its row degrees `rowDeg W` at
 `db`. -/
@@ -286,9 +281,7 @@ theorem ContractState.mem_add_one {w wb db str t : ℕ} {W : Fin 2 → Fin 2 →
 private theorem ContractState.eq_of_heldGraph_eq {w wb db str k t : ℕ} {W W' : Fin k → Fin k → ℕ}
     {x : Data 16} (hst : ContractState w wb db str k t W x) (h : heldGraph wb str x = ⟨k, W'⟩) :
     W = W' := by
-  have h' := hst.heldGraph_eq.symm.trans h
-  simp only [Lean.Karger.Graph.mk.injEq, heq_eq_eq, true_and] at h'
-  exact h'
+  simpa only [Lean.Karger.Graph.mk.injEq, heq_eq_eq, true_and] using hst.heldGraph_eq.symm.trans h
 
 theorem matAddr_lt_end {wb str k : ℕ} (hstr : k ≤ str) (i j : Fin k) :
     wb + i.val * str + j.val < wb + str * k := by
@@ -346,10 +339,8 @@ theorem modifies_trans_subset {F F₁ F₂ : Finset ℕ} {m₀ m₁ m₂ : ℕ �
   (h₂ a fun h => ha (hs₂ h)).trans (h₁ a fun h => ha (hs₁ h))
 
 theorem modifies_update_of_mem {F : Finset ℕ} {a : ℕ} (ha : a ∈ F) (m : ℕ → ℕ) (v : ℕ) :
-    Modifies F m (Function.update m a v) := by
-  intro b hb
-  have hne : b ≠ a := fun h => hb (h ▸ ha)
-  exact Function.update_of_ne hne v m
+    Modifies F m (Function.update m a v) :=
+  fun b hb => Function.update_of_ne (fun h : b = a => hb (h ▸ ha)) v m
 
 private theorem modifies_step_update {F : Finset ℕ} {m₁ m₂ : ℕ → ℕ} {a : ℕ}
     (h : Modifies F m₁ m₂) (ha : a ∈ F) (v : ℕ) :
@@ -405,10 +396,7 @@ private theorem prefixSum_succ {k j : ℕ} (hj : j < k) (f : Fin k → ℕ) :
 /-- `prefixSum` up to `k` is the full `Finset.univ` sum. -/
 private theorem prefixSum_full {k : ℕ} (f : Fin k → ℕ) :
     prefixSum f k = ∑ b : Fin k, f b := by
-  unfold prefixSum
-  refine Finset.sum_congr ?_ fun _ _ => rfl
-  ext b
-  simp
+  simp [prefixSum]
 
 /-- `prefixSum` is monotone in its cutoff `j`. -/
 private theorem prefixSum_mono {k : ℕ} (f : Fin k → ℕ) {i j : ℕ} (hle : i ≤ j) :
@@ -450,19 +438,6 @@ private structure KargerFrame (wb db str k t : ℕ) (y : Data 16) : Prop where
   stride_eq : y.regs Reg.stride = str
   activeK_eq : y.regs Reg.activeK = k
   targetT_eq : y.regs Reg.targetT = t
-
-/-- `KargerFrame` survives any state update preserving its seven registers. -/
-private theorem KargerFrame.congr {wb db str k t : ℕ} {y z : Data 16}
-    (hf : KargerFrame wb db str k t y)
-    (hr : ∀ i ∈ ({Reg.zero, Reg.one, Reg.wBase, Reg.dBase, Reg.stride,
-      Reg.activeK, Reg.targetT} : Finset (Fin 16)), z.regs i = y.regs i) :
-    KargerFrame wb db str k t z := by
-  regs_frame
-
-local macro "karger_frame " hf:term : tactic => `(tactic| (
-  refine KargerFrame.congr $hf (fun i hi => ?_)
-  simp only [Finset.mem_insert, Finset.mem_singleton] at hi
-  rcases hi with h | h | h | h | h | h | h <;> (subst h; try wram_simp)))
 
 /-! ### Part 1: Deterministic `O(k ^ 2)` row-degree and total-weight initializer -/
 
@@ -531,7 +506,7 @@ private theorem degInnerLoop_exec {w wb db str k t : ℕ} {W : Fin k → Fin k �
     rw [hv_eq] at hqval1
     unfold degInnerBody
     wram_exec [hqf.one_eq, hqa1, hv_eq, hread, hqval1, hcell_fit, hsum_fit, hv_fit]
-    refine ⟨⟨by karger_frame hqf, by wram_simp [hqu], by wram_simp [hqtot],
+    refine ⟨⟨by struct_frame hqf, by wram_simp [hqu], by wram_simp [hqtot],
       by wram_simp [hqa1], by wram_simp; omega, ?_, hqmem⟩, by wram_simp [hv_eq]; omega⟩
     wram_simp [prefixSum_succ hv_lt (W u)]; rfl
   obtain ⟨q, hloop, ⟨hqf, hqu, hqtot, _, hqv_le, hqval1, hqmem⟩, hvc⟩ :=
@@ -573,23 +548,19 @@ theorem computeDegreesAndTotal_exec {w wb db str k : ℕ} {W : Fin k → Fin k �
     obtain ⟨hmul_fit, hrow_fit⟩ := rowBase_fits hwEnd (Nat.le_of_lt hu_lt)
     unfold degOuterBody
     wram_exec [hyf.stride_eq, hyf.wBase_eq, hu_eq, hmul_fit, hrow_fit]
-    refine WP.name fun y_pre hy_pre => ?_
-    have hloop_in := degInnerLoop_exec (x := y_pre) u hstr hwEnd hdEnd htot
-      (by subst hy_pre; exact hymat)
-      (by subst hy_pre; karger_frame hyf) (by subst hy_pre; wram_simp [hu_eq]; rfl)
-      (by subst hy_pre; wram_simp; rfl) (by subst hy_pre; wram_simp) (by subst hy_pre; wram_simp)
-    obtain ⟨q, hloop_q, hqf, hqu, hqtot, hval1, hqmem⟩ := hloop_in
-    have hqm : q.mem = y.mem := hqmem.trans (by subst hy_pre; rfl)
-    have hqt : q.regs totS = y.regs totS := hqtot.trans (by subst hy_pre; wram_simp)
+    wram_call (degInnerLoop_exec u hstr hwEnd hdEnd htot hymat (by struct_frame hyf)
+      (by wram_simp [hu_eq]; rfl) (by wram_simp; rfl) (by wram_simp) (by wram_simp))
+      with q ⟨hqf, hqu, hqtot, hval1, hqmem⟩
+    have hqm : q.mem = y.mem := by mem_frame
+    have hqt : q.regs totS = y.regs totS := by regs_frame
     have htot_fit : Fits w (prefixSum (rowDeg W) u_val + rowDeg W u) :=
       prefixSum_succ hu_lt (rowDeg W) ▸ htot.of_le (prefixSum_le_sum (rowDeg W) (u_val + 1))
     have hdu_fit : Fits w (db + u_val) := hdEnd.of_le (by omega)
     have hu1_fit : Fits w (u_val + 1) := hdEnd.of_le (by omega)
     rw [hu_eq] at hytot
-    refine WP.of_execWithin hloop_q ?_
     wram_exec [hqf.dBase_eq, hqf.one_eq, (show q.regs uReg = u_val from hqu), hval1, hqt,
       hytot, hdu_fit, htot_fit, hu1_fit]
-    refine ⟨⟨by karger_frame hqf, by wram_simp; omega,
+    refine ⟨⟨by struct_frame hqf, by wram_simp; omega,
       by wram_simp [prefixSum_succ hu_lt (rowDeg W)]; rfl,
       fun i j => by
         simp only [Data.set_mem, Data.write_mem, hqm]
@@ -821,10 +792,7 @@ private theorem mergeStepMatrix_zero {k : ℕ} {W : Fin k → Fin k → ℕ} (hW
 private theorem mergeStepMatrix_full {k : ℕ} (W : Fin k → Fin k → ℕ) (u v : Fin k)
     (i j : Fin k) :
     mergeStepMatrix W u v k i j = mergePair W u v i j := by
-  unfold mergeStepMatrix
-  have hj : ¬ (k ≤ j.val) := Nat.not_le_of_lt j.isLt
-  have hi : ¬ (k ≤ i.val) := Nat.not_le_of_lt i.isLt
-  simp [hj, hi]
+  simp [mergeStepMatrix, Nat.not_le_of_lt i.isLt, Nat.not_le_of_lt j.isLt]
 
 private theorem mergeStepMatrix_step_eq_of_mem {k : ℕ} (W : Fin k → Fin k → ℕ) (u v : Fin k)
     {c : ℕ} (hc : c = u.val ∨ c = v.val) (i j : Fin k) :
@@ -893,8 +861,7 @@ private theorem compactStepMatrix_step_eq_of_eq {m : ℕ} (W₁ : Fin (m + 1) �
   subst hc
   have aux {a b : Fin m} :
       (a.val = v.val ∧ b.val ≠ v.val ∧ v.val + 1 ≤ b.val) ↔
-        (a.val = v.val ∧ b.val ≠ v.val ∧ v.val ≤ b.val) :=
-    ⟨fun ⟨h1, h2, h3⟩ => ⟨h1, h2, by omega⟩, fun ⟨h1, h2, h3⟩ => ⟨h1, h2, by omega⟩⟩
+        (a.val = v.val ∧ b.val ≠ v.val ∧ v.val ≤ b.val) := by omega
   simp only [compactStepMatrix, aux]
 
 private theorem compactStepMatrix_succ {m : ℕ} {W₁ : Fin (m + 1) → Fin (m + 1) → ℕ}
@@ -1021,13 +988,10 @@ theorem uScan_exec {w wb db str k r_val : ℕ} {W : Fin k → Fin k → ℕ}
     (by wram_simp [prefixSum_zero]) (by wram_simp) (fun _ => by wram_simp)
     (fun a => by wram_simp [hdeg a]))
     with y ⟨hym, hy_u, _, _, hy_rem, hy_other⟩
-  have keep (r : Fin 16) (hr : r ≠ rem ∧ r ≠ uReg ∧ r ≠ addr1 ∧ r ≠ val1) : y.regs r = x.regs r :=
-    (hy_other r hr.1 hr.2.1 hr.2.2.1 hr.2.2.2).trans
-      (by have ⟨h_1, h_2, h_3, h_4⟩ := hr; wram_simp)
   have hu_lt : u.val < k := u.isLt
   exact ⟨by omega, hym,
     by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
-    keep targetT (by decide), by regs_frame, hy_u, degBefore_eq_prefixSum W u ▸ hy_rem⟩
+    by regs_frame, by regs_frame, hy_u, degBefore_eq_prefixSum W u ▸ hy_rem⟩
 
 /-- Deterministic execution of `vScan` locating column `v` along row `u`. -/
 theorem vScan_exec {w wb db str k r_val : ℕ} {W : Fin k → Fin k → ℕ}
@@ -1071,15 +1035,10 @@ theorem vScan_exec {w wb db str k r_val : ℕ} {W : Fin k → Fin k → ℕ}
     (by wram_simp [hrem, hrem_eq, prefixSum_zero]) (by wram_simp) (fun _ => by wram_simp)
     (fun b => by wram_simp [hmat u b]))
     with y ⟨hym, hy_v, hy_a2, hy_v1, _, hy_other⟩
-  have keep (r : Fin 16)
-      (hr : r ≠ rem ∧ r ≠ vReg ∧ r ≠ addr2 ∧ r ≠ val1 ∧ r ≠ val2 ∧ r ≠ addr1) :
-      y.regs r = x.regs r :=
-    (hy_other r hr.1 hr.2.1 hr.2.2.1 hr.2.2.2.1).trans
-      (by have ⟨h_1, h_2, h_3, h_4, h_5, h_6⟩ := hr; wram_simp)
   have hv_lt : v.val < k := v.isLt
   exact ⟨by omega, hym,
     by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
-    keep targetT (by decide), by regs_frame, by regs_frame, hy_v, hy_a2, hy_v1⟩
+    by regs_frame, by regs_frame, by regs_frame, hy_v, hy_a2, hy_v1⟩
 
 /-! #### Execution of `phaseADegrees`, `phaseAPtrs`, and `mergeLoop` -/
 
@@ -1179,7 +1138,7 @@ private theorem phaseAPtrs_exec {w wb db str m t : ℕ}
   unfold phaseAPtrs
   wram_exec [hf.zero_eq, hf.wBase_eq, hf.stride_eq, huReg, hvReg, hmul_u_fit, hrow_u_fit,
     hmul_v_fit, hrow_v_fit, hwEnd.of_le (Nat.le_of_lt (matAddr_lt_end hstr v u))]
-  refine ⟨?_, fun i => ?_, fun i j => ?_, by karger_frame hf, by wram_simp,
+  refine ⟨?_, fun i => ?_, fun i j => ?_, by struct_frame hf, by wram_simp,
     by wram_simp [huReg], by wram_simp [hvReg], by wram_simp, by wram_simp, by wram_simp⟩
   · simp only [Data.set_mem, Data.write_mem]
     exact modifies_update_of_mem (Finset.mem_union_left _ (matAddr_mem_Ico hstr v u)) x.mem 0
@@ -1227,7 +1186,7 @@ private theorem mergeLoop_exec {w wb db str m t : ℕ}
     have hskip (hmem : c_val = u.val ∨ c_val = v.val) :
         Inv (y.set idx (c_val + 1)) ∧
           (m + 1) - (y.set idx (c_val + 1)).regs idx < (m + 1) - y.regs idx :=
-      ⟨⟨by karger_frame hyf, by wram_simp [hytot], by wram_simp [hyu], by wram_simp [hyv],
+      ⟨⟨by struct_frame hyf, by wram_simp [hytot], by wram_simp [hyu], by wram_simp [hyv],
         by wram_simp [hya1], by wram_simp [hya2], by wram_simp; omega, hymod, hydeg,
         fun i j => by
           wram_simp; rw [mergeStepMatrix_step_eq_of_mem W u v hmem, ← hidx_eq]; exact hymat i j⟩,
@@ -1266,7 +1225,7 @@ private theorem mergeLoop_exec {w wb db str m t : ℕ}
         wram_exec [hyf.zero_eq, hyf.one_eq, hyf.wBase_eq, hyf.stride_eq,
           hyu, hyv, hya1, hya2, hidx_eq, hcu, hcv, hne_uc_vc, hread_vc, hread_uc,
           hvc_fit, huc_fit, hsum_fit, hcmul_fit, hcrow_fit, hcv_fit, hcu_fit, hc1_fit]
-        refine ⟨⟨by karger_frame hyf, by wram_simp [hytot], by wram_simp [hyu],
+        refine ⟨⟨by struct_frame hyf, by wram_simp [hytot], by wram_simp [hyu],
           by wram_simp [hyv], by wram_simp [hya1], by wram_simp [hya2], by wram_simp; omega,
           ?_, fun i => ?_, fun i j => ?_⟩, by wram_simp [hidx_eq]; omega⟩
         · simp only [Data.set_mem, Data.write_mem]
@@ -1327,7 +1286,7 @@ private theorem compactLoop_exec {w wb db str m t : ℕ}
     unfold compactBody
     by_cases hcv : c_val = v.val
     · wram_exec [hyf.one_eq, hyv, hidx_eq, hcv, hc1_fit]
-      exact ⟨⟨by karger_frame hyf, by wram_simp [hytot], by wram_simp [hyv],
+      exact ⟨⟨by struct_frame hyf, by wram_simp [hytot], by wram_simp [hyv],
         by wram_simp [hya1], by wram_simp [hya2], by wram_simp; omega, hymod, hydeg, hyrowm,
         fun i j => by
           wram_simp; rw [← hcv, compactStepMatrix_step_eq_of_eq W₁ v hcv, ← hidx_eq]
@@ -1343,7 +1302,7 @@ private theorem compactLoop_exec {w wb db str m t : ℕ}
       unfold compactUpdate
       wram_exec [hyf.one_eq, hyf.wBase_eq, hyf.stride_eq, hyv, hya1, hya2, hidx_eq, hcv,
         hread_mc, hmc_fit, hvc_fit, hcmul_fit, hcrow_fit, hcv_fit, hc1_fit]
-      refine ⟨⟨by karger_frame hyf, by wram_simp [hytot], by wram_simp [hyv],
+      refine ⟨⟨by struct_frame hyf, by wram_simp [hytot], by wram_simp [hyv],
         by wram_simp [hya1], by wram_simp [hya2], by wram_simp; omega,
         ?_, fun i => ?_, fun c' => ?_, fun i j => ?_⟩, by wram_simp [hidx_eq]; omega⟩
       · simp only [Data.set_mem, Data.write_mem]
@@ -1422,15 +1381,14 @@ private theorem compactPhase_exec {w wb db str m t : ℕ}
     exact (update_matAddr_of_degAddr hstr hdisj x.mem v i.castSucc j.castSucc _).trans
       (hws1.1 i.castSucc j.castSucc)
   obtain ⟨y, hloop, hmod, hws, hyf, hytot⟩ :=
-    compactLoop_exec hW hv_lt (by subst hx₁_eq; karger_frame hf)
-      (by subst hx₁_eq; wram_simp [hvReg]) (by subst hx₁_eq; wram_simp)
-      (by subst hx₁_eq; wram_simp) (by subst hx₁_eq; wram_simp)
+    compactLoop_exec (x := x₁) hW hv_lt (by struct_frame hf) (by regs_frame)
+      (by subst hx₁_eq; wram_simp) (by subst hx₁_eq; wram_simp) (by subst hx₁_eq; wram_simp)
       hstr hdisj hwEnd hdEnd hdeg hrowm hmat0
   have hx₁_mod : Modifies (workspaceFootprint wb db str (m + 1)) x.mem x₁.mem :=
     hx₁_mem ▸ modifies_update_of_mem (Finset.mem_union_right _ (degAddr_mem_Ico v)) x.mem _
   exact WP.of_execWithin hloop ⟨by omega,
     modifies_trans_subset hx₁_mod hmod Finset.Subset.rfl Finset.Subset.rfl, hws, hyf,
-    hytot.trans (by subst hx₁_eq; wram_simp)⟩
+    by regs_frame⟩
 
 /-- Deterministic post-sampling execution: given `x.regs rem = r_val` with
 `IsSampledPair W r_val u v`, `postRandStep` contracts `(u, v)` and swap-compacts `Fin.last m` into
@@ -1461,20 +1419,16 @@ theorem postRandStep_exec {w wb db str m t r_val : ℕ}
   wram_exec
   wram_call (uScan_exec hsamp h0 h1 hwBase hdBase hstride hactiveK htotS hrem hdEnd htot hws.2)
     with y1 ⟨hm1, h1_0, h1_1, h1_wb, h1_db, h1_str, h1_k, h1_t, h1_tot, h1_u, h1_rem⟩
-  refine WP.seq ?_
   wram_call (vScan_exec hsamp h1_0 h1_1 h1_wb h1_db h1_str h1_k h1_tot h1_u h1_rem
     hstr hwEnd hdEnd htot (hm1 ▸ hws.1))
     with y2 ⟨hm2, h2_0, h2_1, h2_wb, h2_db, h2_str, h2_k, h2_t, h2_tot, h2_u, h2_v, h2_a2, h2_v1⟩
-  refine WP.seq ?_
   wram_call (phaseADegrees_exec hW huv h2_0 h2_1 h2_wb h2_db h2_str h2_k h2_tot h2_u h2_v
     h2_a2 h2_v1 hstr hdisj hdEnd htot (hm2.trans hm1 ▸ hws))
     with y3 ⟨hmod3, h3_deg, h3_mat, h3_0, h3_1, h3_wb, h3_db, h3_str, h3_k, h3_t, h3_tot,
       h3_u, h3_v⟩
-  refine WP.seq ?_
-  wram_call (phaseAPtrs_exec hW ⟨h3_0, h3_1, h3_wb, h3_db, h3_str, h3_k,
-      by rw [h3_t, h2_t, h1_t, htargetT]⟩ h3_u h3_v hstr hdisj hwEnd h3_deg h3_mat)
+  wram_call (phaseAPtrs_exec hW ⟨h3_0, h3_1, h3_wb, h3_db, h3_str, h3_k, by regs_frame⟩
+      h3_u h3_v hstr hdisj hwEnd h3_deg h3_mat)
     with y4 ⟨hmod4, h4_deg, h4_mat0, hf4, h4_tot, h4_u, h4_v, h4_a1, h4_a2, h4_idx⟩
-  refine WP.seq ?_
   wram_call (mergeLoop_exec hW huv hf4 h4_u h4_v h4_a1 h4_a2 h4_idx
     hstr hdisj hwEnd hdEnd htot h4_deg h4_mat0)
     with y5 ⟨hmod5, h5_ws, hf5, h5_tot, _, h5_v⟩
@@ -1485,27 +1439,23 @@ theorem postRandStep_exec {w wb db str m t r_val : ℕ}
   refine WP.seq (WP.bin hf5.activeK_eq hf5.one_eq (Nat.add_sub_cancel m 1) (hdEnd.of_le (by omega))
     (WP.branch (fun hc => ?_) (fun hc => ?_)))
   · have hv_lt : v.val < m := by wram_simp [Cond.holds_lt, h5_v] at hc; exact hc
-    wram_call (compactPhase_exec (u := u) (t := t) hW hv_lt
-      ⟨by wram_simp [hf5.zero_eq], by wram_simp [hf5.one_eq], by wram_simp [hf5.wBase_eq],
-        by wram_simp [hf5.dBase_eq], by wram_simp [hf5.stride_eq], by wram_simp,
-        by wram_simp [hf5.targetT_eq]⟩
-      (by wram_simp [h5_v]) hstr hdisj hwEnd hdEnd h5_ws)
+    wram_call (compactPhase_exec (u := u) (t := t) hW hv_lt (by regs_frame)
+      (by regs_frame) hstr hdisj hwEnd hdEnd h5_ws)
       with y7 ⟨hmod7, h7_ws, hf7, h7_tot⟩
     exact ⟨by omega, modifies_trans_subset hmod15 hmod7 Finset.Subset.rfl Finset.Subset.rfl,
       ⟨hf7.wBase_eq, hf7.dBase_eq, hf7.stride_eq, hf7.activeK_eq, hf7.targetT_eq,
-        by wram_simp [h7_tot, h5_tot, h4_tot, h3_tot], by omega, hdisj_m, hwEnd_m, hdEnd_m,
+        by regs_frame, by omega, hdisj_m, hwEnd_m, hdEnd_m,
         htot_c_fit, h7_ws⟩, hf7.zero_eq, hf7.one_eq⟩
   · have hv_lt : ¬ v.val < m := by wram_simp [Cond.holds_lt, h5_v] at hc; exact hc
     wram_exec
     have hembed (i : Fin m) : embedCompact v i = i.castSucc := by
       simp [embedCompact, show i.val ≠ v.val by have := i.isLt; have := v.isLt; omega]
     exact ⟨hmod15,
-      ⟨by wram_simp [hf5.wBase_eq], by wram_simp [hf5.dBase_eq], by wram_simp [hf5.stride_eq],
-        by wram_simp, by wram_simp [hf5.targetT_eq], by wram_simp [h5_tot, h4_tot, h3_tot],
-        by omega, hdisj_m, hwEnd_m, hdEnd_m, htot_c_fit,
+      ⟨by regs_frame, by regs_frame, by regs_frame, by wram_simp, by regs_frame,
+        by regs_frame, by omega, hdisj_m, hwEnd_m, hdEnd_m, htot_c_fit,
         ⟨fun i j => by simpa [contractMatrix, hembed] using h5_ws.1 i.castSucc j.castSucc,
          fun i => by simpa [rowDeg_contractMatrix, hembed] using h5_ws.2 i.castSucc⟩⟩,
-      by wram_simp [hf5.zero_eq], by wram_simp [hf5.one_eq]⟩
+      by regs_frame, by regs_frame⟩
 
 /-! #### Simulation of the contraction structure and `contractDownTo_spec` -/
 
@@ -1553,13 +1503,8 @@ private theorem contractStep_law_zero {w wb db str t m : ℕ}
     simp only [Op.eval_bin, BinOp.eval, hst.regs_activeK, h1, Nat.add_sub_cancel]
     exact Data.put_of_fits (hst.fits_dEnd.of_le (by omega))
   have hws_next : HoldsWorkspace x_next.mem wb db str (contractMatrix W 0 (Fin.last m)) :=
-    ⟨fun i j => by
-      have hw1 : x.mem (wb + i.val * str + j.val) = W i.castSucc j.castSucc :=
-        hst.workspace.1 i.castSucc j.castSucc
-      change x.mem (wb + i.val * str + j.val) = _; rw [hw1, hW_zero, hcm_zero],
-     fun i => by
-      have hw2 : x.mem (db + i.val) = rowDeg W i.castSucc := hst.workspace.2 i.castSucc
-      change x.mem (db + i.val) = _; rw [hw2, hdeg_zero]; unfold rowDeg; simp [hW_zero]⟩
+    ⟨fun i j => (hst.workspace.1 i.castSucc j.castSucc).trans (by rw [hW_zero, hcm_zero]),
+     fun i => (hst.workspace.2 i.castSucc).trans (by simp [rowDeg, hW_zero, hcm_zero])⟩
   have hst_next : ContractState w wb db str m t (contractMatrix W 0 (Fin.last m)) x_next :=
     ⟨by wram_simp [x_next, hst.regs_wBase], by wram_simp [x_next, hst.regs_dBase],
       by wram_simp [x_next, hst.regs_stride], by wram_simp [x_next],
@@ -1675,12 +1620,7 @@ theorem contractDownTo_law {w wb db str k t : ℕ} {W : Fin k → Fin k → ℕ}
   rw [Nat.add_sub_cancel_left]
   have h1_fit : Fits w 1 := hst.fits_dEnd.of_le (by omega)
   let x₁ := (x.set zero 0).set one 1
-  have hst₁ : ContractState w wb db str (t + s) t W x₁ :=
-    ⟨by wram_simp [x₁, hst.regs_wBase], by wram_simp [x₁, hst.regs_dBase],
-      by wram_simp [x₁, hst.regs_stride], by wram_simp [x₁, hst.regs_activeK],
-      by wram_simp [x₁, hst.regs_targetT], by wram_simp [x₁, hst.regs_totS],
-      hst.le_stride, hst.disjoint_blocks, hst.fits_wEnd, hst.fits_dEnd,
-      hst.fits_totS, hst.workspace⟩
+  have hst₁ : ContractState w wb db str (t + s) t W x₁ := by struct_frame hst
   have hloop := contractLoop_law ht hW (by wram_simp [x₁]) (by wram_simp [x₁]) hst₁
   unfold contractDownTo
   exact (ExecRandLaw.seq_det (ExecWithin.const (fits_zero w))
@@ -1848,11 +1788,9 @@ theorem contractDownToAt_spec {r n w wb db str k t : ℕ} (hr : 16 ≤ r)
     rcases hsup₀ z₀ hz₀ with ⟨ht0, hmod0, W', part', hC', hst'⟩
     exact ⟨ht0, hmod0, fun j hj => Data.extend_castLE_regs_of_le (hrs := hr) z₀.1 x j hj,
       W', part', hC', by rwa [Data.comap_extend hf]⟩
-  · rw [ProbComp.eval_map, PMF.toOuterMeasure_map_apply]
-    convert hsurv₀ B hmin hBnt hBmin using 2
-    ext z; change SurvivalPost W₀ wb db str t (pullbackCut part B) ((z.1.extend f x).comap f) ↔
-      SurvivalPost W₀ wb db str t (pullbackCut part B) z.1
-    rw [Data.comap_extend hf]
+  · simp only [ProbComp.eval_map, PMF.toOuterMeasure_map_apply, Set.preimage, Set.mem_ofPred_eq, f,
+      Data.comap_extend hf]
+    exact hsurv₀ B hmin hBnt hBmin
 
 end Contract
 

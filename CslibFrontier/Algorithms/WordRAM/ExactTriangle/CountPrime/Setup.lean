@@ -85,14 +85,10 @@ theorem exec_setup {W n p scratch a b c : ℕ} (x : Data 128) (hp0 : 0 < p)
   obtain ⟨y, layoutRun, L, ym, yr⟩ := exec_layout s hp0
     (by regs_frame) (by regs_frame) sk (by regs_frame) h2
     (hw.of_le (by dsimp only [k]; omega))
-  refine ⟨y, ?_, ⟨L, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ym.trans memory⟩
-  · exact (logRun.seq layoutRun).mono (by rw [hn]; dsimp only [k]; omega)
-  · regs_frame
-  · regs_frame
-  · regs_frame
-  · regs_frame
-  · regs_frame
-  · regs_frame
-  · regs_frame
+  refine ⟨y, (logRun.seq layoutRun).mono ?_, ⟨L, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩, ym.trans memory⟩
+  · rw [hn]
+    dsimp only [k]
+    omega
+  all_goals regs_frame
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

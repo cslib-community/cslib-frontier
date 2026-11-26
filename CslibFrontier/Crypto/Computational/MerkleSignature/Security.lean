@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
+import CslibFrontier.Languages.Probabilistic.Norm
 import Mathlib.Data.List.GetD
 public import CslibFrontier.Crypto.Computational.IndexedSignature.Counter
 public import CslibFrontier.Crypto.Computational.MerkleSignature
@@ -224,21 +225,20 @@ private theorem eval_run_plantedHandler
     (represent := fun signed => (signed, otsLogOf H front.length k signed))
     (invariant := fun _ => True) (by simp)
     (step := by
-      have hmapApply : ∀ {σ β γ : Type} (f : β → γ) (p : StateT σ PMF β) (state : σ),
-          (f <$> p) state = (p state).map (fun r => (f r.1, r.2)) := fun _ _ _ => rfl
-      have hpureApply : ∀ {σ β : Type} (a : β) (state : σ),
-          (pure a : StateT σ PMF β) state = PMF.pure (a, state) := fun _ _ => rfl
-      have hsampleApply : ∀ {β : Type} (p : ProbComp β) (state : List (List Bool)),
+      have hmapApply {σ β γ : Type} (f : β → γ) (p : StateT σ PMF β) (state : σ) :
+          (f <$> p) state = (p state).map (fun r => (f r.1, r.2)) := rfl
+      have hpureApply {σ β : Type} (a : β) (state : σ) :
+          (pure a : StateT σ PMF β) state = PMF.pure (a, state) := rfl
+      have hsampleApply {β : Type} (p : ProbComp β) (state : List (List Bool)) :
           (OracleComp.interpret
             (OracleComp.sumHandler (fun j => StateT.lift (ProbComp.unifOracle j))
               (fun q s => ProbComp.eval (S.oneTimeSigningOracle n x.2 q s)))
             (ProbOracleComp.sample p)) state = (ProbComp.eval p).map (·, state) :=
-        fun p state => ProbOracleComp.run_interpret_sample _ p state
+        ProbOracleComp.run_interpret_sample _ p state
       rintro ⟨⟨⟩, w⟩ signed -
       unfold IndexedSignatureScheme.indexedSigningOracle plantedHandler
       simp only [scheme, StateT.run, ProbOracleComp.runWith_eq_run_interpret]
-      generalize IndexedSignatureScheme.requestDecoder.decode w = r
-      obtain ⟨u, m⟩ := r
+      obtain ⟨u, m⟩ := IndexedSignatureScheme.requestDecoder.decode w
       dsimp only
       by_cases hguard : u < 2 ^ depth n ∧ u ∉ signed.map Prod.fst
       · simp only [hguard, not_false_eq_true, and_self, ↓reduceIte]
@@ -249,28 +249,23 @@ private theorem eval_run_plantedHandler
         · subst hi
           have hempty : otsLogOf H front.length k signed = [] := by
             simp only [otsLogOf, List.map_eq_nil_iff, List.filter_eq_nil_iff, beq_iff_eq]
-            intro e he heq
-            exact hguard.2 (List.mem_map.mpr ⟨e, he, heq⟩)
+            exact fun e he heq => hguard.2 (List.mem_map.mpr ⟨e, he, heq⟩)
           simp only [↓reduceIte, hempty, sign, secretKey, secretKeyDecoder.decode_enc, signWith,
             List.getD_append_cons_length, hkeys, OracleComp.interpret_map,
             ProbOracleComp.interpret_query, SignatureScheme.oneTimeSigningOracle,
             SignatureScheme.oneTimeSigningOracleOn, hlen, hk, beq_self_eq_true, List.isEmpty_nil,
-            Bool.and_self,
-            ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.bind_bind, PMF.pure_bind,
-            PMF.pure_map, hmapApply]
+            Bool.and_self, hmapApply, pmf_norm]
           refine PMF.bind_congr_on_support _ _ _ fun σ hσ => ?_
-          have hots : otsLogOf H front.length k ((front.length, m) :: signed) = [H k m] := by
-            rw [← List.singleton_append, ← hempty]
-            simp [otsLogOf]
+          have hots : otsLogOf H front.length k ((front.length, m) :: signed) = [H k m] :=
+            (by simp [otsLogOf] : otsLogOf H front.length k ((front.length, m) :: signed) =
+              H k m :: otsLogOf H front.length k signed).trans (congrArg _ hempty)
           rw [hots, List.take_of_length_le (hbound _ (by rw [hlen, hk]) σ hσ)]
         · have hots : otsLogOf H front.length k ((u, m) :: signed) =
               otsLogOf H front.length k signed := by
             simp [otsLogOf, hi]
           simp only [hi, ↓reduceIte, sign, secretKey, secretKeyDecoder.decode_enc, signWith, hkeys,
             List.getD_append_cons_of_ne front back x (x.1, []) ([], []) hi,
-            OracleComp.interpret_map,
-            ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, hmapApply, hsampleApply,
-            PMF.bind_bind, PMF.pure_bind, PMF.pure_map, hots]
+            OracleComp.interpret_map, hmapApply, hsampleApply, hots, pmf_norm]
       · simp only [hguard, ↓reduceIte, ProbComp.eval_pure, PMF.pure_map, OracleComp.interpret_pure,
           hpureApply])
     program [] trivial
@@ -314,11 +309,10 @@ private theorem eval_eufOneTimeGame_oneTimeForgerAt
             (ProbComp.eval (OracleComp.replicate (2 ^ depth n - i - 1) (S.keyGen n))).bind
               fun back => (realRun S H depth hH hlen hcap adversary n k (front ++ x :: back)).map
                 (otsWin S H n i k (front ++ x :: back)) := by
-  simp only [SignatureScheme.eufOneTimeGame, oneTimeForgerAt, ProbComp.eval_bind,
-    ProbComp.eval_pure, ProbOracleComp.eval_run_interpret_eq_runWith,
-    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbOracleComp.runWith_pure,
-    plantKeys, BitString.eval_sampleList, PMF.map_bind,
-    PMF.bind_bind, PMF.pure_bind, PMF.pure_map]
+  simp only [SignatureScheme.eufOneTimeGame, oneTimeForgerAt,
+    ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_sample, ProbOracleComp.runWith_pure, plantKeys,
+    BitString.eval_sampleList, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun x hx => ?_
   refine PMF.bind_congr_on_support _ _ _ fun k hk => ?_
   refine PMF.bind_congr_on_support _ _ _ fun front hfront => ?_
@@ -364,8 +358,7 @@ private theorem map_otsWin_realExp
   rw [eval_eufOneTimeGame_oneTimeForgerAt hH hlen hcap hbound adversary i, realExp]
   have hsplit : 2 ^ depth n = i + ((2 ^ depth n - i - 1) + 1) := by omega
   rw [hsplit, ← ProbComp.eval_replicate_splice, ← hsplit]
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.map_bind,
-    PMF.bind_bind, PMF.pure_bind, PMF.map_comp, Function.comp_def]
+  simp only [pmf_norm]
   rw [PMF.bind_comm]
 
 variable {S H depth} in
@@ -380,8 +373,7 @@ private theorem eval_indexedEufCmaGame_eq
         decide (t.2.2.1.1 < 2 ^ depth n) && !t.2.2.2.contains (t.2.2.1.1, t.2.2.1.2.1) &&
           verify S H depth (publicKey H t.1 t.2.1) t.2.2.1.1 t.2.2.1.2.1 t.2.2.1.2.2 := by
   simp only [IndexedSignatureScheme.indexedEufCmaGame, scheme, keyGen, realExp, realRun,
-    ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, PMF.monad_bind_eq_bind,
-    PMF.map_bind, PMF.bind_bind, PMF.pure_bind, PMF.map_comp, Function.comp_def]
+    BitString.eval_sampleList, pmf_norm]
   rfl
 
 variable {S H depth} in
@@ -396,9 +388,7 @@ private theorem eval_collisionGame_eq
       (realExp S H depth hH hlen hcap adversary n).map fun t =>
         isCollision H (fun _ _ => true) n t.1 (collisionOf H t.1 t.2.1 t.2.2).1
           (collisionOf H t.1 t.2.1 t.2.2).2 := by
-  simp only [collisionGame, collisionFinder, realExp, realRun, ProbComp.eval_bind,
-    ProbComp.eval_pure, BitString.eval_sampleList, PMF.monad_bind_eq_bind, PMF.map_bind,
-    PMF.bind_bind, PMF.pure_bind, PMF.map_comp, Function.comp_def]
+  simp only [collisionGame, collisionFinder, realExp, realRun, BitString.eval_sampleList, pmf_norm]
   rfl
 
 variable {S H depth} in
@@ -414,14 +404,10 @@ private theorem win_cases (hlen : ∀ k m, (H k m).length = k.length) {n : ℕ} 
         (collisionOf H k keys r).2 = true ∨
       (List.range (2 ^ depth n)).any (fun i => otsWin S H n i k keys r) = true := by
   obtain ⟨⟨u, m, sig⟩, signed⟩ := r
-  simp only [Bool.and_eq_true, Bool.not_eq_eq_eq_not, Bool.not_true] at hwin
-  obtain ⟨hfresh, hver⟩ := hwin
-  have hnot : (u, m) ∉ signed := fun hmem => by
-    rw [List.contains_iff_mem.mpr hmem] at hfresh
-    exact Bool.noConfusion hfresh
-  simp only [verify, publicKey, encPair_apply, unframe_frame_append, dropFrame_frame_append,
-    encBits_apply, hk, Bool.and_eq_true] at hver
-  obtain ⟨hopen, hots⟩ := hver
+  simp only [Bool.and_eq_true, Bool.not_eq_true', List.contains_eq_mem, decide_eq_false_iff_not,
+    verify, publicKey, encPair_apply, unframe_frame_append, dropFrame_frame_append,
+    encBits_apply, hk] at hwin
+  obtain ⟨hnot, hopen, hots⟩ := hwin
   have hu : u < 2 ^ depth n := (merkleVerify_eq_true_iff.mp hopen).2.1
   have hdepth : Nat.clog 2 (keys.map Prod.fst).length = depth n := by
     rw [List.length_map, hkeys, Nat.clog_pow _ _ (by norm_num)]
@@ -430,34 +416,29 @@ private theorem win_cases (hlen : ∀ k m, (H k m).length = k.length) {n : ℕ} 
     rw [List.getD_eq_getElem _ _ (by simpa using hu'), List.getD_eq_getElem _ _ hu',
       List.getElem_map]
   by_cases hvk : (signatureDecoder.decode sig).1 = (keys.map Prod.fst).getD u []
-  · by_cases hfound : ∃ e ∈ signed, e.1 = u ∧ H k e.2 = H k m
-    · left
-      obtain ⟨e, he, heu, hem⟩ := hfound
-      have hsome : (signed.find? fun e => e.1 == u && H k e.2 == H k m).isSome :=
-        List.find?_isSome.mpr ⟨e, he, by simp [heu, hem]⟩
-      obtain ⟨e', he'⟩ := Option.isSome_iff_exists.mp hsome
-      have hmem := List.mem_of_find?_eq_some he'
+  · cases he' : signed.find? fun e => e.1 == u && H k e.2 == H k m with
+    | some e' =>
+      left
       have hprop := List.find?_some he'
       simp only [Bool.and_eq_true, beq_iff_eq] at hprop
-      have hne : m ≠ e'.2 := fun h => hnot (by rw [h, ← hprop.1]; exact hmem)
+      have hne : m ≠ e'.2 := fun h => hnot (h ▸ hprop.1 ▸ List.mem_of_find?_eq_some he')
       simp only [collisionOf, hvk, beq_self_eq_true, ↓reduceIte, he', Option.elim_some,
         isCollision_eq_true_iff]
       exact ⟨trivial, trivial, hne, hprop.2.symm⟩
-    · right
+    | none =>
+      right
       simp only [List.any_eq_true, List.mem_range]
       refine ⟨u, hu, ?_⟩
-      have hnotin : ¬ (otsLogOf H u k signed).contains (H k m) = true := by
-        rw [List.contains_iff_mem]
-        simp only [otsLogOf, List.mem_map, List.mem_filter, beq_iff_eq]
+      have hnotin : (otsLogOf H u k signed).contains (H k m) = false := by
+        simp only [List.contains_eq_mem, decide_eq_false_iff_not, otsLogOf, List.mem_map,
+          List.mem_filter, beq_iff_eq]
         rintro ⟨e, ⟨he, heu⟩, hem⟩
-        exact hfound ⟨e, he, heu, hem⟩
-      simp only [otsWin, Bool.and_eq_true, beq_iff_eq, hlen, hk, true_and]
-      refine ⟨by simpa using hnotin, ?_⟩
-      rw [← hvks, ← hvk]
-      exact hots
+        exact absurd (by simp [heu, hem]) (List.find?_eq_none.mp he' e he)
+      simp only [otsWin, hlen, hk, beq_self_eq_true, hnotin, Bool.not_false, Bool.true_and]
+      rwa [← hvks, ← hvk]
   · left
-    have hcol := isCollision_of_merkleVerify_merklePath hdepth hopen hvk n
-    simpa only [collisionOf, beq_iff_eq, hvk, ↓reduceIte] using hcol
+    simpa only [collisionOf, beq_iff_eq, hvk, ↓reduceIte] using
+      isCollision_of_merkleVerify_merklePath hdepth hopen hvk n
 
 /-- **The leaf is exactly uniform** below `2 ^ depth n`, the law of
 `ProbComp.sampleBinaryNat (depth n)` (`ProbComp.eval_sampleBinaryNat`). `leafIndex` reads its bits
@@ -478,10 +459,9 @@ private theorem eval_eufOneTimeGame_oneTimeForger (bound : ℕ → ℕ) (adversa
     ProbComp.eval (S.eufOneTimeGame (oneTimeForger S H depth bound adversary) n) =
       (PMF.uniformOfFintype (Fin (2 ^ depth n))).bind fun i =>
         ProbComp.eval (S.eufOneTimeGame (oneTimeForgerAt S H depth bound adversary i.val) n) := by
-  simp only [SignatureScheme.eufOneTimeGame, oneTimeForger, ProbComp.eval_bind,
-    ProbComp.eval_pure, ProbOracleComp.eval_run_interpret_eq_runWith,
-    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, eval_leafIndex, PMF.bind_map,
-    PMF.bind_bind, Function.comp_def]
+  simp only [SignatureScheme.eufOneTimeGame, oneTimeForger,
+    ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_sample, eval_leafIndex, pmf_norm]
   rw [PMF.bind_comm]
 
 /-! ### The explicit bound -/
@@ -625,36 +605,22 @@ theorem isPPT_collisionFinder {adversary : IndexedForger}
     IsPPT (encPair encBits encBits) (collisionFinder S H depth hH hlen hcap adversary) := by
   change IsPPTOn (encPair encUnary encBits) (encPair encBits encBits)
     (fun p => collisionFinder S H depth hH hlen hcap adversary p.1 p.2)
-  have hkeys : IsPPTOn (encPair encUnary encBits) (encList (encPair encBits encBits))
-      (fun p : ℕ × List Bool => OracleComp.replicate (2 ^ depth p.1) (S.keyGen p.1)) :=
-    (S.isPPTOn_keyGen_comp (ComputableInPolyTime.fst encUnary encBits)).replicate
-      (hcap.comp (ComputableInPolyTime.fst encUnary encBits))
+  have hp1 := ComputableInPolyTime.fst encUnary encBits
+  have hkeys := (S.isPPTOn_keyGen_comp hp1).replicate (hcap.comp hp1)
   have hfst := ComputableInPolyTime.fst (encPair encUnary encBits)
     (encList (encPair encBits encBits))
-  have hkk : ComputableInPolyTime
-      (fun q : (ℕ × List Bool) × List (List Bool × List Bool) => (q.1.2, q.2))
-      (encPair (encPair encUnary encBits) (encList (encPair encBits encBits)))
-      (encPair encBits (encList (encPair encBits encBits))) :=
-    hfst.snd'.prod (ComputableInPolyTime.snd _ _)
-  have hprep : ComputableInPolyTime
-      (fun q : (ℕ × List Bool) × List (List Bool × List Bool) =>
-        (q.1.1, publicKey H q.1.2 q.2, secretKey q.1.2 q.2))
-      (encPair (encPair encUnary encBits) (encList (encPair encBits encBits)))
-      (encPair encUnary (encPair encBits encBits)) :=
-    hfst.fst'.prod
-      (((computableInPolyTime_publicKey hH hlen).comp hkk).prod hkk.encoding_comp)
-  have hrun₀ := (scheme S H depth hH hlen hcap).isPPTOn_run_indexedSigningOracle hadversary
-  have hrun := hrun₀.preprocess
-    (prepare := fun q : (ℕ × List Bool) × List (List Bool × List Bool) =>
-      (q.1.1, publicKey H q.1.2 q.2, secretKey q.1.2 q.2)) hprep
+  have hkk := hfst.snd'.prod (ComputableInPolyTime.snd _ _)
+  have hprep := hfst.fst'.prod
+    (((computableInPolyTime_publicKey hH hlen).comp hkk).prod hkk.encoding_comp)
+  have hrun := ((scheme S H depth hH hlen hcap).isPPTOn_run_indexedSigningOracle
+    hadversary).preprocess hprep
   exact hkeys.bind_with (hrun.bind_with (computableInPolyTime_collisionOf hH hlen).isPPTOn)
 
 include hcap in
 /-- Sampling a uniform leaf is uniformly strict PPT. -/
 theorem isPPTOn_leafIndex : IsPPTOn encUnary encUnary (leafIndex depth) := by
-  have hdepth := computableInPolyTime_depth hcap
   unfold leafIndex
-  exact (ComputableInPolyTime.sampleList hdepth).map_with
+  exact (ComputableInPolyTime.sampleList (computableInPolyTime_depth hcap)).map_with
     (ComputableInPolyTime.bitsBoundedBinaryValueWithInput
       (hcap.comp (ComputableInPolyTime.fst _ _)) (ComputableInPolyTime.snd _ _))
 
@@ -665,38 +631,20 @@ private theorem isPPTOn_plantKeys :
       (fun c : (ℕ × List Bool) × ℕ => plantKeys S depth c.1.1 c.2 c.1.2) := by
   let E1 := encPair (encPair encUnary encBits) encUnary
   let EK := encList (encPair encBits encBits)
-  have hn : ComputableInPolyTime (fun c : (ℕ × List Bool) × ℕ => c.1.1) E1 encUnary :=
-    (ComputableInPolyTime.fst _ _).fst'
-  have hk : IsPPTOn E1 encBits (fun c : (ℕ × List Bool) × ℕ => BitString.sampleList c.1.1) :=
-    ComputableInPolyTime.sampleList hn
+  have hn := (ComputableInPolyTime.fst (encPair encUnary encBits) encUnary).fst'
+  have hk := ComputableInPolyTime.sampleList hn
   have hn2 := hn.comp (ComputableInPolyTime.fst E1 encBits)
-  have hfront : IsPPTOn (encPair E1 encBits) EK
-      (fun q : ((ℕ × List Bool) × ℕ) × List Bool =>
-        OracleComp.replicate q.1.2 (S.keyGen q.1.1.1)) :=
-    (S.isPPTOn_keyGen_comp hn2).replicate
-      (ComputableInPolyTime.fst E1 encBits).snd'
-  have hn3 := hn2.comp (ComputableInPolyTime.fst (encPair E1 encBits) EK)
-  have hback : IsPPTOn (encPair (encPair E1 encBits) EK) EK
-      (fun q : (((ℕ × List Bool) × ℕ) × List Bool) × List (List Bool × List Bool) =>
-        OracleComp.replicate (2 ^ depth q.1.1.1.1 - q.1.1.2 - 1) (S.keyGen q.1.1.1.1)) := by
-    have hi : ComputableInPolyTime
-        (fun q : (((ℕ × List Bool) × ℕ) × List Bool) × List (List Bool × List Bool) => q.1.1.2)
-        (encPair (encPair E1 encBits) EK) encUnary :=
-      (ComputableInPolyTime.fst _ _).fst'.snd'
-    have hcount := ((hcap.comp hn3).unary_sub' hi).unary_sub' (ComputableInPolyTime.const 1)
-    exact (S.isPPTOn_keyGen_comp hn3).replicate hcount
-  have hret : ComputableInPolyTime
-      (fun r : ((((ℕ × List Bool) × ℕ) × List Bool) × List (List Bool × List Bool)) ×
-          List (List Bool × List Bool) =>
-        (r.1.1.2, r.1.2 ++ (r.1.1.1.1.2, []) :: r.2))
-      (encPair (encPair (encPair E1 encBits) EK) EK) (encPair encBits EK) := by
-    have hfst := ComputableInPolyTime.fst (encPair (encPair E1 encBits) EK) EK
-    have hkr := hfst.fst'.snd'
-    have hvk := hfst.fst'.fst'.fst'.snd'
-    have hplanted :=
-      hvk.prod (ComputableInPolyTime.const (encOut := encBits) ([] : List Bool))
-    exact hkr.prod (ComputableInPolyTime.listAppend' hfst.snd'
-      (ComputableInPolyTime.cons' hplanted (ComputableInPolyTime.snd _ _)))
+  have hfront := (S.isPPTOn_keyGen_comp hn2).replicate (ComputableInPolyTime.fst E1 encBits).snd'
+  have hf2 := ComputableInPolyTime.fst (encPair E1 encBits) EK
+  have hn3 := hn2.comp hf2
+  have hcount := ((hcap.comp hn3).unary_sub' hf2.fst'.snd').unary_sub'
+    (ComputableInPolyTime.const 1)
+  have hback := (S.isPPTOn_keyGen_comp hn3).replicate hcount
+  have hfst := ComputableInPolyTime.fst (encPair (encPair E1 encBits) EK) EK
+  have hplanted := hfst.fst'.fst'.fst'.snd'.prod
+    (ComputableInPolyTime.const (encOut := encBits) ([] : List Bool))
+  have hret := hfst.fst'.snd'.prod (ComputableInPolyTime.listAppend' hfst.snd'
+    (ComputableInPolyTime.cons' hplanted (ComputableInPolyTime.snd _ _)))
   unfold plantKeys
   exact hk.bind_with (hfront.bind_with (hback.bind_with hret.isPPTOn))
 
@@ -853,13 +801,9 @@ private theorem plantedHandler_bound (hlen : ∀ k m, (H k m).length = k.length)
   obtain ⟨⟨⟨n, vk⟩, i⟩, k, keys⟩ := c
   obtain ⟨⟨⟩, w⟩ := request
   unfold handlerBound
-  have hkL : k.length ≤ (encCaller (((n, vk), i), k, keys)).length := by
-    simp only [encCaller, encPair_apply, encBits_apply, List.length_append, length_frame]
-    omega
+  have hkL : k.length ≤ (encCaller (((n, vk), i), k, keys)).length := by enc_len [encCaller]
   have hkeysL : (encList (encPair encBits encBits) keys).length ≤
-      (encCaller (((n, vk), i), k, keys)).length := by
-    simp only [encCaller, encPair_apply, encBits_apply, List.length_append, length_frame]
-    omega
+      (encCaller (((n, vk), i), k, keys)).length := by enc_len [encCaller]
   generalize (encCaller (((n, vk), i), k, keys)).length = L at hkL hkeysL ⊢
   have hkeyLen : ∀ u, (keys.getD u ([], [])).1.length ≤ L ∧
       (keys.getD u ([], [])).2.length ≤ L := by
@@ -913,8 +857,7 @@ private theorem plantedHandler_bound (hlen : ∀ k m, (H k m).length = k.length)
     have hpow : cs * (2 * (keys.getD u ([], [])).2.length + 1 + k.length + 1) ^ ds ≤
         cs * (3 * L + 2) ^ ds := Nat.mul_le_mul_left cs (Nat.pow_le_pow_left (by omega) ds)
     exact hpair u ots ((hotsLen.trans hpow).trans (Nat.le_add_left _ _))
-  · have h := OracleComp.eq_of_mem_supportWith_pure hres
-    subst h
+  · obtain rfl := OracleComp.eq_of_mem_supportWith_pure hres
     exact ⟨by simp, Nat.le_add_right _ _⟩
 
 include hH hlen hcap in
@@ -925,23 +868,17 @@ theorem isOraclePPT_oneTimeForger {bound : ℕ → ℕ}
     (hadversary : IsOraclePPT (encPair encUnary (encPair encBits encBits)) adversary) :
     IsOraclePPT (encPair encBits encBits) (oneTimeForger S H depth bound adversary) := by
   obtain ⟨cs, ds, hsignLen⟩ := S.sign_ppt.length_le
-  have hleaf : IsOraclePPTOn (Operation := Unit) (encPair encUnary encBits) encUnary
-      (fun p : ℕ × List Bool => ProbOracleComp.sample (leafIndex depth p.1)) :=
-    ((isPPTOn_leafIndex hcap).preprocess (ComputableInPolyTime.fst _ _)).isOraclePPTOn
-  have hsetup : IsOraclePPTOn (Operation := Unit) (encPair (encPair encUnary encBits) encUnary)
-      (encPair encBits (encList (encPair encBits encBits)))
-      (fun c : (ℕ × List Bool) × ℕ => ProbOracleComp.sample (plantKeys S depth c.1.1 c.2 c.1.2)) :=
-    (isPPTOn_plantKeys hcap).isOraclePPTOn
+  have hleaf := ((isPPTOn_leafIndex hcap).preprocess
+    (ComputableInPolyTime.fst encUnary encBits)).isOraclePPTOn (Operation := Unit)
+  have hsetup := (isPPTOn_plantKeys (S := S) hcap).isOraclePPTOn (Operation := Unit)
   have hfst := ComputableInPolyTime.fst
     (encPair (encPair encUnary encBits) encUnary)
     (encPair encBits (encList (encPair encBits encBits)))
   have hprep : ComputableInPolyTime
       (fun c : ((ℕ × List Bool) × ℕ) × (List Bool × List (List Bool × List Bool)) =>
         (c.1.1.1, publicKey H c.2.1 c.2.2)) encCaller (encPair encUnary encBits) :=
-    hfst.fst'.fst'.prod ((ComputableInPolyTime.snd
-      (encPair (encPair encUnary encBits) encUnary)
-      (encPair encBits (encList (encPair encBits encBits)))).trans
-        (computableInPolyTime_publicKey hH hlen))
+    hfst.fst'.fst'.prod ((ComputableInPolyTime.snd _ _).trans
+      (computableInPolyTime_publicKey hH hlen))
   have hres := computableInPolyTime_handlerBound cs ds (hfst.fst'.fst'.trans hboundPoly)
   have hrun :=
     hadversary.run_interpret_preprocess_open

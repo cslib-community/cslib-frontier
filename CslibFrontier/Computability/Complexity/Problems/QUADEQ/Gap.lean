@@ -135,11 +135,10 @@ theorem le_countViolated_amplify {k : ℕ} (hk : 0 < k) {F : QuadSystem ℕ} {a 
       decide_eq_true_iff, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem j.isLt,
       Option.getD_some]
     exact hviol _
-  have hb := (BitString.isSmallBias_poweringMasks F.length hk).le_card_filter_parityOn hS
-  have hN : (0 : ℝ) < (BitString.poweringMasks F.length k).length := by
-    exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne _)
-  rw [hcount, amplify, List.length_map, le_div_iff₀ hN]
-  exact hb
+  rw [hcount, amplify, List.length_map,
+    le_div_iff₀ (mod_cast Nat.pos_of_ne_zero (NeZero.ne _) :
+      (0 : ℝ) < (BitString.poweringMasks F.length k).length)]
+  exact (BitString.isSmallBias_poweringMasks F.length hk).le_card_filter_parityOn hS
 
 /-- The linear combination of the equations a mask selects is computable in polynomial time. -/
 theorem computableInPolyTime_linearCombination :
@@ -170,15 +169,12 @@ theorem computableInPolyTime_amplify (k : ℕ) :
     ComputableInPolyTime (amplify k) encoding encoding := by
   have hmasks : ComputableInPolyTime (fun F : QuadSystem ℕ => BitString.poweringMasks F.length k)
       encoding (encList encBits) := by
-    have hpair : ComputableInPolyTime (fun F : QuadSystem ℕ => (F.length, k)) encoding
-        (encPair encUnary encUnary) :=
-      (ComputableInPolyTime.length_list (encQuadEquation encNat)).prod
-        (ComputableInPolyTime.const (encIn := encoding) (encOut := encUnary) k)
-    have h := BitString.poweringMasks_polyTime.comp hpair
-    simpa only [Function.comp_def] using h
-  unfold amplify
-  exact ComputableInPolyTime.mapWithInput (encB := encQuadEquation encNat) (f := fun F r =>
-    QuadSystem.linearCombination F r) hmasks computableInPolyTime_linearCombination
+    simpa only [Function.comp_def] using BitString.poweringMasks_polyTime.comp (encIn := encoding)
+      (ComputableInPolyTime.prod (encIn := encoding)
+        (ComputableInPolyTime.length_list (encQuadEquation encNat))
+        (ComputableInPolyTime.const (encIn := encoding) (encOut := encUnary) k))
+  exact ComputableInPolyTime.mapWithInput (encB := encQuadEquation encNat)
+    (f := QuadSystem.linearCombination) hmasks computableInPolyTime_linearCombination
 
 end QUADEQ
 
@@ -193,16 +189,11 @@ theorem polyTimeReducible_QUADEQ_GapQUADEQ {δ : ℝ} (hδ₀ : 0 < δ) (hδ : �
   have hpos : 0 < 1 - 2 * δ := by linarith
   have hk : 0 < k := Nat.ceil_pos.2 (inv_pos.2 hpos)
   have hkδ : δ ≤ (1 - 1 / (k : ℝ)) / 2 := by
-    have : (1 - 2 * δ)⁻¹ ≤ k := Nat.le_ceil _
-    have : 1 / (k : ℝ) ≤ 1 - 2 * δ := by
-      rw [one_div]
-      exact inv_le_of_inv_le₀ hpos this
+    have : 1 / (k : ℝ) ≤ 1 - 2 * δ := one_div (k : ℝ) ▸ inv_le_of_inv_le₀ hpos (Nat.le_ceil _)
     linarith
-  refine ⟨QUADEQ.amplify k, QUADEQ.computableInPolyTime_amplify k, ?_, ?_⟩
-  · rintro F ⟨a, ha⟩
-    exact ⟨a, QUADEQ.holds_amplify ha⟩
-  · intro F hF
-    refine ⟨hδ₀, fun a => hkδ.trans (QUADEQ.le_countViolated_amplify hk fun ha => hF ⟨a, ha⟩)⟩
+  exact ⟨QUADEQ.amplify k, QUADEQ.computableInPolyTime_amplify k,
+    fun _ ⟨a, ha⟩ => ⟨a, QUADEQ.holds_amplify ha⟩, fun F hF =>
+      ⟨hδ₀, fun a => hkδ.trans (QUADEQ.le_countViolated_amplify hk fun ha => hF ⟨a, ha⟩)⟩⟩
 
 /-- **The gap problem of quadratic equations is NP-hard**, without the PCP theorem
 [Goldreich2007DraftR5, Exercise 10.6]: for every `0 < δ < 1/2`, in particular for the source's

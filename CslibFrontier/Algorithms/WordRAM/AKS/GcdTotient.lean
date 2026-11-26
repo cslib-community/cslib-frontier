@@ -68,6 +68,9 @@ def gcdMap : Fin 4 → Fin 11 := ![ga, gb, 9, 10]
 
 theorem gcdMap_injective : gcdMap.Injective := by decide
 
+@[local wram_simps] private theorem gcdMap_regs :
+    gcdMap NatGcd.a = ga ∧ gcdMap NatGcd.b = gb := ⟨rfl, rfl⟩
+
 /-- The gcd on `ga` and `gb`. -/
 def gcd : Code .standard 11 := NatGcd.program.rename gcdMap
 
@@ -106,83 +109,41 @@ private theorem body_step {w N R : ℕ} (hfN : Fits w N) (hfR : Fits w (R + 1)) 
   obtain ⟨A, hA⟩ : ∃ A, y.regs a = A := ⟨_, rfl⟩
   have hAR : A ≤ R := by rw [hA] at hlt; omega
   rw [hA] at hyiff hyphi
-  have hkeep : ∀ j ∈ [n, r, a, lim, ok, phi, one], (∀ i, gcdMap i ≠ j) ∧ j ≠ ga ∧ j ≠ gb := by
-    decide
   unfold body gcd
   wram_exec [hyn, hA]
-  refine WP.name fun y₁ hy₁ => ?_
-  have hy₁a : y₁.regs ga = N := by subst hy₁; wram_simp
-  have hy₁b : y₁.regs gb = A := by subst hy₁; wram_simp
-  wram_call (NatGcd.exec (y₁.comap gcdMap)
-    (by change Fits w (y₁.regs ga); exact hy₁a ▸ hfN)
-    (by change Fits w (y₁.regs gb); exact hy₁b ▸ hfR.of_le (by omega)))
-    renamed gcdMap_injective with y₂ ⟨⟨hg₂, -⟩, hout₂⟩
-  have hg₂' : y₂.regs ga = Nat.gcd N A := by
-    change y₂.regs ga = (y₁.regs ga).gcd (y₁.regs gb) at hg₂
-    rwa [hy₁a, hy₁b] at hg₂
-  have hy₂ {j : Fin 11} (hj : j ∈ [n, r, a, lim, ok, phi, one]) : y₂.regs j = y.regs j := by
-    obtain ⟨h1, h2, h3⟩ := hkeep j hj
-    rw [hout₂ j h1]; subst hy₁; wram_simp [h2, h3]
-  have hy₂n : y₂.regs n = N := (hy₂ (by simp)).trans hyn
-  have hy₂r : y₂.regs r = R := (hy₂ (by simp)).trans hyr
-  have hy₂a : y₂.regs a = A := (hy₂ (by simp)).trans hA
-  have hy₂l : y₂.regs lim = R + 1 := (hy₂ (by simp)).trans hyl
-  have hy₂ok : y₂.regs ok = y.regs ok := hy₂ (by simp)
-  have hy₂p : y₂.regs phi = ((Finset.range A).filter R.Coprime).card :=
-    (hy₂ (by simp)).trans hyphi
-  have hy₂1 : y₂.regs one = 1 := (hy₂ (by simp)).trans hy1
+  wram_call (NatGcd.exec (w := w)) renamed [hfN, hfR.of_le (by omega : A ≤ R + 1)]
+    with y₂ ⟨⟨hg₂, -⟩, hout₂⟩
+  wram_simp [gcdMap, NatGcd.a, NatGcd.b] at hg₂
   let o := if Nat.gcd N A = 1 ∨ Nat.gcd N A = N then y.regs ok else 0
   refine WP.seq ?_
   refine WP.cut (fun y₃ T₃ => T₃ ≤ 7 ∧ y₃.regs ga = R ∧
       y₃.regs gb = A ∧ y₃.regs n = N ∧ y₃.regs r = R ∧ y₃.regs a = A ∧
       y₃.regs lim = R + 1 ∧ y₃.regs ok = o ∧
       y₃.regs phi = ((Finset.range A).filter R.Coprime).card ∧ y₃.regs one = 1) ?_ ?_
-  · wram_exec [hg₂', hy₂1, hy₂n, hy₂ok, hy₂r, hy₂a] <;>
-      { wram_simp [hy₂n, hy₂r, hy₂a, hy₂l, hy₂ok, hy₂p, hy₂1]; dsimp [o]; simp_all }
+  · wram_exec * [hg₂] <;> { wram_simp *; dsimp [o]; simp_all }
   · rintro y₃ T₃ ⟨hT₃, hy₃ga, hy₃gb, hy₃n, hy₃r, hy₃a, hy₃l, hy₃ok, hy₃p, hy₃1⟩
-    wram_exec
-    wram_call (NatGcd.exec (y₃.comap gcdMap)
-      (by change Fits w (y₃.regs ga); exact hy₃ga ▸ hfR.of_le (by omega))
-      (by change Fits w (y₃.regs gb); exact hy₃gb ▸ hfR.of_le (by omega)))
-      renamed gcdMap_injective with y₄ ⟨⟨hg₄, -⟩, hout₄⟩
-    have hg₄' : y₄.regs ga = Nat.gcd R A := by
-      change y₄.regs ga = (y₃.regs ga).gcd (y₃.regs gb) at hg₄
-      rwa [hy₃ga, hy₃gb] at hg₄
-    have hy₄n : y₄.regs n = N := (hout₄ n (by decide)).trans hy₃n
-    have hy₄r : y₄.regs r = R := (hout₄ r (by decide)).trans hy₃r
-    have hy₄a : y₄.regs a = A := (hout₄ a (by decide)).trans hy₃a
-    have hy₄l : y₄.regs lim = R + 1 := (hout₄ lim (by decide)).trans hy₃l
-    have hy₄ok : y₄.regs ok = o := (hout₄ ok (by decide)).trans hy₃ok
-    have hy₄p : y₄.regs phi = ((Finset.range A).filter R.Coprime).card :=
-      (hout₄ phi (by decide)).trans hy₃p
-    have hy₄1 : y₄.regs one = 1 := (hout₄ one (by decide)).trans hy₃1
+    wram_call (NatGcd.exec (w := w)) renamed
+      [hy₃ga, hy₃gb, hfR.of_le (by omega : R ≤ R + 1), hfR.of_le (by omega : A ≤ R + 1)]
+      with y₄ ⟨⟨hg₄, -⟩, hout₄⟩
+    wram_simp [gcdMap, NatGcd.a, NatGcd.b, hy₃ga, hy₃gb] at hg₄
+    have hy₄n : y₄.regs n = N := by regs_frame
+    have hy₄r : y₄.regs r = R := by regs_frame
+    have hy₄a : y₄.regs a = A := by regs_frame
+    have hy₄l : y₄.regs lim = R + 1 := by regs_frame
+    have hy₄ok : y₄.regs ok = o := by regs_frame
+    have hy₄p : y₄.regs phi = ((Finset.range A).filter R.Coprime).card := by regs_frame
+    have hy₄1 : y₄.regs one = 1 := by regs_frame
     have hphiA : ((Finset.range A).filter R.Coprime).card ≤ A :=
       (Finset.card_filter_le _ _).trans (Finset.card_range A).le
     have ho_le : o ≤ 1 := by dsimp [o]; split_ifs <;> omega
     have ho_iff : o = 1 ↔ ∀ b < A + 1, Nat.gcd N b = 1 ∨ Nat.gcd N b = N := by
-      dsimp [o]
-      constructor
-      · intro h b hb
-        split_ifs at h with hc'
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hb with hb | rfl
-        · exact hyiff.mp h b hb
-        · exact hc'
-      · intro h
-        simp only [h A (by omega), ↓reduceIte]
-        exact hyiff.mpr fun b hb => h b (by omega)
-    wram_exec [hg₄', hy₄1, hy₄p, hy₄a]
-    · have hcard : ((Finset.range (A + 1)).filter R.Coprime).card =
-          ((Finset.range A).filter R.Coprime).card + 1 := by
-        rw [Finset.range_add_one, Finset.filter_insert]
-        simp [Nat.Coprime, hc]
-      wram_simp [Inv, hy₄n, hy₄r, hy₄1, hy₄l, hy₄ok, hy₄p, hA, hcard, ho_le, ho_iff]
-      rw [show gcdMap NatGcd.b = gb from rfl, hy₁b, hy₃gb]; omega
-    · have hcard : ((Finset.range (A + 1)).filter R.Coprime).card =
-          ((Finset.range A).filter R.Coprime).card := by
-        rw [Finset.range_add_one, Finset.filter_insert]
-        simp [Nat.Coprime, hc]
-      wram_simp [Inv, hy₄n, hy₄r, hy₄1, hy₄l, hy₄ok, hy₄p, hA, hcard, ho_le, ho_iff]
-      rw [show gcdMap NatGcd.b = gb from rfl, hy₁b, hy₃gb]; omega
+      rw [Nat.forall_lt_succ_right, ← hyiff]; dsimp [o]; split_ifs with h <;> simp [h]
+    wram_exec [hg₄, hy₄1, hy₄p, hy₄a] <;>
+      { have hcard : ((Finset.range (A + 1)).filter R.Coprime).card =
+            ((Finset.range A).filter R.Coprime).card + (if R.Coprime A then 1 else 0) := by
+          rw [Finset.range_add_one, Finset.filter_insert]; split_ifs with hcop <;> simp [hcop]
+        wram_simp [Inv, hy₃gb, hy₄n, hy₄r, hy₄1, hy₄l, hy₄ok, hy₄p, hA, hcard, ho_le, ho_iff]
+        simp [Nat.Coprime, hc] }
 
 /-- **Step 3 and the totient.** For `r ≥ 2`, with the word size holding `n` and `r + 1`, within
 `time r` instructions the flag `ok` is `1` exactly when every `1 ≤ a ≤ r` has `gcd(a, n) = 1` or
@@ -195,26 +156,18 @@ theorem exec {w : ℕ} (x : Data 11) {N R : ℕ} (hn : x.regs n = N) (hr : x.reg
       y.regs phi = Nat.totient R ∧ y.regs n = N ∧ y.regs r = R := by
   unfold program
   wram_exec [hr]
-  refine WP.name fun x₀ hx₀ => ?_
-  have ha₀ : x₀.regs a = 0 := by subst hx₀; wram_simp
-  have hx₀I : Inv N R (x₀.regs a) x₀ := by
-    subst hx₀; simp only [Inv]; wram_simp [hn, hr]; simp
-  obtain ⟨y, hrun, ⟨hyn, hyr, _, _, hyok, hyiff, hyphi⟩, _⟩ :=
-    ExecWithin.loop_count (Inv N R) (fun _ ⟨_, _, _, hlim, _⟩ => hlim)
-      (body_step hfN hfR) (by omega) hx₀I
-  refine WP.of_execWithin hrun ⟨?_, hyok, ?_, ?_, hyn, hyr⟩
-  · rw [ha₀, Nat.sub_zero, show 10 * R + 19 + 2 = 10 * R + 21 by ring]
-    unfold time
-    omega
-  · rw [hyiff]
-    constructor
-    · intro h b hb1 hbR
-      rw [Nat.gcd_comm]
-      exact h b (by omega)
-    · intro h b hb
-      rcases Nat.eq_zero_or_pos b with rfl | hb0
-      · right; exact Nat.gcd_zero_right N
-      · rw [Nat.gcd_comm]; exact h b hb0 (by omega)
-  · rw [hyphi, card_filter_coprime_range_succ hR]
+  wram_call (ExecWithin.loop_count (Inv N R) (fun _ ⟨_, _, _, hlim, _⟩ => hlim)
+    (body_step hfN hfR))
+    with y ⟨⟨hyn, hyr, _, _, hyok, hyiff, hyphi⟩, _⟩
+  · wram_simp
+    have hmul : (R + 1) * (10 * R + 19 + 2) = (R + 1) * (10 * R + 21) := rfl
+    refine ⟨by unfold time; omega, hyok, ?_, by rw [hyphi, card_filter_coprime_range_succ hR],
+      hyn, hyr⟩
+    rw [hyiff]
+    refine ⟨fun h b hb1 hbR => Nat.gcd_comm _ _ ▸ h b (by omega), fun h b hb => ?_⟩
+    rcases Nat.eq_zero_or_pos b with rfl | hb0
+    · exact Or.inr (Nat.gcd_zero_right N)
+    · exact Nat.gcd_comm _ _ ▸ h b hb0 (by omega)
+  · simp only [Inv]; wram_simp [hn, hr]; simp
 
 end Cslib.Algorithms.WordRAM.AKS.GcdTotient

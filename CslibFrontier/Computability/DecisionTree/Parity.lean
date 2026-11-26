@@ -52,14 +52,9 @@ theorem card_free_le_complexity_parity_fill (ρ : PartialAssignment (Fin n)) :
   refine card_le_complexity_of_forall_update_ne (x := fun _ => false) fun i hi => ?_
   have hρ := PartialAssignment.mem_free.1 hi
   set y := ρ.fill fun _ => false
-  have hfill : ρ.fill (Function.update (fun _ => false) i !false) = Function.update y i !y i := by
-    funext j
-    by_cases hj : j = i
-    · subst hj
-      simp [y, PartialAssignment.fill, hρ]
-    · simp [y, PartialAssignment.fill, hj]
-  simp only [hfill]
-  rw [parity, parityOn_update_not (mem_univ i)]
+  have hfill : ρ.fill (Function.update (fun _ => false) i !false) = Function.update y i !y i :=
+    funext fun j => by rcases eq_or_ne j i with rfl | hj <;> simp [y, PartialAssignment.fill, *]
+  rw [hfill, parity, parityOn_update_not (mem_univ i)]
   cases parityOn univ y <;> decide
 
 end DecisionTree

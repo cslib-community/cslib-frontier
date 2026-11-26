@@ -117,37 +117,27 @@ section Dirac
 
 variable [MeasurableSingletonClass α] {ν : Measure α} [IsProbabilityMeasure ν] {a : α}
 
-/-- A point mass is `ν` restricted to the atom `{a}` and rescaled by `(ν {a})⁻¹`. -/
-private theorem dirac_eq_withDensity (ha : ν {a} ≠ 0) :
-    Measure.dirac a = ν.withDensity (({a} : Set α).indicator fun _ => (ν {a})⁻¹) := by
-  ext s hs
-  rw [withDensity_apply _ hs, lintegral_indicator_const (measurableSet_singleton a),
-    Measure.restrict_apply (measurableSet_singleton a), Measure.dirac_apply' _ hs]
-  by_cases has : a ∈ s
-  · rw [Set.singleton_inter_of_mem has, Set.indicator_of_mem has, Pi.one_apply,
-      ENNReal.inv_mul_cancel ha (measure_ne_top ν _)]
-  · rw [Set.singleton_inter_of_notMem has, Set.indicator_of_notMem has, measure_empty, mul_zero]
-
-private theorem dirac_absolutelyContinuous (ha : ν {a} ≠ 0) : Measure.dirac a ≪ ν :=
-  dirac_eq_withDensity ha ▸ withDensity_absolutelyContinuous ν _
+omit [IsProbabilityMeasure ν] in
+private theorem dirac_absolutelyContinuous (ha : ν {a} ≠ 0) : Measure.dirac a ≪ ν := by
+  intro s hs
+  have hnot : a ∉ s := fun h => ha (measure_mono_null (Set.singleton_subset_iff.mpr h) hs)
+  rw [Measure.dirac_apply, Set.indicator_of_notMem hnot]
 
 /-- The log-likelihood ratio of a point mass at its atom is `-log ν {a}`. -/
 private theorem llr_dirac_self (ha : ν {a} ≠ 0) :
     llr (Measure.dirac a) ν a = -Real.log (ν.real {a}) := by
-  have hrn := Measure.rnDeriv_withDensity ν
-    (measurable_const.indicator (measurableSet_singleton a) : Measurable
-      (({a} : Set α).indicator fun _ => (ν {a})⁻¹))
-  rw [← dirac_eq_withDensity ha] at hrn
-  have hpt : (Measure.dirac a).rnDeriv ν a = (ν {a})⁻¹ := by
-    by_contra hne
-    refine ha (le_antisymm ((measure_mono fun x hx => ?_).trans_eq (ae_iff.1 hrn)) bot_le)
-    rw [Set.mem_singleton_iff.1 hx]
-    rwa [Set.mem_ofPred_eq, Set.indicator_of_mem (Set.mem_singleton a)]
-  rw [llr, hpt, ENNReal.toReal_inv, Real.log_inv, measureReal_def]
+  have hmass := congrArg (fun μ : Measure α => μ {a})
+    (Measure.withDensity_rnDeriv_eq _ ν (dirac_absolutelyContinuous ha))
+  rw [withDensity_apply _ (measurableSet_singleton a), lintegral_singleton,
+    Measure.dirac_apply_of_mem (Set.mem_singleton a)] at hmass
+  rw [llr, ENNReal.eq_inv_of_mul_eq_one_left hmass, ENNReal.toReal_inv, Real.log_inv,
+    measureReal_def]
 
 /-- The divergence of a point mass at an atom of `ν` is finite. -/
-theorem klDiv_dirac_ne_top (ha : ν {a} ≠ 0) : klDiv (Measure.dirac a) ν ≠ ⊤ :=
-  klDiv_ne_top (dirac_absolutelyContinuous ha) (integrable_dirac eNorm_lt_top)
+theorem klDiv_dirac_ne_top (ha : ν {a} ≠ 0) : klDiv (Measure.dirac a) ν ≠ ⊤ := by
+  refine klDiv_ne_top (dirac_absolutelyContinuous ha) (integrable_dirac ?_)
+  rw [llr_dirac_self ha]
+  exact eNorm_lt_top
 
 /-- The divergence of a point mass at an atom `a` of `ν` is `log (1 / ν {a})`, in nats. -/
 theorem toReal_klDiv_dirac (ha : ν {a} ≠ 0) :

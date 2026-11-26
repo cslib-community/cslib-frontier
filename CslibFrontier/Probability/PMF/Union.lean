@@ -54,15 +54,13 @@ probabilities. -/
 theorem toOuterMeasure_biUnion_finset {ι : Type*} (p : PMF α) (J : Finset ι) {B : ι → Set α}
     (hB : (J : Set ι).PairwiseDisjoint B) :
     p.toOuterMeasure (⋃ j ∈ J, B j) = ∑ j ∈ J, p.toOuterMeasure (B j) := by
-  simp only [PMF.toOuterMeasure_apply]
-  rw [Finset.indicator_biUnion J B hB]
+  simp only [PMF.toOuterMeasure_apply, Finset.indicator_biUnion J B hB]
   exact Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable
 
 /-- The probabilities of finitely many pairwise disjoint events add up to at most `1`. -/
 theorem sum_toOuterMeasure_le_one {ι : Type*} (p : PMF α) (J : Finset ι) {B : ι → Set α}
     (hB : (J : Set ι).PairwiseDisjoint B) : ∑ j ∈ J, p.toOuterMeasure (B j) ≤ 1 := by
-  rw [← toOuterMeasure_biUnion_finset p J hB]
-  exact toOuterMeasure_le_one p _
+  simpa only [← toOuterMeasure_biUnion_finset p J hB] using toOuterMeasure_le_one p _
 
 /-- **Union bound** for real-valued probabilities: the probability of a union of finitely many
 events is at most the sum of their probabilities. -/
@@ -83,14 +81,12 @@ theorem sum_toReal_indicator_le {M : Type*} [Fintype M] (p : PMF α)
       ((p.map fun x => pred x m) true).toReal =
         ∑' x : α, (p x).toReal * if pred x m = true then 1 else 0 := by
     simp only [_root_.PMF.map, Function.comp_def, bind_apply_toReal_tsum]
-    refine tsum_congr fun x => ?_
-    cases pred x m <;> simp
+    exact tsum_congr fun x => by cases pred x m <;> simp
   simp_rw [hterm]
   have hsumm (m : M) :
-      Summable (fun x : α => (p x).toReal * if pred x m = true then (1 : ℝ) else 0) := by
-    refine Summable.of_nonneg_of_le (fun x => ?_) (fun x => ?_) (summable_toReal p)
-    · by_cases hx : pred x m = true <;> simp [hx, ENNReal.toReal_nonneg]
-    · by_cases hx : pred x m = true <;> simp [hx, ENNReal.toReal_nonneg]
+      Summable (fun x : α => (p x).toReal * if pred x m = true then (1 : ℝ) else 0) :=
+    Summable.of_nonneg_of_le (fun x => by split_ifs <;> positivity)
+      (fun x => by split_ifs <;> simp [ENNReal.toReal_nonneg]) (summable_toReal p)
   rw [← Summable.tsum_finsetSum (fun m _ => hsumm m)]
   calc ∑' x : α, ∑ m : M, ((p x).toReal * if pred x m = true then (1 : ℝ) else 0)
       ≤ ∑' x : α, (p x).toReal * (Q : ℝ) := by
@@ -98,9 +94,8 @@ theorem sum_toReal_indicator_le {M : Type*} [Fintype M] (p : PMF α)
           (summable_sum fun m _ => hsumm m) ((summable_toReal p).mul_right (Q : ℝ))
         rw [← Finset.mul_sum]
         by_cases hx : x ∈ p.support
-        · refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
-          rw [Finset.sum_boole]
-          exact_mod_cast hcard x hx
+        · simpa only [Finset.sum_boole] using
+            mul_le_mul_of_nonneg_left (Nat.cast_le.mpr (hcard x hx)) ENNReal.toReal_nonneg
         · rw [(_root_.PMF.apply_eq_zero_iff _ _).mpr hx, ENNReal.toReal_zero, zero_mul, zero_mul]
     _ = (Q : ℝ) := by
         rw [tsum_mul_right, tsum_toReal, one_mul]

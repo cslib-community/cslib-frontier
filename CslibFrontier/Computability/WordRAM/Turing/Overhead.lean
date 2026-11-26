@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.GenericRAM.Simulation.Degree
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Lists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
+import CslibFrontier.Tactic.Degree
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -122,21 +123,10 @@ private theorem length_encList_zipIdx_le (l : List ℕ) (k : ℕ) :
 theorem initFold_degree :
     ComputableInDegree (fun l : List ℕ => l.foldl initStep (0, [])) (encList encNat)
       (encPair encNat (encList (encPair encNat encNat))) 3 2 := by
-  have hk : ComputableInDegree (fun p : (ℕ × List (ℕ × ℕ)) × ℕ => p.1.1 + 1)
-      (encPair (encPair encNat (encList (encPair encNat encNat))) encNat) encNat 1 1 :=
-    (natSucc.comp ((fst _ _).comp (fst _ _))).mono
-  have hacc : ComputableInDegree (fun p : (ℕ × List (ℕ × ℕ)) × ℕ => p.1.2)
-      (encPair (encPair encNat (encList (encPair encNat encNat))) encNat)
-      (encList (encPair encNat encNat)) 1 1 :=
-    ((snd _ _).comp (fst _ _)).mono
-  have hnew : ComputableInDegree (fun p : (ℕ × List (ℕ × ℕ)) × ℕ => p.1.2 ++ [(p.1.1 + 1, p.2)])
-      (encPair (encPair encNat (encList (encPair encNat encNat))) encNat)
-      (encList (encPair encNat encNat)) 1 1 :=
-    ((snoc (encPair encNat encNat)).comp (hacc.prod (hk.prod (snd _ _)))).mono
   have hstep : ComputableInDegree (fun p : (ℕ × List (ℕ × ℕ)) × ℕ => initStep p.1 p.2)
       (encPair (encPair encNat (encList (encPair encNat encNat))) encNat)
-      (encPair encNat (encList (encPair encNat encNat))) 1 1 :=
-    (hk.prod hnew).mono
+      (encPair encNat (encList (encPair encNat encNat))) 1 1 := by
+    degree [initStep]
   have h := foldl' (encA := encNat) (encL := encList encNat)
     (encB := encPair encNat (encList (encPair encNat encNat)))
     (list := fun l => l) (init := fun _ => ((0 : ℕ), ([] : List (ℕ × ℕ)))) (step := initStep)
@@ -156,11 +146,11 @@ theorem initFold_degree :
 /-- **Building the initial memory is cubic** in the encoded input words, with quadratic output. -/
 theorem initMemory_degree :
     ComputableInDegree initMemory (encList encNat) (SparseMemory.encoding encNat encNat) 3 2 := by
+  have hfold := initFold_degree
   have h : ComputableInDegree
       (fun l : List ℕ => (0, (l.foldl initStep (0, [])).1) :: (l.foldl initStep (0, [])).2)
-      (encList encNat) (encList (encPair encNat encNat)) 3 2 :=
-    ((cons (encPair encNat encNat)).comp ((((const 0).prod ((fst _ _).comp initFold_degree))).prod
-      ((snd _ _).comp initFold_degree))).mono
+      (encList encNat) (encList (encPair encNat encNat)) 3 2 := by
+    degree
   refine h.of_enc_eq fun l => ?_
   simp only [SparseMemory.encoding_apply, entries_initMemory, initEntries_eq_foldl]
 
@@ -210,9 +200,7 @@ theorem Program.ComputesInTime.computableInO_of_width
   have hExec (a : α) : ∃ m ≤ steps a, GenericRAM.Executes (width a) p.toGeneric
       (initState B r (encode (width a) a)).denote (f a) m := by
     obtain ⟨m, hm, hle⟩ := h a (width a) (hallowed a) (hfits a)
-    refine ⟨m, hle.trans (htime a), ?_⟩
-    rw [denote_initState]
-    exact executes_toGeneric_iff.mpr hm
+    exact ⟨m, hle.trans (htime a), by rw [denote_initState]; exact executes_toGeneric_iff.mpr hm⟩
   -- Every simulated outcome is a word-bounded state with at most `n + 1 + steps` cells.
   have hOutLen (a : α) (j : ℕ) (hj : j ≤ steps a) :
       (FiniteState.resultEncoding B.encoding (FiniteState.run (width a) p.toGeneric j
@@ -249,31 +237,24 @@ theorem Program.ComputesInTime.computableInO_of_width
         ((encode (width a) a).length + 1 + steps a) + 2) ^ max 3 d ≤ C * R ^ max 3 d := by
       rw [hC, ← Nat.mul_pow]
       exact Nat.pow_le_pow_left (by nlinarith) _
-    have hsq : ((encNat (steps a)).length + 1) ^ 2 ≤ R ^ max 3 d := by
-      have h1 := length_encNat_le_self (steps a)
-      calc ((encNat (steps a)).length + 1) ^ 2 ≤ R ^ 2 := Nat.pow_le_pow_left (by omega) 2
-        _ ≤ R ^ max 3 d := Nat.pow_le_pow_right hR1 (by omega)
+    have hencT := length_encNat_le_self (steps a)
+    have hsq : ((encNat (steps a)).length + 1) ^ 2 ≤ R ^ max 3 d :=
+      (Nat.pow_le_pow_left (by omega) 2).trans (Nat.pow_le_pow_right hR1 (by omega))
     have hinit : ((encList encNat (encode (width a) a)).length + 1) ^ 3 ≤ 27 * R ^ max 3 d := by
       have h1 := length_encList_le_of_inputFits (hfits a)
       have h2 : (encList encNat (encode (width a) a)).length + 1 ≤ 3 * R := by
         have : (encode (width a) a).length * (2 * width a + 1) ≤ 2 * R := by rw [hR]; nlinarith
         omega
-      calc ((encList encNat (encode (width a) a)).length + 1) ^ 3 ≤ (3 * R) ^ 3 :=
-            Nat.pow_le_pow_left h2 3
-        _ = 27 * R ^ 3 := by ring
-        _ ≤ 27 * R ^ max 3 d := Nat.mul_le_mul_left 27 (Nat.pow_le_pow_right hR1 hD)
+      exact ((Nat.pow_le_pow_left h2 3).trans_eq (by ring)).trans
+        (Nat.mul_le_mul_left 27 (Nat.pow_le_pow_right hR1 hD))
     have hencS : (FiniteState.encoding B.encoding (initState B r (encode (width a) a))).length ≤
         stateBound r (labelBound p.toGeneric) (width a)
           ((encode (width a) a).length + 1 + steps a) := by
       have := hOutLen a 0 (Nat.zero_le _)
       enc_len [FiniteState.run_zero, FiniteState.resultEncoding] at this
-    have hQ := Nat.mul_le_mul_left (steps a + 1) (Nat.add_le_add hXD hsq)
     have hPQ : R ^ max 3 d ≤ (steps a + 1) * R ^ max 3 d := Nat.le_mul_of_pos_left _ (by omega)
-    have hencT := length_encNat_le_self (steps a)
     have hKLP : KL * (2 * R) ≤ 2 * (KL * R ^ max 3 d) := by
       rw [Nat.mul_left_comm]; exact Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ hRP)
-    have hKLQ : KL * R ^ max 3 d ≤ KL * ((steps a + 1) * R ^ max 3 d) :=
-      Nat.mul_le_mul_left _ hPQ
     have hCQ : (steps a + 1) * (C * R ^ max 3 d + R ^ max 3 d) =
         C * ((steps a + 1) * R ^ max 3 d) + (steps a + 1) * R ^ max 3 d := by ring
     obtain ⟨K, hK⟩ : ∃ K, K = r + 2 * KL + C + 40 := ⟨_, rfl⟩
@@ -283,12 +264,6 @@ theorem Program.ComputesInTime.computableInO_of_width
     have hK3 := Nat.mul_le_mul_right (R ^ max 3 d) (show 2 * KL + C + 34 ≤ K by omega)
     have hKpos : 1 ≤ K := by omega
     have hKT (x : ℕ) : x ≤ K * x := Nat.le_mul_of_pos_left x hKpos
-    have hTw := hKT (Tw a)
-    have hTe := hKT (Te a)
-    have hTs := hKT (Ts a)
-    have hSw := hKT (Sw a)
-    have hSe := hKT (Se a)
-    have hSs := hKT (Ss a)
     simp only [initState, FiniteState.initConstCertificate, FiniteState.initCertificate_time,
       FiniteState.initCertificate_space, FiniteState.constRegsCertificate,
       NativeCertificate.const_time, NativeCertificate.const_space, NativeCertificate.comp_time,
@@ -296,7 +271,9 @@ theorem Program.ComputesInTime.computableInO_of_width
       Fintype.card_fin, smul_eq_mul, FiniteState.runInputEncoding, FiniteState.inputEncoding,
       length_encPair, Basis.encoding, encUnary_apply, List.length_replicate, Function.comp_apply,
       ← hR, ← hK] at hencS ⊢
-    linarith
+    linarith [Nat.mul_le_mul_left (steps a + 1) (Nat.add_le_add hXD hsq),
+      Nat.mul_le_mul_left KL hPQ, hKT (Tw a), hKT (Te a), hKT (Ts a), hKT (Sw a), hKT (Se a),
+      hKT (Ss a)]
 
 /-- **The additive word RAM, with the exponent `3`.** A run of `Basis.additive` within
 `steps a` instructions on `n` input words at word size `w` costs
@@ -342,9 +319,10 @@ private theorem foldl_succ (l : List Bool) (m : ℕ) :
 /-- **The bits of a list as words, in quadratic time.** -/
 theorem bitsToNats_degree :
     ComputableInDegree (fun l : List Bool => l.map Bool.toNat) encBits (encList encNat) 2 1 := by
+  have htoNat : ComputableInDegree Bool.toNat encBool encNat 1 0 := of_finite Bool.toNat
   have hstep : ComputableInDegree (fun p : List ℕ × Bool => p.1 ++ [p.2.toNat])
-      (encPair (encList encNat) encBool) (encList encNat) 1 1 :=
-    ((snoc encNat).comp ((fst _ _).prod ((of_finite Bool.toNat).comp (snd _ _)))).mono
+      (encPair (encList encNat) encBool) (encList encNat) 1 1 := by
+    degree
   have h := foldl' (encA := encBool) (encL := encBits) (encB := encList encNat)
     (list := fun l => l) (init := fun _ => ([] : List ℕ))
     (step := fun acc b => acc ++ [b.toNat]) (of_eq fun _ => rfl) (const _) hstep
@@ -372,7 +350,7 @@ theorem lengthBinary_degree :
     ComputableInDegree (fun l : List Bool => l.length) encBits encNat 2 1 := by
   have h := foldl' (encA := encBool) (encL := encBits) (encB := encNat)
     (list := fun l => l) (init := fun _ => (0 : ℕ)) (step := fun n _ => n + 1)
-    (of_eq fun _ => rfl) (const _) ((natSucc.comp (fst encNat encBool)).mono (d' := 1) (e' := 1))
+    (of_eq fun _ => rfl) (const _) (by degree)
     (B := fun l => (encBits l).length) DegreeBounded.self
     (fun l i hi => by
       rw [foldl_succ, Nat.zero_add]
@@ -389,15 +367,11 @@ theorem unaryMulConst_degree (k : ℕ) :
     ComputableInDegree (fun m : ℕ => k * m) encUnary encUnary 1 1 := by
   induction k with
   | zero =>
-    convert (const (encIn := encUnary) (encMid := encUnary) 0).mono (d' := 1) (e' := 1)
-      using 1
-    funext m
-    simp
+    simpa only [Nat.zero_mul] using
+      (by degree : ComputableInDegree (fun _ : ℕ => 0) encUnary encUnary 1 1)
   | succ k ih =>
-    convert unaryAdd ih (of_eq (f := fun m : ℕ => m) fun _ => rfl) (d := 1) (e := 1)
-      (by omega) (by omega) using 1
-    funext m
-    rw [Nat.succ_mul]
+    simpa only [Nat.succ_mul] using
+      (by degree : ComputableInDegree (fun m : ℕ => k * m + m) encUnary encUnary 1 1)
 
 /-- **The word size `k (size n + 1)` of an input of length `n`, in unary, in quadratic time.** It
 is at least the logarithmic threshold `logWidth k n`. -/

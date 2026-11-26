@@ -86,14 +86,9 @@ theorem exists_pairComparison {n k d B M : ℕ}
       (blockWeight residueBlock x i : ZMod k) + (Fintype.card J : ZMod k) := by
     simpa only [Nat.cast_add] using congrArg (fun r : ℕ => (r : ZMod k)) hw
   change decide ((weight z : ZMod k) + si ≠ (Fintype.card J : ZMod k) + sj) = _
-  congr 1
-  have heq : ((weight z : ZMod k) + si = (Fintype.card J : ZMod k) + sj) ↔
-      (blockWeight residueBlock x i : ZMod k) + si =
-        (blockWeight residueBlock x j : ZMod k) + sj := by
-    constructor <;> intro h
-    · linear_combination h - hcast
-    · linear_combination hcast + h
-  exact propext (not_congr heq)
+  refine decide_eq_decide.mpr (not_congr ⟨fun h => ?_, fun h => ?_⟩)
+  · linear_combination h - hcast
+  · linear_combination hcast + h
 
 
 open Finset
@@ -141,19 +136,12 @@ private theorem exists_test_altFormula {n d B M : ℕ} {ι : Type*} [Fintype ι]
     · intro x
       rw [AltFormula.eval_merge_and]
       simp only [he, shiftTest_iff_pairwise]
-      constructor
-      · intro h i
-        exact ⟨valid i, fun a b hab => h ⟨i, a, b⟩ hab⟩
-      · intro h p
-        exact (h p.1).2 p.2.1 p.2.2
+      exact ⟨fun h i => ⟨valid i, fun a b hab => h ⟨i, a, b⟩ hab⟩,
+        fun h p => (h p.1).2 p.2.1 p.2.2⟩
   · refine ⟨AltFormula.constant n d .and false,
-      (AltFormula.size_constant_le ..).trans (by omega), ?_⟩
-    intro x
+      (AltFormula.size_constant_le ..).trans (by omega), fun x => ?_⟩
     rw [AltFormula.eval_constant]
-    constructor
-    · intro h; exact Bool.noConfusion h
-    · intro h
-      exact (valid (fun i => (h i).1)).elim
+    exact iff_of_false Bool.false_ne_true fun h => valid fun i => (h i).1
 
 /-- Exact-weight circuits obtained by covering every valid input with modular
 tests and placing one OR above the test family. -/
@@ -186,12 +174,8 @@ theorem exists_exact_altFormula {n d B M : ℕ} {ι : Type*} [Fintype ι]
     exact Nat.add_le_add_left ((sum_le_sum fun j _ => hs j).trans_eq (by simp)) 1
   · intro x
     rw [AltFormula.eval_gate_or]
-    constructor
-    · rintro ⟨j, hj⟩
-      exact weight_eq_of_shiftTests k hc hn t x (tests j) ((he j x).1 hj)
-    · intro hx
-      obtain ⟨j, hj⟩ := hcover ⟨x, hx⟩
-      exact ⟨j, (he j x).2 hj⟩
+    exact ⟨fun ⟨j, hj⟩ => weight_eq_of_shiftTests k hc hn t x (tests j) ((he j x).1 hj),
+      fun hx => (hcover ⟨x, hx⟩).imp fun j hj => (he j x).2 hj⟩
 
 /-- The explicit finite recurrence for symmetric functions, in both output
 polarities. The constants in the asymptotic theorem are extracted from this
@@ -229,17 +213,9 @@ theorem exists_symmetric_altFormula_succ {n d B M : ℕ} {ι : Type*} [Fintype �
     · intro x
       apply Bool.eq_iff_iff.2
       rw [AltFormula.eval_merge_or]
-      constructor
-      · rintro ⟨t, ht⟩
-        rw [(he t x).1 ht]
-        exact t.2
-      · intro hx
-        have hweight : weight x < n + 1 := by
-          have h := weight_le x
-          simp only [Fintype.card_fin] at h
-          omega
-        let t : T := ⟨⟨weight x, hweight⟩, hx⟩
-        exact ⟨t, (he t x).2 rfl⟩
+      refine ⟨fun ⟨t, ht⟩ => (he t x).1 ht ▸ t.2, fun hx => ?_⟩
+      have hweight : weight x < n + 1 := by simpa using Nat.lt_succ_of_le (weight_le x)
+      exact ⟨⟨⟨weight x, hweight⟩, hx⟩, (he _ x).2 rfl⟩
   cases op with
   | or => exact hor a
   | and =>

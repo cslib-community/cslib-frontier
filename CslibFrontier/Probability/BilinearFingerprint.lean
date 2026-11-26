@@ -47,14 +47,12 @@ private theorem uniform_linearComb_ne_zero {d : m → F} (hd : d ≠ 0) :
     (PMF.uniformOfFintype (m → F)).toOuterMeasure {r | ∑ i, r i * d i ≠ 0} =
       1 - (Fintype.card F : ℝ≥0∞)⁻¹ := by
   classical
-  obtain ⟨i, hi⟩ : ∃ i, d i ≠ 0 := Function.ne_iff.mp hd
+  obtain ⟨i, hi⟩ := Function.ne_iff.mp hd
   have h := PMF.toOuterMeasure_add_compl_ennreal (PMF.uniformOfFintype (m → F))
     {r | ∑ i, r i * d i = 0}
   rw [toOuterMeasure_uniform_linearComb_eq_zero hi, one_div] at h
-  have h' : 1 = (PMF.uniformOfFintype (m → F)).toOuterMeasure
-      {r | ∑ i, r i * d i ≠ 0} + (Fintype.card F : ℝ≥0∞)⁻¹ := by
-    simpa only [Set.compl_ofPred, add_comm] using h.symm
-  exact (ENNReal.sub_eq_of_eq_add (by simp) h').symm
+  exact (ENNReal.sub_eq_of_eq_add (by simp)
+    (by simpa only [Set.compl_ofPred, add_comm] using h.symm)).symm
 
 /-- Exact success probability, with independent uniform sampling represented by the uniform
 law on the product of the column-vector and row-vector spaces. -/
@@ -66,20 +64,16 @@ theorem toOuterMeasure_bilinear_ne_zero_eq (M : Matrix m n F) :
   classical
   change (PMF.uniformOfFintype ((n → F) × (m → F))).toOuterMeasure
     ((fun p : (n → F) × (m → F) => ∑ i, p.2 i * (M *ᵥ p.1) i) ⁻¹' {x | x ≠ 0}) = _
-  rw [← PMF.toOuterMeasure_map_apply (f := fun p : (n → F) × (m → F) =>
-    ∑ i, p.2 i * (M *ᵥ p.1) i)]
-  rw [← PMF.uniformOfFintype_bind_map (fun (s : n → F) (r : m → F) =>
-      ∑ i, r i * (M *ᵥ s) i), PMF.toOuterMeasure_bind_apply,
-    PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_left]
-  apply tsum_congr
-  intro s
+  rw [← PMF.toOuterMeasure_map_apply,
+    ← PMF.uniformOfFintype_bind_map (fun (s : n → F) (r : m → F) => ∑ i, r i * (M *ᵥ s) i),
+    PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_left]
+  refine tsum_congr fun s => ?_
   rw [PMF.toOuterMeasure_map_apply]
   change (PMF.uniformOfFintype (n → F)) s *
     (PMF.uniformOfFintype (m → F)).toOuterMeasure {r | ∑ i, r i * (M *ᵥ s) i ≠ 0} = _
   by_cases hs : M *ᵥ s = 0
   · simp [hs]
-  · rw [uniform_linearComb_ne_zero hs]
-    simp [hs, mul_comm]
+  · simp [uniform_linearComb_ne_zero hs, hs, mul_comm]
 
 /-- A nonzero rectangular matrix is detected by two independent uniform vectors with
 probability at least `(1 - 1 / |F|)^2`. -/
@@ -89,7 +83,7 @@ theorem toOuterMeasure_bilinear_ne_zero_ge {M : Matrix m n F} (hM : M ≠ 0) :
         {p | ∑ i, p.2 i * (M *ᵥ p.1) i ≠ 0} := by
   classical
   have hb := toOuterMeasure_mulVec_eq_le (S := F) (e := id)
-    (fun d hd _ _ h => mul_left_cancel₀ hd h) hM
+    (fun _ hd _ _ => mul_left_cancel₀ hd) hM
   simp only [Function.id_comp, Matrix.zero_mulVec] at hb
   have hc := PMF.toOuterMeasure_add_compl_ennreal (PMF.uniformOfFintype (n → F))
     {s | M *ᵥ s = 0}
@@ -120,21 +114,15 @@ theorem toOuterMeasure_bilinear_vecMulVec {u : m → F} {v : n → F}
         {p | ∑ i, p.2 i * (Matrix.vecMulVec u v *ᵥ p.1) i ≠ 0} =
       (1 - (Fintype.card F : ℝ≥0∞)⁻¹) ^ 2 := by
   classical
-  obtain ⟨i, hi⟩ : ∃ i, u i ≠ 0 := Function.ne_iff.mp hu
-  have he : {s : n → F | Matrix.vecMulVec u v *ᵥ s ≠ 0} =
-      {s | ∑ j, s j * v j ≠ 0} := by
+  obtain ⟨i, hi⟩ := Function.ne_iff.mp hu
+  have he : {s : n → F | Matrix.vecMulVec u v *ᵥ s ≠ 0} = {s | ∑ j, s j * v j ≠ 0} := by
     ext s
-    have hz : Matrix.vecMulVec u v *ᵥ s = 0 ↔ ∑ j, s j * v j = 0 := by
-      constructor
-      · intro h
-        have h' := congrFun h i
-        simpa [Matrix.vecMulVec_mulVec, dotProduct, mul_comm, hi] using h'
-      · intro h
-        ext k
-        change (∑ j, (u k * v j) * s j) = 0
-        simp only [mul_assoc, ← Finset.mul_sum]
-        rw [show (∑ j, v j * s j) = 0 by simpa only [mul_comm] using h, mul_zero]
-    exact not_congr hz
+    refine not_congr ⟨fun h => ?_, fun h => funext fun k => ?_⟩
+    · exact (mul_eq_zero.mp (by
+        simpa [Matrix.vecMulVec_mulVec, dotProduct, mul_comm] using congrFun h i)).resolve_left hi
+    · change (∑ j, (u k * v j) * s j) = 0
+      have hvs : (∑ j, v j * s j) = 0 := by simpa only [mul_comm] using h
+      simp only [mul_assoc, ← Finset.mul_sum, hvs, mul_zero]
   rw [toOuterMeasure_bilinear_ne_zero_eq, he, uniform_linearComb_ne_zero hv, pow_two]
 
 end Cslib.Probability

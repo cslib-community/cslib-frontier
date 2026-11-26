@@ -82,24 +82,20 @@ private theorem convSol_of_oneArray (hX : ∀ i < N, |X i| ≤ (W : ℤ)) (hY : 
     (hZ : ∀ i < N, |Z i| ≤ (W : ℤ)) {u v : ℕ} (huv : u + v < 4 * N)
     (h : oneArray W X Y Z u + oneArray W X Y Z v = oneArray W X Y Z (u + v)) :
     HasConvolutionSolution N X Y Z := by
-  have hW : ∀ i < N, (-(W : ℤ) ≤ X i ∧ X i ≤ W) ∧ (-(W : ℤ) ≤ Y i ∧ Y i ≤ W) ∧
-      (-(W : ℤ) ≤ Z i ∧ Z i ≤ W) :=
-    fun i hi => ⟨abs_le.mp (hX i hi), abs_le.mp (hY i hi), abs_le.mp (hZ i hi)⟩
+  have hW (i : ℕ) (hi : i < N) := And.intro (abs_le.mp (hX i hi))
+    (And.intro (abs_le.mp (hY i hi)) (abs_le.mp (hZ i hi)))
   have hWu := hW (u / 4) (by omega)
   have hWv := hW (v / 4) (by omega)
   have hWuv := hW ((u + v) / 4) (by omega)
   simp only [oneArray_val] at h
-  by_cases h12 : u % 4 = 1 ∧ v % 4 = 2
+  split_ifs at h
+  all_goals try omega
   · refine ⟨u / 4, v / 4, by omega, ?_⟩
     rw [show u / 4 + v / 4 = (u + v) / 4 by omega]
-    simp only [h12.1, h12.2, show (u + v) % 4 = 3 by omega, ↓reduceIte, Nat.reduceEqDiff] at h
     omega
-  by_cases h21 : u % 4 = 2 ∧ v % 4 = 1
   · refine ⟨v / 4, u / 4, by omega, ?_⟩
     rw [show v / 4 + u / 4 = (u + v) / 4 by omega]
-    simp only [h21.1, h21.2, show (u + v) % 4 = 3 by omega, ↓reduceIte, Nat.reduceEqDiff] at h
     omega
-  · split_ifs at h <;> omega
 
 /-- Three arrays to one, of four times the length. Here `W` bounds the entries below `N`. -/
 theorem oneArray_correct (hX : ∀ i < N, |X i| ≤ (W : ℤ)) (hY : ∀ i < N, |Y i| ≤ (W : ℤ))

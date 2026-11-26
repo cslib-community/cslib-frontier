@@ -53,14 +53,8 @@ theorem IsOraclePPT.device_operation_bounds {Operation α : Type} [DecidableEq O
   obtain ⟨c, d, hb⟩ := h.query_bounds
   refine ⟨c, d, fun n input => ?_⟩
   obtain ⟨hcalls, hsize⟩ := hb n input
-  refine ⟨fun operation => hcalls.of_le ?_, hcalls.of_le ?_, hsize⟩
-  · intro q
-    cases q with
-    | inl _ => exact le_rfl
-    | inr request => exact DeviceRequest.operationCost_le_one operation request
-  · intro q
-    cases q with
-    | inl _ => exact le_rfl
-    | inr request => exact DeviceRequest.serviceCost_le_one request
+  refine ⟨fun op => hcalls.of_le fun | .inl _ => le_rfl | .inr r => ?_,
+    hcalls.of_le fun | .inl _ => le_rfl | .inr r => DeviceRequest.serviceCost_le_one r, hsize⟩
+  exact DeviceRequest.operationCost_le_one op r
 
 end Cslib.Probability

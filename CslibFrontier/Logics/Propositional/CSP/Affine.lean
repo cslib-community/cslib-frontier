@@ -114,9 +114,8 @@ theorem AffineEquation.isPolymorphism_parity (e : AffineEquation V) :
 
 /-- Every conjunction of affine equations is preserved by ternary parity. -/
 theorem AffineSystem.isPolymorphism_parity (F : AffineSystem V) :
-    IsPolymorphism (Cslib.parity 3) {a | F.Holds a} := by
-  intro a ha e he
-  exact e.isPolymorphism_parity a (fun j => ha j e he)
+    IsPolymorphism (Cslib.parity 3) {a | F.Holds a} :=
+  fun a ha e he => e.isPolymorphism_parity a (fun j => ha j e he)
 
 /-- A tuple outside a finite parity-preserved relation can be separated by an affine equation.
 The empty relation is separated by the inconsistent constant equation. -/
@@ -134,16 +133,11 @@ theorem exists_separating_affineEquation [Finite V] {R : Set (V → Bool)}
         add_mem' := by
           intro x y hx hy
           have h := hclosed (x + c) hx (y + c) hy c hc
-          change (x + y) + c ∈ R
-          have heq : x + c + (y + c) + c = (x + y) + c := by
-            rw [show x + c + (y + c) + c = (x + y) + c + (c + c) by abel,
-              BitString.add_self, add_zero]
-          rwa [heq] at h
+          rwa [show x + c + (y + c) + c = (x + y) + c + (c + c) by abel, BitString.add_self,
+            add_zero] at h
         neg_mem' := by
           intro x hx
-          change -x + c ∈ R
-          have heq : -x = x := by funext i; exact Bool.neg_eq_id _
-          rwa [heq] }
+          rwa [show -x = x from funext fun i => Bool.neg_eq_id _] }
     let : Module (ZMod 2) (V → Bool) :=
       AddCommGroup.zmodModule (fun x => (two_nsmul x).trans (BitString.add_self x))
     let W := AddSubgroup.toZModSubmodule 2 H
@@ -153,14 +147,10 @@ theorem exists_separating_affineEquation [Finite V] {R : Set (V → Bool)}
     obtain ⟨f, hf, hker⟩ :=
       Submodule.exists_le_ker_of_notMem (K := ZMod 2) (p := W) hnot
     let g : (V → Bool) → Bool := fun x => decide (f x ≠ 0)
-    have hadd : ∀ x y, g (x + y) = (g x ^^ g y) := by
-      intro x y
-      change decide (f (x + y) ≠ 0) = _
-      rw [map_add]
-      have h (s t : ZMod 2) : decide (s + t ≠ 0) =
-          (decide (s ≠ 0) ^^ decide (t ≠ 0)) := by
+    have hadd (x y : V → Bool) : g (x + y) = (g x ^^ g y) := by
+      have h (s t : ZMod 2) : decide (s + t ≠ 0) = (decide (s ≠ 0) ^^ decide (t ≠ 0)) := by
         fin_cases s <;> fin_cases t <;> decide
-      exact h _ _
+      simpa only [g, map_add] using h (f x) (f y)
     obtain ⟨S, hS⟩ := Cslib.BitString.exists_eq_parityOn_iff.mpr hadd
     have hg (b : V → Bool) (hb : b ∈ R) : g b = g c := by
       have hmem : b + c ∈ W := by
@@ -177,12 +167,10 @@ theorem exists_separating_affineEquation [Finite V] {R : Set (V → Bool)}
       exact (congrFun hS b).symm.trans ((hg b hb).trans (congrFun hS c))
     · intro he
       have hgc : g a = g c := by
-        rw [hS]
-        simpa only [AffineEquation.Holds, Finset.sum_map_toList,
-          ← Cslib.parityOn_eq_sum] using he
+        simpa only [hS, AffineEquation.Holds, Finset.sum_map_toList, ← Cslib.parityOn_eq_sum]
+          using he
       have hgac : g (a + c) = false := by rw [hadd, hgc, Bool.xor_self]
-      have : g (a + c) = true := by simpa [g] using hf
-      exact Bool.false_ne_true (hgac.symm.trans this)
+      exact Bool.false_ne_true (hgac.symm.trans (by simpa [g] using hf))
   · exact ⟨⟨[], true⟩, fun b hb => (hne ⟨b, hb⟩).elim, by simp [AffineEquation.Holds]⟩
 
 /-- **Parity preservation iff affine definability.** Empty and nullary relations are included;
@@ -212,7 +200,6 @@ theorem isPolymorphism_parity_iff_exists_affineSystem [Finite V] (R : Set (V →
       exact hbad a ha (hF _ (List.mem_map.mpr ⟨a, by simp, rfl⟩))
   · rintro ⟨F, hF⟩
     have hset : R = {a | F.Holds a} := Set.ext hF
-    rw [hset]
-    exact F.isPolymorphism_parity
+    exact hset ▸ F.isPolymorphism_parity
 
 end Cslib.Logic.PL

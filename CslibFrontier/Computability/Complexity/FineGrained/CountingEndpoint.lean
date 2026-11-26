@@ -124,12 +124,6 @@ theorem DecidableInSubexpTime.of_computableInO_interpolationScale {α : Type} {e
 
 /-! ### From dense-variable model counting to `DecidableInSubexpTime (KSAT k)` -/
 
-/-- Testing a binary number for positivity is polynomial-time. -/
-theorem computableInPolyTime_pos_nat :
-    ComputableInPolyTime (fun n : ℕ => decide (0 < n)) encNat encBool :=
-  ComputableInPolyTime.binary_lt.comp
-    ((ComputableInPolyTime.const 0).prod ComputableInPolyTime.id')
-
 /-- **From dense-variable model counting at `interpolationScale` to subexponential `k`-SAT.**
 Suppose `count : CNF ℕ → ℕ` runs in time
 `O(2 ^ (A₀ * interpolationScale ψ.numVars) * (|encCNF ψ| + 1) ^ e)` and computes the
@@ -146,7 +140,7 @@ theorem DecidableInSubexpTime.KSAT_of_dense_modelCount_interpolationScale {k : �
     (ht : ∀ ψ : CNF ℕ, (t ψ : ℝ) ≤
       c * ((2 : ℝ) ^ (A₀ * interpolationScale ψ.numVars) * (((encCNF ψ).length : ℝ) + 1) ^ e) + c) :
     DecidableInSubexpTime (KSAT k) encCNF CNF.numVars := by
-  obtain ⟨dpos, _, hpos⟩ := computableInPolyTime_pos_nat.exists_degree
+  obtain ⟨dpos, _, hpos⟩ := ComputableInPolyTime.binary_pos.exists_degree
   have hposO := hpos.inO
   obtain ⟨l, hl⟩ := hcount.length_le_time
   have hcomp : ComputableInO (fun ψ : CNF ℕ => decide (0 < count ψ)) encCNF encBool _ _ :=
@@ -155,69 +149,55 @@ theorem DecidableInSubexpTime.KSAT_of_dense_modelCount_interpolationScale {k : �
   have hB_subexp : DecidableInSubexpTime B encCNF CNF.numVars := by
     set A₁ : ℝ := max A₀ 0 * (dpos + 1)
     set E : ℕ := e * (dpos + 1)
-    set C₀ : ℕ := (2 * c + 1) + (2 * l + 1) ^ dpos * (2 * c + 2) ^ dpos
+    set M : ℕ := l * (2 * c + 1) + 1
+    set C₀ : ℕ := 2 * c + M ^ dpos
     refine DecidableInSubexpTime.of_computableInO_interpolationScale hcomp (fun _ => Iff.rfl)
       (A₀ := A₁) (c := C₀) (e := E) fun ψ => ?_
     set L : ℝ := ((encCNF ψ).length : ℝ)
     set X₀ : ℝ := (2 : ℝ) ^ (max A₀ 0 * interpolationScale ψ.numVars)
     set P₀ : ℝ := (L + 1) ^ e
+    set XP : ℝ := X₀ * P₀
     have hX₀1 : 1 ≤ X₀ := Real.one_le_rpow (by norm_num)
       (mul_nonneg (le_max_right _ _) (interpolationScale_nonneg _))
     have hP₀1 : 1 ≤ P₀ :=
       one_le_pow₀ (by linarith [(Nat.cast_nonneg (encCNF ψ).length : (0 : ℝ) ≤ L)])
-    have hXP1 : 1 ≤ X₀ * P₀ := one_le_mul_of_one_le_of_one_le hX₀1 hP₀1
+    have hXP1 : 1 ≤ XP := one_le_mul_of_one_le_of_one_le hX₀1 hP₀1
     have hX_mono : (2 : ℝ) ^ (A₀ * interpolationScale ψ.numVars) ≤ X₀ :=
       Real.rpow_le_rpow_of_exponent_le (by norm_num)
         (mul_le_mul_of_nonneg_right (le_max_left _ _) (interpolationScale_nonneg _))
-    have ht_le : (t ψ : ℝ) ≤ (2 * c + 1) * (X₀ * P₀) := by
-      have h1 := ht ψ
-      have h2 : (2 : ℝ) ^ (A₀ * interpolationScale ψ.numVars) * P₀ ≤ X₀ * P₀ := by gcongr
-      have h3 := mul_le_mul_of_nonneg_left h2 (Nat.cast_nonneg c)
-      have h4 : (c : ℝ) ≤ c * (X₀ * P₀) := le_mul_of_one_le_right (Nat.cast_nonneg c) hXP1
-      linarith
-    have hlen_le : ((encNat (count ψ)).length : ℝ) + 1 ≤
-        (2 * l + 1) * (2 * c + 2) * (X₀ * P₀) := by
-      have h1 : ((encNat (count ψ)).length : ℝ) ≤ l * ((t ψ : ℝ) + 1) := by
-        exact_mod_cast hl ψ
-      have h2 : (t ψ : ℝ) + 1 ≤ (2 * c + 2) * (X₀ * P₀) := by linarith
-      have h3 := mul_le_mul_of_nonneg_left h2 (Nat.cast_nonneg l)
-      nlinarith
+    have ht_le : (t ψ : ℝ) ≤ 2 * c * XP := by
+      calc (t ψ : ℝ)
+          ≤ c * ((2 : ℝ) ^ (A₀ * interpolationScale ψ.numVars) * P₀) + c := ht ψ
+        _ ≤ c * (X₀ * P₀) + c * XP :=
+            add_le_add (by gcongr) (le_mul_of_one_le_right (Nat.cast_nonneg c) hXP1)
+        _ = 2 * c * XP := by simp only [XP]; ring
+    have hlen_le : ((encNat (count ψ)).length : ℝ) + 1 ≤ (M : ℝ) * XP := by
+      have h1 : ((encNat (count ψ)).length : ℝ) ≤ l * ((t ψ : ℝ) + 1) := by exact_mod_cast hl ψ
+      have h2 : (t ψ : ℝ) + 1 ≤ (2 * c + 1) * XP := by linarith
+      calc ((encNat (count ψ)).length : ℝ) + 1
+          ≤ l * ((2 * c + 1) * XP) + XP := add_le_add (h1.trans (by gcongr)) hXP1
+        _ = (M : ℝ) * XP := by simp only [M]; push_cast; ring
     have hpow_le : (((encNat (count ψ)).length : ℝ) + 1) ^ dpos ≤
-        ((2 * l + 1) ^ dpos * (2 * c + 2) ^ dpos) * (X₀ * P₀) ^ dpos := by
+        (M : ℝ) ^ dpos * XP ^ dpos := by
       calc (((encNat (count ψ)).length : ℝ) + 1) ^ dpos
-          ≤ ((2 * l + 1) * (2 * c + 2) * (X₀ * P₀)) ^ dpos :=
-            pow_le_pow_left₀ (by positivity) hlen_le dpos
-        _ = ((2 * l + 1) ^ dpos * (2 * c + 2) ^ dpos) * (X₀ * P₀) ^ dpos := by
-            rw [mul_pow, mul_pow]
-    have hXP_dpos : (X₀ * P₀) ^ dpos ≤ (X₀ * P₀) ^ (dpos + 1) :=
-      pow_le_pow_right₀ hXP1 (Nat.le_succ dpos)
-    have hXP_one : X₀ * P₀ ≤ (X₀ * P₀) ^ (dpos + 1) :=
-      le_self_pow₀ hXP1 (Nat.succ_ne_zero dpos)
-    have hXP_Rewrite : (X₀ * P₀) ^ (dpos + 1) =
+          ≤ ((M : ℝ) * XP) ^ dpos := by gcongr
+        _ = (M : ℝ) ^ dpos * XP ^ dpos := mul_pow _ _ _
+    have hXP_eq : XP ^ (dpos + 1) =
         (2 : ℝ) ^ (A₁ * interpolationScale ψ.numVars) * (L + 1) ^ E := by
-      rw [mul_pow]
+      rw [mul_pow, ← pow_mul]
       congr 1
-      · simp only [X₀, A₁, ← Real.rpow_natCast]
-        rw [← Real.rpow_mul (by norm_num)]
-        congr 1
-        push_cast
-        ring
-      · simp only [P₀, E, ← pow_mul]
-    have htot : (t ψ : ℝ) + (((encNat (count ψ)).length : ℝ) + 1) ^ dpos ≤
-        C₀ * ((X₀ * P₀) ^ (dpos + 1)) := by
-      have ht_le' : (t ψ : ℝ) ≤ (c + 1 + c) * (X₀ * P₀) ^ (dpos + 1) := by
-        have := mul_le_mul_of_nonneg_left hXP_one (by positivity : (0 : ℝ) ≤ 2 * c + 1)
-        linarith
-      have hpow_le' : (((encNat (count ψ)).length : ℝ) + 1) ^ dpos ≤
-          ((2 * l + 1) ^ dpos * (2 * c + 2) ^ dpos) * (X₀ * P₀) ^ (dpos + 1) := by
-        refine hpow_le.trans (mul_le_mul_of_nonneg_left hXP_dpos (by positivity))
-      simp only [C₀]
-      push_cast
-      linarith
-    push_cast at htot ⊢
-    rw [← hXP_Rewrite]
-    have hC₀ : (0 : ℝ) ≤ C₀ := Nat.cast_nonneg C₀
-    linarith
+      rw [← Real.rpow_natCast, ← Real.rpow_mul (by norm_num)]
+      congr 1; push_cast; ring
+    have hXP_one : XP ≤ XP ^ (dpos + 1) := le_self_pow₀ hXP1 (Nat.succ_ne_zero dpos)
+    have hXP_dpos : XP ^ dpos ≤ XP ^ (dpos + 1) := pow_le_pow_right₀ hXP1 (Nat.le_succ dpos)
+    calc ((t ψ + ((encNat (count ψ)).length + 1) ^ dpos : ℕ) : ℝ)
+        = (t ψ : ℝ) + (((encNat (count ψ)).length : ℝ) + 1) ^ dpos := by push_cast; rfl
+      _ ≤ 2 * c * XP ^ (dpos + 1) + (M : ℝ) ^ dpos * XP ^ (dpos + 1) :=
+          add_le_add (ht_le.trans (by gcongr)) (hpow_le.trans (by gcongr))
+      _ = (C₀ : ℝ) * ((2 : ℝ) ^ (A₁ * interpolationScale ψ.numVars) * (L + 1) ^ E) := by
+          rw [← hXP_eq]; simp only [C₀]; push_cast; ring
+      _ ≤ (C₀ : ℝ) * ((2 : ℝ) ^ (A₁ * interpolationScale ψ.numVars) * (L + 1) ^ E) + C₀ :=
+          le_add_of_nonneg_right (Nat.cast_nonneg _)
   have hB'_subexp : DecidableInSubexpTime {φ : CNF ℕ | φ.denseRelabel ∈ B} encCNF CNF.numVars :=
     hB_subexp.of_reduction SAT.computableInPolyTime_denseRelabel (fun _ => Iff.rfl) (c := 1)
       fun φ => by rw [CNF.numVars_denseRelabel]; omega
@@ -258,11 +238,9 @@ theorem not_ETH_of_decidableInSubexpTime
 /-- Subexponential-time decidability of `k`-SAT for all `k` refutes the Strong Exponential Time
 Hypothesis (`¬SETH`). -/
 theorem not_SETH_of_forall_decidableInSubexpTime
-    (h : ∀ k, DecidableInSubexpTime (KSAT k) encCNF CNF.numVars) : ¬SETH := by
-  rintro hSETH
+    (h : ∀ k, DecidableInSubexpTime (KSAT k) encCNF CNF.numVars) : ¬SETH := fun hSETH => by
   obtain ⟨k, hk⟩ := hSETH (1 / 2) (by norm_num)
-  have h12 : (1 : ℝ) - 1 / 2 = 1 / 2 := by norm_num
-  rw [h12] at hk
+  norm_num at hk
   exact hk (h k (1 / 2) (by norm_num))
 
 end Cslib.Complexity

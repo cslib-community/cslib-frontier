@@ -265,32 +265,25 @@ theorem isEquitable_iff_card_filter [DecidableEq β] {χ : V → β} :
         ((G.neighborFinset w).filter (χ · = c)).card := by
   refine forall₂_congr fun v w => imp_congr_right fun _ => ?_
   rw [Multiset.ext]
-  refine forall_congr' fun c => ?_
-  rw [Multiset.count_map, Multiset.count_map]
-  simp only [Finset.card_def, Finset.filter_val, eq_comm (a := c)]
+  exact forall_congr' fun c => by
+    simp only [Multiset.count_map, Finset.card_def, Finset.filter_val, eq_comm (a := c)]
 
 private theorem encard_neighborSet_inter (v : V) (p : V → Prop) [DecidablePred p] :
     (G.neighborSet v ∩ {x | p x}).encard = ((G.neighborFinset v).filter p).card := by
   rw [← Set.encard_coe_eq_coe_finsetCard, Finset.coe_filter]
-  congr 1
-  ext x
-  simp only [Set.mem_inter_iff, Set.mem_ofPred_eq, mem_neighborSet, mem_neighborFinset]
+  simp only [mem_neighborFinset]
+  rfl
 
 /-- A partition is equitable exactly when its quotient map is an equitable coloring. -/
 theorem isEquitablePartition_iff_isEquitable_mk {r : Setoid V} :
     G.IsEquitablePartition r ↔ G.IsEquitable (Quotient.mk r) := by
   classical
   rw [isEquitable_iff_card_filter]
-  refine forall₂_congr fun v w => ?_
-  refine imp_congr Quotient.eq.symm ⟨fun h c => ?_, fun h u => ?_⟩
-  · induction c using Quotient.inductionOn with
-    | h u =>
-      have hu := h u
-      rw [encard_neighborSet_inter, encard_neighborSet_inter, Nat.cast_inj] at hu
-      simpa only [Quotient.eq, Setoid.comm' r] using hu
-  · have hu := h (Quotient.mk r u)
-    rw [encard_neighborSet_inter, encard_neighborSet_inter, Nat.cast_inj]
-    simpa only [Quotient.eq, Setoid.comm' r] using hu
+  refine forall₂_congr fun v w => imp_congr Quotient.eq.symm ⟨fun h c => ?_, fun h u => ?_⟩
+  · refine Quotient.inductionOn c fun u => ?_
+    simpa only [encard_neighborSet_inter, Nat.cast_inj, Quotient.eq, Setoid.comm' r] using h u
+  · simpa only [encard_neighborSet_inter, Nat.cast_inj, Quotient.eq, Setoid.comm' r] using
+      h (Quotient.mk r u)
 
 /-- The partition into the color classes of `χ` is equitable exactly when `χ` is. -/
 theorem isEquitablePartition_ker_iff {χ : V → β} :
@@ -331,17 +324,10 @@ theorem ker_refinementColoring_eq_of_succ_eq {n : ℕ}
     (h : Setoid.ker (G.refinementColoring χ₀ (n + 1)) = Setoid.ker (G.refinementColoring χ₀ n))
     {m : ℕ} (hm : n ≤ m) :
     Setoid.ker (G.refinementColoring χ₀ m) = Setoid.ker (G.refinementColoring χ₀ n) := by
-  have step : ∀ k, n ≤ k → Setoid.ker (G.refinementColoring χ₀ (k + 1)) =
-      Setoid.ker (G.refinementColoring χ₀ k) := by
-    intro k hk
-    induction k, hk using Nat.le_induction with
-    | base => exact h
-    | succ k _ ih =>
-      exact le_antisymm (ker_refinementColoring_succ_le _)
-        (ker_refineColoring_mono (G := G) ih.ge)
   induction m, hm using Nat.le_induction with
   | base => rfl
-  | succ k hk ih => rw [step k hk, ih]
+  | succ k _ ih =>
+    exact (le_antisymm (ker_refineColoring_mono ih.le) (ker_refineColoring_mono ih.ge)).trans h
 
 /-- An equitable partition refining the initial coloring refines the coloring of every round. -/
 theorem IsEquitable.ker_le_ker_refinementColoring {ψ : V → β} (hψ : G.IsEquitable ψ)
@@ -386,11 +372,9 @@ theorem ker_refinementColoring_eq {m : ℕ}
     obtain ⟨i, hi, h⟩ := this
     rw [ker_refinementColoring_eq_of_succ_eq h (hi.trans hm),
       ker_refinementColoring_eq_of_succ_eq h hi]
-  by_contra hne
-  push Not at hne
-  have key : ∀ i ≤ N + 1, blocks (Setoid.ker χ₀) + i ≤
-      blocks (Setoid.ker (G.refinementColoring χ₀ i)) := by
-    intro i hi
+  by_contra! hne
+  have key (i : ℕ) (hi : i ≤ N + 1) :
+      blocks (Setoid.ker χ₀) + i ≤ blocks (Setoid.ker (G.refinementColoring χ₀ i)) := by
     induction i with
     | zero => exact le_rfl
     | succ i ih =>
@@ -430,9 +414,8 @@ theorem isGreatest_ker_stableColoring :
       (Setoid.ker (G.stableColoring χ₀)) := by
   refine ⟨⟨ker_stableColoring_le, isEquitablePartition_ker_iff.2 isEquitable_stableColoring⟩,
     fun r ⟨hr, hq⟩ => ?_⟩
-  rw [isEquitablePartition_iff_isEquitable_mk] at hq
   rw [← Setoid.ker_mk_eq r] at hr ⊢
-  exact hq.ker_le_ker_stableColoring hr
+  exact (isEquitablePartition_iff_isEquitable_mk.1 hq).ker_le_ker_stableColoring hr
 
 end Stabilization
 
@@ -448,7 +431,7 @@ theorem Iso.neighborFinset_apply (e : G ≃g H) (v : V) :
   ext w
   obtain ⟨w, rfl⟩ := e.surjective w
   simp only [mem_neighborFinset, mem_map_equiv, Iso.map_adj_iff]
-  rw [show e.toEquiv.symm (e w) = w from e.toEquiv.symm_apply_apply w]
+  erw [e.toEquiv.symm_apply_apply]
 
 /-- An embedding that maps the neighbors of every `v` onto the neighbors of its image transports
 every round of color refinement. -/
@@ -459,10 +442,9 @@ theorem refinementColoring_apply_of_neighborFinset_map (f : V ↪ W)
   induction n generalizing v with
   | zero => exact h₀ v
   | succ n ih =>
-    rw [refinementColoring_succ, refinementColoring_succ, refineColoring, refineColoring,
-      ih, hf, Finset.map_val, Multiset.map_map]
-    congr 2
-    exact funext ih
+    simp only [refinementColoring_succ, refineColoring, ih, hf, Finset.map_val, Multiset.map_map,
+      Function.comp_def]
+    rfl
 
 /-- An isomorphism of colored graphs preserves the colors of every round. -/
 theorem Iso.refinementColoring_apply (e : G ≃g H) {χ₀ : V → α} {ψ₀ : W → α}
@@ -530,9 +512,8 @@ theorem refinementColoring_sum_inr (χ₀ : V ⊕ W → α) (n : ℕ) (w : W) :
 theorem colorHistogram_sum [Fintype V] [Fintype W] (χ₀ : V ⊕ W → α) (n : ℕ) :
     (G ⊕g H).colorHistogram χ₀ n =
       G.colorHistogram (χ₀ ∘ .inl) n + H.colorHistogram (χ₀ ∘ .inr) n := by
-  rw [colorHistogram, ← Finset.univ_disjSum_univ, Finset.val_disjSum, Multiset.map_disjSum]
-  simp only [refinementColoring_sum_inl, refinementColoring_sum_inr]
-  rfl
+  simp [colorHistogram, ← Finset.univ_disjSum_univ, Multiset.map_disjSum,
+    refinementColoring_sum_inl, refinementColoring_sum_inr]
 
 end Sum
 
@@ -567,9 +548,7 @@ variable [Fintype V] [Fintype W]
 /-- The histogram of round `n + k` determines the histogram of round `n`. -/
 theorem colorHistogram_map_truncate (χ₀ : V → α) (n k : ℕ) :
     (G.colorHistogram χ₀ (n + k)).map (RefinementColor.truncate n k) = G.colorHistogram χ₀ n := by
-  rw [colorHistogram, colorHistogram, Multiset.map_map]
-  congr 1
-  exact funext (truncate_refinementColoring χ₀ n k)
+  simp only [colorHistogram, Multiset.map_map, Function.comp_def, truncate_refinementColoring]
 
 /-- Histograms that agree in some round agree in every earlier round. -/
 theorem colorHistogram_eq_of_le {H : SimpleGraph W} [H.LocallyFinite] {χ₀ : V → α}
@@ -604,11 +583,11 @@ theorem forall_refinementColoring_eq_iff {χ₀ : V → α} {ψ₀ : W → α} {
   rcases le_total m (Fintype.card V + Fintype.card W) with hm | hm
   · exact refinementColoring_eq_of_le hm h
   let χ : V ⊕ W → α := Sum.elim χ₀ ψ₀
-  have hsum : (G ⊕g H).refinementColoring χ (Fintype.card V + Fintype.card W) (.inl v) =
-      (G ⊕g H).refinementColoring χ (Fintype.card V + Fintype.card W) (.inr w) := by
-    rwa [refinementColoring_sum_inl, refinementColoring_sum_inr]
   have hm' : (G ⊕g H).refinementColoring χ m (.inl v) =
-      (G ⊕g H).refinementColoring χ m (.inr w) := ker_refinementColoring_sum_le hm hsum
+      (G ⊕g H).refinementColoring χ m (.inr w) :=
+    ker_refinementColoring_sum_le hm (by
+      simpa only [Setoid.ker_def, refinementColoring_sum_inl, refinementColoring_sum_inr,
+        Sum.elim_comp_inl, Sum.elim_comp_inr] using h)
   rwa [refinementColoring_sum_inl, refinementColoring_sum_inr] at hm'
 
 /-- Color refinement distinguishes two graphs in some round exactly when it distinguishes them in
@@ -623,18 +602,13 @@ theorem forall_colorHistogram_eq_iff {χ₀ : V → α} {ψ₀ : W → α} :
   rcases le_total m (Fintype.card V + Fintype.card W) with hm | hm
   · exact colorHistogram_eq_of_le hm h
   let χ : V ⊕ W → α := Sum.elim χ₀ ψ₀
-  have hG : ∀ n, G.colorHistogram χ₀ n =
-      (univ : Finset V).val.map ((G ⊕g H).refinementColoring χ n ∘ Sum.inl) := fun n => by
-    rw [colorHistogram]
-    congr 1
-    exact funext fun v => (refinementColoring_sum_inl χ n v).symm
-  have hH : ∀ n, H.colorHistogram ψ₀ n =
-      (univ : Finset W).val.map ((G ⊕g H).refinementColoring χ n ∘ Sum.inr) := fun n => by
-    rw [colorHistogram]
-    congr 1
-    exact funext fun w => (refinementColoring_sum_inr χ n w).symm
-  rw [hG, hH, ← Multiset.map_map, ← Multiset.map_map]
-  rw [hG, hH, ← Multiset.map_map, ← Multiset.map_map] at h
+  have hG (n : ℕ) : G.colorHistogram χ₀ n =
+      ((univ : Finset V).val.map Sum.inl).map ((G ⊕g H).refinementColoring χ n) := by
+    simp [colorHistogram, Multiset.map_map, Function.comp_def, refinementColoring_sum_inl, χ]
+  have hH (n : ℕ) : H.colorHistogram ψ₀ n =
+      ((univ : Finset W).val.map Sum.inr).map ((G ⊕g H).refinementColoring χ n) := by
+    simp [colorHistogram, Multiset.map_map, Function.comp_def, refinementColoring_sum_inr, χ]
+  rw [hG, hH] at h ⊢
   exact Multiset.map_eq_map_of_ker_le (ker_refinementColoring_sum_le hm) h
 
 end Completeness
@@ -655,11 +629,9 @@ private theorem refinementColoring_of_isRegularOfDegree {G : SimpleGraph V} [G.L
   induction n generalizing v with
   | zero => rfl
   | succ n ih =>
-    have hc : G.refinementColoring (fun _ => ()) n = fun _ => regularColor d n := funext ih
-    change (G.refinementColoring (fun _ => ()) n v,
-        (G.neighborFinset v).val.map (G.refinementColoring (fun _ => ()) n)) =
-      (regularColor d n, Multiset.replicate d (regularColor d n))
-    rw [hc, Multiset.map_const', Finset.card_val, card_neighborFinset_eq_degree, hG.degree_eq]
+    simp only [refinementColoring_succ, refineColoring_apply, funext ih, Multiset.map_const',
+      Finset.card_val, card_neighborFinset_eq_degree, hG.degree_eq, regularColor]
+    rfl
 
 /-- **Incompleteness of the color refinement test**: two `d`-regular graphs with the same number of
 vertices have the same color histograms in every round. -/

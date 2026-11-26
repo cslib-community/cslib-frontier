@@ -70,9 +70,7 @@ theorem Inv.add {s : DenseNames} (hs : s.Inv) (v : ℕ) : (s.add v).Inv := by
     refine ⟨fun w i h => ?_, fun i hi => ?_⟩
     · simp only [Std.HashMap.getElem?_insert, beq_iff_eq] at h
       split at h
-      · rename_i hvw
-        subst hvw
-        cases h
+      · obtain ⟨rfl, rfl⟩ : v = w ∧ s.names.size = i := ⟨‹_›, Option.some.inj h⟩
         exact ⟨by simp, by simp⟩
       · obtain ⟨hi, hw⟩ := hs.name w i h
         exact ⟨by simp; omega, by simp [Array.getElem_push_lt hi, hw]⟩
@@ -81,8 +79,7 @@ theorem Inv.add {s : DenseNames} (hs : s.Inv) (v : ℕ) : (s.add v).Inv := by
       · have hidx := hs.index i hlt
         have hne : v ≠ s.names[i] := fun h => by rw [← h, hnone] at hidx; cases hidx
         simp [Array.getElem_push_lt hlt, Std.HashMap.getElem?_insert, hne, hidx]
-      · have hi' : i = s.names.size := by omega
-        subst hi'
+      · obtain rfl : i = s.names.size := by omega
         simp
 
 /-- Adding a variable keeps the numbers already given. -/
@@ -92,16 +89,14 @@ theorem getElem?_add_of_isSome {s : DenseNames} {w : ℕ} (hw : (s.index[w]?).is
   split
   · rfl
   · rename_i hv
-    have hnone : s.index[v]? = none := Std.HashMap.getElem?_eq_none_of_contains_eq_false
-      (by simpa using hv)
-    have hne : v ≠ w := fun h => by rw [h] at hnone; simp [hnone] at hw
-    simp [Std.HashMap.getElem?_insert, hne]
+    have hnone : s.index[v]? = none :=
+      Std.HashMap.getElem?_eq_none_of_contains_eq_false (by simpa using hv)
+    simp [Std.HashMap.getElem?_insert, show v ≠ w from fun h => by simp [h ▸ hnone] at hw]
 
 theorem isSome_add (s : DenseNames) (v : ℕ) : ((s.add v).index[v]?).isSome := by
   unfold DenseNames.add
   split
-  · rename_i hv
-    exact Std.HashMap.contains_eq_isSome_getElem?.symm.trans (by simpa using hv)
+  · exact Std.HashMap.contains_eq_isSome_getElem?.symm.trans (by simpa using ‹_›)
   · simp
 
 /-- Adding a list of variables keeps the invariant and numbers every variable of the list. -/
@@ -118,8 +113,7 @@ theorem Inv.foldl {s : DenseNames} (hs : s.Inv) (vs : List ℕ) :
       rw [h₂ w (by rw [getElem?_add_of_isSome hw]; exact hw), getElem?_add_of_isSome hw]
     · simp only [List.foldl_cons]
       rcases List.mem_cons.1 hu with rfl | hu
-      · rw [h₂ u (isSome_add s u)]
-        exact isSome_add s u
+      · simpa only [h₂ u (isSome_add s u)] using isSome_add s u
       · exact h₃ u hu
 
 end CNF.DenseNames
@@ -170,23 +164,16 @@ theorem toDense_lt {v : ℕ} (hv : v ∈ φ.vars) :
 
 theorem le_foldl_max (a : Array ℕ) (i : ℕ) (h : i < a.size) : a[i] ≤ a.foldl max 0 := by
   rw [← Array.foldl_toList]
-  have hmem : a[i] ∈ a.toList := Array.getElem_mem_toList h
-  have hle : ∀ (l : List ℕ) (c : ℕ), c ≤ l.foldl max c := by
-    intro l
-    induction l with
-    | nil => simp
-    | cons z l ih => intro c; exact le_trans (le_max_left c z) (ih (max c z))
-  have key : ∀ (l : List ℕ) (b : ℕ), ∀ x ∈ l, x ≤ l.foldl max b := by
-    intro l
+  have hle (l : List ℕ) : ∀ b, (∀ x ∈ l, x ≤ l.foldl max b) ∧ b ≤ l.foldl max b := by
     induction l with
     | nil => simp
     | cons y l ih =>
-      intro b x hx
+      intro b
       simp only [List.foldl_cons]
-      rcases List.mem_cons.1 hx with rfl | hx
-      · exact le_trans (le_max_right b x) (hle l (max b x))
-      · exact ih (max b y) x hx
-  exact key _ 0 _ hmem
+      exact ⟨fun x hx => (List.mem_cons.1 hx).elim
+        (fun h => h ▸ (le_max_right b y).trans (ih _).2) ((ih (max b y)).1 x),
+        (le_max_left b y).trans (ih _).2⟩
+  exact (hle a.toList 0).1 _ (Array.getElem_mem_toList h)
 
 /-- **The map back is injective.** -/
 theorem fromDense_injective (φ : CNF ℕ) : Function.Injective φ.denseRenaming.fromDense := by
@@ -195,28 +182,20 @@ theorem fromDense_injective (φ : CNF ℕ) : Function.Injective φ.denseRenaming
   simp only [CNF.denseRenaming] at h
   split at h <;> split at h
   · rename_i hi hj
-    have := hinv.index i hi
-    rw [h, hinv.index j hj] at this
-    exact (Option.some.inj this).symm
-  · rename_i hi hj
-    have := le_foldl_max φ.denseNames.names i hi
+    exact Option.some.inj ((hinv.index i hi).symm.trans (h ▸ hinv.index j hj))
+  all_goals
+    try have := le_foldl_max φ.denseNames.names i ‹_›
+    try have := le_foldl_max φ.denseNames.names j ‹_›
     omega
-  · rename_i hi hj
-    have := le_foldl_max φ.denseNames.names j hj
-    omega
-  · omega
 
 /-- **Renaming along `toDense` and back gives `φ`.** -/
 theorem relabel_relabel (φ : CNF ℕ) :
     (φ.relabel φ.denseRenaming.toDense).relabel φ.denseRenaming.fromDense = φ := by
   simp only [CNF.relabel, List.map_map]
-  conv_rhs => rw [← List.map_id φ]
-  refine List.map_congr_left fun c hc => ?_
-  simp only [Function.comp_apply, Clause.relabel, List.map_map, id]
-  conv_rhs => rw [← List.map_id c]
-  refine List.map_congr_left fun l hl => ?_
-  obtain ⟨v, b⟩ := l
-  simp [fromDense_toDense (CNF.mem_vars.2 ⟨c, hc, b, hl⟩)]
+  refine (List.map_congr_left fun c hc => ?_).trans (List.map_id φ)
+  simp only [Function.comp_apply, Clause.relabel, List.map_map]
+  exact (List.map_congr_left fun ⟨v, b⟩ hl => by
+    simp [fromDense_toDense (CNF.mem_vars.2 ⟨c, hc, b, hl⟩)]).trans (List.map_id c)
 
 end CNF.DenseRenaming
 

@@ -59,16 +59,12 @@ theorem realize_onLFPSentence (hk : 0 < k) (φ : LFP.Formula (language L') [] Em
       φ.Realize (M := Fin (n ^ k)) Operator.RelEnv.empty Empty.elim := by
   let := I.inputStructure (n := n)
   let : Fact (2 ≤ n ^ k) := ⟨two_le_pow (n := n) hk⟩
-  have hf {α : Type} (ψ : (language L').Formula α) (v : α × Fin k → Fin n) :
-      (I.onFormula ψ).Realize v ↔
-        ψ.Realize (M := Fin (n ^ k)) (fun a => lexEquiv (fun i => v (a, i))) :=
-    I.realize_onFormula hk ψ (fun a i => v (a, i))
   simp only [onLFPSentence, LFP.Formula.Realize, onLFPFormula,
     Operator.Formula.realize_relabel]
-  have h := LFP.Tuple.realize_onFormula I.onFormula lexEquiv hf φ.val
+  convert LFP.Tuple.realize_onFormula I.onFormula lexEquiv
+    (fun ψ v => I.realize_onFormula hk ψ (fun a i => v (a, i))) φ.val
     Operator.RelEnv.empty Operator.RelEnv.empty (fun {_} r => nomatch r)
-    (Empty.elim ∘ Prod.fst)
-  convert h using 1
+    (Empty.elim ∘ Prod.fst) using 1
   exact iff_of_eq (congrArg (φ.val.Realize LFP.interpretation Operator.RelEnv.empty)
     (Subsingleton.elim _ _))
 

@@ -129,21 +129,11 @@ private theorem halted_replay_unchecked {J₀ : ℕ}
     | _ r ih =>
     intro choices hinv hlen
     obtain ⟨-, ⟨j', hj', hjs⟩, hi, hb, -⟩ := hinv
-    have hjj : j = j' := by
-      by_contra hne
-      rcases Nat.lt_or_gt_of_ne hne with h | h
-      · have := Nat.mul_lt_mul_of_pos_right
-          (Nat.pow_lt_pow_right (by omega : 1 < 4) h)
-          (by have := card_lt_startRadix (State := State) input.length; omega :
-            0 < startRadix State input.length)
-        simp only [roundRadix] at hj'
-        omega
-      · have := Nat.mul_lt_mul_of_pos_right
-          (Nat.pow_lt_pow_right (by omega : 1 < 4) h)
-          (by have := card_lt_startRadix (State := State) input.length; omega :
-            0 < startRadix State input.length)
-        simp only [roundRadix] at hj'
-        omega
+    have hjj : j = j' :=
+      Nat.pow_right_injective (by decide : 2 ≤ 4)
+        (Nat.mul_right_cancel
+          (Nat.zero_lt_of_lt (card_lt_startRadix (State := State) input.length))
+          (hj' : 4 ^ j * startRadix State input.length = 4 ^ j' * startRadix State input.length))
     subst hjj
     have hjJ := round_le hJ₀ hjs
     rcases choices with _ | ⟨b, rest⟩
@@ -252,7 +242,6 @@ theorem length_runtime_le {J₀ : ℕ} (hJ₀ : Closed ntm (roundRadix State inp
     have hNpos : 1 ≤ N := Nat.one_le_iff_ne_zero.mpr (pow_ne_zero _ (by omega))
     have hreg : Cslib.InductiveCounting.registerBound N (vertexWidth k
         (roundRadix State input.length j)) ≤ 2 ^ (E * Fintype.card (Register k) + 3) := by
-      have hsize := Nat.size_le.mpr (Nat.lt_two_pow_self (n := N))
       have hpow := two_pow_size_le N
       unfold Cslib.InductiveCounting.registerBound vertexWidth
       have hs : N.size ≤ N := Nat.size_le.mpr Nat.lt_two_pow_self

@@ -127,11 +127,9 @@ end IsRandomParityRep
 randomness and with one witness, the empty one. -/
 theorem isRandomParityRep_base (ℓ e : Polynomial ℕ) (V : α × List Bool → Bool) :
     IsRandomParityRep enc ℓ e 0 0 (fun x => V (x.1, x.2.take (ℓ.eval (enc x.1).length)))
-      (fun a u => V (a, u) = true) := by
-  refine IsRandomParityRep.of_forall fun a u hu => ?_
-  simp only [Polynomial.eval_zero]
-  intro r
-  cases hV : V (a, u) <;> simp [acceptCount, ← hu, hV]
+      (fun a u => V (a, u) = true) :=
+  IsRandomParityRep.of_forall fun a u hu _ => by
+    cases hV : V (a, u) <;> simp [acceptCount, ← hu, hV]
 
 /-! ### Negation -/
 
@@ -150,15 +148,11 @@ private theorem computableInPolyTime_notVerifier (ℓ ρ : Polynomial ℕ)
   have ha := fst enc encBits
   have hw := snd enc encBits
   have hlen := (encoding_length enc).comp ha
-  have hn := unary_add.comp
-    (((unary_eval ℓ).comp hlen).prod ((unary_eval ρ).comp hlen))
-  have hpref := bitsTake.comp (hw.prod hn)
-  have htail := bitsDropWithInput hw hn
+  have hn := unary_add.comp (((unary_eval ℓ).comp hlen).prod ((unary_eval ρ).comp hlen))
   unfold notVerifier succVerifier
-  apply computableInPolyTime_succTest (hw := htail)
-  exact hW.comp
-    ((ha.comp (fst _ _)).prod
-      (bitsAppend (hpref.comp (fst _ _)) (snd _ _)))
+  exact computableInPolyTime_succTest (hw := bitsDropWithInput hw hn)
+    (hW.comp ((ha.comp (fst _ _)).prod
+      (bitsAppend ((bitsTake.comp (hw.prod hn)).comp (fst _ _)) (snd _ _))))
 
 /-- **Negation** adds one witness, with the same error. -/
 theorem IsRandomParityRep.not {ℓ e ρ ζ : Polynomial ℕ} {W : α × List Bool → Bool}
@@ -171,12 +165,9 @@ theorem IsRandomParityRep.not {ℓ e ρ ζ : Polynomial ℕ} {W : α × List Boo
       acceptCount (fun x => W (x.1, u ++ List.ofFn r ++ x.2)) a (ζ.eval (enc a).length) + 1 := by
     rw [Polynomial.eval_add, Polynomial.eval_one, ← acceptCount_succVerifier]
     refine acceptCount_congr (fun w => ?_) _
-    have hlen : (u ++ List.ofFn r).length =
-        ℓ.eval (enc a).length + ρ.eval (enc a).length := by
-      rw [List.length_append, List.length_ofFn, hu]
-    simp only [notVerifier]
-    rw [← hlen, List.take_left', List.drop_left']
-    all_goals rfl
+    have hlen : (u ++ List.ofFn r).length = ℓ.eval (enc a).length + ρ.eval (enc a).length := by
+      simp [hu]
+    simp only [notVerifier, ← hlen, List.take_left' rfl, List.drop_left' rfl]
   refine le_of_eq_of_le ?_ (h a u hu)
   congr 2
   ext r
@@ -230,11 +221,10 @@ theorem computableInPolyTime_trialVerifier {W : α × List Bool → Bool}
     (hblock : ComputableInPolyTime block input encBits) :
     ComputableInPolyTime (fun x => trialVerifier W (a x) (u x) (r x) (M x) (level x)
       (seed x) (block x)) input encBool  := by
-  have htake := bitsTake.comp (hblock.prod hM)
-  have hdrop := bitsDropWithInput hblock hM
-  have htest := computableInPolyTime_hashesToZero hlevel hseed htake
-  exact bool_and' htest
-    (hW.comp (ha.prod (bitsAppend (bitsAppend (bitsAppend hu htake) hr) hdrop)))
+  let htake := bitsTake.comp (hblock.prod hM)
+  exact bool_and' (computableInPolyTime_hashesToZero hlevel hseed htake)
+    (hW.comp (ha.prod (bitsAppend (bitsAppend (bitsAppend hu htake) hr)
+      (bitsDropWithInput hblock hM))))
 
 @[fun_prop]
 theorem computableInPolyTime_trialsVerifier {W : α × List Bool → Bool}
@@ -252,14 +242,12 @@ theorem computableInPolyTime_trialsVerifier {W : α × List Bool → Bool}
     (hy : ComputableInPolyTime y input encBits) :
     ComputableInPolyTime (fun x => trialsVerifier W (a x) (u x) (r x) (seeds x) (M x) (Z x)
       (T x) (B x) (y x)) input encBool  := by
-  unfold trialsVerifier
-  fun_prop
+  fun_prop [trialsVerifier]
 
 private theorem computableInPolyTime_existsVerifier (ℓ m ρ ζ e : Polynomial ℕ)
     {W : α × List Bool → Bool} (hW : ComputableInPolyTime W (encPair enc encBits) encBool) :
     ComputableInPolyTime (existsVerifier enc ℓ m ρ ζ e W) (encPair enc encBits) encBool := by
-  unfold existsVerifier
-  fun_prop
+  fun_prop [existsVerifier]
 
 /-- One trial accepts, with the strings `w` passing the test as prefixes, the witnesses of `W`
 after `u ++ w ++ r`. -/
@@ -271,16 +259,12 @@ private theorem acceptCount_trialVerifier (W : α × List Bool → Bool) (a : α
   classical
   rw [acceptCount_add, Finset.sum_filter]
   refine Finset.sum_congr rfl fun x _ => ?_
-  have hlen : (List.ofFn x).length = M := List.length_ofFn
   have htrial (w : List Bool) : trialVerifier W a u r M level seed (List.ofFn x ++ w) =
       (hashesToZero level seed (List.ofFn x) && W (a, u ++ List.ofFn x ++ r ++ w)) := by
-    rw [trialVerifier, List.take_left' hlen, List.drop_left' hlen]
-  split
-  · rename_i hx
-    refine acceptCount_congr (fun w => ?_) _
-    rw [htrial, hx, Bool.true_and]
-  · rename_i hx
-    simp [acceptCount, htrial, hx]
+    rw [trialVerifier, List.take_left' List.length_ofFn, List.drop_left' List.length_ofFn]
+  split_ifs with hx
+  · exact acceptCount_congr (fun w => by rw [htrial, hx, Bool.true_and]) _
+  · simp [acceptCount, htrial, hx]
 
 /-- All trials accept the product over the trials of one more than the count of one trial. -/
 private theorem acceptCount_trialsVerifier (W : α × List Bool → Bool) (a : α) (u r : List Bool)
@@ -296,8 +280,7 @@ private theorem acceptCount_trialsVerifier (W : α × List Bool → Bool) (a : �
     succTest (trialVerifier W a u r M (j % (M + 3)) (BitString.listRow B j (List.ofFn σ))) b]
   refine Finset.prod_congr rfl fun j _ => ?_
   have hseed : BitString.listRow B j (List.ofFn σ) = List.ofFn (BitString.blocksEquiv σ j) := by
-    rw [BitString.listRow_eq_ofFn (count := T) B j, BitString.ofList_ofFn]
-    rfl
+    rw [BitString.listRow_eq_ofFn (count := T) B j, BitString.ofList_ofFn]; rfl
   rw [hseed, ← acceptCount_trialVerifier]
   exact acceptCount_succTest _ a (M + Z)
 
@@ -312,9 +295,8 @@ private theorem existsVerifier_append (ℓ m ρ ζ e : Polynomial ℕ) (W : α �
       succTest (trialsVerifier W a u r σ (m.eval (enc a).length) (ζ.eval (enc a).length)
         (4 * (e.eval (enc a).length + 1) * (m.eval (enc a).length + 3))
         ((m.eval (enc a).length + 2) * (m.eval (enc a).length + 1))) w := by
-  have hx : u ++ (r ++ σ) ++ w = u ++ (r ++ (σ ++ w)) := by simp only [List.append_assoc]
-  simp only [existsVerifier]
-  rw [hx, ← hu, ← hr, ← hσ, List.take_left' rfl, List.drop_left' rfl, List.take_left' rfl,
+  simp only [existsVerifier, List.append_assoc]
+  rw [← hu, ← hr, ← hσ, List.take_left' rfl, List.drop_left' rfl, List.take_left' rfl,
     ← List.drop_drop, List.drop_left' rfl, List.drop_left' rfl, List.take_left' rfl,
     ← List.drop_drop, ← List.drop_drop, List.drop_left' rfl, List.drop_left' rfl,
     List.drop_left' rfl]
@@ -386,8 +368,8 @@ theorem IsRandomParityRep.exists {ℓ m ρ ζ e : Polynomial ℕ} {W : α × Lis
   refine Finset.card_equiv eqv.symm fun r' => ?_
   obtain ⟨⟨r, s⟩, rfl⟩ := eqv.surjective r'
   simp only [mem_filter, mem_univ, true_and, Equiv.symm_apply_apply]
-  have : eqv (r, s) = Fin.append r (BitString.blocksEquiv.symm s) := rfl
-  rw [this, acceptCount_existsVerifier ℓ m ρ ζ e W a u hu rfl rfl rfl rfl rfl r,
+  rw [show eqv (r, s) = Fin.append r (BitString.blocksEquiv.symm s) from rfl,
+    acceptCount_existsVerifier ℓ m ρ ζ e W a u hu rfl rfl rfl rfl rfl r,
     Equiv.apply_symm_apply, hQ]
 
 /-! ### Alternating quantifiers -/
@@ -404,9 +386,8 @@ theorem exists_isRandomParityRep_alternation {V : α × List Bool → Bool}
         Alternation q (ps.map fun p => p.eval (enc a).length) fun w => V (a, u ++ w) = true := by
   induction ps with
   | nil =>
-    intro q ℓ e
-    refine ⟨0, 0, _, by fun_prop, (isRandomParityRep_base ℓ e V).congr fun a u _ => ?_⟩
-    simp
+    exact fun q ℓ e => ⟨0, 0, _, by fun_prop,
+      (isRandomParityRep_base ℓ e V).congr fun _ _ _ => by simp⟩
   | cons p ps ih =>
     intro q ℓ e
     cases q
@@ -442,30 +423,24 @@ theorem PH_subset_BPOp_ParityP : PH enc ⊆ BPOp enc (ParityP (encPair enc encBi
   refine ⟨ρ, L', ?_, fun a => ?_⟩
   · -- the inner problem is in `⊕P`, after padding the witnesses
     refine mem_ParityP.2 ⟨ζ, padVerifier (fun x => ζ.eval (enc x.1).length)
-      (fun x => W (x.1.1, x.1.2 ++ x.2)), ?_, fun x => ?_⟩
-    · apply computableInPolyTime_padVerifier
-      · exact (unary_eval ζ).comp ((encoding_length enc).comp (fst enc encBits))
-      · exact hW.comp
-          (((fst _ _).fst').prod (bitsAppend ((fst _ _).snd') (snd _ _)))
-    · rw [acceptCount_padVerifier_of_le _ _ (a := x)
-        (Polynomial.eval_mono _ (length_le_encPair_left _ _ x))]
-      rfl
+      (fun x => W (x.1.1, x.1.2 ++ x.2)),
+      computableInPolyTime_padVerifier
+        ((unary_eval ζ).comp ((encoding_length enc).comp (fst enc encBits)))
+        (hW.comp (((fst _ _).fst').prod (bitsAppend ((fst _ _).snd') (snd _ _)))),
+      fun x => ?_⟩
+    rw [acceptCount_padVerifier_of_le _ _ (a := x)
+      (Polynomial.eval_mono _ (length_le_encPair_left _ _ x))]
+    rfl
   · -- error `1 / 4` is bounded error
     have ha := h a [] (by simp)
-    simp only [Polynomial.eval_ofNat, List.nil_append] at ha
+    simp only [Polynomial.eval_ofNat, List.nil_append, ← hLV a] at ha
     have hsplit := Finset.card_filter_add_card_filter_not
       (s := (univ : Finset (Fin (ρ.eval (enc a).length) → Bool)))
       (fun r => Odd (acceptCount (fun x => W (x.1, List.ofFn r ++ x.2)) a (ζ.eval (enc a).length)))
     simp only [card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at hsplit
     simp only [BoundedErrorAt, hL', Set.mem_ofPred_eq, decide_eq_true_eq,
       decide_eq_false_iff_not]
-    rw [← hLV a] at ha
-    constructor
-    · intro (haL : a ∈ L)
-      simp only [haL, iff_true] at ha
-      omega
-    · intro (haL : a ∉ L)
-      simp only [haL, iff_false, not_not] at ha
-      omega
+    exact ⟨fun (haL : a ∈ L) => by simp only [haL, iff_true] at ha; omega,
+      fun (haL : a ∉ L) => by simp only [haL, iff_false, not_not] at ha; omega⟩
 
 end Cslib.Complexity

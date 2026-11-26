@@ -131,13 +131,8 @@ variable {w : ℕ} {p : Program B r} {s : State r}
 theorem stepRand_eq_ofOutcome_of_ne_rand
     (h : ∀ dst src, p[s.pc]? ≠ some (.rand dst src)) :
     stepRand w p (.running s) = pure (.ofOutcome s.data (step w p s)) := by
-  rcases hpc : p[s.pc]? with _ | (_ | _ | _ | _ | ⟨dst, src⟩)
-  · simp only [stepRand, hpc]
-  · simp only [stepRand, hpc]
-  · simp only [stepRand, hpc]
-  · simp only [stepRand, hpc]
-  · simp only [stepRand, hpc]
-  · exact absurd hpc (h dst src)
+  rcases hpc : p[s.pc]? with _ | (_ | _ | _ | _ | ⟨dst, src⟩) <;>
+    first | exact absurd hpc (h _ _) | simp only [stepRand, hpc]
 
 theorem stepRand_halted (v : ℕ) (d : Data r) :
     stepRand w p (.halted v d) = pure (.halted v d) := rfl
@@ -193,19 +188,13 @@ theorem stepRand_rand_of_not_fits {dst src : Fin r} (hp : p[s.pc]? = some (.rand
 `stepRand`. -/
 theorem stepRand_of_step_eq_next {t : State r} (h : step w p s = .next t) :
     stepRand w p (.running s) = pure (.running t) := by
-  have hnr : ∀ dst src, p[s.pc]? ≠ some (.rand dst src) := fun _ _ hpc => by
-    rw [step_rand hpc] at h
-    cases h
-  rw [stepRand_eq_ofOutcome_of_ne_rand hnr, h]
+  rw [stepRand_eq_ofOutcome_of_ne_rand (fun _ _ hpc => nomatch (step_rand hpc).symm.trans h), h]
   rfl
 
 /-- A deterministic `halt` step agrees unconditionally with `stepRand`, retaining `s.data`. -/
 theorem stepRand_of_step_eq_halt {v : ℕ} (h : step w p s = .halt v) :
     stepRand w p (.running s) = pure (.halted v s.data) := by
-  have hnr : ∀ dst src, p[s.pc]? ≠ some (.rand dst src) := fun _ _ hpc => by
-    rw [step_rand hpc] at h
-    cases h
-  rw [stepRand_eq_ofOutcome_of_ne_rand hnr, h]
+  rw [stepRand_eq_ofOutcome_of_ne_rand (fun _ _ hpc => nomatch (step_rand hpc).symm.trans h), h]
   rfl
 
 end StepRand
@@ -263,8 +252,8 @@ theorem evalRand_zero (w : ℕ) (p : Program B r) (s : State r) :
 
 theorem evalRand_succ (w : ℕ) (p : Program B r) (T : ℕ) (s : State r) :
     evalRand w p (T + 1) s =
-      (stepRand w p (.running s)).eval.bind fun cfg => (runRand w p T cfg).eval := by
-  rw [evalRand, runRand_succ, ProbComp.eval_bind]
+      (stepRand w p (.running s)).eval.bind fun cfg => (runRand w p T cfg).eval :=
+  ProbComp.eval_bind _ _
 
 theorem support_evalRand (w : ℕ) (p : Program B r) (T : ℕ) (s : State r) :
     (evalRand w p T s).support = (runRand w p T (.running s)).support :=
@@ -300,62 +289,39 @@ theorem evalRand_mapOp (φ : B.Hom B') (w : ℕ) (p : Program B r) (T : ℕ) (s 
 theorem stepRand_bounded {w : ℕ} {p : Program B r} {cfg cfg' : RandCfg r}
     (hcfg : cfg.Bounded w) (hmem : cfg' ∈ (stepRand w p cfg).support) :
     cfg'.Bounded w := by
+  have hpure {c : RandCfg r} (h : stepRand w p cfg = pure c) (hb : c.Bounded w) :
+      cfg'.Bounded w :=
+    (OracleComp.eq_of_mem_supportWith_pure (h ▸ hmem)).symm ▸ hb
   cases cfg with
-  | halted v d =>
-    cases OracleComp.eq_of_mem_supportWith_pure hmem
-    exact hcfg
-  | faulted =>
-    cases OracleComp.eq_of_mem_supportWith_pure hmem
-    trivial
+  | halted v d => exact hpure (stepRand_halted v d) hcfg
+  | faulted => exact hpure stepRand_faulted trivial
   | running s =>
     have hs : s.data.Bounded w := hcfg
     cases hpc : p[s.pc]? with
-    | none =>
-      rw [stepRand_none hpc] at hmem
-      cases OracleComp.eq_of_mem_supportWith_pure hmem
-      trivial
+    | none => exact hpure (stepRand_none hpc) trivial
     | some instr =>
       cases instr with
       | op o =>
         cases ho : o.eval w s.data with
-        | none =>
-          rw [stepRand_op_fault hpc ho] at hmem
-          cases OracleComp.eq_of_mem_supportWith_pure hmem
-          trivial
-        | some x =>
-          rw [stepRand_op hpc ho] at hmem
-          cases OracleComp.eq_of_mem_supportWith_pure hmem
-          exact hs.op ho
-      | jump t =>
-        rw [stepRand_jump hpc] at hmem
-        cases OracleComp.eq_of_mem_supportWith_pure hmem
-        exact hs
-      | branch c t =>
-        rw [stepRand_branch hpc] at hmem
-        cases OracleComp.eq_of_mem_supportWith_pure hmem
-        exact hs
-      | halt i =>
-        rw [stepRand_halt hpc] at hmem
-        cases OracleComp.eq_of_mem_supportWith_pure hmem
-        exact ⟨hs.1 i, hs⟩
+        | none => exact hpure (stepRand_op_fault hpc ho) trivial
+        | some x => exact hpure (stepRand_op hpc ho) (hs.op ho)
+      | jump _ => exact hpure (stepRand_jump hpc) hs
+      | branch _ _ => exact hpure (stepRand_branch hpc) hs
+      | halt i => exact hpure (stepRand_halt hpc) ⟨hs.1 i, hs⟩
       | rand dst src =>
         by_cases hfit : Fits w (s.data.regs src)
         · rw [stepRand_rand_of_fits hpc hfit] at hmem
           obtain ⟨k, -, hk⟩ := OracleComp.mem_supportWith_bind_iff.mp hmem
           cases OracleComp.eq_of_mem_supportWith_pure hk
           exact hs.set (hfit.of_le (Nat.le_of_lt_succ k.isLt))
-        · rw [stepRand_rand_of_not_fits hpc hfit] at hmem
-          cases OracleComp.eq_of_mem_supportWith_pure hmem
-          trivial
+        · exact hpure (stepRand_rand_of_not_fits hpc hfit) trivial
 
 /-- Clocked randomized execution preserves `RandCfg.Bounded w`. -/
 theorem runRand_bounded {w : ℕ} {p : Program B r} {T : ℕ} {cfg cfg' : RandCfg r}
     (hcfg : cfg.Bounded w) (hmem : cfg' ∈ (runRand w p T cfg).support) :
     cfg'.Bounded w := by
   induction T generalizing cfg with
-  | zero =>
-    cases OracleComp.eq_of_mem_supportWith_pure hmem
-    exact hcfg
+  | zero => exact (OracleComp.eq_of_mem_supportWith_pure hmem).symm ▸ hcfg
   | succ T ih =>
     obtain ⟨mid, hmid, hrest⟩ := OracleComp.mem_supportWith_bind_iff.mp hmem
     exact ih (stepRand_bounded hcfg hmid) hrest
@@ -376,10 +342,9 @@ theorem stepRand_eq_of_isRandFree {w : ℕ} {p : Program B r} (hp : p.IsRandFree
 
 /-- Injectivity of `pure` in `OracleComp` via its singleton support. -/
 private theorem pure_injective {α : Type} {a b : α}
-    (h : (pure a : ProbComp α) = pure b) : a = b := by
-  have hmem : a ∈ (pure a : ProbComp α).support := rfl
-  rw [h] at hmem
-  exact OracleComp.eq_of_mem_supportWith_pure hmem
+    (h : (pure a : ProbComp α) = pure b) : a = b :=
+  OracleComp.eq_of_mem_supportWith_pure
+    (Eq.mp (congrArg (fun x : ProbComp α => a ∈ x.support) h) rfl)
 
 /-- A deterministic `m`-step `Runs` lifts unconditionally to `runRand` (no `IsRandFree` needed, as
 `Runs` never visits `Instr.rand`). -/
@@ -405,11 +370,8 @@ theorem stepRand_isQueryBounded_zero_of_isRandFree {w : ℕ} {p : Program B r}
     (hp : p.IsRandFree) (cfg : RandCfg r) :
     OracleComp.IsQueryBounded (stepRand w p cfg) 0 := by
   cases cfg with
-  | halted v d => exact .pure _ 0
-  | faulted => exact .pure _ 0
-  | running s =>
-    rw [stepRand_eq_of_isRandFree hp s]
-    exact .pure _ 0
+  | halted _ _ | faulted => exact .pure _ 0
+  | running s => exact stepRand_eq_of_isRandFree hp s ▸ .pure _ 0
 
 /-- On a `rand`-free program, clocked execution makes zero oracle calls. -/
 theorem runRand_isQueryBounded_zero_of_isRandFree {w T : ℕ} {p : Program B r}
@@ -467,9 +429,8 @@ def RandFaultFree (w : ℕ) (p : Program B r) (s : State r) : Prop :=
 /-- Under `RandFaultFree`, the fault probability vanishes at every horizon `T`. -/
 theorem RandFaultFree.evalRand_faulted_eq_zero {w : ℕ} {p : Program B r} {s : State r}
     (h : RandFaultFree w p s) (T : ℕ) :
-    evalRand w p T s .faulted = 0 := by
-  rw [PMF.apply_eq_zero_iff, support_evalRand]
-  exact h T
+    evalRand w p T s .faulted = 0 :=
+  (PMF.apply_eq_zero_iff _ _).mpr (support_evalRand w p T s ▸ h T)
 
 /-- Every supported randomized execution path from `s` has halted cleanly within `T` steps. -/
 def RandHaltsWithin (w : ℕ) (p : Program B r) (s : State r) (T : ℕ) : Prop :=
@@ -482,13 +443,9 @@ theorem runRand_eq_of_randHaltsWithin {w T T' : ℕ} {p : Program B r} {s : Stat
     runRand w p T' (.running s) = runRand w p T (.running s) := by
   obtain ⟨k, rfl⟩ : ∃ k, T' = T + k := ⟨T' - T, by omega⟩
   rw [runRand_add]
-  have hcongr : (runRand w p T (.running s) >>= runRand w p k) =
-      (runRand w p T (.running s) >>= pure) := by
-    refine OracleComp.bind_congr_on_support fun cfg hmem => ?_
-    obtain ⟨v, d, rfl⟩ := h cfg hmem
-    exact runRand_halted w p k v d
-  rw [bind_pure] at hcongr
-  exact hcongr
+  refine (OracleComp.bind_congr_on_support fun cfg hmem => ?_).trans (bind_pure _)
+  obtain ⟨v, d, rfl⟩ := h cfg hmem
+  exact runRand_halted w p k v d
 
 /-- Increasing fuel preserves the output distribution once `RandHaltsWithin` holds. -/
 theorem evalRand_eq_of_randHaltsWithin {w T T' : ℕ} {p : Program B r} {s : State r}
@@ -499,24 +456,19 @@ theorem evalRand_eq_of_randHaltsWithin {w T T' : ℕ} {p : Program B r} {s : Sta
 /-- `RandHaltsWithin` is monotone in the step bound. -/
 theorem RandHaltsWithin.mono {w T T' : ℕ} {p : Program B r} {s : State r}
     (h : RandHaltsWithin w p s T) (hT : T ≤ T') :
-    RandHaltsWithin w p s T' := by
-  intro cfg hmem
-  rw [runRand_eq_of_randHaltsWithin h hT] at hmem
-  exact h cfg hmem
+    RandHaltsWithin w p s T' :=
+  fun cfg hmem => h cfg (runRand_eq_of_randHaltsWithin h hT ▸ hmem)
 
 /-- Any program whose randomized runs halt within `T` steps is fault-free at all horizons. -/
 theorem RandHaltsWithin.randFaultFree {w T : ℕ} {p : Program B r} {s : State r}
     (h : RandHaltsWithin w p s T) :
     RandFaultFree w p s := by
   intro t hmem
-  have hmem_max : RandCfg.faulted ∈ (runRand w p (max t T) (.running s)).support := by
-    have heq : max t T = t + (max t T - t) := by omega
-    rw [heq, runRand_add]
+  have hmem' : .faulted ∈ (runRand w p T (.running s)).support := by
+    rw [← runRand_eq_of_randHaltsWithin h (Nat.le_add_left T t), runRand_add]
     exact OracleComp.mem_supportWith_bind_iff.mpr
-      ⟨.faulted, hmem, by simp only [runRand_faulted]; rfl⟩
-  rw [runRand_eq_of_randHaltsWithin h (le_max_right t T)] at hmem_max
-  obtain ⟨v, d, hvd⟩ := h RandCfg.faulted hmem_max
-  cases hvd
+      ⟨.faulted, hmem, by rw [runRand_faulted]; rfl⟩
+  rcases h .faulted hmem' with ⟨_, _, ⟨⟩⟩
 
 /-- Worst-case `rand`-call budget: at most `R` `rand` instructions are executed on every path within
 `T` steps (including `rand(0)`). -/
@@ -534,8 +486,7 @@ calls. -/
 theorem RandCallsBounded.of_randHaltsWithin {w T T' R : ℕ} {p : Program B r} {s : State r}
     (hhalt : RandHaltsWithin w p s T) (hr : RandCallsBounded w p s T R) (hT : T ≤ T') :
     RandCallsBounded w p s T' R := by
-  rw [RandCallsBounded, runRand_eq_of_randHaltsWithin hhalt hT]
-  exact hr
+  rwa [RandCallsBounded, runRand_eq_of_randHaltsWithin hhalt hT]
 
 /-- Nominal bit cost of a single `ProbComp.unifFin n` draw: `⌈log₂(n + 1)⌉` (`0` bits for
 `rand(0)`, `w` bits for `rand(2 ^ w - 1)`). Charging `⌈log₂(n + 1)⌉` bits per draw is an
@@ -552,8 +503,7 @@ theorem unifBitCost_two_pow_sub_one (w : ℕ) : unifBitCost (2 ^ w - 1) = w := b
   cases w with
   | zero => rfl
   | succ w =>
-    have hpos : 1 ≤ 2 ^ (w + 1) := Nat.one_le_two_pow
-    simp only [unifBitCost, Nat.sub_add_cancel hpos]
+    simp only [unifBitCost, Nat.sub_add_cancel (Nat.one_le_two_pow (n := w + 1))]
     exact Nat.clog_pow 2 (w + 1) (by decide)
 
 theorem unifBitCost_le_of_fits {w n : ℕ} (h : Fits w n) : unifBitCost n ≤ w :=
@@ -574,10 +524,8 @@ theorem stepRand_queriesSatisfy_fits (w : ℕ) (p : Program B r) (cfg : RandCfg 
       by_cases hfit : Fits w (s.data.regs src)
       · rw [stepRand_rand_of_fits hpc hfit]
         exact (OracleComp.QueriesSatisfy.query hfit).bind fun _ => .pure _
-      · rw [stepRand_rand_of_not_fits hpc hfit]
-        exact .pure _
-    · rw [stepRand_eq_ofOutcome_of_ne_rand fun dst src hpc => hr ⟨dst, src, hpc⟩]
-      exact .pure _
+      · exact stepRand_rand_of_not_fits hpc hfit ▸ .pure _
+    · exact stepRand_eq_ofOutcome_of_ne_rand (fun dst src hpc => hr ⟨dst, src, hpc⟩) ▸ .pure _
 
 /-- Every `ProbComp.unifFin n` query issued by `runRand` satisfies `Fits w n`. -/
 theorem runRand_queriesSatisfy_fits (w : ℕ) (p : Program B r) (T : ℕ) (cfg : RandCfg r) :

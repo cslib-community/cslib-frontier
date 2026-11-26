@@ -23,12 +23,18 @@ numbers in `[0,1]`. Loops retain their two ends, parallel edges retain their lis
 and sparse or duplicate declarations, isolates, disconnected graphs and the empty graph
 are permitted. There is no degree bound or supplied topological, face-color or genus oracle.
 
-This is an original finite PL proof. It does not establish a topological-source comparison,
-taming of arbitrary topological arcs, Hanani–Tutte, a recognition algorithm or a CSP dichotomy.
+The original finite PL proof also applies to a regular drawing with simple routes and
+even crossings between every distinct pair of edges. This gives the all-pairs-even
+case, with the literal clockwise rotation preserved. The listed points in a regular
+drawing are injective along each route, so this case covers loopless multigraphs.
+A topological-source comparison,
+taming of arbitrary topological arcs, the independently-even case, recognition and
+the planar CSP dichotomy remain open.
 
 ## Main results
 
 * `Cslib.Complexity.Graph.PolygonalDrawing.IsEmbedding.numericalGenusZero`.
+* `HasRegularContacts.numericalGenusZero_of_pairwise_even_crossings`.
 -/
 
 public section
@@ -43,5 +49,18 @@ theorem IsEmbedding.numericalGenusZero {G : Graph} {D : PolygonalDrawing G}
     r.NumericalGenusZero :=
   r.numericalGenusZero_of_vertexEven_faceBoundary hG
     (fun x hx => hD.exists_faceColors hR hG x hx)
+
+/-- The literal clockwise rotation of a regular polygonal drawing with simple
+routes and even crossings between all distinct edge pairs has numerical genus zero.
+This is the all-pairs-even case under the regular polygonal drawing hypotheses. -/
+theorem HasRegularContacts.numericalGenusZero_of_pairwise_even_crossings
+    {G : Graph} {D : PolygonalDrawing G}
+    (hD : D.HasRegularContacts) (hsimple : ∀ e, (D.route e).IsSimple)
+    (heven : ∀ e f, e ≠ f → (D.route e).intersectionParity (D.route f) = false)
+    {r : RotationSystem G} (hR : D.Realizes r)
+    (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices) :
+    r.NumericalGenusZero :=
+  r.numericalGenusZero_of_vertexEven_faceBoundary hG
+    (fun x hx => hD.exists_faceColors_of_pairwise_even_crossings hsimple heven hR hG x hx)
 
 end Cslib.Complexity.Graph.PolygonalDrawing

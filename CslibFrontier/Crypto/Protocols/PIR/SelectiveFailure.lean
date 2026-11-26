@@ -181,15 +181,14 @@ theorem eval_runWithServer (x : ι → β) (s₀ : S) (malAns : Q → A) (i : ι
     ProbComp.eval (P.runWithServer x s₀ malAns i) =
       (ProbComp.eval (P.query i)).map (fun rq =>
         P.reconstruct i rq.1
-          (Function.update (fun s => P.answer s x (rq.2 s)) s₀ (malAns (rq.2 s₀)))) := by
-  rw [runWithServer, ProbComp.eval_map]
+          (Function.update (fun s => P.answer s x (rq.2 s)) s₀ (malAns (rq.2 s₀)))) :=
+  ProbComp.eval_map _ _
 
 /-- When server `s₀` uses its honest answer function `P.answer s₀ x`, `runWithServer` has the same
 output distribution as the honest execution `P.run x i`. -/
 @[simp] theorem eval_runWithServer_answer (x : ι → β) (s₀ : S) (i : ι) :
     ProbComp.eval (P.runWithServer x s₀ (P.answer s₀ x) i) = ProbComp.eval (P.run x i) := by
-  rw [eval_runWithServer, eval_run]
-  simp only [Function.update_eq_self]
+  simp only [eval_runWithServer, eval_run, Function.update_eq_self]
 
 /-- Protocol-agnostic `SelectiveFailure.Model` instantiated for single-server active deviations in
 `P` on a fixed database `x : ι → β`:
@@ -267,15 +266,11 @@ variable [Fintype S] [DecidableEq S] {P : Scheme ι S R Q Bool}
 by `b + f s₀`. -/
 private theorem sum_update_bool (f : S → Bool) (s₀ : S) (b : Bool) :
     (∑ s : S, Function.update f s₀ b s) = (∑ s : S, f s) + (b + f s₀) := by
-  have hupd : Function.update f s₀ b = f + Pi.single s₀ (b + f s₀) := by
-    funext s
-    by_cases hs : s = s₀
-    · subst hs
-      simp only [Function.update_self, Pi.add_apply, Pi.single_eq_same]
-      cases b <;> cases f s <;> decide
-    · simp [hs]
-  rw [hupd, Pi.add_def, Finset.sum_add_distrib, Finset.sum_pi_single',
-    ite_eq_left (Finset.mem_univ s₀)]
+  rw [← Finset.add_sum_erase _ _ (Finset.mem_univ s₀),
+    ← Finset.add_sum_erase _ f (Finset.mem_univ s₀), Function.update_self,
+    Finset.sum_congr rfl fun s hs => Function.update_of_ne (Finset.ne_of_mem_erase hs) b f]
+  nth_rw 1 [show b = f s₀ + (b + f s₀) by cases b <;> cases f s₀ <;> decide]
+  abel
 
 /-- In `Bool` (`BooleanRing`), `decide (a + δ ≠ a) = δ`. -/
 private theorem decide_add_ne_self_bool (a δ : Bool) : decide (a + δ ≠ a) = δ := by
@@ -341,48 +336,22 @@ theorem isDeterministicAttack_rows [DecidableEq ρ] (hcorrect : P.IsCorrect)
     (P.rows ρ).IsDeterministicAttack x s₀ (P.rowsFlipAttack x s₀ j₀)
       (fun ji => decide (ji.1 = j₀)) := by
   have hxor' := (P.hasXorReconstruct_iff).mp hxor
-  refine ((P.rows ρ).selectiveFailureModel x).isDeterministicAttack_of_slot
-    (fun ji => (P.rows ρ).query ji)
-    (fun ji rq => (P.rows ρ).reconstruct ji rq.1
-      (Function.update (fun s => (P.rows ρ).answer s x (rq.2 s)) s₀
-        (P.rowsFlipAttack x s₀ j₀ (rq.2 s₀))))
-    Prod.fst j₀ (s₀, P.rowsFlipAttack x s₀ j₀) (fun _ => rfl) ?_ ?_
-  · intro ⟨j, i⟩ ⟨r, q⟩ hrq hj
-    dsimp only at hj
-    subst hj
-    rw [query_rows] at hrq
-    have hproj :
-        (fun s => Function.update (fun s => (P.rows ρ).answer s x (q s)) s₀
-          (P.rowsFlipAttack x s₀ j (q s₀)) s j) =
-        Function.update (fun s => P.answer s (fun i' => x (j, i')) (q s)) s₀
-          (!(P.answer s₀ (fun i' => x (j, i')) (q s₀))) := by
-      funext s
-      by_cases hs : s = s₀
-      · subst hs
-        simp [rowsFlipAttack, answer_rows]
-      · simp [hs, answer_rows]
-    dsimp only [selectiveFailureModel]
-    rw [reconstruct_rows, hproj, hxor', sum_update_bool,
-      ← hxor' i r (fun s => P.answer s (fun i' => x (j, i')) (q s)),
-      hcorrect.reconstruct_eq (fun i' => x (j, i')) i hrq]
-    generalize P.answer s₀ (fun i' => x (j, i')) (q s₀) = a₀
-    generalize x (j, i) = b
-    cases a₀ <;> cases b <;> decide
-  · intro ⟨j, i⟩ ⟨r, q⟩ hrq hj
-    dsimp only at hj
-    rw [query_rows] at hrq
-    have hproj :
-        (fun s => Function.update (fun s => (P.rows ρ).answer s x (q s)) s₀
-          (P.rowsFlipAttack x s₀ j₀ (q s₀)) s j) =
-        fun s => P.answer s (fun i' => x (j, i')) (q s) := by
-      funext s
-      by_cases hs : s = s₀
-      · subst hs
-        simp [rowsFlipAttack, hj, answer_rows]
-      · simp [hs, answer_rows]
-    dsimp only [selectiveFailureModel]
-    rw [reconstruct_rows, hproj]
-    exact hcorrect.reconstruct_eq (fun i' => x (j, i')) i hrq
+  simp only [IsDeterministicAttack, SelectiveFailure.Model.isDeterministicAttack_iff,
+    selectiveFailureModel, eval_runWithServer]
+  rintro ⟨j, i⟩ _ hout
+  obtain ⟨⟨r, q⟩, hrq, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hout
+  rw [query_rows] at hrq
+  rw [reconstruct_rows,
+    funext fun s => Function.apply_update (fun _ (r : ρ → Bool) => r j) _ s₀ _ s]
+  simp only [answer_rows]
+  rw [hxor', sum_update_bool,
+    ← hxor' i r (fun s => P.answer s (fun i' => x (j, i')) (q s)),
+    hcorrect.reconstruct_eq (fun i' => x (j, i')) i hrq, decide_add_ne_self_bool]
+  rcases eq_or_ne j j₀ with rfl | hj
+  · simp only [rowsFlipAttack, Function.update_self, answer_rows, decide_true]
+    cases P.answer s₀ (fun i' => x (j, i')) (q s₀) <;> decide
+  · simp only [rowsFlipAttack, Function.update_of_ne hj, answer_rows, hj, decide_false]
+    cases P.answer s₀ (fun i' => x (j, i')) (q s₀) <;> decide
 
 /-- Flipping row `j₀` in `P.rows ρ` distinguishes any query `(j₀, i₀)` in row `j₀` from any query
 `(j₁, i₁)` in row `j₁ ≠ j₀` with selective-failure advantage `1`. -/
@@ -400,9 +369,7 @@ theorem not_isSelectiveFailureFree_rows [Nonempty S] [Nonempty ι] [Nontrivial �
     (hcorrect : P.IsCorrect) (hxor : P.HasXorReconstruct) :
     ¬ (P.rows ρ).IsSelectiveFailureFree := by
   classical
-  obtain ⟨s₀⟩ := ‹Nonempty S›
-  obtain ⟨i₀⟩ := ‹Nonempty ι›
-  obtain ⟨j₀, j₁, hj⟩ := exists_pair_ne ρ
+  rcases ‹Nonempty S›, ‹Nonempty ι›, exists_pair_ne ρ with ⟨⟨s₀⟩, ⟨i₀⟩, j₀, j₁, hj⟩
   exact (isDeterministicAttack_rows hcorrect hxor (fun _ => false) s₀ j₀).not_isSelectiveFailureFree
     (i₀ := (j₀, i₀)) (i₁ := (j₁, i₀)) (by simp [hj.symm])
 
@@ -421,48 +388,24 @@ theorem isDeterministicAttack_toBlock_toBitScheme [DecidableEq κ] (hcorrect : P
     (P.toBlock κ).toBitScheme.IsDeterministicAttack x s₀ (P.toBlockBitFlipAttack x s₀ b₀)
       (fun ib => decide (ib.2 = b₀)) := by
   have hxor' := (P.hasXorReconstruct_iff).mp hxor
-  refine ((P.toBlock κ).toBitScheme.selectiveFailureModel x).isDeterministicAttack_of_slot
-    (fun ib => (P.toBlock κ).toBitScheme.query ib)
-    (fun ib rq => (P.toBlock κ).toBitScheme.reconstruct ib rq.1
-      (Function.update (fun s => (P.toBlock κ).toBitScheme.answer s x (rq.2 s)) s₀
-        (P.toBlockBitFlipAttack x s₀ b₀ (rq.2 s₀))))
-    Prod.snd b₀ (s₀, P.toBlockBitFlipAttack x s₀ b₀) (fun _ => rfl) ?_ ?_
-  · intro ⟨i, b⟩ ⟨r, q⟩ hrq hb
-    dsimp only at hb
-    subst hb
-    rw [query_toBitScheme, query_toBlock] at hrq
-    have hproj :
-        (fun s => Function.update (fun s => (P.toBlock κ).toBitScheme.answer s x (q s)) s₀
-          (P.toBlockBitFlipAttack x s₀ b (q s₀)) s b) =
-        Function.update (fun s => P.answer s (fun i' => x (i', b)) (q s)) s₀
-          (!(P.answer s₀ (fun i' => x (i', b)) (q s₀))) := by
-      funext s
-      by_cases hs : s = s₀
-      · subst hs
-        simp [toBlockBitFlipAttack, answer_toBitScheme, answer_toBlock]
-      · simp [hs, answer_toBitScheme, answer_toBlock]
-    dsimp only [selectiveFailureModel]
-    rw [reconstruct_toBitScheme, reconstruct_toBlock, hproj, hxor', sum_update_bool,
-      ← hxor' i r (fun s => P.answer s (fun i' => x (i', b)) (q s)),
-      hcorrect.reconstruct_eq (fun i' => x (i', b)) i hrq]
-    generalize P.answer s₀ (fun i' => x (i', b)) (q s₀) = a₀
-    generalize x (i, b) = xb
-    cases a₀ <;> cases xb <;> decide
-  · intro ⟨i, b⟩ ⟨r, q⟩ hrq hb
-    dsimp only at hb
-    rw [query_toBitScheme, query_toBlock] at hrq
-    have hproj :
-        (fun s => Function.update (fun s => (P.toBlock κ).toBitScheme.answer s x (q s)) s₀
-          (P.toBlockBitFlipAttack x s₀ b₀ (q s₀)) s b) =
-        fun s => P.answer s (fun i' => x (i', b)) (q s) := by
-      funext s
-      by_cases hs : s = s₀
-      · subst hs
-        simp [toBlockBitFlipAttack, answer_toBitScheme, answer_toBlock, hb]
-      · simp [hs, answer_toBitScheme, answer_toBlock]
-    dsimp only [selectiveFailureModel]
-    rw [reconstruct_toBitScheme, reconstruct_toBlock, hproj]
-    exact hcorrect.reconstruct_eq (fun i' => x (i', b)) i hrq
+  simp only [IsDeterministicAttack, SelectiveFailure.Model.isDeterministicAttack_iff,
+    selectiveFailureModel, eval_runWithServer]
+  rintro ⟨i, b⟩ _ hout
+  obtain ⟨⟨r, q⟩, hrq, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hout
+  rw [query_toBitScheme, query_toBlock] at hrq
+  rw [reconstruct_toBitScheme, reconstruct_toBlock,
+    funext fun s => Function.apply_update (fun _ (r : κ → Bool) => r b) _ s₀ _ s]
+  simp only [answer_toBitScheme, answer_toBlock]
+  rw [hxor', sum_update_bool,
+    ← hxor' i r (fun s => P.answer s (fun i' => x (i', b)) (q s)),
+    hcorrect.reconstruct_eq (fun i' => x (i', b)) i hrq, decide_add_ne_self_bool]
+  rcases eq_or_ne b b₀ with rfl | hb
+  · simp only [toBlockBitFlipAttack, Function.update_self, answer_toBitScheme, answer_toBlock,
+      decide_true]
+    cases P.answer s₀ (fun i' => x (i', b)) (q s₀) <;> decide
+  · simp only [toBlockBitFlipAttack, Function.update_of_ne hb, answer_toBitScheme, answer_toBlock,
+      hb, decide_false]
+    cases P.answer s₀ (fun i' => x (i', b)) (q s₀) <;> decide
 
 /-- Block-lifted bit retrieval `(P.toBlock κ).toBitScheme` is not selective-failure free whenever
 `S` and `ι` are nonempty and the block coordinate type `κ` has at least two coordinates. -/
@@ -470,12 +413,9 @@ theorem not_isSelectiveFailureFree_toBlock_toBitScheme [Nonempty S] [Nonempty ι
     (hcorrect : P.IsCorrect) (hxor : P.HasXorReconstruct) :
     ¬ (P.toBlock κ).toBitScheme.IsSelectiveFailureFree := by
   classical
-  obtain ⟨s₀⟩ := ‹Nonempty S›
-  obtain ⟨i₀⟩ := ‹Nonempty ι›
-  obtain ⟨b₀, b₁, hb⟩ := exists_pair_ne κ
-  exact (isDeterministicAttack_toBlock_toBitScheme hcorrect hxor
-    (fun _ => false) s₀ b₀).not_isSelectiveFailureFree
-    (i₀ := (i₀, b₀)) (i₁ := (i₀, b₁)) (by simp [hb.symm])
+  rcases ‹Nonempty S›, ‹Nonempty ι›, exists_pair_ne κ with ⟨⟨s₀⟩, ⟨i₀⟩, b₀, b₁, hb⟩
+  exact (isDeterministicAttack_toBlock_toBitScheme hcorrect hxor (fun _ => false) s₀
+    b₀).not_isSelectiveFailureFree (i₀ := (i₀, b₀)) (i₁ := (i₀, b₁)) (by simp [hb.symm])
 
 end RowsAndBlockAttack
 
@@ -547,16 +487,8 @@ private theorem readAnswer_update_coverFlipAttack_of_ne (x : (D → ι) → Bool
           (K.coverFlipAttack x s₀ r₀ k₀ (q s₀))) =
       K.readAnswer i (K.cover w) (fun s => (K.scheme ι).answer s x (q s)) := by
   have hcov_ne : K.cover w ≠ (s₀, some r₀) := fun h => hne (K.cover_injective (h.trans hw₀.symm))
-  rcases hcov : K.cover w with ⟨s, _ | r⟩
-  · by_cases hs : s = s₀
-    · subst hs
-      simp [readAnswer, coverFlipAttack]
-    · simp [readAnswer, hs]
-  · by_cases hs : s = s₀
-    · subst hs
-      have hr : r ≠ r₀ := fun hr => hcov_ne (by rw [hcov, hr])
-      simp [readAnswer, coverFlipAttack, hr]
-    · simp [readAnswer, hs]
+  rcases hcov : K.cover w with ⟨s, _ | r⟩ <;> by_cases hs : s = s₀ <;>
+    simp_all [readAnswer, coverFlipAttack]
 
 /-- At the unique vertex `w₀` with `K.cover w₀ = (s₀, some r₀)`, `K.readAnswer` on the perturbed
 answer profile equals `!(honest)` when `i (K.dir s₀ r₀) = k₀` and `honest` otherwise. -/
@@ -585,57 +517,24 @@ theorem isDeterministicAttack_scheme (x : (D → ι) → Bool) {w₀ : D → Boo
     (hw₀ : K.cover w₀ = (s₀, some r₀)) (k₀ : ι) :
     (K.scheme ι).IsDeterministicAttack x s₀ (K.coverFlipAttack x s₀ r₀ k₀)
       (fun i => decide (i (K.dir s₀ r₀) = k₀)) := by
-  refine ((K.scheme ι).selectiveFailureModel x).isDeterministicAttack_of_slot
-    (fun i => (K.scheme ι).query i)
-    (fun i rq => (K.scheme ι).reconstruct i rq.1
-      (Function.update (fun s => (K.scheme ι).answer s x (rq.2 s)) s₀
-        (K.coverFlipAttack x s₀ r₀ k₀ (rq.2 s₀))))
-    (fun i => i (K.dir s₀ r₀)) k₀ (s₀, K.coverFlipAttack x s₀ r₀ k₀) (fun _ => rfl) ?_ ?_
-  · intro i ⟨r, q⟩ hrq hik
-    have hsum :
-        (K.scheme ι).reconstruct i r
-          (Function.update (fun s => (K.scheme ι).answer s x (q s)) s₀
-            (K.coverFlipAttack x s₀ r₀ k₀ (q s₀))) =
-          (K.scheme ι).reconstruct i r (fun s => (K.scheme ι).answer s x (q s)) +
-            decide (i (K.dir s₀ r₀) = k₀) := by
-      rw [K.reconstruct_scheme, K.reconstruct_scheme,
-        ← Finset.add_sum_erase _ _ (Finset.mem_univ w₀),
-        ← Finset.add_sum_erase _ _ (Finset.mem_univ w₀),
-        K.readAnswer_update_coverFlipAttack_self x s₀ r₀ k₀ i q hw₀]
-      have hrest :
-          (∑ w ∈ Finset.univ.erase w₀,
-            K.readAnswer i (K.cover w)
-              (Function.update (fun s => (K.scheme ι).answer s x (q s)) s₀
-                (K.coverFlipAttack x s₀ r₀ k₀ (q s₀)))) =
-          ∑ w ∈ Finset.univ.erase w₀,
-            K.readAnswer i (K.cover w) (fun s => (K.scheme ι).answer s x (q s)) :=
-        Finset.sum_congr rfl fun w hw =>
-          K.readAnswer_update_coverFlipAttack_of_ne x s₀ r₀ k₀ i q hw₀ (Finset.ne_of_mem_erase hw)
-      rw [hrest]
-      abel
-    dsimp only [Scheme.selectiveFailureModel]
-    rw [hsum, K.isCorrect_scheme.reconstruct_eq x i hrq, decide_eq_true hik]
-    generalize x i = b
-    cases b <;> decide
-  · intro i ⟨r, q⟩ hrq hik
-    dsimp only [Scheme.selectiveFailureModel]
-    rw [K.reconstruct_scheme]
-    have hcongr :
-        (∑ w : D → Bool,
-          K.readAnswer i (K.cover w)
-            (Function.update (fun s => (K.scheme ι).answer s x (q s)) s₀
-              (K.coverFlipAttack x s₀ r₀ k₀ (q s₀)))) =
-        ∑ w : D → Bool,
-          K.readAnswer i (K.cover w) (fun s => (K.scheme ι).answer s x (q s)) := by
-      refine Finset.sum_congr rfl fun w _ => ?_
-      by_cases hw : w = w₀
-      · subst hw
-        rw [K.readAnswer_update_coverFlipAttack_self x s₀ r₀ k₀ i q hw₀,
-          decide_eq_false hik]
-        exact add_zero _
-      · exact K.readAnswer_update_coverFlipAttack_of_ne x s₀ r₀ k₀ i q hw₀ hw
-    rw [hcongr, ← K.reconstruct_scheme]
-    exact K.isCorrect_scheme.reconstruct_eq x i hrq
+  simp only [Scheme.IsDeterministicAttack, SelectiveFailure.Model.isDeterministicAttack_iff,
+    Scheme.selectiveFailureModel, Scheme.eval_runWithServer]
+  intro i _ hout
+  obtain ⟨⟨r, q⟩, hrq, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hout
+  have hsum :
+      (K.scheme ι).reconstruct i r
+        (Function.update (fun s => (K.scheme ι).answer s x (q s)) s₀
+          (K.coverFlipAttack x s₀ r₀ k₀ (q s₀))) =
+        (K.scheme ι).reconstruct i r (fun s => (K.scheme ι).answer s x (q s)) +
+          decide (i (K.dir s₀ r₀) = k₀) := by
+    rw [K.reconstruct_scheme, K.reconstruct_scheme,
+      ← Finset.add_sum_erase _ _ (Finset.mem_univ w₀),
+      ← Finset.add_sum_erase _ _ (Finset.mem_univ w₀),
+      K.readAnswer_update_coverFlipAttack_self x s₀ r₀ k₀ i q hw₀,
+      Finset.sum_congr rfl fun w hw =>
+        K.readAnswer_update_coverFlipAttack_of_ne x s₀ r₀ k₀ i q hw₀ (Finset.ne_of_mem_erase hw)]
+    abel
+  rw [hsum, K.isCorrect_scheme.reconstruct_eq x i hrq, Scheme.decide_add_ne_self_bool]
 
 /-- Flipping entry `(r₀, k₀)` in `K.scheme ι` distinguishes any cube query `i₀` with
 `i₀ (K.dir s₀ r₀) = k₀` from any `i₁` with `i₁ (K.dir s₀ r₀) ≠ k₀` with advantage `1`. -/
@@ -722,16 +621,10 @@ theorem reconstruct_update_lagrangeShiftAttack (x : ι → Bool) (s₀ : S) (Δ 
         (Function.update (fun s => P.answer s x (q s)) s₀
           (P.lagrangeShiftAttack params x s₀ Δ (q s₀))) =
       (if x i then 1 else 0) + Δ := by
-  have hupd :
-      Function.update (fun s => P.answer s x (q s)) s₀
-        (P.lagrangeShiftAttack params x s₀ Δ (q s₀)) =
-      (fun s => P.answer s x (q s)) +
-        Pi.single s₀ (Δ * (Shamir.Polynomial.lagrangeWeightAtZero params.point s₀)⁻¹) := by
-    funext s
-    by_cases hs : s = s₀
-    · subst hs
-      simp [lagrangeShiftAttack]
-    · simp [hs]
+  have hupd : Function.update (fun s => P.answer s x (q s)) s₀
+      (P.lagrangeShiftAttack params x s₀ Δ (q s₀)) = (fun s => P.answer s x (q s)) +
+        Pi.single s₀ (Δ * (Shamir.Polynomial.lagrangeWeightAtZero params.point s₀)⁻¹) :=
+    funext fun s => by by_cases hs : s = s₀ <;> simp [hs, lagrangeShiftAttack]
   have hw_ne : Shamir.Polynomial.lagrangeWeightAtZero params.point s₀ ≠ 0 :=
     Shamir.Polynomial.lagrangeWeightAtZero_ne_zero params.point_injective params.point_nonzero s₀
   rw [hupd, Shamir.Polynomial.reconstruct_add, hP.reconstruct_answer_eq x i r q hrq,
@@ -751,15 +644,10 @@ theorem isDeterministicAttack (x : ι → Bool) (s₀ : S) {Δ : F} (hΔ0 : Δ �
       (Function.update (fun s => P.answer s x (rq.2 s)) s₀
         (P.lagrangeShiftAttack params x s₀ Δ (rq.2 s₀))))
     (s₀, P.lagrangeShiftAttack params x s₀ Δ)
-    (fun i => by
-      refine congrArg (· <$> P.query i) (funext fun rq => ?_)
-      rw [hP.reconstruct_eq])
-    ?_
-  intro i ⟨r, q⟩ hrq
+    (fun i => congrArg (· <$> P.query i) (funext fun _ => hP.reconstruct_eq _ _ _))
+    fun i ⟨r, q⟩ hrq => ?_
   rw [hP.reconstruct_update_lagrangeShiftAttack x s₀ Δ i hrq]
-  cases x i
-  · simpa using hΔ1
-  · simp [hΔ0]
+  cases x i <;> simp [hΔ1, hΔ0]
 
 include hP in
 /-- Under `lagrangeShiftAttack` with `Δ ≠ 0` and `Δ ≠ 1`, a single server `s₀` distinguishes any two
@@ -775,12 +663,12 @@ supply at least two distinct nonzero field elements, so there exists `Δ : F` wi
 `Δ ≠ 1`. -/
 private theorem exists_ne_zero_ne_one (params : Shamir.Params F S) (ht : 0 < params.threshold) :
     ∃ Δ : F, Δ ≠ 0 ∧ Δ ≠ 1 := by
-  have hcard : 1 < Fintype.card S := Nat.lt_of_le_of_lt ht params.threshold_lt_card
-  have : Nontrivial S := Fintype.one_lt_card_iff_nontrivial.mp hcard
+  have : Nontrivial S :=
+    Fintype.one_lt_card_iff_nontrivial.mp (Nat.lt_of_le_of_lt ht params.threshold_lt_card)
   obtain ⟨s₁, s₂, hs⟩ := exists_pair_ne S
   by_cases h1 : params.point s₁ = 1
-  · refine ⟨params.point s₂, params.point_nonzero s₂, fun h2 => hs (params.point_injective ?_)⟩
-    rw [h1, h2]
+  · exact ⟨params.point s₂, params.point_nonzero s₂,
+      fun h2 => hs (params.point_injective (h1.trans h2.symm))⟩
   · exact ⟨params.point s₁, params.point_nonzero s₁, h1⟩
 
 include hP in
@@ -789,13 +677,11 @@ selective failure attacks** on any nontrivial index type `[Nontrivial ι]`. -/
 theorem not_isSelectiveFailureFree [Nontrivial ι] (ht : 0 < params.threshold) :
     ¬ P.IsSelectiveFailureFree := by
   classical
-  have hcard : 0 < Fintype.card S := lt_trans ht params.threshold_lt_card
-  obtain ⟨s₀⟩ := Fintype.card_pos_iff.mp hcard
+  obtain ⟨s₀⟩ := Fintype.card_pos_iff.mp (lt_trans ht params.threshold_lt_card)
   obtain ⟨i₀, i₁, hi⟩ := exists_pair_ne ι
   obtain ⟨Δ, hΔ0, hΔ1⟩ := exists_ne_zero_ne_one params ht
-  let x : ι → Bool := fun i => decide (i = i₀)
-  exact (hP.isDeterministicAttack x s₀ hΔ0 hΔ1).not_isSelectiveFailureFree
-    (i₀ := i₀) (i₁ := i₁) (by simp [x, hi.symm])
+  exact (hP.isDeterministicAttack (fun i => decide (i = i₀)) s₀ hΔ0
+    hΔ1).not_isSelectiveFailureFree (i₀ := i₀) (i₁ := i₁) (by simp [hi.symm])
 
 end HasLagrangeReconstruct
 

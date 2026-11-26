@@ -67,8 +67,7 @@ noncomputable def npRelation : NPRelation (encCircuit 1) :=
 
 theorem isWitness_npRelation_iff {c : Σ n, Circuit signature n 1} {w : List Bool} :
     npRelation.IsWitness c w ↔ w.length = (encCircuit 1 c).length ∧ verifier (c, w) = true := by
-  rw [NPRelation.isWitness_iff]
-  simp [npRelation]
+  simp [NPRelation.isWitness_iff, npRelation]
 
 /-- The language of the NP relation of `CircuitSAT` is `CircuitSAT`. -/
 theorem language_npRelation : npRelation.language = CircuitSAT :=
@@ -138,20 +137,11 @@ theorem isWitness_ofCircuitWitness {φ : CNF ℕ} {w : List Bool}
 /-- The forward witness map is polynomial-time. -/
 theorem computableInPolyTime_toCircuitWitness :
     ComputableInPolyTime toCircuitWitness (encPair encCNF encBits) encBits := by
-  have hn : ComputableInPolyTime (fun x : CNF ℕ × List Bool => x.1.vars.length)
-      (encPair encCNF encBits) encUnary :=
-    (length_list _).comp (computableInPolyTime_vars.comp (fst _ _))
-  have hu : ComputableInPolyTime (fun x : CNF ℕ × List Bool => x.2.take x.1.vars.length)
-      (encPair encCNF encBits) encBits :=
-    bitsTakeWithInput (snd _ _) hn
+  have := computableInPolyTime_vars
   have hcirc := (encoding_comp computableInPolyTime_toCircuit).comp (fst encCNF encBits)
-  have hL : ComputableInPolyTime
-      (fun x : CNF ℕ × List Bool =>
-        (encCircuit 1 (toCircuit x.1)).length - (x.2.take x.1.vars.length).length)
-      (encPair encCNF encBits) encUnary := by
-    fun_prop
   unfold toCircuitWitness List.rightpad
-  exact hu.bitsAppend ((bitsReplicate false).comp hL)
+  exact (bitsTakeWithInput (snd _ _) (by fun_prop)).bitsAppend
+    ((bitsReplicate false).comp (by fun_prop))
 
 /-- The backward witness map is polynomial-time. -/
 theorem computableInPolyTime_ofCircuitWitness :

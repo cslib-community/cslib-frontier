@@ -172,16 +172,10 @@ theorem exec_node_zero {w L f a0 b0 p E : ℕ} {a b : ℤ}
     rw [hm']
     split_ifs
     · rfl
-    · apply Function.update_of_ne
-      intro he
-      apply hc
-      apply Finset.mem_union_left
-      apply Finset.mem_union_right
-      rw [Block.mem_footprint]
-      change _ ≤ c ∧ c < _
-      subst c
-      simp only [Nat.add_sub_cancel_left]
-      constructor <;> omega
+    · refine Function.update_of_ne (fun he => hc ?_) _ _
+      simp only [nodeWrites, Finset.mem_union, Block.mem_footprint, Block.Owns,
+        Nat.add_sub_cancel_left]
+      omega
   · intro z U hz
     exact (hrun z U hz).mono (by rw [traceWeight_zero]; omega)
 
@@ -209,8 +203,6 @@ theorem exec_node_enter {w L f a0 b0 d N : ℕ} (x : Data registers)
   have hL : L + 1 ≤ (L + 1) * 10 ^ L := by nlinarith only [hpow]
   obtain ⟨u, hu, humem, huf', huc, _, _, _, hul', huv', _, _, _, hureg⟩ :=
     hregs.exec_loadFrame hd hdL.le hw
-  have fixed (i : Fin registers) (hi : ¬LoadFrameLocal i) : u.regs i = x.regs i :=
-    hureg i hi
   have hc : u.regs count = N := huc.trans hN
   have hu0 : u.regs nil = 0 := by regs_frame
   have hu1 : u.regs one = 1 := by regs_frame
@@ -222,15 +214,15 @@ theorem exec_node_enter {w L f a0 b0 d N : ℕ} (x : Data registers)
     (hw.of_le (by rw [hul', huv']; nlinarith only [hpow, hmul, hL, hdL, hcap]))
     (hw.of_le (by rw [huf']; nlinarith only [hpow, hmul, hL, hdL, hcap]))
   have hnotLeaf : ¬(Cond.eq level inputDepth).Holds u := by
-    simp only [Cond.holds_eq, fixed level (by decide), fixed inputDepth (by decide),
+    simp only [Cond.holds_eq, hureg level (by decide), hureg inputDepth (by decide),
       hd, hregs.depth_eq]
     omega
   have hentry : ExecWithin w enter u y (7 * N + 10) := hy.branch_neg hnotLeaf
   have hbranch : ExecWithin w
       (ram[ if mode = nil then [ ⟪enter⟫ ] else [
         if mode = one then [ ⟪dispatch⟫ ] else [ ⟪accumulate⟫ ] ] ]) u y (7 * N + 11) :=
-    hentry.branch_pos (by simp only [Cond.holds_eq, fixed mode (by decide),
-      fixed nil (by decide), hm, hregs.nil_eq])
+    hentry.branch_pos (by simp only [Cond.holds_eq, hureg mode (by decide),
+      hureg nil (by decide), hm, hregs.nil_eq])
   have he : ExecWithin w step x y (7 * N + 28) := (hu.seq hbranch).mono (by omega)
   have hmem : y.mem = Function.update
       (zeroQueryPrefix x.mem (f + 4 * (L + 1) + (L + 1) * 10 ^ L + d * 10 ^ L)
@@ -242,31 +234,9 @@ theorem exec_node_enter {w L f a0 b0 d N : ℕ} (x : Data registers)
   · regs_frame
   · simpa only [hul'] using hyread
   · intro c hc'
-    have hf : ¬(Block.mk (f + 4 * d) (4 * (L + 1 - d))).Owns c := by
-      intro h
-      exact hc' (Finset.mem_union_left _ (Finset.mem_union_left _
-        (Finset.mem_union_left _ (Block.mem_footprint.mpr h))))
-    have hv : ¬(Block.mk
-        (f + 4 * (L + 1) + (L + 1) * 10 ^ L + d * 10 ^ L) (10 ^ L)).Owns c := by
-      intro h
-      apply hc'
-      apply Finset.mem_union_left
-      apply Finset.mem_union_right
-      rw [Block.mem_footprint]
-      change f + 4 * (L + 1) + (L + 1) * 10 ^ L + d * 10 ^ L ≤ c ∧
-        c < f + 4 * (L + 1) + (L + 1) * 10 ^ L + d * 10 ^ L +
-          (L + 1 - d) * 10 ^ L
-      change f + 4 * (L + 1) + (L + 1) * 10 ^ L + d * 10 ^ L ≤ c ∧
-        c < f + 4 * (L + 1) + (L + 1) * 10 ^ L + d * 10 ^ L + 10 ^ L at h
-      have hrem : 1 ≤ L + 1 - d := by omega
-      have hm' := Nat.mul_le_mul_right (10 ^ L) hrem
-      exact ⟨h.1, by omega⟩
-    rw [hmem, Function.update_of_ne (by
-      intro heq
-      apply hf
-      change f + 4 * d ≤ c ∧ c < f + 4 * d + 4 * (L + 1 - d)
-      have hrem : 1 ≤ L + 1 - d := by omega
-      omega)]
-    exact zeroQueryPrefix_outside hcodes hv
+    have hrem := Nat.mul_le_mul_right (10 ^ L) (by omega : 1 ≤ L + 1 - d)
+    simp only [nodeWrites, Finset.mem_union, Block.mem_footprint, Block.Owns] at hc'
+    rw [hmem, Function.update_of_ne (by omega)]
+    exact zeroQueryPrefix_outside hcodes (by simp only [Block.Owns]; omega)
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

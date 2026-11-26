@@ -84,19 +84,12 @@ theorem IsConsistent.exists_subsample_toOuterMeasure_le {C : ConceptClass α Boo
   let D : Measure (Fin m × Bool) := (q.map fun i => (i, y i)).toMeasure
   have hD_apply (t : Set (Fin m × Bool)) : D t = q.toOuterMeasure ((fun i => (i, y i)) ⁻¹' t) := by
     rw [PMF.toMeasure_apply_eq_toOuterMeasure, PMF.toOuterMeasure_map_apply]
-  have hD : IsRealizableBy D C' := by
-    refine ⟨c₀ ∘ x, ⟨c₀, hc₀, rfl⟩, ?_⟩
-    have : (fun i => (i, y i)) ⁻¹' {p : Fin m × Bool | (c₀ ∘ x) p.1 ≠ p.2} = ∅ := by
-      ext i
-      simp [x, y, hc₀S i]
-    rw [error, hD_apply, this, measure_empty]
+  have hD : IsRealizableBy D C' :=
+    ⟨c₀ ∘ x, ⟨c₀, hc₀, rfl⟩, by simp [error, hD_apply, Set.preimage, x, y, hc₀S]⟩
   have hbad := hA'.measure_pi_lt_error_le_of_vcSampleSize_le hC' hD hε hε1 hδ hδ1.le hs
   -- Almost every sample of positions carries the labels of `S`, so `A'` runs `A` on a subsample.
   have hgraph : ∀ᵐ p ∂D, p.2 = y p.1 := by
-    have : (fun i => (i, y i)) ⁻¹' {p : Fin m × Bool | ¬ p.2 = y p.1} = ∅ := by
-      ext i
-      simp
-    rw [ae_iff, hD_apply, this, measure_empty]
+    simp [ae_iff, hD_apply, Set.preimage]
   have hon : ∀ᵐ T ∂Measure.pi (fun _ : Fin s => D), ∀ j, (T j).2 = y (T j).1 :=
     ae_all_iff.2 fun j => (Measure.tendsto_eval_ae_ae (μ := fun _ : Fin s => D) (i := j)).eventually
       hgraph
@@ -104,10 +97,8 @@ theorem IsConsistent.exists_subsample_toOuterMeasure_le {C : ConceptClass α Boo
   simp only [not_exists, not_le] at hne
   have hall : ∀ᵐ T ∂Measure.pi (fun _ : Fin s => D), ENNReal.ofReal ε < error D (A' T) := by
     filter_upwards [hon] with T hT
-    have hAT : A' T = A (S ∘ fun j => (T j).1) ∘ x := by
-      have : (fun j => (x (T j).1, (T j).2)) = S ∘ fun j => (T j).1 :=
-        funext fun j => Prod.ext rfl (hT j)
-      simp only [A', this]
+    have hAT : A' T = A (S ∘ fun j => (T j).1) ∘ x :=
+      congrArg (A · ∘ x) (funext fun j => Prod.ext rfl (hT j))
     rw [error, hD_apply, hAT]
     exact hne _
   have hle : (1 : ℝ≥0∞) ≤ ENNReal.ofReal δ :=

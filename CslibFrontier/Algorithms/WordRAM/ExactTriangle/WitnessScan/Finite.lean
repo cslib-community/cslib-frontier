@@ -46,22 +46,15 @@ theorem fails_iff_scanPiece_eq_none {n D g k : ℕ}
   rw [scanPiece_eq_none_iff]
   constructor
   · intro hfail c hc
-    have hinterval := (mem_piece_iff_interval hD hg c).mp hc
-    change first ≤ c.val ∧ c.val < first + length at hinterval
-    let j : Fin length := ⟨c.val - first, by omega⟩
-    have he : first + j.val = c.val := by dsimp only [j]; omega
-    have hz := hfail j
-    rw [he, heq] at hz
-    exact hz
+    have hinterval : first ≤ c.val ∧ c.val < first + length :=
+      (mem_piece_iff_interval hD hg c).mp hc
+    simpa only [show k * pieceSize D g + (c.val - first) = c.val by omega, heq] using
+      hfail ⟨c.val - first, by omega⟩
   · intro hfail j
-    have hj := j.isLt
+    have hj : j.val < length := j.isLt
     have hl := min_le_right (pieceSize D g) (n - first)
-    have hn : first + j.val < n := by change j.val < length at hj; omega
-    let c : Fin n := ⟨first + j.val, hn⟩
-    have hc : c ∈ piece n D g k := by
-      apply (mem_piece_iff_interval hD hg c).mpr
-      exact ⟨Nat.le_add_right _ _, Nat.add_lt_add_left j.isLt _⟩
-    have hz := hfail c hc
-    simpa only [← heq c] using hz
+    let c : Fin n := ⟨first + j.val, by omega⟩
+    simpa only [← heq c] using hfail c ((mem_piece_iff_interval hD hg c).mpr
+      ⟨Nat.le_add_right _ _, Nat.add_lt_add_left j.isLt _⟩)
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.WitnessScan

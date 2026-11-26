@@ -1,16 +1,19 @@
 /-
 Copyright (c) 2026 Christian Reitwiessner. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Christian Reitwiessner
+Authors: Christian Reitwiessner, Samuel Schlesinger
 -/
 
 module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Data.Finset.Expect
+public import Mathlib.Analysis.Real.Sqrt
+import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Data.Fin.Tuple.Basic
+import Mathlib.Tactic.Linarith
 
 /-!
 # The Efron–Stein inequality for uniform averages
@@ -35,6 +38,9 @@ on these fibers, and bound the fiber averages by Jensen's inequality.
 * `Fintype.expect_sq_sub_expect_le_sum_expect_sq_sub_update`: the Efron–Stein inequality.
 * `Fintype.expect_sq_sub_expect_update_le`: the average over one coordinate is the best
   approximation by functions not depending on it.
+* `Fintype.expect_sub_expect_sq_le`: bounded-difference variance inequality on `κ → A`.
+* `Fintype.exists_forall_abs_sub_expect_le`: simultaneous bounded-difference realization for a
+  finite family of observables on `κ → A`.
 
 ## References
 
@@ -166,13 +172,71 @@ theorem expect_expect_sq_sub_le_sum_expect_expect_sq_sub_update {n : ℕ}
   have hlocal (i : Fin n) :
       (𝔼 u, 𝔼 a, (f u - f (update u i a)) ^ 2) =
         2 * (𝔼 u, (f u - 𝔼 a, f (update u i a)) ^ 2) := by
-    rw [mul_expect]
-    rw [← expect_expect_update _ i, ← expect_expect_update
+    rw [mul_expect, ← expect_expect_update _ i, ← expect_expect_update
       (fun u => 2 * (f u - 𝔼 a, f (update u i a)) ^ 2) i]
     refine expect_congr rfl fun u _ => ?_
     simpa only [update_idem, ← mul_expect] using expect_expect_sq_sub_eq (fun a => f (update u i a))
   rw [expect_expect_sq_sub_eq]
   simp only [hlocal, ← mul_sum]
   exact mul_le_mul_of_nonneg_left h (by norm_num)
+
+/-- **Bounded-difference variance bound.** On any finite product `κ → A`, a function whose
+oscillation in coordinate `i` is at most `c i ≥ 0` has variance at most `∑ i, (c i) ^ 2`. -/
+theorem expect_sub_expect_sq_le {κ : Type*} [Fintype κ] [DecidableEq κ]
+    (f : (κ → A) → ℝ) (c : κ → ℝ) (hc : ∀ i, 0 ≤ c i)
+    (hf : ∀ ω i a b, |f (update ω i a) - f (update ω i b)| ≤ c i) :
+    (𝔼 ω, (f ω - 𝔼 ω', f ω') ^ 2) ≤ ∑ i, c i ^ 2 := by
+  let e : κ ≃ Fin (Fintype.card κ) := Fintype.equivFin κ
+  let g : (Fin (Fintype.card κ) → A) → ℝ := fun u => f (fun i => u (e i))
+  have hg_pair : (𝔼 u, 𝔼 v, (g u - g v) ^ 2) = 2 * 𝔼 ω, (f ω - 𝔼 ω', f ω') ^ 2 := by
+    rw [← expect_expect_sq_sub_eq f]
+    refine Fintype.expect_equiv (e.symm.arrowCongr (Equiv.refl A))
+      (fun u => 𝔼 v, (g u - g v) ^ 2) (fun x => 𝔼 y, (f x - f y) ^ 2) fun u => ?_
+    exact Fintype.expect_equiv (e.symm.arrowCongr (Equiv.refl A))
+      (fun v => (g u - g v) ^ 2) (fun y => (f (fun i => u (e i)) - f y) ^ 2) fun _ => rfl
+  have hstep := expect_expect_sq_sub_le_sum_expect_expect_sq_sub_update g
+  have hcoord (j : Fin (Fintype.card κ)) :
+      (𝔼 u, 𝔼 a, (g u - g (update u j a)) ^ 2) ≤ c (e.symm j) ^ 2 :=
+    expect_le univ_nonempty fun u _ => expect_le univ_nonempty fun a _ => sq_le_sq.mpr <| by
+      have hu : update (fun i => u (e i)) (e.symm j) (u j) = fun i => u (e i) :=
+        update_eq_self_iff.2 (by simp)
+      have hupd : (fun i => update u j a (e i)) = update (fun i => u (e i)) (e.symm j) a :=
+        update_comp_equiv u e j a
+      rw [abs_of_nonneg (hc _)]
+      simpa only [g, hu, hupd] using hf (fun i => u (e i)) (e.symm j) (u j) a
+  have hsum : (∑ j, 𝔼 u, 𝔼 a, (g u - g (update u j a)) ^ 2) ≤ ∑ i, c i ^ 2 :=
+    (sum_le_sum fun j _ => hcoord j).trans_eq (e.symm.sum_comp fun i => c i ^ 2)
+  have hvar_nn : 0 ≤ 𝔼 ω, (f ω - 𝔼 ω', f ω') ^ 2 := expect_nonneg fun _ _ => sq_nonneg _
+  linarith
+
+/-- **Simultaneous bounded-difference realization.** Averaging the sum of squared deviations over a
+finite family `f : ι → (κ → A) → ℝ` yields a single sample `ω` at which every `f j ω` deviates from
+its expectation by at most `√(∑ j, ∑ i, (c j i) ^ 2)`. -/
+theorem exists_forall_abs_sub_expect_le {ι κ : Type*} [Fintype ι] [Fintype κ] [DecidableEq κ]
+    (f : ι → (κ → A) → ℝ) (c : ι → κ → ℝ) (hc : ∀ j i, 0 ≤ c j i)
+    (hf : ∀ j ω i a b, |f j (update ω i a) - f j (update ω i b)| ≤ c j i) :
+    ∃ ω : κ → A, ∀ j : ι,
+      |f j ω - 𝔼 ω', f j ω'| ≤ √(∑ r : ι, ∑ i : κ, c r i ^ 2) := by
+  let Φ : (κ → A) → ℝ := fun ω => ∑ r : ι, (f r ω - 𝔼 ω', f r ω') ^ 2
+  let B : ℝ := ∑ r : ι, ∑ i : κ, c r i ^ 2
+  have hexp_sum : (𝔼 ω : κ → A, Φ ω) = ∑ r : ι, 𝔼 ω : κ → A, (f r ω - 𝔼 ω', f r ω') ^ 2 := by
+    simp only [Φ, Fintype.expect_eq_sum_div_card]
+    rw [Finset.sum_comm, Finset.sum_div]
+  have hexp_le : (𝔼 ω : κ → A, Φ ω) ≤ B :=
+    hexp_sum ▸ sum_le_sum fun r _ => expect_sub_expect_sq_le (f r) (c r) (hc r) (hf r)
+  have hex : ∃ ω : κ → A, Φ ω ≤ B := by
+    by_contra! hgt
+    have hlt : B < 𝔼 ω : κ → A, Φ ω := by
+      calc B = 𝔼 _ω : κ → A, B := (Fintype.expect_const B).symm
+        _ < 𝔼 ω : κ → A, Φ ω :=
+          expect_lt_expect (fun ω _ => (hgt ω).le)
+            ⟨Classical.arbitrary (κ → A), mem_univ _, hgt _⟩
+    linarith
+  obtain ⟨ω, hω⟩ := hex
+  dsimp only [Φ, B] at hω
+  refine ⟨ω, fun j => Real.le_sqrt_of_sq_le ?_⟩
+  rw [sq_abs]
+  exact (single_le_sum (f := fun r => (f r ω - 𝔼 ω', f r ω') ^ 2)
+    (fun r _ => sq_nonneg _) (mem_univ j)).trans hω
 
 end Fintype

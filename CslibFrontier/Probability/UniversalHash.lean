@@ -189,24 +189,20 @@ theorem IsUniversalHash.collision_with_set_le {seed : PMF Seed} {hash : Seed →
     (x : Input) :
     (∑ s, if ∃ y ∈ candidates, y ≠ x ∧ hash s y = hash s x then (seed s).toReal else 0) ≤
       (candidates.erase x).card * ε.toReal := by
-  have hpoint (s : Seed) :
-      (if ∃ y ∈ candidates, y ≠ x ∧ hash s y = hash s x then (seed s).toReal else 0) ≤
-        ∑ y ∈ candidates.erase x, if hash s y = hash s x then (seed s).toReal else 0 := by
-    split_ifs with h
-    · obtain ⟨y, hy, hyx, heq⟩ := h
-      have hsum := Finset.single_le_sum (s := candidates.erase x) (a := y)
-        (f := fun y => if hash s y = hash s x then (seed s).toReal else 0)
-        (fun _ _ => by positivity) (Finset.mem_erase.mpr ⟨hyx, hy⟩)
-      simpa only [heq, ite_true] using hsum
-    · exact Finset.sum_nonneg (fun _ _ => by positivity)
   calc
     _ ≤ ∑ s, ∑ y ∈ candidates.erase x,
         if hash s y = hash s x then (seed s).toReal else 0 :=
-      Finset.sum_le_sum (fun s _ => hpoint s)
+      Finset.sum_le_sum fun s _ => by
+        split_ifs with h
+        · obtain ⟨y, hy, hyx, heq⟩ := h
+          simpa only [heq, ite_true] using Finset.single_le_sum
+            (f := fun y => if hash s y = hash s x then (seed s).toReal else 0)
+            (fun _ _ => by positivity) (Finset.mem_erase.mpr ⟨hyx, hy⟩)
+        · exact Finset.sum_nonneg fun _ _ => by positivity
     _ = ∑ y ∈ candidates.erase x, ∑ s,
         if hash s y = hash s x then (seed s).toReal else 0 := Finset.sum_comm
     _ ≤ ∑ _y ∈ candidates.erase x, ε.toReal :=
-      Finset.sum_le_sum (fun y hy => hhash.sum_ite_toReal_le hε (Finset.mem_erase.mp hy).1)
+      Finset.sum_le_sum fun y hy => hhash.sum_ite_toReal_le hε (Finset.mem_erase.mp hy).1
     _ = _ := by rw [Finset.sum_const, nsmul_eq_mul]
 
 omit [Finite Input] in
@@ -232,27 +228,20 @@ theorem IsUniversalHash.collisionProbability_le {seed : PMF Seed} {hash : Seed �
       collisionProbability source + ε.toReal := by
   classical
   let := Fintype.ofFinite Input
-  have hpair (x y : Input) :
-      (∑ s, if hash s x = hash s y then (seed s).toReal else 0) ≤
-        (if x = y then (1 : ℝ) else 0) + ε.toReal := by
-    by_cases hxy : x = y
-    · subst y
-      simp only [ite_true, sum_toReal]
-      exact le_add_of_nonneg_right ENNReal.toReal_nonneg
-    · simpa [hxy] using hhash.sum_ite_toReal_le hε hxy
   calc
     _ = ∑ x, ∑ y, (source x).toReal * (source y).toReal *
         (∑ s, if hash s x = hash s y then (seed s).toReal else 0) := by
       simp only [collisionProbability_map, Finset.mul_sum]
       rw [Finset.sum_comm]
-      apply Finset.sum_congr rfl
-      intro x _
-      rw [Finset.sum_comm]
+      refine Finset.sum_congr rfl fun x _ => Finset.sum_comm.trans ?_
       simp [mul_ite, ite_mul, mul_comm]
     _ ≤ ∑ x, ∑ y, (source x).toReal * (source y).toReal *
         ((if x = y then (1 : ℝ) else 0) + ε.toReal) := by
       gcongr with x _ y _
-      exact hpair x y
+      by_cases hxy : x = y
+      · subst y
+        simp [sum_toReal, ENNReal.toReal_nonneg]
+      · simpa [hxy] using hhash.sum_ite_toReal_le hε hxy
     _ = collisionProbability source + ε.toReal := by
       simp [mul_add, Finset.sum_add_distrib, mul_ite, ← Finset.sum_mul, ← Finset.mul_sum,
         sum_toReal, collisionProbability_eq_sum, sq]
@@ -276,31 +265,27 @@ theorem IsUniversalHash.leftover_hash_sq [Nonempty Output] {seed : PMF Seed}
     4 * dist (seededHash seed source hash)
         (seed.bind (fun s => (PMF.uniformOfFintype Output).map (s, ·))) ^ 2 ≤
       Fintype.card Output * (collisionProbability source + ε.toReal) - 1 := by
-  have hsq := dist_bind_pair_sq_le seed (fun s => source.map (hash s))
-    (fun _ => PMF.uniformOfFintype Output)
-  have hbound : ∑ s, (seed s).toReal *
-      (4 * dist (source.map (hash s)) (PMF.uniformOfFintype Output) ^ 2) ≤
-      Fintype.card Output * (collisionProbability source + ε.toReal) - 1 := by
-    calc
-      _ ≤ ∑ s, (seed s).toReal *
-          (Fintype.card Output * collisionProbability (source.map (hash s)) - 1) := by
+  calc 4 * dist (seededHash seed source hash)
+        (seed.bind (fun s => (PMF.uniformOfFintype Output).map (s, ·))) ^ 2
+      ≤ 4 * ∑ s, (seed s).toReal *
+          dist (source.map (hash s)) (PMF.uniformOfFintype Output) ^ 2 := by
+        simpa only [seededHash, PMF.map_comp, Function.comp_def] using
+          mul_le_mul_of_nonneg_left (dist_bind_pair_sq_le seed (fun s => source.map (hash s))
+            fun _ => PMF.uniformOfFintype Output) (by norm_num)
+    _ = ∑ s, (seed s).toReal *
+        (4 * dist (source.map (hash s)) (PMF.uniformOfFintype Output) ^ 2) := by
+        simp only [Finset.mul_sum, mul_left_comm]
+    _ ≤ ∑ s, (seed s).toReal *
+        (Fintype.card Output * collisionProbability (source.map (hash s)) - 1) := by
         gcongr with s _
         exact dist_uniform_sq_le _
-      _ = Fintype.card Output *
-          (∑ s, (seed s).toReal * collisionProbability (source.map (hash s))) - 1 := by
+    _ = Fintype.card Output *
+        (∑ s, (seed s).toReal * collisionProbability (source.map (hash s))) - 1 := by
         simp only [mul_sub, mul_one, Finset.sum_sub_distrib, sum_toReal,
           Finset.mul_sum, mul_left_comm]
-      _ ≤ _ := by
+    _ ≤ _ := by
         gcongr
         exact hhash.collisionProbability_le hε source
-  have hdistrib : (∑ s, (seed s).toReal *
-      (4 * dist (source.map (hash s)) (PMF.uniformOfFintype Output) ^ 2)) =
-      4 * ∑ s, (seed s).toReal *
-        dist (source.map (hash s)) (PMF.uniformOfFintype Output) ^ 2 := by
-    simp only [Finset.mul_sum, mul_left_comm]
-  rw [hdistrib] at hbound
-  simpa only [seededHash, PMF.map_comp, Function.comp_def] using
-    (mul_le_mul_of_nonneg_left hsq (by norm_num : (0 : ℝ) ≤ 4)).trans hbound
 
 /-- **Leftover hash lemma** for `ε`-universal families: the seed stays public, and independent
 uniform bits replace the digest, with error at most `√(|Output| (CP + ε) - 1) / 2`. -/
@@ -366,10 +351,9 @@ theorem IsTwoUniversal.leftover_hash_conditional_sq [Nonempty Output]
         (seed.bind (fun s => (PMF.uniformOfFintype Output).map (s, ·))) ^ 2) := by
       simp only [Finset.mul_sum, mul_left_comm]
     _ ≤ ∑ info, (side info).toReal *
-        (Fintype.card Output * collisionProbability (source info)) := by
-      apply Finset.sum_le_sum
-      intro info _
-      exact mul_le_mul_of_nonneg_left (hhash.leftover_hash_sq _) ENNReal.toReal_nonneg
+        (Fintype.card Output * collisionProbability (source info)) :=
+      Finset.sum_le_sum fun _ _ =>
+        mul_le_mul_of_nonneg_left (hhash.leftover_hash_sq _) ENNReal.toReal_nonneg
     _ = _ := by simp only [Finset.mul_sum, mul_left_comm]
 
 /-- Conditional leftover hashing in its usual square-root form. -/

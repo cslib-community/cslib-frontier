@@ -133,8 +133,7 @@ private noncomputable def gv (c : Code) (y b : ℕ) : ℕ :=
 
 private theorem gv_mem {Φ : BlumMeasure} {c : Code} {y b : ℕ} (h : Halts Φ c y b) :
     gv Φ c y b ∈ c.eval y := by
-  simp only [gv, h, ↓reduceDIte]
-  exact Part.get_mem _
+  simpa only [gv, h, ↓reduceDIte] using Part.get_mem _
 
 private theorem gv_eq_of_mem {Φ : BlumMeasure} {c : Code} {y b v : ℕ} (h : Halts Φ c y b)
     (hv : v ∈ c.eval y) : gv Φ c y b = v :=
@@ -148,18 +147,11 @@ private theorem computable_gv' : Computable fun q : Code × ℕ × ℕ => gv Φ 
     Partrec.cond hf (Code.eval_part.comp Computable.fst (Computable.fst.comp Computable.snd))
       (Partrec.const' (Part.some 0))
   refine hp.of_eq_tot fun q => ?_
-  have hq : Halts Φ q.1 q.2.1 q.2.2 ↔ f q = true := by
-    rw [show Halts Φ q.1 q.2.1 q.2.2 = (fun q : Code × ℕ × ℕ => Halts Φ q.1 q.2.1 q.2.2) q
-      from rfl, hfp]
+  have hq : Halts Φ q.1 q.2.1 q.2.2 ↔ f q = true :=
+    (congrFun hfp q).to_iff
   cases hfq : f q with
   | true => exact gv_mem (hq.2 hfq)
-  | false =>
-    have hn : ¬Halts Φ q.1 q.2.1 q.2.2 := fun h => by
-      have h' := hq.1 h
-      rw [hfq] at h'
-      exact Bool.false_ne_true h'
-    simp only [gv, hn, ↓reduceDIte]
-    exact Part.mem_some 0
+  | false => simp [gv, mt hq.1 (by simp [hfq])]
 
 private theorem computable_gv {α : Type*} [Primcodable α] {c : α → Code} {y b : α → ℕ}
     (hc : Computable c) (hy : Computable y) (hb : Computable b) :
@@ -185,10 +177,8 @@ private theorem gv_mono {Φ : BlumMeasure} {i : Code} {y s s' : ℕ} (h : Halts 
   gv_eq_of_mem (halts_mono h hs) (gv_mem h)
 
 private theorem triggers_mono {Φ : BlumMeasure} {i : Code} {e y s s' : ℕ} (h : Triggers Φ i e y s)
-    (hs : s ≤ s') : Triggers Φ i e y s' := by
-  obtain ⟨hy, hi, he⟩ := h
-  refine ⟨hy.trans hs, halts_mono hi hs, ?_⟩
-  rwa [gv_mono hi hs]
+    (hs : s ≤ s') : Triggers Φ i e y s' :=
+  ⟨h.1.trans hs, halts_mono h.2.1 hs, gv_mono h.2.1 hs ▸ h.2.2⟩
 
 /-- The last stage `a < n` of `l` at which index `e` acted, if any. -/
 private def lastAct (l : List (Option ℕ)) (e n : ℕ) : Option ℕ :=
@@ -209,22 +199,15 @@ private theorem lastAct_eq_some {l : List (Option ℕ)} {e n a : ℕ} :
   | succ n ih =>
     change (if actAt l n = some e then some n else lastAct l e n) = some a ↔ _
     split_ifs with h
-    · constructor
-      · rintro ⟨⟩
-        exact ⟨Nat.lt_succ_self _, h, fun b hb hbn => by omega⟩
-      · rintro ⟨ha, hae, hb⟩
-        by_contra hne
-        have han : a ≠ n := fun h' => hne (h' ▸ rfl)
-        exact hb n (by omega) (Nat.lt_succ_self _) h
+    · simp only [Option.some.injEq]
+      exact ⟨fun h' => h' ▸ ⟨Nat.lt_succ_self _, h, fun _ _ _ => by omega⟩,
+        fun ⟨ha, _, hb⟩ => by_contra fun hne => hb n (by omega) (Nat.lt_succ_self _) h⟩
     · rw [ih]
-      constructor
-      · rintro ⟨ha, hae, hb⟩
-        refine ⟨by omega, hae, fun b hab hbn => ?_⟩
-        rcases Nat.lt_succ_iff_lt_or_eq.1 hbn with hbn | rfl
-        exacts [hb b hab hbn, h]
-      · rintro ⟨ha, hae, hb⟩
-        have han : a ≠ n := fun han => h (han ▸ hae)
-        exact ⟨by omega, hae, fun b hab hbn => hb b hab (by omega)⟩
+      refine ⟨fun ⟨ha, hae, hb⟩ => ⟨by omega, hae, fun b hab hbn => ?_⟩,
+        fun ⟨ha, hae, hb⟩ => ⟨lt_of_le_of_ne (Nat.le_of_lt_succ ha) fun heq => h (heq ▸ hae),
+          hae, fun b hab hbn => hb b hab (by omega)⟩⟩
+      rcases Nat.lt_succ_iff_lt_or_eq.1 hbn with hbn | rfl
+      exacts [hb b hab hbn, h]
 
 private theorem lastAct_eq_none {l : List (Option ℕ)} {e n : ℕ} :
     lastAct l e n = none ↔ ∀ a < n, actAt l a ≠ some e := by
@@ -233,14 +216,11 @@ private theorem lastAct_eq_none {l : List (Option ℕ)} {e n : ℕ} :
   | succ n ih =>
     change (if actAt l n = some e then some n else lastAct l e n) = none ↔ _
     split_ifs with h
-    · simp only [false_iff, not_forall]
-      exact ⟨n, Nat.lt_succ_self _, fun h' => h' h⟩
+    · exact iff_of_false (by simp) fun hb => hb n (Nat.lt_succ_self _) h
     · rw [ih]
-      constructor
-      · intro hb a ha
-        rcases Nat.lt_succ_iff_lt_or_eq.1 ha with ha | rfl
-        exacts [hb a ha, h]
-      · exact fun hb a ha => hb a (by omega)
+      refine ⟨fun hb a ha => ?_, fun hb a ha => hb a (by omega)⟩
+      rcases Nat.lt_succ_iff_lt_or_eq.1 ha with ha | rfl
+      exacts [hb a ha, h]
 
 /-- Index `e` is flagged at stage `s`: some `y ≤ s` triggers `e` at `s` but had not triggered `e`
 when `e` last acted. -/
@@ -342,12 +322,10 @@ private theorem computablePred_forall_option {α : Type*} [Primcodable α] {o : 
     (Computable.option_casesOn ho (Computable.const true) (hf.comp
       (Computable.fst.pair Computable.snd)).to₂).of_eq fun a => ?_, funext fun a => ?_⟩
   · cases o a <;> rfl
-  · have hpq : ∀ b, p a b ↔ f (a, b) = true := fun b => by
-      rw [show p a b = (fun q : α × ℕ => p q.1 q.2) (a, b) from rfl, hfp]
-    dsimp only
-    cases h : o a with
+  · dsimp only
+    cases o a with
     | none => simp
-    | some b => simpa using hpq b
+    | some b => simp [congrFun hfp (a, b)]
 
 private theorem computablePred_flagged {α : Type*} [Primcodable α] {i : α → Code}
     {l : α → List (Option ℕ)} {e s : α → ℕ} (hi : Computable i) (hl : Computable l)
@@ -441,8 +419,7 @@ private theorem computable_hist : Computable fun q : Code × ℕ => hist Φ q.1 
     exact (Computable.list_append.comp (Computable.snd.comp Computable.snd)
       (Computable.list_cons.comp ((computable_step Φ).comp ((Computable.fst.comp
         Computable.fst).pair (Computable.snd.comp Computable.snd))) (Computable.const []))).to₂
-  refine h.of_eq fun q => ?_
-  obtain ⟨i, n⟩ := q
+  refine h.of_eq fun ⟨i, n⟩ => ?_
   induction n with
   | zero => rfl
   | succ n ih => rw [hist, ← ih]
@@ -495,15 +472,8 @@ private theorem lastAct_hist_eq_some {i : Code} {e n a : ℕ} :
     lastAct (hist Φ i n) e n = some a ↔
       a < n ∧ act Φ i a = some e ∧ ∀ b, a < b → b < n → act Φ i b ≠ some e := by
   rw [lastAct_eq_some]
-  constructor
-  · rintro ⟨ha, hae, hb⟩
-    refine ⟨ha, (actAt_hist i ha).symm.trans hae, fun b hab hbn => ?_⟩
-    rw [← actAt_hist i hbn]
-    exact hb b hab hbn
-  · rintro ⟨ha, hae, hb⟩
-    refine ⟨ha, (actAt_hist i ha).trans hae, fun b hab hbn => ?_⟩
-    rw [actAt_hist i hbn]
-    exact hb b hab hbn
+  exact and_congr_right fun ha => and_congr (by rw [actAt_hist i ha])
+    (forall₂_congr fun b _ => imp_congr_right fun hbn => by rw [actAt_hist i hbn])
 
 private theorem lastAct_hist_eq_none {i : Code} {e n : ℕ} :
     lastAct (hist Φ i n) e n = none ↔ ∀ a < n, act Φ i a ≠ some e := by
@@ -518,16 +488,11 @@ private theorem lastAct_hist_stable {i : Code} {e S s : ℕ} (hSs : S ≤ s)
   cases hS : lastAct (hist Φ i S) e S with
   | none =>
     rw [lastAct_hist_eq_none] at hS ⊢
-    intro a ha
-    by_cases haS : a < S
-    · exact hS a haS
-    · exact h a (by omega) ha
+    exact fun a ha => if haS : a < S then hS a haS else h a (by omega) ha
   | some a =>
     obtain ⟨ha, hae, hb⟩ := lastAct_hist_eq_some.1 hS
-    refine lastAct_hist_eq_some.2 ⟨by omega, hae, fun b hab hbs => ?_⟩
-    by_cases hbS : b < S
-    · exact hb b hab hbS
-    · exact h b (by omega) hbs
+    exact lastAct_hist_eq_some.2 ⟨by omega, hae, fun b hab hbs =>
+      if hbS : b < S then hb b hab hbS else h b (by omega) hbs⟩
 
 private theorem key_hist_stable {i : Code} {e S s : ℕ} (hSs : S ≤ s)
     (h : ∀ b, S ≤ b → b < s → act Φ i b ≠ some e) :
@@ -542,9 +507,7 @@ private theorem le_lastAct_hist {i : Code} {e a s : ℕ} (ha : a < s)
   | none => exact absurd hae (lastAct_hist_eq_none.1 h a ha)
   | some a' =>
     obtain ⟨-, -, hb⟩ := lastAct_hist_eq_some.1 h
-    refine ⟨a', rfl, ?_⟩
-    by_contra hlt
-    exact hb a (by omega) ha hae
+    exact ⟨a', rfl, le_of_not_gt fun hlt => hb a hlt ha hae⟩
 
 private theorem act_eq_some {i : Code} {s e : ℕ} :
     act Φ i s = some e ↔ UndefBefore Φ i (hist Φ i s) (Nat.unpair s).1 (Nat.unpair s).2 ∧
@@ -569,15 +532,12 @@ private theorem actor_isSome {i : Code} {l : List (Option ℕ)} {x z s e : ℕ}
     ⟨_, e, Nat.lt_succ_of_le he.1, he, rfl⟩
   obtain ⟨e₀, he₀s, he₀, hk₀⟩ := Nat.find_spec hex
   have hmin : ∀ e' < s + 1, Cand Φ i l x z e' s → key l e₀ s ≤ key l e' s :=
-    fun e' he's he' => by
-      rw [hk₀]
-      exact Nat.find_min' hex ⟨e', he's, he', rfl⟩
+    fun e' he's he' => hk₀ ▸ Nat.find_min' hex ⟨e', he's, he', rfl⟩
   cases ha : actor Φ i l x z s with
   | none =>
     have h1 := bfind_eq_none.1 ha e₀ (Nat.zero_le _) (by omega)
-    have h2 : Cand Φ i l x z e₀ s ∧ ∀ e' < s + 1, Cand Φ i l x z e' s →
-        key l e₀ s ≤ key l e' s := ⟨he₀, hmin⟩
-    exact absurd (@decide_eq_true _ (Classical.dec _) h2) (by rw [h1]; simp)
+    exact Bool.noConfusion
+      (h1.symm.trans (@decide_eq_true _ (Classical.dec _) (And.intro he₀ hmin)))
   | some e'' =>
     exact ⟨e'', rfl, (actor_eq_some ha).2 e (Nat.lt_succ_of_le he.1) he⟩
 
@@ -616,28 +576,21 @@ private theorem act_le {i : Code} {s e : ℕ} (h : act Φ i s = some e) : e ≤ 
 private theorem key_ge_of_act {i : Code} {e a s : ℕ} (ha : a < s) (hae : act Φ i a = some e) :
     2 * a + 1 ≤ key (hist Φ i s) e s := by
   obtain ⟨a', h, haa'⟩ := le_lastAct_hist ha hae
-  unfold key
-  rw [h]
-  change 2 * a + 1 ≤ 2 * a' + 1
+  simp only [key, h, Option.elim_some]
   omega
 
 private theorem le_key_hist (i : Code) (e s : ℕ) : e ≤ key (hist Φ i s) e s := by
-  unfold key
   cases h : lastAct (hist Φ i s) e s with
-  | none => change e ≤ 2 * e; omega
+  | none => simp only [key, h, Option.elim_none]; omega
   | some a =>
     have := act_le (lastAct_hist_eq_some.1 h).2.1
-    change e ≤ 2 * a + 1
-    omega
+    simp only [key, h, Option.elim_some]; omega
 
 private theorem Defd.unique {i : Code} {x z₁ z₂ : ℕ} (h₁ : Defd Φ i x z₁) (h₂ : Defd Φ i x z₂) :
     z₁ = z₂ := by
-  by_contra hne
-  rcases lt_or_gt_of_ne hne with h | h
-  · obtain ⟨hh, ha⟩ := h₂.1 z₁ h
-    exact h₁.2.elim (fun h' => h' ha) hh
-  · obtain ⟨hh, ha⟩ := h₁.1 z₂ h
-    exact h₂.2.elim (fun h' => h' ha) hh
+  refine le_antisymm (not_lt.1 fun h => ?_) (not_lt.1 fun h => ?_)
+  · exact h₂.2.elim (· (h₁.1 _ h).2) (h₁.1 _ h).1
+  · exact h₁.2.elim (· (h₂.1 _ h).2) (h₂.1 _ h).1
 
 private theorem exists_defd {i : Code} {x c : ℕ} (hc : Halts Φ i x c) : ∃ z, Defd Φ i x z := by
   classical
@@ -653,21 +606,14 @@ private theorem exists_defd {i : Code} {x c : ℕ} (hc : Halts Φ i x c) : ∃ z
 
 private theorem le_val (i : Code) (x z : ℕ) : z ≤ val Φ i x z := by
   unfold val
-  cases act Φ i (Nat.pair x z) with
-  | none => exact le_max_left _ _
-  | some _ => exact le_rfl
+  cases act Φ i (Nat.pair x z)
+  exacts [le_max_left _ _, le_rfl]
 
 private theorem val_of_act {i : Code} {x z e : ℕ} (h : act Φ i (Nat.pair x z) = some e) :
-    val Φ i x z = z := by
-  unfold val
-  rw [h]
-  rfl
+    val Φ i x z = z := by simp [val, h]
 
 private theorem val_of_not_act {i : Code} {x z : ℕ} (h : act Φ i (Nat.pair x z) = none) :
-    val Φ i x z = max z (gv Φ i x z) := by
-  unfold val
-  rw [h]
-  rfl
+    val Φ i x z = max z (gv Φ i x z) := by simp [val, h]
 
 end Naming
 
@@ -687,12 +633,9 @@ private theorem mem_name {i : Code} {x v : ℕ} :
   rw [Part.mem_map_iff]
   refine exists_congr fun z => and_congr_left fun _ => Nat.mem_rfind.trans ?_
   simp only [Part.mem_some_iff]
-  constructor
-  · rintro ⟨h, -⟩
-    exact @of_decide_eq_true _ (Classical.dec _) h.symm
-  · intro h
-    refine ⟨(@decide_eq_true _ (Classical.dec _) h).symm, fun {m} hm => ?_⟩
-    exact (@decide_eq_false _ (Classical.dec _) fun hm' => (Defd.unique hm' h ▸ hm).false).symm
+  exact ⟨fun ⟨h, _⟩ => @of_decide_eq_true _ (Classical.dec _) h.symm, fun h =>
+    ⟨(@decide_eq_true _ (Classical.dec _) h).symm, fun {m} hm =>
+      (@decide_eq_false _ (Classical.dec _) fun hm' => (Defd.unique hm' h ▸ hm).false).symm⟩⟩
 
 variable (Φ)
 
@@ -709,10 +652,16 @@ theorem partrec_name : Partrec₂ Φ.name := by
   exact hr.map (computable_val Φ (Computable.fst.comp Computable.fst)
     (Computable.snd.comp Computable.fst) Computable.snd).to₂
 
+/-- Input argument `q.2.1` in a graph-membership triple `(code, x, y)`. -/
+abbrev nameInput (q : Code × ℕ × ℕ) : ℕ := q.2.1
+
+/-- Output candidate `q.2.2` in a graph-membership triple `(code, x, y)`. -/
+abbrev nameValue (q : Code × ℕ × ℕ) : ℕ := q.2.2
+
 /-- The graph of each name is decidable, uniformly in the program: the set of names is
 *measured*. -/
 theorem computablePred_mem_name :
-    ComputablePred fun q : Code × ℕ × ℕ => q.2.2 ∈ Φ.name q.1 q.2.1 := by
+    ComputablePred fun q : Code × ℕ × ℕ => nameValue q ∈ Φ.name q.1 (nameInput q) := by
   have hp : ComputablePred fun p : (Code × ℕ × ℕ) × ℕ =>
       Defd Φ p.1.1 p.1.2.1 p.2 ∧ val Φ p.1.1 p.1.2.1 p.2 = p.1.2.2 :=
     (computablePred_defd Φ (Computable.fst.comp Computable.fst)
@@ -724,12 +673,10 @@ theorem computablePred_mem_name :
     Defd Φ q.1 q.2.1 z ∧ val Φ q.1 q.2.1 z = q.2.2) hp
     (Computable.succ.comp (Computable.snd.comp Computable.snd))).of_eq fun q => ?_
   rw [mem_name]
-  constructor
-  · rintro ⟨z, -, hz⟩
-    exact ⟨z, hz⟩
-  · rintro ⟨z, hd, hv⟩
-    have := le_val (Φ := Φ) q.1 q.2.1 z
-    exact ⟨z, by omega, hd, hv⟩
+  refine ⟨fun ⟨z, _, hz⟩ => ⟨z, hz⟩, fun ⟨z, hd, hv⟩ => ?_⟩
+  dsimp only [nameInput, nameValue] at hv
+  have := le_val (Φ := Φ) q.1 q.2.1 z
+  exact ⟨z, by omega, hd, hv⟩
 
 variable {Φ}
 
@@ -762,9 +709,8 @@ private theorem eventually_triggers {i : Code} {t : ℕ → ℕ} (ht : ∀ n, t 
   exact ⟨by omega, hcs, by rwa [gv_eq ht hcs]⟩
 
 private theorem not_halts_of_triggers {i : Code} {t : ℕ → ℕ} (ht : ∀ n, t n ∈ i.eval n)
-    {e y s : ℕ} (h : Triggers Φ i e y s) : ¬Halts Φ (ofNat Code e) y (t y) := by
-  have := h.2.2
-  rwa [gv_eq ht h.2.1] at this
+    {e y s : ℕ} (h : Triggers Φ i e y s) : ¬Halts Φ (ofNat Code e) y (t y) :=
+  gv_eq ht h.2.1 ▸ h.2.2
 
 /-- (A) If program `e` halts within `t` almost everywhere, then `e` acts at only finitely many
 stages: each action uses up one of the finitely many inputs where `e` exceeds `t`. -/
@@ -789,8 +735,7 @@ private theorem eventually_act_ne {i : Code} {t : ℕ → ℕ} (ht : ∀ n, t n 
       by_contra hyN
       exact not_halts_of_triggers ht hy (hN y (by omega))
     exact hy' a' ha' (triggers_mono (hS₁ a ha y hyN (not_halts_of_triggers ht hy)) haa')
-  · push Not at hex
-    exact ⟨S₁, fun s hs => hex s hs⟩
+  · exact ⟨S₁, fun s hs hse => hex ⟨s, hs, hse⟩⟩
 
 private theorem name_eq_val {i : Code} {t' : ℕ → ℕ} (ht' : ∀ n, t' n ∈ Φ.name i n) {x z : ℕ}
     (hd : Defd Φ i x z) : t' x = val Φ i x z := by
@@ -809,19 +754,15 @@ private theorem frequently_not_halts {i : Code} {t' : ℕ → ℕ} (ht' : ∀ n,
       by_cases hz : ∃ z, Defd Φ i x z
       · obtain ⟨z, hz⟩ := hz
         filter_upwards [eventually_gt_atTop (Nat.pair x z)] with s hs z' hz'
-        rw [Defd.unique hz' hz]
-        exact hs.ne'
+        exact Defd.unique hz' hz ▸ hs.ne'
       · exact Eventually.of_forall fun _ z hz' => absurd ⟨z, hz'⟩ hz
   obtain ⟨B, hB⟩ := eventually_atTop.1 hfin
   obtain ⟨s, hs, hse⟩ := frequently_atTop.1 he B
   obtain ⟨x, z, rfl⟩ : ∃ x z, Nat.pair x z = s := ⟨_, _, Nat.pair_unpair s⟩
   obtain ⟨hu, hc, -⟩ := act_pair_eq_some hse
   have hd : Defd Φ i x z := ⟨hu, Or.inl (by simp [hse])⟩
-  refine ⟨x, ?_, ?_⟩
-  · by_contra hx
-    exact hB _ hs x (by simpa using hx) z hd rfl
-  · rw [name_eq_val ht' hd, val_of_act hse]
-    exact hc.2.2.1
+  exact ⟨x, not_lt.1 fun hx => hB _ hs x hx z hd rfl,
+    (name_eq_val ht' hd).trans (val_of_act hse) ▸ hc.2.2.1⟩
 
 /-- Eventually every acting index has key above `K`: each of the finitely many indices `≤ K`
 moves above `K` once it acts at a stage `≥ K`. -/
@@ -835,9 +776,8 @@ private theorem eventually_lt_key_of_act (i : Code) (K : ℕ) :
         filter_upwards [eventually_gt_atTop a] with s hs _
         have := key_ge_of_act hs hae
         omega
-      · push Not at hex
-        filter_upwards [eventually_ge_atTop K] with s hs h
-        exact absurd h (hex s hs)
+      · filter_upwards [eventually_ge_atTop K] with s hs h
+        exact (hex ⟨s, hs, h⟩).elim
   filter_upwards [hfin] with s hs e'' he''
   by_cases hlt : e'' < K + 1
   · exact hs e'' hlt he''
@@ -860,10 +800,9 @@ private theorem quiet_eventually_const (i : Code) (K e' : ℕ) :
     (∀ᶠ s in atTop, Quiet Φ i K e' s) ∨ ∀ᶠ s in atTop, ¬Quiet Φ i K e' s := by
   by_cases hex : ∃ a, K ≤ a ∧ act Φ i a = some e'
   · obtain ⟨a, ha, hae⟩ := hex
-    refine Or.inr ?_
-    filter_upwards [eventually_gt_atTop a] with s hs hq
-    have := key_ge_of_act hs hae
-    exact absurd hq.1 (by omega)
+    refine Or.inr ((eventually_gt_atTop a).mono fun s hs hq => ?_)
+    have := (key_ge_of_act hs hae).trans hq.1
+    omega
   · push Not at hex
     have hst : ∀ s, K ≤ s → lastAct (hist Φ i s) e' s = lastAct (hist Φ i K) e' K :=
       fun s hs => lastAct_hist_stable hs fun b hb _ => hex b hb
@@ -871,17 +810,14 @@ private theorem quiet_eventually_const (i : Code) (K e' : ℕ) :
       fun s hs => key_hist_stable hs fun b hb _ => hex b hb
     by_cases hfl : ∃ s₀, K ≤ s₀ ∧ Flagged Φ i (hist Φ i s₀) e' s₀
     · obtain ⟨s₀, hs₀, hf⟩ := hfl
-      refine Or.inr ?_
-      filter_upwards [eventually_ge_atTop s₀] with s hs hq
-      exact hq.2 (flagged_mono hf hs ((hst s (by omega)).trans (hst s₀ hs₀).symm))
+      exact Or.inr ((eventually_ge_atTop s₀).mono fun s hs hq =>
+        hq.2 (flagged_mono hf hs ((hst s (hs₀.trans hs)).trans (hst s₀ hs₀).symm)))
     · push Not at hfl
       by_cases hk : key (hist Φ i K) e' K ≤ K
-      · refine Or.inl ?_
-        filter_upwards [eventually_ge_atTop K] with s hs
-        exact ⟨(hkst s hs).trans_le hk, hfl s hs⟩
-      · refine Or.inr ?_
-        filter_upwards [eventually_ge_atTop K] with s hs hq
-        exact hk ((hkst s hs).symm.trans_le hq.1)
+      · exact Or.inl ((eventually_ge_atTop K).mono fun s hs =>
+          ⟨(hkst s hs).trans_le hk, hfl s hs⟩)
+      · exact Or.inr ((eventually_ge_atTop K).mono fun s hs hq =>
+          hk ((hkst s hs).symm.trans_le hq.1))
 
 /-- An index that is eventually always quiet halts within `t` almost everywhere: otherwise some
 input would trigger it after its last action. -/
@@ -893,15 +829,10 @@ private theorem halts_of_eventually_quiet {i : Code} {t : ℕ → ℕ} (ht : ∀
     (hS₂ s hs).2 (actor_eq_some (act_eq_some.1 hse).2).1.2.1
   filter_upwards [eventually_ge_atTop S₂] with y hy
   by_contra hny
-  obtain ⟨c, hc⟩ := exists_halts ht y
-  have htr : Triggers Φ i e' y (S₂ + y + c) := by
-    have hcs : Halts Φ i y (S₂ + y + c) := halts_mono hc (by omega)
-    exact ⟨by omega, hcs, by rwa [gv_eq ht hcs]⟩
-  refine (hS₂ (S₂ + y + c) (by omega)).2 ⟨y, by omega, htr, fun a ha hta => ?_⟩
-  rw [lastAct_hist_stable (show S₂ ≤ S₂ + y + c by omega) fun b hb _ => hna b hb] at ha
-  have := (lastAct_hist_eq_some.1 ha).1
-  have := hta.1
-  omega
+  obtain ⟨s, hs, htr⟩ := ((eventually_ge_atTop y).and (eventually_triggers ht hny)).exists
+  refine (hS₂ s (hy.trans hs)).2 ⟨y, by omega, htr, fun a ha hta => ?_⟩
+  rw [lastAct_hist_stable (hy.trans hs) fun b hb _ => hna b hb] at ha
+  exact (lastAct_hist_eq_some.1 ha).1.not_ge (hy.trans hta.1)
 
 /-- (C) If program `e` acts at only finitely many stages, then almost everywhere `e` halts within
 `t` exactly when it halts within the name. -/
@@ -909,21 +840,17 @@ private theorem halts_iff {i : Code} {t t' : ℕ → ℕ} (ht : ∀ n, t n ∈ i
     (ht' : ∀ n, t' n ∈ Φ.name i n) {e S₀ : ℕ} (hS₀ : ∀ s, S₀ ≤ s → act Φ i s ≠ some e) :
     ∀ᶠ x in atTop, (Halts Φ (ofNat Code e) x (t x) ↔ Halts Φ (ofNat Code e) x (t' x)) := by
   classical
-  have heK₀ := le_key_hist (Φ := Φ) i e S₀
-  generalize hK : key (hist Φ i S₀) e S₀ = K at heK₀
+  have heK := le_key_hist (Φ := Φ) i e S₀
+  generalize hK : key (hist Φ i S₀) e S₀ = K at heK
   have hkey : ∀ s, S₀ ≤ s → key (hist Φ i s) e s = K := fun s hs =>
     (key_hist_stable hs fun b hb _ => hS₀ b hb).trans hK
-  have heK : e ≤ K := heK₀
-  have hV : ∀ e', ∀ᶠ s in atTop, (Quiet Φ i K e' s ↔ ∀ᶠ s' in atTop, Quiet Φ i K e' s') := by
-    intro e'
-    rcases quiet_eventually_const (Φ := Φ) i K e' with h | h
-    · filter_upwards [h] with s hs
-      exact iff_of_true hs h
-    · filter_upwards [h] with s hs
-      exact iff_of_false hs fun h' => (h.and h').exists.elim fun _ hs' => hs'.1 hs'.2
   have hall : ∀ᶠ s in atTop, ∀ e' ∈ {e' | e' < K + 1},
       (Quiet Φ i K e' s ↔ ∀ᶠ s' in atTop, Quiet Φ i K e' s') :=
-    (Set.finite_lt_nat (K + 1)).eventually_all.2 fun e' _ => hV e'
+    (Set.finite_lt_nat (K + 1)).eventually_all.2 fun e' _ => by
+      rcases quiet_eventually_const (Φ := Φ) i K e' with h | h
+      · exact h.mono fun _ hs => iff_of_true hs h
+      · exact h.mono fun _ hs =>
+          iff_of_false hs fun h' => (h.and h').exists.elim fun _ hs' => hs'.1 hs'.2
   have hH : ∀ᶠ y in atTop, ∀ e' ∈ {e' | e' < K + 1}, (∀ᶠ s' in atTop, Quiet Φ i K e' s') →
       Halts Φ (ofNat Code e') y (t y) :=
     (Set.finite_lt_nat (K + 1)).eventually_all.2 fun e' _ => by
@@ -966,17 +893,14 @@ private theorem halts_iff {i : Code} {t t' : ℕ → ℕ} (ht : ∀ n, t n ∈ i
     have hSz : S ≤ Nat.pair x z₁ := hxS.trans (Nat.left_le_pair x z₁)
     obtain ⟨hlate, hq, -⟩ := hS _ hSz
     have hna : act Φ i (Nat.pair x z₁) = none := by
-      cases hc : act Φ i (Nat.pair x z₁) with
-      | none => rfl
-      | some e'' =>
-        exfalso
-        obtain ⟨-, hcand, -⟩ := act_pair_eq_some hc
+      rcases hc : act Φ i (Nat.pair x z₁) with _ | e''
+      · rfl
+      · obtain ⟨-, hcand, -⟩ := act_pair_eq_some hc
         have hlt := hlate e'' hc
-        refine hMmin z₁ hMz fun e' he' hve => ?_
-        have hqe := (hq e' he').2 hve
-        have hqk := hqe.1
-        have he'' := le_key_hist (Φ := Φ) i e' (Nat.pair x z₁)
-        exact hcand.2.2.2 e' (by omega) (by omega) hqe.2
+        refine (hMmin z₁ hMz fun e' he' hve => ?_).elim
+        obtain ⟨hqk, hqf⟩ := (hq e' he').2 hve
+        have := le_key_hist (Φ := Φ) i e' (Nat.pair x z₁)
+        exact hcand.2.2.2 e' (by omega) (by omega) hqf
     have hH₁ : Halts Φ i x z₁ := hz₁.2.resolve_left fun h => h hna
     rw [val_of_not_act hna, gv_eq ht hH₁, max_eq_right (by omega)]
 
@@ -990,15 +914,11 @@ private theorem eventually_halts_iff {i : Code} {t t' : ℕ → ℕ} (ht : ∀ n
     obtain ⟨S₀, hS₀⟩ := eventually_act_ne ht h
     filter_upwards [h, halts_iff ht ht' hS₀] with x hx hiff using hiff.1 hx
   · intro h
-    by_cases hfin : ∃ S₀, ∀ s, S₀ ≤ s → act Φ i s ≠ some (encode c)
-    · obtain ⟨S₀, hS₀⟩ := hfin
+    by_cases hfin : ∀ᶠ s in atTop, act Φ i s ≠ some (encode c)
+    · obtain ⟨S₀, hS₀⟩ := eventually_atTop.1 hfin
       filter_upwards [h, halts_iff ht ht' hS₀] with x hx hiff using hiff.2 hx
     · have hfr : ∃ᶠ s in atTop, act Φ i s = some (encode c) := by
-        rw [frequently_atTop]
-        intro a
-        by_contra hne
-        push Not at hne
-        exact hfin ⟨a, hne⟩
+        simpa only [not_not] using Filter.not_eventually.mp hfin
       exact (((frequently_not_halts ht' hfr).and_eventually h).exists.elim
         fun _ hx => hx.1 hx.2).elim
 
@@ -1025,9 +945,8 @@ theorem complexityClass_name {i : Code} {t t' : ℕ → ℕ} (ht : ∀ n, t n �
   ext f
   simp only [mem_complexityClass]
   refine exists_congr fun c => and_congr_right fun hc => ?_
-  have h := eventually_cost_le_name_iff ht ht' c
-  simp only [← Φ.forall_mem_cost_iff_exists_of_total hc] at h
-  exact h.symm
+  simpa only [← Φ.forall_mem_cost_iff_exists_of_total hc] using
+    (eventually_cost_le_name_iff ht ht' c).symm
 
 variable (Φ) in
 /-- **The naming theorem** [Odifreddi1999, Theorem VII.3.6]. There is a computable map `h` on
@@ -1041,7 +960,7 @@ So the measured set `{φ_{h i}}` contains a name for every complexity class `C_t
 `t`. -/
 theorem naming_theorem :
     ∃ h : Code → Code, Computable h ∧
-      ComputablePred (fun q : Code × ℕ × ℕ => q.2.2 ∈ (h q.1).eval q.2.1) ∧
+      ComputablePred (fun q : Code × ℕ × ℕ => nameValue q ∈ (h q.1).eval (nameInput q)) ∧
       ∀ i : Code, ∀ t : ℕ → ℕ, (∀ n, t n ∈ i.eval n) →
         ∃ t' : ℕ → ℕ, (∀ n, t' n ∈ (h i).eval n) ∧
           Φ.complexityClass t' = Φ.complexityClass t := by
@@ -1054,10 +973,9 @@ theorem naming_theorem :
     rw [Code.eval_curry, hc]
     simp only [Nat.unpair_pair, ofNat_encode]
   refine ⟨fun i => Code.curry c (encode i), Code.primrec₂_curry.to_comp.comp
-    (Computable.const c) Computable.encode, ?_, fun i t ht => ?_⟩
-  · refine (Φ.computablePred_mem_name).of_eq fun q => ?_
-    rw [hh]
-  · obtain ⟨t', ht'⟩ := Φ.exists_name_total ht
-    exact ⟨t', fun n => (hh i n).symm ▸ ht' n, complexityClass_name ht ht'⟩
+    (Computable.const c) Computable.encode, (Φ.computablePred_mem_name).of_eq fun q => by rw [hh],
+    fun i t ht => ?_⟩
+  obtain ⟨t', ht'⟩ := Φ.exists_name_total ht
+  exact ⟨t', fun n => (hh i n).symm ▸ ht' n, complexityClass_name ht ht'⟩
 
 end Cslib.BlumComplexity.BlumMeasure

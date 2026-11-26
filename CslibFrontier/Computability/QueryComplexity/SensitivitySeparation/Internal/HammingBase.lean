@@ -82,13 +82,10 @@ private theorem ballPredicate_zero_flip [Fintype C] (centers : C → I → Bool)
     (hi : ballPredicate centers R (BitString.flipOn {i} x) = true) :
     ∃ c, hammingDist x (centers c) = R + 1 ∧ x i ≠ centers c i := by
   rcases (ballPredicate_eq_true centers R (BitString.flipOn {i} x)).1 hi with ⟨c, hc⟩
-  have hn : ¬ hammingDist x (centers c) ≤ R := by
-    intro h
-    have := (ballPredicate_eq_true centers R x).2 ⟨c, h⟩
-    simp_all
+  have hn : ¬ hammingDist x (centers c) ≤ R := fun h => by
+    simp [(ballPredicate_eq_true centers R x).2 ⟨c, h⟩] at hx
   have hd := hammingDist_le_flip_add_one x (centers c) i
-  refine ⟨c, by omega, ?_⟩
-  intro heq
+  refine ⟨c, by omega, fun heq => ?_⟩
   rw [hammingDist_flip_eq_add_one x (centers c) i heq] at hc
   omega
 
@@ -140,8 +137,7 @@ theorem ballPredicate_no_joint_zero [Fintype C] [DecidableEq I] (centers : C →
     (hR : ballPredicate centers R (BitString.flipOn {i} x) = true) : False := by
   obtain ⟨c, hc⟩ := (ballPredicate_eq_true centers R (BitString.flipOn {i} x)).1 hR
   have hd := hammingDist_le_flip_add_one x (centers c) i
-  have ht := (ballPredicate_eq_true centers S x).2 ⟨c, by omega⟩
-  simp_all
+  simp [(ballPredicate_eq_true centers S x).2 ⟨c, by omega⟩] at hS
 
 /-- For `R < S`, if `x` is accepted at radius `R`, then no one-bit flip of `x` is
 rejected at radius `S`. -/
@@ -151,8 +147,7 @@ theorem ballPredicate_no_joint_one [Fintype C] [DecidableEq I] (centers : C → 
     (hS : ballPredicate centers S (BitString.flipOn {i} x) = false) : False := by
   obtain ⟨c, hc⟩ := (ballPredicate_eq_true centers R x).1 hR
   have hd := hammingDist_flip_le_add_one x (centers c) i
-  have ht := (ballPredicate_eq_true centers S (BitString.flipOn {i} x)).2 ⟨c, by omega⟩
-  simp_all
+  simp [(ballPredicate_eq_true centers S (BitString.flipOn {i} x)).2 ⟨c, by omega⟩] at hS
 
 end Internal
 

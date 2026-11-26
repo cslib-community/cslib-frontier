@@ -143,7 +143,7 @@ theorem runWith_le_runWith_succ (T : DDGTree α) (n : ℕ) (a : α) :
   induction n generalizing T with
   | zero =>
     by_cases h : T.output [] = some a
-    · rw [runWith_eq_pure_of_output_nil c h, runWith_eq_pure_of_output_nil c h]
+    · simp [runWith_eq_pure_of_output_nil c h]
     · simp [PMF.pure_apply, Ne.symm h]
   | succ n ih =>
     rw [runWith_succ, runWith_succ c T (n + 1), PMF.bind_apply, PMF.bind_apply]
@@ -177,22 +177,17 @@ theorem outputProbWith_pure_eq_zero_or_one (b : Bool) (T : DDGTree α) (a : α) 
   simp only [outputProbWith, runWith_pure, PMF.pure_apply]
   by_cases h : ∃ n, some a = T.output (List.replicate n b)
   · obtain ⟨n, hn⟩ := h
-    refine Or.inr (le_antisymm (iSup_le fun _ => by split_ifs <;> simp) ?_)
-    exact le_iSup_of_le n (by simp [hn])
-  · simp only [not_exists] at h
-    exact Or.inl (by simp [h])
+    exact .inr (le_antisymm (iSup_le fun _ => by split_ifs <;> simp)
+      (le_iSup_of_le n (by simp [hn])))
+  · exact .inl (by simp [not_exists.mp h])
 
 /-- A deterministic coin cannot produce a fair bit. -/
 theorem not_generatesWith_pure_uniform (b : Bool) (T : DDGTree Bool) :
-    ¬ T.GeneratesWith (PMF.pure b) (PMF.uniformOfFintype Bool) := by
-  intro h
-  have hhalf : T.outputProbWith (PMF.pure b) true = 2⁻¹ := by
-    simp [h true, PMF.uniformOfFintype_apply]
+    ¬ T.GeneratesWith (PMF.pure b) (PMF.uniformOfFintype Bool) := fun h => by
+  have hhalf : T.outputProbWith (PMF.pure b) true = 2⁻¹ := by simp [h true]
   rcases outputProbWith_pure_eq_zero_or_one b T true with h0 | h1
-  · rw [h0] at hhalf
-    exact (ENNReal.inv_ne_zero.mpr ENNReal.ofNat_ne_top) hhalf.symm
-  · rw [h1] at hhalf
-    exact ENNReal.one_lt_two.ne' (by simpa using congrArg (·⁻¹) hhalf)
+  · exact ENNReal.inv_ne_zero.mpr ENNReal.ofNat_ne_top (h0 ▸ hhalf).symm
+  · exact ENNReal.one_lt_two.ne' (by simpa [h1] using congrArg (·⁻¹) hhalf)
 
 end DDGTree
 
@@ -223,8 +218,7 @@ first unequal pair. -/
 theorem vonNeumannOutput_append_singleton :
     ∀ (w : List Bool) (a x : Bool), vonNeumannOutput w = some a →
       vonNeumannOutput (w ++ [x]) = some a
-  | [], _, _, h => by simp [vonNeumannOutput] at h
-  | [_], _, _, h => by simp [vonNeumannOutput] at h
+  | [], _, _, h | [_], _, _, h => by simp [vonNeumannOutput] at h
   | a :: b :: w, r, x, h => by
     by_cases hab : a = b
     · simp only [vonNeumannOutput, hab, ↓reduceIte, List.cons_append] at h ⊢
@@ -239,38 +233,29 @@ theorem vonNeumannOutput_append_singleton :
 variable (c : PMF Bool)
 
 theorem runWith_one_vonNeumann : vonNeumann.runWith c 1 = PMF.pure none := by
-  have h : ∀ b, (vonNeumann.child b).output [] = none := fun _ => rfl
-  rw [runWith_succ]
-  simp only [runWith_zero, h]
-  exact PMF.bind_const _ _
+  simp only [runWith_succ, runWith_zero]
+  exact PMF.bind_const c (PMF.pure none)
 
 /-- Two more flips: an unequal pair stops with its first flip, an equal pair restarts. -/
 theorem runWith_add_two_vonNeumann (n : ℕ) :
     vonNeumann.runWith c (n + 2) = c.bind fun a => c.bind fun b =>
       if a = b then vonNeumann.runWith c n else PMF.pure (some a) := by
-  rw [runWith_succ]
-  congr 1
-  funext a
-  rw [runWith_succ]
-  congr 1
-  funext b
+  simp only [runWith_succ]
+  refine congrArg c.bind (funext fun a => congrArg c.bind (funext fun b => ?_))
   split_ifs with hab
-  · congr 1
-    refine DDGTree.ext (funext fun w => ?_)
+  · refine congrArg (runWith c n) (DDGTree.ext (funext fun w => ?_))
     change vonNeumannOutput (a :: b :: w) = vonNeumannOutput w
     simp [vonNeumannOutput, hab]
-  · have h : ((vonNeumann.child a).child b).output [] = some a := by
-      change vonNeumannOutput [a, b] = some a
-      simp [vonNeumannOutput, hab]
-    exact runWith_eq_pure_of_output_nil c h n
+  · refine runWith_eq_pure_of_output_nil c ?_ n
+    change vonNeumannOutput [a, b] = some a
+    simp [vonNeumannOutput, hab]
 
 theorem runWith_add_two_vonNeumann_none (n : ℕ) :
     vonNeumann.runWith c (n + 2) none =
       (c true * c true + c false * c false) * vonNeumann.runWith c n none := by
   rw [runWith_add_two_vonNeumann]
   simp only [PMF.bind_apply, tsum_bool]
-  simp [PMF.pure_apply]
-  ring
+  simp [PMF.pure_apply]; ring
 
 theorem runWith_add_two_vonNeumann_some (n : ℕ) (x : Bool) :
     vonNeumann.runWith c (n + 2) (some x) = c true * c false +
@@ -328,9 +313,8 @@ theorem expectedFlipsWith_coin_vonNeumann (hρ0 : 0 < (ρ : ℝ)) (hρ1 : (ρ : 
     mul_inv_cancel₀ two_ne_zero, ENNReal.ofReal_one, one_mul]
 
 theorem expectedFlipsWith_coin_vonNeumann_ne_top (hρ0 : 0 < (ρ : ℝ)) (hρ1 : (ρ : ℝ) < 1) :
-    vonNeumann.expectedFlipsWith (PMF.coin ρ) ≠ ⊤ := by
-  rw [expectedFlipsWith_coin_vonNeumann hρ0 hρ1]
-  exact ENNReal.ofReal_ne_top
+    vonNeumann.expectedFlipsWith (PMF.coin ρ) ≠ ⊤ :=
+  expectedFlipsWith_coin_vonNeumann hρ0 hρ1 ▸ ENNReal.ofReal_ne_top
 
 /-- **Von Neumann extraction** ([Arora and Barak, Lemma 7.15]): from independent flips of a coin
 of bias `0 < ρ < 1` the repeat-until-different loop outputs an exactly fair bit. -/
@@ -338,32 +322,25 @@ theorem vonNeumann_generatesWith_coin (hρ0 : 0 < (ρ : ℝ)) (hρ1 : (ρ : ℝ)
     vonNeumann.GeneratesWith (PMF.coin ρ) (PMF.uniformOfFintype Bool) := by
   set c := PMF.coin ρ
   set L := vonNeumann.outputProbWith c true
-  have hL : ∀ x, vonNeumann.outputProbWith c x = L := by
-    intro x
-    cases x
-    · simp only [L, outputProbWith, runWith_vonNeumann_true_eq_false]
-    · rfl
-  have hsum : ∀ n, vonNeumann.runWith c n (some true) + vonNeumann.runWith c n (some true) +
+  have hL (x : Bool) : vonNeumann.outputProbWith c x = L := by
+    cases x <;> simp only [L, outputProbWith, runWith_vonNeumann_true_eq_false]
+  have hsum (n : ℕ) : vonNeumann.runWith c n (some true) + vonNeumann.runWith c n (some true) +
       vonNeumann.runWith c n none = 1 := by
-    intro n
     have h := (vonNeumann.runWith c n).tsum_coe
     rw [tsum_fintype (L := SummationFilter.unconditional _), Fintype.sum_option,
-      Fintype.sum_bool] at h
-    rw [← h, runWith_vonNeumann_true_eq_false c n]
-    ring
+      Fintype.sum_bool, ← runWith_vonNeumann_true_eq_false] at h
+    rw [← h]; ring
   have hlim : Tendsto (fun n => vonNeumann.runWith c n (some true) +
       vonNeumann.runWith c n (some true) + vonNeumann.runWith c n none) atTop (𝓝 (L + L + 0)) :=
-    ((tendsto_runWith_outputProbWith c _ true).add
-      (tendsto_runWith_outputProbWith c _ true)).add
+    ((tendsto_runWith_outputProbWith c vonNeumann true).add
+      (tendsto_runWith_outputProbWith c vonNeumann true)).add
       (tendsto_runWith_none_of_expectedFlipsWith_ne_top c
         (expectedFlipsWith_coin_vonNeumann_ne_top hρ0 hρ1))
   simp only [hsum, add_zero] at hlim
-  have h2L : L * 2 = 1 := by
-    rw [mul_two]
-    exact (tendsto_nhds_unique tendsto_const_nhds hlim).symm
+  rw [← mul_two] at hlim
   intro x
   rw [hL x, PMF.uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat]
-  exact ENNReal.eq_inv_of_mul_eq_one_left h2L
+  exact ENNReal.eq_inv_of_mul_eq_one_left (tendsto_nhds_unique tendsto_const_nhds hlim).symm
 
 /-- The hypothesis `0 < ρ < 1` of von Neumann extraction is necessary and sufficient: some
 coin-reading tree outputs an exactly fair bit from independent flips of a coin of bias `ρ` exactly

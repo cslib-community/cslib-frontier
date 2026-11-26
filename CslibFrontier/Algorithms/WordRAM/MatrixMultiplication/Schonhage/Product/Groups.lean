@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product.Transfer
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted.Memory
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Saving actual routing arrays across producer calls
@@ -62,8 +63,7 @@ public theorem exec_saveOffsets {w L m N Q : ℕ} (x : Data 160)
         Reg.destination ← Reg.offsets; Reg.length ← Reg.tiles + Reg.one ])) x
         (((x.set Reg.source (Wanted.offsetAddress L m N Q)).set Reg.destination
           (offsetBase L m N Q)).set Reg.length (numBands L m N ^ 2 + 1)) 3 := by
-    ram_eval [hsrc, hp.offsets, hp.tiles, hp.one, hn, Reg.tiles, Reg.one, Reg.source,
-      Reg.destination, Reg.length, Reg.offsets]
+    wram_exec * [hn]
   obtain ⟨y, he, hy⟩ := exec_setupCopy x hp hfit hz (by omega) (by omega) (Or.inl (by omega))
   exact ⟨y, he.mono (by omega), hy⟩
 
@@ -86,8 +86,7 @@ public theorem exec_saveCodes {w L m N Q : ℕ} (x : Data 160)
       Reg.destination ← Reg.codes; Reg.length ← Reg.queryCount ])) x
       (((x.set Reg.source (Wanted.codeAddress L m N Q)).set Reg.destination
         (codeBase L m N Q)).set Reg.length Q) 3 := by
-    ram_eval [hsrc, hp.codes, hp.queryCount, Reg.queryCount, Reg.source, Reg.destination,
-      Reg.length, Reg.codes]
+    wram_exec *
   exact exec_setupCopy x hp hfit hz (by omega) (by omega) (Or.inl (by omega))
 
 /-- Actual argument setup and native copying preserve the caller protocol and every other
@@ -110,8 +109,7 @@ public theorem exec_saveOriginals {w L m N Q : ℕ} (x : Data 160)
         Reg.destination ← Reg.originals; Reg.length ← Reg.queryCount ])) x
         (((x.set Reg.source (Wanted.originalAddress L m N Q)).set Reg.destination
           (originalBase L m N Q)).set Reg.length Q) 3 := by
-    ram_eval [hsrc, hp.originals, hp.queryCount, Reg.queryCount, Reg.source, Reg.destination,
-      Reg.length, Reg.originals]
+    wram_exec *
   exact exec_setupCopy x hp hfit hz (by omega) (by omega) (Or.inl (by omega))
 
 /-- Save all three actual routing arrays before the second producer reuses low memory.
@@ -129,41 +127,20 @@ public theorem exec_saveGroups {w L m N Q : ℕ} (x : Data 160)
         x.mem (Wanted.originalAddress L m N Q + j)) ∧
       (∀ a, a < offsetBase L m N Q ∨ originalBase L m N Q + Q ≤ a → y.mem a = x.mem a) := by
   obtain ⟨a, ha, ap, am, af⟩ := exec_saveOffsets x hp wp.offsets hfit
-  have ac : a.regs (bank Wanted.codes) = Wanted.codeAddress L m N Q :=
-    (af _ (by decide) (by decide) (by decide) (by decide)).trans wp.codes
-  obtain ⟨b, hb, bp, bm, bf⟩ := exec_saveCodes a ap ac hfit
-  have bo : b.regs (bank Wanted.originals) = Wanted.originalAddress L m N Q :=
-    (bf _ (by decide) (by decide) (by decide) (by decide)).trans
-      ((af _ (by decide) (by decide) (by decide) (by decide)).trans wp.originals)
-  obtain ⟨y, hy, yp, ym, _⟩ := exec_saveOriginals b bp bo hfit
+  obtain ⟨b, hb, bp, bm, bf⟩ := exec_saveCodes a ap (by regs_frame) hfit
+  obtain ⟨y, hy, yp, ym, _⟩ := exec_saveOriginals b bp (by regs_frame) hfit
   have hbounds := group_copy_bounds L m N Q
-  have horder : offsetBase L m N Q ≤ codeBase L m N Q ∧
-      codeBase L m N Q ≤ originalBase L m N Q := by
-    simp only [codeBase, originalBase]
-    omega
-  refine ⟨y, (ha.seq (hb.seq hy)).mono (by omega), yp, ?_, ?_, ?_, ?_⟩
-  · intro t ht
-    have hbefore : offsetBase L m N Q + t < codeBase L m N Q := by unfold codeBase; omega
-    rw [ym, ArrayCopy.copyPrefix_outside (by omega), bm,
-      ArrayCopy.copyPrefix_outside (by omega), am]
-    exact ArrayCopy.copyPrefix_read (by omega)
-  · intro j hj
-    have hbefore : codeBase L m N Q + j < originalBase L m N Q := by
-      unfold originalBase
-      omega
-    have hlow : Wanted.codeAddress L m N Q + j < offsetBase L m N Q := by omega
-    rw [ym, ArrayCopy.copyPrefix_outside (by omega), bm, ArrayCopy.copyPrefix_read hj,
+  have hoff : offsetBase L m N Q + (numBands L m N ^ 2 + 1) = codeBase L m N Q := rfl
+  have hcode : codeBase L m N Q + Q = originalBase L m N Q := rfl
+  refine ⟨y, (ha.seq (hb.seq hy)).mono (by omega), yp, fun t ht => ?_, fun j hj => ?_,
+    fun j hj => ?_, fun p hp => ?_⟩
+  · rw [ym, ArrayCopy.copyPrefix_outside (by omega), bm, ArrayCopy.copyPrefix_outside (by omega),
+      am, ArrayCopy.copyPrefix_read (by omega)]
+  · rw [ym, ArrayCopy.copyPrefix_outside (by omega), bm, ArrayCopy.copyPrefix_read hj,
       am, ArrayCopy.copyPrefix_outside (by omega)]
-  · intro j hj
-    have hlow : Wanted.originalAddress L m N Q + j < offsetBase L m N Q := by omega
-    rw [ym, ArrayCopy.copyPrefix_read hj, bm, ArrayCopy.copyPrefix_outside (by omega),
+  · rw [ym, ArrayCopy.copyPrefix_read hj, bm, ArrayCopy.copyPrefix_outside (by omega),
       am, ArrayCopy.copyPrefix_outside (by omega)]
-  · intro p hp
-    have hoff : offsetBase L m N Q + (numBands L m N ^ 2 + 1) = codeBase L m N Q := by
-      unfold codeBase
-      omega
-    have hcode : codeBase L m N Q + Q = originalBase L m N Q := rfl
-    rw [ym, ArrayCopy.copyPrefix_outside (by omega), bm,
-      ArrayCopy.copyPrefix_outside (by omega), am, ArrayCopy.copyPrefix_outside (by omega)]
+  · rw [ym, ArrayCopy.copyPrefix_outside (by omega), bm, ArrayCopy.copyPrefix_outside (by omega),
+      am, ArrayCopy.copyPrefix_outside (by omega)]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct
