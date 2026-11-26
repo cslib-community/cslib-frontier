@@ -53,9 +53,8 @@ private theorem paste_mem_differenceHierarchy
     obtain ⟨F, hF, D, hD, rfl⟩ := hA
     have heq : ((F \ D) \ E) ∪ B = (F ∪ E) \ ((D \ E) ∪ (E \ B)) := by
       ext a
-      have := @hBE a
-      simp only [Set.mem_union, Set.mem_sdiff] at *
-      lrat_tauto
+      simp only [Set.mem_union, Set.mem_sdiff]
+      lrat_tauto [@hBE a]
     rw [heq, show 2 * (n + 1) + m = (2 * n + (m + 1)) + 1 by omega]
     exact ⟨F ∪ E, hU F hF E hE, _, ih hD ⟨E, hE, B, hB, rfl⟩ Set.sdiff_subset, rfl⟩
 
