@@ -1709,6 +1709,7 @@ public import CslibFrontier.Crypto.Primitives.SLHDSA.Parameters
 public import CslibFrontier.Crypto.Computational.Factoring.LinearRelation
 public import CslibFrontier.Crypto.Computational.Homomorphic.FixedKey.Correctness
 public import CslibFrontier.Computability.Kolmogorov.Depth
+public import CslibFrontier.GameTheory.VonNeumannMorgenstern
 public import CslibFrontier.Crypto.Protocols.FRI.BatchJohnsonSoundness.SmoothJohnsonROM
 public import CslibFrontier.Computability.WangTile.Robinson.Realization
 public import CslibFrontier.Probability.PMF.DensityBounds
