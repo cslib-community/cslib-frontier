@@ -116,11 +116,9 @@ positive `k`. -/
 theorem mem_no_iff {S : SetSystem} {k : ℕ} :
     (S, k) ∈ (GapSetCover 3).no ↔ S.Coverable ∧ 3 * k ≤ S.optCoverSize ∧ 0 < k := by
   rw [GapSetCover, mem_no_GapSetCoverFn]
-  refine and_congr_right fun _ => and_congr (by exact_mod_cast Iff.rfl) ⟨?_, ?_⟩
-  · exact fun h => Nat.pos_of_ne_zero fun hk => by norm_num [hk] at h
-  · intro hk
-    have hk_pos : (0 : ℝ) < k := by exact_mod_cast hk
-    linarith
+  refine and_congr_right fun _ => and_congr (by exact_mod_cast Iff.rfl)
+    ⟨fun h => Nat.pos_of_ne_zero fun hk => by norm_num [hk] at h,
+      fun hk => by linarith [(Nat.cast_pos (α := ℝ)).mpr hk]⟩
 
 /-- The optimum of a coverable system is at most its number of sets. -/
 private theorem optCoverSize_le_length {S : SetSystem} (hS : S.Coverable) :
@@ -158,14 +156,10 @@ theorem mem_residues {S : SetSystem} {i : Fin S.sets.length} {j : ℕ} :
 list play no part on either side. -/
 theorem forall_residues_iff (S : SetSystem) (C : Finset (Fin S.sets.length)) :
     (∀ u < S.ground.length, ∃ i ∈ C, u ∈ residues S i) ↔ S.IsCover C := by
-  constructor
-  · intro h u hu
-    obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hu
-    obtain ⟨i, hi, hji⟩ := h j hj
-    exact ⟨i, hi, (mem_residues.mp hji).2⟩
-  · intro h u hu
-    obtain ⟨i, hi, hui⟩ := h _ (List.getElem_mem hu)
-    exact ⟨i, hi, mem_residues.mpr ⟨hu, hui⟩⟩
+  refine ⟨fun h u hu => ?_, fun h u hu =>
+    (h _ (List.getElem_mem hu)).imp fun i ⟨hi, hui⟩ => ⟨hi, mem_residues.mpr ⟨hu, hui⟩⟩⟩
+  obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hu
+  exact (h j hj).imp fun i ⟨hi, hji⟩ => ⟨hi, (mem_residues.mp hji).2⟩
 
 /-- `N + t + 4`, for `N` ground positions and `t` sets. -/
 @[expose] def bound (S : SetSystem) : ℕ :=
@@ -179,9 +173,7 @@ private theorem three_le_size (S : SetSystem) : 3 ≤ Nat.size (bound S) :=
   Nat.lt_size.mpr (by simp only [bound]; omega)
 
 theorem eighteen_le_arity (S : SetSystem) : 18 ≤ arity S := by
-  have := three_le_size S
-  simp only [arity]
-  omega
+  exact Nat.mul_le_mul_left 6 (three_le_size S)
 
 instance (S : SetSystem) : NeZero (arity S) :=
   ⟨by have := eighteen_le_arity S; omega⟩
@@ -304,8 +296,7 @@ theorem three_mul_card_ofTable_mem_le {S : SetSystem} {k : ℕ}
   have hmiss : ∀ B : Finset (Fin S.sets.length), #B ≤ k + 1 →
       ∃ u < S.ground.length, ∀ i ∈ B, u ∉ residues S i := by
     intro B hB
-    by_contra h
-    push Not at h
+    by_contra! h
     have := SetSystem.optCoverSize_le ((forall_residues_iff S B).mp h)
     omega
   have hM := bound_pow_six_lt S
@@ -328,11 +319,10 @@ theorem three_mul_card_ofTable_mem_le {S : SetSystem} {k : ℕ}
           calc 30 * bound S ^ 3 ≤ bound S ^ 3 * bound S ^ 3 := Nat.mul_le_mul_right _ h30
             _ = bound S ^ 6 := by ring
       _ ≤ 2 ^ arity S := hM.le
-  refine (Nat.mul_le_mul_left 3 (card_le_card fun T hT => ?_)).trans
+  exact (Nat.mul_le_mul_left 3 (card_le_card (monotone_filter_right _ fun T _ hT =>
+    hmin ▸ ofTable_mem_iff.mp hT))).trans
     (Window.three_mul_card_cheap_lift_le (I := I) hN (residues S) k hmiss (by omega)
       (by omega) h64 hd)
-  rw [mem_filter] at hT ⊢
-  exact ⟨mem_univ _, hmin ▸ ofTable_mem_iff.mp hT.2⟩
 
 /-! ### The randomized reduction -/
 
@@ -410,9 +400,7 @@ theorem rpReducible_of_computableInPolyTime
     have hgood : #{r : Fin q → Bool | reduce ((S, k), List.ofFn r) ∉ MultiMCSP I} ≤
         #{r : Fin q → Bool | reduce ((S, k), List.ofFn r) ∈
           ((PromiseProblem.ofSet (MultiMCSP I)).restrict {x | x.Positive}).no} :=
-      card_le_card fun r hr => by
-        rw [mem_filter] at hr ⊢
-        exact ⟨hr.1, Set.mem_inter hr.2 (reduce_positive _)⟩
+      card_le_card (monotone_filter_right _ fun r _ hr => Set.mem_inter hr (reduce_positive _))
     omega
 
 end Reduction

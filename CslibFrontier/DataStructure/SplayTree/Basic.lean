@@ -421,9 +421,9 @@ theorem ordered_of_ordered_plug {t : BinaryTree α} {ctx : List (Frame α)}
   induction ctx generalizing t with
   | nil => exact h
   | cons f ctx ih =>
-    cases f with
-    | left p r => exact (ih h).1
-    | right l p => exact (ih h).2.1
+    cases f
+    · exact (ih h).1
+    · exact (ih h).2.1
 
 theorem ordered_plug_congr {t₁ t₂ : BinaryTree α} (ctx : List (Frame α))
     (he : elements t₁ = elements t₂) (ho : Ordered t₁ → Ordered t₂)
@@ -433,13 +433,11 @@ theorem ordered_plug_congr {t₁ t₂ : BinaryTree α} (ctx : List (Frame α))
   | cons f ctx ih =>
     cases f with
     | left p r =>
-      refine ih (by simp [elements, he]) ?_ h
-      rintro ⟨ht₁, hr, hlt, hgt⟩
-      exact ⟨ho ht₁, hr, he ▸ hlt, hgt⟩
+      exact ih (t₁ := .node p t₁ r) (by simp [elements, he])
+        (fun ⟨h1, hr, hlt, hgt⟩ => ⟨ho h1, hr, he ▸ hlt, hgt⟩) h
     | right l p =>
-      refine ih (by simp [elements, he]) ?_ h
-      rintro ⟨hl, ht₁, hlt, hgt⟩
-      exact ⟨hl, ho ht₁, hlt, he ▸ hgt⟩
+      exact ih (t₁ := .node p l t₁) (by simp [elements, he])
+        (fun ⟨hl, h1, hlt, hgt⟩ => ⟨hl, ho h1, hlt, he ▸ hgt⟩) h
 
 /-- A single left-zig rotation preserves the represented finite set of keys. -/
 private theorem elements_zig_left {x p : α} {a b c : BinaryTree α} :
@@ -566,15 +564,11 @@ theorem focusSearch_toTree_and_length {x : α} {t : BinaryTree α} {ctx : List (
   | node a l r ihl ihr =>
     rcases focusSearch_node_eq_some hf with
       ⟨hxa, hl | ⟨rfl, rfl⟩⟩ | ⟨hax, hr | ⟨rfl, rfl⟩⟩ | ⟨rfl, rfl⟩
-    · obtain ⟨htree, hlen⟩ := ihl hl
-      refine ⟨htree, ?_⟩
-      simp only [List.length_cons, searchVisits, hxa, ↓reduceIte] at hlen ⊢
-      omega
+    · refine (ihl hl).imp_right fun hlen => ?_
+      simp only [List.length_cons, searchVisits, hxa, ↓reduceIte] at hlen ⊢; omega
     · simp [Focus.toTree, Focus.sub, searchVisits, hxa]
-    · obtain ⟨htree, hlen⟩ := ihr hr
-      refine ⟨htree, ?_⟩
-      simp only [List.length_cons, searchVisits, lt_asymm hax, hax, ↓reduceIte] at hlen ⊢
-      omega
+    · refine (ihr hr).imp_right fun hlen => ?_
+      simp only [List.length_cons, searchVisits, lt_asymm hax, hax, ↓reduceIte] at hlen ⊢; omega
     · simp [Focus.toTree, Focus.sub, searchVisits, lt_asymm hax, hax]
     · simp [Focus.toTree, Focus.sub, searchVisits]
 
@@ -878,9 +872,7 @@ and rotates it to the root. -/
 
 theorem ordered_contains {t : BinaryTree α} (ht : Ordered t) (x : α) :
     Ordered (contains x t).tree := by
-  simp only [contains]
-  have ho := ordered_splay ht x
-  cases hs : (splay x t).tree <;> simpa [hs] using ho
+  cases hs : (splay x t).tree <;> simpa [contains, hs] using ordered_splay ht x
 
 theorem contains_answer_eq_true {t : BinaryTree α} (ht : Ordered t) (x : α) :
     (contains x t).answer = true ↔ x ∈ elements t := by
@@ -889,11 +881,8 @@ theorem contains_answer_eq_true {t : BinaryTree α} (ht : Ordered t) (x : α) :
   | nil => simp [(tree_splay_eq_nil_iff x t).mp hs]
   | node r l R =>
     simp only [decide_eq_true_eq]
-    refine ⟨?_, fun hx =>
+    exact ⟨fun h => elements_splay x t ▸ hs.symm ▸ mem_elements_node.mpr (.inl h), fun hx =>
       (Option.some.inj ((congrArg rootKey hs).symm.trans (rootKey_splay_of_mem ht hx))).symm⟩
-    rintro rfl
-    rw [← elements_splay x t, hs]
-    simp
 
 theorem contains_answer_eq {t : BinaryTree α} (ht : Ordered t) (x : α) :
     (contains x t).answer = SearchTree.contains x t := by
@@ -901,16 +890,13 @@ theorem contains_answer_eq {t : BinaryTree α} (ht : Ordered t) (x : α) :
 
 theorem ordered_split {t : BinaryTree α} (ht : Ordered t) (x : α) :
     Ordered (split x t).left ∧ Ordered (split x t).right := by
-  simp only [split]
-  have ho := ordered_splay ht x
   cases hs : (splay x t).tree with
-  | nil => simp [Ordered]
+  | nil => simp [split, hs, Ordered]
   | node r l R =>
-    dsimp only
-    rw [hs] at ho
-    obtain ⟨hl, hR, hlr, hrR⟩ := ho
-    split <;> dsimp only
-    · exact ⟨hl, ⟨trivial, hR, by simp, hrR⟩⟩
+    obtain ⟨hl, hR, hlr, hrR⟩ : Ordered (.node r l R) := hs ▸ ordered_splay ht x
+    simp only [split, hs]
+    split_ifs
+    · exact ⟨hl, trivial, hR, by simp, hrR⟩
     · exact ⟨⟨hl, trivial, hlr, by simp⟩, hR⟩
 
 /-- `split x t` partitions the keys of an ordered `t` into those `≤ x` and those `> x`. -/
@@ -980,9 +966,8 @@ private theorem exists_splay_eq_node {t : BinaryTree α} (ht : t ≠ .nil) (x : 
   | nil => simp [insert, elements]
   | node a l r =>
     obtain ⟨r', l', R', hs⟩ := exists_splay_eq_node (t := .node a l r) (by simp) x
-    have he := elements_splay x (.node a l r)
-    rw [hs] at he
-    simp only [insert, hs, ← he]
+    rw [← elements_splay x (.node a l r)]
+    simp only [insert, hs]
     split_ifs with hxr hrx
     · simp only [elements, Finset.empty_union, Finset.union_insert]
     · simp only [elements, Finset.union_empty, Finset.insert_union]
@@ -1048,9 +1033,7 @@ theorem ordered_erase {t : BinaryTree α} (ht : Ordered t) (x : α) :
 
 theorem ordered_minimum {t : BinaryTree α} (ht : Ordered t) :
     Ordered (minimum t).tree := by
-  simp only [minimum]
-  have ho := ordered_splayMin ht
-  cases hs : (splayMin t).tree <;> simpa [hs] using ho
+  cases hs : (splayMin t).tree <;> simpa [minimum, hs] using ordered_splayMin ht
 
 /-- The root of an ordered tree with empty left subtree is its least key. -/
 private theorem leastResult_node_nil {m : α} {R : BinaryTree α} (ho : Ordered (.node m .nil R)) :
@@ -1067,9 +1050,7 @@ subtree. -/
 private theorem leastResult_splayMin {t : BinaryTree α} (ht : Ordered t) (hne : t ≠ .nil) :
     ∃ m R, (splayMin t).tree = .node m .nil R ∧ LeastResult (elements t) (some m) := by
   obtain ⟨m, R, hm⟩ := exists_node_nil_left_splayMin hne
-  refine ⟨m, R, hm, ?_⟩
-  rw [← elements_splayMin t, hm]
-  exact leastResult_node_nil (hm ▸ ordered_splayMin ht)
+  exact ⟨m, R, hm, elements_splayMin t ▸ hm.symm ▸ leastResult_node_nil (hm ▸ ordered_splayMin ht)⟩
 
 theorem minimum_spec {t : BinaryTree α} (ht : Ordered t) :
     LeastResult (elements t) (minimum t).answer := by
@@ -1085,41 +1066,36 @@ theorem minimum_answer_eq {t : BinaryTree α} (ht : Ordered t) :
 
 @[simp] theorem elements_successor (x : α) (t : BinaryTree α) :
     elements (successor x t).tree = elements t := by
-  simp only [successor]
-  have he := elements_splay x t
+  rw [← elements_splay x t]
   cases hs : (splay x t).tree with
-  | nil => simpa [hs] using he
+  | nil => simp [successor, hs]
   | node r l R =>
-    dsimp only
-    rw [hs] at he
-    split
-    · exact he
+    simp only [successor, hs]
+    split_ifs
+    · rfl
     · cases R with
-      | nil => exact he
+      | nil => rfl
       | node b rl rr =>
         obtain ⟨m, mR, hm⟩ := exists_node_nil_left_splayMin (t := .node b rl rr) (by simp)
         simp only [hm, elements_zig_left.symm]
-        rwa [elements, ← hm, elements_splayMin]
+        rw [elements, ← hm, elements_splayMin, ← elements]
 
 theorem ordered_successor {t : BinaryTree α} (ht : Ordered t) (x : α) :
     Ordered (successor x t).tree := by
-  simp only [successor]
-  have ho := ordered_splay ht x
   cases hs : (splay x t).tree with
-  | nil => simp [Ordered]
+  | nil => simp [successor, hs, Ordered]
   | node r l R =>
-    dsimp only
-    have ho' : Ordered (.node r l R) := hs ▸ ho
-    have ⟨hl, hR, hlr, hrR⟩ := ho'
-    split
-    · exact ho'
+    have ho : Ordered (.node r l R) := hs ▸ ordered_splay ht x
+    simp only [successor, hs]
+    split_ifs
+    · exact ho
     · cases R with
-      | nil => exact ho'
+      | nil => exact ho
       | node b rl rr =>
         obtain ⟨m, mR, hm⟩ := exists_node_nil_left_splayMin (t := .node b rl rr) (by simp)
         simp only [hm]
-        exact ordered_zig_right
-          ⟨hl, hm ▸ ordered_splayMin hR, hlr, (hm ▸ elements_splayMin (.node b rl rr)).symm ▸ hrR⟩
+        exact ordered_zig_right ⟨ho.1, hm ▸ ordered_splayMin ho.2.1, ho.2.2.1,
+          (hm ▸ elements_splayMin (.node b rl rr)).symm ▸ ho.2.2.2⟩
 
 theorem successor_spec {t : BinaryTree α} (ht : Ordered t) (x : α) :
     LeastResult ((elements t).filter (x < ·)) (successor x t).answer := by

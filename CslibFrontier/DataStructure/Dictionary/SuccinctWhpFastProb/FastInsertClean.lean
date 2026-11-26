@@ -49,8 +49,7 @@ private theorem not_mem_dom_of_bufLookup_some {c U V n_max : ℕ} {θ : SeedWhp 
   obtain ⟨hm', _⟩ := hc.mem_dom_of_loc hb' hl'
   let u' : Fin U := ⟨fs.keyValAt c U n_max θ.1 b' l', (hc.active_item b' hb' l' hl').1⟩
   have hrk_u' : fpReducedKey c U n_max θ.2 u' = fpReducedKey c U n_max θ.2 u := by
-    dsimp only [FastState.rKeyAt] at hrk_eq
-    simpa [u'.isLt, u'] using hrk_eq
+    simpa only [FastState.rKeyAt, u'.isLt, ↓reduceDIte, u'] using hrk_eq
   exact hu_ndom (hinj_rkey (hdom_sub hm') hu_W hrk_u' ▸ hm')
 
 theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
@@ -136,8 +135,7 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
               if feistelBucket (bWhp n_max) h1 w.val = b'.val then 1 else 0 := fun w _ => by
           rw [Fintype.sum_eq_single ⟨_, feistelBucket_lt (bWhp n_max) h1 w.val⟩]
           · simp
-          · intro b' hb'
-            exact ite_eq_right fun h => hb' (Fin.ext h.symm)
+          · exact fun _ hb' => ite_eq_right fun h => hb' (Fin.ext h.symm)
         calc ∑ b' : Fin (numBucketsWhp n_max), X' b'
             = ∑ b' : Fin (numBucketsWhp n_max), ∑ w ∈ Dictionary.dom dict',
                 if feistelBucket (bWhp n_max) h1 w.val = b'.val then 1 else 0 :=
@@ -162,17 +160,13 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
             (∑ b' ∈ range (numBucketsWhp n_max), (fs.bktCount b' - capFrontWhp n_max)) + 1 =
               ∑ b' : Fin (numBucketsWhp n_max), (X' b' - capFrontWhp n_max) := by
           rw [← Fin.sum_univ_eq_sum_range]
-          have hpt : ∀ b' : Fin (numBucketsWhp n_max),
+          have hpt (b' : Fin (numBucketsWhp n_max)) :
               X' b' - capFrontWhp n_max =
                 (fs.bktCount b'.val - capFrontWhp n_max) + (if b' = ⟨b, hb⟩ then 1 else 0) := by
-            intro b'; rw [hX'_eq b']
-            by_cases hbb : b' = ⟨b, hb⟩
-            · subst hbb; simp; omega
-            · have hv_ne : b'.val ≠ b := fun h => hbb (Fin.ext h)
-              simp [hbb, hv_ne]
-          simp_rw [hpt]
-          rw [Finset.sum_add_distrib]
-          simp
+            rcases eq_or_ne b' ⟨b, hb⟩ with rfl | hbb
+            · simp only [hX'_eq, ↓reduceIte]; omega
+            · simp [hX'_eq, hbb, Fin.ext_iff.not.mp hbb]
+          simp only [hpt, Finset.sum_add_distrib, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
         have hcons := hc.pool_conservation
         omega
     rw [ite_eq_right hg1]
@@ -185,8 +179,7 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
       rintro (hcur_some | ⟨hs3, hold_some⟩)
       · obtain ⟨_, _, cm, hvc, hrc⟩ := hc.bufCur_valid
         exact not_mem_dom_of_bufLookup_some hc hu_ndom hdom_sub hu_W hinj_rkey hvc hrc hcur_some
-      · have hbo := hc.bufOld_valid; rw [ite_eq_left hs3] at hbo
-        obtain ⟨_, _, om, hvo, hro⟩ := hbo
+      · obtain ⟨_, _, om, hvo, hro⟩ := ite_eq_left hs3 ▸ hc.bufOld_valid
         exact not_mem_dom_of_bufLookup_some hc hu_ndom hdom_sub hu_W hinj_rkey hvo hro hold_some
     rw [ite_eq_right hg2]
     -- 3. Guard 3 (`2 * sMaxWhp ≤ itemAlloc`) is false since `itemAlloc ≤ #BadIns`:
@@ -212,9 +205,7 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
       obtain ⟨_, q2, q3, q4, q5, q6, q7, _, q9, q10⟩ := hom_m s_i
       refine stageWorkRemaining_eq_of_meta c n_max (q4.trans r1) (q5.trans r2)
         (q6.trans r3) (q7.trans r4) (q9.trans r5) (q10.trans r6) ?_
-      dsimp only [FastState.oldEp]
-      rw [q2, q3]
-      exact r7
+      simpa only [FastState.oldEp, q2, q3] using r7
     have hst_i : ∀ (s_i : FastState),
         s_i.rebStage = fs.rebStage → s_i.dirtyCount = fs.dirtyCount →
         s_i.dirtyIdx = fs.dirtyIdx → s_i.dirtyBuckets = fs.dirtyBuckets →
@@ -257,14 +248,10 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
               (fpReducedKey c U n_max θ.2 x)) ⊆
             BadIns.filter (fun x =>
               bufEverPresent (cTabWhp c) (bCharWhp n_max) tr'
-                (fpReducedKey c U n_max θ.2 x)) := by
-          intro x hx
-          rw [mem_filter] at hx ⊢
-          refine ⟨hx.1, ?_⟩
-          rw [hins.2.2.2.2.1 _ (fpReducedKey_lt c U n_max θ.2 x)]
-          split_ifs
-          · rfl
-          · exact hx.2
+                (fpReducedKey c U n_max θ.2 x)) := fun x hx => by
+          obtain ⟨hx1, hx2⟩ := mem_filter.mp hx
+          rw [mem_filter, hins.2.2.2.2.1 _ (fpReducedKey_lt c U n_max θ.2 x), hx2, ite_self]
+          exact ⟨hx1, rfl⟩
         by_cases hev : bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey = true
         · rw [(hins.2.2.2.2.2.1 hev).2]
           exact hcw.buf_alloc.trans (Finset.card_le_card hsub_ev)

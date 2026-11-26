@@ -103,18 +103,12 @@ theorem Valid.majority_precision {params : Parameters} (h : params.Valid) :
 /-- The executable sampling precision meets the density guard's tolerance. -/
 theorem Valid.shift_precision {params : Parameters} (h : params.Valid) :
     1 / (params.shiftPrecision : ℝ) ≤ params.delta * params.rate / 32 := by
-  have hd : (0 : ℝ) < params.denominator := by exact_mod_cast params.denominator_pos
-  have hr : (0 : ℝ) < params.inverseRate := by exact_mod_cast params.inverseRate_pos
-  apply (div_le_iff₀ (by
-    unfold shiftPrecision
-    push_cast
-    positivity : (0 : ℝ) < params.shiftPrecision)).mpr
-  have heq : params.delta * params.rate / 32 * params.shiftPrecision =
-      (params.densityNumerator : ℝ) := by
-    unfold delta rate shiftPrecision
-    push_cast
-    field_simp
-  rw [heq]
+  have hd : (0 : ℝ) < params.denominator := Nat.cast_pos.mpr params.denominator_pos
+  have hr : (0 : ℝ) < params.inverseRate := Nat.cast_pos.mpr params.inverseRate_pos
+  have hsp : (0 : ℝ) < params.shiftPrecision := by
+    simp only [shiftPrecision, Nat.cast_mul, Nat.cast_ofNat]; positivity
+  rw [div_le_iff₀ hsp, delta, rate, shiftPrecision]
+  push_cast; field_simp
   exact_mod_cast h.1
 
 /-- The integer clock pays for the initial potential, including equality at the boundary. -/
@@ -178,13 +172,12 @@ def Invariant (rounds : ℕ) (state : State) : Prop :=
 /-- Before any predictors, the density is full and the potential equals its initial budget. -/
 theorem invariant_initial (hparams : params.Valid) :
     Invariant source predict truth params 0 initial := by
-  simp only [Invariant, show initial.stopped = false from rfl, Bool.false_eq_true, ite_false,
-    margin_initial, show initial.threshold = 0 from rfl, Nat.cast_zero, mul_zero, zero_mul,
+  simp_rw [Invariant, margin_initial]
+  simp only [initial, Bool.false_eq_true, ite_false, Nat.cast_zero, mul_zero, zero_mul,
     sub_zero, add_zero]
-  refine ⟨?_, by simp⟩
-  have hdensity := density_antitone source params.rate_pos.le
-    (margin := fun _ => 0) (margin' := fun _ => -1) (by intro; norm_num)
-  exact hparams.delta_le_one.trans (by simpa using hdensity)
+  refine ⟨hparams.delta_le_one.trans ?_, by simp⟩
+  simpa using density_antitone source params.rate_pos.le (margin := fun _ => 0)
+    (margin' := fun _ => -1) (fun _ => by norm_num)
 
 /-- A valid stopping decision establishes the stopped branch for every subsequent round. -/
 theorem invariant_stop (rounds : ℕ) (state : State)
@@ -227,13 +220,12 @@ theorem Invariant.shift_add {rounds : ℕ} {state : State}
   have hdensity : params.delta ≤ density source params.rate
       (fun x => before x - if yes then 1 else 0) := by
     cases yes
-    · simpa only [Bool.false_eq_true, ite_false, sub_zero] using hguard
-    · simpa only [ite_true] using hrestore
-  have hmass : 3 * params.delta / 8 ≤ (source.toOuterMeasure {x | before x ≤ 0}).toReal := by
-    refine hbelow.trans (ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _)
-      (MeasureTheory.measure_mono ?_))
-    intro x (hx : state.margin predict truth x ≤ 0)
-    exact sub_nonpos.mpr (hx.trans (Nat.cast_nonneg state.threshold))
+    · simpa using hguard
+    · simpa using hrestore
+  have hmass : 3 * params.delta / 8 ≤ (source.toOuterMeasure {x | before x ≤ 0}).toReal :=
+    hbelow.trans <| ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _) <|
+      MeasureTheory.measure_mono fun x hx =>
+        sub_nonpos.mpr (hx.trans (Nat.cast_nonneg state.threshold))
   have hstep := step_progress source hparams.gamma_pos hparams.delta_pos hparams.delta_le_one
     before vote (fun _ => by simp [vote]) yes
     (by intro hy; subst yes; simpa only [ite_true, hparams.gamma_mul_delta] using hguard)
@@ -348,18 +340,16 @@ theorem round_sound (hparams : params.Valid) {error : ℝ} (herror : 0 ≤ error
             · simp only [State.Invariant, hflag, Bool.false_eq_true, ite_false] at hstate
               simpa only [State.shift, ite_true, Nat.cast_add, Nat.cast_one,
                 sub_add_eq_sub_sub, predict] using hstate.1
-          have hlearner := hlearn yes hdensity
           simp only [ProbComp.eval_pure]
           change (((ProbComp.eval (learn (state.shift yes))).map
             ((state.shift yes).add params.codeBound)).toOuterMeasure
             {next | ¬ State.Invariant (ProbComp.eval source) predict truth params
               (rounds + 1) next}).toReal ≤ error
           rw [PMF.toOuterMeasure_map_apply]
-          refine (ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _)
-            (MeasureTheory.measure_mono ?_)).trans hlearner
-          intro code hbad hgood
-          exact hbad (State.Invariant.shift_add _ _ _ _ hstate hparams hflag yes code
-            hgoodShift hgoodStop hgood)
+          exact (hlearn yes hdensity).trans' <|
+            ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _) <|
+              MeasureTheory.measure_mono fun code hbad hgood => hbad (State.Invariant.shift_add
+                _ _ _ _ hstate hparams hflag yes code hgoodShift hgoodStop hgood)
         · exact add_le_add (by simpa only [Set.compl_ofPred, Nat.cast_one, shiftGuard, votes,
             predict, State.margin, State.votes, Parameters.delta, Parameters.rate,
             Parameters.inverseRate] using hshift) le_rfl
@@ -409,11 +399,10 @@ theorem run_sound :
       {state | ¬ State.Successful (ProbComp.eval source)
         (fun code x => evaluate code (observe x)) truth params state}).toReal ≤
       params.clock * (2 * (1 / 2 : ℝ) ^ params.confidence + error) := by
-  refine (ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _)
-    (MeasureTheory.measure_mono ?_)).trans
-      (run_invariant source observe truth evaluate learn params hparams herror hlearn)
-  intro state hbad hgood
-  exact hbad (State.Invariant.successful _ _ _ _ hgood hparams)
+  exact (run_invariant source observe truth evaluate learn params hparams herror hlearn).trans' <|
+    ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _) <|
+      MeasureTheory.measure_mono fun _ hbad hgood =>
+        hbad (State.Invariant.successful _ _ _ _ hgood hparams)
 
 end Correctness
 

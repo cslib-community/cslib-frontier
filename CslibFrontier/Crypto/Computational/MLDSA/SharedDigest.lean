@@ -344,11 +344,10 @@ private theorem accepts_digest_of_opening {s : Level} (pk : MLDSA.PublicKey s.pa
     (bytes : List Byte) {f : Forgery} {o : Opening s} {d : FixedBytes (digestBytes s)}
     (ho : opening s f = some o) (hd : d.toList = o.signature.digest) :
     ModuleSIS.SelfTarget.accepts (expandDigest s) (compressedSelfTargetRadius s.params 13)
-      (liftWitness s (witness s pk bytes f o)) d := by
-  apply decide_eq_true
-  refine ⟨short_witness ho, ?_⟩
-  simpa [expandDigest, hd, liftWitness, witness, SelfTargetCandidate.ofCompressedForgery]
-    using (opening_eq_some_iff.mp ho).2.2.1
+      (liftWitness s (witness s pk bytes f o)) d :=
+  decide_eq_true ⟨short_witness ho, by
+    simpa [expandDigest, hd, liftWitness, witness, SelfTargetCandidate.ofCompressedForgery]
+      using (opening_eq_some_iff.mp ho).2.2.1⟩
 
 /-- Adversary with saved private randomness and a joint interface for matrix-seed and
 commitment-digest queries. -/
@@ -452,11 +451,8 @@ private theorem solver_bounded {Coins : Type} {s : Level} {adv : Forger s Coins}
   refine (isCostBounded_map_iff _ _ _).mpr ((isCostBounded_map_iff _ _ _).mpr ?_)
   apply IsCostBounded.run_interpret _ (hQ _ _)
   rintro (rho | p) ⟨cache, tape⟩
-  · apply (isCostBounded_map_iff _ _ _).mpr
-    change IsCostBounded _ (memoize (fun _ => pure (tape.headD 0)) rho cache) 1
-    cases he : cache.lookup rho with
-    | none => rw [memoize_of_none _ _ _ he, pure_bind]; exact .pure _ _
-    | some v => rw [memoize_of_some _ _ _ _ he]; exact .pure _ _
+  · refine (isCostBounded_map_iff _ _ _).mpr ?_
+    cases he : cache.lookup rho <;> simp [handler, sumHandler, memoize, he, IsCostBounded.pure]
   · exact (isCostBounded_map_iff _ _ _).mpr ((isCostBounded_map_iff _ _ _).mpr (.query p))
 
 private def runDigest (s : Level) (program : OracleComp (DigestOracle s) Bool) : ProbComp Bool :=
@@ -596,13 +592,12 @@ private theorem trial_eq_online {Coins : Type} (s : Level) (Q : ℕ) (adv : Forg
       (trial s adv ⟨r, rho, List.ofFn tape⟩ A t).eval) =
       onlineTrial s adv r rho A t ([(rho, A)], []) := by
   let bytes := encodePublic s rho.toList t
-  let finish (x : Forgery × DigestCache s) :=
-    ((interpret (Protocols.ROMSignature.oracle (Digest s))
-      (verify s bytes A x.1)).run x.2).map Prod.fst
-  have h := congrArg (fun μ => PMF.bind μ finish)
-    (run_both (hQ bytes r) [(rho, A)] [])
-  simpa only [trial, eval_runDigest, runForger, onlineTrial, matrixDigestOracle, bytes, finish,
-    run_interpret_bind, pmf_norm, Function.comp_def] using h
+  simpa only [trial, eval_runDigest, runForger, onlineTrial, matrixDigestOracle, bytes,
+    run_interpret_bind, pmf_norm, Function.comp_def] using
+    congrArg (fun μ => PMF.bind μ fun x : Forgery × DigestCache s =>
+      ((interpret (Protocols.ROMSignature.oracle (Digest s))
+        (verify s bytes A x.1)).run x.2).map Prod.fst)
+      (run_both (hQ bytes r) [(rho, A)] [])
 
 /-- Run the byte forger and final digest check with the matrix cache left by key generation
 and an initially empty digest cache. Both share all digest entries throughout the trial. -/
@@ -642,10 +637,9 @@ private theorem rawVerifier_point (s : Level) (bytes : List Byte) (A : PublicMat
     interpret (rawQueries s) (rawVerifier s bytes A f) =
       liftRight (spec₁ := fun _ : FixedBytes 32 => PublicMatrix s) (verify s bytes A f) := by
   rw [rawVerifier, interpret_interpret, liftRight, substitute_eq_interpret]
-  apply interpret_verify_congr
-  intro p hm hv
+  refine interpret_verify_congr _ _ _ _ _ fun p hm hv => ?_
   simp only [interpret_query, rawQueries, sumHandler]
-  rw [rawPoint_pointAddress (s := s) (p := p) hm hv]
+  rw [rawPoint_pointAddress hm hv]
 
 private noncomputable def rawOracle (s : Level) :=
   RandomOracle.memoizeSum (fun _ : FixedBytes 32 => PMF.uniformOfFintype (PublicMatrix s))

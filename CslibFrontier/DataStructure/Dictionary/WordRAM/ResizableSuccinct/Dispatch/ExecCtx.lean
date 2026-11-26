@@ -275,11 +275,8 @@ def RegsEncode {r : ℕ} {α : Type} [WordEncoding α] {k : ℕ} (x : RData r)
 
 theorem RegsEncode.eq {r : ℕ} {α : Type} [WordEncoding α] {x : RData r}
     {s : Fin (WordEncoding.width α) → Fin r} {a : α} (h : RegsEncode x s a) :
-    x.regs ∘ s = WordEncoding.encode a := by
-  obtain ⟨hk, hf⟩ := h
-  have hk_rfl : hk = rfl := Subsingleton.elim _ _
-  subst hk_rfl
-  exact funext hf
+    x.regs ∘ s = WordEncoding.encode a :=
+  funext h.2
 
 theorem regs_reg1_eq {r : ℕ} {x : RData r} (reg : Fin r) {v : ℕ}
     (hv : x.regs reg = v) :
@@ -322,14 +319,10 @@ theorem regs_pairSrc {r : ℕ} {α β : Type} [WordEncoding α] [WordEncoding β
   obtain ⟨rfl, hf₁⟩ := h₁
   obtain ⟨rfl, hf₂⟩ := h₂
   refine ⟨rfl, fun i => i.addCases (fun j => ?_) (fun j => ?_)⟩
-  · change x.regs (Fin.append s₁ s₂ (Fin.castAdd _ j)) =
-      Fin.append (WordEncoding.encode a) (WordEncoding.encode b) (Fin.castAdd _ j)
-    rw [Fin.append_left, Fin.append_left]
-    exact hf₁ j
-  · change x.regs (Fin.append s₁ s₂ (Fin.natAdd _ j)) =
-      Fin.append (WordEncoding.encode a) (WordEncoding.encode b) (Fin.natAdd _ j)
-    rw [Fin.append_right, Fin.append_right]
-    exact hf₂ j
+  · exact (congrArg x.regs (Fin.append_left _ _ j)).trans
+      ((hf₁ j).trans (Fin.append_left _ _ j).symm)
+  · exact (congrArg x.regs (Fin.append_right _ _ j)).trans
+      ((hf₂ j).trans (Fin.append_right _ _ j).symm)
 
 theorem pairSrc_forall {r : ℕ} {P : Fin r → Prop} {k₁ k₂ : ℕ}
     {s₁ : Fin k₁ → Fin r} {s₂ : Fin k₂ → Fin r}
@@ -1019,10 +1012,7 @@ theorem execWitness {r k l : ℕ} {δ α : Type}
   obtain ⟨yd, hy_eb, hm, hout, hframe⟩ := hrun w d x.toData hx.1 hin hsafe hv
   rw [clientState_width] at hm
   rw [clientResult_width] at hout
-  have hy_fr : yd.regs rFr ≤ x.frontier := by
-    have hm_fr := congrArg Memory.State.frontier hm
-    change yd.regs rFr = _ at hm_fr
-    omega
+  have hy_fr : yd.regs rFr ≤ x.frontier := (congrArg Memory.State.frontier hm).le.trans hnoalloc
   obtain ⟨n_st, hn_st, hy_ex⟩ := hy_eb
   have hy_bdd : (⟨yd.regs, yd.mem, x.frontier⟩ : RData r).Bounded w :=
     ⟨hy_ex.bounded hx.1, hx.2.1, fun a ha =>
@@ -1052,9 +1042,7 @@ theorem loadAtOffCode_exec {r w L_peak base off : ℕ} {rAddr rDst rTmp : Fin r}
   rw [hx2] at s2
   have s3 := RDemonicExec.load (B := .exact) (d := rDst) (a := rTmp) (w := w)
     (L_peak := L_peak) (x := x.set rTmp (base + off)) hL (by simp [hlt])
-  have hmem_eq : (x.set rTmp (base + off)).mem ((x.set rTmp (base + off)).regs rTmp) =
-      x.mem (base + off) := by simp
-  rw [hmem_eq] at s3
+  simp only [RData.set_regs, Function.update_self] at s3
   exact ⟨(s1.seq_eq (s2.seq_eq s3)).mono le_rfl (fun _ h => h),
     (hx.set hadd_fit).set (hx.mem_fits (base + off))⟩
 
@@ -1251,7 +1239,7 @@ theorem update_hdr_n_preserves_split {U V w N n_old n_new n_init base : ℕ}
   · obtain ⟨h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈, h₉, -, h₁₁⟩ := hhdr
     refine ⟨h₁, h₂, h₃, ?_, ?_, ?_, ?_, ?_, ?_, Function.update_self .., ?_⟩ <;>
       exact (hout _ (by omega)).trans ‹_›
-  · rw [hgm, show compGmAt base U w N mem = _ from hcpl.gm_eq]; exact hinv.htot.trans hcard
+  · exact (congrArg (totalSlots N) (hgm.trans hcpl.gm_eq)).trans (hinv.htot.trans hcard)
 
 /-! ## Section 8: Execution of `loadActiveCtxCode` and `evalKeyHashCode` -/
 
@@ -1391,10 +1379,8 @@ theorem loadActiveCtxCode_exec {U V w N n n_init base L_peak : ℕ}
   have s9 := RDemonicExec.exactBin (f := .add) (d := rItemBase) (i := rBase)
     (j := cpReg ⟨34, by decide⟩) (w := w) (L_peak := L_peak) (x := x₈) hx₄_hL
     (v := base + offCompItems U w N)
-    (by
-      have hcp34 : x₄.regs (cpReg 34) = offCompItems U w N := hx₄_cp 34
-      simp [BinOp.evalExact, x₈, x₇, x₆, x₅, hx₄_base, hcp34,
-        Function.update_of_ne (cpReg_ne_eReg _ _)]) hfit_bi
+    (by simp [BinOp.evalExact, x₈, x₇, x₆, x₅, hx₄_base, hx₄_cp 34, mkCompParams,
+      Function.update_of_ne (cpReg_ne_eReg _ _)]) hfit_bi
   have s10 := RDemonicExec.exactBin (f := .add) (d := rFr) (i := rItemBase) (j := rCur)
     (w := w) (L_peak := L_peak) (x := x₉) hx₄_hL (v := x.frontier)
     (by simp [BinOp.evalExact, x₉, x₈, x₇, x₆, x₅, hx₄_cur, hfr_pos]) hfit_fr
@@ -1467,15 +1453,11 @@ theorem runEvalHashAtQuot {U V w N n n_init base L_peak q : ℕ}
     Memory.State.ext rfl hrFr
   let u_q : Fin (2 ^ quotientBits U N) := ⟨q, hq_lt⟩
   obtain ⟨hpre_eh, hv_eh, hcost_eh, hres_eh, hfr_eh, hout_eh⟩ :=
-    evalHashGenProg_spec (w := w) (U := 2 ^ quotientBits U N)
-      (w₀ := qBits U N) (b := hashB N) (b' := totalMicroBits N) (k := 3)
-      (hashBase := base + epochHdrWords) (scratchBase := base + offScratch)
-      (θ := θ) (u := u_q) (s₀ := memoryState rFr x.toData)
+    evalHashGenProg_spec (u := u_q) (s₀ := memoryState rFr x.toData)
       (qBits_pos U N) (qBits_le_of_le_pow hw hU.le)
       (two_pow_quotientBits_le_two_pow_qBits U N)
       (totalMicroBits_le_of_le_pow hNU hU.le) (by decide) hc_lt
-      (by rw [hms_eq]; exact hfr_h) hfit_h
-      (by rw [hms_eq]; exact hfr_s) hfit_s hdisj hsplit.hash_rep
+      (hms_eq.symm ▸ hfr_h) hfit_h (hms_eq.symm ▸ hfr_s) hfit_s hdisj hsplit.hash_rep
   set hp := mkHashParams w (qBits U N) (hashB N) (totalMicroBits N) 3
   set d_eh := (hp, base + epochHdrWords, base + offScratch, q)
   have hin_eh : x.regs ∘ srcEvalHash = WordEncoding.encode d_eh :=

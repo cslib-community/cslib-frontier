@@ -58,7 +58,9 @@ CNF to binary counts, with size given by occurring variables, clauses, and liter
     ¬ComputableInPowerExpTime SharpSAT encCNF encNat
       (fun φ => φ.numVars + φ.length + φ.vars.length) p
 
-private theorem toSharpThreeSAT_size_le (φ : CNF ℕ) :
+/-- The parsimonious width-three conversion has linear variable-plus-clause size in the
+source variable and clause counts and number of literal occurrences. -/
+theorem toSharpThreeSAT_size_le (φ : CNF ℕ) :
     (toSharpThreeSAT φ).numVars + (toSharpThreeSAT φ).length ≤
       11 * (φ.numVars + φ.length + φ.vars.length) := by
   have hclauses : (toSharpThreeSAT φ).length ≤ φ.length + 3 * φ.vars.length := by

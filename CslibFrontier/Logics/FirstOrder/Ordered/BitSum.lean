@@ -203,11 +203,9 @@ private theorem exists_parameters {n : ℕ} (hn : 257 ≤ n) :
   have hh0 : h ≠ 0 := by lia
   have hk : h < 2 ^ (h.log2 + 1) := (Nat.log2_lt hh0).mp (by lia)
   have hk' : 2 ^ (h.log2 + 1) ≤ 2 * h := by
-    have := Nat.log2_self_le hh0
-    rw [pow_succ]; lia
-  have hm : h.log2 + 1 ≤ h := by
-    have := (Nat.log2_lt hh0).mpr (Nat.lt_two_pow_self (n := h))
-    lia
+    rw [pow_succ, mul_comm]
+    exact Nat.mul_le_mul_left 2 (Nat.log2_self_le hh0)
+  have hm : h.log2 < h := (Nat.log2_lt hh0).mpr Nat.lt_two_pow_self
   exact ⟨h, h.log2 + 1, hp, hhi, hk, hk', hspace, by lia⟩
 
 private theorem packedFormula_sound (v : Fin 2 → Fin n)
@@ -254,13 +252,12 @@ private theorem packedFormula_complete (v : Fin 2 → Fin n) (hn : 257 ≤ n)
       h4 (Nat.zero_le m) (by simpa only [Nat.sub_zero] using hq)
   · rw [realize_nodeChecks _ _ _ _ hspace]
     simp only [Term.realize_var, Sum.elim_inr]
-    intro t ht
-    obtain ⟨ht0, ht1, ht2, ht3, ht4, ht5⟩ := ht
+    rintro t ⟨ht0, ht1, ht2, ht3, ht4, ht5⟩
     change (t 2).val + (t 3).val = m at ht1
     have hj : (t 0).val ≤ m := by lia
     have hj' : (t 2).val ≤ m := by lia
-    have hq : (t 1).val < 2 ^ (m - (t 2).val) := by
-      rw [show m - (t 2).val = (t 3).val by lia, ← ht2]; exact ht3
+    have hsub : m - (t 2).val = (t 3).val := by lia
+    have hq : (t 1).val < 2 ^ (m - (t 2).val) := hsub ▸ ht2 ▸ ht3
     have he' : m - (t 0).val = (t 3).val + 1 := by lia
     have hl : (t 5).val < 2 ^ (m - (t 0).val) := by rw [he', pow_succ, ← ht2]; lia
     have hr : (t 6).val < 2 ^ (m - (t 0).val) := by rw [he', pow_succ, ← ht2]; lia
@@ -284,9 +281,7 @@ private theorem realize_smallFormula (v : Fin 2 → Fin n) :
     (smallFormula L).Realize v ↔
       (v 0).val < 256 ∧ (v 1).val = (v 0).val.bitIndices.length := by
   fo_simp [smallFormula]
-  refine ⟨?_, fun ⟨hx, hy⟩ => ⟨⟨(v 0).val, hx⟩, rfl, hy⟩⟩
-  rintro ⟨a, ha, hy⟩
-  exact ⟨ha ▸ a.isLt, ha ▸ hy⟩
+  exact ⟨fun ⟨a, ha, hy⟩ => ⟨ha ▸ a.isLt, ha ▸ hy⟩, fun ⟨hx, hy⟩ => ⟨⟨(v 0).val, hx⟩, rfl, hy⟩⟩
 
 end BitSum
 

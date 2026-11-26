@@ -205,12 +205,10 @@ theorem two_pow_mul_card_filter_exists_not_shallow_le_depthWith {p : Program sig
       (H := #{k | (p.lines k).op ≠ .not ∧ p.depthsWith andOrCost k = 0 + 1})
       (Nat.div_le_self n 17) le_rfl (by simp) (fun ρ hρ _ => ?_) ?_
     · refine two_pow_mul_card_filter_extensions_le_depthWith (k := 1) (j := 0) le_rfl hs hsm
-        (by rw [PartialAssignment.mem_withFree.1 hρ]; omega) fun k' hk' => ?_
-      exact shallow_two_trace_of_wireDepthsWith_eq_zero ρ (.gate k') (Nat.le_zero.1 hk')
+        (by rw [PartialAssignment.mem_withFree.1 hρ]; omega) fun k' hk' =>
+          shallow_two_trace_of_wireDepthsWith_eq_zero ρ (.gate k') (Nat.le_zero.1 hk')
     · rw [zero_add]
-      refine card_le_card fun k hk => ?_
-      simp only [mem_filter, mem_univ, true_and] at hk ⊢
-      exact ⟨hk.1, hk.2.le⟩
+      exact card_le_card fun k hk => by simp only [mem_filter, mem_univ, true_and] at hk ⊢; grind
   | succ i ih =>
     have ih := ih (by omega) (Nat.le_div_pow_of_mul_pow_le (by omega) (by omega) hn)
     set ℓ := n / 17 / (16 * s + 1) ^ i
@@ -224,14 +222,12 @@ theorem two_pow_mul_card_filter_exists_not_shallow_le_depthWith {p : Program sig
         #{k | (p.lines k).op ≠ .not ∧ p.depthsWith andOrCost k ≤ i + 1 + 1} := by
       rw [← card_union_of_disjoint (disjoint_filter.2 fun k _ h₁ h₂ => by omega)]
       refine card_le_card fun k hk => ?_
-      simp only [mem_union, mem_filter, mem_univ, true_and] at hk ⊢
-      rcases hk with ⟨h₁, h₂⟩ | ⟨h₁, h₂⟩ <;> exact ⟨h₁, by omega⟩
+      simp only [mem_union, mem_filter, mem_univ, true_and] at hk ⊢; grind
     refine PartialAssignment.mul_card_filter_withFree_le hℓ'ℓ hℓn ih (fun ρ hρ hb => ?_) hG
     -- a later stage switches conjunctions and disjunctions of shallow functions
-    have hρℓ := PartialAssignment.mem_withFree.1 hρ
     refine two_pow_mul_card_filter_extensions_le_depthWith (k := s - 1) (j := i + 1) (by omega)
       (by omega) hsm ?_ fun k' hk' => ?_
-    · exact hρℓ ▸ (Nat.mul_le_mul_right _ (by omega)).trans hℓ
+    · exact PartialAssignment.mem_withFree.1 hρ ▸ (Nat.mul_le_mul_right _ (by omega)).trans hℓ
     · rw [Nat.sub_add_cancel (by omega)]
       exact not_not.1 fun hdeep => hb ⟨k', hk', hdeep⟩
 
@@ -276,11 +272,9 @@ private theorem not_forall_trace_fill_eq_parity_bne {p : Program signature n g} 
       obtain ⟨D, b', hD, heval⟩ := exists_dnf_of_shallow hop hargs
       refine DNF.not_forall_eval_eq_parity_fill_bne (fun t ht => (hD t ht).1.trans_le hsρ)
         (card_pos.1 (by omega)) (b != b') fun y => ?_
-      have hy : interpretation (p.lines k).op
-          (fun a => p.trace interpretation (ρ.fill y) ((p.lines k).wires a)) =
-          (parity n (ρ.fill y) != b) :=
-        (p.lines_eval interpretation (ρ.fill y) k).trans (hk' y)
-      rw [heval y, hy]
+      rw [heval y]
+      refine (congrArg (· != b')
+        ((p.lines_eval interpretation (ρ.fill y) k).trans (hk' y))).trans ?_
       cases parity n (ρ.fill y) <;> cases b <;> cases b' <;> rfl
 
 /-! ### Håstad's theorem -/
@@ -345,10 +339,9 @@ theorem two_pow_le_size_of_computes_parity_of_depthWith_le {C : Circuit signatur
 /-- The hypothesis `(17 s) ^ (d - 1) ≤ n` is stronger than `17 s (16 s + 1) ^ (d - 2) ≤ n`. -/
 private theorem mul_pow_le_of_pow_le (hs : 2 ≤ s) {d : ℕ} (hd₂ : 2 ≤ d)
     (hn : (17 * s) ^ (d - 1) ≤ n) : 17 * s * (16 * s + 1) ^ (d - 2) ≤ n := by
-  refine le_trans ?_ hn
   obtain ⟨e, rfl⟩ : ∃ e, d = e + 2 := ⟨d - 2, by omega⟩
-  rw [show e + 2 - 2 = e by omega, show e + 2 - 1 = e + 1 by omega, pow_succ']
-  exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) e)
+  exact (Nat.mul_le_mul_left (17 * s) (Nat.pow_le_pow_left (by omega) e)).trans
+    (pow_succ' (17 * s) e ▸ hn)
 
 /-- Bounds `2 ^ s ≤ m` for every `s ≥ 2` with `(17 s) ^ (d - 1) ≤ n` give
 `2 ^ (n ^ (1 / (d - 1)) / 17) ≤ 2 m` once `n ≥ 34 ^ (d - 1)`. -/
@@ -365,13 +358,10 @@ private theorem two_rpow_le_two_mul_of_forall {d m : ℕ} (hd₂ : 2 ≤ d) (hn 
     exact Real.rpow_le_rpow (by positivity) (by exact_mod_cast hn) (by positivity)
   set s := ⌊r / 17⌋₊
   have hs : 2 ≤ s := Nat.le_floor (by norm_num; linarith)
-  have hsr : (17 * s : ℝ) ≤ r := by
-    have : 0 ≤ r / 17 := by positivity
-    linarith [Nat.floor_le this]
+  have hsr : (17 * s : ℝ) ≤ r := by linarith [Nat.floor_le (div_nonneg hr0 (Nat.ofNat_nonneg 17))]
   have hsn : (17 * s) ^ (d - 1) ≤ n := by
-    have hpow : ((17 * s : ℕ) : ℝ) ^ (d - 1) ≤ r ^ (d - 1) :=
-      pow_le_pow_left₀ (by positivity) (by exact_mod_cast hsr) _
-    exact_mod_cast hpow.trans_eq hr
+    exact_mod_cast (pow_le_pow_left₀ (a := ((17 * s : ℕ) : ℝ)) (Nat.cast_nonneg _)
+      (by exact_mod_cast hsr) (d - 1)).trans_eq hr
   calc (2 : ℝ) ^ (r / 17) ≤ 2 ^ ((s + 1 : ℕ) : ℝ) :=
         Real.rpow_le_rpow_of_exponent_le (by norm_num)
           (by push_cast; exact (Nat.lt_floor_add_one _).le)

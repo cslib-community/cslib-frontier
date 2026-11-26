@@ -182,9 +182,7 @@ private theorem eval_interpret_weakToPrfDistinguisher (adversary : OracleDisting
       (adversary n [])) := by
   unfold weakToPrfDistinguisher
   rw [OracleComp.interpret_interpret, ProbComp.eval_interpret, ProbOracleComp.eval_interpret]
-  congr 1
-  funext x
-  rcases x with m | request
+  congr 1 with (m | request) : 1
   · simp only [ProbComp.unifFin, interp_norm, ProbComp.unifOracle]
     exact ProbComp.eval_unifFin m
   · simp only [interp_norm, pmf_norm, weakSampleQuery, weakSample]
@@ -224,8 +222,7 @@ theorem PseudorandomFunction.weakPseudorandomFunction
   length_eq := hprf.length_eq
   secure adversary hadversary :=
     (hprf.secure _ (isOraclePPT_weakToPrfDistinguisher hadversary)).congr fun n => by
-      dsimp only
-      rw [eval_prfRealGame_weakToPrfDistinguisher family hprf.length_eq,
+      simp only [eval_prfRealGame_weakToPrfDistinguisher family hprf.length_eq,
         eval_prfIdealGame_weakToPrfDistinguisher]
 
 /-! ### Zero patching -/
@@ -395,9 +392,7 @@ theorem WeakPseudorandomFunction.zeroPatch {family : List Bool → List Bool →
     let Q : ℕ → ℕ := fun n => cq * (n + 2) ^ dq
     have hq (n : ℕ) : (adversary n []).IsQueryBounded (Q n) := by
       simpa only [Q, List.length_nil, Nat.add_zero] using (hqbounds n []).1
-    have hpolyQ : PolynomiallyBounded Q := by
-      dsimp only [Q]
-      fun_prop
+    have hpolyQ : PolynomiallyBounded fun n => cq * (n + 2) ^ dq := by fun_prop
     have hpatch :=
       (negligible_geometric (ratio := (1 / 2 : ℝ≥0)) (by norm_num)).polynomiallyBounded_mul hpolyQ
     refine negligible_of_le ((hweak.secure adversary hadversary).add hpatch) fun n => ?_
@@ -409,8 +404,7 @@ theorem WeakPseudorandomFunction.zeroPatch {family : List Bool → List Bool →
     rw [← NNReal.coe_le_coe]
     simp only [Pi.add_apply, NNReal.coe_add, NNReal.coe_mul, NNReal.coe_natCast, NNReal.coe_pow,
       NNReal.coe_div, NNReal.coe_one, NNReal.coe_ofNat] at htri ⊢
-    rw [show (Q n : ℝ) * (1 / 2) ^ n = Q n / 2 ^ n by rw [one_div, inv_pow, div_eq_mul_inv]]
-    linarith
+    rw [one_div, inv_pow, ← div_eq_mul_inv]; linarith
 
 /-! ### Separations -/
 

@@ -388,11 +388,8 @@ theorem map_zipWith_uniformBlocks :
         = (PMF.uniformOfFintype (BitString n)).bind fun u =>
             ((uniformBlocks ms.length).map fun us => List.zipWith (· + ·) us ms).map
               ((u + m) :: ·) := by
-          rw [List.length_cons, uniformBlocks_succ, PMF.map_bind]
-          congr 1
-          funext u
-          rw [PMF.map_comp, PMF.map_comp]
-          rfl
+          simp only [List.length_cons, uniformBlocks_succ, PMF.map_bind, PMF.map_comp,
+            Function.comp_def, List.zipWith_cons_cons]
       _ = (PMF.uniformOfFintype (BitString n)).bind fun u =>
             (uniformBlocks ms.length).map ((u + m) :: ·) := by
           rw [map_zipWith_uniformBlocks ms]
@@ -410,9 +407,8 @@ theorem map_iv_uniformBlocks_zipWith (ms : List (BitString n)) :
         (uniformBlocks (n := n) ms.length).map (iv, ·) := by
   rw [PMF.map_bind]
   refine congrArg _ (funext fun iv => ?_)
-  rw [PMF.map_comp]
-  conv_rhs => rw [← map_zipWith_uniformBlocks ms, PMF.map_comp]
-  rfl
+  conv_rhs => rw [← map_zipWith_uniformBlocks ms]
+  simp only [PMF.map_comp, Function.comp_def]
 
 /-- **Lazy-sampled multi-block chain collision lemma**: when the initial chaining block `iv` and
   the `bs.length` step outputs are drawn independently and uniformly from `BitString n`, the outer
@@ -437,16 +433,15 @@ theorem toOuterMeasure_badChain_le :
     set S0 : Set (BitString n) := {iv | iv + b ∈ ks}
     refine le_trans (Probability.PMF.toOuterMeasure_bind_failure_le _ _ S0ᶜ _ C
       fun iv _ hiv => ?_) ?_
-    · rw [uniformBlocks_succ, PMF.map_bind]
-      refine (?_ : _ ≤ ((PMF.uniformOfFintype (BitString n)).bind fun u =>
-          (uniformBlocks (n := n) bs.length).map (u, ·)).toOuterMeasure
-          {p | ¬goodChain ((iv + b) :: ks) p.1 bs p.2}).trans
-        (by simpa [C] using toOuterMeasure_badChain_le bs ((iv + b) :: ks))
-      rw [PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_bind_apply]
-      refine tsum_le_tsum fun u => mul_le_mul_of_nonneg_left ?_ zero_le
-      rw [PMF.map_comp, PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_map_apply]
-      exact MeasureTheory.measure_mono fun us => by
-        simp [goodChain, show iv + b ∉ ks from hiv]
+    · have hmap : (uniformBlocks (n := n) (bs.length + 1)).map (iv, ·) =
+          ((PMF.uniformOfFintype (BitString n)).bind fun u =>
+            (uniformBlocks (n := n) bs.length).map (u, ·)).map fun q => (iv, q.1 :: q.2) := by
+        simp only [uniformBlocks_succ, PMF.map_bind, PMF.map_comp, Function.comp_def]
+      have hiv' : iv + b ∉ ks := hiv
+      rw [hmap, PMF.toOuterMeasure_map_apply]
+      refine le_trans (MeasureTheory.measure_mono fun q => ?_)
+        (by simpa only [C, List.length_cons] using toOuterMeasure_badChain_le bs ((iv + b) :: ks))
+      simp [goodChain, hiv']
     · rw [compl_compl]
       calc (PMF.uniformOfFintype (BitString n)).toOuterMeasure S0 + C
           ≤ (ks.length : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ + C :=
@@ -530,21 +525,17 @@ theorem streamIVReuseRealGame_eq_pure_true (padDist : PMF (BitString n)) (m₀ m
 private theorem uniform_addHom_decide_eq_apply_true {α : Type*} [Fintype α] [AddGroup α]
     (φ : α →+ BitString n) (hsurj : Function.Surjective φ) (target : BitString n) :
     (PMF.uniformOfFintype α).map (fun x => decide (φ x = target)) true = ((2 : ℝ≥0∞) ^ n)⁻¹ := by
-  rw [show (fun x => decide (φ x = target)) = (fun s => decide (s = target)) ∘ φ from rfl,
-    ← PMF.map_comp, PMF.uniformOfFintype_map_addHom φ hsurj, PMF.map_apply, tsum_fintype]
+  rw [← Function.comp_def (fun s => decide (s = target)) φ, ← PMF.map_comp,
+    PMF.uniformOfFintype_map_addHom φ hsurj, PMF.map_apply, tsum_fintype]
   simp [PMF.uniformOfFintype_apply, eq_comm (a := true)]
 
 private theorem advantage_pure_true_of_apply_true_inv_two_pow {g₁ g₂ : Game}
     (h₁ : g₁ = PMF.pure true) (h₂ : g₂ true = ((2 : ℝ≥0∞) ^ n)⁻¹) :
     Game.advantage g₁ g₂ = 1 - ((2 : ℝ≥0) ^ n)⁻¹ := by
-  apply NNReal.eq
+  ext
   have hle : ((2 : ℝ≥0) ^ n)⁻¹ ≤ 1 := inv_le_one_of_one_le₀ (one_le_pow₀ one_le_two)
-  rw [Game.coe_advantage, NNReal.coe_sub hle, h₁, Game.coe_succProbability,
-    Game.coe_succProbability, h₂]
-  simp only [PMF.pure_apply, ↓reduceIte, ENNReal.toReal_one, ENNReal.toReal_inv,
-    ENNReal.toReal_pow, ENNReal.toReal_ofNat, NNReal.coe_one, NNReal.coe_inv, NNReal.coe_pow,
-    NNReal.coe_ofNat]
-  exact abs_of_nonneg (sub_nonneg.mpr (by exact_mod_cast hle))
+  rw [h₁, Game.coe_advantage_pure_true_left, h₂, NNReal.coe_sub hle]
+  simp
 
 /-- On two independent uniform `n`-bit ciphertext blocks, `streamIVReuseTest` accepts with exact
   probability `(2 ^ n)⁻¹`. -/
@@ -768,7 +759,7 @@ theorem maskBlockDecrypt_ofbBlockMask_ofbEncryptBlocks (f : BitString n → BitS
     | succ k ih =>
       rintro (_ | i) hi
       · simp [ofbChain]
-      · simp [ofbChain, ih (f v) i (by omega), Function.iterate_succ_apply]
+      · simp [ofbChain, ih (f v) i (Nat.lt_of_succ_lt_succ hi), Function.iterate_succ_apply]
   simp only [maskBlockDecrypt, ofbBlockMask, hc j hj, ofbEncryptBlocks, List.getElem_zipWith]
   rw [hchain iv ms.length j hj, ← add_assoc, BitString.add_self, zero_add]
 /-- Indexed CTR decryption agrees with list CTR encryption: if the indexed stream `c` carries the
@@ -841,7 +832,7 @@ theorem cbcBlockDecrypt_flipBit (fInv : BitString n → BitString n) (c : ℕ �
     fun k hk =>
       by simpa only [cbcBlockDecrypt, Nat.add_sub_cancel, hnext, add_comm] using hother k hk,
     fun j hj hjb hjb1 => ?_⟩
-  simp [cbcBlockDecrypt, flipCipherBlockBit_of_ne c i (by omega : j - 1 ≠ b),
+  simp [cbcBlockDecrypt, flipCipherBlockBit_of_ne c i (mt (Nat.sub_eq_iff_eq_add hj).mp hjb1),
     flipCipherBlockBit_of_ne c i hjb]
 /-- **CFB single-bit flip law**: flipping bit `i` of
   ciphertext block `b ≥ 1` flips only bit `i` of plaintext block `b`, replaces block `b + 1` with
@@ -862,7 +853,7 @@ theorem cfbBlockDecrypt_flipBit (f : BitString n → BitString n) (c : ℕ → B
     fun k hk => by simpa only [cfbBlockDecrypt, hprev] using hother k hk,
     by simp [cfbBlockDecrypt, flipCipherBlockBit_of_ne c i (Nat.succ_ne_self b)],
     fun j hj hjb hjb1 => ?_⟩
-  simp [cfbBlockDecrypt, flipCipherBlockBit_of_ne c i (by omega : j - 1 ≠ b),
+  simp [cfbBlockDecrypt, flipCipherBlockBit_of_ne c i (mt (Nat.sub_eq_iff_eq_add hj).mp hjb1),
     flipCipherBlockBit_of_ne c i hjb]
 
 private theorem pairBlockDecrypt_dropBlock (g : BitString n → BitString n → BitString n)
@@ -872,11 +863,11 @@ private theorem pairBlockDecrypt_dropBlock (g : BitString n → BitString n → 
       g (dropCipherBlock c b (b - 1)) (dropCipherBlock c b b) = g (c (b - 1)) (c (b + 1)) ∧
       (∀ j : ℕ, b < j →
         g (dropCipherBlock c b (j - 1)) (dropCipherBlock c b j) = g (c j) (c (j + 1))) := by
-  refine ⟨fun j hj hjb => ?_, ?_, fun j hbj => ?_⟩
-  · simp [dropCipherBlock, hjb, show j - 1 < b by omega]
-  · simp [dropCipherBlock, show b - 1 < b by omega]
-  · simp [dropCipherBlock, show ¬(j - 1 < b) by omega, show ¬(j < b) by omega,
-      show j - 1 + 1 = j by omega]
+  refine ⟨fun j _ hjb => ?_, ?_, fun j hbj => ?_⟩
+  · simp [dropCipherBlock, hjb, (Nat.sub_le j 1).trans_lt hjb]
+  · simp [dropCipherBlock, Nat.sub_one_lt_of_lt hb]
+  · simp [dropCipherBlock, not_lt.mpr (Nat.le_sub_one_of_lt hbj), not_lt.mpr hbj.le,
+      Nat.sub_add_cancel (hb.trans hbj.le)]
 
 /-- **CBC dropped-block resynchronization ([KatzLindell2020], Exercise 3.30)**: dropping
   ciphertext block `b ≥ 1` leaves blocks `1 ≤ j < b` unchanged, corrupts block `b` to `c (b - 1)

@@ -68,16 +68,13 @@ private theorem isQueryBounded_clampNetProgram (C₀ : Finset (Fin n)) {α : Typ
     {program : ProbOracleComp (netSpec (AdaptiveNetQ n In NetQ) (AdaptiveNetR Out NetR View)) α}
     {m : ℕ} (h : program.IsQueryBounded m) :
     (clampNetProgram (n := n) (In := In) (Out := Out) (NetQ := NetQ) (NetR := NetR)
-      (View := View) C₀ program).IsQueryBounded m := by
-  refine OracleComp.IsCostBounded.interpret (fun q => ?_) h
-  rcases q with k | (⟨i, x⟩ | i | nq)
-  · exact OracleComp.IsCostBounded.query _
-  · exact OracleComp.IsCostBounded.query _
-  · dsimp only [sumHandler, Sum.elim_inr]
-    split_ifs
-    · exact OracleComp.IsCostBounded.query _
-    · exact OracleComp.IsCostBounded.pure _ 1
-  · exact OracleComp.IsCostBounded.query _
+      (View := View) C₀ program).IsQueryBounded m :=
+  OracleComp.IsCostBounded.interpret (fun
+    | .inr (.corrupt i) => by
+      dsimp only [sumHandler, Sum.elim_inr]
+      split_ifs
+      exacts [OracleComp.IsCostBounded.query _, OracleComp.IsCostBounded.pure _ 1]
+    | .inl _ | .inr (.party _ _) | .inr (.net _) => .query _) h
 
 private theorem noNewCorrupt_clampNetProgram (C₀ : Finset (Fin n)) {α : Type}
     (program : ProbOracleComp (netSpec (AdaptiveNetQ n In NetQ) (AdaptiveNetR Out NetR View)) α) :
@@ -86,15 +83,13 @@ private theorem noNewCorrupt_clampNetProgram (C₀ : Finset (Fin n)) {α : Type}
   | pure _ => exact .pure _
   | query_bind q _ ih =>
     simp only [PFunctor.FreeM.bind_eq_bind]
-    rcases q with k | (⟨i, x⟩ | i | nq)
-    · exact .bind (.query trivial) ih
-    · exact .bind (.query trivial) ih
-    · rw [clampNetProgram, OracleComp.interpret_bind, OracleComp.interpret_query]
+    match q with
+    | .inr (.corrupt i) =>
+      rw [clampNetProgram, OracleComp.interpret_bind, OracleComp.interpret_query]
       dsimp only [sumHandler]
       by_cases hi : i ∈ C₀ <;> simp only [hi, ↓reduceIte, pure_bind]
-      · exact .bind (.query hi) ih
-      · exact ih (.corrupt none)
-    · exact .bind (.query trivial) ih
+      exacts [.bind (.query hi) ih, ih (.corrupt none)]
+    | .inl _ | .inr (.party _ _) | .inr (.net _) => exact .bind (.query trivial) ih
 
 /-- Clamp an adaptive adversary so it drops any `.corrupt i` query for `i ∉ A.initial κ`. -/
 @[expose] def AdaptiveAdversary.clampStatic
@@ -145,15 +140,13 @@ private theorem liftAdaptiveNet_clampNetProgram (C₀ : Finset (Fin n)) {α : Ty
         netProg := by
   dsimp only [liftAdaptiveNet, Machine.liftRightProgram, clampNetProgram]
   erw [OracleComp.interpret_interpret]
-  congr 1 with q
-  rcases q with k | (⟨i, x⟩ | i | nq)
-  · rfl
-  · exact ProbOracleComp.interpret_query _ _ _
-  · dsimp only [sumHandler, clampRouterHandler]
-    split_ifs
-    · exact ProbOracleComp.interpret_query _ _ _
-    · rfl
-  · exact ProbOracleComp.interpret_query _ _ _
+  refine congrArg₂ OracleComp.interpret (funext fun
+    | .inl _ => rfl
+    | .inr (.party _ _) | .inr (.net _) => ProbOracleComp.interpret_query _ _ _
+    | .inr (.corrupt i) => by
+      dsimp only [sumHandler, clampRouterHandler]
+      split_ifs
+      exacts [ProbOracleComp.interpret_query _ _ _, rfl]) rfl
 
 private theorem runFrom_adaptiveRouter_clampNetProgram_static {α β : Type}
     (P : AdaptiveProtocol n In Out NetQ NetR View) (κ : ℕ) (C₀ : Finset (Fin n))
@@ -320,18 +313,18 @@ private theorem corrupted_rel_of_mem_support_router {α : Type}
     StateT.run] at s' y hy ⊢
   rcases q with (⟨i, u⟩ | _) | (⟨i, u⟩ | i | nq)
   · by_cases hi : i ∈ s'.corrupted <;> simp only [hi, ↓reduceIte] at hy
-    · rcases mem_support_closeEval_pure.mp hy with rfl; exact hR_refl _
-    · rcases mem_support_closeEval_bind.mp hy with ⟨_, _, hy'⟩
-      rcases mem_support_closeEval_pure.mp hy' with rfl; exact hR_refl _
-  · rcases mem_support_closeEval_pure.mp hy with rfl; exact hR_refl _
+    · exact (mem_support_closeEval_pure.mp hy) ▸ hR_refl _
+    · obtain ⟨_, _, hy'⟩ := mem_support_closeEval_bind.mp hy
+      exact (mem_support_closeEval_pure.mp hy') ▸ hR_refl _
+  · exact (mem_support_closeEval_pure.mp hy) ▸ hR_refl _
   · by_cases hi : i ∈ s'.corrupted <;> simp only [hi, ↓reduceIte] at hy
-    · rcases mem_support_closeEval_bind.mp hy with ⟨_, _, hy'⟩
-      rcases mem_support_closeEval_pure.mp hy' with rfl; exact hR_refl _
-    · rcases mem_support_closeEval_pure.mp hy with rfl; exact hR_refl _
-  · rcases mem_support_closeEval_pure.mp hy with rfl
+    · obtain ⟨_, _, hy'⟩ := mem_support_closeEval_bind.mp hy
+      exact (mem_support_closeEval_pure.mp hy') ▸ hR_refl _
+    · exact (mem_support_closeEval_pure.mp hy) ▸ hR_refl _
+  · obtain rfl := mem_support_closeEval_pure.mp hy
     by_cases hi : i ∈ s'.corrupted <;> simpa [hi] using hcor s'.corrupted i hq
-  · rcases mem_support_closeEval_bind.mp hy with ⟨_, _, hy'⟩
-    rcases mem_support_closeEval_pure.mp hy' with rfl; exact hR_refl _
+  · obtain ⟨_, _, hy'⟩ := mem_support_closeEval_bind.mp hy
+    exact (mem_support_closeEval_pure.mp hy') ▸ hR_refl _
 
 private theorem corrupted_rel_of_mem_support_execMachine {α : Type}
     (P : AdaptiveProtocol n In Out NetQ NetR View)
@@ -355,12 +348,12 @@ private theorem corrupted_rel_of_mem_support_execMachine {α : Type}
     fun q ⟨sA', rs'⟩ y _ hy => ?_
   rcases q with (⟨i, u⟩ | _) | a
   · erw [adaptiveExecMachine_handle_inl_party] at hy
-    by_cases hi : i ∈ rs'.corrupted <;> simp only [hi, ↓reduceIte] at hy
-    · rcases mem_support_closeEval_pure.mp hy with rfl; exact hR_refl _
-    · rcases mem_support_closeEval_bind.mp hy with ⟨_, _, hy'⟩
-      rcases mem_support_closeEval_pure.mp hy' with rfl; exact hR_refl _
+    split_ifs at hy with hi
+    · exact (mem_support_closeEval_pure.mp hy) ▸ hR_refl _
+    · obtain ⟨_, _, hy'⟩ := mem_support_closeEval_bind.mp hy
+      exact (mem_support_closeEval_pure.mp hy') ▸ hR_refl _
   · erw [adaptiveExecMachine_handle_inl_status] at hy
-    rcases mem_support_closeEval_pure.mp hy with rfl; exact hR_refl _
+    exact (mem_support_closeEval_pure.mp hy) ▸ hR_refl _
   · change y ∈ (closeEval ((fun (p : (AdvR × (A.machine κ).State) × _) => (p.1.1, (p.1.2, p.2))) <$>
         (adaptiveRouter .adaptive P κ (A.initial κ)).runFrom
           (liftAdaptiveNet (((A.machine κ).handle a).run sA')) rs')).support at hy
@@ -468,11 +461,8 @@ private theorem closeEval_execMachine_adaptive_le_clampStatic {α : Type}
     (hy : y.2.2.corrupted = A.initial κ) :
     closeEval ((adaptiveExecMachine .adaptive P A κ).runFrom program (sA, rs)) y ≤
       closeEval ((adaptiveExecMachine .adaptive P A.clampStatic κ).runFrom program (sA, rs)) y := by
-  suffices h :
-      closeEval ((adaptiveExecMachine .adaptive P A κ).runFrom program (sA, rs) >>= pure) y ≤
-        closeEval ((adaptiveExecMachine .adaptive P A.clampStatic κ).runFrom program (sA, rs) >>=
-          pure) y by
-    simpa only [bind_pure] using h
+  rw [← bind_pure ((adaptiveExecMachine .adaptive P A κ).runFrom program (sA, rs)),
+    ← bind_pure ((adaptiveExecMachine .adaptive P A.clampStatic κ).runFrom program (sA, rs))]
   refine Machine.closeEval_runFrom_le_intertwine
     (adaptiveExecMachine .adaptive P A κ) (adaptiveExecMachine .adaptive P A.clampStatic κ)
     (fun _ => True) (fun x₁ x₂ => x₁ = x₂ ∧ x₁.2.corrupted = A.initial κ)
@@ -480,10 +470,8 @@ private theorem closeEval_execMachine_adaptive_le_clampStatic {α : Type}
     program (OracleComp.QueriesSatisfy.of_forall (fun q => by cases q <;> trivial) _)
     (sA, rs) (sA, rs) ⟨rfl, hrs⟩ pure pure y
     (fun _ _ _ hR => hR.1 ▸ le_rfl)
-    (fun a s₁ hT => by
-      rw [closeEval_pure]
-      exact PMF.pure_apply_of_ne _ _ fun heq => by
-        rcases heq with rfl; exact hT (hy ▸ Finset.Subset.rfl))
+    (fun _ _ hT => closeEval_pure _ ▸ PMF.pure_apply_of_ne _ _ fun heq =>
+      hT ((congrArg (fun z => z.2.2.corrupted) heq).symm.trans hy ▸ Finset.Subset.rfl))
     (fun q ⟨sA', rs'⟩ z _ hT hz hsub => hT ((corrupted_rel_of_mem_support_execMachine P A κ
       (ProbOracleComp.query q) (fun _ => True) (· ⊆ ·) (fun _ => Finset.Subset.rfl)
       Finset.Subset.trans
@@ -499,8 +487,7 @@ private theorem closeEval_execMachine_adaptive_le_clampStatic {α : Type}
     · erw [bind_assoc, bind_assoc]
       refine closeEval_bind_le _ _ _ y fun ⟨out, s'⟩ => ?_
       erw [pure_bind, pure_bind]; exact hcont out _ _ ⟨rfl, hrs₁⟩
-  · erw [adaptiveExecMachine_handle_inl_status]
-    erw [pure_bind, pure_bind]
+  · erw [adaptiveExecMachine_handle_inl_status, pure_bind, pure_bind]
     exact hcont rs₁.corrupted _ _ ⟨rfl, hrs₁⟩
   · change closeEval (((fun (p : (AdvR × (A.machine κ).State) × _) => (p.1.1, (p.1.2, p.2))) <$>
         (adaptiveRouter .adaptive P κ (A.initial κ)).runFrom
@@ -611,24 +598,21 @@ private theorem static_advantage_le_of_adaptive_clampStatic
       let b ← Z κ' z'
       let C ← queryStatus
       pure ((b == target) && decide (C = A.initial κ))
-    have hZ_post (target : Bool) : (Z_post target).PolyBounded (pZ + 1) := fun κ' z' => by
-      exact (OracleComp.IsCostBounded.bind (hZ κ' z') fun _ =>
-        OracleComp.IsCostBounded.bind (OracleComp.IsCostBounded.query (cost := fun _ => 1) _)
-          fun _ => OracleComp.IsCostBounded.pure _ 0).mono
-        (by simp only [Polynomial.eval_add, Polynomial.eval_one]; omega)
+    have hZ_post (target : Bool) : (Z_post target).PolyBounded (pZ + 1) := fun κ' z' =>
+      ((hZ κ' z').bind fun _ =>
+        (OracleComp.IsCostBounded.query (cost := fun _ => 1) _).bind fun _ => .pure _ 0).mono
+        (by simp)
     have hbound (target : Bool) :
         ((adaptiveExec .adaptive P A.clampStatic Z κ z).eval target).toReal -
           ((adaptiveExec .adaptive Q S.clampStatic Z κ z).eval target).toReal ≤ (ν κ : ℝ) := by
-      have hPA : (adaptiveExec .adaptive P A.clampStatic (Z_post target) κ z).eval true =
-          (adaptiveExec .adaptive P A.clampStatic Z κ z).eval target :=
-        apply_true_status_post_eq_noNewCorrupt P A.clampStatic
-          A.noNewCorrupt_clampStatic Z κ z target
       have hQS : (adaptiveExec .adaptive Q S (Z_post target) κ z).eval true ≤
           (adaptiveExec .adaptive Q S.clampStatic Z κ z).eval target := by
         simpa only [Z_post, hinit] using apply_true_status_post_le Q S Z κ z target
       have hadv_real := NNReal.coe_le_coe.mpr (hadv (Z_post target) (hZ_post target) κ z)
       rw [adaptiveAdvantage, Game.coe_advantage, Game.coe_succProbability,
-        Game.coe_succProbability, hPA] at hadv_real
+        Game.coe_succProbability] at hadv_real
+      erw [apply_true_status_post_eq_noNewCorrupt P A.clampStatic
+        A.noNewCorrupt_clampStatic Z κ z target] at hadv_real
       linarith [(abs_sub_le_iff.mp hadv_real).1,
         ENNReal.toReal_mono (PMF.apply_ne_top _ _) hQS]
     have hsum (p : PMF Bool) : (p true).toReal + (p false).toReal = 1 := by
@@ -642,14 +626,13 @@ private theorem static_advantage_le_of_adaptive_clampStatic
   · let Z_status : AdaptiveEnvironment n In Out AdvQ AdvR := fun _ _ => do
       let C ← queryStatus
       pure (decide (C = A.initial κ))
-    have hZ_status : Z_status.PolyBounded (pZ + 1) := fun κ' z' => by
-      exact (OracleComp.IsCostBounded.bind (OracleComp.IsCostBounded.query (cost := fun _ => 1) _)
-        fun _ => OracleComp.IsCostBounded.pure _ 0).mono
-        (by simp only [Polynomial.eval_add, Polynomial.eval_one]; omega)
+    have hZ_status : Z_status.PolyBounded (pZ + 1) := fun κ' z' =>
+      ((OracleComp.IsCostBounded.query (cost := fun _ => 1) _).bind fun _ => .pure _ 0).mono
+        (by simp)
     have hadv_st := hadv Z_status hZ_status κ z
     rw [adaptiveAdvantage, eval_Z_status_eq_pure, eval_Z_status_eq_pure] at hadv_st
-    refine (Game.advantage_le_one _ _).trans ?_
-    simpa [AdaptiveAdversary.clampStatic, hinit, Game.succProbability] using hadv_st
+    exact (Game.advantage_le_one _ _).trans
+      (by simpa [AdaptiveAdversary.clampStatic, hinit, Game.succProbability] using hadv_st)
 
 /-- Adaptive emulation implies static emulation (sanity bridge, not a theorem of `[Canetti2020]`).
 Checking whether the simulator corrupted any party outside `A.initial κ` via `.status` costs one
@@ -673,10 +656,9 @@ theorem AdaptiveEmulates.static_of_adaptive
     (h : AdaptiveEmulates .adaptive P Q) : AdaptiveEmulates .static P Q := by
   intro AdvQ AdvR A pA hA
   obtain ⟨S, pS, hS, hper_Z⟩ := h AdvQ AdvR A.clampStatic pA hA.clampStatic
-  refine ⟨S.clampStatic, pS, hS.clampStatic, fun pZ => ?_⟩
-  obtain ⟨ν, hν, hadv⟩ := hper_Z (pZ + 1)
-  exact ⟨ν, hν, fun Z hZ κ z =>
-    static_advantage_le_of_adaptive_clampStatic P Q A S hadv Z hZ κ z⟩
+  exact ⟨S.clampStatic, pS, hS.clampStatic, fun pZ =>
+    let ⟨ν, hν, hadv⟩ := hper_Z (pZ + 1)
+    ⟨ν, hν, fun Z hZ κ z => static_advantage_le_of_adaptive_clampStatic P Q A S hadv Z hZ κ z⟩⟩
 
 end AdaptiveToStatic
 

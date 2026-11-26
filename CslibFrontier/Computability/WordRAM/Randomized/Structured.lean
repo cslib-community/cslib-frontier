@@ -143,8 +143,7 @@ theorem pos {c : Code B r} {x : Data r} {m : ProbComp (Data r × ℕ)}
     omega
   | seq _ _ ih₁ _ =>
     supp_cases hz with ⟨z₁, hz₁, z₂, -, rfl⟩
-    have := ih₁ hz₁
-    omega
+    exact Nat.le_add_right_of_le (ih₁ hz₁)
 
 /-- Structured randomized executions preserve word-boundedness on every supported path. -/
 theorem bounded {c : Code B r} {x : Data r} {m : ProbComp (Data r × ℕ)}
@@ -207,8 +206,7 @@ theorem ExecRand.codeComp_eq {w : ℕ} {c : Code B r} {x : Data r} {m : ProbComp
     (h : ExecRand w c x m) : codeComp w c x = m := by
   classical
   have hex : ∃ m', ExecRand w c x m' := ⟨m, h⟩
-  simp only [codeComp, hex, ↓reduceDIte]
-  exact hex.choose_spec.unique h
+  simpa only [codeComp, hex, ↓reduceDIte] using hex.choose_spec.unique h
 
 /-- Every deterministic structured execution `Exec w c x y n` lifts to
 `ExecRand w c x (pure (y, n))`. -/
@@ -217,29 +215,24 @@ theorem Exec.execRand {w : ℕ} {c : Code B r} {x y : Data r} {n : ℕ} (h : Exe
   induction h with
   | op ho => exact .op ho
   | @seq c₁ c₂ x y z m n _ _ ih₁ ih₂ =>
-    simpa only [pure_bind] using ExecRand.seq ih₁ (m₂ := fun _ => pure (z, n)) fun z' hz' => by
-      cases OracleComp.eq_of_mem_supportWith_pure hz'
-      exact ih₂
+    simpa only [pure_bind] using ExecRand.seq ih₁ (m₂ := fun _ => pure (z, n)) fun _ hz' =>
+      (OracleComp.eq_of_mem_supportWith_pure hz').symm ▸ ih₂
   | branch_pos hc _ ih =>
     simpa only [map_pure] using ExecRand.branch_pos hc ih
   | branch_neg hc _ ih =>
     simpa only [map_pure] using ExecRand.branch_neg hc ih
   | loop_exit hc => exact .loop_exit hc
   | @loop_iter c body x y z m n hc _ _ ihb ihl =>
-    simpa only [pure_bind] using
-      ExecRand.loop_iter hc ihb (ml := fun _ => pure (z, n)) fun z' hz' => by
-        cases OracleComp.eq_of_mem_supportWith_pure hz'
-        exact ihl
+    simpa only [pure_bind] using ExecRand.loop_iter hc ihb (ml := fun _ => pure (z, n))
+      fun _ hz' => (OracleComp.eq_of_mem_supportWith_pure hz').symm ▸ ihl
 
 /-- Prepending a deterministic `Exec` onto a randomized `ExecRand` shifts the instruction count by
 `n₁`. -/
 theorem Exec.seqRand {w : ℕ} {c₁ c₂ : Code B r} {x y : Data r} {n₁ : ℕ}
     {m₂ : ProbComp (Data r × ℕ)} (h₁ : Exec w c₁ x y n₁) (h₂ : ExecRand w c₂ y m₂) :
     ExecRand w (.seq c₁ c₂) x ((fun z => (z.1, n₁ + z.2)) <$> m₂) := by
-  simpa only [pure_bind, ← bind_pure_comp] using
-    ExecRand.seq h₁.execRand (m₂ := fun _ => m₂) fun z' hz' => by
-      cases OracleComp.eq_of_mem_supportWith_pure hz'
-      exact h₂
+  simpa only [pure_bind, ← bind_pure_comp] using ExecRand.seq h₁.execRand (m₂ := fun _ => m₂)
+    fun _ hz' => (OracleComp.eq_of_mem_supportWith_pure hz').symm ▸ h₂
 
 /-! ## Renaming registers in structured randomized executions -/
 
@@ -281,8 +274,8 @@ theorem ExecRand.rename (hf : f.Injective) {w : ℕ} {c : Code B r} {x : Data r'
   induction h generalizing x with
   | @op o _ y ho =>
     subst hx
-    have ho' : (o.rename f).eval w x = some (y.extend f x) := by rw [Op.eval_rename hf, ho]; rfl
-    simpa only [Code.rename, map_pure] using ExecRand.op ho'
+    simpa only [Code.rename, map_pure] using
+      ExecRand.op (y := y.extend f x) (by simp [Op.eval_rename hf, ho])
   | @rand dst src _ hfit =>
     subst hx
     have heq : ((fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$> (do
@@ -290,9 +283,7 @@ theorem ExecRand.rename (hf : f.Injective) {w : ℕ} {c : Code B r} {x : Data r'
         pure ((x.comap f).set dst k.val, 1))) = (do
         let k ← ProbComp.unifFin (x.regs (f src))
         pure (x.set (f dst) k.val, 1)) := by
-      rw [← bind_pure_comp, bind_assoc]
-      refine congrArg (ProbComp.unifFin (x.regs (f src)) >>= ·) (funext fun k => ?_)
-      simp only [pure_bind, Data.extend_set hf, Data.extend_comap hf]
+      simp only [← bind_pure_comp, bind_assoc, pure_bind, Data.extend_set hf, Data.extend_comap hf]
     simpa only [Code.rename, Data.comap_regs, heq] using ExecRand.rand (x := x) hfit
   | @seq c₁ c₂ _ m₁ m₂ _ h₂ ih₁ ih₂ =>
     subst hx
@@ -314,8 +305,8 @@ theorem ExecRand.rename (hf : f.Injective) {w : ℕ} {c : Code B r} {x : Data r'
   | @loop_iter cond body _ mb ml hc _ hl ihb ihl =>
     subst hx
     obtain ⟨_, hcont, heq⟩ := rename_bind_step (extra := 2) hf x hl fun z₁ hz₁ {_} h => ihl z₁ hz₁ h
-    simp only [Code.rename] at hcont ⊢
-    simpa only [← heq] using ExecRand.loop_iter ((Cond.holds_rename _ _).2 hc) (ihb rfl) hcont
+    simpa only [Code.rename, ← heq] using
+      ExecRand.loop_iter ((Cond.holds_rename _ _).2 hc) (ihb rfl) hcont
 
 end Rename
 
@@ -546,13 +537,13 @@ private theorem ExecRand.toGeneric {c : Code B r} {x : Data r}
     Cslib.Program.ExecRand (I := instructionSet w B r) (evalGenericOp w) c.toGeneric x m := by
   induction h with
   | @op o x y h =>
-    simpa [Code.toGeneric] using Cslib.Program.ExecRand.op (I := instructionSet w B r)
-      (evalRand := evalGenericOp w) (o := .inl o) (x := x) (m := pure y)
-      (by simp [evalGenericOp, h])
+    simpa [Code.toGeneric] using
+      Cslib.Program.ExecRand.op (I := instructionSet w B r) (evalRand := evalGenericOp w)
+        (o := .inl o) (x := x) (m := pure y) (by simp [evalGenericOp, h])
   | @rand dst src x h =>
     simpa only [Code.toGeneric, ← bind_pure_comp, bind_assoc, pure_bind] using
-      Cslib.Program.ExecRand.op (I := instructionSet w B r)
-        (evalRand := evalGenericOp w) (o := .inr (dst, src)) (x := x)
+      Cslib.Program.ExecRand.op (I := instructionSet w B r) (evalRand := evalGenericOp w)
+        (o := .inr (dst, src)) (x := x)
         (m := (fun k => x.set dst k.val) <$> ProbComp.unifFin (x.regs src))
         (by simp [evalGenericOp, h])
   | seq _ _ ih₁ ih₂ => exact .seq ih₁ ih₂
@@ -570,11 +561,9 @@ theorem ExecRand.runRand_assemble {c : Code B r} {x : Data r} {m : ProbComp (Dat
     runRand w p T (.running ⟨pc, x⟩) = (do
       let z ← m
       runRand w p (T - z.2) (.running ⟨pc + c.size, z.1⟩)) := by
-  have hp' : Cslib.Program.Contains p pc (c.toGeneric.assemble (flatMachine w B r) pc) := by
-    rw [Code.assemble_toGeneric]
-    exact hp
   simpa only [run_generic, Code.size_toGeneric] using
-    h.toGeneric.runRand_assemble (randomizedFlatMachine w B r) hp' hT
+    h.toGeneric.runRand_assemble (randomizedFlatMachine w B r)
+      (Code.assemble_toGeneric c pc ▸ hp) hT
 
 /-- Compiling `c` with `Code.program out` maps every `(y, n)` of `m` to `.halted (y.regs out) y`
 once `T ≥ n + 1` on every path. -/
@@ -596,10 +585,8 @@ with output `y.regs out` and final machine data `y` at any fuel `T ≥ n + 1`. -
 theorem Exec.runRand_program {c : Code B r} {x y : Data r} {n T : ℕ}
     (h : Exec w c x y n) (out : Fin r) (hT : n + 1 ≤ T) :
     runRand w (c.program out) T (.running ⟨0, x⟩) = pure (.halted (y.regs out) y) := by
-  rw [h.execRand.runRand_program out fun z hz => by
-    cases OracleComp.eq_of_mem_supportWith_pure hz
-    exact hT]
-  rfl
+  simpa only [map_pure] using h.execRand.runRand_program out fun _ hz =>
+    (OracleComp.eq_of_mem_supportWith_pure hz).symm ▸ hT
 
 /-- Compiling an `ExecRandWithin w c x P T R` certificate via `c.program out` yields
 `RandHaltsWithin`, `RandCallsBounded`, and pathwise `P` on the halting data at any fuel

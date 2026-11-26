@@ -132,9 +132,8 @@ theorem blockIndex_intervalStart_eq_scheduleBlock (machine : MultiTapePTM k Bool
       scheduleBlock σ i := by
   induction i with
   | zero =>
-    funext head
-    rw [intervalStart_zero, Cfg.blockIndex, Cfg.headPos_init, Int.zero_ediv]
-    rfl
+    exact funext fun _ => by simp only [intervalStart_zero, Cfg.blockIndex, Cfg.headPos_init,
+      Int.zero_ediv, scheduleBlock_zero]
   | succ i ih =>
     funext head
     have hiq : i < q := by omega
@@ -142,9 +141,8 @@ theorem blockIndex_intervalStart_eq_scheduleBlock (machine : MultiTapePTM k Bool
       (Cfg.init machine.initial input) ⟨i, hiq⟩ head
     rw [hσ ⟨i, hiq⟩ (by simp)] at hstep
     have hprev := congrFun (ih (by omega) fun j hj => hσ j (by omega)) head
-    simp only [Cfg.blockIndex] at hprev ⊢
+    simp only [Cfg.blockIndex] at hprev hstep ⊢
     rw [scheduleBlock_succ σ hiq]
-    simp only at hstep
     omega
 
 /-! ### Appearances of a block in windows -/
@@ -376,10 +374,6 @@ private noncomputable abbrev trueRun (machine : MultiTapePTM k Bool State) (inpu
 private def intervalBits : (Fin (q * b) → Bool) ≃ (Fin q → Fin b → Bool) :=
   (finProdFinEquiv.arrowCongr (Equiv.refl Bool)).symm.trans (Equiv.curry _ _ _)
 
-omit [NeZero b] in
-private theorem intervalBits_apply (y : Fin (q * b) → Bool) (i : Fin q) :
-    intervalBits y i = fun r => y (finProdFinEquiv (i, r)) := rfl
-
 /-- The letters of the true run: the control records and window contents at the end of every
 interval. -/
 private noncomputable def trueLetters (machine : MultiTapePTM k Bool State) (input : List Bool)
@@ -437,8 +431,7 @@ private theorem inView_eq (y : Fin (q * b) → Bool) {x : BlockEdge k q → Bloc
   · -- The control record.
     unfold inControl
     split_ifs with hi
-    · have : (i : ℕ) = 0 := hi
-      rw [trueRun, this, intervalStart_zero, blockControl_init]
+    · rw [trueRun, hi, intervalStart_zero, blockControl_init]
     · rw [(hx ⟨i - 1, by omega⟩ (by simp; omega)).2.1]
       simp only [trueLetters, BlockLetter.control]
       congr 3
@@ -559,14 +552,14 @@ omit [NeZero b] in
 private theorem prod_sinks (hq : 0 < q) (x : BlockEdge k q → BlockLetter k State b) :
     ∏ e : BlockEdge k q, (machine.blockNetwork input b σ).tensor (.inr e) x =
       acceptWeight (x (.inl ⟨q - 1, by omega⟩)) := by
-  rw [Fintype.prod_sum_type]
   have hblock : ∏ e : Fin q × Fin k × Fin 3,
       (machine.blockNetwork input b σ).tensor (.inr (.inr e)) x = 1 :=
     Finset.prod_eq_one fun _ _ => rfl
-  rw [hblock, mul_one, Finset.prod_eq_single (⟨q - 1, by omega⟩ : Fin q)]
-  · exact ite_eq_left (by omega : q - 1 + 1 = q)
-  · exact fun i _ hi => ite_eq_right fun h => hi (by fin_index)
-  · exact fun h => absurd (Finset.mem_univ _) h
+  let i₀ : Fin q := ⟨q - 1, by omega⟩
+  have hlast : q - 1 + 1 = q := by omega
+  rw [Fintype.prod_sum_type, hblock, mul_one, Finset.prod_eq_single i₀]
+  exacts [ite_eq_left hlast, fun i _ hi => ite_eq_right fun h => hi (by fin_index [i₀]),
+    fun h => absurd (Finset.mem_univ _) h]
 
 omit [NeZero b] in
 open scoped Classical in
@@ -651,12 +644,7 @@ theorem tensor_blockNetwork_le (v : Fin q ⊕ BlockEdge k q)
   · change (Finset.univ.filter fun u => machine.IntervalHolds input b σ i x u).card ≤ 2 ^ b
     exact (Finset.card_filter_le _ _).trans (by simp)
   · change (if i.val + 1 = q then acceptWeight (x (.inl i)) else 1) ≤ 2 ^ b
-    split_ifs
-    · rcases x (.inl i) with c | w
-      · simp only [acceptWeight]
-        split_ifs <;> omega
-      · exact Nat.zero_le _
-    · exact hone
+    rcases x (.inl i) with c | w <;> simp only [acceptWeight] <;> split_ifs <;> omega
   · exact hone
 
 omit [NeZero b] in
@@ -702,13 +690,11 @@ omit [NeZero b] in
 /-- Every edge goes forward in time, from its interval to a later interval or to a sink. -/
 private theorem edgeTarget_eq_inl {e : BlockEdge k q} {i : Fin q}
     (h : edgeTarget σ e = .inl i) : e.elim id Prod.fst < i := by
-  rcases e with i' | ⟨i', hd, d⟩
-  · simp only [edgeTarget] at h
-    split_ifs at h with hi
-    · cases h
-      fin_index [Sum.elim_inl, id_eq]
-  · simp only [edgeTarget] at h
-    exact (firstAfter_eq_some_iff.mp (eq_some_of_elim_eq_inl h)).1
+  rcases e with i' | ⟨i', hd, d⟩ <;> simp only [edgeTarget] at h
+  · split_ifs at h with hi
+    cases h
+    fin_index [Sum.elim_inl, id_eq]
+  · exact (firstAfter_eq_some_iff.mp (eq_some_of_elim_eq_inl h)).1
 
 omit [NeZero b] in
 /-- A block-counting network has no loops. -/
@@ -744,10 +730,9 @@ private theorem injOn_inEdges (i : Fin q) :
     have hw₂ := (firstAfter_eq_some_iff.mp hf₂).2.1
     have hj : portBlock σ i₁ h₁ d₁ = portBlock σ i₂ h₁ d₂ := by
       rw [← portBlock_portOf hw₁, ← portBlock_portOf hw₂, hport]
-    have hl₁ := lastBefore_of_firstAfter (inWindow_portBlock σ i₁ h₁ d₁) hf₁
-    have hl₂ := lastBefore_of_firstAfter (inWindow_portBlock σ i₂ h₁ d₂) hf₂
-    rw [hj] at hl₁
-    obtain rfl : i₁ = i₂ := Option.some.inj (hl₁.symm.trans hl₂)
+    obtain rfl : i₁ = i₂ := Option.some.inj
+      ((hj ▸ lastBefore_of_firstAfter (inWindow_portBlock σ i₁ h₁ d₁) hf₁).symm.trans
+        (lastBefore_of_firstAfter (inWindow_portBlock σ i₂ h₁ d₂) hf₂))
     simp only [portBlock] at hj
     exact congrArg (fun d => Sum.inr (i₁, h₁, d)) (Fin.ext (by omega))
 
@@ -768,12 +753,10 @@ theorem maxDegreeLE_blockNetwork :
       calc {e : BlockEdge k q | e.elim id Prod.fst = i}.ncard
           ≤ (Set.range (Sum.elim (fun _ : Unit => (Sum.inl i : BlockEdge k q))
               fun p : Fin k × Fin 3 => Sum.inr (i, p))).ncard := by
-            refine Set.ncard_le_ncard ?_ (Set.toFinite _)
-            rintro (i' | ⟨i', h, d⟩) he
-            · simp only [Set.mem_ofPred_eq, Sum.elim_inl, id_eq] at he
-              exact ⟨.inl (), by simp [he]⟩
-            · simp only [Set.mem_ofPred_eq, Sum.elim_inr] at he
-              exact ⟨.inr (h, d), by simp [he]⟩
+            refine Set.ncard_le_ncard (fun e he => ?_) (Set.toFinite _)
+            rcases e with i' | ⟨i', h, d⟩ <;>
+              simp_all only [Set.mem_ofPred_eq, Sum.elim_inl, Sum.elim_inr, id_eq]
+            exacts [⟨.inl (), by simp⟩, ⟨.inr (h, d), by simp⟩]
         _ = Nat.card (Unit ⊕ Fin k × Fin 3) := Set.ncard_range_of_injective (by
             rintro (_ | p) (_ | p') h <;> simp_all)
         _ = 3 * k + 1 := by

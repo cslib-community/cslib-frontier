@@ -70,15 +70,11 @@ theorem ATIME_subset_DSPACE {t : ℕ → ℕ} : ATIME enc t ⊆ DSPACE enc fun n
   have hind : (fun a => atm.gameValue (enc a) (c₁ * t (enc a).length + c₂) []) =
       MultiTapeTM.indicator A := by
     funext a
-    by_cases ha : a ∈ A
-    · simp [MultiTapeTM.indicator, ha, ← hA.mem_iff_gameValue]
-    · simp [MultiTapeTM.indicator, ha, (hA.mem_iff_gameValue a).not.mp ha]
+    by_cases ha : a ∈ A <;>
+      simp [MultiTapeTM.indicator, ha, ← hA.mem_iff_gameValue, Bool.eq_false_iff]
   rw [hind] at h
   refine mem_DSPACE_iff.mpr ⟨c * (c₁ + 1), c * (c₂ + 1), T, h.mono (fun _ => le_rfl) fun a => ?_⟩
-  have hc : c * ((enc a).length + (c₁ * t (enc a).length + c₂) + 1) ≤
-      c * (c₁ + 1) * ((enc a).length + t (enc a).length) + c * (c₂ + 1) := by
-    nlinarith [Nat.zero_le (c * c₁ * (enc a).length), Nat.zero_le (c * t (enc a).length)]
-  exact hc
+  nlinarith [Nat.zero_le (c * c₁ * (enc a).length), Nat.zero_le (c * t (enc a).length)]
 
 /-- **Alternating time within deterministic space, for `t n ≥ n`** [Chandra, Kozen and Stockmeyer,
 Theorem 3.2][ChandraKozenStockmeyer1981]: `ATIME t ⊆ DSPACE t` when `∀ n, n ≤ t n`, in the

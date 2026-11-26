@@ -182,10 +182,9 @@ theorem contents_decodeLetter (n : ℕ) (r : ZMod b) :
   · rfl
   · simp only [BlockLetter.contents, contentsEquiv, Equiv.symm_trans_apply, Equiv.arrowCongr_symm,
       Equiv.arrowCongr_apply, Function.comp_apply, Equiv.symm_symm]
-    congr 1
-    refine Fin.ext ?_
-    simpa only [finFunctionFinEquiv_symm_apply_val, val_zmodEquiv] using
-      mod_pow_div_pow_mod _ (ZMod.val_lt r)
+    exact congrArg _ (Fin.ext (by
+      simpa only [finFunctionFinEquiv_symm_apply_val, val_zmodEquiv] using
+        mod_pow_div_pow_mod _ (ZMod.val_lt r)))
 
 /-- The accepting weight of a decoded letter. -/
 theorem acceptWeight_decodeLetter (n : ℕ) :
@@ -353,18 +352,15 @@ variable (e : State ≃ Fin s) (b : ℕ) [NeZero b]
 /-- A decoded letter is a control record exactly below `controlCount`. -/
 theorem exists_decodeLetter_eq_inl_iff (n : ℕ) :
     (∃ c, decodeLetter (k := k) e b n = .inl c) ↔ n < controlCount k s b := by
-  unfold decodeLetter
-  split_ifs with h
-  · exact iff_of_true ⟨_, rfl⟩ h
-  · exact iff_of_false (by rintro ⟨c, hc⟩; cases hc) h
+  exact if h : n < controlCount k s b then iff_of_true ⟨_, dite_eq_left h⟩ h
+    else iff_of_false (fun ⟨_, hc⟩ => Sum.inr_ne_inl ((dite_eq_right h).symm.trans hc)) h
 
 /-- A decoded letter is block contents exactly from `controlCount` on. -/
 theorem exists_decodeLetter_eq_inr_iff (n : ℕ) :
     (∃ w, decodeLetter (k := k) e b n = .inr w) ↔ ¬ n < controlCount k s b := by
-  unfold decodeLetter
-  split_ifs with h
-  · exact iff_of_false (by rintro ⟨c, hc⟩; cases hc) (not_not.mpr h)
-  · exact iff_of_true ⟨_, rfl⟩ h
+  exact if h : n < controlCount k s b then
+      iff_of_false (fun ⟨_, hc⟩ => Sum.inl_ne_inr ((dite_eq_left h).symm.trans hc)) (not_not.mpr h)
+    else iff_of_true ⟨_, dite_eq_right h⟩ h
 
 variable [DecidableEq State] (machine : MultiTapePTM k Bool State) (input : List Bool)
 
@@ -603,8 +599,7 @@ theorem explicitTable_eq_explicitTableNum (σ : ℕ)
     split_ifs with h1 h2 h2
     · rw [← blockNetwork_tensor_decodeLetter]
       refine BN.tensor_congr _ _ _ fun e' he' => ?_
-      have hlt := (mem_range_letterCode_iff e b _).mp (h1 e' he')
-      rw [invFun_letterCode e b hlt]
+      rw [invFun_letterCode e b ((mem_range_letterCode_iff e b _).mp (h1 e' he'))]
       exact congrArg (decodeLetter e b) (hbits e')
     · exact absurd (hall.mpr fun e' he' =>
         (hbits e').symm.trans_lt ((mem_range_letterCode_iff e b _).mp (h1 e' he'))) h2
@@ -634,9 +629,9 @@ theorem explicitBlockNetwork_eq_explicitNetworkNum (σ : ℕ) :
       explicitVerticesNum e b machine input q σ := by
     rw [explicitBlockNetwork, TensorNetwork.toExplicit, explicitVerticesNum,
       ← List.map_coe_finRange_eq_range, List.map_map, List.ofFn_eq_map]
-    refine List.map_congr_left fun v _ => ?_
-    simp only [Function.comp_apply, map_val_explicitPorts, explicitTable_eq_explicitTableNum,
-      Equiv.apply_symm_apply]
+    refine List.map_congr_left fun v _ => by
+      simp only [Function.comp_apply, map_val_explicitPorts, explicitTable_eq_explicitTableNum,
+        Equiv.apply_symm_apply]
   rw [explicitNetworkNum, ← numEdges_explicitBlockNetwork machine input b (scheduleOfNat k q σ) e,
     ← hv]
 
@@ -666,16 +661,13 @@ theorem explicitSrcNum_lt {m σ j : ℕ} (hj : j < 2 * (q * (3 * k + 1) * m)) :
       (Nat.div_lt_iff_lt_mul hm).mpr (by omega)
     set n := (j - q * (3 * k + 1) * m) / m
     unfold edgeTargetNum
-    split_ifs with h1 h2
-    · nlinarith
-    · nlinarith
-    · cases hf : firstAfterNum k q σ ((n - q) % (k * 3) / 3 + 1) ((n - q) / (k * 3)) ((n - q) % 3)
-        with
-      | none => simp only [Option.getD_none]; nlinarith
-      | some i' =>
-        have hmem := List.mem_range.mp (List.mem_of_find?_eq_some hf)
-        simp only [Option.getD_some]
-        nlinarith
+    split_ifs with h1 h2 <;> try nlinarith
+    cases hf : firstAfterNum k q σ ((n - q) % (k * 3) / 3 + 1) ((n - q) / (k * 3)) ((n - q) % 3)
+      with
+    | none => simp only [Option.getD_none]; nlinarith
+    | some i' =>
+      have := List.mem_range.mp (List.mem_of_find?_eq_some hf)
+      simp only [Option.getD_some]; nlinarith
 
 /-- Every explicit edge ends at a vertex. -/
 theorem explicitTgtNum_lt {m j : ℕ} (hj : j < 2 * (q * (3 * k + 1) * m)) :
@@ -688,9 +680,8 @@ theorem explicitPortsNum_eq_nil {m σ v : ℕ}
     (hv : q * (3 * k + 2) + q * (3 * k + 1) * m ≤ v) : explicitPortsNum k q m σ v = [] := by
   rw [explicitPortsNum, List.filter_eq_nil_iff]
   intro j hj
-  rw [List.mem_range] at hj
-  have h1 := explicitSrcNum_lt (σ := σ) hj
-  have h2 := explicitTgtNum_lt hj
+  have h1 := explicitSrcNum_lt (σ := σ) (List.mem_range.mp hj)
+  have h2 := explicitTgtNum_lt (List.mem_range.mp hj)
   simp only [decide_eq_true_eq, not_or]
   omega
 

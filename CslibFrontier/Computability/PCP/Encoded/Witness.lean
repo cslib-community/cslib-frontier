@@ -177,13 +177,11 @@ theorem satisfies_ofCompactCNFLabels {φ : CNF ℕ} {w : List Bool}
         ConstraintGraph.cnfLabelling ψ.compact τc u := by
     rw [ofCompactCNFLabels, List.getD_eq_getElem?_getD, List.getElem?_map,
       List.getElem?_range hu, Option.map_some, Option.getD_some]
-    dsimp only
-    rw [show φ.to3CNF = ψ from rfl, show φ.to3CNFAssignment (SAT.assignment φ w) = τ from rfl]
     rcases u with x | j
     · simp only [Graph.cnfVertexNumber, Nat.mul_mod_right, ↓reduceIte,
         Nat.mul_div_right _ (by decide : 0 < 2), ConstraintGraph.cnfLabelling]
       rfl
-    · have hj : j.val < ψ.length := by simpa only [CNF.length_compact] using j.isLt
+    · have hj : j.val < φ.to3CNF.length := by simpa only [CNF.length_compact] using j.isLt
       have hneg : ¬ (2 * j.val + 1) % 2 = 0 := by omega
       have hdiv : (2 * j.val + 1) / 2 = j.val := by omega
       simp only [Graph.cnfVertexNumber, hdiv, hneg, ↓reduceIte, List.getD_eq_getElem?_getD,
@@ -197,14 +195,15 @@ theorem satisfies_ofCompactCNFLabels {φ : CNF ℕ} {w : List Bool}
       | some lit =>
         have hmemVar : lit.1 ∈ ψ.vars := List.mem_map.mpr
           ⟨lit, List.mem_flatten.mpr ⟨ψ[j.val], List.getElem_mem hj, List.mem_of_getElem? hq⟩, rfl⟩
-        simp only [Option.map_some, Option.elim_some, Prod.map_fst]
-        rw [@List.getElem?_idxOf _ instBEqOfDecidableEq _ _ _ hmemVar]
-        rfl
+        simp only [Option.map_some, Option.elim_some, Prod.map_fst,
+          @List.getElem?_idxOf _ instBEqOfDecidableEq _ _ _ hmemVar]
   have hedge := Graph.wellFormed_ofCompactCNF ψ _ (List.getElem_mem e.isLt)
   change ((Graph.ofCompactCNF ψ).toGraph id).Satisfies
     (fun v => (ofCompactCNFLabels φ w).getD v (fun _ => false)) e
   dsimp only [Graph.ofCompactCNF]
   rw [Graph.toGraph_ofCNF ψ.vars.length ψ.compact]
+  dsimp only [ConstraintGraph.Satisfies, ConstraintGraph.comap, ConstraintGraph.map,
+    Function.comp_def]
   set idx := (Graph.ofCNFEnumeration ψ.vars.length ψ.compact).equiv e
   have hgr := (Graph.toGraph_ofCNF ψ.vars.length ψ.compact).symm
   have hsrcIdx : Graph.cnfVertexNumber ((ConstraintGraph.ofCNF ψ.compact).src idx) <
@@ -215,12 +214,6 @@ theorem satisfies_ofCompactCNFLabels {φ : CNF ℕ} {w : List Bool}
       2 * (ψ.vars.length + ψ.length) :=
     (congrArg (fun g => g.dst e) hgr).trans_lt
       (by simpa [Graph.toGraph, Graph.ofCompactCNF, Graph.ofCNF, CNF.length_compact] using hedge.2)
-  simp only [ConstraintGraph.Satisfies, ConstraintGraph.comap, ConstraintGraph.map]
-  change (ConstraintGraph.ofCNF ψ.compact).rel idx
-    ((ofCompactCNFLabels φ w).getD
-      (Graph.cnfVertexNumber ((ConstraintGraph.ofCNF ψ.compact).src idx)) (fun _ => false))
-    ((ofCompactCNFLabels φ w).getD
-      (Graph.cnfVertexNumber ((ConstraintGraph.ofCNF ψ.compact).dst idx)) (fun _ => false))
   rw [hlabel _ hsrcIdx, hlabel _ hdstIdx]
   exact hsatMath idx
 
@@ -328,7 +321,7 @@ theorem satisfies_composeLabels (impl : Implementation α I P R Q Γ)
     (e : Fin (impl.composeTabulated number coins queries g).edges.length) :
     ((impl.composeTabulated number coins queries g).toGraph id).Satisfies
       (fun v => (impl.composeLabels encode aux number default γ g labels).getD v defaultOut) e := by
-  let L := impl.composeLabels encode aux number default γ g labels
+  set L := impl.composeLabels encode aux number default γ g labels
   let σ : ℕ → α := fun v => labels.getD v default
   let G := g.toGraph id
   let A := (T.composeTest G).labellingOf (T.composeProof G σ) γ
@@ -381,21 +374,19 @@ theorem satisfies_composeLabels (impl : Implementation α I P R Q Γ)
       simp only [A, LocalTest.labellingOf, composeSlotLabel, Sum.elim_inl,
         AssignmentTester.composeProof, testerPos, Prod.mk.injEq, and_true, ← hends ed]
       exact (haux (g.edges[ed.val]).constraint _ p).symm
-  change ((impl.composeTabulated number coins queries g).toGraph id).Satisfies
-    (fun v => L.getD v defaultOut) e
-  dsimp only [composeTabulated]
+  dsimp only [composeTabulated] at e ⊢
   rw [toGraph_mapConstraints]
+  dsimp only [ConstraintGraph.Satisfies, ConstraintGraph.comap, Function.comp_def, id_eq]
   set e' : Fin (impl.compose number coins queries g).edges.length :=
     finCongr (length_edges_mapConstraints _ _) e
-  change ((impl.compose number coins queries g).toGraph (composeEval impl)).Satisfies
+  change ((impl.compose number coins queries g).toGraph impl.composeEval).Satisfies
     (fun v => L.getD v defaultOut) e'
   rw [toGraph_compose impl hreal number coins queries g hcoins hqueries hmemCoins hmemQueries]
+  dsimp only [ConstraintGraph.Satisfies, ConstraintGraph.comap, ConstraintGraph.map,
+    Function.comp_def, AssignmentTester.compose, AssignmentTester.composeTest,
+    LocalTest.toConstraintGraph, LocalTest.mix, LocalTest.map]
   set p := (composeEnumeration impl number coins queries g
     hcoins hqueries hmemCoins hmemQueries).equiv e'
-  change (T.compose G).rel p
-    (L.getD (composeVertex number Fin.val (.inr p.1)) defaultOut)
-    (L.getD (composeVertex number Fin.val
-      (.inl (testerPos G p.1.1 ((T.test (G.rel p.1.1)).query p.1.2 p.2)))) defaultOut)
   rw [hl_src p.1.1 p.1.2, hl_dst p.1.1]
   exact LocalTest.satisfies_labellingOf
     (passes_composeTest_composeProof hcomplete G (hsat p.1.1) p.1.2)
@@ -593,16 +584,11 @@ theorem satisfies_powerPreprocessLabels [DecidableEq α] (g : Graph C)
     rcases hpair : ((R.graph.pow w.1.val).rot (v, w.2)).1 with ⟨idx, side⟩
     cases side <;> simp [RegularConstraintGraph.truthful, σ_prep, σ, ConstraintGraph.endpoint,
       toGraph, RotationMap.neighbor, edgeAt, List.getD_eq_getElem?_getD, hpair]
-  change ((g.powerPreprocess eval fallback rotate T q walks).toGraph id).Satisfies
-    (fun u => (powerPreprocessLabels fallback default rotate T g labels).getD u defaultPow) e
   rw [toGraph_powerPreprocess g eval fallback family rotate hrotate T q walks hwalks hmem]
   set p := (g.powerPreprocessEnumeration eval fallback rotate T q walks hwalks hmem).equiv e
-  change (R.power T q).rel p
-    ((powerPreprocessLabels fallback default rotate T g labels).getD
-      (halfEdgeNumber (p.1.1.val, p.1.2)) defaultPow)
-    ((powerPreprocessLabels fallback default rotate T g labels).getD
-      (halfEdgeNumber (((R.graph.killedPow T q).rot p).1.1.val,
-        ((R.graph.killedPow T q).rot p).1.2)) defaultPow)
+  dsimp only [ConstraintGraph.Satisfies, ConstraintGraph.comap, ConstraintGraph.map,
+    Function.comp_def, RegularConstraintGraph.toConstraintGraph, RegularConstraintGraph.power,
+    RotationMap.neighbor]
   rw [hl p.1, hl ((R.graph.killedPow T q).rot p).1]
   exact RegularConstraintGraph.satisfies_power_iff.2 fun _ hi =>
     (R.rel_truthful_iff T q σ_prep p hi).2
@@ -685,12 +671,10 @@ theorem satisfies_amplifyLabels (fallback : Constraint)
     ((g.amplify id fallback rotate T q).toGraph id).Satisfies
       (fun v => (amplifyLabels fallback rotate T q g labels).getD v defaultSelectedAlphabet)
       e := by
-  have hwfPow := g.wellFormed_powerPreprocess id fallback family rotate hrotate T q
-    (FinEnum.toList _)
-  have hsatPow := satisfies_powerPreprocessLabels g id fallback family rotate hrotate T q
-    (FinEnum.toList _) FinEnum.nodup_toList FinEnum.mem_toList defaultSelectedAlphabet hsat
-    (fun _ => defaultSelectedAlphabet)
-  exact satisfies_composeSelectedLabels (fun _ => defaultSelectedAlphabet) hwfPow hsatPow e
+  exact satisfies_composeSelectedLabels (fun _ => defaultSelectedAlphabet)
+    (g.wellFormed_powerPreprocess id fallback family rotate hrotate T q (FinEnum.toList _))
+    (satisfies_powerPreprocessLabels g id fallback family rotate hrotate T q (FinEnum.toList _)
+      FinEnum.nodup_toList FinEnum.mem_toList defaultSelectedAlphabet hsat _) e
 
 /-- Joint graph-and-label step for `amplifyIter`. -/
 def amplifyIterStep (fallback : Constraint) (rotate : ℕ × (ℕ × D) → ℕ × D)
@@ -807,8 +791,8 @@ theorem isPolyTime_amplifyIterLabels_clog {Input : Type} {input : Input ↪ List
   have heval' : ComputableInPolyTime
       (fun p : Constraint × (SelectedAlphabet × SelectedAlphabet) => p.1 p.2.1 p.2.2)
       (encPair (encPi (encPi encBool)) (encPair encSelectedAlphabet encSelectedAlphabet))
-      encBool := by
-    exact (isPolyTime_constraintTableEval encSelectedAlphabet).comp
+      encBool :=
+    (isPolyTime_constraintTableEval encSelectedAlphabet).comp
       ((hconv.comp (fst _ _)).prod (snd _ _))
   have hfstEnc := fst (encoding (encConstraintTable (α := SelectedAlphabet)))
     (encList encSelectedAlphabet)

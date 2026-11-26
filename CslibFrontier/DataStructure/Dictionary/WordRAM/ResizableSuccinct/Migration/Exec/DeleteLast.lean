@@ -121,8 +121,7 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
   obtain ⟨_, h1N, _, hNU⟩ := hev.resolve_left (by simp)
   set off := offCompItems U w N
   set iw := compactedItemWords U V w N 1
-  have hce : compactedEpochWords U V w N 1 = off + iw := by
-    unfold compactedEpochWords; simp [off, iw]
+  have hce : compactedEpochWords U V w N 1 = off + iw := by simp [compactedEpochWords, off, iw]
   have hfr_eq : x.frontier = base + off + iw := by rw [hfr, hce, Nat.add_assoc]
   have h225 : 225 ≤ off := le_offCompItems_225 U w N
   have hfit_fr : Fits w x.frontier := hx.frontier_fits
@@ -233,24 +232,17 @@ private theorem deleteLastReadCode_exec {U V w N n_init base : ℕ}
         (hx₂_cp_all i)
   obtain ⟨s_fix, hinv, htot, hcpl⟩ := hsplit.coupled
   obtain ⟨L_b, hb_inv⟩ := hinv.hbucket
-  have hslot : SlotStoreInv N (compGmAt base U w N x.mem) := by
-    rw [hcpl.gm_eq]; exact hb_inv.hslot
-  have htd : 0 < bucketBits N →
-      TailDenseInv N (compGmAt base U w N x.mem 0) (compGmAt base U w N x.mem 1)
-        (compTDAt base U w N x.mem) (compDTAt base U w N x.mem) :=
-    fun hb => hcpl.tailDenseInv hb
+  have hslot : SlotStoreInv N (compGmAt base U w N x.mem) := hcpl.gm_eq ▸ hb_inv.hslot
   obtain ⟨hrec_val, _, _⟩ := reconstructKeyAt_spec hsplit.vals_lt hNU hinv hcpl htot
   obtain ⟨hu₀_lt, _, _⟩ := hrec_val 0 zero_lt_one
   obtain ⟨hpre_ro, hvp_ro, hc_ro, hres_ro, hfr_ro, hout_ro⟩ :=
     readOldItemKeyValGenProg_spec (s₀ := ⟨x.mem, x.frontier⟩) hw h1N hNU hsplit.root_hdr.fits_U hV
       le_rfl (by change base + off + iw ≤ x.frontier; rw [hfr_eq]) hfit_off hsplit.hash_rep
-      hslot htd htot zero_lt_one hu₀_lt
+      hslot hcpl.tailDenseInv htot zero_lt_one hu₀_lt
   have hv_ro : (Memory.spec w).ValidHistory (memoryState mFr x₇.toData)
       ((Memory.spec w).clientHistory (memoryState mFr x₇.toData)
-        (readOldItemKeyValGenProg d_ro)) := by
-    have hwf₇ : Memory.WellFormed w (memoryState mFr x₇.toData) := wellFormed_memoryState hx₇b.1
-    rw [hms₇] at hwf₇ ⊢
-    exact hvp_ro ⟨hwf₇, Nat.zero_le _⟩
+        (readOldItemKeyValGenProg d_ro)) :=
+    hms₇.symm ▸ hvp_ro ⟨hms₇ ▸ wellFormed_memoryState hx₇b.1, Nat.zero_le _⟩
   obtain ⟨y, hex_ro, hyb, hyf, hm_ro, hout_reg_ro, hframe_ro⟩ :=
     execWitness wReadOldKV factor_wReadOldKV_le mFr srcReadOldKV tmpReadOldKV
       tmpReadOldKV_inj srcReadOldKV_ne_tmp tmpReadOldKV_ne_mFr srcReadOldKV_ne_mFr
@@ -306,8 +298,7 @@ private theorem deleteLastHitTailCode_exec {U V w N n_init base : ℕ} {x y : RD
   obtain ⟨_, _, hN4, hNU⟩ := hev.resolve_left (by simp)
   set off := offCompItems U w N
   set iw := compactedItemWords U V w N 1
-  have hce : compactedEpochWords U V w N 1 = off + iw := by
-    unfold compactedEpochWords; simp [off, iw]
+  have hce : compactedEpochWords U V w N 1 = off + iw := by simp [compactedEpochWords, off, iw]
   have hfr_eq : x.frontier = base + off + iw := by rw [hfr, hce, Nat.add_assoc]
   have h225 : 225 ≤ off := le_offCompItems_225 U w N
   have hfit_fr : Fits w x.frontier := hyf ▸ hyb.frontier_fits
@@ -356,10 +347,10 @@ private theorem deleteLastHitTailCode_exec {U V w N n_init base : ℕ} {x y : RD
   rw [hy₆_eq] at hex_add
   have hy₇b : y₇.Bounded w := (hy₄b.set hfit_b8).set (hfit_fr.of_le (Nat.sub_le _ _))
   have hy₇_k : y₇.regs mK = x.frontier - (base + 8) := by simp [y₇, RData.set]
-  have hk_le_fr : y₇.regs mK ≤ y₇.frontier := by
-    rw [hy₇_k, show y₇.frontier = x.frontier from hyf]; exact Nat.sub_le _ _
+  have hk_le_fr : y₇.regs mK ≤ y₇.frontier := hyf ▸ hy₇_k ▸ Nat.sub_le _ _
   have hfr_sub : y₇.frontier - y₇.regs mK = base + 8 := by
-    rw [show y₇.frontier = x.frontier from hyf, hy₇_k]; exact Nat.sub_sub_self hb8_le
+    change y.frontier - y₇.regs mK = base + 8
+    simpa only [hyf, hy₇_k] using Nat.sub_sub_self hb8_le
   have hex_sh := shrinkCode_exec (w := w) (L_peak := x.frontier)
     (count := mK) (idx := mIdx) (zero := mZero) (one := mOne)
     hy₇b mShrink_nodup hfit1 hyf.le hk_le_fr
@@ -469,31 +460,25 @@ theorem deleteLastOneCode_demonicExec {U V w N n_init base : ℕ}
     unfold deleteLastOneCharge
     linarith only [hc_r, hc_h, hf1]
   · have hne_u : u₀ ≠ u.val := fun heq => by
-      rw [show u = ⟨u₀, hu₀_lt⟩ from Fin.ext heq.symm, hs₀] at hsome
+      have hu : u = ⟨u₀, hu₀_lt⟩ := Fin.ext heq.symm
+      rw [hu, hs₀] at hsome
       exact hsome rfl
     have hnc_eq : ¬(Cond.eq mU0 mArgU).Holds y.toData := by
       change y.regs mU0 ≠ y.regs mArgU
-      rw [hy_u0, hy_argu, hu_reg]
-      exact hne_u
+      rwa [hy_u0, hy_argu, hu_reg]
     have hex_nop := RDemonicExec.copy (B := .exact) (w := w) (L_peak := x.frontier)
       (d := mZero) (s := mZero) (x := y) hyf.le
     set z := y.set mZero (y.regs mZero)
-    have hzb : z.Bounded w := hyb.set (hyb.regs_fits mZero)
     have hs_same : Function.update s_abs u none = s_abs :=
       Function.update_eq_self_iff.mpr (Option.not_isSome_iff_eq_none.mp hsome).symm
     have hout_scr : ∀ a, (a < base + offScratch ∨ base + epochHdrWords ≤ a) → z.mem a = x.mem a :=
       fun a ha => hy_mem a (by unfold offScratch epochHdrWords at ha; omega)
-    have hsplit_z : CompactedSplitRep base (base + offCompItems U w N) U V w N 1 n_init θ s_abs
-        ⟨z.mem, z.frontier⟩ :=
-      compactedSplitRep_of_scratch_mod hw hsplit hyf hout_scr
-    have hpot_eq : inEpochPotential U w N base z = inEpochPotential U w N base x := by
-      unfold inEpochPotential
-      rw [compGmAt_eq_of_scratch_mod hw hout_scr]
     refine ⟨z, _, hex_r.seq_eq (RDemonicExec.branch_neg hnc_eq hex_nop),
-      hzb, by simp [z, RData.set, hy_base],
+      hyb.set (hyb.regs_fits mZero), by simp [z, RData.set, hy_base],
       fun addr haddr => hy_mem addr (fun h => by linarith only [haddr, h.1]), ?_⟩
     rw [ite_eq_right hsome]
-    refine ⟨hs_same, hyf.trans hfr, hsplit_z, hpot_eq, ?_⟩
+    refine ⟨hs_same, hyf.trans hfr, compactedSplitRep_of_scratch_mod hw hsplit hyf hout_scr,
+      by simp only [inEpochPotential, compGmAt_eq_of_scratch_mod hw hout_scr], ?_⟩
     unfold deleteLastOneCharge
     linarith only [hc_r, hf1]
 

@@ -95,8 +95,7 @@ theorem selectedRequest_row_support {k : ℕ}
       HP.ρ_zero
     simp only [Equiv.piSplitAt_apply, coordinate,
       CorrectionRowTask.Channel.retains, channels] at h ⊢
-    convert h.le using 1
-    congr 1
+    convert h.le using 2
     ext y
     simp
   · simp [correctionRequest, hr]
@@ -252,12 +251,9 @@ theorem rawIncomingNormalized_moment {k : ℕ}
     refine sum_congr rfl fun z _ => ?_
     by_cases h : ZD σ z
     · simp only [h, ↓reduceIte]
-      change (rate kb * _ * (rate km / _)) *
-        (child requests.left σ x z * child requests.right σ z y) = _
+      dsimp only [requests, mid, gridChannel, CorrectionRowTask.Channel.retains]
       ring
     · simp only [h, ↓reduceIte]
-      change (rate kb * _ * (rate km / _)) *
-        (child requests.left σ x z * child requests.right σ z y) = 0
       rw [hz σ x z h, zero_mul, mul_zero]
   rw [heq]
   exact (rowNormPow_add_sub_le (mul_pos hN hu).le _ _ _).trans

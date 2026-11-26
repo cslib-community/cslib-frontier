@@ -268,13 +268,9 @@ theorem isQueryBounded_ccaToStrongPRPAdversary (bit : Bool) (adversary : CCAAdve
   refine OracleComp.IsCostBounded.run_interpret (fun q s => ?_) hq []
   cases q with
   | inl m =>
-    simp only [OracleComp.sumHandler, Sum.elim_inl]
-    change ((·, s) <$> ProbOracleComp.sample (ProbComp.unifFin m)).IsQueryBounded 0
-    simp only [OracleComp.isCostBounded_map_iff]
-    exact ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin m)
-  | inr request =>
-    simp only [OracleComp.sumHandler, Sum.elim_inr]
-    exact isQueryBounded_ccaToStrongPRPHandler n bit request s
+    exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
+      (ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin m))
+  | inr request => exact isQueryBounded_ccaToStrongPRPHandler n bit request s
 
 /-- The reduction is uniform strict oracle PPT whenever the adversary is. -/
 theorem isOraclePPT_ccaToStrongPRPAdversary {adversary : CCAAdversary}
@@ -403,21 +399,14 @@ private theorem coupledStep_eq_of_flag_eq_false (n : ℕ) (request : Bool × Lis
     (h : (coupledStep n bit request s r z).2.2 = false) :
     coupledStep n false request s r z = coupledStep n true request s r z := by
   rw [coupledStep_flag] at h
-  unfold coupledStep
-  by_cases h1 : request.1 = true
-  · simp only [h1, ↓reduceIte]
-  · by_cases h2 : ((unframe request.2).length == n && (dropFrame request.2).length == n) = true
-    · have h3 : r ∉ s.2.map (fun t => (List.ofFn t.1).take n) := by simpa [h1, h2] using h
-      simp only [h1, h2, h3, Bool.false_eq_true, ↓reduceIte]
-    · simp only [h1, h2, Bool.false_eq_true, ↓reduceIte]
+  grind [coupledStep]
 
 /-- A raised flag means the fresh nonce repeats the nonce part of a recorded block. -/
 private theorem coupledStep_flag_imp (n : ℕ) (bit : Bool) (request : Bool × List Bool)
     (s : CoupledState n) (r : List Bool) (z : BitString (2 * n))
     (h : (coupledStep n bit request s r z).2.2 = true) :
     r ∈ s.2.map (fun t => (List.ofFn t.1).take n) := by
-  rw [coupledStep_flag] at h
-  simp only [Bool.and_eq_true, decide_eq_true_eq] at h
+  simp only [coupledStep_flag, Bool.and_eq_true, decide_eq_true_eq] at h
   exact h.2
 
 /-- The coupled handler keeps a raised flag raised. -/
@@ -512,21 +501,19 @@ private theorem take_ofFn_ofList_append {n : ℕ} {r m : List Bool} (hr : r.leng
 private theorem coupledInv_coupledStep {n : ℕ} (bit : Bool) (request : Bool × List Bool)
     {s : CoupledState n} {r : List Bool} (z : BitString (2 * n)) (hr : r.length = n)
     (hs : CoupledInv n s) : CoupledInv n (coupledStep n bit request s r z).2.1 := by
+  unfold coupledStep
   by_cases h1 : request.1 = true
-  · simp only [coupledStep, h1, ↓reduceIte]
-    by_cases h2 : s.1.contains request.2 = true
-    · simpa only [h2, ↓reduceIte] using hs
-    · simp only [h2, Bool.false_eq_true, ↓reduceIte]
-      by_cases h3 : (request.2.length == 2 * n) = true
-      · simp only [h3, ↓reduceIte]
-        split
-        · exact hs
-        · intro t ht
-          rcases List.mem_cons.mp ht with rfl | ht
-          · exact ⟨fun h => (h rfl).elim, rfl⟩
-          · exact hs t ht
-      · simpa only [h3, Bool.false_eq_true, ↓reduceIte] using hs
-  · simp only [coupledStep, h1, Bool.false_eq_true, ↓reduceIte]
+  · simp only [h1, ↓reduceIte]
+    split_ifs
+    · exact hs
+    · split
+      · exact hs
+      · intro t ht
+        rcases List.mem_cons.mp ht with rfl | ht
+        · exact ⟨fun h => (h rfl).elim, rfl⟩
+        · exact hs t ht
+    · exact hs
+  · simp only [h1, Bool.false_eq_true, ↓reduceIte]
     by_cases h2 : ((unframe request.2).length == n && (dropFrame request.2).length == n) = true
     · simp only [h2, ↓reduceIte]
       simp only [Bool.and_eq_true, beq_iff_eq] at h2
@@ -541,8 +528,7 @@ private theorem coupledInv_coupledStep {n : ℕ} (bit : Bool) (request : Bool ×
       by_cases h3 : r ∈ s.2.map (fun t => (List.ofFn t.1).take n)
       · simp only [h3, ↓reduceIte]
         split
-        · intro t ht
-          exact ⟨fun h => List.mem_cons_of_mem _ ((hs t ht).1 h), (hs t ht).2⟩
+        · exact fun t ht => ⟨fun h => List.mem_cons_of_mem _ ((hs t ht).1 h), (hs t ht).2⟩
         · exact hnew
       · simpa only [h3, ↓reduceIte] using hnew
     · simpa only [h2, Bool.false_eq_true, ↓reduceIte] using hs
@@ -779,22 +765,13 @@ theorem advantage_strongPRPIdealGame_ccaToStrongPRPAdversary_le (adversary : CCA
   have hmid := advantage_forgetful_ccaToStrongPRPAdversary_le adversary n Q hQ
   have hpow : ((2 : ℝ) ^ (2 * n))⁻¹ = (((2 : ℝ) ^ n)⁻¹) ^ 2 := by rw [pow_mul', inv_pow]
   rw [hpow] at h0 h1
-  rw [Game.advantage_comm] at h1
-  have htri1 := NNReal.coe_le_coe.mpr (Game.advantage_triangle
-    (ProbComp.eval (strongPRPIdealGame (fun n => 2 * n)
-      (ccaToStrongPRPAdversary false adversary) n))
-    ((ProbOracleComp.runWith ((strongBitStringCodec (2 * n)).wordOracle forgetfulAnswer)
-      (ccaToStrongPRPAdversary false adversary n []) []).map Prod.fst)
-    (ProbComp.eval (strongPRPIdealGame (fun n => 2 * n)
-      (ccaToStrongPRPAdversary true adversary) n)))
-  have htri2 := NNReal.coe_le_coe.mpr (Game.advantage_triangle
-    ((ProbOracleComp.runWith ((strongBitStringCodec (2 * n)).wordOracle forgetfulAnswer)
-      (ccaToStrongPRPAdversary false adversary n []) []).map Prod.fst)
-    ((ProbOracleComp.runWith ((strongBitStringCodec (2 * n)).wordOracle forgetfulAnswer)
-      (ccaToStrongPRPAdversary true adversary n []) []).map Prod.fst)
-    (ProbComp.eval (strongPRPIdealGame (fun n => 2 * n)
-      (ccaToStrongPRPAdversary true adversary) n)))
-  rw [NNReal.coe_add] at htri1 htri2
+  let f (b : Bool) :=
+    (ProbOracleComp.runWith ((strongBitStringCodec (2 * n)).wordOracle forgetfulAnswer)
+      (ccaToStrongPRPAdversary b adversary n []) []).map Prod.fst
+  refine (NNReal.coe_le_coe.mpr ((Game.advantage_triangle _ (f false) _).trans
+    (add_le_add le_rfl (Game.advantage_triangle _ (f true) _)))).trans ?_
+  rw [Game.advantage_comm (f true), NNReal.coe_add, NNReal.coe_add]
+  dsimp only [f]
   linarith
 
 /-! ### Exercise 9.12(a) and the missing integrity -/
@@ -828,19 +805,12 @@ theorem BlockCipher.advantage_ccaGame_halfBlockCipher_le (F : BlockCipher)
   have hideal := advantage_strongPRPIdealGame_ccaToStrongPRPAdversary_le adversary n Q hQ
   rw [hbl, eval_strongPRPRealGame_ccaToStrongPRPAdversary F hblock,
     eval_strongPRPRealGame_ccaToStrongPRPAdversary F hblock]
-  have h₁ := NNReal.coe_le_coe.mpr (Game.advantage_triangle
-    (ProbComp.eval ((F.halfBlockCipher hblock).ccaGame adversary false n))
-    (ProbComp.eval (strongPRPIdealGame (fun n => 2 * n)
-      (ccaToStrongPRPAdversary false adversary) n))
-    (ProbComp.eval ((F.halfBlockCipher hblock).ccaGame adversary true n)))
-  have h₂ := NNReal.coe_le_coe.mpr (Game.advantage_triangle
-    (ProbComp.eval (strongPRPIdealGame (fun n => 2 * n)
-      (ccaToStrongPRPAdversary false adversary) n))
-    (ProbComp.eval (strongPRPIdealGame (fun n => 2 * n)
-      (ccaToStrongPRPAdversary true adversary) n))
-    (ProbComp.eval ((F.halfBlockCipher hblock).ccaGame adversary true n)))
-  rw [NNReal.coe_add] at h₁ h₂
-  rw [Game.advantage_comm (ProbComp.eval ((F.halfBlockCipher hblock).ccaGame adversary true n))]
+  let g (b : Bool) := ProbComp.eval (strongPRPIdealGame (fun n => 2 * n)
+    (ccaToStrongPRPAdversary b adversary) n)
+  refine (NNReal.coe_le_coe.mpr ((Game.advantage_triangle _ (g false) _).trans
+    (add_le_add le_rfl (Game.advantage_triangle _ (g true) _)))).trans ?_
+  rw [Game.advantage_comm (g true), NNReal.coe_add, NNReal.coe_add]
+  dsimp only [g]
   linarith
 
 /-- **Boneh–Shoup, Exercise 9.12(a)**, for the half-block scheme: if `F` is a strong pseudorandom
@@ -876,10 +846,9 @@ theorem BlockCipher.StrongPRP.indcca_halfBlockCipher {F : BlockCipher} (hF : F.S
     refine Game.Indistinguishable.of_birthday_queryBounded_real
       (base := fun n => ((2 : ℝ≥0) ^ n)⁻¹) 3 (by negligible) fun n Q adversary hQ => ?_
     have hbound := advantage_strongPRPIdealGame_ccaToStrongPRPAdversary_le adversary n Q hQ
-    have hsmall : (((2 : ℝ) ^ n)⁻¹) ^ 2 ≤ ((2 : ℝ) ^ n)⁻¹ := by
-      have h₀ : 0 ≤ ((2 : ℝ) ^ n)⁻¹ := by positivity
-      have h₁ : ((2 : ℝ) ^ n)⁻¹ ≤ 1 := inv_le_one_of_one_le₀ (one_le_pow₀ (by norm_num))
-      nlinarith
+    have hsmall : (((2 : ℝ) ^ n)⁻¹) ^ 2 ≤ ((2 : ℝ) ^ n)⁻¹ :=
+      (sq _).trans_le (mul_le_of_le_one_right (by positivity)
+        (inv_le_one_of_one_le₀ (one_le_pow₀ one_le_two)))
     have hchoose : (0 : ℝ) ≤ Q.choose 2 := Nat.cast_nonneg _
     refine hbound.trans ?_
     push_cast
@@ -891,10 +860,9 @@ against the half-block scheme with probability `1`. -/
 theorem BlockCipher.eval_encForgeGame_halfBlockCipher_allOnesForger (F : BlockCipher)
     (hblock : ∀ n, F.blockLen n = 2 * n) (n : ℕ) :
     ProbComp.eval ((F.halfBlockCipher hblock).encForgeGame F.allOnesForger n) = PMF.pure true := by
-  have h : ProbComp.eval ((F.halfBlockCipher hblock).encForgeGame F.allOnesForger n) =
-      (BitString.uniformList (F.keyLen n)).map (fun _ => true) := by
-    simp [SymmetricCipher.encForgeGame, BlockCipher.allOnesForger, BlockCipher.halfBlockCipher]
-  exact h.trans (PMF.map_const _ true)
+  trans (BitString.uniformList (F.keyLen n)).map (fun _ => true)
+  · simp [SymmetricCipher.encForgeGame, BlockCipher.allOnesForger, BlockCipher.halfBlockCipher]
+  · exact PMF.map_const _ true
 
 /-- The half-block scheme does not have plaintext integrity, whatever the block cipher. -/
 theorem BlockCipher.not_encForge_halfBlockCipher (F : BlockCipher)

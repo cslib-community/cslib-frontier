@@ -195,10 +195,8 @@ theorem thm_cn_fan (hw : IsPrice K w) (x : Bool → Y) (m z : Y)
     exact le_antisymm (by simpa [hn'.ne'] using a4 b (n ^ 2) le_rfl) (hw1.nonneg _ _)
   have hγ (b : Bool) (i : ℕ) (hi : i < n ^ 2) :
       w1 (Sum.inr (b, i)) (Sum.inr (b, i + 1)) ≤ D / n ^ 2 := by
-    have h := a2 b i (i + 1) (Nat.le_succ i) hi
-    push_cast at h
-    rw [add_sub_cancel_left, one_div_mul_eq_div] at h
-    exact h.trans (div_le_div_of_nonneg_right (hD b) (by positivity))
+    refine le_trans ?_ (div_le_div_of_nonneg_right (hD b) (by positivity))
+    simpa [inv_mul_eq_div] using a2 b i (i + 1) (Nat.le_succ i) hi
   have hρ (j : ℕ) (hj : j ≤ n ^ 2 * T) : 0 ≤ 1 - (j : ℝ) / (n ^ 2 * T) := by
     rw [sub_nonneg, div_le_one (by positivity)]
     exact_mod_cast hj
@@ -214,14 +212,12 @@ theorem thm_cn_fan (hw : IsPrice K w) (x : Bool → Y) (m z : Y)
     linarith [b3 (b, i) j hj]
   · dsimp only [old, γ, G]
     rw [e2, hw1.symm (Sum.inl z)]
-    have h := b2 (b, i) j (j + 1) (Nat.le_succ j) hj
-    push_cast at h
-    exact (add_sub_cancel_left (j : ℝ) 1 ▸ h).trans_eq (by field_simp)
+    refine le_trans (b2 (b, i) j (j + 1) (Nat.le_succ j) hj) (le_of_eq ?_)
+    push_cast; ring
   · dsimp only [G]
-    have h := b1 (b, i) (b, i + 1) j hj
-    rw [hw1.self, mul_zero, add_zero] at h
     rw [mul_div_assoc]
-    exact h.trans (mul_le_mul_of_nonneg_left (hγ b i hi) (hρ j hj))
+    refine le_trans ?_ (mul_le_mul_of_nonneg_left (hγ b i hi) (hρ j hj))
+    simpa [hw1.self] using b1 (b, i) (b, i + 1) j hj
   · dsimp only [old, γ, G]
     simpa only [e2, hw1.symm (Sum.inl z), hw2.symm] using b3 (b, i) j hj
   · dsimp only [G]
@@ -329,13 +325,11 @@ theorem lipschitz (F : IsFan K w x m z D T n d) (hT : 0 < T) (hn : 0 < n) (b : B
   have h5 : |((clamp (n ^ 2) P.1 : ℕ) : ℝ) - (clamp (n ^ 2) (P + h).1 : ℕ)| ≤ |(h.1 : ℝ)| := by
     simpa [Prod.fst_add, abs_neg] using abs_clamp_sub_le (n ^ 2) P.1 (P + h).1
   have h8 : |((clamp (n ^ 2 * T) (P.1 + P.2 + n) : ℕ) : ℝ) -
-      (clamp (n ^ 2 * T) ((P + h).1 + (P + h).2 + n) : ℕ)| ≤ |(h.1 : ℝ)| + |(h.2 : ℝ)| :=
-    (abs_clamp_sub_le _ _ _).trans (by
-      rw [Prod.fst_add, Prod.snd_add]
-      push_cast
-      rw [show ((P.1 : ℝ) + P.2 + n) - (P.1 + h.1 + (P.2 + h.2) + n) = -((h.1 : ℝ) + h.2) by ring,
-        abs_neg]
-      exact abs_add_le _ _)
+      (clamp (n ^ 2 * T) ((P + h).1 + (P + h).2 + n) : ℕ)| ≤ |(h.1 : ℝ)| + |(h.2 : ℝ)| := by
+    have heq : ((P.1 + P.2 + n : ℤ) : ℝ) - (((P + h).1 + (P + h).2 + n : ℤ) : ℝ) =
+        -((h.1 : ℝ) + h.2) := by push_cast [Prod.fst_add, Prod.snd_add]; ring
+    refine (abs_clamp_sub_le _ _ _).trans ?_
+    simpa only [heq, abs_neg] using abs_add_le (h.1 : ℝ) h.2
   have h9 : (n : ℝ) ^ 2 * d (fanPt T n (b, P)) mid ≤ |(h.1 : ℝ)| * D := by
     refine (F.G_i_le hn b _ _ _ (clamp_le _ _) (clamp_le _ _) (clamp_le _ _)).trans ?_
     have : 0 ≤ ((clamp (n ^ 2 * T) (P.1 + P.2 + n) : ℕ) : ℝ) / (n ^ 2 * T) := by positivity
@@ -392,10 +386,8 @@ theorem step_iii (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i k : �
     (clamp (n ^ 2 * T) (i + (k + 1) + n)) (clamp_le _ _) (clamp_le _ _)
   rw [clamp_window h0 (by linarith), clamp_window (by linarith) (by linarith)] at h6
   rw [fanDist, fanLen, fanPt_mk, fanPt_mk]
-  refine h6.trans_eq ?_
-  push_cast
-  rw [show (i : ℝ) + k + n - (i + (k + 1) + n) = -1 by ring, abs_neg, abs_one]
-  ring
+  have hd : (i : ℝ) + k + n - (i + ((k + 1 : ℤ) : ℝ) + n) = -1 := by push_cast; ring
+  exact h6.trans_eq (by rw [hd, abs_neg, abs_one]; ring)
 
 theorem fanLen_zero (F : IsFan K w x m z D T n d) (b : Bool) : fanLen d z n b 0 =
     w z (x b) := by
@@ -599,25 +591,22 @@ theorem thm_cn_i (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤ T
   have h2 := le_mean_tele (F := fun n b i k => fanP d x T n b (i, k)) hX h1 (by
     filter_upwards [eventually_large hT 0] with n hn k hk
     rcases hn with ⟨e, hn1, -, hn2, -⟩
-    have g1 : w (x true) (x false) ≤ fanP d x T n true (((max n 1 : ℕ) : ℤ) ^ 2, k)
-        + fanP d x T n false (((max n 1 : ℕ) : ℤ) ^ 2, k) := (hd n).fanPot_last (k : ℤ)
+    have g1 : 2 * D ≤ fanP d x T n true ((n ^ 2 : ℕ), k) + fanP d x T n false ((n ^ 2 : ℕ), k) := by
+      simpa only [fanP, e, hxx, Nat.cast_pow] using (hd n).fanPot_last (k : ℤ)
     have k2 : (k : ℤ) + max n 1 ≤ (max n 1 : ℕ) ^ 2 * T := by
       rw [e]
       exact_mod_cast (by omega : k + n ≤ n ^ 2 * T)
-    have g0 (b : Bool) : fanP d x T n b (0, k) ≤ ((k : ℝ) + n) / (n ^ 2 * T) * w z (x b) :=
-      ((hd n).fanPot_zero b (k : ℤ) (by positivity) k2).trans_eq
-        (by simp only [e, Int.cast_natCast])
-    rw [e, hxx] at g1
-    rw [Fintype.sum_bool]
-    push_cast at g1 ⊢
-    have hk' : (k : ℝ) ≤ n := by exact_mod_cast hk.le
+    have g0 (b : Bool) : fanP d x T n b (0, k) ≤ ((k : ℝ) + n) / (n ^ 2 * T) * w z (x b) := by
+      simpa only [fanP, e, Int.cast_natCast] using (hd n).fanPot_zero b (k : ℤ) (by positivity) k2
     have g4 : ((k : ℝ) + n) / (n ^ 2 * T) ≤ 2 / T * (1 / n) := by
       rw [div_mul_div_comm, div_le_div_iff₀ (by positivity) (by positivity)]
+      have hk' : (k : ℝ) ≤ n := by exact_mod_cast hk.le
       nlinarith [mul_nonneg hT'.le (Nat.cast_nonneg (α := ℝ) n)]
+    have hlin : 2 * (w z (x true) + w z (x false)) / T * (1 / (n : ℝ)) =
+        2 / T * (1 / n) * w z (x true) + 2 / T * (1 / n) * w z (x false) := by ring
+    rw [Fintype.sum_bool]
     linarith [g0 true, g0 false, mul_le_mul_of_nonneg_right g4 (fan_w_nonneg hd z (x true)),
-      mul_le_mul_of_nonneg_right g4 (fan_w_nonneg hd z (x false)),
-      show 2 * (w z (x true) + w z (x false)) / T * (1 / (n : ℝ)) =
-        2 / T * (1 / n) * w z (x true) + 2 / T * (1 / n) * w z (x false) by ring])
+      mul_le_mul_of_nonneg_right g4 (fan_w_nonneg hd z (x false))])
   refine le_meanNorm _ _ fun S _ => ?_
   obtain ⟨h3, h4⟩ := mean_steps (F := fun n b i k => fanP d x T n b (i, k)) hX S
   have h5 :
@@ -705,9 +694,8 @@ theorem thm_cn_iii (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤
   have h2 : rms (θ • (fun n b i _ => fanL d z n b i : WindowFn)) ^ 2 = θ ^ 2 * fanΛ₂ d z := by
     rw [rms_sq (hLf.smul θ), fanΛ₂, ← mean_smul (hLf.mul hLf)]
     congr 1
-    funext n b i k
-    simp only [Pi.mul_apply, Pi.smul_apply, smul_eq_mul]
-    ring
+    ext n b i k
+    simp only [Pi.mul_apply, Pi.smul_apply, smul_eq_mul]; ring
   rw [← h2]
   exact pow_le_pow_left₀ (meanNorm_nonneg _ _) ((meanNorm_le_meanLength _ _).trans h1) 2
 
@@ -754,11 +742,8 @@ theorem thm_cn_iv_telescope (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (h
       filter_upwards [eventually_large hT 0] with n hn _ _
       have hl (b : Bool) : fanL d z n b ((n : ℤ) ^ 2) = w z m := by
         simpa only [fanL, hn.1, Nat.cast_pow] using (hd n).fanLen_last b
-      rw [Fintype.sum_bool]
-      push_cast
-      rw [hl true, hl false]
-      simp only [fanL, (hd n).fanLen_zero]
-      linarith)
+      rw [Fintype.sum_bool, Nat.cast_pow, hl true, hl false]
+      simp only [fanL, (hd n).fanLen_zero]; linarith)
   linarith
 
 /-- The next sentence of claim (iv): Square this, use 2L′(L′ − L) ≥ L′² − L², and note that … 1 −
@@ -915,12 +900,10 @@ theorem thm_cn_end (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤
   have hΔ0 : Δ ≤ 0 := by
     by_contra! h
     obtain ⟨A, hA'⟩ := exists_nat_gt (N (1, -1) ^ 2 / Δ)
-    rw [div_lt_iff₀ h] at hA'
+    rw [div_lt_iff₀ h, hΔ] at hA'
     have h1 : (A : ℝ) ^ 2 * (θ ^ 2 * Λ₂) + A * (θ * Gc - 4 * θ ^ 2 * D * (D + w z m)) ≤
         N (1, -1 - (A : ℤ)) ^ 2 := thm_cn_iv hd hT A
-    have h2 := c2 A
-    rw [hΔ] at hA'
-    linarith
+    linarith [c2 A]
   linarith
 
 end Claims

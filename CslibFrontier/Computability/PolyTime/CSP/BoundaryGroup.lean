@@ -71,8 +71,7 @@ private theorem fold_resource (I : State Rel) (ts : List ℕ)
     let J := ts.foldl (fun J _ => fuseHead J) I
     change J.body = I.body.relabel f at hb
     change J.ports = (I.ports.drop ts.length).map f at hp
-    have hP : J.ports.length=I.ports.length-ts.length := by
-      rw [hp,List.length_map,List.length_drop]
+    have hP : J.ports.length = I.ports.length - ts.length := by simp [hp]
     have htwo : 2 ≤ J.ports.length := by omega
     cases he : J.ports with
     | nil => simp only [he,List.length_nil] at htwo; omega
@@ -81,10 +80,8 @@ private theorem fold_resource (I : State Rel) (ts : List ℕ)
       | nil => simp only [he,List.length_cons,List.length_nil] at htwo; omega
       | cons y ps =>
         let u := Function.update id y x
-        have hx : x∈I.body.vars++I.ports := by
-          have hm : x∈J.ports := by simp only [he,List.mem_cons]; exact Or.inl trivial
-          rw [hp] at hm
-          obtain ⟨z,hz,rfl⟩ := List.mem_map.mp hm
+        have hx : x ∈ I.body.vars ++ I.ports := by
+          obtain ⟨z, hz, rfl⟩ := List.mem_map.mp (hp ▸ he ▸ List.mem_cons_self)
           exact hn z (List.mem_append_right _ ((List.drop_sublist _ _).subset hz))
         refine ⟨u ∘ f,?_,?_,?_,by simp,?_⟩
         · simp only [List.foldl_append,List.foldl_cons,List.foldl_nil]
@@ -117,12 +114,7 @@ private theorem fold_resource (I : State Rel) (ts : List ℕ)
             ∀ v ∈ (fuseHead J).rotation.successor,
               v < 2*(I.body.occurrences.length+I.ports.length-(ts++[t]).length)
           simp only [fuseHead, he, equalDropCertificate, length_restrictPrefix]
-          refine ⟨hsize, fun v hv => ?_⟩
-          have he' := entries_restrictPrefix_lt
-            (2*(J.body.occurrences.length+(ps.length+1)))
-            (J.rotation.swapSuccessors (2*(J.body.occurrences.length+ps.length+1))
-              (J.rotation.successor.idxOf (2*(J.body.occurrences.length+ps.length)))) v hv
-          omega
+          exact ⟨hsize, fun v hv => (entries_restrictPrefix_lt _ _ v hv).trans_eq hsize⟩
 
 
 private def scale (encRel : Rel ↪ List Bool) (p : State Rel × List ℕ) : ℕ :=
@@ -161,13 +153,10 @@ private theorem prefix_size (encRel : Rel ↪ List Bool) (p : State Rel × List 
   let J := ts.foldl (fun J _ => fuseHead J) I
   have hts : ts.length≤I.ports.length-1 := hp.length_le.trans (tasks_bound p)
   obtain ⟨f,hb,ht,hn,he,hd⟩ := fold_resource I ts hts
-  have hS : (encState encRel I).length≤N := by
-    change (encState encRel p.1).length ≤ _
-    enc_len [N, scale, encStateMetadata]
+  have hS : (encState encRel I).length ≤ N := by enc_len [I, N, scale, encStateMetadata]
   have hN : 1≤N := by dsimp [N,scale]; omega
   by_cases hz : ts=[]
   · rw [he hz]
-    change (encState encRel I).length≤512*N^3
     exact hS.trans (by nlinarith [Nat.zero_le (N*N*N)])
   · obtain ⟨hD,hV⟩ := hd hz
     have hQ : I.body.length≤N := by dsimp [N,scale,I]; omega
@@ -177,9 +166,8 @@ private theorem prefix_size (encRel : Rel ↪ List Bool) (p : State Rel × List 
       (SizedListEncoding.length_elem_le (encA := encNat)
         (encL := encList encNat) (I.body.vars++I.ports) z hz).trans (by dsimp [N,scale,I]; omega)
     have hrow : ∀ c∈J.body, (encConstraint encRel encNat c).length≤4*(N+1)^2 := by
-      intro c hc
-      rw [hb] at hc
-      obtain ⟨d,hdc,rfl⟩ := List.mem_map.mp hc
+      rintro c hc
+      obtain ⟨d, hdc, rfl⟩ := List.mem_map.mp (hb ▸ hc)
       have hdc' : (encConstraint encRel encNat d).length≤N := by
         have hbody : (encCSP encRel encNat I.body).length ≤ (encState encRel I).length := by
           enc_len [encState_apply, encStateFields]
@@ -197,9 +185,9 @@ private theorem prefix_size (encRel : Rel ↪ List Bool) (p : State Rel × List 
       rw [encConstraint_apply,length_encPair]
       change 2*(encRel d.rel).length+1+(encList encNat (d.scope.map f)).length≤_
       nlinarith [hw.trans (Nat.mul_le_mul_right _ hs)]
-    have hb' := length_encList_le (encConstraint encRel encNat) J.body hrow
-    have hq : J.body.length≤N := by rw [hb]; simpa only [CSP.relabel,List.length_map] using hQ
-    have hb'' := hb'.trans (Nat.mul_le_mul_right _ hq)
+    have hq : J.body.length ≤ N := by rwa [hb, CSP.relabel, List.length_map]
+    have hb'' := (length_encList_le (encConstraint encRel encNat) J.body hrow).trans
+      (Nat.mul_le_mul_right _ hq)
     have hp' : J.ports.length≤N := by rw [ht,List.length_map,List.length_drop]; omega
     have hvp (z : ℕ) (hz : z∈J.ports) : (encNat z).length≤N := by
       obtain ⟨v,hv,rfl⟩ := List.mem_map.mp (ht ▸ hz)
@@ -244,10 +232,9 @@ theorem computableInPolyTime_closeFirstMetadataRun (encRel : Rel ↪ List Bool) 
   have hfold := (ComputableInPolyTime.foldl_spec (step := fun J (_ : ℕ) => fuseHead J) ht hi hstep
     (fun p consumed J => J=consumed.foldl (fun J _ => fuseHead J) p.1)
     (fun _ => rfl)
-    (fun _ consumed J value _ hJ => by
-      simp only [hJ,List.foldl_append,List.foldl_cons,List.foldl_nil])
+    (fun _ c J _ _ hJ => by simp only [hJ, List.foldl_append, List.foldl_cons, List.foldl_nil])
     ((PolyBounded.const 512).mul ((scale_poly encRel).pow 3))
-    (fun p consumed J hp hJ => by rw [hJ]; exact prefix_size encRel p consumed hp)).1
+    (fun p c J hp hJ => hJ ▸ prefix_size encRel p c hp)).1
   have hclosed := (computableInPolyTime_hideHead encRel).comp hfold
   have hempty := (ComputableInPolyTime.listIsEmpty (encA := encNat)).comp hk
   refine (ComputableInPolyTime.ite_decide hbad hi (hempty.ite hi hclosed)).of_enc_eq

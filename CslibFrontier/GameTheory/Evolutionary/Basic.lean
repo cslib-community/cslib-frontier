@@ -170,16 +170,11 @@ theorem isESS_iff_isNash_and_forall_lt (hG : G.B = G.Aᵀ) :
     refine ⟨⟨hs, fun t ht => ?_⟩, fun t ⟨ht, hbr⟩ hne => ?_⟩
     · rcases eq_or_ne t s with rfl | hne
       · exact le_rfl
-      · rcases h t ht hne with hlt | ⟨heq, -⟩
-        exacts [hlt.le, heq.le]
-    · rcases h t ht hne with hlt | ⟨-, hlt⟩
-      · exact absurd (hbr s hs) hlt.not_ge
-      · exact hlt
+      · exact (h t ht hne).elim le_of_lt fun heq => heq.1.le
+    · exact (h t ht hne).elim (fun hlt => absurd (hbr s hs) hlt.not_ge) And.right
   · rintro ⟨⟨hs, hbr⟩, hst⟩
-    refine ⟨hs, fun t ht hne => ?_⟩
-    rcases (hbr t ht).lt_or_eq with hlt | heq
-    · exact Or.inl hlt
-    · exact Or.inr ⟨heq, hst t ⟨ht, fun x' hx' => heq ▸ hbr x' hx'⟩ hne⟩
+    exact ⟨hs, fun t ht hne => (hbr t ht).lt_or_eq.imp_right fun heq =>
+      ⟨heq, hst t ⟨ht, fun x' hx' => heq ▸ hbr x' hx'⟩ hne⟩⟩
 
 /-! ### Two pure strategies -/
 
@@ -197,10 +192,7 @@ private theorem eq_vec_fin_two_iff {x : Fin 2 → ℝ} {p : ℝ} (hp0 : 0 ≤ p)
   · rintro rfl
     exact ⟨⟨hp0, hp1, rfl⟩, rfl⟩
   · rintro ⟨⟨-, -, h1⟩, rfl⟩
-    ext i
-    fin_cases i
-    · rfl
-    · exact h1
+    exact funext (Fin.forall_fin_two.2 ⟨rfl, h1⟩)
 
 /-- With two pure strategies, the payoff difference of two mixed strategies against a third. -/
 private theorem payoff₁_sub_fin_two (G : BimatrixGame (Fin 2) (Fin 2)) {x y z : Fin 2 → ℝ}
@@ -256,14 +248,11 @@ private theorem forall_stable_fin_two_iff {a b c d p : ℝ} (hp0 : 0 ≤ p) (hp1
     · have hden : 0 < c - a + (b - d) := by linarith
       have hL : (a - c) * p + (b - d) * (1 - p) = 0 := by
         rw [hp]
-        field_simp
-        ring
-      have hsq : 0 < (p - q) ^ 2 := by positivity
+        field_simp; ring
       refine Or.inr ⟨by rw [hL, mul_zero], ?_⟩
-      have : (p - q) * ((a - c) * q + (b - d) * (1 - q)) = (c - a + (b - d)) * (p - q) ^ 2 := by
+      have hsq : (p - q) * ((a - c) * q + (b - d) * (1 - q)) = (c - a + (b - d)) * (p - q) ^ 2 := by
         linear_combination (p - q) * hL
-      rw [this]
-      positivity
+      rw [hsq]; positivity
 
 /-- **Evolutionarily stable strategies of a game with two pure strategies** (a characterization
 answering [Suri2007], Exercise 29.3). Write `a b c d` for the payoffs `G.A 0 0`, `G.A 0 1`,
@@ -363,11 +352,8 @@ theorem isESS_hawkDove_iff_of_lt {V C : ℝ} (hV : 0 < V) (hCV : C < V) {s : Fin
   rw [h10, eq_vec_fin_two_iff zero_le_one le_rfl, isESS_fin_two_iff]
   refine and_congr_right fun _ => ?_
   simp only [hawkDove_A, of_apply, cons_val', cons_val_zero, cons_val_one, cons_val_fin_one]
-  constructor
-  · rintro (⟨h, -⟩ | ⟨-, h | ⟨h, -⟩⟩ | ⟨h, -, -⟩)
-    · exact h
-    all_goals linarith
-  · exact fun h => Or.inl ⟨h, Or.inl (by linarith)⟩
+  exact ⟨by rintro (⟨h, -⟩ | ⟨-, h | ⟨h, -⟩⟩ | ⟨h, -, -⟩) <;> first | exact h | linarith,
+    fun h => Or.inl ⟨h, Or.inl (by linarith)⟩⟩
 
 /-- **The mixed evolutionarily stable strategy of Hawks and Doves** ([Suri2007], Exercise 29.2):
 in Hawks and Doves with `0 < V ≤ C`, playing Hawk with probability `V / C` is an evolutionarily

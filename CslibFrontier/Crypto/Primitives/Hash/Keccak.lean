@@ -263,12 +263,13 @@ theorem ofSpongeView_toSpongeView (layout : SpongeLayout) (A : State) :
   refine Vector.ext fun lane hlane => BitVec.eq_of_getLsbD_eq fun z hz => ?_
   change ((ofSpongeView layout (toSpongeView layout A)).get ⟨lane, hlane⟩).getLsbD z =
     (A.get ⟨lane, hlane⟩).getLsbD z
+  have hmod (m : ℕ) : (64 * m + z) % 64 = z := by omega
   by_cases hrate : lane < layout.rateLanes
   · rw [get_ofSpongeView_rate _ _ _ hrate, getLsbD_laneOfBits _ z hz]
-    simp only [toSpongeView, show (64 * lane + z) % 64 = z by omega]
+    simp only [toSpongeView, hmod]
     congr 2; exact Fin.ext (by dsimp; omega)
   · rw [get_ofSpongeView_capacity _ _ _ hrate, getLsbD_laneOfBits _ z hz]
-    simp only [toSpongeView, show (64 * (lane - layout.rateLanes) + z) % 64 = z by omega]
+    simp only [toSpongeView, hmod]
     congr 2; exact Fin.ext (by dsimp; omega)
 
 /-- Keccak-p[1600, 24] on a lane-aligned sponge view. -/
@@ -334,9 +335,8 @@ theorem bytesToBitsLE_toChunks {bits : List Bool} (h : 8 ∣ bits.length) :
       decode (List.toChunks.go 8 tail cur done) = decode done.toList ++ cur.toList ++ tail := by
     induction tail generalizing cur done with
     | nil =>
-      have hl : cur.size = 8 := by simp at hdiv; omega
-      simp only [List.toChunks.go, List.append_nil]
-      exact snoc done cur hl
+      simpa only [List.toChunks.go, List.append_nil] using
+        snoc done cur (Nat.le_antisymm hb (Nat.le_of_dvd hp (by simpa using hdiv)))
     | cons x xs ih =>
       rw [List.toChunks.go]
       split
@@ -360,9 +360,7 @@ theorem bytesToBitsLE_toChunks {bits : List Bool} (h : 8 ∣ bits.length) :
 theorem bytesToBitsLE_injective : Function.Injective bytesToBitsLE := by
   intro xs ys h
   induction xs generalizing ys with
-  | nil =>
-    symm
-    simpa [length_bytesToBitsLE] using congrArg List.length h
+  | nil => exact Eq.symm (by simpa [length_bytesToBitsLE] using congrArg List.length h)
   | cons a xs ih =>
     cases ys with
     | nil => simpa [length_bytesToBitsLE] using congrArg List.length h
@@ -463,11 +461,8 @@ private theorem take_flatMap_rateBytesFor (layout : SpongeLayout)
     | zero => rfl
     | succ count =>
       simp only [List.flatMap_cons, List.take_succ_cons]
-      rw [Nat.mul_succ,
-        show (8 * layout.rateLanes) * count + 8 * layout.rateLanes =
-            (rateBytesFor layout state).length + (8 * layout.rateLanes) * count by
-          simp [Nat.add_comm],
-        List.take_length_add_append, ih]
+      rw [Nat.mul_succ, Nat.add_comm, ← length_rateBytesFor layout state,
+        List.take_length_add_append, length_rateBytesFor, ih]
 
 /-- Requesting more squeezing blocks preserves every byte of the earlier blocks. -/
 theorem take_squeezeBytesFor (layout : SpongeLayout)

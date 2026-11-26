@@ -96,8 +96,7 @@ private theorem supplyRate_pos_and_inv {r K₀ : ℕ} {a b : ℚ} (hcert : Hyper
   refine ⟨div_pos hc_s (mul_pos (by linarith) (sub_pos.mpr hc_n)), ?_, hc_s, sub_pos.mpr hc_n⟩
   unfold supplyRate hyperCoeff
   rw [one_div_div]
-  push_cast
-  ring
+  push_cast; ring
 
 /-- The error term is nonnegative and dominates both the input-supply loss
 `|c_n| / (1 - c_n) * L` and the constant demand terms `3 r + 2 + 3 L`. -/
@@ -156,8 +155,8 @@ private theorem input_supply_le_of_unread_lt {U : Type u} [Finite U] [Nontrivial
     ncard_add_ncard_compl _
   rw [read_hyperNetwork, ncard_coe_finset, ← Fintype.card_coe, Nat.card_eq_fintype_card,
     Fintype.card_fin] at hsum
-  have hR : c_n * (Fintype.card (LiveInput c) : ℝ) = c_n * n - c_n * u := by
-    rw [← show (Fintype.card (LiveInput c) : ℝ) + u = n by exact_mod_cast hsum]; ring
+  have hsumR : (Fintype.card (LiveInput c) : ℝ) + u = n := by exact_mod_cast hsum
+  have hR : c_n * (Fintype.card (LiveInput c) : ℝ) = c_n * n - c_n * u := by rw [← hsumR]; ring
   linarith [mul_nonneg (neg_le_iff_add_nonneg.mp (neg_abs_le c_n)) (Nat.cast_nonneg (α := ℝ) u),
     mul_le_mul_of_nonneg_left (natCast_le_logb_of_pow_lt Finite.one_lt_card hu) (abs_nonneg c_n)]
 
@@ -196,9 +195,8 @@ private theorem input_supply_le_of_hidden_unread_lt {U : Type u} [Finite U] [Non
       ((hyperNetwork c I Acc lay).reindex finSumFinEquiv.symm)).trans
       (Network.ncard_read_reindex (hyperNetwork c I Acc lay) finSumFinEquiv.symm).le
     rwa [read_hyperNetwork, ncard_coe_finset, ← Fintype.card_coe] at h1
-  have hinp : (n : ℝ) - H.readᶜ.ncard ≤ Fintype.card (LiveInput c) := by
-    rw [sub_le_iff_le_add]
-    exact_mod_cast (show n ≤ Fintype.card (LiveInput c) + H.readᶜ.ncard by omega)
+  have hinp : (n : ℝ) - H.readᶜ.ncard ≤ Fintype.card (LiveInput c) :=
+    sub_le_iff_le_add.mpr (mod_cast show n ≤ Fintype.card (LiveInput c) + H.readᶜ.ncard by omega)
   rw [abs_of_nonpos hc_n]
   linarith [mul_le_mul_of_nonpos_left hinp hc_n,
     mul_le_mul_of_nonpos_left (natCast_le_logb_of_pow_lt Finite.one_lt_card hu) hc_n]
@@ -260,17 +258,15 @@ private theorem eventually_lt_of_hyperSupply {U : Type u} [Finite U] [Nontrivial
     (((isLittleO_sub_logb_ncard hSK.isLittleO_deficit).const_mul_left (1 / (1 - c_n))).congr_left
       fun n => by ring).add (isLittleO_errTerm r a b
         ((hSK.isLittleO_log.const_mul_left (1 / Real.log q)).congr_left fun n => by
-          simp only [Real.logb]
-          ring))
+          simp only [Real.logb]; ring))
   obtain ⟨η₀, hη₀, H⟩ :=
     eventually_lt_of_demand hA (zero_le_one.trans (le_max_left _ _) : 0 ≤ kappa c_n) hε
   refine ⟨η₀ * (1 - c_n), mul_pos hη₀ h1c_n, fun C => ?_⟩
   filter_upwards [H η₀ hη₀ le_rfl (C / (1 - c_n)) e he, hSK.eventually_rectangleFree,
     eventually_card_mul_sq_le_ncard hSK] with n hn hfreen hbign
   intro g l inp v w hlg hvg hw hinp hdemand
-  have hSne : (S n).Nonempty := by
-    rw [← ncard_pos (toFinite _)]
-    exact lt_of_lt_of_le (Nat.mul_pos Nat.card_pos (pow_pos hfreen.pos 2)) hbign
+  have hSne : (S n).Nonempty := (ncard_pos (toFinite _)).mp
+    ((Nat.mul_pos Nat.card_pos (pow_pos hfreen.pos 2)).trans_le hbign)
   have hX : 0 ≤ ((n : ℝ) - Real.logb q (S n).ncard) / (1 - c_n) :=
     div_nonneg (by linarith [logb_ncard_le_self hSne]) h1c_n.le
   obtain ⟨hE_nn, hE_in, hE_ge⟩ :=
@@ -281,17 +277,14 @@ private theorem eventually_lt_of_hyperSupply {U : Type u} [Finite U] [Nontrivial
     (by linarith [hw, hinp])
   have hdem : (n : ℝ) ≤ ((w : ℝ) - c_n * n) / (1 - c_n) + e n + kappa c_n * Real.log (v + 1) := by
     refine le_of_mul_le_mul_left ?_ h1c_n
-    have hW : (1 - c_n) * (((w : ℝ) - c_n * n) / (1 - c_n)) = w - c_n * n :=
-      mul_div_cancel₀ _ h1c_n.ne'
-    have hX' : (1 - c_n) * (((n : ℝ) - Real.logb q (S n).ncard) / (1 - c_n)) =
-        n - Real.logb q (S n).ncard := mul_div_cancel₀ _ h1c_n.ne'
+    have hW := mul_div_cancel₀ ((w : ℝ) - c_n * n) h1c_n.ne'
+    have hX' := mul_div_cancel₀ ((n : ℝ) - Real.logb q (S n).ncard) h1c_n.ne'
     push_cast at hdemand
     linarith [logb_le_kappa_mul_log h1c_n hq2 (Nat.cast_nonneg (α := ℝ) v)]
   have hres := hn _ v _ (add_nonneg (mul_nonneg (by linarith) g.cast_nonneg) n.cast_nonneg)
     v.cast_nonneg (le_kappa_mul (by linarith) g.cast_nonneg n.cast_nonneg (by exact_mod_cast hvg))
     hdem hsupply
-  rw [hA_inv] at hres
-  linarith
+  rw [hA_inv] at hres; linarith
 
 /-! ### General worst-case, average-case, and nondeterministic meta-theorems -/
 
@@ -331,12 +324,11 @@ theorem eventually_lt_mul_innerSize_of_cert {U : Type u} [Finite U] [Nontrivial 
     (hcert : HyperDualCert r K₀ a b) (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost r → c.Decides I Acc (S n) →
-        ((hyperCoeff r a b : ℝ) - ε) * n < ((r : ℝ) - 1) * c.innerSize := by
-  have hr2 : (2 : ℝ) ≤ r := Nat.ofNat_le_cast.mpr hcert.hr
-  filter_upwards [eventually_lt_mul_multiarySize_of_cert.{u, v} hcert hSK hε] with
-    n hn σ I Acc c hfan hS
-  exact (hn σ I Acc c hfan hS).trans_le
-    (mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize) (by linarith))
+        ((hyperCoeff r a b : ℝ) - ε) * n < ((r : ℝ) - 1) * c.innerSize :=
+  (eventually_lt_mul_multiarySize_of_cert.{u, v} hcert hSK hε).mono fun _ hn σ I Acc c hfan hS =>
+    (hn σ I Acc c hfan hS).trans_le (mul_le_mul_of_nonneg_left
+      (Nat.cast_le.mpr c.multiarySize_le_innerSize)
+      (sub_nonneg.mpr (Nat.one_le_cast.mpr (Nat.one_le_of_lt hcert.hr))))
 
 /-- **Nondeterministic hypergraph frontier lower bound (charging only multiary gates).** Whenever
 `b ≤ 0` (so `max b (-a) ≤ 0`), every nondeterministic circuit `c : Circuit σ (n + k) 1` of fan-in
@@ -382,12 +374,11 @@ theorem eventually_lt_mul_innerSize_of_nondeterministicDecides_of_cert
     (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (k : ℕ) (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ (n + k) 1), c.FanInAtMost r → c.NondeterministicDecides I Acc (S n) →
-        ((hyperCoeff r a b : ℝ) - ε) * n < ((r : ℝ) - 1) * c.innerSize := by
-  have hr2 : (2 : ℝ) ≤ r := Nat.ofNat_le_cast.mpr hcert.hr
-  filter_upwards [eventually_lt_mul_multiarySize_of_nondeterministicDecides_of_cert.{u, v}
-    hcert hb hSK hε] with n hn k σ I Acc c hfan hS
-  exact (hn k σ I Acc c hfan hS).trans_le
-    (mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize) (by linarith))
+        ((hyperCoeff r a b : ℝ) - ε) * n < ((r : ℝ) - 1) * c.innerSize :=
+  (eventually_lt_mul_multiarySize_of_nondeterministicDecides_of_cert.{u, v} hcert hb hSK hε).mono
+    fun _ hn k σ I Acc c hfan hS => (hn k σ I Acc c hfan hS).trans_le
+      (mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize)
+        (sub_nonneg.mpr (Nat.one_le_cast.mpr (Nat.one_le_of_lt hcert.hr))))
 
 /-- Agreement bound from a residual `R` bounding the bias of every accepting set. -/
 private theorem agreement_le_of_forall_bias {U : Type u} [Finite U] [Nonempty U] {n : ℕ}
@@ -397,9 +388,7 @@ private theorem agreement_le_of_forall_bias {U : Type u} [Finite U] [Nonempty U]
   have h' := agreement_le (h Acc) (h Accᶜ)
   rw [Nat.card_fun, Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin, Nat.cast_pow] at h'
   have hq : (0 : ℝ) < (Nat.card U : ℝ) ^ n := pow_pos (Nat.cast_pos.mpr Nat.card_pos) n
-  refine h'.trans_eq ?_
-  field_simp
-  ring
+  exact h'.trans_eq (by field_simp; ring)
 
 /-- Single-circuit agreement bound for a narrow hypergraph layout. -/
 private theorem agreement_le_of_hyperLayout {U : Type u} [Finite U] [Nontrivial U]
@@ -423,8 +412,8 @@ private theorem agreement_le_of_hyperLayout {U : Type u} [Finite U] [Nontrivial 
       (fun _ _ _ => satisfies_unique c I A lay) hb hS (w := w) (d := 2 * (r + 1)) (m := r)
       (width_hyperNetwork c I A lay).le (maxDegreeLE_hyperNetwork hfan I A lay)
       (fun u => hmr ▸ ncard_readAt_hyperNetwork_le hfan I A lay u)
-    rwa [accepted_hyperNetwork, read_hyperNetwork, ← read_hyperNetwork (Acc := Acc),
-      show w + 2 * (r + 1) + r = w + (3 * r + 2) by omega] at h
+    have hw_eq : w + 2 * (r + 1) + r = w + (3 * r + 2) := by omega
+    rwa [accepted_hyperNetwork, read_hyperNetwork, ← read_hyperNetwork (Acc := Acc), hw_eq] at h
   have hres : (K - 1) ^ 2 * (V * q ^ (w + (3 * r + 2)) +
       q ^ (hyperNetwork c I Acc lay).readᶜ.ncard) ≤ K ^ 3 * (V + 1) * q ^ (w + (3 * r + 2)) := by
     have hq1 : 1 ≤ q ^ (w + (3 * r + 2)) := Nat.one_le_pow _ _ Nat.card_pos
@@ -467,10 +456,9 @@ private theorem agreement_le_of_unread_lt_step {U : Type u} [Finite U] [Nontrivi
   have hq1 : (1 : ℝ) < q := by exact_mod_cast Finite.one_lt_card
   have hq2 : (2 : ℝ) ≤ q := by exact_mod_cast (Finite.one_lt_card (α := U))
   have hq0 : 0 < q := Nat.card_pos
-  have hK_pos : (0 : ℝ) < K' := by exact_mod_cast (by omega : 0 < K')
-  obtain ⟨he_nn, he_in, he_ge⟩ :=
-    errTerm_bounds hcert (Real.logb_nonneg hq1 (by exact_mod_cast (show 1 ≤ K' by omega)) :
-      0 ≤ Real.logb q K')
+  have hK_pos : (0 : ℝ) < K' := Nat.cast_pos.mpr (Nat.zero_lt_of_lt hK'2)
+  obtain ⟨he_nn, he_in, he_ge⟩ := errTerm_bounds hcert
+    (Real.logb_nonneg (b := q) (x := K') hq1 (Nat.one_le_cast.mpr (Nat.one_le_of_lt hK'2)))
   set V := Nat.card (HyperNode c)
   set w := hyperWidth c lay
   have hsupply := rescaled_hyperSupply_le hcert hη C n V w (card_liveGate_le_multiarySize c)
@@ -486,8 +474,7 @@ private theorem agreement_le_of_unread_lt_step {U : Type u} [Finite U] [Nontrivi
       Real.logb_mul (pow_pos hK_pos 3).ne' hV.ne', Real.logb_pow, Real.logb_pow,
       Real.logb_self_eq_one hq1]
     push_cast
-    have hW : (1 - c_n) * (((w : ℝ) - c_n * n) / (1 - c_n)) = w - c_n * n :=
-      mul_div_cancel₀ _ h1c_n.ne'
+    have hW := mul_div_cancel₀ ((w : ℝ) - c_n * n) h1c_n.ne'
     linarith [mul_lt_mul_of_pos_left hmargin h1c_n, mul_le_mul_of_nonneg_right hγ_le n.cast_nonneg,
       logb_le_kappa_mul_log h1c_n hq2 (Nat.cast_nonneg (α := ℝ) V)]
   have hl2 : 0 < Real.log 2 := Real.log_pos one_lt_two
@@ -558,10 +545,9 @@ theorem eventually_agreement_le_multiarySize_of_cert {r K₀ : ℕ} {a b : ℚ}
         (Nat.cast_nonneg (α := ℝ) n)]
     have hexp := div_pow_le_exp hq2 (by positivity) hμ.le hlogR
     exact (agreement_le_of_forall_bias hbound Acc).trans (by linarith)
-  · refine agreement_le_of_unread_lt_step hcert hη hγ hK'2 c hfan I Acc hS hb_nn
-      lay hlay (not_le.mp hu) hsize ?_ hn
-    rw [mul_div_cancel_right₀ _ (Real.log_pos one_lt_two).ne']
-    exact min_le_left _ _
+  · exact agreement_le_of_unread_lt_step hcert hη hγ hK'2 c hfan I Acc hS hb_nn lay hlay
+      (not_le.mp hu) hsize
+      ((mul_div_cancel_right₀ _ (Real.log_pos one_lt_two).ne').trans_le (min_le_left _ _)) hn
 
 /-- **Average-case hypergraph frontier lower bound (`innerSize`).** -/
 theorem eventually_agreement_le_innerSize_of_cert {r K₀ : ℕ} {a b : ℚ}
@@ -707,11 +693,10 @@ theorem eventually_agreement_le_44199_two_mul_innerSize {ε : ℝ} (hε : 0 < ε
       ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
         (c : Circuit σ n 1), c.FanInAtMost 3 → 2 * (c.innerSize : ℝ) ≤ (44199 / 10000 - ε) * n →
           agreement (S n) {x | c.eval I x 0 ∈ Acc} ≤ 1 / 2 + b_bias n + Real.exp (-(γ * n)) := by
-  obtain ⟨γ, hγ, H⟩ := eventually_agreement_le_innerSize_of_cert.{u, v} cert_r3_slepian hε
-  refine ⟨γ, hγ, fun U _ _ S K b_bias hbias hK => (H U S K b_bias hbias hK).mono ?_⟩
-  intro n hn σ I Acc c hfan hs
-  norm_num [hyperCoeff] at hn
-  exact hn σ I Acc c hfan (by linarith [Nat.cast_nonneg (α := ℝ) n])
+  obtain ⟨γ, hγ, H⟩ := eventually_agreement_le_44199_two_mul_multiarySize.{u, v} hε
+  exact ⟨γ, hγ, fun U _ _ S K b_bias hbias hK => (H U S K b_bias hbias hK).mono
+    fun _ hn σ I Acc c hfan hs => hn σ I Acc c hfan ((mul_le_mul_of_nonneg_left
+      (Nat.cast_le.mpr c.multiarySize_le_innerSize) zero_le_two).trans hs)⟩
 
 /-! #### Fan-in `r = 4` (Sheppard + star-cone: `4.4792n`) -/
 

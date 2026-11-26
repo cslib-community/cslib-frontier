@@ -247,12 +247,9 @@ theorem nodup_valid_of_mem_support_hashThenPRFWordIdealQueries {outLen : ℕ →
   rw [hashThenPRFWordIdealQueries, ProbComp.eval_map, PMF.mem_support_map_iff] at hms
   obtain ⟨⟨result, cache⟩, hrun, rfl⟩ := hms
   rw [hashThenPRFWordIdealRun, ProbOracleComp.eval_runState] at hrun
-  let oracle (request : Unit × List Bool) (s : List (List Bool × List Bool)) :=
-    ProbComp.eval (cachedRandomFunctionOracle (valid n) (outLen n) request.2 s)
-  let invariant (s : List (List Bool × List Bool)) :=
-    (s.map Prod.fst).Nodup ∧ ∀ msg ∈ s.map Prod.fst, valid n msg = true
-  refine ProbOracleComp.runWith_invariant oracle invariant ?_ (A n aux) []
-    (by simp [invariant]) result cache hrun
+  refine ProbOracleComp.runWith_invariant _
+    (fun s => (s.map Prod.fst).Nodup ∧ ∀ msg ∈ s.map Prod.fst, valid n msg = true) ?_
+    (A n aux) [] (by simp) result cache hrun
   intro request s hs reply next hnext
   rcases cachedSamplerOracle_cache_of_mem_support hnext with hsame | ⟨hv, hfresh, hcons⟩
   · exact (id hsame : next = s) ▸ hs
@@ -480,16 +477,14 @@ theorem hashThenPRFWord_indistinguishable {keyLen inLen outLen : ℕ → ℕ}
       (IsOraclePPT encBool) := by
   intro A hA
   have houtLen := hPRF.outLen_polyTime hinLen
-  let B := hashThenPRFWordReduction keyLen outLen valid H A
-  have hB : IsOraclePPT encBool B :=
-    isOraclePPT_hashThenPRFWordReduction hkeyLen houtLen hvalid hH hA
-  let C (p : ℕ × ℕ) := hashThenPRFWordIdealQueries outLen valid A (p.1, [])
-  have hC : IsPPTOn (encPair encUnary encUnary) (encList encBits) C :=
+  have hB := isOraclePPT_hashThenPRFWordReduction hkeyLen houtLen hvalid hH hA
+  have hC : IsPPTOn (encPair encUnary encUnary) (encList encBits)
+      (fun p => hashThenPRFWordIdealQueries outLen valid A (p.1, [])) :=
     (isPPTOn_hashThenPRFWordIdealQueries houtLen hvalid hA).preprocess
       ((ComputableInPolyTime.fst _ _).prod (ComputableInPolyTime.const []))
-  have hsetup : IsPPTOn encUnary encUnary (fun n => pure n) := ComputableInPolyTime.id'.isPPTOn
-  have hcollision := (hUHF.isMultiQueryUHF hsetup).negligible_succProbability C hC
-  exact negligible_of_le ((hPRF.secure B hB).add hcollision)
-    (fun n => advantage_hashThenPRFWord_le_add_multiQuery valid H F hwidth hPRF.length_eq A n)
+  have hcollision :=
+    (hUHF.isMultiQueryUHF ComputableInPolyTime.id'.isPPTOn).negligible_succProbability _ hC
+  exact negligible_of_le ((hPRF.secure _ hB).add hcollision)
+    fun n => advantage_hashThenPRFWord_le_add_multiQuery valid H F hwidth hPRF.length_eq A n
 
 end Cslib.Crypto.PRF

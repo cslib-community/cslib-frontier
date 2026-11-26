@@ -116,13 +116,12 @@ theorem diffusion_apply (hN : 0 < N) (ψ : State N Unit) (p : Fin N × Bool × U
       Complex.ofReal_natCast]
   simp only [dotProduct, Pi.star_apply, RCLike.star_def, apply_ite, Complex.conj_ofReal, map_zero]
   push_cast
-  rw [div_one]
   have hdot : (∑ q : Fin N × Bool × Unit,
       if q.2.1 then ψ.ofLp q * ((Real.sqrt N : ℂ))⁻¹ else ψ.ofLp q * 0) =
       ((Real.sqrt N : ℂ))⁻¹ * ∑ q, (if q.2.1 then ψ.ofLp q else 0) := by
     rw [mul_sum]
     exact sum_congr rfl fun q _ => by split_ifs <;> ring
-  rw [hdot]
+  rw [div_one, hdot]
   split_ifs
   · linear_combination (2 * ∑ q : Fin N × Bool × Unit, (if q.2.1 then ψ.ofLp q else 0)) * hsq
   · ring
@@ -189,8 +188,8 @@ theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fi
   have hs : Real.sin θ = st / sN := by
     rw [sin_searchAngle htN, Real.sqrt_div' _ hN0.le]
   have hc : Real.cos θ = su / sN := by
-    rw [cos_searchAngle, show (1 : ℝ) - t / N = (N - t) / N by field_simp,
-      Real.sqrt_div' _ hN0.le]
+    have hsub : (1 : ℝ) - t / N = (N - t) / N := by field_simp
+    rw [cos_searchAngle, hsub, Real.sqrt_div' _ hN0.le]
   -- A marked item exists only if `t ≠ 0`, and an unmarked one only if `t ≠ N`.
   have hmarked : ∀ i, x i = true → st ≠ 0 := fun i hi =>
     (Real.sqrt_pos.mpr (Nat.cast_pos.mpr (card_pos.mpr ⟨i, by simp [hi]⟩ : 0 < t))).ne'
@@ -212,30 +211,25 @@ theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fi
     set S := Real.sin ((2 * k + 1) * θ) with hS
     set C := Real.cos ((2 * k + 1) * θ) with hC
     -- The total control-`1` amplitude after the oracle.
-    have hta : (t : ℝ) * (S / st) = st * S := by
-      rcases eq_or_ne st 0 with h | h
-      · simp [← hst2, h]
-      · field_simp; rw [← hst2]; ring
-    have hub : ((N : ℝ) - t) * (C / su) = su * C := by
-      rcases eq_or_ne su 0 with h | h
-      · simp [← hsu2, h]
-      · field_simp; rw [← hsu2]; ring
+    have hmul {r a : ℝ} (hr : r ^ 2 = a) (y : ℝ) : a * (y / r) = r * y := by
+      rcases eq_or_ne r 0 with rfl | h
+      · simp [← hr]
+      · rw [← hr, sq, ← mul_div_assoc, mul_assoc, mul_div_cancel_left₀ _ h]
+    have hta : (t : ℝ) * (S / st) = st * S := hmul hst2 S
+    have hub : ((N : ℝ) - t) * (C / su) = su * C := hmul hsu2 C
     have hsum : ∑ q : Fin N × Bool × Unit, (if groverControl q then (phaseOracle x
         (run (grover N) (uniform N) x k)).ofLp q else 0) = ((-(st * S) + su * C : ℝ) : ℂ) := by
       simp only [phaseOracle_apply, ih, Fintype.sum_prod_type, Fintype.univ_unit, sum_singleton,
         Fintype.sum_bool, groverControl_mk, ite_true, Bool.true_and, Bool.false_eq_true,
         ite_false, add_zero]
-      have hterm : ∀ i : Fin N, (if x i = true then (-1 : ℂ) else 1) *
-          ((if x i = true then S / st else C / su : ℝ) : ℂ) =
-            if x i = true then ((-(S / st) : ℝ) : ℂ) else ((C / su : ℝ) : ℂ) := fun i => by
-        by_cases h : x i = true <;> simp [h]
-      rw [sum_congr rfl fun i _ => hterm i, sum_ite, sum_const, sum_const]
+      trans ∑ i : Fin N, if x i = true then ((-(S / st) : ℝ) : ℂ) else ((C / su : ℝ) : ℂ)
+      · exact sum_congr rfl fun i _ => by cases x i <;> simp
+      rw [sum_ite, sum_const, sum_const]
       have hcardT : #(univ.filter fun i : Fin N => x i = true) = t := rfl
       have hcardF : #(univ.filter fun i : Fin N => ¬x i = true) = N - t := by
         simpa [Fintype.card_fin] using card_filter_eq_false_eq_card_sub_weight x
       rw [hcardT, hcardF, nsmul_eq_mul, nsmul_eq_mul, Nat.cast_sub htN, ← hta, ← hub]
-      push_cast
-      ring
+      push_cast; ring
     have harg : (2 * ((k + 1 : ℕ) : ℝ) + 1) * θ = (2 * k + 1) * θ + 2 * θ := by push_cast; ring
     simp only [run, grover, LinearIsometryEquiv.coe_toLinearIsometry]
     rw [diffusion_apply hN, hsum, phaseOracle_apply, ih]
@@ -250,8 +244,7 @@ theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fi
         simpa [hi] using congrArg (Complex.ofReal : ℝ → ℂ) this
       rw [harg, Real.cos_add, Real.sin_two_mul, Real.cos_two_mul, hs, hc, ← hS, ← hC]
       field_simp
-      rw [← hsN2]
-      ring
+      rw [← hsN2]; ring
     · have hst0 := hmarked i hi
       have hrel : sN ^ 2 = st ^ 2 + su ^ 2 := by rw [hsN2, hst2, hsu2]; ring
       suffices 2 * ((N : ℝ)⁻¹ * (-(st * S) + su * C)) + S / st =
@@ -272,10 +265,8 @@ theorem run_grover (hN : 2 ≤ N) (z : Fin N) (k : ℕ) (p : Fin N × Bool × Un
       if groverControl p then ((if p.1 = z then Real.sin ((2 * k + 1) * groverAngle N)
         else Real.cos ((2 * k + 1) * groverAngle N) / Real.sqrt (N - 1) : ℝ) : ℂ) else 0 := by
   have hweight : weight (marked z) = 1 := by simp [weight, marked, Finset.filter_eq']
-  have hangle : searchAngle N 1 = groverAngle N := by
-    simp only [searchAngle, groverAngle, Nat.cast_one, one_div, Real.sqrt_inv]
-  simpa only [hweight, hangle, Nat.cast_one, Real.sqrt_one, div_one, marked,
-    decide_eq_true_eq] using
+  simpa only [hweight, searchAngle, groverAngle, Nat.cast_one, one_div, Real.sqrt_inv,
+    Real.sqrt_one, div_one, marked, decide_eq_true_eq] using
     run_grover_of_weight (by omega) (marked z) k p
 
 /-- **Grover's success probability**: after `k` queries on the input marking `z`, measuring the
@@ -304,8 +295,7 @@ theorem grover_success (hN : 2 ≤ N) (z : Fin N) :
   have hθpi : θ ≤ Real.pi / 2 := Real.arcsin_le_pi_div_two _
   have hsinθ : Real.sin θ ≤ θ := Real.sin_le hθ0.le
   set T := ⌊Real.pi / (4 * θ)⌋₊
-  have hx : 0 ≤ Real.pi / (4 * θ) := by positivity
-  have hT1 : (T : ℝ) ≤ Real.pi / (4 * θ) := Nat.floor_le hx
+  have hT1 : (T : ℝ) ≤ Real.pi / (4 * θ) := Nat.floor_le (by positivity)
   have hT2 : Real.pi / (4 * θ) < T + 1 := Nat.lt_floor_add_one _
   refine ⟨?_, ?_⟩
   · rw [regProb_run_grover hN]

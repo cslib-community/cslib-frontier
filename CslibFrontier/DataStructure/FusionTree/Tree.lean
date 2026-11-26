@@ -151,11 +151,8 @@ private theorem keys_buildAux {B h : ℕ} {xs : List ℕ} (hn : xs.length ≤ B 
   | zero => simp [buildAux, keys]
   | succ h ih =>
     rw [buildAux, keys_join, List.flatMap_map]
-    have heq : (chunks B (B ^ h) xs).map (fun ys => (buildAux B h ys).keys) =
-        (chunks B (B ^ h) xs).map id :=
-      List.map_congr_left fun ys hy => ih (chunks_mem hy).2
     change ((chunks B (B ^ h) xs).map (fun ys => (buildAux B h ys).keys)).flatten = xs
-    rw [heq, List.map_id]
+    rw [List.map_congr_left fun ys hy => ih (chunks_mem hy).2, List.map_id']
     exact flatten_chunks (by simpa [Nat.pow_succ, Nat.mul_comm] using hn)
 
 private theorem valid_join {B : ℕ} {cs : List Tree} (hl : cs.length ≤ B)
@@ -263,12 +260,10 @@ not a word-RAM heap encoding or a bit-space bound for unbounded natural numbers.
 theorem slots_build_le {B : ℕ} (hB : 2 ≤ B) (xs : List ℕ) :
     (build B xs).slots ≤ 14 * xs.length + 2 := by
   have hv := valid_build hB xs
-  by_cases hn : xs = []
-  · subst hn
-    simp [slots_of_keys_eq_nil hv (keys_build hB [])]
-  · have hs := slots_add_nine_le hv (by simpa only [keys_build hB] using hn)
-    rw [keys_build hB] at hs
-    omega
+  rcases xs with _ | ⟨x, xs⟩
+  · simp [slots_of_keys_eq_nil hv (keys_build hB [])]
+  · have hs := slots_add_nine_le hv (by simp [keys_build hB])
+    rw [keys_build hB] at hs; omega
 
 /-- Linear semantic node search: select the last child whose cached minimum is at most `q`.
 Only the selected subtree is searched recursively. -/
@@ -288,9 +283,8 @@ private theorem selectChild_spec {q : ℕ} {cs : List Tree} {t : Tree}
       split_ifs at h with hle
       exact Option.some.inj h ▸ ⟨List.mem_cons_self, hle⟩
     | some v =>
-      rw [hs, Option.some_or, Option.some.injEq] at h
-      subst h
-      exact ⟨List.mem_cons_of_mem u (ih hs).1, (ih hs).2⟩
+      have ht : selectChild q us = some t := by simpa [hs] using h
+      exact ⟨List.mem_cons_of_mem u (ih ht).1, (ih ht).2⟩
 
 /-- Any child selected by `selectChild` belongs to the input child list. -/
 theorem selectChild_mem {q : ℕ} {cs : List Tree} {t : Tree}
@@ -367,9 +361,8 @@ private theorem selectChild_listPredecessor (q : ℕ) (cs : List Tree)
   | cons t ts ih =>
     have ht := hc t (by simp)
     have hts := ih (fun u hu => hc u (by simp [hu]))
-    have hgate : listPredecessor q t.keys ≠ none ↔ t.minimum ≤ q := by
-      rw [ht.2.2]
-      exact listPredecessor_ne_none_iff ht.1 ht.2.1
+    have hgate : listPredecessor q t.keys ≠ none ↔ t.minimum ≤ q :=
+      ht.2.2 ▸ listPredecessor_ne_none_iff ht.1 ht.2.1
     rw [List.flatMap_cons, listPredecessor_append, ← hts]
     simp only [selectChild]
     cases hs : selectChild q ts with
@@ -396,13 +389,11 @@ theorem predecessor_eq_listPredecessor {B : ℕ} {t : Tree} (ht : Valid B t)
     simp only [heqt, Valid] at ht
     simp only [heqt, keys] at hs ⊢
     have hsort := (List.pairwise_flatMap.mp hs).1
-    have hroute := selectChild_listPredecessor q cs (fun u hu =>
-      ⟨(ht.2.2.2 u hu).2, hsort u hu, minimum_eq_headD (ht.2.2.2 u hu).1⟩)
-    rw [← hroute, predecessor]
+    rw [← selectChild_listPredecessor q cs fun u hu =>
+      ⟨(ht.2.2.2 u hu).2, hsort u hu, minimum_eq_headD (ht.2.2.2 u hu).1⟩, predecessor]
     cases hchild : selectChild q cs with
     | none => rfl
     | some u =>
-      simp only [Option.bind_some]
       have hu := selectChild_mem hchild
       exact predecessor_eq_listPredecessor (ht.2.2.2 u hu).1 (hsort u hu) q
 termination_by sizeOf t
@@ -410,11 +401,9 @@ termination_by sizeOf t
 theorem listPredecessor_some_spec {q p : ℕ} {xs : List ℕ}
     (hs : xs.Pairwise (· ≤ ·)) (hp : listPredecessor q xs = some p) :
     p ∈ xs ∧ p ≤ q ∧ ∀ x ∈ xs, x ≤ q → x ≤ p := by
-  revert hs hp
-  induction xs generalizing p with
-  | nil => simp [listPredecessor]
+  induction xs with
+  | nil => simp [listPredecessor] at hp
   | cons x xs ih =>
-    intro hs hp
     obtain ⟨hhead, hsort⟩ := List.pairwise_cons.mp hs
     cases htail : listPredecessor q xs with
     | none =>
@@ -447,18 +436,16 @@ theorem predecessor_build_eq_some_iff {B q p : ℕ} (hB : 2 ≤ B) {xs : List �
     (hs : xs.Pairwise (· < ·)) :
     predecessor q (build B xs) = some p ↔
       p ∈ xs ∧ p ≤ q ∧ ∀ x ∈ xs, x ≤ q → x ≤ p := by
-  have hle : xs.Pairwise (· ≤ ·) := hs.imp (fun h => Nat.le_of_lt h)
-  rw [predecessor_eq_listPredecessor (valid_build hB xs) (by rwa [keys_build hB]),
-    keys_build hB]
-  exact listPredecessor_eq_some_iff hle
+  rw [predecessor_eq_listPredecessor (valid_build hB xs)
+    (by simpa [keys_build hB] using hs.imp Nat.le_of_lt), keys_build hB]
+  exact listPredecessor_eq_some_iff (hs.imp Nat.le_of_lt)
 
 /-- Empty output is equivalent to having no stored key at or below the query. -/
 theorem predecessor_build_eq_none_iff {B q : ℕ} (hB : 2 ≤ B) {xs : List ℕ}
     (hs : xs.Pairwise (· < ·)) :
     predecessor q (build B xs) = none ↔ ∀ x ∈ xs, q < x := by
-  have hle : xs.Pairwise (· ≤ ·) := hs.imp (fun h => Nat.le_of_lt h)
-  rw [predecessor_eq_listPredecessor (valid_build hB xs) (by rwa [keys_build hB]),
-    keys_build hB]
+  rw [predecessor_eq_listPredecessor (valid_build hB xs)
+    (by simpa [keys_build hB] using hs.imp Nat.le_of_lt), keys_build hB]
   exact listPredecessor_eq_none_iff q xs
 
 end Tree

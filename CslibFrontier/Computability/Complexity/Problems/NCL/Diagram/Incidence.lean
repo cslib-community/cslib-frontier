@@ -77,9 +77,7 @@ private theorem boundaryPorts_append {E : Type*} (a b : List Color)
   unfold boundaryPorts
   rw [List.ofFn_appendIndexEquiv a b, Multiset.coe_add]
   congr 1
-  congr 1 <;> apply congrArg List.ofFn <;> funext i
-  · simp [List.appendIndexEquiv]
-  · simp [List.appendIndexEquiv]
+  congr 1 <;> apply congrArg List.ofFn <;> funext i <;> simp [List.appendIndexEquiv]
 private def listedPorts {E : Type*} (vs : List (Vertex E)) : Multiset (WeightedPort E) :=
   ↑(vs.flatMap Vertex.ports)
 private theorem listedPorts_map {E E' : Type*} (vs : List (Vertex E)) (f : E → E') :
@@ -152,21 +150,18 @@ private theorem portBalance_of_checkGens (I : Interp Γ) {a b : List Color}
     (D : Diagram Γ a b) (h : D.checkGens I.checkPorts = true) : PortBalance I D := by
   induction D with
   | @gen a b g =>
-    have hg : ((I.verts g).flatMap Vertex.ports).Perm (genVertex a b 0).ports :=
-      of_decide_eq_true h
     unfold PortBalance
     change (↑((I.verts g).flatMap Vertex.ports) :
       Multiset (WeightedPort (Fin a.length ⊕ Fin b.length))) + _ = _
-    rw [Multiset.coe_eq_coe.2 hg]
+    rw [Multiset.coe_eq_coe.2 (of_decide_eq_true h)]
     simp only [genVertex, createdPorts, bottom, boundaryPorts,
       List.ofFn_eq_map, ← Multiset.coe_add]
     rfl
   | id a => simp [PortBalance, vertexList, listedPorts, createdPorts, boundaryPorts, bottom]
   | swap x y =>
-    unfold PortBalance
-    simp only [vertexList, listedPorts, List.flatMap_nil, Multiset.coe_nil, createdPorts,
-      zero_add, add_zero, boundaryPorts, bottom, List.ofFn_succ, Fin.rev]
-    simp only [List.get_eq_getElem, List.ofFn_zero, Multiset.coe_eq_coe]
+    simp only [PortBalance, vertexList, listedPorts, List.flatMap_nil, Multiset.coe_nil,
+      createdPorts, zero_add, add_zero, boundaryPorts, bottom, List.ofFn_succ, Fin.rev,
+      List.get_eq_getElem, List.ofFn_zero, Multiset.coe_eq_coe]
     exact List.Perm.swap ..
   | comp D₁ D₂ ih₁ ih₂ =>
     simp only [checkGens, Bool.and_eq_true] at h

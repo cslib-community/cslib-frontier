@@ -141,13 +141,11 @@ theorem minDist_interleavedLinear (κ : Type*) {ι R M : Type*} [Fintype κ] [No
     have hW : W ∈ interleavedLinear κ C := fun r => by
       rcases eq_or_ne r r₀ with rfl | hr
       · simpa only [W, Pi.single_eq_same] using hc
-      · convert C.zero_mem using 1
-        exact funext fun i => Pi.single_eq_of_ne (M := fun _ => M) hr (c i)
+      · exact (funext fun i => Pi.single_eq_of_ne (M := fun _ => M) hr (c i)).symm ▸ C.zero_mem
     have hnorm : hammingNorm W = hammingNorm c :=
       hammingNorm_comp (fun _ => Pi.single r₀) (fun _ => Pi.single_injective r₀) fun _ =>
         Pi.single_zero r₀
-    rw [← hnorm]
-    exact (le_minDist_iff_hammingNorm (interleavedLinear κ C)).1 le_rfl W hW
+    exact hnorm ▸ (le_minDist_iff_hammingNorm (interleavedLinear κ C)).1 le_rfl W hW
       (by rwa [← hammingNorm_pos_iff, hnorm, hammingNorm_pos_iff])
   · refine (le_minDist_iff_hammingNorm (interleavedLinear κ C)).2 fun W hW hW0 => ?_
     obtain ⟨r₀, hr₀⟩ : ∃ r : κ, (fun i => W i r) ≠ 0 := by
@@ -168,16 +166,14 @@ theorem exists_mem_interleavedLinear_hammingDist_le_iff {κ ι R M : Type*} [Fin
   classical
   constructor
   · rintro ⟨V, hV, hdist⟩
-    refine ⟨Finset.univ.filter fun i => W i = V i, ?_, fun r i => V i r, hV,
-      fun i hi r => congrFun (Finset.mem_filter.1 hi).2 r⟩
-    have := card_filter_eq_add_hammingDist W V
-    omega
+    exact ⟨Finset.univ.filter fun i => W i = V i,
+      by have := card_filter_eq_add_hammingDist W V; omega,
+      fun r i => V i r, hV, fun i hi r => congrFun (Finset.mem_filter.1 hi).2 r⟩
   · rintro ⟨D', hD', v, hv, hag⟩
-    let V : ι → κ → M := fun i r => v r i
-    refine ⟨V, hv, ?_⟩
-    have hcard : D'.card ≤ (Finset.univ.filter fun i => W i = V i).card :=
+    refine ⟨fun i r => v r i, hv, ?_⟩
+    have hcard : D'.card ≤ (Finset.univ.filter fun i => W i = fun r => v r i).card :=
       Finset.card_le_card fun i hi => Finset.mem_filter.2 ⟨Finset.mem_univ i, funext (hag i hi)⟩
-    have := card_filter_eq_add_hammingDist W V
+    have := card_filter_eq_add_hammingDist W fun i r => v r i
     omega
 
 end InterleavedLinear
@@ -261,9 +257,8 @@ theorem exists_correlatedAgreement_of_three_mul_lt_minDist {F ι : Type*} [Field
     omega
   have hroot_le (i : ι) (hi : i ∈ B) :
       (S.filter fun z => η₀ i + z * η₁ i = 0).card ≤ 1 :=
-    Finset.card_le_one.2 fun za hza zb hzb => by
-      by_contra hne
-      exact hnot_mem hne (Finset.mem_filter.1 hza).2 (Finset.mem_filter.1 hzb).2 hi
+    Finset.card_le_one.2 fun za hza zb hzb => of_not_not fun hne =>
+      hnot_mem hne (Finset.mem_filter.1 hza).2 (Finset.mem_filter.1 hzb).2 hi
   have hsum_bound : S.card * (B.card - e) ≤ B.card := by
     have h1 := Finset.card_nsmul_le_sum S _ _ hzero_ge
     have h2 := Finset.sum_le_card_nsmul B _ 1 hroot_le
@@ -271,10 +266,8 @@ theorem exists_correlatedAgreement_of_three_mul_lt_minDist {F ι : Type*} [Field
     exact h1.trans (Finset.sum_comm.trans_le h2)
   have hB_le_e : B.card ≤ e := by
     by_contra! hgt
-    have hmul := Nat.mul_le_mul_right (B.card - e) (show e + 2 ≤ S.card by omega)
-    have he_le := Nat.le_mul_of_pos_right e (show 0 < B.card - e by omega)
-    rw [Nat.succ_mul, Nat.succ_mul] at hmul
-    omega
+    have hpos : 1 ≤ B.card - e := Nat.sub_pos_of_lt hgt
+    nlinarith only [hS, hsum_bound, hpos, Nat.sub_add_cancel hgt.le]
   refine ⟨Bᶜ, by rw [Finset.card_compl]; omega, v₀, hv₀, v₁, hv₁, fun i hi => ?_⟩
   simp only [B, Finset.mem_compl, Finset.mem_filter, Finset.mem_univ, true_and, not_or, ne_eq,
     not_not] at hi
@@ -292,9 +285,8 @@ private lemma exists_correlatedAgreement_affine_of_three_mul_lt_minDist
   have htwo : 2 * (e : ℕ∞) < minDist (C : Set (ι → F)) :=
     lt_of_le_of_lt (by gcongr; norm_num) hmin
   have hagree (x c : ι → F) : ∑ i ∈ Finset.univ.filter (fun i => x i = c i), (1 : ℕ) +
-      hammingDist x c = Fintype.card ι := by
-    rw [← Finset.card_eq_sum_ones]
-    exact card_filter_eq_add_hammingDist x c
+      hammingDist x c = Fintype.card ι :=
+    Finset.card_eq_sum_ones _ ▸ card_filter_eq_add_hammingDist x c
   have hlist (u : ι → F) : ∃ Lset : Finset (ι → F), Lset.card ≤ 1 ∧
       ∀ c ∈ C, Fintype.card ι - e ≤
         ∑ i ∈ Finset.univ.filter (fun i => u i = c i), (1 : ℕ) → c ∈ Lset := by
@@ -327,9 +319,7 @@ private lemma exists_correlatedAgreement_affine_of_three_mul_lt_minDist
       (fun _ => Fintype.one_lt_card) 0 (fun r i => W i r) T hT fun z hz => by
         obtain ⟨c, hc, hd⟩ := hclose z hz
         have := hagree (fun i => ∑ r : Fin m, z r • W i r) c
-        refine ⟨c, hc, ?_⟩
-        simp only [zero_add, Finset.sum_apply, Pi.smul_apply]
-        omega
+        exact ⟨c, hc, by simp only [zero_add, Finset.sum_apply, Pi.smul_apply]; omega⟩
   exact exists_mem_interleavedLinear_hammingDist_le_iff.2
     ⟨D', by simpa only [← Finset.card_eq_sum_ones] using hD'_sum, v, hv,
       fun i hi r => (hag i hi).2 r⟩
@@ -410,11 +400,7 @@ theorem toOuterMeasure_sum_smul_reedSolomon_close_le
   by_contra! hlt
   obtain ⟨D', hD', _, _, v, hv, hag, _⟩ :=
     exists_uniqueMaximal_correlatedAgreement_affine_unique hα hunique 0 (fun r i => W i r) _ hlt
-      fun z hz => by
-        have heq : (0 : ι → F) + ∑ r : Fin m, z r • (fun i => W i r) =
-            fun i => ∑ r : Fin m, z r • W i r :=
-          funext fun _ => by simp
-        exact heq.symm ▸ (Finset.mem_filter.1 hz).2
+      fun z hz => by simpa only [zero_add, Pi.smul_def, sum_fn] using (mem_filter.1 hz).2
   obtain ⟨V, hV, hdist⟩ := exists_mem_interleavedLinear_hammingDist_le_iff.2
     ⟨D', hD', v, hv, fun i hi r => (hag i hi).2 r⟩
   exact (hfar V hV).not_ge hdist

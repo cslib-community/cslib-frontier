@@ -361,27 +361,17 @@ theorem lifoStrategy_cost_empty (k : Nat) (hk : 0 < k) (reqs : List α) :
 hypothesis `2 ≤ k` in `lifo_not_isCompetitiveFrom_empty` is therefore sharp. -/
 theorem lifoStrategy_one_isCompetitive :
     (lifoStrategy (α := α) 1 (by omega)).IsCompetitive 1 0 := by
-  have hnext : ∀ (q : List α) (p : α), q.length ≤ 1 → lifoNext 1 q p = fifoNext 1 q p := by
-    intro q p hq
-    by_cases hp : p ∈ q
-    · simp only [lifoNext, fifoNext, hp, ↓reduceIte]
-    · cases q with
-      | nil =>
-        simp only [lifoNext, fifoNext, hp, ↓reduceIte, List.length_nil, Nat.zero_lt_one,
-          List.take_succ_cons, List.take_zero]
-      | cons e rest =>
-        obtain rfl := List.eq_nil_of_length_eq_zero (by simpa using hq)
-        simp only [lifoNext, fifoNext, hp, ↓reduceIte, List.length_singleton, Nat.lt_irrefl,
-          List.drop_succ_cons, List.drop_zero, List.take_succ_cons, List.take_zero]
+  have hnext (q : List α) (p : α) (hq : q.length ≤ 1) : lifoNext 1 q p = fifoNext 1 q p := by
+    rcases q with _ | ⟨e, _ | _⟩
+    · simp [lifoNext, fifoNext]
+    · by_cases hp : p = e <;> simp [lifoNext, fifoNext, hp]
+    · simp at hq
   intro s₀ hs₀ reqs offStates hv
-  have hcost : ∀ (q : List α) (rs : List α), q.length ≤ 1 →
-      lifoFaults 1 q rs = fifoFaults 1 q rs := by
-    intro q rs hq
+  have hcost (q rs : List α) (hq : q.length ≤ 1) : lifoFaults 1 q rs = fifoFaults 1 q rs := by
     induction rs generalizing q with
     | nil => rfl
     | cons p ps ih =>
-      rw [lifoFaults_cons, fifoFaults_cons, hnext q p hq]
-      exact congrArg _ (ih (fifoNext 1 q p) (length_fifoNext_le hq p))
+      rw [lifoFaults_cons, fifoFaults_cons, hnext q p hq, ih _ (length_fifoNext_le hq p)]
   rw [(lifoStrategy (α := α) 1 (by omega)).cost_eq_costFrom hs₀, lifoStrategy_costFrom_eq,
     hcost s₀.toList reqs (by rw [Finset.length_toList]; exact hs₀),
     ← fifoStrategy_costFrom_eq 1 (by omega),
@@ -405,10 +395,10 @@ private theorem lifoRun_warmup {k : Nat} :
     have hstep : lifoNext k q x = x :: q := by simp only [lifoNext, hxq, hlt, ↓reduceIte]
     obtain ⟨hrun, hfault⟩ := lifoRun_warmup (k := k) xs (x :: q) hnodup
       (by simp only [List.length_cons] at hlen ⊢; omega)
-    refine ⟨?_, ?_⟩
-    · rw [lifoRun_cons, hstep, hrun, List.reverse_cons, List.append_assoc, List.singleton_append]
-    · rw [lifoFaults_cons, ite_eq_right hxq, hstep, hfault, List.length_cons]
-      omega
+    refine ⟨?_, by
+      simpa only [lifoFaults_cons, hxq, ↓reduceIte, hstep, hfault, List.length_cons] using
+        Nat.add_comm 1 xs.length⟩
+    rw [lifoRun_cons, hstep, hrun, List.reverse_cons, List.append_assoc, List.singleton_append]
 
 private theorem lifoFaults_alternating {k : Nat} {base : List α} {a b : α}
     (hlen : base.length = k - 1) (hk : 1 ≤ k) (ha : a ∉ base) (hb : b ∉ base) (hab : a ≠ b) :
@@ -472,17 +462,14 @@ private theorem exists_validSchedule_insertAll {k : Nat} :
     have hstep : ValidStep k s x (insert x s) := validStep_insert hlt hxs
     have hdisj' : ∀ y ∈ xs, y ∉ insert x s := fun y hy hmem =>
       (Finset.mem_insert.mp hmem).elim (hxxs <| · ▸ hy) (hdisj y (List.mem_cons_of_mem x hy))
-    have hcard' : (insert x s).card + xs.length ≤ k := by
-      rw [Finset.card_insert_of_notMem hxs]
-      simp only [List.length_cons] at hcard; omega
-    obtain ⟨ss, hv, hfin, hcost⟩ := exists_validSchedule_insertAll xs (insert x s) hdisj' hnodup'
-      hcard'
+    obtain ⟨ss, hv, hfin, hcost⟩ :=
+      exists_validSchedule_insertAll (k := k) xs (insert x s) hdisj' hnodup' (by
+        simp only [Finset.card_insert_of_notMem hxs, List.length_cons] at hcard ⊢; omega)
     refine ⟨insert x s :: ss, ⟨hstep, hv⟩, ?_, ?_⟩
     · change (problem α k).finalState (insert x s) ss = _
       rw [hfin]
       finset_card [List.toFinset_cons]
-    · change stepCost s x (insert x s) + (problem α k).scheduleCost (insert x s) xs ss =
-        (x :: xs).length
+    · change stepCost s x (insert x s) + (problem α k).scheduleCost (insert x s) xs ss = _
       rw [stepCost_of_notMem hxs, hcost, List.length_cons, Nat.add_comm]
 
 /-- For `2 ≤ k`, an offline schedule of capacity `k` serves `lifoCounterexample init a b t` from `∅`

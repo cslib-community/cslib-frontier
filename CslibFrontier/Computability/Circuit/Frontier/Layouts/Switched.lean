@@ -107,10 +107,8 @@ theorem exists_parameters {ξ : ℝ} (hξ : 0 < ξ) :
   have hρ_lt : ρ < rStar := by linarith
   have hρ_pos : 0 < ρ := by linarith [show rStar = 2 * √2 / 3 from rfl, min_le_right η (1 / 2)]
   have hkappa : kappa ρ ≤ switchedCoefficient + ξ / 4 := by
-    have hdist : dist ρ rStar < η := by
-      rw [Real.dist_eq, hρdef, abs_of_neg (by linarith)]
-      linarith [min_le_left η (1 / 2)]
-    have hc := hcont hdist
+    have hc := @hcont ρ (by
+      rw [Real.dist_eq, hρdef, abs_of_neg (by linarith)]; linarith [min_le_left η (1 / 2)])
     rw [Real.dist_eq, kappa_rStar] at hc
     linarith [le_abs_self (kappa ρ - switchedCoefficient)]
   have h3 : vertexCorrelation 3 = rStar := by norm_num [vertexCorrelation, rStar]
@@ -209,18 +207,16 @@ theorem exists_width_le_switchedCoefficient {ξ : ℝ} (hξ : 0 < ξ) :
     have hm := hedge (e (G.src a)) (e (G.tgt a)) (by
       rw [hHadj_iff, e.symm_apply_apply, e.symm_apply_apply]
       exact Multigraph.toSimpleGraph_adj.mpr ⟨hloop a, a, rfl⟩)
-    refine ⟨max (sH (e (G.src a))) (sH (e (G.tgt a))), ?_, le_max_left _ _,
-      hm.trans (min_le_left _ _), le_max_right _ _, hm.trans (min_le_right _ _)⟩
-    exact (hm.trans (min_le_left _ _)).trans (heT _)
+    exact ⟨max (sH (e (G.src a))) (sH (e (G.tgt a))), (hm.trans (min_le_left _ _)).trans (heT _),
+      le_max_left _ _, hm.trans (min_le_left _ _), le_max_right _ _, hm.trans (min_le_right _ _)⟩
   have hbagV : ∀ t ≤ Tend, (intervalBag (fun v => sH (e v)) (fun v => eH (e v)) t).card ≤
-      w + 2 := fun t ht => by
-    refine (Finset.card_equiv e fun v => ?_).trans_le (hbag t ht)
-    simp only [intervalBag, Finset.mem_filter, Finset.mem_univ, true_and]
+      w + 2 := fun t ht =>
+    (Finset.card_equiv e fun _ => by
+      simp only [intervalBag, Finset.mem_filter, Finset.mem_univ, true_and]).trans_le (hbag t ht)
   obtain ⟨σ, hσ⟩ := exists_width_le_of_intervals G h3 Tend
     (fun v => sH (e v)) (fun v => eH (e v)) hsV heV hedgeV hbagV
   refine ⟨σ, ?_⟩
-  have hσR : (G.width σ : ℝ) ≤ (w : ℝ) + 3 := by
-    exact_mod_cast (show G.width σ ≤ w + 2 + 1 from hσ)
+  have hσR : (G.width σ : ℝ) ≤ (w : ℝ) + 3 := by exact_mod_cast (hσ : G.width σ ≤ w + 3)
   calc (G.width σ : ℝ) ≤ B + ε * n := by linarith
     _ = (switchedBound ρ T ε M + ε) * n := by rw [add_mul]
     _ ≤ (switchedCoefficient + ξ) * n := by gcongr

@@ -114,11 +114,10 @@ theorem Feasible.mul_rowCost_le_of_le_two_mul {β n n' b_occ w_width M' : ℕ}
     (Nat.lt_clog_iff_pow_lt one_lt_two).mpr (by omega : 2 ^ 0 < n')
   have hlam_pos : 1 ≤ Nat.clog 2 n := hlam'_pos.trans (Nat.clog_mono_right 2 hn'_le)
   have hsqrt_le : Real.sqrt (Nat.clog 2 n) ≤ 2 * Real.sqrt (Nat.clog 2 n') := by
+    have hnat : (Nat.clog 2 n : ℝ) ≤ 2 * Nat.clog 2 n' :=
+      mod_cast Nat.clog_two_le_two_mul_of_le_two_mul hn_le (by omega)
     rw [← Real.sqrt_sq zero_le_two, ← Real.sqrt_mul (sq_nonneg 2)]
-    exact Real.sqrt_le_sqrt (by
-      have hnat : (Nat.clog 2 n : ℝ) ≤ 2 * Nat.clog 2 n' := by
-        exact_mod_cast Nat.clog_two_le_two_mul_of_le_two_mul hn_le (by omega)
-      linarith [Nat.cast_nonneg (α := ℝ) (Nat.clog 2 n')])
+    exact Real.sqrt_le_sqrt (by linarith [Nat.cast_nonneg (α := ℝ) (Nat.clog 2 n')])
   have hnu_le : Nat.clog 2 (Nat.clog 2 n') ≤ Nat.clog 2 (Nat.clog 2 n) :=
     Nat.clog_mono_right 2 (Nat.clog_mono_right 2 hn'_le)
   have hsqrt'_pos : 0 < Real.sqrt (Nat.clog 2 n') := Real.sqrt_pos.mpr (by positivity)
@@ -251,11 +250,11 @@ theorem div_sqrt_clog_le_interpolationScale {n : ℕ} (hn : 16384 ≤ n) :
   have hsqrt_real_pos : 0 < Real.sqrt (lam : ℝ) :=
     Real.sqrt_pos.mpr (Nat.cast_pos.mpr (by omega))
   have hsqrt_le : Real.sqrt (lam : ℝ) ≤ 2 * (lam.sqrt : ℝ) := by
-    have h1 : Real.sqrt (lam : ℝ) ≤ (lam.sqrt : ℝ) + 1 := by
-      refine Real.sqrt_le_iff.mpr ⟨by positivity, ?_⟩
-      exact_mod_cast (show lam ≤ (lam.sqrt + 1) ^ 2 by
-        simpa only [sq] using (Nat.lt_succ_sqrt lam).le)
-    linarith [show (1 : ℝ) ≤ lam.sqrt from Nat.one_le_cast.mpr hsqrt_pos]
+    have hsq_lam : (lam : ℝ) ≤ ((lam.sqrt : ℝ) + 1) ^ 2 :=
+      mod_cast (by simpa only [sq] using (Nat.lt_succ_sqrt lam).le)
+    have h1 : Real.sqrt (lam : ℝ) ≤ (lam.sqrt : ℝ) + 1 :=
+      Real.sqrt_le_iff.mpr ⟨by positivity, hsq_lam⟩
+    linarith [Nat.one_le_cast (α := ℝ).mpr hsqrt_pos]
   have hdiv_le :
       ((n / lam.sqrt : ℕ) : ℝ) ≤ 2 * ((n : ℝ) * (nu : ℝ) ^ 2 / Real.sqrt (lam : ℝ)) := by
     refine Nat.cast_div_le.trans ?_
@@ -308,11 +307,9 @@ theorem two_mul_numNodes_mul_numGroups_le_interpolationScale {n n' : ℕ}
         Nat.mul_le_mul (Nat.mul_le_mul_left 2 hQ_le) hr_le
       _ = 2 * lam ^ 2 := by ring)
   have hsqrtX_pos : 0 < Real.sqrt X := Real.sqrt_pos.mpr (log_add_sixteen_pos n)
-  have hsqrtX_le_lam : Real.sqrt X ≤ (lam : ℝ) := by
-    have hsqrt_lam : Real.sqrt (lam : ℝ) ≤ (lam : ℝ) :=
-      Real.sqrt_le_iff.mpr ⟨Nat.cast_nonneg _,
-        le_self_pow₀ (by exact_mod_cast (by omega : 1 ≤ lam)) two_ne_zero⟩
-    exact (Real.sqrt_le_sqrt hX_le_lam).trans hsqrt_lam
+  have hsqrtX_le_lam : Real.sqrt X ≤ (lam : ℝ) :=
+    (Real.sqrt_le_sqrt hX_le_lam).trans <| Real.sqrt_le_iff.mpr
+      ⟨Nat.cast_nonneg _, le_self_pow₀ (mod_cast (by omega : 1 ≤ lam)) two_ne_zero⟩
   have hcube_r : 2 * (lam : ℝ) ^ 3 ≤ (n : ℝ) := by exact_mod_cast hcube_le
   have hL_sq1 : (1 : ℝ) ≤ L ^ 2 := one_le_pow₀ (one_lt_log_log_add_sixteen n).le
   unfold interpolationScale
@@ -420,8 +417,7 @@ theorem Feasible.branch_domainExaminationBound_le_two_pow_interpolationScale [Fi
     _ = (2 : ℝ) ^ ((branchExamScaleCoeff β k c : ℝ) * interpolationScale N) := by
         rw [← Real.rpow_add two_pos]
         congr 1
-        unfold branchExamScaleCoeff
-        dsimp only [M_coeff]
+        simp only [branchExamScaleCoeff, M_coeff]
         push_cast
         ring
 
@@ -443,9 +439,7 @@ theorem sum_branchAssignments_le_two_pow_interpolationScale [Fintype ι] [Decida
       (2 : ℝ) ^ (((A + 32 : ℕ) : ℝ) * interpolationScale (Fintype.card ι)) := by
   have hbranches_r :
       (#(branchAssignments S) : ℝ) ≤ (2 : ℝ) ^ (32 * interpolationScale (Fintype.card ι)) :=
-    (show (#(branchAssignments S) : ℝ) ≤
-        (2 : ℝ) ^ (Fintype.card ι / (Nat.clog 2 (Fintype.card ι)).sqrt) by
-          exact_mod_cast hbranches).trans
+    (mod_cast hbranches : (#(branchAssignments S) : ℝ) ≤ _).trans
       (two_pow_div_sqrt_clog_le_interpolationScale hn)
   calc ∑ b ∈ branchAssignments S, examSum b
       ≤ ∑ _b ∈ branchAssignments S,
@@ -529,10 +523,9 @@ theorem CNF.branch_domainExaminationBound_parityRowSystem_le_two_pow_interpolati
             ∑ g : Fin (numGroups n'), (Fintype.card (C.LocalCube t g) : ℝ))) ≤
       (2 : ℝ) ^ ((branchExamScaleCoeff β k 6 : ℝ) * interpolationScale (Fintype.card V)) := by
   intro d q C
-  have hcard : #(univ : Finset (Fin rows.length)) ≤ 6 * Fintype.card V := by
-    simpa only [card_univ, Fintype.card_fin] using hlen
   have h := Feasible.branch_domainExaminationBound_le_two_pow_interpolationScale
-    (ι := V) (k := k) (c := 6) (univ : Finset (Fin rows.length)) hF D s hcard hn hn_le hn'_le
+    (ι := V) (k := k) (c := 6) (univ : Finset (Fin rows.length)) hF D s
+    (by simpa only [card_univ, Fintype.card_fin] using hlen) hn hn_le hn'_le
   simpa only [card_univ, Fintype.card_fin] using h.1.trans h.2
 
 /-- **Section 6.3 multi-branch `interpolationScale` domain-examination bound for
@@ -638,15 +631,14 @@ theorem CNF.parityRowBranchExamBound_of_schedule [Fintype V] [DecidableEq V]
           (numNodes n') (numGroups n') (intervalStart (2 * β_B + 5) n')
           (rowBound (2 * β_B + 5) n') (tauRat n'))) :
     CNF.ParityRowBranchExamBound φ k β_B W b₀ rows e := by
-  have hn'_le : n' ≤ Fintype.card V := by
-    rw [← Fintype.card_fin n', ← Fintype.card_congr e, Fintype.card_coe]
-    exact card_le_univ _
-  refine ⟨⟨hn_le, hn'_le⟩, fun b => ?_, fun examSum hexam => ?_⟩
-  · obtain ⟨hF, ⟨D⟩⟩ := hfeas b
-    exact ⟨hF, D, fun s_active =>
-      CNF.branch_domainExaminationBound_parityRowSystem_le_two_pow_interpolationScale
-        rows hF D s_active hlen hn16384 hn_le hn'_le⟩
-  · exact sum_branchAssignments_le_two_pow_interpolationScale hn16384 hbranches examSum hexam
+  have hn'_le : n' ≤ Fintype.card V :=
+    Fintype.card_fin n' ▸ Fintype.card_congr e ▸ Fintype.card_coe _ ▸ card_le_univ _
+  refine ⟨⟨hn_le, hn'_le⟩, fun b => ?_,
+    sum_branchAssignments_le_two_pow_interpolationScale hn16384 hbranches⟩
+  obtain ⟨hF, ⟨D⟩⟩ := hfeas b
+  exact ⟨hF, D, fun s_active =>
+    CNF.branch_domainExaminationBound_parityRowSystem_le_two_pow_interpolationScale
+      rows hF D s_active hlen hn16384 hn_le hn'_le⟩
 
 /-- **End-to-end Section 6.3 schedule feasibility, `ReplacementDesign` existence, and
 `2 ^ (A * interpolationScale n)` examination bound for `CNF.parityRowSystem`**:
@@ -683,8 +675,7 @@ theorem CNF.exists_branch_schedule_and_examBound_parityRowSystem_of_le_clog_pow
             CNF.ParityRowBranchExamBound φ k β_B W b₀ rows e := by
   obtain ⟨N₀, _, hsched⟩ := CNF.exists_branch_schedule_parityRowSystem_of_le_clog_pow k C_B β_B
   refine ⟨max N₀ 16384, le_max_right _ _,
-    fun {V _ _ φ n' B W} hk hN₁ hm hB hW_bound {rows} hW hlen => ?_⟩
-  intro b₀ S e
+    fun {V _ _ φ n' B W} hk hN₁ hm hB hW_bound {rows} hW hlen e => ?_⟩
   obtain ⟨_, ⟨hn_le, _⟩, hbranches, hfeas⟩ :=
     hsched hk ((le_max_left _ _).trans hN₁) hm hB hW_bound hW hlen e
   exact CNF.parityRowBranchExamBound_of_schedule e hlen
@@ -740,7 +731,6 @@ theorem CNF.exists_greedy_parityRowSystem_branch_schedule_and_examBound_of_le_cl
     CNF.exists_greedy_parityRowSystem_branch_schedule_of_le_clog_pow k C_B β_B
   refine ⟨max N₀ 16384, le_max_right _ _,
     fun {V _ _} φ {B} hk hN₁ hB1 hB_le hm => ?_⟩
-  intro D₀ P b₀
   obtain ⟨A₀, hlen0, hw0, hgreedy⟩ :=
     hgreedy_sched φ hk ((le_max_left _ _).trans hN₁) hB1 hB_le hm
   refine ⟨A₀, hlen0, hw0, fun A γ h0 hA hγ =>

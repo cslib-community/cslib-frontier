@@ -94,12 +94,10 @@ private theorem weightedSum_scriptSem_end (hub : 0 < ub) {t : Tree}
   rw [scriptSem_of_checks mu cb kinds T (fun i => instructionSem θ mu cb kinds T ub i t ≠ [])
     fun i hi => ?_]
   · have hσ (c c' : Cell M U0 U1) : tget (key c) t = tget (key c') t ↔ σ c = σ c' := by
-      rw [hst.2, hst.2]
-      exact (ofBits_bits_injective hub).eq_iff
+      simpa only [hst.2] using (ofBits_bits_injective hub).eq_iff
     have hσb (c : Cell M U0 U1) (w : UnitContent ub) :
         tget (key c) t = ofBits w.bits ↔ σ c = w := by
-      rw [hst.2]
-      exact (ofBits_bits_injective hub).eq_iff
+      simpa only [hst.2] using (ofBits_bits_injective hub).eq_iff
     have h : (∀ i ∈ endInstructions P n o grp g key b, instructionSem θ mu cb kinds T ub i t ≠ []) ↔
         Play.GroupAgree (UnitId.holder M.channelParty) grp g (P.cur n o E) b
           (fun a u => σ ⟨a, u⟩) := by
@@ -266,9 +264,7 @@ theorem outcome_eq_of_accept (hub : 0 < ub) (hkind : ∀ r, kinds[tg r]? = some 
   obtain ⟨t', ht'⟩ := exists_of_scriptSem_ne_nil mu cb kinds h _ (List.mem_append_left _
     (List.mem_append_right _ (List.mem_map.2 ⟨r, mem_groupRoles.2 hr, rfl⟩)))
   simp only [roleInstruction, instructionSem, hkind, roleSem] at ht'
-  split_ifs at ht'
-  swap
-  · exact absurd rfl ht'
+  obtain ⟨_, ht'⟩ := ite_ne_right_iff.1 ht'
   obtain ⟨a, ha, z, hz, -⟩ :=
     List.mem_weightedBind_iff.1 (List.exists_mem_of_ne_nil _ ht').choose_spec
   obtain ⟨ι, hι⟩ := exists_of_mem_run_roleTable _ _ ha
@@ -282,9 +278,7 @@ theorem outcome_eq_of_accept (hub : 0 < ub) (hkind : ∀ r, kinds[tg r]? = some 
   have hj : (channelList (M.law r.1) r.2).idxOf ν < (channelList (M.law r.1) r.2).length :=
     List.idxOf_lt_length_of_mem (mem_toList.2 (mem_univ ν))
   have := hc _ (List.mem_ofFn.2 ⟨⟨_, hj⟩, rfl⟩)
-  simp only [unitCount, List.length_reverse, List.length_map, length_indicesBelow, Fin.val_succ,
-    hι, List.get_eq_getElem, List.getElem_idxOf] at this
-  simp at this
+  simp [unitCount, hι, List.get_eq_getElem] at this
   omega
 
 end Cslib.Circuits.Arithmetic.Separation.GroupProgram

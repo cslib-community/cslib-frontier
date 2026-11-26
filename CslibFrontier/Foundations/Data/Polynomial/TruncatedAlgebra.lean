@@ -97,9 +97,8 @@ theorem induction_on {P : Truncated R r → Prop} (x : Truncated R r) (hp : ∀ 
 /-- Two polynomials have the same image in `Truncated R r` iff their coefficients below `r`
 agree. -/
 theorem mk_eq_mk_iff {p q : R[X]} : mk r p = mk r q ↔ ∀ i < r, p.coeff i = q.coeff i := by
-  rw [mk_apply, mk_apply, Ideal.Quotient.eq, Ideal.mem_span_singleton, Polynomial.X_pow_dvd_iff]
-  refine forall₂_congr fun i _ => ?_
-  rw [Polynomial.coeff_sub, sub_eq_zero]
+  simp only [mk_apply, Ideal.Quotient.eq, Ideal.mem_span_singleton, Polynomial.X_pow_dvd_iff,
+    Polynomial.coeff_sub, sub_eq_zero]
 
 /-- `T ^ r = 0` in `Truncated R r`. -/
 @[simp]
@@ -110,9 +109,7 @@ theorem var_pow_eq_zero : (var R r) ^ r = 0 := by
 /-- `mk r ((X : R[X]) ^ k) = 0` whenever `r ≤ k`. -/
 theorem mk_X_pow_eq_zero_of_le {k : ℕ} (hk : r ≤ k) : mk r ((X : R[X]) ^ k) = 0 := by
   obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le hk
-  rw [pow_add, map_mul]
-  change (var R r) ^ r * mk r ((X : R[X]) ^ m) = 0
-  rw [var_pow_eq_zero, zero_mul]
+  rw [pow_add, map_mul, map_pow, ← var, var_pow_eq_zero, zero_mul]
 
 /-- Extract the coefficient of `T ^ i` (`0` for `i ≥ r`) from an element of `Truncated R r`. -/
 def coeff (i : ℕ) (x : Truncated R r) : R :=
@@ -230,14 +227,11 @@ theorem coeff_zsmul (i : ℕ) (k : ℤ) (x : Truncated R r) :
 /-- Truncated Cauchy product formula for `coeff i (x * y)` when `i < r`. -/
 theorem coeff_mul {i : ℕ} (hi : i < r) (x y : Truncated R r) :
     coeff i (x * y) = ∑ k ∈ Finset.antidiagonal i, coeff k.1 x * coeff k.2 y := by
-  induction x using induction_on with
-  | hp p =>
-    induction y using induction_on with
-    | hp q =>
-      rw [← map_mul, coeff_mk_of_lt hi, Polynomial.coeff_mul]
-      refine Finset.sum_congr rfl fun k hk => ?_
-      have hsum : k.1 + k.2 = i := Finset.mem_antidiagonal.mp hk
-      rw [coeff_mk_of_lt (by omega), coeff_mk_of_lt (by omega)]
+  refine induction_on x fun p => induction_on y fun q => ?_
+  rw [← map_mul, coeff_mk_of_lt hi, Polynomial.coeff_mul]
+  refine Finset.sum_congr rfl fun k hk => ?_
+  have hsum : k.1 + k.2 = i := Finset.mem_antidiagonal.mp hk
+  rw [coeff_mk_of_lt (by omega), coeff_mk_of_lt (by omega)]
 
 /-- Index-range Cauchy product formula for `coeff i (x * y)` when `i < r`. -/
 theorem coeff_mul_range {i : ℕ} (hi : i < r) (x y : Truncated R r) :
@@ -256,13 +250,11 @@ theorem toPoly_def (x : Truncated R r) :
 @[simp]
 theorem coeff_toPoly (x : Truncated R r) (i : ℕ) : (toPoly x).coeff i = coeff i x := by
   rw [toPoly, ← Polynomial.lcoeff_apply, map_sum]
-  simp only [Polynomial.lcoeff_apply, Polynomial.coeff_C_mul_X_pow]
-  by_cases hi : i < r
-  · rw [Finset.sum_eq_single i (fun _ _ hbi => by simp [hbi.symm])
-      (fun h => absurd (Finset.mem_range.mpr hi) h)]
-    simp
-  · rw [coeff_eq_zero_of_le (not_lt.mp hi)]
-    exact Finset.sum_eq_zero fun b hb => by simp [show i ≠ b from fun h => hi (h ▸ mem_range.mp hb)]
+  simp only [Polynomial.lcoeff_apply, Polynomial.coeff_C_mul_X_pow, Finset.sum_ite_eq,
+    Finset.mem_range]
+  split_ifs with hi
+  · rfl
+  · exact (coeff_eq_zero_of_le (not_lt.mp hi) x).symm
 
 @[simp]
 theorem mk_toPoly (x : Truncated R r) : mk r (toPoly x) = x := by
@@ -305,10 +297,8 @@ theorem length_coeffs (x : Truncated R r) : (coeffs x).length = r := by
   rw [coeffs, Polynomial.length_coeffsBelow]
 
 theorem ofCoeffList_coeffs (x : Truncated R r) : Polynomial.ofCoeffList (coeffs x) = toPoly x := by
-  by_cases hr : r = 0
-  · subst hr
-    have hnil : coeffs x = [] := List.eq_nil_of_length_eq_zero (length_coeffs x)
-    rw [hnil, Polynomial.ofCoeffList_nil, toPoly, Finset.range_zero, Finset.sum_empty]
+  rcases eq_or_ne r 0 with rfl | hr
+  · simp [List.eq_nil_of_length_eq_zero (length_coeffs x), toPoly]
   · exact Polynomial.ofCoeffList_coeffsBelow (natDegree_toPoly_lt (Nat.pos_of_ne_zero hr) x)
 
 theorem getD_coeffs (x : Truncated R r) (i : ℕ) : (coeffs x).getD i 0 = coeff i x := by
@@ -345,9 +335,7 @@ variable {R : Type*} [CommRing R] {r : ℕ}
 theorem pow_eq_zero_of_coeff_zero {y : Truncated R r} (hy : coeff 0 y = 0) : y ^ r = 0 := by
   rw [← mk_toPoly y, ← map_pow, mk_apply, Ideal.Quotient.eq_zero_iff_mem,
     Ideal.mem_span_singleton]
-  have hdvd : (X : R[X]) ∣ toPoly y := by
-    rw [Polynomial.X_dvd_iff, coeff_toPoly, hy]
-  simpa only [one_pow] using pow_dvd_pow_of_dvd hdvd r
+  simpa only [one_pow] using pow_dvd_pow_of_dvd (Polynomial.X_dvd_iff.mpr (by simp [hy])) r
 
 /-- All coefficients of `y ^ d` below degree `d` vanish whenever `coeff 0 y = 0`. -/
 theorem coeff_pow_eq_zero_of_lt {y : Truncated R r} (hy : coeff 0 y = 0) {d i : ℕ} (hi : i < d) :
@@ -507,11 +495,10 @@ theorem coeff_subst_of_coeff_zero {S : Type*} [CommRing S] [Algebra R S] {g : Tr
       ∑ d ∈ Finset.range (i + 1), algebraMap R S (coeff d f) * coeff i (g ^ d) := by
   rw [substZeroConst, subst, liftAlgHom_eq_sum _ f, coeff_sum,
     ← Finset.sum_subset (Finset.range_mono (by omega : i + 1 ≤ r))]
-  · refine Finset.sum_congr rfl fun d _ => ?_
-    exact coeff_smul_algebra i (coeff d f) (g ^ d)
+  · exact Finset.sum_congr rfl fun d _ => coeff_smul_algebra i (coeff d f) (g ^ d)
   · intro d _ hd
-    rw [Finset.mem_range, not_lt] at hd
-    rw [coeff_smul_algebra, coeff_pow_eq_zero_of_lt hg0 hd, mul_zero]
+    rw [coeff_smul_algebra, coeff_pow_eq_zero_of_lt hg0 (not_lt.mp (mt Finset.mem_range.mpr hd)),
+      mul_zero]
 
 /-- Truncated substitution agrees with polynomial composition `p.comp q` modulo `T ^ r` whenever
 `(mk r q) ^ r = 0` (in particular whenever `q.coeff 0 = 0`). -/
@@ -539,12 +526,9 @@ theorem mk_trunc_subst_eq_subst (f g : R⟦X⟧) (hg0 : PowerSeries.constantCoef
             exact coeff_eq_zero_of_le (le_refl 0) _)
         (mk r (PowerSeries.trunc r f)) := by
   ext i hi
-  have h0r : 0 < r := Nat.zero_lt_of_lt hi
-  have hg_trunc0 : coeff 0 (mk r (PowerSeries.trunc r g)) = 0 := by
-    simp [coeff_mk_of_lt h0r, PowerSeries.coeff_trunc, h0r, hg0]
   rw [coeff_mk_of_lt hi, PowerSeries.coeff_trunc, ite_eq_left hi,
     PowerSeries.coeff_subst' (PowerSeries.HasSubst.of_constantCoeff_zero hg0),
-    coeff_subst_of_coeff_zero hg_trunc0 hi,
+    coeff_subst_of_coeff_zero _ hi,
     finsum_eq_sum_of_support_subset _ (s := Finset.range (i + 1))]
   · refine Finset.sum_congr rfl fun d hd => ?_
     have hdr : d < r := lt_of_lt_of_le (Finset.mem_range.mp hd) hi
@@ -552,9 +536,8 @@ theorem mk_trunc_subst_eq_subst (f g : R⟦X⟧) (hg0 : PowerSeries.constantCoef
       PowerSeries.coeff_trunc, hdr, ↓reduceIte, ← map_pow, mk_trunc_pow, coeff_mk_of_lt hi, hi,
       smul_eq_mul]
   · intro d hd
-    by_contra hid
-    have hlt : i < d := not_lt.mp (mt Finset.mem_range.mpr hid)
-    exact hd (by simp [coeff_pow_eq_zero_of_constantCoeff_zero hg0 hlt])
+    exact by_contra fun hid => hd (by
+      simp [coeff_pow_eq_zero_of_constantCoeff_zero hg0 (not_lt.mp (mt Finset.mem_range.mpr hid))])
 
 end Substitution
 

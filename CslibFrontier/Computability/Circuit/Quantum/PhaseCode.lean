@@ -136,7 +136,6 @@ noncomputable def PlacedGate.ctrlPhase (inv : Bool) {k : ℕ} (e : Fin k ↪ Fin
 @[simp] theorem PlacedGate.mapWires_ctrlPhase {N k : ℕ} (e : Fin m ↪ Fin N) (inv : Bool)
     (A : Fin k ↪ Fin m) :
     (PlacedGate.ctrlPhase inv A).mapWires e = PlacedGate.ctrlPhase inv (A.trans e) := by
-  unfold PlacedGate.ctrlPhase PlacedGate.mapWires
   rfl
 
 /-- **The entries of a placed controlled phase gate**: it multiplies `|x⟩` by `i` (for `inv`, by
@@ -146,21 +145,15 @@ theorem PlacedGate.ctrlPhase_matrix_apply (inv : Bool) {k : ℕ} (e : Fin k ↪ 
     ((PlacedGate.ctrlPhase inv e).matrix : Matrix _ _ ℂ) y x =
       if y = x then (if ∀ i, x (e i) = true then (bif inv then -Complex.I else Complex.I) else 1)
       else 0 := by
-  rw [show PlacedGate.ctrlPhase inv e =
-      ⟨k, bif inv then (Gate.ctrlPhase k)⁻¹ else Gate.ctrlPhase k, e⟩ from rfl, matrix_apply]
-  dsimp only
-  rw [Gate.ctrlPhase_cond_apply]
-  simp only [Function.comp_apply]
+  unfold PlacedGate.ctrlPhase
+  simp only [matrix_apply, Gate.ctrlPhase_cond_apply, Function.comp_apply]
   by_cases hyx : y = x
-  · subst hyx
-    simp
+  · simp [hyx]
   · rw [ite_eq_right hyx]
-    have key (h₁ : ∀ j, (¬∃ i, e i = j) → y j = x j) (h₂ : y ∘ e = x ∘ e) : y = x :=
-      funext fun j => by
-        by_cases hj : ∃ i, e i = j
-        · obtain ⟨i, rfl⟩ := hj
-          exact congrFun h₂ i
-        · exact h₁ j hj
+    have key (h₁ : ∀ j, (¬∃ i, e i = j) → y j = x j) (h₂ : y ∘ e = x ∘ e) : y = x := by
+      classical
+      exact funext fun j => if hj : ∃ i, e i = j then hj.choose_spec ▸ congrFun h₂ hj.choose
+        else h₁ j hj
     split_ifs with h₁ h₂ <;> first | rfl | exact absurd (key h₁ h₂) hyx
 
 /-- **A controlled phase gate multiplies a basis state** by `i` (for `inv`, by `-i`) when every
@@ -255,11 +248,7 @@ theorem isSome_toPlacedGate?_iff {c : PhaseGateCode} :
   | (false, g) => exact GateCode.isSome_toPlacedGate?_iff
   | (true, inv, t, []) => by_cases h : t < m <;> simp [toPlacedGate?, WellFormed, h]
   | (true, inv, t, [c]) =>
-    simp only [toPlacedGate?]
-    split_ifs with h <;> simp only [Option.isSome_some, Option.isSome_none] <;>
-      simp only [WellFormed, List.length_cons, List.length_nil, List.nodup_cons, List.mem_cons,
-        List.not_mem_nil, List.nodup_nil, forall_eq_or_imp, true_iff, false_iff,
-        Bool.false_eq_true] <;> grind
+    by_cases h : c < m ∧ t < m ∧ c ≠ t <;> simp [toPlacedGate?, WellFormed, h] <;> grind
   | (true, inv, t, _ :: _ :: _) => simp [toPlacedGate?, WellFormed]
 
 /-- **A well-formed phase gate code denotes a controlled phase gate** on qubits `e` whose
@@ -281,8 +270,8 @@ theorem exists_toPlacedGate?_eq_ctrlPhase {inv : Bool} {t : ℕ} {cs : List ℕ}
     have ht : t < m := hlt t List.mem_cons_self
     refine ⟨1, ⟨![⟨t, ht⟩], fun i j _ => Subsingleton.elim i j⟩, by simp [toPlacedGate?, ht],
       fun w => ?_⟩
-    rw [List.all_cons, List.all_nil, Bool.and_true, hread w ht]
-    simp only [Fin.forall_fin_one, Bool.decide_coe]
+    simp only [List.all_cons, List.all_nil, Bool.and_true, hread w ht, Fin.forall_fin_one,
+      Bool.decide_coe]
     rfl
   | [c], _, hnd, hlt =>
     have h : c < m ∧ t < m ∧ c ≠ t := ⟨hlt c (List.mem_cons_of_mem _ List.mem_cons_self),
@@ -431,9 +420,8 @@ theorem wellFormed_toRealCodes {gs : List PhaseGateCode} (hgs : ∀ c ∈ gs, c.
   have hwf := hgs c hc
   match c, hwf, hg with
   | (false, g'), hwf, hg =>
-    rw [show realCodes m (false, g') = [g'] from rfl, List.mem_singleton] at hg
-    subst hg
-    simpa using GateCode.WellFormed.shift (o := 0) (N := m + 1) (by omega) hwf
+    simpa [List.mem_singleton.mp hg] using
+      GateCode.WellFormed.shift (o := 0) (N := m + 1) (by omega) hwf
   | (true, inv, t, cs), hwf, hg =>
     have hH : GateCode.WellFormed (m + 1) (true, m, []) := ⟨by omega, rfl⟩
     have hX := wellFormed_ctrlCode hwf
@@ -463,9 +451,8 @@ into `m` qubits. -/
 theorem _root_.Cslib.Quantum.inputState_succ {x : List Bool} (hx : x.length ≤ m) :
     inputState (m + 1) x = Fin.snoc (inputState m x) false := by
   funext i
-  refine Fin.lastCases ?_ (fun j => ?_) i
-  · simp [inputState, List.getElem?_eq_none_iff.mpr hx]
-  · simp [inputState]
+  exact Fin.lastCases (by simp [inputState, List.getElem?_eq_none_iff.mpr hx])
+    (fun _ => by simp [inputState]) i
 
 /-- The outcomes of `m + 1` qubits in which the qubits `S` below `m` read one are those whose
 first `m` bits do. -/

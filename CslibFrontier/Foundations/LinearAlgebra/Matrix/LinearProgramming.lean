@@ -152,10 +152,9 @@ theorem exists_dual_eq_of_bddAbove (A : Matrix ι κ K) (b : ι → K) (c : κ �
     refine Iff.trans (exists_congr fun x => ?_) (hTB t ▸ hiff fun _ => t)
     rw [fromRows_mulVec, fromRows_mulVec, zero_mulVec, one_mulVec, ← Sum.elim_add_add,
       Sum.elim_le_elim_iff, add_zero, replicateRow_mulVec_eq_const]
-    refine and_congr Iff.rfl ⟨fun h _ => ?_, fun h => ?_⟩
-    · simp only [Pi.add_apply, Function.const_apply, Pi.zero_apply, neg_dotProduct]; linarith
-    · have h := h ()
-      simp only [Pi.add_apply, Function.const_apply, Pi.zero_apply, neg_dotProduct] at h; linarith
+    refine and_congr Iff.rfl ?_
+    simp only [Pi.le_def, forall_const, Pi.zero_apply, Pi.add_apply, Function.const_apply,
+      neg_dotProduct, neg_add_le_iff_le_add, add_zero]
   -- some row of the projection bounds `t` from above
   have h₀ := (hfeas (c ⬝ᵥ x₀)).1 ⟨x₀, hx₀, le_rfl⟩
   obtain ⟨r₀, hr₀⟩ : ∃ r, 0 < β r := by
@@ -186,8 +185,7 @@ theorem exists_dual_eq_of_bddAbove (A : Matrix ι κ K) (b : ι → K) (c : κ �
       Finset.univ_unique, Finset.sum_singleton, Function.comp_apply, PUnit.default_eq_unit,
       Pi.neg_apply, mul_neg, Pi.smul_apply, smul_eq_mul, u, β] at hj ⊢
     linarith
-  refine ⟨x, (β r)⁻¹ • u, hx, fun i => ?_, ?_, ?_⟩
-  · exact smul_nonneg (inv_nonneg.2 hr.le) (hT r _)
+  refine ⟨x, (β r)⁻¹ • u, hx, fun i => smul_nonneg (inv_nonneg.2 hr.le) (hT r _), ?_, ?_⟩
   · rw [smul_vecMul, huA, smul_smul, inv_mul_cancel₀ hr.ne', one_smul]
   · rw [smul_dotProduct, ← hγ, smul_eq_mul, inv_mul_eq_div]
     exact le_antisymm htx hxt
@@ -234,7 +232,8 @@ dual program with infeasible primal is unbounded [Schrijver1986, Section 7.4]. -
 theorem bddBelow_image_dotProduct_iff (A : Matrix ι κ K) (b : ι → K) (c : κ → K)
     (hD : ∃ y, 0 ≤ y ∧ y ᵥ* A = c) :
     BddBelow ((· ⬝ᵥ b) '' {y | 0 ≤ y ∧ y ᵥ* A = c}) ↔ ∃ x, A *ᵥ x ≤ b := by
-  refine ⟨fun ⟨m, hm⟩ => ?_, fun ⟨x, hx⟩ => ⟨c ⬝ᵥ x, ?_⟩⟩
+  refine ⟨fun ⟨m, hm⟩ => ?_, fun ⟨x, hx⟩ => ⟨c ⬝ᵥ x, fun _ ⟨y, ⟨hy, hyA⟩, hyb⟩ =>
+    hyb ▸ dotProduct_le_dotProduct_of_mulVec_le hx hy hyA⟩⟩
   · by_contra hP
     -- move along the Farkas ray `y₀ + s • z` until the value drops below `m`
     obtain ⟨z, hz, hzA, hzb⟩ := (not_exists_mulVec_le_iff A b).1 hP
@@ -247,8 +246,6 @@ theorem bddBelow_image_dotProduct_iff (A : Matrix ι κ K) (b : ι → K) (c : �
     change m ≤ (y₀ + s • z) ⬝ᵥ b at this
     rw [add_dotProduct, smul_dotProduct, smul_eq_mul] at this
     linarith [le_abs_self (y₀ ⬝ᵥ b - m)]
-  · rintro _ ⟨y, ⟨hy, hyA⟩, rfl⟩
-    exact dotProduct_le_dotProduct_of_mulVec_le hx hy hyA
 
 omit [Fintype κ] in
 /-- A dual objective bounded below on a nonempty dual polyhedron attains its infimum
@@ -269,9 +266,7 @@ theorem dotProduct_eq_dotProduct_iff_of_mulVec_le {A : Matrix ι κ K} {b : ι �
     rw [← hyA, ← dotProduct_mulVec, ← dotProduct_sub]; rfl
   rw [eq_comm, ← sub_eq_zero, hgap,
     Finset.sum_eq_zero_iff_of_nonneg fun i _ => mul_nonneg (hy i) (sub_nonneg.2 (hx i))]
-  exact ⟨fun h i => (mul_eq_zero.1 (h i (Finset.mem_univ i))).imp_right fun h' =>
-      (sub_eq_zero.1 h').symm,
-    fun h i _ => (h i).elim (fun h' => by simp [h']) fun h' => by simp [h']⟩
+  simp [mul_eq_zero, sub_eq_zero, eq_comm]
 
 /-- **Affine Farkas lemma**: if the inequality `c ⬝ᵥ x ≤ δ` holds on a nonempty polyhedron
 `A *ᵥ x ≤ b`, then it is implied by a nonnegative combination of the constraints
@@ -309,10 +304,9 @@ theorem exists_isGreatest_isLeast_dotProduct_of_nonneg (A : Matrix ι κ K) (b :
   obtain ⟨y₀, hy₀, hcy₀⟩ := hD
   obtain ⟨x, w, hx, hw, hwM, hxw⟩ :=
     exists_dual_eq_of_bddAbove (fromRows A (-1 : Matrix κ κ K)) (Sum.elim b 0) c
-    ⟨x₀, (fromRows_neg_one_mulVec_le_iff A b x₀).2 ⟨hAx₀, hx₀⟩⟩ ⟨y₀ ⬝ᵥ b, by
-      rintro _ ⟨x, hx, rfl⟩
-      obtain ⟨hAx, hx⟩ := (fromRows_neg_one_mulVec_le_iff A b x).1 hx
-      exact dotProduct_le_dotProduct_of_nonneg_of_mulVec_le hx hAx hy₀ hcy₀⟩
+    ⟨x₀, (fromRows_neg_one_mulVec_le_iff A b x₀).2 ⟨hAx₀, hx₀⟩⟩
+    ⟨y₀ ⬝ᵥ b, fun _ ⟨x, hx, hxc⟩ => ((fromRows_neg_one_mulVec_le_iff A b x).1 hx).elim
+      fun hAx hx => hxc ▸ dotProduct_le_dotProduct_of_nonneg_of_mulVec_le hx hAx hy₀ hcy₀⟩
   obtain ⟨hAx, hx⟩ := (fromRows_neg_one_mulVec_le_iff A b x).1 hx
   have hc : c ≤ (w ∘ Sum.inl) ᵥ* A := fun k => by
     rw [← hwM, vecMul_fromRows, vecMul_neg, vecMul_one, Pi.add_apply, Pi.neg_apply]

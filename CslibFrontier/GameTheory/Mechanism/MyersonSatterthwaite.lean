@@ -143,17 +143,15 @@ private theorem measure_Ioo_pos (hμ : HasValueDensityOn μ f a b) {c d : ℝ}
 theorem measureReal_Ici_pos [IsFiniteMeasure μ] (hμ : HasValueDensityOn μ f a b)
     {t : ℝ} (ht : t ∈ Ioo a b) : 0 < μ.real (Ici t) := by
   rw [measureReal_def]
-  refine ENNReal.toReal_pos ?_ (measure_ne_top μ _)
-  exact ((hμ.measure_Ioo_pos ht.1.le ht.2 le_rfl).trans_le
-    (measure_mono fun x hx => hx.1.le)).ne'
+  exact ENNReal.toReal_pos (((hμ.measure_Ioo_pos ht.1.le ht.2 le_rfl).trans_le
+    (measure_mono fun _ hx => hx.1.le)).ne') (measure_ne_top μ _)
 
 /-- Every interior point `t ∈ (a, b)` has strictly positive lower tail `μ((−∞, t]) > 0`. -/
 theorem measureReal_Iic_pos [IsFiniteMeasure μ] (hμ : HasValueDensityOn μ f a b)
     {t : ℝ} (ht : t ∈ Ioo a b) : 0 < μ.real (Iic t) := by
   rw [measureReal_def]
-  refine ENNReal.toReal_pos ?_ (measure_ne_top μ _)
-  exact ((hμ.measure_Ioo_pos le_rfl ht.1 ht.2.le).trans_le
-    (measure_mono fun x hx => hx.2.le)).ne'
+  exact ENNReal.toReal_pos (((hμ.measure_Ioo_pos le_rfl ht.1 ht.2.le).trans_le
+    (measure_mono fun _ hx => hx.2.le)).ne') (measure_ne_top μ _)
 
 end HasValueDensityOn
 
@@ -396,8 +394,8 @@ private theorem IsExPostEfficient.interimBuyerTrade_eq {M : Mechanism} {μ_s : M
       rw [ae_iff]; simp only [ne_eq, not_not, ofPred_eq_eq_singleton, measure_singleton]
     filter_upwards [hne] with v_s hne
     rcases lt_or_gt_of_ne hne with hlt | hgt
-    · rw [(heff v_b v_s).1 hlt, indicator_of_mem (show v_s ∈ Iic v_b from hlt.le), Pi.one_apply]
-    · rw [(heff v_b v_s).2 hgt, indicator_of_notMem (show v_s ∉ Iic v_b from not_le.2 hgt)]
+    · rw [(heff v_b v_s).1 hlt, indicator_of_mem (s := Iic v_b) hlt.le, Pi.one_apply]
+    · rw [(heff v_b v_s).2 hgt, indicator_of_notMem (s := Iic v_b) (not_le.2 hgt)]
   rw [interimBuyerTrade, integral_congr_ae hae, integral_indicator_one measurableSet_Iic]
 
 /-- Under atomless `μ_b` and ex-post efficiency, the seller's interim trade probability is
@@ -410,8 +408,8 @@ private theorem IsExPostEfficient.interimSellerTrade_eq {M : Mechanism} {μ_b : 
       rw [ae_iff]; simp only [ne_eq, not_not, ofPred_eq_eq_singleton, measure_singleton]
     filter_upwards [hne] with v_b hne
     rcases lt_or_gt_of_ne hne with hlt | hgt
-    · rw [(heff v_b v_s).2 hlt, indicator_of_notMem (show v_b ∉ Ici v_s from not_le.2 hlt)]
-    · rw [(heff v_b v_s).1 hgt, indicator_of_mem (show v_b ∈ Ici v_s from hgt.le), Pi.one_apply]
+    · rw [(heff v_b v_s).2 hlt, indicator_of_notMem (s := Ici v_s) (not_le.2 hlt)]
+    · rw [(heff v_b v_s).1 hgt, indicator_of_mem (s := Ici v_s) hgt.le, Pi.one_apply]
   rw [interimSellerTrade, integral_congr_ae hae, integral_indicator_one measurableSet_Ici]
 
 private theorem measurable_measureReal_Iic (μ : Measure ℝ) [IsFiniteMeasure μ] :
@@ -507,7 +505,7 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
   -- Seller expected payment: E[p_s] = E[v_s 1_{v_s ≤ v_b}] + U_s(b_s) + ∫_{a_s}^{b_s} F_s (1-F_b)
   have hEs : ∫ p, M.sellerPayment p.1 p.2 ∂(μ_b.prod μ_s) =
       (∫ v_s, v_s * μ_b.real (Ici v_s) ∂μ_s) + M.interimSellerUtility μ_b b_s +
-        ∫ t in Ioc a_s b_s, μ_s.real (Iic t) * μ_b.real (Ici t) := by
+        ∫ t in Ioc a_s b_s, μ_b.real (Ici t) * μ_s.real (Iic t) := by
     rw [integral_prod_symm (f := fun p : ℝ × ℝ => M.sellerPayment p.1 p.2) hps]
     have hPae : (fun v_s => M.interimSellerPayment μ_b v_s) =ᵐ[μ_s]
         fun v_s => (v_s * μ_b.real (Ici v_s) + M.interimSellerUtility μ_b b_s) +
@@ -540,6 +538,7 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
     rw [integral_congr_ae hPae, integral_add hi1' hi2,
       integral_add hi1 (integrable_const _), integral_const, probReal_univ, one_smul,
       integral_intervalIntegral_right_eq hs_supp hFb_int]
+    exact congrArg (_ + ·) (setIntegral_congr_fun measurableSet_Ioc fun _ _ => mul_comm _ _)
   -- Relate E[v_b 1_{v_s ≤ v_b}] - E[v_s 1_{v_s ≤ v_b}] to expected gains from trade
   have hGFT : (∫ v_b, v_b * μ_s.real (Iic v_b) ∂μ_b) - (∫ v_s, v_s * μ_b.real (Ici v_s) ∂μ_s) =
       ∫ t in Ioc (min a_b a_s) (max b_b b_s), μ_b.real (Ici t) * μ_s.real (Iic t) := by
@@ -575,8 +574,8 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
       rw [h, integral_indicator measurableSet_Ici, setIntegral_const, smul_eq_mul, mul_comm]
     rw [← h1eq, ← h2eq, ← integral_sub h1int h2int]
     have hsub : (fun p : ℝ × ℝ => (if p.2 ≤ p.1 then p.1 else 0) -
-        (if p.2 ≤ p.1 then p.2 else 0)) = fun p => if p.2 ≤ p.1 then p.1 - p.2 else 0 := by
-      ext p; split_ifs <;> ring
+        (if p.2 ≤ p.1 then p.2 else 0)) = fun p => if p.2 ≤ p.1 then p.1 - p.2 else 0 :=
+      funext fun p => by split_ifs <;> ring
     rw [hsub, integral_gains_from_trade hb_supp hs_supp]
   -- Combine the three integrals over Ioc (min a_b a_s) (max b_b b_s)
   set L := min a_b a_s
@@ -587,31 +586,24 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
       ∫ t in Ioc c d, g t = ∫ t in Ioc L U, (Ioc c d).indicator g t := by
     rw [integral_indicator measurableSet_Ioc, Measure.restrict_restrict measurableSet_Ioc,
       inter_eq_left.2 hsub]
-  have hI_s : ∫ t in Ioc a_s b_s, μ_s.real (Iic t) * μ_b.real (Ici t) =
-      ∫ t in Ioc L U, (Ioc a_s b_s).indicator g t := by
-    rw [show (fun t => μ_s.real (Iic t) * μ_b.real (Ici t)) = g from funext fun _ => mul_comm _ _,
-      hI (Ioc_subset_Ioc (min_le_right a_b a_s) (le_max_right b_b b_s))]
   have hpt : ∀ t ∈ Ioc L U,
       g t - (Ioc a_b b_b).indicator g t - (Ioc a_s b_s).indicator g t =
         - (Ioc (max a_b a_s) (min b_b b_s)).indicator g t := by
     intro t _
     by_cases hta : t ≤ a_s
-    · have hio : μ_s (Iio a_s) = 0 :=
-        measure_mono_null (t := {v | v ∉ Icc a_s b_s})
-          (fun v (hv : v < a_s) (hv' : v ∈ Icc a_s b_s) => not_lt.2 hv'.1 hv) (ae_iff.1 hs_supp)
-      have h0 : μ_s (Iic t) = 0 :=
+    · have h0 : μ_s (Iic t) = 0 :=
         measure_mono_null (fun v hv => lt_or_eq_of_le (hv.trans hta))
-          (measure_union_null hio (measure_singleton a_s))
-      have hg0 : g t = 0 := by simp only [g, measureReal_def, h0, ENNReal.toReal_zero, mul_zero]
-      simp only [indicator_apply, hg0, ite_self, sub_zero, neg_zero]
+          (measure_union_null (measure_mono_null (s := Iio a_s) (t := {v | v ∉ Icc a_s b_s})
+            (fun v hv hv' => not_lt.2 hv'.1 hv) (ae_iff.1 hs_supp)) (measure_singleton a_s))
+      simp only [g, indicator_apply, measureReal_def, h0, ENNReal.toReal_zero, mul_zero,
+        ite_self, sub_zero, neg_zero]
     · push Not at hta
       by_cases htb : b_b < t
       · have h0 : μ_b (Ici t) = 0 :=
           measure_mono_null (t := {v | v ∉ Icc a_b b_b})
-            (fun v (hv : t ≤ v) (hv' : v ∈ Icc a_b b_b) => not_lt.2 hv'.2 (htb.trans_le hv))
-            (ae_iff.1 hb_supp)
-        have hg0 : g t = 0 := by simp only [g, measureReal_def, h0, ENNReal.toReal_zero, zero_mul]
-        simp only [indicator_apply, hg0, ite_self, sub_zero, neg_zero]
+            (fun v (hv : t ≤ v) hv' => not_lt.2 hv'.2 (htb.trans_le hv)) (ae_iff.1 hb_supp)
+        simp only [g, indicator_apply, measureReal_def, h0, ENNReal.toReal_zero, zero_mul,
+          ite_self, sub_zero, neg_zero]
       · push Not at htb
         by_cases h1 : a_b < t <;> by_cases h2 : t ≤ b_s
         · rw [indicator_of_mem (s := Ioc a_b b_b) ⟨h1, htb⟩,
@@ -628,15 +620,14 @@ theorem IsBIC.budget_surplus_eq_of_isExPostEfficient {M : Mechanism}
             indicator_of_notMem (s := Ioc (max a_b a_s) (min b_b b_s))
               fun h => h1 ((le_max_left _ _).trans_lt h.1)]
           ring
-        · exfalso
-          linarith [(le_max_left a_b a_s).trans (hover.trans (min_le_right b_b b_s)),
+        · linarith [(le_max_left a_b a_s).trans (hover.trans (min_le_right b_b b_s)),
             not_lt.mp h1, not_le.mp h2]
-  have hcomb : (∫ t in Ioc L U, g t) - (∫ t in Ioc a_b b_b, g t) -
-      (∫ t in Ioc a_s b_s, μ_s.real (Iic t) * μ_b.real (Ici t)) =
+  have hcomb : (∫ t in Ioc L U, g t) - (∫ t in Ioc a_b b_b, g t) - (∫ t in Ioc a_s b_s, g t) =
       - ∫ t in Ioc (max a_b a_s) (min b_b b_s), g t := by
     have hsub1 : IntegrableOn (fun t => g t - (Ioc a_b b_b).indicator g t) (Ioc L U) :=
       hg_int.sub (hg_int.indicator measurableSet_Ioc)
-    rw [hI (Ioc_subset_Ioc (min_le_left a_b a_s) (le_max_left b_b b_s)), hI_s,
+    rw [hI (Ioc_subset_Ioc (min_le_left a_b a_s) (le_max_left b_b b_s)),
+      hI (Ioc_subset_Ioc (min_le_right a_b a_s) (le_max_right b_b b_s)),
       hI (Ioc_subset_Ioc ((min_le_left _ _).trans (le_max_left _ _))
         ((min_le_left _ _).trans (le_max_left _ _))),
       ← integral_sub hg_int (hg_int.indicator measurableSet_Ioc),
@@ -766,12 +757,8 @@ theorem budget_surplus_uniform_le_neg_one_sixth {M : Mechanism}
       ((volume.restrict (Icc (0 : ℝ) 1)).prod (volume.restrict (Icc 0 1)))) :
     ∫ p, (M.buyerPayment p.1 p.2 - M.sellerPayment p.1 p.2)
         ∂((volume.restrict (Icc (0 : ℝ) 1)).prod (volume.restrict (Icc 0 1))) ≤ -(1 / 6) := by
-  have heq := budget_surplus_uniform_eq hBIC heff hpb hps
-  have hUb : 0 ≤ M.interimBuyerUtility (volume.restrict (Icc 0 1)) 0 :=
-    hIR.1 0 ⟨le_rfl, zero_le_one⟩
-  have hUs : 0 ≤ M.interimSellerUtility (volume.restrict (Icc 0 1)) 1 :=
-    hIR.2 1 ⟨zero_le_one, le_rfl⟩
-  linarith
+  linarith [budget_surplus_uniform_eq hBIC heff hpb hps,
+    hIR.1 0 ⟨le_rfl, zero_le_one⟩, hIR.2 1 ⟨zero_le_one, le_rfl⟩]
 
 /-- On `Uniform[0, 1] × Uniform[0, 1]`, no BIC, interim IR, ex-post efficient bilateral trade
 mechanism with integrable payments is ex-ante weakly budget-balanced. -/
@@ -799,9 +786,8 @@ end Mechanism
   buyerPayment v_b v_s := if v_s ≤ v_b then c else 0
   sellerPayment v_b v_s := if v_s ≤ v_b then c else 0
 
-theorem fixedPrice_isExPostEfficient (c : ℝ) : (fixedPrice c).IsExPostEfficient := by
-  intro v_b v_s
-  exact ⟨fun h => ite_eq_left h.le, fun h => ite_eq_right (not_le.2 h)⟩
+theorem fixedPrice_isExPostEfficient (c : ℝ) : (fixedPrice c).IsExPostEfficient :=
+  fun _ _ => ⟨fun h => ite_eq_left h.le, fun h => ite_eq_right (not_le.2 h)⟩
 
 theorem fixedPrice_isExAnteBudgetBalanced (c : ℝ) (μ_b μ_s : Measure ℝ) :
     (fixedPrice c).IsExAnteBudgetBalanced μ_b μ_s := by

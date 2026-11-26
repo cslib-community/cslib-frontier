@@ -127,8 +127,7 @@ instance [Fintype F] [DecidableEq F] : DecidablePred (IsAffineFun (F := F)) :=
 /-- An affine function is determined by its values at `0` and `1`. -/
 theorem isAffineFun_iff {g : F → F} : IsAffineFun g ↔ ∀ t, g t = (g 1 - g 0) * t + g 0 := by
   refine ⟨fun ⟨a, b, h⟩ t => ?_, fun h => ⟨_, _, h⟩⟩
-  rw [h t, h 1, h 0]
-  ring
+  rw [h t, h 1, h 0]; ring
 
 /-- Affine functions of one variable are the underlying functions of Mathlib's affine maps. -/
 theorem isAffineFun_iff_exists_affineMap {g : F → F} :
@@ -285,12 +284,11 @@ theorem isMultilinear_eval_multilinearExtension [Fintype ι] (g : (ι → Bool) 
 exactly when it evaluates the multilinear extension of its values on the cube. -/
 theorem isMultilinear_iff_eq_eval_multilinearExtension [Fintype ι] {f : (ι → F) → F} :
     IsMultilinear f ↔ f = fun x => eval x (multilinearExtension fun b => f (bitPoint b)) := by
-  refine ⟨fun hf => ?_, fun h => by rw [h]; exact isMultilinear_eval_multilinearExtension _⟩
-  have := IsMultilinear.eq_zero_of_forall_bitPoint
-    (hf.sub (isMultilinear_eval_multilinearExtension fun b => f (bitPoint b))) fun b => by
-      simp only [Pi.sub_apply, eval_multilinearExtension, sub_self]
-  funext x
-  exact sub_eq_zero.mp (congrFun this x)
+  refine ⟨fun hf => funext fun x => sub_eq_zero.mp ?_,
+    fun h => h ▸ isMultilinear_eval_multilinearExtension _⟩
+  exact congrFun (IsMultilinear.eq_zero_of_forall_bitPoint
+    (hf.sub (isMultilinear_eval_multilinearExtension _))
+    fun b => by simp [eval_multilinearExtension]) x
 
 /-- The evaluation of a polynomial of degree at most one in each variable is multilinear. -/
 theorem isMultilinear_eval_of_mem_restrictDegree [Finite ι] {P : MvPolynomial ι F}
@@ -300,8 +298,7 @@ theorem isMultilinear_eval_of_mem_restrictDegree [Finite ι] {P : MvPolynomial �
   unfold lineRestrict
   simp only [eval_eq']
   refine isAffineFun_sum _ fun s hs => IsAffineFun.const_mul ?_ _
-  have key (t : F) := prod_apply_update_of_mem (mem_univ i) (fun j (y : F) => y ^ s j) x t
-  simp only [key]
+  simp only [prod_apply_update_of_mem (mem_univ i) (fun j (y : F) => y ^ s j) x]
   refine IsAffineFun.mul_const ?_ _
   rcases Nat.le_one_iff_eq_zero_or_eq_one.mp ((mem_restrictDegree ι P 1).mp hP s hs i) with h | h
   · simpa [h] using isAffineFun_const (1 : F)
@@ -311,10 +308,9 @@ theorem isMultilinear_eval_of_mem_restrictDegree [Finite ι] {P : MvPolynomial �
 theorem isMultilinear_iff_exists_mem_restrictDegree [Finite ι] {f : (ι → F) → F} :
     IsMultilinear f ↔ ∃ P ∈ restrictDegree ι F 1, f = fun x => eval x P := by
   have := Fintype.ofFinite ι
-  refine ⟨fun hf => ⟨_, multilinearExtension_mem_restrictDegree _,
-    isMultilinear_iff_eq_eval_multilinearExtension.mp hf⟩, ?_⟩
-  rintro ⟨P, hP, rfl⟩
-  exact isMultilinear_eval_of_mem_restrictDegree hP
+  exact ⟨fun hf => ⟨_, multilinearExtension_mem_restrictDegree _,
+      isMultilinear_iff_eq_eval_multilinearExtension.mp hf⟩,
+    fun ⟨_, hP, h⟩ => h ▸ isMultilinear_eval_of_mem_restrictDegree hP⟩
 
 end Multilinear
 
@@ -341,8 +337,7 @@ theorem multilinearityTestRejection_eq (f : (ι → F) → F) :
     multilinearityTestRejection f =
       𝔼 i, (#(wrongPoints f i) : ℝ) / Fintype.card (ι → F) := by
   refine expect_congr rfl fun i _ => ?_
-  rw [Fintype.expect_eq_sum_div_card, wrongPoints, Finset.natCast_card_filter]
-  simp only [ite_not]
+  simp [Fintype.expect_eq_sum_div_card, wrongPoints, Finset.natCast_card_filter, ite_not]
 
 /-- The rejection probability is nonnegative. -/
 theorem multilinearityTestRejection_nonneg (f : (ι → F) → F) :
@@ -400,14 +395,12 @@ theorem isMultilinear_sliceInterpolant {n : ℕ} (t₁ t₂ : F) {g₁ g₂ : (F
       fun t => by ring⟩
   | succ j =>
     have hsucc : lineRestrict (sliceInterpolant t₁ t₂ g₁ g₂) x j.succ = fun t =>
-        lineRestrict g₁ (Fin.tail x) j t +
-          (x 0 - t₁) / (t₂ - t₁) *
-            (lineRestrict g₂ (Fin.tail x) j t - lineRestrict g₁ (Fin.tail x) j t) := by
-      funext t
-      simp only [sliceInterpolant, lineRestrict, Fin.tail_update_succ,
-        update_of_ne (Fin.succ_ne_zero j).symm]
-    rw [hsucc]
-    exact (hg₁ _ j).add (((hg₂ _ j).sub (hg₁ _ j)).const_mul _)
+        lineRestrict g₁ (Fin.tail x) j t + (x 0 - t₁) / (t₂ - t₁) *
+          (lineRestrict g₂ (Fin.tail x) j t - lineRestrict g₁ (Fin.tail x) j t) :=
+      funext fun t => by
+        simp only [sliceInterpolant, lineRestrict, Fin.tail_update_succ,
+          update_of_ne (Fin.succ_ne_zero j).symm]
+    exact hsucc ▸ (hg₁ _ j).add (((hg₂ _ j).sub (hg₁ _ j)).const_mul _)
 
 section Soundness
 
@@ -443,10 +436,8 @@ private theorem exists_two_mul_le_sum (D : F → ℕ) :
     rw [← add_sum_erase _ _ (mem_univ t₁)]
     exact Nat.add_le_add_left
       (by simpa [card_erase_of_mem (mem_univ t₁)] using card_nsmul_le_sum _ D (D t₂) h₂) _
-  have hq : 2 ≤ Fintype.card F := Fintype.one_lt_card
-  obtain ⟨m, hm⟩ : ∃ m, Fintype.card F = m + 2 := ⟨_, (Nat.sub_add_cancel hq).symm⟩
+  obtain ⟨m, hm⟩ := Nat.exists_eq_add_of_le' (Fintype.one_lt_card (α := F))
   rw [hm] at hsum ⊢
-  rw [show m + 2 - 1 = m + 1 by omega] at hsum
   have h12 : D t₁ ≤ D t₂ := h₁ t₂ (mem_univ _)
   calc (m + 2) * (D t₁ + D t₂)
       = 2 * D t₁ + m * D t₁ + (m + 2) * D t₂ := by ring
@@ -538,8 +529,8 @@ theorem exists_isMultilinear_hammingDist_div_le (f : (Fin n → F) → F) :
   refine ⟨g, hg, ?_⟩
   have hcard : (0 : ℝ) < Fintype.card (Fin n → F) := by exact_mod_cast Fintype.card_pos
   rcases Nat.eq_zero_or_pos n with rfl | hn
-  · have : hammingDist f g = 0 := by simpa using hdist
-    simp [this]
+  · simp only [Finset.univ_eq_empty, Finset.sum_empty, nonpos_iff_eq_zero] at hdist
+    simp only [hdist, Nat.cast_zero, zero_div, zero_mul, le_refl]
   rw [multilinearityTestRejection_eq, Fintype.expect_eq_sum_div_card, Fintype.card_fin,
     ← sum_div, div_le_iff₀ hcard]
   have hn' : (n : ℝ) ≠ 0 := by exact_mod_cast hn.ne'

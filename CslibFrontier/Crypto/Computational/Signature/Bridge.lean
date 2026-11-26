@@ -200,17 +200,10 @@ theorem Forger.eval_eufCmaExperiment_restrict_toTyped
   rw [← eval_runLogWith_restrict S adm (adversary n pk) sk, PMF.bind_map]
   congr 1 with ⟨⟨msg, sig⟩, log⟩ : 1
   -- On an admissible message, the filtered log names it exactly when the full log does.
-  have hfilter : (adm msg && !((log.filter (fun p => adm p.1)).map Prod.fst).contains msg) =
-      (adm msg && !(log.map Prod.fst).contains msg) := by
-    cases hadm : adm msg
-    · rfl
-    · simp only [Bool.true_and, List.contains_eq_mem]
-      refine congrArg (!·) (decide_eq_decide.mpr ?_)
-      simp only [List.mem_map, List.mem_filter]
-      exact ⟨fun ⟨a, ⟨ha, _⟩, h⟩ => ⟨a, ha, h⟩, fun ⟨a, ha, h⟩ => ⟨a, ⟨ha, h ▸ hadm⟩, h⟩⟩
   simp only [Function.comp_apply, Signature.Scheme.restrict_verify, freshMessage,
-    List.contains_reverse, hfilter]
-  cases adm msg <;> cases S.verify pk msg sig <;> simp
+    List.contains_reverse]
+  congr 1
+  cases hadm : adm msg <;> cases S.verify pk msg sig <;> simp [List.contains_eq_mem, hadm]
 
 namespace SignatureScheme
 
@@ -361,9 +354,9 @@ theorem indexedEufCmaGame_eq_eufCmaExperiment (S : IndexedSignatureScheme)
           rfl]
   rw [PMF.bind_map]
   congr 1 with ⟨⟨u, msg, sig⟩, log⟩ : 1
+  have hcap : decide (u < (S.toScheme n).capacity) = decide (u < S.capacity n) := rfl
   simp only [Function.comp_apply, Prod.map, id, toScheme_verify, freshMessage,
-    List.contains_reverse]
-  rw [show decide (u < (S.toScheme n).capacity) = decide (u < S.capacity n) from rfl]
+    List.contains_reverse, hcap]
   cases S.verify pk u msg sig <;> simp
 
 /-- Running the typed counter forger against the logging counter signer, and keeping only the
@@ -405,29 +398,24 @@ private theorem eval_runLogWith_toCounter (S : IndexedSignatureScheme) (adversar
     · rw [ite_eq_left hcap] at h
       simp only [interp_norm, ProbOracleComp.query] at h
       dsimp only [OracleComp.sumHandler, StateT.run] at h
-      simp only [ProbOracleComp.logOracle, Signer.counter, hcap, ite_true, ProbComp.eval_map,
+      simp only [ProbOracleComp.logOracle, Signer.counter, hcap, ↓reduceIte, ProbComp.eval_map,
         PMF.monad_map_eq_map, PMF.map_comp, PMF.mem_support_map_iff, Function.comp_apply,
         Prod.mk.injEq] at h
-      obtain ⟨σ, -, -, rfl, rfl⟩ := h
+      obtain ⟨_, -, -, rfl, rfl⟩ := h
       simp
-    · rw [ite_eq_right hcap] at h
-      simp only [interp_norm] at h
-      simp_all [PMF.monad_pure_eq_pure]
+    · simp_all [interp_norm, PMF.monad_pure_eq_pure]
   case step =>
     rintro q ⟨j, log⟩ (rfl : j = log.length)
     dsimp only
     rw [Forger.counterRelay_run]
     by_cases hcap : log.length < S.capacity n
     · rw [ite_eq_left hcap]
-      simp only [interp_norm, ProbOracleComp.query, counterSigningOracle, hcap, ite_true]
+      simp only [interp_norm, ProbOracleComp.query, counterSigningOracle, hcap, ↓reduceIte]
       dsimp only [OracleComp.sumHandler, StateT.run]
-      simp only [ProbOracleComp.logOracle, Signer.counter, hcap, ite_true, ProbComp.eval_map,
+      simp only [ProbOracleComp.logOracle, Signer.counter, hcap, ↓reduceIte, ProbComp.eval_map,
         ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_map_eq_map, PMF.map_comp]
-      congr 1
-      funext σ
-      simp [List.map_append]
-    · rw [ite_eq_right hcap]
-      simp [counterSigningOracle, hcap, PMF.monad_pure_eq_pure]
+      exact congrArg _ (funext fun _ => by simp [List.map_append])
+    · simp [counterSigningOracle, hcap, PMF.monad_pure_eq_pure]
 
 /-- At each parameter `n`, the word-level counter EUF-CMA game is the typed counter experiment of
 `S.toScheme n` played by `adversary.toCounter (S.capacity n) n`. -/
@@ -449,9 +437,9 @@ theorem counterEufCmaGame_eq_counterEufCmaExperiment (S : IndexedSignatureScheme
           (fun (a, log) => (a, (log.map Prod.fst).reverse))).bind post := by
         rw [PMF.bind_map]
         congr 1 with ⟨⟨m, u, σ⟩, log⟩ : 1
+        have hcap : decide (u < (S.toScheme n).capacity) = decide (u < S.capacity n) := rfl
         simp only [Function.comp_apply, post, toScheme_verify, freshMessage,
-          List.contains_reverse]
-        rw [show decide (u < (S.toScheme n).capacity) = decide (u < S.capacity n) from rfl]
+          List.contains_reverse, hcap]
         cases S.verify pk u m σ <;> simp
     _ = _ := by
         rw [eval_runLogWith_toCounter, PMF.bind_map]

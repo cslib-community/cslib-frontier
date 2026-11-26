@@ -93,10 +93,9 @@ private theorem mul_eq_mul_of_divInt_eq {r t : ℤ} {q : ℚ} (ht : t ≠ 0)
   exact h.symm
 
 theorem height_inv {q : ℚ} (hq : q ≠ 0) : height q⁻¹ = height q := by
-  have hnum_nz : q.num ≠ 0 := Rat.num_ne_zero.mpr hq
   have hinv_num : (q⁻¹).num.natAbs = q.den := by
-    rw [Rat.num_inv, Int.natAbs_mul, Int.natAbs_sign_of_ne_zero hnum_nz, Int.natAbs_natCast,
-      one_mul]
+    rw [Rat.num_inv, Int.natAbs_mul, Int.natAbs_sign_of_ne_zero (Rat.num_ne_zero.mpr hq),
+      Int.natAbs_natCast, one_mul]
   rw [height, height, hinv_num, Rat.den_inv_of_ne_zero hq, max_comm]
 
 theorem height_divInt_le (a b : ℤ) (hb : b ≠ 0) :
@@ -123,9 +122,8 @@ private theorem mul_eq_mul_of_modEq_of_le {M N D : ℕ} {a b c d : ℤ}
     (hmod : a * b ≡ c * d [ZMOD M]) (hM : 2 * N * D < M)
     (h₁ : a.natAbs * b.natAbs ≤ N * D) (h₂ : c.natAbs * d.natAbs ≤ N * D) : a * b = c * d := by
   refine sub_eq_zero.mp (Int.eq_zero_of_dvd_of_natAbs_lt_natAbs hmod.symm.dvd ?_)
-  have := Int.natAbs_sub_le (a * b) (c * d)
-  rw [Int.natAbs_mul, Int.natAbs_mul] at this
-  rw [Int.natAbs_natCast]; linarith
+  linarith [Int.natAbs_sub_le (a * b) (c * d), Int.natAbs_mul a b, Int.natAbs_mul c d,
+    Int.natAbs_natCast M]
 
 /-- Uniqueness of modular rational recovery: if `a₁ * b₂ ≡ a₂ * b₁ [ZMOD M]` with
 `|aᵢ| ≤ N`, `0 < bᵢ ≤ D`, and `2 * N * D < M`, then `(a₁ : ℚ) / b₁ = (a₂ : ℚ) / b₂`. -/
@@ -202,8 +200,7 @@ private theorem stepInv_step {M N : ℕ} {u r0 t0 r1 t1 : ℤ}
       r1_lt := Int.emod_lt_of_pos r0 hr1_pos
       mod0 := hinv.mod1
       mod1 := by
-        rw [heq]
-        simpa only [sub_mul, mul_assoc] using hinv.mod0.sub ((hinv.mod1).mul_left (r0 / r1))
+        simpa only [heq, sub_mul, mul_assoc] using hinv.mod0.sub (hinv.mod1.mul_left (r0 / r1))
       t_sign := by linarith
       t1_ne := fun ht2 => by rw [ht2, mul_zero] at hprod; omega
       bezout := ⟨-s, by linear_combination hs1, by rw [heq]; linear_combination -hs2⟩ }
@@ -270,12 +267,10 @@ theorem reconstruct_eq_some {M N D : ℕ} {u : ℤ} {q : ℚ}
   dsimp only at hq
   split_ifs at hq with hM hcond
   have hMpos : 0 < M := Nat.pos_of_ne_zero hM
-  have hspec := reconstructLoop_spec (N := N) (initial_stepInv hMpos u)
-  dsimp only at hspec
+  obtain ⟨hinv, hrN, -⟩ := reconstructLoop_spec (N := N) (initial_stepInv hMpos u)
   set st := reconstructLoop N (M : ℤ) 0 (u % (M : ℤ)) 1
   rcases of_decide_eq_true hcond with ⟨htD, htM⟩
   have hqr : Rat.divInt st.r1 st.t1 = q := Option.some.inj hq
-  obtain ⟨hinv, hrN, -⟩ := hspec
   have hden : q.den ∣ st.t1.natAbs := Int.natCast_dvd.mp (hqr ▸ Rat.den_dvd st.r1 st.t1)
   -- Cancel the unit `t1` from `q.num * t1 = r1 * q.den ≡ t1 * u * q.den`.
   have hq_mod := Int.ModEq.cancel_right_div_gcd (Int.natCast_pos.mpr hMpos)
@@ -283,7 +278,7 @@ theorem reconstruct_eq_some {M N D : ℕ} {u : ℤ} {q : ℚ}
       rw [mul_eq_mul_of_divInt_eq hinv.t1_ne hqr]
       calc st.r1 * q.den ≡ st.t1 * u * q.den [ZMOD M] := hinv.mod1.mul_right _
         _ = u * q.den * st.t1 := by ring
-  rw [show Int.gcd M st.t1 = 1 from htM.symm, Nat.cast_one, Int.ediv_one] at hq_mod
+  rw [Int.gcd, Int.natAbs_natCast, htM.symm, Nat.cast_one, Int.ediv_one] at hq_mod
   subst hqr
   exact ⟨hMpos, (natAbs_num_divInt_le _ _ hinv.t1_ne).trans (by have := hinv.r1_nonneg; omega),
     (den_divInt_le _ _ hinv.t1_ne).trans htD, Nat.Coprime.coprime_dvd_left hden htM, hq_mod⟩
@@ -299,10 +294,8 @@ theorem reconstruct_of_eq {M N D : ℕ} {u : ℤ} {q : ℚ}
   have hM0 : (M : ℤ) ≠ 0 := Int.natCast_ne_zero.mpr hMpos.ne'
   unfold reconstruct
   simp only [hMpos.ne', ↓reduceIte]
-  have hspec := reconstructLoop_spec (N := N) (initial_stepInv hMpos u)
-  dsimp only at hspec
+  obtain ⟨hinv, hrN, hcase⟩ := reconstructLoop_spec (N := N) (initial_stepInv hMpos u)
   set st := reconstructLoop N (M : ℤ) 0 (u % (M : ℤ)) 1
-  rcases hspec with ⟨hinv, hrN, hcase⟩
   have hmod_rt : q.num * st.t1 ≡ (q.den : ℤ) * st.r1 [ZMOD M] :=
     calc q.num * st.t1 ≡ u * q.den * st.t1 [ZMOD M] := hmod.mul_right _
       _ = q.den * (st.t1 * u) := by ring
@@ -335,16 +328,15 @@ theorem reconstruct_of_eq {M N D : ℕ} {u : ℤ} {q : ℚ}
         -- `x` and `y` have opposite signs, since otherwise `|q.num| ≥ r0 > N`.
         have hxy : x * y < 0 := by
           by_contra hxy
-          have h := natAbs_add_of_mul_nonneg (a := x * st.r0) (b := y * st.r1) (by
-            rw [mul_mul_mul_comm]
-            exact mul_nonneg (not_lt.mp hxy) (mul_nonneg hinv.r0_pos.le hinv.r1_nonneg))
+          have h := natAbs_add_of_mul_nonneg (a := x * st.r0) (b := y * st.r1)
+            (mul_mul_mul_comm x st.r0 y st.r1 ▸
+              mul_nonneg (not_lt.mp hxy) (mul_nonneg hinv.r0_pos.le hinv.r1_nonneg))
           rw [← ha, Int.natAbs_mul, Int.natAbs_mul] at h
           have := Nat.le_mul_of_pos_left st.r0.natAbs (Int.natAbs_pos.mpr hx0)
           omega
         -- Hence `x * t0` and `y * t1` have the same sign, so `|t1| ≤ q.den ≤ D`.
-        have h := natAbs_add_of_mul_nonneg (a := x * st.t0) (b := y * st.t1) (by
-          rw [mul_mul_mul_comm]
-          exact (mul_pos_of_neg_of_neg hxy ht01).le)
+        have h := natAbs_add_of_mul_nonneg (a := x * st.t0) (b := y * st.t1)
+          (mul_mul_mul_comm x st.t0 y st.t1 ▸ (mul_pos_of_neg_of_neg hxy ht01).le)
         rw [← hb, Int.natAbs_natCast, Int.natAbs_mul, Int.natAbs_mul] at h
         have := Nat.le_mul_of_pos_left st.t1.natAbs
           (Int.natAbs_pos.mpr (right_ne_zero_of_mul hxy.ne))
@@ -383,16 +375,14 @@ theorem reconstructPi_of_eq {k : ℕ} {m : Fin k → ℕ} (hcop : Pairwise (Nat.
     (hres : ∀ i, (q.num : ZMod (m i)) = res i * (q.den : ZMod (m i))) :
     reconstructPi m hcop res N D = some q := by
   let M := ∏ i, m i
-  have : NeZero M := ⟨by have : 0 < M := Nat.zero_lt_of_lt hM; omega⟩
+  have : NeZero M := ⟨(Nat.zero_lt_of_lt hM).ne'⟩
   let uZ : ZMod M := (ZMod.prodEquivPi m hcop).symm res
-  have hcopM : Nat.Coprime q.den M := Nat.Coprime.prod_right fun i _ => hcop_den i
-  have hcast : (q.num : ZMod M) = (uZ.val : ℤ) * (q.den : ZMod M) := by
-    rw [Int.cast_natCast, ZMod.natCast_zmod_val]
-    apply (ZMod.prodEquivPi m hcop).injective
-    ext i
-    rw [map_mul, map_intCast, map_natCast, RingEquiv.apply_symm_apply]
-    exact hres i
-  exact reconstruct_of_eq hN hD hM hcopM
+  have hcast : (q.num : ZMod M) = (uZ.val : ℤ) * (q.den : ZMod M) :=
+    (ZMod.prodEquivPi m hcop).injective <| by
+      rw [Int.cast_natCast, ZMod.natCast_zmod_val, map_mul, map_intCast, map_natCast,
+        RingEquiv.apply_symm_apply]
+      exact funext hres
+  exact reconstruct_of_eq hN hD hM (Nat.Coprime.prod_right fun i _ => hcop_den i)
     ((ZMod.intCast_eq_intCast_iff _ _ M).mp (by simpa using hcast))
 
 end CRTReconstruction

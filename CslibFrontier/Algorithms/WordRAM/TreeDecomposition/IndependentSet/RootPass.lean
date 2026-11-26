@@ -146,8 +146,7 @@ theorem rootPassProg_spec {w : ℕ} (args : RootPassArgs) {inst : MWISInstance}
       args.tbl0Len * (args.bag0Len * (2 * args.bag0Len + 1) + args.bag0Len * 2 + 1) := by
   let stepCost := args.bag0Len * (2 * args.bag0Len + 1) + args.bag0Len * 2 + 1
   have hnil : HoldsIn args.bag0Ptr [] s := HoldsIn.nil (by have := hL0.1; omega)
-  have hL0_lt_wt : ∀ u ∈ L0, u < inst.weights.length := by
-    rw [inst.weights_len]; exact hL0_lt
+  have hL0_lt_wt : ∀ u ∈ L0, u < inst.weights.length := inst.weights_len.symm ▸ hL0_lt
   suffices ∀ rem curC,
       curC + rem = args.tbl0Len →
       (Memory.spec w).ValidHistory s
@@ -165,13 +164,10 @@ theorem rootPassProg_spec {w : ℕ} (args : RootPassArgs) {inst : MWISInstance}
     exact ⟨validHistory_bind_step hv_run (validHistory_pure w _ _), rootPassProg_state args s,
       by rwa [StateTransitionSpec.clientResult_bind],
       by rwa [memoryCost_bind', memoryCost_pure, Nat.add_zero]⟩
-  intro rem
-  induction rem with
-  | zero =>
-    intro curC _
-    exact ⟨validHistory_pure w s _, rfl, by simp [iterate, memoryCost_pure]⟩
+  intro rem curC hsum
+  induction rem generalizing curC with
+  | zero => exact ⟨validHistory_pure w s _, rfl, by simp [iterate, memoryCost_pure]⟩
   | succ rem ih =>
-    intro curC hsum
     let bCur := rootPassInst inst.adj inst.wt L0 arr0 curC
     have hcur_lt : curC < args.tbl0Len := by omega
     have hcur_tbl : curC < tbl0.length := by omega
@@ -210,18 +206,16 @@ theorem rootPassProg_spec {w : ℕ} (args : RootPassArgs) {inst : MWISInstance}
     have hc_step : memoryCost (rootPassStep (args, ⟨curC, bCur⟩)) s ≤ stepCost := by
       unfold rootPassStep
       dsimp only
-      rw [memoryCost_bind', memoryCost_read,
-        show (Memory.spec 0).clientState s (Memory.read _) = s from rfl,
-        show (Memory.spec 0).clientResult s (Memory.read _) = s.mem _ from rfl,
-        memoryCost_bind', hst_ind, hr_ind,
-        memoryCost_bind', hst_fw, memoryCost_pure]
-      dsimp only [stepCost]
+      rw [memoryCost_bind', memoryCost_read]
+      change 1 + memoryCost _ s ≤ stepCost
+      rw [memoryCost_bind', hst_ind, hr_ind, memoryCost_bind', hst_fw, memoryCost_pure]
       omega
     obtain ⟨hv_rem, hr_rem, hc_rem⟩ := ih (curC + 1) (by omega)
     dsimp only [iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_⟩
-    · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step]
-      rwa [show curC + (rem + 1) = curC + 1 + rem by omega]
+    · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step, ← Nat.add_assoc,
+        Nat.add_right_comm]
+      exact hr_rem
     · rw [memoryCost_bind', hst_step, hres_step]
       calc memoryCost (rootPassStep (args, ⟨curC, bCur⟩)) s +
             memoryCost

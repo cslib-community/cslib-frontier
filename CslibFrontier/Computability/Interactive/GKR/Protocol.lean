@@ -76,13 +76,9 @@ variable {F : Type} [Field F]
 /-- The line through `y` (at `0`) and `w` (at `1`). -/
 def line {k : ℕ} (y w : Fin k → F) (t : F) : Fin k → F := fun j => y j + t * (w j - y j)
 
-theorem line_zero {k : ℕ} (y w : Fin k → F) : line y w 0 = y := by
-  funext
-  simp [line]
+theorem line_zero {k : ℕ} (y w : Fin k → F) : line y w 0 = y := funext fun _ => by simp [line]
 
-theorem line_one {k : ℕ} (y w : Fin k → F) : line y w 1 = w := by
-  funext
-  simp [line]
+theorem line_one {k : ℕ} (y w : Fin k → F) : line y w 1 = w := funext fun _ => by simp [line]
 
 /-- The multilinear extension of `W`, restricted to the line through `y` and `w`: a polynomial of
 degree at most `k` in the line parameter. -/
@@ -232,9 +228,9 @@ theorem lineStep_complete (W : (Fin (C.width i) → Bool) → F) :
       ((C.mem_endLang i W x).mp hxw).symm.trans (C.combine_restrictLine i W x).symm⟩
   rw [PMF.toOuterMeasure_bind_apply]
   refine Probability.PMF.tsum_mul_le_of_forall_le _ fun t => le_of_eq ?_
-  refine (PMF.toOuterMeasure_pure_apply _ _).trans (ite_eq_right fun h => h ⟨?_, ?_⟩)
-  · exact (C.lineStep_outputOn i W x _ _).trans (ite_eq_left hacc)
-  · exact (eval_restrictLine _ _ W t).symm
+  refine (PMF.toOuterMeasure_pure_apply _ _).trans (ite_eq_right fun h =>
+    h ⟨(C.lineStep_outputOn i W x _ _).trans (ite_eq_left hacc),
+      (eval_restrictLine _ _ W t).symm⟩)
 
 /-- **The line step is round-by-round sound** with error `width i / |F|`: a false last sumcheck
 claim forces a line polynomial other than the true restriction, which agrees with it at a random
@@ -252,9 +248,8 @@ theorem lineStep_rbrSound (W : (Fin (C.width i) → Bool) → F) :
     dsimp only [lineStep] at hS ⊢
     by_cases hacc : C.lineAccepts i x q
     · set q' := restrictLine x.left x.right W
-      have hne : q ≠ q' := fun h => hS <| by
-        rw [C.mem_endLang, ← C.combine_restrictLine i W x]
-        exact (h ▸ hacc.2).symm
+      have hne : q ≠ q' := fun h => hS <|
+        (C.mem_endLang i W x).mpr ((h ▸ hacc.2).trans (C.combine_restrictLine i W x)).symm
       rw [ProbComp.eval_uniform]
       exact Probability.PMF.toOuterMeasure_uniformOfFintype_le_of_eval_eq hne hacc.1
         (natDegree_restrictLine_le _ _ W) fun _ ht => (ht.resolve_left hS).2
@@ -311,10 +306,8 @@ theorem mem_language_rel_zero (W : (Fin (C.width i) → Bool) → F) (x : LayerC
     x.claim ∈ language (Sumcheck.rel (C.summand i W x.point) 0) ↔
       x ∈ C.layerLang (i + 1) (C.step i W) := by
   have hpoint (b : Fin (C.sumcheckVars i - 0) → Bool) :
-      Sumcheck.point x.claim.challenges b = bitPoint (R := F) b := by
-    funext
-    simp only [Sumcheck.point, Nat.not_lt_zero, dite_false, bitPoint, bitVal]
-    rfl
+      Sumcheck.point x.claim.challenges b = bitPoint (R := F) b :=
+    funext fun _ => by simp [Sumcheck.point, bitPoint, bitVal]
   simp only [language, Sumcheck.rel, Sumcheck.partialSum, hpoint, layerLang, Set.mem_ofPred_eq,
     exists_const, ← C.sum_eval_summand i W x.point]
   rfl
@@ -424,10 +417,10 @@ theorem toOuterMeasure_eval_eq_zero_le {k d : ℕ} {p : MvPolynomial (Fin k) F} 
 omit [DecidableEq F] in
 omit [Fintype F] [DecidableEq F] in
 theorem totalDegree_multilinearExtension_sub_le {k : ℕ} (D E : (Fin k → Bool) → F) :
-    (multilinearExtension D - multilinearExtension E).totalDegree ≤ k := by
-  refine (totalDegree_sub _ _).trans (max_le ?_ ?_)
-  · simpa using totalDegree_multilinearExtension_le (R := F) D
-  · simpa using totalDegree_multilinearExtension_le (R := F) E
+    (multilinearExtension D - multilinearExtension E).totalDegree ≤ k :=
+  (totalDegree_sub _ _).trans <| max_le
+    ((totalDegree_multilinearExtension_le D).trans_eq (Fintype.card_fin k))
+    ((totalDegree_multilinearExtension_le E).trans_eq (Fintype.card_fin k))
 
 omit [Fintype F] [DecidableEq F] in
 /-- Distinct functions on the cube have distinct multilinear extensions. -/
@@ -464,10 +457,7 @@ theorem outputStep_rbrSound (x : (Fin (C.width 0) → Bool) → F) :
     simp only [← sub_eq_zero (a := eval _ (multilinearExtension D)), ← eval_sub]
     exact toOuterMeasure_eval_eq_zero_le (multilinearExtension_sub_ne_zero hD)
       (totalDegree_multilinearExtension_sub_le _ _)
-  · rintro hS ⟨y, hy, hout⟩
-    rw [outputStep_outputOn] at hout
-    obtain rfl := Option.some.inj hout
-    exact hS hy.symm
+  · exact fun hS ⟨_, hy, hout⟩ => hS (Option.some.inj hout ▸ hy).symm
 
 omit [Fintype F] in
 /-- **The input step is perfectly complete.** -/
@@ -476,18 +466,16 @@ theorem inputStep_complete (x : (Fin (C.width 0) → Bool) → F) :
   intro y w hyw
   rw [Reduction.run, World.plain_eval_execute, PMF.toOuterMeasure_map_apply]
   simp only [inputStep, runStrategy, plainLaw_bind, plainLaw_pure, PMF.pure_bind]
-  refine le_of_eq ((PMF.toOuterMeasure_pure_apply _ _).trans
-    (ite_eq_right fun h => h ⟨?_, trivial⟩))
-  exact ite_eq_left hyw
+  exact le_of_eq ((PMF.toOuterMeasure_pure_apply _ _).trans
+    (ite_eq_right fun h => h ⟨ite_eq_left hyw, trivial⟩))
 
 omit [Fintype F] in
 /-- **The input step is round-by-round sound** without error. -/
 theorem inputStep_rbrSound (x : (Fin (C.width 0) → Bool) → F) :
     (C.inputStep x).verifier.RbrSound (C.layerLang 0 x) Set.univ () := by
-  refine ⟨fun y _ => y ∈ C.layerLang 0 x, fun y hy h => hy h, fun y hS ⟨y', _, hout⟩ => hS ?_⟩
-  by_contra h
-  simp only [layerLang, Set.mem_ofPred_eq] at h
-  simp [Verifier.outputOn, inputStep, h] at hout
+  refine ⟨fun y _ => y ∈ C.layerLang 0 x, fun y hy h => hy h, fun y hS ⟨_, _, hout⟩ => ?_⟩
+  simp only [layerLang, Set.mem_ofPred_eq] at hS
+  simp [Verifier.outputOn, inputStep, hS] at hout
 
 /-! ### The protocol -/
 
@@ -565,8 +553,7 @@ theorem sum_descendError :
         ((C.sumcheckVars i : ℝ≥0∞) * (2 / Fintype.card F) + C.width i / Fintype.card F)
   | 0 => rfl
   | m + 1 => by
-    change PerChallenge.sum (C.layerSpec m ++ C.descendSpec m)
-      (PerChallenge.append _ _ (C.layerError m) (C.descendError m)) = _
+    dsimp only [descendSpec, descendError]
     rw [PerChallenge.sum_append, sum_layerError, sum_descendError m, Finset.sum_range_succ,
       add_comm]
 

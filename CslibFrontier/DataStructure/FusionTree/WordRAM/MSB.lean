@@ -111,11 +111,8 @@ private theorem guardedDifference_guard {s z : ℕ} (hz : z < 2 ^ s) (i : Fin s)
     decide_eq_true (show s < s + 1 by omega), Bool.true_and] at he
   rw [he, Nat.testBit_eq_decide_div_mod_eq]
   by_cases h : 2 ^ i.val ≤ z
-  · have hd : (2 ^ s + z - 2 ^ i.val) / 2 ^ s = 1 :=
-      Nat.div_eq_of_lt_le (by omega) (by omega)
-    simp [hd, h]
-  · have hd : 2 ^ s + z - 2 ^ i.val < 2 ^ s := by omega
-    simp [Nat.div_eq_of_lt hd, h]
+  · simp [(Nat.div_eq_of_lt_le (by omega) (by omega) : (2 ^ s + z - 2 ^ i.val) / 2 ^ s = 1), h]
+  · simp [Nat.div_eq_of_lt (by omega : 2 ^ s + z - 2 ^ i.val < 2 ^ s), h]
 
 private theorem guards_eq (s : ℕ) :
     guards s = positionMask (fun i : Fin s => s + (s + 1) * i.val) := by
@@ -128,10 +125,8 @@ does not borrow between fields and no correctness oracle is a hypothesis. -/
 private theorem powerFlags_eq {s z : ℕ} (hz : z < 2 ^ s) :
     powerFlags s z =
       packRadix (2 ^ (s + 1)) s (fun i => (decide (2 ^ i ≤ z)).toNat) := by
-  have hinj : Function.Injective (fun i : Fin s => s + (s + 1) * i.val) := by
-    intro i j h
-    apply Fin.ext
-    exact Nat.eq_of_mul_eq_mul_left (by omega) (Nat.add_left_cancel h)
+  have hinj : Function.Injective (fun i : Fin s => s + (s + 1) * i.val) := fun _ _ h =>
+    Fin.ext (Nat.eq_of_mul_eq_mul_left (by omega) (Nat.add_left_cancel h))
   rw [powerFlags, guards_eq, positionMask, Nat.and_sum_two_pow _ hinj]
   simp only [guardedDifference_guard hz, Nat.shiftRight_eq_div_pow]
   have he : (∑ i : Fin s,
@@ -158,19 +153,13 @@ theorem smallMSB_eq_log2 {s z : ℕ} (hz0 : 0 < z) (hz : z < 2 ^ s) :
   have hl : z.log2 < s := (Nat.log2_lt (by omega)).mpr hz
   have hsum : (∑ i ∈ Finset.range s, (decide (2 ^ i ≤ z)).toNat) = z.log2 + 1 := by
     calc
-      _ = ∑ i ∈ Finset.range s, if i < z.log2 + 1 then 1 else 0 := by
-        apply Finset.sum_congr rfl
-        intro i _
-        simp only [← Nat.le_log2 (n := z) (by omega)]
-        by_cases hi : i ≤ z.log2 <;>
-          simp [hi, show (i < z.log2 + 1) ↔ i ≤ z.log2 by omega]
+      _ = ∑ i ∈ Finset.range s, if i < z.log2 + 1 then 1 else 0 :=
+        Finset.sum_congr rfl fun i _ => by
+          simp only [← Nat.le_log2 (n := z) (by omega), ← Nat.lt_succ_iff]
+          by_cases hi : i < z.log2 + 1 <;> simp [hi]
       _ = z.log2 + 1 := by
-        rw [← Finset.sum_filter]
-        have he : (Finset.range s).filter (fun i => i < z.log2 + 1) =
-            Finset.range (z.log2 + 1) := by
-          ext i
-          simp only [Finset.mem_filter, Finset.mem_range]
-          omega
+        have he : (Finset.range s).filter (· < z.log2 + 1) = Finset.range (z.log2 + 1) :=
+          Finset.ext fun _ => by simp only [Finset.mem_filter, Finset.mem_range]; omega
         simp [he]
   rw [smallMSB, powerCount_eq (by omega) hz, hsum, Nat.add_sub_cancel]
 
@@ -200,12 +189,9 @@ def clusterSummary (s x : ℕ) : ℕ :=
 
 private theorem lowMask_eq (s : ℕ) :
     positionMask (fun i : Fin s => i.val) = 2 ^ s - 1 := by
-  apply Nat.eq_of_testBit_eq
-  intro k
-  apply Bool.eq_iff_iff.mpr
+  refine Nat.eq_of_testBit_eq fun k => Bool.eq_iff_iff.mpr ?_
   rw [positionMask_testBit _ (fun _ _ h => Fin.ext h), Nat.testBit_two_pow_sub_one]
-  simp only [decide_eq_true_eq]
-  exact ⟨fun ⟨i, hi⟩ => hi ▸ i.isLt, fun hk => ⟨⟨k, hk⟩, rfl⟩⟩
+  simpa only [decide_eq_true_eq] using ⟨fun ⟨i, hi⟩ => hi ▸ i.isLt, fun hk => ⟨⟨k, hk⟩, rfl⟩⟩
 
 private theorem compressionShift_add {s : ℕ} (_hs : 0 < s) (i j : Fin s) :
     (s - 1 + i.val * s) + compressionShift s j.val + j.val * s =
@@ -222,10 +208,8 @@ private theorem compression_diagonal {s : ℕ} (hs : 0 < s) (i : Fin s) :
   omega
 
 private theorem markerPosition_injective {s : ℕ} (hs : 0 < s) :
-    Function.Injective (fun i : Fin s => s - 1 + i.val * s) := by
-  intro i j h
-  apply Fin.ext
-  exact Nat.eq_of_mul_eq_mul_right hs (Nat.add_left_cancel h)
+    Function.Injective (fun i : Fin s => s - 1 + i.val * s) :=
+  fun _ _ h => Fin.ext (Nat.eq_of_mul_eq_mul_right hs (Nat.add_left_cancel h))
 
 private theorem compression_injective {s : ℕ} (hs : 0 < s) :
     Function.Injective (fun p : Fin s × Fin s =>
@@ -242,8 +226,7 @@ private theorem compression_injective {s : ℕ} (hs : 0 < s) :
 
 private theorem clusterMarkers_mask (s x : ℕ) :
     clusterMarkers s x &&& clusterMask s = clusterMarkers s x := by
-  apply Nat.eq_of_testBit_eq
-  intro k
+  refine Nat.eq_of_testBit_eq fun k => ?_
   simp only [clusterMarkers, Nat.testBit_land, Nat.testBit_lor, Nat.testBit_xor]
   cases x.testBit k <;> cases (clusterMask s).testBit k <;>
     cases (clusterMask s - (x ^^^ (x &&& clusterMask s))).testBit k <;> rfl
@@ -259,12 +242,10 @@ private theorem packed_testBit {e n i j : ℕ} (a : ℕ → ℕ)
 private theorem packed_ext {e n a b : ℕ} (he : 0 < e)
     (ha : a < 2 ^ (e * n)) (hb : b < 2 ^ (e * n))
     (h : ∀ i < n, ∀ j < e, a.testBit (j + e * i) = b.testBit (j + e * i)) : a = b := by
-  apply Nat.eq_of_testBit_eq
-  intro k
+  refine Nat.eq_of_testBit_eq fun k => ?_
   by_cases hk : k < e * n
-  · have hi : k / e < n := (Nat.div_lt_iff_lt_mul he).mpr (by nlinarith)
-    have heq : k % e + e * (k / e) = k := Nat.mod_add_div _ _
-    simpa only [heq] using h (k / e) hi (k % e) (Nat.mod_lt _ he)
+  · simpa only [Nat.mod_add_div] using
+      h (k / e) ((Nat.div_lt_iff_lt_mul he).mpr (by nlinarith)) (k % e) (Nat.mod_lt _ he)
   · have hp := Nat.pow_le_pow_right (by decide : 1 ≤ (2 : ℕ)) (by omega : e * n ≤ k)
     rw [Nat.testBit_lt_two_pow (ha.trans_le hp), Nat.testBit_lt_two_pow (hb.trans_le hp)]
 
@@ -321,10 +302,7 @@ private theorem clusterDifference_guard {s x i : ℕ} (hs : 0 < s)
   rw [packed_testBit _ (fun j _ => (Nat.sub_le _ _).trans_lt hsmall) hi (by omega)]
   by_cases hz : x / 2 ^ (s * i) % 2 ^ (s - 1) = 0
   · simp [hz]
-  · have hd : 2 ^ (s - 1) - x / 2 ^ (s * i) % 2 ^ (s - 1) < 2 ^ (s - 1) := by
-      have := Nat.two_pow_pos (s - 1)
-      omega
-    simp [Nat.testBit_lt_two_pow hd, hz]
+  · simp [Nat.testBit_lt_two_pow (Nat.sub_lt (Nat.two_pow_pos _) (Nat.pos_of_ne_zero hz)), hz]
 
 /-- Every marker is set precisely when its original cluster is nonzero. This includes
 clusters whose only set bit was already at the marker position. -/
@@ -578,20 +556,14 @@ theorem powerStageValues_lt {s z : ℕ} (hs : 0 < s) (hz : z < 2 ^ s) :
     hpow.trans_lt hlift]
 
 private theorem compressionShift_injective {s : ℕ} (hs : 0 < s) :
-    Function.Injective (fun j : Fin s => compressionShift s j.val) := by
-  intro i j h
-  let k : Fin s := ⟨0, hs⟩
-  have he : (k, i) = (k, j) := compression_injective hs
-    (congrArg (fun n => (s - 1 + k.val * s) + n) h)
-  exact congrArg Prod.snd he
+    Function.Injective (fun j : Fin s => compressionShift s j.val) := fun i j h =>
+  congrArg Prod.snd (compression_injective hs (a₁ := (⟨0, hs⟩, i)) (a₂ := (⟨0, hs⟩, j))
+    (congrArg ((s - 1 + 0 * s) + ·) h))
 
 private theorem compressionMultiplier_lt {s : ℕ} (hs : 0 < s) :
-    compressionMultiplier s < 2 ^ (s * s + s) := by
-  apply Cslib.DataStructure.FusionTree.positionMask_lt _ (compressionShift_injective hs)
-  intro i
-  unfold compressionShift
-  have hh : s * s - (s - 1) - i.val * s ≤ s * s := by omega
-  omega
+    compressionMultiplier s < 2 ^ (s * s + s) :=
+  Cslib.DataStructure.FusionTree.positionMask_lt _ (compressionShift_injective hs) fun i => by
+    simp only [compressionShift]; omega
 
 private theorem clusterMarkers_lt {s : ℕ} (hs : 0 < s) (x : ℕ) :
     clusterMarkers s x < 2 ^ (s * s) := by
@@ -679,9 +651,8 @@ theorem widthMSB_virtual_bounds {w x : ℕ} (hw : 0 < w) (hx : x < 2 ^ w) :
       (Nat.pow_le_pow_right (by decide) hp)
   · intro a ha
     have hv : (x >>> (smallMSB (clusterSize w) (clusterSummary (clusterSize w) x) *
-        clusterSize w)) &&& (2 ^ clusterSize w - 1) < 2 ^ clusterSize w := by
-      rw [Nat.and_two_pow_sub_one_eq_mod]
-      exact Nat.mod_lt _ (Nat.two_pow_pos _)
+        clusterSize w)) &&& (2 ^ clusterSize w - 1) < 2 ^ clusterSize w :=
+      Nat.and_two_pow_sub_one_eq_mod _ _ ▸ Nat.mod_lt _ (Nat.two_pow_pos _)
     exact (powerStageValues_lt hs hv a ha).trans_le (Nat.pow_le_pow_right (by decide) hp)
   · have hi := smallMSB_lt hs (clusterSummary_lt (clusterSize w) x)
     have hh : smallMSB (clusterSize w) (clusterSummary (clusterSize w) x) *

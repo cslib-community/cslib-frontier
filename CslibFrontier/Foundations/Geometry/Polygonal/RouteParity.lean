@@ -136,11 +136,9 @@ the concatenation, including at observations on the cut height. -/
 theorem rayParity_line_split (a b u z : ℂ) {t : ℝ} (ht : t ∈ Set.Ioo 0 1) :
     let m := AffineMap.lineMap a b t
     ((line a m).concat (line m b)).rayParity u z = (line a b).rayParity u z := by
-  let m := AffineMap.lineMap a b t
-  change ((line a m).concat (line m b)).rayParity u z = (line a b).rayParity u z
-  have hm : u * m = AffineMap.lineMap (u * a) (u * b) t := by
-    let f : ℂ →ₗ[ℝ] ℂ := (LinearMap.mulLeft ℂ u).restrictScalars ℝ
-    exact f.toAffineMap.apply_lineMap a b t
+  intro m
+  have hm : u * m = AffineMap.lineMap (u * a) (u * b) t :=
+    ((LinearMap.mulLeft ℂ u).restrictScalars ℝ).toAffineMap.apply_lineMap a b t
   rw [rayParity_concat _ _ rfl, rayParity_line, rayParity_line, rayParity_line, hm]
   exact decide_rayCrosses_split _ _ _ ht
 
@@ -282,8 +280,7 @@ private theorem rayParity_sum_lines (p : Route) (u z : ℂ) :
     p.rayParity u z =
       ∑ i : Fin p.segments, (line (p.point i.castSucc) (p.point i.succ)).rayParity u z := by
   simp only [rayParity_line]
-  rw [Route.rayParity]
-  simp [Cslib.Polygonal.rayParity, Bool.zero_eq_false]
+  simp [Route.rayParity, Cslib.Polygonal.rayParity, Bool.zero_eq_false]
 
 open Pointwise in
 private theorem exists_pos_rayParity_eq_of_fixed_incident_segments (p : Route) (z : ℂ) :
@@ -346,20 +343,15 @@ private theorem exists_pos_rayParity_eq_of_fixed_incident_segments (p : Route) (
     have hs : (line a b).start = (s.concat (line d b)).start :=
       ((start_concat hjoin).trans (start_concat rfl)).symm
     have hsupport : (s.concat (line d b)).support ⊆ K := by
-      rw [support_concat _ _ hjoin]
-      change ((line a c).concat (line c d)).support ∪ (line d b).support ⊆ K
-      rw [support_concat _ _ rfl]
+      rw [support_concat _ _ hjoin, support_concat (line a c) (line c d) rfl]
       exact Set.union_subset (Set.union_subset (hline ha hc) (hline hc hd)) (hline hd hb)
     refine ⟨iff_of_false (fun hz => hzK (hK.segment_subset hc hd hz)) hi, fun u => ?_⟩
     have h := rayParity_eq_of_support_subset_convex (line a b) (s.concat (line d b))
       (u := u) hs (finish_concat hjoin).symm hK (hline ha hb) hsupport hzK
-    rw [rayParity_concat _ _ hjoin] at h
-    change (line a b).rayParity u z =
-      ((line a c).concat (line c d)).rayParity u z + (line d b).rayParity u z at h
-    rw [rayParity_concat _ _ rfl, ← reverse_line b d, rayParity_reverse] at h
-    refine h.trans ?_
-    change _ = (line c d).rayParity u z + ((line a c).rayParity u z + (line b d).rayParity u z)
-    ac_rfl
+    rw [rayParity_concat _ _ hjoin, rayParity_concat (line a c) (line c d) rfl,
+      ← reverse_line b d, rayParity_reverse] at h
+    dsimp only [link, a, b, c, d] at h ⊢
+    exact h.trans (by ac_rfl)
   refine ⟨fun i => (hpieces i).1, fun u => ?_⟩
   have hlinks : (∑ i : Fin p.segments, (link u i.castSucc + link u i.succ)) = 0 := by
     rw [sum_adjacent_bool]
@@ -460,20 +452,16 @@ private theorem parityTriangle_bits (c z : ℂ) {r : ℝ} (hr : 0 < r) :
   let b : ℂ := ⟨c.re + r, c.im⟩
   let d : ℂ := ⟨c.re - r, c.im + r⟩
   have hab : horizontalIntercept a b z.im = c.re + r + 2 * (z.im - c.im) := by
-    change c.re - r + (z.im - (c.im - r)) / (c.im - (c.im - r)) *
-      (c.re + r - (c.re - r)) = _
-    rw [show c.im - (c.im - r) = r by ring]
+    simp only [horizontalIntercept, a, b, sub_sub_cancel]
     field_simp [hr.ne']
     ring
   have hbd : horizontalIntercept b d z.im = c.re + r - 2 * (z.im - c.im) := by
-    change c.re + r + (z.im - c.im) / (c.im + r - c.im) * (c.re - r - (c.re + r)) = _
-    rw [show c.im + r - c.im = r by ring]
+    simp only [horizontalIntercept, b, d, add_sub_cancel_left]
     field_simp [hr.ne']
     ring
   have hda : horizontalIntercept d a z.im = c.re - r := by simp [horizontalIntercept, d, a]
   have ha : a.im ≤ b.im := by dsimp only [a, b]; linarith
   have hb : b.im ≤ d.im := by dsimp only [b, d]; linarith
-  unfold Route.rayParity Cslib.Polygonal.rayParity
   change (∑ i : Fin 3, if RayCrosses (1 * (parityTriangle c r).point i.castSucc)
     (1 * (parityTriangle c r).point i.succ) (1 * z) then (true : Bool) else 0) = _
   simp only [Fin.sum_univ_three, one_mul]
@@ -698,9 +686,7 @@ theorem exists_concat_add_rayParity {U : Set ℂ} (hU : IsOpen U)
     exact hz.elim (fun hp => Or.inl (Or.inl hp)) Or.inr
   · rw [support_concat _ _ hq, support_concat p e he, support_concat p q hjoin]
     rintro z ((hp | hl) | hq')
-    · exact Or.inl (Or.inl hp)
-    · exact Or.inr (hsupport hl)
-    · exact Or.inl (Or.inr hq')
+    exacts [Or.inl (Or.inl hp), Or.inr (hsupport hl), Or.inl (Or.inr hq')]
   · intro z hz
     rw [rayParity_concat _ _ hq, rayParity_concat p e he, rayParity_concat p q hjoin,
       hparity z hz]

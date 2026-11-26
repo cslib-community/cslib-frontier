@@ -326,9 +326,7 @@ theorem refSrc_eval {t : ℕ} (j tag p : ℕ) (r : Ref k State) :
     ((Key.ofFields (slotBits k State) (colBits T) X n T j tag p).refSrc r).eval (slotBits k State)
         (colBits T) p (colOf (slotBits k State) (colBits T) p) t T =
       r.label n T t (colOf (slotBits k State) (colBits T) p) := by
-  rcases r with _ | _ | _ | ⟨q, l, cs, g⟩
-  · rfl
-  · rfl
+  rcases r with _ | _ | _ | ⟨q, l, cs, g⟩ <;> try rfl
   · simp only [Key.refSrc, Ref.label, Key.ofFields, Bool.and_eq_true, Bool.not_eq_true',
       decide_eq_false_iff_not, ← Nat.one_le_iff_ne_zero, not_lt]
     split_ifs <;> rfl
@@ -355,10 +353,10 @@ theorem clauseOf_eq_map_shapeOf (x : List Bool) (n T j tag p : ℕ) :
     · simp only [show κ.pGt1 = decide (1 < p) from rfl, h0, ↓reduceIte,
         Bool.not_eq_true', decide_eq_false_iff_not, not_lt, ← Nat.lt_succ_iff]
       split_ifs with hp
-      · rcases p with _ | _ | p
-        · simp [hκ, Key.ofFields, map_eval_lift, relabel_tseitinClause, LabelSrc.eval, constLabel]
-        · simp [hκ, Key.ofFields, map_eval_lift, relabel_tseitinClause, LabelSrc.eval, constLabel]
-        · omega
+      · match p with
+        | 0 | 1 =>
+          simp [hκ, Key.ofFields, map_eval_lift, relabel_tseitinClause, LabelSrc.eval, constLabel]
+        | _ + 2 => omega
       · rfl
     · by_cases h1 : tag = 1
       · simp only [show κ.pLtX = decide (p < x.length) from rfl, h1, ↓reduceIte, one_ne_zero,
@@ -382,12 +380,10 @@ theorem clauseOf_eq_map_shapeOf (x : List Bool) (n T j tag p : ℕ) :
                 show κ.t0 = decide (p / 2 ^ slotBits k State / 2 ^ colBits T = 0) from rfl,
                 decide_eq_true_eq]
               split_ifs with ht
-              · simp only [relabel_tseitinClause]
-                rw [hκ, Key.initBit_ofFields]
+              · rw [relabel_tseitinClause, hκ, Key.initBit_ofFields]
                 rfl
               · rcases table tm l with ⟨op, a, b⟩
-                simp only [relabel_tseitinClause]
-                rw [hκ, refSrc_eval, refSrc_eval]
+                rw [relabel_tseitinClause, hκ, refSrc_eval, refSrc_eval]
                 rfl
             · rfl
         · simp only [show κ.p0 = decide (p = 0) from rfl, h0, h1, h2, ↓reduceIte, decide_eq_true_eq]
@@ -525,10 +521,7 @@ theorem outBit_shape {s cb tb p c t T : ℕ} {x : List Bool} {lk : Bool} (hs : 1
   · simp [h2, tagSlot, show i < 2 + (s + cb + tb) by omega]
   · by_cases hP : i < 2 + (s + cb + tb)
     · simp only [h2, hP, ↓reduceIte]
-      have hq : i - 2 < s + cb + tb := by omega
-      have hts : 2 + (i - 2) = i := by omega
-      generalize i - 2 = q at hq hts ⊢
-      subst hts
+      obtain ⟨q, rfl⟩ := Nat.exists_eq_add_of_le (not_lt.mp h2)
       have h21 : ¬ 2 + q ≤ 1 := by omega
       rcases l with b | (_ | _) | ⟨sl, cs, ts⟩
       · cases sg <;> simp only [payTerm, tagSlot, Order.lt_two_iff, h21, ↓reduceIte,
@@ -560,12 +553,12 @@ theorem outBit_shape {s cb tb p c t T : ℕ} {x : List Bool} {lk : Bool} (hs : 1
             selOf (decide (c = 0)) (decide (t = 0)) (.pos sl cs ts, sg) 1 = false := by
           cases sg <;> exact ⟨rfl, rfl⟩
         simp only [h01.1, h01.2, Bool.false_and, Bool.or_false, tagSlot,
-          show ¬ 2 + q < 2 by omega, ↓reduceIte, LabelSrc.slotVal, Nat.add_sub_cancel_left]
-        by_cases hqs : q < s
-        · simp [hqs, show ¬ s ≤ q by omega, show ¬ s + cb ≤ q by omega]
-        · by_cases hqc : q < s + cb
-          · simp [hqs, hqc, show s ≤ q by omega, show ¬ s + cb ≤ q by omega]
-          · simp [hqs, hqc, show s + cb ≤ q by omega]
+          not_lt.mpr (Nat.le_add_right 2 q), ↓reduceIte, LabelSrc.slotVal, Nat.add_sub_cancel_left]
+        rcases lt_or_ge q s with hqs | hqs
+        · simp [hqs, not_le.mpr hqs, not_le.mpr (Nat.lt_add_right cb hqs)]
+        · rcases lt_or_ge q (s + cb) with hqc | hqc
+          · simp [hqs, hqc, not_lt.mpr hqs, not_le.mpr hqc]
+          · simp [hqs, hqc, not_lt.mpr hqs, not_lt.mpr hqc]
     · simp only [h2, hP, ↓reduceIte]
       cases sg <;> rcases l with b | b | ⟨sl, cs, ts⟩ <;>
         simp only [selOf, LabelSrc.sel, SignSrc.sel, decide_true, Bool.true_and, Bool.false_or,
@@ -592,16 +585,14 @@ theorem refSrc_inRange {j tag p : ℕ} {r : Ref k State}
     (hr : r.InWindow n T (colOf (slotBits k State) (colBits T) p)) :
     ((Key.ofFields (slotBits k State) (colBits T) X n T j tag p).refSrc r).InRange
       (slotBits k State) (colBits T) (colOf (slotBits k State) (colBits T) p) T := by
-  rcases r with _ | _ | _ | ⟨q, l, cs, g⟩
-  · trivial
-  · trivial
+  rcases r with _ | _ | _ | ⟨q, l, cs, g⟩ <;> try trivial
   · simp only [Key.refSrc]; split <;> trivial
   · simp only [Key.refSrc, Key.guard_ofFields]
     split
     · rename_i hg
       refine ⟨slot_lt_two_pow l, ?_⟩
       rw [colSrcOf_eval]
-      exact lt_of_le_of_lt (Loc.labelCol_le l _) (lt_of_lt_of_le (hr hg) (numCols_le_two_pow T))
+      exact (Loc.labelCol_le l _).trans_lt ((hr hg).trans_le (numCols_le_two_pow T))
     · trivial
 
 /-- A property of every literal of every branch of `shapeOf` holds of its literals. -/
@@ -659,11 +650,9 @@ theorem lt_of_mem_shapeOf {j tag p : ℕ} {sh : Shape}
   revert hlk
   refine forall_mem_shapeOf (P := fun sh => sh.2 = .lookup → p < X) tm _ ?_ ?_ ?_ ?_ ?_ sh hsh
   · simp [tautShape]
-  · rintro _ ⟨_, _⟩ h rfl
-    simp [lift] at h
+  · exact fun _ ⟨_, .lookup⟩ h rfl => by simp [lift] at h
   · simp [Key.ofFields]
-  · rintro _ _ _ _ ⟨_, _⟩ h rfl
-    simp [lift] at h
+  · exact fun _ _ _ _ ⟨_, .lookup⟩ h rfl => by simp [lift] at h
   · simp
 
 /-- A shape has three literals. -/

@@ -374,7 +374,6 @@ private lemma exists_quorum_pair_bounds {P : Type*} [Fintype P] [DecidableEq P]
     finset_card
   obtain ⟨F₁, -, hF₁⟩ := Finset.exists_subset_card_eq (s := (Finset.univ : Finset P)) hbn.le
   obtain ⟨Q₁, hQ₁, hdisj₁⟩ := havail F₁ (mem_thresholdAdversary_iff.mpr hF₁.le)
-  have hQ₁_ub : Q₁.card ≤ Fintype.card P - b := by finset_card
   obtain ⟨F₂, hF₂sub, hF₂⟩ := Finset.exists_subset_card_eq (hgt Q₁ hQ₁).le
   obtain ⟨Q₂, hQ₂, hdisj₂⟩ := havail F₂ (mem_thresholdAdversary_iff.mpr hF₂.le)
   exact ⟨Q₁, hQ₁, Q₂, hQ₂, by finset_card, by finset_card⟩
@@ -392,9 +391,8 @@ theorem exists_thresholdDisseminationQuorumSystem_iff {P : Type*} [Fintype P] [D
     fun hn => ⟨disseminationThresholdQuorums P b,
       isThresholdDisseminationQuorumSystem_disseminationThresholdQuorums hn⟩⟩
   rw [QuorumSystem.isThresholdDisseminationQuorumSystem_iff_card_inter] at hqs
-  obtain ⟨Q₁, hQ₁, Q₂, hQ₂, hinter_ub, _⟩ := exists_quorum_pair_bounds hqs.1 fun Q hQ => by
-    have := hqs.2 Q hQ Q hQ
-    finset_card
+  obtain ⟨Q₁, hQ₁, Q₂, hQ₂, hinter_ub, _⟩ :=
+    exists_quorum_pair_bounds hqs.1 fun Q hQ => Finset.inter_self Q ▸ hqs.2 Q hQ Q hQ
   have := hqs.2 Q₁ hQ₁ Q₂ hQ₂
   have := Fintype.card_pos (α := P)
   omega
@@ -411,9 +409,8 @@ theorem exists_thresholdMaskingQuorumSystem_iff {P : Type*} [Fintype P] [Decidab
     fun hn => ⟨maskingThresholdQuorums P b,
       isThresholdMaskingQuorumSystem_maskingThresholdQuorums hn⟩⟩
   rw [QuorumSystem.isThresholdMaskingQuorumSystem_iff_card_inter] at hqs
-  obtain ⟨Q₁, hQ₁, Q₂, hQ₂, hinter_ub, _⟩ := exists_quorum_pair_bounds hqs.1 fun Q hQ => by
-    have := hqs.2 Q hQ Q hQ
-    finset_card
+  obtain ⟨Q₁, hQ₁, Q₂, hQ₂, hinter_ub, _⟩ := exists_quorum_pair_bounds hqs.1 fun Q hQ =>
+    Nat.lt_of_le_of_lt (by omega) (Finset.inter_self Q ▸ hqs.2 Q hQ Q hQ)
   have := hqs.2 Q₁ hQ₁ Q₂ hQ₂
   have := Fintype.card_pos (α := P)
   omega
@@ -432,9 +429,8 @@ theorem exists_thresholdStrongOpaqueQuorumSystem_iff {P : Type*} [Fintype P] [De
     fun hn => ⟨strongOpaqueThresholdQuorums P b,
       isThresholdStrongOpaqueQuorumSystem_strongOpaqueThresholdQuorums hn⟩⟩
   rw [QuorumSystem.isThresholdStrongOpaqueQuorumSystem_iff_card] at hqs
-  obtain ⟨Q₁, hQ₁, Q₂, hQ₂, hinter_ub, hsdiff_lb⟩ := exists_quorum_pair_bounds hqs.1 fun Q hQ => by
-    have := hqs.2 Q hQ Q hQ
-    finset_card
+  obtain ⟨Q₁, hQ₁, Q₂, hQ₂, hinter_ub, hsdiff_lb⟩ := exists_quorum_pair_bounds hqs.1 fun Q hQ =>
+    Nat.lt_of_le_of_lt (by omega) (Finset.inter_self Q ▸ hqs.2 Q hQ Q hQ)
   have := hqs.2 Q₂ hQ₂ Q₁ hQ₁
   have := Fintype.card_pos (α := P)
   finset_card
@@ -573,8 +569,7 @@ theorem threshold_masking_register_max_ts_eq {P T V : Type*} [DecidableEq P] [Li
     exact (ts_le_applyWrites init (delivered u)).2 latest (hcompleted u hu.1.1 hu.2)
   refine ⟨hlatest_mem, fun e he hmax => ?_⟩
   obtain ⟨u, _, huF, rfl⟩ := maskingCandidates_sound hF he
-  obtain ⟨hle, heq⟩ := applyWrites_eq_latest hinit (hbound u huF)
-  rw [← hresp u huF] at hle heq
+  obtain ⟨hle, heq⟩ := (hresp u huF).symm ▸ applyWrites_eq_latest hinit (hbound u huF)
   exact heq (le_antisymm hle (hmax latest hlatest_mem))
 
 /-- Computable `b`-threshold single-latest-write masking-read step toward `#7506` (after

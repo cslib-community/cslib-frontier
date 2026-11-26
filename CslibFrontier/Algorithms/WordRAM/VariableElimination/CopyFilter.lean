@@ -104,14 +104,12 @@ theorem copyWords_spec {w : ℕ} (args : CopyArgs) {xs : List ℕ} {F : ℕ} {s 
       t'.frontier = t.frontier ∧
       PreservesBelow G t t' ∧
       Block.HoldsList dst ys t'.mem := by
-    intro ys
-    induction ys with
+    intro ys src dst G t hwf_t hys hsrcG hGdst hdstF
+    induction ys generalizing src dst G t with
     | nil =>
-      intro src dst G t _ _ _ hGdst hdstF
       exact ⟨validHistory_pure w t _, rfl, PreservesBelow.refl (by omega),
         Block.holdsList_nil dst t.mem⟩
     | cons v rest ih =>
-      intro src dst G t hwf_t hys hsrcG hGdst hdstF
       simp only [List.length_cons] at hsrcG hdstF
       obtain ⟨hhead, htail⟩ := Block.holdsList_cons_iff.mp hys
       have hsrc_lt : src < t.frontier := by omega
@@ -122,8 +120,7 @@ theorem copyWords_spec {w : ℕ} (args : CopyArgs) {xs : List ℕ} {F : ℕ} {s 
           (htail.frame fun a _ hhi => Function.update_of_ne (by omega) v t.mem) (by omega) le_rfl
           (by dsimp only; omega)
       have hstep_st : (Memory.spec 0).clientState t (copyWordsStep ((), ⟨src, dst⟩)) =
-          ⟨Function.update t.mem dst v, t.frontier⟩ := by
-        rw [← hhead]; rfl
+          ⟨Function.update t.mem dst v, t.frontier⟩ := hhead ▸ rfl
       dsimp only
       rw [List.length_cons, iterate, validHistory_bind', StateTransitionSpec.clientState_bind,
         hstep_st]
@@ -185,12 +182,8 @@ theorem filterNe_cost (args : MemScanArgs) (s : Memory.State) :
   rw [memoryCost_bind', memoryCost_allocDirty, memoryCost_bind', memoryCost_pure, Nat.add_zero]
   refine Nat.add_le_add_left (memoryCost_iterate_le_of filterNeStep 2 args.target (fun a t => ?_)
     args.len ⟨args.base, s.frontier, 0⟩ ⟨s.mem, s.frontier + args.len⟩) 1
-  rw [filterNeStep, memoryCost_bind', memoryCost_read]
-  dsimp only
-  rw [memoryCost_ite]
-  split_ifs
-  · simp
-  · rw [memoryCost_bind', memoryCost_write, memoryCost_pure]
+  simp only [filterNeStep, memoryCost_bind', memoryCost_read, clientResult_read, memoryCost_ite]
+  split_ifs <;> simp [memoryCost_write, memoryCost_pure]
 
 private theorem filterNeStep_eval (target : ℕ) (st : FilterState) (t : Memory.State) :
     (Memory.spec 0).clientResult t (filterNeStep (target, st)) =
@@ -217,8 +210,7 @@ theorem filterNe_spec {w : ℕ} (args : MemScanArgs) {xs : List ℕ} {s : Memory
       res.1 = s.frontier ∧
       res.2 = out.length ∧
       HoldsIn res.1 out s' := by
-  dsimp only
-  unfold filterNe
+  simp only [filterNe]
   have haux : ∀ (ys : List ℕ) (src dst cnt G : ℕ) (t : Memory.State),
       Memory.WellFormed w t →
       Block.HoldsList src ys t.mem →
@@ -232,14 +224,12 @@ theorem filterNe_spec {w : ℕ} (args : MemScanArgs) {xs : List ℕ} {s : Memory
       PreservesBelow G t t' ∧
       r.count = cnt + out.length ∧
       Block.HoldsList dst out t'.mem := by
-    intro ys
-    induction ys with
+    intro ys src dst cnt G t hwf_t hys hsrcG hGdst hdstF
+    induction ys generalizing src dst cnt G t with
     | nil =>
-      intro src dst cnt G t _ _ _ hGdst hdstF
       exact ⟨validHistory_pure w t _, rfl, PreservesBelow.refl (by omega), rfl,
         Block.holdsList_nil dst t.mem⟩
     | cons v rest ih =>
-      intro src dst cnt G t hwf_t hys hsrcG hGdst hdstF
       simp only [List.length_cons] at hsrcG hdstF
       obtain ⟨hhead, htail⟩ := Block.holdsList_cons_iff.mp hys
       have hsrc_lt : src < t.frontier := by omega
@@ -251,9 +241,9 @@ theorem filterNe_spec {w : ℕ} (args : MemScanArgs) {xs : List ℕ} {s : Memory
       · obtain ⟨hval_r, hfr_r, hpres_r, hcnt_r, hholds_r⟩ :=
           ih (src + 1) dst cnt G t hwf_t htail (by omega) hGdst (by omega)
         rw [ite_eq_left hvx, ite_eq_left hvx, List.filter_cons_of_neg (by simp [hvx])]
-        refine ⟨⟨validHistory_read_bind hsrc_lt ?_, hval_r⟩, hfr_r, hpres_r, hcnt_r, hholds_r⟩
-        rw [hhead, ite_eq_left hvx]
-        exact validHistory_pure w t _
+        exact ⟨⟨validHistory_read_bind hsrc_lt
+          (by simpa only [hhead, hvx, ↓reduceIte] using validHistory_pure w t _), hval_r⟩,
+          hfr_r, hpres_r, hcnt_r, hholds_r⟩
       · have hdst_lt : dst < t.frontier := by omega
         have hv_fit : Fits w v := hhead ▸ hwf_t.mem_fits src
         obtain ⟨hval_r, hfr_r, hpres_r, hcnt_r, hholds_r⟩ :=

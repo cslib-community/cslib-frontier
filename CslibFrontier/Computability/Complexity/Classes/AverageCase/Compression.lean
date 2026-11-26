@@ -192,10 +192,7 @@ noncomputable def bR (x : List Bool) : ℝ := (num x : ℝ) / den x
 
 /-- The lower denominator is nonzero. -/
 theorem loDen_ne_zero (hden : ∀ x, den x ≠ 0) (x : List Bool) : loDen den x ≠ 0 := by
-  unfold loDen
-  split
-  · exact one_ne_zero
-  · exact hden _
+  by_cases h : BitString.binaryValue x = 0 <;> simp [loDen, h, hden]
 
 section Spec
 
@@ -204,12 +201,9 @@ include hcdf hden
 
 /-- `D_n({y < x}) = a`. -/
 theorem cdfLo_eq (x : List Bool) : D.cdfLo x = ENNReal.ofReal (aR num den x) := by
-  unfold aR loNum loDen
-  by_cases h : BitString.binaryValue x = 0
-  · rw [D.cdfLo_of_binaryValue_eq_zero h]
-    simp [h]
-  · simp only [h, decide_false, Bool.false_eq_true, ite_false]
-    rw [D.cdfLo_eq_cdf_predWord h, hcdf, natCast_div_eq_ofReal (hden _)]
+  by_cases h : BitString.binaryValue x = 0 <;>
+    simp [aR, loNum, loDen, h, D.cdfLo_of_binaryValue_eq_zero, D.cdfLo_eq_cdf_predWord, hcdf,
+      natCast_div_eq_ofReal (hden _)]
 
 /-- `D_n({y ≤ x}) = b`. -/
 theorem cdf_eq (x : List Bool) : D.cdf x = ENNReal.ofReal (bR num den x) :=
@@ -262,9 +256,8 @@ omit hcdf in
 theorem heavy_iff (x : List Bool) : heavy num den x = true ↔
     aR num den x * 2 ^ x.length + 1 < bR num den x * 2 ^ x.length := by
   have hQ : (0 : ℝ) < cQ den x := Nat.cast_pos.mpr (cQ_pos hden x)
-  rw [aR_mul_eq hden, bR_mul_eq hden, div_add_one hQ.ne', div_lt_div_iff_of_pos_right hQ]
-  unfold heavy
-  rw [decide_eq_true_iff, ← Nat.cast_lt (α := ℝ)]
+  rw [aR_mul_eq hden, bR_mul_eq hden, div_add_one hQ.ne', div_lt_div_iff_of_pos_right hQ, heavy,
+    decide_eq_true_iff, ← Nat.cast_lt (α := ℝ)]
   push_cast
   rfl
 
@@ -274,10 +267,10 @@ theorem cA_bounds (x : List Bool) : (cA num den x : ℝ) ≤ aR num den x * 2 ^ 
     aR num den x * 2 ^ x.length < cA num den x + 1 := by
   have hQ := cQ_pos hden x
   have hQ' : (0 : ℝ) < cQ den x := Nat.cast_pos.mpr hQ
+  have hlt : ((cP num den x * 2 ^ x.length : ℕ) : ℝ) < cA num den x * cQ den x + cQ den x :=
+    mod_cast Nat.lt_div_mul_add hQ
   rw [aR_mul_eq hden, le_div_iff₀ hQ', div_lt_iff₀ hQ']
-  exact ⟨by exact_mod_cast Nat.div_mul_le_self _ _,
-    by linarith [show ((cP num den x * 2 ^ x.length : ℕ) : ℝ) <
-      cA num den x * cQ den x + cQ den x by exact_mod_cast Nat.lt_div_mul_add hQ]⟩
+  exact ⟨mod_cast Nat.div_mul_le_self _ _, by linarith⟩
 
 omit hcdf in
 /-- `B < b 2^n ≤ B + 1` for a heavy word. -/
@@ -285,14 +278,11 @@ theorem cB_bounds (x : List Bool) (hh : heavy num den x = true) :
     (cB num den x : ℝ) < bR num den x * 2 ^ x.length ∧
     bR num den x * 2 ^ x.length ≤ cB num den x + 1 := by
   have hQ := cQ_pos hden x
-  have hQ' : (0 : ℝ) < cQ den x := Nat.cast_pos.mpr hQ
   have := of_decide_eq_true hh
-  have h1 : cB num den x * cQ den x ≤ cR num den x * 2 ^ x.length - 1 := Nat.div_mul_le_self _ _
   have h2 : cR num den x * 2 ^ x.length - 1 < (cB num den x + 1) * cQ den x := by
     simpa [cB, add_mul] using Nat.lt_div_mul_add (a := cR num den x * 2 ^ x.length - 1) hQ
-  rw [bR_mul_eq hden, lt_div_iff₀ hQ', div_le_iff₀ hQ', ← Nat.cast_add_one, ← Nat.cast_mul,
-    ← Nat.cast_mul, Nat.cast_lt, Nat.cast_le]
-  exact ⟨by omega, by omega⟩
+  rw [bR_mul_eq hden, lt_div_iff₀ (Nat.cast_pos.mpr hQ), div_le_iff₀ (Nat.cast_pos.mpr hQ)]
+  exact ⟨mod_cast (Nat.div_mul_le_self _ _).trans_lt (by omega), mod_cast (by omega)⟩
 
 /-- The facts about a word of large probability used by Claim 20. -/
 theorem heavy_spec (x : List Bool) (hh : heavy num den x = true) :
@@ -312,13 +302,11 @@ theorem heavy_spec (x : List Bool) (hh : heavy num den x = true) :
   have hsplit : (2 : ℕ) ^ x.length = 2 ^ (x.length - cS num den x) * 2 ^ cS num den x := by
     rw [← pow_add, Nat.sub_add_cancel hsn]
   refine ⟨hsn, ?_, hM1, hM2, ?_⟩
-  · rw [Nat.div_lt_iff_lt_mul (by positivity), ← hsplit]
-    exact hAn
+  · rwa [Nat.div_lt_iff_lt_mul (Nat.two_pow_pos _), ← hsplit]
   · have hsplit' : (2 : ℝ) ^ x.length = 2 ^ (x.length - cS num den x) * 2 ^ cS num den x := by
       exact_mod_cast hsplit
     rw [hsplit', ← mul_assoc] at hlen
-    have h2s : (0 : ℝ) < 2 ^ cS num den x := by positivity
-    exact le_of_mul_le_mul_right (by linarith) h2s
+    exact le_of_mul_le_mul_right (by linarith) (pow_pos zero_lt_two _)
 
 end Spec
 
@@ -340,8 +328,8 @@ theorem length_compress_le (x : List Bool) : (compress num den x).length ≤ x.l
 /-- **Claim 20, compression.** `2^{|C(x)|} D_{|x|}(x) ≤ 2`, that is `|C(x)| ≤ 1 + log (1/D(x))`. -/
 theorem two_pow_length_compress_mul_le (x : List Bool) :
     (2 : ℝ≥0∞) ^ (compress num den x).length * D.dist x.length x ≤ 2 := by
-  rw [dist_eq hcdf hden, show (2 : ℝ≥0∞) = ENNReal.ofReal 2 by simp,
-    ← ENNReal.ofReal_pow (by norm_num), ← ENNReal.ofReal_mul (by positivity)]
+  rw [dist_eq hcdf hden, ← ENNReal.ofReal_ofNat, ← ENNReal.ofReal_pow (by norm_num),
+    ← ENNReal.ofReal_mul (by positivity)]
   refine ENNReal.ofReal_le_ofReal ?_
   unfold compress
   split
@@ -367,7 +355,8 @@ theorem not_compress_eq_of_lt {x x' : List Bool} (hlen : x.length = x'.length)
   rw [BitString.length_binaryWord hZ, BitString.length_binaryWord hZ'] at hl
   have hv := congrArg BitString.binaryValue h
   rw [BitString.binaryValue_binaryWord, BitString.binaryValue_binaryWord] at hv
-  rw [hv, show cS num den x = cS num den x' by omega, hlen] at hM2
+  have hcS : cS num den x = cS num den x' := by omega
+  rw [hv, hcS, hlen] at hM2
   have hba : bR num den x ≤ aR num den x' := (ENNReal.ofReal_le_ofReal_iff (aR_nonneg x')).mp
     (by simpa only [cdf_eq hcdf hden, cdfLo_eq hcdf hden] using D.cdf_le_cdfLo hlen hlt)
   linarith [mul_le_mul_of_nonneg_right hba (by positivity : (0 : ℝ) ≤ 2 ^ x'.length)]

@@ -93,11 +93,10 @@ abbrev IsOutArborescence (T : Digraph V) (r : V) : Prop :=
 theorem isOutArborescence_iff {T : Digraph V} {r : V} :
     T.IsOutArborescence r ↔
       (∀ u, ¬ T.Adj u r) ∧ (∀ v, v ≠ r → ∃! u, T.Adj u v) ∧
-        ∀ v, Relation.ReflTransGen T.Adj r v := by
-  refine ⟨fun h => ⟨h.not_adj_root, h.existsUnique_adj, fun v => ?_⟩,
-    fun ⟨h1, h2, h3⟩ => ⟨h1, h2, fun v => ?_⟩⟩
-  · exact Relation.reflTransGen_swap.mp (h.reachable v)
-  · exact Relation.reflTransGen_swap.mpr (h3 v)
+        ∀ v, Relation.ReflTransGen T.Adj r v :=
+  ⟨fun h => ⟨h.not_adj_root, h.existsUnique_adj,
+      fun v => Relation.reflTransGen_swap.mp (h.reachable v)⟩,
+    fun ⟨h1, h2, h3⟩ => ⟨h1, h2, fun v => Relation.reflTransGen_swap.mpr (h3 v)⟩⟩
 
 /-- The out-arborescence digraph of a parent map `p` rooted at `r`: arcs `p v → v` for `v ≠ r`. -/
 @[expose] def outParentDigraph (r : V) (p : V → V) : Digraph V :=
@@ -110,9 +109,8 @@ theorem outParentDigraph_adj {r : V} {p : V → V} {u v : V} :
 /-- `outParentDigraph r p` is a spanning out-arborescence rooted at `r` iff iterating `p` reaches
 `r` from every vertex. -/
 theorem isOutArborescence_outParentDigraph_iff {r : V} {p : V → V} :
-    (outParentDigraph r p).IsOutArborescence r ↔ ∀ v, ∃ n, p^[n] v = r := by
-  rw [IsOutArborescence, outParentDigraph, reverse_reverse]
-  exact isInArborescence_parentDigraph_iff
+    (outParentDigraph r p).IsOutArborescence r ↔ ∀ v, ∃ n, p^[n] v = r :=
+  isInArborescence_parentDigraph_iff
 
 /-- Every spanning out-arborescence rooted at `r` is `outParentDigraph r p` for some parent map `p`
 with `p r = r`. -/
@@ -155,8 +153,7 @@ theorem IsBranching.of_rank {B : Digraph V} {rk : V → ℕ}
     B.IsBranching where
   in_unique := hin
   acyclic _ hc := by
-    have hlt : ∀ {x y : V}, Relation.TransGen B.Adj x y → rk x < rk y := by
-      intro x y hxy
+    have hlt {x y : V} (hxy : Relation.TransGen B.Adj x y) : rk x < rk y := by
       induction hxy with
       | single h => exact hrank h
       | tail _ h ih => exact ih.trans (hrank h)
@@ -209,8 +206,7 @@ private theorem transGen_branchingDigraph_iterate {p : V → V} {x y : V}
   induction hxy with
   | single h =>
     exact ⟨1, Nat.zero_lt_one, by simpa using h.2, fun i hi => by
-      obtain rfl : i = 0 := by omega
-      simpa using h.1⟩
+      simpa [Nat.lt_one_iff.mp hi] using h.1⟩
   | @tail b c _ hbc ih =>
     obtain ⟨k, hk, hpk, hne⟩ := ih
     refine ⟨k + 1, Nat.succ_pos _, by rw [Function.iterate_succ_apply, hbc.2, hpk], fun i hi => ?_⟩
@@ -295,9 +291,7 @@ theorem IsBranching.exists_rank [Finite V] {B : Digraph V} (hB : B.IsBranching) 
   · exact absurd (by simpa [hk] using Nat.find_spec (hfix w)) hne
   · have hm : p (p^[m] (p w)) = p^[m] (p w) := by
       simpa only [hk, Function.iterate_succ_apply] using Nat.find_spec (hfix w)
-    dsimp only
-    rw [hk]
-    exact Nat.lt_succ_of_le (Nat.find_min' (hfix (p w)) hm)
+    simpa only [hk] using Nat.lt_succ_of_le (Nat.find_min' (hfix (p w)) hm)
 
 /-! ### Super-root bijection on `Option V` -/
 
@@ -397,15 +391,10 @@ theorem isBranching_iff_isInArborescence_superRootExtend [Finite V] {B : Digraph
     · rintro (_ | v) hne
       · exact absurd rfl hne
       · by_cases hv : ∃ u, (branchingDigraph p).Adj u v
-        · have ⟨u, hu⟩ := hv
-          refine ⟨some u, hu, ?_⟩
-          rintro (_ | w) hw
-          · exact absurd hv hw
-          · exact congrArg some (hB.in_unique hw hu)
-        · refine ⟨none, hv, ?_⟩
-          rintro (_ | w) hw
-          · rfl
-          · exact absurd ⟨w, hw⟩ hv
+        · obtain ⟨u, hu⟩ := hv
+          exact ⟨some u, hu, Option.rec (fun hw => absurd ⟨u, hu⟩ hw) fun _ hw =>
+            congrArg some (hB.in_unique hw hu)⟩
+        · exact ⟨none, hv, Option.rec (fun _ => rfl) fun w hw => absurd ⟨w, hw⟩ hv⟩
     · rintro (_ | v)
       · exact Relation.ReflTransGen.refl
       · obtain ⟨n, hn⟩ := hpfix v
@@ -450,9 +439,7 @@ theorem IsBranching.exists_not_adj_into [Finite V] [Nonempty V] {B : Digraph V}
     ∃ r : V, ∀ u : V, ¬ B.Adj u r := by
   obtain ⟨p, hp, rfl⟩ := hB.exists_branchingDigraph_eq
   obtain ⟨n, hn⟩ := isBranching_branchingDigraph_iff.mp hB (Classical.arbitrary V)
-  refine ⟨p^[n] (Classical.arbitrary V), fun u hu => ?_⟩
-  rw [hp] at hn
-  exact absurd ⟨u, hu⟩ hn
+  exact ⟨p^[n] (Classical.arbitrary V), fun u hu => (hp _).mp hn ⟨u, hu⟩⟩
 
 section ArcCount
 
@@ -494,6 +481,7 @@ theorem IsBranching.isOutArborescence_iff_card_arcs [Nonempty V] {B : Digraph V}
     (∃ r : V, B.IsOutArborescence r) ↔
       (Finset.univ.filter fun e : V × V => B.Adj e.1 e.2).card = Fintype.card V - 1 := by
   have hsum := hB.card_arcs_add_card_roots
+  have hpos : 0 < Fintype.card V := Fintype.card_pos
   constructor
   · rintro ⟨r, hT⟩
     have huniv : (Finset.univ.filter fun v : V => ¬ ∃ u, B.Adj u v) = {r} := by
@@ -503,10 +491,8 @@ theorem IsBranching.isOutArborescence_iff_card_arcs [Nonempty V] {B : Digraph V}
       obtain ⟨u, hu, -⟩ := (isOutArborescence_iff.mp hT).2.1 v hvr
       exact hv ⟨u, hu⟩
     rw [huniv, Finset.card_singleton] at hsum
-    have hpos : 0 < Fintype.card V := Fintype.card_pos
     omega
   · intro hcard
-    have hpos : 0 < Fintype.card V := Fintype.card_pos
     have hroots : (Finset.univ.filter fun v : V => ¬ ∃ u, B.Adj u v).card = 1 := by omega
     obtain ⟨r, hrset⟩ := Finset.card_eq_one.mp hroots
     have hmem : ∀ v, (¬ ∃ u, B.Adj u v) ↔ v = r := fun v => by
@@ -515,8 +501,7 @@ theorem IsBranching.isOutArborescence_iff_card_arcs [Nonempty V] {B : Digraph V}
     · intro v hvr
       obtain ⟨u, hu⟩ : ∃ u, B.Adj u v := by_contra fun hv => hvr ((hmem v).mp hv)
       exact ⟨u, hu, fun w hw => hB.in_unique hw hu⟩
-    · obtain ⟨p, hp, hpeq⟩ := hB.exists_branchingDigraph_eq
-      subst hpeq
+    · obtain ⟨p, hp, rfl⟩ := hB.exists_branchingDigraph_eq
       intro v
       obtain ⟨n, hn⟩ := isBranching_branchingDigraph_iff.mp hB v
       have hfix : p^[n] v = r := (hmem _).mp ((hp _).mp hn)
@@ -564,10 +549,7 @@ theorem IsBranching.toSimpleGraph_isAcyclic {B : Digraph V} (hB : B.IsBranching)
           simpa [SimpleGraph.Walk.edges_reverse, Sym2.eq_swap] using this.symm
         have hmem_edge : s(v, w) ∈ p.edges := by
           rcases hpe : p.edges.reverse with _ | ⟨e, es⟩
-          · have hlen0 := congrArg List.length hpe
-            simp only [List.length_reverse, SimpleGraph.Walk.length_edges, List.length_nil] at hlen0
-            simp only [SimpleGraph.Walk.length_cons] at hlen
-            omega
+          · simp [← SimpleGraph.Walk.length_edges, List.reverse_eq_nil_iff.mp hpe] at hlen
           · rw [hpe, List.cons_append, List.cons.injEq] at hrev_edges
             exact List.mem_reverse.mp (hpe ▸ hrev_edges.1 ▸ List.mem_cons_self)
         have hwu_ne : w ≠ u := fun hwu => (List.nodup_cons.mp hnd).1 (hwu ▸ hmem_edge)

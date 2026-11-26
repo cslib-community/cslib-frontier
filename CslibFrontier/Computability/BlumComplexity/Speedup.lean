@@ -319,8 +319,7 @@ variable {Φ r}
 
 private theorem eval_vers {e : Code} (he : e.eval = master Φ r e) (u d x : ℕ) :
     (vers e u d).eval x = run Φ r e u d x := by
-  rw [vers, Code.eval_curry, he]
-  simp only [master, Nat.unpair_pair]
+  simp [vers, Code.eval_curry, he, master]
 
 private theorem costOK_eq_true {e u x B} : costOK Φ e u x B = true ↔ CostOK Φ e u x B :=
   @decide_eq_true_iff _ (Classical.dec _)
@@ -356,9 +355,8 @@ private theorem run_eq {e u d x B} (hB : B ∈ Nat.rfind fun B => Part.some (cos
       (((canc (elig Φ r e) (ovB d) u x).map fun _ => 1 - w).getD 0))
       (Code.eval (((canc (elig Φ r e) (ovB d) u x).map (ofNat Code)).getD Code.zero) x) := by
   have hok : CostOK Φ e u x B := costOK_eq_true.1 (Part.mem_some_iff.1 (Nat.rfind_spec hB)).symm
-  rw [run, Part.bind_of_mem hB]
-  unfold selCode post
-  rw [canc_eligB_eq hok]
+  unfold run selCode post
+  simp only [Part.bind_of_mem hB, canc_eligB_eq hok]
 
 /-- If every version consulted up to stage `x` halts, some cost cap works. -/
 private theorem exists_costOK {e u x}
@@ -375,8 +373,7 @@ private theorem exists_costOK {e u x}
   refine ⟨g ((i, y), d), Nat.lt_succ_of_le (Finset.le_sup ?_), ?_⟩
   · simp only [S, Finset.mem_product, Finset.mem_range]
     omega
-  · simp only [g, hdom, ↓reduceDIte]
-    exact Part.get_mem hdom
+  · simpa only [g, hdom, ↓reduceDIte] using Part.get_mem hdom
 
 /-- A cancelled program halts at the stage where it is cancelled. -/
 private theorem dom_eval_of_canc {e : Code} {ov : ℕ → Bool} {u x i : ℕ}
@@ -390,9 +387,8 @@ private theorem dom_run_of_costOK {e u d x B} (hB : CostOK Φ e u x B) :
     (run Φ r e u d x).Dom := by
   rw [run_eq (Part.get_mem (dom_rfind_costOK hB))]
   change (Code.eval _ _).Dom
-  cases hc : canc (elig Φ r e) (ovB d) u x with
-  | none => exact trivial
-  | some i => exact dom_eval_of_canc hc
+  cases hc : canc (elig Φ r e) (ovB d) u x
+  exacts [trivial, dom_eval_of_canc hc]
 
 /-- At the fixed point `e`, every version halts on every input, by induction on `x - u`. -/
 private theorem costOK_of_fixed {e : Code} (he : e.eval = master Φ r e) :
@@ -443,32 +439,27 @@ theorem speedup {r : ℕ → ℕ → ℕ} (hr : Computable₂ r) :
     simp only [ovB, hovd₀, Option.isSome_none]
   -- the run from `0` without overrides
   let C₀ : ℕ → Option ℕ := canc (elig Φ r e) (fun _ => false) 0
-  have hdom : ∀ x, (run Φ r e 0 d₀ x).Dom := fun x => by
-    obtain ⟨B, hB⟩ := costOK_of_fixed he _ 0 x le_rfl
-    exact dom_run_of_costOK hB
+  have hdom : ∀ x, (run Φ r e 0 d₀ x).Dom := fun x =>
+    (costOK_of_fixed he _ 0 x le_rfl).elim fun _ => dom_run_of_costOK
   let f : ℕ → ℕ := fun x => (run Φ r e 0 d₀ x).get (hdom x)
   have hfmem : ∀ x, f x ∈ run Φ r e 0 d₀ x := fun x => Part.get_mem (hdom x)
   -- the value of `f` at a stage with a cancellation, and at a stage without one
   have hC₀ (x) : canc (elig Φ r e) (ovB d₀) 0 x = C₀ x :=
     congrArg (canc (elig Φ r e) · 0 x) hov₀
-  have hfc : ∀ x i w, C₀ x = some i → w ∈ (ofNat Code i).eval x → f x = 1 - w := by
-    intro x i w hc hw
-    have h := mem_run he (u := 0) (d := d₀) (x := x) (w := w)
-      (by simpa [(hC₀ x).trans hc] using hw)
-    exact Part.mem_unique (hfmem x) (by simpa [hovd₀, (hC₀ x).trans hc] using h)
-  have hf0 : ∀ x, C₀ x = none → f x = 0 := by
-    intro x hc
-    have h := mem_run he (u := 0) (d := d₀) (x := x) (w := 0)
-      (by simpa [(hC₀ x).trans hc] using id (α := 0 ∈ Code.zero.eval x) (Part.mem_some 0))
-    exact Part.mem_unique (hfmem x) (by simpa [hovd₀, (hC₀ x).trans hc] using h)
-  have hf1 : ∀ x, f x ≤ 1 := by
-    intro x
+  have hfc (x i w) (hc : C₀ x = some i) (hw : w ∈ (ofNat Code i).eval x) : f x = 1 - w :=
+    Part.mem_unique (hfmem x) <| by
+      simpa [hovd₀, (hC₀ x).trans hc] using
+        mem_run he (u := 0) (d := d₀) (x := x) (w := w) (by simpa [(hC₀ x).trans hc] using hw)
+  have hf0 (x) (hc : C₀ x = none) : f x = 0 :=
+    Part.mem_unique (hfmem x) <| by
+      simpa [hovd₀, (hC₀ x).trans hc] using mem_run he (u := 0) (d := d₀) (x := x) (w := 0)
+        (by simpa [(hC₀ x).trans hc] using id (α := 0 ∈ Code.zero.eval x) (Part.mem_some 0))
+  have hf1 (x) : f x ≤ 1 := by
     cases hc : C₀ x with
-    | none => rw [hf0 x hc]; exact zero_le_one
+    | none => exact (hf0 x hc).le.trans zero_le_one
     | some i =>
       obtain ⟨w, hw⟩ := Part.dom_iff_mem.1 (dom_eval_of_canc hc)
-      rw [hfc x i w hc hw]
-      omega
+      exact (hfc x i w hc hw).le.trans (Nat.sub_le _ _)
   have hfcomp : Computable f :=
     (Code.eval_part.comp (Computable.const (vers e 0 d₀)) Computable.id).of_eq_tot
       fun x => by rw [eval_vers he]; exact hfmem x
@@ -485,13 +476,11 @@ theorem speedup {r : ℕ → ℕ → ℕ} (hr : Computable₂ r) :
   classical
   let g : ℕ → Option ℕ := fun y => if ∃ j < i + 1, C₀ y = some j then some (f y) else none
   let D := encode ((List.range N).map g)
-  have hovD : ∀ y, ovOf D y = g y := by
-    intro y
+  have hovD (y) : ovOf D y = g y := by
     rw [ovOf_encode_map]
     split_ifs with hy
     · rfl
-    · have : ¬∃ j < i + 1, C₀ y = some j := fun ⟨j, hj, hc⟩ => hN y (by omega) j hj hc
-      simp only [g, this, ↓reduceIte]
+    · exact (ite_eq_right fun ⟨j, hj, hc⟩ => hN y (not_lt.1 hy) j hj hc).symm
   have hovB : ∀ y, ovB D y = true ↔ ∃ j < i + 1, C₀ y = some j := fun y => by
     simp [ovB, hovD, g]
   have hsame := canc_override hovB
@@ -514,18 +503,14 @@ theorem speedup {r : ℕ → ℕ → ℕ} (hr : Computable₂ r) :
         have hcy' : canc (elig Φ r e) (ovB D) (i + 1) y = none :=
           Option.eq_none_iff_forall_ne_some.2 fun k h' =>
             Option.some_ne_none k (((hsame y k (canc_le h').1).1 h').symm.trans hcy)
-        have h := mem_run he (u := i + 1) (d := D) (x := y) (w := 0)
+        simpa [hg, hcy', hf0 y hcy] using mem_run he (u := i + 1) (d := D) (x := y) (w := 0)
           (by rw [hcy']; exact Part.mem_some 0)
-        rw [hg, hcy', Option.map_none, Option.getD_none, Option.getD_none] at h
-        rwa [hf0 y hcy]
       | some k =>
         have hk : i + 1 ≤ k := not_lt.1 fun hk => hlow ⟨k, hk, hcy⟩
         have hcy' : canc (elig Φ r e) (ovB D) (i + 1) y = some k := (hsame y k hk).2 hcy
         obtain ⟨w, hw⟩ := Part.dom_iff_mem.1 (dom_eval_of_canc hcy)
-        have h := mem_run he (u := i + 1) (d := D) (x := y) (w := w)
-          (by simpa [hcy'] using hw)
-        rw [hfc y k w hcy hw]
-        simpa [hg, hcy'] using h
+        simpa [hg, hcy', hfc y k w hcy hw] using
+          mem_run he (u := i + 1) (d := D) (x := y) (w := w) (by simpa [hcy'] using hw)
   refine ⟨c', hc', ?_⟩
   -- eventually `c` is not eligible, which is the speedup
   filter_upwards [hne, eventually_ge_atTop D] with y hy hDy m hm m' hm'

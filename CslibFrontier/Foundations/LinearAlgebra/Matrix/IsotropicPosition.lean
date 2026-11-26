@@ -86,8 +86,7 @@ theorem dotProduct_sum_smul_vecMulVec_mulVec {R ι : Type*} [CommSemiring R] (s 
   rw [sum_mulVec, dotProduct_sum]
   refine sum_congr rfl fun i _ => ?_
   simp only [smul_mulVec, vecMulVec_mulVec, dotProduct_smul, dotProduct_comm u (v i),
-    smul_eq_mul, op_smul_eq_mul]
-  ring
+    smul_eq_mul, op_smul_eq_mul, mul_assoc]
 
 omit [Fintype n] in
 /-- A weighted sum of rank-one matrices `wᵢ • vᵢ vᵢᵀ` over `Fin d` is `Wᵀ (diagonal w) W`, where
@@ -107,19 +106,15 @@ variable [DecidableEq n]
 theorem det_add_smul_vecMulVec {R : Type*} [CommRing R] {B : Matrix n n R} (hB : IsUnit B.det)
     (c : R) (u v : n → R) :
     (B + c • vecMulVec u v).det = B.det * (1 + c * (v ⬝ᵥ (B⁻¹ *ᵥ u))) := by
-  have h : c • vecMulVec u v = replicateCol (Fin 1) (c • u) * replicateRow (Fin 1) v := by
-    ext i j
-    simp [vecMulVec_apply, Matrix.mul_apply, mul_assoc]
+  have h : c • vecMulVec u v = replicateCol (Fin 1) (c • u) * replicateRow (Fin 1) v :=
+    ext fun i j => by simp [vecMulVec_apply, Matrix.mul_apply, mul_assoc]
   have h1 : (1 + replicateRow (Fin 1) v * B⁻¹ * replicateCol (Fin 1) (c • u) :
       Matrix (Fin 1) (Fin 1) R) = Matrix.of fun _ _ => 1 + c * (v ⬝ᵥ (B⁻¹ *ᵥ u)) := by
     ext i j
     fin_cases i, j
-    simp only [Matrix.add_apply, Matrix.one_apply_eq, Matrix.mul_apply, replicateRow_apply,
-      replicateCol_apply, Pi.smul_apply, smul_eq_mul, Matrix.of_apply, dotProduct, mulVec]
-    congr 1
-    simp only [sum_mul, mul_sum]
-    rw [sum_comm]
-    exact sum_congr rfl fun i _ => sum_congr rfl fun j _ => by ring
+    simp only [Matrix.mul_assoc, Matrix.add_apply, Matrix.one_apply_eq, Matrix.mul_apply,
+      replicateRow_apply, replicateCol_apply, Pi.smul_apply, smul_eq_mul, Matrix.of_apply,
+      dotProduct, mulVec, mul_left_comm (B⁻¹ _ _) c, mul_left_comm (v _) c, ← mul_sum]
   calc (B + c • vecMulVec u v).det
       = B.det * (1 + replicateRow (Fin 1) v * B⁻¹ * replicateCol (Fin 1) (c • u)).det := by
         rw [h]; exact det_add_replicateCol_mul_replicateRow hB (c • u) v
@@ -250,8 +245,7 @@ private theorem det_sum_exp_update_sub {X : Type*} [Fintype X] [DecidableEq X] {
         (Real.exp (t x - δ) - Real.exp (t x)) • vecMulVec (U x) (U x) := by
     simpa only [sub_smul] using
       sum_apply_update_eq_add_sub (fun z s => Real.exp s • vecMulVec (U z) (U z)) t x (t x - δ)
-  rw [hupd, det_add_smul_vecMulVec ht.det_pos.ne'.isUnit, sub_eq_add_neg (t x), Real.exp_add]
-  ring
+  rw [hupd, det_add_smul_vecMulVec ht.det_pos.ne'.isUnit, sub_eq_add_neg (t x), Real.exp_add]; ring
 
 /-- **The scalar step of the near-minimizer argument.** With `δ = ε / (1 + r + ε)`, if lowering a
 weight by `δ` changes the potential by `log (1 + (exp(-δ) - 1) q) + r δ > -δ²`, then the leverage
@@ -290,11 +284,9 @@ theorem exists_isotropic_weights {X : Type*} [Fintype X] {d : ℕ} (U : Matrix X
       ∀ x, p x * (U x ⬝ᵥ ((∑ z, p z • vecMulVec (U z) (U z))⁻¹ *ᵥ U x)) ≤
         d / Fintype.card X + ε := by
   classical
-  have hspan : ∀ w : Fin d → ℝ, (∀ x ∈ (univ : Finset X), U x ⬝ᵥ w = 0) → w = 0 := by
-    intro w hw
-    obtain ⟨e⟩ := Function.Embedding.nonempty_of_card_le (α := Fin d) (β := X)
-      (by simpa using hd)
-    exact eq_zero_of_mulVec_eq_zero (hU e) (funext fun i => hw (e i) (mem_univ _))
+  have hspan (w : Fin d → ℝ) (hw : ∀ x ∈ (univ : Finset X), U x ⬝ᵥ w = 0) : w = 0 :=
+    let ⟨e⟩ := Function.Embedding.nonempty_of_card_le (α := Fin d) (β := X) (by simpa using hd)
+    eq_zero_of_mulVec_eq_zero (hU e) (funext fun i => hw (e i) (mem_univ _))
   set A : (X → ℝ) → Matrix (Fin d) (Fin d) ℝ :=
     fun t => ∑ x, Real.exp (t x) • vecMulVec (U x) (U x) with hA
   have hApd : ∀ t, (A t).PosDef := fun t =>
@@ -327,11 +319,8 @@ theorem exists_isotropic_weights {X : Type*} [Fintype X] {d : ℕ} (U : Matrix X
   have hsum' : ∑ z, t' z = ∑ z, t z - δ :=
     (sum_apply_update_eq_add_sub (fun _ s => s) t x (t x - δ)).trans (by ring)
   have hφ' : φ t' = φ t + Real.log (1 + (Real.exp (-δ) - 1) * q) + r * δ := by
-    simp only [hφ]
-    rw [hdet', Real.log_mul (hApd t).det_pos.ne' hy.ne', hsum']
-    ring
-  have hLt' : (⨅ t, φ t) ≤ φ t' := ciInf_le hbdd t'
-  exact le_add_of_neg_sq_lt_log hq0 hr0 hε hy (by linarith)
+    simp only [hφ, hdet', Real.log_mul (hApd t).det_pos.ne' hy.ne', hsum']; ring
+  exact le_add_of_neg_sq_lt_log hq0 hr0 hε hy (by linarith [ciInf_le hbdd t'])
 
 /-- **General position is generic.** For any `U : Matrix X (Fin d) ℝ` there is a matrix `W` such
 that for all sufficiently small `ε ≠ 0` every `d × d` submatrix of `U + ε • W` is invertible.
@@ -355,17 +344,15 @@ theorem eventually_det_submatrix_add_smul_ne_zero {X : Type*} [Finite X] {d : �
   have hP : P ≠ 0 := fun h => hWe <| by
     simpa [P, h, eq_comm] using
       Polynomial.coeff_det_X_add_C_card (W.submatrix e id) (U.submatrix e id)
-  have heval : ∀ ε : ℝ, P.eval ε = ((U + ε • W).submatrix e id).det := fun ε => by
+  have heval (ε : ℝ) : P.eval ε = ((U + ε • W).submatrix e id).det := by
     rw [← Polynomial.coe_evalRingHom, RingHom.map_det]
-    congr 1
-    ext i j
+    refine congrArg det (ext fun i j => ?_)
     simp only [Polynomial.coe_evalRingHom, RingHom.mapMatrix_apply, map_apply, Matrix.add_apply,
       Matrix.smul_apply, smul_eq_mul, submatrix_apply, id, Polynomial.eval_add,
       Polynomial.eval_mul, Polynomial.eval_X, Polynomial.eval_C]
     ring
-  filter_upwards [(Polynomial.eventually_eval_ne_zero_cofinite hP).filter_mono
-    (nhdsNE_le_cofinite 0)] with ε hε
-  rwa [← heval]
+  exact ((Polynomial.eventually_eval_ne_zero_cofinite hP).filter_mono
+    (nhdsNE_le_cofinite 0)).mono fun ε hε => heval ε ▸ hε
 
 end Matrix
 

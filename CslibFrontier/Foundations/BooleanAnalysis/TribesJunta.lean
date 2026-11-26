@@ -156,20 +156,16 @@ private theorem pivWeight_ne_zero_other {j : Fin s} {x : BitString (s * w)}
 private theorem pivWeight_eq_zero_of_ne {j₁ j₂ : Fin s} (hj₁ : j₁ ∈ T) (hj : j₂ ≠ j₁)
     {x : BitString (s * w)} (hx : pivWeight T c j₁ x ≠ 0) : pivWeight T c j₂ x = 0 := by
   by_contra hx₂
-  have h1 := pivWeight_ne_zero_self hx
-  have h2 := prod_ne_zero_iff.1 hx₂ j₁ (mem_univ _)
-  simp only [pivFactor, Ne.symm hj, hj₁, ite_false, ite_true, ne_eq, ite_eq_right_iff,
-    one_ne_zero, imp_false, not_not, mem_erase, mem_univ, and_true] at h2
-  obtain ⟨i, hi, hxi⟩ := h2
-  exact Bool.false_ne_true (hxi.symm.trans (h1 i hi))
+  obtain ⟨i, hi, hxi⟩ := by
+    simpa [pivFactor, Ne.symm hj, hj₁] using prod_ne_zero_iff.1 hx₂ j₁ (mem_univ _)
+  exact Bool.false_ne_true (hxi.symm.trans (pivWeight_ne_zero_self hx i hi))
 
 /-- Setting the free bit of tribe `j` keeps its pivotality event. -/
 private theorem pivWeight_update (j : Fin s) (x : BitString (s * w)) (b : Bool) :
     pivWeight T c j (update x (finProdFinEquiv (j, c j)) b) = pivWeight T c j x := by
   refine prod_congr rfl fun j' _ => ?_
-  by_cases hj' : j' = j
-  · subst hj'
-    simp only [pivFactor, ite_true]
+  rcases eq_or_ne j' j with rfl | hj'
+  · simp only [pivFactor, ite_true]
     refine if_congr (forall₂_congr fun i hi => ?_) rfl rfl
     rw [update_of_ne fun h => ne_of_mem_erase hi (by simpa using finProdFinEquiv.injective h)]
   · exact congrArg (pivFactor T c j j') (funext fun i =>
@@ -180,17 +176,13 @@ private theorem tribes_eq_of_pivWeight_ne_zero {j : Fin s} {x : BitString (s * w
     (hx : pivWeight T c j x ≠ 0) : tribes w s x = x (finProdFinEquiv (j, c j)) := by
   rw [tribes]
   cases hb : x (finProdFinEquiv (j, c j))
-  · refine decide_eq_false ?_
-    rintro ⟨j', hj'⟩
-    by_cases hjj : j' = j
-    · subst hjj
-      exact Bool.false_ne_true (hb.symm.trans (hj' (c j')))
+  · refine decide_eq_false fun ⟨j', hj'⟩ => ?_
+    rcases eq_or_ne j' j with rfl | hjj
+    · exact Bool.false_ne_true (hb.symm.trans (hj' (c j')))
     · obtain ⟨i, hi⟩ := pivWeight_ne_zero_other hx hjj
       exact Bool.false_ne_true (hi.symm.trans (hj' i))
-  · refine decide_eq_true ⟨j, fun i => ?_⟩
-    by_cases hi : i = c j
-    · rw [hi, hb]
-    · exact pivWeight_ne_zero_self hx i hi
+  · exact decide_eq_true ⟨j, fun i =>
+      if hi : i = c j then hi ▸ hb else pivWeight_ne_zero_self hx i hi⟩
 
 /-- The probability of the pivotality event of a tribe of `T`. -/
 private theorem expect_pivWeight {j : Fin s} (hj : j ∈ T) :
@@ -204,21 +196,20 @@ private theorem expect_pivWeight {j : Fin s} (hj : j ∈ T) :
     rw [expect_ite_forall_mem_eq, card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fin]
   have e1 : ∀ j' ∈ (univ.erase j).filter (· ∈ T),
       𝔼 z, pivFactor T c j j' z = 1 - 2⁻¹ ^ (w - 1) := fun j' hj' => by
-    simp only [mem_filter, mem_erase, mem_univ, and_true] at hj'
-    simp only [pivFactor, hj'.1, hj'.2, ite_false, ite_true]
-    rw [expect_ite_exists_mem_eq, card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fin]
+    rcases mem_filter.1 hj' with ⟨hj'e, hj'T⟩
+    simp only [pivFactor, ne_of_mem_erase hj'e, hj'T, ite_false, ite_true,
+      expect_ite_exists_mem_eq, card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fin]
   have e2 : ∀ j' ∈ (univ.erase j).filter (· ∉ T),
       𝔼 z, pivFactor T c j j' z = 1 - 2⁻¹ ^ w := fun j' hj' => by
-    simp only [mem_filter, mem_erase, mem_univ, and_true] at hj'
-    simp only [pivFactor, hj'.1, hj'.2, ite_false]
-    rw [expect_ite_exists_mem_eq, card_univ, Fintype.card_fin]
+    rcases mem_filter.1 hj' with ⟨hj'e, hj'T⟩
+    simp only [pivFactor, ne_of_mem_erase hj'e, hj'T, ite_false,
+      expect_ite_exists_mem_eq, card_univ, Fintype.card_fin]
   have c1 : #((univ.erase j).filter (· ∈ T)) = #T - 1 :=
     (congrArg card (Finset.ext fun _ => by simp)).trans (card_erase_of_mem hj)
   have c2 : #((univ.erase j).filter (· ∉ T)) = s - #T := by
-    suffices (univ.erase j).filter (· ∉ T) = Tᶜ by rw [this, card_compl, Fintype.card_fin]
-    ext k
-    simp only [mem_filter, mem_erase, mem_univ, and_true, mem_compl]
-    exact ⟨And.right, fun h => ⟨fun hk => h (hk ▸ hj), h⟩⟩
+    have hTc : (univ.erase j).filter (· ∉ T) = Tᶜ :=
+      Finset.ext fun k => by by_cases hk : k = j <;> simp [hk, hj]
+    rw [hTc, card_compl, Fintype.card_fin]
   rw [e0, prod_congr rfl e1, prod_congr rfl e2, prod_const, prod_const, c1, c2]
 
 /-- A function of the coordinates `J` disagrees with Tribes on half of each pivotality event of a
@@ -278,18 +269,16 @@ private theorem one_div_256_le_card_mul (hw : 1 ≤ w) (hs₁ : 2 ^ (w - 1) ≤ 
   have hC : 1 / 16 ≤ (1 - y) ^ (t - 1) := by
     rcases Nat.lt_or_ge w 2 with hw2 | hw2
     · obtain rfl : w = 1 := by omega
-      rw [show t - 1 = 0 by norm_num at hs₂; omega, pow_zero]
-      norm_num
+      norm_num [Nat.sub_eq_zero_of_le (Nat.lt_succ_iff.mp (hts.trans_lt hs₂))]
     · set n₀ : ℕ := 2 ^ (w - 2) with hn₀
       have hny : (n₀ : ℝ) * y = 1 / 2 := by
+        have hw1 : w - 1 = w - 2 + 1 := by omega
         rw [hy, hn₀, Nat.cast_pow, Nat.cast_ofNat, inv_pow, ← div_eq_mul_inv,
-          div_eq_iff (by positivity), show w - 1 = w - 2 + 1 by omega, pow_succ]
+          div_eq_iff (by positivity), hw1, pow_succ]
         ring
       -- Bernoulli's inequality
       have hpow : 1 / 2 ≤ (1 - y) ^ n₀ := by
-        have := one_add_mul_le_pow (a := -y) (by linarith) n₀
-        rw [← sub_eq_add_neg] at this
-        linarith
+        linarith [sub_eq_add_neg (1 : ℝ) y ▸ one_add_mul_le_pow (a := -y) (by linarith) n₀]
       have hTn : t - 1 ≤ 4 * n₀ := by
         have : 2 ^ w = 2 ^ (w - 2) * 2 ^ 2 := by rw [← pow_add, Nat.sub_add_cancel hw2]
         omega
@@ -311,12 +300,10 @@ private theorem one_div_256_le_hammingDist_tribes_div_of {g : BitString (s * w) 
     (hq : 1 / 2 ≤ (1 - (2⁻¹ : ℝ) ^ w) ^ s) (hJ : 4 * #J ≤ 3 * (s * w))
     (hg : DependsOn g (J : Set (Fin (s * w)))) :
     1 / 256 ≤ (hammingDist (tribes w s) g : ℝ) / 2 ^ (s * w) := by
-  have hc : ∀ j ∈ looseTribes w J, ∃ i, finProdFinEquiv (j, i) ∉ J := fun j hj => by
-    simpa [looseTribes] using hj
   have : Nonempty (Fin w) := ⟨⟨0, hw⟩⟩
-  choose! c hc using hc
-  have hts : #(looseTribes w J) ≤ s := by simpa using card_le_univ (looseTribes w J)
-  exact (one_div_256_le_card_mul hw hs₁ hs₂ hq (le_four_mul_card_looseTribes hw hJ) hts).trans
+  choose! c hc using fun j (hj : j ∈ looseTribes w J) => (mem_filter.1 hj).2
+  exact (one_div_256_le_card_mul hw hs₁ hs₂ hq (le_four_mul_card_looseTribes hw hJ)
+    (by simpa using card_le_univ (looseTribes w J))).trans
     (card_mul_le_hammingDist_tribes_div hc hg)
 
 end Junta

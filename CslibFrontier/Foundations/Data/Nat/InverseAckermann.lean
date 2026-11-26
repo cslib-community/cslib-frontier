@@ -117,10 +117,8 @@ private theorem ackermann_one_iterate (t j : ℕ) :
     omega
 
 /-- Closed form at level `2`: `ackermann 2 j = 2 ^ (j + 1) * (j + 1) - 1`. -/
-theorem ackermann_two (j : ℕ) : ackermann 2 j = 2 ^ (j + 1) * (j + 1) - 1 := by
-  have h := ackermann_one_iterate (j + 1) j
-  change ackermann 2 j + 1 = 2 ^ (j + 1) * (j + 1) at h
-  omega
+theorem ackermann_two (j : ℕ) : ackermann 2 j = 2 ^ (j + 1) * (j + 1) - 1 :=
+  Nat.eq_sub_of_add_eq (ackermann_one_iterate (j + 1) j)
 
 private theorem ackermann_two_one : ackermann 2 1 = 7 := by decide
 
@@ -218,9 +216,8 @@ private theorem inverseAckermannAux_spec {d target : ℕ} :
     rw [inverseAckermannAux]
     split_ifs with hlt
     · exact ⟨Nat.le_refl k, hlt, fun _ hm _ => hm⟩
-    · have h' : target < ackermann ((k + 1) + fuel) d := by
-        rwa [Nat.add_right_comm]
-      obtain ⟨hk1, htarget, hmin⟩ := inverseAckermannAux_spec fuel (k + 1) h'
+    · obtain ⟨hk1, htarget, hmin⟩ :=
+        inverseAckermannAux_spec fuel (k + 1) (Nat.add_right_comm k 1 fuel ▸ h)
       refine ⟨(Nat.le_succ k).trans hk1, htarget, fun m hm hm_lt => ?_⟩
       rcases Nat.eq_or_lt_of_le hm with rfl | hkm
       · exact absurd hm_lt hlt
@@ -231,11 +228,8 @@ private theorem inverseAckermannAt_spec (d n : ℕ) :
     Nat.log 2 n + max 1 d < ackermann (inverseAckermannAt d n) (max 1 d) ∧
     ∀ m, 1 ≤ m → Nat.log 2 n + max 1 d < ackermann m (max 1 d) →
       inverseAckermannAt d n ≤ m := by
-  unfold inverseAckermannAt
-  dsimp only
   refine inverseAckermannAux_spec (Nat.log 2 n + 1) 1 ?_
-  have hd : 1 ≤ max 1 d := Nat.le_max_left 1 d
-  have hlt := add_lt_ackermann (1 + (Nat.log 2 n + 1)) hd
+  have hlt := add_lt_ackermann (1 + (Nat.log 2 n + 1)) (Nat.le_max_left 1 d)
   omega
 
 /-- `inverseAckermannAt d n` is at least `1`. -/
@@ -255,12 +249,10 @@ theorem inverseAckermannAt_le_iff {d n k : ℕ} (hk : 1 ≤ k) :
     (inverseAckermannAt_spec d n).2.2 k hk⟩
 
 /-- For fixed `d`, `n ↦ inverseAckermannAt d n` is monotone. -/
-theorem inverseAckermannAt_mono_right (d : ℕ) : Monotone (inverseAckermannAt d) := by
-  intro n₁ n₂ hn
-  rw [inverseAckermannAt_le_iff (one_le_inverseAckermannAt d n₂)]
-  have hlog : Nat.log 2 n₁ ≤ Nat.log 2 n₂ := Nat.log_mono_right hn
-  have hlt := log_add_lt_ackermann_inverseAckermannAt d n₂
-  omega
+theorem inverseAckermannAt_mono_right (d : ℕ) : Monotone (inverseAckermannAt d) := fun _ n₂ hn =>
+  (inverseAckermannAt_le_iff (one_le_inverseAckermannAt d n₂)).2 <|
+    (Nat.add_le_add_right (Nat.log_mono_right hn) _).trans_lt
+      (log_add_lt_ackermann_inverseAckermannAt d n₂)
 
 /-- For fixed `n`, `d ↦ inverseAckermannAt d n` is antitone. -/
 theorem inverseAckermannAt_anti_left (n : ℕ) : Antitone (fun d => inverseAckermannAt d n) := by
@@ -293,7 +285,7 @@ theorem inverseAckermann_mono : Monotone inverseAckermann :=
 /-- For all `n < 2 ^ 2046`, `inverseAckermann n ≤ 3`. -/
 theorem inverseAckermann_le_three_of_lt {n : ℕ} (hn : n < 2 ^ 2046) :
     inverseAckermann n ≤ 3 := by
-  rw [inverseAckermann_le_iff (by decide : 1 ≤ 3), ackermann_three_one]
+  rw [inverseAckermann_le_iff (Nat.succ_le_succ (Nat.zero_le 2)), ackermann_three_one]
   rcases eq_or_ne n 0 with rfl | hn0
   · decide
   · have := Nat.log_lt_of_lt_pow hn0 hn
@@ -314,9 +306,8 @@ theorem inverseAckermannTwo_le_inverseAckermann (m n : ℕ) :
   inverseAckermannAt_anti_left n (Nat.le_add_left 1 (m / n))
 
 /-- For fixed `n`, `m ↦ inverseAckermannTwo m n` is antitone. -/
-theorem inverseAckermannTwo_anti_left (n : ℕ) : Antitone (fun m => inverseAckermannTwo m n) := by
-  intro m₁ m₂ hm
-  exact inverseAckermannAt_anti_left n (Nat.add_le_add_right (Nat.div_le_div_right hm) 1)
+theorem inverseAckermannTwo_anti_left (n : ℕ) : Antitone (fun m => inverseAckermannTwo m n) :=
+  fun _ _ hm => inverseAckermannAt_anti_left n (Nat.add_le_add_right (Nat.div_le_div_right hm) 1)
 
 /-- When `m < n`, `inverseAckermannTwo m n` coincides with `inverseAckermann n`. -/
 theorem inverseAckermannTwo_of_lt {m n : ℕ} (h : m < n) :

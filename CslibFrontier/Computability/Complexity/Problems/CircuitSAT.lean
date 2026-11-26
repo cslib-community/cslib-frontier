@@ -158,8 +158,7 @@ def circuitCode (φ : CNF ℕ) : List (Op × List ℕ) × List ℕ :=
   (circuitGates φ, [φ.vars.length + 3 * (circuitSteps φ).length + 2])
 
 private theorem length_circuitBlock (p i : ℕ) (b e : Bool) : (circuitBlock p i b e).length = 3 := by
-  unfold circuitBlock
-  split <;> rfl
+  cases e <;> cases b <;> rfl
 
 /-- The circuit of a formula has three gates for each instruction, and three more. -/
 private theorem length_circuitGates (φ : CNF ℕ) :
@@ -186,12 +185,11 @@ private theorem isCodeFrom_circuitBlocks (φ : CNF ℕ) (steps : List (Literal �
   induction steps generalizing k with
   | nil => simp [Program.IsCodeFrom]
   | cons s steps ih =>
-    rw [List.zipIdx_cons, List.flatMap_cons, Program.isCodeFrom_append]
-    refine ⟨isCodeFrom_circuitBlock _ _ fun he =>
-      List.idxOf_lt_length_iff.2 (h s (List.mem_cons_self ..) he), ?_⟩
-    have := ih (k + 1) fun s' hs' => h s' (List.mem_cons_of_mem _ hs')
-    simp only [circuitBlock] at this ⊢
-    split_ifs <;> simpa [Nat.mul_add, Nat.add_assoc] using this
+    rw [List.zipIdx_cons, List.flatMap_cons, Program.isCodeFrom_append, length_circuitBlock]
+    exact ⟨isCodeFrom_circuitBlock _ _ fun he =>
+      List.idxOf_lt_length_iff.2 (h s (List.mem_cons_self ..) he),
+      by simpa only [Nat.mul_add, Nat.add_assoc] using
+        ih (k + 1) fun s' hs' => h s' (List.mem_cons_of_mem _ hs')⟩
 
 /-- Every literal instruction reads a variable of the formula. -/
 private theorem mem_vars_of_mem_circuitSteps {φ : CNF ℕ} {s : Literal ℕ × Bool}
@@ -209,8 +207,7 @@ theorem isSome_ofCode_circuitCode (φ : CNF ℕ) :
   refine ⟨(Program.isCodeFrom_append _ _ _).2 ⟨by simp [Program.IsCodeFrom],
     by simpa using isCodeFrom_circuitBlocks φ (circuitSteps φ) 0 fun s hs =>
       mem_vars_of_mem_circuitSteps hs⟩, rfl, ?_⟩
-  simp only [circuitCode, length_circuitGates, List.mem_singleton, forall_eq]
-  omega
+  simp only [circuitCode, length_circuitGates, List.mem_singleton, forall_eq]; omega
 
 /-- **The circuit of a formula**: one input for each literal occurrence, and the gates of
 `circuitCode`. -/
@@ -253,9 +250,7 @@ private theorem evalCode_flatMap (φ : CNF ℕ) (x : List Bool) (hx : x.length =
       (φ.vars.length + 3 * (k + steps.length) + 2) false =
       (steps.foldl (circuitState (assignment φ x)) s).2 := by
   induction steps generalizing k V s with
-  | nil =>
-    rw [List.zipIdx_nil, List.flatMap_nil, evalCode_nil]
-    simpa using h₂
+  | nil => rwa [List.zipIdx_nil, List.flatMap_nil, evalCode_nil]
   | cons t steps ih =>
     obtain ⟨⟨v, b⟩, e⟩ := t
     have hv : e = false → φ.vars.idxOf v < φ.vars.length := fun he =>
@@ -264,19 +259,17 @@ private theorem evalCode_flatMap (φ : CNF ℕ) (x : List Bool) (hx : x.length =
       evalCode_circuitBlock V (φ.vars.length + 3 * k) (φ.vars.idxOf v) b e hV
         fun he => by have := hv he; omega,
       show k + (steps.length + 1) = k + 1 + steps.length by ring]
-    have hread (he : e = false) : V.getD (φ.vars.idxOf v) false = assignment φ x v := by
+    have hread (he : e = false) : V[φ.vars.idxOf v]?.getD false = assignment φ x v := by
       have := hv he
-      rw [assignment, List.getD_eq_getElem _ _ (by omega), List.getD_eq_getElem _ _ (by omega),
-        hx'.getElem]
+      rw [assignment, List.getElem?_eq_getElem (by omega), Option.getD_some,
+        List.getD_eq_getElem _ _ (by omega), hx'.getElem]
     refine ih (fun t ht => hsteps t (List.mem_cons_of_mem _ ht)) (k + 1) _ _ ?_
       (hx'.trans (List.prefix_append _ _)) ?_ ?_
-    · rw [List.length_append, hV]
-      cases e <;> rfl
+    · cases e <;> exact (List.length_append ..).trans (congrArg (· + 3) hV)
     · rw [show φ.vars.length + 3 * (k + 1) + 1 = V.length + 1 by omega,
         List.getD_append_right _ _ _ _ (by omega), Nat.add_sub_cancel_left, h₁]
       cases e
-      · rw [hread rfl]
-        simp [circuitState]
+      · simp [circuitState, hread rfl]
       · simp [circuitState]
     · rw [show φ.vars.length + 3 * (k + 1) + 2 = V.length + 2 by omega,
         List.getD_append_right _ _ _ _ (by omega), Nat.add_sub_cancel_left, h₁, h₂]
@@ -323,11 +316,10 @@ theorem toCircuit_mem_CircuitSAT_iff (φ : CNF ℕ) : toCircuit φ ∈ CircuitSA
   rw [mem_CircuitSAT, mem_SAT]
   refine ⟨fun ⟨x, hx⟩ => ⟨_, (eval_toCircuit φ x).symm.trans hx⟩, fun ⟨τ, hτ⟩ =>
     ⟨fun i => τ (φ.vars[i.val]'i.isLt), ?_⟩⟩
-  rw [eval_toCircuit, CNF.eval_congr fun v hv => ?_]
-  · exact hτ
-  · have hlt := List.idxOf_lt_length_iff.2 hv
-    rw [assignment]
-    exact (List.getD_ofFn_of_lt _ hlt _).trans (congrArg τ (List.getElem_idxOf hlt))
+  rw [eval_toCircuit]
+  refine (CNF.eval_congr fun v hv => ?_).trans hτ
+  have hlt := List.idxOf_lt_length_iff.2 hv
+  exact (List.getD_ofFn_of_lt _ hlt _).trans (congrArg τ (List.getElem_idxOf hlt))
 
 /-! ### The reduction is polynomial-time -/
 
@@ -359,18 +351,15 @@ private theorem computableInPolyTime_circuitBlock :
       ComputableInPolyTime (fun q => (op, args q))
         (encPair (encPair (encPair encUnary encUnary) encBool) encBool) encGate :=
     (const op).prod h
-  have hnil {β : Type} (enc : β ↪ List Bool) : ComputableInPolyTime
-      (fun _ : ((ℕ × ℕ) × Bool) × Bool => ([] : List β))
-      (encPair (encPair (encPair encUnary encUnary) encBool) encBool) (encList enc) := const []
   unfold circuitBlock
   refine ite' (snd _ _) ?_ ?_
-  · exact cons' (hgate .and (cons' (hp 2) (cons' (hp 1) (hnil _))))
-      (cons' (hgate (.const false) (hnil _))
-        (cons' (hgate .or (cons' (hp 3) (cons' (hp 3) (hnil _)))) (hnil _)))
-  · exact cons' (ite' (fst _ _).snd' (hgate .or (cons' hi (cons' hi (hnil _))))
-        (hgate .not (cons' hi (hnil _))))
-      (cons' (hgate .or (cons' (hp 1) (cons' (hp 3) (hnil _))))
-        (cons' (hgate .and (cons' (hp 2) (cons' (hp 2) (hnil _)))) (hnil _)))
+  · exact cons' (hgate .and (cons' (hp 2) (cons' (hp 1) (const []))))
+      (cons' (hgate (.const false) (const []))
+        (cons' (hgate .or (cons' (hp 3) (cons' (hp 3) (const [])))) (const [])))
+  · exact cons' (ite' (fst _ _).snd' (hgate .or (cons' hi (cons' hi (const []))))
+        (hgate .not (cons' hi (const []))))
+      (cons' (hgate .or (cons' (hp 1) (cons' (hp 3) (const []))))
+        (cons' (hgate .and (cons' (hp 2) (cons' (hp 2) (const [])))) (const [])))
 
 /-- Writing the gates of the circuit of a formula is polynomial-time. -/
 private theorem computableInPolyTime_circuitGates :
@@ -393,8 +382,7 @@ to the binary encoding `encCircuit 1` of circuits. -/
 theorem computableInPolyTime_toCircuit :
     ComputableInPolyTime toCircuit encCNF (encCircuit 1) := by
   have hvars := SAT.computableInPolyTime_vars
-  have hn : ComputableInPolyTime (fun φ : CNF ℕ => φ.vars.length) encCNF encUnary := by
-    fun_prop
+  have hn : ComputableInPolyTime (fun φ => φ.vars.length) encCNF encUnary := by fun_prop
   have hout : ComputableInPolyTime
       (fun φ : CNF ℕ => φ.vars.length + 3 * (circuitSteps φ).length + 2) encCNF encNat :=
     unary_to_binary.comp (by fun_prop)

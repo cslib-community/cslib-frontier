@@ -221,13 +221,9 @@ theorem Op.computes_deMorganFormula (op : Op) :
   cases op with
   | not => rfl
   | and k =>
-    rw [deMorganFormula, Formula.eval_andList, interpretation_and, Bool.eq_iff_iff,
-      List.all_eq_true]
-    simp
+    exact Bool.eq_iff_iff.2 (by simp [deMorganFormula, Formula.eval_andList, interpretation_and])
   | or k =>
-    rw [deMorganFormula, Formula.eval_orList, interpretation_or, Bool.eq_iff_iff,
-      List.any_eq_true]
-    simp
+    exact Bool.eq_iff_iff.2 (by simp [deMorganFormula, Formula.eval_orList, interpretation_or])
 
 /-- The De Morgan formula of an operation of `k` arguments has at most `max 1 k` nodes: one
 negation, a constant for no arguments, and `k - 1` binary gates for `k ≥ 1` arguments. -/

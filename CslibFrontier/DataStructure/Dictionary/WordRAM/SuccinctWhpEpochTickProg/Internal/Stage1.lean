@@ -219,9 +219,8 @@ private theorem stage1FinishGenProg_fastStep {c U V w n_max base : ℕ}
     (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrDirtyCount)
     (by dsimp [hdrDirtyCount]; omega) (s := s)
   rw [hh.dirtyCount] at hdc_res
-  dsimp only
-  unfold stage1FinishGenProg; simp only [pure_bind]
-  dsimp only [epochTickStage1Finish]
+  unfold stage1FinishGenProg
+  simp only [pure_bind, epochTickStage1Finish]
   by_cases hdc0 : fs.dirtyCount = 0
   · obtain ⟨ht3_mc, ht3_vp, ht3_step⟩ := tickToStage3Prog_fastStep henv hseed hrep (s := s)
     rw [ite_eq_left hdc0, clientState_bind, hdc_st, hdc_res, ite_eq_left hdc0]
@@ -381,10 +380,9 @@ private theorem stage1_unpack_pre {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
   have hold_or : fs.oldEp = 0 ∨ fs.oldEp = 1 := by
     rcases hc.curEp_or with h | h <;> simp [FastState.oldEp, h]
   have hbo := hc.bufOld_valid
-  rw [ite_eq_left (by omega : fs.rebStage ≤ 3)] at hbo
+  simp only [hs1, Nat.reduceLeDiff, ↓reduceIte] at hbo
   obtain ⟨hia_o, _, oldMap, hv_o, hrel_o⟩ := hbo
-  dsimp only [ValidEpochStagePreTick] at hpre
-  rw [ite_eq_right (by omega : ¬(fs.rebStage = 0)), ite_eq_left hs1] at hpre
+  simp only [ValidEpochStagePreTick, hs1, Nat.one_ne_zero, ↓reduceIte] at hpre
   obtain ⟨hsc_le, hdc_le_sc, hd_bnds, _⟩ := hpre
   have hrc_lt := two_mul_rIndepWhp_lt_qEpochWhp hth
   have hq_lt := (large_bounds_lt_n_max hth).2.2.2.2.2.2.1
@@ -482,22 +480,13 @@ theorem realizes_epochTickStage1Gen :
          | exact ⟨c, U, V, w, n_max, θ, fs, henv, rfl, hseed, hrep, hb₀, hdc_lt_q⟩
          | (obtain ⟨_, _, hqb_step⟩ :=
               stage1QueueBucketProg_fastStep henv hb₀ hdc_lt_q hseed hrep (s := s)
-            set s_q := (Memory.spec 0).clientState s
-              (stage1QueueBucketProg ((mkWhpCoreParams c U V w n_max, base), b₀))
-            set fs_q : FastState :=
-              if fs.rebQueued b₀ = 0 then
-                { fs with
-                  rebQueued := Function.update fs.rebQueued b₀ 1
-                  dirtyBuckets := Function.update fs.dirtyBuckets fs.dirtyCount b₀
-                  dirtyCount := fs.dirtyCount + 1 }
-              else fs
-            have hw := writeHdrStep (fs := fs_q) henv (by dsimp [hdrStageCursor]; decide)
-              (henv.fits_of_le_n_max (by omega)) (fun h6 => by dsimp [hdrStageCursor] at h6; omega)
+            have hw := writeHdrStep henv (by simp [hdrStageCursor])
+              (henv.fits_of_le_n_max (by omega)) (by simp [hdrStageCursor])
               hqb_step.2.1 hqb_step.2.2.1 (hdrOff := hdrStageCursor)
-              (val := fs.stageCursor + 1) (s := s_q)
-            exact ⟨c, U, V, w, n_max, { fs_q with stageCursor := fs.stageCursor + 1 },
-              henv, rfl, hw.2.2.2.2.1,
-              stage1_dirtyZero_bounds_after_queue (fs_q := fs_q) hcore hb₀ hpos_init rfl⟩))
+              (val := fs.stageCursor + 1)
+            exact ⟨c, U, V, w, n_max, _, henv, rfl, hw.2.2.2.2.1,
+              by simpa [updateFastHdr, hdrStageCursor, FastState.rebSliceIdx, FastState.rebRole]
+                using stage1_dirtyZero_bounds_after_queue hcore hb₀ hpos_init rfl⟩))
   )
 
 private theorem stage1BumpAndFinish_fastStep {c U V w n_max base : ℕ}
@@ -533,9 +522,10 @@ private theorem stage1BumpAndFinish_fastStep {c U V w n_max base : ℕ}
     exact seqUnitProg_fastStep (c₁ := 1) (c₂ := 21) hw ⟨hfn_mc, hfn_vp, hfn_step⟩
   · rw [ite_eq_right hdone, ite_eq_right hdone]
     refine ⟨?_, validProg_bind hw.2.1 (validProg_pure _), ?_⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pure]
-      have := hw.1; omega
-    · rw [clientState_bind, clientState_pure_whp]; exact hw.2.2
+    · simpa only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_pure,
+        Nat.add_zero] using hw.1.trans (by decide)
+    · rw [clientState_bind, clientState_pure_whp]
+      exact hw.2.2
 
 /-- `FastStateStep` specification for `epochTickStage1GenProg`. -/
 theorem epochTickStage1GenProg_fastStep {c U V w n_max base : ℕ}
@@ -557,9 +547,8 @@ theorem epochTickStage1GenProg_fastStep {c U V w n_max base : ℕ}
   obtain ⟨hold_or, hia_lt, _, hdc_lt_q, hpos_init, oldMap, hv_o, hrel_o⟩ :=
     stage1_unpack_pre hth hc hpre hs1
   have hr := stageCursorReads_spec henv hc.curEp_or hold_or hrep (s := s)
-  dsimp only
-  unfold epochTickStage1GenProg; simp only [pure_bind]
-  dsimp only [epochTickStage1]
+  unfold epochTickStage1GenProg
+  simp only [pure_bind, epochTickStage1]
   set oldTr := fs.buf fs.oldEp
   by_cases hlt : fs.stageCursor < oldTr.itemAlloc
   · rw [ite_eq_left hlt]
@@ -582,26 +571,16 @@ theorem epochTickStage1GenProg_fastStep {c U V w n_max base : ℕ}
       have hb₀ : b₀ < numBucketsWhp n_max := hrel_o k b₀ loc₀ hmk
       obtain ⟨hqb_mc, hqb_vp, hqb_step⟩ :=
         stage1QueueBucketProg_fastStep henv hb₀ hdc_lt_q hseed hrep (s := s)
-      set fs_q : FastState :=
-        if fs.rebQueued b₀ = 0 then
-          { fs with
-            rebQueued := Function.update fs.rebQueued b₀ 1
-            dirtyBuckets := Function.update fs.dirtyBuckets fs.dirtyCount b₀
-            dirtyCount := fs.dirtyCount + 1 }
-        else fs
-      have hbf := stage1BumpAndFinish_fastStep (fs := fs) (fsMid := fs_q) henv hcur1_fit
+      have hbf := stage1BumpAndFinish_fastStep (fs := fs) henv hcur1_fit
         (stage1_dirtyZero_bounds_after_queue hc hb₀ hpos_init rfl)
         hqb_step.2.1 hqb_step.2.2.1
-        (s := (Memory.spec 0).clientState s (stage1QueueBucketProg ((cp, base), b₀)))
       refine stageSlotCheckSeq_fastStep (kSlot := kSlot) (midCost := 12) (tailCost := 22)
         hr hlt rfl hcs_st hcs_res hcs_mc hcs_vp ?_ hqb_mc hqb_vp hqb_step
         hbf.1 hbf.2.1
-        (by simpa only [fs_q,
-          apply_ite (fun f : FastState => { f with stageCursor := fs.stageCursor + 1 })]
-          using hbf.2.2)
+        (by simpa only [apply_ite fun f : FastState =>
+          { f with stageCursor := fs.stageCursor + 1 }] using hbf.2.2)
         (by omega)
-      dsimp only [kSlot, slotCheckBucket, cp, oldTr]
-      simp
+      simp [kSlot, slotCheckBucket, cp, oldTr]
     | none =>
       rw [hchk] at hcs_res; dsimp only at hcs_res ⊢
       have hbf := stage1BumpAndFinish_fastStep (fs := fs) (fsMid := fs) henv hcur1_fit hpos_init
@@ -610,8 +589,7 @@ theorem epochTickStage1GenProg_fastStep {c U V w n_max base : ℕ}
         (midCost := 0) (tailCost := 22) hr hlt rfl hcs_st hcs_res hcs_mc hcs_vp ?_
         (by simp) (validProg_pure ()) (FastStateStep.refl hseed hrep)
         hbf.1 hbf.2.1 hbf.2.2 (by omega)
-      dsimp only [kSlot, cp, oldTr]
-      simp [zero_ne_one, pure_bind]
+      simp [kSlot, cp, oldTr, zero_ne_one, pure_bind]
   · rw [ite_eq_right hlt]
     obtain ⟨hfn_mc, hfn_vp, hfn_step⟩ :=
       stage1FinishGenProg_fastStep (fs := fs) henv hpos_init hseed hrep (s := s)

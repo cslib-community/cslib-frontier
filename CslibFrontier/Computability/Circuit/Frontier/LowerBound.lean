@@ -130,8 +130,8 @@ theorem eventually_card_mul_sq_le_ncard (hSK : DenseRectangleFree S K) :
   filter_upwards [hlog.bound (show 0 < Real.log q / 2 by positivity),
     hSK.eventually_rectangleFree, eventually_ge_atTop 1] with n hn hfreen hn1
   have hn1' : (1 : ℝ) ≤ n := by exact_mod_cast hn1
-  have hK1 : (1 : ℝ) ≤ K n := by exact_mod_cast hfreen.pos
-  have hlogK : 0 ≤ Real.log (K n) := Real.log_nonneg hK1
+  have hKpos : (0 : ℝ) < K n := Nat.cast_pos.2 hfreen.pos
+  have hlogK : 0 ≤ Real.log (K n) := Real.log_nonneg (Nat.one_le_cast.2 hfreen.pos)
   simp only [Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg (α := ℝ) n)] at hn
   -- `log |S| ≥ log q + 2 log K + (n / 2) log q > log (q K ^ 2)`.
   have hSlog : Real.log q + 2 * Real.log (K n) < Real.log (S n).ncard := by
@@ -139,10 +139,10 @@ theorem eventually_card_mul_sq_le_ncard (hSK : DenseRectangleFree S K) :
       (n * Real.log q - Real.log (S n).ncard))]
   have hSpos : (0 : ℝ) < (S n).ncard :=
     Nat.cast_pos.2 (Nat.pos_of_ne_zero fun h0 => by simp [h0] at hSlog; linarith)
-  have : Real.log (q * K n ^ 2 : ℝ) ≤ Real.log (S n).ncard := by
-    rw [Real.log_mul (by positivity) (by positivity), Real.log_pow]
+  have hqK : (0 : ℝ) < q * K n ^ 2 := mul_pos (zero_lt_one.trans hq) (pow_pos hKpos 2)
+  exact_mod_cast (Real.log_le_log_iff hqK hSpos).mp <| by
+    rw [Real.log_mul (zero_lt_one.trans hq).ne' (pow_pos hKpos 2).ne', Real.log_pow]
     cast_linarith
-  exact_mod_cast (Real.log_le_log_iff (by positivity) hSpos).mp this
 
 private theorem eventually_lt_of_frontier_of_bound {A M : ℝ} (hA : 0 < A) (hM : 0 ≤ M) (d : ℝ)
     (hK : (fun n => Real.log (K n)) =o[atTop] fun n => (n : ℝ))
@@ -236,9 +236,8 @@ theorem eventually_lt_of_frontier {A : ℝ} (hA : 0 < A) (d : ℝ)
       (1 + 1 / A - ε) * n < s := by
   obtain ⟨η, hη, H⟩ := eventually_lt_of_frontier_of_bound (M := 7) hA (by norm_num) d hK hdense
     hβ hε
-  refine ⟨η, hη, fun C => ?_⟩
-  filter_upwards [H C] with n hn s v ρ w hs hv hvs hρ hw hsupply
-  exact hn s v ρ w hs hv (by linarith [Nat.cast_nonneg (α := ℝ) n]) hρ hw hsupply
+  exact ⟨η, hη, fun C => (H C).mono fun n hn s v ρ w hs hv hvs =>
+    hn s v ρ w hs hv (by linarith [Nat.cast_nonneg (α := ℝ) n])⟩
 
 private theorem eventually_lt_of_graph_of_bound {r : ℕ} (hr : 2 ≤ r) {A M : ℝ} (hA : 0 < A)
     (hM : 0 ≤ M) (hlayout : LayoutBound (r + 1) A) (hSK : DenseRectangleFree S K)
@@ -290,11 +289,9 @@ theorem eventually_lt_of_graph {r : ℕ} (hr : 2 ≤ r) {A : ℝ} (hA : 0 < A)
       (∀ π : Layout V, Real.logb (Nat.card U) (S n).ncard ≤
         G.width π + (r + 2) + 3 * Real.logb (Nat.card U) (K n) +
           Real.logb (Nat.card U) (Nat.card V + 1)) →
-      (1 + 1 / A - ε) * n < (r - 1) * g := by
-  filter_upwards [eventually_lt_of_graph_of_bound (M := 7) hr hA (by norm_num) hlayout hSK hε] with
-    n hn g V E _ _ G hconn hloop hdeg hV hrank hwidth
-  refine hn g V E G hconn hloop hdeg ?_ hrank hwidth
-  cast_nlinarith [hV, hr]
+      (1 + 1 / A - ε) * n < (r - 1) * g :=
+  (eventually_lt_of_graph_of_bound (M := 7) hr hA (by norm_num) hlayout hSK hε).mono
+    fun _ hn g V E _ _ G hconn hloop hdeg hV => hn g V E G hconn hloop hdeg (by cast_nlinarith)
 
 /-- **The frontier lower bound, charging only multiary gates.** Let `r ≥ 2` and assume the layout
 hypothesis for maximum degree `r + 1` with coefficient `A > 0`. Let `S_n ⊆ U^n` be
@@ -339,12 +336,10 @@ theorem eventually_lt_mul_innerSize {r : ℕ} (hr : 2 ≤ r) {A : ℝ} (hA : 0 <
     (hlayout : LayoutBound (r + 1) A) (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost r → c.Decides I Acc (S n) →
-        (1 + 1 / A - ε) * n < (r - 1) * c.innerSize := by
-  filter_upwards [eventually_lt_mul_multiarySize.{u, v} hr hA hlayout hSK hε] with
-    n hn σ I Acc c hfan hS
-  refine (hn σ I Acc c hfan hS).trans_le ?_
-  have hr' : (0 : ℝ) ≤ (r : ℝ) - 1 := by cast_linarith [hr]
-  exact mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize) hr'
+        (1 + 1 / A - ε) * n < (r - 1) * c.innerSize :=
+  (eventually_lt_mul_multiarySize.{u, v} hr hA hlayout hSK hε).mono fun _ hn σ I Acc c hfan hS =>
+    (hn σ I Acc c hfan hS).trans_le <| mul_le_mul_of_nonneg_left
+      (Nat.cast_le.mpr c.multiarySize_le_innerSize) (by cast_linarith [hr])
 
 /-- **The frontier lower bound for fan-in two, charging only multiary gates.** Assume the layout
 hypothesis for subcubic graphs with coefficient `A > 0`. Under the hypotheses of
@@ -389,11 +384,10 @@ def MultiaryLowerBound (L : ℝ) : Prop :=
 
 /-- A multiary circuit lower bound holds for every smaller coefficient. -/
 theorem MultiaryLowerBound.mono {L L' : ℝ} (h : MultiaryLowerBound.{u, v} L) (hL : L' ≤ L) :
-    MultiaryLowerBound.{u, v} L' := by
-  intro U _ _ S K hSK ε hε
-  filter_upwards [h U S K hSK ε hε] with n hn σ I Acc c hfan hS
-  exact lt_of_le_of_lt (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n))
-    (hn σ I Acc c hfan hS)
+    MultiaryLowerBound.{u, v} L' :=
+  fun U _ _ S K hSK ε hε => (h U S K hSK ε hε).mono fun n hn σ I Acc c hfan hS =>
+    lt_of_le_of_lt (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n))
+      (hn σ I Acc c hfan hS)
 
 /-- **The worst-case claim with coefficient `L`.** Let `U` be a finite alphabet with at least
 two symbols, and let `S_n ⊆ U^n` be `K_n`-rectangle-free sets with `log K_n = o(n)` and
@@ -411,18 +405,16 @@ def CircuitLowerBound (L : ℝ) : Prop :=
 
 /-- Every multiary lower bound implies the corresponding `innerSize` lower bound. -/
 theorem MultiaryLowerBound.circuitLowerBound {L : ℝ} (h : MultiaryLowerBound.{u, v} L) :
-    CircuitLowerBound.{u, v} L := by
-  intro U _ _ S K hSK ε hε
-  filter_upwards [h U S K hSK ε hε] with n hn σ I Acc c hfan hS
-  exact (hn σ I Acc c hfan hS).trans_le (Nat.cast_le.mpr c.multiarySize_le_innerSize)
+    CircuitLowerBound.{u, v} L :=
+  fun U _ _ S K hSK ε hε => (h U S K hSK ε hε).mono fun _ hn σ I Acc c hfan hS =>
+    (hn σ I Acc c hfan hS).trans_le (Nat.cast_le.mpr c.multiarySize_le_innerSize)
 
 /-- A circuit lower bound holds for every smaller coefficient. -/
 theorem CircuitLowerBound.mono {L L' : ℝ} (h : CircuitLowerBound.{u, v} L) (hL : L' ≤ L) :
-    CircuitLowerBound.{u, v} L' := by
-  intro U _ _ S K hSK ε hε
-  filter_upwards [h U S K hSK ε hε] with n hn σ I Acc c hfan hS
-  exact lt_of_le_of_lt (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n))
-    (hn σ I Acc c hfan hS)
+    CircuitLowerBound.{u, v} L' :=
+  fun U _ _ S K hSK ε hε => (h U S K hSK ε hε).mono fun n hn σ I Acc c hfan hS =>
+    lt_of_le_of_lt (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n))
+      (hn σ I Acc c hfan hS)
 
 /-- **The multiary frontier lower bound as a bundled claim.** If subcubic graphs have layouts of
 width `(A + o(1)) β₁ + o(|V|)` (`LayoutBound 3 A`), then circuits of fan-in at most two deciding

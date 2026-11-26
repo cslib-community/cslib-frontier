@@ -326,10 +326,9 @@ theorem abs_eval_derivative_le_sq_mul {n : ℕ} {p : ℝ[X]} (hp : p.natDegree �
     |(derivative p).eval x| ≤ n ^ 2 * M := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simp [derivative_of_natDegree_zero (Nat.le_zero.1 hp)]
-  have := abs_eval_le_mul_of_sqrt_mul_abs_eval_le hn
+  simpa only [← mul_assoc, ← sq] using abs_eval_le_mul_of_sqrt_mul_abs_eval_le hn
     ((natDegree_derivative_le p).trans_lt (by omega))
     (fun y hy => sqrt_mul_abs_eval_derivative_le hp hM hy) hx
-  rwa [← mul_assoc, ← sq] at this
 
 /-- **Markov's inequality on an interval**: a real polynomial `p` of degree at most `n` with
 `|p| ≤ M` on `[a, b]` satisfies `(b - a) |p'| ≤ 2 n² M` on `[a, b]`. -/
@@ -338,21 +337,18 @@ theorem sub_mul_abs_eval_derivative_le {n : ℕ} {p : ℝ[X]} (hp : p.natDegree 
     (b - a) * |(derivative p).eval x| ≤ 2 * n ^ 2 * M := by
   set L : ℝ[X] := C ((b - a) / 2) * X + C ((a + b) / 2)
   have hL (t : ℝ) : L.eval t = (b - a) / 2 * t + (a + b) / 2 := by simp [L]
-  have hdeg : (p.comp L).natDegree ≤ n := by
-    have : L.natDegree ≤ 1 := natDegree_linear_le
-    exact natDegree_comp_le.trans (by nlinarith)
+  have hdeg : (p.comp L).natDegree ≤ n :=
+    (natDegree_comp_le.trans (Nat.mul_le_mul_left _ natDegree_linear_le)).trans (by omega)
   have hba : 0 < b - a := sub_pos.2 hab
   set t := (2 * x - a - b) / (b - a)
   have ht : t ∈ Icc (-1 : ℝ) 1 :=
     ⟨(le_div_iff₀ hba).2 (by linarith [hx.1]),
       (div_le_iff₀ hba).2 (by linarith [hx.2])⟩
   have hLt : L.eval t = x := by
-    rw [hL, show t = (2 * x - a - b) / (b - a) from rfl]
+    simp only [hL, t]
     field_simp; ring
-  have hbound (s : ℝ) (hs : s ∈ Icc (-1 : ℝ) 1) : |(p.comp L).eval s| ≤ M := by
-    rw [eval_comp, hL]
-    exact hM _ ⟨by nlinarith [hs.1],
-      by nlinarith [hs.2]⟩
+  have hbound : ∀ s ∈ Icc (-1 : ℝ) 1, |(p.comp L).eval s| ≤ M := fun s ⟨hs₁, hs₂⟩ => by
+    simpa only [eval_comp, hL] using hM _ ⟨by nlinarith, by nlinarith⟩
   have h := abs_eval_derivative_le_sq_mul hdeg hbound ht
   have hL' : (derivative L).eval t = (b - a) / 2 := by simp [L]
   rw [derivative_comp, eval_mul, eval_comp, hLt, hL', abs_mul, abs_of_pos (by positivity)] at h
@@ -379,9 +375,8 @@ private theorem exists_max_abs_eval_derivative {d N : ℕ} {q : ℝ[X]} (hq : q.
     set k := ⌊y + 1 / 2⌋₊
     have hk₁ : (k : ℝ) ≤ y + 1 / 2 := Nat.floor_le (by linarith [hy.1])
     have hk₂ : y + 1 / 2 < k + 1 := Nat.lt_floor_add_one _
-    have hkN : k ≤ N := by
-      have : (k : ℝ) < N + 1 := by linarith [hy.2]
-      exact Nat.lt_succ_iff.1 (by exact_mod_cast this)
+    have hkN : k ≤ N :=
+      Nat.lt_succ_iff.1 (by exact_mod_cast (by linarith [hy.2] : (k : ℝ) < N + 1))
     have hmvt := (convex_Icc (0 : ℝ) N).norm_image_sub_le_of_norm_hasDerivWithin_le
       (f := fun z => q.eval z) (fun z _ => (q.hasDerivAt z).hasDerivWithinAt) hc
       ⟨k.cast_nonneg, by exact_mod_cast hkN⟩ hy
@@ -406,9 +401,8 @@ theorem sub_mul_abs_eval_derivative_le_of_forall_nat {d N : ℕ} {q : ℝ[X]} (h
     (hx : x ∈ Icc (0 : ℝ) N) : (N - d ^ 2) * |(derivative q).eval x| ≤ d ^ 2 * (b₂ - b₁) := by
   obtain ⟨c, hc, hNc, -⟩ := exists_max_abs_eval_derivative hq hN hb
   have hB : 0 ≤ b₂ - b₁ := by linarith [(hb 0 (Nat.zero_le _)).1, (hb 0 (Nat.zero_le _)).2]
-  rcases le_or_gt ((N : ℝ) - d ^ 2) 0 with h | h
-  · nlinarith [abs_nonneg ((derivative q).eval x), sq_nonneg (d : ℝ)]
-  · nlinarith [hc x hx]
+  rcases le_or_gt ((N : ℝ) - d ^ 2) 0 with h | h <;>
+    nlinarith [hc x hx, abs_nonneg ((derivative q).eval x), sq_nonneg (d : ℝ)]
 
 /-- **The Ehlich–Zeller bound**: a real polynomial `q` of degree at most `d` with `|q| ≤ B` at the
 integers `0, …, N` satisfies `(N - d²) |q| ≤ N B` on `[0, N]`; for `d² < N` this bounds `q` on the
@@ -419,14 +413,10 @@ theorem sub_mul_abs_eval_le_of_forall_nat {d N : ℕ} {q : ℝ[X]} (hq : q.natDe
   obtain ⟨c, hc, hNc, hval⟩ := exists_max_abs_eval_derivative hq hN (b₁ := -B) (b₂ := B)
     fun k hk => abs_le.1 (hb k hk)
   have hB : 0 ≤ B := (abs_nonneg _).trans (hb 0 (Nat.zero_le _))
-  have hq' : |q.eval x| ≤ B + c / 2 := by
-    have := hval x hx
-    rw [neg_add_cancel, zero_div, sub_zero] at this
-    linarith
+  have hq' : |q.eval x| ≤ (B - -B + c) / 2 := by simpa using hval x hx
   have h0 : 0 ≤ c := (abs_nonneg _).trans (hc x hx)
-  rcases le_or_gt ((N : ℝ) - d ^ 2) 0 with h | h
-  · nlinarith [abs_nonneg (q.eval x), (Nat.cast_nonneg N : (0 : ℝ) ≤ N)]
-  · nlinarith
+  rcases le_or_gt ((N : ℝ) - d ^ 2) 0 with h | h <;>
+    nlinarith [abs_nonneg (q.eval x), (Nat.cast_nonneg N : (0 : ℝ) ≤ N)]
 
 /-- **The Nisan–Szegedy lemma**: a real polynomial `q` of degree at most `d` whose values at the
 integers `0, …, N` lie in `[b₁, b₂]`, and with `|q'(ξ)| ≥ c ≥ 0` at some `ξ ∈ [0, N]`, satisfies

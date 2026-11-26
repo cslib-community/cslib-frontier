@@ -185,9 +185,8 @@ theorem threshold_eq_ceil {n : ℕ} (hn : 1 ≤ n) (sys : List (List (List ℕ))
   refine le_antisymm ((Nat.ceilDiv_le_iff hn).mpr (max_le ?_ ?_)) (max_le ?_ ?_)
   · exact Nat.one_le_iff_ne_zero.mpr (Nat.mul_ne_zero (by omega) (by omega))
   · exact (Nat.le_ceilDiv_mul hn).trans (Nat.mul_le_mul_right n (le_max_right 1 _))
-  · exact Nat.ceilDiv_eq_add_pred_div _ _ ▸ Nat.div_pos (by have := le_max_left 1 N; omega) hn
-  · exact Nat.ceilDiv_eq_add_pred_div _ _ ▸
-      Nat.div_le_div_right (by have := le_max_right 1 N; omega)
+  · exact Nat.ceilDiv_eq_add_pred_div _ _ ▸ Nat.div_pos (by omega) hn
+  · exact Nat.ceilDiv_eq_add_pred_div _ _ ▸ Nat.div_le_div_right (by omega)
 
 /-- **Few branching variables** (p. 54): at most `n / ⌈√λ⌉` variables lie in more than `D*`
 scopes, where `⌈√λ⌉ = ⌊√(λ - 1)⌋ + 1`. -/
@@ -201,8 +200,7 @@ theorem length_branchVars_le (n : ℕ) (sys : List (List (List ℕ))) :
   set q := max 1 N ⌈/⌉ n
   set s := (Nat.clog 2 n - 1).sqrt + 1
   have hq_pos : 0 < q :=
-    (Nat.div_pos (by have := le_max_left 1 N; omega) (Nat.zero_lt_of_lt hn)).trans_eq
-      (Nat.ceilDiv_eq_add_pred_div (max 1 N) n).symm
+    (Nat.div_pos (by omega) (by omega)).trans_eq (Nat.ceilDiv_eq_add_pred_div (max 1 N) n).symm
   have hD : threshold n sys = q * s := threshold_eq_mul hn sys
   have hN : N ≤ q * n := (le_max_right 1 N).trans (Nat.le_ceilDiv_mul (by omega))
   calc (branchVars n sys).length ≤ N / threshold n sys :=
@@ -244,10 +242,9 @@ theorem threshold_le {k c n : ℕ} {sys : List (List (List ℕ))} (h : IsSparseS
   rw [threshold_eq_mul hn]
   refine Nat.mul_le_mul_right _ ((Nat.div_lt_iff_lt_mul (by omega)).mpr ?_ |> Nat.le_of_lt_succ)
   set B := c * k * Nat.clog 2 n ^ c
-  have hmax : max 1 (sys.map fun eq => (equationVars eq).length).sum ≤ max 1 B * n :=
-    max_le (Nat.one_le_iff_ne_zero.mpr (by positivity))
-      (h.incidences_le.trans (Nat.mul_le_mul_right n (le_max_right 1 B)))
-  have : 1 ≤ max 1 B := le_max_left 1 B
+  have h1 : (sys.map fun eq => (equationVars eq).length).sum ≤ max 1 B * n :=
+    h.incidences_le.trans (Nat.mul_le_mul_right n (le_max_right 1 B))
+  have h2 : 1 ≤ max 1 B * n := Nat.mul_pos (by omega) (by omega)
   rw [Nat.succ_mul]
   omega
 
@@ -259,8 +256,8 @@ theorem threshold_le_pow {k c n : ℕ} {sys : List (List (List ℕ))} (h : IsSpa
   have hlam : 1 ≤ lam := Nat.clog_pos Nat.one_lt_two (by omega)
   have hmax : max 1 (c * k * lam ^ c) ≤ lam ^ (c + 1) :=
     max_le (Nat.one_le_pow _ _ hlam) (pow_succ' lam c ▸ Nat.mul_le_mul_right _ hck)
-  have hs : (lam - 1).sqrt + 1 ≤ lam := by
-    have := Nat.sqrt_le_self (lam - 1); omega
+  have hs : (lam - 1).sqrt + 1 ≤ lam :=
+    (Nat.sqrt_le_self _).trans_lt (Nat.sub_lt hlam zero_lt_one)
   calc threshold n sys ≤ max 1 (c * k * lam ^ c) * ((lam - 1).sqrt + 1) := threshold_le h
     _ ≤ lam ^ (c + 1) * lam := Nat.mul_le_mul hmax hs
     _ = lam ^ (c + 2) := (pow_succ lam (c + 1)).symm
@@ -275,10 +272,8 @@ theorem IsReducedBranch.le_two_mul {n n' : ℕ} {sys sys' : List (List (List ℕ
   obtain ⟨vals, -, hred⟩ := hb
   have hn' := HeavyBranchFold.prepareBranch_freeVars_eq.2 sys' hred
   have hlam : 2 ≤ Nat.clog 2 n := (Nat.lt_clog_iff_pow_lt Nat.one_lt_two).2 (by omega)
-  have hs : 2 ≤ (Nat.clog 2 n - 1).sqrt + 1 := by
-    have := Nat.sqrt_pos.mpr (by omega : 0 < Nat.clog 2 n - 1); omega
+  have hs : 2 ≤ (Nat.clog 2 n - 1).sqrt + 1 := Nat.succ_le_succ (Nat.sqrt_pos.mpr (by omega))
   have hS := (length_branchVars_le n sys).trans (Nat.div_le_div_left hs (by norm_num))
-  have := Nat.div_mul_le_self n 2
   exact ⟨hn', by omega⟩
 
 /-- A reduced branch is no longer to encode than its parent system, so bounds on the branch solver
@@ -378,12 +373,10 @@ private theorem computableInPolyTime_incidences :
       (encPair encUnary encSparseSystem) encNat := by
   have hlen : CPT (fun eq => (equationVars eq).length) encSparseEquation encNat :=
     unary_to_binary.comp ((length_list encNat).comp computableInPolyTime_equationVars)
-  have hsum := (show CPT List.sum (encList encNat) encNat by fun_prop).comp
+  refine (((binary_le' (const 1) id').ite' id' (const 1)).of_enc_eq fun x => congrArg encNat
+    (by split_ifs with hx <;> simp only [decide_eq_true_eq] at hx <;> omega)).comp ?_
+  exact (show CPT List.sum (encList encNat) encNat by fun_prop).comp
     (hlen.map.comp (snd encUnary encSparseSystem))
-  have hmax1 : CPT (fun x : ℕ => max 1 x) encNat encNat :=
-    ((binary_le' (const 1) id').ite' id' (const 1)).of_enc_eq fun x =>
-      congrArg encNat (by split_ifs with hx <;> simp only [decide_eq_true_eq] at hx <;> omega)
-  exact hmax1.comp hsum
 
 public section
 
@@ -468,13 +461,7 @@ theorem exists_count_certificate :
   have hbase := hK K le_rfl (n, sys)
   -- The time is preprocessing, then the streaming loop over the `2 ^ |S|` branches.
   let L := (HeavyBranchFold.encBranchInput (branchInput n sys)).length
-  change (NativeCertificate.ofPolyTime computableInPolyTime_branchInput).time (n, sys) +
-      (HeavyBranchFold.stepOverhead L + (2 ^ (branchVars n sys).length + 1) *
-        (HeavyBranchFold.stepOverhead L +
-          HeavyBranchFold.maxReducedCost csolver.time (branchInput n sys))) ≤ _ ∧
-    (NativeCertificate.ofPolyTime computableInPolyTime_branchInput).space (n, sys) +
-      (HeavyBranchFold.stepOverhead L +
-        HeavyBranchFold.maxReducedCost csolver.space (branchInput n sys)) ≤ _
+  dsimp only [NativeCertificate.congr, NativeCertificate.comp, cBr]
   set A := (NativeCertificate.ofPolyTime computableInPolyTime_branchInput).time (n, sys)
   set T := HeavyBranchFold.stepOverhead L
   set E := 2 ^ (branchVars n sys).length

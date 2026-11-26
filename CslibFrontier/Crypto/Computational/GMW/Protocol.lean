@@ -170,11 +170,10 @@ private theorem naorMaskBits_eq_self_of_imp {openFlags bits : List Bool}
     naorMaskBits openFlags bits = openFlags := by
   apply List.ext_getElem (by simp [hlen])
   intro i hi hi'
-  have hopen : openFlags.getD i false = openFlags[i] := List.getD_eq_getElem _ _ hi'
-  rw [← List.getD_eq_getElem _ false hi, getD_naorMaskBits, hopen]
+  rw [← List.getD_eq_getElem _ false hi, getD_naorMaskBits, List.getD_eq_getElem _ _ hi']
   cases hflag : openFlags[i]
   · simp
-  · simpa using himp i (hopen.trans hflag)
+  · simpa using himp i ((List.getD_eq_getElem _ _ hi').trans hflag)
 
 theorem getD_clauseTableRow (φ : CNF ℕ) (m : List Bool) (c : Clause ℕ) {t : ℕ} (ht : t < 8) :
     (clauseTableRow φ m c).getD t false =
@@ -396,13 +395,11 @@ private theorem copyOpenFlags_realCopyBits (φ : CNF ℕ) (b : Bool) (w m : List
     naorMaskBits (copyOpenFlags φ b (simCopyBits φ b rand)) (simCopyBits φ b rand) =
       simCopyBits φ b rand := by
   rw [copyOpenFlags_simCopyBits]
-  cases b
-  · simp only [Bool.false_eq_true, ↓reduceIte, simCopyBits]
-    rw [naorMaskBits_append (by simp), naorMaskBits_append (by simp),
+  cases b <;> simp only [Bool.false_eq_true, ↓reduceIte, simCopyBits]
+  · rw [naorMaskBits_append (by simp), naorMaskBits_append (by simp),
       naorMaskBits_replicate_true (by simp), naorMaskBits_replicate_false (by simp),
       naorMaskBits_replicate_true (by simp)]
-  · simp only [↓reduceIte, simCopyBits]
-    rw [naorMaskBits_append (by simp), naorMaskBits_append (by simp),
+  · rw [naorMaskBits_append (by simp), naorMaskBits_append (by simp),
       naorMaskBits_replicate_false (by simp), naorMaskBits_replicate_true (by simp),
       naorMaskBits_eq_self_of_imp (by simp) (fun _ h => h)]
 
@@ -491,8 +488,7 @@ private theorem naorMaskBits_realCopyBits {φ : CNF ℕ} {w m : List Bool} (b : 
     naorMaskBits (copyOpenFlags φ b (realCopyBits φ w m)) (realCopyBits φ w m) =
       simCopyBits φ b (if b then BitString.listXor φ.vars.length [w, m] else m) := by
   cases b
-  · exact naorMaskBits_realCopyBits_false φ w m
-  · exact naorMaskBits_realCopyBits_true hw
+  exacts [naorMaskBits_realCopyBits_false φ w m, naorMaskBits_realCopyBits_true hw]
 
 theorem naorMaskBits_realBits {φ : CNF ℕ} {w m₀ m₁ m₂ : List Bool} (ch : List Bool)
     (hw : ThreeSAT.verifier (φ, w) = true) :
@@ -635,8 +631,7 @@ theorem acceptGuess_eq_some {β : Type} {ch_guess : List Bool} {result : β × T
     {out : β} :
     acceptGuess ch_guess result = some out ↔
       result.2.challenge = ch_guess ∧ result.1 = out := by
-  unfold acceptGuess
-  split_ifs with h <;> simp_all
+  by_cases h : result.2.challenge = ch_guess <;> simp [acceptGuess, h]
 
 /-- The private coins of one prover execution: the committed bits and one commitment seed per
 bit. The honest prover commits to `realBits` of its witness and masks; the simulator to `simBits` of
@@ -709,8 +704,7 @@ theorem run_gmwProver_fst {α : Type} (generator : List Bool → List Bool) (s m
       (P.run prog P.init).map Prod.fst := by
     have hconst (x : α × P.State) : PMF.map (fun _ => x.1) (relate x.2) = PMF.pure x.1 :=
       PMF.map_const _ _
-    simp only [pmf_norm, Prover.run, hconst]
-    rfl
+    simp only [pmf_norm, Prover.run, hconst]; rfl
   rw [← hlhs, hmap]
   simp only [pmf_norm, P, gmwProver, relate]
   congr 1 with coins : 1

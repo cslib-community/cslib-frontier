@@ -150,33 +150,29 @@ theorem loop_exec {w U : ℕ} (l : Layout) (rs : List (ℕ × ℕ)) (x : Data 48
       have := l.pointer_mono (i := 0) (j := y.regs current) (by omega)
       change l.descriptors ≤ _
       omega
-    have hready : ScanReady w rs (y.set dst (y.regs heap)) := by
-      constructor
-      · simpa +decide using hyr.len
-      · simpa +decide using hyr.constants
-      · simpa +decide [hyr.keys] using hykeys
-      · simpa +decide [hyr.counts] using hycounts
-      · intro p hp
-        exact hfit.of_le ((hkeys p hp).1.trans (by omega))
-      · intro p hp
-        simpa +decide [hyr.magnitude] using (hkeys p hp).2.trans (show U ≤ 2 * U by omega)
-      · intro p hp
-        exact hfit.of_le (show 2 * p.1 ≤ budget l U by have := (hkeys p hp).1; omega)
-      · simpa +decide [hyr.magnitude] using hfit.of_le hlabel
-      · exact hfit.of_le hsmall
-      · simpa +decide [hyr.keys] using hfit.of_le
-          (show 1 + 2 * l.n + rs.length ≤ budget l U by omega)
-      · simpa +decide [hyr.counts] using hfit.of_le
-          (show 1 + 3 * l.n + rs.length ≤ budget l U by omega)
-      · simpa +decide [hyheap] using hfit.of_le
-          (show l.pointer (y.regs current) + rs.length + 1 ≤ budget l U by
-            rw [Layout.pointer_succ] at hnext
-            dsimp only [Layout.capacity] at hnext
-            omega)
-      · simpa +decide [hyr.keys, hyheap] using
-          (show 1 + 2 * l.n + rs.length ≤ l.pointer (y.regs current) by omega)
-      · simpa +decide [hyr.counts, hyheap] using
-          (show 1 + 3 * l.n + rs.length ≤ l.pointer (y.regs current) by omega)
+    have hnext_cap : l.pointer (y.regs current) + (l.n + 1) ≤ l.endpoint := by
+      simpa only [Layout.pointer_succ, Layout.capacity] using hnext
+    have hready : ScanReady w rs (y.set dst (y.regs heap)) :=
+      ⟨by simpa +decide using hyr.len,
+       by simpa +decide using hyr.constants,
+       by simpa +decide [hyr.keys] using hykeys,
+       by simpa +decide [hyr.counts] using hycounts,
+       fun p hp => hfit.of_le ((hkeys p hp).1.trans (by omega)),
+       fun p hp => by simpa +decide [hyr.magnitude] using
+         (hkeys p hp).2.trans (Nat.le_mul_of_pos_left U Nat.two_pos),
+       fun p hp => hfit.of_le (by have := (hkeys p hp).1; omega),
+       by simpa +decide [hyr.magnitude] using hfit.of_le hlabel,
+       hfit.of_le hsmall,
+       by simpa +decide [hyr.keys] using
+         hfit.of_le (show 1 + 2 * l.n + rs.length ≤ budget l U by omega),
+       by simpa +decide [hyr.counts] using
+         hfit.of_le (show 1 + 3 * l.n + rs.length ≤ budget l U by omega),
+       by simpa +decide [hyheap] using
+         hfit.of_le (show l.pointer (y.regs current) + rs.length + 1 ≤ budget l U by omega),
+       by simpa +decide [hyr.keys, hyheap] using
+         (show 1 + 2 * l.n + rs.length ≤ l.pointer (y.regs current) by omega),
+       by simpa +decide [hyr.counts, hyheap] using
+         (show 1 + 3 * l.n + rs.length ≤ l.pointer (y.regs current) by omega)⟩
     obtain ⟨z, hz, hzi, hzh, hzd0, hzd1, hzp, hzf⟩ := body_exec
       (j := y.regs current) y rs hready hyr.magnitude hyr.digits
       (by simpa only [Layout.splits] using hyr.splits) rfl
@@ -200,13 +196,10 @@ theorem loop_exec {w U : ℕ} (l : Layout) (rs : List (ℕ × ℕ)) (x : Data 48
         b ≠ l.descriptors + 2 * y.regs current + 1} :=
       fun {_} hb => hf _ hb.1 hb.2.1 hb.2.2
     have hdescbase : l.descriptors = 1 + 4 * l.n := rfl
-    refine ⟨z, hz, ?_, hzi⟩
-    refine ⟨hyr.transfer (fun i hi => hz.regs_eq hi), ?_, ?_, ?_, ?_, ?_⟩
-    · rwa [Layout.pointer_succ]
-    · intro i hi
-      by_cases hij : i = y.regs current
-      · subst i
-        exact ⟨hzd0, hzd1, hzp⟩
+    refine ⟨z, hz, ⟨hyr.transfer (fun i hi => hz.regs_eq hi), Layout.pointer_succ _ _ ▸ hzh,
+      fun i hi => ?_, ?_, ?_, ?_⟩, hzi⟩
+    · obtain rfl | hij := eq_or_ne i (y.regs current)
+      · exact ⟨hzd0, hzd1, hzp⟩
       · have hi' : i < y.regs current := by omega
         obtain ⟨h0, h1, hp⟩ := hyout i hi'
         have hbefore := l.descriptor_before (hi'.trans hj) (y.regs current)

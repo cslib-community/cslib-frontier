@@ -97,9 +97,8 @@ private theorem supportWordCode_eq_code {bits n count : ℕ} (i : Fin n) (j : Fi
         (List.ofFn fun k : Fin bits =>
           (Formula.literal (fun _ => i.val.testBit k.val)
             (finProdFinEquiv (j, k))).toCircuit)).code := by
-  rw [supportWordCode, List.map_range_eq_ofFn, ← balancedCode_eq_code, List.map_ofFn]
-  exact congrArg (balancedCode _ _ _)
-    (congrArg List.ofFn (funext fun k => supportLiteralCode_eq_code i j k))
+  simp [supportWordCode, List.map_range_eq_ofFn, ← balancedCode_eq_code, Function.comp_def,
+    supportLiteralCode_eq_code]
 
 private def supportValueCode (bits count value : ℕ) : Code :=
   balancedCode (count * bits)
@@ -117,9 +116,8 @@ private theorem supportValueCode_eq_code {bits n count : ℕ} (i : Fin n) :
             (List.ofFn fun k : Fin bits =>
               (Formula.literal (fun _ => i.val.testBit k.val)
                 (finProdFinEquiv (j, k))).toCircuit))).code := by
-  rw [supportValueCode, List.map_range_eq_ofFn, ← balancedCode_eq_code, List.map_ofFn]
-  exact congrArg (balancedCode _ _ _)
-    (congrArg List.ofFn (funext fun j => supportWordCode_eq_code i j))
+  simp [supportValueCode, List.map_range_eq_ofFn, ← balancedCode_eq_code, Function.comp_def,
+    supportWordCode_eq_code]
 
 /-- Emit the complete `n`-bit membership indicator of a corrected `count`-word array. -/
 @[expose] def supportIndicatorCode (bits n count : ℕ) : Code :=
@@ -274,19 +272,17 @@ The separate gate bound is `size_candidateCircuit_le`. -/
     exact (const (encOut := encList encGate) []).prod (mapWithInput (range.comp hb) hi)
   have hdiff : ComputableInPolyTime (fun a => n a - offset a) enc encNat :=
     unary_to_binary.comp (by fun_prop)
-  have h := computableInPolyTime_compCode hw'
-    (computableInPolyTime_carryLookaheadAdd.comp hb)
-    (computableInPolyTime_appendCode hw'
-      (computableInPolyTime_compCode hw' hhigh
-        (computableInPolyTime_compCode hw' (Modular.computableInPolyTime_multiply.comp hwide)
-          (computableInPolyTime_appendCode hw'
-            (computableInPolyTime_appendCode hw' hid
-              (computableInPolyTime_wordConstCode hw' hb (const 0)))
-            (computableInPolyTime_wordConstCode hw' hwide hdiff))))
-      (computableInPolyTime_wordConstCode hw' hb (unary_to_binary.comp ho)))
-  change ComputableInPolyTime (fun a => candidateCode (width a) (bits a) (n a) (offset a))
-    enc encCode at h
-  simpa only [candidateCode_eq_code] using h
+  simpa only [← candidateCode_eq_code, candidateCode, Function.comp_def] using
+    computableInPolyTime_compCode hw'
+      (computableInPolyTime_carryLookaheadAdd.comp hb)
+      (computableInPolyTime_appendCode hw'
+        (computableInPolyTime_compCode hw' hhigh
+          (computableInPolyTime_compCode hw' (Modular.computableInPolyTime_multiply.comp hwide)
+            (computableInPolyTime_appendCode hw'
+              (computableInPolyTime_appendCode hw' hid
+                (computableInPolyTime_wordConstCode hw' hb (const 0)))
+              (computableInPolyTime_wordConstCode hw' hwide hdiff))))
+        (computableInPolyTime_wordConstCode hw' hb (unary_to_binary.comp ho)))
 
 private theorem supportCandidateFold_prefix (width bits n count i : ℕ)
     (hi : i ≤ ((List.range count).map fun j => candidateCode width bits n j).length) :
@@ -356,7 +352,6 @@ unary dimensions. The bounded fold charges the complete encoded prefix circuit. 
     ComputableInPolyTime
       (fun a => (supportCandidateCircuit (width a) (bits a) (n a) (count a)).code)
       enc encCode := by
-  let parEnc := encPair encUnary encUnary
   let stateEnc := encPair encUnary encCode
   have hlist : ComputableInPolyTime
       (fun a => (List.range (count a)).map fun j =>
@@ -369,7 +364,7 @@ unary dimensions. The bounded fold charges the complete encoded prefix circuit. 
   have hfold := foldlWith (step := parallelFamilyCodeStep)
     (hwidth.prod hbits) hlist
     (const (encOut := stateEnc) ((0, ([], [])) : ℕ × Code))
-    (by simpa only [parEnc, stateEnc] using computableInPolyTime_parallelFamilyCodeStep)
+    computableInPolyTime_parallelFamilyCodeStep
     (polyBounded_supportCandidateStateBound hwidth hbits hcount) fun a i hi =>
       length_supportCandidateFold_le (width a) (bits a) (n a) (count a) i hi
   have hcode := hfold.snd'

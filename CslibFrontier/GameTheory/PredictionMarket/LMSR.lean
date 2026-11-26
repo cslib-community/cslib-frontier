@@ -226,18 +226,14 @@ share vector `ω ↦ b * log (p ω)` induces price vector `p`. -/
 theorem lmsrPrice_log_eq {b : ℝ} (hb : 0 < b) {p : Ω → ℝ} (hp : p ∈ openProbSimplex Ω) :
     lmsrPrice b (fun ω => b * Real.log (p ω)) = p := by
   funext ω
-  simp only [lmsrPrice_apply]
-  have hexp : ∀ i, Real.exp (b * Real.log (p i) / b) = p i := fun i => by
-    rw [mul_div_cancel_left₀ _ hb.ne', Real.exp_log (hp.2 i)]
-  simp only [hexp, hp.1.sum_eq_one, div_one]
+  simp only [lmsrPrice_apply, mul_div_cancel_left₀ _ hb.ne', Real.exp_log (hp.2 ω)]
+  rw [sum_congr rfl fun i _ => Real.exp_log (hp.2 i), hp.1.sum_eq_one, div_one]
 
 /-- The log-inverted share vector `ω ↦ b * log (p ω)` has zero LMSR cost. -/
 theorem lmsrCost_log_eq_zero {b : ℝ} (hb : 0 < b) {p : Ω → ℝ} (hp : p ∈ openProbSimplex Ω) :
     lmsrCost b (fun ω => b * Real.log (p ω)) = 0 := by
-  simp only [lmsrCost_apply]
-  have hexp : ∀ i, Real.exp (b * Real.log (p i) / b) = p i := fun i => by
-    rw [mul_div_cancel_left₀ _ hb.ne', Real.exp_log (hp.2 i)]
-  simp only [hexp, hp.1.sum_eq_one, Real.log_one, mul_zero]
+  simp only [lmsrCost_apply, mul_div_cancel_left₀ _ hb.ne']
+  rw [sum_congr rfl fun i _ => Real.exp_log (hp.2 i), hp.1.sum_eq_one, Real.log_one, mul_zero]
 
 /-! ### Instantaneous price as gradient of `lmsrCost` -/
 
@@ -397,12 +393,10 @@ theorem lmsrTraderPayoff_le_neg_mul_log_price [Nonempty Ω] {b : ℝ} (hb : 0 < 
   rw [lmsrTraderPayoff_eq_msrStepPayoff hb]
   simp only [msrStepPayoff_apply, ScoringRule.affine_score, logScore_score, Pi.zero_apply,
     add_zero]
-  have hp_le : lmsrPrice b q ω ≤ 1 := by
-    have h1 := single_le_sum (fun i _ => (lmsrPrice_pos b q i).le) (mem_univ ω)
-    linarith [sum_lmsrPrice b q]
-  have hlog_nonpos : Real.log (lmsrPrice b q ω) ≤ 0 :=
-    Real.log_nonpos (lmsrPrice_pos b q ω).le hp_le
-  nlinarith
+  have hp_le : lmsrPrice b q ω ≤ 1 :=
+    (single_le_sum (fun i _ => (lmsrPrice_pos b q i).le) (mem_univ ω)).trans_eq
+      (sum_lmsrPrice b q)
+  nlinarith [Real.log_nonpos (lmsrPrice_pos b q ω).le hp_le]
 
 /-- **Worst-case LMSR market-maker loss bound**
 [PennockSami2007, §26.4.1, pp. 663–664; Hanson2007]: starting from zero initial shares (`q₀ = 0`,
@@ -410,9 +404,8 @@ uniform initial prices), for every final share vector `q` and every outcome `ω`
 loses at most `b * Real.log |Ω|`. -/
 theorem lmsrTraderPayoff_zero_le [Nonempty Ω] {b : ℝ} (hb : 0 < b) (q : Ω → ℝ) (ω : Ω) :
     lmsrTraderPayoff b 0 q ω ≤ b * Real.log (Fintype.card Ω) := by
-  have h := lmsrTraderPayoff_le_neg_mul_log_price hb 0 q ω
-  rw [lmsrPrice_zero, Real.log_inv] at h
-  linarith
+  simpa only [lmsrPrice_zero, Real.log_inv, mul_neg, neg_neg] using
+    lmsrTraderPayoff_le_neg_mul_log_price hb 0 q ω
 
 /-- Sequential form of the worst-case LMSR loss bound: starting from `qs 0 = 0`, the cumulative
 market-maker loss over any number `T` of trades and any outcome `ω` is at most

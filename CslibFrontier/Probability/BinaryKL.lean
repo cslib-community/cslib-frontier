@@ -81,17 +81,14 @@ theorem binaryKL_nonneg {q p : ℝ} (hq : q ∈ Icc (0 : ℝ) 1) (hp : p ∈ Icc
 
 @[simp]
 theorem binaryKL_self (p : ℝ) : binaryKL p p = 0 := by
-  rcases eq_or_ne p 0 with rfl | hp
-  · simp [binaryKL_def, klFun_one]
-  rcases eq_or_ne p 1 with rfl | hp1
-  · simp [binaryKL_def, klFun_one]
-  simp [binaryKL_def, div_self hp, div_self (sub_ne_zero.2 hp1.symm), klFun_one]
+  have h (x : ℝ) : x * klFun (x / x) = 0 := by
+    by_cases hx : x = 0 <;> simp [hx, klFun_one]
+  rw [binaryKL_def, h, h, add_zero]
 
 /-- For fixed `p`, `binaryKL · p` is continuous. -/
 @[fun_prop]
 theorem continuous_binaryKL_left (p : ℝ) : Continuous fun q => binaryKL q p := by
-  simp only [binaryKL_def]
-  fun_prop
+  fun_prop [binaryKL]
 
 /-- For `p ∈ (0, 1)`, `binaryKL q p = q log (q / p) + (1 - q) log ((1 - q) / (1 - p))`. -/
 theorem binaryKL_eq_mul_log {q p : ℝ} (hp0 : 0 < p) (hp1 : p < 1) :
@@ -117,9 +114,7 @@ theorem choose_mul_pow_mul_exp_binaryKL_le_one {p : ℝ} (hp : p ∈ Icc (0 : �
   · cases k <;> simp
   rcases hp.2.eq_or_lt with rfl | hp1
   · rcases hk.eq_or_lt with rfl | hkm
-    · rcases Nat.eq_zero_or_pos k with rfl | hk0
-      · simp
-      · simp [div_self ((Nat.cast_ne_zero (R := ℝ)).2 hk0.ne')]
+    · by_cases hk0 : k = 0 <;> simp [hk0]
     · simp [zero_pow (Nat.sub_pos_of_lt hkm).ne']
   set q : ℝ := k / m with hq
   have hmq : (m : ℝ) * q = k := by
@@ -194,11 +189,9 @@ theorem convexOn_exp_mul_binaryKL {p t : ℝ} (hp : p ∈ Icc (0 : ℝ) 1) (ht :
   refine ⟨convex_Icc 0 1, fun x hx y hy a b ha hb hab => ?_⟩
   have h := (convexOn_binaryKL hp).2 hx hy ha hb hab
   calc Real.exp (t * binaryKL (a • x + b • y) p)
-      ≤ Real.exp (a • (t * binaryKL x p) + b • (t * binaryKL y p)) := by
-        refine Real.exp_le_exp.2 ?_
-        have := mul_le_mul_of_nonneg_left h ht
-        simp only [smul_eq_mul] at this ⊢
-        linarith
+      ≤ Real.exp (a • (t * binaryKL x p) + b • (t * binaryKL y p)) :=
+        Real.exp_le_exp.2 (by
+          simpa only [smul_eq_mul, mul_add, mul_left_comm] using mul_le_mul_of_nonneg_left h ht)
     _ ≤ a • Real.exp (t * binaryKL x p) + b • Real.exp (t * binaryKL y p) :=
         convexOn_exp.2 trivial trivial ha hb hab
 
@@ -237,16 +230,14 @@ theorem mul_klFun_integral_div_integral_le {a b : α → ℝ}
   rcases (integral_nonneg (f := a) (μ := μ) ha).eq_or_lt with hA | hA
   · have h0 : a =ᵐ[μ] 0 := (integral_eq_zero_iff_of_nonneg (fun x => ha x) hai).1 hA.symm
     rw [← hA, zero_div, klFun_zero, mul_one]
-    refine (integral_congr_ae (h0.mono fun x (hx : a x = 0) => ?_)).le
-    simp [hx, klFun_zero]
+    exact (integral_congr_ae (h0.mono fun x (hx : a x = 0) => by simp [hx, klFun_zero])).le
   set A := ∫ x, a x ∂μ
   set B := ∫ x, b x ∂μ
   have ht : 0 < A / B := div_pos hA hB
   have hpt (x : α) : b x * klFun (A / B) + Real.log (A / B) * (a x - b x * (A / B)) ≤
       b x * klFun (a x / b x) := by
     rcases (hb x).eq_or_lt with h | h
-    · rw [← h, hab x h.symm]
-      simp
+    · simp [← h, hab x h.symm]
     · have hc : b x * (a x / b x) = a x := mul_div_cancel₀ _ h.ne'
       calc b x * klFun (A / B) + Real.log (A / B) * (a x - b x * (A / B))
           = b x * (klFun (A / B) + Real.log (A / B) * (a x / b x - A / B)) := by
@@ -345,19 +336,16 @@ theorem two_mul_sq_le_binaryKL {q p : ℝ} (hq : q ∈ Icc (0 : ℝ) 1) (hp0 : 0
     2 * (q - p) ^ 2 ≤ binaryKL q p := by
   let qCoin := PMF.coin ⟨q, hq⟩
   let pCoin := PMF.coin ⟨p, hp0.le, hp1.le⟩
-  have hsupp : qCoin.support ⊆ pCoin.support := by
-    intro b _
-    rw [_root_.PMF.mem_support_iff]
-    cases b <;> simp [pCoin, PMF.coin_apply, hp0, hp1]
+  have hsupp : qCoin.support ⊆ pCoin.support := fun b _ => by
+    cases b <;> simp [_root_.PMF.mem_support_iff, pCoin, PMF.coin_apply, hp0, hp1]
   have hdist : dist qCoin pCoin = |q - p| := by
+    have hneg : 1 - q - (1 - p) = -(q - p) := by ring
     simp only [PMF.dist_eq, Fintype.sum_bool, qCoin, pCoin, PMF.coin_apply_toReal,
-      Bool.false_eq_true, ite_false, ite_true]
-    rw [show 1 - q - (1 - p) = -(q - p) by ring, abs_neg]
+      Bool.false_eq_true, ite_false, ite_true, hneg, abs_neg]
     ring
-  have h := PMF.two_mul_dist_sq_le_sum_mul_log_div hsupp
-  rw [hdist, sq_abs, Fintype.sum_bool] at h
-  simpa only [qCoin, pCoin, PMF.coin_apply_toReal, Bool.false_eq_true, ite_false, ite_true,
-    binaryKL_eq_mul_log hp0 hp1] using h
+  simpa only [hdist, sq_abs, Fintype.sum_bool, qCoin, pCoin, PMF.coin_apply_toReal,
+    Bool.false_eq_true, ite_false, ite_true, binaryKL_eq_mul_log hp0 hp1] using
+    PMF.two_mul_dist_sq_le_sum_mul_log_div hsupp
 
 /-- **Quadratic empirical-Bernstein lower bound on `binaryKL`**: for `0 ≤ q ≤ p < 1` (`0 < p`),
 `(p - q) ^ 2 / (2 * p) ≤ binaryKL q p`. Sharp for small `q` (`O(p)` at `q = 0`), yielding the
@@ -368,9 +356,8 @@ theorem sub_sq_div_two_mul_le_binaryKL {q p : ℝ} (hq0 : 0 ≤ q) (hqp : q ≤ 
   rcases eq_or_lt_of_le hq0 with rfl | hqpos
   · rw [binaryKL_eq_mul_log hp0 hp1]
     simp only [zero_mul, zero_add, sub_zero, one_mul, one_div, log_inv]
-    have hlog : log (1 - p) ≤ (1 - p) - 1 := log_le_sub_one_of_pos (sub_pos.mpr hp1)
     have hdiv : p ^ 2 / (2 * p) = p / 2 := by field_simp
-    linarith [hp0]
+    linarith [log_le_sub_one_of_pos (sub_pos.mpr hp1)]
   let g : ℝ → ℝ := fun t => binaryKL q t - (t - q) ^ 2 / (2 * t)
   have hderiv : ∀ t ∈ Ioo q 1,
       HasDerivAt g ((t - q) * (t - q + t ^ 2 + t * q) / (2 * t ^ 2 * (1 - t))) t := by

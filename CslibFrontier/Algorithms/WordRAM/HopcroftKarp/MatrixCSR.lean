@@ -84,16 +84,15 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
       CSRMem sInst bOff z.mem := by
   let sInst : SparseInstance := ⟨m, r, exactBipAdj G⟩
   have hE_le : sInst.numEdges ≤ m * r := bipAdjSteps_exactBipAdj_le G
-  obtain ⟨s₀, he₀, rfl⟩ : ∃ s₀, ExecWithin w
-      (ram[ bEdgesReg ← bOffReg + rm; bEdgesReg ← bEdgesReg + one;
-            rE ← #0; qHead ← #0; qTail ← #matBase ] : Code .standard 34) x s₀ 5 ∧
-      s₀ = ((((x.set bEdgesReg (bOff + m)).set bEdgesReg (bOff + m + 1)).set rE 0).set
-        qHead 0).set qTail matBase := by
-    refine WP.exists_execWithin ?_
-    wram_exec [hbOff, hrm, h1]
-    rfl
   let s₀ := ((((x.set bEdgesReg (bOff + m)).set bEdgesReg (bOff + m + 1)).set rE 0).set
     qHead 0).set qTail matBase
+  have he₀ : ExecWithin w
+      (.seq (ram[ bEdgesReg ← bOffReg + rm ]) (.seq (ram[ bEdgesReg ← bEdgesReg + one ])
+        (.seq (ram[ rE ← #0 ]) (.seq (ram[ qHead ← #0 ]) (ram[ qTail ← #matBase ])))) :
+        Code .standard 34) x s₀ 5 := by
+    refine WP.execWithin ?_
+    wram_exec [hbOff, hrm, h1]
+    rfl
   let PR (uIdx : ℕ) (y : Data 34) : Prop :=
     uIdx ≤ m ∧
       (∀ i : Fin 34, i.val < 22 → i ≠ rE → y.regs i = s₀.regs i) ∧
@@ -118,27 +117,24 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
       sInst.offset_succ hu_lt
     have hoff_u1_le : sInst.offset (u.val + 1) ≤ m * r :=
       (sInst.offset_le_numEdges (u.val + 1)).trans hE_le
-    have hy_s0 (i : Fin 34) (hi : i.val < 22) (hne : i ≠ rE) : y.regs i = s₀.regs i :=
-      hr_y i hi hne
     have hy_bOff : y.regs bOffReg = bOff := by
-      rw [hy_s0 bOffReg (by decide) (by decide)]; dsimp only [s₀]; wram_simp [hbOff]
+      wram_simp [hr_y bOffReg (by decide) (by decide), s₀, hbOff]
     have hy_bEdges : y.regs bEdgesReg = bOff + m + 1 := by
-      rw [hy_s0 bEdgesReg (by decide) (by decide)]; dsimp only [s₀]; wram_simp
+      wram_simp [hr_y bEdgesReg (by decide) (by decide), s₀]
     have hy_zero : y.regs zero = 0 := by
-      rw [hy_s0 zero (by decide) (by decide)]; dsimp only [s₀]; wram_simp [h0]
+      wram_simp [hr_y zero (by decide) (by decide), s₀, h0]
     have hy_one : y.regs one = 1 := by
-      rw [hy_s0 one (by decide) (by decide)]; dsimp only [s₀]; wram_simp [h1]
+      wram_simp [hr_y one (by decide) (by decide), s₀, h1]
     have hy_rr : y.regs rr = r := by
-      rw [hy_s0 rr (by decide) (by decide)]; dsimp only [s₀]; wram_simp [hrr]
-    obtain ⟨y₁, he_pre_row, rfl⟩ : ∃ y₁, ExecWithin w
-        (ram[ addr ← bOffReg + qHead; *addr ← rE; idx ← #0 ] : Code .standard 34) y y₁ 3 ∧
-        y₁ = ((y.set addr (bOff + y.regs qHead)).write
-          (bOff + y.regs qHead) (sInst.offset u.val)).set idx 0 := by
-      refine WP.exists_execWithin ?_
-      wram_exec [hy_bOff, hrE_y]
-      rfl
+      wram_simp [hr_y rr (by decide) (by decide), s₀, hrr]
     let y₁ := ((y.set addr (bOff + y.regs qHead)).write
       (bOff + y.regs qHead) (sInst.offset u.val)).set idx 0
+    have he_pre_row : ExecWithin w
+        (.seq (ram[ addr ← bOffReg + qHead ])
+          (.seq (ram[ *addr ← rE ]) (ram[ idx ← #0 ])) : Code .standard 34) y y₁ 3 := by
+      refine WP.execWithin ?_
+      wram_exec [hy_bOff, hrE_y]
+      rfl
     let rowPre (t : ℕ) : List (Fin r) := ((List.finRange r).take t).filter fun v => G (u, v)
     have hrowPre_sub (t : ℕ) : (rowPre t).length ≤ (sInst.adj u).length :=
       (List.Sublist.filter _ (List.take_sublist t (List.finRange r))).length_le
@@ -167,13 +163,11 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
         calc u.val * r + w_st.regs idx < u.val * r + r := by omega
           _ = (u.val + 1) * r := by ring
           _ ≤ m * r := Nat.mul_le_mul_right r (by dsimp only [u]; omega)
-      have hmat_addr_lt : matBase + u.val * r + w_st.regs idx < bOff := by omega
       have hmat_uv : w_st.mem (matBase + u.val * r + w_st.regs idx) =
           if G (u, v) then 1 else 0 := by
         rw [hf_c _ (by omega)]
-        dsimp only [y₁, u]
-        wram_simp
-        rw [hlow_y _ hmat_addr_lt]
+        dsimp only [y₁, u] at hmul_lt ⊢
+        wram_simp [hlow_y (matBase + y.regs qHead * r + w_st.regs idx) (by omega)]
         simpa [Nat.add_assoc, u] using hmat u v
       have hw_one : w_st.regs one = 1 := by
         rw [hr_c one (by decide) (by decide) (by decide)]; dsimp only [y₁]; wram_simp [hy_one]
@@ -194,8 +188,8 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
         wram_exec [hqt_c, hw_one, hw_zero, hmat_uv]
         refine ⟨⟨by omega, fun i hi hne1 hne2 => by wram_simp [hr_c i hi hne1 hne2],
           by wram_simp; omega, by wram_simp [hrE_c, hpre_succ],
-          by rw [hpre_succ]; exact hed_c, fun a ha => ?_⟩, by wram_simp⟩
-        wram_simp [hf_c a ha]
+          hpre_succ ▸ hed_c, fun a ha => by wram_simp [hf_c a ha]⟩,
+          by wram_simp⟩
       · simp only [hG, ↓reduceIte] at hmat_uv hpre_succ
         have hlen_lt_adj : (rowPre (w_st.regs idx)).length < (sInst.adj u).length := by
           have hle1 := hrowPre_sub (w_st.regs idx + 1)
@@ -205,16 +199,15 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
         refine ⟨⟨by omega, fun i hi hne1 hne2 => by wram_simp [hr_c i hi hne1 hne2],
           by wram_simp; omega,
           by wram_simp; rw [hpre_succ, List.length_append, List.length_singleton]; omega,
-          fun i hi => ?_, fun a ha => ?_⟩, by wram_simp⟩
-        · simp only [hpre_succ, List.length_append, List.length_singleton] at hi ⊢
-          by_cases hi_lt : i < (rowPre (w_st.regs idx)).length
-          · rw [List.getElem_append_left hi_lt]
-            wram_simp [hed_c i hi_lt]
-          · obtain rfl : i = (rowPre (w_st.regs idx)).length := by omega
-            rw [List.getElem_append_right le_rfl]
-            wram_simp
-            simp [v]
-        · wram_simp [hf_c a ha]
+          fun i hi => ?_, fun a ha => by wram_simp [hf_c a ha]⟩,
+          by wram_simp⟩
+        simp only [hpre_succ, List.length_append, List.length_singleton] at hi ⊢
+        by_cases hi_lt : i < (rowPre (w_st.regs idx)).length
+        · rw [List.getElem_append_left hi_lt]
+          wram_simp [hed_c i hi_lt]
+        · obtain rfl : i = (rowPre (w_st.regs idx)).length := by omega
+          simp only [List.getElem_append_right le_rfl, Nat.sub_self, List.getElem_singleton, v]
+          wram_simp
     have hy₁_idx : y₁.regs idx = 0 := by dsimp only [y₁]; wram_simp
     obtain ⟨y₂, hl_col, hPCr, _⟩ := ExecWithin.loop_count PC
       (fun w_st hw_st => by
@@ -230,12 +223,11 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
       rw [hr_c2 qHead (by decide) (by decide) (by decide)]; dsimp only [y₁]; wram_simp
     have hy₂_one : y₂.regs one = 1 := by
       rw [hr_c2 one (by decide) (by decide) (by decide)]; dsimp only [y₁]; wram_simp [hy_one]
-    have hpost_row : ∃ z, ExecWithin w (ram[ qHead ← qHead + one ] : Code .standard 34) y₂ z 1 ∧
-        z = y₂.set qHead (y.regs qHead + 1) := by
-      refine WP.exists_execWithin ?_
+    have he_post_row : ExecWithin w (ram[ qHead ← qHead + one ] : Code .standard 34) y₂
+        (y₂.set qHead (y.regs qHead + 1)) 1 := by
+      refine WP.execWithin ?_
       wram_exec [hy₂_qh, hy₂_one]
       rfl
-    obtain ⟨z, he_post_row, rfl⟩ := hpost_row
     refine ⟨_, (he_pre_row.seq (hl_col.seq he_post_row)).mono (by omega),
       ⟨by omega, fun i hi hne => ?_, ?_, ?_, fun u' hu' => ?_, fun u' hu' {i} hi => ?_,
         fun a ha => ?_⟩, by wram_simp⟩
@@ -256,12 +248,11 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
     · dsimp only [Data.set]
       by_cases heq_u : u' = u
       · subst heq_u
-        have hi' : i < (rowPre r).length := by rwa [hrowPre_full]
-        simpa [hrowPre_full] using hed_c2 i hi'
-      · have hne_val : u'.val ≠ y.regs qHead := fun h => heq_u (Fin.ext h)
-        have hu'_lt : u'.val < u.val := by dsimp only [u]; omega
+        simpa [hrowPre_full] using hed_c2 i (hrowPre_full.symm ▸ hi)
+      · have hu'_lt : u'.val < u.val :=
+          Nat.lt_of_le_of_ne (Nat.lt_succ_iff.mp hu') fun h => heq_u (Fin.ext h)
         have hle_end : sInst.offset (u'.val + 1) ≤ sInst.offset u.val :=
-          sInst.offset_mono (by omega)
+          sInst.offset_mono hu'_lt
         have hoff_u'_succ : sInst.offset (u'.val + 1) =
             sInst.offset u'.val + (sInst.adj u').length := sInst.offset_succ u'.isLt
         rw [hf_c2 _ (by omega)]
@@ -280,25 +271,23 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
     hrowBody (x := s₀) (by rw [hs₀_qh]; exact Nat.zero_le m) (by rw [hs₀_qh]; exact hPR₀)
   rw [hs₀_qh, Nat.sub_zero] at hl_row
   obtain ⟨_, hr_m, _, hrE_m, hoff_m, hedge_m, _⟩ := hPRm
-  have hs₀_reg : ∀ i : Fin 34, i.val < 22 → i ≠ rE → y_end.regs i = s₀.regs i := hr_m
-  have hend_bOff : y_end.regs bOffReg = bOff :=
-    (hs₀_reg bOffReg (by decide) (by decide)).trans (by dsimp only [s₀]; wram_simp [hbOff])
-  have hend_rm : y_end.regs rm = m :=
-    (hs₀_reg rm (by decide) (by decide)).trans (by dsimp only [s₀]; wram_simp [hrm])
-  obtain ⟨y_last, he_last, rfl⟩ : ∃ y_last, ExecWithin w
-      (ram[ addr ← bOffReg + rm; *addr ← rE ] : Code .standard 34) y_end y_last 2 ∧
-      y_last = (y_end.set addr (bOff + m)).write (bOff + m) (sInst.offset m) := by
-    refine WP.exists_execWithin ?_
+  have hend_bOff : y_end.regs bOffReg = bOff := by
+    wram_simp [hr_m bOffReg (by decide) (by decide), s₀, hbOff]
+  have hend_rm : y_end.regs rm = m := by
+    wram_simp [hr_m rm (by decide) (by decide), s₀, hrm]
+  let y_last := (y_end.set addr (bOff + m)).write (bOff + m) (sInst.offset m)
+  have he_last : ExecWithin w
+      (.seq (ram[ addr ← bOffReg + rm ]) (ram[ *addr ← rE ]) : Code .standard 34)
+      y_end y_last 2 := by
+    refine WP.execWithin ?_
     wram_exec [hend_bOff, hend_rm, hrE_m]
     rfl
-  let y_last := (y_end.set addr (bOff + m)).write (bOff + m) (sInst.offset m)
   have hlast_reg (i : Fin 34) (hi : i.val < 22) (hne : i ≠ rE) : y_last.regs i = s₀.regs i := by
     have : i ≠ addr := fun h => by subst h; simp at hi
     calc y_last.regs i = y_end.regs i := by dsimp only [y_last]; wram_simp
-      _ = s₀.regs i := hs₀_reg i hi hne
-  have hfit_init : Fits w (bOff + 7 * sInst.m + 5 * sInst.r + sInst.numEdges + 8) := by
-    change Fits w (bOff + 7 * m + 5 * r + sInst.numEdges + 8)
-    exact hfit.of_le (by omega)
+      _ = s₀.regs i := hr_m i hi hne
+  have hfit_init : Fits w (bOff + 7 * sInst.m + 5 * sInst.r + sInst.numEdges + 8) :=
+    hfit.of_le (Nat.add_le_add_right (Nat.add_le_add_left hE_le _) 8)
   obtain ⟨z, he_init, hbz, hmem_z⟩ := exec_initBaseRegsFromCSR sInst y_last
     ((hlast_reg zero (by decide) (by decide)).trans (by dsimp only [s₀]; wram_simp [h0]))
     ((hlast_reg one (by decide) (by decide)).trans (by dsimp only [s₀]; wram_simp [h1]))
@@ -321,8 +310,7 @@ theorem exec_buildCSRCode {w m r matBase bOff : ℕ} (G : Fin m × Fin r → Boo
         dsimp only [y_last]
         wram_simp
         exact hedge_m u' u'.isLt hi }
-  refine ⟨z, (he₀.seq (hl_row.seq (he_last.seq he_init))).mono ?_, hbz, hcsrz⟩
-  nlinarith
+  exact ⟨z, (he₀.seq (hl_row.seq (he_last.seq he_init))).mono (by nlinarith), hbz, hcsrz⟩
 
 /-- Read header dimensions (`m`, and `r` if `isSquare = false` else `r = m`) from input memory,
 compute `bOffReg := matBase + m * r` (with `matBase = 2` if `isSquare` else `3`), and convert
@@ -348,7 +336,7 @@ theorem exec_matrixSetupCode {w m r : ℕ} (isSquare : Bool) (hsq : isSquare = t
         (9 * m * r + 8 * m + (if isSquare then 33 else 35)) ∧
       BaseRegs ⟨m, r, exactBipAdj G⟩ ((if isSquare then 2 else 3) + m * r) y ∧
       CSRMem ⟨m, r, exactBipAdj G⟩ ((if isSquare then 2 else 3) + m * r) y.mem := by
-  have hs_pre : ∃ y₀, ExecWithin w
+  obtain ⟨y₀, he_pre, h0, h1, h2, hrm, hmem₀⟩ : ∃ y₀, ExecWithin w
       (ram[ zero ← #0; one ← #1; two ← #2; addr ← #1; rm ← *addr ] : Code .standard 34)
       (Data.init input) y₀ 5 ∧
       y₀.regs zero = 0 ∧ y₀.regs one = 1 ∧ y₀.regs two = 2 ∧
@@ -357,8 +345,7 @@ theorem exec_matrixSetupCode {w m r : ℕ} (isSquare : Bool) (hsq : isSquare = t
     refine WP.exists_execWithin ?_
     wram_exec [hm, hfit2]
     exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, rfl⟩
-  obtain ⟨y₀, he_pre, h0, h1, h2, hrm, hmem₀⟩ := hs_pre
-  have hs_dim : ∃ y₁, ExecWithin w
+  obtain ⟨y₁, he_dim, h0', h1', h2', hrm', hrr', hbOff', hmem₁⟩ : ∃ y₁, ExecWithin w
       (if isSquare then ram[ rr ← rm; val ← rm * rr; bOffReg ← two + val ]
        else ram[ addr ← #2; rr ← *addr; val ← rm * rr;
                  bOffReg ← #3; bOffReg ← bOffReg + val ]) y₀ y₁ (if isSquare then 3 else 5) ∧
@@ -375,17 +362,15 @@ theorem exec_matrixSetupCode {w m r : ℕ} (isSquare : Bool) (hsq : isSquare = t
       exact ⟨by wram_simp [h0], by wram_simp [h1], by wram_simp [h2],
         by wram_simp [hrm], by wram_simp, by wram_simp, hmem₀⟩
     | false =>
-      have hr_mem : y₀.mem 2 = r := by rw [hmem₀]; exact hr rfl
       simp only [Bool.false_eq_true, ↓reduceIte]
-      wram_exec [hrm, hr_mem]
+      wram_exec [hrm, hmem₀, hr rfl]
       exact ⟨by wram_simp [h0], by wram_simp [h1], by wram_simp [h2],
         by wram_simp [hrm], by wram_simp, by wram_simp, hmem₀⟩
-  obtain ⟨y₁, he_dim, h0', h1', h2', hrm', hrr', hbOff', hmem₁⟩ := hs_dim
   obtain ⟨z, he_csr, hbz, hcsrz⟩ := exec_buildCSRCode (m := m) (r := r)
     (matBase := if isSquare then 2 else 3) (bOff := (if isSquare then 2 else 3) + m * r) G y₁
-    h0' h1' h2' hrm' hrr' hbOff' (le_refl _)
-    (fun u v => by rw [hmem₁]; exact hmat u v) hfit
-  exact ⟨z, (he_pre.seq (he_dim.seq he_csr)).mono (by cases isSquare <;> simp <;> omega),
-    hbz, hcsrz⟩
+    h0' h1' h2' hrm' hrr' hbOff' le_rfl
+    (fun u v => hmem₁.symm ▸ hmat u v) hfit
+  exact ⟨z, (he_pre.seq (he_dim.seq he_csr)).mono (by cases isSquare <;> simp <;> omega), hbz,
+    hcsrz⟩
 
 end Cslib.Algorithms.WordRAM.HopcroftKarp

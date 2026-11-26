@@ -350,8 +350,7 @@ private theorem extRank_blocker_spec {U m : ℕ} {π : Fin U → Equiv.Perm (Fin
   have hmem_eq {z : Fin U} (hz : z ∈ Dictionary.dom s) : extRank s rank u z = rank z := by
     unfold extRank
     split_ifs with hu
-    · rfl
-    · exact Function.update_of_ne (fun h : z = u => hu (h ▸ hz)) _ _
+    exacts [rfl, Function.update_of_ne (fun h : z = u => hu (h ▸ hz)) _ _]
   by_cases hx_dom : x ∈ Dictionary.dom s
   · obtain ⟨y, hy, vy, hT, hlt⟩ := hrank x hx_dom i hi
     exact ⟨y, hy, vy, hT, by rwa [hmem_eq (Finset.mem_erase.mp hy).2, hmem_eq hx_dom]⟩
@@ -898,23 +897,20 @@ private theorem rawQueue_spec {U m : ℕ} (hm : 0 < m)
   intro b
   induction b using Nat.strong_induction_on with
   | _ b ih =>
-    intro hbw
-    cases b with
-    | zero =>
-      exact ⟨h0 ▸ Finset.image_subset_image fun y hy =>
+    rcases b with _ | c
+    · exact fun _ => ⟨h0 ▸ Finset.image_subset_image fun y hy =>
         mem_partialDepSet_of_mem_directBlockers T π r_ext hy,
         by simp only [rawQueue, length_probePrefix]; omega⟩
-    | succ c =>
+    · intro hbw
       obtain ⟨hsub_c, hlen_c⟩ := ih c (Nat.lt_succ_self c) (by omega)
       obtain ⟨hxc_W, -⟩ :=
         keyAt_getD_mem_of_toFinset_subset hm hrep x₀ hW_dom hsub_c (i := c) (by omega)
       refine ⟨fun j hj => ?_, ?_⟩
       · simp only [rawQueue, List.toFinset_append, Finset.mem_union, List.mem_toFinset,
           List.mem_filter] at hj
-        obtain hj_c | ⟨hj_new, -⟩ := hj
-        · exact hsub_c (List.mem_toFinset.mpr hj_c)
-        · obtain ⟨y, hy_dir, rfl⟩ := (hpref _ hxc_W j).mp hj_new
-          exact Finset.mem_image_of_mem _ (hdirW _ hxc_W hy_dir)
+        refine hj.elim (fun hj_c => hsub_c (List.mem_toFinset.mpr hj_c)) fun ⟨hj_new, _⟩ => ?_
+        obtain ⟨y, hy_dir, rfl⟩ := (hpref _ hxc_W j).mp hj_new
+        exact Finset.mem_image_of_mem _ (hdirW _ hxc_W hy_dir)
       -- Otherwise every enqueued slot has been expanded, so the keys landing in the queue are
       -- closed under direct blockers and contain all of `W`, which is larger than the queue.
       by_contra hlt_succ
@@ -938,9 +934,8 @@ private theorem rawQueue_spec {U m : ℕ} (hm : 0 < m)
           (rawQueue_prefix hm T π x₀ r₀ (b := c + 1) (by omega)).subset
             (mem_rawQueue_succ_of_mem_probePrefix hm T π x₀ r₀ a
               (hkey_a ▸ (hpref z hzW _).mpr ⟨y, hy_dir, rfl⟩))⟩
-      have hW_sub_C : W ⊆ C := fun w hw => by
-        obtain ⟨y, hy_dir, hwy⟩ := Finset.mem_biUnion.mp hw
-        exact depSet_subset_of_directBlockers_closed T π r_ext hclosed_C (hdir0_C hy_dir) hwy
+      have hW_sub_C : W ⊆ C := Finset.biUnion_subset.mpr fun y hy_dir =>
+        depSet_subset_of_directBlockers_closed T π r_ext hclosed_C (hdir0_C hy_dir)
       have hcard := (Finset.card_le_card_of_injOn (landingSlot hm T π)
         (fun y hy => List.mem_toFinset.mpr (Finset.mem_filter.mp (hW_sub_C hy)).2)
         ((landingSlot_injOn_dom hm hrep).mono hW_dom)).trans (List.toFinset_card_le q')
@@ -1159,7 +1154,7 @@ private theorem card_stepFiber_le (M : ℕ) {w : ℕ} (hw : w ≤ 2 ^ M) (q : Li
     · simp only [P, hlt, true_and]
       exact (card_filter_two_probes_eq_le M hlt (k_b.isLt.trans_le hw) slot₁ slot_b).trans
         ((Nat.sub_le _ _).trans k_b.isLt.le)
-    · simp [P, show ¬j₁ < k_b from hlt]
+    · simp [P, mt Fin.val_fin_lt.mpr hlt]
   calc (stepFiber M w q slot_b d).card
       ≤ F₁.card + _ := (Finset.card_le_card hsub).trans (Finset.card_union_le _ _)
     _ ≤ 2 ^ (M - 1) + Fintype.card (Fin w) * (Fintype.card (Fin w) * (q.toFinset.card * w)) :=
@@ -1266,8 +1261,8 @@ private theorem tupleQueue_restrictTuple_eq_bfsQueue {U M w : ℕ}
   induction b with
   | zero => rfl
   | succ b ih =>
-      have hbw : b < w := hb
-      simp only [tupleQueue, init_restrictTuple, ih hbw.le, bfsQueue, hbw, ↓reduceDIte]
+      simp only [tupleQueue, init_restrictTuple, ih (Nat.le_of_succ_le hb), bfsQueue,
+        Nat.lt_of_succ_le hb, ↓reduceDIte]
       rfl
 
 private theorem mem_validTuples_of_bfsStepEvent {U M w : ℕ}
@@ -1283,13 +1278,13 @@ private theorem mem_validTuples_of_bfsStepEvent {U M w : ℕ}
   induction b with
   | zero => exact Finset.mem_univ _
   | succ b ih =>
-      have hbw : b < w := hb
-      have hev_b := hev ⟨b, hbw⟩
-      dsimp only [bfsStepEvent] at hev_b
-      rw [← tupleQueue_restrictTuple_eq_bfsQueue x₀ h x p s b hbw.le] at hev_b
-      exact Finset.mem_biUnion.mpr ⟨restrictTuple f b hbw.le, ih hbw.le, Finset.mem_map.mpr
-        ⟨f ⟨b + 1, Nat.succ_lt_succ hbw⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hev_b⟩,
+      have hbw := Nat.le_of_succ_le hb
+      refine Finset.mem_biUnion.mpr ⟨restrictTuple f b hbw, ih hbw, Finset.mem_map.mpr
+        ⟨f ⟨b + 1, Nat.succ_lt_succ hb⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩,
           snoc_restrictTuple f b hb⟩⟩
+      dsimp only [bfsStepEvent]
+      rw [tupleQueue_restrictTuple_eq_bfsQueue x₀ h x p s b hbw]
+      exact hev ⟨b, hb⟩
 
 open scoped Classical in
 /-- **Fixed-Tuple BFS Event Bound under `k`-Wise Independence**:
@@ -1375,8 +1370,7 @@ private theorem card_degSeqFinset_le_four_pow (w : ℕ) :
       have hlt : degPrefSum w f b.val < 2 * w := by have := b.isLt; dsimp only [degPrefSum]; omega
       simp only [g, hlt, ↓reduceDIte]
     have hg_mono : ∀ f ∈ degSeqFinset w, StrictMono (g f) := fun f hf b₁ b₂ hb => by
-      rw [Fin.lt_def] at hb ⊢
-      rw [hg f hf, hg f hf]
+      rw [Fin.lt_def, hg f hf, hg f hf]
       have := Finset.sum_le_sum_of_subset (f := fun a : Fin (w + 1) => (f a).val)
         (Finset.monotone_filter_right Finset.univ fun a _ (h : a.val ≤ b₁.val) => h.trans hb.le)
       dsimp only [degPrefSum]
@@ -1478,9 +1472,8 @@ private theorem four_pow_mul_card_hasBFSWitness_le
     _ ≤ 4 ^ w * (4 ^ w * (n_max ^ w * ((2 ^ (M - 1) + w ^ 4) ^ w * Fintype.card (Θ₁ × Θ₂)))) :=
         Nat.mul_le_mul_left _ hsum_bi
     _ = (16 * n_max * (2 ^ (M - 1) + w ^ 4)) ^ w * Fintype.card (Θ₁ × Θ₂) := by
-        simp only [mul_pow]
-        rw [show (16 : ℕ) = 4 * 4 from rfl, mul_pow]
-        ring
+        have h16 : (16 : ℕ) ^ w = 4 ^ w * 4 ^ w := mul_pow 4 4 w
+        simp only [mul_pow, h16]; ring
     _ ≤ (2 ^ M * 2 ^ (M - 1)) ^ w * Fintype.card (Θ₁ × Θ₂) :=
         Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hstep_base w)
     _ = Fintype.card (Θ₁ × Θ₂) * (2 ^ M * 2 ^ (M - 1)) ^ w := Nat.mul_comm _ _
@@ -1583,7 +1576,7 @@ theorem sum_probeCount_oddStride_le_of_kWiseIndependent
     have hsum_4L := (Finset.sum_le_card_nsmul _ _ _ fun x₀ _ => hov_x₀ x₀).trans
       (Nat.mul_le_mul_right _ ((Finset.card_insert_le u _).trans (Nat.add_le_add_right hdom 1)))
     rw [← Finset.mul_sum] at hsum_4L
-    refine Nat.le_of_mul_le_mul_left ?_ (Nat.pow_pos (n := L) (show 0 < 4 by decide))
+    refine Nat.le_of_mul_le_mul_left ?_ (Nat.pow_pos (n := L) (by decide : 0 < 4))
     linarith [Nat.mul_le_mul_left (2 * n_max) hsum_4L, Nat.mul_le_mul_right (Fintype.card (Θ₁ × Θ₂))
       (four_mul_n_max_sq_le_four_pow_maxProbeCutoff n_max)]
   have hpt :
@@ -1596,11 +1589,9 @@ theorem sum_probeCount_oddStride_le_of_kWiseIndependent
     simp only [Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, smul_eq_mul, mul_one,
       ← Finset.mul_sum]
     congr 2
-    · rw [Finset.sum_comm]
-      exact Finset.sum_congr rfl fun w _ => hC_sum u w w
-    · rw [Finset.sum_comm]
-      exact Finset.sum_congr rfl fun x₀ _ => Finset.sum_comm.trans
-        (Finset.sum_congr rfl fun w _ => (hC_sum x₀ w 1).trans (one_mul _))
+    · exact Finset.sum_comm.trans (Finset.sum_congr rfl fun w _ => hC_sum u w w)
+    · exact Finset.sum_comm.trans (Finset.sum_congr rfl fun x₀ _ => Finset.sum_comm.trans
+        (Finset.sum_congr rfl fun w _ => (hC_sum x₀ w 1).trans (one_mul _)))
   omega
 
 /-- **Expected Probe-Count Bound under `(2 * L + 1)`-Wise Independence**:
@@ -1681,11 +1672,9 @@ theorem sum_probeCount_oddStride_of_whp_kWiseIndependent
           (oddStridePerm (H₁ top₁ bot.1) (H₂ top₂ bot.2) u)) ≤
         (2 + b₁ top₁ + b₂ top₂) * B_card := by
     by_cases h : Good₁ top₁ ∧ Good₂ top₂
-    · have hgood := sum_probeCount_oddStride_le_of_kWiseIndependent
+    · simpa [b₁, b₂, h.1, h.2, B_card] using sum_probeCount_oddStride_le_of_kWiseIndependent
         (hk₁ top₁ h.1) (hk₂ top₂ h.2) hM hload hw4
-        (T := fun bot : Θ_bot₁ × Θ_bot₂ => T ((top₁, bot.1), (top₂, bot.2)))
         (fun bot => hrep ((top₁, bot.1), (top₂, bot.2))) hdom u
-      simpa [b₁, b₂, h.1, h.2, B_card] using hgood
     · -- Deterministic fallback for a bad top seed: every probe count is at most `n_max + 1`.
       calc _ ≤ ∑ _bot : Θ_bot₁ × Θ_bot₂, (n_max + 1) :=
             Finset.sum_le_sum fun bot _ =>
@@ -1839,8 +1828,7 @@ theorem sum_probeCount_oddStride_doubleTab_le
   let b := (1 + Nat.clog 2 (max n_max 4)) / 2
   have hc1 : 1 ≤ c := by omega
   have hM : 1 ≤ M := by grind
-  obtain ⟨hU_cb, hb_ge, hmax_le_2b⟩ : U ≤ 2 ^ (c * b) ∧ doubleTabMinB c_exp ≤ b ∧
-      max n_max 4 ≤ 2 ^ (2 * b) := doubleTab_canonical_params hge hU
+  obtain ⟨hU_cb, hb_ge, hmax_le_2b⟩ := doubleTab_canonical_params hge hU
   have hb_min_def : doubleTabMinB c_exp = 4 * (24 * c + 8) ^ 2 := doubleTabMinB_eq c_exp
   have hb_64 : 64 ≤ b := ((by decide : 64 ≤ 4 * 8 ^ 2).trans
     (Nat.mul_le_mul_left 4 (Nat.pow_le_pow_left (by omega) 2))).trans (hb_min_def ▸ hb_ge)
@@ -1900,11 +1888,8 @@ theorem expect_probeCount_oddStride_unconditional_le
         (probeCount (T θ) u (doubleHashOddStridePerm c_exp n_max U M θ u) : ℝ≥0∞)) ≤
       max (doubleTabThreshold c_exp : ℝ≥0∞) 3 := by
   by_cases hge : doubleTabThreshold c_exp ≤ n_max
-  · exact (expect_probeCount_oddStride_doubleTab_le hge hU hm hrep hdom u).trans
-      (le_max_right _ 3)
-  · have hle : (n_max + 1 : ℝ≥0∞) ≤ (doubleTabThreshold c_exp : ℝ≥0∞) :=
-      mod_cast (by omega : n_max + 1 ≤ doubleTabThreshold c_exp)
-    exact ((expect_probeCount_le_add_one (fun θ => (hrep θ).toTableRep) hdom u).trans hle).trans
-      (le_max_left _ 3)
+  · exact (expect_probeCount_oddStride_doubleTab_le hge hU hm hrep hdom u).trans (le_max_right _ 3)
+  · exact ((expect_probeCount_le_add_one (fun θ => (hrep θ).toTableRep) hdom u).trans
+      (mod_cast (by omega : n_max + 1 ≤ doubleTabThreshold c_exp))).trans (le_max_left _ 3)
 
 end Cslib.DataStructure.Dictionary.DoubleHashing

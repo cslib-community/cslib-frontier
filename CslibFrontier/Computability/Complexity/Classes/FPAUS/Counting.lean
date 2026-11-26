@@ -96,8 +96,7 @@ def startsWith (b : Bool) (o : Option (List Bool)) : Bool :=
 
 theorem startsWith_eq_true_iff (b : Bool) (o : Option (List Bool)) :
     startsWith b o = true ↔ ∃ w, o = some w ∧ w.head? = some b := by
-  rcases o with _ | ⟨_ | ⟨c, w⟩⟩ <;> cases b <;> try cases c
-  all_goals simp [startsWith]
+  rcases o with _ | ⟨_ | ⟨c, w⟩⟩ <;> cases b <;> simp [startsWith]
 
 /-- The estimator state: the current instance, and the numerator and denominator of the running
 ratio. -/
@@ -129,10 +128,7 @@ noncomputable def estimate (R : SelfReducible enc W) (S : α → ℕ → ProbCom
 
 theorem preimage_startsWith (b : Bool) :
     startsWith b ⁻¹' {true} = some '' {w : List Bool | w.head? = some b} := by
-  ext o
-  simp only [Set.mem_preimage, Set.mem_singleton_iff, startsWith_eq_true_iff, Set.mem_image,
-    Set.mem_ofPred_eq]
-  grind
+  ext (_ | w) <;> simp [startsWith_eq_true_iff]
 
 /-- An almost uniform sampler's frequency of outputs beginning with `b` is within its tolerance
 of the fraction of witnesses beginning with `b`. -/
@@ -142,11 +138,9 @@ theorem abs_eval_startsWith_sub_le {μ : ProbComp (Option (List Bool))} {V : Fin
     (hV : V.Nonempty) (b : Bool) :
     |(ProbComp.eval (startsWith b <$> μ) true).toReal -
       ((V.filter (fun w => w.head? = some b)).card : ℝ) / V.card| ≤ ε := by
-  have h := hμ.abs_toReal_sub_le hε (some '' {w : List Bool | w.head? = some b})
-  rw [uniformWitness_toOuterMeasure_some hV] at h
-  rw [ProbComp.eval_map, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
-    preimage_startsWith]
-  convert h using 4
+  simpa only [ProbComp.eval_map, ← PMF.toOuterMeasure_apply_singleton,
+    PMF.toOuterMeasure_map_apply, preimage_startsWith, uniformWitness_toOuterMeasure_some hV,
+    Set.mem_ofPred_eq] using hμ.abs_toReal_sub_le hε (some '' {w : List Bool | w.head? = some b})
 
 /-- Choosing the more frequent bit: with true fractions `π + π' = 1` estimated within `γ ≤ 1/8`
 by `d ≥ d'`, the chosen fraction is at least `1 / 4` and is estimated within relative error
@@ -233,9 +227,7 @@ private theorem good_update {x : α} {p i : ℕ} {s : State α} (hs : R.Good x p
   have hM : (16 : ℝ) ≤ tolerance (R.len x) p := by exact_mod_cast sixteen_le_tolerance _ _
   have hθ : 0 ≤ 1 - θ := by rw [sub_nonneg, div_le_one (by linarith only [hM])]; linarith only [hM]
   have hpow : 0 ≤ (1 - θ) ^ i := pow_nonneg hθ i
-  refine ⟨?_, Nat.mul_pos hden hc, ha, ?_, ?_⟩
-  · rw [R.len_child s.1 hlen b]
-    omega
+  refine ⟨by rw [R.len_child s.1 hlen b]; omega, Nat.mul_pos hden hc, ha, ?_, ?_⟩
   · push_cast
     calc (1 - θ) ^ (i + 1) * (s.2.2 * c) * (W x).card
         = c * ((1 - θ) ^ i * s.2.2 * (W x).card) * (1 - θ) := by ring
@@ -306,14 +298,11 @@ private theorem step_failure {S : α → ℕ → ProbComp (Option (List Bool))} 
   set μ := S s.1 M
   set bad : Bool → Set ℕ := fun b => {c | 1 / (M : ℝ) ≤
     |(c : ℝ) / (N : ℕ) - (ProbComp.eval (startsWith b <$> μ) true).toReal|}
-  have hbad (b : Bool) :
-      ((ProbComp.eval (OracleComp.countTrue N (startsWith b <$> μ))).toOuterMeasure
-        (bad b)).toReal ≤ (1 / 2 : ℝ) ^ (t + R.len x + 1) :=
-    ProbComp.countTrue_average_deviation_pow (t + R.len x + 1) M hMpos (startsWith b <$> μ)
   have hbadE (b : Bool) :
       (ProbComp.eval (OracleComp.countTrue N (startsWith b <$> μ))).toOuterMeasure
         (bad b) ≤ ENNReal.ofReal ((1 / 2 : ℝ) ^ (t + R.len x + 1)) :=
-    (ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _) (by positivity)).2 (hbad b)
+    (ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _) (by positivity)).2
+      (ProbComp.countTrue_average_deviation_pow (t + R.len x + 1) M hMpos (startsWith b <$> μ))
   have hle : (ProbComp.eval (R.step S (R.len x) p t s)).toOuterMeasure
       {s' | ¬ R.Good x p (i + 1) s'} ≤
         ENNReal.ofReal ((1 / 2 : ℝ) ^ (t + R.len x + 1)) +
@@ -395,17 +384,15 @@ theorem estimate_eq_zero (S : α → ℕ → ProbComp (Option (List Bool))) {x :
     (hx : (W x).card = 0) (p t : ℕ) :
     ∀ out ∈ (ProbComp.eval (R.estimate S x p t)).support, out.1 = 0 ∧ 0 < out.2 := by
   intro out hout
-  rw [estimate, ProbComp.eval_map, PMF.mem_support_map_iff] at hout
-  obtain ⟨s, hs, rfl⟩ := hout
-  have hinv := ProbComp.iterate_invariant (R.len x) (R.step S (R.len x) p t) (x, 1, 1)
+  obtain ⟨s, hs, rfl⟩ := by
+    simpa only [estimate, ProbComp.eval_map, PMF.mem_support_map_iff] using hout
+  obtain ⟨-, hW, hden⟩ := ProbComp.iterate_invariant (R.len x) (R.step S (R.len x) p t) (x, 1, 1)
     (fun i s => R.len s.1 + i = R.len x ∧ (W s.1).card = 0 ∧ 0 < s.2.2)
-    ⟨by simp, hx, Nat.one_pos⟩ (fun i hi s hs s' hs' => by
-      obtain ⟨hl, hW, hden⟩ := hs
+    ⟨rfl, hx, Nat.one_pos⟩ (fun i hi s ⟨hl, hW, hden⟩ s' hs' => by
       obtain ⟨c₀, c₁, -, -, rfl⟩ := R.mem_support_step hs'
       have hlen : 0 < R.len s.1 := by omega
       exact ⟨by rw [next, R.len_child s.1 hlen]; omega,
         R.card_child_eq_zero hlen hW _, Nat.mul_pos hden (by omega)⟩) s hs
-  obtain ⟨-, hW, hden⟩ := hinv
   exact ⟨by simp [Finset.card_eq_zero.mp hW], hden⟩
 
 /-- **Accuracy of the sampling-to-counting estimator**: if `S x q` is within total-variation
@@ -443,10 +430,8 @@ theorem approxWithin_estimate {S : α → ℕ → ProbComp (Option (List Bool))}
   set μ := ProbComp.eval (OracleComp.iterate ℓ (R.step S ℓ p t) (x, 1, 1))
   set good := (fun s : State α => (if [] ∈ W s.1 then s.2.1 else 0, s.2.2)) ⁻¹'
     {out | ApproxWithin (W x).card p out.1 out.2}
-  have hsub : goodᶜ ⊆ {s | ¬ R.Good x p ℓ s} := fun s hs hgood =>
-    hs (R.approxWithin_of_good hp hgood)
-  have hbad : (μ.toOuterMeasure goodᶜ).toReal ≤ (1 / 2 : ℝ) ^ t :=
-    (PMF.toOuterMeasure_toReal_mono _ hsub).trans (hfail.trans hℓ)
+  have hsub : goodᶜ ⊆ {s | ¬ R.Good x p ℓ s} := fun _ hs hg => hs (R.approxWithin_of_good hp hg)
+  have hbad := (PMF.toOuterMeasure_toReal_mono μ hsub).trans (hfail.trans hℓ)
   linarith only [hbad, Probability.PMF.toOuterMeasure_toReal_add_compl μ good]
 
 end Cslib.Complexity.SelfReducible

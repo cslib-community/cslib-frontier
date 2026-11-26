@@ -25,7 +25,8 @@ which is an input, a constant, or a binary operation of two earlier ones.
 
 The two descriptions agree up to the inputs: a list of `p` such steps is computed by a program
 with `p` gates (`Cslib.Circuits.exists_program_of_isSlpStep`), and a program with `p` gates on
-`n` inputs gives a list of `n + p` steps (`Cslib.Circuits.exists_isSlpStep_of_program`).
+`n` inputs gives a list of `n + p` steps (`Cslib.Circuits.exists_isSlpStep_of_program`). Steps stay
+steps when the inputs are read through a map (`Cslib.Circuits.IsSlpStep.comp`).
 
 ## Main definitions
 
@@ -34,6 +35,7 @@ with `p` gates (`Cslib.Circuits.exists_program_of_isSlpStep`), and a program wit
 ## Main results
 
 * `Cslib.Circuits.exists_program_of_isSlpStep`, `Cslib.Circuits.exists_isSlpStep_of_program`.
+* `Cslib.Circuits.IsSlpStep.comp`: steps of functions of a map of the inputs.
 
 ## References
 
@@ -54,6 +56,15 @@ steps. -/
 @[expose] def IsSlpStep (inp : Fin n → Inp → Fin D) (fn : ℕ → Inp → Fin D) (k : ℕ) : Prop :=
   (∃ i, fn k = inp i) ∨ (∃ c, fn k = fun _ => c) ∨
     ∃ i < k, ∃ j < k, ∃ φ : Fin D → Fin D → Fin D, ∀ x, fn k x = φ (fn i x) (fn j x)
+
+/-- A step of the list `fn` is a step of the functions `fn k ∘ f`, from the inputs `inp i ∘ f`. -/
+theorem IsSlpStep.comp {Inp' : Type} {inp : Fin n → Inp → Fin D} {fn : ℕ → Inp → Fin D} {k : ℕ}
+    (f : Inp' → Inp) (h : IsSlpStep inp fn k) :
+    IsSlpStep (fun i x => inp i (f x)) (fun k x => fn k (f x)) k := by
+  rcases h with ⟨i, hi⟩ | ⟨c, hc⟩ | ⟨i, hi, j, hj, φ, hφ⟩
+  exacts [.inl ⟨i, funext fun x => congrFun hi (f x)⟩,
+    .inr (.inl ⟨c, funext fun x => congrFun hc (f x)⟩),
+    .inr (.inr ⟨i, hi, j, hj, φ, fun x => hφ (f x)⟩)]
 
 /-- A list of `p` steps is computed by a program with `p` gates, gate `k` computing step `k`. -/
 theorem exists_program_of_isSlpStep (inp : Fin n → Inp → Fin D) (fn : ℕ → Inp → Fin D) {p : ℕ}

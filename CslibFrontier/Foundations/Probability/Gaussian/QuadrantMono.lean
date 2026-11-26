@@ -112,8 +112,7 @@ private theorem measureReal_correlatedGaussian_le_and_le_mono_nonneg {ρ₁ ρ�
     linear_combination hac_sq + t * hs_sq
   have huv0 : ⟪u, v 0⟫ = ρ₁ := by rw [huv_inner]; ring
   have huvr : ⟪u, v r⟫ = ρ₂ := by
-    rw [huv_inner, show (1 - ρ₁) * r = ρ₂ - ρ₁ from mul_div_cancel₀ _ (by linarith)]
-    ring
+    rw [huv_inner, mul_div_cancel₀ _ (by linarith)]; ring
   have hS : MeasurableSet {p : ℝ × ℝ | p.1 ≤ a ∧ p.2 ≤ b} :=
     (measurableSet_Iic.preimage measurable_fst).inter (measurableSet_Iic.preimage measurable_snd)
   rw [← huv0, ← huvr, ← measureReal_pi_inner_prod_eq_correlatedGaussian hu_norm
@@ -167,13 +166,8 @@ private theorem measureReal_correlatedGaussian_le_and_le_mono_nonneg {ρ₁ ρ�
     Measure.map_apply hSE (hmeas_ev r),
     Measure.prod_apply ((hmeas_ev 0).preimage hSE),
     Measure.prod_apply ((hmeas_ev r).preimage hSE)]
-  refine lintegral_mono fun q₁ => ?_
-  change γ₂ {q₂ | (⟪u, WithLp.toLp 2 (Sum.elim q₁ q₂)⟫,
-      ⟪v 0, WithLp.toLp 2 (Sum.elim q₁ q₂)⟫) ∈ {p | p.1 ≤ a ∧ p.2 ≤ b}} ≤
-    γ₂ {q₂ | (⟪u, WithLp.toLp 2 (Sum.elim q₁ q₂)⟫,
-      ⟪v r, WithLp.toLp 2 (Sum.elim q₁ q₂)⟫) ∈ {p | p.1 ≤ a ∧ p.2 ≤ b}}
-  rw [hslice 0 q₁, hslice r q₁]
-  refine ENNReal.ofReal_le_ofReal ?_
+  refine lintegral_mono fun q₁ => (hslice 0 q₁).trans_le
+    ((ENNReal.ofReal_le_ofReal ?_).trans_eq (hslice r q₁).symm)
   rw [gaussianQuadrant_zero (cdf_nonneg _ _) (cdf_le_one _ _) (cdf_nonneg _ _) (cdf_le_one _ _)]
   exact mul_le_gaussianQuadrant hr0 hr1 (cdf_nonneg _ _) (cdf_le_one _ _)
     (cdf_nonneg _ _) (cdf_le_one _ _)
@@ -190,9 +184,8 @@ private theorem measureReal_correlatedGaussian_le_and_le_mono_nonpos {ρ₁ ρ�
       ← cdf_gaussianReal_neg one_ne_zero b, gaussianQuadrant_cdf_cdf]
   rw [hneg ρ₁ (abs_le.mpr ⟨hρ₁, h12.trans (hρ₂.trans zero_le_one)⟩),
     hneg ρ₂ (abs_le.mpr ⟨hρ₁.trans h12, hρ₂.trans zero_le_one⟩)]
-  have hm := measureReal_correlatedGaussian_le_and_le_mono_nonneg
-    (neg_nonneg.mpr hρ₂) (neg_le_neg h12) (by linarith) a (-b)
-  linarith
+  linarith [measureReal_correlatedGaussian_le_and_le_mono_nonneg
+    (neg_nonneg.mpr hρ₂) (neg_le_neg h12) (by linarith) a (-b)]
 
 /-- **Correlation monotonicity of bivariate Gaussian quadrants.** Increasing `-1 ≤ ρ₁ ≤ ρ₂ ≤ 1`
 increases the lower-quadrant probability `P_ρ[z ≤ a ∧ z' ≤ b]` for all `a, b ∈ ℝ`. -/
@@ -241,13 +234,11 @@ theorem measureReal_correlatedGaussian_gt_and_le {ρ : ℝ} (hρ : |ρ| ≤ 1) (
   have hdiff : {p : ℝ × ℝ | p.2 ≤ b} \ {p | p.1 ≤ a ∧ p.2 ≤ b} = {p | a < p.1 ∧ p.2 ≤ b} := by
     ext p
     simp only [Set.mem_sdiff, mem_ofPred_eq, not_and', not_le]; tauto
-  have hsnd : (correlatedGaussian ρ).real {p | p.2 ≤ b} = Φ b := by
-    rw [cdf_eq_real, ← correlatedGaussian_map_snd hρ,
-      map_measureReal_apply measurable_snd measurableSet_Iic]
-    rfl
   have hmeas : MeasurableSet {p : ℝ × ℝ | p.1 ≤ a ∧ p.2 ≤ b} :=
     (measurableSet_Iic.preimage measurable_fst).inter (measurableSet_Iic.preimage measurable_snd)
-  rw [← hdiff, measureReal_sdiff hsub hmeas, hsnd]
+  rw [← hdiff, measureReal_sdiff hsub hmeas, cdf_eq_real, ← correlatedGaussian_map_snd hρ,
+    map_measureReal_apply measurable_snd measurableSet_Iic]
+  rfl
 
 /-- **Correlation antitonicity of crossing probabilities.** Increasing `-1 ≤ ρ₁ ≤ ρ₂ ≤ 1`
 *decreases* `P_ρ[a < z ∧ z' ≤ b]` for all thresholds `a, b ∈ ℝ`. -/

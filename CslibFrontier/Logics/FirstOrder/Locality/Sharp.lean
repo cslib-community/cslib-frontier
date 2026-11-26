@@ -389,11 +389,9 @@ private theorem ClusterWitness.forth [Finite M] {m k : ℕ} {a : Fin k → M} {b
     let E : SM ≃ SN := EM.trans ((Equiv.sigmaCongrRight ballEquiv).trans EN.symm)
     let H : M → N := fun z => if hz : z ∈ SM then (E ⟨z, hz⟩).val else e z
     have hH (z : SM) : H z = (E z).val := dite_eq_left z.property
-    have hEq (p : Fin W.c) {z : M} (hzp : z ∈ BM p) : H z = (W.entry p).isoFun z := by
-      change H (EM.symm ⟨p, ⟨z, hzp⟩⟩).val = (W.entry p).isoFun z
-      rw [hH]
-      simp only [E, Equiv.trans_apply, Equiv.apply_symm_apply]
-      rfl
+    have hEq (p : Fin W.c) {z : M} (hzp : z ∈ BM p) : H z = (W.entry p).isoFun z :=
+      (hH (EM.symm ⟨p, ⟨z, hzp⟩⟩)).trans
+        (by simp only [E, Equiv.trans_apply, Equiv.apply_symm_apply]; rfl)
     have hBij : Set.BijOn H SM SN := by
       refine ⟨fun z hz => hH ⟨z, hz⟩ ▸ (E ⟨z, hz⟩).property,
         fun z hz w hw he => ?_, fun w hw => ?_⟩
@@ -442,12 +440,11 @@ private theorem ClusterWitness.duplicatorWins [Finite M] :
     refine duplicatorWins_succ.2 ⟨W.partialIso, fun x => ?_, fun y => ?_⟩
     · obtain ⟨y, ⟨W'⟩⟩ := W.forth e (he n (Nat.lt_succ_self n)) x
       exact ⟨y, W'.duplicatorWins e (fun m hm => he m (Nat.lt_succ_of_lt hm))⟩
-    · have hM : Nonempty M := ⟨e.symm y⟩
-      have hN : Nonempty N := ⟨y⟩
+    · have : Nonempty M := ⟨e.symm y⟩
+      have : Nonempty N := ⟨y⟩
       have : Finite N := Finite.of_equiv M e
-      have he' : ∀ z, NbhdIso L (2 ^ n - 1) (fun _ : Fin 1 => z) (fun _ : Fin 1 => e.symm z) :=
-        fun z => by simpa using (he n (Nat.lt_succ_self n) (e.symm z)).symm
-      obtain ⟨x, ⟨W'⟩⟩ := W.symm.forth e.symm he' y
+      obtain ⟨x, ⟨W'⟩⟩ := W.symm.forth e.symm
+        (fun z => by simpa using (he n (Nat.lt_succ_self n) (e.symm z)).symm) y
       exact ⟨x, W'.symm.duplicatorWins e (fun m hm => he m (Nat.lt_succ_of_lt hm))⟩
 
 /-! ### Sharp Gaifman locality (`2 ^ n - 1`) -/
@@ -718,8 +715,7 @@ theorem exists_nbhdIso_realize_loopReach {n r : ℕ} (hn : 1 ≤ n) (hr : r < 2 
       NbhdIso Language.graph r a b ∧
       (loopReach n).Realize a ∧
       ¬ (loopReach n).Realize b := by
-  have hm : 2 ≤ 2 ^ n := by
-    simpa only [pow_one] using Nat.pow_le_pow_right (by decide : 0 < 2) hn
+  have hm : 2 ≤ 2 ^ n := Nat.le_self_pow (by omega) 2
   set m := 2 ^ n
   let P := SimpleGraph.pathGraph m
   let G := P ⊕g P
@@ -737,13 +733,12 @@ theorem exists_nbhdIso_realize_loopReach {n r : ℕ} (hn : 1 ≤ n) (hr : r < 2 
     rw [mem_ball_const, gaifmanGraph_loopGraphRel] at hu
     rcases u with j | j
     · refine iff_of_false Sum.inr_ne_inl fun h => ?_
-      have hj : (j : ℕ) = m - 1 := congrArg Fin.val (Sum.inl.inj h)
+      obtain rfl := Sum.inl.inj h
       rw [SimpleGraph.edist_sum_inl, SimpleGraph.edist_pathGraph, Nat.cast_le] at hu
-      simp only [x₀] at hu
-      omega
-    · exact absurd hu (not_le.2 (by
-        rw [SimpleGraph.edist_eq_top_of_not_reachable (SimpleGraph.not_reachable_sum_inl_inr _ _)]
-        exact ENat.natCast_lt_top r))
+      simp only [x₀] at hu; omega
+    · rw [SimpleGraph.edist_eq_top_of_not_reachable
+        (SimpleGraph.not_reachable_sum_inl_inr _ _)] at hu
+      exact False.elim ((ENat.natCast_lt_top r).not_ge hu)
   · rw [hvec, realize_loopReach_loopGraphRel]
     refine ⟨loopPt, rfl, ?_⟩
     rw [SimpleGraph.edist_sum_inl, SimpleGraph.edist_pathGraph, Nat.cast_le]
@@ -1200,8 +1195,7 @@ private theorem isNbhdIso_optRel_none {V₁ V₂ : Type*} (R₁ : V₁ → V₁ 
       k (fun _ => none) d u).1 hu
     cases u with
     | none => rfl
-    | some _ =>
-      exact absurd (edist_optRel_none_some R₁ _ ▸ hx) (not_le.2 (ENat.natCast_lt_top d))
+    | some _ => exact absurd (edist_optRel_none_some R₁ _ ▸ hx) (ENat.natCast_lt_top d).not_ge
   refine @IsNbhdIso.mk Language.graph (Option V₁) (Option V₂) (relStructure (optRel R₁))
     (relStructure (optRel R₂)) k d (fun _ => none) (fun _ => none) (fun _ => none)
     ⟨fun u hu => ?_, fun u hu v hv _ => (hball₁ u hu).trans (hball₁ v hv).symm,
@@ -1216,8 +1210,7 @@ private theorem isNbhdIso_optRel_none {V₁ V₂ : Type*} (R₁ : V₁ → V₁ 
     | none =>
       exact ⟨none, @mem_ball_self Language.graph (Option V₁) (relStructure (optRel R₁))
         k (fun _ => none) d i, rfl⟩
-    | some _ =>
-      exact absurd (edist_optRel_none_some R₂ _ ▸ hx) (not_le.2 (ENat.natCast_lt_top d))
+    | some _ => exact absurd (edist_optRel_none_some R₂ _ ▸ hx) (ENat.natCast_lt_top d).not_ge
   · cases R
     rw [relMap_adj_relStructure (optRel R₂) ((fun _ => none) ∘ t),
       relMap_adj_relStructure (optRel R₁) t]
@@ -1379,18 +1372,19 @@ theorem exists_hanfEquiv_formula_not_realize_iff {n d : ℕ} (hn : 2 ≤ n)
       φ.Realize a ∧ ¬ φ.Realize b := by
   obtain ⟨k, rfl⟩ : ∃ k, n = k + 2 := ⟨n - 2, by omega⟩
   obtain ⟨m, _, S₁, S₂, hHanf, hM₁, hM₂⟩ := exists_dirSumPath_hanfEquiv hd
-  refine ⟨Option (Fin m ⊕ Fin m), Option (Fin m ⊕ Fin m), inferInstance, ⟨none⟩,
+  have hrelab (S : Fin m ⊕ Fin m → Prop) :
+      @Formula.Realize _ _ (relStructure (optRel (dirSumPathRel S))) (Fin 1)
+        (Formula.relabel (Empty.elim : Empty → Fin 1) (twoLoopSentence k)) (fun _ => none) ↔
+        @Sentence.Realize _ (Fin m ⊕ Fin m) (relStructure (dirSumPathRel S))
+          (twoLoopSentence k) := by
+    rw [@Formula.realize_relabel _ _ (relStructure (optRel (dirSumPathRel S))),
+      Subsingleton.elim ((fun _ : Fin 1 => none) ∘ Empty.elim) (@default _ Unique.instInhabited)]
+    exact realize_twoLoopSentence_optRel (dirSumPathRel S) k
+  exact ⟨Option (Fin m ⊕ Fin m), Option (Fin m ⊕ Fin m), inferInstance, ⟨none⟩,
     relStructure (optRel (dirSumPathRel S₁)), relStructure (optRel (dirSumPathRel S₂)),
     fun _ => none, fun _ => none, Formula.relabel Empty.elim (twoLoopSentence k),
-    ?_, hanfEquiv_optRel_none hHanf, ?_, ?_⟩
-  · rw [quantifierRank_formula_relabel, quantifierRank_twoLoopSentence]
-  · rw [@Formula.realize_relabel _ _ (relStructure (optRel (dirSumPathRel S₁))),
-      Subsingleton.elim ((fun _ : Fin 1 => none) ∘ Empty.elim) (@default _ Unique.instInhabited)]
-    simpa only [Sentence.Realize] using (realize_twoLoopSentence_optRel (dirSumPathRel S₁) k).2 hM₁
-  · rw [@Formula.realize_relabel _ _ (relStructure (optRel (dirSumPathRel S₂))),
-      Subsingleton.elim ((fun _ : Fin 1 => none) ∘ Empty.elim) (@default _ Unique.instInhabited)]
-    exact mt (fun h => (realize_twoLoopSentence_optRel (dirSumPathRel S₂) k).1
-      (by simpa only [Sentence.Realize] using h)) hM₂
+    (quantifierRank_formula_relabel _ _).trans (quantifierRank_twoLoopSentence k),
+    hanfEquiv_optRel_none hHanf, (hrelab S₁).2 hM₁, mt (hrelab S₂).1 hM₂⟩
 
 /-- **Optimality of the Hanf locality rank `2 ^ (n - 1) - 1` for sentences**
 ([Libkin, Exercise 4.11][Libkin2004]): any radius function `ρ` giving Hanf locality on finite

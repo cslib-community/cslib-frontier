@@ -78,10 +78,9 @@ theorem packedWords_mul_two_pow_slotPackShift (b d w : ℕ) :
 is at most `w / 2` (and hence strictly less than `w`). -/
 theorem two_pow_slotPackShift_mul_le {b d w : ℕ} (hd : 0 < d) (hdw : 2 * d ≤ w) :
     2 ^ slotPackShift b d w * d ≤ w / 2 := by
-  have hdiv_pos : 0 < w / (2 * d) := Nat.div_pos hdw (by omega)
-  have hle_log : slotPackShift b d w ≤ Nat.log 2 (w / (2 * d)) := min_le_right b _
   have hpow_le : 2 ^ slotPackShift b d w ≤ w / (2 * d) :=
-    (Nat.pow_le_pow_right two_pos hle_log).trans (Nat.pow_log_le_self 2 (by omega))
+    (Nat.pow_le_pow_right two_pos (min_le_right b _)).trans
+      (Nat.pow_log_le_self 2 (Nat.div_pos hdw (Nat.mul_pos two_pos hd)).ne')
   have hmul : 2 * (2 ^ slotPackShift b d w * d) ≤ w := by
     calc 2 * (2 ^ slotPackShift b d w * d)
         = 2 ^ slotPackShift b d w * (2 * d) := by ring
@@ -165,18 +164,17 @@ theorem extractPacked_writePackedMem_self (arrBase b d w : ℕ) (mem : ℕ → �
   apply Fin.ext
   dsimp only [extractPacked, writePackedMem]
   set p := slotPackShift b d w
-  set wIdx := q.val >>> p
   set subIdx := q.val &&& (2 ^ p - 1)
-  set oldWord := mem (arrBase + wIdx)
+  set oldWord := mem (arrBase + (q.val >>> p))
   set oldLimb := getLimb d oldWord subIdx
   have hdiff_lt : oldLimb ^^^ val.val < 2 ^ d :=
     Nat.xor_lt_two_pow (getLimb_lt d oldWord subIdx) val.isLt
-  rw [Function.update_self]
-  change getLimb d (oldWord ^^^ ((oldLimb ^^^ val.val) <<< (subIdx * d))) subIdx = val.val
   have hsh := add_zero subIdx ▸ getLimb_shiftLeft_mul_add d (oldLimb ^^^ val.val) subIdx 0
   have h0 : getLimb d (oldLimb ^^^ val.val) 0 = oldLimb ^^^ val.val := by
     simp only [getLimb, zero_mul, Nat.shiftRight_zero, Nat.and_two_pow_sub_one_eq_mod,
       Nat.mod_eq_of_lt hdiff_lt]
+  rw [Function.update_self]
+  change getLimb d (oldWord ^^^ ((oldLimb ^^^ val.val) <<< (subIdx * d))) subIdx = val.val
   rw [getLimb_xor, hsh, h0, ← Nat.xor_assoc, Nat.xor_self, Nat.zero_xor]
 
 theorem extractPacked_writePackedMem_of_ne (arrBase b d w : ℕ) (mem : ℕ → ℕ)
@@ -206,9 +204,8 @@ theorem extractPacked_writePackedMem (arrBase b d w : ℕ) (mem : ℕ → ℕ)
     extractPacked arrBase b d w (writePackedMem arrBase b d w mem q val.val) =
       Function.update (extractPacked arrBase b d w mem) q val := by
   ext q'
-  by_cases h : q' = q
-  · subst h
-    rw [extractPacked_writePackedMem_self, Function.update_self]
+  rcases eq_or_ne q' q with rfl | h
+  · rw [extractPacked_writePackedMem_self, Function.update_self]
   · rw [extractPacked_writePackedMem_of_ne _ _ _ _ _ _ _ _ h, Function.update_of_ne h]
 
 /-- Extract the boolean flag at slot `q : Fin (2 ^ b)` from a `1`-bit packed array at `arrBase`. -/
@@ -231,17 +228,14 @@ theorem extractBit_writeBitMem (arrBase b w : ℕ) (mem : ℕ → ℕ)
   ext q'
   dsimp only [extractBit, writeBitMem]
   rw [extractPacked_writePackedMem arrBase b 1 w mem q ⟨bval.toNat, toNat_lt_two bval⟩]
-  by_cases hq : q' = q
-  · subst hq
-    cases bval <;> simp
+  rcases eq_or_ne q' q with rfl | hq
+  · cases bval <;> simp
   · simp [hq, extractBit]
 
 @[simp]
 theorem extractPacked_zero (arrBase b d w : ℕ) (q : Fin (2 ^ b)) :
     extractPacked arrBase b d w (fun _ => 0) q = ⟨0, Nat.two_pow_pos d⟩ := by
-  apply Fin.ext
-  dsimp only [extractPacked]
-  exact getLimb_zero d _
+  exact Fin.ext (getLimb_zero d _)
 
 @[simp]
 theorem extractBit_zero (arrBase b w : ℕ) (q : Fin (2 ^ b)) :
@@ -263,8 +257,7 @@ private theorem extractBit_congr {arrBase b w : ℕ} {mem₁ mem₂ : ℕ → �
     (h : ∀ a, arrBase ≤ a → a < arrBase + packedWords b 1 w → mem₁ a = mem₂ a) :
     extractBit arrBase b w mem₁ = extractBit arrBase b w mem₂ := by
   ext q
-  dsimp only [extractBit]
-  rw [extractPacked_congr h]
+  simp only [extractBit, extractPacked_congr h]
 
 /-- Writing a packed array leaves a read of a disjoint packed array unchanged. -/
 private theorem extractPacked_writePackedMem_of_disjoint {arr₁ arr₂ b d₁ d₂ w : ℕ}
@@ -333,10 +326,8 @@ theorem quotBits_le_add_three (w₀ n : ℕ) : quotBits w₀ n ≤ w₀ + 3 := b
 
 theorem two_pow_quotBits_le_sixteen_mul {w₀ n : ℕ} (hn : 1 ≤ n) :
     2 ^ quotBits w₀ n ≤ 16 * n := by
-  have h1 : 2 ^ quotBits w₀ n ≤ 16 * max (effCap w₀ n) 1 :=
-    tableSize_le_sixteen_mul (effCap w₀ n)
-  have h2 : max (effCap w₀ n) 1 ≤ n := max_le (min_le_left n (2 ^ w₀)) hn
-  exact h1.trans (Nat.mul_le_mul_left 16 h2)
+  exact (tableSize_le_sixteen_mul (effCap w₀ n)).trans
+    (Nat.mul_le_mul_left 16 (max_le (min_le_left n (2 ^ w₀)) hn))
 
 theorem remBits_pos {w₀ k : ℕ} (hw₀ : 0 < w₀) : 0 < remBits w₀ k :=
   lt_min hw₀ k.succ_pos
@@ -389,12 +380,9 @@ theorem space_le {w w₀ n k : ℕ} (hw₀ : 0 < w₀) (hw : 2 * w₀ ≤ w) (hb
   have h32 := hdiv_bound 32 (n * k)
   have h64 := hdiv_bound 64 (n * k)
   have h128 := hdiv_bound 128 (n * k)
-  have hceil : (n * k) / w ≤ (n * k + w - 1) / w :=
-    Nat.div_le_div_right (by omega)
-  generalize (n * k) / w = qdiv at h32 h64 h128 hceil
-  generalize (n * k + w - 1) / w = cdiv at hceil ⊢
+  have hceil : (n * k) / w ≤ (n * k + w - 1) / w := Nat.div_le_div_right (by omega)
   change ReducedKWise.space w w₀ b b 5 + 1 + 3 * packedWords b 1 w + packedWords b f w ≤
-    640 * (cdiv + 1)
+    640 * ((n * k + w - 1) / w + 1)
   omega
 
 /-- Extract the remainder seed `γ : RemSeed w₀` from `mem (remSeedAddr base w w₀ n)`. -/
@@ -493,8 +481,7 @@ theorem extractFilterState_writeRem (base w w₀ n k : ℕ) (mem : ℕ → ℕ)
 /-- Bitwise identity `(o.val + d) &&& (2 ^ b - 1) = (probeSlot b o d).val`. -/
 theorem add_and_eq_probeSlot_val {b : ℕ} (o : Fin (2 ^ b)) (d : ℕ) :
     (o.val + d) &&& (2 ^ b - 1) = (probeSlot b o d).val := by
-  rw [Nat.and_two_pow_sub_one_eq_mod]
-  rfl
+  exact Nat.and_two_pow_sub_one_eq_mod _ b
 
 /-- Bitwise identity `(q.val + 2 ^ b - a) &&& (2 ^ b - 1) = (backSlot b q a).val` for `a ≤ 2 ^ b`.
 -/
@@ -503,8 +490,7 @@ theorem add_sub_and_eq_backSlot_val {b : ℕ} (q : Fin (2 ^ b)) {a : ℕ} (ha : 
   rw [Nat.and_two_pow_sub_one_eq_mod]
   change (q.val + 2 ^ b - a) % 2 ^ b = (q.val + 2 ^ b * (a + 1) - a) % 2 ^ b
   have h1 : q.val + 2 ^ b * (a + 1) - a = (q.val + 2 ^ b - a) + a * 2 ^ b := by
-    have : 2 ^ b * (a + 1) = 2 ^ b + a * 2 ^ b := by ring
-    omega
+    rw [mul_add_one, mul_comm (2 ^ b) a]; omega
   rw [h1, Nat.add_mul_mod_self_right]
 
 theorem extractPacked_one_val_eq_toNat (arrBase b w : ℕ) (mem : ℕ → ℕ) (q : Fin (2 ^ b)) :

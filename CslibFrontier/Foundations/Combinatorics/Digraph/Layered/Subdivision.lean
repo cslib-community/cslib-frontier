@@ -178,9 +178,7 @@ theorem contract_expand (hw : ∀ v, weight v ≤ bound) {a b : V} (p : G.Path a
   induction p with
   | nil => rfl
   | @cons b c p e ih =>
-    have hne : b ≠ c := fun h => by
-      have := G.layer_adj e.down
-      rw [h] at this; omega
+    have hne : b ≠ c := fun h => Nat.succ_ne_self _ ((h ▸ G.layer_adj e.down).symm)
     change contract (@Quiver.Path.cons _ (toQuiver G weight bound) (root bound a)
       ⟨b, ⟨weight b, Nat.lt_succ_of_le (hw b)⟩⟩ (root bound c)
       ((expand hw p).comp (chain b (weight b) le_rfl (hw b)))
@@ -195,7 +193,7 @@ private theorem chain_step (v : V) (a b : Fin (bound + 1))
     @Quiver.Path.cons _ (toQuiver G weight bound) _ _ _
       (chain v a.val ha (Nat.le_of_lt_succ a.isLt)) e =
       chain v b.val hb (Nat.le_of_lt_succ b.isLt) := by
-  rcases b with ⟨_, hb'⟩
+  cases b
   subst hoff
   rfl
 
@@ -308,9 +306,7 @@ theorem length_pathEquiv (hw : ∀ v, weight v ≤ bound) (s : V) (v : Vertex V 
       @Quiver.Path.addWeightOfEPs V G.toQuiver ℕ _ (fun u _ => weight u + 1) _ _ p +
         v.offset.val := by
   let _ := toQuiver G weight bound
-  change @Quiver.Path.length _ (toQuiver G weight bound) _ _
-    (@Quiver.Path.comp _ (toQuiver G weight bound) _ _ _ _ _) = _
-  rw [Quiver.Path.length_comp, length_expand, length_chain]
+  simp only [pathEquiv, Equiv.coe_fn_mk, Quiver.Path.length_comp, length_expand, length_chain]
 
 private theorem departureCost_eq {a b : V} (p : G.Path a b) (h : a ≠ b) :
     @Quiver.Path.addWeightOfEPs V G.toQuiver ℕ _ (fun u _ => weight u + 1) _ _ p =
@@ -370,14 +366,9 @@ theorem existsUnique_shortest_of_isMinIsolating (hw : ∀ v, weight v ≤ bound)
   let _ := toQuiver G weight bound
   obtain ⟨p₀⟩ := hv
   let E := pathEquiv (G := G) hw s v (offset_le p₀)
-  refine (E.existsUnique_congr fun p => ?_).mp (hG s v.vertex ⟨contract p₀⟩)
-  rw [isMinOn_univ_iff]
-  constructor
-  · intro h q
-    have hle := (length_pathEquiv_le_iff hw s v (offset_le p₀) p (E.symm q)).mpr (h _)
-    change (E p).length ≤ (E (E.symm q)).length at hle
-    simpa only [E.apply_symm_apply] using hle
-  · intro h q
-    exact (length_pathEquiv_le_iff hw s v (offset_le p₀) p q).mp (h (E q))
+  refine (E.existsUnique_congr fun p => isMinOn_univ_iff.trans ?_).mp (hG s v.vertex ⟨contract p₀⟩)
+  exact ⟨fun h q => by simpa only [E, Equiv.apply_symm_apply] using
+    (length_pathEquiv_le_iff hw s v (offset_le p₀) p (E.symm q)).mpr (h _),
+    fun h q => (length_pathEquiv_le_iff hw s v (offset_le p₀) p q).mp (h (E q))⟩
 
 end Cslib.LayeredDigraph.Subdivision

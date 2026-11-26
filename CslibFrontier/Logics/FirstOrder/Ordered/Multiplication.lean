@@ -114,10 +114,9 @@ private theorem realize_parameters (h e s m k : (language L).Term α) (v : α �
     have hspos : 0 < (s.realize v).val := hs ▸ Nat.two_pow_pos _
     have hs1 : (s.realize v).val + 1 < n := by nlinarith
     have hcapn : ((s.realize v).val + 1) * (s.realize v).val < n := by lia
-    refine ⟨![⟨_, hspace⟩, ⟨_, hw⟩, ⟨_, hw2⟩, ⟨_, ho8⟩,
-      ⟨_, hsize⟩, ⟨_, hs1⟩, ⟨_, hcapn⟩], rfl, rfl, rfl, hkw, rfl, rfl, hks, rfl, ?_, hcap⟩
-    dsimp
-    rw [hs]
+    exact ⟨![⟨_, hspace⟩, ⟨_, hw⟩, ⟨_, hw2⟩, ⟨_, ho8⟩,
+      ⟨_, hsize⟩, ⟨_, hs1⟩, ⟨_, hcapn⟩], rfl, rfl, rfl, hkw, rfl, rfl, hks, rfl,
+      congrArg (_ * ·) hs.symm, hcap⟩
 
 private theorem block_end_le {q s k : ℕ} (_hs : 0 < s) (hks : s ∣ k) (hq : q * s < k) :
     q * s + s ≤ k := by
@@ -200,13 +199,8 @@ private theorem packedFormula_complete (v : Fin 3 → Fin n) (hn : 257 ≤ n)
     (hprod : (v 0).val * (v 1).val = (v 2).val) : (packedFormula L).Realize v := by
   obtain ⟨h, e, m, hlo, hhi, hh, hspace, hem, hsh, hcwidth, hkw, hks, hcap⟩ :=
     exists_parameters hn
-  let s := 2 ^ e
-  let k := 2 ^ m
-  change s ≤ h at hsh
-  change h + 1 < 2 ^ s at hcwidth
-  change 2 * (h + 1) ≤ k at hkw
-  change k + s ≤ 8 * h at hks
-  change (s + 1) * s ≤ 16 * h at hcap
+  set s := 2 ^ e
+  set k := 2 ^ m
   have hp : 2 ^ h < n := by lia
   have hhn : h < n := by lia
   have hsn : s < n := by lia
@@ -215,7 +209,6 @@ private theorem packedFormula_complete (v : Fin 3 → Fin n) (hn : 257 ≤ n)
   have hen : e < n := lt_of_le_of_lt hem hmn
   have hspos : 0 < s := Nat.two_pow_pos e
   have hdiv : s ∣ k := Nat.pow_dvd_pow 2 hem
-  have hdivmul : k / s * s = k := Nat.div_mul_cancel hdiv
   have hwidth : 2 ^ s < n := lt_of_le_of_lt (Nat.pow_le_pow_right (by decide) hsh) hp
   have hcapn : (s + 1) * s < n := by lia
   have hinput (i : Fin 3) : (v i).val < 2 ^ (h + 1) := by have := (v i).isLt; lia
@@ -230,8 +223,9 @@ private theorem packedFormula_complete (v : Fin 3 → Fin n) (hn : 257 ≤ n)
       (lt_of_le_of_lt (hc _) hcwidth)
   have hg0 := hg 0 (by lia)
   simp only [Nat.zero_mul, c, BitString.mulCarry_zero] at hg0
-  have hgk := hg (k / s) (by rw [hdivmul]; exact hks)
-  rw [hdivmul, show c k = 0 from BitString.mulCarry_eq_zero (hinput 0) (hinput 1) hkw] at hgk
+  have hgk := hg (k / s) ((Nat.div_mul_cancel hdiv).symm ▸ hks)
+  have hck : c k = 0 := BitString.mulCarry_eq_zero (hinput 0) (hinput 1) hkw
+  rw [Nat.div_mul_cancel hdiv, hck] at hgk
   let u : (Fin 5 ⊕ Fin 8) → Fin n :=
     Sum.elim ![⟨h, hhn⟩, ⟨e, hen⟩, ⟨s, hsn⟩, ⟨m, hmn⟩, ⟨k, hkn⟩] g
   have h8 : 8 * (u (.inl 0)).val < n := by simpa [u] using (show 8 * h < n by lia)
@@ -245,9 +239,7 @@ private theorem packedFormula_complete (v : Fin 3 → Fin n) (hn : 257 ≤ n)
   · rw [realize_packedField _ _ _ _ _ _ h8]
     simpa [u] using hgk.symm
   · fo_simp [allBlocks, not_le]
-    intro a ⟨haj, hak⟩
-    change (a 0).val * s = (a 1).val at haj
-    change (a 1).val < k at hak
+    rintro a ⟨(haj : (a 0).val * s = (a 1).val), (hak : (a 1).val < k)⟩
     have hjend : (a 1).val + s ≤ k := haj ▸ block_end_le hspos hdiv (haj.symm ▸ hak)
     rw [realize_blockChecks _ _ _ _ _ _ _ _ _ (by rfl)
       (by simpa [u] using hcapn) (by simpa [u] using (show (a 1).val + s < n by lia))

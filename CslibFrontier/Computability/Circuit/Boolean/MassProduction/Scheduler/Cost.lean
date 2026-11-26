@@ -48,10 +48,9 @@ theorem size_bitonicSortCircuit_le {k R : ℕ} (key : Fin k → Fin R) (p : ℕ)
   have h := four_mul_size_bitonicSortCircuit key p ascending
   have hite : (if R = 0 then 0 else 6 * k + 6 * R + 2) ≤ 3 * (2 * k + 2 * R + 1) := by
     split_ifs <;> lia
-  have hp : p * (p + 1) ≤ (p + 1) ^ 2 := by grind
-  have := Nat.mul_le_mul (Nat.mul_le_mul_right (2 ^ p) hp) hite
-  have e : (p + 1) ^ 2 * 2 ^ p * (3 * (2 * k + 2 * R + 1)) =
-      3 * ((p + 1) ^ 2 * 2 ^ p * (2 * k + 2 * R + 1)) := by ring
+  have := Nat.mul_le_mul (Nat.mul_le_mul_right (2 ^ p) (Nat.mul_le_mul_right (p + 1) p.le_succ))
+    hite
+  ring_nf at h this ⊢
   lia
 
 section Bounds
@@ -150,10 +149,7 @@ private theorem stage3_le {D L b s p r : ℕ} (hk : arity p ≤ 2 ^ D)
       lia
   have hA1 : 1 ≤ arity d := by rw [arity_eq_two_pow]; exact Nat.one_le_two_pow
   have hd1 : d + 1 ≤ W := by
-    have : arity p * s ≤ 2 ^ (D + b) := by
-      rw [pow_add]
-      exact Nat.mul_le_mul hk hs.le
-    have := Nat.clog_le_of_le_pow this
+    have := Nat.clog_le_of_le_pow ((pow_add 2 D b).symm ▸ Nat.mul_le_mul hk hs.le)
     lia
   have hsts' : sortTraceSize d ≤ W ^ 2 * arity d := by
     have h4 := four_mul_sortTraceSize d
@@ -194,8 +190,7 @@ theorem phaseCost_le {D L b s p a r : ℕ} (hk : a + arity p = 2 ^ D)
   have hkn : arity p ≤ 2 ^ D := by lia
   have hpD : p ≤ D := by
     by_contra h
-    have := Nat.pow_lt_pow_right Nat.one_lt_two (not_le.mp h)
-    have := arity_eq_two_pow p
+    have := (arity_eq_two_pow p).symm ▸ Nat.pow_lt_pow_right Nat.one_lt_two (not_le.mp h)
     lia
   have hk1 : 1 ≤ arity p := by rw [arity_eq_two_pow]; exact Nat.one_le_two_pow
   have hW1 : 1 ≤ D + L + b + 2 := by lia

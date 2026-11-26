@@ -90,10 +90,8 @@ theorem weight_testRow_le (γ : Fin P → Fin m × Bool) : weight (testRow γ) �
       ({e : Fin m | testRow γ e = true} : Finset (Fin m)) ⊆
         univ.image fun j : Fin P => (γ j).1 := by
     intro e he
-    rw [mem_filter] at he
     have hne : (∑ j : Fin P, if (γ j).1 = e then (γ j).2 else 0) ≠ 0 := by
-      rw [← testRow, he.2]
-      decide
+      rw [← testRow, (mem_filter.mp he).2]; decide
     obtain ⟨j, -, hj⟩ := exists_ne_zero_of_sum_ne_zero hne
     exact mem_image.mpr ⟨j, mem_univ j, of_not_not fun h => hj (by simp [h])⟩
   calc weight (testRow γ)
@@ -140,11 +138,8 @@ theorem two_mul_card_testParity_eq_true (z : Fin m → Bool) :
     (p := fun e => ∃ j, z (e j) = true)
   have h0 : #{e : Fin P → Fin m | ¬ ∃ j, z (e j) = true} = #{i | z i = false} ^ P := by
     rw [← Fintype.card_piFinset_const]
-    congr 1
-    ext e
-    simp [Fintype.mem_piFinset]
-  rw [card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin, h0] at hc
-  omega
+    exact congrArg card (ext fun e => by simp [Fintype.mem_piFinset])
+  rw [card_univ, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin, h0] at hc; omega
 
 /-- If `t₀ P ≤ m (P - 1)` with `P ≥ 1`, then `2 t₀ ^ P ≤ m ^ P`, since
 `(1 - 1/P) ^ P ≤ e⁻¹ < 1/2`. -/
@@ -157,18 +152,16 @@ private theorem two_mul_pow_le_pow {m t₀ P : ℕ} (hP : 1 ≤ P) (ht₀ : t₀
   have hPr : (1 : ℝ) ≤ P := by exact_mod_cast hP
   have hPpos : (0 : ℝ) < P := by linarith
   have hle : (t₀ : ℝ) ≤ m * (1 - 1 / P) := by
-    have h' : ((t₀ * P : ℕ) : ℝ) ≤ ((m * (P - 1) : ℕ) : ℝ) := by exact_mod_cast ht₀
+    have h' : ((t₀ * P : ℕ) : ℝ) ≤ ((m * (P - 1) : ℕ) : ℝ) := mod_cast ht₀
     push_cast [Nat.cast_sub hP] at h'
-    rw [show (m : ℝ) * (1 - 1 / P) = m * (P - 1) / P by field_simp, le_div_iff₀ hPpos]
-    exact h'
-  have h1 : (t₀ : ℝ) ^ P ≤ (m : ℝ) ^ P * (1 - 1 / P) ^ P := by
-    rw [← mul_pow]
-    exact pow_le_pow_left₀ (by positivity) hle P
+    have hdiv : (m : ℝ) * (1 - 1 / P) = m * (P - 1) / P := by field_simp
+    rwa [hdiv, le_div_iff₀ hPpos]
+  have h1 : (t₀ : ℝ) ^ P ≤ (m : ℝ) ^ P * (1 - 1 / P) ^ P :=
+    mul_pow (m : ℝ) (1 - 1 / P) P ▸ pow_le_pow_left₀ (by positivity) hle P
   have h2 : (m : ℝ) ^ P * (1 - 1 / P) ^ P < (m : ℝ) ^ P * (1 / 2) :=
     mul_lt_mul_of_pos_left ((Real.one_sub_div_pow_le_exp_neg hPr).trans_lt
       Real.exp_neg_one_lt_half) (by positivity)
-  have : (2 : ℝ) * (t₀ : ℝ) ^ P < (m : ℝ) ^ P := by linarith
-  exact_mod_cast this.le
+  exact_mod_cast (by linarith : (2 : ℝ) * (t₀ : ℝ) ^ P ≤ (m : ℝ) ^ P)
 
 /-- **A quarter of the lists reject** a bit string with at least `m / P` ones. -/
 theorem pow_le_four_mul_card_testParity_eq_true (z : Fin m → Bool) (hP : 1 ≤ P)
@@ -225,8 +218,7 @@ theorem four_mul_card_accept_le_of_forall_le {ι : Type*} (S : Finset ι) (z : �
     have hrej := pow_le_four_mul_card_testParity_eq_true (z x) hP (hz x hx)
     have hsplit := card_filter_add_card_filter_not
       (s := (univ : Finset (Fin P → Fin m × Bool))) (p := fun γ' => testParity γ' (z x) = true)
-    simp only [Bool.not_eq_true] at hsplit
-    rw [card_univ, ← hN] at hsplit
+    simp only [Bool.not_eq_true, card_univ, ← hN] at hsplit
     rw [← hNval] at hrej
     omega
   -- double counting
@@ -245,9 +237,7 @@ theorem four_mul_card_accept_le_of_forall_le {ι : Type*} (S : Finset ι) (z : �
     have := Finset.card_nsmul_le_sum (univ : Finset (Fin P → Fin m × Bool))
       (fun γ' => #{x ∈ S | testParity γ' (z x) = false}) _ (fun γ' _ => hγ γ')
     rwa [card_univ, smul_eq_mul] at this
-  have : N * (4 * #{x ∈ S | testParity γ (z x) = false}) ≤ N * (3 * #S) := by
-    nlinarith
-  exact Nat.le_of_mul_le_mul_left this hNpos
+  exact Nat.le_of_mul_le_mul_left (by nlinarith) hNpos
 
 /-- **Iteration.** A sequence of naturals that starts at most `2 ^ n`, with `n ≥ 1`, and shrinks
 by a factor of at least `3/4` at each step vanishes after `3 n` steps, since
@@ -309,9 +299,8 @@ theorem numPassing_eq (v : X → Fin m → Bool) (A : List (Fin m → Bool)) :
   congr 2
   ext x
   simp only [mem_filter, mem_univ, true_and, and_iff_right_iff_imp]
-  intro hx h _
-  rw [hx, dotProduct_zero]
-  rfl
+  rintro hx h -
+  rw [hx, dotProduct_zero]; rfl
 
 /-- **Greedy selection of parity tests** [OpenAI2026ETH, Lemma 6.2]. Suppose that after the
 initial rows `A 0`, every accepted point with a nonzero violation vector has at least `m / P`
@@ -345,8 +334,7 @@ theorem numPassing_greedy (v : X → Fin m → Bool) {n : ℕ} (hn : 1 ≤ n)
     have hmin (γ' : Fin P → Fin m × Bool) :
         #{x ∈ S | testParity (γ i) (v x) = false} ≤ #{x ∈ S | testParity γ' (v x) = false} := by
       have := hγ i γ'
-      rw [numPassing_eq, numPassing_eq, hcount, hcount] at this
-      omega
+      rw [numPassing_eq, numPassing_eq, hcount, hcount] at this; omega
     simpa only [hD, hA, ← hcount] using four_mul_card_accept_le_of_forall_le S v hP
       (fun x hx => (mem_filter.mp hx).2.2)
       (fun x hx => hinit x (hpre i x (mem_filter.mp hx).2.1) (mem_filter.mp hx).2.2) (γ i) hmin

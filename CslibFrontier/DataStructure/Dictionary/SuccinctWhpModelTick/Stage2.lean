@@ -88,7 +88,7 @@ private theorem rebScanSteps_spec {c U n_max b : ℕ} (hth : whpThreshold c ≤ 
   | succ rem ih =>
     obtain ⟨rm0, hvr0, hrr0⟩ := hreb0
     dsimp only [rebScanSteps]
-    rw [ite_eq_right (by omega : ¬(fs.rebCollision ≠ 0))]
+    rw [ite_eq_right (not_not.mpr hcoll0)]
     set cur := fs.rebScanCursor
     set rIdx := fs.rebSliceIdx b
     by_cases hact : cur < fs.bktCount b ∧ (fs.locState b cur = 1 ∨ fs.locState b cur = 2 + fs.oldEp)
@@ -100,10 +100,8 @@ private theorem rebScanSteps_spec {c U n_max b : ℕ} (hth : whpThreshold c ≤ 
       cases hlk : btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
           (fs.slices rIdx) fp with
       | some _ =>
-        cases rem <;> refine Or.inl ⟨fs.slices rIdx, cur, fs.rebInsCount, ?_⟩
-        all_goals
-          simp only [rebScanSteps, ne_eq, one_ne_zero, not_false_eq_true, ↓reduceIte,
-            cur, rIdx, Function.update_eq_self]
+        cases rem <;> exact Or.inl ⟨fs.slices rIdx, cur, fs.rebInsCount,
+          by simp [rebScanSteps, cur, rIdx]⟩
       | none =>
         dsimp only
         have hrm0_none : rm0 fp = none :=
@@ -232,9 +230,7 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
   have hL12 : 4096 ≤ (slabScale n_max) ^ 12 := by
     calc 4096 = 2 ^ 12 := by norm_num
       _ ≤ (slabScale n_max) ^ 12 := Nat.pow_le_pow_left hL2 12
-  dsimp only [ValidEpochStagePreTick] at hpre
-  rw [ite_eq_right (by omega : ¬(fs.rebStage = 0)),
-    ite_eq_right (by omega : ¬(fs.rebStage = 1)), ite_eq_left hs2] at hpre
+  simp only [ValidEpochStagePreTick, hs2, Nat.reduceEqDiff, ↓reduceIte] at hpre
   rcases hpre with ⟨hd1, hd2, hd3, hd4, hd5, hd6, hreb⟩
   have reset_step {s0 : FastState} (dIdx1 salt1 : ℕ) (sl0 : BTreeSlice)
       (hc0 : CoreFastInv c U V n_max θ s0 dict)
@@ -262,16 +258,11 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       (fun b' hb' => Function.update_of_ne (hne_live b' hb') _ _)
       (fun b' hb' => Function.update_of_ne (hne_om b' hb') _ _)
       (fun _ _ _ _ => rfl) hc0.bufOld_valid ?_ hclk0
-    dsimp only [ValidEpochStage]
-    simp only [show s1.rebStage = 2 from hs2_0, Nat.reduceEqDiff, ↓reduceIte]
-    rw [show s1.dirtyCount = fs.dirtyCount from hdc0,
-      show s1.dirtyBuckets = fs.dirtyBuckets from hdb0,
-      show s1.bktCount = fs.bktCount from hbkt0,
-      show s1.locState = fs.locState from hls0,
-      show s1.oldEp = fs.oldEp from hoe0]
-    dsimp only [s1, FastState.rebSliceIdx, FastState.rebRole]
-    rw [hdb0, Function.update_self, Nat.min_zero]
-    exact ⟨hd1, hd2', hd3, hd4, hd5', hd6, fun _ => ⟨Or.inl ⟨rfl, rfl⟩,
+    dsimp only [ValidEpochStage, s1, FastState.rebSliceIdx, FastState.rebRole,
+      FastState.oldEp] at hoe0 ⊢
+    simp only [hs2_0, Nat.reduceEqDiff, ↓reduceIte, hdc0, hdb0, hbkt0, hls0, hoe0,
+      Function.update_self, Nat.min_zero]
+    exact ⟨hd1, hd2', hd3, hd4, hd5', hd6, fun _ => ⟨Or.inl ⟨trivial, trivial⟩,
       fun _ hl => absurd hl (Nat.not_lt_zero _), fun _ => none,
       validWhpSlice_zero _ 0 _,
       SliceMapRel.empty_of_not _ _ 0 fun _ h => absurd h (Nat.not_lt_zero _)⟩⟩
@@ -329,14 +320,10 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         have hfp_sw : ∀ s, fsSw.fpAt c U n_max θ s = fs.fpAt c U n_max θ s :=
           fun s => by funext b0; exact fpAt_eq_of_fields rfl rfl s b0
         have hsw_b : fsSw.rebDoneFlag b = 1 ∧ fsSw.bktSalt b = fs.rebCandSalt ∧
-            fsSw.liveInsCount b = ins' := by
-          dsimp only [fsSw, epochTickStage2Swap, fsScan]; simp
-        have hsw_o : ∀ b' ≠ b, fsSw.rebDoneFlag b' = fs.rebDoneFlag b' ∧
-            fsSw.bktSalt b' = fs.bktSalt b' ∧ fsSw.liveInsCount b' = fs.liveInsCount b' :=
-          fun b' hbb => by
-            dsimp only [fsSw, epochTickStage2Swap, fsScan]
-            exact ⟨Function.update_of_ne hbb _ _, Function.update_of_ne hbb _ _,
-              Function.update_of_ne hbb _ _⟩
+            fsSw.liveInsCount b = ins' := by simp [fsSw, epochTickStage2Swap, fsScan]
+        have hsw_o (b') (hbb : b' ≠ b) : fsSw.rebDoneFlag b' = fs.rebDoneFlag b' ∧
+            fsSw.bktSalt b' = fs.bktSalt b' ∧ fsSw.liveInsCount b' = fs.liveInsCount b' := by
+          simp [fsSw, epochTickStage2Swap, fsScan, hbb]
         have hSw_core : CoreFastInv c U V n_max θ fsSw dict :=
           { hth := hc.hth
             curEp_or := hc.curEp_or
@@ -370,11 +357,9 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
             live_fp_inj := fun b' hb' l₁ hl₁ l₂ hl₂ hin₁ hin₂ hfeq => by
               rw [hst_sw] at hin₁ hin₂
               rw [hfp_sw] at hfeq
-              by_cases hbb : b' = b
-              · subst hbb
-                rw [hsw_b.1] at hin₁ hin₂
-                rw [hsw_b.2.1] at hfeq
-                exact hinj' l₁ hl₁ l₂ hl₂ ((hinL_sw_b _).mp hin₁) ((hinL_sw_b _).mp hin₂) hfeq
+              rcases eq_or_ne b' b with rfl | hbb
+              · exact hinj' l₁ hl₁ l₂ hl₂ ((hinL_sw_b _).mp (hsw_b.1 ▸ hin₁))
+                  ((hinL_sw_b _).mp (hsw_b.1 ▸ hin₂)) (hsw_b.2.1 ▸ hfeq)
               · rw [(hsw_o b' hbb).1, ← hs2] at hin₁ hin₂; rw [(hsw_o b' hbb).2.1] at hfeq
                 exact hc.live_fp_inj b' hb' l₁ hl₁ l₂ hl₂ hin₁ hin₂ hfeq
             live_valid := fun b' hb' => by
@@ -382,14 +367,13 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
               by_cases hbb : b' = b
               · subst hbb
                 have hl_idx : fsSw.liveSliceIdx b = rIdx := by
-                  change 3 * b + Function.update fs.liveRole b (fs.rebRole b) b =
-                    3 * b + fs.rebRole b
+                  dsimp only [fsSw, epochTickStage2Swap, fsScan, FastState.liveSliceIdx,
+                    FastState.rebRole, rIdx, FastState.rebSliceIdx]
                   rw [Function.update_self]
                 have hsl_b : fsSw.slices (fsSw.liveSliceIdx b) = sl' := by
                   rw [hl_idx]
-                  change Function.update (Function.update fs.slices rIdx sl')
-                    (fs.overmarsSliceIdx b) _ rIdx = sl'
-                  rw [Function.update_of_ne (hne_om_r b hb).symm, Function.update_self]
+                  exact (Function.update_of_ne (hne_om_r b hb).symm _ _).trans
+                    (Function.update_self _ _ _)
                 rw [hsw_b.1, hsw_b.2.1, hsw_b.2.2, hsl_b]
                 exact ⟨rm', hv', hrr'.congr (fun _ _ => rfl)
                   (fun loc _ => hinL_sw_b (fs.locState b loc))⟩
@@ -399,11 +383,9 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
                 have hsl_o :
                     fsSw.slices (fsSw.liveSliceIdx b') = fs.slices (fs.liveSliceIdx b') := by
                   rw [hl_idx]
-                  change Function.update (Function.update fs.slices rIdx sl')
-                    (fs.overmarsSliceIdx b) _ (fs.liveSliceIdx b') = _
-                  have hne_om_b : fs.liveSliceIdx b' ≠ fs.overmarsSliceIdx b :=
-                    sliceIdx_ne (hc.roles_valid b' hb').1 hor_b fun h => absurd h hbb
-                  rw [Function.update_of_ne hne_om_b, Function.update_of_ne (hne_live_r b' hb')]
+                  exact (Function.update_of_ne
+                      (sliceIdx_ne (hc.roles_valid b' hb').1 hor_b fun h => absurd h hbb) _ _).trans
+                    (Function.update_of_ne (hne_live_r b' hb') _ _)
                 obtain ⟨hdf_o, hbs_o, hlic_o⟩ := hsw_o b' hbb
                 rw [hdf_o, hbs_o, hlic_o, hsl_o, ← hs2]
                 exact hc.live_valid b' hb'
@@ -414,9 +396,7 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
           intro b' hb'
           by_cases hbb : b' = b
           · subst hbb
-            left
-            dsimp only [fsSw, epochTickStage2Swap, fsScan]
-            simp [hins'_lt5]
+            exact .inl (by simp [fsSw, epochTickStage2Swap, fsScan, hins'_lt5])
           · have hne_om2 : fs.overmarsSliceIdx b' ≠ fs.overmarsSliceIdx b :=
               sliceIdx_ne (hc.roles_valid b' hb').2.1 hor_b fun h => absurd h hbb
             have hu_ne : ∀ (f : ℕ → ℕ) v, Function.update f b v b' = f b' :=
@@ -447,9 +427,9 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         by_cases hall_done : fsSw.dirtyCount ≤ fs.dirtyIdx + 1
         · rw [ite_eq_left hall_done]
           have hbo := hc.bufOld_valid
-          rw [ite_eq_left (by omega : fs.rebStage ≤ 3)] at hbo
+          simp only [hs2, Nat.reduceLeDiff, ↓reduceIte] at hbo
           refine step_of_inLiveTree_eq hSw_core hSw_om rfl hc.epochClock_lt
-            (show 3 ≤ 5 by decide) rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
+            (Nat.le_add_left 3 2) rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
             rfl rfl rfl (fun _ _ => rfl) (fun _ _ => rfl)
             (fun b' hb' loc hloc => by
               change inLiveTree 3 fs.oldEp (fsSw.rebDoneFlag b') (fs.locState b' loc) =
@@ -462,12 +442,9 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
                 simp [inLiveTree, hst, hdf1]
               · simp [inLiveTree, beq_false_of_ne hst])
             (by
-              dsimp only [FastState.oldEp]
-              simp only [show (3 : ℕ) ≤ 3 by decide, ↓reduceIte]
+              simp only [FastState.oldEp, le_refl, ↓reduceIte]
               exact hbo) ?_ rfl
-          dsimp only [ValidEpochStage]
-          simp only [show ¬(3 = 0) by decide, show ¬(3 = 1) by decide, show ¬(3 = 2) by decide,
-            ↓reduceIte]
+          simp only [ValidEpochStage, Nat.reduceEqDiff, ↓reduceIte]
           exact ⟨Nat.zero_le _, fun _ h => absurd h (Nat.not_lt_zero _)⟩
         · rw [ite_eq_right hall_done]
           exact reset_step (fs.dirtyIdx + 1) 0
@@ -483,9 +460,7 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
           (fun b' hb' => Function.update_of_ne (hne_live_r b' hb') _ _)
           (fun b' hb' => Function.update_of_ne (hne_om_r b' hb') _ _)
           (fun _ _ _ _ => rfl) hc.bufOld_valid ?_ rfl
-        dsimp only [ValidEpochStage]
-        rw [ite_eq_right (by omega : ¬(fs.rebStage = 0)),
-          ite_eq_right (by omega : ¬(fs.rebStage = 1)), ite_eq_left hs2]
+        simp only [ValidEpochStage, hs2, Nat.reduceEqDiff, ↓reduceIte]
         have hfp_eq : ({ fs with
             slices := Function.update fs.slices rIdx sl'
             rebScanCursor := fs.rebScanCursor + 16
@@ -500,9 +475,7 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
   · -- Exhausted `sMaxWhp`: `epochTickStage2` is a no-op (`fs1 = fs`), vacuous in `ValidEpochStage`
     rw [ite_eq_right hcs_lt]
     refine ⟨hc, hom, ?_, rfl⟩
-    dsimp only [ValidEpochStage]
-    rw [ite_eq_right (by omega : ¬(fs.rebStage = 0)),
-      ite_eq_right (by omega : ¬(fs.rebStage = 1)), ite_eq_left hs2]
+    simp only [ValidEpochStage, hs2, Nat.reduceEqDiff, ↓reduceIte]
     exact ⟨hd1, hd2, hd3, hd4, hd5, hd6, fun h => absurd h hcs_lt⟩
 
 

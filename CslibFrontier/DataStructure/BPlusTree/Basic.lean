@@ -290,9 +290,7 @@ theorem leavesRest_cons : leavesRest ((k, c) :: rest) = c.leaves ++ leavesRest r
     leavesRest rest = rest.flatMap fun e => e.child.leaves := by
   induction rest with
   | nil => rfl
-  | cons e _ ih =>
-    rcases e with ⟨k, c⟩
-    simp [leavesRest_cons, ih]
+  | cons e _ ih => exact e.casesOn fun _ _ => by simp [leavesRest_cons, ih]
 
 /-- The entries of a leaf. -/
 @[simp] theorem toList_leaf : (leaf entries : BPlusTree α β).toList = entries := by
@@ -326,9 +324,7 @@ theorem heightRest_cons :
 theorem heightRest_le_iff {n : ℕ} : heightRest rest ≤ n ↔ ∀ e ∈ rest, e.child.height + 1 ≤ n := by
   induction rest with
   | nil => simp [heightRest_nil]
-  | cons e _ ih =>
-    rcases e with ⟨k, c⟩
-    simp [heightRest_cons, ih]
+  | cons e _ ih => exact e.casesOn fun _ _ => by simp [heightRest_cons, ih]
 
 /-- Mapping a leaf maps the values of its entries. -/
 @[simp] theorem map_leaf (f : β → γ) :
@@ -343,9 +339,7 @@ theorem heightRest_le_iff {n : ℕ} : heightRest rest ≤ n ↔ ∀ e ∈ rest, 
     mapRest f rest = rest.map fun e : Branch α β => (e.1, e.child.map f) := by
   induction rest with
   | nil => rfl
-  | cons e _ ih =>
-    rcases e with ⟨k, c⟩
-    simp [mapRest, ih]
+  | cons e _ ih => exact e.casesOn fun _ _ => by simp [mapRest, ih]
 
 /-- A leaf has no children. -/
 @[simp] theorem children_leaf : (leaf entries : BPlusTree α β).children = [] := rfl
@@ -370,12 +364,9 @@ theorem sizeOf_lt_of_mem_children {first c : BPlusTree α β} {rest : List (Bran
     (hc : c ∈ (node first rest).children) : sizeOf c < sizeOf (node first rest) := by
   simp only [children_node, List.mem_cons, List.mem_map] at hc
   rcases hc with rfl | ⟨⟨a, c⟩, he, rfl⟩
-  · simp only [node.sizeOf_spec]
-    omega
+  · simp [node.sizeOf_spec]; omega
   · have := List.sizeOf_lt_of_mem he
-    simp only [Prod.mk.sizeOf_spec] at this
-    simp only [node.sizeOf_spec, Branch.child_mk]
-    omega
+    simp [Prod.mk.sizeOf_spec, node.sizeOf_spec] at this ⊢; omega
 
 /-- Induction on B+-trees, with a hypothesis for the first child and for every child among the
 branches. This replaces the raw nested recursor in proofs. -/
@@ -413,10 +404,8 @@ theorem size_node {first : BPlusTree α β} {rest : List (Branch α β)} :
 /-- Every tree has positive height: a leaf is a node on its own path. -/
 theorem height_pos : 0 < tr.height := by
   cases tr with
-  | leaf entries => simp
-  | node first rest =>
-    rw [height_node]
-    omega
+  | leaf => simp
+  | node => simp [height_node]
 
 /-- The trees of height `1` are the leaves. -/
 theorem height_eq_one_iff : tr.height = 1 ↔ ∃ entries, tr = .leaf entries := by
@@ -435,8 +424,7 @@ theorem height_eq_one_iff : tr.height = 1 ↔ ∃ entries, tr = .leaf entries :=
   | node first rest ih₁ ih₂ =>
     simp only [map_node, leaves_node, leavesRest_eq_flatMap, mapRest_eq_map, List.map_append, ih₁,
       List.flatMap_map, List.map_flatMap, Branch.child]
-    congr 1
-    exact List.flatMap_congr fun e he => ih₂ e he
+    exact congrArg (_ ++ ·) (List.flatMap_congr ih₂)
 
 /-- Mapping over values maps the entries. -/
 @[simp] theorem toList_map (f : β → γ) :
@@ -490,15 +478,13 @@ theorem toList_sublist_of_mem_children {c : BPlusTree α β} (hc : c ∈ tr.chil
 
 /-- A child among the branches is lower than its node. -/
 theorem height_succ_le_of_mem_rest {first : BPlusTree α β} {rest : List (Branch α β)}
-    {e : Branch α β} (he : e ∈ rest) : e.child.height + 1 ≤ (node first rest).height := by
-  rw [height_node]
-  exact (heightRest_le_iff.1 le_rfl e he).trans (le_max_right _ _)
+    {e : Branch α β} (he : e ∈ rest) : e.child.height + 1 ≤ (node first rest).height :=
+  (heightRest_le_iff.1 le_rfl e he).trans (le_max_right _ _)
 
 /-- The first child is lower than its node. -/
 theorem height_first_succ_le {first : BPlusTree α β} {rest : List (Branch α β)} :
-    first.height + 1 ≤ (node first rest).height := by
-  rw [height_node]
-  exact le_max_left _ _
+    first.height + 1 ≤ (node first rest).height :=
+  le_max_left _ _
 
 /-- A child is lower than its tree. -/
 theorem height_succ_le_of_mem_children {c : BPlusTree α β} (hc : c ∈ tr.children) :
@@ -647,18 +633,14 @@ variable {rest : List (Branch α β)} {t n : ℕ}
     occupiedRest t rest = rest.all fun e => occupied t e.child := by
   induction rest with
   | nil => rfl
-  | cons e _ ih =>
-    rcases e with ⟨k, c⟩
-    simp [occupiedRest, ih]
+  | cons e _ ih => exact e.casesOn fun _ _ => by simp [occupiedRest, ih]
 
 /-- `balancedRest n` checks that every child among the branches is balanced and of height `n`. -/
 @[simp] theorem balancedRest_eq_all :
     balancedRest n rest = rest.all fun e => balanced e.child && e.child.height == n := by
   induction rest with
   | nil => rfl
-  | cons e _ ih =>
-    rcases e with ⟨k, c⟩
-    simp [balancedRest, ih, Bool.and_assoc]
+  | cons e _ ih => exact e.casesOn fun _ _ => by simp [balancedRest, ih, Bool.and_assoc]
 
 /-- `occupied` decides `Occupied`. -/
 @[simp] theorem occupied_iff : occupied t tr = true ↔ Occupied t tr := by
@@ -700,9 +682,7 @@ theorem belowLater_iff :
     separatedRest rest = rest.all fun e => separated e.child := by
   induction rest with
   | nil => rfl
-  | cons e _ ih =>
-    rcases e with ⟨k, c⟩
-    simp [separatedRest, ih]
+  | cons e _ ih => exact e.casesOn fun _ _ => by simp [separatedRest, ih]
 
 /-- `separated` decides `Separated`. -/
 @[simp] theorem separated_iff : separated tr = true ↔ Separated tr := by

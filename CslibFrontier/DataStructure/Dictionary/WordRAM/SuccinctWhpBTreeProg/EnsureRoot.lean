@@ -109,19 +109,15 @@ private theorem realizes_splitFullRootBody :
   realize
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, sIdx⟩, ⟨⟨alloc, root⟩, ⟨mW, ⟨kW, vW⟩⟩⟩⟩
-    dsimp only [SplitFullRootPre] at h
-    obtain ⟨c, U, V, w₀, n_max, henv, rfl, hsIdx, halloc2, hrt_lt⟩ := h
+    obtain ⟨c, U, V, _, n_max, henv, rfl, hsIdx, halloc2, hrt_lt⟩ := h
+    rcases henv.2.2.1 with rfl
     have hth := henv.2.2.2.1
-    have hw_eq := henv.2.2.1
-    subst hw_eq
     have ht8 := eight_le_tMinWhp hth
     have hns_lt_n := (large_bounds_lt_n_max hth).2.1
     obtain ⟨_, _, _, hns_lt_v⟩ := (btree_slice_param_bounds hth).1
     have hkw_lt : 2 * tMinWhp n_max * keyLaneBitsWhp n_max < w := henv.keysWordBits_lt_w
     have hvw_lt : 2 * tMinWhp n_max * valLaneBitsWhp n_max < w := henv.valsWordBits_lt_w
-    simp only [wp_large_M hth] at *
-    try simp only [wp_large_nSlice hth] at *
-    try simp only [wp_large_wVal hth] at *
+    simp only [wp_large_M hth, wp_large_nSlice hth, wp_large_wVal hth] at *
     have h2v : alloc + ((alloc + 1) <<< valLaneBitsWhp n_max) <
         2 ^ (2 * valLaneBitsWhp n_max) := by
       rw [Nat.shiftLeft_eq, two_mul, Nat.pow_add]
@@ -286,25 +282,21 @@ theorem ensureAndSplitRootGenProg_spec {c U V w n_max base sIdx insCount : ℕ}
     simp only [ha0, ↓reduceIte]
     rw [clientState_bind, clientState_bind_pure, clientResult_bind, clientResult_bind_pure, hsl1_eq]
     refine ⟨hfrH.trans hfrN, rfl, ?_, validProg_bind hvpN (validProg_bind hvpH (validProg_pure _)),
-      hrepH, by dsimp only; rw [hMaxBTree_eq]; omega, ?_, ?_, ?_, ?_⟩
-    · rw [memoryCost_bind', memoryCost_bind']
-      dsimp only [wN, wH, p0]
-      rw [hmcN, hmcH, memoryCost_pure]; omega
-    · refine ⟨.leaf 0 0, rfl, by simp [BTreeTree.height], ?_, ?_⟩
-      · simp [metaCount]; omega
-      · dsimp only [ValidSubtree]
-        rw [Function.update_self]
-        refine ⟨by omega, rfl, by omega, by positivity, by positivity,
-          fun _ hj => absurd hj (Nat.not_lt_zero _),
-          fun _ _ _ hj => absurd hj (Nat.not_lt_zero _),
-          fun _ _ _ => Or.inr ⟨fun _ hj => absurd hj (Nat.not_lt_zero _), rfl⟩⟩
-    · intro sIdx' hsIdx' hne sl₂ hr₂
-      exact hothH sIdx' hsIdx' hne sl₂ (hothN sIdx' hsIdx' hne sl₂ hr₂)
-    · intro idx hidx h1 h2
-      exact (hbmH idx hidx h1 h2).trans
-        (readPacked_congr hw (hidx := hidx) fun a ⟨_, ha2⟩ => houtN a (Or.inl (by omega)))
-    · intro a ha
-      rcases ha with ha1 | ⟨ha2, ha3⟩ | ha4
+      hrepH, by simp only [hMaxBTree_eq]; omega, ?_,
+      fun sIdx' hsIdx' hne sl₂ hr₂ => hothH sIdx' hsIdx' hne sl₂ (hothN sIdx' hsIdx' hne sl₂ hr₂),
+      fun idx hidx h1 h2 => (hbmH idx hidx h1 h2).trans
+        (readPacked_congr hw (hidx := hidx) fun a ⟨_, ha2⟩ => houtN a (Or.inl (by omega))), ?_⟩
+    · dsimp only [wN, wH, p0]
+      rw [memoryCost_bind', memoryCost_bind', hmcN, hmcH, memoryCost_pure]; omega
+    · refine ⟨.leaf 0 0, rfl, by simp [BTreeTree.height],
+        by simp [metaCount]; omega, ?_⟩
+      dsimp only [ValidSubtree]
+      rw [Function.update_self]
+      exact ⟨by omega, rfl, by omega, by positivity, by positivity,
+        fun _ hj => absurd hj (Nat.not_lt_zero _),
+        fun _ _ _ hj => absurd hj (Nat.not_lt_zero _),
+        fun _ _ _ => Or.inr ⟨fun _ hj => absurd hj (Nat.not_lt_zero _), rfl⟩⟩
+    · rintro a (ha1 | ⟨ha2, ha3⟩ | ha4)
       · exact (houtH a (Or.inl ha1)).trans (houtN a (Or.inl (by omega)))
       · exact (houtH a (Or.inr ha2)).trans (houtN a (Or.inl ha3))
       · exact (houtH a (Or.inr (by omega))).trans (houtN a (Or.inr ha4))
@@ -326,9 +318,7 @@ theorem ensureAndSplitRootGenProg_spec {c U V w n_max base sIdx insCount : ℕ}
     have hcnt_div : (sl.nodes sl.root).metaWord / 2 = metaCount (sl.nodes sl.root).metaWord := rfl
     have hN := bind_of_readOnly hnd_st hnd_res hnd_vp
     simp only [ha_ne, ↓reduceIte]
-    rw [(hN _ _).1, (hN _ _).2.1, (hN _ _).2.2.1, (hN _ _).2.2.2, hnd_mc]
-    dsimp only
-    rw [hcnt_div]
+    rw [(hN _ _).1, (hN _ _).2.1, (hN _ _).2.2.1, (hN _ _).2.2.2, hnd_mc, hcnt_div]
     by_cases hfull : metaCount (sl.nodes sl.root).metaWord = 2 * tMinWhp n_max - 1
     · -- Subcase 2a: Full root (`splitRootIfFull` splits into `sl.alloc`, `sl.alloc + 1`, `sl.root`)
       set spPure := splitFullNode (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
@@ -336,13 +326,9 @@ theorem ensureAndSplitRootGenProg_spec {c U V w n_max base sIdx insCount : ℕ}
       obtain ⟨hlM, hlK, hlV, hsep_lt, hrM, hrK, hrV⟩ := splitFullNode_bits_lt hth hk_rt hv_rt
       let newVals := sl.alloc + ((sl.alloc + 1) <<< valLaneBitsWhp n_max)
       let newRootNd : BTreeNode := ⟨2, spPure.sep, newVals⟩
-      have hm3 : newRootNd.metaWord < 2 ^ nodeMetaBitsWhp n_max := by
-        dsimp only [newRootNd]; omega
-      have hk3 : newRootNd.keysWord < 2 ^ keysWordBitsWhp n_max := by
-        dsimp only [newRootNd]
-        unfold keysWordBitsWhp
-        exact hsep_lt.trans_le
-          (Nat.pow_le_pow_right (by decide) (Nat.le_mul_of_pos_left _ (by omega)))
+      have hm3 : newRootNd.metaWord < 2 ^ nodeMetaBitsWhp n_max := by dsimp only [newRootNd]; omega
+      have hk3 : newRootNd.keysWord < 2 ^ keysWordBitsWhp n_max :=
+        hsep_lt.trans_le (Nat.pow_le_pow_right (by decide) (Nat.le_mul_of_pos_left _ (by omega)))
       have hv3 : newRootNd.valsWord < 2 ^ valsWordBitsWhp n_max := by
         dsimp only [newRootNd, newVals]
         have h2v : sl.alloc + ((sl.alloc + 1) <<< valLaneBitsWhp n_max) <
@@ -403,20 +389,14 @@ theorem realizes_ensureAndSplitRootGen :
   realize
   all_goals
     rcases d with ⟨⟨cp, base⟩, sIdx⟩
-    dsimp only [EnsureRootGenPre] at h
-    obtain ⟨c, U, V, w₀, n_max, insCount, sl, mapFn,
-      henv, rfl, hsIdx, hins, hrep, hv⟩ := h
+    obtain ⟨c, U, V, _, n_max, insCount, sl, mapFn, henv, rfl, hsIdx, hins, hrep, hv⟩ := h
+    rcases henv.2.2.1 with rfl
     have hth := henv.2.2.2.1
-    have hw_eq := henv.2.2.1
-    subst hw_eq
     have ht8 := eight_le_tMinWhp hth
     have h64 := sixty_four_le_nSliceWhp n_max
     obtain ⟨hcs_h, hres_h, _, _⟩ := readSliceHeaderGenProg_spec hth henv.2.1 hsIdx hrep (s := s)
     dsimp only at hcs_h hres_h
-    simp only [hcs_h, hres_h] at *
-    try simp only [wp_large_M hth] at *
-    try simp only [wp_large_nSlice hth] at *
-    try simp only [wp_large_tMin hth] at *
+    simp only [hcs_h, hres_h, wp_large_M hth, wp_large_nSlice hth, wp_large_tMin hth] at *
     obtain ⟨halloc_lt, ⟨ha0, _⟩ | ⟨ha_pos, T, hrt, _, _, _, hT⟩⟩ :=
       hv.alloc_and_height_lt hth hins
     · first

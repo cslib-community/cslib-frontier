@@ -150,9 +150,9 @@ theorem CNF.exists_any_eval_eq_parity {k : ℕ} (hk1 : 1 ≤ k) (hkn : k ∣ n) 
   have hBdisj : ((univ : Finset (Fin (n / k))) : Set (Fin (n / k))).PairwiseDisjoint B :=
     fun j _ j' _ hjj' => disjoint_left.2 fun i hi hi' =>
       hjj' (Fin.ext ((mem_filter.1 hi).2.symm.trans (mem_filter.1 hi').2))
-  have hBunion : univ.biUnion B = univ := by
-    refine eq_univ_of_forall fun i => mem_biUnion.2 ⟨⟨i.val / k, ?_⟩, mem_univ _, by simp [B]⟩
-    exact Nat.div_lt_div_of_lt_of_dvd hkn i.isLt
+  have hBunion : univ.biUnion B = univ := eq_univ_of_forall fun i =>
+    mem_biUnion.2 ⟨⟨i.val / k, Nat.div_lt_div_of_lt_of_dvd hkn i.isLt⟩, mem_univ _,
+      mem_filter.2 ⟨mem_univ _, rfl⟩⟩
   -- the formula saying that the blocks have the parities `b`
   let F : BitString (n / k) → CNF (Fin n) := fun b =>
     (List.finRange (n / k)).flatMap fun j => CNF.parityOnEq (B j) (b j)
@@ -164,17 +164,12 @@ theorem CNF.exists_any_eval_eq_parity {k : ℕ} (hk1 : 1 ≤ k) (hkn : k ∣ n) 
   · rw [List.length_map, length_toList, card_filter_parity_eq_true hm]
   · obtain ⟨b, -, rfl⟩ := List.mem_map.1 hφ
     obtain ⟨j, -, hc⟩ := List.mem_flatMap.1 hc
-    obtain ⟨y, -, rfl⟩ := List.mem_map.1 hc
-    rw [Clause.length_exclude]
-    exact hBcard j
-  · rw [Bool.eq_iff_iff, List.any_eq_true]
-    simp only [List.mem_map, mem_toList, mem_filter, mem_univ, true_and]
-    rw [show parity n x = parityOn (univ.biUnion B) x by rw [hBunion]; rfl,
-      parityOn_biUnion hBdisj]
-    constructor
-    · rintro ⟨_, ⟨b, hb, rfl⟩, hx⟩
-      rwa [show (fun j => parityOn (B j) x) = b from funext ((hF b x).1 hx)]
-    · exact fun h => ⟨_, ⟨fun j => parityOn (B j) x, h, rfl⟩, (hF _ x).2 fun j => rfl⟩
+    exact (CNF.length_of_mem_parityOnEq hc).trans_le (hBcard j)
+  · change _ = parityOn univ x
+    rw [← hBunion, parityOn_biUnion hBdisj, Bool.eq_iff_iff]
+    simp only [List.any_map, List.any_eq_true, mem_toList, mem_filter, mem_univ,
+      true_and, Function.comp_def, hF, ← funext_iff, exists_eq_right']
+    rfl
 
 /-! ### Unbounded bottom fan-in -/
 
@@ -226,16 +221,15 @@ theorem CNF.mul_two_rpow_div_le_two_pow_mul_sum_critWidth
     μ * 2 ^ (n / μ) ≤
       2 ^ n * ∑ i : Fin n, 1 / ((φ.critWidth x i : ℝ) * 2 ^ (n - φ.critWidth x i)) := by
   have hn0 : (0 : ℝ) < n :=
-    (mul_pos_iff_of_pos_right (by positivity : 0 < Real.log 2)).1 (hμ.trans_le hμn)
+    (mul_pos_iff_of_pos_right (Real.log_pos one_lt_two)).1 (hμ.trans_le hμn)
   have hpos : ∀ i, 0 < φ.critWidth x i := fun i => CNF.critWidth_pos (hcrit i)
   have hle : ∀ i, φ.critWidth x i ≤ n := fun i => by
     obtain ⟨c, -, -, hc⟩ := CNF.exists_critical_card_eq_critWidth (hcrit i)
     rw [← hc]
     exact (card_le_univ _).trans_eq (Fintype.card_fin n)
   have htan := card_mul_mul_two_rpow_inv_le_sum (univ : Finset (Fin n))
-    (fun i => 1 / (φ.critWidth x i : ℝ)) (fun i _ => by
-      have := hpos i
-      positivity) (a := μ / n) (by positivity)
+    (fun i => 1 / (φ.critWidth x i : ℝ)) (fun i _ => one_div_pos.2 (Nat.cast_pos.2 (hpos i)))
+    (a := μ / n) (by positivity)
     (by rw [div_le_iff₀ hn0]; linarith)
     (by rw [card_univ, Fintype.card_fin, mul_div_cancel₀ _ hn0.ne']; exact hw)
   rw [card_univ, Fintype.card_fin, mul_div_cancel₀ _ hn0.ne', one_div_div] at htan
@@ -316,14 +310,10 @@ theorem CNF.card_isolatedInputs_mul_min_le {μ : ℝ} (hμ : 0 < μ) (hμn : μ 
   set S₂ := S.filter fun x => ¬ μ ≤ w x
   set Cl := (Fs.flatten.map List.toFinset).toFinset
   -- inputs of weight at least `μ`: each formula has few solutions of large weight
-  have h₁ : (#S₁ : ℝ) * 2 ^ μ ≤ Fs.length * 2 ^ n := by
-    set A : CNF (Fin n) → Finset (BitString n) := fun φ =>
-      {x | φ.eval x = true ∧ μ ≤ ∑ i, 1 / (φ.critWidth x i : ℝ)}
-    have hsub : S₁ ⊆ Fs.toFinset.biUnion A := fun x hx => by
-      obtain ⟨hxS, hxw⟩ := mem_filter.1 hx
-      exact mem_biUnion.2 ⟨F x, List.mem_toFinset.2 (hF x hxS),
-        mem_filter.2 ⟨mem_univ _, hFx x hxS, hxw⟩⟩
-    exact card_mul_le_length_mul_two_pow (by positivity) hsub
+  have h₁ : (#S₁ : ℝ) * 2 ^ μ ≤ Fs.length * 2 ^ n :=
+    card_mul_le_length_mul_two_pow (by positivity)
+      (fun x hx => mem_biUnion.2 ⟨F x, List.mem_toFinset.2 (hF x (mem_filter.1 hx).1),
+        mem_filter.2 ⟨mem_univ _, hFx x (mem_filter.1 hx).1, (mem_filter.1 hx).2⟩⟩)
       fun φ _ => CNF.card_filter_le_sum_inv_critWidth_mul_two_rpow_le φ μ
   -- inputs of weight below `μ`: their shortest critical clauses are many
   have h₂ : (#S₂ : ℝ) * (μ * 2 ^ (n / μ)) ≤ #Cl * 2 ^ n := by
@@ -370,9 +360,8 @@ theorem CNF.two_rpow_sqrt_sub_one_le_of_any_eval_eq_parity (hn : 3 ≤ n)
   have h1 : 1 ≤ √(n : ℝ) := Real.one_le_sqrt.2 (by linarith)
   -- `√n ≤ n log 2`, as `√n ≥ 1.7` and `log 2 > 0.69`
   have hμn : √(n : ℝ) ≤ n * Real.log 2 := by
-    have hlog := Real.log_two_gt_d9
     have h17 : (1.7 : ℝ) ≤ √n := (Real.le_sqrt (by norm_num) (by linarith)).2 (by linarith)
-    nlinarith
+    nlinarith [Real.log_two_gt_d9]
   have h := CNF.two_pow_mul_min_le_of_any_eval_eq_parity (by omega) hsq hμn hFs
   rw [Real.div_sqrt, min_eq_left (le_mul_of_one_le_left (by positivity) h1)] at h
   rw [Real.rpow_sub_one two_ne_zero]
@@ -412,7 +401,7 @@ theorem CNF.card_isolatedInputs_mul_rpow_mul_two_rpow_sqrt_le (hn : 4 ≤ n)
   have hμn : √(n : ℝ) + b ≤ n * Real.log 2 := by
     have hf : 0 ≤ 2 * Real.log 2 ^ 2 * (√n + 2) - 2 * Real.log 2 - 1 := by nlinarith
     have := mul_nonneg (sub_nonneg.2 hs2) hf
-    refine le_of_mul_le_mul_left ?_ (by positivity : (0 : ℝ) < 4 * Real.log 2)
+    refine le_of_mul_le_mul_left ?_ (mul_pos zero_lt_four (Real.log_pos one_lt_two))
     conv_rhs => rw [← hss]
     nlinarith
   have h := CNF.card_isolatedInputs_mul_min_le (μ := √n + b) (by positivity) hμn hFs
@@ -427,9 +416,7 @@ theorem CNF.card_isolatedInputs_mul_rpow_mul_two_rpow_sqrt_le (hn : 4 ≤ n)
         field_simp
     _ = √n * 2 ^ (√n - b) := by rw [hsq, Real.rpow_sub two_pos, h2b]
     _ ≤ (√n + b) * 2 ^ (n / (√n + b)) := by
-        gcongr
-        · linarith
-        · norm_num
+        gcongr <;> linarith
 
 /-- **ORs of formulas in conjunctive normal form for parity need `n ^ (1 / 4) 2 ^ (√n - 1)`
 gates**, [Paturi, Pudlák and Zane, Theorem 6][PaturiPudlakZane1999]: an OR of `m` formulas with

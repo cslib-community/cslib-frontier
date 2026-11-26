@@ -116,13 +116,11 @@ private theorem forall_eval_uniformGuess_le_iff {Guess : Type} [Fintype K] [None
       (PMF.uniformOfFintype K).bind fun k =>
         PMF.pure (decide (legal guess ∧ wins guess k))) true ≤ ε) ↔
       ∀ guess, legal guess → (PMF.uniformOfFintype K).toOuterMeasure {k | wins guess k} ≤ ε := by
-  constructor
-  · intro h guess hlegal
-    simpa only [ProbComp.eval_pure, PMF.pure_bind, hlegal, true_and,
+  refine ⟨fun h guess hlegal => ?_, fun h A =>
+      Probability.PMF.bind_apply_le_on_support _ fun guess _ => ?_⟩
+  · simpa only [ProbComp.eval_pure, PMF.pure_bind, hlegal, true_and,
       Probability.PMF.bind_pure_decide_apply_true] using h (pure guess)
-  · intro h A
-    refine Probability.PMF.bind_apply_le_on_support _ fun guess _ => ?_
-    rw [Probability.PMF.bind_pure_decide_apply_true]
+  · rw [Probability.PMF.bind_pure_decide_apply_true]
     by_cases hlegal : legal guess
     · simpa only [hlegal, true_and] using h guess hlegal
     · simp [hlegal]
@@ -309,9 +307,9 @@ private theorem two_inv_sq_le_sampleCollisionPair [DecidableEq M] [DecidableEq Y
     2 * ((ms.length : ℝ≥0∞) ^ 2)⁻¹ ≤ ((ProbComp.eval (sampleCollisionPair fallback ms)).bind
       fun g => PMF.pure (decide (g.first ≠ g.second ∧ H k g.first = H k g.second))) true := by
   obtain ⟨m, hm, m', hm', hne, hd⟩ := h
-  obtain ⟨i, hi, hi'⟩ := List.mem_iff_getElem.mp hm
-  obtain ⟨j, hj, hj'⟩ := List.mem_iff_getElem.mp hm'
-  have hij : i ≠ j := fun h => hne (by simp [← hi', ← hj', h])
+  obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hm
+  obtain ⟨j, hj, rfl⟩ := List.mem_iff_getElem.mp hm'
+  have hij : i ≠ j := fun h => hne (by simp [h])
   have hlen : 2 ≤ ms.length := by omega
   obtain ⟨ha, ha₁, ha₂⟩ := pairSlot_spec hi hj hij
   obtain ⟨hb, hb₁, hb₂⟩ := pairSlot_spec hj hi hij.symm
@@ -326,10 +324,6 @@ private theorem two_inv_sq_le_sampleCollisionPair [DecidableEq M] [DecidableEq Y
       decodeCollisionPair fallback ms slot = ⟨ms[first], ms[second]⟩ := by
     simp only [decodeCollisionPair, hquot, hrem,
       List.getD_eq_getElem _ _ hfirst, List.getD_eq_getElem _ _ hsecond]
-  have hga : decodeCollisionPair fallback ms a = ⟨m, m'⟩ := by
-    simpa only [hi', hj'] using hdecode (slot := a) hi hj ha₁ ha₂
-  have hgb : decodeCollisionPair fallback ms b = ⟨m', m⟩ := by
-    simpa only [hi', hj'] using hdecode (slot := b) hj hi hb₁ hb₂
   simp only [sampleCollisionPair, ProbComp.eval_map, PMF.bind_map, Function.comp_def,
     Probability.PMF.bind_pure_decide_apply_true]
   let p := ProbComp.eval (ProbComp.sampleUniformInterval (ms.length * (ms.length - 1)) ms.length)
@@ -342,8 +336,8 @@ private theorem two_inv_sq_le_sampleCollisionPair [DecidableEq M] [DecidableEq Y
       (inv_sq_le_sampleUniformInterval_pair hlen hb)
   refine hsum.trans (p.toOuterMeasure.mono fun slot hslot => ?_)
   rcases Finset.mem_insert.mp hslot with rfl | hslot
-  · simp [hga, hne, hd]
-  · simp [Finset.mem_singleton.mp hslot, hgb, hne.symm, hd.symm]
+  · simp [hdecode (slot := a) hi hj ha₁ ha₂, hne, hd]
+  · simp [Finset.mem_singleton.mp hslot, hdecode (slot := b) hj hi hb₁ hb₂, hne.symm, hd.symm]
 
 private theorem collision_indicator_le_samplePair [DecidableEq M] [DecidableEq Y]
     (H : K → M → Y) (k : K) (fallback : M) (ms : List M) {Q : ℕ} (hlen : ms.length ≤ Q) :
@@ -402,10 +396,9 @@ theorem eval_multiQueryExperiment_le [Fintype K] [Nonempty K] [DecidableEq M] [D
   simp only [multiQueryExperiment, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
   refine Probability.PMF.bind_apply_le_on_support _ fun ms hms => ?_
   rw [Probability.PMF.bind_pure_decide_apply_true]
-  refine ((PMF.uniformOfFintype K).toOuterMeasure.mono fun k hk => ?_).trans
+  refine ((PMF.uniformOfFintype K).toOuterMeasure.mono ?_).trans
     ((hH.toOuterMeasure_not_injOn_le ms.toFinset).trans ?_)
-  · rcases hk with ⟨m, hm, m', hm', hne, heq⟩
-    intro hinj
+  · rintro k ⟨m, hm, m', hm', hne, heq⟩ hinj
     exact hne (hinj (List.mem_toFinset.mpr hm) (List.mem_toFinset.mpr hm') heq)
   · gcongr
     exact ms.toFinset_card_le.trans (hB ms hms)

@@ -255,8 +255,7 @@ theorem writeHdrProg_fastStep {c U V w n_max base hdrOff val : ℕ} {θ : SeedWh
   refine ⟨rfl, validProg_write (by omega) hfit_val, hfs' ▸
     fastStep_nonSliceNonBuf hw rfl hseed hrep rfl rfl
       (fun a ha =>
-        show Function.update s.mem (base + hdrOff) val a = s.mem a from
-          Function.update_of_ne (by rcases ha with h | h | h | h <;> omega) val s.mem)
+        Function.update_of_ne (by rcases ha with h | h | h | h <;> omega) val s.mem)
       (fun _ hidx _ => hrp32 hidx (by omega))
       (fun id hid => hrp32 (show id < 6 * qEpochWhp n_max + 6 by omega) (by omega))
       (hdc_sub.trans hdc_le0) hhdrs
@@ -313,7 +312,7 @@ private theorem bktField_realize_bounds {w base b field : ℕ} {cp : WhpCorePara
     ∃ N', w = wpW cp ∧ 0 < w ∧ wpGlobalPtrBits cp ≤ w ∧ 16 * b + field < N' ∧
       Fits w (base + wpOffBktMeta cp + packedWords N' (wpGlobalPtrBits cp) w) := by
   obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hb, hfield⟩ := h
-  have hw_eq := henv.2.2.1; subst hw_eq
+  obtain rfl := henv.2.2.1
   have hth := henv.2.2.2.1
   have h16M := sixteen_mul_numBuckets_le_n_max hth
   simp only [wp_large_M hth, wp_large_offBktMeta hth, wp_large_globalPtrBits hth,
@@ -637,23 +636,16 @@ theorem pushDirtyBucketGenProg_fastStep {c U V w n_max base b : ℕ}
   have hidxW : idxW < 6 * qEpochWhp n_max + 6 := by omega
   set m1 := writePacked (base + offTrieItems0 c U V w n_max) (globalPtrBits n_max) w s.mem idxW b
   set m2 := Function.update m1 (base + hdrDirtyCount) (fs.dirtyCount + 1)
-  have hwh_vp : ValidProg w (base + largeSpaceWhp c U V w n_max)
-      { mem := m1, frontier := s.frontier }
-      (writeHdrProg ((base, hdrDirtyCount), fs.dirtyCount + 1)) := by
-    unfold writeHdrProg; simp only [pure_bind]
-    exact validProg_write (by dsimp [hdrDirtyCount]; omega) (henv.fits_of_le_n_max (by omega))
-  unfold pushDirtyBucketGenProg
+  unfold pushDirtyBucketGenProg writeHdrProg
   simp only [wp_large_qEpoch hth, wp_large_offTrieItems0 hth, wp_large_globalPtrBits hth,
     wp_large_w hth, pure_bind]
-  rw [(hR.bind_eq _).1, (hR.bind_eq _).2.2.1]
-  refine ⟨?_, (hR.bind_eq _).2.2.2 (validProg_bind (validProg_writePacked hw hgk hidxW
-    (dirtyBuckets_seg_le c U V w n_max base)) hwh_vp), ?_⟩
-  · rw [memoryCost_bind', clientState_writePackedGen, memoryCost_writePackedGen]
-    unfold writeHdrProg
-    simp only [pure_bind, memoryCost_memRead_and_write.2]
-  rw [clientState_bind, clientState_writePackedGen]
-  unfold writeHdrProg
-  simp only [pure_bind]
+  rw [(hR.bind_eq _).1, (hR.bind_eq _).2.2.1, memoryCost_bind', clientState_writePackedGen,
+    memoryCost_writePackedGen, memoryCost_memRead_and_write.2, clientState_bind,
+    clientState_writePackedGen]
+  refine ⟨rfl, (hR.bind_eq _).2.2.2 (validProg_bind (validProg_writePacked hw hgk hidxW
+      (dirtyBuckets_seg_le c U V w n_max base))
+    (validProg_write (by dsimp [hdrDirtyCount]; omega)
+      (henv.fits_of_le_n_max (by omega)))), ?_⟩
   change FastStateStep base c U V w n_max θ _ s { mem := m2, frontier := s.frontier }
   have hout_m2 : ∀ a, a ≠ base + hdrDirtyCount →
       (a < base + offTrieItems0 c U V w n_max ∨ base + offTrieItems1 c U V w n_max ≤ a) →
@@ -800,20 +792,15 @@ theorem realizes_readRebActiveBGen :
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hdc_le⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
+    obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
-    have hcs_h : ∀ off < 32, ∀ s',
-        (Memory.spec 0).clientState s' (readHdrProg (base, off)) = s' :=
-      fun off hoff s' => (readHdrProg_large_spec (c := c) (U := U) (V := V) (w := w)
-        (n_max := n_max) (s := s') hoff).1
-    have hcr_h : ∀ off < 32, ∀ s',
-        (Memory.spec 0).clientResult s' (readHdrProg (base, off)) = s'.mem (base + off) :=
-      fun off hoff s' => (readHdrProg_large_spec (c := c) (U := U) (V := V) (w := w)
-        (n_max := n_max) (s := s') hoff).2.1
-    simp only [hcs_h hdrRebStage (by decide), hcr_h hdrRebStage (by decide),
-      hcs_h hdrDirtyCount (by decide), hcr_h hdrDirtyCount (by decide),
-      hcs_h hdrDirtyIdx (by decide), hcr_h hdrDirtyIdx (by decide)] at *
-    simp only [wp_large_qEpoch hth] at *
+    have hcs (off) (hoff : off < 32) (s') := (readHdrProg_large_spec (c := c) (U := U) (V := V)
+      (w := w) (n_max := n_max) (base := base) (s := s') hoff).1
+    have hcr (off) (hoff : off < 32) (s') := (readHdrProg_large_spec (c := c) (U := U) (V := V)
+      (w := w) (n_max := n_max) (base := base) (s := s') hoff).2.1
+    simp only [hcs hdrRebStage (by decide), hcr hdrRebStage (by decide),
+      hcs hdrDirtyCount (by decide), hcr hdrDirtyCount (by decide),
+      hcs hdrDirtyIdx (by decide), hcr hdrDirtyIdx (by decide), wp_large_qEpoch hth] at *
     first
     | exact henv.fits_const (by decide)
     | exact henv.fits_hdr_addr (by decide)

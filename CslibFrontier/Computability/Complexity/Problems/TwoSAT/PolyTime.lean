@@ -115,16 +115,14 @@ reaches `(v, false)` and `(v, true)` otherwise, then closing under `reach φ`. -
 
 omit [DecidableEq V] in
 theorem mem_lits_iff (φ : CNF V) (ℓ : Literal V) : ℓ ∈ lits φ ↔ ℓ.1 ∈ φ.vars := by
-  rcases ℓ with ⟨v, b⟩
-  cases b <;> simp [lits]
+  rcases ℓ with ⟨v, _ | _⟩ <;> simp [lits]
 
 private theorem card_lits_toFinset_le (φ : CNF V) :
     (lits φ).toFinset.card ≤ φ.numVars + φ.numVars := by
   have hle : (lits φ).toFinset.card ≤ (φ.vars.toFinset ×ˢ (Finset.univ : Finset Bool)).card :=
     Finset.card_le_card fun ℓ hℓ => Finset.mem_product.mpr
       ⟨List.mem_toFinset.mpr ((mem_lits_iff φ ℓ).mp (List.mem_toFinset.mp hℓ)), Finset.mem_univ _⟩
-  rw [Finset.card_product, Finset.card_univ, Fintype.card_bool, ← CNF.numVars] at hle
-  omega
+  rw [Finset.card_product, Finset.card_univ, Fintype.card_bool, ← CNF.numVars] at hle; omega
 
 theorem hasImpEdge_eq_true_iff (φ : CNF V) (ℓ ℓ' : Literal V) :
     hasImpEdge φ ℓ ℓ' = true ↔ φ.Implies ℓ ℓ' := by
@@ -214,26 +212,23 @@ private theorem mem_vars_of_reach {φ : CNF V} {ℓ₀ m : Literal V} (h₀ : �
 /-- Exact reachability characterization from any literal whose variable occurs in `φ`. -/
 theorem mem_reach_iff {φ : CNF V} {ℓ₀ : Literal V} (hℓ₀ : ℓ₀.1 ∈ φ.vars) (m : Literal V) :
     m ∈ reach φ ℓ₀ ↔ Relation.ReflTransGen φ.Implies ℓ₀ m := by
-  constructor
-  · exact fun hm => (reachFrom_sound φ ℓ₀ _ hm).2
-  · intro h
-    induction h with
-    | refl =>
-      rw [reach]
-      induction φ.numVars + φ.numVars + 1 with
-      | zero => simp [reachFrom, mem_lits_iff, hℓ₀]
-      | succ k ih => exact reachFrom_subset_succ φ ℓ₀ k ih
-    | tail _ hbc ih =>
-      have hstep : _ ∈ stepReach φ (reach φ ℓ₀) :=
-        (mem_stepReach φ _ _).mpr ⟨(mem_vars_of_implies hbc).2, Or.inr ⟨_, ih, hbc⟩⟩
-      rwa [reachFrom_fixed] at hstep
+  refine ⟨fun hm => (reachFrom_sound φ ℓ₀ _ hm).2, fun h => ?_⟩
+  induction h with
+  | refl =>
+    rw [reach]
+    induction φ.numVars + φ.numVars + 1 with
+    | zero => simp [reachFrom, mem_lits_iff, hℓ₀]
+    | succ k ih => exact reachFrom_subset_succ φ ℓ₀ k ih
+  | tail _ hbc ih =>
+    have hstep : _ ∈ stepReach φ (reach φ ℓ₀) :=
+      (mem_stepReach φ _ _).mpr ⟨(mem_vars_of_implies hbc).2, Or.inr ⟨_, ih, hbc⟩⟩
+    rwa [reachFrom_fixed] at hstep
 
 /-- Every prefix of the greedy literal-selection fold stays a sublist of `lits φ`. -/
 theorem foldl_chooseStep_sublist (φ : CNF V) :
     ∀ (vs : List V) (s : Clause V), s <+ lits φ → vs.foldl (chooseStep φ) s <+ lits φ
   | [], s, hs => hs
-  | v :: vs, s, hs => by
-    refine foldl_chooseStep_sublist φ vs _ ?_
+  | v :: vs, s, hs => foldl_chooseStep_sublist φ vs _ <| by
     unfold chooseStep
     split_ifs
     exacts [hs, List.filter_sublist]
@@ -271,10 +266,8 @@ private theorem extendGoodSet {φ : CNF V} {s : Clause V} (hg : GoodSet φ s)
     · exact hnneg_s (hg.reach_mem hmns (CNF.reach_negate hrm))
     · exact hnreach (hrm.trans (negate_negate m ▸ CNF.reach_negate hrmn))
   · intro m hm m' himp
-    refine (hmem_s' m').mpr ?_
-    rcases (hmem_s' m).mp hm with hms | hrm
-    · exact .inl (hg.closed m hms m' himp)
-    · exact .inr (hrm.tail himp)
+    exact (hmem_s' m').mpr <| ((hmem_s' m).mp hm).imp
+      (fun hms => hg.closed m hms m' himp) (fun hrm => hrm.tail himp)
 
 private theorem chooseStep_good {φ : CNF V}
     (hnocyc : ∀ x, ¬ (Relation.ReflTransGen φ.Implies (x, true) (x, false) ∧
@@ -313,10 +306,8 @@ private theorem foldl_chooseStep_good {φ : CNF V}
     obtain ⟨hg₁, hsub₁, hv₁⟩ := chooseStep_good hnocyc hg (hvs v List.mem_cons_self)
     obtain ⟨hg₂, hsub₂, hvs₂⟩ := foldl_chooseStep_good hnocyc vs (chooseStep φ s v)
       (fun u hu => hvs u (List.mem_cons_of_mem v hu)) hg₁
-    refine ⟨hg₂, fun u hu => hsub₂ (hsub₁ hu), fun u hu => ?_⟩
-    rcases List.mem_cons.mp hu with rfl | hu
-    · exact hv₁.imp (fun h => hsub₂ h) (fun h => hsub₂ h)
-    · exact hvs₂ u hu
+    exact ⟨hg₂, fun u hu => hsub₂ (hsub₁ hu),
+      List.forall_mem_cons.mpr ⟨hv₁.imp (fun h => hsub₂ h) (fun h => hsub₂ h), hvs₂⟩⟩
 
 /-- **Witness soundness**: whenever `φ` has width at most `2` and is satisfiable, `assignment φ`
 satisfies `φ`. -/
@@ -383,8 +374,7 @@ theorem solve_eq_true_iff_mem (φ : CNF ℕ) : solve φ = true ↔ φ ∈ TwoSAT
 theorem computableInPolyTime_lits {α : Type} {encIn : α ↪ List Bool} {φ : α → CNF ℕ}
     (hφ : ComputableInPolyTime φ encIn encCNF) :
     ComputableInPolyTime (fun a => lits (φ a)) encIn (encClause encNat) := by
-  unfold lits
-  fun_prop
+  fun_prop [lits]
 
 @[fun_prop]
 theorem computableInPolyTime_hasImpEdge {α : Type} {encIn : α ↪ List Bool}
@@ -393,15 +383,13 @@ theorem computableInPolyTime_hasImpEdge {α : Type} {encIn : α ↪ List Bool}
     (hℓ : ComputableInPolyTime ℓ encIn (encPair encNat encBool))
     (hℓ' : ComputableInPolyTime ℓ' encIn (encPair encNat encBool)) :
     ComputableInPolyTime (fun a => hasImpEdge (φ a) (ℓ a) (ℓ' a)) encIn encBool := by
-  simp only [hasImpEdge, List.contains_eq_mem]
-  fun_prop
+  simp only [hasImpEdge, List.contains_eq_mem]; fun_prop
 
 @[fun_prop]
 theorem computableInPolyTime_stepReach :
     ComputableInPolyTime (fun p : CNF ℕ × Clause ℕ => stepReach p.1 p.2)
       (encPair encCNF (encClause encNat)) (encClause encNat) := by
-  simp only [stepReach, List.contains_eq_mem]
-  fun_prop
+  simp only [stepReach, List.contains_eq_mem]; fun_prop
 
 private theorem computableInPolyTime_reachPair :
     ComputableInPolyTime (fun p : CNF ℕ × Literal ℕ => reach p.1 p.2)
@@ -448,8 +436,7 @@ polynomial-time under `encPair encCNF encNat`. -/
 theorem computableInPolyTime_assignment :
     ComputableInPolyTime (fun p : CNF ℕ × ℕ => assignment p.1 p.2)
       (encPair encCNF encNat) encBool := by
-  simp only [assignment, List.contains_eq_mem]
-  fun_prop
+  simp only [assignment, List.contains_eq_mem]; fun_prop
 
 /-- Native multi-tape polynomial-time certificate for the total `TwoSAT` decider. -/
 @[fun_prop]

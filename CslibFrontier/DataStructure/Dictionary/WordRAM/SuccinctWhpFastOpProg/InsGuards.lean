@@ -340,10 +340,7 @@ theorem insCheckRKeyGuardsGenProg_spec {c U V w n_max base rKey : ℕ}
   refine CostBoundedStep.weaken (.bind ⟨hce_st, hce_res, hce_mc.le, hce_vp⟩ <|
     .bind ⟨hc_st, hc_res, hc_mc, hc_vp⟩ <| .bind ⟨ho_st, ho_res, ho_mc, ho_vp⟩ <|
     .ite (.pure _ _) (.pure _ _)) ?_ (by omega)
-  by_cases h1 : (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey).isSome = true <;>
-    by_cases h2 : fs.rebStage ≤ 3 ∧
-        (bufLookup (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) rKey).isSome = true <;>
-    simp [h1, h2]
+  split_ifs <;> simp_all
 
 /-- Read `(fpOfSaltOpt (bktSalt b) u_val, liveSliceIdx b)` without mutating memory. -/
 @[irreducible] private def insEvalLiveFpGenProg :
@@ -486,13 +483,10 @@ theorem insReadFpLiveGenProg_spec {c U V w n_max base b : ℕ}
   set fp := fpOfSalt c U n_max θ.2 (fs.bktSalt b) u
   have hfp_eq : (if hs : fs.bktSalt b < sMaxWhp c n_max then
       if hu : u.val < U then fpHash c U n_max θ.2 ⟨fs.bktSalt b, hs⟩ ⟨u.val, hu⟩ else 0
-     else 0) = fp := by
-    dsimp only [fp, fpOfSalt]
-    split_ifs with hs hu <;> first | rfl | exact absurd u.isLt hu
+     else 0) = fp := by simp [fp, fpOfSalt, u.isLt]
   have hev := insEvalLiveFpGenProg_step (u_val := u.val) henv hseed hrep hb (s := s)
   rw [hfp_eq] at hev
-  have hfp_lt : fp < 2 ^ fpBitsWhp n_max := by
-    rw [← hfp_eq]; exact fpOfSaltOpt_lt c U n_max _ _ θ.2
+  have hfp_lt : fp < 2 ^ fpBitsWhp n_max := hfp_eq ▸ fpOfSaltOpt_lt c U n_max _ _ θ.2
   have hlIdx : fs.liveSliceIdx b < 3 * numBucketsWhp n_max := by
     unfold FastState.liveSliceIdx; omega
   obtain ⟨hbt_st, hbt_res, hbt_mc, hbt_vp⟩ :=
@@ -688,9 +682,7 @@ theorem insCheckFpCapOptGenProg_spec {c U V w n_max base rKey : ℕ}
     refine CostBoundedStep.weaken (.bind ⟨hce_st, hce_res, hce_mc.le, hce_vp⟩ <|
       .bind ⟨hev_st, hev_res, hev_mc, hev_vp⟩ <| .bind ⟨hia_st, hia_res, hia_mc, hia_vp⟩ <|
       .ite (.pure _ _) (.pure _ _)) ?_ (by omega)
-    cases bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey <;>
-      by_cases hle : 2 * sMaxWhp c n_max ≤ (fs.buf fs.curEp).itemAlloc <;>
-      simp [hle]
+    cases bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) rKey <;> simp
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 

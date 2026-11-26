@@ -310,13 +310,10 @@ theorem length_queries_repeatAll_le (k : ℕ) {a : α} {ρ : List Bool} {B : ℕ
   | succ k =>
     have hle : V.coins a ≤ ρ.length :=
       hρ.symm ▸ Nat.le_mul_of_pos_left _ (Nat.succ_pos k)
-    rw [queries_repeatAll, repeatQueries]
-    dsimp only
-    rw [V.repeatRowWidth_of_le hle, List.length_flatMap]
+    simp only [queries_repeatAll, repeatQueries, V.repeatRowWidth_of_le hle, List.length_flatMap]
     simpa [List.length_range, smul_eq_mul] using
-      List.sum_le_length_nsmul ((List.range (k + 1)).map _) B fun x hx => by
-        obtain ⟨i, -, rfl⟩ := List.mem_map.mp hx
-        exact hq _ (BitString.length_listRow (V.coins a) i ρ)
+      List.sum_le_length_nsmul ((List.range (k + 1)).map _) B
+        (List.forall_mem_map.mpr fun i _ => hq _ (BitString.length_listRow (V.coins a) i ρ))
 
 /-- First-occurrence lookup in `V.repeatQueries k` recovers each trial's individual verdict. -/
 theorem accepts_repeatAll_eq (k : ℕ) (a : α) (π ρ : List Bool) :
@@ -325,10 +322,8 @@ theorem accepts_repeatAll_eq (k : ℕ) (a : α) (π ρ : List Bool) :
         V.accepts a π (BitString.listRow (V.repeatRowWidth a ρ) i ρ) := by
   apply Bool.eq_iff_iff.mpr
   simp only [PCPVerifier.accepts, repeatAll, List.all_eq_true]
-  refine forall_congr' fun i => forall_congr' fun hi => Iff.of_eq ?_
-  congr 3
-  exact List.map_congr_left fun addr haddr =>
-    getD_answers_idxOf π (V.mem_repeatQueries hi haddr)
+  exact forall₂_congr fun i hi => Iff.of_eq <| congrArg (fun q => V.verdict ((a, _), q) = true) <|
+    List.map_congr_left fun addr haddr => getD_answers_idxOf π (V.mem_repeatQueries hi haddr)
 
 /-- On any random string of length `k * V.coins a`, `V.repeatAll k` accepts iff every coin block
 of width `V.coins a` accepts. -/
@@ -349,9 +344,8 @@ theorem acceptProb_repeatAll (k : ℕ) (a : α) (π : List Bool) :
     coins_repeatAll, ← ENNReal.toReal_pow,
     ← BitString.uniformList_all_listRow_true k (V.coins a) (fun ρ => V.accepts a π ρ)]
   congr 2
-  refine PMF.map_congr_on_support _ _ _ fun ρ hρ => ?_
-  rw [BitString.mem_support_uniformList_iff] at hρ
-  exact V.accepts_repeatAll k a π ρ hρ
+  exact PMF.map_congr_on_support _ _ _ fun ρ hρ =>
+    V.accepts_repeatAll k a π ρ (BitString.mem_support_uniformList_iff.mp hρ)
 
 variable {V}
 
@@ -409,14 +403,11 @@ theorem IsPCPVerifierWith.repeatAll {c s : ℝ} {r q : ℕ → ℕ} {V : PCPVeri
     IsPCPVerifierWith enc (c ^ k) (s ^ k) (fun n => k * r n) (fun n => k * q n)
       (V.repeatAll k) A where
   coins_le a := Nat.mul_le_mul_left k (h.coins_le a)
-  length_queries_le a ρ hρ :=
-    V.length_queries_repeatAll_le k hρ (h.length_queries_le a)
-  complete a ha := (h.complete a ha).imp fun π hπ => by
-    rw [V.acceptProb_repeatAll]
-    exact pow_le_pow_left₀ hc hπ k
-  sound a ha π := by
-    rw [V.acceptProb_repeatAll]
-    exact pow_le_pow_left₀ (V.acceptProb_nonneg a π) (h.sound a ha π) k
+  length_queries_le a _ hρ := V.length_queries_repeatAll_le k hρ (h.length_queries_le a)
+  complete a ha := (h.complete a ha).imp fun π hπ =>
+    V.acceptProb_repeatAll k a π ▸ pow_le_pow_left₀ hc hπ k
+  sound a ha π :=
+    V.acceptProb_repeatAll k a π ▸ pow_le_pow_left₀ (V.acceptProb_nonneg a π) (h.sound a ha π) k
 
 /-- Independent `k`-fold repetition maps `PCPWith c s r q enc` into
 `PCPWith (c ^ k) (s ^ k) r q enc`. -/
@@ -466,8 +457,8 @@ theorem tableAcceptCount_answers_append (a : α) (proof padding : List Bool) :
       V.acceptCount a proof := by
   unfold tableAcceptCount acceptCount Cslib.Complexity.acceptCount
   rw [← BitString.countP_enumList (V.coins a) (fun word => V.accepts a proof word)]
-  refine List.countP_congr fun word hword => ?_
-  rw [V.verdict_answers_queryTable_append a proof padding word (BitString.mem_enumList.mp hword)]
+  exact List.countP_congr fun word hword => Bool.eq_iff_iff.mp
+    (V.verdict_answers_queryTable_append a proof padding word (BitString.mem_enumList.mp hword))
 
 /-- Every bit table has the exact same accepted-word count as its expanded proof
 `V.proofOfTable a table`. -/
@@ -476,8 +467,8 @@ theorem tableAcceptCount_eq_acceptCount_proofOfTable (a : α) (table : List Bool
   unfold tableAcceptCount acceptCount Cslib.Complexity.acceptCount
   rw [← BitString.countP_enumList (V.coins a)
     (fun word => V.accepts a (V.proofOfTable a table) word)]
-  refine List.countP_congr fun word hword => ?_
-  rw [V.accepts_proofOfTable a table word (BitString.mem_enumList.mp hword)]
+  exact List.countP_congr fun word hword => Bool.eq_iff_iff.mp
+    (V.accepts_proofOfTable a table word (BitString.mem_enumList.mp hword)).symm
 
 /-- Exhaustively check whether strictly more than half of the random words of length
 `V.coins input.1` accept using the bit at each address's first table occurrence. -/
@@ -541,10 +532,8 @@ theorem PCPWith_log_subset_NP {c : ℝ} (hc : 1 / 2 < c) (q : ℕ → ℕ) :
 
 /-- For every positive constant `q ≥ 1`, `PCP(log n, q) = NP`. -/
 theorem PCP_log_const {q : ℕ} (hq : 1 ≤ q) :
-    PCP (fun n => Nat.log 2 n + 1) (fun _ => q) enc = NP enc := by
-  refine Set.Subset.antisymm (PCP_log_subset_NP _) ?_
-  rw [NP_eq_PCP_log enc]
-  exact PCP_mono_queries fun _ => hq
+    PCP (fun n => Nat.log 2 n + 1) (fun _ => q) enc = NP enc :=
+  Set.Subset.antisymm (PCP_log_subset_NP _) (NP_eq_PCP_log enc ▸ PCP_mono_queries fun _ => hq)
 
 /-- **Arora and Barak, Chapter 18, Problem 2 (corrected):** for every constant `q ≥ 1` and
 completeness threshold `1 / 2 < c ≤ 1`,

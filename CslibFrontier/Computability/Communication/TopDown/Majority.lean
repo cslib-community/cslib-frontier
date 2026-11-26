@@ -85,20 +85,18 @@ private theorem strictMajorityDeficitBound_eventually_le {r c : ℝ} (hr : 0 < r
   obtain ⟨N, hN⟩ := eventually_atTop.mp (tendsto_natCast_atTop_atTop.eventually (hs.def hc))
   refine ⟨max N 1, fun n hn => ?_⟩
   have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast (show 1 ≤ n by omega)
-  have hnpos : (0 : ℝ) < n := by linarith
   have hbound := hN n (by omega)
-  rw [Real.norm_eq_abs, Real.norm_eq_abs, abs_of_nonneg (Real.rpow_nonneg hnpos.le _)] at hbound
+  rw [Real.norm_eq_abs, Real.norm_eq_abs, abs_of_nonneg (by positivity),
+    abs_of_nonneg (by positivity)] at hbound
   have hlogb : Real.logb 2 (2 * ((n : ℝ) + 1)) ≤ 2 + (Real.log 2)⁻¹ * Real.log n := by
     calc Real.logb 2 (2 * ((n : ℝ) + 1))
         ≤ Real.logb 2 (4 * (n : ℝ)) :=
           Real.logb_le_logb_of_le (by norm_num) (by positivity) (by linarith)
       _ = Real.logb 2 ((2 : ℝ) ^ (2 : ℕ)) + Real.logb 2 n := by
-          rw [Real.logb_mul (by norm_num) hnpos.ne']; norm_num
+          rw [Real.logb_mul (by norm_num) (by linarith)]; norm_num
       _ = 2 + (Real.log 2)⁻¹ * Real.log n := by
           rw [Real.logb_two_pow, Real.logb, div_eq_mul_inv, mul_comm]; norm_num
-  unfold strictMajorityDeficitBound
-  exact (show 128 + Real.logb 2 (2 * ((n : ℝ) + 1)) ≤
-    130 + (Real.log 2)⁻¹ * Real.log n by linarith).trans ((le_abs_self _).trans hbound)
+  rw [strictMajorityDeficitBound]; linarith
 
 private theorem finite_budget_with_deficit_of_cost {n d : ℕ} (hd : 0 < d) {m k : ℝ}
     (hm : 0 ≤ m) (hk : 0 ≤ k)
@@ -129,7 +127,7 @@ deficit for both boundary layers, for even as well as odd input sizes.
 
 private theorem le_strictMajorityDeficitBound (n : ℕ) : 128 ≤ strictMajorityDeficitBound n := by
   exact le_add_of_nonneg_right <| Real.logb_nonneg (by norm_num)
-    (by linarith [Nat.cast_nonneg (α := ℝ) n])
+    (one_le_mul_of_one_le_of_one_le one_le_two (le_add_of_nonneg_left (Nat.cast_nonneg n)))
 
 private theorem two_pow_le_succ_mul_choose_half (n : ℕ) : 2 ^ n ≤ (n + 1) * n.choose (n / 2) := by
   calc
@@ -191,8 +189,8 @@ private theorem coordinateDensity_of_neighbor {n : ℕ} (X : Finset (Fin n → B
     rcases eq_or_ne j i with rfl | hj
     · simp [completePattern, hi]
     · by_cases hP : P j = true <;> simp [completePattern, hP, Function.update_of_ne hj]
-  have hne : (coordinateFiber X P x).Nonempty := ⟨_, mem_filter.mpr ⟨mem_univ _, by rwa [he]⟩⟩
-  have hc : (1 : ℝ) ≤ (coordinateFiber X P x).card := by exact_mod_cast card_pos.mpr hne
+  have hc : (1 : ℝ) ≤ (coordinateFiber X P x).card :=
+    Nat.one_le_cast.mpr (card_pos.mpr ⟨_, mem_filter.mpr ⟨mem_univ _, he ▸ hx⟩⟩)
   rw [coordinateDensity, Fintype.card_subtype]
   change (2 : ℝ) ^ (-(128 : ℝ)) ≤ (coordinateFiber X P x).card / (2 : ℝ) ^ weight P
   rw [le_div_iff₀ (by positivity)]
@@ -213,11 +211,9 @@ private theorem isDensityLimit_of_many_neighbors {n : ℕ} (hn : 16 ≤ n)
   have hhit : 8 ≤ (weight s : ℝ) * p := by
     have := mul_le_mul_of_nonneg_right (by exact_mod_cast hs : (n : ℝ) ≤ 2 * weight s) hp
     linarith
-  have hnone : (1 - p) ^ weight s ≤ 1 / 9 := by
-    have hmul : (1 - p) ^ weight s * 9 ≤ 1 :=
-      (mul_le_mul_of_nonneg_left (by linarith) (pow_nonneg (sub_nonneg.mpr hp') _)).trans
-        (Real.one_sub_pow_mul_one_add_mul_le_one hp' (weight s))
-    linarith
+  have hnone : (1 - p) ^ weight s ≤ 1 / 9 := (le_div_iff₀ (by norm_num)).mpr <|
+    (mul_le_mul_of_nonneg_left (by linarith) (pow_nonneg (sub_nonneg.mpr hp') _)).trans
+      (Real.one_sub_pow_mul_one_add_mul_le_one hp' (weight s))
   have hpoint (P : Fin n → Bool) :
       (if ∃ i, s i = true ∧ P i = true then (1 : ℝ) else 0) -
         (1 / 128) * (weight P : ℝ) ≤
@@ -235,8 +231,7 @@ private theorem isDensityLimit_of_many_neighbors {n : ℕ} (hn : 16 ≤ n)
     convert bernoulliAverage_hits p s
   rw [bernoulliAverage_sub, hhits, bernoulliAverage_const_mul, bernoulliAverage_weight,
     Fintype.card_fin, hmean] at hh
-  unfold IsDensityLimit
-  change (3 : ℝ) / 4 ≤ bernoulliAverage p _
+  dsimp only [IsDensityLimit, p] at hh ⊢
   linarith
 
 private theorem majority_layers_limits {n : ℕ} (hn : 16 ≤ n) :
@@ -259,9 +254,8 @@ private theorem majority_layers_limits {n : ℕ} (hn : 16 ≤ n) :
     refine (isDensityLimit_of_many_neighbors hn (weightLayer n (n / 2)) y y
       (by rw [hy']; omega) fun i hi => ?_).mono_right
       (by positivity) hp (le_strictMajorityDeficitBound n)
-    simp only [mem_weightLayer, hi, Bool.not_true]
     have := weight_update_false hi
-    omega
+    simp only [mem_weightLayer, hi, Bool.not_true]; omega
 
 /-! ### The communication lower bound for strict majority
 
@@ -318,12 +312,9 @@ theorem not_solvesKW_strictMajority (rounds : ℕ) (hrounds : 2 ≤ rounds) :
   obtain ⟨N, hN⟩ := strictMajorityDeficitBound_eventually_le
     (show (0 : ℝ) < (d : ℝ)⁻¹ by positivity) hε
   refine ⟨ε, hε, N, fun n hn M _ hM P => ?_⟩
-  have hm : 0 ≤ ε * (n : ℝ) ^ (((d + 1 - 1 : ℕ) : ℝ)⁻¹) := by positivity
-  apply P.not_solvesKW_strictMajority hM hm
-  have hk := le_strictMajorityDeficitBound n
-  apply finite_budget_with_deficit_of_cost hd hm (by linarith)
-  · simp only [ε, Nat.add_sub_cancel]
-    exact le_of_eq (by ring)
-  · simpa only [ε, one_div, div_eq_mul_inv, mul_comm, one_mul] using hN n hn
+  exact P.not_solvesKW_strictMajority hM (by positivity) <|
+    finite_budget_with_deficit_of_cost hd (by positivity)
+      (by linarith [le_strictMajorityDeficitBound n]) (one_div_mul_eq_div _ _).le
+      (by simpa only [ε, one_div, div_eq_mul_inv, mul_comm, one_mul] using hN n hn)
 
 end Cslib.Communication

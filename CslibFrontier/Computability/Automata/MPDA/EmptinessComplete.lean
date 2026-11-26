@@ -258,9 +258,8 @@ theorem card_add_one_le_openHoles {C : List (HoleChain n Γ)} {t : ℕ} {i : Fin
       rintro ⟨p, hpe, ⟨-, hp⟩, -, hstk, hwn⟩
       obtain ⟨c', hc', f, hf, rfl, hext⟩ := hext_of_same hpe het.le hp hstk hhole hwn
       obtain ⟨g, hg, hge⟩ := (hclosed c' hc' f hf e.1 hext).2 hpend
-      obtain rfl : c' = c := by
-        by_contra hcc
-        exact chains_ne horder hc hc' (Ne.symm hcc) e he g hg hge.symm
+      obtain rfl : c' = c := by_contra fun hcc =>
+        chains_ne horder hc hc' (Ne.symm hcc) e he g hg hge.symm
       have := hmin f hf
       omega
   have hfin : S.Finite := (Set.finite_le_nat t).subset fun q hq => hq.1.2.1
@@ -539,11 +538,9 @@ private theorem isEmpty_eq_false_of_cinv [DecidablePred (· ∈ M.accept)] {K : 
     {w : List (Symbol × Op n Γ)} {f : State} (hf : f ∈ M.accept)
     (h : M.CInv K w f w.length) : M.isEmpty K = false := by
   obtain ⟨μ, C, rs, c, hμ, -, hrun, hst, hcont, hstk, -, -, hne, -, -⟩ := h
-  rw [List.drop_length] at hrun
-  obtain rfl := LTS.MTr.nil_eq _ hrun
+  obtain rfl : c = _ := by simpa using hrun
   obtain rfl := eq_nil_of_stacksOf_eq_empty hne hcont.symm
-  unfold isEmpty isEmptyFrom
-  rw [decide_eq_false_iff_not, not_not]
+  simp only [isEmpty, isEmptyFrom, decide_eq_false_iff_not, not_not]
   exact ⟨μ, (mem_explore fun _ hν => (mem_initialLists.mp hν).1).mpr hμ,
     List.forall₂_nil_left_iff.mp hstk, f, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hf⟩,
     hst ▸ (mem_wellNestedPairs M).mpr (.refl _)⟩
@@ -642,8 +639,7 @@ private theorem cinv_pop {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {t
   cases hreal₀ with
   | nil => simp at hsym₀
   | @cons s₂ _ γ' r hr hγ' =>
-  simp only [List.map_cons, List.cons.injEq] at hsym₀
-  obtain ⟨rfl, hpsr⟩ := hsym₀
+  obtain ⟨rfl, hpsr⟩ := List.cons.inj hsym₀
   have hHS : (s₁, s₂) ∈ M.holeSegments i := mem_holeSegments_iff_realizes.mpr ⟨r, hr⟩
   have hWR : (c₁.state, c₂.state) ∈ M.wellNestedPairs :=
     (mem_wellNestedPairs M).mpr (wellNestedReach_iff.mpr ⟨_, hwn, hwnctl⟩)
@@ -747,12 +743,10 @@ private theorem cinv_hole {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State} {
   obtain ⟨⟨-, hB₂, hB₃, hB₄, hB₅⟩, -⟩ := hd.invariant
   rw [htake_len] at hB₂ hB₄
   -- The old pushes, seen in `w`.
-  have hold : ∀ d ∈ C, ∀ e ∈ d.pushes, e.1 < t ∧ PendingAt w e.1 (t - 1) := by
-    intro d hd' e he
+  have hold : ∀ d ∈ C, ∀ e ∈ d.pushes, e.1 < t ∧ PendingAt w e.1 (t - 1) := fun d hd' e he => by
     obtain ⟨⟨b, hb⟩, hpend⟩ := hB₂ d hd' e he
     have hlt : e.1 < t := htake_len ▸ (List.getElem?_eq_some_iff.mp hb).1
-    refine ⟨hlt, ?_⟩
-    simpa using (pendingAt_append_iff (v := w.drop t) (by omega)).mpr hpend
+    exact ⟨hlt, by simpa using (pendingAt_append_iff (v := w.drop t) (by omega)).mpr hpend⟩
   -- The counting guard.
   have hguard : C.length + 1 ≤ openHoles w t := by
     refine card_add_one_le_openHoles ht hne (fun d hd' e he => ⟨hhole d hd' e he,
@@ -839,12 +833,10 @@ private theorem cinv_length {K : ℕ} {w : List (Symbol × Op n Γ)} {f : State}
       | nop => exact absurd ⟨a, hwt⟩ hnop
       | push i γ =>
         obtain ⟨ht', h'⟩ := cinv_hole hK hwt hwm h
-        have hle' := blockEnd_le_length (i := i) t hlt
-        exact cinv_length hK _ hle' (blockEnd_event t hlt) h'
+        exact cinv_length hK _ (blockEnd_le_length t hlt) (blockEnd_event t hlt) h'
       | pop i γ =>
         obtain ⟨ht', h'⟩ := cinv_pop hwt h
-        have hle' := (wnEnd_spec (w := w) (p := t + 1) (by omega)).2.1
-        exact cinv_length hK _ hle' (wnEnd_event (by omega)) h'
+        exact cinv_length hK _ (wnEnd_spec (by omega)).2.1 (wnEnd_event (by omega)) h'
     · exact h
 termination_by t => w.length - t
 

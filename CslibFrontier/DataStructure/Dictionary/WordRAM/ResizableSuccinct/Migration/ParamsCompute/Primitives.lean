@@ -37,25 +37,15 @@ attribute [local simp] prog_memoryCost_write
 
 /-- Any word width accommodating `225` satisfies `8 ≤ w`. -/
 theorem eight_le_of_fits_225 {w : ℕ} (h225 : Fits w 225) : 8 ≤ w := by
-  by_contra hlt8
-  have hw7 : w ≤ 7 := by omega
-  have hle128 : 2 ^ w ≤ 128 := (Nat.pow_le_pow_right two_pos hw7).trans (by decide)
-  have hlt : 225 < 2 ^ w := h225
-  omega
+  by_contra! hlt8
+  exact absurd (h225.trans_le (Nat.pow_le_pow_right two_pos (Nat.lt_succ_iff.mp hlt8))) (by decide)
 
 /-- Whenever `Fits w 225`, `3 * w + 5` also fits in `w` bits. -/
 theorem fits_three_mul_w_add_five {w : ℕ} (h225 : Fits w 225) : Fits w (3 * w + 5) := by
-  have hw8 : 8 ≤ w := eight_le_of_fits_225 h225
-  change 3 * w + 5 < 2 ^ w
-  have hind : ∀ k, 8 ≤ k → 3 * k + 5 < 2 ^ k := by
-    intro k hk
-    induction k with
-    | zero => omega
-    | succ k ih =>
-      rcases eq_or_ne k 7 with rfl | _
-      · decide
-      · have hk8 := ih (by omega); rw [pow_succ']; omega
-  exact hind w hw8
+  unfold Fits
+  refine Nat.le_induction (by decide) (fun k _ ih => ?_) w (eight_le_of_fits_225 h225)
+  rw [pow_succ']
+  omega
 
 /-- Any header offset `dstMetaBase + k` with `k ≤ 225` fits in `w` bits when
 `dstMetaBase + offCompItems U w N` fits. -/
@@ -80,11 +70,8 @@ theorem clog2_eq_log2_pred_add_one {x : ℕ} (hx : 1 < x) :
   · rw [Nat.clog_le_iff_le_pow one_lt_two]
     have hlt := Nat.lt_pow_succ_log_self one_lt_two (x - 1)
     omega
-  · have hpos : 0 < Nat.clog 2 x := Nat.clog_pos one_lt_two hx
-    have hle_c : x - 1 < 2 ^ Nat.clog 2 x := by
-      have := Nat.le_pow_clog one_lt_two x; omega
-    have hlt_log : Nat.log 2 (x - 1) < Nat.clog 2 x :=
-      (Nat.log_lt_iff_lt_pow one_lt_two (by omega)).mpr hle_c
+  · have hle_c := Nat.le_pow_clog one_lt_two x
+    refine (Nat.log_lt_iff_lt_pow one_lt_two (by omega)).mpr ?_
     omega
 
 /-- Shifted ceiling-to-floor binary logarithm identity `⌈log₂ (m + 1)⌉ = ⌊log₂ m⌋ + 1` for
@@ -109,12 +96,9 @@ private theorem log2CapAux_snd (k rem : ℕ) : (log2CapAux k rem).2 = min k (Nat
   | succ k ih =>
     dsimp only [log2CapAux]
     split_ifs with h1
-    · have hlog : Nat.log 2 rem = Nat.log 2 (rem / 2) + 1 :=
-        Nat.log_of_one_lt_of_le one_lt_two h1
-      rw [ih (rem / 2), hlog]
+    · rw [ih (rem / 2), Nat.log_of_one_lt_of_le one_lt_two h1]
       omega
-    · have hlog0 : Nat.log 2 rem = 0 := Nat.log_of_lt (by omega)
-      simp [hlog0]
+    · simp [Nat.log_of_lt (by omega : rem < 2)]
 
 private theorem log2CapAux_step (k rem acc : ℕ) :
     let next := if 1 < rem then (rem / 2, acc + 1) else (rem, acc)
@@ -136,8 +120,6 @@ private theorem clientState_log2StepProg (x : ℕ × (ℕ × ℕ)) (s : Memory.S
   rcases x with ⟨hdrAddr, ⟨rem, acc⟩⟩
   dsimp only [log2StepProg]
   rw [StateTransitionSpec.clientState_bind]
-  have hs0 : (Memory.spec 0).clientState s (Memory.read hdrAddr) = s := rfl
-  rw [hs0]
   split_ifs <;> rfl
 
 private theorem validHistory_log2StepProg {w hdrAddr rem acc : ℕ} {s : Memory.State}
@@ -560,8 +542,8 @@ theorem writeTwoBlock4Fin_spec {w n : ℕ} (base : ℕ) (g : Fin n → ℕ) (off
     writeBlock4Prog_spec (base + 4) (g ⟨off + 4, by omega⟩) (g ⟨off + 5, by omega⟩)
       (g ⟨off + 6, by omega⟩) (g ⟨off + 7, by omega⟩) (s := s1)
       (by omega) (hfit_end.of_le (by omega)) (hg _) (hg _) (hg _) (hg _)
-  have hs'_eq : s' = (Memory.spec 0).clientState s1 (writeBlock4Prog (base + 4, b1)) := by
-    dsimp only [s', prog]; rw [StateTransitionSpec.clientState_bind]
+  have hs'_eq : s' = (Memory.spec 0).clientState s1 (writeBlock4Prog (base + 4, b1)) :=
+    StateTransitionSpec.clientState_bind ..
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · dsimp only [prog]; rw [validHistory_bind']; exact ⟨hv0, hv1⟩
   · rw [hs'_eq, hfr1, hfr0]
@@ -601,18 +583,15 @@ theorem writeTwoBlock4FinRet_spec {w n : ℕ} (base : ℕ) (g : Fin n → ℕ) (
     writeTwoBlock4Fin_spec base g off hoff hfr hfit_end hg
   have hbind : prog =
       (writeBlock4Prog (base, b0) >>= fun _ => writeBlock4Prog (base + 4, b1)) >>=
-        fun _ => pure ret := by
-    dsimp only [prog]; rw [bind_assoc]
+        fun _ => pure ret := bind_assoc ..
   have hs'_eq : s' = (Memory.spec 0).clientState s
       (writeBlock4Prog (base, b0) >>= fun _ => writeBlock4Prog (base + 4, b1)) := by
     dsimp only [s']; rw [hbind, StateTransitionSpec.clientState_bind,
       StateTransitionSpec.clientState_pure]
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-  · rw [hbind, validHistory_bind']; exact ⟨hv, trivial⟩
-  · rw [hbind, prog_clientResult_bind, prog_clientResult_pure]
-  · rw [hs'_eq]; exact hfr'
-  · intro j hj; rw [hs'_eq]; exact hmem' j hj
-  · intro a ha; rw [hs'_eq]; exact hframe' a ha
-  · rw [hbind, Realization.memoryCost_bind', memoryCost_pure, hc]
+  refine ⟨?_, by rw [hbind, prog_clientResult_bind, prog_clientResult_pure],
+    hs'_eq ▸ hfr', fun j hj => hs'_eq ▸ hmem' j hj, fun a ha => hs'_eq ▸ hframe' a ha,
+    by rw [hbind, Realization.memoryCost_bind', memoryCost_pure, hc]⟩
+  rw [hbind, validHistory_bind']
+  exact ⟨hv, trivial⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct.ParamsComputeAux

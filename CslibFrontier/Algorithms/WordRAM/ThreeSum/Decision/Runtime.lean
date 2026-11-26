@@ -92,10 +92,11 @@ theorem packed_side_eventually_le_rpow (κ : ℕ) {ε : ℝ} (hε : 0 < ε) :
   have hsq : (t : ℝ) ^ 2 ≤ ((n : ℝ) ^ (1 / 2 + ε : ℝ)) ^ 2 := by
     have hmul := mul_le_mul_of_nonneg_left hlog (Nat.cast_nonneg n)
     push_cast at hsR hmul
-    refine (by nlinarith only [hsR, hmul] : (t : ℝ) ^ 2 ≤ n * (n : ℝ) ^ (2 * ε)).trans_eq ?_
-    symm
-    rw [← Real.rpow_natCast, ← Real.rpow_mul (by positivity),
-      show (1 / 2 + ε) * (2 : ℕ) = 1 + 2 * ε by ring, Real.rpow_add (by positivity), Real.rpow_one]
+    have hexp : (1 / 2 + ε) * (2 : ℕ) = 1 + 2 * ε := by push_cast; ring
+    have hpow : (t : ℝ) ^ 2 ≤ n * (n : ℝ) ^ (2 * ε) := by nlinarith only [hsR, hmul]
+    refine hpow.trans_eq (Eq.symm ?_)
+    rw [← Real.rpow_natCast, ← Real.rpow_mul (by positivity), hexp,
+      Real.rpow_add (by positivity), Real.rpow_one]
   exact (sq_le_sq₀ (Nat.cast_nonneg t) (by positivity)).mp hsq
 
 /-- The actual native emitted-node allowance has the same degree-seven logarithmic estimate
@@ -162,14 +163,11 @@ theorem preprocessing_eventually_le_rpow (κ : ℕ) {a : ℝ} (ha : 3 / 2 < a) :
       _ ≤ K * n * t * (Nat.log 2 (n + 2) + 1) ^ 13 := by gcongr; exact Nat.le_succ _
   have hpR := (Nat.cast_le (α := ℝ)).mpr hp'
   have hm := mul_le_mul_of_nonneg_left hlog (show (0 : ℝ) ≤ (n : ℝ) * t by positivity)
-  have hp'' : (ChanHe.Preprocessing.cost κ n : ℝ) ≤
-      (n : ℝ) * (n : ℝ) ^ (1 / 2 + ε : ℝ) * (n : ℝ) ^ ε := by
-    push_cast at hpR hm
-    have hsmall : (ChanHe.Preprocessing.cost κ n : ℝ) ≤
-        (n : ℝ) * t * (n : ℝ) ^ ε := by nlinarith only [hpR, hm]
-    exact hsmall.trans (by gcongr)
+  push_cast at hpR hm
+  have hsmall : (ChanHe.Preprocessing.cost κ n : ℝ) ≤ (n : ℝ) * t * (n : ℝ) ^ ε := by
+    nlinarith only [hpR, hm]
   calc
-    _ ≤ (n : ℝ) * (n : ℝ) ^ (1 / 2 + ε : ℝ) * (n : ℝ) ^ ε := hp''
+    _ ≤ (n : ℝ) * (n : ℝ) ^ (1 / 2 + ε : ℝ) * (n : ℝ) ^ ε := hsmall.trans (by gcongr)
     _ = (n : ℝ) ^ (1 + (1 / 2 + ε) + ε : ℝ) := by
       rw [Real.rpow_add (by positivity) (1 + (1 / 2 + ε) : ℝ) ε,
         Real.rpow_add (by positivity) (1 : ℝ) (1 / 2 + ε : ℝ), Real.rpow_one]
@@ -201,22 +199,20 @@ theorem exists_cost_bound {r : ℕ} (c : Host.Callee r) {δ a : ℝ}
       preprocessing_eventually_le_rpow κ hpre] with n hnN hn hq ht hpp
     let t := Host.sideLength (instanceLength κ n)
     let T := c.time t (2 * (n + 2) ^ E + 1)
-    have ht1 : (1 : ℝ) ≤ t := by
-      exact_mod_cast (show 1 ≤ t by dsimp only [t, Host.sideLength]; omega)
+    have ht1 : (1 : ℝ) ≤ t := mod_cast (show 1 ≤ t by dsimp only [t, Host.sideLength]; omega)
     have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast (by omega : 1 ≤ n)
     have ht0 : (0 : ℝ) < t := by linarith
     change (t : ℝ) ≤ (n : ℝ) ^ (1 / 2 + ε : ℝ) at ht
     have hb : (T : ℝ) ≤ C * (t : ℝ) ^ (3 - δ) := htime n hnN
-    have hpow : (t : ℝ) ^ (4 - δ) =
-        (t : ℝ) * (t : ℝ) ^ (3 - δ) := by
-      rw [show 4 - δ = 1 + (3 - δ) by ring, Real.rpow_add ht0, Real.rpow_one]
+    have hpow : (t : ℝ) ^ (4 - δ) = (t : ℝ) * (t : ℝ) ^ (3 - δ) := by
+      have h4 : 4 - δ = 1 + (3 - δ) := by ring
+      rw [h4, Real.rpow_add ht0, Real.rpow_one]
     have hT : 2 * (t : ℝ) * T ≤ 2 * C * (t : ℝ) ^ (4 - δ) :=
       calc
         _ ≤ 2 * (t : ℝ) * (C * (t : ℝ) ^ (3 - δ)) := by gcongr
         _ = _ := by rw [hpow]; ring
-    have hcube : (t : ℝ) ^ 3 ≤ (t : ℝ) ^ (4 - δ) := by
-      rw [← Real.rpow_natCast]
-      exact Real.rpow_le_rpow_of_exponent_le ht1 (by norm_num; linarith)
+    have hcube : (t : ℝ) ^ 3 ≤ (t : ℝ) ^ (4 - δ) :=
+      Real.rpow_ofNat (t : ℝ) 3 ▸ Real.rpow_le_rpow_of_exponent_le ht1 (by linarith)
     have hc : ((Host.callerTime (instanceLength κ n) T + 12 : ℕ) : ℝ) ≤
         2 * (t : ℝ) * T + 355 * (t : ℝ) ^ 3 := mod_cast callerTime_add_twelve_le _ T
     have hcall : (Host.callerTime (instanceLength κ n) T + 12 : ℕ) ≤

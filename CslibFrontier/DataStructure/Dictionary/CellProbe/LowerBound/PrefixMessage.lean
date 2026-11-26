@@ -83,18 +83,15 @@ private theorem decodeDict_modeCandidateOps_eq (withQueries : Bool) {U V n t₀ 
   let step₀ := n + stride * t₀
   let pref_bef := (s.modeOps withQueries).take step₀
   obtain ⟨hvh, hlen, hst⟩ := validHistory_and_run_modeCandidateOps withQueries s ht₀ hB hdisj
-  have hpost_eq : (D_det.runInterval step₀ (memAt D_det (s.modeOps withQueries) step₀)
-      (s.modeCandidateOps withQueries t₀ m ht₀ B hB)).2 =
-      (D_det.runSeq (pref_bef ++ s.modeCandidateOps withQueries t₀ m ht₀ B hB)).2 := by
-    symm; dsimp only [memAt, pref_bef, step₀]
+  have hpost_eq : (D_det.runSeq (pref_bef ++ s.modeCandidateOps withQueries t₀ m ht₀ B hB)).2 =
+      (D_det.runInterval step₀ (memAt D_det (s.modeOps withQueries) step₀)
+        (s.modeCandidateOps withQueries t₀ m ht₀ B hB)).2 := by
     rw [IndexedScheme.runSeq, IndexedScheme.runInterval_append, Nat.zero_add,
       s.length_take_modeOps withQueries (Nat.le_of_add_right_le ht₀)]
     rfl
-  have hle : (pref_bef ++ s.modeCandidateOps withQueries t₀ m ht₀ B hB).length ≤
-      modeHorizon withQueries n := by
-    rw [hlen]; exact Nat.add_le_add_left (Nat.mul_le_mul_left _ ht₀) n
-  have hdec := decodeDict_runSeq_eq hcorr hvh hle
-  rw [hlen, ← hpost_eq] at hdec
+  have hdec := decodeDict_runSeq_eq hcorr hvh
+    (hlen.trans_le (Nat.add_le_add_left (Nat.mul_le_mul_left _ ht₀) n))
+  rw [hlen, hpost_eq] at hdec
   exact hdec.trans hst
 
 private theorem dom_eq_of_ite_some_eq {α β : Type*} [DecidableEq α] {S₁ S₂ : Finset α}
@@ -161,14 +158,13 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
   have hpW_gt : (1 / 2) * (U : ℝ) ^ (-γ * (m : ℝ)) < ((μ_g.map W) true).toReal := by
     change (U : ℝ) ^ (-γ * (m : ℝ)) < ((μ_g.map W_cons) true).toReal at hgt; linarith
   have hpW_pos : 0 < ((μ_g.map W) true).toReal := lt_trans (by positivity) hpW_gt
-  have hW0 : (μ_g.map W) true ≠ 0 := fun h0 => by
-    simp only [h0, ENNReal.toReal_zero, lt_self_iff_false] at hpW_pos
+  have hW0 : (μ_g.map W) true ≠ 0 := fun h0 => by simp [h0] at hpW_pos
   have hlog_pW : -γ * (m : ℝ) * Real.logb 2 U - 1 < Real.logb 2 (((μ_g.map W) true).toReal) := by
-    have hlog := Real.logb_lt_logb (by norm_num : (1 : ℝ) < 2) (by positivity) hpW_gt
-    rw [Real.logb_mul (by norm_num) (Real.rpow_pos_of_pos hU_pos _).ne',
-      show (1 / 2 : ℝ) = (2 : ℝ)⁻¹ by norm_num, Real.logb_inv,
-      Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2),
-      Real.logb_rpow_eq_mul_logb_of_pos hU_pos] at hlog
+    have h12 : (1 : ℝ) < 2 := by norm_num
+    have hhalf : (1 / 2 : ℝ) = (2 : ℝ)⁻¹ := by norm_num
+    have hlog := Real.logb_lt_logb h12 (by positivity) hpW_gt
+    rw [Real.logb_mul (by norm_num) (Real.rpow_pos_of_pos hU_pos _).ne', hhalf, Real.logb_inv,
+      Real.logb_self_eq_one h12, Real.logb_rpow_eq_mul_logb_of_pos hU_pos] at hlog
     linarith
   let p : PMF Ω := PMF.conditionalSnd (μ_g.map fun sb => (W sb, sb)) true
   have hp_supp (sb : Ω) (hsb : sb ∈ p.support) :
@@ -178,19 +174,18 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
       rw [_root_.PMF.map_comp]; exact (_root_.PMF.mem_support_iff _ _).mpr hW0
     have hp_ne : p sb ≠ 0 := (_root_.PMF.mem_support_iff p sb).mp hsb
     rw [PMF.conditionalSnd_apply _ _ hW_mem] at hp_ne
-    have hmap_ne : (μ_g.map fun x => (W x, x)) (true, sb) ≠ 0 :=
-      fun h0 => hp_ne (by simp only [h0, ENNReal.zero_div])
     obtain ⟨x, hx_supp, hx_eq⟩ := (_root_.PMF.mem_support_map_iff _ _ (true, sb)).mp
-      ((_root_.PMF.mem_support_iff _ _).mpr hmap_ne)
+      ((_root_.PMF.mem_support_iff (μ_g.map fun x => (W x, x)) (true, sb)).mpr
+        fun h0 => hp_ne (by simp only [h0, ENNReal.zero_div]))
     obtain ⟨hWx, hxsb⟩ := Prod.mk.inj hx_eq
     subst hxsb
     have hW_true := of_decide_eq_true hWx
     have hx_Fg : x.2 ∈ ctx.Fg x.1 := by
-      have hμ_ne : μ_g x ≠ 0 := (_root_.PMF.mem_support_iff μ_g x).mp hx_supp
       by_contra hnFg
       have h0 : (μ_g x).toReal = 0 := by
         dsimp only [μ_g]; rw [toReal_innerPoolDist_apply, ite_eq_right hnFg]
-      exact (ENNReal.toReal_pos hμ_ne (PMF.apply_ne_top μ_g x)).ne' h0
+      exact (ENNReal.toReal_pos ((_root_.PMF.mem_support_iff μ_g x).mp hx_supp)
+        (PMF.apply_ne_top μ_g x)).ne' h0
     exact ⟨hx_Fg, hW_true.1, hW_true.2⟩
   -- Define execution objects and 6-piece codeword on Ω
   let ht₀_n : t₀ ≤ n := Nat.le_of_add_right_le ht₀
@@ -314,9 +309,8 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
       Finset.univ.image (segDeletedKeys sb₁.1.keys sb₁.1.delPerm t₀ m ht₀)
     let KD₂ := sb₂.1.activeKeys t₀ ht₀_n \
       Finset.univ.image (segDeletedKeys sb₂.1.keys sb₂.1.delPerm t₀ m ht₀)
-    have hdecA_eq := congrArg (decodeDict D_det step_end) hCA
-    rw [hdec_A₁, hdec_A₂] at hdecA_eq
-    obtain ⟨hKDA_eq, hkv_KDA_val⟩ := dom_eq_of_ite_some_eq hdecA_eq
+    obtain ⟨hKDA_eq, hkv_KDA_val⟩ := dom_eq_of_ite_some_eq
+      (hdec_A₁ ▸ hdec_A₂ ▸ congrArg (decodeDict D_det step_end) hCA)
     have hKD_eq : KD₁ = KD₂ := by
       dsimp only [KD₁, KD₂]
       rw [← Finset.union_sdiff_cancel_right
@@ -345,9 +339,8 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
           (ops_B sb₁) hj).symm.trans ((congrFun hCB j).trans
             (D_det.nextMem_runInterval_eq_of_notMem_probedCellsInterval step₀ (C_bef sb₂)
               (ops_B sb₂) (hSB ▸ hj : j ∉ S_B sb₂)))
-    have hdec_bef_eq := congrArg (decodeDict D_det step₀) hCbef
-    rw [hdec_bef₁, hdec_bef₂] at hdec_bef_eq
-    obtain ⟨hK_eq, hkv_K_val⟩ := dom_eq_of_ite_some_eq hdec_bef_eq
+    obtain ⟨hK_eq, hkv_K_val⟩ := dom_eq_of_ite_some_eq
+      (hdec_bef₁ ▸ hdec_bef₂ ▸ congrArg (decodeDict D_det step₀) hCbef)
     refine ⟨by simp only [msg, hm₁, hm₂, hm₃, hm₄, hm₅, hm₆], Prod.ext hKD_eq ?_⟩
     dsimp only [target8]
     refine ite_mem_congr _
@@ -379,19 +372,17 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
     have hc_pos : (0 : ℝ) < ((U - 3 * m).choose (n - m) : ℝ) := by
       exact_mod_cast Nat.choose_pos (by omega)
     have hv_pos : (0 : ℝ) < ((V ^ (n + 2 * m - g) : ℕ) : ℝ) := by exact_mod_cast Nat.pow_pos hV
-    have hM_split : Real.logb 2 (M_nat : ℝ) =
-        Real.logb 2 ((U - 3 * m).choose (n - m)) + ((n + 2 * m - g : ℕ) : ℝ) * Real.logb 2 V := by
-      dsimp only [M_nat]
-      rw [Nat.cast_mul, Real.logb_mul hc_pos.ne' hv_pos.ne', Nat.cast_pow, Real.logb_pow]
     have hchoose_gap := logb_choose_sub_logb_sub_three_mul_choose_sub_le hU
       (by omega : 1 ≤ m) (by omega : m ≤ n)
     have hexp_ge : (n : ℝ) + (3 / 2) * (m : ℝ) ≤ ((n + 2 * m - g : ℕ) : ℝ) := by
       have : 2 * (g : ℝ) ≤ (m : ℝ) := by exact_mod_cast (by omega : 2 * g ≤ m)
       rw [Nat.cast_sub (by omega), Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat]
       linarith
-    have hlogV_nn : 0 ≤ Real.logb 2 V := Real.logb_nonneg (by norm_num) (by exact_mod_cast hV)
-    have hv_gap := mul_le_mul_of_nonneg_right hexp_ge hlogV_nn
-    rw [hM_split, benchmarkBits_eq]
+    have hv_gap := mul_le_mul_of_nonneg_right hexp_ge
+      (Real.logb_nonneg (b := 2) (x := V) (by norm_num) (by exact_mod_cast hV))
+    dsimp only [M_nat]
+    rw [benchmarkBits_eq, Nat.cast_mul, Real.logb_mul hc_pos.ne' hv_pos.ne',
+      Nat.cast_pow, Real.logb_pow]
     linarith
   -- Pointwise length bound on p.support
   have hlen_pt (sb : Ω) (hsb : sb ∈ p.support) :
@@ -417,10 +408,8 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
       refine (clog_two_lt_logb_add_one (pow_pos (by omega : 0 < V) m)).le.trans ?_
       rw [Nat.cast_pow, Real.logb_pow]
     have hm2 : ((m₂ sb).length : ℝ) ≤ benchmarkBits U V n + R := by
-      dsimp only [m₂]
-      rw [length_encodeFintype, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin,
-        ← pow_mul, Nat.clog_pow _ _ (by norm_num), mul_comm]
-      exact hspace
+      simpa only [m₂, length_encodeFintype, Fintype.card_fun, Fintype.card_fin, ← pow_mul,
+        Nat.clog_pow _ _ Nat.one_lt_two, mul_comm] using hspace
     have hm3 : ((m₃ sb).length : ℝ) ≤ (m : ℝ) * t := by
       simpa only [m₃, SB_sim, C_mix, length_encodeRestr_bool, hSB_eq] using hSB_cap
     have hm4 : ((m₄ sb).length : ℝ) ≤ (m : ℝ) * t := by

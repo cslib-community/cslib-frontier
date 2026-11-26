@@ -8,7 +8,10 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.MvPolynomial.CriticalSystem
+public import CslibFrontier.Foundations.Data.MvPolynomial.Substitution
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.MultiplicationMatrix
+public import Mathlib.Algebra.MvPolynomial.Equiv
+public import Mathlib.Algebra.MvPolynomial.Rename
 public import Mathlib.LinearAlgebra.Matrix.Charpoly.Basic
 public import Mathlib.Algebra.Polynomial.Eval.Defs
 
@@ -22,6 +25,8 @@ is a unit, and the two ideals can differ when that scalar vanishes. The monic ch
 polynomial has degree equal to the quotient dimension over a nontrivial coefficient ring.
 With a symbolic integer parameter, evaluating the coefficients gives the characteristic
 polynomial of the corresponding normalized quotient over the target ring.
+The relative construction retains a whole parameter block in the coefficients, so
+specialization gives the critical-value polynomial for an individual witness fiber.
 
 Adapted from `ParametricCriticalPolynomial` and `ParametricCriticalSpecialization` in
 lean-canny at `970f28a5ecefc1327402ade16c068aa4b1b2c183`. Specialization uses the coefficient-map
@@ -102,5 +107,59 @@ theorem parametricValuePolynomial_map_evalRingHom (hell : 1 ≤ ell)
     RingHom.ext fun _ => Polynomial.eval₂_id
   simpa only [Int.castRingHom_int, heval, MvPolynomial.map_id, Int.cast_id] using
     parametricValuePolynomial_map_eval₂ hell F hF u
+
+section Relative
+
+variable {κ : Type*}
+
+/-- Regard the parameters as coefficients and reserve `none` for the penalty variable. -/
+@[expose] noncomputable def relativeSource (F : MvPolynomial (Fin n ⊕ κ) ℤ) :
+    MvPolynomial (Fin n) (MvPolynomial (Option κ) ℤ) :=
+  (sumRingEquiv ℤ (Fin n) κ F).map (rename some).toRingHom
+
+/-- Passing the parameters to the coefficients does not raise the witness-variable degree. -/
+theorem totalDegree_relativeSource_le (F : MvPolynomial (Fin n ⊕ κ) ℤ) :
+    (relativeSource F).totalDegree ≤ F.totalDegree := by
+  unfold relativeSource
+  exact (totalDegree_map_le _ _).trans (totalDegree_sumRingEquiv_le F)
+
+/-- The relative critical-value polynomial with zero centers. Its coefficients retain
+the penalty variable at `none` and the original parameters at `some i`. -/
+@[expose] noncomputable def relativeValuePolynomial (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin n ⊕ κ) ℤ) (hF : F.totalDegree ≤ ell) :
+    Polynomial (MvPolynomial (Option κ) ℤ) :=
+  valuePolynomial hell (fun _ => 0) (X none) (relativeSource F)
+    ((totalDegree_relativeSource_le F).trans hF)
+
+private theorem relativeSource_map (F : MvPolynomial (Fin n ⊕ κ) ℤ) (u : T) (x : κ → T) :
+    (relativeSource F).map (eval₂Hom (Int.castRingHom T) (fun i => i.elim u x)) =
+      (sumRingEquiv ℤ (Fin n) κ F).map (eval₂Hom (Int.castRingHom T) x) := by
+  have hcomp : (eval₂Hom (Int.castRingHom T) (fun i : Option κ => i.elim u x)).comp
+      (rename some).toRingHom = eval₂Hom (Int.castRingHom T) x := by
+    apply RingHom.ext
+    intro p
+    change eval₂Hom (Int.castRingHom T) (fun i : Option κ => i.elim u x) (rename some p) = _
+    have hcoords : (fun i : Option κ => i.elim u x) ∘ some = x := funext fun _ => rfl
+    rw [eval₂Hom_rename, hcoords]
+  rw [relativeSource, map_map, hcomp]
+
+/-- Specializing the penalty and parameter coordinates gives the critical-value polynomial
+of the fiber with those fixed parameters. Adapted from lean-canny's
+`RelativeCriticalPolynomial` and `RelativeCriticalSpecialization` at
+`970f28a5ecefc1327402ade16c068aa4b1b2c183`. -/
+theorem relativeValuePolynomial_map (hell : 1 ≤ ell) (F : MvPolynomial (Fin n ⊕ κ) ℤ)
+    (hF : F.totalDegree ≤ ell) (u : T) (x : κ → T) :
+    (relativeValuePolynomial hell F hF).map (eval₂Hom (Int.castRingHom T) (fun i => i.elim u x)) =
+      valuePolynomial hell (fun _ => 0) u
+        ((sumRingEquiv ℤ (Fin n) κ F).map (eval₂Hom (Int.castRingHom T) x))
+        ((totalDegree_map_le _ _).trans ((totalDegree_sumRingEquiv_le F).trans hF)) := by
+  let φ := eval₂Hom (Int.castRingHom T) (fun i : Option κ => i.elim u x)
+  have hu : φ (X none) = u := by simp [φ]
+  change (valuePolynomial hell (fun _ => 0) (X none) (relativeSource F) _).map φ = _
+  simpa only [map_zero, hu, φ, relativeSource_map] using
+    valuePolynomial_map φ hell (fun _ => 0) (X none) (relativeSource F)
+      ((totalDegree_relativeSource_le F).trans hF)
+
+end Relative
 
 end MvPolynomial.CriticalSystem

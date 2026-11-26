@@ -358,8 +358,7 @@ theorem normalizedPotentialSucc_false_zeroVertex (n : α → ℕ) (P S : α × L
 theorem normalizedPotentialPred_zeroVertex (n : α → ℕ) (P S : α × List Bool → List Bool)
     (V : α × List Bool → ℕ) (a : α) :
     normalizedPotentialPred n P S V (a, zeroVertex (normalizedPotentialWidth n a)) =
-      zeroVertex (normalizedPotentialWidth n a) := by
-  simp
+      zeroVertex (normalizedPotentialWidth n a) := rfl
 
 theorem normalizedPotentialSucc_zeroVertex (n : α → ℕ) (P S : α × List Bool → List Bool)
     (V : α × List Bool → ℕ) (a : α) :
@@ -368,8 +367,7 @@ theorem normalizedPotentialSucc_zeroVertex (n : α → ℕ) (P S : α × List Bo
   simp
 
 theorem normalizedPotential_zeroVertex (n : α → ℕ) (V : α × List Bool → ℕ) (a : α) :
-    normalizedPotential V (a, zeroVertex (normalizedPotentialWidth n a)) = 0 := by
-  simp
+    normalizedPotential V (a, zeroVertex (normalizedPotentialWidth n a)) = 0 := rfl
 
 /-- The normalized family satisfies `LineSourcePromise` on every instance `a`, regardless of whether
 the original family satisfies `LineSourcePromise` or has width `n a = 0`. -/
@@ -419,9 +417,8 @@ theorem length_normalizedPotentialPred
   rcases w with _ | ⟨_ | _, u⟩
   · simp [normalizedPotentialWidth] at hw
   · simpa [normalizedPotentialWidth] using hw
-  · have hu : u.length = n a := by simpa [normalizedPotentialWidth] using hw
-    by_cases huz : u = zeroVertex (n a) <;>
-      simp [huz, normalizedPotentialPred, normalizedPotentialWidth, length_potentialPred hP hu]
+  · rw [normalizedPotentialPred_true]
+    split_ifs <;> simp [length_potentialPred hP (by simpa using hw)]
 
 /-- `normalizedPotentialSucc` preserves the vertex bit-length `n a + 1`. -/
 theorem length_normalizedPotentialSucc
@@ -430,11 +427,9 @@ theorem length_normalizedPotentialSucc
     (normalizedPotentialSucc n P S V (a, w)).length = normalizedPotentialWidth n a := by
   rcases w with _ | ⟨_ | _, u⟩
   · simp [normalizedPotentialWidth] at hw
-  · have hu : u.length = n a := by simpa [normalizedPotentialWidth] using hw
-    by_cases huz : u = zeroVertex (n a) <;>
-      simp [huz, normalizedPotentialSucc, normalizedPotentialWidth, hu]
-  · simp [normalizedPotentialWidth,
-      length_potentialSucc hS (by simpa [normalizedPotentialWidth] using hw)]
+  · rw [normalizedPotentialSucc_false]
+    split_ifs <;> simp [hw]
+  · simp [length_potentialSucc hS (by simpa using hw)]
 
 /-- Binary length growth of `normalizedPotential`: incrementing `V (a, w.tail)` adds at most `1` bit
 to its binary representation. -/
@@ -497,12 +492,9 @@ theorem hasPotentialOut_normalized_true (n : α → ℕ) (P S : α × List Bool 
   · simp [hasPotentialOut, hasOut, potentialSucc_of_false hout]
   · have hin := hasPotentialIn_of_hasPotentialOut hout
     obtain ⟨hPS, hSu, hS0, hV⟩ := hasPotentialOut_eq_true_iff.mp hout
-    rw [hasPotentialOut_eq_true_iff]
-    simp only [normalizedPotentialSucc_true, potentialSucc_of_true hout,
-      normalizedPotentialPred_true_of_ne hS0, potentialPred_of_true hin, hPS, ne_eq,
-      List.cons.injEq, true_and, normalizedPotentialWidth_apply, zeroVertex_succ, reduceCtorEq,
-      false_and, not_false_eq_true, normalizedPotential_true]
-    exact ⟨hSu, Nat.succ_lt_succ hV⟩
+    simp [hasPotentialOut_eq_true_iff, potentialSucc_of_true hout,
+      normalizedPotentialPred_true_of_ne hS0, potentialPred_of_true hin, zeroVertex_succ,
+      hPS, hSu, hV]
 
 theorem hasPotentialIn_normalized_true_zeroVertex (n : α → ℕ) (P S : α × List Bool → List Bool)
     (V : α × List Bool → ℕ) (a : α) :
@@ -519,12 +511,8 @@ theorem hasPotentialIn_normalized_true_of_ne (hu : u ≠ zeroVertex (n a)) :
   · simp [hasPotentialIn, hasIn, normalizedPotentialPred_true_of_ne hu, potentialPred_of_false hin]
   · have hout := hasPotentialOut_of_hasPotentialIn hin
     obtain ⟨hSP, hPu, -, hV⟩ := hasPotentialIn_eq_true_iff.mp hin
-    rw [hasPotentialIn_eq_true_iff]
-    simp only [normalizedPotentialPred_true_of_ne hu, potentialPred_of_true hin,
-      normalizedPotentialSucc_true, potentialSucc_of_true hout, hSP, ne_eq, List.cons.injEq,
-      true_and, normalizedPotentialWidth_apply, zeroVertex_succ, reduceCtorEq, false_and,
-      not_false_eq_true, normalizedPotential_true]
-    exact ⟨hPu, Nat.succ_lt_succ hV⟩
+    simp [hasPotentialIn_eq_true_iff, normalizedPotentialPred_true_of_ne hu,
+      potentialPred_of_true hin, potentialSucc_of_true hout, hSP, hPu, hV]
 
 /-- No active edge of the normalized family is pruned: `potentialPred` agrees with
 `normalizedPotentialPred` on every non-empty bit string `b :: u`. -/
@@ -536,8 +524,7 @@ theorem potentialPred_normalized_cons (b : Bool) (u : List Bool) :
   cases b
   · exact potentialPred_of_false (hasPotentialIn_normalized_false n P S V a u)
   · by_cases huz : u = zeroVertex (n a)
-    · subst huz
-      exact potentialPred_of_true (hasPotentialIn_normalized_true_zeroVertex n P S V a)
+    · exact huz.symm ▸ potentialPred_of_true (hasPotentialIn_normalized_true_zeroVertex n P S V a)
     · cases hin : hasPotentialIn n P S V a u
       · rw [potentialPred_of_false ((hasPotentialIn_normalized_true_of_ne huz).trans hin),
           normalizedPotentialPred_true_of_ne huz, potentialPred_of_false hin]
@@ -572,8 +559,7 @@ theorem endOfPotentialLineRel_normalized_iff :
   rcases w with _ | ⟨_ | _, u⟩
   · simp [endOfPotentialLineRel, normalizedPotentialWidth]
   · by_cases huz : u = zeroVertex (n a)
-    · subst huz
-      simp [endOfPotentialLineRel, hasPotentialIn_normalized_false,
+    · simp [huz, endOfPotentialLineRel, hasPotentialIn_normalized_false,
         zeroVertex_normalizedPotentialWidth n a ▸ hasPotentialOut_normalized_zeroVertex n P S V a]
     · simp [endOfPotentialLineRel, hasPotentialIn_normalized_false,
         hasPotentialOut_normalized_false_of_ne huz, huz]
@@ -686,7 +672,7 @@ theorem endOfPotentialLineRel_tail_of_promised_normalized
       (normalizedPotentialPred n P S V) (normalizedPotentialSucc n P S V)
       (normalizedPotential V) a w) :
     endOfPotentialLineRel n P S V a w.tail := by
-  obtain ⟨u, rfl, hu⟩ := endOfPotentialLinePromisedRel_normalized_iff.mp h
+  obtain ⟨_, rfl, hu⟩ := endOfPotentialLinePromisedRel_normalized_iff.mp h
   exact hu
 
 /-- Forward witness embedding (`SOPL`): every sink `u` of `(n, P, S, V)` embeds as `true :: u`. -/
@@ -703,7 +689,7 @@ theorem sinkOfPotentialLineRel_tail_of_promised_normalized
       (normalizedPotentialPred n P S V) (normalizedPotentialSucc n P S V)
       (normalizedPotential V) a w) :
     sinkOfPotentialLineRel n P S V a w.tail := by
-  obtain ⟨u, rfl, hu⟩ := sinkOfPotentialLinePromisedRel_normalized_iff.mp h
+  obtain ⟨_, rfl, hu⟩ := sinkOfPotentialLinePromisedRel_normalized_iff.mp h
   exact hu
 
 /-- When `LineSourcePromise n P S a` fails, `normalizedViolationBack` returns the raw violation
@@ -803,8 +789,7 @@ theorem sinkOfPotentialLinePromisedRel_mem_FNP
 theorem computableInPolyTime_normalizedPotentialWidth
     (hn : ComputableInPolyTime n enc encUnary) :
     ComputableInPolyTime (normalizedPotentialWidth n) enc encUnary := by
-  unfold normalizedPotentialWidth
-  fun_prop
+  fun_prop [normalizedPotentialWidth]
 
 theorem computableInPolyTime_normalizedPotentialPred
     (hn : ComputableInPolyTime n enc encUnary)
@@ -812,9 +797,8 @@ theorem computableInPolyTime_normalizedPotentialPred
     (hS : ComputableInPolyTime S (encPair enc encBits) encBits)
     (hV : ComputableInPolyTime V (encPair enc encBits) encNat) :
     ComputableInPolyTime (normalizedPotentialPred n P S V) (encPair enc encBits) encBits := by
-  have hP' := computableInPolyTime_potentialPred hn hP hS hV
-  unfold normalizedPotentialPred
-  fun_prop
+  have := computableInPolyTime_potentialPred hn hP hS hV
+  fun_prop [normalizedPotentialPred]
 
 theorem computableInPolyTime_normalizedPotentialSucc
     (hn : ComputableInPolyTime n enc encUnary)
@@ -822,15 +806,13 @@ theorem computableInPolyTime_normalizedPotentialSucc
     (hS : ComputableInPolyTime S (encPair enc encBits) encBits)
     (hV : ComputableInPolyTime V (encPair enc encBits) encNat) :
     ComputableInPolyTime (normalizedPotentialSucc n P S V) (encPair enc encBits) encBits := by
-  have hS' := computableInPolyTime_potentialSucc hn hP hS hV
-  unfold normalizedPotentialSucc
-  fun_prop
+  have := computableInPolyTime_potentialSucc hn hP hS hV
+  fun_prop [normalizedPotentialSucc]
 
 theorem computableInPolyTime_normalizedPotential
     (hV : ComputableInPolyTime V (encPair enc encBits) encNat) :
     ComputableInPolyTime (normalizedPotential V) (encPair enc encBits) encNat := by
-  unfold normalizedPotential
-  fun_prop
+  fun_prop [normalizedPotential]
 
 theorem computableInPolyTime_normalizedViolationBack
     (hn : ComputableInPolyTime n enc encUnary)
@@ -838,9 +820,8 @@ theorem computableInPolyTime_normalizedViolationBack
     (hS : ComputableInPolyTime S (encPair enc encBits) encBits)
     (hV : ComputableInPolyTime V (encPair enc encBits) encNat) :
     ComputableInPolyTime (normalizedViolationBack n P S V) (encPair enc encBits) encBits := by
-  have hback := computableInPolyTime_potentialLineBack hn hP hS hV
-  unfold normalizedViolationBack
-  fun_prop
+  have := computableInPolyTime_potentialLineBack hn hP hS hV
+  fun_prop [normalizedViolationBack]
 
 /-- Explicit unary bit-width bound for `normalizedPotential V`: if `V` is polynomial-time computable
 in binary, some unary polynomial-time `m'` (`m a + 1`) bounds `normalizedPotential V (a, w) <
@@ -969,7 +950,7 @@ theorem mem_EOPL_iff_promised {R : α → List Bool → Prop} :
       hred.trans (endOfPotentialLineRel_searchReducible_promised_normalized hS_len)⟩
   · rintro ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, hprom, hred⟩
     have heq : endOfPotentialLinePromisedRel n P S V = endOfPotentialLineViolationRel n P S V :=
-      funext fun a => funext fun _ =>
+      funext₂ fun a _ =>
         propext (endOfPotentialLineViolationRel_iff_promised_of_promise (hprom a).1).symm
     exact mem_EOPL_iff_violation.mpr ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, heq ▸ hred⟩
 
@@ -989,12 +970,11 @@ theorem mem_EOPL_iff_promised_bounded {R : α → List Bool → Prop} :
         (∀ a, PromisedPotentialLine n P S V a) ∧
         SearchReducible enc enc R (endOfPotentialLinePromisedRel n P S V) := by
   rw [mem_EOPL_iff_promised]
-  constructor
-  · rintro ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, hprom, hred⟩
-    obtain ⟨m, hm, hB⟩ := exists_potentialBound hn hV
-    exact ⟨hR, n, m, P, S, V, hn, hm, hP, hS, hV, hP_len, hS_len, hB, hprom, hred⟩
-  · rintro ⟨hR, n, _, P, S, V, hn, -, hP, hS, hV, hP_len, hS_len, -, hprom, hred⟩
-    exact ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, hprom, hred⟩
+  refine ⟨?_, fun ⟨hR, n, _, P, S, V, hn, _, hP, hS, hV, hP_len, hS_len, _, hprom, hred⟩ =>
+    ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, hprom, hred⟩⟩
+  rintro ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, hprom, hred⟩
+  obtain ⟨m, hm, hB⟩ := exists_potentialBound hn hV
+  exact ⟨hR, n, m, P, S, V, hn, hm, hP, hS, hV, hP_len, hS_len, hB, hprom, hred⟩
 
 /-- **`SOPL` under the promised source convention.** A search problem `R` lies in `SOPL` iff it lies
 in `FNP` and search-reduces to the pure sink-only relation `sinkOfPotentialLinePromisedRel` of a
@@ -1023,7 +1003,7 @@ theorem mem_SOPL_iff_promised {R : α → List Bool → Prop} :
       hred.trans (sinkOfPotentialLineRel_searchReducible_promised_normalized hS_len)⟩
   · rintro ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, hprom, hred⟩
     have heq : sinkOfPotentialLinePromisedRel n P S V = sinkOfPotentialLineViolationRel n P S V :=
-      funext fun a => funext fun _ =>
+      funext₂ fun a _ =>
         propext (sinkOfPotentialLineViolationRel_iff_promised_of_promise (hprom a).1).symm
     exact mem_SOPL_iff_violation.mpr ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, heq ▸ hred⟩
 
@@ -1041,12 +1021,11 @@ theorem mem_SOPL_iff_promised_bounded {R : α → List Bool → Prop} :
         (∀ a, PromisedPotentialLine n P S V a) ∧
         SearchReducible enc enc R (sinkOfPotentialLinePromisedRel n P S V) := by
   rw [mem_SOPL_iff_promised]
-  constructor
-  · rintro ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, hprom, hred⟩
-    obtain ⟨m, hm, hB⟩ := exists_potentialBound hn hV
-    exact ⟨hR, n, m, P, S, V, hn, hm, hP, hS, hV, hP_len, hS_len, hB, hprom, hred⟩
-  · rintro ⟨hR, n, _, P, S, V, hn, -, hP, hS, hV, hP_len, hS_len, -, hprom, hred⟩
-    exact ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, hprom, hred⟩
+  refine ⟨?_, fun ⟨hR, n, _, P, S, V, hn, _, hP, hS, hV, hP_len, hS_len, _, hprom, hred⟩ =>
+    ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, hprom, hred⟩⟩
+  rintro ⟨hR, n, P, S, V, hn, hP, hS, hV, hP_len, hS_len, hprom, hred⟩
+  obtain ⟨m, hm, hB⟩ := exists_potentialBound hn hV
+  exact ⟨hR, n, m, P, S, V, hn, hm, hP, hS, hV, hP_len, hS_len, hB, hprom, hred⟩
 
 end Computability
 

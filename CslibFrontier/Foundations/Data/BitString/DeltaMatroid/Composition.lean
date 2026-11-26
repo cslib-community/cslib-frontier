@@ -52,10 +52,7 @@ variable {ι κ τ : Type u} [DecidableEq ι] [DecidableEq κ] [DecidableEq τ]
 /-- Direct products preserve one-sided exchange. -/
 theorem IsDeltaMatroid.sumProd {R : Set (ι → Bool)} {S : Set (κ → Bool)}
     (hR : IsDeltaMatroid R) (hS : IsDeltaMatroid S) : IsDeltaMatroid (sumProd R S) where
-  nonempty := by
-    obtain ⟨x, hx⟩ := hR.nonempty
-    obtain ⟨y, hy⟩ := hS.nonempty
-    exact ⟨Sum.elim x y, hx, hy⟩
+  nonempty := hR.nonempty.elim fun x hx => hS.nonempty.elim fun y hy => ⟨Sum.elim x y, hx, hy⟩
   exchange := by
     rintro x y ⟨hxR, hxS⟩ ⟨hyR, hyS⟩ (i | k) hi
     · obtain ⟨j, hj, hf⟩ := hR.exchange hxR hyR hi
@@ -132,10 +129,9 @@ theorem IsDeltaMatroid.tracePair {R : Set ((ι ⊕ Bool) → Bool)}
 omit [DecidableEq ι] in
 private theorem parityOn_pair_extension [Fintype ι] (x : ι → Bool) (b : Bool) :
     parityOn univ (Sum.elim x (fun _ : Bool => b)) = parityOn univ x := by
+  have hpar : parityOn (univ : Finset Bool) (fun _ => b) = false := by cases b <;> decide
   rw [parityOn_univ_sum]
-  have hb : parityOn (univ : Finset Bool) (fun _ => b) = false := by
-    cases b <;> decide
-  simp only [Sum.elim_inl, Sum.elim_inr, hb, Bool.xor_false]
+  simp only [Sum.elim_inl, Sum.elim_inr, hpar, Bool.xor_false]
 
 /-- An eliminated equal pair contributes zero parity. -/
 theorem IsEvenDeltaMatroid.tracePair [Fintype ι] {R : Set ((ι ⊕ Bool) → Bool)}
@@ -166,17 +162,10 @@ omit [DecidableEq ι] [DecidableEq κ] in
 private theorem trace_option (R : Set ((ι ⊕ (Option κ × Bool)) → Bool)) :
     trace (tracePair {x | (fun i => x (optionPairEquiv i)) ∈ R}) = trace R := by
   ext x
-  constructor
-  · rintro ⟨z, b, hz⟩
-    refine ⟨fun k => Option.elim k b z, ?_⟩
-    change _ ∈ R at hz ⊢
-    convert hz using 1
-    ext (i | ⟨_ | k, a⟩) <;> rfl
-  · rintro ⟨z, hz⟩
-    refine ⟨fun k => z (some k), z none, ?_⟩
-    change _ ∈ R at hz ⊢
-    convert hz using 1
-    ext (i | ⟨_ | k, a⟩) <;> rfl
+  refine ⟨fun ⟨z, b, hz⟩ => ⟨fun k => Option.elim k b z, ?_⟩,
+    fun ⟨z, hz⟩ => ⟨fun k => z (some k), z none, ?_⟩⟩
+  · exact (congrArg (· ∈ R) (by ext (i | ⟨_ | k, a⟩) <;> rfl)).mp hz
+  · exact (congrArg (· ∈ R) (by ext (i | ⟨_ | k, a⟩) <;> rfl)).mpr hz
 
 /-- Finite equal-pair elimination preserves exchange. The output must have a witness. -/
 theorem IsDeltaMatroid.trace [Finite κ] {R : Set ((ι ⊕ (κ × Bool)) → Bool)}
@@ -213,13 +202,10 @@ theorem IsDeltaMatroid.trace [Finite κ] {R : Set ((ι ⊕ (κ × Bool)) → Boo
           Sum.elim x (fun p : PEmpty × Bool => z p.1) = fun i => x (E i) := by
         ext (i | ⟨⟨⟩, _⟩)
         rfl
-      have he : BitString.trace T = {x | (fun i => x (E i)) ∈ T} := by
-        ext x
-        simp only [BitString.trace, Set.mem_ofPred_eq]
-        exact ⟨fun ⟨z, hz⟩ => hfun x z ▸ hz,
-          fun hx => ⟨PEmpty.elim, (hfun x PEmpty.elim).symm ▸ hx⟩⟩
-      rw [he]
-      exact hT.reindex E
+      convert hT.reindex E using 1
+      ext x
+      simp only [BitString.trace, Set.mem_ofPred_eq]
+      exact ⟨fun ⟨z, hz⟩ => hfun x z ▸ hz, fun hx => ⟨PEmpty.elim, (hfun x PEmpty.elim).symm ▸ hx⟩⟩
     · intro α _ ih _ β _ T hT hn
       let U : Set (((β ⊕ (α × Bool)) ⊕ Bool) → Bool) :=
         {x | (fun i => x (optionPairEquiv i)) ∈ T}
@@ -280,15 +266,9 @@ omit [DecidableEq ι] [DecidableEq κ] [DecidableEq τ] in
 private theorem comp_eq_trace (R : Set ((ι ⊕ κ) → Bool)) (S : Set ((κ ⊕ τ) → Bool)) :
     comp R S = trace {x | (fun i => x (compEquiv i)) ∈ sumProd R S} := by
   ext x
-  refine exists_congr fun z => ?_
-  change (_ ∈ R ∧ _ ∈ S) ↔ (_ ∈ R ∧ _ ∈ S)
-  have hR : (fun i => Sum.elim x (fun p => z p.1) (compEquiv (.inl i))) =
-      Sum.elim (fun i => x (.inl i)) z := by
-    ext (i | k) <;> rfl
-  have hS : (fun i => Sum.elim x (fun p => z p.1) (compEquiv (.inr i))) =
-      Sum.elim z (fun i => x (.inr i)) := by
-    ext (k | i) <;> rfl
-  rw [hR, hS]
+  exact exists_congr fun z => and_congr
+    (iff_of_eq (congrArg (· ∈ R) (by ext (i | k) <;> rfl)))
+    (iff_of_eq (congrArg (· ∈ S) (by ext (k | i) <;> rfl)))
 
 /-- Proposition 6 of [KazdaKolmogorovRolinek2018], with compatibility explicit.
 Neither input nonemptiness nor nonempty external coordinates imply compatibility. -/

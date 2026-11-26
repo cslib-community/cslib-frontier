@@ -55,10 +55,8 @@ theorem prefixCode_completeLeaf {L : ℕ} (xs : List Term) (h : xs.length = L) :
 theorem leafAt_prefixCode {L : ℕ} (xs : List Term) (h : xs.length = L) :
     BoxTable.leafAt ⟨prefixCode xs, by simpa only [← h] using prefixCode_lt xs⟩ =
       completeLeaf xs h := by
-  have hi : (⟨prefixCode xs, by simpa only [← h] using prefixCode_lt xs⟩ : Fin (10 ^ L)) =
-      Encoding.leafIndex (completeLeaf xs h) := Fin.ext (prefixCode_completeLeaf xs h)
-  rw [hi]
-  exact BoxTable.leafAt_leafIndex _
+  exact (congrArg BoxTable.leafAt (Fin.ext (prefixCode_completeLeaf xs h))).trans
+    (BoxTable.leafAt_leafIndex _)
 
 private theorem compatible_iff_get {L : ℕ} (η : OutStr L) (k : ℕ) (xs : List Term) :
     Compatible η k xs ↔ ∀ i : Fin xs.length, (xs.get i).Contributes (outAt η (k + i.val)) := by
@@ -113,9 +111,8 @@ theorem usedFrom_ofFn_eq_order {L m : ℕ} (η : OutStr L) (τ : Leaf L)
     (hη : (innerSetO η).card = m) (hτ : Leaf.Contributes τ η) :
     (usedFrom η 0 (List.ofFn τ) : ℤ) = order m τ := by
   have hp := P0Levels_subset hτ
-  have hset : (innerSetO η).filter (fun i => τ i ≠ .P0) = innerSetO η \ P0Levels τ := by
-    ext i
-    simp
+  have hset : (innerSetO η).filter (fun i => τ i ≠ .P0) = innerSetO η \ P0Levels τ :=
+    Finset.ext fun _ => by simp
   rw [usedFrom_ofFn, hset, card_sdiff_of_subset hp, hη, order]
   have hc := card_le_card hp
   omega
@@ -176,20 +173,13 @@ theorem starsFrom_ofFn {L : ℕ} (η : OutStr L) (τ : Leaf L) :
       ((η i).IsInner ∧ ∀ j : Fin L, j ≤ i → (η j).IsInner → τ j = .P0) ↔
       i ∈ initialLevels (innerSetO η) (P0LevelsWithin (innerSetO η) τ) := by
     simp only [initialLevels, mem_filter, mem_innerSetO]
-    constructor
-    · rintro ⟨hi, h⟩
-      refine ⟨hi, fun j hj => ?_⟩
-      have hjQ := (mem_sdiff.mp hj).1
-      have hjnot := (mem_sdiff.mp hj).2
-      by_contra hn
-      exact hjnot (mem_filter.mpr ⟨hjQ, h j (le_of_not_gt hn) (mem_innerSetO.mp hjQ)⟩)
-    · rintro ⟨hi, h⟩
-      refine ⟨hi, fun j hji hj => ?_⟩
-      by_contra hn
-      exact not_lt_of_ge hji (h j (mem_sdiff.mpr
-        ⟨mem_innerSetO.mpr hj, by simp [P0LevelsWithin, hn]⟩))
-  simp_rw [hpred]
-  simp
+    refine and_congr_right fun _ => ⟨fun h j hj => ?_, fun h j hji hj => ?_⟩
+    · obtain ⟨hjQ, hjnot⟩ := mem_sdiff.mp hj
+      exact by_contra fun hn =>
+        hjnot (mem_filter.mpr ⟨hjQ, h j (le_of_not_gt hn) (mem_innerSetO.mp hjQ)⟩)
+    · exact by_contra fun hn => not_lt_of_ge hji
+        (h j (mem_sdiff.mpr ⟨mem_innerSetO.mpr hj, by simp [P0LevelsWithin, hn]⟩))
+  simp [hpred]
 
 /-- The actual full-prefix used scalar equals the original leaf's signed order. -/
 theorem completeLeaf_used {L m t : ℕ} {η : OutStr L} {xs : List Term}
@@ -276,10 +266,8 @@ theorem potential_root_le_span {L m t : ℕ} (η : OutStr L)
 theorem possibleLeaves_complete {L t : ℕ} {η : OutStr L} {xs : List Term}
     (hx : Good η t xs) (h : xs.length = L) :
     possibleLeaves η t xs = {completeLeaf xs h} := by
-  have hg : Good η t (List.ofFn (completeLeaf xs h)) := by
-    rw [ofFn_completeLeaf]
-    exact hx
-  simpa only [ofFn_completeLeaf] using possibleLeaves_ofFn (completeLeaf xs h) hg
+  simpa only [ofFn_completeLeaf] using
+    possibleLeaves_ofFn (completeLeaf xs h) ((ofFn_completeLeaf xs h).symm ▸ hx)
 
 /-- A completed task's finite semantic sum is its actual full leaf's value. -/
 theorem sum_possibleLeaves_complete {G : Type*} [AddCommMonoid G] {L t : ℕ}

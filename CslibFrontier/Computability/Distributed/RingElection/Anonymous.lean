@@ -371,11 +371,7 @@ private theorem exec_map_eq_self {n : ℕ} [NeZero n] {α : Type*} {f : α → A
 private theorem update_shift {n : ℕ} {α : Type*} (f : Fin n → α) (a k : Fin n) (v : α)
     (i : Fin n) :
     Function.update (fun j => f (j + k)) a v i = Function.update f (a + k) v (i + k) := by
-  by_cases h : i = a
-  · subst h
-    simp only [Function.update_self]
-  · have hk : i + k ≠ a + k := fun heq => h (add_right_cancel heq)
-    simp only [Function.update_of_ne h, Function.update_of_ne hk]
+  simp only [Function.update_apply, add_right_cancel_iff]
 
 private theorem step_shift_eq {n : ℕ} [NeZero n] (e : AnonEvent n) (k : Fin n)
     (cfg : AnonAsyncConfig n S M) :
@@ -429,9 +425,7 @@ private theorem fin_sub_one_val {n : ℕ} [NeZero n] (i : Fin n) :
   · have hi : i.val < 1 := i.isLt
     have hsub : (i - 1).val < 1 := (i - 1).isLt
     split_ifs <;> omega
-  · have h1 : (1 : Fin n).val = 1 := by
-      rw [Fin.val_one']
-      exact Nat.mod_eq_of_lt (by omega)
+  · have h1 : (1 : Fin n).val = 1 := (Fin.val_one' (n := n)).trans (Nat.mod_eq_of_lt (by omega))
     rw [Fin.sub_def, h1]
     change (n - 1 + i.val) % n = if i.val = 0 then n - 1 else i.val - 1
     split_ifs with hi
@@ -632,18 +626,13 @@ private theorem reflectConfig_involutive {n : ℕ} (cfg : AnonAsyncConfig n S M)
 private theorem update_neg {n : ℕ} {α : Type*} (f : Fin n → α) (a : Fin n) (v : α)
     (i : Fin n) :
     Function.update (fun j => f (-j)) a v (-i) = Function.update f (-a) v i := by
-  by_cases h : i = -a
-  · subst h
-    simp only [neg_neg, Function.update_self]
-  · have h' : -i ≠ a := fun heq => h (by rw [← heq, neg_neg])
-    simp only [Function.update_of_ne h', Function.update_of_ne h, neg_neg]
+  simp only [Function.update_apply, neg_eq_iff_eq_neg, neg_neg]
 
 private theorem step_counter_eq_dual {n : ℕ} [NeZero n] (t : Fin n)
     (cfg : AnonAsyncConfig n S M) :
     P.step ⟨.counter, t⟩ cfg =
       reflectConfig (P.dual.step ⟨.clockwise, -t⟩ (reflectConfig cfg)) := by
-  have hsub : -t - 1 = -(t + 1) := by
-    rw [sub_eq_add_neg, neg_add]
+  have hsub : -t - 1 = -(t + 1) := (sub_eq_add_neg (-t) 1).trans (neg_add t 1).symm
   simp only [step, dual, reflectConfig, hsub, neg_neg]
   cases hq : cfg.chanPred (t + 1) with
   | nil => exact (reflectConfig_involutive cfg).symm
@@ -668,8 +657,7 @@ private theorem step_counter_eq_dual {n : ℕ} [NeZero n] (t : Fin n)
 private theorem enabled_counter_iff_dual {n : ℕ} [NeZero n] (t : Fin n)
     (cfg : AnonAsyncConfig n S M) :
     cfg.Enabled ⟨.counter, t⟩ ↔ (reflectConfig cfg).Enabled ⟨.clockwise, -t⟩ := by
-  have hsub : -t - 1 = -(t + 1) := by
-    rw [sub_eq_add_neg, neg_add]
+  have hsub : -t - 1 = -(t + 1) := (sub_eq_add_neg (-t) 1).trans (neg_add t 1).symm
   simp only [AnonAsyncConfig.Enabled, reflectConfig, hsub, neg_neg]
 
 private theorem mtr_reflect_counter {n : ℕ} [NeZero n] {xs : List (Fin n)}
@@ -677,9 +665,7 @@ private theorem mtr_reflect_counter {n : ℕ} [NeZero n] {xs : List (Fin n)}
     (hmtr : (P.dual.lts n).MTr c₁ (xs.map (AnonEvent.mk .clockwise)) c₂) :
     (P.lts n).MTr (reflectConfig c₁) (xs.map fun i => ⟨.counter, -i⟩) (reflectConfig c₂) := by
   induction xs generalizing c₁ with
-  | nil =>
-    cases hmtr
-    exact LTS.MTr.refl
+  | nil => exact match hmtr with | .refl => .refl
   | cons i is ih =>
     simp only [List.map_cons] at hmtr ⊢
     rcases LTS.MTr.cons_iff.mp hmtr with ⟨cmid, ⟨hen, rfl⟩, hrest⟩
@@ -699,10 +685,8 @@ private theorem exec_counterWave_eq_dual {n : ℕ} [NeZero n] (cfg : AnonAsyncCo
   induction xs generalizing c with
   | nil => exact (reflectConfig_involutive c).symm
   | cons i is ih =>
-    simp only [List.map_cons, exec_cons]
-    have hstep := P.step_counter_eq_dual (-i) c
-    rw [neg_neg] at hstep
-    rw [hstep, ih, reflectConfig_involutive]
+    rw [List.map_cons, List.map_cons, exec_cons, exec_cons, P.step_counter_eq_dual (-i) c,
+      neg_neg, ih, reflectConfig_involutive]
 
 private theorem mtr_counterWave_uniform {n : ℕ} [NeZero n] {cfg : AnonAsyncConfig n S M}
     {s : S} {m : M} {cs mp : List M} (huni : cfg.IsUniform s cs (m :: mp)) :
@@ -798,15 +782,10 @@ theorem exists_rotWave_trace_leaders_card_ne_one {n : ℕ} [NeZero n] (hn : 2 �
       · exact ⟨sched, cfg, s, cs, cp, hmtr, huni, Or.inr ⟨hcs, hcp⟩⟩
   obtain ⟨sched, cfg, s, cs, cp, hmtr, huni, hdone⟩ := hbuild W
   refine ⟨sched, cfg, hmtr, ?_, ?_⟩
-  · rcases hdone with hlen | ⟨hcs, hcp⟩
-    · exact Or.inl hlen
-    · right
-      rintro ⟨dir, t⟩ cfg' ⟨hen, _⟩
-      cases dir with
-      | clockwise =>
-        exact hen ((huni.2.1 (t - 1)).trans hcs)
-      | counter =>
-        exact hen ((huni.2.2 (t + 1)).trans hcp)
+  · exact hdone.imp_right fun ⟨hcs, hcp⟩ ⟨dir, t⟩ _ ⟨hen, _⟩ => by
+      cases dir
+      · exact hen ((huni.2.1 (t - 1)).trans hcs)
+      · exact hen ((huni.2.2 (t + 1)).trans hcp)
   · by_cases hs : P.isLeader s = true <;> simp [configLeaders, huni.1, hs]
     omega
 

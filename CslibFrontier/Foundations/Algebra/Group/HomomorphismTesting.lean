@@ -78,10 +78,8 @@ open Classical in
 
 open Classical in
 /-- Plurality corrections exist without a tie-breaking convention. -/
-theorem exists_plurality (f : G → H) : ∃ φ, IsPlurality f φ := by
-  classical
-  exact ⟨fun x => (Fintype.exists_forall_card_filter_le_card_filter (vote f x)).choose,
-    fun x => (Fintype.exists_forall_card_filter_le_card_filter (vote f x)).choose_spec⟩
+theorem exists_plurality (f : G → H) : ∃ φ, IsPlurality f φ :=
+  Classical.axiomOfChoice fun x => Fintype.exists_forall_card_filter_le_card_filter (vote f x)
 
 open Classical in
 /-- An actual homomorphism passes every test. -/
@@ -114,11 +112,10 @@ theorem collision_lower (f : G → H) (x : G) :
     expect_le_expect (s := univ) (fun b _ => point a b))
   have h₁ : (𝔼 a, 𝔼 b, bad (x + a) b) = rejection f :=
     (Fintype.expect_add_left (fun a => 𝔼 b, bad a b) x).trans (rejection_eq_expect f).symm
-  have h₂ : (𝔼 a, 𝔼 b, bad a (x + b)) = rejection f := by
-    simp_rw [Fintype.expect_add_left]
-    exact (rejection_eq_expect f).symm
-  simp only [expect_sub_distrib, Fintype.expect_const] at h
-  rw [h₁, h₂] at h
+  have h₂ : (𝔼 a, 𝔼 b, bad a (x + b)) = rejection f :=
+    (expect_congr rfl fun a _ => Fintype.expect_add_left (bad a) x).trans
+      (rejection_eq_expect f).symm
+  simp only [expect_sub_distrib, Fintype.expect_const, h₁, h₂] at h
   linarith
 
 open Classical in
@@ -220,26 +217,15 @@ private theorem disagreement_moments (f : G → H) (h : G →+ H) :
     (𝔼 x : G, 𝔼 y : G, a x * a (x + y)) = d ^ 2 ∧
     (𝔼 x : G, 𝔼 y : G, a y * a (x + y)) = d ^ 2 := by
   classical
-  dsimp only
-  let a := fun x => if f x ≠ h x then (1 : ℝ) else 0
-  have hd : (𝔼 x, a x) = (hammingDist f h : ℝ) / Fintype.card G :=
-    (hammingDist_div_eq_expect f h).symm
-  have hab : (𝔼 x : G, 𝔼 y : G, a x * a y) = (𝔼 x, a x) ^ 2 := by
-    simp_rw [← mul_expect, ← expect_mul]
-    ring
-  have hac : (𝔼 x : G, 𝔼 y : G, a x * a (x + y)) = (𝔼 x, a x) ^ 2 := by
-    simp_rw [← mul_expect, Fintype.expect_add_left, ← expect_mul]
-    ring
-  have hbc : (𝔼 x : G, 𝔼 y : G, a y * a (x + y)) = (𝔼 x, a x) ^ 2 := by
-    rw [expect_comm]
-    simp_rw [add_comm, ← mul_expect, Fintype.expect_add_left, ← expect_mul]
-    ring
-  exact ⟨by simpa only [Fintype.expect_const] using hd,
+  intro a d
+  have hd : (𝔼 x, a x) = d := (hammingDist_div_eq_expect f h).symm
+  refine ⟨by simpa only [Fintype.expect_const] using hd,
     by simpa only [Fintype.expect_const] using hd,
-    by change (𝔼 x : G, 𝔼 y : G, a (x + y)) = _
-       simpa only [Fintype.expect_add_left, Fintype.expect_const] using hd,
-    hab.trans (congrArg (· ^ 2) hd), hac.trans (congrArg (· ^ 2) hd),
-    hbc.trans (congrArg (· ^ 2) hd)⟩
+    by simp_rw [Fintype.expect_add_left, Fintype.expect_const, hd],
+    by simp_rw [← mul_expect, ← expect_mul, hd, ← sq],
+    by simp_rw [← mul_expect, Fintype.expect_add_left, ← expect_mul, hd, ← sq], ?_⟩
+  rw [expect_comm]
+  simp_rw [add_comm, ← mul_expect, Fintype.expect_add_left, ← expect_mul, hd, ← sq]
 
 open Classical in
 /-- Goldreich r5 Exercise 9.20(2), for any supplied homomorphism, not just a closest one. -/
@@ -332,8 +318,8 @@ theorem distance_attained (f : G → H) : ∃ h : G →+ H,
 open Classical in
 /-- The minimum distance is bounded by disagreement with any homomorphism. -/
 theorem distance_le (f : G → H) (h : G →+ H) :
-    distance f ≤ (hammingDist f h : ℝ) / Fintype.card G := by
-  exact div_le_div_of_nonneg_right
+    distance f ≤ (hammingDist f h : ℝ) / Fintype.card G :=
+  div_le_div_of_nonneg_right
     (by exact_mod_cast (exists_closest f).choose_spec h) (Nat.cast_nonneg _)
 
 open Classical in
@@ -348,9 +334,8 @@ theorem min_le_rejection (f : G → H) : min (1 / 6) (distance f / 2) ≤ reject
 open Classical in
 /-- Goldreich r5 Exercise 9.20: the unconditional quadratic bound at minimum distance. -/
 theorem three_mul_distance_sub_six_sq_le_rejection (f : G → H) :
-    3 * distance f - 6 * distance f ^ 2 ≤ rejection f := by
-  obtain ⟨h, hh⟩ := distance_attained f
-  rw [hh]
-  exact three_mul_disagreement_sub_six_sq_le_rejection f h
+    3 * distance f - 6 * distance f ^ 2 ≤ rejection f :=
+  let ⟨h, hh⟩ := distance_attained f
+  hh ▸ three_mul_disagreement_sub_six_sq_le_rejection f h
 
 end Cslib.HomomorphismTesting

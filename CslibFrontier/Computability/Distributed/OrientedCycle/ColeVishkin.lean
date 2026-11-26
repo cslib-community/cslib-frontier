@@ -88,19 +88,15 @@ private theorem lowestDiffBitAux_spec :
   | 0, a, b, hab, h => by omega
   | fuel + 1, a, b, hab, h => by
     by_cases hp : a % 2 = b % 2
-    · have hab' : a / 2 ≠ b / 2 := by omega
-      obtain ⟨h1, h2⟩ := lowestDiffBitAux_spec fuel (a / 2) (b / 2) hab' (by omega)
+    · obtain ⟨h1, h2⟩ := lowestDiffBitAux_spec fuel (a / 2) (b / 2) (by omega) (by omega)
       simp only [lowestDiffBitAux, hp, ↓reduceIte]
       refine ⟨by rwa [Nat.testBit_succ, Nat.testBit_succ], fun i hi => ?_⟩
       cases i with
       | zero => simp [Nat.testBit_zero, hp]
-      | succ i =>
-        rw [Nat.testBit_succ, Nat.testBit_succ]
-        exact h2 i (by omega)
+      | succ i => simpa only [Nat.testBit_succ] using h2 i (by omega)
     · simp only [lowestDiffBitAux, hp, ↓reduceIte]
-      refine ⟨?_, fun i hi => by omega⟩
-      simp only [Nat.testBit_zero, ne_eq, decide_eq_decide]
-      omega
+      refine ⟨?_, fun _ hi => by omega⟩
+      simp only [Nat.testBit_zero, ne_eq, decide_eq_decide]; omega
 
 /-- Distinct numbers differ at bit `lowestDiffBit a b`. -/
 theorem testBit_lowestDiffBit_ne {a b : ℕ} (h : a ≠ b) :
@@ -126,10 +122,9 @@ theorem cvColor_ne {a b c : ℕ} (hab : a ≠ b) : cvColor a b ≠ cvColor b c :
   unfold cvColor at h
   have := Bool.toNat_le (a.testBit (lowestDiffBit a b))
   have := Bool.toNat_le (b.testBit (lowestDiffBit b c))
-  obtain ⟨hi, hb⟩ : lowestDiffBit a b = lowestDiffBit b c ∧
-      (a.testBit (lowestDiffBit a b)).toNat = (b.testBit (lowestDiffBit b c)).toNat := by omega
-  rw [← hi] at hb
   have hne := testBit_lowestDiffBit_ne hab
+  have hi : lowestDiffBit a b = lowestDiffBit b c := by omega
+  rw [← hi] at h
   cases ha : a.testBit (lowestDiffBit a b) <;> cases hb' : b.testBit (lowestDiffBit a b) <;>
     simp_all
 
@@ -142,8 +137,7 @@ theorem cvColor_lt_of_lt_two_pow {a b L : ℕ} (hab : a ≠ b) (ha : a < 2 ^ L) 
     rw [Nat.testBit_lt_two_pow (lt_of_lt_of_le ha (Nat.pow_le_pow_right two_pos (not_lt.1 hL))),
       Nat.testBit_lt_two_pow (lt_of_lt_of_le hb (Nat.pow_le_pow_right two_pos (not_lt.1 hL)))]
   have := Bool.toNat_le (a.testBit (lowestDiffBit a b))
-  unfold cvColor
-  omega
+  simp only [cvColor]; omega
 
 /-- **One Cole–Vishkin round.** Distinct colours below `M` give Cole–Vishkin colours below
 `2 ⌈log₂ M⌉`. -/
@@ -200,7 +194,7 @@ theorem iterate_cvBound_twoTower_le (m s : ℕ) :
   induction s generalizing m with
   | zero => simp only [Function.iterate_zero, id_eq, Nat.add_zero]; omega
   | succ s ih =>
-    rw [Function.iterate_succ_apply', show m + (s + 1) = m + 1 + s by omega]
+    rw [← Nat.add_assoc, Nat.add_right_comm m s 1, Function.iterate_succ_apply']
     refine le_trans (cvBound_monotone (ih (m + 1))) ?_
     have hT := Nat.one_lt_two_pow (Nat.twoTower_pos m).ne'
     have hle : 4 + 2 * Nat.twoTower (m + 1) ≤ 2 ^ (Nat.twoTower m + 2) := by
@@ -224,8 +218,7 @@ theorem iterate_cvBound_le_six {N k : ℕ} (hk : Nat.logStar N ≤ k) : cvBound^
   induction j with
   | zero => exact iterate_cvBound_logStar_le N
   | succ j ih =>
-    rw [Function.iterate_succ_apply']
-    exact (cvBound_monotone ih).trans (by decide)
+    exact Function.iterate_succ_apply' cvBound j _ ▸ (cvBound_monotone ih).trans (by decide)
 
 /-- The Cole–Vishkin 3-colouring algorithm with parameter `K`: `K` bit-index reduction rounds, then
 three rounds removing colours `5`, `4` and `3`; afterwards nodes keep their colours. Its input is an
@@ -252,7 +245,7 @@ private theorem step_of_le_of_lt {r : ℕ} (h₁ : K ≤ r) (h₂ : r < K + 3) (
 
 private theorem step_of_le {r : ℕ} (h : K + 3 ≤ r) (p a q : ℕ) :
     (threeColoring K).step r p a q = a := by
-  simp only [threeColoring, show ¬r < K by omega, show ¬r < K + 3 by omega, ↓reduceIte]
+  simp only [threeColoring, not_lt.2 (le_trans (Nat.le_add_right K 3) h), not_lt.2 h, ↓reduceIte]
 
 /-- During the first `K` rounds the colouring stays proper, with colours below `cvBound^[s] N`
 after `s` rounds. In particular one round leaves colours below `2 ⌈log₂ N⌉`. -/
@@ -267,10 +260,9 @@ theorem state_of_le (hx : IsProperColoring x) (hN : ∀ v, x v < N) {s : ℕ} (h
         cvColor ((threeColoring K).state x s v) ((threeColoring K).state x s (v + 1)) := by
       rw [Algorithm.state_succ, step_of_lt (by omega)]
     refine ⟨fun v => ?_, fun v => ?_⟩
-    · rw [hst, hst]
-      exact cvColor_ne (hp v)
-    · rw [hst, Function.iterate_succ_apply']
-      exact cvColor_lt (hp v) (hb v) (hb _)
+    · simpa only [hst] using cvColor_ne (hp v)
+    · simpa only [hst, Function.iterate_succ_apply', cvBound] using
+        cvColor_lt (hp v) (hb v) (hb _)
 
 /-- In the three colour-removal rounds after round `K`, the colouring stays proper and loses colours
 `5`, `4` and `3`, provided `K` Cole–Vishkin rounds leave at most `6` colours. -/
@@ -290,8 +282,7 @@ theorem state_add_of_le (hx : IsProperColoring x) (hN : ∀ v, x v < N) (h6 : cv
       rw [← Nat.add_assoc, Algorithm.state_succ, step_of_le_of_lt (by omega) (by omega),
         Nat.add_sub_cancel_left]
     refine ⟨fun v => ?_, fun v => ?_⟩
-    · rw [hst, hst, add_sub_cancel_right]
-      exact reduceColor_ne (hp v)
+    · simpa only [hst, add_sub_cancel_right] using reduceColor_ne (hp v)
     · rw [hst]
       have := hb v
       exact (reduceColor_lt (by omega) (by omega)).trans_le (by omega)
@@ -315,8 +306,7 @@ theorem threeColoring_run_of_iterate_le {n K N : ℕ} {x : ZMod n → ℕ} (hx :
   obtain ⟨j, rfl⟩ := Nat.exists_eq_add_of_le hr
   have hrun : (threeColoring K).run x (K + 3 + j) = (threeColoring K).state x (K + 3) :=
     threeColoring.state_add_three_add j
-  rw [hrun]
-  exact threeColoring.state_add_of_le hx hN h6 le_rfl
+  exact hrun.symm ▸ threeColoring.state_add_of_le hx hN h6 le_rfl
 
 /-- **Cole–Vishkin 3-colouring** [Cole and Vishkin][ColeVishkin1986]. On every oriented cycle
 (and on the infinite oriented path, `n = 0`), from a proper colouring with colours below `N`, the
@@ -383,19 +373,13 @@ theorem cvIter_shift (k : ℕ) (w : ℤ → ℕ) (j : ℤ) :
 /-- A proper colouring of the cycle is proper along every window. -/
 private theorem window_ne_window_add_one {n : ℕ} {x : ZMod n → ℕ} (hx : IsProperColoring x)
     (v : ZMod n) (j : ℤ) : window x v j ≠ window x v (j + 1) := by
-  simp only [window]
-  push_cast
-  rw [← add_assoc]
-  exact hx _
+  simpa [window, add_assoc] using hx (v + j)
 
 theorem cvRule_apply_isProperColoring {n : ℕ} {x : ZMod n → ℕ} (hx : IsProperColoring x)
     (s : ℕ) : IsProperColoring ((cvRule s).apply x) := by
   intro v
-  have hshift : window x (v + 1) = fun i => window x v (i + 1) := by
-    funext i
-    simp only [window]
-    push_cast
-    rw [add_assoc, add_comm (1 : ZMod n)]
+  have hshift : window x (v + 1) = fun i => window x v (i + 1) :=
+    funext fun i => congrArg x (by rw [Int.cast_add, Int.cast_one, add_assoc, add_comm 1])
   simp only [LocalRule.apply, cvRule, hshift, cvIter_shift]
   exact cvIter_ne (window_ne_window_add_one hx v) _ _
 

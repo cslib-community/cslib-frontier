@@ -182,11 +182,7 @@ theorem Occurs.accepts {x : ι → U} {v : N} (h : P.Occurs x v) : x ∈ P.accep
 
 /-- Any node occurring for `x` witnesses that `x` is accepted by the DAG. -/
 theorem Occurs.mem_accepted_self {x : ι → U} {v : N} (h : P.Occurs x v) : x ∈ P.accepted := by
-  induction h with
-  | root hx => exact hx
-  | union _ _ _ _ ih => exact ih
-  | left _ _ ih => exact ih
-  | right _ _ ih => exact ih
+  induction h <;> assumption
 
 /-- **Certificate substitution.** If a node occurs for `x`, then it also occurs for any input that
 the node accepts and that agrees with `x` outside the scope of the node. -/
@@ -230,15 +226,13 @@ input: they are the inputs whose part on `P.scope v` lies in `P.values v` and wh
 lies in `P.contexts v`. (When `v` never occurs, `P.contexts v` is empty and both sets are empty.) -/
 theorem occurs_eq_rectangle (v : N) :
     {x | P.Occurs x v} = rectangle (P.scope v) (P.values v) (P.contexts v) := by
-  refine subset_antisymm (fun x hx => ⟨hx.accepts, x, hx, rfl⟩) ?_
-  rintro y ⟨hy, x, hx, hxy⟩
-  exact hx.subst hy (domRestrict_eq_domRestrict_iff.mp hxy).symm
+  exact subset_antisymm (fun x hx => ⟨hx.accepts, x, hx, rfl⟩)
+    fun _ ⟨hy, _, hx, hxy⟩ => hx.subst hy (domRestrict_eq_domRestrict_iff.mp hxy).symm
 
 /-- **A node and its contexts form a rectangle** inside the accepted set. -/
 theorem rectangle_subset (v : N) :
     rectangle (P.scope v) (P.values v) (P.contexts v) ⊆ P.accepted := by
-  rw [← P.occurs_eq_rectangle v]
-  exact fun _ hx => hx.mem_accepted_self
+  exact P.occurs_eq_rectangle v ▸ fun _ hx => hx.mem_accepted_self
 
 /-- Every node of `P` has fewer than `K` accepted assignments or fewer than `K` contexts, counted
 with `Set.encard`. -/
@@ -347,9 +341,8 @@ theorem exists_mem_stops (hK : 1 < K) (hS : K ≤ P.accepted.ncard) {x : ι → 
     ⟨_, P.root, rfl, .root hx, hroot⟩
   obtain ⟨v, hv, hxv, hlarge⟩ := Nat.find_spec hex
   have hsmall {u : N} (hu : P.rank u < P.rank v) (hxu : P.Occurs x u) :
-      (P.values u).ncard < K := by
-    by_contra! h
-    exact Nat.find_min hex (hv ▸ hu) ⟨u, rfl, hxu, h⟩
+      (P.values u).ncard < K :=
+    not_le.mp fun h => Nat.find_min hex (hv ▸ hu) ⟨u, rfl, hxu, h⟩
   refine ⟨v, hxv, hlarge, ?_⟩
   cases hg : P.gate v with
   | leaf =>
@@ -387,17 +380,15 @@ private theorem ncard_stops_product_le (hfin : P.accepted.Finite) {v l r : N}
       ≤ (P.values l ×ˢ P.values r ×ˢ P.contexts v).ncard := by
         refine ncard_le_ncard_of_injOn
           (fun x => ((P.scope l).domRestrict x, (P.scope r).domRestrict x,
-            (P.scope v)ᶜ.domRestrict x)) ?_ ?_ (hvl.prod (hvr.prod hcv))
-        · rintro x ⟨hx, -, -⟩
-          have h := (P.values_product v l r hg x).mp hx.accepts
-          exact ⟨h.1, h.2, x, hx, rfl⟩
-        · intro x _ y _ h
-          simp only [Prod.mk.injEq, domRestrict_eq_domRestrict_iff] at h
-          refine domRestrict_prodMk_injective (P.scope v) (Prod.ext ?_ ?_)
-          · refine domRestrict_eq_domRestrict_iff.mpr fun i hi => ?_
-            rw [P.scope_product v l r hg] at hi
-            exact hi.elim (fun hil => h.1 hil) fun hir => h.2.1 hir
-          · exact domRestrict_eq_domRestrict_iff.mpr h.2.2
+            (P.scope v)ᶜ.domRestrict x))
+          (fun x ⟨hx, _, _⟩ =>
+            let h := (P.values_product v l r hg x).mp hx.accepts
+            ⟨h.1, h.2, x, hx, rfl⟩) ?_ (hvl.prod (hvr.prod hcv))
+        intro x _ y _ h
+        simp only [Prod.mk.injEq, domRestrict_eq_domRestrict_iff] at h
+        rcases h with ⟨hl, hr, hc⟩
+        exact funext fun i => (Classical.em (i ∈ P.scope v)).elim
+          (fun hi => (P.scope_product v l r hg ▸ hi).elim (hl ·) (hr ·)) (hc ·)
     _ ≤ (K - 1) ^ 2 * (P.contexts v).ncard := by
         rw [ncard_prod, ncard_prod, sq, mul_assoc]
         exact Nat.mul_le_mul (by omega) (Nat.mul_le_mul (by omega) le_rfl)
@@ -482,16 +473,15 @@ theorem ncard_accepted_le_of_smallSides (hsmall : P.SmallSides K) (hS : K ≤ P.
   have hfin : P.accepted.Finite := Set.finite_of_ncard_pos (hsmall.pos.trans_le hS)
   calc P.accepted.ncard
       ≤ (⋃ v ∈ (Finset.univ : Finset N), P.stops K v).ncard :=
-        ncard_le_ncard (fun x hx => by
-          obtain ⟨v, hv⟩ := P.exists_mem_stops hK hS hx
-          exact mem_iUnion₂.mpr ⟨v, Finset.mem_univ v, hv⟩)
+        ncard_le_ncard
+          (fun x hx => (P.exists_mem_stops hK hS hx).elim fun v hv =>
+            mem_iUnion₂.mpr ⟨v, Finset.mem_univ v, hv⟩)
           (hfin.subset (iUnion₂_subset fun _ _ => P.stops_subset_accepted))
     _ ≤ ∑ v, (P.stops K v).ncard := Finset.set_ncard_biUnion_le _ _
     _ ≤ ∑ v, P.budget K v := Finset.sum_le_sum fun v _ => P.ncard_stops_le hfin hsmall v
     _ = (K - 1) ^ 2 * P.unionEdges + (K - 1) ^ 3 * P.products := by
       simp only [unionEdges, products, Finset.mul_sum, ← Finset.sum_add_distrib]
-      refine Finset.sum_congr rfl fun v _ => ?_
-      cases hg : P.gate v <;> simp [budget, hg]
+      exact Finset.sum_congr rfl fun v _ => by cases hg : P.gate v <;> simp [budget, hg]
 
 /-- **Threshold counting for decomposable DAGs.** If the set represented by a smooth
 decomposable DAG is `K`-rectangle-free and has at least `K` elements, then

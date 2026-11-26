@@ -150,8 +150,7 @@ theorem exists_monoidProgram_computes_of_forall_commutator {G : Type*} [Group G]
       refine ⟨mulLeft σ R, length_mulLeft_le σ ((length_commutator_le
         (length_mulLeft_le α hPlen) (length_mulLeft_le β hQlen)).trans_eq ?_), fun x => ?_⟩
       · simp [Fin.univ_succ]
-      · rw [hR.not x]
-        simp [interpretation]
+      · simp [hR.not x, interpretation]
 
 /-- **Barrington's theorem in `A₅`.** For every `5`-cycle `σ`, a De Morgan formula of depth `d`,
 with negations and constants free, is `σ`-computed by a program of length at most `4 ^ d` over the
@@ -362,9 +361,7 @@ theorem Computes.exists_formula {P : MonoidProgram (Fin n) Bool (Perm (Fin w))} 
       List.mem_product, List.mem_finRange, true_and, decide_eq_true_eq, Prod.exists, ne_eq]
     cases hf : f x
     · simp only [MulAction.toEndHom, Bool.false_eq_true, ↓reduceIte, map_one, iff_false]
-      simp only [not_exists, not_and]
-      intro a b hab h
-      exact hab h
+      exact fun ⟨_, _, hab, h⟩ => hab h
     · simp only [↓reduceIte, iff_true]
       obtain ⟨a, ha⟩ := not_forall.1 fun h => hσ (Perm.ext h)
       exact ⟨a, σ a, fun h => ha h.symm, rfl⟩
@@ -372,9 +369,8 @@ theorem Computes.exists_formula {P : MonoidProgram (Fin n) Bool (Perm (Fin w))} 
       (Nat.clog_mono_right 2 ?_) _)
     · obtain ⟨p, -, rfl⟩ := List.mem_map.1 hF
       simpa [Q] using depthWith_entryFormula_le Q p.1 p.2
-    · rw [List.length_map]
-      exact (List.length_filter_le _ _).trans
-        (by rw [List.length_product, List.length_finRange])
+    · simpa [pairs, List.length_product] using
+        List.length_filter_le _ (List.finRange w ×ˢ List.finRange w)
   · obtain ⟨p, -, rfl⟩ := List.mem_map.1 hF
     exact Q.isNNF_entryFormula p.1 p.2
 

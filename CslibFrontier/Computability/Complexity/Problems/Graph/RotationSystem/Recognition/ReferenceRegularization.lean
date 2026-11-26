@@ -77,9 +77,7 @@ private theorem transverse_of_vector_factors
     (hab : a.re * b.im - a.im * b.re ≠ 0) :
     A.re * B.im - A.im * B.re ≠ 0 := by
   have hdet : a.re * b.im - a.im * b.re = (c * d) * (A.re * B.im - A.im * B.re) := by
-    rw [ha, hb]
-    simp only [Complex.smul_re, Complex.smul_im, smul_eq_mul]
-    ring
+    simp only [ha, hb, Complex.smul_re, Complex.smul_im, smul_eq_mul]; ring
   exact (mul_ne_zero_iff.mp (hdet ▸ hab)).2
 
 -- An actual local transverse pair together with its two affine segment embeddings
@@ -158,11 +156,11 @@ private theorem local_contact_global {I : FixedRotationInput}
     transport_local_transverse (A.patch z e) (A.patch z f)
       (A.drawing.route e.val) (A.drawing.route f.val) i j i' j'
       hα hαβ hβ hγ hγδ hδ hu hv heu hfv hi hj hdet
-  refine ⟨heu' ▸ (A.drawing.route e.val).at_mem_support i' ⟨hu'.1.le, hu'.2.le⟩,
+  exact ⟨heu' ▸ (A.drawing.route e.val).at_mem_support i' ⟨hu'.1.le, hu'.2.le⟩,
     hfv' ▸ (A.drawing.route f.val).at_mem_support j' ⟨hv'.1.le, hv'.2.le⟩,
-    fun v hv heq => ?_, i', j', u', v', hu', hv', heu', hfv', hdet'⟩
-  exact A.avoids_vertices z.val z.property v hv
-    (Metric.ball_subset_closedBall (by simpa only [heq, A.vertex_eq] using A.patch_support z e he))
+    fun v hv heq => A.avoids_vertices z.val z.property v hv (Metric.ball_subset_closedBall
+      (by simpa only [heq, A.vertex_eq] using A.patch_support z e he)),
+    i', j', u', v', hu', hv', heu', hfv', hdet'⟩
 
 -- A closed gap in the COMPLETE sorted cut list misses the open interior of EVERY
 -- selected cut, including nonadjacent cuts. End cuts use source endpoints 0 and 1;
@@ -359,7 +357,8 @@ private theorem assembled_support_cases {I : FixedRotationInput}
   cases hf : ((subdivide I)[e.val]'(by
       simpa only [subdivisionGraph, List.length_map] using e.isLt)).frozen with
   | true =>
-    rw [show A.drawing.route e = D.route e from by simpa only [hf, ↓reduceIte] using hroute] at hw
+    have hroute' : A.drawing.route e = D.route e := by simpa only [hf, ↓reduceIte] using hroute
+    rw [hroute'] at hw
     obtain ⟨i, t, ht, heq⟩ := ((D.route e).mem_support_iff w).mp hw
     obtain rfl : i = 0 := Fin.ext (Nat.lt_one_iff.mp i.isLt)
     by_cases hpatch : ∃ z : Z, t ∈ Set.Ioo (α z) (β z)
@@ -401,8 +400,7 @@ private theorem assembled_support_cases {I : FixedRotationInput}
           have h := j.isLt
           simp only [Route.segments_foldl_append] at h
           change j.val < 1 + nodes.length at h
-          rw [hword, List.length_cons, List.length_cons]
-          omega
+          rw [hword, List.length_cons, List.length_cons]; omega
         refine ⟨word[j.val], word[j.val + 1], List.getElem_mem_consecutivePairs word j.val hj, ?_⟩
         simpa only [hword] using Route.eval_foldl_append_line (D.route e).start
           (AffineMap.lineMap (D.route e).start (D.route e).finish (α z)) nodes j t
@@ -500,10 +498,9 @@ private theorem reference_open_of_support {I : FixedRotationInput} (hI : Valid I
     (hvertex : ∀ v ∈ (subdivisionGraph I).vertices, w ≠ (referenceDrawing I).vertex v) :
     w ∈ openSegment ℝ ((referenceDrawing I).route e).start
       ((referenceDrawing I).route e).finish := by
-  have hend (tag : Bool) : w ≠ ((referenceDrawing I).route e).endpoint tag := by
-    rw [(referenceDrawing I).endpoint_eq]
-    exact hvertex _ (((referenceOrder_enumerates hI).2 _).mp
-      ((subdivision_endpoint_spec hI e).1 tag))
+  have hend (tag : Bool) : w ≠ ((referenceDrawing I).route e).endpoint tag :=
+    (referenceDrawing I).endpoint_eq e tag ▸
+      hvertex _ (((referenceOrder_enumerates hI).2 _).mp ((subdivision_endpoint_spec hI e).1 tag))
   exact mem_openSegment_of_ne_left_right (hend false).symm (hend true).symm
     (Route.support_line _ _ ▸ hw)
 
@@ -541,7 +538,6 @@ private theorem old_gap_outside_slab {I : FixedRotationInput} (hI : Valid I)
     (((referenceDrawing I).route e.val).eval 0 t).re ≤ z.val.re - A.extent z ∨
       z.val.re + A.extent z ≤ (((referenceDrawing I).route e.val).eval 0 t).re := by
   have hends := patch_real_ends A z e
-  dsimp only at hends
   set a := ((referenceDrawing I).route e.val).start.re
   set b := ((referenceDrawing I).route e.val).finish.re
   have hne : a ≠ b := fun heq =>
@@ -552,10 +548,8 @@ private theorem old_gap_outside_slab {I : FixedRotationInput} (hI : Valid I)
   rw [A.patch_start, A.patch_finish, hproj, hproj] at hends
   have hside : t ≤ A.startParam z e ∨ A.finishParam z e ≤ t :=
     (not_and_or.mp ht).imp le_of_not_gt le_of_not_gt
-  have hev : ((referenceDrawing I).route e.val).eval 0 t =
-      AffineMap.lineMap ((referenceDrawing I).route e.val).start
-        ((referenceDrawing I).route e.val).finish t := rfl
-  rw [hev, hproj]
+  have hev : (((referenceDrawing I).route e.val).eval 0 t).re = AffineMap.lineMap a b t := hproj t
+  rw [hev]
   rcases lt_or_gt_of_ne hne with hab | hba
   · simp only [not_lt.mpr hab.le, ↓reduceIte] at hends
     rcases hside with ht | ht
@@ -642,9 +636,8 @@ private theorem global_contact_same_patch {I : FixedRotationInput} (hI : Valid I
       reference_open_of_support hI e heold hvertex',
       reference_open_of_support hI f (hue ▸ ((referenceDrawing I).route f).at_mem_support 0 hu)
         hvertex'⟩
-    have hout := old_gap_outside_slab hI A z ⟨e, heold⟩ (htg ⟨w, z.property, heold⟩)
-    rw [hte] at hout
-    rcases hout with hout | hout <;> linarith [A.extent_pos z]
+    rcases hte ▸ old_gap_outside_slab hI A z ⟨e, heold⟩ (htg ⟨w, z.property, heold⟩) with h | h <;>
+      linarith [A.extent_pos z]
 
 /-- Construct an actual global reference crossing regularization from valid input alone.
 The output assembly retains its literal route construction and all named preservation
@@ -704,41 +697,37 @@ theorem exists_reference_crossing_regularization {I : FixedRotationInput} (hI : 
         κ e f z ∈ (A.patch ⟨z, hzC⟩ ⟨f, hfz⟩).support := by
     refine ⟨⟨e, f, hef, hz.1, hz.2⟩, (hsupport e f z hz).1, (hsupport e f z hz).2, ?_⟩
     dsimp only [κ]; rw [dite_eq_left ⟨hef, hz⟩]
-    exact (Classical.choose_spec (A.patch_pair_unique _ _ _
-      (fun heq => hef (congrArg Subtype.val heq)))).1
+    exact (Classical.choose_spec (A.patch_pair_unique _ _ _ (ne_of_apply_ne Subtype.val hef))).1
   let target : E → E → Set ℂ := fun e f => {w |
     w ∈ (A.drawing.route e).support ∧ w ∈ (A.drawing.route f).support ∧
     ∀ v ∈ (subdivisionGraph I).vertices, w ≠ A.drawing.vertex v}
   refine ⟨A, κ, fun e f hef => ?_, fun e f g hef heg hfg w hvertex he hf hg => ?_⟩
   · have hmaps : Set.MapsTo (κ e f) (old e f) (target e f) := fun z hz => by
       obtain ⟨hzC, hez, hfz, he, hf⟩ := hκ e f hef z hz
-      obtain ⟨hE, hF, hV, _⟩ := local_contact_global A ⟨z, hzC⟩
-        ⟨e, hez⟩ ⟨f, hfz⟩ (fun heq => hef (congrArg Subtype.val heq)) he hf
+      obtain ⟨hE, hF, hV, _⟩ := local_contact_global A ⟨z, hzC⟩ ⟨e, hez⟩ ⟨f, hfz⟩
+        (ne_of_apply_ne Subtype.val hef) he hf
       exact ⟨hE, hF, hV⟩
     have hinj : Set.InjOn (κ e f) (old e f) := fun _ hx _ hy _ =>
       referenceDrawing_open_inter_subsingleton hI e f hef hx hy
     have hsurj : Set.SurjOn (κ e f) (old e f) (target e f) := fun w hw => by
       obtain ⟨z, hez, hfz, he, hf⟩ := global_contact_same_patch hI A e f hef hw.1 hw.2.1 hw.2.2
-      have hzv : ∀ v ∈ (subdivisionGraph I).vertices, z.val ≠ (referenceDrawing I).vertex v :=
-        fun _ hv => referenceDrawing_crossing_ne_vertex hI z.property hv
+      have hzv (v) := referenceDrawing_crossing_ne_vertex (v := v) hI z.property
       have hz : z.val ∈ old e f :=
         ⟨reference_open_of_support hI e hez hzv, reference_open_of_support hI f hfz hzv⟩
       obtain ⟨_, _, _, hκe, hκf⟩ := hκ e f hef z.val hz
-      obtain ⟨_, _, huniq⟩ := A.patch_pair_unique z ⟨e, hez⟩ ⟨f, hfz⟩
-        (fun heq => hef (congrArg Subtype.val heq))
+      obtain ⟨_, _, huniq⟩ :=
+        A.patch_pair_unique z ⟨e, hez⟩ ⟨f, hfz⟩ (ne_of_apply_ne Subtype.val hef)
       exact ⟨z.val, hz, (huniq _ ⟨hκe, hκf⟩).trans (huniq _ ⟨he, hf⟩).symm⟩
     refine ⟨⟨hmaps, hinj, hsurj⟩, hκ e f hef, fun w hw => ?_⟩
     obtain ⟨z, hez, hfz, he, hf⟩ := global_contact_same_patch hI A e f hef hw.1 hw.2.1 hw.2.2
-    exact (local_contact_global A z ⟨e, hez⟩ ⟨f, hfz⟩
-      (fun heq => hef (congrArg Subtype.val heq)) he hf).2.2.2
+    exact (local_contact_global A z ⟨e, hez⟩ ⟨f, hfz⟩ (ne_of_apply_ne Subtype.val hef) he hf).2.2.2
   · obtain ⟨z, hez, hfz, hpe, hpf⟩ := global_contact_same_patch hI A e f hef he hf hvertex
     obtain ⟨q, heq, hgq, hqe, hqg⟩ := global_contact_same_patch hI A e g heg he hg hvertex
     obtain rfl : z = q := Subtype.ext <| Classical.byContradiction fun hne =>
       Set.disjoint_left.mp (A.balls_disjoint z.property q.property hne)
         (Metric.ball_subset_closedBall (A.patch_support z ⟨e, hez⟩ hpe))
         (Metric.ball_subset_closedBall (A.patch_support q ⟨e, heq⟩ hqe))
-    exact A.patch_no_triple z ⟨e, hez⟩ ⟨f, hfz⟩ ⟨g, hgq⟩
-      (fun h => hef (congrArg Subtype.val h)) (fun h => heg (congrArg Subtype.val h))
-      (fun h => hfg (congrArg Subtype.val h)) w hpe hpf hqg
+    exact A.patch_no_triple z ⟨e, hez⟩ ⟨f, hfz⟩ ⟨g, hgq⟩ (ne_of_apply_ne Subtype.val hef)
+      (ne_of_apply_ne Subtype.val heg) (ne_of_apply_ne Subtype.val hfg) w hpe hpf hqg
 
 end Cslib.Complexity.Graph.RotationRecognition

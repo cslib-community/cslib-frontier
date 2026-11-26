@@ -158,20 +158,17 @@ theorem before_index (C : ℕ → ℕ) (cap p i : ℕ) (hi : i < before C cap p)
     ⟨i, (Fin.sum_univ_eq_sum_range (fun rho => C rho ⌈/⌉ cap) p).symm ▸ hi⟩
   refine ⟨finSigmaFinEquiv.symm j,
     (congrArg Fin.val (finSigmaFinEquiv.apply_symm_apply j)).symm.trans (hval _), fun k hk => ?_⟩
-  apply finSigmaFinEquiv.injective (Fin.ext ?_)
-  rw [finSigmaFinEquiv.apply_symm_apply, hval]
-  exact hk.symm
+  refine finSigmaFinEquiv.injective (Fin.ext ?_)
+  simpa only [finSigmaFinEquiv.apply_symm_apply, hval] using hk.symm
 
 /-- At most `N` queries per class give at most `rho * N` occupied descriptors, since every
 nonempty chunk contains at least one query. This bounds the actual allocation before matrix
 preparation as well as the descriptor controller's own arithmetic. -/
 theorem before_le {C : ℕ → ℕ} {cap p N : ℕ} (hcap : 0 < cap)
     (hC : ∀ r < p, C r ≤ N) {rho : ℕ} (hrho : rho ≤ p) : before C cap rho ≤ rho * N := by
-  apply (Finset.sum_le_sum fun r hr => ?_).trans_eq
-    (show (∑ _r ∈ Finset.range rho, N) = rho * N by simp)
-  exact (Nat.ceilDiv_le_iff hcap).mpr
-    ((hC r ((Finset.mem_range.mp hr).trans_le hrho)).trans
-      (Nat.le_mul_of_pos_right N hcap))
+  refine (Finset.sum_le_sum (g := fun _ => N) fun r hr =>
+    (Nat.ceilDiv_le_iff hcap).mpr ?_).trans_eq (by simp)
+  exact (hC r ((Finset.mem_range.mp hr).trans_le hrho)).trans (Nat.le_mul_of_pos_right N hcap)
 
 private theorem body_preserves : ∀ i : Fin 32,
     (14 ≤ i.val ∧ i ≠ cursor ∧ i ≠ written ∧ i ≠ heap ∧ i ≠ addr ∧ i ≠ temp) →
@@ -284,8 +281,7 @@ theorem exec {w : ℕ} (x : Data 32) (C : ℕ → ℕ)
       rw [Nat.succ_mul] at this
       omega
     have hreadY : y.mem (y.regs counts + y.regs cursor) = C (y.regs cursor) := by
-      rw [hyc, hyframe _ (by omega)]
-      exact hread _ hlt
+      rw [hyc, hyframe _ (by omega), hread _ hlt]
     obtain ⟨z, he, hzi, hzw, hzh, hzcells, hzframe⟩ := exec_body y (C (y.regs cursor))
       hreadY hyo hyt (by simpa only [hyQ] using hcap)
       (hfit.of_le (by rw [hyh]; nlinarith only [hstep]))
@@ -308,8 +304,7 @@ theorem exec {w : ℕ} (x : Data 32) (C : ℕ → ℕ)
     refine ⟨z, he.mono (by omega), ⟨hpr,
       by regs_frame, by regs_frame, by regs_frame, by omega, ?_, ?_, ?_, ?_⟩, by omega⟩
     · rw [hzw, hyw, hzi, hnext]
-    · rw [hzh, hyh, hzi, hnext]
-      omega
+    · rw [hzh, hyh, hzi, hnext]; omega
     · intro r hr k hk
       rw [hzi] at hr
       rcases eq_or_lt_of_le (Nat.lt_succ_iff.mp hr) with rfl | hrlt

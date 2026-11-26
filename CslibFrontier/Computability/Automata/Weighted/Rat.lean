@@ -62,30 +62,23 @@ theorem add {n m : ℕ} {f g : Series F Ω} (hf : RatLe n f) (hg : RatLe m g) :
     RatLe (n + m) (f + g) := by
   obtain ⟨Q₁, _, r₁, h1, rfl⟩ := hf
   obtain ⟨Q₂, _, r₂, h2, rfl⟩ := hg
-  refine ⟨Q₁ ⊕ Q₂, inferInstance, r₁.add r₂, by simp; omega, ?_⟩
-  ext o
-  exact Rep.add_series r₁ r₂ o
+  exact ⟨Q₁ ⊕ Q₂, inferInstance, r₁.add r₂, by simp; omega, funext (Rep.add_series r₁ r₂)⟩
 
 theorem mul {n m : ℕ} {f g : Series F Ω} (hf : RatLe n f) (hg : RatLe m g) :
     RatLe (n + m) (Series.mul f g) := by
   obtain ⟨Q₁, _, r₁, h1, rfl⟩ := hf
   obtain ⟨Q₂, _, r₂, h2, rfl⟩ := hg
-  refine ⟨Q₁ ⊕ Q₂, inferInstance, r₁.mul r₂, by simp; omega, ?_⟩
-  ext o
-  exact Rep.mul_series r₁ r₂ o
+  exact ⟨Q₁ ⊕ Q₂, inferInstance, r₁.mul r₂, by simp; omega, funext (Rep.mul_series r₁ r₂)⟩
 
 theorem kstar {n : ℕ} {f : Series F Ω} (hf : RatLe n f) : RatLe (n + 1) (Series.kstar f) := by
   obtain ⟨Q₁, _, r₁, h1, rfl⟩ := hf
-  refine ⟨Unit ⊕ Q₁, inferInstance, r₁.star, by simp; omega, ?_⟩
-  ext o
-  exact Rep.star_series r₁ o
+  exact ⟨Unit ⊕ Q₁, inferInstance, r₁.star, by simp; omega, funext r₁.star_series⟩
 
 theorem smul {n : ℕ} {f : Series F Ω} (c : F) (hf : RatLe n f) : RatLe n (c • f) := by
   obtain ⟨Q, _, r, h1, rfl⟩ := hf
   refine ⟨Q, _, ⟨c • r.lam, r.mu, r.gam⟩, h1, ?_⟩
   ext o
-  have htail : ∀ o, (⟨c • r.lam, r.mu, r.gam⟩ : Rep F Ω Q).tail o = r.tail o := by
-    intro o
+  have htail (o : List Ω) : (⟨c • r.lam, r.mu, r.gam⟩ : Rep F Ω Q).tail o = r.tail o := by
     induction o with
     | nil => rfl
     | cons a o ih => simp [Rep.tail, ih]
@@ -145,11 +138,9 @@ theorem RatLe.normal {n : ℕ} {f : Series F Ω} (hf : RatLe n f) :
       | some (some q), some (some q') => r.mu a q q'
   have hsink (o : List Ω) (ho : o ≠ []) : (o.map mu).prod (some none) (some none) = 0 := by
     obtain ⟨b, o', rfl⟩ := List.exists_cons_of_ne_nil ho
-    rw [List.map_cons, List.prod_cons, Matrix.mul_apply]
-    simp [mu]
-  have key : ∀ o : List Ω, ∀ q, o ≠ [] →
+    simp [Matrix.mul_apply, mu]
+  have key (o : List Ω) : ∀ q, o ≠ [] →
       (o.map mu).prod (some (some q)) (some none) = r.tail o q := by
-    intro o
     induction o with
     | nil => simp
     | cons a o ih =>
@@ -191,14 +182,10 @@ theorem RatLe.idle {n : ℕ} {P : Series F Ω} (hP : RatLe n P) :
       | nil => rfl
       | cons a o ih =>
         rw [Rep.tail, ih]
-        cases a with
-        | none => simp
-        | some a =>
-          by_cases h : o.all Option.isSome <;>
-            simp [h, List.reduceOption_cons_of_some, Rep.tail]
+        cases a <;> by_cases h : o.all Option.isSome <;>
+          simp [h, List.reduceOption_cons_of_some, Rep.tail]
     funext o
-    rw [Rep.series, key]
-    by_cases h : o.all Option.isSome <;> simp [h, Rep.series]
+    by_cases h : o.all Option.isSome <;> simp [Rep.series, key, h]
   · refine ⟨Unit, inferInstance, ⟨1, fun a => a.elim 1 fun _ => 0, 1⟩, by simp, ?_⟩
     have key (o : List (Option Ω)) :
         (⟨1, fun a => a.elim 1 fun _ => 0, 1⟩ : Rep F (Option Ω) Unit).tail o =
@@ -209,8 +196,7 @@ theorem RatLe.idle {n : ℕ} {P : Series F Ω} (hP : RatLe n P) :
         rw [Rep.tail, ih]
         cases a <;> simp
     funext o
-    rw [Rep.series, key]
-    by_cases h : o.all Option.isNone <;> simp [h]
+    by_cases h : o.all Option.isNone <;> simp [Rep.series, key, h]
 
 theorem idle_apply (P : Series F Ω) (w : List Ω) (j : ℕ) :
     Series.idle P (w.map some ++ List.replicate j none) = P w := by

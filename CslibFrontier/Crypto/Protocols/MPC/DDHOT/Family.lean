@@ -371,8 +371,7 @@ theorem ddhOTSenderViewWords_injective (d : F.Desc) :
     Function.Injective (F.ddhOTSenderViewWords d) := by
   rintro ⟨⟨m₀, m₁⟩, ⟨a, r₀, s₀, r₁, s₁⟩, ⟨u, w, reply, ⟨⟩⟩⟩
     ⟨⟨m₀', m₁'⟩, ⟨a', r₀', s₀', r₁', s₁'⟩, ⟨u', w', reply', ⟨⟩⟩⟩ h
-  simp only [ddhOTSenderViewWords, DDHOTSenderViewWords.mk.injEq] at h
-  obtain ⟨hm₀, hm₁, rfl, rfl, rfl, rfl, rfl, hw₀, hw₁⟩ := h
+  rcases DDHOTSenderViewWords.mk.inj h with ⟨hm₀, hm₁, rfl, rfl, rfl, rfl, rfl, hw₀, hw₁⟩
   refine PartyView.ext (Prod.ext (F.encode_injective d hm₀) (F.encode_injective d hm₁)) rfl
     (Prod.ext (Round.received_message_eq_of_ne (by decide) _ _) (Prod.ext ?_
       (Prod.ext (Round.received_message_eq_of_ne (by decide) _ _) rfl)))
@@ -704,30 +703,12 @@ theorem isPPT_ddhOTReceiverToDDHDistinguisher
   · refine Eq.trans ?_
       (F.ddhOTEncoding.view.encCoalition_singleton x.secParam x.groupParameters 1 _).symm
     refine congrArg (encPi encBits) (funext fun _ => congrArg encDDHOTReceiverViewWords ?_)
-    let q := F.order x.groupParameters
-    let b := BitString.binaryValue bBits
-    let r := BitString.binaryValue rBits
-    let s := BitString.binaryValue sBits
-    let e := (r : ZMod q) • F.generator x.groupParameters + (s : ZMod q) • x.leftPublic
-    cases σ
-    · change F.ddhOTReceiverViewWordsOf x (F.encode _ m₀) (F.encode _ m₁) false bBits rBits sBits =
-        F.ddhOTReceiverViewWords x.groupParameters (ddhOTReceiverViewWith false bBits x.leftPublic
-          ((e, (b : ZMod q) • e + m₀),
-            (x.rightPublic, x.candidateShared - (b : ZMod q) • x.rightPublic + m₁)))
-      simp only [ddhOTReceiverViewWordsOf, ddhOTReceiverViewWords, ddhOTReceiverViewWith,
-        Bool.false_eq_true, ↓reduceIte, F.add_encode]
-      rfl
-    · change F.ddhOTReceiverViewWordsOf x (F.encode _ m₀) (F.encode _ m₁) true bBits rBits sBits =
-        F.ddhOTReceiverViewWords x.groupParameters (ddhOTReceiverViewWith true bBits x.leftPublic
-          ((x.rightPublic, x.candidateShared - (b : ZMod q) • x.rightPublic + m₀),
-            (e, (b : ZMod q) • e + m₁)))
-      simp only [ddhOTReceiverViewWordsOf, ddhOTReceiverViewWords, ddhOTReceiverViewWith,
-        ↓reduceIte, F.add_encode]
-      rfl
+    let lhs := F.ddhOTReceiverViewWordsOf x (F.encode _ m₀) (F.encode _ m₁) σ bBits rBits sBits
+    cases σ <;> refine congrArg₂ (fun b₀ b₁ => { lhs with body₀ := b₀, body₁ := b₁ }) ?_ ?_ <;>
+      exact F.add_encode _ _ _
   · simp only [ddhOTReceiverGuessWords, ddhOTOutputWords, PartyEncoding.encAll,
       Function.Embedding.coeFn_mk, encDPi_apply]
-    congr 1
-    exact funext (Fin.cases rfl fun _ => by cases σ <;> rfl)
+    exact congrArg (encPi encBits) (funext (Fin.cases rfl fun _ => by cases σ <;> rfl))
 
 end
 

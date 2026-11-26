@@ -108,9 +108,8 @@ theorem keyRank_injective (k : Fin n → ℕ) : Function.Injective (keyRank k) :
   by_contra hij
   rcases lt_trichotomy (k i) (k j) with hk | hk | hk
   · exact (keyRank_lt_keyRank k (Or.inl hk)).ne h
-  · rcases lt_or_gt_of_ne hij with hl | hl
-    · exact (keyRank_lt_keyRank k (Or.inr ⟨hk, hl⟩)).ne h
-    · exact (keyRank_lt_keyRank k (Or.inr ⟨hk.symm, hl⟩)).ne' h
+  · exact (lt_or_gt_of_ne hij).elim (fun hl => (keyRank_lt_keyRank k (Or.inr ⟨hk, hl⟩)).ne h)
+      fun hl => (keyRank_lt_keyRank k (Or.inr ⟨hk.symm, hl⟩)).ne' h
   · exact (keyRank_lt_keyRank k (Or.inl hk)).ne' h
 
 /-- Ordering positions by key, ties broken by position, as a permutation. -/
@@ -159,10 +158,7 @@ private theorem relabelFin_eq_flatten (A : Fin n → Fin n → Bool) (k : Fin n 
 theorem relabelFin_comp {A A' : Fin n → Fin n → Bool} {k : Fin n → ℕ}
     (hk : Function.Injective k) (σ : Equiv.Perm (Fin n)) (hA : ∀ i j, A' (σ i) (σ j) = A i j) :
     relabelFin A' k = relabelFin A (k ∘ σ) := by
-  rw [relabelFin, relabelFin, rankPerm_comp hk]
-  congr with t : 1
-  simp only [Equiv.symm_trans_apply]
-  rw [← hA, Equiv.apply_symm_apply, Equiv.apply_symm_apply]
+  simp [relabelFin, rankPerm_comp hk, ← hA]
 
 /-- Equal relabelings come from isomorphic adjacency matrices. -/
 theorem exists_equiv_of_relabelFin_eq {n' : ℕ} {A : Fin n → Fin n → Bool}
@@ -171,11 +167,8 @@ theorem exists_equiv_of_relabelFin_eq {n' : ℕ} {A : Fin n → Fin n → Bool}
     ∃ σ : Fin n ≃ Fin n', ∀ i j, A' (σ i) (σ j) = A i j := by
   obtain ⟨hnn, hf⟩ := Sigma.mk.inj_iff.1 (List.ofFn_inj'.1 h)
   obtain rfl : n = n' := Nat.mul_self_inj.1 hnn
-  have hf := eq_of_heq hf
   refine ⟨(rankPerm k).trans (rankPerm k').symm, fun i j => ?_⟩
-  have := congrFun hf (finProdFinEquiv (rankPerm k i, rankPerm k j))
-  simp only [Equiv.symm_apply_apply, Equiv.symm_apply_apply] at this
-  simpa using this.symm
+  simpa using (congrFun (eq_of_heq hf) (finProdFinEquiv (rankPerm k i, rankPerm k j))).symm
 
 /-! ### Computing relabelings -/
 
@@ -319,10 +312,8 @@ private theorem pow_succ_le_descFactorial_add (D n : ℕ) :
         have := Nat.mul_le_mul_left (n + 1) (Nat.descFactorial_le_pow D (n + 1))
         omega
       _ ≤ D.descFactorial (n + 2) + (n + 2) ^ 2 * D ^ (n + 1) := by
-        rw [Nat.add_assoc]
-        refine Nat.add_le_add_left ?_ _
-        rw [← Nat.add_mul]
-        exact Nat.mul_le_mul_right _ (by nlinarith)
+        rw [Nat.add_assoc, ← Nat.add_mul]
+        exact Nat.add_le_add_left (Nat.mul_le_mul_right _ (by nlinarith)) _
 
 open Classical in
 /-- **Birthday bound.** Among the functions from `Fin n` to a finite type with `D` elements, the
@@ -355,9 +346,8 @@ private theorem card_filter_not_injective_div_le (n : ℕ) :
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · simp [Function.injective_of_subsingleton]
   let D := Fintype.card (BitString (keyWidth n))
-  have hclog : 16 * n * n ≤ D := by
-    rw [show D = 2 ^ keyWidth n by simp [D]]
-    exact Nat.le_pow_clog (by norm_num) _
+  have hD : D = 2 ^ keyWidth n := by simp [D]
+  have hclog : 16 * n * n ≤ D := hD.symm ▸ Nat.le_pow_clog one_lt_two _
   have key : (Finset.univ.filter fun R : Fin n → BitString (keyWidth n) =>
       ¬ Function.Injective R).card * 16 ≤ D ^ n := by
     refine Nat.le_of_mul_le_mul_right ?_ (Nat.mul_pos hn hn)
@@ -405,10 +395,9 @@ theorem tsum_relabelDist_le {n n' : ℕ} {A : Fin n → Fin n → Bool} {A' : Fi
   obtain rfl : n = n' := Fin.equiv_iff_eq.1 ⟨σ⟩
   refine (tsum_uniform_map_le (fun R => relabelFin A (keyValue ∘ R))
     (fun R => relabelFin A' (keyValue ∘ R)) (Equiv.arrowCongr σ.symm (Equiv.refl _))
-    (fun R => Function.Injective R) (fun R hR => ?_) hf).trans ?_
-  · rw [relabelFin_comp ((keyValue_injective _).comp hR) σ hσ]
-    rfl
-  · exact add_le_add le_rfl (card_filter_not_injective_div_le n)
+    (fun R => Function.Injective R)
+    (fun R hR => relabelFin_comp ((keyValue_injective _).comp hR) σ hσ) hf).trans
+    (add_le_add le_rfl (card_filter_not_injective_div_le n))
 
 /-- Equal relabelings come from isomorphic adjacency matrices. -/
 private theorem exists_equiv_of_mem_support_relabelDist {n n' : ℕ} {A : Fin n → Fin n → Bool}

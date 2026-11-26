@@ -144,10 +144,8 @@ private theorem computableInPolyTime_padBounded (C : ℕ) :
 theorem reducible_of_H_le {C : ℕ} (hC : ∀ n, H n ≤ C) :
     PolyTimeReducible encCNF encBits SAT SATH := by
   refine ⟨padBounded C, computableInPolyTime_padBounded C, fun φ => ?_⟩
-  rw [padBounded, capPow, min_eq_left
-    ((Nat.pow_le_pow_left (Nat.le_succ _) _).trans
-      (Nat.pow_le_pow_right (Nat.succ_pos _) (hC _))), SATH, pad_mem_padSAT_iff]
-  simp
+  simp [padBounded, capPow, min_eq_left ((Nat.pow_le_pow_left (Nat.le_succ _) _).trans
+    (Nat.pow_le_pow_right (Nat.succ_pos _) (hC _))), SATH, pad_mem_padSAT_iff]
 
 /-- **If `SATH` is in `P`, so is `SAT`.** -/
 theorem SAT_mem_P_of_SATH_mem_P (h : SATH ∈ P encBits) : SAT ∈ P encCNF :=
@@ -165,7 +163,7 @@ theorem agrees_of_frequently_H_eq {i : ℕ} (h : ∃ᶠ n in Filter.atTop, H n =
     (max (index w + 1) (max (2 ^ 2 ^ (i + 1)) (clock i w.length)))
   have hlog : i < Nat.log 2 (Nat.log 2 n) :=
     Nat.le_log_of_pow_le one_lt_two (Nat.le_log_of_pow_le one_lt_two
-      (show 2 ^ 2 ^ (i + 1) ≤ n by omega))
+      ((le_max_left _ _).trans ((le_max_right _ _).trans hn)))
   obtain ⟨b, hb, hiff⟩ := agrees_H (hHn ▸ hlog) (index w) (by omega)
   rw [hHn, word_index, min_eq_left (by omega)] at hb
   exact ⟨b, hb, by rwa [word_index] at hiff⟩
@@ -174,13 +172,10 @@ theorem agrees_of_frequently_H_eq {i : ℕ} (h : ∃ᶠ n in Filter.atTop, H n =
 with that index within its polynomial clock. -/
 theorem SATH_mem_P_of_frequently_H_eq {i : ℕ} (h : ∃ᶠ n in Filter.atTop, H n = i) :
     SATH ∈ P encBits := by
-  refine ⟨fun w => decide (runIndexed i w (clock i w.length) = ([eBit true], true)), ?_,
-    fun w => ?_⟩
-  · unfold clock
-    fun_prop
-  · obtain ⟨b, hb, hiff⟩ := agrees_of_frequently_H_eq h w
-    simp only [hb, ← hiff]
-    cases b <;> decide
+  refine ⟨fun w => decide (runIndexed i w (clock i w.length) = ([eBit true], true)),
+    by fun_prop [clock], fun w => ?_⟩
+  obtain ⟨b, hb, hiff⟩ := agrees_of_frequently_H_eq h w
+  cases b <;> simp [hb, ← hiff]
 
 /-- **If `SATH` is not in `P`, then `H` tends to infinity.** -/
 theorem tendsto_H_of_notMem_P (h : SATH ∉ P encBits) :
@@ -212,10 +207,7 @@ theorem shrink_mem_SAT_iff {R : CNF ℕ → List Bool} (hR : ∀ φ, φ ∈ SAT 
   rw [shrink]
   split_ifs
   · rfl
-  · rw [hR φ, SATH, mem_padSAT_iff]
-    cases padCheck H (R φ) with
-    | none => simp [falseCNF_notMem_SAT]
-    | some ψ => simp
+  · cases h : padCheck H (R φ) <;> simp [hR φ, SATH, mem_padSAT_iff, h, falseCNF_notMem_SAT]
 
 /-- **A round of the self-reduction shortens long formulas.** Let `R` have output length at most
 `c * (n + 1) ^ d` on formulas of length `n`, and let `H` exceed `d` from `M` on. If `R φ` padded a

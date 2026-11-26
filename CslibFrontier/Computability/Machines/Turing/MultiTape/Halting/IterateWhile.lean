@@ -149,11 +149,9 @@ private theorem computesTidily_loopMachine {tm : MultiTapeTM k Symbol State}
     intro inp ws out hws
     obtain ⟨p', ws', e, hrun, ⟨hp', hws', he⟩, hsp⟩ := hwhileAt inp 1 ws out ⟨rfl, hws, rfl⟩
     subst hp'
-    have hsum : (∑ _n ∈ Finset.range r, (t + 10 * l + 23 + 1)) + 1 =
-        r * (t + 10 * l + 24) + 1 := by
-      simp [Finset.sum_const, Finset.card_range]
-    rw [hsum] at hrun hsp
-    exact ⟨ws', e, hrun, ⟨hws', he⟩, hsp⟩
+    have hsum : (∑ _ ∈ Finset.range r, (t + 10 * l + 23 + 1)) + 1 = r * (t + 10 * l + 24) + 1 := by
+      simp [Finset.sum_const]
+    exact ⟨ws', e, hsum ▸ hrun, ⟨hws', he⟩, hsum ▸ hsp⟩
   refine ((transformsTapes_load (k := k) (w 0)).seq_eq
     ((hfirstRound.seq_eq (hwhile.seq_eq
       ((transformsTapes_emit mark (w r)).seq_eq (transformsTapes_clearCur Symbol (w r) [])))))).imp
@@ -215,14 +213,11 @@ private theorem not_halts_loopMachine {tm : MultiTapeTM k Symbol State}
   rw [hws₁, he₁, List.nil_append] at hfirstRun
   let cfg : ℕ → Cfg (k + 1 + 2) Symbol Unit (w 0) :=
     fun n => wordsCfg (w 0) none (words (w n) (w (n + 1))) []
-  have hcond : ∀ n, nextNonEmpty k Symbol (cfg n).inputSymbol (cfg n).workTapeSymbols = true := by
-    intro n
-    have hsym : (cfg n).workTapeSymbols (nextTape k) = (w (n + 1)).head? := by
-      simp [cfg, Cfg.workTapeSymbols, wordsCfg, tapeOfList_zero, words_next]
-    simp only [nextNonEmpty, hsym]
-    cases hwn : w (n + 1) with
-    | nil => exact absurd hwn (hne n)
-    | cons _ _ => rfl
+  have hcond (n : ℕ) :
+      nextNonEmpty k Symbol (cfg n).inputSymbol (cfg n).workTapeSymbols = true := by
+    cases hwn : w (n + 1)
+    · exact absurd hwn (hne n)
+    · simp [nextNonEmpty, cfg, Cfg.workTapeSymbols, wordsCfg, tapeOfList_zero, words_next, hwn]
   have hbody : ∀ n, nextNonEmpty k Symbol (cfg n).inputSymbol (cfg n).workTapeSymbols = true →
       ∃ u, (loopRound tm mark).runFrom ((cfg n).withState (some (loopRound tm mark).q₀)) u =
         (cfg (n + 1)).withState none := by
@@ -264,17 +259,11 @@ private theorem not_halts_comp_of_left {k₁ k₂ : ℕ} {S₁ S₂ : Type*}
     {x : List Symbol} (h₁ : ¬tm₁.Halts x) (mark : Symbol) :
     ¬(tm₂.comp tm₁ mark).Halts x := by
   rintro ⟨t, hhalt⟩
-  have h1 : ¬(tm₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).Halts x :=
-    not_halts_extendTapes _ h₁
-  have h2 : ∀ u, ¬((tm₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord.runFrom
-      ((tm₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord.initCfg x) u).Halted :=
-    fun u => not_halted_seq_of_left (not_halted_outputToTape h1) u
-  have h3 : ∀ u, ¬(((tm₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord.extendTapes
-      Fin.castSuccEmb).runFrom
-        (((tm₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord.extendTapes
-          Fin.castSuccEmb).initCfg x) u).Halted := fun u hu =>
-    not_halts_extendTapes Fin.castSuccEmb (fun ⟨v, hv⟩ => h2 v hv) ⟨u, hu⟩
-  exact not_halted_seq_of_left h3 t hhalt
+  let tm1e := tm₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))
+  have h2 : ¬tm1e.outputToWord.Halts x := fun ⟨u, hu⟩ =>
+    not_halted_seq_of_left (not_halted_outputToTape (not_halts_extendTapes _ h₁)) u hu
+  exact not_halted_seq_of_left
+    (fun u hu => not_halts_extendTapes Fin.castSuccEmb h2 ⟨u, hu⟩) t hhalt
 
 private theorem not_halts_comp_of_right {k₁ k₂ : ℕ} {S₁ S₂ : Type*}
     {tm₁ : MultiTapeTM k₁ Symbol S₁} {tm₂ : MultiTapeTM k₂ Symbol S₂}
@@ -376,12 +365,9 @@ theorem exists_partial_iterateWhile {α β γ : Type}
       (w := fun n => encState (step^[n] (init a))) (r := r)
       (t := cs * (l + 1) ^ ds) (s := cs * (l + 1) ^ ds) (l := l)
       (fun n hn => by
-        have h := (hs (step^[n] (init a))).mono
-          (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left
-            (Nat.add_le_add_right (hl n hn) 1) ds))
-          (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left
-            (Nat.add_le_add_right (hl n hn) 1) ds))
-        simpa only [Function.iterate_succ_apply'] using h)
+        let bound :=
+          Nat.mul_le_mul_left cs (Nat.pow_le_pow_left (Nat.add_le_add_right (hl n hn) 1) ds)
+        simpa only [Function.iterate_succ_apply'] using (hs (step^[n] (init a))).mono bound bound)
       hl hne hnil true
     have hmain := (hi a).comp hloop true
     have hraw := hmain.comp (hf (step^[r] (init a))) true
@@ -447,8 +433,6 @@ theorem exists_partial_iterateWhile {α β γ : Type}
       not_halts_loopMachine (w := fun n => encState (step^[n] (init a)))
         (fun n => ⟨_, _, by simpa only [Function.iterate_succ_apply'] using hs (step^[n] (init a))⟩)
         hne true
-    have hmainDiv : ¬main.Halts (encIn a) :=
-      not_halts_comp_of_right (hi a) hiterDiv true
-    exact not_halts_comp_of_left hmainDiv true
+    exact not_halts_comp_of_left (not_halts_comp_of_right (hi a) hiterDiv true) true
 
 end Turing.MultiTapeTM

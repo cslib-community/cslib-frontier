@@ -223,9 +223,7 @@ private theorem exists_tight_add_smul [Finite κ] (hx : A *ᵥ x ≤ b) {v : ι 
     · have := mul_nonpos_of_nonneg_of_nonpos (div_nonneg (sub_nonneg.2 (hx c₀)) hpos.le) hk
       linarith [hx k]
     · linarith [(le_div_iff₀ hk).1 (hc₀ k (by simp [hk]))]
-  · simp only [mulVec_add, mulVec_smul, Pi.add_apply, Pi.smul_apply, smul_eq_mul]
-    field_simp
-    ring
+  · simp [mulVec_add, mulVec_smul, div_mul_cancel₀ _ hpos.ne']
 
 /-- In a bounded nondegenerate system, a feasible point with at least `card ι` tight rows is a
 vertex. -/
@@ -279,8 +277,7 @@ theorem IsVertex.exists_pivot (hnd : IsNondegenerateSystem A b)
     rcases mem_insert.1 hk with rfl | hk
     · exact mem_tightRows.2 htight
     · obtain ⟨hkl, hkT⟩ := mem_erase.1 hk
-      simp [mulVec_add, mulVec_smul, show (A *ᵥ v) k = 0 by simpa [hkl] using hvT k hkT,
-        mem_tightRows.1 hkT]
+      simp [mulVec_add, mulVec_smul, hvT k hkT, hkl, mem_tightRows.1 hkT]
   have h1 := card_le_card hsub
   rw [card_insert_of_notMem fun h => hc'T (mem_of_mem_erase h), card_erase_of_mem hl, hT] at h1
   have : 0 < Fintype.card ι := hT ▸ card_pos.2 ⟨l, hl⟩
@@ -297,13 +294,9 @@ private theorem IsVertex.pivot_aux (hnd : IsNondegenerateSystem A b) (hx : IsVer
   have hl' : (A *ᵥ (y - x)) l < 0 := by
     rw [mulVec_sub, Pi.sub_apply, mem_tightRows.1 hl]
     exact sub_neg.2 ((hy.1 l).lt_of_ne fun h => hlnot (mem_tightRows.2 h))
-  obtain ⟨c, hcy, hcT⟩ := not_subset.1 fun h : tightRows A b y ⊆ (tightRows A b x).erase l => by
-    have h1 := card_le_card h
-    rw [card_erase_of_mem hl] at h1
-    have := hy.card_le_card_tightRows
-    have := hnd x hx.1
-    have : 0 < #(tightRows A b x) := card_pos.2 ⟨l, hl⟩
-    omega
+  obtain ⟨c, hcy, hcT⟩ := not_subset.1 fun h =>
+    (((hx.card_tightRows hnd).trans_le hy.card_le_card_tightRows).trans (card_le_card h)).not_gt
+      (card_erase_lt_of_mem hl)
   refine ⟨hl', c, ?_, mem_tightRows.1 hcy⟩
   rw [mulVec_sub, Pi.sub_apply, mem_tightRows.1 hcy, sub_pos]
   exact (hx.1 c).lt_of_ne fun h => hcT (mem_erase.2 ⟨fun hcl => hlnot (hcl ▸ hcy),

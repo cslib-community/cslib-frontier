@@ -263,14 +263,12 @@ private theorem sum_pi_ite_eq {ι' : Type*} [Fintype ι'] [DecidableEq ι'] {α 
     [∀ k, DecidablePred (P k)] :
     ∑ x : (∀ k, α k), (if ∀ k, P k (x k) then ∏ k, f k (x k) else 0) =
       ∏ k, ∑ a : α k, if P k a then f k a else 0 := by
-  have h1 : ∀ x : (∀ k, α k),
+  have h1 (x : ∀ k, α k) :
       (if ∀ k, P k (x k) then ∏ k, f k (x k) else 0) =
         ∏ k, if P k (x k) then f k (x k) else 0 := by
-    intro x
     split_ifs with hx
     · exact prod_congr rfl fun k _ => by simp [hx k]
-    · push Not at hx
-      obtain ⟨k, hk⟩ := hx
+    · obtain ⟨k, hk⟩ := not_forall.1 hx
       exact (prod_eq_zero (mem_univ k) (by simp [hk])).symm
   simp_rw [h1]
   exact (Fintype.prod_sum fun k a => if P k a then f k a else 0).symm
@@ -336,12 +334,11 @@ theorem realizationProbMixed_behaviorToMixed {i : ι} [Fintype (H i)] [Decidable
             exact sum_congr rfl fun a _ => ite_eq_left fun p hp hp1 => absurd hp1 (hq p hp).symm
           rw [hsum, htail, one_mul]
           congr 1
-          refine prod_congr rfl fun h hh => ?_
-          have hne : h ≠ qh := ne_of_mem_erase hh
-          refine sum_congr rfl fun a _ => if_congr ⟨fun h1 p hp => h1 p (List.mem_cons_of_mem _ hp),
-            fun h1 p hp hp1 => ?_⟩ rfl rfl
+          refine prod_congr rfl fun h hh => sum_congr rfl fun a _ =>
+            if_congr ⟨fun h1 p hp => h1 p (List.mem_cons_of_mem _ hp), fun h1 p hp hp1 => ?_⟩ rfl
+              rfl
           rcases List.mem_cons.1 hp with rfl | hp
-          · exact absurd hp1 hne.symm
+          · exact absurd hp1 (ne_of_mem_erase hh).symm
           · exact h1 p hp hp1
 
 end Strategies
@@ -578,15 +575,13 @@ theorem terminalProbPure_eq [Fintype ι] [DecidableEq ι] [∀ i h, DecidableEq 
     rw [terminalProbPure_chance, terminalProbPure_eq s sub, Terminal.chanceWeight_chance, mul_assoc]
     simp only [Terminal.seq_chance]
   | .decision j h _, .decision a sub => by
-    rw [terminalProbPure_decision, terminalProbPure_eq s sub, Terminal.chanceWeight_decision]
-    rw [← mul_prod_erase univ _ (mem_univ j)]
-    rw [← mul_prod_erase univ (fun k =>
-      if MatchesSeq (s k) ((Terminal.decision a sub).seq k) then (1 : ℝ) else 0) (mem_univ j)]
-    have hother : ∀ k ∈ univ.erase j,
+    have hother (k : ι) (hk : k ∈ univ.erase j) :
         (if MatchesSeq (s k) ((Terminal.decision a sub).seq k) then (1 : ℝ) else 0) =
-          (if MatchesSeq (s k) (sub.seq k) then 1 else 0) :=
-      fun _ hk => by simp [(ne_of_mem_erase hk).symm]
-    rw [prod_congr rfl hother, Terminal.seq_decision_self]
+          if MatchesSeq (s k) (sub.seq k) then 1 else 0 := by simp [(ne_of_mem_erase hk).symm]
+    rw [terminalProbPure_decision, terminalProbPure_eq s sub, Terminal.chanceWeight_decision,
+      ← mul_prod_erase univ _ (mem_univ j), ← mul_prod_erase univ (fun k =>
+        if MatchesSeq (s k) ((Terminal.decision a sub).seq k) then (1 : ℝ) else 0) (mem_univ j),
+      prod_congr rfl hother, Terminal.seq_decision_self]
     by_cases hsa : s j h = a <;> simp [hsa, matchesSeq_cons]
 
 /-- Sequence-factor decomposition of `terminalProbBehavior`. -/
@@ -601,15 +596,13 @@ theorem terminalProbBehavior_eq [Fintype ι] [DecidableEq ι]
       mul_assoc]
     simp only [Terminal.seq_chance]
   | .decision j h _, .decision a sub => by
-    rw [terminalProbBehavior, terminalProbBehavior_eq β sub, Terminal.chanceWeight]
-    rw [← mul_prod_erase univ _ (mem_univ j)]
-    rw [← mul_prod_erase univ (fun k =>
-      realizationProbBehavior (β k) ((Terminal.decision a sub).seq k)) (mem_univ j)]
-    have hother : ∀ k ∈ univ.erase j,
+    have hother (k : ι) (hk : k ∈ univ.erase j) :
         realizationProbBehavior (β k) ((Terminal.decision a sub).seq k) =
-          realizationProbBehavior (β k) (sub.seq k) :=
-      fun _ hk => by simp [(ne_of_mem_erase hk).symm]
-    rw [prod_congr rfl hother, Terminal.seq_decision_self, realizationProbBehavior_cons]
+          realizationProbBehavior (β k) (sub.seq k) := by simp [(ne_of_mem_erase hk).symm]
+    rw [terminalProbBehavior, terminalProbBehavior_eq β sub, Terminal.chanceWeight,
+      ← mul_prod_erase univ _ (mem_univ j), ← mul_prod_erase univ (fun k =>
+        realizationProbBehavior (β k) ((Terminal.decision a sub).seq k)) (mem_univ j),
+      prod_congr rfl hother, Terminal.seq_decision_self, realizationProbBehavior_cons]
     ring
 
 /-- Sequence-factor decomposition of `terminalProbMixed`. -/
@@ -796,8 +789,7 @@ theorem ExtensiveTree.evalMixed_eq_sum_terminal [Fintype ι] [DecidableEq ι]
   rw [sum_comm]
   refine sum_congr rfl fun s _ => ?_
   rw [ExtensiveTree.evalPure_eq_sum_terminal s T j, mul_sum]
-  refine sum_congr rfl fun z _ => ?_
-  ring
+  exact sum_congr rfl fun _ _ => by ring
 
 /-- The strategic game in cost-minimization form induced by `T`. -/
 def ExtensiveTree.toCostGame (T : ExtensiveTree ι H Act) :
@@ -848,15 +840,9 @@ theorem terminalProbWithFactor_realizationProbMixed [Fintype ι] [DecidableEq ι
         (Function.update (fun j => (Pi.single (s j) (1 : ℝ) : PureStrategy H Act j → ℝ)) i μ)
         z := by
   rw [terminalProbMixed_eq, terminalProbWithFactor, ← mul_prod_erase univ _ (mem_univ i),
-    Function.update_self]
-  have hother : ∀ j ∈ univ.erase i,
-      realizationProbMixed
-          (Function.update (fun j => (Pi.single (s j) (1 : ℝ) : PureStrategy H Act j → ℝ)) i μ j)
-          (z.seq j) =
-        if MatchesSeq (s j) (z.seq j) then 1 else 0 := fun j hj => by
-    rw [Function.update_of_ne (ne_of_mem_erase hj), realizationProbMixed_single_eq]
-  rw [prod_congr rfl hother]
-  ring
+    Function.update_self, ← mul_assoc]
+  exact congrArg (_ * ·) (prod_congr rfl fun j hj => by
+    rw [Function.update_of_ne (ne_of_mem_erase hj), realizationProbMixed_single_eq])
 
 theorem terminalProbWithFactor_realizationProbBehavior [Fintype ι] [DecidableEq ι]
     [∀ j h, DecidableEq (Act j h)] (i : ι) (β : ∀ h : H i, Act i h → ℝ)
@@ -865,13 +851,9 @@ theorem terminalProbWithFactor_realizationProbBehavior [Fintype ι] [DecidableEq
       terminalProbBehavior (Function.update (fun j => pureToBehavior (s j)) i β) z := by
   classical
   rw [terminalProbBehavior_eq, terminalProbWithFactor, ← mul_prod_erase univ _ (mem_univ i),
-    Function.update_self]
-  have hother : ∀ j ∈ univ.erase i,
-      realizationProbBehavior (Function.update (fun j => pureToBehavior (s j)) i β j)
-          (z.seq j) = if MatchesSeq (s j) (z.seq j) then 1 else 0 := fun j hj => by
-    rw [Function.update_of_ne (ne_of_mem_erase hj), realizationProbBehavior_pureToBehavior_eq]
-  rw [prod_congr rfl hother]
-  ring
+    Function.update_self, ← mul_assoc]
+  exact congrArg (_ * ·) (prod_congr rfl fun j hj => by
+    rw [Function.update_of_ne (ne_of_mem_erase hj), realizationProbBehavior_pureToBehavior_eq])
 
 namespace ExtensiveTree
 
@@ -938,17 +920,11 @@ theorem RealizationEquivFactor.terminalProbMixed_eq [Fintype ι] [DecidableEq ι
           (∏ j ∈ univ.erase i, if MatchesSeq (s j) (z.seq j) then (1 : ℝ) else 0) =
           ∏ j, (if hj : j = i then if s j = hj ▸ s₀ then 1 else 0
             else if MatchesSeq (s j) (z.seq j) then μ j (s j) else 0) := by
-        rw [← mul_prod_erase univ (fun j => g j (s j)) (mem_univ i),
-          ← mul_prod_erase univ (fun j =>
-            if hj : j = i then if s j = hj ▸ s₀ then (1 : ℝ) else 0
-            else if MatchesSeq (s j) (z.seq j) then μ j (s j) else 0) (mem_univ i)]
+        rw [← mul_prod_erase univ _ (mem_univ i), mul_assoc, ← prod_mul_distrib]
+        conv_rhs => rw [← mul_prod_erase univ _ (mem_univ i)]
         simp only [g, ↓reduceDIte]
-        rw [mul_assoc]
-        congr 1
-        rw [← prod_mul_distrib]
-        refine prod_congr rfl fun j hj => ?_
-        have hne : j ≠ i := ne_of_mem_erase hj
-        simp only [hne, ↓reduceDIte]
+        refine congrArg (_ * ·) (prod_congr rfl fun j hj => ?_)
+        simp only [ne_of_mem_erase hj, ↓reduceDIte]
         split_ifs <;> simp
       rw [← hlhs]
       ring
@@ -956,14 +932,13 @@ theorem RealizationEquivFactor.terminalProbMixed_eq [Fintype ι] [DecidableEq ι
     congr 1
     rw [(Fintype.prod_sum fun j (s_j : PureStrategy H Act j) =>
       if hj : j = i then if s_j = hj ▸ s₀ then (1 : ℝ) else 0
-      else if MatchesSeq s_j (z.seq j) then μ j s_j else 0).symm]
-    rw [← mul_prod_erase univ _ (mem_univ i)]
+      else if MatchesSeq s_j (z.seq j) then μ j s_j else 0).symm,
+      ← mul_prod_erase univ _ (mem_univ i)]
     have hi_one : (∑ s_i : PureStrategy H Act i,
         if h : i = i then if s_i = h ▸ s₀ then (1 : ℝ) else 0
         else if MatchesSeq s_i (z.seq i) then μ i s_i else 0) = 1 := by
       simp only [↓reduceDIte]
-      rw [sum_eq_single s₀ (fun s_i _ hs => by simp [hs]) (by simp)]
-      simp
+      rw [sum_eq_single s₀ (fun s_i _ hs => ite_eq_right hs) (by simp), ite_eq_left rfl]
     rw [hi_one, one_mul]
     exact prod_congr rfl fun j hj => by simp [ne_of_mem_erase hj, realizationProbMixed]
   rw [hprod r₁, hprod r₂]
@@ -1158,19 +1133,16 @@ private theorem exists_node_of_mem_seq [DecidableEq ι] {i : ι} {h : H i} :
       h ∈ (z.seq i).map Sigma.fst → ∃ v : Node T, v.IsDecisionOf i h
   | .leaf _, .leaf => fun hmem => by simp at hmem
   | @ExtensiveTree.chance _ _ _ _ _ _ _ _, .chance c sub => fun hmem =>
-      let ⟨v, hv⟩ := exists_node_of_mem_seq sub hmem
-      ⟨.chance c v, hv⟩
+      (exists_node_of_mem_seq sub hmem).elim fun v hv => ⟨.chance c v, hv⟩
   | .decision j h' _, .decision a sub => fun hmem => by
       by_cases hij : j = i
       · subst hij
         simp only [Terminal.seq_decision_self, List.map_cons, List.mem_cons] at hmem
         rcases hmem with rfl | hmem
         · exact ⟨.here, rfl⟩
-        · obtain ⟨v, hv⟩ := exists_node_of_mem_seq sub hmem
-          exact ⟨.decision a v, hv⟩
+        · exact (exists_node_of_mem_seq sub hmem).elim fun v hv => ⟨.decision a v, hv⟩
       · simp only [Terminal.seq_decision_ne hij] at hmem
-        obtain ⟨v, hv⟩ := exists_node_of_mem_seq sub hmem
-        exact ⟨.decision a v, hv⟩
+        exact (exists_node_of_mem_seq sub hmem).elim fun v hv => ⟨.decision a v, hv⟩
 
 /-- Perfect recall implies that no play visits any information set of player `i` twice. -/
 theorem PerfectRecall.noRepeatedInfoSet [DecidableEq ι] :

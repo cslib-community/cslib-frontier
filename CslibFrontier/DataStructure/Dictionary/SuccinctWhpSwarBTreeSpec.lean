@@ -313,10 +313,7 @@ theorem btreeDelete_subtree_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
     fun q' hq1 hq2 => ?_⟩
   · split_ifs
     exacts [hbounds j (by omega), hbounds (j + 1) (by omega)]
-  · have h1 := hmono i j
-    have h2 := hmono i (j + 1)
-    have h3 := hmono (i + 1) (j + 1)
-    split_ifs <;> omega
+  · split_ifs <;> exact hmono _ _ (by omega) (by omega)
   · rcases eq_or_ne q' q with rfl | hqq
     · refine .inr ⟨fun j hj => ?_, Function.update_self ..⟩
       have h1 := hmono j r
@@ -327,8 +324,7 @@ theorem btreeDelete_subtree_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
       · have hne : j₀ ≠ r := fun h => hqq (by rw [← hkj₀, h, hkey])
         rcases lt_or_gt_of_ne hne with h | h
         · exact .inl ⟨j₀, by omega, by simp [h, hkj₀], by simp [h, hmj₀]⟩
-        · have h1 : ¬j₀ - 1 < r := by omega
-          have h2 : j₀ - 1 + 1 = j₀ := by omega
+        · obtain ⟨h1, h2⟩ : ¬j₀ - 1 < r ∧ j₀ - 1 + 1 = j₀ := by omega
           exact .inl ⟨j₀ - 1, by omega, by simp [h1, h2, hkj₀], by simp [h1, h2, hmj₀]⟩
       · exact .inr ⟨fun j hj => by split_ifs <;> exact hno _ (by omega), hmno⟩
 
@@ -511,9 +507,8 @@ theorem splitFullNode_spec {isRoot : Bool} {fpBits W_val tMin alloc alloc' lo hi
       · rw [ite_eq_left (hij.trans hj), ite_eq_left hj]
         exact hmono i j hij (by omega)
       · rcases href q hq1 (hq2.trans hsep_hi.le) with ⟨r₀, hr₀, hkr₀, hmr₀⟩ | ⟨hno, hmno⟩
-        · have hr₀_lt : r₀ < tMin := not_le.mp fun h => by
-            have := hmono (tMin - 1) r₀
-            omega
+        · have hr₀_lt : r₀ < tMin :=
+            not_le.mp fun h => (hkr₀ ▸ hmono (tMin - 1) r₀ (by omega) hr₀).not_ge hq2
           exact .inl ⟨r₀, hr₀_lt, by simp [hr₀_lt, hkr₀, hmr₀]⟩
         · exact .inr ⟨fun r hr => by rw [ite_eq_left hr]; exact hno r (by omega), hmno⟩
     · simp only [ValidSubtree, hr_nd, laneGet_wordDropLow]
@@ -613,9 +608,9 @@ theorem splitRootIfFull_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
       by simp; omega, ?_, ?_, ?_⟩
     · rw [BTreeTree.height_branch_of_eq hht_root]
       exact (Nat.add_comm _ _).trans_le (Nat.add_le_add_right hhtL.le 1)
-    · have hsum : ∑ i : Fin (1 + 1), (![leftT, rightT] i).potential tMin =
-          leftT.potential tMin + rightT.potential tMin := Fin.sum_univ_two _
-      rw [show sl.alloc + 2 - 1 = sl.alloc - 1 + 2 by omega, Nat.mul_add, BTreeTree.potential, hsum]
+    · have halloc2 : sl.alloc + 2 - 1 = sl.alloc - 1 + 2 := by omega
+      rw [halloc2, Nat.mul_add, BTreeTree.potential, Fin.sum_univ_two, Matrix.cons_val_zero,
+        Matrix.cons_val_one, Matrix.cons_val_zero]
       omega
     · have hsep_lt : (splitFullNode fpBits W_val tMin (sl.nodes sl.root)).sep < 2 ^ (fpBits + 2) :=
         hsep_hi.trans ((Nat.sub_le _ _).trans_lt (Nat.pow_lt_pow_right (by decide) (by omega)))
@@ -629,8 +624,8 @@ theorem splitRootIfFull_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
         simp [laneGet_eq_div_mod, Nat.shiftLeft_eq, Nat.add_mul_div_right, Nat.div_eq_of_lt hl,
           Nat.mod_eq_of_lt halloc_val]
       have hvals_lt : sl.alloc + (sl.alloc + 1) <<< W_val < 2 ^ ((1 + 1) * W_val) := by
-        have := Nat.mul_le_mul_right (2 ^ W_val) (Nat.succ_le_of_lt halloc_val)
-        rw [Nat.succ_mul] at this
+        have := (Nat.succ_mul (sl.alloc + 1) (2 ^ W_val)).symm.trans_le
+          (Nat.mul_le_mul_right _ halloc_val)
         rw [Nat.shiftLeft_eq, Nat.two_mul, Nat.pow_add]
         omega
       have hne1 : sl.root ≠ sl.alloc + 1 := by omega
@@ -693,8 +688,7 @@ theorem finishLeafInsert_leaf_spec {isRoot : Bool} {fpBits W_val tMin leafIdx cn
         rcases href q' hq1 hq2 with ⟨j₀, hj₀, hkj₀, hmj₀⟩ | ⟨hno', hmno⟩
         · rcases lt_or_ge j₀ r with h | h
           · exact .inl ⟨j₀, by omega, by simp [h, hkj₀], by simp [h, hmj₀]⟩
-          · have h1 : ¬j₀ + 1 < r := by omega
-            have h2 : j₀ + 1 ≠ r := by omega
+          · obtain ⟨h1, h2⟩ : ¬j₀ + 1 < r ∧ j₀ + 1 ≠ r := by omega
             exact .inl ⟨j₀ + 1, by omega, by simp [h1, h2, hkj₀], by simp [h1, h2, hmj₀]⟩
         · refine .inr ⟨fun j hj => ?_, hmno⟩
           split_ifs

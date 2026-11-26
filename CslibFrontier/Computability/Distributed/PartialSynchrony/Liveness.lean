@@ -136,8 +136,8 @@ private theorem subround0_lock_in_certPairs {F : Finset P}
   have hlt : lk.view < vStar := by omega
   refine ⟨hlt, fun i hi => ?_⟩
   rw [byzQuorum_state_succ]
-  simp only [byzUpdate, show (6 * vStar) % 6 = 0 by omega,
-    show (6 * vStar) / 6 = vStar by omega, computeCertPairs, List.mem_filter, List.mem_dedup,
+  simp only [byzUpdate, Nat.mul_mod_right, Nat.mul_div_cancel_left _ (Nat.succ_pos 5),
+    computeCertPairs, List.mem_filter, List.mem_dedup,
     List.mem_flatMap, decide_eq_true_eq, rawVoteCount, hlt, ↓reduceIte]
   have hW_mem : ∀ h ∈ (Finset.univ \ F).filter (fun h =>
       lk ∈ ((byzQuorumProtocol P V procs leader t).byzantineState
@@ -166,15 +166,15 @@ private theorem subround0_proper_complete {F : Finset P}
       F deliver adv x (6 * vStar + 1) i).properReport.allProper = true) := by
   have hH_card : Fintype.card P - t ≤ (Finset.univ \ F).card := card_compl_ge_sub hF
   have hH_init : ∀ i ∉ F, ∀ h ∉ F,
-      extractRawInit (byzIncoming procs leader t F deliver adv x (6 * vStar) i h) = some (x h) := by
-    intro i hi h hhF
-    simp only [byzIncoming, hhF, ↓reduceIte, hdel0 h hhF i hi, byzSend,
-      show (6 * vStar) % 6 = 0 by omega, extractRawInit, byzState_input_eq]
+      extractRawInit (byzIncoming procs leader t F deliver adv x (6 * vStar) i h) = some (x h) :=
+    fun i hi h hhF => by
+      simp only [byzIncoming, hhF, ↓reduceIte, hdel0 h hhF i hi, byzSend,
+        Nat.mul_mod_right, extractRawInit, byzState_input_eq]
   by_cases hex : ∃ w₀ : V, t + 1 ≤ ((Finset.univ \ F).filter fun h => x h = w₀).card
   · obtain ⟨w₀, hw₀⟩ := hex
     refine Or.inl ⟨w₀, fun i hi => ?_⟩
     rw [byzQuorum_state_succ]
-    simp only [byzUpdate, show (6 * vStar) % 6 = 0 by omega, computeProperReport,
+    simp only [byzUpdate, Nat.mul_mod_right, computeProperReport,
       List.mem_filter, List.mem_dedup, List.mem_filterMap, decide_eq_true_eq]
     obtain ⟨h₀, hh₀⟩ := Finset.card_pos.1 (lt_of_lt_of_le (by omega) hw₀)
     simp only [Finset.mem_filter, Finset.mem_sdiff, Finset.mem_univ, true_and] at hh₀
@@ -186,8 +186,7 @@ private theorem subround0_proper_complete {F : Finset P}
       rw [hH_init i hi h hh.1, hh.2]
   · refine Or.inr fun i hi => ?_
     rw [byzQuorum_state_succ]
-    simp only [byzUpdate, show (6 * vStar) % 6 = 0 by omega, computeProperReport,
-      decide_eq_true_eq]
+    simp only [byzUpdate, Nat.mul_mod_right, computeProperReport, decide_eq_true_eq]
     constructor
     · rw [length_filter_dedup_eq_card hprocs]
       refine le_trans (by omega) (card_sub_le_filter_of_compl hF fun h hhF => ?_)
@@ -300,13 +299,11 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
                 | some (_, cp) => decide (best ∈ cp) | none => false) = true
               simpa only [hm1_honest i hi j (Finset.mem_sdiff.1 hj).2, decide_eq_true_eq] using
                 hSL_cp j hj
-          simp only [acceptsProposal, hlk_2_eq_0 i, Bool.and_eq_true, decide_eq_true_eq]
-          refine ⟨hbest_vc, ?_⟩
           cases hilk : (st (6 * vStar) i).locked with
-          | none => trivial
+          | none => simp [acceptsProposal, hlk_2_eq_0 i, hilk, hbest_vc]
           | some lk =>
-            simp only [decide_eq_true_eq]
-            exact Or.inr (pickMaxLock_le hpm lk (hlock_in_lCerts i hi lk hilk))
+            simp [acceptsProposal, hlk_2_eq_0 i, hilk, hbest_vc,
+              pickMaxLock_le hpm lk (hlock_in_lCerts i hi lk hilk)]
         · omega
     | none =>
       have hlCerts_empty : lCerts = [] := pickMaxLock_eq_none_iff.1 hpm
@@ -507,9 +504,7 @@ theorem omission_terminates_in_honest_view {F : Finset P}
     | some lk =>
       have hmem := hlock_in i hi lk hilk
       cases hpm : pickMaxLock locks with
-      | some best =>
-        simp only [decide_eq_true_eq]
-        exact Or.inr (pickMaxLock_le hpm lk hmem)
+      | some best => simp [pickMaxLock_le hpm lk hmem]
       | none => simp only [pickMaxLock_eq_none_iff.1 hpm, List.not_mem_nil] at hmem
   obtain ⟨prop, hpropL, hpropV⟩ := hprop
   -- Subround 1 → 2: every correct `i ∉ F` sets `myAck = some prop.val`.
@@ -630,10 +625,9 @@ theorem not_partialSync_of_le_three_t {P V S M : Type*}
   have hdec (F : Finset P) (adv) (b : P → Bool) (i : P) :
       (π.toSyncProtocol v₀ v₁).decision F adv b R i =
         decide (π.byzantineDecision F (fun _ _ _ => true) adv
-          (fun k => if b k then v₁ else v₀) R i = some v₁) := by
-    simp only [Cslib.Distributed.Byzantine.Protocol.decision,
-      ← π.byzantineState_always_eq_state v₀ v₁ F adv b R]
-    rfl
+          (fun k => if b k then v₁ else v₀) R i = some v₁) :=
+    congrArg ((π.toSyncProtocol v₀ v₁).output i)
+      (π.byzantineState_always_eq_state v₀ v₁ F adv b R i).symm
   refine ⟨fun F hF adv b i hi j hj => ?_, fun F hF adv b bit hbit i hi => ?_⟩
   · obtain ⟨wi, hwi⟩ := Option.isSome_iff_exists.1 (hbdd F hF adv _ i hi)
     obtain ⟨wj, hwj⟩ := Option.isSome_iff_exists.1 (hbdd F hF adv _ j hj)
@@ -667,22 +661,15 @@ theorem not_solvesByzantinePartialSync {P V S M : Type*}
   obtain ⟨v₀, v₁, hne⟩ := exists_pair_ne V
   let e := Fintype.equivFin P
   let g : P → Fin 3 := fun i => ⟨2 * (e i : ℕ) % 3, Nat.mod_lt _ (by omega)⟩
-  have hcard : ∀ k : Fin 3, (Finset.univ.filter fun i => g i = k).card ≤ t := by
-    intro k
+  have hcard : ∀ k : Fin 3, (Finset.univ.filter fun i => g i = k).card ≤ t := fun k =>
     calc (Finset.univ.filter fun i => g i = k).card
         ≤ (Finset.range t).card := Finset.card_le_card_of_injOn (fun i => (e i : ℕ) / 3)
-          (fun i _ => by
-            have := (e i).isLt
-            simp only [Finset.coe_range, Set.mem_Iio]
-            omega)
-          (fun i hi j hj hij => by
-            simp only [Finset.coe_filter, Finset.mem_univ, true_and,
-              Set.mem_ofPred_eq] at hi hj
-            apply e.injective
-            have hi' := congrArg Fin.val hi
-            have hj' := congrArg Fin.val hj
-            simp only [g] at hi' hj' hij
-            ext
+          (fun i _ => Finset.mem_coe.2
+            (Finset.mem_range.2 (Nat.div_lt_of_lt_mul ((e i).isLt.trans_le h3))))
+          (fun i hi j hj hij => e.injective <| Fin.ext <| by
+            have hi' := congrArg Fin.val (Finset.mem_filter.1 hi).2
+            have hj' := congrArg Fin.val (Finset.mem_filter.1 hj).2
+            dsimp only [g] at hi' hj' hij
             omega)
       _ = t := Finset.card_range t
   let a : P := e.symm ⟨0, by omega⟩
@@ -819,19 +806,11 @@ theorem not_omissionPartialSync_weakUnanimity {P V S M : Type*}
         simp only [A, Finset.mem_filter, Finset.mem_univ, Equiv.apply_symm_apply, hm, and_self],
         congrArg Fin.val (e.apply_symm_apply _)⟩
   have hB_card : B.card = n - k := by
-    have hs := Finset.card_sdiff_add_card_eq_card (Finset.subset_univ A)
-    simp only [B, Finset.card_univ, n] at hs ⊢
-    omega
-  have hA_le : A.card ≤ t := by omega
-  have hB_le : B.card ≤ t := by omega
+    simpa [B, hA_card, n] using Finset.card_sdiff_of_subset (Finset.subset_univ A)
   let a : P := e.symm ⟨0, by omega⟩
   let b : P := e.symm ⟨n - 1, by omega⟩
-  have haA : a ∈ A := by
-    simp only [a, A, Finset.mem_filter, Finset.mem_univ, Equiv.apply_symm_apply, true_and]
-    omega
-  have hbA : b ∉ A := by
-    simp only [b, A, Finset.mem_filter, Finset.mem_univ, Equiv.apply_symm_apply, true_and]
-    omega
+  have haA : a ∈ A := by simp [a, A]; omega
+  have hbA : b ∉ A := by simp [b, A]; omega
   have haB : a ∉ B := fun h => (Finset.mem_sdiff.1 h).2 haA
   -- Partitioned schedule: deliver within `A` and within `Aᶜ`, drop across `A ↔ Aᶜ`.
   let partDeliver : ℕ → P → P → Bool := fun _ j i => decide (j ∈ A ↔ i ∈ A)
@@ -851,12 +830,12 @@ theorem not_omissionPartialSync_weakUnanimity {P V S M : Type*}
       (fun r hr _ _ _ => ⟨by simp only [healAt, hr, ↓reduceIte], fun _ => trivial⟩) R le_rfl p
       trivial)
   -- Scenario A (`B` faulty, all inputs `v₀`): `a ∈ A` decides at `R₀`; healing at `R₀` yields `v₀`.
-  obtain ⟨R₀, hR₀⟩ := hterm B hB_le partDeliver 0 (fun _ => v₀) hgstB a haB
+  obtain ⟨R₀, hR₀⟩ := hterm B (by omega) partDeliver 0 (fun _ => v₀) hgstB a haB
   obtain ⟨w₀, hw₀⟩ := Option.isSome_iff_exists.1 hR₀
   rw [hwu (healAt R₀) (fun _ => v₀) v₀ ⟨R₀, hgst_heal R₀⟩ (fun _ => rfl) R₀ a w₀
     ((hheal v₀ R₀ a).trans hw₀)] at hw₀
   -- Scenario B (`A` faulty, all inputs `v₁`): `b ∉ A` decides at `R₁`; healing at `R₁` yields `v₁`.
-  obtain ⟨R₁, hR₁⟩ := hterm A hA_le partDeliver 0 (fun _ => v₁) hgstA b hbA
+  obtain ⟨R₁, hR₁⟩ := hterm A (by omega) partDeliver 0 (fun _ => v₁) hgstA b hbA
   obtain ⟨w₁, hw₁⟩ := Option.isSome_iff_exists.1 hR₁
   rw [hwu (healAt R₁) (fun _ => v₁) v₁ ⟨R₁, hgst_heal R₁⟩ (fun _ => rfl) R₁ b w₁
     ((hheal v₁ R₁ b).trans hw₁)] at hw₁

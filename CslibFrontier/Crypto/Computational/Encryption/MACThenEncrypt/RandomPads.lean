@@ -291,9 +291,8 @@ private theorem mteFaithful_bind_apply_le (M : MACScheme) (n m : ℕ) (km : List
       (mteFaithfulOracle_step_lazyProgramHandler M n m km) program ([], []),
     ProbOracleComp.runWith_map_state _ _ (fun s => (⟨s.1, s.2⟩ : MteState))
       (mteForgetfulOracle_step_overwriteProgramHandler M n m km) program ([], [])] at hcloseState
-  have h := (hcloseState.bind_left next) {true}
-  rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at h
-  simpa only [List.length_nil, Nat.mul_zero, Nat.zero_add] using h
+  simpa only [PMF.toOuterMeasure_apply_singleton, List.length_nil, Nat.mul_zero, Nat.zero_add]
+    using (hcloseState.bind_left next) {true}
 
 /-! ## The PRF step -/
 
@@ -346,8 +345,7 @@ private theorem eval_prfRealGame_mteCIToPrfDistinguisher
       refine PMF.bind_congr_on_support _ _ _ fun tag htag => ?_
       refine PMF.bind_congr_on_support _ _ _ fun r hr => ?_
       have hrLen : r.length = ptLen n := BitString.length_of_mem_support_uniformList hr
-      have hpadLen : (family ke r).length = ptLen n := by
-        rw [hlen ke r (by rw [hrLen, hkeLen]), hkeLen]
+      have hpadLen := (hlen ke r (hrLen.trans hkeLen.symm)).trans hkeLen
       simp [prfOracle, hrLen, List.take_of_length_le hpadLen.le]
     · simp [hmsg, runWith_norm, pmf_norm]
   rw [horacle]
@@ -365,8 +363,7 @@ private theorem eval_prfRealGame_mteCIToPrfDistinguisher
       mtePlaintextValid, hmsgLen]
     congr 1
     split_ifs with h
-    · exact h
-    · exact (Bool.not_eq_true _).mp h
+    exacts [h, Bool.eq_false_iff.mpr h]
   · simp only [hcond, Bool.false_eq_true, ↓reduceIte, runWith_norm, pmf_norm]
     rcases Bool.and_eq_false_iff.mp (Bool.eq_false_iff.mpr hcond) with hfresh | hlenCt
     · simp only [hfresh, Bool.false_and]
@@ -408,11 +405,8 @@ private theorem eval_prfIdealGame_mteCIToPrfDistinguisher (M : MACScheme) (ptLen
         rfl
       · simp [hmsg, runWith_norm, pmf_norm])
     (adversary n []) {}
-  rw [show (([] : List (List Bool)), ([] : List (List Bool × List Bool))) =
-      (fun st : MteState => (st.history.map (MteRec.ct (ptLen n)), st.cache)) {} from rfl,
-    ← hsim, PMF.bind_map]
-  refine PMF.bind_congr_on_support _ _ _ fun out _ => ?_
-  obtain ⟨ct, cache, hist⟩ := out
+  erw [← hsim, PMF.bind_map]
+  refine PMF.bind_congr_on_support _ _ _ fun ⟨ct, cache, hist⟩ _ => ?_
   unfold mteIdealFinal
   dsimp only [Function.comp_apply]
   by_cases hcond :
@@ -522,8 +516,8 @@ theorem isOraclePPT_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ
     IsOraclePPT encBool (mteCIToPrfDistinguisher M ptLen adversary) := by
   have hparam : ComputableInPolyTime (GeneratorReindex.parameter ptLen) encUnary encUnary :=
     GeneratorReindex.isPolyTime_parameter hptLenPoly .id'
-  let EStateCaller := encPair (encPair encUnary encBits) encBits
-  have hrun : IsOraclePPTOn (Operation := Unit) EStateCaller (encPair encBits (encList encBits))
+  have hrun : IsOraclePPTOn (Operation := Unit)
+      (encPair (encPair encUnary encBits) encBits) (encPair encBits (encList encBits))
       (fun p : (ℕ × List Bool) × List Bool =>
         (OracleComp.interpret
           (OracleComp.sumHandler
@@ -531,16 +525,12 @@ theorem isOraclePPT_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ
             (mteCIToPrfHandler M (GeneratorReindex.parameter ptLen p.1.1) p.1.1 p.2))
           (adversary (GeneratorReindex.parameter ptLen p.1.1) [])).run []) := by
     apply hadversary.run_interpret_preprocess_open
-      (input := EStateCaller)
-      (handler := fun p : (ℕ × List Bool) × List Bool =>
-        mteCIToPrfHandler M (GeneratorReindex.parameter ptLen p.1.1) p.1.1 p.2)
-      (prepare := fun p : (ℕ × List Bool) × List Bool =>
-        (GeneratorReindex.parameter ptLen p.1.1, ([] : List Bool)))
-      (initial := fun _ => ([] : List (List Bool)))
-      (resources := fun p _ => 4 * p.1.1 + 2)
-      (by dsimp only [EStateCaller]; fun_prop) (isOraclePPTOn_mteCIToPrfHandler M ptLen hptLenPoly)
-      (ComputableInPolyTime.const []) (fun _ _ => True) (fun _ => trivial)
-      (by dsimp only [EStateCaller]; fun_prop)
+      (input := encPair (encPair encUnary encBits) encBits)
+      (handler := fun p => mteCIToPrfHandler M (GeneratorReindex.parameter ptLen p.1.1) p.1.1 p.2)
+      (prepare := fun p => (GeneratorReindex.parameter ptLen p.1.1, []))
+      (initial := fun _ => []) (resources := fun p _ => 4 * p.1.1 + 2) (by fun_prop)
+      (isOraclePPTOn_mteCIToPrfHandler M ptLen hptLenPoly) (.const [])
+      (fun _ _ => True) (fun _ => trivial) (by fun_prop)
     intro p request log _ result hresult
     unfold mteCIToPrfHandler at hresult
     dsimp only at hresult
@@ -554,8 +544,7 @@ theorem isOraclePPT_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ
       cases OracleComp.eq_of_mem_supportWith_pure hresult
       have hpadTake : (List.take p.1.1 rawPad).length ≤ p.1.1 := List.length_take_le _ _
       refine ⟨trivial, ?_, ?_⟩
-      · simp only [List.length_append, List.length_zipWith, hrLen]
-        lia
+      · simp only [List.length_append, List.length_zipWith, hrLen]; omega
       · simp only [encList_cons, List.length_append, length_frame, encBits_apply,
           List.length_zipWith, hrLen]
         lia

@@ -72,12 +72,9 @@ private def packRow (s : Level) (r : Fin 256 → MaskCoefficient s) : FixedBytes
     simpa only [packSigned, length_packCoeffs, Nat.mul_one] using i.isLt)
 
 private theorem packRow_list (s : Level) (r : Fin 256 → MaskCoefficient s) :
-    (packRow s r).toList = packSigned (width s) s.params.γ₁ (fun _ : Fin 1 => ringRow r) :=
-  by
-  apply List.ext_getElem
-  · simp [packSigned]
-  · intro _ _ _
-    simp only [FixedBytes.toList, List.getElem_ofFn, packRow]
+    (packRow s r).toList = packSigned (width s) s.params.γ₁ (fun _ : Fin 1 => ringRow r) := by
+  refine List.ext_getElem (by simp [packSigned]) fun _ _ _ => ?_
+  simp only [FixedBytes.toList, List.getElem_ofFn, packRow]
 
 private theorem unpack_row (s : Level) (r : Fin 256 → MaskCoefficient s) (j : Fin 256) :
     ((unpackSigned 1 (width s) s.params.γ₁ (packRow s r).toList).get 0).get j = (ringRow r) j := by
@@ -258,11 +255,9 @@ private theorem Xofs.uniformPrefixes_expandMask_coefficients (base : Xofs) (s : 
   rw [← base.uniform_sampleWithMasks s ha hb, PMF.map_bind]
   refine Eq.trans ?_ eq
   simp only [PMF.map, Function.comp_def]
-  apply congrArg (PMF.bind (PMF.uniformOfFintype (MaskTable s)))
-  funext _
-  refine PMF.bind_eq_pure_of_forall_mem_support fun _ hH => ?_
-  congr 1
-  funext p j
+  refine congrArg (PMF.bind (PMF.uniformOfFintype (MaskTable s))) (funext fun _ => ?_)
+  refine PMF.bind_eq_pure_of_forall_mem_support fun _ hH =>
+    congrArg PMF.pure (funext fun p => funext fun j => ?_)
   exact Xofs.expandMask_of_mem_sampleWithMasks hH seed _ p.2 j
 
 private abbrev Coefficients (s : Level) := Fin s.params.ℓ → Fin 256 → MaskCoefficient s
@@ -286,8 +281,7 @@ private theorem maskLaw_coefficients (s : Level) :
   let _ : Nonempty ↥(maskSet s.params) :=
     Finset.nonempty_coe_sort.mpr (mask_nonempty s.params (by cases s <;> decide))
   have law := PMF.uniformOfFintype_finset_map_val (maskSet s.params)
-  rw [← PMF.uniformOfFintype_map_equiv (Equiv.ofBijective pack ⟨inj, onto⟩), PMF.map_comp] at law
-  exact law
+  rwa [← PMF.uniformOfFintype_map_equiv (Equiv.ofBijective pack ⟨inj, onto⟩), PMF.map_comp] at law
 
 private theorem iid_coefficients (s : Level) (k : ℕ) :
     (PMF.uniformOfFintype (Fin k × Fin s.params.ℓ → Fin 256 → MaskCoefficient s)).map

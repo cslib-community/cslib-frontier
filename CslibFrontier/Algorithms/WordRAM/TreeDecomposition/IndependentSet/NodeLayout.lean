@@ -98,23 +98,17 @@ theorem NodeLayout.mono_frontier {inst : MWISInstance} {descBase : ℕ}
   desc_hi := h.desc_hi.trans hp.2.1
   bags_holds i := by
     obtain ⟨h1, h3, hlo, hb⟩ := h.bags_holds i
-    have := h.desc_hi
-    have := i.isLt
-    rw [hp.2.2 (descBase + 4 * i.val) (by omega), hp.2.2 (descBase + 4 * i.val + 1) (by omega),
-      hp.2.2 (descBase + 4 * i.val + 3) (by omega)]
+    rw [hp.2.2 (descBase + 4 * i.val) (Nat.lt_of_lt_of_le (by omega) h.desc_hi),
+      hp.2.2 (descBase + 4 * i.val + 1) (Nat.lt_of_lt_of_le (by omega) h.desc_hi),
+      hp.2.2 (descBase + 4 * i.val + 3) (Nat.lt_of_lt_of_le (by omega) h.desc_hi)]
     exact ⟨h1, h3, hlo, hb.mono_frontier hp⟩
   tbl_holds i := by
     obtain ⟨hlen, hlo, ht⟩ := h.tbl_holds i
-    have := h.desc_hi
-    have := i.isLt
-    rw [hp.2.2 (descBase + 4 * i.val + 2) (by omega)]
+    rw [hp.2.2 (descBase + 4 * i.val + 2) (Nat.lt_of_lt_of_le (by omega) h.desc_hi)]
     exact ⟨hlen, hlo, ht.mono_frontier hp⟩
   tbl_disj i j hij := by
-    have := h.desc_hi
-    have := i.isLt
-    have := j.isLt
-    rw [hp.2.2 (descBase + 4 * i.val + 2) (by omega),
-      hp.2.2 (descBase + 4 * j.val + 2) (by omega)]
+    rw [hp.2.2 (descBase + 4 * i.val + 2) (Nat.lt_of_lt_of_le (by omega) h.desc_hi),
+      hp.2.2 (descBase + 4 * j.val + 2) (Nat.lt_of_lt_of_le (by omega) h.desc_hi)]
     exact h.tbl_disj i j hij
 
 /-- `NodeLayout` updates cleanly when node `p`'s DP table is overwritten in-place. -/
@@ -156,16 +150,13 @@ theorem NodeLayout.update_table {inst : MWISInstance} {descBase : ℕ}
         rw [hlow_eq (descBase + 4 * i.val + 2) (by omega)]
         by_cases hip : i = p
         · subst hip
-          rw [Function.update_self]
-          exact ⟨hnew_len, hp_lo, hholdP⟩
+          simpa only [Function.update_self] using ⟨hnew_len, hp_lo, hholdP⟩
         · rw [Function.update_of_ne hip]
           obtain ⟨hlen, hlo, ht⟩ := h.tbl_holds i
           refine ⟨hlen, hlo, ⟨hfr ▸ ht.1, ht.2.frame fun a ha1 ha2 => ?_⟩⟩
-          rcases Nat.lt_or_gt_of_ne (fun hv => hip (Fin.ext hv)) with hilt | hpilt
-          · have := h.tbl_disj i p hilt
-            exact hout a (.inl (by omega))
-          · have := h.tbl_disj p i hpilt
-            exact hout a (.inr (by omega))
+          rcases Nat.lt_or_gt_of_ne (Fin.val_ne_of_ne hip) with hilt | hpilt
+          · exact hout a (.inl (lt_of_lt_of_le (hlen ▸ ha2) (h.tbl_disj i p hilt)))
+          · exact hout a (.inr ((h.tbl_disj p i hpilt).trans ha1))
       tbl_disj := fun i j hij => by
         have := i.isLt
         have := j.isLt
@@ -185,12 +176,11 @@ def prefixMaxSum {n : ℕ} (tblList : Fin (n + 1) → List ℕ) (m : ℕ) : ℕ 
 /-- All-zero tables have `prefixMaxSum = 0`. -/
 theorem prefixMaxSum_replicate_zero {n : ℕ} (len : Fin (n + 1) → ℕ) (m : ℕ) :
     prefixMaxSum (fun i => List.replicate (len i) 0) m = 0 := by
-  unfold prefixMaxSum
   refine Finset.sum_eq_zero fun i _ => ?_
   unfold nodeMax
   split_ifs with hi
-  · refine Nat.eq_zero_of_le_zero (List.foldl_max_le le_rfl fun x hx => ?_)
-    rw [List.eq_of_mem_replicate hx]
+  · exact Nat.eq_zero_of_le_zero
+      (List.foldl_max_le le_rfl fun x hx => (List.eq_of_mem_replicate hx).le)
   · rfl
 
 private theorem nodeMax_le_prefixMaxSum {n : ℕ} (tblList : Fin (n + 1) → List ℕ)
@@ -210,7 +200,8 @@ theorem foldl_max_le_prefixMaxSum {n : ℕ} (tblList : Fin (n + 1) → List ℕ)
 theorem prefixMaxSum_succ {n : ℕ} (tblList : Fin (n + 1) → List ℕ) {k : ℕ} (hk : k + 1 ≤ n) :
     prefixMaxSum tblList (k + 1) =
       prefixMaxSum tblList k + (tblList ⟨k + 1, by omega⟩).foldl max 0 := by
-  simp only [prefixMaxSum, Finset.sum_range_succ, nodeMax, dite_eq_left (by omega : k + 1 < n + 1)]
+  have hlt : k + 1 < n + 1 := Nat.lt_succ_of_le hk
+  simp only [prefixMaxSum, Finset.sum_range_succ, nodeMax, dite_eq_left hlt]
 
 /-- Telescoping step: folding node `k + 1`'s table into strictly earlier parent `p < k + 1`
 increases the remaining prefix sum `0 .. k` by at most `B` relative to `0 .. k + 1`. -/
@@ -383,30 +374,25 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
           fun _ _ hi _ _ => absurd hi (Nat.not_lt_zero _)⟩
     unfold initNodesProg
     dsimp only
+    rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind,
+      StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind]
     refine ⟨validHistory_bind_step hv_d (validHistory_bind_step hv_loop (validHistory_pure w _ _)),
-      ?_, ?_, ?_, ?_⟩
-    · rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind]
-      rfl
-    · rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind]
-      exact hfr_hi
-    · rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-        StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind]
-      exact
-        { wt_holds := hwt₀.mono_frontier hpres_end
-          adj_holds := hadj₀.mono_frontier hpres_end
-          par_holds := hpar₀.mono_frontier hpres_end
-          desc_lo := hraw_lo
-          desc_hi := hfr_lo
-          bags_holds := fun i =>
-            let ⟨h1, h3, hblo, hb, _, _⟩ := hnodes_end i i.isLt
-            ⟨h1, h3, hblo, hb⟩
-          tbl_holds := fun i =>
-            let ⟨_, _, _, _, htlo, ht⟩ := hnodes_end i i.isLt
-            ⟨List.length_replicate, htlo, ht⟩
-          tbl_disj := fun i j => hdisj_end i j i.isLt j.isLt }
-    · rw [memoryCost_bind', memoryCost_allocDirty, memoryCost_bind', memoryCost_pure, Nat.add_zero]
-      change 1 + memoryCost (iterate initNodeStep descBase count ⟨rawBagsPtr, 0⟩) s_d ≤ _
-      dsimp only [count, stepCost, M] at hc_loop ⊢; omega
+      rfl, hfr_hi,
+      { wt_holds := hwt₀.mono_frontier hpres_end
+        adj_holds := hadj₀.mono_frontier hpres_end
+        par_holds := hpar₀.mono_frontier hpres_end
+        desc_lo := hraw_lo
+        desc_hi := hfr_lo
+        bags_holds := fun i =>
+          let ⟨h1, h3, hblo, hb, _, _⟩ := hnodes_end i i.isLt
+          ⟨h1, h3, hblo, hb⟩
+        tbl_holds := fun i =>
+          let ⟨_, _, _, _, htlo, ht⟩ := hnodes_end i i.isLt
+          ⟨List.length_replicate, htlo, ht⟩
+        tbl_disj := fun i j => hdisj_end i j i.isLt j.isLt }, ?_⟩
+    rw [memoryCost_bind', memoryCost_allocDirty, memoryCost_bind', memoryCost_pure, Nat.add_zero]
+    change 1 + memoryCost (iterate initNodeStep descBase count ⟨rawBagsPtr, 0⟩) s_d ≤ _
+    dsimp only [count, stepCost, M] at hc_loop ⊢; omega
   intro rem
   induction rem with
   | zero =>
@@ -457,15 +443,13 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
     let m3 := Function.update m2 (dAddr + 2) tblPtr
     let m4 := Function.update m3 (dAddr + 3) tblLen
     let st₁ : Memory.State := ⟨m4, st.frontier + tblLen⟩
-    obtain ⟨hst_step, hres_step⟩ := initNodeStep_eval descBase ⟨curRaw, k⟩ st
-    have hst_step' : (Memory.spec 0).clientState st (initNodeStep (descBase, ⟨curRaw, k⟩)) =
-        st₁ := by
-      rw [hst_step]
-      dsimp only [st₁, m4, m3, m2, m1, st_a, bagLen, bagPtr, tblLen, tblPtr, dAddr]
-      simp only [hmem_len]; rfl
-    have hres_step' : (Memory.spec 0).clientResult st (initNodeStep (descBase, ⟨curRaw, k⟩)) =
-        ⟨bagPtr + bagLen, k + 1⟩ := by
-      simpa only [bagPtr, bagLen, hmem_len] using hres_step
+    obtain ⟨hst_step', hres_step'⟩ :
+        (Memory.spec 0).clientState st (initNodeStep (descBase, ⟨curRaw, k⟩)) = st₁ ∧
+        (Memory.spec 0).clientResult st (initNodeStep (descBase, ⟨curRaw, k⟩)) =
+          ⟨bagPtr + bagLen, k + 1⟩ := by
+      have h := initNodeStep_eval descBase ⟨curRaw, k⟩ st
+      dsimp only [bagLen, bagPtr, tblLen, tblPtr, dAddr] at h ⊢
+      rwa [hmem_len] at h
     have hv_step : (Memory.spec w).ValidHistory st
         ((Memory.spec w).clientHistory st (initNodeStep (descBase, ⟨curRaw, k⟩))) := by
       unfold initNodeStep
@@ -501,18 +485,10 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
     have htbl_k_st₁ : HoldsIn tblPtr (List.replicate tblLen 0) st₁ :=
       ⟨htbl_zero_a.1, htbl_zero_a.2.frame fun a ha _ =>
         hp_writes a (.inr (by dsimp only [tblPtr, tblLen, dAddr, descBase, count] at *; omega))⟩
-    have hm4_0 : st₁.mem dAddr = bagPtr := by
-      dsimp only [st₁, m4, m3, m2, m1]
-      repeat rw [Function.update_of_ne (by omega)]
-      rw [Function.update_self]
-    have hm4_1 : st₁.mem (dAddr + 1) = bagLen := by
-      dsimp only [st₁, m4, m3, m2, m1]
-      repeat rw [Function.update_of_ne (by omega)]
-      rw [Function.update_self]
-    have hm4_2 : st₁.mem (dAddr + 2) = tblPtr := by
-      dsimp only [st₁, m4, m3, m2, m1]
-      rw [Function.update_of_ne (by omega), Function.update_self]
-    have hm4_3 : st₁.mem (dAddr + 3) = tblLen := Function.update_self ..
+    obtain ⟨hm4_0, hm4_1, hm4_2, hm4_3⟩ :
+        st₁.mem dAddr = bagPtr ∧ st₁.mem (dAddr + 1) = bagLen ∧
+          st₁.mem (dAddr + 2) = tblPtr ∧ st₁.mem (dAddr + 3) = tblLen := by
+      simp [st₁, m4, m3, m2, m1, Nat.left_eq_add]
     have hinv₁ : NodeInv (k + 1) st₁ := by
       refine ⟨fun i hi => ?_, fun i j hi hj hij => ?_⟩
       · by_cases hik : i = kFin
@@ -546,15 +522,13 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
           rw [hmem_lt (descBase + 4 * j.val + 2) (by dsimp only [dAddr]; omega)]
           exact hdisj i j hi_lt_k hj_lt_k hij
     have hc_step : memoryCost (initNodeStep (descBase, ⟨curRaw, k⟩)) st ≤ stepCost := by
-      have hr_s (x : ℕ) : (Memory.spec 0).clientState st (Memory.read x) = st := rfl
-      have hr_r (x : ℕ) : (Memory.spec 0).clientResult st (Memory.read x) = st.mem x := rfl
       unfold initNodeStep
       dsimp only
-      rw [memoryCost_bind', memoryCost_read, hr_s, hr_r, hmem_len, memoryCost_bind', hst_pow,
-        hr_pow, memoryCost_bind', memoryCost_alloc]
+      rw [memoryCost_bind', memoryCost_read]
+      change 1 + memoryCost (powProg ⟨2, st.mem curRaw⟩ >>= _) st ≤ _
+      rw [hmem_len, memoryCost_bind', hst_pow, hr_pow, memoryCost_bind', memoryCost_alloc]
       change 1 + (memoryCost (powProg ⟨2, bagLen⟩) st + ((tblLen + 1) + memoryCost _ st_a)) ≤ _
-      rw [memoryCost_bind', memoryCost_write, memoryCost_bind', memoryCost_write,
-        memoryCost_bind', memoryCost_write, memoryCost_bind', memoryCost_write, memoryCost_pure]
+      simp only [memoryCost_bind', memoryCost_write, memoryCost_pure]
       have := inst.bagAt_length_le kFin
       dsimp only [stepCost, bagLen] at *; omega
     obtain ⟨hv_rem, hprops_rem, hc_rem⟩ :=
@@ -562,14 +536,13 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
         (by change descBase + 4 * count ≤ st.frontier + tblLen; omega)
         hfr_next_le hpres₁ hrest_st₁ (by dsimp only [bagPtr, bagLen] at *; omega) hinv₁
     rw [iterate]
-    refine ⟨validHistory_bind_step hv_step (by rwa [hst_step', hres_step']), ?_, ?_⟩
-    · rw [StateTransitionSpec.clientState_bind, hst_step', hres_step']
-      exact hprops_rem
-    · rw [memoryCost_bind', hst_step', hres_step']
-      calc memoryCost (initNodeStep (descBase, ⟨curRaw, k⟩)) st +
-            memoryCost (iterate initNodeStep descBase rem ⟨bagPtr + bagLen, k + 1⟩) st₁
-          ≤ stepCost + rem * stepCost := Nat.add_le_add hc_step hc_rem
-        _ = (rem + 1) * stepCost := by rw [Nat.succ_mul, Nat.add_comm]
+    refine ⟨validHistory_bind_step hv_step (by rwa [hst_step', hres_step']),
+      by rwa [StateTransitionSpec.clientState_bind, hst_step', hres_step'], ?_⟩
+    rw [memoryCost_bind', hst_step', hres_step']
+    calc memoryCost (initNodeStep (descBase, ⟨curRaw, k⟩)) st +
+          memoryCost (iterate initNodeStep descBase rem ⟨bagPtr + bagLen, k + 1⟩) st₁
+        ≤ stepCost + rem * stepCost := Nat.add_le_add hc_step hc_rem
+      _ = (rem + 1) * stepCost := by rw [Nat.succ_mul, Nat.add_comm]
 
 /-- Exact-basis Word-RAM realization certificate for `initNodesProg`. -/
 theorem initNodesProg_realizes :
@@ -624,28 +597,22 @@ theorem initNodesProg_realizes :
     have hpow_res : (Memory.spec 0).clientResult t (powProg ⟨2, t.mem st.curRaw⟩) =
         2 ^ t.mem st.curRaw := powProg_result _ t
     simp only [List.length_cons, List.length_append] at hrem_end
-    obtain ⟨hst_ev, hres_ev⟩ := initNodeStep_eval descBase st t
-    refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_, ?_, ?_, ?_⟩
+    obtain ⟨hst_ev, hres_ev⟩ := initNodeStep_eval s.frontier st t
+    refine ⟨?_, Nat.le_of_succ_le hj_le,
+      by simp only [hres_ev]; omega,
+      by simp only [hst_ev, descBase] at *; omega,
+      by rwa [hst_ev, hres_ev], ?_,
+      by simp only [hres_ev, descBase] at *; omega⟩
     · dsimp only [initNodeStep]
       repeat (first
         | exact hpow_safe
         | assumption
         | refine And.intro ?_ ?_
         | exact hfit_peak.of_le (by omega))
-    · rw [hres_ev]; change (st.curIdx + 1) + j = d.count; omega
-    · rw [hst_ev]; change descBase + 4 * d.count ≤ t.frontier + _; omega
-    · rw [hst_ev, hres_ev]; exact hfr_next
-    · rw [hst_ev, hres_ev]
-      change HoldsIn (st.curRaw + 1 + t.mem st.curRaw)
-        ((bags.drop (st.curIdx + 1)).flatMap encodeBag) _
-      rw [hmem_len]
+    · simp only [hst_ev, hres_ev, hmem_len]
       refine ⟨hrest_raw.1.trans (Nat.le_add_right _ _), hrest_raw.2.frame fun a _ ha => ?_⟩
       dsimp only
       repeat rw [Function.update_of_ne (by dsimp only [descBase] at *; omega)]
       exact clear_of_not_owns (by dsimp only [Block.Owns, descBase] at *; omega)
-    · rw [hres_ev]
-      change (st.curRaw + 1 + t.mem st.curRaw) + _ ≤ descBase
-      dsimp only [descBase] at *
-      omega
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

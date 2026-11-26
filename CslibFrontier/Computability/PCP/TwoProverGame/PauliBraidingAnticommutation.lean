@@ -153,18 +153,15 @@ theorem commutingWinProb_pauliBraidingAnticommutation_eq_expect
         (pauliBraidingCHSHGame n roles p).commutingWinProb S := by
   let game := pauliBraidingGame n TwoProverGame.chsh id (fun _ => id)
   let := oddPairs_nonempty (ι := Fin n)
-  let law (roles : Bool) (p : ↥(oddPairs (Fin n))) :=
-    TwoProverGame.chsh.questions.map fun (x, y) => PauliBraidingSeed.anticommutation roles p x y
-  let odd := Probability.PMF.uniformOfFintype ↥(oddPairs (Fin n))
-  let sampler := (Probability.PMF.uniformOfFintype Bool).bind fun roles => odd.bind (law roles)
-  change ({ game with seed := sampler }).answersWinProb S.answers = _
-  dsimp only [sampler]
+  change ({ game with seed := (Probability.PMF.uniformOfFintype Bool).bind fun roles =>
+    (Probability.PMF.uniformOfFintype ↥(oddPairs (Fin n))).bind fun p =>
+      TwoProverGame.chsh.questions.map fun (q : Bool × Bool) =>
+        PauliBraidingSeed.anticommutation roles p q.1 q.2 }).answersWinProb S.answers = _
   rw [SeededGame.answersWinProb_bind_uniformSeed]
   refine Finset.expect_congr rfl fun roles _ => ?_
   rw [SeededGame.answersWinProb_bind_uniformSeed]
-  refine Finset.expect_congr rfl fun p _ => ?_
-  exact (game.answersWinProb_pullbackSeed TwoProverGame.chsh.questions
-    (fun (x, y) => .anticommutation roles p x y) S.answers).symm
+  exact Finset.expect_congr rfl fun p _ => (game.answersWinProb_pullbackSeed
+    TwoProverGame.chsh.questions (fun (x, y) => .anticommutation roles p x y) S.answers).symm
 
 variable [StarModule ℂ 𝒜] [SelfAdjointDecompose 𝒜]
 
@@ -240,13 +237,9 @@ theorem expect_norm_pauliBraidingSpecial_anticomm_sq_le
       S.state.norm (special false id p * special true id p +
         special true id p * special false id p) ^ 2 ≤ chshAnticommConst * deficit p := by
     let G := pauliBraidingCHSHStrategy S roles p
-    have hwin : Real.cos (π / 8) ^ 2 - deficit p ≤ TwoProverGame.chsh.commutingWinProb G.swap :=
-      (sub_sub_cancel _ _).trans_le (chsh_swap_score G).ge
-    have h := norm_anticomm_sq_le_of_chsh G.swap hwin
-    change G.state.norm ((G.bob false).observable * (G.bob true).observable +
-      (G.bob true).observable * (G.bob false).observable) ^ 2 ≤ _ at h
-    simpa only [G, pauliBraidingCHSHStrategy_state, pauliBraidingCHSHStrategy_bob_observable]
-      using h
+    simpa only [G, CommutingStrategy.swap, pauliBraidingCHSHStrategy_state,
+      pauliBraidingCHSHStrategy_bob_observable] using
+      norm_anticomm_sq_le_of_chsh G.swap ((sub_sub_cancel _ _).trans_le (chsh_swap_score G).ge)
   refine (Finset.expect_le_expect fun p _ => hlocal p).trans ?_
   rw [← Finset.mul_expect, mul_comm (2 : ℝ), mul_assoc]
   exact mul_le_mul_of_nonneg_left (expect_chshDeficit_pauliBraiding_le S roles)

@@ -539,15 +539,11 @@ subrounds under arbitrary `F, H, tick, deliver`. -/
 theorem ctRoundProtocol_irrevocable {k₁ k₂ : ℕ} (hk : k₁ ≤ k₂) (p : P) (v : V)
     (hdec : (ctRoundProtocol P V procs fallback).decision F H tick deliver x k₁ p = some v) :
     (ctRoundProtocol P V procs fallback).decision F H tick deliver x k₂ p = some v := by
-  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hk
-  clear hk
-  induction d with
-  | zero => simpa only [Nat.add_zero] using hdec
-  | succ d ih =>
-    change (ctSt F H tick deliver x procs fallback (k₁ + d) p).decided = some v at ih
-    change (ctSt F H tick deliver x procs fallback ((k₁ + d) + 1) p).decided = some v
+  induction hk with
+  | refl => exact hdec
+  | step _ ih =>
+    change (ctSt F H tick deliver x procs fallback _ p).decided = some v at ih ⊢
     rw [ctSt_succ]
-    generalize ctIn F H tick deliver x procs fallback (k₁ + d) p = m
     unfold ctUpdate
     grind
 
@@ -564,16 +560,13 @@ private theorem ctSt_ts_le :
 private theorem ctSt_ts_mono {k₁ k₂ : ℕ} (hk : k₁ ≤ k₂) (p : P) :
     (ctSt F H tick deliver x procs fallback k₁ p).ts ≤
       (ctSt F H tick deliver x procs fallback k₂ p).ts := by
-  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hk
-  clear hk
-  induction d with
-  | zero => exact le_rfl
-  | succ d ih =>
-    refine ih.trans ?_
-    rw [← Nat.add_assoc]
-    have := ctSt_ts_le F H tick deliver x (procs := procs) (fallback := fallback) (k₁ + d) p
+  induction hk with
+  | refl => exact le_rfl
+  | @step m _ ih =>
+    dsimp only [Nat.succ_eq_add_one]
+    have := ctSt_ts_le F H tick deliver x (procs := procs) (fallback := fallback) m p
     rcases ctSt_succ_est_ts F H tick deliver x (procs := procs) (fallback := fallback)
-      (k₁ + d) p with h | ⟨h1, h2, -⟩ <;> omega
+      m p with h | ⟨h1, h2, -⟩ <;> omega
 
 /-- Any `proposal = some (r, v)` stored at `(k, p)` was created at `k = 4 * r + 1` on
 `p = rotatingCoordinator procs fallback r`. -/
@@ -882,11 +875,9 @@ theorem ctRoundProtocol_decides_in_good_round
   have hm1 : (4 * rStar + 1) % 4 = 1 := by omega
   have hd1 : (4 * rStar + 1) / 4 = rStar := by omega
   have hprop_2 : (st (4 * rStar + 2) qStar).proposal = some (rStar, vStar) := by
-    change (st ((4 * rStar + 1) + 1) qStar).proposal = some (rStar, vStar)
-    rw [hstate_succ]
+    rw [hstate_succ (4 * rStar + 1)]
     simp only [hqStar (tick (4 * rStar + 1)), ↓reduceIte, ctUpdate, hm1, hd1, Nat.reduceEqDiff]
-    repeat' split
-    all_goals exact hvStar
+    split <;> split_ifs <;> exact hvStar
   have hack_all : ∀ j ∈ F.Correct, (st (4 * rStar + 2) j).reply = some (rStar, true) := by
     intro j hj
     have hdel : deliver (4 * rStar + 1) qStar j = true :=
@@ -895,8 +886,7 @@ theorem ctRoundProtocol_decides_in_good_round
         some (.phase2 (some (rStar, vStar))) := by
       simp only [FDAsyncRoundProtocol.incoming, hqStar (tick (4 * rStar + 1)), not_false_eq_true,
         hdel, and_self, ↓reduceIte, hsend, ctSend, hm1, hvStar]
-    change (st ((4 * rStar + 1) + 1) j).reply = some (rStar, true)
-    rw [hstate_succ]
+    rw [hstate_succ (4 * rStar + 1)]
     simp only [hj (tick (4 * rStar + 1)), ↓reduceIte, ctUpdate, hm1, hd1, hcoord, hinc1,
       Nat.reduceEqDiff]
   -- Subround `2` (`4 * rStar + 2`): every alive sender is in `F.Correct`, so `qStar` receives
@@ -915,8 +905,7 @@ theorem ctRoundProtocol_decides_in_good_round
       refine ⟨List.mem_dedup.mpr (hprocs j), ?_⟩
       simp only [m₂, FDAsyncRoundProtocol.incoming, hj, not_false_eq_true, and_self, ↓reduceIte,
         hsend, ctSend, hm2, hack_all j hj_corr, isRoundAck, decide_true]
-    change (st ((4 * rStar + 2) + 1) qStar).decided.isSome = true
-    rw [hstate_succ]
+    rw [hstate_succ (4 * rStar + 2)]
     simp only [m₂] at hacks_len
     simp only [hqStar (tick (4 * rStar + 2)), ↓reduceIte, ctUpdate, hm2, hd2, hcoord, hprop_2,
       hacks_len, and_self, Nat.reduceEqDiff, Option.isSome_or, Option.isSome_some, Bool.or_true]
@@ -934,7 +923,8 @@ theorem ctRoundProtocol_decides_in_good_round
   have hinc_some : (procs.dedup.findSome? fun j => extractDecide (m₃ j)).isSome = true :=
     List.findSome?_isSome_iff.mpr
       ⟨qStar, List.mem_dedup.mpr (hprocs qStar), by rw [hq_extract]; rfl⟩
-  rw [show 4 * (rStar + 1) = (4 * rStar + 3) + 1 by omega]
+  have hk4 : 4 * (rStar + 1) = (4 * rStar + 3) + 1 := by omega
+  rw [hk4]
   change (st ((4 * rStar + 3) + 1) p).decided.isSome = true
   rw [hstate_succ]
   simp only [m₃] at hinc_some
@@ -1121,9 +1111,7 @@ theorem not_solvesFDAsyncRoundConsensus_eventuallyPerfect {P V S M : Type*}
   obtain ⟨K₁, hw₁⟩ := isolated_half_decides hsol
     (fun p => by simp only [A₁, mem_sdiff, mem_univ, true_and, Classical.not_not])
     (by omega : A₀.card ≤ t) hA₁_quorum (mem_sdiff.mpr ⟨mem_univ a₁, ha₁_not_A₀⟩) partDeliver
-    (fun _ q p => by
-      simp only [partDeliver, decide_eq_true_eq, A₁, mem_sdiff, mem_univ, true_and]
-      exact Decidable.not_iff_not.symm) v₁
+    (fun _ q p => by simp [partDeliver, A₁, not_iff_not]) v₁
   -- Scenario A: zero crashes (`F_A = const ∅`), partition heals at `G = max K₀ K₁` while `H_A`
   -- suspects the opposite half before `G` and `∅` from `G` onward (`IsEventuallyPerfect F_A H_A`).
   let G := max K₀ K₁
@@ -1161,9 +1149,7 @@ theorem not_solvesFDAsyncRoundConsensus_eventuallyPerfect {P V S M : Type*}
         · simp only [F_A, F₀, FailurePattern.const_apply, notMem_empty, not_false_eq_true, true_and,
             deliver_A, hkG, ↓reduceIte, partDeliver, hp, iff_true, decide_eq_true_eq, A₁, mem_sdiff,
             mem_univ, Classical.not_not, and_self]
-        · intro hq
-          simp only [partDeliver, hp, iff_true, decide_eq_true_eq] at hq
-          exact hq.2)
+        · exact fun hq => by simpa only [partDeliver, hp, iff_true, decide_eq_true_eq] using hq.2)
       K₀ le_rfl a₀ ha₀]
     exact hw₀
   have hdec_a₁ : π.decision F_A H_A id deliver_A x_A K₁ a₁ = some v₁ := by

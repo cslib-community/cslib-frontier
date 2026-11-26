@@ -99,10 +99,9 @@ private theorem rejection_consistencyLaw_le
     rw [Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv]
     norm_num [Fintype.card_prod]
   rw [hmass] at h
-  let score := ({ game with seed := law index }).answersWinProb answer
-  let total := (pauliBraidingBranchGame n G special decode 2).answersWinProb answer
-  change (8 : ℝ)⁻¹ * (1 - score) ≤ 1 - total at h
-  change 1 - score ≤ 8 * (1 - total)
+  dsimp only
+  change (8 : ℝ)⁻¹ * (1 - ({ game with seed := law index }).answersWinProb answer) ≤
+    1 - (pauliBraidingBranchGame n G special decode 2).answersWinProb answer at h
   linarith
 
 /-- The same-basis conditional rejection probability for either role assignment and
@@ -261,9 +260,8 @@ theorem expect_norm_averaged_sub_sq_nonzero_le [Module ℚ≥0 𝒜]
   rw [oddExpect_def, oddExpect_def, Finset.mul_expect, Finset.mul_expect,
     ← Finset.expect_add_distrib]
   refine expect_le_expect fun x _ => ?_
-  by_cases hx : x = 0
-  · subst x
-    simp
+  rcases eq_or_ne x 0 with rfl | hx
+  · simp
   let partners := (univ : Finset (Fin n → Bool)).filter fun y => x ⬝ᵥ y = true
   have hmem (y : Fin n → Bool) : (x ⬝ᵥ y = true) ↔ y ∈ partners := by simp [partners]
   simp only [hx, ite_false, hmem]
@@ -302,19 +300,15 @@ private theorem oddExpect_pauliBraidingRoundDistances_le
     simp only [Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
       ENNReal.toReal_natCast, ← mul_sum] at h
     simpa only [← div_eq_inv_mul, Fintype.expect_eq_sum_div_card] using h
-  have hforward : oddExpect (fun x y => 𝔼 z, S.state.norm (a x y - b x z) ^ 2) ≤
-      density * (32 * δ) := by
-    apply le_trans _ (mul_le_mul_of_nonneg_left (hround false) (by positivity))
-    cases basis
-    · exact (oddExpect_expect_eq_dens_mul _).le
-    · exact ((oddExpect_swap _).symm.trans (oddExpect_expect_eq_dens_mul _)).le
-  have hreverse : oddExpect (fun x y => 𝔼 z, S.state.norm (a x z - b x y) ^ 2) ≤
-      density * (32 * δ) := by
-    apply le_trans _ (mul_le_mul_of_nonneg_left (hround true) (by positivity))
-    cases basis
-    · exact (oddExpect_expect_eq_dens_mul _).le
-    · exact ((oddExpect_swap _).symm.trans (oddExpect_expect_eq_dens_mul _)).le
-  exact ⟨hforward, hreverse⟩
+  dsimp only
+  have hmul (roles : Bool) :=
+    mul_le_mul_of_nonneg_left (hround roles) (a := density) (by positivity)
+  cases basis
+  · exact ⟨(oddExpect_expect_eq_dens_mul _).trans_le (hmul false),
+      (oddExpect_expect_eq_dens_mul _).trans_le (hmul true)⟩
+  · exact ⟨(oddExpect_swap _).symm.trans_le
+      ((oddExpect_expect_eq_dens_mul _).trans_le (hmul false)),
+      (oddExpect_swap _).symm.trans_le ((oddExpect_expect_eq_dens_mul _).trans_le (hmul true))⟩
 
 /-- The combined verifier's consistency rejection controls the uniform average of the
 squared distance of the two averaged basis observables over the nonzero strings. The
@@ -363,13 +357,11 @@ theorem oddExpect_norm_pauliBraidingBasisObservable_sub_average_sq_le [Module �
       ≤ 448 * density * δ := by
     rw [oddExpect_fst]
     have h := expect_norm_pauliBraidingBasisObservable_sub_sq_nonzero_le G special decode basis S
-    have hcompare : (𝔼 x, if x = 0 then 0 else S.state.norm ((𝔼 z, b x z) - (𝔼 z, a x z)) ^ 2) ≤
-        896 * density * δ := by
-      cases roles
-      · simp_rw [S.state.norm_sub_comm (𝔼 z, b _ z)]
-        exact h
-      · exact h
-    linarith only [hcompare]
+    dsimp only at h
+    cases roles <;> dsimp only [a, b, measure, cond]
+    · simp_rw [S.state.norm_sub_comm (𝔼 z, pauliBraidingBasisObservable S.bob basis _ z)]
+      linarith only [h]
+    · linarith only [h]
   have hjensen : oddExpect (fun x y => S.state.norm (a x y - (𝔼 z, b x z)) ^ 2) ≤
       density * (32 * δ) :=
     (oddExpect_mono fun x y _ =>
@@ -412,8 +404,7 @@ theorem weighted_expect_norm_pauliBraidingAverage_sub_special_sq_le [Module ℚ�
   have hvar : density * (𝔼 p, S.state.norm (point p - avg p) ^ 2) ≤ 960 * density * δ := by
     have h := oddExpect_norm_pauliBraidingBasisObservable_sub_average_sq_le
       G special decode roles basis S
-    let f (x y : Fin n → Bool) := S.state.norm (a x y - (𝔼 z, a x z)) ^ 2
-    change oddExpect f ≤ _ at h
+    dsimp only at h
     cases basis
     · rwa [oddExpect_eq_dens_mul_expect] at h
     · rwa [← oddExpect_swap, oddExpect_eq_dens_mul_expect] at h
@@ -425,13 +416,10 @@ theorem weighted_expect_norm_pauliBraidingAverage_sub_special_sq_le [Module ℚ�
     simp only [Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
       ENNReal.toReal_natCast, ← mul_sum] at h
     rw [Fintype.expect_eq_sum_div_card, div_eq_inv_mul]
-    refine le_trans ?_ h
-    refine mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left ?_ (by positivity))
-      ENNReal.toReal_nonneg
-    refine sum_le_sum fun p _ => ?_
-    cases roles
-    · cases basis <;> exact le_rfl
-    · cases basis <;> exact (congrArg (· ^ 2) (S.state.norm_sub_comm (point p) (b p))).le
+    refine (mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left (sum_le_sum fun p _ => ?_)
+      (by positivity)) ENNReal.toReal_nonneg).trans h
+    cases roles <;> cases basis <;>
+      first | exact le_rfl | exact (congrArg (· ^ 2) (S.state.norm_sub_comm (point p) (b p))).le
   have htri : (𝔼 p, S.state.norm (avg p - b p) ^ 2) ≤
       2 * (𝔼 p, S.state.norm (point p - avg p) ^ 2) +
       2 * (𝔼 p, S.state.norm (point p - b p) ^ 2) := by
@@ -442,10 +430,9 @@ theorem weighted_expect_norm_pauliBraidingAverage_sub_special_sq_le [Module ℚ�
   have hmass : 0 ≤ mass := ENNReal.toReal_nonneg
   have hdensity : 0 ≤ density := NNRat.cast_nonneg _
   have hscaled := mul_le_mul_of_nonneg_left htri (mul_nonneg hmass hdensity)
-  have hv := mul_le_mul_of_nonneg_left hvar hmass
-  have hl := mul_le_mul_of_nonneg_left hlocal hdensity
   change (mass * density) * (𝔼 p, S.state.norm (avg p - b p) ^ 2) ≤ _
-  linarith only [hscaled, hv, hl]
+  linarith only [hscaled, mul_le_mul_of_nonneg_left hvar hmass,
+    mul_le_mul_of_nonneg_left hlocal hdensity]
 
 /-- In the full uniform average, the distance at zero is the only additional term.
 The odd-pair consistency branch controls the remaining contribution. -/

@@ -166,9 +166,7 @@ private theorem sum_norm_sq_le_sum_comp (F : α → ℂ) (g : Equiv.Perm α) (E 
     ∑ z ∈ E, ‖F z‖ ^ 2 ≤
       ∑ z ∈ E, ‖F (g z)‖ ^ 2 + 8 * ∑ z, ‖F (g z) - F z‖ ^ 2 + (∑ z, ‖F z‖ ^ 2) / 8 := by
   have hpt (x y : ℂ) : ‖x‖ ^ 2 ≤ ‖y‖ ^ 2 + 8 * ‖y - x‖ ^ 2 + (‖x‖ ^ 2 + ‖y‖ ^ 2) / 16 := by
-    have h : ‖x‖ - ‖y‖ ≤ ‖y - x‖ := by
-      rw [norm_sub_rev]
-      exact norm_sub_norm_le x y
+    have h : ‖x‖ - ‖y‖ ≤ ‖y - x‖ := norm_sub_rev y x ▸ norm_sub_norm_le x y
     nlinarith [mul_le_mul_of_nonneg_right h (add_nonneg (norm_nonneg x) (norm_nonneg y)),
       sq_nonneg (‖x‖ + ‖y‖ - 16 * ‖y - x‖), sq_nonneg (‖x‖ - ‖y‖)]
   have hE (u : α → ℝ) (hu : ∀ z, 0 ≤ u z) : ∑ z ∈ E, u z ≤ ∑ z, u z :=
@@ -181,10 +179,9 @@ private theorem sum_norm_sq_le_sum_comp (F : α → ℂ) (g : Equiv.Perm α) (E 
           (∑ z ∈ E, ‖F z‖ ^ 2 + ∑ z ∈ E, ‖F (g z)‖ ^ 2) / 16 := by
         rw [sum_add_distrib, sum_add_distrib, ← mul_sum, ← sum_div, sum_add_distrib]
     _ ≤ _ := by
-        have h₁ := hE (fun z ↦ ‖F (g z) - F z‖ ^ 2) fun _ ↦ by positivity
-        have h₂ := hE (fun z ↦ ‖F z‖ ^ 2) fun _ ↦ by positivity
-        have h₃ := hE (fun z ↦ ‖F (g z)‖ ^ 2) fun _ ↦ by positivity
-        linarith
+        linarith [hE (fun z ↦ ‖F (g z) - F z‖ ^ 2) fun _ ↦ sq_nonneg _,
+          hE (fun z ↦ ‖F z‖ ^ 2) fun _ ↦ sq_nonneg _,
+          hE (fun z ↦ ‖F (g z)‖ ^ 2) fun _ ↦ sq_nonneg _]
 
 omit [Fintype α] in
 /-- **Two disjoint images**: if `g₁` and `g₂` map `E` into `T` with disjoint images, the mass of
@@ -224,9 +221,8 @@ private theorem valMinAbs_add_mul {a b : ZMod n} {k : ℤ} (hk : |k| ≤ 4)
   have h₁ : |a.valMinAbs + k * b.valMinAbs| ≤ |a.valMinAbs| + |k| * |b.valMinAbs| :=
     (abs_add_le _ _).trans_eq (by rw [abs_mul])
   have h₂ : |k| * |b.valMinAbs| ≤ 4 * |b.valMinAbs| := by gcongr
-  have h₃ := neg_abs_le (a.valMinAbs + k * b.valMinAbs)
-  have h₄ := le_abs_self (a.valMinAbs + k * b.valMinAbs)
-  constructor <;> linarith
+  constructor <;> linarith [neg_abs_le (a.valMinAbs + k * b.valMinAbs),
+    le_abs_self (a.valMinAbs + k * b.valMinAbs)]
 
 /-- The ping-pong inequality: a shear by `±4` moves a frequency `(p, q)` with `|p| ≤ |q|` and
 `q ≠ 0` to one whose first coordinate is larger than the second. -/
@@ -255,10 +251,8 @@ private theorem one_div_eight_le_norm_stdAddChar_sub_one {a : ZMod n}
     exact_mod_cast (show 2 * A.natAbs ≤ n by have := ZMod.natAbs_valMinAbs_le a; omega)
   have hbig : (n : ℝ) < 11 * |(A : ℝ)| := by rw [← Int.cast_abs]; exact_mod_cast ha
   have hexp : ZMod.stdAddChar a = Complex.exp (Complex.I * ((2 * Real.pi * A / n : ℝ) : ℂ)) := by
-    conv_lhs => rw [← ZMod.coe_valMinAbs a, ← hA, ZMod.stdAddChar_coe]
-    congr 1
-    push_cast
-    ring
+    rw [← ZMod.coe_valMinAbs a, ← hA, ZMod.stdAddChar_coe]
+    exact congrArg Complex.exp (by push_cast; ring)
   rw [hexp, Complex.norm_exp_I_mul_ofReal_sub_one, norm_mul, Real.norm_eq_abs,
     Real.norm_eq_abs, abs_two]
   have hsin : 2 / 11 ≤ |Real.sin (2 * Real.pi * A / n / 2)| := by
@@ -332,14 +326,11 @@ private theorem sum_norm_sq_le_pingPong (F : ZMod n × ZMod n → ℂ) (h0 : F 0
         ∑ ξ, ‖F (shearSnd (-4 : ZMod n) ξ) - F ξ‖ ^ 2 +
         ∑ ξ, ‖F (shearFst (4 : ZMod n) ξ) - F ξ‖ ^ 2 +
         ∑ ξ, ‖F (shearFst (-4 : ZMod n) ξ) - F ξ‖ ^ 2) := by
-  obtain ⟨Out, hOut⟩ : ∃ s : Finset (ZMod n × ZMod n), s = univ.filter (¬ IsSmall ·) :=
-    ⟨_, rfl⟩
-  obtain ⟨X, hX⟩ : ∃ s : Finset (ZMod n × ZMod n),
-      s = univ.filter (fun ξ ↦ IsSmall ξ ∧ |ξ.2.valMinAbs| < |ξ.1.valMinAbs|) := ⟨_, rfl⟩
-  obtain ⟨Y, hY⟩ : ∃ s : Finset (ZMod n × ZMod n),
-      s = univ.filter (fun ξ ↦ IsSmall ξ ∧ |ξ.1.valMinAbs| ≤ |ξ.2.valMinAbs| ∧ ξ ≠ 0) :=
-    ⟨_, rfl⟩
-  rw [← hOut]
+  set Out := univ.filter (fun ξ : ZMod n × ZMod n ↦ ¬ IsSmall ξ) with hOut
+  set X := univ.filter (fun ξ : ZMod n × ZMod n ↦ IsSmall ξ ∧ |ξ.2.valMinAbs| < |ξ.1.valMinAbs|)
+    with hX
+  set Y := univ.filter (fun ξ : ZMod n × ZMod n ↦
+    IsSmall ξ ∧ |ξ.1.valMinAbs| ≤ |ξ.2.valMinAbs| ∧ ξ ≠ 0) with hY
   -- The two classes and the large frequencies cover everything but `0`, where `F` vanishes.
   have hpart : ∑ ξ, ‖F ξ‖ ^ 2 ≤
       ∑ ξ ∈ Out, ‖F ξ‖ ^ 2 + ∑ ξ ∈ X, ‖F ξ‖ ^ 2 + ∑ ξ ∈ Y, ‖F ξ‖ ^ 2 := by
@@ -411,15 +402,13 @@ theorem sum_norm_sq_le_shearTranslation (f : ZMod n × ZMod n → ℂ) (hf : ∑
     simp only [mul_one, mul_zero, add_zero, zero_add]
     split_ifs with hs
     · positivity
-    · have := mul_le_mul_of_nonneg_right (hw ξ hs) (sq_nonneg ‖F ξ‖)
-      linarith
+    · linarith [mul_le_mul_of_nonneg_right (hw ξ hs) (sq_nonneg ‖F ξ‖)]
   -- The dual shears are paid for by the primal shears.
   have hD₁ := ZMod.sum_norm_sq_dftProd_shearFst_sub f f (-4 : ZMod n)
   have hD₂ := ZMod.sum_norm_sq_dftProd_shearFst_sub f f (4 : ZMod n)
   have hD₃ := ZMod.sum_norm_sq_dftProd_shearSnd_sub f f (-4 : ZMod n)
   have hD₄ := ZMod.sum_norm_sq_dftProd_shearSnd_sub f f (4 : ZMod n)
-  rw [neg_neg] at hD₁ hD₃
-  rw [← hF] at hD₁ hD₂ hD₃ hD₄
+  simp only [neg_neg, ← hF] at hD₁ hD₂ hD₃ hD₄
   have e₁ := sum_norm_sub_sq_pow_four_le f (shearFst (1 : ZMod n))
   have e₂ := sum_norm_sub_sq_pow_four_le f (shearSnd (1 : ZMod n))
   simp only [shearFst_pow, shearSnd_pow, shearFst_symm, shearSnd_symm, Nat.cast_ofNat,
@@ -431,8 +420,8 @@ theorem sum_norm_sq_le_shearTranslation (f : ZMod n × ZMod n → ℂ) (hf : ∑
   rw [← mul_le_mul_iff_right₀ hn]
   linarith [mul_le_mul_of_nonneg_left e₁.1 hn.le, mul_le_mul_of_nonneg_left e₁.2 hn.le,
     mul_le_mul_of_nonneg_left e₂.1 hn.le, mul_le_mul_of_nonneg_left e₂.2 hn.le,
-    show 0 ≤ (n : ℝ) ^ 2 * ∑ v, ‖f (v + (1, 0)) - f v‖ ^ 2 by positivity,
-    show 0 ≤ (n : ℝ) ^ 2 * ∑ v, ‖f (v + (0, 1)) - f v‖ ^ 2 by positivity]
+    mul_nonneg hn.le (sum_nonneg (s := univ) fun v _ ↦ sq_nonneg ‖f (v + (1, 0)) - f v‖),
+    mul_nonneg hn.le (sum_nonneg (s := univ) fun v _ ↦ sq_nonneg ‖f (v + (0, 1)) - f v‖)]
 
 /-- **The spectral gap of the shear-translation graph**, uniformly in `n`: its second eigenvalue
 is at most `1 - 1 / 4096`. -/
@@ -448,10 +437,8 @@ theorem secondEigenvalue_shearTranslation_le (n : ℕ) [NeZero n] :
     exact_mod_cast hf.resolve_right (by positivity)
   have hP := sum_norm_sq_le_shearTranslation (fun v ↦ (f v : ℂ)) hsum
   simp only [← Complex.ofReal_sub, Complex.norm_real, Real.norm_eq_abs, sq_abs] at hP
-  simp only [Fintype.expect_eq_sum_div_card, ← sum_div]
-  have hcard : (0 : ℝ) < Fintype.card (ZMod n × ZMod n) := by positivity
-  rw [← mul_div_assoc, div_le_div_iff_of_pos_right hcard]
-  linarith
+  simp only [Fintype.expect_eq_sum_div_card, ← sum_div, ← mul_div_assoc]
+  exact (div_le_div_iff_of_pos_right (by positivity)).mpr (by linarith)
 
 /-- **The lazy shear-translation graph is an expander** uniformly in `n`: its spectral expansion is
 at most `1 - 1 / 8192`. -/

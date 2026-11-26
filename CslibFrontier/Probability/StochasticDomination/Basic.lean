@@ -86,9 +86,8 @@ private theorem lintegral_eq_lintegral_ennreal_lt {α : Type*} [MeasurableSpace 
       (measurableSet_lt measurable_const measurable_id).inter
         (measurableSet_lt ENNReal.measurable_ofReal measurable_const)
     have hslice : (fun t : ℝ => S.indicator (fun _ => (1 : ℝ≥0∞)) (x, t)) =
-        Tx.indicator (1 : ℝ → ℝ≥0∞) := by
-      ext t
-      simp [S, Tx, Set.indicator_apply]
+        Tx.indicator (1 : ℝ → ℝ≥0∞) :=
+      funext fun t => by simp [S, Tx, Set.indicator_apply]
     rw [hslice, lintegral_indicator hTxm]
     simp only [Pi.one_apply, lintegral_const, MeasurableSet.univ, Measure.restrict_apply,
       Set.univ_inter, one_mul]
@@ -192,8 +191,7 @@ theorem le_Iic {α : Type*} [MeasurableSpace α] [LinearOrder α] [TopologicalSp
     [IsProbabilityMeasure μ] [IsProbabilityMeasure ν] (h : StochasticallyDominates μ ν)
     (a : α) :
     μ (Set.Iic a) ≤ ν (Set.Iic a) := by
-  rw [← Set.compl_Ioi]
-  exact measure_compl_le_of_le measurableSet_Ioi (h.Ioi_le a)
+  exact Set.compl_Ioi (a := a) ▸ measure_compl_le_of_le measurableSet_Ioi (h.Ioi_le a)
 
 /-- Real-valued version of `StochasticallyDominates.le_Iic`. -/
 theorem le_real_Iic {α : Type*} [MeasurableSpace α] [LinearOrder α] [TopologicalSpace α]
@@ -210,8 +208,7 @@ theorem le_Iio {α : Type*} [MeasurableSpace α] [LinearOrder α] [TopologicalSp
     [IsProbabilityMeasure μ] [IsProbabilityMeasure ν] (h : StochasticallyDominates μ ν)
     (a : α) :
     μ (Set.Iio a) ≤ ν (Set.Iio a) := by
-  rw [← Set.compl_Ici]
-  exact measure_compl_le_of_le measurableSet_Ici (h.Ici_le a)
+  exact Set.compl_Ici (a := a) ▸ measure_compl_le_of_le measurableSet_Ici (h.Ici_le a)
 
 /-- Real-valued version of `StochasticallyDominates.le_Iio`. -/
 theorem le_real_Iio {α : Type*} [MeasurableSpace α] [LinearOrder α] [TopologicalSpace α]
@@ -378,11 +375,8 @@ theorem stochasticallyDominates_iff_lintegral {α : Type*} [MeasurableSpace α] 
     StochasticallyDominates μ ν ↔
       ∀ f : α → ℝ≥0∞, Measurable f → Monotone f → ∫⁻ x, f x ∂ν ≤ ∫⁻ x, f x ∂μ := by
   refine ⟨fun h _ hf hf_mono => h.lintegral_le hf hf_mono, fun h U hUm hU => ?_⟩
-  have hind_mono : Monotone (U.indicator (1 : α → ℝ≥0∞)) := by
-    intro x y hxy
-    by_cases hx : x ∈ U
-    · simp [hx, hU hxy hx]
-    · simp [hx]
+  have hind_mono : Monotone (U.indicator (1 : α → ℝ≥0∞)) := fun x y hxy => by
+    by_cases hx : x ∈ U <;> simp [hx, hU hxy]
   simpa [lintegral_indicator hUm] using h (U.indicator 1) (measurable_one.indicator hUm) hind_mono
 
 /-- Stochastic domination of probability measures is equivalent to domination of all integrable
@@ -417,11 +411,9 @@ theorem stochasticallyDominates_nat_iff_Ioi {μ ν : Measure ℕ}
     [IsProbabilityMeasure μ] [IsProbabilityMeasure ν] :
     StochasticallyDominates μ ν ↔ ∀ n : ℕ, ν (Set.Ioi n) ≤ μ (Set.Ioi n) := by
   rw [stochasticallyDominates_nat_iff_Ici]
-  have hIoi (n : ℕ) : Set.Ioi n = Set.Ici (n + 1) := by ext; simp
-  refine ⟨fun h n => hIoi n ▸ h (n + 1), fun h n => ?_⟩
-  rcases n with - | n
-  · simp [show Set.Ici (0 : ℕ) = Set.univ by ext; simp]
-  · exact hIoi n ▸ h n
+  have hIoi (n : ℕ) : Set.Ioi n = Set.Ici (n + 1) := Set.ext fun _ => Iff.rfl
+  exact ⟨fun h n => hIoi n ▸ h (n + 1),
+    fun h => Nat.rec (by simp [Set.Ici]) fun n _ => hIoi n ▸ h n⟩
 
 /-- Stochastic domination of probability measures on `ℕ` is equivalent to lower-tail comparison on
 `Set.Iic n`. -/
@@ -562,15 +554,12 @@ private theorem integrable_toMeasure_of_summable {α : Type*} [MeasurableSpace �
   refine ⟨hf_meas.aestronglyMeasurable, ?_⟩
   rw [hasFiniteIntegral_iff_norm, PMF.lintegral_toMeasure p
     (f := fun a => ENNReal.ofReal ‖f a‖) (ENNReal.measurable_ofReal.comp hf_meas.norm)]
-  have heq : (fun x => p x * ENNReal.ofReal ‖f x‖) =
-      fun x => (Real.toNNReal ((p x).toReal * |f x|) : ℝ≥0∞) := by
-    ext x
+  have heq (x : α) : p x * ENNReal.ofReal ‖f x‖ =
+      (Real.toNNReal ((p x).toReal * |f x|) : ℝ≥0∞) := by
     conv_lhs => rw [Real.norm_eq_abs, ← ENNReal.ofReal_toReal (PMF.apply_ne_top p x),
       ← ENNReal.ofReal_mul ENNReal.toReal_nonneg]
     rfl
-  change (∑' x, p x * ENNReal.ofReal ‖f x‖) < ⊤
-  rw [heq, ← ENNReal.coe_tsum (Summable.toNNReal hf)]
-  exact ENNReal.coe_lt_top
+  simpa only [heq, ← ENNReal.coe_tsum (Summable.toNNReal hf)] using ENNReal.coe_lt_top
 
 namespace StochasticallyDominates
 
@@ -621,16 +610,14 @@ linear order. -/
 theorem le_Iic {α : Type*} [LinearOrder α] {p q : PMF α} (h : StochasticallyDominates p q)
     (a : α) :
     p.toOuterMeasure (Set.Iic a) ≤ q.toOuterMeasure (Set.Iic a) := by
-  rw [← Set.compl_Ioi]
-  exact compl_le_of_le (h.Ioi_le a)
+  exact Set.compl_Ioi (a := a) ▸ compl_le_of_le (h.Ioi_le a)
 
 /-- Strict lower-ray inequality `p.toOuterMeasure (Set.Iio a) ≤ q.toOuterMeasure (Set.Iio a)` on
 a linear order. -/
 theorem le_Iio {α : Type*} [LinearOrder α] {p q : PMF α} (h : StochasticallyDominates p q)
     (a : α) :
     p.toOuterMeasure (Set.Iio a) ≤ q.toOuterMeasure (Set.Iio a) := by
-  rw [← Set.compl_Ici]
-  exact compl_le_of_le (h.Ici_le a)
+  exact Set.compl_Ici (a := a) ▸ compl_le_of_le (h.Ici_le a)
 
 /-- Bridge from `PMF.StochasticallyDominates` to `Measure`-level stochastic domination. -/
 theorem toMeasure [MeasurableSpace α] (h : StochasticallyDominates p q) :
@@ -785,14 +772,12 @@ theorem stochasticallyDominates_bool_iff {p q : PMF Bool} :
     simpa [hIci, PMF.toOuterMeasure_apply_singleton] using h (Set.Ici true) (IsUpperSet.Ici true)
   · by_cases ht : true ∈ U
     · by_cases hf : false ∈ U
-      · rw [(Set.eq_univ_iff_forall (s := U)).mpr fun b => by cases b <;> assumption]
-        have huniv (r : PMF Bool) : r.toOuterMeasure Set.univ = 1 := by
-          simpa using toOuterMeasure_add_compl_ennreal r ∅
-        rw [huniv p, huniv q]
+      · have huniv : U = Set.univ := Set.ext fun b => by cases b <;> simp [ht, hf]
+        simpa only [huniv, Set.compl_empty] using
+          StochasticallyDominates.compl_le_of_le (p := q) (q := p) (U := ∅) (by simp)
       · have hUs : U = {true} := Set.ext fun b => by cases b <;> simp [ht, hf]
         simpa [hUs, PMF.toOuterMeasure_apply_singleton] using h
-    · have hUe : U = ∅ := Set.eq_empty_iff_forall_notMem.mpr fun b hb =>
-        ht (hU (by cases b <;> decide) hb)
+    · have hUe : U = ∅ := Set.eq_empty_iff_forall_notMem.mpr fun b => mt (hU (Bool.le_true b)) ht
       simp [hUe]
 
 end Cslib.Probability.PMF

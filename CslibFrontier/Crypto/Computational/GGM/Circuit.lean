@@ -122,12 +122,10 @@ def listGenerator (G : PRG.Generator (BitString k) (BitString (2 * k))) :
 /-- The block selected by a bit is the child selected by `Cslib.Crypto.GGM.selectChild`. -/
 private theorem ofFn_block (y : BitString (2 * k)) (bit : Bool) :
     List.ofFn (BitString.block y (finTwoEquiv.symm bit)) = selectChild k (List.ofFn y) bit := by
-  apply List.ext_getElem
-  · cases bit <;>
-      simp only [selectChild, Bool.false_eq_true, ↓reduceIte, List.length_take, List.length_drop,
-        List.length_ofFn] <;> omega
-  · intro i _ _
-    cases bit <;> simp [selectChild, finProdFinEquiv, finTwoEquiv, Nat.add_comm]
+  refine List.ext_getElem ?_ fun i _ _ => ?_
+  · cases bit <;> simp only [selectChild, Bool.false_eq_true, ↓reduceIte, List.length_take,
+      List.length_drop, List.length_ofFn] <;> omega
+  · cases bit <;> simp [selectChild, finProdFinEquiv, finTwoEquiv, Nat.add_comm]
 
 /-- **Agreement with the list construction.** Evaluation with labels of fixed width is
 `Cslib.Crypto.GGM.eval` for the generator read as a generator of lists. -/
@@ -234,12 +232,11 @@ theorem complexity_booleanFamily_le [NeZero k]
     (G : PRG.Generator (BitString k) (BitString (2 * k))) (n : ℕ) (seed : BitString k) :
     complexity interpretation (single (booleanFamily G n seed)) ≤
       n * (complexity interpretation ⇑G + 4 * k) + 2 := by
-  refine Synthesis.complexity_le ?_
   have hconst := (Synthesis.const (s := inputs n) false).union (Synthesis.const true)
   have h := synthesis_evalBits G (s := inputs n ∪ ({fun _ => false} ∪ {fun _ => true}))
     (fun _ => seed) id (fun i => by cases seed i <;> simp) (fun i => Or.inl ⟨i, rfl⟩)
-  exact (hconst.trans h).mono Set.Subset.rfl (Set.singleton_subset_iff.2 ⟨0, rfl⟩)
-    (le_of_eq (add_comm _ _))
+  exact ((hconst.trans h).mono Set.Subset.rfl (Set.singleton_subset_iff.2 ⟨0, rfl⟩)
+    (le_of_eq (add_comm _ _))).complexity_le
 
 /-! ### Uniform labels -/
 
@@ -254,8 +251,8 @@ private theorem expect_comp_apply_zero [NeZero k] (F : (ι → Bool) → ℝ) :
   let e : (ι → Fin (k + 1) → Bool) ≃ (ι → Bool) × (ι → Fin k → Bool) :=
     (Equiv.arrowCongr (Equiv.refl ι) (Fin.consEquiv fun _ => Bool).symm).trans
       (Equiv.arrowProdEquivProdArrow _ _ _)
-  rw [← Fintype.expect_comp_fst (β := ι → Fin k → Bool) F]
-  exact Fintype.expect_equiv e _ _ fun _ => rfl
+  exact (Fintype.expect_equiv e _ _ fun _ => rfl).trans
+    (Fintype.expect_comp_fst (β := ι → Fin k → Bool) F)
 
 end Uniform
 
@@ -341,20 +338,13 @@ private theorem complexity_slice_le (G : PRG.Generator (BitString k) (BitString 
   refine (sum_le_sum (g := fun _ => m * complexity interpretation ⇑G + 1) fun i _ => ?_).trans_eq
     (by simp)
   -- the bit of the truth table at the input `x`
-  set x := (BitString.equivFin n).symm i
-  set p : BitString (j + 1) := fun l => x ⟨l, by omega⟩
-  have hfn : (fun y => truthTable n (fun x =>
-        leaves G (j + 1) m h (reshape (update c q y)) x 0) i) =
-      fun y => evalBits G
-        (BitString.block (update c q y (Fin.init p)) (finTwoEquiv.symm (p (Fin.last j))))
-        (fun l : Fin m => x ⟨j + 1 + l, by omega⟩) 0 :=
-    funext fun _ => by simp only [truthTable_apply, leaves, reshape_apply, p, x]
-  rw [hfn]
+  set p : BitString (j + 1) := fun l => ((BitString.equivFin n).symm i) ⟨l, by omega⟩
+  simp only [truthTable_apply, leaves, reshape_apply]
   by_cases hp : Fin.init p = q
-  · simp only [hp, update_self]
-    exact (complexity_evalBits_block_le G _ _ 0).trans (Nat.le_succ _)
-  · simp only [update_of_ne hp]
-    exact (Synthesis.const _).complexity_le.trans (Nat.le_add_left _ _)
+  · simpa only [p, hp, update_self] using
+      (complexity_evalBits_block_le G _ _ 0).trans (Nat.le_succ _)
+  · simpa only [p, update_of_ne hp] using
+      (Synthesis.const _).complexity_le.trans (Nat.le_add_left _ _)
 
 /-- The first hybrid is the GGM family with a uniformly random key. -/
 private theorem hybridProb_zero (G : PRG.Generator (BitString k) (BitString (2 * k)))
@@ -474,9 +464,8 @@ theorem isExponentiallySecure_booleanFamily
   refine (secure_truthTableGenerator_booleanFamily ((hsec.of_admissible fun A ⟨test, htest, hA⟩ =>
     ⟨test, htest.trans hsize, hA⟩))).mono ?_
   -- and the loss `2 ^ n` in the advantage is absorbed
-  have hpow : (2 : ℝ≥0) ^ n * 2 ^ (c * n) ≤ 2 ^ (n ^ 2) := by
-    rw [← pow_add]
-    exact pow_le_pow_right₀ one_le_two (by rw [sq]; nlinarith)
+  have hpow : (2 : ℝ≥0) ^ n * 2 ^ (c * n) ≤ 2 ^ (n ^ 2) :=
+    pow_add (2 : ℝ≥0) n (c * n) ▸ pow_le_pow_right₀ one_le_two (by rw [sq]; nlinarith)
   calc ((2 : ℝ≥0) ^ n - 1) * (2 ^ (n ^ 2))⁻¹ ≤ 2 ^ n * (2 ^ n * 2 ^ (c * n))⁻¹ := by
         gcongr
         exact tsub_le_self

@@ -132,9 +132,11 @@ theorem deterministic_calError_ge_half (f : List Bool → ℝ) {T : ℕ} (hT : 0
       ((range T).filter fun t => p t = q).card * (1 / 2 : ℝ) ≤
         |∑ t ∈ (range T).filter fun t => p t = q, (outcome (y t) - q)| := fun q => by
     -- On the bucket `p t = q` the adversary's bit is `decide (q < 1 / 2)`.
-    rw [sum_congr rfl fun t ht => show outcome (y t) - q = outcome (decide (q < 1 / 2)) - q by
-      obtain ⟨-, hpt⟩ := mem_filter.mp ht; subst hpt; rfl, sum_const, nsmul_eq_mul, abs_mul,
-      Nat.abs_cast]
+    have hterm : ∀ t ∈ (range T).filter fun t => p t = q,
+        outcome (y t) - q = outcome (decide (q < 1 / 2)) - q := fun t ht => by
+      obtain ⟨-, rfl⟩ := mem_filter.mp ht
+      rfl
+    rw [sum_congr rfl hterm, sum_const, nsmul_eq_mul, abs_mul, Nat.abs_cast]
     refine mul_le_mul_of_nonneg_left ?_ (Nat.cast_nonneg _)
     by_cases hq : q < 1 / 2
     · simp only [hq, decide_true, outcome_true]
@@ -184,9 +186,8 @@ theorem norm_calPayoff_le_one {K : ℕ} (hK : 0 < K) (i : Fin (K + 1)) (b : Bool
   have hg := gridPoint_mem_Icc hK i
   refine le_of_pow_le_pow_left₀ two_ne_zero zero_le_one ?_
   rw [← real_inner_self_eq_norm_sq, PiLp.inner_apply,
-    Fintype.sum_eq_single i fun k hki => by simp [calPayoff, hki],
-    show ⟪(calPayoff K i b) i, (calPayoff K i b) i⟫ = (outcome b - gridPoint K i) ^ 2 by
-      simp [calPayoff, sq]]
+    Fintype.sum_eq_single i fun k hki => by simp [calPayoff, hki]]
+  simp only [calPayoff, WithLp.ofLp_toLp, ↓reduceIte, RCLike.inner_apply, conj_trivial, ← sq]
   nlinarith [ho.1, ho.2, hg.1, hg.2]
 
 /-- Closed `ℓ₁` ball `{x : EuclideanSpace ℝ (Fin n) | ∑ k, |x k| ≤ r}`. -/
@@ -228,8 +229,7 @@ private theorem sum_abs_le_sqrt_mul_norm {n : ℕ} (x : EuclideanSpace ℝ (Fin 
     mul_one] at hcs
   have hsq : ∑ k : Fin n, |x k| ^ 2 = ‖x‖ ^ 2 := by
     rw [← real_inner_self_eq_norm_sq, PiLp.inner_apply]
-    refine sum_congr rfl fun k _ => ?_
-    rw [RCLike.inner_apply, conj_trivial, sq_abs, sq]
+    exact sum_congr rfl fun k _ => by simp [sq]
   rw [hsq] at hcs
   refine le_of_pow_le_pow_left₀ two_ne_zero (by positivity) ?_
   rwa [mul_pow, Real.sq_sqrt (Nat.cast_nonneg n)]
@@ -239,14 +239,14 @@ theorem sum_abs_le_add_sqrt_mul_distToSet {n : ℕ} {r : ℝ} (hr : 0 ≤ r)
     (x : EuclideanSpace ℝ (Fin n)) :
     ∑ k : Fin n, |x k| ≤ r + Real.sqrt n * distToSet (l1Ball n r) x := by
   set s := metricProjection (l1Ball n r) x
-  have hs_mem : s ∈ l1Ball n r :=
+  have hs_le : ∑ k : Fin n, |s k| ≤ r :=
     metricProjection_mem ⟨0, zero_mem_l1Ball hr⟩ (l1Ball_isComplete n r) (l1Ball_convex n r) x
   have htri : ∑ k : Fin n, |x k| ≤ ∑ k : Fin n, |s k| + ∑ k : Fin n, |(x - s) k| := by
     rw [← sum_add_distrib]
     exact sum_le_sum fun k _ => by simpa using abs_add_le (s k) (x k - s k)
   have hcs : ∑ k : Fin n, |(x - s) k| ≤ Real.sqrt n * distToSet (l1Ball n r) x :=
     sum_abs_le_sqrt_mul_norm (x - s)
-  linarith [show ∑ k : Fin n, |s k| ≤ r from hs_mem]
+  linarith
 
 /-- Rounding any `μ ∈ [0, 1]` to the nearest grid point `i / K` gives error `≤ 1 / (2 * K)`. -/
 private theorem exists_gridPoint_dist_le {K : ℕ} (hK : 0 < K) {μ : ℝ} (hμ0 : 0 ≤ μ)
@@ -259,13 +259,13 @@ private theorem exists_gridPoint_dist_le {K : ℕ} (hK : 0 < K) {μ : ℝ} (hμ0
   have key : |μ * K - m| ≤ 1 / 2 := by
     rw [abs_le]
     rcases le_total ⌊μ * (K : ℝ) + 1 / 2⌋₊ K with hle | hle
-    · rw [show m = ⌊μ * (K : ℝ) + 1 / 2⌋₊ from min_eq_right hle]
+    · simp only [m, min_eq_right hle]
       constructor <;> linarith [Nat.floor_le hnn, Nat.lt_floor_add_one (μ * (K : ℝ) + 1 / 2)]
-    · rw [show m = K from min_eq_left hle]
+    · simp only [m, min_eq_left hle]
       have := (Nat.cast_le (α := ℝ)).mpr hle
       constructor <;> nlinarith [Nat.floor_le hnn]
-  rw [gridPoint, show μ - (m : ℝ) / K = (μ * K - m) / K by field_simp, abs_div,
-    abs_of_pos hKpos, div_le_div_iff₀ hKpos (by positivity)]
+  have hsub : μ - (m : ℝ) / K = (μ * K - m) / K := by field_simp
+  rw [gridPoint, hsub, abs_div, abs_of_pos hKpos, div_le_div_iff₀ hKpos (by positivity)]
   nlinarith
 
 /-- **Blackwell's response condition holds for binary calibration** (`calPayoff K` targeting
@@ -329,41 +329,27 @@ noncomputable def fosterVohraDist (K : ℕ) (w : EuclideanSpace ℝ (Fin (K + 1)
 
 theorem fosterVohraDist_nonneg (K : ℕ) (w : EuclideanSpace ℝ (Fin (K + 1)))
     (k : Fin (K + 1)) : 0 ≤ fosterVohraDist K w k := by
-  classical
-  dsimp only [fosterVohraDist]
-  by_cases h0 : w 0 ≤ 0
-  · simp only [dite_eq_left h0]
-    split_ifs <;> norm_num
-  · by_cases hlast : 0 ≤ w (Fin.last K)
-    · simp only [dite_eq_right h0, dite_eq_left hlast]
-      split_ifs <;> norm_num
-    · simp only [dite_eq_right h0, dite_eq_right hlast]
-      have hspec :=
-        (exists_adjacent_sign_change w (lt_of_not_ge h0) (lt_of_not_ge hlast)).choose_spec
-      have ha : 0 < w _ := hspec.1
-      have hb : 0 ≤ -w _ := neg_nonneg.mpr hspec.2
-      split_ifs
-      · exact div_nonneg hb (by linarith)
-      · exact div_nonneg ha.le (by linarith)
-      · exact le_rfl
+  unfold fosterVohraDist
+  split_ifs with h0 hlast <;> dsimp only
+  · split_ifs <;> norm_num
+  · split_ifs <;> norm_num
+  · obtain ⟨ha, hb⟩ :=
+      (exists_adjacent_sign_change w (lt_of_not_ge h0) (lt_of_not_ge hlast)).choose_spec
+    split_ifs
+    exacts [div_nonneg (neg_nonneg.mpr hb) (by linarith), div_nonneg ha.le (by linarith), le_rfl]
 
 theorem sum_fosterVohraDist (K : ℕ) (w : EuclideanSpace ℝ (Fin (K + 1))) :
     ∑ k : Fin (K + 1), fosterVohraDist K w k = 1 := by
-  classical
-  dsimp only [fosterVohraDist]
-  by_cases h0 : w 0 ≤ 0
-  · simp [dite_eq_left h0]
-  · by_cases hlast : 0 ≤ w (Fin.last K)
-    · simp [dite_eq_right h0, dite_eq_left hlast]
-    · simp only [dite_eq_right h0, dite_eq_right hlast]
-      set hex := exists_adjacent_sign_change w (lt_of_not_ge h0) (lt_of_not_ge hlast)
-      set i := hex.choose
-      have ha : 0 < w i.castSucc := hex.choose_spec.1
-      have hb : 0 ≤ -w i.succ := neg_nonneg.mpr hex.choose_spec.2
-      have hne : i.castSucc ≠ i.succ := i.castSucc_lt_succ.ne
-      rw [Fintype.sum_eq_add _ _ hne fun k hk => by simp [hk.1, hk.2]]
-      simp only [↓reduceIte, hne.symm]
-      rw [← add_div, add_comm (-w i.succ), div_self (by linarith)]
+  unfold fosterVohraDist
+  split_ifs with h0 hlast
+  · simp
+  · simp
+  · set hex := exists_adjacent_sign_change w (lt_of_not_ge h0) (lt_of_not_ge hlast)
+    obtain ⟨ha, hb⟩ := hex.choose_spec
+    have hne := hex.choose.castSucc_lt_succ.ne
+    rw [Fintype.sum_eq_add _ _ hne fun k hk => by simp [hk.1, hk.2]]
+    simp only [↓reduceIte, hne.symm]
+    rw [← add_div, add_comm (-w _), div_self (by linarith)]
 
 /-- **Core Foster–Vohra halfspace lemma**: for *every* dual vector `w`, `fosterVohraDist K w`
 forces `⟪w, expectedPayoff (calPayoff K) (fosterVohraDist K w) b⟫ ≤ ⟪w, s*⟫` for an explicit
@@ -413,35 +399,25 @@ theorem fosterVohraDist_inner_le {K : ℕ} (hK : 0 < K)
         simp_rw [hp_eq]
         rw [Fintype.sum_eq_add _ _ hne fun k hk => by simp [hk.1, hk.2]]
         simp only [↓reduceIte, hne.symm]
-        rw [show w i.succ = -c by simp [c]]
+        have hwi : w i.succ = -c := (neg_neg _).symm
+        rw [hwi]
         linear_combination (a * c / (a + c)) * gridPoint_succ_sub i
-      have ham : a * c / (a + c) ≤ max a c / 2 := by
-        rw [div_le_div_iff₀ hac two_pos]
-        rcases le_total a c with h | h
-        · rw [max_eq_right h]; nlinarith
-        · rw [max_eq_left h]; nlinarith
-      have hbasis : ∀ (j : Fin (K + 1)) (sgn : ℝ), |sgn| = 1 →
-          let e : EuclideanSpace ℝ (Fin (K + 1)) :=
-            WithLp.toLp 2 fun k => if k = j then sgn * (1 / (2 * (K : ℝ))) else 0
-          e ∈ l1Ball (K + 1) (1 / (2 * (K : ℝ))) ∧
-            ⟪w, e⟫ = sgn * w j / (2 * (K : ℝ)) := by
-        intro j sgn hsgn e
-        refine ⟨?_, ?_⟩
-        · change ∑ k : Fin (K + 1), |(if k = j then sgn * (1 / (2 * (K : ℝ))) else 0 : ℝ)| ≤
-              1 / (2 * (K : ℝ))
-          rw [Fintype.sum_eq_single j fun k hk => by simp [hk]]
+      have hbasis (j : Fin (K + 1)) (sgn : ℝ) (hsgn : |sgn| = 1) :
+          ∃ e ∈ l1Ball (K + 1) (1 / (2 * (K : ℝ))), ⟪w, e⟫ = sgn * w j / (2 * (K : ℝ)) := by
+        refine ⟨WithLp.toLp 2 fun k => if k = j then sgn * (1 / (2 * (K : ℝ))) else 0, ?_, ?_⟩
+        · rw [l1Ball, Set.mem_ofPred, Fintype.sum_eq_single j fun k hk => by simp [hk]]
           simp [abs_mul, hsgn]
-        · rw [PiLp.inner_apply, Fintype.sum_eq_single j fun k hk => by simp [e, hk]]
-          simp only [e, ↓reduceIte, RCLike.inner_apply, conj_trivial]
+        · rw [PiLp.inner_apply, Fintype.sum_eq_single j fun k hk => by simp [hk]]
+          simp only [↓reduceIte, RCLike.inner_apply, conj_trivial]
           ring
       rcases le_total a c with h | h
-      · obtain ⟨hm, hi⟩ := hbasis i.succ (-1) (by norm_num)
-        rw [max_eq_right h] at ham
-        exact ⟨_, hm, hinner_eq.trans_le ((div_le_div_of_nonneg_right ham hKpos.le).trans_eq
+      · obtain ⟨e, hm, hi⟩ := hbasis i.succ (-1) (by norm_num)
+        have ham : a * c / (a + c) ≤ c / 2 := (div_le_div_iff₀ hac two_pos).mpr (by nlinarith)
+        exact ⟨e, hm, hinner_eq.trans_le ((div_le_div_of_nonneg_right ham hKpos.le).trans_eq
           (by simp only [hi, c]; ring))⟩
-      · obtain ⟨hm, hi⟩ := hbasis i.castSucc 1 (by norm_num)
-        rw [max_eq_left h] at ham
-        exact ⟨_, hm, hinner_eq.trans_le ((div_le_div_of_nonneg_right ham hKpos.le).trans_eq
+      · obtain ⟨e, hm, hi⟩ := hbasis i.castSucc 1 (by norm_num)
+        have ham : a * c / (a + c) ≤ a / 2 := (div_le_div_iff₀ hac two_pos).mpr (by nlinarith)
+        exact ⟨e, hm, hinner_eq.trans_le ((div_le_div_of_nonneg_right ham hKpos.le).trans_eq
           (by simp only [hi, a]; ring))⟩
 
 /-- Explicit stationary **Foster–Vohra feedback rule** targeting `l1Ball (K + 1) (1 / (2 * K))`:
@@ -459,12 +435,10 @@ theorem fosterVohraRule_halfspace {K : ℕ} (hK : 0 < K)
     let S := l1Ball (K + 1) (1 / (2 * (K : ℝ)))
     let s := metricProjection S y
     ⟪y - s, expectedPayoff (calPayoff K) ((fosterVohraRule K).prob y) b - s⟫ ≤ 0 := by
-  set S := l1Ball (K + 1) (1 / (2 * (K : ℝ)))
-  set s := metricProjection S y
+  intro S s
   obtain ⟨s', hs'_mem, hs'_le⟩ := fosterVohraDist_inner_le hK (y - s) b
   have hvar := inner_sub_metricProjection_le_zero (l1Ball_isComplete (K + 1) _)
     (l1Ball_convex (K + 1) _) y hs'_mem
-  dsimp only
   rw [inner_sub_right] at hvar ⊢
   change ⟪y - s, expectedPayoff (calPayoff K) (fosterVohraDist K (y - s)) b⟫ - ⟪y - s, s⟫ ≤ 0
   linarith
@@ -497,7 +471,8 @@ theorem fosterVohra_expected_calError_le {K : ℕ} (hK : 0 < K)
     (g := fun h => 1 / (2 * (K : ℝ)) +
       Real.sqrt (K + 1 : ℕ) * distToSet S ((T : ℝ)⁻¹ • sumPayoff (calPayoff K) adv h))
     fun h hh => by
-      rw [empiricalCalError, show h.length = T by simpa using hh]
+      have hlen : h.length = T := by simpa using hh
+      rw [empiricalCalError, hlen]
       exact sum_abs_le_add_sqrt_mul_distToSet hrnn _
   rw [expectHistory_add, expectHistory_const, expectHistory_smul] at hbound
   have hdist := blackwell_expect_dist_le (l1Ball_isComplete (K + 1) _) (l1Ball_convex (K + 1) _)
@@ -507,7 +482,8 @@ theorem fosterVohra_expected_calError_le {K : ℕ} (hK : 0 < K)
   have hmul := mul_le_mul_of_nonneg_left hdist (Real.sqrt_nonneg (K + 1 : ℕ))
   have hre : Real.sqrt (K + 1 : ℕ) * (2 * 1 / Real.sqrt T) =
       2 * Real.sqrt (((K + 1 : ℕ) : ℝ) / (T : ℝ)) := by
-    rw [Real.sqrt_div (Nat.cast_nonneg _)]; ring
+    rw [Real.sqrt_div (Nat.cast_nonneg _)]
+    ring
   linarith
 
 /-- **Foster–Vohra high-probability calibration tail bound** [FosterVohra1998]: whenever `ε`
@@ -558,10 +534,8 @@ theorem fosterVohra_prob_calError_ge_le {K : ℕ} (hK : 0 < K)
     (fun i b => by simpa using norm_calPayoff_le_one hK i b)
     strat adv (fun h _ => fosterVohraRule_halfspace hK _ (adv h)) T hT hη
   refine (hdom.trans hprob).trans_eq ?_
-  have hTne : (T : ℝ) ≠ 0 := by exact_mod_cast hT.ne'
-  have hgne : gap ≠ 0 := hgap.ne'
   simp only [η, div_pow, Real.sq_sqrt hK1pos.le]
-  field_simp
+  field_simp [hT.ne', hgap.ne']
   ring
 
 /-- **Existence of `(ε, δ)`-calibrated randomized forecasters** [FosterVohra1998]:
@@ -578,11 +552,10 @@ theorem exists_calibrated_forecaster {ε δ : ℝ} (hε : 0 < ε) (hδ : 0 < δ)
             (fun h => if ε ≤ empiricalCalError K adv h then (1 : ℝ) else 0) ≤ δ := by
   let K : ℕ := ⌈2 / ε⌉₊
   have hK : 0 < K := Nat.ceil_pos.mpr (by positivity)
-  have hK_ge : 2 / ε ≤ (K : ℝ) := Nat.le_ceil _
   have hKpos : (0 : ℝ) < (K : ℝ) := Nat.cast_pos.mpr hK
   have hgrid : 1 / (2 * (K : ℝ)) ≤ ε / 4 := by
-    have h1 : 2 ≤ (K : ℝ) * ε := (div_le_iff₀ hε).mp hK_ge
-    rw [div_le_div_iff₀ (by positivity) (by norm_num : (0 : ℝ) < 4)]
+    have h1 : 2 ≤ (K : ℝ) * ε := (div_le_iff₀ hε).mp (Nat.le_ceil _)
+    rw [div_le_div_iff₀ (by positivity) four_pos]
     linarith
   have hgrid_lt : 1 / (2 * (K : ℝ)) < ε := by linarith
   let T₀ : ℕ := max ⌈16 * ((K + 1 : ℕ) : ℝ) / ε ^ 2⌉₊
@@ -602,13 +575,12 @@ theorem exists_calibrated_forecaster {ε δ : ℝ} (hε : 0 < ε) (hδ : 0 < δ)
     linarith [fosterVohra_expected_calError_le hK adv hTpos]
   · have hT_bd : 16 * ((K + 1 : ℕ) : ℝ) / (δ * ε ^ 2) ≤ (T : ℝ) :=
       (Nat.le_ceil _).trans (Nat.cast_le.mpr ((le_max_right _ _).trans hT))
-    have hgap : (3 / 4 : ℝ) * ε ≤ ε - 1 / (2 * (K : ℝ)) := by linarith
-    have hgap_sq : (9 / 16 : ℝ) * ε ^ 2 ≤ (ε - 1 / (2 * (K : ℝ))) ^ 2 := by
-      nlinarith [pow_le_pow_left₀ (by positivity : 0 ≤ (3 / 4 : ℝ) * ε) hgap 2]
+    have hgap_sq : (9 / 16 : ℝ) * ε ^ 2 ≤ (ε - 1 / (2 * (K : ℝ))) ^ 2 := by nlinarith
     refine (fosterVohra_prob_calError_ge_le hK adv hTpos hgrid_lt).trans
       ((div_le_iff₀ (mul_pos hTr (sq_pos_of_pos (sub_pos.mpr hgrid_lt)))).mpr ?_)
     have hmul := (div_le_iff₀ (mul_pos hδ (sq_pos_of_pos hε))).mp hT_bd
-    nlinarith [mul_le_mul_of_nonneg_left hgap_sq (by positivity : 0 ≤ δ * (T : ℝ))]
+    have hδT : 0 ≤ δ * (T : ℝ) := by positivity
+    nlinarith [mul_le_mul_of_nonneg_left hgap_sq hδT]
 
 end GridCalibration
 

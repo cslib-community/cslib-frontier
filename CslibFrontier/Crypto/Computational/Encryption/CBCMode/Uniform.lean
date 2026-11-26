@@ -254,8 +254,7 @@ theorem cbcWordDecrypt_cbcWordEncrypt {encFamily decFamily : List Bool → List 
   have hcsLen : cs.length = msg.length / n := by simp [cs, length_cbcChainWords, ms]
   have hbodyEq : cbcWordBody encFamily n k iv msg = cs.flatten :=
     cbcWordBody_eq_flatten_cbcChainWords encFamily n k iv msg
-  have hflatLen : cs.flatten.length = msg.length := hbodyEq ▸ hbodyLen iv hivLen
-  rw [hbodyEq, cbcWordDecBody, hflatLen, ← hcsLen,
+  rw [cbcWordDecBody, hbodyLen iv hivLen, hbodyEq, ← hcsLen,
     BitString.listRows_flatten cs (hcs iv hivLen),
     foldl_cbcDecStep_cbcChainWords hlen hinv hivLen [] hms, List.nil_append]
   exact BitString.flatten_listRows_of_length
@@ -392,15 +391,10 @@ theorem BlockCipher.isPPTOn_cbcEncrypt (E : BlockCipher) :
     (E.blockLen_polyTime.comp hn)
     (by dsimp only [EIn, encKeyedInput]; fun_prop) (by dsimp only [EIn]; fun_prop)
     (by dsimp only [EIn, encKeyedInput]; fun_prop)
-  have hpost : ComputableInPolyTime
-      (fun p : (ℕ × List Bool × List Bool) × List Bool =>
-        p.2 ++ cbcWordBody (E.encrypt p.1.1) (E.blockLen p.1.1) p.1.2.1 p.2 p.1.2.2)
-      EIn encBits :=
-    ComputableInPolyTime.bitsAppend (by dsimp only [EIn]; fun_prop) hbody
   exact (ComputableInPolyTime.sampleList
     (E.blockLen_polyTime.comp
-      ((ComputableInPolyTime.fst _ _).comp
-        (by dsimp only [encKeyedInput]; exact ComputableInPolyTime.id')))).bind_with hpost.isPPTOn
+      (ComputableInPolyTime.fst encUnary (encPair encBits encBits)))).bind_with
+    (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.snd _ _) hbody).isPPTOn
 
 /-- For every `BlockCipher` `E`, `E.cbcDecrypt` is computable in polynomial time on `(n, k, ct)`. -/
 theorem BlockCipher.computableInPolyTime_cbcDecrypt (E : BlockCipher) :
@@ -415,19 +409,13 @@ theorem BlockCipher.computableInPolyTime_cbcDecrypt (E : BlockCipher) :
     E.blockLen_polyTime.comp hn
   have hct : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool => p.2.2) EIn encBits := by
     dsimp only [EIn, encKeyedInput]; fun_prop
-  have hcond : ComputableInPolyTime
-      (fun p : ℕ × List Bool × List Bool =>
-        decide (E.blockLen p.1 ≤ p.2.2.length) &&
-          ((p.2.2.length - E.blockLen p.1) % E.blockLen p.1 == 0))
-      EIn encBool := by
-    polytime
   have hdec := computableInPolyTime_cbcWordDecBody_param E.decrypt_polyTime
     (k := fun p => p.2.1) hn hw
     (by dsimp only [EIn, encKeyedInput]; fun_prop)
     (ComputableInPolyTime.bitsTakeWithInput hct hw)
     (ComputableInPolyTime.bitsDropWithInput hct hw)
   unfold BlockCipher.cbcDecrypt ivModeDecrypt
-  exact ComputableInPolyTime.ite hcond
+  exact ComputableInPolyTime.ite (by polytime)
     ((ComputableInPolyTime.optionSome encBits).comp hdec)
     (ComputableInPolyTime.const none)
 
@@ -474,8 +462,8 @@ theorem run_cbcBodyQueries {n : ℕ} (g : List Bool → List Bool) (iv msg : Lis
     induction xs generalizing prev acc with
     | nil => rfl
     | cons m xs ih =>
-      rw [List.length_cons, OracleComp.iterate_succ_bind, ProbOracleComp.run_bind]
-      simp only [cbcBodyStep, List.headD_cons, List.tail_cons, ProbOracleComp.run_map,
+      simp only [List.length_cons, OracleComp.iterate_succ_bind, ProbOracleComp.run_bind,
+        cbcBodyStep, List.headD_cons, List.tail_cons, ProbOracleComp.run_map,
         ProbOracleComp.run_query, map_pure, pure_bind, List.foldl_cons]
       exact ih _ _
   rw [cbcBodyQueries, ProbOracleComp.run_map, hloop, map_pure, cbcWordBody]
@@ -520,8 +508,8 @@ private theorem isOraclePPTOn_cbcBodyQueries :
       (fun a : ℕ × List Bool × List Bool =>
         (BitString.listRows (a.2.2.length / a.1) a.1 a.2.2, a.2.1, ([] : List Bool)))
       EIn EState :=
-    hblocks.prod ((show ComputableInPolyTime (fun a : ℕ × List Bool × List Bool => a.2.1)
-      EIn encBits by dsimp only [EIn]; fun_prop).prod (ComputableInPolyTime.const []))
+    hblocks.prod ((ComputableInPolyTime.snd encUnary (encPair encBits encBits)).fst'.prod
+      (.const []))
   have hquery : IsOraclePPTOn (Operation := Unit) EStep encBits
       (fun p : (ℕ × List Bool × List Bool) × (List (List Bool) × List Bool × List Bool) =>
         List.take p.1.1 <$>
@@ -778,15 +766,12 @@ theorem BlockCipher.PRP.indcpa_cbcEncrypt {E : BlockCipher} (hprp : E.PRP)
       (fun n => BitString.sampleList (E.keyLen n)) E.cbcEncrypt := by
   intro adversary hadversary
   obtain ⟨c, d, hbounds⟩ := hadversary.query_bounds
-  let P : ℕ → ℕ := fun n => c * (n + 2) ^ d
-  have hq (n : ℕ) : (adversary n []).IsQueryBounded (P n) := by
-    simpa only [P, List.length_nil, Nat.add_zero] using (hbounds n []).1
-  have hl (n : ℕ) : (adversary n []).QueriesSatisfy fun request => request.2.length ≤ P n := by
-    simpa only [P, List.length_nil, Nat.add_zero] using (hbounds n []).2
   have hprp₀ := hprp (E.cbcToPrpDistinguisher adversary false)
     (E.isOraclePPT_cbcToPrpDistinguisher hadversary false)
   have hprp₁ := hprp (E.cbcToPrpDistinguisher adversary true)
     (E.isOraclePPT_cbcToPrpDistinguisher hadversary true)
-  negligible using fun n => E.advantage_cbcEncrypt_le adversary (hq n) (hl n)
+  negligible using fun n => E.advantage_cbcEncrypt_le adversary
+    (by simpa only [List.length_nil, Nat.add_zero] using (hbounds n []).1)
+    (by simpa only [List.length_nil, Nat.add_zero] using (hbounds n []).2)
 
 end Cslib.Crypto

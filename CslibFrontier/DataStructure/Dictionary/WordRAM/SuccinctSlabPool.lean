@@ -741,8 +741,7 @@ theorem memoryCost_gmLinkMovedNeighborsProg_le (U V w n_max h_space : ℕ) (d : 
     (s : Memory.State) :
     memoryCost (gmLinkMovedNeighborsProg U V w n_max h_space d) s ≤ 34 := by
   simp only [gmLinkMovedNeighborsProg, gmLinkMovedNeighborsGenProg, readGMGenProg_mk,
-    writeGMGenProg_mk, p_gmSlabMetaBase_mk]
-  simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
+    writeGMGenProg_mk, p_gmSlabMetaBase_mk, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
     memoryCost_readGMProg, memoryCost_writeGMProg]
   split_ifs <;> (simp only [memoryCost_writeGMProg, memoryCost_pure]) <;> omega
 
@@ -1026,13 +1025,10 @@ theorem realizes_gmCompactSlabGen :
       realizes_gmLinkMovedNeighborsGen]
   all_goals try exact h.1
   all_goals try exact zero_lt_globalMetaLen n_max
-  · rw [clientResult_readGMProg s (zero_lt_globalMetaLen n_max)]; exact h.2.1
-  · rw [clientResult_readGMProg s (zero_lt_globalMetaLen n_max)]; exact h.2.1
-  · rw [clientResult_readGMProg s (zero_lt_globalMetaLen n_max)] at hc ⊢
-    exact h.2.2.2.2 hc
-  · rw [clientResult_readGMProg s (zero_lt_globalMetaLen n_max)] at hc ⊢
-    exact gmMovedSlabPre_after_relink hw (h.2.2.2.2 hc)
-  · rw [clientResult_readGMProg s (zero_lt_globalMetaLen n_max)]; exact h.2.1
+  all_goals rw [clientResult_readGMProg s (zero_lt_globalMetaLen n_max)] at *
+  all_goals try exact h.2.1
+  · exact h.2.2.2.2 hc
+  · exact gmMovedSlabPre_after_relink hw (h.2.2.2.2 hc)
 
 /-- Parameter-free `Memory.Prog` operation popping the top slab of bucket `b = d.2.2` at
 `base = d.2.1` and compacting the physical slab pool. -/
@@ -1093,20 +1089,17 @@ theorem gmCompactSlabInv_of_slabBijection {U V w₀ n_max h_space base b : ℕ}
     lt_of_lt_of_le (by omega : gm 0 - 1 < gm 0) hslab.nslabs_le,
     hb_last, by have := hslab.nslabs_le; omega, ?_, ?_, hb_pos⟩
   · intro hs_pos
-    have hbel_eq := hslab.below_eq _ hb_last _ hs_last hs_pos
-    rw [hptr_last] at hbel_eq
-    rw [hbel_eq]
+    rw [← hptr_last, hslab.below_eq _ hb_last _ hs_last hs_pos]
     exact hslab.ptr_lt_maxFullSlabs hb_last (by omega)
   · intro hs_lt_q
     rw [huQ _ hb_last] at hs_lt_q
     have hs1_lt : gm (gmSlabOwnerSIdx n_max (gm 0 - 1)) + 1 <
         gm (gmQIdx (gm (gmSlabOwnerBIdx n_max (gm 0 - 1)))) := by
       split_ifs at hs_lt_q with hbeq
-      · subst hbeq; omega
+      · subst hbeq
+        omega
       · exact hs_lt_q
-    have habv_eq := hslab.above_eq _ hb_last _ hs_last hs1_lt
-    rw [hptr_last] at habv_eq
-    rw [habv_eq]
+    rw [← hptr_last, hslab.above_eq _ hb_last _ hs_last hs1_lt]
     exact hslab.ptr_lt_maxFullSlabs hb_last hs1_lt
 
 theorem gmCompactSlabPre_of_gmPopSlabPre {U V w₀ n_max h_space w base b : ℕ} {s : Memory.State}
@@ -1116,8 +1109,7 @@ theorem gmCompactSlabPre_of_gmPopSlabPre {U V w₀ n_max h_space w base b : ℕ}
       ((Memory.spec 0).clientResult s (gmUnlinkTopSlabProg U V w₀ n_max h_space (base, b)))
       ((Memory.spec 0).clientState s (gmUnlinkTopSlabProg U V w₀ n_max h_space (base, b))) := by
   rcases h with ⟨hdict, hslab, hb, hq_pos, hb_pos⟩
-  have hinv := gmCompactSlabInv_of_slabBijection hw hb_pos hb s hslab hq_pos
-  rcases hinv with ⟨h1, h2, h3, h4⟩
+  rcases gmCompactSlabInv_of_slabBijection hw hb_pos hb s hslab hq_pos with ⟨h1, h2, h3, h4⟩
   exact ⟨hdict, h1, h2, h3, fun hlt => ⟨hdict, h4 hlt⟩⟩
 
 /-- Under `SlabBijection` and `1 ≤ gm (gmQIdx b)` (`b < numBuckets n_max`), `gmPopSlabProg` runs in

@@ -92,10 +92,6 @@ section Subset
 variable {n : Fin (K + K) → Fin (K + K) → Fin (U0 + 1)} {o : M.Channel → Fin U1}
   {grp : Fin (K + K + A') → G} {g : G}
 
-private theorem baseCells_subset_groupCells (p : Fin (K + K)) :
-    baseCells n o grp g p ⊆ groupCells n o grp g :=
-  filter_subset _ _
-
 theorem roleCells_subset_groupCells (r : M.Role) : roleCells n o grp g r ⊆ groupCells n o grp g :=
   filter_subset _ _
 
@@ -227,9 +223,7 @@ private theorem notMem_newUnits {cap : ℕ} (hP : P.Ok cap) {z : M.Slot}
   have h := (Plan.mem_cur.1 (hP.given_subset n o z hu)).1
   rcases u with ⟨⟩ | ⟨ν, k⟩
   · exact init_notMem_newUnits
-  · rw [new_mem_newUnits]
-    rintro ⟨rfl, -⟩
-    exact absurd (Fin.le_def.1 hx) (not_le.2 (Plan.new_mem_seenAt.1 h).1)
+  · exact fun hnew => ((new_mem_newUnits.1 hnew).1 ▸ (Plan.new_mem_seenAt.1 h).1).not_ge hx
 
 /-- Every cell of the group is written by exactly the steps of the group. -/
 private theorem writtenCells_groupSteps :
@@ -259,26 +253,21 @@ private theorem sequential_groupSteps {cap : ℕ} (hP : P.Ok cap) :
     exact notMem_newUnits hP he h (mem_filter.1 hc').2.2
   refine WriteStep.Sequential.of_pairwise (List.pairwise_append.2 ⟨?_, ?_, ?_⟩) ?_
   · refine List.pairwise_map.2 ((nodup_baseParties grp g).imp fun hpp' =>
-      ⟨?_, disjoint_empty_left _⟩)
-    refine disjoint_left.2 fun c hc hc' => hpp' ?_
+      ⟨disjoint_left.2 fun c hc hc' => hpp' ?_, disjoint_empty_left _⟩)
     exact Fin.castAdd_injective _ _ ((mem_filter.1 hc).2.1.symm.trans (mem_filter.1 hc').2.1)
   · refine List.pairwise_map.2 ((pairwise_groupRoles grp g M).imp fun {r r'} h =>
-      ⟨disjoint_left.2 fun c hc hc' => h.1 ?_, hread _ _ h.2⟩)
+      ⟨disjoint_left.2 fun ⟨a, u⟩ hc hc' => h.1 ?_, hread _ _ h.2⟩)
     obtain ⟨-, h1, h2⟩ := mem_filter.1 hc
     obtain ⟨-, h1', h2'⟩ := mem_filter.1 hc'
-    obtain ⟨ν, k, e, -⟩ := mem_newUnits.1 h2
-    obtain ⟨x, p⟩ := r
-    obtain ⟨x', p'⟩ := r'
-    obtain rfl : x = x' := (new_mem_newUnits.1 (e ▸ h2')).1
-    obtain rfl : p = p' := M.party_injective x (h1.symm.trans h1')
-    rfl
-  · rintro _ hs _ hs'
-    obtain ⟨p, -, rfl⟩ := List.mem_map.1 hs
-    obtain ⟨r, -, rfl⟩ := List.mem_map.1 hs'
-    refine ⟨disjoint_left.2 fun c hc hc' => ?_, disjoint_empty_left _⟩
-    have h := (mem_filter.1 hc).2.2
-    have h' := (mem_filter.1 hc').2.2
-    rcases c with ⟨a, ⟨⟩ | ⟨⟩⟩ <;> simp_all
+    obtain ⟨ν, k, rfl, -⟩ := mem_newUnits.1 h2
+    rcases r, r' with ⟨⟨x, p⟩, ⟨x', p'⟩⟩
+    obtain rfl : x = x' := (new_mem_newUnits.1 h2').1
+    exact congrArg (Sigma.mk x) (M.party_injective x (h1.symm.trans h1'))
+  · refine List.forall_mem_map.2 fun p _ => List.forall_mem_map.2 fun r _ =>
+      ⟨disjoint_left.2 fun ⟨a, u⟩ hc hc' => ?_, disjoint_empty_left _⟩
+    cases u
+    · exact absurd (mem_filter.1 hc').2.2 init_notMem_newUnits
+    · exact absurd (mem_filter.1 hc).2.2 new_notMem_initialUnits
   · intro s hs
     rcases List.mem_append.1 hs with hs | hs <;> obtain ⟨r, -, rfl⟩ := List.mem_map.1 hs
     · exact ⟨disjoint_empty_left _, fun _ _ _ _ _ => ⟨rfl, fun _ _ => rfl⟩⟩
@@ -352,14 +341,10 @@ private theorem factor_baseWriteStep {p : Fin (K + K)} (hp : grp (Fin.castAdd A'
         rcases hab with rfl | rfl <;> split_ifs <;> simp_all
     refine ⟨h1, fun b => ⟨h2 b, fun k => by simpa using key p b k (.inl rfl)⟩,
       fun b => ⟨h3 b, fun k => (key b p k (.inr rfl)).trans ?_⟩⟩
-    split_ifs with h
-    · exact h ▸ h4 k
-    · rfl
-  · obtain ⟨a, b, k, -, hab, rfl⟩ := (mem_baseCells hp).1 hc
-    simp only [initialContents]
-    split_ifs with hap
-    · exact hap ▸ (h2 b).2 k
-    · exact (hab.resolve_left hap) ▸ (h3 a).2 k
+    by_cases h : b = p <;> simp [h, h4 k]
+  · obtain ⟨a, b, k, -, rfl | rfl, rfl⟩ := (mem_baseCells hp).1 hc
+    · simp [initialContents, (h2 b).2 k]
+    · by_cases hap : a = b <;> simp [initialContents, hap, (h2 b).2 k, (h3 a).2 k]
 
 /-- The factor of a role is its table, at the copies of the units at its party. -/
 private theorem factor_roleWriteStep {r : M.Role} (hr : grp (M.roleParty r) = g)

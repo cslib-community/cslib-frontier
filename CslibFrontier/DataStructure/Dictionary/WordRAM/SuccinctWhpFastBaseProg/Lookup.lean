@@ -330,17 +330,17 @@ private theorem realizes_probeLiveLookupGen :
     rcases d with ⟨⟨wp, base⟩, ⟨b, u_val⟩⟩
     dsimp only at *
     try simp only [Prod.mk.eta] at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, mapFn, henv, heq_wp, hseed, hrep,
+    obtain ⟨c, U, V, w₀, n_max, θ, fs, mapFn, henv, rfl, hseed, hrep,
       hb, hlr, hins, hv_sl⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
+    obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
     obtain ⟨hrs_st, hrs_res, _, _⟩ := readLiveSaltIdxGenProg_spec henv hb hrep (s := s)
-    obtain ⟨hmh_st, hmh_res, _, _⟩ := mkHashRtGenProg_spec (c := c) (U := U) (V := V)
-      (w := w) (n_max := n_max) (base := base) hth s
+    obtain ⟨hmh_st, hmh_res, _, _⟩ :=
+      mkHashRtGenProg_spec (U := U) (V := V) (w := w) (base := base) hth s
     obtain ⟨hfp_st, hfp_res, _, _⟩ :=
       fpOfSaltOptRtProg_spec (salt := fs.bktSalt b) (kv := u_val) henv hseed (s := s)
     have hlIdx : fs.liveSliceIdx b < 3 * numBucketsWhp n_max := by
-      unfold FastState.liveSliceIdx; omega
+      dsimp [FastState.liveSliceIdx]; omega
     have hfp_lt := fpOfSaltOpt_lt c U n_max (fs.bktSalt b) u_val θ.2
     simp only [mkWhpParams_fst, hrs_st, hrs_res, hmh_st, hmh_res, hfp_st, hfp_res] at *
     first
@@ -372,7 +372,7 @@ private theorem probeLiveLookupGenProg_spec {c U V w n_max base b u_val fp : ℕ
   have hth := henv.2.2.2.1
   have hfp_lt := fpOfSaltOpt_lt c U n_max (fs.bktSalt b) u_val θ.2
   have hlIdx : fs.liveSliceIdx b < 3 * numBucketsWhp n_max := by
-    unfold FastState.liveSliceIdx; omega
+    dsimp [FastState.liveSliceIdx]; omega
   have hbt := ReadSpec.of_le
     (btreeLookupGenProg_spec henv hlIdx hins (hrep.slice_rep hlIdx) hv_sl hfp_lt (s := s))
   rw [← hv_sl.lookup_eq hth hins hfp_lt] at hbt
@@ -426,12 +426,11 @@ private theorem realizes_probeLiveCandGen :
     rcases d with ⟨⟨⟨wp, base⟩, ⟨b, q_val⟩⟩, u_val⟩
     dsimp only at *
     try simp only [Prod.mk.eta] at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, mapFn, henv, heq_wp, hseed, hrep,
+    obtain ⟨c, U, V, w₀, n_max, θ, fs, mapFn, henv, rfl, hseed, hrep,
       hb, hlr, hins, hv_sl, hcnt_le, hbp_v⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
-    have hlk_st :=
-      (probeLiveLookupGenProg_spec (u_val := u_val) henv hseed hrep hb hlr hins hv_sl rfl
-        (s := s)).state
+    obtain rfl := henv.2.2.1
+    have hlk_st := (probeLiveLookupGenProg_spec (u_val := u_val) henv hseed hrep hb hlr hins hv_sl
+      rfl (s := s)).state
     simp only [mkWhpParams_fst, hlk_st] at *
     first
     | exact henv.fits_const (by decide)
@@ -525,16 +524,15 @@ private theorem realizes_probeOldBufCandGen :
     rcases d with ⟨⟨⟨cp, base⟩, ⟨b, q_val⟩⟩, rKey⟩
     dsimp only at *
     obtain ⟨c, U, V, w₀, n_max, fs, henv, rfl, hrep, hce_or, hbo_fn, hb, hcnt_le, hbp_v⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
+    obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
     obtain ⟨hst_st, hst_res, _, _⟩ := readHdrProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage) (s := s)
       (by dsimp only [largeSpaceWhp, hdrRebStage]; omega)
-    rw [hrep.2.2.2.2.2.1] at hst_res
     obtain ⟨hro_st, hro_res, _, _⟩ := readOldEpProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max)
       (by dsimp [largeSpaceWhp, hdrCurEp]; omega) hce_or hrep.2.2.2.1 (s := s)
-    simp only [hst_st, hst_res, hro_st, hro_res] at *
+    simp only [hst_st, hst_res, hrep.2.2.2.2.2.1, hro_st, hro_res] at *
     first
     | exact henv.fits_const (by decide)
     | exact henv.fits_hdr_addr (by decide)
@@ -613,15 +611,13 @@ theorem realizes_fastFindLocBqGen :
     rcases d with ⟨⟨⟨wp, base⟩, ⟨b, q_val⟩⟩, u_val⟩
     dsimp only at *
     try simp only [Prod.mk.eta] at *
-    obtain ⟨⟨c, U, V, w₀, n_max, θ, fs, dict, henv, heq_wp, hseed, hrep, hv⟩, hb_wp⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
+    obtain ⟨⟨c, U, V, w₀, n_max, θ, fs, dict, henv, rfl, hseed, hrep, hv⟩, hb_wp⟩ := h
+    obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
-    have hb : b < numBucketsWhp n_max := by
-      rwa [mkWhpParams_fst, wp_large_M hth] at hb_wp
-    obtain ⟨hmh_st, hmh_res, _, _⟩ := mkHashRtGenProg_spec (c := c) (U := U) (V := V)
-      (w := w) (n_max := n_max) (base := base) hth s
-    obtain ⟨hrk_st, _, _, _⟩ :=
-      fpReducedKeyOptRtProg_spec (kv := u_val) henv hseed (s := s)
+    have hb : b < numBucketsWhp n_max := by rwa [mkWhpParams_fst, wp_large_M hth] at hb_wp
+    obtain ⟨hmh_st, hmh_res, _, _⟩ :=
+      mkHashRtGenProg_spec (U := U) (V := V) (w := w) (base := base) hth s
+    obtain ⟨hrk_st, _, _, _⟩ := fpReducedKeyOptRtProg_spec (kv := u_val) henv hseed (s := s)
     obtain ⟨hce_st, hce_res, _, _⟩ := readHdrProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrCurEp) (s := s)
       (by dsimp only [largeSpaceWhp, hdrCurEp]; omega)
@@ -742,22 +738,19 @@ theorem realizes_fastQueryGen :
     rcases d with ⟨⟨wp, base⟩, u_val⟩
     dsimp only at *
     try simp only [Prod.mk.eta] at *
-    obtain ⟨⟨c, U, V, w₀, n_max, θ, fs, dict, henv, heq_wp, hseed, hrep, hv⟩, hu_wp⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
+    obtain ⟨⟨c, U, V, w₀, n_max, θ, fs, dict, henv, rfl, hseed, hrep, hv⟩, hu_wp⟩ := h
+    obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
-    have hu : u_val < U := by rw [mkWhpParams_fst, wp_large_U hth] at hu_wp; exact hu_wp
+    have hu : u_val < U := by rwa [mkWhpParams_fst, wp_large_U hth] at hu_wp
     set u : Fin U := ⟨u_val, hu⟩
     have hb : feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u_val < numBucketsWhp n_max :=
       feistelBucket_lt _ _ _
-    obtain ⟨hmh_st, hmh_res, _, _⟩ := mkHashRtGenProg_spec (c := c) (U := U) (V := V)
-      (w := w) (n_max := n_max) (base := base) hth s
-    obtain ⟨hfs_st, hfs_res, _, _⟩ :=
-      feistelSplitRtProg_spec (u_val := u_val) henv hseed (s := s)
-    obtain ⟨hfl_st, hfl_res, _, _⟩ :=
-      fastFindLocBqGenProg_spec henv hseed hrep hv u (s := s)
+    obtain ⟨hmh_st, hmh_res, _, _⟩ :=
+      mkHashRtGenProg_spec (U := U) (V := V) (w := w) (base := base) hth s
+    obtain ⟨hfs_st, hfs_res, _, _⟩ := feistelSplitRtProg_spec (u_val := u_val) henv hseed (s := s)
+    obtain ⟨hfl_st, hfl_res, _, _⟩ := fastFindLocBqGenProg_spec henv hseed hrep hv u (s := s)
     dsimp only [u] at hfl_st hfl_res
-    simp only [mkWhpParams_fst] at *
-    simp only [hmh_st, hmh_res, hfs_st, hfs_res, hfl_st, hfl_res,
+    simp only [mkWhpParams_fst, hmh_st, hmh_res, hfs_st, hfs_res, hfl_st, hfl_res,
       wp_large_M hth, wp_large_nMax hth] at *
     first
     | exact henv.fits_const (by decide)

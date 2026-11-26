@@ -196,8 +196,8 @@ theorem kleeneInterpretation_approx (op : Op) (a : Fin (signature.Arity op) → 
   intro c hc
   cases op with
   | not =>
-    simp only [kleeneInterpretation, kleeneOp, List.ofFn_succ, List.ofFn_zero, List.headD_cons,
-      Option.mem_def, Option.map_eq_some_iff] at hc
+    simp only [kleeneInterpretation, kleeneOp, List.ofFn_succ, List.headD_cons, Option.mem_def,
+      Option.map_eq_some_iff] at hc
     obtain ⟨c', hc', rfl⟩ := hc
     simp [h 0 c' hc']
   | and m =>
@@ -205,9 +205,8 @@ theorem kleeneInterpretation_approx (op : Op) (a : Fin (signature.Arity op) → 
     split_ifs at hc with h₁ h₂
     · obtain ⟨i, hi⟩ := h₁
       cases hc
-      have hnb : ¬∀ j, b j = true :=
-        fun hall => Bool.false_ne_true ((h i false hi).trans (hall i))
-      simp [interpretation_and, hnb]
+      simp only [interpretation_and, Bool.false_eq, decide_eq_false_iff_not, not_forall]
+      exact ⟨i, by simp [h i false hi]⟩
     · cases hc
       simp [interpretation_and, fun i => (h i true (h₂ i)).symm]
     · cases hc
@@ -216,7 +215,8 @@ theorem kleeneInterpretation_approx (op : Op) (a : Fin (signature.Arity op) → 
     split_ifs at hc with h₁ h₂
     · obtain ⟨i, hi⟩ := h₁
       cases hc
-      simp [interpretation_or, show ∃ j, b j = true from ⟨i, (h i true hi).symm⟩]
+      have hb : ∃ j, b j = true := ⟨i, (h i true hi).symm⟩
+      simp [interpretation_or, hb]
     · cases hc
       simp [interpretation_or, fun i => (h i false (h₂ i)).symm]
     · cases hc
@@ -229,17 +229,12 @@ theorem kleeneInterpretation_some (op : Op) (b : Fin (signature.Arity op) → Bo
   | and m =>
     by_cases h : ∀ i, b i = true
     · simp [kleeneInterpretation, kleeneOp, kleeneAnd, h]
-    · obtain ⟨i, hi⟩ := not_forall.1 h
-      simp [kleeneInterpretation, kleeneOp, kleeneAnd_of_mem
-        ((List.mem_ofFn (f := fun i => some (b i))).2 ⟨i, by simpa using hi⟩), h]
+    · have h' : ∃ i, b i = false := by simpa using h
+      simp [kleeneInterpretation, kleeneOp, kleeneAnd, List.mem_ofFn, h, h']
   | or m =>
     by_cases h : ∃ i, b i = true
-    · obtain ⟨i, hi⟩ := h
-      simp [kleeneInterpretation, kleeneOp, kleeneOr_of_mem
-        ((List.mem_ofFn (f := fun i => some (b i))).2 ⟨i, by simp [hi]⟩),
-        interpretation_or, show ∃ j, b j = true from ⟨i, hi⟩]
-    · simp only [not_exists, Bool.not_eq_true] at h
-      simp [kleeneInterpretation, kleeneOp, kleeneOr, h]
+    · simp [kleeneInterpretation, kleeneOp, kleeneOr, List.mem_ofFn, interpretation_or, h]
+    · simp_all [kleeneInterpretation, kleeneOp, kleeneOr, interpretation_or]
 
 /-! ### Evaluating gate lists -/
 
@@ -283,8 +278,7 @@ theorem approx_kleeneEval {ρ : List (Option Bool)} {x : List Bool} (hx : List.F
   | nil => rfl
   | cons g gates ih =>
     change (kleeneEval (kleeneStep ρ g) gates).length = _
-    rw [ih, kleeneStep, List.length_append, List.length_singleton, List.length_cons]
-    omega
+    simp [ih, kleeneStep]; omega
 
 /-- Kleene evaluation keeps the input values. -/
 theorem getD_kleeneEval_of_lt (ρ : List (Option Bool)) (gates : List (Op × List ℕ)) {i : ℕ}
@@ -292,9 +286,8 @@ theorem getD_kleeneEval_of_lt (ρ : List (Option Bool)) (gates : List (Op × Lis
   induction gates generalizing ρ with
   | nil => rfl
   | cons g gates ih =>
-    change (kleeneEval (kleeneStep ρ g) gates).getD i none = _
-    rw [ih _ (by simp only [kleeneStep, List.length_append, List.length_singleton]; omega),
-      kleeneStep, List.getD_append _ _ _ _ hi]
+    rw [kleeneEval, List.foldl_cons, ← kleeneEval, ih _ (by simp [kleeneStep]; omega), kleeneStep,
+      List.getD_append _ _ _ _ hi]
 
 /-- On known arguments, as many as the arity, a Kleene operation is known. -/
 theorem kleeneOp_map_some_ne_none (op : Op) {l : List Bool} (hl : l.length = op.arity) :

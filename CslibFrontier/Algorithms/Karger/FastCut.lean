@@ -123,8 +123,7 @@ private theorem fastCutThresholdAux_spec {k fuel t : ℕ} (hk : 4 ≤ k) (ht : t
     ∀ m, t ≤ m → m < r → 2 * m * (m - 1) < k * (k - 1) := by
   induction fuel generalizing t with
   | zero =>
-    have ht_eq : t = k - 1 := by omega
-    subst ht_eq
+    obtain rfl : t = k - 1 := by omega
     refine ⟨le_rfl, le_rfl, ?_, fun _ hge hlt => absurd hlt (not_lt_of_ge hge)⟩
     have hsub2 : k - 1 - 1 = k - 2 := by omega
     simpa only [fastCutThresholdAux, hsub2] using mul_pred_le_two_mul_pred_sub_two hk
@@ -139,8 +138,7 @@ private theorem fastCutThresholdAux_spec {k fuel t : ℕ} (hk : 4 ≤ k) (ht : t
       rcases ih (t := t + 1) (by omega) (by omega) with ⟨h1, h2, h3, h4⟩
       refine ⟨by omega, h2, h3, fun m htm hmr => ?_⟩
       rcases eq_or_lt_of_le htm with rfl | hgt
-      · exact hlt
-      · exact h4 m (by omega) hmr
+      exacts [hlt, h4 m hgt hmr]
     · simp only [hlt, ↓reduceIte]
       exact ⟨le_rfl, ht, Nat.le_of_not_lt hlt, fun _ hge hlt' => absurd hlt' (not_lt_of_ge hge)⟩
 
@@ -175,13 +173,10 @@ theorem fastCutThreshold_lt_of_lt {k m : ℕ} (hk : 4 ≤ k) (hm2 : 2 ≤ m)
 /-- For `k ≥ 7`, the contraction threshold satisfies `6 ≤ fastCutThreshold k`. -/
 theorem fastCutThreshold_ge_six {k : ℕ} (hk : 7 ≤ k) :
     6 ≤ fastCutThreshold k := by
-  have hspec := fastCutThreshold_spec (by omega : 4 ≤ k)
-  have hk42 : 42 ≤ k * (k - 1) := Nat.mul_le_mul hk (by omega : 6 ≤ k - 1)
-  by_contra hlt
-  have hle5 : fastCutThreshold k ≤ 5 := by omega
-  have hprod : 2 * fastCutThreshold k * (fastCutThreshold k - 1) ≤ 40 := by
-    interval_cases fastCutThreshold k <;> decide
-  omega
+  have hspec := (Nat.mul_le_mul hk (by omega : 6 ≤ k - 1)).trans
+    (fastCutThreshold_spec (by omega))
+  by_contra! hlt
+  interval_cases fastCutThreshold k <;> omega
 
 /-- Predecessor minimality inequality
 `2 * (fastCutThreshold k - 1) * (fastCutThreshold k - 2) < k * (k - 1)` for `k ≥ 7`. -/
@@ -218,11 +213,9 @@ theorem two_mul_pot_threshold_le {k : ℕ} (hk : 7 ≤ k) :
 /-- For every `k ≥ 7`, `k ^ 2 ≤ 6 * (k - 4) ^ 2`. -/
 theorem sq_le_six_mul_pot {k : ℕ} (hk : 7 ≤ k) :
     k ^ 2 ≤ 6 * (k - 4) ^ 2 := by
-  obtain ⟨c, rfl⟩ : ∃ c, k = c + 7 := ⟨k - 7, by omega⟩
-  rw [show c + 7 - 4 = c + 3 by omega,
-    show (c + 7) ^ 2 = c ^ 2 + 14 * c + 49 by ring,
-    show 6 * (c + 3) ^ 2 = 6 * c ^ 2 + 36 * c + 54 by ring]
-  omega
+  obtain ⟨c, rfl⟩ : ∃ c, k = 4 + (c + 3) := ⟨k - 7, by omega⟩
+  have h : (4 + (c + 3)) ^ 2 + (5 * c ^ 2 + 22 * c + 5) = 6 * (c + 3) ^ 2 := by ring
+  rw [Nat.add_sub_cancel_left]; omega
 
 /-- For every `k ≥ 7`, `2 * k + 2 ≤ 3 * fastCutThreshold k`, ensuring that linear per-node costs sum
 geometrically to `O((k - 4) ^ 2)` across the binary recursion tree. -/
@@ -291,8 +284,7 @@ theorem fastCutDepth_le_two_mul_log (k : ℕ) :
         _ < (2 ^ (L + 1)) ^ 2 := Nat.pow_lt_pow_left hk4_lt (by decide)
         _ = 2 * 2 ^ (2 * L + 1) := by
             rw [← pow_mul, show (L + 1) * 2 = 2 * L + 1 + 1 by omega, pow_succ']
-    have hlt_exp : fastCutDepth k < 2 * L + 1 :=
-      (Nat.pow_lt_pow_iff_right (by decide : 1 < 2)).mp (by omega)
+    have := (Nat.pow_lt_pow_iff_right (by decide : 1 < 2)).mp (Nat.lt_of_mul_lt_mul_left hlt_pow)
     omega
   · rw [fastCutDepth_of_lt_seven (by omega)]
     exact Nat.zero_le _
@@ -324,12 +316,10 @@ theorem fastCutScratch_of_ge_seven {k : ℕ} (hk : 7 ≤ k) :
 
 private theorem frameSize_le_thirteen_mul_pot {k : ℕ} (hk : 7 ≤ k) :
     frameSize k ≤ 13 * (k - 4) ^ 2 := by
-  unfold frameSize
-  obtain ⟨c, rfl⟩ : ∃ c, k = c + 7 := ⟨k - 7, by omega⟩
-  rw [show c + 7 - 4 = c + 3 by omega,
-    show 4 + 2 * ((c + 7) * (c + 7)) + (c + 7) = 2 * c ^ 2 + 29 * c + 109 by ring,
-    show 13 * (c + 3) ^ 2 = 13 * c ^ 2 + 78 * c + 117 by ring]
-  omega
+  obtain ⟨c, rfl⟩ : ∃ c, k = 4 + (c + 3) := ⟨k - 7, by omega⟩
+  have h : frameSize (4 + (c + 3)) + (11 * c ^ 2 + 49 * c + 8) = 13 * (c + 3) ^ 2 := by
+    dsimp [frameSize]; ring
+  rw [Nat.add_sub_cancel_left]; omega
 
 /-- Potential-based upper bound `fastCutScratch k ≤ 26 * (k - 4) ^ 2` for `k ≥ 7`. -/
 theorem fastCutScratch_le_pot {k : ℕ} (hk : 7 ≤ k) :
@@ -339,13 +329,11 @@ theorem fastCutScratch_le_pot {k : ℕ} (hk : 7 ≤ k) :
     have hfs := frameSize_le_thirteen_mul_pot h
     have ht6 : 6 ≤ fastCutThreshold k := fastCutThreshold_ge_six h
     by_cases ht7 : 7 ≤ fastCutThreshold k
-    · have hih := ih ht7
-      have hpot := two_mul_pot_threshold_le h
-      omega
+    · exact (Nat.add_le_add hfs (ih ht7)).trans (by have := two_mul_pot_threshold_le h; omega)
     · have ht_eq : fastCutThreshold k = 6 := by omega
-      have hbase : fastCutScratch (fastCutThreshold k) = 82 := by
-        rw [fastCutScratch_of_lt_seven (by omega), ht_eq]; decide
-      have h9 : 9 ≤ (k - 4) ^ 2 := Nat.pow_le_pow_left (by omega : 3 ≤ k - 4) 2
+      rw [ht_eq, fastCutScratch_of_lt_seven (by decide)]
+      change frameSize k + 82 ≤ _
+      have := Nat.pow_le_pow_left (by omega : 3 ≤ k - 4) 2
       omega
   | case2 k h => omega
 
@@ -389,9 +377,7 @@ private theorem fastCutNodeQueries_add_linear_le_pot {k : ℕ} (hk : 7 ≤ k) :
       have hlin := two_mul_add_two_le_three_mul_threshold h
       omega
     · have ht_eq : fastCutThreshold k = 6 := by omega
-      have hbase : fastCutNodeQueries (fastCutThreshold k) = 4 := by
-        rw [ht_eq, fastCutNodeQueries_of_lt_seven (by decide)]
-      rw [hbase, ht_eq]
+      rw [ht_eq, fastCutNodeQueries_of_lt_seven (by decide)]
       obtain ⟨c, rfl⟩ : ∃ c, k = c + 7 := ⟨k - 7, by omega⟩
       rw [show c + 7 - 6 = c + 1 by omega, show c + 7 - 2 = c + 5 by omega,
         show c + 7 - 4 = c + 3 by omega, show 6 * (c + 3) ^ 2 = 6 * c ^ 2 + 36 * c + 54 by ring]
@@ -460,19 +446,16 @@ theorem fastCutNodeTime_le_pot {k : ℕ} (hk : 7 ≤ k) :
 theorem fastCutNodeTime_le {n : ℕ} (hn : 2 ≤ n) :
     fastCutNodeTime n ≤ 2400 * n ^ 2 * (Nat.log 2 n + 2) := by
   by_cases hn7 : 7 ≤ n
-  · have hpot := fastCutNodeTime_le_pot hn7
-    have hd := fastCutDepth_le_two_mul_log n
-    have hle : (n - 4) ^ 2 ≤ n ^ 2 := Nat.pow_le_pow_left (Nat.sub_le n 4) 2
-    calc
-      fastCutNodeTime n ≤ (1200 * fastCutDepth n + 2700) * (n - 4) ^ 2 := hpot
-      _ ≤ (1200 * (2 * Nat.log 2 n) + 4800) * n ^ 2 := by
-        apply Nat.mul_le_mul _ hle
-        omega
+  · calc
+      fastCutNodeTime n ≤ (1200 * fastCutDepth n + 2700) * (n - 4) ^ 2 :=
+        fastCutNodeTime_le_pot hn7
+      _ ≤ (1200 * (2 * Nat.log 2 n) + 4800) * n ^ 2 :=
+        Nat.mul_le_mul (by have := fastCutDepth_le_two_mul_log n; omega)
+          (Nat.pow_le_pow_left (Nat.sub_le n 4) 2)
       _ = 2400 * n ^ 2 * (Nat.log 2 n + 2) := by ring
   · rw [fastCutNodeTime_of_lt_seven (by omega)]
-    have hn2 : 4 ≤ n ^ 2 := Nat.pow_le_pow_left hn 2
-    exact (Nat.mul_le_mul_right _ (by omega : 9600 ≤ 2400 * n ^ 2)).trans'
-      (Nat.le_mul_of_pos_right _ (by omega) |>.trans' (by omega))
+    exact ((Nat.mul_le_mul_left 2400 (Nat.pow_le_pow_left hn 2)).trans' (by decide)).trans
+      (Nat.le_mul_of_pos_right _ (by omega))
 
 /-! ### Elementary `ENNReal` probability bounds for Karger–Stein -/
 

@@ -266,36 +266,31 @@ theorem resDist_lt_resDist_augmentLevel (f : N.Flow) (g : (f.levelNet f.resDist)
         ∀ e ∈ pathArcs p, 0 < (f.levelNet f.resDist).cap e.1 e.2 ∧
           g e.1 e.2 < (f.levelNet f.resDist).cap e.1 e.2 := by
     induction h with
-    | zero =>
-      exact fun _ => ⟨[N.s], List.nodup_singleton _, rfl, rfl, by simp,
-        by simp⟩
+    | zero => exact fun _ => ⟨[N.s], List.nodup_singleton _, rfl, rfl, by simp⟩
     | @succ u w k hu hpos ih =>
       intro hw
       have hu_le : f.resDist u ≤ k := le_trans (f.resDist_le_resDist_augmentLevel g u)
         ((f.augmentLevel g).resDist_le_of_hasResWalkOfLen hu)
-      rcases f.pos_resCap_or_of_pos_resCap_augmentLevel g hpos with hf | hlev
-      · have htri := f.resDist_le_add_one_of_pos_resCap hf
-        have hu_eq : f.resDist u = k := by omega
-        obtain ⟨p, hnd, hs, hlast, hle, harcs⟩ := ih hu_eq
-        have hcap_pos : 0 < (f.levelNet f.resDist).cap u w :=
-          (f.levelNet_cap_pos_iff f.resDist u w).mpr ⟨by omega, hf⟩
-        have hgwu : g w u = 0 := Nat.eq_zero_of_le_zero
-          (f.levelNet_cap_eq_zero_of_pos f.resDist hcap_pos ▸ g.le_cap w u)
-        have hunsat : g u w < (f.levelNet f.resDist).cap u w := by
-          have hres := f.resCap_augmentLevel g u w
-          rw [levelNet_cap, ite_eq_left (by omega)]
-          omega
-        have hp_ne : p ≠ [] := by rintro rfl; simp at hs
-        have hw_notin : w ∉ p := fun hmem => by have := hle w hmem; omega
-        refine ⟨p ++ [w], List.nodup_append.mpr ⟨hnd, List.nodup_singleton w,
-            fun a ha _ hb hab => hw_notin (List.mem_singleton.mp hb ▸ hab ▸ ha)⟩,
-          by rwa [List.head?_append_of_ne_nil p hp_ne],
-          by simp,
-          List.forall_mem_append.mpr ⟨fun x hx => (hle x hx).trans (Nat.le_succ _), by simp [hw]⟩,
-          ?_⟩
-        rw [pathArcs_append_singleton hp_ne hlast]
-        exact List.forall_mem_append.mpr ⟨harcs, List.forall_mem_singleton.mpr ⟨hcap_pos, hunsat⟩⟩
-      · omega
+      have hf : 0 < f.resCap u w :=
+        (f.pos_resCap_or_of_pos_resCap_augmentLevel g hpos).resolve_right (by omega)
+      have htri := f.resDist_le_add_one_of_pos_resCap hf
+      obtain ⟨p, hnd, hs, hlast, hle, harcs⟩ := ih (by omega)
+      have hcap_pos : 0 < (f.levelNet f.resDist).cap u w :=
+        (f.levelNet_cap_pos_iff f.resDist u w).mpr ⟨by omega, hf⟩
+      have hunsat : g u w < (f.levelNet f.resDist).cap u w := by
+        have := f.levelNet_cap_eq_zero_of_pos f.resDist hcap_pos ▸ g.le_cap w u
+        have := f.resCap_augmentLevel g u w
+        rw [levelNet_cap, ite_eq_left (by omega)]
+        omega
+      have hp_ne : p ≠ [] := fun h => by simp [h] at hs
+      have hw_notin : w ∉ p := fun hmem => by have := hle w hmem; omega
+      refine ⟨p ++ [w],
+        by simpa [List.nodup_append, hnd] using fun a ha (h : a = w) => hw_notin (h ▸ ha),
+        by rwa [List.head?_append_of_ne_nil p hp_ne], by simp,
+        List.forall_mem_append.mpr ⟨fun x hx => (hle x hx).trans (Nat.le_succ _), by simp [hw]⟩,
+        ?_⟩
+      rw [pathArcs_append_singleton hp_ne hlast]
+      exact List.forall_mem_append.mpr ⟨harcs, List.forall_mem_singleton.mpr ⟨hcap_pos, hunsat⟩⟩
   obtain ⟨p, hnd, hs, hlast, _, harcs⟩ :=
     hclaim ((f.augmentLevel g).hasResWalkOfLen_resDist (v := N.t) (by omega)) heq.symm
   obtain ⟨e, he, hsat⟩ := hg p hnd hs hlast fun e he => (harcs e he).1
@@ -448,11 +443,8 @@ theorem isBlocking_of_not_exists_slackNet {g : L.Flow}
     (h : ¬ ∃ p, (Flow.zero g.slackNet).IsAugmentingPath p) : g.IsBlocking := by
   intro p hnd hs ht _
   by_contra hno
-  refine h ⟨p, hnd, hs, ht, fun e he => ?_⟩
-  rw [resCap_zero_slackNet]
-  have hle := g.le_cap e.1 e.2
-  have hne : g e.1 e.2 ≠ L.cap e.1 e.2 := fun heq => hno ⟨e, he, heq⟩
-  omega
+  exact h ⟨p, hnd, hs, ht, fun e he => (resCap_zero_slackNet g e.1 e.2).symm ▸
+    Nat.sub_pos_of_lt (lt_of_le_of_ne (g.le_cap e.1 e.2) fun heq => hno ⟨e, he, heq⟩)⟩
 
 /-- `g` is blocking exactly when no path of unsaturated arcs joins the terminals. -/
 theorem isBlocking_iff_not_exists_slackNet {g : L.Flow} :

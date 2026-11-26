@@ -191,9 +191,7 @@ theorem mem_cyclicDifferenceRelation_zeroRestriction {n : ℕ} (i : Fin (n + 2))
 /-- Old ports from 4 onward retain their order, shifted down by two. -/
 theorem capPort_of_four_le {n : ℕ} (j : Fin (n + 4)) (h : 4 ≤ j.val) :
     capPort j = Sum.inl ⟨j.val - 2, by omega⟩ := by
-  have h2 : j.val ≠ 2 := by omega
-  have h3 : j.val ≠ 3 := by omega
-  have hlt : ¬j.val < 2 := by omega
+  rcases (by omega : j.val ≠ 2 ∧ ¬j.val < 2 ∧ j.val ≠ 3) with ⟨h2, hlt, h3⟩
   simp only [capPort, h2, h3, hlt, ite_false, dite_false]
 
 /-- Retained difference edges start at the corresponding new free ports of a cap. -/
@@ -255,17 +253,13 @@ theorem comp_capRetainPort_capPort {n : ℕ} (x : Fin (n + 4) → Bool)
     (h : x 1 = x 3) :
     (Sum.elim (x ∘ capRetainPort) (fun _ : Fin 1 => x 2)) ∘ capPort = x := by
   funext j
-  by_cases h2 : j.val = 2
-  · obtain rfl : j = 2 := Fin.ext h2
-    rfl
-  by_cases h3 : j.val = 3
-  · obtain rfl : j = 3 := Fin.ext h3
+  unfold Function.comp capPort
+  split_ifs with h2 hlt h3
+  · exact congrArg x (Fin.ext h2).symm
+  · simp only [Sum.elim_inl, capRetainPort, hlt, dite_true, Fin.eta]
+  · obtain rfl : j = 3 := Fin.ext (h3.trans (Nat.mod_eq_of_lt (by omega : 3 < n + 4)).symm)
     exact h
-  by_cases hlt : j.val < 2
-  · simp only [Function.comp_apply, capPort, h2, ite_false, hlt, dite_true,
-      Sum.elim_inl, capRetainPort]
-  · simp only [Function.comp_apply, capPort, h2, ite_false, hlt, dite_false,
-      h3, Sum.elim_inl, capRetainPort]
+  · simp only [Sum.elim_inl, capRetainPort]
     split_ifs <;> exact congrArg x (by fin_index)
 
 /-- Identify old ports 1 and 3, hide old port 2, and retain the other free ports in order. -/
@@ -347,11 +341,8 @@ theorem three_le_val_capDifferencePort {n : ℕ} {j : Fin (n + 2)} (hj : j ≠ 0
 /-- The second hidden difference is not in the cap's retained coordinates. -/
 @[simp] theorem capDifferencePort_ne_two {n : ℕ} (j : Fin (n + 2)) :
     capDifferencePort j ≠ 2 := by
-  intro he
-  have hv := congrArg Fin.val he
   have ht : (2 : Fin (n + 4)).val = 2 := Nat.mod_eq_of_lt (by omega : 2 < n + 4)
-  rw [val_capDifferencePort, ht] at hv
-  split_ifs at hv; omega
+  fin_index [val_capDifferencePort, ht]
 
 /-- Exactly differences 1 and 2 are hidden by the cap. -/
 theorem exists_capDifferencePort {n : ℕ} (k : Fin (n + 4))

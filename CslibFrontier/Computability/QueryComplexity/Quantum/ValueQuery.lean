@@ -568,15 +568,11 @@ private noncomputable def swapBool :
 
 private theorem hadBool_phaseStep_hadBool (flag : Bool) (ψ : EuclideanSpace ℂ Bool) :
     hadBool (phaseStep flag (hadBool ψ)) = if flag then swapBool ψ else ψ := by
-  cases flag
-  · have hcz : phaseStep false (hadBool ψ) = hadBool ψ := by
-      ext c; simp [phaseStep_apply]
-    simp only [Bool.false_eq_true, ite_false, hcz, hadBool_self]
-  · ext c
-    cases c <;>
-      simp only [ite_true, hadBool_apply, phaseStep_apply, swapBool_apply, Bool.false_eq_true,
-        ite_false, Bool.and_true, Bool.not_false, Bool.not_true] <;>
-      (ring_nf; simp only [inv_sqrt_two_sq]; ring)
+  ext c
+  cases flag <;> cases c <;>
+    simp only [ite_true, hadBool_apply, phaseStep_apply, swapBool_apply, Bool.false_eq_true,
+      ite_false, Bool.and_true, Bool.and_false, Bool.not_false, Bool.not_true] <;>
+    (ring_nf; simp only [inv_sqrt_two_sq]; ring)
 
 private noncomputable def ctrlUnit (R : EuclideanSpace ℂ V ≃ₗᵢ[ℂ] EuclideanSpace ℂ V) :
     EuclideanSpace ℂ (Bool × V) ≃ₗᵢ[ℂ] EuclideanSpace ℂ (Bool × V) :=
@@ -650,12 +646,9 @@ private theorem step_rel_ite_apply {N : ℕ} {α : Type*} (e : ι ≃ Fin N)
     (if b j then ((step a₀).symm.trans (step a₁)) ((step a₀) (valSlice y (e.symm j) w))
       else (step a₀) (valSlice y (e.symm j) w)).ofLp v =
       (valueOracle step (fun i => if b (e i) then a₁ else a₀) y).ofLp (e.symm j, v, w) := by
-  have hv := valueOracle_apply step (fun i => if b (e i) then a₁ else a₀) y (e.symm j) v w
-  simp only [Equiv.apply_symm_apply] at hv
-  have hval : (WithLp.toLp 2 fun v' => y.ofLp (e.symm j, v', w)) = valSlice y (e.symm j) w := rfl
-  rw [hval] at hv
-  cases hbj : b j <;> simp only [hbj, Bool.false_eq_true, ite_false, ite_true,
-    LinearIsometryEquiv.trans_apply, LinearIsometryEquiv.symm_apply_apply] at hv ⊢ <;> exact hv.symm
+  rw [valueOracle_apply, Equiv.apply_symm_apply]
+  cases b j <;> simp only [valSlice, Bool.false_eq_true, ite_false, ite_true,
+    LinearIsometryEquiv.trans_apply, LinearIsometryEquiv.symm_apply_apply]
 
 private theorem exists_sim_stride {N : ℕ} {α : Type*} (e : ι ≃ Fin N)
     (step : α → (EuclideanSpace ℂ V ≃ₗᵢ[ℂ] EuclideanSpace ℂ V))
@@ -711,30 +704,28 @@ private theorem exists_sim_stride {N : ℕ} {α : Type*} (e : ι ≃ Fin N)
         | succ k ihk =>
           have hne : stride * t + k + 1 ≠ 0 := by omega
           have hmod : (stride * t + k + 1) % stride ≠ 0 := by
-            rw [show stride * t + k + 1 = stride * t + (k + 1) by omega, Nat.mul_add_mod,
-              Nat.mod_eq_of_lt hk]
+            rw [add_assoc, Nat.mul_add_mod, Nat.mod_eq_of_lt hk]
             omega
           have hVmid : Vsim (stride * t + k + 1) = Vmid := by
             simp only [Vsim, hne, ite_false, eq_true hmod, ite_true]
           rw [← add_assoc, run, hVmid, ihk (by omega), Function.iterate_succ_apply']
       have hq : stride * (t + 1) = (stride * t + (stride - 1)) + 1 := by
         rw [Nat.mul_succ]; omega
-      have hne : stride * (t + 1) ≠ 0 := Nat.ne_of_gt (Nat.mul_pos hstride (Nat.succ_pos t))
-      have hmod : ¬ (stride * (t + 1)) % stride ≠ 0 := by simp [Nat.mul_mod_right]
-      have hdiv : stride * (t + 1) / stride - 1 = t := by
-        rw [Nat.mul_div_right _ hstride]; omega
       have hVend : Vsim (stride * (t + 1)) =
           if t + 1 < T then
             pre.comp ((liftValueIso e (U (t + 1))).comp (liftBoolV Gpost).toLinearIsometry)
           else (liftValueIso e (U T)).comp (liftBoolV Gpost).toLinearIsometry := by
-        dsimp only [Vsim]
-        simp only [hne, ite_false, hmod, hdiv]
+        have hdiv : stride * (t + 1) / stride - 1 = t := by
+          rw [Nat.mul_div_right _ hstride]; omega
+        simp only [Vsim, Nat.ne_of_gt (Nat.mul_pos hstride (Nat.succ_pos t)), ite_false,
+          Nat.mul_mod_right, ne_eq, not_true_eq_false, hdiv]
         split_ifs <;> first | rfl | omega
       rw [hq, run, hiter (stride - 1) (by omega), ← hq, hVend]
       split_ifs with hlt <;> simp only [pre, A0, LinearIsometry.coe_comp, Function.comp_apply,
         LinearIsometryEquiv.coe_toLinearIsometry]
       · rw [hstep, liftValueIso_embedState, ← runValue]
-      · rw [show T = t + 1 by omega, hstep, liftValueIso_embedState, ← runValue]
+      · obtain rfl : T = t + 1 := by omega
+        rw [hstep, liftValueIso_embedState, ← runValue]
   simpa only [lt_irrefl, ite_false, measureProb_embedState] using
     congrArg (measureProb · (S.map (embedOutcome e))) (hrun T le_rfl)
 
@@ -1078,13 +1069,10 @@ theorem exists_sim_index_to_value {ι V W α : Type*} [Fintype ι] [Fintype V] [
       rw [runValue, ih ht'.le]
       simp only [ht', ite_true, hvo]
       by_cases hlt : t + 1 < T
-      · simp only [hlt, ite_true, U', liftFalse_embedFalse]; rfl
+      · simp only [hlt, ite_true, U', liftFalse_embedFalse, runValue]
       · obtain rfl : t + 1 = T := by omega
-        simp only [lt_irrefl, ite_false, ite_true, U', LinearIsometry.coe_comp,
-          Function.comp_apply, LinearIsometryEquiv.coe_toLinearIsometry, liftFalse_embedFalse]
-        rfl
-  have hU_succ : U' (T + 1) = LinearIsometry.id := by
-    simp only [U', show ¬ (T + 1 < T) by omega, show ¬ (T + 1 = T) by omega, ite_false]
+        simp [U', liftFalse_embedFalse, runValue]
+  have hU_succ : U' (T + 1) = LinearIsometry.id := by simp [U', Nat.not_lt.mpr (Nat.le_succ T)]
   rw [runValue, hU_succ, hlt_run T le_rfl]
   simp only [lt_irrefl, ite_false, LinearIsometry.id_apply]
   set ψT := runValue step U ψ₀ X T

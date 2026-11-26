@@ -139,8 +139,7 @@ private theorem forEachArcInner_spec {N w : ℕ} (adj : Fin N → List (Fin N))
     simp only [List.length_cons] at hk
     have hk_lt : k < (adj u).length := by omega
     have hv_eq : (adj u)[k] = v := by
-      have h0 := hget 0 (by simp)
-      simpa only [Nat.add_zero, List.getElem_cons_zero] using h0
+      simpa only [Nat.add_zero, List.getElem_cons_zero] using hget 0 (Nat.zero_lt_succ _)
     have hmem_e : x.mem (kEdgeAddr wb N + (csrOffset adj u.val + k)) = v.val := by
       rw [← Nat.add_assoc, hcsr.2 u k hk_lt, hv_eq]
     have hj_lt_M : csrOffset adj u.val + k < csrOffset adj N := by
@@ -151,10 +150,8 @@ private theorem forEachArcInner_spec {N w : ℕ} (adj : Fin N → List (Fin N))
     have hf_j1 : Fits w (csrOffset adj u.val + k + 1) :=
       hfit.of_le (by simp only [kTopAddr]; omega)
     have hroom_v : (rev v).length + 1 ≤ bound v := by
-      have hle := length_foldl_rev_le u es (Function.update rev v (u :: rev v)) v
-      have hall := hroom_all v
-      simp only [List.foldl_cons] at hall
-      simpa using hle.trans hall
+      simpa using (length_foldl_rev_le u es (Function.update rev v (u :: rev v)) v).trans
+        (hroom_all v)
     let st_v := (x.set addr (kEdgeAddr wb N + (csrOffset adj u.val + k))).set vReg v.val
     have hp1 : ExecWithin w (ram[ addr ← fwdEdgeReg + jReg; vReg ← *addr ]) x st_v 2 := by
       wram_exec [hfwd, hj, hmem_e]
@@ -177,8 +174,7 @@ private theorem forEachArcInner_spec {N w : ℕ} (adj : Fin N → List (Fin N))
         MemWrite ConstRegs hu_lo hu_hi hfwd_hi hfwd_ne hdisj hconst_regs hstep u es (k + 1)
         (Function.update rev v (u :: rev v)) x₂ (by omega)
         (fun q hq => by
-          have h := hget (q + 1) (by simp; omega)
-          simpa [Nat.add_assoc, Nat.add_comm 1 q] using h)
+          simpa [Nat.add_assoc, Nat.add_comm 1 q] using hget (q + 1) (Nat.succ_lt_succ hq))
         (fun z => by simpa [List.foldl_cons] using hroom_all z)
         hy₁_inv (hcsr.of_unwritten hdisj hy₁_out) ((hx₂_lt cOne (by decide)).trans hc1)
         ((hx₂_lt _ hfwd_hi).trans hfwd)
@@ -237,8 +233,7 @@ private theorem forEachArc_spec {N w : ℕ} (adj : Fin N → List (Fin N))
       huIdx => by
     simp only [List.length_cons] at hidx
     have hu_val : u.val = idx := by
-      have h0 := hus 0 (by simp)
-      rwa [List.getElem_cons_zero, Nat.add_zero] at h0
+      simpa only [List.getElem_cons_zero, Nat.add_zero] using hus 0 (Nat.zero_lt_succ _)
     have hoff_u : x.mem (kOffAddr wb + idx) = csrOffset adj u.val := by
       rw [← hu_val]; exact hcsr.1 u.val (by omega)
     have hoff_u1 : x.mem (kOffAddr wb + idx + 1) = csrOffset adj u.val + (adj u).length := by
@@ -277,8 +272,7 @@ private theorem forEachArc_spec {N w : ℕ} (adj : Fin N → List (Fin N))
         ConstRegs hu_lo hu_hi hu_ne_of hfwd_hi hfwd_ne_of hfwd_ne hdisj hconst_regs hstep
         us (idx + 1) ((adj u).foldl (fun r v => Function.update r v (u :: r v)) rev) x₂ (by omega)
         (fun q hq => by
-          have h := hus (q + 1) (by simp; omega)
-          simpa [Nat.add_assoc, Nat.add_comm 1 q] using h)
+          simpa [Nat.add_assoc, Nat.add_comm 1 q] using hus (q + 1) (Nat.succ_lt_succ hq))
         (fun z => by simpa [List.foldl_cons] using hroom_all z)
         hy₁_inv (hcsr.of_unwritten hdisj hy₁_out) ((hx₂_fr0 cOne (by decide)).trans hc1)
         ((hx₂_fr0 nVerts (by decide)).trans hNv) ((hx₂_fr0 offB (by decide)).trans hoff)
@@ -313,8 +307,7 @@ theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
           (kCurAddr wb N Mc ≤ a ∧ a < kCurAddr wb N Mc + N)) → y.mem a = x.mem a) ∧
       (∀ r : Fin 28, r.val < 18 → r ≠ offB → r ≠ edgeB → y.regs r = x.regs r) := by
   set revAdj := transposeAdj adj (List.finRange N)
-  have hmc_rev : csrOffset revAdj N ≤ Mc := by
-    dsimp only [revAdj]; rwa [csrOffset_transposeAdj_eq]
+  have hmc_rev : csrOffset revAdj N ≤ Mc := csrOffset_transposeAdj_eq adj ▸ hmc
   have hfit_ps : Fits w (kCurAddr wb N Mc + N + Mc + 2) :=
     hfit.of_le (by simp only [kCurAddr, kTopAddr]; omega)
   obtain ⟨x₁, hx₁_ex, hx₁_zero, hx₁_out, hx₁_fr⟩ :=
@@ -327,10 +320,9 @@ theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
   let x₂ := x₁.set iReg 0
   have hp1 : ExecWithin (B := .standard) w (ram[ iReg ← cZero ]) x₁ x₂ 1 := by
     wram_exec [hx₁_fr cZero (by decide), hc0]
-  have hroom_rev : ∀ z : Fin N, (revAdj z).length ≤ Mc := by
-    intro z
-    have h1 := csrOffset_succ revAdj z.isLt; simp only [Fin.eta] at h1
-    have h2 := csrOffset_mono revAdj (by omega : z.val + 1 ≤ N); omega
+  have hroom_rev : ∀ z : Fin N, (revAdj z).length ≤ Mc := fun z =>
+    (Nat.le_add_left _ _).trans
+      ((csrOffset_succ revAdj z.isLt ▸ csrOffset_mono revAdj z.isLt).trans hmc_rev)
   have hf_cur : Fits w (kCurAddr wb N Mc + N + Mc + 1) := hfit_ps.of_le (by omega)
   obtain ⟨x₃, hx₃_ex, hx₃_deg, hx₃_out, hx₃_fr⟩ :=
     forEachArc_spec adj wb Mc hmc hfit edgeB iReg incCurCode 4 (fun _ => Mc)
@@ -345,8 +337,7 @@ theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
           incCurCode_spec (kCurAddr wb N Mc) Mc hf_cur (fun z => (rev z).length) v hroom
             hc1' hcur' hv hinv
         refine ⟨y, hy_ex, fun z => ?_, hy_out, hy_fr⟩
-        rw [hy_deg z]
-        by_cases hz : z = v <;> simp [hz])
+        by_cases hz : z = v <;> simp [hy_deg, hz])
       (List.finRange N) 0 (fun _ => []) x₂ (by simp) (fun q _ => by simp)
       (fun z => hroom_rev z) (fun z => hx₁_zero z.val z.isLt)
       hx₁_csr (by wram_simp [x₂, hx₁_fr, hc1]) (by wram_simp [x₂, hx₁_fr, hNv])
@@ -412,10 +403,9 @@ theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
       (by omega),
     hx₇_rcsr, by wram_simp [y], by wram_simp [y, hx₇_fr edgeB (by decide), x₆],
     fun a ha => ?_, fun r hr hno hne => ?_⟩
-  · rw [show y.mem a = x₇.mem a from rfl, hx₇_out _ (by dsimp only [revAdj, revGraph] at *; omega),
-      show x₆.mem a = x₅.mem a from rfl, hx₅_out _ (by omega)]
-    exact (hx₃_out _ (by omega)).trans (hx₁_out _ (by omega))
-  · rw [show y.regs r = x₇.regs r by wram_simp [y], hx₇_fr r hr]
-    wram_simp [x₆, hx₅_fr0 r hr hno]
+  · refine (hx₇_out a (by omega)).trans ((hx₅_out a ?_).trans
+      ((hx₃_out a fun h => ha (.inr (.inr h))).trans (hx₁_out a fun h => ha (.inr (.inr h)))))
+    omega
+  · wram_simp [y, hx₇_fr r hr, x₆, hx₅_fr0 r hr hno]
 
 end Cslib.Algorithms.WordRAM.DFS

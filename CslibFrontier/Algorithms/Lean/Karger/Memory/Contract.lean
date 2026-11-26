@@ -97,11 +97,9 @@ theorem mergedTo_succ (hu : c ≠ u) (hv : c ≠ v) (i j : ℕ) :
       else mergedTo M u v c i j := by
   unfold mergedTo
   by_cases h₁ : i = c ∧ j = u
-  · rcases h₁ with ⟨rfl, rfl⟩
-    simp [hu, hv]
+  · simp [h₁.1, h₁.2, hu, hv]
   by_cases h₂ : i = u ∧ j = c
-  · rcases h₂ with ⟨rfl, rfl⟩
-    simp [hu, hv]
+  · simp [h₂.1, h₂.2, hu, hv]
   simp only [h₁, h₂, ite_false]
   exact if_congr (by omega) rfl (if_congr (by omega) rfl rfl)
 
@@ -117,15 +115,12 @@ theorem mergedTo_right (huv : u ≠ v) (hu : c ≠ u) : mergedTo M u v c v c = M
 theorem mergedTo_eq_mergePair {k : ℕ} {W : Fin k → Fin k → ℕ} (hW : IsMultigraph W)
     (hM : ∀ a b : Fin k, M a b = W a b) {u v : Fin k} {a b : Fin k} (ha : a ≠ v) (hb : b ≠ v) :
     mergedTo M u v k a b = mergePair W u v a b := by
-  have hav : (a : ℕ) ≠ v := Fin.val_ne_of_ne ha
-  have hbv : (b : ℕ) ≠ v := Fin.val_ne_of_ne hb
   unfold mergedTo mergePair
   by_cases hab : a = b
   · subst hab
     have h : ¬((a : ℕ) = u ∧ (a : ℕ) < k ∧ (a : ℕ) ≠ u ∧ (a : ℕ) ≠ v) := fun h => h.2.2.1 h.1
     simp only [h, ite_false, true_or, ite_true, hM, hW.2]
-  · have hab' : (a : ℕ) ≠ b := Fin.val_ne_of_ne hab
-    simp only [hab, ha, hb, or_self, ite_false, Fin.val_inj, a.isLt, b.isLt, true_and,
+  · simp only [hab, ha, hb, or_self, ite_false, Fin.val_inj, a.isLt, b.isLt, true_and,
       Fin.val_inj.not, not_false_eq_true, and_true]
     by_cases hau : a = u
     · subst hau
@@ -152,11 +147,9 @@ theorem compactedTo_succ (hc : c ≠ v) (i j : ℕ) :
       else compactedTo M v m c i j := by
   unfold compactedTo
   by_cases h₁ : i = c ∧ j = v
-  · rcases h₁ with ⟨rfl, rfl⟩
-    simp [hc]
+  · simp [h₁.1, h₁.2, hc]
   by_cases h₂ : i = v ∧ j = c
-  · rcases h₂ with ⟨rfl, rfl⟩
-    simp [hc]
+  · simp [h₂.1, h₂.2, hc]
   simp only [h₁, h₂, ite_false]
   exact if_congr (by omega) rfl (if_congr (by omega) rfl rfl)
 
@@ -170,11 +163,7 @@ theorem compactedTo_eq (hsym : ∀ i < m, i ≠ v → M m i = M i m) (hdiag : M 
     (hi : i < m) (hj : j < m) :
     compactedTo M v m m i j = M (if i = v then m else i) (if j = v then m else j) := by
   unfold compactedTo
-  by_cases hiv : i = v <;> by_cases hjv : j = v
-  · simp [hiv, hjv, hdiag]
-  · simp [hiv, hjv, hj]
-  · simp [hiv, hjv, hi, hsym]
-  · simp [hiv, hjv]
+  by_cases hiv : i = v <;> by_cases hjv : j = v <;> simp [hiv, hjv, hdiag, hi, hj, hsym]
 
 /-- The index of `embedCompact v i`: `m` at the removed slot, `i` elsewhere. -/
 theorem val_embedCompact {m : ℕ} (v : Fin (m + 1)) (i : Fin m) :
@@ -208,11 +197,9 @@ theorem compactedTo_mergedTo_eq_contractMatrix {W : Fin (m + 1) → Fin (m + 1) 
     simp only [Fin.val_last] at h₁ h₂
     rw [h₁, h₂, (isMultigraph_mergePair hW u v).1]
   have hdiag : mergedTo M u v (m + 1) v v = mergedTo M u v (m + 1) m m := by
-    have h₁ := hmerge (Fin.last m) (Fin.last m) hlast hlast
-    simp only [Fin.val_last] at h₁
-    have hvu : (v : ℕ) ≠ u := Fin.val_ne_of_ne huv.symm
-    rw [h₁, (isMultigraph_mergePair hW u v).2]
-    simp [mergedTo, hvu, hM, hW.2]
+    refine (?_ : _ = 0).trans ((hmerge (Fin.last m) (Fin.last m) hlast hlast).trans
+      ((isMultigraph_mergePair hW u v).2 (Fin.last m))).symm
+    simp [mergedTo, Fin.val_ne_of_ne huv.symm, hM, hW.2]
   rw [compactedTo_eq hsym hdiag i.isLt j.isLt, contractMatrix, ← val_embedCompact,
     ← val_embedCompact]
   exact hmerge _ _ (embedCompact_ne v i) (embedCompact_ne v j)
@@ -228,18 +215,16 @@ theorem mergePair_le_totalDoubledWeight {W : Fin (m + 1) → Fin (m + 1) → ℕ
     mergePair W u v a b ≤ totalDoubledWeight W := by
   have h := entry_le_totalDoubledWeight (contractMatrix W u v) (compactIdx v a ha)
     (compactIdx v b hb)
-  rw [contractMatrix, embedCompact_compactIdx, embedCompact_compactIdx] at h
-  have := totalDoubledWeight_contractMatrix hW huv
-  omega
+  simpa only [contractMatrix, embedCompact_compactIdx] using
+    h.trans ((Nat.le_add_right _ _).trans_eq (totalDoubledWeight_contractMatrix hW huv))
 
 /-- Degrees of the merged matrix away from `v` are at most the total weight. -/
 theorem rowDeg_mergePair_le_totalDoubledWeight {W : Fin (m + 1) → Fin (m + 1) → ℕ}
     (hW : IsMultigraph W) {u v a : Fin (m + 1)} (huv : u ≠ v) (ha : a ≠ v) :
     rowDeg (mergePair W u v) a ≤ totalDoubledWeight W := by
   have h := rowDeg_le_totalDoubledWeight (contractMatrix W u v) (compactIdx v a ha)
-  rw [rowDeg_contractMatrix, embedCompact_compactIdx] at h
-  have := totalDoubledWeight_contractMatrix hW huv
-  omega
+  simpa only [rowDeg_contractMatrix, embedCompact_compactIdx] using
+    h.trans ((Nat.le_add_right _ _).trans_eq (totalDoubledWeight_contractMatrix hW huv))
 
 end Pure
 
@@ -332,23 +317,24 @@ theorem wp_mergeLoop {M : ℕ → ℕ → ℕ} {u v k : ℕ} (hu : u < k) (hv : 
       refine wp_mono ?_ (wp_mergeLoop hu hv huv hk hfit n (c + 1) s (by omega) hw
         fun i j hi hj => by rw [hmat i j hi hj, mergedTo_succ_of_mem hc])
       rintro _ s' t ⟨hf, hfr, hm, ht⟩
-      exact ⟨hf, hfr, by rwa [show c + (n + 1) = c + 1 + n by omega], by omega⟩
+      exact ⟨hf, hfr, Nat.add_right_comm c n 1 ▸ hm, by omega⟩
     · rw [ite_eq_right hc]
       have hcu : c ≠ u := fun h => hc (.inl h)
       have hcv : c ≠ v := fun h => hc (.inr h)
       have hck : c < L.capacity := by omega
+      have huc : u < L.capacity := hu.trans_le hk
       have hx : L.mat s.mem u c + L.mat s.mem v c = M u c + M v c := by
-        rw [hmat u c (by omega) hck, hmat v c (by omega) hck, mergedTo_left hcu,
+        rw [hmat u c huc hck, hmat v c (hv.trans_le hk) hck, mergedTo_left hcu,
           mergedTo_right huv hcu]
-      refine wp_mergeStep (by omega) (by omega) hck hw (hx ▸ hfit c (by omega) hcu hcv) ?_
+      refine wp_mergeStep huc (hv.trans_le hk) hck hw (hx ▸ hfit c (by omega) hcu hcv) ?_
       rw [hx]
       refine wp_mono ?_ (wp_mergeLoop hu hv huv hk hfit n (c + 1) _ (by omega) hw
         fun i j hi hj => ?_)
       · rintro _ s' t ⟨hf, hfr, hm, ht⟩
-        refine ⟨hf, fun a ha => ?_, by rwa [show c + (n + 1) = c + 1 + n by omega], by omega⟩
-        rw [hfr a ha]
-        exact update_update_of_not_owns (by omega) hck hck (by omega) _ ha
-      · rw [Layout.mat_update (by omega) _ hj, Layout.mat_update hck _ hj, mergedTo_succ hcu hcv,
+        exact ⟨hf, fun a ha => (hfr a ha).trans
+            (update_update_of_not_owns huc hck hck huc _ ha),
+          Nat.add_right_comm c n 1 ▸ hm, by omega⟩
+      · rw [Layout.mat_update huc _ hj, Layout.mat_update hck _ hj, mergedTo_succ hcu hcv,
           hmat i j hi hj]
 
 /-- **The compaction loop.** From the matrix `M` compacted up to index `c`, compacting `n` more
@@ -370,19 +356,20 @@ theorem wp_compactLoop {M : ℕ → ℕ → ℕ} {v m : ℕ} (hv : v < m) (hm : 
       refine wp_mono ?_ (wp_compactLoop hv hm hfit n (c + 1) s (by omega) hw
         fun i j hi hj => by rw [hmat i j hi hj, compactedTo_succ_of_eq hc])
       rintro _ s' t ⟨hf, hfr, hmc, ht⟩
-      exact ⟨hf, hfr, by rwa [show c + (n + 1) = c + 1 + n by omega], by omega⟩
+      exact ⟨hf, hfr, Nat.add_right_comm c n 1 ▸ hmc, by omega⟩
     · rw [ite_eq_right hc]
       have hck : c < L.capacity := by omega
+      have hvc : v < L.capacity := hv.trans hm
       have hx : L.mat s.mem m c = M m c := by
-        rw [hmat m c hm hck, compactedTo_last (by omega) hc]
-      refine wp_compactStep (by omega) hm hck hw (hx ▸ hfit c (by omega) hc) ?_
+        rw [hmat m c hm hck, compactedTo_last hv.ne' hc]
+      refine wp_compactStep hvc hm hck hw (hx ▸ hfit c (by omega) hc) ?_
       rw [hx]
       refine wp_mono ?_ (wp_compactLoop hv hm hfit n (c + 1) _ (by omega) hw fun i j hi hj => ?_)
       · rintro _ s' t ⟨hf, hfr, hmc, ht⟩
-        refine ⟨hf, fun a ha => ?_, by rwa [show c + (n + 1) = c + 1 + n by omega], by omega⟩
-        rw [hfr a ha]
-        exact update_update_of_not_owns (by omega) hck hck (by omega) _ ha
-      · rw [Layout.mat_update (by omega) _ hj, Layout.mat_update hck _ hj, compactedTo_succ hc,
+        exact ⟨hf, fun a ha => (hfr a ha).trans
+            (update_update_of_not_owns hvc hck hck hvc _ ha),
+          Nat.add_right_comm c n 1 ▸ hmc, by omega⟩
+      · rw [Layout.mat_update hvc _ hj, Layout.mat_update hck _ hj, compactedTo_succ hc,
           hmat i j hi hj]
 
 /-! ## Contraction -/
@@ -516,8 +503,9 @@ theorem wp_shrink {s s₂ : Memory.State} (hs : Inv L w s) {m : ℕ}
           s₄.mem (L.degree.base + i) = rowDeg (contractMatrix W u v) i := by
         rw [rowDeg_contractMatrix]
         by_cases hiv : (i : ℕ) = v
-        · rw [show embedCompact v i = ⟨m, by omega⟩ from
-            Fin.ext (by rw [val_embedCompact, ite_eq_left hiv]), ← hdm, hiv, hd₄]
+        · have hem : embedCompact v i = ⟨m, by omega⟩ :=
+            Fin.ext (by rw [val_embedCompact, ite_eq_left hiv])
+          rw [hem, ← hdm, hiv, hd₄]
         · rw [hval i hiv, ← hdeg₃ _ (Fin.ne_of_val_ne hiv)]
           exact hfr₄ _ (L.not_owns_degree (by omega)) (by omega)
       obtain ⟨habs₄, hinv₄⟩ := abs_eq_and_inv (s := s₄) (isMultigraph_contractMatrix hW u v)
@@ -564,8 +552,7 @@ theorem wp_contract {s : Memory.State} (hs : Inv L w s) {u v : ℕ}
   set u' : Fin (m + 1) := ⟨u, hu⟩
   set v' : Fin (m + 1) := ⟨v, hv⟩
   have huv' : u' ≠ v' := Fin.ne_of_val_ne huv
-  rw [show contractGraph ⟨m + 1, W⟩ u v = ⟨m, contractMatrix W u' v'⟩ from
-    contractGraph_fin W u' v']
+  rw [contractGraph_fin W u' v']
   have hk : m + 1 ≤ L.capacity := hm ▸ hs.size_le
   have hS : Fits w (totalDoubledWeight W) := htot ▸ hs.total_fits
   have htot' := totalDoubledWeight_contractMatrix hW huv'
@@ -574,12 +561,10 @@ theorem wp_contract {s : Memory.State} (hs : Inv L w s) {u v : ℕ}
   refine ⟨hs.lt_frontier L.size_mem_footprint, ?_⟩
   dsimp only [StateTransitionSpec.stepFn, step_read, charge_read, Nat.add_zero]
   rw [hm, Nat.add_sub_cancel, wp_bind]
-  have hdu : s.mem (L.degree.base + u) = rowDeg W u' := hdeg u'
-  have hdv : s.mem (L.degree.base + v) = rowDeg W v' := hdeg v'
   have hx : s.mem ((L.row u).base + v) = W u' v' := rfl
   refine wp_mergeDegrees hs (by omega) (by omega) (S := totalDoubledWeight (contractMatrix W u' v'))
     (D := rowDeg (mergePair W u' v') u') (by rw [htot, hx]; omega)
-    (by rw [hx, hdu, hdv, rowDeg_mergePair_u hW huv', hW.1 v' u'])
+    (by rw [hx, hdeg u', hdeg v', rowDeg_mergePair_u hW huv', hW.1 v' u'])
     (hS.of_le (by omega)) (hS.of_le (rowDeg_mergePair_le_totalDoubledWeight hW huv' huv')) ?_
   -- merge
   rw [wp_bind]
@@ -602,12 +587,11 @@ theorem wp_contract {s : Memory.State} (hs : Inv L w s) {u v : ℕ}
   · simp only [hfr₂ _ L.not_owns_total, Function.update_of_ne (L.total_ne_degree u),
       Function.update_self]
   · intro a ha
-    rw [hfr₂ _ (L.not_owns_degree (by omega))]
+    rw [hfr₂ _ (L.not_owns_degree (a.isLt.trans_le hk))]
     dsimp only
-    by_cases hau : a = u'
-    · subst hau
-      exact Function.update_self _ _ _
-    · rw [Function.update_of_ne (fun h => hau (Fin.ext (show (a : ℕ) = u by omega))),
+    rcases eq_or_ne a u' with rfl | hau
+    · exact Function.update_self _ _ _
+    · rw [Function.update_of_ne (fun h => hau (Fin.ext (Nat.add_left_cancel h))),
         Function.update_of_ne (L.total_ne_degree a).symm, hdeg a,
         rowDeg_mergePair_other hW huv' hau ha]
 

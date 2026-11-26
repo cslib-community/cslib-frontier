@@ -154,9 +154,9 @@ theorem power_finite_co_support {x : R⟦Γ⟧} (hx : 0 < x.orderTop) (g : Γ) :
   · rintro (_ | n) hn
     · exact Set.mem_union_right _ (Set.mem_singleton 0)
     · obtain ⟨i, hi, j, hj, rfl⟩ := support_mul_subset hn
-      refine Set.mem_union_left _ ⟨n, Set.mem_iUnion.2 ⟨⟨j, i⟩, Set.mem_iUnion.2 ⟨?_, hi⟩⟩, rfl⟩
-      simp only [mem_coe, Finset.mem_antidiagonal, HahnSeries.mem_support, ne_eq, Set.mem_iUnion]
-      exact ⟨hj, ⟨n, hi⟩, add_comm j i⟩
+      exact Set.mem_union_left _ ⟨n, Set.mem_biUnion (x := (j, i))
+        (mem_coe.2 (Finset.mem_antidiagonal.2 ⟨hj, Set.mem_iUnion.2 ⟨n, hi⟩, add_comm j i⟩))
+        hi, rfl⟩
 
 /-- The summable family of powers of a Hahn series `x`. If `x` does not have positive
 `orderTop`, this returns the junk value obtained by pretending `x = 0`. -/
@@ -185,24 +185,20 @@ theorem geometricPowers_of_orderTop_pos {x : R⟦Γ⟧} (hx : 0 < x.orderTop) (n
 /-- When `¬ 0 < x.orderTop`, `geometricPowers x` is `.single 0 1`. -/
 theorem geometricPowers_of_not_orderTop_pos {x : R⟦Γ⟧} (hx : ¬ 0 < x.orderTop) :
     geometricPowers x = .single 0 1 := by
-  ext a
-  obtain rfl | ha := eq_or_ne a 0 <;> simp [geometricPowers, *]
+  ext (_ | a) <;> simp [geometricPowers, hx]
 
 /-- `geometricPowers 0` is `.single 0 1`. -/
 @[simp]
 theorem geometricPowers_zero : geometricPowers (0 : R⟦Γ⟧) = .single 0 1 := by
-  ext n
-  rw [geometricPowers_of_orderTop_pos (by simp)]
-  obtain rfl | ha := eq_or_ne n 0 <;> simp [*]
+  ext (_ | n) <;> simp
 
 variable {x : R⟦Γ⟧} (hx : 0 < x.orderTop)
 
 include hx in
 /-- When `0 < x.orderTop`, `geometricPowers x` coerces to the power function `x ^ ·`. -/
 @[simp]
-theorem coe_geometricPowers : ⇑(geometricPowers x) = HPow.hPow x := by
-  ext1 n
-  simp [hx]
+theorem coe_geometricPowers : ⇑(geometricPowers x) = HPow.hPow x :=
+  funext fun _ => by simp [hx]
 
 include hx in
 private theorem embDomain_succ_smul_geometricPowers :
@@ -297,7 +293,7 @@ private lemma line_inv_unit {g : Γ} (u : Rˣ) (hu : ↑u ∈ line (K := K) B g)
   have hc0 : c ≠ 0 := fun h => by simp [h] at hc
   have hy : (u : R) * ((a * c)⁻¹ • (B (-g) : R)) = 1 := by
     rw [← ha, smul_mul_assoc, mul_smul_comm, hc, smul_smul, smul_smul,
-      show a * (a * c)⁻¹ * c = 1 by field_simp, one_smul]
+      mul_right_comm a _ c, mul_inv_cancel₀ (mul_ne_zero ha0 hc0), one_smul]
   have heq : (↑u⁻¹ : R) = (a * c)⁻¹ • (B (-g) : R) := by
     calc
       _ = (↑u⁻¹ : R) * 1 := (mul_one _).symm
@@ -309,11 +305,8 @@ omit [Nontrivial R] in
 /-- A single-term Hahn series with coefficient in `line B g` belongs to
 `coefficientRing B h0 hB`. -/
 lemma single_mem {g : Γ} {r : R} (hr : r ∈ line (K := K) B g) :
-    HahnSeries.single g r ∈ coefficientRing B h0 hB := by
-  intro a
-  rcases eq_or_ne g a with rfl | h
-  · simpa using hr
-  · simp [h.symm]
+    HahnSeries.single g r ∈ coefficientRing B h0 hB := fun a => by
+  by_cases h : a = g <;> simp [h, hr]
 
 omit [Nontrivial R] in
 /-- The sum of a summable family in `coefficientRing B h0 hB` belongs to

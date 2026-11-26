@@ -71,11 +71,10 @@ theorem val_emX_eq_sum_wts {S₀ : Series A (Zc K × Sy M K)}
     rw [hx.total]
     exact tU_mono h1 (hx.size_eq ▸ Nat.size_le_size (by omega))
   refine ⟨h.bdd hle, ?_⟩
-  have hex (tr : List P.Step) (htr : tr ∈ R) : ∃ x : XP P, MX x bits ∧ x.steps.map nst = tr := by
-    have hgv := (hR tr).1 htr
+  have hex (tr : List P.Step) (htr : tr ∈ R) : ∃ x : XP P, MX x bits ∧ x.steps.map nst = tr :=
     have hc := closed_σi P bits
-    exact exists_MX hgv fun st hst i => by
-      simpa [σi] using ((Mach.gv_iff hc tr).1 hgv).le hc st hst i
+    exists_MX ((hR tr).1 htr) fun st hst i => by
+      simpa [σi] using ((Mach.gv_iff hc tr).1 ((hR tr).1 htr)).le hc st hst i
   choose f hf using hex
   have hinj : Set.InjOn (fun t : R => f t.1 t.2) (univ : Finset R) := by
     rintro ⟨t, ht⟩ - ⟨t', ht'⟩ - e
@@ -112,9 +111,7 @@ theorem exists_runs_universalMachine (hθ : ∀ q, q ∉ supp → θ q = 0) {τ 
   obtain ⟨R, h1, h2, h3⟩ := sumTo_universalMachine (supp := supp) hθ h
   have hc : Mach.Closed (initState supp z) := closed_σi (universalMachine θ supp) (tbits z)
   refine ⟨R, fun tr => by rw [h1, Mach.gv_iff hc], h2, fun tr htr => ?_⟩
-  have := h3 tr htr
-  rw [← natCast_runLength] at this
-  exact_mod_cast this
+  simpa [← natCast_runLength] using h3 tr htr
 
 variable (θ supp) in
 /-- **The universal automaton is exact, in quasi-linear time.** One series of dimension
@@ -144,8 +141,7 @@ theorem exists_series_universal (hθ : ∀ q, q ∉ supp → θ q = 0) :
         ((Nat.size_mul_le c N).trans (Nat.add_le_add_left (Nat.size_le_log_two_add_one N) _))
     have hlg : 1 ≤ lg N := Nat.le_add_left 1 _
     have h4 : Nat.size c ≤ Nat.size c * lg N := Nat.le_mul_of_pos_right _ hlg
-    simp only [d]
-    nlinarith
+    simp only [d, add_mul]; omega
   have ht : tU (Fintype.card (Bl RecKind)) (runLength supp τ z.size)
       (Nat.size (runLength supp τ z.size + 1)) ≤
         (50 + Fintype.card (Bl RecKind)) * (c * d ^ 2) * (N * lg N ^ 2) :=

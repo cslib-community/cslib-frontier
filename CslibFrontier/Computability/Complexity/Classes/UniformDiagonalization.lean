@@ -244,14 +244,12 @@ theorem exists_stage_eq (hS : Spec dA dF A F) (hinf : ∀ b i, (A b ∆ F b i).I
       induction m, hm using Nat.le_induction with
       | base => exact hn
       | succ m _ ihm =>
-        have h₁ := stage_le_succ dA dF m
-        have h₂ := stage_succ_le dA dF m
-        have h₃ := hne (m + 1)
-        omega
+        exact Nat.le_antisymm
+          (Nat.lt_succ_iff.mp (lt_of_le_of_ne (ihm ▸ stage_succ_le dA dF m) (hne (m + 1))))
+          (ihm ▸ stage_le_succ dA dF m)
     -- so the sets of the side of `k` agree on the words of length at least `n`
     refine hinf (side k) (k / 2) ((List.finite_length_lt Bool n).subset fun w hw => ?_)
-    by_contra hlen
-    rw [Set.mem_ofPred_eq, not_lt] at hlen
+    refine Nat.lt_of_not_le fun hlen => ?_
     have hsep : ¬(w ∈ A (side k) ↔ w ∈ F (side k) (k / 2)) := fun hiff =>
       (Set.mem_symmDiff.mp hw).elim (fun h => h.2 (hiff.mp h.1)) fun h => h.2 (hiff.mpr h.1)
     obtain ⟨N, hN⟩ := witness_complete hS hsep
@@ -274,14 +272,12 @@ theorem D_ne (hS : Spec dA dF A F) (hinf : ∀ b i, (A b ∆ F b i).Infinite) (b
   cases m with
   | zero => rw [stage_zero] at hm; omega
   | succ m =>
-    have h₁ := hmin m (Nat.lt_succ_self m)
-    have h₂ := stage_succ_le dA dF m
-    have hkm : stage dA dF m = k := by omega
+    have hkm : stage dA dF m = k := Nat.le_antisymm
+      (Nat.lt_succ_iff.mp (hmin m (Nat.lt_succ_self m))) (by linarith [stage_succ_le dA dF m])
     rw [stage_succ, hkm] at hm
     split_ifs at hm with hw
     · obtain ⟨w, hsep⟩ := witness_sound hS hw
-      rw [hside, hhalf, ← heq] at hsep
-      exact hsep Iff.rfl
+      exact hsep (by rw [hside, hhalf, ← heq])
     · omega
 
 end Spec
@@ -289,14 +285,12 @@ end Spec
 /-! ### The stages in polynomial time -/
 
 theorem computableInPolyTime_side : ComputableInPolyTime side encUnary encBool := by
-  unfold side
-  fun_prop
+  fun_prop [side]
 
 private theorem computableInPolyTime_disagree :
     ComputableInPolyTime (fun p : Option Bool × Option Bool => disagree p.1 p.2)
       (encPair (encOption encBool) (encOption encBool)) encBool := by
-  unfold disagree
-  fun_prop
+  fun_prop [disagree]
 
 private theorem computableInPolyTime_witnessAt :
     ComputableInPolyTime (fun p : (List ℕ × ℕ) × ℕ =>
@@ -307,18 +301,15 @@ private theorem computableInPolyTime_witnessAt :
   have hdF : ComputableInPolyTime dF encBool eDesc := .of_finite dF
   have hside := computableInPolyTime_side
   have hd := computableInPolyTime_disagree
-  unfold approxA approxF
-  fun_prop
+  fun_prop [approxA, approxF]
 
 private theorem computableInPolyTime_stageStep :
     ComputableInPolyTime (stageStep dA dF) (encList encUnary) encUnary := by
   have ha := computableInPolyTime_witnessAt dA dF
   have hw : ComputableInPolyTime (fun p : List ℕ × ℕ => witness dA dF p.1 p.2)
       (encPair (encList encUnary) encUnary) encBool := by
-    unfold witness
-    fun_prop
-  unfold stageStep
-  fun_prop
+    fun_prop [witness]
+  fun_prop [stageStep]
 
 /-- The tables of the stages are polynomial-time in their length, in unary. -/
 theorem computableInPolyTime_table :
@@ -405,8 +396,7 @@ theorem isDecidable_ite {α : Type} {enc : α ↪ List Bool} {G A₁ A₂ : Set 
   obtain ⟨f₁, hf₁, hA₁'⟩ := isDecidable_iff.mp hA₁
   obtain ⟨f₂, hf₂, hA₂'⟩ := isDecidable_iff.mp hA₂
   refine isDecidable_iff.mpr ⟨fun a => if g a then f₁ a else f₂ a, hg.ite hf₁ hf₂, fun a => ?_⟩
-  have := hG' a
-  by_cases ha : a ∈ G <;> simp_all [Set.ite]
+  by_cases ha : a ∈ G <;> simp [Set.ite, ha, ← hG' a, ← hA₁' a, ← hA₂' a]
 
 /-- The **marked union** of two sets of words: `false :: x` for `x ∈ A₁` and `true :: x` for
 `x ∈ A₂`. -/
@@ -439,10 +429,9 @@ theorem polyTimeReducible_markedUnion {A B C : Set (List Bool)}
   obtain ⟨fB, hfB, hB⟩ := hBC
   let step : List Bool → List Bool := fun w =>
     if w.isEmpty then c₀ else if w.headD false then fB w.tail else fA w.tail
-  have hstep : ComputableInPolyTime step encBits encBits := by
-    unfold step
-    fun_prop
-  refine ⟨step, hstep, fun w => ?_⟩
+  refine ⟨step, by
+    dsimp only [step]
+    fun_prop, fun w => ?_⟩
   cases w with
   | nil =>
     simp only [step, List.isEmpty_nil, ↓reduceIte, hc₀, iff_false]
@@ -503,8 +492,7 @@ theorem polyTimeReducible_ite_markedUnion {G A₁ A₂ : Set (List Bool)} (hG : 
   obtain ⟨g, hg, hG'⟩ := hG
   refine ⟨fun w => (!g w) :: w, by fun_prop, fun w => ?_⟩
   rw [cons_mem_markedUnion]
-  have := hG' w
-  by_cases hw : w ∈ G <;> simp_all [Set.ite]
+  cases hg' : g w <;> simp [Set.ite, hG' w, hg']
 
 /-- **The mixed set reduces to `A₂`** when `G` and `A₁` are in `P` and `A₂` has a member and a
 non-member: on `G`, the reduction answers with the member or the non-member. -/
@@ -516,9 +504,8 @@ theorem polyTimeReducible_ite_of_mem_P {α : Type} {enc : α ↪ List Bool} {G A
   refine ⟨fun a => if g a then (if f a then y₁ else y₀) else a, ?_, fun a => ?_⟩
   · have hid : ComputableInPolyTime (fun a : α => a) enc enc := .id'
     fun_prop
-  · have := hG' a
-    have := hA₁' a
-    by_cases ha : a ∈ G <;> by_cases ha₁ : a ∈ A₁ <;> simp_all [Set.ite]
+  · by_cases ha : a ∈ G <;> by_cases ha₁ : a ∈ A₁ <;>
+      simp [Set.ite, ha, ha₁, ← hG' a, ← hA₁' a, hy₀, hy₁]
 
 /-- **Schöning's theorem for `P` against a second class.** -/
 theorem exists_mem_P_ite_notMem_P {C : Set (Set (List Bool))}

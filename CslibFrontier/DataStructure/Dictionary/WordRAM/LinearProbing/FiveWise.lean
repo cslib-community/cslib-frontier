@@ -128,10 +128,8 @@ size, ensuring $M \ge 3$ and $8 n_{\max} \le 2^M < 16 \max(n_{\max}, 1)$. -/
 
 /-- `tableLog n_max` is always at least `3`. -/
 theorem three_le_tableLog (n_max : ℕ) : 3 ≤ tableLog n_max := by
-  dsimp only [tableLog]
-  have h8 : 8 ≤ max (8 * n_max) 8 := le_max_right _ _
   calc 3 = Nat.clog 2 8 := by decide
-    _ ≤ Nat.clog 2 (max (8 * n_max) 8) := Nat.clog_mono_right 2 h8
+    _ ≤ tableLog n_max := Nat.clog_mono_right 2 (le_max_right _ _)
 
 /-- `tableLog n_max` is always positive. -/
 theorem tableLog_pos (n_max : ℕ) : 0 < tableLog n_max :=
@@ -162,10 +160,8 @@ theorem n_max_lt_tableSize (n_max : ℕ) : n_max < tableSize n_max := by
 
 /-- `tableSize n_max` is strictly less than $16 \max(n_{\max}, 1)$. -/
 theorem tableSize_lt_sixteen_mul (n_max : ℕ) : tableSize n_max < 16 * max n_max 1 := by
-  dsimp only [tableSize, tableLog]
-  have hlt : 2 ^ Nat.clog 2 (max (8 * n_max) 8) < 2 * max (8 * n_max) 8 :=
+  have hlt : tableSize n_max < 2 * max (8 * n_max) 8 :=
     Nat.pow_clog_lt_mul Nat.one_lt_two (by omega)
-  have hmax : max (8 * n_max) 8 = 8 * max n_max 1 := by omega
   omega
 
 /-- `tableSize n_max` is at most $16 \max(n_{\max}, 1) = O(n_{\max})$. -/
@@ -211,9 +207,7 @@ theorem expect_bucketCentered_sq_le {Y : Type*} [Fintype Y] [DecidableEq Y] [Non
   have hle_pt (y : Y) : (bucketCentered W y) ^ 2 ≤
       (if y ∈ W then (1 : ℝ) else 0) * (1 - p) + (1 - (if y ∈ W then (1 : ℝ) else 0)) * p ^ 2 := by
     dsimp only [bucketCentered, p]
-    split_ifs
-    · nlinarith
-    · ring_nf; rfl
+    split_ifs <;> nlinarith
   have hmean : (𝔼 y : Y, if y ∈ W then (1 : ℝ) else 0) = p := by
     rw [Fintype.expect_eq_sum_div_card]
     simp only [sum_boole, filter_mem_eq_inter, univ_inter, p]
@@ -389,23 +383,21 @@ private theorem le_two_pow_mul_succ (M a : ℕ) : a ≤ 2 ^ M * (a + 1) :=
 
 theorem probeSlot_backSlot_add {M : ℕ} (b : Fin (2 ^ M)) (a d : ℕ) :
     probeSlot M (backSlot M b a) (a + d) = probeSlot M b d := by
-  apply Fin.ext
-  simp only [probeSlot, backSlot, cyclicSlotMod]
   have h1 := le_two_pow_mul_succ M a
-  rw [Nat.mod_add_mod, show b.val + 2 ^ M * (a + 1) - a + (a + d) =
-      b.val + d + 2 ^ M * (a + 1) by omega, Nat.add_mul_mod_self_left]
+  have hadd : b.val + 2 ^ M * (a + 1) - a + (a + d) = b.val + d + 2 ^ M * (a + 1) := by omega
+  apply Fin.ext
+  simp only [probeSlot, backSlot, cyclicSlotMod, Nat.mod_add_mod, hadd, Nat.add_mul_mod_self_left]
 
 theorem probeSlot_backSlot_sub {M : ℕ} (b : Fin (2 ^ M)) {a idx : ℕ} (hidx : idx ≤ a) :
     probeSlot M (backSlot M b a) idx = backSlot M b (a - idx) := by
-  apply Fin.ext
-  simp only [probeSlot, backSlot, cyclicSlotMod]
   have ha_le := le_two_pow_mul_succ M a
   have hsub_le := le_two_pow_mul_succ M (a - idx)
   have hmul : 2 ^ M * (a + 1) = 2 ^ M * (a - idx + 1) + 2 ^ M * idx := by
     rw [← Nat.mul_add]; congr 1; omega
-  rw [Nat.mod_add_mod, show b.val + 2 ^ M * (a + 1) - a + idx =
-      (b.val + 2 ^ M * (a - idx + 1) - (a - idx)) + 2 ^ M * idx by omega,
-    Nat.add_mul_mod_self_left]
+  have hadd : b.val + 2 ^ M * (a + 1) - a + idx =
+      (b.val + 2 ^ M * (a - idx + 1) - (a - idx)) + 2 ^ M * idx := by omega
+  apply Fin.ext
+  simp only [probeSlot, backSlot, cyclicSlotMod, Nat.mod_add_mod, hadd, Nat.add_mul_mod_self_left]
 
 theorem backSlot_backSlot {M : ℕ} (b : Fin (2 ^ M)) (a₁ a₂ : ℕ) :
     backSlot M (backSlot M b a₁) a₂ = backSlot M b (a₁ + a₂) := by
@@ -465,9 +457,9 @@ theorem cyclicInterval_subset_scaleWindow {M : ℕ} (b : Fin (2 ^ M)) {a len j :
     rw [← Nat.mul_add, Nat.add_sub_cancel' (by omega)]
   have ha_le := le_two_pow_mul_succ M a
   have hj_le : 2 ^ j ≤ 2 ^ M * 2 ^ j := Nat.le_mul_of_pos_left _ (Nat.two_pow_pos M)
-  rw [show b.val + 2 ^ M * 2 ^ j - 2 ^ j + (2 ^ j - a + idx) =
-      (b.val + 2 ^ M * (a + 1) - a + idx) + 2 ^ M * (2 ^ j - (a + 1)) by omega,
-    Nat.add_mul_mod_self_left]
+  have hadd : b.val + 2 ^ M * 2 ^ j - 2 ^ j + (2 ^ j - a + idx) =
+      (b.val + 2 ^ M * (a + 1) - a + idx) + 2 ^ M * (2 ^ j - (a + 1)) := by omega
+  rw [hadd, Nat.add_mul_mod_self_left]
 
 /-- Scale-$j$ window overload event: at least $2^{j-1}$ keys of $S$ hash into the centered window
 `scaleWindow M (h i u) j` around $h_i(u)$. -/
@@ -502,28 +494,24 @@ theorem expect_scaleOverload_le {ι X : Type*} [Fintype ι]
     split_ifs <;> norm_num
   set δ : ℝ := (2 ^ (j - 1) : ℝ) / 2
   have hδ_pos : 0 < δ := by positivity
-  have hδ_ge_half : (1 / 2 : ℝ) ≤ δ := by
-    dsimp only [δ]
-    linarith [show (1 : ℝ) ≤ 2 ^ (j - 1) from mod_cast Nat.one_le_two_pow]
+  have hδ_ge_half : (1 / 2 : ℝ) ≤ δ :=
+    div_le_div_of_nonneg_right (mod_cast Nat.one_le_two_pow) zero_le_two
   have h2j_eq : (2 ^ j : ℝ) = 4 * δ := by
-    have hj_eq : j = (j - 1) + 1 := by omega
-    conv_lhs => rw [hj_eq, pow_succ]
-    dsimp only [δ]; ring
-  have hcardY : (Fintype.card (Fin (2 ^ M)) : ℝ) = 2 ^ M := by simp
+    rw [← Nat.sub_add_cancel hj, pow_succ]
+    dsimp only [δ]
+    ring
   have h2M_pos : (0 : ℝ) < 2 ^ M := by positivity
   have hmean_le (b : Fin (2 ^ M)) :
       (#S : ℝ) * ((#(scaleWindow M b j) : ℝ) / (Fintype.card (Fin (2 ^ M)) : ℝ)) ≤ δ := by
-    rw [hcardY, ← mul_div_assoc, div_le_iff₀ h2M_pos]
-    have hW : (#(scaleWindow M b j) : ℝ) ≤ (2 ^ (j + 1) : ℝ) := by
-      exact_mod_cast card_scaleWindow_le M b j
-    have hj1 : (2 ^ (j + 1) : ℝ) = 4 * (2 ^ (j - 1) : ℝ) := by
-      rw [show j + 1 = (j - 1) + 2 by omega, pow_add]; ring
-    have hSn : (#S : ℝ) ≤ n_max := by exact_mod_cast hS
-    have h8n : (8 * (n_max : ℝ)) ≤ 2 ^ M := by exact_mod_cast hM
+    rw [Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat, ← mul_div_assoc, div_le_iff₀ h2M_pos]
     calc (#S : ℝ) * (#(scaleWindow M b j) : ℝ)
-        ≤ (n_max : ℝ) * (2 ^ (j + 1) : ℝ) := by gcongr
-      _ = (8 * (n_max : ℝ)) * δ := by rw [hj1]; dsimp only [δ]; ring
-      _ ≤ (2 ^ M : ℝ) * δ := by gcongr
+        ≤ (n_max : ℝ) * (2 ^ (j + 1) : ℝ) :=
+          mul_le_mul (mod_cast hS) (mod_cast card_scaleWindow_le M b j) (by positivity)
+            (by positivity)
+      _ = (8 * (n_max : ℝ)) * δ := by
+          rw [pow_succ, h2j_eq]
+          ring
+      _ ≤ (2 ^ M : ℝ) * δ := mul_le_mul_of_nonneg_right (mod_cast hM) hδ_pos.le
       _ = δ * (2 ^ M : ℝ) := mul_comm _ _
   have hpt_le (i : ι) :
       δ ^ 4 * (if scaleOverload M h S u j i then (1 : ℝ) else 0) ≤
@@ -533,14 +521,15 @@ theorem expect_scaleOverload_le {ι X : Type*} [Fintype ι]
     simp only [boole_mul, Fintype.sum_ite_eq]
     by_cases hov : scaleOverload M h S u j i
     · simp only [hov, ↓reduceIte, mul_one]
-      have hov_real : (2 ^ (j - 1) : ℝ) ≤
-          #(S.filter fun x => h i x ∈ scaleWindow M (h i u) j) := mod_cast hov
       have hdiff : δ ≤ ∑ x ∈ S, bucketCentered (scaleWindow M (h i u) j) (h i x) := by
-        rw [sum_bucketCentered_eq]
-        have : (2 ^ (j - 1) : ℝ) = 2 * δ := by dsimp only [δ]; ring
-        linarith [hmean_le (h i u)]
+        rw [sum_bucketCentered_eq, le_sub_iff_add_le]
+        refine le_trans ?_ (mod_cast hov : (2 ^ (j - 1) : ℝ) ≤ _)
+        have hmean := hmean_le (h i u)
+        dsimp only [δ] at hmean ⊢
+        linarith
       exact pow_le_pow_left₀ hδ_pos.le hdiff 4
-    · simp only [hov, ↓reduceIte, mul_zero]; positivity
+    · simp only [hov, ↓reduceIte, mul_zero]
+      positivity
   have hexp_b (b : Fin (2 ^ M)) :
       𝔼 i, (if h i u = b then (1 : ℝ) else 0) *
           (∑ x ∈ S, bucketCentered (scaleWindow M b j) (h i x)) ^ 4 ≤
@@ -550,11 +539,6 @@ theorem expect_scaleOverload_le {ι X : Type*} [Fintype ι]
     set μ := (#S : ℝ) * ((#(scaleWindow M b j) : ℝ) / (Fintype.card (Fin (2 ^ M)) : ℝ))
     have hμ0 : 0 ≤ μ := by positivity
     nlinarith [hmean_le b, hδ_ge_half]
-  have hsum_exp_b :
-      (∑ b : Fin (2 ^ M), (𝔼 y : Fin (2 ^ M), if y = b then (1 : ℝ) else 0) * (18 * δ ^ 2)) =
-        18 * δ ^ 2 := by
-    rw [← sum_mul, ← expect_sum_comm]
-    simp only [Fintype.sum_ite_eq, Fintype.expect_const, one_mul]
   have hmarkov :
       δ ^ 4 * (𝔼 i, if scaleOverload M h S u j i then (1 : ℝ) else 0) ≤ 18 * δ ^ 2 := by
     calc δ ^ 4 * (𝔼 i, if scaleOverload M h S u j i then (1 : ℝ) else 0)
@@ -572,9 +556,10 @@ theorem expect_scaleOverload_le {ι X : Type*} [Fintype ι]
       _ ≤ ∑ b : Fin (2 ^ M),
             (𝔼 y : Fin (2 ^ M), if y = b then (1 : ℝ) else 0) * (18 * δ ^ 2) :=
           sum_le_sum fun b _ => hexp_b b
-      _ = 18 * δ ^ 2 := hsum_exp_b
-  rw [← le_div_iff₀' (pow_pos hδ_pos 4)] at hmarkov
-  refine hmarkov.trans_eq ?_
+      _ = 18 * δ ^ 2 := by
+          rw [← sum_mul, ← expect_sum_comm]
+          simp only [Fintype.sum_ite_eq, Fintype.expect_const, one_mul]
+  refine ((le_div_iff₀' (pow_pos hδ_pos 4)).mpr hmarkov).trans_eq ?_
   rw [h2j_eq]
   field_simp [hδ_pos.ne']
   ring
@@ -601,16 +586,13 @@ theorem le_sum_scaleOverload_of_cyclicInterval {ι X : Type*} {M : ℕ}
     (k : ℝ) ≤
       ∑ j ∈ Finset.Icc 1 M,
         (2 ^ j : ℝ) * (if scaleOverload M h S u j i then (1 : ℝ) else 0) := by
-  have hj_le_M : Nat.log 2 x + 1 ≤ M := by
-    have := (Nat.pow_lt_pow_iff_right (by decide)).mp
+  have hj_le_M : Nat.log 2 x + 1 ≤ M :=
+    (Nat.pow_lt_pow_iff_right (by decide)).mp
       ((Nat.pow_log_le_self 2 (by omega)).trans_lt hxM)
-    omega
   have hov : scaleOverload M h S u (Nat.log 2 x + 1) i := by
-    dsimp only [scaleOverload]
-    rw [Nat.add_sub_cancel]
-    refine hcard.trans (card_le_card fun y hy => ?_)
-    simp only [mem_filter] at hy ⊢
-    exact ⟨hy.1, cyclicInterval_subset_scaleWindow (h i u) ha hlen hy.2⟩
+    simpa only [scaleOverload, Nat.add_sub_cancel] using hcard.trans
+      (card_le_card (monotone_filter_right S fun _ _ hy =>
+        cyclicInterval_subset_scaleWindow (h i u) ha hlen hy))
   calc (k : ℝ) ≤ (2 ^ (Nat.log 2 x + 1) : ℝ) := by exact_mod_cast hk
     _ = (2 ^ (Nat.log 2 x + 1) : ℝ) *
         (if scaleOverload M h S u (Nat.log 2 x + 1) i then (1 : ℝ) else 0) := by
@@ -646,7 +628,7 @@ private theorem sum_Icc_two_pow_mul_div_sq_eq (M : ℕ) :
     simp
   | succ M ih =>
     rw [Finset.sum_Icc_succ_top (Nat.le_add_left 1 M), ih, pow_succ']
-    field_simp [(by positivity : (2 ^ M : ℝ) ≠ 0)]
+    field_simp
     ring
 
 /-- If a nonnegative probe count `probe : ι → ℕ` satisfies the **left-anchored cluster witness**
@@ -706,16 +688,15 @@ theorem tsum_uniform_probe_le_of_cluster_witness {ι X : Type*} [Fintype ι] [No
   have hsum := sum_probe_le_of_cluster_witness hh S hu hS hM probe hwit
   calc (∑' i : ι, (PMF.uniformOfFintype ι) i * (probe i : ℝ≥0∞))
       = ∑ i : ι, (Fintype.card ι : ℝ≥0∞)⁻¹ * (probe i : ℝ≥0∞) := by
-        rw [tsum_fintype]
-        simp [PMF.uniformOfFintype_apply]
+        simp [tsum_fintype, PMF.uniformOfFintype_apply]
     _ = (Fintype.card ι : ℝ≥0∞)⁻¹ * ((∑ i : ι, probe i : ℕ) : ℝ≥0∞) := by
         rw [← Finset.mul_sum, Nat.cast_sum]
     _ ≤ (Fintype.card ι : ℝ≥0∞)⁻¹ * ((288 * Fintype.card ι : ℕ) : ℝ≥0∞) := by
         gcongr
     _ = 288 := by
         push_cast
-        rw [mul_comm (288 : ℝ≥0∞), ← mul_assoc, ENNReal.inv_mul_cancel, one_mul]
-        · exact Nat.cast_ne_zero.mpr Fintype.card_ne_zero
-        · exact ENNReal.natCast_ne_top _
+        rw [mul_comm (288 : ℝ≥0∞), ← mul_assoc,
+          ENNReal.inv_mul_cancel (Nat.cast_ne_zero.mpr Fintype.card_ne_zero)
+            (ENNReal.natCast_ne_top _), one_mul]
 
 end Cslib.DataStructure.Dictionary.WordRAM.LinearProbing

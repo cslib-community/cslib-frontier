@@ -218,10 +218,8 @@ private theorem finite_bisection_supply_demand {V_fin E_fin : Type}
   set W := G.component (lay.symm ⟨t, ht_lt⟩)
   have hW_cut : G.edgeCut W = ∅ := G.edgeCut_component _
   obtain ⟨hfront_W, hfront_le⟩ := hlay t ht_lt
-  have hm_div2_lb : (m : ℝ) / 2 - 1 ≤ ((m / 2 : ℕ) : ℝ) := by
-    have : (m : ℝ) ≤ 2 * ((m / 2 : ℕ) : ℝ) + 1 := by
-      exact_mod_cast (by omega : m ≤ 2 * (m / 2) + 1)
-    linarith
+  have hdiv : (m : ℝ) ≤ 2 * ((m / 2 : ℕ) : ℝ) + 1 := mod_cast (show m ≤ 2 * (m / 2) + 1 by omega)
+  have hm_div2_lb : (m : ℝ) / 2 - 1 ≤ ((m / 2 : ℕ) : ℝ) := by linarith
   have hm_div2_ub : ((m / 2 : ℕ) : ℝ) ≤ (m : ℝ) / 2 := Nat.cast_div_le
   have hW_large : (m : ℝ) - (slack + e_defic) ≤ ({j | leaf j ∈ W}.ncard : ℝ) := by
     refine (hclosed_dich W hW_cut).resolve_left fun hWs => ?_
@@ -270,11 +268,9 @@ private theorem step_contradiction_of_supply_demand {A η C_lay w_r c_edge ε₀
   have hs_ub : s_r ≤ c_star * n_r := by nlinarith
   have hmain : c_edge * A * (w_r * (s_r - n_r)) ≤
       w_r * (w_r * n_r / 2) - w_r * c_edge * A * ε₀ * n_r := by
-    have h1 : s_r - n_r ≤ (w_r / (2 * c_edge * A) - ε₀) * n_r := by
-      dsimp only [c_star] at hsize; linarith
-    have h2 := mul_le_mul_of_nonneg_left h1 (by positivity : 0 ≤ c_edge * A * w_r)
-    have h3 : c_edge * A * w_r * ((w_r / (2 * c_edge * A) - ε₀) * n_r) =
-        w_r * (w_r * n_r / 2) - w_r * c_edge * A * ε₀ * n_r := by
+    have h2 := mul_le_mul_of_nonneg_left hsize (by positivity : 0 ≤ c_edge * A * w_r)
+    have h3 : c_edge * A * w_r * ((1 + w_r / (2 * c_edge * A) - ε₀) * n_r) =
+        c_edge * A * (w_r * n_r) + w_r * (w_r * n_r / 2) - w_r * c_edge * A * ε₀ * n_r := by
       field_simp
     linarith
   have hη_term : c_edge * η * (w_r * (s_r - n_r + V_r)) ≤ w_r * c_edge * A * ε₀ / 4 * n_r := by
@@ -292,14 +288,13 @@ private theorem step_contradiction_of_supply_demand {A η C_lay w_r c_edge ε₀
   have hsub_term : (w_r + c_edge * (A + η)) * sub_err +
       w_r + c_edge * ((A + η) * w_r + w_r * C_lay) ≤
       w_r * c_edge * A * ε₀ / 4 * n_r := by
-    have h2 : c_edge * ((A + η) * w_r + w_r * C_lay) ≤
-        c_edge * (2 * A * w_r + w_r * |C_lay|) :=
-      mul_le_mul_of_nonneg_left
-        (add_le_add (mul_le_mul_of_nonneg_right (by linarith : A + η ≤ 2 * A)
-            (by linarith : 0 ≤ w_r))
-          (mul_le_mul_of_nonneg_left (le_abs_self C_lay) (by linarith : 0 ≤ w_r))) hc_edge.le
+    have hA2 : A + η ≤ 2 * A := by linarith
+    have hC := le_abs_self C_lay
+    have h2 : c_edge * ((A + η) * w_r + w_r * C_lay) ≤ c_edge * (2 * A * w_r + w_r * |C_lay|) := by
+      gcongr
     linarith [mul_le_mul_of_nonneg_right hslack_coef hsub_nn]
-  linarith [show 0 < w_r * c_edge * A * ε₀ / 4 * n_r by positivity]
+  have hpos : 0 < w_r * c_edge * A * ε₀ / 4 * n_r := by positivity
+  linarith
 
 /-- Common asymptotic helper: `4 * (2 * ⌊√n⌋ + 1) + 6 = o(n)`. -/
 private theorem isLittleO_sqrt_defic :
@@ -383,21 +378,18 @@ private theorem eventually_compiledQuantumNet_contradiction {d : ℕ} {A : ℝ} 
   have hm_pos : 1 ≤ m_fn n := by
     exact_mod_cast (show (1 : ℝ) ≤ m_fn n by rw [hm_eq n]; nlinarith)
   have he_add_le : (c_slack : ℝ) + (e_fn n : ℝ) ≤ (defic n : ℝ) := by exact_mod_cast he_le n
+  have hn_nn : (0 : ℝ) ≤ n := Nat.cast_nonneg n
   have hfin := finite_bisection_supply_demand (w_r := w_r) (e_defic := (e_fn n : ℝ)) net.G lay
     (by positivity) (fun t ht => hlay t ht t le_rfl (by omega)) hm_pos hw_pos_r leaf hc_edge
     (hbis_M n) hcr_bound hρ_r
-    (by
-      rw [hm_eq n]
-      have hw_half : 1 / 2 * (n : ℝ) ≤ w_r / 2 * n :=
-        mul_le_mul_of_nonneg_right (by linarith) (Nat.cast_nonneg n)
-      linarith [mul_le_mul_of_nonneg_right hγ_le (Nat.cast_nonneg (α := ℝ) n)])
+    (by rw [hm_eq n]; linarith [mul_le_mul_of_nonneg_right hw_ge_one hn_nn,
+      mul_le_mul_of_nonneg_right hγ_le hn_nn])
+  have h4B : 0 < 4 * Bcoef := by positivity
   exact step_contradiction_of_supply_demand (C_lay := C_lay) (w_r := w_r) (c_edge := c_edge)
     (γ_coeff := γ_coeff) (sub_err := (c_slack : ℝ) + (e_fn n : ℝ))
     hA hη (min_le_left _ _) hw_ge_one hc_edge hε₀ hn24_r (Nat.cast_nonneg _)
     hγ_nn (by positivity) hsize net.card_V_le
-    (by
-      have h1 : η ≤ A * ε₀ / (4 * Bcoef) := min_le_right _ _
-      linarith [(le_div_iff₀ (by positivity : 0 < 4 * Bcoef)).mp h1])
+    (by linarith [(le_div_iff₀ h4B).mp (min_le_right A (A * ε₀ / (4 * Bcoef)))])
     hγ_bound
     (by
       linarith [mul_le_mul_of_nonneg_left he_add_le (by positivity : 0 ≤ w_r + 2 * c_edge * A),
@@ -417,11 +409,10 @@ private theorem rat_sub_mul_le_switched {k c_sw c_rat ε : ℝ} (hk : 0 < k) (n 
     (hrat : c_rat ≤ 1 + (457597 / 100000 - 1) / k) :
     (c_rat - ε) * (n : ℝ) ≤ (c_sw - ε) * (n : ℝ) := by
   refine mul_le_mul_of_nonneg_right ?_ (Nat.cast_nonneg n)
-  have h45 := Switched.circuitCoefficient_ge_457597
-  have hdiv : (457597 / 100000 - 1) / k ≤ (2 * π / (3 * arccos (5 / 6))) / k :=
-    div_le_div_of_nonneg_right (by linarith) hk.le
-  have hrew : 1 + (2 * π / (3 * arccos (5 / 6))) / k = c_sw := by
-    rw [← hsw, div_div, show 3 * arccos (5 / 6) * k = 3 * k * arccos (5 / 6) by ring]
+  have hnum : 457597 / 100000 - 1 ≤ 2 * π / (3 * arccos (5 / 6)) := by
+    linarith [Switched.circuitCoefficient_ge_457597]
+  have hdiv := div_le_div_of_nonneg_right hnum hk.le
+  rw [div_div, mul_right_comm 3 _ k] at hdiv
   linarith
 
 private theorem eventually_hardMatrix_contradiction {d : ℕ} {A : ℝ} (hA : 0 < A)
@@ -518,8 +509,7 @@ theorem eventually_abs_quantumCorrelation_hardForm_le_of_layoutBound {d : ℕ} (
           (2 : ℝ) ^ (-γ * n) := by
   obtain ⟨γ_sq, hγ_sq, hev⟩ :=
     eventually_hardMatrix_sq_le_of_layoutBound hA hlayout (c_edge := 2) (by norm_num) hε
-  refine ⟨γ_sq / 2, by positivity, ?_⟩
-  filter_upwards [hev] with n ⟨_, hbound⟩ N e q_out x₀ C hmodel hsize
+  refine ⟨γ_sq / 2, by positivity, hev.mono fun n ⟨_, hbound⟩ N e q_out x₀ C hmodel hsize => ?_⟩
   obtain ⟨net⟩ := exists_compiledQuantumNet hd e q_out hmodel
   have hsq := hbound net net.leafIn
     (quantumCorrelation {x | hardForm n x} (quantumAcceptProb C q_out e x₀) ^ 2)
@@ -530,10 +520,8 @@ theorem eventually_abs_quantumCorrelation_hardForm_le_of_layoutBound {d : ℕ} (
     net.cycleRank_leafIn_le
   have hrhs_sq : (2 : ℝ) ^ (-γ_sq * n) = ((2 : ℝ) ^ (-(γ_sq / 2) * n)) ^ 2 := by
     rw [← Real.rpow_natCast, ← Real.rpow_mul two_pos.le]
-    push_cast; congr 1; ring
-  rw [hrhs_sq, ← sq_abs] at hsq
-  by_contra! hgt
-  linarith [pow_lt_pow_left₀ hgt (by positivity) (n := 2) (by norm_num)]
+    ring_nf
+  exact (sq_le_sq.mp (hsq.trans_eq hrhs_sq)).trans_eq (abs_of_pos (by positivity))
 
 /-- **Median-switched `BQP` correlation decay (`1.893993 n`).** Below
 `(1 + π / (6 arccos (5 / 6)) - ε) n ≈ 1.893993 n` bond-rank-two two-qubit gates (with unlimited
@@ -708,13 +696,12 @@ theorem eventually_fidelity_phaseState_hardMatrix_le_of_layoutBound {d : ℕ} (h
         ‖inner ℂ (phaseState (hardMatrix n) e x₀) (C.run x₀)‖ ^ 2 ≤ (2 : ℝ) ^ (-γ * n) := by
   obtain ⟨γ, hγ, hev⟩ :=
     eventually_hardMatrix_sq_le_of_layoutBound hA hlayout (c_edge := 1) (by norm_num) hε
-  refine ⟨γ, hγ, ?_⟩
-  filter_upwards [hev] with n ⟨hn24, hbound⟩ N e x₀ C hmodel hsize
+  refine ⟨γ, hγ, hev.mono fun n ⟨hn24, hbound⟩ N e x₀ C hmodel hsize => ?_⟩
   obtain ⟨net⟩ := exists_compiledQuantumNet hd e (e ⟨0, by omega⟩) hmodel
   exact hbound net net.leafOut _ (by convert hsize using 3; ring)
     (fun P => by
-      rw [one_mul, Real.rpow_natCast]
-      exact net.sq_fidelity_phaseState_mul_le x₀ (hardMatrix n) P)
+      simpa only [one_mul, Real.rpow_natCast] using
+        net.sq_fidelity_phaseState_mul_le x₀ (hardMatrix n) P)
     net.cycleRank_leafOut_le
 
 /-- **Median-switched quadratic phase-state preparation fidelity decay (`2.787986 n`).** -/

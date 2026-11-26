@@ -128,11 +128,8 @@ theorem prep_spec {e : Key × Act} (he : e ∈ markerEntries eS tm d ++ branchEn
     (e.1.state = 0 ∨ e.1.state = 4 ∨ e.1.state = 8) ∧ e.2 = prepAct eS tm d e.1 := by
   simp only [markerEntries, branchEntries, rewindEntries, bitSyms, List.mem_append, List.mem_map,
     List.mem_flatMap, List.mem_cons, List.not_mem_nil, or_false] at he
-  rcases he with ⟨r, -, rfl⟩ | (⟨r, -, (⟨s, hs, rfl⟩ | rfl)⟩ | ⟨r, -, b, hb, rfl⟩)
-  · simp [prepAct]
-  · rcases hs with rfl | rfl | rfl <;> simp [prepAct, marker]
-  · simp [prepAct]
-  · rcases hb with rfl | rfl <;> simp [prepAct, marker]
+  rcases he with ⟨r, -, rfl⟩ | (⟨r, -, (⟨s, rfl | rfl | rfl, rfl⟩ | rfl)⟩ |
+    ⟨r, -, b, rfl | rfl, rfl⟩) <;> simp [prepAct, marker]
 
 theorem state_runEntries {e : Key × Act} (he : e ∈ runEntries eS tm d) : e.1.state % 4 = 1 := by
   obtain ⟨e', -, rfl⟩ := List.mem_map.mp he
@@ -181,8 +178,7 @@ theorem find?_run (q : ℕ) (i : Option ℕ) (ws : List (Option ℕ)) :
     exact decide_eq_false fun h => by rw [h] at this; dsimp only at this; omega
   · have := (prep_spec eS tm d (List.mem_append_right _ he)).1
     exact decide_eq_false fun h => by rw [h] at this; dsimp only at this; omega
-  · exact decide_eq_false fun h => by simpa [h] using state_redirectEntries d he
-  · exact decide_eq_false fun h => by simpa [h] using state_redirectEntries d he
+  all_goals exact decide_eq_false fun h => by simpa [h] using state_redirectEntries d he
 
 /-- For the states of `d b` and an input head reading a blank, the transitions found are those of
 `d b`, redirected. -/
@@ -278,12 +274,12 @@ theorem iterate_runCfg {x : List ℕ} (hx : inputSymbol x 1 ∈ bitSyms) {u : �
           markerEntries eS tm d ++ branchEntries d k :=
       List.mem_append_left _ (List.mem_map.mpr ⟨_, hx, rfl⟩)
     have hf := find?_prep eS tm d he
-    rw [show ((⟨0, inputSymbol x 1, none :: rest d k⟩ : Key)) =
-        (init (dispatch eS tm d)).key x 0 by
+    have hkey : (⟨0, inputSymbol x 1, none :: rest d k⟩ : Key) =
+        (init (dispatch eS tm d)).key x 0 := by
       simp only [SCfg.key, init, dispatch, rest, List.replicate_succ, List.replicate_add,
         List.map_cons, List.map_append, List.map_replicate]
-      rfl] at hf
-    rw [Function.iterate_one, stepOut, step_of_find? rfl hf]
+      rfl
+    rw [Function.iterate_one, stepOut, step_of_find? rfl (hkey ▸ hf)]
     simp only [init, dispatch, descRun, Function.iterate_zero, id, runCfg, desc, Option.elim_some,
       Act.apply, moveInput, List.replicate_succ, applyTapes, applyTapes_nil_right,
       Option.toList_none, List.append_nil, List.replicate_add]
@@ -391,12 +387,12 @@ theorem Desc.computes_dispatch {k : ℕ} {S : Type} [Fintype S] (eS : S ↪ ℕ)
       List.mem_append_right _ (List.mem_append_right _ (List.mem_flatMap.mpr
         ⟨_, inputSymbol_map_eBit_mem w 1, List.mem_map.mpr ⟨b, by cases b <;> simp, rfl⟩⟩))
     have hf := find?_prep eS tm d he
-    rw [show ((⟨8, inputSymbol (w.map eBit) 1, some (eBit b) :: rest d k⟩ : Key)) =
+    have hkey : (⟨8, inputSymbol (w.map eBit) 1, some (eBit b) :: rest d k⟩ : Key) =
         SCfg.key ⟨some 8, 1, vtape 0 [] ((b :: v).map eBit) 1 ::
-          (c.workTapes ++ List.replicate (width d) Tape.blank)⟩ (w.map eBit) 8 by
+          (c.workTapes ++ List.replicate (width d) Tape.blank)⟩ (w.map eBit) 8 := by
       simp only [SCfg.key, List.map_cons, hrest]
-      rfl] at hf
-    rw [stepOut, step_of_find? rfl hf]
+      rfl
+    rw [stepOut, step_of_find? rfl (hkey ▸ hf)]
     simp only [Act.apply, moveInput, applyTapes, applyTapes_nil_right, Option.toList_none,
       List.append_nil, redirectCfg, init, Option.map_some]
     refine congrArg₂ _ (congrArg₂ _ rfl (congrArg₂ _ rfl (congrArg₂ _ rfl ?_))) rfl

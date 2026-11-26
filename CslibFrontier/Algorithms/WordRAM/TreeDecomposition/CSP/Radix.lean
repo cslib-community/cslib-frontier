@@ -125,17 +125,9 @@ private theorem lookupRadixProg_result (args : LookupRadixArgs) {LB : List ℕ} 
     intro curPtr curM found ans hcur hfd
     obtain ⟨_, hmem_v, hrest⟩ := HoldsIn.cons_iff.mp hcur
     rw [List.length_cons, iterate, StateTransitionSpec.clientResult_bind]
-    have hstep_res : (Memory.spec 0).clientResult s
-        (lookupRadixStep ((args.q, args.target), ⟨curPtr, curM, found, ans⟩)) =
-        ⟨curPtr + 1, curM / args.q,
-         if (if found = 0 ∧ args.target = v then 1 else 0) = 1 then 1 else found,
-         if (if found = 0 ∧ args.target = v then 1 else 0) = 1 then curM % args.q else ans⟩ := by
-      dsimp only [lookupRadixStep]
-      rw [clientResult_bind_read, hmem_v]
-      rfl
-    have hstep_st : (Memory.spec 0).clientState s
-        (lookupRadixStep ((args.q, args.target), ⟨curPtr, curM, found, ans⟩)) = s := rfl
-    rw [hstep_st, hstep_res]
+    dsimp only [lookupRadixStep]
+    rw [clientState_bind_read, clientResult_bind_read, hmem_v,
+      StateTransitionSpec.clientState_pure, StateTransitionSpec.clientResult_pure]
     rcases hfd with ⟨rfl, rfl⟩ | rfl
     · by_cases htv : args.target = v
       · subst htv
@@ -171,7 +163,7 @@ private theorem lookupRadixProg_spec {w : ℕ} (args : LookupRadixArgs)
     intro st hcur
     obtain ⟨hb, _, hrest⟩ := HoldsIn.cons_iff.mp hcur
     exact validHistory_bind_step
-      (validHistory_read_bind (show st.curPtr < s.frontier by omega) (validHistory_pure w s _))
+      (validHistory_read_bind (by dsimp only; omega) (validHistory_pure w s _))
       (ih _ hrest)
 
 private theorem lookupRadixProg_realizes :
@@ -391,11 +383,9 @@ theorem radixProjProg_spec {w : ℕ} (args : RadixProjArgs)
       simpa only [Nat.add_sub_cancel, hmem_v] using
         validHistory_bind_step hv_lk (validHistory_pure w _ (⟨k, _⟩ : RadixProjState))
     have hc_step : memoryCost (radixProjStep (args, ⟨k + 1, curAcc⟩)) s ≤ stepCost := by
-      unfold radixProjStep
-      dsimp only
+      dsimp only [radixProjStep, stepCost]
       rw [Nat.add_sub_cancel, memoryCost_bind', memoryCost_read, clientState_read,
         clientResult_read, hmem_v, memoryCost_bind', hst_lk, memoryCost_pure]
-      dsimp only [stepCost]
       omega
     obtain ⟨hv_rem, hr_rem, hc_rem⟩ := ih (Nat.le_of_succ_le hk_le)
     rw [iterate]
@@ -435,11 +425,9 @@ theorem radixProjProg_realizes :
   have hfit_sub : Fits w (j + 1 - 1) := hfit_dst.of_le (by omega)
   have hfit_addr : Fits w (d.dstPtr + (j + 1 - 1)) := hfit_dst.of_le (by omega)
   have hq_ne : d.q ≠ 0 := by omega
-  have hfit_mul : Fits w (d.q * st.acc) := by
-    have h0 : d.q * st.acc < d.q ^ (d.dstLen - j) := by simpa using hnext_lt 0
-    exact hfit_pow.of_le (le_of_lt (h0.trans_le hpow_le))
   have hfit_next (v : ℕ) : Fits w (v % d.q + d.q * st.acc) :=
     hfit_pow.of_le (le_of_lt ((hnext_lt v).trans_le hpow_le))
+  have hfit_mul : Fits w (d.q * st.acc) := by simpa using hfit_next 0
   have hfit_upd : Fits w (d.updVal % d.q + d.q * st.acc) := hfit_next d.updVal
   let lkVal := (Memory.spec 0).clientResult m
     (lookupRadixProg ⟨d.q, d.srcPtr, d.srcLen, d.srcM, m.mem (d.dstPtr + (j + 1 - 1))⟩)

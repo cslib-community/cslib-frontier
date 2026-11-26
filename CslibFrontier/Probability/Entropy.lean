@@ -165,11 +165,10 @@ theorem entropy_map_of_injOn [Finite α] [Finite β] (p : PMF α) {f : α → β
     (hf : Set.InjOn f p.support) : entropy (p.map f) = entropy p := by
   classical
   let : Nonempty α := ⟨p.support_nonempty.choose⟩
-  have hmap : (p.map f).map (Function.invFunOn f p.support) = p := by
-    rw [PMF.map_comp]
-    exact (map_congr_on_support p _ id (fun a ha => hf.leftInvOn_invFunOn ha)).trans
-      (PMF.map_id p)
-  exact le_antisymm (entropy_map_le p f)
+  have hmap : (p.map f).map (Function.invFunOn f p.support) = p :=
+    (PMF.map_comp _ _ _).trans ((map_congr_on_support p _ id
+      fun _ ha => hf.leftInvOn_invFunOn ha).trans (PMF.map_id p))
+  exact (entropy_map_le p f).antisymm
     (by simpa only [hmap] using entropy_map_le (p.map f) (Function.invFunOn f p.support))
 
 /-- Injective re-encoding preserves entropy. -/
@@ -254,8 +253,7 @@ theorem conditionalEntropy_bind_sigma {β : α → Type*}
   simp only [PMF.map_bind, PMF.map_comp, Function.comp_def, Equiv.sigmaProdDistrib_symm_apply,
     entropy_bind_sigma] at h hmarginal
   simp only [conditionalEntropy, PMF.map_bind, PMF.map_comp, Function.comp_def, h, hmarginal,
-    mul_sub, Finset.sum_sub_distrib]
-  ring
+    add_sub_add_left_eq_sub, ← Finset.sum_sub_distrib, ← mul_sub]
 
 /-- For any joint law, conditional entropy averages the normalized conditional distributions. -/
 theorem conditionalEntropy_eq_sum [Fintype α] [Finite β] (joint : PMF (α × β)) :
@@ -312,8 +310,7 @@ theorem conditionalEntropy_eq_sum_surprisal [Fintype α] [Fintype β]
 theorem conditionalEntropy_le_log_card [Finite α] [Fintype β] (joint : PMF (α × β)) :
     conditionalEntropy joint ≤ Real.logb 2 (Fintype.card β) := by
   let := Fintype.ofFinite α
-  rw [conditionalEntropy_eq_sum]
-  exact sum_mul_le _ _ _ (fun _ => entropy_le_log_card _)
+  simpa only [conditionalEntropy_eq_sum] using sum_mul_le _ _ _ fun _ => entropy_le_log_card _
 
 /-- A bit has at most one bit of conditional entropy. -/
 theorem conditionalEntropy_bool_le_one [Finite α] (joint : PMF (α × Bool)) :
@@ -369,9 +366,8 @@ theorem entropy_chain_rule_deterministic [Finite α] [Finite β] [Finite γ]
     entropy (p.map f) + conditionalEntropy (p.map (fun a => (f a, g a))) +
       conditionalEntropy (p.map (fun a => ((f a, g a), a))) = entropy p := by
   have h := entropy_map_of_injective p (f := fun a => ((f a, g a), a))
-    (fun a b hab => congrArg Prod.snd hab)
-  simp only [conditionalEntropy, PMF.map_comp, Function.comp_def, h]
-  ring
+    fun _ _ hab => congrArg Prod.snd hab
+  simp only [conditionalEntropy, PMF.map_comp, Function.comp_def, h]; ring
 
 /-- Conditional entropy subadditivity along an intermediate revelation `mid`:
 `H(tgt | obs) ≤ H(mid | obs) + H(tgt | obs, mid)`. -/
@@ -382,7 +378,6 @@ theorem conditionalEntropy_le_add_conditionalEntropy {Ω Obs Mid Tgt : Type*}
       conditionalEntropy (p.map fun ω => (obs ω, mid ω)) +
         conditionalEntropy (p.map fun ω => ((obs ω, mid ω), tgt ω)) := by
   have hle := entropy_map_le (p.map fun ω => ((obs ω, mid ω), tgt ω)) fun x => (x.1.1, x.2)
-  simp only [conditionalEntropy, _root_.PMF.map_comp, Function.comp_def] at hle ⊢
-  linarith
+  simp only [conditionalEntropy, _root_.PMF.map_comp, Function.comp_def] at hle ⊢; linarith
 
 end Cslib.Probability.PMF

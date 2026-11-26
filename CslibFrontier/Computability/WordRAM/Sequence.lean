@@ -29,27 +29,14 @@ namespace Cslib.WordRAM.ExecWithin
 /-- Split sequential execution into actual intermediate data and charged stage budgets. -/
 theorem seq_iff {B : Basis} {r w T : ℕ} {a b : Code B r} {x z : Data r} :
     ExecWithin w (.seq a b) x z T ↔
-      ∃ y T₁ T₂, ExecWithin w a x y T₁ ∧ ExecWithin w b y z T₂ ∧ T₁ + T₂ ≤ T := by
-  constructor
-  · rintro ⟨n, hn, he⟩
-    cases he with
-    | seq ha hb => exact ⟨_, _, _, ha.within, hb.within, hn⟩
-  · rintro ⟨y, T₁, T₂, ha, hb, hT⟩
-    exact (ha.seq hb).mono hT
+      ∃ y T₁ T₂, ExecWithin w a x y T₁ ∧ ExecWithin w b y z T₂ ∧ T₁ + T₂ ≤ T :=
+  ⟨fun ⟨_, hn, .seq ha hb⟩ => ⟨_, _, _, ha.within, hb.within, hn⟩,
+    fun ⟨_, _, _, ha, hb, hT⟩ => (ha.seq hb).mono hT⟩
 
 /-- Sequential blocks may be regrouped while preserving every instruction charge. -/
 theorem seq_assoc {B : Basis} {r w T : ℕ} {a b c : Code B r} {x y : Data r} :
-    ExecWithin w (.seq (.seq a b) c) x y T ↔ ExecWithin w (.seq a (.seq b c)) x y T := by
-  constructor
-  · rintro ⟨n, hn, he⟩
-    cases he with
-    | seq hab hc =>
-      cases hab with
-      | seq ha hb => exact ⟨_, by omega, .seq ha (.seq hb hc)⟩
-  · rintro ⟨n, hn, he⟩
-    cases he with
-    | seq ha hbc =>
-      cases hbc with
-      | seq hb hc => exact ⟨_, by omega, .seq (.seq ha hb) hc⟩
+    ExecWithin w (.seq (.seq a b) c) x y T ↔ ExecWithin w (.seq a (.seq b c)) x y T :=
+  ⟨fun ⟨_, hn, .seq (.seq ha hb) hc⟩ => ⟨_, by omega, .seq ha (.seq hb hc)⟩,
+    fun ⟨_, hn, .seq ha (.seq hb hc)⟩ => ⟨_, by omega, .seq (.seq ha hb) hc⟩⟩
 
 end Cslib.WordRAM.ExecWithin

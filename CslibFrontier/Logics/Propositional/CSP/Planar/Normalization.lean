@@ -111,18 +111,14 @@ theorem twistBody_size {n : ℕ} (a : Fin n → Bool) :
     if a i then [⟨.disequality, [.inr (i.castAdd n), .inl i]⟩]
     else [⟨.disequality, [.inr (i.castAdd n), .inr (i.natAdd n)]⟩,
       ⟨.disequality, [.inr (i.natAdd n), .inl i]⟩]
-  have hl (L : List (Fin n)) : (L.flatMap f).length ≤ 2 * L.length := by
+  have hb (L : List (Fin n)) : (L.flatMap f).length ≤ 2 * L.length ∧
+      ((L.flatMap f).flatMap Constraint.scope).length ≤ 4 * L.length := by
     induction L with
     | nil => simp
-    | cons i L ih => cases ha : a i <;> simp [f, ha] at * <;> omega
-  have hw (L : List (Fin n)) : ((L.flatMap f).flatMap Constraint.scope).length ≤ 4 * L.length := by
-    induction L with
-    | nil => simp
-    | cons i L ih => cases ha : a i <;> simp [f, ha] at * <;> omega
-  have hc := hl (List.finRange n)
-  have hv := hw (List.finRange n)
+    | cons i L ih => cases ha : a i <;> simp [f, ha] at ih ⊢ <;> omega
+  have h := hb (List.finRange n)
   simp only [twistBody, vars, f, List.length_cons, List.flatMap_cons, List.length_append,
-    List.length_ofFn, List.length_finRange] at hc hv ⊢
+    List.length_ofFn, List.length_finRange] at h ⊢
   omega
 
 /-- Exact scope widths of the initial conjunction, including arities zero and one. -/
@@ -145,13 +141,10 @@ theorem eval_twistBody_iff {n : ℕ} (R : Set (Fin n → Bool)) (a x : Fin n →
         else b (i.castAdd n) ≠ b (i.natAdd n) ∧ b (i.natAdd n) ≠ x i := by
   classical
   unfold twistBody eval
-  rw [List.all_cons, List.all_flatMap]
-  simp only [Bool.and_eq_true, Constraint.eval, List.map_ofFn,
-    sem_relation, Function.comp_def, Sum.elim_inr]
-  refine and_congr Iff.rfl ?_
-  simp only [List.all_eq_true, List.mem_finRange, forall_true_left]
-  refine forall_congr' fun i => ?_
-  cases ha : a i <;> simp [Constraint.eval]
+  simp only [List.all_cons, List.all_flatMap, Bool.and_eq_true, Constraint.eval, List.map_ofFn,
+    sem_relation, Function.comp_def, Sum.elim_inr, List.all_eq_true, List.mem_finRange,
+    forall_true_left]
+  exact and_congr Iff.rfl (forall_congr' fun i => by cases ha : a i <;> simp)
 
 /-- The actual twist gadget; it uses one original literal and at most two disequalities
 per port, with `2n` auxiliary labels. -/
@@ -244,32 +237,29 @@ theorem CyclicExchangeObstruction.zero {n : ℕ} {P : Set (Fin (n + 2) → Bool)
     (hi : d i = false) :
     CyclicExchangeObstruction (zeroRestriction i P) (d ∘ differencePort i) := by
   have hi0 : i ≠ 0 := by rintro rfl; rw [h.first] at hi; contradiction
-  refine ⟨?_, h.zero_mem, ?_, ?_, ?_⟩
-  · exact fun y => h.selfComplementary (y ∘ zeroPort i)
-  · exact (mem_cyclicDifferenceRelation_zeroRestriction i P _).mpr ⟨d, h.feasible, hi, rfl⟩
-  · simpa only [Function.comp_apply, differencePort_zero i hi0] using h.first
-  · intro j hj hd hp
-    obtain ⟨s, hs, hsi, hsd⟩ :=
-      (mem_cyclicDifferenceRelation_zeroRestriction i P _).mp hp
-    have he := eq_pair_of_zero_restriction i hi0 j s hsi hsd
-    have hj0 : differencePort i j ≠ 0 := by
-      rw [← differencePort_zero i hi0, differencePort_eq_succAbove]
-      exact fun he => hj (Fin.succAbove_right_injective he)
-    exact h.forbidden _ hj0 hd (he ▸ hs)
+  refine ⟨fun y => h.selfComplementary (y ∘ zeroPort i), h.zero_mem,
+    (mem_cyclicDifferenceRelation_zeroRestriction i P _).mpr ⟨d, h.feasible, hi, rfl⟩,
+    by simpa only [Function.comp_apply, differencePort_zero i hi0] using h.first,
+    fun j hj hd hp => ?_⟩
+  obtain ⟨s, hs, hsi, hsd⟩ := (mem_cyclicDifferenceRelation_zeroRestriction i P _).mp hp
+  have he := eq_pair_of_zero_restriction i hi0 j s hsi hsd
+  have hj0 : differencePort i j ≠ 0 := by
+    rw [← differencePort_zero i hi0, differencePort_eq_succAbove]
+    exact fun he => hj (Fin.succAbove_right_injective he)
+  exact h.forbidden _ hj0 hd (he ▸ hs)
 
 /-- No failed-exchange witness fits on fewer than four cyclic difference coordinates. -/
 theorem CyclicExchangeObstruction.four_le {n : ℕ} {P : Set (Fin (n + 1) → Bool)}
     {d : Fin (n + 1) → Bool} (h : CyclicExchangeObstruction P d) : 4 ≤ n + 1 := by
   by_contra hn
-  suffices ∃ j, j ≠ 0 ∧ d j = true ∧ d = flipOn {0, j} (fun _ => false) by
-    obtain ⟨j, hj, hd, he⟩ := this
-    exact h.forbidden j hj hd (he ▸ h.feasible)
   have hp := parityOn_mem_cyclicDifferenceRelation h.feasible
   have hf := h.first
   have hn3 : n ≤ 2 := by omega
-  clear h P hn
-  revert d hp hf
-  interval_cases n <;> decide
+  obtain ⟨j, hj, hd, he⟩ : ∃ j, j ≠ 0 ∧ d j = true ∧ d = flipOn {0, j} (fun _ => false) := by
+    clear h P hn
+    revert d hp hf
+    interval_cases n <;> decide
+  exact h.forbidden j hj hd (he ▸ h.feasible)
 
 /-- The witnessed failed exchange rules out the even delta-matroid axiom. -/
 theorem CyclicExchangeObstruction.not_isEvenDeltaMatroid {n : ℕ}
@@ -300,22 +290,13 @@ theorem CyclicExchangeObstruction.standardized {P : Set (Fin 4 → Bool)} {d : F
   · intro x hx
     have hc : ∀ x : Fin 4 → Bool, x ∈ cross →
         cyclicDifference x = (fun _ => false) ∨ cyclicDifference x = (fun _ => true) := by decide
-    apply (mem_cyclicDifferenceRelation_iff h.selfComplementary x).mp
-    rcases hc x hx with he | he <;> rwa [he]
+    exact (mem_cyclicDifferenceRelation_iff h.selfComplementary x).mp
+      ((hc x hx).elim (· ▸ hz) (· ▸ hfull))
   · intro x hx
-    by_cases he : x 0 = x 1
-    · exact Or.inl he
-    have hfirst : cyclicDifference x 0 = true := by
-      change (x 0 ^^ x 1) = true
-      cases ha : x 0 <;> cases hb : x 1 <;> simp_all
-    have hc : ∀ d : Fin 4 → Bool, parityOn Finset.univ d = false → d 0 = true →
-        d = (fun _ => true) ∨ ∃ j, j ≠ 0 ∧ d = flipOn {0, j} (fun _ => false) := by
-      decide
-    rcases hc (cyclicDifference x) (parityOn_cyclicDifference x) hfirst with hf | ⟨j, hj, hjd⟩
-    · right
-      have ht : ∀ x : Fin 4 → Bool, cyclicDifference x = (fun _ => true) →
-          x 0 = x 2 ∧ x 0 ≠ x 1 ∧ x 1 = x 3 := by decide
-      exact ht x hf
+    have hx4 : ∀ x : Fin 4 → Bool, (x 0 = x 1 ∨ (x 0 = x 2 ∧ x 0 ≠ x 1 ∧ x 1 = x 3)) ∨
+        ∃ j, j ≠ 0 ∧ cyclicDifference x = flipOn {0, j} (fun _ => false) := by decide
+    rcases hx4 x with hok | ⟨j, hj, hjd⟩
+    · exact hok
     · exact (h.forbidden j hj (by rw [h.eq_full]) (hjd ▸ ⟨x, hx, rfl⟩)).elim
 
 /-- When all candidate quartets fail, the cap preserves the full-support obstruction.
@@ -346,10 +327,8 @@ It is this quartet, not the previous full tuple, that survives the finishing zer
 theorem CyclicExchangeObstruction.quartet {n : ℕ} {P : Set (Fin (n + 4) → Bool)}
     (h : CyclicExchangeObstruction P (fun _ => true)) (k : Fin (n + 4))
     (hk : flipOn {0, 1, 2, k} (fun _ => false) ∈ cyclicDifferenceRelation P) :
-    CyclicExchangeObstruction P (flipOn {0, 1, 2, k} (fun _ => false)) := by
-  refine ⟨h.selfComplementary, h.zero_mem, hk, ?_, ?_⟩
-  · simp [flipOn]
-  · exact fun j hj _ => h.forbidden j hj rfl
+    CyclicExchangeObstruction P (flipOn {0, 1, 2, k} (fun _ => false)) :=
+  ⟨h.selfComplementary, h.zero_mem, hk, by simp [flipOn], fun j hj _ => h.forbidden j hj rfl⟩
 
 private theorem exists_zero_quartet {n : ℕ} (hn : 1 ≤ n) (k : Fin (n + 4)) :
     ∃ i : Fin (n + 4), flipOn {0, 1, 2, k} (fun _ => false) i = false := by
@@ -405,25 +384,19 @@ theorem exists_program_of_obstruction (n : ℕ) (P : Set (Fin (n + 1) → Bool))
       exact shrink _ (h.quartet k hk) (exists_zero_quartet (by omega) k)
     obtain ⟨p, hp⟩ := ih (r + 2) (by omega) (capRelation P) (fun _ => true)
       (h.cap fun k hk hf => hq ⟨k, hk, hf⟩)
-    refine ⟨@Program.cap (r + 1) 4 (by omega) p, ?_⟩
-    simpa only [Program.eval] using hp
+    exact ⟨@Program.cap (r + 1) 4 (by omega) p, by simpa only [Program.eval] using hp⟩
 
 /-- Twisting preserves simultaneous complementation of all original ports. -/
 theorem isSelfComplementary_twist {n : ℕ} {R : Set (Fin n → Bool)}
-    (hR : IsSelfComplementary R) (a : Fin n → Bool) : IsSelfComplementary (twist R a) := by
-  intro x
-  change x + a ∈ R ↔ (fun i => !x i) + a ∈ R
-  have he : (fun i => !x i) + a = fun i => !(x + a) i := by
-    funext i
-    simp only [Pi.add_apply, Bool.add_eq_xor]
-    cases x i <;> cases a i <;> rfl
-  rw [he]
-  exact hR _
+    (hR : IsSelfComplementary R) (a : Fin n → Bool) : IsSelfComplementary (twist R a) := fun x => by
+  have he : (fun i => !x i) + a = fun i => !(x + a) i :=
+    funext fun i => by cases hx : x i <;> cases ha : a i <;> simp [Bool.add_eq_xor, hx, ha]
+  simpa only [twist, Set.mem_ofPred_eq, he] using hR (x + a)
 
 /-- A cyclic change of starting port preserves self-complementarity. -/
 theorem isSelfComplementary_rotate {n : ℕ} {P : Set (Fin n → Bool)}
-    (hP : IsSelfComplementary P) (e : Fin n) : IsSelfComplementary (rotate e P) := by
-  exact fun y => hP (y ∘ (finCycle e).symm)
+    (hP : IsSelfComplementary P) (e : Fin n) : IsSelfComplementary (rotate e P) :=
+  fun y => hP (y ∘ (finCycle e).symm)
 
 /-- The actual twist and initial cyclic rotation normalize a genuine failed exchange.
 The tuple `a` is feasible in the original relation, and every exchange along the difference
@@ -437,24 +410,15 @@ theorem obstruction_twist_rotate {n : ℕ} {R : Set (Fin (n + 1) → Bool)}
       ((cyclicDifference b + cyclicDifference a) ∘ finCycle e) := by
   have hcycle : finCycle e 0 = e := by simp
   refine ⟨isSelfComplementary_rotate (isSelfComplementary_twist hR a) e, ?_, ?_, ?_, ?_⟩
-  · change (fun _ => false) + a ∈ R
-    convert ha using 1
-    funext i
-    simp only [Pi.add_apply, Bool.add_eq_xor, Bool.false_xor]
-  · refine ⟨(b + a) ∘ finCycle e, ?_, ?_⟩
-    · change (((b + a) ∘ finCycle e) ∘ (finCycle e).symm) + a ∈ R
-      convert hb using 1
-      funext i
-      simp only [Function.comp_apply, Equiv.apply_symm_apply, Pi.add_apply, Bool.add_eq_xor,
-        Bool.xor_assoc, Bool.xor_self, Bool.xor_false]
-    · rw [cyclicDifference_comp_finCycle, cyclicDifference_add]
+  · simpa [rotate, twist, Pi.add_def, Bool.add_eq_xor] using ha
+  · refine ⟨(b + a) ∘ finCycle e, ?_, by rw [cyclicDifference_comp_finCycle, cyclicDifference_add]⟩
+    simpa [rotate, twist, Function.comp_def, Pi.add_def, Bool.add_eq_xor, Bool.xor_assoc] using hb
   · simp only [Function.comp_apply, hcycle, Pi.add_apply, Bool.add_eq_xor]
     cases ha : cyclicDifference a e <;> cases hb : cyclicDifference b e <;> simp_all
   · rintro j hj hd ⟨x, hx, hdx⟩
-    have hjd : cyclicDifference a (finCycle e j) ≠ cyclicDifference b (finCycle e j) := by
-      change (cyclicDifference b (finCycle e j) + cyclicDifference a (finCycle e j)) = true at hd
-      cases ha : cyclicDifference a (finCycle e j) <;>
-        cases hb : cyclicDifference b (finCycle e j) <;> simp_all [Bool.add_eq_xor]
+    have hjd : cyclicDifference a (finCycle e j) ≠ cyclicDifference b (finCycle e j) :=
+      Ne.symm <| by
+        simpa only [Function.comp_apply, Pi.add_def, Bool.add_eq_xor, bne_iff_ne] using hd
     apply hf (finCycle e j) hjd
     refine ⟨(x ∘ (finCycle e).symm) + a, hx, ?_⟩
     rw [cyclicDifference_add, cyclicDifference_comp_finCycle_symm, hdx]

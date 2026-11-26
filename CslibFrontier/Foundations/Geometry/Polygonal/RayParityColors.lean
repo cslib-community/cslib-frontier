@@ -90,9 +90,9 @@ theorem eventually_rayParity_rightGerm {ι : Type*} [Fintype ι]
     have hi (e : ι × Bool) : cross e + correction e = precolor e +
         (if rayEndpoint a b e = p then x e.1 else 0) * decide (v.im < 0) := by
       by_cases hep : rayEndpoint a b e = p
-      · simp only [cross, correction, precolor, hep, ↓reduceIte, ← mul_add]
-        rw [germCrosses_prefix_identity (rayEndVector_im_ne_zero a b hheight e)
-          (rayEndVector_im_ne_zero a b hheight k)]
+      · simp only [cross, correction, precolor, v, hep, ↓reduceIte, ← mul_add,
+          germCrosses_prefix_identity (rayEndVector_im_ne_zero a b hheight e)
+            (rayEndVector_im_ne_zero a b hheight k)]
       · simp [cross, correction, precolor, hep]
     rw [← Finset.sum_add_distrib]
     simp only [hi, Finset.sum_add_distrib, ← Finset.sum_mul, heven', zero_mul, add_zero]
@@ -108,8 +108,7 @@ theorem eventually_rayParity_rightGerm {ι : Type*} [Fintype ι]
       simp [ha, hb, Bool.mul_eq_and, Bool.zero_eq_false, add_comm]
   filter_upwards [eventually_rayParity_germ a b x hheight p v
     (rayEndVector_im_ne_zero a b hheight k) hremote] with t ht hpos
-  rw [ht hpos, hdelta, ← hcorrect, add_assoc, hsum]
-  rfl
+  rw [ht hpos, hdelta, ← hcorrect, add_assoc, hsum]; rfl
 
 open Classical in
 /-- The clockwise-side endpoint colors sum to the label of the observed segment plus
@@ -146,13 +145,10 @@ theorem rayGermColor_ends_add_eq_crossings {ι : Type*} [Fintype ι]
   have hfinite : hits.Finite := Set.finite_iUnion fun j => Set.Subsingleton.finite
     fun s hs t ht => hpoint <| hunique j hs.2.1 hs.2.2.1
       ⟨hs.2.2.2, lineMap_mem_openSegment ℝ _ _ hs.1⟩ ⟨ht.2.2.2, lineMap_mem_openSegment ℝ _ _ ht.1⟩
-  have hsmallHits : ∀ᶠ s : ℝ in nhds 0, ∀ t ∈ hits, s < t ∧ t < 1 - s := by
-    rw [hfinite.eventually_all]
-    intro t ht
-    obtain ⟨j, hj⟩ := Set.mem_iUnion.mp ht
-    filter_upwards [isOpen_Iio.mem_nhds hj.1.1, isOpen_Iio.mem_nhds (sub_pos.mpr hj.1.2)]
-      with s hlo hhi
-    exact ⟨hlo, lt_sub_comm.mp hhi⟩
+  have hsmallHits : ∀ᶠ s : ℝ in nhds 0, ∀ t ∈ hits, s < t ∧ t < 1 - s :=
+    hfinite.eventually_all.mpr fun _ ht => let ⟨_, hj⟩ := Set.mem_iUnion.mp ht
+      Filter.mem_of_superset (Filter.inter_mem (isOpen_Iio.mem_nhds hj.1.1)
+        (isOpen_Iio.mem_nhds (sub_pos.mpr hj.1.2))) fun _ ⟨hlo, hhi⟩ => ⟨hlo, lt_sub_comm.mp hhi⟩
   have h0 := eventually_rayParity_rightGerm a b x hheight heven (i, false)
     (hremote false) (hdistinct false)
   have h1 := eventually_rayParity_rightGerm a b x hheight heven (i, true)
@@ -184,22 +180,16 @@ theorem rayGermColor_ends_add_eq_crossings {ι : Type*} [Fintype ι]
     refine Finset.sum_congr rfl fun j _ => ?_
     by_cases hj : j = i
     · simp [hj]
-    by_cases hx : x j = true
-    · have hevent : (openSegment ℝ (a j) (b j) ∩
-          openSegment ℝ (point t) (point (1 - t))).Nonempty ↔
-        (openSegment ℝ (a j) (b j) ∩ openSegment ℝ (a i) (b i)).Nonempty := by
-        constructor
-        · rintro ⟨z, hjz, hz⟩
-          obtain ⟨s, hs, rfl⟩ := (image_openSegment ℝ point _ _).symm ▸ hz
-          exact ⟨point s, hjz,
-            lineMap_mem_openSegment ℝ _ _ ((convex_Ioo (0 : ℝ) 1).openSegment_subset ht ht' hs)⟩
-        · rintro ⟨z, hjz, hz⟩
-          obtain ⟨s, hs, rfl⟩ := openSegment_eq_image_lineMap ℝ (a i) (b i) ▸ hz
-          refine ⟨point s, hjz, ?_⟩
-          rw [← image_openSegment ℝ point, openSegment_eq_Ioo hlt]
-          exact ⟨s, hthits s (Set.mem_iUnion.mpr ⟨j, hs, hj, hx, hjz⟩), rfl⟩
-      rw [hevent]
-    · simp [hj, Bool.eq_false_iff.mpr hx, ← Bool.zero_eq_false]
+    cases hx : x j
+    · simp [hj, ← Bool.zero_eq_false]
+    suffices (openSegment ℝ (a j) (b j) ∩ openSegment ℝ (point t) (point (1 - t))).Nonempty ↔
+        (openSegment ℝ (a j) (b j) ∩ openSegment ℝ (a i) (b i)).Nonempty by simp [hj, this]
+    rw [← image_openSegment ℝ point, openSegment_eq_Ioo hlt]
+    refine ⟨fun ⟨_, hjz, s, hs, he⟩ =>
+      ⟨point s, he ▸ hjz, lineMap_mem_openSegment ℝ _ _ ⟨htpos.trans hs.1, hs.2.trans ht'.2⟩⟩,
+      fun ⟨_, hjz, hz⟩ => ?_⟩
+    obtain ⟨s, hs, rfl⟩ := openSegment_eq_image_lineMap ℝ (a i) (b i) ▸ hz
+    exact ⟨point s, hjz, s, hthits s (Set.mem_iUnion.mpr ⟨j, hs, hj, hx, hjz⟩), rfl⟩
   rw [hsum] at htrace
   simp only [rayEndpoint, rayEndVector, Bool.false_eq_true, ↓reduceIte] at ht0 ht1
   have hpoint0 : a i + t • (b i - a i) = point t := by
@@ -269,9 +259,8 @@ theorem rayGermColor_adjacent {ι : Type*} [Fintype ι]
       (∑ e, if rayEndpoint a b e = p then f e else 0) = ∑ e : E, f e.val :=
     (Finset.sum_filter _ _).symm.trans (Finset.sum_subtype _ (fun _ => by simp) f)
   have heven' : (∑ e : E, x e.val.1) = 0 := by
-    rw [← hrestrict (fun e => x e.1)]
-    simpa only [Fintype.sum_prod_type, Fintype.sum_bool, rayEndpoint,
-      Bool.false_eq_true, ↓reduceIte, add_comm, Bool.zero_eq_false] using heven
+    simpa only [← hrestrict (fun e => x e.1), Fintype.sum_prod_type, Fintype.sum_bool,
+      rayEndpoint, Bool.false_eq_true, ↓reduceIte, add_comm, Bool.zero_eq_false] using heven
   have hsum := sum_angularPrefix_adjacent
     (fun e : E => turnArg (rayEndVector a b e.val)) (fun e : E => x e.val.1)
     (fun e => turnArg_mem (rayEndVector_im_ne_zero a b hheight e.val))
@@ -290,8 +279,6 @@ theorem rayGermColor_adjacent {ι : Type*} [Fintype ι]
         (∑ e, if rayEndpoint a b e = p then
           x e.1 * decide (turnArg (rayEndVector a b e) < turnArg (rayEndVector a b l))
           else 0)) := by ac_rfl
-    _ = x k.1 := by
-      rw [BooleanRing.add_self, zero_add, hrestrict, hrestrict]
-      exact hsum
+    _ = x k.1 := by rwa [BooleanRing.add_self, zero_add, hrestrict, hrestrict]
 
 end Cslib.Polygonal

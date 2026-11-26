@@ -100,11 +100,9 @@ private theorem cdf_le_iff_le_clamp (x α : ℝ) : Φ x ≤ α ↔ Φ x ≤ max 
 
 private theorem measureReal_setOf_cdf_le_clamp (α : ℝ) :
     (gaussianReal 0 1).real {x | Φ x ≤ α} = max (min α 1) 0 := by
-  have : {x | Φ x ≤ α} = {x | Φ x ≤ max (min α 1) 0} := by
-    ext x
-    exact cdf_le_iff_le_clamp x α
-  rw [this, measureReal_setOf_cdf_gaussianReal_le 0 one_ne_zero (le_max_right _ _)
-    (max_le (min_le_right _ _) zero_le_one)]
+  simp only [cdf_le_iff_le_clamp (α := α)]
+  exact measureReal_setOf_cdf_gaussianReal_le 0 one_ne_zero (le_max_right _ _)
+    (max_le (min_le_right _ _) zero_le_one)
 
 private theorem ae_cdf_ne (c : ℝ) : ∀ᵐ y ∂gaussianReal 0 1, Φ y ≠ c := by
   have := nullSingletonClass_gaussianReal (μ := 0) (v := 1) one_ne_zero
@@ -179,10 +177,7 @@ theorem gaussianQuadrant_comm {ρ : ℝ} (hρ : |ρ| ≤ 1) (α β : ℝ) :
     gaussianQuadrant ρ α β = gaussianQuadrant ρ β α := by
   conv_lhs => rw [gaussianQuadrant_def, ← correlatedGaussian_map_swap hρ,
     map_measureReal_apply measurable_swap (measurableSet_quadrant α β)]
-  rw [gaussianQuadrant_def]
-  congr 1
-  ext p
-  exact and_comm
+  simp only [gaussianQuadrant_def, preimage_ofPred_eq, Prod.fst_swap, Prod.snd_swap, and_comm]
 
 /-- [O'Donnell, Exercise 11.19][ODonnell2014]: `Λ_ρ(α, 0) = 0`. -/
 theorem gaussianQuadrant_zero_right (ρ α : ℝ) : gaussianQuadrant ρ α 0 = 0 := by
@@ -223,13 +218,11 @@ theorem gaussianQuadrant_zero {α β : ℝ} (hα0 : 0 ≤ α) (hα1 : α ≤ 1) 
 bound `β ≤ 1` is not needed). -/
 theorem gaussianQuadrant_one {α β : ℝ} (hα0 : 0 ≤ α) (hα1 : α ≤ 1) (hβ0 : 0 ≤ β) :
     gaussianQuadrant 1 α β = min α β := by
-  have : (fun x : ℝ => (x, x)) ⁻¹' {p | Φ p.1 ≤ α ∧ Φ p.2 ≤ β} = {x | Φ x ≤ min α β} := by
-    ext x
-    simp only [mem_preimage, mem_ofPred_eq, le_min_iff]
   rw [gaussianQuadrant_def, correlatedGaussian_one,
-    map_measureReal_apply (by fun_prop) (measurableSet_quadrant α β), this,
+    map_measureReal_apply (by fun_prop) (measurableSet_quadrant α β)]
+  simpa only [preimage_ofPred_eq, ← le_min_iff] using
     measureReal_setOf_cdf_gaussianReal_le 0 one_ne_zero (le_min hα0 hβ0)
-      ((min_le_left _ _).trans hα1)]
+      ((min_le_left _ _).trans hα1)
 
 /-- **Reflection** [O'Donnell, Exercise 11.19][ODonnell2014]:
 `Λ_{-ρ}(α, β) = α - Λ_ρ(α, 1 - β)` for `α ∈ [0, 1]`. -/
@@ -240,15 +233,13 @@ theorem gaussianQuadrant_neg {ρ : ℝ} (hρ : |ρ| ≤ 1) {α : ℝ} (h0 : 0 �
       μ.real ({p | Φ p.1 ≤ α} \ {p | Φ p.1 ≤ α ∧ Φ p.2 < 1 - β}) := by
     rw [gaussianQuadrant_def, ← correlatedGaussian_map_neg_snd,
       map_measureReal_apply (by fun_prop) (measurableSet_quadrant α β)]
-    congr 1
-    ext p
+    refine congrArg μ.real (Set.ext fun p => ?_)
     simp only [mem_preimage, mem_ofPred_eq, mem_sdiff, cdf_gaussianReal_neg one_ne_zero, not_and,
       not_lt, sub_le_comm]
     tauto
-  have hae : ∀ᵐ p ∂μ, Φ p.2 ≠ 1 - β := by
-    refine ae_of_ae_map (p := fun y => Φ y ≠ 1 - β) measurable_snd.aemeasurable ?_
-    rw [correlatedGaussian_map_snd hρ]
-    exact ae_cdf_ne _
+  have hae : ∀ᵐ p ∂μ, Φ p.2 ≠ 1 - β :=
+    ae_of_ae_map (p := fun y => Φ y ≠ 1 - β) measurable_snd.aemeasurable
+      ((correlatedGaussian_map_snd hρ).symm ▸ ae_cdf_ne _)
   have hlt : μ.real {p | Φ p.1 ≤ α ∧ Φ p.2 < 1 - β} = gaussianQuadrant ρ α (1 - β) := by
     rw [gaussianQuadrant_def]
     refine measureReal_congr (Filter.eventuallyEqSet_iff.2 (hae.mono fun p hp => ?_))
@@ -274,8 +265,7 @@ theorem gaussianQuadrant_neg_one {α β : ℝ} (hα0 : 0 ≤ α) (hα1 : α ≤ 
   rw [gaussianQuadrant_neg (by norm_num) hα0 hα1, gaussianQuadrant_one hα0 hα1 (by linarith)]
   rcases le_total α (1 - β) with h | h
   · rw [min_eq_left h, max_eq_right (by linarith), sub_self]
-  · rw [min_eq_right h, max_eq_left (by linarith)]
-    ring
+  · rw [min_eq_right h, max_eq_left (by linarith)]; ring
 
 /-- The probability of a quadrant as the integral of a product of indicators. -/
 private theorem integral_indicator_Iic_mul_indicator_Iic (μ : Measure (ℝ × ℝ)) (t t' : ℝ) :
@@ -284,10 +274,8 @@ private theorem integral_indicator_Iic_mul_indicator_Iic (μ : Measure (ℝ × �
   have hS : MeasurableSet {p : ℝ × ℝ | p.1 ≤ t ∧ p.2 ≤ t'} :=
     (measurableSet_Iic.preimage measurable_fst).inter (measurableSet_Iic.preimage measurable_snd)
   rw [← integral_indicator_one hS]
-  congr 1
-  funext p
-  by_cases h1 : p.1 ≤ t <;> by_cases h2 : p.2 ≤ t' <;>
-    simp [indicator, h1, h2]
+  refine integral_congr_ae (.of_forall fun p => ?_)
+  by_cases h1 : p.1 ≤ t <;> by_cases h2 : p.2 ≤ t' <;> simp [indicator, h1, h2]
 
 /-- **Sheppard's value** [O'Donnell, Exercise 11.19][ODonnell2014]:
 `Λ_ρ(1 / 2, 1 / 2) = 1 / 2 - arccos ρ / (2π)`. -/
@@ -461,15 +449,14 @@ theorem gaussianNoiseStability_indicator_setOf_dotProduct_le (ρ : ℝ) {a : ι 
       gaussianQuadrant ρ ((Measure.pi fun _ : ι => gaussianReal 0 1).real {z | a ⬝ᵥ z ≤ b})
         ((Measure.pi fun _ : ι => gaussianReal 0 1).real {z | a ⬝ᵥ z ≤ b}) := by
   have hpos := sqrt_dotProduct_self_pos ha
-  have hind : ({z | a ⬝ᵥ z ≤ b}.indicator 1 : (ι → ℝ) → ℝ) =
-      fun z => (Iic b).indicator 1 (a ⬝ᵥ z) := rfl
-  have hscale : ∀ x, (Iic b).indicator (1 : ℝ → ℝ) (√(a ⬝ᵥ a) * x) =
-      (Iic (b / √(a ⬝ᵥ a))).indicator 1 x := fun x => by
+  have hscale (x : ℝ) : (Iic b).indicator (1 : ℝ → ℝ) (√(a ⬝ᵥ a) * x) =
+      (Iic (b / √(a ⬝ᵥ a))).indicator 1 x := by
     simp only [indicator_apply, mem_Iic, Pi.one_apply, le_div_iff₀ hpos, mul_comm x]
-  rw [measureReal_pi_gaussianReal_setOf_dotProduct_le ha, gaussianQuadrant_cdf_cdf, hind,
-    gaussianNoiseStability_comp_dotProduct ρ a (measurable_one.indicator measurableSet_Iic)]
+  change gaussianNoiseStability ρ (fun z => (Iic b).indicator 1 (a ⬝ᵥ z)) = _
+  rw [measureReal_pi_gaussianReal_setOf_dotProduct_le ha, gaussianQuadrant_cdf_cdf,
+    gaussianNoiseStability_comp_dotProduct ρ a (measurable_one.indicator measurableSet_Iic),
+    ← integral_indicator_Iic_mul_indicator_Iic]
   simp only [hscale]
-  exact integral_indicator_Iic_mul_indicator_Iic _ _ _
 
 /-- **Noise stability of halfspaces** [O'Donnell, Exercise 11.19][ODonnell2014]: the indicator of
 a halfspace `H = {z | a ⬝ᵥ z ≤ b}`, for `a ≠ 0`, of Gaussian volume `α` has

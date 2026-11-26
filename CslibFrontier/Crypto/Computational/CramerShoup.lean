@@ -574,24 +574,11 @@ private theorem advantage_cramerShoupGame2_game3_le_exactCollision
     let ad := encodeAD (d, csChoiceAD choiceOut.1)
     let ct := F.encodeCramerShoupChallenge H d sk v w m ad
     have hm : isElem (d, m) = true := by
-      simp only [Bool.and_eq_true] at h
-      cases bit <;> simp [m, h]
+      cases bit <;> simp [m, Bool.and_eq_true_iff.mp h]
     have htarget : F.isCramerShoupHashInput hasAD isElem d (extractCramerShoupTuple ct ad) = true :=
       F.isCramerShoupHashInput_extractCramerShoupTuple_challenge hasAD hmem H d sk _ _ hm (hAD _)
-    refine runStatelessOracle_le_runFinderOracle
-      (F.cramerShoupPhase2Reply hasAD H isElem d sk ct ad)
-      (F.cramerShoupCollisionPhase2Reply hasAD H isElem d sk ct ad)
-      (fun req =>
-        let q := splitCramerShoupQuery hasAD req
-        F.isCramerShoupCollision H d q.1 q.2 ct ad &&
-          F.isCramerShoupHashInput hasAD isElem d (extractCramerShoupTuple q.1 q.2))
-      (fun req =>
-        let q := splitCramerShoupQuery hasAD req
-        extractCramerShoupTuple q.1 q.2)
-      (fun cand => isCollisionFor (F.cramerShoupHashMod H)
-        (fun _ => F.isCramerShoupHashInput hasAD isElem) n d cand (extractCramerShoupTuple ct ad))
-      (fun req hbad => ?_) (fun req hbad => ?_)
-      (adversary.guess n (csChoiceState choiceOut.1) ct) PMF.pure true
+    refine runStatelessOracle_le_runFinderOracle _ _ _ _ _
+      (fun req hbad => ?_) (fun req hbad => ?_) _ _ _
     · have hq : hasAD = true ∨ (splitCramerShoupQuery hasAD req).2 = [] := by
         cases hasAD <;> simp [splitCramerShoupQuery]
       dsimp only [cramerShoupPhase2Reply, cramerShoupCollisionPhase2Reply] at hbad ⊢
@@ -602,8 +589,7 @@ private theorem advantage_cramerShoupGame2_game3_le_exactCollision
         rw [F.decodeCramerShoup_eq_none_of_isCramerShoupHashInput_eq_false hasAD H isElem d sk _ _
           hq hbad]
         simp only [Bool.or_true, ↓reduceIte, encOption_none, ite_self]
-    · dsimp only at hbad
-      rw [Bool.and_eq_true, F.isCramerShoupCollision_eq_isCollisionFor H n d,
+    · rw [Bool.and_eq_true, F.isCramerShoupCollision_eq_isCollisionFor H n d,
         isCollisionFor_eq_true_iff] at hbad
       exact (isCollisionFor_eq_true_iff ..).mpr ⟨hbad.2, htarget, hbad.1.2.2⟩
   · simp only [h, Bool.false_eq_true, ↓reduceIte]
@@ -684,8 +670,7 @@ private theorem succProbability_cramerShoupExactCollisionGame_le
       unfold runFinderOracle cramerShoupCollisionPhase2Oracle
       refine congrArg _ (funext fun out => ?_)
       cases out.2 <;> simp
-    · simp only [h, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure, PMF.pure_bind]
-      rfl
+    · simp [h]
   game_trans using [hadv]
 
 /-- **Game 2 $\to$ Game 3 bound** (the collision-rejection hop into Game 4 of [BonehShoup2023],
@@ -963,12 +948,9 @@ private theorem length_encodeCramerShoupPublicKey_le {d : F.Desc} {B : ℕ}
     (F.encodeCramerShoupPublicKey d (F.encode d (α • F.generator d)) sk).length ≤
       2 * (F.encDesc d).length + 44 * B + 30 := by
   rw [F.encodeCramerShoupPublicKey_encode]
-  suffices h : ∀ pk, (F.encodeCramerShoupPublicKeyValues d pk).length ≤
-      2 * (F.encDesc d).length + 44 * B + 30 by exact h _
-  intro pk
-  unfold encodeCramerShoupPublicKeyValues
+  generalize F.cramerShoupPublicKey d α _ _ _ _ _ _ = pk
   have h4 := F.length_encBits4_encode_le hB (csPkU pk) (csPkH pk) (csPkH₁ pk) (csPkH₂ pk)
-  enc_len
+  enc_len [encodeCramerShoupPublicKeyValues]
 
 /-- Ideal-sampling step toward `DDH.indcca2ADOn_cramerShoup_bitStringAD` and
 `DDH.indcca2On_cramerShoup`, not
@@ -1047,15 +1029,10 @@ theorem DDH.cramerShoupMsgIdealINDCCA2
     have hpk := hpk_le hd α δ δ₁ δ₂
     have hst : (csChoiceState choiceOut.1).length ≤ Lst n :=
       (hstate n _ Unit _ () choiceOut.2 choiceOut.1 hchoice).trans (by dsimp only [Lst]; gcongr)
-    have hct := F.length_encBits4_encode_le (hB_le hd)
-      (β • F.generator d) (γ • F.generator d)
-      (projHash F d (δ - α * τ) τ (β • F.generator d) (γ • F.generator d) + mElem)
-      ((β * (δ₁ + F.cramerShoupHashMod H d
-        (encBits4 (F.encode d (β • F.generator d), F.encode d (γ • F.generator d),
-          F.encode d (projHash F d (δ - α * τ) τ (β • F.generator d) (γ • F.generator d) + mElem),
-          encodeAD (d, csChoiceAD choiceOut.1))) * δ₂) + (γ - α * β) * ξ) • F.generator d)
     refine (hQ₂_raw n (csChoiceState choiceOut.1) _).mono ?_
-    dsimp only [Q₂, Lct] at hct ⊢; gcongr
+    dsimp only [Q₂, Lct]
+    gcongr
+    exact F.length_encBits4_encode_le (hB_le hd) _ _ _ _
 
 /-- Ideal-sampling step toward `DDH.indcca2ADOn_cramerShoup_bitStringAD`, not the cited result
 (after [BonehShoup2023], Theorem 12.9 & Exercise 12.27): for group-element messages with associated
@@ -1294,8 +1271,7 @@ private theorem cramerShoupCCA2InnerSK_false_eq
       ((csSkS sk : ℕ) : ZMod (F.order d)) ((csSkT sk : ℕ) : ZMod (F.order d))
       ((csSkS₁ sk : ℕ) : ZMod (F.order d)) ((csSkT₁ sk : ℕ) : ZMod (F.order d))
       ((csSkS₂ sk : ℕ) : ZMod (F.order d)) ((csSkT₂ sk : ℕ) : ZMod (F.order d)) false := by
-  dsimp only [cramerShoupCCA2InnerSK]
-  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
+  simp only [cramerShoupCCA2InnerSK, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
   rw [F.encodeCramerShoupPublicKey_eq_skNatOfZMod d (a : ZMod (F.order d)) sk,
     F.cramerShoupPhase1Oracle_eq_skNatOfZMod hasAD H isElem hmem d sk]
   refine congrArg _ (funext fun choiceOut => ?_)
@@ -1316,7 +1292,6 @@ private theorem exists_length_encDesc_withKeySetup_le {d : ℕ → F.Desc} {keyL
   obtain ⟨c₂, k₂, h₂⟩ := hkeyLen.polyBounded_length.exists_le
   refine ⟨2 * c₁ + 1 + c₂, k₁ + k₂, fun n p hp => ?_⟩
   obtain ⟨hd', hk⟩ := F.mem_support_withKeySetup (d := p.1) (k := p.2) hp
-  rw [PMF.support_pure, Set.mem_singleton_iff] at hd'
   have p₁ : (F.encDesc (d n)).length ≤ c₁ * (n + 1) ^ (k₁ + k₂) :=
     Nat.le_trans (by simpa only [encUnary_apply, List.length_replicate] using h₁ n)
       (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (Nat.succ_pos n) (Nat.le_add_right _ _)))
@@ -1324,7 +1299,7 @@ private theorem exists_length_encDesc_withKeySetup_le {d : ℕ → F.Desc} {keyL
     Nat.le_trans (by simpa only [encUnary_apply, List.length_replicate] using h₂ n)
       (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (Nat.succ_pos n) (Nat.le_add_left _ _)))
   change (encPair F.encDesc encBits p).length ≤ _
-  rw [length_encPair, encBits_apply, hd', hk]
+  rw [length_encPair, encBits_apply, (PMF.mem_support_pure_iff _ _).mp hd', hk]
   nlinarith [Nat.one_le_pow (k₁ + k₂) (n + 1) (Nat.succ_pos n)]
 
 private theorem order_withKeySetup_ge {d : ℕ → F.Desc} {keyLen : ℕ → ℕ} {m : ℕ → ℕ}
@@ -1333,8 +1308,7 @@ private theorem order_withKeySetup_ge {d : ℕ → F.Desc} {keyLen : ℕ → ℕ
       m n ≤ F.withKey.order p := by
   intro n p hp
   obtain ⟨hd', -⟩ := F.mem_support_withKeySetup (d := p.1) (k := p.2) hp
-  rw [PMF.support_pure, Set.mem_singleton_iff] at hd'
-  simpa only [PrimeOrderGroupFamily.withKey, hd'] using hm n
+  simpa only [PrimeOrderGroupFamily.withKey, (PMF.mem_support_pure_iff _ _).mp hd'] using hm n
 
 private theorem negligible_advantage_of_eight_le {g₀ g₁ h₀ h₁ : ℕ → Game}
     (hmid : Negligible fun n => Game.advantage (h₀ n) (h₁ n))

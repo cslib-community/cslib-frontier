@@ -75,8 +75,7 @@ private theorem maskStreams_off {a b n : ℕ} (base : Xofs) (ha : 528 ≤ a)
     (t : Fin n ↪ FixedBytes 64) (T₁ T₂ : Table a b) (rows : MaskInput n × Fin b → Byte)
     (x : List Bool) (miss : ∀ p, maskWord t p ≠ x) (k : ℕ) :
     (maskStreams base ha t T₁ T₂ rows).h256.read x k = (streams base T₁ T₂).h256.read x k := by
-  apply read_eq_of_byteAt_eq
-  intro i _
+  refine read_eq_of_byteAt_eq fun i _ => ?_
   simp only [maskStreams, streams, byteAt_install]
   split
   · rename_i length
@@ -113,12 +112,10 @@ private theorem maskStreams_off_prefix {a b n : ℕ} (base : Xofs) (ha : 528 ≤
     (maskStreams base ha t T₁ T₂ rows).h256.read x k = (streams base T₁ T₂).h256.read x k := by
   apply maskStreams_off
   rintro ⟨i, nonce⟩ rfl
-  apply miss
   have eq : maskWord t (i, nonce) =
       Keccak.bytesToBitsLE (t i).toList ++ Keccak.bytesToBitsLE nonce.toList :=
     List.flatMap_append ..
-  rw [eq, prefixSeed_append]
-  exact ⟨i, rfl⟩
+  exact miss ⟨i, by rw [eq, prefixSeed_append]⟩
 
 private def secretSeed (H : Xofs) (s : Level) (seed : FixedBytes 32) : List Byte :=
   ((H.expandKeySeed s seed).drop 32).take 64
@@ -174,8 +171,8 @@ private theorem expandMask_maskStreams {a b n : ℕ} (base : Xofs) (ha : 528 ≤
       have small : j < maskPolyBytes s := hj.trans_le (G.h256.length_read ..).le
       rw [getElem_read _ _ small, List.getElem_ofFn]
       exact maskStreams_byteAt base ha t T₁ T₂ rows (i, nonceSuffix v) ⟨j, small.trans_le hb⟩
-  simp only [Xofs.expandMask, ← show G = maskStreams base ha t T₁ T₂ rows from rfl,
-    maskFromRow, read]
+  dsimp only [G] at read
+  simp only [Xofs.expandMask, maskFromRow, read]
   rfl
 
 private def Xofs.signWithExpansionRow (H : Xofs) (s : Level) (key : List Byte)
@@ -209,10 +206,9 @@ private theorem maskStreams_attempt {a b n : ℕ} (base : Xofs) (ha : 528 ≤ a)
   have challenge w : G.sampleInBall s (H.commitmentDigest s w μ) =
       H.sampleInBall s (H.commitmentDigest s w μ) :=
     challenge_unchanged raw s (by rw [length_commitmentDigest]; cases s <;> decide)
-  rw [Xofs.attempt, expandMask_maskStreams base ha s hb]
-  simp only [Xofs.attemptWithMask,
-    ← show G = maskStreams base ha t T₁ T₂ rows from rfl,
-    ← show H = streams base T₁ T₂ from rfl, digest, challenge]
+  dsimp only [G, H] at digest challenge
+  simp only [Xofs.attempt, expandMask_maskStreams base ha s hb, Xofs.attemptWithMask, digest,
+    challenge]
 
 private noncomputable def trSeed (H : Xofs) (keys : Option KeyPair) : FixedBytes 64 :=
   prefixSeed (Keccak.bytesToBitsLE
@@ -230,8 +226,7 @@ private theorem rep_maskStreams {a b n : ℕ} (base : Xofs) (ha : 528 ≤ a)
     (maskStreams base ha t T₁ T₂ rows).representativeFromTr tr m =
       (streams base T₁ T₂).representativeFromTr tr m := by
   obtain ⟨r, rfl⟩ := FixedBytes.exists_toList len
-  apply congrArg Keccak.bytesToBitsLE
-  apply maskStreams_off_prefix
+  refine congrArg Keccak.bytesToBitsLE (maskStreams_off_prefix _ _ _ _ _ _ _ ?_ _)
   rw [representativeInput, prefixSeed_append]
   rwa [← List.append_nil (Keccak.bytesToBitsLE r.toList), prefixSeed_append] at miss
 
@@ -303,9 +298,7 @@ private theorem uniform_maskStreams {a b n : ℕ} (base : Xofs) (ha : 528 ≤ a)
 namespace QuantumSigningForger
 
 private theorem card_maskSeed : Fintype.card (FixedBytes 64) = 2 ^ 512 := by
-  change Fintype.card (Fin 64 → Fin 256) = _
-  rw [Fintype.card_fun, Fintype.card_fin, Fintype.card_fin]
-  rw [show (256 : ℕ) = 2 ^ 8 by decide, ← pow_mul]
+  simp only [FixedBytes, Fintype.card_fun, Fintype.card_fin, ← pow_mul]
 
 private theorem maskSeedEmbedding {n : ℕ} (h : n ≤ 2 ^ 512) :
     Nonempty (Fin n ↪ FixedBytes 64) :=
@@ -382,9 +375,7 @@ private theorem maskScore_eq {a b n : ℕ} (C : QuantumSigningForger) (s : Level
             iterate 2 contradiction
             simp only [tape, List.get_ofFn, Fin.cast_mk, fs, gs, rowCommand, signingCommand,
               OracleComp.sumHandler]
-            rw [show ∀ i, G.signWithRow s keys.secretKey ask (fun _ => t i) =
-              H.signWithExpansionRow s keys.secretKey ask (slotRow hb rows i)
-              from fun i => sign_maskStreams base ha s hb t T₁ T₂ rows hk miss i ask])
+            rw [sign_maskStreams base ha s hb t T₁ T₂ rows hk miss])
         C.initial
       have transcripts : C.seedTapeTranscript G s keys (List.ofFn t) =
           C.expansionTranscript G H s keys tape := by
@@ -695,19 +686,19 @@ theorem privateMaskSeedGame_le_freshExpansionGame (C : QuantumSigningForger) (s 
         setup_advantage_le C s base ha hb hn T₁ T₂ rows seed
   let loss : ℝ := 2 * m * √(n / 2 ^ 512)
   have sq : gap middle ideal ≤ loss ^ 2 := by
-    rw [show ideal = _ from C.freshExpansionGame_eq_setup (a := a) s base hb hn]
-    simp only [middle, expansionSetup, PMF.monad_bind_eq_bind]
+    simp only [middle, ideal, C.freshExpansionGame_eq_setup (a := a) s base hb hn, expansionSetup,
+      PMF.monad_bind_eq_bind]
     refine gap_bind_const _ _ _ fun T₁ => gap_bind_const _ _ _ fun T₂ =>
-      gap_bind_const _ _ _ fun rows => gap_bind_const _ _ _ fun seed => ?_
-    apply (expansionScore_gap_le C s base ha hb hm T₁ T₂ rows seed).trans_eq
+      gap_bind_const _ _ _ fun rows => gap_bind_const _ _ _ fun seed =>
+        (expansionScore_gap_le C s base ha hb hm T₁ T₂ rows seed).trans_eq ?_
     let rate : ℝ := n / 2 ^ 512
+    have hr : 0 ≤ rate := div_nonneg (Nat.cast_nonneg _) (pow_nonneg zero_le_two _)
+    have h2 : (2 : ℝ) ^ 2 = 4 := by norm_num
     change 4 * m * m * rate = (2 * m * √rate) ^ 2
-    simp only [mul_pow, Real.sq_sqrt (show 0 ≤ rate by dsimp [rate]; positivity)]
-    rw [show (2 : ℝ) ^ 2 = 4 by norm_num, pow_two, ← mul_assoc]
+    rw [mul_pow, mul_pow, Real.sq_sqrt hr, h2, sq, ← mul_assoc]
   have hl : 0 ≤ loss := by dsimp [loss]; positivity
   have root : √(Game.succProbability middle : ℝ) ≤ √(Game.succProbability ideal : ℝ) + loss := by
-    apply sub_le_iff_le_add'.mp
-    rw [Game.coe_succProbability, Game.coe_succProbability]
+    rw [← sub_le_iff_le_add', Game.coe_succProbability, Game.coe_succProbability]
     exact (le_abs_self _).trans ((sq_le_sq₀ (abs_nonneg _) hl).mp
       (by simpa only [sq_abs, gap] using sq))
   have prob := pow_le_pow_left₀ (Real.sqrt_nonneg _) root 2
@@ -738,13 +729,10 @@ theorem randomPrefixGame_forgery_le_freshExpansionGame (C : QuantumSigningForger
           (max (2 * (s.params.γ₁ - s.params.β)) (4 * s.params.γ₂ + 2)) v)) := by
   intro R trial expansion seedLoss
   have width : 32 * (s.params.γ₁.log2 + 1) ≤ 894 := by cases s <;> decide
-  have grow (i j : ℕ) (h : i ≤ j) : (2 : ℕ) ^ i ≤ 2 ^ j := Nat.pow_le_pow_right (by decide) h
-  have seedSize : n ≤ 2 ^ 512 := hsize.trans (grow 256 512 (by decide))
   have fresh : (Game.succProbability (C.privateMaskSeedGame s base a b) : ℝ) ≤ expansion :=
     C.privateMaskSeedGame_le_freshExpansionGame s base ((by decide : 528 ≤ 1024).trans ha)
-      (width.trans hb) hn seedSize hm
-  apply (C.randomPrefixGame_forgery_le_of_query_budget s base ha hb hn hsize hm).trans
-  gcongr
+      (width.trans hb) hn (hsize.trans (pow_le_pow_right₀ (by decide) (by decide))) hm
+  exact (C.randomPrefixGame_forgery_le_of_query_budget s base ha hb hn hsize hm).trans (by gcongr)
 
 end QuantumSigningForger
 

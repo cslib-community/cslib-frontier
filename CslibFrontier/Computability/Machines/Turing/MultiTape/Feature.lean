@@ -251,14 +251,11 @@ theorem holds_step_head_iff {T : ℕ} (hb : |cfg.workTapePos i| ≤ T) (z : ℤ)
   · simp [hq, not_holds_sit hq]
   · simp only [holds_state, hq, reduceCtorEq, false_and, false_or, Finset.mem_filter,
       Finset.mem_univ, true_and, holds_head, step_eq_apply tm hq, Action.apply_workTapePos]
-    constructor
-    · rintro rfl
-      refine ⟨cfg.situation q, ?_, (holds_sit_iff_eq hq _).2 rfl, ?_⟩ <;>
-        rw [add_sub_cancel_right]
-      exact hb
-    · rintro ⟨y, -, hsit, hpos⟩
-      obtain rfl := (holds_sit_iff_eq hq y).1 hsit
-      rw [hpos, sub_add_cancel]
+    refine ⟨?_, fun ⟨y, _, hsit, hpos⟩ => by
+      rw [← (holds_sit_iff_eq hq y).1 hsit, hpos, sub_add_cancel]⟩
+    rintro rfl
+    exact ⟨cfg.situation q, by rwa [add_sub_cancel_right], (holds_sit_iff_eq hq _).2 rfl,
+      (add_sub_cancel_right _ _).symm⟩
 
 /-- The step equation for a work cell. -/
 theorem holds_step_cell_iff (z : ℤ) (s : Option Bool) :
@@ -484,8 +481,7 @@ theorem holds_step_iff_exists_stepTerms (hn : input.length = n)
     refine or_congr (by simp) ⟨fun ⟨⟨y, j'⟩, hy, h⟩ => ⟨(y, j'), ?_, ?_⟩,
       fun ⟨⟨y, j'⟩, hy, h⟩ => ⟨(y, j'), ?_, ?_⟩⟩ <;>
       simp_all [List.mem_filter, Finset.mem_filter]
-  · rw [holds_step_head_iff tm (hb i)]
-    simp [stepTerms, or_and_right, exists_or]
+  · simp [holds_step_head_iff tm (hb i), stepTerms, or_and_right, exists_or]
   · rw [holds_step_cell_iff]
     simp [stepTerms, and_or_left, or_assoc, and_assoc]
   · rw [holds_step_out_iff]
@@ -533,10 +529,8 @@ theorem mem_basic_of_mem_stepTerms {φ : Feature k State} (hφ : φ ∈ basic n 
       Or.inl (head_mem_basic i hy)]
   · rcases hc with rfl | rfl | ⟨⟨y, s'⟩, -, rfl⟩ <;>
       simp only [List.mem_cons, List.mem_nil_iff, or_false] at hl
-    · rcases hl with rfl | rfl
-      exacts [Or.inl (cell_mem_basic i hz s), Or.inl (state_mem_basic _)]
-    · rcases hl with rfl | rfl
-      exacts [Or.inl (cell_mem_basic i hz s), Or.inl (head_mem_basic i hz)]
+    · exact hl.elim (· ▸ Or.inl (cell_mem_basic i hz s)) (· ▸ Or.inl (state_mem_basic _))
+    · exact hl.elim (· ▸ Or.inl (cell_mem_basic i hz s)) (· ▸ Or.inl (head_mem_basic i hz))
     · rcases hl with rfl | rfl | rfl
       exacts [hsit y rfl, Or.inl (head_mem_basic i hz), Or.inl (cell_mem_basic i hz s')]
   · rcases hc with rfl | ⟨⟨y, o'⟩, -, rfl⟩ <;>

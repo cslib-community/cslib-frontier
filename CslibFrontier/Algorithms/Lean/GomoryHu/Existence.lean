@@ -232,15 +232,13 @@ private theorem glue [Preorder β] {f : Finset V → β} (hsym : ∀ X, f Xᶜ =
     refine ⟨hr₁U, hr₂U, fun Y h₁ h₂ => ?_⟩
     by_cases hsY : s ∈ Y <;> by_cases htY : t ∈ Y
     · obtain ⟨e, he, hsep, hY⟩ := exists_cross (I₂.chain t htR₂ r₂ hr₂) htY h₂
-      have hst : s ∈ e.S ↔ t ∉ e.S := by grind
-      exact (hU.le_of_separates hsym hst).trans ((I₂.edge e he).le_of_separates hsym hY)
+      exact (hU.le_of_separates hsym (by grind)).trans ((I₂.edge e he).le_of_separates hsym hY)
     · exact hU.le hsY htY
     · exact hU.le_of_separates hsym (iff_of_false hsY (not_not.mpr htY))
     · obtain ⟨e, he, hsep, hY⟩ := exists_cross (Y := Yᶜ) (I₁.chain s hsR₁ r₁ hr₁)
         (Finset.mem_compl.mpr hsY) (fun h => Finset.mem_compl.mp h h₁)
-      have hst : s ∈ e.S ↔ t ∉ e.S := by grind
       have hY' : e.u ∈ Y ↔ e.v ∉ Y := by grind [Finset.mem_compl]
-      exact (hU.le_of_separates hsym hst).trans ((I₁.edge e he).le_of_separates hsym hY')
+      exact (hU.le_of_separates hsym (by grind)).trans ((I₁.edge e he).le_of_separates hsym hY')
   let enew : CEdge V := ⟨r₁, r₂, U⟩
   refine ⟨E₁ ∪ E₂ ∪ {enew}, ⟨?_, ?_, ?_, ?_, ?_, ?_⟩⟩
   · exact forall_mem_union_singleton
@@ -266,26 +264,21 @@ private theorem glue [Preorder β] {f : Finset V → β} (hsym : ∀ X, f Xᶜ =
     · exact ⟨fun h => absurd h (outU₂ e' he').1, fun h => absurd h (outU₂ e' he').2⟩
     · exact absurd rfl hne
   · -- Chains: within each side, and across `U` through the new edge `r₁ r₂`.
-    have cross : ∀ x ∈ R, ∀ y ∈ R, x ∈ U → y ∉ U →
+    have cross {x y} (hx : x ∈ R) (hy : y ∈ R) (hxU : x ∈ U) (hyU : y ∉ U) :
         Relation.ReflTransGen (Step (E₁ ∪ E₂ ∪ {enew}) x y) x y := by
-      intro x hx y hy hxU hyU
-      have c₁ : Relation.ReflTransGen (Step (E₁ ∪ E₂ ∪ {enew}) x y) x r₁ :=
-        step_mono (fun e he => ⟨Or.inl (Or.inl he), fun hsep =>
-          hsep.trans (not_congr (out₁ e he y hyU)).symm⟩)
-          (I₁.chain x (Finset.mem_inter.mpr ⟨hx, hxU⟩) r₁ hr₁)
-      have c₂ : Step (E₁ ∪ E₂ ∪ {enew}) x y r₁ r₂ :=
-        ⟨enew, Or.inr rfl, ⟨fun _ => hyU, fun _ => hxU⟩, Or.inl ⟨rfl, rfl⟩⟩
-      have c₃ : Relation.ReflTransGen (Step (E₁ ∪ E₂ ∪ {enew}) x y) r₂ y :=
-        step_mono (fun e he => ⟨Or.inl (Or.inr he), fun hsep =>
-          (in₂ e he x hxU).trans hsep⟩)
-          (I₂.chain r₂ hr₂ y (Finset.mem_inter.mpr ⟨hy, Finset.mem_compl.mpr hyU⟩))
-      exact c₁.trans (Relation.ReflTransGen.head c₂ c₃)
+      have c₁ := step_mono (E' := E₁ ∪ E₂ ∪ {enew}) (x₁ := x) (y₁ := y)
+        (fun e he => ⟨.inl (.inl he), (·.trans (not_congr (out₁ e he y hyU)).symm)⟩)
+        (I₁.chain x (Finset.mem_inter.mpr ⟨hx, hxU⟩) r₁ hr₁)
+      have c₃ := step_mono (E' := E₁ ∪ E₂ ∪ {enew}) (x₁ := x) (y₁ := y)
+        (fun e he => ⟨.inl (.inr he), (in₂ e he x hxU).trans⟩)
+        (I₂.chain r₂ hr₂ y (Finset.mem_inter.mpr ⟨hy, Finset.mem_compl.mpr hyU⟩))
+      exact c₁.trans (.head ⟨enew, .inr rfl, ⟨fun _ => hyU, fun _ => hxU⟩, .inl ⟨rfl, rfl⟩⟩ c₃)
     intro x hx y hy
     by_cases hxU : x ∈ U <;> by_cases hyU : y ∈ U
     · exact step_mono (fun e he => ⟨Or.inl (Or.inl he), id⟩)
         (I₁.chain x (Finset.mem_inter.mpr ⟨hx, hxU⟩) y (Finset.mem_inter.mpr ⟨hy, hyU⟩))
-    · exact cross x hx y hy hxU hyU
-    · exact step_swap (cross y hy x hx hyU hxU)
+    · exact cross hx hy hxU hyU
+    · exact step_swap (cross hy hx hyU hxU)
     · exact step_mono (fun e he => ⟨Or.inl (Or.inr he), id⟩)
         (I₂.chain x (Finset.mem_inter.mpr ⟨hx, Finset.mem_compl.mpr hxU⟩) y
           (Finset.mem_inter.mpr ⟨hy, Finset.mem_compl.mpr hyU⟩))
@@ -333,9 +326,8 @@ private theorem exists_inv {f : Finset V → β} (hsym : ∀ X, f Xᶜ = f X) (h
   intro L hne hL hex
   by_cases hone : ∀ a ∈ R, ∀ b ∈ R, a = b
   · obtain ⟨r, hr⟩ := hne
-    refine ⟨∅, ⟨fun e he => he.elim, fun e he => he.elim, fun e he => he.elim,
-      fun e he => he.elim, fun x hx y hy => hone x hx y hy ▸ .refl,
-      fun _ => ⟨r, hr, fun e he => he.elim⟩⟩⟩
+    exact ⟨∅, ⟨nofun, nofun, nofun, nofun, fun x hx y hy => hone x hx y hy ▸ .refl,
+      fun _ => ⟨r, hr, nofun⟩⟩⟩
   · push Not at hone
     obtain ⟨s, hs, t, ht, hst⟩ := hone
     obtain ⟨U, hLU, hU⟩ := hex s hs t ht hst

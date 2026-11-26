@@ -234,11 +234,7 @@ theorem IsStandaloneOpt.le_of_ratio_lt {P : ℝ → ℝ} {V₁ C₁ V₂ C₂ : 
   by_contra hlt
   have hz : (z₂ : ℝ) < (z₁ : ℝ) := lt_of_not_ge hlt
   have hcross : V₁ * C₂ < V₂ * C₁ := (div_lt_div_iff₀ hC₁ hC₂).mp hratio
-  have hmul1 := mul_le_mul_of_nonneg_left
-    (show C₁ * ((z₁ : ℝ) - (z₂ : ℝ)) ≤ V₁ * (P z₁ - P z₂) by linarith [h₁ z₂]) hV₂.le
-  have hmul2 := mul_le_mul_of_nonneg_left
-    (show V₂ * (P z₁ - P z₂) ≤ C₂ * ((z₁ : ℝ) - (z₂ : ℝ)) by linarith [h₂ z₁]) hV₁.le
-  nlinarith
+  nlinarith [h₁ z₂, h₂ z₁]
 
 /-- First-order sufficient condition for standalone optimality ([Varian2004], §3.1, p. 3): if `P`
 has antitone derivative `P'` on `[0, ∞)`, then `zStar` is a standalone optimum whenever either
@@ -414,8 +410,7 @@ private theorem bestResponse_eq_iff_of_strictConcave {xBar : ι → ℝ≥0}
   refine ⟨fun h => ?_, fun hx a => ?_⟩
   · by_contra hne
     have hle := h br
-    have hself : x = Function.update x i (x i) := (Function.update_eq_self i x).symm
-    conv_lhs at hle => rw [hself]
+    conv_lhs at hle => rw [← Function.update_eq_self i x]
     rw [cost_totalEffortGame_update, cost_totalEffortGame_update] at hle
     by_cases hX : Xminus ≤ xBar i
     · have hbr : Xminus + br = xBar i := add_tsub_cancel_of_le hX
@@ -431,11 +426,7 @@ private theorem bestResponse_eq_iff_of_strictConcave {xBar : ι → ℝ≥0}
       have hxi_pos : 0 < x i := pos_iff_ne_zero.mpr (by rwa [hbr0] at hne)
       rw [hbr0, add_zero] at hle
       linarith [(hOpt i).lt_of_le_of_lt hConc (hVal i) hgt.le (lt_add_of_pos_right _ hxi_pos)]
-  · have hself : x = Function.update x i br := funext fun j => by
-      rcases eq_or_ne i j with rfl | hj
-      · simpa only [Function.update_self] using hx
-      · simp only [Function.update_of_ne hj.symm]
-    conv_lhs => rw [hself]
+  · conv_lhs => rw [← Function.update_eq_self i x, hx]
     exact R.cost_totalEffortGame_bestResponse_le hConc hVal hOpt x i a
 
 /-- **Varian's Fact 1, complete characterization** ([Varian2004], §3.1, p. 3): in the `ι`-agent
@@ -775,7 +766,7 @@ theorem isPureNash_weakestLinkGame_iff [Nontrivial ι] {xBar : ι → ℝ≥0}
           · simpa only [Function.update_of_ne hk.symm] using inf'_le x (mem_univ k)
       have hle := hN i z
       dsimp only [weakestLinkGame, toCostGame] at hle
-      rw [hw_upd, Function.update_self, show weakestLink x = z from rfl] at hle
+      rw [hw_upd, Function.update_self] at hle
       nlinarith [NNReal.coe_lt_coe.mpr hgt, hCost i]) (inf'_le x (mem_univ i))
     have hx_eq : x = fun _ => z := funext hconst
     refine ⟨z, le_inf' _ _ fun i _ => by
@@ -1020,23 +1011,18 @@ theorem isPureNash_bestShotGame_single_iff {xBar : ι → ℝ≥0} {k : ι}
         hMono (xBar i).coe_nonneg (xBar k).coe_nonneg hle
       have hc0 : 0 ≤ R.unitCost i * (xBar i : ℝ) := mul_nonneg (hCost i) (xBar i).coe_nonneg
       nlinarith [hVal i]
-    · have hle := hN i (xBar i)
-      dsimp only [bestShotGame, toCostGame] at hle
-      rwa [hsup_single, bestShot_update_single_ne hik (xBar k) (xBar i), max_eq_right hgt.le,
-        show sK i = 0 from Pi.single_eq_of_ne hik _, NNReal.coe_zero, mul_zero, add_zero,
-        Function.update_self] at hle
+    · simpa only [bestShotGame, toCostGame, hsup_single,
+        bestShot_update_single_ne hik (xBar k) (xBar i), max_eq_right hgt.le, sK,
+        Pi.single_eq_of_ne hik, NNReal.coe_zero, mul_zero, add_zero, Function.update_self] using
+        hN i (xBar i)
   · by_cases hik : i = k
     · subst hik
       have hupd : Function.update sK i a = Pi.single i a :=
         funext fun j => by by_cases hj : j = i <;> simp [sK, hj]
-      dsimp only [bestShotGame, toCostGame]
-      rw [hsup_single, hupd, bestShot_pi_single,
-        show sK i = xBar i by simp only [sK, Pi.single_eq_same], Pi.single_eq_same]
-      exact hOpt i a
-    · dsimp only [bestShotGame, toCostGame]
-      rw [hsup_single, bestShot_update_single_ne hik (xBar k) a,
-        show sK i = 0 from Pi.single_eq_of_ne hik _, NNReal.coe_zero, mul_zero, add_zero,
-        Function.update_self]
+      simpa only [bestShotGame, toCostGame, hsup_single, hupd, bestShot_pi_single, sK,
+        Pi.single_eq_same] using hOpt i a
+    · simp only [bestShotGame, toCostGame, hsup_single, bestShot_update_single_ne hik (xBar k) a,
+        sK, Pi.single_eq_of_ne hik, NNReal.coe_zero, mul_zero, add_zero, Function.update_self]
       rcases le_or_gt a (xBar k) with ha | ha
       · rw [max_eq_left ha]
         exact le_add_of_nonneg_right (mul_nonneg (hCost i) a.coe_nonneg)
@@ -1053,11 +1039,9 @@ theorem isPureNash_bestShotGame_champion {xBar : ι → ℝ≥0} {iStar : ι}
     (hMax : ∀ i, xBar i ≤ xBar iStar) :
     R.bestShotGame.IsPureNash (Pi.single iStar (xBar iStar)) := by
   rw [R.isPureNash_bestShotGame_single_iff hMono hVal hCost hOpt]
-  intro i _
-  have hP : R.prob (xBar i) ≤ R.prob (xBar iStar) :=
-    hMono (xBar i).coe_nonneg (xBar iStar).coe_nonneg (hMax i)
-  have hc0 : 0 ≤ R.unitCost i * (xBar i : ℝ) := mul_nonneg (hCost i) (xBar i).coe_nonneg
-  nlinarith [hVal i]
+  exact fun i _ => by
+    nlinarith [hVal i, hMono (xBar i).coe_nonneg (xBar iStar).coe_nonneg (hMax i),
+      mul_nonneg (hCost i) (xBar i).coe_nonneg]
 
 /-- **Single-contributor support of nonzero best-shot pure Nash equilibria** ([Varian2004], §3.3,
 pp. 4–5): every pure Nash equilibrium `x` of `R.bestShotGame` with `bestShot x > 0` concentrates
@@ -1137,7 +1121,7 @@ theorem expected_socialCost_le_of_isCoarseCorrelatedEquilibrium [Nonempty ι]
             simp only [toCostGame, Function.update_self]
             nlinarith [hVal i]) (Convexity.StdSimplex.weights_nonneg s)
       _ = R.val i * (1 - R.prob X') + R.unitCost i * (X' : ℝ) := by
-          rw [Finsupp.sum, ← sum_mul, show ∑ s ∈ σ.support, σ.weights s = 1 from σ.total, one_mul]
+          rw [← Finsupp.sum_mul, σ.total, one_mul]
   have hExp : σ.weights.sum (fun s w => w * (R.toCostGame agg).socialCost s) ≤
       (∑ i, R.val i) * (1 - R.prob X') + (∑ i, R.unitCost i) * (X' : ℝ) := by
     calc σ.weights.sum (fun s w => w * (R.toCostGame agg).socialCost s)
@@ -1220,18 +1204,15 @@ theorem exists_totalEffortGame_socialCost_gt_mul {n : ℕ} (hn : 0 < n) {β : �
   have hn_pos : (0 : ℝ) < n := Nat.cast_pos.mpr hn
   set ε : ℝ := if β ≤ 0 then 1 else ((n : ℝ) - β) / (2 * β)
   have hε : 0 < ε := by
-    by_cases h0 : β ≤ 0
-    · simp only [ε, h0, ↓reduceIte, zero_lt_one]
-    · simp only [ε, h0, ↓reduceIte]
-      exact div_pos (sub_pos.mpr hβ) (by linarith)
+    dsimp only [ε]
+    split_ifs with h0
+    exacts [zero_lt_one, div_pos (sub_pos.mpr hβ) (by linarith)]
   let R : SystemReliabilitySpec (Fin n) :=
     { val := fun _ => 1, unitCost := fun _ => 1 + ε, prob := fun z => min z 1 }
-  have htot0 : totalEffort (0 : Fin n → ℝ≥0) = 0 := by simp [totalEffort]
   have hNash0 : R.totalEffortGame.IsPureNash 0 := fun i a => by
-    have h2 : totalEffort (Function.update (0 : Fin n → ℝ≥0) i a) = a := by
-      simp [SystemReliabilitySpec.totalEffort_update_aux]
-    simp only [SystemReliabilitySpec.totalEffortGame, SystemReliabilitySpec.toCostGame, R, htot0,
-      h2, Pi.zero_apply, NNReal.coe_zero, min_eq_left zero_le_one, sub_zero, mul_zero, add_zero,
+    simp only [SystemReliabilitySpec.totalEffortGame, SystemReliabilitySpec.toCostGame, R,
+      SystemReliabilitySpec.totalEffort_update_aux, totalEffort, Pi.zero_apply, sum_const_zero,
+      zero_add, NNReal.coe_zero, min_eq_left zero_le_one, sub_zero, mul_zero, add_zero,
       Function.update_self, one_mul]
     nlinarith [min_le_left (a : ℝ) 1, a.coe_nonneg]
   have hUnique : ∀ y : Fin n → ℝ≥0, R.totalEffortGame.IsPureNash y → y = 0 := fun y hy =>

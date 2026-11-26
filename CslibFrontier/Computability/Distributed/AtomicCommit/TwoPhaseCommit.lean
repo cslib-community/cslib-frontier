@@ -589,12 +589,11 @@ omit [DecidableEq P] [Fintype P] in
 private theorem TwoPCInvariant.not_commit_and_abort {s : TwoPCState P}
     (hinv : TwoPCInvariant coord votes s) {p q : P}
     (hp : s.decision p = some .commit) (hq : s.decision q = some .abort) : False := by
-  have hc : s.localState coord = .committed :=
-    hinv.committed_imp_coord p (TwoPCLocalState.decision_eq_some_commit_iff.mp hp)
-  have hqa : s.localState q = .aborted := TwoPCLocalState.decision_eq_some_abort_iff.mp hq
-  rcases hinv.aborted_imp_no_or_coord q hqa with hno | hca
+  have hc := hinv.committed_imp_coord p (TwoPCLocalState.decision_eq_some_commit_iff.mp hp)
+  rcases hinv.aborted_imp_no_or_coord q (TwoPCLocalState.decision_eq_some_abort_iff.mp hq) with
+    hno | hca
   · exact absurd (hinv.coord_committed_all_yes hc q) (by rw [hno]; decide)
-  · rw [hc] at hca; cases hca
+  · exact absurd (hc.symm.trans hca) (by decide)
 
 /-- Fail-stop register-state step toward [Gray1978], §5.8.3.3.2 (p. 469) and [Skeen1981], §2
 (p. 136), not the cited crash-recovery log-replay result (#7289): in every reachable configuration
@@ -615,9 +614,8 @@ theorem twoPC_abort_of_vote_no_failStop {s : TwoPCState P}
     AbortValidity votes s.decision := by
   have hinv := twoPCInvariant_of_reachable hreach
   intro ⟨p, hp⟩ q hq
-  have hc : s.localState coord = .committed :=
-    hinv.committed_imp_coord q (TwoPCLocalState.decision_eq_some_commit_iff.mp hq)
-  simpa [hp] using hinv.coord_committed_all_yes hc p
+  simpa [hp] using hinv.coord_committed_all_yes
+    (hinv.committed_imp_coord q (TwoPCLocalState.decision_eq_some_commit_iff.mp hq)) p
 
 /-! ### Failure-free execution (`AC3` and abort completion) -/
 
@@ -668,7 +666,6 @@ private theorem faultFree_collect_all_yes (hyes : ∀ p, votes p = .yes) :
     intro hcoord st yv rest hst_c hst_R
     have hqc : q ≠ coord := fun h => hcoord (h ▸ Finset.mem_insert_self q R)
     have hcoordR : coord ∉ R := fun h => hcoord (Finset.mem_insert_of_mem h)
-    have hst_q : st q = .init := hst_R q (Finset.mem_insert_self q R)
     let s₀ : TwoPCState P :=
       { localState := st, yesVotes := yv, sawNo := false, alive := Finset.univ,
         msgs := rest + (insert q R).val.map .voteRequest }
@@ -676,7 +673,8 @@ private theorem faultFree_collect_all_yes (hyes : ∀ p, votes p = .yes) :
       { localState := Function.update st q .uncertain, yesVotes := yv, sawNo := false,
         alive := Finset.univ, msgs := rest + R.val.map .voteRequest + {TwoPCMsg.voteReply q .yes} }
     have hstep₁ : twoPCStep? coord votes s₀ (.recvRequest q) = some s₁ := by
-      simp [twoPCStep?, s₀, s₁, hqc, hst_q, hyes q, Finset.insert_val_of_notMem hqR]
+      simp [twoPCStep?, s₀, s₁, hqc, hst_R q (Finset.mem_insert_self q R), hyes q,
+        Finset.insert_val_of_notMem hqR]
     let s₂ : TwoPCState P :=
       { localState := Function.update st q .uncertain, yesVotes := insert q yv, sawNo := false,
         alive := Finset.univ, msgs := rest + R.val.map .voteRequest }
@@ -712,7 +710,6 @@ private theorem faultFree_deliver_verdicts (d : Decision) :
     intro hcoord st yv sn rest hst_R
     have hqc : q ≠ coord := fun h => hcoord (h ▸ Finset.mem_insert_self q R)
     have hcoordR : coord ∉ R := fun h => hcoord (Finset.mem_insert_of_mem h)
-    have hst_q := hst_R q (Finset.mem_insert_self q R)
     let s₀ : TwoPCState P :=
       { localState := st, yesVotes := yv, sawNo := sn, alive := Finset.univ,
         msgs := rest + (insert q R).val.map (fun r => TwoPCMsg.verdict r d) }
@@ -720,7 +717,8 @@ private theorem faultFree_deliver_verdicts (d : Decision) :
       { localState := Function.update st q d.toTwoPCLocal, yesVotes := yv, sawNo := sn,
         alive := Finset.univ, msgs := rest + R.val.map (fun r => TwoPCMsg.verdict r d) }
     have hstep₁ : twoPCStep? coord votes s₀ (.recvVerdict q d) = some s₁ := by
-      simp [twoPCStep?, s₀, s₁, hqc, hst_q, Finset.insert_val_of_notMem hqR]
+      simp [twoPCStep?, s₀, s₁, hqc, hst_R q (Finset.mem_insert_self q R),
+        Finset.insert_val_of_notMem hqR]
     have hst₁_R : ∀ r ∈ R,
         Function.update st q d.toTwoPCLocal r = .uncertain ∨
           (d = .abort ∧ Function.update st q d.toTwoPCLocal r = .init) := fun r hr => by
@@ -889,9 +887,8 @@ private theorem canReach_drop_all_msgs (s : TwoPCState P) :
   | empty => exact LTS.CanReach.refl _ _
   | @cons m ms ih =>
     have hstep : twoPCStep? coord votes ⟨st, yv, sn, al, m ::ₘ ms⟩ (.dropMsg m) =
-        some ⟨st, yv, sn, al, ms⟩ := by
-      simp [twoPCStep?]
-    exact twoPC_canReach_trans ⟨[TwoPCAction.dropMsg m], LTS.MTr.single _ hstep⟩ ih
+        some ⟨st, yv, sn, al, ms⟩ := by simp [twoPCStep?]
+    exact twoPC_canReach_trans ⟨[.dropMsg m], LTS.MTr.single _ hstep⟩ ih
 
 private theorem canReach_crash_set :
     ∀ (dead : Finset P) (s : TwoPCState P), dead ⊆ s.alive →
@@ -900,14 +897,12 @@ private theorem canReach_crash_set :
   induction dead using Finset.induction_on generalizing s with
   | empty => simpa using LTS.CanReach.refl (twoPCLts coord votes) s
   | @insert p dead hp ih =>
-    have hstep : twoPCStep? coord votes s (.crash p) =
-        some { s with alive := s.alive.erase p } := by
-      simp [twoPCStep?, hsub (Finset.mem_insert_self p dead)]
-    convert twoPC_canReach_trans ⟨[TwoPCAction.crash p], LTS.MTr.single _ hstep⟩
+    have hstep : twoPCStep? coord votes s (.crash p) = some { s with alive := s.alive.erase p } :=
+      by simp [twoPCStep?, hsub (Finset.mem_insert_self p dead)]
+    convert twoPC_canReach_trans ⟨[.crash p], LTS.MTr.single _ hstep⟩
       (ih { s with alive := s.alive.erase p } fun r hr => Finset.mem_erase.mpr
         ⟨ne_of_mem_of_not_mem hr hp, hsub (Finset.mem_insert_of_mem hr)⟩) using 2
-    ext r
-    simp [and_assoc, and_comm, and_left_comm]
+    exact Finset.ext fun _ => by simp [and_assoc, and_comm, and_left_comm]
 
 /-- Fail-stop register-state step toward [Skeen1981], §1 (p. 134) and [SkeenStonebraker1983],
 §IV-C, Lemma 1 (p. 223), not the cited crash-recovery result (#7289): for `2 ≤ Fintype.card P` and
@@ -973,21 +968,17 @@ theorem twoPC_uncertain_bivalent_failStop (hcard : 2 ≤ Fintype.card P) (coord 
     twoPC_canReach_trans ⟨tr_c, hmtr_c⟩
       (twoPC_canReach_trans (canReach_drop_all_msgs sc₃)
         (canReach_crash_set (Finset.univ.erase q) sc₄ (by simp [sc₄, halive_sc₃])))
-  have halive_q : Finset.univ \ (Finset.univ.erase q) = ({q} : Finset P) :=
-    Finset.ext fun _ => by simp
-  have halive_sc : sCommit.alive = {q} := by simp [sCommit, sc₄, halive_sc₃, halive_q]
-  have hsa_q : sAbort.localState q = .uncertain := by
-    simp [sAbort, sa₄, sa₃, sa₂, Function.update, hqc]
-  have hsc_q : sCommit.localState q = .uncertain := by
-    simp [sCommit, sc₄, hloc_sc₃, hqc]
+  have halive_q : sAbort.alive = {q} := Finset.ext fun _ => by simp [sAbort]
+  have halive_sc : sCommit.alive = {q} := Finset.ext fun _ => by simp [sCommit, sc₄, halive_sc₃]
+  have hsa_q : sAbort.localState q = .uncertain := by simp [sAbort, sa₄, sa₃, sa₂, hqc]
+  have hsc_q : sCommit.localState q = .uncertain := by simp [sCommit, sc₄, hloc_sc₃, hqc]
   refine ⟨q, votesAbort, sAbort, sCommit, hqc, by simp [votesAbort], by simp [votesAbort, hqc],
     hreach_abort, hreach_commit, halive_q, hsa_q, rfl,
     by simp [TwoPCState.decision, sAbort, sa₄, sa₃],
     by simp [TwoPCState.decision, sCommit, sc₄, hloc_sc₃], ?_⟩
-  simp only [TwoPCState.survivorView, show sAbort.alive = {q} from halive_q, halive_sc,
-    show sAbort.msgs = 0 from rfl, show sCommit.msgs = 0 from rfl, Multiset.filter_zero,
-    TwoPCSurvivorView.mk.injEq, true_and, and_true]
-  constructor <;> funext r <;> by_cases hrq : r = q <;> simp [hrq, hsa_q, hsc_q, votesAbort, hqc]
+  dsimp only [TwoPCState.survivorView]
+  rw [halive_q, halive_sc]
+  congr 1 <;> funext r <;> by_cases hrq : r = q <;> simp [hrq, hsa_q, hsc_q, votesAbort, hqc]
 
 /-- Fail-stop register-state step toward [Gray1978], §5.8.3.3.2 (p. 469), [Skeen1981], §1
 (p. 134), and [SkeenStonebraker1983], §IV-C, Lemma 1 (p. 223), not the cited crash-recovery result
@@ -1015,11 +1006,9 @@ theorem twoPC_no_safe_survivor_termination_failStop (hcard : 2 ≤ Fintype.card 
     have hlocC : sCommit.localState q = .uncertain := by
       simpa [TwoPCState.survivorView, haliveA, haliveC, hlocA] using
         (congrFun (congrArg TwoPCSurvivorView.survivorState hview) q).symm
-    have hdC : term (sCommit.survivorView coord (fun _ => .yes)) = .abort :=
-      (congrArg term hview).symm.trans hd
     refine ⟨fun _ => .yes, sCommit, hrC, ⟨q, by simp [haliveC]⟩, fun hagr => ?_⟩
-    cases hagr q coord .abort .commit (by simp [TwoPCState.decision, hlocC, haliveC, hdC])
-      (by simp [hdecC])
+    cases hagr q coord .abort .commit
+      (by simp [TwoPCState.decision, hlocC, haliveC, ← hview, hd]) (by simp [hdecC])
 
 end Safety
 
