@@ -380,8 +380,8 @@ theorem isGreatest_mwisValue (R : G.RootedTreeDecomposition n) (w : V → ℕ) :
   refine ⟨?_, ?_⟩
   · obtain ⟨S, hS, hSeq⟩ := Finset.exists_mem_eq_sup
       ((R.bag 0).powerset.filter fun S : Finset V => G.IsIndepSet (↑S : Set V))
-      ⟨∅, Finset.mem_filter.2 ⟨Finset.empty_mem_powerset _, by
-        simp only [Finset.coe_empty, Set.pairwise_empty]⟩⟩
+      ⟨∅, Finset.mem_filter.2
+        ⟨Finset.empty_mem_powerset _, Finset.coe_empty.symm ▸ Set.pairwise_empty _⟩⟩
       fun S => (∑ v ∈ S, w v) + opt R w 0 S
     rw [Finset.mem_filter, Finset.mem_powerset] at hS
     obtain ⟨J, hJ, hJS, hJeq⟩ := exists_opt (R := R) (w := w) 0 hS.2
@@ -392,15 +392,12 @@ theorem isGreatest_mwisValue (R : G.RootedTreeDecomposition n) (w : V → ℕ) :
   · rintro x ⟨I, hI, rfl⟩
     have hJ : I \ R.bag 0 ⊆ below R 0 := fun x hx =>
       Finset.mem_sdiff.2 ⟨R.mem_subtreeVerts_zero x, (Finset.mem_sdiff.1 hx).2⟩
-    have hJS : G.IsIndepSet (↑(I \ R.bag 0 ∪ I ∩ R.bag 0) : Set V) := by
-      rwa [Finset.sdiff_union_inter]
     calc ∑ v ∈ I, w v = (∑ v ∈ I ∩ R.bag 0, w v) + ∑ v ∈ I \ R.bag 0, w v :=
           (Finset.sum_inter_add_sum_sdiff I (R.bag 0) w).symm
       _ ≤ (∑ v ∈ I ∩ R.bag 0, w v) + opt R w 0 (I ∩ R.bag 0) :=
-          Nat.add_le_add_left (sum_le_opt hJ hJS) _
-      _ ≤ mwisValue R w := by
-          rw [hval]
-          exact Finset.le_sup (f := fun S => (∑ v ∈ S, w v) + opt R w 0 S)
+          Nat.add_le_add_left (sum_le_opt hJ ((Finset.sdiff_union_inter I (R.bag 0)).symm ▸ hI)) _
+      _ ≤ mwisValue R w :=
+          hval ▸ Finset.le_sup (f := fun S => (∑ v ∈ S, w v) + opt R w 0 S)
             (Finset.mem_filter.2 ⟨Finset.mem_powerset.2 Finset.inter_subset_right,
               isIndepSet_of_subset hI Finset.inter_subset_left⟩)
 
@@ -411,10 +408,8 @@ theorem mwisValue_one_eq_indepNum (R : G.RootedTreeDecomposition n) :
   obtain ⟨⟨I, hI, hIeq⟩, hub⟩ := isGreatest_mwisValue R (fun _ => 1)
   obtain ⟨s, hs⟩ := exists_isNIndepSet_indepNum (G := G)
   refine le_antisymm ?_ ?_
-  · rw [← hIeq, Finset.sum_const, smul_eq_mul, mul_one]
-    exact hI.card_le_indepNum
-  · have := hub ⟨s, hs.isIndepSet, rfl⟩
-    rwa [Finset.sum_const, smul_eq_mul, mul_one, hs.card_eq] at this
+  · simpa [← hIeq] using hI.card_le_indepNum
+  · simpa [hs.card_eq] using hub ⟨s, hs.isIndepSet, rfl⟩
 
 end Correctness
 
