@@ -4265,6 +4265,7 @@ public import CslibFrontier.Logics.Propositional.Pigeonhole
 public import CslibFrontier.Foundations.BooleanAnalysis.FourierDegree
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Binary
 public import CslibFrontier.Foundations.Geometry.Orthogonal.Neighborhood
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackCertify
 public import CslibFrontier.Probability.CorrelatedSampling.SharedSeed
 public import CslibFrontier.Foundations.Combinatorics.ApproximateMajority
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.Params
@@ -9316,6 +9317,7 @@ public import CslibFrontier.DataStructure.Online.Basic
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
 public import CslibFrontier.Computability.Complexity.Classes.ArthurMerlin.RandomizedReduction
 public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Efficient
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.KnapsackDP
 public import CslibFrontier.Foundations.Combinatorics.MaximaVectors
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.ZeroOne
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.DPi

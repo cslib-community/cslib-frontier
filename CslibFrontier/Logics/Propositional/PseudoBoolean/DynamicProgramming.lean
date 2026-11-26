@@ -215,6 +215,11 @@ def rup (e : ProofLog) (c : PBConstr) (hs : List Hint) : ProofLog × ℕ :=
 def deld (e : ProofLog) (ids : List ℕ) : ProofLog :=
   ⟨.deld ids :: e.steps, e.next, e.var⟩
 
+/-- Append the steps `ss`, advancing the next number by `dn` and the next variable by `dv`. -/
+@[expose]
+def push (e : ProofLog) (ss : List TopStep) (dn dv : ℕ) : ProofLog :=
+  ⟨ss.reverse ++ e.steps, e.next + dn, e.var + dv⟩
+
 /-- The proof of the steps `pre` followed by the steps written, with the conclusion `c`. -/
 @[expose]
 def proof (e : ProofLog) (pre : List TopStep) (c : Conclusion) : RedProof :=
