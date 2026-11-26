@@ -1,0 +1,619 @@
+/-
+Copyright (c) 2026 Matthew Doty. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Matthew Doty
+-/
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Algorithms.LinearAlgebra.DescriptorCertificate
+public import CslibFrontier.Algorithms.LinearAlgebra.SparseLDLCertificate
+public import Mathlib.Data.Matrix.ColumnRowPartitioned
+import Mathlib.Data.List.GetD
+import Mathlib.LinearAlgebra.Matrix.Block
+import Mathlib.LinearAlgebra.Matrix.Integer
+
+/-!
+# Structured index-one decouplings of sparse descriptor systems
+
+`Cslib.LinearAlgebra.DecouplingCert` asks an untrusted tool for the dense matrices `P`, `Q` of
+the Weierstrass form and their inverses, and checks eleven dense products. For a circuit, `E`
+and `F` are very sparse, but `P` and `Q` are not: they contain the inverse of the algebraic block.
+This file checks a decoupling in *Schur form* instead, and never forms that inverse.
+
+The certificate `Cslib.LinearAlgebra.SparseDecouplingCert` consists of sparse transforms `T`, `U`
+of the rows and of the unknowns, with sparse inverses `Tᵢ`, `Uᵢ`, such that
+
+  `T E U = [[E₁₁, 0], [0, 0]]`,  `T F U = [[F₁₁, F₁₂], [F₂₁, F₂₂]]`
+
+for a `k × k` block `E₁₁`, with sparse `LU` factors of `E₁₁` and `F₂₂` (so both are invertible),
+the `r × k` matrix `K = F₂₂⁻¹ F₂₁` and the state matrix `A = E₁₁⁻¹ (F₁₁ - F₁₂ K)`. For a circuit,
+`T` is a permutation and `U` is a permutation followed by a few eliminations for the floating
+capacitors. The checker `SparseDecouplingCert.check` takes `E` and `F` as sparse rows (read with
+`Cslib.LinearAlgebra.ofSparse`; `sparseOfRows` converts dense rows, and a netlist builds them
+from its stamps) and recomputes, with sparse rational products,
+
+  `Tᵢ T = 1`,  `U Uᵢ = 1`,  the blocks of `T E U` and `T F U`,  `E₁₁ = L U` and `F₂₂ = L' U'`
+  (triangular, with nonzero diagonals),  `F₂₂ K = F₂₁`,  `E₁₁ A = F₁₁ - F₁₂ K`.
+
+Acceptance yields an index-one decoupling of any real system with these `E` and `F`
+(`SparseDecouplingCert.toDecoupling`) with state matrix `A`
+(`SparseDecouplingCert.A_toDecoupling`), through the general construction
+`DescriptorSystem.IndexOneDecoupling.ofSchur`:
+
+  `P = [[E₁₁⁻¹, -E₁₁⁻¹ F₁₂ F₂₂⁻¹], [0, F₂₂⁻¹]] T`,  `Q = U [[1, 0], [-K, 1]]`,
+
+with inverses `Tᵢ [[E₁₁, F₁₂], [0, F₂₂]]` and `[[1, 0], [K, 1]] Uᵢ`. These matrices are real and
+are never computed: only their sparse factors are checked. Every theorem about
+`DescriptorSystem.IndexOneDecoupling` applies to the result.
+
+## Main definitions
+
+* `DescriptorSystem.IndexOneDecoupling.ofPartitioned`,
+  `DescriptorSystem.IndexOneDecoupling.ofSchur`.
+* `Cslib.LinearAlgebra.SparseDecouplingCert`, `SparseDecouplingCert.check`.
+* `Cslib.LinearAlgebra.realOfSparse`, `Cslib.LinearAlgebra.sparseOfRows`.
+
+## Main results
+
+* `Cslib.LinearAlgebra.SparseDecouplingCert.toDecoupling`, `A_toDecoupling`, `Q₁'_toDecoupling`.
+* `Cslib.LinearAlgebra.SparseDecouplingCert.isExponentiallyStableAt_of_check`.
+-/
+
+public section
+
+open Matrix Mathlib.Tactic.Matrix
+
+/-! ### Decouplings from block transforms -/
+
+namespace DescriptorSystem
+
+namespace IndexOneDecoupling
+
+variable {ι m κ ρ : Type*} [Fintype ι] [Fintype m] [Fintype κ] [Fintype ρ] [DecidableEq ι]
+  [DecidableEq κ] [DecidableEq ρ] {S : DescriptorSystem ι m}
+
+omit [Fintype κ] [Fintype ρ] [DecidableEq ι] [DecidableEq κ] [DecidableEq ρ] in
+/-- `P X Q` in blocks, for `P` partitioned by rows and `Q` by columns. -/
+theorem mul_mul_eq_fromBlocks (P : Matrix (κ ⊕ ρ) ι ℝ) (X : Matrix ι ι ℝ)
+    (Q : Matrix ι (κ ⊕ ρ) ℝ) :
+    P * X * Q = fromBlocks (P.toRows₁ * X * Q.toCols₁) (P.toRows₁ * X * Q.toCols₂)
+      (P.toRows₂ * X * Q.toCols₁) (P.toRows₂ * X * Q.toCols₂) := by
+  conv_lhs => rw [← fromRows_toRows P, ← fromCols_toCols Q]
+  rw [fromRows_mul, fromRows_mul_fromCols]
+
+/-- An index-one decoupling from square `P` and `Q` in partitioned form: `P' P = 1`, `Q Q' = 1`,
+`P E Q = [[1, 0], [0, 0]]` and `P F Q = [[A, 0], [0, 1]]`. -/
+@[expose] def ofPartitioned (e : ι ≃ κ ⊕ ρ) (P : Matrix (κ ⊕ ρ) ι ℝ) (P' : Matrix ι (κ ⊕ ρ) ℝ)
+    (Q : Matrix ι (κ ⊕ ρ) ℝ) (Q' : Matrix (κ ⊕ ρ) ι ℝ) (A : Matrix κ κ ℝ) (hP : P' * P = 1)
+    (hQ : Q * Q' = 1) (hE : P * S.E * Q = fromBlocks 1 0 0 0)
+    (hF : P * S.F * Q = fromBlocks A 0 0 1) : S.IndexOneDecoupling κ ρ where
+  P₁ := Matrix.toRows₁ P
+  P₂ := Matrix.toRows₂ P
+  P₁' := Matrix.toCols₁ P'
+  P₂' := Matrix.toCols₂ P'
+  Q₁ := Matrix.toCols₁ Q
+  Q₂ := Matrix.toCols₂ Q
+  Q₁' := Matrix.toRows₁ Q'
+  Q₂' := Matrix.toRows₂ Q'
+  E₁₁ := (fromBlocks_inj.1 ((mul_mul_eq_fromBlocks P S.E Q).symm.trans hE)).1
+  E₁₂ := (fromBlocks_inj.1 ((mul_mul_eq_fromBlocks P S.E Q).symm.trans hE)).2.1
+  E₂₁ := (fromBlocks_inj.1 ((mul_mul_eq_fromBlocks P S.E Q).symm.trans hE)).2.2.1
+  E₂₂ := (fromBlocks_inj.1 ((mul_mul_eq_fromBlocks P S.E Q).symm.trans hE)).2.2.2
+  F₁₂ := (fromBlocks_inj.1 ((mul_mul_eq_fromBlocks P S.F Q).symm.trans hF)).2.1
+  F₂₁ := (fromBlocks_inj.1 ((mul_mul_eq_fromBlocks P S.F Q).symm.trans hF)).2.2.1
+  F₂₂ := (fromBlocks_inj.1 ((mul_mul_eq_fromBlocks P S.F Q).symm.trans hF)).2.2.2
+  P_inv := by rw [← fromCols_mul_fromRows, fromCols_toCols, fromRows_toRows, hP]
+  Q_inv := by rw [← fromCols_mul_fromRows, fromCols_toCols, fromRows_toRows, hQ]
+  Q₁'_Q₁ := by
+    have h := (mul_eq_one_comm_of_equiv e).1 hQ
+    rw [← fromRows_toRows Q', ← fromCols_toCols Q, fromRows_mul_fromCols, ← fromBlocks_one]
+      at h
+    exact (fromBlocks_inj.1 h).1
+  Q₁'_Q₂ := by
+    have h := (mul_eq_one_comm_of_equiv e).1 hQ
+    rw [← fromRows_toRows Q', ← fromCols_toCols Q, fromRows_mul_fromCols, ← fromBlocks_one]
+      at h
+    exact (fromBlocks_inj.1 h).2.1
+
+omit [Fintype m] in
+/-- The state matrix of `ofPartitioned` is the block `A` of `P F Q`. -/
+theorem A_ofPartitioned (e : ι ≃ κ ⊕ ρ) (P : Matrix (κ ⊕ ρ) ι ℝ) (P' : Matrix ι (κ ⊕ ρ) ℝ)
+    (Q : Matrix ι (κ ⊕ ρ) ℝ) (Q' : Matrix (κ ⊕ ρ) ι ℝ) (A : Matrix κ κ ℝ) (hP : P' * P = 1)
+    (hQ : Q * Q' = 1) (hE : P * S.E * Q = fromBlocks 1 0 0 0)
+    (hF : P * S.F * Q = fromBlocks A 0 0 1) :
+    (ofPartitioned e P P' Q Q' A hP hQ hE hF).A = A :=
+  show P.toRows₁ * S.F * Q.toCols₁ = A from
+    (fromBlocks_inj.1 ((mul_mul_eq_fromBlocks P S.F Q).symm.trans hF)).1
+
+/-- **Decoupling in Schur form.** Let `T`, `U` be invertible transforms of the rows and of the
+unknowns with `T E U = [[E₁₁, 0], [0, 0]]` and `T F U = [[F₁₁, F₁₂], [F₂₁, F₂₂]]`, where `E₁₁`
+and `F₂₂` are invertible, and let `F₂₂ K = F₂₁`. Then
+`P = [[E₁₁⁻¹, -E₁₁⁻¹ F₁₂ F₂₂⁻¹], [0, F₂₂⁻¹]] T` and `Q = U [[1, 0], [-K, 1]]` decouple `S`, with
+state matrix `E₁₁⁻¹ (F₁₁ - F₁₂ K)` (`A_ofSchur`). -/
+@[expose] noncomputable def ofSchur (e : ι ≃ κ ⊕ ρ) (T : Matrix (κ ⊕ ρ) ι ℝ)
+    (Tᵢ : Matrix ι (κ ⊕ ρ) ℝ) (U : Matrix ι (κ ⊕ ρ) ℝ) (Uᵢ : Matrix (κ ⊕ ρ) ι ℝ)
+    (E₁₁ F₁₁ : Matrix κ κ ℝ) (F₁₂ : Matrix κ ρ ℝ) (F₂₁ K : Matrix ρ κ ℝ) (F₂₂ : Matrix ρ ρ ℝ)
+    (hT : Tᵢ * T = 1) (hU : U * Uᵢ = 1) (hE : T * S.E * U = fromBlocks E₁₁ 0 0 0)
+    (hF : T * S.F * U = fromBlocks F₁₁ F₁₂ F₂₁ F₂₂) (hE₁₁ : IsUnit E₁₁.det)
+    (hF₂₂ : IsUnit F₂₂.det) (hK : F₂₂ * K = F₂₁) : S.IndexOneDecoupling κ ρ :=
+  ofPartitioned e (fromBlocks E₁₁⁻¹ (-(E₁₁⁻¹ * F₁₂ * F₂₂⁻¹)) 0 F₂₂⁻¹ * T)
+    (Tᵢ * fromBlocks E₁₁ F₁₂ 0 F₂₂) (U * fromBlocks 1 0 (-K) 1) (fromBlocks 1 0 K 1 * Uᵢ)
+    (E₁₁⁻¹ * (F₁₁ - F₁₂ * K))
+    (by
+      rw [Matrix.mul_assoc, ← Matrix.mul_assoc (fromBlocks E₁₁ F₁₂ 0 F₂₂), fromBlocks_multiply,
+        mul_nonsing_inv _ hE₁₁, mul_nonsing_inv _ hF₂₂]
+      simp only [Matrix.mul_zero, add_zero, Matrix.zero_mul, Matrix.mul_neg,
+        ← Matrix.mul_assoc, mul_nonsing_inv _ hE₁₁, Matrix.one_mul, neg_add_cancel, neg_zero,
+        zero_add, fromBlocks_one, hT])
+    (by
+      rw [Matrix.mul_assoc, ← Matrix.mul_assoc (fromBlocks 1 0 (-K) 1), fromBlocks_multiply]
+      simp only [Matrix.mul_one, Matrix.mul_zero, add_zero, Matrix.one_mul, Matrix.zero_mul,
+        zero_add, neg_add_cancel, fromBlocks_one, hU])
+    (by
+      rw [show fromBlocks E₁₁⁻¹ (-(E₁₁⁻¹ * F₁₂ * F₂₂⁻¹)) 0 F₂₂⁻¹ * T * S.E *
+          (U * fromBlocks 1 0 (-K) 1) = fromBlocks E₁₁⁻¹ (-(E₁₁⁻¹ * F₁₂ * F₂₂⁻¹)) 0 F₂₂⁻¹ *
+          (T * S.E * U) * fromBlocks 1 0 (-K) 1 by simp only [Matrix.mul_assoc],
+        hE, fromBlocks_multiply, fromBlocks_multiply]
+      simp [nonsing_inv_mul _ hE₁₁])
+    (by
+      rw [show fromBlocks E₁₁⁻¹ (-(E₁₁⁻¹ * F₁₂ * F₂₂⁻¹)) 0 F₂₂⁻¹ * T * S.F *
+          (U * fromBlocks 1 0 (-K) 1) = fromBlocks E₁₁⁻¹ (-(E₁₁⁻¹ * F₁₂ * F₂₂⁻¹)) 0 F₂₂⁻¹ *
+          (T * S.F * U) * fromBlocks 1 0 (-K) 1 by simp only [Matrix.mul_assoc],
+        hF, fromBlocks_multiply, fromBlocks_multiply]
+      congr 1
+      · have h1 : F₂₂⁻¹ * (F₂₂ * K) = K := by
+          rw [← Matrix.mul_assoc, nonsing_inv_mul _ hF₂₂, Matrix.one_mul]
+        rw [← hK]
+        simp only [Matrix.mul_one, Matrix.neg_mul, Matrix.mul_assoc, h1, Matrix.mul_neg,
+          Matrix.mul_sub, Matrix.add_mul]
+        abel
+      · simp only [Matrix.mul_one, Matrix.mul_zero, add_zero, Matrix.neg_mul, Matrix.mul_assoc,
+          nonsing_inv_mul _ hF₂₂, Matrix.mul_one, add_neg_cancel]
+      · simp [Matrix.mul_assoc, hK]
+      · simp [nonsing_inv_mul _ hF₂₂])
+
+omit [Fintype m] in
+/-- The state matrix of the Schur-form decoupling. -/
+theorem A_ofSchur (e : ι ≃ κ ⊕ ρ) (T : Matrix (κ ⊕ ρ) ι ℝ)
+    (Tᵢ : Matrix ι (κ ⊕ ρ) ℝ) (U : Matrix ι (κ ⊕ ρ) ℝ) (Uᵢ : Matrix (κ ⊕ ρ) ι ℝ)
+    (E₁₁ F₁₁ : Matrix κ κ ℝ) (F₁₂ : Matrix κ ρ ℝ) (F₂₁ K : Matrix ρ κ ℝ) (F₂₂ : Matrix ρ ρ ℝ)
+    (hT : Tᵢ * T = 1) (hU : U * Uᵢ = 1) (hE : T * S.E * U = fromBlocks E₁₁ 0 0 0)
+    (hF : T * S.F * U = fromBlocks F₁₁ F₁₂ F₂₁ F₂₂) (hE₁₁ : IsUnit E₁₁.det)
+    (hF₂₂ : IsUnit F₂₂.det) (hK : F₂₂ * K = F₂₁) :
+    (ofSchur e T Tᵢ U Uᵢ E₁₁ F₁₁ F₁₂ F₂₁ K F₂₂ hT hU hE hF hE₁₁ hF₂₂ hK).A =
+      E₁₁⁻¹ * (F₁₁ - F₁₂ * K) :=
+  A_ofPartitioned ..
+
+omit [Fintype m] in
+/-- The differential coordinates of the Schur-form decoupling are the first rows of `Uᵢ`. -/
+theorem Q₁'_ofSchur (e : ι ≃ κ ⊕ ρ) (T : Matrix (κ ⊕ ρ) ι ℝ)
+    (Tᵢ : Matrix ι (κ ⊕ ρ) ℝ) (U : Matrix ι (κ ⊕ ρ) ℝ) (Uᵢ : Matrix (κ ⊕ ρ) ι ℝ)
+    (E₁₁ F₁₁ : Matrix κ κ ℝ) (F₁₂ : Matrix κ ρ ℝ) (F₂₁ K : Matrix ρ κ ℝ) (F₂₂ : Matrix ρ ρ ℝ)
+    (hT : Tᵢ * T = 1) (hU : U * Uᵢ = 1) (hE : T * S.E * U = fromBlocks E₁₁ 0 0 0)
+    (hF : T * S.F * U = fromBlocks F₁₁ F₁₂ F₂₁ F₂₂) (hE₁₁ : IsUnit E₁₁.det)
+    (hF₂₂ : IsUnit F₂₂.det) (hK : F₂₂ * K = F₂₁) :
+    (ofSchur e T Tᵢ U Uᵢ E₁₁ F₁₁ F₁₂ F₂₁ K F₂₂ hT hU hE hF hE₁₁ hF₂₂ hK).Q₁' = Uᵢ.toRows₁ := by
+  ext i j
+  simp [ofSchur, ofPartitioned, Matrix.mul_apply, Fintype.sum_sum_type, Matrix.one_apply]
+
+end IndexOneDecoupling
+
+end DescriptorSystem
+
+namespace Cslib.LinearAlgebra
+
+/-! ### Sparse rows: zero tests, differences and blocks -/
+
+section SparseRows
+
+theorem getD_map_nil {β γ : Type*} (f : List β → List γ) (hf : f [] = [])
+    (l : List (List β)) (i : ℕ) : (l.map f).getD i [] = f (l.getD i []) := by
+  rw [← hf, List.getD_map]
+
+/-- The sparse form of dense rows, without the zero entries. -/
+@[expose] def sparseOfRows (rows : List (List ℚ)) : List (List (ℕ × ℚ)) :=
+  rows.map fun r => (toSparseFrom 0 r).filter fun e => e.2 != 0
+
+theorem sparseGet_filter_ne_zero (r : List (ℕ × ℚ)) (j : ℕ) :
+    sparseGet (r.filter fun e => e.2 != 0) j = sparseGet r j := by
+  induction r with
+  | nil => rfl
+  | cons e r ih =>
+    by_cases h : e.2 = 0
+    · rw [List.filter_cons_of_neg (by simp [h]), ih, sparseGet_cons]
+      split_ifs <;> simp [h]
+    · rw [List.filter_cons_of_pos (by simp [h]), sparseGet_cons, sparseGet_cons, ih]
+
+theorem ofSparse_sparseOfRows (m n : ℕ) (rows : List (List ℚ)) :
+    ofSparse m n (sparseOfRows rows) = ofLists m n rows := by
+  rw [← ofSparse_toSparse]
+  ext i j
+  rw [ofSparse_apply, ofSparse_apply, sparseOfRows, getD_map_nil _ rfl, getD_map_nil _ rfl,
+    sparseGet_filter_ne_zero]
+
+theorem length_sparseOfRows (rows : List (List ℚ)) : (sparseOfRows rows).length = rows.length :=
+  List.length_map _
+
+/-- Whether every row, with repeated columns merged, stores only zeros. -/
+@[expose] def isZeroSparse (rows : List (List (ℕ × ℚ))) : Bool :=
+  rows.all fun r => (sparseNormalize r).all fun e => e.2 == 0
+
+theorem ofSparse_eq_zero_of_isZeroSparse {m n : ℕ} {rows : List (List (ℕ × ℚ))}
+    (h : isZeroSparse rows = true) : ofSparse m n rows = 0 := by
+  ext i j
+  rw [ofSparse_apply, Matrix.zero_apply, ← sparseGet_sparseNormalize]
+  refine sparseGet_eq_zero fun e he _ => ?_
+  simp only [isZeroSparse, List.all_eq_true, beq_iff_eq] at h
+  rw [List.getD_eq_getElem?_getD] at he
+  rcases hi : rows[(i : ℕ)]? with _ | r
+  · simp [hi, sparseNormalize] at he
+  · rw [hi, Option.getD_some] at he
+    exact h r (List.mem_of_getElem? hi) e he
+
+/-- The rows of `X - Y`, without merging repeated columns. -/
+@[expose] def subSparse : List (List (ℕ × ℚ)) → List (List (ℕ × ℚ)) → List (List (ℕ × ℚ))
+  | r :: rs, s :: ss => (r ++ sparseMap (fun x => -x) s) :: subSparse rs ss
+  | rs, [] => rs
+  | [], ss => ss.map (sparseMap fun x => -x)
+
+private theorem sparseGet_neg (s : List (ℕ × ℚ)) (j : ℕ) :
+    sparseGet (sparseMap (fun x => -x) s) j = -sparseGet s j :=
+  sparseGet_sparseMap neg_zero (fun a b => neg_add a b) s j
+
+private theorem sparseGet_subSparse :
+    ∀ (X Y : List (List (ℕ × ℚ))) (i j : ℕ),
+      sparseGet ((subSparse X Y).getD i []) j =
+        sparseGet (X.getD i []) j - sparseGet (Y.getD i []) j
+  | r :: rs, s :: ss, 0, j => by
+    simp [subSparse, sparseGet_append, sparseGet_neg, sub_eq_add_neg]
+  | r :: rs, s :: ss, i + 1, j => by
+    simpa [subSparse] using sparseGet_subSparse rs ss i j
+  | rs, [], i, j => by cases rs <;> simp [subSparse]
+  | [], s :: ss, i, j => by
+    simp only [subSparse]
+    rw [getD_map_nil _ rfl, sparseGet_neg]
+    simp
+
+theorem ofSparse_subSparse (m n : ℕ) (X Y : List (List (ℕ × ℚ))) :
+    ofSparse m n (subSparse X Y) = ofSparse m n X - ofSparse m n Y := by
+  ext i j
+  simp only [ofSparse_apply, Matrix.sub_apply, sparseGet_subSparse]
+
+/-- Whether `X` and `Y` read as the same matrix. -/
+@[expose] def eqSparse (X Y : List (List (ℕ × ℚ))) : Bool := isZeroSparse (subSparse X Y)
+
+theorem ofSparse_eq_of_eqSparse {m n : ℕ} {X Y : List (List (ℕ × ℚ))}
+    (h : eqSparse X Y = true) : ofSparse m n X = ofSparse m n Y :=
+  sub_eq_zero.1 ((ofSparse_subSparse m n X Y).symm.trans (ofSparse_eq_zero_of_isZeroSparse h))
+
+/-- The sparse rows of the `n × n` identity. -/
+@[expose] def oneSparse (n : ℕ) : List (List (ℕ × ℚ)) := List.ofFn fun i : Fin n => [(i.val, 1)]
+
+theorem ofSparse_oneSparse (n : ℕ) : ofSparse n n (oneSparse n) = 1 := by
+  ext i j
+  simp [ofSparse_apply, oneSparse, List.getD_eq_getElem?_getD, sparseGet_cons, Matrix.one_apply,
+    Fin.val_inj]
+
+/-- The entries of a sparse row in the columns below `k`. -/
+@[expose] def loCols (k : ℕ) (r : List (ℕ × ℚ)) : List (ℕ × ℚ) := r.filter fun e => Nat.blt e.1 k
+
+/-- The entries of a sparse row in the columns from `k` on, shifted by `k`. -/
+@[expose] def hiCols (k : ℕ) (r : List (ℕ × ℚ)) : List (ℕ × ℚ) :=
+  (r.filter fun e => Nat.ble k e.1).map fun e => (e.1 - k, e.2)
+
+private theorem sparseGet_loCols (k : ℕ) (r : List (ℕ × ℚ)) {j : ℕ} (hj : j < k) :
+    sparseGet (loCols k r) j = sparseGet r j := by
+  induction r with
+  | nil => rfl
+  | cons e r ih =>
+    simp only [loCols] at ih ⊢
+    by_cases he : e.1 < k
+    · rw [List.filter_cons_of_pos (by simpa using he), sparseGet_cons, sparseGet_cons, ih]
+    · rw [List.filter_cons_of_neg (by simpa using he), ih, sparseGet_cons,
+        ite_eq_right (by omega)]
+
+private theorem sparseGet_hiCols (k : ℕ) (r : List (ℕ × ℚ)) (j : ℕ) :
+    sparseGet (hiCols k r) j = sparseGet r (k + j) := by
+  induction r with
+  | nil => rfl
+  | cons e r ih =>
+    simp only [hiCols] at ih ⊢
+    by_cases he : k ≤ e.1
+    · rw [List.filter_cons_of_pos (by simpa using he), List.map_cons, sparseGet_cons,
+        sparseGet_cons, ih]
+      simp only
+      congr 1
+      exact propext ⟨fun h => by omega, fun h => by omega⟩
+    · rw [List.filter_cons_of_neg (by simpa using he), ih, sparseGet_cons, ite_eq_right (by omega)]
+
+/-- The four blocks of sparse rows split after row and column `k`. -/
+@[expose] def blk₁₁ (k : ℕ) (X : List (List (ℕ × ℚ))) := (X.take k).map (loCols k)
+/-- See `blk₁₁`. -/
+@[expose] def blk₁₂ (k : ℕ) (X : List (List (ℕ × ℚ))) := (X.take k).map (hiCols k)
+/-- See `blk₁₁`. -/
+@[expose] def blk₂₁ (k : ℕ) (X : List (List (ℕ × ℚ))) := (X.drop k).map (loCols k)
+/-- See `blk₁₁`. -/
+@[expose] def blk₂₂ (k : ℕ) (X : List (List (ℕ × ℚ))) := (X.drop k).map (hiCols k)
+
+/-- The split `Fin N ≃ Fin k ⊕ Fin r` for `k + r = N`. -/
+@[expose] def blockEquiv {k r N : ℕ} (h : k + r = N) : Fin N ≃ Fin k ⊕ Fin r :=
+  (finCongr h.symm).trans finSumFinEquiv.symm
+
+theorem ofSparse_submatrix_blockEquiv {k r N : ℕ} (h : k + r = N) (X : List (List (ℕ × ℚ))) :
+    (ofSparse N N X).submatrix (blockEquiv h).symm (blockEquiv h).symm =
+      fromBlocks (ofSparse k k (blk₁₁ k X)) (ofSparse k r (blk₁₂ k X))
+        (ofSparse r k (blk₂₁ k X)) (ofSparse r r (blk₂₂ k X)) := by
+  have hl : ∀ (p : ℕ) (f : List (ℕ × ℚ) → List (ℕ × ℚ)), f [] = [] → ∀ Y : List (List (ℕ × ℚ)),
+      sparseGet ((Y.map f).getD p []) = sparseGet (f (Y.getD p [])) := fun p f hf Y => by
+    rw [getD_map_nil f hf]
+  have he₁ : ∀ i : Fin k, (((blockEquiv h).symm (Sum.inl i)) : ℕ) = i := fun _ => by
+    simp [blockEquiv]
+  have he₂ : ∀ i : Fin r, (((blockEquiv h).symm (Sum.inr i)) : ℕ) = k + i := fun _ => by
+    simp [blockEquiv]
+  have ht : ∀ i : Fin k, (X.take k).getD i [] = X.getD i [] := fun i => by
+    simp [List.getD_eq_getElem?_getD, i.is_lt]
+  have hd : ∀ i : ℕ, (X.drop k).getD i [] = X.getD (k + i) [] := fun i => by
+    simp [List.getD_eq_getElem?_getD, List.getElem?_drop]
+  ext (i | i) (j | j) <;>
+    simp only [submatrix_apply, fromBlocks_apply₁₁, fromBlocks_apply₁₂, fromBlocks_apply₂₁,
+      fromBlocks_apply₂₂, ofSparse_apply, he₁, he₂, blk₁₁, blk₁₂, blk₂₁, blk₂₂,
+      hl _ _ (rfl : loCols k [] = []), hl _ _ (rfl : hiCols k [] = []), sparseGet_hiCols,
+      sparseGet_loCols _ _ j.is_lt, ht, hd]
+
+/-! #### Triangular factors -/
+
+/-- Whether row `i + p` of `rows`, for every `p`, has its columns at most `i + p` (`lower`) or
+at least `i + p` (otherwise) and a nonzero diagonal entry. -/
+@[expose] def triGo (lower : Bool) : ℕ → List (List (ℕ × ℚ)) → Bool
+  | _, [] => true
+  | i, r :: rs => r.all (fun e => bif lower then Nat.ble e.1 i else Nat.ble i e.1) &&
+      sparseGet r i != 0 && triGo lower (i + 1) rs
+
+/-- Whether `rows` is an `n × n` triangular matrix (lower if `lower`) with nonzero diagonal. -/
+@[expose] def isTriangular (lower : Bool) (n : ℕ) (rows : List (List (ℕ × ℚ))) : Bool :=
+  rows.length == n && triGo lower 0 rows
+
+private theorem triGo_spec {lower : Bool} :
+    ∀ {i : ℕ} {rows : List (List (ℕ × ℚ))}, triGo lower i rows = true → ∀ p < rows.length,
+      (∀ e ∈ rows.getD p [], if lower then e.1 ≤ i + p else i + p ≤ e.1) ∧
+        sparseGet (rows.getD p []) (i + p) ≠ 0
+  | _, [], _, p, hp => absurd hp (Nat.not_lt_zero _)
+  | i, r :: rs, h, p, hp => by
+    simp only [triGo, Bool.and_eq_true, List.all_eq_true, bne_iff_ne, ne_eq] at h
+    obtain ⟨⟨h₁, h₂⟩, h₃⟩ := h
+    rcases p with _ | p
+    · refine ⟨fun e he => ?_, by simpa using h₂⟩
+      have := h₁ e (by simpa using he)
+      cases lower <;> simpa using this
+    · have := triGo_spec h₃ p (by simpa using hp)
+      simpa [show i + (p + 1) = i + 1 + p by omega] using this
+
+theorem det_ne_zero_of_isTriangular {lower : Bool} {n : ℕ} {rows : List (List (ℕ × ℚ))}
+    (h : isTriangular lower n rows = true) : (ofSparse n n rows).det ≠ 0 := by
+  simp only [isTriangular, Bool.and_eq_true, beq_iff_eq] at h
+  obtain ⟨hl, h⟩ := h
+  have hs := triGo_spec h
+  have hdiag : ∀ i : Fin n, ofSparse n n rows i i ≠ 0 := fun i => by
+    simpa [ofSparse_apply] using (hs i (by omega)).2
+  have hzero : ∀ (i j : Fin n), (if lower then (i : ℕ) < j else (j : ℕ) < i) →
+      ofSparse n n rows i j = 0 := fun i j hij => by
+    rw [ofSparse_apply]
+    refine sparseGet_eq_zero fun e he hej => ?_
+    have := (hs i (by omega)).1 e (by simpa using he)
+    cases lower <;> simp_all <;> omega
+  cases lower
+  · rw [det_of_isUpperTriangular fun i j hij => hzero i j (by simpa using hij)]
+    exact Finset.prod_ne_zero_iff.2 fun i _ => hdiag i
+  · rw [det_of_isLowerTriangular _ fun i j hij => hzero i j (by simpa using hij)]
+    exact Finset.prod_ne_zero_iff.2 fun i _ => hdiag i
+
+/-- Whether `M = L U` for an `n × n` lower triangular `L` and upper triangular `U` with nonzero
+diagonals, so that `M` is invertible. -/
+@[expose] def isLUOf (n : ℕ) (L U M : List (List (ℕ × ℚ))) : Bool :=
+  isTriangular true n L && isTriangular false n U && eqSparse (sparseMul L U) M
+
+theorem det_ne_zero_of_isLUOf {n : ℕ} {L U M : List (List (ℕ × ℚ))}
+    (h : isLUOf n L U M = true) : (ofSparse n n M).det ≠ 0 := by
+  simp only [isLUOf, Bool.and_eq_true] at h
+  obtain ⟨⟨hL, hU⟩, hM⟩ := h
+  have hUl : U.length = n := by
+    simp only [isTriangular, Bool.and_eq_true, beq_iff_eq] at hU; exact hU.1
+  rw [← ofSparse_eq_of_eqSparse hM, ofSparse_sparseMul _ _ hUl.le, det_mul]
+  exact mul_ne_zero (det_ne_zero_of_isTriangular hL) (det_ne_zero_of_isTriangular hU)
+
+end SparseRows
+
+/-! ### Structured decoupling certificates -/
+
+/-- A proposed index-one decoupling in Schur form of a descriptor system with `N = k + r`
+unknowns; see the module documentation. All matrices are sparse rational rows, except the
+dense state matrix `A`. -/
+structure SparseDecouplingCert where
+  /-- The number of differential coordinates. -/
+  k : ℕ
+  /-- The number of algebraic coordinates. -/
+  r : ℕ
+  /-- `N × N`: the row transform; its first `k` rows produce the differential equations. -/
+  T : List (List (ℕ × ℚ))
+  /-- `N × N`: the inverse of `T`, checked as `Tᵢ T = 1`. -/
+  Tᵢ : List (List (ℕ × ℚ))
+  /-- `N × N`: the transform of the unknowns; its first `k` columns are differential. -/
+  U : List (List (ℕ × ℚ))
+  /-- `N × N`: the inverse of `U`, checked as `U Uᵢ = 1`. -/
+  Uᵢ : List (List (ℕ × ℚ))
+  /-- `k × k`: the lower triangular factor of `E₁₁`. -/
+  LE : List (List (ℕ × ℚ))
+  /-- `k × k`: the upper triangular factor of `E₁₁`. -/
+  UE : List (List (ℕ × ℚ))
+  /-- `r × r`: the lower triangular factor of `F₂₂`. -/
+  LF : List (List (ℕ × ℚ))
+  /-- `r × r`: the upper triangular factor of `F₂₂`. -/
+  UF : List (List (ℕ × ℚ))
+  /-- `r × k`: the solution `K` of `F₂₂ K = F₂₁`. -/
+  K : List (List (ℕ × ℚ))
+  /-- `k × k`: the reduced state matrix `E₁₁⁻¹ (F₁₁ - F₁₂ K)`, checked. -/
+  A : List (List ℚ)
+
+namespace SparseDecouplingCert
+
+variable (c : SparseDecouplingCert) (N : ℕ)
+
+/-- Whether `c` is an index-one decoupling in Schur form of the pencil `(E, F)` with `N`
+unknowns, given by sparse rows. All products are sparse and exact over `ℚ`. -/
+@[expose] def check (E F : List (List (ℕ × ℚ))) : Bool :=
+  let Eb := sparseMul (sparseMul c.T E) c.U
+  let Fb := sparseMul (sparseMul c.T F) c.U
+  c.k + c.r == N && Nat.ble E.length N && Nat.ble F.length N && c.T.length == N &&
+  c.U.length == N && c.Uᵢ.length == N && c.K.length == c.r && c.A.length == c.k &&
+  eqSparse (sparseMul c.Tᵢ c.T) (oneSparse N) &&
+  eqSparse (sparseMul c.U c.Uᵢ) (oneSparse N) &&
+  isZeroSparse (blk₁₂ c.k Eb) && isZeroSparse (blk₂₁ c.k Eb) && isZeroSparse (blk₂₂ c.k Eb) &&
+  isLUOf c.k c.LE c.UE (blk₁₁ c.k Eb) && isLUOf c.r c.LF c.UF (blk₂₂ c.k Fb) &&
+  eqSparse (sparseMul (blk₂₂ c.k Fb) c.K) (blk₂₁ c.k Fb) &&
+  eqSparse (sparseMul (blk₁₁ c.k Eb) (sparseOfRows c.A))
+    (subSparse (blk₁₁ c.k Fb) (sparseMul (blk₁₂ c.k Fb) c.K))
+
+end SparseDecouplingCert
+
+/-- The real matrix of sparse rational rows. -/
+abbrev realOfSparse (m n : ℕ) (rows : List (List (ℕ × ℚ))) : Matrix (Fin m) (Fin n) ℝ :=
+  (ofSparse m n rows).map ((↑) : ℚ → ℝ)
+
+theorem realOfSparse_sparseOfRows (m n : ℕ) (rows : List (List ℚ)) :
+    realOfSparse m n (sparseOfRows rows) = realOfRows m n rows := by
+  rw [realOfSparse, ofSparse_sparseOfRows]
+
+namespace SparseDecouplingCert
+
+variable {c : SparseDecouplingCert} {N : ℕ}
+
+private theorem realOfSparse_mul {l m n : ℕ} (X Y : List (List (ℕ × ℚ))) (hY : Y.length ≤ m) :
+    realOfSparse l n (sparseMul X Y) = realOfSparse l m X * realOfSparse m n Y := by
+  rw [realOfSparse, ofSparse_sparseMul _ _ hY, map_mul_ratCast]
+
+private theorem realOfSparse_sub {m n : ℕ} (X Y : List (List (ℕ × ℚ))) :
+    realOfSparse m n (subSparse X Y) = realOfSparse m n X - realOfSparse m n Y := by
+  ext i j
+  simp [ofSparse_subSparse]
+
+private theorem isUnit_det_realOfSparse {n : ℕ} {L U M : List (List (ℕ × ℚ))}
+    (h : isLUOf n L U M = true) : IsUnit (realOfSparse n n M).det := by
+  have : (realOfSparse n n M).det = (((ofSparse n n M).det : ℚ) : ℝ) :=
+    (RingHom.map_det (Rat.castHom ℝ) (ofSparse n n M)).symm
+  rw [this, isUnit_iff_ne_zero]
+  exact Rat.cast_ne_zero.2 (det_ne_zero_of_isLUOf h)
+
+private theorem submatrix_transform (h : c.k + c.r = N) (X : Matrix (Fin N) (Fin N) ℝ) :
+    (realOfSparse N N c.T).submatrix (blockEquiv h).symm id * X *
+        (realOfSparse N N c.U).submatrix id (blockEquiv h).symm =
+      (realOfSparse N N c.T * X * realOfSparse N N c.U).submatrix (blockEquiv h).symm
+        (blockEquiv h).symm := rfl
+
+/-- The blocks of a transformed matrix, as real matrices. -/
+private theorem transform_blocks (h : c.k + c.r = N) (hU : c.U.length = N)
+    {X : List (List (ℕ × ℚ))} (hX : X.length ≤ N) :
+    (realOfSparse N N c.T).submatrix (blockEquiv h).symm id * realOfSparse N N X *
+        (realOfSparse N N c.U).submatrix id (blockEquiv h).symm =
+      fromBlocks (realOfSparse c.k c.k (blk₁₁ c.k (sparseMul (sparseMul c.T X) c.U)))
+        (realOfSparse c.k c.r (blk₁₂ c.k (sparseMul (sparseMul c.T X) c.U)))
+        (realOfSparse c.r c.k (blk₂₁ c.k (sparseMul (sparseMul c.T X) c.U)))
+        (realOfSparse c.r c.r (blk₂₂ c.k (sparseMul (sparseMul c.T X) c.U))) := by
+  rw [submatrix_transform, ← realOfSparse_mul _ _ hX, ← realOfSparse_mul _ _ hU.le,
+    ← fromBlocks_map, ← ofSparse_submatrix_blockEquiv h]
+  rfl
+
+variable {m : ℕ} {E F : List (List (ℕ × ℚ))}
+
+/-- The facts that an accepted certificate provides, as real matrices: the hypotheses of
+`DescriptorSystem.IndexOneDecoupling.ofSchur`, and the equation `E₁₁ A = F₁₁ - F₁₂ K`. -/
+theorem spec (h : c.check N E F = true) :
+    ∃ hN : c.k + c.r = N,
+      (realOfSparse N N c.Tᵢ).submatrix id (blockEquiv hN).symm *
+          (realOfSparse N N c.T).submatrix (blockEquiv hN).symm id = 1 ∧
+      (realOfSparse N N c.U).submatrix id (blockEquiv hN).symm *
+          (realOfSparse N N c.Uᵢ).submatrix (blockEquiv hN).symm id = 1 ∧
+      (realOfSparse N N c.T).submatrix (blockEquiv hN).symm id * realOfSparse N N E *
+          (realOfSparse N N c.U).submatrix id (blockEquiv hN).symm =
+        fromBlocks (realOfSparse c.k c.k (blk₁₁ c.k (sparseMul (sparseMul c.T E) c.U))) 0 0 0 ∧
+      (realOfSparse N N c.T).submatrix (blockEquiv hN).symm id * realOfSparse N N F *
+          (realOfSparse N N c.U).submatrix id (blockEquiv hN).symm =
+        fromBlocks (realOfSparse c.k c.k (blk₁₁ c.k (sparseMul (sparseMul c.T F) c.U)))
+          (realOfSparse c.k c.r (blk₁₂ c.k (sparseMul (sparseMul c.T F) c.U)))
+          (realOfSparse c.r c.k (blk₂₁ c.k (sparseMul (sparseMul c.T F) c.U)))
+          (realOfSparse c.r c.r (blk₂₂ c.k (sparseMul (sparseMul c.T F) c.U))) ∧
+      IsUnit (realOfSparse c.k c.k (blk₁₁ c.k (sparseMul (sparseMul c.T E) c.U))).det ∧
+      IsUnit (realOfSparse c.r c.r (blk₂₂ c.k (sparseMul (sparseMul c.T F) c.U))).det ∧
+      realOfSparse c.r c.r (blk₂₂ c.k (sparseMul (sparseMul c.T F) c.U)) *
+          realOfSparse c.r c.k c.K =
+        realOfSparse c.r c.k (blk₂₁ c.k (sparseMul (sparseMul c.T F) c.U)) ∧
+      realOfSparse c.k c.k (blk₁₁ c.k (sparseMul (sparseMul c.T E) c.U)) *
+          realOfRows c.k c.k c.A =
+        realOfSparse c.k c.k (blk₁₁ c.k (sparseMul (sparseMul c.T F) c.U)) -
+          realOfSparse c.k c.r (blk₁₂ c.k (sparseMul (sparseMul c.T F) c.U)) *
+          realOfSparse c.r c.k c.K := by
+  simp only [check, Bool.and_eq_true, beq_iff_eq, Nat.ble_eq, and_assoc] at h
+  obtain ⟨hN, hEl, hFl, hTl, hUl, hUil, hKl, hAl, hT, hU, hE₁₂, hE₂₁, hE₂₂, hLE, hLF, hK, hA⟩ :=
+    h
+  refine ⟨hN, ?_, ?_, ?_, transform_blocks hN hUl hFl, isUnit_det_realOfSparse hLE,
+    isUnit_det_realOfSparse hLF, ?_, ?_⟩
+  · rw [submatrix_mul_equiv _ _ id (blockEquiv hN).symm id, submatrix_id_id,
+      ← realOfSparse_mul _ _ hTl.le, realOfSparse, ofSparse_eq_of_eqSparse hT, ofSparse_oneSparse,
+      Matrix.map_one _ Rat.cast_zero Rat.cast_one]
+  · rw [submatrix_mul_equiv _ _ id (blockEquiv hN).symm id, submatrix_id_id,
+      ← realOfSparse_mul _ _ hUil.le, realOfSparse, ofSparse_eq_of_eqSparse hU, ofSparse_oneSparse,
+      Matrix.map_one _ Rat.cast_zero Rat.cast_one]
+  · rw [transform_blocks hN hUl hEl]
+    simp only [realOfSparse, ofSparse_eq_zero_of_isZeroSparse hE₁₂,
+      ofSparse_eq_zero_of_isZeroSparse hE₂₁, ofSparse_eq_zero_of_isZeroSparse hE₂₂,
+      Matrix.map_zero _ Rat.cast_zero]
+  · rw [← realOfSparse_mul _ _ hKl.le]
+    exact congrArg (Matrix.map · _) (ofSparse_eq_of_eqSparse hK)
+  · rw [← realOfSparse_sparseOfRows, ← realOfSparse_mul _ _ (by rw [length_sparseOfRows, hAl]),
+      ← realOfSparse_mul _ _ hKl.le, ← realOfSparse_sub]
+    exact congrArg (Matrix.map · _) (ofSparse_eq_of_eqSparse hA)
+
+theorem k_add_r_of_check (h : c.check N E F = true) : c.k + c.r = N := (spec h).1
+
+variable {S : DescriptorSystem (Fin N) (Fin m)}
+
+/-- **Soundness.** An accepted certificate for the sparse rows of `S.E` and `S.F` gives an
+index-one decoupling of `S`, by `DescriptorSystem.IndexOneDecoupling.ofSchur`. -/
+@[expose] noncomputable def toDecoupling (hE : S.E = realOfSparse N N E)
+    (hF : S.F = realOfSparse N N F) (h : c.check N E F = true) :
+    S.IndexOneDecoupling (Fin c.k) (Fin c.r) :=
+  DescriptorSystem.IndexOneDecoupling.ofSchur (blockEquiv (k_add_r_of_check h))
+    _ _ _ _ _ _ _ _ _ _ (spec h).2.1 (spec h).2.2.1 (hE ▸ (spec h).2.2.2.1)
+    (hF ▸ (spec h).2.2.2.2.1) (spec h).2.2.2.2.2.1 (spec h).2.2.2.2.2.2.1
+    (spec h).2.2.2.2.2.2.2.1
+
+/-- The state matrix of the decoupling is the matrix of the checked `SparseDecouplingCert.A`. -/
+theorem A_toDecoupling (hE : S.E = realOfSparse N N E) (hF : S.F = realOfSparse N N F)
+    (h : c.check N E F = true) : (toDecoupling hE hF h).A = realOfRows c.k c.k c.A := by
+  unfold toDecoupling
+  refine (DescriptorSystem.IndexOneDecoupling.A_ofSchur ..).trans ?_
+  rw [← (spec h).2.2.2.2.2.2.2.2, ← Matrix.mul_assoc, nonsing_inv_mul _ (spec h).2.2.2.2.2.1,
+    Matrix.one_mul]
+
+/-- The differential coordinates of the decoupling are the first `c.k` rows of `Uᵢ`. -/
+theorem Q₁'_toDecoupling (hE : S.E = realOfSparse N N E) (hF : S.F = realOfSparse N N F)
+    (h : c.check N E F = true) : (toDecoupling hE hF h).Q₁' = realOfSparse c.k N c.Uᵢ := by
+  unfold toDecoupling
+  refine (DescriptorSystem.IndexOneDecoupling.Q₁'_ofSchur ..).trans ?_
+  ext i j
+  simp [blockEquiv, toRows₁, realOfSparse, ofSparse_apply]
+
+/-- **Descriptor stability from the reduced matrix.** If `c` is an accepted structured
+decoupling of the sparse rows of `S.E` and `S.F`, `z₀` is an equilibrium and `ẋ = A x` is
+exponentially stable for the checked reduced matrix `c.A`, then every solution with zero input
+of `S` converges to `z₀` exponentially, in the Euclidean norm. -/
+theorem isExponentiallyStableAt_of_check {z₀ : Fin N → ℝ} (hE : S.E = realOfSparse N N E)
+    (hF : S.F = realOfSparse N N F) (hc : c.check N E F = true) (hz : S.IsEquilibrium z₀)
+    (hA : (toEuclideanCLM (𝕜 := ℝ) (realOfRows c.k c.k c.A)).IsExponentiallyStable) :
+    S.IsExponentiallyStableAt z₀ :=
+  (toDecoupling hE hF hc).isExponentiallyStableAt hz (A_toDecoupling hE hF hc ▸ hA)
+
+end SparseDecouplingCert
+
+end Cslib.LinearAlgebra

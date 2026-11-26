@@ -3444,6 +3444,7 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastOpPr
 public import CslibFrontier.Probability.IID.FunctionCollision
 public import CslibFrontier.Computability.Circuit.Arithmetic.Gradient
 public import CslibFrontier.Probability.Conditioning
+public import CslibFrontier.Engineering.Electrical.SparseDecoupling
 public import CslibFrontier.Crypto.Computational.CramerShoup.ProjectiveHash
 public import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamson
 public import CslibFrontier.GameTheory.InterdomainRouting.GaoRexford
@@ -7741,6 +7742,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 public import CslibFrontier.Computability.Circuit.Quantum.EncodingSize
 public import CslibFrontier.Algorithms.PlantedClique.Correctness
 public import CslibFrontier.Crypto.Computational.Kilian.Micali
+public import CslibFrontier.Algorithms.LinearAlgebra.SparseDescriptorCertificate
 public import CslibFrontier.Computability.Circuit.Boolean.WordConstant.PolyTime
 public import CslibFrontier.Computability.Communication.Lifting.DiscrepancyLifting
 public import CslibFrontier.Computability.Circuit.Arithmetic.Separation.Interpreter.Postpone
