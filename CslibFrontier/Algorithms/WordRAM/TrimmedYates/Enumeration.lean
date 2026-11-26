@@ -61,9 +61,7 @@ theorem prefixesUpTo_spec {d : ℕ} (k : ℕ) :
       ∀ S, S ∈ prefixesUpTo k coords ↔ S ⊆ coords.toFinset ∧ #S ≤ k := by
   intro coords
   induction coords using List.reverseRecOn with
-  | nil =>
-    intro _
-    simp [prefixesUpTo]
+  | nil => simp [prefixesUpTo]
   | append_singleton coords c ih =>
     intro hnd
     obtain ⟨hnd_prev, -, hdisj⟩ := List.nodup_append.mp hnd
@@ -114,10 +112,7 @@ theorem length_prefixesUpTo {d : ℕ} :
       (prefixesUpTo k coords).length = ∑ j ∈ range (k + 1), coords.length.choose j := by
   intro k coords
   induction coords using List.reverseRecOn generalizing k with
-  | nil =>
-    intro _
-    rw [Finset.sum_range_succ']
-    simp [prefixesUpTo]
+  | nil => simp [prefixesUpTo, Finset.sum_range_succ']
   | append_singleton coords c ih =>
     intro hnd
     have hnd_prev : coords.Nodup := (List.nodup_append.mp hnd).1
@@ -522,7 +517,6 @@ theorem exec_flipHighDom {w d domPtr : ℕ} (C : Finset (Fin d))
       ∃ z, ExecWithin w flipStep s z 10 ∧ P (s.regs rGenPos + 1) z ∧
         z.regs rGenPos = s.regs rGenPos + 1 := by
     generalize hp_eq : s.regs rGenPos = p at hs hp ⊢
-    dsimp only [P] at hs
     obtain ⟨hso, hsk, hscl, hsdp, hsdl, hdone, htodo, hsframe⟩ := hs
     obtain ⟨hmk_p, hsz_p⟩ := htodo p hp le_rfl
     have hsub_p : ys[p] ⊆ C := hys_sub ys[p] (List.getElem_mem hp)

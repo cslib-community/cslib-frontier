@@ -139,8 +139,7 @@ theorem evalBucketProd_cost {args : BucketProdArgs} {bucket : List (FactorTable 
   induction fs with
   | nil => intro _ _ _ _; simp [iterate]
   | cons f rest ih =>
-    intro cur prod hfs hmax_fs
-    obtain ⟨hf, hrest⟩ := hfs
+    intro cur prod ⟨hf, hrest⟩ hmax_fs
     have hstep_cost : memoryCost (bucketProdStep (env, ⟨cur, prod⟩)) s ≤
         5 + maxScope * (args.outLen + 1) := by
       unfold bucketProdStep
@@ -180,8 +179,7 @@ theorem evalBucketProd_valid {w : ℕ} {args : BucketProdArgs}
   induction fs with
   | nil => intro _ _ _; exact validHistory_pure w s _
   | cons f rest ih =>
-    intro cur prod ⟨hf, hrest⟩
-    obtain ⟨hd, hsl, hel, hsc, hent⟩ := hf
+    intro cur prod ⟨⟨hd, hsl, hel, hsc, hent⟩, hrest⟩
     have hstep : (Memory.spec w).ValidHistory s
         ((Memory.spec w).clientHistory s (bucketProdStep (env, ⟨cur, prod⟩))) := by
       unfold bucketProdStep
@@ -225,14 +223,9 @@ theorem evalBucketProd_result {args : BucketProdArgs} {outScope : List ℕ}
   induction fs with
   | nil => intro cur prod _; change prod = prod * 1; simp
   | cons f rest ih =>
-    intro cur prod ⟨hf, hrest⟩
-    obtain ⟨hd, hsl, hel, hsc, hent⟩ := hf
+    intro cur prod ⟨⟨hd, hsl, hel, hsc, hent⟩, hrest⟩
     rw [List.length_cons, iterate, StateTransitionSpec.clientResult_bind, bucketProdStep_state,
       bucketProdStep_result]
-    have hfIdx : (Memory.spec 0).clientResult s (evalScopeIdx
-        ⟨args.dom, args.x, args.a, args.outPtr, args.outLen, args.idx,
-          s.mem cur, s.mem (cur + 1)⟩) = Nat.ofDigits args.dom (f.scope.map σ) :=
-      evalScopeIdx_result hout hout_len hsc.2 hsl.symm
     have hentry : (if Nat.ofDigits args.dom (f.scope.map σ) < s.mem (cur + 3) then
         s.mem (s.mem (cur + 2) + Nat.ofDigits args.dom (f.scope.map σ)) else 0) =
         f.evalAt args.dom σ := by
@@ -242,7 +235,8 @@ theorem evalBucketProd_result {args : BucketProdArgs} {outScope : List ℕ}
         rfl
       · rfl
     dsimp only [env]
-    rw [hfIdx, hentry, ih (cur + 4) _ hrest, List.map_cons, List.prod_cons, Nat.mul_assoc]
+    rw [evalScopeIdx_result hout hout_len hsc.2 hsl.symm, hentry, ih (cur + 4) _ hrest,
+      List.map_cons, List.prod_cons, Nat.mul_assoc]
 
 theorem evalBucketProd_realizes :
     Realizes .exact evalBucketProd WordEncoding.encode WordEncoding.encode
@@ -272,9 +266,6 @@ theorem evalBucketProd_realizes :
     · simp at hrem_len
     simp only [List.length_cons, Nat.add_right_cancel_iff] at hrem_len
     obtain ⟨hf, hrem'_holds⟩ := hrem_holds
-    have hf_max : f.scope.length ≤ maxScope := hrem_max f (List.mem_cons_self ..)
-    have hrem'_max : ∀ g ∈ rem', g.scope.length ≤ maxScope :=
-      fun g hg => hrem_max g (List.mem_cons_of_mem f hg)
     have hent_le : ∀ fIdx,
         (if fIdx < s.mem (st.curDesc + 3) then s.mem (s.mem (st.curDesc + 2) + fIdx) else 0) ≤
           capFactor f := holdsFactor_read_entry_le hf
@@ -285,7 +276,7 @@ theorem evalBucketProd_realizes :
         (by simp [one_le_capFactor]))).trans hprod_cap
     obtain ⟨hd, hsl, hel, hsc, hent⟩ := hf
     have hpow_f : Fits w (d.dom ^ s.mem (st.curDesc + 1)) :=
-      hsl ▸ hdomPow.of_le (Nat.pow_le_pow_right hdom hf_max)
+      hsl ▸ hdomPow.of_le (Nat.pow_le_pow_right hdom (hrem_max f (List.mem_cons_self ..)))
     refine ⟨⟨hmem.frontier_fits.of_le (by omega), hmem.frontier_fits.of_le (by omega),
       hmem.frontier_fits.of_le (by omega), ⟨hdom, ha, h1, hmem.frontier_fits.of_le hout,
         hmem.frontier_fits.of_le (by rw [hsl]; exact hsc.1), hpow_f⟩, ?_⟩, ?_⟩
@@ -301,7 +292,7 @@ theorem evalBucketProd_realizes :
           hB.of_le ((Nat.mul_le_mul_left st.prod he).trans hprod_f)⟩
       · exact ⟨trivial, hmem.frontier_fits.of_le hd, Nat.mul_zero st.prod ▸ fits_zero w⟩
     · rw [bucketProdStep_state, bucketProdStep_result]
-      exact ⟨rfl, rem', hrem_len, hrem'_holds, hrem'_max,
+      exact ⟨rfl, rem', hrem_len, hrem'_holds, fun g hg => hrem_max g (List.mem_cons_of_mem f hg),
         (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left st.prod (hent_le _))).trans hprod_cap⟩
 
 theorem evalBucketProd_le_cap {args : BucketProdArgs} {bucket : List (FactorTable ℕ ℕ)}

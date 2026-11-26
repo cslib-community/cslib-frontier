@@ -104,16 +104,12 @@ private theorem selfDual_of_binaryMinors {n : ℕ} {f : (Fin n → Bool) → Boo
     ∀ a, f (fun i => !(a i)) = !(f a) := by
   intro a
   obtain ⟨j, hj⟩ := h (fun i => if a i then 1 else 0)
-  have h₀ := hj ![false, true]
-  have h₁ := hj ![true, false]
   have he₀ : (![false, true] : Fin 2 → Bool) ∘ (fun i => if a i then 1 else 0) = a :=
     funext fun i => by cases ha : a i <;> simp [ha]
   have he₁ : (![true, false] : Fin 2 → Bool) ∘ (fun i => if a i then 1 else 0) =
       fun i => !(a i) :=
     funext fun i => by cases ha : a i <;> simp [ha]
-  rw [he₀] at h₀
-  rw [he₁] at h₁
-  rw [h₀, h₁]
+  rw [← he₁, hj, ← he₀, hj]
   fin_cases j <;> rfl
 
 private def ternaryTable (b0 b1 b2 : Bool) (a : Fin 3 → Bool) : Bool :=
@@ -209,10 +205,7 @@ theorem exists_projection_of_ternaryMinors {n : ℕ} {f : (Fin n → Bool) → B
         have hu := hpu ▸ hk ![true, true, false]
         fin_cases k
         exacts [(by cases h₀), (by cases h₁), hu]
-    have hc : χ Finset.univ = fun _ => true := by ext j; simp [χ]
-    have hb := hall Finset.univ
-    rw [hc, hid] at hb
-    cases hb
+    simpa [χ, hid] using hall Finset.univ
   obtain ⟨i, hi⟩ := hsingle
   refine ⟨i, fun a => ?_⟩
   let p : Fin n → Fin 3 := fun j => if j = i then 0 else if a j then 1 else 2
@@ -249,13 +242,9 @@ private theorem constant_of_binaryMinors {n : ℕ} {f : (Fin n → Bool) → Boo
   let p : Fin n → Fin 2 := fun i => if a i then 1 else 0
   obtain ⟨j, u, hu⟩ := h p
   have huv (c : Bool) : u c = b := (hu (fun _ => c)).symm.trans (hdiag c)
-  have hp : (![false, true] : Fin 2 → Bool) ∘ p = a := by
-    funext i
-    cases ha : a i <;> simp [p, ha]
-  have he := hu ![false, true]
-  change f (![false, true] ∘ p) = u (![false, true] j) at he
-  rw [hp, huv] at he
-  exact he
+  have hp : (![false, true] : Fin 2 → Bool) ∘ p = a :=
+    funext fun i => by cases ha : a i <;> simp [p, ha]
+  simpa only [hp, huv] using hu ![false, true]
 
 /-- Chen's Boolean clone classification, Theorem 5.1 (arXiv v1, printed pp. 17–18), in
 contrapositive form. All positive arities are quantified, and constants count as essentially
@@ -280,9 +269,7 @@ theorem essentiallyUnary_of_missing_generators
       simpa only [hd] using hcomp
     have hnegid (b : Bool) : (!(f (fun _ => b))) = b := by rw [hd]; cases b <;> rfl
     obtain ⟨i, hi⟩ := C.idempotent_projection hand hor hmajority hminority hn hneg hnegid
-    refine ⟨i, Bool.not, fun a => ?_⟩
-    have he := congrArg Bool.not (hi a)
-    simpa only [Bool.not_not] using he
+    exact ⟨i, Bool.not, fun a => by simpa only [Bool.not_not] using congrArg Bool.not (hi a)⟩
   · exact ⟨⟨0, hn⟩, fun _ => true,
       constant_of_binaryMinors (fun c => by cases c <;> assumption) hb⟩
 

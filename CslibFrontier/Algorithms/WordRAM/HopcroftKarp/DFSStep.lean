@@ -137,11 +137,8 @@ theorem VisCovers.snoc {m r : ℕ} {vis : Vector Bool r} {ps : List (Fin m × Fi
     rintro ⟨e, he, rfl⟩
     exact Bool.false_ne_true (hv.symm.trans (h.2 e he))
   refine ⟨?_, fun e he => ?_⟩
-  · rw [List.map_append, List.map_singleton]
-    exact List.nodup_append.mpr ⟨h.1, List.nodup_singleton v, fun a ha b hb hab => by
-      obtain rfl := List.mem_singleton.mp hb
-      subst hab
-      exact hv_not ha⟩
+  · rw [List.map_append, List.map_singleton, ← List.concat_eq_append]
+    exact h.1.concat hv_not
   · rcases List.mem_append.mp he with he | he
     · have hne : e.2 ≠ v := fun heq => hv_not (heq ▸ List.mem_map_of_mem he)
       rw [vget_vset_ne _ _ hne.symm]
@@ -257,8 +254,7 @@ theorem hkDfsLevel_pure_props {inst : SparseInstance}
             have hf_ne : f ≠ 0 := fun h => by simp [h] at hb
             refine ⟨hmono_step, by omega, ?_, ?_⟩
             · simpa [List.append_assoc] using hres_w.1
-            · have := hres_w.2
-              simp only [List.length_cons]; omega
+            · simp only [List.length_cons, hres_w.2]
           | none =>
             rw [hrw] at hres_w
             dsimp only
@@ -316,9 +312,8 @@ theorem hkDfsRoots_nodup_snd {inst : SparseInstance}
         rw [hr] at hres
         dsimp only [Option.map, Option.getD]
         have hperm : (q ++ acc₀).Perm (acc₀ ++ q) := List.perm_append_comm
-        have hcov' : VisCovers (hkDfs inst.graph inst.adj mate dist k 0 u vis []).1 (q ++ acc₀) :=
+        exact ih _ (q ++ acc₀)
           ⟨(hperm.map Prod.snd).nodup_iff.mpr hres.1.1, fun e he => hres.1.2 e (hperm.subset he)⟩
-        exact ih _ (q ++ acc₀) hcov'
     · exact ih vis acc₀ hc
 
 /-! ## DFS memory predicates and `copyAugCode` -/
@@ -438,14 +433,12 @@ private theorem exec_copyAugCode {w bOff k : ℕ} {inst : SparseInstance}
     have hby : BaseRegs inst bOff y := hb.of_eq fun i hi => hr i (by omega)
     have hlt_st : y.regs idx < stackPairs.length := by omega
     have hsu : y.mem (bOff + inst.m + 1 + inst.numEdges + 2 * inst.r + 3 * inst.m + y.regs idx) =
-        (stackPairs[y.regs idx]'hlt_st).1.val := by
-      rw [hf_y _ (by omega)]
-      exact (hstackM (y.regs idx) hlt).1
+        (stackPairs[y.regs idx]'hlt_st).1.val :=
+      (hf_y _ (by omega)).trans (hstackM (y.regs idx) hlt).1
     have hsv :
         y.mem (bOff + inst.m + 1 + inst.numEdges + 2 * inst.r + 4 * inst.m + 2 + y.regs idx) =
-          (stackPairs[y.regs idx]'hlt_st).2.val := by
-      rw [hf_y _ (by omega)]
-      exact (hstackM (y.regs idx) hlt).2
+          (stackPairs[y.regs idx]'hlt_st).2.val :=
+      (hf_y _ (by omega)).trans (hstackM (y.regs idx) hlt).2
     refine WP.exists_execWithin ?_
     unfold copyAugBody
     wram_exec [hby.hbStackU, hby.hbAugU, hby.hbStackV, hby.hbAugV, hby.hone, hal_y, hsu, hsv]
@@ -457,13 +450,10 @@ private theorem exec_copyAugCode {w bOff k : ℕ} {inst : SparseInstance}
       fun i hi => by wram_simp [hr i hi],
       by wram_simp [hact_y],
       by wram_simp [hlim_y],
-      by
-        wram_simp
-        omega,
+      by wram_simp [hal_y, Nat.add_assoc],
       ?_,
-      fun a ha => by
-        wram_simp
-        exact hf_y a ha⟩, by wram_simp⟩
+      fun a ha => by wram_simp [hf_y a ha]⟩,
+      by wram_simp⟩
     intro i hi
     have hlen_old : (augPairs ++ stackPairs.take (y.regs idx)).length =
         augPairs.length + y.regs idx := by
@@ -734,9 +724,8 @@ theorem exec_dfsStep_skip {w bOff k d : ℕ} {inst : SparseInstance}
           exact ⟨fun i hi => by wram_simp, by wram_simp [hfr.hrd], by wram_simp [hfr.hal],
             by wram_simp [hfr.hact], rfl⟩
   obtain ⟨x₁, he_skip, hr₁, hrd₁, hal₁, hact₁, hmem₁⟩ := hraw
-  have haug_le : augPairs.length ≤ inst.r := by
-    have := hfr.hcovers.length_le
-    simp only [List.length_append] at this; omega
+  have haug_le : augPairs.length ≤ inst.r :=
+    (List.sublist_append_left augPairs path).length_le.trans hfr.hcovers.length_le
   have hout (a : ℕ)
       (hne : a ≠ bOff + inst.m + 1 + inst.numEdges + 2 * inst.r + 5 * inst.m + 4 + d) :
       x₁.mem a = x.mem a := by rw [hmem₁, Function.update_of_ne hne]
@@ -926,9 +915,8 @@ theorem exec_dfsStep_push {w bOff k d : ℕ} {inst : SparseInstance}
         (fun i hi => by wram_simp) (fun i hi => by wram_simp) (by wram_simp)
   obtain ⟨x_push, he_push, hr_p, hrd_p, hal_p, hact_p, hvis_p, hstack_p,
     hsu1_p, hspd_p, hsp1_p, hf_p⟩ := hraw
-  have haug_le : augPairs.length ≤ inst.r := by
-    have := hfr.hcovers.length_le
-    simp only [List.length_append] at this; omega
+  have haug_le : augPairs.length ≤ inst.r :=
+    (List.sublist_append_left augPairs path).length_le.trans hfr.hcovers.length_le
   refine ⟨x_push, he_push, hr_p,
     { hplen := by simp [hplen]
       hcovers := by simpa [List.append_assoc] using hfr.hcovers.snoc u hvv

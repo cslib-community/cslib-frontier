@@ -127,9 +127,7 @@ theorem gaifmanGraph_covBy {α : Type*} [Preorder α] :
   rw [gaifmanGraph_relStructure]
   ext x y
   rw [SimpleGraph.fromRel_adj, SimpleGraph.hasse_adj]
-  exact ⟨fun h => h.2, fun h => ⟨fun hxy => by
-    subst hxy
-    rcases h with h | h <;> exact h.ne rfl, h⟩⟩
+  exact ⟨fun h => h.2, fun h => ⟨fun hxy => h.elim (·.ne hxy) (·.ne hxy.symm), h⟩⟩
 
 /-! ### Transitive closure on the successor relation -/
 
@@ -163,8 +161,7 @@ private theorem isNbhdIso_shift {r : ℕ} {a b : Fin N} (ha : r ≤ (a : ℕ)) (
     simp only
     omega
   · rw [mem_ball_covBy] at hx hy
-    have := congrArg Fin.val hxy
-    simp only at this
+    simp only [Fin.mk.injEq] at hxy
     exact Fin.ext (by omega)
   · rw [mem_ball_covBy] at hy
     exact ⟨⟨y + a - b, by omega⟩,
@@ -285,8 +282,8 @@ theorem not_exists_formula_transGen :
       φ.Realize ![a, b] ↔ Relation.TransGen (fun x y : M => RelMap adj ![x, y]) a b := by
   -- `φ(x, y) ∨ x = y` would then define the reflexive–transitive closure.
   rintro ⟨φ, hφ⟩
-  refine not_exists_formula_reflTransGen.{u} ⟨φ ⊔ (Term.var 0).equal (Term.var 1), ?_⟩
-  intro M _ _ a b
+  refine not_exists_formula_reflTransGen.{u}
+    ⟨φ ⊔ (Term.var 0).equal (Term.var 1), fun M _ _ a b => ?_⟩
   rw [Relation.reflTransGen_iff_eq_or_transGen, Formula.realize_sup, hφ, Formula.realize_equal]
   simp only [Term.realize_var, Matrix.cons_val_zero, Matrix.cons_val_one]
   exact or_comm.trans (or_congr_left eq_comm)
@@ -365,8 +362,7 @@ theorem card_le_of_realize_iff_reachable_pathGraph {m : ℕ} {φ : Language.grap
   have : 0 < 3 ^ (quantifierRank φ + 1) := pow_pos (by decide) _
   have h := edist_le_of_realize_iff_reachable hφ (u := ⟨0, by omega⟩) (v := ⟨m - 1, by omega⟩)
     ((SimpleGraph.connected_pathGraph.2 (by omega)).preconnected _ _)
-  rw [SimpleGraph.edist_pathGraph, Nat.cast_le] at h
-  simp only at h
+  simp only [SimpleGraph.edist_pathGraph, Nat.cast_le] at h
   omega
 
 /-- **Reachability is not first-order definable** on finite graphs: no formula `φ(x, y)` of the
@@ -450,8 +446,7 @@ theorem exists_nbhdIso_realize_distLE (k : ℕ) :
   set m := 2 ^ (k + 1) + 1
   let P := SimpleGraph.pathGraph m
   have hP : P.edist ⟨0, by omega⟩ ⟨2 ^ (k + 1), by omega⟩ = ((2 ^ (k + 1) : ℕ) : ℕ∞) := by
-    rw [SimpleGraph.edist_pathGraph]
-    simp
+    simp [P, SimpleGraph.edist_pathGraph]
   refine ⟨Fin m ⊕ Fin m, inferInstance, P ⊕g P, ![.inl ⟨0, by omega⟩, .inl ⟨2 ^ (k + 1), by omega⟩],
     ![.inl ⟨0, by omega⟩, .inr ⟨2 ^ (k + 1), by omega⟩], ?_, ?_, ?_⟩
   · exact nbhdIso_sum (by rw [hP, Nat.cast_lt]; omega)

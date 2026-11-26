@@ -162,20 +162,16 @@ theorem memory_arrXY (mem : ℕ → ℕ) (values : ℕ → ℤ) (n M out dst col
   let S := (Finset.range n).image values
   by_cases hc : (Cslib.Algorithms.ThreeSum.ChanHe.bucket S M i).card = 1
   · obtain ⟨z, hz⟩ := Finset.card_eq_one.mp hc
-    have hmem : z ∈ Cslib.Algorithms.ThreeSum.ChanHe.bucket S M i :=
-      hz ▸ Finset.mem_singleton_self _
-    obtain ⟨hS, hres⟩ := Finset.mem_filter.mp hmem
+    obtain ⟨hS, hres⟩ := Finset.mem_filter.mp (hz.symm.subset (Finset.mem_singleton_self z))
     obtain ⟨j, hj, rfl⟩ := Finset.mem_image.mp hS
     have hkey : residueKey M (values j) = i := by
       simp only [residueKey, hres, Int.toNat_natCast]
-    have hj' := Finset.mem_range.mp hj
     have hlight : Histogram.count (fun k => residueKey M (values k)) n
         (residueKey M (values j)) = 1 := by
       rwa [hkey, count_eq_card_bucket values n hM hinj]
-    have he := memory_light mem values n M out dst col 0 t false hM (Or.inl rfl)
-      hdisj le_rfl hj' hlight (a := dst + 4 * i + col)
-      (Or.inl (by simp only [targetKey, Bool.false_eq_true, ↓reduceIte, hkey]))
-    rw [he]
+    rw [memory_light mem values n M out dst col 0 t false hM (Or.inl rfl)
+      hdisj le_rfl (Finset.mem_range.mp hj) hlight (a := dst + 4 * i + col)
+      (Or.inl (by simp only [targetKey, Bool.false_eq_true, ↓reduceIte, hkey]))]
     dsimp only [S] at hc hz
     simp only [Cslib.Algorithms.ThreeSum.ChanHe.arrXY,
       Cslib.Algorithms.ThreeSum.ChanHe.arr, ↓reduceIte, hz, Finset.sum_singleton,
@@ -225,20 +221,16 @@ theorem memory_arrZ (mem : ℕ → ℕ) (values : ℕ → ℤ) (n M out dst col 
   by_cases hi : i < 2 * M
   · by_cases hc : (Cslib.Algorithms.ThreeSum.ChanHe.bucket T M ((i % M : ℕ) : ℤ)).card = 1
     · obtain ⟨z, hz⟩ := Finset.card_eq_one.mp hc
-      have hmem : z ∈ Cslib.Algorithms.ThreeSum.ChanHe.bucket T M ((i % M : ℕ) : ℤ) :=
-        hz ▸ Finset.mem_singleton_self _
-      obtain ⟨hS, hres⟩ := Finset.mem_filter.mp hmem
+      obtain ⟨hS, hres⟩ := Finset.mem_filter.mp (hz.symm.subset (Finset.mem_singleton_self z))
       obtain ⟨j, hj, rfl⟩ := Finset.mem_image.mp hS
       have hr : residueKey M (vals j) = i % M := by
         simp only [residueKey, hres, Int.toNat_natCast]
-      have hj' := Finset.mem_range.mp hj
       have hlight : Histogram.count (fun k => residueKey M (values k)) n
           (residueKey M (values j)) = 1 := by
         rwa [← hcount, hr, count_eq_card_bucket vals n hM hinj']
       have hcopies := (mod_eq_iff_copies hi (residueKey_lt hM (vals j))).mp hr.symm
-      have he := memory_light mem values n M out dst col (4 * M) t true hM (Or.inr rfl)
-        hdisj le_rfl hj' hlight (a := dst + 4 * i + col) (by rw [hkey]; omega)
-      rw [he]
+      rw [memory_light mem values n M out dst col (4 * M) t true hM (Or.inr rfl)
+        hdisj le_rfl (Finset.mem_range.mp hj) hlight (a := dst + 4 * i + col) (by rw [hkey]; omega)]
       simp only [Cslib.Algorithms.ThreeSum.ChanHe.arrZ, hi, ↓reduceIte, hT,
         Cslib.Algorithms.ThreeSum.ChanHe.arr, hz, Finset.sum_singleton,
         Finset.card_singleton, signedValue]
