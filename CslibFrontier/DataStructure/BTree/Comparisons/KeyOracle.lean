@@ -73,16 +73,6 @@ private theorem children_mapKeys (g : α → α') (first : BTree α β) (rest : 
   simp only [mapKeys_node, children_node, mapKeysRest_eq_map, List.map_cons, List.map_map]
   rfl
 
-/-- Induction on B-trees with one hypothesis for all children of a node. -/
-private theorem induction_children {motive : BTree α β → Prop} (leaf : motive .leaf)
-    (node : ∀ (first : BTree α β) (rest : List (Triple α β)),
-      (∀ c ∈ (node first rest).children, motive c) → motive (.node first rest)) :
-    ∀ tr, motive tr
-  | .leaf => leaf
-  | .node first rest => node first rest fun c _ => induction_children leaf node c
-termination_by tr => sizeOf tr
-decreasing_by exact sizeOf_lt_of_mem_children ‹_›
-
 variable {m : Type → Type w} [Monad m]
 
 /-- Lookup in a tree with mapped keys, compared through the key function, is lookup in the

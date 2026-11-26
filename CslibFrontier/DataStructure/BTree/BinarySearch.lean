@@ -63,7 +63,7 @@ namespace Cslib.DataStructure.BTree
 open Cslib.SortedAssoc (leI)
 
 /-- Induction on B-trees with one hypothesis for all children of a node. -/
-private theorem induction_children {α β : Type} {motive : BTree α β → Prop} (leaf : motive .leaf)
+theorem induction_children {α β : Type} {motive : BTree α β → Prop} (leaf : motive .leaf)
     (node : ∀ (first : BTree α β) (rest : List (Triple α β)),
       (∀ c ∈ (node first rest).children, motive c) → motive (.node first rest)) :
     ∀ tr, motive tr
