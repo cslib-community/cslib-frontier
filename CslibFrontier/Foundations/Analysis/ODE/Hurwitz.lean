@@ -32,9 +32,12 @@ linear system `ẋ = A x`, for every `A`, diagonalizable or not:
 * **The Lyapunov equation.** If `A` is Hurwitz, then for every `Q` the Lyapunov equation
   `Aᵀ P + P A = -Q` has exactly one solution (`Matrix.IsHurwitz.existsUnique_lyapunov_eq`); it is
   symmetric when `Q` is (`Matrix.IsHurwitz.isHermitian_of_lyapunov_eq`) and positive definite
-  when `Q` is (`Matrix.IsHurwitz.posDef_of_lyapunov_eq`). Conversely, `A` is Hurwitz iff every
-  `Q ≻ 0` admits a solution `P ≻ 0` (`Matrix.isHurwitz_iff_forall_posDef_exists_posDef`), iff
-  some `P ≻ 0` has `-(Aᵀ P + P A) ≻ 0` (`Matrix.isHurwitz_iff_exists_posDef`).
+  when `Q` is (`Matrix.IsHurwitz.posDef_of_lyapunov_eq`); packaged as
+  `Matrix.IsHurwitz.existsUnique_isHermitian_lyapunov_eq` and
+  `Matrix.IsHurwitz.existsUnique_posDef_lyapunov_eq`. Conversely, `A` is Hurwitz iff every
+  `Q ≻ 0` admits a solution `P ≻ 0` (`Matrix.isHurwitz_iff_forall_posDef_exists_posDef`, and
+  with uniqueness `Matrix.isHurwitz_iff_forall_posDef_existsUnique_posDef`), iff some `P ≻ 0`
+  has `-(Aᵀ P + P A) ≻ 0` (`Matrix.isHurwitz_iff_exists_posDef`).
 
 When `Q = Cᵀ C`, the solution is the Gramian `∫₀^∞ exp (t Aᵀ) Q exp (t A) dt` entrywise, by
 `Matrix.dotProduct_mulVec_eq_integral`.
@@ -73,7 +76,10 @@ semigroup property gives the rate `log 2 / T`
 * `Matrix.re_le_of_forall_norm_le`
 * `Matrix.isHurwitz_iff_isExponentiallyStable`
 * `Matrix.IsHurwitz.existsUnique_lyapunov_eq`, `Matrix.IsHurwitz.posDef_of_lyapunov_eq`
-* `Matrix.isHurwitz_iff_forall_posDef_exists_posDef`, `Matrix.isHurwitz_iff_exists_posDef`
+* `Matrix.IsHurwitz.existsUnique_isHermitian_lyapunov_eq`,
+  `Matrix.IsHurwitz.existsUnique_posDef_lyapunov_eq`
+* `Matrix.isHurwitz_iff_forall_posDef_exists_posDef`,
+  `Matrix.isHurwitz_iff_forall_posDef_existsUnique_posDef`, `Matrix.isHurwitz_iff_exists_posDef`
 
 ## References
 
@@ -496,6 +502,22 @@ theorem IsHurwitz.posDef_of_lyapunov_eq {A P Q : Matrix n n ℝ} (hA : A.IsHurwi
   simp only [star_trivial] at this
   linarith
 
+/-- **The unique symmetric solution.** If `A` is Hurwitz and `Q` is symmetric, the Lyapunov
+equation `Aᵀ P + P A = -Q` has exactly one symmetric solution. It is in fact the only solution
+among all real matrices (`Matrix.IsHurwitz.existsUnique_lyapunov_eq`). -/
+theorem IsHurwitz.existsUnique_isHermitian_lyapunov_eq {A Q : Matrix n n ℝ} (hA : A.IsHurwitz)
+    (hQ : Q.IsHermitian) : ∃! P : Matrix n n ℝ, P.IsHermitian ∧ Aᵀ * P + P * A = -Q := by
+  obtain ⟨P, hP, huniq⟩ := hA.existsUnique_lyapunov_eq Q
+  exact ⟨P, ⟨hA.isHermitian_of_lyapunov_eq hQ hP, hP⟩, fun P' hP' => huniq P' hP'.2⟩
+
+/-- **The unique positive definite solution.** If `A` is Hurwitz and `Q ≻ 0`, the Lyapunov
+equation `Aᵀ P + P A = -Q` has exactly one positive definite solution, and no other solution at
+all (`Matrix.IsHurwitz.existsUnique_lyapunov_eq`). -/
+theorem IsHurwitz.existsUnique_posDef_lyapunov_eq {A Q : Matrix n n ℝ} (hA : A.IsHurwitz)
+    (hQ : Q.PosDef) : ∃! P : Matrix n n ℝ, P.PosDef ∧ Aᵀ * P + P * A = -Q := by
+  obtain ⟨P, hP, huniq⟩ := hA.existsUnique_lyapunov_eq Q
+  exact ⟨P, ⟨hA.posDef_of_lyapunov_eq hQ hP, hP⟩, fun P' hP' => huniq P' hP'.2⟩
+
 /-- **Lyapunov's theorem, with the quantifiers explicit.** A real square matrix `A` is Hurwitz iff
 for every positive definite `Q` there is a positive definite `P` with `Aᵀ P + P A = -Q`. The
 solution is then unique among all real matrices (`Matrix.IsHurwitz.existsUnique_lyapunov_eq`). -/
@@ -510,6 +532,14 @@ theorem isHurwitz_iff_forall_posDef_exists_posDef {A : Matrix n n ℝ} :
       (isExponentiallyStable_toEuclideanCLM_of_posDef hP ?_)
     rw [hPQ, neg_neg]
     exact PosDef.one
+
+/-- **Lyapunov's theorem, with uniqueness.** A real square matrix `A` is Hurwitz iff for every
+positive definite `Q` there is exactly one positive definite `P` with `Aᵀ P + P A = -Q`. -/
+theorem isHurwitz_iff_forall_posDef_existsUnique_posDef {A : Matrix n n ℝ} :
+    A.IsHurwitz ↔ ∀ Q : Matrix n n ℝ, Q.PosDef → ∃! P : Matrix n n ℝ, P.PosDef ∧
+      Aᵀ * P + P * A = -Q :=
+  ⟨fun hA _ hQ => hA.existsUnique_posDef_lyapunov_eq hQ, fun h =>
+    isHurwitz_iff_forall_posDef_exists_posDef.2 fun Q hQ => (h Q hQ).exists⟩
 
 /-- **Lyapunov's theorem, existential form.** A real square matrix `A` is Hurwitz iff some
 positive definite `P` has `-(Aᵀ P + P A)` positive definite. -/

@@ -10121,7 +10121,6 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Ker
 public import CslibFrontier.Algorithms.Lean.StableMatching.Polytope
 public import CslibFrontier.Crypto.Computational.GGM.Expansion
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthThree
-public import CslibFrontier.Foundations.Analysis.ODE.TransferFunction
 public import CslibFrontier.Crypto.Computational.Homomorphic.GSW.Sampling
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.Nondeterministic
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastOpProg.DelRemReb
