@@ -213,12 +213,9 @@ theorem seqProcess_ville_le (step : ∀ t : ℕ, (Fin t → α) → PMF α)
   rw [toOuterMeasure_eq_tsum_mul_indicator, ← ENNReal.tsum_mul_right]
   refine (tsum_le_tsum fun h => ?_).trans (htsum_le n le_rfl)
   rw [mul_assoc]
-  refine mul_le_mul_right ?_ _
-  classical
   by_cases hh : h ∈ E
-  · simpa only [Set.indicator_of_mem hh, Pi.one_apply, one_mul] using
-      le_stoppedProcess_of_exists Z c h hh
-  · simp only [Set.indicator_of_notMem hh, zero_mul, zero_le]
+  · simpa [hh] using mul_le_mul_right (le_stoppedProcess_of_exists Z c h hh) _
+  · simp [hh]
 
 /-! ### Freedman's compensated exponential supermartingale and maximal inequality -/
 
@@ -401,9 +398,8 @@ theorem seqProcess_exists_prefix_ge_and_var_le (step : ∀ t : ℕ, (Fin t → �
       ENNReal.toReal_mono ENNReal.one_ne_top (toOuterMeasure_le_one _ E)
   · rcases eq_or_lt_of_le hb with rfl | hb_pos
     · refine hzero_of_disj fun h hh ⟨k, hk, hge, _⟩ => ?_
-      have hle := le_zero_on_support_of_step_nonpos step X
-        (mem_support_seqProcess_take step hk hh) fun j hj => hupper j (hj.trans_le hk)
-      linarith
+      linarith [le_zero_on_support_of_step_nonpos step X
+        (mem_support_seqProcess_take step hk hh) fun j hj => hupper j (hj.trans_le hk)]
     · rcases eq_or_lt_of_le hv with rfl | hv_pos
       · refine hzero_of_disj fun h hh ⟨k, hk, hge, hV_le⟩ => ?_
         set hk_pref := Fin.take k hk h
@@ -420,20 +416,18 @@ theorem seqProcess_exists_prefix_ge_and_var_le (step : ∀ t : ℕ, (Fin t → �
           | zero => rw [Subsingleton.elim (Fin.take 0 hmk hk_pref) Fin.elim0]
           | succ m ihm =>
             have hm_lt : m < k := Nat.lt_of_succ_le hmk
-            set pm := Fin.take m hm_lt.le hk_pref
             set pm1 := Fin.take (m + 1) hmk hk_pref
-            have hinit : Fin.init pm1 = pm := funext fun _ => rfl
+            have hinit : Fin.init pm1 = Fin.take m hm_lt.le hk_pref := funext fun _ => rfl
             obtain ⟨hp_init, hx_init⟩ :=
               mem_support_seqProcess_succ step (mem_support_seqProcess_take step hmk hsupp_k)
-            rw [hinit] at hp_init hx_init
-            have hsingle := ((hd2 m (hm_lt.trans_le hk) pm hp_init).sum_le_tsum {pm1 (Fin.last m)}
+            have hsingle := ((hd2 m (hm_lt.trans_le hk) _ hp_init).sum_le_tsum {pm1 (Fin.last m)}
               fun _ _ => mul_nonneg ENNReal.toReal_nonneg (sq_nonneg _)).trans
-              (hV_zero ⟨m, hm_lt⟩ ▸ hvar m (hm_lt.trans_le hk) pm hp_init)
+              ((hinit.symm ▸ hV_zero ⟨m, hm_lt⟩) ▸ hvar m (hm_lt.trans_le hk) _ hp_init)
             rw [Finset.sum_singleton] at hsingle
             have hdiff0 := sq_eq_zero_iff.mp (le_antisymm (nonpos_of_mul_nonpos_right hsingle
               (ENNReal.toReal_pos ((PMF.mem_support_iff _ _).mp hx_init) (PMF.apply_ne_top _ _)))
               (sq_nonneg _))
-            rw [← hinit, Fin.snoc_init_self, hinit] at hdiff0
+            rw [Fin.snoc_init_self, hinit] at hdiff0
             linarith [ihm hm_lt.le]
         linarith [take_self_eq le_rfl hk_pref ▸ hzero_step k le_rfl]
       · exact (seqProcess_exists_prefix_ge_and_var_le_bennett step X V hb_pos hv_pos hε n

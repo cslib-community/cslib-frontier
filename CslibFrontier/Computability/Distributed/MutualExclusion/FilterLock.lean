@@ -765,9 +765,8 @@ theorem card_at_level_le {n : ℕ} {s : FilterState n} (hr : s.Reachable)
     have hk : k < n - 1 := by omega
     let r : Fin (n - 1) := ⟨k, hk⟩
     have hprev : (s.atLevel r.val).card ≤ n - k := ih (by omega)
-    have heq_set : s.atLevel (k + 1) = aboveRoomSet s r := by
-      simp [FilterState.atLevel, hk, aboveRoomSet, r]
-    rw [heq_set]
+    rw [FilterState.atLevel, dite_eq_left_of_eq_true (eq_true hk)]
+    change (aboveRoomSet s r).card ≤ n - (k + 1)
     rcases (aboveRoomSet s r).eq_empty_or_nonempty with hne | hne
     · simp [hne]
     have hab_at := aboveRoomSet_subset_atRoomSet s r
@@ -789,15 +788,11 @@ theorem filterLock_mutualExclusion {n : ℕ} {s : FilterState n} (hr : s.Reachab
     {p q : Fin n} (hp : s.inCS p) (hq : s.inCS q) : p = q := by
   by_cases hn2 : n ≤ 1
   · exact Fin.ext (by omega)
-  · have hk : n - 2 < n - 1 := by omega
-    have hmem (x : Fin n) (hx : s.inCS x) : x ∈ s.atLevel (n - 1) := by
-      have hn1 : n - 1 = (n - 2) + 1 := by omega
-      have hph : s.phase x = .cs := hx
-      rw [hn1]
-      simp [FilterState.atLevel, hk, hph, FilterPhase.aboveRoom]
-    have hcap : (s.atLevel (n - 1)).card ≤ 1 := (card_at_level_le hr (n - 1) (by omega)).trans
-      (by omega)
-    exact Finset.card_le_one.mp hcap p (hmem p hp) q (hmem q hq)
+  · have hn1 : n - 1 = (n - 2) + 1 := by omega
+    have hmem {x : Fin n} (hx : s.phase x = .cs) : x ∈ s.atLevel (n - 1) := by
+      simp [hn1, FilterState.atLevel, hx, FilterPhase.aboveRoom]
+    exact Finset.card_le_one.mp ((card_at_level_le hr (n - 1) (by omega)).trans (by omega))
+      p (hmem hp) q (hmem hq)
 
 /-! ### Deadlock freedom of Peterson's filter lock -/
 
@@ -865,9 +860,8 @@ theorem filterLock_step_progress {n : ℕ} {s : FilterState n} (hr : s.Reachable
           { s with phase := Function.update s.phase p .cs }, ?_, ?_, ?_⟩
         · simp [FilterAction.actor, FilterState.isTrying, hph, FilterPhase.isTrying]
         · simp [filterLock, filterStep?, hph, hlt]
-        · apply potential_update_gt rfl
-          simp only [hph, FilterPhase.potential]
-          nlinarith [ℓ.isLt]
+        · refine potential_update_gt rfl ?_
+          simp only [hph, FilterPhase.potential]; nlinarith [ℓ.isLt]
     · refine ⟨.setVictim p,
         { s with
           phase := Function.update s.phase p (.waitRoom r ∅)
@@ -892,19 +886,18 @@ theorem filterLock_step_progress {n : ℕ} {s : FilterState n} (hr : s.Reachable
     let r_max := occRooms.max' hocc_ne
     obtain ⟨p₁, cl₁, hp₁_ph⟩ : ∃ p cl, s.phase p = .waitRoom r_max cl :=
       (Finset.mem_filter.mp (Finset.max'_mem occRooms hocc_ne)).2
-    have hnot_mem : ∀ p cl, s.phase p = .waitRoom r_max cl → p ∉ cl := fun p cl hp_ph => by
+    have hnot_mem (p : Fin n) (cl : Finset (Fin n)) (hp_ph : s.phase p = .waitRoom r_max cl) :
+        p ∉ cl := by
       have hl := hinv.local_inv p
-      simp only [filterLocalInv, hp_ph] at hl
-      exact hl.2
+      simp only [filterLocalInv, hp_ph] at hl; tauto
     by_cases hex_nonvic : ∃ p cl, s.phase p = .waitRoom r_max cl ∧ s.victim r_max ≠ p
     · obtain ⟨p, cl, hp_ph, hvne⟩ := hex_nonvic
       refine ⟨.checkVictim p,
         { s with phase := Function.update s.phase p (nextAfterRoom r_max) }, ?_, ?_, ?_⟩
       · simp [FilterAction.actor, FilterState.isTrying, hp_ph, FilterPhase.isTrying]
       · simp [filterLock, filterStep?, hp_ph, hvne]
-      · apply potential_update_gt rfl
-        simp only [hp_ph, FilterPhase.potential]
-        exact nextAfterRoom_potential_gt r_max cl.card
+      · refine potential_update_gt rfl ?_
+        simpa only [hp_ph, FilterPhase.potential] using nextAfterRoom_potential_gt r_max cl.card
           ((Finset.card_lt_univ_of_notMem (hnot_mem p cl hp_ph)).trans_eq (Fintype.card_fin n))
     · push Not at hex_nonvic
       -- Every `q ≠ p₁` has `(s.level q).val < r_max.val + 1`.
@@ -912,9 +905,7 @@ theorem filterLock_step_progress {n : ℕ} {s : FilterState n} (hr : s.Reachable
         intro q hqp₁
         have hl_q := hinv.local_inv q
         cases hph_q : s.phase q with
-        | remainder =>
-          simp only [filterLocalInv, hph_q] at hl_q
-          omega
+        | remainder => simp only [filterLocalInv, hph_q] at hl_q; omega
         | ready ℓ => exact absurd hph_q ((h_imm q).1 ℓ)
         | writeVictim r => exact absurd hph_q ((h_imm q).2 r)
         | cs => exact absurd hph_q (hno_cs q)
@@ -934,9 +925,7 @@ theorem filterLock_step_progress {n : ℕ} {s : FilterState n} (hr : s.Reachable
           have : Nontrivial (Fin n) := Fin.nontrivial_iff_two_le.mpr (by have := r_max.isLt; omega)
           obtain ⟨q, hqp₁⟩ := exists_ne p₁
           refine ⟨q, hqp₁, .inr (Finset.ext fun x => ?_)⟩
-          by_cases hx : x = p₁
-          · simp [hx, Ne.symm hqp₁, hnot_mem p₁ cl₁ hp₁_ph]
-          · simp [hx, hex x hx]
+          by_cases hx : x = p₁ <;> simp [hx, Ne.symm hqp₁, hnot_mem p₁ cl₁ hp₁_ph, hex]
       have hlv_q := hlv_lt_all q hqp₁
       let nextPh := if insert q cl₁ = Finset.univ.erase p₁ then nextAfterRoom r_max
         else .waitRoom r_max (insert q cl₁)
@@ -1520,9 +1509,7 @@ theorem not_deadlockFreeMutex_of_single_register
   let a₂ := soloIter π p₀ (j + 1) c_enter₀
   have hcover : a₂.mem = c₂.mem ∧ a₂.localState p₀ = c₂.localState p₀ := by
     have ha₂ : a₂ = π.execRegStep c₀ p₀ := soloIter_succ_right π p₀ j c_enter₀
-    rw [ha₂]
-    dsimp only [c₂, MutexProtocol.execRegStep]
-    rw [hc₁_p₀]
+    simp only [ha₂, c₂, MutexProtocol.execRegStep, hc₁_p₀]
     cases hstep₀ : π.step p₀ (c₀.localState p₀) with
     | localStep _ | read _ _ => simp [hstep₀, RegStep.isWrite] at hj_write
     | write r val _ => exact ⟨funext fun r' => by simp [Subsingleton.elim r' r], by simp⟩
