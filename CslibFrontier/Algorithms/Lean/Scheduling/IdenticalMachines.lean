@@ -146,10 +146,7 @@ theorem sum_prefixLoad (p : Fin n → α) (σ : Fin n → Fin m) (k : ℕ) :
 
 /-- The machine loads add up to the total processing time. -/
 theorem sum_load (p : Fin n → α) (σ : Fin n → Fin m) : ∑ i, load p σ i = ∑ j, p j := by
-  simp_rw [← prefixLoad_of_le p σ le_rfl, sum_prefixLoad]
-  congr 1
-  ext j
-  simp
+  simp [← prefixLoad_of_le p σ le_rfl, sum_prefixLoad]
 
 end Basic
 
@@ -212,15 +209,13 @@ theorem le_makespan (p : Fin n → α) (hp : ∀ j, 0 ≤ p j) (σ : Fin n → F
 /-- Average-load lower bound on the optimum, `∑ p ≤ m · OPT` ([WilliamsonShmoys2011], (2.4)). -/
 theorem sum_le_card_nsmul_optMakespan (p : Fin n → α) : ∑ j, p j ≤ m • optMakespan m p := by
   obtain ⟨σ, hσ⟩ := exists_makespan_eq_optMakespan m p
-  rw [← hσ]
-  exact sum_le_card_nsmul_makespan p σ
+  exact hσ ▸ sum_le_card_nsmul_makespan p σ
 
 /-- Longest-job lower bound on the optimum ([WilliamsonShmoys2011], (2.3)). -/
 theorem le_optMakespan (p : Fin n → α) (hp : ∀ j, 0 ≤ p j) (j : Fin n) :
     p j ≤ optMakespan m p := by
   obtain ⟨σ, hσ⟩ := exists_makespan_eq_optMakespan m p
-  rw [← hσ]
-  exact le_makespan p hp σ j
+  exact hσ ▸ le_makespan p hp σ j
 
 end LowerBounds
 
@@ -446,9 +441,7 @@ private theorem IsListSchedule.load_grahamTight {σ : Fin (m * (m - 1) + 1) → 
   have hmin : ∀ (k : ℕ) (hk : k ≤ m * (m - 1)) (i : Fin m),
       c k (σ ⟨k, by omega⟩) ≤ c k i := by
     intro k hk i
-    have h := hσ ⟨k, by omega⟩ i
-    rw [hpc k hk, hpc k hk] at h
-    exact_mod_cast h
+    simpa only [hpc k hk, Nat.cast_le] using hσ ⟨k, by omega⟩ i
   have hbal : ∀ k ≤ m * (m - 1), ∀ i i', c k i ≤ c k i' + 1 := by
     intro k
     induction k with
@@ -460,13 +453,11 @@ private theorem IsListSchedule.load_grahamTight {σ : Fin (m * (m - 1) + 1) → 
       have h2 := hmin k (by omega) i'
       split_ifs with hi <;> (try subst hi) <;> omega
   have hsum : ∑ i, c (m * (m - 1)) i = m * (m - 1) := by
-    simp only [hc]
-    rw [sum_prefixLoad, sum_const, smul_eq_mul, mul_one]
-    have : (univ.filter fun j : Fin (m * (m - 1) + 1) => j.val < m * (m - 1)) =
-        Iio (Fin.last _) := by
-      ext j
+    simp only [hc, sum_prefixLoad, sum_const, smul_eq_mul, mul_one]
+    have hIio : (univ.filter fun j : Fin (m * (m - 1) + 1) => j.val < m * (m - 1)) =
+        Iio (Fin.last _) := Finset.ext fun j => by
       simp only [mem_filter, mem_univ, true_and, mem_Iio, Fin.lt_def, Fin.val_last]
-    rw [this, Fin.card_Iio, Fin.val_last]
+    rw [hIio, Fin.card_Iio, Fin.val_last]
   set i₀ := σ (Fin.last _) with hi₀
   have hc₀ : m - 1 ≤ c (m * (m - 1)) i₀ := by
     refine sub_one_le_of_mul_le ?_

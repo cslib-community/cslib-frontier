@@ -246,11 +246,10 @@ theorem eq_one_of_mem_stablePolytope_of_pos {x : Fin n → Fin n → ℝ} (hx : 
     have h := Finset.sum_congr rfl fun r₀ (_ : r₀ ∈ Finset.univ) =>
       (sum_mul_strictLower_eq (I.recvRank_injective r₀) (fun p₀ => x p₀ r₀)).trans
         (by rw [hcol r₀, one_pow])
-    simp only [Finset.sum_add_distrib, ← Finset.mul_sum, Finset.sum_const, Finset.card_univ,
-      Fintype.card_fin, nsmul_eq_mul, mul_one] at h
     rw [Finset.sum_comm (f := fun p₀ r₀ => x p₀ r₀ * I.recvBetterMass x r₀ p₀),
       Finset.sum_comm (f := fun p₀ r₀ => x p₀ r₀ ^ 2)]
-    exact h
+    simpa only [recvBetterMass, Finset.sum_add_distrib, ← Finset.mul_sum, Finset.sum_const,
+      Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, mul_one] using h
   have hsum_ones : ∑ p₀ : Fin n, ∑ r₀ : Fin n, x p₀ r₀ = (n : ℝ) := by
     simp [hrow]
   have hzero_slack :
@@ -466,14 +465,13 @@ theorem stablePolytope_eq_convexHull :
     have hf_inj (k : Fin m) : Function.Injective (f k) := fun p₁ p₂ heq => by
       by_contra hpne
       have hr1 := heq ▸ hf_recv k p₁
-      have hr2 := hf_recv k p₂
       rcases lt_or_gt_of_ne (fun hrk => hpne (I.recvRank_injective (f k p₂) hrk)) with hlt | hgt
       · have hle : I.recvBetterMass x (f k p₂) p₁ + x p₁ (f k p₂) ≤
             I.recvBetterMass x (f k p₂) p₂ := strictLower_add_le (fun p' => hx_nn p' _) hlt
-        linarith [hr1.2, hr2.1]
+        linarith [hr1.2, (hf_recv k p₂).1]
       · have hle : I.recvBetterMass x (f k p₂) p₂ + x p₂ (f k p₂) ≤
             I.recvBetterMass x (f k p₂) p₁ := strictLower_add_le (fun p' => hx_nn p' _) hgt
-        linarith [hr2.2, hr1.1]
+        linarith [(hf_recv k p₂).2, hr1.1]
     let μ : Fin m → Matching n := fun k => permOfInjective (f k) (hf_inj k)
     have hμ_stab (k : Fin m) : I.IsStable (μ k) := fun p r ⟨hp_pref, hr_pref⟩ => by
       have hp_le : I.propBetterMass x p r + x p r ≤ I.propBetterMass x p (f k p) :=
@@ -513,10 +511,8 @@ theorem stablePolytope_eq_convexHull :
             e.lt_iff_lt.1 ((hmid_gt k).trans h2)⟩,
            fun ⟨h1, h2⟩ => ⟨(e.monotone h1).trans_lt (hmid_gt k),
             (hmid_lt k).trans_le (e.monotone (Nat.succ_le_of_lt h2))⟩⟩
-        rw [matchingMatrix]
-        simp only [hμ_iff k p r]
-        rw [← hib, ← hia]
-        simp [hiff, w]
+        simp only [matchingMatrix, mul_ite, mul_one, mul_zero, hμ_iff k p r, w]
+        rw [← hib, ← hia, if_congr hiff rfl rfl]
       simp_rw [hterm]
       rw [sum_fin_sub_telescope e ia ib hia_le_ib, hia, hib]; ring
     rw [← hx_decomp]

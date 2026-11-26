@@ -416,12 +416,9 @@ private theorem exists_perm_cons_of_numComponents_add_length_eq_succ {n : ℕ} {
     rw [edgePartitionFrom_cons, List.length_cons] at h
     cases hrel : p.rel e.u e.v
     · have hm := Partition.numComponents_merge_of_not_rel hrel
-      have h' : (edgePartitionFrom (p.merge e.u e.v) L₀).numComponents + L₀.length =
-          (p.merge e.u e.v).numComponents + 1 := by omega
-      obtain ⟨f, L₁, hperm, hpart, hacyc⟩ := ih h'
-      refine ⟨f, e :: L₁, ?_, ?_, isAcyclicFrom_cons.mpr ⟨hrel, hacyc⟩⟩
-      · exact (hperm.cons e).trans (List.Perm.swap f e L₁)
-      · simpa only [edgePartitionFrom_cons] using hpart
+      obtain ⟨f, L₁, hperm, hpart, hacyc⟩ := ih (p := p.merge e.u e.v) (by omega)
+      exact ⟨f, e :: L₁, (hperm.cons e).trans (List.Perm.swap f e L₁),
+        by simpa only [edgePartitionFrom_cons] using hpart, isAcyclicFrom_cons.mpr ⟨hrel, hacyc⟩⟩
     · rw [Partition.merge_of_rel hrel] at h
       refine ⟨e, L₀, List.Perm.refl _, ?_, by unfold IsAcyclicFrom; omega⟩
       rw [edgePartitionFrom_cons, Partition.merge_of_rel hrel]
@@ -654,12 +651,8 @@ theorem totalWeight_kruskalScan_le {n : ℕ} {W : Type}
     · -- Kruskal accepts `e`; it replaces an edge `f` of `H` that is no lighter.
       simp only [Bool.not_false, ↓reduceIte, totalWeight_cons]
       obtain ⟨f, H', hHperm, hf, hH'⟩ := exists_perm_cons_isSpanningForestFrom_merge hrel hH
-      have hef : e.weight ≤ f.weight := by
-        rcases hf with rfl | hf_es
-        · exact le_rfl
-        · exact he_le f hf_es
       rw [Perm.totalWeight_eq hHperm, totalWeight_cons]
-      exact add_le_add hef (ih _ hes_sorted hH')
+      exact add_le_add (hf.elim (· ▸ le_rfl) (he_le f)) (ih _ hes_sorted hH')
     · -- Kruskal rejects the redundant edge `e`, which `H` cannot use either.
       simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte]
       exact ih p hes_sorted (isSpanningForestFrom_of_cons_of_rel hrel hH)
@@ -683,8 +676,7 @@ theorem perm_kruskalScan_of_totalWeight_le_of_nodup_weights {n : ℕ} {W : Type}
     obtain ⟨he_not_mem, hes_nodup⟩ := List.nodup_cons.mp hnodup
     rw [kruskalScan_cons] at hopt ⊢
     cases hrel : p.rel e.u e.v
-    · rw [hrel] at hopt
-      simp only [Bool.not_false, ↓reduceIte] at hopt ⊢
+    · simp only [hrel, Bool.not_false, ↓reduceIte] at hopt ⊢
       obtain ⟨f, H', hHperm, hf, hH'⟩ := exists_perm_cons_isSpanningForestFrom_merge hrel hH
       rw [Perm.totalWeight_eq hHperm, totalWeight_cons, totalWeight_cons] at hopt
       rcases hf with rfl | hf_es
@@ -693,12 +685,9 @@ theorem perm_kruskalScan_of_totalWeight_le_of_nodup_weights {n : ℕ} {W : Type}
       · -- `H` trades `e` for a strictly heavier `f ∈ es`, contradicting `hopt`.
         have hlt_w : e.weight < f.weight := (he_le f hf_es).lt_of_ne fun heq =>
           he_not_mem (heq ▸ List.mem_map_of_mem hf_es)
-        have hstrict : e.weight + totalWeight (kruskalScan (p.merge e.u e.v) es) <
-            f.weight + totalWeight H' :=
-          add_lt_add_of_lt_of_le hlt_w (totalWeight_kruskalScan_le _ hes_sorted hH')
-        exact absurd hopt (not_le_of_gt hstrict)
-    · rw [hrel] at hopt
-      simp only [Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hopt ⊢
+        exact absurd hopt (not_le_of_gt
+          (add_lt_add_of_lt_of_le hlt_w (totalWeight_kruskalScan_le _ hes_sorted hH')))
+    · simp only [hrel, Bool.not_true, Bool.false_eq_true, ↓reduceIte] at hopt ⊢
       exact ih p hes_sorted hes_nodup (isSpanningForestFrom_of_cons_of_rel hrel hH) hopt
 
 /-- Sort an edge list by nondecreasing weight using `List.mergeSort`. -/
