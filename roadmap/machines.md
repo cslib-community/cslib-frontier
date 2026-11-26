@@ -7,6 +7,9 @@ Part of the [roadmap](../ROADMAP.md), which explains what an entry is and when o
   Extend the deterministic WordRAM-to-pointer compiler to charged input preparation and randomized semantics.
   Establish native union-find algorithms and lower bounds with explicit symbol-opacity and set-separation assumptions.
 
+- **Local-address WordRAM simulation** ([#8800](https://github.com/cslib-community/cslib-frontier/issues/8800)): Prove constant overhead for a fragment with bounded pointer moves, reference loads and stores, and matched scalar operations and bounded random draws.
+  Apply the simulation to three-way quicksort with countdown pivot walks and a locally accessed work stack, transferring the sorted-permutation result and expected instruction bound.
+
 - **Efficient universal simulation** ([#800](https://github.com/cslib-community/cslib-frontier/issues/800)): A storage bound for the universal function running in time `O(N + poly(D, M) · (t + 1) log(t + 2))`, for encoded input length `N`, description length `D` and largest input symbol `M`, in terms of the simulated machine's space rather than its time.
   An unclocked form within the same time bound that runs until the simulated machine halts.
 - **Plain computability** ([#862](https://github.com/cslib-community/cslib-frontier/issues/862)): Complete the plain calculus and delete the tidy calculus, keeping only a machine-level kernel inside the Machines layer.

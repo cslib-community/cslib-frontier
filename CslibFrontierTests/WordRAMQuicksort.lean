@@ -18,8 +18,8 @@ Concrete non-vacuity and behavioral tests for `Cslib.WordRAM.expectedTime` and
 
 1. Non-monotone input with duplicates `[3, 1, 2, 1]` at `w = 9`: every supported halting path
    preserves `Bounded 9`, outputs `[1, 1, 2, 3]` in `mem[1..4]`, preserves memory outside `[1, 13)`,
-   uses at most `3` `rand` calls, halts within `384` instructions, and satisfies
-   `expectedTime ≤ 1472` and `AlmostSurelyHalts`.
+   uses at most `3` `rand` calls, halts within `416` instructions, and satisfies
+   `expectedTime ≤ 1664` and `AlmostSurelyHalts`.
 2. Six-element non-monotone input with two duplicate groups `[4, 2, 4, 0, 2, 1]` at `w = 9`: every
    supported halting path outputs `[0, 1, 2, 2, 4, 4]` in `memSlice 1 7` within `5` `rand` calls.
 3. Trivial edge cases `[]` and `[5]` at `w = 3`: `0` `rand` calls (`RandCallsBounded ... 0`).
@@ -37,20 +37,20 @@ open scoped ENNReal
 /-! ## 1. Non-monotone input with duplicates: `[3, 1, 2, 1]` at `w = 9` -/
 
 theorem quicksort_dup4 :
-    RandHaltsWithin 9 Quicksort.program (.init [3, 1, 2, 1]) 384 ∧
+    RandHaltsWithin 9 Quicksort.program (.init [3, 1, 2, 1]) 416 ∧
     AlmostSurelyHalts 9 Quicksort.program (.init [3, 1, 2, 1]) ∧
-    RandCallsBounded 9 Quicksort.program (.init [3, 1, 2, 1]) 384 3 ∧
-    (∀ cfg ∈ (runRand 9 Quicksort.program 384 (.running (.init [3, 1, 2, 1]))).support,
+    RandCallsBounded 9 Quicksort.program (.init [3, 1, 2, 1]) 416 3 ∧
+    (∀ cfg ∈ (runRand 9 Quicksort.program 416 (.running (.init [3, 1, 2, 1]))).support,
       ∃ y : Data 16, cfg = .halted 0 y ∧ y.Bounded 9 ∧
         y.mem 1 = 1 ∧ y.mem 2 = 1 ∧ y.mem 3 = 2 ∧ y.mem 4 = 3 ∧
         (∀ a, a = 0 ∨ 13 ≤ a → y.mem a = (Data.init (r := 16) [3, 1, 2, 1]).mem a)) ∧
-    expectedTime 9 Quicksort.program (.init [3, 1, 2, 1]) ≤ 1472 := by
+    expectedTime 9 Quicksort.program (.init [3, 1, 2, 1]) ≤ 1664 := by
   have hw : logWidth 3 ([3, 1, 2, 1] : List ℕ).length ≤ 9 := by decide
   have hfit : InputFits 9 [3, 1, 2, 1] := by decide
   obtain ⟨hHalts, hCalls, hPost, hExp⟩ := Quicksort.quicksort_correct_and_bounds hw hfit
-  have hwc : Quicksort.worstCaseTime ([3, 1, 2, 1] : List ℕ).length = 384 := by decide
+  have hwc : Quicksort.worstCaseTime ([3, 1, 2, 1] : List ℕ).length = 416 := by decide
   have hcalls_n : ([3, 1, 2, 1] : List ℕ).length - 1 = 3 := rfl
-  have hexpb : Quicksort.expectedTimeBound ([3, 1, 2, 1] : List ℕ).length = 1472 := by decide
+  have hexpb : Quicksort.expectedTimeBound ([3, 1, 2, 1] : List ℕ).length = 1664 := by decide
   rw [hwc] at hHalts hCalls hPost
   rw [hcalls_n] at hCalls
   rw [hexpb] at hExp
@@ -118,15 +118,15 @@ theorem quicksort_nil :
   exact ⟨hHalts, hCalls, by simpa [Quicksort.expectedTimeBound] using hExp⟩
 
 theorem quicksort_singleton :
-    RandHaltsWithin 3 Quicksort.program (.init [5]) 60 ∧
-    RandCallsBounded 3 Quicksort.program (.init [5]) 60 0 ∧
-    (∀ cfg ∈ (runRand 3 Quicksort.program 60 (.running (.init [5]))).support,
+    RandHaltsWithin 3 Quicksort.program (.init [5]) 62 ∧
+    RandCallsBounded 3 Quicksort.program (.init [5]) 62 0 ∧
+    (∀ cfg ∈ (runRand 3 Quicksort.program 62 (.running (.init [5]))).support,
       ∃ y : Data 16, cfg = .halted 0 y ∧ y.mem 1 = 5) ∧
-    expectedTime 3 Quicksort.program (.init [5]) ≤ 152 := by
+    expectedTime 3 Quicksort.program (.init [5]) ≤ 168 := by
   have hw : logWidth 3 ([5] : List ℕ).length ≤ 3 := by decide
   have hfit : InputFits 3 [5] := by decide
   obtain ⟨hHalts, hCalls, hPost, hExp⟩ := Quicksort.quicksort_correct_and_bounds hw hfit
-  have hwc : Quicksort.worstCaseTime ([5] : List ℕ).length = 60 := rfl
+  have hwc : Quicksort.worstCaseTime ([5] : List ℕ).length = 62 := rfl
   rw [hwc] at hHalts hCalls hPost
   refine ⟨hHalts, hCalls, fun cfg hcfg => ?_, by simpa [Quicksort.expectedTimeBound] using hExp⟩
   obtain ⟨y, hcfg_eq, -, hperm, -, -, -⟩ := hPost cfg hcfg

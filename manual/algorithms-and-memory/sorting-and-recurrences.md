@@ -8,7 +8,7 @@ Part of the [representative algorithm endpoints](algorithm-endpoints.md); the co
 
 | Algorithm | Fitting-width condition | Worst-case executed steps | Expected steps | Other guarantee |
 |---|---|---|---|---|
-| Quicksort | `w ≥ 3*(floorlog₂(n)+1)` and input fit | `20*n² + 8*n + 32` | `≤ 120*n*(floorlog₂(n)+1)+32` | At most `n-1` draws, sorted permutation, linear scratch frame |
+| Quicksort | `w ≥ 3*(floorlog₂(n)+1)` and input fit | `22*n² + 8*n + 32` | `≤ 136*n*(floorlog₂(n)+1)+32` | At most `n-1` draws, countdown walks to pivots, sorted permutation, linear scratch frame |
 | Quickselect, `k<n` | `w ≥ 2*(floorlog₂(n)+1)` and input fit | `10*n²+15` | `≤80*n+15` | At most `n-1` draws, kth sorted value and partition, no auxiliary memory |
 
 Quickselect receives the index followed by the array; an invalid index has an explicit eight-step, no-write, no-randomness behavior returning zero. The expected costs are machine instruction counts. They do not price the `rand` instruction as an exact strict-PPT finite-coin sampler.
