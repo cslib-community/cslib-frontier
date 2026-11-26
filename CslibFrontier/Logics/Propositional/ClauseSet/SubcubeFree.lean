@@ -252,16 +252,11 @@ theorem card_solutions_le_of_neighbors {ψ : ClauseSet (Fin N)} {k Δ D : ℕ} (
   have hiso : ∀ x ∈ ψ.solutions,
       ((N : ℝ) - m) / k ≤ ((isolatedDirections ψ.solutions x).card : ℝ) / k := by
     intro x hx
-    refine div_le_div_of_nonneg_right ?_ hkpos.le
+    refine div_le_div_of_nonneg_right (sub_le_iff_le_add'.mpr ?_) hkpos.le
     have hle := card_compl_isolatedDirections_le hdeg hfree hx
-    have hsplit : (univ \ isolatedDirections ψ.solutions x).card +
-        (isolatedDirections ψ.solutions x).card = N := by
-      rw [card_sdiff_add_card_eq_card (subset_univ _), card_univ, Fintype.card_fin]
-    have : (N : ℝ) = ((univ \ isolatedDirections ψ.solutions x).card : ℝ) +
-        (isolatedDirections ψ.solutions x).card := by exact_mod_cast hsplit.symm
-    have hle' : ((univ \ isolatedDirections ψ.solutions x).card : ℝ) ≤ m := by
-      exact_mod_cast hle
-    linarith
+    have hsplit := card_sdiff_add_card_eq_card (subset_univ (isolatedDirections ψ.solutions x))
+    rw [card_univ, Fintype.card_fin] at hsplit
+    exact_mod_cast (by omega : N ≤ m + (isolatedDirections ψ.solutions x).card)
   have hlower : (ψ.solutions.card : ℝ) * (2 : ℝ) ^ (((N : ℝ) - m) / k) ≤ 2 ^ N := by
     calc (ψ.solutions.card : ℝ) * (2 : ℝ) ^ (((N : ℝ) - m) / k)
         = ∑ _x ∈ ψ.solutions, (2 : ℝ) ^ (((N : ℝ) - m) / k) := by
@@ -300,14 +295,9 @@ theorem card_solutions_le_of_not_containsSubcube (k : ℕ) (hk : 1 ≤ k) {ε : 
       fun h => hfree (h.mono (by exact_mod_cast hsol))
     refine (card_solutions_le_of_neighbors hk hwidth hdeg hfree').trans ?_
     refine Real.rpow_le_rpow_of_exponent_le (by norm_num) ?_
-    simp only [E]
+    simp only [E, div_mul_eq_mul_div]
     gcongr
-    rw [div_mul_eq_mul_div]
-    gcongr
-    have : (D - 1) * (c * (k - 1) + 1) ≤ (c * (k - 1) + 1) * D := by
-      rw [mul_comm]
-      exact Nat.mul_le_mul_left _ (Nat.sub_le D 1)
-    exact_mod_cast this
+    exact_mod_cast (mul_comm (D - 1) _).trans_le (Nat.mul_le_mul_left _ (Nat.sub_le D 1))
   calc (φ.solutions.card : ℝ) ≤ ((Ψ.biUnion solutions).card : ℝ) := by
         exact_mod_cast card_le_card hcover
     _ ≤ ∑ ψ ∈ Ψ, (ψ.solutions.card : ℝ) := by exact_mod_cast card_biUnion_le

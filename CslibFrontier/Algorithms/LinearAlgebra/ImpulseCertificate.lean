@@ -109,14 +109,12 @@ theorem ofLists_eq_zero_of_allZero {k l : ℕ} {rows : List (List ℚ)} (h : all
   ext i j
   simp only [allZero, List.all_eq_true, beq_iff_eq] at h
   rw [ofLists_apply, ofList_apply, Matrix.zero_apply]
-  rcases Nat.lt_or_ge i rows.length with hi | hi
+  by_cases hi : (i : ℕ) < rows.length
   · rw [List.getD_eq_getElem _ _ hi]
-    rcases Nat.lt_or_ge j rows[(i : ℕ)].length with hj | hj
-    · rw [List.getD_eq_getElem _ _ hj]
-      exact h _ (List.getElem_mem hi) _ (List.getElem_mem hj)
-    · rw [List.getD_eq_default _ _ hj]
-  · rw [List.getD_eq_default _ _ hi]
-    simp
+    by_cases hj : (j : ℕ) < rows[(i : ℕ)].length
+    · exact List.getD_eq_getElem _ _ hj ▸ h _ (List.getElem_mem hi) _ (List.getElem_mem hj)
+    · exact List.getD_eq_default _ _ (not_lt.1 hj)
+  · rw [List.getD_eq_default _ _ (not_lt.1 hi), List.getD_nil]
 
 /-- The rows of `Cᵀ * C` for `C` with rows `C`, read as `p × n`. -/
 @[expose] def rowsGram (n p : ℕ) (C : List (List ℚ)) : List (List ℚ) :=
@@ -239,18 +237,14 @@ it is a lower bound for `exp x` (`Cslib.LinearAlgebra.expLower_le_exp`), so a ch
 @[expose] def expLower (N : ℕ) (x : ℚ) : ℚ := ∑ k ∈ Finset.range N, x ^ k / k.factorial
 
 theorem expLower_le_exp (N : ℕ) {x : ℚ} (hx : 0 ≤ x) : (expLower N x : ℝ) ≤ Real.exp x := by
-  have h := Real.sum_le_exp_of_nonneg (x := (x : ℝ)) (by exact_mod_cast hx) N
-  simpa [expLower] using h
+  simpa [expLower] using Real.sum_le_exp_of_nonneg (x := (x : ℝ)) (by exact_mod_cast hx) N
 
 /-- From `a ≤ b * expLower N x` with `x ≥ 0` and `b ≥ 0`: `a * exp (-x) ≤ b`. -/
 private theorem mul_exp_neg_le {a b x : ℚ} {N : ℕ} (hx : 0 ≤ x) (hb : 0 ≤ b)
     (h : a ≤ b * expLower N x) : (a : ℝ) * Real.exp (-x) ≤ b := by
-  have h' : (a : ℝ) ≤ b * Real.exp x :=
-    (by exact_mod_cast h : (a : ℝ) ≤ b * (expLower N x : ℝ)).trans
-      (mul_le_mul_of_nonneg_left (expLower_le_exp N hx) (by exact_mod_cast hb))
-  have he := Real.exp_pos (x : ℝ)
-  rw [Real.exp_neg, ← div_eq_mul_inv, div_le_iff₀ he]
-  exact h'
+  rw [Real.exp_neg, ← div_eq_mul_inv, div_le_iff₀ (Real.exp_pos _)]
+  exact (by exact_mod_cast h : (a : ℝ) ≤ b * (expLower N x : ℝ)).trans
+    (mul_le_mul_of_nonneg_left (expLower_le_exp N hx) (by exact_mod_cast hb))
 
 /-- A settling check `K ≤ ε² expLower N (2 α T)` gives `X exp (-2 α t) ≤ ε²` for `0 ≤ X ≤ K` and
 `t ≥ T ≥ 0`. -/
@@ -367,9 +361,7 @@ theorem isExponentiallyStable (h : c.check G = true) :
     (x := fun t => (x t).ofLp) (s := Ici 0)).1 (by simpa using hx)
   have hb := dotProduct_self_le h hx' ht
   rw [← hq, ← hq] at hb
-  have hhl : (0 : ℝ) ≤ c.hi / c.lo := by
-    have : (0 : ℚ) ≤ c.hi / c.lo := div_nonneg (hlo.le.trans hlh) hlo.le
-    exact_mod_cast this
+  have hhl : (0 : ℝ) ≤ c.hi / c.lo := by exact_mod_cast div_nonneg (hlo.le.trans hlh) hlo.le
   have hr : 0 ≤ Real.sqrt (c.hi / c.lo) * Real.exp (-(c.α * t)) * ‖x 0‖ := by positivity
   refine pow_le_pow_iff_left₀ (norm_nonneg _) hr two_ne_zero |>.1 ?_
   rw [mul_pow, mul_pow, Real.sq_sqrt hhl, ← Real.exp_nat_mul]
@@ -469,9 +461,7 @@ theorem dotProduct_self_le_of_stateSettles (h : c.check G = true) {r2 eps2 T : �
   obtain ⟨⟨⟨hT, -⟩, he⟩, hs⟩ := hs
   obtain ⟨hα, hlo, hlh, -, -, -, -, -, -, -⟩ := facts h
   have hv0 : 0 ≤ x 0 ⬝ᵥ x 0 := by simpa using dotProduct_self_star_nonneg (x 0)
-  have hhl : (0 : ℝ) ≤ c.hi / c.lo := by
-    have : (0 : ℚ) ≤ c.hi / c.lo := div_nonneg (hlo.le.trans hlh) hlo.le
-    exact_mod_cast this
+  have hhl : (0 : ℝ) ≤ c.hi / c.lo := by exact_mod_cast div_nonneg (hlo.le.trans hlh) hlo.le
   calc x t ⬝ᵥ x t ≤ c.hi / c.lo * Real.exp (-(2 * c.α) * t) * (x 0 ⬝ᵥ x 0) :=
         dotProduct_self_le h hx ((by exact_mod_cast hT : (0 : ℝ) ≤ T).trans ht)
     _ = c.hi / c.lo * (x 0 ⬝ᵥ x 0) * Real.exp (-(2 * c.α) * t) := by ring
@@ -484,8 +474,8 @@ theorem frobeniusSq_le (h : c.check G = true) {t : ℝ} (ht : 0 ≤ t) :
     ∑ i, ∑ j, G.toSystem.responseKernel t i j ^ 2 ≤
       c.γ * (rowsTrace m (rowsCongr n m G.B c.P) : ℚ) * Real.exp (-(2 * c.α) * t) := by
   obtain ⟨-, -, -, hγ, -, hd, -, -, ho, -⟩ := facts h
-  have := LTISystem.frobeniusSq_responseKernel_le hd ho (by exact_mod_cast hγ) ht
-  rwa [trace_toSystem] at this
+  simpa only [trace_toSystem] using
+    LTISystem.frobeniusSq_responseKernel_le hd ho (by exact_mod_cast hγ) ht
 
 /-- **Certified energy tail.** If the kernel accepts `c` for `G`, then for `T ≥ 0` the impulse
 response energy after `T` is finite and

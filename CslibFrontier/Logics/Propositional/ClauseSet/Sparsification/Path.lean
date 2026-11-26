@@ -281,8 +281,7 @@ private theorem introAt_subset {i : ℕ} (hi : i < P.len) : P.introAt i ⊆ P.no
 /-- **Introduced clauses are new.** A clause introduced at step `i` occurs in no node `j ≤ i`. -/
 private theorem disjoint_introAt_node {i j : ℕ} (hi : i < P.len) (hji : j ≤ i) :
     Disjoint (P.introAt i) (P.node j) := by
-  rw [Finset.disjoint_left]
-  intro a ha haj
+  refine Finset.disjoint_left.mpr fun a ha haj => ?_
   obtain ⟨C, hC, haC⟩ := exists_flower_ssuperset hθ (heavy hi) ha
   obtain ⟨D, hD, hCD⟩ := refines_of_le hθ hji hi.le C (flower_subset _ _ _ hC)
   exact reduced_node j (hji.trans hi.le) D hD a haj (haC.trans_subset hCD)
@@ -293,12 +292,9 @@ private theorem disjoint_introAt {i j : ℕ} (hij : i < j) (hj : j < P.len) :
     (disjoint_introAt_node hθ hj hij).symm
 
 private theorem pairwiseDisjoint_introAt :
-    ((range P.len : Finset ℕ) : Set ℕ).PairwiseDisjoint P.introAt := by
-  intro i hi j hj hne
-  simp only [coe_range, Set.mem_Iio] at hi hj
-  rcases lt_or_gt_of_ne hne with h | h
-  · exact disjoint_introAt hθ h hj
-  · exact (disjoint_introAt hθ h hi).symm
+    ((range P.len : Finset ℕ) : Set ℕ).PairwiseDisjoint P.introAt := fun _ hi _ hj hne =>
+  (lt_or_gt_of_ne hne).elim (fun h => disjoint_introAt hθ h (mem_range.mp hj))
+    fun h => (disjoint_introAt hθ h (mem_range.mp hi)).symm
 
 /-- **A branch is no longer than its number of introduced clauses.** -/
 theorem len_le_card_introduced : P.len ≤ P.introduced.card := by
@@ -350,9 +346,8 @@ theorem card_introducedOfCard_le (hleaf : Sparse θ (P.node P.len)) (U : Finset 
       have hma : a ∈ P.node m := Decidable.byContradiction fun hna =>
         Nat.find_min hex (m.lt_succ_self.trans_eq hm.symm) ⟨by omega, hna⟩
       have hmlen : m < P.len := by omega
-      have hstep : a ∉ child (P.node m) (P.size m) (P.heart m) (P.dir m) := by
-        rwa [← P.step m hmlen, ← hm]
-      obtain ⟨b, hb, hba⟩ := exists_ssubset_of_notMem_reduce (reduced_node m hmlen.le) hma hstep
+      obtain ⟨b, hb, hba⟩ := exists_ssubset_of_notMem_reduce (reduced_node m hmlen.le) hma
+        (P.step m hmlen ▸ hm ▸ hm₀a : a ∉ child (P.node m) (P.size m) (P.heart m) (P.dir m))
       exact mem_biUnion.mpr ⟨m, mem_range.mpr hmlen, mem_biUnion.mpr ⟨b,
         mem_filter.mpr ⟨hb, hac ▸ card_lt_card hba⟩,
         mem_filter.mpr ⟨hma, hnew, hac, hba.subset⟩⟩⟩
