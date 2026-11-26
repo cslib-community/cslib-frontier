@@ -292,9 +292,6 @@ theorem joinNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : JoinNodeArgs)
   let s₁ := (Memory.spec 0).clientState s (Memory.allocDirty lTblLen)
   have hs₁_fr : s₁.frontier = tblPtr + lTblLen := rfl
   have hp₁ : PreservesBelow tblPtr s s₁ := preservesBelow_allocDirty s lTblLen
-  have hv₁ : (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (Memory.allocDirty lTblLen)) :=
-    validHistory_allocDirty hfit_peak
   let fillArgs : JoinFillArgs :=
     ⟨a.q, lBagPtr, lBagLen, lTblPtr, rBagPtr, rBagLen, rTblPtr, tblPtr, lTblLen⟩
   obtain ⟨hv_fill, hfr_fill, hp_fill, htbl_fill, hc_fill⟩ :=
@@ -305,13 +302,13 @@ theorem joinNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : JoinNodeArgs)
       (hright.bag_holds.mono_frontier hp₁) rfl hright.bag_holds.1
       (hright.tbl_holds.mono_frontier hp₁)
       (by simpa only [length_dpInstTree] using hright.tbl_holds.1)
-      rfl (by rw [hs₁_fr]) hfit_cap
+      rfl le_rfl hfit_cap
   let s₂ := (Memory.spec 0).clientState s₁ (joinFillProg fillArgs)
-  have hs₂_fr : s₂.frontier = tblPtr + lTblLen := by rw [hfr_fill, hs₁_fr]
   have hp_s_s₂ : PreservesBelow tblPtr s s₂ := hp₁.trans hp_fill
-  have hlBag_s₂ : HoldsIn lBagPtr (bagList left) s₂ :=
-    hleft.bag_holds.mono_frontier hp_s_s₂
-  have hd_s₂ : a.dCur + 4 ≤ s₂.frontier := by rw [hs₂_fr]; dsimp only [tblPtr]; omega
+  have hd_s₂ : a.dCur + 4 ≤ s₂.frontier := by
+    rw [hfr_fill, hs₁_fr]
+    dsimp only [tblPtr]
+    omega
   obtain ⟨hv_wd, hfr_wd, hframe_wd, hm0, hm1, hm2, hm3, hc_wd⟩ :=
     writeDescProg_spec (w := w) ⟨a.dCur, lBagPtr, lBagLen, tblPtr, lTblLen⟩ hd_s₂
       (hfit_peak.of_le (by have := hleft.bag_holds.1; dsimp only [lBagPtr]; omega))
@@ -329,18 +326,19 @@ theorem joinNodeProg_spec {w F_lo : ℕ} (counting : Bool) (a : JoinNodeArgs)
     rw [hleft.bag_len, hleft.tbl_len, hright.bag_len,
       StateTransitionSpec.clientState_bind, ha1_s, ha1_r,
       StateTransitionSpec.clientState_bind]
-  refine ⟨?_, by rw [hsEnd_eq, hfr_wd, hs₂_fr],
+  refine ⟨?_, by rw [hsEnd_eq, hfr_wd, hfr_fill, hs₁_fr],
     hsEnd_eq ▸ (FrameOutsideRange.of_preservesBelow a.dCur (a.dCur + 4) hp_s_s₂).trans hframe_wd,
     ?_, ?_⟩
   · unfold joinNodeProg
     iterate 7 (refine validHistory_read_bind (by omega) ?_)
     rw [hleft.bag_len, hleft.tbl_len, hright.bag_len]
-    refine validHistory_bind_step hv₁ ?_
+    refine validHistory_bind_step (validHistory_allocDirty hfit_peak) ?_
     rw [ha1_s, ha1_r]
     exact validHistory_bind_step hv_fill hv_wd
   · rw [hsEnd_eq]
     exact ⟨hdCur, hm0 ▸ hleft.bag_lo, hm1,
-      hm0 ▸ hlBag_s₂.frame_outsideRange (.inr (le_trans hdCur hleft.bag_lo)) hframe_wd,
+      hm0 ▸ (hleft.bag_holds.mono_frontier hp_s_s₂).frame_outsideRange
+        (.inr (le_trans hdCur hleft.bag_lo)) hframe_wd,
       hm2 ▸ hFlo, hm3,
       hm2 ▸ htbl_fill.frame_outsideRange (.inr (le_trans hdCur hFlo)) hframe_wd⟩
   · unfold joinNodeProg
@@ -377,11 +375,9 @@ theorem joinNodeProg_realizes :
     let s₁ := (Memory.spec 0).clientState s (Memory.allocDirty lTblLen)
     have hp₁ : PreservesBelow s.frontier s s₁ := preservesBelow_allocDirty s lTblLen
     have hl_bag := hl.bag_holds.1
-    have hl_tbl := hl.tbl_holds.1
-    rw [length_dpInstTree] at hl_tbl
+    have hl_tbl := length_dpInstTree counting d.q cs vars left ▸ hl.tbl_holds.1
     have hr_bag := hr.bag_holds.1
-    have hr_tbl := hr.tbl_holds.1
-    rw [length_dpInstTree] at hr_tbl
+    have hr_tbl := length_dpInstTree counting d.q cs vars right ▸ hr.tbl_holds.1
     let lCap := if counting then d.q ^ left.size else 1
     let rCap := if counting then d.q ^ right.size else 1
     have hprod_cap : Fits w (lCap * rCap) := by

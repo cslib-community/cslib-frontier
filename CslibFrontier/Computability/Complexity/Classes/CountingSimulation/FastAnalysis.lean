@@ -106,7 +106,7 @@ theorem two_mul_sub_one_le_fuel {m p N D : ℕ} (hm : D + 2 ≤ m) (hp : p ≤ D
     have : Nat.sqrt (3 * L) < 2 * σ + 2 := Nat.sqrt_lt'.mpr (by nlinarith [Nat.lt_succ_sqrt' L])
     omega
   have hσ'0 : 0 < Nat.sqrt (Nat.log 2 Y) :=
-    Nat.sqrt_pos.mpr ((Nat.log_mono_right (show m ≤ Y by omega)).trans_lt' hL1)
+    Nat.sqrt_pos.mpr ((Nat.log_mono_right (Nat.le_add_right m p)).trans_lt' hL1)
   -- Comparing the exponents.
   set k := Y / σ with hkdef
   have hk : 1 ≤ k := (Nat.le_div_iff_mul_le hσ).mpr <| by
@@ -246,21 +246,20 @@ theorem fastAnalysis_nativeMk_of (hS : FastSizes) (hL : FastLeaves) : FastAnalys
   have hB1 : 1 ≤ n + 1 := by omega
   refine ⟨reachInv tableEntry nativeMk x₀, N, H, cS * (n + 1) ^ dS,
     KL * (n + 1) ^ KL * 2 ^ (KL * s / Nat.sqrt (Nat.log 2 s)), KL * (n + 1) ^ KL, he, hN,
-    fun x hx => ⟨(hKS' x hx).1, fun hl => ?_⟩,
+    fun x hx => ⟨(hKS' x hx).1, fun hl => hKL' x hx (by simpa [scheme] using hl)⟩,
     fun x a ha => (hKS' x ha.1).2.1 a ha, fun v ⟨x, hx, hv⟩ => hv ▸ (hKS' x hx).2.2, ?_, ?_⟩
-  · exact hKL' x hx (by simpa [scheme] using hl)
-  · have h1 : H ≤ 1 * (n + 1) ^ K := by
-      have : n + 1 ≤ (n + 1) ^ K := Nat.le_self_pow (by omega) _
-      omega
+  · have h1 : H ≤ 1 * (n + 1) ^ K :=
+      ((hH.trans (Nat.add_le_add_right hmn.le 1)).trans (Nat.le_self_pow (by omega) _)).trans_eq
+        (Nat.one_mul _).symm
     have h2 : cS * (n + 1) ^ dS ≤ cS * (n + 1) ^ K :=
       Nat.mul_le_mul_left _ (Nat.pow_le_pow_right hB1 (by omega))
-    have h3 := mul_pow_le_mul_pow (a := KL) hB1 (show KL ≤ K by omega)
+    have h3 := mul_pow_le_mul_pow (a := KL) (K := K) hB1 (by omega)
     calc H + cS * (n + 1) ^ dS + KL * (n + 1) ^ KL
         ≤ 1 * (n + 1) ^ K + cS * (n + 1) ^ K + KL * (n + 1) ^ K := by omega
       _ ≤ K * (n + 1) ^ K := by
           rw [← add_mul, ← add_mul]
           exact Nat.mul_le_mul_right _ (by omega)
-  · refine Nat.mul_le_mul (mul_pow_le_mul_pow' hB1 (show KL ≤ K by omega))
+  · refine Nat.mul_le_mul (mul_pow_le_mul_pow' hB1 (by omega))
       (Nat.pow_le_pow_right (by norm_num) (Nat.div_le_div_right (Nat.mul_le_mul_right _
         (by omega))))
 where
@@ -306,9 +305,8 @@ theorem length_vertices_le (G : ExplicitTensorNetwork ℕ) :
       encUnary_apply, List.length_replicate, length_encList]
   refine ⟨?_, fun v hv => ?_⟩
   · have := List.length_le_sum_of_one_le (G.vertices.map fun v =>
-      2 * (encPair (encList encNat) (encList encNat) v).length + 1) (fun i hi => by
-        obtain ⟨v, -, rfl⟩ := List.mem_map.mp hi
-        omega)
+      2 * (encPair (encList encNat) (encList encNat) v).length + 1)
+      (List.forall_mem_map.mpr fun _ _ => Nat.succ_pos _)
     rw [List.length_map] at this
     omega
   · have := List.le_sum_of_mem (List.mem_map_of_mem (f := fun v =>
@@ -334,9 +332,7 @@ theorem fastSizes : FastSizes := by
   have hrows : (encNat x₀.rows).length ≤ n := by
     change (encNat G.1).length ≤ n
     enc_len [hn, FastContraction.encInput]
-  have hV₀ : x₀.net.vertices.length ≤ n := by
-    simpa only [x₀, root, q, ExplicitTensorNetwork.capPrecision, rootNet, List.length_map] using
-      hV.trans hnet
+  have hV₀ : x₀.net.vertices.length ≤ n := (List.length_map _).trans_le (hV.trans hnet)
   have hfl : x₀.fl.length ≤ 32 * (n + 1) ^ 2 := (length_modulus_le m).trans
     (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) 2))
   have hR₀ : ∀ w ∈ x₀.net.vertices, (VertexDesc.enc (encList encNat) w.2).length ≤ n + 1 :=
@@ -344,9 +340,9 @@ theorem fastSizes : FastSizes := by
       simp only [length_encSum, Sum.elim_inl]
       linarith [hdesc v hv]
   obtain ⟨hc, hv, hf⟩ := (Reach.shape (x₀ := x₀) rfl rfl (wf_root P hg) hx).length_le_pow
-    tableEntry rfl rfl rfl (show m + 1 ≤ n + 1 by omega) (by omega) (by omega) hfl
+    tableEntry rfl rfl rfl (Nat.add_le_add_right hmn.le 1) (by omega) (by omega) hfl
     (fun z hz => le_one_of_mem_modulus hz) hR₀
-  exact ⟨hc, fun a ⟨_, ha, c, _, hac⟩ => by rw [hac]; exact hf ha _ c, hv⟩
+  exact ⟨hc, fun a ⟨_, ha, c, _, hac⟩ => hac ▸ hf ha _ c, hv⟩
 
 /-- **The resource analysis of the native recursion**, given the leaf bounds. -/
 theorem fastAnalysis_nativeMk (hL : FastLeaves) : FastAnalysis nativeMk :=
@@ -375,9 +371,8 @@ theorem reach_facts (C D : ℕ) : ∃ s₀, ∀ (s P : ℕ) (G : ℕ × Explicit
   have hsh := Reach.shape (x₀ := root q) rfl rfl (wf_root P hg) hx
   have hsc : x.scale = m := hsh.scale_eq
   refine ⟨hsc ▸ hsm, hsc ▸ hmC, hsc ▸ hsh.edges_le, fun hs₀ => ⟨?_, fun hl => ?_⟩⟩
-  · have hp₂ : q.1 ≤ D * m ^ 2 :=
-      hp₀.trans (Nat.mul_le_mul_left _ (Nat.le_self_pow (by norm_num) _))
-    exact hsc ▸ hsh.prec_le_pow_four rfl rfl (show D + 81 ≤ m by omega) hp₂
+  · exact hsc ▸ hsh.prec_le_pow_four rfl rfl ((le_max_right sA (D + 81)).trans (hs₀.trans hsm))
+      (hp₀.trans (Nat.mul_le_mul_left _ (Nat.le_self_pow (by norm_num) _)))
   · obtain ⟨hB, hroot⟩ := activeBounds_onSchedule_root hg (by omega) hp₀ rfl (hsA m (by omega))
     exact hsc ▸ (hx.onSchedule hB hroot).edges_le_leafSize hB hl
 

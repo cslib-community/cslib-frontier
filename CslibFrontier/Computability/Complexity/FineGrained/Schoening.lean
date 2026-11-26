@@ -257,18 +257,18 @@ private theorem weight_le_middle {k : ℕ} (hk : 1 ≤ k) (i a : ℕ) :
   have hscale : ∀ b ≤ k * i, ((k * i).choose b * (k - 1) ^ (k * i - b) : ℕ) =
       (k : ℝ) ^ (k * i) * (((k * i).choose b : ℝ) * (1 / k) ^ b * (1 - 1 / k) ^ (k * i - b)) := by
     intro b hb
+    have hpow : (k : ℝ) ^ (k * i) = k ^ b * k ^ (k * i - b) := by
+      rw [← pow_add, Nat.add_sub_cancel' hb]
     have hsub : (1 : ℝ) - 1 / k = ((k - 1 : ℕ) : ℝ) / k := by
       rw [Nat.cast_sub hk, Nat.cast_one]; field_simp
-    rw [hsub, div_pow, div_pow, one_pow,
-      show (k : ℝ) ^ (k * i) = k ^ b * k ^ (k * i - b) by rw [← pow_add]; congr 1; omega]
+    rw [hsub, div_pow, div_pow, one_pow, hpow]
     push_cast
     field_simp
   have hmode := choose_mul_pow_le_mode (n := k * i) (w := i) (p := 1 / k) hi
     (by push_cast; field_simp) (by positivity) (div_le_one_of_le₀ (by exact_mod_cast hk) hk0.le) ha
-  have : (((k * i).choose a * (k - 1) ^ (k * i - a) : ℕ) : ℝ) ≤
-      (((k * i).choose i * (k - 1) ^ (k * i - i) : ℕ) : ℝ) := by
-    rw [hscale a ha, hscale i hi]; gcongr
-  exact_mod_cast this
+  refine (Nat.cast_le (α := ℝ)).mp ?_
+  rw [hscale a ha, hscale i hi]
+  gcongr
 
 /-- **The middle binomial weight**: `k^{ki} ≤ C(ki, i) (k - 1)^{ki - i} (ki + 1)`, since the middle
 weight is the largest of the `ki + 1` weights of `((k - 1) + 1)^{ki}`. -/
@@ -304,7 +304,7 @@ theorem inv_le_hit (hk : 3 ≤ k) (d : ℕ) :
   refine le_trans ?_ ((choose_mul_le_hit (by omega) i (i + d) d (by omega)).trans
     (hit_monotone (by omega) d (by omega)))
   -- The natural-number inequality behind the bound.
-  have hmode := pow_le_choose_mul (by omega : 1 ≤ k) i
+  have hmode := pow_le_choose_mul (k := k) (by omega) i
   have hnat : (k - 1) ^ (k - 3) * k ^ (i + (i + d)) ≤
       (i + (i + d)).choose i * (k - 1) ^ (i + d) * k ^ (k - 3) * (3 * d + 1) := by
     obtain ⟨f, hf⟩ : ∃ f, k - 3 = e + f := ⟨k - 3 - e, by omega⟩
@@ -340,8 +340,7 @@ theorem inv_le_hit (hk : 3 ≤ k) (d : ℕ) :
   calc
     _ = ((k : ℝ) - 1) ^ (k - 3) * (k : ℝ) ^ (i + (i + d)) /
           ((k : ℝ) ^ (k - 3) * ((k : ℝ) - 1) ^ d * (3 * d + 1) * (k : ℝ) ^ (i + (i + d))) := by
-      simp only [div_pow, one_pow]
-      field_simp
+      simp only [div_pow, one_pow]; field_simp
     _ ≤ ((i + (i + d)).choose i : ℝ) * ((k : ℝ) - 1) ^ (i + d) * (k : ℝ) ^ (k - 3) *
           (3 * d + 1) /
           ((k : ℝ) ^ (k - 3) * ((k : ℝ) - 1) ^ d * (3 * d + 1) * (k : ℝ) ^ (i + (i + d))) :=
@@ -398,10 +397,8 @@ theorem hit_le_succeedProb (hk : 1 ≤ k) {φ : CNF V} {σs : V → Bool} (hs : 
       simpa only [succeedProb_pure, hsat, ite_true] using hit_le_one hk _ _
     | some c =>
       have hc : c ∈ φ := List.mem_of_find?_eq_some hfu
-      have hcσ : ∀ l ∈ c, σ l.1 ≠ l.2 := fun l hl hl' => by
-        have hfalse : c.eval σ = false := by simpa using List.find?_some hfu
-        exact Bool.false_ne_true
-          (hfalse.symm.trans ((Clause.eval_eq_true_iff σ c).mpr ⟨l, hl, hl'⟩))
+      have hcσ : ∀ l ∈ c, σ l.1 ≠ l.2 := fun l hl hl' =>
+        absurd ((Clause.eval_eq_true_iff σ c).mpr ⟨l, hl, hl'⟩) (by simpa using List.find?_some hfu)
       obtain ⟨l, hl, hls⟩ :=
         (Clause.eval_eq_true_iff σs c).mp ((CNF.eval_eq_true_iff σs φ).mp hs c hc)
       have hne : σ l.1 ≠ σs l.1 := hls ▸ hcσ l hl
@@ -481,9 +478,8 @@ theorem trial_success_of_length_le (hk : 3 ≤ k) {φ : CNF V} (hφ : φ.Satisfi
     c * ((k : ℝ) / (2 * ((k : ℝ) - 1))) ^ n / (3 * n + 1) =
         ∑ σ : V → Bool, ((2 : ℝ) ^ n)⁻¹ *
           (c * (1 / ((k : ℝ) - 1)) ^ hammingDist σ σs / (3 * n + 1)) := by
-      rw [← mul_sum, ← sum_div, ← mul_sum, sum_pow_hammingDist]
       have h1 : 1 + 1 / ((k : ℝ) - 1) = k / ((k : ℝ) - 1) := by field_simp; ring
-      rw [h1, div_pow, div_pow, mul_pow]
+      rw [← mul_sum, ← sum_div, ← mul_sum, sum_pow_hammingDist, h1, div_pow, div_pow, mul_pow]
       dsimp only [n]; field_simp
     _ ≤ ∑ σ : V → Bool, ((2 : ℝ) ^ n)⁻¹ * succeedProb φ (walk φ (3 * n) σ) :=
       sum_le_sum fun σ _ => mul_le_mul_of_nonneg_left (hlow σ) (by positivity)

@@ -90,8 +90,7 @@ theorem registers_step (v : FiniteCfg k Bool State) (a : Action k Bool State) :
 theorem readRegisters_vertexID {v : FiniteCfg k Bool State}
     (hf : Fits B (registers v)) :
     readRegisters B (vertexID B v) = registers v := by
-  funext i
-  exact Cslib.Radix.component_pack (pos_of_fits hf) hf i
+  exact funext fun i => Cslib.Radix.component_pack (pos_of_fits hf) hf i
 
 theorem vertexID_lt {v : FiniteCfg k Bool State}
     (hf : Fits B (registers v)) :
@@ -189,10 +188,7 @@ theorem edge_complete {v v' : FiniteCfg k Bool State}
 /-- Initial storage has an input-length-only ID. -/
 theorem vertexID_init (ntm : MultiTapeNTM k Bool State) (B : ℕ) (w : List Bool) :
     vertexID B (ntm.initView w) = startID ntm B := by
-  unfold vertexID startID
-  apply congrArg (Cslib.Radix.pack B)
-  funext i
-  cases i <;> rfl
+  exact congrArg (Cslib.Radix.pack B) (funext fun i => by cases i <;> rfl)
 
 omit [Fintype State] in
 /-- Views reachable on one input retain precisely that input. -/
@@ -220,9 +216,8 @@ theorem reachable_iff (hfit : ∀ v, Relation.ReflTransGen ntm.ViewStep (ntm.ini
       Fits B (registers v)) (u : ℕ) :
     Relation.ReflTransGen (Edge ntm B w) (startID ntm B) u ↔
       ∃ v, Relation.ReflTransGen ntm.ViewStep (ntm.initView w) v ∧ u = vertexID B v := by
-  refine ⟨fun h => ?_, ?_⟩
-  · obtain ⟨v, hv, hid, -⟩ := exists_view_of_reachable (hfit _ .refl) h
-    exact ⟨v, hv, hid⟩
+  refine ⟨fun h =>
+    (exists_view_of_reachable (hfit _ .refl) h).imp fun _ ⟨hv, hid, _⟩ => ⟨hv, hid⟩, ?_⟩
   · rintro ⟨v, hv, rfl⟩
     induction hv with
     | refl => rw [vertexID_init]
@@ -307,8 +302,7 @@ theorem not_overflow_of_fits (hfit : ∀ v, Relation.ReflTransGen ntm.ViewStep (
       Fits B (registers v)) (u : ℕ)
     (hu : Relation.ReflTransGen (Edge ntm B w) (startID ntm B) u) : ¬ Overflow ntm B w u := by
   obtain ⟨v, hv, rfl⟩ := (reachable_iff hfit u).mp hu
-  have hi := input_of_reachable hv
-  rw [← hi, overflow_vertexID (hfit v hv)]
+  rw [← input_of_reachable hv, overflow_vertexID (hfit v hv)]
   rintro ⟨v', he, hn⟩
   exact hn (hfit v' (hv.tail he))
 

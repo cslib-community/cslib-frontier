@@ -103,12 +103,8 @@ private theorem budget_le_pow {n D g p : ℕ} (hn : 1 ≤ n)
     dsimp only [Instances.budget, Catalogue.budget]
     ring
   have hpow (k : ℕ) (hk : k ≤ 6) : n ^ k ≤ n ^ 6 := Nat.pow_le_pow_right hn hk
-  have h0 : 1 ≤ n ^ 6 := Nat.one_le_pow _ _ hn
-  have h1 : n ≤ n ^ 6 := by simpa only [pow_one] using hpow 1 (by decide)
-  have h2 := hpow 2 (by decide)
-  have h3 := hpow 3 (by decide)
-  have h4 := hpow 4 (by decide)
-  omega
+  have h1 : n ≤ n ^ 6 := Nat.le_self_pow (by decide) n
+  linarith [Nat.one_le_pow 6 n hn, h1, hpow 2 (by decide), hpow 3 (by decide), hpow 4 (by decide)]
 
 private theorem envelope_le_pow {n D g p A κ : ℕ} (hn : 1 ≤ n)
     (hD : D ≤ n) (hg : g ≤ n) (hp : p ≤ n) (hA : A ≤ (n + 2) ^ κ) :
@@ -255,14 +251,12 @@ theorem runs_input {n D g p A W : ℕ} (values : List ℤ)
       Instances.Output n D g p (fun q => values.getD q 0)
         (.init (input n D g p values)) y ∧
       InputFits W (input n D g p values) ∧ y.Bounded W := by
-  obtain ⟨y, hew, hout, hi, hybounded⟩ := exec_input values hlen hD hDn hg hp hv hw
-  obtain ⟨t, ht, he⟩ := hew
-  have hr := he.runs (pc := 0) (p := flatProgram) (Program.Contains.self _).append_left
-  refine ⟨y, t + 1, ?_, ?_, ?_, hout, hi, hybounded⟩
-  · dsimp only [Instances.timeBound] at ht ⊢
-    omega
-  · simpa only [State.init, Nat.zero_add, Nat.add_sub_cancel] using hr
-  · simpa only [flatProgram, State.init] using he.executes Instances.output
+  obtain ⟨y, ⟨t, ht, he⟩, hout, hi, hybounded⟩ := exec_input values hlen hD hDn hg hp hv hw
+  refine ⟨y, t + 1, by dsimp only [Instances.timeBound] at ht ⊢; omega, ?_,
+    by simpa only [flatProgram, State.init] using he.executes Instances.output,
+    hout, hi, hybounded⟩
+  simpa only [State.init, Nat.zero_add, Nat.add_sub_cancel] using
+    he.runs (pc := 0) (p := flatProgram) (Program.Contains.self _).append_left
 
 private theorem pow_width_lt (n D g p A : ℕ) :
     2 ^ width n D g p A < wordBound n D g p A := by

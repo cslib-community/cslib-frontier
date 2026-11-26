@@ -268,17 +268,16 @@ private lemma length_eSSt_le (t i j : ℕ) :
   obtain ⟨j', -, heq, hb'⟩ := budgetStep_iterate d x b (min i t)
   rw [heq]
   dsimp only
+  obtain ⟨hinv₁, -, hinv₂⟩ := inv_iterate d x j'
   have hout := List.length_take_le 2 ((stepOut d x)^[j'] (init d, [])).2
-  have hval (o : ℕ) (ho : o ∈ ((stepOut d x)^[j'] (init d, [])).2.take 2) : o ≤ descLen d :=
-    (inv_iterate d x j').2.2 o (List.mem_of_mem_take ho)
   have hc : (eCfg (run d x j')).length ≤ max b (eCfg (init d)).length :=
     hb'.elim (fun h0 => h0 ▸ le_max_right _ _) fun hb' => hb'.trans (le_max_left _ _)
-  have hpos : (run d x j').inputPos ≤ x.length + 1 := (inv_iterate d x j').1.inputPos
   obtain ⟨hk, hcur⟩ := scan_take x (run d x j').inputPos 0 j
-  have hr := length_encNat_mono (show t - i ≤ t by omega)
-  have hk' := length_encNat_mono (hk.trans hpos)
+  have hr := length_encNat_mono (Nat.sub_le t i)
+  have hk' := length_encNat_mono (hk.trans hinv₁.inputPos)
   have ho := length_encList_le encUnary (((stepOut d x)^[j'] (init d, [])).2.take 2)
-    (b := descLen d) fun o ho => by rw [encUnary_apply, List.length_replicate]; exact hval o ho
+    (b := descLen d) fun o ho => by
+      simpa only [encUnary_apply, List.length_replicate] using hinv₂ o (List.mem_of_mem_take ho)
   have ho' := Nat.mul_le_mul_right (2 * descLen d + 1) hout
   simp only [length_encPair, encUnary_apply, List.length_replicate, budgetSpace, descLen] at *
   omega
@@ -351,10 +350,10 @@ private lemma foldContS_inO : ComputableInO foldContS eSSt encBool
   have h := foldCont_inO.comp (fst eSt (encPair encUnary (encList encUnary)))
   refine (h.of_enc_eq (g := foldContS) fun s => rfl).mono 2 (fun s => ?_) fun s => ?_
   all_goals
-    have : (eSt s.1).length ≤ (eSSt s).length := by simp only [length_encPair]; omega
-    have : ((eSt s.1).length + 1) ^ 3 ≤ ((eSSt s).length + 1) ^ 3 :=
-      Nat.pow_le_pow_left (by omega) 3
-    have : (eSSt s).length + 1 ≤ ((eSSt s).length + 1) ^ 3 := Nat.le_self_pow (by norm_num) _
+    have hle : (eSt s.1).length + 1 ≤ (eSSt s).length + 1 := by
+      simp only [eSSt, length_encPair]; omega
+    have := Nat.pow_le_pow_left hle 3
+    have := Nat.le_self_pow (by decide : 3 ≠ 0) ((eSSt s).length + 1)
     dsimp only [eSSt] at *
     omega
 
@@ -372,7 +371,7 @@ private lemma foldFinishS_inO : ComputableInO foldFinishS eSSt eOut
   · simp only [foldFinishS, Function.comp_apply]
     cases s.1.1.2.state <;> rfl
   all_goals
-    have : (eSSt s).length + 1 ≤ ((eSSt s).length + 1) ^ 3 := Nat.le_self_pow (by norm_num) _
+    have := Nat.le_self_pow (by decide : 3 ≠ 0) ((eSSt s).length + 1)
     dsimp only [eSSt] at *
     omega
 
@@ -397,15 +396,14 @@ lemma budgetTest_inO : ComputableInO
   all_goals
     dsimp only [Function.comp_apply, encBits_apply]
     have e₁ := length_eSSt s
-    have e₂ : ((encPair eSt (encPair encUnary (encList encUnary))) s).length =
-      (eSSt s).length := rfl
     have e₃ := length_encPair (enc₁ := encUnary) (enc₂ := encUnary)
       ((eCfg (stepAt s.1).1).length, s.2.1)
     have h₄ := hcS s.1
     rw [length_encPair (enc₁ := eCfg) (enc₂ := eSym)] at h₄
     simp only [encUnary_apply, List.length_replicate] at e₃
-    rw [e₂, e₃]
-    generalize (eSSt s).length = L at *
+    rw [e₃]
+    dsimp only [eSSt] at e₁ ⊢
+    generalize ((encPair eSt (encPair encUnary (encList encUnary))) s).length = L at *
     generalize (eCfg (stepAt s.1).1).length = w at *
     generalize (eSt s.1).length = A at *
     have h₅ : cS * (A + 1 + 1) ≤ cS * (2 * (L + 1)) := Nat.mul_le_mul_left _ (by omega)
@@ -436,8 +434,6 @@ private lemma foldEndS_inO : ComputableInO foldEndS eSSt eSSt
     (fun s => ((eSSt s).length + 1) ^ 3) fun s => (eSSt s).length + 1 := by
   have h₁ := fst eSt (encPair encUnary (encList encUnary))
   have h₂ := snd eSt (encPair encUnary (encList encUnary))
-  have e₂ (s : SSt) : ((encPair eSt (encPair encUnary (encList encUnary))) s).length =
-      (eSSt s).length := rfl
   -- the step taken
   have hkeep := keepTwo_deg.inO_one.comp_linear (h₂.snd'.prod (stepAt_inO.comp h₁).snd')
   have htaken : ComputableInO (fun s : SSt =>
@@ -446,8 +442,8 @@ private lemma foldEndS_inO : ComputableInO foldEndS eSSt eSSt
     refine ((foldEnd_inO.comp h₁).prod (h₂.fst'.prod hkeep)).mono 8 (fun s => ?_) fun s => ?_
     all_goals
       have e₁ := length_eSSt s
-      rw [e₂]
-      generalize (eSSt s).length = L at *
+      dsimp only [eSSt] at e₁ ⊢
+      generalize ((encPair eSt (encPair encUnary (encList encUnary))) s).length = L at *
       generalize (eSt s.1).length = A at *
       have hX : L + 1 ≤ (L + 1) ^ 3 := Nat.le_self_pow (by norm_num) _
       have hA : (A + 1) ^ 3 ≤ (L + 1) ^ 3 := Nat.pow_le_pow_left (by omega) 3
@@ -466,14 +462,14 @@ private lemma foldEndS_inO : ComputableInO foldEndS eSSt eSSt
       have e₃ := length_encPair (enc₁ := encPair eDesc eCfg)
         (enc₂ := encPair encNat (encPair encNat encUnary)) s.1
       have e₄ := length_encPair (enc₁ := encNat) (enc₂ := encPair encNat encUnary) s.1.2
-      rw [e₂]
-      have hr : (encNat s.1.2.1).length + 1 ≤ (eSSt s).length + 1 := by
+      dsimp only [eSSt] at e₁ ⊢
+      generalize ((encPair eSt (encPair encUnary (encList encUnary))) s).length = L at *
+      have hr : (encNat s.1.2.1).length + 1 ≤ L + 1 := by
         change (eSt s.1).length = _ at e₃
         omega
       have hsq := Nat.pow_le_pow_left hr 2
-      have hX : (eSSt s).length + 1 ≤ ((eSSt s).length + 1) ^ 3 := Nat.le_self_pow (by norm_num) _
-      have hX2 : ((eSSt s).length + 1) ^ 2 ≤ ((eSSt s).length + 1) ^ 3 :=
-        Nat.pow_le_pow_right (by omega) (by omega)
+      have hX : L + 1 ≤ (L + 1) ^ 3 := Nat.le_self_pow (by norm_num) _
+      have hX2 : (L + 1) ^ 2 ≤ (L + 1) ^ 3 := Nat.pow_le_pow_right (by omega) (by omega)
       omega
   refine ((budgetTest_inO.ite htaken hstay).of_enc_eq (g := foldEndS) fun s => ?_).mono 2
     (fun s => ?_) fun s => ?_
@@ -525,8 +521,8 @@ public theorem computableInTimeAndSpace_budgetedUniversal : ∃ c,
     have := length_eSSt_le' d x b t i j
     rw [length_encPair, encBool_apply, List.length_singleton]
     generalize (eSSt _).length = a at this ⊢
-    have h₁ := Nat.pow_le_pow_left
-      (show 2 * a + 1 + 1 + 1 ≤ 3 * (budgetSpace (d, x, t, b) + 1) by omega) 2
+    have hlin : 2 * a + 1 + 1 + 1 ≤ 3 * (budgetSpace (d, x, t, b) + 1) := by omega
+    have h₁ := Nat.pow_le_pow_left hlin 2
     have h₂ : (budgetSpace (d, x, t, b) + 1) ^ 2 ≤ (budgetSpace (d, x, t, b) + 1) ^ 3 :=
       Nat.pow_le_pow_right (by omega) (by omega)
     nlinarith
@@ -540,10 +536,9 @@ public theorem computableInTimeAndSpace_budgetedUniversal : ∃ c,
     have h₁ := length_eSSt_le' d x b t i (inTr.events (eInS (d, x, t, b))).length
     have h₂ := streamState_zero _ foldNextS (inTr.events (eInS (d, x, t, b))) ▸
       length_eSSt_le' d x b t (i + 1) 0
-    have h₃ := Nat.pow_le_pow_left (Nat.add_le_add_right h₁ 1) 3
-    have h₄ := Nat.pow_le_pow_left (Nat.add_le_add_right h₂ 1) 3
-    have h₅ : budgetSpace (d, x, t, b) + 1 ≤ (budgetSpace (d, x, t, b) + 1) ^ 3 :=
-      Nat.le_self_pow (by norm_num) _
+    have := Nat.pow_le_pow_left (Nat.add_le_add_right h₁ 1) 3
+    have := Nat.pow_le_pow_left (Nat.add_le_add_right h₂ 1) 3
+    have := Nat.le_self_pow (by decide : 3 ≠ 0) (budgetSpace (d, x, t, b) + 1)
     omega
   case refine_6 =>
     rintro ⟨d, x, t, b⟩ i -

@@ -511,7 +511,6 @@ theorem HanfEquiv.duplicatorWins_of_two_pow [Finite M] [Nonempty M] :
       HanfEquiv L (2 ^ (n - 1) - 1) a b → DuplicatorWins L n a b
   | 0, _, _, _, H => duplicatorWins_zero.2 H.nbhdIso.partialIso
   | m + 1, k, a, b, H => by
-    have hP := H.nbhdIso.partialIso
     simp only [Nat.add_sub_cancel] at H
     obtain ⟨f, hf⟩ := hanfEquiv_iff.1 H
     have he : ∀ c', NbhdIso L (2 ^ (m - 1) - 1) (fun _ : Fin 1 => c')
@@ -519,14 +518,12 @@ theorem HanfEquiv.duplicatorWins_of_two_pow [Finite M] [Nonempty M] :
       obtain ⟨h, Hh⟩ := nbhdIso_iff.1 (hf c')
       have hres := Hh.restrict (x := fun _ : Fin 1 => c') (l := 0) (d := 2 ^ (m - 1) - 1)
         (fun _ => mem_ball_snoc.2 (.inr (mem_ball_self _ 0 0)))
-        (by
-          have : 2 ^ (m - 1) ≤ 2 ^ m := Nat.pow_le_pow_right (by decide) (Nat.sub_le m 1)
-          omega)
+        (by have := Nat.pow_le_pow_right Nat.two_pos (Nat.sub_le m 1); omega)
       have hc' : h c' = f c' := by simpa using Hh.map_tuple (Fin.last k)
       exact (by simpa [Function.comp_def, hc'] using hres : IsNbhdIso L _ _ _ h).nbhdIso
-    refine duplicatorWins_succ.2 ⟨hP, fun c => ⟨f c, ?_⟩, fun d => ⟨f.symm d, ?_⟩⟩
-    · exact (hf c).duplicatorWins_of_equiv_two_pow f he
-    · exact ((f.apply_symm_apply d) ▸ hf (f.symm d)).duplicatorWins_of_equiv_two_pow f he
+    refine duplicatorWins_succ.2 ⟨H.nbhdIso.partialIso,
+      fun c => ⟨f c, (hf c).duplicatorWins_of_equiv_two_pow f he⟩, fun d => ⟨f.symm d, ?_⟩⟩
+    exact ((f.apply_symm_apply d) ▸ hf (f.symm d)).duplicatorWins_of_equiv_two_pow f he
 
 /-- **Sharp Hanf locality for bounded formulas** ([Libkin, Exercises 4.10 and 4.11][Libkin2004]):
 over a finite nonempty structure and a relational language, tuples that are Hanf-equivalent at
@@ -571,12 +568,8 @@ def loopReach : ℕ → Language.graph.Formula (Fin 1)
 
 @[simp] theorem quantifierRank_loopReach (n : ℕ) : quantifierRank (loopReach n) = n := by
   induction n with
-  | zero =>
-    simp only [loopReach, Relations.formula₂, Relations.formula,
-      quantifierRank_relations_boundedFormula]
-  | succ k ih =>
-    simp only [loopReach, quantifierRank_ex, quantifierRank_inf, quantifierRank_relabel,
-      quantifierRank_distLE, ih, max_self]
+  | zero => simp [loopReach, Relations.formula₂, Relations.formula]
+  | succ k ih => simp [loopReach, ih]
 
 theorem realize_loopReach_zero {M : Type*} [Language.graph.Structure M] (x : M) :
     (loopReach 0).Realize ![x] ↔ RelMap adj ![x, x] := by
@@ -741,8 +734,8 @@ theorem exists_nbhdIso_realize_loopReach {n r : ℕ} (hn : 1 ≤ n) (hr : r < 2 
       exact False.elim ((ENat.natCast_lt_top r).not_ge hu)
   · rw [hvec, realize_loopReach_loopGraphRel]
     refine ⟨loopPt, rfl, ?_⟩
-    rw [SimpleGraph.edist_sum_inl, SimpleGraph.edist_pathGraph, Nat.cast_le]
-    simp only [x₀, m]
+    simp only [G, P, loopPt, x₀, m, SimpleGraph.edist_sum_inl, SimpleGraph.edist_pathGraph,
+      Nat.cast_le]
     omega
   · rw [hvec, realize_loopReach_loopGraphRel]
     rintro ⟨y, rfl, hy⟩

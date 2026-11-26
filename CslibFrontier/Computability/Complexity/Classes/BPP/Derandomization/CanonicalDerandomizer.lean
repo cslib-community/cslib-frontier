@@ -102,12 +102,9 @@ theorem Generator.exists_complexity_le_advantage_ge {k L : ℕ}
   · -- a disjunction over the seeds of the conjunction of the output bits
     set D : List (List (BooleanFunction L × Bool)) := (BitString.enum k).map fun z =>
       (List.finRange L).map fun i => ((fun x : BitString L => x i), Gk z i)
-    have hw : ∀ c ∈ D, c.length ≤ L := fun c hc => by
-      obtain ⟨z, -, rfl⟩ := List.mem_map.1 hc; simp
-    have hD : ∀ c ∈ D, ∀ l ∈ c, l.1 ∈ inputs L := fun c hc l hl => by
-      obtain ⟨z, -, rfl⟩ := List.mem_map.1 hc
-      obtain ⟨i, -, rfl⟩ := List.mem_map.1 hl
-      exact ⟨i, rfl⟩
+    have hw : ∀ c ∈ D, c.length ≤ L := List.forall_mem_map.2 fun _ _ => by simp
+    have hD : ∀ c ∈ D, ∀ l ∈ c, l.1 ∈ inputs L :=
+      List.forall_mem_map.2 fun _ _ => List.forall_mem_map.2 fun i _ => ⟨i, rfl⟩
     have hsyn := (show D.length = 2 ^ k by simp [D]) ▸ Synthesis.any_all_literal hw hD
     refine Synthesis.complexity_le (Synthesis.congr_iff hsyn fun x => ?_)
     simp only [D, List.any_map, List.any_eq_true, Function.comp_apply, List.all_map,
@@ -126,9 +123,8 @@ theorem Generator.exists_complexity_le_advantage_ge {k L : ℕ}
         _ ≤ (univ : Finset (BitString k)).card := card_image_le
         _ = 2 ^ k := by rw [card_univ, BitString.card]
     rw [hseeds, Nat.cast_pow, Nat.cast_ofNat, div_self (by positivity)]
-    exact (sub_le_sub_left (div_le_div_of_nonneg_right
-      (show (#{y : BitString L | decide (∃ z, Gk z = y) = true} : ℝ) ≤ 2 ^ k from mod_cast hrange)
-      (by positivity)) 1).trans (le_abs_self _)
+    exact (sub_le_sub_left (div_le_div_of_nonneg_right (by exact_mod_cast hrange) (by positivity))
+      1).trans (le_abs_self _)
 
 end Cslib.Crypto.PRG
 
@@ -200,10 +196,9 @@ private theorem exists_two_pow_div_le {ℓ : ℕ → ℕ}
       _ = k * (1 / (e : ℝ)) := by ring
       _ ≤ k * ε := mul_le_mul_of_nonneg_left hεe (by positivity)
       _ = ε * k := mul_comm _ _
-  have : (2 : ℝ) ^ ((k / e : ℕ) : ℝ) ≤ ℓ k :=
-    (Real.rpow_le_rpow_of_exponent_le (by norm_num) hdiv).trans (hK k hk)
-  rw [Real.rpow_natCast] at this
-  exact_mod_cast this
+  exact_mod_cast (Real.rpow_natCast 2 (k / e) ▸
+    (Real.rpow_le_rpow_of_exponent_le one_le_two hdiv).trans (hK k hk) :
+    (2 : ℝ) ^ (k / e) ≤ ℓ k)
 
 /-- **Goldreich, Theorem 8.16** [Goldreich, Theorem 8.16][Goldreich2007DraftR4] (draft r4, printed
 page 339, PDF page 75): *if there exists a canonical derandomizer of stretch `ℓ(k) = 2 ^ Ω(k)`,
@@ -313,13 +308,11 @@ theorem ExponentialTimePRG.canonicalDerandomizer {G : List Bool → List Bool} {
     rw [mul_comm c, pow_mul]
     exact Nat.pow_le_pow_left (Nat.le_mul_of_pos_right _ (Nat.succ_pos _)) c
   refine ⟨hG.monotone, hG.length_eq, ⟨c, hc.mono_le hle hle⟩, fun k adversary hadv => ?_⟩
-  have hsize : S k ^ 2 ≤ S k ^ 3 := by
-    rcases Nat.eq_zero_or_pos (S k) with h | h
-    · simp [h]
-    · exact Nat.pow_le_pow_right h (by norm_num)
   obtain ⟨test, htest, rfl⟩ := hadv
-  have := hG.pseudorandom k _ ⟨test, htest.trans hsize, rfl⟩
-  linarith
+  have hsize : S k ^ 2 ≤ S k ^ 3 := match S k with
+    | 0 => le_rfl
+    | _ + 1 => Nat.pow_le_pow_right (Nat.succ_pos _) (by decide)
+  exact (hG.pseudorandom k _ ⟨test, htest.trans hsize, rfl⟩).trans (by norm_num)
 
 /-- **Arora and Barak, Corollary 16.6 (1)** [Arora and Barak, Corollary 16.6][AroraBarak07] (draft
 of 2007-01-08, printed page 285, PDF page 301): *if there exists a `2 ^ (ε ℓ)`-pseudorandom

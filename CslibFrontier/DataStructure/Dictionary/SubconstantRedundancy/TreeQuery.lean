@@ -310,20 +310,17 @@ theorem nodeWait_overwriteAtNode
     {ℓ : ℕ} (h2 : 2 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ)) :
     (st.overwriteAtNode scheme L h1L hLL uL k qv).nodeWait ℓ h2 hℓ u =
       st.nodeWait ℓ h2 hℓ u := by
-  by_cases hsame : ∃ h_eq : ℓ = L, h_eq ▸ u = uL
-  · obtain ⟨rfl, rfl⟩ := hsame
-    rcases st.overwriteAtNode_cases scheme h1L hLL u k qv with
-      h | ⟨rfl, _, _, _, _⟩ | ⟨_, hlt, nd, _, hw, _, h⟩ | ⟨rfl, ln, _, hw, _, h⟩
-    · rw [h]
-    · omega
-    · rw [h]; simp [nodeWait_inner _ h2 hlt hℓ, updateInner, hw]
-    · rw [h]; simp [updateLeaf, hw]
-  · push Not at hsame
-    rcases st.overwriteAtNode_cases scheme h1L hLL uL k qv with
-      h | ⟨rfl, nd, _, _, h⟩ | ⟨h2L, hlt, nd, _, _, _, h⟩ | ⟨rfl, ln, _, _, _, h⟩ <;> rw [h]
-    · simp
-    · exact st.nodeWait_updateInner_other h2L hlt uL nd h2 hℓ u hsame
-    · exact st.nodeWait_updateLeaf_other uL ln h2 hℓ u hsame
+  rcases st.overwriteAtNode_cases scheme h1L hLL uL k qv with
+    h | ⟨rfl, nd, _, _, h⟩ | ⟨h2L, hlt, nd, _, hw, _, h⟩ | ⟨rfl, ln, _, hw, _, h⟩ <;> rw [h]
+  · simp
+  · by_cases hsame : ∃ h_eq : ℓ = L, h_eq ▸ u = uL
+    · obtain ⟨rfl, rfl⟩ := hsame
+      simp [nodeWait_inner _ h2 hlt hℓ, updateInner, hw]
+    · exact st.nodeWait_updateInner_other h2L hlt uL nd h2 hℓ u (not_exists.mp hsame)
+  · by_cases hsame : ∃ h_eq : ℓ = P.depth, h_eq ▸ u = uL
+    · obtain ⟨rfl, rfl⟩ := hsame
+      simp [updateLeaf, hw]
+    · exact st.nodeWait_updateLeaf_other uL ln h2 hℓ u (not_exists.mp hsame)
 
 theorem nodeQuery_overwriteAtNode_same
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
@@ -452,10 +449,8 @@ theorem wellFormedPadded_rawOverwrite
         obtain rfl : m = L := by omega
         have hcoord : st.seeds.levelCoordEquiv L h1 (hmL.trans hhi_x) x = (uL, idL, qL) :=
           Prod.ext (st.seeds.levelCoordEquiv_fst h1 hhi_x x) rfl
-        have hqL : st.nodeQuery scheme L h1 (hmL.trans hhi_x) uL idL = some (qL, vx) :=
-          hwf.query_eq_of_storeLvl L h1 hhi_x uL x vx hvx rfl rfl
         unfold rawOverwriteLoop
-        simp [hcoord, hqL, st_target]
+        simp [hcoord, idL, qL, hwf.query_eq_of_storeLvl L h1 hhi_x uL x vx hvx rfl rfl, st_target]
       | succ k ih =>
         intro m hsum h1 hmL
         have hm_lt_d : m < P.depth := by omega
@@ -477,29 +472,27 @@ theorem wellFormedPadded_rawOverwrite
     simpa only [rawOverwrite, ← st.seeds.levelCoordEquiv_one] using
       hgen (L - 1) 1 (by omega) le_rfl hlo_x
   rw [heq_target]
-  have hseeds : st_target.seeds = st.seeds :=
-    st.seeds_overwriteAtNode scheme hlo_x hhi_x uL idL (qL, v_new)
+  have hseeds := st.seeds_overwriteAtNode scheme hlo_x hhi_x uL idL (qL, v_new)
+  have hdom := fun {ℓ} => st.nodeDom_overwriteAtNode (ℓ := ℓ) scheme hlo_x hhi_x uL idL (qL, v_new)
+  have hwait := fun {ℓ} =>
+    st.nodeWait_overwriteAtNode (ℓ := ℓ) scheme hlo_x hhi_x uL idL (qL, v_new)
   dsimp only [st_target] at hseeds ⊢
   refine
     { goodSeeds := by simpa only [hseeds, hdom_upd] using hwf.goodSeeds
       storeLvl_bounds := by simpa only [hdom_upd] using hwf.storeLvl_bounds
       storeLvl_outside := by simpa only [hdom_upd] using hwf.storeLvl_outside
       dom_eq := fun ℓ h1' hℓ' u => by
-        simpa only [st.nodeDom_overwriteAtNode scheme hlo_x hhi_x uL idL (qL, v_new) h1' hℓ' u,
-          hseeds, hdom_upd] using hwf.dom_eq ℓ h1' hℓ' u
+        simpa only [hdom h1' hℓ' u, hseeds, hdom_upd] using hwf.dom_eq ℓ h1' hℓ' u
       query_eq_of_storeLvl := fun ℓ h1' hℓ' u y vy hdy hny hsly => ?_
       inner_full := fun ℓ h2' hlt' u => by
         simpa only [nodeDom_inner _ (Nat.one_le_of_lt h2') h2' hlt' hlt'.le,
           hwf.inner_full ℓ h2' hlt' u] using
-          congrArg Finset.card (st.nodeDom_overwriteAtNode scheme hlo_x hhi_x uL idL (qL, v_new)
-            (Nat.one_le_of_lt h2') hlt'.le u)
+          congrArg Finset.card (hdom (Nat.one_le_of_lt h2') hlt'.le u)
       wait_dom_eq := fun ℓ h2' hℓ' u => by
-        simpa only [st.nodeWait_overwriteAtNode scheme hlo_x hhi_x uL idL (qL, v_new) h2' hℓ' u,
-          hseeds, hdom_upd] using hwf.wait_dom_eq ℓ h2' hℓ' u
+        simpa only [hwait h2' hℓ' u, hseeds, hdom_upd] using hwf.wait_dom_eq ℓ h2' hℓ' u
       wait_lookup_eq := fun ℓ h2' hℓ' u y hy hsly => by
         rw [hseeds, hdom_upd] at hy
-        simpa only [st.nodeWait_overwriteAtNode scheme hlo_x hhi_x uL idL (qL, v_new) h2' hℓ' u,
-          hseeds] using hwf.wait_lookup_eq ℓ h2' hℓ' u y hy hsly }
+        simpa only [hwait h2' hℓ' u, hseeds] using hwf.wait_lookup_eq ℓ h2' hℓ' u y hy hsly }
   rw [hseeds] at hny ⊢
   rcases eq_or_ne y x with rfl | hyx
   · rw [Function.update_self, Option.some.injEq] at hdy

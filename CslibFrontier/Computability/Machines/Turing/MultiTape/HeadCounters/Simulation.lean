@@ -557,61 +557,55 @@ private lemma run_tape (pos : Fin (input.length + 2)) (out : List Bool) (q : Sta
       StepInv c (tm.tr q c.inputSymbol c.workTapeSymbols) (j + 1) cur' cs' := by
   obtain ⟨h0, hinv⟩ := h
   obtain ⟨hcur, henc⟩ := (hinv j).2 le_rfl
-  have hw := apply_workTapes (tm.tr q c.inputSymbol c.workTapeSymbols) c j
+  let a := tm.tr q c.inputSymbol c.workTapeSymbols
+  have hw := apply_workTapes a c j
   -- the tapes other than `j` keep their state in the invariant
   have hother (cur' : Fin k → Option Bool) (cs' : Fin (k + k + 1) → ℕ) (h0' : cs' tmp = 0)
       (hcur' : ∀ i, i ≠ j → cur' i = cur i) (hlo : ∀ i, i ≠ j → cs' (lo i) = cs (lo i))
       (hhi : ∀ i, i ≠ j → cs' (hi i) = cs (hi i))
-      (hj : cur' j = (tm.tr q c.inputSymbol c.workTapeSymbols |>.apply c).workTapeSymbols j ∧
-        Encodes ((tm.tr q c.inputSymbol c.workTapeSymbols |>.apply c).workTapes j)
-          ((tm.tr q c.inputSymbol c.workTapeSymbols |>.apply c).workTapePos j)
-          (cs' (lo j)) (cs' (hi j))) :
-      StepInv c (tm.tr q c.inputSymbol c.workTapeSymbols) (j + 1) cur' cs' := by
+      (hj : cur' j = (a.apply c).workTapeSymbols j ∧
+        Encodes ((a.apply c).workTapes j) ((a.apply c).workTapePos j) (cs' (lo j)) (cs' (hi j))) :
+      StepInv c a (j + 1) cur' cs' := by
     refine ⟨h0', fun i => ?_⟩
     rcases eq_or_ne i j with rfl | hij
     · exact ⟨fun _ => hj, fun h => absurd h (by omega)⟩
     · rw [hcur' i hij, hlo i hij, hhi i hij]
       exact ⟨fun h => (hinv i).1 (by omega), fun h => (hinv i).2 (by omega)⟩
-  rcases hd : ((tm.tr q c.inputSymbol c.workTapeSymbols).workTapes j).2 with _ | _ | _
+  by_cases hd0 : dir tm q c.inputSymbol c.workTapeSymbols j = 0
   · -- no move: only the scanned symbol changes
-    rw [SignType.zero_eq_zero] at hd
+    have hd0' : (a.workTapes j).2 = 0 := hd0
     refine ⟨0 + 1, _, cs, runFrom_succ_of_ctl tm pos out
-      (c' := ⟨q, c.inputSymbol, c.workTapeSymbols,
-        update cur j (written (tm.tr q c.inputSymbol c.workTapeSymbols) c.workTapeSymbols j),
-        phaseAt k (j + 1)⟩) (mv := fun _ => 0) (fun _ => by simp [ctl, dir, hd]) 0 |>.trans
-        (by rw [moveCounters_zero]; rfl), ?_⟩
-    refine hother _ _ h0 (fun i hi => update_of_ne hi _ _) (fun _ _ => rfl) (fun _ _ => rfl) ?_
-    simp only [Cfg.workTapeSymbols, hw, Action.apply_workTapePos, hd, SignType.coe_zero,
+      (c' := ⟨q, c.inputSymbol, c.workTapeSymbols, update cur j (written a c.workTapeSymbols j),
+        phaseAt k (j + 1)⟩) (mv := fun _ => 0) (fun _ => by simp [ctl, hd0, a]) 0 |>.trans
+        (by rw [moveCounters_zero]; rfl),
+      hother _ _ h0 (fun i hi => update_of_ne hi _ _) (fun _ _ => rfl) (fun _ _ => rfl) ?_⟩
+    simp only [Cfg.workTapeSymbols, hw, Action.apply_workTapePos, hd0', SignType.coe_zero,
       add_zero, update_self, true_and]
     exact henc.write _
-  · -- move left
-    rw [SignType.neg_eq_neg_one] at hd
-    have hd' : dir tm q c.inputSymbol c.workTapeSymbols j ≠ 0 := by simp [dir, hd]
-    obtain ⟨n, hn⟩ := run_move tm pos out q c.inputSymbol c.workTapeSymbols cur j hd' cs h0
-    simp only [target, source, dir, hd, reduceCtorEq, ↓reduceIte] at hn
+  · obtain ⟨n, hn⟩ := run_move tm pos out q c.inputSymbol c.workTapeSymbols cur j hd0 cs h0
     refine ⟨n, _, _, hn, hother _ _ ?_ (fun i hi => update_of_ne hi _ _) (fun i hi => ?_)
       (fun i hi => ?_) ?_⟩
-    · simp [(lo_ne_tmp j).symm, (hi_ne_tmp j).symm, h0]
-    · rw [update_of_ne (fun e => hi (lo_inj.mp e)), update_of_ne (lo_ne_hi i j)]
-    · rw [update_of_ne (fun e => lo_ne_hi j i e.symm), update_of_ne (fun e => hi (hi_inj.mp e))]
-    · have hne_pos : c.workTapePos j - 1 ≠ c.workTapePos j := by omega
-      simp only [Cfg.workTapeSymbols, hw, Action.apply_workTapePos, hd, SignType.coe_neg_one,
-        ← sub_eq_add_neg, update_self, update_of_ne (lo_ne_hi j j).symm, update_of_ne hne_pos]
-      exact ⟨henc.symbol_left.symm, henc.move_left _⟩
-  · -- move right
-    rw [SignType.pos_eq_one] at hd
-    have hd' : dir tm q c.inputSymbol c.workTapeSymbols j ≠ 0 := by simp [dir, hd]
-    obtain ⟨n, hn⟩ := run_move tm pos out q c.inputSymbol c.workTapeSymbols cur j hd' cs h0
-    simp only [target, source, dir, hd, ↓reduceIte] at hn
-    refine ⟨n, _, _, hn, hother _ _ ?_ (fun i hi => update_of_ne hi _ _) (fun i hi => ?_)
-      (fun i hi => ?_) ?_⟩
-    · simp [(lo_ne_tmp j).symm, (hi_ne_tmp j).symm, h0]
-    · rw [update_of_ne (lo_ne_hi i j), update_of_ne (fun e => hi (lo_inj.mp e))]
-    · rw [update_of_ne (fun e => hi (hi_inj.mp e)), update_of_ne (fun e => lo_ne_hi j i e.symm)]
-    · have hne_pos : c.workTapePos j + 1 ≠ c.workTapePos j := by omega
-      simp only [Cfg.workTapeSymbols, hw, Action.apply_workTapePos, hd, SignType.coe_one,
-        update_self, update_of_ne (lo_ne_hi j j), update_of_ne hne_pos]
-      exact ⟨henc.symbol_right.symm, henc.move_right _⟩
+    · simp [(target_ne_tmp j _).symm, (source_ne_tmp j _).symm, h0]
+    · unfold target source
+      split_ifs <;> simp [lo_inj, lo_ne_hi, hi]
+    · unfold target source
+      split_ifs <;> simp [hi_inj, (lo_ne_hi _ _).symm, hi]
+    · rcases hd : (a.workTapes j).2 with _ | _ | _
+      · exact absurd (by simp [dir, a, SignType.zero_eq_zero, hd]) hd0
+      · -- move left
+        rw [SignType.neg_eq_neg_one] at hd
+        have hne_pos : c.workTapePos j - 1 ≠ c.workTapePos j := by omega
+        simp only [target, source, dir, a, Cfg.workTapeSymbols, hw, Action.apply_workTapePos, hd,
+          reduceCtorEq, ↓reduceIte, SignType.coe_neg_one, ← sub_eq_add_neg, update_self,
+          update_of_ne (lo_ne_hi j j).symm, update_of_ne hne_pos]
+        exact ⟨henc.symbol_left.symm, henc.move_left _⟩
+      · -- move right
+        rw [SignType.pos_eq_one] at hd
+        have hne_pos : c.workTapePos j + 1 ≠ c.workTapePos j := by omega
+        simp only [target, source, dir, a, Cfg.workTapeSymbols, hw, Action.apply_workTapePos, hd,
+          ↓reduceIte, SignType.coe_one, update_self, update_of_ne (lo_ne_hi j j),
+          update_of_ne hne_pos]
+        exact ⟨henc.symbol_right.symm, henc.move_right _⟩
 
 /-- Simulate the step on all tapes from tape `j` on. -/
 private lemma run_tapes (pos : Fin (input.length + 2)) (out : List Bool) (q : State)

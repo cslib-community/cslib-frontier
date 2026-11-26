@@ -132,8 +132,7 @@ theorem eval_sampleBoundedIndex_sentinel (bound : ℕ) :
     omega
   have hmin (i : Fin (dyadicSize bound)) : bound = min bound i.val ↔ bound ≤ i.val := by omega
   simp only [PMF.map_apply, tsum_fintype, PMF.uniformOfFintype_apply, Fintype.card_fin, hmin]
-  rw [← Finset.sum_filter]
-  simp [intervalFailure, div_eq_mul_inv, hcard]
+  simp [← Finset.sum_filter, intervalFailure, div_eq_mul_inv, hcard]
 
 /-- The retry law, including the remaining failure event. All unused draws are integrated out. -/
 theorem eval_sampleUniformInterval_succ (bound attempts : ℕ) :
@@ -187,9 +186,8 @@ private theorem retry_some (bound value : ℕ) (next : PMF (Option ℕ)) :
       · simp [hi, hi.ne]
       · simp [hi, hi.ne, hiv, hiv.symm]
     · by_cases hiv : i = value <;> simp [hiv]
-    · rcases eq_or_ne i value with rfl | hiv
-      · simp [μ, capped_eq_zero hi, hi.ne', hi.not_gt]
-      · simp [μ, capped_eq_zero hi, hi.ne', hiv]
+    · rcases eq_or_ne i value with rfl | hiv <;>
+        simp [μ, capped_eq_zero hi, hi.ne', hi.not_gt, *]
   change (∑' i, μ i * (if i < bound then PMF.pure (some i) else next) (some value)) = _
   simp_rw [hterm]
   rw [tsum_add]
@@ -361,12 +359,7 @@ private theorem option_false {α : Type} (μ : PMF (Option α)) :
 
 private theorem option_success_toReal {α : Type} (μ : PMF (Option α)) :
     ((μ.map Option.isSome) true).toReal = 1 - (μ none).toReal := by
-  have hsum : (μ.map Option.isSome) false + (μ.map Option.isSome) true = 1 :=
-    (add_comm _ _).trans (Probability.PMF.apply_true_add_apply_false _)
-  have hreal := congrArg ENNReal.toReal hsum
-  rw [ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _),
-    ENNReal.toReal_one, option_false] at hreal
-  linarith
+  rw [Probability.PMF.toReal_true_eq_one_sub, option_false]
 
 /-- The denominator used for conditioning is exactly the probability of success. -/
 theorem eval_sampleUniformInterval_success (bound attempts : ℕ) :
@@ -401,9 +394,8 @@ private theorem intervalFailure_le_one (bound : ℕ) : intervalFailure bound ≤
 
 private theorem intervalSuccess_coe (bound attempts : ℕ) :
     (intervalSuccess bound attempts : ℝ) = 1 - (intervalFailure bound : ℝ) ^ attempts := by
-  have hp : intervalFailure bound ^ attempts ≤ 1 :=
-    pow_le_one₀ (show 0 ≤ intervalFailure bound from zero_le) (intervalFailure_le_one bound)
-  simp only [intervalSuccess, NNReal.coe_sub hp, NNReal.coe_one, NNReal.coe_pow]
+  simp only [intervalSuccess, NNReal.coe_sub (pow_le_one₀ zero_le (intervalFailure_le_one bound)),
+    NNReal.coe_one, NNReal.coe_pow]
 
 private theorem uniformFin_nat_apply (bound value : ℕ) [NeZero bound] :
     ((PMF.uniformOfFintype (Fin bound)).map Fin.val) value =
@@ -411,12 +403,10 @@ private theorem uniformFin_nat_apply (bound value : ℕ) [NeZero bound] :
   classical
   rw [PMF.map_apply]
   by_cases hv : value < bound
-  · have hne (i : Fin bound) (hi : i ≠ ⟨value, hv⟩) : value ≠ i.val :=
-      fun h => hi (Fin.ext h.symm)
-    rw [tsum_eq_single ⟨value, hv⟩ fun i hi => by simp [hne i hi]]
-    simp [hv]
-  · have hne (i : Fin bound) : value ≠ i.val := (i.isLt.trans_le (not_lt.mp hv)).ne'
-    simp [hv, hne]
+  · rw [tsum_eq_single ⟨value, hv⟩]
+    · simp [hv]
+    · exact fun i hi => ite_eq_right fun h => hi (Fin.ext h.symm)
+  · simp [hv, fun i : Fin bound => (i.isLt.trans_le (not_lt.mp hv)).ne']
 
 /-- The successful part of the full sampler law is its success mass times exact uniformity. -/
 theorem eval_sampleUniformInterval_some_eq (bound attempts value : ℕ) [NeZero bound] :
@@ -578,12 +568,11 @@ theorem eval_sampleIntegerBox_none_le (radius dimension attempts : ℕ) :
     (ProbComp.eval (sampleIntegerBox radius dimension attempts) none).toReal ≤
       dimension * (1 / 2 : ℝ) ^ attempts := by
   rw [eval_sampleIntegerBox_none]
-  have hp0 : (0 : ℝ) ≤ (intervalFailure (2 * radius + 1) : ℝ) ^ attempts :=
-    pow_nonneg (NNReal.coe_nonneg _) _
   have hp1 : (intervalFailure (2 * radius + 1) : ℝ) ^ attempts ≤ 1 :=
     pow_le_one₀ (NNReal.coe_nonneg _) (mod_cast intervalFailure_le_one (2 * radius + 1))
-  have hbern := one_add_mul_le_pow (show (-2 : ℝ) ≤
-    -(intervalFailure (2 * radius + 1) : ℝ) ^ attempts by linarith) dimension
+  have hbern : 1 + dimension * (-(intervalFailure (2 * radius + 1) : ℝ) ^ attempts) ≤
+      (1 + -(intervalFailure (2 * radius + 1) : ℝ) ^ attempts) ^ dimension :=
+    one_add_mul_le_pow (by linarith) dimension
   calc
     _ ≤ dimension * (intervalFailure (2 * radius + 1) : ℝ) ^ attempts := by
       rw [← sub_eq_add_neg] at hbern; linarith
@@ -630,25 +619,19 @@ private theorem optional_test_error {α : Type} (μ : PMF (Option α)) (ν : PMF
     have hr := congrArg ENNReal.toReal htotal
     rw [ENNReal.toReal_add (μ.apply_ne_top _) hmass_top, ENNReal.toReal_one] at hr
     linarith
-  let u := ((ν.map (fun out => test (some out))) true).toReal
-  have hu0 : 0 ≤ u := ENNReal.toReal_nonneg
-  have hu1 : u ≤ 1 := PMF.toReal_apply_le_one _ true
+  have hhd := congrArg ENNReal.toReal hd
+  rw [ENNReal.toReal_add (by split_ifs <;> simp [μ.apply_ne_top])
+    (ENNReal.mul_ne_top hmass_top (PMF.apply_ne_top _ _)), ENNReal.toReal_mul, hmass] at hhd
+  have hu0 : 0 ≤ ((ν.map (fun out => test (some out))) true).toReal := ENNReal.toReal_nonneg
+  have hu1 : ((ν.map (fun out => test (some out))) true).toReal ≤ 1 :=
+    PMF.toReal_apply_le_one _ true
   have hf0 : 0 ≤ (μ none).toReal := ENNReal.toReal_nonneg
-  have hpu0 : 0 ≤ (μ none).toReal * u := mul_nonneg hf0 hu0
-  have hpu1 : (μ none).toReal * u ≤ (μ none).toReal := mul_le_of_le_one_right hf0 hu1
-  have hprod : mass * (ν.map (fun out => test (some out))) true ≠ ⊤ :=
-    ENNReal.mul_ne_top hmass_top (PMF.apply_ne_top _ _)
-  change |(μ.map test true).toReal - u| ≤ (μ none).toReal
+  have hpu0 := mul_nonneg hf0 hu0
+  have hpu1 := mul_le_of_le_one_right hf0 hu1
   rw [abs_le]
-  cases htest : test none <;> simp only [htest, Bool.false_eq_true, ↓reduceIte, zero_add] at hd
-  · have hreal : (μ.map test true).toReal = (1 - (μ none).toReal) * u := by
-      simpa only [ENNReal.toReal_mul, hmass] using congrArg ENNReal.toReal hd
-    rw [sub_mul, one_mul] at hreal
-    constructor <;> linarith
-  · have hreal : (μ.map test true).toReal = (μ none).toReal + (1 - (μ none).toReal) * u := by
-      simpa only [ENNReal.toReal_add (μ.apply_ne_top _) hprod, ENNReal.toReal_mul, hmass] using
-        congrArg ENNReal.toReal hd
-    rw [sub_mul, one_mul] at hreal
+  cases htest : test none <;>
+    simp only [htest, Bool.false_eq_true, ↓reduceIte, ENNReal.toReal_zero, zero_add,
+      sub_mul, one_mul] at hhd <;>
     constructor <;> linarith
 
 /-- Any Boolean test changes acceptance probability by at most the explicit failure mass when
@@ -729,7 +712,6 @@ theorem integerBoxLaw_apply_index (radius dimension : ℕ)
     rw [PMF.map_apply, tsum_eq_single (v i)]
     · simp
     · exact fun j hj => by simp [Fin.val_inj, hj.symm]
-  simp_rw [hcoord]
-  simp
+  simp [hcoord]
 
 end Cslib.ProbComp

@@ -156,19 +156,14 @@ theorem run_interpret_popAnswer_run (fuel : ℕ) (input s : List Bool) :
     (MultiTapeMachine.run machine (fun choices => choices <$> (pure false : OracleComp _ Bool))
       (fun op word => OracleComp.query (op, word)) fuel input)).run s = _
   rw [← finiteRunFrom_init, finiteRunFrom, OracleComp.interpret_map, StateT.run_map]
-  have h (fuel : ℕ) : (OracleComp.interpret (m := StateM (List Bool)) OracleComp.popAnswer
-      (OracleComp.iterate fuel (MultiTapeMachine.finiteStep machine
-        (fun choices => choices <$> (pure false : OracleComp _ Bool))
-        (fun op word => OracleComp.query (op, word)))
-        (FiniteConfig.init machine.initial input))).run s =
-      machine.popStep^[fuel] (FiniteConfig.init machine.initial input, s) := by
-    induction fuel with
-    | zero => rfl
-    | succ fuel ih =>
-      rw [OracleComp.iterate_succ, OracleComp.interpret_bind, StateT.run_bind,
-        Function.iterate_succ_apply', ← ih]
-      exact machine.run_interpret_popAnswer_finiteStep _ _
-  rw [h]; rfl
+  refine congrArg
+    (Prod.map (fun cfg : FiniteConfig k Bool Control Operation => cfg.tapes.output) id) ?_
+  induction fuel with
+  | zero => rfl
+  | succ fuel ih =>
+    rw [OracleComp.iterate_succ, OracleComp.interpret_bind, StateT.run_bind,
+      Function.iterate_succ_apply', ← ih]
+    exact machine.run_interpret_popAnswer_finiteStep _ _
 
 /-- The configuration part of `popStep` is an instruction against the oracle answering the next
 bit. -/
@@ -246,12 +241,10 @@ theorem computableInPolyTime_popRun [Finite Operation] {α : Type} {input : α �
       have hc : _ ≤ cf * ((encPair input encBits x).length +
           c * ((encPair input encBits x).length + 1) ^ d + 1 + 1) :=
         (hcf _ _ _ _ h₁).trans (Nat.mul_le_mul_left cf (by omega))
-      rw [length_encPair, encBits_apply]
-      omega
-  have hout : ComputableInPolyTime
-      (fun p : FiniteConfig k Bool Control Operation × List Bool => p.1.tapes.output)
-      (encPair encFiniteConfig encBits) encBits := by fun_prop
-  exact hout.comp hit
+      rw [length_encPair, encBits_apply]; omega
+  exact ComputableInPolyTime.comp
+    (f := fun p : FiniteConfig k Bool Control Operation × List Bool => p.1.tapes.output)
+    (by fun_prop) hit
 
 end Turing.MultiTapePTM
 
@@ -303,11 +296,10 @@ theorem mem_FPSearch_of_computableInPolyTimeWithOracleQueries_of_two_pow_le (hR 
   -- the candidate solution for the list of answers given by the bits of `j`
   let D : Decoder (encOption encBits) := Decoder.option Decoder.bits
   let cand : α × ℕ → Option (List Bool) := fun x => D.decode (sim (x.1, Nat.bits x.2))
-  have hbits : ComputableInPolyTime (fun j : ℕ => Nat.bits j) encUnary encBits :=
-    ComputableInPolyTime.unary_to_binary.of_enc_eq fun _ => rfl
   have hcand : ComputableInPolyTime cand (encPair enc encUnary) (encOption encBits) :=
     D.computableInPolyTime.comp (hsim.comp ((ComputableInPolyTime.fst _ _).prod
-      (hbits.comp (ComputableInPolyTime.snd _ _))))
+      ((ComputableInPolyTime.unary_to_binary.of_enc_eq fun _ => rfl).comp
+        (ComputableInPolyTime.snd _ _))))
   have hcand_eq (a : α) (j : ℕ) : cand (a, j) =
       ((OracleComp.interpret (m := StateM (List Bool)) OracleComp.popAnswer (program a)).run
         (Nat.bits j)).1 := by
@@ -318,14 +310,14 @@ theorem mem_FPSearch_of_computableInPolyTimeWithOracleQueries_of_two_pow_le (hR 
       (hV.comp (((ComputableInPolyTime.fst _ _).comp
         (ComputableInPolyTime.fst _ _)).prod (ComputableInPolyTime.snd _ _)))
   let N : α → ℕ := fun a => P.eval (enc a).length
-  have hN : ComputableInPolyTime N enc encUnary :=
-    (ComputableInPolyTime.unary_eval P).comp
-      (ComputableInPolyTime.encoding_length enc)
   let g : α → Option (List Bool) := fun a =>
     ((List.range (N a)).find? fun j => ok (a, j)).elim none fun j => cand (a, j)
   have hg : ComputableInPolyTime g enc (encOption encBits) :=
     ComputableInPolyTime.optionElimWithInput
-      (ComputableInPolyTime.findWithInput (ComputableInPolyTime.range.comp hN) hok)
+      (ComputableInPolyTime.findWithInput
+        (ComputableInPolyTime.range.comp
+          ((ComputableInPolyTime.unary_eval P).comp (ComputableInPolyTime.encoding_length enc)))
+        hok)
       (ComputableInPolyTime.const _) hcand
   refine mem_FPSearch.mpr ⟨hR, g, hg, fun a => ⟨fun w hw => ?_, fun hw ha => ?_⟩⟩
   · rcases hj : (List.range (N a)).find? (fun j => ok (a, j)) with _ | j <;>
@@ -363,13 +355,10 @@ theorem mem_FPSearch_of_computableInPolyTimeWithOracleQueries_log (hR : R ∈ FN
     (hsolve : SolvesSearch R f) : R ∈ FPSearch enc := by
   refine mem_FPSearch_of_computableInPolyTimeWithOracleQueries_of_two_pow_le hR
     (Polynomial.C (2 ^ c) * (Polynomial.X + 1) ^ c) (fun n => ?_) hf hsolve
-  have hlog : 2 ^ Nat.log 2 n ≤ n + 1 := by
-    rcases Nat.eq_zero_or_pos n with rfl | hn
-    · simp
-    · exact (Nat.pow_log_le_self 2 hn.ne').trans (Nat.le_succ n)
+  have hlog : 2 ^ Nat.log 2 n ≤ n + 1 :=
+    if hn : n = 0 then by simp [hn] else (Nat.pow_log_le_self 2 hn).trans (Nat.le_succ n)
   simp only [Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_pow, Polynomial.eval_add,
-    Polynomial.eval_X, Polynomial.eval_one, pow_add, mul_comm (2 ^ c)]
-  rw [mul_comm c, pow_mul]
+    Polynomial.eval_X, Polynomial.eval_one, pow_add, mul_comm c, pow_mul, mul_comm (2 ^ c)]
   exact Nat.mul_le_mul_right _ (Nat.pow_le_pow_left hlog c)
 
 end Cslib.Complexity

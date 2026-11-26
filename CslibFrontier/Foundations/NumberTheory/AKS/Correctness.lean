@@ -93,8 +93,7 @@ theorem exists_eq_pow_of_pow_mul_pow_eq {p q i j i' j' : ℕ} (hp : p.Prime) (hq
   · obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_lt hlt
     rw [pow_add, pow_add, mul_assoc, mul_assoc] at h
     have h' := Nat.eq_of_mul_eq_mul_left (pow_pos (Nat.pos_of_ne_zero hq) i) h
-    obtain ⟨s, -, hs⟩ := (Nat.dvd_prime_pow hp).mp ⟨q ^ d * p ^ j', by rw [h']; ring⟩
-    exact ⟨s, hs⟩
+    exact ((Nat.dvd_prime_pow hp).mp ⟨q ^ d * p ^ j', by rw [h']; ring⟩).imp fun _ => And.right
   · exact (hne (Prod.ext rfl (Nat.pow_right_injective hp.two_le
       (Nat.eq_of_mul_eq_mul_left (pow_pos (Nat.pos_of_ne_zero hq) i) h)))).elim
 
@@ -124,11 +123,10 @@ theorem linProd_injective (hB : B < p) : Function.Injective (linProd (B := B) p)
   intro s s' h
   have hroots := congrArg Polynomial.roots h
   rw [linProd_eq, linProd_eq, roots_multiset_prod_X_sub_C, roots_multiset_prod_X_sub_C] at hroots
-  have hinj : Function.Injective fun a : Fin (B + 1) => -((a : ℕ) : ZMod p) := fun a b hab => by
-    simp only [neg_inj, ZMod.natCast_eq_natCast_iff'] at hab
-    rwa [Nat.mod_eq_of_lt (by omega : (a : ℕ) < p), Nat.mod_eq_of_lt (by omega : (b : ℕ) < p),
-      ← Fin.ext_iff] at hab
-  exact Sym.coe_injective (Multiset.map_injective hinj hroots)
+  refine Sym.coe_injective (Multiset.map_injective (fun a b hab => ?_) hroots)
+  simp only [neg_inj, ZMod.natCast_eq_natCast_iff'] at hab
+  rwa [Nat.mod_eq_of_lt (a.isLt.trans_le hB), Nat.mod_eq_of_lt (b.isLt.trans_le hB),
+    ← Fin.ext_iff] at hab
 
 /-- **The lower bound.** Let `S` be a set of more than `B` residues modulo `r`, each the residue
 of a number introspective for every product `∏_{a ∈ s} (X + a)`. If `B < p`, these `C(2B, B)`
@@ -234,8 +232,7 @@ theorem prime_of_passes {n r : ℕ} (hn : 2 ≤ n)
       (by rw [coe_range]; exact pow_injOn_Iio_orderOf)]
     refine card_le_card fun x hx => ?_
     obtain ⟨i, -, rfl⟩ := mem_image.mp hx
-    simp only [S, mem_filter, mem_univ, true_and]
-    exact ⟨i, i, by rw [← hqp]; push_cast; ring⟩
+    exact mem_filter.mpr ⟨mem_univ _, i, i, by simp [← hqp, mul_pow]⟩
   have ht_tot : t ≤ r.totient := by
     rw [Nat.totient_eq_card_coprime]
     refine card_le_card_of_injOn (fun x => x.val) ?_ (fun x _ y _ hxy => ZMod.val_injective r hxy)
@@ -288,11 +285,9 @@ theorem prime_of_passes {n r : ℕ} (hn : 2 ≤ n)
   simp only [mem_product, mem_range] at hij hij'
   -- They are distinct as numbers, since `n` is not a power of `p`.
   have hm_ne : q ^ i * p ^ j ≠ q ^ i' * p ^ j' := fun hm => by
-    obtain ⟨s, hs⟩ := exists_eq_pow_of_pow_mul_pow_eq hp hq0 hne hm
-    have hns : n = p ^ (s + 1) := by rw [← hqp, hs, pow_succ]
-    rcases s with _ | s
-    · exact hnp (by simpa [hns] using hp)
-    · exact hpow ⟨p, s + 2, by omega, hns.symm⟩
+    obtain ⟨_ | s, hs⟩ := exists_eq_pow_of_pow_mul_pow_eq hp hq0 hne hm
+    · exact hnp (by simpa [← hqp, hs] using hp)
+    · exact hpow ⟨p, s + 2, by omega, by rw [← hqp, hs, pow_succ]⟩
   -- The upper bound `n^{⌊√t⌋}`.
   have hup := card_image_aeval_linProd_le (K := K) hζ hm_ne heq (hintro i j) (hintro i' j')
   have hmk : ∀ i j, i ≤ k → j ≤ k → q ^ i * p ^ j ≤ n ^ k := fun i j hi hj => by

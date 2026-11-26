@@ -83,16 +83,14 @@ private theorem le_treeExponent (c : ℕ) :
     (c + 4) * 2500 ≤ treeExponent c ∧ (c + 1) * treeFactor c + 7 ≤ treeExponent c ∧
       (4 + (2 * c * c + 1 + c) * c) * 8 ≤ treeExponent c ∧
       1 + 8 * (c * (c + 1) ^ 7) + 7 ≤ treeExponent c := by
-  unfold treeExponent
-  omega
+  simp only [treeExponent]; omega
 
 /-- The bound `2 c constNormBound` by `lg M ^ 7 M (N + M ^ 2)`. -/
 private theorem two_mul_constNormBound_le {c m X M J N : ℕ} (hX : X ≤ c * M)
     (hm : m ≤ c * (J + 1) ^ 7) (hJ : J + 1 ≤ (c + 1) * lg M) :
     2 * c * constNormBound c m X N ≤ treeFactor c * (lg M ^ 7 * M * (N + M ^ 2)) := by
   have h1 : N + 2 * X ^ 2 ≤ (1 + 2 * c ^ 2) * (N + M ^ 2) := by
-    have : X ^ 2 ≤ (c * M) ^ 2 := Nat.pow_le_pow_left hX 2
-    nlinarith
+    nlinarith [Nat.pow_le_pow_left hX 2]
   have h2 : m ≤ c * ((c + 1) ^ 7 * lg M ^ 7) :=
     hm.trans (Nat.mul_le_mul_left _ ((Nat.pow_le_pow_left hJ 7).trans_eq (mul_pow _ _ _)))
   calc 2 * c * constNormBound c m X N ≤
@@ -153,15 +151,11 @@ private theorem exists_thinTrees_of_tower (Rt : Routes T m Uu)
   obtain ⟨G, hG⟩ : ∃ G, G = (c + 3) * (M * N) := ⟨_, rfl⟩
   have hG3 : 3 ≤ G := hG ▸ (Nat.le_add_left 3 c).trans (Nat.le_mul_of_pos_right _ (by omega))
   have gp {a a' : ℕ} (h : a ≤ a') : G ^ a ≤ G ^ a' := Nat.pow_le_pow_right (by omega) h
-  have gk {k a a' : ℕ} (hk : k ≤ 27) (ha : a + 3 ≤ a') : k * G ^ a ≤ G ^ a' := by
-    refine le_trans ?_ (gp ha)
-    rw [pow_add, mul_comm]
-    exact Nat.mul_le_mul_left _ (hk.trans (Nat.pow_le_pow_left hG3 3))
-  have hMG : M ≤ G :=
-    hG ▸ (Nat.le_mul_of_pos_right _ hN).trans (Nat.le_mul_of_pos_left _ (by omega))
+  have gk {k a a' : ℕ} (hk : k ≤ 27) (ha : a + 3 ≤ a') : k * G ^ a ≤ G ^ a' :=
+    (Nat.mul_le_mul_right _ (hk.trans (Nat.pow_le_pow_left hG3 3))).trans <|
+      (pow_add G 3 a).symm.le.trans (gp (by omega))
   have hNG : N ≤ G := hG ▸ (Nat.le_mul_of_pos_left _ (by omega)).trans
     (Nat.le_mul_of_pos_left _ (by omega))
-  have hcG : c ≤ G := hG ▸ (Nat.le_add_right c 3).trans (Nat.le_mul_of_pos_right _ (by omega))
   obtain ⟨hcG, hmG, hJG, hAG, hXG⟩ := sizes_le hC hm hX2 hA (Z := M * N)
     (Nat.le_mul_of_pos_right _ hN)
   rw [← hG] at hcG hmG hJG hAG hXG
@@ -174,13 +168,12 @@ private theorem exists_thinTrees_of_tower (Rt : Routes T m Uu)
       _ = 3 * G ^ 12 := by ring
       _ ≤ G ^ 15 := gk (by norm_num) (by norm_num)
   have hcap : constMoveCap c m X N N ≤ G ^ 22 := by
-    unfold constMoveCap
     have h1 : 3 * c * constNormBound c m X N ≤ G ^ 19 :=
       (Nat.mul_le_mul (Nat.mul_le_mul_left 3 hcG) hcnb).trans
         (by rw [mul_assoc, ← pow_succ']; exact gk (by norm_num) (by norm_num))
     have h2 : 3 * G ≤ G ^ 19 := by simpa using gk (a := 1) (by norm_num) (by norm_num)
     have h3 : 2 * G ^ 19 ≤ G ^ 22 := gk (by norm_num) (by norm_num)
-    omega
+    simp only [constMoveCap]; omega
   -- the outcomes are below `U1`
   obtain ⟨U1, hU1⟩ : ∃ U1, U1 = constMoveCap c m X N N * (c + c) + 1 := ⟨_, rfl⟩
   have hU1G : U1 ≤ G ^ 26 := by
@@ -219,8 +212,7 @@ private theorem exists_thinTrees_of_tower (Rt : Routes T m Uu)
       have := gk (k := 9) (a := 8) (a' := 11) (by norm_num) le_rfl
       have := Nat.le_self_pow (n := 8) (by decide) G
       have := gp (a := 11) (a' := 190) (by norm_num)
-      unfold endTime
-      omega
+      simp only [endTime]; omega
     units_le := by
       have h1 : b * Fintype.card (Sym2 T.Fl) * numUnits Rt ch FL N U1 ≤ G ^ 187 :=
         (Nat.mul_le_mul (Nat.mul_le_mul (hC.places_le.trans hcG) hpair)

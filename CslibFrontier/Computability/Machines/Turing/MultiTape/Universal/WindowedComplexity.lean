@@ -273,7 +273,7 @@ lemma baseCost_le {d : Desc} {B n : ℕ} {w : Win} (hDB : descLen d ≤ B) (hn :
   have hs := length_eWin_le ((hw.sim hDB n).mono (h' := 1) (L' := 5) (by omega) (by omega))
   have ho := length_encList_sim_out_le d n w
   have hn' : n * (2 * descLen d + 1) ≤ 2 * descLen d + 1 :=
-    (Nat.mul_le_mul_right _ hn).trans (by rw [Nat.one_mul])
+    (Nat.mul_le_mul_right _ hn).trans_eq (Nat.one_mul _)
   have hX2 : (descLen d + B + 2) ^ 2 ≤ (descLen d + B + 2) ^ 6 :=
     Nat.pow_le_pow_right (by omega) (by omega)
   have hE := length_eProb (d, n, w)
@@ -332,12 +332,10 @@ lemma nodeCost_le {d : Desc} {B n : ℕ} {w : Win} (hDB : descLen d ≤ B)
   -- the sizes of the values
   have hA : (eProb (d, n, w)).length ≤ 5 * Z + 2 := by simp only [length_eProb]; omega
   have hLp : (eProb (simDC.left (d, n, w))).length ≤ 5 * Z + 2 := by
-    change (eProb (d, firstHalf n, extract (firstHalf n) w)).length ≤ _
-    simp only [length_eProb, firstHalf] at sL ⊢; omega
+    simp only [simDC, length_eProb, firstHalf] at sL ⊢; omega
   have hB₁ : (eSol b₁).length ≤ 3 * Z + 1 := by rw [length_encPair (enc₁ := eWin)]; omega
   have hMp : (eProb (simDC.mid ((d, n, w), b₁)).1).length ≤ 5 * Z + 2 := by
-    change (eProb (d, n / 2, extract (n / 2) w₁)).length ≤ _
-    simp only [length_eProb]; omega
+    simp only [simDC, ← hw₁, length_eProb]; omega
   have hS : (eSaved (simDC.mid ((d, n, w), b₁)).2).length ≤ 4 * Z + 2 := by
     change (eSaved (n / 2, w₁, b₁.2)).length ≤ _
     rw [length_encPair (enc₁ := encUnary), length_encPair (enc₁ := eWin)]
@@ -369,13 +367,12 @@ lemma nodeCost_le {d : Desc} {B n : ℕ} {w : Win} (hDB : descLen d ≤ B)
     unfold costA
     linarith [Nat.mul_le_mul_left (descLen d + 2) hZ, Nat.mul_le_mul_right (n + 1) hX3,
       Nat.zero_le ((descLen d + B + 2) ^ 6 * (n + 1))]
-  unfold nodeCost
-  omega
+  simp only [nodeCost]; omega
 
 lemma eval_base {d : Desc} {B n : ℕ} {w : Win} (hDB : descLen d ≤ B) (hn : n ≤ 1)
     (hw : WInv (descLen d) B 0 (2 * n + 1) w) :
-    ∃ c, simDC.Eval baseCost nodeCost (d, n, w) (sim d n w) c ∧ c ≤ costA (descLen d) B := by
-  exact ⟨baseCost (d, n, w), simDC_base_eq hn w ▸ .base (by simp [simDC, hn]),
+    ∃ c, simDC.Eval baseCost nodeCost (d, n, w) (sim d n w) c ∧ c ≤ costA (descLen d) B :=
+  ⟨baseCost (d, n, w), simDC_base_eq hn w ▸ .base (by simp [simDC, hn]),
     baseCost_le hDB hn hw⟩
 
 /-- **The cost recurrence**: on `n ≤ 2 ^ k` steps, the windowed simulation costs at most
@@ -497,7 +494,6 @@ public theorem computableInO_universal_nlogn :
         _ = _ := by ring
     have hP1 := Nat.le_mul_of_pos_right ((descLen d + listMax id x + 2) ^ 6) hQ1
     have hP2 := Nat.le_mul_of_pos_left ((t + 1) * (Nat.log 2 (t + 1) + 1)) hY6
-    dsimp only at *
-    omega
+    dsimp only at *; omega
 
 end Turing.MultiTapeTM.Universal

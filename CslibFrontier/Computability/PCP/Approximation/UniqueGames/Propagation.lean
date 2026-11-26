@@ -265,9 +265,9 @@ theorem slots_eq_vertices {C : Type} {g : Graph C} (hg : g.WellFormed) :
   induction l with
   | nil => rfl
   | cons e l ih =>
-    have he := hg' e List.mem_cons_self
+    obtain ⟨he, hl⟩ := List.forall_mem_cons.1 hg'
     rw [List.foldl_cons, max_eq_left (by omega)]
-    exact ih fun d hd => hg' d (List.mem_cons_of_mem _ hd)
+    exact ih hl
 
 namespace State
 
@@ -380,9 +380,7 @@ private theorem mem_unvisited {S : State α} {w : ℕ} (hw : w < S.table.length)
 /-- Pushing an unvisited slot in range is a `Step`. -/
 private theorem step_push {S : State α} {w : ℕ} (hw : w < S.table.length) (hnone : S.get w = none)
     (f : α → α) : Step S (push S w f) where
-  get v g hv := by
-    have : w ≠ v := by rintro rfl; simp [hnone] at hv
-    rw [get_push_ne S this, hv]
+  get v g hv := (get_push_ne S (ne_of_apply_ne S.get (by simp [hnone, hv])) f).trans hv
   cand _ h := h
   done v := by
     by_cases hv : w = v
@@ -445,11 +443,9 @@ private theorem get_extend (labels : List α) {S : State α} (e : Edge (α → �
   unfold extend
   split
   · rename_i hd
-    have : e.dst ≠ v := by rintro rfl; simp [hv] at hd
-    rw [get_push_ne S this, hv]
+    exact (get_push_ne S (ne_of_apply_ne S.get (by simp [hd, hv])) _).trans hv
   · rename_i hs _
-    have : e.src ≠ v := by rintro rfl; simp [hv] at hs
-    rw [get_push_ne S this, hv]
+    exact (get_push_ne S (ne_of_apply_ne S.get (by simp [hs, hv])) _).trans hv
   · exact hv
 
 private theorem cand_extend (labels : List α) (S : State α) (e : Edge (α → α)) :
@@ -553,10 +549,8 @@ private theorem foldl_visit_step (labels : List α) (l : List (Edge (α → α))
   induction l generalizing S with
   | nil => exact Step.refl S
   | cons e l ih =>
-    have h1 := step_visit labels (hl e (by simp)).1 (hl e (by simp)).2 (S := S)
-    refine h1.trans (ih fun d hd => ?_)
-    rw [h1.length]
-    exact hl d (List.mem_cons_of_mem _ hd)
+    obtain ⟨he, hl⟩ := List.forall_mem_cons.1 hl
+    exact (step_visit labels he.1 he.2).trans (ih (by rwa [length_visit]))
 
 private theorem foldl_visit_settled (labels : List α) {u : ℕ} (l : List (Edge (α → α)))
     {S : State α} (hl : ∀ e ∈ l, e.src < S.table.length ∧ e.dst < S.table.length)
@@ -565,17 +559,15 @@ private theorem foldl_visit_settled (labels : List α) {u : ℕ} (l : List (Edge
   induction l generalizing S with
   | nil => simp
   | cons e l ih =>
-    have hb := hl e (by simp)
-    have h1 := step_visit labels hb.1 hb.2 (S := S)
+    obtain ⟨hb, hl⟩ := List.forall_mem_cons.1 hl
+    obtain ⟨he, hinc⟩ := List.forall_mem_cons.1 hinc
     have hl' : ∀ d ∈ l, d.src < (visit labels S e).table.length ∧
-        d.dst < (visit labels S e).table.length := fun d hd => by
-      rw [h1.length]; exact hl d (List.mem_cons_of_mem _ hd)
+        d.dst < (visit labels S e).table.length := by rwa [length_visit]
     obtain ⟨f, hf⟩ := Option.isSome_iff_exists.1 hu
-    have hu' : ((visit labels S e).get u).isSome := by rw [h1.get u f hf]; rfl
     rw [List.forall_mem_cons]
-    refine ⟨?_, ih hl' (fun d hd => hinc d (List.mem_cons_of_mem _ hd)) hu'⟩
-    exact (visit_settled labels hb.1 hb.2 ((hinc e List.mem_cons_self).imp
-      (fun h : e.src = u => h ▸ hu) (fun h : e.dst = u => h ▸ hu))).mono
+    refine ⟨?_, ih hl' hinc (by rw [get_visit labels e hf]; rfl)⟩
+    exact (visit_settled labels hb.1 hb.2
+      (he.imp (fun h : e.src = u => h ▸ hu) (fun h : e.dst = u => h ▸ hu))).mono
       (foldl_visit_step labels l hl')
 
 private theorem foldl_visit_sem {labels : List α} (hlabels : ∀ a, a ∈ labels) {τ : ℕ → α}
@@ -805,21 +797,17 @@ private theorem inv_start {g : Graph (α → α)} {τ : ℕ → α} {S : State �
   have hself : (start S s).get s = some id := List.getD_set_self hs
   have hne : ∀ v, v ≠ s → (start S s).get v = S.get v := fun v hv =>
     List.getD_set_ne (Ne.symm hv)
-  refine ⟨?_, fun v f hv => ?_, ⟨fun v f hv => ?_, rfl⟩, ?_, ?_, ?_⟩
-  · simp [start, h.length]
-  · have : v ≠ s := by rintro rfl; simp [hnone] at hv
-    rw [hne v this, hv]
+  refine ⟨List.length_set.trans h.length, fun v f hv => ?_, ⟨fun v f hv => ?_, rfl⟩, ?_, ?_, ?_⟩
+  · exact (hne v (ne_of_apply_ne S.get (by simp [hv, hnone]))).trans hv
   · by_cases hvs : v = s
     · subst hvs; rw [hself] at hv; cases hv; rfl
     · rw [hne v hvs] at hv; exact h.const v f hv _
   · intro v hv
-    simp only [start, List.mem_singleton] at hv
-    subst hv; rw [hself]; rfl
+    rw [List.mem_singleton.1 hv, hself]; rfl
   · intro v hv h0
-    by_cases hvs : v = s
-    · subst hvs; left; simp [start]
-    · rw [hne v hvs] at hv
-      exact absurd hv (by simpa using h0)
+    rcases eq_or_ne v s with rfl | hvs
+    · exact Or.inl (List.mem_singleton_self _)
+    · exact absurd (hne v hvs ▸ hv) (by simpa using h0)
   · intro e he hd
     have hc := h.closed e he
     have hsrc : (S.get e.src).isSome := by

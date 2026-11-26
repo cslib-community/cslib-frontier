@@ -268,11 +268,8 @@ theorem computableInPolyTime_levinStage {enc : α ↪ List Bool} {V : α × List
       (fst enc encUnary).comp ((fst (encPair enc encUnary) encUnary).comp (fst _ encBits))
     have hq2 := snd (encPair (encPair enc encUnary) encUnary) encBits
     exact ite' (hV.comp (hq1.prod hq2)) ((optionSome encBits).comp hq2) (const none)
-  have hfind : ComputableInPolyTime
-      (fun p : α × ℕ => (List.range p.2).find? fun i => (levinTry enc V p.1 i p.2).isSome)
-      (encPair enc encUnary) (encOption encUnary) :=
-    findWithInput (range.comp (snd enc encUnary)) (optionIsSome htry)
-  exact hfind.optionElimWithInput (const none) htry
+  exact (findWithInput (range.comp (snd enc encUnary)) (optionIsSome htry)).optionElimWithInput
+    (const none) htry
 
 /-! ### Native dovetailed universal search machine -/
 
@@ -521,12 +518,10 @@ theorem exists_poly_levinStage_iff :
   constructor
   · rintro ⟨p, hp⟩
     refine mem_P.mpr ⟨fun φ => (levinStage φ (p.eval (encCNF φ).length)).isSome, ?_, fun φ => ?_⟩
-    · have hpair : ComputableInPolyTime (fun φ : CNF ℕ => (φ, p.eval (encCNF φ).length))
-          encCNF (encPair encCNF encUnary) :=
-        (ComputableInPolyTime.id' (encIn := encCNF)).prod
-          ((unary_eval p).comp (encoding_length encCNF))
-      exact optionIsSome (by simpa only [Function.comp_def] using
-        (Complexity.computableInPolyTime_levinStage computableInPolyTime_verifier).comp hpair)
+    · exact optionIsSome <| by
+        simpa only [Function.comp_def] using
+          (Complexity.computableInPolyTime_levinStage computableInPolyTime_verifier).comp
+            (id'.prod ((unary_eval p).comp (encoding_length encCNF)))
     · refine ⟨hp φ, fun hs => ?_⟩
       obtain ⟨w, hw⟩ := Option.isSome_iff_exists.mp hs
       exact ⟨assignment φ w, verifier_of_levinStage_eq_some hw⟩
@@ -585,12 +580,8 @@ theorem exists_native_levinSearch :
     let d_tm : Desc := desc eS eBit tm
     let p : Polynomial ℕ := Polynomial.C c * (Polynomial.X + 1) ^ e
     let dec : CNF ℕ → Bool := fun φ => (runWord d_tm (encCNF φ) (p.eval (encCNF φ).length)).isSome
-    have hdec_poly : ComputableInPolyTime dec encCNF encBool := by
-      have hp_poly : ComputableInPolyTime (fun φ : CNF ℕ => p.eval (encCNF φ).length)
-          encCNF encUnary :=
-        (unary_eval p).comp (encoding_length encCNF)
-      exact optionIsSome (computableInPolyTime_runWord (const d_tm) (encoding_comp id') hp_poly)
-    refine mem_P.mpr ⟨dec, hdec_poly, fun φ => ?_⟩
+    refine mem_P.mpr ⟨dec, optionIsSome (computableInPolyTime_runWord (const d_tm)
+      (encoding_comp id') ((unary_eval p).comp (encoding_length encCNF))), fun φ => ?_⟩
     have hp_ge : t (encCNF φ).length ≤ p.eval (encCNF φ).length := by
       simpa [p] using hle (encCNF φ).length
     constructor

@@ -300,10 +300,8 @@ private theorem bitVal_mul_atom_mem {c : Finset (Fin (2 * m + 1)) × Bool} (hc :
       ⟨(insert j A, false), ⟨(card_insert_le j A).trans hA, card_insert_le j A⟩, ?_⟩
     rw [atom_false, atom_false, ← monomial_singleton, monomial_mul, insert_eq]
   · refine atomSpan_mono ?_ (atomSpan_eq_top (m := m) ▸ Submodule.mem_top)
-    cases b
-    · simp only [atomWeight, Bool.false_eq_true, ↓reduceIte, true_and, not_lt] at h ⊢
-      omega
-    · simp [atomWeight]
+    cases b <;>
+      simp only [atomWeight, Bool.false_eq_true, ↓reduceIte, true_and, not_lt] at h ⊢ <;> omega
 
 private theorem gen_update (a : Fin k → Finset (Fin (2 * m + 1)) × Bool) (i : Fin k)
     (c : Finset (Fin (2 * m + 1)) × Bool) (x : BitString (k * (2 * m + 1))) :
@@ -355,17 +353,14 @@ private theorem bitVal_mul_mem_genSpan (v : Fin (k * (2 * m + 1))) {r : ℕ}
   suffices h : genSpan k m r ≤
       (genSpan k m (r + 1)).comap (LinearMap.mulLeft (ZMod 2) fun x => bitVal (ZMod 2) (x v))
     from h hf
+  obtain ⟨⟨i, j⟩, rfl⟩ := finProdFinEquiv.surjective v
   refine Submodule.span_le.2 ?_
   rintro _ ⟨a, ⟨ha, har⟩, rfl⟩
-  obtain ⟨⟨i, j⟩, rfl⟩ := finProdFinEquiv.surjective v
   have hmem := comp_block_mul_mem_genSpan ha i (bitVal_mul_atom_mem (ha i) j)
   rw [add_right_comm, ← genWeight_eq] at hmem
-  refine genSpan_mono (r := genWeight m a + 1) (by omega) ?_
-  convert hmem using 1
-  funext x
-  simp only [LinearMap.mulLeft_apply, Pi.mul_apply, gen, ← mul_prod_erase univ _ (mem_univ i),
-    mul_assoc]
-  rfl
+  refine genSpan_mono (Nat.add_le_add_right har 1) ?_
+  simpa only [LinearMap.mulLeft_apply, Pi.mul_def, gen, block,
+    ← mul_prod_erase univ _ (mem_univ i), mul_assoc] using hmem
 
 /-- Multiplying by a monomial raises the weight by at most its degree. -/
 private theorem monomial_mul_mem_genSpan (S : Finset (Fin (k * (2 * m + 1)))) {r : ℕ}
@@ -569,11 +564,11 @@ private theorem abs_expect_signVal_mul_le_of_two_mul_card_le {n : ℕ} {f p : Bo
     simp only [hnot, ← Nat.cast_add, card_filter_add_card_filter_not, card_univ,
       BitString.card, Nat.cast_pow, Nat.cast_ofNat]
   have hpos : (0 : ℝ) < 2 ^ n := by positivity
-  have key : 1 - 2 * (hammingDist f p : ℝ) / 2 ^ n = (2 * #{x | p x = f x} - 2 ^ n) / 2 ^ n := by
-    rw [eq_div_iff hpos.ne', sub_mul, div_mul_cancel₀ _ hpos.ne', one_mul, ← hd]
-    linarith
-  rw [expect_signVal_mul_signVal, Fintype.card_fin, key, abs_div, abs_of_pos hpos]
-  exact div_le_div_of_nonneg_right (abs_le.2 ⟨by linarith, by linarith⟩) hpos.le
+  have key : 1 - 2 * (hammingDist f p : ℝ) / 2 ^ n =
+      (2 ^ n - 2 * #{x | (!p x) = f x}) / 2 ^ n := by rw [← hd]; field_simp
+  rw [expect_signVal_mul_signVal, Fintype.card_fin, key, abs_div, abs_of_pos hpos,
+    div_le_div_iff_of_pos_right hpos, abs_le]
+  exact ⟨by linarith, by linarith⟩
 
 /-- **The correlation bound by the middle band**: for a Boolean function `p` of degree at most `d`
 over `ZMod 2` on `k` blocks of `2 m + 1` bits, the correlation of the exclusive or of the

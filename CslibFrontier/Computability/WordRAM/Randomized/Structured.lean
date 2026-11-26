@@ -278,13 +278,8 @@ theorem ExecRand.rename (hf : f.Injective) {w : ℕ} {c : Code B r} {x : Data r'
       ExecRand.op (y := y.extend f x) (by simp [Op.eval_rename hf, ho])
   | @rand dst src _ hfit =>
     subst hx
-    have heq : ((fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$> (do
-        let k ← ProbComp.unifFin (x.regs (f src))
-        pure ((x.comap f).set dst k.val, 1))) = (do
-        let k ← ProbComp.unifFin (x.regs (f src))
-        pure (x.set (f dst) k.val, 1)) := by
-      simp only [← bind_pure_comp, bind_assoc, pure_bind, Data.extend_set hf, Data.extend_comap hf]
-    simpa only [Code.rename, Data.comap_regs, heq] using ExecRand.rand (x := x) hfit
+    simpa only [Code.rename, Data.comap_regs, ← bind_pure_comp, bind_assoc, pure_bind,
+      Data.extend_set hf, Data.extend_comap hf] using ExecRand.rand (x := x) hfit
   | @seq c₁ c₂ _ m₁ m₂ _ h₂ ih₁ ih₂ =>
     subst hx
     obtain ⟨_, hcont, heq⟩ := rename_bind_step (extra := 0) hf x h₂ fun z₁ hz₁ {_} h => ih₂ z₁ hz₁ h
@@ -451,12 +446,10 @@ theorem loop_potential (I : Data r → Prop) (Φ Ψ : Data r → ℕ)
       obtain ⟨mb, -, -, hsupb⟩ := id hb
       obtain ⟨z₀, hz₀⟩ := ProbComp.support_nonempty mb
       obtain ⟨-, hΦ₀, hΨ₀⟩ := (hsupb z₀ hz₀).1
-      have hstep : ExecRandWithin w (.loop cond body) x (fun y => I y ∧ ¬cond.Holds y)
-          (T_b + (Φ x - T_b - 2 + 2) + 2) (R_b + (Ψ x - R_b)) := by
-        refine loop_iter hc hb ?_
-        rintro y ⟨hIy, hΦy, hΨy⟩
-        exact (ih (Φ y) (by omega) hIy rfl).mono (fun _ h => h) (by omega) (by omega)
-      exact hstep.mono (fun _ h => h) (by omega) (by omega)
+      refine (loop_iter (T₂ := Φ x - T_b) (R₂ := Ψ x - R_b) hc hb ?_).mono
+        (fun _ h => h) (by omega) (by omega)
+      rintro y ⟨hIy, hΦy, hΨy⟩
+      exact (ih (Φ y) (by omega) hIy rfl).mono (fun _ h => h) (by omega) (by omega)
     · exact (loop_exit hc ⟨hx, hc⟩).mono (fun _ h => h) (by omega) (Nat.zero_le _)
 
 /-- Renaming a `ExecRandWithin` specification along an injective register map `f`. -/
@@ -590,15 +583,11 @@ theorem ExecRandWithin.program {c : Code B r} {x : Data r} {P : Data r → Prop}
     ∀ cfg ∈ (runRand w (c.program out) T' (.running ⟨0, x⟩)).support,
       ∃ y, cfg = .halted (y.regs out) y ∧ P y := by
   obtain ⟨m, hm, hq, hsup⟩ := h
-  have hrun := hm.runRand_program out (T := T') fun z hz =>
-    (Nat.add_le_add_right (hsup z hz).2 1).trans hT
-  refine ⟨fun cfg hcfg => ?_, by
-    simpa only [RandCallsBounded, hrun, OracleComp.isCostBounded_map_iff] using hq,
-    fun cfg hcfg => ?_⟩
-  · obtain ⟨z, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp (hrun ▸ hcfg)
-    exact ⟨z.1.regs out, z.1, rfl⟩
-  · obtain ⟨z, hz, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp (hrun ▸ hcfg)
-    exact ⟨z.1, rfl, (hsup z hz).1⟩
+  rw [RandHaltsWithin, RandCallsBounded,
+    hm.runRand_program out fun z hz => (Nat.add_le_add_right (hsup z hz).2 1).trans hT]
+  simp only [OracleComp.mem_supportWith_map_iff, OracleComp.isCostBounded_map_iff,
+    forall_exists_index, and_imp, forall_apply_eq_imp_iff₂]
+  exact ⟨fun z _ => ⟨z.1.regs out, z.1, rfl⟩, hq, fun z hz => ⟨z.1, rfl, (hsup z hz).1⟩⟩
 
 end Compile
 

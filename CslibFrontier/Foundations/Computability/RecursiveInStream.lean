@@ -30,7 +30,11 @@ oracle.
 * *Continuity.* By the use principle (`Nat.RecursiveIn.Code.exists_cylinder_of_mem_eval_join`), a
   map computable relative to a total oracle is continuous on its domain. Its code computes it on
   the set of inputs on which the code converges at every entry, a Gδ set that contains the domain.
-  For total maps, the continuity theorem `Nat.RecursiveIn.Code.continuous_iff_exists_code` becomes
+  Conversely, one fixed search code computes every partial map that is continuous on its domain
+  relative to an oracle encoding a neighbourhood function restricted to prefixes extended by points
+  of the domain (`Nat.RecursiveIn.Code.exists_code_continuous_get`), yielding the full
+  characterization `Nat.RecursiveIn.continuous_get_iff_streamComputableIn` and Gδ extension
+  `Nat.RecursiveIn.exists_gδ_extension_of_continuous_get`. For total maps, this specializes to
   `Continuous F ↔ ∃ p, StreamComputableIn p F`.
 * *The effective form.* A total map is computable exactly when it has a computable associate
   (`Nat.RecursiveIn.Code.IsAssociate`). One direction runs the fixed search code of
@@ -55,9 +59,16 @@ oracle.
   every oracle that computes `p`.
 * `Nat.RecursiveIn.streamComputable_iff_exists_computable`: computability without an oracle is
   computability relative to a computable oracle.
+* `Nat.RecursiveIn.Code.continuous_get_iff_forall_exists_cylinder`: continuity of a partial map on
+  its domain as local constancy of each output entry on cylinders.
+* `Nat.RecursiveIn.Code.exists_code_continuous_get`: one fixed code computes every partial map
+  continuous on its domain relative to an oracle encoding it.
 * `Nat.RecursiveIn.StreamComputableIn.continuous_get`: a map computable relative to a total oracle
   is continuous on its domain.
 * `Nat.RecursiveIn.Code.isGδ_dom_evalStream`: the domain of `evalStream` is a Gδ set.
+* `Nat.RecursiveIn.continuous_get_iff_streamComputableIn`: the continuity theorem for partial maps.
+* `Nat.RecursiveIn.exists_gδ_extension_of_continuous_get`: every continuous partial map extends to
+  a computable continuous partial map with a Gδ domain.
 * `Nat.RecursiveIn.continuous_iff_streamComputableIn`: the continuity theorem for total maps.
 * `Nat.RecursiveIn.streamComputable_iff_exists_isAssociate`: a total map is computable exactly when
   it has a computable associate.
@@ -188,6 +199,75 @@ theorem isGδ_dom_evalStream (p : ℕ → ℕ) (c : Code) : IsGδ (evalStream p 
   exact ⟨cylinder x N, fun y hy => Part.dom_iff_mem.2 ⟨_, hN y hy⟩, isOpen_cylinder _ x N,
     self_mem_cylinder x N⟩
 
+/-- A partial map on Baire space is continuous on its domain if and only if each output entry is
+constant on the inputs of the domain in some cylinder around each point of the domain. -/
+theorem continuous_get_iff_forall_exists_cylinder {F : (ℕ → ℕ) →. (ℕ → ℕ)} :
+    (Continuous fun x : F.Dom => (F x).get x.2) ↔
+      ∀ x, ∀ y ∈ F x, ∀ n, ∃ k, ∀ x' ∈ cylinder x k, ∀ y' ∈ F x', y' n = y n := by
+  refine ⟨fun hF x y hy n => ?_, fun h => continuous_pi fun n => IsLocallyConstant.continuous <|
+    (IsLocallyConstant.iff_eventually_eq _).2 fun x => ?_⟩
+  · have hx : x ∈ F.Dom := Part.dom_iff_mem.2 ⟨y, hy⟩
+    have hopen : IsOpen ((fun z : F.Dom => (F z).get z.2 n) ⁻¹' {y n}) :=
+      (isOpen_discrete _).preimage (continuous_pi_iff.1 hF n)
+    obtain ⟨U, hU, hpre⟩ := isOpen_induced_iff.1 hopen
+    have hxU : x ∈ U := by
+      have hx' : (⟨x, hx⟩ : F.Dom) ∈ Subtype.val ⁻¹' U := by
+        rw [hpre]
+        exact Set.mem_preimage.2 (congrFun (Part.get_eq_of_mem hy hx) n)
+      exact hx'
+    obtain ⟨_, ⟨z, k, rfl⟩, hxz, hsub⟩ := (isTopologicalBasis_cylinders fun _ : ℕ => ℕ)
+      |>.exists_subset_of_mem_open hxU hU
+    refine ⟨k, fun x' hx' y' hy' => ?_⟩
+    have hx'dom : x' ∈ F.Dom := Part.dom_iff_mem.2 ⟨y', hy'⟩
+    have hx'U : (⟨x', hx'dom⟩ : F.Dom) ∈ Subtype.val ⁻¹' U :=
+      hsub (by rwa [← mem_cylinder_iff_eq.1 hxz])
+    rw [hpre] at hx'U
+    exact (congrFun (Part.get_eq_of_mem hy' hx'dom) n).symm.trans hx'U
+  · obtain ⟨k, hk⟩ := h x.1 ((F x.1).get x.2) (Part.get_mem x.2) n
+    have hU : cylinder x.1 k ∈ nhds x.1 :=
+      (isOpen_cylinder _ x.1 k).mem_nhds (self_mem_cylinder x.1 k)
+    filter_upwards [continuous_subtype_val.continuousAt.preimage_mem_nhds hU] with z hz
+    exact hk z.1 hz _ (Part.get_mem z.2)
+
+private noncomputable def partialNbhd (F : (ℕ → ℕ) →. (ℕ → ℕ)) (n : ℕ) (σ : List ℕ) : ℕ :=
+  open Classical in
+  if h : (∃ x ∈ F.Dom, prefixOf x σ.length = σ) ∧
+      ∃ v, ∀ x, ∀ y ∈ F x, prefixOf x σ.length = σ → y n = v
+  then h.2.choose + 1 else 0
+
+private theorem partialNbhd_eq {F : (ℕ → ℕ) →. (ℕ → ℕ)} {x y : ℕ → ℕ} {n k : ℕ}
+    (hy : y ∈ F x) (h : partialNbhd F n (prefixOf x k) ≠ 0) :
+    partialNbhd F n (prefixOf x k) = y n + 1 := by
+  unfold partialNbhd at h ⊢
+  split_ifs at h ⊢ with hv
+  · rw [hv.2.choose_spec x y hy (by rw [length_prefixOf])]
+  · exact absurd rfl h
+
+private theorem partialNbhd_ne_zero {F : (ℕ → ℕ) →. (ℕ → ℕ)} {x y : ℕ → ℕ} {n k : ℕ}
+    (hy : y ∈ F x) (hk : ∀ x' ∈ cylinder x k, ∀ y' ∈ F x', y' n = y n) :
+    partialNbhd F n (prefixOf x k) ≠ 0 := by
+  unfold partialNbhd
+  split_ifs with hv
+  · exact Nat.succ_ne_zero _
+  · refine absurd ⟨⟨x, Part.dom_iff_mem.2 ⟨y, hy⟩, by rw [length_prefixOf]⟩,
+      y n, fun x' y' hy' hpre => hk x' (prefixOf_eq_iff.1 (by rwa [length_prefixOf] at hpre))
+        y' hy'⟩ hv
+
+/-- **Continuous partial maps are computable through one fixed code.** A single oracle code `e`
+computes every partial map `F` on Baire space that is continuous on its domain, relative to the
+join of an oracle `p` encoding `F` with the input. -/
+theorem exists_code_continuous_get :
+    ∃ e : Code, ∀ F : (ℕ → ℕ) →. (ℕ → ℕ),
+      (Continuous fun x : F.Dom => (F x).get x.2) →
+      ∃ p : ℕ → ℕ, ComputesStream (p : ℕ →. ℕ) e F := by
+  obtain ⟨e, he⟩ := exists_code_search
+  refine ⟨e, fun F hF => ⟨fun m => partialNbhd F m.unpair.1 (ofNat (List ℕ) m.unpair.2),
+    fun x y hy => funext fun n => ?_⟩⟩
+  obtain ⟨k, hk⟩ := continuous_get_iff_forall_exists_cylinder.1 hF x y hy n
+  exact he _ x n (y n)
+    ⟨k, by simpa using partialNbhd_ne_zero hy hk⟩
+    fun j hj => by simpa using partialNbhd_eq hy (by simpa using hj)
+
 end Code
 
 /-! ### Computability relative to an oracle -/
@@ -238,13 +318,31 @@ oracle, restricted to its domain, is continuous. -/
 theorem StreamComputableIn.continuous_get {p : ℕ → ℕ} {F : (ℕ → ℕ) →. (ℕ → ℕ)}
     (hF : StreamComputableIn p F) : Continuous fun x : F.Dom => (F x).get x.2 := by
   obtain ⟨c, hc⟩ := hF
-  refine continuous_pi fun n => IsLocallyConstant.continuous <|
-    (IsLocallyConstant.iff_eventually_eq _).2 fun x => ?_
-  obtain ⟨N, hN⟩ := hc.exists_cylinder (Part.get_mem x.2) n
-  have hU : cylinder x.1 N ∈ nhds x.1 :=
-    (isOpen_cylinder _ x.1 N).mem_nhds (self_mem_cylinder x.1 N)
-  filter_upwards [continuous_subtype_val.continuousAt.preimage_mem_nhds hU] with y hy
-  exact hN y.1 hy _ (Part.get_mem y.2)
+  exact Code.continuous_get_iff_forall_exists_cylinder.2 fun _ _ hy n => hc.exists_cylinder hy n
+
+/-- **The continuity theorem for partial maps.** A partial map on Baire space is continuous on its
+domain if and only if it is computable relative to some total oracle. -/
+theorem continuous_get_iff_streamComputableIn {F : (ℕ → ℕ) →. (ℕ → ℕ)} :
+    (Continuous fun x : F.Dom => (F x).get x.2) ↔ ∃ p : ℕ → ℕ, StreamComputableIn p F := by
+  refine ⟨fun hF => ?_, fun ⟨_, hF⟩ => hF.continuous_get⟩
+  obtain ⟨e, he⟩ := Code.exists_code_continuous_get
+  obtain ⟨p, hp⟩ := he F hF
+  exact ⟨p, e, hp⟩
+
+/-- **Gδ extension of continuous partial maps.** Every partial map on Baire space that is
+continuous on its domain extends to a partial map with a Gδ domain that is computable relative to
+a total oracle and continuous on its extended domain. -/
+theorem exists_gδ_extension_of_continuous_get {F : (ℕ → ℕ) →. (ℕ → ℕ)}
+    (hF : Continuous fun x : F.Dom => (F x).get x.2) :
+    ∃ (p : ℕ → ℕ) (F' : (ℕ → ℕ) →. (ℕ → ℕ)),
+      IsGδ F'.Dom ∧
+      (∀ x, ∀ y ∈ F x, y ∈ F' x) ∧
+      StreamComputableIn p F' ∧
+      Continuous fun x : F'.Dom => (F' x).get x.2 := by
+  obtain ⟨p, c, hc⟩ := continuous_get_iff_streamComputableIn.1 hF
+  exact ⟨p, Code.evalStream p c, Code.isGδ_dom_evalStream p c, fun _ _ hy => hc.mem_evalStream hy,
+    ⟨c, Code.computesStream_evalStream p c⟩,
+    StreamComputableIn.continuous_get ⟨c, Code.computesStream_evalStream p c⟩⟩
 
 /-- **The continuity theorem.** A total map on Baire space is continuous if and only if it is
 computable relative to some oracle. -/

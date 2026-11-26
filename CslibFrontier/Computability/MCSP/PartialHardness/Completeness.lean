@@ -172,11 +172,9 @@ theorem exists_satTerm {S : Finset ℕ}
 theorem sum_two_pow_varLength_le_two_mul_weight {S : Finset ℕ}
     (hS : S ⊆ Finset.range I.weights.length) (hwf : I.WellFormed Δ) (hlam : 1 ≤ lam) :
     ∑ v ∈ S, 2 ^ varLength I lam v ≤ 2 * I.weight S * lam := by
-  calc ∑ v ∈ S, 2 ^ varLength I lam v ≤ ∑ v ∈ S, 2 * (I.weights.getD v 0 * lam) := by
-        refine sum_le_sum fun v hv => Nat.pow_clog_le_mul Nat.one_lt_two ?_
-        have hvn := Finset.mem_range.1 (hS hv)
-        have hpos := hwf.weight_pos _ (List.getD_mem 0 hvn)
-        positivity
+  calc ∑ v ∈ S, 2 ^ varLength I lam v ≤ ∑ v ∈ S, 2 * (I.weights.getD v 0 * lam) :=
+        sum_le_sum fun v hv => Nat.pow_clog_le_mul Nat.one_lt_two
+          (Nat.mul_pos (hwf.weight_pos _ (List.getD_mem 0 (Finset.mem_range.1 (hS hv)))) hlam).ne'
     _ = 2 * I.weight S * lam := by
         rw [← Finset.mul_sum, ← Finset.sum_mul, CMMSAInstance.weight, mul_assoc]
 
@@ -202,8 +200,8 @@ private theorem addrBit_eq {τ o : ℕ → ℕ} {x : BitString (inputLength I Δ
   rw [hc, Nat.testBit_two_pow_mul_add _ hlt]
   unfold addrBit
   by_cases h : τ j < Δ ∧ r < varLength I lam (var I j (τ j) q) ∧ r < seedWidth I lam
-  · have ht' : (⟨_, h.1⟩ : Fin Δ) = t := Fin.ext ht
-    rw [dite_eq_left h, ht']
+  · have hfin : (⟨τ j, h.1⟩ : Fin Δ) = t := Fin.ext ht
+    rw [dite_eq_left h, hfin]
     rw [ht, hv] at h
     rw [ite_eq_left h.2.1, BitString.testBit_equivFin _ ⟨r, h.2.1⟩]
     simp [BitString.zeroExtend, h.2.2]
@@ -237,7 +235,6 @@ private theorem combine_append_eq {S : Finset ℕ} {f : VarFunctions I lam} {τ 
     have hvS := hvars q hq
     set v := var I (formulaIndex x) (τ (formulaIndex x)) q with hv_def
     have hvn := Finset.mem_range.1 (hS hvS)
-    have hvW : varLength I lam v ≤ seedWidth I lam := varLength_le_seedWidth hvn
     set s := (BitString.equivFin _ (BitString.zeroExtend (d' := varLength I lam v)
       (seed x ⟨_, htΔ⟩ q i)) : ℕ) with hs_def
     have hs : s < 2 ^ varLength I lam v := (BitString.equivFin _ _).isLt
@@ -245,7 +242,7 @@ private theorem combine_append_eq {S : Finset ℕ} {f : VarFunctions I lam} {τ 
         natBits L (o v + s) := by
       funext r
       simp only [BitString.block, addr, Equiv.symm_apply_apply, natBits]
-      exact addrBit_eq (t := ⟨_, htΔ⟩) rfl rfl hvW (hfit v hvS).1 i r
+      exact addrBit_eq (t := ⟨_, htΔ⟩) rfl rfl (varLength_le_seedWidth hvn) (hfit v hvS).1 i r
     have hlt : o v + s < 2 ^ L := by have := (hfit v hvS).2; omega
     have hbits : natBits (varLength I lam v) s = _ := funext (BitString.testBit_equivFin _)
     rw [directProduct, hin, hardTable_apply hdisj hvS hs _ (val_equivFin_natBits hlt), hbits]
@@ -285,8 +282,7 @@ private theorem complexity_combine_le (τ : ℕ → ℕ) :
     univ.image (Fin.natAdd (inputLength I Δ k lam)), ?_, ?_⟩
   · refine ((card_union_le _ _).trans (add_le_add ((card_union_le _ _).trans
       (add_le_add card_image_le card_image_le)) card_image_le)).trans ?_
-    simp only [card_univ, Fintype.card_fin, Fintype.card_prod]
-    omega
+    simp only [card_univ, Fintype.card_fin, Fintype.card_prod]; omega
   · intro x y hxy
     have hidx : (fun i => x (Fin.castAdd (Δ * k) (indexPos I Δ k lam i))) =
         fun i => y (Fin.castAdd (Δ * k) (indexPos I Δ k lam i)) :=
@@ -349,9 +345,8 @@ theorem exists_toInstance_mem_PartialMCSP (Δ k P : ℕ) (hP : 0 < P) :
   have haL : a ≤ L := Nat.clog_le_of_le_pow (le_trans (by nlinarith) hm2)
   have ha : 2 ^ a ≤ 2 * (m + 1) := Nat.two_pow_clog_two_le m
   obtain ⟨o, hfit, hdisj⟩ := Nat.exists_aligned_packing 2 (varLength I lam) S
-  have hsum := sum_two_pow_varLength_le hS hwf hw hlam1
   have hfit' : ∀ v ∈ S, 2 ^ varLength I lam v ∣ o v ∧ o v + 2 ^ varLength I lam v ≤ 2 ^ L :=
-    fun v hv => ⟨(hfit v hv).1, (hfit v hv).2.trans hsum⟩
+    fun v hv => ⟨(hfit v hv).1, (hfit v hv).2.trans (sum_two_pow_varLength_le hS hwf hw hlam1)⟩
   obtain ⟨τ, hτ⟩ := exists_satTerm hwf.monotone hsat
   let F := hardTable f S o L
   let C : BooleanFunction (inputLength I Δ k lam) := fun x =>

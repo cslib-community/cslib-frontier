@@ -116,7 +116,7 @@ theorem isProjection_det_iff_exists_isSubstMatrix {P : MvPolynomial σ K} {m : �
     ⟨Matrix.of fun i j => Sum.elim X (fun a => C a) (ρ (finProdFinEquiv (i, j))),
       fun i j => ⟨ρ (finProdFinEquiv (i, j)), rfl⟩,
       (projection_det_genericMatrix ρ).symm.trans hρ⟩, ?_⟩
-  rintro ⟨M, hM, rfl⟩
+  rintro ⟨_, hM, rfl⟩
   have h := hM.isProjection_det
   rwa [Fintype.card_fin] at h
 
@@ -136,8 +136,8 @@ theorem IsProjection.det_mul {P Q : MvPolynomial σ K} {m k : ℕ}
 projection of `(genericMatrix K m).det`, then `P` is a projection of `(genericMatrix K k).det`. -/
 theorem isProjection_det_mono {P : MvPolynomial σ K} {m k : ℕ} (hmk : m ≤ k)
     (hP : IsProjection P (genericMatrix K m).det) :
-    IsProjection P (genericMatrix K k).det := by
-  exact Nat.add_sub_of_le hmk ▸ mul_one P ▸ hP.det_mul (k := k - m)
+    IsProjection P (genericMatrix K k).det :=
+  Nat.add_sub_of_le hmk ▸ mul_one P ▸ hP.det_mul (k := k - m)
     (isProjection_det_iff_exists_isSubstMatrix.mpr ⟨1, .one, Matrix.det_one⟩)
 
 /-! ### Acyclic specialization branching programs -/
@@ -174,15 +174,12 @@ private theorem pathSum_succ {R : Type*} [CommRing R] {k : ℕ}
 private def abpEquiv (k₁ k₂ : ℕ) : Fin (k₁ + 2) ⊕ Fin (k₂ + 1) ≃ Fin ((k₁ + k₂ + 1) + 2) :=
   finSumFinEquiv.trans (finCongr (by omega))
 
-private theorem abpEquiv_inl_zero (k₁ k₂ : ℕ) : abpEquiv k₁ k₂ (.inl 0) = 0 := by
-  exact Fin.ext (by simp [abpEquiv])
+private theorem abpEquiv_inl_zero (k₁ k₂ : ℕ) : abpEquiv k₁ k₂ (.inl 0) = 0 :=
+  Fin.ext (by simp [abpEquiv])
 
 private theorem abpEquiv_inr_last (k₁ k₂ : ℕ) :
-    abpEquiv k₁ k₂ (.inr (Fin.last k₂)) = Fin.last (k₁ + k₂ + 2) := by
-  ext
-  simp only [abpEquiv, Equiv.trans_apply, finCongr_apply, Fin.val_cast, finSumFinEquiv_apply_right,
-    Fin.val_natAdd, Fin.val_last]
-  omega
+    abpEquiv k₁ k₂ (.inr (Fin.last k₂)) = Fin.last (k₁ + k₂ + 2) :=
+  Fin.ext (by simp [abpEquiv]; omega)
 
 /-- Combining two strictly upper-triangular matrices with an arbitrary upper-right coupling block
 `B` preserves strict upper triangularity and specialization entries. -/
@@ -220,9 +217,8 @@ private theorem abpCombine_eq_zero_of_le {R : Type*} [Zero R] {k₁ k₂ : ℕ}
       Fin.val_natAdd] at hji
     omega
   · rfl
-  · refine hN₂ b.succ b'.succ (Fin.le_iff_val_le_val.mpr ?_)
-    simp only [finSumFinEquiv_apply_right, Fin.val_natAdd, Fin.val_succ] at hji ⊢
-    omega
+  · exact hN₂ b.succ b'.succ (Fin.le_iff_val_le_val.mpr (by
+      simp only [finSumFinEquiv_apply_right, Fin.val_natAdd, Fin.val_succ] at hji ⊢; omega))
 
 private theorem pathSum_abpCombine {R : Type*} [CommRing R] {k₁ k₂ : ℕ}
     {N₁ : Matrix (Fin (k₁ + 2)) (Fin (k₁ + 2)) R}
@@ -345,9 +341,7 @@ theorem add {k₁ k₂ : ℕ} {P Q : MvPolynomial σ K}
     rw [hB_eval, hD_eval, add_right_comm,
       ← Fin.sum_univ_succ (fun i => q₂ i * N₂ i b.succ), ← dotProduct, ← Matrix.vecMul,
       ← pathSum_succ hq₂ b]
-  · simp only [Function.comp_apply, ← abpEquiv_inr_last k₁ k₂, Equiv.symm_apply_apply,
-      Sum.elim_inr, r, ↓reduceIte, Fin.succ_last]
-    exact add_comm _ _
+  · simp [← abpEquiv_inr_last k₁ k₂, r, add_comm]
 
 end IsSubstABP
 

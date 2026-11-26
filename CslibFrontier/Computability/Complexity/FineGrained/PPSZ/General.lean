@@ -228,13 +228,13 @@ theorem sum_cost_update_add_le_of_frozen {τ : Fin n → Option Bool} {σ : Fin 
           rw [assignProb_eq_zero fun h =>
             hα ((isSatExtension_update_iff (mem_free.1 (mem_of_mem_erase hy))).1 h).1, zero_mul]]
       simp only [zero_mul, mul_zero, zero_add, le_refl]
-    have h13 := card_satLits_mul_assignProb φ τ α
-    rw [← add_sum_erase _ _ hxW] at h13
-    have h11 := sum_guessProb_sub (φ := φ) (w := w) (σ := α) hxT
-    rw [compl_compl, restrict_compl_free hα.1] at h11
-    have hf : (if WImplied φ w τ x (α x) then (0 : ℝ) else 1) = (guessBit φ w τ x : ℝ) := by
-      by_cases hI : WImplied φ w τ x (α x) <;> simp [guessBit, hI, implied_eq_none_iff hα.2 hα.1]
-    rw [hf] at h11
+    have h11 : ∑ y ∈ (free τ).erase x,
+        (guessProb φ w (free τ)ᶜ α x - guessProb φ w (insert y (free τ)ᶜ) α x) =
+        (guessBit φ w τ x : ℝ) - guessProb φ w (free τ)ᶜ α x := by
+      have hf : (if WImplied φ w τ x (α x) then (0 : ℝ) else 1) = (guessBit φ w τ x : ℝ) := by
+        by_cases hI : WImplied φ w τ x (α x) <;> simp [guessBit, hI, implied_eq_none_iff hα.2 hα.1]
+      simpa only [compl_compl, restrict_compl_free hα.1, hf] using
+        sum_guessProb_sub (φ := φ) (w := w) (σ := α) hxT
     have e2 : assignProb φ τ α * (guessBit φ w τ x : ℝ) -
           assignProb φ τ α * guessProb φ w (free τ)ᶜ α x ≤
         (∑ y ∈ (free τ).erase x, assignProb φ (update τ y (some (α y))) α) *
@@ -253,7 +253,8 @@ theorem sum_cost_update_add_le_of_frozen {τ : Fin n → Option Bool} {σ : Fin 
     have e1 : ((satLits φ τ).card : ℝ) * (assignProb φ τ α * guessProb φ w (free τ)ᶜ α x) =
         assignProb φ (update τ x (some (α x))) α * guessProb φ w (free τ)ᶜ α x +
           (∑ y ∈ (free τ).erase x, assignProb φ (update τ y (some (α y))) α) *
-            guessProb φ w (free τ)ᶜ α x := by rw [← mul_assoc, h13, add_mul]
+            guessProb φ w (free τ)ᶜ α x := by
+      rw [← mul_assoc, card_satLits_mul_assignProb, ← add_sum_erase _ _ hxW, add_mul]
     linarith [mul_le_mul_of_nonneg_right (assignProb_le_assignProb_update φ τ α x)
       (guessProb_nonneg (φ := φ) (w := w) (T := (free τ)ᶜ) (σ := α) (x := x))]
   calc ∑ l ∈ satLits φ τ, cost φ w p (update τ l.1 (some l.2)) x + (guessBit φ w τ x : ℝ)
@@ -336,12 +337,11 @@ theorem sum_guessBit_add_totalCost_le (hp : 0 ≤ p)
   have h1 : ∑ x, (#((satLits φ τ).filter (·.1 = x)) : ℝ) = (satLits φ τ).card := by
     exact_mod_cast (card_eq_sum_card_fiberwise (f := Prod.fst) (t := univ)
       fun _ _ => mem_univ _).symm
-  have h2 : ∑ x, (if τ x = none then (1 : ℝ) else 0) = (free τ).card := by simp [free]
   calc _ = _ := hL
     _ ≤ ∑ x, (((satLits φ τ).card : ℝ) * cost φ w p τ x +
           (2 - 2 * p) * (#((satLits φ τ).filter (·.1 = x)) - if τ x = none then 1 else 0)) :=
         sum_le_sum fun x _ => hx x
-    _ = _ := by rw [sum_add_distrib, ← mul_sum, ← mul_sum, sum_sub_distrib, h1, h2]; rfl
+    _ = _ := by simp [sum_add_distrib, ← mul_sum, sum_sub_distrib, h1, free, totalCost]
 
 /-! ### The success recursion -/
 
@@ -375,8 +375,7 @@ private theorem guessCount_zero (α : Fin n → Bool) (π : Equiv.Perm (Fin n)) 
 /-- No guesses remain after position `n`. -/
 private theorem guessCount_self (α : Fin n → Bool) (π : Equiv.Perm (Fin n)) :
     guessCount φ w α π n = 0 := by
-  have h := guessCount_add_unforcedCount (φ := φ) (w := w) α π n
-  omega
+  simpa using guessCount_add_unforcedCount (φ := φ) (w := w) α π n
 
 /-- Splitting off the step at position `i`. -/
 private theorem guessCount_eq {i : ℕ} (hi : i < n) (α : Fin n → Bool) (π : Equiv.Perm (Fin n)) :
@@ -490,8 +489,7 @@ private theorem two_sub_two_mul_mul_le_mul_logb (hp : 1 - 1 / (2 * Real.log 2) �
   have h2 : s - m ≤ s * Real.log (s / m) := by
     have := mul_le_mul_of_nonneg_left (Real.one_sub_inv_le_log_of_pos (div_pos hs hm)) hs.le
     rwa [inv_div, mul_sub, mul_one, mul_div_cancel₀ m hs.ne'] at this
-  have htwo : 2 * (1 / (2 * Real.log 2)) = 1 / Real.log 2 := by field_simp
-  have h3 : 2 - 2 * p ≤ 1 / Real.log 2 := by linarith
+  have h3 : 2 - 2 * p ≤ 1 / Real.log 2 := by field_simp at hp ⊢; linarith
   calc (2 - 2 * p) * (s - m) ≤ 1 / Real.log 2 * (s - m) :=
         mul_le_mul_of_nonneg_right h3 (sub_nonneg.2 hms)
     _ ≤ 1 / Real.log 2 * (s * Real.log (s / m)) :=
@@ -541,11 +539,9 @@ theorem factorial_mul_le_succSum (hp : 1 - 1 / (2 * Real.log 2) ≤ p)
     intro i π₀ τ hi hτ hsat
     have hin : i < n := by omega
     have hWcard : (free τ).card = m + 1 := by
-      rw [hτ, card_compl, Fintype.card_fin, card_prefixSet π₀ hin.le]
-      omega
-    have hsW := card_free_le_card_satLits hsat
+      rw [hτ, card_compl, Fintype.card_fin, card_prefixSet π₀ hin.le]; omega
     have hM : (0 : ℝ) < (free τ).card := by rw [hWcard]; positivity
-    have hMs : ((free τ).card : ℝ) ≤ (satLits φ τ).card := by exact_mod_cast hsW
+    have hMs : ((free τ).card : ℝ) ≤ #(satLits φ τ) := mod_cast card_free_le_card_satLits hsat
     have hs : (0 : ℝ) < (satLits φ τ).card := hM.trans_le hMs
     have hS : (satLits φ τ).Nonempty := card_pos.1 (by exact_mod_cast hs)
     -- The recursion and the induction hypothesis.
@@ -564,10 +560,10 @@ theorem factorial_mul_le_succSum (hp : 1 - 1 / (2 * Real.log 2) ≤ p)
         _ ≤ ∑ l ∈ satLits φ τ, (1 / 2 : ℝ) ^ guessBit φ w τ l.1 *
               succSum φ w (Equiv.swap (π₀ ⟨i, hin⟩) l.1 * π₀) (i + 1) (update τ l.1 (some l.2)) :=
             sum_le_sum fun l hl => by
-              have hy := mem_free.2 (mem_satLits.1 hl).1
               refine mul_le_mul_of_nonneg_left (ih (i + 1) _ _ (by omega) ?_
                 (mem_satLits.1 hl).update_isSatExtension) (by positivity)
-              rw [free_update, prefixSet_swap hin (by rw [hτ] at hy; exact mem_compl.1 hy),
+              rw [free_update,
+                prefixSet_swap hin (mem_compl.1 (hτ ▸ mem_free.2 (mem_satLits.1 hl).1)),
                 compl_insert, hτ]
         _ ≤ ∑ l ∈ free τ ×ˢ (univ : Finset Bool), (1 / 2 : ℝ) ^ guessBit φ w τ l.1 *
               succSum φ w (Equiv.swap (π₀ ⟨i, hin⟩) l.1 * π₀) (i + 1) (update τ l.1 (some l.2)) :=
@@ -584,8 +580,6 @@ theorem factorial_mul_le_succSum (hp : 1 - 1 / (2 * Real.log 2) ≤ p)
       rw [div_le_iff₀ hs]
       linarith [sum_guessBit_add_totalCost_le hp0 herr hsat,
         two_sub_two_mul_mul_le_mul_logb hp hM hMs]
-    have hamgm := card_mul_two_rpow_neg_le_sum (satLits φ τ) hS fun l =>
-      (guessBit φ w τ l.1 : ℝ) + totalCost φ w p (update τ l.1 (some l.2))
     calc ((m + 1).factorial : ℝ) * (2 : ℝ) ^ (-totalCost φ w p τ)
         = m.factorial * ((satLits φ τ).card *
             (2 : ℝ) ^ (-(totalCost φ w p τ +
@@ -600,8 +594,9 @@ theorem factorial_mul_le_succSum (hp : 1 - 1 / (2 * Real.log 2) ≤ p)
           gcongr
           exact one_le_two
       _ ≤ m.factorial * ∑ l ∈ satLits φ τ, (2 : ℝ) ^ (-((guessBit φ w τ l.1 : ℝ) +
-            totalCost φ w p (update τ l.1 (some l.2)))) := by
-          gcongr
+            totalCost φ w p (update τ l.1 (some l.2)))) :=
+          mul_le_mul_of_nonneg_left (card_mul_two_rpow_neg_le_sum (satLits φ τ) hS _)
+            (Nat.cast_nonneg _)
       _ ≤ succSum φ w π₀ i τ := hstep
 
 /-! ### The threshold -/
@@ -653,15 +648,16 @@ theorem round_success_ge_of_guess_le (hp : 1 - 1 / (2 * Real.log 2) ≤ p)
   have hsat : ∃ σ, IsSatExtension φ (fun _ => none) σ := ⟨σ, fun _ _ h => (by cases h), hσ⟩
   have hτ : free (fun _ : Fin n => (none : Option Bool)) = (prefixSet 1 0)ᶜ :=
     Finset.ext fun _ => by simp [prefixSet_zero]
-  have h15 := factorial_mul_le_succSum hp herr n 0 1 _ (zero_add n) hτ hsat
-  rw [succSum_zero] at h15
   have hcost : totalCost φ w p (fun _ => none) ≤ p * n := by
     calc totalCost φ w p (fun _ => none) ≤ ∑ _x : Fin n, p :=
           sum_le_sum fun x _ => cost_le hp0 herr hsat x
       _ = p * n := by rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, mul_comm]
   calc (2 : ℝ) ^ (-(p * n)) ≤ (2 : ℝ) ^ (-totalCost φ w p (fun _ => none)) :=
         Real.rpow_le_rpow_of_exponent_le one_le_two (neg_le_neg hcost)
-    _ ≤ _ := le_of_mul_le_mul_left h15 (by exact_mod_cast Nat.factorial_pos n)
+    _ ≤ _ := le_of_mul_le_mul_left
+        ((factorial_mul_le_succSum hp herr n 0 1 _ (zero_add n) hτ hsat).trans_eq
+          (succSum_zero (φ := φ) (w := w) 1))
+        (Nat.cast_pos.2 (Nat.factorial_pos n))
 
 /-- **PPSZ for satisfiable k-CNF formulas** at a fixed depth, the finite-depth form of
 [Hertli, p. 5 and Theorem 15][Hertli2011] and
@@ -684,9 +680,9 @@ theorem round_success_of_satisfiable_three (hw : 3 ≤ w) (hsat : φ.Satisfiable
     (hlen : ∀ c ∈ φ, c.length ≤ 3) :
     (2 : ℝ) ^ (-(39 / 70 * n : ℝ)) ≤
       ∑ σ ∈ univ.filter (fun σ => φ.eval σ = true), ((round φ w) fun x => some (σ x)).toReal := by
-  have h := round_success_of_satisfiable (h := 2) le_rfl hsat hlen
+  have h39 : 1 - qbar 3 2 = (39 / 70 : ℝ) := by rw [qbar_three_two]; norm_num
+  simpa only [h39] using round_success_of_satisfiable (h := 2) le_rfl hsat hlen
     (by simpa [sum_range_succ] using hw)
-  rwa [qbar_three_two, show (1 : ℝ) - 31 / 70 = 39 / 70 by norm_num] at h
 
 /-- **PPSZ for satisfiable k-SAT** [Hertli, p. 5][Hertli2011],
 [Scheder, Steinberger, Theorem 6 with Theorem 4][SchederSteinberger2017], for PPSZ with

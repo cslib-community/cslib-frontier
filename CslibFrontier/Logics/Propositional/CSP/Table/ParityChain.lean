@@ -55,11 +55,8 @@ theorem sem_evenTable (width : ℕ) (row : List Bool) :
 theorem booleanRelation_evenTable (width : ℕ) :
     booleanRelation arity sem (evenTable width) =
       {x : Fin width → Bool | parityOn Finset.univ x = false} := by
-  ext x
-  change Fin width → Bool at x
-  change (evenTable width).sem (List.ofFn x) = true ↔ parityOn Finset.univ x = false
-  rw [sem_evenTable]
-  simp only [List.length_ofFn, wordParity_ofFn, true_and]
+  simp only [booleanRelation, sem_evenTable, arity_evenTable, List.length_ofFn, wordParity_ofFn,
+    true_and]
 
 /-- All parity tables used by a chain are nonempty even delta-matroids. -/
 theorem isEvenDeltaMatroid_evenTable (width : ℕ) :
@@ -132,18 +129,12 @@ theorem parityChainTail_sound (fresh first : ℕ) (rest : List ℕ) (σ : ℕ �
     wordParity ((first :: rest).map σ) = false := by
   fun_induction parityChainTail fresh first rest with
   | case4 fresh first b c d rest ih => -- b :: c :: d :: rest: chain step
-    have hh : (evenTable 3).sem ([first, b, fresh].map σ) = true ∧
-        (parityChainTail (fresh + 1) fresh (c :: d :: rest)).eval sem σ = true := by
-      simpa only [CSP.eval, List.all_cons, Bool.and_eq_true, Constraint.eval] using h
-    have hp := (sem_evenTable 3 _).mp hh.1 |>.2
-    have ht := ih hh.2
+    simp only [CSP.eval, List.all_cons, Bool.and_eq_true, Constraint.eval] at h
+    have hp := (sem_evenTable 3 _).mp h.1 |>.2
+    have ht := ih h.2
     simp only [List.map_cons, List.map_nil, wordParity_cons, wordParity_nil,
-      Bool.xor_false] at hp
-    have he : σ fresh = wordParity ((c :: d :: rest).map σ) := by
-      change (σ fresh ^^ wordParity ((c :: d :: rest).map σ)) = false at ht
-      simpa using ht
-    change (σ first ^^ (σ b ^^ wordParity ((c :: d :: rest).map σ))) = false
-    rwa [← he]
+      Bool.xor_false, bne_eq_false_iff_eq] at hp ht ⊢
+    rwa [← ht]
   | _ => -- at most two boundary entries left
     exact (sem_evenTable _ _).mp (by simpa only [CSP.eval, List.all_cons, List.all_nil,
       Bool.and_true, Constraint.eval] using h) |>.2

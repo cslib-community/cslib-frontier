@@ -138,18 +138,11 @@ theorem coupling_ineq {r c t Z : ℝ} (hr : 0 < r) (hrc : r ≤ c) (hc1 : c < 1)
   have h1 : s * (1 - c) ≤ n * (1 - r) := by
     refine (pow_le_pow_iff_left₀ (mul_nonneg hs.le (sub_nonneg.mpr hc1.le))
       (mul_nonneg hn.le (sub_nonneg.mpr (hrc.trans hc1.le))) two_ne_zero).mp ?_
-    have hid1 : (1 - c ^ 2) * (1 - r) ^ 2 - (1 - r ^ 2) * (1 - c) ^ 2 =
-        2 * (1 - r) * (1 - c) * (c - r) := by ring
     rw [mul_pow, mul_pow, Real.sq_sqrt (sub_nonneg.mpr (pow_le_one₀ hc0 hc1.le)),
-      Real.sq_sqrt (sub_nonneg.mpr (pow_le_one₀ hr.le (hrc.trans hc1.le))), ← sub_nonneg, hid1]
-    exact mul_nonneg (mul_nonneg (by linarith only [hrc, hc1]) (sub_nonneg.mpr hc1.le))
-      (sub_nonneg.mpr hrc)
-  have hid2 : (t - r * Z) * n - (t - c * Z) * s =
-      (Z - t) * (c * s - r * n) + t * (n * (1 - r) - s * (1 - c)) := by ring
-  rw [div_le_div_iff₀ hn hs, ← sub_nonneg, hid2]
-  exact add_nonneg
-    (mul_nonneg (sub_nonneg.mpr htZ) (sub_nonneg.mpr (mul_le_mul hrc hsn hn.le hc0)))
-    (mul_nonneg ht (sub_nonneg.mpr h1))
+      Real.sq_sqrt (sub_nonneg.mpr (pow_le_one₀ hr.le (hrc.trans hc1.le)))]
+    nlinarith only [hrc, hc1, mul_nonneg (sub_nonneg.mpr hc1.le) (sub_nonneg.mpr hrc)]
+  rw [div_le_div_iff₀ hn hs]
+  nlinarith only [htZ, ht, h1, mul_le_mul hrc hsn hn.le hc0]
 
 omit [FiniteDimensional ℝ E] [MeasurableSpace E] [BorelSpace E] in
 /-- Unit vectors with inner product one coincide. -/

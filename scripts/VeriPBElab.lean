@@ -143,6 +143,7 @@ def topStr (N : NameTable) : TopStep → String
     s!"{if add then "preserved_add" else "preserved_rm"} {varName N x} : {constrStr N c}" ++
       subStr N (if add then "preserved_add" else "preserved_rm") sub none
   | .epreserved vs => s!"epreserved {varsStr N vs};\n"
+  | .econstr c j => s!"e {constrStr N c} : {j};\n"
 
 def boundStr : Option ℤ → String
   | none => "INF"

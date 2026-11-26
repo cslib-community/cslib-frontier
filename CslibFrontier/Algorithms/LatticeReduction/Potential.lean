@@ -102,12 +102,10 @@ private theorem isLowerSet_range_castLE {k : ℕ} (hk : k ≤ n) :
 theorem gramPrefixDet_eq_det (b : Fin n → E) {k : ℕ} (hk : k ≤ n) :
     gramPrefixDet b k = (Matrix.gram ℝ (b ∘ Fin.castLE hk)).det := by
   rw [det_gram_eq_prod_norm_gramSchmidt_sq, gramPrefixDet]
-  symm
-  refine Finset.prod_bij (fun j _ => Fin.castLE hk j) (fun _ _ => by simp)
+  exact (Finset.prod_bij (fun j _ => Fin.castLE hk j) (fun _ _ => by simp)
     (fun _ _ _ _ h => Fin.castLE_injective hk h)
-    (fun j hj => ⟨⟨j, (Finset.mem_filter.1 hj).2⟩, Finset.mem_univ _, Fin.ext rfl⟩) fun j _ => ?_
-  rw [gramSchmidt_comp b (Fin.strictMono_castLE hk) (isLowerSet_range_castLE hk)]
-  rfl
+    (fun j hj => ⟨⟨j, (Finset.mem_filter.1 hj).2⟩, Finset.mem_univ _, Fin.ext rfl⟩) fun j _ => by
+      rw [gramSchmidt_comp b (Fin.strictMono_castLE hk) (isLowerSet_range_castLE hk)]; rfl).symm
 
 /-- All inner products `⟪bᵢ, bⱼ⟫` are integers, as for a basis of a sublattice of `ℤᵐ`. -/
 @[expose] def HasIntegralGram (b : Fin n → E) : Prop :=
@@ -272,15 +270,13 @@ theorem gramSchmidt_swap_self (b : Fin n → E) {i j : Fin n} (hij : (j : ℕ) =
       congrArg b (Equiv.swap_apply_of_ne_of_ne (ne_of_lt hm) (lt_trans hm hlt).ne)
   symm
   refine eq_gramSchmidt_of_sub_mem_of_mem_orthogonal ?_ ?_
-  · rw [himg, Function.comp_apply, Equiv.swap_apply_left, ← span_gramSchmidt_Iio ℝ b i]
-    have hsub : gramSchmidt ℝ b j + gramSchmidtCoeff ℝ b j i • gramSchmidt ℝ b i - b j =
-        -∑ l ∈ Finset.Iio i, gramSchmidtCoeff ℝ b j l • gramSchmidt ℝ b l := by
-      rw [gramSchmidt_add_sum_coeff (𝕜 := ℝ) b j, Iio_succ_eq_insert hij,
-        Finset.sum_insert (by simp)]
-      abel
-    rw [hsub]
-    exact neg_mem (Submodule.sum_mem _ fun l hl =>
-      Submodule.smul_mem _ _ (Submodule.subset_span ⟨l, Finset.mem_Iio.1 hl, rfl⟩))
+  · rw [himg, Function.comp_apply, Equiv.swap_apply_left, ← span_gramSchmidt_Iio ℝ b i,
+      gramSchmidt_add_sum_coeff (𝕜 := ℝ) b j, Iio_succ_eq_insert hij,
+      Finset.sum_insert (by simp)]
+    convert (Submodule.span ℝ (gramSchmidt ℝ b '' Set.Iio i)).neg_mem
+      (Submodule.sum_mem _ fun l hl => Submodule.smul_mem _ (gramSchmidtCoeff ℝ b j l)
+        (Submodule.subset_span ⟨l, Finset.mem_Iio.1 hl, rfl⟩)) using 1
+    abel
   · rw [himg]
     exact add_mem (Submodule.orthogonal_le
       (Submodule.span_mono (Set.image_mono (Set.Iio_subset_Iio hlt.le)))
@@ -292,9 +288,7 @@ theorem IsSwapStep.exists_norm_sq_lt {δ : ℝ} {b c : Fin n → E} (h : IsSwapS
     ∃ i j : Fin n, (j : ℕ) = i + 1 ∧ c = b ∘ Equiv.swap i j ∧
       ‖gramSchmidt ℝ c i‖ ^ 2 < δ * ‖gramSchmidt ℝ b i‖ ^ 2 := by
   obtain ⟨i, j, hij, hnot, rfl⟩ := h
-  refine ⟨i, j, hij, rfl, ?_⟩
-  rw [gramSchmidt_swap_self b hij]
-  exact lt_of_not_ge hnot
+  exact ⟨i, j, hij, rfl, (gramSchmidt_swap_self b hij).symm ▸ lt_of_not_ge hnot⟩
 
 /-- `dₗ₊₁ = dₗ ‖b*ₗ‖²`. -/
 theorem gramPrefixDet_succ (b : Fin n → E) (l : Fin n) :

@@ -275,8 +275,7 @@ instance {F : Type} [Nonempty F] {d q t : ℕ} : Nonempty (FRIBatchChal F d q t)
 theorem card_friBatchChal {F : Type} [Fintype F] (d q t : ℕ) :
     Fintype.card (FRIBatchChal F d q t) = Fintype.card F ^ (t + 1) * (2 ^ d) ^ q := by
   rw [Fintype.card_congr (FRIBatchChal.equivProd F d q t), Fintype.card_prod, Fintype.card_fun,
-    Fintype.card_fin, card_friChal]
-  rw [pow_succ]
+    Fintype.card_fin, card_friChal, pow_succ]
   ring
 
 end BatchStatementsAndChallenges
@@ -327,39 +326,33 @@ theorem mem_friBatchProximityLang_of_completenessRel {d t : ℕ} {C : Submodule 
     (e : ℕ) {stmt : FRIBatchStmt F d t} (hrel : friBatchCompletenessRel C t stmt ()) :
     stmt ∈ friBatchProximityLang C t e := by
   refine ⟨Finset.univ, ?_, stmt.base, hrel.1, stmt.terms, hrel.2, fun _ _ => ⟨rfl, fun _ => rfl⟩⟩
-  simp only [Finset.card_univ, Fintype.card_fin]
-  exact Nat.sub_le _ _
+  simp
 
 /-- Contrapositively, `stmt ∉ friBatchProximityLang C t e` implies `e < 2 ^ d`. -/
 theorem lt_two_pow_of_not_mem_friBatchProximityLang {d t e : ℕ} {C : Submodule F (OracleTable d F)}
     {stmt : FRIBatchStmt F d t} (hnot : stmt ∉ friBatchProximityLang C t e) :
     e < 2 ^ d := by
   by_contra hge
-  have hsub : 2 ^ d - e = 0 := Nat.sub_eq_zero_of_le (Nat.le_of_not_lt hge)
-  exact hnot ⟨∅, by simp [hsub], 0, C.zero_mem, fun _ => 0,
-    fun _ => C.zero_mem, fun _ hs => False.elim (Finset.notMem_empty _ hs)⟩
+  exact hnot ⟨∅, by simp [Nat.sub_eq_zero_of_le (Nat.le_of_not_lt hge)], 0, C.zero_mem,
+    fun _ => 0, fun _ => C.zero_mem, fun _ hs => (Finset.notMem_empty _ hs).elim⟩
 
 /-- At batch size `t = 0`, tuple correlated agreement `friBatchProximityLang C 0 e` coincides with
 single-word Hamming proximity `∃ c ∈ C, hammingDist stmt.base c ≤ e`. -/
 theorem mem_friBatchProximityLang_zero_iff [DecidableEq F] {d : ℕ}
     (C : Submodule F (OracleTable d F)) (e : ℕ) (stmt : FRIBatchStmt F d 0) :
     stmt ∈ friBatchProximityLang C 0 e ↔ ∃ c ∈ C, hammingDist stmt.base c ≤ e := by
+  have htot (c : OracleTable d F) :
+      #(univ.filter fun s => stmt.base s = c s) + hammingDist stmt.base c = 2 ^ d :=
+    (card_filter_eq_add_hammingDist stmt.base c).trans (Fintype.card_fin _)
   constructor
   · rintro ⟨D', hcard, v₀, hv₀, _, _, hagree⟩
-    refine ⟨v₀, hv₀, ?_⟩
-    have hsub : D' ⊆ Finset.univ.filter (fun s : Fin (2 ^ d) => stmt.base s = v₀ s) :=
-      fun s hs => Finset.mem_filter.mpr ⟨Finset.mem_univ s, (hagree s hs).1⟩
-    have hle := hcard.trans (Finset.card_le_card hsub)
-    have htot := card_filter_eq_add_hammingDist stmt.base v₀
-    rw [Fintype.card_fin] at htot
-    omega
+    have hle := hcard.trans (card_le_card fun s hs => mem_filter.mpr ⟨mem_univ s, (hagree s hs).1⟩)
+    have := htot v₀
+    exact ⟨v₀, hv₀, by omega⟩
   · rintro ⟨c, hc, hdist⟩
-    refine ⟨Finset.univ.filter (fun s => stmt.base s = c s), ?_, c, hc, Fin.elim0,
-      fun j => Fin.elim0 j, fun s hs => ⟨(Finset.mem_filter.mp hs).2, fun j => Fin.elim0 j⟩⟩
-    have htot := card_filter_eq_add_hammingDist stmt.base c
-    rw [Fintype.card_fin] at htot
-    have hdist' : hammingDist stmt.base c ≤ e := hdist
-    omega
+    have := htot c
+    exact ⟨univ.filter fun s => stmt.base s = c s, by omega, c, hc, Fin.elim0, fun j => j.elim0,
+      fun s hs => ⟨(mem_filter.mp hs).2, fun j => j.elim0⟩⟩
 
 /-- **Exact ceiling `Set` equality (`α ≤ 1`)**: for `e = 2 ^ d - ⌈α * 2 ^ d⌉₊`,
 `friBatchCorrAgreeLang C t α = friBatchProximityLang C t e`. -/

@@ -93,8 +93,7 @@ def rmMessageByteEquiv : RMMessage ≃ BitString 8 :=
 @[simp]
 theorem rmMessageByteEquiv_apply_last (m : RMMessage) :
     rmMessageByteEquiv m (Fin.last 7) = m.sign := by
-  change (Fin.snoc m.slope m.sign : Fin 8 → Bool) (Fin.last 7) = m.sign
-  simp [Fin.snoc]
+  simp [rmMessageByteEquiv, rmMessageEquiv, Fin.snoc]
 
 @[simp]
 theorem rmMessageByteEquiv_apply_castSucc (m : RMMessage) (i : Fin 7) :
@@ -303,9 +302,8 @@ including when other slopes tie it. -/
 theorem drmFindPeak_eq_zero_of_max {μ : ℕ} (w : DRMWord μ)
     (hmax : ∀ a, (drmHadamardCoeff w a).natAbs ≤ (drmHadamardCoeff w 0).natAbs) :
     drmFindPeak w = 0 := by
-  have hpeakMagnitude : drmPeakMagnitude w = (drmHadamardCoeff w 0).natAbs := by
-    rw [drmPeakMagnitude]
-    exact le_antisymm (max'_le _ _ _ (forall_mem_image.2 fun a _ => hmax a))
+  have hpeakMagnitude : drmPeakMagnitude w = (drmHadamardCoeff w 0).natAbs :=
+    le_antisymm (max'_le _ _ _ (forall_mem_image.2 fun a _ => hmax a))
       (le_max' _ _ (mem_image_of_mem (fun a => (drmHadamardCoeff w a).natAbs) (mem_univ 0)))
   have hzeroFin : BitString.equivFin 7 (0 : RMPoint) = 0 :=
     Fin.eq_of_val_eq (BitString.val_equivFin_false 7)
@@ -325,8 +323,7 @@ theorem drmHadamardCoeff_natAbs_le_findPeak {μ : ℕ} (w : DRMWord μ) (a : RMP
 private theorem drmEncode_true_eq_not (μ : ℕ) (a : RMPoint) :
     drmEncode μ ⟨true, a⟩ = fun i => !drmEncode μ ⟨false, a⟩ i := by
   funext i
-  simp only [drmEncode, rmEncode]
-  cases hadamardCode a i.2 <;> decide
+  simp [drmEncode, rmEncode]
 
 private theorem hammingDist_not_left_add {I : Type*} [Fintype I] (f g : I → Bool) :
     hammingDist (fun i => !f i) g + hammingDist f g = Fintype.card I := by
@@ -396,14 +393,11 @@ private theorem two_mul_hammingDist_rmEncode_of_slope_ne (b c : Bool) {a a' : RM
     2 * hammingDist (rmEncode ⟨b, a⟩) (rmEncode ⟨c, a'⟩) = 128 := by
   have hhalf : 2 * hammingDist (hadamardCode a) (hadamardCode a') = 128 := by
     simpa [Fintype.card_fin] using two_mul_hammingDist_hadamardCode haa'
-  have hnot (u v : RMPoint) :
-      hammingDist (fun x => !hadamardCode u x) (hadamardCode v) +
-        hammingDist (hadamardCode u) (hadamardCode v) = 128 := by
-    simpa only [card_rmPoint] using hammingDist_not_left_add (hadamardCode u) (hadamardCode v)
-  have hnot1 := hnot a a'
+  have hnot1 := card_rmPoint ▸ hammingDist_not_left_add (hadamardCode a) (hadamardCode a')
   have hnot2 : hammingDist (hadamardCode a) (fun x => !hadamardCode a' x) +
       hammingDist (hadamardCode a) (hadamardCode a') = 128 := by
-    simpa only [hammingDist_comm] using hnot a' a
+    simpa only [hammingDist_comm, card_rmPoint] using
+      hammingDist_not_left_add (hadamardCode a') (hadamardCode a)
   cases b <;> cases c <;> simp only [rmEncode_false, rmEncode_true, hammingDist_not] <;> omega
 
 /-- Distinct affine `RM(1, 7)` messages have Hamming distance at least `64`. -/

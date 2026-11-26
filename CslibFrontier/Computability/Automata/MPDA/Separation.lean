@@ -197,10 +197,9 @@ private theorem wellMatched_of_groups {c c' : Config 2 State Γ} :
             u ++ (la ++ lc ++ lb ++ ld ++ vr) ++ u' := by
           conv_rhs => rw [← List.take_append_drop p lc]
           simp only [List.append_assoc]
-        have := wellMatched_of_replicate (x := .a) (y := .c) (i := 0) (heq ▸ h) (heq ▸ hkind)
+        exact heq ▸ wellMatched_of_replicate (x := .a) (y := .c) (i := 0) (heq ▸ h) (heq ▸ hkind)
           rfl rfl (by rw [List.map_append, hla, List.map_take, hlc, List.take_replicate,
             min_eq_left (Nat.le_succ p)]) hka
-        rwa [heq] at this
       by_cases hkc : k < p + (p + 1)
       · -- A letter `c` is a pop.
         rw [List.getElem?_append_left (by simp; omega), List.getElem?_append_left (by simp; omega),
@@ -245,8 +244,6 @@ theorem holeBounded_two (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
   have hkind := hM.kind_eq h
   obtain ⟨wab, wg, rfl, hwab, hwg⟩ := List.map_eq_append_iff.mp hwn
   have hwab' : wab.length = n + n := by simpa using congrArg List.length hwab
-  have hlet : ∀ t : ℕ, ((wab ++ wg).map Prod.fst)[t]? = (List.replicate n Letter.a ++
-      List.replicate n Letter.b ++ gs.flatten)[t]? := fun t => by rw [hwn]
   intro x _
   have hsub : {q | OpenHolePush (wab ++ wg) x q ∧ ¬∃ p, SameHole (wab ++ wg) x p q} ⊆
       ({0, n} : Set ℕ) := by
@@ -264,18 +261,15 @@ theorem holeBounded_two (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
     · -- Every other pending `a` or `b` belongs to the hole of the push before it.
       simp only [Set.mem_insert_iff, Set.mem_singleton_iff]
       by_contra! hq0
-      have hsame : ∀ (x' : Letter) (j : Fin 2), kind x' = .push j →
-          (List.replicate n Letter.a ++ List.replicate n Letter.b ++ gs.flatten)[q - 1]? = some x' →
-          (List.replicate n Letter.a ++ List.replicate n Letter.b ++ gs.flatten)[q]? = some x' →
-          False := by
-        intro x' j hx' h₁ h₂
-        exact hns ⟨q - 1, OpenHolePush.sameHole_pred hq (by omega)
-          (isPushOn_of_letter hkind (by rw [hlet, h₁]) hx')
-          (isPushOn_of_letter hkind (by rw [hlet, h₂]) hx')⟩
+      have hsame (x' : Letter) {j : Fin 2} (hx' : kind x' = .push j)
+          (h₁ : ((wab ++ wg).map Prod.fst)[q - 1]? = some x')
+          (h₂ : ((wab ++ wg).map Prod.fst)[q]? = some x') : False :=
+        hns ⟨q - 1, OpenHolePush.sameHole_pred hq (by omega)
+          (isPushOn_of_letter hkind h₁ hx') (isPushOn_of_letter hkind h₂ hx')⟩
       by_cases hqn : q < n
-      · refine hsame .a 0 rfl ?_ ?_ <;> rw [List.append_assoc,
+      · refine hsame .a rfl ?_ ?_ <;> rw [hwn, List.append_assoc,
           List.getElem?_append_left (by simp; omega), List.getElem?_replicate_of_lt (by omega)]
-      · refine hsame .b 1 rfl ?_ ?_ <;> rw [List.getElem?_append_left (by simp; omega),
+      · refine hsame .b rfl ?_ ?_ <;> rw [hwn, List.getElem?_append_left (by simp; omega),
           List.getElem?_append_right (by simp; omega),
           List.getElem?_replicate_of_lt (by simp; omega)]
   calc openHoles (wab ++ wg) x ≤ ({0, n} : Set ℕ).ncard :=
@@ -379,8 +373,7 @@ theorem not_scopeBounded (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
     obtain ⟨μc, hμc, -, hkc⟩ := hpos (t := 4 * m - 2) (x := .c)
       (by simpa [hm2, hmod] using hword_cd (k := 2 * m - 2) (by omega))
     obtain ⟨γa, hγa⟩ := Op.kind_eq_push.mp hka
-    obtain ⟨γc, hγc⟩ : ∃ γ, μc.2 = .pop 0 γ := by
-      rcases hop : μc.2 with _ | ⟨i, γ⟩ | ⟨i, γ⟩ <;> rw [hop] at hkc <;> simp_all [Op.kind, kind]
+    obtain ⟨γc, hγc⟩ := Op.kind_eq_pop.mp hkc
     have hsub : ∀ μ ∈ w.extract 1 (4 * m - 2), μ.2.kind = kind μ.1 := fun μ hμ =>
       hkind μ ((List.extract_isInfix w _ _).subset hμ)
     have hfst : (w.extract 1 (4 * m - 2)).map Prod.fst =

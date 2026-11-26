@@ -94,9 +94,7 @@ def literalList : List V → List (Literal V)
 theorem length_literalList (vs : List V) : (literalList vs).length = 2 * vs.length := by
   induction vs with
   | nil => rfl
-  | cons _ vs ih =>
-    simp only [literalList, List.length_cons, ih]
-    omega
+  | cons _ vs ih => simpa [literalList, ih] using (Nat.mul_succ 2 vs.length).symm
 
 theorem mem_literalList_iff {vs : List V} {ℓ : Literal V} :
     ℓ ∈ literalList vs ↔ ℓ.1 ∈ vs := by
@@ -115,10 +113,8 @@ theorem nodup_literalList {vs : List V} (hnd : vs.Nodup) : (literalList vs).Nodu
   induction vs with
   | nil => simp [literalList]
   | cons v vs ih =>
-    rw [List.nodup_cons] at hnd
-    simp only [literalList, List.nodup_cons, List.mem_cons, Prod.mk.injEq, Bool.false_eq_true,
-      and_false, false_or, mem_literalList_iff]
-    exact ⟨hnd.1, hnd.1, ih hnd.2⟩
+    obtain ⟨hv, hnd⟩ := List.nodup_cons.1 hnd
+    simp [literalList, mem_literalList_iff, hv, ih hnd]
 
 /-! ### Implication-graph adjacency lists -/
 
@@ -253,11 +249,10 @@ theorem solve_eq_some (hvs : ∀ v, v ∈ vs) {σ : V → Bool} (h : solve vs φ
   dsimp only [solve] at h
   split_ifs at h with hchk
   · obtain ⟨hw, hnil⟩ := (checkClauses_eq_true_iff φ).1 hchk
-    set lits := literalList vs
     set adj := implicationAdj φ
-    set comps := sccs adj lits
-    set compIdx := indexComponents comps
-    have hcond : IsSCCCondensation adj comps := isSCCCondensation_sccs (mem_literalList hvs)
+    set compIdx := indexComponents (sccs adj (literalList vs))
+    have hcond : IsSCCCondensation adj (sccs adj (literalList vs)) :=
+      isSCCCondensation_sccs (mem_literalList hvs)
     dsimp only [extractAssignment] at h
     split_ifs at h with hdist
     · obtain rfl := Option.some.inj h
@@ -267,22 +262,21 @@ theorem solve_eq_some (hvs : ∀ v, v ∈ vs) {σ : V → Bool} (h : solve vs φ
       have hle : ∀ ℓ ℓ', φ.Implies ℓ ℓ' → compIdx ℓ ≤ compIdx ℓ' := fun _ _ h =>
         hcond.indexComponents_le_of_edge ((edge_implicationAdj_iff hw hnil _ _).2 h)
       refine ⟨hw, (CNF.eval_eq_true_iff _ _).2 fun c hc => ?_⟩
+      by_contra hceval
+      have hf (ℓ : Literal V) (hℓ : ℓ ∈ c) :
+          Literal.eval (fun v => decide (compIdx (v, false) < compIdx (v, true))) ℓ = false :=
+        Bool.eq_false_iff.2 fun he => hceval (List.any_eq_true.2 ⟨ℓ, hℓ, he⟩)
       have hc2 : c.length ≤ 2 := hw c hc
-      rcases c with _ | ⟨a, _ | ⟨b, _ | ⟨d, cs⟩⟩⟩
-      · exact absurd hc hnil
-      · by_contra hceval
-        have hlt := literal_false_lt hdist_all a
-          (Bool.eq_false_iff.2 fun he => hceval (by simp [Clause.eval, he]))
-        have := hle a.negate a ⟨[a], hc, by simp, by simp, fun m hm => .inl (by simpa using hm)⟩
+      rcases c with _ | ⟨a, _ | ⟨b, _ | _⟩⟩
+      · exact hnil hc
+      · have := literal_false_lt hdist_all a (hf a List.mem_cons_self)
+        have := hle a.negate a ⟨[a], hc, by simp, by simp, by simp⟩
         omega
-      · by_contra hceval
-        have hlta := literal_false_lt hdist_all a
-          (Bool.eq_false_iff.2 fun he => hceval (by simp [Clause.eval, he]))
-        have hltb := literal_false_lt hdist_all b
-          (Bool.eq_false_iff.2 fun he => hceval (by simp [Clause.eval, he]))
-        have := hle a.negate b ⟨[a, b], hc, by simp, by simp, fun m hm => by simpa using hm⟩
+      · have := literal_false_lt hdist_all a (hf a List.mem_cons_self)
+        have := literal_false_lt hdist_all b (hf b (List.mem_cons_of_mem _ List.mem_cons_self))
+        have := hle a.negate b ⟨[a, b], hc, by simp, by simp, fun _ hm => by simpa using hm⟩
         have := hle b.negate a
-          ⟨[a, b], hc, by simp, by simp, fun m hm => by simpa [or_comm] using hm⟩
+          ⟨[a, b], hc, by simp, by simp, fun _ hm => by simpa [or_comm] using hm⟩
         omega
       · simp at hc2
 

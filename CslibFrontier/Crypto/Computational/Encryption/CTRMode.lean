@@ -480,10 +480,9 @@ theorem advantage_ctrCpaGame_randomFunction_le
   rw [ctrCpaGame_eq_realExperiment, ctrCpaGame_eq_realExperiment]
   change (Game.advantage (ProbComp.eval (PRF.idealExperiment _))
     (ProbComp.eval (PRF.idealExperiment _)) : ℝ) ≤ _
-  have h₀ := advantage_idealExperiment_ctrReduction_le counter ℓ false h hintra hiv
-  have h₁ := advantage_idealExperiment_ctrReduction_le counter ℓ true h hintra hiv
-  exact (advantage_le_two _ (ProbComp.eval (blockModeIdealExperiment ℓ adversary)) _).trans
-    (by linarith)
+  refine (advantage_le_two _ (ProbComp.eval (blockModeIdealExperiment ℓ adversary)) _).trans ?_
+  linarith [advantage_idealExperiment_ctrReduction_le counter ℓ false h hintra hiv,
+    advantage_idealExperiment_ctrReduction_le counter ℓ true h hintra hiv]
 
 /-- **CTR mode is CPA-secure for a pseudorandom function** ([KatzLindell2020], Section 3.6.3,
 Theorem 3.33, p. 93): if `adversary` asks at most `K` blocks in total and at most `ℓ` blocks per
@@ -502,13 +501,12 @@ theorem advantage_ctrCpaGame_le {Key : Type} (counter : BitString n → ℕ → 
       PRF.advantage F (ctrReduction counter ℓ false adversary) +
         PRF.advantage F (ctrReduction counter ℓ true adversary) + 2 * ((K : ℝ) ^ 2 / 2 ^ n) := by
   rw [ctrCpaGame_eq_realExperiment, ctrCpaGame_eq_realExperiment]
-  have h₀ := advantage_idealExperiment_ctrReduction_le counter ℓ false h hintra hiv
-  have h₁ := advantage_idealExperiment_ctrReduction_le counter ℓ true h hintra hiv
   refine (advantage_le_four _
     (ProbComp.eval (PRF.idealExperiment (ctrReduction counter ℓ false adversary)))
     (ProbComp.eval (blockModeIdealExperiment ℓ adversary))
     (ProbComp.eval (PRF.idealExperiment (ctrReduction counter ℓ true adversary))) _).trans ?_
-  linarith
+  linarith [advantage_idealExperiment_ctrReduction_le counter ℓ false h hintra hiv,
+    advantage_idealExperiment_ctrReduction_le counter ℓ true h hintra hiv]
 
 /-- Canonical modular-addition counter schedule `iv + i mod 2 ^ n` ([KatzLindell2020], Figure 3.9),
 via `BitString.equivFin`. -/
@@ -521,23 +519,19 @@ def ctrModCounter (iv : BitString n) (i : ℕ) : BitString n :=
 theorem ctrModCounter_injective_left (i : ℕ) :
     Function.Injective (fun iv : BitString n => ctrModCounter iv i) := by
   intro iv₁ iv₂ h
-  have hv := congrArg (fun x => (BitString.equivFin n x).val) h
-  simp only [ctrModCounter, Equiv.apply_symm_apply] at hv
   refine (BitString.equivFin n).injective (Fin.ext ?_)
   rw [← Nat.mod_eq_of_lt (BitString.equivFin n iv₁).isLt,
     ← Nat.mod_eq_of_lt (BitString.equivFin n iv₂).isLt]
-  exact Nat.ModEq.add_right_cancel' i hv
+  exact Nat.ModEq.add_right_cancel' i (congrArg Fin.val ((BitString.equivFin n).symm.injective h))
 
 /-- Whenever `ℓ ≤ 2 ^ n`, distinct offsets below `ℓ` yield distinct `ctrModCounter iv i` blocks. -/
 theorem ctrModCounter_injOn {ℓ : ℕ} (hℓ : ℓ ≤ 2 ^ n) (iv : BitString n)
     {i j : ℕ} (hi : i < ℓ) (hj : j < ℓ) (hij : i ≠ j) :
     ctrModCounter iv i ≠ ctrModCounter iv j := by
   intro h
-  have hv := congrArg (fun x => (BitString.equivFin n x).val) h
-  simp only [ctrModCounter, Equiv.apply_symm_apply] at hv
-  refine hij ?_
-  rw [← Nat.mod_eq_of_lt (hi.trans_le hℓ), ← Nat.mod_eq_of_lt (hj.trans_le hℓ)]
-  exact Nat.ModEq.add_left_cancel' (BitString.equivFin n iv).val hv
+  rw [← Nat.mod_eq_of_lt (hi.trans_le hℓ), ← Nat.mod_eq_of_lt (hj.trans_le hℓ)] at hij
+  exact hij (Nat.ModEq.add_left_cancel' (BitString.equivFin n iv).val
+    (congrArg Fin.val ((BitString.equivFin n).symm.injective h)))
 
 /-- Modular CTR mode with a uniform random function when `ℓ ≤ 2 ^ n`. -/
 theorem advantage_ctrCpaGame_ctrModCounter_randomFunction_le {ℓ : ℕ} (hℓ : ℓ ≤ 2 ^ n)

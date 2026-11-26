@@ -133,11 +133,9 @@ private theorem sum_card_filter_holds_le {U P : Type*} [Fintype P] [DecidableEq 
     (h : U → Bool → P) (S : Finset U) : ∑ a, #(S.filter (Play.Holds h a)) ≤ 2 * #S := by
   simp only [card_filter]
   rw [sum_comm, mul_comm, ← smul_eq_mul, ← sum_const]
-  refine sum_le_sum fun u _ => ?_
-  rw [← card_filter]
-  refine (card_le_card (t := {h u false, h u true}) fun a ha => ?_).trans card_le_two
-  obtain ⟨d, rfl⟩ := (mem_filter.1 ha).2
-  cases d <;> simp
+  refine sum_le_sum fun u _ => (card_filter _ _).symm.trans_le <|
+    (card_le_card (t := {h u false, h u true}) fun a ha => ?_).trans card_le_two
+  rcases (mem_filter.1 ha).2 with ⟨false | true, rfl⟩ <;> simp
 
 /-- **The cut units of a piece** (the proof of Proposition J.2, p. 53: "By part (b) of the theorem
 a piece has at most `ΛM^(1−γ)Nℓ ≤ KTΛ/v^300` bits in cut packets, besides the dead ones"): for a
@@ -220,11 +218,7 @@ theorem cellCount_add_roleUnitCount_le (hk : 0 < k) (hkK : k ≤ 4 * (K + K)) (h
         (by omega))
     · have h1 := StagedTree.light_units_le (T := T) (by omega) hx
       have h2 := T.sumBelow_children_le (TT.units n o) x
-      have h3 : T.sumBelow (fun p => (TT.units n o p + ∑ c ∈ T.children p, TT.units n o c) * k) x
-          = (T.sumBelow (TT.units n o) x + T.sumBelow (fun p => ∑ c ∈ T.children p,
-            TT.units n o c) x) * k := by
-        simp only [StagedTree.sumBelow, ← sum_mul, sum_add_distrib]
-      rw [h3]
+      simp only [StagedTree.sumBelow, ← sum_mul, sum_add_distrib] at h1 h2 ⊢
       nlinarith
   · -- the units at the beginning of the base parties of the piece
     calc (∑ p ∈ P, if (p : ℕ) < K + K then lg M ^ C * N else 0) * k
@@ -311,7 +305,8 @@ theorem exists_slpTab (hk : 0 < k) {Y : ℕ} (hY : 6 ≤ Y) (hMN : (M * N) ^ C �
         fun x => hB.lt_of_le_two_mul_pow_three ((hpair x p a).trans hY3))
         fun x => hB.lt_of_le_two_mul_pow_three ((sum_le_sum fun a _ => hpair x p a).trans (by
           rw [sum_const, card_univ, Fintype.card_fin, smul_eq_mul]
-          nlinarith [Nat.pow_le_pow_right (by omega : 0 < Y) (show 2 ≤ 3 by norm_num)])))))
+          have hY23 : Y ^ 2 ≤ Y ^ 3 := Nat.pow_le_pow_right (by omega) (by norm_num)
+          nlinarith [hY23])))))
     (by norm_num)
   -- the program as a list of steps
   obtain ⟨fn, hfn, hmem⟩ := s3.exists_isSlpStep

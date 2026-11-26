@@ -99,9 +99,8 @@ lemma output_nonneg (ζ d v r : ℝ) : 0 ≤ output HP ζ d v r :=
 /-- Scalar range is uniform in both signals and the raw padded rank. -/
 lemma output_le (ζ d v r : ℝ) :
     output HP ζ d v r ≤ 2 * HP.Q HP.toHierarchyParams.atomCap := by
-  have hc := (clip_bounds (v / ζ)).1
-  rw [output, div_le_iff₀ (by linarith)]
-  nlinarith [HP.Q_nonneg HP.toHierarchyParams.atomCap,
+  rw [output, div_le_iff₀ (by linarith [clip_bounds (v / ζ)])]
+  nlinarith [clip_bounds (v / ζ), HP.Q_nonneg HP.toHierarchyParams.atomCap,
     mul_le_mul (HP.toHierarchyParams.atomCutoff_le d) (HP.ρ_le_one r)
       (HP.ρ_nonneg r) (HP.Q_nonneg HP.toHierarchyParams.atomCap)]
 
@@ -177,24 +176,21 @@ lemma root_dist {scale : ℝ} (hs : 0 < scale) :
          _ = _ := by ring
   have h2 : |a'*(b-b')*c| ≤ 2*B*Lr*|q-q'| := by
     rw [abs_mul, abs_mul]
-    have hh := hr.dist_le_mul q q'
-    simp only [Real.dist_eq] at hh
     calc _ ≤ B*(Lr*|q-q'|)*2 :=
-           mul_le_mul (mul_le_mul (hbound x') hh (abs_nonneg _) hB) (hc v)
-             (abs_nonneg _) (by positivity)
+           mul_le_mul (mul_le_mul (hbound x') (Real.dist_eq b b' ▸ hr.dist_le_mul q q')
+             (abs_nonneg _) hB) (hc v) (abs_nonneg _) (by positivity)
          _ = _ := by ring
   have h3 : |a'*b'*(c-c')| ≤ (4*B/scale)*|v-v'| := by
     rw [abs_mul, abs_mul]
     have hh := denominatorRoot_dist (v/scale) (v'/scale)
-    have he : |v/scale-(v'/scale)| = |v-v'|/scale := by
-      rw [← sub_div, abs_div, abs_of_pos hs]
-    rw [he] at hh
+    rw [← sub_div, abs_div, abs_of_pos hs] at hh
     calc _ ≤ B*1*(4*(|v-v'|/scale)) := mul_le_mul (mul_le_mul (hbound x') (hrbound q')
       (abs_nonneg _) hB) hh (abs_nonneg _) (by positivity)
          _ = _ := by ring
+  have hnn : 0 ≤ 2 * Lq * (|v - v'| + |q - q'|) +
+      4 * B / scale * (|x - x'| + |q - q'|) + 2 * B * Lr * (|x - x'| + |v - v'|) := by positivity
   refine ((abs_add_le _ _).trans (add_le_add (abs_add_le _ _) le_rfl)).trans ?_
-  linarith [h1, h2, h3, show 0 ≤ 2 * Lq * (|v - v'| + |q - q'|) +
-    4 * B / scale * (|x - x'| + |q - q'|) + 2 * B * Lr * (|x - x'| + |v - v'|) by positivity]
+  linarith [h1, h2, h3, hnn]
 
 /-- The actual hierarchy rank is positive. -/
 lemma rank_pos : 0 < HP.K := by
@@ -233,13 +229,10 @@ lemma support {ι : Type*} (s : Finset ι) (a : State ι) (scale : ℝ) :
       (firstRank s HP.K a.defaultValue a.row) ≠ 0} < HP.K := by
   classical
   by_contra h
-  have hsub : ({y ∈ s | output HP scale (a.row y 0) (a.row y 1)
-      (firstRank s HP.K a.defaultValue a.row) ≠ 0} : Finset ι) ⊆
-      {y ∈ s | HP.θ < a.row y 0} := fun y hy =>
-    mem_filter.mpr ⟨(mem_filter.mp hy).1,
-      not_le.mp fun hx => (mem_filter.mp hy).2 (entry_zero HP hx)⟩
   have hq : HP.θ < kthLargest HP.K s (fun y => a.row y 0) :=
-    (lt_kthLargest_iff (rank_pos HP) HP.θ_pos.le).mpr ((not_lt.mp h).trans (card_le_card hsub))
+    (lt_kthLargest_iff (rank_pos HP) HP.θ_pos.le).mpr <| (not_lt.mp h).trans <|
+      card_le_card fun y hy => mem_filter.mpr
+        ⟨(mem_filter.mp hy).1, not_le.mp fun hx => (mem_filter.mp hy).2 (entry_zero HP hx)⟩
   obtain ⟨y,hy⟩ := card_pos.mp ((rank_pos HP).trans_le (not_lt.mp h))
   exact (mem_filter.mp hy).2 (gate_zero HP (by
     linarith [threshold_margin HP, HP.η_pos, HP.η_lt_η₂,

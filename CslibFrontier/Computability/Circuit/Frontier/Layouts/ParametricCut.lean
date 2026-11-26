@@ -157,10 +157,7 @@ theorem IsRFIMMinCut.subset_of_lt [Finite E] {G : Multigraph V E} {y : V → ℝ
   by_contra hvB
   have hpos : 0 < α * (t₂ - t₁) * ((A \ B).card : ℝ) := mul_pos (mul_pos hα (sub_pos.mpr ht))
     (Nat.cast_pos.mpr (Finset.card_pos.mpr ⟨v, Finset.mem_sdiff.mpr ⟨hvA, hvB⟩⟩))
-  have hle := (add_nonneg (sub_nonneg.mpr (hA (A ∩ B))) (sub_nonneg.mpr (hB (A ∪ B)))).trans
-    (G.rfimEnergy_crossing_le y α t₁ t₂ A B)
-  rw [neg_mul, neg_mul] at hle
-  exact not_lt_of_ge hle (neg_lt_zero.mpr hpos)
+  linarith [G.rfimEnergy_crossing_le y α t₁ t₂ A B, hA (A ∩ B), hB (A ∪ B)]
 
 /-- Minimizers of `rfimEnergy G y α t` are closed under intersection. -/
 theorem IsRFIMMinCut.inter [DecidableEq V] [Finite E] {G : Multigraph V E} {y : V → ℝ} {α t : ℝ}
@@ -645,12 +642,8 @@ theorem ncard_edgeCut_lowerSublevel_add_two_mul [Finite V] (G : Multigraph V E)
     have := Fintype.ofFinite E
     let F_U : Finset V := Finset.univ.filter (· ∈ U₂int)
     let F_E : Finset E := Finset.univ.filter (· ∈ E₂₂)
-    have hcU : U₂int.ncard = F_U.card := by
-      simpa only [Finset.coe_filter, Finset.mem_univ, true_and, Set.ofPred_mem_eq, F_U] using
-        ncard_coe_finset F_U
-    have hcE : E₂₂.ncard = F_E.card := by
-      simpa only [Finset.coe_filter, Finset.mem_univ, true_and, Set.ofPred_mem_eq, F_E] using
-        ncard_coe_finset F_E
+    have hcU : U₂int.ncard = F_U.card := by simp [← ncard_coe_finset, F_U]
+    have hcE : E₂₂.ncard = F_E.card := by simp [← ncard_coe_finset, F_E]
     rw [hcU, hcE]
     have h1 : F_U.card = ∑ u ∈ F_U, ∑ e ∈ F_E, if e ∈ G.incidenceSet u then 1 else 0 := by
       rw [Finset.card_eq_sum_ones]
@@ -727,9 +720,7 @@ theorem coe_switched_innerFrontier_eq {n : ℕ} (G : Multigraph (Fin n) E) (y : 
     unfold otherEnd
     rcases he_inc with hs | ht_eq
     · simp [ends, hs]
-    · by_cases hs : G.src e = u
-      · simp [ends, hs, ht_eq]
-      · simp [ends, hs, ht_eq, Sym2.eq_swap]
+    · by_cases hs : G.src e = u <;> simp [ends, hs, ht_eq, Sym2.eq_swap]
 
 /-- Specialization of `ncard_edgeCut_lowerSublevel_le_innerFrontier` to `Fin n` and
 `Switched.innerFrontier`: `|δ(L_-(t))| ≤ |Switched.innerFrontier G.toSimpleGraph y t|`. -/

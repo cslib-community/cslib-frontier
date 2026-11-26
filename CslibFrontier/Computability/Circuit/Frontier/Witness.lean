@@ -148,11 +148,10 @@ private theorem two_pow_le_two_mul_card_filter [DecidableEq ι] :
       #{f : (ι → Bool) → Bool | t ≤ #{x | f x = true}} := by
     refine card_le_card_of_injOn (fun f x => !f x) (fun f hf => ?_)
       fun f _ g _ h => funext fun x => by simpa using congrFun h x
-    have hf : #{x | f x = true} < t := by simpa using hf
     have hsplit := card_filter_add_card_filter_not (s := (univ : Finset (ι → Bool)))
       fun x => f x = true
-    simp only [card_univ, Bool.not_eq_true] at hsplit
-    simp only [coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq, Bool.not_eq_true']
+    simp only [coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq, card_univ,
+      Bool.not_eq_true, Bool.not_eq_true'] at hf hsplit ⊢
     omega
   have hsplit := card_filter_add_card_filter_not (s := (univ : Finset ((ι → Bool) → Bool)))
     fun f => t ≤ #{x | f x = true}
@@ -241,11 +240,10 @@ private theorem card_filter_lt_abs_le {α : Type*} [Fintype α] [DecidableEq α]
     rw [ncard_eq_toFinset_card']
     exact congrArg Finset.card (Finset.ext fun x => by simp [R])
   calc (#{f : α → Bool | b * T.ncard < |((T ∩ {x | f x = true}).ncard : ℝ) - T.ncard / 2|} : ℝ)
-      ≤ #{f : α → Bool | b * #R ≤ |(#{x ∈ R | f x = true} : ℝ) - #R / 2|} := by
-        refine Nat.cast_le.mpr (Finset.card_le_card fun f hf => ?_)
-        simp only [mem_filter, Finset.mem_univ, true_and] at hf ⊢
-        rw [← hTS, ← hT]
-        exact hf.le
+      ≤ #{f : α → Bool | b * #R ≤ |(#{x ∈ R | f x = true} : ℝ) - #R / 2|} :=
+        Nat.cast_le.mpr (Finset.card_le_card fun f hf => by
+          simpa only [mem_filter, Finset.mem_univ, true_and, ← hTS, ← hT] using
+            (mem_filter.mp hf).2.le)
     _ ≤ 2 * 2 ^ Fintype.card α * exp (-(2 * (b * #R) ^ 2 / #R)) :=
         BitString.card_filter_le_abs_card_filter_sub_half_le R (by positivity)
     _ = 2 * 2 ^ Fintype.card α * exp (-(2 * b ^ 2 * T.ncard)) := by
@@ -292,11 +290,9 @@ theorem exists_rectangleBias {K : ℕ} {b : ℝ} (hb : 0 < b)
   have hE (k₁ k₂ : ℕ) (w : Set ι × (Fin k₁ → ι → Bool) × (Fin k₂ → ι → Bool)) :
       (#(E k₁ k₂ w) : ℝ) ≤ 2 * 2 ^ N * exp (-(2 * b ^ 2 * (k₁ * k₂ : ℕ))) := by
     by_cases hw : (R k₁ k₂ w).ncard = k₁ * k₂
-    · rw [← hw]
-      refine le_trans ?_ (card_filter_lt_abs_le (R k₁ k₂ w) hb.le)
-      exact Nat.cast_le.mpr (Finset.card_le_card (monotone_filter_right _ fun f _ hf => hf.2))
-    · dsimp only [E]
-      rw [filter_false_of_mem fun _ _ hf => hw hf.1, Finset.card_empty, Nat.cast_zero]; positivity
+    · exact hw ▸ (Nat.cast_le.mpr (Finset.card_le_card
+        (monotone_filter_right _ fun _ _ hf => hf.2))).trans (card_filter_lt_abs_le _ hb.le)
+    · simp only [E, hw, false_and, filter_false, Finset.card_empty, Nat.cast_zero]; positivity
   -- Every set of large bias on some rectangle has large bias on a spanned rectangle.
   set bad : Finset ((ι → Bool) → Bool) :=
     {f : (ι → Bool) → Bool | ¬ RectangleBias {x | f x = true} K b}
@@ -346,11 +342,9 @@ theorem exists_rectangleBias {K : ℕ} {b : ℝ} (hb : 0 < b)
     calc (#bad : ℝ)
         ≤ ∑ k₁ ∈ Finset.Icc K N, ∑ k₂ ∈ Finset.Icc K N,
             ∑ w : Set ι × (Fin k₁ → ι → Bool) × (Fin k₂ → ι → Bool), (#(E k₁ k₂ w) : ℝ) := by
-          refine le_trans (Nat.cast_le.mpr ((Finset.card_le_card hbad).trans (card_biUnion_le.trans
+          exact_mod_cast (Finset.card_le_card hbad).trans (card_biUnion_le.trans
             (sum_le_sum fun k₁ _ => card_biUnion_le.trans
-              (sum_le_sum fun k₂ _ => card_biUnion_le))))) ?_
-          push_cast
-          rfl
+              (sum_le_sum fun k₂ _ => card_biUnion_le)))
       _ ≤ ∑ _k₁ ∈ Finset.Icc K N, ∑ _k₂ ∈ Finset.Icc K N, 2 ^ (n + 1) * 2 ^ N * exp (-(2 * K)) :=
           sum_le_sum fun k₁ hk₁ => sum_le_sum fun k₂ hk₂ =>
             hterm k₁ k₂ (mem_Icc.mp hk₁).1 (mem_Icc.mp hk₂).1
@@ -403,9 +397,8 @@ theorem isLittleO_deficit_of_two_pow_le_ncard {S : ∀ n, Set (Fin n → Bool)}
           rcases n with _ | n <;> simp
       _ = Real.log (2 ^ (n - 1)) := by rw [Real.log_pow]
       _ ≤ Real.log (S n).ncard := Real.log_le_log hpos hlow
-  have hlog_up : Real.log (S n).ncard ≤ n * Real.log 2 := by
-    rw [← Real.log_pow]
-    exact Real.log_le_log (hpos.trans_le hlow) hup
+  have hlog_up : Real.log (S n).ncard ≤ n * Real.log 2 :=
+    Real.log_pow 2 n ▸ Real.log_le_log (hpos.trans_le hlow) hup
   rw [Nat.card_eq_fintype_card, Fintype.card_bool, Nat.cast_ofNat, Real.norm_eq_abs, norm_one,
     mul_one, abs_le]
   constructor <;> linarith

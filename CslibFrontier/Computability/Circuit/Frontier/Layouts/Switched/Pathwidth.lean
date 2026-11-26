@@ -112,10 +112,8 @@ theorem rank_injective {y : Fin n → ℝ} (hy : Function.Injective y) :
 /-- Every rank is strictly below `n`. -/
 theorem rank_lt_n (y : Fin n → ℝ) (v : Fin n) : rank y v < n := by
   classical
-  have h : (Finset.univ.filter fun u => y u < y v) ⊂ Finset.univ := by
-    rw [Finset.ssubset_iff_of_subset (Finset.subset_univ _)]
-    exact ⟨v, Finset.mem_univ v, by simp⟩
-  simpa only [rank, Finset.card_univ, Fintype.card_fin] using Finset.card_lt_card h
+  simpa only [rank, Finset.card_univ, Fintype.card_fin] using Finset.card_lt_card
+    ((Finset.ssubset_iff_of_subset (Finset.subset_univ _)).2 ⟨v, Finset.mem_univ v, by simp⟩)
 
 /-- Every index below `n` is realized as the rank of some vertex. -/
 theorem exists_rank_eq {y : Fin n → ℝ} (hy : Function.Injective y) {i : ℕ} (hi : i < n) :
@@ -127,11 +125,9 @@ theorem exists_rank_eq {y : Fin n → ℝ} (hy : Function.Injective y) {i : ℕ}
 
 /-- At most one vertex has a given rank when `y` is injective. -/
 theorem card_rank_eq_le {y : Fin n → ℝ} (hy : Function.Injective y) (i : ℕ) :
-    (Finset.univ.filter fun v => rank y v = i).card ≤ 1 := by
-  rw [Finset.card_le_one]
-  intro a ha b hb
-  simp only [Finset.mem_filter, Finset.mem_univ, true_and] at ha hb
-  exact rank_injective hy (ha.trans hb.symm)
+    (Finset.univ.filter fun v => rank y v = i).card ≤ 1 :=
+  Finset.card_le_one.2 fun _ ha _ hb =>
+    rank_injective hy ((Finset.mem_filter.1 ha).2.trans (Finset.mem_filter.1 hb).2.symm)
 
 /-- The vertices with rank below `#{u | y u ≤ 0}` are precisely those with `y v ≤ 0`. -/
 theorem rank_lt_lowerCount_iff (y : Fin n → ℝ) (v : Fin n) :
@@ -191,12 +187,10 @@ theorem exists_width_le_of_intervals {V E : Type*} [Fintype V] [Finite E]
   have hscore_inj : Function.Injective score := fun a b hab => eIdx.injective <| Fin.ext <| by
     simpa only [hscore_eq, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (hidx _)] using
       congrArg (· % K) hab
-  have hmed_exists : ∀ v, ∃ m, G.IsMedian score v m := fun v => G.exists_isMedian (h3 v) score
-  choose med hmed using hmed_exists
+  choose med hmed using fun v => G.exists_isMedian (h3 v) score
   obtain ⟨π, hπ⟩ := Layout.exists_threshold med
   refine ⟨π, (G.width_le_iff π).2 fun t => ?_⟩
-  rcases lt_or_ge t (Nat.card V) with htlt | htge
-  swap
+  rcases le_or_gt (Nat.card V) t with htge | htlt
   · simp [G.frontier_of_card_le π htge]
   obtain ⟨m, hP, hPc⟩ := hπ t htlt
   let P : Set V := π.initial t
@@ -214,21 +208,16 @@ theorem exists_width_le_of_intervals {V E : Type*} [Fintype V] [Finite E]
   let F_lt : Set E := {a ∈ G.edgeCut P | score a < m}
   let F_eq : Set E := {a ∈ G.edgeCut P | score a = m}
   let F_gt : Set E := {a ∈ G.edgeCut P | m < score a}
-  have hpart : G.edgeCut P ⊆ F_lt ∪ F_eq ∪ F_gt := by
-    intro a ha
-    rcases lt_trichotomy (score a) m with h | h | h
-    · exact Or.inl (Or.inl ⟨ha, h⟩)
-    · exact Or.inl (Or.inr ⟨ha, h⟩)
-    · exact Or.inr ⟨ha, h⟩
-  have hmem_t (v : V) (a : E) (hav : a ∈ G.incidenceSet v) : s v ≤ tE a ∧ tE a ≤ e v := by
-    rcases hav with rfl | rfl
-    · exact ⟨htE_sl a, htE_sr a⟩
-    · exact ⟨htE_tl a, htE_tr a⟩
+  have hpart : G.edgeCut P ⊆ F_lt ∪ F_eq ∪ F_gt := fun a ha =>
+    Or.elim (lt_trichotomy (score a) m) (fun h => Or.inl (Or.inl ⟨ha, h⟩))
+      (Or.imp (fun h => Or.inr ⟨ha, h⟩) fun h => ⟨ha, h⟩)
+  have hmem_t (v : V) (a : E) : a ∈ G.incidenceSet v → s v ≤ tE a ∧ tE a ≤ e v
+    | Or.inl rfl => ⟨htE_sl a, htE_sr a⟩
+    | Or.inr rfl => ⟨htE_tl a, htE_tr a⟩
   -- `F_eq` has at most one element by injectivity of `score`.
   have hFeq : F_eq.ncard ≤ 1 := by
     rw [ncard_le_one_iff]
-    rintro a b ⟨_, ha⟩ ⟨_, hb⟩
-    exact hscore_inj (ha.trans hb.symm)
+    exact fun ⟨_, ha⟩ ⟨_, hb⟩ => hscore_inj (ha.trans hb.symm)
   -- `F_lt` injects into `(intervalBag s e i : Set V) \ P`.
   let outEnd : E → V := fun a => if G.src a ∈ P then G.tgt a else G.src a
   have houtEnd {a : E} (ha : a ∈ G.edgeCut P) : outEnd a ∉ P ∧ a ∈ G.incidenceSet (outEnd a) := by

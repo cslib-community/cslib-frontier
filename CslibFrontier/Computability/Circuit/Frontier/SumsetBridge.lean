@@ -159,8 +159,7 @@ theorem denseRectangleFree_of_eventually_rectangleBias {U : Type u} [Finite U] [
           (Real.log_le_log_iff (by positivity) hS_pos).mpr hS_lower
       have hlog_high : Real.log (S n).ncard ≤ n * Real.log q := by
         simpa only [Real.log_pow] using (Real.log_le_log_iff hS_pos hqn_pos).mpr hS_upper
-      rw [abs_of_nonneg (by linarith)]
-      linarith
+      rw [abs_of_nonneg (by linarith)]; linarith
     rw [isLittleO_iff]
     intro δ hδ
     set B := max (-Real.log (1 / 2 - c')) 0
@@ -191,8 +190,7 @@ private theorem domRestrict_compl_padLeft_add_padRight {n : ℕ} (X : Set (Fin n
     [DecidablePred (· ∈ X)] (a : X → Bool) (b : ↥Xᶜ → Bool) :
     Xᶜ.domRestrict (padLeft X a + padRight X b) = b := by
   funext ⟨i, hi⟩
-  have hi' : i ∉ X := hi
-  simp only [Set.domRestrict, Pi.add_apply, padLeft, padRight, dite_eq_right hi',
+  simp only [Set.domRestrict, Pi.add_apply, padLeft, padRight, dite_eq_right hi,
     ← Bool.zero_eq_false, zero_add]
 
 private theorem padLeft_domRestrict_add_padRight_domRestrict {n : ℕ} (X : Set (Fin n))
@@ -203,17 +201,12 @@ private theorem padLeft_domRestrict_add_padRight_domRestrict {n : ℕ} (X : Set 
     simp [padLeft, padRight, hi, Set.domRestrict, ← Bool.zero_eq_false]
 
 private theorem padLeft_injective {n : ℕ} (X : Set (Fin n)) [DecidablePred (· ∈ X)] :
-    Function.Injective (padLeft X) := by
-  intro a₁ a₂ h
-  funext ⟨i, hi⟩
-  simpa only [padLeft, dite_eq_left hi] using congrFun h i
+    Function.Injective (padLeft X) := fun _ _ h =>
+  funext fun ⟨i, hi⟩ => by simpa only [padLeft, dite_eq_left hi] using congrFun h i
 
 private theorem padRight_injective {n : ℕ} (X : Set (Fin n)) [DecidablePred (· ∈ X)] :
-    Function.Injective (padRight X) := by
-  intro b₁ b₂ h
-  funext ⟨i, hi⟩
-  have hi' : i ∉ X := hi
-  simpa only [padRight, dite_eq_right hi'] using congrFun h i
+    Function.Injective (padRight X) := fun _ _ h =>
+  funext fun ⟨i, hi⟩ => by simpa only [padRight, dite_eq_right hi] using congrFun h i
 
 private def rectProdEquiv {n : ℕ} (X : Set (Fin n)) [DecidablePred (· ∈ X)]
     (A : Set (X → Bool)) (B : Set (↥Xᶜ → Bool)) :
@@ -237,10 +230,8 @@ private theorem le_minEntropy_uniformOfFintype_map {α β : Type*} [Fintype α] 
   by_cases hy : ∃ a, f a = y
   · obtain ⟨a, rfl⟩ := hy
     rw [PMF.map_apply_of_injective _ hf, PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
-      ENNReal.toReal_natCast, Real.rpow_neg (by norm_num)]
-    refine inv_anti₀ (by positivity) ?_
-    rw [Real.rpow_natCast]
-    exact_mod_cast hk
+      ENNReal.toReal_natCast, Real.rpow_neg (by norm_num), Real.rpow_natCast]
+    exact inv_anti₀ (by positivity) (by exact_mod_cast hk)
   · push Not at hy
     rw [PMF.map_apply, tsum_eq_zero_iff.2 fun a => ite_eq_right (Ne.symm (hy a)),
       ENNReal.toReal_zero]
@@ -301,9 +292,8 @@ theorem rectangleBias_of_isSumsetExtractor {n m k : ℕ} {ε : ℝ}
   let pOut : PMF Bool := (PMF.uniformOfFintype R).map (fun r : R => decide (ext r.val j = val))
   have hpOut : ((pA.bind fun x => pB.map fun y => x + y).map ext).map proj = pOut := by
     simp only [hsum, PMF.map_comp]; rfl
-  have hdist : dist pOut (PMF.uniformOfFintype Bool) ≤ ε := by
-    rw [← hpOut, ← hunif]
-    exact (PMF.dist_map_le _ _ proj).trans (hext pA pB hkA hkB)
+  have hdist : dist pOut (PMF.uniformOfFintype Bool) ≤ ε :=
+    hpOut ▸ hunif ▸ (PMF.dist_map_le _ _ proj).trans (hext pA pB hkA hkB)
   rw [PMF.dist_uniformOfFintype_bool] at hdist
   have hpOut_true : (pOut true).toReal = ((R ∩ S).ncard : ℝ) / R.ncard := by
     have hcard_fib :
@@ -321,10 +311,9 @@ theorem rectangleBias_of_isSumsetExtractor {n m k : ℕ} {ε : ℝ}
 
 private theorem isLittleO_log_two_pow {k : ℕ → ℕ}
     (hk : (fun n => (k n : ℝ)) =o[atTop] fun n => (n : ℝ)) :
-    (fun n => Real.log ((2 ^ k n : ℕ) : ℝ)) =o[atTop] fun n => (n : ℝ) := by
-  refine (hk.const_mul_left (Real.log 2)).congr_left fun n => ?_
-  rw [Nat.cast_pow, Nat.cast_ofNat, Real.log_pow]
-  ring
+    (fun n => Real.log ((2 ^ k n : ℕ) : ℝ)) =o[atTop] fun n => (n : ℝ) :=
+  (hk.const_mul_left (Real.log 2)).congr_left fun n => by
+    rw [Nat.cast_pow, Nat.cast_ofNat, Real.log_pow, mul_comm]
 
 /-- **Bit fibers of sublinear-entropy sumset extractors are `DenseRectangleFree`.** Conditional
 reduction step: if `ext n` is eventually a `(k n, k n, ε n)` sumset extractor with `k n = o(n)` and
@@ -400,10 +389,10 @@ theorem mem_P_and_eventually_switched_lt_multiarySize_of_isSumsetExtractor
       ∀ δ > 0, ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool) (Acc : Set Bool)
         (c : Circuit σ n 1), c.FanInAtMost 2 →
           c.Decides I Acc {x : BitString n | (Language.ofSlices f).slice n x = true} →
-            (1 + 2 * π / (3 * arccos (5 / 6)) - δ) * n < c.multiarySize := by
-  refine ⟨Cslib.Complexity.ofSlices_mem_P hf, fun δ hδ => ?_⟩
-  exact (eventually_switched_sub_mul_lt_multiarySize_of_isSumsetExtractor.{v}
-    (fun _ => 0) (fun _ => true) hext hk hε hδ).mono fun n hn σ I Acc c hfan hdec =>
-      hn σ I Acc c hfan (by simpa only [Language.slice_ofSlices] using hdec)
+            (1 + 2 * π / (3 * arccos (5 / 6)) - δ) * n < c.multiarySize :=
+  ⟨Cslib.Complexity.ofSlices_mem_P hf, fun δ hδ =>
+    (eventually_switched_sub_mul_lt_multiarySize_of_isSumsetExtractor.{v}
+      (fun _ => 0) (fun _ => true) hext hk hε hδ).mono fun n hn σ I Acc c hfan hdec =>
+      hn σ I Acc c hfan (by simpa only [Language.slice_ofSlices] using hdec)⟩
 
 end Cslib.Circuits.Frontier

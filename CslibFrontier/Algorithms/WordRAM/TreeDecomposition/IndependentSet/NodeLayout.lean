@@ -200,8 +200,7 @@ theorem foldl_max_le_prefixMaxSum {n : ℕ} (tblList : Fin (n + 1) → List ℕ)
 theorem prefixMaxSum_succ {n : ℕ} (tblList : Fin (n + 1) → List ℕ) {k : ℕ} (hk : k + 1 ≤ n) :
     prefixMaxSum tblList (k + 1) =
       prefixMaxSum tblList k + (tblList ⟨k + 1, by omega⟩).foldl max 0 := by
-  have hlt : k + 1 < n + 1 := Nat.lt_succ_of_le hk
-  simp only [prefixMaxSum, Finset.sum_range_succ, nodeMax, dite_eq_left hlt]
+  simp only [prefixMaxSum, Finset.sum_range_succ, nodeMax, dite_eq_left (Nat.lt_succ_of_le hk)]
 
 /-- Telescoping step: folding node `k + 1`'s table into strictly earlier parent `p < k + 1`
 increases the remaining prefix sum `0 .. k` by at most `B` relative to `0 .. k + 1`. -/
@@ -212,7 +211,6 @@ theorem prefixMaxSum_update_le {n : ℕ} (tblList : Fin (n + 1) → List ℕ)
       (tblList p).foldl max 0 + B + (tblList ⟨k + 1, by omega⟩).foldl max 0) :
     prefixMaxSum (Function.update tblList p newP) k ≤ prefixMaxSum tblList (k + 1) + B := by
   have hp_mem : p.val ∈ Finset.range (k + 1) := Finset.mem_range.2 hp_lt
-  have hsum_succ := prefixMaxSum_succ tblList hk
   have herase : _ = prefixMaxSum tblList k := Finset.add_sum_erase _ (nodeMax tblList) hp_mem
   have hrest : ∑ i ∈ (Finset.range (k + 1)).erase p.val,
       nodeMax (Function.update tblList p newP) i =
@@ -224,7 +222,7 @@ theorem prefixMaxSum_update_le {n : ℕ} (tblList : Fin (n + 1) → List ℕ)
       · rfl
   rw [nodeMax, dite_eq_left p.isLt, Fin.eta] at herase
   rw [prefixMaxSum, ← Finset.add_sum_erase _ _ hp_mem, hrest, nodeMax, dite_eq_left p.isLt,
-    Fin.eta, Function.update_self, hsum_succ, ← herase]
+    Fin.eta, Function.update_self, prefixMaxSum_succ tblList hk, ← herase]
   omega
 
 /-! ### Node descriptor initialization (`initNodesProg`) -/
@@ -397,11 +395,9 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
   induction rem with
   | zero =>
     intro k curRaw st hsum hfr_lo hfr_hi hpres _ _ hinv
-    have hk_eq : k = count := by omega
-    subst hk_eq
-    change (Memory.spec w).ValidHistory st ((Memory.spec w).clientHistory st (pure _)) ∧
-      _ ∧ memoryCost (pure _) st ≤ 0 * stepCost
-    exact ⟨validHistory_pure w st _, ⟨hfr_lo, hfr_hi, hpres, hinv⟩, by simp [memoryCost_pure]⟩
+    obtain rfl : k = count := by omega
+    exact ⟨validHistory_pure w st _, ⟨hfr_lo, hfr_hi, hpres, hinv⟩,
+      by simp [iterate, memoryCost_pure]⟩
   | succ rem ih =>
     intro k curRaw st hsum hfr_lo hfr_hi hpres hdrop hdrop_end ⟨hdone, hdisj⟩
     have hk_lt : k < count := by omega
@@ -421,7 +417,7 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
     have htblLen_le : tblLen ≤ 2 ^ M :=
       Nat.pow_le_pow_right (by decide) (inst.bagAt_length_le kFin)
     obtain ⟨hv_pow, hst_pow, hr_pow, hc_pow⟩ :=
-      powProg_spec (w := w) ⟨2, bagLen⟩ (show 0 < st.frontier by omega)
+      powProg_spec (w := w) ⟨2, bagLen⟩ (by omega : 0 < st.frontier)
     dsimp only at hr_pow hc_pow
     have hfr_next_le : st.frontier + tblLen ≤ descBase + 4 * count + (k + 1) * 2 ^ M := by
       calc st.frontier + tblLen
@@ -514,9 +510,8 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
         rw [hmem_lt (descBase + 4 * i.val + 2) (by dsimp only [dAddr]; omega)]
         by_cases hjk : j = kFin
         · subst hjk
-          change _ ≤ st₁.mem (dAddr + 2)
-          rw [hm4_2]
-          simpa only [List.length_replicate] using (hdone i hi_lt_k).2.2.2.2.2.1
+          obtain ⟨-, -, -, -, -, ht⟩ := hdone i hi_lt_k
+          exact (List.length_replicate ▸ ht.1).trans_eq hm4_2.symm
         · have hj_lt_k : j.val < k :=
             Nat.lt_of_le_of_ne (Nat.lt_succ_iff.mp hj) (Fin.val_ne_of_ne hjk)
           rw [hmem_lt (descBase + 4 * j.val + 2) (by dsimp only [dAddr]; omega)]
@@ -524,13 +519,11 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
     have hc_step : memoryCost (initNodeStep (descBase, ⟨curRaw, k⟩)) st ≤ stepCost := by
       unfold initNodeStep
       dsimp only
-      rw [memoryCost_bind', memoryCost_read]
-      change 1 + memoryCost (powProg ⟨2, st.mem curRaw⟩ >>= _) st ≤ _
-      rw [hmem_len, memoryCost_bind', hst_pow, hr_pow, memoryCost_bind', memoryCost_alloc]
-      change 1 + (memoryCost (powProg ⟨2, bagLen⟩) st + ((tblLen + 1) + memoryCost _ st_a)) ≤ _
+      rw [memoryCost_bind', memoryCost_read, clientState_read, clientResult_read, hmem_len,
+        memoryCost_bind', hst_pow, hr_pow, memoryCost_bind', memoryCost_alloc]
       simp only [memoryCost_bind', memoryCost_write, memoryCost_pure]
       have := inst.bagAt_length_le kFin
-      dsimp only [stepCost, bagLen] at *; omega
+      dsimp only [stepCost, bagLen, tblLen] at *; omega
     obtain ⟨hv_rem, hprops_rem, hc_rem⟩ :=
       ih (k + 1) (bagPtr + bagLen) st₁ (by omega)
         (by change descBase + 4 * count ≤ st.frontier + tblLen; omega)

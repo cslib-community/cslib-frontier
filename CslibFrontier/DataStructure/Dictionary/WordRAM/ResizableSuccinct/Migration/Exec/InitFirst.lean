@@ -165,10 +165,8 @@ private theorem initFirstFinishCode_exec {U V w base : ℕ} (u : Fin U) (v : ℕ
       by change base + off₁ + iw₁ ≤ fr₁; rw [hfr₁_eq]⟩
   obtain ⟨hpre_si, hvp_si, hc_si, hfr_si, hrep_si, ⟨s_fix₁, hinv₁, hcpl₁⟩, hout_si⟩ :=
     streamInsertFreshGenProg_spec (s₀ := ⟨z₂.mem, fr₁⟩) u.isLt henv_si hfit_off
-      hrep_im hinv₀ hcpl₀
-      (by rw [htot_im]; exact hN₁_pos)
-      (by rw [htot_im])
-      hv_lt (by simp [Dictionary.empty])
+      hrep_im hinv₀ hcpl₀ (htot_im.symm ▸ hN₁_pos) (htot_im.symm ▸ le_rfl) hv_lt
+      (by simp [Dictionary.empty])
   have hv_si : (Memory.spec w).ValidHistory (memoryState mFr z₂.toData)
       ((Memory.spec w).clientHistory (memoryState mFr z₂.toData)
         (streamInsertFreshGenProg d_si)) := by
@@ -213,17 +211,10 @@ private theorem initFirstFinishCode_exec {U V w base : ℕ} (u : Fin U) (v : ℕ
     hs_z_eq ▸ hcpl₁
   have htot_z : totalSlots N₁ (compGmAt base U w N₁ z.mem) = 1 :=
     (congrArg (totalSlots N₁) hcpl_z.gm_eq).trans (hinv₁.htot.trans hcard₁)
-  have hsplit_z : CompactedSplitRep base (base + off₁) U V w N₁ 1 1 θ
-      (Function.update (Dictionary.empty U) u (some v)) ⟨z.mem, z.frontier⟩ :=
-    ⟨hhdr_z, hpar_z, hz_mem_eq ▸ hrep_si, hcard₁, hvals₁, s_fix₁, hinv₁, htot_z, hcpl_z⟩
   have habi_set_z : abiPreserved y_set z := abiPreserved_of_lt_five fun reg h5 hfr =>
     (hframe_reg_si reg hfr (mkTmp_ne_reg _ (by omega) (fun a => Fin.elim0 a))).trans <|
       hkeep_set_2 reg (by omega) (by simp [Fin.ext_iff] at hfr ⊢; omega)
   have hf1 := one_le_migFactor
-  have hc_im_mul : migFactor * (memoryCost
-      (initNewEpochMetaProg ((mkHashParams w (qBits U N₁) (hashB N₁) (totalMicroBits N₁) 3,
-        mkCompParams U V w N₁), base)) ⟨y_rs.mem, fr₁⟩ + 1) ≤ migFactor * 988 :=
-    Nat.mul_le_mul_left migFactor (by linarith only [hc_im, hN₁_le2])
   have hpot_le : inEpochPotential U w N₁ base z ≤
       (98 * migFactor) * slotPotential N₁ (compGmAt base U w N₁ z.mem) := by
     unfold inEpochPotential
@@ -235,8 +226,11 @@ private theorem initFirstFinishCode_exec {U V w base : ℕ} (u : Fin U) (v : ℕ
     have hmul := Nat.mul_le_mul_left migFactor (Nat.add_le_add_right hc_si 1)
     rw [← hz_mem_eq] at hmul
     nlinarith only [hmul, hpot_le, hf1]
-  have hex_clean := hex_c1.seq_eq ((hex_im.mono hc_im_mul (fun _ h => h)).seq_eq hex_si)
-  refine ⟨z, _, hex_clean, hzb, hzf_eq, hsplit_z, abiPreserved_trans habi_set habi_set_z,
+  refine ⟨z, _, hex_c1.seq_eq
+      ((hex_im.mono (Nat.mul_le_mul_left migFactor (by linarith only [hc_im, hN₁_le2] : _ ≤ 988))
+        (fun _ h => h)).seq_eq hex_si),
+    hzb, hzf_eq, ⟨hhdr_z, hpar_z, hz_mem_eq ▸ hrep_si, hcard₁, hvals₁, s_fix₁, hinv₁, htot_z,
+      hcpl_z⟩, abiPreserved_trans habi_set habi_set_z,
     fun addr haddr => (hlow_z addr (by linarith only [haddr])).trans (hbelow_set addr haddr),
     by linarith only [hsi_pot]⟩
 

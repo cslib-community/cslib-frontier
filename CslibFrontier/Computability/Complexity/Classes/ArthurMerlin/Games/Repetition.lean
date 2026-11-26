@@ -260,16 +260,12 @@ theorem computableInPolyTime_majority {γ : Type} {encIn : γ ↪ List Bool}
     (hw : ComputableInPolyTime w encIn encBits) :
     ComputableInPolyTime (fun x => majority (evalShape G (len x)) (k x) (W x) (w x))
       encIn encBool := by
-  unfold majority
   have h2k : ComputableInPolyTime (fun x => 2 * k x) encIn encUnary :=
     ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const 2).prod hk)
-  have hrow : ComputableInPolyTime (fun p : γ × ℕ =>
-      W p.1 (copyTranscript (2 * k p.1) p.2 (evalShape G (len p.1)) (w p.1)))
-      (encPair encIn encUnary) encBool :=
-    hW.comp ((ComputableInPolyTime.fst _ _).prod (computableInPolyTime_copyTranscript G
-      (hlen.comp (.fst _ _)) (h2k.comp (.fst _ _)) (.snd _ _) (hw.comp (.fst _ _))))
   exact ComputableInPolyTime.unary_lt' hk (ComputableInPolyTime.countPWithInput
-    (ComputableInPolyTime.range.comp h2k) hrow)
+    (ComputableInPolyTime.range.comp h2k)
+    (hW.comp ((ComputableInPolyTime.fst _ _).prod (computableInPolyTime_copyTranscript G
+      (hlen.comp (.fst _ _)) (h2k.comp (.fst _ _)) (.snd _ _) (hw.comp (.fst _ _))))))
 
 /-- Parallel repetition of a polynomial game shape, `M(n)` copies. -/
 noncomputable def repeatShapePoly (M : Polynomial ℕ) (G : List (AMMove × Polynomial ℕ)) :
@@ -354,29 +350,28 @@ theorem mem_AMGameClass_iff_forall_errorExponent {enc : α ↪ List Bool} {π : 
       (V : α × List Bool → Bool), G.map Prod.fst = π ∧
         ComputableInPolyTime V (encPair enc encBits) encBool ∧
           IsAMGameVerifierWithErrorExponent enc e G V A := by
-  constructor
-  · rintro ⟨G, V, hG, hV, hA⟩ e
-    refine ⟨repeatShapePoly (2 * (6 * e)) G, amplifiedVerifier enc G (6 * e) V,
-      by rw [map_fst_repeatShapePoly, hG], computableInPolyTime_amplifiedVerifier _ _ hV, ?_⟩
-    rw [isAMGameVerifier_iff_value] at hA
-    refine isAMGameVerifierWithErrorExponent_iff_value.2 fun a => ?_
-    simp only [evalShape_repeatShapePoly, amplifiedVerifier, Polynomial.eval_mul,
-      Polynomial.eval_ofNat]
-    have hpow := eight_ninths_pow_le (e.eval (enc a).length)
-    have h2 : (2 : ℚ) ^ e.eval (enc a).length * (1 / 2) ^ e.eval (enc a).length = 1 := by
-      rw [← mul_pow]; norm_num
-    refine ⟨fun ha => ?_, fun ha => ?_⟩
-    · have := value_majority_ge _ (6 * e.eval (enc a).length) (fun t => V (a, t)) ((hA a).1 ha)
-      calc _ ≤ (2 : ℚ) ^ e.eval (enc a).length * (1 / 2) ^ e.eval (enc a).length := by
-            gcongr; linarith
-        _ = 1 := h2
-    · have := value_majority_le _ (6 * e.eval (enc a).length) (fun t => V (a, t)) ((hA a).2 ha)
-      have hp0 : (0 : ℚ) ≤ (8 / 9) ^ (6 * e.eval (enc a).length) := by positivity
-      calc _ ≤ (2 : ℚ) ^ e.eval (enc a).length * (1 / 2) ^ e.eval (enc a).length := by
-            gcongr; linarith
-        _ = 1 := h2
-  · intro h
-    obtain ⟨G, V, hG, hV, hA⟩ := h 2
-    exact ⟨G, V, hG, hV, hA.isAMGameVerifier fun n => by simp⟩
+  refine ⟨?_, fun h =>
+    have ⟨G, V, hG, hV, hA⟩ := h 2
+    ⟨G, V, hG, hV, hA.isAMGameVerifier fun _ => by simp⟩⟩
+  rintro ⟨G, V, hG, hV, hA⟩ e
+  refine ⟨repeatShapePoly (2 * (6 * e)) G, amplifiedVerifier enc G (6 * e) V,
+    by rw [map_fst_repeatShapePoly, hG], computableInPolyTime_amplifiedVerifier _ _ hV, ?_⟩
+  rw [isAMGameVerifier_iff_value] at hA
+  refine isAMGameVerifierWithErrorExponent_iff_value.2 fun a => ?_
+  simp only [evalShape_repeatShapePoly, amplifiedVerifier, Polynomial.eval_mul,
+    Polynomial.eval_ofNat]
+  have hpow := eight_ninths_pow_le (e.eval (enc a).length)
+  have h2 : (2 : ℚ) ^ e.eval (enc a).length * (1 / 2) ^ e.eval (enc a).length = 1 := by
+    rw [← mul_pow]; norm_num
+  refine ⟨fun ha => ?_, fun ha => ?_⟩
+  · have := value_majority_ge _ (6 * e.eval (enc a).length) (fun t => V (a, t)) ((hA a).1 ha)
+    calc _ ≤ (2 : ℚ) ^ e.eval (enc a).length * (1 / 2) ^ e.eval (enc a).length := by
+          gcongr; linarith
+      _ = 1 := h2
+  · have := value_majority_le _ (6 * e.eval (enc a).length) (fun t => V (a, t)) ((hA a).2 ha)
+    have hp0 : (0 : ℚ) ≤ (8 / 9) ^ (6 * e.eval (enc a).length) := by positivity
+    calc _ ≤ (2 : ℚ) ^ e.eval (enc a).length * (1 / 2) ^ e.eval (enc a).length := by
+          gcongr; linarith
+      _ = 1 := h2
 
 end Cslib.Complexity

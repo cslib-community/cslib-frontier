@@ -94,16 +94,13 @@ private theorem exec_phaseCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
     if y.regs augmented = 0 then
       n - (Finset.univ.filter fun j : Fin n => y.mem (bC + n * n + 3 * n + j.val) = 1).card
     else 0
-  have hused_card_eq : ∀ {s : HgState n} {bestRow : Fin n → Fin n} {m : ℕ → ℕ},
-      StepMem bC s bestRow m →
+  have hused_card_eq {s : HgState n} {bestRow : Fin n → Fin n} {m : ℕ → ℕ}
+      (hSM : StepMem bC s bestRow m) :
       (Finset.univ.filter fun j : Fin n => m (bC + n * n + 3 * n + j.val) = 1).card =
         usedCount s.used := by
-    intro s bestRow m hSM
     unfold usedCount
-    congr 1
-    ext j
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, hSM.hused j]
-    cases vget s.used j <;> simp
+    exact congrArg Finset.card (Finset.ext fun j => by
+      cases hv : vget s.used j <;> simp [hSM.hused j, hv])
   have hstepRound (y : Data 28) (hy : I y) (hc : (Cond.eq augmented zero).Holds y) :
       ∃ z, ExecWithin w roundBody y z (94 * n + 28) ∧ I z ∧ rank z < rank y := by
     obtain ⟨hr, hf, hstate⟩ := hy
@@ -184,9 +181,7 @@ private theorem exec_phaseCode {w n bC M W : ℕ} {C : Fin n × Fin n → ℕ}
         ((((hr₄ augmented (by decide)).trans (hr₃ augmented (by decide))).trans
           (hr₂ augmented (by decide))).trans (hr₁ augmented (by decide))).trans haug0
       have hcnt' : usedCount (hgExtend c (hgDual s (vget s.minv j₁)) j₁ i₀).used =
-          usedCount s.used + 1 := by
-        rw [hgExtend_used, hgDual_used]
-        exact usedCount_vset hj₁_unused
+          usedCount s.used + 1 := by rw [hgExtend_used, hgDual_used, usedCount_vset hj₁_unused]
       have hfuel'_pos : 0 < fuel' := by
         have h1 := usedCount_le hSE.matching hSE.used_mate
         have h2 := card_lt_of_root_free hSE.matching hSE.root_free

@@ -201,8 +201,8 @@ theorem mem_iff_exists_verifier (a : NEXPBoundedAcceptanceInstance) :
       List.length_replicate]
     rwa [Nat.min_eq_right (by omega)]
   · rintro ⟨w, hw, hV⟩
-    simp only [verifier_eq_true_iff, hw, Nat.min_eq_right (by omega : a.steps ≤ 2 * a.steps + 1)]
-      at hV
+    have hle : a.steps ≤ 2 * a.steps + 1 := by omega
+    simp only [verifier_eq_true_iff, hw, Nat.min_eq_right hle] at hV
     have hlen := length_unframe_add_dropFrame_le w
     exact ⟨unframe w, by omega, hV⟩
 
@@ -274,9 +274,6 @@ theorem mem_NE : NEXPBoundedAcceptance ∈ NE encNEXPBoundedAcceptanceInstance :
       _ = 4 ^ dV * 2 ^ (n * dV) := by rw [← Nat.pow_mul]
       _ ≤ 4 ^ dV * 2 ^ (k * n) :=
         Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by omega) (by dsimp [k]; nlinarith))
-  change n + ((n + 1) ^ dC + (2 * a.steps + 1)) +
-    ((encPair encNEXPBoundedAcceptanceInstance encBits (a, w)).length + 1) ^ dV ≤
-    (5 + 4 ^ dV) * 2 ^ (k * n) + (5 + 4 ^ dV)
   calc n + ((n + 1) ^ dC + (2 * a.steps + 1)) +
       ((encPair encNEXPBoundedAcceptanceInstance encBits (a, w)).length + 1) ^ dV
     _ ≤ 2 ^ (k * n) + (2 ^ (k * n) + 2 * 2 ^ (k * n)) + 4 ^ dV * 2 ^ (k * n) :=
@@ -325,10 +322,10 @@ theorem polyTimeReducible {α : Type} {enc : α ↪ List Bool} {A : Set α} {p :
       have hnE : (enc a).length ≤ E :=
         Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_right (by omega) (by omega))
       -- `|c| + 2 n + 2 ≤ (M + 1) (c₁ + c₂ + 4) E` and `(cV + 1)` times this is below the clock.
-      have h1 : c₁ * 2 ^ p (enc a).length + c₂ ≤ (c₁ + c₂) * E := by
-        rw [add_mul]
-        exact Nat.add_le_add (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right (by omega) (by omega)))
-          (Nat.le_mul_of_pos_right _ hE1)
+      have h1 : c₁ * 2 ^ p (enc a).length + c₂ ≤ (c₁ + c₂) * E :=
+        (Nat.add_le_add
+          (Nat.mul_le_mul_left _ (Nat.pow_le_pow_right two_pos (Nat.le_add_right _ _)))
+          (Nat.le_mul_of_pos_right _ hE1)).trans_eq (add_mul ..).symm
       have hbound : c.length + 2 * (enc a).length + 2 ≤ (M + 1) * (c₁ + c₂ + 4) * E := by
         rw [hc_len]
         linarith [Nat.mul_le_mul_left M h1, Nat.zero_le (M * E), Nat.zero_le (c₁ * E),
@@ -337,19 +334,17 @@ theorem polyTimeReducible {α : Type} {enc : α ↪ List Bool} {A : Set α} {p :
       have hCE : (cV + 1) * ((M + 1) * (c₁ + c₂ + 4) * E) ≤ stepBound a := by
         rw [hstep_eq, ← mul_assoc, ← mul_assoc]
         exact Nat.mul_le_mul_right _ Nat.lt_two_pow_self.le
-      have hB := (Nat.le_mul_of_pos_left ((M + 1) * (c₁ + c₂ + 4) * E) (Nat.succ_pos cV)).trans hCE
-      have hc_step : c.length ≤ stepBound a := by omega
+      have hc_step : c.length ≤ stepBound a := (Nat.le_add_right _ _).trans <|
+        (Nat.le_add_right _ _).trans <| hbound.trans <|
+          (Nat.le_mul_of_pos_left _ (Nat.succ_pos cV)).trans hCE
       have htV_step : tV (enc a, c) ≤ stepBound a := by
         refine (Nat.mul_le_mul (Nat.le_succ cV) ?_).trans hCE
         simp only [length_encPair, encBits, Function.Embedding.refl_apply]; omega
       obtain ⟨hhalt, hout⟩ := (htm (enc a, c)).runFrom_of_le htV_step
-      change (tm.runFrom (tm.initCfg (encPair encBits encBits (enc a, c))) (stepBound a)).output =
-        [ntm.checkChoices encBits (enc a, c)] at hout
       exact ⟨c, hc_step, (NEXPBoundedAcceptanceInstance.accepts_desc_iff eSV tm (enc a)
         (stepBound a) c).mpr ⟨hhalt, hout.trans (congrArg List.singleton hc_acc)⟩⟩
     · rintro ⟨c, -, hacc⟩
       obtain ⟨hhalt, hout⟩ := (NEXPBoundedAcceptanceInstance.accepts_desc_iff _ _ _ _ _).mp hacc
-      let T' := max (stepBound a) (tV (enc a, c))
       have hrun_eq := tm.runFrom_eq_of_halt _ (Nat.le_max_left (stepBound a) (tV (enc a, c))) hhalt
       obtain ⟨-, hout'⟩ := (htm (enc a, c)).runFrom_of_le (Nat.le_max_right (stepBound a) _)
       have hout_eq : [true] = [ntm.checkChoices encBits (enc a, c)] :=

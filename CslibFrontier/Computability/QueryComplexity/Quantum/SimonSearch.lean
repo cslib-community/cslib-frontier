@@ -179,9 +179,8 @@ theorem measureProb_not_simonDetermines_le (E : Fin N ≃ (Fin n → Bool) × Fi
   set Z : Finset (Fin m × Fin n → Bool) := univ.filter fun zs => ¬SimonDetermines zs s with hZ
   have hfilt : (univ.filter fun (_, _, w) => ¬SimonDetermines w.xs s :
         Finset (Fin N × Bool × SimonWork m n)) =
-      univ.filter fun (_, _, w) => w.xs ∈ Z := by
-    ext ⟨i, b, w⟩
-    simp [hZ]
+      univ.filter fun (_, _, w) => w.xs ∈ Z :=
+    filter_congr fun _ _ => by simp [hZ]
   -- the row matrices orthogonal to `s` and to some `w ∉ {0, s}`, which contain those orthogonal
   -- to `s` that do not determine `s`
   let K (w : Fin n → Bool) : Finset (Fin m × Fin n → Bool) := univ.filter fun zs =>
@@ -218,19 +217,18 @@ theorem measureProb_not_simonDetermines_le (E : Fin N ≃ (Fin n → Bool) × Fi
       _ = (2 ^ n - 1) * 2 ^ (m * n) := by
           rw [sum_const, card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fun,
             Fintype.card_bool, Fintype.card_fin, smul_eq_mul]
-  have hreal : (#T : ℝ) * (2 ^ m * 2 ^ m) ≤ (2 ^ n - 1) * 2 ^ (m * n) := by
-    have h1 : ((2 ^ n - 1 : ℕ) : ℝ) = 2 ^ n - 1 := by
-      simp only [Nat.cast_sub Nat.one_le_two_pow, Nat.cast_pow, Nat.cast_ofNat, Nat.cast_one]
-    rw [← mul_pow, ← h1]
-    exact_mod_cast hcard
+  have hZle : #(Z.filter fun zs => ∀ r, Function.curry zs r ⬝ᵥ s = false) * 4 ^ m ≤
+      (2 ^ n - 1) * 2 ^ (m * n) :=
+    (Nat.mul_le_mul_right _ (card_le_card hsub)).trans hcard
+  have hreal : (#(Z.filter fun zs => ∀ r, Function.curry zs r ⬝ᵥ s = false) : ℝ) *
+      (2 ^ m * 2 ^ m) ≤ (2 ^ n - 1) * 2 ^ (m * n) := by
+    norm_num [← mul_pow]
+    simpa [Nat.cast_sub Nat.one_le_two_pow] using (Nat.cast_le (α := ℝ)).mpr hZle
   rw [hfilt]
   refine (measureProb_simonAlg_le E i₀ hX (card_simonG_fiber_le hX) Z).trans ?_
-  have hT' : (#(Z.filter fun zs => ∀ r, Function.curry zs r ⬝ᵥ s = false) : ℝ) ≤ #T := by
-    exact_mod_cast card_le_card hsub
   push_cast
   rw [div_le_div_iff₀ (by positivity) (by positivity)]
-  have hpos : (0 : ℝ) ≤ 2 ^ m := by positivity
-  nlinarith [mul_le_mul_of_nonneg_left hT' hpos]
+  linarith
 
 /-- **Simon's algorithm finds the hidden string**: on every promise input, including `s = 0`, the
 post-processing of the measured rows outputs `s` with probability at least `1 - (2^n - 1) / 2^m`.
@@ -273,9 +271,7 @@ theorem simonAlg_search_spec (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ : F
         3 / 4 < measureProb (run (simonAlg (n + 2) E i₀) (simonInit i₀) X ((n + 2) * n))
           (simonFound (n + 2) s) := by
   refine ⟨norm_simonInit _, fun X s hX => lt_of_lt_of_le ?_ (le_measureProb_simonFound E i₀ hX)⟩
-  have h : ((2 : ℝ) ^ n - 1) / 2 ^ (n + 2) < 1 / 4 := by
-    rw [div_lt_iff₀ (by positivity), pow_add]
-    linarith
+  rw [lt_sub_comm, div_lt_iff₀ (pow_pos (zero_lt_two' ℝ) _), pow_add]
   linarith
 
 /-- **The exponential quantum–classical separation for the search version of Simon's problem**

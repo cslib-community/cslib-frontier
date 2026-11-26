@@ -72,9 +72,7 @@ theorem length_childPassList (adj : ℕ → ℕ → Bool) (wt : ℕ → ℕ)
   | zero => rfl
   | succ c ih =>
     dsimp only [childPassList]
-    split_ifs
-    · rw [List.length_set, ih]
-    · exact ih
+    split_ifs <;> simp [ih]
 
 /-- `childPassList` agrees entrywise with `childPassInst` on `0 .. 2 ^ |LP| - 1`. -/
 theorem getD_childPassList_eq (adj : ℕ → ℕ → Bool) (wt : ℕ → ℕ)
@@ -264,14 +262,12 @@ theorem childPassProg_spec {w : ℕ} (args : ChildPassArgs) {inst : MWISInstance
     refine ⟨validHistory_bind_step hv_run (validHistory_pure w _ ()), ?_⟩
     rw [StateTransitionSpec.clientState_bind, memoryCost_bind', memoryCost_pure, Nat.add_zero]
     exact ⟨hfr_run, hpres_run, hbest_run, hc_run⟩
-  intro rem
-  induction rem with
+  intro rem curC st hsum hfr hpres hbest_st
+  induction rem generalizing curC st with
   | zero =>
-    intro curC st _ hfr hpres hbest_st
     rw [iterate, Nat.add_zero]
     exact ⟨validHistory_pure w st curC, hfr, hpres, hbest_st, by simp [memoryCost_pure]⟩
   | succ rem ih =>
-    intro curC st hsum hfr hpres hbest_st
     have hcur_lt : curC < args.tblBLen := by omega
     have hadj_st : HoldsIn args.adjPtr inst.adjMatrix st := hadj.mono hadj_end hpres
     have hwt_st : HoldsIn args.wtPtr inst.weights st := hwt.mono hwt_end hpres
@@ -411,9 +407,7 @@ theorem childPassProg_realizes :
   have htblB_t : HoldsIn d.tblBPtr tblB t := htblB_h.mono (by omega) hpres
   have hLP_t : HoldsIn d.bagPPtr LP t := hLP_h.mono (by omega) hpres
   have hLB_lt_wt : ∀ u ∈ LB, u < wtL.length := hwtL_len ▸ hLB_lt
-  have hfit_wtL : Fits w (d.wtPtr + wtL.length) := hwtL_len ▸ hfit_wt
-  have hfit_sumW : Fits w (d.bagBLen * wtL.foldl max 0) := hfit_cap.of_le (by omega)
-  obtain ⟨_, _, hr_key, _⟩ :=
+  obtain ⟨-, -, hr_key, -⟩ :=
     keyMaskProg_spec (w := w) ⟨d.bagBPtr, d.bagBLen, d.bagPPtr, d.bagPLen, curC⟩
       hLB_t hLB_len hLP_t hLP_len
   dsimp only at hr_key
@@ -442,8 +436,8 @@ theorem childPassProg_realizes :
       | split
       | exact ⟨h2, m, adjL, LB, hadjL_len, hnv, hadj_t, hLB_t, hLB_len, hLB_lt, hfit_adj, hfit_bagB⟩
       | exact ⟨h2, hfit_bagB, hfit_bagP, hfit_powP⟩
-      | exact ⟨h2, wtL, LB, hwt_t, hLB_t, hLB_len, hLB_lt_wt, hfit_wtL, hfit_bagP, hfit_bagB,
-          hfit_sumW⟩
+      | exact ⟨h2, wtL, LB, hwt_t, hLB_t, hLB_len, hLB_lt_wt, hwtL_len ▸ hfit_wt, hfit_bagP,
+          hfit_bagB, hfit_cap.of_le (by omega)⟩
       | exact trivial
       | assumption
       | refine And.intro ?_ ?_)

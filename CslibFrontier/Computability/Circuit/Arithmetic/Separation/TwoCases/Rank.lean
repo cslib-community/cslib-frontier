@@ -211,9 +211,10 @@ private theorem Extremal.sides (hx : Extremal K w) {W W' : Mt μ} (h : Transvers
   simp only [Nat.cast_add, sub_self, mul_zero, ← Fintype.sum_prod_type'] at h1
   have h0 := congrFun ((Fintype.sum_eq_zero_iff_of_nonneg fun _ => defect_nonneg hx.price _ _ _).1
     h1) (p, q, a)
-  refine ⟨(quadrangle hx.price _ _ _ _).2 ?_ |>.1, (quadrangle hx.price _ _ _ _).2 ?_ |>.2, h0⟩ <;>
-  · simp only [defect, Pi.zero_apply] at h0
-    linarith
+  obtain ⟨h2, h3⟩ :=
+    (quadrangle hx.price a (a + X p q (S 0) + X p q (S 1)) (a + X p q (S 0)) (a + X p q (S 1))).2
+      (by simp only [defect, Pi.zero_apply] at h0; linarith)
+  exact ⟨h2, h3, h0⟩
 
 /-- (D.1): `n_{a + W'}(W) = n_a(W)` for transversal `W`, `W'`. -/
 private theorem Extremal.opposite (hx : Extremal K w) {W W' : Mt μ} (h : Transversal ![W, W'])
@@ -236,29 +237,28 @@ private theorem Extremal.additive (hx : Extremal K w) {W₁ W₂ W₃ : Mt μ}
     (h : Transversal ![W₁, W₂, W₃]) (a : Mt μ) :
     BB w a W₁ (W₂ + W₃) = BB w a W₁ W₂ + BB w a W₁ W₃ := by
   obtain ⟨p, q, S, hd, hW⟩ := (transversal_iff _).1 h
-  have ⟨h0, h1, h2⟩ : W₁ = X p q (S 0) ∧ W₂ = X p q (S 1) ∧ W₃ = X p q (S 2) := ⟨hW 0, hW 1, hW 2⟩
+  obtain ⟨rfl, rfl, rfl⟩ : W₁ = X p q (S 0) ∧ W₂ = X p q (S 1) ∧ W₃ = X p q (S 2) :=
+    ⟨hW 0, hW 1, hW 2⟩
   have e1 := hx.diagonal (transversal_X₂ (p := p) (q := q)
-    (disjoint_union_right.2 ⟨hd 0 1 (by decide), hd 0 2 (by decide)⟩)) (a + W₂)
+    (disjoint_union_right.2 ⟨hd 0 1 (by decide), hd 0 2 (by decide)⟩)) (a + X p q (S 1))
   have e2 := hx.diagonal (transversal_X₂ (p := p) (q := q)
     (disjoint_union_right.2 ⟨(hd 0 1 (by decide)).symm, hd 1 2 (by decide)⟩)) a
   have e3 := hx.diagonal (transversal_X₂ (p := p) (q := q)
     (disjoint_union_left.2 ⟨hd 0 2 (by decide), hd 1 2 (by decide)⟩)) a
   have e4 := hx.diagonal (transversal_X₂ (p := p) (q := q) (hd 1 2 (by decide))) a
   have e5 := hx.opposite (transversal_X₂ (p := p) (q := q) (hd 0 1 (by decide))) a
-  rw [X_union p q (hd 1 2 (by decide)), ← h0, ← h1, ← h2] at e1
-  rw [X_union p q (hd 0 2 (by decide)), ← h0, ← h1, ← h2] at e2
-  rw [X_union p q (hd 0 1 (by decide)), ← h0, ← h1, ← h2] at e3
-  rw [← h1, ← h2] at e4
-  rw [← h0, ← h1] at e5
+  rw [X_union p q (hd 1 2 (by decide))] at e1
+  rw [X_union p q (hd 0 2 (by decide))] at e2
+  rw [X_union p q (hd 0 1 (by decide))] at e3
   dsimp only [nn] at e1 e5
-  have f1 : a + W₂ + W₁ = a + (W₁ + W₂) := by abel
-  have f2 : a + W₂ + (W₂ + W₃) = a + W₃ := by rw [add_assoc, add_cancel_left]
-  have f3 : a + W₂ + (W₁ + (W₂ + W₃)) = a + (W₁ + W₃) := by
-    rw [add_left_comm W₁, add_assoc, add_cancel_left]
-  rw [e5, f1, f2, f3, e2, e4, e3] at e1
+  rw [e5, add_assoc a (X p q (S 1)) (X p q (S 0)), add_comm (X p q (S 1)) (X p q (S 0)),
+    add_assoc a (X p q (S 1)) (X p q (S 1) + X p q (S 2)), add_cancel_left,
+    add_left_comm (X p q (S 0)) (X p q (S 1)),
+    add_assoc a (X p q (S 1)) (X p q (S 1) + (X p q (S 0) + X p q (S 2))), add_cancel_left,
+    e2, e4, e3] at e1
   unfold BB nn at *
-  rw [show W₁ + W₂ + W₃ = W₁ + (W₂ + W₃) by abel,
-    show W₂ + (W₁ + W₃) = W₁ + (W₂ + W₃) by abel] at *
+  rw [add_assoc (X p q (S 0)) (X p q (S 1)) (X p q (S 2)),
+    add_left_comm (X p q (S 1)) (X p q (S 0)) (X p q (S 2))] at *
   linarith
 
 /-! ### Step 5: `B_a` is constant on pairs of rank one -/
@@ -356,11 +356,9 @@ private theorem Extremal.lambda (hx : Extremal K w) (hμ : 3 ≤ μ) (a : Mt μ)
 /-- "`B_{a+V}(V, W') = −B_a(V, W')`" for transversal `V`, `W'`. -/
 private theorem Extremal.reflect (hx : Extremal K w) {V W' : Mt μ} (h : Transversal ![V, W'])
     (a : Mt μ) : BB w (a + V) V W' = - BB w a V W' := by
-  unfold BB
-  rw [show nn w (a + V) (V + W') = w (a + V) (a + W') ^ 2 by rw [nn, add_assoc, add_cancel_left],
-    show nn w (a + V) V = nn w a V by rw [nn, nn, add_assoc, madd_self, add_zero, hx.price.symm],
-    hx.diagonal h a, hx.opposite (transversal_symm h) a]
-  ring
+  rw [BB, BB, hx.opposite (transversal_symm h) a, nn, add_assoc, add_cancel_left, hx.diagonal h a]
+  simp only [nn, add_assoc a V V, madd_self, add_zero]
+  rw [hx.price.symm]; ring
 
 /-- "Hence `λ = 0`": `B_a` vanishes on transversal pairs of rank one. -/
 private theorem Extremal.BB_eq_zero (hx : Extremal K w) (hμ : 3 ≤ μ) (a : Mt μ) {W W' : Mt μ}
@@ -372,9 +370,7 @@ private theorem Extremal.BB_eq_zero (hx : Extremal K w) (hμ : 3 ≤ μ) (a : Mt
   set i : Fin μ := ⟨0, by omega⟩
   set j : Fin μ := ⟨1, by omega⟩
   set k : Fin μ := ⟨2, by omega⟩
-  have hij : i ≠ j := by simp [i, j, Fin.ext_iff]
-  have hik : i ≠ k := by simp [i, k, Fin.ext_iff]
-  have hjk : j ≠ k := by simp [j, k, Fin.ext_iff]
+  have ⟨hij, hik, hjk⟩ : i ≠ j ∧ i ≠ k ∧ j ≠ k := by simp [i, j, k, Fin.ext_iff]
   have lam (b : Mt μ) {l l' : Fin μ} (h : l ≠ l') : BB w b (e l) (e l') = BB w b (e i) (e j) :=
     hx.lambda hμ b (tr h) (tr hij) (r1 _) (r1 _) (r1 _) (r1 _)
   have two (b : Mt μ) : BB w b (e i + e j) (e k) = 2 * BB w b (e i) (e j) := by
@@ -442,12 +438,11 @@ private theorem Extremal.nn_eq_one (hx : Extremal K w) (hμ : 3 ≤ μ) (a : Mt 
         shift _ _ (by simp [rank_X]), ih]
   have h1 := hx.meanSq_eq 1 (by omega)
   have hc : (Fintype.card (Mt μ) : ℝ) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
-  have hn : (#{W : Mt μ | W.rank = 1} : ℝ) ≠ 0 :=
-    by exact_mod_cast (card_pos.2 ⟨V, by simp [hV]⟩).ne'
+  have hn : (#{W : Mt μ | W.rank = 1} : ℝ) ≠ 0 := mod_cast (card_pos.2 ⟨V, by simp [hV]⟩).ne'
   have h2 (b : Mt μ) : rankMean (fun W => w b (b + W)) 1 = nn w a V := by
-    rw [rankMean, div_eq_iff hn, sum_congr rfl fun W hW =>
-      show w b (b + W) ^ 2 = _ from (hx.nn_eq hμ b (mem_filter.1 hW).2 hV).trans (all b),
-      sum_const, nsmul_eq_mul, mul_comm]
+    have hW' (W) (hW : W ∈ univ.filter fun W : Mt μ => W.rank = 1) : w b (b + W) ^ 2 = nn w a V :=
+      (hx.nn_eq hμ b (mem_filter.1 hW).2 hV).trans (all b)
+    rw [rankMean, div_eq_iff hn, sum_congr rfl hW', sum_const, nsmul_eq_mul, mul_comm]
   simpa only [meanSq, h2, sum_const, card_univ, nsmul_eq_mul, mul_div_cancel_left₀ _ hc,
     Nat.cast_one] using h1
 

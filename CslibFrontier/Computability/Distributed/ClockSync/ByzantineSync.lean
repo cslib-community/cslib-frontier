@@ -120,37 +120,30 @@ private theorem sortLE_getElem_map_mono {α : Type*} [LinearOrder K] {xs : List 
     (hfg : ∀ x ∈ xs, f x ≤ g x) {k : ℕ} (hk : k < xs.length) :
     (sortLE (xs.map f))[k]'(by rw [length_sortLE, List.length_map]; exact hk) ≤
       (sortLE (xs.map g))[k]'(by rw [length_sortLE, List.length_map]; exact hk) := by
-  set sf := sortLE (xs.map f)
-  set sg := sortLE (xs.map g)
-  have hsg_len : sg.length = xs.length := by simp only [sg, length_sortLE, List.length_map]
-  have hsf_sort : sf.SortedLE :=
-    (congrArg List.SortedLE (sortLE_eq_mergeSort _)).mpr List.sortedLE_mergeSort
-  have hsg_sort : sg.SortedLE :=
-    (congrArg List.SortedLE (sortLE_eq_mergeSort _)).mpr List.sortedLE_mergeSort
-  have hsf_perm : sf.Perm (xs.map f) :=
-    (List.Perm.of_eq (sortLE_eq_mergeSort (xs.map f))).trans (List.mergeSort_perm _ _)
-  have hsg_perm : sg.Perm (xs.map g) :=
-    (List.Perm.of_eq (sortLE_eq_mergeSort (xs.map g))).trans (List.mergeSort_perm _ _)
+  simp only [sortLE_eq_mergeSort]
+  set sf := (xs.map f).mergeSort (· ≤ ·)
+  set sg := (xs.map g).mergeSort (· ≤ ·)
+  have hsg_len : sg.length = xs.length := by simp [sg]
   set B := sg[k]'(by omega)
   have hcnt_g : k + 1 ≤ (xs.map g).countP (· ≤ B) := by
-    rw [← hsg_perm.countP_eq]
+    rw [← (List.mergeSort_perm (xs.map g) _).countP_eq]
     refine le_of_eq_of_le ?_ (List.take_sublist (k + 1) sg).countP_le
     rw [List.countP_eq_length.mpr, List.length_take_of_le (by omega)]
     intro y hy
     obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hy
     rw [List.getElem_take, decide_eq_true_eq]
     rw [List.length_take] at hi
-    exact hsg_sort.getElem_le_getElem_of_le (by omega)
+    exact List.sortedLE_mergeSort.getElem_le_getElem_of_le (by omega)
   have hcnt_f : k + 1 ≤ sf.countP (· ≤ B) := by
-    simp only [hsf_perm.countP_eq, List.countP_map] at hcnt_g ⊢
+    rw [(List.mergeSort_perm (xs.map f) _).countP_eq, List.countP_map]
+    rw [List.countP_map] at hcnt_g
     exact hcnt_g.trans (List.countP_mono_left fun x hx hgx =>
       decide_eq_true ((hfg x hx).trans (of_decide_eq_true hgx)))
   by_contra! hlt
   have hdrop : (sf.drop k).countP (· ≤ B) = 0 := List.countP_eq_zero.mpr fun y hy => by
     obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hy
-    rw [List.length_drop] at hj
     rw [List.getElem_drop, decide_eq_true_eq, not_le]
-    exact hlt.trans_le (hsf_sort.getElem_le_getElem_of_le (Nat.le_add_right k j))
+    exact hlt.trans_le (List.sortedLE_mergeSort.getElem_le_getElem_of_le (Nat.le_add_right k j))
   have htake : (sf.take k).countP (· ≤ B) ≤ k :=
     List.countP_le_length.trans (List.length_take_le k sf)
   rw [← List.take_append_drop k sf, List.countP_append] at hcnt_f

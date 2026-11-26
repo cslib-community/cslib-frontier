@@ -75,9 +75,8 @@ namespace Polynomial
 
 /-- The 2-adic valuation of `x` is `n` when `2 ^ n`, but not `2 ^ (n + 1)`, divides `x`. -/
 private theorem padicValInt_two_eq {x : ℤ} {n : ℕ} (h1 : (2 : ℤ) ^ n ∣ x)
-    (h2 : ¬(2 : ℤ) ^ (n + 1) ∣ x) : padicValInt 2 x = n := by
-  rw [padicValInt.of_ne_one_ne_zero]
-  exact multiplicity_eq_of_dvd_of_not_dvd h1 h2
+    (h2 : ¬(2 : ℤ) ^ (n + 1) ∣ x) : padicValInt 2 x = n :=
+  (padicValInt.of_ne_one_ne_zero ..).trans (multiplicity_eq_of_dvd_of_not_dvd h1 h2)
 
 private theorem two_pow_padicValInt_dvd (x : ℤ) : (2 : ℤ) ^ padicValInt 2 x ∣ x := by
   exact_mod_cast padicValInt_dvd (p := 2) x
@@ -135,15 +134,14 @@ private theorem two_pow_succ_dvd_sub {x y : ℤ} (hx : x ≠ 0) (hy : y ≠ 0)
 /-- The 2-adic valuation of `2 x` is one more than that of a nonzero `x`. -/
 private theorem padicValInt_two_mul {x : ℤ} (hx : x ≠ 0) :
     padicValInt 2 (2 * x) = padicValInt 2 x + 1 := by
-  rw [padicValInt.mul two_ne_zero hx, add_comm, show (2 : ℤ) = ((2 : ℕ) : ℤ) from rfl,
-    padicValInt.self (by norm_num)]
+  rw [padicValInt.mul two_ne_zero hx, add_comm]
+  exact congrArg (padicValInt 2 x + ·) (padicValInt.self (p := 2) (by norm_num))
 
 private theorem natAbs_sub_lt {a : ℕ} {t q : ℤ} (ht : t ∈ Ico (-(2 : ℤ) ^ a) (2 ^ a))
     (hq : q ∈ Ico (-(2 : ℤ) ^ a) (2 ^ a)) : (t - q).natAbs < 2 ^ (a + 1) := by
   rw [mem_Ico] at ht hq
-  have : ((2 ^ a : ℕ) : ℤ) = 2 ^ a := by push_cast; rfl
-  rw [pow_succ]
-  omega
+  have : ((2 ^ a : ℕ) : ℤ) = 2 ^ a := Nat.cast_pow 2 a
+  rw [pow_succ]; omega
 
 /-- **The distribution of 2-adic valuations on the dyadic grid.** On the nonzero points of
 `[-2 ^ a, 2 ^ a)`, the valuation `j ≤ a` occurs `2 ^ (a - j)` times. -/
@@ -152,9 +150,9 @@ theorem _root_.sum_Ico_erase_zero_padicValInt_two (a : ℕ) (f : ℕ → ℤ) :
       ∑ j ∈ range (a + 1), 2 ^ (a - j) * f j := by
   induction a generalizing f with
   | zero =>
-    rw [show (Ico (-(2 : ℤ) ^ 0) (2 ^ 0)).erase 0 = {-1} by
-      ext q; simp only [mem_erase, mem_Ico, mem_singleton]; omega, sum_singleton,
-      padicValInt.eq_zero_of_not_dvd (by norm_num), sum_range_one, pow_zero, one_mul]
+    have h0 : (Ico (-(2 : ℤ) ^ 0) (2 ^ 0)).erase 0 = {-1} := by decide
+    rw [h0, sum_singleton, padicValInt.eq_zero_of_not_dvd (by norm_num),
+      sum_range_one, pow_zero, one_mul]
   | succ a ih =>
     have hpow : (2 : ℤ) ^ (a + 1) = 2 * 2 ^ a := by rw [pow_succ, mul_comm]
     rw [← sum_filter_add_sum_filter_not _ (fun q : ℤ => (2 : ℤ) ∣ q)]
@@ -304,8 +302,7 @@ private theorem sum_tapered_eq (m : ℕ → ℕ) (ht : t ∈ Ico (-(2 : ℤ) ^ a
     ← sum_erase (S.erase 0) (a := t) (by simp only [i, lt_irrefl, ite_false]), sum_filter]
   refine sum_congr rfl fun q hq => ?_
   split_ifs with hiq
-  · simp only [g, hgt hiq, hvφ hq, hvsubφ hq]
-    ring
+  · simp only [g, hgt hiq, hvφ hq, hvsubφ hq]; ring
   · rfl
 
 /-- **The two-adic valuation of a tapered Hermite basis value, exactly (D.10).** On the grid
@@ -320,11 +317,10 @@ theorem padicValRat_eval_zero_hermiteBasis_dyadic (m : ℕ → ℕ)
         (fun q => m (padicValInt 2 q)) t).eval 0) =
       ∑ j ∈ Ioc (padicValInt 2 t) a,
         2 ^ (a - j) * (((j : ℤ) - padicValInt 2 t) * ((m j : ℤ) - m (padicValInt 2 t))) := by
-  have hfac : ∀ q ∈ ((Ico (-(2 : ℤ) ^ a) (2 ^ a)).erase 0).erase t,
+  have hfac (q : ℤ) (hq : q ∈ ((Ico (-(2 : ℤ) ^ a) (2 ^ a)).erase 0).erase t) :
       (Ring.inverse ((t : ℚ) - q) * (0 - q)) ^ m (padicValInt 2 q) ≠ 0 ∧
       padicValRat 2 ((Ring.inverse ((t : ℚ) - q) * (0 - q)) ^ m (padicValInt 2 q)) =
         (m (padicValInt 2 q) : ℤ) * ((padicValInt 2 q : ℤ) - padicValInt 2 (t - q)) := by
-    intro q hq
     simp only [mem_erase] at hq
     have hq0 : (q : ℚ) ≠ 0 := by exact_mod_cast hq.2.1
     have htq : ((t : ℚ) - q) ≠ 0 := sub_ne_zero.mpr (by exact_mod_cast hq.1.symm)
@@ -338,9 +334,8 @@ theorem padicValRat_eval_zero_hermiteBasis_dyadic (m : ℕ → ℕ)
     sum_Ico_erase_zero_padicValInt_two a fun j => if padicValInt 2 t < j then
       ((j : ℤ) - padicValInt 2 t) * ((m j : ℤ) - m (padicValInt 2 t)) else 0]
   simp only [mul_ite, mul_zero, ← sum_filter]
-  refine sum_congr (Finset.ext fun j => ?_) fun _ _ => rfl
-  simp only [mem_filter, mem_range, mem_Ioc]
-  omega
+  exact sum_congr (Finset.ext fun j => by simp only [mem_filter, mem_range, mem_Ioc]; omega)
+    fun _ _ => rfl
 
 /-- `∑_{k < n} 2 ^ (n - 1 - k) (k + 1) ^ 2 + n ^ 2 + 4 n + 6 = 6 * 2 ^ n`, so the sum is at most
 `6 * 2 ^ n`: the finite form of `∑_{j ≥ 1} j ^ 2 / 2 ^ j = 6`. -/
@@ -351,11 +346,10 @@ private theorem sum_two_pow_mul_sq (n : ℕ) :
   | succ n ih =>
     rw [sum_range_succ, Nat.add_sub_cancel, Nat.sub_self, pow_zero, one_mul,
       sum_congr rfl fun k hk => by
-        rw [show n - k = n - 1 - k + 1 by have := mem_range.mp hk; omega, pow_succ, mul_comm _ 2,
-          mul_assoc],
+        have hk' : n - k = n - 1 - k + 1 := by have := mem_range.mp hk; omega
+        rw [hk', pow_succ, mul_comm _ 2, mul_assoc],
       ← mul_sum, pow_succ 2 n]
-    ring_nf
-    ring_nf at ih
+    ring_nf at ih ⊢
     omega
 
 /-- **The valuation bound (D.10).** If the multiplicity by valuation `m` drops by at most `h` per
@@ -377,8 +371,7 @@ theorem neg_le_padicValRat_eval_zero_hermiteBasis_dyadic {h : ℕ} {m : ℕ → 
   have hterm : ∀ j ∈ Ioc i a, -((h : ℤ) * (2 ^ (a - j) * ((j : ℤ) - i) ^ 2)) ≤
       2 ^ (a - j) * (((j : ℤ) - i) * ((m j : ℤ) - m i)) := fun j hj => by
     have hij : i ≤ j := (mem_Ioc.mp hj).1.le
-    have hd := hdrop i (j - i)
-    rw [Nat.add_sub_cancel' hij] at hd
+    have hd := Nat.add_sub_cancel' hij ▸ hdrop i (j - i)
     zify [hij] at hd
     have hji : (0 : ℤ) ≤ (j : ℤ) - i := by omega
     linarith [mul_nonneg (mul_nonneg (by positivity : (0 : ℤ) ≤ 2 ^ (a - j)) hji)
@@ -389,12 +382,12 @@ theorem neg_le_padicValRat_eval_zero_hermiteBasis_dyadic {h : ℕ} {m : ℕ → 
   -- reindex `j = i + 1 + k` and use `∑ j ^ 2 / 2 ^ j ≤ 6`
   have hreindex : ∑ j ∈ Ioc i a, (2 : ℤ) ^ (a - j) * ((j : ℤ) - i) ^ 2 =
       ((∑ k ∈ range (a - i), 2 ^ (a - i - 1 - k) * (k + 1) ^ 2 : ℕ) : ℤ) := by
-    rw [show Ioc i a = Ico (i + 1) (a + 1) by ext; simp only [mem_Ioc, mem_Ico]; omega,
-      sum_Ico_eq_sum_range]
+    have hI : Ioc i a = Ico (i + 1) (a + 1) := Finset.ext fun _ => by
+      simp only [mem_Ioc, mem_Ico]; omega
+    rw [hI, sum_Ico_eq_sum_range]
     push_cast
-    refine sum_congr (by congr 1) fun k hk => ?_
-    rw [show a - (i + 1 + k) = a - i - 1 - k by omega]
-    ring
+    refine sum_congr (by congr 1) fun k _ => ?_
+    rw [← Nat.sub_sub, ← Nat.sub_sub]; ring
   rw [hreindex]
   norm_cast
   have := sum_two_pow_mul_sq (a - i)

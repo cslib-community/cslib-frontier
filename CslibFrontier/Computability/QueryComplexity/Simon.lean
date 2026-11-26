@@ -116,8 +116,8 @@ def simonInput (E : Fin N ≃ (Fin n → Bool) × Fin n)
     (g : (Fin n → Bool) → Fin n → Bool) : Fin N → Bool := fun i => g (E i).1 (E i).2
 
 @[simp] theorem simonFun_simonInput (E : Fin N ≃ (Fin n → Bool) × Fin n)
-    (g : (Fin n → Bool) → Fin n → Bool) : simonFun E (simonInput E g) = g := by
-  exact funext fun a => funext fun j => by simp [simonFun, simonInput]
+    (g : (Fin n → Bool) → Fin n → Bool) : simonFun E (simonInput E g) = g :=
+  funext fun _ => funext fun _ => by simp [simonFun, simonInput]
 
 /-- Simon's promise with hidden string `0` says that `f` is injective. -/
 theorem simonPromise_zero_iff (f : (Fin n → Bool) → Fin n → Bool) :
@@ -130,8 +130,8 @@ theorem simonPromise_zero_iff (f : (Fin n → Bool) → Fin n → Bool) :
 theorem SimonPromise.eq {f : (Fin n → Bool) → Fin n → Bool} {s s' : Fin n → Bool}
     (h : SimonPromise f s) (h' : SimonPromise f s') : s = s' := by
   rcases (h' 0 s).mp ((h 0 s).mpr (Or.inr (zero_add s).symm)) with rfl | hs
-  · have hs' : s' = 0 := by simpa using (h 0 s').mp ((h' 0 s').mpr (Or.inr (zero_add s').symm))
-    exact hs'.symm
+  · exact ((h 0 s').mp ((h' 0 s').mpr (Or.inr (zero_add s').symm))).elim Eq.symm
+      fun hs => (hs.trans (add_zero 0)).symm
   · simpa using hs
 
 /-- The representative of `{a, a + s}`: the one that comes first in a fixed order. -/
@@ -432,11 +432,9 @@ theorem simon_randomized_lower_bound (μ : RandomizedDecisionTree (Fin N) Bool)
           rw [sum_comm]
           refine sum_congr rfl fun π _ => ?_
           have hFv : F (simonHard E π s) = true := by
-            rw [hF _ s (simonPromise_simonHard E π s)]
-            simpa using (mem_erase.mp hs).1
+            simpa [hF _ s (simonPromise_simonHard E π s)] using (mem_erase.mp hs).1
           rw [RandomizedDecisionTree.errorProb_eq_sum, Finsupp.sum, hFv]
-          refine sum_congr rfl fun t _ => ?_
-          cases t.eval (simonHard E π s) <;> simp
+          exact sum_congr rfl fun t _ => by cases t.eval (simonHard E π s) <;> simp
       _ ≤ ∑ s ∈ univ.erase (0 : Fin n → Bool), ∑ π : Equiv.Perm (Fin n → Bool), ε :=
           sum_le_sum fun s _ => sum_le_sum fun π _ => hμ _ _ (simonPromise_simonHard E π s)
       _ = (2 ^ n - 1) * K * ε := by
@@ -447,13 +445,9 @@ theorem simon_randomized_lower_bound (μ : RandomizedDecisionTree (Fin N) Bool)
     have hρ : ∀ ρ, μ.errorProb F (simonHard E ρ 0) = 1 - ∑ t ∈ μ.weights.support,
         μ.weights t * if t.eval (simonHard E ρ 0) = false then 1 else 0 := by
       intro ρ
-      have hFv : F (simonHard E ρ 0) = false := by
-        rw [hF _ 0 (simonPromise_simonHard E ρ 0)]
-        simp
-      rw [RandomizedDecisionTree.errorProb_eq_sum, Finsupp.sum, hFv, eq_sub_iff_add_eq,
-        ← sum_add_distrib]
-      refine (sum_congr rfl fun t _ => ?_).trans hw
-      cases t.eval (simonHard E ρ 0) <;> simp
+      rw [RandomizedDecisionTree.errorProb_eq_sum, Finsupp.sum,
+        hF _ 0 (simonPromise_simonHard E ρ 0), eq_sub_iff_add_eq, ← sum_add_distrib]
+      exact (sum_congr rfl fun t _ => by cases t.eval (simonHard E ρ 0) <;> simp).trans hw
     have hsum : ∑ ρ : Equiv.Perm (Fin n → Bool), μ.errorProb F (simonHard E ρ 0) =
         K - ∑ t ∈ μ.weights.support, μ.weights t * (numFalse0 E t : ℝ) := by
       simp only [hρ, sum_sub_distrib, sum_const, card_univ, nsmul_eq_mul, mul_one, hnumFalse0,
@@ -507,8 +501,6 @@ theorem simon_two_pow_le_depth_sq (μ : RandomizedDecisionTree (Fin N) Bool)
   · simp [hd] at h; omega
   · rw [sq]
     have hle := Nat.le_mul_self μ.depth
-    generalize μ.depth * μ.depth = D at h hle ⊢
-    generalize 2 ^ n = P at h h2 ⊢
     omega
 
 /-- **Exponential classical lower bound, as a randomized query complexity**: for `n ≥ 1` and every
@@ -532,11 +524,10 @@ theorem simon_search_two_pow_le_depth_sq (μ : RandomizedDecisionTree (Fin N) (F
     (hS : ∀ X s, SimonPromise (simonFun E X) s → S X = s)
     (hμ : ∀ X s, SimonPromise (simonFun E X) s → μ.errorProb S X ≤ 1 / 3) (hn : 1 ≤ n) :
     2 ^ n ≤ μ.depth ^ 2 := by
-  set g : (Fin n → Bool) → Bool := fun s => decide (s ≠ 0) with hg
-  have h := simon_two_pow_le_depth_sq E (RandomizedDecisionTree.mapOutput g μ) (g ∘ S)
-    (fun X s hX => by rw [Function.comp_apply, hS X s hX])
-    (fun X s hX => (RandomizedDecisionTree.errorProb_mapOutput_le g μ S X).trans (hμ X s hX)) hn
-  exact h.trans (Nat.pow_le_pow_left (RandomizedDecisionTree.depth_mapOutput_le g μ) 2)
+  let g := fun s : Fin n → Bool => decide (s ≠ 0)
+  exact (simon_two_pow_le_depth_sq E (μ.mapOutput g) (g ∘ S) (fun X s hX => congrArg g (hS X s hX))
+    (fun X s hX => (μ.errorProb_mapOutput_le g S X).trans (hμ X s hX)) hn).trans
+    (Nat.pow_le_pow_left (μ.depth_mapOutput_le g) 2)
 
 /-- The tree that reads `f(0)` and `f(s')` (`2n` bit queries) and answers whether `s' ≠ 0` and
 `f(0) = f(s')`: on a promise input it answers `true` exactly when `s'` is the nonzero hidden
@@ -574,8 +565,8 @@ theorem simon_search_ne_zero_two_pow_le_sq (μ : RandomizedDecisionTree (Fin N) 
   set φ : DecisionTree (Fin N) (Fin n → Bool) → DecisionTree (Fin N) Bool :=
     fun t => t.bind (simonCheck E) with hφ
   have heval : ∀ t X, (φ t).eval X = decide (t.eval X ≠ 0 ∧
-      simonFun E X 0 = simonFun E X (t.eval X)) := fun t X => by
-    rw [hφ, DecisionTree.eval_bind, eval_simonCheck]
+      simonFun E X 0 = simonFun E X (t.eval X)) := fun t X =>
+    (DecisionTree.eval_bind t _ X).trans (eval_simonCheck E _ X)
   have hzero (X : Fin N → Bool) (hX : SimonPromise (simonFun E X) 0) (y : Fin n → Bool) :
       decide (y ≠ 0 ∧ simonFun E X 0 = simonFun E X y) = false :=
     decide_eq_false fun ⟨hy, he⟩ => hy ((simonPromise_zero_iff _).mp hX he).symm
@@ -588,9 +579,8 @@ theorem simon_search_ne_zero_two_pow_le_sq (μ : RandomizedDecisionTree (Fin N) 
   have hμ' : ∀ X s, SimonPromise (simonFun E X) s →
       (RandomizedDecisionTree.mapTree φ μ).errorProb F X ≤ 1 / 3 := fun X s hX => by
     rcases eq_or_ne s 0 with rfl | hs
-    · refine (RandomizedDecisionTree.errorProb_mapTree_eq_zero φ μ F X fun t => ?_).trans_le
-        (by norm_num)
-      simp [heval, hzero X hX (t.eval X), hF X 0 hX]
+    · exact (RandomizedDecisionTree.errorProb_mapTree_eq_zero φ μ F X fun t => by
+        simp [heval, hzero X hX (t.eval X), hF X 0 hX]).trans_le (by norm_num)
     · exact (RandomizedDecisionTree.errorProb_mapTree_le φ μ S F X fun t ht => by
         rw [heval, ht]).trans (hμ X s hX hs)
   have hd : (RandomizedDecisionTree.mapTree φ μ).depth ≤ μ.depth + 2 * n :=

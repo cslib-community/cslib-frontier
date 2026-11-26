@@ -143,10 +143,8 @@ private theorem computable_gv' : Computable fun q : Code × ℕ × ℕ => gv Φ 
   obtain ⟨f, hf, hfp⟩ := ComputablePred.computable_iff.1
     (computablePred_halts Φ Computable.fst (Computable.fst.comp Computable.snd)
       (Computable.snd.comp Computable.snd))
-  have hp : Partrec fun q : Code × ℕ × ℕ => cond (f q) (q.1.eval q.2.1) (Part.some 0) :=
-    Partrec.cond hf (Code.eval_part.comp Computable.fst (Computable.fst.comp Computable.snd))
-      (Partrec.const' (Part.some 0))
-  refine hp.of_eq_tot fun q => ?_
+  refine (Partrec.cond hf (Code.eval_part.comp Computable.fst (Computable.fst.comp Computable.snd))
+    (Partrec.const' (Part.some 0))).of_eq_tot fun q => ?_
   have hq : Halts Φ q.1 q.2.1 q.2.2 ↔ f q = true :=
     (congrFun hfp q).to_iff
   cases hfq : f q with
@@ -576,8 +574,7 @@ private theorem act_le {i : Code} {s e : ℕ} (h : act Φ i s = some e) : e ≤ 
 private theorem key_ge_of_act {i : Code} {e a s : ℕ} (ha : a < s) (hae : act Φ i a = some e) :
     2 * a + 1 ≤ key (hist Φ i s) e s := by
   obtain ⟨a', h, haa'⟩ := le_lastAct_hist ha hae
-  simp only [key, h, Option.elim_some]
-  omega
+  simp [key, h]; omega
 
 private theorem le_key_hist (i : Code) (e s : ℕ) : e ≤ key (hist Φ i s) e s := by
   cases h : lastAct (hist Φ i s) e s with
@@ -596,18 +593,15 @@ private theorem exists_defd {i : Code} {x c : ℕ} (hc : Halts Φ i x c) : ∃ z
   classical
   have hH : ∃ b, Halts Φ i x b := ⟨c, hc⟩
   by_cases hact : ∃ z < Nat.find hH, act Φ i (Nat.pair x z) ≠ none
-  · refine ⟨Nat.find hact, fun z' hz' => ⟨fun h => ?_, ?_⟩, Or.inl (Nat.find_spec hact).2⟩
-    · exact Nat.find_min hH (hz'.trans (Nat.find_spec hact).1) h
-    · by_contra hne
-      exact Nat.find_min hact hz' ⟨hz'.trans (Nat.find_spec hact).1, hne⟩
+  · exact ⟨Nat.find hact, fun z' hz' => ⟨Nat.find_min hH (hz'.trans (Nat.find_spec hact).1),
+      by_contra fun hne => Nat.find_min hact hz' ⟨hz'.trans (Nat.find_spec hact).1, hne⟩⟩,
+      Or.inl (Nat.find_spec hact).2⟩
   · push Not at hact
     exact ⟨Nat.find hH, fun z' hz' => ⟨Nat.find_min hH hz', hact z' hz'⟩,
       Or.inr (Nat.find_spec hH)⟩
 
 private theorem le_val (i : Code) (x z : ℕ) : z ≤ val Φ i x z := by
-  unfold val
-  cases act Φ i (Nat.pair x z)
-  exacts [le_max_left _ _, le_rfl]
+  cases h : act Φ i (Nat.pair x z) <;> simp [val, h]
 
 private theorem val_of_act {i : Code} {x z e : ℕ} (h : act Φ i (Nat.pair x z) = some e) :
     val Φ i x z = z := by simp [val, h]
@@ -646,10 +640,7 @@ theorem partrec_name : Partrec₂ Φ.name := by
     (@ComputablePred.decide _ _ _ (fun _ => Classical.dec _)
       (computablePred_defd Φ (Computable.fst.comp Computable.fst)
         (Computable.snd.comp Computable.fst) Computable.snd)).to₂
-  have hr : Partrec fun q : Code × ℕ =>
-      Nat.rfind fun z => Part.some (@decide (Defd Φ q.1 q.2 z) (Classical.dec _)) :=
-    Partrec.rfind hd.partrec₂
-  exact hr.map (computable_val Φ (Computable.fst.comp Computable.fst)
+  exact (Partrec.rfind hd.partrec₂).map (computable_val Φ (Computable.fst.comp Computable.fst)
     (Computable.snd.comp Computable.fst) Computable.snd).to₂
 
 /-- Input argument `q.2.1` in a graph-membership triple `(code, x, y)`. -/
@@ -885,8 +876,7 @@ private theorem halts_iff {i : Code} {t t' : ℕ → ℕ} (ht : ∀ n, t n ∈ i
           exact hM e' (by omega) ((hq e' (show e' < K + 1 by omega)).1 ⟨by omega, hnf⟩)
         have hun : Unset Φ i x M := fun z' hz' => hz₁.1 z' (by omega)
         obtain ⟨e'', he'', hk''⟩ := act_pair_exists hun hcand
-        have := hlate e'' he''
-        omega
+        exact absurd (hlate e'' he'') (by omega)
     have := le_val (Φ := Φ) i x z₁
     exact ⟨fun _ => halts_mono heM (by omega), fun _ => halts_mono heM hMt⟩
   · push Not at hMz
@@ -970,8 +960,7 @@ theorem naming_theorem :
         fun _ => rfl)
   obtain ⟨c, hc⟩ := Code.exists_code.1 hF
   have hh : ∀ i x, (Code.curry c (encode i)).eval x = Φ.name i x := fun i x => by
-    rw [Code.eval_curry, hc]
-    simp only [Nat.unpair_pair, ofNat_encode]
+    simp only [Code.eval_curry, hc, Nat.unpair_pair, ofNat_encode]
   refine ⟨fun i => Code.curry c (encode i), Code.primrec₂_curry.to_comp.comp
     (Computable.const c) Computable.encode, (Φ.computablePred_mem_name).of_eq fun q => by rw [hh],
     fun i t ht => ?_⟩

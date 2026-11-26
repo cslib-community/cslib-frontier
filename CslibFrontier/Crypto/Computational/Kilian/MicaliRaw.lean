@@ -286,14 +286,13 @@ theorem micaliVerifyRawBoundedPure_eq_false_of_maxCap_lt
   unfold micaliVerifyRawBoundedPure
   dsimp only
   set ρs := hFS (x, unframe (rawProof.take (2 * σ + 1)))
-  by_cases hm : ρs.length = m ∧ ∀ ρ ∈ ρs, ρ.length = V.coins x
-  · have hcap :=
-      kilianRawProverCap_le_micaliMaxProofCap V (σ := σ) hm.1 fun ρ hρ => hq x ρ (hm.2 ρ hρ)
-    rw [kilianVerifyRawBounded_eq_false_of_cap_lt _ V (lt_of_le_of_lt hcap hlt)]
-    simp
-  · have hbad : (ρs.length == m && ρs.all fun ρ => ρ.length == V.coins x) = false := by
-      simpa [Bool.and_eq_true, beq_iff_eq, List.all_eq_true] using hm
-    simp [hbad]
+  cases hch : (ρs.length == m && ρs.all fun ρ => ρ.length == V.coins x)
+  · simp
+  · simp only [Bool.and_eq_true, beq_iff_eq, List.all_eq_true] at hch
+    have hcap :=
+      kilianRawProverCap_le_micaliMaxProofCap V (σ := σ) hch.1 fun ρ hρ => hq x ρ (hch.2 ρ hρ)
+    simp [kilianVerifyRawBounded_eq_false_of_cap_lt _ V (ch := ⟨List.replicate σ false, x, ρs⟩)
+      (lt_of_le_of_lt hcap hlt)]
 
 /-- Prefix truncation invariance for `micaliVerifyRawBoundedPure`: verification depends only on the
 first `micaliMaxProofCap V σ m d x + 1` bits of `rawProof`. -/
@@ -1114,15 +1113,7 @@ private theorem isOraclePPTOn_merkleWordStep :
         (hpair.comp ((by fun_prop : ComputableInPolyTime _ _ encBits).prod hsib))
         (hpair.comp (hsib.prod (by fun_prop)))).prod
         (ComputableInPolyTime.unary_div' (by fun_prop) (ComputableInPolyTime.const 2)))
-  have hfn :
-      (fun p : ℕ × (List (List Bool) × List Bool × ℕ) => merkleWordStep p.1 p.2) =
-      fun p => stepPost p <$> List.take p.1 <$> ProbOracleComp.query
-        (spec := fun _ : MicaliWordOp × List Bool => List Bool)
-        (MicaliWordOp.merkle, p.2.2.1) := by
-    funext p
-    simp only [merkleWordStep, stepPost, map_eq_pure_bind, beq_iff_eq]
-  rw [hfn]
-  exact hq.map_with hpost
+  simpa only [merkleWordStep, stepPost, map_eq_pure_bind, beq_iff_eq] using hq.map_with hpost
 
 private abbrev merkleWordEnc :
     (ℕ × ℕ × List Bool) × (ℕ × List Bool × List (List Bool)) ↪ List Bool :=
@@ -1237,19 +1228,8 @@ private theorem isOraclePPTOn_merkleVerifyWord :
         merkleVerifyWord w.1.1 w.1.2.1 w.1.2.2 w.2.1 w.2.2.1 w.2.2.2) := by
   have hdec (i d : ℕ) : decide (i < 2 ^ d) = decide (Nat.clog 2 (i + 1) ≤ d) :=
     decide_eq_decide.mpr (by rw [Nat.clog_le_iff_le_pow Nat.one_lt_two, Nat.succ_le_iff])
-  have hfn :
-      (fun w : (ℕ × ℕ × List Bool) × (ℕ × List Bool × List (List Bool)) =>
-        merkleVerifyWord w.1.1 w.1.2.1 w.1.2.2 w.2.1 w.2.2.1 w.2.2.2) =
-      fun w => merkleWordPost w <$> (do
-        let stp ← OracleComp.iterate w.2.2.2.length (merkleWordStep w.1.1)
-          (w.2.2.2, w.2.2.1, w.2.1)
-        List.take w.1.1 <$> ProbOracleComp.query
-          (spec := fun _ : MicaliWordOp × List Bool => List Bool)
-          (MicaliWordOp.merkle, stp.2.1)) := by
-    funext w
-    simp only [merkleVerifyWord, merkleWordPost, bind_assoc, map_eq_pure_bind, pure_bind, hdec]
-  rw [hfn]
-  exact isOraclePPTOn_merkleWordCand.map_with computableInPolyTime_merkleWordPost
+  simpa only [merkleVerifyWord, merkleWordPost, bind_assoc, map_eq_pure_bind, pure_bind, hdec] using
+    isOraclePPTOn_merkleWordCand.map_with computableInPolyTime_merkleWordPost
 
 private theorem isOraclePPTOn_kilianCheckWord
     {V : PCPVerifier α} (hV : V.PolyTime enc) {c : ℕ}
@@ -1308,17 +1288,7 @@ private theorem isOraclePPTOn_kilianCheckWord
           ((ComputableInPolyTime.length_list encNat).comp (hV.queries.comp (by fun_prop))))
         (ComputableInPolyTime.allWithInput (by fun_prop) (by fun_prop)))
       (hV.verdict.comp ((by fun_prop : ComputableInPolyTime _ _ (encPair enc encBits)).prod hbits))
-  have hfn :
-      (fun p : (ℕ × α) × (List Bool × List Bool × List (MerkleOpening Bool)) =>
-        kilianCheckWord V p.1.1 p.1.2 p.2.1 p.2.2.1 p.2.2.2) =
-      fun p => checkPost p <$>
-        ((V.queries (p.1.2, p.2.2.1)).zip p.2.2.2).mapM fun it =>
-          merkleVerifyWord p.1.1 (kilianDepth V p.1.2) p.2.1
-            (kilianPosition V p.1.2 it.1) [it.2.leaf] it.2.path := by
-    funext p
-    simp only [kilianCheckWord, checkPost, map_eq_pure_bind]
-  rw [hfn]
-  exact hmap.map_with hpost
+  simpa only [kilianCheckWord, checkPost, map_eq_pure_bind] using hmap.map_with hpost
 
 private theorem isOraclePPTOn_kilianVerifyWord
     {V : PCPVerifier α} (hV : V.PolyTime enc) {c : ℕ}
@@ -1354,15 +1324,7 @@ private theorem isOraclePPTOn_kilianVerifyWord
         ((ComputableInPolyTime.length_list (encList encKilianOpening)).comp (by fun_prop))
         ((ComputableInPolyTime.length_list encBits).comp (by fun_prop)))
       (ComputableInPolyTime.allWithInput (by fun_prop) (by fun_prop))
-  have hfn :
-      (fun p : (ℕ × α) × (List Bool × List (List Bool) × KilianResponse) =>
-        kilianVerifyWord V p.1.1 p.1.2 p.2.1 p.2.2.1 p.2.2.2) =
-      fun p => verPost p <$>
-        (p.2.2.1.zip p.2.2.2).mapM fun it => kilianCheckWord V p.1.1 p.1.2 p.2.1 it.1 it.2 := by
-    funext p
-    simp only [kilianVerifyWord, verPost, map_eq_pure_bind]
-  rw [hfn]
-  exact hmap.map_with hpost
+  simpa only [kilianVerifyWord, verPost, map_eq_pure_bind] using hmap.map_with hpost
 
 private theorem computableInPolyTime_kilianStructValid
     {V : PCPVerifier α} (hV : V.PolyTime enc) {c : ℕ}

@@ -464,19 +464,10 @@ public theorem closeTo_lyubashevskySign_simulate {Ω M α : Type} [DecidableEq M
   have hbound : (src.bind err) true ≤
       R / (q : ℝ≥0∞) ^ n +
         ENNReal.ofReal (Real.sqrt ((q : ℝ) ^ n / ((2 * γ + 1 : ℕ) : ℝ) ^ m) / 2) := by
-    have hsrc : (src.bind err) =
-        (do
-          let A ← PMF.uniformOfFintype (Matrix (Fin n) (Fin m) (ZMod q))
-          let h ← H A
-          let coin ← (lyubashevsky n m k q γ β).commit (S h) (A, T A h)
-          let trace ← (interpret (withTranscript (oracle (BitString k)))
-            (cont A h none)).run (cache h, [])
-          return ((trace.2.2.map entryToPair).lookup (msg h, coin.1)).isSome) := by
-      simp only [src, err, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-        PMF.bind_bind, PMF.pure_bind, PMF.map, PMF.bind_const, Function.comp_def]
-    rw [hsrc]
-    exact counterfactual_hit_le n m k q γ β R hγ H S T msg cache
-      (fun A h => cont A h none) (fun A h hh => hcont A h none hh)
+    simpa only [src, err, entryToPair, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+      PMF.bind_bind, PMF.pure_bind, PMF.map, PMF.bind_const, Function.comp_def] using
+      counterfactual_hit_le n m k q γ β R hγ H S T msg cache
+        (fun A h => cont A h none) (fun A h hh => hcont A h none hh)
   unfold lyubashevskySignVisibleSim
   rw [← hsim]
   simpa only [pmf_norm, lyubashevskySignVisibleProg, src, f, g, PMF.map] using hc.mono hbound
@@ -591,7 +582,7 @@ theorem lyubashevskySignAttemptsVisibleProg_one_eq {Ω M α : Type} [DecidableEq
   dsimp only [lyubashevskySignAttemptsVisibleProg, lyubashevskySignVisibleProg]
   congr 1 with A : 1
   congr 1 with h : 1
-  rw [show (1 : ℕ) = 0 + 1 from rfl, fiatShamirAbortSign_run_succ]
+  rw [fiatShamirAbortSign_run_succ (K := 0)]
   simp only [interp_norm, pmf_norm, iid, fiatShamirAbortSign, interpret_pure, StateT.run_pure,
     PMF.map]
   simp only [StateT.run, PMF.bind_bind, PMF.pure_bind]

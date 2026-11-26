@@ -1267,9 +1267,8 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
     (q := p) (i := N) (fun k _ => hp_nofail k)
   have hw_t₀ : (ss t₀).inWaiting p := by
     rcases nonBakeryMeasure_eq_zero_iff.mp ht₀_zero with hrem | hbak
-    · have ht := htry_all t₀
-      simp [BakeryState.isTrying, BakeryState.inDoorway, BakeryState.inWaiting,
-        BakeryPhase.isDoorway, BakeryPhase.isWaiting, hrem] at ht
+    · exact absurd (htry_all t₀) (by simp [BakeryState.isTrying, BakeryState.inDoorway,
+        BakeryState.inWaiting, BakeryPhase.isDoorway, BakeryPhase.isWaiting, hrem])
     · exact hbak.resolve_right (hno_cs t₀)
   have hw_p : ∀ k ≥ t₀, (ss k).inWaiting p ∧ (ss k).number p = (ss t₀).number p :=
     fun k hk => Nat.le_induction ⟨hw_t₀, rfl⟩ (fun k _ ih =>
@@ -1300,11 +1299,9 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
             (Nat.le_succ_iff.mp hj₂).elim (hall_bak j hj₁) fun h => h ▸ hbak_next
         · exact Or.inr (doorwayAfter_of_beforeDoorwayScan (beforeDoorwayScan_of_exit_bakery
             (hexec k) (hbound k (by omega) q) (hall_bak k hk le_rfl) hbak_next))
-      · rw [← (hw_p k (by omega)).2] at hda_k
-        rw [← (hw_p (k + 1) (by omega)).2]
-        exact Or.inr (doorwayAfter_step (hexec k)
-          (BakeryState.inBakery_of_inWaiting (hw_p k (by omega)).1)
-          (BakeryState.inBakery_of_inWaiting (hw_p (k + 1) (by omega)).1) hda_k)
+      · exact (hw_p (k + 1) (by omega)).2 ▸ Or.inr (doorwayAfter_step (hexec k)
+          (.inl (hw_p k (by omega)).1) (.inl (hw_p (k + 1) (by omega)).1)
+          ((hw_p k (by omega)).2.symm ▸ hda_k))
   -- Step 3: Antitone stabilization of `B k = {q | inBakery q ∧ ticket q ≤ T_p}` for `k ≥ t₁`.
   let T_p := (ss t₀).ticket p
   let B : ℕ → Finset P := fun k =>
@@ -1353,27 +1350,26 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
       simp [BakeryState.ticket, (hB_bak r hr k hk).2]
     rw [htk _ hq_star_mem]
     by_cases hr_le : (ss k).ticket r ≤ T_p
-    · have hr_mem_Bk : r ∈ B k := Finset.mem_filter.mpr ⟨Finset.mem_univ r, hr_bak, hr_le⟩
-      have hr_mem_Bs : r ∈ B t_s := hB_stab k hk ▸ hr_mem_Bk
+    · have hr_mem_Bs : r ∈ B t_s :=
+        hB_stab k hk ▸ Finset.mem_filter.mpr ⟨Finset.mem_univ r, hr_bak, hr_le⟩
       rw [htk _ hr_mem_Bs]
-      refine lt_of_le_of_ne ?_ fun heq => hr_ne (Prod.ext_iff.mp (ofLex_inj.mpr heq)).2.symm
-      rw [hq_star_min_eq]
-      exact Finset.min'_le tickets_Bs _ (Finset.mem_image_of_mem _ hr_mem_Bs)
+      exact lt_of_le_of_ne
+        (hq_star_min_eq ▸ Finset.min'_le tickets_Bs _ (Finset.mem_image_of_mem _ hr_mem_Bs))
+        fun heq => hr_ne (Prod.ext_iff.mp (ofLex_inj.mpr heq)).2.symm
     · exact lt_of_le_of_lt (Finset.mem_filter.mp hq_star_mem).2.2 (not_le.mp hr_le)
   have hno_cs_after : ∀ k ≥ t_s, ∀ r, ¬ (ss k).inCS r := by
     intro k hk r hr_cs
     rcases eq_or_ne r q_star with rfl | hr_eq
-    · have hw := hq_star_wait k hk
-      unfold BakeryState.inCS at hr_cs
-      simp [BakeryState.inWaiting, BakeryPhase.isWaiting, hr_cs] at hw
+    · rw [BakeryState.inCS] at hr_cs
+      simpa [BakeryState.inWaiting, BakeryPhase.isWaiting, hr_cs] using hq_star_wait k hk
     · exact lt_asymm (bakery_cs_lt (hreach_all k) hr_cs (hq_star_bak k hk) hr_eq)
         (hq_star_global_min k hk r (.inr hr_cs) hr_eq)
   -- Step 4a: Drain all processes initially in `.failed` or `.writeNumberZero` at `t_s`.
   have hex_clean_rf (r : P) :
-      ∃ u ≥ t_s, (ss u).phase r ≠ .failed ∧ (ss u).phase r ≠ .writeNumberZero := by
-    obtain ⟨u, hu_ge, hu_zero⟩ := exists_nonBakeryMeasure_zero hexec hfair (q := r) (i := t_s)
-      (fun k hk => hbound k (by omega) r)
-    exact ⟨u, hu_ge, by cases hph : (ss u).phase r <;> simp_all [nonBakeryMeasure]⟩
+      ∃ u ≥ t_s, (ss u).phase r ≠ .failed ∧ (ss u).phase r ≠ .writeNumberZero :=
+    (exists_nonBakeryMeasure_zero hexec hfair (q := r) (i := t_s)
+      fun k hk => hbound k (by omega) r).imp fun u ⟨hu_ge, hu_zero⟩ =>
+        ⟨hu_ge, by cases hph : (ss u).phase r <;> simp_all [nonBakeryMeasure]⟩
   choose v_of hv_ge hv_clean using hex_clean_rf
   let t_A := Finset.univ.sup v_of ⊔ t_s
   have ht_A_ge : t_s ≤ t_A := le_sup_right
@@ -1400,11 +1396,10 @@ theorem bakery_starvationFree [Fintype P] [LinearOrder P]
             (hclean_after_tA l (by omega) r) ihl) j hj
       obtain ⟨w, hw_ge, hw_zero⟩ := exists_nonBakeryMeasure_zero hexec hfair (q := r) (i := m)
         (fun k hk => hbound k (by omega) r)
-      have hw_wait : (ss w).inWaiting r := by
-        rcases nonBakeryMeasure_eq_zero_iff.mp hw_zero with hrem_w | hbak_w
-        · exact absurd hrem_w (hnot_rem_from_m w hw_ge)
-        · exact hbak_w.resolve_right (hno_cs_after w (by omega) r)
-      exact ⟨w, by omega, fun k hk => Or.inr (hstay_waiting_after_tA r w (by omega) hw_wait k hk)⟩
+      exact ⟨w, by omega, fun k hk => Or.inr (hstay_waiting_after_tA r w (by omega)
+        ((nonBakeryMeasure_eq_zero_iff.mp hw_zero).elim
+          (fun hrem_w => absurd hrem_w (hnot_rem_from_m w hw_ge))
+          fun hbak_w => hbak_w.resolve_right (hno_cs_after w (by omega) r)) k hk)⟩
     · push Not at h_ever_dw
       exact ⟨t_A, le_rfl, fun k hk => phase_rem_or_waiting_of_clean
         (h_ever_dw k hk) (hno_cs_after k (by omega) r) (hclean_after_tA k hk r)⟩

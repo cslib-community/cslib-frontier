@@ -236,8 +236,7 @@ private theorem prop_identity_reflection [IsDomain R] {x z : R} (h : x * z = 1) 
     mul_ne_zero (pow_ne_zero _ (sub_ne_zero.2 h1.symm)) (pow_ne_zero _ (sub_ne_zero.2 h1.symm))
   refine mul_left_cancel₀ hne ?_
   have hs : (x ^ 2 - 1) ^ ν * (x ^ 2 - 1) ^ ν = (1 - x ^ 2) ^ ν * (1 - x ^ 2) ^ ν := by
-    rw [← mul_pow, ← mul_pow]
-    exact congrArg (· ^ ν) (by ring)
+    rw [← mul_pow, ← mul_pow]; ring_nf
   have hexp : (∑ i, (2 * sa.row i + 1)) + (∑ i, (2 * sc.row i + 1)) + (∑ i, 2 * sd.row i) +
       (∑ i, (2 * sb.row i + 2)) +
           ((∑ i, (2 * sa.col i + 1)) + (∑ i, (2 * sc.col i + 1)) + (∑ i, 2 * sd.col i) +
@@ -288,8 +287,6 @@ private theorem prop_identity_one (μ ν : ℕ) : ∃ ε : ℤˣ,
   rw [h2, hY, det_fromBlocks_zero₂₁, det_neg, det_transpose, hU _ _ _ _ ha1 hd1 hc2 hb2,
     hU _ _ _ _ ha2 hd2 hc1 hb1] at h1
   simp only [Word.row_swap, Word.col_swap, Fintype.card_sum, Fintype.card_fin] at h1
-  have hs : ((Equiv.Perm.sign e : ℤˣ) : ℤ) * ((Equiv.Perm.sign e : ℤˣ) : ℤ) = 1 :=
-      Int.units_coe_mul_self _
   have hν : ((-1 : ℤ) ^ ν) * (-1) ^ ν = 1 := by rw [← mul_pow]; simp
   have hind : (if sa = sc.swap ∧ sb = sd.swap then (1 : ℤ) else 0) =
       ((if sa.row = sc.col then 1 else 0) * (if sd.row = sb.col then 1 else 0)) *
@@ -299,7 +296,8 @@ private theorem prop_identity_one (μ ν : ℕ) : ∃ ε : ℤˣ,
     split_ifs <;> rfl
   rw [psi, hind]
   push_cast
-  linear_combination (-(matM (1 : ℤ) sa sb sc sd).det) * hs - ((Equiv.Perm.sign e : ℤˣ) : ℤ) * h1
+  linear_combination (-(matM (1 : ℤ) sa sb sc sd).det) * Int.units_coe_mul_self (Equiv.Perm.sign e)
+    - ((Equiv.Perm.sign e : ℤˣ) : ℤ) * h1
     + ((Equiv.Perm.sign e : ℤˣ) : ℤ) * (-1) ^ (μ + ν) *
         (((if sa.row = sc.col then 1 else 0) * (if sd.row = sb.col then 1 else 0)) *
       ((if sa.col = sc.row then 1 else 0) * (if sd.col = sb.row then 1 else 0))) * hν
@@ -318,8 +316,8 @@ private theorem exists_products {β γ κ : Type} [Fintype κ] {f : β → γ �
   refine Finset.sum_of_injOn (fun t => Fin.castLE hr (e t))
     (fun _ _ _ _ he => e.injective (Fin.castLE_injective hr he)) (fun _ _ => by simp)
     (fun t _ ht => ?_) (fun t _ => by simp [(e t).2])
-  dsimp only
-  rw [dite_eq_right fun hlt => ht ⟨e.symm ⟨t.1, hlt⟩, mem_univ _, by simp [Fin.castLE]⟩, zero_mul]
+  simp only [dite_eq_right fun hlt => ht ⟨e.symm ⟨t.1, hlt⟩, mem_univ _, by simp [Fin.castLE]⟩,
+    zero_mul]
 
 section Expansion
 
@@ -342,9 +340,7 @@ private theorem prop_identity_schur (l : ρ → R) (X : Matrix p p R) (A : Matri
     (fromBlocks X (A * diagonal l * B) (B' * diagonal l * A') Y).det =
       (fromBlocks (fromBlocks X 0 0 Y) (fromBlocks A 0 0 B')
         (-(fromBlocks 0 (diagonal l * B) (diagonal l * A') 0)) 1).det := by
-  rw [det_fromBlocks_one₂₂]
-  congr 1
-  rw [Matrix.mul_neg, sub_neg_eq_add, fromBlocks_multiply, fromBlocks_add]
+  rw [det_fromBlocks_one₂₂, Matrix.mul_neg, sub_neg_eq_add, fromBlocks_multiply, fromBlocks_add]
   simp [Matrix.mul_assoc]
 
 /-- Proof of Proposition B.2, the coefficients: each of the last rows is the sum of its part in
@@ -400,10 +396,8 @@ private theorem prop_identity_term_count (K N : ℕ) : (goodT K N).card ≤ stat
     have hT' := (mem_filter.1 hT).2
     have e1 : enT T = energy (T.toLeft.map Fin.valEmbedding) +
         energy (T.toRight.map Fin.valEmbedding) := by
-      conv_lhs => rw [← T.toLeft_disjSum_toRight]
-      unfold enT energy
-      rw [Finset.sum_disjSum, Finset.sum_map, Finset.sum_map]
-      rfl
+      rw [← T.toLeft_disjSum_toRight, enT, Finset.sum_disjSum]
+      simp [energy]
     exact mem_coe.2 (mem_lowStates.2 ⟨by simpa using hT'.1, e1 ▸ hT'.2⟩)
   · intro T _ T' _ h
     rw [← T.toLeft_disjSum_toRight, ← T'.toLeft_disjSum_toRight,
@@ -479,8 +473,8 @@ private theorem prop_identity_coefficients (μ ν N : ℕ) :
       simp only [Matrix.neg_apply, Matrix.transpose_apply]; ring
     · simp [matM]
   have hcard : Fintype.card (↥(goodT (N + 1) N) × Fin (N + 1)) ≤ (N + 1) * stateCount N := by
-    rw [Fintype.card_prod, Fintype.card_fin, Fintype.card_coe, Nat.mul_comm]
-    exact Nat.mul_le_mul_left _ (prop_identity_term_count _ _)
+    simpa only [Fintype.card_prod, Fintype.card_fin, Fintype.card_coe, Nat.mul_comm] using
+      Nat.mul_le_mul_left (N + 1) (prop_identity_term_count (N + 1) N)
   obtain ⟨g', h', e⟩ := exists_products (f := fun (p : Word μ × Word ν) (q : Word ν × Word μ) =>
     (psi (Polynomial.X : ℤ[X]) p.1 q.1 q.2 p.2).coeff N) g h (fun p q => key p.1 q.1 q.2 p.2) hcard
   exact ⟨g', h', fun sa sb sc sd => e (sa, sd) (sb, sc)⟩
@@ -507,24 +501,21 @@ private theorem prop_identity_reverse (sa : Word μ) (sb : Word ν) (sc : Word �
   have hx : x ≠ 0 := fun h => X_ne_zero (hι (h.trans (map_zero ι).symm))
   have hxz : x * x⁻¹ = 1 := mul_inv_cancel₀ hx
   have hx1 : x ^ 2 ≠ 1 := fun h => by
-    simpa [coeff_one] using
-      congrArg (fun p : ℤ[X] => p.coeff 2) (hι (by simpa [x] using h : ι (X ^ 2) = ι 1))
+    have hX2 : ι (X ^ 2) = ι 1 := by simpa [x] using h
+    simpa [coeff_one] using congrArg (fun p : ℤ[X] => p.coeff 2) (hι hX2)
   have hi : ι = eval₂RingHom (Int.castRingHom F) x :=
     Polynomial.ringHom_ext (fun _ => by simp) (by simp [x])
   let φ : ℤ[X] →+* F := eval₂RingHom (Int.castRingHom F) x⁻¹
   let _ : Invertible (x⁻¹ : F) := ⟨x, hxz, mul_comm x x⁻¹ ▸ hxz⟩
   have hrev : ι P.reverse * (x⁻¹) ^ P.natDegree = φ P :=
     hi ▸ eval₂_reverse_mul_pow (Int.castRingHom F) (x⁻¹ : F) P
-  have key := prop_identity_reflection hxz hx1 sa sb sc sd ha hb hc hd
   have hφP : psi (x⁻¹ : F) sa sb sc sd = φ P := by simp [hP, map_psi, φ]
-  have hιQ : psi x sa sd sc sb = ι Q := by rw [hQ, map_psi]
-  rw [hφP, hιQ, ← hrev] at key
+  have key : x ^ (2 * (e₁ + e₂)) * (ι P.reverse * (x⁻¹) ^ P.natDegree) = ι Q := by
+    simpa only [hφP, ← hrev, hQ, map_psi, x] using
+      prop_identity_reflection hxz hx1 sa sb sc sd ha hb hc hd
   apply hι
-  rw [map_mul, map_mul, map_pow, map_pow, ← key]
-  change ι P.reverse * x ^ _ = _ * x ^ _
-  have : (x⁻¹) ^ P.natDegree * x ^ P.natDegree = 1 := by
-    rw [← mul_pow, inv_mul_cancel₀ hx, one_pow]
-  linear_combination (-(ι P.reverse * x ^ (2 * (e₁ + e₂)))) * this
+  rw [map_mul, map_mul, map_pow, map_pow, ← key, mul_left_comm (x ^ _), mul_assoc, mul_assoc,
+    ← mul_pow, inv_mul_cancel₀ hx, one_pow, mul_one]
 
 /-- Proof of Proposition B.2, reflection: `deg Ψ ≤ Θ`, and the coefficient of `X^N` at
 `(s_a, s_b, s_c, s_d)` is that of `X^(Θ - N)` at `(s_a, s_d, s_c, s_b)`. -/
@@ -551,8 +542,8 @@ private theorem prop_identity_reflection_coeff (sa : Word μ) (sb : Word ν) (sc
     rw [ite_eq_left (by omega), coeff_reverse, revAt_le (Nat.sub_le _ _), Nat.sub_sub_self hN] at h1
     exact h1.trans (congrArg _ (by omega))
   · have h1 := congrArg (fun p : ℤ[X] => p.coeff (M + P.natDegree)) key
-    simp only [coeff_mul_X_pow', Nat.le_add_left, ite_true, Nat.add_sub_cancel,
-      ite_eq_right (by omega : ¬ H ≤ M + P.natDegree)] at h1
+    simp (disch := omega) only [coeff_mul_X_pow', Nat.le_add_left, ite_true, Nat.add_sub_cancel,
+      ite_eq_right] at h1
     rw [coeff_eq_zero_of_natDegree_lt hN, h1]
 
 end reflect

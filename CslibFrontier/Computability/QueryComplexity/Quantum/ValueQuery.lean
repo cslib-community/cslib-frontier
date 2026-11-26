@@ -122,9 +122,8 @@ private noncomputable def conjFiberIso {P A B : Type*} [Fintype P] [Fintype A] [
     (ψ : EuclideanSpace ℂ P) (p : P) :
     (conjFiberIso e F ψ).ofLp p =
       (F (e p).1 (sliceSecond (reindexProd e ψ) (e p).1)).ofLp (e p).2 := by
-  rw [conjFiberIso, LinearIsometryEquiv.trans_apply, LinearIsometryEquiv.trans_apply,
-    reindexProd_symm_apply]
-  exact fiberIso_apply F (reindexProd e ψ) (e p).1 (e p).2
+  simpa only [conjFiberIso, LinearIsometryEquiv.trans_apply, reindexProd_symm_apply] using
+    fiberIso_apply F (reindexProd e ψ) (e p).1 (e p).2
 
 private noncomputable def piLpCongrRightLI {A B : Type*} [Fintype A] [Fintype B]
     (F : A → (EuclideanSpace ℂ B →ₗᵢ[ℂ] EuclideanSpace ℂ B)) :
@@ -591,19 +590,13 @@ private theorem invBoolV_ctrlZ_invBoolV (R : EuclideanSpace ℂ V ≃ₗᵢ[ℂ]
       liftBoolLeft (fun _ => hadBool) (ctrlZ flag (liftBoolLeft (fun _ => hadBool) x)) =
         if flag then liftBoolLeft (fun _ => swapBool) x else x := by
     ext ⟨c, v⟩
-    have h1 : (WithLp.toLp 2 fun b =>
-        (ctrlZ flag (liftBoolLeft (fun _ => hadBool) x)).ofLp (b, v)) =
-        phaseStep flag (hadBool (WithLp.toLp 2 fun b => x.ofLp (b, v))) := rfl
-    cases flag <;> simp only [Bool.false_eq_true, ite_false, ite_true, liftBoolLeft_apply, h1,
-      hadBool_phaseStep_hadBool]
+    cases flag <;> simp only [ctrlZ, liftBoolLeft_apply, WithLp.toLp_ofLp,
+      hadBool_phaseStep_hadBool, ite_true, Bool.false_eq_true, ite_false]
   have hH (x : EuclideanSpace ℂ (Bool × V)) :
       liftBoolLeft (fun _ => hadBool) (liftBoolLeft (fun _ => hadBool) x) = x := by
     ext ⟨c, v⟩
-    have h1 : (WithLp.toLp 2 fun b => (liftBoolLeft (fun _ => hadBool) x).ofLp (b, v)) =
-        hadBool (WithLp.toLp 2 fun b => x.ofLp (b, v)) := rfl
-    rw [liftBoolLeft_apply, h1, hadBool_self]
-  simp only [invBoolV, LinearIsometryEquiv.trans_apply]
-  rw [hmid]
+    simp [hadBool_self]
+  simp only [invBoolV, LinearIsometryEquiv.trans_apply, hmid]
   cases flag
   · simp only [Bool.false_eq_true, ite_false]
     have hRR (x : EuclideanSpace ℂ (Bool × V)) : ctrlUnit R (ctrlUnit R x) = x := by
@@ -690,9 +683,8 @@ private theorem exists_sim_stride {N : ℕ} {α : Type*} (e : ι ≃ Fin N)
         else embedState e (runValue step U ψ₀ x T) := by
     induction t with
     | zero =>
-      rcases Nat.eq_zero_or_pos T with rfl | hT
-      · simp [run, Vsim, liftValueIso_embedState, runValue]
-      · simp [run, Vsim, hT, pre, liftValueIso_embedState, runValue]
+      rcases Nat.eq_zero_or_pos T with rfl | hT <;>
+        simp [run, Vsim, pre, liftValueIso_embedState, runValue, *]
     | succ t ih =>
       have ht' : t < T := by omega
       have hiter (k : ℕ) (hk : k < stride) :
@@ -702,12 +694,9 @@ private theorem exists_sim_stride {N : ℕ} {α : Type*} (e : ι ≃ Fin N)
         induction k with
         | zero => simpa [ht'] using ih ht'.le
         | succ k ihk =>
-          have hne : stride * t + k + 1 ≠ 0 := by omega
           have hmod : (stride * t + k + 1) % stride ≠ 0 := by
-            rw [add_assoc, Nat.mul_add_mod, Nat.mod_eq_of_lt hk]
-            omega
-          have hVmid : Vsim (stride * t + k + 1) = Vmid := by
-            simp only [Vsim, hne, ite_false, eq_true hmod, ite_true]
+            rw [add_assoc, Nat.mul_add_mod, Nat.mod_eq_of_lt hk]; omega
+          have hVmid : Vsim (stride * t + k + 1) = Vmid := by simp [Vsim, hmod]
           rw [← add_assoc, run, hVmid, ihk (by omega), Function.iterate_succ_apply']
       have hq : stride * (t + 1) = (stride * t + (stride - 1)) + 1 := by
         rw [Nat.mul_succ]; omega
@@ -767,9 +756,8 @@ on the unit circle. -/
 private theorem exists_half_angle (μ ν : ℝ) (h : μ ^ 2 + ν ^ 2 = 1) :
     ∃ c s : ℝ, c ^ 2 + s ^ 2 = 1 ∧ c ^ 2 - s ^ 2 = μ ∧ 2 * c * s = ν := by
   by_cases hm : μ = -1
-  · refine ⟨0, 1, by norm_num, by rw [hm]; norm_num, ?_⟩
-    have hν : ν = 0 := by nlinarith
-    simp [hν]
+  · refine ⟨0, 1, by norm_num, ?_, by nlinarith⟩
+    norm_num [hm]
   · have hm_le : -1 ≤ μ := by nlinarith [sq_nonneg (μ + 1), sq_nonneg ν]
     have hpos : 0 < (1 + μ) / 2 := by linarith [lt_of_le_of_ne hm_le (Ne.symm hm)]
     let c := Real.sqrt ((1 + μ) / 2)

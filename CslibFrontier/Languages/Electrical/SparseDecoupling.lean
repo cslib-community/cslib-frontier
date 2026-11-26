@@ -8,13 +8,13 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.LinearAlgebra.SparseDescriptorCertificate
-public import CslibFrontier.Engineering.Electrical.LinearCircuit
+public import CslibFrontier.Languages.Electrical.LinearCircuit
 import Mathlib.Data.List.GetD
 
 /-!
 # Certified stability of circuits through structured decouplings
 
-The circuit-level stability theorem of `CslibFrontier.Engineering.Electrical.LinearCircuit`,
+The circuit-level stability theorem of `CslibFrontier.Languages.Electrical.LinearCircuit`,
 for any index-one decoupling of the modified nodal equations
 (`Cslib.Electrical.Netlist.isExponentiallyStable_of_decoupling`), and its instance for an
 accepted structured certificate (`Cslib.LinearAlgebra.SparseDecouplingCert`), whose check is

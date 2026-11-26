@@ -241,11 +241,7 @@ private theorem split_valid (I : State Rel) (j : ℕ) (h : j + 1 < I.ports.lengt
   have hj : j < I.ports.length := by omega
   refine ⟨I.ports.take j, I.ports[j], I.ports[j+1], I.ports.drop (j+2), ?_, ?_⟩
   · exact List.length_take_of_le hj.le
-  · have hs := List.take_append_drop j I.ports
-    rw [List.drop_eq_getElem_cons hj, List.drop_eq_getElem_cons h] at hs
-    cases I
-    simp only [List.append_assoc, List.cons_append, List.nil_append] at hs ⊢
-    exact congrArg (fun ps => State.mk _ ps _) hs.symm
+  · simp [List.append_assoc]
 
 /-- Total raw component counts. Only a successful guard inserts the actual gadget;
 invalid requests preserve every component and never change the boundary length. -/
@@ -333,8 +329,7 @@ private theorem turn_table (b : Bool) (I : State Rel) (B : ℕ)
     have hread (i : ℕ) : (c.successor.getD i 0).size ≤ B := by
       by_cases hi : i < c.successor.length
       · simpa only [List.getD_eq_getElem _ _ hi] using he _ (List.getElem_mem hi)
-      · rw [List.getD_eq_default _ _ (not_lt.mp hi)]
-        simp
+      · simp [not_lt.mp hi]
     have hentry (shift : ℕ → ℕ) (hs : ∀ j, shift j < N) (i : ℕ) :
         (boundaryIndexMap M N shift (c.successor.getD i 0)).size ≤ B :=
       (size_boundaryIndexMap_le M N shift hs _).trans (max_le (hread i) hd)
@@ -443,8 +438,7 @@ private theorem boundedTurn_poly (encRel : Rel ↪ List Bool) (b : Bool) :
   have hc := ComputableInPolyTime.binary_min_unary' hP hn
   have hs : ComputableInPolyTime (turn b (Rel := Rel)) (encState encRel) (encState encRel) := by
     cases b
-    · exact computableInPolyTime_rotateLeft encRel
-    · exact computableInPolyTime_rotateRight encRel
+    exacts [computableInPolyTime_rotateLeft encRel, computableInPolyTime_rotateRight encRel]
   have hbound := (rotationBudget_poly encRel).comp hI.polyBounded_length
   exact (ComputableInPolyTime.iterate_spec hc hI hs
     (fun p i J => J = (turn b)^[i] p.1)
@@ -460,9 +454,7 @@ private theorem tail_ports_length (I : State Rel) :
   | append_singleton ps y _ =>
     cases ps using List.reverseRecOn with
     | nil => rfl
-      | append_singleton L x =>
-        have hassoc : (L ++ [x]) ++ [y] = L ++ [x, y] := by simp
-        simp [hassoc, length_transposeTail_ports]
+    | append_singleton L x => simp [List.append_assoc, length_transposeTail_ports]
 
 /-- Plain polynomial time on EVERY raw state and binary position for any encoded alphabet.
 The position is capped by actual unary port length before either loop. Reachable rotation
@@ -552,11 +544,10 @@ theorem storage_transposeAdjacent (I : State Rel) (j : ℕ) (h : j + 1 < I.ports
     simpa only [hmH, hpH] using (Nat.size_le_size (Nat.mul_le_mul_left 2
       (Nat.le_add_right
         (I.body.occurrences.length + g.body.occurrences.length + I.ports.length) 4)))
-  have hs := normalized_loop_storage false H r B
+  obtain ⟨-, -, hslen, hsize⟩ := normalized_loop_storage false H r B
     (by simpa only [hpJ, hpH] using ht.1)
     (by simpa only [J, right_body, hpJ] using ht.2) hb
-  have hturn : (turn false : State Rel → State Rel) = rotateLeft := rfl
-  rw [hturn] at hs
-  exact hout ▸ ⟨by simpa only [hmH, hpH] using hs.2.2.1, hs.2.2.2⟩
+  change ((rotateLeft^[r]) H).rotation.successor.length = _ at hslen
+  exact hout ▸ ⟨by simpa only [hmH, hpH] using hslen, hsize⟩
 
 end Cslib.Complexity.CSP.CrossInsertion

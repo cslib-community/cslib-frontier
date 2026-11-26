@@ -81,11 +81,6 @@ theorem sourceChild_mean_on_terminal_event
       (canonicalChannel ident r.terminal.rate) r.terminal.rate C (i + 1) x y := by
   have hm := source_request_mean_canonical HP D ident r hr hD hid H hsH hks
     hs ht hu C hC hC1 hCf hi x y
-  change (𝔼 σ ∈ ({σ : Environment P J |
-      r.source.retains (channels D) σ (ident x)} : Finset _),
-      (r.terminal.rate / (dens {σ : Environment P J |
-        r.usage.retains (channels D) σ (ident y)} : ℝ)) *
-      sourceChild HP D ident r hr C i σ x y) = _ at hm
   rw [dens_filter_pi_eval r.terminal.role q]
   have he := expect_pi_supported_terminal r.source.role r.terminal.role hr.1
     (fun A => coordinate D r.source A (ident x)) q
@@ -349,12 +344,9 @@ theorem canonical_residual_bins_mean
       (routedBinCutoff χ (fun i => rate (kb i)) i (fun _ => 1)) (h i) ρ K
       (hkh i hi) hρ0 hρ1 hη hρη hK x y
   simp_rw [sum_congr rfl hp]
-  have hsum (z : V) :
-      ∑ i ∈ range (n + 1), rate (kb i) *
-        routedBinCutoff χ (fun i => rate (kb i)) i (fun _ => 1)
-          (C z y / rate (kb i)) = C z y := by
-    simpa only [mul_one] using sum_routedBinCutoff (route := fun _ => 1) n
-      (fun i => rate_pos (kb i)) hχ (hcover z)
+  have hsum (z : V) :=
+    sum_routedBinCutoff (route := fun _ => 1) n (fun i => rate_pos (kb i)) hχ (hcover z)
+  simp only [mul_one] at hsum
   rw [sum_add_distrib, hsum, sum_comm]
   simp_rw [← mul_sum, hsum]
   simp only [HierarchyParams.residual_eq, ← HierarchyParams.correctionIter_last,

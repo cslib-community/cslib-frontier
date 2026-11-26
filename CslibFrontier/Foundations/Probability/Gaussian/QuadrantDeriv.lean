@@ -127,11 +127,9 @@ theorem measureReal_correlatedGaussian_setOf_le_and_le {ρ : ℝ} (hρ : |ρ| < 
     by_cases hx : x ≤ t
     · rw [indicator_of_mem (mem_Iic.2 hx), ofReal_cdf]
       exact congrArg _ (Set.ext fun y => by
-        simp only [mem_preimage, mem_ofPred_eq, hx, true_and, mem_Iic, le_div_iff₀ hs]
-        exact ⟨fun h => by linarith, fun h => by linarith⟩)
-    · rw [indicator_of_notMem (by simpa using hx), ← measure_empty (μ := gaussianReal 0 1)]
-      exact congrArg _ (Set.ext fun y => by
-        simp only [mem_preimage, mem_ofPred_eq, hx, false_and, mem_empty_iff_false])
+        simp only [mem_preimage, mem_ofPred_eq, hx, true_and, mem_Iic, le_div_iff₀ hs,
+          mul_comm √(1 - ρ ^ 2), ← le_sub_iff_add_le'])
+    · simp [indicator_of_notMem, hx]
   rw [measureReal_def, correlatedGaussian_def, Measure.map_apply (by fun_prop) hS,
     Measure.prod_apply (hS.preimage (by fun_prop))]
   simp_rw [hinner]
@@ -181,9 +179,8 @@ theorem hasDerivAt_gaussianQuadrant_left {ρ : ℝ} (hρ : |ρ| < 1) {α β : �
   have h := (hasDerivAt_measureReal_correlatedGaussian_setOf_le_and_le_left hρ (gaussianQuantile α)
     (gaussianQuantile β)).comp α (hasDerivAt_gaussianQuantile hα)
   rw [mul_right_comm, mul_inv_cancel₀ (gaussianPDFReal_pos 0 1 _ one_ne_zero).ne', one_mul] at h
-  refine h.congr_of_eventuallyEq ?_
-  filter_upwards [Ioo_mem_nhds hα.1 hα.2] with α' hα' using
-    gaussianQuadrant_eq_measureReal_quantile ρ hα' hβ
+  exact h.congr_of_eventuallyEq (eventually_of_mem (Ioo_mem_nhds hα.1 hα.2) fun _ hα' =>
+    gaussianQuadrant_eq_measureReal_quantile ρ hα' hβ)
 
 /-- **The derivative of `Λ_ρ` in `β`** [O'Donnell, Exercise 11.19 (d)][ODonnell2014]: for
 `|ρ| < 1` and `α, β ∈ (0, 1)`, `∂Λ_ρ(α, β) / ∂β = Φ((t - ρt') / √(1 - ρ²))`, where `t = Φ⁻¹ α`
@@ -231,8 +228,8 @@ theorem hasDerivAt_gaussianQuadrant_left_left {ρ : ℝ} (hρ : |ρ| < 1) {α β
         φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2))) α := by
   have h := hasDerivAt_cdf_affine_gaussianQuantile hα (-ρ) (gaussianQuantile β) √(1 - ρ ^ 2)
   simp only [neg_mul, ← sub_eq_neg_add] at h
-  refine (h.congr_deriv (by ring)).congr_of_eventuallyEq ?_
-  filter_upwards [Ioo_mem_nhds hα.1 hα.2] with α' hα' using deriv_gaussianQuadrant_left hρ hα' hβ
+  exact (h.congr_deriv (by ring)).congr_of_eventuallyEq
+    (eventually_of_mem (Ioo_mem_nhds hα.1 hα.2) fun _ hα' => deriv_gaussianQuadrant_left hρ hα' hβ)
 
 /-- **The mixed second derivative of `Λ_ρ`** [O'Donnell, Exercise 11.28 (b)][ODonnell2014]: for
 `|ρ| < 1` and `α, β ∈ (0, 1)`,
@@ -245,8 +242,8 @@ theorem hasDerivAt_gaussianQuadrant_left_right {ρ : ℝ} (hρ : |ρ| < 1) {α �
         φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2))) β := by
   have h := hasDerivAt_cdf_affine_gaussianQuantile hβ 1 (-(ρ * gaussianQuantile α)) √(1 - ρ ^ 2)
   simp only [one_mul, ← sub_eq_add_neg] at h
-  refine (h.congr_deriv (by ring)).congr_of_eventuallyEq ?_
-  filter_upwards [Ioo_mem_nhds hβ.1 hβ.2] with β' hβ' using deriv_gaussianQuadrant_left hρ hα hβ'
+  exact (h.congr_deriv (by ring)).congr_of_eventuallyEq
+    (eventually_of_mem (Ioo_mem_nhds hβ.1 hβ.2) fun _ hβ' => deriv_gaussianQuadrant_left hρ hα hβ')
 
 /-- **The second derivative of `Λ_ρ` in `β`** [O'Donnell, Exercise 11.28 (a)][ODonnell2014]: for
 `|ρ| < 1` and `α, β ∈ (0, 1)`,
@@ -437,11 +434,9 @@ theorem deriv_gaussianQuadrant_left_left_neg {ρ : ℝ} (hρ0 : 0 < ρ) (hρ1 : 
     deriv (fun α => deriv (fun α => gaussianQuadrant ρ α β) α) α < 0 := by
   have hρ : |ρ| < 1 := abs_lt.2 ⟨by linarith, hρ1⟩
   rw [(hasDerivAt_gaussianQuadrant_left_left hρ hα hβ).deriv, neg_mul, neg_mul, neg_lt_zero]
-  have := sqrt_one_sub_sq_pos hρ
-  have := gaussianPDFReal_pos 0 1 (gaussianQuantile α) one_ne_zero
-  have := gaussianPDFReal_pos 0 1
-    ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2)) one_ne_zero
-  positivity
+  exact mul_pos (mul_pos (div_pos hρ0 (sqrt_one_sub_sq_pos hρ))
+    (inv_pos.2 (gaussianPDFReal_pos 0 1 _ one_ne_zero)))
+    (gaussianPDFReal_pos 0 1 _ one_ne_zero)
 
 /-- [O'Donnell, Exercise 11.28 (d)][ODonnell2014]: `∂²Λ_ρ / ∂β² < 0` on `(0, 1)²` for
 `ρ ∈ (0, 1)`. -/

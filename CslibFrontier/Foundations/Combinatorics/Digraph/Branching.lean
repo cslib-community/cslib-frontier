@@ -240,25 +240,14 @@ theorem isBranching_branchingDigraph_iff [Finite V] {p : V → V} :
   have := Fintype.ofFinite V
   obtain ⟨n, hn⟩ := Cslib.FunctionalGraph.exists_iterate_mem_periodicPts p v
   refine ⟨n, ?_⟩
-  set k := Function.minimalPeriod p (p^[n] v) with hk
+  set k := Function.minimalPeriod p (p^[n] v)
   have hkpos : 0 < k := Function.minimalPeriod_pos_of_mem_periodicPts hn
   have hper : p^[k] (p^[n] v) = p^[n] v := Function.isPeriodicPt_minimalPeriod p _
   by_contra hne
-  have hall : ∀ i < k, p (p^[i] (p^[n] v)) ≠ p^[i] (p^[n] v) := by
-    intro i hi heq
-    have hloop : p^[i] (p^[n] v) = p^[n] v := (Function.iterate_fixed heq (k - i)).symm.trans
-      (by rw [← Function.iterate_add_apply, Nat.sub_add_cancel hi.le, hper])
-    exact hne (hloop ▸ heq)
-  have htg : ∀ m, 0 < m → m ≤ k →
-      Relation.TransGen (branchingDigraph p).Adj (p^[m] (p^[n] v)) (p^[n] v) := by
-    intro m hm hmk
-    induction m, hm using Nat.le_induction with
-    | base => exact .single ⟨hall 0 hkpos, rfl⟩
-    | succ m hm ih =>
-      exact .head ⟨hall m hmk, by rw [Function.iterate_succ_apply']⟩ (ih (by omega))
-  have hcycle := htg k hkpos le_rfl
-  rw [hper] at hcycle
-  exact hB.acyclic hcycle
+  have hrtg : Relation.ReflTransGen (branchingDigraph p).Adj (p^[n] v) (p (p^[n] v)) := by
+    simpa only [← Function.iterate_succ_apply, Nat.succ_eq_add_one, Nat.sub_add_cancel hkpos,
+      hper] using reflTransGen_branchingDigraph_iterate p (p (p^[n] v)) (k - 1)
+  exact hB.acyclic (Relation.TransGen.tail'_iff.mpr ⟨_, hrtg, hne, rfl⟩)
 
 /-- Every branching is `branchingDigraph p` for a parent-towards-root map `p` fixing every vertex
 with no incoming arc. -/
@@ -368,14 +357,14 @@ theorem restrictOption_superRootExtend (B : Digraph V) :
 
 private theorem reflTransGen_superRootExtend_some {B : Digraph V} {u v : V}
     (h : Relation.ReflTransGen B.Adj u v) :
-    Relation.ReflTransGen (superRootExtend B).Adj (some v) (some u) := by
-  exact Relation.reflTransGen_swap.mpr (h.lift some fun _ _ hab => hab)
+    Relation.ReflTransGen (superRootExtend B).Adj (some v) (some u) :=
+  Relation.reflTransGen_swap.mpr (h.lift some fun _ _ hab => hab)
 
 /-- Helper: if `T` is an in-arborescence rooted at `none`, its restriction to `V` is acyclic. -/
 private theorem transGen_superRoot_of_restrict {T : Digraph (Option V)} {x y : V}
     (h : Relation.TransGen (restrictOption T).Adj x y) :
-    Relation.TransGen T.Adj (some y) (some x) := by
-  exact Relation.transGen_swap.mpr (h.lift some fun _ _ hab => hab)
+    Relation.TransGen T.Adj (some y) (some x) :=
+  Relation.transGen_swap.mpr (h.lift some fun _ _ hab => hab)
 
 /-- For a finite vertex type, a digraph `B` is a branching iff its super-root extension on
 `Option V` is a spanning in-arborescence rooted at `none`. -/
@@ -385,8 +374,6 @@ theorem isBranching_iff_isInArborescence_superRootExtend [Finite V] {B : Digraph
   constructor
   · intro hB
     obtain ⟨p, hproot, rfl⟩ := hB.exists_branchingDigraph_eq
-    have hpfix : ∀ v, ∃ n, p (p^[n] v) = p^[n] v :=
-      isBranching_branchingDigraph_iff.mp hB
     refine ⟨fun _ h => superRootExtend_none _ _ h, ?_, ?_⟩
     · rintro (_ | v) hne
       · exact absurd rfl hne
@@ -397,20 +384,21 @@ theorem isBranching_iff_isInArborescence_superRootExtend [Finite V] {B : Digraph
         · exact ⟨none, hv, Option.rec (fun _ => rfl) fun w hw => absurd ⟨w, hw⟩ hv⟩
     · rintro (_ | v)
       · exact Relation.ReflTransGen.refl
-      · obtain ⟨n, hn⟩ := hpfix v
+      · obtain ⟨n, hn⟩ := isBranching_branchingDigraph_iff.mp hB v
         exact (reflTransGen_superRootExtend_some (reflTransGen_branchingDigraph_iterate p v n)).tail
           ((superRootExtend_some_none _ _).mpr ((hproot _).mp hn))
   · intro hT
-    refine ⟨fun u₁ u₂ v h1 h2 => ?_, fun v hc => ?_⟩
-    · exact Option.some.inj ((hT.existsUnique_adj (some v) (Option.some_ne_none v)).unique h1 h2)
-    · obtain ⟨p, hpr, hp⟩ := hT.exists_parentDigraph_eq
-      have hc' : Relation.TransGen (outParentDigraph none p).Adj (some v) (some v) :=
-        Relation.transGen_swap.mp
-          (hp.symm ▸ transGen_superRoot_of_restrict hc :
-            Relation.TransGen (parentDigraph none p).Adj _ _)
-      obtain ⟨k, hk, hpk⟩ := transGen_outParentDigraph_iterate hc'
-      obtain ⟨n, hn⟩ := (isInArborescence_parentDigraph_iff.mp (hp ▸ hT)) (some v)
-      exact Option.some_ne_none v (eq_of_iterate_periodic_of_fixed hpr hk hpk hn)
+    refine ⟨fun _ _ v h1 h2 =>
+      Option.some.inj ((hT.existsUnique_adj (some v) (Option.some_ne_none v)).unique h1 h2),
+      fun v hc => ?_⟩
+    obtain ⟨p, hpr, hp⟩ := hT.exists_parentDigraph_eq
+    have hc' : Relation.TransGen (outParentDigraph none p).Adj (some v) (some v) :=
+      Relation.transGen_swap.mp
+        (hp.symm ▸ transGen_superRoot_of_restrict hc :
+          Relation.TransGen (parentDigraph none p).Adj _ _)
+    obtain ⟨k, hk, hpk⟩ := transGen_outParentDigraph_iterate hc'
+    obtain ⟨n, hn⟩ := (isInArborescence_parentDigraph_iff.mp (hp ▸ hT)) (some v)
+    exact Option.some_ne_none v (eq_of_iterate_periodic_of_fixed hpr hk hpk hn)
 
 /-- Every spanning in-arborescence `T` on `Option V` rooted at `none` restricts to a branching on
 `V` whose super-root extension equals `T`, and `T ≤ superRootDigraph G` iff the branching lies in
@@ -504,8 +492,7 @@ theorem IsBranching.isOutArborescence_iff_card_arcs [Nonempty V] {B : Digraph V}
     · obtain ⟨p, hp, rfl⟩ := hB.exists_branchingDigraph_eq
       intro v
       obtain ⟨n, hn⟩ := isBranching_branchingDigraph_iff.mp hB v
-      have hfix : p^[n] v = r := (hmem _).mp ((hp _).mp hn)
-      simpa [hfix] using reflTransGen_branchingDigraph_iterate p v n
+      simpa [(hmem _).mp ((hp _).mp hn)] using reflTransGen_branchingDigraph_iterate p v n
 
 end ArcCount
 
@@ -537,24 +524,21 @@ theorem IsBranching.toSimpleGraph_isAcyclic {B : Digraph V} (hB : B.IsBranching)
     have htr : (SimpleGraph.Walk.cons huv p).IsTrail := hc.isCircuit.isTrail
     rcases (SimpleGraph.fromRel_adj B.Adj v u).mp huv |>.2 with hvu | huv'
     · exact hB.acyclic (transGen_of_walk_fromRel_isTrail hB huv p htr hvu)
-    · have hc_rev : (SimpleGraph.Walk.cons huv p).reverse.IsCycle := hc.reverse
-      have hlen : 3 ≤ (SimpleGraph.Walk.cons huv p).length := hc.three_le_length
+    · have hlen : 3 ≤ (SimpleGraph.Walk.cons huv p).length := hc.three_le_length
       cases hrev : (SimpleGraph.Walk.cons huv p).reverse with
-      | nil => exact absurd (hrev ▸ hc_rev) SimpleGraph.Walk.not_isCycle_nil
+      | nil => exact absurd (hrev ▸ hc.reverse) SimpleGraph.Walk.not_isCycle_nil
       | @cons _ w _ hwv q =>
-        have htr_rev : (SimpleGraph.Walk.cons hwv q).IsTrail := hrev ▸ hc_rev.isCircuit.isTrail
-        have hnd : (s(v, u) :: p.edges).Nodup := by simpa using htr.edges_nodup
-        have hrev_edges : (s(v, w) :: q.edges) = p.edges.reverse ++ [s(v, u)] := by
-          have := congrArg SimpleGraph.Walk.edges hrev
-          simpa [SimpleGraph.Walk.edges_reverse, Sym2.eq_swap] using this.symm
+        have hrev_edges : s(v, w) :: q.edges = p.edges.reverse ++ [s(v, u)] := by
+          simpa [SimpleGraph.Walk.edges_reverse, Sym2.eq_swap] using
+            (congrArg SimpleGraph.Walk.edges hrev).symm
         have hmem_edge : s(v, w) ∈ p.edges := by
           rcases hpe : p.edges.reverse with _ | ⟨e, es⟩
           · simp [← SimpleGraph.Walk.length_edges, List.reverse_eq_nil_iff.mp hpe] at hlen
           · rw [hpe, List.cons_append, List.cons.injEq] at hrev_edges
             exact List.mem_reverse.mp (hpe ▸ hrev_edges.1 ▸ List.mem_cons_self)
-        have hwu_ne : w ≠ u := fun hwu => (List.nodup_cons.mp hnd).1 (hwu ▸ hmem_edge)
         have hvw : B.Adj v w := ((SimpleGraph.fromRel_adj B.Adj v w).mp hwv).2.resolve_right
-          fun h => hwu_ne (hB.in_unique h huv')
-        exact hB.acyclic (transGen_of_walk_fromRel_isTrail hB hwv q htr_rev hvw)
+          fun h => (List.nodup_cons.mp htr.edges_nodup).1 (hB.in_unique h huv' ▸ hmem_edge)
+        exact hB.acyclic
+          (transGen_of_walk_fromRel_isTrail hB hwv q (hrev ▸ hc.reverse.isCircuit.isTrail) hvw)
 
 end Digraph

@@ -127,7 +127,7 @@ theorem roundCore_isRoundCore {φ : CNF (Fin n)} {C Tb s w : ℕ}
   law M x hx hS := roundCore_law (by simpa using hS.get 0 (by simp))
     (fun i hi => by
       have h := hS.get (i + 1) (by simp; omega)
-      rw [show Tb + 2 * n + (i + 1) = Tb + 2 * n + 1 + i by omega] at h
+      rw [← Nat.add_assoc, Nat.add_right_comm _ i 1] at h
       simpa [List.getElem_replicate] using h)
     hw hx
 
@@ -202,18 +202,14 @@ theorem ampSetup_exec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
       RoundFrame φ 6 ((s :: a :: b :: c :: encode φ).length + 1) (ampSetupData s a b c φ).mem
         (ampSetupData s a b c φ) := by
   have hL : 5 ≤ (s :: a :: b :: c :: encode φ).length := by simp [encode]
-  have : Fits w ((a * n + b - 1) / b) := hw.of_le (by
-    have := Nat.div_le_self (a * n + b - 1) b; omega)
-  have hm0 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 0 =
-      (s :: a :: b :: c :: encode φ).length := rfl
-  have hm1 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 1 = s := rfl
-  have hm2 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 2 = a := rfl
-  have hm3 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 3 = b := rfl
-  have hm4 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 4 = c := rfl
-  have hm5 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 5 = n := rfl
+  have hn0 : (encode φ).getD 0 0 = n := rfl
+  have : Fits w ((a * n + b - 1) / b) :=
+    hw.of_le ((Nat.div_le_self _ _).trans (by omega))
   refine ⟨WP.execWithin (by
       unfold ampSetup ampSetupData ppszExp
-      wram_exec [Data.init_regs, hm0, hm1, hm2, hm3, hm4, hm5]; rfl),
+      wram_exec [Data.init_regs, Data.init_mem_zero, Data.init_mem_succ, List.getD_cons_zero,
+        List.getD_cons_succ, hn0]
+      rfl),
     ⟨by wram_simp [ampSetupData, Data.init_regs], ?_, ?_, ?_, ?_, ?_, ?_, ?_, fun i => ?_,
       by simp [length_encode]; omega, fun _ _ => rfl⟩⟩
   iterate 7 wram_simp [ampSetupData]
@@ -288,7 +284,8 @@ theorem ampProgram_spec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
     rw [hm₁ _ (by omega), ampSetupData_mem]
     rcases i with _ | j
     · exact ite_eq_left (by omega)
-    · rw [ite_eq_right (by omega), show L + 1 + 2 * n + (j + 1) = (L + 2 * n + j + 1) + 1 by omega,
+    · have hidx : L + 1 + 2 * n + (j + 1) = (L + 2 * n + j + 1) + 1 := by omega
+      rw [ite_eq_right (by omega), hidx,
         Data.init_mem_succ, List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega)]
       simp [List.getElem_replicate]
   have hb₁ : y₁.regs bBase = L + 1 + 2 * n + 1 + 2 * s :=
@@ -301,8 +298,7 @@ theorem ampProgram_spec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
       bBase_eq := by simp +decide [hb₁]; omega
       bLen_eq := by simp +decide [hl₁, ppszDigits, he]
       digits := by
-        simpa [ppszDigits, ← he, show L + 1 + 2 * n + 1 + 2 * s =
-          L + 1 + 2 * n + (2 * s + 1) by omega] using hh₁
+        simpa [ppszDigits, ← he, Nat.add_assoc, Nat.add_comm 1 (2 * s)] using hh₁
       binary := PPZ.countDigits_binary _ _
       flag_eq := by simp
       out_eq := by simp +decide [ho₁] }

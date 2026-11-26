@@ -110,10 +110,7 @@ theorem dominationFree_of_append_checksum {M : Type*} {n0 n1 d : ℕ}
   obtain ⟨-, j, hj⟩ := Pi.lt_def.mp (lt_of_le_of_ne hle0 fun h => hne (h0 h))
   have hlt : ∑ i, (P0 m i).val < ∑ i, (P0 m' i).val :=
     Finset.sum_lt_sum (fun i _ => hle0 i) ⟨j, Finset.mem_univ j, hj⟩
-  have := hmono hle1
-  have := hsum m
-  have := hsum m'
-  lia
+  linarith [hmono hle1, hsum m, hsum m']
 
 /-- Little-endian base-`(d + 1)` digit representation of `x` in `width` digits, taking digit `i`
 to `(x / (d + 1) ^ i) % (d + 1)`. -/
@@ -136,12 +133,7 @@ theorem sum_radixDigits_mul_pow {d width x : ℕ} (hx : x < (d + 1) ^ width) :
 theorem radixDigits_injOn (d width : ℕ) :
     Set.InjOn (radixDigits d width) {x | x < (d + 1) ^ width} := by
   intro x hx y hy hxy
-  have hsymm :
-      finFunctionFinEquiv.symm (⟨x, hx⟩ : Fin ((d + 1) ^ width)) =
-        finFunctionFinEquiv.symm (⟨y, hy⟩ : Fin ((d + 1) ^ width)) := by
-    rw [finFunctionFinEquiv_symm_eq_radixDigits hx,
-      finFunctionFinEquiv_symm_eq_radixDigits hy, hxy]
-  exact congrArg Fin.val (finFunctionFinEquiv.symm.injective hsymm)
+  rw [← sum_radixDigits_mul_pow hx, ← sum_radixDigits_mul_pow hy, hxy]
 
 /-- Coordinatewise order on `radixDigits` implies numeric order below `(d + 1) ^ width`. -/
 theorem le_of_radixDigits_le {d width x y : ℕ}
@@ -203,13 +195,10 @@ private theorem radixDigitList_length (d width x : ℕ) :
 
 private theorem sum_radixDigitList_eq (d n0 m : ℕ) :
     (radixDigitList d n0 m).sum = ∑ i : Fin n0, (radixDigits d n0 m i).val := by
-  dsimp only [radixDigitList, radixDigits]
-  rw [Fin.sum_univ_eq_sum_range (fun i => m / (d + 1) ^ i % (d + 1))]
-  induction n0 with
-  | zero => simp
-  | succ k ih =>
-    rw [List.range_succ, List.map_append, List.map_singleton, List.sum_append, List.sum_singleton,
-      Finset.sum_range_succ, ih]
+  rw [← List.sum_ofFn]
+  congr 1
+  refine List.ext_getElem (by simp [radixDigitList]) fun _ _ _ => ?_
+  simp [radixDigitList, radixDigits]
 
 private theorem checksum_eq_sub_sum_radixDigitList (d n0 m : ℕ) :
     ∑ i : Fin n0, (d - (radixDigits d n0 m i).val) =
@@ -307,18 +296,14 @@ theorem winternitzDigits_one_eq_one_iff_mem_optSet {v w : ℕ} (m : BitString v)
     winternitzDigits 1 v w (lsbValue (List.ofFn m)) k = 1 ↔ k ∈ optSet v w m := by
   have hm (i : Fin v) :
       (radixDigits 1 v (lsbValue (List.ofFn m)) i).val = (m i).toNat := by
-    rw [radixDigits_one_val, testBit_lsbValue, List.getD_eq_getElem?_getD,
-      List.getElem?_eq_getElem (by simp only [List.length_ofFn, i.isLt]),
-      List.getElem_ofFn, Option.getD_some]
+    simp [radixDigits_one_val, testBit_lsbValue, i.isLt]
   have hsum :
       (∑ i : Fin v, (1 - (radixDigits 1 v (lsbValue (List.ofFn m)) i).val)) =
         (List.ofFn m).count false := by
-    have hadd :
-        (∑ i : Fin v, (m i).toNat) + ∑ i : Fin v, (1 - (m i).toNat) = v := by
-      simpa only [hm, Nat.one_mul] using sum_radixDigits_add_sum_sub 1 v (lsbValue (List.ofFn m))
+    have hadd := sum_radixDigits_add_sum_sub 1 v (lsbValue (List.ofFn m))
     have hcount := List.count_true_add_count_false (List.ofFn m)
-    rw [List.length_ofFn, count_true_ofFn, weight_eq_sum_toNat] at hcount
-    simp only [hm]
+    simp only [hm, Nat.one_mul, List.length_ofFn, count_true_ofFn, weight_eq_sum_toNat]
+      at hadd hcount ⊢
     lia
   induction k using Fin.addCases with
   | left i =>

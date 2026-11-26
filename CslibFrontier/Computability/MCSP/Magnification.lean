@@ -179,14 +179,12 @@ theorem computableInPolyTime_agreesOnPoint {γ : Type} {encIn : γ ↪ List Bool
   have hin : ComputableInPolyTime (fun a => (p a).isPrefixOf (x a)) encIn encBool := by
     simp only [isPrefixOf_eq_take_beq]
     exact (bitsTakeWithInput hx (length_bits.comp hp)).beq hp
-  have hbit : ComputableInPolyTime
-      (fun a => (x a).getD (p a).length false) encIn encBool :=
-    bitsGetDWithInput hx (length_bits.comp hp) false
-  have hew := computableInPolyTime_evalCertificate hn hs hw hx
-  have hew₀ := computableInPolyTime_evalCertificate hn hs hw₀ hx
-  have hew₁ := computableInPolyTime_evalCertificate hn hs hw₁ hx
   unfold agreesOnPoint
-  exact bool_or.comp ((bool_not.comp hin).prod (hew.beq (ite' hbit hew₁ hew₀)))
+  exact bool_or.comp ((bool_not.comp hin).prod
+    ((computableInPolyTime_evalCertificate hn hs hw hx).beq
+      (ite' (bitsGetDWithInput hx (length_bits.comp hp) false)
+        (computableInPolyTime_evalCertificate hn hs hw₁ hx)
+        (computableInPolyTime_evalCertificate hn hs hw₀ hx))))
 
 /-- Whether the candidate circuit `w` agrees on the subcube `p` with the child certificates `w₀`
 (on `p ++ [false]`) and `w₁` (on `p ++ [true]`) at every `n`-bit input. -/
@@ -453,8 +451,8 @@ def IsMinSubcubeCert (n s : ℕ) (f : BooleanFunction n) (p w : List Bool) : Pro
       IsSubcubeCert n s f p w' → BitString.wordLt w' w = false
 
 private theorem exists_isMinSubcubeCert_iff {n s : ℕ} {f : BooleanFunction n} {p : List Bool} :
-    (∃ w, IsMinSubcubeCert n s f p w) ↔ ∃ w, IsSubcubeCert n s f p w := by
-  exact ⟨fun ⟨w, hw, _⟩ => ⟨w, hw⟩,
+    (∃ w, IsMinSubcubeCert n s f p w) ↔ ∃ w, IsSubcubeCert n s f p w :=
+  ⟨fun ⟨w, hw, _⟩ => ⟨w, hw⟩,
     fun ⟨w₀, hw₀⟩ => (exists_wordLt_min ⟨w₀, hw₀.1, hw₀⟩).imp fun _ h => h.2⟩
 
 private theorem isMinSubcubeCert_unique {n s : ℕ} {f : BooleanFunction n} {p w₁ w₂ : List Bool}
@@ -464,8 +462,8 @@ private theorem isMinSubcubeCert_unique {n s : ℕ} {f : BooleanFunction n} {p w
 
 private theorem isSubcubeCert_append_of_isSubcubeCert {n s : ℕ} {f : BooleanFunction n}
     {p w : List Bool} (hp : p.length < n) (hw : IsSubcubeCert n s f p w) (b : Bool) :
-    IsSubcubeCert n s f (p ++ [b]) w := by
-  exact ⟨hw.1, hw.2.1, fun x hx =>
+    IsSubcubeCert n s f (p ++ [b]) w :=
+  ⟨hw.1, hw.2.1, fun x hx =>
     hw.2.2 x ((isPrefixOf_append_singleton (by simpa using hp)).1 hx).1⟩
 
 private theorem isMergedCert_iff_isSubcubeCert {n s : ℕ} {f : BooleanFunction n}
@@ -526,8 +524,7 @@ private theorem drop_one_ofFn_subcubeState_eq {n s : ℕ} {f : BooleanFunction n
     {p w : List Bool} (hw : IsMinSubcubeCert n s f p w) :
     (List.ofFn (subcubeState n s f p)).drop 1 = w := by
   have hdlen : ((List.ofFn (subcubeState n s f p)).drop 1).length = w.length := by
-    rw [List.length_drop, List.length_ofFn, stateWidth, hw.1.1]
-    omega
+    rw [List.length_drop, List.length_ofFn, stateWidth, hw.1.1]; omega
   refine List.ext_getElem hdlen fun i h1 h2 => ?_
   rw [List.getElem_drop, List.getElem_ofFn, Bool.eq_iff_iff, subcubeState_eq_true_iff]
   have h0 : ((1 + i : ℕ) == 0) = false := beq_eq_false_iff_ne.2 (by omega)
@@ -630,9 +627,9 @@ private theorem complexity_mergeVec_le (L : Language Bool) (n s : ℕ) (p : List
   refine (complexity_pi_le (fun j y => mergeVec L n s p y j)).trans ?_
   calc ∑ j : Fin (stateWidth n s),
         complexity interpretation (single fun y => mergeVec L n s p y j)
-      ≤ ∑ _j : Fin (stateWidth n s), (M + 2) := by
-        refine Finset.sum_le_sum fun j _ => ?_
-        exact (complexity_substitute_le _ _).trans (Nat.add_le_add_right (hM j) 2)
+      ≤ ∑ _j : Fin (stateWidth n s), (M + 2) :=
+        Finset.sum_le_sum fun j _ =>
+          (complexity_substitute_le _ _).trans (Nat.add_le_add_right (hM j) 2)
     _ = stateWidth n s * (M + 2) := by simp
 
 private theorem complexity_single_comp_proj_le {m : ℕ} (g : Bool → Bool) (i₀ : Fin m) :
@@ -830,7 +827,7 @@ theorem exists_complexity_yesSet_le_of_NP_subset_PPoly
         ≤ (6 * N ^ 2) * ((c₀ * 49 ^ c₀ + 3) * (N ^ 2) ^ c₀) := Nat.mul_le_mul hsw hM_le
       _ = 6 * (c₀ * 49 ^ c₀ + 3) * (N ^ 2 * (N ^ 2) ^ c₀) := by ring
       _ ≤ C₁ * N ^ D₁ := by
-        rw [← Nat.pow_mul, ← pow_add, show 2 + 2 * c₀ = D₁ by unfold D₁; omega]
+        rw [← Nat.pow_mul, ← pow_add, add_comm 2]
         exact Nat.mul_le_mul_right _ (by unfold C₁; omega)
   have hCD : C₁ * N ^ D₁ ≤ c * N ^ c := by gcongr <;> omega
   calc complexity interpretation (single ((GapMCSP.yesSet s).slice (2 ^ n)))
@@ -853,11 +850,9 @@ theorem exists_complexity_yesSet_pow_le_of_NP_subset_PPoly
   let c : ℕ := max C₁ (max D₁ 1)
   refine ⟨c, by positivity, fun n => ?_⟩
   have hbase : n + n ^ k + 1 ≤ 2 * (n + 1) ^ (k + 1) := by
-    have h1 : n + 1 ≤ (n + 1) ^ (k + 1) :=
-      Nat.le_self_pow (by omega) (n + 1)
-    have h2 : n ^ k ≤ (n + 1) ^ (k + 1) :=
-      (Nat.pow_le_pow_left (Nat.le_succ n) k).trans
-        (Nat.pow_le_pow_right (by omega) (Nat.le_succ k))
+    have h1 := Nat.le_self_pow (Nat.add_one_ne_zero k) (n + 1)
+    have h2 := (Nat.pow_le_pow_left (Nat.le_add_right n 1) k).trans
+      (Nat.pow_le_pow_right (Nat.add_pos_right n Nat.one_pos) (Nat.le_add_right k 1))
     omega
   have hpow : (n + n ^ k + 1) ^ c₀ ≤ 2 ^ c₀ * (n + 1) ^ D₁ := by
     calc (n + n ^ k + 1) ^ c₀
@@ -882,10 +877,9 @@ theorem not_NP_subset_PPoly_of_yesSet_hard
     (h : ∀ c > 0, ∃ (s : ℕ → ℕ) (n : ℕ),
       2 ^ n * c * (n + s n + 1) ^ c <
         complexity interpretation (single ((GapMCSP.yesSet s).slice (2 ^ n)))) :
-    ¬ (NP encBits ⊆ PPolyOn encBits) := by
-  intro hNP
-  obtain ⟨c, hc_pos, hub⟩ := exists_complexity_yesSet_le_of_NP_subset_PPoly hNP
-  exact (h c hc_pos).elim fun s ⟨n, hlb⟩ => (hub s n).not_gt hlb
+    ¬ (NP encBits ⊆ PPolyOn encBits) := fun hNP =>
+  let ⟨c, hc_pos, hub⟩ := exists_complexity_yesSet_le_of_NP_subset_PPoly hNP
+  (h c hc_pos).elim fun s ⟨n, hlb⟩ => (hub s n).not_gt hlb
 
 /-- **Hardness magnification for `MCSP[s]` to `P ≠ NP`**: if for every `c > 0` there exist a
 schedule `s` and input arity `n` such that the `2 ^ n`-bit slice of `GapMCSP.yesSet s` requires
@@ -912,10 +906,9 @@ theorem not_NP_subset_PPoly_of_yesSet_pow_hard (k : ℕ)
     (h : ∀ c > 0, ∃ n : ℕ,
       2 ^ n * c * (n + 1) ^ c <
         complexity interpretation (single ((GapMCSP.yesSet fun m => m ^ k).slice (2 ^ n)))) :
-    ¬ (NP encBits ⊆ PPolyOn encBits) := by
-  intro hNP
-  obtain ⟨c, hc_pos, hub⟩ := exists_complexity_yesSet_pow_le_of_NP_subset_PPoly hNP k
-  exact (h c hc_pos).elim fun n hlb => (hub n).not_gt hlb
+    ¬ (NP encBits ⊆ PPolyOn encBits) := fun hNP =>
+  let ⟨c, hc_pos, hub⟩ := exists_complexity_yesSet_pow_le_of_NP_subset_PPoly hNP k
+  (h c hc_pos).elim fun n hlb => (hub n).not_gt hlb
 
 /-- **Hardness magnification for `MCSP[n ^ k]` to `P ≠ NP`**: if for some `k` and every `c > 0`,
 there is `n` such that the `2 ^ n`-bit slice of `GapMCSP.yesSet (fun m => m ^ k)` requires more

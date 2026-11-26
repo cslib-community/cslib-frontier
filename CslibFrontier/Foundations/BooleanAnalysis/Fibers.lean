@@ -143,9 +143,8 @@ theorem uniformDeficit_nonneg {ι : Type*} [Fintype ι]
 /-- A nonempty subset has cardinality `2^(dimension - deficit)`. -/
 theorem card_eq_rpow_sub_uniformDeficit {ι : Type*} [Fintype ι] {X : Finset (ι → Bool)}
     (hX : X.Nonempty) : (X.card : ℝ) = (2 : ℝ) ^ ((Fintype.card ι : ℝ) - uniformDeficit X) := by
-  have hp : (0 : ℝ) < X.card := by exact_mod_cast card_pos.mpr hX
-  dsimp [uniformDeficit]
-  rw [sub_sub_cancel, Real.rpow_logb (by norm_num) (by norm_num) hp]
+  rw [uniformDeficit, sub_sub_cancel,
+    Real.rpow_logb two_pos (by norm_num) (Nat.cast_pos.2 hX.card_pos)]
 
 /-- A deficit bound is equivalent to the corresponding density lower bound
 when the subset is nonempty. -/
@@ -273,24 +272,20 @@ theorem resample_eq_piecewise (s x y : ι → Bool) :
 
 /-- Resampling completes the restriction of the sampled point. -/
 theorem resample_eq_completePattern (s x y : ι → Bool) :
-    resample s x y = completePattern s x (fun i => y i) := by
-  funext i
-  by_cases hi : s i = true <;> simp [resample, completePattern, hi]
+    resample s x y = completePattern s x (fun i => y i) :=
+  funext fun i => by by_cases hi : s i = true <;> simp [resample, completePattern, hi]
 
 /-- Resampling the coordinates outside `s` of `x` from `y` is resampling the coordinates in `s`
 of `y` from `x`. -/
-theorem resample_not (s x y : ι → Bool) : resample (fun i => !s i) x y = resample s y x := by
-  funext i
-  cases hs : s i <;> simp [resample, hs]
+theorem resample_not (s x y : ι → Bool) : resample (fun i => !s i) x y = resample s y x :=
+  funext fun i => by cases hs : s i <;> simp [resample, hs]
 
 private theorem resample_update_not [DecidableEq ι] {s : ι → Bool} {i : ι} (hi : s i = true)
     (x y : ι → Bool) :
     resample s x (Function.update y i (!y i)) =
-      Function.update (resample s x y) i (!(resample s x y i)) := by
-  funext j
-  rcases eq_or_ne j i with rfl | hj
-  · simp [resample, hi]
-  · simp [resample, Set.piecewise, Function.update_of_ne hj]
+      Function.update (resample s x y) i (!(resample s x y i)) :=
+  funext fun j => by
+    rcases eq_or_ne j i with rfl | hj <;> simp [resample, Set.piecewise, *]
 
 variable [Fintype ι] [DecidableEq ι]
 
@@ -420,11 +415,9 @@ theorem expect_resample_subset_le (X : Finset (ι → Bool)) {f : (ι → Bool) 
     (hf : ∀ x, 0 ≤ f x) (P : ι → Bool) :
     (𝔼 x ∈ X, 𝔼 y, f (resample P x y)) ≤ (∑ z, f z) / (X.card : ℝ) := by
   rw [expect_eq_sum_div_card]
-  have hs : (∑ x ∈ X, 𝔼 y, f (resample P x y)) ≤ ∑ x, 𝔼 y, f (resample P x y) :=
-    sum_le_sum_of_subset_of_nonneg (subset_univ X)
-      (fun x _ _ => expect_nonneg (fun y _ => hf _))
-  rw [← Fintype.card_mul_expect, expect_resample, Fintype.card_mul_expect] at hs
-  exact div_le_div_of_nonneg_right hs (by positivity)
+  refine div_le_div_of_nonneg_right ?_ (Nat.cast_nonneg _)
+  rw [← Fintype.card_mul_expect, ← expect_resample f P, Fintype.card_mul_expect]
+  exact sum_le_sum_of_subset_of_nonneg (subset_univ X) fun _ _ _ => expect_nonneg fun _ _ => hf _
 
 /-- The density of the fiber of `X` over the coordinates of `x` outside `s` is the projection of
 the indicator of `X` to the coordinates outside `s`. -/
@@ -462,10 +455,8 @@ theorem expect_log_card_fiber {α β : Type*} [Fintype β] [Nonempty β] [Decida
   have hN : (0 : ℝ) < X.card := by exact_mod_cast card_pos.mpr hX
   have h := Real.sum_mul_log_div_card_le univ (x := m) (fun _ _ => Nat.cast_nonneg _)
   rw [card_univ, hsum, Real.log_div hN.ne' (Nat.cast_ne_zero.mpr Fintype.card_ne_zero)] at h
-  have he : (∑ x ∈ X, Real.log (X.filter (fun y => g y = g x)).card) =
-      ∑ b, m b * Real.log (m b) := by
-    simp [← sum_fiberwise' X g (fun b => Real.log (m b)), m]
-  rw [expect_eq_sum_div_card, he, le_div_iff₀ hN]
+  rw [expect_eq_sum_div_card, ← sum_fiberwise' X g (fun b => Real.log (m b)), le_div_iff₀ hN]
+  simp only [sum_const, nsmul_eq_mul, m] at h ⊢
   nlinarith
 
 /-- Korten's entropy lemma (Lemma 4): conditioning on the unselected bits
@@ -476,9 +467,8 @@ theorem expect_uniformDeficit_coordinateFiber {ι : Type*} [Fintype ι] [Decidab
   have h := expect_log_card_fiber X hX (fun x (i : {i // s i ≠ true}) => x i)
   have hl : 0 < Real.log 2 := Real.log_pos (by norm_num)
   have hc : (Fintype.card {i // s i = true} : ℝ) + Fintype.card {i // s i ≠ true} =
-      Fintype.card ι := by
-    rw [← Nat.cast_add, Fintype.card_subtype_compl,
-      Nat.add_sub_of_le (Fintype.card_subtype_le _)]
+      Fintype.card ι := mod_cast Fintype.card_subtype_compl (fun i : ι => s i = true) ▸
+        Nat.add_sub_of_le (Fintype.card_subtype_le _)
   have hd := div_le_div_of_nonneg_right h hl.le
   simp only [Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat,
     Real.log_pow, sub_div, mul_div_cancel_right₀ _ hl.ne'] at hd
@@ -525,9 +515,8 @@ theorem coordinateDensity_filter_eq_one_half_of_update_not {ι : Type*} [Fintype
     (f : (ι → Bool) → Bool) (i : ι) (hf : ∀ x, f (Function.update x i (!x i)) = !f x)
     (P x : ι → Bool) (hi : P i = true) (b : Bool) :
     coordinateDensity (univ.filter fun z => f z = b) P x = 1 / 2 := by
-  rw [coordinateDensity_eq_expect]
-  simp only [mem_filter, mem_univ, true_and]
-  exact expect_ite_eq_one_half_of_update_not (fun y => f (resample P x y)) i
-    (fun y => by rw [resample_update_not hi, hf]) b
+  simpa only [coordinateDensity_eq_expect, mem_filter, mem_univ, true_and] using
+    expect_ite_eq_one_half_of_update_not (fun y => f (resample P x y)) i
+      (fun y => by rw [resample_update_not hi, hf]) b
 
 end Cslib.BitString

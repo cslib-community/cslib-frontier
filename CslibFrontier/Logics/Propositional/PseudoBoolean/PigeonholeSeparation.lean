@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.CompileCuttingPlanes
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.OfLRAT
 public import CslibFrontier.Logics.Propositional.Resolution.LRATLowerBound
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Logics.Propositional.CuttingPlanes.Pigeonhole
@@ -36,11 +37,20 @@ does it (`Cslib.Logic.PL.VeriPB.not_exists_polynomiallyBounded_checkLRAT_pigeonh
 `min (H) (S)` rules out a polynomial simulation whether LRAT size counts steps, hints or both. The
 translation need only handle the proofs made of `pol` steps without saturation.
 
+**VeriPB versus LRAT.** Conversely, every certificate that the LRAT checker accepts, with `S`
+steps and `H` hints, translates into a proof that the kernel checker accepts with at most `S` steps
+and `H + S` hints (`Cslib.Logic.PL.CNF.check_toVeriPB`). With the size of a proof its number of
+steps plus its number of hints, on both sides, VeriPB therefore polynomially simulates LRAT
+(`Cslib.Logic.PL.VeriPB.exists_polynomiallyBounded_check_of_checkLRAT`), and LRAT does not
+polynomially simulate VeriPB
+(`Cslib.Logic.PL.VeriPB.not_exists_polynomiallyBounded_checkLRAT_of_check`). The latter follows
+from the above, since proofs made of `pol` steps without saturation have no hints
+(`Cslib.Logic.PL.VeriPB.hintCount_eq_zero_of_all_isCP`).
+
 As in the cited results, the size of a proof counts steps and hints, not the bit size of
 coefficients. These theorems are corollaries, original to this library, of the cited cutting planes
 upper bound and resolution lower bound through the translations between VeriPB, cutting planes and
-LRAT. That VeriPB also polynomially simulates LRAT on every formula is the embedding of LRAT
-certificates into `rup` steps, which this file does not state.
+LRAT.
 
 ## Main results
 
@@ -49,6 +59,10 @@ certificates into `rup` steps, which this file does not state.
   LRAT on `PHP^{n+1}_n`.
 * `Cslib.Logic.PL.VeriPB.not_exists_polynomiallyBounded_checkLRAT_pigeonhole`: LRAT does not
   polynomially simulate VeriPB.
+* `Cslib.Logic.PL.VeriPB.exists_polynomiallyBounded_check_of_checkLRAT`: VeriPB polynomially
+  simulates LRAT, with size counting steps and hints.
+* `Cslib.Logic.PL.VeriPB.not_exists_polynomiallyBounded_checkLRAT_of_check`: LRAT does not
+  polynomially simulate VeriPB on CNFs, with the same size on both sides.
 
 ## References
 
@@ -77,11 +91,10 @@ theorem exists_check_pigeonhole {m n : ℕ} (h : n < m) {f : Fin m × Fin n → 
     ∃ P : Proof, check (((pigeonhole m n).relabel f).map Clause.toPB) P = true ∧
       P.steps.length ≤ (n + 1) * (m + 1) ^ 2 ∧ P.steps.all Step.IsCP ∧
       ∀ s ∈ P.steps, ∃ ops, s = .pol ops ∧ ops.length ≤ 3 := by
-  obtain ⟨P, hP, hlen, hcp, ann, hann⟩ := exists_check_cnf_of_refutableInSize
+  obtain ⟨P, hP, hlen, -, hcp, ann, hann⟩ := exists_check_cnf_of_refutableInSize
     (toIneqs_relabel hf (pigeonhole m n) ▸ (refutableInSize_pigeonhole h).relabel f)
   refine ⟨P, hP, hlen, hcp, fun s hs => ?_⟩
-  rw [hann, List.mem_map] at hs
-  obtain ⟨l, -, rfl⟩ := hs
+  obtain ⟨l, -, rfl⟩ := List.mem_map.1 (hann ▸ hs)
   obtain ⟨ops, hops, hlen, -⟩ := l.exists_toStep_eq_pol _
   exact ⟨ops, hops, hlen⟩
 
@@ -106,11 +119,8 @@ theorem two_pow_le_of_forall_check_pigeonhole {n : ℕ} {f : Fin (n + 1) × Fin 
   obtain ⟨cert, hcert, hg⟩ := hsim _ P hP hcp hlen
   have hmin : min (lratHintCount cert.toList) (cert.size * ((n + 1) * n)) ≤
       min (lratHintCount cert.toList) cert.size * ((n + 1) * n + 1) := by
-    rcases le_total (lratHintCount cert.toList) cert.size with h | h
-    · rw [min_eq_left h]
-      exact (min_le_left _ _).trans (Nat.le_mul_of_pos_right _ (Nat.succ_pos _))
-    · rw [min_eq_right h]
-      exact (min_le_right _ _).trans (Nat.mul_le_mul_left _ (Nat.le_succ _))
+    simp only [min_def, mul_add, mul_one]
+    split_ifs <;> omega
   exact (two_pow_le_of_checkLRAT_pigeonhole hf hcert).trans
     (Nat.add_le_add_left (hmin.trans (Nat.mul_le_mul_right _ hg)) _)
 
@@ -136,7 +146,60 @@ theorem not_exists_polynomiallyBounded_checkLRAT_pigeonhole
     fun_prop
   obtain ⟨k, hk⟩ := hG.eventually_lt_two_pow.exists
   have := two_pow_le_of_forall_check_pigeonhole (hf (24 * k)) (hsim (24 * k))
-  rw [show 24 * k / 24 = k by omega] at this
+  rw [Nat.mul_div_cancel_left k (by decide)] at this
   exact absurd hk (not_lt.2 this)
+
+/-! ### VeriPB polynomially simulates LRAT, and not conversely -/
+
+/-- Steps without saturation, and deletions, have no hints. -/
+theorem hintCount_eq_zero_of_all_isCP : ∀ {ss : List Step}, ss.all Step.IsCP → hintCount ss = 0
+  | [], _ => rfl
+  | s :: ss, h => by
+    simp only [List.all_cons, Bool.and_eq_true] at h
+    have ih := hintCount_eq_zero_of_all_isCP h.2
+    cases s <;> simp_all [hintCount, Step.hintCount, Step.IsCP]
+
+/-- **VeriPB polynomially simulates LRAT**, with the size of a proof its number of steps plus its
+number of hints, for LRAT certificates and VeriPB kernel proofs alike. Every certificate of size at
+most `s` that the LRAT checker accepts for a CNF `φ` gives a proof of size at most `g s` that the
+kernel checker accepts on the clauses of `φ`, for a polynomially bounded `g`. The proof is
+`Cslib.Logic.PL.CNF.toVeriPB` and `g s = 2 s`: a certificate with `S` steps and `H` hints translates
+into at most `S` steps (`Cslib.Logic.PL.CNF.length_toVeriPB_le`) and `H + S` hints
+(`Cslib.Logic.PL.CNF.hintCount_toVeriPB_le`). Coefficient sizes are not measured. -/
+theorem exists_polynomiallyBounded_check_of_checkLRAT :
+    ∃ g : ℕ → ℕ, PolynomiallyBounded g ∧
+      ∀ (φ : CNF ℕ) (s : ℕ) (cert : Array LRAT.IntAction), φ.checkLRAT cert = true →
+        cert.size + lratHintCount cert.toList ≤ s →
+        ∃ P : Proof, check (φ.map Clause.toPB) P = true ∧
+          P.steps.length + hintCount P.steps ≤ g s := by
+  refine ⟨(2 * ·), by fun_prop, fun φ s cert h hs => ⟨φ.toVeriPB cert, check_toVeriPB h, ?_⟩⟩
+  have := length_toVeriPB_le φ cert
+  have := hintCount_toVeriPB_le φ cert
+  dsimp only; omega
+
+/-- **LRAT does not polynomially simulate VeriPB**, with the size of a proof its number of steps
+plus its number of hints, for VeriPB kernel proofs and LRAT certificates alike
+[Cook, Coullard and Turán][CookCoullardTuran1987] [Haken][Haken1985]. No polynomially bounded `g`
+turns every proof of size at most `s` that the kernel checker accepts on the clauses of a CNF `φ`
+into a certificate of size at most `g s` that the LRAT checker accepts for `φ`. With
+`Cslib.Logic.PL.VeriPB.exists_polynomiallyBounded_check_of_checkLRAT`, VeriPB is strictly stronger
+than LRAT; the formulas that witness it are `PHP^{n+1}_n`, where the gap is exponential
+(`Cslib.Logic.PL.VeriPB.two_pow_le_of_forall_check_pigeonhole`, and
+`Cslib.Logic.PL.VeriPB.not_exists_polynomiallyBounded_checkLRAT_pigeonhole` for the sharper form
+with LRAT size `min (H) (S)` and proofs made of `pol` steps without saturation). Coefficient sizes
+are not measured, as in the cited results. -/
+theorem not_exists_polynomiallyBounded_checkLRAT_of_check :
+    ¬ ∃ g : ℕ → ℕ, PolynomiallyBounded g ∧
+      ∀ (φ : CNF ℕ) (s : ℕ) (P : Proof), check (φ.map Clause.toPB) P = true →
+        P.steps.length + hintCount P.steps ≤ s →
+        ∃ cert : Array LRAT.IntAction, φ.checkLRAT cert = true ∧
+          cert.size + lratHintCount cert.toList ≤ g s := by
+  rintro ⟨g, hg, hsim⟩
+  refine not_exists_polynomiallyBounded_checkLRAT_pigeonhole
+    (f := fun _ p => (finProdFinEquiv p : ℕ))
+    (fun _ => Fin.val_injective.comp finProdFinEquiv.injective) ⟨g, hg, fun n s P hP hcp hs => ?_⟩
+  obtain ⟨cert, hcert, hle⟩ :=
+    hsim _ s P hP (by rw [hintCount_eq_zero_of_all_isCP hcp, Nat.add_zero]; exact hs)
+  exact ⟨cert, hcert, (min_le_right _ _).trans (by omega)⟩
 
 end Cslib.Logic.PL.VeriPB

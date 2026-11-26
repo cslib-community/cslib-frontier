@@ -231,13 +231,11 @@ theorem expect_and_eq_expect_filter_le (f : α → Bool) (φ : (α → Bool) →
   set T : Finset (α → Bool) := {k : α → Bool | ∀ i, k i ≤ !f i}
   have hmaps : ∀ h ∈ (univ : Finset (α → Bool)), (fun i => f i && h i) ∈ S := fun h _ =>
     mem_filter.2 ⟨mem_univ _, fun i => by
-      change (f i && h i) ≤ f i
+      dsimp only
       cases f i <;> cases h i <;> decide⟩
-  have hfiber : ∀ g ∈ S, #{h : α → Bool | (fun i => f i && h i) = g} = #T := by
-    intro g hg
+  have hfiber : ∀ g ∈ S, #{h : α → Bool | (fun i => f i && h i) = g} = #T := fun g hg => by
     have hg' : ∀ i, g i ≤ f i := (mem_filter.1 hg).2
-    have hiff : ∀ h : α → Bool, (fun i => f i && h i) = g ↔ h + g ∈ T := by
-      intro h
+    have hiff (h : α → Bool) : (fun i => f i && h i) = g ↔ h + g ∈ T := by
       rw [funext_iff, mem_filter, and_iff_right (mem_univ _)]
       refine forall_congr' fun i => ?_
       have hgi := hg' i
@@ -245,7 +243,7 @@ theorem expect_and_eq_expect_filter_le (f : α → Bool) (φ : (α → Bool) →
       change g i ≤ f i → ((f i && h i) = g i ↔ (h i + g i) ≤ !f i)
       cases f i <;> cases g i <;> cases h i <;> decide
     have hkg (k : α → Bool) : k + g + g = k := funext fun i => by
-      change (k i + g i) + g i = k i
+      dsimp only [Pi.add_apply]
       cases k i <;> cases g i <;> rfl
     exact Finset.card_bij (fun h _ => h + g) (fun h hh => (hiff h).1 (mem_filter.1 hh).2)
       (fun _ _ _ _ h12 => add_right_cancel h12)
@@ -258,9 +256,8 @@ theorem expect_and_eq_expect_filter_le (f : α → Bool) (φ : (α → Bool) →
     refine sum_congr rfl fun g hg => ?_
     rw [sum_congr rfl fun h hh => congrArg φ (mem_filter.1 hh).2, sum_const, hfiber g hg,
       nsmul_eq_mul]
-  have hT0 : (#T : ℝ) ≠ 0 := by
-    have h0 : (0 : α → Bool) ∈ T := mem_filter.2 ⟨mem_univ _, fun _ => Bool.false_le _⟩
-    exact Nat.cast_ne_zero.2 (card_pos.2 ⟨0, h0⟩).ne'
+  have hT0 : (#T : ℝ) ≠ 0 :=
+    Nat.cast_ne_zero.2 (card_pos.2 ⟨0, mem_filter.2 ⟨mem_univ _, fun _ => Bool.false_le _⟩⟩).ne'
   rw [expect_eq_sum_div_card, expect_eq_sum_div_card, hsum, ← hcard, Nat.cast_mul,
     mul_comm (#S : ℝ) (#T : ℝ), mul_div_mul_left _ _ hT0]
 
@@ -291,19 +288,16 @@ theorem longCodeSubcubeProb_hadamardCode {s : α → Bool} (hs : s ≠ 0) :
   set S : Finset α := {i | s i}
   have hS : S ≠ ∅ := fun h0 => hs (funext fun i =>
     Bool.eq_false_iff.2 (filter_eq_empty_iff.1 h0 (mem_univ i)))
-  have hinner : ∀ f : α → Bool,
+  have hinner (f : α → Bool) :
       (𝔼 h : α → Bool, bitVal ℝ (longCodeSubcubeAccept (hadamardCode s) f h)) =
         (3 : ℝ) / 4 - (1 / 4 : ℝ) * chi ℝ S f +
           (1 / 2 : ℝ) * (if {i ∈ S | f i} = ∅ then 1 else 0) := by
-    intro f
-    have hstep : ∀ h : α → Bool,
+    have hstep (h : α → Bool) :
         bitVal ℝ (longCodeSubcubeAccept (hadamardCode s) f h) =
           (3 : ℝ) / 4 - (1 / 4 : ℝ) * chi ℝ S f +
             (1 / 4 : ℝ) * (1 + chi ℝ S f) * chi ℝ {i ∈ S | f i} h := by
-      intro h
-      rw [← chi_and_eq_chi_filter S f h, chi_eq_signVal_parityOn, chi_eq_signVal_parityOn]
-      unfold longCodeSubcubeAccept
-      rw [hadamardCode_eq_parityOn s]
+      rw [← chi_and_eq_chi_filter S f h, chi_eq_signVal_parityOn, chi_eq_signVal_parityOn,
+        longCodeSubcubeAccept, hadamardCode_eq_parityOn s]
       change bitVal ℝ (parityOn S f || !parityOn S (fun i => f i && h i)) = _
       cases parityOn S f <;> cases parityOn S (fun i => f i && h i) <;>
         simp [bitVal, signVal] <;> ring
@@ -327,9 +321,7 @@ theorem longCodeSubcubeProb_hadamardCode {s : α → Bool} (hs : s ≠ 0) :
 `hadamardCode s` passes the subcube test with probability at most `7 / 8`. -/
 theorem longCodeSubcubeProb_hadamardCode_le {s : α → Bool}
     (hs : 2 ≤ #{i | s i}) : longCodeSubcubeProb (hadamardCode s) ≤ 7 / 8 := by
-  have hs0 : s ≠ 0 := by
-    rintro rfl
-    simp [Bool.zero_eq_false] at hs
+  have hs0 : s ≠ 0 := fun h => by simp [h, Bool.zero_eq_false] at hs
   rw [longCodeSubcubeProb_hadamardCode hs0]
   have hpow : (1 / 2 : ℝ) ^ (#{i | s i} + 1) ≤ (1 / 2 : ℝ) ^ (2 + 1) :=
     pow_le_pow_of_le_one (by norm_num) (by norm_num) (Nat.add_le_add_right hs 1)

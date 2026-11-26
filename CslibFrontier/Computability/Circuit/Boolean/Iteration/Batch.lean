@@ -311,23 +311,17 @@ theorem batched_fixed_power_on_prefixes (c : Circuit signature n n)
     refine ⟨out, fun x hx => hout fun member i => hx member ⟨i, i.isLt.trans hNL⟩, hs.trans ?_⟩
     have hcard : S.card ≤ 2 ^ n := by simpa using Finset.card_le_univ S
     have hdiv : S.card / 2 ^ n ≤ 1 := Nat.div_le_of_le_mul (by omega)
-    have hrL : r * (2 ^ n + 1) ≤ r * L := Nat.mul_le_mul_left r hNL
-    rw [Nat.mul_add_one] at hrL
-    have h1 : r * 2 ^ n * c.size ≤ r * L * c.size :=
-      Nat.mul_le_mul_right c.size (Nat.mul_le_mul_left r hNL.le)
-    have h2 : (n + 1) ^ 3 * (r * 2 ^ n + S.card / 2 ^ n + 1) ≤
-        (n + 1) ^ 3 * (r * L + S.card / L + 1) :=
-      Nat.mul_le_mul_left _ (by have := Nat.zero_le (S.card / L); omega)
+    have hrL : r * 2 ^ n + r ≤ r * L := Nat.mul_add_one r (2 ^ n) ▸ Nat.mul_le_mul_left r hNL
     unfold batchBudget
-    exact Nat.mul_le_mul_left 100000 (Nat.add_le_add h1 h2)
+    exact Nat.mul_le_mul_left 100000 (Nat.add_le_add
+      (Nat.mul_le_mul_right c.size (Nat.mul_le_mul_left r hNL.le))
+      (Nat.mul_le_mul_left _ (by have := Nat.zero_le (S.card / L); omega)))
   let f := c.eval interpretation
   by_cases hT : T < 2 * L
   · refine ⟨(c.iterate T).replicate r, fun x _ => hrep x, ?_⟩
-    rw [Circuit.size_replicate, Circuit.size_iterate]
-    have h1 : r * (T * c.size) ≤ 2 * (r * L * c.size) :=
-      (by gcongr : r * (T * c.size) ≤ r * (2 * L * c.size)).trans_eq (by ring)
-    unfold batchBudget
-    omega
+    have : r * (T * c.size) ≤ 2 * (r * L * c.size) := by
+      nlinarith [Nat.mul_le_mul_right c.size (Nat.mul_le_mul_left r hT.le)]
+    rw [Circuit.size_replicate, Circuit.size_iterate, batchBudget]; omega
   obtain ⟨H, _, hcard, hcover⟩ := FunctionalGraph.exists_checkpoints_on f S hL
   let cp : Fin H.card → BitString n := fun j => (H.equivFin.symm j).val
   have hcp : Function.Injective cp := fun i j h => H.equivFin.symm.injective (Subtype.ext h)

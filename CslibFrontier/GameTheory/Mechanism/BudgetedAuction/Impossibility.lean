@@ -256,11 +256,11 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
   have hv_i_pos : 0 < (θ i).val := (hθ i).1
   have hB_j_pos : 0 < (θ j).budget := (hθ j).2
   have hfeas := (hpo θ hθ).1
+  have hce := (Outcome.isParetoOptimal_iff (fun r => (hθ r).1.le)
+    hfeas (hbf θ hθ)).mp (hpo θ hθ)
   have hother0 : ∀ k, k ≠ i → k ≠ j → (M.outcome θ).alloc k = 0 := fun k hki hkj =>
     alloc_eq_zero_of_lt_unconstrained hbf hir hpo hθ (a := i) (hrest k hki hkj) hv_i_unc
   have hsum_eq : (M.outcome θ).alloc i + (M.outcome θ).alloc j = m := by
-    have hce := (Outcome.isParetoOptimal_iff (fun r => (hθ r).1.le)
-      hfeas (hbf θ hθ)).mp (hpo θ hθ)
     linarith [(hce.1 ⟨i, hv_i_pos⟩).1, sum_eq_pair_of_zero hij hother0]
   -- Helper: `alloc j ≤ budget / v_i` for `w > v_i` at budget `B_j`, via `(v_i + ε, BigB)`.
   have hupper (w : ℝ) (hw : (θ i).val < w) :
@@ -272,7 +272,6 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
     rw [le_div_iff₀ hv_i_pos]
     by_contra! hgt
     let x := (M.outcome (Function.update θ j ⟨w, (θ j).budget⟩)).alloc j
-    have hx_le : x ≤ m := alloc_le_of_po hpo hθw j
     let ε := (x * (θ i).val - (θ j).budget) / (2 * m)
     have hε_pos : 0 < ε := div_pos (sub_pos.mpr hgt) (by positivity)
     let t := (θ i).val + ε
@@ -284,7 +283,7 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
       hv_i_unc hrest (t := t) (BigB := BigB) (by linarith) hBigB_gt
     have hic_dev := hic _ hθ_t j ⟨w, (θ j).budget⟩ ⟨hw_pos, hB_j_pos⟩ (by
       simpa only [Function.update_idem, Function.update_self] using
-        hpj_le.trans ((by linarith : (θ j).budget ≤ (θ j).budget + 1).trans (le_max_right _ _)))
+        hpj_le.trans ((lt_add_one _).le.trans (le_max_right _ _)))
     simp only [Outcome.utility, Function.update_idem, Function.update_self, hxt, hpt] at hic_dev
     have hεm : ε * m = (x * (θ i).val - (θ j).budget) / 2 := by dsimp only [ε]; field_simp [hm.ne']
     nlinarith only [hic_dev, hεm, hpj_le, hgt, hε_pos, (hpo _ hθw).1.1 j]
@@ -311,22 +310,15 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
   rcases lt_or_eq_of_le hbind with hstrict | heq
   · have hpay_bind (w : ℝ) (hw : (θ i).val < w) :
         (M.outcome (Function.update θ j ⟨w, (θ j).budget⟩)).payment j = (θ j).budget :=
-      hpay_if_lt w hw (lt_of_le_of_lt (hupper w hw) ((div_lt_iff₀ hv_i_pos).mpr (by linarith)))
+      hpay_if_lt w hw
+        (lt_of_le_of_lt (hupper w hw) ((div_lt_iff₀ hv_i_pos).mpr (mul_comm (θ i).val m ▸ hstrict)))
     have hp_s : (M.outcome θ).payment j = (θ j).budget := by
       simpa only [Function.update_eq_self] using hpay_bind (θ j).val hlt_ij
-    have hx_const (w : ℝ) (hw : (θ i).val < w) :
-        (M.outcome (Function.update θ j ⟨w, (θ j).budget⟩)).alloc j = (M.outcome θ).alloc j := by
-      have hw_pos : 0 < w := hv_i_pos.trans hw
-      have hθw := update_pos hθ j (b := ⟨w, (θ j).budget⟩) ⟨hw_pos, hB_j_pos⟩
-      have hp_w := hpay_bind w hw
-      have h1 := hic θ hθ j ⟨w, (θ j).budget⟩ ⟨hw_pos, hB_j_pos⟩ (by linarith)
-      have h2 := hic _ hθw j (θ j) (hθ j) (by
-        simp only [Function.update_idem, Function.update_eq_self, Function.update_self]; linarith)
-      simp only [Outcome.utility, Function.update_idem, Function.update_eq_self,
-        Function.update_self] at h1 h2
-      exact le_antisymm
-        (le_of_mul_le_mul_left (by linarith : (θ j).val * _ ≤ (θ j).val * _) (hθ j).1)
-        (le_of_mul_le_mul_left (by linarith : w * _ ≤ w * _) hw_pos)
+    have hx_le (w : ℝ) (hw : (θ i).val < w) :
+        (M.outcome (Function.update θ j ⟨w, (θ j).budget⟩)).alloc j ≤ (M.outcome θ).alloc j := by
+      have h1 := hic θ hθ j ⟨w, (θ j).budget⟩ ⟨hv_i_pos.trans hw, hB_j_pos⟩ (hpay_bind w hw).le
+      simp only [Outcome.utility, hpay_bind w hw, hp_s] at h1
+      nlinarith only [h1, (hθ j).1]
     have hlow : (θ j).budget / (θ i).val ≤ (M.outcome θ).alloc j := by
       rw [div_le_iff₀ hv_i_pos]
       by_contra! hlt
@@ -337,21 +329,17 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
       have hw : (θ i).val < w := lt_add_of_pos_right _ (div_pos (sub_pos.mpr hlt) (by positivity))
       have hiru := payment_le_of_ir hir
         (update_pos hθ j (b := ⟨w, (θ j).budget⟩) ⟨hv_i_pos.trans hw, hB_j_pos⟩) j
-      simp only [Function.update_self, hx_const w hw, hpay_bind w hw] at hiru
+      simp only [Function.update_self, hpay_bind w hw] at hiru
       have hwx : w * x = x * (θ i).val + ((θ j).budget - x * (θ i).val) / 2 := by
         dsimp only [w]; field_simp [hx_pos.ne']
-      linarith
+      nlinarith only [hiru, hlt, hwx, hx_le w hw, hv_i_pos.trans hw]
     exact ⟨le_antisymm hup_self hlow, by linarith, hother0, fun _ => hp_s⟩
   · -- Boundary case `(θ j).budget = (θ i).val * m`: then `budget / v_i = m`.
-    have hdiv_eq : (θ j).budget / (θ i).val = m := by
-      rw [heq, mul_div_cancel_left₀ m hv_i_pos.ne']
+    have hdiv_eq : (θ j).budget / (θ i).val = m := heq ▸ mul_div_cancel_left₀ m hv_i_pos.ne'
     have hxj_eq : (M.outcome θ).alloc j = m := by
       by_contra hne
       have hxj_lt : (M.outcome θ).alloc j < m := lt_of_le_of_ne (hdiv_eq ▸ hup_self) hne
-      have hce := (Outcome.isParetoOptimal_iff (fun r => (hθ r).1.le)
-        hfeas (hbf θ hθ)).mp (hpo θ hθ)
-      have hpj_eq : (M.outcome θ).payment j = (θ j).budget :=
-        hce.2 i j (by linarith) hlt_ij
+      have hpj_eq : (M.outcome θ).payment j = (θ j).budget := hce.2 i j (by linarith) hlt_ij
       have hxj_pos : 0 < (M.outcome θ).alloc j := lt_of_le_of_ne (hfeas.1 j) fun h0 => by
         linarith [h0 ▸ payment_le_of_ir hir hθ j]
       -- Pick `w` just above `v_i` with `w * alloc j < v_i * m = budget`.
@@ -489,8 +477,7 @@ theorem not_exists_privateBudgetDSIC_isParetoOptimal {m : ℝ} (hm : 0 < m)
     h0_eq h1_eq hrest_eq
   obtain ⟨hx1, hp1⟩ := payoff_at_overreport_budget hm hnn hbf hir hpo hic hne.symm θstar
     h1_eq h0_eq fun k h1 h0 => hrest_eq k h0 h1
-  have hdev_pos : (⟨5 / (2 * m), 10⟩ : BidderType).IsPos :=
-    ⟨div_pos (by norm_num) (by positivity), by norm_num⟩
+  have hdev_pos : (⟨5 / (2 * m), 10⟩ : BidderType).IsPos := ⟨by positivity, by norm_num⟩
   have hic0 := hic θstar hθ_pos i₀ ⟨5 / (2 * m), 10⟩ hdev_pos (by simpa [h0_eq] using hp0.le)
   have hic1 := hic θstar hθ_pos i₁ ⟨5 / (2 * m), 10⟩ hdev_pos (by simpa [h1_eq] using hp1.le)
   simp only [Outcome.utility, h0_eq, h1_eq, hx0, hx1] at hic0 hic1

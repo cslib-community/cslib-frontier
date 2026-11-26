@@ -197,7 +197,8 @@ theorem initialized_allowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b σ q : 
   have hmR : m ≤ M * R := by
     have hm := chunkWidth_le d B
     have hc := Nat.le_mul_of_pos_right d.size hR
-    rw [show M * R = d.size * R + A * R from Nat.add_mul d.size A R]; omega
+    rw [Nat.add_mul d.size A R]
+    omega
   have hrB : r ≤ B := chunkCount_le hd hB
   have hrs : r.size ≤ B := (Nat.size_le_self r).trans hrB
   have hms := Nat.size_le_self m
@@ -224,51 +225,43 @@ theorem initialized_allowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b σ q : 
   have hreplay0 := Nat.mul_le_mul_left (1024 * (k + 1)) hsmall
   have hreplay : ConcreteSupplier.replaySpace k s Q N b q m r ≤ replay * R := by
     have hrow := Nat.le_mul_of_pos_right row hR
+    have hrepR : replay * R = (4 * (M * R) + 3 * (A * R) + 8 * R + 2 * (row * R) + 10 * R) +
+        1024 * (k + 1) * ((cards + 3) * R) := by
+      simp only [replay, Nat.add_mul, Nat.mul_assoc]
     simp only [ConcreteSupplier.replaySpace, SupplierChunk.encContext, length_encPair,
       length_encNat_eq_size]
-    rw [hrow_eq, Nat.add_assoc (b + N.log2), hcards_eq, show Encoding.width k s b = B from rfl,
-      ← Nat.add_assoc _ (2 * (4 * q.size + row + 2) + 2),
-      show replay * R = (4 * (M * R) + 3 * (A * R) + 8 * R + 2 * (row * R) + 10 * R) +
-        1024 * (k + 1) * ((cards + 3) * R) by
-          dsimp only [replay]; rw [Nat.add_mul, Nat.mul_assoc (1024 * (k + 1))]
-          simp only [Nat.add_mul, Nat.mul_assoc]]
+    dsimp only [B] at hBR ⊢
+    rw [hrow_eq, Nat.add_assoc (b + N.log2), hcards_eq, hrepR,
+      ← Nat.add_assoc _ (2 * (4 * q.size + row + 2) + 2)]
     refine Nat.add_le_add ?_ hreplay0
-    clear hrow_eq hcards_eq hB hreplay0
-    clear_value d A M B m r p alphabet limit R replay; omega
-  have hreply : ConcreteSupplier.replySpace k s Q N b σ q m alphabet limit p d r ≤ reply * R := by
-    simp only [ConcreteSupplier.replySpace, ConcreteSupplier.gateSpace, length_encNat_eq_size]
-    rw [Nat.mul_assoc 2 r, show reply * R =
-      48 * (H * R + 2 * (P * R) + R) + 16 * (A * R) + 3 * (P * R) + replay * R + 14 * R by
-        dsimp only [reply]; simp only [Nat.add_mul, Nat.mul_add, Nat.mul_assoc, one_mul]]
+    clear hrow_eq hcards_eq hB hreplay0 hrepR
+    clear_value d A M m r p alphabet limit R replay
     omega
-  have hmetadataR : (Initializer.encMetadata
-      ((Initializer.prepare k s (N, b, σ, q)).1)).length ≤ ci * R :=
-    (hci N b σ q).trans (Nat.mul_le_mul_left ci hargs)
-  have hinit0 := Initializer.space_prepare_le k s N b σ q
-  have hinit1 := Nat.mul_le_mul_left (192 * (d + 1))
-    (show 2 * B + d.size ≤ (2 * A + d.size) * R by rw [Nat.add_mul, Nat.mul_assoc]; omega)
+  have hreply : ConcreteSupplier.replySpace k s Q N b σ q m alphabet limit p d r ≤ reply * R := by
+    have hrep : reply * R =
+        48 * (H * R + 2 * (P * R) + R) + 16 * (A * R) + 3 * (P * R) + replay * R + 14 * R := by
+      simp only [reply, Nat.add_mul, Nat.mul_add, Nat.mul_assoc, one_mul]
+    simp only [ConcreteSupplier.replySpace, ConcreteSupplier.gateSpace, length_encNat_eq_size,
+      Nat.mul_assoc 2 r, hrep]
+    omega
   have hinit : Initializer.space k ((Initializer.prepare k s (N, b, σ, q)).1) ≤ init * R := by
-    change Initializer.space k ((Initializer.prepare k s (N, b, σ, q)).1) ≤
-      16 * ((Initializer.encMetadata ((Initializer.prepare k s (N, b, σ, q)).1)).length + 1) +
-        192 * (d + 1) * (2 * B + d.size) at hinit0
-    dsimp only [init]
+    have hmetadataR := (hci N b σ q).trans (Nat.mul_le_mul_left ci hargs)
+    have hinit0 := Initializer.space_prepare_le k s N b σ q
+    have hinit1 := Nat.mul_le_mul_left (192 * (d + 1))
+      (show 2 * B + d.size ≤ (2 * A + d.size) * R by rw [Nat.add_mul, Nat.mul_assoc]; omega)
+    dsimp only [init, d, B] at hinit1 ⊢
     rw [Nat.add_mul, Nat.add_mul, Nat.mul_assoc 16 ci R, Nat.mul_assoc (192 * _)]; omega
   have hraw := hcr (ConcreteSupplier.encContext (N, b, σ, q, m, alphabet, limit)).length
     (ConcreteSupplier.replySpace k s Q N b σ q m alphabet limit p d r) b q hb
-  change RawController.Query.queryStateBound
-    (ConcreteSupplier.encContext (N, b, σ, q, m, alphabet, limit)).length p d r q
-    (ConcreteSupplier.replySpace k s Q N b σ q m alphabet limit p d r) ≤
-      4 * (ConcreteSupplier.encContext (N, b, σ, q, m, alphabet, limit)).length +
-        ConcreteSupplier.replySpace k s Q N b σ q m alphabet limit p d r +
-        cr * (b + q * (b.size + 1) + 1) at hraw
   have hraw1 := Nat.mul_le_mul_left cr
     (show b + q * (b.size + 1) + 1 ≤ R by dsimp only [R]; omega)
-  change Initializer.space k ((Initializer.prepare k s (N, b, σ, q)).1) +
-      RawController.Query.queryStateBound
-        (ConcreteSupplier.encContext (N, b, σ, q, m, alphabet, limit)).length p d r q
-        (ConcreteSupplier.replySpace k s Q N b σ q m alphabet limit p d r) + 2 ≤
-      (init + 4 * H + reply + cr + 2) * R
-  rw [Nat.add_mul, Nat.add_mul, Nat.add_mul, Nat.add_mul, Nat.mul_assoc 4 H R]; omega
+  have hrhs : (init + 4 * H + reply + cr + 2) * R =
+      init * R + 4 * (H * R) + reply * R + cr * R + 2 * R := by
+    simp only [Nat.add_mul, Nat.mul_assoc]
+  rw [hrhs]
+  dsimp only [InitializedEvaluator.allowance, p, d, r, B, m, alphabet,
+    limit] at hcontext hreply hraw ⊢
+  omega
 
 /-- The uniform schedule allowance has the fixed-machine square-root-simulation storage shape. -/
 theorem scheduleAllowance_le (k s : ℕ) (Q : Type) : ∃ C, ∀ N b q : ℕ, 0 < b →

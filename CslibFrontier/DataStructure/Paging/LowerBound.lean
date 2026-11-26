@@ -104,8 +104,7 @@ private theorem missingPage_erase_of_notMem (p₀ : α) {x : α} {xs : List α} 
   | nil => rfl
   | cons y ys ih =>
     have hyx : y ≠ x := fun h => hx (h ▸ List.mem_cons_self)
-    have hmem : (y ∈ s.erase x) ↔ (y ∈ s) := Finset.mem_erase.trans (and_iff_right hyx)
-    simp only [missingPage, hmem, ih (fun h => hx (List.mem_cons_of_mem y h))]
+    simp [missingPage, hyx, ih fun h => hx (List.mem_cons_of_mem y h)]
 
 /-- Pigeonhole selection: if `pages` is duplicate-free and `s` has strictly fewer elements than
 `pages`, then `missingPage p₀ pages s` belongs to `pages` and lies outside `s`. -/
@@ -117,15 +116,13 @@ theorem missingPage_mem_and_notMem (p₀ : α) {pages : List α} {s : Finset α}
   | cons x xs ih =>
     rcases List.nodup_cons.mp hnodup with ⟨hx_xs, hnodup'⟩
     simp only [missingPage]
-    split
-    · next hxs =>
-      rw [← Finset.card_erase_add_one hxs, List.length_cons] at hcard
+    split_ifs with hxs
+    · rw [← Finset.card_erase_add_one hxs, List.length_cons] at hcard
       obtain ⟨hmem, hnot⟩ := ih hnodup' (Nat.lt_of_succ_lt_succ hcard)
       rw [missingPage_erase_of_notMem p₀ hx_xs s] at hmem hnot
-      have hne : missingPage p₀ xs s ≠ x := fun h => hx_xs (h ▸ hmem)
-      refine ⟨List.mem_cons_of_mem x hmem, fun hs => hnot (Finset.mem_erase.mpr ⟨hne, hs⟩)⟩
-    · next hxs =>
-      exact ⟨List.mem_cons_self, hxs⟩
+      exact ⟨List.mem_cons_of_mem x hmem,
+        fun hs => hnot (Finset.mem_erase.mpr ⟨fun h => hx_xs (h ▸ hmem), hs⟩)⟩
+    · exact ⟨List.mem_cons_self, hxs⟩
 
 /-- Explicit adversarial request sequence of length `n` generated against deterministic online
 paging strategy `A` from initial cache `s₀`, repeatedly requesting `missingPage p₀ pages` on `A`'s
@@ -148,9 +145,8 @@ theorem mem_adversaryRequests {k : Nat} (p₀ : α) {pages : List α}
     (A : DetStrategy (problem α k)) {s₀ : Finset α} (hs₀ : ValidCache k s₀)
     {n : Nat} {r : α} (hr : r ∈ adversaryRequests p₀ pages A s₀ n) :
     r ∈ pages := by
-  apply A.mem_adaptiveRequests (Q := fun p => p ∈ pages) _ hs₀ hr
-  intro m hm
-  have hcard : (A.project m).card ≤ k := (A.valid_step p₀ hm).2.1
+  refine A.mem_adaptiveRequests (Q := (· ∈ pages)) (fun hm => ?_) hs₀ hr
+  have := (A.valid_step p₀ hm).2.1
   exact (missingPage_mem_and_notMem p₀ hnodup (by omega)).1
 
 /-- Any deterministic online strategy `A` faults on every single request of `adversaryRequests`,
@@ -233,9 +229,8 @@ private theorem filter_mem_length_eq_card {pages : List α} {s : Finset α}
     (hnodup : pages.Nodup) (hsub : s ⊆ pages.toFinset) :
     (pages.filter (· ∈ s)).length = s.card := by
   rw [← List.toFinset_card_of_nodup (hnodup.filter _)]
-  congr 1
-  ext x
-  simpa [List.mem_toFinset] using fun hx => List.mem_toFinset.mp (hsub hx)
+  exact congrArg Finset.card (Finset.ext fun x => by
+    simpa [List.mem_toFinset] using fun hx => List.mem_toFinset.mp (hsub hx))
 
 private theorem evict_mem_and_notMem {k : Nat} (p₀ : α) {pages : List α} {s : Finset α}
     (hnodup : pages.Nodup) (hsub : s ⊆ pages.toFinset) (hscard : s.card = k)
@@ -304,7 +299,7 @@ theorem validSchedule_offlineLookahead {k : Nat} (hk : 0 < k) (p₀ : α) {pages
       have htail_sched := validSchedule_offlineLookahead hk p₀ hnodup hlen (rest.drop (k - 1))
         (Nat.le_of_eq hs'_card) hs'_sub fun r hr => hrest_pages r (List.mem_of_mem_drop hr)
       have happ := (problem α k).validSchedule_append hwarm_sched
-        (by rw [finalState_replicate]; exact htail_sched)
+        (by rwa [finalState_replicate])
       simpa only [List.take_append_drop] using happ
 termination_by _ reqs _ _ _ => reqs.length
 
@@ -355,11 +350,7 @@ theorem scheduleCost_offlineLookahead_bound {k : Nat} (hk : 0 < k) (p₀ : α) {
       have hs'_sub : s' ⊆ pages.toFinset := Finset.insert_subset
         (List.mem_toFinset.mpr hp_pages) ((Finset.erase_subset _ _).trans hsub)
       by_cases hshort : rest.length < k - 1
-      · dsimp only [tail]
-        rw [List.drop_eq_nil_of_le hshort.le]
-        change k + k * 0 ≤ _
-        simp only [hseq, Nat.sub_self, List.length_cons]
-        omega
+      · simp [tail, List.drop_eq_nil_of_le hshort.le, hseq, Problem.scheduleCost]; omega
       · have ih := scheduleCost_offlineLookahead_bound hk p₀ hnodup hlen tail
           (Nat.le_of_eq hs'_card) hs'_sub fun r hr => hrest_pages r (List.mem_of_mem_drop hr)
         simp only [hsplit, hseq, hs'_card, Nat.sub_self, Nat.mul_zero, Nat.add_zero,
@@ -385,13 +376,12 @@ private theorem exists_adversary_offline {k : Nat} (hk : 0 < k) {pages : List α
   have hpne : pages ≠ [] := by grind
   set p₀ := pages.head hpne
   set reqs := adversaryRequests p₀ pages A s₀ n
-  have hreqs_pages : ∀ r ∈ reqs, r ∈ pages :=
-    fun r hr => mem_adversaryRequests p₀ hnodup hlen A hs₀ hr
-  have hlen_reqs : reqs.length = n := adversaryRequests_length p₀ pages A s₀ n
-  refine ⟨reqs, offlineLookahead k p₀ pages s₀ reqs, hlen_reqs,
+  have hreqs_pages (r : α) (hr : r ∈ reqs) : r ∈ pages :=
+    mem_adversaryRequests p₀ hnodup hlen A hs₀ hr
+  refine ⟨reqs, offlineLookahead k p₀ pages s₀ reqs, adversaryRequests_length p₀ pages A s₀ n,
     validSchedule_offlineLookahead hk p₀ hnodup hlen reqs hs₀ hs₀_sub hreqs_pages,
     cost_adversaryRequests p₀ hnodup hlen A hs₀ n, ?_⟩
-  simpa only [hlen_reqs] using
+  simpa only [reqs, adversaryRequests_length] using
     scheduleCost_offlineLookahead_bound hk p₀ hnodup hlen reqs hs₀ hs₀_sub hreqs_pages
 
 /-- Exact factor-`k` witness from a full initial cache `s₀` (`s₀.card = k`, `s₀ ⊆ pages.toFinset`):
@@ -412,8 +402,7 @@ theorem exists_witness_of_card_eq {k : Nat} (hk : 0 < k) {pages : List α}
   rw [hs₀_card, Nat.sub_self, Nat.mul_zero, Nat.add_zero] at hbound
   refine ⟨reqs, offStates, hlen_reqs, hv, halg,
     Nat.lt_add_one_iff.mp (Nat.lt_of_mul_lt_mul_left (a := k) ?_)⟩
-  rw [Nat.mul_add, Nat.mul_one]
-  omega
+  rw [Nat.mul_add, Nat.mul_one]; omega
 
 /-- **Rational-ratio deterministic `k`-competitive lower bound** ([SleatorTarjan1985], Theorem 5 at
 `n_A = n_MIN = k`): over any universe containing `k + 1` distinct pages `pages`, from any valid
@@ -428,7 +417,7 @@ theorem exists_ratio_violation_of_lt {k : Nat} (hk : 0 < k) {pages : List α}
     ∃ reqs offStates,
       (problem α k).ValidSchedule s₀ reqs offStates ∧
         p * (problem α k).scheduleCost s₀ reqs offStates + b < q * A.cost s₀ reqs := by
-  set m := p * k + b + 1
+  set m := p * k + b + 1 with hm_def
   obtain ⟨reqs, offStates, -, hv, halg, hbound⟩ :=
     exists_adversary_offline hk hnodup hlen hs₀ hs₀_sub A (k * m)
   -- The offline schedule pays fewer than `m + k` faults: its warm-up and final hold add at most
@@ -441,13 +430,12 @@ theorem exists_ratio_violation_of_lt {k : Nat} (hk : 0 < k) {pages : List α}
     have := Nat.le_mul_self k
     rw [Nat.mul_add]; omega
   refine ⟨reqs, offStates, hv, ?_⟩
-  rw [halg]
-  have hp_opt := Nat.mul_le_mul_left p hopt_lt.le
-  rw [Nat.mul_add] at hp_opt
-  have hpqm : (p + 1) * m ≤ (k * q) * m := Nat.mul_le_mul_right m hpq
-  rw [Nat.add_mul, Nat.one_mul, Nat.mul_comm k q, Nat.mul_assoc] at hpqm
-  have hm_def : m = p * k + b + 1 := rfl
-  omega
+  have hp_opt : p * (problem α k).scheduleCost s₀ reqs offStates ≤ p * m + p * k := by
+    simpa only [Nat.mul_add] using Nat.mul_le_mul_left p hopt_lt.le
+  have hpqm : p * m + m ≤ q * (k * m) := by
+    simpa only [Nat.succ_mul, Nat.mul_comm k q, Nat.mul_assoc] using
+      Nat.mul_le_mul_right m hpq
+  rw [halg]; omega
 
 /-- **Deterministic `k`-competitive lower bound from a fixed initial cache** ([SleatorTarjan1985],
 Theorem 5 at `n_A = n_MIN = k`): over any universe containing `k + 1` distinct pages `pages`, from
@@ -457,10 +445,9 @@ theorem not_isCompetitiveFrom_of_lt {k : Nat} (hk : 0 < k) {pages : List α}
     (hnodup : pages.Nodup) (hlen : pages.length = k + 1)
     {s₀ : Finset α} (hs₀ : ValidCache k s₀) (hs₀_sub : s₀ ⊆ pages.toFinset)
     (A : DetStrategy (problem α k)) {c : Nat} (hc : c < k) (b : Nat) :
-    ¬ A.IsCompetitiveFrom s₀ c b := by
-  intro hcomp
-  obtain ⟨reqs, offStates, hv, hlt⟩ := exists_ratio_violation_of_lt hk hnodup hlen hs₀ hs₀_sub A
-    (p := c) (q := 1) (by omega) b
+    ¬ A.IsCompetitiveFrom s₀ c b := fun hcomp => by
+  obtain ⟨reqs, offStates, hv, hlt⟩ :=
+    exists_ratio_violation_of_lt hk hnodup hlen hs₀ hs₀_sub A (Nat.mul_one k ▸ hc) b
   exact Nat.not_le.mpr (Nat.one_mul (A.cost s₀ reqs) ▸ hlt) (hcomp reqs offStates hv)
 
 /-- No deterministic online paging strategy over a universe containing `k + 1` distinct pages is

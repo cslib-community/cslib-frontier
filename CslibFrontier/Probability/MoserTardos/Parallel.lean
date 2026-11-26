@@ -223,18 +223,18 @@ theorem parallelRounds_eq_tsum (psel : (∀ p : V × ℕ, α p.1) → List ι �
       ∑' k : ℕ, if psel T (parallelRun psel T k) ≠ [] then (1 : ℝ≥0∞) else 0 := by
   classical
   by_cases hterm : ∃ n, psel T (parallelRun psel T n) = []
-  · obtain ⟨n₀, hn₀, hlt_ne⟩ : ∃ n₀, psel T (parallelRun psel T n₀) = [] ∧
-        ∀ k < n₀, psel T (parallelRun psel T k) ≠ [] :=
-      ⟨Nat.find hterm, Nat.find_spec hterm, fun k hk => Nat.find_min hterm hk⟩
+  · let n₀ := Nat.find hterm
+    have hn₀ : psel T (parallelRun psel T n₀) = [] := Nat.find_spec hterm
     rw [tsum_eq_sum (s := Finset.range n₀) fun k hk => by
         simp [psel_parallelRun_eq_nil_of_le hn₀ (not_lt.1 (Finset.mem_range.not.1 hk))],
       Finset.sum_congr (g := fun _ => (1 : ℝ≥0∞)) rfl fun k hk => by
-        simp [hlt_ne k (Finset.mem_range.1 hk)]]
+        simp [Nat.find_min hterm (Finset.mem_range.1 hk)]]
     simp only [Finset.sum_const, Finset.card_range, nsmul_eq_mul, mul_one]
     refine le_antisymm (parallelRounds_le_of_eq_nil hn₀) ?_
-    cases n₀ with
+    cases hn₀_eq : n₀ with
     | zero => simp
-    | succ m => exact_mod_cast (succ_le_parallelRounds_iff psel T m).2 (hlt_ne m m.lt_succ_self)
+    | succ m =>
+      exact_mod_cast (succ_le_parallelRounds_iff psel T m).2 (Nat.find_min hterm (by omega))
   · push Not at hterm
     simp only [ne_eq, hterm, not_false_eq_true, ↓reduceIte,
       ENNReal.tsum_const_eq_top_of_ne_zero one_ne_zero]
@@ -247,9 +247,8 @@ private theorem le_length_parallelRun_of_forall
     ∀ n, n ≤ (parallelRun psel T n).length
   | 0 => Nat.zero_le _
   | n + 1 => by
-    have hpos := List.length_pos_of_ne_nil (h n)
-    have ih := le_length_parallelRun_of_forall h n
-    rw [parallelRun_succ, List.length_append]; omega
+    rw [parallelRun_succ, List.length_append]
+    linarith [List.length_pos_of_ne_nil (h n), le_length_parallelRun_of_forall h n]
 
 end ParallelExecution
 
@@ -356,8 +355,7 @@ private theorem subset_pushRel (R : ι → ι → Prop) [DecidableRel R] [Decida
     S ⊆ pushRel R j S := by
   by_cases hj : levelRel R j S = 0
   · rw [pushRel_of_eq_zero hj]
-  · rw [pushRel_of_ne_zero hj]
-    exact subset_insert _ _
+  · exact pushRel_of_ne_zero hj ▸ subset_insert _ _
 
 private theorem subset_pushList (R : ι → ι → Prop) [DecidableRel R] [DecidableEq ι]
     (b : List ι) (S : Finset (ι × ℕ)) :
@@ -395,10 +393,8 @@ private theorem mem_pushList_spec (R : ι → ι → Prop) [DecidableRel R] [Dec
     · intro p hp
       rcases ih'.1 p hp with hp1 | ⟨j, hjb, hne, rfl⟩
       · by_cases hx : levelRel R x S = 0
-        · rw [pushRel_of_eq_zero hx] at hp1
-          exact Or.inl hp1
-        · rw [pushRel_of_ne_zero hx] at hp1
-          rcases mem_insert.1 hp1 with rfl | hpS
+        · exact Or.inl (pushRel_of_eq_zero hx ▸ hp1)
+        · rcases mem_insert.1 (pushRel_of_ne_zero hx ▸ hp1) with rfl | hpS
           · exact Or.inr ⟨x, List.mem_cons_self, hx, rfl⟩
           · exact Or.inl hpS
       · rw [hlev j hjb] at hne ⊢
@@ -464,9 +460,7 @@ private theorem batchSlice_succ_right
   induction d generalizing r with
   | zero => simp [batchSlice]
   | succ d ih =>
-    have hidx : r + (d + 1) = (r + 1) + d := by omega
-    rw [batchSlice, hidx, ih r, ← List.append_assoc]
-    rfl
+    rw [batchSlice, ← Nat.add_assoc, Nat.add_right_comm r d 1, ih r, ← List.append_assoc]; rfl
 
 private theorem pushList_batchSlice_depth [DecidableEq V] [DecidableEq ι]
     (vbl : ι → Finset V) (A : ι → Set (∀ v, α v))
@@ -490,26 +484,25 @@ private theorem pushList_batchSlice_depth [DecidableEq V] [DecidableEq ι]
     obtain ⟨j, hj, hadj⟩ := parallel_step_adj vbl A hA hrule T r hp_in
     have hspec := mem_pushList_spec (Adj vbl) (hrule.pairwise T (parallelRun psel T r))
       (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S)
-    have hj_bound (x : ι) (_ : x ∈ psel T (parallelRun psel T r)) :
+    have hj_bound (x : ι) :
         levelRel (Adj vbl) x (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S) ≤ t + d + 1 := by
       rcases Nat.eq_zero_or_pos
           (levelRel (Adj vbl) x (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S)) with
         hl0 | hlpos
       · omega
       · obtain ⟨q, hq, hql, -⟩ := exists_of_levelRel_ne_zero hlpos.ne'
-        have := hle' q hq
-        omega
+        linarith [hle' q hq]
     have hlt :
         t + d < levelRel (Adj vbl) j (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S) :=
       hpt ▸ lt_levelRel hpS' hadj
     have hjeq : levelRel (Adj vbl) j (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S) =
         t + d + 1 :=
-      le_antisymm (hj_bound j hj) hlt
+      le_antisymm (hj_bound j) hlt
     constructor
     · intro q hq
-      rcases hspec.1 q hq with hq' | ⟨x, hx, -, rfl⟩
+      rcases hspec.1 q hq with hq' | ⟨x, -, -, rfl⟩
       · exact (hle' q hq').trans (by omega)
-      · exact (hj_bound x hx).trans (by omega)
+      · exact (hj_bound x).trans (by omega)
     · exact ⟨(j, t + (d + 1)), hjeq ▸ hspec.2 j hj (by omega), rfl, hj⟩
 
 /-- **Parallel witness-tree depth lemma** [MoserTardos2010, Lemma 4.1]: if round `k` selects a
@@ -696,7 +689,7 @@ private theorem tsum_min_one_split_bound {ε M : ℝ} (hr0 : 0 ≤ 1 - ε)
         refine (min_le_right _ _).trans (ENNReal.ofReal_le_ofReal ?_)
         calc (1 - ε) ^ (N + m + 1) * M
             = ((1 - ε) ^ (N + 1) * M) * (1 - ε) ^ m := by
-              rw [show N + m + 1 = (N + 1) + m by omega, pow_add]; ring
+              rw [Nat.add_right_comm N m 1, pow_add]; ring
           _ ≤ 1 * (1 - ε) ^ m := mul_le_mul_of_nonneg_right hrN (pow_nonneg hr0 _)
           _ = (1 - ε) ^ m := one_mul _
       calc ∑ m ∈ Finset.range (n - N),
@@ -709,7 +702,7 @@ private theorem tsum_min_one_split_bound {ε M : ℝ} (hr0 : 0 ≤ 1 - ε)
             ENNReal.ofReal_le_ofReal ((summable_geometric_of_lt_one hr0 hr1).sum_le_tsum
               (Finset.range (n - N)) fun m _ => pow_nonneg hr0 m)
         _ = ENNReal.ofReal (1 / ε) := by
-            rw [tsum_geometric_of_lt_one hr0 hr1, show 1 - (1 - ε) = ε by ring, one_div]
+            rw [tsum_geometric_of_lt_one hr0 hr1, sub_sub_self, one_div]
 
 private theorem tsum_min_one_ofReal_pow_mul_le {ε M : ℝ} (hε : ε ∈ Set.Ioc 0 1) (hM : 0 ≤ M) :
     (∑' k : ℕ, min (1 : ℝ≥0∞) (ENNReal.ofReal ((1 - ε) ^ (k + 1) * M))) ≤

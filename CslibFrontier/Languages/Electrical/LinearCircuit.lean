@@ -96,7 +96,8 @@ decoupling.
 
 * `Cslib.Electrical.Element`, `Cslib.Electrical.Branch`, `Cslib.Electrical.Netlist`,
   `Cslib.Electrical.Probe`.
-* `Cslib.Electrical.Netlist.check`: well-formedness.
+* `Cslib.Electrical.Netlist.check`, `Cslib.Electrical.Probe.check`: well-formedness of a netlist
+  and of a probe (1-based nodes, 0-based branch positions).
 * `Cslib.Electrical.Netlist.IsTrajectoryOn`: Kirchhoff semantics.
 * `Cslib.Electrical.Netlist.eRows`, `fRows`, `gRows`, `bList`, `probeRows`: the rational
   modified nodal equations, computed by the kernel; `Netlist.mna` is their real descriptor
@@ -158,11 +159,16 @@ structure Netlist where
   /-- The branches. -/
   branches : List Branch
 
-/-- An output probe: the voltage `φ_p - φ_q`, or the current of a branch. -/
+/-- An output probe: the voltage `φ_p - φ_q`, or the current of a branch.
+
+Nodes and branches are indexed differently. Nodes are **1-based**: `p, q ∈ {0, 1, …, nodes}`,
+with `0` the ground. Branches are **0-based**: `b ∈ {0, …, branches.length - 1}` is the position
+of the branch in `Netlist.branches`. An out-of-range probe evaluates to `0` (`Probe.eval`,
+`Netlist.probeRows`); `Probe.check` rejects it. -/
 inductive Probe where
-  /-- The voltage `φ_p - φ_q` between nodes `p` and `q`. -/
+  /-- The voltage `φ_p - φ_q` between nodes `p` and `q` (1-based, `0` is ground). -/
   | voltage (p q : ℕ)
-  /-- The current of branch `b`. -/
+  /-- The current of branch `b` (0-based position in `Netlist.branches`). -/
   | current (b : ℕ)
 
 /-! ### Well-formedness -/
@@ -194,6 +200,12 @@ variable (c : Netlist)
 abbrev size : ℕ := c.nodes + c.branches.length
 
 end Netlist
+
+/-- Whether a probe refers to existing nodes (`≤ nodes`, 1-based with ground `0`) or an existing
+branch (`< branches.length`, 0-based). -/
+@[expose] def Probe.check (c : Netlist) : Probe → Bool
+  | .voltage p q => p ≤ c.nodes && q ≤ c.nodes
+  | .current b => b < c.branches.length
 
 /-! ### Kirchhoff semantics -/
 

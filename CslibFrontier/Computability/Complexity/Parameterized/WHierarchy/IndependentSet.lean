@@ -112,12 +112,12 @@ theorem isCodeFrom_circuitGates {n : ℕ} {E : List (ℕ × ℕ)} (hE : ∀ e �
 /-- The code of the circuit of a graph decodes to a circuit. -/
 theorem isSome_ofCode_circuitCode (G : Graph) :
     (Circuit.ofCode G.distinctVertices.length 1 (circuitCode G) :
-      Option (Circuit Unbounded.signature _ 1)).isSome := by
-  rw [Circuit.isSome_ofCode_iff]
-  refine ⟨isCodeFrom_circuitGates fun e he => lt_of_mem_edgeIndices he, rfl, ?_⟩
-  simp only [circuitCode, circuitGates, List.mem_singleton, forall_eq, List.length_append,
-    List.length_map, List.length_range, List.length_singleton]
-  omega
+      Option (Circuit Unbounded.signature _ 1)).isSome :=
+  (Circuit.isSome_ofCode_iff ..).2
+    ⟨isCodeFrom_circuitGates fun e he => lt_of_mem_edgeIndices he, rfl, by
+      simp only [circuitCode, circuitGates, List.mem_singleton, forall_eq, List.length_append,
+        List.length_map, List.length_range, List.length_singleton]
+      omega⟩
 
 /-- **The circuit of a graph**: one input for each distinct declared vertex, and the gates of
 `circuitCode`. -/
@@ -141,18 +141,15 @@ theorem evalCode_circuitGates {n : ℕ} {E : List (ℕ × ℕ)} (hE : ∀ e ∈ 
       ((List.range x.length).map fun i => (Unbounded.Op.not, [i])) = x ++ x.map (!·) := by
     rw [evalCode_layer]
     · simp only [List.map_map]
-      congr 1
-      refine List.ext_getElem (by simp) fun i h₁ h₂ => ?_
-      simp only [List.length_map, List.length_range] at h₁
-      simp [List.getElem?_eq_getElem h₁]
+      refine congrArg (x ++ ·) (List.ext_getElem (by simp) fun i h₁ h₂ => ?_)
+      simp [List.getElem?_eq_getElem (by simpa using h₁)]
     · exact List.forall_mem_map.2 fun j hj _ hi => by simp_all
   have h2 : evalCode Unbounded.interpretation false (x ++ x.map (!·))
       (E.map fun e => (Unbounded.Op.or 2, [x.length + e.1, x.length + e.2])) =
       (x ++ x.map (!·)) ++ E.map fun e => (!x.getD e.1 false || !x.getD e.2 false) := by
     rw [evalCode_layer]
     · simp only [List.map_map]
-      congr 1
-      refine List.map_congr_left fun e he => ?_
+      refine congrArg ((x ++ x.map (!·)) ++ ·) (List.map_congr_left fun e he => ?_)
       obtain ⟨h₁, h₂⟩ := hE e he
       simp [List.getElem?_append_right, List.getElem?_eq_getElem h₁,
         List.getElem?_eq_getElem h₂, Fin.exists_fin_two]
@@ -162,7 +159,8 @@ theorem evalCode_circuitGates {n : ℕ} {E : List (ℕ × ℕ)} (hE : ∀ e ∈ 
         List.length_map] at hi ⊢
       omega
   rw [h1, h2, evalCode_layer]
-  · have hlen : (x ++ x.map (!·) ++
+  · have hlen1 : (x ++ x.map (!·)).length = x.length + x.length := by simp
+    have hlen : (x ++ x.map (!·) ++
         E.map fun e => (!x.getD e.1 false || !x.getD e.2 false)).length =
         x.length + x.length + E.length := by simp [Nat.add_assoc]
     rw [← hlen, List.getD_append_right _ _ _ _ le_rfl, Nat.sub_self]
@@ -171,8 +169,7 @@ theorem evalCode_circuitGates {n : ℕ} {E : List (ℕ × ℕ)} (hE : ∀ e ∈ 
     refine forall_congr' fun j => forall_congr' fun hj => ?_
     rw [List.getElem?_eq_getElem (by simpa using hj)]
     simp only [Option.elim_some, List.getElem_map, List.getElem_range]
-    rw [show x.length + x.length + j = (x ++ x.map (!·)).length + j by simp,
-      List.getD_append_right _ _ _ _ (Nat.le_add_right _ _), Nat.add_sub_cancel_left,
+    rw [← hlen1, List.getD_append_right _ _ _ _ (Nat.le_add_right _ _), Nat.add_sub_cancel_left,
       List.getD_eq_getElem _ _ (by simpa using hj), List.getElem_map]
     cases x.getD E[j].1 false <;> cases x.getD E[j].2 false <;> decide
   · refine List.forall_mem_singleton.2 (List.forall_mem_map.2 fun j hj => ?_)
@@ -217,10 +214,8 @@ private theorem edgeIndices_iff (G : Graph) (x : BitString (toCircuit G).1) :
   have hget : ∀ a (ha : a ∈ G.vertices), (List.ofFn x).getD (G.distinctVertices.idxOf a) false =
       x ⟨G.distinctVertices.idxOf a,
         List.idxOf_lt_length_iff.2 (Graph.mem_distinctVertices.2 ha)⟩ := fun a ha => by
-    rw [List.getD_eq_getElem _ _ (by
-      rw [List.length_ofFn]
-      exact List.idxOf_lt_length_iff.2 (Graph.mem_distinctVertices.2 ha)),
-      List.getElem_ofFn]
+    rw [List.getD_eq_getElem _ _ ((List.length_ofFn (f := x)).symm ▸
+      List.idxOf_lt_length_iff.2 (Graph.mem_distinctVertices.2 ha)), List.getElem_ofFn]
   rw [SimpleGraph.isIndepSet_iff]
   constructor
   · intro h u hu v hv huv hadj
@@ -234,8 +229,7 @@ private theorem edgeIndices_iff (G : Graph) (x : BitString (toCircuit G).1) :
         ⟨(hget v hv₁).trans hv₂, (hget u hu₁).trans hu₂⟩
   · rintro h e he ⟨h₁, h₂⟩
     obtain ⟨⟨a, b⟩, hab, rfl⟩ := List.mem_map.1 he
-    simp only [List.mem_filter, decide_eq_true_eq] at hab
-    obtain ⟨hab, ha, hb, hne⟩ := hab
+    obtain ⟨hab, ha, hb, hne⟩ := by simpa only [List.mem_filter, decide_eq_true_eq] using hab
     exact h (Finset.mem_coe.2 (mem_vertexSet.2 ⟨ha, (hget a ha).symm.trans h₁⟩))
       (Finset.mem_coe.2 (mem_vertexSet.2 ⟨hb, (hget b hb).symm.trans h₂⟩)) hne
       (Graph.toSimpleGraph_adj.2 ⟨hne, Or.inl hab⟩)
@@ -285,18 +279,17 @@ private theorem le_of_mem_evalCode_circuitGates (cost : Unbounded.Op → ℕ) {n
     omega
 
 /-- The circuit of a graph has weft at most `1`: its only large gate is the final conjunction. -/
-theorem weft_toCircuit_le (G : Graph) : (toCircuit G).2.weft ≤ 1 := by
-  refine Circuit.depthWith_le_of_evalCode _ _ fun v hv => ?_
-  simpa using le_of_mem_evalCode_circuitGates (largeGateCost Unbounded.signature)
-    (fun e he => lt_of_mem_edgeIndices he) (c₁ := 0) (c₂ := 0) (by decide) (by decide)
-    (largeGateCost_le_one _) v (code_toCircuit G ▸ hv)
+theorem weft_toCircuit_le (G : Graph) : (toCircuit G).2.weft ≤ 1 :=
+  Circuit.depthWith_le_of_evalCode _ _ fun v hv => by
+    simpa using le_of_mem_evalCode_circuitGates (largeGateCost Unbounded.signature)
+      (fun e he => lt_of_mem_edgeIndices he) (c₁ := 0) (c₂ := 0) (by decide) (by decide)
+      (largeGateCost_le_one _) v (code_toCircuit G ▸ hv)
 
 /-- The circuit of a graph has depth at most `3`. -/
-theorem depth_toCircuit_le (G : Graph) : (toCircuit G).2.depth ≤ 3 := by
-  rw [← Circuit.depthWith_one]
-  refine Circuit.depthWith_le_of_evalCode _ _ fun v hv => ?_
-  simpa using le_of_mem_evalCode_circuitGates 1 (fun e he => lt_of_mem_edgeIndices he) le_rfl le_rfl
-    le_rfl v (code_toCircuit G ▸ hv)
+theorem depth_toCircuit_le (G : Graph) : (toCircuit G).2.depth ≤ 3 :=
+  Circuit.depthWith_one _ ▸ Circuit.depthWith_le_of_evalCode _ _ fun v hv => by
+    simpa using le_of_mem_evalCode_circuitGates 1 (fun e he => lt_of_mem_edgeIndices he) le_rfl
+      le_rfl le_rfl v (code_toCircuit G ▸ hv)
 
 /-- Listing the positions of the ends of the edges is polynomial-time. -/
 theorem computableInPolyTime_edgeIndices :

@@ -129,8 +129,7 @@ theorem runs_ct {A : Type*} [CommRing A] {M K : Type} [Finite M] [Fintype K] [De
     rcases eq_or_ne z (tp .cp false) with rfl | h3
     · simp [emCt, cn1, bw, on, flatMap_unit]
     simp [emCt, on, h1, h2, h3]
-  · simp only [List.length_append, Finset.sum_add_distrib, sum_on, hc, hc2]
-    simp
+  · simp [List.length_append, Finset.sum_add_distrib, sum_on, hc, hc2]
 
 /-- Initial register word: `0` of length `l.length + 1`. -/
 @[expose] def i0 (l : List Unit) : List Bool := List.replicate (l.length + 1) false
@@ -169,10 +168,8 @@ theorem runs_in {A : Type*} [CommRing A] {M K : Type} [Finite M] [Fintype K] [De
     rcases eq_or_ne z lsF with rfl | h3
     · simp [emIn, rec'_eq, on, mem_rgs, flatMap_unit, List.replicate_succ']
     simp [emIn, on, h1, h2, h3]
-  · have hc : (insert (tp .cp false) (rgs false) : Finset (Zc K)).card = 6 := by
-      rw [Finset.card_insert_of_notMem (by simp [mem_rgs]), card_rgs]
-    simp only [List.length_append, Finset.sum_add_distrib, sum_on, hc, card_rgs]
-    simp
+  · simp [List.length_append, Finset.sum_add_distrib, sum_on, Finset.card_insert_of_notMem,
+      mem_rgs, card_rgs]
 
 section Steps
 
@@ -302,8 +299,7 @@ theorem runs_ed {A : Type*} [CommRing A] {M K : Type} [Finite M] [Fintype K] [De
     | .tp .cp true => simp [ed1, emEd, on, mem_rgs, bw]
     | .tp (.rg _) false | .tp .md _ | .tp .cp false | .tp .fr _ | .tp .lk _ | .tp .ls _
     | .tp (.bk _) _ | .tp (.cm _) _ | .inp _ => simp [ed1, emEd, on, mem_rgs]
-  · simp only [List.length_append, Finset.sum_add_distrib, sum_on, card_rgs]
-    simp
+  · simp [List.length_append, Finset.sum_add_distrib, sum_on, card_rgs]
 
 /-- Emissions copying the lookup tape onto the list tape followed by the block separator `bar`. -/
 @[expose] def emAp {M K : Type} [DecidableEq K] (w : List (Sy M K)) :
@@ -318,7 +314,6 @@ theorem runs_ap {A : Type*} [CommRing A] {M K : Type} [Fintype M] [Fintype K] [D
     (Runs.word (F := A) (Z := Zc K) {lsF} [(Sy.bar : Sy M K)])
   refine (h.congr ⟨fun w => (w, ()), Prod.fst, fun _ => rfl, fun _ => rfl⟩
     (fun w z => by simp [emAp]) fun _ => by simp).mono ?_
-  rw [Finset.card_pair (by simp)]
   simp
 
 /-- A complete structured run of the universal tape program simulating pointer machine `P`. -/

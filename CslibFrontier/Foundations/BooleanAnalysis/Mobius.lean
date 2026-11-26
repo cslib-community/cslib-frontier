@@ -134,12 +134,10 @@ public theorem sum_powerset_subsetMobius (f : Finset ι → M) (T : Finset ι) :
   classical
   simp only [subsetMobius]
   rw [sum_comm' (t' := T.powerset) (s' := fun U => T.powerset.filter (U ⊆ ·))]
-  · simp_rw [← sum_smul]
-    rw [sum_eq_single T]
-    · rw [sum_neg_one_pow_superset subset_rfl, ite_eq_left rfl, one_smul]
-    · intro U hU hUT
-      rw [sum_neg_one_pow_superset (mem_powerset.mp hU), ite_eq_right hUT, zero_smul]
-    · exact (absurd (mem_powerset_self T) ·)
+  · trans ∑ U ∈ T.powerset, if U = T then f U else 0
+    · exact sum_congr rfl fun U hU => by
+        simp [← sum_smul, sum_neg_one_pow_superset (mem_powerset.mp hU)]
+    · simp
   · intro S U
     simp only [mem_powerset, mem_filter]
     exact ⟨fun h => ⟨⟨h.1, h.2⟩, h.2.trans h.1⟩, fun h => h.1⟩
@@ -203,13 +201,11 @@ public theorem subsetMobius_bitVal_mul [DecidableEq ι] (i : ι) (f : Finset ι 
     rw [(insert_erase hi).symm, ← hS']
     simp only [subsetMobius, sum_powerset_insert hiS', card_insert_of_notMem hiS',
       mem_insert_self, decide_true, bitVal_true, one_mul, hzero hiS', zero_add]
-    have h3 : ∑ T ∈ S'.powerset, ((-1 : ℤ) ^ (#S' + 1 - #T) • f T +
-        (-1 : ℤ) ^ (#S' - #T) • f T) = 0 :=
-      sum_eq_zero fun T hT => by
-        rw [Nat.succ_sub (card_le_card (mem_powerset.1 hT)), pow_succ, mul_neg_one, neg_smul,
-          neg_add_cancel]
-    rw [sum_add_distrib] at h3
-    linear_combination -h3
+    have hcancel : ∑ T ∈ S'.powerset, ((-1 : ℤ) ^ (#S' + 1 - #T) • f T +
+        (-1 : ℤ) ^ (#S' - #T) • f T) = 0 := sum_eq_zero fun T hT => by
+      rw [Nat.succ_sub (card_le_card (mem_powerset.1 hT)), pow_succ, mul_neg_one, neg_smul,
+        neg_add_cancel]
+    rw [add_right_comm, ← sum_add_distrib, hcancel, zero_add]
   · exact hzero hi #S
 
 end SubsetMobius
@@ -230,9 +226,7 @@ public theorem eq_sum_subsetMobius_of_local {I : Finset ι} {g : (ι → Bool) �
     hg _ _ fun v hv => by simp only [W, mem_filter, hv, true_and, Bool.decide_eq_true]
   rw [hgx, ← sum_powerset_subsetMobius (fun T => g fun v => decide (v ∈ T)) W]
   simp only [mul_ite, mul_one, mul_zero, ← sum_filter]
-  refine sum_congr ?_ fun _ _ => rfl
-  ext S
-  simp [W, subset_iff, forall_and]
+  exact sum_congr (Finset.ext fun S => by simp [W, subset_iff, forall_and]) fun _ _ => rfl
 
 /-- **Monomial expansion on the cube.** Every function on a finite cube is the combination of the
 monomials with coefficients the subset Möbius transform of its values at indicators of sets: the

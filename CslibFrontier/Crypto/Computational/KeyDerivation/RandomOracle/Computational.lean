@@ -312,11 +312,10 @@ private theorem idealLazyListLaw_eq_memoize {X S T : ℕ → Type} [∀ n, Decid
     (D n x (encT n t)) []
   rw [List.map_nil] at hmap
   rw [← hmap, ← hsim, PMF.map_comp]
-  congr 1
-  funext ⟨_, c⟩
+  refine congrArg _ (funext fun ⟨_, c⟩ => ?_)
   have hdec_enc (s : S n) : decS n (encS n s) = some s := (hdecS n _ s).mpr rfl
-  simp only [Function.comp_def, List.filterMap_map, hdec_enc]
-  induction c <;> simp [*]
+  simpa only [Function.comp_def, List.filterMap_map, hdec_enc] using
+    congrArg PMF.pure (congrFun List.filterMap_eq_map c)
 
 private theorem idealLazy_listGuessOutput_eq_eager {X S T : ℕ → Type}
     [∀ n, Fintype (S n)] [∀ n, DecidableEq (S n)] [∀ n, Fintype (T n)] [∀ n, Nonempty (T n)]
@@ -346,17 +345,9 @@ private theorem closeTo_idealLazyListLaw_eval_lazyROToListGuess {X S T : ℕ →
     CloseTo (idealLazyListLaw decS encT D n x)
       (ProbComp.eval (lazyROToListGuess decS encT sampleT D n x))
       (((Q + 1 : ℕ) : ℝ≥0∞) * εT) := by
-  have heval : ProbComp.eval (lazyROToListGuess decS encT sampleT D n x) =
-      (ProbComp.eval (sampleT n)).bind fun t =>
-        (ProbOracleComp.runWith
-          (fun req => cachedDistOracle (fun w => (decS n w).isSome)
-            ((ProbComp.eval (sampleT n)).map (encT n)) req.2)
-          (D n x (encT n t)) []).map fun (_, cache) =>
-            cache.filterMap fun entry => decS n entry.1 := by
-    simp only [lazyROToListGuess, ProbComp.eval_bind, ProbOracleComp.eval_runState,
-      ProbComp.eval_pure, ProbComp.eval_map, eval_cachedSamplerOracle, PMF.map]
-    rfl
-  rw [heval, idealLazyListLaw]
+  simp only [idealLazyListLaw, lazyROToListGuess, ProbComp.eval_bind,
+    ProbOracleComp.eval_runState, ProbComp.eval_pure, ProbComp.eval_map,
+    eval_cachedSamplerOracle]
   have hring : (εT : ℝ≥0∞) + Q * (εT : ℝ≥0∞) = ((Q + 1 : ℕ) : ℝ≥0∞) * εT := by push_cast; ring
   refine (CloseTo.bind hcloseT fun t ht => ?_).mono hring.le
   unfold ProbOracleComp.runWith

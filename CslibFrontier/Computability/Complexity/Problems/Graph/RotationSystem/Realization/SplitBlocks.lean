@@ -229,21 +229,15 @@ theorem contractionLift_rotate_paths {G : Graph} {u v : ℕ}
   let e := (contractLastEdgeDartEquiv G u v).trans
     (lastEdgeDartEquiv (contractLastEdgeGraph G u v) v v)
   let σ := r.rotate * Equiv.swap (lastEdgeDart G u v true) (lastEdgeDart G u v false)
-  have heA : e (contractionLift G u v d) = some (some d) :=
-    contractionLift_coordinates G u v d
-  have heB : e (contractionLift G u v ((r.contractLastEdge huv).rotate d)) =
-      some (some ((r.contractLastEdge huv).rotate d)) :=
-    contractionLift_coordinates G u v _
-  have heT : e (lastEdgeDart G u v true) = none :=
-    contractLastEdge_coordinates_last G u v true
-  have heF : e (lastEdgeDart G u v false) = some none :=
-    contractLastEdge_coordinates_last G u v false
   have hpaths := Equiv.Perm.removeNone_removeNone_paths (e.permCongr σ) d
-  have hrot : Equiv.removeNone (Equiv.removeNone (e.permCongr σ)) =
-      (r.contractLastEdge huv).rotate := (r.rotate_contractLastEdge huv).symm
+  have hT : e (lastEdgeDart G u v true) = none := contractLastEdge_coordinates_last G u v true
+  have hF : e (lastEdgeDart G u v false) = some none :=
+    contractLastEdge_coordinates_last G u v false
   dsimp only at hpaths ⊢
-  rw [hrot, ← heA, ← heB, ← heT, ← heF] at hpaths
-  simpa only [Equiv.permCongr_apply, e.symm_apply_apply, e.injective.eq_iff] using hpaths
+  rw [← r.rotate_contractLastEdge huv, ← contractionLift_coordinates G u v d,
+    ← contractionLift_coordinates G u v _, ← hT, ← hF] at hpaths
+  dsimp only [e] at hpaths
+  simpa only [Equiv.permCongr_apply, Equiv.symm_apply_apply, Equiv.apply_eq_iff_eq] using hpaths
 
 /-- The outgoing swap joins the retained `v` block to the retained `u` block.
 The three-step alternatives skip a unary source cycle; their order is literal. -/
@@ -349,12 +343,10 @@ theorem val_contractionRank_rotate {G : Graph} {u v : ℕ}
   let k := (r.contractionRank d).val
   let l := (r.contractionRank d').val
   change l = (k + 1) % (nV + nU)
-  have hk := r.val_contractionRank d
-  have hl := r.val_contractionRank d'
-  change k = if a.vertex = v then r.rotationDistance oV a - 1
-    else nV + (r.rotationDistance oU a - 1) at hk
-  change l = if b.vertex = v then r.rotationDistance oV b - 1
-    else nV + (r.rotationDistance oU b - 1) at hl
+  have hk : k = if a.vertex = v then r.rotationDistance oV a - 1
+      else nV + (r.rotationDistance oU a - 1) := r.val_contractionRank d
+  have hl : l = if b.vertex = v then r.rotationDistance oV b - 1
+      else nV + (r.rotationDistance oU b - 1) := r.val_contractionRank d'
   have hbl : l < nV + nU := (r.contractionRank d').isLt
   have hvV : oV.vertex = v := vertex_lastEdgeDart G u v true
   have hvU : oU.vertex = u := vertex_lastEdgeDart G u v false
@@ -381,12 +373,11 @@ theorem val_contractionRank_rotate {G : Graph} {u v : ℕ}
   rcases r.contractionLift_rotate_cases huv d.val with h | ⟨h, h'⟩ | ⟨h, h'⟩ |
     ⟨h, hfix, h'⟩ | ⟨h, hfix, h'⟩
   · have hab := vrot h
+    change r.rotate a = b at h
     by_cases hav : a.vertex = v
     · have hbv : b.vertex = v := hab.symm.trans hav
       have hoa : oV.vertex = a.vertex := hvV.trans hav.symm
-      have hsucc := r.rotationDistance_rotate_of_ne oV a hoa (h ▸ hbV)
-      change r.rotate a = b at h
-      rw [h] at hsucc
+      have hsucc := h ▸ r.rotationDistance_rotate_of_ne oV a hoa (h ▸ hbV)
       have hpos := r.rotationDistance_pos_of_ne oV a hoa haV
       simp only [ite_eq_left hav, ite_eq_left hbv] at hk hl
       exact next (by omega)
@@ -394,9 +385,7 @@ theorem val_contractionRank_rotate {G : Graph} {u v : ℕ}
         d.property).resolve_right hav
       have hbv : b.vertex ≠ v := fun heq => hav (hab.trans heq)
       have hoa : oU.vertex = a.vertex := hvU.trans hau.symm
-      have hsucc := r.rotationDistance_rotate_of_ne oU a hoa (h ▸ hbU)
-      change r.rotate a = b at h
-      rw [h] at hsucc
+      have hsucc := h ▸ r.rotationDistance_rotate_of_ne oU a hoa (h ▸ hbU)
       have hpos := r.rotationDistance_pos_of_ne oU a hoa haU
       simp only [ite_eq_right hav, ite_eq_right hbv] at hk hl
       exact next (by omega)
@@ -416,23 +405,21 @@ theorem val_contractionRank_rotate {G : Graph} {u v : ℕ}
     simp only [ite_eq_right hav, ite_eq_left hbv] at hk hl
     dsimp only [nV, nU, oV, oU] at *
     exact wrap (by omega) (by omega)
-  · change r.rotate oU = oU at hfix
-    have hav : a.vertex = v := (vrot h).trans hvV
+  · have hav : a.vertex = v := (vrot h).trans hvV
     have hbv : b.vertex = v := (vrot h').symm.trans hvV
     have hlast := lastDist (hvV.trans hav.symm) haV h
     have hfirst := first h' hbV
-    have hU : nU = 0 := by simp [nU, Function.minimalPeriod_eq_one_iff_isFixedPt.mpr hfix]
+    have hU : nU = 0 := by simp [nU, oU, Function.minimalPeriod_eq_one_iff_isFixedPt.mpr hfix]
     simp only [ite_eq_left hav, ite_eq_left hbv] at hk hl
     dsimp only [nV, nU, oV, oU] at *
     exact wrap (by omega) (by omega)
-  · change r.rotate oV = oV at hfix
-    have hau : a.vertex = u := (vrot h).trans hvU
+  · have hau : a.vertex = u := (vrot h).trans hvU
     have hav : a.vertex ≠ v := fun heq => huv (hau.symm.trans heq)
     have hbu : b.vertex = u := (vrot h').symm.trans hvU
     have hbv : b.vertex ≠ v := fun heq => huv (hbu.symm.trans heq)
     have hlast := lastDist (hvU.trans hau.symm) haU h
     have hfirst := first h' hbU
-    have hV : nV = 0 := by simp [nV, Function.minimalPeriod_eq_one_iff_isFixedPt.mpr hfix]
+    have hV : nV = 0 := by simp [nV, oV, Function.minimalPeriod_eq_one_iff_isFixedPt.mpr hfix]
     simp only [ite_eq_right hav, ite_eq_right hbv] at hk hl
     dsimp only [nV, nU, oV, oU] at *
     exact wrap (by omega) (by omega)
@@ -470,11 +457,8 @@ theorem exists_contractionRank_origin {G : Graph} {u v : ℕ}
     rw [Equiv.Perm.subtypePerm_pow]; rfl
   refine ⟨o, fun d => s.rotationDistance_eq o.val d.val (o.property.trans d.property.symm)
     (r.contractionRank d).val ?_ ?_⟩
-  · have heq : (S ^ (r.contractionRank d).val) o = d := by
-      apply hinj
-      apply Fin.ext
-      rw [hpow, ho, zero_add, Nat.mod_eq_of_lt (r.contractionRank d).isLt]
-    exact (hval _ o).symm.trans (congrArg Subtype.val heq)
+  · refine (hval _ o).symm.trans (congrArg Subtype.val (hinj (Fin.ext ?_)))
+    rw [hpow, ho, zero_add, Nat.mod_eq_of_lt (r.contractionRank d).isLt]
   · intro k hk heq
     have heq' : (S ^ k) o = d := Subtype.ext ((hval k o).trans heq)
     have hrank := congrArg (fun d => (r.contractionRank d).val) heq'

@@ -69,12 +69,9 @@ theorem splitFullNode_bits_lt {c n_max : ℕ} {nd : BTreeNode}
   have hdv_lt : wordDropLow (valLaneBitsWhp n_max) (tMinWhp n_max) nd.valsWord <
       2 ^ valsWordBitsWhp n_max := by
     rw [wordDropLow_eq_div]; exact (Nat.div_le_self _ _).trans_lt hv
-  unfold splitFullNode
-  by_cases hlf : metaIsLeaf nd.metaWord = true
-  · simp only [hlf, ↓reduceIte, mkNodeMeta]
-    exact ⟨by omega, htk_lt _ le_rfl, htv_lt, hsep_lt, by omega, hdk_lt, hdv_lt⟩
-  · simp only [hlf, Bool.false_eq_true, ↓reduceIte, mkNodeMeta]
-    exact ⟨by omega, htk_lt _ (Nat.sub_le _ _), htv_lt, hsep_lt, by omega, hdk_lt, hdv_lt⟩
+  unfold splitFullNode mkNodeMeta
+  split_ifs <;> dsimp only <;> refine ⟨by omega, htk_lt _ ?_, htv_lt, hsep_lt,
+    by omega, hdk_lt, hdv_lt⟩ <;> omega
 
 /-- Shared 4-write frame lemma for proactive root/child splits: writing 3 nodes `(idx1, nd1)`,
 `(idx2, nd2)`, `(idx3, nd3)` below `newA` followed by `writeSliceAllocGenProg` establishes
@@ -204,17 +201,14 @@ theorem threeNodeWrites_and_alloc_sliceRep
   dsimp only [w1, w2, w3, w4] at hs'_eq ⊢
   rw [hs'_eq]
   refine ⟨hfr4.trans (hfr3.trans (hfr2.trans hfr1)), ?_,
-    validProg_bind hvp1 (validProg_bind hvp2 (validProg_bind hvp3 hvp4)), hrep4, ?_, ?_, ?_⟩
+    validProg_bind hvp1 (validProg_bind hvp2 (validProg_bind hvp3 hvp4)), hrep4,
+    fun sIdx' hsIdx' hne sl₂ hr₂ => hoth4 sIdx' hsIdx' hne sl₂
+      (hoth3 sIdx' hsIdx' hne sl₂ (hoth2 sIdx' hsIdx' hne sl₂ (hoth1 sIdx' hsIdx' hne sl₂ hr₂))),
+    fun idx hidx hneA => (hbm4 idx hidx hneA).trans (hbm_s3 idx hidx), fun a ha => ?_⟩
   · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
     change memoryCost w1 s + (memoryCost w2 s1 + (memoryCost w3 s2 + memoryCost w4 s3)) = 40
     rw [hmc1, hmc2, hmc3, hmc4]
-  · intro sIdx' hsIdx' hne sl₂ hr₂
-    exact hoth4 sIdx' hsIdx' hne sl₂
-      (hoth3 sIdx' hsIdx' hne sl₂ (hoth2 sIdx' hsIdx' hne sl₂ (hoth1 sIdx' hsIdx' hne sl₂ hr₂)))
-  · intro idx hidx hneA
-    exact (hbm4 idx hidx hneA).trans (hbm_s3 idx hidx)
-  · intro a ha
-    rcases ha with ha1 | ⟨ha2, ha3⟩ | ha4
+  · rcases ha with ha1 | ⟨ha2, ha3⟩ | ha4
     · exact (hout4 a (Or.inl ha1)).trans (hout123 a (Or.inl (by omega)))
     · exact (hout4 a (Or.inr ha2)).trans (hout123 a (Or.inl ha3))
     · exact (hout4 a (Or.inr (by omega))).trans (hout123 a (Or.inr ha4))
@@ -313,8 +307,7 @@ private theorem realizes_writeSplitFourBody :
         d.2.1.2.1 < wpNSlice d.1.1.1 ∧
         d.2.2.1.1 < wpNSlice d.1.1.1)
       (fun _ _ => 0) := by
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, sIdx⟩, ⟨⟨⟨u1, nd1⟩, ⟨u2, nd2⟩⟩, ⟨⟨u3, nd3⟩, newA⟩⟩⟩
     obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hsIdx, hu1, hu2, hu3⟩ := h

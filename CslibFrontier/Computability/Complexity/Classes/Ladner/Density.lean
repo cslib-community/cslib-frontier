@@ -123,13 +123,11 @@ private theorem checkShorter_eq_true_iff {C : Type} {test : C × List Bool → B
     {c : C} {n : ℕ} :
     checkShorter test (c, n) = true ↔ ∀ x : List Bool, x.length < n → test (c, x) = true := by
   simp only [checkShorter, List.all_eq_true, Cslib.BitString.mem_enumList]
-  constructor
-  · intro h x hx
-    have hlt : n - 1 - x.length < n := by omega
-    simpa only [unpad_pad, decide_eq_true hlt, ↓reduceIte] using
+  refine ⟨fun h x hx => ?_, fun h u hu => ?_⟩
+  · simpa only [unpad_pad, decide_eq_true ((Nat.sub_le _ _).trans_lt
+      (Nat.sub_lt (Nat.zero_lt_of_lt hx) Nat.one_pos)), ↓reduceIte] using
       h (pad x (n - 1 - x.length)) (by rw [length_pad]; omega)
-  · intro h u hu
-    split_ifs with hlt
+  · split_ifs with hlt
     · have hlen := congrArg List.length (pad_unpad (hu ▸ of_decide_eq_true hlt))
       rw [length_pad, hu] at hlen
       exact h (unpad u).1 (by omega)
@@ -166,13 +164,11 @@ private theorem closedUnderFiniteVariation_coneOf {W : Set (List Bool) → Set (
     ClosedUnderFiniteVariation (coneOf W B) := by
   obtain ⟨⟨b₀, hb₀⟩, ⟨b₁, hb₁⟩⟩ := exists_notMem_and_mem_of_notMem_P hB
   intro L L' ⟨hLB, hBWL⟩ hfin
-  have hL'B := polyTimeReducible_of_symmDiff_finite_left hLB hfin hb₀ hb₁
-  have hWL_notP : W L ∉ P encBits := fun hP => hB (hBWL.mem_P hP)
-  have hWL'_notP : W L' ∉ P encBits :=
-    fun hP => hWL_notP ((closedUnderFiniteVariation_P encBits) hP
-      (symmDiff_comm (W L) (W L') ▸ hWsymm hfin))
+  have hWL'_notP : W L' ∉ P encBits := fun hP => hB (hBWL.mem_P
+    ((closedUnderFiniteVariation_P encBits) hP (symmDiff_comm (W L) (W L') ▸ hWsymm hfin)))
   obtain ⟨⟨z₀, hz₀⟩, ⟨z₁, hz₁⟩⟩ := exists_notMem_and_mem_of_notMem_P hWL'_notP
-  exact ⟨hL'B, polyTimeReducible_of_symmDiff_finite_right hBWL (hWsymm hfin) hz₀ hz₁⟩
+  exact ⟨polyTimeReducible_of_symmDiff_finite_left hLB hfin hb₀ hb₁,
+    polyTimeReducible_of_symmDiff_finite_right hBWL (hWsymm hfin) hz₀ hz₁⟩
 
 private theorem recursivelyPresentable_coneOf {W : Set (List Bool) → Set (List Bool)}
     {B : Set (List Bool)} (hdec : IsDecidable B encBits) (hB : B ∉ P encBits)
@@ -230,17 +226,17 @@ private theorem recursivelyPresentable_coneOf {W : Set (List Bool) → Set (List
       Ladner.checkShorter_eq_true_iff.mpr fun x _ => hall x, ↓reduceIte, Set.ext_iff.mp hLi w]
   · rintro ⟨m, rfl⟩
     dsimp only
-    set i := m.unpair.1
-    set j := m.unpair.2
     by_cases hall : ∀ x : List Bool, eqTest (m.unpair, x) = true
-    · have heq : {a | present (m, a) = true} = {u | g (i, u) = true} := Set.ext fun w => by
-        simp only [Set.mem_ofPred_eq, present,
-          Ladner.checkShorter_eq_true_iff.mpr fun x _ => hall x, ↓reduceIte, i]
+    · have heq : {a | present (m, a) = true} = {u | g (m.unpair.1, u) = true} := Set.ext fun w =>
+        by simp only [Set.mem_ofPred_eq, present,
+          Ladner.checkShorter_eq_true_iff.mpr fun x _ => hall x, ↓reduceIte]
       rw [heq]
-      refine ⟨⟨fun w => transducerIndexed (i, w), computableInPolyTime_transducerIndexed i,
-        fun w => (hB' _).symm⟩, ⟨fun w => transducerIndexed (j, w),
-        computableInPolyTime_transducerIndexed j, fun x => ?_⟩⟩
-      rw [hB' x, of_decide_eq_true (hall x), ← hwval (fun u => g (i, u)), Set.mem_ofPred_eq]
+      refine ⟨⟨fun w => transducerIndexed (m.unpair.1, w),
+        computableInPolyTime_transducerIndexed m.unpair.1, fun w => (hB' _).symm⟩,
+        ⟨fun w => transducerIndexed (m.unpair.2, w),
+        computableInPolyTime_transducerIndexed m.unpair.2, fun x => ?_⟩⟩
+      rw [hB' x, of_decide_eq_true (hall x), ← hwval (fun u => g (m.unpair.1, u)),
+        Set.mem_ofPred_eq]
     · obtain ⟨x₀, hx₀⟩ := not_forall.mp hall
       refine hclosed hBmem ((List.finite_length_lt Bool (x₀.length + 1)).subset fun w hw => ?_)
       by_contra hlen
@@ -276,14 +272,11 @@ theorem exists_mem_P_ite_empty_lt {B : Set (List Bool)}
       PolyTimeReducible encBits encBits (G.ite ∅ B) B ∧
       ¬PolyTimeReducible encBits encBits B (G.ite ∅ B) := by
   obtain ⟨⟨b₀, hb₀⟩, ⟨b₁, hb₁⟩⟩ := exists_notMem_and_mem_of_notMem_P hB
-  have hempty : (∅ : Set (List Bool)) ∉ polyTimeDegree B := fun h =>
-    hB (h.2.mem_P empty_mem_P)
   obtain ⟨G, hG, hnotDeg, hnotP⟩ := exists_mem_P_ite_notMem
     (recursivelyPresentable_polyTimeDegree hdec hB) recursivelyPresentable_P
     (closedUnderFiniteVariation_polyTimeDegree hB) (closedUnderFiniteVariation_P encBits)
-    (isDecidable_of_mem_P empty_mem_P) hdec hempty hB
-  have hred : PolyTimeReducible encBits encBits (G.ite ∅ B) B :=
-    polyTimeReducible_ite_of_mem_P hG empty_mem_P hb₀ hb₁
+    (isDecidable_of_mem_P empty_mem_P) hdec (fun h => hB (h.2.mem_P empty_mem_P)) hB
+  have hred := polyTimeReducible_ite_of_mem_P hG empty_mem_P hb₀ hb₁
   exact ⟨G, hG, hnotP, hred, fun hback => hnotDeg ⟨hred, hback⟩⟩
 
 /-- **Ladner's downward theorem.** Every decidable `B ∉ P` on bit words has a decidable `A ∉ P`
@@ -291,10 +284,9 @@ strictly `≤ₘᵖ`-below it [Ladner][Ladner1975a], [Schöning][Schoening1982].
 theorem exists_isDecidable_notMem_P_lt {B : Set (List Bool)}
     (hdec : IsDecidable B encBits) (hB : B ∉ P encBits) :
     ∃ A : Set (List Bool), IsDecidable A encBits ∧ A ∉ P encBits ∧
-      PolyTimeReducible encBits encBits A B ∧ ¬PolyTimeReducible encBits encBits B A := by
-  obtain ⟨G, hG, hnotP, hAB, hBA⟩ := exists_mem_P_ite_empty_lt hdec hB
-  exact ⟨G.ite ∅ B,
-    isDecidable_ite (isDecidable_of_mem_P hG) (isDecidable_of_mem_P empty_mem_P) hdec,
+      PolyTimeReducible encBits encBits A B ∧ ¬PolyTimeReducible encBits encBits B A :=
+  let ⟨G, hG, hnotP, hAB, hBA⟩ := exists_mem_P_ite_empty_lt hdec hB
+  ⟨G.ite ∅ B, isDecidable_ite (isDecidable_of_mem_P hG) (isDecidable_of_mem_P empty_mem_P) hdec,
     hnotP, hAB, hBA⟩
 
 /-- Every problem `B ∈ NP \ P` on bit words has an `NP`-intermediate problem strictly `≤ₘᵖ`-below
@@ -302,10 +294,10 @@ it. -/
 theorem exists_mem_NP_notMem_P_lt {B : Set (List Bool)}
     (hBNP : B ∈ NP encBits) (hB : B ∉ P encBits) :
     ∃ A ∈ NP encBits, A ∉ P encBits ∧ ¬NPComplete encBits A ∧
-      PolyTimeReducible encBits encBits A B ∧ ¬PolyTimeReducible encBits encBits B A := by
-  have hdec : IsDecidable B encBits := isDecidable_of_mem_EXP (NP_subset_EXP hBNP)
-  obtain ⟨G, hG, hnotP, hAB, hBA⟩ := exists_mem_P_ite_empty_lt hdec hB
-  refine ⟨G.ite ∅ B, ite_mem_NP hG empty_mem_NP hBNP, hnotP,
+      PolyTimeReducible encBits encBits A B ∧ ¬PolyTimeReducible encBits encBits B A :=
+  let ⟨G, hG, hnotP, hAB, hBA⟩ :=
+    exists_mem_P_ite_empty_lt (isDecidable_of_mem_EXP (NP_subset_EXP hBNP)) hB
+  ⟨G.ite ∅ B, ite_mem_NP hG empty_mem_NP hBNP, hnotP,
     fun hcomp => hBA (hcomp.2 encBits B hBNP), hAB, hBA⟩
 
 /-- **If `P ≠ NP`, every `NP`-complete problem on bit words has an `NP`-intermediate problem
@@ -354,12 +346,9 @@ private theorem exists_mem_P_markedUnion_ite_between {A B : Set (List Bool)}
   let wval : (List Bool → Bool) → List Bool → Bool := fun g w =>
     if w.isEmpty then false else if w.headD false then g w.tail else fa w.tail
   have hwval (g : List Bool → Bool) :
-      {u | wval g u = true} = markedUnion A {u | g u = true} := by
-    ext (_ | ⟨b, u⟩)
-    · simp only [Set.mem_ofPred_eq, wval, List.isEmpty_nil, ↓reduceIte, Bool.false_eq_true,
-        false_iff]
-      rintro ⟨x, ⟨h, -⟩ | ⟨h, -⟩⟩ <;> cases h
-    · cases b <;> simp [cons_mem_markedUnion, wval, hA' u]
+      {u | wval g u = true} = markedUnion A {u | g u = true} := Set.ext fun
+    | [] => ⟨Bool.noConfusion, by rintro ⟨_, ⟨h, -⟩ | ⟨h, -⟩⟩ <;> cases h⟩
+    | b :: u => by cases b <;> simp [cons_mem_markedUnion, wval, hA' u]
   have hwcomp {G : ℕ × List Bool → Bool}
       (hG : IsComputable G (encPair encUnary encBits) encBool) :
       IsComputable (fun p : ℕ × List Bool => wval (fun u => G (p.1, u)) p.2)
@@ -374,18 +363,16 @@ private theorem exists_mem_P_markedUnion_ite_between {A B : Set (List Bool)}
         (encPair encUnary encBits) encBits := by fun_prop
     exact hempty.isComputable.ite (ComputableInPolyTime.const false).isComputable
       (hhead.isComputable.ite (hG.comp hgArg.isComputable) (hfa.comp haArg.isComputable))
-  have hC₁_pres := recursivelyPresentable_polyTimeReducible_le hdecA
-  have hC₁_fv :=
-    closedUnderFiniteVariation_polyTimeReducible_le (encA := encBits) (encB := encBits) ha₀ ha₁
-  have hC₂_pres := recursivelyPresentable_coneOf (W := markedUnion A) (wval := wval)
-    hdecB hBP (polyTimeReducible_right_markedUnion A B) (fun _ _ => symmDiff_markedUnion_finite A)
-    hwval hwcomp
-  have hC₂_fv := closedUnderFiniteVariation_coneOf (W := markedUnion A) hBP
-    (fun _ _ => symmDiff_markedUnion_finite A)
-  have hA_not_C₂ : A ∉ coneOf (markedUnion A) B := fun ⟨_, hB_mAA⟩ =>
-    hBA (hB_mAA.trans (polyTimeReducible_markedUnion (.refl encBits A) (.refl encBits A) ha₀))
   obtain ⟨G, hG, hnotC₁, hnotC₂⟩ := exists_mem_P_ite_notMem
-    hC₁_pres hC₂_pres hC₁_fv hC₂_fv hdecB hdecA hBA hA_not_C₂
+    (recursivelyPresentable_polyTimeReducible_le hdecA)
+    (recursivelyPresentable_coneOf (W := markedUnion A) (wval := wval)
+      hdecB hBP (polyTimeReducible_right_markedUnion A B)
+      (fun _ _ => symmDiff_markedUnion_finite A) hwval hwcomp)
+    (closedUnderFiniteVariation_polyTimeReducible_le (encA := encBits) (encB := encBits) ha₀ ha₁)
+    (closedUnderFiniteVariation_coneOf (W := markedUnion A) hBP
+      (fun _ _ => symmDiff_markedUnion_finite A))
+    hdecB hdecA hBA fun ⟨_, hB_mAA⟩ =>
+      hBA (hB_mAA.trans (polyTimeReducible_markedUnion (.refl encBits A) (.refl encBits A) ha₀))
   have hDB : PolyTimeReducible encBits encBits (G.ite B A) B :=
     polyTimeReducible_ite_of_reducible hG hAB
   refine ⟨G, hG, polyTimeReducible_left_markedUnion A (G.ite B A),
@@ -430,9 +417,8 @@ theorem exists_mem_NP_between_of_notMem_P {A B : Set (List Bool)}
     obtain ⟨⟨c₀, hc₀⟩, ⟨c₁, hc₁⟩⟩ := exists_notMem_and_mem_of_notMem_P hCP
     exact ⟨C, hCNP, polyTimeReducible_of_mem_P hAP hc₁ hc₀,
       fun hCA => hCP (hCA.mem_P hAP), hCB, hBC⟩
-  · have hdecB : IsDecidable B encBits := isDecidable_of_mem_EXP (NP_subset_EXP hBNP)
-    obtain ⟨G, hG, h₁, h₂, h₃, h₄⟩ :=
-      exists_mem_P_markedUnion_ite_between hdecB hAP hBP hAB hBA
+  · obtain ⟨G, hG, h₁, h₂, h₃, h₄⟩ := exists_mem_P_markedUnion_ite_between
+      (isDecidable_of_mem_EXP (NP_subset_EXP hBNP)) hAP hBP hAB hBA
     exact ⟨markedUnion A (G.ite B A),
       markedUnion_mem_NP hANP (ite_mem_NP hG hBNP hANP), h₁, h₂, h₃, h₄⟩
 

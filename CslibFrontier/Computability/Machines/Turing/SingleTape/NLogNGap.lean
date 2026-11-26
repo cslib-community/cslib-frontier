@@ -110,9 +110,9 @@ private lemma crossings_cut (hdec : tm.DecidesByHeadInTime ι L yes T) {w : List
       ((w.take j).map ι).length (T w.length) := by
     rwa [← e i, ← e j, l₁, l₂]
   obtain ⟨hC, hcL, hcR, -⟩ := cut_and_paste_run hne hL hR hx
-  rw [← List.map_append] at hC hcL hcR
-  rw [← e i] at hcL
-  rw [← e j] at hcR
+  rw [← List.map_append] at hC
+  rw [← List.map_append, ← e i] at hcL
+  rw [← List.map_append, ← e j] at hcR
   have heq (b : ℤ) : (tm.absInit ((w.take i ++ w.drop j).map ι)).crossings b
       (T (w.take i ++ w.drop j).length) =
       (tm.absInit ((w.take i ++ w.drop j).map ι)).crossings b (T w.length + T w.length) :=
@@ -224,26 +224,22 @@ theorem isRegular_of_time_le_mul_log (hdec : tm.DecidesByHeadInTime ι L yes T) 
       Finset.single_le_sum (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr h)
     have h2 := AbsCfg.length_crossings_le (tm.absInit (w.map ι)) (b : ℤ) (T w.length)
     omega
-  have hinjL : Set.InjOn (fun i : ℕ => (tm.absInit (w.map ι)).crossings (i : ℤ) (T w.length))
-      (Finset.Icc 1 b) := fun i hi j hj hij => by
-    simp only [Finset.coe_Icc, Set.mem_Icc] at hi hj
-    refine by_contra fun hne => (Nat.lt_or_gt_of_ne hne).elim
-      (fun h => crossings_ne_of_minimal hdec hb1 hbn hlong hmin hi.1 h (by omega) (.inr hj.2) hij)
-      (fun h => crossings_ne_of_minimal hdec hb1 hbn hlong hmin hj.1 h (by omega) (.inr hi.2)
-        hij.symm)
-  have hinjR : Set.InjOn (fun i : ℕ => (tm.absInit (w.map ι)).crossings (i : ℤ) (T w.length))
-      (Finset.Icc b w.length) := fun i hi j hj hij => by
-    simp only [Finset.coe_Icc, Set.mem_Icc] at hi hj
-    refine by_contra fun hne => (Nat.lt_or_gt_of_ne hne).elim
-      (fun h => crossings_ne_of_minimal hdec hb1 hbn hlong hmin (by omega) h hj.2 (.inl hi.1) hij)
-      (fun h => crossings_ne_of_minimal hdec hb1 hbn hlong hmin (by omega) h hi.2 (.inl hj.1)
-        hij.symm)
+  have hinj {lo hi : ℕ} (hlo : 1 ≤ lo) (hhi : hi ≤ w.length) (hside : b ≤ lo ∨ hi ≤ b) :
+      Set.InjOn (fun i : ℕ => (tm.absInit (w.map ι)).crossings (i : ℤ) (T w.length))
+        (Finset.Icc lo hi) := by
+    have hlt {i j : ℕ} (hi' : i ∈ Finset.Icc lo hi) (hj' : j ∈ Finset.Icc lo hi) (h : i < j) :=
+      let ⟨hi1, _⟩ := Finset.mem_Icc.mp hi'
+      let ⟨_, hj2⟩ := Finset.mem_Icc.mp hj'
+      crossings_ne_of_minimal hdec hb1 hbn hlong hmin (hlo.trans hi1) h (hj2.trans hhi) (by omega)
+    exact fun i hi' j hj' hij => le_antisymm (not_lt.mp fun h => hlt hj' hi' h hij.symm)
+      (not_lt.mp fun h => hlt hi' hj' h hij)
   obtain ⟨S, hS, hcard⟩ : ∃ S : Finset ℕ,
       Set.InjOn (fun i : ℕ => (tm.absInit (w.map ι)).crossings (i : ℤ) (T w.length)) S ∧
-        w.length + 1 ≤ 2 * S.card := by
-    by_cases hc : (Finset.Icc b w.length).card ≤ (Finset.Icc 1 b).card
-    · exact ⟨_, hinjL, by simp only [Nat.card_Icc] at hc ⊢; omega⟩
-    · exact ⟨_, hinjR, by simp only [Nat.card_Icc] at hc ⊢; omega⟩
+        w.length + 1 ≤ 2 * S.card :=
+    if hc : (Finset.Icc b w.length).card ≤ (Finset.Icc 1 b).card then
+      ⟨_, hinj le_rfl hbn (.inr le_rfl), by simp only [Nat.card_Icc] at hc ⊢; omega⟩
+    else
+      ⟨_, hinj hb1 le_rfl (.inl le_rfl), by simp only [Nat.card_Icc] at hc ⊢; omega⟩
   exact gap_arith hd hcard (by omega)
     (card_mul_le_of_injOn (tm.absInit (w.map ι)) (T w.length) hS) (hT _ (by omega))
 

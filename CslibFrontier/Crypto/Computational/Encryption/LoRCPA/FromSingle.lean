@@ -383,11 +383,9 @@ theorem lorHybridGameOn_step_gap {Msg : Type}
         simp only [lorStepOn, pmf_norm, Bool.false_eq_true, ↓reduceIte]
       · simp only [↓reduceIte, lorHybridGameOn, lorHybridDistinguisherOn, Nat.min_eq_left hlt,
           Nat.sub_add_eq (Q n) split 1]
-        have hfront (pk st₀ : List Bool) :
-            lorRunOn valid encrypt adversary n pk true (split + 1) (st₀, []) =
-              lorRunOn valid encrypt adversary n pk true split (st₀, []) >>=
-                lorStepOn valid encrypt adversary n pk true := by
-          unfold lorRunOn; rw [OracleComp.iterate_succ]
+        have hfront (pk st₀) : lorRunOn valid encrypt adversary n pk true (split + 1) (st₀, []) =
+            lorRunOn valid encrypt adversary n pk true split (st₀, []) >>=
+              lorStepOn valid encrypt adversary n pk true := OracleComp.iterate_succ _ _ _
         simp_rw [hfront]
         simp only [lorStepOn, pmf_norm, ↓reduceIte]
     have rhs_eq (bit : Bool) :
@@ -481,14 +479,8 @@ private theorem advantage_lorGameOn_eq_mixture {Msg : Type}
                 (gameOn valid keyGen encrypt
                   (lorToSingleAt valid encrypt Q adversary i.val) true n)
             else PMF.pure false) := by
-  have hred := Game.succProbability_hybrid_reduction
-    (games := fun split => ProbComp.eval (lorHybridGameOn valid keyGen encrypt Q adversary split n))
-    (game1 := fun split => ProbComp.eval
-      (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary split) false n))
-    (game2 := fun split => ProbComp.eval
-      (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary split) true n))
-    (Q n) capacity hle 1 fun split _ => by
-      simpa only [one_mul] using lorHybridGameOn_step_gap valid keyGen encrypt Q adversary split n
+  have hred := Game.succProbability_hybrid_reduction _ _ _ (Q n) capacity hle 1 fun split _ => by
+    simpa only [one_mul] using lorHybridGameOn_step_gap valid keyGen encrypt Q adversary split n
   rw [eval_lorHybridGameOn_zero, eval_lorHybridGameOn_of_le valid keyGen encrypt Q adversary le_rfl,
     mul_one] at hred
   apply NNReal.eq

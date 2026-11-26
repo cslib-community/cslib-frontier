@@ -149,14 +149,11 @@ private theorem basis_anticomm_oddExpect_le
     oddExpect (fun x z => S.state.norm (B false x * B true z + B true z * B false x) ^ 2) ≤
       (9 / 2) * (4096 * ε + 2 * chshAnticommConst * ε) := by
   intro M B
-  let F (x z : Fin n → Bool) := S.state.norm (B false x * B true z + B true z * B false x) ^ 2
   have h := expect_norm_pauliBraidingBasis_anticomm_sq_le S roles
-  change (𝔼 p : ↥(oddPairs (Fin n)), F p.val.1 p.val.2) ≤ _ at h
-  change oddExpect F ≤ _
   rw [oddExpect_eq_dens_mul_expect]
   refine (mul_le_mul_of_nonneg_right dens_oddPairs_le_half
     (expect_nonneg fun _ _ => sq_nonneg _)).trans
-    ((mul_le_mul_of_nonneg_left h (by norm_num : 0 ≤ (1 / 2 : ℝ))).trans ?_)
+    ((mul_le_mul_of_nonneg_left h (by norm_num)).trans ?_)
   linarith only [hcons, mul_le_mul_of_nonneg_left hac
     (mul_nonneg zero_le_two chshAnticommConst_nonneg)]
 
@@ -243,12 +240,8 @@ private theorem basis_cross_distance_le
   intro A B
   have h := expect_norm_pauliBraidingBasisObservable_sub_sq_le
     TwoProverGame.chsh id (fun _ => id) b T
-  change (𝔼 x, T.state.norm (A x - B x) ^ 2) ≤ _ at h
-  have hmul := mul_le_mul_of_nonneg_left hcons
-    (by positivity : 0 ≤ 896 * ((oddPairs (Fin n)).dens : ℝ))
-  have hhalf := mul_le_mul_of_nonneg_right (dens_oddPairs_le_half (ι := Fin n)) hε
-  have hcap := mul_le_mul_of_nonneg_left hhalf (by norm_num : 0 ≤ (896 : ℝ))
-  linarith only [h, hmul, hlin, hcap]
+  have hdens : (0 : ℝ) ≤ (oddPairs (Fin n)).dens := by positivity
+  nlinarith [h, hlin, hcons, dens_oddPairs_le_half (ι := Fin n), hdens]
 
 /-- The three branch scores of a single projective-basis tensor strategy bound the
 Pauli-group multiplication defects of exactly linear character families on both original
@@ -299,9 +292,8 @@ theorem exists_local_pauliFamily_of_pauliBraidingBranchScores
   let A (b : Bool) (x : Fin n → Bool) := 𝔼 d, pauliBraidingBasisObservable T.alice b x d
   let B (b : Bool) (x : Fin n → Bool) := 𝔼 d, pauliBraidingBasisObservable T.bob b x d
   let c := 832 * ε
-  have hε : 0 ≤ ε := by
-    linarith only [hlin, show (branch 0).quantumWinProb S ≤ 1 from
-      SeededGame.answersWinProb_le_one (branch 0) S.answers]
+  have h0_le : (branch 0).quantumWinProb S ≤ 1 := (branch 0).answersWinProb_le_one S.answers
+  have hε : 0 ≤ ε := by linarith only [hlin, h0_le]
   have hlin' : 1 - (branch 0).commutingWinProb T ≤ ε := by
     linarith only [hlin, (branch 0).commutingWinProb_toCommuting S]
   have hcons' : 1 - (branch 2).commutingWinProb T ≤ ε :=
@@ -416,7 +408,8 @@ private theorem quantum_branch_deficits_le
     ((branch i).commutingWinProb_toCommuting S) ▸
       pauliBraidingBranch_deficit_le TwoProverGame.chsh id (fun _ => id) T.answers
         upper hupper hfull i
-  exact ⟨by linarith only [show 1 - (branch 0).quantumWinProb S ≤ 3 * ε from hδ 0], hδ 2, hδ 1⟩
+  have hδ0 : 1 - (branch 0).quantumWinProb S ≤ 3 * ε := hδ 0
+  exact ⟨by linarith only [hδ0], hδ 2, hδ 1⟩
 
 /-- Near the mean of the branch upper bounds, a projective-basis tensor strategy admits
 local isometries compressing the rounded products and intertwining the individual

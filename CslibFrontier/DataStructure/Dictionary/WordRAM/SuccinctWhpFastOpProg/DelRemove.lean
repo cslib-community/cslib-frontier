@@ -51,9 +51,7 @@ attribute [local simp] clientResult_pure_whp clientState_pure_whp
 /-- A conditional single-slot update leaves every other slot unchanged. -/
 private theorem ite_update_apply_of_ne {α : Type} {p : Prop} [Decidable p] {f : ℕ → α}
     {i k : ℕ} {x : α} (h : k ≠ i) : (if p then Function.update f i x else f) k = f k := by
-  split_ifs
-  · exact Function.update_of_ne h _ _
-  · rfl
+  split_ifs <;> simp [Function.update_of_ne h]
 
 /-- Core `WhpCoreParams` removal sequence (`buf`, `liveSlice`, `overmarsSlice`) for
 `fastDeleteRemoveGenProg`. -/
@@ -171,8 +169,7 @@ private theorem delRemCoreGenProg_fastStep {c U V w n_max base b loc_del : ℕ}
   have hfp_lt : fpOfSalt c U n_max θ.2 (fs.bktSalt b) u < 2 ^ fpBitsWhp n_max := by
     unfold fpOfSalt
     split_ifs with hs
-    · exact fpHash_lt c U n_max θ.2 ⟨_, hs⟩ u
-    · exact Nat.two_pow_pos _
+    exacts [fpHash_lt c U n_max θ.2 ⟨_, hs⟩ u, Nat.two_pow_pos _]
   set st_del := fs.locState b loc_del
   set rKey_u := fpReducedKey c U n_max θ.2 u
   set fp_live_u := fpOfSalt c U n_max θ.2 (fs.bktSalt b) u
@@ -216,7 +213,6 @@ private theorem delRemCoreGenProg_fastStep {c U V w n_max base b loc_del : ℕ}
       (delRemCoreGenProg ((((cp, base), b), loc_del), (st_del, (rKey_u, fp_live_u)))) s3 ()
       (2 * cTabWhp c + 573) := by
     unfold delRemCoreGenProg
-    dsimp only
     exact .mono (.bind ⟨rfl, rfl, hmc1, hvp1⟩ <|
       .bind ⟨rfl, rfl, hmc2, hvp2⟩ ⟨rfl, rfl, hmc3, hvp3⟩) (by omega)
   dsimp only
@@ -303,7 +299,6 @@ theorem fastDeleteRemoveGenProg_fastStep {c U V w n_max base b loc_del : ℕ}
     delRemCoreGenProg_fastStep u henv hseed hrep hv hb hld (s := s)
   obtain ⟨hmc4, hvp4, hst4⟩ := delRemRebGenProg_fastStep u henv hce_o hb hr_lt_o hreb_fn_o
     hst_core.2.1 hst_core.2.2.1 (loc_del := loc_del) (st_del := fs.locState b loc_del)
-  dsimp only
   unfold fastDeleteRemoveGenProg
   dsimp only
   rw [hwp1]

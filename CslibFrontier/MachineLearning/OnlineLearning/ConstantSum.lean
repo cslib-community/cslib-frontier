@@ -379,12 +379,8 @@ theorem ciSup_ciInf_eq_ciInf_ciSup (M : I → J → ℝ) :
           ∑ i', p_bar i' * M i' j ≤ ∑ j', q_bar j' * M i j' + C / √(T : ℝ) := fun i j => by
         have hM_eq (i' : I) (j' : J) : M i' j' = 2 * B * M₀ i' j' - B := by
           simp only [M₀, mul_div_cancel₀ _ (mul_pos zero_lt_two hB).ne', add_sub_cancel_right]
-        have hlhs : ∑ i', p_bar i' * M i' j = 2 * B * (∑ i', p_bar i' * M₀ i' j) - B := by
-          simp only [hM_eq, mul_sub, mul_left_comm _ (2 * B), sum_sub_distrib, ← mul_sum,
-            ← sum_mul, hp1, one_mul]
-        have hrhs : ∑ j', q_bar j' * M i j' = 2 * B * (∑ j', q_bar j' * M₀ i j') - B := by
-          simp only [hM_eq, mul_sub, mul_left_comm _ (2 * B), sum_sub_distrib, ← mul_sum,
-            ← sum_mul, hq1, one_mul]
+        simp only [hM_eq, mul_sub, mul_left_comm _ (2 * B), sum_sub_distrib, ← mul_sum,
+          ← sum_mul, hp1, hq1, one_mul]
         have hmul := mul_le_mul_of_nonneg_left (hle₀ i j) (mul_nonneg zero_le_two hB.le)
         rw [mul_add (2 * B), ← mul_div_assoc] at hmul
         linarith
@@ -433,19 +429,14 @@ theorem isMinimaxValue_ciInf_ciSup (M : I → J → ℝ) :
     isCompact_univ.exists_isMinOn Set.univ_nonempty hcont_row.continuousOn
   obtain ⟨q_opt, -, hq_max⟩ :=
     isCompact_univ.exists_isMaxOn Set.univ_nonempty hcont_col.continuousOn
-  have hp_val : (⨆ j : J, ∑ i, p_opt.weights i * M i j) =
-      ⨅ p : StdSimplex ℝ I, ⨆ j : J, ∑ i, p.weights i * M i j :=
-    le_antisymm (le_ciInf fun p => hp_min (Set.mem_univ p))
-      (ciInf_le (bddBelow_range_ciSup_loss M) p_opt)
-  have hq_val : (⨅ i : I, ∑ j, q_opt.weights j * M i j) =
-      ⨆ q : StdSimplex ℝ J, ⨅ i : I, ∑ j, q.weights j * M i j :=
-    le_antisymm (le_ciSup (bddAbove_range_ciInf_loss M) q_opt)
-      (ciSup_le fun q => hq_max (Set.mem_univ q))
   refine ⟨⟨p_opt, fun j => ?_⟩, q_opt, fun i => ?_⟩
-  · rw [← hp_val, ← sup'_univ_eq_ciSup]
-    exact le_sup' (fun j' => ∑ i, p_opt.weights i * M i j') (mem_univ j)
-  · rw [← ciSup_ciInf_eq_ciInf_ciSup M, ← hq_val, ← inf'_univ_eq_ciInf]
-    exact inf'_le (fun i' => ∑ j, q_opt.weights j * M i' j) (mem_univ i)
+  · refine (le_sup' (fun j' => ∑ i, p_opt.weights i * M i j') (mem_univ j)).trans ?_
+    rw [sup'_univ_eq_ciSup]
+    exact le_ciInf fun p => hp_min (Set.mem_univ p)
+  · rw [← ciSup_ciInf_eq_ciInf_ciSup M]
+    refine (ciSup_le fun q => hq_max (Set.mem_univ q)).trans ?_
+    simpa only [← inf'_univ_eq_ciInf] using
+      inf'_le (fun i' => ∑ j, q_opt.weights j * M i' j) (mem_univ i)
 
 end OnlineMinimax
 

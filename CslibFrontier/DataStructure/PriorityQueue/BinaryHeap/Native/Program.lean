@@ -222,13 +222,10 @@ theorem output_bank (i : Fin 5) (j : Fin (certificates i).l) (a : Fin 4)
 private theorem clear_nodup_aux :
     [code.curReg, code.zeroReg, code.oneReg, code.baseReg, code.frontierReg].Nodup := by
   change [bank 0, bank 1, bank 2, argument 3, Backend.frontier family].Nodup
-  have h01 : bank 0 ≠ bank 1 := bank_injective.ne (by decide)
-  have h02 : bank 0 ≠ bank 2 := bank_injective.ne (by decide)
-  have h12 : bank 1 ≠ bank 2 := bank_injective.ne (by decide)
   simp only [List.nodup_cons, List.mem_cons, not_or, List.not_mem_nil, List.nodup_nil,
-    not_false_eq_true, and_true]
-  exact ⟨⟨h01, h02, bank_ne_argument 0 3, bank_ne_frontier 0⟩,
-    ⟨⟨h12, bank_ne_argument 1 3, bank_ne_frontier 1⟩,
+    not_false_eq_true, and_true, bank_injective.ne_iff]
+  exact ⟨⟨by decide, by decide, bank_ne_argument 0 3, bank_ne_frontier 0⟩,
+    ⟨⟨by decide, bank_ne_argument 1 3, bank_ne_frontier 1⟩,
       ⟨⟨bank_ne_argument 2 3, bank_ne_frontier 2⟩, argument_ne_frontier 3⟩⟩⟩
 
 /-- The existing generic zero-fill routine has five distinct registers on this ABI. -/
@@ -431,8 +428,6 @@ theorem span_exec {w n base : ℕ} (x : Data registers) (hx : x.Bounded w)
       y.Bounded w ∧ y.mem = x.mem ∧ y.regs code.baseReg = base ∧
       y.regs code.frontierReg = base + PriorityQueue.BinaryHeap.space n ∧
       y.regs code.nReg = n := by
-  change x.regs (Backend.frontier family) = base at hfront
-  change x.regs (argument 0) = n at hn
   have hin : x.regs ∘ (fun _ : Fin 1 => argument 0) =
       WordEncoding.encode (α := ℕ) n := funext fun _ => hn
   obtain ⟨y, hy, hb, hm, hf, ho, hframe⟩ := Initialize.reserve_exec
@@ -481,8 +476,6 @@ theorem setup_registers {w n base : ℕ} (x : Data registers) (hx : x.Bounded w)
       y.Bounded w ∧ y.mem = x.mem ∧ y.regs code.frontierReg = x.regs code.frontierReg ∧
       y.regs code.nReg = n ∧ y.regs code.baseReg = base ∧
       y.regs (argument 1) = base + n ∧ y.regs (argument 2) = 1 := by
-  change x.regs (argument 0) = n at hn
-  change x.regs (argument 3) = base at hb
   have hin : x.regs ∘ ![argument 0, argument 3] =
       WordEncoding.encode (α := ℕ × ℕ) (n, base) := funext fun i => by
     fin_cases i
@@ -494,12 +487,12 @@ theorem setup_registers {w n base : ℕ} (x : Data registers) (hx : x.Bounded w)
   obtain ⟨y, hy, hbounded, hm, ho, _, hframe⟩ := Initialize.metadata_exec
     (Backend.frontier family) ![argument 0, argument 3] metadataScratch
     metadataScratch_injective hd metadataScratch_ne_frontier hs (n, base) x hx hin hfit
-  refine ⟨y, hy, hbounded, congrArg Memory.State.mem hm,
-    congrArg Memory.State.frontier hm, ?_, ?_, ho 1, ho 2⟩
-  · exact (hframe _ (argument_ne_frontier 0)
-      (fun i => metadataScratch_ne_argument i 0 (by decide) (by decide))).trans hn
-  · exact (hframe _ (argument_ne_frontier 3)
-      (fun i => metadataScratch_ne_argument i 3 (by decide) (by decide))).trans hb
+  exact ⟨y, hy, hbounded, congrArg Memory.State.mem hm, congrArg Memory.State.frontier hm,
+    (hframe _ (argument_ne_frontier 0)
+      (fun i => metadataScratch_ne_argument i 0 (by decide) (by decide))).trans hn,
+    (hframe _ (argument_ne_frontier 3)
+      (fun i => metadataScratch_ne_argument i 3 (by decide) (by decide))).trans hb,
+    ho 1, ho 2⟩
 
 /-- The actual compact fresh initializer preserves the entire old memory. Its local-zero domain
 is exactly the original 3n+1 block, and its code and constant clock precede all runtime values.

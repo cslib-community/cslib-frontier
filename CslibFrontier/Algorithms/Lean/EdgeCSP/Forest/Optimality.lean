@@ -193,27 +193,23 @@ theorem search_exhausted_isOptimalLabeling (sem : Rel → List Bool → Bool)
     (f : OccurrenceLabeling F Bool) (hF : EdgeInstance F)
     (hf : ValidLabeling sem f) (hM : EdgeInstance.EvenConstraints sem F)
     {es : Log F} (hs : search sem f = .exhausted es) : IsOptimalLabeling sem f := by
-  have hg := search_grown sem f hF
-  rw [hs] at hg
+  have hg := hs ▸ search_grown sem f hF
   have hc := search_exhausted_frontier sem f hs
   let O := es.outgoing.toFinset
   let I := es.used.toFinset \ O
   have hIO : Disjoint I O := disjoint_left.mpr fun _ hi ho => (mem_sdiff.mp hi).2 ho
-  have hroot (o : Occurrence F) (hi : Inconsistent f o.var) : o ∈ I := by
-    refine mem_sdiff.mpr ⟨List.mem_toFinset.mpr (hc o (Or.inl ((mem_roots f _).mpr hi))), ?_⟩
-    exact fun ho => hg.outgoing_not_root (List.mem_toFinset.mp ho) ((mem_roots f _).mpr hi)
+  have hroot (o : Occurrence F) (hi : Inconsistent f o.var) : o ∈ I :=
+    mem_sdiff.mpr ⟨List.mem_toFinset.mpr (hc o (Or.inl ((mem_roots f _).mpr hi))),
+      fun ho => hg.outgoing_not_root (List.mem_toFinset.mp ho) ((mem_roots f _).mpr hi)⟩
   have hout (o : Occurrence F) (ho : o ∈ O) :
       hF.partner o ∈ I ∧ ¬ Inconsistent f o.var := by
     have hom := List.mem_toFinset.mp ho
-    have hvis := Log.Grown.used_visited hg (es.outgoing_subset_used hom)
-    have hpvis : es.Visited (roots f) (hF.partner o).var := by
-      rwa [← hF.partner_variable o]
-    refine ⟨mem_sdiff.mpr ⟨List.mem_toFinset.mpr (hc _ hpvis), ?_⟩, ?_⟩
-    · intro hp
-      exact hF.partner_ne o (outgoing_injective hg hom (List.mem_toFinset.mp hp)
-        (hF.partner_variable o))
-    · intro hi
-      exact hg.outgoing_not_root hom ((mem_roots f _).mpr hi)
+    have hpvis : es.Visited (roots f) (hF.partner o).var :=
+      hF.partner_variable o ▸ Log.Grown.used_visited hg (es.outgoing_subset_used hom)
+    exact ⟨mem_sdiff.mpr ⟨List.mem_toFinset.mpr (hc _ hpvis), fun hp =>
+        hF.partner_ne o (outgoing_injective hg hom (List.mem_toFinset.mp hp)
+          (hF.partner_variable o))⟩,
+      fun hi => hg.outgoing_not_root hom ((mem_roots f _).mpr hi)⟩
   refine ⟨hf, fun g hvalid => ?_⟩
   have hlocal := local_changes_le hF hM hf hvalid I O hIO
     (fun _ ha _ hb => incoming_saturated hg ha hb)

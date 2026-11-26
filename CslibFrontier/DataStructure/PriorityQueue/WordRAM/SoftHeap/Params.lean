@@ -80,11 +80,8 @@ namespace Cslib.DataStructure.PriorityQueue.WordRAM.SoftHeap
 
 /-- Lower-bound exponent check for `rankThresholdForEps`: `12 / ε ≤ 2 ^ rankThresholdForEps ε`. -/
 theorem twelve_div_le_two_pow_rankThresholdForEps (ε : ℚ) :
-    12 / ε ≤ (2 ^ rankThresholdForEps ε : ℚ) := by
-  have h1 : 12 / ε ≤ (Nat.ceil (12 / ε) : ℚ) := Nat.le_ceil _
-  have h2q : (Nat.ceil (12 / ε) : ℚ) < (2 ^ rankThresholdForEps ε : ℚ) := by
-    exact_mod_cast Nat.lt_pow_succ_log_self (by decide) (Nat.ceil (12 / ε))
-  linarith
+    12 / ε ≤ (2 ^ rankThresholdForEps ε : ℚ) :=
+  (Nat.le_ceil _).trans (by exact_mod_cast (Nat.lt_pow_succ_log_self (by decide) _).le)
 
 /-- Minimum target item-list length `targetSize r k` of a non-leaf soft-heap node of rank `k`
 under corruption threshold `r`. -/
@@ -94,9 +91,7 @@ under corruption threshold `r`. -/
 /-- Target size is always positive. -/
 theorem targetSize_pos (r k : ℕ) : 0 < targetSize r k := by
   dsimp only [targetSize]
-  split_ifs
-  · exact Nat.one_pos
-  · exact Nat.two_pow_pos _
+  split_ifs <;> positivity
 
 /-- Target size equals `1` for all ranks at most `r`. -/
 @[simp] theorem targetSize_le_threshold {r k : ℕ} (hk : k ≤ r) : targetSize r k = 1 := by
@@ -112,25 +107,20 @@ theorem targetSize_succ (r k : ℕ) :
   · simp [targetSize, hk]
   · by_cases hkr : k = r
     · subst hkr
-      have h1 : k + 1 - k = 1 := by omega
-      simp only [targetSize, le_rfl, ↓reduceIte, hk, h1]
+      simp only [targetSize, le_rfl, ↓reduceIte, hk, Nat.add_sub_cancel_left]
       norm_num
     · have hne : ¬ (k ≤ r) := by omega
-      by_cases hmod : (k + 1 - r) % 2 = 1
-      · simp only [targetSize, hk, hne, hmod, ↓reduceIte]
-        have hq : (k + 1 - r + 1) / 2 = (k - r + 1) / 2 + 1 := by omega
+      by_cases hmod : (k + 1 - r) % 2 = 1 <;>
+        simp only [targetSize, hk, hne, hmod, ↓reduceIte]
+      · have hq : (k + 1 - r + 1) / 2 = (k - r + 1) / 2 + 1 := by omega
         rw [hq, Nat.pow_succ, Nat.mul_two]
-      · simp only [targetSize, hk, hne, hmod, ↓reduceIte]
-        have hq : (k + 1 - r + 1) / 2 = (k - r + 1) / 2 := by omega
+      · have hq : (k + 1 - r + 1) / 2 = (k - r + 1) / 2 := by omega
         rw [hq]
 
 /-- `targetSize r k` is even whenever `r < k`. -/
 theorem targetSize_even_of_gt {r k : ℕ} (hk : r < k) : 2 ∣ targetSize r k := by
-  have hne : ¬ (k ≤ r) := by omega
-  have hq : (k - r + 1) / 2 = ((k - r + 1) / 2 - 1) + 1 := by omega
-  simp only [targetSize, hne, ↓reduceIte]
-  rw [hq, Nat.pow_succ]
-  exact dvd_mul_left _ _
+  simp only [targetSize, Nat.not_le.mpr hk, ↓reduceIte]
+  exact dvd_pow_self 2 (by omega)
 
 private theorem targetSize_even_step (r t : ℕ) : targetSize r (r + 2 * t) = 2 ^ t := by
   dsimp only [targetSize]
@@ -159,14 +149,12 @@ theorem rank_le_targetSize_add (r k : ℕ) : k ≤ targetSize r k + r := by
   · omega
   · rcases Nat.even_or_odd (k - r) with ⟨t, ht⟩ | ⟨t, ht⟩
     · have hk' : k = r + 2 * t := by omega
-      rw [hk', targetSize_even_step]
       have := hpow t
-      omega
+      rw [hk', targetSize_even_step]; omega
     · have hk' : k = r + 2 * t + 1 := by omega
-      rw [hk', targetSize_odd_step]
       have := hpow t
       have hpos : 0 < 2 ^ t := Nat.two_pow_pos t
-      omega
+      rw [hk', targetSize_odd_step]; omega
 
 /-- Maximum number of items stored at a single soft-heap node of rank `k` under threshold `r`. -/
 @[expose] def sizeCap (r : ℕ) : ℕ → ℕ
@@ -184,9 +172,8 @@ private theorem sizeCap_even_odd_le (r t : ℕ) :
     sizeCap r (r + 2 * t) ≤ 4 * 2 ^ t ∧ sizeCap r (r + 2 * t + 1) ≤ 6 * 2 ^ t := by
   induction t with
   | zero =>
-    have h1 : sizeCap r r = 1 := sizeCap_eq_one_of_le le_rfl
     simp only [Nat.mul_zero, Nat.add_zero, Nat.pow_zero, Nat.mul_one, sizeCap,
-      targetSize_odd_step r 0, h1]
+      targetSize_odd_step r 0, sizeCap_eq_one_of_le le_rfl]
     omega
   | succ t ih =>
     have h1 : r + 2 * (t + 1) = (r + 2 * t + 1) + 1 := by omega
@@ -196,12 +183,9 @@ private theorem sizeCap_even_odd_le (r t : ℕ) :
       rw [targetSize_odd_step, Nat.pow_succ]; ring
     have hpos : 0 < 2 ^ t := Nat.two_pow_pos t
     have heven : sizeCap r (r + 2 * (t + 1)) ≤ 4 * 2 ^ (t + 1) := by
-      rw [h1, sizeCap, ← h1, hts1, Nat.pow_succ]
-      omega
-    have hodd : sizeCap r (r + 2 * (t + 1) + 1) ≤ 6 * 2 ^ (t + 1) := by
-      rw [sizeCap, hts2, Nat.pow_succ]
-      omega
-    exact ⟨heven, hodd⟩
+      rw [h1, sizeCap, ← h1, hts1, Nat.pow_succ]; omega
+    refine ⟨heven, ?_⟩
+    rw [sizeCap, hts2, Nat.pow_succ]; omega
 
 private theorem sizeCap_le_four_mul_targetSize (r k : ℕ) : sizeCap r k ≤ 4 * targetSize r k := by
   by_cases hk : k ≤ r
@@ -221,25 +205,21 @@ private def corruptPot (r k : ℕ) : ℕ :=
 
 private theorem targetSize_add_corruptPot_le {r k : ℕ} (hk : r ≤ k) :
     targetSize r (k + 1) + corruptPot r (k + 1) = 2 * corruptPot r k := by
-  let d := k - r
-  rcases Nat.even_or_odd d with ⟨t, ht⟩ | ⟨t, ht⟩
+  rcases Nat.even_or_odd (k - r) with ⟨t, ht⟩ | ⟨t, ht⟩
   · have hk' : k = r + 2 * t := by omega
     rw [hk']
-    have hts := targetSize_even_step r t
-    have hts1 : targetSize r (r + 2 * t + 1) = 2 * 2 ^ t := targetSize_odd_step r t
     have hmod0 : (r + 2 * t - r) % 2 = 0 := by omega
     have hmod1 : (r + 2 * t + 1 - r) % 2 ≠ 0 := by omega
-    simp only [corruptPot, hmod0, hmod1, ↓reduceIte, hts, hts1]
+    simp only [corruptPot, hmod0, hmod1, ↓reduceIte, targetSize_even_step, targetSize_odd_step]
     omega
   · have hk' : k = r + 2 * t + 1 := by omega
     rw [hk']
-    have hts := targetSize_odd_step r t
     have hts1 : targetSize r (r + 2 * t + 1 + 1) = 2 * 2 ^ t := by
       have hsum : r + 2 * t + 1 + 1 = r + 2 * (t + 1) := by omega
       rw [hsum, targetSize_even_step, Nat.pow_succ, Nat.mul_comm]
     have hmod0 : (r + 2 * t + 1 - r) % 2 ≠ 0 := by omega
     have hmod1 : (r + 2 * t + 1 + 1 - r) % 2 = 0 := by omega
-    simp only [corruptPot, hmod0, hmod1, ↓reduceIte, hts, hts1]
+    simp only [corruptPot, hmod0, hmod1, ↓reduceIte, targetSize_odd_step, hts1]
     omega
 
 /-- General geometric corruption bound: if `2 * C (k + 1) ≤ C k` for all `k`, then
@@ -247,9 +227,8 @@ private theorem targetSize_add_corruptPot_le {r k : ℕ} (hk : r ≤ k) :
 theorem corrupt_sum_bound (r : ℕ) (C : ℕ → ℕ) (K : ℕ)
     (hstep : ∀ k, 2 * C (k + 1) ≤ C k) :
     2 ^ r * (∑ k ∈ Finset.Icc (r + 1) K, C k * sizeCap r k) ≤ 12 * C 0 := by
-  have hts_bound : ∀ j : ℕ, r ≤ j →
+  have hts_bound (j : ℕ) (hj : r ≤ j) :
       (∑ k ∈ Finset.Icc (r + 1) j, C k * targetSize r k) + C j * corruptPot r j ≤ 3 * C r := by
-    intro j hj
     induction j with
     | zero =>
       have hr0 : r = 0 := by omega
@@ -266,27 +245,24 @@ theorem corrupt_sum_bound (r : ℕ) (C : ℕ → ℕ) (K : ℕ)
           simp only [Finset.mem_insert, Finset.mem_Icc]
           omega
         rw [hsplit, Finset.sum_insert (by simp)]
-        have hid := targetSize_add_corruptPot_le hj'
-        have h2 := hstep j
         have hmul : C (j + 1) * (targetSize r (j + 1) + corruptPot r (j + 1)) ≤
             C j * corruptPot r j := by
-          rw [hid]
+          rw [targetSize_add_corruptPot_le hj']
           calc C (j + 1) * (2 * corruptPot r j)
               = (2 * C (j + 1)) * corruptPot r j := by ring
-            _ ≤ C j * corruptPot r j := Nat.mul_le_mul_right _ h2
+            _ ≤ C j * corruptPot r j := Nat.mul_le_mul_right _ (hstep j)
         rw [Nat.mul_add] at hmul
         omega
   have hpow : 2 ^ r * C r ≤ C 0 := Nat.pow_mul_le_of_step hstep r
   by_cases hK : K ≤ r
-  · have hemp : Finset.Icc (r + 1) K = ∅ := Finset.Icc_eq_empty (by omega)
-    simp [hemp]
+  · simp [Finset.Icc_eq_empty_of_lt (Nat.lt_succ_of_le hK)]
   · have hsum_ts : ∑ k ∈ Finset.Icc (r + 1) K, C k * targetSize r k ≤ 3 * C r :=
       le_trans (Nat.le_add_right _ _) (hts_bound K (by omega))
     have hsum_sc : ∑ k ∈ Finset.Icc (r + 1) K, C k * sizeCap r k ≤ 12 * C r := by
       calc ∑ k ∈ Finset.Icc (r + 1) K, C k * sizeCap r k
-          ≤ ∑ k ∈ Finset.Icc (r + 1) K, C k * (4 * targetSize r k) := by
-            refine Finset.sum_le_sum fun k _ => ?_
-            exact Nat.mul_le_mul_left _ (sizeCap_le_four_mul_targetSize r k)
+          ≤ ∑ k ∈ Finset.Icc (r + 1) K, C k * (4 * targetSize r k) :=
+            Finset.sum_le_sum fun k _ =>
+              Nat.mul_le_mul_left _ (sizeCap_le_four_mul_targetSize r k)
         _ = 4 * ∑ k ∈ Finset.Icc (r + 1) K, C k * targetSize r k := by
             rw [Finset.mul_sum]
             refine Finset.sum_congr rfl fun k _ => by ring
@@ -304,9 +280,8 @@ theorem rat_le_eps_mul_of_pow_mul_le {ε : ℚ} (hε : 0 < ε) {c n : ℕ}
   have hb_q : (2 ^ rankThresholdForEps ε : ℚ) * (c : ℚ) ≤ 12 * (n : ℚ) := by
     exact_mod_cast h
   have hpow_pos : (0 : ℚ) < (2 ^ rankThresholdForEps ε : ℚ) := by positivity
-  have hr : 12 / ε ≤ (2 ^ rankThresholdForEps ε : ℚ) :=
-    twelve_div_le_two_pow_rankThresholdForEps ε
-  have h12 : 12 ≤ (2 ^ rankThresholdForEps ε : ℚ) * ε := (div_le_iff₀ hε).mp hr
+  have h12 : 12 ≤ (2 ^ rankThresholdForEps ε : ℚ) * ε :=
+    (div_le_iff₀ hε).mp (twelve_div_le_two_pow_rankThresholdForEps ε)
   have hmul : (2 ^ rankThresholdForEps ε : ℚ) * (c : ℚ) ≤
       (2 ^ rankThresholdForEps ε : ℚ) * (ε * (n : ℚ)) := by
     calc (2 ^ rankThresholdForEps ε : ℚ) * (c : ℚ) ≤ 12 * (n : ℚ) := hb_q
@@ -337,8 +312,7 @@ theorem itemPhi_ge_threshold (r k : ℕ) : (r : ℚ) ≤ itemPhi r k := by
   split_ifs with h1 h2
   · have : (k : ℚ) ≤ r := by exact_mod_cast h1
     push_cast; linarith
-  · exact le_add_of_nonneg_right (by positivity)
-  · exact le_add_of_nonneg_right (by positivity)
+  all_goals exact le_add_of_nonneg_right (by positivity)
 
 /-- Item potential is always non-negative. -/
 theorem itemPhi_nonneg (r k : ℕ) : 0 ≤ itemPhi r k :=
@@ -368,46 +342,25 @@ theorem itemPhi_le_zero (r k : ℕ) : itemPhi r k ≤ 2 * (r : ℚ) + 3 := by
 /-- Exact telescoping drop `itemPhi r k - itemPhi r (k + 1) = 1 / targetSize r k`. -/
 theorem itemPhi_sub_succ (r k : ℕ) :
     itemPhi r k - itemPhi r (k + 1) = 1 / (targetSize r k : ℚ) := by
-  by_cases hlt : k < r
-  · have hk : k ≤ r := by omega
-    have hk1 : k + 1 ≤ r := by omega
-    simp only [itemPhi, hk, hk1, ↓reduceIte, targetSize_le_threshold hk, Nat.cast_one]
+  rcases lt_trichotomy k r with hlt | rfl | hgt
+  · simp only [itemPhi, hlt.le, Nat.succ_le_of_lt hlt, ↓reduceIte,
+      targetSize_le_threshold hlt.le, Nat.cast_one]
     push_cast
     ring
-  · by_cases hkr : k = r
-    · subst hkr
-      have hts0 : (targetSize k k : ℚ) = 1 := by simp
-      have hts1 : targetSize k (k + 1) = 2 := by simpa using targetSize_odd_step k 0
-      have hk1 : ¬ (k + 1 ≤ k) := by omega
-      have hm : (k + 1 - k) % 2 = 1 := by omega
-      simp only [itemPhi, le_rfl, ↓reduceIte, hk1, hm, hts0, hts1]
-      push_cast
-      norm_num
-    · have hne : ¬ (k ≤ r) := by omega
-      have hne1 : ¬ (k + 1 ≤ r) := by omega
-      let d := k - r
-      rcases Nat.even_or_odd d with ⟨t, ht⟩ | ⟨t, ht⟩
-      · have hk' : k = r + 2 * t := by omega
-        have hmod : (k - r) % 2 ≠ 1 := by omega
-        have hmod1 : (k + 1 - r) % 2 = 1 := by omega
-        have hts : targetSize r k = 2 ^ t := hk' ▸ targetSize_even_step r t
-        have hts1 : targetSize r (k + 1) = 2 * 2 ^ t := hk' ▸ targetSize_odd_step r t
-        simp only [itemPhi, hne, hne1, hmod, hmod1, ↓reduceIte, hts, hts1]
-        have hp : (0 : ℚ) < (2 : ℚ) ^ t := by positivity
-        push_cast
-        field_simp
-        ring
-      · have hk' : k = r + 2 * t + 1 := by omega
-        have hmod : (k - r) % 2 = 1 := by omega
-        have hmod1 : (k + 1 - r) % 2 ≠ 1 := by omega
-        have hts : targetSize r k = 2 * 2 ^ t := hk' ▸ targetSize_odd_step r t
-        have hts1 : targetSize r (k + 1) = 2 * 2 ^ t := by
-          have hsum : r + 2 * t + 1 + 1 = r + 2 * (t + 1) := by omega
-          rw [hk', hsum, targetSize_even_step, Nat.pow_succ, Nat.mul_comm]
-        simp only [itemPhi, hne, hne1, hmod, hmod1, ↓reduceIte, hts, hts1]
-        have hp : (0 : ℚ) < 2 * (2 : ℚ) ^ t := by positivity
-        push_cast
-        field_simp
-        ring
+  · have hts1 : targetSize k (k + 1) = 2 := targetSize_odd_step k 0
+    simp only [itemPhi, le_rfl, Nat.not_succ_le_self, Nat.add_sub_cancel_left, ↓reduceIte,
+      targetSize_le_threshold le_rfl, hts1]
+    norm_num
+  · have hne : ¬ k ≤ r := Nat.not_le.mpr hgt
+    have hne1 : ¬ k + 1 ≤ r := Nat.not_le.mpr (Nat.lt_succ_of_lt hgt)
+    have hts_pos : (0 : ℚ) < targetSize r k := by exact_mod_cast targetSize_pos r k
+    by_cases hmod : (k - r) % 2 = 1
+    · have hmod1 : (k + 1 - r) % 2 ≠ 1 := by omega
+      simp only [itemPhi, targetSize_succ, hne, hne1, hmod, hmod1, ↓reduceIte]
+      ring
+    · have hmod1 : (k + 1 - r) % 2 = 1 := by omega
+      simp only [itemPhi, targetSize_succ, hne, hne1, hmod, hmod1, ↓reduceIte, Nat.cast_add]
+      field_simp
+      ring
 
 end Cslib.DataStructure.PriorityQueue.WordRAM.SoftHeap

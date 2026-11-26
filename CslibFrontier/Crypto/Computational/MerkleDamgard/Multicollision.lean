@@ -225,9 +225,7 @@ theorem isQueryBounded_jouxFinder {stage : T → M → ProbOracleComp spec T} {c
     (hstage : ∀ t m, ProbOracleComp.IsQueryBounded (stage t m) c) (sampler : ProbComp M) (s : ℕ) :
     ∀ (f b : ℕ) (t : T),
       ProbOracleComp.IsQueryBounded (jouxFinder stage sampler s f b t) (f * (s * c))
-  | 0, 0, _ | 0, _ + 1, _ | _ + 1, 0, _ => by
-    rw [jouxFinder]
-    exact OracleComp.IsCostBounded.pure _ _
+  | 0, 0, _ | 0, _ + 1, _ | _ + 1, 0, _ => .pure _ _
   | f + 1, b + 1, t => by
     rw [jouxFinder]
     refine ((isQueryBounded_birthdayFinder (hstage t) sampler s).bind (m := f * (s * c)) ?_).mono
@@ -364,11 +362,10 @@ compression call per block. -/
 is not a running time. -/
 theorem isQueryBounded_merkleDamgardJouxFinder (ℓ s f b : ℕ) (iv : List Bool) :
     ProbOracleComp.IsQueryBounded (merkleDamgardJouxFinder ℓ s f b iv) (f * s) := by
-  simpa [merkleDamgardJouxFinder] using isQueryBounded_jouxFinder
+  simpa only [merkleDamgardJouxFinder, mul_one] using isQueryBounded_jouxFinder
     (fun t (m : BitString ℓ) =>
       ProbOracleComp.IsQueryBounded.query (spec := fun _ : List Bool => List Bool)
-        (t ++ List.ofFn m))
-    (ProbComp.uniform (BitString ℓ)) s f b iv
+        (t ++ List.ofFn m)) _ s f b iv
 
 private theorem foldl_blockStep {ℓ : ℕ} (t : List Bool) (ms : List (BitString ℓ)) :
     ms.foldl (fun t m => h k (t ++ List.ofFn m)) t =
@@ -432,16 +429,14 @@ theorem merkleDamgardJouxFinder_success {n ℓ : ℕ}
       ((ProbComp.eval ((merkleDamgardJouxFinder ℓ s f b iv).run
         fun x => pure (h k x))).toOuterMeasure
           (multicollisionOutputs h k ℓ b iv)).toReal := by
-  have key := jouxFinder_success (h k) (fun t (m : BitString ℓ) => h k (t ++ List.ofFn m))
-    (fun t (m : BitString ℓ) => ProbOracleComp.run_query (spec := fun _ : List Bool => List Bool)
-      (t ++ List.ofFn m) fun x => pure (h k x))
-    (BitString.wordsOfLength n)
+  refine (jouxFinder_success (h k) (fun t (m : BitString ℓ) => h k (t ++ List.ofFn m))
+    (fun t m => ProbOracleComp.run_query (t ++ List.ofFn m) _) (BitString.wordsOfLength n)
     (fun t ht m => BitString.mem_wordsOfLength.mpr
       (hlen _ (by simp [BitString.mem_wordsOfLength.mp ht]))) s
     (by simpa [BitString.card_wordsOfLength, BitString.card] using hε) f b
-    (BitString.mem_wordsOfLength.mpr hiv)
-  exact key.trans (ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
-    (MeasureTheory.measure_mono (jouxSuccess_subset_multicollisionOutputs ℓ b iv)))
+    (BitString.mem_wordsOfLength.mpr hiv)).trans ?_
+  exact ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
+    (MeasureTheory.measure_mono (jouxSuccess_subset_multicollisionOutputs ℓ b iv))
 
 /-- Joux's attack on a chain with `O(b 2 ^ (n/2))` compression evaluations, a step toward
 [BonehShoup2023], §8.4.1 (printed p. 299), not the cited result: the book finds a
@@ -581,23 +576,18 @@ theorem merkleDamgardBitJouxFinder_success
     1 - 2 ^ b * ((1 + ε) / 2) ^ f / 2 ≤
       ((ProbComp.eval ((merkleDamgardBitJouxFinder k.length g s f b).run
         fun x => pure (h k x))).toOuterMeasure (bitMulticollisionOutputs h k g b)).toReal := by
-  have hD : ∀ t ∈ BitString.wordsOfLength k.length, ∀ m : BitString g,
-      merkleDamgardChain h k t ((List.ofFn m).map (mdDataBlock k.length)) ∈
-        BitString.wordsOfLength k.length :=
-    fun t ht m => BitString.mem_wordsOfLength.mpr
-      (length_merkleDamgardChain hlen (BitString.mem_wordsOfLength.mp ht) (by simp))
-  have ht₀ : h k (List.replicate k.length false ++ mdEndBlock k.length) ∈
-      BitString.wordsOfLength k.length :=
-    BitString.mem_wordsOfLength.mpr (hlen _ (by simp [two_mul]))
   have key := jouxFinder_success (h k)
     (fun t (m : BitString g) => merkleDamgardChain h k t ((List.ofFn m).map (mdDataBlock k.length)))
-    (fun t m => run_absorbBits k.length t (List.ofFn m)) (BitString.wordsOfLength k.length) hD s
-    (by simpa [BitString.card_wordsOfLength, BitString.card] using hε) f b ht₀
+    (fun t m => run_absorbBits k.length t (List.ofFn m)) (BitString.wordsOfLength k.length)
+    (fun t ht m => BitString.mem_wordsOfLength.mpr
+      (length_merkleDamgardChain hlen (BitString.mem_wordsOfLength.mp ht) (by simp))) s
+    (by simpa [BitString.card_wordsOfLength, BitString.card] using hε) f b
+    (t := h k (List.replicate k.length false ++ mdEndBlock k.length))
+    (BitString.mem_wordsOfLength.mpr (hlen _ (by simp [two_mul])))
   rw [merkleDamgardBitJouxFinder, ProbOracleComp.run_bind, ProbOracleComp.run_query, pure_bind]
   refine key.trans (ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
-    (MeasureTheory.measure_mono ?_))
-  rintro _ ⟨pairs, rfl, rfl, hc⟩
-  exact ⟨pairs, rfl, rfl, isMulticollision_merkleDamgard_of_chain hc⟩
+    (MeasureTheory.measure_mono fun _ ⟨pairs, ho, hlen, hc⟩ =>
+      ⟨pairs, ho, hlen, hlen ▸ isMulticollision_merkleDamgard_of_chain hc⟩))
 
 /-- Joux's attack on `merkleDamgard` with the sample count of Lemma 8.2, a step after
 [BonehShoup2023], §8.4.1 (printed p. 299), not the cited result: it attacks the library's

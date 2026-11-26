@@ -101,9 +101,8 @@ variable {N}
 @[expose] def excess (f : N.Preflow) (v : V) : ℤ :=
   (∑ u, (f u v : ℤ)) - ∑ w, (f v w : ℤ)
 
-theorem excess_nonneg (f : N.Preflow) {v : V} (hv : v ≠ N.s) : 0 ≤ f.excess v := by
-  unfold excess
-  exact sub_nonneg.mpr (by exact_mod_cast f.out_le_in v hv)
+theorem excess_nonneg (f : N.Preflow) {v : V} (hv : v ≠ N.s) : 0 ≤ f.excess v :=
+  sub_nonneg.mpr (mod_cast f.out_le_in v hv)
 
 /-- Residual capacity `c_f(u, v)`: unused capacity on `(u, v)` plus cancellable flow on `(v, u)`. -/
 @[expose] def resCap (f : N.Preflow) (u v : V) : ℕ :=
@@ -179,20 +178,17 @@ private theorem le_add_card_of_reflTransGen {r : V → V → Prop} {h : V → �
     (hr : ∀ u v, r u v → h u ≤ h v + 1) {u w : V} (huw : Relation.ReflTransGen r u w) :
     h u + 1 ≤ h w + Fintype.card V := by
   classical
-  have key : ∀ x, Relation.ReflTransGen r x w → Finset.Icc (h w) (h x) ⊆ Finset.univ.image h := by
-    intro x hx
+  have key (x : V) (hx : Relation.ReflTransGen r x w) :
+      Finset.Icc (h w) (h x) ⊆ Finset.univ.image h := by
     induction hx using Relation.ReflTransGen.head_induction_on with
-    | refl =>
-      intro k hk
-      rw [Finset.mem_Icc] at hk
-      exact Finset.mem_image.mpr ⟨w, Finset.mem_univ _, by omega⟩
+    | refl => exact fun k hk =>
+      Finset.mem_image.mpr ⟨w, Finset.mem_univ _, by have := Finset.mem_Icc.mp hk; omega⟩
     | @head x y hxy _ ih =>
       intro k hk
       rw [Finset.mem_Icc] at hk
       by_cases hky : k ≤ h y
       · exact ih (Finset.mem_Icc.mpr ⟨hk.1, hky⟩)
-      · have := hr x y hxy
-        exact Finset.mem_image.mpr ⟨x, Finset.mem_univ _, by omega⟩
+      · exact Finset.mem_image.mpr ⟨x, Finset.mem_univ _, by have := hr x y hxy; omega⟩
   finset_card [key u huw, Nat.card_Icc (h w) (h u)]
 
 theorem IsValidLabeling.le_add_card {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h)
@@ -314,8 +310,7 @@ instance [DecidableEq V] (f : N.Preflow) (h : V → ℕ) (u : V) : Decidable (f.
 
 theorem CanPush.ne {f : N.Preflow} {h : V → ℕ} {u v : V} (hp : f.CanPush h u v) : u ≠ v := by
   rintro rfl
-  have := hp.height_eq
-  omega
+  exact Nat.succ_ne_self _ hp.height_eq.symm
 
 theorem CanPush.pushAmount_pos {f : N.Preflow} {h : V → ℕ} {u v : V} (hp : f.CanPush h u v) :
     0 < f.pushAmount u v :=
@@ -334,19 +329,16 @@ theorem IsValidLabeling.exists_canPush_or_canRelabel {f : N.Preflow} {h : V → 
 
 /-- With no active vertex, every vertex other than `N.s` and `N.t` has zero excess. -/
 theorem excess_eq_zero_of_forall_not_isActive (f : N.Preflow) (hno : ∀ v, ¬ f.IsActive v) :
-    ∀ v, v ≠ N.s → v ≠ N.t → f.excess v = 0 := by
-  intro v hs ht
-  have h1 := f.excess_nonneg hs
-  by_contra h
-  exact hno v ⟨hs, ht, by omega⟩
+    ∀ v, v ≠ N.s → v ≠ N.t → f.excess v = 0 := fun v hs ht =>
+  Classical.byContradiction fun h =>
+    hno v ⟨hs, ht, lt_of_le_of_ne (f.excess_nonneg hs) (Ne.symm h)⟩
 
 /-- **Optimality at termination** ([CLRS2009], Theorem 26.18): a preflow with a valid labeling and
 no active vertex is a maximum flow. -/
 theorem IsValidLabeling.isMaxFlow_toFlow {f : N.Preflow} {h : V → ℕ} (hh : f.IsValidLabeling h)
-    (hz : ∀ v, v ≠ N.s → v ≠ N.t → f.excess v = 0) : (f.toFlow hz).IsMaxFlow := by
-  rw [Flow.isMaxFlow_iff_not_exists_augmentingPath _ hh.source_ne_sink,
-    Flow.exists_augmentingPath_iff_resReachable]
-  exact hh.not_resReachable
+    (hz : ∀ v, v ≠ N.s → v ≠ N.t → f.excess v = 0) : (f.toFlow hz).IsMaxFlow :=
+  (Flow.isMaxFlow_iff_not_exists_augmentingPath _ hh.source_ne_sink).mpr
+    (mt (Flow.exists_augmentingPath_iff_resReachable _).mp hh.not_resReachable)
 
 /-- The least level `0 < k < |V|` occupied by no vertex (`0` if there is none). -/
 @[expose] def gapLevel (h : V → ℕ) : ℕ :=
@@ -579,10 +571,7 @@ theorem relabelHeight_le {f : N.Preflow} {h : V → ℕ} {u v : V} (hpos : 0 < f
     f.relabelHeight h u ≤ h v + 1 := by
   have hv : v ∈ f.resNbrs u := (mem_resNbrs f u v).mpr hpos
   have hne : (f.resNbrs u).Nonempty := ⟨v, hv⟩
-  unfold relabelHeight
-  simp only [hne, ↓reduceDIte]
-  have := Finset.inf'_le h hv
-  omega
+  simpa only [relabelHeight, hne, ↓reduceDIte] using Nat.add_le_add_right (Finset.inf'_le h hv) 1
 
 omit [DecidableEq V] in
 /-- A relabel strictly raises the height of the relabelled vertex ([CLRS2009], Lemma 26.15). -/

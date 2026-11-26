@@ -147,30 +147,25 @@ theorem stepRand_none (hp : p[s.pc]? = none) :
 theorem stepRand_op {o : Op B r} {x : Data r} (hp : p[s.pc]? = some (.op o))
     (h : o.eval w s.data = some x) :
     stepRand w p (.running s) = pure (.running ⟨s.pc + 1, x⟩) := by
-  rw [stepRand_eq_ofOutcome_of_ne_rand (by simp [hp]), step_op hp h]
-  rfl
+  rw [stepRand_eq_ofOutcome_of_ne_rand (by simp [hp]), step_op hp h, RandCfg.ofOutcome]
 
 theorem stepRand_op_fault {o : Op B r} (hp : p[s.pc]? = some (.op o))
     (h : o.eval w s.data = none) :
     stepRand w p (.running s) = pure .faulted := by
-  rw [stepRand_eq_ofOutcome_of_ne_rand (by simp [hp]), step_op_fault hp h]
-  rfl
+  rw [stepRand_eq_ofOutcome_of_ne_rand (by simp [hp]), step_op_fault hp h, RandCfg.ofOutcome]
 
 theorem stepRand_jump {t : ℕ} (hp : p[s.pc]? = some (.jump t)) :
     stepRand w p (.running s) = pure (.running ⟨t, s.data⟩) := by
-  rw [stepRand_eq_ofOutcome_of_ne_rand (by simp [hp]), step_jump hp]
-  rfl
+  rw [stepRand_eq_ofOutcome_of_ne_rand (by simp [hp]), step_jump hp, RandCfg.ofOutcome]
 
 theorem stepRand_branch {c : Cond r} {t : ℕ} (hp : p[s.pc]? = some (.branch c t)) :
     stepRand w p (.running s) =
       pure (.running ⟨if c.Holds s.data then t else s.pc + 1, s.data⟩) := by
-  rw [stepRand_eq_ofOutcome_of_ne_rand (by simp [hp]), step_branch hp]
-  rfl
+  rw [stepRand_eq_ofOutcome_of_ne_rand (by simp [hp]), step_branch hp, RandCfg.ofOutcome]
 
 theorem stepRand_halt {i : Fin r} (hp : p[s.pc]? = some (.halt i)) :
     stepRand w p (.running s) = pure (.halted (s.data.regs i) s.data) := by
-  rw [stepRand_eq_ofOutcome_of_ne_rand (by simp [hp]), step_halt hp]
-  rfl
+  rw [stepRand_eq_ofOutcome_of_ne_rand (by simp [hp]), step_halt hp, RandCfg.ofOutcome]
 
 theorem stepRand_rand_of_fits {dst src : Fin r} (hp : p[s.pc]? = some (.rand dst src))
     (hfit : Fits w (s.data.regs src)) :
@@ -188,14 +183,14 @@ theorem stepRand_rand_of_not_fits {dst src : Fin r} (hp : p[s.pc]? = some (.rand
 `stepRand`. -/
 theorem stepRand_of_step_eq_next {t : State r} (h : step w p s = .next t) :
     stepRand w p (.running s) = pure (.running t) := by
-  rw [stepRand_eq_ofOutcome_of_ne_rand (fun _ _ hpc => nomatch (step_rand hpc).symm.trans h), h]
-  rfl
+  rw [stepRand_eq_ofOutcome_of_ne_rand (fun _ _ hpc => nomatch (step_rand hpc).symm.trans h), h,
+    RandCfg.ofOutcome]
 
 /-- A deterministic `halt` step agrees unconditionally with `stepRand`, retaining `s.data`. -/
 theorem stepRand_of_step_eq_halt {v : ℕ} (h : step w p s = .halt v) :
     stepRand w p (.running s) = pure (.halted v s.data) := by
-  rw [stepRand_eq_ofOutcome_of_ne_rand (fun _ _ hpc => nomatch (step_rand hpc).symm.trans h), h]
-  rfl
+  rw [stepRand_eq_ofOutcome_of_ne_rand (fun _ _ hpc => nomatch (step_rand hpc).symm.trans h), h,
+    RandCfg.ofOutcome]
 
 end StepRand
 
@@ -412,13 +407,12 @@ theorem runRand_eq_pure_halted_iff_of_isRandFree {w T : ℕ} {p : Program B r}
 /-- Scalar projection corollary matching `Executes` on `IsRandFree` programs. -/
 theorem exists_data_runRand_eq_pure_halted_iff_executes_of_isRandFree
     {w T : ℕ} {p : Program B r} (hp : p.IsRandFree) {s : State r} {v : ℕ} :
-    (∃ d, runRand w p T (.running s) = pure (.halted v d)) ↔ ∃ n ≤ T, Executes w p s v n := by
-  constructor
-  · rintro ⟨d, hd⟩
-    obtain ⟨t, m, hmT, hrun, hhalt, -⟩ := (runRand_eq_pure_halted_iff_of_isRandFree hp).mp hd
-    exact ⟨m + 1, hmT, t, m, hrun, hhalt, rfl⟩
-  · rintro ⟨n, hnT, t, m, hrun, hhalt, rfl⟩
-    exact ⟨t.data, runRand_eq_pure_halted_of_runs_halt hrun hhalt hnT⟩
+    (∃ d, runRand w p T (.running s) = pure (.halted v d)) ↔ ∃ n ≤ T, Executes w p s v n :=
+  ⟨fun ⟨_, hd⟩ =>
+    let ⟨t, m, hmT, hrun, hhalt, _⟩ := (runRand_eq_pure_halted_iff_of_isRandFree hp).mp hd
+    ⟨m + 1, hmT, t, m, hrun, hhalt, rfl⟩,
+   fun ⟨_, hnT, t, _, hrun, hhalt, hnm⟩ =>
+    ⟨t.data, runRand_eq_pure_halted_of_runs_halt hrun hhalt (hnm ▸ hnT)⟩⟩
 
 /-! ## Worst-case safety, step bounds, and randomness budgets -/
 
@@ -462,13 +456,11 @@ theorem RandHaltsWithin.mono {w T T' : ℕ} {p : Program B r} {s : State r}
 /-- Any program whose randomized runs halt within `T` steps is fault-free at all horizons. -/
 theorem RandHaltsWithin.randFaultFree {w T : ℕ} {p : Program B r} {s : State r}
     (h : RandHaltsWithin w p s T) :
-    RandFaultFree w p s := by
-  intro t hmem
-  have hmem' : .faulted ∈ (runRand w p T (.running s)).support := by
-    rw [← runRand_eq_of_randHaltsWithin h (Nat.le_add_left T t), runRand_add]
-    exact OracleComp.mem_supportWith_bind_iff.mpr
-      ⟨.faulted, hmem, by rw [runRand_faulted]; rfl⟩
-  rcases h .faulted hmem' with ⟨_, _, ⟨⟩⟩
+    RandFaultFree w p s := fun t hmem => by
+  have h' : RandHaltsWithin w p s (t + T) := h.mono (Nat.le_add_left T t)
+  rcases h' .faulted (by
+    rw [runRand_add]
+    exact OracleComp.mem_supportWith_bind_iff.mpr ⟨.faulted, hmem, by simp⟩) with ⟨_, _, ⟨⟩⟩
 
 /-- Worst-case `rand`-call budget: at most `R` `rand` instructions are executed on every path within
 `T` steps (including `rand(0)`). -/

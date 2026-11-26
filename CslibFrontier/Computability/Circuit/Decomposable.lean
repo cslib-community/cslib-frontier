@@ -152,9 +152,8 @@ def accepted : Set (ι → U) :=
 
 /-- Acceptance at a node `v` depends only on the coordinates in `P.scope v`. -/
 theorem accepts_congr {v : N} {x y : ι → U} (h : EqOn x y (P.scope v)) :
-    x ∈ P.accepts v ↔ y ∈ P.accepts v := by
-  change _ ∈ P.values v ↔ _ ∈ P.values v
-  rw [domRestrict_eq_domRestrict_iff.mpr h]
+    x ∈ P.accepts v ↔ y ∈ P.accepts v :=
+  Eq.to_iff (congrArg (· ∈ P.values v) (domRestrict_eq_domRestrict_iff.mpr h))
 
 /-! ### Certificates and rectangles -/
 
@@ -173,12 +172,10 @@ inductive Occurs (x : ι → U) : N → Prop
 variable {P}
 
 /-- A node occurring for `x` accepts `x`. -/
-theorem Occurs.accepts {x : ι → U} {v : N} (h : P.Occurs x v) : x ∈ P.accepts v := by
-  induction h with
-  | root h => exact h
-  | union _ _ _ h _ => exact h
-  | left _ hg ih => exact ((P.values_product _ _ _ hg x).mp ih).1
-  | right _ hg ih => exact ((P.values_product _ _ _ hg x).mp ih).2
+theorem Occurs.accepts {x : ι → U} {v : N} (h : P.Occurs x v) : x ∈ P.accepts v :=
+  h.rec (fun h => h) (fun _ _ _ h _ => h)
+    (fun _ hg ih => ((P.values_product _ _ _ hg x).mp ih).1)
+    (fun _ hg ih => ((P.values_product _ _ _ hg x).mp ih).2)
 
 /-- Any node occurring for `x` witnesses that `x` is accepted by the DAG. -/
 theorem Occurs.mem_accepted_self {x : ι → U} {v : N} (h : P.Occurs x v) : x ∈ P.accepted := by
@@ -225,14 +222,14 @@ def contexts (v : N) : Set (↥(P.scope v)ᶜ → U) :=
 input: they are the inputs whose part on `P.scope v` lies in `P.values v` and whose part outside
 lies in `P.contexts v`. (When `v` never occurs, `P.contexts v` is empty and both sets are empty.) -/
 theorem occurs_eq_rectangle (v : N) :
-    {x | P.Occurs x v} = rectangle (P.scope v) (P.values v) (P.contexts v) := by
-  exact subset_antisymm (fun x hx => ⟨hx.accepts, x, hx, rfl⟩)
+    {x | P.Occurs x v} = rectangle (P.scope v) (P.values v) (P.contexts v) :=
+  subset_antisymm (fun x hx => ⟨hx.accepts, x, hx, rfl⟩)
     fun _ ⟨hy, _, hx, hxy⟩ => hx.subst hy (domRestrict_eq_domRestrict_iff.mp hxy).symm
 
 /-- **A node and its contexts form a rectangle** inside the accepted set. -/
 theorem rectangle_subset (v : N) :
-    rectangle (P.scope v) (P.values v) (P.contexts v) ⊆ P.accepted := by
-  exact P.occurs_eq_rectangle v ▸ fun _ hx => hx.mem_accepted_self
+    rectangle (P.scope v) (P.values v) (P.contexts v) ⊆ P.accepted :=
+  P.occurs_eq_rectangle v ▸ fun _ hx => hx.mem_accepted_self
 
 /-- Every node of `P` has fewer than `K` accepted assignments or fewer than `K` contexts, counted
 with `Set.encard`. -/
@@ -330,7 +327,7 @@ finite, even with shared nodes. -/
 theorem exists_mem_stops (hK : 1 < K) (hS : K ≤ P.accepted.ncard) {x : ι → U}
     (hx : x ∈ P.accepted) : ∃ v, x ∈ P.stops K v := by
   classical
-  have hfin : P.accepted.Finite := Set.finite_of_ncard_pos ((by omega : 0 < K).trans_le hS)
+  have hfin : P.accepted.Finite := Set.finite_of_ncard_pos ((Nat.zero_lt_of_lt hK).trans_le hS)
   have hroot : K ≤ (P.values P.root).ncard := hS.trans
     (ncard_le_ncard_of_injOn (P.scope P.root).domRestrict (fun _ hy => hy)
       (fun _ _ _ _ h => funext fun i =>
@@ -374,8 +371,7 @@ private theorem ncard_stops_product_le (hfin : P.accepted.Finite) {v l r : N}
   have hvr : (P.values r).Finite := P.finite_values_of_disjoint_occurs hfin hx₀.1 hprod₀.1
     (P.scope_product v l r hg ▸ subset_union_right) (P.disjoint_product v l r hg).symm
     fun y hr hl => (P.values_product v l r hg y).mpr ⟨hl, hr⟩
-  have hcv : (P.contexts v).Finite :=
-    P.finite_contexts_of_nonempty_values hfin hx₀.1.accepts
+  have hcv := P.finite_contexts_of_nonempty_values hfin hx₀.1.accepts
   calc (P.stops K v).ncard
       ≤ (P.values l ×ˢ P.values r ×ˢ P.contexts v).ncard := by
         refine ncard_le_ncard_of_injOn
@@ -419,8 +415,7 @@ private theorem ncard_stops_le (hfin : P.accepted.Finite) (hS : P.SmallSides K)
       · simp [hemp]
       have hvu : (P.values u).Finite :=
         P.finite_values_of_nonempty_contexts hfin ⟨x₀, .union hx₀ hg hu hxu, rfl⟩
-      have hcv : (P.contexts v).Finite :=
-        P.finite_contexts_of_nonempty_values hfin hx₀.accepts
+      have hcv := P.finite_contexts_of_nonempty_values hfin hx₀.accepts
       calc (T u).ncard
           ≤ (P.values u ×ˢ P.contexts v).ncard :=
             ncard_le_ncard_of_injOn

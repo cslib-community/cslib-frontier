@@ -350,9 +350,8 @@ theorem FibRawInv.insert {n K : ℕ} {s : IndexedMinPQ.State n} {st st' : RawSta
     simpa [forestNodes, FHTree.nodes] using ⟨hv_fn, hnd⟩
   have hne : ∀ T ∈ ts, ∀ x ∈ T.nodes, x ≠ v := fun T hT x hx hxv =>
     hv_fn (mem_forestNodes_iff.mpr ⟨T, hT, hxv ▸ hx⟩)
-  have hTv : ValidRoot (newNode st v k) none (.node v []) :=
-    ValidRoot.singleton (by simp [newNode]) (by simp [newNode])
-      (by simp [newNode]) (by simp [newNode]) (by simp [newNode])
+  have hTv : ValidRoot (newNode st v k) none (.node v []) := by
+    refine ValidRoot.singleton ?_ ?_ ?_ ?_ ?_ <;> simp [newNode]
   have hts₁ : ∀ T ∈ ts, ValidRoot (newNode st v k) none T := fun T hT =>
     (hts T hT).frame_tree (fun x hx => by
       simp [newNode, Function.update_of_ne (hne T hT x hx)]) fun _ _ => ⟨rfl, rfl⟩
@@ -376,8 +375,7 @@ theorem FibRawInv.insert {n K : ℕ} {s : IndexedMinPQ.State n} {st st' : RawSta
     · obtain rfl : k = kx := by simpa using hx
       simp [newNode, hk]
     · simpa [newNode, hxv] using hkeys x kx (by simpa [hxv] using hx)
-  · have hvd : v ∉ IndexedMinPQ.dom s := IndexedMinPQ.notMem_dom_iff.mpr hv
-    simp [newNode, hsz, Finset.card_insert_of_notMem hvd]
+  · simp [newNode, hsz, Finset.card_insert_of_notMem (IndexedMinPQ.notMem_dom_iff.mpr hv)]
   · refine hnm.trans (markedCount_congr fun x => ?_).symm
     rcases eq_or_ne x v with rfl | hxv <;> simp [newNode, *]
 
@@ -463,22 +461,15 @@ theorem wp_addRoot {g : Cell → ℕ} {u : Fin n}
       reduceCtorEq, Cell.ok, true_and]
     refine ⟨hmn, ⟨hu, hfit.of_le hmn.le⟩, ⟨hrn, hfit.of_le hu.le⟩, ⟨hu, hfit.of_le hrn.le⟩,
       ⟨hmn, hfit.of_le hu.le⟩, hu, hmn, ?_⟩
-    have hview : ∀ x, view n (Function.update (Function.update (Function.update (Function.update
-        (Function.update (Function.update g (.left u) m) (.left r) u) (.right u) r) (.right m) u)
-          .minRoot x) .numRoots (g .numRoots + 1)) = { view n g with
-        left := Function.update (Function.update (view n g).left u m.val) r u.val
-        right := Function.update (Function.update (view n g).right u r.val) m u.val
-        minRoot := x
-        numRoots := (view n g).numRoots + 1 } := fun x => by
-      simp only [view_update_left, view_update_right, view_update_minRoot, view_update_numRoots]
-      rfl
     have hlt_eq : IndexedMinPQ.RawPrioLT (↑u, g (Cell.key ↑u)) (↑m, g (Cell.key ↑m)) =
         IndexedMinPQ.PrioLT (u, (view n g).key u) (m, (view n g).key m) := rfl
     by_cases hlt : IndexedMinPQ.PrioLT (u, (view n g).key u) (m, (view n g).key m)
     · simp only [hlt_eq, hlt, ite_true, Record.wp_bind, Record.wp_read, Record.wp_write,
         Function.update_apply, reduceCtorEq, ite_false, Cell.ok, true_and]
-      exact ⟨hfit.of_le hu, hnr, hQ _ _ (by omega)
-        (Or.inr ⟨m, r, hm, hr, by simpa only [hlt, ite_true] using hview _⟩)⟩
+      refine ⟨hfit.of_le hu, hnr, hQ _ _ (by omega) (Or.inr ⟨m, r, hm, hr, ?_⟩)⟩
+      simp only [hlt, ite_true, view_update_left, view_update_right, view_update_minRoot,
+        view_update_numRoots]
+      rfl
     · simp only [hlt_eq, hlt, ite_false, Record.wp_bind, Record.wp_read, Record.wp_write,
         Function.update_apply, reduceCtorEq, Cell.ok, true_and]
       refine ⟨hnr, hQ _ _ (by omega) (Or.inr ⟨m, r, hm, hr, ?_⟩)⟩

@@ -163,8 +163,8 @@ theorem matches_append_left (v w : List (α × Op n Γ)) (p m : ℕ) :
   induction v with
   | nil => simp
   | cons x v ih =>
-    rw [List.cons_append, List.length_cons, show v.length + 1 + p = v.length + p + 1 by omega,
-      show v.length + 1 + m = v.length + m + 1 by omega, matches_cons_succ, ih]
+    rw [List.cons_append, List.length_cons, Nat.add_right_comm _ 1, Nat.add_right_comm _ 1 m,
+      matches_cons_succ, ih]
 
 theorem Matches.lt_length {w : List (α × Op n Γ)} {p m : ℕ} (h : Matches w p m) :
     m < w.length := by
@@ -249,11 +249,8 @@ theorem WellNested.exists_wellMatched {w : List (α × Op n Γ)} (hw : WellNeste
       obtain ⟨rfl, rfl, rfl⟩ := hp
       refine ⟨u.length + 1, ⟨by omega, j, ⟨a', γ', rfl⟩,
         ⟨b, γ', by simp⟩, hf.symm ▸ hu.net_take_nonneg j, hf.symm ▸ hu.net_eq_zero j⟩, ?_⟩
-      have hext :
-          ((a', Op.push j γ') :: (u ++ (b, Op.pop j γ') :: u')).extract 0 (u.length + 1 + 1) =
-            (a', Op.push j γ') :: (u ++ [(b, Op.pop j γ')]) := by
-        simp [List.extract, List.take_append]
-      exact hext ▸ .pushPop hu .nil
+      simpa [List.extract, List.take_append, List.take_of_length_le (Nat.le_succ _)] using
+        WellNested.pushPop (a := a') (b := b) (i := j) (γ := γ') hu .nil
     · rw [List.getElem?_cons_succ] at hp
       rcases lt_trichotomy p u.length with h | rfl | h
       · rw [List.getElem?_append_left h] at hp
@@ -269,9 +266,7 @@ theorem WellNested.exists_wellMatched {w : List (α × Op n Γ)} (hw : WellNeste
         refine ⟨u.length + 1 + m + 1, ?_, ?_⟩
         · simpa only [matches_cons_succ, e, el] using
             (matches_append_left (u ++ [(b, Op.pop j γ')]) u' q m).mpr hm
-        · have hm1 : u.length + 1 + m + 1 = u.length + 1 + (m + 1) := by omega
-          rw [List.extract_cons_succ, e, hm1, ← el, List.extract_append_left]
-          exact hf
+        · rwa [List.extract_cons_succ, e, Nat.add_assoc _ m 1, ← el, List.extract_append_left]
 
 /-- A well-nested sequence has no hole pushes. -/
 private theorem WellNested.not_holePush {w : List (α × Op n Γ)} (hw : WellNested w) (p : ℕ) :
@@ -304,35 +299,34 @@ hole: the two pushes belong to the same hole. -/
 theorem OpenHolePush.sameHole_pred {w : List (α × Op n Γ)} {x q : ℕ} {i : Fin n}
     (h : OpenHolePush w x q) (hq : 0 < q) (hpq : IsPushOn w i (q - 1)) (hqi : IsPushOn w i q) :
     SameHole w x (q - 1) q := by
-  obtain ⟨⟨-, hnot⟩, hqx, hx, j, ⟨a, γ, hqj⟩, hk⟩ := h
+  obtain ⟨p, rfl⟩ : ∃ p, q = p + 1 := ⟨q - 1, by omega⟩
+  rcases h with ⟨⟨-, hnot⟩, hqx, hx, j, ⟨a, γ, hqj⟩, hk⟩
   obtain rfl : j = i := IsPushOn.unique ⟨a, γ, hqj⟩ hqi
-  have hqlen : q < w.length := (List.getElem?_eq_some_iff.mp hqj).1
   -- The push at `q - 1` is pending at `x`: the push at `q` keeps stack `i` above it.
-  have hpend : PendingAt w (q - 1) x := by
+  have hpend : PendingAt w p x := by
     refine ⟨by omega, hx, j, hpq, fun k => ?_⟩
-    rw [show q - 1 + 1 = q by omega, ← w.extract_append_extract (show q ≤ q + 1 by omega)
-      (show q + 1 ≤ x + 1 by omega), List.extract_eq_singleton hqj]
+    rw [← w.extract_append_extract (Nat.le_add_right _ 1) (Nat.add_le_add_right hqx 1),
+      List.extract_eq_singleton hqj]
     rcases k with _ | k
     · simp [net]
     · rw [List.cons_append, List.nil_append, List.take_succ_cons, net_cons]
-      have := hk k
-      simp only [Op.net, Op.kind, OpKind.net, ite_true]; omega
+      have hk0 := hk k
+      simp only [Op.net, Op.kind, OpKind.net, ite_true]
+      omega
   -- The push at `q - 1` is a hole push: a well-nested continuation closing it would close the
   -- push at `q` as well.
-  have hhole : HolePush w (q - 1) := by
+  have hhole : HolePush w p := by
     refine ⟨⟨j, hpq⟩, fun ⟨m, hm, hwn⟩ => hnot ?_⟩
     have hlen := hm.lt_length
     have hpm := hm.1
-    have hpush : IsPushOn (w.extract (q - 1) (m + 1)) j 1 :=
-      ⟨a, γ, by rw [List.getElem?_extract _ (by omega), show q - 1 + 1 = q by omega, hqj]⟩
-    have hsplit : w.take (q - 1) ++ w.extract (q - 1) (m + 1) ++ w.drop (m + 1) = w := by
-      rw [List.extract_eq_take_drop, ← List.take_add,
-        show q - 1 + (m + 1 - (q - 1)) = m + 1 by omega, List.take_append_drop]
-    have := (hwn.exists_wellMatched hpush).append (w.take (q - 1)) (w.drop (m + 1))
-    rwa [hsplit, List.length_take, min_eq_left (by omega), show q - 1 + 1 = q by omega] at this
-  exact ⟨by omega, ⟨hhole, hpend⟩, ⟨⟨⟨j, hqi⟩, hnot⟩, hqx, hx, j, ⟨a, γ, hqj⟩, hk⟩,
-    ⟨j, hpq, a, γ, hqj⟩, by
-      rw [show q - 1 + 1 = q by omega, List.extract_eq_take_drop, Nat.sub_self, List.take_zero]
-      exact .nil⟩
+    have hpush : IsPushOn (w.extract p (m + 1)) j 1 :=
+      ⟨a, γ, by rwa [List.getElem?_extract _ (by omega)]⟩
+    have hm' : p + (m + 1 - p) = m + 1 := by omega
+    have hwm := (hwn.exists_wellMatched hpush).append (w.take p) (w.drop (m + 1))
+    rwa [List.extract_eq_take_drop, ← List.take_add, hm', List.take_append_drop,
+      List.length_take, min_eq_left (by omega)] at hwm
+  refine ⟨Nat.lt_succ_self p, ⟨hhole, hpend⟩,
+    ⟨⟨⟨j, hqi⟩, hnot⟩, hqx, hx, j, ⟨a, γ, hqj⟩, hk⟩, ⟨j, hpq, a, γ, hqj⟩, ?_⟩
+  simpa [List.extract] using WellNested.nil
 
 end Cslib.Automata.MPDA

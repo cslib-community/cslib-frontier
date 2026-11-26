@@ -199,8 +199,7 @@ theorem refutableInDegree_two_pigeonhole (h : n < m) :
     have hcomm : ∑ i : Fin m, ∑ j : Fin n, (X (i, j) : MvPolynomial (Fin m × Fin n) R) =
         ∑ j, ∑ i, X (i, j) := sum_comm
     have hcast : ((m - n - 1 : ℕ) : MvPolynomial (Fin m × Fin n) R) = m - n - 1 := by
-      rw [Nat.cast_sub (by omega), Nat.cast_sub h.le]
-      simp
+      rw [Nat.cast_sub (Nat.succ_le_of_lt (Nat.sub_pos_of_lt h)), Nat.cast_sub h.le, Nat.cast_one]
     simp only [Fintype.sum_sum_type, Fintype.sum_prod_type, Fintype.sum_unique, hT]
     simp only [phpSummand, Summand.toPoly_def, prod_singleton, prod_empty, map_one, one_pow,
       one_mul, mul_one, map_natCast, map_sub, map_ofNat, hcast]
@@ -223,20 +222,16 @@ variable {R : Type*} [Field R] [LinearOrder R] [IsStrictOrderedRing R] {m n : �
 theorem eval_inv_nonneg_of_mem_cnfIneqs_pigeonhole (hn : 2 ≤ n) :
     ∀ f ∈ (cnfIneqs (pigeonhole m n) : Set (MvPolynomial (Fin m × Fin n) R)),
       0 ≤ eval (fun _ => (n : R)⁻¹) f := by
-  have hn0 : (0 : R) < n := by exact_mod_cast (by omega : 0 < n)
-  have hinv : 0 < (n : R)⁻¹ := inv_pos.2 hn0
+  have hn0 : (0 : R) < n := Nat.cast_pos.2 (by omega)
   have hhalf : 2 * (n : R)⁻¹ ≤ 1 := by
-    have h := mul_le_mul_of_nonneg_left (show (2 : R) ≤ n by exact_mod_cast hn) hinv.le
-    rwa [inv_mul_cancel₀ hn0.ne', mul_comm] at h
-  refine forall_mem_cnfIneqs_iff.2 ⟨fun c hc => ?_, fun v => ?_, fun v => ?_⟩
+    rw [← div_eq_mul_inv, div_le_one hn0]
+    exact_mod_cast hn
+  refine forall_mem_cnfIneqs_iff.2 ⟨fun c hc => ?_, fun _ => by simp, fun _ => ?_⟩
   · rcases mem_pigeonhole.1 hc with ⟨i, rfl⟩ | ⟨i, i', j, hii', rfl⟩
-    · rw [toPoly_toIneq_pigeonClause]
-      simp [mul_inv_cancel₀ hn0.ne']
-    · rw [toPoly_toIneq_holeClause hii'.ne]
-      simp only [map_sub, map_one, eval_X]
+    · simp [toPoly_toIneq_pigeonClause, mul_inv_cancel₀ hn0.ne']
+    · simp only [toPoly_toIneq_holeClause hii'.ne, map_sub, map_one, eval_X]
       linarith
-  · simp
-  · simp only [map_sub, map_one, eval_X, sub_nonneg]
+  · simp only [map_sub, map_one, eval_X]
     linarith
 
 /-- **Degree `2` is optimal**: for `n ≥ 2`, the constraints of `PHP^m_n` have no

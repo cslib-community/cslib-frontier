@@ -214,10 +214,7 @@ theorem length_mod_lt {a b : List K} (hb : ofCoeffList b ≠ 0) :
       ofCoeffList st.1 * ofCoeffList bt + ofCoeffList st.2 = ofCoeffList a ∧
         IsTrimmed st.2 ∧ st.2.length ≤ max (bt.length - 1) (a.length - k) := by
     induction k with
-    | zero =>
-      simpa only [Function.iterate_zero, id_eq, ofCoeffList_nil, zero_mul, ofCoeffList_trim,
-        zero_add, isTrimmed_trim, Nat.sub_zero, true_and] using
-        (length_trim_le a).trans (le_max_right _ _)
+    | zero => exact ⟨by simp, isTrimmed_trim a, (length_trim_le a).trans (le_max_right _ _)⟩
     | succ k ih =>
       rw [Function.iterate_succ_apply']
       obtain ⟨hinv', _, h2', hstay, hdrop⟩ := divModStep_spec hbt_tr _ ih.1 ih.2.1
@@ -263,8 +260,7 @@ private theorem ofCoeffList_div_and_mod (a b : List K) :
     ofCoeffList (div a b) = ofCoeffList a / ofCoeffList b ∧
       ofCoeffList (mod a b) = ofCoeffList a % ofCoeffList b := by
   by_cases hb : ofCoeffList b = 0
-  · obtain ⟨hq, hr⟩ := divMod_eq_zero_divisor (a := a) hb
-    simp [hq, hr, hb]
+  · simp [(divMod_eq_zero_divisor hb).1, (divMod_eq_zero_divisor hb).2, hb]
   · exact ofCoeffList_eq_div_and_mod_of_lt hb (isTrimmed_mod a b) (length_mod_lt hb)
       (ofCoeffList_div_mul_add_mod a b)
 
@@ -357,11 +353,9 @@ private theorem gcdStep_iterate_spec :
     split_ifs with h
     · rcases List.isEmpty_iff.mp h with rfl
       exact gcdStep_iterate_spec k x [] hx isTrimmed_nil (Nat.zero_le k)
-    · have hlt : (mod x y).length < y.length := by
-        simpa only [hy.trim_eq] using
-          length_mod_lt (a := x) (hy.ofCoeffList_ne_zero fun hy0 => h (List.isEmpty_iff.mpr hy0))
-      obtain ⟨ht, hnil, hgcd⟩ :=
-        gcdStep_iterate_spec k y (mod x y) hy (isTrimmed_mod x y) (by omega)
+    · have hne := hy.ofCoeffList_ne_zero (mt List.isEmpty_iff.mpr h)
+      obtain ⟨ht, hnil, hgcd⟩ := gcdStep_iterate_spec k y (mod x y) hy (isTrimmed_mod x y)
+        (Nat.le_of_lt_succ ((hy.trim_eq ▸ length_mod_lt (a := x) hne).trans_le hlen))
       exact ⟨ht, hnil, by rw [hgcd, ofCoeffList_mod, ← EuclideanDomain.gcd_val]⟩
 
 /-- `gcd a b` is trimmed. -/
@@ -380,9 +374,9 @@ theorem length_gcd_le (a b : List K) : (gcd a b).length ≤ max a.length b.lengt
 /-- `gcd a b` computes `EuclideanDomain.gcd (ofCoeffList b) (ofCoeffList a)` in `K[X]`. -/
 @[simp] theorem ofCoeffList_gcd (a b : List K) :
     ofCoeffList (gcd a b) = EuclideanDomain.gcd (ofCoeffList b) (ofCoeffList a) := by
-  simpa only [gcd, ofCoeffList_trim] using (gcdStep_iterate_spec (a.length + b.length + 1)
-    (trim a) (trim b) (isTrimmed_trim a) (isTrimmed_trim b)
-    ((length_trim_le b).trans (by omega))).2.2
+  obtain ⟨-, -, hgcd⟩ := gcdStep_iterate_spec (a.length + b.length + 1) (trim a) (trim b)
+    (isTrimmed_trim a) (isTrimmed_trim b) ((length_trim_le b).trans (by omega))
+  simpa only [gcd, ofCoeffList_trim] using hgcd
 
 /-- `ofCoeffList (gcd a b)` divides `ofCoeffList a`. -/
 theorem ofCoeffList_gcd_dvd_left (a b : List K) :

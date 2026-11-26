@@ -404,13 +404,9 @@ private theorem nonceCTRHandler_eq_ite (nonceLen : ℕ → ℕ) (n : ℕ) (b : B
       simpa [NonceCipher.unitCPACodec, List.append_assoc] using congrArg Prod.snd
         ((NonceCipher.unitCPACodec.decodeQuery_eq_some_iff ((), word) (⟨m₀, m₁⟩, (), nonce)).mp
           hdec)
-    have hrest : dropFrame word = frame m₁ ++ nonce := by rw [← hword, dropFrame_frame_append]
-    have hm₀ : unframe word = m₀ := by rw [← hword, unframe_frame_append]
-    have hm₁ : unframe (dropFrame word) = m₁ := by rw [hrest, unframe_frame_append]
-    have hnonce : dropFrame (dropFrame word) = nonce := by rw [hrest, dropFrame_frame_append]
-    have htrue : (frame m₀ ++ frame m₁ ++ nonce == word) = true :=
-      beq_iff_eq.mpr (by simpa [List.append_assoc] using hword)
-    simp only [hm₀, hm₁, hnonce, htrue, ↓reduceIte]
+    rw [← hword]
+    simp only [unframe_frame_append, dropFrame_frame_append, List.append_assoc, beq_self_eq_true,
+      ↓reduceIte]
 
 private abbrev HandlerCall :=
   ((ℕ × List Bool) × Bool) × ((Unit × List Bool) × (Bool × List (List Bool)))
@@ -523,8 +519,7 @@ private theorem eval_prfRealGame_nonceCTRSimView {family : List Bool → List Bo
   unfold nonceCTRHandler OracleCodec.wordOracle NonceCipher.cpaOracle
   cases hdec : NonceCipher.unitCPACodec.decodeQuery request with
   | none =>
-    rw [ProbOracleComp.run_pure, ProbComp.eval_pure]
-    rfl
+    rw [ProbOracleComp.run_pure, ProbComp.eval_pure]; rfl
   | some q =>
     rcases q with ⟨pair, ⟨⟩, nonce⟩
     dsimp only

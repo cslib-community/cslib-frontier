@@ -78,10 +78,7 @@ omit [DecidableEq V] in
 /-- The last declared constraint has its literal supplied scope length, including zero. -/
 theorem scopeLength_last_constraint (F : CSP Rel V) (r : Rel) (scope : List V) :
     scopeLength (F ++ [Constraint.mk r scope]) F.length = scope.length := by
-  have hle : (F.map fun c => c.scope.length).length ≤ F.length := by simp
-  unfold scopeLength
-  rw [List.map_append, List.map_singleton, List.getD_append_right _ _ _ _ hle]
-  simp
+  simp [scopeLength]
 
 omit [DecidableEq V] in
 /-- The only old argument whose native successor changes is the former last argument of
@@ -94,19 +91,15 @@ theorem argumentNextIndex_append_last_argument (F : CSP Rel V) (r : Rel)
       else argumentNextIndex (F ++ [Constraint.mk r scope]) o.1 o.2 := by
   by_cases hlast : o.1.val = F.length ∧ o.2.val + 1 = scope.length
   · rw [ite_eq_left hlast]
-    let i : ℕ := o.1.val
-    let j : ℕ := o.2.val
-    change argumentNextIndex (F ++ [Constraint.mk r (scope ++ [v])]) i j = _
-    have hi : i = F.length := hlast.1
-    have hj : j + 1 = scope.length := hlast.2
+    generalize o.2.val = j at hlast ⊢
     have hnot : (F.length, scope.length) ∉ argumentPositions (F ++ [Constraint.mk r scope]) := by
       have h := argumentPositions_nodup (F ++ [Constraint.mk r (scope ++ [v])])
       rw [argumentPositions_append_last_argument] at h
       exact fun hm => (List.nodup_append.mp h).2.2 _ hm _ (by simp) rfl
     have hlt : j + 1 < scope.length + 1 := by omega
     unfold argumentNextIndex
-    rw [hi, scopeLength_last_constraint, List.length_append, List.length_singleton,
-      ite_eq_left hlt, hj, argumentPositions_append_last_argument,
+    rw [hlast.1, scopeLength_last_constraint, List.length_append, List.length_singleton,
+      ite_eq_left hlt, hlast.2, argumentPositions_append_last_argument,
       List.idxOf_append_of_notMem hnot]
     simp [argumentPositions]
   · rw [ite_eq_right hlast]
@@ -136,14 +129,8 @@ theorem argumentNextIndex_append_last_argument_wrap (F : CSP Rel V) (r : Rel)
     (hi : o.1.val = F.length) (hj : o.2.val + 1 = scope.length) :
     argumentNextIndex (F ++ [Constraint.mk r (scope ++ [v])]) F.length scope.length =
       argumentNextIndex (F ++ [Constraint.mk r scope]) o.1 o.2 := by
-  let i : ℕ := o.1.val
-  let j : ℕ := o.2.val
-  change argumentNextIndex (F ++ [Constraint.mk r (scope ++ [v])]) F.length scope.length =
-    argumentNextIndex (F ++ [Constraint.mk r scope]) i j
-  change i = F.length at hi
-  change j + 1 = scope.length at hj
-  have hq : (i, if j + 1 < scopeLength (F ++ [Constraint.mk r scope]) i then j + 1 else 0) ∈
-      argumentPositions (F ++ [Constraint.mk r scope]) := argumentNextPosition_mem o
+  have hq := argumentNextPosition_mem o
+  generalize o.2.val = j at hj hq ⊢
   rw [hi, scopeLength_last_constraint] at hq
   unfold argumentNextIndex
   rw [hi, scopeLength_last_constraint, scopeLength_last_constraint, List.length_append,

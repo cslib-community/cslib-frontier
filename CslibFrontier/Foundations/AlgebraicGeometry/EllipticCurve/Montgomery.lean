@@ -263,14 +263,9 @@ theorem not_isShortNF_toShortWeierstrass (h3 : (3 : F) = 0) (hA : M.A ≠ 0) :
 of `M.toShortWeierstrass`, without requiring `3 ≠ 0`. -/
 theorem equation_iff_toShortWeierstrass (x y : F) :
     M.Equation (M.B * x - M.A / 3) (M.B * y) ↔ M.toShortWeierstrass.toAffine.Equation x y := by
-  have hB : M.B ≠ 0 := M.B_ne_zero
   rw [toShortWeierstrass, variableChange_equation_iff, ← equation_iff_toWeierstrass]
-  simp only [Units.val_one, one_pow, one_mul, zero_mul, mul_zero, add_zero]
-  have hx : M.B * (x + -M.A / (3 * M.B)) = M.B * x - M.A / 3 := by
-    by_cases h3 : (3 : F) = 0
-    · simp [h3]
-    · field_simp; ring
-  rw [hx]
+  simp only [Units.val_one, one_pow, one_mul, zero_mul, mul_zero, add_zero, neg_div,
+    div_mul_eq_div_div, ← sub_eq_add_neg, mul_sub, mul_div_cancel₀ _ M.B_ne_zero]
 
 end Basic
 
@@ -442,15 +437,14 @@ theorem four_dvd_natCard_toWeierstrass_point (M : MontgomeryCurve F) [Finite F]
     let _ : Fintype F := Fintype.ofFinite F
     let a := (M.A + 2) / M.B
     let b := (M.A - 2) / M.B
-    have hab : a * b = (M.A ^ 2 - 4) / M.B ^ 2 := by dsimp [a, b]; ring
+    have hab : a * b * M.B ^ 2 = M.A ^ 2 - 4 := by
+      dsimp only [a, b]
+      field_simp; ring
     have ha0 : a ≠ 0 :=
       div_ne_zero (fun h ↦ M.discr_ne_zero (by linear_combination (M.A - 2) * h)) hB
     have hb0 : b ≠ 0 :=
       div_ne_zero (fun h ↦ M.discr_ne_zero (by linear_combination (M.A + 2) * h)) hB
-    have hns : ¬IsSquare (a * b) := fun ⟨u, hu⟩ ↦ hsq ⟨M.B * u, by
-      rw [hab] at hu
-      field_simp at hu
-      linear_combination hu⟩
+    have hns : ¬IsSquare (a * b) := fun ⟨u, hu⟩ ↦ hsq ⟨M.B * u, by rw [← hab, hu]; ring⟩
     have hχ : quadraticChar F a * quadraticChar F b = -1 :=
       map_mul (quadraticChar F) a b ▸ quadraticChar_neg_one_iff_not_isSquare.mpr hns
     rcases quadraticChar_dichotomy ha0 with hχa | hχa

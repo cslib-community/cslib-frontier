@@ -74,13 +74,9 @@ theorem tupleOfRadix_toRadix {V : Type*} (q : ℕ) (hq : 0 < q) (scope : List V)
   induction scope with
   | nil => rfl
   | cons v rest ih =>
-    simp only [List.length_cons, toRadix_cons, tupleOfRadix, List.map_cons]
-    have hv_mod : (α v).val % q = (α v).val := Nat.mod_eq_of_lt (α v).isLt
-    rw [hv_mod]
-    congr 1
-    · ext
-      simp only [Nat.add_mul_mod_self_left, hv_mod]
-    · rw [Nat.add_mul_div_left _ _ hq, Nat.div_eq_of_lt (α v).isLt, Nat.zero_add, ih]
+    simp only [List.length_cons, toRadix_cons, tupleOfRadix, List.map_cons,
+      Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (α v).isLt, Fin.eta,
+      Nat.add_mul_div_left _ _ hq, Nat.div_eq_of_lt (α v).isLt, Nat.zero_add, ih]
 
 /-- Materialized truth table of a single constraint over `ℕ` variable indices and domain `Fin q`.
 -/
@@ -219,17 +215,14 @@ theorem encodeNiceTreeAux_max_le (offset : ℕ) (T : NiceTree ℕ) :
     simp only [encodeNiceTreeAux, List.mem_append, List.mem_cons, List.not_mem_nil, or_false,
       maxTreeVert, NiceTree.size_introduce, NiceTree.size_forget]
     rintro x (hsub | rfl | rfl | rfl | rfl)
-    · have := ih offset x hsub
-      omega
+    · exact (ih offset x hsub).trans (by omega)
     all_goals omega
   | join left right ihl ihr =>
     simp only [encodeNiceTreeAux, List.mem_append, List.mem_cons, List.not_mem_nil, or_false,
       maxTreeVert, NiceTree.size_join]
     rintro x ((hL | hR) | rfl | rfl | rfl | rfl)
-    · have := ihl offset x hL
-      omega
-    · have := ihr (offset + left.size) x hR
-      omega
+    · exact (ihl offset x hL).trans (by omega)
+    · exact (ihr (offset + left.size) x hR).trans (by omega)
     all_goals omega
 
 /-- Unified natural-valued DP table over `ConstraintTable q` matching both `cspDecideTree`
@@ -287,9 +280,8 @@ theorem mem_dpInstTree_le (counting : Bool) {q : ℕ} (hq : 0 < q)
       simp only [dpInstTree, List.mem_singleton, forall_eq]
       split_ifs <;> omega
     | introduce v child ih =>
-      intro x hx
-      simp only [dpInstTree] at hx
-      obtain ⟨m, rfl⟩ := List.mem_ofFn.1 hx
+      simp only [dpInstTree, List.mem_ofFn, forall_exists_index, forall_apply_eq_imp_iff]
+      intro m
       split_ifs
       exacts [List.getD_le_of_forall_le ih _, Nat.zero_le _]
     | forget v child ih =>
@@ -310,10 +302,8 @@ theorem mem_dpInstTree_le (counting : Bool) {q : ℕ} (hq : 0 < q)
           split_ifs <;> omega
       · exact List.getD_le_of_forall_le ih _
     | join left right ihl ihr =>
-      intro x hx
-      simp only [dpInstTree] at hx
-      obtain ⟨m, rfl⟩ := List.mem_ofFn.1 hx
-      exact (Nat.mul_le_mul (List.getD_le_of_forall_le ihl _)
+      simp only [dpInstTree, List.mem_ofFn, forall_exists_index, forall_apply_eq_imp_iff]
+      exact fun _ => (Nat.mul_le_mul (List.getD_le_of_forall_le ihl _)
         (List.getD_le_of_forall_le ihr _)).trans (by decide)
   · simp only [↓reduceIte]
     induction T with
@@ -322,9 +312,8 @@ theorem mem_dpInstTree_le (counting : Bool) {q : ℕ} (hq : 0 < q)
       have := Nat.one_le_pow (NiceTree.leaf : NiceTree ℕ).size q hq
       split_ifs <;> omega
     | introduce v child ih =>
-      intro x hx
-      simp only [dpInstTree] at hx
-      obtain ⟨m, rfl⟩ := List.mem_ofFn.1 hx
+      simp only [dpInstTree, List.mem_ofFn, forall_exists_index, forall_apply_eq_imp_iff]
+      intro m
       split_ifs
       exacts [(List.getD_le_of_forall_le ih _).trans (Nat.pow_le_pow_right hq (by simp)),
         Nat.zero_le _]

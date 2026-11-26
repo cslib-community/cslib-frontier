@@ -95,15 +95,13 @@ private theorem realizes_fastStepQuery :
           u_val = u.val)
       (fun _ _ => 0) := by
   unfold fastStepQueryProg
-  have hfq := realizes_fastQueryGen
-  have het := realizes_epochTickGen
-  realize
+  realize [realizes_fastQueryGen, realizes_epochTickGen]
   all_goals (
     rcases d with ⟨⟨wp, base⟩, u_val⟩
     dsimp only at *
     try simp only [Prod.mk.eta] at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, dict, u, henv, heq_wp, hseed, hrep, hv, rfl⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
+    obtain ⟨c, U, V, _, n_max, θ, fs, dict, u, henv, rfl, hseed, hrep, hv, rfl⟩ := h
+    cases henv.2.2.1
     have hth := henv.2.2.2.1
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       simp [mkWhpParams, Nat.not_lt.mpr hth]
@@ -145,15 +143,13 @@ private theorem realizes_fastStepInsert :
           u_val = u.val)
       (fun _ _ => 0) := by
   unfold fastStepInsertProg
-  have hfi := realizes_fastInsertGen
-  have het := realizes_epochTickGen
-  realize
+  realize [realizes_fastInsertGen, realizes_epochTickGen]
   all_goals (
     rcases d with ⟨⟨⟨wp, base⟩, u_val⟩, v_val⟩
     dsimp only at *
     try simp only [Prod.mk.eta] at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, dict, u, henv, heq_wp, hseed, hrep, hv, hval_op, rfl⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
+    obtain ⟨c, U, V, _, n_max, θ, fs, dict, u, henv, rfl, hseed, hrep, hv, hval_op, rfl⟩ := h
+    cases henv.2.2.1
     have hth := henv.2.2.2.1
     have hnU := henv.2.2.2.2.1
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
@@ -167,10 +163,7 @@ private theorem realizes_fastStepInsert :
     | (cases hins : fastInsert c U n_max θ fs u v_val with
        | none =>
          rw [hins] at hfi_m
-         have hhit : (Memory.spec 0).clientResult s
-           (fastInsertGenProg (((mkWhpParams c U V w n_max, base), u.val), v_val)) = 1 :=
-             by assumption
-         rw [hfi_m.1] at hhit; cases hhit
+         simp only [hfi_m.1, zero_ne_one] at *
        | some fs1 =>
          rw [hins] at hfi_m
          obtain ⟨hcore1, _, hst1, _⟩ := hv.fastInsert_spec hnU hval_op hins
@@ -202,15 +195,13 @@ private theorem realizes_fastStepDelete :
           u_val = u.val)
       (fun _ _ => 0) := by
   unfold fastStepDeleteProg
-  have hfd := realizes_fastDeleteGen
-  have het := realizes_epochTickGen
-  realize
+  realize [realizes_fastDeleteGen, realizes_epochTickGen]
   all_goals (
     rcases d with ⟨⟨wp, base⟩, u_val⟩
     dsimp only at *
     try simp only [Prod.mk.eta] at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, dict, u, henv, heq_wp, hseed, hrep, hv, rfl⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
+    obtain ⟨c, U, V, _, n_max, θ, fs, dict, u, henv, rfl, hseed, hrep, hv, rfl⟩ := h
+    cases henv.2.2.1
     have hth := henv.2.2.2.1
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       simp [mkWhpParams, Nat.not_lt.mpr hth]
@@ -260,25 +251,21 @@ theorem realizes_fastStepPureGen :
           encodeOpWhp op = (opTag, (u_val, v_val)))
       (fun _ _ => 0) := by
   unfold fastStepPureGenProg
-  have hck := realizes_checkEpochTickOkGen
-  have hsq := realizes_fastStepQuery
-  have hsi := realizes_fastStepInsert
-  have hsd := realizes_fastStepDelete
-  realize
+  realize [realizes_checkEpochTickOkGen, realizes_fastStepQuery,
+    realizes_fastStepInsert, realizes_fastStepDelete]
   all_goals (
     rcases d with ⟨⟨wp, base⟩, ⟨opTag, ⟨u_val, v_val⟩⟩⟩
     dsimp only at *
     try simp only [Prod.mk.eta] at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, dict, op, henv, heq_wp, hseed, hrep, hv, hval_op,
+    obtain ⟨c, U, V, _, n_max, θ, fs, dict, op, henv, rfl, hseed, hrep, hv, hval_op,
       hop_enc⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
+    cases henv.2.2.1
     have hth := henv.2.2.2.1
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       simp [mkWhpParams, Nat.not_lt.mpr hth]
     obtain ⟨hck_st, hck_res, _, _⟩ :=
       checkEpochTickOkGenProg_spec henv hv.curEp_or hrep (s := s)
-    simp only [hcp_eq] at *
-    simp only [hck_st, hck_res] at *
+    simp only [hcp_eq, hck_st, hck_res] at *
     first
     | exact henv.fits_const (by decide)
     | exact ⟨c, U, V, w, n_max, fs, henv, rfl, hrep, hv.curEp_or, hv.epochClock_lt⟩

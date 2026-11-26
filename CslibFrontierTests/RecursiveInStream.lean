@@ -12,7 +12,9 @@ public import CslibFrontier.Foundations.Computability.RecursiveInStream
 `x ↦ (n ↦ x (n + 1))` is computable, by reading the input at `n + 1`, and so is its composite
 with itself; it therefore has a computable associate. The indicator of `x = 0` is not computable
 relative to any total oracle, being discontinuous, while its restriction to the single input `0`
-is computable, since nothing is required outside the domain. -/
+is computable, since nothing is required outside the domain. Finally, `nextNonzeroPos` is a
+partial map defined exactly on the non-open set of sequences with infinitely many nonzero entries,
+continuous on its domain and therefore computable relative to an oracle with a Gδ extension. -/
 
 public section
 
@@ -85,5 +87,69 @@ example : StreamComputable indicatorAtZero :=
 /-- A computable partial map is continuous on its domain. -/
 example : Continuous fun x : indicatorAtZero.Dom => (indicatorAtZero x).get x.2 :=
   StreamComputableIn.continuous_get (p := fun _ => 0) ⟨_, computesStream_indicatorAtZero _⟩
+
+/-- The partial map defined on sequences with infinitely many nonzero entries, sending `x` to the
+sequence `n ↦ min {m ≥ n | x m ≠ 0}`. -/
+def nextNonzeroPos : (ℕ → ℕ) →. (ℕ → ℕ) :=
+  fun x => ⟨∀ k, ∃ m ≥ k, x m ≠ 0, fun hx n => Nat.find (hx n)⟩
+
+/-- The domain of `nextNonzeroPos` is not open in Baire space. -/
+theorem not_isOpen_dom_nextNonzeroPos : ¬ IsOpen nextNonzeroPos.Dom := by
+  intro hopen
+  have hone : (fun _ => 1 : ℕ → ℕ) ∈ nextNonzeroPos.Dom := fun k => ⟨k, le_rfl, one_ne_zero⟩
+  obtain ⟨_, ⟨z, k, rfl⟩, hz, hsub⟩ := (PiNat.isTopologicalBasis_cylinders fun _ : ℕ => ℕ)
+    |>.exists_subset_of_mem_open hone hopen
+  have hzero : (fun i => if i < k then 1 else 0 : ℕ → ℕ) ∈ nextNonzeroPos.Dom := by
+    refine hsub ?_
+    rw [← PiNat.mem_cylinder_iff_eq.1 hz]
+    intro i hi
+    simp [hi]
+  obtain ⟨m, hm, hne⟩ := hzero k
+  exact hne (by simp [Nat.not_lt.2 hm])
+
+/-- `nextNonzeroPos` is continuous on its domain. -/
+theorem continuous_get_nextNonzeroPos :
+    Continuous fun x : nextNonzeroPos.Dom => (nextNonzeroPos x).get x.2 := by
+  refine continuous_get_iff_forall_exists_cylinder.2 fun x y hy n => ?_
+  obtain ⟨hx, rfl⟩ := hy
+  refine ⟨Nat.find (hx n) + 1, fun x' hcyl y' hy' => ?_⟩
+  obtain ⟨hx', rfl⟩ := hy'
+  change Nat.find (hx' n) = Nat.find (hx n)
+  have hspec := Nat.find_spec (hx n)
+  refine (Nat.find_eq_iff (hx' n)).2 ⟨⟨hspec.1, ?_⟩, fun m hm => ?_⟩
+  · rw [PiNat.mem_cylinder_iff.1 hcyl _ (Nat.lt_succ_self _)]
+    exact hspec.2
+  · rw [PiNat.mem_cylinder_iff.1 hcyl _ (Nat.lt_succ_of_lt hm)]
+    exact Nat.find_min (hx n) hm
+
+/-- `nextNonzeroPos` is computable relative to a total oracle. -/
+example : ∃ p : ℕ → ℕ, StreamComputableIn p nextNonzeroPos :=
+  continuous_get_iff_streamComputableIn.1 continuous_get_nextNonzeroPos
+
+/-- `nextNonzeroPos` extends to a computable continuous partial map on a Gδ domain. -/
+example :
+    ∃ (p : ℕ → ℕ) (F' : (ℕ → ℕ) →. (ℕ → ℕ)),
+      IsGδ F'.Dom ∧
+      (∀ x, ∀ y ∈ nextNonzeroPos x, y ∈ F' x) ∧
+      StreamComputableIn p F' ∧
+      Continuous fun x : F'.Dom => (F' x).get x.2 :=
+  exists_gδ_extension_of_continuous_get continuous_get_nextNonzeroPos
+
+example : (fun _ => 0 : ℕ → ℕ) ∉ nextNonzeroPos.Dom := by
+  intro h
+  obtain ⟨_, _, hne⟩ := h 0
+  exact hne rfl
+
+example :
+    ∃ y ∈ nextNonzeroPos (fun i => if i % 2 = 1 then 1 else 0), y 0 = 1 ∧ y 2 = 3 := by
+  have hdom : (fun i => if i % 2 = 1 then 1 else 0 : ℕ → ℕ) ∈ nextNonzeroPos.Dom :=
+    fun k => ⟨2 * k + 1, by omega, by simp⟩
+  refine ⟨_, Part.get_mem hdom, ?_, ?_⟩
+  · exact (Nat.find_eq_iff (hdom 0)).2 ⟨by simp, fun m hm => by simp [Nat.lt_one_iff.1 hm]⟩
+  · exact (Nat.find_eq_iff (hdom 2)).2 ⟨by simp, fun m hm => by
+      intro ⟨hge, hne⟩
+      have : m = 2 := by omega
+      subst this
+      simp at hne⟩
 
 end CslibFrontierTests.RecursiveInStream

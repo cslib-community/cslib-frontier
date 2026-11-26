@@ -168,9 +168,7 @@ theorem derivWithin_antitoneOn {u : ℝ → ℝ} (hu : IsAdmissibleUtility u) :
   intro x hx y hy hxy
   rcases eq_or_lt_of_le hxy with rfl | hlt
   · exact le_rfl
-  · have h1 := hu.le_add_derivWithin hx hy
-    have h2 := hu.le_add_derivWithin hy hx
-    nlinarith
+  · nlinarith [hu.le_add_derivWithin hx hy, hu.le_add_derivWithin hy hx]
 
 /-- Every concave, strictly increasing, differentiable function on `[0, ∞)` has strictly positive
 marginal utility everywhere on `[0, ∞)`. -/
@@ -268,8 +266,8 @@ theorem allocation_eq_div_price {w : ι → ℝ} (hC : G.capacity ≠ 0) (i : ι
   · field_simp
 
 theorem allocation_nonneg {w : ι → ℝ} (hC : 0 ≤ G.capacity) (hw : ∀ j, 0 ≤ w j) (i : ι) :
-    0 ≤ G.allocation w i := by
-  exact div_nonneg (mul_nonneg hC (hw i)) (Finset.sum_nonneg fun j _ => hw j)
+    0 ≤ G.allocation w i :=
+  div_nonneg (mul_nonneg hC (hw i)) (Finset.sum_nonneg fun j _ => hw j)
 
 theorem sum_allocation_eq_capacity {w : ι → ℝ} (hW : ∑ j, w j ≠ 0) :
     ∑ i, G.allocation w i = G.capacity := by
@@ -284,9 +282,9 @@ theorem isFeasibleAllocation_allocation {w : ι → ℝ} (hC : 0 ≤ G.capacity)
   · rw [G.sum_allocation_eq_capacity hW]
 
 theorem allocation_le_capacity {w : ι → ℝ} (hC : 0 ≤ G.capacity) (hw : ∀ j, 0 ≤ w j) (i : ι) :
-    G.allocation w i ≤ G.capacity := by
-  have hf := G.isFeasibleAllocation_allocation hC hw
-  exact (Finset.single_le_sum (fun j _ => hf.1 j) (Finset.mem_univ i)).trans hf.2
+    G.allocation w i ≤ G.capacity :=
+  (Finset.single_le_sum (fun j _ => G.allocation_nonneg hC hw j) (Finset.mem_univ i)).trans
+    (G.isFeasibleAllocation_allocation hC hw).2
 
 theorem isFeasibleAllocation_le_capacity {d : ι → ℝ} (hd : G.IsFeasibleAllocation d) (i : ι) :
     d i ≤ G.capacity :=
@@ -353,8 +351,7 @@ private theorem simplex_maximizer_sum_eq_capacity [Nonempty ι] {G : KellyGame �
     · by_cases hi : i = i₀
       · subst hi; simp only [x, Function.update_self]; linarith [hd.1 i]
       · simp only [x, Function.update_of_ne hi]; exact hd.1 i
-    · have := sum_comp_update_eq (fun _ t => t) d i₀ (d i₀ + δ)
-      linarith
+    · linarith [sum_comp_update_eq (fun _ t => t) d i₀ (d i₀ + δ)]
   have hdi₀ : d i₀ ∈ Icc 0 G.capacity := ⟨hd.1 i₀, G.isFeasibleAllocation_le_capacity hd i₀⟩
   have hxi₀ : d i₀ + δ ∈ Icc 0 G.capacity :=
     ⟨by linarith [hd.1 i₀],
@@ -362,7 +359,7 @@ private theorem simplex_maximizer_sum_eq_capacity [Nonempty ι] {G : KellyGame �
         Finset.sum_nonneg (s := Finset.univ.erase i₀) fun j _ => hd.1 j]⟩
   have hle := hmax x hx_feas
   rw [sum_comp_update_eq f d i₀ (d i₀ + δ)] at hle
-  linarith [hmono i₀ hdi₀ hxi₀ (by linarith : d i₀ < d i₀ + δ)]
+  linarith [hmono i₀ hdi₀ hxi₀ (lt_add_of_pos_right (d i₀) (sub_pos.mpr hlt))]
 
 /-- Pairwise first-order optimality condition on the simplex: at a social optimum `d`, if user `i`
 receives positive allocation `d i > 0`, shifting infinitesimal capacity from `i` to `j` cannot
@@ -374,11 +371,9 @@ theorem IsSocialOptimum.swap_deriv_le {G : KellyGame ι} {d : ι → ℝ} (hd : 
     dj' ≤ di' := by
   classical
   set φ : ℝ → ℝ := fun t => G.utility i (d i - t) + G.utility j (d j + t)
-  have hsum_ij : d i + d j ≤ G.capacity := by
-    have hle := Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ ({i, j} : Finset ι))
-      fun k _ _ => hd.1.1 k
-    rw [Finset.sum_pair hij] at hle
-    exact hle.trans hd.1.2
+  have hsum_ij : d i + d j ≤ G.capacity :=
+    (Finset.sum_pair (f := d) hij ▸ Finset.sum_le_sum_of_subset_of_nonneg
+      (Finset.subset_univ ({i, j} : Finset ι)) fun k _ _ => hd.1.1 k).trans hd.1.2
   have hφ_i : HasDerivWithinAt (fun t => G.utility i (d i - t)) (-di') (Icc 0 (d i)) 0 := by
     have hfi : HasDerivWithinAt (G.utility i) di' (Icc 0 G.capacity) (d i - 0) := by
       simpa only [sub_zero] using hderiv_i
@@ -541,8 +536,7 @@ theorem isSocialOptimum_iff_kkt [Nonempty ι] {G : KellyGame ι} (hC : 0 < G.cap
       (fun i => (hU i).strictMonoOn.mono fun _ hz => hz.1) hd hmax
     obtain ⟨μ, hle, heq⟩ := simplex_kkt_of_maximizer hC hderiv_Icc hd hsum hmax
     obtain ⟨i₀⟩ := ‹Nonempty ι›
-    have hμ : 0 < μ := lt_of_lt_of_le ((hU i₀).derivWithin_pos (hd.1 i₀)) (hle i₀)
-    exact ⟨hd, hsum, μ, hμ, hle, heq⟩
+    exact ⟨hd, hsum, μ, ((hU i₀).derivWithin_pos (hd.1 i₀)).trans_le (hle i₀), hle, heq⟩
   · rintro ⟨hd, hsum, μ, hμ, hle, heq⟩
     refine ⟨hd, fun x hx => simplex_maximizer_of_kkt
       (fun i => (hU i).concaveOn.subset (fun _ hz => hz.1) (convex_Icc 0 G.capacity))
@@ -634,9 +628,7 @@ theorem existsUnique_isCompetitiveEquilibrium_of_strictConcaveOn [Nonempty ι] {
       rw [halloc_i]
       have hmbne : mb ≠ 0 := hceb.2.1.ne'
       field_simp at hzero; linarith
-    have h1 := hderiv_eq w μ hce hi₀
-    have h2 := hderiv_eq w' μ' hce' (hd_eq.symm ▸ hi₀)
-    rw [hd_eq] at h2; linarith
+    exact (hderiv_eq w' μ' hce' (hd_eq.symm ▸ hi₀)).symm.trans (hd_eq.symm ▸ hderiv_eq w μ hce hi₀)
   ext i
   · have hi := congrFun hd_eq i
     rw [G.allocation_eq_div_price hC.ne', G.allocation_eq_div_price hC.ne',
@@ -677,14 +669,9 @@ theorem hasDerivWithinAt_modifiedUtility {G : KellyGame ι} {i : ι}
   have h1 : HasDerivWithinAt (fun t : ℝ => 1 - t / G.capacity) (-(1 / G.capacity))
       (Icc 0 G.capacity) x :=
     (((hasDerivAt_id' x).div_const G.capacity).const_sub (1 : ℝ)).hasDerivWithinAt
-  have h2 : HasDerivWithinAt (G.utility i) (derivWithin (G.utility i) (Ici 0) x)
-      (Icc 0 G.capacity) x :=
-    (hu.hasDerivWithinAt hx.1).mono fun _ hz => hz.1
-  have h3 := hasDerivWithinAt_integral_of_continuousOn hu.continuousOn hx
-  have hsum : HasDerivWithinAt (G.modifiedUtility i) _ (Icc 0 G.capacity) x :=
-    ((h1.mul h2).add (h3.const_mul (1 / G.capacity))).congr (fun _ _ => rfl) rfl
-  convert hsum using 1
-  ring
+  exact (((h1.mul ((hu.hasDerivWithinAt hx.1).mono fun _ hz => hz.1)).add
+    ((hasDerivWithinAt_integral_of_continuousOn hu.continuousOn hx).const_mul
+      (1 / G.capacity))).congr (fun _ _ => rfl) rfl).congr_deriv (by ring)
 
 /-- Each modified utility `Û_i` is strictly concave on `[0, C]` whenever `U_i` is concave and
 strictly increasing (even when `U_i` is linear). -/
@@ -718,9 +705,8 @@ theorem modifiedUtility_strictConcaveOn {G : KellyGame ι} (hC : 0 < G.capacity)
 theorem modifiedUtility_strictMonoOn {G : KellyGame ι} (hC : 0 < G.capacity) {i : ι}
     (hu : IsAdmissibleUtility (G.utility i)) :
     StrictMonoOn (G.modifiedUtility i) (Icc 0 G.capacity) := by
-  have hcont : ContinuousOn (G.modifiedUtility i) (Icc 0 G.capacity) :=
-    fun x hx => (hasDerivWithinAt_modifiedUtility hu hx).continuousWithinAt
-  refine strictMonoOn_of_deriv_pos (convex_Icc 0 G.capacity) hcont fun x hx => ?_
+  refine strictMonoOn_of_deriv_pos (convex_Icc 0 G.capacity)
+    (fun x hx => (hasDerivWithinAt_modifiedUtility hu hx).continuousWithinAt) fun x hx => ?_
   rw [interior_Icc] at hx
   rw [((hasDerivWithinAt_modifiedUtility hu (Ioo_subset_Icc_self hx)).hasDerivAt
     (Icc_mem_nhds hx.1 hx.2)).deriv]
@@ -804,10 +790,10 @@ private theorem concaveOn_propAlloc {C s : ℝ} (hC : 0 < C) (hs : 0 < s) :
         (a * (C * x / (x + s)) + b * (C * y / (y + s))) =
       C * s * a * b * (x - y) ^ 2 / ((a * x + b * y + s) * (x + s) * (y + s)) := by
     field_simp
-    rw [show a = 1 - b by linarith]; ring
-  have : 0 ≤ C * s * a * b * (x - y) ^ 2 / ((a * x + b * y + s) * (x + s) * (y + s)) := by
-    positivity
-  linarith
+    rw [eq_sub_of_add_eq hab]
+    ring
+  rw [← sub_nonneg, hdiff]
+  positivity
 
 private theorem concaveOn_userPayoff {C s : ℝ} {u : ℝ → ℝ} (hC : 0 < C) (hs : 0 < s)
     (hu : IsAdmissibleUtility u) :
@@ -831,10 +817,9 @@ private theorem hasDerivWithinAt_userPayoff {C s t : ℝ} {u : ℝ → ℝ} (hC 
     HasDerivWithinAt (fun x => u (C * x / (x + s)) - x)
       (derivWithin u (Ici 0) (C * t / (t + s)) * (C * s / (t + s) ^ 2) - 1) (Ici 0) t := by
   have hfrac : HasDerivWithinAt (fun x : ℝ => C * x / (x + s)) (C * s / (t + s) ^ 2) (Ici 0) t := by
-    have hq := ((((hasDerivAt_id' t).const_mul C).div ((hasDerivAt_id' t).add_const s)
-      (by linarith)).hasDerivWithinAt (s := Ici 0))
-    have hsimp : (C * 1 * (t + s) - C * t * 1) / (t + s) ^ 2 = C * s / (t + s) ^ 2 := by ring
-    rwa [hsimp] at hq
+    convert (((hasDerivAt_id' t).const_mul C).div ((hasDerivAt_id' t).add_const s)
+      (by linarith)).hasDerivWithinAt (s := Ici 0) using 1
+    ring
   have hmaps : MapsTo (fun x : ℝ => C * x / (x + s)) (Ici 0) (Ici 0) := fun x hx =>
     div_nonneg (mul_nonneg hC.le hx) (by linarith [mem_Ici.mp hx])
   exact ((hu.hasDerivWithinAt (hmaps ht)).comp t hfrac hmaps).sub
@@ -932,8 +917,7 @@ theorem isNashEquilibrium_iff_kkt {G : KellyGame ι} (hC : 0 < G.capacity)
       rcases eq_or_lt_of_le (hw i) with hwi0 | hwi_pos
       · rw [← hwi0, sub_zero]
         refine mul_nonpos_of_nonpos_of_nonneg ?_ ht
-        rw [sub_nonpos, ← mul_div_assoc, div_le_one hμpos]
-        exact hle i
+        simpa only [sub_nonpos, ← mul_div_assoc, div_le_one hμpos] using hle i
       · have hWpos : 0 < ∑ j, w j := by
           rw [← Finset.add_sum_erase _ _ (Finset.mem_univ i)]; linarith [herase i]
         have hdi : 0 < G.allocation w i := div_pos (mul_pos hC hwi_pos) hWpos
@@ -1113,18 +1097,15 @@ theorem IsNashEquilibrium.three_fourths_welfare_le [DecidableEq ι] {G : KellyGa
     have hlin := linear_three_fourths_bound hC (fun i => ((hU i).derivWithin_pos (hd0 i)).le)
       hd0 (hne.sum_allocation_eq_capacity hC fun j => (hU j).strictMonoOn)
       hle heq hx.1 hx.2
-    have hconc_x : ∀ i, G.utility i (x i) ≤ G.utility i (d i) + α i * (x i - d i) :=
-      fun i => (hU i).le_add_derivWithin (hd0 i) (hx.1 i)
-    have hconc_0 : ∀ i, 0 ≤ G.utility i (d i) - α i * d i := fun i => by
-      have h0 := (hU i).le_add_derivWithin (hd0 i) le_rfl
-      linarith [hU0 i]
     have hsum_x : G.welfare x ≤ G.welfare d + ∑ i, α i * x i - ∑ i, α i * d i := by
-      have h := Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => hconc_x i
+      have h := Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) =>
+        (hU i).le_add_derivWithin (hd0 i) (hx.1 i)
       simp only [welfare, mul_sub, Finset.sum_add_distrib, Finset.sum_sub_distrib] at h ⊢
       linarith
     have hsum_0 : 0 ≤ G.welfare d - ∑ i, α i * d i := by
-      have h := Finset.sum_nonneg fun i (_ : i ∈ Finset.univ) => hconc_0 i
-      simpa only [welfare, Finset.sum_sub_distrib] using h
+      simpa only [welfare, Finset.sum_sub_distrib] using
+        Finset.sum_nonneg (s := Finset.univ) (f := fun i => G.utility i (d i) - α i * d i)
+          fun i _ => by linarith [(hU i).le_add_derivWithin (hd0 i) le_rfl, hU0 i]
     linarith
 
 end Efficiency
@@ -1179,19 +1160,16 @@ theorem kellyTightGame_spec {n : ℕ} (hn : 2 ≤ n) :
     funext fun _ => by
       dsimp only [kellyTightGame]
       split_ifs <;> ring
-  have hU : ∀ i, IsAdmissibleUtility ((kellyTightGame n).utility i) := fun i => by
-    rw [hu_eq i]
-    exact isAdmissibleUtility_linear (by split_ifs <;> positivity)
-  have hU0 : ∀ i, (kellyTightGame n).utility i 0 = 0 := fun i => by
-    unfold kellyTightGame; dsimp only; split_ifs <;> simp
+  have hU : ∀ i, IsAdmissibleUtility ((kellyTightGame n).utility i) := fun i =>
+    hu_eq i ▸ isAdmissibleUtility_linear (by split_ifs <;> positivity)
+  have hU0 : ∀ i, (kellyTightGame n).utility i 0 = 0 := fun i => by simp [hu_eq i]
   have hcard_erase : (Finset.univ.erase (0 : Fin (n + 1))).card = n := by
     rw [Finset.card_erase_of_mem (Finset.mem_univ _), Finset.card_fin]; omega
   have hsum_bid : ∑ j : Fin (n + 1), kellyTightBid n j = 1 / 2 := by
-    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ (0 : Fin (n + 1)))]
-    have hrest : ∑ j ∈ Finset.univ.erase (0 : Fin (n + 1)), kellyTightBid n j =
-        ∑ _j ∈ Finset.univ.erase (0 : Fin (n + 1)), (1 / (4 * (n : ℝ))) :=
-      Finset.sum_congr rfl fun j hj => by simp [kellyTightBid, Finset.ne_of_mem_erase hj]
-    rw [hrest, Finset.sum_const, hcard_erase, nsmul_eq_mul]
+    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ (0 : Fin (n + 1))),
+      Finset.sum_eq_card_nsmul (b := 1 / (4 * (n : ℝ))) fun j hj => by
+        simp [kellyTightBid, Finset.ne_of_mem_erase hj],
+      hcard_erase, nsmul_eq_mul]
     simp only [kellyTightBid, ↓reduceIte]
     field_simp; ring
   have hprice : (kellyTightGame n).price (kellyTightBid n) = 1 / 2 := by
@@ -1226,7 +1204,7 @@ theorem kellyTightGame_spec {n : ℕ} (hn : 2 ≤ n) :
         rw [div_mul_eq_mul_div, div_eq_iff h2n1_pos.ne']
         field_simp [hn0]
     have hw_nn : ∀ i, 0 ≤ kellyTightBid n i := fun i => by
-      unfold kellyTightBid
+      dsimp only [kellyTightBid]
       split_ifs <;> positivity
     exact ⟨hw_nn, herase, fun i => (hfoc i).le, fun i _ => hfoc i⟩
   set opt : Fin (n + 1) → ℝ := Pi.single (0 : Fin (n + 1)) 1
@@ -1248,15 +1226,12 @@ theorem kellyTightGame_spec {n : ℕ} (hn : 2 ≤ n) :
   have hne_welfare :
       (kellyTightGame n).welfare ((kellyTightGame n).allocation (kellyTightBid n)) =
         3 / 4 + 1 / (4 * (2 * (n : ℝ) - 1)) := by
-    rw [KellyGame.welfare, ← Finset.add_sum_erase _ _ (Finset.mem_univ (0 : Fin (n + 1)))]
-    have hrest : ∑ i ∈ Finset.univ.erase (0 : Fin (n + 1)),
-        (kellyTightGame n).utility i ((kellyTightGame n).allocation (kellyTightBid n) i) =
-        ∑ _i ∈ Finset.univ.erase (0 : Fin (n + 1)),
-          ((n : ℝ) / (2 * (n : ℝ) - 1) * (1 / (2 * (n : ℝ)))) :=
-      Finset.sum_congr rfl fun i hi => by
-        rw [halloc_ne i (Finset.ne_of_mem_erase hi)]
-        simp [kellyTightGame, Finset.ne_of_mem_erase hi]
-    rw [hrest, Finset.sum_const, hcard_erase, nsmul_eq_mul, halloc0]
+    rw [KellyGame.welfare, ← Finset.add_sum_erase _ _ (Finset.mem_univ (0 : Fin (n + 1))),
+      Finset.sum_eq_card_nsmul (b := (n : ℝ) / (2 * (n : ℝ) - 1) * (1 / (2 * (n : ℝ))))
+        fun i hi => by
+          rw [halloc_ne i (Finset.ne_of_mem_erase hi)]
+          simp [kellyTightGame, Finset.ne_of_mem_erase hi],
+      hcard_erase, nsmul_eq_mul, halloc0]
     simp only [kellyTightGame, ↓reduceIte]
     have hne1 : (2 * (n : ℝ) - 1) ≠ 0 := h2n1_pos.ne'
     field_simp [hne1]; ring

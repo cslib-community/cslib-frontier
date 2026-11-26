@@ -418,10 +418,8 @@ theorem totalBTreeNodesWhp_le_n_max {c n_max : ℕ} (hth : whpThreshold c ≤ n_
       ((Nat.mul_le_mul_right 1024 hq_lt).trans_eq (by rw [Nat.pow_add, Nat.pow_succ]; ring))
   have hlog_m : Nat.log 2 m ≤ Nat.log 2 q + 10 :=
     Nat.le_of_lt_succ (Nat.log_lt_of_lt_pow (by omega : m ≠ 0) hm_lt_pow)
-  have hn4 : 4 ≤ n_max := by
-    by_contra hlt
-    rcases (by omega : n_max = 0 ∨ n_max = 1 ∨ n_max = 2 ∨ n_max = 3) with
-      rfl | rfl | rfl | rfl <;> revert hm_ge <;> decide
+  have hn4 : 4 ≤ n_max :=
+    not_lt.mp fun h => absurd (hm_ge.trans (Nat.log_mono_right (Nat.le_of_lt_succ h))) (by decide)
   have hell : logLogFactor n_max ≤ Nat.log 2 q + 12 := by
     unfold logLogFactor
     rw [max_eq_left hn4]
@@ -457,8 +455,7 @@ theorem totalBTreeNodesWhp_le_n_max {c n_max : ℕ} (hth : whpThreshold c ≤ n_
     calc 4096 = 2 ^ 12 := by decide
       _ ≤ (slabScale n_max) ^ 12 := Nat.pow_le_pow_left (two_le_slabScale n_max) 12
   have h3ns : 3 * nSliceWhp n_max ≤ (slabScale n_max) ^ 12 := by
-    unfold nSliceWhp
-    omega
+    dsimp only [nSliceWhp]; omega
   calc totalBTreeNodesWhp n_max
       = numBucketsWhp n_max * (3 * nSliceWhp n_max) := by unfold totalBTreeNodesWhp; ring
     _ ≤ numBucketsWhp n_max * (slabScale n_max) ^ 12 := Nat.mul_le_mul_left _ h3ns
@@ -954,9 +951,7 @@ theorem realizes_swarRankGen :
   · have hkl_lt : keyLaneBitsWhp n_max < w :=
       (Nat.le_mul_of_pos_left _ (by have := eight_le_tMinWhp hth; omega)).trans_lt hkw_lt
     have hsum : 2 ^ fpBitsWhp n_max + q < 2 ^ keyLaneBitsWhp n_max := by
-      unfold keyLaneBitsWhp
-      rw [Nat.pow_add]
-      omega
+      rw [keyLaneBitsWhp, Nat.pow_add]; omega
     exact hsum.trans (Nat.pow_lt_pow_right (by decide) hkl_lt)
   · have hones_lt : swarOnes (keyLaneBitsWhp n_max) m < 2 ^ (m * keyLaneBitsWhp n_max) :=
       (Nat.div_le_self _ _).trans_lt (Nat.sub_lt (Nat.two_pow_pos _) Nat.zero_lt_one)
@@ -967,8 +962,7 @@ theorem realizes_swarRankGen :
         _ = (m + 1) * keyLaneBitsWhp n_max := by ring
         _ ≤ 2 * tMinWhp n_max * keyLaneBitsWhp n_max := Nat.mul_le_mul_right _ hm
     have hsum : kw + swarOnes (keyLaneBitsWhp n_max) m < 2 ^ (m * keyLaneBitsWhp n_max + 1) := by
-      rw [Nat.pow_succ]
-      omega
+      rw [Nat.pow_succ]; omega
     exact hsum.trans (Nat.pow_lt_pow_right (by decide) (hmW1.trans_lt hkw_lt))
   · exact (swarRank_lhs_bounds hq hkw hlanes).1
   · have hexp : (2 * (2 * tMinWhp n_max) - 1) * (fpBitsWhp n_max + 2) < w :=
@@ -1064,8 +1058,7 @@ theorem realizes_splitFullNodeGen :
     have htv_lt : tMinWhp n_max * valLaneBitsWhp n_max < w :=
       (Nat.mul_le_mul_right _ (by omega : tMinWhp n_max ≤ 2 * tMinWhp n_max)).trans_lt hvw_lt
     have h1_2t_lt : 1 + 2 * tMinWhp n_max < w := by
-      have : 2 * (2 * tMinWhp n_max) ≤ 2 * tMinWhp n_max * keyLaneBitsWhp n_max := by
-        rw [Nat.mul_comm 2 (2 * tMinWhp n_max)]; exact Nat.mul_le_mul_left _ hkl_ge2
+      have := Nat.mul_le_mul_left (2 * tMinWhp n_max) hkl_ge2
       omega
     try simp only [wp_large_tMin hth, wp_large_wKey hth, wp_large_wVal hth]
     first
@@ -1105,16 +1098,13 @@ theorem readSliceHeaderGenProg_spec {c U V w n_max base sIdx : ℕ} {sl : BTreeS
       base + largeSpaceWhp c U V w n_max := by rw [Nat.add_assoc]; exact Nat.add_le_add_left hseg _
   unfold readSliceHeaderGenProg
   simp only [wp_large_offBktMeta hth, wp_large_globalPtrBits hth, wp_large_w hth, pure_bind]
-  refine ⟨rfl, ?_, rfl, ?_⟩
-  · dsimp only [readPackedGenProg]
-    rw [clientResult_bind, clientState_readPackedProg,
-      clientResult_bind, clientState_readPackedProg,
-      clientResult_readPackedProg, clientResult_readPackedProg,
-      StateTransitionSpec.clientResult_pure, hrep.2.1, hrep.2.2.1]
-  · refine validProg_bind (validProg_readPacked hw hidxA hba_le) ?_
-    dsimp only [readPackedGenProg]
-    rw [clientState_readPackedProg]
-    exact validProg_bind (validProg_readPacked hw hidxR hba_le) (validProg_pure _)
+  refine ⟨rfl, ?_, rfl, validProg_bind (validProg_readPacked hw hidxA hba_le)
+    (validProg_bind (validProg_readPacked hw hidxR hba_le) (validProg_pure _))⟩
+  dsimp only [readPackedGenProg]
+  rw [clientResult_bind, clientState_readPackedProg,
+    clientResult_bind, clientState_readPackedProg,
+    clientResult_readPackedProg, clientResult_readPackedProg,
+    StateTransitionSpec.clientResult_pure, hrep.2.1, hrep.2.2.1]
 
 theorem realizes_readSliceHeaderGen :
     Realizes .exact readSliceHeaderGenProg
@@ -1251,9 +1241,8 @@ theorem resetBTreeSliceGenProg_spec {c U V w n_max base sIdx : ℕ}
       (readPacked_writePacked_of_ne hw mem₁ h2 0).trans
         (readPacked_writePacked_of_ne hw s.mem h1 0)
   refine ⟨rfl, rfl, ?_, ?_, ?_, hother_bm, hout⟩
-  · refine validProg_bind (validProg_writePacked hw hgk hidxA hba_le) ?_
-    dsimp only [writePackedGenProg]; rw [clientState_writePackedProg]
-    exact validProg_writePacked hw hgk hidxR hba_le
+  · exact validProg_bind (validProg_writePacked hw hgk hidxA hba_le)
+      (validProg_writePacked hw hgk hidxR hba_le)
   · rw [hs'_eq]
     refine ⟨Nat.zero_le _, ?_, readPacked_writePacked_self _ _ _ mem₁ idxR h0_lt,
       fun _ hu => absurd hu (Nat.not_lt_zero _)⟩
@@ -1334,12 +1323,9 @@ theorem readBTreeNodeGenProg_spec {c U V w n_max base sIdx u : ℕ} {sl : BTreeS
       clientResult_bind, clientState_readPackedProg,
       clientResult_readPackedProg, clientResult_readPackedProg, clientResult_readPackedProg,
       StateTransitionSpec.clientResult_pure, hndM, hndK, hndV]
-  · refine validProg_bind (validProg_readPacked hw hidx hsegM) ?_
-    change ValidProg w (base + largeSpaceWhp c U V w n_max) s _
-    refine validProg_bind (validProg_readPacked hw hidx hsegK) ?_
-    change ValidProg w (base + largeSpaceWhp c U V w n_max) s _
-    exact validProg_bind (validProg_readPacked hw hidx hsegV)
-      (validProg_pure _)
+  · exact validProg_bind (validProg_readPacked hw hidx hsegM)
+      (validProg_bind (validProg_readPacked hw hidx hsegK)
+        (validProg_bind (validProg_readPacked hw hidx hsegV) (validProg_pure _)))
 
 theorem realizes_readBTreeNodeGen :
     Realizes .exact readBTreeNodeGenProg
@@ -1443,25 +1429,16 @@ theorem writeBTreeNodeGenProg_spec {c U V w n_max base sIdx u : ℕ} {nd : BTree
     (writePacked_outside hw _ hidx _ (by omega)).trans
       ((writePacked_outside hw _ hidx _ (by omega)).trans
         (writePacked_outside hw _ hidx _ (by omega)))
-  have hdisj_MK : (base + offBtMeta c U V w n_max) +
-      packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w ≤
-      base + offBtKeys c U V w n_max := by omega
-  have hdisj_MV : (base + offBtMeta c U V w n_max) +
-      packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w ≤
-      base + offBtVals c U V w n_max := by omega
-  have hdisj_KV : (base + offBtKeys c U V w n_max) +
-      packedWords (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w ≤
-      base + offBtVals c U V w n_max := by omega
   have hrM : ∀ i < totalBTreeNodesWhp n_max,
       readPacked (base + offBtMeta c U V w n_max) (nodeMetaBitsWhp n_max) w mem₃ i =
         readPacked (base + offBtMeta c U V w n_max) (nodeMetaBitsWhp n_max) w mem₁ i :=
     fun i hi =>
-      (readPacked_writePacked_disjoint hw hi hidx (Or.inl hdisj_MV)).trans
-        (readPacked_writePacked_disjoint hw hi hidx (Or.inl hdisj_MK))
+      (readPacked_writePacked_disjoint hw hi hidx (Or.inl (by omega))).trans
+        (readPacked_writePacked_disjoint hw hi hidx (Or.inl (by omega)))
   have hrK : ∀ i < totalBTreeNodesWhp n_max,
       readPacked (base + offBtKeys c U V w n_max) (keysWordBitsWhp n_max) w mem₃ i =
         readPacked (base + offBtKeys c U V w n_max) (keysWordBitsWhp n_max) w mem₂ i :=
-    fun i hi => readPacked_writePacked_disjoint hw hi hidx (Or.inl hdisj_KV)
+    fun i hi => readPacked_writePacked_disjoint hw hi hidx (Or.inl (by omega))
   have hnode_ne {i : ℕ} (hi : i < totalBTreeNodesWhp n_max) (hne_i : i ≠ idx) :
       readPacked (base + offBtMeta c U V w n_max) (nodeMetaBitsWhp n_max) w mem₃ i =
         readPacked (base + offBtMeta c U V w n_max) (nodeMetaBitsWhp n_max) w s.mem i ∧
@@ -1471,10 +1448,10 @@ theorem writeBTreeNodeGenProg_spec {c U V w n_max base sIdx u : ℕ} {nd : BTree
         readPacked (base + offBtVals c U V w n_max) (valsWordBitsWhp n_max) w s.mem i :=
     ⟨(hrM i hi).trans (readPacked_writePacked_of_ne hw s.mem hne_i _),
       (hrK i hi).trans ((readPacked_writePacked_of_ne hw mem₁ hne_i _).trans
-        (readPacked_writePacked_disjoint hw hi hidx (Or.inr hdisj_MK))),
+        (readPacked_writePacked_disjoint hw hi hidx (Or.inr (by omega)))),
       (readPacked_writePacked_of_ne hw mem₂ hne_i _).trans
-        ((readPacked_writePacked_disjoint hw hi hidx (Or.inr hdisj_KV)).trans
-          (readPacked_writePacked_disjoint hw hi hidx (Or.inr hdisj_MV)))⟩
+        ((readPacked_writePacked_disjoint hw hi hidx (Or.inr (by omega))).trans
+          (readPacked_writePacked_disjoint hw hi hidx (Or.inr (by omega))))⟩
   obtain ⟨hsegM, hsegK, hsegV⟩ := btNodeSegs_le c U V w n_max base
   have hs'_eq : (Memory.spec 0).clientState s
       (writePackedGenProg
@@ -1486,13 +1463,9 @@ theorem writeBTreeNodeGenProg_spec {c U V w n_max base sIdx u : ℕ} {nd : BTree
       { mem := mem₃, frontier := s.frontier } := rfl
   rw [hs'_eq]
   refine ⟨rfl, rfl, ?_, ?_, ?_, hout⟩
-  · refine validProg_bind (validProg_writePacked hw hnm_le hidx hsegM) ?_
-    change ValidProg w (base + largeSpaceWhp c U V w n_max)
-      { mem := mem₁, frontier := s.frontier } _
-    refine validProg_bind (validProg_writePacked hw hkw_le hidx hsegK) ?_
-    change ValidProg w (base + largeSpaceWhp c U V w n_max)
-      { mem := mem₂, frontier := s.frontier } _
-    exact validProg_writePacked hw hvw_le hidx hsegV
+  · exact validProg_bind (validProg_writePacked hw hnm_le hidx hsegM)
+      (validProg_bind (validProg_writePacked hw hkw_le hidx hsegK)
+        (validProg_writePacked hw hvw_le hidx hsegV))
   · intro sl ha_le hprev v hv
     have hidx_v := sliceNodeIdx_lt hsIdx (hv.trans_le ha_le)
     dsimp only

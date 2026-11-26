@@ -130,10 +130,9 @@ private theorem clockedBounds_aux (cA cD cO C₂ : ℕ) : ∃ K, ∀ {n A D N J 
   refine ⟨cA + 3 + 100000 * P ^ 5 + C₂ + R ^ 2 + (cO * Q + 1) ^ 2 + 200 * P ^ 2 + R + cO * Q,
     fun {n A D N J L I E} hA hD hN hL hI hE => ?_⟩
   have hPn : P * (n + 1) = cD * (cA + 1) * (n + 1) + 3 * (n + 1) := by rw [hP]; ring
-  have hD' : D ≤ cD * (cA + 1) * (n + 1) :=
-    hD.trans ((Nat.mul_le_mul_left cD (show n + A + 1 ≤ (cA + 1) * (n + 1) by
-      have : (cA + 1) * (n + 1) = cA * (n + 1) + (n + 1) := by ring
-      omega)).trans (le_of_eq (by ring)))
+  have hD' : D ≤ cD * (cA + 1) * (n + 1) := by
+    rw [Nat.mul_assoc]
+    exact hD.trans (Nat.mul_le_mul_left cD (by rw [Nat.add_mul, Nat.one_mul]; omega))
   obtain ⟨hU₁, hU₂⟩ := Turing.MultiTapeTM.Universal.universal_bounds_le
     (D := D) (N := N) (J := J + 1)
     (B := P * (n + 1) - 1) (L := 0) (by omega) (by omega) (Nat.zero_le _) (by omega)
@@ -166,10 +165,8 @@ private theorem clockedBounds_aux (cA cD cO C₂ : ℕ) : ∃ K, ∀ {n A D N J 
     simpa only [hW, mul_pow, Nat.mul_assoc] using Nat.mul_le_mul_left 100000
       (Nat.mul_le_mul (Nat.pow_le_pow_right hPX1 (by decide))
         (Nat.pow_le_pow_right hY1 (by decide)))
-  have hrunZ : runBound D N J ≤ 200 * P ^ 2 * Z := by
-    have : 200 * (P * (n + 1)) ^ 2 * (J + 1) = 200 * P ^ 2 * Z := by
-      simp only [hZ, mul_pow, Nat.mul_assoc]
-    omega
+  have hrunZ : runBound D N J ≤ 200 * P ^ 2 * Z :=
+    hrun.trans (hU₂.trans_eq (by simp only [hZ, mul_pow, Nat.mul_assoc]))
   have hLY : L ≤ C₂ * (J + 1) := (Nat.le_succ L).trans ((Nat.le_self_pow two_ne_zero _).trans hL)
   have hI1 : I + 1 ≤ R * ((n + 1) * (J + 1)) := by
     calc I + 1 ≤ 5 * (P * (n + 1)) + C₂ * (J + 1) := by omega
@@ -188,10 +185,8 @@ private theorem clockedBounds_aux (cA cD cO C₂ : ℕ) : ∃ K, ∀ {n A D N J 
     have e : Q * Z = (cA + 3) * Z + 200 * P ^ 2 * Z + R * Z + Z := by rw [hQ]; ring
     omega
   have hEZ : E ≤ cO * Q * Z :=
-    hE.trans ((Nat.mul_le_mul_left cO hsum).trans (le_of_eq (by ring)))
-  have hE1 : E + 1 ≤ (cO * Q + 1) * Z := by
-    have e : (cO * Q + 1) * Z = cO * Q * Z + Z := by ring
-    omega
+    hE.trans (by simpa only [Nat.mul_assoc] using Nat.mul_le_mul_left cO hsum)
+  have hE1 : E + 1 ≤ (cO * Q + 1) * Z := by rw [Nat.add_mul, Nat.one_mul]; omega
   have hT₁ : (J + 1) * (stepBound D N J + runBound D N J + (L + 1) ^ 2) ≤
       100000 * P ^ 5 * W + C₂ * W := by
     have h₁ : (J + 1) * (stepBound D N J + runBound D N J) ≤
@@ -258,14 +253,12 @@ theorem computableInO_timeDiagonal {J : ℕ → ℕ} (hJ : TimeConstructible J) 
   obtain ⟨C₂, hC₂⟩ := exists_pow_length_encNat_le 2
   obtain ⟨K, hK⟩ := clockedBounds_aux cA cD cO C₂
   have hbounds (x : List Bool) (hs : shortDesc x = true) := by
-    have hA : ((unframe x).length + 1) ^ dd ≤ cA * (x.length + 1) :=
-      (hcA _).trans (Nat.mul_le_mul_left _ ((of_decide_eq_true hs).trans (Nat.le_succ _)))
-    have hN := length_encList_map_eBit_le x
     have hD := hcD x
     have hE := hcO x
     dsimp only [Function.comp_apply, encBits_apply] at hD hE
-    exact hK (D := descLen (decodeDesc (unframe x))) hA hD hN (hC₂ _)
-      (by rw [length_encPair, length_encPair]) hE
+    exact hK (D := descLen (decodeDesc (unframe x)))
+      ((hcA _).trans (Nat.mul_le_mul_left _ ((of_decide_eq_true hs).trans (Nat.le_succ _))))
+      hD (length_encList_map_eBit_le x) (hC₂ _) (by rw [length_encPair, length_encPair]) hE
   have hW (x : List Bool) : x.length + 1 ≤ (x.length + 1) ^ 5 * (J x.length + 1) ^ 3 :=
     (Nat.le_self_pow (by norm_num) _).trans (Nat.le_mul_of_pos_right _ (Nat.pow_pos (by omega)))
   have hW2 (x : List Bool) : (x.length + 1) ^ 2 ≤ (x.length + 1) ^ 5 * (J x.length + 1) ^ 3 :=
@@ -297,8 +290,7 @@ theorem setOf_timeDiagonal_notMem_DTIME_of_frequently_le {f J : ℕ → ℕ}
   have hcode : 2 ^ code.length ≤ n := (Nat.le_add_left _ _).trans hn
   let pad := List.replicate (n - (2 * code.length + 1)) false
   have hlen : (frame code ++ pad).length = n := by
-    simp only [List.length_append, length_frame, pad, List.length_replicate]
-    omega
+    simp only [List.length_append, length_frame, pad, List.length_replicate]; omega
   have hshort : Diagonal.shortDesc (frame (eDesc (desc eS eBit tm)) ++ pad) = true := by
     grind [Diagonal.shortDesc, unframe_frame_append]
   have htime : c₁ * f (frame (eDesc (desc eS eBit tm)) ++ pad).length + c₂ ≤

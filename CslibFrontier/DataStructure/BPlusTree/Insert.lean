@@ -151,11 +151,10 @@ theorem toList_withRest (x : InsertResult α β) (rest : List (Branch α β)) :
 @[simp] theorem toList_ofLeaf (entries : List (α × β)) : (ofLeaf t entries).toList = entries := by
   unfold ofLeaf
   split_ifs
-  · simp
-  · split
-    · simp
-    · next p right heq =>
-      rw [toList_split, toList_leaf, toList_leaf, ← heq, List.take_append_drop]
+  · exact toList_leaf
+  · cases heq : entries.drop t with
+    | nil => exact toList_leaf
+    | cons p right => rw [toList_split, toList_leaf, toList_leaf, ← heq, List.take_append_drop]
 
 /-- Splitting an overflowing node keeps its entries. -/
 @[simp] theorem toList_ofNode (first : BPlusTree α β) (rest : List (Branch α β)) :
@@ -163,12 +162,12 @@ theorem toList_withRest (x : InsertResult α β) (rest : List (Branch α β)) :
   unfold ofNode
   split_ifs
   · rfl
-  · split
-    · rfl
-    · next s c right heq =>
+  · cases heq : rest.drop t with
+    | nil => rfl
+    | cons sc right =>
       conv_rhs => rw [← List.take_append_drop t rest, heq]
       simp only [toList_split, toList_node, List.flatMap_append, List.flatMap_cons,
-        Branch.child_mk, List.append_assoc]
+        List.append_assoc]
 
 end InsertResult
 
@@ -215,8 +214,8 @@ leaves: the first `t` entries go left and the rest go right. -/
 theorem exists_good_split_ofLeaf {entries : List (α × β)} (hlo : 2 * t - 1 < entries.length)
     (hhi : entries.length ≤ 2 * t - 1 + t) :
     ∃ l s r, ofLeaf t entries = split l s r ∧ Good t 1 l ∧ Good t 1 r := by
-  unfold ofLeaf
-  rw [ite_eq_right (by omega)]
+  have hnot : ¬ entries.length ≤ 2 * t - 1 := by omega
+  simp only [ofLeaf, hnot, ↓reduceIte]
   split
   · next heq => exact absurd (List.drop_eq_nil_iff.1 heq) (by omega)
   · next p right heq =>
@@ -233,8 +232,8 @@ theorem exists_good_split_ofNode {first : BPlusTree α β} {rest : List (Branch 
     (hf : Good t h first) (hr : ∀ e ∈ rest, Good t h e.child)
     (hlo : 2 * t - 1 < rest.length) (hhi : rest.length ≤ 2 * t - 1 + t + 1) :
     ∃ l s r, ofNode t first rest = split l s r ∧ Good t (h + 1) l ∧ Good t (h + 1) r := by
-  unfold ofNode
-  rw [ite_eq_right (by omega)]
+  have hnot : ¬ rest.length ≤ 2 * t - 1 := by omega
+  simp only [ofNode, hnot, ↓reduceIte]
   split
   · next heq => exact absurd (List.drop_eq_nil_iff.1 heq) (by omega)
   · next s c right heq =>
@@ -481,9 +480,8 @@ theorem insert_eq_toTree (tr : BPlusTree α β) :
 
 /-- Insertion into a leaf places the entry in its entry list and splits on overflow. -/
 theorem insertOrSplit_leaf (entries : List (α × β)) :
-    insertOrSplit t k v (.leaf entries) = .ofLeaf t (SortedAssoc.insert k v entries) := by
-  rw [← SortedAssoc.idRun_insertM]
-  rfl
+    insertOrSplit t k v (.leaf entries) = .ofLeaf t (SortedAssoc.insert k v entries) :=
+  congrArg (InsertResult.ofLeaf t) (SortedAssoc.idRun_insertM k v entries)
 
 /-- Insertion into a node: search its separators, descending into the first child when the key
 is below them, then split on overflow. -/
@@ -545,40 +543,39 @@ private theorem insertRest_spec {rest : List (Branch α β)} (pre : List (α × 
     obtain ⟨s, c⟩ := e
     simp only [List.flatMap_cons, Branch.child_mk] at hs ⊢
     obtain ⟨hpw₁, hpw₂⟩ := List.pairwise_cons.1 hpw
-    have hcs : ∀ p ∈ c.toList, s ≤ p.1 := hle (s, c) List.mem_cons_self
+    obtain ⟨hcs, hle⟩ := List.forall_mem_cons.1 hle
+    obtain ⟨hcne, hne⟩ := List.forall_mem_cons.1 hne
+    obtain ⟨hcc, hc⟩ := List.forall_mem_cons.1 hc
     rw [insertRest_cons]
     by_cases hk : s ≤ k
     · -- the separator is passed: the key belongs to this child or a later one
-      have ih := ih (pre ++ c.toList) (by simpa only [List.append_assoc] using hs)
-        (fun e he => hle e (List.mem_cons_of_mem _ he))
-        (fun e he => hne e (List.mem_cons_of_mem _ he))
-        (fun p hp e he => by
-          rcases List.mem_append.1 hp with hp | hp
-          · exact hpre p hp e (List.mem_cons_of_mem _ he)
-          · exact hpw₁ e he p hp)
-        hpw₂ (fun e he => hc e (List.mem_cons_of_mem _ he))
+      have ih := ih (pre ++ c.toList) (by simpa only [List.append_assoc] using hs) hle hne
+        (fun p hp e he => (List.mem_append.1 hp).elim
+          (fun hp => hpre p hp e (List.mem_cons_of_mem _ he)) (hpw₁ e he p))
+        hpw₂ hc
       simp only [hk, ↓reduceIte]
-      refine ⟨fun h => by split at h <;> simp at h, fun r hr => ?_⟩
-      split at hr
-      · next r' hr' =>
-        cases hr
+      cases hr' : insertRest t k v rest with
+      | some r' =>
+        refine ⟨nofun, ?_⟩
+        rintro _ ⟨rfl⟩
         simpa only [List.flatMap_cons, Branch.child_mk, List.append_assoc] using ih.2 r' hr'
-      · next hr' =>
-        cases hr
+      | none =>
+        refine ⟨nofun, ?_⟩
+        rintro _ ⟨rfl⟩
         have hlt : ∀ p ∈ pre, p.1 < k := fun p hp =>
-          lt_of_lt_of_le (hpre p hp (s, c) List.mem_cons_self) hk
+          (hpre p hp (s, c) List.mem_cons_self).trans_le hk
         rw [← List.append_assoc, SortedAssoc.insert_append_of_forall_gt (ih.1 hr'),
-          SortedAssoc.insert_append_of_forall_lt hlt, ← hc (s, c) List.mem_cons_self,
+          SortedAssoc.insert_append_of_forall_lt hlt, ← hcc,
           List.flatMap_cons, Branch.child_mk, InsertResult.toList_withRest, List.append_assoc]
     · -- the separator is above the key: defer to the child before it
       have hk' : k < s := lt_of_not_ge hk
       simp only [hk, ↓reduceIte]
-      refine ⟨fun _ p hp => ?_, fun r hr => by simp at hr⟩
+      refine ⟨fun _ p hp => ?_, fun _ => nofun⟩
       rcases List.mem_append.1 hp with hp | hp
-      · exact lt_of_lt_of_le hk' (hcs p hp)
-      · obtain ⟨q, hq⟩ := List.exists_mem_of_ne_nil _ (hne (s, c) List.mem_cons_self)
+      · exact hk'.trans_le (hcs p hp)
+      · obtain ⟨q, hq⟩ := List.exists_mem_of_ne_nil _ hcne
         rw [List.isSortedAssoc_append_iff, List.isSortedAssoc_append_iff] at hs
-        exact (lt_of_lt_of_le hk' (hcs q hq)).trans (hs.2.1.2.2 q hq p hp)
+        exact (hk'.trans_le (hcs q hq)).trans (hs.2.1.2.2 q hq p hp)
 
 /-- Model equation of the bottom-up insertion under the search invariant. -/
 private theorem toList_insertOrSplit_of (k : α) (v : β) (tr : BPlusTree α β)
@@ -614,19 +611,15 @@ private theorem fits_insertRest {rest : List (Branch α β)} {h : ℕ}
   | nil => simp at hr
   | cons e rest ih =>
     obtain ⟨s, c⟩ := e
-    obtain ⟨hcg, hcf⟩ := hc (s, c) List.mem_cons_self
+    obtain ⟨⟨hcg, hcf⟩, hcr⟩ := List.forall_mem_cons.1 hc
     rw [insertRest_cons] at hr
     split_ifs at hr with hk
-    split at hr
-    · next r' hr' =>
-      cases hr
-      obtain ⟨h₁, h₂, h₃⟩ := ih (fun e he => hc e (List.mem_cons_of_mem _ he)) hr'
-      exact ⟨List.forall_mem_cons.2 ⟨hcg, h₁⟩, by simpa using h₂, by simpa using h₃⟩
-    · next hr' =>
-      cases hr
-      obtain ⟨hp₁, hp₂, hl₁, hl₂⟩ := InsertResult.fits_withRest hcf hcg.occupied hcg.height_eq
-        fun e he => (hc e (List.mem_cons_of_mem _ he)).1
+    cases hr' : insertRest t k v rest <;> rw [hr'] at hr <;> obtain ⟨rfl⟩ := hr
+    · obtain ⟨hp₁, hp₂, hl₁, hl₂⟩ :=
+        InsertResult.fits_withRest hcf hcg.occupied hcg.height_eq fun e he => (hcr e he).1
       exact ⟨List.forall_mem_cons.2 ⟨hp₁, hp₂⟩, by simpa using hl₁, by simpa using hl₂⟩
+    · obtain ⟨h₁, h₂, h₃⟩ := ih hcr hr'
+      exact ⟨List.forall_mem_cons.2 ⟨hcg, h₁⟩, by simpa using h₂, by simpa using h₃⟩
 
 /-- Shape invariant of the bottom-up insertion. -/
 private theorem fits_insertOrSplit (ht : 1 ≤ t) (k : α) (v : β) (tr : BPlusTree α β)
@@ -635,8 +628,8 @@ private theorem fits_insertOrSplit (ht : 1 ≤ t) (k : α) (v : β) (tr : BPlusT
   induction tr with
   | leaf entries =>
     rw [toList_leaf] at hs
-    have hlen := SortedAssoc.length_insert (k := k) (v := v) hs
     rw [width_leaf] at hw
+    have hlen := SortedAssoc.length_insert (k := k) (v := v) hs
     rw [insertOrSplit_leaf]
     exact InsertResult.fits_ofLeaf ht (by split at hlen <;> omega) rfl
       (by rw [width_leaf]; split at hlen <;> omega)
@@ -760,8 +753,7 @@ theorem sep_ofNode {first : BPlusTree α β} {rest : List (Branch α β)}
           (fun e he p hp => hd₁ e he p hp), fun p hp => ?_, fun p hp => ?_⟩
       · rw [toList_node, List.mem_append, List.mem_flatMap] at hp
         rcases hp with hp | ⟨a, ha, hp⟩
-        · exact h.lt_of_mem_first hsc hp
-        · exact htake a ha p hp
+        exacts [h.lt_of_mem_first hsc hp, htake a ha p hp]
       · rw [toList_node, List.mem_append, List.mem_flatMap] at hp
         rcases hp with hp | ⟨e, he, hp⟩
         · exact h.le_of_mem hsc hp
@@ -773,20 +765,16 @@ omit [LinearOrder α] in
 /-- The entries of the tree that takes the place of a child are entries of the result. -/
 theorem mem_toList_of_mem_withRest_fst {x : InsertResult α β} {rest : List (Branch α β)}
     {p : α × β} (hp : p ∈ (x.withRest rest).1.toList) : p ∈ x.toList := by
-  cases x with
-  | tree c => exact hp
-  | split l s r => exact List.mem_append_left _ hp
+  rcases x with c | ⟨l, s, r⟩
+  exacts [hp, List.mem_append_left _ hp]
 
 /-- The convention between neighbours looks at a child only through the bound of the next
 separator on its keys. -/
 theorem Linked.of_forall_lt {a b : BPlusTree α β} {rest : List (Branch α β)}
     (hl : Linked a rest)
     (hb : ∀ s c rest', rest = (s, c) :: rest' → ∀ p ∈ b.toList, p.1 < s) : Linked b rest := by
-  cases rest with
-  | nil => trivial
-  | cons e rest =>
-    obtain ⟨s, c⟩ := e
-    exact ⟨hb s c rest rfl, hl.2.1, hl.2.2⟩
+  rcases rest with _ | ⟨⟨s, c⟩, rest⟩
+  exacts [trivial, ⟨hb s c rest rfl, hl.2.1, hl.2.2⟩]
 
 /-- Placing a result with the separator convention in the place of a child linked to `rest`
 keeps the convention between neighbours, when the keys of the result are below the next
@@ -831,26 +819,26 @@ private theorem linked_insertRest {prev : BPlusTree α β} {rest : List (Branch 
   | cons e rest ih =>
     obtain ⟨s, c⟩ := e
     obtain ⟨h₁, h₂, h₃⟩ := hl
-    have hsc : Separated c := hr (s, c) List.mem_cons_self
-    have hrr : ∀ e ∈ rest, Separated e.child := fun e he => hr e (List.mem_cons_of_mem _ he)
-    obtain ⟨ihn, ihs⟩ := ih h₃ hrr fun e he => hc e (List.mem_cons_of_mem _ he)
+    obtain ⟨hsc, hrr⟩ := List.forall_mem_cons.1 hr
+    obtain ⟨⟨hsx, hkx⟩, hrc⟩ := List.forall_mem_cons.1 hc
+    obtain ⟨ihn, ihs⟩ := ih h₃ hrr hrc
     rw [insertRest_cons]
     by_cases hk : s ≤ k
     · simp only [hk, ↓reduceIte]
-      refine ⟨fun h => by split at h <;> simp at h, fun r hr' => ?_⟩
-      split at hr'
-      · next r' hrs =>
-        cases hr'
+      cases hrs : insertRest t k v rest with
+      | some r' =>
         obtain ⟨hl', hs'⟩ := ihs r' hrs
-        exact ⟨⟨h₁, h₂, hl'⟩, List.forall_mem_cons.2 ⟨hsc, hs'⟩⟩
-      · next hrs =>
-        cases hr'
-        obtain ⟨hsx, hkx⟩ := hc (s, c) List.mem_cons_self
+        exact ⟨nofun, fun _ h =>
+          Option.some.inj h ▸ ⟨⟨h₁, h₂, hl'⟩, List.forall_mem_cons.2 ⟨hsc, hs'⟩⟩⟩
+      | none =>
         obtain ⟨hlw, hsw₁, hsw₂⟩ := linked_withRest hsx hkx h₃ hrr (ihn hrs)
-        refine ⟨⟨h₁, fun p hp => ?_, hlw⟩, List.forall_mem_cons.2 ⟨hsw₁, hsw₂⟩⟩
-        exact (hkx p (mem_toList_of_mem_withRest_fst hp)).elim (fun hpk => hpk ▸ hk) (h₂ p)
+        refine ⟨nofun, ?_⟩
+        rintro _ ⟨rfl⟩
+        exact ⟨⟨h₁, fun p hp => (hkx p (mem_toList_of_mem_withRest_fst hp)).elim (· ▸ hk) (h₂ p),
+          hlw⟩, List.forall_mem_cons.2 ⟨hsw₁, hsw₂⟩⟩
     · simp only [hk, ↓reduceIte]
-      exact ⟨fun _ s' c' rest' h => by cases h; exact lt_of_not_ge hk, fun r hr => by simp at hr⟩
+      exact ⟨fun _ _ _ _ h => (Prod.mk.inj (List.cons.inj h).1).1 ▸ lt_of_not_ge hk,
+        fun _ => nofun⟩
 
 /-- The bottom-up insertion keeps the separator convention. -/
 private theorem sep_insertOrSplit (k : α) (v : β) (tr : BPlusTree α β)
@@ -913,9 +901,8 @@ theorem IsWF.insert (h : IsWF t tr) (k : α) (v : β) : IsWF t (insert t k v tr)
   have hf := fits_insertOrSplit (by omega) k v tr h.balanced h.occupied_of_mem_children
     h.width_le h.sorted
   have hp := sep_insertOrSplit k v tr h.searchInvariant h.balanced h.width_le
-  have hs : (BPlusTree.insert t k v tr).toList.IsSortedAssoc := by
-    rw [toList_insert h]
-    exact SortedAssoc.isSortedAssoc_insert h.sorted
+  have hs : (BPlusTree.insert t k v tr).toList.IsSortedAssoc :=
+    toList_insert h k v ▸ SortedAssoc.isSortedAssoc_insert h.sorted
   rw [insert_eq_toTree] at hs ⊢
   rcases hx : insertOrSplit t k v tr with c | ⟨l, s, r⟩ <;> rw [hx] at hf hp hs
   · obtain ⟨hb, hh, hco, hk₁, hk₂⟩ := hf

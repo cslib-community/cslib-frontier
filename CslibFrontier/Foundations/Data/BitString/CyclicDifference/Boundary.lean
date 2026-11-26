@@ -163,14 +163,12 @@ theorem mem_cyclicDifferenceRelation_zeroRestriction {n : ℕ} (i : Fin (n + 2))
       ∃ s ∈ cyclicDifferenceRelation P, s i = false ∧ s ∘ differencePort i = d := by
   constructor
   · rintro ⟨y, hy, rfl⟩
-    exact ⟨cyclicDifference (y ∘ zeroPort i), ⟨_, hy, rfl⟩,
-      cyclicDifference_zeroPort i y, cyclicDifference_zeroPort_differencePort i y⟩
+    exact ⟨_, ⟨_, hy, rfl⟩, cyclicDifference_zeroPort i y,
+      cyclicDifference_zeroPort_differencePort i y⟩
   · rintro ⟨s, ⟨x, hx, rfl⟩, hi, rfl⟩
-    refine ⟨x ∘ retainPort i, ?_, ?_⟩
-    · change (x ∘ retainPort i) ∘ zeroPort i ∈ P
-      rwa [comp_retainPort_zeroPort i x hi]
-    · rw [← cyclicDifference_zeroPort_differencePort i (x ∘ retainPort i),
-        comp_retainPort_zeroPort i x hi]
+    exact ⟨x ∘ retainPort i, by simpa [zeroRestriction, comp_retainPort_zeroPort i x hi] using hx,
+      by rw [← cyclicDifference_zeroPort_differencePort i (x ∘ retainPort i),
+        comp_retainPort_zeroPort i x hi]⟩
 
 /-- Old port 0 is retained as free port 0. -/
 @[simp] theorem capPort_zero (n : ℕ) : @capPort n 0 = Sum.inl 0 := by
@@ -238,9 +236,8 @@ theorem cyclicDifference_capPort {n : ℕ} (y : Fin (n + 2) → Bool) (z : Fin 1
 theorem cyclicDifference_capPort_pair {n : ℕ} (y : Fin (n + 2) → Bool)
     (z : Fin 1 → Bool) :
     cyclicDifference ((Sum.elim y z) ∘ capPort) 1 =
-      cyclicDifference ((Sum.elim y z) ∘ capPort) 2 := by
-  change (y 1 ^^ z 0) = (z 0 ^^ y 1)
-  exact Bool.xor_comm _ _
+      cyclicDifference ((Sum.elim y z) ∘ capPort) 2 :=
+  Bool.xor_comm (y 1) (z 0)
 
 /-- Equality of adjacent differences is equality of the two outside ports. -/
 theorem cyclicDifference_pair_eq_iff {n : ℕ} (x : Fin (n + 4) → Bool) :
@@ -278,14 +275,11 @@ theorem mem_cyclicDifferenceRelation_capRelation {n : ℕ}
       ∃ s ∈ cyclicDifferenceRelation P, s 1 = s 2 ∧ s ∘ capDifferencePort = d := by
   constructor
   · rintro ⟨y, ⟨z, hz⟩, rfl⟩
-    exact ⟨cyclicDifference ((Sum.elim y z) ∘ capPort), ⟨_, hz, rfl⟩,
-      cyclicDifference_capPort_pair y z, cyclicDifference_capPort y z⟩
+    exact ⟨_, ⟨_, hz, rfl⟩, cyclicDifference_capPort_pair y z, cyclicDifference_capPort y z⟩
   · rintro ⟨s, ⟨x, hx, rfl⟩, hi, rfl⟩
     have he := comp_capRetainPort_capPort x ((cyclicDifference_pair_eq_iff x).mp hi)
-    refine ⟨x ∘ capRetainPort, ⟨fun _ => x 2, ?_⟩, ?_⟩
-    · change (Sum.elim (x ∘ capRetainPort) fun _ => x 2) ∘ capPort ∈ P
-      rwa [he]
-    · rw [← cyclicDifference_capPort (x ∘ capRetainPort) (fun _ => x 2), he]
+    exact ⟨x ∘ capRetainPort, ⟨fun _ => x 2, by simpa only [he] using hx⟩,
+      by rw [← cyclicDifference_capPort (x ∘ capRetainPort) (fun _ => x 2), he]⟩
 
 /-- The retained difference map is the standard increasing embedding omitting `i`. -/
 theorem differencePort_eq_succAbove {n : ℕ} (i : Fin (n + 2)) :

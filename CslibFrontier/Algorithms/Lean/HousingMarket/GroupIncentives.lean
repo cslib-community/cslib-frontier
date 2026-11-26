@@ -266,19 +266,16 @@ theorem IsGroupStrategyProof.isNonBossy {M : HousingMechanism n}
   · have hupd : I.updatePrefs {i, j} (fun k => if k = i then π else I.pref k) =
         I.updatePref i π := by
       ext k
-      by_cases hki : k = i <;> by_cases hkj : k = j <;>
-        simp [Instance.updatePrefs, Instance.updatePref_pref_of_ne, *]
+      by_cases hki : k = i <;> simp [Instance.updatePrefs, Instance.updatePref_pref_of_ne, hki]
     exact h I {i, j} _ ⟨(Finset.forall_mem_insert _ _ _).2 ⟨by rw [hupd, heq],
       fun _ hk => by simpa only [Finset.mem_singleton.1 hk, hupd] using hlt.le⟩,
       j, by simp, hupd.symm ▸ hlt⟩
   · set I' := I.updatePref i π
     have hupd' : I'.updatePrefs {i, j} I.pref = I := by
       ext k
-      by_cases hki : k = i <;> by_cases hkj : k = j <;>
-        simp [Instance.updatePrefs, I', Instance.updatePref_pref_of_ne, *]
-    have hrj : I'.rank j = I.rank j := I.updatePref_rank_of_ne π hji
+      by_cases hki : k = i <;> simp [Instance.updatePrefs, I', Instance.updatePref_pref_of_ne, hki]
     have hj_lt : I'.rank j (M (I'.updatePrefs {i, j} I.pref) j) < I'.rank j (M I' j) := by
-      rwa [hupd', hrj]
+      rwa [hupd', I.updatePref_rank_of_ne π hji]
     exact h I' {i, j} I.pref ⟨(Finset.forall_mem_insert _ _ _).2 ⟨by rw [hupd', heq],
       fun _ hk => by simpa only [Finset.mem_singleton.1 hk] using hj_lt.le⟩,
       j, by simp, hj_lt⟩
@@ -350,13 +347,12 @@ theorem isGroupStrategyProof_iff {M : HousingMechanism n} :
       intro hTS
       have hT := ih ((Finset.subset_insert i T).trans hTS)
       set JT := J.updatePrefs T πStar
+      have hsp : ((πStar i).symm (M (JT.updatePref i (πStar i)) i)).val = 0 := by
+        simpa [hT, Fin.le_def, πStar, topTwoPerm_symm_fst_val] using
+          hSP (JT.updatePref i (πStar i)) i (JT.pref i)
       rw [J.updatePrefs_insert hiT]
-      set J' := JT.updatePref i (πStar i)
-      have hsp : ((πStar i).symm (M J' i)).val = 0 := by
-        simpa [J', hT, Fin.le_def, πStar, topTwoPerm_symm_fst_val] using hSP J' i (JT.pref i)
-      have heq_house : M J' i = M JT i := hT ▸ (πStar i).symm.injective
-        (Fin.ext (hsp.trans (topTwoPerm_symm_fst_val (M J i) (M I i)).symm))
-      exact (hNB JT i (πStar i) heq_house).trans hT
+      exact (hNB JT i (πStar i) (hT ▸ (πStar i).symm.injective
+        (Fin.ext (hsp.trans (topTwoPerm_symm_fst_val (M J i) (M I i)).symm)))).trans hT
   -- Step 2: moving `T ⊆ S` from `I` to `πStar` preserves `M _ = M I`.
   have hI_inv (T : Finset (Fin n)) : T ⊆ S → M (I.updatePrefs T πStar) = M I := by
     induction T using Finset.induction_on with

@@ -7,7 +7,7 @@ Authors: Matthew Doty
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Engineering.Electrical.SparseDecoupling
+import CslibFrontier.Languages.Electrical.SparseDecoupling
 
 /-! # Tests for structured (Schur-form) decouplings of circuits
 

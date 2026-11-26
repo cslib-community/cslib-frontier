@@ -274,70 +274,44 @@ theorem realizes_btreeLocateHitGen :
     dsimp only at hcs_h hres_h
     simp only [hcs_h, hres_h, wp_large_M hth, wp_large_hMaxBTree hth, wp_large_nSlice hth,
       wp_large_wKey hth] at *
-  · exact ⟨c, U, V, w, n_max, henv, rfl⟩
-  · exact hsIdx
-  · obtain ⟨_, ⟨ha0, _⟩ | ⟨_, T, hrt, _, _, _, hT⟩⟩ := hv.alloc_and_height_lt hth hins
+  all_goals try first
+    | exact ⟨c, U, V, w, n_max, henv, rfl⟩
+    | exact hsIdx
+    | decide
+    | exact henv.fits_const (by decide)
+    | exact (Nat.le_mul_of_pos_left _ (by have := eight_le_tMinWhp hth; omega)).trans_lt
+        henv.keysWordBits_lt_w
+  all_goals
+    obtain ⟨_, ⟨ha0, _⟩ | ⟨_, T, hrt, hht_lt, _, _, hT⟩⟩ := hv.alloc_and_height_lt hth hins
     · simp_all
-    · exact (descendLoopGenProg_spec henv hsIdx hrep hrt (Nat.zero_le q) (by omega) hhi hT
-        (fuel := hMaxBTree)).2.2.2.2
-  · exact ⟨c, U, V, w, n_max, henv, rfl⟩
-  · exact hsIdx
-  · obtain ⟨_, ⟨ha0, _⟩ | ⟨_, T, hrt, hht_lt, _, _, hT⟩⟩ := hv.alloc_and_height_lt hth hins
-    · simp_all
-    · obtain ⟨ht3, _, hkey_lt, _⟩ := (btree_slice_param_bounds hth).1
-      obtain ⟨_, hdl_res, _, _, _⟩ := descendLoopGenProg_spec henv hsIdx hrep hrt
-        (Nat.zero_le q) (by omega) hhi hT (fuel := hMaxBTree)
-      obtain ⟨_, _, _, _, hv_leaf⟩ :=
-        descendToLeaf_leaf (by omega) hkey_lt hT hhi (Nat.zero_le q) (by omega) hht_lt.le
-      exact hdl_res.symm ▸ (hrt ▸ hv_leaf).1.trans_le hrep.1
-  · decide
-  · exact henv.fits_const (by decide)
-  · obtain ⟨_, ⟨ha0, _⟩ | ⟨_, T, hrt, hht_lt, _, _, hT⟩⟩ := hv.alloc_and_height_lt hth hins
-    · simp_all
-    · obtain ⟨ht3, _, hkey_lt, _⟩ := (btree_slice_param_bounds hth).1
-      obtain ⟨hdl_st, hdl_res, _, _, _⟩ := descendLoopGenProg_spec henv hsIdx hrep hrt
-        (Nat.zero_le q) (by omega) hhi hT (fuel := hMaxBTree)
-      dsimp only at hdl_st hdl_res
-      obtain ⟨cntL, loL, hiL, hhiL, hv_leaf⟩ :=
-        descendToLeaf_leaf (by omega) hkey_lt hT hhi (Nat.zero_le q) (by omega) hht_lt.le
-      rw [hrt] at hv_leaf
-      obtain ⟨hleaf_lt, hcnt_le, _, hkw_cnt, _, _, hlanes⟩ :=
-        validSubtree_root_bounds hth (hhiL.trans_lt hhi) hv_leaf
-      dsimp only [BTreeTree.rootIdx] at hleaf_lt hcnt_le hkw_cnt hlanes
-      obtain ⟨hnd_st, hnd_res, _, _⟩ :=
-        readBTreeNodeGenProg_spec hth henv.2.1 hsIdx hleaf_lt hrep (s := s)
-      dsimp only at hnd_st hnd_res
-      rw [hdl_st, hdl_res, hnd_res]
-      refine ⟨⟨base, c, U, V, w, n_max, henv, rfl⟩,
-        (wp_large_capLanes hth).symm ▸ Nat.lt_of_le_of_lt hcnt_le (by omega),
-        (wp_large_powFp hth).symm ▸ hq, (wp_large_wKey hth).symm ▸ hkw_cnt, ?_⟩
-      rwa [wp_large_wKey hth, wp_large_powFp hth]
-  · exact (Nat.le_mul_of_pos_left _ (by have := eight_le_tMinWhp hth; omega)).trans_lt
-      henv.keysWordBits_lt_w
-  · obtain ⟨_, ⟨ha0, _⟩ | ⟨_, T, hrt, hht_lt, _, _, hT⟩⟩ := hv.alloc_and_height_lt hth hins
-    · simp_all
-    · obtain ⟨ht3, _, hkey_lt, _⟩ := (btree_slice_param_bounds hth).1
-      obtain ⟨hdl_st, hdl_res, _, _, _⟩ := descendLoopGenProg_spec henv hsIdx hrep hrt
-        (Nat.zero_le q) (by omega) hhi hT (fuel := hMaxBTree)
-      dsimp only at hdl_st hdl_res
-      obtain ⟨cntL, loL, hiL, hhiL, hv_leaf⟩ :=
-        descendToLeaf_leaf (by omega) hkey_lt hT hhi (Nat.zero_le q) (by omega) hht_lt.le
-      rw [hrt] at hv_leaf
-      set leafIdx := descendToLeaf (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
-        sl.nodes hMaxBTree sl.root q
-      obtain ⟨hleaf_lt, hcnt_le, _, _, _, _, _⟩ :=
-        validSubtree_root_bounds hth (hhiL.trans_lt hhi) hv_leaf
-      dsimp only [BTreeTree.rootIdx] at hleaf_lt hcnt_le
-      obtain ⟨hnd_st, hnd_res, _, _⟩ :=
-        readBTreeNodeGenProg_spec hth henv.2.1 hsIdx hleaf_lt hrep (s := s)
-      dsimp only at hnd_st hnd_res
-      simp only [hdl_st, hdl_res, hnd_st, hnd_res, clientResult_swarRankGenProg hth] at *
-      let mW := (sl.nodes leafIdx).metaWord
-      have hrc : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) (mW / 2) q
-          (sl.nodes leafIdx).keysWord < mW / 2 := by assumption
-      exact ((Nat.mul_le_mul_right _ (hrc.le.trans (hcnt_le.trans (Nat.sub_le _ _)))).trans_lt
-        henv.keysWordBits_lt_w).trans Nat.lt_two_pow_self
-  · exact henv.fits_const (by decide)
+    obtain ⟨ht3, _, hkey_lt, _⟩ := (btree_slice_param_bounds hth).1
+    obtain ⟨hdl_st, hdl_res, _, _, hdl_pre⟩ := descendLoopGenProg_spec henv hsIdx hrep hrt
+      (Nat.zero_le q) (by omega) hhi hT (fuel := hMaxBTree)
+    dsimp only at hdl_st hdl_res
+    obtain ⟨cntL, loL, hiL, hhiL, hv_leaf⟩ :=
+      descendToLeaf_leaf (by omega) hkey_lt hT hhi (Nat.zero_le q) (by omega) hht_lt.le
+    rw [hrt] at hv_leaf
+    obtain ⟨hleaf_lt, hcnt_le, _, hkw_cnt, _, _, hlanes⟩ :=
+      validSubtree_root_bounds hth (hhiL.trans_lt hhi) hv_leaf
+    dsimp only [BTreeTree.rootIdx] at hleaf_lt hcnt_le hkw_cnt hlanes
+    obtain ⟨hnd_st, hnd_res, _, _⟩ :=
+      readBTreeNodeGenProg_spec hth henv.2.1 hsIdx hleaf_lt hrep (s := s)
+    dsimp only at hnd_st hnd_res
+  · exact hdl_pre
+  · exact hdl_res.symm ▸ hleaf_lt.trans_le hrep.1
+  · rw [hdl_st, hdl_res, hnd_res]
+    refine ⟨⟨base, c, U, V, w, n_max, henv, rfl⟩,
+      (wp_large_capLanes hth).symm ▸ Nat.lt_of_le_of_lt hcnt_le (by omega),
+      (wp_large_powFp hth).symm ▸ hq, (wp_large_wKey hth).symm ▸ hkw_cnt, ?_⟩
+    rwa [wp_large_wKey hth, wp_large_powFp hth]
+  · set leafIdx := descendToLeaf (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
+      sl.nodes hMaxBTree sl.root q
+    simp only [hdl_st, hdl_res, hnd_st, hnd_res, clientResult_swarRankGenProg hth] at *
+    let mW := (sl.nodes leafIdx).metaWord
+    have hrc : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) (mW / 2) q
+        (sl.nodes leafIdx).keysWord < mW / 2 := by assumption
+    exact ((Nat.mul_le_mul_right _ (hrc.le.trans (hcnt_le.trans (Nat.sub_le _ _)))).trans_lt
+      henv.keysWordBits_lt_w).trans Nat.lt_two_pow_self
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp
 
