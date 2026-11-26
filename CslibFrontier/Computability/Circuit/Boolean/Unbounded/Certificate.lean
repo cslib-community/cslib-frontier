@@ -287,16 +287,15 @@ theorem eval_of_claimsValid {d n : ℕ} {gates : List (Op × List ℕ)}
     intro c hc hcases
     rcases Nat.lt_or_ge c.1 n with hlt | hge
     · exact hchecks c (List.mem_flatMap.2 ⟨c, hc, by simp [claimChecks, hlt]⟩)
-    · have hb := hcases.resolve_left (by omega)
-      obtain ⟨j, hj⟩ := Nat.exists_eq_add_of_le hge
+    · obtain ⟨j, hj⟩ := Nat.exists_eq_add_of_le hge
+      have hb := hcases.resolve_left hge.not_gt
+      have hlt' : ¬n + j < n := by omega
       rcases hg : gates[j]? with _ | g
       · simp [gateAt, hj, List.getD_eq_getElem?_getD, hg, claimable] at hb
       rw [hj, gateAt_add hg] at hb
       rw [hj, getD_evalCode_eq_iff_of_claimable h hx hg hb]
-      intro c' hc'
-      refine hchecks (c', c.2) (List.mem_flatMap.2 ⟨c, hc, ?_⟩)
-      simp only [claimChecks, hj, gateAt_add hg, hb, show ¬n + j < n by omega, ↓reduceIte]
-      exact List.mem_map.2 ⟨c', hc', rfl⟩
+      exact fun c' hc' => hchecks (c', c.2)
+        (List.mem_flatMap.2 ⟨c, hc, by simp [claimChecks, hj, gateAt_add hg, hb, hlt', hc']⟩)
   simp only [claimsValid, Bool.and_eq_true, decide_eq_true_eq] at hvalid
   exact (approx_some.1 (hvalid.1 ▸ approx_override h hx hcl o)).symm
 
@@ -796,16 +795,11 @@ theorem exists_claimsValid_circuit {d : ℕ} (hw : c.weft ≤ 1) (hd : c.depth �
       (∀ e ∈ claims, e.1 < n + c.code.1.length ∧
         (evalCode interpretation false (List.ofFn x) c.code.1).getD e.1 false = e.2) ∧
       claimsValid d n c.code.1 (c.outputs 0).toNat claims = true := by
-  have hwd : (evalCode (depthInterpretation (largeGateCost signature)) 0 (List.replicate n 0)
-      c.code.1).getD (c.outputs 0).toNat 0 ≤ 1 := by
-    rw [Circuit.getD_evalCode_depthInterpretation]
-    exact c.weft_le_iff.1 hw 0
-  have hdp : (evalCode (depthInterpretation (σ := signature) 1) 0 (List.replicate n 0)
-      c.code.1).getD (c.outputs 0).toNat 0 ≤ d := by
-    rw [Circuit.getD_evalCode_depthInterpretation]
-    exact (c.wireDepthsWith_outputs_le_depthWith 1 0).trans (by rwa [Circuit.depthWith_one])
   rw [c.eval_eq_getD interpretation false] at hx
-  exact exists_claimsValid c.isCodeFrom_code List.length_ofFn (c.toNat_outputs_lt 0) hwd hdp hx
+  refine exists_claimsValid c.isCodeFrom_code List.length_ofFn (c.toNat_outputs_lt 0) ?_ ?_ hx
+  · simpa only [Circuit.getD_evalCode_depthInterpretation] using c.weft_le_iff.1 hw 0
+  · rw [Circuit.getD_evalCode_depthInterpretation]
+    exact (c.wireDepthsWith_outputs_le_depthWith 1 0).trans (by rwa [Circuit.depthWith_one])
 
 end Circuits
 

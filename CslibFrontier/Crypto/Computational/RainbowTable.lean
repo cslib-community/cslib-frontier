@@ -348,11 +348,9 @@ theorem evalPure_rainbowAttackStep (h : P → Y) (lookup : P → Option P) (g : 
       | some pw₀ =>
         let pw := rainbowChainPure h g 0 (τ - 1 - k) pw₀
         if h pw = y then some pw else none := by
-  simp only [rainbowAttackStep, OracleComp.evalPure_bind, OracleComp.evalPure_liftLeft,
-    evalPure_rainbowChain, OracleComp.evalPure_liftRight, OracleComp.evalPure_query]
-  cases lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y)) <;>
-    simp [OracleComp.evalPure_bind, OracleComp.evalPure_liftLeft, evalPure_rainbowChain,
-      OracleComp.evalPure_query, apply_ite]
+  cases hlk : lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y)) <;>
+    simp [rainbowAttackStep, OracleComp.evalPure_bind, OracleComp.evalPure_liftLeft,
+      evalPure_rainbowChain, OracleComp.evalPure_query, hlk, apply_ite]
 
 /-- Deterministic evaluation of `rainbowAttack` against `h` and `lookup`. -/
 theorem evalPure_rainbowAttack (h : P → Y) (lookup : P → Option P) (g : ℕ → Y → P)
@@ -373,12 +371,12 @@ theorem rainbowAttack_sound {h : P → Y} {lookup : P → Option P} {g : ℕ →
     {y : Y} {pw : P}
     (heval : (rainbowAttack g τ y).evalPure (OracleComp.sumPure h lookup) = some pw) :
     h pw = y := by
-  rw [evalPure_rainbowAttack] at heval
-  obtain ⟨k, -, hk⟩ := List.exists_of_findSome?_eq_some heval
-  cases hlk : lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y)) <;>
-    simp only [hlk, Option.ite_none_right_eq_some, Option.some.injEq] at hk
+  obtain ⟨k, -, hk⟩ :=
+    List.exists_of_findSome?_eq_some (evalPure_rainbowAttack h lookup g τ y ▸ heval)
+  split at hk
   · cases hk
-  · exact hk.2 ▸ hk.1
+  · obtain ⟨hcheck, hpw⟩ := Option.ite_none_right_eq_some.mp hk
+    exact Option.some.inj hpw ▸ hcheck
 
 /-- **Completeness of rainbow-table inversion on covered points** ([BonehShoup2023], Section 18.7,
 pp. 745–746): if `y` is the hash of the column-`col` value (`col < τ`) of a chain starting at `pw₀`
@@ -462,13 +460,13 @@ private theorem isCostBounded_lookupCost_rainbowAttackStep (g : ℕ → Y → P)
     (k : ℕ) :
     OracleComp.IsCostBounded TableAttackSpec.lookupCost (rainbowAttackStep g τ y k) 1 := by
   unfold rainbowAttackStep
-  rw [show (1 : ℕ) = 0 + (1 + 0) from rfl]
+  change OracleComp.IsCostBounded _ _ (0 + (1 + 0))
   refine (lookupCost_liftLeft _).bind fun z =>
     (((OracleComp.IsCostBounded.query (cost := fun _ : P => 1) z).liftRight
       fun q => (TableAttackSpec.lookupCost_inr q).le).bind fun
       | none => .pure none 0
       | some _ => ?_)
-  rw [show (0 : ℕ) = 0 + (0 + 0) from rfl]
+  change OracleComp.IsCostBounded _ _ (0 + (0 + 0))
   refine (lookupCost_liftLeft _).bind fun _ => (lookupCost_liftLeft _).bind fun _ => ?_
   split_ifs <;> exact .pure _ 0
 
@@ -548,12 +546,10 @@ private theorem evalPure_hellmanLoop_succ (h : P → Y) (lookup : P → Option P
         if h pw = y then some pw
         else (hellmanLoop g₀ y m (g₀ (h z))).evalPure (OracleComp.sumPure h lookup)
       | none => (hellmanLoop g₀ y m (g₀ (h z))).evalPure (OracleComp.sumPure h lookup) := by
-  simp only [hellmanLoop, OracleComp.evalPure_bind, OracleComp.evalPure_liftRight,
-    OracleComp.evalPure_query]
-  cases lookup z <;> simp only [OracleComp.evalPure_bind, OracleComp.evalPure_liftLeft,
-    evalPure_rainbowChain, rainbowChainPure_const, OracleComp.evalPure_query]
-  split_ifs <;> simp only [OracleComp.evalPure_pure, OracleComp.evalPure_bind,
-    OracleComp.evalPure_liftLeft, OracleComp.evalPure_query]
+  cases hlk : lookup z <;> simp only [hellmanLoop, OracleComp.evalPure_bind,
+    OracleComp.evalPure_liftRight, OracleComp.evalPure_liftLeft, OracleComp.evalPure_query,
+    evalPure_rainbowChain, rainbowChainPure_const, hlk]
+  split_ifs <;> simp [OracleComp.evalPure_bind, OracleComp.evalPure_query]
 
 private theorem hellmanLoop_sound {h : P → Y} {lookup : P → Option P} {g₀ : Y → P} {y : Y}
     {rem : ℕ} {z pw : P}
@@ -673,8 +669,7 @@ private theorem isCostBounded_lookupCost_hellmanLoop (g₀ : Y → P) (y : Y) (r
       | none => ((lookupCost_liftLeft _).bind fun yz => ih (g₀ yz)).mono (by omega)
       | some _ => (lookupCost_liftLeft _).bind fun _ => (lookupCost_liftLeft _).bind fun _ => ?_
     split_ifs
-    · exact .pure _ _
-    · exact (lookupCost_liftLeft _).bind fun yz => ih (g₀ yz)
+    exacts [.pure _ _, (lookupCost_liftLeft _).bind fun yz => ih (g₀ yz)]
 
 /-- **Pathwise lookup budget of Hellman's `A₁`.** `hellmanAttack` makes at most `τ` table lookups
 on every path ([BonehShoup2023], Section 18.7, p. 744). -/
@@ -699,8 +694,7 @@ private theorem isCostBounded_hashCost_hellmanLoop (g₀ : Y → P) (y : Y) (rem
       | some pw₀ => (hashCost_chain (fun _ => g₀) 0 m pw₀).bind fun pw =>
           (hashCost_query pw).bind fun _ => ?_
     split_ifs
-    · exact .pure _ _
-    · exact (hashCost_query z).bind fun yz => ih (g₀ yz)
+    exacts [.pure _ _, (hashCost_query z).bind fun yz => ih (g₀ yz)]
 
 /-- **Pathwise hash budget of Hellman's `A₁`.** Across arbitrary answers (even if every lookup hits
 and fails verification, spending `m + 2` hash queries at remaining depth `m + 1`), `hellmanAttack`

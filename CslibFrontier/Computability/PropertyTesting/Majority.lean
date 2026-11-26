@@ -104,16 +104,15 @@ theorem majorityTester_passes_iff_sampleAccepts {n k : ℕ} [NeZero n] {δ : ℚ
   let b := n / 2 + 1
   have hs : weight (sampleAnswers r (fun i => x ((majorityTester n k δ).query r i))) = s :=
     congrArg weight (funext (sampleAnswers_query δ x r))
-  change (b : ℚ) / (M : ℕ) - δ / 4 ≤ _ ↔ _
-  rw [hs, majoritySampleAccepts]
-  change (b : ℚ) / (M : ℕ) - δ / 4 ≤ (s : ℚ) / k ↔
+  have hδ4 : δ / 4 = (δ.num.toNat : ℚ) / δ.den / 4 := by
+    conv_lhs => rw [← Rat.num_div_den δ, ← Int.toNat_of_nonneg (Rat.num_nonneg.mpr hδ),
+      Int.cast_natCast]
+  have hden : (0 : ℚ) < δ.den := Nat.cast_pos.mpr δ.den_pos
+  have hk' : (0 : ℚ) < k := Nat.cast_pos.mpr hk
+  have hM : (0 : ℚ) < (M : ℕ) := by positivity
+  change (b : ℚ) / (M : ℕ) - δ / 4 ≤ (weight (sampleAnswers r _) : ℚ) / k ↔
     4 * δ.den * k * b ≤ M * (4 * δ.den * s + δ.num.toNat * k)
-  have hnum : ((δ.num.toNat : ℕ) : ℚ) = δ.num := by
-    exact_mod_cast Int.toNat_of_nonneg (Rat.num_nonneg.mpr hδ)
-  have hden : (0 : ℚ) < δ.den := by exact_mod_cast δ.den_pos
-  have hk' : (0 : ℚ) < k := by exact_mod_cast hk
-  have hM : (0 : ℚ) < (M : ℕ) := by dsimp [M]; positivity
-  rw [sub_le_iff_le_add, show δ / 4 = (δ.num.toNat : ℚ) / δ.den / 4 by rw [hnum, Rat.num_div_den]]
+  rw [hs, sub_le_iff_le_add, hδ4]
   field_simp
   norm_cast
   simp only [mul_comm, mul_left_comm, mul_assoc, add_comm, left_distrib]
@@ -201,15 +200,13 @@ private theorem majorityTester_error {n k : ℕ} [NeZero n] {δ : ℚ}
     have hmean : ((n / 2 + 1 : ℕ) : ℝ) / M ≤ (p.toOuterMeasure (A : Set (BitString w))).toReal := by
       rw [hp]
       exact div_le_div_of_nonneg_right (by exact_mod_cast strictMajority_eq_true_iff.mp hx) hMpos.le
-    have h := toOuterMeasure_empiricalMass_le_sub_le p A k hquarter
-    rw [iid_uniformOfFintype] at h
     rw [hprob, ← eq_sub_of_add_eq' (toOuterMeasure_toReal_add_compl μ event)]
-    refine (toOuterMeasure_toReal_mono μ ?_).trans h
+    refine (toOuterMeasure_toReal_mono μ ?_).trans
+      (iid_uniformOfFintype (α := BitString w) k ▸
+        toOuterMeasure_empiricalMass_le_sub_le p A k hquarter)
     intro r hr
-    have hr' := lt_of_not_ge (mt (hpasses r).mpr hr)
-    change empiricalMass A r ≤ (p.toOuterMeasure (A : Set (BitString w))).toReal -
-      (δ : ℝ) / 4
-    linarith
+    simp only [Set.mem_ofPred_eq]
+    linarith [mt (hpasses r).mpr hr]
   · intro hfar
     obtain ⟨y, hy, hd⟩ := exists_majority_close hn x
     have hdist : (δ : ℝ) * n ≤ ((n / 2 + 1 - weight x : ℕ) : ℝ) :=
@@ -227,15 +224,13 @@ private theorem majorityTester_error {n k : ℕ} [NeZero n] {δ : ℚ}
       have hscale := mul_le_mul_of_nonneg_left (show (M : ℝ) ≤ 2 * n by exact_mod_cast hM')
         hquarter
       linarith
-    have h := toOuterMeasure_add_le_empiricalMass_le p A k hquarter
-    rw [iid_uniformOfFintype] at h
     rw [hprob]
-    refine (toOuterMeasure_toReal_mono μ ?_).trans h
+    refine (toOuterMeasure_toReal_mono μ ?_).trans
+      (iid_uniformOfFintype (α := BitString w) k ▸
+        toOuterMeasure_add_le_empiricalMass_le p A k hquarter)
     intro r hr
-    have hr' := (hpasses r).mp hr
-    change (p.toOuterMeasure (A : Set (BitString w))).toReal + (δ : ℝ) / 4 ≤
-      empiricalMass A r
-    linarith
+    simp only [Set.mem_ofPred_eq]
+    linarith [(hpasses r).mp hr]
 
 /-- With `16 ≤ k δ²`, every seed probes at most `k` positions. The test accepts members
 with probability at least `2/3` and accepts inputs at relative Hamming distance at least

@@ -545,35 +545,27 @@ open Classical in
 private theorem edge_meet (hy : Function.Injective y)
     (hl : Connector.Good (Wp G y) (items G y) (ends G y) l) {u v : Fin n} (huv : G.Adj u v) :
     ∃ t, start G y l u ≤ t ∧ t ≤ finish G y l u ∧ start G y l v ≤ t ∧ t ≤ finish G y l v := by
-  have hne : rank y u ≠ rank y v := fun h => G.ne_of_adj huv (rank_injective hy h)
+  suffices ∀ {u v}, G.Adj u v → rank y u < rank y v →
+      ∃ t, start G y l u ≤ t ∧ t ≤ finish G y l u ∧ start G y l v ≤ t ∧ t ≤ finish G y l v by
+    rcases lt_or_gt_of_ne (fun h => G.ne_of_adj huv (rank_injective hy h)) with h | h
+    · exact this huv h
+    · obtain ⟨t, h1, h2, h3, h4⟩ := this huv.symm h
+      exact ⟨t, h3, h4, h1, h2⟩
+  intro u v huv hlt
+  have hyuv : y u < y v := (rank_lt_iff hy).mp hlt
   by_cases hu : y u ≤ 0 <;> by_cases hv : y v ≤ 0
   · -- both lower: meet at the larger rank
-    rcases Nat.lt_or_gt_of_ne hne with h | h
-    · refine ⟨rank y v, ?_, ?_, ?_, ?_⟩
-      · simp only [start, hu, ↓reduceIte]; omega
-      · simp only [finish, hu, ↓reduceIte]; exact lowEnd_ge_nbr hu huv hv
-      · simp [start, hv]
-      · simpa [start, hv] using start_le_finish hl v
-    · refine ⟨rank y u, ?_, ?_, ?_, ?_⟩
-      · simp [start, hu]
-      · simpa [start, hu] using start_le_finish hl u
-      · simp only [start, hv, ↓reduceIte]; omega
-      · simp only [finish, hv, ↓reduceIte]; exact lowEnd_ge_nbr hv huv.symm hu
+    refine ⟨rank y v, ?_, ?_, by simp [start, hv], ?_⟩
+    · simp only [start, hu, ↓reduceIte]; omega
+    · simpa only [finish, hu, ↓reduceIte] using lowEnd_ge_nbr hu huv hv
+    · simpa [start, hv] using start_le_finish hl v
   · exact crossing_edge hl huv hu hv
-  · obtain ⟨t, h1, h2, h3, h4⟩ := crossing_edge hl huv.symm hv hu
-    exact ⟨t, h3, h4, h1, h2⟩
+  · linarith
   · -- both upper: meet at the smaller rank's last time
-    rcases Nat.lt_or_gt_of_ne hne with h | h
-    · refine ⟨rank y u + K G y + 2, ?_, ?_, ?_, ?_⟩
-      · simpa [finish, hu] using start_le_finish hl u
-      · simp [finish, hu]
-      · simp only [start, hv, ↓reduceIte]; exact upStart_le_nbr hl huv.symm hu
-      · simp only [finish, hv, ↓reduceIte]; omega
-    · refine ⟨rank y v + K G y + 2, ?_, ?_, ?_, ?_⟩
-      · simp only [start, hu, ↓reduceIte]; exact upStart_le_nbr hl huv hv
-      · simp only [finish, hu, ↓reduceIte]; omega
-      · simpa [finish, hv] using start_le_finish hl v
-      · simp [finish, hv]
+    refine ⟨rank y u + K G y + 2, ?_, by simp [finish, hu], ?_, ?_⟩
+    · simpa [finish, hu] using start_le_finish hl u
+    · simpa only [start, hv, ↓reduceIte] using upStart_le_nbr hl huv.symm hu
+    · simp only [finish, hv, ↓reduceIte]; omega
 
 end Facts
 
@@ -657,10 +649,7 @@ private theorem conn_bag_card (hl : Connector.Good (Wp G y) (items G y) (ends G 
         crossFull G y ∪ Up G y := by
       intro v hv
       rcases mem_conn_phase hl hk hv with h | h | h | h
-      · exact Finset.mem_union_left _ h
-      · exact Finset.mem_union_right _ h.1
-      · omega
-      · omega
+      exacts [Finset.mem_union_left _ h, Finset.mem_union_right _ h.1, by omega, by omega]
     have := (Finset.card_le_card hsub).trans (Finset.card_union_le _ _)
     have := le_max_left (lowerZero G y) (upperZero G y)
     omega

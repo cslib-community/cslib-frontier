@@ -95,8 +95,7 @@ theorem synodQuorumProtocol_safeCohort_crashStop {P V : Type*} [Fintype P] [Line
         (fun a st hacc => by
           refine ⟨{(b.proposer, .phase1b a b none)}, ?_, Finset.mem_singleton_self _⟩
           dsimp only [synodQuorumProtocol]
-          rw [hacc]
-          rfl)
+          rw [hacc]; rfl)
         Q₀.nodup_toList hs₁_as
     set s₂ := qList.foldl (fun w a => π.deliverStep w ⟨p₀, a, .phase1a b⟩) s₁
     -- Phase 1b fan-in to `p₀` across `qList`:
@@ -126,22 +125,21 @@ theorem synodQuorumProtocol_safeCohort_crashStop {P V : Type*} [Fintype P] [Line
               by rw [ite_eq_left rfl]; exact hpS,
               fun hq x => Finset.mem_union_left _ (h2a hq x)⟩
           · rw [ite_eq_left (⟨rfl, haS⟩ : b = ⟨0, p₀⟩ ∧ a ∉ S)]
-            by_cases hqS : ∃ Q ∈ qs.prepareQuorums, Q ⊆ S
-            · have hq_ins : ∃ Q ∈ qs.prepareQuorums, Q ⊆ insert a S :=
-                hqS.imp fun Q ⟨hQ, hsub⟩ => ⟨hQ, hsub.trans (Finset.subset_insert a S)⟩
-              simp only [decide_eq_true hqS, decide_eq_true hq_ins, Bool.not_true,
-                Bool.false_and, Bool.false_eq_true, ↓reduceIte]
-              exact ⟨hal' _ rfl rfl, trivial,
-                fun _ x => Finset.mem_union_left _ (h2a (decide_eq_true hqS) x)⟩
-            · by_cases hq_ins : ∃ Q ∈ qs.prepareQuorums, Q ⊆ insert a S
-              · simp only [decide_eq_false hqS, decide_eq_true hq_ins, Bool.not_false,
-                  Bool.true_and, ↓reduceIte]
-                exact ⟨hal' _ rfl rfl, trivial,
-                  fun _ x => Finset.mem_union_right _ (Finset.mem_image.mpr ⟨(x, .phase2a b v),
-                    Finset.mem_image.mpr ⟨x, Finset.mem_univ x, rfl⟩, rfl⟩)⟩
-              · simp only [decide_eq_false hqS, decide_eq_false hq_ins, Bool.not_false,
-                  Bool.true_and, Bool.false_eq_true, ↓reduceIte]
-                exact ⟨hal' _ rfl rfl, trivial, nofun⟩)
+            by_cases hnew : (!decide (∃ Q ∈ qs.prepareQuorums, Q ⊆ S) &&
+                decide (∃ Q ∈ qs.prepareQuorums, Q ⊆ insert a S)) = true
+            · rw [ite_eq_left hnew]
+              exact ⟨hal' _ rfl rfl,
+                by rw [ite_eq_left rfl, (Bool.and_eq_true _ _).mp hnew |>.2],
+                fun _ x => Finset.mem_union_right _ (Finset.mem_image.mpr ⟨(x, .phase2a b v),
+                  Finset.mem_image.mpr ⟨x, Finset.mem_univ x, rfl⟩, rfl⟩)⟩
+            · rw [ite_eq_right hnew]
+              have heq : decide (∃ Q ∈ qs.prepareQuorums, Q ⊆ S) =
+                  decide (∃ Q ∈ qs.prepareQuorums, Q ⊆ insert a S) :=
+                decide_eq_decide.mpr
+                  ⟨fun h => h.imp fun Q ⟨hQ, hs⟩ => ⟨hQ, hs.trans (Finset.subset_insert a S)⟩,
+                    fun h => by simpa [h] using hnew⟩
+              exact ⟨hal' _ rfl rfl, by rw [ite_eq_left rfl, heq],
+                fun hq x => Finset.mem_union_left _ (h2a (heq.trans hq) x)⟩)
         (as := qList) (u := s₂) (S₀ := ∅)
         (fun x hx => (hs₂_in x hx).2)
         ⟨fun _ => ⟨rfl, rfl⟩, (hs₂_pl p₀).1.trans hs₁_prop, by rw [hempty_no_q]; exact nofun⟩
@@ -193,10 +191,8 @@ theorem synodQuorumProtocol_safeCohort_crashStop {P V : Type*} [Fintype P] [Line
     have hmtr_all : π.lts.MTr s₀ xl s₅ :=
       ((((LTS.MTr.single _ htr₀).comp _ hmtr_1a).comp _ hmtr_1b).comp _ hmtr_2a).comp _ hmtr_2b
     have hgroup : ∀ act ∈ xl, act.InGroup Q₀ := by
-      intro act hact
-      simp only [xl, qList, List.mem_append, List.mem_singleton, List.mem_map,
-        Finset.mem_toList] at hact
-      rcases hact with (((rfl | ⟨a, haQ, rfl⟩) | ⟨a, haQ, rfl⟩) | ⟨a, haQ, rfl⟩) | ⟨a, haQ, rfl⟩
+      simp only [xl, qList, List.mem_append, List.mem_singleton, List.mem_map, Finset.mem_toList]
+      rintro _ ((((rfl | ⟨a, haQ, rfl⟩) | ⟨a, haQ, rfl⟩) | ⟨a, haQ, rfl⟩) | ⟨a, haQ, rfl⟩)
       exacts [hp₀Q, ⟨hp₀Q, haQ⟩, ⟨haQ, hp₀Q⟩, ⟨hp₀Q, haQ⟩, ⟨haQ, hp₀Q⟩]
     obtain ⟨hr₅, hout₅⟩ := netToSynod_reach qs ⟨xl, hmtr_all⟩
     have hlearnedAt₅ : (netToSynod s₅).LearnedAt qs p₀ b v :=

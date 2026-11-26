@@ -717,9 +717,8 @@ theorem eval_prfRealGame_prfNonceToPrfDistinguisher
   · intro k prfKey hprfLen request state
     simp only [cwNonceLogHandler, NonceMACScheme.signingPairOracle, M, carterWegmanNonceMAC,
       encPair_apply, encBits_apply, unframe_frame_append, dropFrame_frame_append, hprfLen]
-    split
-    · simp [OracleComp.interpret_map, ProbOracleComp.interpret_query, pmf_norm, Functor.map_map]
-    · simp
+    split <;>
+      simp [OracleComp.interpret_map, ProbOracleComp.interpret_query, pmf_norm, Functor.map_map]
   · intro k prfKey hprfLen ⟨⟨⟨msg, nonce⟩, tag⟩, tr⟩
     simp only [M, carterWegmanNonceMAC, encPair_apply, encBits_apply, unframe_frame_append,
       dropFrame_frame_append, hprfLen]
@@ -831,19 +830,15 @@ private theorem step_cwNonceLogHandler_randomFunctionOracle
         BitString.listXor n [hash n k msg, (randomFunctionOracle n table nonce).take n] := by
       simp only [t, sign, BitString.ofFn_ofList hmsg, randomFunctionOracle, hnonce,
         ↓reduceIte, BitString.listXor_pair, BitString.ofList_take, BitString.ofList_ofFn]
-    refine ⟨?_, ?_⟩
-    · simp [pmf_norm, Functor.map_map, OracleComp.interpret_map, ProbOracleComp.interpret_query,
-        ← htag, t]
-    · rintro _ _ _ ⟨⟩
-      dsimp only [id_eq]
-      rw [List.map_append, List.map_singleton, List.reverse_cons]
-      refine hsub.append ?_
-      simp [ofBitTriple, BitString.ofFn_ofList hmsg, BitString.ofFn_ofList hnonce]
-  · simp only [Bool.not_eq_true] at hcond
-    simp only [hcond, Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure,
-      OracleComp.interpret_pure, ProbComp.eval_pure, PMF.pure_map, PMF.support_pure,
-      Set.mem_singleton_iff]
-    refine ⟨trivial, ?_⟩
+    refine ⟨by simp [pmf_norm, Functor.map_map, OracleComp.interpret_map,
+        ProbOracleComp.interpret_query, ← htag, t], ?_⟩
+    rintro _ _ _ ⟨⟩
+    rw [id_eq, List.map_append, List.map_singleton, List.reverse_cons]
+    exact hsub.append
+      (by simp [ofBitTriple, BitString.ofFn_ofList hmsg, BitString.ofFn_ofList hnonce])
+  · simp only [Bool.eq_false_iff.2 hcond, Bool.false_eq_true, ↓reduceIte,
+      ProbOracleComp.runWith_pure, OracleComp.interpret_pure, ProbComp.eval_pure, PMF.pure_map,
+      PMF.support_pure, Set.mem_singleton_iff, true_and]
     rintro _ _ _ ⟨⟩
     exact hsub
 

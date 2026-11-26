@@ -304,27 +304,22 @@ private theorem val_term (htT : t + 1 ≤ T) {c : ℕ} (hc : c < numCols T) (q :
   rw [val_wire tm (l := .scan (.term q)) hc htT]
   simp only [Nat.add_one_ne_zero, ↓reduceIte, table, Op.value]
   rcases q with (_ | (_ | _)) | ⟨i, s⟩
-  · simp only [scanTerm]
-    rw [val_colF_same tm hinv hc, val_resolve_tru]
+  · simp only [scanTerm, val_colF_same tm hinv hc, val_resolve_tru]
     generalize tm.runFrom (tm.initCfg x) t = cfg
     by_cases h : 1 ≤ c ∧ c ≤ x.length
     · simp [Guard.test, h, termSem, inputAt_eq_some h]
     · simp [Guard.test, h, termSem, inputAt_eq_none h, colSem]
-  · simp only [scanTerm, scanAt]
-    rw [val_colF_same tm hinv hc, val_resolve_node]
-    simp only [Guard.test, Bool.false_eq_true, ↓reduceIte, Bool.true_and, ColSel.apply]
-    rw [val_nx tm htT hc]
+  · simp only [scanTerm, scanAt, val_colF_same tm hinv hc, val_resolve_node, Guard.test,
+      Bool.false_eq_true, ↓reduceIte, Bool.true_and, ColSel.apply, val_nx tm htT hc]
     generalize tm.runFrom (tm.initCfg x) t = cfg
     by_cases h : 1 ≤ c ∧ c ≤ x.length
     · simp [h, termSem, inputAt_eq_some h, colSem]
     · simp [h, termSem, inputAt_eq_none h]
-  · simp only [scanTerm]
-    rw [val_colF_same tm hinv hc, val_resolve_inp]
+  · simp only [scanTerm, val_colF_same tm hinv hc, val_resolve_inp]
     generalize tm.runFrom (tm.initCfg x) t = cfg
     rcases hx : inputAt x c with _ | (_ | _) <;>
       simp [Guard.test, termSem, hx, colSem]
-  · simp only [scanTerm]
-    rw [val_colF_same tm hinv hc, val_colF_same tm hinv hc]
+  · simp only [scanTerm, val_colF_same tm hinv hc]
     generalize tm.runFrom (tm.initCfg x) t = cfg
     simp [Guard.test, termSem, colSem]
 
@@ -377,19 +372,16 @@ private theorem val_sit (hn : x.length < 2 * T) (htT : t + 1 ≤ T) (j : Fin (nu
   induction i using Fin.induction with
   | zero =>
     rw [val_wire tm (l := .glob (.sit j 0)) rfl htT]
-    simp only [Nat.add_one_ne_zero, ↓reduceIte, table, Op.value, Fin.cases_zero]
-    rw [val_gfF tm hinv, scanAt, val_resolve_node, Bool.and_eq_true]
-    simp only [Guard.test, Bool.true_and, Bool.false_eq_true, ↓reduceIte, ColSel.apply]
-    rw [val_acc_last tm hinv hn htT]
+    simp only [Nat.add_one_ne_zero, ↓reduceIte, table, Op.value, Fin.cases_zero, val_gfF tm hinv,
+      scanAt, val_resolve_node, Bool.and_eq_true, Guard.test, Bool.true_and, Bool.false_eq_true,
+      ColSel.apply, val_acc_last tm hinv hn htT]
     generalize tm.runFrom (tm.initCfg x) t = cfg
     simp [gfSem, readSem]
   | succ i ih =>
     rw [val_wire tm (l := .glob (.sit j i.succ)) rfl htT]
-    simp only [Nat.add_one_ne_zero, ↓reduceIte, table, Op.value, Fin.cases_succ]
-    rw [val_resolve_node, scanAt, val_resolve_node]
-    simp only [Guard.test, Bool.true_and, Bool.false_eq_true, ↓reduceIte, ColSel.apply,
-      Bool.and_eq_true]
-    rw [ih, val_acc_last tm hinv hn htT]
+    simp only [Nat.add_one_ne_zero, ↓reduceIte, table, Op.value, Fin.cases_succ, val_resolve_node,
+      scanAt, Guard.test, Bool.true_and, Bool.false_eq_true, ColSel.apply, Bool.and_eq_true, ih,
+      val_acc_last tm hinv hn htT]
     generalize tm.runFrom (tm.initCfg x) t = cfg
     simp only [readSem, Fin.val_castSucc, Fin.val_succ, and_assoc]
     refine and_congr_right fun _ => and_congr_right fun _ => ⟨fun ⟨h₁, h₂⟩ i' hi' =>
@@ -418,18 +410,14 @@ private theorem val_attr (hn : x.length < 2 * T) (htT : t + 1 ≤ T) (v : Attr k
       Bool.or_false, Bool.false_eq_true, Fin.val_zero, Nat.not_lt_zero, false_and, exists_false]
   | succ j ih =>
     rw [val_wire tm (l := .glob (.attr v j.succ)) rfl htT]
-    simp only [Nat.add_one_ne_zero, ↓reduceIte, table, Op.value, Fin.cases_succ]
-    rw [val_resolve_node, Bool.or_eq_true]
-    simp only [Guard.test, Bool.true_and, Bool.false_eq_true, ↓reduceIte, ColSel.apply]
-    rw [ih]
+    simp only [Nat.add_one_ne_zero, ↓reduceIte, table, Op.value, Fin.cases_succ, val_resolve_node,
+      Bool.or_eq_true, Guard.test, Bool.true_and, Bool.false_eq_true, ColSel.apply, ih]
     split_ifs with hv
-    · rw [val_resolve_node]
-      simp only [Guard.test, Bool.true_and, Bool.false_eq_true, ↓reduceIte, ColSel.apply]
-      rw [val_sit_last tm hinv hn htT]
-      simp only [Fin.val_castSucc, Fin.val_succ, Nat.lt_add_one_iff_lt_or_eq, or_and_right,
-        exists_or, Fin.val_inj, exists_eq_left, hv, and_true]
-    · rw [val_resolve_fls]
-      simp only [Bool.false_eq_true, or_false, Fin.val_castSucc, Fin.val_succ,
+    · simp only [val_resolve_node, Guard.test, Bool.true_and, Bool.false_eq_true, ↓reduceIte,
+        ColSel.apply, val_sit_last tm hinv hn htT, Fin.val_castSucc, Fin.val_succ,
+        Nat.lt_add_one_iff_lt_or_eq, or_and_right, exists_or, Fin.val_inj, exists_eq_left, hv,
+        and_true]
+    · simp only [val_resolve_fls, Bool.false_eq_true, or_false, Fin.val_castSucc, Fin.val_succ,
         Nat.lt_add_one_iff_lt_or_eq, or_and_right, exists_or, Fin.val_inj, exists_eq_left, hv,
         and_false]
 

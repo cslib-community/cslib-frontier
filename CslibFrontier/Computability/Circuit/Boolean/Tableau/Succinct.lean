@@ -225,9 +225,8 @@ omit [DecidableEq State] in
 /-- Decoding the label of an input gives its wire. -/
 @[simp] theorem wireOf_inputLabel (n T i : ℕ) :
     wireOf (k := k) (State := State) n T (inputLabel i) = i := by
-  unfold wireOf inputLabel
-  simp [show (1 + 4 * i) % 4 = 1 by omega,
-    show (1 + 4 * i) / 4 = i by omega]
+  obtain ⟨h₁, h₂⟩ := tag_fields (p := i) (by decide : 1 < 4)
+  simp [wireOf, inputLabel, h₁, h₂]
 
 omit [DecidableEq State] in
 /-- Decoding the label of a position gives its wire. -/
@@ -303,12 +302,12 @@ omit [DecidableEq State] in
 /-- **Decoding the label of a reference gives its wire.** -/
 theorem wireOf_label {n T t c : ℕ} {r : Ref k State} (hr : r.InWindow n T c) :
     wireOf (k := k) (State := State) n T (r.label n T t c) = r.resolve n T t c := by
-  rcases r with _ | _ | _ | ⟨p, l, cs, g⟩
-  · simp [Ref.label, Ref.resolve]
-  · simp [Ref.label, Ref.resolve]
-  · simp only [Ref.resolve, Ref.label]
+  cases r with
+  | fls | tru => simp [Ref.label, Ref.resolve]
+  | inp =>
+    simp only [Ref.resolve, Ref.label]
     split_ifs <;> simp
-  · simp only [Ref.InWindow] at hr
+  | node p l cs g =>
     by_cases hg : g.test n T c = true
     · simp only [Ref.resolve, Ref.label, hg, ↓reduceIte]
       rw [wireOf_posLabel _ (lt_of_le_of_lt (Loc.labelCol_le l _)
@@ -656,21 +655,13 @@ theorem length_of_mem_succinctCNF {x : List Bool} {n T : ℕ} {C : Clause ℕ}
     (hC : C ∈ succinctCNF tm x n T) : C.length = 3 := by
   obtain ⟨idx, -, rfl⟩ := List.mem_map.1 hC
   unfold clauseAt clauseOf
-  split_ifs
-  · exact length_tseitinClause _ _ _ _ _
-  · rfl
-  · rfl
-  · rfl
-  · split
-    · split_ifs
-      · unfold posClause
-        split_ifs
-        · exact length_tseitinClause _ _ _ _ _
-        · split
-          exact length_tseitinClause _ _ _ _ _
-      · rfl
-    · rfl
-  all_goals rfl
+  split_ifs <;> try rfl
+  split <;> try rfl
+  split_ifs <;> try rfl
+  unfold posClause
+  split_ifs <;> try rfl
+  split
+  exact length_tseitinClause _ _ _ _ _
 
 /-- The formula has `2 ^ clauseBits k State T` clauses. -/
 theorem length_succinctCNF (x : List Bool) (n T : ℕ) :

@@ -180,17 +180,14 @@ theorem mem_band_bandIdx (m : ℕ) : bandStart (bandIdx m) ≤ m ∧ m < bandEnd
     exact ⟨Nat.pow_log_le_self 2 hm, Nat.lt_pow_succ_log_self (by decide) m⟩
 
 theorem bandIdx_eq_iff {m k : ℕ} : bandIdx m = k ↔ bandStart k ≤ m ∧ m < bandEnd k := by
-  constructor
-  · rintro rfl
-    exact mem_band_bandIdx m
-  · rintro ⟨hlo, hhi⟩
-    have hmem := mem_band_bandIdx m
-    rcases lt_trichotomy (bandIdx m) k with hlt | heq | hgt
-    · have := bandStart_succ_eq_bandEnd (bandIdx m) ▸ bandStart_mono (Nat.succ_le_of_lt hlt)
-      omega
-    · exact heq
-    · have := bandStart_succ_eq_bandEnd k ▸ bandStart_mono (Nat.succ_le_of_lt hgt)
-      omega
+  refine ⟨fun h => h ▸ mem_band_bandIdx m, fun ⟨hlo, hhi⟩ => ?_⟩
+  have hmem := mem_band_bandIdx m
+  rcases lt_trichotomy (bandIdx m) k with hlt | heq | hgt
+  · have := bandStart_succ_eq_bandEnd (bandIdx m) ▸ bandStart_mono (Nat.succ_le_of_lt hlt)
+    omega
+  · exact heq
+  · have := bandStart_succ_eq_bandEnd k ▸ bandStart_mono (Nat.succ_le_of_lt hgt)
+    omega
 
 theorem ten_add_two_mul_le_bandMargin (k : ℕ) : 10 + 2 * k ≤ bandMargin k := by
   rcases k with _ | _ | _ | m <;> try decide
@@ -310,8 +307,6 @@ private theorem sum_bandPairs_real (x y : ℕ → ℤ) (t k : ℕ) :
   have hpow : (2 : ℝ) ^ (t + bandMargin k - (p.1 + p.2)) * (2 : ℝ) ^ (p.1 + p.2) =
       (2 : ℝ) ^ t * (2 : ℝ) ^ bandMargin k := by
     rw [← pow_add, Nat.sub_add_cancel hle, pow_add]
-  have hb_pos : (0 : ℝ) < (2 : ℝ) ^ bandMargin k := by positivity
-  have hp_pos : (0 : ℝ) < (2 : ℝ) ^ (p.1 + p.2) := by positivity
   field_simp
   rw [mul_assoc ((x p.1 : ℝ) * (y p.2 : ℝ)), hpow]
   ring
@@ -511,14 +506,12 @@ private theorem sum_omitted_le {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy :
     have hcover : range (N + 1) ⊆ (range B).biUnion fun k => Ico (bandStart k) (bandEnd k) := by
       intro r hr
       have hr_le : r ≤ N := Nat.lt_succ_iff.mp (mem_range.mp hr)
-      refine mem_biUnion.mpr ⟨bandIdx r, mem_range.mpr ?_, ?_⟩
-      · by_contra hge
-        have := bandStart_succ_eq_bandEnd (bandIdx N) ▸ bandStart_mono (not_lt.mp hge)
-        have := (mem_band_bandIdx N).2
-        have := (mem_band_bandIdx r).1
-        omega
-      · rw [mem_Ico]
-        exact mem_band_bandIdx r
+      refine mem_biUnion.mpr ⟨bandIdx r, mem_range.mpr ?_, mem_Ico.mpr (mem_band_bandIdx r)⟩
+      by_contra hge
+      have := bandStart_succ_eq_bandEnd (bandIdx N) ▸ bandStart_mono (not_lt.mp hge)
+      have := mem_band_bandIdx N
+      have := mem_band_bandIdx r
+      omega
     have hdisj : (↑(range B) : Set ℕ).PairwiseDisjoint fun k => Ico (bandStart k) (bandEnd k) :=
       fun _ _ _ _ hne => Finset.disjoint_left.mpr fun _ hr₁ hr₂ => hne <|
         (bandIdx_eq_iff.mpr (mem_Ico.mp hr₁)).symm.trans (bandIdx_eq_iff.mpr (mem_Ico.mp hr₂))
@@ -611,18 +604,15 @@ theorem mulApprox_isScaledApprox {x y : ℕ → ℤ}
           mul_le_mul_of_nonneg_left hprod_err (by positivity)
       _ ≤ (2 : ℝ) ^ t * (144 / ((2 : ℝ) ^ t * (2 : ℝ) ^ 20)) := by gcongr
       _ = 144 / (2 : ℝ) ^ 20 := by field_simp
-  have htri1 := abs_sub_le ((bandFold x y t K / (2 : ℤ) ^ mulBaseMargin : ℤ) : ℝ)
-    ((bandFold x y t K : ℝ) / (2 : ℝ) ^ mulBaseMargin)
-    (∑ p ∈ retainedUnion t K, term p)
-  have htri2 := abs_sub_le ((bandFold x y t K / (2 : ℤ) ^ mulBaseMargin : ℤ) : ℝ)
-    (∑ p ∈ retainedUnion t K, term p)
-    ((2 : ℝ) ^ t * (streamPrefix x N * streamPrefix y N))
-  have htri3 := abs_sub_le ((bandFold x y t K / (2 : ℤ) ^ mulBaseMargin : ℤ) : ℝ)
-    ((2 : ℝ) ^ t * (streamPrefix x N * streamPrefix y N))
-    ((2 : ℝ) ^ t * (streamVal x * streamVal y))
-  rw [abs_sub_comm (∑ p ∈ retainedUnion t K, term p)] at htri2
+  rw [abs_sub_comm] at homit
   have hnum : (1 : ℝ) + 1 / 768 + 9 / 64 + 144 / (2 : ℝ) ^ 20 < 2 := by norm_num
-  linarith
+  linarith [abs_sub_le ((bandFold x y t K / (2 : ℤ) ^ mulBaseMargin : ℤ) : ℝ)
+      ((bandFold x y t K : ℝ) / (2 : ℝ) ^ mulBaseMargin) (∑ p ∈ retainedUnion t K, term p),
+    abs_sub_le ((bandFold x y t K / (2 : ℤ) ^ mulBaseMargin : ℤ) : ℝ)
+      (∑ p ∈ retainedUnion t K, term p) ((2 : ℝ) ^ t * (streamPrefix x N * streamPrefix y N)),
+    abs_sub_le ((bandFold x y t K / (2 : ℤ) ^ mulBaseMargin : ℤ) : ℝ)
+      ((2 : ℝ) ^ t * (streamPrefix x N * streamPrefix y N))
+      ((2 : ℝ) ^ t * (streamVal x * streamVal y))]
 
 end ScaledAccuracy
 

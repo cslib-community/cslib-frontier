@@ -58,18 +58,14 @@ theorem eval_collisionStepCircuit (bits offset : ℕ) (a b : BitString bits) :
   have hs : Fin.append a b ∘ Fin.append (Fin.natAdd bits) (Fin.castAdd bits) =
       Fin.append b a := by
     rw [Fin.comp_append, Fin.append_comp_natAdd, Fin.append_comp_castAdd]
-  simp only [circuit_simps, collisionStepCircuit, eval_leCircuit, hs, eval_wordConstCircuit,
-    Fin.append_comp_castAdd]
   have he : (Circuit.oneGate Op.and (id : Fin 2 → Fin 2)).eval interpretation
       (Fin.append (fun _ : Fin 1 => decide (equivFin bits a ≤ equivFin bits b))
         (fun _ : Fin 1 => decide (equivFin bits b ≤ equivFin bits a))) =
-      fun _ : Fin 1 => decide (a = b) := by
-    funext i
-    change (decide (equivFin bits a ≤ equivFin bits b) &&
-      decide (equivFin bits b ≤ equivFin bits a)) = decide (a = b)
+      fun _ : Fin 1 => decide (a = b) := funext fun _ => by
+    change (decide _ && decide _) = decide (a = b)
     simp only [← Bool.decide_and, ← le_antisymm_iff, (equivFin bits).injective.eq_iff]
-  rw [he, eval_muxCircuit]
-  simp only [decide_eq_true_eq]
+  simp [circuit_simps, collisionStepCircuit, eval_leCircuit, hs, eval_wordConstCircuit,
+    Fin.append_comp_castAdd, he, eval_muxCircuit]
 
 /-- Cost includes two `5 * bits + 1` comparators, an AND, two shared constant gates and the
 `3 * bits + 1` multiplexer. Wiring has no Boolean gate cost. -/

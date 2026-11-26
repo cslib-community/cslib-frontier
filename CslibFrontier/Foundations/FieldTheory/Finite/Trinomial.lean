@@ -240,8 +240,8 @@ theorem clmulTab_index_props {c idx : ℕ} (hidx : idx < 2 ^ (2 * c)) :
   have hv_lt : v < 2 ^ c := hv_eq ▸ Nat.mod_lt idx hpow_pos
   have huv_eq : (u <<< c) + v = idx := by
     rw [Nat.shiftLeft_eq, hu_eq, hv_eq, Nat.div_add_mod' idx (2 ^ c)]
-  have hv_shr : v >>> 1 = v / 2 := Nat.shiftRight_eq_div_pow v 1
-  have hv_shr_lt : v >>> 1 < 2 ^ c := hv_shr ▸ (Nat.div_le_self v 2).trans_lt hv_lt
+  have hv_shr_lt : v >>> 1 < 2 ^ c :=
+    Nat.shiftRight_eq_div_pow v 1 ▸ (Nat.div_le_self v 2).trans_lt hv_lt
   have hprev_eq : prevIdx = u * 2 ^ c + (v >>> 1) := by rw [← Nat.shiftLeft_eq]
   have hprev_u : prevIdx >>> c = u := by
     rw [Nat.shiftRight_eq_div_pow, hprev_eq, Nat.add_comm,
@@ -298,14 +298,11 @@ theorem clmul_lt_two_pow {a b m n : ℕ} (ha : a < 2 ^ m) (hb : b < 2 ^ n) :
     rcases eq_or_ne b 0 with rfl | hb0
     · simp
     · rw [clmul, ite_eq_right hb0]
-      have hrec := ih (show b / 2 < 2 ^ n by rw [pow_succ] at hb; omega)
-      have hsh : clmul a (b / 2) <<< 1 < 2 ^ (m + (n + 1)) := by
-        rw [Nat.shiftLeft_eq, pow_one, ← add_assoc, pow_succ]
-        omega
-      have hlow : (if b % 2 = 1 then a else 0) < 2 ^ (m + (n + 1)) := by
-        have hle := Nat.pow_le_pow_right two_pos (Nat.le_add_right m (n + 1))
-        split_ifs <;> omega
-      exact Nat.xor_lt_two_pow hlow hsh
+      have hrec := ih (Nat.div_lt_of_lt_mul (by rwa [pow_succ'] at hb))
+      have hle := Nat.pow_le_pow_right two_pos (Nat.le_add_right m (n + 1))
+      refine Nat.xor_lt_two_pow (by split_ifs <;> omega) ?_
+      rw [Nat.shiftLeft_eq, pow_one, ← add_assoc, pow_succ]
+      omega
 
 /-- If `a < 2 ^ q` and `b < 2 ^ q`, then `clmul a b < 2 ^ (2 * q)`. -/
 theorem clmul_lt_two_pow_two_mul {a b q : ℕ} (ha : a < 2 ^ q) (hb : b < 2 ^ q) :
@@ -446,12 +443,10 @@ theorem equivBits_mk (t : ℕ) {p : (ZMod 2)[X]} (hp : p.degree < (2 * 3 ^ t : �
 `AdjoinRoot.mk (trinomial t) (polyOfCode c)` is `c`. -/
 theorem val_equivFin_mk_polyOfCode (t : ℕ) {c : ℕ} (hc : c < 2 ^ (2 * 3 ^ t)) :
     (equivFin t (AdjoinRoot.mk (trinomial t) (polyOfCode c))).val = c := by
-  have hbits : equivBits t (AdjoinRoot.mk (trinomial t) (polyOfCode c)) =
-      (BitString.equivFin (2 * 3 ^ t)).symm ⟨c, hc⟩ := by
-    ext j
-    rw [equivBits_mk t (degree_polyOfCode_lt hc) j, coeff_polyOfCode, RingEquiv.apply_symm_apply,
-      BitString.equivFin_symm_apply]
-  simp [equivFin, hbits]
+  suffices equivBits t (AdjoinRoot.mk (trinomial t) (polyOfCode c)) =
+      (BitString.equivFin (2 * 3 ^ t)).symm ⟨c, hc⟩ by simp [equivFin, this]
+  ext j
+  simp [equivBits_mk t (degree_polyOfCode_lt hc) j, coeff_polyOfCode]
 
 /-- The inverse of `equivFin t` sends `m : Fin (2 ^ (2 * 3 ^ t))` to
 `AdjoinRoot.mk (trinomial t) (polyOfCode m.val)`. -/

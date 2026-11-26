@@ -83,12 +83,10 @@ theorem Bounded.add {f g : WindowFn} (hf : Bounded f) (hg : Bounded g) : Bounded
   hf.elim fun C hC => hg.elim fun D hD =>
     ⟨C + D, fun n b i k => (abs_add_le _ _).trans (add_le_add (hC n b i k) (hD n b i k))⟩
 
-theorem Bounded.mul {f g : WindowFn} (hf : Bounded f) (hg : Bounded g) : Bounded (f * g) := by
-  obtain ⟨C, hC⟩ := hf
-  obtain ⟨D, hD⟩ := hg
-  refine ⟨C * D, fun n b i k => ?_⟩
-  rw [Pi.mul_apply, Pi.mul_apply, Pi.mul_apply, Pi.mul_apply, abs_mul]
-  exact mul_le_mul (hC n b i k) (hD n b i k) (abs_nonneg _) ((abs_nonneg _).trans (hC n b i k))
+theorem Bounded.mul {f g : WindowFn} (hf : Bounded f) (hg : Bounded g) : Bounded (f * g) :=
+  hf.elim fun C hC => hg.elim fun D hD => ⟨C * D, fun n b i k =>
+    (abs_mul (f n b i k) (g n b i k)).le.trans
+      (mul_le_mul (hC n b i k) (hD n b i k) (abs_nonneg _) ((abs_nonneg _).trans (hC n b i k)))⟩
 
 theorem Bounded.smul {f : WindowFn} (hf : Bounded f) (c : ℝ) : Bounded (c • f) :=
   hf.elim fun C hC => ⟨|c| * C, fun n b i k => by
@@ -123,13 +121,9 @@ theorem windowAvg_const {n : ℕ} (hn : n ≠ 0) (c : ℝ) : windowAvg n (fun _ 
 theorem windowAvg_mul_sq_le (n : ℕ) (f g : Bool → ℤ → ℤ → ℝ) :
     windowAvg n (f * g) ^ 2 ≤ windowAvg n (f * f) * windowAvg n (g * g) := by
   let at_ (u : Bool → ℤ → ℤ → ℝ) (p : Bool × ℕ × ℕ) : ℝ := match p with | (b, i, k) => u b i k
-  have h := Finset.expect_mul_sq_le_sq_mul_sq (window n) (at_ f) (at_ g)
-  have e : ∀ u v : Bool → ℤ → ℤ → ℝ, at_ (u * v) = fun p => at_ u p * at_ v p :=
-    fun u v => funext fun ⟨_, _, _⟩ => rfl
-  change (𝔼 p ∈ window n, at_ (f * g) p) ^ 2 ≤
-    (𝔼 p ∈ window n, at_ (f * f) p) * 𝔼 p ∈ window n, at_ (g * g) p
-  rw [e, e, e]
-  simpa only [sq] using h
+  have e (u v : Bool → ℤ → ℤ → ℝ) : at_ (u * v) = fun p => at_ u p * at_ v p :=
+    funext fun ⟨_, _, _⟩ => rfl
+  simpa only [windowAvg, sq, ← e] using Finset.expect_mul_sq_le_sq_mul_sq (window n) (at_ f) (at_ g)
 
 theorem abs_windowAvg_le {n : ℕ} {f : Bool → ℤ → ℤ → ℝ} {C : ℝ} (h : ∀ b i k, |f b i k| ≤ C) :
     |windowAvg n f| ≤ C := by
@@ -173,10 +167,9 @@ theorem mean_smul {f : WindowFn} (hf : Bounded f) (c : ℝ) : mean (c • f) = c
   refine tendsto_nhds_unique (tendsto_mean (hf.smul c)) ?_
   simpa only [Pi.smul_apply, windowAvg_smul] using (tendsto_mean hf).const_mul c
 
-theorem mean_const (c : ℝ) : mean (fun _ _ _ _ => c) = c := by
-  refine mean_eq (Bounded.const c) (tendsto_const_nhds.congr' ?_)
-  filter_upwards [eventually_ne_atTop 0] with n hn
-  exact (windowAvg_const hn c).symm
+theorem mean_const (c : ℝ) : mean (fun _ _ _ _ => c) = c :=
+  mean_eq (Bounded.const c) (tendsto_const_nhds.congr'
+    ((eventually_ne_atTop 0).mono fun _ hn => (windowAvg_const hn c).symm))
 
 theorem mean_mono {f g : WindowFn} (hf : Bounded f) (hg : Bounded g)
     (h : ∀ᶠ n : ℕ in atTop, ∀ b, ∀ i < n ^ 2, ∀ k < n,
@@ -385,10 +378,8 @@ theorem rms_add_le {f g : WindowFn} (hf : Bounded f) (hg : Bounded g) :
   linarith [mean_mul_le hf hg]
 
 theorem mean_le_rms {f : WindowFn} (hf : Bounded f) : mean f ≤ rms f := by
-  have h := mean_mul_le hf (Bounded.const 1)
-  have h2 : rms (1 : WindowFn) = 1 := by
-    rw [rms, mul_one, show (1 : WindowFn) = fun _ _ _ _ => 1 from rfl, mean_const, Real.sqrt_one]
-  rwa [show (fun _ _ _ _ => (1 : ℝ) : WindowFn) = 1 from rfl, mul_one, h2, mul_one] at h
+  have h1 : rms (fun _ _ _ _ => (1 : ℝ)) = 1 := by simp [rms, Pi.mul_def, mean_const]
+  simpa only [Pi.mul_def, mul_one, h1] using mean_mul_le hf (Bounded.const 1)
 
 theorem rms_shift {f : WindowFn} (hf : Bounded f) (a c : ℤ) :
     rms (fun n b i k => f n b (i + a) (k + c)) = rms f := by

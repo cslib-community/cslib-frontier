@@ -251,11 +251,10 @@ omit [DecidableEq State] in
 private theorem resolve_prev_lt (ht : 1 ≤ t) {l' : Loc k State} {cs : ColSel} {g : Guard}
     (h : g.test n T c = true → cs.apply T c < numCols T) :
     (Ref.node true l' cs g).resolve n T t c < wire n T t l c := by
-  simp only [Ref.resolve, wire, ↓reduceIte]
+  simp only [Ref.resolve, wire, ↓reduceIte, Nat.sub_one_mul]
   split_ifs with hg
   · have := Loc.offset_lt_of_lt (l := l') (h hg)
-    have : (t - 1) * blockSize k State T + blockSize k State T = t * blockSize k State T := by
-      rw [← Nat.succ_mul, Nat.succ_eq_add_one, Nat.sub_add_cancel ht]
+    have := Nat.le_mul_of_pos_left (blockSize k State T) ht
     omega
   · omega
 
@@ -279,10 +278,8 @@ private theorem gfStart_le_colStart : gfStart k State T ≤ colStart k State T :
 
 omit [DecidableEq State] in
 private theorem attr_offset_lt (v : Attr k State) (j : Fin (numSit k State + 1)) :
-    globStart k T + (GlobLoc.attr v j).idx < gfStart k State T := by
-  have := (GlobLoc.attr v j).idx_lt
-  simp only [gfStart]
-  omega
+    globStart k T + (GlobLoc.attr v j).idx < gfStart k State T :=
+  Nat.add_lt_add_left (GlobLoc.attr v j).idx_lt _
 
 omit [DecidableEq State] in
 /-- References occurring in feature terms read earlier wires than any gate at or after `gfStart`. -/
@@ -382,9 +379,8 @@ private theorem resolve_table_lt {n T t c : ℕ} (ht : 1 ≤ t) {l : Loc k State
       · exact ⟨hprevS _, hprevS _⟩
     · refine ⟨resolve_cur_lt fun hg => ?_, resolve_cur_lt fun _ => ?_⟩
       · simp only [Guard.test, decide_eq_true_eq] at hg
-        simp only [Loc.offset, ColSel.apply]
-        have : (c - 1) * scanWidth k + scanWidth k = c * scanWidth k := by
-          rw [← Nat.succ_mul, Nat.succ_eq_add_one, Nat.sub_add_cancel hg]
+        simp only [Loc.offset, ColSel.apply, Nat.sub_one_mul]
+        have := Nat.le_mul_of_pos_left (scanWidth k) hg
         have := scanWidth_pos (k := k)
         omega
       · simp only [Loc.offset, ColSel.apply, ScanLoc.idx]; omega
@@ -451,25 +447,22 @@ private theorem lt_of_mem_gateAt {n T t c : ℕ} {l : Loc k State} (hl : l.ColOK
   split_ifs at hi with ht
   · simp at hi
   · have h := resolve_table_lt tm (n := n) (Nat.one_le_iff_ne_zero.mpr ht) hl
-    rcases mem_argsOf hi with rfl | rfl
-    exacts [h.1, h.2]
+    exact (mem_argsOf hi).elim (· ▸ h.1) (· ▸ h.2)
 
 /-- **The tableau is well formed**: its gate list is the code of a program on `n` inputs. -/
 theorem isCodeFrom_gates (n T : ℕ) : Program.IsCodeFrom signature n 0 (gates tm n T) := by
   refine Program.isCodeFrom_of_getElem fun g hg => ?_
-  simp only [gates, List.length_map, List.length_range] at hg
-  simp only [gates, List.getElem_map, List.getElem_range, Nat.add_zero]
+  simp only [gates, List.length_map, List.length_range, List.getElem_map, List.getElem_range,
+    Nat.add_zero] at hg ⊢
   by_cases h₂ : g < 2
-  · simp only [gateCode, h₂, ↓reduceIte]
-    exact ⟨rfl, by simp⟩
+  · simp [gateCode, h₂]
   · obtain ⟨t, -, l, c, hl, hw⟩ := exists_wire_eq (k := k) (State := State) (n := n)
       (Nat.le_of_not_lt h₂) hg
     rw [← hw, gateCode_wire tm hl]
     refine ⟨length_gateAt tm _ _ _ _ _, fun i hi => ?_⟩
     have := lt_of_mem_gateAt tm hl hi
     rw [wire_sub] at hw ⊢
-    simp only [wire] at this
-    omega
+    simp only [wire] at this; omega
 
 /-- Every gate of the tableau has as many arguments as its operation takes, and its arguments are
 earlier wires. -/

@@ -225,21 +225,17 @@ theorem configurationJustesenMembershipTally_acceptCount_eq_one
         (R.machine.initCfg (enc a)) = 1 := by
   intro I size seed source target radius adjacent edge hrank hparams hpass
   apply (R.acceptCount_eq_one_iff a hclock).mpr
-  have haccept (s : MembershipTally.RetainedState JustesenSubdivisionContext
-      JustesenSubdivisionState) :
-      (configurationJustesenMembershipTally ntm c w₀ rank₀ params₀).accept s =
-        (MembershipTally.retainedReply s).isSome :=
-    MembershipTally.retainedMachine_accept _ _ _ _ _ _ _ _
-  simp only [haccept, hrank, hparams]
+  simp only [hrank, hparams]
   let entered := (configurationJustesenMembershipTally ntm c w₀ rank₀ params₀).withInit
     (MembershipTally.retainedInitial
       (configurationJustesenSubdivisionContext ntm c (enc a) seed.val)
       ⟨size.vertexCount, source.val, target.val, radius, expected edge source radius⟩)
   change ∃! bits, entered.FirstHalting (enc a) bits entered.init ∧
-    (MembershipTally.retainedReply (entered.run (enc a) bits)).isSome
-  rw [show entered = _ from configurationJustesenMembershipTally_withInit _ _ _ _ _ _ _ _]
-  exact configurationJustesenMembershipTally_existsUnique_firstHalting ntm c (enc a) seed source
-    target radius hpass
+    entered.accept (entered.run (enc a) bits) = true
+  simp only [entered, configurationJustesenMembershipTally_withInit]
+  simpa only [configurationJustesenMembershipTally, MembershipTally.retainedMachine_accept] using
+    configurationJustesenMembershipTally_existsUnique_firstHalting ntm c (enc a) seed source
+      target radius hpass
 
 private theorem loopCaps_of_tightCaps {n : ℕ} {totals : Tally} (hn : 0 < n)
     (hc : totals.count ≤ n) (hs : totals.lengthSum ≤ n * n) :
@@ -471,10 +467,8 @@ theorem configurationJustesenMembershipTally_exists_routines
     let target : Fin (n a) := ⟨(params a).target, hdst⟩
     have hshape :
         params a = ⟨n a, source.val, target.val, (params a).radius, (params a).expected⟩ := by
-      dsimp only [source, target]
-      cases h : params a
-      simp only [h] at hsize
-      simp only [hsize, n]
+      cases hp : params a
+      simpa [hp, source, target] using hsize
     rw [hshape]
     refine (hbound (enc a) (seed a) source target (params a).radius (params a).expected
       (A * b a) hr hc hs).trans ?_

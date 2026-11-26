@@ -71,17 +71,14 @@ private theorem exists_markerPayload (f : BitString n → BitString n)
     stored
   refine ⟨value, ((hr'.union hb').trans (hm.trans hv)).mono
     Set.Subset.rfl Set.Subset.rfl ?_, ?_⟩
-  · simp only [Fintype.card_coe]
-    lia
+  · simp only [Fintype.card_coe]; omega
   · intro x z j hrow hrep haddr
     have match_iff (i) : marked i x = true ↔ row i = (z, j) := by
       have hbit : blockKey i = BitString.equivBitVec.symm (address x) ↔ (row i).2 = j := by
-        change BitString.equivBitVec.symm (BitVec.ofNat n (row i).2) =
-          BitString.equivBitVec.symm (address x) ↔ _
-        rw [BitString.equivBitVec.symm.apply_eq_iff_eq, ← BitVec.toNat_inj,
-          BitVec.toNat_ofNat, Nat.mod_eq_of_lt (hrows _ (e.symm i).property), haddr]
-      simp only [marked, Bool.and_eq_true, decide_eq_true_eq, hbit, hrep, repKey,
-        Prod.ext_iff]
+        dsimp only [blockKey]
+        rw [BitString.equivBitVec.symm.apply_eq_iff_eq, ← BitVec.toNat_inj, BitVec.toNat_ofNat,
+          Nat.mod_eq_of_lt (hrows _ (e.symm i).property), haddr]
+      simp only [marked, Bool.and_eq_true, decide_eq_true_eq, hbit, hrep, repKey, Prod.ext_iff]
     funext bit
     have hi : row (e ⟨(z, j), hrow⟩) = (z, j) := congrArg Subtype.val (e.symm_apply_apply _)
     refine Bool.eq_iff_iff.mpr ?_
@@ -225,9 +222,8 @@ theorem exists_checkpointCyclePower {n : ℕ} (c : Circuit signature n n)
     simp only [phi, hp_spec x hvalid, hkey, Equiv.apply_symm_apply, toNat_ofNat_phase]
   have hr' := (hr_spec x hvalid).trans (congrArg (canonicalCycle f) hkey)
   have hroom : 2 * (ell x).toNat ≤ 2 ^ (n + 3) := by
-    rw [hl', pow_add]
     have := cycleLength_le_two_pow f h
-    lia
+    rw [hl', pow_add]; omega
   have hrem' : (rem x).toNat = u.toNat % cycleLength f h := by
     simpa only [rem, htime, Equiv.apply_symm_apply, hl'] using
       toNat_streamRemainder (ell x) (time x) (hl' ▸ cycleLength_pos f h) hroom

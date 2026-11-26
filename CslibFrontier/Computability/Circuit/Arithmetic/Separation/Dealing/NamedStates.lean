@@ -70,13 +70,10 @@ theorem assignAll_apply {w : ν → Tree} {o : List (ν × Tree)} (h : ∀ a ∈
   | nil => simp [assignAll]
   | cons b o ih =>
     rw [assignAll, List.foldl_cons, ← assignAll, ih fun a ha => h a (List.mem_cons_of_mem _ ha)]
-    have := h b List.mem_cons_self
-    by_cases hb : b.1 = x
-    · subst hb
-      simp [this]
-    · rw [update_of_ne (Ne.symm hb)]
-      refine if_congr ⟨fun ⟨a, ha, e⟩ => ⟨a, List.mem_cons_of_mem _ ha, e⟩, fun ⟨a, ha, e⟩ =>
-        ⟨a, (List.mem_cons.1 ha).resolve_left (by rintro rfl; exact hb e), e⟩⟩ rfl rfl
+    rcases eq_or_ne b.1 x with rfl | hb
+    · simp [h b List.mem_cons_self]
+    · rw [update_of_ne hb.symm]
+      exact if_congr (by simp [or_and_right, exists_or, hb]) rfl rfl
 
 /-- **Assignments of fixed values.** Every assignment of the option `o i` is to a name `x` of
 `i` (`own x = some i`), of the value `w x`, and every name of `i` is assigned in `o i`. After the
@@ -174,8 +171,7 @@ theorem size_trieOf_le {f : α → Tree} {L s : ℕ} (hL : ∀ a, (code a).lengt
     have := size_tset (code a) (f a) (l.foldr (fun a t => tset (code a) (f a) t) .nil)
     have := hL a
     have := hs a
-    simp only [List.foldr_cons, List.length_cons, add_mul, one_mul]
-    omega
+    simp only [List.foldr_cons, List.length_cons, add_mul, one_mul]; omega
 
 end Tries
 
