@@ -342,17 +342,12 @@ private theorem uniform_tape_eq (s : Level) {n : ℕ} (i : Fin n)
       (List.ofFn v).take i.val ++ r :: (List.ofFn v).drop (i.val + 1) := by
     rw [← (List.set_eq_take_append_cons_drop ..).trans (ite_eq_left (by simp))]
     refine List.ext_getElem (by simp) fun h h₁ _ => ?_
-    rw [List.getElem_ofFn, List.getElem_set]
-    rcases eq_or_ne i.val h with rfl | ne
-    · simp
-    · have hne : (⟨h, by simpa using h₁⟩ : Fin n) ≠ i := Fin.ne_of_val_ne ne.symm
-      simp [ne, Function.update_of_ne hne]
+    simp [List.getElem_set, Function.update_apply, Fin.ext_iff, eq_comm]
   have mix (f : List (Row s) → Game) :
       (U.bind fun v => (PMF.uniformOfFintype (Row s)).bind fun r =>
         f (List.ofFn (Function.update v i r))) = U.bind (fun v => f (List.ofFn v)) :=
     PMF.uniformOfFintype_bind_bind_adaptiveUpdate (fun _ => i) (fun _ _ => rfl)
       (fun v => f (List.ofFn v))
-  change (U.bind fun v => left (List.ofFn v)) = U.bind fun v => right (List.ofFn v)
   rw [← mix left, ← mix right]
   refine congrArg (PMF.bind U ·) (funext fun v => ?_)
   simp only [split]
@@ -517,9 +512,6 @@ theorem abs_expansionTrialGame_write_sub_freshExpansionGame_le (C : QuantumSigni
         C.abs_commitmentTrialGame_write_sub_read_le s H keys i j (List.ofFn rs) hash
   simp only [win, orig, ← C.expansionTrialGame_read_eq_freshExpansionGame s base ha hb calls i j,
     Game.coe_succProbability, expansionTrialGame, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  change |prob ((base.uniformPrefixes a b).bind fun H => law.bind (test true H)) -
-    prob ((base.uniformPrefixes a b).bind fun H => law.bind (test false H))| ≤
-    ∑ A, (matrices A).toReal * cost A
   exact seeded_gap_le s base a b test cost point
 
 end QuantumSigningForger

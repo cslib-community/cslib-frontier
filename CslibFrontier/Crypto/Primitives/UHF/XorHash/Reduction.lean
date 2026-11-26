@@ -112,10 +112,8 @@ theorem isQueryBounded_xorHashWordMultiQueryReduction (ℓ blockWidth width Q : 
     (xorHashWordMultiQueryReduction ℓ blockWidth width Q A n aux).IsQueryBounded (Q n * ℓ n) := by
   rw [xorHashWordMultiQueryReduction, ← Nat.zero_add (Q n * ℓ n)]
   refine (ProbOracleComp.IsQueryBounded.sample _).bind fun guesses => ?_
-  let ms := (guesses.take (Q n)).filter (xorHashWordValid (ℓ n) (blockWidth n))
-  have htraverse := OracleComp.IsCostBounded.mapM (inputs := ms) fun m _ =>
-    isQueryBounded_xorHashWordQueries (ℓ n) (width n) m
-  refine (htraverse.bind fun _ => OracleComp.IsCostBounded.pure _ 0).mono ?_
+  refine ((OracleComp.IsCostBounded.mapM fun m _ =>
+    isQueryBounded_xorHashWordQueries (ℓ n) (width n) m).bind fun _ => .pure _ 0).mono ?_
   simpa only [Nat.add_zero] using
     Nat.mul_le_mul_right (ℓ n) ((List.length_filter_le _ _).trans (List.length_take_le _ _))
 
@@ -394,11 +392,9 @@ theorem eval_prfRealGame_xorHashWordMultiQueryReduction {ℓ blockWidth width Q 
   rw [PMF.bind_comm]
   refine Probability.PMF.bind_congr_on_support _ _ _ fun ms hms => ?_
   rw [List.take_of_length_le (hQ ms hms)]
-  refine congrArg (fun f => (PMF.uniformOfFintype (BitString n)).bind f)
+  refine congrArg ((PMF.uniformOfFintype (BitString n)).bind ·)
     (funext fun key => congrArg PMF.pure (decide_eq_decide.mpr ?_))
-  simp only [List.mem_filter]
-  exact ⟨fun ⟨m, ⟨hm, hv⟩, m', ⟨hm', hv'⟩, hne, heq⟩ => ⟨m, hm, m', hm', hne, hv, hv', heq⟩,
-    fun ⟨m, hm, m', hm', hne, hv, hv', heq⟩ => ⟨m, ⟨hm, hv⟩, m', ⟨hm', hv'⟩, hne, heq⟩⟩
+  simp only [List.mem_filter]; grind
 
 private def taggedRequestEmbedding (ℓ blockWidth : ℕ) :
     BitString blockWidth × Fin ℓ ↪ BitString (ℓ + blockWidth) where
@@ -418,11 +414,9 @@ private theorem isUniversalHash_taggedRequest (ℓ blockWidth width : ℕ) :
     IsUniversalHash (PMF.uniformOfFintype (BitString (ℓ + blockWidth) → BitString width))
       (fun f m => xorHash (fun p => f (taggedRequestEmbedding ℓ blockWidth p)) m)
       (Fintype.card (BitString width) : ℝ≥0∞)⁻¹ := by
-  let seed := PMF.uniformOfFintype (BitString (ℓ + blockWidth) → BitString width)
-  let e := taggedRequestEmbedding ℓ blockWidth
-  refine IsUniversalHash.precompose_seed seed (fun f p => f (e p)) ?_
-  simp only [seed, Probability.PMF.uniformOfFintype_pi_map_comp_embedding e]
-  exact isDeltaUniversalHash_xorHash.isUniversalHash
+  exact IsUniversalHash.precompose_seed _ _ <| by
+    simpa only [Probability.PMF.uniformOfFintype_pi_map_comp_embedding] using
+      isDeltaUniversalHash_xorHash.isUniversalHash
 
 private theorem eval_prfIdealGame_xorHashWordCollisionReduction_le
     (ℓ blockWidth width : ℕ → ℕ)

@@ -101,16 +101,15 @@ private theorem retries_readout (C : QuantumSigningForger) (s : Level) (H : Xofs
     let μ := signingMaskLaw s.params (by cases s <;> decide)
     let V := PMF.uniformOfFintype (Digest s)
     have branch (v : Digest s) (y : Mask s) :
-        let T := Function.update D (maskCommitmentAddress s A m y) v
         ∃ M : Test C, ∀ d, (match installedAttempt s H A sk m D y v with
-          | some r => done T r d
+          | some r => done (Function.update D (maskCommitmentAddress s A m y) v) r d
           | none => runRegisterRetries μ V (maskCommitmentAddress s A m)
               (installedAttempt s H A sk m) (fun T r => done T r d) keep fuel
-                (if keep then T else D)) = observe M d := by
-      intro T
-      cases installedAttempt s H A sk m D y v with
-      | some r => exact test T r
-      | none => exact ih _
+                (if keep then Function.update D (maskCommitmentAddress s A m y) v else D)) =
+                  observe M d :=
+      match installedAttempt s H A sk m D y v with
+      | some r => test _ r
+      | none => ih _
     choose M law using branch
     refine ⟨POVM.mixture V (fun v => POVM.mixture μ (M v)), fun d => ?_⟩
     simp only [runRegisterRetries, PMF.monad_bind_eq_bind, observe, POVM.measureDensity_mixture]
@@ -415,14 +414,11 @@ private theorem cut_cost_after {C : QuantumSigningForger} {cost : Request C → 
         true_and] at reached
       obtain ⟨b, hb⟩ := reached
       exact ih b (sub b) left hb
-    rcases cmd with _ | _ | ask
-    · exact earlier i rfl
-    · exact earlier i rfl
-    · cases i with
-      | zero =>
-        cases Set.mem_singleton_iff.mp reached
-        exact sub r
-      | succ i => exact earlier i rfl
+    match cmd, i with
+    | .inl _, _ | .inr (.inl _), _ | .inr (.inr _), i + 1 => exact earlier _ rfl
+    | .inr (.inr _), 0 =>
+      cases Set.mem_singleton_iff.mp reached
+      exact sub r
 
 -- Average a bound at an adaptive signing boundary over the native execution which reaches it.
 private theorem cut_bind_gap (C : QuantumSigningForger) (s : Level) (G : Xofs) (keys : KeyPair)
@@ -485,9 +481,8 @@ private theorem conditioned_call_gap (C : QuantumSigningForger) (s : Level) (H :
         814 * (2 * (4 * qH * √δ + (815 * i.val + 814) * δ)) := by
   intro rows U native programmed δ
   let fresh := rows.bind fun rs => U.bind fun D => C.chosenCall s H A keys i D true (List.ofFn rs)
-  have erase : |prob programmed - prob fresh| ≤ 814 * (4 * qH * √δ + (815 * n + 2) * δ) := by
-    rw [abs_sub_comm]
-    exact abs_common_bind rows _ _ fun rs =>
+  have erase : |prob programmed - prob fresh| ≤ 814 * (4 * qH * √δ + (815 * n + 2) * δ) :=
+    abs_sub_comm (prob fresh) (prob programmed) ▸ abs_common_bind rows _ _ fun rs =>
       abs_common_bind U _ _ fun D => C.erase_at_cut s H keys sk A key mat hash calls i D _
   have refresh : |prob fresh - prob native| ≤
       814 * (2 * (4 * qH * √δ + (815 * i.val + 814) * δ)) := by

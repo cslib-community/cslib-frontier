@@ -497,29 +497,25 @@ theorem bitwiseHybridGameOn_step_gap
       simp only [m₀, m₁, hv, decide_eq_true hs, Bool.and_self, ↓reduceIte,
         PMF.pure_bind, ChoiceOut.msg₀_mk, ChoiceOut.msg₁_mk,
         bitwiseToSingleStateDecoder.decode_enc]
-      have hsplice (b : Bool) (word : List Bool)
-          (hword : m₁.take split ++ b :: m₀.drop (split + 1) = word) :
+      have hsplice (b : Bool) :
           (ProbComp.eval (encrypt n keys.1 b)).bind (fun ct =>
             (ProbComp.eval ((m₁.take split).mapM (encrypt n keys.1))).bind fun front =>
               (ProbComp.eval ((m₀.drop (split + 1)).mapM (encrypt n keys.1))).bind fun back =>
                 ProbComp.eval (adversary.guess n (ChoiceOut.state choice)
                   (encList encBits (front ++ ct :: back)))) =
-            (ProbComp.eval (bitwiseEncrypt encrypt n keys.1 word)).bind
+            (ProbComp.eval (bitwiseEncrypt encrypt n keys.1
+              (m₁.take split ++ b :: m₀.drop (split + 1)))).bind
               (fun ct => ProbComp.eval (adversary.guess n (ChoiceOut.state choice) ct)) := by
-        have hbind := congrArg (fun p : PMF (List (List Bool)) =>
-          p.bind fun cts => ProbComp.eval (adversary.guess n (ChoiceOut.state choice)
-            (encList encBits cts)))
-          (ProbComp.eval_mapM_splice (encrypt n keys.1) (m₁.take split) b (m₀.drop (split + 1)))
         simpa only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind,
-          bitwiseEncrypt, ProbComp.eval_map, PMF.bind_map, Function.comp_def, hword] using hbind
-      have hw₀ : m₁.take split ++ m₀.getD split false :: m₀.drop (split + 1) =
-          m₁.take split ++ m₀.drop split := by
-        rw [List.getD_eq_getElem _ _ hs, List.getElem_cons_drop]
-      have hw₁ : m₁.take split ++ m₁.getD split false :: m₀.drop (split + 1) =
-          m₁.take (split + 1) ++ m₀.drop (split + 1) := by
-        rw [List.getD_eq_getElem _ _ hs₁, ← List.singleton_append, ← List.append_assoc,
-          List.take_append_getElem]
-      rw [hsplice _ _ hw₁, hsplice _ _ hw₀, add_comm]
+          bitwiseEncrypt, ProbComp.eval_map, PMF.bind_map, Function.comp_def] using
+          congrArg (fun p : PMF (List (List Bool)) =>
+            p.bind fun cts => ProbComp.eval (adversary.guess n (ChoiceOut.state choice)
+              (encList encBits cts)))
+            (ProbComp.eval_mapM_splice (encrypt n keys.1) (m₁.take split) b
+              (m₀.drop (split + 1)))
+      rw [hsplice, hsplice, List.getD_eq_getElem _ _ hs, List.getElem_cons_drop,
+        List.getD_eq_getElem _ _ hs₁, ← List.singleton_append, ← List.append_assoc,
+        List.take_append_getElem, add_comm]
     · have hle₀ : m₀.length ≤ split := Nat.le_of_not_lt hs
       have hle₁ : m₁.length ≤ split := hlenEq ▸ hle₀
       simp only [m₀, m₁, hv, decide_eq_false hs, Bool.and_false, Bool.false_eq_true, ↓reduceIte,
@@ -548,12 +544,11 @@ theorem eval_game_bitwiseToSingle
   simp only [game, gameOn, bitwiseToSingle, pmf_norm, ↓reduceIte]
   rw [PMF.bind_comm]
   simp only [ProbComp.eval_sampleDyadicIndex, PMF.bind_map, Function.comp_def]
-  congr 1 with i
+  refine congrArg (PMF.bind _) (funext fun i => ?_)
   by_cases hi : i.val < maxLen n
-  · simp only [hi, ↓reduceIte]; rfl
-  · rw [ite_eq_right_of_eq_false (c := i.val < maxLen n) (h := eq_false hi)]
-    simp only [bitwiseToSingleAt, decide_eq_false hi, Bool.and_false, Bool.false_eq_true,
-      ↓reduceIte, pmf_norm, decode_rejectBitwiseToSingleState, PMF.bind_const]
+  · exact (ite_eq_left hi).symm
+  · simp only [ite_eq_right hi, bitwiseToSingleAt, decide_eq_false hi, Bool.and_false,
+      Bool.false_eq_true, ↓reduceIte, pmf_norm, decode_rejectBitwiseToSingleState, PMF.bind_const]
 
 /-- Coordinate-hybrid reduction step for `bitwiseEncrypt`: when every admissible challenge pair on
 supported keys has equal lengths at most `maxLen n`, the word adversary's chosen-message advantage

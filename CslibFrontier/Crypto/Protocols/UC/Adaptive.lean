@@ -865,26 +865,8 @@ private theorem runFrom_adaptiveRouter_liftStaticNetProgram {α β : Type}
   dsimp only [liftAdaptiveNet, liftNet]
   rw [Machine.liftRightProgram, liftStaticNetProgram,
     OracleComp.interpret_interpret, OracleComp.interpret_sumHandler]
-  let qLift : (q : RoutedNetQ n In NetQ) →
-      ProbOracleComp (adaptiveProtocolSpec n In Out NetQ NetR View)
-        (netSpec (RoutedNetQ n In NetQ) (RoutedNetR Out NetR) q) := fun q => match q with
-    | .inl (i, x) => AdaptiveNetR.toRoutedNetR <$>
-        ProbOracleComp.query (spec := adaptiveProtocolSpec n In Out NetQ NetR View)
-          (.inr (.party i x))
-    | .inr nq => AdaptiveNetR.toRoutedNetR <$>
-        ProbOracleComp.query (spec := adaptiveProtocolSpec n In Out NetQ NetR View)
-          (.inr (.net nq))
-  have hcomp :
-      (fun q : RoutedNetQ n In NetQ => OracleComp.interpret
-        (sumHandler (fun k => OracleComp.query (.inl k)) fun q => ProbOracleComp.query (.inr q))
-        (match q with
-          | .inl (i, x) => AdaptiveNetR.toRoutedNetR <$> ProbOracleComp.query (.party i x)
-          | .inr nq => AdaptiveNetR.toRoutedNetR <$> ProbOracleComp.query (.net nq))) = qLift :=
-    funext fun q => by rcases q with ⟨i, x⟩ | nq <;>
-      exact (OracleComp.interpret_map _ _ _).trans (congrArg _ (OracleComp.interpret_query _ _))
-  rw [hcomp]
   refine Machine.runFrom_interpret_intertwine (adaptiveRouter .static P κ C₀)
-    (corruptRouter C₀ (P.toStatic κ C₀)) qLift
+    (corruptRouter C₀ (P.toStatic κ C₀)) _
     (fun (q : RoutedNetQ n In NetQ) => ProbOracleComp.query
       (spec := protocolSpec n In Out (RoutedNetQ n In NetQ) (RoutedNetR Out NetR)) (.inr q))
     (fun _ => True) (fun rs' sP => rs'.corrupted = C₀ ∧ rs'.inner = sP)
@@ -894,6 +876,7 @@ private theorem runFrom_adaptiveRouter_liftStaticNetProgram {α β : Type}
     fun q rs' sP k₁ k₂ _ ⟨hrs', hsP⟩ hcont => by
       rcases hsP with rfl; erw [Machine.runFrom_query]
       rcases q with ⟨i, x⟩ | nq <;>
+        simp only [OracleComp.interpret_map, ProbOracleComp.interpret_query] <;>
         erw [Machine.runFrom_map, Machine.runFrom_query, bind_map_left] <;>
         dsimp only [adaptiveRouter, corruptRouter, AdaptiveProtocol.toStatic] <;>
         (conv_lhs => dsimp only [StateT.run])

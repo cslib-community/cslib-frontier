@@ -176,8 +176,7 @@ private theorem profile_collar_core_contact (p : ClauseProfile)
   rw [support_collarRoute] at hz hw
   obtain ⟨x, hx, hxz⟩ := hz
   obtain ⟨y, hy, hyz⟩ := hw
-  have hxy := collarReal_injective (collarReflected s) (hxz.trans hyz.symm)
-  subst y
+  obtain rfl := collarReal_injective (collarReflected s) (hxz.trans hyz.symm)
   obtain ⟨q, hq, hxq⟩ := LocalGeometry.prefix_routes_contact h he hf hne hx hy
   exact ⟨q, hq, hxz.symm.trans (congrArg (collarReal (collarReflected s)) hxq)⟩
 
@@ -251,10 +250,8 @@ private theorem profileCollarRoute_corePoint_not_mem_support (p : ClauseProfile)
     realPoint (collarPoint (collarReflected s) q) ∉ support (profileCollarRoute p s e) := by
   unfold profileCollarRoute
   split_ifs with hsource
-  · refine collarPrefixRoute_not_mem_corePoint hs (profile_prefix_terminal_last p h he hsource)
-      hqb ?_ hn
-    rw [← profile_prefix_terminal_endpoint p e.variableIndex hsource]
-    exact hne hsource
+  · exact collarPrefixRoute_not_mem_corePoint hs (profile_prefix_terminal_last p h he hsource)
+      hqb (profile_prefix_terminal_endpoint p e.variableIndex hsource ▸ hne hsource) hn
   · rw [realPoint_collarPoint]
     exact fun hp => hn ((mem_support_collarRoute_iff _ _ _).mp hp)
 
@@ -295,10 +292,8 @@ theorem profileCollarRoute_source_not_mem_support (p : ClauseProfile)
   obtain ⟨_, hr⟩ := List.head?_eq_some_iff.mp ((collar_check s hs).2 i).1
   have hsupp : realPoint (collarOuterPort (s.side i)) ∈
       support ((collarRoutes s).getD i []) := Or.inl ⟨_, hr ▸ List.mem_cons_self, rfl⟩
-  have hd : Disjoint (support (collarRoute (collarReflected s) e.route))
-      (support ((collarRoutes s).getD i [])) :=
-    disjoint_collarRoute_connector (profile_prefix_incidence_bounds p h he)
-      (innerTemplatePort_not_mem_support p h he ht hv)
+  have hd := disjoint_collarRoute_connector (s := s) (profile_prefix_incidence_bounds p h he)
+    (innerTemplatePort_not_mem_support p h he ht hv)
   intro hp
   unfold profileCollarRoute at hp
   split_ifs at hp with heterm

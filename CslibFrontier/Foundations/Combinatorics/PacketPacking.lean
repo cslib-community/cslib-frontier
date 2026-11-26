@@ -452,25 +452,20 @@ theorem potential_labels_le {Δ : ℕ} (hrow : ∀ v, #{e | rowOf e = v} ≤ Δ)
     (fun a d f hf => (expect_partialIncidencePotential_update_factor edge a d f hf).le)
     (labelCandidates a r) mem_labelCandidates slots
     (fun _ => none, fun _ => none)
-  have hv (v : R) : ∃ word, assigned.1 v = some word := hfill (.inl v) (by simp [slots])
-  have hf (w : C) : ∃ word, assigned.2 w = some word := hfill (.inr w) (by simp [slots])
-  have hvar (x : R → Fin a → Fin r) :
-      completeLabels assigned.1 x = completeLabels assigned.1 (fun _ _ => 0) :=
-    funext fun v => (hv v).elim fun _ hw => by simp only [completeLabels, hw, Option.getD_some]
-  have hfac (y : C → Fin a → Fin r) :
-      completeLabels assigned.2 y = completeLabels assigned.2 (fun _ _ => 0) :=
-    funext fun w => (hf w).elim fun _ hw => by simp only [completeLabels, hw, Option.getD_some]
-  have hout := partialIncidencePotential_eq_expect edge assigned.1 assigned.2
-  simp only [hvar, hfac, Fintype.expect_const] at hout
-  have hin := partialIncidencePotential_eq_expect (L := Fin a → Fin r) edge
-    (fun _ => none) (fun _ => none)
-  simp only [completeLabels, Option.getD_none] at hin
+  have hvar (x) : completeLabels assigned.1 x = rowLabels rowOf colOf a r := funext fun v => by
+    obtain ⟨_, hw⟩ : ∃ w, assigned.1 v = some w := hfill (.inl v) (by simp [slots])
+    simp only [rowLabels, completeLabels, assigned, hw, Option.getD_some]
+  have hfac (y) : completeLabels assigned.2 y = colLabels rowOf colOf a r := funext fun w => by
+    obtain ⟨_, hw⟩ : ∃ u, assigned.2 w = some u := hfill (.inr w) (by simp [slots])
+    simp only [colLabels, completeLabels, assigned, hw, Option.getD_some]
   have hexp := expect_incidence_potential_le (L := Fin a → Fin r) rowOf colOf
     (fun e => hrow (rowOf e)) (fun e => hcol (colOf e))
   unfold incidenceLabel at hexp
   change partialIncidencePotential edge assigned.1 assigned.2 ≤
     partialIncidencePotential edge (fun _ => none) (fun _ => none) at hscore
-  rw [hout, hin] at hscore
+  rw [partialIncidencePotential_eq_expect, partialIncidencePotential_eq_expect] at hscore
+  simp only [hvar, hfac, Fintype.expect_const] at hscore
+  simp only [completeLabels, Option.getD_none] at hscore
   calc potential (pairLabel rowOf colOf (rowLabels rowOf colOf a r) (colLabels rowOf colOf a r))
       ≤ (Fintype.card E : ℚ) * (Δ + Δ) := hscore.trans hexp
     _ = 2 * Fintype.card E * Δ := by ring

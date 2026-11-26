@@ -268,10 +268,8 @@ private theorem prgLeafVerify_runWith_of_delta {d sdLen comLen rowLen : ℕ}
   have hrows : prgLeafOpenRows expand prgLeaf prf.iv prf.openKeys prf.coms (chalToIdx delta) =
       some (FAEST.verifierRows (fun idx => expand (prgLeaf (keys idx) iv idx).seedOut)
         (chalToIdx delta)) := by
-    unfold prgLeafOpenRows
-    simp only [hopen, forall_const, ite_true]
-    congr 1
-    funext vIdx
+    simp only [prgLeafOpenRows, hopen, forall_const, ite_true]
+    refine congrArg some (funext fun vIdx => ?_)
     by_cases hv : vIdx = 0 <;>
       simp [FAEST.verifierRows, hv, prf, prgLeafProofOfDelta, hne_chal]
   rw [hrows]
@@ -307,9 +305,8 @@ theorem prgLeafGame_leafTrace_eq_nil {d sdLen comLen rowLen : ℕ}
   rw [ProbOracleComp.runWith_bind, prgLeafProver_runWith_eq_map,
     PMF.bind_map, PMF.mem_support_bind_iff] at hmem
   obtain ⟨delta, -, hmem_v⟩ := hmem
-  dsimp only [Function.comp_apply] at hmem_v
-  rw [prgLeafVerify_runWith_of_delta expand prgLeaf encWit chalToIdx mkPreMsg checkRel
-    defaultSeed iv keys stmt w hRel delta, PMF.mem_support_pure_iff] at hmem_v
+  simp only [Function.comp_apply, prgLeafVerify_runWith_of_delta expand prgLeaf encWit chalToIdx
+    mkPreMsg checkRel defaultSeed iv keys stmt w hRel delta, PMF.mem_support_pure_iff] at hmem_v
   cases hmem_v
   rfl
 
@@ -382,9 +379,7 @@ private theorem convertExpandedRows_zero_u {rowLen : ℕ} :
   | 0 => rfl
   | d + 1 => by
     have hp : FAEST.pairRows (fun _ : Fin (2 ^ (d + 1)) => (0 : BitString rowLen)) =
-        fun _ => 0 := by
-      funext i
-      simp [FAEST.pairRows]
+        fun _ => 0 := funext fun _ => by simp [FAEST.pairRows]
     simpa [FAEST.convertExpandedRows, hp] using convertExpandedRows_zero_u d
 
 /-- Applying `extractWitnessFromTrace` to an empty `H_leaf` query log recovers only
@@ -395,14 +390,10 @@ theorem extractWitnessFromTrace_nil {d sdLen comLen rowLen : ℕ} {Seed IV PreMs
     (prf : VOLEITHProof d comLen rowLen Seed IV PreMsg) :
     extractWitnessFromTrace (d := d) (sdLen := sdLen) expand decWit ([] : LeafTrace d sdLen
       comLen Seed IV) prf = decWit prf.dCorr := by
-  have hrows :
-      extractRowsFromTrace (d := d) expand ([] : LeafTrace d sdLen comLen Seed IV) prf.iv prf.coms =
-        0 := by
-    funext idx
+  have hrows : extractRowsFromTrace (d := d) expand ([] : LeafTrace d sdLen comLen Seed IV)
+      prf.iv prf.coms = fun _ => 0 := funext fun _ => by
     simp [extractRowsFromTrace, extractLeafFromTrace]
-  simp only [extractWitnessFromTrace, extractVOLEFromTrace, hrows]
-  change decWit (prf.dCorr + (FAEST.convertExpandedRows d (fun _ => 0)).u) = decWit prf.dCorr
-  rw [convertExpandedRows_zero_u d, add_zero]
+  simp [extractWitnessFromTrace, extractVOLEFromTrace, hrows, convertExpandedRows_zero_u]
 
 private theorem toOuterMeasure_prgLeaf_queryLog_fails_of_nil_not_rel {d sdLen comLen rowLen : ℕ}
     {Stmt Seed IV PreMsg Chal Wit : Type}
