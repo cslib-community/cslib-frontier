@@ -57,9 +57,8 @@ private theorem quadrangle (hw : IsPrice K w) (x v y u : Mt μ) :
   exact ⟨dist_sq_add_dist_sq_le_sides _ _ _ _, sides_eq_of_dist_sq_add_dist_sq_eq⟩
 
 private theorem defect_nonneg (hw : IsPrice K w) (a W W' : Mt μ) : 0 ≤ defect w a W W' := by
-  have := (quadrangle hw a (a + W + W') (a + W) (a + W')).1
   unfold defect
-  linarith
+  linarith [(quadrangle hw a (a + W + W') (a + W) (a + W')).1]
 
 /-- The number of the triples `(p, q, a)`. -/
 private noncomputable abbrev frames (μ : ℕ) : ℝ :=
@@ -105,9 +104,8 @@ private theorem meanSq_le (hw : IsPrice K w) {r : ℕ} (hr : r ≤ μ) :
   induction r with
   | zero => simp [meanSq_zero hw]
   | succ r ih =>
-    have := meanSq_add_le hw (i := r) (j := 1) hr
     push_cast
-    linarith [ih (by omega)]
+    linarith [meanSq_add_le hw (i := r) (j := 1) hr, ih (by omega)]
 
 /-- Each squared distance is at most `|Mat_μ(F₂)|²` times the mean over its rank. -/
 private theorem sq_le_meanSq (w : Mt μ → Mt μ → ℝ) (a W : Mt μ) :
@@ -163,21 +161,17 @@ private theorem exists_meanSq_eq (hK : ¬ ContractingCase K) (hμ : 2 ≤ μ) :
     have hr := (rank_le_card_width (a + b)).trans (Fintype.card_fin μ).le
     refine (add_cancel_left a b ▸ sq_le_meanSq w' a (a + b)).trans ?_
     gcongr
-    refine (meanSq_le hw' hr).trans ?_
-    rw [hc, mul_one]
-    exact_mod_cast hr
+    exact ((meanSq_le hw' hr).trans_eq (by rw [hc, mul_one])).trans (Nat.cast_le.mpr hr)
   obtain ⟨M, hMμ, hM⟩ : ∃ M : ℝ, M < μ ∧ ∀ w ∈ S, meanSq w μ ≤ M := by
     rcases S.eq_empty_or_nonempty with h0 | hne
     · exact ⟨0, by positivity, by simp [h0]⟩
     obtain ⟨w, ⟨⟨hw, -⟩, hw1⟩, hmax⟩ := hS.exists_isMaxOn hne (continuous_meanSq μ).continuousOn
     refine ⟨meanSq w μ, lt_of_le_of_ne ((meanSq_le hw le_rfl).trans_eq (by rw [hw1, mul_one]))
       fun e => hK' ⟨w, hw, fun r hr => ?_⟩, hmax⟩
-    have h1 := meanSq_le hw hr
-    have h2 := meanSq_le hw (Nat.sub_le μ r)
+    have h1 := (meanSq_le hw hr).trans_eq (by rw [hw1, mul_one])
+    have h2 := (meanSq_le hw (Nat.sub_le μ r)).trans_eq (by rw [hw1, mul_one, Nat.cast_sub hr])
     have h3 := meanSq_add_le hw (i := r) (j := μ - r) (by omega)
-    rw [hw1, mul_one] at h1 h2
     rw [Nat.add_sub_cancel' hr, e] at h3
-    push_cast [hr] at h2
     linarith
   refine hK ⟨μ, √(max 1 M), hμ, Real.one_le_sqrt.2 (le_max_left _ _), ?_, fun w hw => ?_⟩
   · rw [Real.sq_sqrt (le_max_of_le_left zero_le_one)]

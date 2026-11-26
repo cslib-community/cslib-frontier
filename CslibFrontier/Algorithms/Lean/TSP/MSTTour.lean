@@ -98,9 +98,7 @@ theorem cycleCost_append_cons_cons_le (δ : α → α → ℕ) (htri : ∀ x y z
     (A B : List α) (u v : α) :
     cycleCost δ (A ++ u :: v :: B) ≤ cycleCost δ (A ++ u :: B) + (δ u v + δ v u) := by
   rw [cycleCost_append_comm δ A, cycleCost_append_comm δ A]
-  simp only [List.cons_append]
-  rw [cycleCost_cons, cycleCost_cons]
-  simp only [walkCost]
+  simp only [List.cons_append, cycleCost_cons, walkCost]
   have := walkCost_le δ htri u v (B ++ A)
   omega
 
@@ -188,9 +186,7 @@ theorem nodup_growTour {W : Type} (F : List (WeightedEdge n W)) (k : ℕ) {t : L
   | case1 | case2 => exact ht
   | case3 k t e h ih =>
     obtain ⟨a, b, -, ha, hb, heq⟩ := growStep_spec (List.find?_some h)
-    refine ih ?_
-    rw [heq]
-    exact (insertAfter_perm b ha).nodup_iff.2 (List.nodup_cons.2 ⟨hb, ht⟩)
+    exact ih (heq ▸ (insertAfter_perm b ha).nodup_iff.2 (List.nodup_cons.2 ⟨hb, ht⟩))
 
 /-- **Coverage.** If the edges of `F` connect all of `Fin n` and there is fuel for `n` vertices,
 growing a nonempty tour without repetitions reaches every vertex. -/
@@ -350,12 +346,10 @@ theorem cycleCost_mstTour_le_two_mul_totalWeight {δ : Fin n → Fin n → ℕ}
   have h0 : 0 < n := by omega
   have hw : ∀ e ∈ kruskalEdges (completeEdges δ), e.weight = δ e.u e.v := fun e he =>
     mem_completeEdges.1 ((kruskalEdges_subperm _).subset he)
-  have := cycleCost_growTour_le hsymm htri hw n (t := [⟨0, h0⟩])
-    (fun h => absurd h (by simp))
-  rw [← mstTour_of_pos δ h0] at this
-  have hle := insideWeight_le_totalWeight (kruskalEdges (completeEdges δ)) (mstTour δ)
-  have := this (by omega)
-  omega
+  have hgrow := mstTour_of_pos δ h0 ▸
+    cycleCost_growTour_le hsymm htri hw n (t := [⟨0, h0⟩]) (fun h => absurd h (by simp))
+  exact (hgrow (by omega)).trans
+    (Nat.mul_le_mul_left 2 (insideWeight_le_totalWeight (kruskalEdges (completeEdges δ)) _))
 
 /-! ### The lower bound -/
 
@@ -405,9 +399,7 @@ theorem totalWeight_kruskalEdges_le_cycleCost (δ : Fin n → Fin n → ℕ) {q 
       simp only [hH, List.map_map]
       exact List.map_fst_zip (by simp)
     exact List.Nodup.of_map _ (hmap ▸ hq)
-  · intro e he
-    obtain ⟨p, -, rfl⟩ := List.mem_map.1 he
-    rfl
+  · exact List.forall_mem_map.2 fun _ _ => rfl
   · -- the tour's consecutive vertices are joined by its edges, so all vertices are connected
     intro x y
     obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem (hcov x)
@@ -434,14 +426,11 @@ theorem cycleCost_mstTour_le_two_mul {δ : Fin n → Fin n → ℕ} (hsymm : ∀
       ((List.perm_ext_iff_of_nodup (List.nodup_finRange n) hq).2 (by simp [hcov]))
     have hlen : q.length ≤ n := by simpa using hq.length_le_card
     rcases q with _ | ⟨_, _ | ⟨_, _⟩⟩
-    · rw [hperm.eq_nil]
-      omega
-    · rw [List.perm_singleton.1 hperm]
-      omega
+    · exact hperm.eq_nil ▸ Nat.le_mul_of_pos_left _ (by decide)
+    · exact List.perm_singleton.1 hperm ▸ Nat.le_mul_of_pos_left _ (by decide)
     · simp only [List.length_cons] at hlen
       omega
-  · have := totalWeight_kruskalEdges_le_cycleCost δ hq hcov
-    have := cycleCost_mstTour_le_two_mul_totalWeight hsymm htri hn
-    omega
+  · exact (cycleCost_mstTour_le_two_mul_totalWeight hsymm htri hn).trans
+      (Nat.mul_le_mul_left 2 (totalWeight_kruskalEdges_le_cycleCost δ hq hcov))
 
 end Cslib.Algorithms.Lean.TSP

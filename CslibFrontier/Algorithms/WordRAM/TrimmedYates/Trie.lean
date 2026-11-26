@@ -73,11 +73,10 @@ theorem exec_trieInit {w d free : ℕ} (x : Data numRegs)
     wram_simp
   obtain ⟨y, he, hroot, hfree, hmem⟩ := hrun
   refine ⟨y, he, hroot, hfree, ?_, ?_, fun i hi => he.regs_eq (trieInit_preserves i hi)⟩
-  · apply TrieRep.fresh_node d hpos
-    · rw [hmem, Function.update_of_ne (by omega), Function.update_self]
-    · rw [hmem, Function.update_self]
-  · intro a ⟨ha0, ha1⟩
-    rw [hmem, Function.update_of_ne ha1, Function.update_of_ne ha0]
+  · exact TrieRep.fresh_node d hpos
+      (by rw [hmem, Function.update_of_ne (by omega), Function.update_self])
+      (by rw [hmem, Function.update_self])
+  · exact fun a ⟨ha0, ha1⟩ => by rw [hmem, Function.update_of_ne ha1, Function.update_of_ne ha0]
 
 /-- The empty trie at address `0` represents only the zero function. -/
 private theorem TrieRep.fn_eq_zero {mem : ℕ → ℕ} {k : ℕ} {S : Set ℕ} {fn : ℕ → ℕ}
@@ -359,19 +358,14 @@ private theorem exec_trieSetLoop :
     · refine (trieRep_succ_iff hcur_pos (Nat.mod_lt rem two_pos)).2 ⟨S_c', So,
         fun m => if m % 2 ^ k = rem / 2 % 2 ^ k then val else fnc m, fno, ?_, ?_, rfl, ?_, ?_,
         fun m => ?_⟩
-      · rw [Set.disjoint_left]
-        rintro a haN (ha | ha)
-        · rcases hSc' a ha with h | h
-          · exact hN a haN (Or.inl h)
-          · exact absurd h.1 (by have := hlt a (Or.inl (Or.inl haN)); omega)
-        · exact hN a haN (Or.inr ha)
-      · rw [Set.disjoint_left]
-        intro a ha ha'
-        rcases hSc' a ha with h | h
-        · exact Set.disjoint_left.1 hdisj' h ha'
-        · exact absurd h.1 (by have := hlt a (Or.inr ha'); omega)
-      · rw [hyu _ (hlt _ (Or.inl (Or.inl hslot))) fun h => hN _ hslot (Or.inl h), huslot]
-        exact htc'
+      · refine Set.disjoint_left.2 fun a haN ha => ha.elim
+          (fun ha => (hSc' a ha).elim (fun h => hN a haN (Or.inl h)) fun h =>
+            absurd h.1 (not_le_of_gt (hlt a (Or.inl (Or.inl haN)))))
+          (fun ha => hN a haN (Or.inr ha))
+      · refine Set.disjoint_left.2 fun a ha ha' => (hSc' a ha).elim
+          (fun h => Set.disjoint_left.1 hdisj' h ha') fun h =>
+            absurd h.1 (not_le_of_gt (hlt a (Or.inr ha')))
+      · rwa [hyu _ (hlt _ (Or.inl (Or.inl hslot))) fun h => hN _ hslot (Or.inl h), huslot]
       · rw [hys _ (hlt _ (Or.inl (Or.inl hother))) (fun h => hN _ hother (Or.inl h)) (by omega)]
         exact hto.congr_mem fun a ha => hys a (hlt a (Or.inr ha)) (Set.disjoint_right.1 hdisj' ha)
           (by rintro rfl; exact hN _ hslot (Or.inr ha))

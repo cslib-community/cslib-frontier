@@ -415,13 +415,10 @@ theorem Clause.holds_toIneq_iff [DecidableEq V] (σ : V → Bool) (c : Clause V)
   constructor
   · intro h
     obtain ⟨l, hl, hl'⟩ := hpos.1 (by linarith)
-    refine ⟨l, List.mem_toFinset.1 hl, ?_⟩
-    rw [← Literal.eval_eq_true_iff]
-    cases h' : Literal.eval σ l <;> simp_all
+    exact ⟨l, List.mem_toFinset.1 hl, (Literal.eval_eq_true_iff σ l).1
+      (by cases h' : Literal.eval σ l <;> simp_all)⟩
   · rintro ⟨l, hl, hl'⟩
-    have : 0 < ∑ l ∈ c.toFinset, (Literal.eval σ l).toInt :=
-      hpos.2 ⟨l, List.mem_toFinset.2 hl, by simp [(Literal.eval_eq_true_iff σ l).2 hl']⟩
-    linarith
+    linarith [hpos.2 ⟨l, List.mem_toFinset.2 hl, by simp [(Literal.eval_eq_true_iff σ l).2 hl']⟩]
 
 /-- The empty clause translates to `0 ≥ 1`. -/
 @[simp] theorem Clause.toIneq_nil [DecidableEq V] : Clause.toIneq ([] : Clause V) = contra := by
@@ -444,11 +441,8 @@ theorem CNF.toIneq_mem_toIneqs [DecidableEq V] {φ : CNF V} {c : Clause V} (hc :
 theorem CNF.holds_toIneqs_iff [DecidableEq V] (σ : V → Bool) (φ : CNF V) :
     (∀ I ∈ φ.toIneqs, I.Holds σ) ↔ φ.eval σ = true := by
   rw [CNF.eval_eq_true_iff]
-  constructor
-  · intro h c hc
-    exact (Clause.holds_toIneq_iff σ c).1 (h _ (toIneq_mem_toIneqs hc))
-  · rintro h _ ⟨c, hc, rfl⟩
-    exact (Clause.holds_toIneq_iff σ c).2 (h c hc)
+  exact ⟨fun h c hc => (Clause.holds_toIneq_iff σ c).1 (h _ (toIneq_mem_toIneqs hc)),
+    fun h _ ⟨c, hc, hI⟩ => hI ▸ (Clause.holds_toIneq_iff σ c).2 (h c hc)⟩
 
 /-- Renaming the variable of a literal renames its inequality. -/
 theorem Literal.relabel_toIneq {W : Type*} (f : V → W) (l : Literal V) :
@@ -473,11 +467,10 @@ theorem CNF.toIneqs_relabel [DecidableEq V] {W : Type*} [DecidableEq W] {f : V �
     (hf : f.Injective) (φ : CNF V) : (φ.relabel f).toIneqs = Ineq.relabel f '' φ.toIneqs := by
   ext I
   simp only [CNF.toIneqs, CNF.relabel, List.mem_map, Set.mem_image, Set.mem_ofPred_eq]
-  constructor
-  · rintro ⟨_, ⟨c, hc, rfl⟩, rfl⟩
-    exact ⟨c.toIneq, ⟨c, hc, rfl⟩, (Clause.toIneq_relabel hf c).symm⟩
-  · rintro ⟨_, ⟨c, hc, rfl⟩, rfl⟩
-    exact ⟨c.relabel f, ⟨c, hc, rfl⟩, Clause.toIneq_relabel hf c⟩
+  exact ⟨fun ⟨_, ⟨c, hc, hc'⟩, hI⟩ =>
+      ⟨c.toIneq, ⟨c, hc, rfl⟩, hI ▸ hc' ▸ (Clause.toIneq_relabel hf c).symm⟩,
+    fun ⟨_, ⟨c, hc, hc'⟩, hI⟩ =>
+      ⟨c.relabel f, ⟨c, hc, rfl⟩, hI ▸ hc' ▸ Clause.toIneq_relabel hf c⟩⟩
 
 /-! ### Proofs -/
 
@@ -605,21 +598,16 @@ theorem relabel {W : Type*} (f : V → W) (h : IsProof Γ ls) :
   induction h with
   | nil => exact .nil
   | hyp _ hI ih => exact ih.hyp ⟨_, hI, rfl⟩
-  | nonneg _ v ih =>
-    rw [List.map_cons, relabel_nonneg]
-    exact ih.nonneg (f v)
-  | leOne _ v ih =>
-    rw [List.map_cons, relabel_leOne]
-    exact ih.leOne (f v)
+  | nonneg _ v ih => simpa only [List.map_cons, relabel_nonneg] using ih.nonneg (f v)
+  | leOne _ v ih => simpa only [List.map_cons, relabel_leOne] using ih.leOne (f v)
   | add _ hI hJ ih =>
-    rw [List.map_cons, relabel_add]
-    exact ih.add (List.mem_map_of_mem hI) (List.mem_map_of_mem hJ)
+    simpa only [List.map_cons, relabel_add] using
+      ih.add (List.mem_map_of_mem hI) (List.mem_map_of_mem hJ)
   | smul _ c hc hI ih =>
-    rw [List.map_cons, relabel_nsmul]
-    exact ih.smul c hc (List.mem_map_of_mem hI)
+    simpa only [List.map_cons, relabel_nsmul] using ih.smul c hc (List.mem_map_of_mem hI)
   | @div _ I _ c hc hdvd hI ih =>
-    rw [List.map_cons, relabel_div_of_dvd f hdvd]
-    exact ih.div c hc (dvd_coeff_relabel f hdvd) (List.mem_map_of_mem hI)
+    simpa only [List.map_cons, relabel_div_of_dvd f hdvd] using
+      ih.div c hc (dvd_coeff_relabel f hdvd) (List.mem_map_of_mem hI)
 
 end IsProof
 

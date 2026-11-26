@@ -135,9 +135,7 @@ private theorem checkSourcesFrom_eq {count : ℕ}
     simp only [checkSourcesFrom, List.ofFn_succ, Fin.val_zero, Nat.add_zero, List.filter_cons]
     rw [ih]
     simp only [Fin.val_succ, Nat.add_assoc, Nat.add_comm 1]
-    by_cases heq : sourceAt ⟨cursor, by omega⟩ = source
-    · simp [heq]
-    · simp [heq, List.allM_cons]
+    by_cases heq : sourceAt ⟨cursor, by omega⟩ = source <;> simp [heq, List.allM_cons]
 
 -- The bound is erased. Each continuation keeps only the next cursor and remaining count.
 private def findSeedFrom {N : ℕ} (test : Fin N → m (Option (SeedAnswer length))) :
@@ -354,11 +352,7 @@ theorem runSeedSearchIndexed_eq {count : ℕ}
   unfold runSeedSearchIndexed runSeedScheduler runSeedSearch
   congr 1
   funext i
-  unfold testSeed
-  apply congrArg (testSeedWith (controller ((BitString.equivFin length).symm i)) source)
-  funext _
-  rw [checkSourcesFrom_eq]
-  simp
+  simp [testScheduledSeed, testSeed, checkSourcesFrom_eq]
 
 /-- The indexed search spends at most one designated call and one call per source position
 for each candidate seed. A rejecting call still advances the measured state clock. This
@@ -389,10 +383,8 @@ theorem runSeedScheduler_clock {σ : Type} {count : ℕ} (clock : σ → ℕ) (c
       · exact (ih _ _ _).trans (Nat.add_le_add_left (Nat.le_add_right _ _) _)
       · rw [Nat.add_comm (remaining * cost)]
         apply bind_optionT_clock clock cost (remaining * cost) _ _ (hgood i _ _)
-        intro good state
-        cases good
-        · exact Nat.le_add_right _ _
-        · exact ih _ _ _
+        rintro (_ | _) _
+        exacts [Nat.le_add_right _ _, ih _ _ _]
   have htest i t :
       clock ((testSeedWith (scan i none) source (fun answer =>
         checkSourcesFrom (fun position => scan i (some (position, answer)))
@@ -401,13 +393,12 @@ theorem runSeedScheduler_clock {σ : Type} {count : ℕ} (clock : σ → ℕ) (c
     rw [Nat.add_mul, Nat.one_mul]
     unfold testSeedWith
     apply bind_optionT_clock clock cost (count * cost) _ _ (hc i none source)
-    rintro (_ | _ | answer) state
+    rintro (_ | _ | answer) _
     · exact Nat.le_add_right _ _
     · exact Nat.le_add_right _ _
-    · rw [← Nat.add_zero (count * cost)]
-      apply bind_optionT_clock clock (count * cost) 0 _ _ (hothers i answer count 0 (by simp))
-      intro good t
-      cases good <;> exact Nat.le_refl _
+    · simpa only [Nat.add_zero] using bind_optionT_clock clock (count * cost) 0 _ _
+        (hothers i answer count 0 (Nat.zero_add count).le)
+        (fun b _ => by cases b <;> exact Nat.le_refl _) _
   let test := rankedSeedTest (testScheduledSeed scan sourceAt source)
   let budget := (1 + count) * cost
   have hstep i t : clock ((test i).run t).2 ≤ clock t + budget := by
@@ -422,10 +413,8 @@ theorem runSeedScheduler_clock {σ : Type} {count : ℕ} (clock : σ → ℕ) (c
     | succ remaining ih =>
       rw [findSeedFrom, Nat.succ_mul, Nat.add_comm (remaining * budget)]
       apply bind_optionT_clock clock budget (remaining * budget) _ _ (hstep _)
-      intro answer state
-      cases answer with
-      | none => exact ih _ _ _
-      | some _ => exact Nat.le_add_right _ _
+      rintro (_ | _) _
+      exacts [ih _ _ _, Nat.le_add_right _ _]
   exact hloop (2 ^ length) 0 (by simp) s
 
 /-- The indexed search spends at most one designated call and one call per source position
