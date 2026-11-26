@@ -359,12 +359,7 @@ private theorem option_false {α : Type} (μ : PMF (Option α)) :
 
 private theorem option_success_toReal {α : Type} (μ : PMF (Option α)) :
     ((μ.map Option.isSome) true).toReal = 1 - (μ none).toReal := by
-  have hsum : (μ.map Option.isSome) false + (μ.map Option.isSome) true = 1 :=
-    (add_comm _ _).trans (Probability.PMF.apply_true_add_apply_false _)
-  have hreal := congrArg ENNReal.toReal hsum
-  rw [ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _),
-    ENNReal.toReal_one, option_false] at hreal
-  linarith
+  rw [Probability.PMF.toReal_true_eq_one_sub, option_false]
 
 /-- The denominator used for conditioning is exactly the probability of success. -/
 theorem eval_sampleUniformInterval_success (bound attempts : ℕ) :
@@ -408,12 +403,10 @@ private theorem uniformFin_nat_apply (bound value : ℕ) [NeZero bound] :
   classical
   rw [PMF.map_apply]
   by_cases hv : value < bound
-  · have hne (i : Fin bound) (hi : i ≠ ⟨value, hv⟩) : value ≠ i.val :=
-      fun h => hi (Fin.ext h.symm)
-    rw [tsum_eq_single ⟨value, hv⟩ fun i hi => by simp [hne i hi]]
-    simp [hv]
-  · have hne (i : Fin bound) : value ≠ i.val := (i.isLt.trans_le (not_lt.mp hv)).ne'
-    simp [hv, hne]
+  · rw [tsum_eq_single ⟨value, hv⟩]
+    · simp [hv]
+    · exact fun i hi => ite_eq_right fun h => hi (Fin.ext h.symm)
+  · simp [hv, fun i : Fin bound => (i.isLt.trans_le (not_lt.mp hv)).ne']
 
 /-- The successful part of the full sampler law is its success mass times exact uniformity. -/
 theorem eval_sampleUniformInterval_some_eq (bound attempts value : ℕ) [NeZero bound] :

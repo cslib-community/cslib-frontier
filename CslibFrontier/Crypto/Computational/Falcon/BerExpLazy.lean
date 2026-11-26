@@ -311,12 +311,11 @@ private theorem bytesToBitsBE_map_berExpByteOfNat_listRows : ∀ (count : Nat)
 theorem eval_berExpLazyCoin_accepted (threshold : BerExpThreshold) :
     (ProbComp.eval (berExpLazyCoin threshold)).map BerExpLazyResult.accepted =
       ProbComp.eval (berExpThresholdCoin threshold) := by
-  rw [berExpLazyCoin, eval_berExpLazyBytes, PMF.map_comp]
   have hrepeated := ProbComp.eval_replicate_of_uniformList 8 8
     berExpLazyByte (fun bits => berExpByteOfNat (BitString.binaryValue bits)) (by
       simp only [berExpLazyByte, ProbComp.sampleBinaryNat, ProbComp.eval_map,
         BitString.eval_sampleList, PMF.map_comp, Function.comp_def])
-  rw [length_berExpThresholdBytes, hrepeated]
+  rw [berExpLazyCoin, eval_berExpLazyBytes, PMF.map_comp, length_berExpThresholdBytes, hrepeated]
   simp only [PMF.map_comp, Function.comp_def]
   have heq :
       (BitString.uniformList (8 * 8)).map (fun tape =>
@@ -348,16 +347,12 @@ theorem eval_berExpLazyCoin_accepted (threshold : BerExpThreshold) :
       _ ↔ BitString.binaryValue tape < threshold.val := by
         rw [BitString.binaryValue_binaryWord]
   rw [heq]
-  have htrue :
-      ((BitString.uniformList (8 * 8)).map
-        (fun tape => decide (BitString.binaryValue tape < threshold.val))) true =
-          (threshold.val : ENNReal) / 2 ^ 64 := by
-    have hmap := congrArg (PMF.map fun value : Nat => decide (value < threshold.val))
-      (BitString.uniformList_binaryValue 64)
-    simp only [PMF.map_comp, Function.comp_def] at hmap
-    rw [hmap, Cslib.Probability.uniformFin_decide_lt, Nat.min_eq_right threshold.isLt.le]
-    norm_num
-  exact PMF.ext_bool (htrue.trans (eval_berExpThresholdCoin_true threshold).symm)
+  have hmap := congrArg (fun d => (d.map fun value : Nat => decide (value < threshold.val)) true)
+    (BitString.uniformList_binaryValue 64)
+  simp only [PMF.map_comp, Function.comp_def] at hmap
+  rw [Cslib.Probability.uniformFin_decide_lt, Nat.min_eq_right threshold.isLt.le,
+    Nat.cast_pow, Nat.cast_ofNat, ← eval_berExpThresholdCoin_true] at hmap
+  exact PMF.ext_bool hmap
 
 /-- The lazy comparison accepts with the same exact mass `z / 2^64`. -/
 theorem eval_berExpLazyCoin_accepted_true (threshold : BerExpThreshold) :

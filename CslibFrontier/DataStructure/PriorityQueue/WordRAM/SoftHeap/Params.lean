@@ -80,11 +80,8 @@ namespace Cslib.DataStructure.PriorityQueue.WordRAM.SoftHeap
 
 /-- Lower-bound exponent check for `rankThresholdForEps`: `12 / ε ≤ 2 ^ rankThresholdForEps ε`. -/
 theorem twelve_div_le_two_pow_rankThresholdForEps (ε : ℚ) :
-    12 / ε ≤ (2 ^ rankThresholdForEps ε : ℚ) := by
-  have h1 : 12 / ε ≤ (Nat.ceil (12 / ε) : ℚ) := Nat.le_ceil _
-  have h2q : (Nat.ceil (12 / ε) : ℚ) < (2 ^ rankThresholdForEps ε : ℚ) := by
-    exact_mod_cast Nat.lt_pow_succ_log_self (by decide) (Nat.ceil (12 / ε))
-  linarith
+    12 / ε ≤ (2 ^ rankThresholdForEps ε : ℚ) :=
+  (Nat.le_ceil _).trans (by exact_mod_cast (Nat.lt_pow_succ_log_self (by decide) _).le)
 
 /-- Minimum target item-list length `targetSize r k` of a non-leaf soft-heap node of rank `k`
 under corruption threshold `r`. -/
@@ -345,42 +342,25 @@ theorem itemPhi_le_zero (r k : ℕ) : itemPhi r k ≤ 2 * (r : ℚ) + 3 := by
 /-- Exact telescoping drop `itemPhi r k - itemPhi r (k + 1) = 1 / targetSize r k`. -/
 theorem itemPhi_sub_succ (r k : ℕ) :
     itemPhi r k - itemPhi r (k + 1) = 1 / (targetSize r k : ℚ) := by
-  by_cases hlt : k < r
-  · have hk : k ≤ r := by omega
-    have hk1 : k + 1 ≤ r := by omega
-    simp only [itemPhi, hk, hk1, ↓reduceIte, targetSize_le_threshold hk, Nat.cast_one]
+  rcases lt_trichotomy k r with hlt | rfl | hgt
+  · simp only [itemPhi, hlt.le, Nat.succ_le_of_lt hlt, ↓reduceIte,
+      targetSize_le_threshold hlt.le, Nat.cast_one]
     push_cast
     ring
-  · by_cases hkr : k = r
-    · subst hkr
-      have hts0 : (targetSize k k : ℚ) = 1 := by simp
-      have hts1 : targetSize k (k + 1) = 2 := by simpa using targetSize_odd_step k 0
-      have hk1 : ¬ (k + 1 ≤ k) := by omega
-      have hm : (k + 1 - k) % 2 = 1 := by omega
-      simp only [itemPhi, le_rfl, ↓reduceIte, hk1, hm, hts0, hts1]
-      push_cast
-      norm_num
-    · have hne : ¬ (k ≤ r) := by omega
-      have hne1 : ¬ (k + 1 ≤ r) := by omega
-      rcases Nat.even_or_odd (k - r) with ⟨t, ht⟩ | ⟨t, ht⟩
-      · have hk' : k = r + 2 * t := by omega
-        have hmod : (k - r) % 2 ≠ 1 := by omega
-        have hmod1 : (k + 1 - r) % 2 = 1 := by omega
-        simp only [itemPhi, hne, hne1, hmod, hmod1, ↓reduceIte]
-        rw [hk', targetSize_even_step, targetSize_odd_step]
-        push_cast
-        field_simp
-        ring
-      · have hk' : k = r + 2 * t + 1 := by omega
-        have hmod : (k - r) % 2 = 1 := by omega
-        have hmod1 : (k + 1 - r) % 2 ≠ 1 := by omega
-        have hts1 : targetSize r (k + 1) = 2 * 2 ^ t := by
-          have hsum : r + 2 * t + 1 + 1 = r + 2 * (t + 1) := by omega
-          rw [hk', hsum, targetSize_even_step, Nat.pow_succ, Nat.mul_comm]
-        simp only [itemPhi, hne, hne1, hmod, hmod1, ↓reduceIte, hts1]
-        rw [hk', targetSize_odd_step]
-        push_cast
-        field_simp
-        ring
+  · have hts1 : targetSize k (k + 1) = 2 := targetSize_odd_step k 0
+    simp only [itemPhi, le_rfl, Nat.not_succ_le_self, Nat.add_sub_cancel_left, ↓reduceIte,
+      targetSize_le_threshold le_rfl, hts1]
+    norm_num
+  · have hne : ¬ k ≤ r := Nat.not_le.mpr hgt
+    have hne1 : ¬ k + 1 ≤ r := Nat.not_le.mpr (Nat.lt_succ_of_lt hgt)
+    have hts_pos : (0 : ℚ) < targetSize r k := by exact_mod_cast targetSize_pos r k
+    by_cases hmod : (k - r) % 2 = 1
+    · have hmod1 : (k + 1 - r) % 2 ≠ 1 := by omega
+      simp only [itemPhi, targetSize_succ, hne, hne1, hmod, hmod1, ↓reduceIte]
+      ring
+    · have hmod1 : (k + 1 - r) % 2 = 1 := by omega
+      simp only [itemPhi, targetSize_succ, hne, hne1, hmod, hmod1, ↓reduceIte, Nat.cast_add]
+      field_simp
+      ring
 
 end Cslib.DataStructure.PriorityQueue.WordRAM.SoftHeap

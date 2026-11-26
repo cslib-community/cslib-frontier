@@ -318,8 +318,7 @@ theorem round_sound (hparams : params.Valid) {error : ℝ} (herror : 0 ≤ error
       bind_map_left, ProbComp.eval_bind]
     refine (PMF.toOuterMeasure_bind_failure_toReal_le _ _ {stop | stopGuard stop} _
       (error := (1 / 2 : ℝ) ^ params.confidence + error) (by positivity) ?_).trans ?_
-    · intro stop _ hgoodStop
-      cases stop
+    · rintro (_ | _) _ hgoodStop
       · simp only [Bool.false_eq_true, ite_false, ProbComp.eval_bind]
         refine (PMF.toOuterMeasure_bind_failure_toReal_le _ _ {yes | shiftGuard yes} _
           herror ?_).trans ?_
@@ -334,11 +333,7 @@ theorem round_sound (hparams : params.Valid) {error : ℝ} (herror : 0 ≤ error
               simpa only [State.shift, ite_true, Nat.cast_add, Nat.cast_one,
                 sub_add_eq_sub_sub, predict] using hstate.1
           simp only [ProbComp.eval_pure]
-          change (((ProbComp.eval (learn (state.shift yes))).map
-            ((state.shift yes).add params.codeBound)).toOuterMeasure
-            {next | ¬ State.Invariant (ProbComp.eval source) predict truth params
-              (rounds + 1) next}).toReal ≤ error
-          rw [PMF.toOuterMeasure_map_apply]
+          rw [← Function.comp_def PMF.pure, PMF.bind_pure_comp, PMF.toOuterMeasure_map_apply]
           exact (hlearn yes hdensity).trans' <|
             ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _) <|
               MeasureTheory.measure_mono fun code hbad hgood => hbad (State.Invariant.shift_add

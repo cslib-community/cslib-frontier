@@ -356,8 +356,7 @@ private theorem eval_prfRealGame_mteCIToPrfDistinguisher
   · obtain ⟨hfresh, hlenCt⟩ := Bool.and_eq_true_iff.mp hcond
     have htakeLen : (out.1.take (ptLen n)).length = ptLen n := by
       rw [List.length_take, beq_iff_eq.mp hlenCt]; omega
-    have hpadLen : (family ke (out.1.take (ptLen n))).length = ptLen n := by
-      rw [hlen _ _ (by rw [htakeLen, hkeLen]), hkeLen]
+    have hpadLen := (hlen _ _ (htakeLen.trans hkeLen.symm)).trans hkeLen
     simp only [runWith_norm, pmf_norm, prfOracle, htakeLen, ↓reduceIte,
       List.take_of_length_le hpadLen.le, hfresh, hlenCt, Bool.true_and, Option.elim,
       mtePlaintextValid, hmsgLen]
@@ -411,9 +410,8 @@ private theorem eval_prfIdealGame_mteCIToPrfDistinguisher (M : MACScheme) (ptLen
   dsimp only [Function.comp_apply]
   by_cases hcond :
       (!(hist.map (MteRec.ct (ptLen n))).contains ct && ct.length == 2 * ptLen n) = true
-  · have hlenCt : ct.length = 2 * ptLen n := beq_iff_eq.mp (Bool.and_eq_true_iff.mp hcond).2
-    have htakeLen : (ct.take (ptLen n)).length = ptLen n := by
-      rw [List.length_take, hlenCt]; omega
+  · have htakeLen : (ct.take (ptLen n)).length = ptLen n := by
+      rw [List.length_take, beq_iff_eq.mp (Bool.and_eq_true_iff.mp hcond).2]; omega
     simp only [hcond, ↓reduceIte, runWith_norm, pmf_norm, cachedRandomFunctionOracle,
       cachedSamplerOracle, htakeLen, beq_self_eq_true, ProbComp.eval_memoize,
       BitString.eval_sampleList]
@@ -486,8 +484,7 @@ private theorem isOraclePPTOn_mteCIToPrfHandler (M : MACScheme) (ptLen : ℕ →
       (fun p : ((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × List (List Bool)) =>
         mteCIToPrfHandler M (GeneratorReindex.parameter ptLen p.1.1.1) p.1.1.1 p.1.2 p.2.1
           p.2.2) := by
-  have hparam : ComputableInPolyTime (GeneratorReindex.parameter ptLen) encUnary encUnary :=
-    GeneratorReindex.isPolyTime_parameter hptLenPoly .id'
+  have hparam := GeneratorReindex.isPolyTime_parameter hptLenPoly .id'
   ppt [mteCIToPrfHandler]
 
 private theorem isOraclePPTOn_mteCIToPrfPost (M : MACScheme) (ptLen : ℕ → ℕ)
@@ -502,8 +499,7 @@ private theorem isOraclePPTOn_mteCIToPrfPost (M : MACScheme) (ptLen : ℕ → �
             (List.zipWith xor pad (q.2.1.drop q.1.1.1)))
         else
           pure false) := by
-  have hparam : ComputableInPolyTime (GeneratorReindex.parameter ptLen) encUnary encUnary :=
-    GeneratorReindex.isPolyTime_parameter hptLenPoly .id'
+  have hparam := GeneratorReindex.isPolyTime_parameter hptLenPoly .id'
   have hvalid := computableInPolyTime_mtePlaintextValid M
   ppt
 
@@ -514,8 +510,7 @@ theorem isOraclePPT_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ
     (hptLenPoly : ComputableInPolyTime ptLen encUnary encUnary)
     {adversary : CIAdversary} (hadversary : IsOraclePPT encBits adversary) :
     IsOraclePPT encBool (mteCIToPrfDistinguisher M ptLen adversary) := by
-  have hparam : ComputableInPolyTime (GeneratorReindex.parameter ptLen) encUnary encUnary :=
-    GeneratorReindex.isPolyTime_parameter hptLenPoly .id'
+  have hparam := GeneratorReindex.isPolyTime_parameter hptLenPoly .id'
   have hrun : IsOraclePPTOn (Operation := Unit)
       (encPair (encPair encUnary encBits) encBits) (encPair encBits (encList encBits))
       (fun p : (ℕ × List Bool) × List Bool =>
@@ -542,11 +537,10 @@ theorem isOraclePPT_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ
       obtain ⟨pad, hpad, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
       obtain ⟨rawPad, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hpad
       cases OracleComp.eq_of_mem_supportWith_pure hresult
-      have hpadTake : (List.take p.1.1 rawPad).length ≤ p.1.1 := List.length_take_le _ _
       refine ⟨trivial, ?_, ?_⟩
-      · simp only [List.length_append, List.length_zipWith, hrLen]; omega
+      · simp only [List.length_append, List.length_zipWith, List.length_take, hrLen]; omega
       · simp only [encList_cons, List.length_append, length_frame, encBits_apply,
-          List.length_zipWith, hrLen]
+          List.length_zipWith, List.length_take, hrLen]
         lia
     · cases OracleComp.eq_of_mem_supportWith_pure hresult
       exact ⟨trivial, by simp, Nat.le_add_right _ _⟩

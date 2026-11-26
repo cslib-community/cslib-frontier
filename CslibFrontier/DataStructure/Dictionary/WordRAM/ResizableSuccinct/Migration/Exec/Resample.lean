@@ -172,13 +172,11 @@ theorem exec_postResample_initMeta {U V w N metaBase peakF : ℕ}
   obtain ⟨hsp_le, hsw_le_sp, _, hc_lt⟩ :=
     hashSpace_bounds_of_fits_offCompItems hU hNU hfit_nm
   have heh_val : epochHdrWords = 225 := rfl
-  obtain ⟨z₀', hz₀'_def, _hex_zr, hz₀b, hz₀m, hz₀f_set, hz₀_reg⟩ :=
+  obtain ⟨_, rfl, _hex_zr, hz₀b, _hz₀m, hz₀f_set, hz₀_reg⟩ :=
     zeroResampleRegsCode_exec hy_set_b hrs_fr hy_set_fr.le
       (qBits_le_of_le_pow hw hU.le) hc_lt
       (by rw [hy_set_fr]; linarith only [hnm_le_peak, hsw_le_sp, hsp_le, heh_val])
       hrs_seed hrs_mem hrs_reg
-  have hz₀_eq : z₀' = z₀ := hz₀'_def
-  subst hz₀_eq
   have hz₀f : z₀.frontier = peakF := hz₀f_set.trans hy_set_fr
   set z₁ := z₀.set mTmpA metaBase
   have hz₀_meta : z₀.regs rMeta = metaBase := (hz₀_reg rMeta hr_not).trans hr_meta
@@ -186,9 +184,8 @@ theorem exec_postResample_initMeta {U V w N metaBase peakF : ℕ}
     (d := mTmpA) (s := rMeta) (x := z₀) hz₀f.le
   rw [hz₀_meta] at hex_c1
   have hz₁b : z₁.Bounded w := hz₀b.set (hfit_nm.of_le (Nat.le_add_right _ _))
-  have hz₀_fr_reg : z₀.regs mFr = peakF := (hz₀_reg mFr (by simp)).trans hr_fr
   have hms₁ : memoryState mFr z₁.toData = ⟨y_rs.mem, peakF⟩ := by
-    simp [memoryState, z₁, RData.set, RData.toData, hz₀m, hz₀_fr_reg]
+    simpa [memoryState, z₁, z₀, RData.set, RData.toData] using (hrs_reg mFr (by simp)).trans hr_fr
   have hz₁_nhp : ∀ i : Fin 19, z₁.regs (mNewHp i) =
       mkHashParams w (qBits U N) (hashB N) (totalMicroBits N) 3 i := fun i =>
     (Function.update_of_ne (mNewHp_ne_mReg i (c := 156) (Or.inr (by decide))) _ _).trans <|
@@ -209,8 +206,6 @@ theorem exec_postResample_initMeta {U V w N metaBase peakF : ℕ}
       d_im hz₁b hz₀f.le hin_im (hms₁ ▸ hpre_im) (hms₁ ▸ hv_im)
       (by rw [hms₁, hfr_im]; exact hz₀f.symm.le)
   rw [hms₁] at hm_im hex_im
-  have hz₂f_eq : z₂.frontier = peakF := hz₂f.trans hz₀f
-  have hz₂_fr_reg : z₂.regs mFr = peakF := (congrArg Memory.State.frontier hm_im).trans hfr_im
   have hz₂_mem_eq : z₂.mem = ((Memory.spec 0).clientState ⟨y_rs.mem, peakF⟩
       (initNewEpochMetaProg d_im)).mem :=
     congrArg Memory.State.mem hm_im
@@ -224,12 +219,11 @@ theorem exec_postResample_initMeta {U V w N metaBase peakF : ℕ}
   have hz₂_not_im : ∀ a, ¬(metaBase + epochHdrWords ≤ a ∧ a < metaBase + offCompItems U w N) →
       z₂.mem a = y_set.mem a := fun a ha =>
     (congrFun hz₂_mem_eq a).trans ((hframe_im a ha).trans (hrs_mem a (by omega)))
-  have hs₂_st_eq : ({ mem := z₂.mem, frontier := peakF } : Memory.State) =
-      (Memory.spec 0).clientState ⟨y_rs.mem, peakF⟩ (initNewEpochMetaProg d_im) :=
-    Memory.State.ext hz₂_mem_eq hfr_im.symm
-  exact ⟨z₁, z₂, hex_c1, hex_im, hc_im, hfr_im, hz₂b, hz₂f_eq, hz₂_fr_reg, hz₂_mem_eq,
+  exact ⟨z₁, z₂, hex_c1, hex_im, hc_im, hfr_im, hz₂b, hz₂f.trans hz₀f,
+    (congrArg Memory.State.frontier hm_im).trans hfr_im, hz₂_mem_eq,
     hz₂_mem_eq ▸ hrep_im, hz₂_mem_eq ▸ htot_im, hz₂_mem_eq ▸ hpot_im,
-    h_empty_im.imp (fun _ ⟨hi₀, hc₀⟩ => ⟨hi₀, hs₂_st_eq ▸ hc₀⟩),
+    h_empty_im.imp (fun _ ⟨hi₀, hc₀⟩ =>
+      ⟨hi₀, Memory.State.ext (x := ⟨z₂.mem, peakF⟩) hz₂_mem_eq hfr_im.symm ▸ hc₀⟩),
     hkeep_set_2, hz₂_not_im⟩
 
 theorem exec_setup_resample_finish
@@ -339,9 +333,8 @@ theorem exec_setup_resample_finish
         (hfin_res (extSeed y_rs)).1))
   have hex_tail := hex_rs.seq hfin_any
   have hmu_eq : μ_rs.bind (fun y_rs => PMF.pure (zOf (extSeed y_rs))) =
-      (PMF.uniformOfFintype (QuotHashSeed U N_new)).map zOf := by
-    change μ_rs.map (zOf ∘ extSeed) = _
-    rw [← PMF.map_comp, hmap_unif]
+      (PMF.uniformOfFintype (QuotHashSeed U N_new)).map zOf :=
+    (PMF.map_comp extSeed μ_rs zOf).symm.trans (congrArg (PMF.map zOf) hmap_unif)
   have hex_full := (ExecRCodeDist.of_demonicExec hex_set).seq_pure (hmu_eq ▸ hex_tail)
   set μ_u := PMF.uniformOfFintype (QuotHashSeed U N_new)
   have htsum_fin : (∑' y_rs, μ_rs y_rs * ((5 + stepsClean (extSeed y_rs) : ℕ) : ℝ≥0∞)) =

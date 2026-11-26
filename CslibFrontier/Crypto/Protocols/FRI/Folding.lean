@@ -263,11 +263,9 @@ private theorem coeff_reconstructPoly {a : ℕ} (ha : 0 < a) (ps : Fin a → F[X
       Nat.mul_div_cancel_left _ ha]
   · intro r _ hne
     simp only [← expand_eq_comp_X_pow, coeff_expand ha]
-    split_ifs with hle hdvd
-    · rcases hdvd with ⟨q, hq⟩
-      refine absurd (Fin.ext ?_) hne.symm
-      simp only [Nat.eq_add_of_sub_eq hle hq, Nat.mul_add_mod, Nat.mod_eq_of_lt r.isLt]
-    all_goals rfl
+    split_ifs with hle hdvd <;> try rfl
+    obtain ⟨q, hq⟩ := hdvd
+    exact absurd (Fin.ext (by simp [Nat.eq_add_of_sub_eq hle hq, Nat.mod_eq_of_lt r.isLt])) hne.symm
 
 /-- Exact decomposition identity: `p = ∑ r : Fin a, X ^ r * (polyComp a p r).comp (X ^ a)`. -/
 theorem reconstructPoly_polyComp {a : ℕ} (ha : 0 < a) (p : F[X]) :
@@ -362,9 +360,8 @@ private theorem sum_primitiveRoot_mul_inv {a : ℕ} {ζ : F} (hζ : IsPrimitiveR
       if u = r then (a : F) else 0 := by
   have hζ0 : ζ ≠ 0 := hζ.ne_zero (Fin.pos u).ne'
   simp_rw [pow_mul, ← mul_pow]
-  by_cases hur : u = r
-  · subst hur
-    simp [inv_pow, inv_mul_cancel₀ (pow_ne_zero _ hζ0)]
+  rcases eq_or_ne u r with rfl | hur
+  · simp [inv_pow, inv_mul_cancel₀ (pow_ne_zero _ hζ0)]
   · simp only [hur, ↓reduceIte]
     have hη_ne : (ζ⁻¹) ^ r.val * ζ ^ u.val ≠ 1 := fun h1 =>
       hur <| Fin.ext <| hζ.pow_inj u.isLt r.isLt <| by
@@ -602,10 +599,8 @@ theorem foldFiber_two_eq_fold2Fiber {g ω : F} {N : ℕ} (hN : 0 < N)
 theorem fold2_eq_foldWord {g ω : F} {N : ℕ} (hN : 0 < N) (hω : IsPrimitiveRoot ω (2 * N))
     (f : Fin (2 * N) → F) (z : F) :
     fold2 g ω f z = foldWord g ω f z := by
-  rw [fold2_eq_line, foldWord_eq_sum_smul, Fin.sum_univ_two]
-  simp only [pow_zero, one_smul, pow_one, Fin.val_zero, Fin.val_one,
+  simp [fold2_eq_line, foldWord_eq_sum_smul, Fin.sum_univ_two,
     fold2Even_eq_foldComp (g := g) (ω := ω) f, fold2Odd_eq_foldComp hN hω f]
-  rfl
 
 /-- **Reed–Solomon closure of 2-to-1 folding**: folding a codeword of
 `reedSolomon (cosetPoint g ω (2 * N)) (2 * k)` produces a codeword of
@@ -687,12 +682,10 @@ theorem weighted_agree_of_curve_many {a : ℕ} (ha : 1 ≤ a) (W : ι → ℕ)
   let agree (z : F) : Finset ι :=
     Finset.univ.filter fun i => (∑ r : Fin a, z ^ r.val * u r i) = ∑ r : Fin a, z ^ r.val * v r i
   let T : Finset ι := Finset.univ.filter fun i => i ∉ S ∧ 0 < W i
-  by_contra hle
-  push Not at hle
+  by_contra! hle
   have hcover : Z ⊆ T.biUnion fun i => Z.filter fun z => i ∈ agree z := fun z hz => by
     have ⟨i, hi_ag, hi_ns, hi_pos⟩ : ∃ i ∈ agree z, i ∉ S ∧ 0 < W i := by
-      by_contra hnone
-      push Not at hnone
+      by_contra! hnone
       have heq : ∑ i ∈ (agree z).filter (· ∈ S), W i = ∑ i ∈ agree z, W i :=
         Finset.sum_subset (Finset.filter_subset _ _) fun i hi hns =>
           Nat.eq_zero_of_le_zero (hnone i hi fun hS => hns (Finset.mem_filter.mpr ⟨hi, hS⟩))

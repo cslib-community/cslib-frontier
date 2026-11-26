@@ -89,22 +89,18 @@ private theorem stage2_rebScan16_facts {c U V w n_max base : ℕ}
   rw [ite_eq_right (by omega : ¬(fs.rebStage = 0)),
     ite_eq_right (by omega : ¬(fs.rebStage = 1)), ite_eq_left hs2] at hpre
   obtain ⟨_, _, hd3, _, _, _, hreb_fn⟩ := hpre
-  have hb : fs.dirtyBuckets fs.dirtyIdx < numBucketsWhp n_max := hd3 _ hdi_lt
+  set b := fs.dirtyBuckets fs.dirtyIdx
+  have hb : b < numBucketsWhp n_max := hd3 _ hdi_lt
   obtain ⟨hcur_r, _, rm0, hvr0, _⟩ := hreb_fn hcs_lt
-  have hcnt_le : fs.bktCount (fs.dirtyBuckets fs.dirtyIdx) ≤ totalLocalCoordsWhp n_max :=
-    hcore.bktCount_le _ hb
-  have hcnt_3L : fs.bktCount (fs.dirtyBuckets fs.dirtyIdx) ≤ 3 * (slabScale n_max) ^ 12 :=
-    hcnt_le.trans totalLocalCoordsWhp_le_three_mul
+  have hcnt_le := hcore.bktCount_le b hb
+  have hcnt_3L := hcnt_le.trans totalLocalCoordsWhp_le_three_mul
   have h2tl := (large_index_bounds hth).2.2.1
-  have h4096 : 4096 ≤ (slabScale n_max) ^ 12 :=
-    Nat.pow_le_pow_left (two_le_slabScale n_max) 12
+  have h4096 := Nat.pow_le_pow_left (two_le_slabScale n_max) 12
   have ⟨hcur16, hins16⟩ :
       fs.rebScanCursor + 16 ≤ n_max ∧ fs.rebInsCount + 16 ≤ 8 * (slabScale n_max) ^ 12 := by
     rcases hcur_r with ⟨h0, hi0⟩ | ⟨_, hle, hins_le⟩ <;> constructor <;> omega
-  have hrIdx : fs.rebSliceIdx (fs.dirtyBuckets fs.dirtyIdx) < 3 * numBucketsWhp n_max :=
-    rebSliceIdx_lt_of_core hcore hb
-  have hpres := rebScanSteps_preserved θ (fs.dirtyBuckets fs.dirtyIdx) 16 fs
-  set b := fs.dirtyBuckets fs.dirtyIdx
+  have hrIdx := rebSliceIdx_lt_of_core hcore hb
+  have hpres := rebScanSteps_preserved θ b 16 fs
   set fsScan := rebScanSteps c U n_max θ b 16 fs
   have hrIdxS : fsScan.rebSliceIdx b < 3 * numBucketsWhp n_max := by
     simpa only [FastState.rebSliceIdx, FastState.rebRole, hpres.liveRole, hpres.overmarsRole]
@@ -147,12 +143,8 @@ theorem realizes_epochTickStage2Gen :
           fs.rebStage = 2)
       (fun _ _ => 0) := by
   unfold epochTickStage2GenProg
-  have hrh := realizes_readHdr
-  have hrd := realizes_readDirtyBucketGen
-  have hsl := realizes_rebScanLoopGen
-  have hps := realizes_stage2PostScanGen
-  have ht3 := realizes_tickToStage3
-  realize
+  realize [realizes_readHdr, realizes_readDirtyBucketGen, realizes_rebScanLoopGen,
+    realizes_stage2PostScanGen, realizes_tickToStage3]
   all_goals (
     rcases d with ⟨wp, base⟩
     dsimp only at *

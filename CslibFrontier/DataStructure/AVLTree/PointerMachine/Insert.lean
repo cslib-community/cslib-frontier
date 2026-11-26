@@ -574,13 +574,7 @@ theorem insert_correct [LinearOrder M.Value]
   have visits : SearchTree.searchVisits (s.data 0) (keys tree) ≤ original.cachedHeight :=
     matched.keys.symm ▸ searchVisits_le_cachedHeight valid.heightConsistent _
   have searchTime : ta ≤ 7 * original.cachedHeight + 4 := by omega
-  suffices ∃ t result time,
-      Executes (insert zero maxSucc lt heavy le field source) s t time ∧
-      time ≤ 141 * original.cachedHeight + extra + 31 ∧
-      InsertResult encode field source s t tree result original by
-    obtain ⟨t, result, time, exec, bound, outcome⟩ := this
-    have := valid.cachedHeight_le_two_mul_log
-    exact ⟨t, result, time, exec, bound, by omega, outcome⟩
+  have hlog := valid.cachedHeight_le_two_mul_log
   cases focus with
   | nil =>
     let cleared := { a.setPtr 5 none with pc := 0 }
@@ -601,7 +595,8 @@ theorem insert_correct [LinearOrder M.Value]
     have depth := height_add_context_length_le cs (.nil : BinaryTree (Label M extra))
     rw [← ra.reconstruction, matched.shape_height,
       ← cachedHeight_eq_height valid.heightConsistent] at depth
-    exact ⟨t, result, ta + (tb + 3) + 1, run, by omega, before.withPc _⟩
+    have htime : ta + (tb + 3) + 1 ≤ 141 * original.cachedHeight + extra + 31 := by omega
+    exact ⟨t, result, ta + (tb + 3) + 1, run, htime, htime.trans (by omega), before.withPc _⟩
   | node label left right =>
     have present : AVLTree.contains (s.data 0) original = true := by
       simp [contains_eq_searchTree, ← matched.keys, ← ra.found, ra.cursor, root]
@@ -610,7 +605,8 @@ theorem insert_correct [LinearOrder M.Value]
       { a with pc := 0 } rfl (by simp [ra.cursor, root]))
     let t := { a.setPtr 5 none with pc := (seek (regs := regs + 1) (extra := extra) lt).length +
       (insertAfterSeek zero maxSucc lt heavy le field source).length }
-    exact ⟨t, tree, ta + 3 + 1, run, by omega,
+    have htime : ta + 3 + 1 ≤ 141 * original.cachedHeight + extra + 31 := by omega
+    exact ⟨t, tree, ta + 3 + 1, run, htime, htime.trans (by omega),
       ra.heap.symm ▸ rep, unchanged.symm ▸ matched, distinct,
       by simpa [t, State.setPtr] using rootA,
       by simp [t, State.setPtr, ra.heap],

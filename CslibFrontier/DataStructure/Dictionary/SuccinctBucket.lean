@@ -203,8 +203,7 @@ theorem quotientFin_val_eq {U n : ℕ} (hnU : n ≤ U) (u : Fin U) :
 theorem keyQuotient_eq_of_quotientFin_eq {U n : ℕ} (hnU : n ≤ U) (u₁ u₂ : Fin U)
     (h : quotientFin U n u₁ = quotientFin U n u₂) :
     keyQuotient (bucketBits n) u₁.val = keyQuotient (bucketBits n) u₂.val := by
-  have hval := congrArg Fin.val h
-  rwa [quotientFin_val_eq hnU, quotientFin_val_eq hnU] at hval
+  simpa only [quotientFin_val_eq hnU] using congrArg Fin.val h
 
 /-- For every `n : ℕ`, `totalMicroBits n = Nat.log 2 n`. -/
 theorem totalMicroBits_eq_log (n : ℕ) : totalMicroBits n = Nat.log 2 n := by wram_omega
@@ -254,10 +253,8 @@ theorem totalMicroBuckets_le_self {n : ℕ} (hn : 1 ≤ n) : totalMicroBuckets n
 
 /-- For every `n : ℕ`, `n ≤ 2 * totalMicroBuckets n`. -/
 theorem le_two_mul_totalMicroBuckets (n : ℕ) : n ≤ 2 * totalMicroBuckets n := by
-  have hlt := Nat.lt_pow_succ_log_self (b := 2) (by decide) n
-  rw [totalMicroBuckets, totalMicroBits_eq_log]
-  rw [Nat.pow_succ'] at hlt
-  omega
+  rw [totalMicroBuckets, totalMicroBits_eq_log, ← Nat.pow_succ']
+  exact (Nat.lt_pow_succ_log_self (by decide) n).le
 
 /-- For every `n : ℕ`, `n ≤ (2 * numMicroPerBucket n) * numBuckets n`. -/
 theorem le_two_mul_numMicro_mul_numBuckets (n : ℕ) :
@@ -305,9 +302,7 @@ theorem effBucketPosBits_le (n : ℕ) :
   have hcap : effBucketCap n = 2 ^ (microBits n + 2) := by
     rw [effBucketCap, numMicroPerBucket, Nat.pow_add, Nat.mul_comm]
   have hclog : effBucketPosBits n ≤ microBits n + 3 := Nat.clog_le_of_le_pow (by grind)
-  have := microBits_le_three_mul_logLogFactor n
-  have := Dynamic.one_le_logLogFactor n
-  omega
+  linarith [microBits_le_three_mul_logLogFactor n, Dynamic.one_le_logLogFactor n]
 
 /-- Total indexed local slots across all buckets satisfy
 `numBuckets n * effBucketCap n = 4 * totalMicroBuckets n ≤ 4 * max n 1`. -/
@@ -976,9 +971,8 @@ theorem globalMetaLen_mul_globalPtrBits_le (n : ℕ) :
         Nat.clog_le_of_le_pow ((Nat.lt_pow_succ_log_self (by decide) n).trans_le
           (Nat.pow_le_pow_right (by decide) (by omega)))
       calc 4 * globalPtrBits n ≤ 20 * 1 * Dynamic.logLogFactor n := by omega
-        _ ≤ 20 * n * Dynamic.logLogFactor n := by
-          gcongr
-          exact hn
+        _ ≤ 20 * n * Dynamic.logLogFactor n :=
+          Nat.mul_le_mul_right _ (Nat.mul_le_mul_left 20 hn)
     · have := globalMetaVarLen_mul_globalPtrBits_le n
       have := two_mul_numBuckets_mul_globalPtrBits_le_of_pos (Nat.pos_of_ne_zero hb)
       have := Nat.le_mul_of_pos_left (globalPtrBits n) (numBuckets_pos n)

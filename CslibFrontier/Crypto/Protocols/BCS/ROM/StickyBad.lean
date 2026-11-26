@@ -174,10 +174,8 @@ private theorem bad_fs_step_cases {r d : ℕ} {Stmt Sym Chal : Type} {S : Set St
   by_cases hmore : i₀ + 1 < rts.length
   · right
     refine hi₀_eq ▸ List.mem_filterMap.mpr ⟨_, hmem_of_ne (i₀ + 1) hmore (by omega), ?_⟩
-    have hi₀_lt : i₀ < (chals.take (i₀ + 1)).length := by
-      rw [List.length_take_of_le (by omega)]
-      omega
-    simp [List.getElem?_eq_getElem hi₀_lt, hc_eq]
+    simp [List.getElem?_take_of_lt (Nat.lt_succ_self i₀),
+      List.getElem?_eq_getElem (hlen ▸ hi₀), hc_eq]
   · left
     subst hprev₀_eq hc_eq
     have hlast : i₀ + 1 = rts.length := by omega
@@ -221,10 +219,7 @@ theorem toOuterMeasure_memoize_not_bcsChainDoomed_step {r d : ℕ} {Stmt Sym Cha
   cases hlookup : tr_FS.lookup (x₀, rts₀, prev₀) with
   | some c₀ => simp [memoize_of_some _ _ _ _ hlookup, hdoomed]
   | none =>
-    rw [memoize_of_none _ _ _ hlookup]
-    change ((PMF.uniformOfFintype Chal).map
-      (fun c => (c, ((x₀, rts₀, prev₀), c) :: tr_FS))).toOuterMeasure _ ≤ _
-    rw [PMF.toOuterMeasure_map_apply]
+    erw [memoize_of_none _ _ _ hlookup, PMF.toOuterMeasure_map_apply]
     by_cases hx₀ : x₀ ∈ S
     · set pref₀ := bcsExtractTranscript decSym defaultSym d tr_MT
         (rts₀.take (rts₀.length - 1)) prev₀
@@ -357,10 +352,7 @@ private theorem toOuterMeasure_bcsStickyMemoize_step [BEq Stmt] [BEq Chal]
     | some ans =>
       simp [memoize_of_some _ _ _ _ hlookup, BCSStickyBad, BCSStepBad, hst]
     | none =>
-      rw [memoize_of_none _ _ _ hlookup]
-      change ((BitString.uniformList σ).map (fun ans => (ans, (msg, ans) :: tr_MT))).toOuterMeasure
-        _ ≤ _
-      rw [PMF.toOuterMeasure_map_apply]
+      erw [memoize_of_none _ _ _ hlookup, PMF.toOuterMeasure_map_apply]
       refine ((BitString.uniformList σ).toOuterMeasure.mono
           (s₂ := {ans | ans ∈ bcsForbiddenDigests r (tr_MT, tr_FS)}) fun ans hbad => by
         rcases hbad.elim (of_decide_eq_true ∘ (Bool.false_or _).symm.trans) Or.inl with

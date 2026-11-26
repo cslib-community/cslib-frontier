@@ -236,8 +236,7 @@ private theorem prop_identity_reflection [IsDomain R] {x z : R} (h : x * z = 1) 
     mul_ne_zero (pow_ne_zero _ (sub_ne_zero.2 h1.symm)) (pow_ne_zero _ (sub_ne_zero.2 h1.symm))
   refine mul_left_cancel₀ hne ?_
   have hs : (x ^ 2 - 1) ^ ν * (x ^ 2 - 1) ^ ν = (1 - x ^ 2) ^ ν * (1 - x ^ 2) ^ ν := by
-    rw [← mul_pow, ← mul_pow]
-    exact congrArg (· ^ ν) (by ring)
+    rw [← mul_pow, ← mul_pow]; ring_nf
   have hexp : (∑ i, (2 * sa.row i + 1)) + (∑ i, (2 * sc.row i + 1)) + (∑ i, 2 * sd.row i) +
       (∑ i, (2 * sb.row i + 2)) +
           ((∑ i, (2 * sa.col i + 1)) + (∑ i, (2 * sc.col i + 1)) + (∑ i, 2 * sd.col i) +
@@ -317,8 +316,8 @@ private theorem exists_products {β γ κ : Type} [Fintype κ] {f : β → γ �
   refine Finset.sum_of_injOn (fun t => Fin.castLE hr (e t))
     (fun _ _ _ _ he => e.injective (Fin.castLE_injective hr he)) (fun _ _ => by simp)
     (fun t _ ht => ?_) (fun t _ => by simp [(e t).2])
-  dsimp only
-  rw [dite_eq_right fun hlt => ht ⟨e.symm ⟨t.1, hlt⟩, mem_univ _, by simp [Fin.castLE]⟩, zero_mul]
+  simp only [dite_eq_right fun hlt => ht ⟨e.symm ⟨t.1, hlt⟩, mem_univ _, by simp [Fin.castLE]⟩,
+    zero_mul]
 
 section Expansion
 
@@ -510,15 +509,13 @@ private theorem prop_identity_reverse (sa : Word μ) (sb : Word ν) (sc : Word �
   let _ : Invertible (x⁻¹ : F) := ⟨x, hxz, mul_comm x x⁻¹ ▸ hxz⟩
   have hrev : ι P.reverse * (x⁻¹) ^ P.natDegree = φ P :=
     hi ▸ eval₂_reverse_mul_pow (Int.castRingHom F) (x⁻¹ : F) P
-  have key := prop_identity_reflection hxz hx1 sa sb sc sd ha hb hc hd
   have hφP : psi (x⁻¹ : F) sa sb sc sd = φ P := by simp [hP, map_psi, φ]
-  have hιQ : psi x sa sd sc sb = ι Q := by rw [hQ, map_psi]
-  rw [hφP, hιQ, ← hrev] at key
+  have key : x ^ (2 * (e₁ + e₂)) * (ι P.reverse * (x⁻¹) ^ P.natDegree) = ι Q := by
+    simpa only [hφP, ← hrev, hQ, map_psi, x] using
+      prop_identity_reflection hxz hx1 sa sb sc sd ha hb hc hd
   apply hι
-  rw [map_mul, map_mul, map_pow, map_pow, ← key]
-  have hinv : (x⁻¹) ^ P.natDegree * x ^ P.natDegree = 1 := by
-    rw [← mul_pow, inv_mul_cancel₀ hx, one_pow]
-  linear_combination (-(ι P.reverse * x ^ (2 * (e₁ + e₂)))) * hinv
+  rw [map_mul, map_mul, map_pow, map_pow, ← key, mul_left_comm (x ^ _), mul_assoc, mul_assoc,
+    ← mul_pow, inv_mul_cancel₀ hx, one_pow, mul_one]
 
 /-- Proof of Proposition B.2, reflection: `deg Ψ ≤ Θ`, and the coefficient of `X^N` at
 `(s_a, s_b, s_c, s_d)` is that of `X^(Θ - N)` at `(s_a, s_d, s_c, s_b)`. -/
@@ -545,9 +542,8 @@ private theorem prop_identity_reflection_coeff (sa : Word μ) (sb : Word ν) (sc
     rw [ite_eq_left (by omega), coeff_reverse, revAt_le (Nat.sub_le _ _), Nat.sub_sub_self hN] at h1
     exact h1.trans (congrArg _ (by omega))
   · have h1 := congrArg (fun p : ℤ[X] => p.coeff (M + P.natDegree)) key
-    have hHM : ¬ H ≤ M + P.natDegree := by omega
-    simp only [coeff_mul_X_pow', Nat.le_add_left, ite_true, Nat.add_sub_cancel,
-      ite_eq_right hHM] at h1
+    simp (disch := omega) only [coeff_mul_X_pow', Nat.le_add_left, ite_true, Nat.add_sub_cancel,
+      ite_eq_right] at h1
     rw [coeff_eq_zero_of_natDegree_lt hN, h1]
 
 end reflect

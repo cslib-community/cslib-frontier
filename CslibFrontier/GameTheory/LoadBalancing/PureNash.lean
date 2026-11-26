@@ -242,8 +242,7 @@ theorem hasFIP [Finite M] (G : LoadBalancingGame ι M) : G.toCostGame.HasFIP := 
   have hne : b ≠ A i := fun h => by
     simp [h, toCostGame, UnrelatedLoadBalancingGame.toCostGame] at hlt
   have hlt' : G.load (Function.update A i b) b < G.load A (A i) := by
-    change G.toUnrelated.load (Function.update A i b) b < G.toUnrelated.load A (A i)
-    simpa [toCostGame, UnrelatedLoadBalancingGame.toCostGame] using hlt
+    simpa [load, toCostGame, UnrelatedLoadBalancingGame.toCostGame] using hlt
   rcases (G.weight_nonneg i).eq_or_lt with hw0 | hwpos
   · right
     have hload : G.load (Function.update A i b) = G.load A := funext fun j => by
@@ -357,9 +356,8 @@ theorem IsIdentical.maxWeightBestResponse_injective {G : LoadBalancingGame ι M}
     | zero =>
       exact ⟨fun s hs => absurd hs (Nat.not_lt_zero _), fun s hs => absurd hs (Nat.not_lt_zero _)⟩
     | succ t ih =>
-      have hstep := hγ t
-      obtain ⟨hsat_cur, hpres⟩ := isSatisfied_after_bestResponse hId hstep
-      rcases hstep with ⟨_, _, hunsat_t, hmax_t, _⟩
+      obtain ⟨hsat_cur, hpres⟩ := isSatisfied_after_bestResponse hId (hγ t)
+      rcases hγ t with ⟨_, _, hunsat_t, hmax_t, _⟩
       have hle_prev (s : Fin T) (hs : s.val < t.val) : G.weight (move t) ≤ G.weight (move s) :=
         le_of_not_gt fun hlt => hunsat_t (ih.2 s hs (move t) hlt)
       refine ⟨fun s hs => ?_, fun s hs j hj => ?_⟩
@@ -486,15 +484,12 @@ theorem IsRelatedLPT.isPureNash {G : LoadBalancingGame (Fin n) M} {A : Fin n →
   have hir : i ≤ r := le_max' S i (mem_filter.mpr ⟨mem_univ i, rfl⟩)
   -- Since `r` is the last job on machine `A i`, its post-insertion load equals `G.load A (A i)`.
   have hload_r : G.load A (A i) = G.prefixLoad A r (A r) + G.weight r / G.speed (A r) := by
-    rw [hAr, load, UnrelatedLoadBalancingGame.load, prefixLoad]
-    have hsplit : (univ.filter fun u : Fin n => A u = A i) =
-        insert r (univ.filter fun u : Fin n => u.val < r.val ∧ A u = A i) := by
-      ext u
-      simp only [mem_filter, mem_univ, true_and, mem_insert]
-      exact ⟨fun hu => (eq_or_lt_of_le (le_max' S u (mem_filter.mpr ⟨mem_univ u, hu⟩))).imp_right
-        (⟨·, hu⟩), fun h => h.elim (· ▸ hAr) And.right⟩
-    change ∑ u ∈ univ.filter (fun u : Fin n => A u = A i), G.weight u / G.speed (A i) = _
-    rw [hsplit, sum_insert (by simp), add_comm]
+    rw [hAr, load, toUnrelated, UnrelatedLoadBalancingGame.load, prefixLoad, add_comm,
+      ← sum_insert (f := fun u : Fin n => G.weight u / G.speed (A i)) (by simp)]
+    refine sum_congr (Finset.ext fun u => ?_) fun _ _ => rfl
+    simp only [mem_filter, mem_univ, true_and, mem_insert]
+    exact ⟨fun hu => (eq_or_lt_of_le (le_max' S u (mem_filter.mpr ⟨mem_univ u, hu⟩))).imp_right
+      (⟨·, hu⟩), fun h => h.elim (· ▸ hAr) And.right⟩
   calc G.load A (A i)
       = G.prefixLoad A r (A r) + G.weight r / G.speed (A r) := hload_r
     _ ≤ G.prefixLoad A r k + G.weight r / G.speed k := hlpt r k
@@ -521,9 +516,7 @@ theorem exists_isRelatedLPT [Finite M] [Nonempty M] (G : LoadBalancingGame (Fin 
       (fun k : M => G'.load A' k + G.weight (Fin.last n) / G.speed k) univ_nonempty
     let A : Fin (n + 1) → M := Fin.snoc (α := fun _ => M) A' b
     have hpre (k : ℕ) (hk : k ≤ n) (j : M) : G.prefixLoad A k j = G'.prefixLoad A' k j := by
-      simp only [prefixLoad, sum_filter, Fin.sum_univ_castSucc, A, Fin.snoc_castSucc,
-        Fin.val_castSucc, Fin.val_last, G', Fin.init]
-      rw [ite_eq_right (by omega), add_zero]
+      simp [prefixLoad, sum_filter, Fin.sum_univ_castSucc, A, G', Fin.init, Nat.not_lt.mpr hk]
     have hpre_last (j : M) : G.prefixLoad A n j = G'.load A' j := by
       rw [hpre n le_rfl j, prefixLoad, load, UnrelatedLoadBalancingGame.load]
       exact sum_congr (Finset.ext fun r => by simp) fun _ _ => rfl

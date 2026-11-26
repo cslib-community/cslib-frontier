@@ -336,8 +336,7 @@ private theorem realizesBounded_compPopBackFinish :
       (WordEncoding.encode (α := ((CompParams × (ℕ × ℕ)) × ℕ) × (ℕ × ℕ)))
       (WordEncoding.encode (α := Unit))
       CompPopBackFinishPre (fun _ _ => 0) := by
-  have hdm := realizesBounded_compDemoteSlabGen
-  realize
+  realize [realizesBounded_compDemoteSlabGen]
   rcases d with ⟨⟨⟨cp, ⟨metaBase, itemBase⟩⟩, b⟩, ⟨r_b_new, q_b⟩⟩
   dsimp only at *
   exact h.2 ‹r_b_new = 0› ‹0 < q_b›
@@ -396,10 +395,8 @@ private theorem realizesBounded_compPopBackMultiGen :
       (WordEncoding.encode (α := (CompParams × (ℕ × ℕ)) × ℕ))
       (WordEncoding.encode (α := Unit))
       CompRemoveLastTailPre (fun _ _ => 0) := by
-  have hrm := realizesBounded_compRemoveLastTailItemGen
-  have hrgm := realizesBounded_readCompGMGen
-  have hfin := realizesBounded_compPopBackFinish
-  realize
+  realize [realizesBounded_compRemoveLastTailItemGen, realizesBounded_readCompGMGen,
+    realizesBounded_compPopBackFinish]
   all_goals (
     rcases d with ⟨⟨cp, ⟨metaBase, itemBase⟩⟩, b⟩
     dsimp only at *
@@ -439,9 +436,7 @@ private theorem realizesBounded_compPopBackSingleGen :
     RealizesBounded .exact compPopBackSingleGenProg
       (WordEncoding.encode (α := CompParams × ℕ)) (WordEncoding.encode (α := Unit))
       CompPopBackSinglePre (fun _ _ => 0) := by
-  have hrgm := realizesBounded_readCompGMGen
-  have hwgm := realizesBounded_writeCompGMGen
-  realize
+  realize [realizesBounded_readCompGMGen, realizesBounded_writeCompGMGen]
   all_goals (
     rcases d with ⟨cp, metaBase⟩
     dsimp only at *
@@ -457,9 +452,7 @@ theorem realizesBounded_compPopBackSlotGen :
       (WordEncoding.encode (α := (CompParams × (ℕ × ℕ)) × ℕ))
       (WordEncoding.encode (α := Unit))
       CompPopBackSlotPre (fun _ _ => 0) := by
-  have hsng := realizesBounded_compPopBackSingleGen
-  have hmul := realizesBounded_compPopBackMultiGen
-  realize
+  realize [realizesBounded_compPopBackSingleGen, realizesBounded_compPopBackMultiGen]
   all_goals (
     rcases d with ⟨⟨cp, ⟨metaBase, itemBase⟩⟩, b⟩
     dsimp only at *

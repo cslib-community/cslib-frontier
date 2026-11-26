@@ -189,17 +189,10 @@ theorem archerTardosMechanism_isDSIC [DecidableEq ι] {q : (ι → ℝ) → ι �
     (archerTardosMechanism q).IsDSIC := by
   intro c hc i v hv
   set f : ℝ → ℝ := fun x => q (Function.update c i x) i
-  have hu_c : (archerTardosMechanism q).utility i v c =
-      (c i - v) * f (c i) + ∫ x in Set.Ioi (c i), f x := by
-    simp only [CostMechanism.utility, archerTardosMechanism, archerTardosPayment, f,
-      Function.update_eq_self]
-    ring
-  have hu_v : (archerTardosMechanism q).utility i v (Function.update c i v) =
-      ∫ x in Set.Ioi v, f x := by
-    simp only [CostMechanism.utility, archerTardosMechanism, archerTardosPayment, f,
-      Function.update_self, Function.update_idem]
-    ring
-  rw [hu_c, hu_v]
+  suffices (c i - v) * f (c i) + ∫ x in Set.Ioi (c i), f x ≤ ∫ x in Set.Ioi v, f x by
+    simp only [CostMechanism.utility, archerTardosMechanism, archerTardosPayment,
+      Function.update_self, Function.update_idem, Function.update_eq_self, f] at this ⊢
+    linarith
   rcases le_total v (c i) with hvc | hcv
   · rw [setIntegral_Ioi_split hvc (hint c hc i v hv)]
     linarith [(setIntegral_Ioc_bounds_of_antitoneOn (hq c hc i) hv hvc
@@ -500,9 +493,8 @@ theorem lexOptWork_eq_zero_of_large_cost [LinearOrder (J → M)] [Nontrivial M] 
       (Finset.inf'_le w (Finset.mem_filter.2 ⟨Finset.mem_univ j, (hw j).lt_of_ne' hne0⟩)).trans
         (Finset.single_le_sum (fun j' _ => hw j') hj)
     have hgt : c k * W < x * wMin := (div_lt_iff₀ hwMin_pos).1 hx
-    have hx_pos : 0 < x := pos_of_mul_pos_left
-      ((mul_nonneg (hc k).le (Finset.sum_nonneg fun j _ => hw j)).trans_lt hgt) hwMin_pos.le
-    linarith [mul_le_mul_of_nonneg_left hwMin_le hx_pos.le]
+    have hW0 : 0 ≤ c k * W := mul_nonneg (hc k).le (Finset.sum_nonneg fun j _ => hw j)
+    nlinarith
   · refine ⟨0, fun x _ => Finset.sum_eq_zero fun j _ => le_antisymm ?_ (hw j)⟩
     exact not_lt.1 fun hpos => hne ⟨j, Finset.mem_filter.2 ⟨Finset.mem_univ j, hpos⟩⟩
 

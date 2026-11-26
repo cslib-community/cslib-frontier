@@ -506,12 +506,10 @@ theorem GlobLoc.ofIdx_idx (l : GlobLoc k State) : GlobLoc.ofIdx l.idx = l := by
       GlobLoc.sit.injEq]
     exact ⟨Fin.ext (by simp [Nat.mul_add_div_fin]),
       Fin.ext (by simp [Nat.add_comm, Nat.mod_eq_of_lt i.isLt])⟩
-  · have hm : ¬ numSit k State * (k + 1) + attrIdx v * (numSit k State + 1) + j <
-        numSit k State * (k + 1) := by omega
-    have hsub : numSit k State * (k + 1) + attrIdx v * (numSit k State + 1) + j -
+  · have hsub : numSit k State * (k + 1) + attrIdx v * (numSit k State + 1) + j -
         numSit k State * (k + 1) = j + attrIdx v * (numSit k State + 1) := by omega
-    simp only [GlobLoc.idx, GlobLoc.ofIdx, hm, ↓reduceDIte, hsub,
-      Nat.add_mul_div_of_lt _ j.isLt, attrIdx_lt v, Nat.add_mul_mod_self_right,
+    simp (disch := omega) only [GlobLoc.idx, GlobLoc.ofIdx, dite_eq_right, hsub,
+      Nat.add_mul_div_of_lt _ j.isLt, attrIdx_lt v, ↓reduceDIte, Nat.add_mul_mod_self_right,
       Nat.mod_eq_of_lt j.isLt]
     exact congrArg (GlobLoc.attr · j) ((Fintype.equivFin (Attr k State)).symm_apply_apply v)
 
@@ -657,11 +655,10 @@ theorem posOf_offset {c : ℕ} {l : Loc k State} (hl : l.ColOK T c) :
     simp only [Loc.offset, posOf]
   · simp only [scan_offset_lt_globStart hl l, ↓reduceIte, Nat.mul_add_div_of_lt c l.idx_lt,
       Nat.mul_add_mod_of_lt l.idx_lt, ScanLoc.ofIdx_idx]
-  · have hi := l.idx_lt
-    subst hl
-    have h₁ : ¬ globStart k T + l.idx < globStart k T := by omega
-    have h₂ : globStart k T + l.idx < gfStart k State T := by simp only [gfStart]; omega
-    simp only [h₁, h₂, ↓reduceIte, Nat.add_sub_cancel_left, GlobLoc.ofIdx_idx]
+  · subst hl
+    have := l.idx_lt
+    simp (disch := omega) only [gfStart, ite_eq_left, ite_eq_right, Nat.add_sub_cancel_left,
+      GlobLoc.ofIdx_idx]
   · subst hl
     have := gfStart_add_gadgetIdx_lt (k := k) (T := T) f b j
     simp (disch := omega) only [ite_eq_left, ite_eq_right, Nat.add_sub_cancel_left,
@@ -708,9 +705,7 @@ theorem GlobLoc.idx_ofIdx {m : ℕ} (hm : m < globWidth k State) :
   · simp only [GlobLoc.idx, attrIdx, Equiv.apply_symm_apply]
     have := Nat.div_add_mod' (m - numSit k State * (k + 1)) (numSit k State + 1)
     omega
-  · have : m - numSit k State * (k + 1) <
-        Fintype.card (Attr k State) * (numSit k State + 1) := by omega
-    exact absurd ((Nat.div_lt_iff_lt_mul (by omega)).2 this) h₂
+  · exact absurd ((Nat.div_lt_iff_lt_mul (by omega)).2 (by omega)) h₂
 
 /-- Encoding `GFeat.ofIdx m` for `m < Fintype.card (Option State) + 4` recovers `m`. -/
 theorem GFeat.idx_ofIdx {m : ℕ} (hm : m < Fintype.card (Option State) + 4) :

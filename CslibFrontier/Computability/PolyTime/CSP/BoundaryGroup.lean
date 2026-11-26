@@ -71,42 +71,37 @@ private theorem fold_resource (I : State Rel) (ts : List ℕ)
     set J := ts.foldl (fun J _ => fuseHead J) I with hJ_def
     have hP : J.ports.length = I.ports.length - ts.length := by simp [hp]
     have htwo : 2 ≤ J.ports.length := by omega
-    cases he : J.ports with
-    | nil => simp only [he,List.length_nil] at htwo; omega
-    | cons x tail =>
-      cases tail with
-      | nil => simp only [he,List.length_cons,List.length_nil] at htwo; omega
-      | cons y ps =>
-        let u := Function.update id y x
-        have hx : x ∈ I.body.vars ++ I.ports := by
-          obtain ⟨z, hz, rfl⟩ := List.mem_map.mp (hp ▸ he ▸ List.mem_cons_self)
-          exact hn z (List.mem_append_right _ ((List.drop_sublist _ _).subset hz))
-        refine ⟨u ∘ f,?_,?_,?_,by simp,?_⟩
-        · rw [List.foldl_append, List.foldl_cons, List.foldl_nil, ← hJ_def]
-          simp only [fuseHead, he, hb, CSP.relabel, List.map_map]
-          exact List.map_congr_left fun c _ => by
-            cases c; simp [Constraint.relabel, Function.comp_def, List.map_map, u]
-        · have ht : (y::ps)=(I.ports.drop ts.length).tail.map f := by
-            simpa only [he,List.tail_cons,← List.map_tail] using congrArg List.tail hp
-          rw [List.foldl_append, List.foldl_cons, List.foldl_nil, ← hJ_def]
-          simp only [fuseHead, he]
-          rw [ht,List.map_map]
-          simp [← List.drop_one,List.drop_drop,u]
-        · intro z hz
-          by_cases h : f z=y
-          · simpa only [Function.comp_apply,u,Function.update_apply,h,↓reduceIte] using hx
-          · simpa only [Function.comp_apply,u,Function.update_of_ne h,id_eq] using hn z hz
-        · intro _
-          have hm : J.body.occurrences.length=I.body.occurrences.length := by
-            rw [← CSP.vars_length_eq_occurrences,hb,CSP.vars_relabel,List.length_map,
-              CSP.vars_length_eq_occurrences]
-          have hsize : 2*(J.body.occurrences.length+(ps.length+1))=
-              2*(I.body.occurrences.length+I.ports.length-(ts++[t]).length) := by
-            simp only [he, List.length_cons] at hP
-            simp only [List.length_append, List.length_singleton]; omega
-          rw [List.foldl_append, List.foldl_cons, List.foldl_nil, ← hJ_def]
-          simp only [fuseHead, he, equalDropCertificate, length_restrictPrefix]
-          exact ⟨hsize, fun v hv => (entries_restrictPrefix_lt _ _ v hv).trans_eq hsize⟩
+    rcases he : J.ports with _ | ⟨x, _ | ⟨y, ps⟩⟩
+    · simp [he] at htwo
+    · simp [he] at htwo
+    · let u := Function.update id y x
+      have hx : x ∈ I.body.vars ++ I.ports := by
+        obtain ⟨z, hz, rfl⟩ := List.mem_map.mp (hp ▸ he ▸ List.mem_cons_self)
+        exact hn z (List.mem_append_right _ ((List.drop_sublist _ _).subset hz))
+      dsimp only
+      rw [List.foldl_append, List.foldl_cons, List.foldl_nil, ← hJ_def]
+      refine ⟨u ∘ f, ?_, ?_, ?_, by simp, ?_⟩
+      · simp only [fuseHead, he, hb, CSP.relabel, List.map_map]
+        exact List.map_congr_left fun c _ => by
+          cases c; simp [Constraint.relabel, Function.comp_def, List.map_map, u]
+      · have ht : (y :: ps) = (I.ports.drop ts.length).tail.map f := by
+          simpa only [he, List.tail_cons, ← List.map_tail] using congrArg List.tail hp
+        simp only [fuseHead, he]
+        simp [ht, ← List.drop_one, List.drop_drop, u]
+      · intro z hz
+        by_cases h : f z = y
+        · simpa only [Function.comp_apply, u, Function.update_apply, h, ↓reduceIte] using hx
+        · simpa only [Function.comp_apply, u, Function.update_of_ne h, id_eq] using hn z hz
+      · intro _
+        have hm : J.body.occurrences.length = I.body.occurrences.length := by
+          rw [← CSP.vars_length_eq_occurrences, hb, CSP.vars_relabel, List.length_map,
+            CSP.vars_length_eq_occurrences]
+        have hsize : 2 * (J.body.occurrences.length + (ps.length + 1)) =
+            2 * (I.body.occurrences.length + I.ports.length - (ts ++ [t]).length) := by
+          simp only [he, List.length_cons] at hP
+          simp only [List.length_append, List.length_singleton]; omega
+        simp only [fuseHead, he, equalDropCertificate, length_restrictPrefix]
+        exact ⟨hsize, fun v hv => (entries_restrictPrefix_lt _ _ v hv).trans_eq hsize⟩
 
 
 private def scale (encRel : Rel ↪ List Bool) (p : State Rel × List ℕ) : ℕ :=
