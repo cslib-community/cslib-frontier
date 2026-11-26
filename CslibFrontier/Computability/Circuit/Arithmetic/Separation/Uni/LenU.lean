@@ -145,11 +145,9 @@ theorem imu_length {M K : Type} [Fintype K] [DecidableEq K] {n : ℕ}
     rw [length_encW_recs le_rfl, length_srt mem_bsl bsl_nodup]; ring
   have e2 : ∑ b, (emU x (.tp (.bk b) true)).length =
       n * (l.length * (n + 3)) + Fintype.card (Bl K) * n := by
-    have h5 : ∀ b, (emU x (.tp (.bk b) true)).length =
+    have h5 (b) : (emU x (.tp (.bk b) true)).length =
         (x.passes.map fun p => ((p.2 b).map (Subtype.val : NB M K → Sy M K)).length).sum + n := by
-      intro b
-      rw [emU_bk_true, length_blocks, List.map_map, List.length_map, h1, c1]
-      rfl
+      rw [emU_bk_true, length_blocks, List.map_map, List.length_map, h1, c1]; rfl
     rw [Finset.sum_congr rfl fun b _ => h5 b, Finset.sum_add_distrib, Finset.sum_const,
       Finset.card_univ, smul_eq_mul]
     congr 1
@@ -159,8 +157,7 @@ theorem imu_length {M K : Type} [Fintype K] [DecidableEq K] {n : ℕ}
     have h7 : (if k then QlG x.cmp else PlG x.cmp) = finL l := by cases k <;> simp [h3, h4]
     rw [emU_cm_true, h7, length_encW (n := n), fOut, List.length_map, hfin]
     exact List.forall_mem_map.2 (List.forall_mem_map.2 fun _ _ => by simp)
-  rw [e1, e2, Finset.sum_congr rfl fun k _ => e3 k]
-  simp
+  simp [e1, e2, e3]
 
 theorem length_bws {M K : Type} {ws : List (List Bool)} {n : ℕ}
     (h : ∀ w ∈ ws, w.length = n) :
@@ -196,19 +193,16 @@ theorem MX.total {A M K : Type} [Fintype K] [DecidableEq K] {P : Mach A M K}
       exact h ▸ hcw s hs _
   have e1 (i) : (emX P x (.tp (.rg i) true)).length =
       (x.steps.length + 1) * (x.init.length + 2) := by
-    rw [emX_rg_true, length_bws (n := x.init.length + 1)]
-    · simp
-    · exact List.forall_mem_append.2
-        ⟨List.forall_mem_map.2 fun s hs => hcw s hs _, List.forall_mem_singleton.2 (hend i)⟩
+    simp [emX_rg_true, length_bws (n := x.init.length + 1) (List.forall_mem_append.2
+      ⟨List.forall_mem_map.2 fun s hs => hcw s hs _, List.forall_mem_singleton.2 (hend i)⟩)]
   have e3 : (emX P x (.tp .cp true)).length = (x.steps.length + 1) * (x.init.length + 2) := by
     rw [emX_cp_true, length_bws (n := x.init.length + 1)]
     · simp [hx.length_eq]
     · exact List.forall_mem_append.2 ⟨List.forall_mem_map.2 hx.len_cn.1,
         List.forall_mem_singleton.2 (by simpa using hx.len_cn.2)⟩
   have e4 : (emX P x (.tp .fr true)).length = x.steps.length * (x.init.length + 2) := by
-    rw [emX_fr_true, length_bws (n := x.init.length + 1)
+    simp [emX_fr_true, length_bws (n := x.init.length + 1)
       (List.forall_mem_map.2 fun s hs => hcw s hs _)]
-    simp
   have e5 : (emX P x (.tp .lk true)).length = x.steps.length * (x.init.length + 5) := by
     rw [emX_lk_true, hx.lk, length_encW (n := x.init.length + 3)]
     · simp [lks]
@@ -224,8 +218,6 @@ theorem MX.total {A M K : Type} [Fintype K] [DecidableEq K] {P : Mach A M K}
     Finset.sum_congr rfl fun b _ => congrArg List.length (emX_bk ..),
     Finset.sum_congr rfl fun k _ => congrArg List.length (emX_cm ..)]
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
-  unfold tU
-  rw [← e6]
-  ring
+  rw [tU, ← e6]; ring
 
 end Cslib.Circuits.Arithmetic.Separation.Uni

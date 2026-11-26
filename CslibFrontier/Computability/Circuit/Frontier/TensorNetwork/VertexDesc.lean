@@ -250,12 +250,9 @@ theorem entryCertificate_le
   let left := NativeCertificate.ofPolyTime (getLeft_polyTime (encT := encT))
   let rootInput := NativeCertificate.ofPolyTime (rootInput_polyTime (encT := encT))
   let packetInput := NativeCertificate.ofPolyTime (packetInput_polyTime (encT := encT))
-  have hL : left.IsPolynomial :=
-    NativeCertificate.ofPolyTime_isPolynomial (getLeft_polyTime (encT := encT))
-  have hP : packetInput.IsPolynomial :=
-    NativeCertificate.ofPolyTime_isPolynomial (packetInput_polyTime (encT := encT))
-  have hI : rootInput.IsPolynomial :=
-    NativeCertificate.ofPolyTime_isPolynomial (rootInput_polyTime (encT := encT))
+  have hL := NativeCertificate.ofPolyTime_isPolynomial (getLeft_polyTime (encT := encT))
+  have hP := NativeCertificate.ofPolyTime_isPolynomial (packetInput_polyTime (encT := encT))
+  have hI := NativeCertificate.ofPolyTime_isPolynomial (rootInput_polyTime (encT := encT))
   obtain ⟨cr, dr, hrt⟩ := hL.1.exists_le
   obtain ⟨cr', dr', hrs⟩ := hL.2.exists_le
   obtain ⟨cp, dp, hpt⟩ := hP.1.exists_le
@@ -295,12 +292,10 @@ theorem entryCertificate_le
     · exact evaluator_bound (coefficient := G + D) (cRun := 0) (extra := E)
         hP1 hZD (hn ▸ hnD) hrt' hit' (by simpa only [Nat.zero_mul, Nat.zero_add] using hEt)
           (by clear * - hG; lia)
-    · have hs := evaluator_bound (coefficient := G + D) (cRun := 0) (extra := ES)
-        (factor := 1) (run := ce.space (t, bs))
-          le_rfl hZD (hn ▸ hnD) hrs' his' (by simpa only [Nat.zero_mul, Nat.zero_add] using hEs)
-          (by clear * - hG; lia)
-      rw [Nat.mul_one] at hs
-      exact hs
+    · exact (evaluator_bound (coefficient := G + D) (cRun := 0) (extra := ES)
+        (factor := 1) (run := ce.space (t, bs)) le_rfl hZD (hn ▸ hnD) hrs' his'
+        (by simpa only [Nat.zero_mul, Nat.zero_add] using hEs)
+        (by omega)).trans_eq (by rw [Nat.mul_one])
   · -- A packet: the input of the packet evaluator, then the evaluator.
     have hpt' : packetInput.time (.inr d, bs) ≤ cp * Z ^ D :=
       (hpt _).trans (hn ▸ mul_pow_le_mul_pow hnZ (by omega))
@@ -322,13 +317,10 @@ theorem entryCertificate_le
     · exact evaluator_bound (coefficient := G + D) (cRun := K₀) (extra := E)
         hP1 hZD (hn ▸ hnD) hrt' hpt' (hvt'.trans (Nat.le_add_right _ _))
           (by clear * - hG; lia)
-    · have hs := evaluator_bound (coefficient := G + D) (cRun := K₀) (extra := ES)
-        (factor := 1) (run := vertexCertificate.space (d, bs))
-          le_rfl hZD (hn ▸ hnD) hrs' hps'
-          (by simpa only [Nat.mul_one] using hvs'.trans (Nat.le_add_right _ ES))
-          (by clear * - hG; lia)
-      rw [Nat.mul_one] at hs
-      exact hs
+    · exact (evaluator_bound (coefficient := G + D) (cRun := K₀) (extra := ES)
+        (factor := 1) (run := vertexCertificate.space (d, bs)) le_rfl hZD (hn ▸ hnD) hrs' hps'
+        (by simpa only [Nat.mul_one] using hvs'.trans (Nat.le_add_right _ ES))
+        (by omega)).trans_eq (by rw [Nat.mul_one])
 
 end Evaluator
 

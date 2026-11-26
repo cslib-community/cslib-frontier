@@ -93,9 +93,7 @@ variable {F R : Type*} [CommRing R] (J : Ideal R)
 
 variable {J}
 
-theorem hasWeight_zero (Q : R[X]) : HasWeight J 0 Q := fun j => by
-  rw [show (0 - j + 1) / 2 = 0 by omega, pow_zero, Ideal.one_eq_top]
-  exact Submodule.mem_top
+theorem hasWeight_zero (Q : R[X]) : HasWeight J 0 Q := fun _ => by simp
 
 theorem HasWeight.mul {m n : ℕ} {Q Q' : R[X]} (h : HasWeight J m Q) (h' : HasWeight J n Q') :
     HasWeight J (m + n) (Q * Q') := fun j => by
@@ -116,20 +114,15 @@ theorem HasWeight.pow {n : ℕ} {Q : R[X]} (h : HasWeight J n Q) (k : ℕ) :
 
 /-- A polynomial whose coefficients of `1` and `y` lie in `J` has weight at least `2`. -/
 theorem hasWeight_two_of_coeff_mem {G : R[X]} (h0 : G.coeff 0 ∈ J) (h1 : G.coeff 1 ∈ J) :
-    HasWeight J 2 G := fun j => by
-  rcases j with _ | _ | j
-  · change G.coeff 0 ∈ J ^ 1; rwa [pow_one]
-  · change G.coeff 1 ∈ J ^ 1; rwa [pow_one]
-  · rw [show (2 - (j + 2) + 1) / 2 = 0 by omega, pow_zero, Ideal.one_eq_top]
-    exact Submodule.mem_top
+    HasWeight J 2 G := fun
+  | 0 => by simpa [HasWeight] using h0
+  | 1 => by simpa [HasWeight] using h1
+  | j + 2 => by simp [Nat.sub_eq_zero_of_le (Nat.le_add_left 2 j)]
 
 /-- A polynomial whose constant coefficient lies in `J` has weight at least `1`. -/
-theorem hasWeight_one_of_coeff_mem {D : R[X]} (h0 : D.coeff 0 ∈ J) : HasWeight J 1 D :=
-  fun j => by
-  rcases j with _ | j
-  · change D.coeff 0 ∈ J ^ 1; rwa [pow_one]
-  · rw [show (1 - (j + 1) + 1) / 2 = 0 by omega, pow_zero, Ideal.one_eq_top]
-    exact Submodule.mem_top
+theorem hasWeight_one_of_coeff_mem {D : R[X]} (h0 : D.coeff 0 ∈ J) : HasWeight J 1 D := fun
+  | 0 => by simpa [HasWeight] using h0
+  | j + 1 => by simp [Nat.sub_eq_zero_of_le (Nat.le_add_left 1 j)]
 
 /-! ### Telescoping -/
 
@@ -178,9 +171,7 @@ theorem sum_coeff_one_sub_derivative [Field F] [CharZero F] [Algebra F R] (G : R
       (G ^ n).coeff n - (G ^ (n + 1)).coeff (n + 1) := fun n => by
     rw [sub_mul, one_mul, coeff_sub, coeff_derivative_mul_pow_eq (F := F) G n n,
       mul_inv_cancel₀ (by exact_mod_cast Nat.succ_ne_zero n), one_smul]
-  simp only [hterm]
-  rw [sum_range_sub' (fun n => (G ^ n).coeff n), pow_zero]
-  simp only [coeff_one, ↓reduceIte]
+  simp only [hterm, sum_range_sub' (fun n => (G ^ n).coeff n), pow_zero, coeff_one, ↓reduceIte]
 
 /-! ### The fixed point -/
 

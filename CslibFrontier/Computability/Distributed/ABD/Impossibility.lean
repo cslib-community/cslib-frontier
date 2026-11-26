@@ -129,9 +129,9 @@ private lemma mTr_drain_preserves {F : Finset P} {s₀ s₁ : State P S M V}
       obtain ⟨hlen1, hresp1, hproc1, hmsg1⟩ := ih hrest hresp_s'
       refine ⟨hlen1.trans hlen_s', hresp1, fun p hp => ?_, fun e heF => ?_⟩
       · simp [hproc1 p hp, doDeliver, Function.update_of_ne (ne_of_mem_of_not_mem hp hmdest)]
-      · refine le_trans ?_ (hmsg1 e heF)
-        simp only [doDeliver, Multiset.count_add,
-          Multiset.count_erase_of_ne (fun heq : e = m => hmdest (heq ▸ heF)), Nat.le_add_right]
+      · exact (hmsg1 e heF).trans' (by
+          simp only [doDeliver, Multiset.count_add,
+            Multiset.count_erase_of_ne (fun heq : e = m => hmdest (heq ▸ heF)), Nat.le_add_right])
 
 /-- Simulation relation coupling Run 2 (`s`, after invoking `read` at `b₀` from `π.start`) with
 Run 3 (`u`, after invoking `read` at `b₀` from `s₁`). -/
@@ -200,16 +200,14 @@ private lemma simAfterRead_mTr {A B : Finset P} (hcover : ∀ p : P, p ∈ A ∨
           · simp [doDeliver, hd_st]
           · simp [doDeliver, hpe, hst_eq p hp]
         · simp only [doDeliver, hd_st, Multiset.count_add]
-          apply Nat.add_le_add_right
           rcases eq_or_ne m e with rfl | hme
-          · simp only [Multiset.count_erase_self]
-            exact Nat.sub_le_sub_right (hmsg_le m hmB) 1
-          · simpa only [Multiset.count_erase_of_ne hme] using hmsg_le m hmB
+          · simpa only [Multiset.count_erase_self] using
+              Nat.add_le_add_right (Nat.sub_le_sub_right (hmsg_le m hmB) 1) _
+          · simpa only [Multiset.count_erase_of_ne hme] using
+              Nat.add_le_add_right (hmsg_le m hmB) _
         · obtain ⟨hsp, hup⟩ := hother_pend p hp hpb
-          rcases eq_or_ne p e.dest with rfl | hpe
-          · simp [doDeliver, deliverPending, hsp, hup]
-          · simp only [doDeliver, Function.update_of_ne hpe]
-            exact ⟨hsp, hup⟩
+          rcases eq_or_ne p e.dest with rfl | hpe <;>
+            simp [doDeliver, deliverPending, Function.update_of_ne, *]
         · by_cases hbe : e.dest = b₀
           · subst hbe
             rcases hb₀_cases with ⟨hsp, hup, hsh, huh⟩ | ⟨r, stp_s, stp_u, hsp, hup, hsh, huh⟩
@@ -217,12 +215,10 @@ private lemma simAfterRead_mTr {A B : Finset P} (hcover : ∀ p : P, p ∈ A ∨
                   (π.onRecv e.dest (s.proc e.dest).state e.src e.body).resp with hnone | ⟨r, hrsp⟩
               · exact Or.inl (by simp [doDeliver, hd_st, hsp, hup, hsh, huh, deliverPending,
                   deliverHistory, hnone])
-              · right
-                refine ⟨r, s.step, u.step, ?_, ?_, ?_, ?_⟩ <;>
+              · refine Or.inr ⟨r, s.step, u.step, ?_, ?_, ?_, ?_⟩ <;>
                   simp [doDeliver, hd_st, hsp, hup, hsh, huh, hrsp, deliverPending,
                     deliverHistory, matchCompletion, List.set_append_right]
-            · right
-              refine ⟨r, stp_s, stp_u, ?_, ?_, ?_, ?_⟩ <;>
+            · refine Or.inr ⟨r, stp_s, stp_u, ?_, ?_, ?_, ?_⟩ <;>
                 simp [doDeliver, deliverPending, deliverHistory, hsp, hup, hsh, huh]
           · obtain ⟨hsp_d, hup_d⟩ := hother_pend e.dest hedB hbe
             simpa only [doDeliver, Function.update_of_ne (Ne.symm hbe), deliverHistory,
@@ -380,10 +376,9 @@ private lemma exists_two_partition {P : Type*} [Fintype P] {t : ℕ}
     rintro p hp q hq (hdiv : (e p : ℕ) / 2 = (e q : ℕ) / 2)
     simp only [grp, Finset.coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq] at hp hq
     exact e.injective (Fin.ext (by omega))
-  refine ⟨grp 0, grp 1, hdisj, ?_, hcard 0, hcard 1, ?_, ?_⟩
-  · intro p
-    simp only [grp, Finset.mem_filter, Finset.mem_univ, true_and]
-    change (e p : ℕ) % 2 = 0 ∨ (e p : ℕ) % 2 = 1; omega
+  refine ⟨grp 0, grp 1, hdisj, fun p => ?_, hcard 0, hcard 1, ?_, ?_⟩
+  · simp only [grp, Finset.mem_filter, Finset.mem_univ, true_and, Fin.val_zero, Fin.val_one]
+    omega
   · exact ⟨e.symm ⟨0, by omega⟩, by simp [grp]⟩
   · exact ⟨e.symm ⟨1, by omega⟩, by simp [grp]⟩
 

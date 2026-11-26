@@ -184,17 +184,14 @@ theorem exists_run_represents (x : List Bool) (n : ℕ) :
     obtain ⟨t, ht⟩ := ih
     obtain ⟨k, hk⟩ := exists_iterate_stepCfg ht
     refine ⟨k + t, ?_⟩
-    rw [run_add, runFrom_one, StepMachine.run, Function.iterate_add_apply]
-    exact hk
+    rwa [run_add, runFrom_one, StepMachine.run, Function.iterate_add_apply]
 
 /-- **The step machine computes the output of the read machine**, if it halts. -/
 theorem computes_toStepMachine {x : List Bool} {n : ℕ} (h : m.halt (m.run x n).state = true) :
     (m.toStepMachine).Computes x (m.run x n).out := by
   obtain ⟨t, hq, -, ho⟩ := exists_run_represents (m := m) x n
-  have hhalt : (m.toStepMachine).halt ((m.toStepMachine).run x t).state := by
-    change m.halt ((m.toStepMachine).run x t).state.1 = true
-    rw [hq]
-    exact h
+  have hhalt : (m.toStepMachine).halt ((m.toStepMachine).run x t).state :=
+    (congrArg m.halt hq).trans h
   obtain ⟨t', -, ht', hrun⟩ := StepMachine.exists_haltsAt_le _ hhalt
   exact ⟨t', ht', by rw [hrun, ho]⟩
 
@@ -209,9 +206,9 @@ theorem Follows.stepCfg {d : StepMachine.Cfg (σ × ℕ) Bool x} (h : Follows (m
   obtain ⟨hp, j, hq, ho⟩ := h
   have hs : d.state = ((m.run x j).state, d.pos.val) := Prod.ext hq hp
   by_cases hhalt : m.halt (m.run x j).state
-  · have : (m.toStepMachine).stepCfg d = d := by
+  · have hd : (m.toStepMachine).stepCfg d = d := by
       simp [StepMachine.stepCfg, toStepMachine, hs, hhalt]
-    rw [this]; exact ⟨hp, j, hq, ho⟩
+    exact hd.symm ▸ ⟨hp, j, hq, ho⟩
   -- a step of the read machine, on its bit
   have hread {b : Bool} (hb : (m.toStepMachine).step d.state (MultiTapeTM.inputSymbolAt x d.pos) =
       m.stepAt d.state.1 d.state.2 b) (hbit : b = m.readBit x (m.run x j).state) :
@@ -254,9 +251,7 @@ theorem exists_state_run (x : List Bool) (t : ℕ) :
     | zero => exact ⟨rfl, 0, rfl, rfl⟩
     | succ t ih => rw [StepMachine.run_succ]; exact ih.stepCfg
   obtain ⟨hp, j, hq, -⟩ := h
-  refine ⟨j, Prod.ext hq rfl, ?_⟩
-  rw [hp]
-  exact Nat.lt_succ_iff.mp ((m.toStepMachine).run x t).pos.isLt
+  exact ⟨j, Prod.ext hq rfl, hp ▸ Nat.lt_succ_iff.mp ((m.toStepMachine).run x t).pos.isLt⟩
 
 end ReadMachine
 

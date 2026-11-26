@@ -172,8 +172,8 @@ theorem topChoice_injOn_cycleAgents (R : Finset (Fin n)) :
 theorem cycleAgents_nonempty {R : Finset (Fin n)} (hR : R.Nonempty) :
     (I.cycleAgents R).Nonempty := by
   obtain ⟨i, -⟩ := id hR
-  obtain ⟨t, ht⟩ := Cslib.FunctionalGraph.exists_iterate_mem_periodicPts (I.topChoice R) i
-  exact ⟨_, (mem_cycleAgents hR).2 ht⟩
+  exact (Cslib.FunctionalGraph.exists_iterate_mem_periodicPts (I.topChoice R) i).elim
+    fun _ ht => ⟨_, (mem_cycleAgents hR).2 ht⟩
 
 theorem card_sdiff_cycleAgents_lt {R : Finset (Fin n)} (hR : R.Nonempty) :
     (R \ I.cycleAgents R).card < R.card :=
@@ -220,10 +220,8 @@ theorem ttcRounds_mem {k : ℕ} {R : Finset (Fin n)} (hk : R.card ≤ k) {i : Fi
   | succ k ih =>
     have hR : R.Nonempty := ⟨i, hi⟩
     by_cases hC : i ∈ I.cycleAgents R
-    · rw [ttcRounds_succ_of_mem hC]
-      exact topChoice_mem hR i
-    · rw [ttcRounds_succ_of_notMem hC]
-      exact Finset.sdiff_subset
+    · exact ttcRounds_succ_of_mem hC ▸ topChoice_mem hR i
+    · exact ttcRounds_succ_of_notMem hC ▸ Finset.sdiff_subset
         (ih (card_sdiff_cycleAgents_le hk hR) (Finset.mem_sdiff.2 ⟨hi, hC⟩))
 
 theorem ttcRounds_injOn {k : ℕ} {R : Finset (Fin n)} (hk : R.card ≤ k) :
@@ -401,12 +399,9 @@ theorem rank_ttcRounds_le_of_iterate {k : ℕ} {R : Finset (Fin n)} (hk : R.card
     rw [ttcRounds_succ_of_notMem hiC]
     -- the path from `h` to `i` avoids the cycles, since the cycles are closed under pointers
     have hout (j : ℕ) (hj : j ≤ m) : (I.topChoice R)^[j] h ∉ I.cycleAgents R := fun hjC => by
-      apply hiC
-      rw [← hm, show m = (m - j) + j by omega, iterate_add_apply]
-      clear hm hj
-      induction m - j with
-      | zero => exact hjC
-      | succ _ ihl => exact iterate_succ_apply' _ _ _ ▸ topChoice_mem_cycleAgents ihl
+      rw [← hm, ← Nat.sub_add_cancel hj, iterate_add_apply] at hiC
+      exact hiC (Nat.rec hjC (fun _ ihl =>
+        iterate_succ_apply' _ _ _ ▸ topChoice_mem_cycleAgents ihl) (m - j))
     -- so it is a path of pointers in the next round
     have hpath (j : ℕ) (hj : j ≤ m) :
         (I.topChoice (R \ I.cycleAgents R))^[j] h = (I.topChoice R)^[j] h := by
@@ -427,9 +422,8 @@ theorem ttcPriceRounds_le_card {k : ℕ} {R : Finset (Fin n)} (h : Fin n) :
   | zero => exact Nat.zero_le _
   | succ k ih =>
     by_cases hh : h ∈ I.cycleAgents R
-    · rw [ttcPriceRounds_succ_of_mem hh]
-    · rw [ttcPriceRounds_succ_of_notMem hh]
-      exact ih.trans (Finset.card_le_card Finset.sdiff_subset)
+    · simp [ttcPriceRounds_succ_of_mem hh]
+    · exact ttcPriceRounds_succ_of_notMem hh ▸ ih.trans (Finset.card_le_card Finset.sdiff_subset)
 
 /-- Every agent receives its house in the round in which its own house leaves. -/
 theorem ttcPriceRounds_ttcRounds {k : ℕ} {R : Finset (Fin n)} (hk : R.card ≤ k) {i : Fin n}
@@ -458,15 +452,14 @@ theorem rank_ttcRounds_le_of_ttcPriceRounds_le {k : ℕ} {R : Finset (Fin n)} (h
     have hR : R.Nonempty := ⟨i, hi⟩
     have hk' := card_sdiff_cycleAgents_le (I := I) hk hR
     by_cases hiC : i ∈ I.cycleAgents R
-    · rw [ttcRounds_succ_of_mem hiC]
-      exact rank_topChoice_le hh i
+    · exact ttcRounds_succ_of_mem hiC ▸ rank_topChoice_le hh i
     rw [ttcPriceRounds_succ_of_notMem hiC] at hp
     have hhC : h ∉ I.cycleAgents R := fun hhC =>
       not_lt_of_ge (ttcPriceRounds_succ_of_mem hhC ▸ hp) <|
         (ttcPriceRounds_le_card i).trans_lt (card_sdiff_cycleAgents_lt hR)
     rw [ttcPriceRounds_succ_of_notMem hhC] at hp
-    rw [ttcRounds_succ_of_notMem hiC]
-    exact ih hk' (Finset.mem_sdiff.2 ⟨hi, hiC⟩) (Finset.mem_sdiff.2 ⟨hh, hhC⟩) hp
+    exact ttcRounds_succ_of_notMem hiC ▸
+      ih hk' (Finset.mem_sdiff.2 ⟨hi, hiC⟩) (Finset.mem_sdiff.2 ⟨hh, hhC⟩) hp
 
 variable (I)
 
