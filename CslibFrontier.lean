@@ -297,6 +297,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Tseitin
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Certificate
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Party.WireExponent
 public import CslibFrontier.DataStructure.BPlusTree.Basic
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Spec
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.QuotientTraceEvaluation
 public import CslibFrontier.Probability.PlantedClique.Recovery
 public import CslibFrontier.Computability.DecisionTree.Leaves

@@ -2014,6 +2014,15 @@ theorem stepTop_delc (F : List PBConstr) (obj : Option Objective) (s : State) (i
       else none := by
   simp only [stepTop]
 
+/-- The move `core id ids` of constraints to the core set (§5.1). -/
+theorem stepTop_core (F : List PBConstr) (obj : Option Objective) (s : State) (ids : List ℕ) :
+    stepTop F obj s (.core ids) =
+      if !ids.isEmpty && ids.all fun i => (lookup s.db i).isSome then
+        some { s with
+          core := s.db.filter (fun e => ids.contains e.1 && !s.core.contains e) ++ s.core }
+      else none := by
+  simp only [stepTop]
+
 /-! ### Soundness of `red` -/
 
 theorem linVal_subLinear (σ : ℕ → Bool) (L L' : List (ℕ × ℤ)) :

@@ -43,7 +43,8 @@ of the VeriPB/CakePB documentation, 22 June 2026 edition.
   semantics with kill counters of §5.7.3, each deletion becoming `deld` or the unchecked `delc`
   by the type of the constraint. `core range` (§5.1) becomes `core id`.
 * The debugging rules `e`, `eobj` and `is_deleted` (§5.11) are checked here and dropped;
-  `eord_def`, `eord_loaded` and `epreserved` are kernel rules and are kept.
+  `eord_def`, `eord_loaded` and `epreserved` are kernel rules and are kept. `ea C : j`, VeriPB 2's
+  `e` that adds the constraint found, becomes the `pol` step `j`, a copy of it.
 * Relative references and labels (§5) are resolved, the labels of the instance included, and
   those inside `def_order` local to its specification, transitivity proof and reflexivity proof,
   as in VeriPB 3.0.2; `pbc`, `proofgoal` and `UNSAT` without a closing constraint get the most
@@ -69,6 +70,13 @@ the core set is compared with a formula (an output section) or receives every co
 (`strengthening_to_core on`, `load_order`). Constraints are computed in canonical form in linear
 time (by private functions, `fadd`, …), with the results of the kernel's rules up to the
 order of terms.
+
+**Totality.** Every function of the elaborator, its parser and its propagation engine is total,
+by structural or well-founded recursion. The loops over the proof text and over the trail of the
+engine take fuel, chosen above the number of bytes of the text and the number of literal codes:
+each round consumes a token or a trail entry, so the fuel does not run out. This is the first
+step towards proving the elaborator faithful to the declarative semantics of the augmented
+format (`Cslib.Logic.PL.VeriPB.Elab.AugValid`, for the clausal and `pol` fragment).
 
 **Not elaborated**: `rup` without hints inside `def_order` (the kernel checker accepts it, as
 `Cslib.Logic.PL.VeriPB.Step.rupSearch`; CakePB does not), solutions with shrunk variables
@@ -273,9 +281,8 @@ private def popTo (S : St σ) (start : ℕ) : EM σ Unit := do
 /-- The most recent live contradiction numbered from `start`, if any. -/
 private def lastContra (S : St σ) (start : ℕ) : EM σ (Option ℕ) := do
   let db ← S.db.get
-  let mut i := db.size
-  while start < i do
-    i := i - 1
+  for k in [0:db.size - start] do
+    let i := db.size - 1 - k
     let e := db[i]!
     if e.alive && decide e.c.IsContradiction then return some i
   return none
@@ -357,7 +364,7 @@ private def litKey (l : Literal ℕ) : Key := (#[⟨l.1, l.2, 1⟩], 0)
 
 /-- Merge the sorted terms of `x` from `i` and `y` from `j` into `out`, adding to `dec` what the
 degree loses where opposite literals cancel: `a x + b ¬x = (a - b) x + b` for `a ≥ b`. -/
-private partial def mergeTerms (x y : Array KTerm) (i j : ℕ) (out : Array KTerm) (dec : ℕ) :
+private def mergeTerms (x y : Array KTerm) (i j : ℕ) (out : Array KTerm) (dec : ℕ) :
     Array KTerm × ℕ :=
   if h : i < x.size then
     if h' : j < y.size then
@@ -375,6 +382,7 @@ private partial def mergeTerms (x y : Array KTerm) (i j : ℕ) (out : Array KTer
     else mergeTerms x y (i + 1) j (out.push x[i]) dec
   else if h' : j < y.size then mergeTerms x y i (j + 1) (out.push y[j]) dec
   else (out, dec)
+termination_by x.size - i + (y.size - j)
 
 /-- Addition, as `Cslib.Logic.PL.PBConstr.add`. -/
 private def fadd (c d : Key) : Key :=
@@ -476,9 +484,8 @@ private def lowerVar (S : St σ) (ts : List (ℕ × Literal ℕ)) : EM σ ℕ :=
   let c : PBConstr := ⟨ts, 0⟩
   if freshVar c < n then return freshVar c
   let vs : Std.HashSet ℕ := ts.foldl (fun m t => m.insert (termVar t)) {}
-  let mut v := 0
-  while v < n && vs.contains v do v := v + 1
-  if v < n then return v
+  for v in [0:n] do
+    if !vs.contains v then return v
   S.L.fresh
 
 /-- The trivial constraint `0 ≥ 0`, as `x + ¬x`. -/
@@ -617,14 +624,53 @@ private def implPremise (S : St σ) (t : Key) (hint : Option Ref) : EM σ ℕ :=
     if let some (l, _) := (← S.specs.get)[t]? then
       if let some i := l.back? then return i
     let db ← S.db.get
-    let mut i := db.size
-    while 1 < i do
-      i := i - 1
+    for k in [0:db.size - 1] do
+      let i := db.size - 1 - k
       let e := db[i]!
       if e.alive && implies e.key t then return i
     S.fail "i/ia: not implied by any constraint"
 
+/-- The constraint of `e t [: r]` and `ea t [: r]`, `t` a canonical form: the one `r` names if it
+has the form `t`, else the latest live one with it. -/
+private def equalPremise (S : St σ) (t : Key) (hint : Option Ref) : EM σ ℕ := do
+  match hint with
+  | some r =>
+    let i ← S.resolve r
+    let e ← S.entry i
+    if e.key != t then S.fail "e: not the same constraint"
+    return i
+  | none =>
+    match (← S.specs.get)[t]? with
+    | some (l, _) =>
+      match l.back? with
+      | some i => return i
+      | none => S.fail "e: no such constraint"
+    | none => S.fail "e: no such constraint"
+
 /-! ### RUP -/
+
+/-- One round of propagation of the hinted constraints `cs` from the trail `ρ`, the hints that
+propagated so far being `out`: the hints at a conflict, or else the trail, the hints, and
+whether the trail grew (`ch`). -/
+private def setHintsRound : List (Hint × PBConstr) → List (Literal ℕ) → Array Hint → Bool →
+    Array Hint ⊕ (List (Literal ℕ) × Array Hint × Bool)
+  | [], ρ, out, ch => .inr (ρ, out, ch)
+  | (h, d) :: cs, ρ, out, ch =>
+    match propagate ρ d with
+    | none => .inl (out.push h)
+    | some ρ' =>
+      if ρ'.length != ρ.length then setHintsRound cs ρ' (out.push h) true
+      else setHintsRound cs ρ out ch
+
+/-- Rounds of propagation of the hinted constraints `cs`, at most `fuel`, until a conflict (its
+hints) or a round that adds nothing (`none`). -/
+private def setHintsLoop (cs : List (Hint × PBConstr)) :
+    ℕ → List (Literal ℕ) → Array Hint → Option (Array Hint)
+  | 0, _, _ => none
+  | fuel + 1, ρ, out =>
+    match setHintsRound cs ρ out false with
+    | .inl out => some out
+    | .inr (ρ, out, ch) => if ch then setHintsLoop cs fuel ρ out else none
 
 /-- The hints of `rup c` with the augmented set annotation `hs` (§5.2.1): propagate the hinted
 constraints and `¬c` until a conflict or a fixpoint, and list those that propagated, in order. -/
@@ -637,20 +683,11 @@ private def setHints (S : St σ) (c : PBConstr) (hs : List AHint) : EM σ (List 
     | .ref r =>
       let e ← S.entryOf r
       cs := cs.push (.id e.kid, e.c)
-  let mut ρ : List (Literal ℕ) := []
-  let mut out : Array Hint := #[]
-  let mut changed := true
-  while changed do
-    changed := false
-    for (h, d) in cs do
-      match propagate ρ d with
-      | none => return (out.push h).toList
-      | some ρ' =>
-        if ρ'.length != ρ.length then
-          out := out.push h
-          ρ := ρ'
-          changed := true
-  S.fail "rup: the hints do not propagate to a conflict"
+  -- Each round but the last adds a literal of a term to the trail.
+  let fuel := (cs.toList.map (·.2.terms.length)).sum + 1
+  match setHintsLoop cs.toList fuel [] #[] with
+  | some out => return out.toList
+  | none => S.fail "rup: the hints do not propagate to a conflict"
 
 /-- The hints of `rup c`. -/
 private def rupHintsOf (S : St σ) (c : PBConstr) (hs : Option (List AHint)) : EM σ (List Hint) := do
@@ -666,11 +703,38 @@ private def rupHintsOf (S : St σ) (c : PBConstr) (hs : Option (List AHint)) : E
 /-- The value a label gets from a rule that derives nothing: its premise or match. -/
 private abbrev Returned := Option ℕ
 
+/-- The closing contradiction of a subproof whose constraints are numbered from `start`: the
+given one, or the most recent contradiction, or else a hinted `rup` of `0 ≥ 1` found by
+propagation, or, for a subproof refuting `¬G` (`goal`, with the kernel number of `¬G`), a `pol`
+step adding `¬G` to `G` derived from a constraint of the database that implies it. The extra step
+is returned, to append. -/
+private def closing (S : St σ) (start : ℕ) (q : Option Ref) (goal : Option (ℕ × PBConstr)) :
+    EM σ (Array Step × ℕ) := do
+  match q with
+  | some r => return (#[], (← S.entryOf r).kid)
+  | none =>
+    match ← S.lastContra start with
+    | some i => return (#[], (← S.entry i).kid)
+    | none =>
+      match ← S.rupContra with
+      | some h =>
+        let k ← S.takeKid
+        return (#[.rup ⟨[], 1⟩ h], k)
+      | none =>
+        let some (n, G) := goal | S.fail "subproof: no contradiction"
+        let t := keyOf G
+        let i ← try S.implPremise t none catch _ => S.fail "subproof: no contradiction"
+        let e ← S.entry i
+        let v := impOps ⟨e.key, #[.id e.kid]⟩ t (← S.lowerVar (e.c.terms ++ G.terms))
+        if !(fadd v.k (keyOf G.negate)).isContradiction then S.fail "subproof: no contradiction"
+        let k ← S.takeKid
+        return (#[.pol (v.ops.push (.id n) |>.push .add).toList], k)
+
 mutual
 
 /-- **Elaborate an implicational step**, in a subproof or at top level: the kernel steps, and
 the augmented number of the constraint the step names, for a label. -/
-private partial def step (S : St σ) (top : Bool) (s : AStep) : EM σ (Array Step × Returned) := do
+private def step (S : St σ) (top : Bool) (s : AStep) : EM σ (Array Step × Returned) := do
   match s with
   | .labeled l s =>
     let (ks, r) ← S.step top s
@@ -697,21 +761,12 @@ private partial def step (S : St σ) (top : Bool) (s : AStep) : EM σ (Array Ste
     let k ← S.takeKid
     let id ← S.add v.c k false top v.k
     return (#[.pol v.ops.toList], some id)
-  | .equal c hint =>
-    let key := keyOfParsed c
-    match hint with
-    | some r =>
-      let i ← S.resolve r
-      let e ← S.entry i
-      if e.key != key then S.fail "e: not the same constraint"
-      return (#[], some i)
-    | none =>
-      match (← S.specs.get)[key]? with
-      | some (l, _) =>
-        match l.back? with
-        | some i => return (#[], some i)
-        | none => S.fail "e: no such constraint"
-      | none => S.fail "e: no such constraint"
+  | .equal c hint => return (#[], some (← S.equalPremise (keyOfParsed c) hint))
+  | .equalAdd c hint =>
+    let e ← S.entry (← S.equalPremise (keyOfParsed c) hint)
+    let k ← S.takeKid
+    let id ← S.add e.c k false top e.key
+    return (#[.pol [.id e.kid]], some id)
   | .isDeleted c =>
     match (← S.specs.get)[keyOfParsed c]? with
     | some (l, _) => if l.isEmpty then return (#[], none) else S.fail "is_deleted: not deleted"
@@ -731,38 +786,11 @@ private partial def step (S : St σ) (top : Bool) (s : AStep) : EM σ (Array Ste
   | .noop => return (#[], none)
   | _ => S.fail "this rule is allowed only at top level"
 
-/-- Elaborate implicational steps. -/
-private partial def steps (S : St σ) (top : Bool) (ss : List AStep) : EM σ (Array Step) := do
-  let mut out := #[]
-  for s in ss do out := out ++ (← S.step top s).1
-  return out
-
-/-- The closing contradiction of a subproof whose constraints are numbered from `start`: the
-given one, or the most recent contradiction, or else a hinted `rup` of `0 ≥ 1` found by
-propagation, or, for a subproof refuting `¬G` (`goal`, with the kernel number of `¬G`), a `pol`
-step adding `¬G` to `G` derived from a constraint of the database that implies it. The extra step
-is returned, to append. -/
-private partial def closing (S : St σ) (start : ℕ) (q : Option Ref) (goal : Option (ℕ × PBConstr)) :
-    EM σ (Array Step × ℕ) := do
-  match q with
-  | some r => return (#[], (← S.entryOf r).kid)
-  | none =>
-    match ← S.lastContra start with
-    | some i => return (#[], (← S.entry i).kid)
-    | none =>
-      match ← S.rupContra with
-      | some h =>
-        let k ← S.takeKid
-        return (#[.rup ⟨[], 1⟩ h], k)
-      | none =>
-        let some (n, G) := goal | S.fail "subproof: no contradiction"
-        let t := keyOf G
-        let i ← try S.implPremise t none catch _ => S.fail "subproof: no contradiction"
-        let e ← S.entry i
-        let v := impOps ⟨e.key, #[.id e.kid]⟩ t (← S.lowerVar (e.c.terms ++ G.terms))
-        if !(fadd v.k (keyOf G.negate)).isContradiction then S.fail "subproof: no contradiction"
-        let k ← S.takeKid
-        return (#[.pol (v.ops.push (.id n) |>.push .add).toList], k)
+/-- Elaborate implicational steps, after the kernel steps `out`. -/
+private def steps (S : St σ) (top : Bool) : List AStep → (out : Array Step := #[]) →
+    EM σ (Array Step)
+  | [], out => return out
+  | s :: ss, out => do S.steps top ss (out ++ (← S.step top s).1)
 
 end
 
@@ -777,33 +805,30 @@ private structure Premises where
 /-- **Elaborate the items of a subproof** of `red`, `dom`, a checked deletion, `obju` or a change
 of the preserved set. A `proofgoal` block without a closing contradiction gets the most recent
 one, or a hinted `rup` of `0 ≥ 1`. -/
-private partial def items (S : St σ) (P : Premises (σ := σ)) (ss : List AStep) :
-    EM σ (Array RedItem) := do
-  let mut out := #[]
-  for s in ss do
-    match s with
-    | .goal g sub q =>
-      let (kg, ps) ← P.goal g
-      let start ← S.augNext
-      for p in ps do
-        let k ← S.takeKid
-        let _ ← S.add p k false false
-      let ks ← S.steps false sub
-      let (extra, qk) ← S.closing start q none
-      let ks := ks ++ extra
-      S.dropFrom start
-      out := out.push (.goal kg ks.toList qk)
-    | .scope b inner =>
-      let some ps := P.scope b | S.fail "scope not allowed here"
-      let start ← S.augNext
-      for p in ps do
-        let k ← S.takeKid
-        let _ ← S.add p k false false
-      let ki ← S.items P inner
-      S.dropFrom start
-      out := out.push (.scope b ki.toList)
-    | s => out := out ++ (← S.step false s).1.map .step
-  return out
+private def items (S : St σ) (P : Premises (σ := σ)) :
+    List AStep → (out : Array RedItem := #[]) → EM σ (Array RedItem)
+  | [], out => return out
+  | .goal g sub q :: ss, out => do
+    let (kg, ps) ← P.goal g
+    let start ← S.augNext
+    for p in ps do
+      let k ← S.takeKid
+      let _ ← S.add p k false false
+    let ks ← S.steps false sub
+    let (extra, qk) ← S.closing start q none
+    let ks := ks ++ extra
+    S.dropFrom start
+    S.items P ss (out.push (.goal kg ks.toList qk))
+  | .scope b inner :: ss, out => do
+    let some ps := P.scope b | S.fail "scope not allowed here"
+    let start ← S.augNext
+    for p in ps do
+      let k ← S.takeKid
+      let _ ← S.add p k false false
+    let ki ← S.items P inner
+    S.dropFrom start
+    S.items P ss (out.push (.scope b ki.toList))
+  | s :: ss, out => do S.items P ss (out ++ (← S.step false s).1.map .step)
 
 /-- The `#k` entry of a list of goals, numbered from `1`. -/
 private def hashAt {α : Type} (l : List α) (k : ℕ) : Option α := if k = 0 then none else l[k - 1]?
@@ -1135,7 +1160,7 @@ private def completeSolution (S : St σ) (ρ : List (Literal ℕ)) : EM σ (List
   return out.toList
 
 /-- **Elaborate a top-level rule**. -/
-private partial def top (S : St σ) (s : AStep) : EM σ (Array TopStep) := do
+private def top (S : St σ) (s : AStep) : EM σ (Array TopStep) := do
   match s with
   | .labeled l s' =>
     match s' with
@@ -1383,7 +1408,7 @@ private def Hint.ids : Hint → List ℕ
 mutual
 
 /-- The constraint numbers a kernel step refers to, other than those it deletes. -/
-private partial def stepRefs : Step → List ℕ
+private def stepRefs : Step → List ℕ
   | .pol ops => ops.filterMap fun | .id n => some n | _ => none
   | .rup _ hs => hs.flatMap Hint.ids
   | .rupSearch _ => []
@@ -1391,7 +1416,7 @@ private partial def stepRefs : Step → List ℕ
   | .del _ => []
 
 /-- The constraint numbers an item of a subproof refers to. -/
-private partial def itemRefs : RedItem → List ℕ
+private def itemRefs : RedItem → List ℕ
   | .step s => stepRefs s
   | .goal g sub q => (match g with | .db n => [n] | .hash _ => []) ++ q :: sub.flatMap stepRefs
   | .scope _ items => items.flatMap itemRefs
@@ -1411,7 +1436,7 @@ private def topRefs : TopStep → List ℕ
 mutual
 
 /-- Renumber the constraint references of a kernel step. -/
-private partial def stepRenum (f : ℕ → ℕ) : Step → Step
+private def stepRenum (f : ℕ → ℕ) : Step → Step
   | .pol ops => .pol (ops.map fun | .id n => .id (f n) | o => o)
   | .rup c hs => .rup c (hs.map fun | .id n => .id (f n) | h => h)
   | .rupSearch c => .rupSearch c
@@ -1419,7 +1444,7 @@ private partial def stepRenum (f : ℕ → ℕ) : Step → Step
   | .del ids => .del (ids.map f)
 
 /-- Renumber the constraint references of an item of a subproof. -/
-private partial def itemRenum (f : ℕ → ℕ) : RedItem → RedItem
+private def itemRenum (f : ℕ → ℕ) : RedItem → RedItem
   | .step s => .step (stepRenum f s)
   | .goal g sub q =>
     .goal (match g with | .db n => .db (f n) | g => g) (sub.map (stepRenum f)) (f q)
@@ -1464,9 +1489,8 @@ private def trim (steps : Array (TopStep × Option ℕ)) (concl : Conclusion) (n
   let mut needed : Array Bool := .replicate (next + 1) false
   for q in conclIds concl do needed := needed.set! q true
   let mut keep : Array Bool := .replicate steps.size true
-  let mut i := steps.size
-  while 0 < i do
-    i := i - 1
+  for k in [0:steps.size] do
+    let i := steps.size - 1 - k
     let some (t, id?) := steps[i]? | continue
     match id? with
     | some k => if !needed[k]! then keep := keep.set! i false; continue
@@ -1504,6 +1528,39 @@ structure Result where
   (`Cslib.Logic.PL.VeriPB.Text.Names.Extends`). -/
   names : Text.Names
 
+/-- Elaborate the top-level rules up to the output section, after the kernel steps `out` (each
+with the kernel number of its constraint if it may be trimmed); whether no rule forbids
+trimming (`trimmable`). At most `fuel` rules are read, which
+`Cslib.Logic.PL.VeriPB.Elab.Parse.fuelOf` takes above the number of bytes. -/
+private def St.topSteps {σ : Type} (S : St σ) :
+    ℕ → Array (TopStep × Option ℕ) → Bool → EM σ (Array (TopStep × Option ℕ) × Bool)
+  | 0, _, _ => S.fail "internal error: out of fuel"
+  | fuel + 1, out, trimmable => do
+    match ← Parse.step (Parse.fuelOf S.L) S.L with
+    | some s =>
+      let k₀ ← S.kerNext.get
+      let ts ← S.top s
+      let k₁ ← S.kerNext.get
+      -- A single `pol` or `rup` step deriving one constraint may be trimmed.
+      let tag := match ts.toList with
+        | [.step (.pol _)] | [.step (.rup ..)] => if k₁ == k₀ + 1 then some k₀ else none
+        | _ => none
+      let mut out := out
+      let mut trimmable := trimmable
+      for t in ts do
+        match t with
+        | .strengthenToCore _ | .loadOrder .. => trimmable := false
+        | _ => pure ()
+        -- Short runs of deletions of derived constraints become one, which the kernel checker
+        -- runs as one pass over its database (its duplicate check is quadratic in the list).
+        match out.back?, t with
+        | some (.deld a, _), .deld b =>
+          if a.length + b.length ≤ 32 then out := out.pop.push (.deld (a ++ b), none)
+          else out := out.push (t, tag)
+        | _, t => out := out.push (t, tag)
+      S.topSteps fuel out trimmable
+    | none => return (out, trimmable)
+
 /-- Run the elaborator. -/
 private def run {σ : Type} (F : List PBConstr) (obj : Option Objective) (pres : Option (List ℕ))
     (pbp : String) (N : Text.Names) (labels : List (String × ℕ)) : EM σ Result := do
@@ -1521,30 +1578,7 @@ private def run {σ : Type} (F : List PBConstr) (obj : Option Objective) (pres :
   let n ← Parse.header L
   if let some n := n then
     if n != F.length then S.fail s!"f {n}: the formula has {F.length} constraints"
-  let mut out : Array (TopStep × Option ℕ) := #[]
-  let mut trimmable := true
-  repeat
-    match ← Parse.step L with
-    | some s =>
-      let k₀ ← S.kerNext.get
-      let ts ← S.top s
-      let k₁ ← S.kerNext.get
-      -- A single `pol` or `rup` step deriving one constraint may be trimmed.
-      let tag := match ts.toList with
-        | [.step (.pol _)] | [.step (.rup ..)] => if k₁ == k₀ + 1 then some k₀ else none
-        | _ => none
-      for t in ts do
-        match t with
-        | .strengthenToCore _ | .loadOrder .. => trimmable := false
-        | _ => pure ()
-        -- Short runs of deletions of derived constraints become one, which the kernel checker
-        -- runs as one pass over its database (its duplicate check is quadratic in the list).
-        match out.back?, t with
-        | some (.deld a, _), .deld b =>
-          if a.length + b.length ≤ 32 then out := out.pop.push (.deld (a ++ b), none)
-          else out := out.push (t, tag)
-        | _, t => out := out.push (t, tag)
-    | none => break
+  let (out, trimmable) ← S.topSteps (Parse.fuelOf L) #[] true
   let (sec, concl) ← Parse.tail L
   let c ← S.conclusion concl
   let next ← S.kerNext.get
