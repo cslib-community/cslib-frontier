@@ -171,12 +171,10 @@ theorem eqvGen_of_isEulerCircuit {H : List (α × α)} {u : α} {w : List α}
   have hstep :
       ∀ e ∈ (u :: w').consecutivePairs, Relation.EqvGen (fun a b => (a, b) ∈ H) e.1 e.2 := by
     intro ⟨a, b⟩ he
-    have hm : undirected (a, b) ∈ H.map undirected := h.perm.subset (List.mem_map_of_mem he)
-    obtain ⟨⟨c, d⟩, hcd, hce⟩ := List.mem_map.mp hm
+    obtain ⟨⟨c, d⟩, hcd, hce⟩ := List.mem_map.mp (h.perm.subset (List.mem_map_of_mem he))
     simp only [undirected_mk, Sym2.eq_iff] at hce
     rcases hce with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-    · exact .rel _ _ hcd
-    · exact .symm _ _ (.rel _ _ hcd)
+    exacts [.rel _ _ hcd, .symm _ _ (.rel _ _ hcd)]
   intro ⟨a, b⟩ he
   obtain ⟨⟨c, d⟩, hf, hfe⟩ := List.mem_map.mp (h.perm.symm.subset (List.mem_map_of_mem he))
   have hf12 := mem_of_mem_consecutivePairs hf
@@ -196,11 +194,8 @@ theorem mem_of_isEulerCircuit {H : List (α × α)} {u : α} {w : List α} (h : 
     rcases hfe with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
     · exact hf12
     · exact ⟨hf12.2, hf12.1⟩
-  have hu : u ∈ w := by
-    obtain ⟨w', rfl⟩ := List.head?_eq_some_iff.mp h.head
-    exact List.mem_cons_self ..
   suffices ∀ a b, Relation.EqvGen (fun a b => (a, b) ∈ H) a b → (a ∈ w ↔ b ∈ w) from
-    (this x u hx).2 hu
+    (this x u hx).2 (List.mem_of_mem_head? h.head)
   intro a b hab
   induction hab with
   | rel a b hab => exact ⟨fun _ => (hedge _ hab).2, fun _ => (hedge _ hab).1⟩
@@ -255,19 +250,14 @@ theorem degree_consecutivePairs_cons (a : α) (l : List α) (x : α) :
     degree (a :: l).consecutivePairs x + (if x = a then 1 else 0) +
       (if x = (a :: l).getLast (List.cons_ne_nil a l) then 1 else 0) = 2 * (a :: l).count x := by
   induction l generalizing a with
-  | nil =>
-    rcases eq_or_ne x a with rfl | h
-    · simp
-    · simp [h, Ne.symm h]
+  | nil => by_cases h : x = a <;> simp [h, eq_comm]
   | cons b l ih =>
     have := ih b
     rw [List.consecutivePairs_cons_cons, degree_cons, List.getLast_cons_cons, List.count_cons]
     simp only [ends, beq_iff_eq] at this ⊢
     rcases eq_or_ne x a with rfl | h
-    · simp only [ite_true] at this ⊢
-      omega
-    · simp only [h, ite_false, Ne.symm h] at this ⊢
-      omega
+    · simp only [ite_true] at this ⊢; omega
+    · simp only [h, ite_false, Ne.symm h] at this ⊢; omega
 
 /-- **Euler's theorem, necessity of even degrees**: a multigraph with an Euler circuit has only
 vertices of even degree. -/
@@ -377,9 +367,7 @@ theorem walkFrom_spec (fuel : ℕ) (H : List (α × α)) (u t : α) (hfuel : H.l
     have he : e ∈ H := List.mem_of_find?_eq_some hfind
     have hte : touches u e = true := List.find?_some hfind
     have hperm : H.Perm (e :: H.erase e) := List.perm_cons_erase he
-    have hlen : (H.erase e).length ≤ fuel := by
-      rw [List.length_erase_of_mem he]
-      omega
+    have hlen : (H.erase e).length ≤ fuel := by rw [List.length_erase_of_mem he]; omega
     have hpar' : ∀ y, (degree (H.erase e) y + (if y = other u e then 1 else 0) +
         (if y = t then 1 else 0)) % 2 = 0 := by
       intro y

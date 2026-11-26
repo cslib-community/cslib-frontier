@@ -64,15 +64,12 @@ private theorem QueueSlice.snoc {inst : SparseInstance} {bOff start : ℕ}
       mem' (bOff + inst.m + 1 + inst.numEdges + inst.r + 2 * inst.m + start + xs.length) = u.val) :
     QueueSlice inst bOff start (xs ++ [u]) mem' := by
   intro i hi
-  have hi_lt : i < xs.length + 1 := by
-    simpa only [List.length_append, List.length_singleton] using hi
+  simp only [List.length_append, List.length_singleton] at hi
   by_cases hlt : i < xs.length
   · rw [List.getElem_append_left hlt, hpre i hlt]
     exact h i hlt
-  · have heqi : i = xs.length := by omega
-    subst heqi
-    simpa only [List.getElem_append_right (le_refl _), Nat.sub_self, List.getElem_singleton] using
-      hlast
+  · obtain rfl : i = xs.length := by omega
+    simpa only [List.getElem_append_right le_rfl, Nat.sub_self, List.getElem_singleton] using hlast
 
 private def markMLBody : Code .standard 34 := ram[
   addr ← bColMateReg + idx; val ← *addr;
@@ -147,8 +144,7 @@ private theorem exec_markMLCode {w bOff : ℕ} {inst : SparseInstance}
           wram_simp
           rw [vget_vset_ne _ _ hne.symm]
           exact hm u
-      · wram_simp
-        exact hf a ha
+      · wram_simp [hf a ha]
   obtain ⟨y, hl, hPr, _⟩ := ExecWithin.loop_count P
     (fun y hy => (hy.1 rr (by decide)).trans hb.hrr) hbody
     (x := y₁.set idx 0) (by simp) (by simpa using hP₀)
@@ -301,8 +297,7 @@ private theorem exec_seedBfsCode {w bOff : ℕ} {inst : SparseInstance}
         rcases eq_or_ne w₀ u with rfl | hne
         · simp
         · simp [vget_vset_ne _ _ hne.symm, hiff w₀, hne]
-      · wram_simp
-        exact hf a (by omega)
+      · wram_simp [hf a (by omega)]
   obtain ⟨y₂, hl, hPm⟩ := ExecWithin.loop_count P
     (fun y hy => (hy.1 rm (by decide)).trans hb.hrm) hbody
     (x := ((((y₁.set qHead 0).set qTail 0).set rk 0).set rfound 0).set idx 0) (by simp)
@@ -533,9 +528,7 @@ private theorem exec_bfsEdgeLoop {w bOff : ℕ} {inst : SparseInstance}
             have := x₀.isLt
             have hne_val : x₀.val ≠ w₀.val := fun h => hne (Fin.ext h)
             wram_simp
-        · intro i hi
-          wram_simp
-          exact hq_pre_y i hi
+        · exact fun i hi => by wram_simp [hq_pre_y i hi]
         · rw [hsk_step]
           simp only [hkBfsStep, hGu, hmv, hdw, ↓reduceIte]
           exact hq_next_y.snoc w₀ (fun i hi => by wram_simp) (by wram_simp)
@@ -554,8 +547,7 @@ private theorem exec_bfsEdgeLoop {w bOff : ℕ} {inst : SparseInstance}
           simp only [hkBfsStep, hGu, hmv, hdw, ↓reduceIte, List.length_append,
             List.length_singleton]
           omega
-        · wram_simp
-          exact hf_y a ha
+        · wram_simp [hf_y a ha]
       | some d₀ =>
         have henc_ne : encodeDist (vget (sk (y.regs idx)).dist w₀) ≠ 0 := by
           simp [hdw, encodeDist]
