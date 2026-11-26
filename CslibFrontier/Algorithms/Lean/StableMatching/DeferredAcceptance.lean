@@ -116,9 +116,7 @@ theorem step_cases (s : State n) :
 /-- Within the list, `target` is the choice of rank `s p`. -/
 theorem target_of_lt {s : State n} {p : Fin n} (h : s p < n) :
     I.target s p = I.propPref p ⟨s p, h⟩ := by
-  unfold target
-  congr 2
-  omega
+  simp [target, Nat.min_eq_left (Nat.le_sub_one_of_lt h)]
 
 /-- The deferred-acceptance invariant: every proposer is within its list; whenever proposer `p`
 has been turned down by its choice of rank `k`, that receiver currently receives a proposal from
@@ -201,12 +199,9 @@ private theorem inv_update {s : State n} (hs : I.Inv s) {p : Fin n} (hp : I.Outr
       obtain ⟨q, hq, hqx⟩ := hs.rejected x k hk
       exact I.held_step hp hq hqx
   last_unique a b ha hb := by
-    have key : ∀ x, Function.update s p (s p + 1) x + 1 = n → x = p := by
-      intro x hx
-      by_contra hxp
-      rw [Function.update_of_ne hxp] at hx
-      exact I.not_outranked_of_last hs hx p hp
-    rw [key a ha, key b hb]
+    have key (x : Fin n) (hx : Function.update s p (s p + 1) x + 1 = n) : x = p :=
+      by_contra fun hxp => I.not_outranked_of_last hs (Function.update_of_ne hxp _ _ ▸ hx) p hp
+    exact (key a ha).trans (key b hb).symm
 
 /-- Steps preserve the invariant. -/
 theorem inv_step {s : State n} (hs : I.Inv s) : I.Inv (I.step s) := by
@@ -375,14 +370,12 @@ private theorem noStableRejected_update {ν : Matching n} (hν : I.IsStable ν) 
     (hs : I.Inv s) (hN : I.NoStableRejected ν s) {p : Fin n} (hp : I.Outranked s p) :
     I.NoStableRejected ν (Function.update s p (s p + 1)) := by
   intro x k hk
-  by_cases hxp : x = p
-  · subst hxp
-    rw [Function.update_self] at hk
+  rcases eq_or_ne x p with rfl | hxp
+  · rw [Function.update_self] at hk
     rcases Nat.lt_or_ge k.val (s x) with h | h
     · exact hN x k h
-    · have hkx : k = ⟨s x, hs.lt x⟩ := by ext; simp only; omega
-      have ht : I.propPref x k = I.target s x := by rw [I.target_of_lt (hs.lt x), hkx]
-      rw [ht]
+    · obtain rfl : k = ⟨s x, hs.lt x⟩ := Fin.ext (Nat.le_antisymm (Nat.le_of_lt_succ hk) h)
+      rw [← I.target_of_lt (hs.lt x)]
       intro hνx
       obtain ⟨y, hy, hyx⟩ := hp
       have hνy : ν y ≠ I.target s x := fun h =>
@@ -395,8 +388,7 @@ private theorem noStableRejected_update {ν : Matching n} (hν : I.IsStable ν) 
         rw [← hy, I.target_of_lt (hs.lt y), h, propPref_propRank]
       exact hν y (I.target s x) ⟨hy ▸ hrank,
         ((congrArg ν.symm hνx).symm.trans (Equiv.symm_apply_apply ν x)).symm ▸ hyx⟩
-  · rw [Function.update_of_ne hxp] at hk
-    exact hN x k hk
+  · exact hN x k (Function.update_of_ne hxp (s p + 1) s ▸ hk)
 
 private theorem noStableRejected_run {ν : Matching n} (hν : I.IsStable ν) (k : ℕ) :
     I.NoStableRejected ν (I.run k) := by

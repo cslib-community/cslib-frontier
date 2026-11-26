@@ -44,10 +44,8 @@ theorem length_le_foldr_dedupStepPure (x : ℕ) :
     ∀ (ys acc : List ℕ), acc.length ≤ (ys.foldr (dedupStepPure x) acc).length
   | [], acc => le_rfl
   | v :: rest, acc => by
-    simp only [List.foldr_cons]
-    refine (length_le_foldr_dedupStepPure x rest acc).trans ?_
-    unfold dedupStepPure
-    split_ifs <;> simp
+    simp only [List.foldr_cons, dedupStepPure]
+    split_ifs <;> exact (length_le_foldr_dedupStepPure x rest acc).trans (by simp)
 
 private theorem filter_dedup_eq_foldr (x : ℕ) :
     ∀ (xs : List ℕ), (xs.dedup.filter fun v => decide (v ≠ x)) = xs.foldr (dedupStepPure x) []
@@ -101,9 +99,8 @@ theorem sumScopeLen_valid {w : ℕ} {args : SumScopeArgs} {bucket : List (Factor
     {s : Memory.State} (hb : HoldsFactorList args.bucketPtr bucket s)
     (hlen : bucket.length = args.bucketLen) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (sumScopeLen args)) := by
-  unfold sumScopeLen
+  rw [sumScopeLen, ← hlen]
   refine validHistory_bind_step ?_ (validHistory_pure w _ _)
-  rw [← hlen]
   suffices ∀ (fs : List (FactorTable ℕ ℕ)) (cur acc : ℕ), HoldsFactorList cur fs s →
       (Memory.spec w).ValidHistory s
         ((Memory.spec w).clientHistory s (iterate sumScopeStep () fs.length (cur, acc))) from
@@ -161,8 +158,7 @@ theorem sumScopeLen_realizes :
   refine ⟨⟨hmem.frontier_fits.of_le (by have := hf.1; omega), hmem.frontier_fits.of_le hf.1,
     hfit_K.of_le (by rw [hf.2.1]; omega)⟩, rfl, rest, hrem_l, hrest, ?_⟩
   change (st.2 + s.mem (st.1 + 1)) + (rest.flatMap FactorTable.scope).length = _
-  rw [hf.2.1]
-  omega
+  rw [hf.2.1]; omega
 
 /-- Arguments for concatenating all bucket scopes into a scratch buffer. -/
 structure FlattenArgs where
@@ -320,7 +316,6 @@ theorem flattenScopes_realizes :
       (hcw_mem a (lt_of_lt_of_le ha hdst_lo)).trans (hpres.2.2 a ha)⟩, by dsimp only; omega, rest,
       hrem_l, hrest, ?_⟩
     dsimp only
-    rw [hm1, hsl]
-    omega
+    rw [hm1, hsl]; omega
 
 end Cslib.Algorithms.WordRAM.VariableElimination
