@@ -502,6 +502,12 @@ example (p q : ℕ → Prop) (h : ∀ n, p n → q n) (h₀ : p 0) : q 0 := by
   set_option trace.lrat_tauto true in
   lrat_tauto [Nat.le_total 0 1, h 0, Nat.lt_irrefl 2]
 
+/-- A type ascription gives the premise its type, as `have h : T := t` would: the type inferred
+for `Or.inl rfl` is `3 = 3 ∨ 3 ∈ {4}`, which is not the atom `3 ∈ {3, 4}` at reducible
+transparency. -/
+example : 3 ∈ ({3, 4} : Set ℕ) ∨ False := by
+  lrat_tauto [(Or.inl rfl : 3 ∈ ({3, 4} : Set ℕ))]
+
 /-- With `-hyps`, the terms are still premises. -/
 example (p q : Prop) (hp : p) (hpq : p → q) : q := by
   fail_if_success lrat_tauto -hyps

@@ -67,10 +67,11 @@ premises are:
 * the terms of `lrat_tauto [t₁, …, tₙ]`, in the order given, after the hypotheses, as `simp [..]`
   takes lemmas. Each is elaborated in the context of the goal, after its leading binders are
   introduced, and must be a proof of a proposition with no metavariables left: arguments that
-  elaboration does not determine, as in `h _`, must be given. Its type is read as a hypothesis's
-  is, so `lrat_tauto [h a, Nat.le_total x y]` supplies the instances of `h : ∀ x, f x = 0 ∨ p x`
-  and of a lemma that the tactic would not find: it instantiates no quantifier itself. The terms
-  are used with `-hyps` too.
+  elaboration does not determine, as in `h _`, must be given. Its type, or `T` for a type
+  ascription `(t : T)` as for `have h : T := t`, is read as a hypothesis's is, so
+  `lrat_tauto [h a, Nat.le_total x y]` supplies the instances of `h : ∀ x, f x = 0 ∨ p x` and of
+  a lemma that the tactic would not find: it instantiates no quantifier itself. The terms are used
+  with `-hyps` too.
 * the atoms that reflexivity proves, `a = b` by `Eq.refl` and `HEq a b` by `HEq.refl` when `a`
   and `b` are definitionally equal at instance transparency (unfolding reducible definitions and
   instances, as `simp` does when it rewrites with `eq_self_iff_true`), with that proof, as the
@@ -380,11 +381,19 @@ private def contextPremises : MetaM (Array Premise) := do
 
 /-- The terms of `lrat_tauto [t₁, …, tₙ]`, elaborated in the context of the goal, as premises in
 the order given. Each must elaborate fully, with no metavariables left, to a proof of a
-proposition. -/
+proposition. The premise of a type ascription `(t : T)` is `T`, as for `have h : T := t`, rather
+than the type inferred for `t`. -/
 private def termPremises (ts : Array Term) : TacticM (Array Premise) :=
   ts.mapM fun t => withRef t do
-    let e ← instantiateMVars (← Tactic.elabTerm t none)
-    let ty ← instantiateMVars (← inferType e)
+    let (e, ty) ← match t with
+      | `(($e : $ty)) => do
+        let ty ← Tactic.elabTerm ty none
+        let e ← Tactic.elabTermEnsuringType e ty
+        let ty ← instantiateMVars ty
+        pure (← mkExpectedTypeHint (← instantiateMVars e) ty, ty)
+      | _ => do
+        let e ← instantiateMVars (← Tactic.elabTerm t none)
+        pure (e, ← instantiateMVars (← inferType e))
     if e.hasMVar || ty.hasMVar then
       throwError "lrat_tauto: the term `{t}` must elaborate fully, but it has metavariables:\
         {indentExpr e}\nof type{indentExpr ty}\nGive its arguments explicitly."
