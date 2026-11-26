@@ -395,22 +395,6 @@ theorem realizes_delMoveRebGen :
          hld, hfp, hcs_lt, hins_lt, hv_r⟩)
   )
 
-/-- A prefix `p` that leaves the state unchanged and returns `r` peels off `p >>= k`: the state,
-result and validity of `p >>= k` are those of `k r`, and its cost is that of `p` plus `k r`. -/
-private theorem bind_of_readOnly {α : Type} {w F : ℕ} {s : Memory.State} {p : Memory.Prog α}
-    {r : α} (hst : (Memory.spec 0).clientState s p = s)
-    (hres : (Memory.spec 0).clientResult s p = r) (hvp : ValidProg w F s p) :
-    ∀ (β : Type) (k : α → Memory.Prog β),
-    (Memory.spec 0).clientState s (p >>= k) = (Memory.spec 0).clientState s (k r) ∧
-    (Memory.spec 0).clientResult s (p >>= k) = (Memory.spec 0).clientResult s (k r) ∧
-    memoryCost (p >>= k) s = memoryCost p s + memoryCost (k r) s ∧
-    (ValidProg w F s (p >>= k) ↔ ValidProg w F s (k r)) := fun _ k => by
-  refine ⟨by rw [clientState_bind, hst, hres], by rw [clientResult_bind, hst, hres],
-    by rw [memoryCost_bind', hst, hres], fun h hm => ?_, fun h => validProg_bind hvp ?_⟩
-  · have := ((validHistory_bind' w p k s).1 (h hm)).2
-    rwa [hst, hres] at this
-  · rwa [hst, hres]
-
 theorem delMoveRebGenProg_fastStep
     {c U V w n_max base b loc_del loc_last st_last fp_cand_last : ℕ}
     {rebActiveB : Bool} {θ : SeedWhp c U n_max} {fs : FastState} {s : Memory.State}
