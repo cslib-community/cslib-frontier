@@ -150,13 +150,11 @@ theorem evalOne_clauseClauses_iff (τ : Variable V → Bool) (i : ℕ) (c : Clau
 theorem evalOne_of_formula (φ : CNF V) (τ : Variable V → Bool)
     (hτ : CNF.evalOne τ (formula φ) = true) :
     CNF.evalOne (fun v => τ (.inl v)) φ = true := by
-  rw [CNF.evalOne_eq_true_iff]
-  intro c hc
+  refine (CNF.evalOne_eq_true_iff _ _).mpr fun c hc => ?_
   obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hc
-  have hh := (CNF.evalOne_flatMap_eq_true_iff τ φ.zipIdx
-    (fun (c, i) => clauseClauses i c)).mp hτ (φ[i], i)
-    (List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_getElem hi))
-  exact (evalOne_clauseClauses_iff τ i φ[i]).mp hh |>.1
+  exact ((evalOne_clauseClauses_iff τ i φ[i]).mp ((CNF.evalOne_flatMap_eq_true_iff τ φ.zipIdx
+    fun (c, i) => clauseClauses i c).mp hτ (φ[i], i)
+    (List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_getElem hi)))).1
 
 /-- Canonical extension preserves the exact-one value of the whole source formula. -/
 theorem evalOne_formula_extend (φ : CNF V) (σ : V → Bool) :
@@ -290,10 +288,9 @@ theorem length_clauseClauses_le (i : ℕ) (c : Clause V) :
     (clauseClauses i c).length ≤ 1 + 4 * c.length := by
   simp only [clauseClauses, List.length_append, List.length_cons, List.length_nil,
     List.length_flatMap]
-  have h : (c.zipIdx.map fun (l, j) => (complementBlock i j l).length).sum ≤
-      (c.zipIdx.map fun _ => 4).sum :=
-    List.sum_le_sum fun a _ => length_complementBlock_le i a.2 a.1
-  simpa [Nat.mul_comm] using h
+  simpa [Nat.mul_comm] using
+    List.sum_le_sum (l := c.zipIdx) (g := fun _ => 4) fun a _ =>
+      length_complementBlock_le i a.2 a.1
 
 /-- Width at most `k` gives a factor `1 + 4*k` bound on the number of clauses. -/
 theorem length_formula_le {k : ℕ} {φ : CNF V} (hw : ∀ c ∈ φ, c.length ≤ k) :
@@ -413,10 +410,9 @@ theorem count_vars_clauseClauses [DecidableEq V] (i : ℕ) (c : Clause V)
   have hv : (clauseClauses i c).vars =
       c.zipIdx.map (fun a => (positiveLiteral i a.2 a.1).1) ++
         c.zipIdx.flatMap (fun a => (complementBlock i a.2 a.1).vars) := by
-    simp [clauseClauses, CNF.vars, List.flatMap_def, List.map_flatten,
-      List.flatten_flatten, List.map_map, Function.comp_def]
-  rw [hv]
-  exact count_map_append_flatMap c.zipIdx (fun a => (positiveLiteral i a.2 a.1).1)
+    simp [clauseClauses, CNF.vars, List.flatMap_def, List.map_flatten, List.flatten_flatten,
+      List.map_map, Function.comp_def]
+  exact hv ▸ count_map_append_flatMap c.zipIdx (fun a => (positiveLiteral i a.2 a.1).1)
     (fun a => (complementBlock i a.2 a.1).vars) v
 
 /-- An original variable contributes exactly one occurrence at its original literal position. -/
@@ -449,15 +445,12 @@ theorem count_aux_occurrenceVariables [DecidableEq V] (i j a b k : ℕ) (l : Lit
 theorem count_inl_clause [DecidableEq V] (i : ℕ) (c : Clause V) (v : V) :
     (clauseClauses i c).vars.count (Sum.inl v) = (CNF.vars [c]).count v := by
   rw [count_vars_clauseClauses]
-  simp only [count_inl_occurrenceVariables]
-  have h : (c.zipIdx.map fun a => [a.1.1].count v).sum = (c.zipIdx.map fun a => a.1.1).count v := by
-    rw [← List.flatMap_singleton' (c.zipIdx.map fun a => a.1.1), List.count_flatMap, List.map_map]
-    rfl
-  rw [h]
-  simp only [CNF.vars, List.flatten_cons, List.flatten_nil, List.append_nil]
-  simpa only [List.map_map, Function.comp_def] using
-    congrArg (fun ls : List (Literal V) => (ls.map Prod.fst).count v)
-      (List.zipIdx_map_fst 0 c)
+  simp only [count_inl_occurrenceVariables, CNF.vars, List.flatten_cons, List.flatten_nil,
+    List.append_nil]
+  conv_rhs => rw [← List.zipIdx_map_fst 0 c, List.map_map,
+    ← List.flatMap_singleton' (c.zipIdx.map (Prod.fst ∘ Prod.fst)), List.count_flatMap,
+    List.map_map]
+  rfl
 
 private theorem sum_map_zipIdx_ite_le {α : Type*} (l : List α) (i k : ℕ) :
     (l.zipIdx.map fun x => if i = x.2 then k else 0).sum ≤ k := by
