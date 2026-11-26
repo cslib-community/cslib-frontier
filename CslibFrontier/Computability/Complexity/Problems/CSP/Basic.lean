@@ -82,8 +82,8 @@ theorem polyTimeReducible_of_guard [Finite Rel] {β : Type} {encB : β ↪ List 
 exact-arity CSP satisfiability to CNF SAT without introducing variables. The clause width is
 bounded by the maximum relation arity. Malformed inputs map to the variable-free rejecting
 formula. -/
-theorem exists_boundedWidth_reduction_toSAT [Finite Rel] (encRel : Rel ↪ List Bool) (arity : Rel → ℕ)
-    (sem : Rel → List Bool → Bool) :
+theorem exists_boundedWidth_reduction_toSAT [Finite Rel]
+    (encRel : Rel ↪ List Bool) (arity : Rel → ℕ) (sem : Rel → List Bool → Bool) :
     ∃ (f : CSP Rel ℕ → CNF ℕ) (k : ℕ),
       ComputableInPolyTime f (encCSP encRel encNat) encCNF ∧
       (∀ F, F ∈ CSPSAT arity sem ↔ f F ∈ SAT) ∧
