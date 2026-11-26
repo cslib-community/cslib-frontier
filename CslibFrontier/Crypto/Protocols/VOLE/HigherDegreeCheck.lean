@@ -1341,7 +1341,8 @@ private theorem toOuterMeasure_answer_query_le_add_swapped {V : Type}
       have hkT : k ∉ T := by
         simp only [T, Finset.mem_filter, hlook, Option.isSome_none, Bool.false_eq_true, and_false,
           not_false_eq_true]
-      simp [hkT, show ofList cache k = none from hlook, d, g]
+      have hnone : ofList cache k = none := hlook
+      simp [hkT, hnone, d, g]
   rw [PMF.bind_apply]
   calc ∑' k, distK k * ((complete d (ofList cache)).bind fun H => body s k (H k)) true
       ≤ ∑' k, (distK k * (if k ∈ T then (1 : ℝ≥0∞) else 0) + distK k * g k) := by

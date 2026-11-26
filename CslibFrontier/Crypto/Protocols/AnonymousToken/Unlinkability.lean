@@ -737,7 +737,8 @@ private lemma eval_challengeLoop_debit2_true
       balOther + refOther - 2 < bound)) = true := by
     cases guardBoth
     · rfl
-    · simp [show 2 < bound by omega, hoth rfl]
+    · have h2 : 2 < bound := by omega
+      simp [h2, hoth rfl]
   simp only [hadm1, hadm2, Bool.and_self, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
     ProbOracleComp.run_bind, ProbOracleComp.run_sample, ProbOracleComp.run_query,
     ProbComp.eval_bind]

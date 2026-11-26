@@ -784,16 +784,15 @@ private theorem mem_support_cacheJoint_iff
         refine ⟨coins, hc, ?_⟩
         rcases hbranch with ⟨htarget, hvalid, hdec, rfl⟩ |
             ⟨htarget, hvalid, hdec, hk, rfl⟩ | ⟨hn, hk, rfl⟩
-        · rw [ite_eq_left htarget]
-          simp [hvalid, hdec]
-        · rw [ite_eq_left htarget]
-          simp [hvalid, hdec, (PMF.mem_support_iff _ _).mp hk]
-        · by_cases htarget : input = S.jointInput pk input.message input.salt
+        · rw [ite_eq_left htarget]; simp [hvalid, hdec]
+        · rw [PMF.mem_support_iff] at hk
+          rw [ite_eq_left htarget]
+          simp [hvalid, hdec, hk]
+        · rw [PMF.mem_support_iff] at hk
+          by_cases htarget : input = S.jointInput pk input.message input.salt
           · rw [ite_eq_left htarget]
-            simp [show ¬valid input.message coins from fun hv => hn ⟨htarget, hv⟩,
-              (PMF.mem_support_iff _ _).mp hk]
-          · rw [ite_eq_right htarget]
-            simp [(PMF.mem_support_iff _ _).mp hk]
+            simp [show ¬valid input.message coins from fun hv => hn ⟨htarget, hv⟩, hk]
+          · rw [ite_eq_right htarget]; simp [hk]
 
 private theorem mem_support_rejection_iff
     [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
@@ -1114,10 +1113,8 @@ private theorem coinCache_cons [DecidableEq (JointInput JointPrefix M Salt)]
   unfold coinCache
   rw [h, List.filter_cons]
   by_cases ht : input = S.jointInput pk input.message input.salt
-  · rw [ite_eq_left ht, decide_eq_true ht]
-    rfl
-  · rw [ite_eq_right ht, decide_eq_false ht]
-    rfl
+  · rw [ite_eq_left ht, decide_eq_true ht]; rfl
+  · rw [ite_eq_right ht, decide_eq_false ht]; rfl
 
 private theorem rejection_jointCache_eq
     [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]

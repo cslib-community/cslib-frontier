@@ -1320,10 +1320,10 @@ theorem rompelBase_accessible_le_conditionalEntropy_sub (c : ℕ) (g : List Bool
       PMF.conditionalEntropy
         ((PMF.uniformOfFintype (RompelBaseInput n m)).map fun z =>
           (rompelBaseHashFin gFin z, z)) := by
+    have hfst : Prod.fst ∘ ⇑(Equiv.prodCongr eOut eIn) = ⇑eOut ∘ Prod.fst := rfl
     rw [PMF.conditionalEntropy, PMF.conditionalEntropy, hjoint,
       PMF.entropy_map_of_injective _ (Equiv.prodCongr eOut eIn).injective, PMF.map_comp,
-      show Prod.fst ∘ ⇑(Equiv.prodCongr eOut eIn) = ⇑eOut ∘ Prod.fst from rfl, ← PMF.map_comp,
-      PMF.entropy_map_of_injective _ eOut.injective]
+      hfst, ← PMF.map_comp, PMF.entropy_map_of_injective _ eOut.injective]
   have hcoll_fin : (4 * (2 : ℝ) ^ (c * Nat.log 2 n) - 3) *
       PMF.collisionProbability ((PMF.uniformOfFintype (BitString n)).map gFin) ≤ 1 / 2 := by
     have hmap : (Cslib.BitString.uniformList n).map g =
