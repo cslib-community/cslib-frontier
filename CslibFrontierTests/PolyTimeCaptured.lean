@@ -30,6 +30,44 @@ open Turing.MultiTapeTM
 
 variable {α β : Type} {enc : α ↪ List Bool} {encOut : β ↪ List Bool}
 
+-- `bool_and'` and `bool_or'` discharge captured Boolean conjunctions and disjunctions in both
+-- `fun_prop` and `polytime`.
+example (p q r : α → Bool)
+    (hp : ComputableInPolyTime p enc encBool)
+    (hq : ComputableInPolyTime q enc encBool)
+    (hr : ComputableInPolyTime r enc encBool) :
+    ComputableInPolyTime (fun a => (p a && q a) || !(r a)) enc encBool := by
+  fail_if_success (clear hp; fun_prop (config := { maxTransitionDepth := 0 }))
+  fail_if_success (clear hq; fun_prop (config := { maxTransitionDepth := 0 }))
+  fail_if_success (clear hr; fun_prop (config := { maxTransitionDepth := 0 }))
+  fun_prop (config := { maxTransitionDepth := 0 })
+
+example (p q : α → Bool)
+    (hp : ComputableInPolyTime p enc encBool)
+    (hq : ComputableInPolyTime q enc encBool) :
+    ComputableInPolyTime (fun a => !(p a) && (q a || p a)) enc encBool := by
+  fail_if_success (clear hp; polytime)
+  fail_if_success (clear hq; polytime)
+  polytime
+
+-- `bitsHeadDWithInput` resolves `encBits` and `encBool` without `ListEncoding` synthesis,
+-- including inside Boolean `if` guards with unconstrained `?encC`.
+example (w : α → List Bool) (d : α → Bool)
+    (hw : ComputableInPolyTime w enc encBits)
+    (hd : ComputableInPolyTime d enc encBool) :
+    ComputableInPolyTime (fun a => (w a).headD (d a)) enc encBool := by
+  fail_if_success (clear hw; fun_prop (config := { maxTransitionDepth := 0 }))
+  fail_if_success (clear hd; fun_prop (config := { maxTransitionDepth := 0 }))
+  fun_prop (config := { maxTransitionDepth := 0 })
+
+example (w t e : α → List Bool)
+    (hw : ComputableInPolyTime w enc encBits)
+    (ht : ComputableInPolyTime t enc encBits)
+    (he : ComputableInPolyTime e enc encBits) :
+    ComputableInPolyTime (fun a => if (w a).headD false then t a else e a) enc encBits := by
+  fail_if_success (clear hw; polytime)
+  polytime
+
 -- `cond'` works in both `fun_prop` and `polytime`, with arbitrary Boolean guard encoding.
 example {encC : Bool ↪ List Bool} (c : α → Bool) (t e : α → β)
     (hc : ComputableInPolyTime c enc encC)

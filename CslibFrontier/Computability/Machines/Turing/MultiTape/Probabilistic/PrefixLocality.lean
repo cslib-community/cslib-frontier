@@ -75,9 +75,7 @@ theorem runFrom_eq_of_prefix_agree {input₁ input₂ : List Symbol} {m : ℕ}
   | zero => simp [hout]
   | succ fuel ih =>
     cases hs₁ : cfg₁.tapes.state with
-    | none =>
-      have hs₂ : cfg₂.tapes.state = none := hstate ▸ hs₁
-      simp [runFrom, runConfigFrom, hs₁, hs₂, hout]
+    | none => simp [runFrom, runConfigFrom, hs₁, hstate ▸ hs₁, hout]
     | some state =>
       have hs₂ : cfg₂.tapes.state = some state := hstate ▸ hs₁
       have hsym : cfg₁.tapes.inputSymbol = cfg₂.tapes.inputSymbol := by
@@ -85,12 +83,10 @@ theorem runFrom_eq_of_prefix_agree {input₁ input₂ : List Symbol} {m : ℕ}
         split_ifs
         · rfl
         · exact hagree _ (by lia)
-      have hworkSym : cfg₁.tapes.workTapeSymbols = cfg₂.tapes.workTapeSymbols := by
-        funext i
-        simp [Cfg.workTapeSymbols, hwork, hworkPos]
-      have hansSym : cfg₁.answerSymbols = cfg₂.answerSymbols := by
-        funext op
-        simp [Config.answerSymbols, hchan]
+      have hworkSym : cfg₁.tapes.workTapeSymbols = cfg₂.tapes.workTapeSymbols :=
+        funext fun _ => by simp [Cfg.workTapeSymbols, hwork, hworkPos]
+      have hansSym : cfg₁.answerSymbols = cfg₂.answerSymbols :=
+        funext fun _ => by simp [Config.answerSymbols, hchan]
       simp only [runFrom, runConfigFrom, hs₁, hs₂, hsym, hworkSym, hansSym, map_bind]
       congr 1
       funext action
@@ -101,23 +97,16 @@ theorem runFrom_eq_of_prefix_agree {input₁ input₂ : List Symbol} {m : ℕ}
         have hcast : (action.inputTape.cast : ℤ) = -1 ∨ (action.inputTape.cast : ℤ) = 0 ∨
             (action.inputTape.cast : ℤ) = 1 := by
           rcases action.inputTape with _ | _ | _ <;> simp [SignType.cast]
-        refine ih (cfg₁.step action symbol move) (cfg₂.step action symbol move)
-          rfl ?_ ?_ ?_ ?_ ?_ ?_
-        · simp only [Config.step, Turing.Action.apply_inputPos]
-          lia
-        · funext i
-          simp [Config.step, Turing.Action.apply_workTapes, hwork, hworkPos]
-        · funext i
-          simp [Config.step, Turing.Action.apply_workTapePos, hworkPos]
-        · simp [Config.step, Turing.Action.apply_output, hout]
-        · funext op
-          simp [Config.step, hchan]
-        · simp only [Config.step, Turing.Action.apply_inputPos]
+        refine ih (cfg₁.step action symbol move) (cfg₂.step action symbol move) rfl ?_
+          (funext fun _ => by simp [Config.step, Turing.Action.apply_workTapes, hwork, hworkPos])
+          (funext fun _ => by simp [Config.step, Turing.Action.apply_workTapePos, hworkPos])
+          (by simp [Config.step, Turing.Action.apply_output, hout])
+          (funext fun _ => by simp [Config.step, hchan]) ?_
+        all_goals
+          simp only [Config.step, Turing.Action.apply_inputPos]
           lia
       | query op next =>
-        have hq : (cfg₁.channels op).queryBuffer = (cfg₂.channels op).queryBuffer := by
-          rw [hchan]
-        simp only [hq, map_bind]
+        simp only [hchan, map_bind]
         congr 1
         funext answer
         refine ih (cfg₁.receive op next answer) (cfg₂.receive op next answer)

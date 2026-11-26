@@ -37,6 +37,12 @@ namespace Cslib.Complexity.NCL.Vertex
 
 variable {E E' : Type*}
 
+/-- A standard AND/OR vertex has three ports and minimum inflow two. -/
+theorem IsAndOr.shape {v : Vertex E} (h : v.IsAndOr) :
+    v.ports.length = 3 ∧ v.minInflow = 2 := by
+  rcases h with ⟨a, b, c, hm, hp⟩ | ⟨a, b, c, hm, hp⟩
+  all_goals exact ⟨hp.length_eq, hm⟩
+
 /-- Check the minimum inflow and port weights of an AND or OR vertex. -/
 @[expose] def checkAndOr (v : Vertex E) : Bool :=
   v.minInflow == 2 &&

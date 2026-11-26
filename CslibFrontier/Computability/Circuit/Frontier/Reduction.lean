@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 import CslibFrontier.Computability.Circuit.Complexity
+import CslibFrontier.Tactic.LinarithCast
 
 /-!
 # From small circuits to wide graphs
@@ -137,20 +138,17 @@ theorem logb_ncard_accepted_le [Nontrivial U] (hfree : RectangleFree N.accepted 
   set q := Nat.card U
   have hq : (1 : ℝ) < q := by exact_mod_cast Finite.one_lt_card
   have hK : (0 : ℝ) < K := by exact_mod_cast hfree.pos
-  have hpos : (0 : ℝ) < N.accepted.ncard := by
-    have : 0 < N.accepted.ncard :=
-      lt_of_lt_of_le (Nat.mul_pos Nat.card_pos (pow_pos hfree.pos 2)) hbig
-    exact_mod_cast this
-  have hle : (N.accepted.ncard : ℝ) ≤ (K : ℝ) ^ 3 * (Nat.card V + 1) * (q : ℝ) ^ (w + d + m) := by
-    exact_mod_cast N.ncard_accepted_le_pow hfree hbig π hw hd hm
+  have hpos : (0 : ℝ) < N.accepted.ncard :=
+    mod_cast lt_of_lt_of_le (Nat.mul_pos Nat.card_pos (pow_pos hfree.pos 2)) hbig
+  have hle : (N.accepted.ncard : ℝ) ≤ (K : ℝ) ^ 3 * (Nat.card V + 1) * (q : ℝ) ^ (w + d + m) :=
+    mod_cast N.ncard_accepted_le_pow hfree hbig π hw hd hm
   calc Real.logb q N.accepted.ncard
       ≤ Real.logb q ((K : ℝ) ^ 3 * (Nat.card V + 1) * (q : ℝ) ^ (w + d + m)) :=
         Real.logb_le_logb_of_le hq hpos hle
     _ = w + d + m + 3 * Real.logb q K + Real.logb q (Nat.card V + 1) := by
         rw [Real.logb_mul (by positivity) (by positivity), Real.logb_mul (by positivity)
           (by positivity), Real.logb_pow, Real.logb_pow, Real.logb_self_eq_one hq]
-        push_cast
-        ring
+        push_cast; ring
 
 end Network
 
@@ -185,10 +183,9 @@ private theorem cycleRank_le_of_read_bound {k s : ℕ} {C : Circuit σ k 1}
     (hunread : Nat.card U ^ Rᶜ.ncard < K) :
     ((Compiler.graph C).cycleRank : ℝ) ≤
       (r - 1) * s - n + Real.logb (Nat.card U) K + 1 := by
-  have hq : (1 : ℝ) < Nat.card U := by exact_mod_cast Finite.one_lt_card
+  have hq : (1 : ℝ) < Nat.card U := mod_cast Finite.one_lt_card
   have hrank : ((Compiler.graph C).cycleRank + R.ncard : ℝ) ≤
-      (((r - 1) * s : ℕ) : ℝ) + 1 := by
-    exact_mod_cast hrank
+      (((r - 1) * s : ℕ) : ℝ) + 1 := mod_cast hrank
   have hcast : (((r - 1) * s : ℕ) : ℝ) = (r - 1) * s := by
     rcases Nat.eq_zero_or_pos r with rfl | hr
     · simp [hs0 rfl]
@@ -266,8 +263,7 @@ theorem logb_ncard_le_width (hr : 2 ≤ r) (hfan : c.FanInAtMost r) (hS : c.Deci
     (hacc ▸ hbig) π le_rfl (Compiler.maxDegreeLE hr hfan) (Compiler.ncard_readAt_le I _)
   rw [hacc, Compiler.network_toMultigraph] at h
   refine h.trans_eq ?_
-  push_cast
-  ring
+  push_cast; ring
 
 /-- **The reduction theorem for multiary gates.** Over a finite alphabet `U` with `q = |U| ≥ 2`, a
 circuit with `s` multiary gates (`arity ≥ 2`; constant and unary gates are free) of fan-in at most
@@ -301,11 +297,8 @@ theorem exists_graph_of_decides_multiarySize (hr : 2 ≤ r) (hfan : c.FanInAtMos
             (c.multiarySize + n) * Nat.card U ^ Nat.card U) + 3 :=
           Nat.add_le_add_right (Nat.mul_le_mul_left (2 * r) hsize) 3
   · refine (cycleRank_le_multiarySize hfan' (pow_ncard_compl_read_lt hS' hfree hbig)).trans ?_
-    have hrm : (0 : ℝ) ≤ (r : ℝ) - 1 := by
-      have : (2 : ℝ) ≤ r := by exact_mod_cast hr
-      linarith
-    have hm' : (c'.multiarySize : ℝ) ≤ c.multiarySize := by exact_mod_cast hmult
-    linarith [mul_le_mul_of_nonneg_left hm' hrm]
+    linarith [mul_le_mul_of_nonneg_left ((Nat.cast_le (α := ℝ)).mpr hmult)
+      (sub_nonneg.mpr (Nat.one_le_cast.mpr (Nat.one_le_of_lt hr)))]
 
 /-- **The reduction theorem.** A circuit with `s` inner gates of fan-in at most `r ≥ 2`, over any
 basis on `U`, deciding a `K`-rectangle-free set `S ⊆ U^n` with `|S| ≥ q K ^ 2`, where

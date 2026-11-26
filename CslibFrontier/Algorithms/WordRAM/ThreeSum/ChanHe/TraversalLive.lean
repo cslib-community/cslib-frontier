@@ -52,52 +52,37 @@ theorem live_transition {a : Arena} {w : ℕ} {target : List Node}
   have oldOutput : StoredNodes a.U a.N a.table ns p.mem :=
     h.output.of_arena_frame ha (fun i => (h.outputBounds i).1) hframe
   have oldBounds (i : Fin ns.length) :
-      a.floor ≤ ns[i.val].1 ∧ ns[i.val].1 + 4 * a.N ≤ p.regs heap := by
-    rw [ph]
-    exact h.outputBounds i
-  have hwork : 1 ≤ (Cursor.mk (e :: es) ns).work := by
-    have hw := Math.work_pos e.fuel
-    change 1 ≤ Math.work e.fuel + Math.potential (es.map Entry.task)
-    omega
+      a.floor ≤ ns[i.val].1 ∧ ns[i.val].1 + 4 * a.N ≤ p.regs heap :=
+    ph ▸ h.outputBounds i
+  have hwork : 1 ≤ (Cursor.mk (e :: es) ns).work :=
+    Nat.le_add_right_of_le (Math.work_pos e.fuel)
   have htable : a.table + ns.length < a.floor := by
-    have hb := h.tableBudget
-    change ns.length + (Cursor.mk (e :: es) ns).work ≤ a.outputCapacity at hb
-    have hh := ha.2.2.1
-    omega
-  have hheap : p.regs heap ≤ a.ceiling := by
-    rw [ph]
-    have hb := h.heapBudget
-    omega
+    have hb := h.tableBudget; have := ha.2.2.1
+    change ns.length + (Cursor.mk (e :: es) ns).work ≤ a.outputCapacity at hb; omega
+  have hheap : p.regs heap ≤ a.ceiling :=
+    ph ▸ (Nat.le_add_right _ _).trans h.heapBudget
   have htablep : p.regs outputs + p.regs outputCount < a.floor := by
-    rw [hc.2.2.2.2.2.2.1, pc]
-    exact htable
+    rw [hc.2.2.2.2.2.2.1, pc]; exact htable
   obtain ⟨v, hv₀, ⟨em⟩⟩ := emit_admitted true p e ha hw hc hl (h.valid e (by simp))
     (oldStored e (by simp)) oldBitmap hfloor hheap (oldEnds e (by simp)) (fun _ => by omega)
   have hv : ExecWithin (w + 2) visit p v (visitTime a.n a.m a.N) := by simpa using hv₀
   let s : Cursor := ⟨em.children ++ es, ns ++ [((recordLayout p em.M).packed,
     e.task.node (Nat.primesLE a.m) a.Λ)]⟩
   have mathStep := em.math_step es hf hn
-  have hdec := Math.potential_step (Nat.primesLE a.m) a.Λ e.task (es.map Entry.task)
-  rw [mathStep] at hdec
-  change s.work + 1 ≤ (Cursor.mk (e :: es) ns).work at hdec
+  have hdec : s.work + 1 ≤ (Cursor.mk (e :: es) ns).work := by
+    have hstep := Math.potential_step (Nat.primesLE a.m) a.Λ e.task (es.map Entry.task)
+    rwa [mathStep] at hstep
   have depth : Math.Bounded a.fuel (s.pending.map Entry.task) := by
     have hd := Math.bounded_step (Nat.primesLE a.m) a.Λ e.task (es.map Entry.task) h.depth
-    rw [mathStep] at hd
-    exact hd
+    rwa [mathStep] at hd
   have capacity : 21 + (es.flatMap Entry.words).length ≤ a.capacity := by
-    have hd := depth.length_le
-    rw [List.length_map] at hd
-    change (em.children ++ es).length ≤ 2 * a.fuel + 1 at hd
+    have hd : (em.children ++ es).length ≤ 2 * a.fuel + 1 := by
+      simpa only [List.length_map] using depth.length_le
     simp only [Emission.children, List.length_append, List.length_cons, List.length_nil] at hd
-    rw [length_serialized]
-    have hh := ha.2.2.2
-    omega
+    have hh := ha.2.2.2; rw [length_serialized]; omega
   have vcontrols := em.controls hc
   have vstack := em.stack ha hc (hv.bounded (hp.bounded h.bounded))
-    (es.flatMap Entry.words) hstack (by
-      have hs := ha.2.1
-      have hf := ha.2.2.1
-      omega)
+    (es.flatMap Entry.words) hstack (by have := ha.2.1; have := ha.2.2.1; omega)
   obtain ⟨y, hy, hystack, hyframe, hyr⟩ := pushChildren_exec v (es.flatMap Entry.words)
     (hv.bounded (hp.bounded h.bounded)) vcontrols.2.2.2.2.2.2.2.2.2.2 h2 hcap vstack capacity
   have yreg (i : Fin 128) (hi : 71 ≤ i.val) (hi' : i.val < 96) :
@@ -106,32 +91,22 @@ theorem live_transition {a : Arena} {w : ℕ} {target : List Node}
   have hbody := body_live hp hl hc.2.2.2.2.2.2.2.2.2.1 hf hn hv hy
   have vsStored := em.stored ha hc (oldStored e (by simp)) (h.around e (by simp))
     (oldEnds e (by simp)) htablep
-  have newStored : ∀ d ∈ s.pending, d.Stored v.mem := by
-    intro d hd
-    rcases List.mem_append.mp hd with hd | hd
-    · exact em.children_stored vsStored d hd
-    · exact em.stored ha hc (oldStored d (List.mem_cons_of_mem e hd))
-        (h.around d (List.mem_cons_of_mem e hd)) (oldEnds d (List.mem_cons_of_mem e hd)) htablep
-  have newAround : ∀ d ∈ s.pending, d.Around a.stack (a.floor - a.stack) := by
-    intro d hd
-    rcases List.mem_append.mp hd with hd | hd
-    · exact em.children_around (h.around e (by simp)) (by omega) d hd
-    · exact h.around d (List.mem_cons_of_mem e hd)
-  have newEnds : ∀ d ∈ s.pending, ∀ j, d.source j + (d.data j).length ≤ v.regs heap := by
-    intro d hd j
-    rcases List.mem_append.mp hd with hd | hd
-    · exact em.children_ends hl (oldEnds e (by simp)) d hd j
-    · exact (oldEnds d (List.mem_cons_of_mem e hd) j).trans em.heap_mono
+  have newStored : ∀ d ∈ s.pending, d.Stored v.mem := fun d hd =>
+    (List.mem_append.mp hd).elim (em.children_stored vsStored d) fun hd =>
+      em.stored ha hc (oldStored d (.tail e hd)) (h.around d (.tail e hd))
+        (oldEnds d (.tail e hd)) htablep
+  have newAround : ∀ d ∈ s.pending, d.Around a.stack (a.floor - a.stack) := fun d hd =>
+    (List.mem_append.mp hd).elim (em.children_around (h.around e (by simp)) (by omega) d)
+      fun hd => h.around d (.tail e hd)
+  have newEnds : ∀ d ∈ s.pending, ∀ j, d.source j + (d.data j).length ≤ v.regs heap :=
+    fun d hd j => (List.mem_append.mp hd).elim (em.children_ends hl (oldEnds e (by simp)) d · j)
+      fun hd => (oldEnds d (.tail e hd) j).trans em.heap_mono
   have houtput := em.output hc ns oldOutput pc oldBounds htable hfloor
   have yh : y.regs heap = v.regs heap := yreg _ (by decide) (by decide)
   have heapAllocation : v.regs heap ≤ p.regs heap + allocationSize a.n a.m a.N := by
     rw [em.heap_eq]
-    apply allocation_le
-    · intro j
-      rw [hl.2.2]
-      exact (h.valid e (by simp)).length_le j
-    · exact hc.2.2.2.1.le
-    · simpa only [hc.1] using em.upper
+    exact allocation_le _ _ _ _ _ (fun j => (hl.2.2 j).trans_le ((h.valid e (by simp)).length_le j))
+      hc.2.2.2.1.le (by simpa only [hc.1] using em.upper)
   have newBounds (i : Fin s.emitted.length) :
       a.floor ≤ s.emitted[i.val].1 ∧ s.emitted[i.val].1 + 4 * a.N ≤ y.regs heap := by
     rw [yh, em.heap_eq]
@@ -139,73 +114,44 @@ theorem live_transition {a : Arena} {w : ℕ} {target : List Node}
     · simp only [s, List.getElem_append_left hi]
       exact ⟨(oldBounds ⟨i.val, hi⟩).1,
         (oldBounds ⟨i.val, hi⟩).2.trans (em.heap_eq ▸ em.heap_mono)⟩
-    · have hi' := i.isLt
-      have he : i.val = ns.length := by
-        dsimp only [s] at hi'
-        simp only [List.length_append, List.length_singleton] at hi'
-        omega
-      have hg : (ns ++ [((recordLayout p em.M).packed,
-          e.task.node (Nat.primesLE a.m) a.Λ)])[ns.length] =
-          ((recordLayout p em.M).packed, e.task.node (Nat.primesLE a.m) a.Λ) := by simp
-      change a.floor ≤ (ns ++ [_])[i.val].1 ∧ (ns ++ [_])[i.val].1 + 4 * a.N ≤ _
-      simp only [he, hg]
-      constructor
-      · dsimp only [NodePacking.Layout.packed, recordLayout]
-        omega
-      · dsimp only [NodePacking.Layout.endpoint, NodePacking.Layout.hist,
-          NodePacking.Layout.scratch, recordLayout]
-        have hN := hc.2.2.2.1
-        omega
+    · have he : i.val = ns.length := by
+        have hi' := i.isLt
+        simp only [s, List.length_append, List.length_singleton] at hi'; omega
+      simp only [s, he, List.getElem_append_right (le_refl ns.length), Nat.sub_self,
+        List.getElem_singleton, NodePacking.Layout.packed, NodePacking.Layout.endpoint,
+        NodePacking.Layout.hist, NodePacking.Layout.scratch, recordLayout]
+      have := hc.2.2.2.1; omega
   refine ⟨s, y, hbody, ?_, by omega⟩
-  refine ⟨hbody.bounded h.bounded, vcontrols.of_regs_71_96 yreg, ?_, ?_, depth, ?_, ?_, newAround,
-    ?_, ?_, ?_, ?_, ?_, houtput.of_arena_frame ha (fun i => (newBounds i).1) hyframe, newBounds,
-    ?_, ?_⟩
+  refine ⟨hbody.bounded h.bounded, vcontrols.of_regs_71_96 yreg, ?_,
+    by simpa only [s, em.children_words hl, List.flatMap_append, List.append_assoc] using hystack,
+    depth, ?_, fun d hd => (newStored d hd).of_arena_frame ha (newAround d hd) hyframe,
+    newAround, fun d hd j => yh.symm ▸ newEnds d hd j, yh.symm ▸ hfloor.trans em.heap_mono,
+    ?_, ?_, ?_, houtput.of_arena_frame ha (fun i => (newBounds i).1) hyframe, newBounds, ?_, ?_⟩
   · intro q hq
     rw [yframe _ (Or.inl (by have := ha.1; omega)),
-      em.prefix_preserved _ (by have := ha.1; have := ha.2.1; omega) (by
-        have ht := hc.2.2.2.2.2.2.1
-        have hq' := ha.1
-        have hh := ha.2.1
-        omega)]
+      em.prefix_preserved _ (by have := ha.1; have := ha.2.1; omega)
+        (by have := hc.2.2.2.2.2.2.1; have := ha.1; have := ha.2.1; omega)]
     exact oldBitmap q hq
-  · simpa only [s, em.children_words hl, List.flatMap_append, List.append_assoc] using hystack
-  · intro d hd
-    rcases List.mem_append.mp hd with hd | hd
-    · exact em.children_valid (h.valid e (by simp)) d hd
-    · exact h.valid d (List.mem_cons_of_mem e hd)
-  · intro d hd
-    exact (newStored d hd).of_arena_frame ha (newAround d hd) hyframe
-  · intro d hd j
-    rw [yh]
-    exact newEnds d hd j
-  · rw [yh]
-    exact hfloor.trans em.heap_mono
-  · rw [yh]
-    have hb := h.heapBudget
-    have hd := Nat.mul_le_mul_right (allocationSize a.n a.m a.N) hdec
-    rw [Nat.add_mul, Nat.one_mul] at hd
-    rw [ph] at heapAllocation
-    omega
+  · exact fun d hd => (List.mem_append.mp hd).elim (em.children_valid (h.valid e (by simp)) d)
+      fun hd => h.valid d (.tail e hd)
+  · rw [yh]; rw [ph] at heapAllocation
+    have := h.heapBudget; have hd := Nat.mul_le_mul_right (allocationSize a.n a.m a.N) hdec
+    rw [Nat.add_mul, Nat.one_mul] at hd; omega
   · rw [yreg outputCount (by decide) (by decide), em.count, pc]
     simp only [s, List.length_append, List.length_singleton, Bool.toNat_true]
   · have hb := h.tableBudget
     change ns.length + (Cursor.mk (e :: es) ns).work ≤ a.outputCapacity at hb
     change (ns ++ [_]).length + s.work ≤ a.outputCapacity
-    simp only [List.length_append, List.length_singleton]
-    omega
+    rw [List.length_append, List.length_singleton]; omega
   · have he := Math.output_step (Nat.primesLE a.m) a.Λ e.task (es.map Entry.task)
     rw [mathStep] at he
     simpa only [s, List.map_append, List.map_singleton, List.map_cons, Option.toList_some,
       List.singleton_append, List.append_assoc, List.map_nil, List.nil_append, he]
       using h.exactOutput
   · intro q hq
-    rw [yframe q (Or.inl hq), em.prefix_preserved q (by
-      have ht := ha.2.1
-      have hf' := ha.2.2.1
-      omega) (by
-        have ht := ha.2.1
-        have hp' := hc.2.2.2.2.2.2.1
-        omega), frame q (Or.inl hq)]
+    rw [yframe q (Or.inl hq), em.prefix_preserved q
+      (by have := ha.2.1; have := ha.2.2.1; omega)
+      (by have := ha.2.1; have := hc.2.2.2.2.2.2.1; omega), frame q (Or.inl hq)]
     exact h.protectedMemory q hq
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Traversal

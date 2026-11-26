@@ -85,9 +85,8 @@ theorem abs_average_evaluated_sandwich_failure_le {β : Type*} [Fintype β]
     simp only [K, star_mul, (P.nonneg _).isSelfAdjoint.star_eq,
       (N.nonneg _).isSelfAdjoint.star_eq, ← mul_assoc]
     rw [mul_assoc (N.effect (some a)), hp]
-  have hK : ∑ p, star (K p) * K p ≤ 1 := by
-    rw [Fintype.sum_prod_type]
-    exact Measurement.sum_successful_product_sq_le P N hp hn
+  have hK : ∑ p, star (K p) * K p ≤ 1 :=
+    (Fintype.sum_prod_type _).trans_le (Measurement.sum_successful_product_sq_le P N hp hn)
   have h := φ.abs_sum_failure_mul_le K H (P.effect none) Z
     (P.nonneg none).isSelfAdjoint (hp none) hK
     (fun p => averagePolynomialPointEffect_mem_Icc B p.2) hZ (fun p => hbound p.2)
@@ -103,16 +102,14 @@ theorem abs_average_evaluated_sandwich_failure_le {β : Type*} [Fintype β]
           (B u).effect (eval u g.val))).re := by
     simp only [evaluatePolynomialMeasurement_effect_some, mul_sum, sum_mul, map_sum, Complex.re_sum]
     conv_rhs => rw [← sum_fiberwise univ (fun g : BoundedPolynomial F m d => eval u g.val)]
-    refine sum_congr rfl fun b _ => sum_congr rfl fun g hg => ?_
-    rw [hKTerm, (mem_filter.mp hg).2]
+    exact sum_congr rfl fun b _ => sum_congr rfl fun g hg => by rw [hKTerm, (mem_filter.mp hg).2]
   have hmean (a : β) (g : BoundedPolynomial F m d) :
       (𝔼 u : (Fin m → F), (φ (star (K (a, g)) * K (a, g) * P.effect none *
         (B u).effect (eval u g.val))).re) =
         (φ (star (K (a, g)) * K (a, g) * P.effect none * H (a, g))).re := by
-    rw [show H (a, g) = _ from averagePolynomialPointEffect_eq B g]
-    rw [← φ.re_apply_uniformAverage, ← mul_sum, ← mul_smul_comm]
-  simp_rw [hsum, expect_sum_comm, hmean]
-  exact h
+    rw [show H (a, g) = _ from averagePolynomialPointEffect_eq B g,
+      ← φ.re_apply_uniformAverage, ← mul_sum, ← mul_smul_comm]
+  simpa only [hsum, expect_sum_comm, hmean] using h
 
 /-- After moving the varying point effect to the right, the same majorant controls
 the failure term with a second fixed point measurement. -/
@@ -136,9 +133,8 @@ theorem abs_average_evaluated_failure_rightPoint_le {β : Type*} [Fintype β]
   let L (p : β × BoundedPolynomial F m d) := P.effect (some p.2) * C.effect p.1
   let Y (u : Fin m → F) (p : β × BoundedPolynomial F m d) :=
     (K p * P.effect none) * (B u).effect (eval u p.2.val)
-  have hK : ∑ p, star (K p) * K p ≤ 1 := by
-    rw [Fintype.sum_prod_type]
-    exact Measurement.sum_successful_product_sq_le P N hp hn
+  have hK : ∑ p, star (K p) * K p ≤ 1 :=
+    (Fintype.sum_prod_type _).trans_le (Measurement.sum_successful_product_sq_le P N hp hn)
   have hL : (∑ p, φ.norm (L p) ^ 2) ≤ 1 := by
     rw [Fintype.sum_prod_type, sum_comm]
     simp only [L, (hpC _ _).eq, Measurement.sum_norm_effect_mul_sq φ C hC]
@@ -154,9 +150,8 @@ theorem abs_average_evaluated_failure_rightPoint_le {β : Type*} [Fintype β]
     simp only [evaluatePolynomialMeasurement_effect_some, sum_mul, map_sum, Complex.re_sum]
     conv_rhs => rw [← sum_fiberwise univ (fun g : BoundedPolynomial F m d => eval u g.val)]
     refine sum_congr rfl fun a _ => sum_congr rfl fun g hg => ?_
-    have he := (mem_filter.mp hg).2
     simp only [L, Y, K, star_mul, (P.nonneg _).isSelfAdjoint.star_eq,
-      (C.nonneg _).isSelfAdjoint.star_eq, he, mul_assoc]
+      (C.nonneg _).isSelfAdjoint.star_eq, (mem_filter.mp hg).2, mul_assoc]
     rw [← mul_assoc (P.effect (some g)) (P.effect (some g)), hp,
       (hpC (some g) b).symm.left_comm, (hnC (some b) b).symm.left_comm,
       (hpC none b).symm.left_comm]
@@ -174,8 +169,8 @@ theorem abs_average_evaluated_failure_rightPoint_le {β : Type*} [Fintype β]
         (φ (star (K p * P.effect none) * averagePolynomialPointEffect B p.2 *
           (K p * P.effect none))).re := by
     simp only [hY]
-    rw [averagePolynomialPointEffect_eq]
-    rw [← φ.re_apply_uniformAverage, ← sum_mul, ← mul_sum, ← smul_mul_assoc, ← mul_smul_comm]
+    rw [averagePolynomialPointEffect_eq, ← φ.re_apply_uniformAverage, ← sum_mul, ← mul_sum,
+      ← smul_mul_assoc, ← mul_smul_comm]
   have hv : (𝔼 u : Fin m → F, ∑ p, φ.norm (Y u p) ^ 2) ≤ (φ (P.effect none * Z)).re := by
     simp only [expect_sum_comm, hmean, ← Complex.re_sum, ← map_sum]
     exact φ.re_apply_mono (sum_failure_conjugate_le K
@@ -303,16 +298,14 @@ theorem abs_average_evaluated_failure_pointProduct_le_atDegrees
   have hremaining : |𝔼 u, 𝔼 v, reordered u v| ≤ √ζ := by
     rw [expect_comm univ univ]
     simp_rw [Fintype.expect_eq_expect_snoc (fun u => reordered u _)]
-    refine (abs_expect_le _ _).trans ?_
-    refine (expect_le_expect fun v _ => abs_expect_le _ _).trans ?_
-    refine (expect_le_expect fun v _ => expect_le_expect fun x _ => hfixed x v).trans ?_
+    refine (abs_expect_le _ _).trans <| (expect_le_expect fun v _ =>
+      (abs_expect_le _ _).trans <| expect_le_expect fun x _ => hfixed x v).trans ?_
     rw [Fintype.expect_const]
-    apply (Fintype.expect_sqrt_le_sqrt_expect _ ?_).trans (Real.sqrt_le_sqrt hfail)
-    intro x
-    exact S.state.re_apply_nonneg (Commute.mul_nonneg ((M x).nonneg none) (hZ x) (hMZ x x none))
+    exact (Fintype.expect_sqrt_le_sqrt_expect _ fun x => S.state.re_apply_nonneg
+      (Commute.mul_nonneg ((M x).nonneg none) (hZ x) (hMZ x x none))).trans
+      (Real.sqrt_le_sqrt hfail)
   change |𝔼 u, 𝔼 v, ordered u v| ≤ _
-  simpa only [sub_zero] using (abs_sub_le _ (𝔼 u, 𝔼 v, reordered u v) 0).trans
-    (by simpa only [sub_zero] using add_le_add hswap hremaining)
+  linarith [abs_sub_abs_le_abs_sub (𝔼 u, 𝔼 v, ordered u v) (𝔼 u, 𝔼 v, reordered u v)]
 
 /-- The evaluated-slice term with a failure projection is bounded by the slice
 majorants and the diagonal test, as in Claim 11.3. -/

@@ -119,9 +119,9 @@ theorem circulant_mul_addCharMatrix {R : Type*} [CommSemiring R] [Fintype (AddCh
     circulant w * addCharMatrix G R =
       addCharMatrix G R * diagonal (circulantEigenvalue w) := by
   ext x ψ
-  have h := congrFun (circulant_mulVec_addChar w ψ) x
   rw [mul_diagonal]
-  simpa [Matrix.mul_apply, mulVec, dotProduct, mul_comm] using h
+  simpa [Matrix.mul_apply, mulVec, dotProduct, mul_comm] using
+    congrFun (circulant_mulVec_addChar w ψ) x
 
 /-- Character orthogonality in matrix form: `dualAddCharMatrix * addCharMatrix = |G| • 1` over any
 integral domain. -/
@@ -130,12 +130,9 @@ theorem dualAddCharMatrix_mul_addCharMatrix {R : Type*} [CommRing R] [IsDomain R
     dualAddCharMatrix G R * addCharMatrix G R =
       (Fintype.card G : R) • (1 : Matrix (AddChar G R) (AddChar G R) R) := by
   ext ψ χ
-  have hsum : (∑ g : G, ψ (-g) * χ g) = ∑ g : G, (χ - ψ) g := by
-    refine sum_congr rfl fun g _ => ?_
-    rw [AddChar.sub_apply, mul_comm]
+  have hsub (g : G) : ψ (-g) * χ g = (χ - ψ) g := by rw [AddChar.sub_apply, mul_comm]
   rw [Matrix.mul_apply]
-  dsimp only [dualAddCharMatrix_apply, addCharMatrix_apply]
-  rw [hsum, AddChar.sum_eq_ite]
+  simp only [dualAddCharMatrix_apply, addCharMatrix_apply, hsub, AddChar.sum_eq_ite]
   simp [Matrix.one_apply, sub_eq_zero, eq_comm]
 
 /-- **Similarity diagonalization of a group circulant** over any field `L` with
@@ -156,26 +153,21 @@ theorem diagonalize_circulant_of_card_addChar_eq {L : Type*} [Field L] [Fintype 
   have hQP : Q * P = 1 := by
     have hm : (dualAddCharMatrix G L).submatrix e id * (addCharMatrix G L).submatrix id e =
         (dualAddCharMatrix G L * addCharMatrix G L).submatrix e e := by
-      ext i j
+      ext
       simp [Matrix.mul_apply]
     dsimp only [Q, P]
     rw [smul_mul, hm, dualAddCharMatrix_mul_addCharMatrix]
-    ext i j
+    ext
     simp [Matrix.one_apply, e.injective.eq_iff, inv_mul_cancel₀ hchar]
   have hdetQP : Q.det * P.det = 1 := by rw [← det_mul, hQP, det_one]
-  have hQunit : IsUnit Q :=
-    (isUnit_iff_isUnit_det Q).mpr (IsUnit.mk0 _ (left_ne_zero_of_mul_eq_one hdetQP))
-  have hPunit : IsUnit P :=
-    (isUnit_iff_isUnit_det P).mpr (IsUnit.mk0 _ (right_ne_zero_of_mul_eq_one hdetQP))
+  refine ⟨hQP, (isUnit_iff_isUnit_det P).mpr (IsUnit.mk0 _ (right_ne_zero_of_mul_eq_one hdetQP)),
+    (isUnit_iff_isUnit_det Q).mpr (IsUnit.mk0 _ (left_ne_zero_of_mul_eq_one hdetQP)), ?_⟩
   have hCP : circulant w * P = P * diagonal (fun g => circulantEigenvalue w (e g)) := by
-    have hc := circulant_mul_addCharMatrix w
     ext x g
-    have hxg := congrFun (congrFun hc x) (e g)
+    have hxg := congrFun (congrFun (circulant_mul_addCharMatrix w) x) (e g)
     rw [mul_diagonal] at hxg ⊢
     simpa [P, Matrix.mul_apply] using hxg
-  have hdiag : Q * circulant w * P = diagonal (fun g => circulantEigenvalue w (e g)) := by
-    rw [Matrix.mul_assoc, hCP, ← Matrix.mul_assoc, hQP, Matrix.one_mul]
-  exact ⟨hQP, hPunit, hQunit, hdiag⟩
+  rw [Matrix.mul_assoc, hCP, ← Matrix.mul_assoc, hQP, Matrix.one_mul]
 
 /-- **Rank of a group-circulant matrix over a character-splitting field**: when `AddChar G L` has
 cardinality `|G|` and `(|G| : L) ≠ 0`, `(circulant w).rank` equals the number of characters with
@@ -187,14 +179,9 @@ theorem rank_circulant_of_card_addChar_eq {L : Type*} [Field L] [Fintype (AddCha
   classical
   let e : G ≃ AddChar G L := (Fintype.equivOfCardEq hcard).symm
   obtain ⟨_, hPunit, hQunit, hdiag⟩ := diagonalize_circulant_of_card_addChar_eq hchar hcard w
-  let P : Matrix G G L := (addCharMatrix G L).submatrix id e
-  let Q : Matrix G G L := (Fintype.card G : L)⁻¹ • (dualAddCharMatrix G L).submatrix e id
-  have hPdet : IsUnit P.det := (isUnit_iff_isUnit_det P).mp hPunit
-  have hQdet : IsUnit Q.det := (isUnit_iff_isUnit_det Q).mp hQunit
-  have hr : (Q * circulant w * P).rank = (circulant w).rank := by
-    rw [rank_mul_eq_left_of_isUnit_det P (Q * circulant w) hPdet,
-      rank_mul_eq_right_of_isUnit_det Q (circulant w) hQdet]
-  rw [← hr, hdiag, rank_diagonal, Nat.card_eq_fintype_card]
+  rw [← rank_mul_eq_right_of_isUnit_det _ (circulant w) ((isUnit_iff_isUnit_det _).mp hQunit),
+    ← rank_mul_eq_left_of_isUnit_det _ _ ((isUnit_iff_isUnit_det _).mp hPunit), hdiag,
+    rank_diagonal, Nat.card_eq_fintype_card]
   exact Fintype.card_congr (Equiv.subtypeEquiv e fun _ => Iff.rfl)
 
 /-- Finset-cardinality form of `rank_circulant_of_card_addChar_eq` when `L` has decidable
@@ -300,17 +287,13 @@ theorem cubeCharMatrix_mul_self (R ι : Type*) [CommRing R] [Fintype ι] [Decida
     cubeCharMatrix R ι * cubeCharMatrix R ι =
       ((2 : R) ^ Fintype.card ι) • (1 : Matrix (ι → Bool) (ι → Bool) R) := by
   ext x z
-  have hrhs : (((2 : R) ^ Fintype.card ι) • (1 : Matrix (ι → Bool) (ι → Bool) R)) x z =
-      if x = z then (2 : R) ^ Fintype.card ι else 0 := by
-    simp [Matrix.one_apply]
-  rw [hrhs]
+  rw [show (((2 : R) ^ Fintype.card ι) • (1 : Matrix (ι → Bool) (ι → Bool) R)) x z =
+      if x = z then (2 : R) ^ Fintype.card ι else 0 by simp [Matrix.one_apply]]
   simp only [Matrix.mul_apply, cubeCharMatrix_apply, ← prod_mul_distrib]
-  rw [← Fintype.prod_sum (fun (i : ι) (b : Bool) =>
-    sylvesterTwo R (x i) b * sylvesterTwo R b (z i))]
+  rw [← Fintype.prod_sum fun (i : ι) (b : Bool) => sylvesterTwo R (x i) b * sylvesterTwo R b (z i)]
   by_cases hxz : x = z
   · subst hxz
-    have hpair : ∀ i : ι, (∑ b : Bool, sylvesterTwo R (x i) b * sylvesterTwo R b (x i)) = 2 := by
-      intro i
+    have hpair (i : ι) : (∑ b : Bool, sylvesterTwo R (x i) b * sylvesterTwo R b (x i)) = 2 := by
       rw [Fintype.sum_bool]
       cases x i <;> simp [sylvesterTwo] <;> ring
     simp_rw [hpair]
@@ -327,13 +310,10 @@ full rank `2 ^ |ι|`. -/
 theorem isUnit_cubeCharMatrix {K ι : Type*} [Field K] [Fintype ι] [DecidableEq ι]
     (h2 : (2 : K) ≠ 0) :
     IsUnit (cubeCharMatrix K ι) := by
-  have hpow : ((2 : K) ^ Fintype.card ι) ≠ 0 := pow_ne_zero _ h2
   have hmul : (((2 : K) ^ Fintype.card ι)⁻¹ • cubeCharMatrix K ι) * cubeCharMatrix K ι = 1 := by
-    rw [smul_mul, cubeCharMatrix_mul_self, smul_smul, inv_mul_cancel₀ hpow, one_smul]
-  have hdet : (((2 : K) ^ Fintype.card ι)⁻¹ • cubeCharMatrix K ι).det *
-      (cubeCharMatrix K ι).det = 1 := by
-    rw [← det_mul, hmul, det_one]
-  exact (isUnit_iff_isUnit_det _).mpr (IsUnit.mk0 _ (right_ne_zero_of_mul_eq_one hdet))
+    rw [smul_mul, cubeCharMatrix_mul_self, smul_smul, inv_mul_cancel₀ (pow_ne_zero _ h2), one_smul]
+  exact (isUnit_iff_isUnit_det _).mpr
+    (IsUnit.mk0 _ (right_ne_zero_of_mul_eq_one (by rw [← det_mul, hmul, det_one])))
 
 theorem rank_cubeCharMatrix {K ι : Type*} [Field K] [Fintype ι] [DecidableEq ι]
     (h2 : (2 : K) ≠ 0) :
@@ -348,15 +328,12 @@ theorem circulant_mul_cubeCharMatrix {R ι : Type*} [CommRing R] [Fintype ι] [D
       cubeCharMatrix R ι * diagonal (fun y => ∑ x, w x * cubeCharMatrix R ι x y) := by
   ext x y
   let S : Finset ι := univ.filter fun i => y i = true
-  have hc := congrFun (circulant_mulVec_addChar w (Cslib.BitString.chiChar R S)) x
-  have hsymm : circulantEigenvalue w (Cslib.BitString.chiChar R S) =
-      ∑ g, w g * cubeCharMatrix R ι g y := by
-    rw [circulantEigenvalue_of_symm (fun g => by rw [Cslib.BitString.neg_eq_self])]
-    rfl
   rw [mul_diagonal, Matrix.mul_apply]
   change (circulant w *ᵥ ⇑(Cslib.BitString.chiChar R S)) x =
     cubeCharMatrix R ι x y * ∑ g, w g * cubeCharMatrix R ι g y
-  rw [hc, Pi.smul_apply, smul_eq_mul, hsymm, mul_comm]
+  rw [congrFun (circulant_mulVec_addChar w (Cslib.BitString.chiChar R S)) x, Pi.smul_apply,
+    smul_eq_mul, circulantEigenvalue_of_symm fun g => by rw [Cslib.BitString.neg_eq_self],
+    mul_comm]
   rfl
 
 /-- **Rank of a Boolean-cube circulant** over any field `K` with `(2 : K) ≠ 0` (`ℚ`, `ℝ`, or odd
@@ -367,35 +344,25 @@ theorem rank_circulant_cube {K ι : Type*} [Field K] [Fintype ι] [DecidableEq �
     (circulant w).rank =
       #{S : Finset ι | ∑ x : ι → Bool, w x * Cslib.BitString.chi K S x ≠ 0} := by
   let H := cubeCharMatrix K ι
-  have hpow : ((2 : K) ^ Fintype.card ι) ≠ 0 := pow_ne_zero _ h2
   let Hinv := ((2 : K) ^ Fintype.card ι)⁻¹ • H
   have hHH : Hinv * H = 1 := by
-    rw [smul_mul, cubeCharMatrix_mul_self, smul_smul, inv_mul_cancel₀ hpow, one_smul]
-  have hHdet : IsUnit H.det := (isUnit_iff_isUnit_det H).mp (isUnit_cubeCharMatrix h2)
-  have hHinv_det : IsUnit Hinv.det := by
-    have hd : Hinv.det * H.det = 1 := by rw [← det_mul, hHH, det_one]
-    exact IsUnit.mk0 _ (left_ne_zero_of_mul_eq_one hd)
-  have hdiag : Hinv * circulant w * H =
-      diagonal (fun y => ∑ x, w x * H x y) := by
-    rw [Matrix.mul_assoc, circulant_mul_cubeCharMatrix, ← Matrix.mul_assoc, hHH, Matrix.one_mul]
-  have hr : (Hinv * circulant w * H).rank = (circulant w).rank := by
-    rw [rank_mul_eq_left_of_isUnit_det H (Hinv * circulant w) hHdet,
-      rank_mul_eq_right_of_isUnit_det Hinv (circulant w) hHinv_det]
-  rw [← hr, hdiag, rank_diagonal, Fintype.card_subtype]
+    rw [smul_mul, cubeCharMatrix_mul_self, smul_smul, inv_mul_cancel₀ (pow_ne_zero _ h2), one_smul]
+  have hHinv_det : IsUnit Hinv.det :=
+    IsUnit.mk0 _ (left_ne_zero_of_mul_eq_one (by rw [← det_mul, hHH, det_one]))
+  rw [← rank_mul_eq_right_of_isUnit_det Hinv (circulant w) hHinv_det,
+    ← rank_mul_eq_left_of_isUnit_det H _ ((isUnit_iff_isUnit_det H).mp (isUnit_cubeCharMatrix h2)),
+    Matrix.mul_assoc, circulant_mul_cubeCharMatrix, ← Matrix.mul_assoc, hHH, Matrix.one_mul,
+    rank_diagonal, Fintype.card_subtype]
   refine Finset.card_bij (fun y _ => univ.filter fun i => y i = true)
-    (fun y hy => ?_) (fun y₁ _ y₂ _ h => ?_) (fun S hS => ?_)
-  · simpa [H, cubeCharMatrix] using hy
-  · funext i
-    have hi := Finset.ext_iff.mp h i
-    simp only [mem_filter, mem_univ, true_and] at hi
-    exact Bool.eq_iff_iff.mpr hi
-  · refine ⟨fun i => decide (i ∈ S), ?_, ?_⟩
-    · have hS' : (univ.filter fun i => decide (i ∈ S) = true) = S := by
-        ext i
-        simp
-      simpa [H, cubeCharMatrix, hS'] using hS
-    · ext i
+    (fun _ hy => ?_) (fun _ _ _ _ h => ?_) (fun S hS => ?_)
+  · exact mem_filter.mpr ⟨mem_univ _, by simpa [H, cubeCharMatrix] using (mem_filter.mp hy).2⟩
+  · refine funext fun i => Bool.eq_iff_iff.mpr ?_
+    simpa only [mem_filter, mem_univ, true_and] using Finset.ext_iff.mp h i
+  · have hS' : (univ.filter fun i => decide (i ∈ S) = true) = S := by
+      ext
       simp
+    refine ⟨fun i => decide (i ∈ S), mem_filter.mpr ⟨mem_univ _, ?_⟩, hS'⟩
+    simpa [H, cubeCharMatrix, hS'] using (mem_filter.mp hS).2
 
 end BooleanCube
 
@@ -418,21 +385,18 @@ theorem cubeCayley_walk_eq_circulant_mulVec {ι : Type*} [Fintype ι] [Decidable
   simp only [Cslib.RotationMap.cubeCayley_neighbor, Fintype.expect_eq_sum_div_card,
     Fintype.card_fin, mulVec, dotProduct, circulant_apply, cubeCayleyWeight]
   have hsum : (∑ y : ι → Bool, (#{j : Fin d | s j = u - y} : ℝ) / d * f y) =
-      (∑ y : ι → Bool, ∑ j : Fin d, if s j = u - y then f y / d else 0) := by
+      ∑ y : ι → Bool, ∑ j : Fin d, if s j = u - y then f y / d else 0 := by
     refine sum_congr rfl fun y _ => ?_
     rw [card_filter, Nat.cast_sum]
     simp only [Nat.cast_ite, Nat.cast_one, Nat.cast_zero, sum_div, sum_mul, ite_div, zero_div,
       ite_mul, zero_mul]
-    exact sum_congr rfl fun j _ => by split_ifs <;> ring
+    exact sum_congr rfl fun _ _ => by split_ifs <;> ring
   rw [hsum, sum_comm, sum_div]
   refine sum_congr rfl fun j _ => ?_
-  have heq : ∀ y : ι → Bool, (s j = u - y) ↔ (y = u + s j) := fun y => by
+  have heq (y : ι → Bool) : (s j = u - y) ↔ (y = u + s j) := by
     rw [Cslib.BitString.sub_eq_add]
-    constructor
-    · intro h
-      rw [h, ← add_assoc, Cslib.BitString.add_self, zero_add]
-    · intro h
-      rw [h, ← add_assoc, Cslib.BitString.add_self, zero_add]
+    exact ⟨fun h => by rw [h, ← add_assoc, Cslib.BitString.add_self, zero_add],
+      fun h => by rw [h, ← add_assoc, Cslib.BitString.add_self, zero_add]⟩
   simp [heq]
 
 /-- The character eigenvalue of `cubeCayleyWeight s` at `chiChar ℝ S` agrees with the generator
@@ -444,12 +408,11 @@ theorem circulantEigenvalue_cubeCayleyWeight {ι : Type*} [Fintype ι] [Decidabl
   have hw := congrFun (cubeCayley_walk_eq_circulant_mulVec s (Cslib.BitString.chi ℝ S)) 0
   rw [show Cslib.BitString.chi ℝ S = ⇑(Cslib.BitString.chiChar ℝ S) from rfl,
     circulant_mulVec_addChar] at hw
-  have hw0 : (Cslib.RotationMap.cubeCayley s).walk (Cslib.BitString.chi ℝ S) 0 =
+  have hw' : (Cslib.RotationMap.cubeCayley s).walk (Cslib.BitString.chi ℝ S) 0 =
       circulantEigenvalue (cubeCayleyWeight s) (Cslib.BitString.chiChar ℝ S) := by
     simpa [Pi.smul_apply, smul_eq_mul] using hw
-  rw [← hw0, Cslib.BitString.bias_uniformOfFintype_map, Cslib.RotationMap.walk_apply]
-  refine expect_congr rfl fun j _ => ?_
-  simp [Cslib.RotationMap.cubeCayley_neighbor]
+  rw [← hw', Cslib.BitString.bias_uniformOfFintype_map, Cslib.RotationMap.walk_apply]
+  exact expect_congr rfl fun _ _ => by simp [Cslib.RotationMap.cubeCayley_neighbor]
 
 /-- On `Fin (n + 1)`, the `k`-th Fourier mode `j ↦ ω ^ (j * k)` (for `ω ^ (n + 1) = 1`) is an
 eigenvector of `Matrix.circulant w` with eigenvalue `Cslib.dft ω (fun i => w (-i)) k`. -/
@@ -461,17 +424,14 @@ theorem circulant_mulVec_pow_eq_dft_smul {R : Type*} [CommRing R] {n : ℕ} {ω 
   funext x
   simp only [mulVec, dotProduct, circulant_apply, Cslib.dft, Pi.smul_apply, smul_eq_mul, sum_mul]
   refine Fintype.sum_equiv (Equiv.subRight x) _ _ fun j => ?_
-  rw [Equiv.subRight_apply]
-  have hpow : ω ^ (((j - x : Fin (n + 1)) : ℕ) * k) * ω ^ ((x : ℕ) * k) =
-      ω ^ ((j : ℕ) * k) := by
-    have hadd : (j - x) + x = j := sub_add_cancel j x
+  have hpow : ω ^ (((j - x : Fin (n + 1)) : ℕ) * k) * ω ^ ((x : ℕ) * k) = ω ^ ((j : ℕ) * k) :=
     calc ω ^ (((j - x : Fin (n + 1)) : ℕ) * k) * ω ^ ((x : ℕ) * k)
         = ω ^ ((((j - x) + x : Fin (n + 1)) : ℕ) * k) := by
-            symm
-            rw [Fin.val_add, pow_eq_pow_mod _ hω, Nat.mod_mul_mod, ← pow_eq_pow_mod _ hω,
-              add_mul, pow_add]
-      _ = ω ^ ((j : ℕ) * k) := by rw [hadd]
-  rw [neg_sub, mul_assoc, hpow]
+          symm
+          rw [Fin.val_add, pow_eq_pow_mod _ hω, Nat.mod_mul_mod, ← pow_eq_pow_mod _ hω, add_mul,
+            pow_add]
+      _ = ω ^ ((j : ℕ) * k) := by rw [sub_add_cancel]
+  rw [Equiv.subRight_apply, neg_sub, mul_assoc, hpow]
 
 end Bridges
 

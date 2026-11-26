@@ -170,27 +170,14 @@ private theorem toOuterMeasure_uniform_linearForm_eq_le [NeZero q] (hq : q.Prime
     exact Finset.sum_congr rfl fun i _ => by ring
   by_cases ha : K.1 = K'.1
   · have hc : K.2 ≠ K'.2 := fun hc => h (Prod.ext ha hc)
-    have hempty : {x : ι → ZMod q | ∑ i, K.1 i * x i + K.2 = ∑ i, K'.1 i * x i + K'.2} = ∅ := by
-      ext x
-      simp only [Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false]
-      rw [ha]
-      exact fun hx => hc (add_left_cancel hx)
-    rw [hempty]
-    simp
+    simp [ha, hc]
   · obtain ⟨i₀, hi₀⟩ := Function.ne_iff.mp ha
     have hd : (fun i => K.1 i - K'.1 i) i₀ ≠ 0 := sub_ne_zero.mpr hi₀
-    have key := Cslib.Probability.toOuterMeasure_uniform_linearComb_eq (F := ZMod q)
+    have key := ZMod.card q ▸ Cslib.Probability.toOuterMeasure_uniform_linearComb_eq (F := ZMod q)
       (d := fun i => K.1 i - K'.1 i) (i₀ := i₀) hd (K'.2 - K.2)
-    rw [ZMod.card] at key
-    refine le_of_eq_of_le (congrArg _ ?_) key.le
-    ext x
-    simp only [Set.mem_ofPred_eq]
-    rw [hsum]
-    constructor
-    · intro hx
-      linear_combination hx
-    · intro hx
-      linear_combination hx
+    refine le_of_eq_of_le (congrArg _ (Set.ext fun x => ?_)) key.le
+    simp only [Set.mem_ofPred_eq, hsum]
+    constructor <;> intro hx <;> linear_combination hx
 
 /-! ### Tabulating queries -/
 
@@ -223,10 +210,7 @@ private theorem interpret_tabulateM_pure {I K R : Type} {spec : OracleSpec I} [D
   | cons k l ih =>
     simp only [tabulateM, interp_norm, pmf_norm, hact, ih]
     congr 1 with k' : 1
-    by_cases hk : k' = k
-    · subst hk
-      simp
-    · simp [hk]
+    by_cases hk : k' = k <;> simp [hk]
 
 /-- One step of a sequential composition, read through `ψ` and `r`, is a step of another, when the
 first stages correspond through `φ` and `r` and every continuation from a state satisfying `I`
@@ -254,11 +238,7 @@ private theorem map_run_tabulateM {I I' K R R' Q Q' : Type} {spec : OracleSpec I
     ((OracleComp.interpret h (tabulateM act l)).run s).map (fun x => (fun k => φ (x.1 k), r x.2)) =
       (OracleComp.interpret h' (tabulateM act' l)).run (r s) := by
   induction l generalizing s with
-  | nil =>
-    simp only [tabulateM, interp_norm, pmf_norm]
-    congr 2
-    funext k
-    exact hφ
+  | nil => simp [tabulateM, interp_norm, pmf_norm, Pi.zero_def, hφ]
   | cons k l ih =>
     simp only [tabulateM, interp_norm, Probability.PMF.monad_bind_eq_bind,
       Probability.PMF.monad_pure_eq_pure]
@@ -270,12 +250,8 @@ private theorem map_run_tabulateM {I I' K R R' Q Q' : Type} {spec : OracleSpec I
       (fun x hx => OracleComp.run_interpret_invariant h I hpres _ s₁ hs₁ x.1 x.2 hx) _ _ ?_
     intro t s₂ _
     simp only [PMF.pure_map]
-    congr 2
-    funext k'
-    by_cases hk : k' = k
-    · subst hk
-      simp
-    · simp [hk]
+    congr 2 with k'
+    by_cases hk : k' = k <;> simp [hk]
 
 /-! ### Keyed tables
 
@@ -292,10 +268,6 @@ private def ev (x : ι → ZMod q) (K : (ι → ZMod q) × ZMod q) : ZMod q := �
 
 omit [DecidableEq ι] in
 private theorem ev_zero_left (x : ι → ZMod q) (b : ZMod q) : ev x (0, b) = b := by
-  simp [ev]
-
-omit [DecidableEq ι] in
-private theorem ev_zero (x : ι → ZMod q) : ev x 0 = 0 := by
   simp [ev]
 
 /-- A table of (key, label) pairs. -/
@@ -371,16 +343,12 @@ private theorem lookup_rep_of_lookup {x : ι → ZMod q} {tab : Tab ι q}
     obtain ⟨K', m⟩ := e
     rw [List.map_cons, List.nodup_cons] at hval
     simp only [rep, List.map_cons, List.lookup_cons] at h ⊢
-    by_cases hK : K = K'
-    · subst hK
-      simp only [beq_self_eq_true, Option.some.injEq] at h
-      simp [h]
+    rcases eq_or_ne K K' with rfl | hK
+    · simpa using h
     · rw [beq_false_of_ne hK] at h
-      have hmem : ev x K ∈ tab.map fun e => ev x e.1 :=
-        List.mem_map.mpr ⟨(K, ℓ), List.mem_of_lookup_eq_some h, rfl⟩
-      have hne : ev x K ≠ ev x K' := fun heq => hval.1 (heq ▸ hmem)
-      rw [beq_false_of_ne hne]
-      exact ih hval.2 h
+      have hne : ev x K ≠ ev x K' := fun heq =>
+        hval.1 (heq ▸ List.mem_map.mpr ⟨(K, ℓ), List.mem_of_lookup_eq_some h, rfl⟩)
+      simpa only [rep, beq_false_of_ne hne] using ih hval.2 h
 
 section Tables
 
@@ -636,22 +604,18 @@ private theorem consistent_of_mem_support_realStep {x : ι → ZMod q} {tab : Ta
       simp only [realStep, h, PMF.mem_support_bind_iff] at hy
       obtain ⟨b, hb, hy⟩ := hy
       have hb' := mem_of_mem_support_draw (freshConsts_nonempty hlen) hb
-      by_cases hcl : Clash x tab (0, b)
-      · rw [ite_eq_left hcl, PMF.mem_support_map_iff] at hy
-        obtain ⟨b', hb'', rfl⟩ := hy
-        have hv := mem_of_mem_support_draw (freshValues_nonempty x hlen) hb''
-        simp only [freshValues, Finset.mem_filter, Finset.mem_univ, true_and] at hv
-        refine ⟨List.nodup_cons.mpr ⟨?_, hcon.1⟩, List.nodup_cons.mpr ⟨hℓ, hcon.2⟩⟩
-        change ev x (0, b') ∉ _
-        rwa [ev_zero_left]
-      · rw [ite_eq_right hcl, PMF.mem_support_pure_iff] at hy
-        subst hy
-        have hv : b ∈ freshValues x tab :=
-          not_not.mp (mt (clash_iff_notMem_freshValues hb').mpr hcl)
-        simp only [freshValues, Finset.mem_filter, Finset.mem_univ, true_and] at hv
-        refine ⟨List.nodup_cons.mpr ⟨?_, hcon.1⟩, List.nodup_cons.mpr ⟨hℓ, hcon.2⟩⟩
-        change ev x (0, b) ∉ _
-        rwa [ev_zero_left]
+      obtain ⟨b₀, _, rfl, hv⟩ : ∃ b₀ flag, y = ((0, b₀), ((0, b₀), ℓ) :: tab, flag) ∧
+          b₀ ∈ freshValues x tab := by
+        by_cases hcl : Clash x tab (0, b)
+        · rw [ite_eq_left hcl, PMF.mem_support_map_iff] at hy
+          obtain ⟨b', hb'', rfl⟩ := hy
+          exact ⟨b', true, rfl, mem_of_mem_support_draw (freshValues_nonempty x hlen) hb''⟩
+        · rw [ite_eq_right hcl, PMF.mem_support_pure_iff] at hy
+          subst hy
+          exact ⟨b, false, rfl, not_not.mp (mt (clash_iff_notMem_freshValues hb').mpr hcl)⟩
+      simp only [freshValues, Finset.mem_filter, Finset.mem_univ, true_and] at hv
+      exact ⟨List.nodup_cons.mpr ⟨by simpa [ev_zero_left] using hv, hcon.1⟩,
+        List.nodup_cons.mpr ⟨hℓ, hcon.2⟩⟩
     · simp only [realStep, h, PMF.mem_support_pure_iff] at hy
       subst hy; exact hcon
 
@@ -693,13 +657,11 @@ private theorem symStep_map_fst (x : ι → ZMod q) (p : Prim ι q) (tab : Tab �
     (symStep x p tab).map (Prod.map id Prod.fst) = symOracle p tab := by
   cases p with
   | fwd K =>
-    rcases h₁ : tab.lookup K with _ | ℓ
-    · simp only [symStep, symOracle, h₁, PMF.map_comp]; rfl
-    · simp only [symStep, symOracle, h₁, PMF.pure_map]; rfl
+    rcases h₁ : tab.lookup K with _ | ℓ <;>
+      simp [symStep, symOracle, h₁, PMF.map_comp, Function.comp_def]
   | inv ℓ =>
-    rcases h : keyOf tab ℓ with _ | K
-    · simp only [symStep, symOracle, h, PMF.map_comp]; rfl
-    · simp only [symStep, symOracle, h, PMF.pure_map]; rfl
+    rcases h : keyOf tab ℓ with _ | K <;>
+      simp [symStep, symOracle, h, PMF.map_comp, Function.comp_def]
 
 omit [DecidableEq ι] in
 /-- The symbolic step only adds to the table, and raises its flag only when the new table has two
@@ -739,15 +701,10 @@ private theorem symFlag_preserve (x : ι → ZMod q) (p : Prim ι q) (s : Tab ι
     (h : (a, s') ∈ (withBadFlag (symStep x) p s).support) :
     s'.2 = true → HasImageCollision (ev x) s'.1 := by
   obtain ⟨tab, b⟩ := s
-  simp only [withBadFlag, PMF.mem_support_map_iff] at h
-  obtain ⟨y, hy, heq⟩ := h
+  simp only [withBadFlag, PMF.mem_support_map_iff, Prod.map, id, Prod.mk.injEq] at h
+  obtain ⟨y, hy, -, rfl⟩ := h
   obtain ⟨hsub, hflag⟩ := symStep_support p hy
-  simp only [Prod.map, id, Prod.mk.injEq] at heq
-  obtain ⟨-, rfl⟩ := heq
-  intro hb
-  rcases Bool.or_eq_true_iff.mp hb with hb | hb
-  · exact (hs hb).mono hsub
-  · exact hflag hb
+  exact fun hb => (Bool.or_eq_true_iff.mp hb).elim (fun h => (hs h).mono hsub) hflag
 
 omit [DecidableEq ι] in
 /-- The symbolic step adds at most one entry. -/
@@ -756,21 +713,19 @@ private theorem length_le_of_mem_support_symOracle (p : Prim ι q) (tab : Tab ι
     tab'.length ≤ tab.length + 1 := by
   cases p with
   | fwd K =>
-    rcases h₁ : tab.lookup K with _ | ℓ
-    · simp only [symOracle, h₁, PMF.mem_support_map_iff] at h
-      obtain ⟨ℓ, -, heq⟩ := h
-      simp only [Prod.mk.injEq] at heq
-      rw [← heq.2, List.length_cons]
-    · simp only [symOracle, h₁, PMF.mem_support_pure_iff, Prod.mk.injEq] at h
-      rw [h.2]; omega
+    cases h₁ : tab.lookup K <;>
+      simp only [symOracle, h₁, PMF.mem_support_map_iff, PMF.mem_support_pure_iff,
+        Prod.mk.injEq] at h
+    · obtain ⟨_, -, -, rfl⟩ := h
+      exact le_rfl
+    · exact h.2 ▸ Nat.le_succ _
   | inv ℓ =>
-    rcases h₂ : keyOf tab ℓ with _ | K
-    · simp only [symOracle, h₂, PMF.mem_support_map_iff] at h
-      obtain ⟨b, -, heq⟩ := h
-      simp only [Prod.mk.injEq] at heq
-      rw [← heq.2, List.length_cons]
-    · simp only [symOracle, h₂, PMF.mem_support_pure_iff, Prod.mk.injEq] at h
-      rw [h.2]; omega
+    cases h₂ : keyOf tab ℓ <;>
+      simp only [symOracle, h₂, PMF.mem_support_map_iff, PMF.mem_support_pure_iff,
+        Prod.mk.injEq] at h
+    · obtain ⟨_, -, -, rfl⟩ := h
+      exact le_rfl
+    · exact h.2 ▸ Nat.le_succ _
 
 end Tables
 
@@ -962,27 +917,20 @@ private theorem realGroup_step (x : ι → ZMod q) (query : GroupQuery q (ZMod q
       (OracleComp.interpret RandomPermutation.answer (toPerm query)).run (rep x s.1) := by
   cases query with
   | label β =>
-    have h := realFl_fwd_map hs (0, β)
-    rw [ev_zero_left] at h
-    simpa only [toPrim, toPerm, OracleComp.interpret_query] using h
+    simpa only [toPrim, toPerm, OracleComp.interpret_query, ev_zero_left] using
+      realFl_fwd_map hs (0, β)
   | op ℓ₁ ℓ₂ c₁ c₂ =>
+    let r (s : Tab ι q × Bool) := rep x s.1
+    let I (s : Tab ι q × Bool) : Prop := Consistent x s.1
     simp only [toPrim, toPerm, interp_norm, Probability.PMF.monad_bind_eq_bind,
       Probability.PMF.monad_pure_eq_pure]
-    refine map_bind_eq_of_step (ev x) id (fun s : Tab ι q × Bool => rep x s.1)
-      (fun s : Tab ι q × Bool => Consistent x s.1) (realFl_inv_map hs ℓ₁)
-      (fun y hy => consistent_of_mem_support_withBadFlag hs _ hy) _ _ ?_
-    intro K₁ s₁ hs₁
-    dsimp only
-    refine map_bind_eq_of_step (ev x) id (fun s : Tab ι q × Bool => rep x s.1)
-      (fun s : Tab ι q × Bool => Consistent x s.1) (realFl_inv_map hs₁ ℓ₂)
-      (fun y hy => consistent_of_mem_support_withBadFlag hs₁ _ hy) _ _ ?_
-    intro K₂ s₂ hs₂
-    dsimp only
-    have h := realFl_fwd_map hs₂ (comb c₁ K₁ c₂ K₂)
-    rw [ev_comb] at h
-    refine map_bind_eq_of_step id id (fun s : Tab ι q × Bool => rep x s.1) (fun _ => True) h
-      (fun _ _ => trivial) _ _ ?_
-    intro ℓ s₃ _
+    refine map_bind_eq_of_step (ev x) id r I (realFl_inv_map hs ℓ₁)
+      (fun _ hy => consistent_of_mem_support_withBadFlag hs _ hy) _ _ fun K₁ s₁ hs₁ => ?_
+    refine map_bind_eq_of_step (ev x) id r I (realFl_inv_map hs₁ ℓ₂)
+      (fun _ hy => consistent_of_mem_support_withBadFlag hs₁ _ hy) _ _ fun K₂ s₂ hs₂ => ?_
+    refine map_bind_eq_of_step id id r (fun _ => True)
+      (ev_comb x c₁ c₂ K₁ K₂ ▸ realFl_fwd_map hs₂ (comb c₁ K₁ c₂ K₂))
+      (fun _ _ => trivial) _ _ fun _ _ _ => ?_
     simp only [PMF.pure_map, id]
 
 /-- The real handler on `primGame D`, read at `x`, is the lazy permutation on `permGame x D`. -/
@@ -991,40 +939,35 @@ private theorem real_eq_lazy (x : ι → ZMod q)
     ((OracleComp.interpret (withBadFlag (realStep x)) (primGame D)).run ([], false)).map
         (fun r => ((r.1.1, fun k => ev x (r.1.2 k)), rep x r.2.1)) =
       (OracleComp.interpret RandomPermutation.answer (permGame x D)).run [] := by
-  have hpres : ∀ (p : Prim ι q) (s : Tab ι q × Bool), Consistent x s.1 →
-      ∀ a s', (a, s') ∈ (withBadFlag (realStep x) p s).support → Consistent x s'.1 :=
-    fun p s hs a s' h => consistent_of_mem_support_withBadFlag hs p h
-  have hgroup (g : ZMod q) (u : ι → ZMod q) (s : Tab ι q × Bool) (hs : Consistent x s.1) :
+  let r (s : Tab ι q × Bool) := rep x s.1
+  let I (s : Tab ι q × Bool) : Prop := Consistent x s.1
+  let ψ (b : γ × (κ → (ι → ZMod q) × ZMod q)) := (b.1, fun k => ev x (b.2 k))
+  have hpres : ∀ (p : Prim ι q) (s : Tab ι q × Bool), I s →
+      ∀ a s', (a, s') ∈ (withBadFlag (realStep x) p s).support → I s' :=
+    fun p s hs _ _ h => consistent_of_mem_support_withBadFlag hs p h
+  have hgroup (g : ZMod q) (u : ι → ZMod q) (s : Tab ι q × Bool) (hs : I s) :
       ((OracleComp.interpret (withBadFlag (realStep x))
-          (OracleComp.interpret toPrim (D g u))).run s).map (fun y => (y.1, rep x y.2.1)) =
+          (OracleComp.interpret toPrim (D g u))).run s).map (fun y => (y.1, r y.2)) =
         (OracleComp.interpret RandomPermutation.answer
-          (OracleComp.interpret toPerm (D g u))).run (rep x s.1) := by
+          (OracleComp.interpret toPerm (D g u))).run (r s) := by
     rw [OracleComp.interpret_interpret, OracleComp.interpret_interpret]
-    exact OracleComp.run_interpret_map_state_of_invariant _ _
-      (fun s : Tab ι q × Bool => rep x s.1) (fun s : Tab ι q × Bool => Consistent x s.1)
+    exact OracleComp.run_interpret_map_state_of_invariant _ _ r I
       (fun query s hs a s' h =>
         OracleComp.run_interpret_invariant _ _ hpres (toPrim query) s hs a s' h)
       (fun query s hs => realGroup_step x query s hs) (D g u) s hs
-  have h0 : Consistent x ([] : Tab ι q) := ⟨List.nodup_nil, List.nodup_nil⟩
+  have h0 : I ([], false) := ⟨List.nodup_nil, List.nodup_nil⟩
   simp only [primGame, permGame, interp_norm, Probability.PMF.monad_bind_eq_bind,
     Probability.PMF.monad_pure_eq_pure]
-  refine map_bind_eq_of_step (fun (t : Option ι → ZMod q) o => id (t o))
-    (fun b : γ × (κ → (ι → ZMod q) × ZMod q) => (b.1, fun k => ev x (b.2 k)))
-    (fun s : Tab ι q × Bool => rep x s.1) (fun s : Tab ι q × Bool => Consistent x s.1)
-    (map_run_tabulateM _ _ _ _ id rfl (fun s : Tab ι q × Bool => rep x s.1)
-      (fun s : Tab ι q × Bool => Consistent x s.1) hpres
+  refine map_bind_eq_of_step (fun (t : Option ι → ZMod q) o => id (t o)) ψ r I
+    (map_run_tabulateM _ _ _ _ id rfl r I hpres
       (fun o s hs => by
-        simp only [OracleComp.interpret_query, id]
-        rw [← ev_startKey]
-        exact realFl_fwd_map hs (startKey o))
+        simpa only [OracleComp.interpret_query, id, ev_startKey] using
+          realFl_fwd_map hs (startKey o))
       _ ([], false) h0)
     (fun y hy => OracleComp.run_interpret_invariant _ _ hpres _ ([], false) h0 y.1 y.2 hy) _ _ ?_
   intro u s₁ hs₁
   dsimp only [id]
-  refine map_bind_eq_of_step id
-    (fun b : γ × (κ → (ι → ZMod q) × ZMod q) => (b.1, fun k => ev x (b.2 k)))
-    (fun s : Tab ι q × Bool => rep x s.1) (fun s : Tab ι q × Bool => Consistent x s.1)
-    (hgroup (u none) (fun i => u (some i)) s₁ hs₁)
+  refine map_bind_eq_of_step id ψ r I (hgroup (u none) (fun i => u (some i)) s₁ hs₁)
     (fun y hy => OracleComp.run_interpret_invariant _ _
       (fun query s hs a s' h =>
         OracleComp.run_interpret_invariant _ _ hpres (toPrim query) s hs a s' h)
@@ -1032,18 +975,13 @@ private theorem real_eq_lazy (x : ι → ZMod q)
       (by rwa [OracleComp.interpret_interpret] at hy)) _ _ ?_
   intro out s₂ hs₂
   dsimp only [id]
-  refine map_bind_eq_of_step (fun (t : κ → (ι → ZMod q) × ZMod q) k => ev x (t k))
-    (fun b : γ × (κ → (ι → ZMod q) × ZMod q) => (b.1, fun k => ev x (b.2 k)))
-    (fun s : Tab ι q × Bool => rep x s.1) (fun s : Tab ι q × Bool => Consistent x s.1)
-    (map_run_tabulateM _ _ _ _ (ev x) (ev_zero x) (fun s : Tab ι q × Bool => rep x s.1)
-      (fun s : Tab ι q × Bool => Consistent x s.1) hpres
-      (fun k s hs => by
-        simp only [OracleComp.interpret_query]
-        exact realFl_inv_map hs (out.2 k))
+  refine map_bind_eq_of_step (fun (t : κ → (ι → ZMod q) × ZMod q) k => ev x (t k)) ψ r I
+    (map_run_tabulateM _ _ _ _ (ev x) (by simp [ev]) r I hpres
+      (fun k s hs => by simpa only [OracleComp.interpret_query] using realFl_inv_map hs (out.2 k))
       _ s₂ hs₂)
     (fun y hy => OracleComp.run_interpret_invariant _ _ hpres _ s₂ hs₂ y.1 y.2 hy) _ _ ?_
   intro F s₃ _
-  simp only [PMF.pure_map]
+  rw [PMF.pure_map]
 
 /-- With a uniform permutation as labeling, the group oracle is the real handler on primitive
 queries. -/
@@ -1054,10 +992,9 @@ private theorem uniform_interpret_eq_real (x : ι → ZMod q)
           (D (σ 1) fun i => σ (x i))).map fun out => (out.1, fun k => σ.symm (out.2 k))) =
       ((OracleComp.interpret (withBadFlag (realStep x)) (primGame D)).run ([], false)).map
         fun r => (r.1.1, fun k => ev x (r.1.2 k)) := by
-  have h := RandomPermutation.uniform_interpret_eq_lazy (permGame x D)
-  simp only [Probability.PMF.monad_bind_eq_bind, interpret_evalPerm_permGame] at h
-  rw [h, ← real_eq_lazy x D, PMF.map_comp]
-  rfl
+  simpa only [Probability.PMF.monad_bind_eq_bind, interpret_evalPerm_permGame,
+    ← real_eq_lazy x D, PMF.map_comp, Function.comp_def] using
+    RandomPermutation.uniform_interpret_eq_lazy (permGame x D)
 
 /-- The game against a deterministic adversary with a uniform permutation as labeling. -/
 private noncomputable def detGame (W : (ι → ZMod q) → γ → (κ → ZMod q) → Bool)
@@ -1243,12 +1180,11 @@ private theorem permLinearGame_eq_bind_detGame [NeZero q]
           ProbOracleComp.coinLaw (B gu.1 gu.2)).bind fun Ω =>
             OracleComp.interpret (fun query => PMF.pure (answer σ query))
               (ProbOracleComp.fixCoins (B g u) (Ω (g, u))) := by
-    have hpi : (Probability.PMF.pi fun gu : ZMod q × (ι → ZMod q) =>
-        ProbOracleComp.coinLaw (B gu.1 gu.2)).map (fun Ω => Ω (g, u)) =
-          ProbOracleComp.coinLaw (B g u) :=
-      Probability.PMF.pi_map_eval _ (g, u)
     unfold runLabeled
-    rw [← ProbOracleComp.bind_interpret_fixCoins (B g u) (answer σ), ← hpi, PMF.bind_map]
+    rw [← ProbOracleComp.bind_interpret_fixCoins (B g u) (answer σ),
+      ← Probability.PMF.pi_map_eval (fun gu : ZMod q × (ι → ZMod q) =>
+        ProbOracleComp.coinLaw (B gu.1 gu.2)) (g, u),
+      PMF.bind_map]
     rfl
   unfold permLinearGame detGame
   simp only [Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, key,

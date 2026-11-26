@@ -90,19 +90,16 @@ theorem searchIterate_spec (k c σ i δ j : ℕ) :
       | none =>
         simp only [hl] at ih ⊢
         intro m hm
-        by_cases hmj : m < j
+        rcases lt_or_eq_of_le (Nat.lt_succ_iff.mp hm) with hmj | rfl
         · exact ih m hmj
-        · have : m = j := by omega
-          simpa only [this] using hp
+        · exact hp
       | some n =>
         simp only [hl] at ih ⊢
         refine ⟨by omega, ih.2.1, ?_⟩
         intro m hm hmatch
-        by_cases hmj : m < j
+        rcases lt_or_eq_of_le (Nat.lt_succ_iff.mp hm) with hmj | rfl
         · exact ih.2.2 m hmj hmatch
-        · have : m = j := by omega
-          rw [this, hp] at hmatch
-          contradiction
+        · exact absurd hmatch (by simp [hp])
 
 /-- A retained predecessor is always smaller than the number of visited intervals. -/
 theorem searchIterate_latest_bound (k c : ℕ) (a : SearchArgs) (j n : ℕ)
@@ -131,16 +128,11 @@ theorem search_eq_lastBeforeNum (k c σ i δ : ℕ) :
         inWindowNum k σ c i δ (i - 1 - j)) = some (i - 1 - n) := by
       rw [List.find?_range_eq_some]
       refine ⟨?_, List.mem_range.mpr (by omega), ?_⟩
-      · rw [show i - 1 - (i - 1 - n) = n by omega, ← inWindow_eq]
-        exact hs.2.1
+      · simpa only [show i - 1 - (i - 1 - n) = n by omega, ← inWindow_eq] using hs.2.1
       · intro j hj
-        rw [Bool.not_eq_true', Bool.eq_false_iff]
-        intro hmatch
-        rw [← inWindow_eq] at hmatch
-        have hm := hs.2.2 (i - 1 - j) (by omega) hmatch
-        omega
-    simp only [lastBeforeNum, hfind, Option.map_some]
-    congr 1
+        rw [Bool.not_eq_true', Bool.eq_false_iff, ← inWindow_eq]
+        exact fun hmatch => absurd (hs.2.2 (i - 1 - j) (by omega) hmatch) (by omega)
+    simp only [lastBeforeNum, hfind, Option.map_some, Option.some.injEq]
     omega
 
 /-- The native reader finds exactly the functional schedule's last earlier provider. -/

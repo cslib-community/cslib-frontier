@@ -120,23 +120,12 @@ theorem sum_map_yaoWeight_le {b : List ℕ} (hb : b.sum ≤ 41) :
     (b.map yaoWeight).sum ≤ 2 + 2 * (if b.any (· == 6) then 1 else 0) +
       2 * (if b.any (fun a => a == 6 || a == 14) then 1 else 0) := by
   have h := six_mul_count_add_le_sum b
+  have e1 : b.any (· == 6) = true ↔ 0 < b.count 6 := by simp [count_pos_iff]
+  have e2 : b.any (fun a => a == 6 || a == 14) = true ↔ 0 < b.count 6 ∨ 0 < b.count 14 := by
+    simp only [any_eq_true, Bool.or_eq_true, beq_iff_eq, count_pos_iff]; grind
   rw [sum_map_yaoWeight]
-  have e1 : b.any (· == 6) = true ↔ 6 ∈ b := by simp
-  have e2 : b.any (fun a => a == 6 || a == 14) = true ↔ 6 ∈ b ∨ 14 ∈ b := by
-    simp only [any_eq_true, Bool.or_eq_true, beq_iff_eq]
-    constructor
-    · rintro ⟨x, hx, rfl | rfl⟩
-      exacts [Or.inl hx, Or.inr hx]
-    · rintro (hx | hx)
-      exacts [⟨6, hx, Or.inl rfl⟩, ⟨14, hx, Or.inr rfl⟩]
-  split_ifs with h1 h2 h2
-  · omega
-  · exact absurd (e2.2 (Or.inl (e1.1 h1))) h2
-  · have := count_eq_zero.2 fun h => h1 (e1.2 h)
-    omega
-  · have := count_eq_zero.2 fun h => h1 (e1.2 h)
-    have := count_eq_zero.2 fun h => h2 (e2.2 (Or.inr h))
-    omega
+  simp only [e1, e2]
+  split_ifs <;> omega
 
 private theorem sum_map_le_of_le {f : List ℕ → ℕ} {p q : List ℕ → Bool} :
     ∀ {B : List (List ℕ)}, (∀ b ∈ B, f b ≤ 2 + 2 * (if p b then 1 else 0) +
@@ -145,7 +134,7 @@ private theorem sum_map_le_of_le {f : List ℕ → ℕ} {p q : List ℕ → Bool
   | [], _ => by simp
   | b :: B, h => by
     simp only [map_cons, sum_cons, length_cons, countP_cons]
-    have ih := sum_map_le_of_le (fun c hc => h c (mem_cons_of_mem _ hc))
+    have ih := sum_map_le_of_le fun c hc => h c (mem_cons_of_mem _ hc)
     have hb := h b mem_cons_self
     split_ifs at hb ⊢ <;> omega
 
@@ -167,16 +156,12 @@ theorem sum_map_yaoWeight_le_run {l₁ l₂ l₃ : List ℕ} (h₂ : 6 ∉ l₂)
   have c1 : (A.run (l₁ ++ l₂ ++ l₃)).countP (fun b => b.any (· == 6)) =
       (A.run l₁).countP (fun b => b.any (· == 6)) := by
     rw [append_assoc, run_append]
-    refine A.countP_any_runFrom fun a ha => ?_
-    have : a ≠ 6 := by grind
-    simpa using this
+    exact A.countP_any_runFrom fun a ha => by simp [show a ≠ 6 by grind]
   have c2 : (A.run (l₁ ++ l₂ ++ l₃)).countP (fun b => b.any (fun a => a == 6 || a == 14)) =
       (A.run (l₁ ++ l₂)).countP (fun b => b.any (fun a => a == 6 || a == 14)) := by
     rw [run_append]
-    refine A.countP_any_runFrom fun a ha => ?_
-    have h6 : a ≠ 6 := by rintro rfl; exact h₃.1 ha
-    have h14 : a ≠ 14 := by rintro rfl; exact h₃.2 ha
-    simpa using ⟨h6, h14⟩
+    exact A.countP_any_runFrom fun a ha => by
+      simp [show a ≠ 6 from fun e => h₃.1 (e ▸ ha), show a ≠ 14 from fun e => h₃.2 (e ▸ ha)]
   have d1 := countP_le_length (p := fun b => b.any (· == 6)) (l := A.run l₁)
   have d2 := countP_le_length (p := fun b => b.any (fun a => a == 6 || a == 14))
     (l := A.run (l₁ ++ l₂))
@@ -193,14 +178,9 @@ theorem yao_lower_bound (m : ℕ) :
         replicate (6 * m) 21)).length := by
   have h := A.sum_map_yaoWeight_le_run (l₁ := replicate (6 * m) 6)
     (l₂ := replicate (6 * m) 14) (l₃ := replicate (6 * m) 21)
-    (by simp [mem_replicate]) (by simp [mem_replicate]) (by
-      intro a ha
-      simp only [mem_append, mem_replicate] at ha
-      omega)
+    (by simp [mem_replicate]) (by simp [mem_replicate]) (by grind)
   have hw : ((replicate (6 * m) 6 ++ replicate (6 * m) 14 ++ replicate (6 * m) 21).map
-      yaoWeight).sum = 30 * m := by
-    simp [yaoWeight]
-    omega
+      yaoWeight).sum = 30 * m := by simp [yaoWeight]; omega
   omega
 
 /-- **The two-phase bound `4/3`.** Against `6 * m` items of size `14`, then `6 * m` of size
@@ -211,127 +191,99 @@ theorem four_thirds_lower_bound (m : ℕ) :
     4 * (3 * m) ≤ 3 * (A.run (replicate (6 * m) 14)).length ∨
       4 * (6 * m) ≤ 3 * (A.run (replicate (6 * m) 14 ++ replicate (6 * m) 21)).length := by
   have h := A.sum_map_yaoWeight_le_run (l₁ := []) (l₂ := replicate (6 * m) 14)
-    (l₃ := replicate (6 * m) 21) (by simp [mem_replicate]) (by simp [mem_replicate]) (by
-      intro a ha
-      simp only [nil_append, mem_append, mem_replicate] at ha
-      omega)
+    (l₃ := replicate (6 * m) 21) (by simp [mem_replicate]) (by simp [mem_replicate]) (by grind)
   have hw : ((replicate (6 * m) 14 ++ replicate (6 * m) 21).map yaoWeight).sum = 24 * m := by
-    simp [yaoWeight]
-    omega
+    simp [yaoWeight]; omega
   simp only [nil_append, run_nil, length_nil] at h
   omega
 
 end OnlinePacker
 
-private theorem count_six_le {b : List ℕ} (hb : b.sum ≤ 41) : b.count 6 ≤ 6 := by
-  have := six_mul_count_add_le_sum b
-  omega
-
-private theorem count_fourteen_le {b : List ℕ} (hb : b.sum ≤ 41) : b.count 14 ≤ 2 := by
-  have := six_mul_count_add_le_sum b
-  omega
-
-private theorem count_twentyOne_le {b : List ℕ} (hb : b.sum ≤ 41) : b.count 21 ≤ 1 := by
-  have := six_mul_count_add_le_sum b
-  omega
+private lemma isPacking_replicate {l bin : List ℕ} {k : ℕ} (hsum : bin.sum ≤ 41)
+    (hcnt : ∀ x, l.count x = k * bin.count x) : IsPacking 41 l (replicate k bin) :=
+  ⟨perm_iff_count.2 fun x => by simp [count_flatten, map_replicate, sum_replicate, hcnt x],
+   fun _ hb => eq_of_mem_replicate hb ▸ hsum⟩
 
 /-- The first phase fits into `m` bins. -/
 theorem isPacking_yao₁ (m : ℕ) :
     IsPacking 41 (replicate (6 * m) 6) (replicate m (replicate 6 6)) := by
-  refine ⟨perm_iff_count.2 fun x => ?_, fun b hb => ?_⟩
-  · simp only [count_flatten, map_replicate, sum_replicate, count_replicate]
-    split_ifs <;> simp [Nat.mul_comm]
-  · rw [eq_of_mem_replicate hb]
-    decide
+  refine isPacking_replicate (by decide) fun x => ?_
+  simp only [count_replicate]
+  split_ifs <;> omega
 
 /-- The first two phases fit into `3 * m` bins. -/
 theorem isPacking_yao₂ (m : ℕ) :
     IsPacking 41 (replicate (6 * m) 6 ++ replicate (6 * m) 14)
       (replicate (3 * m) [6, 6, 14, 14]) := by
-  refine ⟨perm_iff_count.2 fun x => ?_, fun b hb => ?_⟩
-  · by_cases h6 : x = 6
-    · subst h6; simp [count_flatten, count_replicate]; omega
-    by_cases h14 : x = 14
-    · subst h14; simp [count_flatten, count_replicate]; omega
-    simp [count_flatten, count_replicate, Ne.symm h6, Ne.symm h14]
-  · rw [eq_of_mem_replicate hb]
-    decide
+  refine isPacking_replicate (by decide) fun x => ?_
+  simp only [count_append, count_replicate, count_cons, count_nil, beq_iff_eq]
+  split_ifs <;> omega
 
 /-- All three phases fit into `6 * m` bins. -/
 theorem isPacking_yao₃ (m : ℕ) :
     IsPacking 41 (replicate (6 * m) 6 ++ replicate (6 * m) 14 ++ replicate (6 * m) 21)
       (replicate (6 * m) [6, 14, 21]) := by
-  refine ⟨perm_iff_count.2 fun x => ?_, fun b hb => ?_⟩
-  · by_cases h6 : x = 6
-    · subst h6; simp [count_flatten, count_replicate]
-    by_cases h14 : x = 14
-    · subst h14; simp [count_flatten, count_replicate]
-    by_cases h21 : x = 21
-    · subst h21; simp [count_flatten, count_replicate]
-    simp [count_flatten, count_replicate, Ne.symm h6, Ne.symm h14, Ne.symm h21]
-  · rw [eq_of_mem_replicate hb]
-    decide
+  refine isPacking_replicate (by decide) fun x => ?_
+  simp only [count_append, count_replicate, count_cons, count_nil, beq_iff_eq]
+  split_ifs <;> omega
 
 /-- Every packing of the first phase has at least `m` bins: a bin holds at most six items of
 size `6`. -/
 theorem le_length_of_isPacking_yao₁ {m : ℕ} {Q : List (List ℕ)}
     (hQ : IsPacking 41 (replicate (6 * m) 6) Q) : m ≤ Q.length := by
-  have := hQ.count_le_mul_length 6 fun b hb => count_six_le hb
-  simp at this
-  omega
+  have := hQ.count_le_mul_length 6 (k := 6) fun b _ => by
+    have := six_mul_count_add_le_sum b
+    omega
+  simp at this; omega
 
 /-- Every packing of the first two phases has at least `3 * m` bins: a bin holds at most two
 items of size `14`. -/
 theorem le_length_of_isPacking_yao₂ {m : ℕ} {Q : List (List ℕ)}
     (hQ : IsPacking 41 (replicate (6 * m) 6 ++ replicate (6 * m) 14) Q) : 3 * m ≤ Q.length := by
-  have := hQ.count_le_mul_length 14 fun b hb => count_fourteen_le hb
-  simp [count_replicate] at this
-  omega
+  have := hQ.count_le_mul_length 14 (k := 2) fun b _ => by
+    have := six_mul_count_add_le_sum b
+    omega
+  simp [count_replicate] at this; omega
 
 /-- Every packing of all three phases has at least `6 * m` bins: a bin holds at most one item of
 size `21`. -/
 theorem le_length_of_isPacking_yao₃ {m : ℕ} {Q : List (List ℕ)}
     (hQ : IsPacking 41 (replicate (6 * m) 6 ++ replicate (6 * m) 14 ++ replicate (6 * m) 21) Q) :
     6 * m ≤ Q.length := by
-  have := hQ.count_le_mul_length 21 fun b hb => count_twentyOne_le hb
-  simp [count_replicate] at this
-  omega
+  have := hQ.count_le_mul_length 21 (k := 1) fun b _ => by
+    have := six_mul_count_add_le_sum b
+    omega
+  simp [count_replicate] at this; omega
 
 /-- The `6 * m` items of size `14` of the two-phase input fit into `3 * m` bins. -/
 theorem isPacking_twoPhase₁ (m : ℕ) :
     IsPacking 41 (replicate (6 * m) 14) (replicate (3 * m) [14, 14]) := by
-  refine ⟨perm_iff_count.2 fun x => ?_, fun b hb => ?_⟩
-  · by_cases h14 : x = 14
-    · subst h14; simp [count_flatten]; omega
-    simp [count_flatten, count_replicate, Ne.symm h14]
-  · rw [eq_of_mem_replicate hb]
-    decide
+  refine isPacking_replicate (by decide) fun x => ?_
+  simp only [count_replicate, count_cons, count_nil, beq_iff_eq]
+  split_ifs <;> omega
 
 /-- Both phases of the two-phase input fit into `6 * m` bins. -/
 theorem isPacking_twoPhase₂ (m : ℕ) :
     IsPacking 41 (replicate (6 * m) 14 ++ replicate (6 * m) 21) (replicate (6 * m) [14, 21]) := by
-  refine ⟨perm_iff_count.2 fun x => ?_, fun b hb => ?_⟩
-  · by_cases h14 : x = 14
-    · subst h14; simp [count_flatten, count_replicate]
-    by_cases h21 : x = 21
-    · subst h21; simp [count_flatten, count_replicate]
-    simp [count_flatten, count_replicate, Ne.symm h14, Ne.symm h21]
-  · rw [eq_of_mem_replicate hb]
-    decide
+  refine isPacking_replicate (by decide) fun x => ?_
+  simp only [count_append, count_replicate, count_cons, count_nil, beq_iff_eq]
+  split_ifs <;> omega
 
 /-- Every packing of `6 * m` items of size `14` has at least `3 * m` bins. -/
 theorem le_length_of_isPacking_twoPhase₁ {m : ℕ} {Q : List (List ℕ)}
     (hQ : IsPacking 41 (replicate (6 * m) 14) Q) : 3 * m ≤ Q.length := by
-  have := hQ.count_le_mul_length 14 fun b hb => count_fourteen_le hb
-  simp at this
-  omega
+  have := hQ.count_le_mul_length 14 (k := 2) fun b _ => by
+    have := six_mul_count_add_le_sum b
+    omega
+  simp at this; omega
 
 /-- Every packing of both phases of the two-phase input has at least `6 * m` bins. -/
 theorem le_length_of_isPacking_twoPhase₂ {m : ℕ} {Q : List (List ℕ)}
     (hQ : IsPacking 41 (replicate (6 * m) 14 ++ replicate (6 * m) 21) Q) : 6 * m ≤ Q.length := by
-  have := hQ.count_le_mul_length 21 fun b hb => count_twentyOne_le hb
-  simp [count_replicate] at this
-  omega
+  have := hQ.count_le_mul_length 21 (k := 1) fun b _ => by
+    have := six_mul_count_add_le_sum b
+    omega
+  simp [count_replicate] at this; omega
 
 namespace OnlinePacker
 

@@ -79,30 +79,17 @@ theorem count_succ (x : Fin N → Bool) (src : ℕ → ℕ) (s : ℕ) :
   · rw [card_insert_of_notMem (fun h' => by simpa using (mem_filter.mp h').1)]
   · rw [Nat.add_zero]
 
-private theorem level_lt {base T s i : ℕ} (hi : i < T) :
-    level base T s i < base + 1 + (s + 1) * T := by
-  unfold level
-  rw [Nat.add_mul, Nat.one_mul]
-  omega
-
 theorem isClassical_stage {base T b s : ℕ} (hb : b < base) (hN : base + 1 + (s + 2) * T ≤ N) :
     IsClassical N (stage base T b s) := by
   refine IsClassical.flatMap fun i hi => ?_
   have hi : i < T := List.mem_range.mp hi
-  have h₁ := level_lt (base := base) (s := s + 1) hi
-  have h₀ : base + 1 + s * T + i < base + 1 + (s + 1) * T * 1 := by
-    rw [Nat.mul_one, Nat.add_mul, Nat.one_mul]
-    omega
-  rw [show s + 2 = s + 1 + 1 by rfl, Nat.add_mul (s + 1), Nat.one_mul] at hN
-  rw [Nat.add_mul, Nat.one_mul] at h₁
-  rw [Nat.mul_one, Nat.add_mul, Nat.one_mul] at h₀
-  have hl : base + 1 + (s + 1) * T + i = base + 1 + s * T + T + i := by
-    rw [Nat.add_mul, Nat.one_mul]
+  have hN' : base + 1 + s * T + T + T ≤ N := by
+    rw [show s + 2 = s + 1 + 1 by rfl, Nat.add_mul, Nat.add_mul, Nat.one_mul] at hN
     omega
   simp only [IsClassical, List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp,
-    forall_eq, WellFormed, List.length_cons, List.length_nil, List.nodup_cons, List.mem_cons,
-    List.not_mem_nil, List.nodup_nil, level, below, hl]
-  split_ifs with h0 <;> refine ⟨⟨trivial, ?_⟩, ⟨trivial, ?_⟩, ⟨trivial, ?_⟩⟩ <;> simp <;> omega
+    forall_eq, WellFormed, List.length_cons, List.length_nil, List.nodup_cons, List.nodup_nil,
+    level, below, Nat.add_mul, Nat.one_mul]
+  split_ifs <;> refine ⟨⟨trivial, ?_⟩, ⟨trivial, ?_⟩, ⟨trivial, ?_⟩⟩ <;> simp <;> omega
 
 theorem isClassical_codes {base T k : ℕ} {src : ℕ → ℕ} (hsrc : ∀ s < k, src s < base)
     (hN : base + 1 + (k + 1) * T ≤ N) : IsClassical N (codes base T src k) := by
@@ -125,21 +112,15 @@ private theorem invariant_zero {base T : ℕ} {src : ℕ → ℕ} (hN : base < N
     (hx : ∀ p, base ≤ p → readBit x p = false) :
     Invariant base T src x (classicalStep (false, base, []) x) 0 := by
   have hstep (p : ℕ) : readBit (classicalStep (false, base, []) x) p =
-      (readBit x p ^^ decide (p = base)) := by
-    rw [readBit_classicalStep]
-    simp [hN]
-  refine ⟨fun p hp => ?_, ?_, fun i hi => ?_, fun p hp => ?_⟩
-  · rw [hstep]
-    simp [show p ≠ base by omega]
-  · rw [hstep, hx base le_rfl]
-    simp
+      (readBit x p ^^ decide (p = base)) := by simp [readBit_classicalStep, hN]
+  refine ⟨fun p hp => by simp [hstep, hp.ne],
+    by simp [hstep, hx base le_rfl], fun i _ => ?_, fun p hp => ?_⟩
   · rw [hstep, hx _ (by unfold level; omega)]
     simp only [count, level, Nat.zero_mul, Nat.add_zero, range_zero, filter_empty, card_empty,
       Nat.not_lt_zero, decide_false, Bool.false_xor, decide_eq_false_iff_not]
     omega
-  · rw [hstep, hx _ (by omega)]
-    simp only [Nat.zero_add, Nat.one_mul] at hp
-    simp [show p ≠ base by omega]
+  · have hne : p ≠ base := by omega
+    simp [hstep, hx p (by omega), hne]
 
 private theorem invariant_succ {base T s : ℕ} {src : ℕ → ℕ} (hsrc : src s < base)
     (hN : base + 1 + (s + 2) * T ≤ N) {x y : Fin N → Bool} (hy : Invariant base T src x y s) :
@@ -163,7 +144,8 @@ private theorem invariant_succ {base T s : ℕ} {src : ℕ → ℕ} (hsrc : src 
           (readBit y (src s) && readBit y (level base T s i))))) (readBit y p) := by
     rw [readBit_classicalRun_of_forall_notMem hcl hread, stage, List.foldl_flatMap]
     refine List.foldl_ext _ _ _ fun b i _ => ?_
-    simp only [List.foldl_cons, List.foldl_nil, List.all_cons, List.all_nil, Bool.and_true]
+    simp only [List.foldl_cons, List.foldl_nil, GateCode.target_mk, GateCode.controls_mk,
+      List.all_cons, List.all_nil, Bool.and_true]
     cases decide (p = level base T (s + 1) i) <;> simp
   -- bits that the stage does not write
   have hkeep (p : ℕ) (hp : ∀ i < T, p ≠ level base T (s + 1) i) :

@@ -71,10 +71,8 @@ variable {Ω ι : Type*}
 private theorem sum_neg_one_pow_mul_choose_succ (d M : ℕ) :
     ∑ r ∈ Finset.range (M + 1), (-1 : ℝ) ^ r * ((d + 1).choose r : ℝ) =
       (-1 : ℝ) ^ M * (d.choose M : ℝ) := by
-  have h := congrArg (Int.cast (R := ℝ))
+  simpa using congrArg (Int.cast (R := ℝ))
     (Int.alternating_sum_range_choose_eq_choose (n := d) (m := M))
-  push_cast at h
-  exact h
 
 private theorem sum_neg_one_pow_mul_choose_eq_zero (N : ℕ) (hN : 0 < N) :
     ∑ r ∈ Finset.range N, (-1 : ℝ) ^ r * ((0 : ℕ).choose r : ℝ) = 1 := by
@@ -94,9 +92,8 @@ private theorem sum_neg_one_pow_mul_choose_even_nonpos (d m : ℕ) (hd : 0 < d) 
   rcases m with _ | m
   · simp
   · obtain ⟨d', rfl⟩ := Nat.exists_eq_succ_of_ne_zero hd.ne'
-    have heq : 2 * (m + 1) = (2 * m + 1) + 1 := by ring
-    rw [heq, sum_neg_one_pow_mul_choose_succ d' (2 * m + 1), pow_succ, pow_mul, neg_one_sq,
-      one_pow, one_mul, neg_one_mul]
+    rw [show 2 * (m + 1) = (2 * m + 1) + 1 by ring, sum_neg_one_pow_mul_choose_succ d' (2 * m + 1),
+      pow_succ, pow_mul, neg_one_sq, one_pow, one_mul, neg_one_mul]
     exact neg_nonpos.mpr (Nat.cast_nonneg _)
 
 private theorem natCard_subtype_mem_eq_card [Fintype ι] (A : ι → Set Ω) (ω : Ω)
@@ -113,24 +110,14 @@ private theorem sum_powersetCard_indicator [Fintype ι] (A : ι → Set Ω) (r :
   classical
   rw [natCard_subtype_mem_eq_card]
   set T : Finset ι := Finset.univ.filter fun i : ι => ω ∈ A i
-  have hmem : ∀ s : Finset ι, (ω ∈ ⋂ i ∈ s, A i) ↔ s ∈ T.powerset := fun s => by
-    simp only [Set.mem_iInter, Finset.mem_powerset, Finset.subset_iff, T, Finset.mem_filter,
-      Finset.mem_univ, true_and]
-  have hsum :
-      ∑ s ∈ (Finset.univ : Finset ι).powersetCard r,
-          (⋂ i ∈ s, A i).indicator (1 : Ω → ℝ) ω =
-        ∑ s ∈ (Finset.univ : Finset ι).powersetCard r,
-          if s ∈ T.powerset then (1 : ℝ) else 0 := by
-    refine Finset.sum_congr rfl fun s _ => ?_
-    rw [Set.indicator_apply, Pi.one_apply]
-    simp only [hmem s]
-  rw [hsum, Finset.sum_boole, Finset.filter_mem_eq_inter]
-  have hinter : (Finset.univ : Finset ι).powersetCard r ∩ T.powerset = T.powersetCard r := by
-    ext s
-    simp only [Finset.mem_inter, Finset.mem_powersetCard, Finset.subset_univ, true_and,
-      Finset.mem_powerset]
-    tauto
-  rw [hinter, Finset.card_powersetCard]
+  have hsum : ∑ s ∈ (Finset.univ : Finset ι).powersetCard r,
+      (⋂ i ∈ s, A i).indicator (1 : Ω → ℝ) ω =
+      ∑ s ∈ (Finset.univ : Finset ι).powersetCard r, if s ∈ T.powerset then (1 : ℝ) else 0 :=
+    Finset.sum_congr rfl fun s _ => by
+      simp [Set.indicator_apply, T, Finset.mem_powerset, Finset.subset_iff]
+  have hinter : (Finset.univ : Finset ι).powersetCard r ∩ T.powerset = T.powersetCard r :=
+    Finset.ext fun _ => by simp [and_comm]
+  rw [hsum, Finset.sum_boole, Finset.filter_mem_eq_inter, hinter, Finset.card_powersetCard]
 
 /-- Pointwise Bonferroni identity expressing the truncated inclusion-exclusion error in terms of
 alternating binomial coefficients. -/
@@ -148,31 +135,25 @@ private theorem bonferroni_pointwise [Fintype ι] (A : ι → Set Ω) (k N : ℕ
         else 0 := by
   set t : ℕ := Nat.card {i : ι // ω ∈ A i}
   simp_rw [sum_powersetCard_indicator]
-  have hmul : ∀ r : ℕ, ((r + k).choose k : ℝ) * (t.choose (r + k) : ℝ) =
-      (t.choose k : ℝ) * ((t - k).choose r : ℝ) := fun r => by
-    have h := congrArg (Nat.cast (R := ℝ)) (Nat.choose_mul (n := t) (k := r + k) (s := k)
-      (Nat.le_add_left k r))
-    rw [Nat.add_sub_cancel] at h
-    push_cast at h
-    rw [mul_comm ((r + k).choose k : ℝ) _, h]
+  have hmul (r : ℕ) : ((r + k).choose k : ℝ) * (t.choose (r + k) : ℝ) =
+      (t.choose k : ℝ) * ((t - k).choose r : ℝ) := by
+    rw [mul_comm, ← Nat.cast_mul, Nat.choose_mul (n := t) (Nat.le_add_left k r),
+      Nat.add_sub_cancel, Nat.cast_mul]
   calc
     (∑ r ∈ Finset.range N, (-1 : ℝ) ^ r * ((r + k).choose k : ℝ) * (t.choose (r + k) : ℝ)) -
         ({ω' : Ω | Nat.card {i : ι // ω' ∈ A i} = k} : Set Ω).indicator (1 : Ω → ℝ) ω
-      = (∑ r ∈ Finset.range N, (t.choose k : ℝ) * ((-1 : ℝ) ^ r * ((t - k).choose r : ℝ))) -
+      = (t.choose k : ℝ) * (∑ r ∈ Finset.range N, (-1 : ℝ) ^ r * ((t - k).choose r : ℝ)) -
           (if t = k then (1 : ℝ) else 0) := by
           congr 1
-          · refine Finset.sum_congr rfl fun r _ => ?_
+          · rw [Finset.mul_sum]
+            refine Finset.sum_congr rfl fun r _ => ?_
             rw [mul_assoc, hmul r]
             ring
           · simp [Set.indicator_apply, t]
-    _ = (t.choose k : ℝ) * (∑ r ∈ Finset.range N, (-1 : ℝ) ^ r * ((t - k).choose r : ℝ)) -
-          (if t = k then (1 : ℝ) else 0) := by
-          rw [Finset.mul_sum]
     _ = (t.choose k : ℝ) * if k < t then
           ∑ r ∈ Finset.range N, (-1 : ℝ) ^ r * ((t - k).choose r : ℝ) else 0 := by
           rcases Nat.lt_trichotomy t k with hlt | rfl | hgt
-          · have hch : t.choose k = 0 := Nat.choose_eq_zero_of_lt hlt
-            simp [hch, hlt.ne, Nat.not_lt_of_gt hlt]
+          · simp [Nat.choose_eq_zero_of_lt hlt, hlt.ne, Nat.not_lt_of_gt hlt]
           · simp [sum_neg_one_pow_mul_choose_eq_zero N hN]
           · simp [hgt, hgt.ne']
 
@@ -201,22 +182,17 @@ theorem measurableSet_natCard_eq [Finite ι] {A : ι → Set Ω}
     rw [Set.mem_ofPred_eq, natCard_subtype_mem_eq_card]
     simp only [Set.mem_iUnion, Finset.mem_powersetCard, Finset.subset_univ,
       true_and, Set.mem_inter_iff, Set.mem_iInter, Finset.mem_compl, Set.mem_compl_iff]
-    constructor
-    · intro hcard
-      refine ⟨Finset.univ.filter fun i : ι => ω ∈ A i, hcard, ?_, ?_⟩
-      · intro i hi
-        exact (Finset.mem_filter.mp hi).2
-      · intro i hi
-        simpa [Finset.mem_filter] using hi
-    · rintro ⟨t, rfl, hmem, hnmem⟩
-      congr 1
-      ext i
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-      exact ⟨fun hω => by_contra fun hnt => hnmem i hnt hω, hmem i⟩
+    refine ⟨fun hcard => ⟨Finset.univ.filter (ω ∈ A ·), hcard,
+        fun _ hi => (Finset.mem_filter.mp hi).2, fun _ hi => by simpa using hi⟩, ?_⟩
+    rintro ⟨t, rfl, hmem, hnmem⟩
+    congr 1
+    ext i
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+    exact ⟨fun hω => by_contra fun hnt => hnmem i hnt hω, hmem i⟩
   rw [heq]
-  refine MeasurableSet.biUnion (Finset.countable_toSet _) fun t _ => ?_
-  exact (MeasurableSet.biInter (Finset.countable_toSet _) fun i _ => hA i).inter
-    (MeasurableSet.biInter (Finset.countable_toSet _) fun i _ => (hA i).compl)
+  exact MeasurableSet.biUnion (Finset.countable_toSet _) fun t _ =>
+    (MeasurableSet.biInter (Finset.countable_toSet _) fun i _ => hA i).inter
+      (MeasurableSet.biInter (Finset.countable_toSet _) fun i _ => (hA i).compl)
 
 private theorem integrable_bonferroni_sum [Fintype ι] (μ : Measure Ω) [IsFiniteMeasure μ]
     {A : ι → Set Ω} (hA : ∀ i, MeasurableSet (A i)) (k N : ℕ) :
@@ -235,21 +211,15 @@ private theorem integral_bonferroni_sum [Fintype ι] (μ : Measure Ω) [IsFinite
           (⋂ i ∈ s, A i).indicator (1 : Ω → ℝ) ω) ∂μ =
       ∑ r ∈ Finset.range N, (-1 : ℝ) ^ r * ((r + k).choose k : ℝ) *
         ∑ s ∈ (Finset.univ : Finset ι).powersetCard (r + k), μ.real (⋂ i ∈ s, A i) := by
-  have hint_s : ∀ s : Finset ι,
-      Integrable (fun ω => (⋂ i ∈ s, A i).indicator (1 : Ω → ℝ) ω) μ := fun s =>
+  have hint_s (s : Finset ι) :
+      Integrable (fun ω => (⋂ i ∈ s, A i).indicator (1 : Ω → ℝ) ω) μ :=
     (integrable_const (1 : ℝ)).indicator
       (MeasurableSet.biInter (Finset.countable_toSet _) fun i _ => hA i)
-  have hint_r : ∀ r : ℕ, Integrable (fun ω =>
-      (-1 : ℝ) ^ r * ((r + k).choose k : ℝ) *
-        ∑ s ∈ (Finset.univ : Finset ι).powersetCard (r + k),
-          (⋂ i ∈ s, A i).indicator (1 : Ω → ℝ) ω) μ := fun r =>
-    (integrable_finsetSum _ fun s _ => hint_s s).const_mul _
-  rw [integral_finsetSum _ fun r _ => hint_r r]
+  rw [integral_finsetSum _ fun r _ => (integrable_finsetSum _ fun s _ => hint_s s).const_mul _]
   refine Finset.sum_congr rfl fun r _ => ?_
   rw [integral_const_mul, integral_finsetSum _ fun s _ => hint_s s]
-  congr 1
-  refine Finset.sum_congr rfl fun s _ => ?_
-  exact integral_indicator_one (MeasurableSet.biInter (Finset.countable_toSet _) fun i _ => hA i)
+  exact congrArg (_ * ·) (Finset.sum_congr rfl fun s _ =>
+    integral_indicator_one (MeasurableSet.biInter (Finset.countable_toSet _) fun i _ => hA i))
 
 /-- **Bonferroni upper bound**: for any finite family `A : ι → Set Ω` of measurable events in a
 finite measure space and any `k, m : ℕ`, truncating the inclusion-exclusion sum for
@@ -260,27 +230,15 @@ theorem measureReal_natCard_eq_le_bonferroni [Fintype ι] (μ : Measure Ω) [IsF
     μ.real {ω : Ω | Nat.card {i : ι // ω ∈ A i} = k} ≤
       ∑ r ∈ Finset.range (2 * m + 1), (-1 : ℝ) ^ r * ((r + k).choose k : ℝ) *
         ∑ s ∈ (Finset.univ : Finset ι).powersetCard (r + k), μ.real (⋂ i ∈ s, A i) := by
-  have hle : ∀ ω : Ω,
-      ({ω' : Ω | Nat.card {i : ι // ω' ∈ A i} = k} : Set Ω).indicator 1 ω ≤
-        ∑ r ∈ Finset.range (2 * m + 1), (-1 : ℝ) ^ r * ((r + k).choose k : ℝ) *
-          ∑ s ∈ (Finset.univ : Finset ι).powersetCard (r + k),
-            (⋂ i ∈ s, A i).indicator (1 : Ω → ℝ) ω := fun ω => by
-    have hpt := bonferroni_pointwise A k (2 * m + 1) (Nat.succ_pos _) ω
-    have hrhs : 0 ≤ (∑ r ∈ Finset.range (2 * m + 1), (-1 : ℝ) ^ r * ((r + k).choose k : ℝ) *
-          ∑ s ∈ (Finset.univ : Finset ι).powersetCard (r + k),
-            (⋂ i ∈ s, A i).indicator (1 : Ω → ℝ) ω) -
-        ({ω' : Ω | Nat.card {i : ι // ω' ∈ A i} = k} : Set Ω).indicator 1 ω := by
-      rw [hpt]
-      refine mul_nonneg (Nat.cast_nonneg _) ?_
-      split_ifs with hkt
-      · exact sum_neg_one_pow_mul_choose_odd_nonneg _ m (Nat.sub_pos_of_lt hkt)
-      · exact le_rfl
-    linarith
-  have hmono := integral_mono ((integrable_const (1 : ℝ)).indicator (measurableSet_natCard_eq hA k))
-    (integrable_bonferroni_sum μ hA k (2 * m + 1)) hle
-  change ∫ ω, ({ω' : Ω | Nat.card {i : ι // ω' ∈ A i} = k} : Set Ω).indicator 1 ω ∂μ ≤ _ at hmono
-  rwa [integral_indicator_one (measurableSet_natCard_eq hA k),
-    integral_bonferroni_sum μ hA k (2 * m + 1)] at hmono
+  rw [← integral_indicator_one (measurableSet_natCard_eq hA k),
+    ← integral_bonferroni_sum μ hA k (2 * m + 1)]
+  refine integral_mono ((integrable_const (1 : ℝ)).indicator (measurableSet_natCard_eq hA k))
+    (integrable_bonferroni_sum μ hA k (2 * m + 1)) fun ω => sub_nonneg.mp ?_
+  rw [bonferroni_pointwise A k (2 * m + 1) (Nat.succ_pos _) ω]
+  refine mul_nonneg (Nat.cast_nonneg _) ?_
+  split_ifs with hkt
+  · exact sum_neg_one_pow_mul_choose_odd_nonneg _ m (Nat.sub_pos_of_lt hkt)
+  · exact le_rfl
 
 /-- **Bonferroni lower bound**: truncating the inclusion-exclusion sum for
 `Nat.card {i | ω ∈ A i} = k` at even length `2 * m` gives a lower bound on
@@ -292,27 +250,16 @@ theorem bonferroni_le_measureReal_natCard_eq [Fintype ι] (μ : Measure Ω) [IsF
       μ.real {ω : Ω | Nat.card {i : ι // ω ∈ A i} = k} := by
   rcases m with _ | m
   · simp [measureReal_nonneg]
-  have hle : ∀ ω : Ω,
-      (∑ r ∈ Finset.range (2 * (m + 1)), (-1 : ℝ) ^ r * ((r + k).choose k : ℝ) *
-          ∑ s ∈ (Finset.univ : Finset ι).powersetCard (r + k),
-            (⋂ i ∈ s, A i).indicator (1 : Ω → ℝ) ω) ≤
-        ({ω' : Ω | Nat.card {i : ι // ω' ∈ A i} = k} : Set Ω).indicator 1 ω := fun ω => by
-    have hpt := bonferroni_pointwise A k (2 * (m + 1)) (by omega) ω
-    have hrhs : (∑ r ∈ Finset.range (2 * (m + 1)), (-1 : ℝ) ^ r * ((r + k).choose k : ℝ) *
-          ∑ s ∈ (Finset.univ : Finset ι).powersetCard (r + k),
-            (⋂ i ∈ s, A i).indicator (1 : Ω → ℝ) ω) -
-        ({ω' : Ω | Nat.card {i : ι // ω' ∈ A i} = k} : Set Ω).indicator 1 ω ≤ 0 := by
-      rw [hpt]
-      refine mul_nonpos_of_nonneg_of_nonpos (Nat.cast_nonneg _) ?_
-      split_ifs with hkt
-      · exact sum_neg_one_pow_mul_choose_even_nonpos _ (m + 1) (Nat.sub_pos_of_lt hkt)
-      · exact le_rfl
-    linarith
-  have hmono := integral_mono (integrable_bonferroni_sum μ hA k (2 * (m + 1)))
-    ((integrable_const (1 : ℝ)).indicator (measurableSet_natCard_eq hA k)) hle
-  change _ ≤ ∫ ω, ({ω' : Ω | Nat.card {i : ι // ω' ∈ A i} = k} : Set Ω).indicator 1 ω ∂μ at hmono
-  rwa [integral_indicator_one (measurableSet_natCard_eq hA k),
-    integral_bonferroni_sum μ hA k (2 * (m + 1))] at hmono
+  rw [← integral_indicator_one (measurableSet_natCard_eq hA k),
+    ← integral_bonferroni_sum μ hA k (2 * (m + 1))]
+  refine integral_mono (integrable_bonferroni_sum μ hA k (2 * (m + 1)))
+    ((integrable_const (1 : ℝ)).indicator (measurableSet_natCard_eq hA k)) fun ω =>
+      sub_nonpos.mp ?_
+  rw [bonferroni_pointwise A k (2 * (m + 1)) (by omega) ω]
+  refine mul_nonpos_of_nonneg_of_nonpos (Nat.cast_nonneg _) ?_
+  split_ifs with hkt
+  · exact sum_neg_one_pow_mul_choose_even_nonpos _ (m + 1) (Nat.sub_pos_of_lt hkt)
+  · exact le_rfl
 
 /-- Specialization of `measureReal_natCard_eq_le_bonferroni` to `k = 0`: the event that none
 of `A i` holds has probability at most the odd-length alternating sum of intersection
@@ -322,9 +269,8 @@ theorem measureReal_forall_notMem_le_bonferroni [Fintype ι] (μ : Measure Ω) [
     μ.real {ω : Ω | ∀ i, ω ∉ A i} ≤
       ∑ r ∈ Finset.range (2 * m + 1), (-1 : ℝ) ^ r *
         ∑ s ∈ (Finset.univ : Finset ι).powersetCard r, μ.real (⋂ i ∈ s, A i) := by
-  have h := measureReal_natCard_eq_le_bonferroni μ hA 0 m
-  rw [setOf_natCard_eq_zero] at h
-  simpa only [add_zero, Nat.choose_zero_right, Nat.cast_one, mul_one] using h
+  simpa only [← setOf_natCard_eq_zero, add_zero, Nat.choose_zero_right, Nat.cast_one,
+    mul_one] using measureReal_natCard_eq_le_bonferroni μ hA 0 m
 
 /-- Specialization of `bonferroni_le_measureReal_natCard_eq` to `k = 0`: the even-length
 alternating sum of intersection probabilities bounds `μ.real {ω | ∀ i, ω ∉ A i}` from below. -/
@@ -333,9 +279,8 @@ theorem bonferroni_le_measureReal_forall_notMem [Fintype ι] (μ : Measure Ω) [
     ∑ r ∈ Finset.range (2 * m), (-1 : ℝ) ^ r *
         ∑ s ∈ (Finset.univ : Finset ι).powersetCard r, μ.real (⋂ i ∈ s, A i) ≤
       μ.real {ω : Ω | ∀ i, ω ∉ A i} := by
-  have h := bonferroni_le_measureReal_natCard_eq μ hA 0 m
-  rw [setOf_natCard_eq_zero] at h
-  simpa only [add_zero, Nat.choose_zero_right, Nat.cast_one, mul_one] using h
+  simpa only [← setOf_natCard_eq_zero, add_zero, Nat.choose_zero_right, Nat.cast_one,
+    mul_one] using bonferroni_le_measureReal_natCard_eq μ hA 0 m
 
 end Measure
 
@@ -365,56 +310,38 @@ theorem tendsto_measureReal_natCard_eq_poisson_of_factorialMoments
     have hseries : HasSum (fun r : ℕ => (-lam) ^ r / r.factorial) (Real.exp (-lam)) := by
       rw [Real.exp_eq_exp_ℝ]
       exact NormedSpace.expSeries_div_hasSum_exp (-lam)
-    have hpow : Tendsto (fun M : ℕ => ∑ r ∈ Finset.range M, (-1 : ℝ) ^ r * (lam ^ r / r.factorial))
-        atTop (𝓝 (Real.exp (-lam))) := by
-      refine hseries.tendsto_sum_nat.congr fun M => Finset.sum_congr rfl fun r _ => ?_
-      rw [neg_eq_neg_one_mul, mul_pow, mul_div_assoc]
-    exact hpow.mul_const _
-  have hterm : ∀ r : ℕ,
-      ((r + k).choose k : ℝ) * (lam ^ (r + k) / (r + k).factorial) =
-        (lam ^ r / r.factorial) * (lam ^ k / k.factorial) := by
-    intro r
-    have hnat : (r + k).choose k * (r.factorial * k.factorial) = (r + k).factorial := by
-      have h0 := Nat.choose_mul_factorial_mul_factorial (Nat.le_add_left k r)
-      rw [Nat.add_sub_cancel] at h0
-      linarith [h0]
+    refine (hseries.tendsto_sum_nat.congr fun M => Finset.sum_congr rfl fun r _ => ?_).mul_const _
+    rw [neg_eq_neg_one_mul, mul_pow, mul_div_assoc]
+  have hterm (r : ℕ) : ((r + k).choose k : ℝ) * (lam ^ (r + k) / (r + k).factorial) =
+      (lam ^ r / r.factorial) * (lam ^ k / k.factorial) := by
     have hchoose :
         ((r + k).choose k : ℝ) * (r.factorial * k.factorial : ℝ) = (r + k).factorial := by
-      exact_mod_cast hnat
+      exact_mod_cast ((mul_assoc _ _ _).symm.trans (mul_right_comm _ _ _)).trans
+        (Nat.add_sub_cancel r k ▸ Nat.choose_mul_factorial_mul_factorial (Nat.le_add_left k r))
     have hfac_ne : ((r + k).factorial : ℝ) ≠ 0 := by positivity
-    have hpow : lam ^ (r + k) = lam ^ r * lam ^ k := pow_add lam r k
     calc ((r + k).choose k : ℝ) * (lam ^ (r + k) / (r + k).factorial)
         = (((r + k).choose k : ℝ) * (r.factorial * k.factorial : ℝ) / (r + k).factorial) *
             (lam ^ r / r.factorial) * (lam ^ k / k.factorial) := by
-            rw [hpow]
+            rw [pow_add]
             field_simp
       _ = (lam ^ r / r.factorial) * (lam ^ k / k.factorial) := by
             rw [hchoose, div_self hfac_ne, one_mul]
-  have hsum_lim : ∀ M : ℕ,
-      Tendsto (fun n => ∑ r ∈ Finset.range M, (-1 : ℝ) ^ r * ((r + k).choose k : ℝ) *
-          ∑ s ∈ (Finset.univ : Finset (ι n)).powersetCard (r + k),
-            (μ n).real (⋂ i ∈ s, A n i))
-        atTop
-        (𝓝 ((∑ r ∈ Finset.range M, (-1 : ℝ) ^ r * (lam ^ r / r.factorial)) *
-          (lam ^ k / k.factorial))) := by
-    intro M
+  have hsum_lim (M : ℕ) : Tendsto (fun n => ∑ r ∈ Finset.range M, (-1 : ℝ) ^ r *
+      ((r + k).choose k : ℝ) * ∑ s ∈ (Finset.univ : Finset (ι n)).powersetCard (r + k),
+        (μ n).real (⋂ i ∈ s, A n i)) atTop
+      (𝓝 ((∑ r ∈ Finset.range M, (-1 : ℝ) ^ r * (lam ^ r / r.factorial)) *
+        (lam ^ k / k.factorial))) := by
     have hfin := tendsto_finsetSum (Finset.range M) fun r _ =>
       ((hmom (r + k)).const_mul (((r + k).choose k : ℝ))).const_mul ((-1 : ℝ) ^ r)
-    have hsum_eq :
-        ∑ r ∈ Finset.range M, (-1 : ℝ) ^ r * (((r + k).choose k : ℝ) *
-            (lam ^ (r + k) / (r + k).factorial)) =
-          (∑ r ∈ Finset.range M, (-1 : ℝ) ^ r * (lam ^ r / r.factorial)) *
-            (lam ^ k / k.factorial) := by
-      rw [Finset.sum_mul]
-      refine Finset.sum_congr rfl fun r _ => ?_
-      rw [hterm r]
-      ring
-    rw [← hsum_eq]
-    exact hfin.congr fun n => Finset.sum_congr rfl fun r _ => by ring
+    convert (hfin.congr fun n => Finset.sum_congr rfl fun r _ => (mul_assoc _ _ _).symm) using 2
+    rw [Finset.sum_mul]
+    refine Finset.sum_congr rfl fun r _ => ?_
+    rw [hterm r]
+    ring
   rw [Metric.tendsto_atTop]
   intro ε hε
-  obtain ⟨M₀, hM₀⟩ := (Metric.tendsto_atTop.mp hexp) (ε / 2) (by positivity)
   have hε2 : 0 < ε / 2 := by positivity
+  obtain ⟨M₀, hM₀⟩ := (Metric.tendsto_atTop.mp hexp) (ε / 2) hε2
   obtain ⟨N₁, hN₁⟩ := (Metric.tendsto_atTop.mp (hsum_lim (2 * M₀))) (ε / 2) hε2
   obtain ⟨N₂, hN₂⟩ := (Metric.tendsto_atTop.mp (hsum_lim (2 * M₀ + 1))) (ε / 2) hε2
   refine ⟨max N₁ N₂, fun n hn => ?_⟩
@@ -423,9 +350,8 @@ theorem tendsto_measureReal_natCard_eq_poisson_of_factorialMoments
   have hlim_lo := hM₀ (2 * M₀) (by omega)
   have hlim_hi := hM₀ (2 * M₀ + 1) (by omega)
   rw [Real.dist_eq, abs_lt] at h1 h2 hlim_lo hlim_hi ⊢
-  have hlo := bonferroni_le_measureReal_natCard_eq (μ n) (hA n) k M₀
-  have hhi := measureReal_natCard_eq_le_bonferroni (μ n) (hA n) k M₀
-  constructor <;> linarith
+  constructor <;> linarith [bonferroni_le_measureReal_natCard_eq (μ n) (hA n) k M₀,
+    measureReal_natCard_eq_le_bonferroni (μ n) (hA n) k M₀]
 
 end PoissonLimit
 

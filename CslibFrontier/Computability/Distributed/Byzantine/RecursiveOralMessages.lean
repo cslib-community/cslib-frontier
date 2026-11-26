@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Distributed.Byzantine.OralMessages
 public import CslibFrontier.Foundations.Data.BitString.MajorityVote
+import CslibFrontier.Tactic.FinsetCard
 
 /-!
 # Oral messages: Byzantine agreement for `n > 3t`
@@ -125,10 +126,7 @@ theorem omResolve_congr (i : P) {val val' : List P → Bool} :
 
 private theorem card_compl_toFinset_cons_le (j : P) (τ : List P) :
     τ.toFinsetᶜ.card ≤ (j :: τ).toFinsetᶜ.card + 1 := by
-  rw [Finset.card_compl, Finset.card_compl, List.toFinset_cons]
-  have h₁ := Finset.card_insert_le j τ.toFinset
-  have h₂ := Finset.card_le_univ (insert j τ.toFinset)
-  omega
+  finset_card [List.toFinset_cons]
 
 /-- **Lemma 1 of Lamport, Shostak and Pease**, for faithful trees: `OM(m)` satisfies IC2 when
 there are more than `2k + m` generals and at most `k` traitors
@@ -146,17 +144,17 @@ theorem omResolve_eq_of_notMem {F : Finset P} {val : P → List P → Bool}
     simp only [omResolve]
     have hcard := card_compl_toFinset_cons_le j τ
     -- The lieutenants off `τ` that are correct vote `val j τ`, and they are a strict majority.
-    refine strictMajorityOn_eq_of_forall_notMem (F := F \ τ.toFinset) (fun l hl hlF => ?_) ?_
-    · have hlF' : l ∉ F := fun h => hlF (Finset.mem_sdiff.2 ⟨h, fun h' =>
-        Finset.mem_compl.1 hl (by rw [List.toFinset_cons]; exact Finset.mem_insert_of_mem h')⟩)
-      split_ifs with hli
-      · exact hval i hi j hj τ
-      · rw [omResolve_eq_of_notMem hval (k := k) m l (j :: τ) hlF' ?_ (by omega) i hi,
-          hval l hlF' j hj]
-        refine (Finset.card_le_card fun y hy => ?_).trans hk
-        simp only [Finset.mem_sdiff, List.mem_toFinset, List.mem_cons, not_or] at hy ⊢
-        exact ⟨hy.1, hy.2.2⟩
-    · omega
+    refine strictMajorityOn_eq_of_forall_notMem (F := F \ τ.toFinset)
+      (fun l hl hlF => ?_) (by omega)
+    have hlF' : l ∉ F := fun h => hlF (Finset.mem_sdiff.2 ⟨h, fun h' =>
+      Finset.mem_compl.1 hl
+        (List.mem_toFinset.2 (List.mem_cons_of_mem j (List.mem_toFinset.1 h')))⟩)
+    split_ifs with hli
+    · exact hval i hi j hj τ
+    · rw [omResolve_eq_of_notMem hval (k := k) m l (j :: τ) hlF'
+        ((Finset.card_le_card fun y hy => by
+          simp only [Finset.mem_sdiff, List.mem_toFinset, List.mem_cons, not_or] at hy ⊢
+          exact ⟨hy.1, hy.2.2⟩).trans hk) (by omega) i hi, hval l hlF' j hj]
 
 /-- **Theorem 1 of Lamport, Shostak and Pease**, for faithful trees: `OM(m)` satisfies IC1 when
 there are more than `3m` generals and at most `m` traitors
@@ -174,8 +172,7 @@ theorem omResolve_eq_omResolve {F : Finset P} {val : P → List P → Bool}
   | zero =>
     intro j τ hjτ hF _ p hp q hq
     by_cases hj : j ∈ F
-    · have : j ∈ F \ τ.toFinset := Finset.mem_sdiff.2 ⟨hj, by simpa using hjτ⟩
-      exact absurd hF (Nat.not_le.2 (Finset.card_pos.2 ⟨j, this⟩))
+    · exfalso; finset_card [mt List.mem_toFinset.1 hjτ]
     · rw [omResolve_eq_of_notMem hval 0 j τ hj hF (by omega) p hp,
         omResolve_eq_of_notMem hval 0 j τ hj hF (by omega) q hq]
   | succ m ih =>
@@ -184,21 +181,14 @@ theorem omResolve_eq_omResolve {F : Finset P} {val : P → List P → Bool}
     · simp only [omResolve]
       have hjτ' : j ∉ τ.toFinset := by simpa using hjτ
       have hcard : τ.toFinsetᶜ.card = (j :: τ).toFinsetᶜ.card + 1 := by
-        grind [Finset.card_compl, List.toFinset_cons]
+        finset_card [List.toFinset_cons]
       -- The faulty commander leaves at most `m` faulty processes in the subinstances.
       have hF' : (F \ (j :: τ).toFinset).card ≤ m := by
-        have hsub : F \ (j :: τ).toFinset ⊆ (F \ τ.toFinset).erase j := fun y hy => by
-          simp only [Finset.mem_sdiff, List.mem_toFinset, List.mem_cons, not_or,
-            Finset.mem_erase] at hy ⊢
-          exact ⟨hy.2.1, hy.1, hy.2.2⟩
-        have := Finset.card_le_card hsub
-        rw [Finset.card_erase_of_mem (Finset.mem_sdiff.2 ⟨hj, hjτ'⟩)] at this
-        omega
+        finset_card [List.toFinset_cons]
       -- A correct lieutenant `l` contributes the value it received, by Lemma 1 for `OM(m)`.
-      have hvote : ∀ l ∈ (j :: τ).toFinsetᶜ, l ∉ F → ∀ i ∉ F,
+      have hvote (l : P) (_ : l ∈ (j :: τ).toFinsetᶜ) (hlF : l ∉ F) (i : P) (hi : i ∉ F) :
           (if l = i then val i (j :: τ) else omResolve i (val i) m (l :: j :: τ)) =
             val l (j :: τ) := by
-        intro l _ hlF i hi
         split_ifs with hli
         · rw [hli]
         · exact omResolve_eq_of_notMem hval m l (j :: τ) hlF hF' (by omega) i hi
@@ -261,12 +251,7 @@ of the tree of `j` if `j` is correct. -/
 theorem om_state_cons (i j : P) (τ : List P) :
     (om P t).state F adv x (j :: τ).length i (j :: τ) =
       if j ∈ F then adv τ.length j i τ else (om P t).state F adv x τ.length j τ := by
-  change (if τ.length = τ.length then _ else _) = _
-  rw [ite_eq_left rfl]
-  by_cases hj : j ∈ F
-  · simp only [hj, ↓reduceIte]
-  · simp only [hj, ↓reduceIte]
-    rfl
+  by_cases hj : j ∈ F <;> simp [Protocol.state, om, hj]
 
 /-- The tree of frozen entries: the entry of `i` at `σ` after round `σ.length`. -/
 private def tree (t : ℕ) (i : P) (σ : List P) : Bool :=
@@ -312,11 +297,9 @@ theorem om_decision (R : ℕ) (i : P) :
 
 /-- `om P t` decides in round `t + 1`: later rounds do not change the decision. -/
 theorem om_decision_eq_decision_succ {R : ℕ} (hR : t + 1 ≤ R) (i : P) :
-    (om P t).decision F adv x R i = (om P t).decision F adv x (t + 1) i := by
-  rw [om_decision, om_decision]
-  congr 1 with c : 1
-  rw [omValue, omValue, omResolve_state_eq_tree F adv x hR,
-    omResolve_state_eq_tree F adv x le_rfl]
+    (om P t).decision F adv x R i = (om P t).decision F adv x (t + 1) i :=
+  strictMajorityOn_congr fun c _ => by
+    rw [omResolve_state_eq_tree F adv x hR, omResolve_state_eq_tree F adv x le_rfl]
 
 /-- **Oral messages** [Lamport, Shostak and Pease, §§1, 3][LamportShostakPease1982]: `om P t`
 solves Byzantine agreement against `t` faults among `n > 3t` processes in any `R ≥ t + 1`
@@ -324,16 +307,12 @@ rounds. Agreement is Theorem 1 (IC1) for every commander, and validity is Lemma 
 more than `n / 2` correct commanders. -/
 theorem solvesByzantineAgreement_om (hn : 3 * t < Fintype.card P) {R : ℕ} (hR : t + 1 ≤ R) :
     (om P t).SolvesByzantineAgreement t R where
-  agreement F hF adv x i hi j hj := by
-    rw [om_decision, om_decision]
-    congr 1 with c : 1
-    exact omValue_eq_omValue F adv x hF hn hR hi hj c
-  validity F hF adv x v hv i hi := by
-    rw [om_decision]
-    refine strictMajorityOn_eq_of_forall_notMem (F := F) (fun c _ hc => ?_) ?_
-    · rw [omValue_eq_of_notMem F adv x hF (by omega) hR hi hc, hv c hc]
-    · rw [Finset.card_univ]
-      omega
+  agreement F hF adv x i hi j hj :=
+    strictMajorityOn_congr fun c _ => omValue_eq_omValue F adv x hF hn hR hi hj c
+  validity F hF adv x v hv i hi :=
+    strictMajorityOn_eq_of_forall_notMem (F := F)
+      (fun c _ hc => (omValue_eq_of_notMem F adv x hF (by omega) hR hi hc).trans (hv c hc))
+      (by rw [Finset.card_univ]; omega)
 
 /-- **Byzantine agreement is solvable exactly when `n ≤ 1` or `n > 3t`.** For `R ≥ t + 1`, some
 protocol on `n` processes solves Byzantine agreement against `t` faults in `R` rounds exactly when
@@ -344,15 +323,13 @@ fewer than `t + 1` rounds suffice is not addressed here. -/
 theorem exists_solvesByzantineAgreement_iff (n t : ℕ) {R : ℕ} (hR : t + 1 ≤ R) :
     (∃ (S M : Type) (π : Protocol (Fin n) S M), π.SolvesByzantineAgreement t R) ↔
       n ≤ 1 ∨ 3 * t < n := by
-  constructor
-  · rintro ⟨S, M, π, h⟩
-    by_contra hn
-    exact π.not_solvesByzantineAgreement (by simp only [Fintype.card_fin]; omega)
-      (by simp only [Fintype.card_fin]; omega) h
-  · rintro (hn | hn)
-    · have : Subsingleton (Fin n) := Fin.subsingleton_iff_le_one.2 hn
-      exact ⟨_, _, _, Protocol.solvesByzantineAgreement_ownInput t R⟩
-    · exact ⟨_, _, _, solvesByzantineAgreement_om (by simpa using hn) hR⟩
+  refine ⟨fun ⟨_, _, π, h⟩ => by_contra fun hn =>
+      π.not_solvesByzantineAgreement (by simp only [Fintype.card_fin]; omega)
+        (by simp only [Fintype.card_fin]; omega) h, ?_⟩
+  rintro (hn | hn)
+  · have := Fin.subsingleton_iff_le_one.2 hn
+    exact ⟨_, _, _, Protocol.solvesByzantineAgreement_ownInput t R⟩
+  · exact ⟨_, _, _, solvesByzantineAgreement_om (by simpa using hn) hR⟩
 
 /-! ### `om1` is `OM(1)` -/
 
@@ -366,16 +343,13 @@ private theorem om_one_state_two (adv : ℕ → P → P → P → Bool) (i : P) 
     (om P 1).state F (om1Adv adv) x 2 i [] = ((om1 P).state F adv x 2 i).input ∧
     (∀ k, (om P 1).state F (om1Adv adv) x 2 i [k] = ((om1 P).state F adv x 2 i).heard k) ∧
     ∀ j k, (om P 1).state F (om1Adv adv) x 2 i [j, k] = ((om1 P).state F adv x 2 i).report j k := by
-  have heard : ∀ i k, (om P 1).state F (om1Adv adv) x 1 i [k] =
+  have heard (i k : P) : (om P 1).state F (om1Adv adv) x 1 i [k] =
       ((om1 P).state F adv x 1 i).heard k := by
-    intro i k
     by_cases hk : k ∈ F <;> simp [Protocol.state, om, om1, om1Adv, hk]
-  refine ⟨rfl, fun k => heard i k, fun j k => ?_⟩
+  refine ⟨rfl, heard i, fun j k => ?_⟩
   by_cases hj : j ∈ F
   · simp [Protocol.state, om, om1, om1Adv, hj]
-  · have := heard j k
-    simp only [Protocol.state, om, om1, hj] at this ⊢
-    simpa using this
+  · simpa [Protocol.state, om, om1, hj] using heard j k
 
 private theorem om_one_state_eq_two (adv : ℕ → P → P → P → Bool) (R : ℕ) (i : P) (σ : List P)
     (hσ : σ.length ≤ 2) :
@@ -388,24 +362,21 @@ after every `R ≥ 2` rounds, as `om P 1` against the replayed faulty messages `
 theorem om1_decision_eq_om_decision (adv : ℕ → P → P → P → Bool) {R : ℕ} (hR : 2 ≤ R) {i : P}
     (hi : i ∉ F) : (om1 P).decision F adv x R i = (om P 1).decision F (om1Adv adv) x R i := by
   obtain ⟨R, rfl⟩ := Nat.exists_eq_add_of_le' hR
-  obtain ⟨-, hheard, hreport⟩ := om_one_state_two F x adv i
+  obtain ⟨-, _, hreport⟩ := om_one_state_two F x adv i
   rw [Protocol.decision, om1_state_add_two, om_decision]
   refine strictMajorityOn_congr fun c _ => ?_
-  rw [omValue, omResolve_congr i 1 [c] fun τ hτ => om_one_state_eq_two F x adv R i τ hτ]
   have hcompl : [c].toFinsetᶜ = univ.erase c := by
-    ext l
-    simp only [Finset.mem_compl, List.mem_toFinset, List.mem_singleton, Finset.mem_erase,
-      Finset.mem_univ, and_true]
-  simp only [omResolve, hcompl]
+    ext
+    simp
+  rw [omValue, omResolve_congr i 1 [c] fun τ hτ => om_one_state_eq_two F x adv R i τ hτ,
+    omResolve, hcompl]
   refine strictMajorityOn_congr fun l _ => ?_
   rw [← hreport]
   split_ifs with hli
   · -- The relay of `i` to itself is what it heard.
     subst hli
-    have hc : (om P 1).state F (om1Adv adv) x 2 l [c] =
-        (om P 1).state F (om1Adv adv) x [c].length l [c] := om_state_freeze F (om1Adv adv) x l [c] 1
-    rw [hc, ← om_state_cons F (om1Adv adv) x l l [c] |>.trans (ite_eq_right hi)]
-    rfl
+    exact (om_state_cons (t := 1) F (om1Adv adv) x l l [c]).trans
+      ((ite_eq_right hi).trans (om_state_freeze (t := 1) F (om1Adv adv) x l [c] 1).symm)
   · rfl
 
 end Cslib.Distributed.Byzantine

@@ -120,19 +120,19 @@ private theorem exists_certWord_of_realize_endPosSentence {L' : Language.{0, 0}}
         (RelMap r.certBit ![j] ↔ w[(j : ℕ) - 1 - u.length]? = some true)) := by
   classical
   obtain ⟨e, hle_e, heB, hend⟩ := exists_of_realize_endPosSentence hlt huLen hendSent
-  let L := (e : ℕ) - u.length
-  have he_eq : u.length + L = (e : ℕ) := by omega
-  let w : List Bool := (List.range L).map fun k =>
+  let w : List Bool := (List.range ((e : ℕ) - u.length)).map fun k =>
     if hk : u.length + 1 + k < B then
       decide (RelMap r.certBit ![(⟨u.length + 1 + k, hk⟩ : Fin B)])
     else false
-  have hw_len : w.length = L := by simp [w]
-  refine ⟨w, by omega, fun z => by rw [hend z, hw_len, he_eq], fun j hgt hle => ?_⟩
-  have hk_lt : (j : ℕ) - 1 - u.length < L := by omega
-  have hj_eq : u.length + 1 + ((j : ℕ) - 1 - u.length) = (j : ℕ) := by omega
+  have hw : u.length + w.length = (e : ℕ) := by
+    simp only [w, List.length_map, List.length_range]; omega
+  refine ⟨w, by omega,
+    fun z => by rw [hend z, hw], fun j hgt hle => ?_⟩
+  have hk_lt : (j : ℕ) - 1 - u.length < (e : ℕ) - u.length := by omega
   have hjB : u.length + 1 + ((j : ℕ) - 1 - u.length) < B := by omega
-  have hfin_eq : (⟨u.length + 1 + ((j : ℕ) - 1 - u.length), hjB⟩ : Fin B) = j := Fin.ext hj_eq
-  simp [w, List.getElem?_range hk_lt, hjB, hfin_eq]
+  simp [w, List.getElem?_range hk_lt, hjB,
+    (Fin.ext (show u.length + 1 + ((j : ℕ) - 1 - u.length) = j by omega) :
+      (⟨u.length + 1 + ((j : ℕ) - 1 - u.length), hjB⟩ : Fin B) = j)]
 
 omit [Fintype State] [DecidableEq State] in
 private theorem abs_workTapePos_runFrom_add_one_lt (B : ℕ) (w : List Bool) (n : ℕ)
@@ -275,9 +275,8 @@ private theorem realize_tableauMatrix_sound {B : ℕ} [L₀.Structure (Fin B)]
     | succ n ih =>
       exact agreesAt_step_of_realize_stepSentence tm hlt0 ⟨hwB, huLen0, huBit0, hend, hcert⟩
         hstepSent hn (ih (by omega))
-  have hacc := (realize_acceptSentence_iff_of_agreesAt hB1 hlt0 (hAgrees (B - 1) (by omega))).1
-    haccSent
-  exact ⟨w, hwB, hacc.1, hacc.2⟩
+  exact ⟨w, hwB,
+    (realize_acceptSentence_iff_of_agreesAt hB1 hlt0 (hAgrees (B - 1) (by omega))).1 haccSent⟩
 
 omit [Fintype State] [DecidableEq State] in
 /-- Canonical witness interpretation of `TableauVar m State` on `Fin B` for certificate `w`. -/
@@ -384,16 +383,11 @@ theorem realize_tableauESOSentence (a : EncodedStructure) (B : ℕ)
         (CookLevin.tableau tm u L (B - 1)).Satisfiable := by
   let _ := v.powerStructure a B
   let _ := ESO.varLanguage.structure (arity := fun _ : Bool => 1) I_in
-  have h := FO.realize_tableauESOSentence (L₀ := v.powerLanguage.sum inputVarLanguage)
-    (Sum.inl v.powerLt) (Sum.inr uLenSym) (Sum.inr uBitSym) tm
-    (fun _ => Iff.rfl) huB huLen huBit
-  rw [tableauESOSentence, h]
+  rw [tableauESOSentence, FO.realize_tableauESOSentence (L₀ := v.powerLanguage.sum inputVarLanguage)
+    (Sum.inl v.powerLt) (Sum.inr uLenSym) (Sum.inr uBitSym) tm (fun _ => Iff.rfl) huB huLen huBit]
   simp only [CookLevin.tableau_satisfiable_iff]
-  constructor
-  · rintro ⟨w, hwB, hhalt, hout⟩
-    exact ⟨w.length, hwB, w, rfl, hhalt, hout⟩
-  · rintro ⟨L, hLB, w, rfl, hhalt, hout⟩
-    exact ⟨w, hLB, hhalt, hout⟩
+  exact ⟨fun ⟨w, hwB, hhalt, hout⟩ => ⟨w.length, hwB, w, rfl, hhalt, hout⟩,
+    fun ⟨_, hLB, w, hL, hhalt, hout⟩ => ⟨w, by rwa [hL], hhalt, hout⟩⟩
 
 end Vocabulary
 

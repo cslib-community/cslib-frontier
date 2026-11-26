@@ -13,6 +13,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -86,21 +87,18 @@ private def augment (s : ℕ × C × SelectBestAcc) : C × List (List Bool) :=
 
 private theorem augment_polyTime : ComputableInPolyTime (augment (C := C))
     (encPair encNat (encAcc encC)) (encPair encC (encList encBits)) := by
+  have := computableInPolyTime_augCandidateRows
   unfold augment encAcc
-  exact (by fun_prop : ComputableInPolyTime (fun s : ℕ × C × SelectBestAcc => s.2.1)
-    (encPair encNat (encPair encC encSelectBestAcc)) encC).prod
-      (computableInPolyTime_augCandidateRows.comp (by fun_prop))
+  fun_prop
 
 private def finish (p : (ℕ × C × SelectBestAcc) × ℕ) : C × SelectBestAcc :=
   (p.1.2.1, finishSelectBestStep ((p.1.1, p.1.2.2), p.2))
 
 private theorem finish_polyTime : ComputableInPolyTime (finish (C := C))
     (encPair (encPair encNat (encAcc encC)) encNat) (encAcc encC) := by
+  have := computableInPolyTime_finishSelectBestStep
   unfold finish encAcc
-  exact (by fun_prop : ComputableInPolyTime
-    (fun p : (ℕ × C × SelectBestAcc) × ℕ => p.1.2.1)
-    (encPair (encPair encNat (encPair encC encSelectBestAcc)) encNat) encC).prod
-      (computableInPolyTime_finishSelectBestStep.comp (by fun_prop))
+  fun_prop
 
 private def step (count : C × List (List Bool) → ℕ)
     (s : ℕ × C × SelectBestAcc) : C × SelectBestAcc :=
@@ -166,11 +164,8 @@ private theorem selectCertificate_eq (count : C × List (List Bool) → ℕ)
   have hp := (run_params count a.1 a.2.1 a.2.2.1
     (candidateTupleCount a.2.1 a.2.2.1) a.2.2.2).2.1
   rw [run_eq] at hp
-  simp only [Function.comp_apply, countIn, initIn, run_eq, extract,
-    selectBestTestRow, show (IndexFold.run
-      (selectBestStep (fun rows => count (a.1, rows)))
-      (candidateTupleCount a.2.1 a.2.2.1) ((a.2.1, a.2.2.1), a.2.2.2, none)).2.1.1 = a.2.1
-      by rw [hp]]
+  simp only [Function.comp_apply, countIn, initIn, run_eq, extract, selectBestTestRow]
+  rw [congrArg Prod.fst hp]
 
 /-- One fixed native selector for all encoded contexts. Empty candidate spaces return the zero
 row, exactly as `selectBestTestRow`; otherwise its first-minimum semantics are unchanged. -/
@@ -270,158 +265,176 @@ private theorem input_le (c : C) (m P : ℕ) (rows : List (List Bool)) :
   simp only [encInput, encSelectBestIn, length_encPair, encUnary_apply, List.length_replicate]
   exact ⟨by omega, by omega, by omega, by omega⟩
 
+section
+variable {α β γ : Type} {ei : α ↪ List Bool} {eb : β ↪ List Bool} {eg : γ ↪ List Bool}
+
+private def AdditiveBounds {f : α → β} (c : NativeCertificate f ei eb)
+    (M : α → ℕ) (Pred : α → ℕ → Prop) : Prop :=
+  ∃ P : α → ℕ, PolyBounded (fun a => (ei a).length) P ∧
+    ∀ a, c.space a ≤ P a ∧ (∀ R, Pred a R → c.time a ≤ M a * (P a + R))
+
+private theorem AdditiveBounds.mono {f : α → β} {c : NativeCertificate f ei eb}
+    {M₁ M₂ : α → ℕ} {P₁ P₂ : α → ℕ → Prop} (h : AdditiveBounds c M₁ P₁)
+    (hM : ∀ a, M₁ a ≤ M₂ a) (hP : ∀ a R, P₂ a R → P₁ a R) : AdditiveBounds c M₂ P₂ :=
+  let ⟨P, hPoly, hB⟩ := h
+  ⟨P, hPoly, fun a => ⟨(hB a).1, fun R hR =>
+    ((hB a).2 R (hP a R hR)).trans (Nat.mul_le_mul_right _ (hM a))⟩⟩
+
+private theorem AdditiveBounds.id_prod {f : α → β} {c : NativeCertificate f ei eb}
+    {M : α → ℕ} {Pred : α → ℕ → Prop} (h : AdditiveBounds c M Pred) (hM : ∀ a, 1 ≤ M a) :
+    let cId : NativeCertificate id ei ei :=
+      NativeCertificate.linear (ComputableInO.of_linear (.of_eq fun _ => rfl))
+    AdditiveBounds (cId.prod c) M Pred := by
+  obtain ⟨P, hP, hB⟩ := h
+  refine ⟨_, PolyBounded.self.add hP, fun a => ⟨?_, fun R hR => ?_⟩⟩
+  · have := (hB a).1
+    simp only [NativeCertificate.prod_space, NativeCertificate.linear_space]; omega
+  · have := (hB a).2 R hR; have := hM a
+    simp only [NativeCertificate.prod_time, NativeCertificate.linear_time]; nlinarith
+
+private theorem AdditiveBounds.comp_ofPolyTime {f : α → β} {r : β → γ}
+    {c : NativeCertificate f ei eb} {M : α → ℕ} {Pred : α → ℕ → Prop}
+    (h : AdditiveBounds c M Pred) (hM : ∀ a, 1 ≤ M a) (hr : ComputableInPolyTime r eb eg) :
+    AdditiveBounds ((NativeCertificate.ofPolyTime hr).comp c) M Pred := by
+  obtain ⟨P, hP, hB⟩ := h
+  have hlen := NativeCertificate.polyBounded_length_of_space (hP.mono fun a => (hB a).1)
+  have hcr := NativeCertificate.ofPolyTime_isPolynomial hr
+  refine ⟨_, (hP.add (hcr.1.comp hlen)).add (hcr.2.comp hlen), fun a => ⟨?_, fun R hR => ?_⟩⟩
+  · have := (hB a).1; simp only [NativeCertificate.comp_space]; omega
+  · have := (hB a).2 R hR; have := hM a; simp only [NativeCertificate.comp_time]; nlinarith
+
+private theorem AdditiveBounds.iterate {n : α → ℕ} {init : α → β} {stepF : β → β}
+    (cn : NativeCertificate n ei encNat) (ci : NativeCertificate init ei eb)
+    {cs : NativeCertificate stepF eb eb} {Ms : β → ℕ} {M B : α → ℕ} {Pred : β → ℕ → Prop}
+    (hcn : cn.IsPolynomial) (hci : ci.IsPolynomial) (hcs : AdditiveBounds cs Ms Pred)
+    (hM : ∀ a, 1 ≤ M a) (hB : PolyBounded (fun a => (ei a).length) B)
+    (hMs : ∀ a j, j ≤ n a → Ms (stepF^[j] (init a)) ≤ M a)
+    (hb : ∀ a j, j ≤ n a → (eb (stepF^[j] (init a))).length ≤ B a) :
+    AdditiveBounds (NativeCertificate.iterate cn ci cs) (fun a => (n a + 1) * M a)
+      (fun a R => ∀ j ≤ n a, Pred (stepF^[j] (init a)) R) := by
+  obtain ⟨Ps, hPs, hBs⟩ := hcs; obtain ⟨cp, dp, hp_le⟩ := hPs.exists_le
+  have hclock := (cn.polyTime hcn).polyBounded_length
+  let pMax a := cp * (B a + 1) ^ dp
+  let P a := cn.time a + ci.time a + cn.space a + ci.space a +
+    pMax a + B a + ((encNat (n a)).length + 1) ^ 2
+  refine ⟨P, ((((((hcn.1.add hci.1).add hcn.2).add hci.2).add
+    (NativeCertificate.polyBounded_pow_of_polyBounded hB cp dp)).add hB).add
+    ((hclock.add (.const 1)).pow 2)), fun a => ?_⟩
+  have hmaxB := NativeCertificate.maxStateLength_le eb stepF (n a) (init a) (hb a)
+  have hPs_le (j : ℕ) (hj : j ≤ n a) : Ps (stepF^[j] (init a)) ≤ pMax a :=
+    (hp_le _).trans (Nat.mul_le_mul_left cp
+      (Nat.pow_le_pow_left (Nat.add_le_add_right (hb a j hj) 1) dp))
+  refine ⟨?_, fun R hR => ?_⟩
+  · have hmaxS := NativeCertificate.maxRoundSpace_le cs (n a) (init a) fun j hj =>
+      ((hBs _).1).trans (hPs_le j hj)
+    have : (encNat (n a)).length ≤ ((encNat (n a)).length + 1) ^ 2 := by rw [sq]; nlinarith
+    rw [NativeCertificate.iterate_space]; dsimp only [P]; omega
+  · have hmaxT : NativeCertificate.maxRoundTime cs (n a) (init a) ≤ M a * (pMax a + R) :=
+      NativeCertificate.maxRoundTime_le cs (n a) (init a) fun j hj =>
+        ((hBs _).2 R (hR j hj)).trans
+          (Nat.mul_le_mul (hMs a j hj) (Nat.add_le_add_right (hPs_le j hj) R))
+    have hMa := hM a; have hpos : 1 ≤ (n a + 1) * M a := Nat.mul_pos (Nat.succ_pos _) hMa
+    have hround : NativeCertificate.maxRoundTime cs (n a) (init a) +
+        NativeCertificate.maxStateLength eb stepF (n a) (init a) +
+        ((encNat (n a)).length + 1) ^ 2 ≤
+        M a * (pMax a + B a + ((encNat (n a)).length + 1) ^ 2 + R) := by nlinarith
+    rw [NativeCertificate.iterate_time]
+    exact (Nat.add_le_add (Nat.le_mul_of_pos_left _ hpos) (Nat.mul_le_mul_left _ hround)).trans
+      ((by ring : _ = (n a + 1) * M a *
+        (cn.time a + ci.time a + pMax a + B a + ((encNat (n a)).length + 1) ^ 2 + R)).le.trans
+        (Nat.mul_le_mul_left _ (by dsimp only [P]; omega)))
+
+private theorem AdditiveBounds.computableInO {f : α → β} {c : NativeCertificate f ei eb}
+    {M : α → ℕ} {Pred : α → ℕ → Prop}
+    (h : AdditiveBounds c M Pred) (R : α → ℕ) (hR : ∀ a, Pred a (R a)) :
+    ∃ poly : ℕ → ℕ, Cslib.PolynomiallyBounded poly ∧
+      ComputableInO f ei eb (fun a => M a * (poly (ei a).length + R a))
+        (fun a => poly (ei a).length) := by
+  obtain ⟨P, ⟨poly, hpoly, hle⟩, hB⟩ := h
+  exact ⟨poly, hpoly, c.computes.mono_le
+    (fun a => ((hB a).2 (R a) (hR a)).trans
+      (Nat.mul_le_mul_left _ (Nat.add_le_add_right (hle a) _)))
+    (fun a => ((hB a).1).trans (hle a))⟩
+
+end
+
 private theorem select_bounds {count : C × List (List Bool) → ℕ}
     (cCount : NativeCertificate count (encPair encC (encList encBits)) encNat)
     (hSpace : PolyBounded (fun r => (encPair encC (encList encBits) r).length) cCount.space) :
-    ∃ poly : ℕ → ℕ, Cslib.PolynomiallyBounded poly ∧ Monotone poly ∧
-      (∀ a : C × ℕ × ℕ × List (List Bool),
-        (∀ R : ℕ,
-          (∀ j ≤ candidateTupleCount a.2.1 a.2.2.1,
-            cCount.time (a.1, a.2.2.2 ++
-              [materializeTestRow a.2.1 (decodeTestTuple a.2.1 a.2.2.1 j)]) ≤ R) →
-          (selectCertificate cCount).time a ≤
-            (candidateTupleCount a.2.1 a.2.2.1 + 1) * (poly (encInput encC a).length + R)) ∧
-        (selectCertificate cCount).space a ≤ poly (encInput encC a).length) := by
-  obtain ⟨cOut, _, hOutLen⟩ := cCount.computes
+    AdditiveBounds (selectCertificate cCount)
+      (fun a => candidateTupleCount a.2.1 a.2.2.1 + 1)
+      (fun a R => ∀ j ≤ candidateTupleCount a.2.1 a.2.2.1,
+        cCount.time (a.1, a.2.2.2 ++
+          [materializeTestRow a.2.1 (decodeTestTuple a.2.1 a.2.2.1 j)]) ≤ R) := by
+  obtain ⟨cOut, -, hOutLen⟩ := cCount.computes
   obtain ⟨pSp, hpSp, hmSp, hSp⟩ := exists_mono_poly hSpace
-  obtain ⟨pCn, hpCn, _, hCn⟩ := exists_mono_poly_cert (countIn_polyTime (encC := encC))
-  obtain ⟨pCi, hpCi, _, hCi⟩ := exists_mono_poly_cert (initIn_polyTime (encC := encC))
-  obtain ⟨pAug, hpAug, hmAug, hAug⟩ := exists_mono_poly_cert (augment_polyTime (encC := encC))
-  obtain ⟨pFin, hpFin, hmFin, hFin⟩ :=
-    exists_mono_poly_cert (finish_polyTime (encC := encC))
-  obtain ⟨pExt, hpExt, hmExt, hExt⟩ :=
-    exists_mono_poly_cert (extract_polyTime (encC := encC))
+  have hAug := NativeCertificate.ofPolyTime_isPolynomial (augment_polyTime (encC := encC))
+  obtain ⟨Ps, hPs, hBs⟩ : AdditiveBounds (stepCertificate cCount)
+      (fun _ => 1) (fun s R => cCount.time (augment s) ≤ R) :=
+    (AdditiveBounds.id_prod
+      (c := cCount.comp (NativeCertificate.ofPolyTime (augment_polyTime (encC := encC))))
+      ⟨_, (hAug.1.add hAug.2).add
+        (hSpace.comp (augment_polyTime (encC := encC)).polyBounded_length),
+        fun _ => ⟨by simp only [NativeCertificate.comp_space]; omega,
+          fun _ _ => by simp only [NativeCertificate.comp_time, one_mul]; omega⟩⟩
+      (fun _ => le_rfl)).comp_ofPolyTime (fun _ => le_rfl) finish_polyTime
+  have hRound : AdditiveBounds (IndexFold.roundCertificate (stepCertificate cCount))
+      (fun _ => 1) (fun s R => cCount.time (augment s) ≤ R) :=
+    ⟨fun p => (encPair encNat (encAcc encC) p).length + ((encNat p.1).length + 1) ^ 2 + Ps p,
+      by growth_poly, fun p => ⟨by
+      have := (hBs p).1; have : (encNat p.1).length + 1 ≤ ((encNat p.1).length + 1) ^ 2 := by
+        rw [sq]; nlinarith
+      change (encPair encNat (encAcc encC) p).length + ((encNat p.1).length + 1) +
+        (stepCertificate cCount).space p ≤ _; dsimp only; omega,
+      fun R hR => by
+        have h := (hBs p).2 R hR; rw [one_mul] at h ⊢
+        change (encPair encNat (encAcc encC) p).length + ((encNat p.1).length + 1) ^ 2 +
+          (stepCertificate cCount).time p ≤ _; dsimp only; omega⟩⟩
   let qSys (L : ℕ) := pSp (5 * L + 2); let vBound (L : ℕ) := cOut * (qSys L + 1)
   let bAcc (L : ℕ) := 12 * L + vBound L + 7; let lIdx (L : ℕ) := 2 * L * L + 1
-  let bFull (L : ℕ) := 2 * lIdx L + 1 + bAcc L; let finIn (L : ℕ) := 2 * bFull L + 1 + vBound L
-  let cbOver (L : ℕ) := bFull L + pAug (bFull L) + qSys L + pFin (finIn L)
-  let roundOver (L : ℕ) := 2 * bFull L + 2 * (lIdx L + 1) ^ 2 + cbOver L
-  let initExt (L : ℕ) := pCn L + L + pCi L + pExt (bFull L) + lIdx L
-  have hraw : Cslib.PolynomiallyBounded (fun L => initExt L + roundOver L) := by
-    dsimp only [initExt, roundOver, cbOver, finIn, bFull, lIdx, bAcc, vBound, qSys]; fun_prop
-  obtain ⟨poly, hpoly, hmpoly, hle_poly⟩ := exists_mono_poly (.of_polynomiallyBounded id hraw)
-  refine ⟨poly, hpoly, hmpoly, fun ⟨c, m, P, rows⟩ => ?_⟩; dsimp only
-  obtain ⟨hc_le, hm_le, hP_le, hrows_le⟩ := input_le (encC := encC) c m P rows
-  set L := (encInput encC (c, m, P, rows)).length; set K := candidateTupleCount m P
-  have hpolyL : initExt L + roundOver L ≤ poly L := hle_poly L
-  let candRow (j : ℕ) := materializeTestRow m (decodeTestTuple m P j)
-  let runAt (j : ℕ) := IndexFold.run (step count) j (c, (m, P), rows, none)
-  have hq_j (j : ℕ) : cCount.space (c, rows ++ [candRow j]) ≤ qSys L :=
-    (hSp _).trans (hmSp (by
-      simp only [length_encPair, candRow, encList_append, List.length_append,
-        encList_cons, encList_nil,
-        List.append_nil, length_frame, encBits_apply, length_materializeTestRow]; omega))
-  have hv_j (j : ℕ) : (encNat (count (c, rows ++ [candRow j]))).length ≤ vBound L :=
-    (hOutLen _).trans (Nat.mul_le_mul_left cOut (Nat.add_le_add_right (hq_j j) 1))
-  have hlIdx : (encNat K).length ≤ lIdx L := by
-    refine (length_encNat_candidateTupleCount_le m P).trans ?_
-    have := Nat.mul_le_mul hP_le (show 2 * m ≤ 2 * L by omega); dsimp only [lIdx]; nlinarith
-  have hbAcc (j : ℕ) : (encAcc encC (runAt j).2).length ≤ bAcc L := by
-    have hb := length_encSelectBestAcc_run_le (fun r => count (c, r)) m P j rows
-      (fun i _ => hv_j i)
-    simp only [runAt, run_eq, encAcc, length_encPair]
-    dsimp only [bAcc]
-    omega
-  have hbFull (j : ℕ) (hj : j ≤ K) : (encPair encNat (encAcc encC) (runAt j)).length ≤ bFull L :=
-    (IndexFold.length_run_le (step count) (c, (m, P), rows, none)
-      hj (hbAcc j)).trans (by dsimp only [bFull]; omega)
-  let cb := stepCertificate cCount; let rstep := IndexFold.roundCertificate cb
-  let initPair : ℕ × C × SelectBestAcc := (0, c, (m, P), rows, none)
-  let cn := NativeCertificate.ofPolyTime (countIn_polyTime (encC := encC))
-  let ci := NativeCertificate.ofPolyTime (initIn_polyTime (encC := encC))
-  let cExt := NativeCertificate.ofPolyTime (extract_polyTime (encC := encC))
-  set M := NativeCertificate.maxStateLength (encPair encNat (encAcc encC))
-    (IndexFold.step (step count)) K initPair
-  set RT := NativeCertificate.maxRoundTime rstep K initPair
-  set RS := NativeCertificate.maxRoundSpace rstep K initPair
-  have hmaxS : M ≤ bFull L := NativeCertificate.maxStateLength_le _ _ _ _ hbFull
-  have hcb_bounds (j : ℕ) (hj : j ≤ K) :
-      cb.time (runAt j) ≤ cbOver L + cCount.time (c, rows ++ [candRow j]) ∧
-        cb.space (runAt j) ≤ cbOver L := by
-    let st := runAt j
-    have hparams : st.2.1 = c ∧ st.2.2.1 = (m, P) ∧ st.2.2.2.1 = rows :=
-      run_params count c m P j rows
-    have hidx : st.1 = j := IndexFold.run_index (step count) j (c, (m, P), rows, none)
-    have haug_st : augment st = (c, rows ++ [candRow j]) := by
-      simp only [augment, augCandidateRows, candRowOfState, candRow]
-      rw [hparams.1, hparams.2.2, hidx,
-        show st.2.2.1.1 = m by rw [hparams.2.1],
-        show st.2.2.1.2 = P by rw [hparams.2.1]]
-    have hst_len : (encPair encNat (encAcc encC) st).length ≤ bFull L := hbFull j hj
-    have hfin_len : (encPair (encPair encNat (encAcc encC)) encNat
-        (st, count (augment st))).length ≤ finIn L := by
-      rw [length_encPair, haug_st]; have := hv_j j; dsimp only [finIn]; omega
-    have haugT := (hAug st).1.trans (hmAug hst_len); have haugS := (hAug st).2.trans (hmAug hst_len)
-    have hfinT := (hFin (st, count (augment st))).1.trans (hmFin hfin_len)
-    have hfinS := (hFin (st, count (augment st))).2.trans (hmFin hfin_len)
-    have hcntT : cCount.time (augment st) = cCount.time (c, rows ++ [candRow j]) :=
-      congrArg cCount.time haug_st
-    have hcntS : cCount.space (augment st) ≤ qSys L := haug_st ▸ hq_j j
-    refine ⟨?_, ?_⟩
-    · change ((encPair encNat (encAcc encC) st).length +
-          ((NativeCertificate.ofPolyTime (augment_polyTime (encC := encC))).time st +
-            cCount.time (augment st))) +
-        (NativeCertificate.ofPolyTime (finish_polyTime (encC := encC))).time
-          (st, count (augment st)) ≤ _; dsimp only [cbOver]; omega
-    · change ((encPair encNat (encAcc encC) st).length +
-          ((NativeCertificate.ofPolyTime (augment_polyTime (encC := encC))).space st +
-            cCount.space (augment st))) +
-        (NativeCertificate.ofPolyTime (finish_polyTime (encC := encC))).space
-          (st, count (augment st)) ≤ _; dsimp only [cbOver]; omega
-  have hcn_a : cn.time (c, m, P, rows) ≤ pCn L ∧ cn.space (c, m, P, rows) ≤ pCn L :=
-    hCn (c, m, P, rows)
-  have hci_a : ci.time (c, m, P, rows) ≤ pCi L ∧ ci.space (c, m, P, rows) ≤ pCi L :=
-    hCi (c, m, P, rows)
-  have hextT : cExt.time (runAt K) ≤ pExt (bFull L) :=
-    (hExt (runAt K)).1.trans (hmExt (hbFull K le_rfl))
-  have hextS : cExt.space (runAt K) ≤ pExt (bFull L) :=
-    (hExt (runAt K)).2.trans (hmExt (hbFull K le_rfl))
-  refine ⟨fun R hR => ?_, ?_⟩
-  · have hmaxRT : RT ≤ bFull L + (lIdx L + 1) ^ 2 + cbOver L + R := by
-      refine NativeCertificate.maxRoundTime_le _ _ _ fun j hj => ?_
-      have hst_len := hbFull j hj
-      have hj_len : (encNat (runAt j).1).length ≤ lIdx L := by
-        rw [IndexFold.run_index]
-        have hm : (encNat j).length ≤ (encNat K).length := by
-          simpa only [encNat_apply, Nat.size_eq_bits_len] using Nat.size_le_size hj
-        exact hm.trans hlIdx
-      have hsq : ((encNat (runAt j).1).length + 1) ^ 2 ≤ (lIdx L + 1) ^ 2 := by gcongr
-      have hcbT := (hcb_bounds j hj).1
-      have hRJ : cCount.time (c, rows ++ [candRow j]) ≤ R := hR j hj
-      change (encPair encNat (encAcc encC) (runAt j)).length +
-        ((encNat (runAt j).1).length + 1) ^ 2 + cb.time (runAt j) ≤ _; omega
-    have hsqN : ((encNat K).length + 1) ^ 2 ≤ (lIdx L + 1) ^ 2 := Nat.pow_le_pow_left (by omega) 2
-    have hround_sum : RT + M + ((encNat K).length + 1) ^ 2 ≤ roundOver L + R := by
-      dsimp only [roundOver]; omega
-    calc (selectCertificate cCount).time (c, m, P, rows)
-        = cn.time (c, m, P, rows) + (L + ci.time (c, m, P, rows)) +
-            (K + 1) * (RT + M + ((encNat K).length + 1) ^ 2) + cExt.time (runAt K) := rfl
-      _ ≤ initExt L + (K + 1) * (roundOver L + R) := by
-            have h1 : cn.time (c, m, P, rows) + (L + ci.time (c, m, P, rows)) +
-                cExt.time (runAt K) ≤
-              initExt L := by dsimp only [initExt]; omega
-            have h2 := Nat.mul_le_mul_left (K + 1) hround_sum; omega
-      _ ≤ (K + 1) * initExt L + (K + 1) * (roundOver L + R) :=
-            Nat.add_le_add_right (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)) _
-      _ = (K + 1) * (initExt L + roundOver L + R) := by ring
-      _ ≤ (K + 1) * (poly L + R) := Nat.mul_le_mul_left _ (by omega)
-  · have hmaxRS : RS ≤ bFull L + (lIdx L + 1) + cbOver L := by
-      refine NativeCertificate.maxRoundSpace_le _ _ _ fun j hj => ?_
-      have hst_len := hbFull j hj
-      have hj_len : (encNat (runAt j).1).length ≤ lIdx L := by
-        rw [IndexFold.run_index]
-        have hm : (encNat j).length ≤ (encNat K).length := by
-          simpa only [encNat_apply, Nat.size_eq_bits_len] using Nat.size_le_size hj
-        exact hm.trans hlIdx
-      have hcbS := (hcb_bounds j hj).2
-      change (encPair encNat (encAcc encC) (runAt j)).length +
-        ((encNat (runAt j).1).length + 1) + cb.space (runAt j) ≤ _; omega
-    have hlin_sq : lIdx L + 1 ≤ 2 * (lIdx L + 1) ^ 2 := by nlinarith
-    calc (selectCertificate cCount).space (c, m, P, rows)
-        = cn.space (c, m, P, rows) + (L + ci.space (c, m, P, rows)) + RS + M + (encNat K).length +
-            cExt.space (runAt K) := rfl
-      _ ≤ initExt L + roundOver L := by dsimp only [initExt, roundOver]; omega
-      _ ≤ poly L := hpolyL
+  let bFull (L : ℕ) := 2 * lIdx L + 1 + bAcc L
+  have hbFullP : PolyBounded (fun a => (encInput encC a).length)
+      (fun a => bFull (encInput encC a).length) :=
+    .of_polynomiallyBounded _ (by dsimp only [bFull, lIdx, bAcc, vBound, qSys]; fun_prop)
+  have hbFull : ∀ a : C × ℕ × ℕ × List (List Bool), ∀ j ≤ countIn a,
+      (encPair encNat (encAcc encC) ((IndexFold.step (step count))^[j] (0, initIn a))).length ≤
+        bFull (encInput encC a).length := by
+    rintro ⟨c, m, P, rows⟩ j hj
+    obtain ⟨hc_le, hm_le, hP_le, hrows_le⟩ := input_le (encC := encC) c m P rows
+    set L := (encInput encC (c, m, P, rows)).length
+    let candRow (i : ℕ) := materializeTestRow m (decodeTestTuple m P i)
+    have hq_i (i : ℕ) : cCount.space (c, rows ++ [candRow i]) ≤ qSys L := (hSp _).trans (hmSp (by
+      enc_len [candRow, encList_append, List.append_nil, length_materializeTestRow]))
+    have hv_i (i : ℕ) : (encNat (count (c, rows ++ [candRow i]))).length ≤ vBound L :=
+      (hOutLen _).trans (Nat.mul_le_mul_left cOut (Nat.add_le_add_right (hq_i i) 1))
+    have hlIdx : (encNat (countIn (c, m, P, rows))).length ≤ lIdx L :=
+      (length_encNat_candidateTupleCount_le m P).trans (by
+        have := Nat.mul_le_mul hP_le (show 2 * m ≤ 2 * L by omega); dsimp only [lIdx]; nlinarith)
+    have hbAcc : (encAcc encC (IndexFold.run (step count) j (c, (m, P), rows, none)).2).length ≤
+        bAcc L := by
+      have hb := length_encSelectBestAcc_run_le (fun r => count (c, r)) m P j rows
+        (fun i _ => hv_i i)
+      simp only [run_eq, encAcc, length_encPair]; dsimp only [bAcc]; omega
+    exact (IndexFold.length_run_le (step count) (c, (m, P), rows, none) hj hbAcc).trans
+      (by dsimp only [bFull]; omega)
+  have hLoop := AdditiveBounds.iterate
+    (NativeCertificate.ofPolyTime (countIn_polyTime (encC := encC)))
+    ((NativeCertificate.const (em := encNat) 0).prod
+      (NativeCertificate.ofPolyTime (initIn_polyTime (encC := encC))))
+    (NativeCertificate.ofPolyTime_isPolynomial (countIn_polyTime (encC := encC)))
+    (NativeCertificate.prod_isPolynomial _ _ (NativeCertificate.const_isPolynomial 0)
+      (NativeCertificate.ofPolyTime_isPolynomial (initIn_polyTime (encC := encC))))
+    hRound (M := fun _ => 1) (fun _ => le_rfl) hbFullP (fun _ _ _ => le_rfl) hbFull
+  refine AdditiveBounds.mono (c := selectCertificate cCount)
+    (hLoop.comp_ofPolyTime (fun _ => by omega) (extract_polyTime (encC := encC)))
+    (fun _ => by dsimp only [countIn]; omega) fun ⟨c, m, P, rows⟩ R hR j hj => ?_
+  let st := IndexFold.run (step count) j (c, (m, P), rows, none)
+  have hparams := run_params count c m P j rows
+  have haug_st : augment st = (c, rows ++ [materializeTestRow m (decodeTestTuple m P j)]) := by
+    simp only [augment, augCandidateRows, candRowOfState]
+    rw [hparams.1, hparams.2.2, IndexFold.run_index (step count) j (c, (m, P), rows, none),
+      congrArg Prod.fst hparams.2.1, congrArg Prod.snd hparams.2.1]
+  exact haug_st ▸ hR j hj
 
 /-- Uniform selector time and polynomial workspace, measured in the full context/input encoding.
 The counter-time premise includes `j = (2m)^P`: the native iterator uses inclusive prefix maxima,
@@ -443,10 +456,8 @@ theorem computableInO_select {count : C × List (List Bool) → ℕ}
         (fun a =>
           let (_, m, P, _) := a
           (candidateTupleCount m P + 1) * (poly (encInput encC a).length + R a))
-        (fun a => poly (encInput encC a).length) := by
-  obtain ⟨poly, hpoly, _, hB⟩ := select_bounds cCount hSpace
-  exact ⟨poly, hpoly, (selectCertificate cCount).computes.mono_le
-    (fun a => (hB a).1 (R a) (hR a)) (fun a => (hB a).2)⟩
+        (fun a => poly (encInput encC a).length) :=
+  (select_bounds cCount hSpace).computableInO R hR
 
 private theorem greedy_input_le (c : C) (n m P : ℕ) (rows : List (List Bool)) :
     (encC c).length ≤ (encGreedyInput encC (c, n, m, P, rows)).length ∧
@@ -457,6 +468,50 @@ private theorem greedy_input_le (c : C) (n m P : ℕ) (rows : List (List Bool)) 
   simp only [encGreedyInput, encGreedyIn, encSelectBestIn, length_encPair,
     encUnary_apply, List.length_replicate]
   exact ⟨by omega, by omega, by omega, by omega, by omega⟩
+
+private theorem greedy_bounds {count : C × List (List Bool) → ℕ}
+    (cCount : NativeCertificate count (encContextRows encC) encNat)
+    (hSpace : PolyBounded (fun r => (encContextRows encC r).length) cCount.space) :
+    AdditiveBounds (greedyCertificate cCount)
+      (fun a => (3 * a.2.1 + 1) * (candidateTupleCount a.2.2.1 a.2.2.2.1 + 1))
+      (fun a R => ∀ i ≤ 3 * a.2.1, ∀ j ≤ candidateTupleCount a.2.2.1 a.2.2.2.1,
+        cCount.time (a.1,
+          greedyParityRowsAt (fun r => count (a.1, r)) a.2.2.1 a.2.2.2.1 a.2.2.2.2 i ++
+            [materializeTestRow a.2.2.1 (decodeTestTuple a.2.2.1 a.2.2.2.1 j)]) ≤ R) := by
+  have hOuter : AdditiveBounds (outerCertificate cCount)
+      (fun s => candidateTupleCount s.2.1 s.2.2.1 + 1)
+      (fun s R => ∀ j ≤ candidateTupleCount s.2.1 s.2.2.1,
+        cCount.time (s.1, s.2.2.2 ++
+          [materializeTestRow s.2.1 (decodeTestTuple s.2.1 s.2.2.1 j)]) ≤ R) :=
+    ((select_bounds cCount hSpace).id_prod (fun _ => Nat.succ_pos _)).comp_ofPolyTime
+      (fun _ => Nat.succ_pos _) appendRow_polyTime
+  let bOuter (L : ℕ) := 6 * L * L + 10 * L + 3
+  have hbOuterP : PolyBounded (fun a => (encGreedyInput encC a).length)
+      (fun a => bOuter (encGreedyInput encC a).length) :=
+    .of_polynomiallyBounded _ (by dsimp only [bOuter]; fun_prop)
+  have hbOuter : ∀ a : C × ℕ × ℕ × ℕ × List (List Bool), ∀ i ≤ roundCount a,
+      (encInput encC ((outerStep count)^[i] (outerInit a))).length ≤
+        bOuter (encGreedyInput encC a).length := by
+    rintro ⟨c, n, m, P, rows₀⟩ i hi
+    obtain ⟨hc_le, hn_le, hm_le, hP_le, hrows0_le⟩ := greedy_input_le (encC := encC) c n m P rows₀
+    set L := (encGreedyInput encC (c, n, m, P, rows₀)).length
+    dsimp only [roundCount, outerInit] at hi ⊢
+    simp only [outerStep_iterate, encInput, encSelectBestIn, length_encPair,
+      encUnary_apply, List.length_replicate, length_encList_greedyParityRowsAt]
+    have hgrow : i * (2 * m + 1) ≤ (3 * L) * (2 * L + 1) :=
+      Nat.mul_le_mul (by omega) (by omega)
+    have hxp : (3 * L) * (2 * L + 1) = 6 * L * L + 3 * L := by ring
+    dsimp only [bOuter]; omega
+  refine AdditiveBounds.mono (c := greedyCertificate cCount) (AdditiveBounds.iterate
+    (NativeCertificate.ofPolyTime (roundCount_polyTime (encC := encC)))
+    (NativeCertificate.ofPolyTime (outerInit_polyTime (encC := encC)))
+    (NativeCertificate.ofPolyTime_isPolynomial (roundCount_polyTime (encC := encC)))
+    (NativeCertificate.ofPolyTime_isPolynomial (outerInit_polyTime (encC := encC)))
+    hOuter (M := fun a => candidateTupleCount a.2.2.1 a.2.2.2.1 + 1)
+    (fun _ => Nat.succ_pos _) hbOuterP
+    (fun ⟨c, _, m, P, rows₀⟩ i _ => by simp only [outerInit, outerStep_iterate, le_rfl])
+    hbOuter) (fun _ => le_rfl) fun ⟨c, n, m, P, rows₀⟩ R hR i hi => ?_
+  simpa only [outerInit, outerStep_iterate] using hR i hi
 
 /-- One uniform machine and polynomial for all encoded contexts, with independent native time
 `O((3n + 1) ((2m)^P + 1) (poly(L) + R))` and workspace `O(poly(L))`, where `L` is the full
@@ -487,111 +542,8 @@ theorem computableInO_greedy {count : C × List (List Bool) → ℕ}
           let (_, n, m, P, _) := a
           (3 * n + 1) * (candidateTupleCount m P + 1) *
             (poly (encGreedyInput encC a).length + R a))
-        (fun a => poly (encGreedyInput encC a).length) := by
-  obtain ⟨polySel, hpolySel, hmpolySel, hSelB⟩ := select_bounds cCount hSpace
-  obtain ⟨pCn, hpCn, _, hCn⟩ := exists_mono_poly_cert (roundCount_polyTime (encC := encC))
-  obtain ⟨pCi, hpCi, _, hCi⟩ := exists_mono_poly_cert (outerInit_polyTime (encC := encC))
-  obtain ⟨pApp, hpApp, hmApp, hApp⟩ := exists_mono_poly_cert (appendRow_polyTime (encC := encC))
-  let bOuter (L : ℕ) := 6 * L * L + 10 * L + 3; let selDom (L : ℕ) := polySel (bOuter L)
-  let bAppIn (L : ℕ) := 2 * bOuter L + 1 + L
-  let outerFixed (L : ℕ) := 2 * bOuter L + pApp (bAppIn L) + (3 * L + 1) ^ 2
-  let initOuter (L : ℕ) := pCn L + pCi L + 3 * L
-  let poly (L : ℕ) := initOuter L + outerFixed L + selDom L
-  have hpoly : Cslib.PolynomiallyBounded poly := by
-    dsimp only [poly, initOuter, outerFixed, bAppIn, selDom, bOuter]; fun_prop
-  have hboth : ∀ a : C × ℕ × ℕ × ℕ × List (List Bool),
-      (greedyCertificate cCount).time a ≤
-        (3 * a.2.1 + 1) * (candidateTupleCount a.2.2.1 a.2.2.2.1 + 1) *
-          (poly (encGreedyInput encC a).length + R a) ∧
-      (greedyCertificate cCount).space a ≤ poly (encGreedyInput encC a).length := by
-    rintro ⟨c, n, m, P, rows₀⟩; dsimp only
-    obtain ⟨hc_le, hn_le, hm_le, hP_le, hrows0_le⟩ := greedy_input_le (encC := encC) c n m P rows₀
-    set L := (encGreedyInput encC (c, n, m, P, rows₀)).length; set K := candidateTupleCount m P
-    set R₀ := R (c, n, m, P, rows₀)
-    have hbOuter (i : ℕ) (hi : i ≤ 3 * n) :
-        (encInput encC ((outerStep count)^[i] (c, m, P, rows₀))).length ≤ bOuter L := by
-      simp only [outerStep_iterate, encInput, encSelectBestIn, length_encPair,
-        encUnary_apply, List.length_replicate, length_encList_greedyParityRowsAt]
-      have hgrow : i * (2 * m + 1) ≤ (3 * L) * (2 * L + 1) :=
-        Nat.mul_le_mul (by omega) (by omega)
-      have hxp : (3 * L) * (2 * L + 1) = 6 * L * L + 3 * L := by ring
-      dsimp only [bOuter]; omega
-    let cstep := outerCertificate cCount
-    let cn := NativeCertificate.ofPolyTime (roundCount_polyTime (encC := encC))
-    let ci := NativeCertificate.ofPolyTime (outerInit_polyTime (encC := encC))
-    set MO := NativeCertificate.maxStateLength (encInput encC)
-      (outerStep count) (3 * n) (c, m, P, rows₀)
-    set RTO := NativeCertificate.maxRoundTime cstep (3 * n) (c, m, P, rows₀)
-    set RSO := NativeCertificate.maxRoundSpace cstep (3 * n) (c, m, P, rows₀)
-    have hmaxS : MO ≤ bOuter L := NativeCertificate.maxStateLength_le _ _ _ _ hbOuter
-    have hstep_b (i : ℕ) (hi : i ≤ 3 * n) :
-        let st := (outerStep count)^[i] (c, m, P, rows₀)
-        cstep.time st ≤ bOuter L + (K + 1) * (selDom L + R₀) + pApp (bAppIn L) ∧
-          cstep.space st ≤ bOuter L + selDom L + pApp (bAppIn L) := by
-      dsimp only; set st := (outerStep count)^[i] (c, m, P, rows₀)
-      have hst_eq : st = (c, m, P, greedyParityRowsAt (fun r => count (c, r)) m P rows₀ i) :=
-        outerStep_iterate count c m P i rows₀
-      have hst_len : (encInput encC st).length ≤ bOuter L := hbOuter i hi
-      have hpoly_sel_le : polySel (encInput encC st).length ≤ selDom L := hmpolySel hst_len
-      have hsel_t : (selectCertificate cCount).time st ≤ (K + 1) * (selDom L + R₀) := by
-        have h1 := (hSelB st).1 R₀ (by simpa only [hst_eq] using hR (c, n, m, P, rows₀) i hi)
-        rw [show candidateTupleCount st.2.1 st.2.2.1 = K by simp only [hst_eq, K]] at h1
-        exact h1.trans (Nat.mul_le_mul_left _ (Nat.add_le_add_right hpoly_sel_le _))
-      have hsel_s : (selectCertificate cCount).space st ≤ selDom L :=
-        (hSelB st).2.trans hpoly_sel_le
-      set selRow := selectBestTestRow (fun r => count (st.1, r)) st.2.1 st.2.2.1 st.2.2.2
-      have happ_in_len : (encPair (encInput encC) encBits (st, selRow)).length ≤ bAppIn L := by
-        rw [length_encPair]
-        have hrow_len : (encBits selRow).length ≤ L := by
-          simp only [selRow, hst_eq, encBits_apply, length_selectBestTestRow]; exact hm_le
-        dsimp only [bAppIn]; omega
-      have happ_t := (hApp (st, selRow)).1.trans (hmApp happ_in_len)
-      have happ_s := (hApp (st, selRow)).2.trans (hmApp happ_in_len)
-      refine ⟨?_, ?_⟩
-      · change ((encInput encC st).length + (selectCertificate cCount).time st) +
-          (NativeCertificate.ofPolyTime (appendRow_polyTime (encC := encC))).time
-            (st, selRow) ≤ _; omega
-      · change ((encInput encC st).length + (selectCertificate cCount).space st) +
-          (NativeCertificate.ofPolyTime (appendRow_polyTime (encC := encC))).space
-            (st, selRow) ≤ _; omega
-    have h3n_len : (encNat (3 * n)).length ≤ 3 * L := by
-      rw [encNat_apply, Nat.size_eq_bits_len]; exact (Nat.size_le_self (3 * n)).trans (by omega)
-    have hcn_a : cn.time (c, n, m, P, rows₀) ≤ pCn L ∧ cn.space (c, n, m, P, rows₀) ≤ pCn L :=
-      hCn (c, n, m, P, rows₀)
-    have hci_a : ci.time (c, n, m, P, rows₀) ≤ pCi L ∧
-        ci.space (c, n, m, P, rows₀) ≤ pCi L := hCi (c, n, m, P, rows₀)
-    refine ⟨?_, ?_⟩
-    · have hmaxRT : RTO ≤ bOuter L + (K + 1) * (selDom L + R₀) + pApp (bAppIn L) :=
-        NativeCertificate.maxRoundTime_le cstep (3 * n) (c, m, P, rows₀) fun i hi =>
-          (hstep_b i hi).1
-      have h3n_sq : ((encNat (3 * n)).length + 1) ^ 2 ≤ (3 * L + 1) ^ 2 := by gcongr
-      have hper : RTO + MO + ((encNat (3 * n)).length + 1) ^ 2 ≤
-          (K + 1) * (outerFixed L + selDom L + R₀) :=
-        calc RTO + MO + ((encNat (3 * n)).length + 1) ^ 2
-            ≤ outerFixed L + (K + 1) * (selDom L + R₀) := by dsimp only [outerFixed]; omega
-          _ ≤ (K + 1) * outerFixed L + (K + 1) * (selDom L + R₀) :=
-                Nat.add_le_add_right (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)) _
-          _ = (K + 1) * (outerFixed L + selDom L + R₀) := by ring
-      calc (greedyCertificate cCount).time (c, n, m, P, rows₀)
-          = cn.time (c, n, m, P, rows₀) + ci.time (c, n, m, P, rows₀) +
-              (3 * n + 1) * (RTO + MO + ((encNat (3 * n)).length + 1) ^ 2) := rfl
-        _ ≤ initOuter L + (3 * n + 1) * ((K + 1) * (outerFixed L + selDom L + R₀)) :=
-              Nat.add_le_add (by dsimp only [initOuter]; omega) (Nat.mul_le_mul_left _ hper)
-        _ = initOuter L + ((3 * n + 1) * (K + 1)) * (outerFixed L + selDom L + R₀) := by ring
-        _ ≤ ((3 * n + 1) * (K + 1)) * initOuter L +
-              ((3 * n + 1) * (K + 1)) * (outerFixed L + selDom L + R₀) :=
-              Nat.add_le_add_right
-                (Nat.le_mul_of_pos_left _ (Nat.mul_pos (Nat.succ_pos _) (Nat.succ_pos _))) _
-        _ = (3 * n + 1) * (K + 1) * (poly L + R₀) := by dsimp only [poly]; ring
-    · have hmaxRS : RSO ≤ bOuter L + selDom L + pApp (bAppIn L) :=
-        NativeCertificate.maxRoundSpace_le cstep (3 * n) (c, m, P, rows₀) fun i hi =>
-          (hstep_b i hi).2
-      calc (greedyCertificate cCount).space (c, n, m, P, rows₀)
-          = cn.space (c, n, m, P, rows₀) + ci.space (c, n, m, P, rows₀) +
-              RSO + MO + (encNat (3 * n)).length := rfl
-        _ ≤ poly L := by dsimp only [poly, initOuter, outerFixed]; omega
-  exact ⟨poly, hpoly, (greedyCertificate cCount).computes.mono_le
-    (fun a => (hboth a).1) (fun a => (hboth a).2)⟩
+        (fun a => poly (encGreedyInput encC a).length) :=
+  (greedy_bounds cCount hSpace).computableInO R hR
 
 /-- Whenever `cCount` uses polynomial workspace, `greedyParityRows` runs in polynomial space. -/
 theorem computableInPolySpace_greedy {count : C × List (List Bool) → ℕ}
@@ -600,20 +552,9 @@ theorem computableInPolySpace_greedy {count : C × List (List Bool) → ℕ}
     ComputableInPolySpace
       (fun ((c, n, m, P, rows) : C × ℕ × ℕ × ℕ × List (List Bool)) =>
         greedyParityRows (fun r => count (c, r)) n m P rows)
-      (encGreedyInput encC) (encList encBits) := by
-  let cell (a : C × ℕ × ℕ × ℕ × List (List Bool)) (i j : ℕ) : ℕ :=
-    cCount.time (a.1,
-      greedyParityRowsAt (fun r => count (a.1, r)) a.2.2.1 a.2.2.2.1 a.2.2.2.2 i ++
-      [materializeTestRow a.2.2.1 (decodeTestTuple a.2.2.1 a.2.2.2.1 j)])
-  let rowMax (a : C × ℕ × ℕ × ℕ × List (List Bool)) (i : ℕ) : ℕ :=
-    listMax (cell a i) (List.range (candidateTupleCount a.2.2.1 a.2.2.2.1 + 1))
-  let R (a : C × ℕ × ℕ × ℕ × List (List Bool)) : ℕ :=
-    listMax (rowMax a) (List.range (3 * a.2.1 + 1))
-  have hR : ∀ a, ∀ i ≤ 3 * a.2.1, ∀ j ≤ candidateTupleCount a.2.2.1 a.2.2.2.1, cell a i j ≤ R a :=
-    fun a i hi j hj => (le_listMax (f := cell a i) (List.mem_range.mpr (by omega))).trans
-      (le_listMax (f := rowMax a) (List.mem_range.mpr (by omega)))
-  obtain ⟨poly, hpoly, c, hc, hl⟩ := computableInO_greedy cCount hSpace R hR
-  exact ⟨_, fun n => c * (poly n + 1), by fun_prop, hc, hl⟩
+      (encGreedyInput encC) (encList encBits) :=
+  let ⟨_, hP, hB⟩ := greedy_bounds cCount hSpace
+  (greedyCertificate cCount).computableInPolySpace (hP.mono fun a => (hB a).1)
 
 end Cslib.Logic.PL.CNF.GreedyContext
 
@@ -637,9 +578,8 @@ private noncomputable def unitCounter {countSys : List (List Bool) → ℕ}
 private theorem unitCounter_space {countSys : List (List Bool) → ℕ}
     (cCount : NativeCertificate countSys (encList encBits) encNat)
     (hSpace : PolyBounded (fun r => (encList encBits r).length) cCount.space) :
-    PolyBounded (fun p => (encContextRows encUnit p).length) (unitCounter cCount).space :=
-  PolyBounded.self.add (hSpace.comp (PolyBounded.self.mono fun p => by
-    simp only [encContextRows, length_encPair]; omega))
+    PolyBounded (fun p => (encContextRows encUnit p).length) (unitCounter cCount).space := by
+  growth_poly
 
 /-- Re-encode a fixed-counter input as a unit-context input. -/
 private theorem unitInput {α : Type} (enc : α ↪ List Bool) :
@@ -680,10 +620,8 @@ theorem computableInO_selectBestTestRow {countSys : List (List Bool) → ℕ}
   refine (h.comp' (unitInput encSelectBestIn)).mono_le (fun ⟨m, P, rows⟩ => ?_)
     fun ⟨m, P, rows⟩ => ?_
   all_goals
-    have hl : (encInput encUnit ((), m, P, rows)).length =
-        (encSelectBestIn (m, P, rows)).length + 1 := length_unitInput encSelectBestIn (m, P, rows)
-    dsimp only
-    rw [hl]
+    dsimp only [encInput]
+    rw [length_unitInput]
   · nlinarith [Nat.zero_le (candidateTupleCount m P * (encSelectBestIn (m, P, rows)).length)]
   · omega
 
@@ -729,10 +667,8 @@ theorem computableInO_greedyParityRows {countSys : List (List Bool) → ℕ}
   refine (h.comp' (unitInput encGreedyIn)).mono_le (fun ⟨n, m, P, rows⟩ => ?_)
     fun ⟨n, m, P, rows⟩ => ?_
   all_goals
-    have hl : (encGreedyInput encUnit ((), n, m, P, rows)).length =
-        (encGreedyIn (n, m, P, rows)).length + 1 := length_unitInput encGreedyIn (n, m, P, rows)
-    dsimp only
-    rw [hl]
+    dsimp only [encGreedyInput]
+    rw [length_unitInput]
   · have hM : 1 ≤ (3 * n + 1) * (candidateTupleCount m P + 1) := Nat.mul_pos (by omega) (by omega)
     generalize (3 * n + 1) * (candidateTupleCount m P + 1) = M at hM ⊢
     nlinarith [Nat.mul_le_mul_right (encGreedyIn (n, m, P, rows)).length hM]
@@ -746,18 +682,14 @@ theorem computableInPolySpace_greedyParityRows {countSys : List (List Bool) → 
     ComputableInPolySpace
       (fun (n, m, P, rows) => greedyParityRows countSys n m P rows)
       encGreedyIn (encList encBits) := by
-  let cell (a : ℕ × ℕ × ℕ × List (List Bool)) (i j : ℕ) : ℕ :=
-    cCount.time (greedyParityRowsAt countSys a.2.1 a.2.2.1 a.2.2.2 i ++
-      [materializeTestRow a.2.1 (decodeTestTuple a.2.1 a.2.2.1 j)])
-  let rowMax (a : ℕ × ℕ × ℕ × List (List Bool)) (i : ℕ) : ℕ :=
-    listMax (cell a i) (List.range (candidateTupleCount a.2.1 a.2.2.1 + 1))
-  let R (a : ℕ × ℕ × ℕ × List (List Bool)) : ℕ := listMax (rowMax a) (List.range (3 * a.1 + 1))
-  have hR : ∀ a, ∀ i ≤ 3 * a.1, ∀ j ≤ candidateTupleCount a.2.1 a.2.2.1, cell a i j ≤ R a :=
-    fun a i hi j hj => (le_listMax (f := cell a i) (List.mem_range.mpr (by omega))).trans
-      (le_listMax (f := rowMax a) (List.mem_range.mpr (by omega)))
-  obtain ⟨poly, hpoly, c, hc, hl⟩ := computableInO_greedyParityRows cCount hSpace R hR
-  exact ⟨_, fun n => c * (poly n + 1),
-    (Cslib.PolynomiallyBounded.const c).mul (hpoly.add (.const 1)), hc, hl⟩
+  obtain ⟨_, hP, hB⟩ := greedy_bounds (unitCounter cCount) (unitCounter_space cCount hSpace)
+  have hu : PolyBounded (fun a => (encGreedyIn a).length)
+      (fun a => (encGreedyInput encUnit ((), a)).length) :=
+    (PolyBounded.self.add (.const 1)).mono fun a => (length_unitInput encGreedyIn a).le
+  exact (((greedyCertificate (unitCounter cCount)).comp ⟨_, _, unitInput encGreedyIn⟩).congr
+    fun ⟨_, _, _, _⟩ => rfl).computableInPolySpace
+    (((PolyBounded.self.add .self).add (hP.comp hu)).mono fun a =>
+      Nat.add_le_add_left (hB ((), a)).1 _)
 
 end Cslib.Logic.PL.CNF
 

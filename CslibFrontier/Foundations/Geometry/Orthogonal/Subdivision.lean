@@ -67,20 +67,13 @@ def walk (a d : Point) : ℕ → Route
     (walk a d k).getLast? = some (a + k • d) := by
   induction k generalizing a with
   | zero => simp [walk]
-  | succ k ih =>
-    rw [walk, List.getLast?_cons, ih]
-    simp only [Option.getD_some]
-    congr 1
-    rw [add_smul, one_smul]
-    abel
+  | succ k ih => rw [walk, List.getLast?_cons, ih, Option.getD_some, succ_nsmul', add_assoc]
 
 private theorem support_cons_of_head (a b : Point) {r : Route} (h : r.head? = some b) :
     support (a :: r) = segment a b ∪ support r := by
-  cases r with
-  | nil => simp at h
-  | cons c r =>
-    simp only [List.head?_cons, Option.some.injEq] at h
-    subst c
+  rcases r with _ | ⟨c, r⟩
+  · simp at h
+  · obtain rfl : b = c := (Option.some.inj h).symm
     exact support_cons_cons a b r
 
 /-- A step vector in one of the four cardinal unit directions. -/
@@ -91,19 +84,15 @@ private theorem segment_step_union (a d : Point) (k : ℕ) (hd : UnitVector d) :
     segment a (a + d) ∪ segment (a + d) (a + (k + 1) • d) =
       segment a (a + (k + 1) • d) := by
   rcases a with ⟨x, y⟩
-  rcases hd with rfl | rfl | rfl | rfl
-  all_goals ext p
-  all_goals norm_num only [segment, realPoint, Prod.smul_mk, nsmul_eq_mul,
-    Prod.fst_add, Prod.snd_add, mul_one, mul_zero, mul_neg_one, add_zero, Int.cast_add,
-    Int.cast_one, Int.cast_zero, Int.cast_neg, Int.cast_natCast, Nat.cast_add, Nat.cast_one,
-    Set.mem_union]
-  all_goals
-    first
-    | rw [mem_horizontal, mem_horizontal, mem_horizontal]
-    | rw [mem_vertical, mem_vertical, mem_vertical]
-  all_goals have hk : (0 : ℝ) ≤ k := by positivity
-  all_goals simp only [Set.mem_uIcc]
-  all_goals grind
+  rcases hd with rfl | rfl | rfl | rfl <;> ext p <;>
+    norm_num only [segment, realPoint, Prod.smul_mk, nsmul_eq_mul, Prod.fst_add, Prod.snd_add,
+      mul_one, mul_zero, mul_neg_one, add_zero, Int.cast_add, Int.cast_one, Int.cast_zero,
+      Int.cast_neg, Int.cast_natCast, Nat.cast_add, Nat.cast_one, Set.mem_union] <;>
+    (first | rw [mem_horizontal, mem_horizontal, mem_horizontal]
+           | rw [mem_vertical, mem_vertical, mem_vertical]) <;>
+    (have hk : (0 : ℝ) ≤ k := by positivity
+     simp only [Set.mem_uIcc]
+     grind)
 
 /-- Cardinal walks cover exactly the original continuous segment. -/
 theorem support_walk (a d : Point) (k : ℕ) (hd : UnitVector d) :
@@ -111,10 +100,8 @@ theorem support_walk (a d : Point) (k : ℕ) (hd : UnitVector d) :
   induction k generalizing a with
   | zero => simp [walk, support, segment, List.consecutivePairs]
   | succ k ih =>
-    rw [walk, support_cons_of_head a (a + d) (walk_head _ _ _), ih]
-    have heq : a + d + k • d = a + (k + 1) • d := by rw [add_smul, one_smul]; abel
-    rw [heq]
-    exact segment_step_union a d k hd
+    simpa only [walk, support_cons_of_head a (a + d) (walk_head _ _ _), ih, succ_nsmul',
+      add_assoc] using segment_step_union a d k hd
 
 private theorem consecutivePairs_walk (a d : Point) (k : ℕ) :
     (walk a d (k + 1)).consecutivePairs =
@@ -127,8 +114,7 @@ theorem walk_step {a d : Point} {k : ℕ} {e : Point × Point}
   induction k generalizing a with
   | zero => simp [walk, List.consecutivePairs] at he
   | succ k ih =>
-    rw [consecutivePairs_walk] at he
-    rcases List.mem_cons.1 he with rfl | he
+    rcases List.mem_cons.1 (consecutivePairs_walk a d k ▸ he) with rfl | he
     · rfl
     · exact ih he
 
@@ -139,9 +125,8 @@ theorem length_add_unit (a d : Point) (hd : UnitVector d) : length a (a + d) = 1
 
 /-- Every consecutive pair of a cardinal walk is unit-adjacent. -/
 theorem walk_unit {a d : Point} {k : ℕ} (hd : UnitVector d) {e : Point × Point}
-    (he : e ∈ (walk a d k).consecutivePairs) : length e.1 e.2 = 1 := by
-  rw [walk_step he]
-  exact length_add_unit _ _ hd
+    (he : e ∈ (walk a d k).consecutivePairs) : length e.1 e.2 = 1 :=
+  walk_step he ▸ length_add_unit _ _ hd
 
 /-- A `k`-step cardinal walk has exactly `k` units of wire. -/
 theorem wireLength_walk (a d : Point) (k : ℕ) (hd : UnitVector d) :
@@ -149,9 +134,8 @@ theorem wireLength_walk (a d : Point) (k : ℕ) (hd : UnitVector d) :
   induction k generalizing a with
   | zero => simp [walk, wireLength, List.consecutivePairs]
   | succ k ih =>
-    simp only [wireLength, consecutivePairs_walk, List.map_cons, List.sum_cons]
-    rw [length_add_unit a d hd, ← wireLength, ih]
-    omega
+    rw [wireLength, consecutivePairs_walk, List.map_cons, List.sum_cons, length_add_unit a d hd,
+      ← wireLength, ih, Nat.add_comm]
 
 /-- Cardinal direction from `a` toward `b`; equal points use an arbitrary unit direction. -/
 def direction (a b : Point) : Point :=
@@ -209,25 +193,14 @@ segment lists. -/
 theorem consecutivePairs_join {q r : Route} {p : Point}
     (hq : q.getLast? = some p) (hr : r.head? = some p) :
     (q ++ r.tail).consecutivePairs = q.consecutivePairs ++ r.consecutivePairs := by
+  obtain ⟨rt, rfl⟩ := List.head?_eq_some_iff.1 hr
   induction q with
   | nil => simp at hq
   | cons a q ih =>
-    cases q with
-    | nil =>
-      cases r with
-      | nil => simp at hr
-      | cons b r =>
-        simp only [List.getLast?_singleton, Option.some.injEq] at hq
-        simp only [List.head?_cons, Option.some.injEq] at hr
-        subst a
-        subst b
-        rfl
-    | cons b q =>
-      have hq' : (b :: q).getLast? = some p := by
-        simpa only [List.getLast?_cons_cons] using hq
-      change (a, b) :: ((b :: q) ++ r.tail).consecutivePairs =
-        (a, b) :: ((b :: q).consecutivePairs ++ r.consecutivePairs)
-      rw [ih hq']
+    rcases q with _ | ⟨b, q⟩
+    · cases Option.some.inj hq
+      rfl
+    · exact congrArg ((a, b) :: ·) (ih (by simpa only [List.getLast?_cons_cons] using hq))
 
 /-- Joining routes at their common endpoint takes the union of their full real supports. -/
 theorem support_join {q r : Route} {p : Point}
@@ -235,31 +208,21 @@ theorem support_join {q r : Route} {p : Point}
     support (q ++ r.tail) = support q ∪ support r := by
   have hmem := List.mem_of_getLast? hq
   have hpairs := consecutivePairs_join hq hr
-  cases r with
-  | nil => simp at hr
-  | cons b r =>
-    simp only [List.head?_cons, Option.some.injEq] at hr
-    subst b
-    ext z
-    simp only [support, Set.mem_ofPred_eq, List.mem_append, List.mem_cons,
-      List.tail_cons, Set.mem_union, or_and_right, exists_or, exists_eq_left]
-    aesop
+  obtain ⟨rt, rfl⟩ := List.head?_eq_some_iff.1 hr
+  ext z
+  simp only [support, Set.mem_ofPred_eq, List.mem_append, List.mem_cons,
+    List.tail_cons, Set.mem_union, or_and_right, exists_or, exists_eq_left]
+  aesop
 
 /-- A route joined at a common endpoint has the last endpoint of the second route. -/
 theorem last_join {q r : Route} {p : Point}
     (hq : q.getLast? = some p) (hr : r.head? = some p) :
     (q ++ r.tail).getLast? = r.getLast? := by
-  cases r with
-  | nil => simp at hr
-  | cons b r =>
-    cases r with
-    | nil =>
-      simp only [List.head?_cons, Option.some.injEq] at hr
-      subst b
-      simpa using hq
-    | cons c r =>
-      simp [List.getLast?_append,
-        List.getLast?_eq_some_getLast (l := c :: r) (by simp)]
+  rcases r with _ | ⟨b, _ | ⟨c, r⟩⟩
+  · simp at hr
+  · obtain rfl : b = p := Option.some.inj hr
+    simpa using hq
+  · simp [List.getLast?_append, List.getLast?_eq_some_getLast (l := c :: r) (by simp)]
 
 /-- Joining at a common endpoint adds the two Manhattan wire lengths. -/
 theorem wireLength_join {q r : Route} {p : Point}
@@ -275,12 +238,7 @@ def subdivide : Route → Route
 
 /-- Subdivision preserves the first listed point, including the empty-route convention. -/
 @[simp] theorem subdivide_head (r : Route) : (subdivide r).head? = r.head? := by
-  cases r with
-  | nil => rfl
-  | cons a r =>
-    cases r with
-    | nil => rfl
-    | cons b r => simp [subdivide, List.head?_append]
+  rcases r with _ | ⟨a, _ | ⟨b, r⟩⟩ <;> simp [subdivide, List.head?_append]
 
 /-- The exact point count is wire length plus one for a nonempty route. -/
 theorem subdivide_length (r : Route) :
@@ -288,10 +246,9 @@ theorem subdivide_length (r : Route) :
   fun_induction subdivide r with
   | case1 | case2 => rfl
   | case3 a b r ih =>
-    have hwire : wireLength (a :: b :: r) = length a b + wireLength (b :: r) := rfl
     simp only [List.length_append, List.length_tail, segmentWalk_length,
       List.cons_ne_nil, ↓reduceIte] at ih ⊢
-    rw [hwire]
+    change _ = length a b + wireLength (b :: r) + 1
     omega
 
 /-- Subdivision preserves the final endpoint of an orthogonal route. -/
@@ -334,9 +291,8 @@ theorem wireLength_subdivide {r : Route} (hr : IsOrthogonal r) :
   | case1 | case2 => rfl
   | case3 a b r ih =>
     have hab := (hr (a, b) (by simp [List.consecutivePairs])).1
-    rw [wireLength_join (segmentWalk_last hab) (subdivide_head (b :: r)),
-      wireLength_segmentWalk, ih hr.of_cons]
-    rfl
+    exact (wireLength_join (segmentWalk_last hab) (subdivide_head (b :: r))).trans
+      (congrArg₂ _ (wireLength_segmentWalk a b) (ih hr.of_cons))
 
 /-- Unit subdivision is itself a proper orthogonal route. -/
 theorem subdivide_orthogonal {r : Route} (hr : IsOrthogonal r) : IsOrthogonal (subdivide r) :=
@@ -348,30 +304,20 @@ theorem walk_eq_map_range (a d : Point) (k : ℕ) :
   induction k generalizing a with
   | zero => simp [walk]
   | succ k ih =>
-    rw [walk, List.range_succ_eq_map, List.map_cons, List.map_map, ih]
-    simp only [zero_smul, add_zero]
-    congr 1
-    apply List.map_congr_left
-    intro i hi
-    simp only [Function.comp_apply, succ_nsmul]
-    abel
+    simp only [walk, List.range_succ_eq_map, List.map_cons, zero_smul, add_zero, List.map_map,
+      ih, Function.comp_def, succ_nsmul', ← add_assoc]
 
 /-- Omitting the final endpoint gives exactly the strict prefix of the range enumeration. -/
 theorem walk_dropLast_eq_map_range (a d : Point) (k : ℕ) :
     (walk a d k).dropLast = (List.range k).map fun i => a + i • d := by
-  rw [walk_eq_map_range, List.range_succ, List.map_append]
-  simp
+  simp [walk_eq_map_range, List.range_succ]
 
 private theorem join_eq_dropLast_append {q r : Route} {p : Point}
     (hq : q.getLast? = some p) (hr : r.head? = some p) :
     q ++ r.tail = q.dropLast ++ r := by
   obtain ⟨initial, rfl⟩ := List.getLast?_eq_some_iff.1 hq
-  cases r with
-  | nil => simp at hr
-  | cons a r =>
-    simp only [List.head?_cons, Option.some.injEq] at hr
-    subst a
-    simp
+  obtain ⟨rt, rfl⟩ := List.head?_eq_some_iff.1 hr
+  simp
 
 /-- A flat enumeration of the unit subdivision: emit each segment without its last point, then
 emit the route's final endpoint. This form supports bounded polynomial-time implementations. -/
@@ -399,11 +345,8 @@ def subdivideWithin (budget : ℕ) (r : Route) : Route :=
 theorem subdivideWithin_eq_subdivide {r : Route} (hr : IsOrthogonal r) {budget : ℕ}
     (hbudget : ∀ e ∈ r.consecutivePairs, length e.1 e.2 ≤ budget) :
     subdivideWithin budget r = subdivide r := by
-  rw [subdivide_eq_flatMap hr]
-  unfold subdivideWithin
-  congr 1
-  apply List.flatMap_congr
-  intro e he
+  rw [subdivide_eq_flatMap hr, subdivideWithin]
+  refine congrArg (· ++ r.getLast?.toList) (List.flatMap_congr fun e he => ?_)
   rw [min_eq_left (hbudget e he), segmentWalk, walk_dropLast_eq_map_range]
 
 /-- Bounded enumeration emits at most `budget` points per segment, plus the last endpoint. -/
@@ -431,15 +374,11 @@ theorem subdivideWithin_eq_of_wireLength_le {r : Route} (hr : IsOrthogonal r) {b
 /-- A cardinal walk never repeats a lattice point. -/
 theorem walk_nodup (a d : Point) (k : ℕ) (hd : UnitVector d) : (walk a d k).Nodup := by
   rw [walk_eq_map_range]
-  apply List.Nodup.map (l := List.range (k + 1)) ?_ List.nodup_range
-  intro i j hij
-  rcases hd with rfl | rfl | rfl | rfl
-  all_goals
-    have hx := congrArg Prod.fst hij
-    have hy := congrArg Prod.snd hij
-    simp only [Prod.smul_mk, Int.nsmul_eq_mul, mul_one, nsmul_zero, Prod.fst_add,
-      Prod.snd_add, add_zero, mul_neg_one, add_right_inj, Nat.cast_inj, neg_inj] at hx hy
-    omega
+  refine List.Nodup.map (l := List.range (k + 1)) (fun i j hij => ?_) List.nodup_range
+  rcases hd with rfl | rfl | rfl | rfl <;>
+    (simp only [Prod.smul_mk, Int.nsmul_eq_mul, mul_one, nsmul_zero, mul_neg_one,
+       Prod.mk.injEq, add_right_inj, Nat.cast_inj, neg_inj] at hij
+     omega)
 
 /-- The unit walk along one segment has no repeated listed point. -/
 theorem segmentWalk_nodup (a b : Point) : (segmentWalk a b).Nodup :=
@@ -451,29 +390,16 @@ theorem first_segment_tail_contact {a b : Point} {r : Route}
     (hs : IsSimple (a :: b :: r)) {p : ℝ × ℝ} (hp : p ∈ segment a b)
     (hq : p ∈ support (b :: r)) : p = realPoint b := by
   have hnot := (List.nodup_cons.1 hs.1).1
-  cases r with
-  | nil => simpa [support, List.consecutivePairs] using hq
-  | cons c r =>
-    obtain ⟨f, hf, hpf⟩ := mem_support_segment (by simp) hq
+  rcases r with _ | ⟨c, r⟩
+  · simpa [support, List.consecutivePairs] using hq
+  · obtain ⟨f, hf, hpf⟩ := mem_support_segment (by simp) hq
     have hfmem := List.of_mem_zip hf
-    have hne : (a, b) ≠ f := by
-      intro h
-      apply hnot
-      simpa only [← h] using hfmem.1
-    have hf' : f ∈ (a :: b :: c :: r).consecutivePairs := by
-      simpa only [List.consecutivePairs, List.tail_cons, List.zip_cons_cons, List.mem_cons]
-        using Or.inr hf
-    have hc := hs.2 (a, b) (by simp [List.consecutivePairs]) f hf' hne p hp hpf
-    rcases hc.1 with hpa | hpb
-    · change p = realPoint a at hpa
-      exfalso
-      apply hnot
-      rcases hc.2 with hpf | hpf
-      · rw [realPoint_injective (hpa.symm.trans hpf)]
-        exact hfmem.1
-      · rw [realPoint_injective (hpa.symm.trans hpf)]
-        exact List.mem_of_mem_tail hfmem.2
-    · exact hpb
+    have hc := hs.2 (a, b) (by simp [List.consecutivePairs]) f (List.mem_cons_of_mem _ hf)
+      (fun h => hnot (by simpa only [← h] using hfmem.1)) p hp hpf
+    refine hc.1.resolve_left fun (hpa : p = realPoint a) => hnot ?_
+    rcases hc.2 with hpf | hpf <;> obtain rfl := realPoint_injective (hpa.symm.trans hpf)
+    · exact hfmem.1
+    · exact List.mem_of_mem_tail hfmem.2
 
 /-- Unit subdivision of a continuously simple orthogonal route has no repeated lattice points.
 The proof uses the original segments' endpoint-contact certificates, not support equality alone. -/
@@ -483,29 +409,20 @@ theorem subdivide_nodup {r : Route} (hr : IsOrthogonal r) (hs : IsSimple r) :
   | case1 | case2 => simp
   | case3 a b r ih =>
     have hab := (hr (a, b) (by simp [List.consecutivePairs])).1
-    have htail : IsOrthogonal (b :: r) := hr.of_cons
-    have hnd := ih htail hs.of_cons
     obtain ⟨rest, hsub⟩ := List.head?_eq_some_iff.1 (subdivide_head (b :: r))
-    have hrest : (b :: rest).Nodup := by simpa only [hsub] using hnd
+    have hrest : (b :: rest).Nodup := hsub ▸ ih hr.of_cons hs.of_cons
     rw [hsub]
     refine List.nodup_append.2 ⟨segmentWalk_nodup a b, hrest.tail, ?_⟩
-    intro x hx y hy hxy
-    subst y
-    have hxq : realPoint x ∈ support (segmentWalk a b) := Or.inl ⟨x, hx, rfl⟩
-    rw [support_segmentWalk hab] at hxq
-    have hxt : realPoint x ∈ support (subdivide (b :: r)) := by
-      refine Or.inl ⟨x, ?_, rfl⟩
-      rw [hsub]
-      exact List.mem_cons_of_mem _ hy
-    rw [support_subdivide htail] at hxt
-    have hxb := realPoint_injective (first_segment_tail_contact hs hxq hxt)
-    subst x
+    rintro x hx y hy rfl
+    have hxq : realPoint x ∈ segment a b := support_segmentWalk hab ▸ Or.inl ⟨x, hx, rfl⟩
+    have hxt : realPoint x ∈ support (b :: r) :=
+      support_subdivide hr.of_cons ▸ Or.inl ⟨x, hsub ▸ List.mem_cons_of_mem _ hy, rfl⟩
+    obtain rfl := realPoint_injective (first_segment_tail_contact hs hxq hxt)
     exact (List.nodup_cons.1 hrest).1 hy
 
 /-- A sufficient-budget native enumeration also has no repeated points on a simple route. -/
 theorem subdivideWithin_nodup {r : Route} (hr : IsOrthogonal r) (hs : IsSimple r) {budget : ℕ}
-    (hbudget : wireLength r ≤ budget) : (subdivideWithin budget r).Nodup := by
-  rw [subdivideWithin_eq_of_wireLength_le hr hbudget]
-  exact subdivide_nodup hr hs
+    (hbudget : wireLength r ≤ budget) : (subdivideWithin budget r).Nodup :=
+  subdivideWithin_eq_of_wireLength_le hr hbudget ▸ subdivide_nodup hr hs
 
 end Cslib.Orthogonal

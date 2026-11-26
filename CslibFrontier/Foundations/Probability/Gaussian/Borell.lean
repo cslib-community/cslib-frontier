@@ -242,8 +242,8 @@ theorem twoSetBorellInequality_iff {ρ : ℝ} :
 theorem twoFunctionBorellInequality_of_isEmpty [IsEmpty ι] (ρ : ℝ) :
     TwoFunctionBorellInequality ρ ι := by
   intro f g _ _ _ _
-  have hf : f = fun _ => f default := funext fun z => congrArg f (Subsingleton.elim _ _)
-  have hg : g = fun _ => g default := funext fun z => congrArg g (Subsingleton.elim _ _)
+  have hf : f = fun _ => f default := funext fun _ => congrArg f (Subsingleton.elim _ _)
+  have hg : g = fun _ => g default := funext fun _ => congrArg g (Subsingleton.elim _ _)
   rw [hf, hg]
   simp only [integral_const, probReal_univ, one_smul, le_rfl]
 
@@ -295,8 +295,7 @@ inequality on the line (`Fin 1`) gives it in every finite dimension. -/
 theorem TwoFunctionBorellInequality.of_fin_one {ρ : ℝ} (hρ : |ρ| ≤ 1)
     (h : TwoFunctionBorellInequality ρ (Fin 1)) (ι : Type*) [Fintype ι] :
     TwoFunctionBorellInequality ρ ι := by
-  have hfin : ∀ n, TwoFunctionBorellInequality ρ (Fin n) := by
-    intro n
+  have hfin (n : ℕ) : TwoFunctionBorellInequality ρ (Fin n) := by
     induction n with
     | zero => exact twoFunctionBorellInequality_of_isEmpty ρ
     | succ n ih => exact (ih.sum hρ h).of_equiv finSumFinEquiv
@@ -328,10 +327,9 @@ Two-Function Borell inequality for the indicators `1_A`, `1_B` is the Two-Set Bo
 theorem TwoFunctionBorellInequality.twoSetBorellInequality {ρ : ℝ} (hρ : |ρ| ≤ 1)
     (h : TwoFunctionBorellInequality ρ ι) : TwoSetBorellInequality ρ ι := by
   intro A B hA hB
-  have := h _ _ (measurable_one.indicator hA) (measurable_one.indicator hB)
-    (indicator_one_mem_Icc A) (indicator_one_mem_Icc B)
-  rwa [integral_gaussianQuadrant_indicator hρ hA hB, integral_indicator_one hA,
-    integral_indicator_one hB] at this
+  simpa only [integral_gaussianQuadrant_indicator hρ hA hB, integral_indicator_one hA,
+    integral_indicator_one hB] using h _ _ (measurable_one.indicator hA)
+      (measurable_one.indicator hB) (indicator_one_mem_Icc A) (indicator_one_mem_Icc B)
 
 /-- **Two functions give Borell's Isoperimetric Theorem**
 [O'Donnell, Exercise 11.26 (a)][ODonnell2014]: for `ρ ∈ [0, 1]` and measurable
@@ -365,25 +363,15 @@ theorem TwoFunctionBorellInequality.gaussianNoiseStability_le_of_ae {ρ : ℝ} (
       gaussianQuadrant ρ (∫ z, f z ∂Measure.pi fun _ : ι => gaussianReal 0 1)
         (∫ z, f z ∂Measure.pi fun _ : ι => gaussianReal 0 1) := by
   let g : (ι → ℝ) → ℝ := fun z => max 0 (min 1 (hf.mk f z))
-  have hg : Measurable g := by
-    have := hf.stronglyMeasurable_mk.measurable
-    fun_prop
   have hfg : f =ᵐ[Measure.pi fun _ : ι => gaussianReal 0 1] g := by
     filter_upwards [hf.ae_eq_mk, hf01] with z hz h01
-    change f z = max 0 (min 1 (hf.mk f z))
-    rw [← hz, min_eq_right h01.2, max_eq_right h01.1]
-  have h1 := (measurePreserving_fst_correlatedGaussianPi ι ρ).quasiMeasurePreserving.ae_eq_comp hfg
-  have h2 := (measurePreserving_snd_correlatedGaussianPi ι (abs_le.2 ⟨by linarith, hρ1⟩)
-    ).quasiMeasurePreserving.ae_eq_comp hfg
-  have hstab : gaussianNoiseStability ρ f = gaussianNoiseStability ρ g := by
-    rw [gaussianNoiseStability, gaussianNoiseStability]
-    refine integral_congr_ae ?_
-    filter_upwards [h1, h2] with p hp1 hp2
-    change f p.1 = g p.1 at hp1
-    change f p.2 = g p.2 at hp2
-    rw [hp1, hp2]
-  rw [hstab, integral_congr_ae hfg]
-  exact h.gaussianNoiseStability_le hρ0 hρ1 hg
+    simpa only [g, ← hz, min_eq_right h01.2] using (max_eq_right h01.1).symm
+  refine (integral_congr_ae (((measurePreserving_fst_correlatedGaussianPi ι
+      ρ).quasiMeasurePreserving.ae_eq_comp hfg).mul ((measurePreserving_snd_correlatedGaussianPi ι
+      (abs_le.2 ⟨by linarith, hρ1⟩)).quasiMeasurePreserving.ae_eq_comp hfg))).trans_le ?_
+  rw [integral_congr_ae hfg]
+  exact h.gaussianNoiseStability_le hρ0 hρ1
+    (measurable_const.max (measurable_const.min hf.stronglyMeasurable_mk.measurable))
     fun z => ⟨le_max_left _ _, max_le zero_le_one (min_le_left _ _)⟩
 
 /-- **Borell's Isoperimetric Theorem at volume `1 / 2`** from the Two-Function Borell inequality:
@@ -503,12 +491,10 @@ theorem integral_gaussianQuadrant_cdf_dotProduct_add (ρ : ℝ) (a : ι → ℝ)
         (∫ z, Φ (a ⬝ᵥ z + b₂) ∂Measure.pi fun _ : ι => gaussianReal 0 1) := by
   set c : ι ⊕ Unit → ℝ := Sum.elim (-a) 1
   have hc : c ≠ 0 := fun h => by simpa [c] using congrFun h (.inr ())
-  have hm : ∀ b : ℝ, Measurable fun z : ι → ℝ => Φ (a ⬝ᵥ z + b) := fun b =>
+  have hm (b : ℝ) : Measurable fun z : ι → ℝ => Φ (a ⬝ᵥ z + b) :=
     (measurable_cdf _).comp (by fun_prop)
-  have h01 : ∀ (b : ℝ) (z : ι → ℝ), Φ (a ⬝ᵥ z + b) ∈ Icc 0 1 := fun b z =>
-    ⟨cdf_nonneg _ _, cdf_le_one _ _⟩
-  have hset : ∀ b : ℝ, {w : ι ⊕ Unit → ℝ | Φ (w (.inr ())) ≤ Φ (a ⬝ᵥ (fun i => w (.inl i)) + b)} =
-      {w | c ⬝ᵥ w ≤ b} := fun b => by
+  have hset (b : ℝ) : {w : ι ⊕ Unit → ℝ | Φ (w (.inr ())) ≤ Φ (a ⬝ᵥ (fun i => w (.inl i)) + b)} =
+      {w | c ⬝ᵥ w ≤ b} := by
     ext w
     simp only [mem_ofPred_eq, (strictMono_cdf_gaussianReal 0 one_ne_zero).le_iff_le, dotProduct,
       Fintype.sum_sum_type, c, Sum.elim_inl, Sum.elim_inr, Pi.neg_apply, Pi.one_apply, neg_mul,
@@ -516,8 +502,8 @@ theorem integral_gaussianQuadrant_cdf_dotProduct_add (ρ : ℝ) (a : ι → ℝ)
     constructor <;> intro h <;> linarith
   rw [integral_gaussianQuadrant_eq_measureReal_sum ρ (hm b₁) (hm b₂), hset, hset,
     measureReal_correlatedGaussianPi_setOf_dotProduct_le_prod ρ hc, ← hset, ← hset,
-    measureReal_pi_gaussianReal_setOf_cdf_le (hm b₁) (h01 b₁),
-    measureReal_pi_gaussianReal_setOf_cdf_le (hm b₂) (h01 b₂)]
+    measureReal_pi_gaussianReal_setOf_cdf_le (hm b₁) fun _ => ⟨cdf_nonneg _ _, cdf_le_one _ _⟩,
+    measureReal_pi_gaussianReal_setOf_cdf_le (hm b₂) fun _ => ⟨cdf_nonneg _ _, cdf_le_one _ _⟩]
 
 /-! ### The cases `ρ = 0` and `ρ = 1` -/
 
@@ -528,9 +514,7 @@ theorem twoFunctionBorellInequality_zero (ι : Type*) [Fintype ι] :
   intro f g hf hg hf01 hg01
   have hC : correlatedGaussianPi ι 0 = (Measure.pi fun _ : ι => gaussianReal 0 1).prod
       (Measure.pi fun _ : ι => gaussianReal 0 1) := by
-    rw [correlatedGaussianPi_eq_map]
-    simp only [zero_mul, zero_add, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
-      sub_zero, sqrt_one, one_mul, Prod.mk.eta, Measure.map_id']
+    simp [correlatedGaussianPi_eq_map]
   have hEf := integral_mem_Icc (μ := Measure.pi fun _ : ι => gaussianReal 0 1) hf01
   have hEg := integral_mem_Icc (μ := Measure.pi fun _ : ι => gaussianReal 0 1) hg01
   rw [hC, gaussianQuadrant_zero hEf.1 hEf.2 hEg.1 hEg.2, ← integral_prod_mul]
@@ -548,9 +532,6 @@ theorem twoFunctionBorellInequality_one (ι : Type*) [Fintype ι] :
   intro f g hf hg hf01 hg01
   have hEf := integral_mem_Icc (μ := Measure.pi fun _ : ι => gaussianReal 0 1) hf01
   have hEg := integral_mem_Icc (μ := Measure.pi fun _ : ι => gaussianReal 0 1) hg01
-  have hint : ∀ {h : (ι → ℝ) → ℝ}, Measurable h → (∀ z, h z ∈ Icc 0 1) →
-      Integrable h (Measure.pi fun _ : ι => gaussianReal 0 1) := fun hh h01 =>
-    integrable_of_mem_Icc hh h01
   have hmin : ∀ z, min (f z) (g z) ∈ Icc 0 1 := fun z =>
     ⟨le_min (hf01 z).1 (hg01 z).1, (min_le_left _ _).trans (hf01 z).2⟩
   rw [correlatedGaussianPi_one, integral_map (by fun_prop)
@@ -558,8 +539,11 @@ theorem twoFunctionBorellInequality_one (ι : Type*) [Fintype ι] :
       (b := fun p => g p.2) (by fun_prop) (by fun_prop)).aestronglyMeasurable,
     gaussianQuadrant_one hEf.1 hEf.2 hEg.1]
   simp only [gaussianQuadrant_one (hf01 _).1 (hf01 _).2 (hg01 _).1]
-  exact le_min (integral_mono (hint (by fun_prop) hmin) (hint hf hf01) fun z => min_le_left _ _)
-    (integral_mono (hint (by fun_prop) hmin) (hint hg hg01) fun z => min_le_right _ _)
+  exact le_min
+    (integral_mono (integrable_of_mem_Icc (by fun_prop) hmin) (integrable_of_mem_Icc hf hf01)
+      fun _ => min_le_left _ _)
+    (integral_mono (integrable_of_mem_Icc (by fun_prop) hmin) (integrable_of_mem_Icc hg hg01)
+      fun _ => min_le_right _ _)
 
 /-! ### The full reduction -/
 

@@ -360,20 +360,9 @@ theorem mtr_iff_runTrace?_eq_some {P : Type*} [DecidableEq P] {root : P} {s s' :
     {tr : List (Action P)} :
     (lts root).MTr s tr s' ↔ runTrace? root s tr = some s' := by
   induction tr generalizing s with
-  | nil =>
-    simp [runTrace?, eq_comm]
+  | nil => simp [runTrace?, eq_comm]
   | cons a tr ih =>
-    rw [LTS.MTr.cons_iff]
-    simp only [runTrace?, List.foldlM_cons]
-    cases hstep : step? root s a with
-    | none =>
-      simp [lts, hstep]
-    | some s₁ =>
-      constructor
-      · rintro ⟨s₂, htr, hmtr⟩
-        have hs : s₁ = s₂ := Option.some.inj (hstep.symm.trans htr)
-        exact ih.mp (hs ▸ hmtr)
-      · intro hrun
-        exact ⟨s₁, hstep, ih.mpr hrun⟩
+    simp only [LTS.MTr.cons_iff, ih]
+    simp only [runTrace?, lts, List.foldlM_cons, Option.bind_eq_bind, Option.bind_eq_some_iff]
 
 end Cslib.Distributed.DijkstraScholten

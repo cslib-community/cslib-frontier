@@ -76,20 +76,19 @@ theorem C (c : ℝ) : IsBlockAffine (MvPolynomial.C c : MvPolynomial (Σ p, T p)
 
 theorem X (v : Σ p, T p) : IsBlockAffine (MvPolynomial.X v : MvPolynomial (Σ p, T p) ℝ) := by
   classical
+  rcases v with ⟨q, a⟩
   intro m hm p
   rw [support_X, Finset.mem_singleton] at hm
   subst hm
-  calc ∑ b, (Finsupp.single v 1 : (Σ p, T p) →₀ ℕ) ⟨p, b⟩
-      ≤ ∑ b, if (⟨p, b⟩ : Σ p, T p) = v then 1 else 0 := by
-        refine sum_le_sum fun b _ => ?_
-        rw [Finsupp.single_apply]
-        split_ifs <;> simp_all
-    _ ≤ 1 := by
-        rw [sum_ite, sum_const_zero, add_zero, sum_const, smul_eq_mul, mul_one]
-        refine card_le_one.2 fun a ha b hb => ?_
-        simp only [mem_filter] at ha hb
-        have := ha.2.trans hb.2.symm
-        simpa using this
+  calc ∑ b, (Finsupp.single (⟨q, a⟩ : Σ p, T p) 1) ⟨p, b⟩
+      = if p = q then 1 else 0 := by
+        by_cases hp : p = q
+        · subst hp
+          rw [ite_eq_left rfl, sum_eq_single a (fun b _ hb => Finsupp.single_eq_of_ne
+            fun h => hb (eq_of_heq (Sigma.mk.inj h).2)) (by simp), Finsupp.single_eq_same]
+        · rw [ite_eq_right hp, sum_eq_zero fun b _ => Finsupp.single_eq_of_ne
+            fun h => hp (congrArg Sigma.fst h)]
+    _ ≤ 1 := by split_ifs <;> omega
 
 theorem add {f g : MvPolynomial (Σ p, T p) ℝ} (hf : IsBlockAffine f) (hg : IsBlockAffine g) :
     IsBlockAffine (f + g) := by
@@ -124,17 +123,12 @@ theorem mul {f g : MvPolynomial (Σ p, T p) ℝ} (hf : IsBlockAffine f) (hg : Is
   obtain ⟨a, ha, b, hb, rfl⟩ := Finset.mem_add.1 (support_mul f g hm)
   simp only [Finsupp.add_apply, sum_add_distrib]
   by_cases hap : ∀ x : T p, a ⟨p, x⟩ = 0
-  · simp only [hap, sum_const_zero, zero_add]
-    exact hg b hb p
-  · simp only [not_forall] at hap
-    obtain ⟨x, hx⟩ := hap
-    have hbp : ∀ y : T p, b ⟨p, y⟩ = 0 := by
-      intro y
-      by_contra hy
-      exact hfg _ ((mem_vars_iff_mem_support _).2 ⟨a, ha, Finsupp.mem_support_iff.2 hx⟩) _
+  · simpa only [hap, sum_const_zero, zero_add] using hg b hb p
+  · obtain ⟨x, hx⟩ := not_forall.1 hap
+    have hbp : ∀ y : T p, b ⟨p, y⟩ = 0 := fun y => by_contra fun hy =>
+      hfg _ ((mem_vars_iff_mem_support _).2 ⟨a, ha, Finsupp.mem_support_iff.2 hx⟩) _
         ((mem_vars_iff_mem_support _).2 ⟨b, hb, Finsupp.mem_support_iff.2 hy⟩) rfl
-    simp only [hbp, sum_const_zero, add_zero]
-    exact hf a ha p
+    simpa only [hbp, sum_const_zero, add_zero] using hf a ha p
 
 end IsBlockAffine
 
@@ -150,10 +144,9 @@ end IsBlockAffine
 
 private theorem someCoord_injective : Injective (someCoord (T := T)) := by
   rintro ⟨p, t⟩ ⟨p', t'⟩ h
-  simp only [someCoord, Sigma.mk.injEq] at h
-  obtain ⟨rfl, h⟩ := h
-  simp only [heq_eq_eq, Option.some.injEq] at h
-  rw [h]
+  dsimp only [someCoord] at h
+  obtain ⟨rfl, h⟩ := Sigma.mk.inj h
+  rw [Option.some.inj (eq_of_heq h)]
 
 /-- The rename of a block-affine polynomial to the non-reference coordinates is block-affine. -/
 private theorem IsBlockAffine.rename_someCoord [∀ p, Fintype (T p)] {f : MvPolynomial (Σ p, T p) ℝ}
@@ -245,29 +238,16 @@ theorem isTotallyMixedNash_simplexGame_iff {E : ∀ p, T p → MvPolynomial (Σ 
     simp [Fintype.sum_option, simplexProfile]
   have hg : ∀ p (a : Option (T p)), IsBlockAffine (rename someCoord (a.elim 0 (E p))) := by
     rintro p (_ | t)
-    · simpa using IsBlockAffine.zero
-    · exact (hE p t).rename_someCoord
+    exacts [by simpa using IsBlockAffine.zero, (hE p t).rename_someCoord]
   have hgp : ∀ p (a : Option (T p)), ∀ v ∈ (a.elim 0 (E p)).vars, (someCoord v).1 ≠ p := by
     rintro p (_ | t) v hv
-    · simp at hv
-    · exact hEp p t v hv
+    exacts [by simp at hv, hEp p t v hv]
   rw [simplexGame, isTotallyMixedNash_referenceGame_iff hg hgp (fun _ => none) (fun _ => rfl) hsum,
     show Sigma.uncurry (simplexProfile q) ∘ someCoord = q from rfl]
-  constructor
-  · rintro ⟨hpos, hE0⟩
-    refine ⟨fun v => hpos v.1 (some v.2), fun p => ?_, fun p t => hE0 p (some t)⟩
-    have := hpos p none
-    simp only [simplexProfile] at this
-    linarith
-  · rintro ⟨hq, hlt, hE0⟩
-    refine ⟨fun p a => ?_, fun p a => ?_⟩
-    · cases a
-      · simp only [simplexProfile]
-        linarith [hlt p]
-      · exact hq _
-    · cases a
-      · simp
-      · exact hE0 p _
+  simp only [Option.forall, simplexProfile, Option.elim_none, map_zero, true_and,
+    Option.elim_some, sub_pos]
+  exact ⟨fun ⟨hpos, hE0⟩ => ⟨fun v => (hpos v.1).2 v.2, fun p => (hpos p).1, hE0⟩,
+    fun ⟨hq, hlt, hE0⟩ => ⟨fun p => ⟨hlt p, fun t => hq ⟨p, t⟩⟩, hE0⟩⟩
 
 end CostGame
 

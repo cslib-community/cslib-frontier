@@ -12,6 +12,7 @@ import CslibFrontier.Foundations.GroupTheory.Perm.Fixing
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rank
 import Mathlib.LinearAlgebra.Matrix.ToLinearEquiv
 import Mathlib.Tactic.Module
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # The Mignon–Ressayre Hessian of the permanent
@@ -95,11 +96,10 @@ private theorem sandwich_eq_zero {K R : Type*} [Field K] [Ring R] [Algebra K R] 
     rw [h2, smul_zero, add_zero] at h1
     exact cancel (mul_ne_zero hp (pow_ne_zero 2 hN)) h1
   have h4 : (J - 1) * X * (J - 1) = 0 := by
-    have hB : (D * (J - 1) * D) * X * (D * (J - 1) * D) =
-        D * (J - 1) * (D * X * D) * (J - 1) * D := by
-      simp only [mul_assoc]
-    rw [hB, h3, mul_zero, zero_mul, zero_mul, smul_zero, add_zero] at h
-    exact cancel hp h
+    have h3' := congrArg (fun Z => D * (J - 1) * Z * ((J - 1) * D)) h3
+    simp only [mul_assoc, mul_zero, zero_mul] at h3'
+    simp only [mul_assoc, h3', smul_zero, add_zero] at h
+    simpa only [mul_assoc] using cancel hp h
   have key := congrArg (fun Z => (J - (N - 1) • 1) * Z * (J - (N - 1) • 1)) h4
   simp only [mul_zero, zero_mul] at key
   refine cancel (pow_ne_zero 2 hN) (Eq.trans ?_ key)
@@ -128,20 +128,15 @@ private theorem rank_of_ite_sandwich (o : ι) {p s : K} (hN : (Fintype.card ι :
       Fintype.card ι * Fintype.card ι := by
   set J : Matrix ι ι K := Matrix.of fun _ _ => 1 with hJ
   set D : Matrix ι ι K := Matrix.diagonal fun i => if i = o then 0 else 1 with hD
-  have hJJ : J * J = (Fintype.card ι : K) • J := by
-    ext i j
-    simp [hJ, Matrix.mul_apply]
-  have hJDJ : J * D * J = ((Fintype.card ι : K) - 1) • J := by
-    ext i j
-    simp only [hJ, hD]
-    rw [Matrix.mul_apply]
-    simp only [Matrix.mul_diagonal, Matrix.of_apply, one_mul, mul_one, Matrix.smul_apply,
-      smul_eq_mul]
-    exact sum_ite_eq_zero_else_one (K := K) o
+  have hJJ : J * J = (Fintype.card ι : K) • J :=
+    Matrix.ext fun _ _ => by simp [hJ, Matrix.mul_apply]
+  have hJDJ : J * D * J = ((Fintype.card ι : K) - 1) • J :=
+    Matrix.ext fun _ _ => by
+      rw [Matrix.mul_apply]
+      simp [hJ, hD, sum_ite_eq_zero_else_one]
   have hDD : D * D = D := by
-    rw [hD, Matrix.diagonal_mul_diagonal]
-    congr 1 with i : 1
-    split_ifs <;> simp
+    ext i j
+    by_cases hij : i = j <;> simp [hD, hij]
   have hA : ∀ i j, (J - 1) i j = if i = j then 0 else 1 := fun i j => by
     by_cases h : i = j <;> simp [hJ, h]
   have hB : ∀ i j, (D * (J - 1) * D) i j = if i = j ∨ i = o ∨ j = o then 0 else 1 :=
@@ -163,16 +158,13 @@ private theorem rank_of_ite_sandwich (o : ι) {p s : K} (hN : (Fintype.card ι :
       exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => by ring
   have hinj : Function.Injective H.mulVec := by
     intro u w huw
-    have h0 : H.mulVec (u - w) = 0 := by rw [Matrix.mulVec_sub, huw, sub_self]
     have hX := sandwich_eq_zero hJJ hJDJ hDD hN hp hps
       (X := Matrix.of fun r c => (u - w) (r, c)) (by
         ext r c
-        rw [← hmul, h0]
+        rw [← hmul, Matrix.mulVec_sub, huw, sub_self]
         rfl)
     funext ⟨r, c⟩
-    have := congrFun (congrFun hX r) c
-    simp only [Matrix.of_apply, Pi.sub_apply, Matrix.zero_apply] at this
-    exact sub_eq_zero.1 this
+    exact sub_eq_zero.1 (congrFun (congrFun hX r) c)
   rw [Matrix.rank_of_isUnit _ (Matrix.mulVec_injective_iff_isUnit.1 hinj), Fintype.card_prod]
 
 /-- The Mignon–Ressayre point: the all-ones matrix with `1 - card ι` at `(o, o)`. -/
@@ -181,8 +173,7 @@ def mignonRessayrePoint (o : ι) : ι × ι → K := fun p =>
 
 theorem mignonRessayrePoint_apply (o : ι) (p : ι × ι) :
     mignonRessayrePoint (K := K) o p = if p = (o, o) then 1 - (Fintype.card ι : K) else 1 := by
-  unfold mignonRessayrePoint
-  rfl
+  rw [mignonRessayrePoint]
 
 private theorem prod_mignonRessayrePoint (o : ι) (σ : Perm ι) (S : Finset ι) :
     ∏ i ∈ S, mignonRessayrePoint (K := K) o (σ i, i) =
@@ -190,12 +181,10 @@ private theorem prod_mignonRessayrePoint (o : ι) (σ : Perm ι) (S : Finset ι)
   simp only [mignonRessayrePoint_apply]
   split_ifs with h
   · rw [Finset.prod_eq_single_of_mem o h.1 fun i _ hi =>
-      ite_eq_right fun he => hi (congrArg Prod.snd he)]
-    rw [ite_eq_left (by rw [h.2])]
-  · refine Finset.prod_eq_one fun i hi => ite_eq_right fun he => h ?_
-    have hi' : i = o := congrArg Prod.snd he
-    subst hi'
-    exact ⟨hi, congrArg Prod.fst he⟩
+      ite_eq_right fun he => hi (congrArg Prod.snd he), ite_eq_left (by rw [h.2])]
+  · refine Finset.prod_eq_one fun i hi => ite_eq_right fun he => ?_
+    obtain ⟨h1, rfl⟩ := Prod.mk.inj he
+    exact h ⟨hi, h1⟩
 
 /-- The generic permanent vanishes at the Mignon–Ressayre point. -/
 theorem eval_permanent_mignonRessayrePoint (o : ι) :
@@ -224,18 +213,14 @@ private theorem card_perm_two (r c r' c' : ι) :
     rcases h with h | h
     · exact hcc (σ.injective (hr.trans (h.trans hr'.symm)))
     · exact hcc h.symm
-  · push Not at h
-    obtain ⟨hrr, hcc⟩ := h
+  · obtain ⟨hrr, hcc⟩ := not_or.1 h
     have := Perm.card_filter_forall_eq_of_injOn {c, c'} (fun i => if i = c then r else r') (by
       intro x hx y hy hxy
       simp only [coe_insert, coe_singleton, Set.mem_insert_iff, Set.mem_singleton_iff] at hx hy
       rcases hx with hx | hx <;> rcases hy with hy | hy <;> rw [hx, hy] at hxy ⊢ <;>
         simp [hrr, hcc, Ne.symm hrr] at hxy ⊢)
     rw [card_pair (Ne.symm hcc)] at this
-    rw [← this]
-    congr 1
-    ext σ
-    simp [hcc, Ne.symm hcc]
+    exact (congrArg Finset.card (Finset.ext fun _ => by simp [hcc, Ne.symm hcc])).trans this
 
 private theorem card_perm_three (o r c r' c' : ι) :
     #{σ : Perm ι | (c ≠ c' ∧ σ c = r ∧ σ c' = r') ∧ (o ≠ c ∧ o ≠ c' ∧ σ o = o)} =
@@ -261,10 +246,9 @@ private theorem card_perm_three (o r c r' c' : ι) :
         simp [hrr, hro, hr'o, hcc, Ne.symm hrr, Ne.symm hro, Ne.symm hr'o, Ne.symm hc'o,
           Ne.symm hco] at hxy ⊢)
     rw [card_insert_of_notMem (by simp [Ne.symm hcc, hco]), card_pair hc'o] at this
-    rw [← this]
-    congr 1
-    ext σ
-    simp [hcc, Ne.symm hcc, Ne.symm hco, Ne.symm hc'o, and_assoc]
+    exact (congrArg Finset.card
+      (Finset.ext fun _ => by simp [hcc, Ne.symm hcc, Ne.symm hco, Ne.symm hc'o,
+        and_assoc])).trans this
 
 /-- **The Hessian of the permanent at the Mignon–Ressayre point**: with `N = card ι`, its entry at
 `(r, c)` and `(r', c')` is `(N - 2)! · [r ≠ r'][c ≠ c'] - N · (N - 3)! · [r, r', o distinct]
@@ -290,7 +274,7 @@ theorem hessian_permanent_mignonRessayrePoint (o : ι) (a b : ι × ι) :
     split_ifs <;> first | ring1 | (exfalso; tauto)
   rw [Finset.sum_congr rfl fun σ _ => hterm σ, Finset.sum_add_distrib, ← Finset.mul_sum,
     Finset.sum_boole, Finset.sum_boole, card_perm_two, card_perm_three]
-  split_ifs <;> first | (push_cast; ring1) | (exfalso; tauto)
+  split_ifs <;> first | (push_cast; ring1) | (exfalso; lrat_tauto)
 
 /-- **Mignon–Ressayre lower bound for the permanent**: the Hessian of the generic `N × N`
 permanent at the Mignon–Ressayre point has full rank `N ^ 2`, provided `N ≥ 2` and
@@ -300,38 +284,25 @@ theorem rank_hessian_permanent_mignonRessayrePoint (o : ι)
     (hfact : ((Fintype.card ι - 1).factorial : K) ≠ 0) (hN : 2 ≤ Fintype.card ι) :
     (hessian (mignonRessayrePoint (K := K) o) (mvPolynomialX ι ι K).permanent).rank =
       Fintype.card ι * Fintype.card ι := by
-  have hH : hessian (mignonRessayrePoint (K := K) o) (mvPolynomialX ι ι K).permanent =
-      Matrix.of fun a b : ι × ι => ((Fintype.card ι - 2).factorial : K) *
-          ((if a.1 = b.1 then 0 else 1) * (if b.2 = a.2 then 0 else 1)) +
-        (-(Fintype.card ι : K) * ((Fintype.card ι - 3).factorial : K)) *
-          ((if a.1 = b.1 ∨ a.1 = o ∨ b.1 = o then 0 else 1) *
-            (if b.2 = a.2 ∨ b.2 = o ∨ a.2 = o then 0 else 1)) := by
-    ext a b
-    exact hessian_permanent_mignonRessayrePoint o a b
-  rw [hH]
+  rw [show hessian (mignonRessayrePoint (K := K) o) (mvPolynomialX ι ι K).permanent = Matrix.of _
+    from Matrix.ext (hessian_permanent_mignonRessayrePoint o)]
   obtain ⟨k, hk⟩ : ∃ k, Fintype.card ι = k + 2 := ⟨_, (Nat.sub_add_cancel hN).symm⟩
   have h2 : ∀ j, k = j + 1 → (2 : K) ≠ 0 := fun j hj h2 => hfact (by
     obtain ⟨c, hc⟩ := Nat.dvd_factorial two_pos (show 2 ≤ Fintype.card ι - 1 by omega)
     rw [hc, Nat.cast_mul, Nat.cast_two, h2, zero_mul])
   rw [hk, show k + 2 - 1 = k + 1 from rfl, Nat.factorial_succ, Nat.cast_mul] at hfact
   obtain ⟨hk1, hkf⟩ := mul_ne_zero_iff.1 hfact
-  refine rank_of_ite_sandwich o ?_ ?_ ?_
-  · rw [hk]
-    push_cast at hk1 ⊢
-    convert hk1 using 1
-    ring
-  · rw [hk]
-    exact hkf
-  · rw [hk]
-    rcases k with _ | j
+  refine rank_of_ite_sandwich o ?_ ?_ ?_ <;> rw [hk]
+  · convert hk1 using 1
+    push_cast; ring
+  · exact hkf
+  · rcases k with _ | j
     · norm_num
     · rw [show j + 1 + 2 - 2 = j + 1 from rfl, show j + 1 + 2 - 3 = j from rfl,
         Nat.factorial_succ]
       rw [Nat.factorial_succ, Nat.cast_mul] at hkf
-      have hj : (j.factorial : K) ≠ 0 := right_ne_zero_of_mul hkf
-      convert mul_ne_zero (neg_ne_zero.2 (h2 j rfl)) hj using 1
-      push_cast
-      ring
+      convert mul_ne_zero (neg_ne_zero.2 (h2 j rfl)) (right_ne_zero_of_mul hkf) using 1
+      push_cast; ring
 
 /-- **Mignon–Ressayre inequality**: if the generic `N × N` permanent is the determinant of a
 `κ × κ` matrix of affine polynomials, then `N ^ 2 ≤ 2 · card κ`, provided `(N - 1)! ≠ 0` in `K`
@@ -342,25 +313,18 @@ theorem card_mul_card_le_two_mul_card_of_permanent_eq_det {κ : Type*} [Fintype 
     (hperm : (mvPolynomialX ι ι K).permanent = A.det) :
     Fintype.card ι * Fintype.card ι ≤ 2 * Fintype.card κ := by
   rcases Nat.lt_or_ge (Fintype.card ι) 2 with hN | hN
-  · rcases Nat.lt_or_ge (Fintype.card ι) 1 with h0 | h1
-    · have : Fintype.card ι = 0 := by omega
-      simp [this]
-    · have hN1 : Fintype.card ι = 1 := by omega
-      rw [hN1]
-      by_contra hκ
-      have hκ0 : Fintype.card κ = 0 := by omega
-      have : IsEmpty κ := Fintype.card_eq_zero_iff.1 hκ0
-      obtain ⟨o⟩ : Nonempty ι := Fintype.card_pos_iff.1 (by omega)
-      have h0 := congrArg (eval (0 : ι × ι → K)) hperm
-      rw [Matrix.det_isEmpty, map_one, Matrix.permanent] at h0
-      simp only [map_sum, map_prod, mvPolynomialX_apply, eval_X, Pi.zero_apply] at h0
-      rw [Finset.sum_eq_zero fun σ _ => Finset.prod_eq_zero (mem_univ o) rfl] at h0
-      exact zero_ne_one h0
+  · obtain h0 | h1 : Fintype.card ι = 0 ∨ Fintype.card ι = 1 := by omega
+    · simp [h0]
+    rw [h1]
+    by_contra hκ
+    have : IsEmpty κ := Fintype.card_eq_zero_iff.1 (by omega)
+    have h0 := congrArg (eval (0 : ι × ι → K)) hperm
+    simp only [Matrix.det_isEmpty, map_one, Matrix.permanent, map_sum, map_prod,
+      mvPolynomialX_apply, eval_X, Pi.zero_apply, Finset.prod_const, card_univ, h1, pow_one,
+      Finset.sum_const_zero, zero_ne_one] at h0
   · obtain ⟨o⟩ : Nonempty ι := Fintype.card_pos_iff.1 (by omega)
-    have hx : eval (mignonRessayrePoint (K := K) o) A.det = 0 := by
-      rw [← hperm]
-      exact eval_permanent_mignonRessayrePoint o
-    have := rank_hessian_det_le A hA hx
+    have := rank_hessian_det_le A hA
+      (hperm ▸ eval_permanent_mignonRessayrePoint o : eval _ A.det = 0)
     rwa [← hperm, rank_hessian_permanent_mignonRessayrePoint o hfact hN] at this
 
 end Matrix

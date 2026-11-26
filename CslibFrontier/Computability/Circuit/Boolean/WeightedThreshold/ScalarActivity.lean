@@ -93,11 +93,7 @@ variable {n g : ℕ}
 private theorem sum_inputWeight_eq_mul_weightedSum {p : Program signature n g} {w : Fin n → ℝ}
     {j : Fin g} {c : ℝ} (hc : inputWeight p j = c • w) (x : Fin n → Bool) :
     (∑ i : Fin n, inputWeight p j i * (x i).toNat) = c * weightedSum w x := by
-  have hfun := fun i => congrFun hc i
-  simp only [Pi.smul_apply, smul_eq_mul] at hfun
-  simp only [weightedSum, mul_sum]
-  refine sum_congr rfl fun i _ => ?_
-  rw [hfun i, mul_assoc]
+  simp only [hc, Pi.smul_apply, smul_eq_mul, weightedSum, mul_sum, mul_assoc]
 
 /-- **Order-convexity of gate evaluations along a scalar direction**: if every gate's input weight
 vector is a multiple of `w`, `weightedSum w x₁ ≤ weightedSum w x₂ ≤ weightedSum w x₃`, and
@@ -115,31 +111,18 @@ theorem eval_eq_of_weightedSum_between (p : Program signature n g) (w : Fin n �
   induction j using Fin.strong_induction_on with
   | h j ih =>
     obtain ⟨c, hc⟩ := hw j
-    have hgate₁ := eval_gate_eq p x₁ j
-    have hgate₂ := eval_gate_eq p x₂ j
-    have hgate₃ := eval_gate_eq p x₃ j
-    rw [sum_inputWeight_eq_mul_weightedSum hc] at hgate₁ hgate₂ hgate₃
-    have hsum₂₁ : (∑ k : Fin g, gateWeight p j k * (p.eval interpretation x₂ k).toNat) =
-        ∑ k : Fin g, gateWeight p j k * (p.eval interpretation x₁ k).toNat :=
-      sum_mul_toNat_congr_of_lt (gateWeight_eq_zero_of_le p j) ih
-    have hsum₃₁ : (∑ k : Fin g, gateWeight p j k * (p.eval interpretation x₃ k).toNat) =
-        ∑ k : Fin g, gateWeight p j k * (p.eval interpretation x₁ k).toNat := by
-      rw [heval₁₃]
-    rw [hsum₂₁] at hgate₂
-    rw [hsum₃₁] at hgate₃
-    have hj₁₃ : p.eval interpretation x₁ j = p.eval interpretation x₃ j :=
-      congrFun heval₁₃ j
-    rw [hgate₁, hgate₃] at hj₁₃
-    rw [hgate₂, hgate₁, Bool.eq_iff_iff, decide_eq_true_iff, decide_eq_true_iff]
-    rw [Bool.eq_iff_iff, decide_eq_true_iff, decide_eq_true_iff] at hj₁₃
+    have hj₁₃ := congrFun heval₁₃ j
+    rw [eval_gate_eq p x₁ j,
+      eval_gate_eq_of_forall_lt p x₃ j fun k _ => (congrFun heval₁₃ k).symm] at hj₁₃
+    rw [eval_gate_eq_of_forall_lt p x₂ j ih, eval_gate_eq p x₁ j]
+    simp only [sum_inputWeight_eq_mul_weightedSum hc] at hj₁₃ ⊢
+    rw [Bool.eq_iff_iff, decide_eq_true_iff, decide_eq_true_iff] at hj₁₃ ⊢
     rcases le_total 0 c with hc0 | hc0
-    · have hle₁₂ : c * weightedSum w x₁ ≤ c * weightedSum w x₂ := by gcongr
-      have hle₂₃ : c * weightedSum w x₂ ≤ c * weightedSum w x₃ := by gcongr
+    · have := mul_le_mul_of_nonneg_left h₁₂ hc0
+      have := mul_le_mul_of_nonneg_left h₂₃ hc0
       exact ⟨fun h₂ => hj₁₃.mpr (by linarith), fun h₁ => by linarith⟩
-    · have hle₂₁ : c * weightedSum w x₂ ≤ c * weightedSum w x₁ :=
-        mul_le_mul_of_nonpos_left h₁₂ hc0
-      have hle₃₂ : c * weightedSum w x₃ ≤ c * weightedSum w x₂ :=
-        mul_le_mul_of_nonpos_left h₂₃ hc0
+    · have := mul_le_mul_of_nonpos_left h₁₂ hc0
+      have := mul_le_mul_of_nonpos_left h₂₃ hc0
       exact ⟨fun h₂ => by linarith, fun h₁ => by linarith [hj₁₃.mp h₁]⟩
 
 /-- **Order-convexity of input-reading transcripts along a scalar direction**. -/
@@ -149,9 +132,8 @@ theorem transcript_eq_of_weightedSum_between (p : Program signature n g) (w : Fi
     (h₁₂ : weightedSum w x₁ ≤ weightedSum w x₂)
     (h₂₃ : weightedSum w x₂ ≤ weightedSum w x₃)
     (htr : transcript p x₁ = transcript p x₃) :
-    transcript p x₂ = transcript p x₁ := by
-  funext j
-  exact congrFun (eval_eq_of_weightedSum_between p w hw h₁₂ h₂₃ htr) j.val
+    transcript p x₂ = transcript p x₁ :=
+  funext fun j => congrFun (eval_eq_of_weightedSum_between p w hw h₁₂ h₂₃ htr) j.val
 
 /-- Inputs with equal scalar score have identical gate evaluations. -/
 theorem eval_eq_of_weightedSum_eq (p : Program signature n g) (w : Fin n → ℝ)
@@ -170,9 +152,8 @@ theorem eval_eq_of_weightedSum_eq (p : Program signature n g) (w : Fin n → ℝ
 private theorem transcript_eq_of_weightedSum_eq (p : Program signature n g) (w : Fin n → ℝ)
     (hw : ∀ j : Fin g, ∃ c : ℝ, inputWeight p j = c • w)
     {x₁ x₂ : Fin n → Bool} (h : weightedSum w x₁ = weightedSum w x₂) :
-    transcript p x₁ = transcript p x₂ := by
-  funext j
-  exact congrFun (eval_eq_of_weightedSum_eq p w hw h) j.val
+    transcript p x₁ = transcript p x₂ :=
+  funext fun j => congrFun (eval_eq_of_weightedSum_eq p w hw h) j.val
 
 /-- The set of attainable transcripts is always nonempty. -/
 theorem attainableTranscripts_nonempty (p : Program signature n g) :
@@ -196,10 +177,8 @@ private noncomputable def leTranscripts (p : Program signature n g) (w : Fin n �
   (leInputs w t).image (transcript p)
 
 private theorem leInputs_subset {w : Fin n → ℝ} {t t' : ℝ} (htt' : t ≤ t') :
-    leInputs w t ⊆ leInputs w t' := by
-  intro x hx
-  simp only [leInputs, mem_filter, mem_univ, true_and] at hx ⊢
-  exact hx.trans htt'
+    leInputs w t ⊆ leInputs w t' := fun _ hx => by
+  simpa only [leInputs, mem_filter, mem_univ, true_and] using (mem_filter.mp hx).2.trans htt'
 
 private theorem leTranscripts_subset {p : Program signature n g} {w : Fin n → ℝ} {t t' : ℝ}
     (htt' : t ≤ t') :
@@ -299,37 +278,23 @@ private theorem scalarEval_eq_of_le_of_rank_eq (p : Program signature n g) (w : 
       intro s hs
       by_cases hne : (leInputs w s).Nonempty
       · obtain ⟨x₀, hx₀⟩ := hne
-        have hxmin_mem : xmin ∈ leInputs w s := by
-          simp only [leInputs, mem_filter, mem_univ, true_and] at hx₀ ⊢
-          exact (hxmin x₀).trans hx₀
-        have hrep_mem : scalarRep w s ∈ leInputs w s := scalarRep_mem_of_nonempty ⟨x₀, hx₀⟩
-        have htr_eq : transcript p (scalarRep w s) = transcript p xmin :=
-          card_le_one.mp hs _ (mem_image_of_mem _ hrep_mem) _ (mem_image_of_mem _ hxmin_mem)
-        exact eval_eq_of_transcript_eq p htr_eq
+        exact eval_eq_of_transcript_eq p (card_le_one.mp hs _
+          (mem_image_of_mem _ (scalarRep_mem_of_nonempty ⟨x₀, hx₀⟩)) _ (mem_image_of_mem _
+            (mem_filter.mpr ⟨mem_univ _, (hxmin x₀).trans (mem_filter.mp hx₀).2⟩)))
       · unfold scalarEval scalarRep
         rw [dite_eq_right hne]
-    have ht1 : (leTranscripts p w t).card ≤ 1 := (card_le_card hsub).trans h1
-    rw [hval t ht1, hval t' h1]
-  · have hcard_eq : (leTranscripts p w t).card = (leTranscripts p w t').card := by omega
-    have htr_set_eq : leTranscripts p w t = leTranscripts p w t' :=
-      eq_of_subset_of_card_le hsub hcard_eq.ge
-    have hne_tr : (leTranscripts p w t).Nonempty := card_pos.mp (by omega)
-    obtain ⟨_, hx_tr⟩ := hne_tr
+    rw [hval t ((card_le_card hsub).trans h1), hval t' h1]
+  · have htr_set_eq : leTranscripts p w t = leTranscripts p w t' :=
+      eq_of_subset_of_card_le hsub (by omega)
+    obtain ⟨_, hx_tr⟩ := card_pos.mp (by omega : 0 < (leTranscripts p w t).card)
     obtain ⟨x₀, hx₀, -⟩ := mem_image.mp hx_tr
-    have hne : (leInputs w t).Nonempty := ⟨x₀, hx₀⟩
-    have hne' : (leInputs w t').Nonempty := hne.mono (leInputs_subset htt')
-    have hrep_t : scalarRep w t ∈ leInputs w t := scalarRep_mem_of_nonempty hne
-    have hrep_t' : scalarRep w t' ∈ leInputs w t' := scalarRep_mem_of_nonempty hne'
+    have hrep_t := scalarRep_mem_of_nonempty ⟨x₀, hx₀⟩
     have hmem_tr' : transcript p (scalarRep w t') ∈ leTranscripts p w t := by
       rw [htr_set_eq]
-      exact mem_image_of_mem _ hrep_t'
+      exact mem_image_of_mem _ (scalarRep_mem_of_nonempty ⟨x₀, leInputs_subset htt' hx₀⟩)
     obtain ⟨x₁, hx₁, htr₁⟩ := mem_image.mp hmem_tr'
-    have h₁₂ : weightedSum w x₁ ≤ weightedSum w (scalarRep w t) :=
-      le_weightedSum_scalarRep_of_mem hx₁
-    have h₂₃ : weightedSum w (scalarRep w t) ≤ weightedSum w (scalarRep w t') :=
-      le_weightedSum_scalarRep_of_mem (leInputs_subset htt' hrep_t)
-    unfold scalarEval
-    exact (eval_eq_of_weightedSum_between p w hw h₁₂ h₂₃ htr₁).trans
+    exact (eval_eq_of_weightedSum_between p w hw (le_weightedSum_scalarRep_of_mem hx₁)
+      (le_weightedSum_scalarRep_of_mem (leInputs_subset htt' hrep_t)) htr₁).trans
       (eval_eq_of_transcript_eq p htr₁)
 
 /-- **Theorem 4.1 (Piece bound for scalar-direction gate evaluation)**: when every gate reads
@@ -338,18 +303,15 @@ theorem piecesAtMost_scalarEval (p : Program signature n g) (w : Fin n → ℝ)
     (hw : ∀ j : Fin g, ∃ c : ℝ, inputWeight p j = c • w) :
     PiecesAtMost (scalarEval p w) (attainableTranscripts p).card := by
   classical
-  refine ⟨fun t => (leTranscripts p w t).card - 1, ?_, ?_, ?_⟩
-  · intro t t' htt'
-    exact Nat.sub_le_sub_right (card_le_card (leTranscripts_subset htt')) 1
-  · intro t
-    dsimp only
-    have hpos := card_attainableTranscripts_pos p
-    have hle := card_leTranscripts_le p w t
+  refine ⟨fun t => (leTranscripts p w t).card - 1,
+    fun _ _ htt' => Nat.sub_le_sub_right (card_le_card (leTranscripts_subset htt')) 1,
+    fun t => ?_, fun t t' heq => ?_⟩
+  · dsimp only
+    have := card_attainableTranscripts_pos p
+    have := card_leTranscripts_le p w t
     omega
-  · intro t t' heq
-    rcases le_total t t' with htt' | ht't
-    · exact scalarEval_eq_of_le_of_rank_eq p w hw htt' heq
-    · exact (scalarEval_eq_of_le_of_rank_eq p w hw ht't heq.symm).symm
+  · exact (le_total t t').elim (fun h => scalarEval_eq_of_le_of_rank_eq p w hw h heq)
+      fun h => (scalarEval_eq_of_le_of_rank_eq p w hw h heq.symm).symm
 
 /-- **Theorem 4.1 (Piece bound for scalar-direction transcripts)**: `scalarTranscript p w` has at
 most `(attainableTranscripts p).card` pieces on `ℝ`. -/
@@ -386,9 +348,7 @@ theorem length_le_card_attainableTranscripts_of_isChain {β : Type*} (p : Progra
   have hpos := card_attainableTranscripts_pos p
   have hmap : (xs.map (weightedSum w)).map (scalarReadout p w readout) =
       xs.map fun x => readout (p.eval interpretation x) := by
-    rw [List.map_map]
-    refine List.map_congr_left fun x _ => ?_
-    exact scalarReadout_weightedSum p w hw readout x
+    simp only [List.map_map, Function.comp_def, scalarReadout_weightedSum p w hw]
   have hlen := (changesAtMost_scalarReadout p w hw readout).length_le_succ_of_isChain
     hmono (hmap.symm ▸ halt)
   rw [List.length_map] at hlen
@@ -533,23 +493,15 @@ private theorem exists_scalarThreshold (w : Fin n → ℝ)
   let upper : Finset (Fin n → Bool) := univ.filter fun x => k ≤ index x
   by_cases hupper : upper.Nonempty
   · obtain ⟨y, hy, hmin⟩ := exists_min_image upper (weightedSum w) hupper
-    refine ⟨weightedSum w y, fun x => ⟨?_, ?_⟩⟩
-    · intro hs
-      by_contra hx
-      have hxy : index x < index y :=
-        lt_of_lt_of_le (Nat.lt_of_not_ge hx) (mem_filter.mp hy).2
-      exact (not_lt_of_ge hs) (horder x y hxy)
-    · intro hx
-      exact hmin x (mem_filter.mpr ⟨mem_univ _, hx⟩)
+    refine ⟨weightedSum w y, fun x =>
+      ⟨fun hs => ?_, fun hx => hmin x (mem_filter.mpr ⟨mem_univ _, hx⟩)⟩⟩
+    by_contra hx
+    exact not_lt_of_ge hs (horder x y ((Nat.lt_of_not_ge hx).trans_le (mem_filter.mp hy).2))
   · obtain ⟨y, -, hmax⟩ := exists_max_image (univ : Finset (Fin n → Bool))
       (weightedSum w) ⟨fun _ => false, mem_univ _⟩
-    refine ⟨weightedSum w y + 1, fun x => ?_⟩
-    have hscore : ¬weightedSum w y + 1 ≤ weightedSum w x := by
-      have hxmax := hmax x (mem_univ x)
-      linarith
-    have hindex : ¬k ≤ index x := fun hx =>
-      hupper ⟨x, mem_filter.mpr ⟨mem_univ _, hx⟩⟩
-    exact iff_of_false hscore hindex
+    refine ⟨weightedSum w y + 1, fun x => iff_of_false (fun h => ?_)
+      fun hx => hupper ⟨x, mem_filter.mpr ⟨mem_univ _, hx⟩⟩⟩
+    linarith [hmax x (mem_univ x)]
 
 open scoped Classical in
 /-- **Real-score realization of ordered query-activity capacity.** Suppose `index` labels
@@ -572,26 +524,18 @@ theorem exists_scalarComparisonTree_iff (w : Fin n → ℝ)
       0 < L ∧ L ≤ ballSize q e := by
   classical
   constructor
-  · rintro ⟨t, hcount, hdepth, henergy, _⟩
-    constructor
-    · simpa only [hcount] using t.leafCount_pos
-    · simpa only [hcount, ballSize] using
-        t.leafCount_le_sum_choose_of_energy_le henergy hdepth
+  · rintro ⟨t, rfl, hdepth, henergy, -⟩
+    exact ⟨t.leafCount_pos, by
+      simpa only [ballSize] using t.leafCount_le_sum_choose_of_energy_le henergy hdepth⟩
   · intro hcap
     obtain ⟨t, hcount, hdepth, henergy, heval⟩ :=
       (DecisionTree.exists_orderedComparisonTree_iff q e L 0).mpr hcap
     choose θ hθ using fun k => exists_scalarThreshold w index horder k
-    refine ⟨t.mapQueries θ, ?_, ?_, ?_, ?_⟩
-    · simpa only [DecisionTree.leafCount_mapQueries] using hcount
-    · simpa only [DecisionTree.depth_mapQueries] using hdepth
-    · simpa only [DecisionTree.energy_mapQueries] using henergy
-    · intro x
-      rw [DecisionTree.eval_mapQueries]
-      have horacle : (fun s => decide (s ≤ weightedSum w x)) ∘ θ =
-          fun k => decide (k ≤ index x) := by
-        funext k
-        simp only [Function.comp_apply, hθ]
-      rw [horacle]
-      simpa only [zero_add] using heval (index x) (hbound x)
+    refine ⟨t.mapQueries θ, (DecisionTree.leafCount_mapQueries _ _).trans hcount,
+      (DecisionTree.depth_mapQueries _ _).trans_le hdepth,
+      (DecisionTree.energy_mapQueries _ _).trans_le henergy, fun x => ?_⟩
+    rw [DecisionTree.eval_mapQueries, show (fun s => decide (s ≤ weightedSum w x)) ∘ θ =
+        fun k => decide (k ≤ index x) from funext fun k => by simp only [Function.comp_apply, hθ]]
+    simpa only [zero_add] using heval (index x) (hbound x)
 
 end Cslib.Circuits.Boolean.WeightedThreshold

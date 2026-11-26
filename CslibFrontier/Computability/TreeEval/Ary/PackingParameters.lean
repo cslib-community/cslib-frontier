@@ -82,11 +82,8 @@ theorem gateDegree_lt (d b : ℕ) : gateDegree d b < fieldModulus d b - 1 := by
 
 /-- Bertrand's postulate bounds the least sufficient prime. -/
 theorem fieldModulus_le (d b : ℕ) : fieldModulus d b ≤ 2 * (gateDegree d b + 1) := by
-  obtain ⟨q, hq, hlo, hhi⟩ :=
-    Nat.exists_prime_lt_and_le_two_mul (gateDegree d b + 1) (by omega)
-  have hmin := Nat.find_min' (Nat.exists_infinite_primes (gateDegree d b + 2))
-    (show gateDegree d b + 2 ≤ q ∧ q.Prime from ⟨by omega, hq⟩)
-  exact hmin.trans hhi
+  obtain ⟨q, hq, _, hhi⟩ := Nat.exists_prime_lt_and_le_two_mul (gateDegree d b + 1) (by omega)
+  exact (Nat.find_min' (Nat.exists_infinite_primes (gateDegree d b + 2)) ⟨by omega, hq⟩).trans hhi
 
 variable {d b : ℕ}
 
@@ -111,22 +108,20 @@ theorem chunkCount_le (hd : 0 < d) (hb : 0 < b) : chunkCount d b ≤ b := by
   nlinarith
 
 /-- A nonempty value occupies at least one chunk. -/
-theorem chunkCount_pos (hd : 0 < d) (hb : 0 < b) : 0 < chunkCount d b := by
-  have := le_chunkCount_mul hd hb
-  by_contra hn
-  have hz : chunkCount d b = 0 := by omega
-  rw [hz, Nat.zero_mul] at this
-  omega
+theorem chunkCount_pos (hd : 0 < d) (hb : 0 < b) : 0 < chunkCount d b :=
+  Nat.pos_of_ne_zero fun hz => by
+    have := le_chunkCount_mul hd hb
+    rw [hz, Nat.zero_mul] at this
+    omega
 
 /-- The whole chunk alphabet fits below the modulus, not just the encoded Boolean values. -/
 theorem alphabetSize_lt (hd : 0 < d) (hb : 0 < b) :
     2 ^ chunkWidth d b < fieldModulus d b := by
-  have hprod : 1 ≤ d * chunkCount d b := Nat.mul_pos hd (chunkCount_pos hd hb)
-  have hpow : 1 ≤ 2 ^ chunkWidth d b := Nat.one_le_pow _ _ (by decide)
-  have hdeg := Nat.mul_le_mul_right (2 ^ chunkWidth d b - 1) hprod
-  have hp := gateDegree_add_two_le d b
-  simp only [Nat.one_mul] at hdeg
-  change 2 ^ chunkWidth d b - 1 ≤ gateDegree d b at hdeg
+  have hdeg : 2 ^ chunkWidth d b - 1 ≤ gateDegree d b := by
+    simpa only [gateDegree, Nat.one_mul] using
+      Nat.mul_le_mul_right (2 ^ chunkWidth d b - 1) (Nat.mul_pos hd (chunkCount_pos hd hb))
+  have := Nat.one_le_pow (chunkWidth d b) 2 (by decide)
+  have := gateDegree_add_two_le d b
   omega
 
 /-- Embed a chunk as its unsigned value in the selected prime field. -/
@@ -145,22 +140,19 @@ theorem alphabetSize_lt (hd : 0 < d) (hb : 0 < b) :
 /-- The prime field has at most twice the chunk width plus two bits per residue. -/
 theorem fieldModulus_size_le (hd : 0 < d) (hb : 0 < b) :
     (fieldModulus d b).size ≤ 2 * chunkWidth d b + 2 := by
-  have hr := chunkCount_le hd hb
-  have hlt : d * b < 2 ^ chunkWidth d b := Nat.lt_size_self (d * b)
   have hdegree : gateDegree d b < (2 ^ chunkWidth d b) ^ 2 := by
-    have hpow : 0 < 2 ^ chunkWidth d b := Nat.two_pow_pos _
-    have hmul := Nat.mul_le_mul_left d hr
     calc
       gateDegree d b ≤ (d * chunkCount d b) * 2 ^ chunkWidth d b :=
         Nat.mul_le_mul_left _ (Nat.sub_le _ _)
       _ < 2 ^ chunkWidth d b * 2 ^ chunkWidth d b :=
-        Nat.mul_lt_mul_of_pos_right (hmul.trans_lt hlt) hpow
+        Nat.mul_lt_mul_of_pos_right
+          ((Nat.mul_le_mul_left d (chunkCount_le hd hb)).trans_lt (Nat.lt_size_self (d * b)))
+          (Nat.two_pow_pos _)
       _ = (2 ^ chunkWidth d b) ^ 2 := (pow_two _).symm
-  have hp := fieldModulus_le d b
   apply Nat.size_le.mpr
   rw [Nat.mul_comm 2 (chunkWidth d b), pow_add, pow_mul]
   norm_num only [Nat.reducePow]
-  nlinarith
+  nlinarith [fieldModulus_le d b]
 
 /-- One packed register has linear payload size, including a partial final chunk. -/
 theorem chunkCount_mul_fieldModulus_size_le (hd : 0 < d) (hb : 0 < b) :
@@ -178,22 +170,18 @@ The cases `c = 2` and `c = 4` account for the flat and padded bank layouts respe
 theorem chunkCount_mul_framed_fieldModulus_size_le (hd : 0 < d) (hb : 0 < b) (c : ℕ) :
     chunkCount d b * (c * (fieldModulus d b).size + 1) ≤
       (4 * c + 1) * (b + chunkWidth d b) := by
-  have hp := Nat.mul_le_mul_left c (chunkCount_mul_fieldModulus_size_le hd hb)
-  have hr := chunkCount_le hd hb
-  nlinarith
+  nlinarith [Nat.mul_le_mul_left c (chunkCount_mul_fieldModulus_size_le hd hb), chunkCount_le hd hb]
 
 /-- Explicit output-count and alphabet/modulus storage fit one linear bank allowance. -/
 theorem chunkCount_mul_parameter_sizes_le (hd : 0 < d) (hb : 0 < b) :
     chunkCount d b * ((fieldModulus d b).size +
       (2 ^ chunkWidth d b).size + 1) ≤ 12 * (b + chunkWidth d b) := by
+  have hp : 0 < (fieldModulus d b).size := Nat.size_pos.mpr (fieldModulus_prime d b).pos
   have halphabet := Nat.size_le_size (alphabetSize_lt hd hb).le
-  have hp : 0 < (fieldModulus d b).size :=
-    Nat.size_pos.mpr (fieldModulus_prime d b).pos
-  have hregister := chunkCount_mul_fieldModulus_size_le hd hb
   have hscalar : (fieldModulus d b).size + (2 ^ chunkWidth d b).size + 1 ≤
       3 * (fieldModulus d b).size := by omega
-  have h := Nat.mul_le_mul_left (chunkCount d b) hscalar
-  nlinarith
+  nlinarith [Nat.mul_le_mul_left (chunkCount d b) hscalar,
+    chunkCount_mul_fieldModulus_size_le hd hb]
 
 /-- Actual framed binary storage for the `d+1` global registers. All residues, including zero,
 and their list framing are charged. Any list with at most the full register count is allowed. -/
@@ -202,19 +190,16 @@ theorem length_encList_residues_le (hd : 0 < d) (hb : 0 < b) (values : List ℕ)
     (hres : ∀ v ∈ values, v < fieldModulus d b) :
     (Turing.MultiTapeTM.encList Turing.MultiTapeTM.encNat values).length ≤
       9 * (d + 1) * (b + chunkWidth d b) := by
-  have hsize (v : ℕ) (hv : v ∈ values) :
-      (Turing.MultiTapeTM.encNat v).length ≤ (fieldModulus d b).size := by
-    rw [Turing.MultiTapeTM.encNat_apply, Nat.size_eq_bits_len]
-    exact Nat.size_le_size (hres v hv).le
-  have hlist := Turing.MultiTapeTM.length_encList_le Turing.MultiTapeTM.encNat values hsize
-  have hscalar := chunkCount_mul_framed_fieldModulus_size_le hd hb 2
+  have hlist := Turing.MultiTapeTM.length_encList_le Turing.MultiTapeTM.encNat values
+    (b := (fieldModulus d b).size) fun v hv => by
+      rw [Turing.MultiTapeTM.encNat_apply, Nat.size_eq_bits_len]
+      exact Nat.size_le_size (hres v hv).le
   calc
     _ ≤ values.length * (2 * (fieldModulus d b).size + 1) := hlist
-    _ ≤ ((d + 1) * chunkCount d b) * (2 * (fieldModulus d b).size + 1) :=
-      Nat.mul_le_mul_right _ hlen
-    _ = (d + 1) * (chunkCount d b * (2 * (fieldModulus d b).size + 1)) :=
-      Nat.mul_assoc ..
-    _ ≤ (d + 1) * (9 * (b + chunkWidth d b)) := Nat.mul_le_mul_left _ hscalar
+    _ ≤ ((d + 1) * chunkCount d b) * (2 * (fieldModulus d b).size + 1) := by gcongr
+    _ = (d + 1) * (chunkCount d b * (2 * (fieldModulus d b).size + 1)) := Nat.mul_assoc ..
+    _ ≤ (d + 1) * (9 * (b + chunkWidth d b)) :=
+      Nat.mul_le_mul_left _ (chunkCount_mul_framed_fieldModulus_size_le hd hb 2)
     _ = _ := by ring
 
 /-- For a fixed machine's fan-in, the width term is affine in the value length. -/
@@ -228,8 +213,6 @@ theorem length_encList_residues_le_affine (hd : 0 < d) (hb : 0 < b) (values : Li
     (hres : ∀ v ∈ values, v < fieldModulus d b) :
     (Turing.MultiTapeTM.encList Turing.MultiTapeTM.encNat values).length ≤
       18 * (d + 1) * b + 9 * (d + 1) * d.size := by
-  have h := length_encList_residues_le hd hb values hlen hres
-  have hm := chunkWidth_le d b
-  nlinarith
+  nlinarith [length_encList_residues_le hd hb values hlen hres, chunkWidth_le d b]
 
 end Cslib.TreeEval.Ary.Packed

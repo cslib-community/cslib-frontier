@@ -158,25 +158,20 @@ theorem hasPerfectMatching_aliceGraph (x : BitString m) :
 contains all its neighbours. -/
 theorem not_hasPerfectMatching_bobGraph (i₀ : Fin m) (y : BitString m) :
     ¬HasPerfectMatching (bobGraph (e := e) i₀ y) := by
-  let b : Fin m ↪ Vertex m e := ⟨fun i => .inl (.inl i), fun i j h => by simpa using h⟩
-  let c : Fin m ↪ Vertex m e := ⟨fun i => .inl (.inr i), fun i j h => by simpa using h⟩
+  let b : Fin m ↪ Vertex m e := ⟨fun i => .inl (.inl i), fun _ _ h => by simpa using h⟩
+  let c : Fin m ↪ Vertex m e := ⟨fun i => .inl (.inr i), fun _ _ h => by simpa using h⟩
   set B := (univ : Finset (Fin m)).filter fun j => j ≠ i₀ ∧ y j = true
-  have hA : (univ : Finset (Fin m)).filter (fun i => i = i₀ ∨ y i = true) = insert i₀ B := by
-    ext i
-    by_cases h : i = i₀ <;> simp [B, h]
   refine not_hasPerfectMatching_of_card_lt (S := (insert i₀ B).map b) (T := B.map c) ?_ ?_
   · intro v hv w hw
     obtain ⟨i, hi, rfl⟩ := mem_map.mp hv
-    rw [← hA, mem_filter] at hi
-    have hhall : hallSet i₀ y (b i) = true := by
+    have hhall : hallSet (e := e) i₀ y (b i) = true := by
       change hallSet i₀ y (.inl (.inl i)) = true
-      rcases hi.2 with h | h <;> simp [hallSet, h]
+      rcases mem_insert.mp hi with rfl | hi <;> simp_all [B, hallSet]
     simp only [bobGraph, hhall, Bool.not_true, Bool.false_or] at hw
     rcases w with (j | j) | j <;> simp only [coverSet, Bool.false_eq_true] at hw
     simp only [Bool.and_eq_true, Bool.not_eq_true', decide_eq_false_iff_not] at hw
     exact mem_map.mpr ⟨j, mem_filter.mpr ⟨mem_univ _, hw⟩, rfl⟩
-  · rw [card_map, card_map, card_insert_of_notMem (by simp [B])]
-    omega
+  · rw [card_map, card_map, card_insert_of_notMem (by simp [B])]; omega
 
 /-- The edges of Alice's graph missing from Bob's graph are the edges of her matching at `bᵢ` for
 `i = i₀` and for `i` in both sets. -/
@@ -188,31 +183,23 @@ theorem exists_of_aliceGraph_of_bobGraph {x y : BitString m} {i₀ : Fin m}
   simp only [aliceGraph, decide_eq_true_eq] at hA
   subst hA
   simp only [bobGraph, Bool.or_eq_false_iff, Bool.not_eq_false'] at hB
-  obtain ⟨hhall, hcover⟩ := hB
-  rcases u with (i | i) | i <;> simp only [hallSet, Bool.false_eq_true] at hhall
+  rcases u with (i | i) | i <;> simp only [hallSet, Bool.false_eq_true, false_and] at hB
   refine ⟨i, rfl, ?_⟩
+  obtain ⟨hhall, hcover⟩ := hB
   simp only [Bool.or_eq_true, decide_eq_true_eq] at hhall
   cases hx : x i
   · simp only [aliceMatching_inl_inl, hx, Bool.cond_false, coverSet, Bool.and_eq_false_iff,
       Bool.not_eq_false', decide_eq_true_eq] at hcover
-    rcases hhall with h | h
-    · exact Or.inl h
-    · rcases hcover with h' | h'
-      · exact Or.inl h'
-      · rw [h] at h'
-        exact absurd h' (by decide)
-  · rcases hhall with h | h
-    · exact Or.inl h
-    · exact Or.inr ⟨rfl, h⟩
+    exact hhall.elim Or.inl fun hy => Or.inl (hcover.resolve_right (by simp [hy]))
+  · exact hhall.imp_right fun hy => ⟨rfl, hy⟩
 
 /-- Bob answers that the sets are disjoint exactly on the edge at `bᵢ₀`, unless `i₀` is in both
 sets. -/
 private theorem bobAnswer_aliceMatching (i₀ i : Fin m) (x y : BitString m) :
     bobAnswer i₀ y (.inl (.inl i), aliceMatching (e := e) x (.inl (.inl i))) =
       (decide (i = i₀) && !(x i₀ && y i₀)) := by
-  by_cases h : i = i₀
-  · subst h
-    cases hx : x i <;> cases hy : y i <;> simp [bobAnswer, hx, hy]
+  rcases eq_or_ne i i₀ with rfl | h
+  · cases hx : x i <;> cases hy : y i <;> simp [bobAnswer, hx, hy]
   · simp [bobAnswer, h]
 
 /-- **The symmetry of the reduction.** Exchanging the edges of Alice's matching at `bᵢ₀` and `bℓ`
@@ -277,10 +264,8 @@ private theorem run_oneRun (σ : Relabeling m e) (x y : BitString m) :
   cases bobAnswer i₀ y _ <;> rfl
 
 /-- A run sends one more bit than `p`. -/
-theorem depth_oneRun_le (σ : Relabeling m e) : (oneRun p h i₀ σ).depth ≤ p.depth + 1 := by
-  refine (Protocol.depth_bind_le (d := 1) fun _ => ?_).trans ?_
-  · simp
-  · rw [Protocol.depth_comap]
+theorem depth_oneRun_le (σ : Relabeling m e) : (oneRun p h i₀ σ).depth ≤ p.depth + 1 :=
+  (Protocol.depth_bind_le (d := 1) fun _ => by simp).trans (by rw [Protocol.depth_comap])
 
 private theorem graph_relabel (h : Vertex m e ≃ Fin n) (σ : Relabeling m e)
     (G : Vertex m e × Vertex m e → Bool) :
@@ -301,10 +286,8 @@ private theorem bipartitePerfectMatching_aliceGraph (h : Vertex m e ≃ Fin n) (
 private theorem bipartitePerfectMatching_bobGraph (h : Vertex m e ≃ Fin n) (σ : Relabeling m e)
     (y : BitString m) :
     bipartitePerfectMatching n (fun k => bobGraph i₀ y (relabel h σ k)) = false := by
-  rw [Bool.eq_false_iff]
-  intro hpm
-  rw [bipartitePerfectMatching_eq_true_iff, graph_relabel] at hpm
-  exact not_hasPerfectMatching_bobGraph i₀ y ((hasPerfectMatching_comp_iff _ _ _).mp hpm)
+  rw [Bool.eq_false_iff, Ne, bipartitePerfectMatching_eq_true_iff, graph_relabel]
+  exact mt (hasPerfectMatching_comp_iff _ _ _).mp (not_hasPerfectMatching_bobGraph i₀ y)
 
 variable (hp : p.Solves ExceedsAt {x | bipartitePerfectMatching n x = true}
   {y | bipartitePerfectMatching n y = false})
@@ -317,24 +300,21 @@ private theorem exists_run_oneRun (σ : Relabeling m e) (x y : BitString m) :
   have hv := hp _ (bipartitePerfectMatching_aliceGraph h σ x) _
     (bipartitePerfectMatching_bobGraph (i₀ := i₀) h σ y)
   obtain ⟨i, hi, hrun⟩ := exists_of_aliceGraph_of_bobGraph hv.1 hv.2
-  refine ⟨i, hrun, ?_⟩
-  rw [run_oneRun, hi, bobAnswer_aliceMatching]
+  exact ⟨i, hrun, by rw [run_oneRun, hi, bobAnswer_aliceMatching]⟩
 
 /-- On disjoint sets every run answers `true`. -/
 private theorem run_oneRun_of_disjointness {x y : BitString m} (hxy : disjointness x y = true)
     (σ : Relabeling m e) : (oneRun p h i₀ σ).run x y = true := by
-  obtain ⟨i, hi, hrun⟩ := exists_run_oneRun hp σ x y
+  obtain ⟨i, hi, hrun⟩ := exists_run_oneRun (h := h) hp σ x y
   simp only [disjointness, decide_eq_true_eq] at hxy
-  have hi₀ : i = i₀ := hi.resolve_right fun ⟨hx, hy⟩ => by simpa [hx, hy] using hxy i
-  rw [hrun, hi₀, hxy i₀]
-  simp
+  obtain rfl : i = i₀ := hi.resolve_right fun ⟨hx, hy⟩ => by simpa [hx, hy] using hxy i
+  simp [hrun, hxy i]
 
 /-- If `i₀` is in both sets, every run answers `false`. -/
 private theorem run_oneRun_of_mem {x y : BitString m} (hx : x i₀ = true) (hy : y i₀ = true)
     (σ : Relabeling m e) : (oneRun p h i₀ σ).run x y = false := by
-  obtain ⟨i, -, hrun⟩ := exists_run_oneRun hp σ x y
-  rw [hrun, hx, hy]
-  simp
+  obtain ⟨_, -, hrun⟩ := exists_run_oneRun (h := h) (i₀ := i₀) hp σ x y
+  simpa [hx, hy] using hrun
 
 omit hp in
 /-- **The symmetry of the reduction.** If some `ℓ ≠ i₀` is in both sets, a run answers `true` for at
@@ -351,33 +331,21 @@ theorem two_mul_card_filter_run_oneRun_le {x y : BitString m} {ℓ : Fin m} (h�
     simp only [relabel, τ, Prod.fst_mul, Prod.snd_mul, Equiv.Perm.mul_def, Equiv.symm_trans_apply,
       Equiv.symm_swap]
   have hA (σ : Relabeling m e) : (fun k => aliceGraph x (relabel h (σ * τ) k)) =
-      fun k => aliceGraph x (relabel h σ k) := by
-    funext k
-    rw [hrel]
-    exact aliceGraph_swap_swap _ _
+      fun k => aliceGraph x (relabel h σ k) :=
+    funext fun k => by rw [hrel, aliceGraph_swap_swap]
   have hB (σ : Relabeling m e) : (fun k => bobGraph i₀ y (relabel h (σ * τ) k)) =
-      fun k => bobGraph i₀ y (relabel h σ k) := by
-    funext k
-    rw [hrel]
-    exact bobGraph_swap_swap hx hy _ _
+      fun k => bobGraph i₀ y (relabel h σ k) :=
+    funext fun k => by rw [hrel, bobGraph_swap_swap hx hy]
   set E := (univ : Finset (Relabeling m e)).filter fun σ => (oneRun p h i₀ σ).run x y = true
-  have hsub : E.image (· * τ) ⊆ Eᶜ := by
-    intro σ' hσ'
-    obtain ⟨σ, hσ, rfl⟩ := mem_image.mp hσ'
-    rw [mem_filter] at hσ
-    rw [mem_compl, mem_filter, not_and, run_oneRun, hA, hB, hrel]
-    intro _
-    have h₁ := hσ.2
-    rw [run_oneRun] at h₁
-    set q := relabel h σ (p.run (fun k => aliceGraph x (relabel h σ k))
-      fun k => bobGraph i₀ y (relabel h σ k))
-    simp only [bobAnswer, Bool.and_eq_true, decide_eq_true_eq] at h₁
-    simp only [bobAnswer, h₁.1, τ, Equiv.swap_apply_left, Sum.inl.injEq, hℓ, decide_false,
-      Bool.false_and, Bool.false_eq_true, not_false_eq_true]
-  have hcard : #(E.image (· * τ)) = #E := card_image_of_injective _ (mul_left_injective τ)
-  have := card_le_card hsub
-  rw [hcard, card_compl] at this
-  have hE : #E ≤ Fintype.card (Relabeling m e) := card_le_univ E
+  have hsub : E.image (· * τ) ⊆ Eᶜ := forall_mem_image.2 fun σ hσ => by
+    have h₁ := (mem_filter.mp hσ).2
+    simp only [run_oneRun, bobAnswer, Bool.and_eq_true, decide_eq_true_eq] at h₁
+    simp only [E, mem_compl, mem_filter, mem_univ, true_and, run_oneRun, hA, hB]
+    simp only [hrel, bobAnswer, h₁.1]
+    simp [τ, hℓ]
+  have hle := card_le_card hsub
+  rw [card_image_of_injective _ (mul_left_injective τ), card_compl] at hle
+  have := card_le_univ E
   omega
 
 omit hp
@@ -413,33 +381,23 @@ private theorem card_filter_repeatedRun_ne_mul_two_pow_le (hk : 0 < k) (x y : Bi
     (· ∈ repeatedRun p h i₀ ⁻¹' {q | ¬disjointness x y = q.run x y})
   by_cases hxy : disjointness x y = true
   · -- On disjoint sets the reduction never errs.
-    suffices bad = ∅ by simp [this]
-    refine filter_eq_empty_iff.mpr fun σs _ => ?_
-    simp [repeatedRun, run_oneRun_of_disjointness hp hxy, hxy]
+    simp [bad, repeatedRun, run_oneRun_of_disjointness hp hxy, hxy]
   by_cases h₀ : x i₀ = true ∧ y i₀ = true
   · -- If `i₀` is in both sets, it never errs either.
-    suffices bad = ∅ by simp [this]
     have : Nonempty (Fin k) := ⟨⟨0, hk⟩⟩
-    refine filter_eq_empty_iff.mpr fun σs _ => ?_
-    rw [Bool.not_eq_true] at hxy
-    simp [repeatedRun, run_oneRun_of_mem hp h₀.1 h₀.2, hxy]
+    simp [bad, repeatedRun, run_oneRun_of_mem hp h₀.1 h₀.2, Bool.eq_false_iff.mpr hxy]
   -- Otherwise it errs only when every run answers `true`.
-  have hℓ : ∃ ℓ, x ℓ = true ∧ y ℓ = true := by
+  obtain ⟨ℓ, hxℓ, hyℓ⟩ : ∃ ℓ, x ℓ = true ∧ y ℓ = true := by
     simpa only [disjointness, decide_eq_true_eq, not_forall, Bool.and_eq_false_iff, not_or,
       Bool.not_eq_false] using hxy
-  obtain ⟨ℓ, hxℓ, hyℓ⟩ := hℓ
-  have hℓ₀ : ℓ ≠ i₀ := fun h' => h₀ (h' ▸ ⟨hxℓ, hyℓ⟩)
   set E := (univ : Finset (Relabeling m e)).filter fun σ => (oneRun p h i₀ σ).run x y = true
-  have hsub : bad ⊆ Fintype.piFinset fun _ => E := by
-    intro σs hσs
+  have hsub : bad ⊆ Fintype.piFinset fun _ => E := fun σs hσs => by
     simp only [bad, mem_filter, Set.mem_preimage, Set.mem_ofPred_eq, repeatedRun,
       Protocol.run_runAll] at hσs
-    rw [Fintype.mem_piFinset]
-    intro i
-    rw [Bool.not_eq_true] at hxy
-    rw [hxy, eq_comm, Bool.not_eq_false, decide_eq_true_iff] at hσs
-    exact mem_filter.mpr ⟨mem_univ _, hσs.2 i⟩
-  have hE := two_mul_card_filter_run_oneRun_le (p := p) (h := h) hℓ₀ hxℓ hyℓ
+    rw [Bool.eq_false_iff.mpr hxy, eq_comm, Bool.not_eq_false, decide_eq_true_iff] at hσs
+    exact Fintype.mem_piFinset.mpr fun i => mem_filter.mpr ⟨mem_univ _, hσs.2 i⟩
+  have hE := two_mul_card_filter_run_oneRun_le (p := p) (h := h)
+    (fun h' : ℓ = i₀ => h₀ (h' ▸ ⟨hxℓ, hyℓ⟩)) hxℓ hyℓ
   calc #bad * 2 ^ k ≤ #E ^ k * 2 ^ k := by
         gcongr
         simpa using card_le_card hsub
@@ -458,11 +416,10 @@ theorem solves_reduction (hk : 0 < k) :
   intro x _ y _
   rw [PublicCoin.errorProb, PMF.errorProb, reduction, PMF.toOuterMeasure_map_apply,
     Probability.PMF.toOuterMeasure_uniformOfFintype_toReal]
-  have hbad := card_filter_repeatedRun_ne_mul_two_pow_le (h := h) (i₀ := i₀) hp hk x y
   have hpos : (0 : ℝ) < Fintype.card (Relabeling m e) ^ k := by positivity
   rw [Fintype.card_fun, Fintype.card_fin, Nat.cast_pow, div_le_div_iff₀ hpos (by positivity),
     one_mul]
-  exact_mod_cast hbad
+  exact_mod_cast card_filter_repeatedRun_ne_mul_two_pow_le (h := h) (i₀ := i₀) hp hk x y
 
 end BipartiteMatching.RazWigderson
 
@@ -478,18 +435,14 @@ theorem ecomplexityFun_disjointness_le_mul_ecomplexity_bipartitePerfectMatching 
       k * (Protocol.ecomplexity ExceedsAt {x | bipartitePerfectMatching n x = true}
         {y | bipartitePerfectMatching n y = false} + 1) := by
   rcases Nat.eq_zero_or_pos k with rfl | hk
-  · refine (PublicCoin.ecomplexity_le_depth (μ := PMF.pure (.output true)) fun _ _ _ _ =>
-      PublicCoin.errorProb_le_one.trans (by norm_num)).trans ?_
-    simp
+  · exact (PublicCoin.ecomplexity_le_depth (μ := PMF.pure (.output true)) fun _ _ _ _ =>
+      PublicCoin.errorProb_le_one.trans (by norm_num)).trans (by simp)
   rcases Nat.eq_zero_or_pos m with rfl | hm
-  · refine (PublicCoin.ecomplexity_le_depth (PublicCoin.solves_pure (p := .output true)
-      (fun x _ y _ => by simp [disjointness]) (by positivity))).trans ?_
-    simp
+  · exact (PublicCoin.ecomplexity_le_depth (PublicCoin.solves_pure (p := .output true)
+      (fun x _ y _ => by simp [disjointness]) (by positivity))).trans (by simp)
   cases hc : Protocol.ecomplexity ExceedsAt {x | bipartitePerfectMatching n x = true}
       {y | bipartitePerfectMatching n y = false} using ENat.recTopCoe with
-  | top =>
-    rw [top_add, ENat.mul_top (by exact_mod_cast hk.ne')]
-    exact le_top
+  | top => simp [ENat.mul_top (Nat.cast_ne_zero.mpr hk.ne')]
   | coe c =>
     obtain ⟨p, hp, hpc⟩ := Protocol.ecomplexity_le_iff.mp hc.le
     have hcard : Fintype.card (Vertex m (n - 2 * m)) = n := by
@@ -517,14 +470,11 @@ theorem le_mul_ecomplexity_bipartitePerfectMatching_add (n : ℕ) :
     cases hr : PublicCoin.ecomplexityFun (1 / 2 ^ 6)
         (disjointness : BitString m → BitString m → Bool) using ENat.recTopCoe with
     | top =>
-      rw [hr] at h2
-      exact absurd (top_le_iff.mp h2) (by exact_mod_cast ENat.natCast_ne_top (6 * (c + 1)))
+      exact absurd (top_le_iff.mp (hr ▸ h2)) (by exact_mod_cast ENat.natCast_ne_top (6 * (c + 1)))
     | coe r =>
-      rw [hr] at h1 h2
-      have h1' : m ≤ 2 ^ 9 * r + 2 ^ 12 := by exact_mod_cast h1
-      have h2' : r ≤ 6 * (c + 1) := by exact_mod_cast h2
-      have : n ≤ 2 ^ 13 * c + 2 ^ 14 := by omega
-      exact_mod_cast this
+      have h1' : m ≤ 2 ^ 9 * r + 2 ^ 12 := by exact_mod_cast hr ▸ h1
+      have h2' : r ≤ 6 * (c + 1) := by exact_mod_cast hr ▸ h2
+      exact_mod_cast (by omega : n ≤ 2 ^ 13 * c + 2 ^ 14)
 
 namespace Monotone
 

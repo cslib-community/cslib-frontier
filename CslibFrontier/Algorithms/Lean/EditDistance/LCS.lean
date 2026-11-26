@@ -31,7 +31,6 @@ and an insertion keeps the cost, so this is also the least cost of a script with
 
 * `Cslib.Algorithms.Lean.EditDistance.lcsLength`: the table entry.
 * `Cslib.Algorithms.Lean.EditDistance.lcs`: a longest common subsequence, by traceback.
-* `Cslib.Algorithms.Lean.EditDistance.lcsLengthM`: the algorithm in `TimeM`.
 * `Cslib.Algorithms.Lean.EditDistance.EditScript.kept`: the letters a script keeps.
 * `Cslib.Algorithms.Lean.EditDistance.EditScript.IsIndel`: a script with no replacement by a
   different letter; `EditScript.splitSubs` turns a script into one.
@@ -39,7 +38,8 @@ and an insertion keeps the cost, so this is also the least cost of a script with
 ## Main results
 
 * `Cslib.Algorithms.Lean.EditDistance.length_le_lcsLength`: every common subsequence has length at
-  most `lcsLength x y`.
+  most `lcsLength x y` (`lcsLength_le_left` and `lcsLength_le_right` bound `lcsLength x y` by `|x|`
+  and `|y|`).
 * `Cslib.Algorithms.Lean.EditDistance.lcs_spec`: `lcs x y` is a common subsequence of length
   `lcsLength x y`.
 * `Cslib.Algorithms.Lean.EditDistance.isGreatest_lcsLength`: `lcsLength x y` is the greatest
@@ -48,9 +48,9 @@ and an insertion keeps the cost, so this is also the least cost of a script with
   `editDist Costs.indel x y + 2 · lcsLength x y = |x| + |y|`.
 * `Cslib.Algorithms.Lean.EditDistance.isLeast_editDist_indel`: `editDist Costs.indel x y` is the
   least cost of a script from `x` to `y` with no replacement by a different letter.
-* `Cslib.Algorithms.Lean.EditDistance.ret_lcsLengthM`, `time_lcsLengthM`: `lcsLengthM` returns
-  `lcsLength x y` and costs exactly `(|x| + 1) (|y| + 1)`, one unit per table entry (see the cost
-  model of `Cslib.Algorithms.Lean.EditDistance.GridDP.valueM`).
+
+Word-RAM running-time bounds for longest-common-subsequence length are proved in
+`CslibFrontier.Algorithms.WordRAM.EditDistance`.
 
 ## References
 
@@ -77,9 +77,6 @@ variable {α : Type*} [DecidableEq α]
 /-- The length of a longest common subsequence of `x` and `y`: the table entry. -/
 @[expose] def lcsLength (x y : List α) : ℕ := lcsTable.value x y
 
-/-- The longest-common-subsequence algorithm in `TimeM`, charging one unit per table entry. -/
-@[expose] def lcsLengthM (x y : List α) : TimeM ℕ ℕ := lcsTable.valueM x y
-
 @[simp] theorem lcsLength_nil_left (y : List α) : lcsLength [] y = 0 := by
   induction y with
   | nil => rfl
@@ -98,12 +95,8 @@ theorem lcsLength_cons_cons (a b : α) (x y : List α) :
 
 /-- Every common subsequence of `x` and `y` has length at most `lcsLength x y`. -/
 theorem length_le_lcsLength : ∀ {x y z : List α}, z <+ x → z <+ y → z.length ≤ lcsLength x y
-  | [], _, z, hx, _ => by
-    rw [List.sublist_nil.1 hx]
-    exact Nat.zero_le _
-  | _ :: _, [], z, _, hy => by
-    rw [List.sublist_nil.1 hy]
-    exact Nat.zero_le _
+  | [], _, z, hx, _ => by simp [List.sublist_nil.1 hx]
+  | _ :: _, [], z, _, hy => by simp [List.sublist_nil.1 hy]
   | a :: x, b :: y, [], _, _ => Nat.zero_le _
   | a :: x, b :: y, c :: z, hx, hy => by
     rw [lcsLength_cons_cons]
@@ -114,10 +107,8 @@ theorem length_le_lcsLength : ∀ {x y z : List α}, z <+ x → z <+ y → z.len
       omega
     · by_cases hca : c = a
       · subst hca
-        have := length_le_lcsLength hx (hy.of_cons_of_ne hab)
-        omega
-      · have := length_le_lcsLength (hx.of_cons_of_ne hca) hy
-        omega
+        exact (length_le_lcsLength hx (hy.of_cons_of_ne hab)).trans (le_max_right _ _)
+      · exact (length_le_lcsLength (hx.of_cons_of_ne hca) hy).trans (le_max_left _ _)
 termination_by x y => x.length + y.length
 
 /-- A longest common subsequence of `x` and `y`, read off the table. Ties prefer dropping the
@@ -173,15 +164,13 @@ theorem isGreatest_lcsLength (x y : List α) :
   rintro k ⟨z, hx, hy, rfl⟩
   exact length_le_lcsLength hx hy
 
-/-- `lcsLengthM` computes `lcsLength`. -/
-@[simp] theorem ret_lcsLengthM (x y : List α) : (lcsLengthM x y).ret = lcsLength x y :=
-  lcsTable.ret_valueM x y
+theorem lcsLength_le_left (x y : List α) : lcsLength x y ≤ x.length := by
+  obtain ⟨hx, _, hlen⟩ := lcs_spec x y
+  exact hlen ▸ hx.length_le
 
-/-- The longest-common-subsequence algorithm costs exactly `(|x| + 1) (|y| + 1)`, one unit per
-table entry. -/
-theorem time_lcsLengthM (x y : List α) :
-    (lcsLengthM x y).time = (x.length + 1) * (y.length + 1) :=
-  lcsTable.time_valueM x y
+theorem lcsLength_le_right (x y : List α) : lcsLength x y ≤ y.length := by
+  obtain ⟨_, hy, hlen⟩ := lcs_spec x y
+  exact hlen ▸ hy.length_le
 
 /-! ### Insertion–deletion distance -/
 
@@ -197,12 +186,11 @@ def kept : EditScript α → List α
   | .sub a b :: s => if a = b then a :: kept s else kept s
 
 theorem kept_sublist_src : ∀ s : EditScript α, s.kept <+ s.src
-  | [] => by
-    rw [kept, src_nil]
+  | [] => by rw [kept, src_nil]
   | .del a :: s => by
     rw [kept, src_cons, EditOp.src, List.singleton_append]
     exact (kept_sublist_src s).cons a
-  | .ins b :: s => by
+  | .ins _ :: s => by
     rw [kept, src_cons, EditOp.src, List.nil_append]
     exact kept_sublist_src s
   | .sub a b :: s => by
@@ -212,9 +200,8 @@ theorem kept_sublist_src : ∀ s : EditScript α, s.kept <+ s.src
     · exact (kept_sublist_src s).cons a
 
 theorem kept_sublist_tgt : ∀ s : EditScript α, s.kept <+ s.tgt
-  | [] => by
-    rw [kept, tgt_nil]
-  | .del a :: s => by
+  | [] => by rw [kept, tgt_nil]
+  | .del _ :: s => by
     rw [kept, tgt_cons, EditOp.tgt, List.nil_append]
     exact kept_sublist_tgt s
   | .ins b :: s => by
@@ -223,44 +210,36 @@ theorem kept_sublist_tgt : ∀ s : EditScript α, s.kept <+ s.tgt
   | .sub a b :: s => by
     rw [kept, tgt_cons]
     split_ifs with h
-    · subst h
-      exact (kept_sublist_tgt s).cons_cons a
+    · subst h; exact (kept_sublist_tgt s).cons_cons a
     · exact (kept_sublist_tgt s).cons b
 
 /-- Under `Costs.indel`, a script costs `|src| + |tgt|` less twice the number of letters it
 keeps. -/
 theorem cost_indel_add_two_mul : ∀ s : EditScript α,
-    s.cost Costs.indel + 2 * s.kept.length = s.src.length + s.tgt.length
-  | [] => by
-    rw [cost_nil, kept, src_nil, tgt_nil]
-    rfl
-  | .del a :: s => by
-    have := cost_indel_add_two_mul s
-    simp only [cost_cons, kept, src_cons, tgt_cons, EditOp.cost, EditOp.src, EditOp.tgt,
-      Costs.indel_del, List.length_append, List.length_singleton, List.length_nil]
-    omega
-  | .ins b :: s => by
-    have := cost_indel_add_two_mul s
-    simp only [cost_cons, kept, src_cons, tgt_cons, EditOp.cost, EditOp.src, EditOp.tgt,
-      Costs.indel_ins, List.length_append, List.length_singleton, List.length_nil]
-    omega
-  | .sub a b :: s => by
-    have := cost_indel_add_two_mul s
-    simp only [cost_cons, kept, src_cons, tgt_cons, EditOp.cost, EditOp.src, EditOp.tgt,
-      Costs.indel_sub, List.length_append, List.length_singleton]
-    split_ifs
-    · rw [List.length_cons]
+    s.cost Costs.indel + 2 * s.kept.length = s.src.length + s.tgt.length := by
+  intro s
+  induction s with
+  | nil => rw [cost_nil, kept, src_nil, tgt_nil]; rfl
+  | cons op s ih =>
+    cases op with
+    | del a | ins b =>
+      simp only [cost_cons, kept, src_cons, tgt_cons, EditOp.cost, EditOp.src, EditOp.tgt,
+        Costs.indel_del, Costs.indel_ins, List.length_append, List.length_singleton,
+        List.length_nil]
       omega
-    · omega
+    | sub a b =>
+      simp only [cost_cons, kept, src_cons, tgt_cons, EditOp.cost, EditOp.src, EditOp.tgt,
+        Costs.indel_sub, List.length_append, List.length_singleton]
+      split_ifs
+      · rw [List.length_cons]; omega
+      · omega
 
 /-- A script with no replacement by a different letter: each operation is an insertion, a
 deletion, or keeps a letter. -/
 def IsIndel (s : EditScript α) : Prop := ∀ o ∈ s, ∀ a b, o = .sub a b → a = b
 
 omit [DecidableEq α] in
-theorem isIndel_nil : IsIndel ([] : EditScript α) := by
-  intro o h
-  cases h
+theorem isIndel_nil : IsIndel ([] : EditScript α) := fun _ h => nomatch h
 
 omit [DecidableEq α] in
 theorem isIndel_cons {o : EditOp α} {s : EditScript α} :
@@ -274,55 +253,33 @@ def splitSubs : EditScript α → EditScript α
   | .ins b :: s => .ins b :: splitSubs s
   | .sub a b :: s => if a = b then .sub a b :: splitSubs s else .del a :: .ins b :: splitSubs s
 
-theorem src_splitSubs : ∀ s : EditScript α, (splitSubs s).src = s.src
-  | [] => by rw [splitSubs]
-  | .del a :: s => by simp only [splitSubs, src_cons, src_splitSubs s]
-  | .ins b :: s => by simp only [splitSubs, src_cons, src_splitSubs s]
-  | .sub a b :: s => by
-    rw [splitSubs]
-    split_ifs <;> simp only [src_cons, EditOp.src, List.nil_append, src_splitSubs s]
+theorem src_splitSubs : ∀ s : EditScript α, (splitSubs s).src = s.src := by
+  intro s
+  fun_induction splitSubs s <;> simp_all [src_cons, EditOp.src]
 
-theorem tgt_splitSubs : ∀ s : EditScript α, (splitSubs s).tgt = s.tgt
-  | [] => by rw [splitSubs]
-  | .del a :: s => by simp only [splitSubs, tgt_cons, tgt_splitSubs s]
-  | .ins b :: s => by simp only [splitSubs, tgt_cons, tgt_splitSubs s]
-  | .sub a b :: s => by
-    rw [splitSubs]
-    split_ifs <;> simp only [tgt_cons, EditOp.tgt, List.nil_append, tgt_splitSubs s]
+theorem tgt_splitSubs : ∀ s : EditScript α, (splitSubs s).tgt = s.tgt := by
+  intro s
+  fun_induction splitSubs s <;> simp_all [tgt_cons, EditOp.tgt]
 
 /-- Under `Costs.indel`, splitting replacements keeps the cost. -/
 theorem cost_indel_splitSubs : ∀ s : EditScript α,
-    (splitSubs s).cost Costs.indel = s.cost Costs.indel
-  | [] => by rw [splitSubs]
-  | .del a :: s => by simp only [splitSubs, cost_cons, cost_indel_splitSubs s]
-  | .ins b :: s => by simp only [splitSubs, cost_cons, cost_indel_splitSubs s]
-  | .sub a b :: s => by
-    rw [splitSubs]
-    split_ifs with h
-    · simp only [cost_cons, cost_indel_splitSubs s]
-    · simp only [cost_cons, EditOp.cost, Costs.indel_del, Costs.indel_ins, Costs.indel_sub, h,
-        ↓reduceIte, cost_indel_splitSubs s]
-      omega
+    (splitSubs s).cost Costs.indel = s.cost Costs.indel := by
+  intro s
+  fun_induction splitSubs s <;>
+    simp_all [cost_cons, EditOp.cost, Costs.indel_del, Costs.indel_ins, Costs.indel_sub]
+  omega
 
-theorem isIndel_splitSubs : ∀ s : EditScript α, (splitSubs s).IsIndel
-  | [] => by
-    rw [splitSubs]
-    exact isIndel_nil
-  | .del a :: s => by
-    rw [splitSubs, isIndel_cons]
-    exact ⟨fun _ _ h => (nomatch h), isIndel_splitSubs s⟩
-  | .ins b :: s => by
-    rw [splitSubs, isIndel_cons]
-    exact ⟨fun _ _ h => (nomatch h), isIndel_splitSubs s⟩
-  | .sub a b :: s => by
-    rw [splitSubs]
-    split_ifs with h
-    · rw [isIndel_cons]
-      refine ⟨fun _ _ h' => ?_, isIndel_splitSubs s⟩
-      cases h'
-      exact h
-    · rw [isIndel_cons, isIndel_cons]
-      exact ⟨fun _ _ h' => (nomatch h'), fun _ _ h' => (nomatch h'), isIndel_splitSubs s⟩
+theorem isIndel_splitSubs : ∀ s : EditScript α, (splitSubs s).IsIndel := by
+  intro s
+  fun_induction splitSubs s with
+  | case1 => exact isIndel_nil
+  | case2 _ _ ih | case3 _ _ ih =>
+    exact isIndel_cons.2 ⟨fun _ _ h => (nomatch h), ih⟩
+  | case4 _ _ ih =>
+    exact isIndel_cons.2 ⟨fun _ _ h' => by cases h'; rfl, ih⟩
+  | case5 _ _ _ _ ih =>
+    exact isIndel_cons.2 ⟨fun _ _ h => (nomatch h),
+      isIndel_cons.2 ⟨fun _ _ h => (nomatch h), ih⟩⟩
 
 end EditScript
 
@@ -339,28 +296,14 @@ theorem editDist_indel_nil_left (y : List α) : editDist Costs.indel [] y = y.le
 /-- Deleting every letter of `x` and inserting every letter of `y`. -/
 theorem editDist_indel_le_length_add (x y : List α) :
     editDist Costs.indel x y ≤ x.length + y.length := by
-  induction x with
-  | nil => exact Nat.le_of_eq (by rw [editDist_indel_nil_left, List.length_nil, Nat.zero_add])
-  | cons a x ih =>
-    have := editDist_cons_left_le Costs.indel a x y
-    simp only [Costs.indel_del, List.length_cons] at this ⊢
-    omega
+  simpa [Costs.indel] using editDist_le_sum_del_ins (Costs.indel (α := α)) x y
 
 /-- A common subsequence `z` of `x` and `y` gives a script keeping `z`. -/
 theorem editDist_indel_add_two_mul_le : ∀ {x y z : List α}, z <+ x → z <+ y →
     editDist Costs.indel x y + 2 * z.length ≤ x.length + y.length
-  | [], y, z, hx, _ => by
-    rw [List.sublist_nil.1 hx, editDist_indel_nil_left]
-    simp only [List.length_nil]
-    omega
-  | a :: x, [], z, _, hy => by
-    rw [List.sublist_nil.1 hy, editDist_indel_nil_right]
-    simp only [List.length_nil]
-    omega
-  | a :: x, b :: y, [], _, _ => by
-    have := editDist_indel_le_length_add (a :: x) (b :: y)
-    simp only [List.length_nil]
-    omega
+  | [], y, z, hx, _ => by simp [List.sublist_nil.1 hx, editDist_indel_nil_left]
+  | a :: x, [], z, _, hy => by simp [List.sublist_nil.1 hy, editDist_indel_nil_right]
+  | a :: x, b :: y, [], _, _ => by simpa using editDist_indel_le_length_add (a :: x) (b :: y)
   | a :: x, b :: y, c :: z, hx, hy => by
     by_cases hca : c = a
     · subst hca
@@ -403,12 +346,10 @@ of insertions and deletions turning `x` into `y`. The witness splits the replace
 `optScript Costs.indel x y`. -/
 theorem isLeast_editDist_indel (x y : List α) :
     IsLeast {c | ∃ s : EditScript α, s.IsIndel ∧ s.src = x ∧ s.tgt = y ∧ s.cost Costs.indel = c}
-      (editDist Costs.indel x y) := by
-  refine ⟨⟨splitSubs (optScript Costs.indel x y), isIndel_splitSubs _, ?_, ?_, ?_⟩, ?_⟩
-  · rw [src_splitSubs, src_optScript]
-  · rw [tgt_splitSubs, tgt_optScript]
-  · rw [cost_indel_splitSubs, cost_optScript]
-  · rintro c ⟨s, -, rfl, rfl, rfl⟩
-    exact editDist_le_cost Costs.indel s
+      (editDist Costs.indel x y) :=
+  ⟨⟨splitSubs (optScript Costs.indel x y), isIndel_splitSubs _,
+    (src_splitSubs _).trans (src_optScript _ _ _), (tgt_splitSubs _).trans (tgt_optScript _ _ _),
+    (cost_indel_splitSubs _).trans (cost_optScript _ _ _)⟩,
+    fun _ ⟨s, _, hx, hy, hc⟩ => hc ▸ hx ▸ hy ▸ editDist_le_cost Costs.indel s⟩
 
 end Cslib.Algorithms.Lean.EditDistance

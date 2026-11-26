@@ -57,31 +57,11 @@ theorem realizes_scatterStep : Realizes .exact
     (fun d : Fin 4 → ℕ => DataStructure.link (E := Memory.spec 0)
       ((layout (d 0) (d 1)).methods 0) (scatterStep (d 2, d 3)))
     (.refl _) (WordEncoding.encode (α := Option ℕ × ℕ)) scatterStepSafe (fun _ _ => 0) := by
-  conv =>
-    arg 2
-    ext d
-    simp only [scatterStep, DataStructure.link, rd, wr, Record.read, Record.write,
-      PFunctor.FreeM.bind_eq_bind, PFunctor.FreeM.liftM_bind, PFunctor.FreeM.liftM_lift,
-      PFunctor.FreeM.liftM_pure, pure_bind, Record.lift_ite, Record.Layout.methods, layout]
-  have hLink := realizes_link.reindex
-    (fun d : ((ℕ × ℕ) × ℕ) × ℕ => ![d.1.1.1, d.1.1.2, d.1.2, d.2])
-    (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ)) ![0, 1, 2, 3]
-    (by intro d i; fin_cases i <;> rfl)
-  change Realizes .exact
-    (fun d : ((ℕ × ℕ) × ℕ) × ℕ => PFunctor.FreeM.liftM
-      ((layout d.1.1.1 d.1.1.2).methods 0) (FibonacciHeap.link d.1.2 d.2))
-    (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
-    (fun w d s => linkSafe w ![d.1.1.1, d.1.1.2, d.1.2, d.2] s)
-    (fun _ _ => 0) at hLink
-  simp only [layout] at hLink
-  realize
-  all_goals try first
+  realize [realizes_link]
+  all_goals first
     | exact h.1.of_le (by have := h.2.1; have := h.2.2.1; omega)
     | exact h.2.2.2 (by assumption)
     | omega
-  all_goals
-    change Fits w (d 1 + 8 * d 0 + s.mem (d 1 + 5 * d 0 + d 2))
-    exact h.1.of_le (by have := h.2.1; have := h.2.2.1; omega)
 
 private theorem scatterStep_progress {n sz w md : ℕ} {z : Fin n} {g : Cell → ℕ}
     {T : FHTree n} {slots : List (FHTree n)} (hfit : Fits w n)
@@ -211,22 +191,7 @@ theorem realizes_scatter : Realizes .exact
     (fun d : Fin 4 → ℕ => DataStructure.link (E := Memory.spec 0)
       ((layout (d 0) (d 1)).methods 0) (scatter (d 0 + 1) (d 2) (d 3)))
     (.refl _) (WordEncoding.encode (α := ℕ)) scatterSafe (fun _ _ => 0) := by
-  have hStep := realizes_scatterStep.reindex
-    (fun d : ((ℕ × ℕ) × ℕ) × ℕ => ![d.1.1.1, d.1.1.2, d.1.2, d.2])
-    (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ)) ![0, 1, 2, 3]
-    (by intro d i; fin_cases i <;> rfl)
-  change Realizes .exact
-    (fun d : ((ℕ × ℕ) × ℕ) × ℕ => DataStructure.link (E := Memory.spec 0)
-      ((layout d.1.1.1 d.1.1.2).methods 0) (scatterStep (d.1.2, d.2)))
-    (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ))
-    (WordEncoding.encode (α := Option ℕ × ℕ))
-    (fun w d mem => scatterStepSafe w ![d.1.1.1, d.1.1.2, d.1.2, d.2] mem)
-    (fun _ _ => 0) at hStep
-  conv =>
-    arg 2
-    ext d
-    rw [link_scatter_eq_boundedWhile]
-  realize
+  realize [realizes_scatterStep] rewriting [link_scatter_eq_boundedWhile]
   all_goals first
     | exact h.1.of_le (by omega)
     | exact fun _ => h.2.2

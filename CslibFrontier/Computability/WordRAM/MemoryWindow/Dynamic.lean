@@ -15,6 +15,7 @@ public import CslibFrontier.Computability.WordRAM.Width
 import CslibFrontier.Computability.WordRAM.Call
 import CslibFrontier.Computability.WordRAM.Power.Rename
 import CslibFrontier.Computability.WordRAM.RegisterFrame
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Dynamic virtual-width memory-window adapters
@@ -94,14 +95,11 @@ theorem dynamicWindowSize_bounds {widthCoeff S : ℕ} (hc : 1 ≤ widthCoeff) (h
     S ≤ dynamicWindowSize widthCoeff S ∧
       dynamicWidth widthCoeff S < dynamicWindowSize widthCoeff S ∧
       widthCoeff < dynamicWindowSize widthCoeff S := by
-  have hclog : 1 ≤ Nat.clog 2 S := Nat.clog_pos (by decide) (by omega)
   have hlog : Nat.clog 2 S ≤ dynamicWidth widthCoeff S := Nat.le_mul_of_pos_left _ hc
-  have hSle : S ≤ dynamicWindowSize widthCoeff S :=
-    (Nat.le_pow_clog (by decide) S).trans (Nat.pow_le_pow_right (by decide) hlog)
-  have hwlt : dynamicWidth widthCoeff S < dynamicWindowSize widthCoeff S := Nat.lt_two_pow_self
-  have hclt : widthCoeff < dynamicWindowSize widthCoeff S :=
-    (Nat.le_mul_of_pos_right _ hclog).trans_lt hwlt
-  exact ⟨hSle, hwlt, hclt⟩
+  exact ⟨(Nat.le_pow_clog Nat.one_lt_two S).trans (Nat.pow_le_pow_right Nat.zero_lt_two hlog),
+    Nat.lt_two_pow_self,
+    (Nat.le_mul_of_pos_right _ (Nat.clog_pos Nat.one_lt_two (by omega))).trans_lt
+      Nat.lt_two_pow_self⟩
 
 /-- When `b + 4 * dynamicWindowSize widthCoeff S` fits in physical width `W` (with
 `1 ≤ widthCoeff` and `2 ≤ S`), `dynamicWidth widthCoeff S + 2 ≤ W`, the window endpoint
@@ -116,8 +114,7 @@ theorem dynamicWidth_fits {W b widthCoeff S : ℕ} (hc : 1 ≤ widthCoeff) (hS :
       widthCoeff < dynamicWindowSize widthCoeff S := by
   obtain ⟨hSle, hwlt, hclt⟩ := dynamicWindowSize_bounds hc hS
   have hpow : 2 ^ (dynamicWidth widthCoeff S + 2) ≤ b + 4 * dynamicWindowSize widthCoeff S := by
-    have h4 : 2 ^ (dynamicWidth widthCoeff S + 2) = 4 * dynamicWindowSize widthCoeff S := by
-      simp only [dynamicWindowSize, pow_add, Nat.reducePow, Nat.mul_comm]
+    simp only [dynamicWindowSize, pow_add, Nat.reducePow]
     omega
   have hw2 : dynamicWidth widthCoeff S + 2 ≤ W := (hfit.lt_of_pow_le hpow).le
   exact ⟨hw2, by omega, hfit.of_le (by omega), hSle, hwlt, hclt⟩
@@ -143,10 +140,8 @@ theorem dynamicWidth_fits {W b widthCoeff S : ℕ} (hc : 1 ≤ widthCoeff) (hS :
 theorem size_withDynamicModulus {R : ℕ} (scratch : Fin 5 → Fin R) (widthCoeff : ℕ)
     (cont : Code .standard R) :
     (withDynamicModulus scratch widthCoeff cont).size = 20 + cont.size := by
-  have hclog : NatClog.program.size = 9 := rfl
-  have hargs : (modulusArgs scratch widthCoeff).size = 3 := rfl
-  have hpow : Power.program.size = 8 := rfl
-  simp only [withDynamicModulus, Code.size, Code.size_rename, hclog, hargs, hpow]
+  simp only [withDynamicModulus, Code.size, Code.size_rename]
+  change 9 + (3 + (8 + cont.size)) = 20 + cont.size
   omega
 
 /-- Dynamic modulus computation reads the physical width if and only if `cont` does. -/
@@ -165,15 +160,10 @@ theorem preserves_withDynamicModulus {R : ℕ} (scratch : Fin 5 → Fin R) (widt
     {cont : Code .standard R} {i : Fin R}
     (hscratch : ∀ k : Fin 5, scratch k ≠ i) (hcont : cont.Preserves i) :
     (withDynamicModulus scratch widthCoeff cont).Preserves i := by
-  have hclog := NatClog.program.preserves_rename_of_forall_ne
-    (fun j : Fin 4 => scratch (j.castAdd 1)) i (fun j => hscratch (j.castAdd 1))
-  have hargs : (modulusArgs scratch widthCoeff).Preserves i := by
-    refine ⟨?_, ?_, ?_⟩
-    · simp [Code.Preserves, Op.dest, hscratch 2]
-    · simp [Code.Preserves, hscratch 3]
-    · simp [Code.Preserves, Op.dest, hscratch 2]
-  have hpow := Power.program.preserves_rename_of_forall_ne scratch i hscratch
-  exact ⟨hclog, hargs, hpow, hcont⟩
+  exact ⟨NatClog.program.preserves_rename_of_forall_ne _ i (fun j => hscratch (j.castAdd 1)),
+    ⟨by simp [Code.Preserves, Op.dest, hscratch 2], by simp [Code.Preserves, hscratch 3],
+      by simp [Code.Preserves, Op.dest, hscratch 2]⟩,
+    Power.program.preserves_rename_of_forall_ne scratch i hscratch, hcont⟩
 
 /-- Execute `NatClog.program`, multiply by `widthCoeff`, and run `Power.program` in `scratch`,
 delivering `dynamicWindowSize widthCoeff S` in `scratch 0` with unchanged memory and external
@@ -190,18 +180,16 @@ theorem exec_withDynamicModulus {R W widthCoeff S tCont : ℕ}
       ∃ y, ExecWithin W cont z y tCont ∧ Q y) :
     ∃ y, ExecWithin W (withDynamicModulus scratch widthCoeff cont) x y
         ((4 * widthCoeff + 5) * Nat.clog 2 S + 13 + tCont) ∧ Q y := by
-  have hfit0 : Fits W (0 + 4 * dynamicWindowSize widthCoeff S) := by
-    simpa only [Nat.zero_add] using hfit
-  obtain ⟨-, -, -, hSle, hwlt, hclt⟩ := dynamicWidth_fits hc hS hfit0
+  obtain ⟨-, -, -, hSle, hwlt, hclt⟩ :=
+    dynamicWidth_fits hc hS ((Nat.zero_add (4 * dynamicWindowSize widthCoeff S)).symm ▸ hfit)
   have hlog_le : Nat.clog 2 S ≤ dynamicWidth widthCoeff S := Nat.le_mul_of_pos_left _ hc
   have hwin_ge2 : 2 ≤ dynamicWindowSize widthCoeff S := hS.trans hSle
   have h2 : Fits W 2 := hfit.of_le (by omega)
   have hc_fit : Fits W widthCoeff := hfit.of_le (by omega)
   have hS1 : Fits W (S + 1) := hfit.of_le (by omega)
   have hlog1 : Fits W (Nat.clog 2 S + 1) := hfit.of_le (by omega)
-  have hexp : Fits W (Nat.clog 2 S * widthCoeff) := hfit.of_le (by
-    have hmul : Nat.clog 2 S * widthCoeff = dynamicWidth widthCoeff S := Nat.mul_comm _ _
-    omega)
+  have hexp : Fits W (Nat.clog 2 S * widthCoeff) :=
+    Nat.mul_comm widthCoeff _ ▸ (hfit.of_le (by omega) : Fits W (dynamicWidth widthCoeff S))
   have hpfit : Fits W (2 ^ dynamicWidth widthCoeff S + dynamicWidth widthCoeff S + 2) :=
     hfit.of_le (by change dynamicWindowSize widthCoeff S + _ + 2 ≤ _; omega)
   let clogScratch : Fin 4 → Fin R := fun i => scratch (i.castAdd 1)
@@ -211,49 +199,25 @@ theorem exec_withDynamicModulus {R W widthCoeff S tCont : ℕ}
   obtain ⟨l, hl, ⟨hl_res, hl_mem, -, -⟩, hl_frame⟩ :=
     ExecWithin.rename_post hclog_inj (NatClog.exec (x.comap clogScratch) h2
       (by simpa only [harg0] using hS1) (by simpa only [harg0] using hlog1))
-  have hl' : ExecWithin W (NatClog.program.rename clogScratch) x l (5 * Nat.clog 2 S + 5) := by
-    simpa only [harg0] using hl
-  have hl_val : l.regs (scratch 1) = Nat.clog 2 S := by
-    rw [← hxS]
-    exact hl_res
-  let a₁ := l.set (scratch 2) widthCoeff
-  let a₂ := a₁.set (scratch 3) (Nat.clog 2 S * widthCoeff)
-  let a := a₂.set (scratch 2) 2
+  rw [harg0] at hl
+  have hl_val : l.regs (scratch 1) = Nat.clog 2 S := hxS ▸ hl_res
   have h12 : scratch 1 ≠ scratch 2 := hscratch.ne (by decide)
-  have h23 : scratch 2 ≠ scratch 3 := hscratch.ne (by decide)
-  have ha₁_1 : a₁.regs (scratch 1) = Nat.clog 2 S := by
-    simpa only [a₁, Data.set_regs, Function.update_of_ne h12] using hl_val
-  have ha₁_2 : a₁.regs (scratch 2) = widthCoeff := by simp [a₁]
-  have hconst1 : ExecWithin (B := .standard) W (.op (.const (scratch 2) widthCoeff)) l a₁ 1 :=
-    ExecWithin.const hc_fit
-  have hmul : ExecWithin W (.op (.bin .mul (scratch 3) (scratch 1) (scratch 2))) a₁ a₂ 1 := by
-    simpa only [a₂, BinOp.eval, ha₁_1, ha₁_2] using
-      ExecWithin.bin (w := W) (f := .mul) (d := scratch 3) (i := scratch 1) (j := scratch 2)
-        (x := a₁) (by simpa only [BinOp.eval, ha₁_1, ha₁_2] using hexp)
-  have hconst2 : ExecWithin (B := .standard) W (.op (.const (scratch 2) 2)) a₂ a 1 :=
-    ExecWithin.const h2
-  have ha : ExecWithin W (modulusArgs scratch widthCoeff) l a 3 :=
-    hconst1.seq (hmul.seq hconst2)
-  have ha_base : a.regs (scratch Power.base) = 2 := by simp [a, Power.base]
-  have ha_exp : a.regs (scratch Power.exponent) = dynamicWidth widthCoeff S := by
-    change (Function.update a₂.regs (scratch 2) 2) (scratch 3) = _
-    rw [Function.update_of_ne h23.symm]
-    change (Function.update a₁.regs (scratch 3) (Nat.clog 2 S * widthCoeff)) (scratch 3) = _
-    rw [Function.update_self]
-    exact Nat.mul_comm _ _
+  have h32 : scratch 3 ≠ scratch 2 := hscratch.ne (by decide)
+  refine WP.exists_execWithin ?_
+  dsimp only [withDynamicModulus, modulusArgs]
+  refine WP.seq (WP.of_execWithin hl ?_)
+  wram_exec [hl_val]
+  refine WP.name fun a ha => ?_
   obtain ⟨z, hz, hz_val, -, -, hz_mem, -, -, hz_frame⟩ :=
     Power.exec_rename scratch hscratch 2 (dynamicWidth widthCoeff S) (by decide) a
-      ha_base ha_exp hpfit
-  have hz_frame_all (i : Fin R) (hi : ∀ k : Fin 5, scratch k ≠ i) : z.regs i = x.regs i := by
-    have hz_a : z.regs i = a.regs i := hz_frame i hi
-    have ha_a₂ : a.regs i = a₂.regs i := Function.update_of_ne (hi 2).symm _ _
-    have ha₂_a₁ : a₂.regs i = a₁.regs i := Function.update_of_ne (hi 3).symm _ _
-    have ha₁_l : a₁.regs i = l.regs i := Function.update_of_ne (hi 2).symm _ _
-    have hl_x : l.regs i = x.regs i := hl_frame i (fun j => hi (j.castAdd 1))
-    exact hz_a.trans (ha_a₂.trans (ha₂_a₁.trans (ha₁_l.trans hl_x)))
-  obtain ⟨y, hy, hQ⟩ := hcont z (hz_mem.trans hl_mem) hz_val hz_frame_all
-  refine ⟨y, ?_, hQ⟩
-  apply (hl'.seq (ha.seq (hz.seq hy))).mono
+      (by wram_simp [ha, Power.base]) (by wram_simp [ha, Power.exponent]; exact Nat.mul_comm _ _)
+      hpfit
+  refine WP.of_execWithin hz ?_
+  obtain ⟨y, hy, hQ⟩ := hcont z (by rw [hz_mem, ha]; exact hl_mem) hz_val fun i hi => by
+    have := (hi 2).symm
+    have := (hi 3).symm
+    rw [hz_frame i hi, ha]; wram_simp [hl_frame i fun j => hi (j.castAdd 1)]
+  refine WP.of_execWithin hy ⟨?_, hQ⟩
   dsimp only [dynamicWidth]
   rw [Nat.add_mul, Nat.mul_assoc]
   omega
@@ -278,6 +242,9 @@ theorem dynamicSetup_not_readsWidth {r : ℕ} (scratch : Fin 5 → Fin (r + 3)) 
   simp only [Code.ReadsWidth, Op.ReadsWidth, normalizeRegisters_not_readsWidth, or_self,
     not_false_eq_true]
 
+private theorem base_ne_modulus {r : ℕ} : (Reg.base : Fin (r + 3)) ≠ Reg.modulus := by
+  simp [Fin.ext_iff, Reg.base, Reg.modulus]
+
 /-- Execute `dynamicSetup` on `Data (r + 3)` when `Reg.base` holds `b` and `scratch 0` holds `S`.
 All memory words survive and the resulting source view is bounded at `dynamicWidth widthCoeff S`. -/
 theorem exec_dynamicSetup {r W b widthCoeff S : ℕ}
@@ -301,22 +268,13 @@ theorem exec_dynamicSetup {r W b widthCoeff S : ℕ}
       (view (dynamicWidth widthCoeff S) b y).Bounded (dynamicWidth widthCoeff S))
     fun z hz_mem hz_val hz_frame => by
       have hzb : z.regs Reg.base = b := (hz_frame Reg.base hbase).trans hb
-      let z' := z.set Reg.modulus (dynamicWindowSize widthCoeff S)
-      have hcopy : ExecWithin (B := .standard) W
-          (.op (.copy Reg.modulus (scratch 0))) z z' 1 := by
-        simpa only [z', hz_val] using
-          ExecWithin.copy (B := .standard) (w := W) (x := z) (d := Reg.modulus) (s := scratch 0)
-      have hmb_ne : (Reg.modulus : Fin (r + 3)) ≠ Reg.base := by
-        intro h
-        have hv := congrArg Fin.val h
-        simp only [Reg.modulus, Reg.base] at hv
-        omega
-      have hz'b : z'.regs Reg.base = b := by
-        simpa only [z', Data.set_regs, Function.update_of_ne hmb_ne.symm] using hzb
-      have hz'm : z'.regs Reg.modulus = 2 ^ dynamicWidth widthCoeff S := by
-        simp [z', dynamicWindowSize]
-      obtain ⟨y, hnorm, hymem, hymatch, hybound, -⟩ := exec_normalizeRegisters z' hz'b hz'm hw
-      exact ⟨y, hcopy.seq hnorm, hymem.trans hz_mem, hymatch, hybound⟩
+      have hbm := base_ne_modulus (r := r)
+      refine WP.exists_execWithin ?_
+      wram_exec [hz_val]
+      refine WP.name fun z' hz' => ?_
+      obtain ⟨y, hnorm, hymem, hymatch, hybound, -⟩ := exec_normalizeRegisters (b := b) z'
+        (by wram_simp [hz', hzb]) (by wram_simp [hz', dynamicWindowSize]) hw
+      exact WP.of_execWithin hnorm ⟨by omega, by rw [hymem, hz']; exact hz_mem, hymatch, hybound⟩
   exact ⟨y, hy.mono (by omega), hpost⟩
 
 /-- Compute `2 ^ (widthCoeff * Nat.clog 2 S)` in `scratch`, copy `baseReg` and the computed
@@ -396,39 +354,21 @@ theorem exec_dynamicSetupBank {r R W b widthCoeff S : ℕ}
         y.regs i = x.regs i)
     fun z hz_mem hz_val hz_frame => by
       have hzb : z.regs baseReg = b := (hz_frame baseReg hbase).trans hb
-      let z₁ := z.set (winBank Reg.base) b
-      let z₂ := z₁.set (winBank Reg.modulus) (dynamicWindowSize widthCoeff S)
-      have hcopy_b : ExecWithin (B := .standard) W
-          (.op (.copy (winBank Reg.base) baseReg)) z z₁ 1 := by
-        simpa only [z₁, hzb] using
-          ExecWithin.copy (B := .standard) (w := W) (x := z) (d := winBank Reg.base) (s := baseReg)
-      have hz₁_val : z₁.regs (scratch 0) = dynamicWindowSize widthCoeff S := by
-        simpa only [z₁, Data.set_regs, Function.update_of_ne hmod.symm] using hz_val
-      have hcopy_m : ExecWithin (B := .standard) W
-          (.op (.copy (winBank Reg.modulus) (scratch 0))) z₁ z₂ 1 := by
-        simpa only [z₂, hz₁_val] using
-          ExecWithin.copy (B := .standard) (w := W) (x := z₁)
-            (d := winBank Reg.modulus) (s := scratch 0)
-      have hmb_ne : (Reg.modulus : Fin (r + 3)) ≠ Reg.base := by
-        intro h
-        have hv := congrArg Fin.val h
-        simp only [Reg.modulus, Reg.base] at hv
-        omega
-      have hz₂_b : (z₂.comap winBank).regs Reg.base = b := by
-        change (Function.update z₁.regs (winBank Reg.modulus) _) (winBank Reg.base) = b
-        rw [Function.update_of_ne (hwin.ne hmb_ne).symm]
-        simp [z₁]
-      have hz₂_m : (z₂.comap winBank).regs Reg.modulus = 2 ^ dynamicWidth widthCoeff S := by
-        simp [z₂, dynamicWindowSize]
+      have hbm := hwin.ne (base_ne_modulus (r := r))
+      have hmod' := hmod.symm
+      refine WP.exists_execWithin ?_
+      wram_exec [hzb, hz_val]
+      refine WP.name fun z₂ hz₂ => ?_
       obtain ⟨y, hnorm, ⟨hymem, hymatch, hybound, -⟩, hyframe⟩ :=
-        ExecWithin.rename_post hwin
-          (exec_normalizeRegisters (z₂.comap winBank) hz₂_b hz₂_m hw)
-      refine ⟨y, (hcopy_b.seq hcopy_m).seq hnorm, hymem.trans hz_mem, hymatch, hybound, ?_⟩
-      intro i hi_s hi_w
-      have hy_z₂ : y.regs i = z₂.regs i := hyframe i hi_w
-      have hz₂_z₁ : z₂.regs i = z₁.regs i := Function.update_of_ne (hi_w Reg.modulus).symm _ _
-      have hz₁_z : z₁.regs i = z.regs i := Function.update_of_ne (hi_w Reg.base).symm _ _
-      exact hy_z₂.trans (hz₂_z₁.trans (hz₁_z.trans (hz_frame i hi_s)))
+        ExecWithin.rename_post hwin (exec_normalizeRegisters (z₂.comap winBank)
+          (show z₂.regs wb = b by wram_simp [hz₂])
+          (show z₂.regs wm = _ by wram_simp [hz₂]; exact hz_val) hw)
+      refine WP.of_execWithin hnorm ⟨by omega, hymem.trans (by rw [hz₂]; exact hz_mem),
+        hymatch, hybound, fun i hi_s hi_w => ?_⟩
+      have := (hi_w Reg.base).symm
+      have := (hi_w Reg.modulus).symm
+      rw [hyframe i hi_w, hz₂]
+      wram_simp [hz_frame i hi_s]
   exact ⟨y, hy.mono (by omega), hpost⟩
 
 /-- Complete dynamic-window call in an embedded bank: compute `2 ^ (widthCoeff * Nat.clog 2 S)` in
@@ -496,28 +436,21 @@ theorem exec_dynamicCallBank {r R W b widthCoeff S T : ℕ}
   obtain ⟨s, hs, hsmem, hsmatch, hsbound, hsregs⟩ :=
     exec_dynamicSetupBank hwin hscratch hbase hmod hc hS x hb hxS hfit
   let v := view (dynamicWidth widthCoeff S) b (s.comap winBank)
-  have hvmem (a : ℕ) : v.mem a = x.mem (b + a) % dynamicWindowSize widthCoeff S := by
-    change s.mem (b + a) % _ = _
-    rw [hsmem]
-    rfl
+  have hvmem (a : ℕ) : v.mem a = x.mem (b + a) % dynamicWindowSize widthCoeff S :=
+    congrArg (· % _) (congrFun hsmem (b + a))
   obtain ⟨z, hz, hpost⟩ := hsrc v hsbound hvmem
   obtain ⟨y, hy, ⟨hymatch, hyframe_mem⟩, hyframe_regs⟩ :=
     ExecWithin.rename_post hwin
       (execWithin hz hcallee hsbound hsmatch hw hwin_fit)
-  refine ⟨z, y, hs.seq hy, hymatch, hpost, ?_, ?_⟩
-  · intro a ha
-    exact (hyframe_mem a ha).trans (congrFun hsmem a)
-  · intro i hi_s hi_w
-    exact (hyframe_regs i hi_w).trans (hsregs i hi_s hi_w)
+  exact ⟨z, y, hs.seq hy, hymatch, hpost, fun a ha => (hyframe_mem a ha).trans (congrFun hsmem a),
+    fun i hi_s hi_w => (hyframe_regs i hi_w).trans (hsregs i hi_s hi_w)⟩
 
 /-- Whenever `inp` fits at width `w` and physical memory `[b, b + L)` equals `(Data.init inp).mem`,
 the clipped source view `view w b x` agrees on `[0, L)` with `Data.init inp`. -/
 theorem view_mem_init_of_inputFits {r r₀ w b L : ℕ} {inp : List ℕ} (hi : InputFits w inp)
     (x : Data (r + 3)) (hinput : ∀ q < L, x.mem (b + q) = (Data.init inp : Data r₀).mem q) :
-    ∀ q < L, (view w b x).mem q = (Data.init inp : Data r₀).mem q := by
-  have hbound := Data.Bounded.init (r := r₀) hi
-  intro q hq
-  change x.mem (b + q) % 2 ^ w = _
-  rw [hinput q hq, Nat.mod_eq_of_lt (hbound.2 q)]
+    ∀ q < L, (view w b x).mem q = (Data.init inp : Data r₀).mem q :=
+  fun q hq => (congrArg (· % 2 ^ w) (hinput q hq)).trans
+    (Nat.mod_eq_of_lt ((Data.Bounded.init (r := r₀) hi).2 q))
 
 end Cslib.WordRAM.MemoryWindow

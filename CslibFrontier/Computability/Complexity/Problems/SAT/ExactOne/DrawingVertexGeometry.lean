@@ -42,11 +42,8 @@ open Cslib.Logic.PL Orthogonal
 theorem profileVariableIndex_lt (p : ClauseProfile)
     {v : CNF.PositiveExactOneCompile.Variable ℕ} (hv : v ∈ profileVariables p) :
     (profileVariables p).idxOf v < (profilePrefixGeometry p).variablePositions.length := by
-  have hlen : (profilePrefixGeometry p).variablePositions.length = (profileVariables p).length := by
-    simpa only [profilePrefixGeometry, LocalGeometry.toPrefix, List.length_map,
-      List.length_zipIdx] using profileGeometry_variable_length p
-  rw [hlen]
-  exact List.idxOf_lt_length_of_mem hv
+  simpa only [profilePrefixGeometry, LocalGeometry.toPrefix, List.length_map,
+    List.length_zipIdx, profileGeometry_variable_length p] using List.idxOf_lt_length_of_mem hv
 
 /-- A private logical variable cannot be one of the exposed source placeholders. -/
 theorem profileAuxiliaryIndex_not_terminal (p : ClauseProfile)
@@ -97,13 +94,10 @@ theorem prefix_variablePoint_ne_clausePoint {g : LocalGeometry}
     (h : LocalGeometry.PrefixCheck g) {i j : ℕ}
     (hi : i < g.variablePositions.length) (hj : j < g.clausePositions.length) :
     g.variablePosition i ≠ g.clausePosition j := by
-  have hn := (List.nodup_append.mp h.1).2.2
-  have hvi : g.variablePosition i ∈ g.variablePositions := by
-    simp only [LocalGeometry.variablePosition, List.getD_eq_getElem _ _ hi]
+  refine (List.nodup_append.mp h.1).2.2 _ ?_ _ ?_
+  · rw [LocalGeometry.variablePosition, List.getD_eq_getElem _ _ hi]
     exact List.getElem_mem hi
-  have hcj : g.clausePosition j ∈ g.clausePositions := by
-    simp only [LocalGeometry.clausePosition, List.getD_eq_getElem _ _ hj]
+  · rw [LocalGeometry.clausePosition, List.getD_eq_getElem _ _ hj]
     exact List.getElem_mem hj
-  exact hn _ hvi _ hcj
 
 end Cslib.Complexity.SAT.ExactOne

@@ -11,11 +11,12 @@ public import CslibFrontier.DataStructure.Dictionary.Spec
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.MultiplyShift
 public import CslibFrontier.Computability.WordRAM.ExactNotation
 public import CslibFrontier.DataStructure.WordRAM.Randomized.StateTransition
-import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.Probability.PMF.Expect
 import Mathlib.Data.Nat.Log
 public import CslibFrontier.Tactic.WramOmega.Init
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
+import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -489,9 +490,8 @@ theorem IsChain.lt_sz {mem : ℕ → ℕ} {nextBase sz ptr : ℕ} {L : List ℕ}
   induction h with
   | nil => simp
   | cons hlt _ _ ih =>
-    intro idx hm
-    rcases List.mem_cons.mp hm with rfl | hm'
-    exacts [hlt, ih idx hm']
+    rintro _ (_ | ⟨_, hm'⟩)
+    exacts [hlt, ih _ hm']
 
 theorem IsChain.unique {mem : ℕ → ℕ} {nextBase sz₁ sz₂ ptr : ℕ} {L₁ L₂ : List ℕ}
     (h₁ : IsChain mem nextBase sz₁ ptr L₁) (h₂ : IsChain mem nextBase sz₂ ptr L₂) :
@@ -560,12 +560,10 @@ theorem BucketInv.congr_mem {U n_max base : ℕ} {b : Fin (2 ^ (hashBits U n_max
     (hcard : (Dictionary.dom s).card ≤ n_max)
     (hmem : ∀ a ∈ (Block.mk base (space n_max)).footprint, mem' a = mem a) :
     BucketInv U n_max base b s mem' bk L :=
-  have hfp (a : ℕ) (h : base ≤ a ∧ a < base + space n_max) : mem' a = mem a :=
-    hmem a (Block.mem_footprint.mpr h)
-  hb.mono_of_mem le_rfl (hfp _ (by wram_omega))
-    (fun j hj => hfp _ (by have := hb.chain.lt_sz j hj; wram_omega))
-    (fun j hj => hfp _ (by have := hb.chain.lt_sz j hj; wram_omega))
-    (fun j hj => hfp _ (by have := hb.chain.lt_sz j hj; wram_omega))
+  hb.mono_of_mem le_rfl (by mem_frame)
+    (fun j hj => by have := hb.chain.lt_sz j hj; mem_frame)
+    (fun j hj => by have := hb.chain.lt_sz j hj; mem_frame)
+    (fun j hj => by have := hb.chain.lt_sz j hj; mem_frame)
     (fun _ _ => rfl)
 
 /-- If `idx₁ ∈ L₁` (in bucket `bk₁`) and `idx₂ ∈ L₂` (in bucket `bk₂`) and `idx₁ = idx₂`, then
@@ -664,11 +662,10 @@ theorem Rep.unique {U V n_max w base : ℕ} {b : Fin (2 ^ (hashBits U n_max - 1)
     obtain ⟨u₂, hk₂, _, hs₂⟩ := hbb.sound idx hidx
     rw [Fin.ext (hk₁.symm.trans hk), ha] at hs₁
     exact (Fin.ext (hk₂.symm.trans hk) ▸ hs₂).trans hs₁.symm
-  cases h₁ : s₁ u with
-  | some v₁ => exact (lookup hb₁ hb₂ h₁).symm
-  | none => cases h₂ : s₂ u with
-    | none => rfl
-    | some v₂ => exact absurd (lookup hb₂ hb₁ h₂) (by simp [h₁])
+  rcases h₁ : s₁ u with _ | v₁
+  · rcases h₂ : s₂ u with _ | v₂
+    exacts [rfl, absurd (lookup hb₂ hb₁ h₂) (by simp [h₁])]
+  · exact (lookup hb₁ hb₂ h₁).symm
 
 theorem Rep.supported {U V n_max w base : ℕ} {b : Fin (2 ^ (hashBits U n_max - 1))}
     {s : Dictionary.State U} {x x' : Data rHash}
@@ -676,18 +673,11 @@ theorem Rep.supported {U V n_max w base : ℕ} {b : Fin (2 ^ (hashBits U n_max -
     (hmem : ∀ a ∈ (Block.mk base (space n_max)).footprint, x'.mem a = x.mem a)
     (hbx' : x'.Bounded w) (hr : Rep U V n_max w base b s x) :
     Rep U V n_max w base b s x' :=
-  have hfp (i : ℕ) (hi : i < 4) : x'.mem (base + i) = x.mem (base + i) :=
-    hmem _ (Block.mem_footprint.mpr (by wram_omega))
-  ⟨hbx', by regs_frame, (hfp 0 (by decide)).trans hr.mem_seed,
-    (hfp 1 (by decide)).trans hr.mem_M, (hfp 2 (by decide)).trans hr.mem_w0,
-    (hfp 3 (by decide)).trans hr.mem_sz, hr.card_le, hr.vals_lt,
+  ⟨hbx', by regs_frame, by mem_frame, by mem_frame, by mem_frame, by mem_frame,
+    hr.card_le, hr.vals_lt,
     fun bk hbk => let ⟨L, hb⟩ := hr.buckets bk hbk; ⟨L, hb.congr_mem hbk hr.card_le hmem⟩⟩
 
 /-! ## 4. Initialization execution (`allocSpan`, `storeHeader`, `initSetup`) -/
-
-private theorem not_mem_range_hashEmbed {r : Fin rHash} (hr : 5 ≤ r.val) :
-    r ∉ Set.range hashEmbed := by
-  rintro ⟨i, rfl⟩; exact i.isLt.not_ge hr
 
 private theorem fits_hashBits {U n_max w : ℕ} (hw : 2 * hashBits U n_max ≤ w) :
     Fits w (hashBits U n_max) :=
@@ -701,9 +691,9 @@ private theorem allocSpan_spec {n_max w base : ℕ} (hS : Fits w (base + space n
     {x : Data rHash} (hfr : x.regs frontierReg = base) :
     ∃ x₁, ExecWithin w (allocSpan n_max) x x₁ 3 ∧ x₁.mem = x.mem ∧
       x₁.regs baseReg = base ∧ x₁.regs frontierReg = base + space n_max := by
-  refine ⟨?_, ?e, ?_, ?_, ?_⟩
-  case e => ram_exact_eval [allocSpan, hfr, hS]
-  all_goals rfl
+  unfold allocSpan
+  wram_exec [hS.of_le, hfr]
+  exact ⟨rfl, by wram_simp, by wram_simp⟩
 
 private theorem storeHeader_spec {U V n_max w base : ℕ}
     (hw : 2 * hashBits U n_max ≤ w) (hS : Fits w (base + space n_max))
@@ -716,22 +706,17 @@ private theorem storeHeader_spec {U V n_max w base : ℕ}
       y.regs frontierReg = base + space n_max ∧
       Rep U V n_max w base b (Dictionary.empty U) y ∧
       Modifies (Block.mk base (space n_max)).footprint x.mem y.mem := by
-  have hsp : 4 ≤ space n_max := by wram_omega
-  have fb3 : Fits w (base + 1 + 1 + 1) := hS.of_le (by omega)
-  obtain ⟨y, he, hyfr, hybase, hym⟩ : ∃ y, Exec w (storeHeader U n_max) x y 11 ∧
-      y.regs frontierReg = base + space n_max ∧ y.regs baseReg = base ∧
-      y.mem = ((((x.write base b.val).write (base + 1) (bucketBits n_max)).write
-        (base + 1 + 1) (hashBits U n_max)).write (base + 1 + 1 + 1) 0).mem := by
-    refine ⟨?_, ?e, ?_, ?_, ?_⟩
-    case e => ram_exact_eval [storeHeader, hbase, hb, fb3, fits_bucketBits hw, fits_hashBits hw]
-    all_goals first | rfl | simp +decide [hfr, hbase]
-  refine ⟨y, he, hyfr, ⟨he.within.bounded hx, hybase, by wram_simp [hym], by wram_simp [hym],
-    by wram_simp [hym], by wram_simp [hym, Dictionary.card_dom_empty], by simp,
-    Dictionary.valuesBounded_empty U V, fun bk hbk => ⟨[], ?_, List.nodup_nil,
-      (fun _ h => by cases h), (fun _ _ _ h => by cases h)⟩⟩,
-    Modifies.block_iff.mpr fun a ha => by dsimp only [Block.Owns] at ha; wram_simp [hym]⟩
-  have hhead : y.mem (headBase base + bk) = 0 := by
-    wram_simp [hym, headBase]; exact hz _ (Block.mem_footprint.mpr (by wram_omega))
+  refine WP.Exact.exists_exec (WP.Exact.bounded hx ?_)
+  unfold storeHeader
+  wram_exec [hS.of_le, fits_bucketBits hw, fits_hashBits hw, hbase, hb]
+  intro hy_bdd
+  obtain ⟨y, hy, hy_bdd⟩ : ∃ y : Data rHash, y = _ ∧ y.Bounded w := ⟨_, rfl, hy_bdd⟩
+  rw [← hy]
+  refine ⟨rfl, by regs_frame, ⟨hy_bdd, by regs_frame, by mem_frame, by mem_frame, by mem_frame,
+    by rw [Dictionary.card_dom_empty]; mem_frame, by simp, Dictionary.valuesBounded_empty U V,
+    fun bk hbk => ⟨[], ?_, List.nodup_nil, (fun _ h => by cases h),
+      (fun _ _ _ h => by cases h)⟩⟩, by mem_frame⟩
+  have hhead : y.mem (headBase base + bk) = 0 := by mem_frame
   exact hhead ▸ IsChain.nil
 
 private theorem initSetup_spec {U V n_max w base : ℕ}
@@ -756,8 +741,7 @@ private theorem initSetup_spec {U V n_max w base : ℕ}
   let x_mid (b : Seed) : Data rHash := (MultiplyShift.initData w₀ d₁ b.val).extend hashEmbed x₁
   have hregB (b : Seed) : (x_mid b).regs regB = b.val := by
     change ((x_mid b).comap hashEmbed).regs MultiplyShift.regB = b.val
-    rw [show (x_mid b).comap hashEmbed = _ from Data.comap_extend hashEmbed_injective _ x₁]
-    simp [MultiplyShift.initData]
+    simp [x_mid, Data.comap_extend hashEmbed_injective, MultiplyShift.initData]
   have hstep2 (b : Seed) : ∃ y, Exec w (storeHeader U n_max) (x_mid b) y 11 ∧
       y.regs frontierReg = base + space n_max ∧ Rep U V n_max w base b (Dictionary.empty U) y ∧
       Modifies (Block.mk base (space n_max)).footprint x₁.mem y.mem := by
@@ -766,9 +750,7 @@ private theorem initSetup_spec {U V n_max w base : ℕ}
         (Fits.mono (Nat.sub_lt (Nat.two_pow_pos _) one_pos) (by omega))).set
         (Fits.mono b.isLt (by omega))
     exact storeHeader_spec hw hS (hbdd.extend hashEmbed_injective hx₁)
-      ((Data.extend_regs_of_notMem _ _ (not_mem_range_hashEmbed (by decide))).trans hbase)
-      ((Data.extend_regs_of_notMem _ _ (not_mem_range_hashEmbed (by decide))).trans hfr)
-      (hregB b) hz
+      (by regs_frame) (by regs_frame) (hregB b) hz
   let y_init (b : Seed) := Classical.choose (hstep2 b)
   let hys (b : Seed) := Classical.choose_spec (hstep2 b)
   have hinit1 : ExecCodeDist w ((MultiplyShift.initCode w₀).rename hashEmbed)
@@ -784,18 +766,14 @@ private theorem initSetup_spec {U V n_max w base : ℕ}
   let μ₂ (z : Data rHash) : PMF (Data rHash) :=
     if h : z.regs regB < 2 ^ (w₀ - 1) then PMF.pure (y_init ⟨z.regs regB, h⟩) else PMF.pure z
   have hμ₂ (b : Seed) : μ₂ (x_mid b) = PMF.pure (y_init b) := by
-    have hlt : (x_mid b).regs regB < 2 ^ (w₀ - 1) := hregB b ▸ b.isLt
-    have : (⟨(x_mid b).regs regB, hlt⟩ : Seed) = b := Fin.ext (hregB b)
-    simp only [μ₂, hlt, ↓reduceDIte, this]
+    simp [μ₂, hregB b, b.isLt]
   refine ⟨seedLaw.map fun b => (b, y_init b), ?_, fun θ => ?_, fun p hp => ?_⟩
   · refine (hinit1.seq_const (c₂ := storeHeader U n_max) (μ₂ := μ₂) (T₂ := fun _ => 11) (B₂ := 11)
       (fun z hz => by
         obtain ⟨b, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hz
         exact hμ₂ b ▸ ExecCodeDist.of_exec (hys b).1)
       (fun _ _ => le_rfl)).congr_dist ?_ (by norm_num)
-    rw [PMF.bind_map, PMF.map_comp]
-    simp only [Function.comp_def, hμ₂]
-    rfl
+    simp only [PMF.bind_map, PMF.map_comp, Function.comp_def, hμ₂]; rfl
   · rw [PMF.map_comp, show Prod.fst ∘ (fun b : Seed => (b, y_init b)) = id from rfl,
       PMF.map_id, one_mul]
   · obtain ⟨b, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
@@ -825,55 +803,28 @@ private theorem evalBucket_spec {U V n_max w base : ℕ}
       y.regs cur = x.mem (headBase base + bk) ∧
       y.regs found = 0 := by
   intro bk
-  set x₁ := (x.set regB b.val).set regX u.val
-  have he1 : Exec w prepHash x x₁ 2 := by
-    ram_exact_eval [prepHash, hr.reg_base, hr.mem_seed, hu]
-  have hd₁_B : (x₁.comap hashEmbed).regs MultiplyShift.regB = b.val := by
-    change x₁.regs regB = b.val; simp +decide [x₁]
-  have hd₁_X :
-      (x₁.comap hashEmbed).regs MultiplyShift.regX = (encodeKey (n_max := n_max) u).val := by
-    change x₁.regs regX = u.val; simp +decide [x₁]
-  have he2 := (MultiplyShift.evalCode_exec (M := bucketBits n_max) (hashBits_pos U n_max) hw
-    (hd₁_B ▸ b.isLt) (hd₁_X ▸ (encodeKey u).isLt)).rename hashEmbed_injective (x := x₁)
-  set x₂ := (MultiplyShift.evalData (hashBits U n_max) (bucketBits n_max)
-    (x₁.comap hashEmbed)).extend hashEmbed x₁
-  have hkeep (r : Fin rHash) (hr5 : 5 ≤ r.val) : x₂.regs r = x.regs r := by
-    rw [Data.extend_regs_of_notMem _ _ (not_mem_range_hashEmbed hr5)]
-    exact Data.set_regs_of_ne (Fin.ne_of_val_ne (by change r.val ≠ 1; omega)) _
-      |>.trans (Data.set_regs_of_ne (Fin.ne_of_val_ne (by change r.val ≠ 0; omega)) _)
-  have hbase2 : x₂.regs baseReg = base := (hkeep _ (by decide)).trans hr.reg_base
+  have hbk_lt : bk < numBuckets n_max := multiplyShift_lt_numBuckets b u
+  have fcur : Fits w (x.mem (base + 4 + bk)) := hr.bounded.2 _
+  refine WP.Exact.exists_exec (WP.Exact.bounded hr.bounded ?_)
+  unfold evalBucket prepHash loadBucketHead
+  wram_exec [hr.reg_base, hr.mem_seed, hu]
+  wram_call (MultiplyShift.evalCode_exec (M := bucketBits n_max) (hashBits_pos U n_max) hw)
+    canonical [b.isLt, (encodeKey (n_max := n_max) u).isLt]
+  refine WP.Exact.name fun x₂ hx₂ => ?_
   have hout2 : x₂.regs regOut = bk := by
     change (x₂.comap hashEmbed).regs MultiplyShift.regOut = bk
-    rw [show x₂.comap hashEmbed = _ from Data.comap_extend hashEmbed_injective _ x₁]
-    exact MultiplyShift.evalData_regs_out_eq_multiplyShift _ _ _ b (encodeKey u) hd₁_B hd₁_X
-  have hbk_lt : bk < numBuckets n_max := multiplyShift_lt_numBuckets b u
-  have fxb : Fits w (base + 4 + numBuckets n_max + n_max + n_max) := hS.of_le (by wram_omega)
-  have fhbk : Fits w (base + 4 + bk) := hS.of_le (by wram_omega)
-  have fcur : Fits w (x₂.mem (base + 4 + bk)) :=
-    (he2.within.bounded (he1.within.bounded hr.bounded)).2 _
-  obtain ⟨y, he3, hmy, hbase3, htag3, hargU3, hargV3, hout3, hz3, ho3,
-      hhb3, hkb3, hvb3, hxb3, hcur3, hfnd3⟩ : ∃ y, Exec w (loadBucketHead n_max) x₂ y 13 ∧
-      y.mem = x.mem ∧ y.regs baseReg = base ∧ y.regs tagReg = x.regs tagReg ∧
-      y.regs argU = u.val ∧ y.regs argV = x.regs argV ∧ y.regs regOut = bk ∧
-      y.regs zero = 0 ∧ y.regs one = 1 ∧ y.regs headBaseReg = headBase base ∧
-      y.regs keyBaseReg = keyBase base n_max ∧ y.regs valBaseReg = valBase base n_max ∧
-      y.regs nextBaseReg = nextBase base n_max ∧ y.regs cur = x.mem (headBase base + bk) ∧
-      y.regs found = 0 := by
-    refine ⟨?_, ?e, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    case e => ram_exact_eval [loadBucketHead, hbase2, hout2, fxb, fhbk, fcur]
-    · rfl
-    · simp +decide [hbase2]
-    · simp +decide [hkeep tagReg (by decide)]
-    · simp +decide [hkeep argU (by decide), hu]
-    · simp +decide [hkeep argV (by decide)]
-    · simp +decide [hout2]
-    all_goals first
-      | (simp +decide [headBase, keyBase, valBase]; done)
-      | (simp +decide [nextBase]; omega)
-      | rfl
-  have he := he1.seq (he2.seq he3)
-  exact ⟨y, he, he.within.bounded hr.bounded, hmy, hbase3, htag3, hargU3, hargV3, hout3, hz3,
-    ho3, hhb3, hkb3, hvb3, hxb3, hcur3, hfnd3⟩
+    subst hx₂
+    rw [Data.comap_extend hashEmbed_injective]
+    exact MultiplyShift.evalData_regs_out_eq_multiplyShift _ _ _ b (encodeKey u)
+      (by wram_simp) (by wram_simp; rfl)
+  have hbase2 : x₂.regs baseReg = base := by regs_frame
+  have hmem2 : x₂.mem = x.mem := by subst hx₂; rfl
+  wram_exec [hS.of_le, hbase2, hout2, hmem2, fcur]
+  intro hy_bdd
+  exact ⟨rfl, hy_bdd, by mem_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+    by regs_frame, by wram_simp, by wram_simp, by wram_simp; rfl, by wram_simp; rfl,
+    by wram_simp; rfl, by wram_simp; dsimp only [nextBase]; omega,
+    by wram_simp; rfl, by wram_simp⟩
 
 /-- One `findInChainBody` iteration at chain index `idx₀` (`cur = idx₀ + 1`) with successor
 pointer `ptr'` keeps memory and the frame registers. On a key hit it sets `cur = 0`,
@@ -902,23 +853,15 @@ private theorem findInChainBody_spec {U n_max w base : ℕ} (hS : Fits w (base +
         x₁.regs cur = 0 ∧ x₁.regs found = 1 ∧ x₁.regs matchIdx = idx₀) ∧
       (x.mem (keyBase base n_max + idx₀) ≠ u.val →
         x₁.regs cur = ptr' ∧ x₁.regs found = x.regs found) := by
-  have hsp : 4 + numBuckets n_max + 3 * n_max = space n_max := rfl
-  have fidx : Fits w idx₀ := hS.of_le (by omega)
-  have fkaddr : Fits w (keyBase base n_max + idx₀) := hS.of_le (by wram_omega)
-  have fnaddr : Fits w (nextBase base n_max + idx₀) := hS.of_le (by wram_omega)
-  by_cases hhit : x.mem (keyBase base n_max + idx₀) = u.val
-  · refine ⟨?_, ?e1, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-      fun _ => ⟨?_, ?_, ?_⟩, fun h => absurd hhit h⟩
-    case e1 =>
-      ram_exact_eval [findInChainBody, hcur, ho, hz, hkb, hu, hhit, Nat.add_sub_cancel,
-        fidx, fkaddr]
-    all_goals first | rfl | simp +decide [hu, hz, ho, hkb, hxb]
-  · refine ⟨?_, ?e2, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-      fun h => absurd h hhit, fun _ => ⟨?_, ?_⟩⟩
-    case e2 =>
-      ram_exact_eval [findInChainBody, hcur, ho, hz, hkb, hxb, hu, hhit, Nat.add_sub_cancel,
-        fidx, fkaddr, fnaddr]
-    all_goals first | rfl | simp +decide [hu, hz, ho, hkb, hxb, hnext]
+  refine WP.Exact.exists_exec ?_
+  unfold findInChainBody
+  wram_exec [hS.of_le, hcur, ho, hz, hkb, hxb, hu, hnext]
+  · exact ⟨rfl, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+      by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+      fun _ => ⟨by wram_simp, by wram_simp, by wram_simp⟩, fun h => absurd hc h⟩
+  · exact ⟨rfl, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+      by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+      fun h => absurd h hc, fun _ => ⟨by wram_simp, by regs_frame⟩⟩
 
 private theorem findInChain_spec {U n_max w base sz : ℕ}
     (hS : Fits w (base + space n_max)) (hsz : sz ≤ n_max)
@@ -1001,33 +944,24 @@ private theorem finishQuery_spec {U V n_max w base : ℕ}
       Rep U V n_max w base b s z ∧
       @decode U V n_max (.query u) z.regs = some (s u) ∧
       Modifies (Block.mk base (space n_max)).footprint x.mem z.mem := by
+  refine WP.exists_execWithin (WP.bounded hy_bdd ?_)
+  unfold finishOp finishQuery
   rcases hres with ⟨i, hi, hki, hyf, hym⟩ | ⟨hmiss, hyf⟩
   · have hi_lt : i < n_max := (hbL.chain.lt_sz i hi).trans_le hr.card_le
     obtain ⟨u', hku', _, hsu'⟩ := hbL.sound i hi
     obtain rfl : u = u' := Fin.ext (hki.symm.trans hku')
-    have fvaddr : Fits w (valBase base n_max + i) := hS.of_le (by wram_omega)
     have fv1 : Fits w (y.mem (valBase base n_max + i) + 1) :=
       hmy ▸ hV.of_le (hr.vals_lt u _ hsu')
-    obtain ⟨z, he, hmz, hbasez, houtz⟩ : ∃ z, Exec w finishOp y z 5 ∧ z.mem = y.mem ∧
-        z.regs baseReg = base ∧ z.regs outReg = y.mem (valBase base n_max + i) + 1 := by
-      refine ⟨?_, ?e, ?_, ?_, ?_⟩
-      case e => ram_exact_eval [finishOp, finishQuery, htag, hz, ho, hyf, hvb, hym, fvaddr, fv1]
-      all_goals first | rfl | simp +decide [hbase]
-    exact ⟨z, he.within.mono (by omega),
-      hr.of_mem_eq (he.within.bounded hy_bdd) hbasez (hmz.trans hmy),
-      by simp [decode, houtz, hmy, hsu', Dictionary.spec], fun a _ => congrFun (hmz.trans hmy) a⟩
-  · have hsu : s u = none := by
-      cases h : s u with
-      | none => rfl
-      | some v => obtain ⟨i, hi, hki⟩ := hbL.complete u v rfl h; exact absurd hki (hmiss i hi)
-    obtain ⟨z, he, hmz, hbasez, houtz⟩ : ∃ z, Exec w finishOp y z 4 ∧ z.mem = y.mem ∧
-        z.regs baseReg = base ∧ z.regs outReg = 0 := by
-      refine ⟨?_, ?e, ?_, ?_, ?_⟩
-      case e => ram_exact_eval [finishOp, finishQuery, htag, hz, hyf]
-      all_goals first | rfl | simp +decide [hbase]
-    exact ⟨z, he.within.mono (by omega),
-      hr.of_mem_eq (he.within.bounded hy_bdd) hbasez (hmz.trans hmy),
-      by simp [decode, houtz, hsu, Dictionary.spec], fun a _ => congrFun (hmz.trans hmy) a⟩
+    wram_exec [hS.of_le, htag, hz, ho, hyf, hvb, hym, fv1]
+    intro hz_bdd
+    exact ⟨by omega, hr.of_mem_eq hz_bdd (by regs_frame) hmy,
+      by wram_simp; simp [decode, hmy, hsu', Dictionary.spec], by mem_frame⟩
+  · have hsu : s u = none := Option.eq_none_iff_forall_not_mem.mpr fun v h =>
+      (hbL.complete u v rfl h).elim fun i ⟨hi, hki⟩ => hmiss i hi hki
+    wram_exec [htag, hz, hyf]
+    intro hz_bdd
+    exact ⟨by omega, hr.of_mem_eq hz_bdd (by regs_frame) hmy,
+      by wram_simp; simp [decode, hsu, Dictionary.spec], by mem_frame⟩
 
 private theorem finishInsertHit_spec {U V n_max w base : ℕ}
     (hS : Fits w (base + space n_max))
@@ -1052,41 +986,35 @@ private theorem finishInsertHit_spec {U V n_max w base : ℕ}
   obtain rfl : u = u₀ := Fin.ext (hki.symm.trans hku₀)
   have hcard_eq : (Dictionary.dom s').card = (Dictionary.dom s).card :=
     Dictionary.card_dom_insert_eq_of_isSome (by simp [hsu₀]) v
-  have fvaddr : Fits w (valBase base n_max + i) := hS.of_le (by wram_omega)
-  obtain ⟨z, he, hmz, hbasez⟩ : ∃ z, Exec w finishOp y z 5 ∧
-      z.mem = Function.update y.mem (valBase base n_max + i) v ∧ z.regs baseReg = base := by
-    refine ⟨?_, ?e, ?_, ?_⟩
-    case e =>
-      ram_exact_eval [finishOp, finishInsert, finishInsertHit, htag, hz, hyf, hvb, hym, hargV,
-        fvaddr]
-    all_goals first | rfl | simp +decide [hbase]
-  rw [hmy] at hmz
-  have hne_val (a : ℕ) (ha : a ≠ valBase base n_max + i) : z.mem a = x.mem a :=
-    hmz ▸ Function.update_of_ne ha _ _
-  refine ⟨z, he.within.mono (by omega), ⟨he.within.bounded hy_bdd, hbasez,
-      (hne_val _ (by wram_omega)).trans hr.mem_seed, (hne_val _ (by wram_omega)).trans hr.mem_M,
-      (hne_val _ (by wram_omega)).trans hr.mem_w0,
-      (hne_val _ (by wram_omega)).trans (hr.mem_sz.trans hcard_eq.symm),
-      hcard_eq ▸ hsz_le, Dictionary.valuesBounded_step_of_valid hr.vals_lt hv,
-      fun bk' hbk' => ?_⟩,
-    Modifies.block_iff.mpr fun a ha => by
-      dsimp only [Block.Owns] at ha; exact hne_val _ (by wram_omega)⟩
+  refine WP.exists_execWithin (WP.bounded hy_bdd ?_)
+  unfold finishOp finishInsert finishInsertHit
+  wram_exec [hS.of_le, htag, hz, hyf, hvb, hym, hargV]
+  intro hz_bdd
+  obtain ⟨z, hz_eq, hz_bdd⟩ : ∃ z : Data rHash, z = _ ∧ z.Bounded w := ⟨_, rfl, hz_bdd⟩
+  rw [← hz_eq]
+  refine ⟨by omega, ⟨hz_bdd, by regs_frame, by mem_frame, by mem_frame, by mem_frame,
+      by rw [hcard_eq]; mem_frame, hcard_eq ▸ hsz_le,
+      Dictionary.valuesBounded_step_of_valid hr.vals_lt hv, fun bk' hbk' => ?_⟩, by mem_frame⟩
   obtain ⟨L', hbL'⟩ := hr.buckets bk' hbk'
-  have hhead := hne_val (headBase base + bk') (by wram_omega)
-  have hkey (j : ℕ) (hj : j ∈ L') := hne_val (keyBase base n_max + j)
-    (by have := hbL'.chain.lt_sz j hj; wram_omega)
-  have hnext (j : ℕ) (hj : j ∈ L') := hne_val (nextBase base n_max + j)
-    (by have := hbL'.chain.lt_sz j hj; wram_omega)
-  refine ⟨L', hcard_eq ▸ hhead ▸ hbL'.chain.congr_mem hnext,
+  have hhead : z.mem (headBase base + bk') = x.mem (headBase base + bk') := by mem_frame
+  have hkey (j : ℕ) (hj : j ∈ L') :
+      z.mem (keyBase base n_max + j) = x.mem (keyBase base n_max + j) :=
+    by have := hbL'.chain.lt_sz j hj; mem_frame
+  refine ⟨L', hcard_eq ▸ hhead ▸ hbL'.chain.congr_mem (fun j hj => by
+      have := hbL'.chain.lt_sz j hj; mem_frame),
     List.map_congr_left hkey ▸ hbL'.nodup, fun j hj => ?_, fun u' v' hbk_u' hsv' => ?_⟩
   · obtain ⟨u', hku', hbk_u', hsu'⟩ := hbL'.sound j hj
     refine ⟨u', (hkey j hj).trans hku', hbk_u', ?_⟩
     rcases eq_or_ne j i with rfl | hji
-    · obtain rfl : u' = u := Fin.ext (hku'.symm.trans hki); simp [hmz]
+    · obtain rfl : u' = u := Fin.ext (hku'.symm.trans hki)
+      have hval_eq : z.mem (valBase base n_max + j) = v := by mem_frame
+      simp [hval_eq]
     · have hu'_ne : u' ≠ u := fun h => by
         subst h; subst hbk_u'
         exact hji (hbL.idx_eq_of_key_eq (hbL'.chain.unique hbL.chain ▸ hj) hi (hku'.trans hki.symm))
-      rw [Function.update_of_ne hu'_ne, hne_val _ (by omega)]; exact hsu'
+      have hval_ne : z.mem (valBase base n_max + j) = x.mem (valBase base n_max + j) := by
+        have := hbL'.chain.lt_sz j hj; mem_frame
+      rw [Function.update_of_ne hu'_ne, hval_ne]; exact hsu'
   · rcases eq_or_ne u' u with rfl | hne
     · subst hbk_u'
       obtain rfl := hbL.chain.unique hbL'.chain
@@ -1120,54 +1048,28 @@ private theorem finishInsertMiss_spec {U V n_max w base : ℕ}
   let s' := Function.update s u (some v)
   have hbk_lt : bk < numBuckets n_max := hbk_def ▸ multiplyShift_lt_numBuckets b u
   set sz := (Dictionary.dom s).card
-  have hsu : s u = none := by
-    cases h : s u with
-    | none => rfl
-    | some v₀ =>
-      obtain ⟨i, hi, hki⟩ := hbL.complete u v₀ hbk_def.symm h
-      exact absurd hki (hmiss i hi)
+  have hsu : s u = none := Option.eq_none_iff_forall_not_mem.mpr fun v₀ h =>
+    (hbL.complete u v₀ hbk_def.symm h).elim fun i ⟨hi, hki⟩ => hmiss i hi hki
   have hsz_lt : sz < n_max := hv.1.resolve_right (by simp [hsu])
   have hcard_eq : (Dictionary.dom s').card = sz + 1 :=
     Dictionary.card_dom_insert_eq_of_eq_none hsu v
   have hmsz : y.mem (base + 3) = sz := hmy ▸ hr.mem_sz
-  let z' := ((((y.write (base + 3) (sz + 1)).write (keyBase base n_max + sz) u.val).write
-    (valBase base n_max + sz) v).write (nextBase base n_max + sz)
-    (y.mem (headBase base + bk))).write (headBase base + bk) (sz + 1)
-  have hne1 : headBase base + bk ≠ valBase base n_max + sz := by wram_omega
-  have hne2 : headBase base + bk ≠ keyBase base n_max + sz := by wram_omega
-  have hne3 : headBase base + bk ≠ base + 3 := by wram_omega
-  obtain ⟨z, he, hmz, hbasez⟩ :
-      ∃ z, Exec w finishOp y z 19 ∧ z.mem = z'.mem ∧ z.regs baseReg = base := by
-    have fb3 : Fits w (base + 3) := hS.of_le (by wram_omega)
-    have fsz1 : Fits w (sz + 1) := hS.of_le (by wram_omega)
-    have fkaddr : Fits w (keyBase base n_max + sz) := hS.of_le (by wram_omega)
-    have fvaddr : Fits w (valBase base n_max + sz) := hS.of_le (by wram_omega)
-    have fhaddr : Fits w (headBase base + bk) := hS.of_le (by wram_omega)
-    have fnaddr : Fits w (nextBase base n_max + sz) := hS.of_le (by wram_omega)
-    refine ⟨?_, ?e, ?_, ?_⟩
-    case e =>
-      ram_exact_eval [finishOp, finishInsert, finishInsertMiss, hbase, htag, hargU, hargV, hout,
-        hz, ho, hhb, hkb, hvb, hxb, hyf, hmsz, hne1, hne2, hne3,
-        fb3, fsz1, fkaddr, fvaddr, fhaddr, fnaddr]
-    all_goals first | rfl | simp +decide [hbase]
-  have hz_slot_lt (j : ℕ) (hj : j < sz) :
+  refine WP.exists_execWithin (WP.bounded hy_bdd ?_)
+  unfold finishOp finishInsert finishInsertMiss
+  wram_exec [hS.of_le, hbase, htag, hargU, hargV, hout, hz, ho, hhb, hkb, hvb, hxb, hyf, hmsz]
+  intro hz_bdd
+  obtain ⟨z, hz_eq, hz_bdd⟩ : ∃ z : Data rHash, z = _ ∧ z.Bounded w := ⟨_, rfl, hz_bdd⟩
+  rw [← hz_eq]
+  have hz_slot_lt : ∀ j < sz,
       z.mem (keyBase base n_max + j) = x.mem (keyBase base n_max + j) ∧
       z.mem (valBase base n_max + j) = x.mem (valBase base n_max + j) ∧
-      z.mem (nextBase base n_max + j) = x.mem (nextBase base n_max + j) := by
-    wram_simp [hmz, z', headBase, keyBase, valBase, nextBase, hmy]
-  have hz_hdr : z.mem base = b.val ∧ z.mem (base + 1) = bucketBits n_max ∧
-      z.mem (base + 2) = hashBits U n_max ∧ z.mem (base + 3) = sz + 1 := by
-    wram_simp [hmz, z', headBase, keyBase, valBase, nextBase, hmy, hr.mem_seed, hr.mem_M, hr.mem_w0]
+      z.mem (nextBase base n_max + j) = x.mem (nextBase base n_max + j) := by mem_frame
   have hz_sz : z.mem (keyBase base n_max + sz) = u.val ∧ z.mem (valBase base n_max + sz) = v ∧
       z.mem (nextBase base n_max + sz) = x.mem (headBase base + bk) ∧
-      z.mem (headBase base + bk) = sz + 1 := by
-    wram_simp [hmz, z', headBase, keyBase, valBase, nextBase, hmy]
-  refine ⟨z, he.within.mono (by omega), ⟨he.within.bounded hy_bdd, hbasez,
-      hz_hdr.1, hz_hdr.2.1, hz_hdr.2.2.1, hz_hdr.2.2.2.trans hcard_eq.symm, by rw [hcard_eq]; omega,
-      Dictionary.valuesBounded_step_of_valid hr.vals_lt hv, fun bk' hbk' => ?_⟩,
-    Modifies.block_iff.mpr fun a ha => by
-      dsimp only [Block.Owns, space] at ha
-      wram_simp [hmz, z', headBase, keyBase, valBase, nextBase, hmy]⟩
+      z.mem (headBase base + bk) = sz + 1 := by mem_frame
+  refine ⟨by omega, ⟨hz_bdd, by regs_frame, by mem_frame, by mem_frame, by mem_frame,
+      by rw [hcard_eq]; mem_frame, by rw [hcard_eq]; omega,
+      Dictionary.valuesBounded_step_of_valid hr.vals_lt hv, fun bk' hbk' => ?_⟩, by mem_frame⟩
   rcases eq_or_ne bk bk' with rfl | hne
   · have hmap := List.map_congr_left fun j hj => (hz_slot_lt j (hbL.chain.lt_sz j hj)).1
     refine ⟨sz :: L, hz_sz.2.2.2 ▸ .cons (by rw [hcard_eq]; omega) hz_sz.2.2.1
@@ -1190,8 +1092,7 @@ private theorem finishInsertMiss_spec {U V n_max w base : ℕ}
           (by rwa [Function.update_of_ne hu'] at hsv')
         exact ⟨j, List.mem_cons_of_mem _ hj, (hz_slot_lt j (hbL.chain.lt_sz j hj)).1.trans hkj⟩
   · obtain ⟨L', hbL'⟩ := hr.buckets bk' hbk'
-    exact ⟨L', hbL'.mono_of_mem (by rw [hcard_eq]; omega)
-      (by wram_simp [hmz, z', headBase, keyBase, valBase, nextBase, hmy])
+    exact ⟨L', hbL'.mono_of_mem (by rw [hcard_eq]; omega) (by mem_frame)
       (fun j hj => (hz_slot_lt j (hbL'.chain.lt_sz j hj)).1)
       (fun j hj => (hz_slot_lt j (hbL'.chain.lt_sz j hj)).2.1)
       (fun j hj => (hz_slot_lt j (hbL'.chain.lt_sz j hj)).2.2)
@@ -1224,8 +1125,7 @@ theorem opCode_spec {U V n_max w base : ℕ}
       Rep U V n_max w base b ((Dictionary.spec U V n_max).stepFn s o).1 z ∧
       Modifies (Block.mk base (space n_max)).footprint x.mem z.mem := by
   let u := opKey o
-  have hu_reg : x.regs argU = u.val := by
-    cases o with | query _ => exact harg.2 | insert _ _ => exact harg.2.1
+  have hu_reg : x.regs argU = u.val := by cases o <;> simp_all [argMatch, u, opKey]
   obtain ⟨L, hbL⟩ := hr.buckets _ (multiplyShift_lt_numBuckets b u)
   have hL_le : L.length ≤ 1 + collCount n_max s u b := hbL.length_le u
   obtain ⟨x₁, he1, hx₁_bdd, hmx₁, hbase1, htag1, hargU1, hargV1, hout1,
@@ -1443,11 +1343,10 @@ theorem seq_expected_amortized (U V n_max w base : ℕ)
   refine ⟨ν₀, ν_final, T_ops, he_init, hex_steps, hseed_final, hrep_final, ?_⟩
   have hpot : (∑' q, ν_final q * (C.potential q.1 q.2 : ℝ≥0∞)) = 0 := by simp [C, impl]
   have hinit : C.initTime = 16 := by change (3 : ℝ≥0∞) + 13 = 16; norm_num
-  have htotal : (Dictionary.spec U V n_max).totalCost C.charge (Dictionary.empty U) ops =
-      chargeVal * ops.length := by
-    rw [show C.charge = fun _ _ => chargeVal from rfl, StateTransitionSpec.totalCost_const,
-      Nat.mul_comm]
-  rw [hpot, add_zero, htotal] at hbound
-  exact hbound.trans_eq (by change C.initTime + ((0 : ℕ) : ℝ≥0∞) + _ = _; simp [hinit])
+  have hinitP : C.initPotential = 0 := rfl
+  have hchg : C.charge = fun _ _ => chargeVal := rfl
+  rw [hpot, hinitP, Nat.cast_zero, add_zero, add_zero, hchg,
+    StateTransitionSpec.totalCost_const, Nat.mul_comm] at hbound
+  exact hinit ▸ hbound
 
 end Cslib.DataStructure.Dictionary.WordRAM.ChainedHash

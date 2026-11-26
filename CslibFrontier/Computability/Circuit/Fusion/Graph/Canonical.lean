@@ -92,16 +92,9 @@ def canonicalWitness (e : CanonicalEdge graph) :
 /-- Canonical witnesses form a subclass of unrestricted graph witnesses. -/
 theorem canonical_pairCoverComplexity_le :
     pairCoverComplexity graph sources (canonicalClass graph) ≤
-      pairCoverComplexity graph sources := by
-  apply le_iInf
-  intro c
-  let d : PairCover graph sources (canonicalClass graph) := {
-    pairs := c.pairs
-    isCover w := c.isCover {
-      point := w.point
-      filter := w.filter
-      admissible_filter := trivial
-      above := w.above } }
-  exact pairCoverComplexity_le d
+      pairCoverComplexity graph sources :=
+  le_iInf fun c => pairCoverComplexity_le
+    (⟨c.pairs, fun w => c.isCover ⟨w.point, w.filter, trivial, w.above⟩⟩ :
+      PairCover _ _ (canonicalClass graph))
 
 end Cslib.Circuits.Fusion.Graph

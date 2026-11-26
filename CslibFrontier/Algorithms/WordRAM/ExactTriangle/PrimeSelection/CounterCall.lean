@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.PrimeSelection.Program
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.Exec
 
@@ -49,21 +50,15 @@ theorem exec_count {w n p scratch a b c A : ℕ} (x : Data 160) (u v z : ℕ →
         (fun α β : Fin n => z (α.val * n + β.val)) p ∧
       ∀ d, d < scratch ∨ CountPrime.memoryEnd n p (Nat.clog 2 n) scratch ≤ d →
         y.mem d = x.mem d := by
-  let args := (((((x.set Reg.countSide n).set Reg.countPrime p).set Reg.countAB a).set
-    Reg.countBC b).set Reg.countAC c).set Reg.countScratch scratch
-  have deliver : ExecWithin (B := .standard) (w + 2)
-      (ram[ Reg.countSide ← Reg.side; Reg.countPrime ← Reg.cursor;
-        Reg.countAB ← Reg.inputAB; Reg.countBC ← Reg.inputBC;
-        Reg.countAC ← Reg.inputAC; Reg.countScratch ← Reg.scratch ]) x args 6 := by
-    ram_eval [args, hn, hp, hAB, hBC, hAC, hs, Reg.countSide, Reg.countPrime,
-      Reg.countAB, Reg.countBC, Reg.countAC, Reg.countScratch, Reg.side, Reg.cursor,
-      Reg.inputAB, Reg.inputBC, Reg.inputAC, Reg.scratch, Fin.mk.injEq]
-  have hinj : Function.Injective counterRegisters := by
-    intro i j h
-    exact Fin.ext (congrArg (fun i : Fin 160 => i.val) h)
-  obtain ⟨y, hy, ⟨_, hresult, frame⟩, -⟩ := ExecWithin.rename_post hinj
-    (CountPrime.exec (args.comap counterRegisters) u v z hp0 (by rfl) (by rfl) (by rfl)
-      (by rfl) (by rfl) (by rfl) ha hb hc hu hv hz hinU hinV hinZ hmag hw)
-  exact ⟨y, (deliver.seq hy).mono (by omega), hresult, frame⟩
+  have hinj : Function.Injective counterRegisters :=
+    fun _ _ h => Fin.ext (congrArg (fun i : Fin 160 => i.val) h)
+  refine WP.exists_execWithin ?_
+  unfold count
+  wram_exec [hn, hp, hAB, hBC, hAC, hs]
+  wram_call (CountPrime.exec (n := n) (p := p) (a := a) (b := b) (c := c) (scratch := scratch)
+    _ u v z hp0 rfl rfl rfl rfl rfl rfl
+    ha hb hc hu hv hz hinU hinV hinZ hmag hw)
+    renamed hinj with y ⟨⟨_, hresult, frame⟩, -⟩
+  exact ⟨by wram_simp; omega, hresult, frame⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.PrimeSelection

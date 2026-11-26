@@ -42,41 +42,11 @@ def oid(value: str) -> str:
     return value
 
 
-def prefix(owner: str, name: str, number: int, approved: str) -> tuple[str, list[tuple[int, str]]]:
+def prefix(owner: str, name: str, number: int, approved: str,
+           graphql=None) -> tuple[str, list[tuple[int, str]]]:
     """Snapshot the entries ahead of this PR, or the whole queue for a new entry."""
-    entries = []
-    numbers = set()
-    cursors = set()
-    variables = dict(owner=owner, name=name, number=number)
-    while True:
-        repo = queue_pr.gh_graphql(QUEUE, **variables)["repository"]
-        pr = repo["pullRequest"]
-        if not pr or (pr["state"], pr["baseRefName"], pr["headRefOid"]) != ("OPEN", "main", approved):
-            raise ValueError(f"#{number} is not an open PR targeting main at {approved}")
-        page = repo["mergeQueue"]["entries"]
-        snapshot = (oid(repo["ref"]["target"]["oid"]), page["totalCount"])
-        if not entries:
-            main, count = snapshot
-        elif (main, count) != snapshot:
-            raise ValueError("the queue changed during pagination; retry")
-        for entry in page["nodes"]:
-            queued = entry["pullRequest"]
-            n = queued["number"]
-            if entry["position"] != len(entries) + 1 or n in numbers:
-                raise ValueError("queue positions changed during pagination; retry")
-            if n == number:
-                return main, entries
-            numbers.add(n)
-            entries.append((n, oid(queued["headRefOid"])))
-        if not page["pageInfo"]["hasNextPage"]:
-            if len(entries) != count:
-                raise ValueError("incomplete queue listing; retry")
-            return main, entries
-        cursor = page["pageInfo"]["endCursor"]
-        if not cursor or cursor in cursors:
-            raise ValueError("incomplete queue listing; retry")
-        variables["cursor"] = cursor
-        cursors.add(cursor)
+    call = queue_pr.gh_graphql if graphql is None else graphql
+    return queue_pr.snapshot_queue_prefix(owner, name, number, approved, graphql=call)
 
 
 def fetch_objects(root: Path, repo: str, commits: list[str]) -> None:

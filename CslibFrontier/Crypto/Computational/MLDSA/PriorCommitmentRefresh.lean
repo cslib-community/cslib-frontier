@@ -8,14 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.CommitmentContinuation
+-- Reads private `prob`, `meanGap_of_agree`, `mean_query_sqrt_le`, and `expansionContinuation`.
 import all CslibFrontier.Crypto.Computational.MLDSA.CommitmentContinuation
-import all CslibFrontier.Crypto.Computational.MLDSA.DigestSigningQueries
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitmentRegister
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
-import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningQueryComparison
-import all CslibFrontier.Crypto.Computational.MLDSA.SigningHedges
-import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import CslibFrontier.Probability.PMF.Uniform
 
 /-!
@@ -49,10 +43,7 @@ private theorem suffixKey_addr (s : Level) (A : PublicMatrix s) (m : BitString 5
     suffixKey s (maskCommitmentAddress s A m y) = maskCommitmentAddress s A 0 y := by
   unfold suffixKey maskCommitmentAddress
   rw [BitString.ofFn_ofList (commitmentInput_length s _ List.length_ofFn)]
-  unfold commitmentInput
-  have drop (l : List Bool) : (List.ofFn m ++ l).drop 512 = l := by
-    simpa only [List.length_ofFn] using List.drop_left (l₁ := List.ofFn m) (l₂ := l)
-  simp only [drop]
+  simp only [commitmentInput, List.drop_left' List.length_ofFn]
 
 private def replaceSuffix (s : Level) (A : PublicMatrix s) (y : Mask s)
     (D E : Register s) (i : Word s) : Digest s :=
@@ -108,13 +99,9 @@ private theorem uniform_write_selected {α : Type} (s : Level) (A : PublicMatrix
   have commute E v : Function.update (replaceSuffix s A y D E) i v =
       replaceSuffix s A y D (Function.update E i v) := by
     funext x
-    by_cases hx : x = i
-    · subst x
-      simp [replaceSuffix, i, suffixKey_addr]
-    · simp [replaceSuffix, Function.update_of_ne hx]
-  have law := PMF.uniformOfFintype_bind_bind_adaptiveUpdate (κ := Digest s)
+    by_cases hx : x = i <;> simp [replaceSuffix, i, suffixKey_addr, hx]
+  simpa only [← commute] using PMF.uniformOfFintype_bind_bind_adaptiveUpdate (κ := Digest s)
     (fun _ => i) (fun _ _ => rfl) (fun E => score (replaceSuffix s A y D E))
-  simpa only [← commute] using law
 
 namespace QuantumSigningForger
 
@@ -169,12 +156,10 @@ private theorem before_gap {C : QuantumSigningForger} {α : Type} (s : Level) (H
     (fun y x l t => after y x l t (OracleComp.evalPure (replaceSuffix s A y D E) (probe x t)))
     (Q := 4 * √δ) (S := 815 * δ) (T := K * δ) (by positivity) (by positivity)
     ?_ ?_ ?_ hash calls dev log rows)
-  · ring_nf
-    rfl
-  · intro d M
-    apply mean_query_gap_of_root μ base new d M ENNReal.toReal_nonneg
-    exact mean_query_sqrt_le μ base new d M true fun x =>
-      ENNReal.toReal_mono finite (suffix_query_event s H A D E _ _ x)
+  · exact le_of_eq (by ring)
+  · exact fun d M => mean_query_gap_of_root μ base new d M ENNReal.toReal_nonneg
+      (mean_query_sqrt_le μ base new d M true fun x =>
+        ENNReal.toReal_mono finite (suffix_query_event s H A D E _ _ x))
   · intro row q
     let run := H.signDigestQueriesWithMask s keys.secretKey q (fun _ _ => row) (maskFromRow s)
     have h := prob_read_diff s A D E run (H.signDigestQueriesWithMask_bounded ..)
@@ -267,30 +252,19 @@ private theorem refresh_after_prefix {C : QuantumSigningForger} {α : Type}
   have original_eq (write) : original write = expanded false write := by
     dsimp only [original, expanded, Bool.false_eq_true, ↓reduceIte]
     rw [swapSamples]
-    apply congrArg (PMF.bind μ ·)
-    funext y
-    exact (uniform_replaceSuffix s A y (fun T => V.bind (go T T write y))).symm
+    exact congrArg (PMF.bind μ ·) (funext fun y =>
+      (uniform_replaceSuffix s A y (fun T => V.bind (go T T write y))).symm)
   have off : expanded true true = expanded true false := by
     dsimp only [expanded, ↓reduceIte]
     rw [swapSamples, swapSamples]
-    apply congrArg (PMF.bind μ ·)
-    funext y
-    apply congrArg (PMF.bind U ·)
-    funext B
+    refine congrArg (PMF.bind μ ·) (funext fun y => congrArg (PMF.bind U ·) (funext fun B => ?_))
     refine (detached_eq s H B A keys prog probe score dev log rows y).trans ?_
-    apply congrArg (PMF.bind U ·)
-    funext E
-    simp [go, stage, PMF.bind_const]
+    exact congrArg (PMF.bind U ·) (funext fun E => by simp [go, stage, PMF.bind_const])
   have bound (write) :
       |prob (expanded false write) - prob (expanded true write)| ≤
         4 * qH * √δ + (815 * qS + K) * δ := by
-    apply abs_common_bind U
-    intro B
-    apply abs_common_bind U
-    intro E
-    apply abs_common_bind V
-    intro v
-    apply (PMF.abs_bind_sub_le_meanAbsDiffAt μ true _ _).trans
+    refine abs_common_bind U _ _ fun B => abs_common_bind U _ _ fun E =>
+      abs_common_bind V _ _ fun v => (PMF.abs_bind_sub_le_meanAbsDiffAt μ true _ _).trans ?_
     exact before_gap s H B E A keys prog probe (fun y x l t m =>
       let T := replaceSuffix s A y B E
       let final := if write && m.isReady then
@@ -417,11 +391,10 @@ private def nativePreparation {C : QuantumSigningForger} (s : Level) (G : Xofs) 
 private theorem eval_probe {C : QuantumSigningForger} (s : Level) (H : Xofs) (D : Register s)
     (A sk j) (x : Boundary C) (rows) :
     OracleComp.evalPure D (probeTrials s H A sk j x rows) =
-      nativePreparation s (H.withDigestRegister s D) A sk j x rows := by
-  apply eval_probePrefix
-  intro m
-  simpa only [rowAttempt, Nat.zero_add] using
-    eval_terminalDigestQueries H s D sk A m (maskFromRow s (rows.headD 0)) j 0
+      nativePreparation s (H.withDigestRegister s D) A sk j x rows :=
+  eval_probePrefix s H sk.tr D _ _ (fun m => by
+    simpa only [rowAttempt, Nat.zero_add] using
+      eval_terminalDigestQueries H s D sk A m (maskFromRow s (rows.headD 0)) j 0) x
 
 -- Everything after the cut, including all remaining retries, sees the table selected at the
 -- distinguished attempt. The FIPS error and successful signing log are handled before resuming.

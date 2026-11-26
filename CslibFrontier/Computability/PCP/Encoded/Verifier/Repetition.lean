@@ -66,10 +66,8 @@ private theorem listRow_flatMap_range {count : ℕ} (width : ℕ)
     BitString.listRow width i.val ((List.range count).flatMap rows) = rows i := by
   have hmap : (List.range count).map rows = List.ofFn (fun i : Fin count => rows i.val) := by
     simpa using (List.ofFn_getElem_eq_map (List.range count) rows).symm
-  have hflat : ((List.range count).map rows).flatten = (List.range count).flatMap rows := by
-    simp [List.flatten_eq_flatMap, List.flatMap_map]
-  rw [← hflat, hmap]
-  exact BitString.listRow_flatten_ofFn _ (fun i => hlen i i.isLt) i
+  simpa [List.flatten_eq_flatMap, List.flatMap_map, ← hmap] using
+    BitString.listRow_flatten_ofFn (fun i : Fin count => rows i.val) (fun i => hlen i i.isLt) i
 
 /-- Repeated checks retain a fixed answer block even when a selected edge is padding. -/
 @[simp]
@@ -88,15 +86,11 @@ theorem repeatedEdgeVerifier_accepts (width repeats : ℕ) (decode : (Fin width 
         (BitString.listRow (Nat.clog 2 g.edges.length) i random)) := by
   apply Bool.eq_iff_iff.mpr
   simp only [PCPVerifier.accepts, repeatedEdgeVerifier, List.all_eq_true]
-  refine forall_congr' fun i => forall_congr' fun hi => ?_
-  have hrow := listRow_flatMap_range (2 * width)
-    (fun i => PCPVerifier.answers proof ((edgeVerifier width decode eval).queries
-      (g, BitString.listRow (Nat.clog 2 g.edges.length) i random)))
-    (by simp [PCPVerifier.answers]) ⟨i, List.mem_range.mp hi⟩
-  apply Iff.of_eq
+  refine forall₂_congr fun i hi => Iff.of_eq ?_
   simpa only [PCPVerifier.answers, List.map_flatMap, coins_edgeVerifier] using congrArg
     (fun answers => (edgeVerifier width decode eval).verdict
-      ((g, BitString.listRow (Nat.clog 2 g.edges.length) i random), answers) = true) hrow
+      ((g, BitString.listRow (Nat.clog 2 g.edges.length) i random), answers) = true)
+    (listRow_flatMap_range (2 * width) _ (by simp) ⟨i, List.mem_range.mp hi⟩)
 
 /-- A satisfying labelling is accepted by every repeated check, including on malformed coins. -/
 theorem repeated_accepts_proofOfLabels (width repeats : ℕ) (encode : α → Fin width → Bool)

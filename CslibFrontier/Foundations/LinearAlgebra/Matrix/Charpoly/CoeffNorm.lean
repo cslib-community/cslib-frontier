@@ -35,28 +35,27 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 private theorem coeffNorm1_charpolyRev_coeff_le (M : Matrix ι ι (Polynomial ℤ)) (A : ℕ)
     (ht : ∀ j, 1 ≤ j → j ≤ Fintype.card ι → coeffNorm1 ((M ^ j).trace) ≤ A ^ j)
     (k : ℕ) (hk : k ≤ Fintype.card ι) : coeffNorm1 (M.charpolyRev.coeff k) ≤ A ^ k := by
-  induction k using Nat.strong_induction_on with
-  | ind k ih =>
-    cases k with
-    | zero =>
-      rw [coeff_zero_eq_eval_zero, eval_charpolyRev, coeffNorm1_one, pow_zero]
-    | succ k =>
-      have hrec : (k + 1) • M.charpolyRev.coeff (k + 1) =
-          -(∑ j ∈ Finset.range (k + 1), M.charpolyRev.coeff (k - j) * (M ^ (j + 1)).trace) := by
-        simpa only [nsmul_eq_mul] using charpolyRev_newton M k
-      have h : (k + 1) * coeffNorm1 (M.charpolyRev.coeff (k + 1)) ≤ (k + 1) * A ^ (k + 1) := by
-        rw [← coeffNorm1_nsmul, hrec, coeffNorm1_neg]
-        refine (coeffNorm1_sum_le _ _).trans ?_
-        calc
-          _ ≤ ∑ _j ∈ Finset.range (k + 1), A ^ (k + 1) := by
-            apply Finset.sum_le_sum
-            intro j hj
-            have hjk := Finset.mem_range.mp hj
-            exact (coeffNorm1_mul_le _ _).trans
-              ((Nat.mul_le_mul (ih (k - j) (by omega) (by omega))
-                (ht (j + 1) (by omega) (by omega))).trans_eq (by rw [← pow_add]; congr 1; omega))
-          _ = _ := by simp
-      exact Nat.le_of_mul_le_mul_left h (by omega)
+  cases k with
+  | zero =>
+    rw [coeff_zero_eq_eval_zero, eval_charpolyRev, coeffNorm1_one, pow_zero]
+  | succ k =>
+    have hrec : (k + 1) • M.charpolyRev.coeff (k + 1) =
+        -(∑ j ∈ Finset.range (k + 1), M.charpolyRev.coeff (k - j) * (M ^ (j + 1)).trace) := by
+      simpa only [nsmul_eq_mul] using charpolyRev_newton M k
+    have h : (k + 1) * coeffNorm1 (M.charpolyRev.coeff (k + 1)) ≤ (k + 1) * A ^ (k + 1) := by
+      rw [← coeffNorm1_nsmul, hrec, coeffNorm1_neg]
+      refine (coeffNorm1_sum_le _ _).trans ?_
+      calc
+        _ ≤ ∑ _j ∈ Finset.range (k + 1), A ^ (k + 1) := by
+          apply Finset.sum_le_sum
+          intro j hj
+          have hjk := Finset.mem_range.mp hj
+          exact (coeffNorm1_mul_le _ _).trans
+            ((Nat.mul_le_mul (coeffNorm1_charpolyRev_coeff_le M A ht (k - j) (by omega))
+              (ht (j + 1) (by omega) (by omega))).trans_eq (by rw [← pow_add]; congr 1; omega))
+        _ = _ := by simp
+    exact Nat.le_of_mul_le_mul_left h (by omega)
+termination_by k
 
 /-- The norm of the `k`th characteristic coefficient is at most `A ^ (D - k)` for
 `D = card ι` if each positive power trace through `D` has norm at most `A ^ j`. -/

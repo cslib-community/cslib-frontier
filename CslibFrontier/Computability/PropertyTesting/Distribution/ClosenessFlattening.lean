@@ -157,10 +157,9 @@ theorem acceptProb₂_closenessFlatteningTester (m k : ℕ) (ε : ℝ) (p q : PM
         acceptProb₂ (closenessTester k (flatteningProximity α m ε))
           (split p (flatteningCount x₁ y₁)) (split q (flatteningCount x₁ y₁)) := by
   rw [acceptProb₂_append]
-  refine sum_congr rfl fun x₁ _ => ?_
-  refine sum_congr rfl fun y₁ _ => ?_
-  rw [← acceptProb₂_splitClosenessTester]
-  simp only [closenessFlatteningTester_apply, Fin.append_left, Fin.append_right]
+  refine sum_congr rfl fun x₁ _ => sum_congr rfl fun y₁ _ => ?_
+  simp only [← acceptProb₂_splitClosenessTester, closenessFlatteningTester_apply,
+    Fin.append_left, Fin.append_right]
 
 section Averaging
 
@@ -172,11 +171,9 @@ private theorem sum_sum_iid_mul_add (R S : (Fin m → α) → ℝ) :
       ∑ x, (iid p m x).toReal * R x + ∑ y, (iid q m y).toReal * S y := by
   simp only [mul_add, sum_add_distrib]
   congr 1
-  · refine sum_congr rfl fun x _ => ?_
-    rw [← sum_mul, ← mul_sum, sum_toReal, mul_one]
+  · exact sum_congr rfl fun x _ => by rw [← sum_mul, ← mul_sum, sum_toReal, mul_one]
   · rw [sum_comm]
-    refine sum_congr rfl fun y _ => ?_
-    rw [← sum_mul, ← sum_mul, sum_toReal, one_mul]
+    exact sum_congr rfl fun y _ => by rw [← sum_mul, ← sum_mul, sum_toReal, one_mul]
 
 omit [DecidableEq α] in
 private theorem sum_sum_iid_mul_sub_div (a b : ℝ) (T : (Fin m → α) → (Fin m → α) → ℝ) :
@@ -188,8 +185,7 @@ private theorem sum_sum_iid_mul_sub_div (a b : ℝ) (T : (Fin m → α) → (Fin
   rw [sum_div, ← sum_sub_distrib]
   refine sum_congr rfl fun x _ => ?_
   rw [sum_div, ← sum_sub_distrib]
-  refine sum_congr rfl fun y _ => ?_
-  ring
+  exact sum_congr rfl fun y _ => by ring
 
 omit [DecidableEq α] in
 /-- Markov's inequality for a pointwise lower bound `a - (R x + S y) / b`. -/
@@ -238,9 +234,7 @@ private theorem le_acceptProb₂_split {m k : ℕ} {ε δ b : ℝ} (hδ : 0 < δ
   · have h1 := le_acceptProb₂_closenessTester hδ h h hk
       (by simp only [sub_self, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
         sum_const_zero]; positivity)
-    have h2 : 0 ≤ (collisionProbability (split p (occurrenceCount x)) +
-        collisionProbability (split p (occurrenceCount y))) / b := by positivity
-    linarith
+    linarith [div_nonneg (add_nonneg hx0.le hy0.le) hb.le]
   · have h1 : 1 < (collisionProbability (split p (occurrenceCount x)) +
         collisionProbability (split p (occurrenceCount y))) / b := by
       rw [lt_div_iff₀ hb]
@@ -310,18 +304,13 @@ theorem isClosenessTester_closenessFlatteningTester {m k : ℕ} {ε : ℝ} (hε 
   have hk' (p : PMF α) : 36 * Real.sqrt (16 / (m + 1)) ≤
       (k - 1) * flatteningProximity α m ε ^ 2 * (5 / 24) := by
     have : Nonempty α := ⟨p.support_nonempty.some⟩
-    have hN : (0 : ℝ) < Fintype.card α + 2 * m := by
-      have := Fintype.card_pos (α := α)
-      positivity
+    have hcard := Fintype.card_pos (α := α)
+    have hN : (0 : ℝ) < Fintype.card α + 2 * m := by positivity
     have hs : 0 < Real.sqrt (m + 1) := Real.sqrt_pos.mpr hm
-    rw [flatteningProximity_eq, div_pow, Real.sq_sqrt hN.le, Real.sqrt_div' _ hm.le,
-      show (16 : ℝ) = 4 ^ 2 by norm_num, Real.sqrt_sq (by norm_num),
-      show (36 : ℝ) * (4 / Real.sqrt (m + 1)) = 144 / Real.sqrt (m + 1) by ring, div_le_iff₀ hs,
-      show ((k : ℝ) - 1) * ((2 * ε) ^ 2 / (Fintype.card α + 2 * m)) * (5 / 24) *
-        Real.sqrt (m + 1) =
-          5 * (k - 1) * ε ^ 2 * Real.sqrt (m + 1) / (6 * (Fintype.card α + 2 * m)) by
-        field_simp; ring,
-      le_div_iff₀ (by positivity)]
+    have h4 : (4 : ℝ) ^ 2 = 16 := by norm_num
+    rw [flatteningProximity_eq, div_pow, Real.sq_sqrt hN.le, Real.sqrt_div' _ hm.le, ← h4,
+      Real.sqrt_sq (by norm_num)]
+    field_simp
     linarith
   constructor
   · intro p
@@ -329,15 +318,13 @@ theorem isClosenessTester_closenessFlatteningTester {m k : ℕ} {ε : ℝ} (hε 
     have h := le_sum_sum p p _ _ _ hb (sum_iid_mul_collisionProbability_split_le p m)
       (sum_iid_mul_collisionProbability_split_le p m)
       (le_acceptProb₂_split (by norm_num) hb (hk' p) p)
-    rw [hrs] at h
-    linarith
+    linarith [hrs]
   · intro p q hpq
     rw [acceptProb₂_closenessFlatteningTester]
     have h := sum_sum_le p q _ _ _ hb (sum_iid_mul_collisionProbability_split_le p m)
       (sum_iid_mul_collisionProbability_split_le q m)
       (acceptProb₂_split_le hε.le (by norm_num) hb (hk' p) hpq)
-    rw [hrs] at h
-    linarith
+    linarith [hrs]
 
 /-- **Choosing the parameters.** For any real flattening budget `0 < t ≤ n`, the flattening tester
 with `m = ⌈t⌉` and `k = ⌈2592 n / (5 ε² √t)⌉ + 1` is a closeness tester with proximity `ε`. -/
@@ -395,12 +382,11 @@ theorem exists_isClosenessTester_closenessFlatteningTester [Nonempty α] {ε : �
         rw [← Real.rpow_natCast, ← Real.rpow_mul hn.le]; norm_num
       have hv2 : ε ^ (4 / 3 : ℝ) = v ^ 2 := by
         rw [← Real.rpow_natCast, ← Real.rpow_mul hε.le]; norm_num
-      have hv3 : ε ^ 2 = v ^ 3 := by
-        refine Eq.symm ?_
+      have hv3 : v ^ 3 = ε ^ 2 := by
         rw [← Real.rpow_natCast, ← Real.rpow_mul hε.le]; norm_num
       have haa : a = (u / v) ^ 2 := by rw [ha_def, hu2, hv2, div_pow]
       calc n / (ε ^ 2 * Real.sqrt a) = a := by
-            rw [haa, Real.sqrt_sq (by positivity), hv3]
+            rw [haa, Real.sqrt_sq (by positivity), ← hv3]
             nth_rewrite 1 [hu3]
             field_simp
         _ ≤ M := le_max_left _ _

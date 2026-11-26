@@ -34,62 +34,46 @@ theorem exists_segment_to_frontier_avoiding_starConvex {E : Type*}
     (hK : IsCompact K) (hconv : Convex ℝ K) (hstar : StarConvex ℝ c S)
     (hc : c ∈ S) (hz : z ∈ K) (hzS : z ∉ S) :
     ∃ y ∈ frontier K, segment ℝ z y ⊆ K \ S := by
-  have hne : z ≠ c := fun h => hzS (h.symm ▸ hc)
-  have hnorm : 0 < ‖z - c‖ := norm_pos_iff.mpr (sub_ne_zero.mpr hne)
+  have hnorm : 0 < ‖z - c‖ := norm_pos_iff.mpr (sub_ne_zero.mpr fun h => hzS (h.symm ▸ hc))
   let ray (u : ℝ) : E := c + u • (z - c)
   have hray : Continuous ray := continuous_const.add (continuous_id.smul continuous_const)
   have hone : ray 1 = z := by
     change c + (1 : ℝ) • (z - c) = z
-    rw [one_smul, add_comm, sub_add_cancel]
+    rw [one_smul, add_sub_cancel]
   let T : Set ℝ := Set.Ici 1 ∩ ray ⁻¹' K
   have hT : IsClosed T := isClosed_Ici.inter (hK.isClosed.preimage hray)
   have hTne : T.Nonempty := ⟨1, le_rfl, by simpa only [Set.mem_preimage, hone] using hz⟩
   obtain ⟨R, hR⟩ := hK.isBounded.subset_ball c
-  have hTb : BddAbove T := by
-    refine ⟨R / ‖z - c‖, ?_⟩
-    rintro u ⟨hu, huK⟩
+  have hTb : BddAbove T := ⟨R / ‖z - c‖, fun u ⟨hu, huK⟩ => by
     have hd := Metric.mem_ball.mp (hR huK)
-    rw [dist_eq_norm] at hd
-    change ‖c + u • (z - c) - c‖ < R at hd
-    rw [add_sub_cancel_left, norm_smul, Real.norm_of_nonneg (zero_le_one.trans hu)] at hd
-    exact ((lt_div_iff₀ hnorm).mpr hd).le
+    rw [dist_eq_norm, show ray u - c = u • (z - c) from add_sub_cancel_left _ _, norm_smul,
+      Real.norm_of_nonneg (zero_le_one.trans hu)] at hd
+    exact ((lt_div_iff₀ hnorm).mpr hd).le⟩
   let t := sSup T
   have ht : t ∈ T := hT.csSup_mem hTne hTb
-  have hmax {u : ℝ} (hu : u ∈ T) : u ≤ t := le_csSup hTb hu
-  have hfrontier : ray t ∈ frontier K := by
-    rw [hK.isClosed.frontier_eq]
-    refine ⟨ht.2, ?_⟩
-    intro hi
-    have hi' : t ∈ ray ⁻¹' interior K := hi
-    obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp (isOpen_interior.preimage hray) t hi'
+  refine ⟨ray t, ?_, fun w hw => ⟨hconv.segment_subset hz ht.2 hw, ?_⟩⟩
+  · rw [hK.isClosed.frontier_eq]
+    refine ⟨ht.2, fun hi => ?_⟩
+    obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp (isOpen_interior.preimage hray) t hi
     have hlt : t < t + ε / 2 := lt_add_of_pos_right _ (half_pos hε)
     have hnear : t + ε / 2 ∈ Metric.ball t ε := by
       rw [Metric.mem_ball, Real.dist_eq, add_sub_cancel_left, abs_of_pos (half_pos hε)]
       exact half_lt_self hε
-    have hinside : ray (t + ε / 2) ∈ interior K := hball hnear
-    have huK : ray (t + ε / 2) ∈ K := interior_subset hinside
-    have hu : t + ε / 2 ∈ T := ⟨ht.1.trans hlt.le, huK⟩
-    exact (hmax hu).not_gt hlt
-  refine ⟨ray t, hfrontier, ?_⟩
-  intro w hw
-  refine ⟨hconv.segment_subset hz ht.2 hw, ?_⟩
-  rw [segment_eq_image_lineMap] at hw
-  obtain ⟨s, hs, rfl⟩ := hw
-  let u := 1 + s * (t - 1)
-  have hu : 1 ≤ u := le_add_of_nonneg_right (mul_nonneg hs.1 (sub_nonneg.mpr ht.1))
-  have heq : AffineMap.lineMap z (ray t) s = ray u := by
-    calc
+    exact (le_csSup hTb ⟨ht.1.trans hlt.le, interior_subset (s := K) (hball hnear)⟩).not_gt hlt
+  · obtain ⟨s, hs, rfl⟩ := segment_eq_image_lineMap ℝ z (ray t) ▸ hw
+    let u := 1 + s * (t - 1)
+    have hu : 1 ≤ u := le_add_of_nonneg_right (mul_nonneg hs.1 (sub_nonneg.mpr ht.1))
+    have hupos : 0 < u := zero_lt_one.trans_le hu
+    have heq : AffineMap.lineMap z (ray t) s = ray u := calc
       _ = (1 - s) • ray 1 + s • ray t := by rw [AffineMap.lineMap_apply_module, hone]
       _ = ray u := by
         dsimp only [ray, u]
         module
-  rw [heq]
-  intro huS
-  have hupos : 0 < u := zero_lt_one.trans_le hu
-  have hback := hstar.add_smul_sub_mem huS (inv_nonneg.mpr hupos.le) (inv_le_one_of_one_le₀ hu)
-  have hdiff : ray u - c = u • (z - c) := by simp [ray]
-  rw [hdiff, smul_smul, inv_mul_cancel₀ hupos.ne', one_smul, add_comm c (z - c),
-    sub_add_cancel] at hback
-  exact hzS hback
+    rw [heq]
+    intro huS
+    have hback := hstar.add_smul_sub_mem huS (inv_nonneg.mpr hupos.le) (inv_le_one_of_one_le₀ hu)
+    rw [show ray u - c = u • (z - c) from add_sub_cancel_left _ _, smul_smul,
+      inv_mul_cancel₀ hupos.ne', one_smul, add_sub_cancel] at hback
+    exact hzS hback
 
 end Cslib

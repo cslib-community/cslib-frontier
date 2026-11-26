@@ -79,30 +79,20 @@ theorem exec_lookupLoop {w L m t C : ℕ} (x : Data registers) (π : Cube L)
       ∃ z, ExecWithin w lookupDigit y z 16 ∧ P (y.regs Reg.level + 1) z ∧
         z.regs Reg.level = y.regs Reg.level + 1 := by
     obtain ⟨hp, hm, hpower, hc, hs, hf, hv, hinv⟩ := hy
-    have hseenle : (if Nat.count (fun i => raw i = 9) (y.regs Reg.level) = 0
-        then 0 else 1) ≤ 1 := by split <;> omega
-    have horder : raw (y.regs Reg.level) = 10 →
-        (if Nat.count (fun i => raw i = 9) (y.regs Reg.level) = 0 then 0 else 1) = 0 := by
-      intro hstar
-      have hn := rawCubeDigit_no_fixed_before_star hπ hk hstar
-      have hz : Nat.count (fun i => raw i = 9) (y.regs Reg.level) = 0 :=
-        Nat.count_of_forall_not (fun i hi hh => hn ⟨i, hi, hh⟩)
-      rw [hz]
-      rfl
     obtain ⟨z, hz, hzm, hzl, hzp, hzc, hzs, hzf, hzv, hzi, hframe⟩ :=
       exec_lookupDigit y hk (rawCubeDigit_le_ten π _) (Nat.count_le _)
-        (Nat.count_le _) (lookupCompletion_lt (fun i _ => rawCubeDigit_le_ten π i))
-        hseenle horder hp.cube (by rw [hm]; exact hread _ hk) rfl hs hf hc hv hinv
+        (Nat.count_le _) (lookupCompletion_lt fun i _ => rawCubeDigit_le_ten π i)
+        (by split <;> omega)
+        (fun hstar => ite_eq_left (Nat.count_of_forall_not fun i hi hh =>
+          rawCubeDigit_no_fixed_before_star hπ hk hstar ⟨i, hi, hh⟩))
+        hp.cube ((congrFun hm _).trans (hread _ hk)) rfl hs hf hc hv hinv
         hpower hp.nil hp.one hp.nine hp.ten hfit
-    have hpz : LookupParameters L C z := by regs_frame
-    refine ⟨z, hz, ⟨hpz, hzm.trans hm, ?_, ?_, ?_, ?_, ?_, hzi⟩, hzl⟩
-    · exact hzp
+    refine ⟨z, hz, ⟨by regs_frame, hzm.trans hm, hzp, ?_, ?_, ?_, ?_, hzi⟩, hzl⟩
     · simpa only [lookupCompletion] using hzc
     · simpa only [Nat.count_succ] using hzs
     · simpa only [Nat.count_succ] using hzf
     · rw [hzv, Nat.count_succ]
-      by_cases hd : raw (y.regs Reg.level) = 9
-      all_goals dsimp only [raw] at hd ⊢; simp [hd]
+      by_cases hd : raw (y.regs Reg.level) = 9 <;> simp [raw, hd]
   obtain ⟨y, hy, ⟨hp, hm, hpower, hc, hs, hf, _, hinv⟩, hdone⟩ :=
     ExecWithin.loop_count P (fun _ hy => hy.1.levels) hb (by simp [hlevel]) hi
   refine ⟨y, ?_, hm, hp, hdone, hpower, ?_, ?_, ?_, hinv,

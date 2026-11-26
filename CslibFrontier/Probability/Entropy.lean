@@ -38,7 +38,9 @@ entropy identity alone makes no claim about computational indistinguishability.
 * `Cslib.Probability.PMF.entropy_bind_pair`, `.entropy_bind_sigma`: joint entropy decompositions.
 * `Cslib.Probability.PMF.conditionalEntropy_eq_sum`: average of conditional entropies.
 * `Cslib.Probability.PMF.conditionalEntropy_map_fst_ge`: forgetting observations increases entropy.
-* `Cslib.Probability.PMF.entropy_chain_rule_deterministic`: deterministic chain rule.
+* `Cslib.Probability.PMF.entropy_chain_rule_deterministic`,
+  `.conditionalEntropy_le_add_conditionalEntropy`: deterministic chain rule and conditional entropy
+  subadditivity along an intermediate observation.
 
 ## References
 
@@ -62,18 +64,16 @@ membership. -/
 noncomputable def surprisal (p : PMF α) (a : α) : ℝ := -Real.logb 2 (p a).toReal
 
 /-- Information content is nonnegative, including the chosen value at null outcomes. -/
-theorem surprisal_nonneg (p : PMF α) (a : α) : 0 ≤ surprisal p a := by
-  apply neg_nonneg.mpr
-  exact Real.logb_nonpos (by norm_num) ENNReal.toReal_nonneg (toReal_apply_le_one p a)
+theorem surprisal_nonneg (p : PMF α) (a : α) : 0 ≤ surprisal p a :=
+  neg_nonneg.mpr <|
+    Real.logb_nonpos (by norm_num) ENNReal.toReal_nonneg (toReal_apply_le_one p a)
 
 /-- A lower bound on the outcome's probability bounds its information content. -/
 theorem surprisal_le_of_mass_ge (p : PMF α) (a : α) {bound : ℝ}
     (hmass : (2 : ℝ) ^ (-bound) ≤ (p a).toReal) : surprisal p a ≤ bound := by
-  have hpos : 0 < (p a).toReal :=
-    (Real.rpow_pos_of_pos (by norm_num : (0 : ℝ) < 2) _).trans_le hmass
-  have hlog : -bound ≤ Real.logb 2 (p a).toReal :=
-    (Real.le_logb_iff_rpow_le (by norm_num) hpos).mpr hmass
-  simpa only [surprisal, neg_neg] using neg_le_neg hlog
+  simpa only [surprisal, neg_neg] using neg_le_neg <|
+    (Real.le_logb_iff_rpow_le (by norm_num)
+      ((Real.rpow_pos_of_pos (by norm_num : (0 : ℝ) < 2) _).trans_le hmass)).mpr hmass
 
 /-- On the support, an upper information bound is exactly a lower probability bound. -/
 theorem surprisal_le_iff_mass_ge (p : PMF α) (a : α) (ha : a ∈ p.support) {bound : ℝ} :
@@ -112,11 +112,10 @@ theorem entropy_nonneg [Finite α] (p : PMF α) : 0 ≤ entropy p := by
 theorem entropy_eq_zero_of_subsingleton_support [Finite α] (p : PMF α)
     (h : p.support.Subsingleton) : entropy p = 0 := by
   obtain ⟨a, ha⟩ := p.support_nonempty
-  have hp : p = PMF.pure a := by
-    calc
-      p = p.bind PMF.pure := (PMF.bind_pure p).symm
+  have hp : p = PMF.pure a :=
+    calc p = p.bind PMF.pure := (PMF.bind_pure p).symm
       _ = p.bind (fun _ => PMF.pure a) :=
-        bind_congr_on_support _ _ _ (fun b hb => congrArg PMF.pure (h hb ha))
+          bind_congr_on_support _ _ _ fun _ hb => congrArg PMF.pure (h hb ha)
       _ = PMF.pure a := PMF.bind_const p _
   simp [hp]
 
@@ -154,25 +153,22 @@ theorem entropy_map_le [Finite α] [Finite β] (p : PMF α) (f : α → β) :
   classical
   let := Fintype.ofFinite α
   rw [entropy_map_eq_sum, entropy_eq_sum_surprisal]
-  apply Finset.sum_le_sum
-  intro a _
+  refine Finset.sum_le_sum fun a _ => ?_
   by_cases ha : (p a).toReal = 0
   · simp [ha]
-  have hmass := ENNReal.toReal_mono (PMF.apply_ne_top _ _) (le_map_apply p f a)
-  apply mul_le_mul_of_nonneg_left _ ENNReal.toReal_nonneg
-  exact neg_le_neg (Real.logb_le_logb_of_le (by norm_num)
-    (lt_of_le_of_ne ENNReal.toReal_nonneg (Ne.symm ha)) hmass)
+  exact mul_le_mul_of_nonneg_left (neg_le_neg (Real.logb_le_logb_of_le (by norm_num)
+    (lt_of_le_of_ne ENNReal.toReal_nonneg (Ne.symm ha))
+    (ENNReal.toReal_mono (PMF.apply_ne_top _ _) (le_map_apply p f a)))) ENNReal.toReal_nonneg
 
 /-- Re-encoding preserves entropy when distinct supported outcomes remain distinct. -/
 theorem entropy_map_of_injOn [Finite α] [Finite β] (p : PMF α) {f : α → β}
     (hf : Set.InjOn f p.support) : entropy (p.map f) = entropy p := by
   classical
   let : Nonempty α := ⟨p.support_nonempty.choose⟩
-  have hmap : (p.map f).map (Function.invFunOn f p.support) = p := by
-    rw [PMF.map_comp]
-    exact (map_congr_on_support p _ id (fun a ha => hf.leftInvOn_invFunOn ha)).trans
-      (PMF.map_id p)
-  exact le_antisymm (entropy_map_le p f)
+  have hmap : (p.map f).map (Function.invFunOn f p.support) = p :=
+    (PMF.map_comp _ _ _).trans ((map_congr_on_support p _ id
+      fun _ ha => hf.leftInvOn_invFunOn ha).trans (PMF.map_id p))
+  exact (entropy_map_le p f).antisymm
     (by simpa only [hmap] using entropy_map_le (p.map f) (Function.invFunOn f p.support))
 
 /-- Injective re-encoding preserves entropy. -/
@@ -186,15 +182,14 @@ theorem sum_mul_entropy_le_entropy_bind [Fintype α] [Finite β]
     (∑ a, (p a).toReal * entropy (kernel a)) ≤ entropy (p.bind kernel) := by
   let := Fintype.ofFinite β
   simp only [entropy_eq_sum, ← mul_div_assoc, ← Finset.sum_div]
-  apply div_le_div_of_nonneg_right _ (Real.log_nonneg (by norm_num))
+  refine div_le_div_of_nonneg_right ?_ (Real.log_nonneg (by norm_num))
   simp only [Finset.mul_sum]
   rw [Finset.sum_comm]
-  apply Finset.sum_le_sum
-  intro b _
-  have h := Real.concaveOn_negMulLog.le_map_sum (t := Finset.univ)
-    (w := fun a => (p a).toReal) (p := fun a => (kernel a b).toReal)
-    (fun _ _ => ENNReal.toReal_nonneg) (sum_toReal p) (fun _ _ => ENNReal.toReal_nonneg)
-  simpa only [smul_eq_mul, bind_apply_toReal] using h
+  refine Finset.sum_le_sum fun b _ => ?_
+  simpa only [smul_eq_mul, bind_apply_toReal] using
+    Real.concaveOn_negMulLog.le_map_sum (t := Finset.univ) (w := fun a => (p a).toReal)
+      (p := fun a => (kernel a b).toReal) (fun _ _ => ENNReal.toReal_nonneg) (sum_toReal p)
+      fun _ _ => ENNReal.toReal_nonneg
 
 /-- The joint entropy is the marginal entropy plus the average conditional entropy. -/
 theorem entropy_bind_pair [Fintype α] [Finite β] (p : PMF α) (kernel : α → PMF β) :
@@ -234,9 +229,8 @@ theorem conditionalEntropy_nonneg [Finite α] [Finite β] (joint : PMF (α × β
 /-- A constant observation reveals nothing about the sampled value. -/
 @[simp] theorem conditionalEntropy_map_const [Finite α] [Finite β] (p : PMF β) (a : α) :
     conditionalEntropy (p.map (a, ·)) = entropy p := by
-  rw [conditionalEntropy, entropy_map_of_injective p (Prod.mk_right_injective a), PMF.map_comp]
-  change entropy p - entropy (p.map (Function.const β a)) = entropy p
-  rw [PMF.map_const, entropy_pure, sub_zero]
+  simp [conditionalEntropy, entropy_map_of_injective p (Prod.mk_right_injective a), PMF.map_comp,
+    show Prod.fst ∘ (a, ·) = Function.const β a from rfl, PMF.map_const]
 
 /-- The difference-of-entropies definition equals the usual average of conditional entropies. -/
 theorem conditionalEntropy_bind_pair [Fintype α] [Finite β]
@@ -253,17 +247,13 @@ theorem conditionalEntropy_bind_sigma {β : α → Type*}
     conditionalEntropy (p.bind (fun a => (kernel a).map
       (fun pair => ((⟨a, pair.1⟩ : Sigma β), pair.2)))) =
         ∑ a, (p a).toReal * conditionalEntropy (kernel a) := by
-  let joint := p.bind (fun a => (kernel a).map (Sigma.mk a))
-  have h := entropy_map_of_injective joint (Equiv.sigmaProdDistrib β γ).symm.injective
-  simp only [joint, PMF.map_bind, PMF.map_comp, Function.comp_def,
-    Equiv.sigmaProdDistrib_symm_apply, entropy_bind_sigma] at h
-  simp only [conditionalEntropy, PMF.map_bind, PMF.map_comp, Function.comp_def]
-  rw [h]
-  have hmarginal := entropy_bind_sigma p (fun a => (kernel a).map Prod.fst)
-  simp only [PMF.map_comp, Function.comp_def] at hmarginal
-  rw [hmarginal]
-  simp only [mul_sub, Finset.sum_sub_distrib]
-  ring
+  have h := entropy_map_of_injective (p.bind fun a => (kernel a).map (Sigma.mk a))
+    (Equiv.sigmaProdDistrib β γ).symm.injective
+  have hmarginal := entropy_bind_sigma p fun a => (kernel a).map Prod.fst
+  simp only [PMF.map_bind, PMF.map_comp, Function.comp_def, Equiv.sigmaProdDistrib_symm_apply,
+    entropy_bind_sigma] at h hmarginal
+  simp only [conditionalEntropy, PMF.map_bind, PMF.map_comp, Function.comp_def, h, hmarginal,
+    add_sub_add_left_eq_sub, ← Finset.sum_sub_distrib, ← mul_sub]
 
 /-- For any joint law, conditional entropy averages the normalized conditional distributions. -/
 theorem conditionalEntropy_eq_sum [Fintype α] [Finite β] (joint : PMF (α × β)) :
@@ -282,19 +272,16 @@ theorem conditionalEntropy_observe_ge [Fintype α] [Finite β] [Finite γ]
   let conditional := conditionalSnd (p.map (fun a => (observe a, a)))
   have hreplay : (p.map observe).bind (fun c => ((conditional c).bind kernel).map (c, ·)) =
       p.bind (fun a => (kernel a).map (observe a, ·)) := by
-    have h := congrArg (fun joint : PMF (γ × α) =>
-      joint.bind (fun pair => (kernel pair.2).map (pair.1, ·)))
-        (bind_conditionalSnd (p.map (fun a => (observe a, a))))
-    simpa only [PMF.map_comp, Function.comp_def, PMF.map_bind, PMF.bind_bind, PMF.bind_map]
-      using h
+    simpa only [PMF.map_comp, Function.comp_def, PMF.map_bind, PMF.bind_bind, PMF.bind_map] using
+      congrArg (fun joint : PMF (γ × α) => joint.bind fun pair => (kernel pair.2).map (pair.1, ·))
+        (bind_conditionalSnd (p.map fun a => (observe a, a)))
   calc
     _ = ∑ c, ((p.map observe) c).toReal *
         ∑ a, (conditional c a).toReal * entropy (kernel a) := by
       rw [sum_map_mul]
       exact (sum_conditionalSnd_map p observe (fun _ a => entropy (kernel a))).symm
     _ ≤ ∑ c, ((p.map observe) c).toReal * entropy ((conditional c).bind kernel) :=
-      Finset.sum_le_sum (fun c _ => mul_le_mul_of_nonneg_left
-        (sum_mul_entropy_le_entropy_bind (conditional c) kernel) ENNReal.toReal_nonneg)
+      by gcongr with c; exact sum_mul_entropy_le_entropy_bind (conditional c) kernel
     _ = _ := by rw [← hreplay, conditionalEntropy_bind_pair]
 
 /-- Replacing the observation by a function of it can only increase conditional entropy. -/
@@ -323,8 +310,7 @@ theorem conditionalEntropy_eq_sum_surprisal [Fintype α] [Fintype β]
 theorem conditionalEntropy_le_log_card [Finite α] [Fintype β] (joint : PMF (α × β)) :
     conditionalEntropy joint ≤ Real.logb 2 (Fintype.card β) := by
   let := Fintype.ofFinite α
-  rw [conditionalEntropy_eq_sum]
-  exact sum_mul_le _ _ _ (fun _ => entropy_le_log_card _)
+  simpa only [conditionalEntropy_eq_sum] using sum_mul_le _ _ _ fun _ => entropy_le_log_card _
 
 /-- A bit has at most one bit of conditional entropy. -/
 theorem conditionalEntropy_bool_le_one [Finite α] (joint : PMF (α × Bool)) :
@@ -342,29 +328,23 @@ theorem conditionalEntropy_map_le_of_determined [Fintype α] [Finite β] [Fintyp
   let := Fintype.ofFinite β
   rw [← sum_map_mul p observe (fun b => if bad b then Real.logb 2 (Fintype.card γ) else 0),
     conditionalEntropy_eq_sum]
-  apply Finset.sum_le_sum
-  intro b _
-  let joint := p.map (fun x => (observe x, value x))
-  have hmarginal : joint.map Prod.fst = p.map observe := by
-    simp only [joint, PMF.map_comp, Function.comp_def]
-  change ((joint.map Prod.fst) b).toReal * entropy (conditionalSnd joint b) ≤ _
-  rw [← hmarginal]
+  refine Finset.sum_le_sum fun b _ => ?_
+  set joint := p.map fun x => (observe x, value x)
+  rw [show p.map observe = joint.map Prod.fst by simp [joint, PMF.map_comp, Function.comp_def]]
   by_cases hb : b ∈ (joint.map Prod.fst).support
-  · apply mul_le_mul_of_nonneg_left _ ENNReal.toReal_nonneg
+  · refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
     by_cases hbad : bad b
     · simpa [hbad] using entropy_le_log_card (conditionalSnd joint b)
     · suffices hzero : entropy (conditionalSnd joint b) = 0 by simp [hbad, hzero]
-      apply entropy_eq_zero_of_subsingleton_support
-      intro z hz w hw
+      refine entropy_eq_zero_of_subsingleton_support _ fun z hz w hw => ?_
       obtain ⟨x, _, hx⟩ := (PMF.mem_support_map_iff _ _ _).mp
         ((mem_support_conditionalSnd_iff joint b hb z).mp hz)
       obtain ⟨y, _, hy⟩ := (PMF.mem_support_map_iff _ _ _).mp
         ((mem_support_conditionalSnd_iff joint b hb w).mp hw)
-      rcases Prod.mk.inj hx with ⟨hxb, hxz⟩
-      rcases Prod.mk.inj hy with ⟨hyb, hyw⟩
-      exact hxz.symm.trans ((hdetermined x y (hxb ▸ hbad) (hxb.trans hyb.symm)).trans hyw)
-  · have hz := (PMF.apply_eq_zero_iff _ _).mpr hb
-    simp [hz]
+      exact (Prod.mk.inj hx).2 ▸ (Prod.mk.inj hy).2 ▸
+        hdetermined x y ((Prod.mk.inj hx).1 ▸ hbad)
+          ((Prod.mk.inj hx).1.trans (Prod.mk.inj hy).1.symm)
+  · simp [(PMF.apply_eq_zero_iff (joint.map Prod.fst) b).mpr hb]
 
 open Classical in
 /-- Entropy can remain only when the observation has more than one possible preimage. -/
@@ -377,9 +357,8 @@ theorem conditionalEntropy_map_le_collision [Fintype α] [Finite β] [Fintype γ
   have hbad (x : α) : bad (observe x) ↔ ∃ y, y ≠ x ∧ observe y = observe x := by
     simpa only [bad, Set.not_subsingleton_iff, Set.mem_ofPred_eq, and_comm] using
       Set.nontrivial_iff_exists_ne (show x ∈ {y | observe y = observe x} from rfl)
-  have h := conditionalEntropy_map_le_of_determined p observe value bad
-    (fun x y hgood hxy => congrArg value ((not_not.mp hgood) rfl hxy.symm))
-  simpa only [hbad] using h
+  simpa only [hbad] using conditionalEntropy_map_le_of_determined p observe value bad
+    fun x y hgood hxy => congrArg value ((not_not.mp hgood) rfl hxy.symm)
 
 /-- Exposing a function, then another observation, accounts for all the source entropy. -/
 theorem entropy_chain_rule_deterministic [Finite α] [Finite β] [Finite γ]
@@ -387,8 +366,18 @@ theorem entropy_chain_rule_deterministic [Finite α] [Finite β] [Finite γ]
     entropy (p.map f) + conditionalEntropy (p.map (fun a => (f a, g a))) +
       conditionalEntropy (p.map (fun a => ((f a, g a), a))) = entropy p := by
   have h := entropy_map_of_injective p (f := fun a => ((f a, g a), a))
-    (fun a b hab => congrArg Prod.snd hab)
-  simp only [conditionalEntropy, PMF.map_comp, Function.comp_def, h]
-  ring
+    fun _ _ hab => congrArg Prod.snd hab
+  simp only [conditionalEntropy, PMF.map_comp, Function.comp_def, h]; ring
+
+/-- Conditional entropy subadditivity along an intermediate revelation `mid`:
+`H(tgt | obs) ≤ H(mid | obs) + H(tgt | obs, mid)`. -/
+theorem conditionalEntropy_le_add_conditionalEntropy {Ω Obs Mid Tgt : Type*}
+    [Finite Obs] [Finite Mid] [Finite Tgt]
+    (p : PMF Ω) (obs : Ω → Obs) (mid : Ω → Mid) (tgt : Ω → Tgt) :
+    conditionalEntropy (p.map fun ω => (obs ω, tgt ω)) ≤
+      conditionalEntropy (p.map fun ω => (obs ω, mid ω)) +
+        conditionalEntropy (p.map fun ω => ((obs ω, mid ω), tgt ω)) := by
+  have hle := entropy_map_le (p.map fun ω => ((obs ω, mid ω), tgt ω)) fun x => (x.1.1, x.2)
+  simp only [conditionalEntropy, _root_.PMF.map_comp, Function.comp_def] at hle ⊢; linarith
 
 end Cslib.Probability.PMF

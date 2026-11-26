@@ -127,12 +127,9 @@ private theorem succProbability_idealExperiment_birthdayDistinguisher_eq_iid
     have hcomp : (fun f : D → D => f ∘ x) = fun f i => f ((⟨x, hx⟩ : Fin Q ↪ D) i) := rfl
     rw [PMF.bind_pure_comp, ← PMF.map_comp, hcomp,
       uniformOfFintype_pi_map_comp_embedding, ← iid_uniformOfFintype Q]
-  have hpre : (fun y : Fin Q → D => decide (¬ Function.Injective y)) ⁻¹' {true} =
-      {y | ¬ Function.Injective y} := by
-    ext y
-    simp
   rw [Game.coe_succProbability, heval, ← PMF.toOuterMeasure_apply_singleton,
-    PMF.toOuterMeasure_map_apply, hpre]
+    PMF.toOuterMeasure_map_apply]
+  simp only [Set.preimage, Set.mem_singleton_iff, decide_eq_true_eq]
 
 /-- In Experiment 1 (`PRF.idealExperiment`), for injective `x : Fin Q → D`,
 `birthdayDistinguisher x` outputs `true` with probability `1 - (|D|)_Q / |D|^Q`. -/
@@ -154,9 +151,9 @@ private theorem coe_advantage_birthdayDistinguisher_eq_succProbability
     (E : Key → Equiv.Perm D) {Q : ℕ} {x : Fin Q → D} (hx : Function.Injective x) :
     (PRF.advantage (fun key => ⇑(E key)) (birthdayDistinguisher x) : ℝ) =
       Game.succProbability (ProbComp.eval (PRF.idealExperiment (birthdayDistinguisher x))) := by
-  have hreal : ProbComp.eval (PRF.realExperiment (fun key => ⇑(E key)) (birthdayDistinguisher x)) =
-      PMF.pure false := eval_realExperiment_birthdayDistinguisher E hx
-  rw [PRF.advantage, hreal, Game.advantage_pure_false_left]
+  rw [PRF.advantage, show PRF.realExperiment (fun key => ⇑(E key)) (birthdayDistinguisher x) =
+    PRP.realExperiment E (birthdayDistinguisher x) from rfl,
+    eval_realExperiment_birthdayDistinguisher E hx, Game.advantage_pure_false_left]
 
 /-- Exact PRF distinguishing advantage of `birthdayDistinguisher x` against any block cipher
 `E : Key → Equiv.Perm D` when `x` is injective (§4.4.3, printed p. 134): `1 - (|D|)_Q / |D|^Q`. -/
@@ -197,13 +194,11 @@ theorem half_le_advantage_birthdayDistinguisher_of_bijective
     (E : Key → Equiv.Perm D) {Q : ℕ} {x : Fin Q → D} (hx : Function.Bijective x)
     (hD : 2 ≤ Fintype.card D) :
     (1 / 2 : ℝ) ≤ PRF.advantage (fun key => ⇑(E key)) (birthdayDistinguisher x) := by
-  obtain rfl : Q = Fintype.card D := by
-    simpa using Fintype.card_of_bijective hx
-  rw [coe_advantage_birthdayDistinguisher E hx.injective, Nat.descFactorial_self]
-  have hpos : (0 : ℝ) < (Fintype.card D : ℝ) ^ Fintype.card D := by positivity
+  obtain rfl : Q = Fintype.card D := by simpa using Fintype.card_of_bijective hx
+  rw [coe_advantage_birthdayDistinguisher E hx.injective, Nat.descFactorial_self,
+    le_sub_comm, div_le_iff₀ (by positivity)]
   have hfac : (2 : ℝ) * (Fintype.card D)! ≤ (Fintype.card D : ℝ) ^ Fintype.card D := by
     exact_mod_cast two_mul_factorial_le_pow hD
-  rw [le_sub_comm, div_le_iff₀ hpos]
   linarith
 
 end Cslib.Crypto.PRP

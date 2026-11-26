@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Monotone.Clique.Essential
 public import CslibFrontier.Computability.Circuit.Monotone.Clique.LowerBound
 public import CslibFrontier.Foundations.Data.Nat.Choose
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.IntervalCases
 
 /-!
@@ -90,15 +91,12 @@ private theorem mul_pow_six_le_four_pow
     128 * w ^ 6 ≤ 4 ^ w := by
   induction w, sixteen_le using Nat.le_induction with
   | base => norm_num
-  | succ w sixteen_le inductionHypothesis =>
-      have step : 16 * (w + 1) ≤ 17 * w := by omega
-      have powered := Nat.pow_le_pow_left step 6
-      rw [mul_pow, mul_pow] at powered
-      have successorBound : (w + 1) ^ 6 ≤ 4 * w ^ 6 := by
-        norm_num at powered
-        omega
-      rw [pow_succ 4 w]
-      omega
+  | succ w _ ih =>
+    have powered := Nat.pow_le_pow_left (by omega : 16 * (w + 1) ≤ 17 * w) 6
+    rw [mul_pow, mul_pow] at powered
+    norm_num at powered
+    rw [pow_succ 4 w]
+    omega
 
 /-- A quadratic is eventually dominated by `2^w`. -/
 private theorem six_mul_succ_sq_lt_two_pow
@@ -107,36 +105,33 @@ private theorem six_mul_succ_sq_lt_two_pow
     6 * (w + 1) ^ 2 < 2 ^ w := by
   induction w, sixteen_le using Nat.le_induction with
   | base => norm_num
-  | succ w sixteen_le inductionHypothesis =>
-      have successorBound : (w + 1 + 1) ^ 2 ≤ 2 * (w + 1) ^ 2 := by
-        nlinarith
-      rw [pow_succ 2 w]
-      omega
+  | succ w _ _ =>
+    have : (w + 1 + 1) ^ 2 ≤ 2 * (w + 1) ^ 2 := by nlinarith
+    rw [pow_succ 2 w]
+    omega
 
 /-- The positive sunflower factor `sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w` is strictly below
 `(64 * w ^ 6) ^ (w + 1)` for `1 ≤ w`. -/
 private theorem sunflowerBound_sq_mul_sixtyFour_pow_lt (w : Nat) (one_le : 1 ≤ w) :
     sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w < (64 * w ^ 6) ^ (w + 1) := by
-  let familyBound := sunflowerBound (w ^ 2) w
   let ratio := 64 * w ^ 6
-  have familyBound_le : familyBound ≤ (w + 1) * w ^ (3 * w) := sunflower_bound_le w
-  have ratioPositive : 0 < ratio := by simp only [ratio]; positivity
+  have ratioPositive : 0 < ratio := by dsimp only [ratio]; positivity
   have successorSmall : (w + 1) ^ 2 < ratio := by
     have : 1 ≤ w ^ 6 := one_le_pow₀ one_le
-    have : (w + 1) ^ 2 ≤ 4 * w ^ 6 := by
-      calc
-        (w + 1) ^ 2 ≤ (2 * w) ^ 2 := by gcongr; omega
+    have : (w + 1) ^ 2 ≤ 4 * w ^ 6 :=
+      calc (w + 1) ^ 2 ≤ (2 * w) ^ 2 := Nat.pow_le_pow_left (by omega) 2
         _ = 4 * w ^ 2 := by ring
-        _ ≤ 4 * w ^ 6 := by gcongr; omega
+        _ ≤ 4 * w ^ 6 := Nat.mul_le_mul_left 4 (Nat.pow_le_pow_right one_le (by decide))
     omega
-  calc
-    familyBound ^ 2 * 64 ^ w ≤ ((w + 1) * w ^ (3 * w)) ^ 2 * 64 ^ w := by gcongr
+  calc sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w
+      ≤ ((w + 1) * w ^ (3 * w)) ^ 2 * 64 ^ w := by
+        gcongr
+        exact sunflower_bound_le w
     _ = (w + 1) ^ 2 * ratio ^ w := by
-      simp only [ratio]
-      rw [mul_pow, mul_pow, ← pow_mul, ← pow_mul, show 3 * w * 2 = 6 * w by ring]
-      ring
+        simp only [ratio, mul_pow, ← pow_mul, show 3 * w * 2 = 6 * w by ring]
+        ring
     _ < ratio * ratio ^ w :=
-      Nat.mul_lt_mul_of_pos_right successorSmall (pow_pos ratioPositive w)
+        Nat.mul_lt_mul_of_pos_right successorSmall (pow_pos ratioPositive w)
     _ = ratio ^ (w + 1) := by ring
 
 /-- The positive truncation budget at width `w`, `w^2` petals, and size
@@ -148,48 +143,39 @@ private theorem positive_budget
     (verticesLarge : 64 * w ^ 6 * k ≤ n) :
     Positive.errorCap n k (w ^ 2) w * 64 ^ w <
       Nat.choose n k := by
-  let familyBound := sunflowerBound (w ^ 2) w
   let ratio := 64 * w ^ 6
-  have ratioPositive : 0 < ratio := by simp only [ratio]; positivity
-  have budgetSmall : familyBound ^ 2 * 64 ^ w < ratio ^ (w + 1) :=
-    sunflowerBound_sq_mul_sixtyFour_pow_lt w one_le
-  have containing := Nat.pow_mul_choose_sub_le_choose (q := ratio) (n := n) (k := k)
-    (d := w + 1) ratioPositive width_succ_le_k verticesLarge
-  have k_le_n : k ≤ n := by
-    calc
-      k ≤ 64 * w ^ 6 * k := Nat.le_mul_of_pos_left k ratioPositive
+  have ratioPositive : 0 < ratio := by dsimp only [ratio]; positivity
+  have k_le_n : k ≤ n :=
+    calc k ≤ 64 * w ^ 6 * k := Nat.le_mul_of_pos_left k ratioPositive
       _ ≤ n := verticesLarge
-  have remainingPositive : 0 < Nat.choose (n - (w + 1)) (k - (w + 1)) :=
-    Nat.choose_pos (Nat.sub_le_sub_right k_le_n _)
-  calc
-    Positive.errorCap n k (w ^ 2) w * 64 ^ w =
-        (familyBound ^ 2 * 64 ^ w) *
-          Nat.choose (n - (w + 1)) (k - (w + 1)) := by
-      simp only [Positive.errorCap, familyBound]
-      ring
+  calc Positive.errorCap n k (w ^ 2) w * 64 ^ w
+      = (sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w) * Nat.choose (n - (w + 1)) (k - (w + 1)) := by
+        simp only [Positive.errorCap]
+        ring
     _ < ratio ^ (w + 1) * Nat.choose (n - (w + 1)) (k - (w + 1)) :=
-      Nat.mul_lt_mul_of_pos_right budgetSmall remainingPositive
-    _ ≤ Nat.choose n k := containing
+        Nat.mul_lt_mul_of_pos_right (sunflowerBound_sq_mul_sixtyFour_pow_lt w one_le)
+          (Nat.choose_pos (Nat.sub_le_sub_right k_le_n _))
+    _ ≤ Nat.choose n k :=
+        Nat.pow_mul_choose_sub_le_choose ratioPositive width_succ_le_k verticesLarge
 
 /-- Six times the squared sunflower bound times `64 ^ w` is strictly below `4 ^ (w ^ 2)` for
 `16 ≤ w`. -/
 private theorem six_mul_sunflowerBound_sq_mul_sixtyFour_pow_lt (w : Nat) (sixteen_le : 16 ≤ w) :
     6 * sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w < 4 ^ (w ^ 2) := by
-  let familyBound := sunflowerBound (w ^ 2) w
-  have familyBound_le : familyBound ≤ (w + 1) * w ^ (3 * w) := sunflower_bound_le w
-  have exponential := mul_pow_six_le_four_pow w sixteen_le
-  have quadratic := six_mul_succ_sq_lt_two_pow w sixteen_le
-  calc
-    6 * familyBound ^ 2 * 64 ^ w ≤ 6 * ((w + 1) * w ^ (3 * w)) ^ 2 * 64 ^ w := by gcongr
+  calc 6 * sunflowerBound (w ^ 2) w ^ 2 * 64 ^ w
+      ≤ 6 * ((w + 1) * w ^ (3 * w)) ^ 2 * 64 ^ w := by
+        gcongr
+        exact sunflower_bound_le w
     _ = 6 * (w + 1) ^ 2 * (64 * w ^ 6) ^ w := by
-      rw [mul_pow, mul_pow, ← pow_mul, ← pow_mul, show 3 * w * 2 = 6 * w by ring]
-      ring
+        rw [mul_pow, mul_pow, ← pow_mul, ← pow_mul, show 3 * w * 2 = 6 * w by ring]
+        ring
     _ < 2 ^ w * (64 * w ^ 6) ^ w :=
-      Nat.mul_lt_mul_of_pos_right quadratic (pow_pos (by positivity) w)
+        Nat.mul_lt_mul_of_pos_right (six_mul_succ_sq_lt_two_pow w sixteen_le)
+          (pow_pos (by positivity) w)
     _ = (128 * w ^ 6) ^ w := by
-      rw [← mul_pow]
-      ring_nf
-    _ ≤ (4 ^ w) ^ w := Nat.pow_le_pow_left exponential w
+        rw [← mul_pow]
+        ring_nf
+    _ ≤ (4 ^ w) ^ w := Nat.pow_le_pow_left (mul_pow_six_le_four_pow w sixteen_le) w
     _ = 4 ^ (w ^ 2) := by rw [← pow_mul, pow_two]
 
 /-- The negative plucking budget at width `w`, `w^2` petals, and size bound
@@ -201,40 +187,33 @@ private theorem negative_budget
     (petals_le_n : w ^ 2 ≤ n) :
     2 * negativeGateCap n (k - 1) (w ^ 2) w * 64 ^ w <
       (k - 1) ^ n := by
-  let familyBound := sunflowerBound (w ^ 2) w
+  let fb := sunflowerBound (w ^ 2) w
   let colors := k - 1
   let petals := w ^ 2
-  have familySum : 2 * (2 * familyBound + familyBound ^ 2) ≤ 6 * familyBound ^ 2 := by
-    have : familyBound ≤ familyBound ^ 2 := Nat.le_self_pow (by norm_num) _
+  have familySum : 2 * (2 * fb + fb ^ 2) ≤ 6 * fb ^ 2 := by
+    have := Nat.le_self_pow (by norm_num : 2 ≠ 0) fb
     omega
-  have core : 6 * familyBound ^ 2 * 64 ^ w < 4 ^ petals :=
-    six_mul_sunflowerBound_sq_mul_sixtyFour_pow_lt w sixteen_le
   have hcolors : 0 < colors := by
     have : 1 ≤ w ^ 2 := one_le_pow₀ (by omega)
     omega
-  have tailPositive : 0 < (w ^ 2) ^ petals * colors ^ (n - petals) :=
-    Nat.mul_pos (pow_pos (pow_pos (by omega) 2) _) (pow_pos hcolors _)
-  calc
-    2 * negativeGateCap n (k - 1) (w ^ 2) w * 64 ^ w =
-        2 * (2 * familyBound + familyBound ^ 2) * 64 ^ w *
-          ((w ^ 2) ^ petals * colors ^ (n - petals)) := by
-      simp only [negativeGateCap, Negative.pluckErrorCap,
-        familyBound, colors, petals]
-      ring
-    _ ≤ 6 * familyBound ^ 2 * 64 ^ w *
-          ((w ^ 2) ^ petals * colors ^ (n - petals)) :=
-      Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ familySum)
+  calc 2 * negativeGateCap n (k - 1) (w ^ 2) w * 64 ^ w
+      = 2 * (2 * fb + fb ^ 2) * 64 ^ w * ((w ^ 2) ^ petals * colors ^ (n - petals)) := by
+        simp only [negativeGateCap, Negative.pluckErrorCap, fb, colors, petals]
+        ring
+    _ ≤ 6 * fb ^ 2 * 64 ^ w * ((w ^ 2) ^ petals * colors ^ (n - petals)) :=
+        Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ familySum)
     _ < 4 ^ petals * ((w ^ 2) ^ petals * colors ^ (n - petals)) :=
-      Nat.mul_lt_mul_of_pos_right core tailPositive
+        Nat.mul_lt_mul_of_pos_right
+          (six_mul_sunflowerBound_sq_mul_sixtyFour_pow_lt w sixteen_le)
+          (Nat.mul_pos (pow_pos (pow_pos (by omega) 2) _) (pow_pos hcolors _))
     _ = (4 * w ^ 2) ^ petals * colors ^ (n - petals) := by
       rw [mul_pow]
       ring
     _ ≤ colors ^ petals * colors ^ (n - petals) := by
       gcongr
     _ = (k - 1) ^ n := by
-      rw [← pow_add]
-      congr 1
-      omega
+        rw [← pow_add]
+        exact congrArg (colors ^ ·) (by omega)
 
 /-- A monotone circuit separating the graphs with a `k`-clique from the `(k - 1)`-colourable graphs
 on `n` vertices has more than `64 ^ w` gates, for every width `w ≥ 16` with `4 w ^ 2 ≤ k - 1` and
@@ -266,19 +245,15 @@ private theorem two_pow_two_mul_sqrt_lt_size_of_separates_of_large {n k : ℕ} (
   let root := Nat.sqrt (k - 1)
   let w := root / 2
   have rootLarge : 32 ≤ root := Nat.le_sqrt.2 (by omega)
-  have rootSquare : root ^ 2 ≤ k - 1 := Nat.sqrt_le' (k - 1)
-  have sqrtSmall : Nat.sqrt k ≤ root + 1 := by
-    have : Nat.sqrt k < root + 2 := by
-      rw [Nat.sqrt_lt']
-      have successor : k - 1 < (root + 1) ^ 2 := Nat.lt_succ_sqrt' (k - 1)
-      have : (root + 1) ^ 2 + 1 ≤ (root + 2) ^ 2 := by nlinarith
-      omega
+  have sqrtSmall : Nat.sqrt k < root + 2 := Nat.sqrt_lt'.2 <| by
+    have : k - 1 < (root + 1) ^ 2 := Nat.lt_succ_sqrt' (k - 1)
+    have : (root + 1) ^ 2 + 1 ≤ (root + 2) ^ 2 := by nlinarith
     omega
-  have widthSmall : 4 * w ^ 2 ≤ k - 1 := by
+  have widthSmall : 4 * w ^ 2 ≤ k - 1 :=
     calc 4 * w ^ 2 = (2 * w) ^ 2 := by ring
       _ ≤ root ^ 2 := Nat.pow_le_pow_left (by omega) 2
-      _ ≤ k - 1 := rootSquare
-  have verticesLarge : 64 * w ^ 6 * k ≤ n := by
+      _ ≤ k - 1 := Nat.sqrt_le' (k - 1)
+  have verticesLarge : 64 * w ^ 6 * k ≤ n :=
     calc 64 * w ^ 6 * k = (4 * w ^ 2) ^ 3 * k := by ring
       _ ≤ k ^ 3 * k := by gcongr; omega
       _ = k ^ 4 := by ring
@@ -294,12 +269,9 @@ private theorem fourPow_sqrt_add_two_le
     (two_le : 2 ≤ k)
     (k_le : k ≤ 1024) :
     4 ^ Nat.sqrt k + 2 ≤ (k ^ 4 / 2) ^ 2 := by
-  have monotone : ∀ base, base ≤ k →
-      (base ^ 4 / 2) ^ 2 ≤ (k ^ 4 / 2) ^ 2 := fun base below =>
+  have monotone (base : ℕ) (below : base ≤ k) : (base ^ 4 / 2) ^ 2 ≤ (k ^ 4 / 2) ^ 2 :=
     Nat.pow_le_pow_left (Nat.div_le_div_right (Nat.pow_le_pow_left below 4)) 2
-  have sqrtSmall : Nat.sqrt k ≤ 32 := by
-    have : Nat.sqrt k < 33 := Nat.sqrt_lt'.2 (by omega)
-    omega
+  have sqrtSmall : Nat.sqrt k < 33 := Nat.sqrt_lt'.2 (by omega)
   have sqrtPositive : 1 ≤ Nat.sqrt k := Nat.le_sqrt.2 (by omega)
   have squareBelow : Nat.sqrt k ^ 2 ≤ k := Nat.sqrt_le' k
   generalize Nat.sqrt k = root at sqrtSmall sqrtPositive squareBelow ⊢
@@ -316,10 +288,10 @@ theorem two_pow_two_mul_sqrt_lt_size_of_separates {n k : ℕ} (hk : 2 ≤ k) (hn
     2 ^ (2 * Nat.sqrt k) < C.size := by
   have hkn : k ≤ n := (Nat.le_self_pow (by norm_num) k).trans hn
   rcases Nat.lt_or_ge k 1025 with hk' | hk'
-  · have edges := edgeCount_le_succ_size_of_separates hk hkn hC
-    have pairs := sq_half_le_edgeCount n
-    have arithmetic := fourPow_sqrt_add_two_le k hk (by omega)
-    have scaled : (k ^ 4 / 2) ^ 2 ≤ (n / 2) ^ 2 := by gcongr
+  · have := edgeCount_le_succ_size_of_separates hk hkn hC
+    have := sq_half_le_edgeCount n
+    have := (fourPow_sqrt_add_two_le k hk (by omega)).trans
+      (by gcongr : (k ^ 4 / 2) ^ 2 ≤ (n / 2) ^ 2)
     rw [pow_mul]
     norm_num
     omega
@@ -347,20 +319,15 @@ theorem two_rpow_sqrt_lt_size_of_separates {n k : ℕ} (hk : 2 ≤ k) (hn : k ^ 
     {C : Circuit signature (edgeCount n) 1}
     (hC : Separates k (k - 1) fun x => C.eval interpretation x 0) :
     (2 : ℝ) ^ Real.sqrt k < C.size := by
-  have natural := two_pow_two_mul_sqrt_lt_size_of_separates hk hn hC
   have sqrtPositive : 1 ≤ Nat.sqrt k := Nat.le_sqrt.2 (by omega)
   have exponentBound : Real.sqrt k ≤ ((2 * Nat.sqrt k : ℕ) : ℝ) := by
     have := Real.real_sqrt_lt_nat_sqrt_succ (a := k)
-    have : (1 : ℝ) ≤ Nat.sqrt k := by exact_mod_cast sqrtPositive
-    push_cast
-    linarith
+    cast_linarith [sqrtPositive]
   calc (2 : ℝ) ^ Real.sqrt k ≤ (2 : ℝ) ^ ((2 * Nat.sqrt k : ℕ) : ℝ) :=
         Real.rpow_le_rpow_of_exponent_le (by norm_num) exponentBound
-    _ = ((2 ^ (2 * Nat.sqrt k) : ℕ) : ℝ) := by
-        rw [Real.rpow_natCast]
-        push_cast
-        rfl
-    _ < C.size := by exact_mod_cast natural
+    _ = ((2 ^ (2 * Nat.sqrt k) : ℕ) : ℝ) :=
+        (Real.rpow_natCast 2 (2 * Nat.sqrt k)).trans (by push_cast; rfl)
+    _ < C.size := by exact_mod_cast two_pow_two_mul_sqrt_lt_size_of_separates hk hn hC
 
 /-- **The monotone lower bound for cliques, real form.** For `2 ≤ k` with `k ^ 4 ≤ n`, every
 monotone circuit computing `k`-clique on `n` vertices has more than `2 ^ √k` gates. -/

@@ -271,9 +271,8 @@ theorem IsOraclePPTOn.queryWord {Op Q R α : Type} [DecidableEq Op] [Finite Op]
     (ComputableInPolyTime.fst opEncoding encBits).comp henc
   have hword : ComputableInPolyTime (fun a => (c.encodeQuery (q a)).2) input encBits :=
     (ComputableInPolyTime.snd opEncoding encBits).comp henc
-  exact IsOraclePPTOn.finite_cases hop fun op =>
-    (IsOraclePPTOn.query_take op hword hcap).map_with
-      (f := fun a w => decodeReply (q a) w) hdec
+  exact (IsOraclePPTOn.query_take_with hop hword hcap).map_with
+    (f := fun a w => decodeReply (q a) w) hdec
 
 /-- Lifting a strict oracle-PPT typed stateful handler `typed : Caller → Q → StateT State
 (WordOracleComp External) R` through `c.wordOracle` produces a strict oracle-PPT word handler on
@@ -323,23 +322,10 @@ theorem IsOraclePPTOn.wordOracle_state
       (fun p : (Caller × (Op × List Bool) × State) × (R × State) =>
         (c.encodeReply ((c.decodeQuery p.1.2.1).getD defaultQuery) p.2.1, p.2.2))
       (encPair EIn (encPair replyEncoding stateEncoding)) EOut := by
-    have hq_p : ComputableInPolyTime
-        (fun p : (Caller × (Op × List Bool) × State) × (R × State) =>
-          (c.decodeQuery p.1.2.1).getD defaultQuery)
-        (encPair EIn (encPair replyEncoding stateEncoding)) queryEncoding :=
-      hgetQ.comp (ComputableInPolyTime.fst _ _)
-    have hr_p : ComputableInPolyTime
-        (fun p : (Caller × (Op × List Bool) × State) × (R × State) => p.2.1)
-        (encPair EIn (encPair replyEncoding stateEncoding)) replyEncoding :=
-      (ComputableInPolyTime.fst replyEncoding stateEncoding).comp (ComputableInPolyTime.snd _ _)
-    have hs_p : ComputableInPolyTime
-        (fun p : (Caller × (Op × List Bool) × State) × (R × State) => p.2.2)
-        (encPair EIn (encPair replyEncoding stateEncoding)) stateEncoding :=
-      (ComputableInPolyTime.snd replyEncoding stateEncoding).comp (ComputableInPolyTime.snd _ _)
-    exact (hencodeReply.comp (hq_p.prod hr_p)).prod hs_p
+    fun_prop
   have hnone : ComputableInPolyTime
-      (fun x : Caller × (Op × List Bool) × State => (([] : List Bool), x.2.2)) EIn EOut :=
-    (ComputableInPolyTime.const ([] : List Bool)).prod hstate
+      (fun x : Caller × (Op × List Bool) × State => (([] : List Bool), x.2.2)) EIn EOut := by
+    fun_prop
   refine (IsOraclePPTOn.cond
     (condition := fun x : Caller × (Op × List Bool) × State => (c.decodeQuery x.2.1).isSome)
     (by fun_prop)

@@ -200,12 +200,9 @@ theorem sum_abs_snapIter_sub_pow_le (d n₁ : ℕ) {M : Matrix ι ι ℝ}
         (Matrix.sum_pow_apply_le_one h0 h1 _ i)
     have hstep : ∀ i, ∑ j, |snapIter d (· ^ n₁) M (n + 1) z i j - (R ^ n₁) i j| ≤
         Fintype.card ι * (2 / 2 ^ d) := fun i => by
-      rw [snapIter_succ]
-      calc ∑ j, |snapMatrix d (R ^ n₁) (z (Fin.last n)) i j - (R ^ n₁) i j|
-          ≤ ∑ _j : ι, (2 / 2 ^ d : ℝ) := Finset.sum_le_sum fun j _ => by
-            rw [snapMatrix_apply]
-            exact abs_snap_sub_le d (Matrix.pow_apply_nonneg hR0 n₁ i j) _
-        _ = Fintype.card ι * (2 / 2 ^ d) := by simp
+      simpa using Finset.sum_le_card_nsmul univ _ (2 / 2 ^ d : ℝ) fun j _ => by
+        rw [snapIter_succ, snapMatrix_apply]
+        exact abs_snap_sub_le d (Matrix.pow_apply_nonneg hR0 n₁ i j) _
     have hpow := Matrix.sum_abs_pow_sub_pow_le hR hM (fun i => ih (Fin.init z) i) n₁ i
     rw [← pow_mul, ← pow_succ] at hpow
     calc ∑ j, |snapIter d (· ^ n₁) M (n + 1) z i j - (M ^ n₁ ^ (n + 1)) i j|
@@ -217,22 +214,16 @@ theorem sum_abs_snapIter_sub_pow_le (d n₁ : ℕ) {M : Matrix ι ι ℝ}
           rw [Finset.sum_add_distrib]
           exact add_le_add (hstep i) hpow
       _ = (∑ k ∈ range (n + 1), (n₁ : ℝ) ^ k) * (Fintype.card ι * (2 / 2 ^ d)) := by
-          rw [Finset.sum_range_succ', pow_zero]
-          have : ∑ k ∈ range n, (n₁ : ℝ) ^ (k + 1) = n₁ * ∑ k ∈ range n, (n₁ : ℝ) ^ k := by
-            rw [Finset.mul_sum]
-            exact Finset.sum_congr rfl fun k _ => pow_succ' _ _
-          rw [this]
+          rw [geom_sum_succ]
           ring
 
 private theorem card_le_of_dens_le {α : Type*} [Fintype α] {s : Finset α} {ε : ℝ}
     (h : (s.dens : ℝ) ≤ ε) : (#s : ℝ) ≤ ε * Fintype.card α := by
   rcases Nat.eq_zero_or_pos (Fintype.card α) with h0 | h0
-  · rw [Finset.card_eq_zero.2 (Finset.eq_empty_of_forall_notMem fun a _ =>
-      (Fintype.card_eq_zero_iff.1 h0).elim a)]
-    simp [h0]
-  · rw [Finset.dens, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast,
+  · have : IsEmpty α := Fintype.card_eq_zero_iff.1 h0
+    simp [Finset.eq_empty_of_isEmpty s]
+  · rwa [Finset.dens, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast,
       div_le_iff₀ (by exact_mod_cast h0)] at h
-    exact h
 
 private theorem dens_le_of_card_le {α : Type*} [Fintype α] {s : Finset α} {ε : ℝ} (hε : 0 ≤ ε)
     (h : (#s : ℝ) ≤ ε * Fintype.card α) : (s.dens : ℝ) ≤ ε := by
@@ -268,16 +259,13 @@ private theorem card_ne_le_of_step {Ω T S : Type*} [Fintype Ω] [Fintype T] [De
           F q.1.1 (X n q.1.1 q.1.2) q.2 ≠ G (R n q.1.1 q.1.2) q.2} := by
       refine (Finset.card_equiv e fun q => ?_).symm
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, e, Equiv.coe_fn_mk, hX, hR]
-    have hpt : ∀ (q : Ω × (Fin n → T)) (t : T),
+    have hpt (q : Ω × (Fin n → T)) (t : T) :
         (if F q.1 (X n q.1 q.2) t ≠ G (R n q.1 q.2) t then (1 : ℝ) else 0) ≤
           (if X n q.1 q.2 ≠ R n q.1 q.2 then 1 else 0) +
             if F q.1 (R n q.1 q.2) t ≠ G (R n q.1 q.2) t then 1 else 0 := by
-      intro q t
       by_cases hq : X n q.1 q.2 = R n q.1 q.2
-      · rw [hq]
-        simp
-      · rw [ite_eq_left hq]
-        split_ifs <;> norm_num
+      · simp [hq]
+      · split_ifs <;> norm_num
     rw [hcard, Finset.natCast_card_filter, Fintype.sum_prod_type]
     calc ∑ q : Ω × (Fin n → T), ∑ t : T,
           (if F q.1 (X n q.1 q.2) t ≠ G (R n q.1 q.2) t then (1 : ℝ) else 0)
@@ -321,18 +309,10 @@ private theorem card_snap_pow_ne_le {Ω : Type*} [Fintype Ω] (d n₁ : ℕ)
     by_cases hb : ∃ i j, ε < |pow R y i j - (R ^ n₁) i j|
     · rw [ite_eq_left hb]
       have h1 : (#{t : Fin (2 ^ d) | snapMatrix d (pow R y) t ≠ snapMatrix d (R ^ n₁) t} : ℝ) ≤
-          2 ^ d := by
-        have := Finset.card_le_univ
-          ({t : Fin (2 ^ d) | snapMatrix d (pow R y) t ≠ snapMatrix d (R ^ n₁) t} :
-            Finset (Fin (2 ^ d)))
-        rw [Fintype.card_fin] at this
-        exact_mod_cast this
-      have h2 : 0 ≤ c := by positivity
-      linarith
+          2 ^ d := by exact_mod_cast (Finset.card_le_univ _).trans_eq (Fintype.card_fin _)
+      linarith [show (0 : ℝ) ≤ c by positivity]
     · rw [ite_eq_right hb, zero_add]
-      refine card_snapMatrix_ne_le d fun i j => ?_
-      by_contra h
-      exact hb ⟨i, j, lt_of_not_ge h⟩
+      exact card_snapMatrix_ne_le d fun i j => not_lt.mp fun h => hb ⟨i, j, h⟩
   rw [Finset.natCast_card_filter, Fintype.sum_prod_type]
   calc ∑ y : Ω, ∑ t : Fin (2 ^ d),
         (if snapMatrix d (pow R y) t ≠ snapMatrix d (R ^ n₁) t then (1 : ℝ) else 0)
@@ -348,12 +328,8 @@ private theorem card_snap_pow_ne_le {Ω : Type*} [Fintype Ω] (d n₁ : ℕ)
     _ ≤ 2 ^ d * (ε * Fintype.card Ω) + Fintype.card Ω * c := by gcongr
     _ = (ε + Fintype.card ι ^ 2 * (2 ^ d * ε + (2 ^ d)⁻¹)) *
           (Fintype.card Ω * Fintype.card (Fin (2 ^ d))) := by
-        rw [Fintype.card_fin, hc]
-        have h4 : (4 : ℝ) ^ d = 2 ^ d * 2 ^ d := by
-          rw [← mul_pow]
-          norm_num
+        rw [Fintype.card_fin, hc, show (4 : ℝ) ^ d = 2 ^ d * 2 ^ d by rw [← mul_pow]; norm_num]
         push_cast
-        rw [h4]
         field_simp
 
 /-- **Coupling with the reference iteration** [ChattopadhyayLiao2020, proof of Lemma A.4]. Let
@@ -372,19 +348,17 @@ theorem dens_snapIter_ne_le {Ω : Type*} [Fintype Ω] (d n₁ n₂ : ℕ)
         snapIter d (fun A => pow A p.1) M n₂ p.2 ≠ snapIter d (· ^ n₁) M n₂ p.2} :
           Finset _).dens : ℝ) ≤
       n₂ * (ε + Fintype.card ι ^ 2 * (2 ^ d * ε + (2 ^ d)⁻¹)) := by
-  have hβ : 0 ≤ ε + Fintype.card ι ^ 2 * (2 ^ d * ε + (2 ^ d)⁻¹) := by positivity
   refine dens_le_of_card_le (by positivity) ?_
   have hmem : ∀ (n : ℕ) (z : Fin n → Fin (2 ^ d)),
       snapIter d (· ^ n₁) M n z = M ∨ IsDyadicSubstochastic d (snapIter d (· ^ n₁) M n z)
     | 0, _ => Or.inl rfl
     | n + 1, z => Or.inr (isDyadicSubstochastic_snapIter d n₁ h0 h1 n z)
-  have h := card_ne_le_of_step (fun n y z => snapIter d (fun A => pow A y) M n z)
+  refine (card_ne_le_of_step (fun n y z => snapIter d (fun A => pow A y) M n z)
     (fun n _ z => snapIter d (· ^ n₁) M n z) (fun y A t => snapMatrix d (pow A y) t)
     (fun A t => snapMatrix d (A ^ n₁) t) (fun n y z t => snapIter_snoc ..)
     (fun n y z t => snapIter_snoc ..) (fun _ _ => rfl)
     (fun n z => card_snap_pow_ne_le d n₁ pow _ hε (card_le_of_dens_le (hpow _ (hmem n z))))
-    n₂
-  refine h.trans_eq ?_
+    n₂).trans_eq ?_
   rw [Fintype.card_prod, Fintype.card_fun, Fintype.card_fin, Fintype.card_fin]
   push_cast
   ring
@@ -408,9 +382,7 @@ theorem dens_snapIter_far_le {Ω : Type*} [Fintype Ω] (d n₁ n₂ : ℕ)
   refine le_trans ?_ (dens_snapIter_ne_le d n₁ n₂ pow h0 h1 hε hpow)
   refine NNRat.cast_le.2 (Finset.dens_le_dens fun p => ?_)
   simp only [mem_rowFarSet, Finset.mem_filter, Finset.mem_univ, true_and]
-  rintro ⟨i, hi⟩ heq
-  rw [heq] at hi
-  exact (sum_abs_snapIter_sub_pow_le d n₁ h0 h1 n₂ p.2 i).not_gt hi
+  exact fun ⟨i, hi⟩ heq => (sum_abs_snapIter_sub_pow_le d n₁ h0 h1 n₂ p.2 i).not_gt (heq ▸ hi)
 
 /-- **The Saks–Zhou iteration** [ChattopadhyayLiao2020, Lemma A.4]: for `n₁ ≥ 2` and
 `n = n₁ ^ n₂`, except on a set of density at most `n₂ (ε + w ^ 2 (2 ^ d ε + 2 ^ (-d)))`, every row
@@ -430,9 +402,8 @@ theorem dens_snapIter_far_le_of_two_le {Ω : Type*} [Fintype Ω] (d : ℕ) {n₁
   refine NNRat.cast_le.2 (Finset.dens_le_dens fun p => ?_)
   simp only [mem_rowFarSet]
   rintro ⟨i, hi⟩
-  refine ⟨i, lt_of_le_of_lt ?_ hi⟩
   have hgeom : ∑ k ∈ range n₂, (n₁ : ℝ) ^ k ≤ (n₁ : ℝ) ^ n₂ := by
     exact_mod_cast (Nat.geomSum_lt hn₁ fun k hk => Finset.mem_range.1 hk).le
-  gcongr
+  exact ⟨i, lt_of_le_of_lt (by gcongr) hi⟩
 
 end Cslib.Probability.SaksZhou

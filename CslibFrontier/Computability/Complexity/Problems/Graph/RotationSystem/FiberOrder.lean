@@ -55,19 +55,15 @@ private theorem fiberNext_bijective
     have hv : b.vertex = a.vertex :=
       (vertex_fiberNext rank b).symm.trans
         ((congrArg Dart.vertex h).symm.trans (vertex_fiberNext rank a))
-    let a' : {d : Dart G // d.vertex = a.vertex} := ⟨a, rfl⟩
-    let b' : {d : Dart G // d.vertex = a.vertex} := ⟨b, hv⟩
-    have hh : ((rank a.vertex).symm (finRotate _ (rank a.vertex a'))).val =
-        ((rank a.vertex).symm (finRotate _ (rank a.vertex b'))).val := by
-      rw [← fiberNext_at rank a.vertex a', ← fiberNext_at rank a.vertex b']
-      exact h
+    have hh : ((rank a.vertex).symm (finRotate _ (rank a.vertex ⟨a, rfl⟩))).val =
+        ((rank a.vertex).symm (finRotate _ (rank a.vertex ⟨b, hv⟩))).val := by
+      rwa [← fiberNext_at rank a.vertex ⟨a, rfl⟩, ← fiberNext_at rank a.vertex ⟨b, hv⟩]
     exact congrArg Subtype.val ((rank a.vertex).injective
       ((finRotate _).injective ((rank a.vertex).symm.injective (Subtype.ext hh))))
   · intro b
-    let a := (rank b.vertex).symm ((finRotate _).symm (rank b.vertex ⟨b, rfl⟩))
-    refine ⟨a.val, ?_⟩
-    rw [fiberNext_at rank b.vertex a]
-    simp only [a, Equiv.apply_symm_apply, Equiv.symm_apply_apply]
+    refine ⟨((rank b.vertex).symm ((finRotate _).symm (rank b.vertex ⟨b, rfl⟩))).val, ?_⟩
+    rw [fiberNext_at]
+    simp only [Equiv.apply_symm_apply, Equiv.symm_apply_apply]
 
 /-- Turn each enumeration of a vertex's full dart fiber into one cyclic rotation. -/
 noncomputable def ofFiberEquiv
@@ -133,23 +129,15 @@ private theorem distance_ofFiberEquiv_zero
   have hp (k : Fin (Fintype.card {d : Dart G // d.vertex = v})) :
       (finRotate _ ^ k.val) (⟨0, hpos⟩ : Fin (Fintype.card {d : Dart G // d.vertex = v})) = k := by
     rw [← (finRotate _).iterate_eq_pow, ← finCycle_eq_finRotate_iterate]
-    simp only [finCycle_apply]
-    apply Fin.ext
-    change (0 + k.val) % Fintype.card {d : Dart G // d.vertex = v} = k.val
-    simp only [zero_add, Nat.mod_eq_of_lt k.isLt]
+    exact Fin.ext (by simp only [finCycle_apply, Fin.val_add, zero_add, Nat.mod_eq_of_lt k.isLt])
   apply rotationDistance_eq
     (h := ((rank v).symm ⟨0, hpos⟩).property.trans d.property.symm)
   · rw [pow_ofFiberEquiv, hp, Equiv.symm_apply_apply]
   · intro k hk heq
-    have heq' : ((rank v).symm ⟨k, hk.trans (rank v d).isLt⟩).val = d.val := by
-      rw [pow_ofFiberEquiv, hp ⟨k, hk.trans (rank v d).isLt⟩] at heq
-      exact heq
-    have heq'' : (rank v).symm ⟨k, hk.trans (rank v d).isLt⟩ =
-        (rank v).symm (rank v d) := by
-      apply Subtype.ext
-      simpa only [Equiv.symm_apply_apply] using heq'
-    have hv := congrArg Fin.val ((rank v).symm.injective heq'')
-    exact (Nat.ne_of_lt hk) hv
+    rw [pow_ofFiberEquiv, hp ⟨k, hk.trans (rank v d).isLt⟩] at heq
+    have heq' : (rank v).symm ⟨k, hk.trans (rank v d).isLt⟩ = (rank v).symm (rank v d) :=
+      Subtype.ext (by simpa only [Equiv.symm_apply_apply] using heq)
+    exact (Nat.ne_of_lt hk) (congrArg Fin.val ((rank v).symm.injective heq'))
 
 /-- Literal directed intervals agree with cyclic comparison of the supplied fiber ranks. -/
 theorem mem_rotationInterval_ofFiberEquiv_iff
