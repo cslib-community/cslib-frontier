@@ -435,22 +435,19 @@ private theorem GInv.cover {r : V} {P : Finset V} {p : V → V} {S : V → Finse
       subst hct
       rcases hwc with h | h
       · by_cases hwP : w ∈ P
-        · by_cases hwr : w = r
-          · refine .inr (.inl ?_)
-            rw [← h, hwr, I.parent_root]
-          by_cases hwt : w = c
-          · exact .inr (.inl hwt)
+        · obtain rfl | hwr := eq_or_ne w r
+          · exact .inr (.inl (h.symm.trans I.parent_root).symm)
+          obtain rfl | hwt := eq_or_ne w c
+          · exact .inr (.inl rfl)
           have hwK : w ∈ edgesAt r P p c := mem_edgesAt.mpr ⟨hwP, hwr, .inl h⟩
           rcases I.edgesAt_cases hwK with ⟨htw, -⟩ | ⟨-, hwt'⟩
           · exact .inl ⟨w, hwK, I.self_mem_farSide hwK htw⟩
           · exact absurd hwt' hwt
         · exact .inr (.inr ⟨hwP, h⟩)
-      · by_cases hwt : w = c
-        · exact .inr (.inl hwt)
+      · obtain rfl | hwt := eq_or_ne w c
+        · exact .inr (.inl rfl)
         have htr : c ≠ r := fun htr => hwt (by rw [← h, htr, I.parent_root])
-        refine .inl ⟨c, mem_edgesAt.mpr ⟨htP, htr, .inr rfl⟩, ?_⟩
-        rw [← h]
-        exact I.parent_mem_farSide htP htr
+        exact .inl ⟨c, mem_edgesAt.mpr ⟨htP, htr, .inr rfl⟩, h ▸ I.parent_mem_farSide htP htr⟩
     · -- `c` is an unprocessed child of `t`, hence a leaf: `w` is its parent `t`.
       rcases hwc with h | h
       · exact absurd (h ▸ I.parent_mem w) hcP
@@ -498,28 +495,24 @@ private theorem exists_uncrossed (hsym : ∀ X, f Xᶜ = f X) (hsub : IsSubmodul
   · -- A processed child `z` of `t` lies on its own far side, whose far end is `z`; an unprocessed
     -- one lies on no far side.
     intro z hz
-    by_cases hzt : z = t
-    · rw [hzt]
-      exact iff_of_false U0.right_notMem hX.right_notMem
+    obtain rfl | hzt := eq_or_ne z t
+    · exact iff_of_false U0.right_notMem hX.right_notMem
     by_cases hzP : z ∈ P
     · have hzr : z ≠ r := fun hzr => hzt (by rw [← hz, hzr, I.parent_root])
       have hzK : z ∈ K := mem_edgesAt.mpr ⟨hzP, hzr, .inl hz⟩
       rcases I.edgesAt_cases hzK with ⟨htz, -⟩ | ⟨-, hzt'⟩
-      · rw [M1 z hzK z (I.self_mem_farSide hzK htz)]
-        simp only [a, farEnd, htz, ↓reduceIte]
+      · simpa only [a, farEnd, htz, ↓reduceIte] using M1 z hzK z (I.self_mem_farSide hzK htz)
       · exact absurd hzt' hzt
     · refine M2 z fun k hk hzA => ?_
       have hzk : z ≠ k := fun h => hzP (h ▸ (mem_edgesAt.mp hk).1)
       exact htA k hk (hz ▸ (I.mem_farSide_iff hk hzk).mp hzA)
   · -- The parent of `t` lies on the far side of `(t, p t)`, whose far end is `p t`.
-    by_cases htr : t = r
-    · have : p t = t := by rw [htr, I.parent_root]
-      rw [this]
+    obtain rfl | htr := eq_or_ne t r
+    · rw [I.parent_root]
       exact iff_of_false U0.right_notMem hX.right_notMem
     have htK : t ∈ K := mem_edgesAt.mpr ⟨htP, htr, .inr rfl⟩
     have htt : t ∈ S t := (I.cut t htP htr).left_mem
-    rw [M1 t htK (p t) (I.parent_mem_farSide htP htr)]
-    simp only [a, farEnd, htt, ↓reduceIte]
+    simpa only [a, farEnd, htt, ↓reduceIte] using M1 t htK (p t) (I.parent_mem_farSide htP htr)
   · -- Any other `z` lies on the same far side as `p z`.
     intro z hzt hpz
     rcases I.cover htP ((I.conn z).trans (reflTransGen_tAdj_symm (I.conn t))) with
@@ -539,29 +532,25 @@ private theorem gInv_step (hsym : ∀ X, f Xᶜ = f X) (hsub : IsSubmodular f) {
     {X : Finset V} (hX : IsMinCutBetween f s (p s) X) {v : β} (hval : v = f X) :
     ∃ S', GInv f r (insert s P) (gusfieldStep p s X) S' (gusfieldStepWeight p w s X v) ∧
       gusfieldStepWeight p w s X v r = w r := by
-  obtain ⟨t, ht⟩ : ∃ t, p s = t := ⟨_, rfl⟩
-  rw [ht] at hX
+  set t := p s
+  have ht : p s = t := rfl
   obtain ⟨U, U0, U1, U2, U3⟩ := exists_uncrossed hsym hsub I hsP ht hX
-  have htP : t ∈ P := ht ▸ I.parent_mem s
+  have htP : t ∈ P := I.parent_mem s
   have hst : s ≠ t := hX.ne
   have hsr : s ≠ r := fun h => hsP (h ▸ I.root_mem)
-  have hsS : ∀ i ∈ P, i ≠ r → (s ∈ S i ↔ t ∈ S i) := fun i hi hir => by
-    simpa only [ht] using I.lam i hi hir s fun h => hsP (h ▸ hi)
+  have hsS : ∀ i ∈ P, i ≠ r → (s ∈ S i ↔ t ∈ S i) := fun i hi hir =>
+    I.lam i hi hir s fun h => hsP (h ▸ hi)
   set q := gusfieldStep p s X with hq
-  have qs : q s = if p t ∈ X then p t else t := by
-    simp [hq, gusfieldStep, ht]
-  have qt : q t = if p t ∈ X then s else p t := by
-    simp [hq, gusfieldStep, Ne.symm hst, ht]
-  have qz : ∀ z, z ≠ s → z ≠ t → q z = if p z = t ∧ z ∈ X then s else p z := by
-    intro z hzs hzt
+  have qs : q s = if p t ∈ X then p t else t := by simp [hq, gusfieldStep, ht]
+  have qt : q t = if p t ∈ X then s else p t := by simp [hq, gusfieldStep, Ne.symm hst, ht]
+  have qz (z : V) (hzs : z ≠ s) (hzt : z ≠ t) : q z = if p z = t ∧ z ∈ X then s else p z := by
     simp [hq, gusfieldStep, hzs, ht, hzt]
   -- Vertices other than `s, t` keep their side of every set that `s, t` do not separate.
-  have hgen : ∀ Y : Finset V, (s ∈ Y ↔ t ∈ Y) → ∀ z, z ≠ s → z ≠ t → (z ∈ Y ↔ p z ∈ Y) →
-      (z ∈ Y ↔ q z ∈ Y) := by
-    intro Y hY z hzs hzt hz
+  have hgen (Y : Finset V) (hY : s ∈ Y ↔ t ∈ Y) (z : V) (hzs : z ≠ s) (hzt : z ≠ t)
+      (hz : z ∈ Y ↔ p z ∈ Y) : z ∈ Y ↔ q z ∈ Y := by
     rw [qz z hzs hzt]
     split_ifs with h
-    · rw [hz, h.1, hY]
+    · rw [hz, h.1, ← hY]
     · exact hz
   have hgenU : ∀ z, z ≠ s → z ≠ t → (z ∈ U ↔ q z ∈ U) := by
     intro z hzs hzt
@@ -672,7 +661,7 @@ private theorem gInv_step (hsym : ∀ X, f Xᶜ = f X) (hsub : IsSubmodular f) {
         exact U0
       rw [Function.update_of_ne (hne_s hiP)]
       rcases eq_or_ne i t with rfl | hit
-      · exact qt' ▸ I.cut i hiP hir
+      · exact qt' ▸ I.cut t hiP hir
       exact hcut_other i hiP hir (hne_s hiP) hit
     · rintro i hi hir z hzi
       rcases Finset.mem_insert.mp hi with rfl | hiP
