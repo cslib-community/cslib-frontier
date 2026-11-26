@@ -315,20 +315,13 @@ private theorem criticalValue_mono_bundle {N M : Type*} [DecidableEq N]
     (hwin : i ∈ w (Function.update b i ⟨S', v'⟩)) (v : ℝ) :
     criticalValue w (Function.update b i ⟨S, v⟩) i ≤
       criticalValue w (Function.update b i ⟨S', v'⟩) i := by
-  have hne : {z : ℝ | 0 ≤ z ∧ i ∈ w (Function.update b i ⟨S', z⟩)}.Nonempty :=
-    ⟨v', hv', hwin⟩
-  have hrew : criticalValue w (Function.update b i ⟨S', v'⟩) i =
-      sInf {z : ℝ | 0 ≤ z ∧ i ∈ w (Function.update b i ⟨S', z⟩)} := by
-    simp only [criticalValue, Function.update_self, Function.update_idem]
-  rw [hrew]
-  refine le_csInf hne fun z ⟨hz0, hzw⟩ => ?_
-  refine le_of_forall_pos_le_add fun ε hε => ?_
+  conv_rhs => simp only [criticalValue, Function.update_self, Function.update_idem]
+  refine le_csInf ⟨v', hv', hwin⟩ fun z ⟨hz0, hzw⟩ => le_of_forall_pos_le_add fun ε hε => ?_
   have hz_step : i ∈ w (Function.update b i ⟨S, z + ε⟩) := by
-    have hmono := hw i (Function.update b i ⟨S', z⟩) S (z + ε)
+    simpa only [Function.update_idem] using hw i (Function.update b i ⟨S', z⟩) S (z + ε)
       (update_value_nonneg hb i hz0) hzw
       (by simpa only [Function.update_self] using hSS')
       (by simpa only [Function.update_self] using lt_add_of_pos_right z hε)
-    simpa only [Function.update_idem] using hmono
   exact criticalValue_le_of_mem (w := w)
     (b := Function.update b i ⟨S, v⟩) (i := i) (z := z + ε) (by linarith)
     (by simpa only [Function.update_self, Function.update_idem] using hz_step)
@@ -420,9 +413,7 @@ theorem isWeakMonotone_of_isDSIC [DecidableEq N] [DecidableEq M] {m : Mechanism 
   by_contra hlose
   have h1 := hdsic i b' (b i) hb' (hb i)
   have h2 : m.utility i ⟨S', v'⟩ b ≤ m.utility i ⟨S', v'⟩ b' := hdsic i b ⟨S', v'⟩ hb hv'
-  have hupd : Function.update b' i (b i) = b := by
-    simp [b', Function.update_idem, Function.update_eq_self]
-  rw [hupd] at h1
+  rw [Function.update_idem, Function.update_eq_self] at h1
   simp only [utility, hwin, hlose, ↓reduceIte, SingleMindedBid.eval, Finset.Subset.rfl,
     hsub, h0 b' hb' i hlose] at h1 h2
   linarith
@@ -444,12 +435,9 @@ theorem hasCriticalPayments_of_isDSIC [DecidableEq N] [DecidableEq M] {m : Mecha
       hdsic i b ⟨(b i).bundle, x⟩ hb hx0
     have h2 := hdsic i bx (b i) hbx (hb i)
     have hir_x := hir i bx hbx
-    have hupd : Function.update bx i (b i) = b := by
-      simp [bx, Function.update_idem, Function.update_eq_self]
-    rw [hupd] at h2
-    have hbxi : bx i = ⟨(b i).bundle, x⟩ := Function.update_self i _ b
-    simp only [utility, hwin, hxwin, ↓reduceIte, hbxi, SingleMindedBid.eval, Finset.Subset.rfl]
-      at h1 h2 hir_x
+    rw [Function.update_idem, Function.update_eq_self] at h2
+    simp only [utility, hwin, hxwin, ↓reduceIte, bx, Function.update_self, SingleMindedBid.eval,
+      Finset.Subset.rfl] at h1 h2 hir_x
     linarith
   · refine le_of_forall_pos_le_add fun ε hε => ?_
     set p := m.payment b i
@@ -501,9 +489,7 @@ private noncomputable def losLe {N M : Type*} [LE N]
 
 private theorem losLt_irrefl {N M : Type*} [Preorder N] (b : N → SingleMindedBid M) (i : N) :
     ¬ losLt b i i := by
-  rintro (h | ⟨_, h⟩)
-  · exact lt_irrefl _ h
-  · exact lt_irrefl _ h
+  rintro (h | ⟨_, h⟩) <;> exact lt_irrefl _ h
 
 private theorem losLt_trans {N M : Type*} [Preorder N] (b : N → SingleMindedBid M)
     {i j k : N} (hij : losLt b i j) (hjk : losLt b j k) : losLt b i k := by
@@ -528,9 +514,7 @@ private theorem losLt_total {N M : Type*} [LinearOrder N] (b : N → SingleMinde
 
 private theorem losScore_le_of_losLt {N M : Type*} [LT N] {b : N → SingleMindedBid M}
     {i j : N} (h : losLt b i j) : losScore (b j) ≤ losScore (b i) := by
-  rcases h with h | ⟨e, _⟩
-  · exact h.le
-  · exact e.le
+  exact h.elim le_of_lt fun h => h.1.le
 
 private theorem losLe_iff_eq_or_losLt {N M : Type*} [LinearOrder N] (b : N → SingleMindedBid M)
     (i j : N) : losLe b i j ↔ i = j ∨ losLt b i j := by
@@ -586,16 +570,12 @@ private theorem list_eq_of_perm_of_pairwise_losLt {N M : Type*} [LinearOrder N]
     | cons c t₂ =>
       rcases List.pairwise_cons.1 h₁ with ⟨ha, ht₁⟩
       rcases List.pairwise_cons.1 h₂ with ⟨hc, ht₂⟩
-      have heq : a = c := by
+      obtain rfl : a = c := by
         by_contra hne
-        have hac : a ∈ t₂ := by
-          have hm : a ∈ c :: t₂ := hp.subset (List.mem_cons_self ..)
-          exact (List.mem_cons.1 hm).resolve_left hne
-        have hca : c ∈ t₁ := by
-          have hm : c ∈ a :: t₁ := hp.symm.subset (List.mem_cons_self ..)
-          exact (List.mem_cons.1 hm).resolve_left (Ne.symm hne)
+        have hac := (List.mem_cons.1 (hp.subset (List.mem_cons_self ..))).resolve_left hne
+        have hca :=
+          (List.mem_cons.1 (hp.symm.subset (List.mem_cons_self ..))).resolve_left (Ne.symm hne)
         exact losLt_asymm b (ha c hca) (hc a hac)
-      subst heq
       rw [ih (hp.cons_inv) ht₁ ht₂]
 
 /-- Single step of the greedy loop: add `i` to `W` if its bundle is disjoint from all bundles
@@ -683,14 +663,8 @@ private theorem greedySelect_congr {N M : Type*} [DecidableEq N] [DecidableEq M]
     intro W hW
     simp only [List.foldl_cons]
     have ha : b a = b' a := h a (List.mem_cons_self ..)
-    have hstep : greedyStep b W a = greedyStep b' W a := by
-      unfold greedyStep
-      have heq : (∀ j ∈ W, Disjoint (b a).bundle (b j).bundle) ↔
-          (∀ j ∈ W, Disjoint (b' a).bundle (b' j).bundle) := by
-        constructor <;> intro hd j hj
-        · rw [← ha, ← hW j hj]; exact hd j hj
-        · rw [ha, hW j hj]; exact hd j hj
-      simp only [heq]
+    have hstep : greedyStep b W a = greedyStep b' W a :=
+      if_congr (forall_congr' fun j => imp_congr_right fun hj => by rw [ha, hW j hj]) rfl rfl
     rw [hstep]
     refine ih (fun k hk => h k (List.mem_cons_of_mem a hk)) _ fun k hk => ?_
     unfold greedyStep at hk
@@ -856,20 +830,13 @@ theorem mem_losWinners_iff {N M : Type*} [Fintype N] [LinearOrder N] [DecidableE
     (List.nodup_append.1 hnd).2.2 j hj1 j hj2 rfl
   constructor
   · intro h j hj hlt
-    have hj_in_l1 : j ∈ l₁ := by
-      rcases List.mem_append.1 (mem_of_mem_greedySelect b hj) with h' | h'
-      · exact h'
-      · exact (losLt_asymm b (haft j h') hlt).elim
-    have hjn2 : j ∉ l₂ := hdisj j hj_in_l1
-    have hj1 : j ∈ greedySelect b l₁ := by
-      unfold greedySelect at hj ⊢
-      rw [List.foldl_append] at hj
-      exact (mem_foldl_greedyStep_of_not_mem b l₂ _ hjn2).1 hj
-    exact h j hj1
+    have hj_in_l1 : j ∈ l₁ := (List.mem_append.1 (mem_of_mem_greedySelect b hj)).resolve_right
+      fun h' => losLt_asymm b (haft j h') hlt
+    rw [greedySelect, List.foldl_append] at hj
+    exact h j ((mem_foldl_greedyStep_of_not_mem b l₂ _ (hdisj j hj_in_l1)).1 hj)
   · intro h j hj
     have hj_w : j ∈ greedySelect b (l₁ ++ l₂) := by
-      unfold greedySelect at hj ⊢
-      rw [List.foldl_append]
+      rw [greedySelect, List.foldl_append]
       exact subset_foldl_greedyStep b l₂ _ hj
     exact h j hj_w (hbef j (mem_of_mem_greedySelect b hj))
 
@@ -885,19 +852,14 @@ private theorem mem_greedySelect_losSort_iff {N M : Type*} [LinearOrder N] [Deci
   rw [h1, mem_greedySelect_append_cons b hnk1 hnk2]
   constructor
   · intro h j hj hlt
-    have hj_l1 : j ∈ l₁ := by
-      rcases List.mem_append.1 (mem_of_mem_greedySelect b hj) with h' | h'
-      · exact h'
-      · rcases List.mem_cons.1 h' with rfl | h''
-        · exact (losLt_irrefl b _ hlt).elim
-        · exact (losLt_asymm b (haft j h'') hlt).elim
-    have hj' : j ∈ (l₁ ++ k :: l₂).foldl (greedyStep b) ∅ := hj
-    rw [List.foldl_append] at hj'
-    exact h j ((mem_foldl_greedyStep_of_not_mem b (k :: l₂) _ (hdisj j hj_l1)).1 hj')
+    have hj_l1 : j ∈ l₁ := (List.mem_append.1 (mem_of_mem_greedySelect b hj)).resolve_right
+      fun h' => (List.mem_cons.1 h').elim (fun hk => losLt_irrefl b _ (hk ▸ hlt))
+        fun h'' => losLt_asymm b (haft j h'') hlt
+    rw [greedySelect, List.foldl_append] at hj
+    exact h j ((mem_foldl_greedyStep_of_not_mem b (k :: l₂) _ (hdisj j hj_l1)).1 hj)
   · intro h j hj
     have hj_all : j ∈ greedySelect b (l₁ ++ k :: l₂) := by
-      unfold greedySelect at hj ⊢
-      rw [List.foldl_append]
+      rw [greedySelect, List.foldl_append]
       exact subset_foldl_greedyStep b (k :: l₂) _ hj
     exact h j hj_all (hbef j (mem_of_mem_greedySelect b hj))
 
@@ -997,19 +959,14 @@ theorem losMechanism_isFeasible {N M : Type*} [Fintype N] [LinearOrder N] [Decid
 theorem losMechanism_losersPayZero {N M : Type*} [Fintype N] [LinearOrder N] [DecidableEq M] :
     (losMechanism (N := N) (M := M)).LosersPayZero := by
   intro b _ i hni
-  have hni' : i ∉ losWinners b := hni
-  change losPayment b i = 0
-  simp only [losPayment, hni', ↓reduceIte]
+  exact ite_eq_right hni
 
 /-- An empty-bundle bidder has zero payment in `losMechanism`. -/
 theorem losPayment_eq_zero_of_bundle_empty {N M : Type*} [Fintype N] [LinearOrder N]
     [DecidableEq M] (b : N → SingleMindedBid M) {i : N} (he : (b i).bundle = ∅) :
     losPayment b i = 0 := by
   unfold losPayment
-  split_ifs
-  · simp [he]
-  · rfl
-  · rfl
+  split_ifs <;> simp [he]
 
 /-- Every winning bidder's LOS payment equals its critical value ([BlumrosenNisan2007], p. 274). -/
 theorem losPayment_eq_criticalValue {N M : Type*} [Fintype N] [LinearOrder N] [DecidableEq M]
@@ -1217,25 +1174,13 @@ private theorem card_optBlocked_le {N M : Type*}
   classical
   rcases s.eq_empty_or_nonempty with rfl | ⟨j₀, hj₀⟩
   · simp
-  · have hpick : ∀ j ∈ s, ∃ a ∈ (b i).bundle, a ∈ (b j).bundle := fun j hj =>
-      Finset.not_disjoint_iff.1 (hs_hit j hj)
-    choose f hf using fun j : {j // j ∈ s} => hpick j.1 j.2
-    refine Finset.card_le_card_of_injOn
-      (fun j => if hj : j ∈ s then f ⟨j, hj⟩ else f ⟨j₀, hj₀⟩) ?_ ?_
-    · intro j hj
-      simp only [Finset.mem_coe] at hj ⊢
-      simp only [hj, ↓reduceDIte]
-      exact (hf ⟨j, hj⟩).1
-    · intro j₁ hj₁ j₂ hj₂ heq
-      simp only [Finset.mem_coe] at hj₁ hj₂
-      simp only [hj₁, hj₂, ↓reduceDIte] at heq
-      by_contra hne
-      have hdisj : Disjoint (b j₁).bundle (b j₂).bundle :=
-        hopt (hs_sub hj₁) (hs_sub hj₂) hne
-      have hm1 := (hf ⟨j₁, hj₁⟩).2
-      have hm2 := (hf ⟨j₂, hj₂⟩).2
-      rw [heq] at hm1
-      exact Finset.disjoint_left.1 hdisj hm1 hm2
+  · have : Nonempty M := ⟨(Finset.not_disjoint_iff.1 (hs_hit j₀ hj₀)).choose⟩
+    choose! f hf using fun j (hj : j ∈ s) => Finset.not_disjoint_iff.1 (hs_hit j hj)
+    refine Finset.card_le_card_of_injOn f (fun j hj => (hf j hj).1) fun j₁ hj₁ j₂ hj₂ heq => ?_
+    by_contra hne
+    exact Finset.disjoint_left.1 (hopt (hs_sub (Finset.mem_coe.1 hj₁))
+      (hs_sub (Finset.mem_coe.1 hj₂)) hne)
+      (heq ▸ (hf j₁ (Finset.mem_coe.1 hj₁)).2) (hf j₂ (Finset.mem_coe.1 hj₂)).2
 
 private theorem sum_optBlocked_le {N M : Type*} [LinearOrder N] [Fintype M]
     (b : N → SingleMindedBid M) (hb : ∀ j, 0 ≤ (b j).value)

@@ -166,11 +166,9 @@ private theorem not_dvd_two_pow_succ_between {r j x : ℕ}
     (hdvd : 2 ^ (j + 1) ∣ x)
     (hlo : 2 * r * 2 ^ j < x) (hhi : x ≤ (2 * r + 1) * 2 ^ j) : False := by
   obtain ⟨c, rfl⟩ := hdvd
-  have hpow : 0 < 2 ^ j := Nat.two_pow_pos j
-  have hrew : 2 ^ (j + 1) * c = (2 * c) * 2 ^ j := by ring
-  rw [hrew] at hlo hhi
-  have hlt' : 2 * r < 2 * c := Nat.lt_of_mul_lt_mul_right hlo
-  have hle' : 2 * c ≤ 2 * r + 1 := Nat.le_of_mul_le_mul_right hhi hpow
+  rw [show 2 ^ (j + 1) * c = 2 * c * 2 ^ j by ring] at hlo hhi
+  have := Nat.lt_of_mul_lt_mul_right hlo
+  have := Nat.le_of_mul_le_mul_right hhi (Nat.two_pow_pos j)
   omega
 
 /-- Fundamental Fenwick parent-interval bridge: for `0 < m < idx`, `idx`'s interval
@@ -238,11 +236,8 @@ theorem downChain_zero : downChain 0 = [] := by
   simp only [Nat.lt_irrefl, ↓reduceDIte]
 
 private theorem two_pow_exponent_lt_of_two_mul_le {k k' : ℕ}
-    (hle : 2 * 2 ^ k ≤ 2 ^ k') : k + 1 ≤ k' := by
-  have h1 : 2 ^ (k + 1) ≤ 2 ^ k' := by
-    have hpow : 2 ^ (k + 1) = 2 * 2 ^ k := by ring
-    exact hpow ▸ hle
-  exact (Nat.pow_le_pow_iff_right (by omega : 1 < 2)).mp h1
+    (hle : 2 * 2 ^ k ≤ 2 ^ k') : k + 1 ≤ k' :=
+  (Nat.pow_le_pow_iff_right Nat.one_lt_two).mp (by rwa [pow_succ'])
 
 private theorem length_downChain_add_exp_le {m k : ℕ} (hm : 0 < m) (hlb : lowbit m = 2 ^ k) :
     (downChain m).length + k ≤ Nat.log 2 m + 1 := by
@@ -254,10 +249,8 @@ private theorem length_downChain_add_exp_le {m k : ℕ} (hm : 0 < m) (hlb : lowb
     · rw [h0, downChain_zero, List.length_nil]
       omega
     · obtain ⟨_, k', hlb', _⟩ := exists_odd_mul_lowbit hpos
-      have hk_step : k + 1 ≤ k' := by
-        have h2 := two_mul_lowbit_le_lowbit_sub hpos
-        rw [hlb', hlb] at h2
-        exact two_pow_exponent_lt_of_two_mul_le h2
+      have hk_step : k + 1 ≤ k' :=
+        two_pow_exponent_lt_of_two_mul_le (hlb ▸ hlb' ▸ two_mul_lowbit_le_lowbit_sub hpos)
       have hsub := ih hpos hlb'
       have hlog_mono : Nat.log 2 (m - lowbit m) ≤ Nat.log 2 m := Nat.log_mono_right (by omega)
       omega
@@ -276,10 +269,9 @@ theorem length_downChain_le_clog {m n : ℕ} (hmn : m ≤ n) :
   rcases Nat.eq_zero_or_pos m with rfl | hm
   · simp only [downChain_zero, List.length_nil, Nat.zero_le]
   · have hlog := length_downChain_le_log hm
-    have hpow : 2 ^ Nat.log 2 m < n + 1 :=
-      Nat.lt_succ_of_le ((Nat.pow_log_le_self 2 (Nat.ne_of_gt hm)).trans hmn)
     have hclog : Nat.log 2 m < Nat.clog 2 (n + 1) :=
-      (Nat.lt_clog_iff_pow_lt Nat.one_lt_two).mpr hpow
+      (Nat.lt_clog_iff_pow_lt Nat.one_lt_two).mpr
+        (Nat.lt_succ_of_le ((Nat.pow_log_le_self 2 hm.ne').trans hmn))
     omega
 
 private theorem length_upChain_add_exp_le {n m k : ℕ}
@@ -292,10 +284,8 @@ private theorem length_upChain_add_exp_le {n m k : ℕ}
       Nat.le_log_of_pow_le (by omega) ((hlb ▸ lowbit_le m).trans hmn)
     by_cases hnext : m + lowbit m ≤ n
     · obtain ⟨_, k', hlb', _⟩ := exists_odd_mul_lowbit (by omega : 0 < m + lowbit m)
-      have hk_step : k + 1 ≤ k' := by
-        have h2 := two_mul_lowbit_le_lowbit_add hm
-        rw [hlb', hlb] at h2
-        exact two_pow_exponent_lt_of_two_mul_le h2
+      have hk_step : k + 1 ≤ k' :=
+        two_pow_exponent_lt_of_two_mul_le (hlb ▸ hlb' ▸ two_mul_lowbit_le_lowbit_add hm)
       have hsub := ih (by omega) hnext hlb'
       omega
     · rw [upChain]
@@ -315,11 +305,9 @@ theorem length_upChain_le_clog (n m : ℕ) :
     (upChain n m).length ≤ Nat.clog 2 (n + 1) := by
   by_cases h : 0 < m ∧ m ≤ n
   · have hlog := length_upChain_le_log h.1 h.2
-    have hn : 0 < n := Nat.lt_of_lt_of_le h.1 h.2
-    have hpow : 2 ^ Nat.log 2 n < n + 1 :=
-      Nat.lt_succ_of_le (Nat.pow_log_le_self 2 (Nat.ne_of_gt hn))
     have hclog : Nat.log 2 n < Nat.clog 2 (n + 1) :=
-      (Nat.lt_clog_iff_pow_lt Nat.one_lt_two).mpr hpow
+      (Nat.lt_clog_iff_pow_lt Nat.one_lt_two).mpr
+        (Nat.lt_succ_of_le (Nat.pow_log_le_self 2 (h.1.trans_le h.2).ne'))
     omega
   · rw [upChain]
     simp only [h, ↓reduceDIte, List.length_nil, Nat.zero_le]

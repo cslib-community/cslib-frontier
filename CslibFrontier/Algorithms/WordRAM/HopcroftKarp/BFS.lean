@@ -195,10 +195,10 @@ private theorem exec_seedBfsCode {w bOff : ℕ} {inst : SparseInstance}
     hb.hzero hb.hone hb.hbDist hb.hrm (hfit.of_le (by omega))
   have hs₀ : ∃ s₀, ExecWithin w
       (ram[ qHead ← #0; qTail ← #0; rk ← #0; rfound ← #0; idx ← #0 ] : Code .standard 34) y₁ s₀ 5 ∧
-      s₀ = ((((y₁.set qHead 0).set qTail 0).set rk 0).set rfound 0).set idx 0 := by
-    refine WP.exists_execWithin ?_
-    wram_exec
-    rfl
+      s₀ = ((((y₁.set qHead 0).set qTail 0).set rk 0).set rfound 0).set idx 0 :=
+    WP.exists_execWithin <| by
+      wram_exec
+      rfl
   obtain ⟨s₀, he₀, rfl⟩ := hs₀
   let pk (k : ℕ) :=
     ((List.finRange inst.m).take k).foldl (hkBfsInitStep ml) (Vector.replicate inst.m none, [])
@@ -627,15 +627,11 @@ private theorem exec_bfsFrontierLoop {w bOff : ℕ} {inst : SparseInstance}
   | cons u us ih =>
     have hu_lt := u.isLt
     have hle_cons : qh + (us.length + 1) = le := by simpa only [List.length_cons] using hle_eq
-    have hc : (Cond.lt qHead layerEnd).Holds x := by
-      simp only [Cond.holds_lt, hqh, hle]
-      omega
+    have hc : (Cond.lt qHead layerEnd).Holds x := by simp only [Cond.holds_lt, hqh, hle]; omega
     have hq_u : x.mem (bOff + inst.m + 1 + inst.numEdges + inst.r + 2 * inst.m + qh) = u.val := by
-      have h0 := hq_pre 0 (by simp)
-      simpa using h0
+      simpa using hq_pre 0 (Nat.zero_lt_succ _)
     have hq_us : QueueSlice inst bOff (qh + 1) us x.mem := fun i hi => by
-      have h := hq_pre (i + 1) (by simp; omega)
-      simpa [Nat.add_assoc, Nat.add_comm 1 i] using h
+      simpa [Nat.add_assoc, Nat.add_comm 1 i] using hq_pre (i + 1) (Nat.succ_lt_succ hi)
     have hoff_u : x.mem (bOff + u.val) = inst.offset u.val := hcsr.hoff (le_of_lt hu_lt)
     have hoff_u1 : x.mem (bOff + u.val + 1) = inst.offset (u.val + 1) := by
       simpa [Nat.add_assoc] using hcsr.hoff hu_lt
@@ -708,16 +704,14 @@ private theorem exec_bfsLayersLoop {w bOff : ℕ} {inst : SparseInstance}
   | zero =>
     obtain rfl : frontier = [] := List.eq_nil_of_length_eq_zero (by omega)
     have hc : ¬(Cond.eq active one).Holds x := by
-      rw [Cond.holds_eq, hact, hb.hone]
-      simp
+      simpa [Cond.holds_eq, hact] using ne_of_ne_of_eq Nat.zero_ne_one hb.hone.symm
     exact ⟨x, (ExecWithin.loop_exit hc).mono (by omega), fun _ _ => rfl, hdM, hrk, hrf,
       fun _ _ => rfl⟩
   | succ fuel ih =>
     by_cases hnil : frontier = []
     · subst hnil
       have hc : ¬(Cond.eq active one).Holds x := by
-        rw [Cond.holds_eq, hact, hb.hone]
-        simp
+        simpa [Cond.holds_eq, hact] using ne_of_ne_of_eq Nat.zero_ne_one hb.hone.symm
       refine ⟨x, (ExecWithin.loop_exit hc).mono (by omega), fun _ _ => rfl, ?_, ?_, ?_,
         fun _ _ => rfl⟩
       · simpa [hkBfsLoop, hkBfsLayer] using hdM
@@ -725,8 +719,7 @@ private theorem exec_bfsLayersLoop {w bOff : ℕ} {inst : SparseInstance}
       · simpa [hkBfsLoop, hkBfsLayer] using hrf
     · have hpos_f : 0 < frontier.length := List.length_pos_iff.mpr hnil
       have hc : (Cond.eq active one).Holds x := by
-        rw [Cond.holds_eq, hact, hb.hone]
-        simp [hnil]
+        simpa [Cond.holds_eq, hact, hnil] using hb.hone.symm
       let le := qh + frontier.length
       have he_le : ExecWithin w (ram[ layerEnd ← qTail ] : Code .standard 34) x
           (x.set layerEnd le) 1 :=
@@ -767,9 +760,7 @@ private theorem exec_bfsLayersLoop {w bOff : ℕ} {inst : SparseInstance}
               y.mem a = x.mem a) := by
         have hc₃ : ¬(Cond.eq active one).Holds (x₂.set active 0) := by
           rw [Cond.holds_eq]
-          have ha0 : (x₂.set active 0).regs active = 0 := by wram_simp
-          have ho1 : (x₂.set active 0).regs one = 1 := by wram_simp [hb₂.hone]
-          omega
+          wram_simp [hb₂.hone]
         have he_exit := ExecWithin.loop_exit (body := bfsLayerBody) (w := w) hc₃
         have hres : hkBfsLoop inst.graph inst.adj mate (fuel + 1) j dist frontier =
             ⟨s.dist, j, s.found⟩ := by
@@ -871,9 +862,8 @@ theorem exec_bfsCode {w bOff : ℕ} {inst : SparseInstance}
   have hrep_le := (vecPotential_le_sum (p := fun x : Option ℕ => x = none) (bfsVertWeight inst)
     (Vector.replicate inst.m (none : Option ℕ))).trans_eq (sum_bfsVertWeight inst)
   have hfin_sum : ((List.finRange inst.m).map (bfsVertWeight inst)).sum =
-      18 * inst.numEdges + 11 * inst.m := by
-    rw [← Fin.sum_univ_def]
-    exact sum_bfsVertWeight inst
+      18 * inst.numEdges + 11 * inst.m :=
+    (Fin.sum_univ_def _).symm.trans (sum_bfsVertWeight inst)
   refine ⟨y₃, (he₁.seq (he₂.seq he₃)).mono ?_,
     fun i hi => (hr₃ i hi).trans ((hr₂ i hi).trans (hr₁ i (by omega))),
     hdM₃, hrk₃, hrf₃,

@@ -65,11 +65,8 @@ theorem card_filter_vecMul_eq_mul_two_pow {k n : ℕ} {x : Fin k → ZMod 2} (hx
   have hsum := card_eq_sum_card_fiberwise (s := (univ : Finset (Matrix (Fin k) (Fin n) (ZMod 2))))
     (t := univ) (f := fun G => x ᵥ* G) fun _ _ => mem_univ _
   simp only [hfiber, sum_const, card_univ, smul_eq_mul] at hsum
-  have hcard : Fintype.card (Matrix (Fin k) (Fin n) (ZMod 2)) = 2 ^ (k * n) := by
-    change Fintype.card (Fin k → Fin n → ZMod 2) = _
-    simp [ZMod.card, ← pow_mul, mul_comm]
-  rw [hfiber y, ← hcard, hsum, mul_comm]
-  simp [ZMod.card]
+  simpa [hfiber y, ZMod.card, ← pow_mul, mul_comm] using
+    show _ = Fintype.card (Fin k → Fin n → ZMod 2) from hsum.symm
 
 /-- **The distance of random linear codes** [Goldreich, Proposition E.1][Goldreich2008]. If
 `2 d ≤ n` and `k + t ≤ n (1 - H₂(d / n))`, where `H₂(δ) = Real.binEntropy δ / Real.log 2` is the
@@ -133,10 +130,8 @@ theorem one_sub_inv_two_pow_lt_card_filter_le_hammingDist {k n d t : ℕ} (hd : 
     have hα : (d / n : ℝ) ≤ 1 / 2 := by
       rw [div_le_iff₀ hnR]
       cast_linarith [hd]
-    have hsub : B ⊆ ({y | hammingDist 0 y ≤ d - 1} : Finset (Fin n → ZMod 2)) := by
-      intro y hy
-      simp only [B, mem_filter, mem_univ, true_and] at hy
-      simp only [mem_filter, mem_univ, true_and, hammingDist_zero_left]
+    have hsub : B ⊆ ({y | hammingDist 0 y ≤ d - 1} : Finset (Fin n → ZMod 2)) := fun y hy => by
+      simp only [B, mem_filter, mem_univ, true_and, hammingDist_zero_left] at hy ⊢
       omega
     have hvol := card_filter_hammingDist_le_le_exp_mul_qaryEntropy (β := fun _ : Fin n => ZMod 2)
       (q := 2) (fun _ => ZMod.card 2) 0 (r := d - 1) (α := d / n) (by norm_num; linarith)
@@ -151,11 +146,9 @@ theorem one_sub_inv_two_pow_lt_card_filter_le_hammingDist {k n d t : ℕ} (hd : 
     have hexp : (2 : ℝ) ^ k * exp (n * binEntropy (d / n)) ≤ 2 ^ n * (1 / 2) ^ t := by
       rw [← rpow_natCast, ← rpow_natCast, ← rpow_natCast, ← exp_log two_pos, ← exp_mul,
         ← exp_mul, ← exp_add, one_div, ← exp_neg, ← exp_mul, ← exp_add, exp_le_exp]
-      have h' := mul_le_mul_of_nonneg_right h hlog.le
       have e : (n : ℝ) * (1 - binEntropy (d / n) / log 2) * log 2 =
-          n * log 2 - n * binEntropy (d / n) := by
-        field_simp
-      nlinarith
+          n * log 2 - n * binEntropy (d / n) := by field_simp
+      linarith [mul_le_mul_of_nonneg_right h hlog.le]
     calc (#X : ℝ) * #B < (#X + 1) * #B := by nlinarith
       _ = 2 ^ k * #B := by rw [hX]
       _ ≤ 2 ^ k * exp (n * binEntropy (d / n)) := by gcongr

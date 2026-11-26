@@ -140,18 +140,10 @@ theorem encodings_ninth_blocks (k N : ℕ) (hN : D (9 * k) ^ 18 ≤ N) :
     simpa only [mul_pow, ← pow_mul] using pow_le_pow_left₀ (by positivity) hbase k
   have hT : ((10 : ℝ) ^ (189 * k)) ^ 2 ≤ (21 : ℝ) ^ (9 * k) *
       (N0' : ℝ) ^ 2 * ((D (9 * k) ^ 18 : ℕ) : ℝ) ^ 2 * ((9 / 20 : ℝ) ^ k) ^ 2 := by
-    have eT : ((10 : ℝ) ^ (189 * k)) ^ 2 = (10 : ℝ) ^ (378 * k) := by
-      rw [← pow_mul]; congr 1; omega
-    have eN0 : (N0' : ℝ) ^ 2 = (3 : ℝ) ^ (360 * k) := by
-      dsimp only [N0', N0]
-      rw [show 189 * k - 9 * k = 180 * k by omega, Nat.cast_pow, Nat.cast_ofNat, ← pow_mul]
-      congr 1
-      omega
-    have eD : ((D (9 * k) ^ 18 : ℕ) : ℝ) ^ 2 = (4 : ℝ) ^ (324 * k) := by
-      rw [D, Nat.cast_pow, Nat.cast_pow, Nat.cast_ofNat, ← pow_mul, ← pow_mul]
-      congr 1
-      omega
-    rw [eT, eN0, eD, ← pow_mul, show k * 2 = 2 * k by omega]
+    dsimp only [N0', N0, D]
+    rw [show 189 * k - 9 * k = 180 * k by omega]
+    push_cast
+    ring_nf at hpowered ⊢
     exact hpowered
   have hNr : ((D (9 * k) ^ 18 : ℕ) : ℝ) ≤ (N : ℝ) := by exact_mod_cast hN
   have hsq : ((B : ℝ) * (10 : ℝ) ^ (189 * k)) ^ 2 ≤

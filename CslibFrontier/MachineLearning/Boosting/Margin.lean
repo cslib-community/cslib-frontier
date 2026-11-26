@@ -442,50 +442,33 @@ private theorem two_mul_log_lt_sub_inv {y : ℝ} (hy : 1 < y) : 2 * Real.log y <
 private theorem log_margin_factor_neg {x : ℝ} (hx₀ : 0 < x) (hx₁ : x < 1) :
     (1 - x / 2) * Real.log (1 - x) + (1 + x / 2) * Real.log (1 + x) < 0 := by
   let f : ℝ → ℝ := fun t => (1 - t / 2) * Real.log (1 - t) + (1 + t / 2) * Real.log (1 + t)
-  have hf_cont : ContinuousOn f (Set.Icc 0 x) := by
-    have h1 : ∀ t ∈ Set.Icc 0 x, 1 - t ≠ 0 := fun t ht => by linarith [ht.2]
-    have h2 : ∀ t ∈ Set.Icc 0 x, 1 + t ≠ 0 := fun t ht => by linarith [ht.1]
-    exact ((continuousOn_const.sub (continuousOn_id.div_const 2)).mul
-        ((Real.continuousOn_log.comp (continuousOn_const.sub continuousOn_id)
-          fun t ht => h1 t ht))).add
-      ((continuousOn_const.add (continuousOn_id.div_const 2)).mul
-        ((Real.continuousOn_log.comp (continuousOn_const.add continuousOn_id)
-          fun t ht => h2 t ht)))
+  have hf_cont : ContinuousOn f (Set.Icc 0 x) :=
+    ((continuousOn_const.sub (continuousOn_id.div_const 2)).mul
+      ((Real.continuousOn_log.comp (continuousOn_const.sub continuousOn_id)
+        fun t ht => show 1 - t ≠ 0 by linarith [ht.2]))).add
+    ((continuousOn_const.add (continuousOn_id.div_const 2)).mul
+      ((Real.continuousOn_log.comp (continuousOn_const.add continuousOn_id)
+        fun t ht => show 1 + t ≠ 0 by linarith [ht.1])))
   have hanti : StrictAntiOn f (Set.Icc 0 x) := by
-    refine strictAntiOn_of_deriv_neg (convex_Icc 0 x) hf_cont ?_
-    intro t ht
+    refine strictAntiOn_of_deriv_neg (convex_Icc 0 x) hf_cont fun t ht => ?_
     rw [interior_Icc] at ht
-    have ht₀ : 0 < t := ht.1
-    have ht₁ : t < 1 := lt_trans ht.2 hx₁
-    have h1m : 0 < 1 - t := by linarith
-    have h1p : 0 < 1 + t := by linarith
-    have hd1 : HasDerivAt (fun u : ℝ => (1 - u / 2) * Real.log (1 - u))
-        ((0 - 1 / 2) * Real.log (1 - t) + (1 - t / 2) * ((1 - t)⁻¹ * (0 - 1))) t :=
-      ((hasDerivAt_const t (1 : ℝ)).sub ((hasDerivAt_id t).div_const 2)).mul
-        ((Real.hasDerivAt_log h1m.ne').comp t ((hasDerivAt_const t 1).sub (hasDerivAt_id t)))
-    have hd2 : HasDerivAt (fun u : ℝ => (1 + u / 2) * Real.log (1 + u))
-        ((0 + 1 / 2) * Real.log (1 + t) + (1 + t / 2) * ((1 + t)⁻¹ * (0 + 1))) t :=
-      ((hasDerivAt_const t (1 : ℝ)).add ((hasDerivAt_id t).div_const 2)).mul
-        ((Real.hasDerivAt_log h1p.ne').comp t ((hasDerivAt_const t 1).add (hasDerivAt_id t)))
-    have hsum : HasDerivAt f
-        ((0 - 1 / 2) * Real.log (1 - t) + (1 - t / 2) * ((1 - t)⁻¹ * (0 - 1)) +
-          ((0 + 1 / 2) * Real.log (1 + t) + (1 + t / 2) * ((1 + t)⁻¹ * (0 + 1)))) t := hd1.add hd2
-    simp only [zero_sub, zero_add, show (1 - t)⁻¹ * -1 = -1 / (1 - t) by ring,
-      show (1 + t)⁻¹ * 1 = 1 / (1 + t) by ring] at hsum
-    rw [hsum.deriv]
-    have hlin : -(1 / 2) * Real.log (1 - t) + (1 - t / 2) * (-1 / (1 - t)) +
-        (1 / 2 * Real.log (1 + t) + (1 + t / 2) * (1 / (1 + t))) =
+    have h1m : 0 < 1 - t := by linarith [ht.2]
+    have h1p : 0 < 1 + t := by linarith [ht.1]
+    have hd1 := ((hasDerivAt_const t (1 : ℝ)).sub ((hasDerivAt_id t).div_const 2)).mul
+      ((Real.hasDerivAt_log h1m.ne').comp t ((hasDerivAt_const t 1).sub (hasDerivAt_id t)))
+    have hd2 := ((hasDerivAt_const t (1 : ℝ)).add ((hasDerivAt_id t).div_const 2)).mul
+      ((Real.hasDerivAt_log h1p.ne').comp t ((hasDerivAt_const t 1).add (hasDerivAt_id t)))
+    have hderiv : deriv f t =
         (2 * Real.log ((1 + t) / (1 - t)) -
           ((1 + t) / (1 - t) - ((1 + t) / (1 - t))⁻¹)) / 4 := by
-      rw [Real.log_div h1p.ne' h1m.ne']
+      rw [(show HasDerivAt f _ t from hd1.add hd2).deriv, Real.log_div h1p.ne' h1m.ne']
+      simp only [Function.comp_apply, Pi.sub_apply, Pi.add_apply, id_eq]
       field_simp
       ring
-    rw [hlin]
-    have hy : 1 < (1 + t) / (1 - t) := (one_lt_div h1m).2 (by linarith)
+    rw [hderiv]
+    have hy : 1 < (1 + t) / (1 - t) := (one_lt_div h1m).2 (by linarith [ht.1])
     exact div_neg_of_neg_of_pos (sub_neg.mpr (two_mul_log_lt_sub_inv hy)) (by norm_num)
-  have hf0 : f 0 = 0 := by simp [f]
-  have hlt : f x < f 0 := hanti ⟨le_refl 0, hx₀.le⟩ ⟨hx₀.le, le_refl x⟩ hx₀
-  rwa [hf0] at hlt
+  simpa [f] using hanti ⟨le_rfl, hx₀.le⟩ ⟨hx₀.le, le_rfl⟩ hx₀
 
 /-- Rewrite `((1 - 2 γ) ^ (1 - ρ)) * ((1 + 2 γ) ^ (1 + ρ))` as `exp` of a log combination. -/
 private theorem exp_log_marginFactor {γ ρ : ℝ} (h1m : 0 < 1 - 2 * γ) (h1p : 0 < 1 + 2 * γ) :

@@ -66,11 +66,10 @@ theorem synodQuorumProtocol_safeCohort_crashStop {P V : Type*} [Fintype P] [Line
         promised := S
         maxVote := none
         crashed := false }
-    have hempty_no_q : decide (∃ Q ∈ qs.prepareQuorums, Q ⊆ (∅ : Finset P)) = false := by
-      simp only [decide_eq_false_iff_not]
-      rintro ⟨Q, hQ, hsub⟩
-      obtain ⟨x, hx⟩ := qs.prepareQuorum_nonempty hQ
-      exact Finset.notMem_empty x (hsub hx)
+    have hempty_no_q : decide (∃ Q ∈ qs.prepareQuorums, Q ⊆ (∅ : Finset P)) = false :=
+      decide_eq_false fun ⟨Q, hQ, hsub⟩ =>
+        let ⟨x, hx⟩ := qs.prepareQuorum_nonempty hQ
+        Finset.notMem_empty x (hsub hx)
     have hs₁_prop : (s₁.proc p₀).state.prop = propOf ∅ := by
       dsimp only [s₁, AsyncQuorumProtocol.applyResult, π, synodQuorumProtocol, s₀,
         AsyncQuorumProtocol.start, propOf]
@@ -120,9 +119,7 @@ theorem synodQuorumProtocol_safeCohort_crashStop {P V : Type*} [Fintype P] [Line
               (hl : np.state.learn = (u.proc p₀).state.learn) (x : P) :
               (if x = p₀ then np else u.proc x).state.acc = (s₂.proc x).state.acc ∧
               (if x = p₀ then np else u.proc x).state.learn = (s₂.proc x).state.learn := by
-            rcases eq_or_ne x p₀ with rfl | hx
-            · simp only [↓reduceIte, ha, hl]; exact hal _
-            · simp only [hx, ↓reduceIte]; exact hal x
+            split_ifs <;> simp only [*, and_self]
           by_cases haS : a ∈ S
           · rw [ite_eq_right (fun h : b = ⟨0, p₀⟩ ∧ a ∉ S => h.2 haS), Finset.insert_eq_of_mem haS]
             exact ⟨hal' _ rfl rfl,
@@ -169,8 +166,7 @@ theorem synodQuorumProtocol_safeCohort_crashStop {P V : Type*} [Fintype P] [Line
         (fun x hx => ⟨hs₃_2a_msgs x, (hs₃_al x).1.trans (hs₂_in x hx).1⟩)
     set s₄ := qList.foldl (fun w a => π.deliverStep w ⟨p₀, a, .phase2a b v⟩) s₃
     have hs₄_learn : (s₄.proc p₀).state.learn.crashed = false := by
-      rw [(hs₄_pl p₀).2, (hs₃_al p₀).2, (hs₂_pl p₀).2]
-      exact hs₁_learn
+      rwa [(hs₄_pl p₀).2, (hs₃_al p₀).2, (hs₂_pl p₀).2]
     -- Phase 2b fan-in to `p₀` across `qList`:
     obtain ⟨hmtr_2b, S₅, _, hs₅_mem, _, hs₅_recv_S⟩ :=
       deliver_fanin_leader qs p₀ (fun a => .phase2b a b v)
@@ -180,11 +176,8 @@ theorem synodQuorumProtocol_safeCohort_crashStop {P V : Type*} [Fintype P] [Line
           dsimp only [AsyncQuorumProtocol.deliverStep, AsyncQuorumProtocol.applyResult, π,
             synodQuorumProtocol]
           rw [ite_eq_left (⟨hl, rfl⟩ : (u.proc p₀).state.learn.crashed = false ∧ a = a)]
-          simp only [↓reduceIte, hl, true_and]
-          intro x hx
-          rcases Finset.mem_insert.mp hx with rfl | hxS
-          · exact Finset.mem_insert_self _ _
-          · exact Finset.mem_insert_of_mem (hrec x hxS))
+          simp only [↓reduceIte, hl, true_and, Finset.mem_insert, forall_eq_or_imp, true_or]
+          exact fun x hxS => .inr (hrec x hxS))
         (as := qList) (u := s₄) (S₀ := ∅)
         (fun x hx => (hs₄_in x hx).2)
         ⟨hs₄_learn, fun _ hm => False.elim (Finset.notMem_empty _ hm)⟩

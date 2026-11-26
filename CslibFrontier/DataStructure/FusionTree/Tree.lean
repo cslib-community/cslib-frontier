@@ -194,20 +194,12 @@ private theorem height_join_le {cs : List Tree} {h : ℕ} (hc : ∀ t ∈ cs, t.
   · simp [join, height]
   · exact (hc t (by simp)).trans (Nat.le_succ h)
   · simp only [join, height]
-    apply Nat.add_le_add_right _ 1
-    apply foldr_max_le
-    intro n hn
-    obtain ⟨t, ht, rfl⟩ := List.mem_map.mp hn
-    exact hc t ht
+    exact Nat.add_le_add_right (foldr_max_le (List.forall_mem_map.mpr hc)) 1
 
 private theorem height_buildAux_le (B h : ℕ) (xs : List ℕ) : (buildAux B h xs).height ≤ h := by
   induction h generalizing xs with
   | zero => simp [buildAux, height]
-  | succ h ih =>
-    apply height_join_le
-    intro t ht
-    obtain ⟨ys, _, rfl⟩ := List.mem_map.mp ht
-    exact ih ys
+  | succ h ih => exact height_join_le (List.forall_mem_map.mpr fun ys _ => ih ys)
 
 /-- Construction preserves the complete input list, including its order. -/
 theorem keys_build {B : ℕ} (hB : 2 ≤ B) (xs : List ℕ) : (build B xs).keys = xs :=
@@ -363,17 +355,11 @@ theorem listPredecessor_ne_none_iff {q : ℕ} {xs : List ℕ}
   obtain ⟨x, xs, rfl⟩ := List.exists_cons_of_ne_nil hn
   simp only [List.headD_cons]
   rw [ne_eq, listPredecessor_eq_none_iff]
-  constructor
-  · intro h
-    by_contra hx
-    apply h
-    intro y hy
-    rcases List.mem_cons.mp hy with rfl | hy
-    · omega
-    · exact lt_of_lt_of_le (by omega) ((List.pairwise_cons.mp hs).1 y hy)
-  · intro hx h
-    have := h x (by simp)
-    omega
+  refine ⟨fun h => not_lt.mp fun hx => h fun y hy => ?_,
+    fun hx h => (h x List.mem_cons_self).not_ge hx⟩
+  rcases List.mem_cons.mp hy with rfl | hy
+  · exact hx
+  · exact hx.trans_le ((List.pairwise_cons.mp hs).1 y hy)
 
 private theorem selectChild_listPredecessor (q : ℕ) (cs : List Tree)
     (hc : ∀ t ∈ cs, t.keys ≠ [] ∧ t.keys.Pairwise (· ≤ ·) ∧
@@ -448,14 +434,10 @@ theorem listPredecessor_some_spec {q p : ℕ} {xs : List ℕ}
           omega
       · contradiction
     | some r =>
-      have heq : r = p := by simpa [listPredecessor, htail, Option.or] using hp
-      subst r
+      obtain rfl : r = p := by simpa [listPredecessor, htail, Option.or] using hp
       obtain ⟨hmem, hle, hmax⟩ := ih hsort htail
-      refine ⟨List.mem_cons_of_mem x hmem, hle, ?_⟩
-      intro y hy hyq
-      rcases List.mem_cons.mp hy with rfl | hy
-      · exact hhead p hmem
-      · exact hmax y hy hyq
+      exact ⟨List.mem_cons_of_mem x hmem, hle,
+        List.forall_mem_cons.mpr ⟨fun _ => hhead r hmem, hmax⟩⟩
 
 /-- The list search returns exactly the greatest stored key not exceeding the query. -/
 theorem listPredecessor_eq_some_iff {q p : ℕ} {xs : List ℕ}

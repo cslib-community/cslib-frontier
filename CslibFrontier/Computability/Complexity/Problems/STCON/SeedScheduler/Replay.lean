@@ -99,18 +99,13 @@ theorem subsingleton_successful_firstHalting {σ : Type} (setup : SeedSearchSetu
           right b).mp hr
         rw [hleft, hright, fromResume none l r (by simp [hleft]) hlr hrr]
   rintro left ⟨hlf, hl⟩ right ⟨hrf, hr⟩
-  obtain ⟨a, ha⟩ := Option.isSome_iff_exists.mp hl
-  obtain ⟨b, hb⟩ := Option.isSome_iff_exists.mp hr
-  replace ha : M.replay input left M.init = .inr (some a) := reply_eq_some_iff.mp ha
-  replace hb : M.replay input right M.init = .inr (some b) := reply_eq_some_iff.mp hb
-  rw [machine_init] at hlf hrf ha hb
-  cases hentry : seedSchedulerCandidate setup 0 with
-  | none =>
-    rw [hentry] at hlf hrf
-    exact terminal (some none) hlf hrf
-  | some frame =>
-    rw [hentry] at hlf hrf ha hb
-    obtain ⟨hf, hsame, _⟩ := seedSchedulerCandidate_valid hentry
+  obtain ⟨a, ha⟩ := (Option.isSome_iff_exists.mp hl).imp fun _ => reply_eq_some_iff.mp
+  obtain ⟨b, hb⟩ := (Option.isSome_iff_exists.mp hr).imp fun _ => reply_eq_some_iff.mp
+  dsimp only [NondeterministicQueryMachine.run] at ha hb
+  rcases hentry : seedSchedulerCandidate setup 0 with _ | frame <;>
+    rw [machine_init, hentry] at hlf hrf ha hb
+  · exact terminal (some none) hlf hrf
+  · obtain ⟨hf, hsame, _⟩ := seedSchedulerCandidate_valid hentry
     exact fromFrame left frame hsame hf right a b ⟨hlf, ha⟩ ⟨hrf, hb⟩
 
 /-- A successful initialized machine replay agrees with the monadic search if every

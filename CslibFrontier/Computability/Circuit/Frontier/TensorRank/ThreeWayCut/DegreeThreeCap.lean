@@ -91,10 +91,9 @@ private theorem measureReal_rayCross_le {Q : Multigraph W F} (hloop : Q.Loopless
   have hAneg_eq : P.real Aneg = P.real A :=
     hmp_neg.measureReal_preimage hAm.nullMeasurableSet
   have hAneg_m : MeasurableSet Aneg := hAm.preimage hmp_neg.measurable
-  have hdisj : Disjoint A Aneg := by
-    refine disjoint_left.mpr fun ω h1 h2 => ?_
-    simp only [A, Aneg, mem_preimage, mem_ofPred_eq, edgeVec2_negSample] at h1 h2
-    exact rayCross_disjoint_neg2 c _ _ ⟨h1, h2⟩
+  have hdisj : Disjoint A Aneg := disjoint_left.mpr fun ω h1 h2 =>
+    rayCross_disjoint_neg2 c _ _
+      ⟨h1, by simpa only [A, Aneg, mem_preimage, mem_ofPred_eq, edgeVec2_negSample] using h2⟩
   let proj_n (ω : W → BlockSample) : W → ℝ := fun B => dot2 (normVec c) (ω B).1
   have hmp_n : MeasurePreserving proj_n P (Measure.pi fun _ : W => gaussianReal 0 1) :=
     measurePreserving_pi _ _ fun _ =>
@@ -103,11 +102,10 @@ private theorem measureReal_rayCross_le {Q : Multigraph W F} (hloop : Q.Loopless
   set U := {g : W → ℝ | (0 : ℝ) ∈ Ι (edgeScore Q q R g e₁) (edgeScore Q q R g e₂)}
   have hUm : MeasurableSet U :=
     measurableSet_setOf_mem_uIoc (measurable_edgeScore q R e₁) (measurable_edgeScore q R e₂) 0
-  have hsub : A ∪ Aneg ⊆ proj_n ⁻¹' U := by
-    intro ω hω
+  have hsub : A ∪ Aneg ⊆ proj_n ⁻¹' U := fun ω hω => by
     simp only [mem_union, A, Aneg, mem_preimage, mem_ofPred_eq, edgeVec2_negSample] at hω
-    simp only [mem_preimage, U, mem_ofPred_eq, proj_n, ← dot2_edgeVec2]
-    exact rayCross_or_neg2_imp_mem_uIoc c _ _ hω
+    simpa only [mem_preimage, U, mem_ofPred_eq, proj_n, ← dot2_edgeVec2] using
+      rayCross_or_neg2_imp_mem_uIoc c _ _ hω
   have hunit1 : ‖edgeVector Q q R e₁‖ = 1 := norm_edgeVector hloop hdeg hq hρ₀ hρ e₁
   have hunit2 : ‖edgeVector Q q R e₂‖ = 1 := norm_edgeVector hloop hdeg hq hρ₀ hρ e₂
   have h2A : 2 * P.real A ≤ arccos ⟪edgeVector Q q R e₁, edgeVector Q q R e₂⟫ / π := by
@@ -224,10 +222,8 @@ private theorem integral_badCount_le_capAt {Q : Multigraph W F} (hloop : Q.Loopl
         c₁ ≠ c₂ → det2 (edgeVec2 Q q R ω a) (edgeVec2 Q q R ω b) ≠ 0 := by
       intro a ha b hb c₁ c₂ hc₁ hc₂ hne_c
       have hab : a ≠ b := by rintro rfl; exact hne_c (inOpenSector_unique hc₁ hc₂)
-      have hvec_ne : edgeVector Q q R a ≠ edgeVector Q q R b := fun heq => by
-        have hz : edgeVec2 Q q R ω a = edgeVec2 Q q R ω b := by
-          dsimp [edgeVec2, edgeScore]; rw [heq]
-        exact hne_c (inOpenSector_unique (hz ▸ hc₁) hc₂)
+      have hvec_ne : edgeVector Q q R a ≠ edgeVector Q q R b := fun heq =>
+        hne_c (inOpenSector_unique (by simpa only [edgeVec2, edgeScore, heq] using hc₁) hc₂)
       exact hdet_ω (a, b) (Finset.mem_filter.mpr ⟨Finset.mem_offDiag.mpr ⟨ha, hb, hab⟩, hvec_ne⟩)
     have hreal := Nat.cast_le (α := ℝ).mpr
       (four_mul_badCount_le h01 h12 h02 hs_toFin hinj hray_ω hdet_sec)

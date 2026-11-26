@@ -206,10 +206,9 @@ theorem iterLog_tree_bounds {γ c_R : ℝ} (hγ : 0 < γ) (hγ1 : γ ≤ 1) (hcR
   refine ⟨hH_ge, hk_r, hH1_logU, by exact_mod_cast hmax_le, hn_le_b1, fun ℓ hℓ => ?_⟩
   have hℓ_ge : 1 ≤ ℓ := (Finset.mem_Ico.mp hℓ).1
   have hℓ1_le_H : ℓ + 1 ≤ k' - s_off := (Finset.mem_Ico.mp hℓ).2
-  have hblock_half : T.blockSize (ℓ + 1) ≤ n / 2 := by
-    have h := (le_height_iterLogMetaTree_iff hn k' c_tree (ℓ + 1)).mp
+  have hblock_half : T.blockSize (ℓ + 1) ≤ n / 2 :=
+    hT_def ▸ (le_height_iterLogMetaTree_iff hn k' c_tree (ℓ + 1)).mp
       (hℓ1_le_H.trans (hT_def ▸ hH_le_height))
-    rwa [hT_def] at h
   have hF_lo : 2 ^ 64 ≤ T.fanout (ℓ + 1) := by
     rw [← hT_def]; exact two_pow_le_fanout_iterLogMetaTree n k' c_tree (by omega)
   have hx_ge_M : max 71 (4 * c_tree * (4 * c_tree + 71)) ≤ Nat.iterLog (ℓ + 1) n := by
@@ -286,14 +285,10 @@ theorem iterLog_tree_bounds {γ c_R : ℝ} (hγ : 0 < γ) (hγ1 : γ ≤ 1) (hcR
     have hpow_le_F : 2 ^ q ≤ T.fanout (ℓ + 1) := by
       have hdiv_ge : 2 ^ q ≤ Nat.iterLog ℓ n / (2 * x) :=
         (Nat.le_div_iff_mul_le (by omega)).mpr (by rw [mul_comm]; exact hmul_pow)
-      obtain ⟨d, hd⟩ := Nat.exists_eq_add_of_le hℓ_ge
-      have hF_eq : T.fanout (ℓ + 1) = 2 * max (2 ^ 63) (Nat.iterLog ℓ n / (2 * x)) := by
-        rw [← hT_def, iterLogMetaTree_fanout]
-        have hidx : ℓ + 1 = d + 2 := by clear hF_lo h8q; omega
-        rw [hidx]
-        simp only [iterLogFanout, show d + 1 = ℓ by clear hF_lo h8q; omega,
-          show d + 2 = ℓ + 1 by clear hF_lo h8q; omega, x]
-      rw [hF_eq]
+      have hd1 : (ℓ - 1) + 1 = ℓ := Nat.sub_add_cancel hℓ_ge
+      have hidx : ℓ + 1 = (ℓ - 1) + 2 := (congrArg (· + 1) hd1).symm
+      rw [← hT_def, iterLogMetaTree_fanout, hidx]
+      simp only [iterLogFanout, hd1, ← hidx]
       exact (hdiv_ge.trans (_root_.le_max_right _ _)).trans (Nat.le_mul_of_pos_left _ Nat.two_pos)
     have hlog_F : (x : ℝ) / 4 ≤ Real.logb 2 (T.fanout (ℓ + 1)) := by
       have hq_log : (q : ℝ) ≤ Real.logb 2 (T.fanout (ℓ + 1)) :=
@@ -328,9 +323,7 @@ theorem exists_gamma_query {α c_w : ℝ} (hα : 0 < α) (hcw : 0 ≤ c_w) :
       div_le_div₀ (by positivity) (by linarith) (by positivity)
         (mul_le_mul_of_nonneg_right (by linarith) (by positivity))
     exact h1.trans_eq (by field_simp)
-  · have : (20 + 24 * c_w) ≠ 0 := by positivity
-    have : (1 + α) ≠ 0 := by positivity
-    field_simp
+  · field_simp
 
 theorem exists_gamma_update {α_V c_w : ℝ} (hα_V : 0 < α_V) (hcw : 0 ≤ c_w) :
     ∃ γ : ℝ, 0 < γ ∧ γ ≤ 1 ∧ (5 + c_w) * γ ≤ min (1 / 4) (α_V / 16) := by
@@ -381,12 +374,10 @@ theorem iterLog_logStar_space_le {U V n cells w : ℕ} {c_R : ℝ} (hn : 2 ≤ n
           c_R * (n : ℝ) * ((max (Nat.iterLog (Nat.logStar n) n) 1 : ℕ) : ℝ) := by
   have hk1 : 1 ≤ Nat.logStar n :=
     (by decide : 1 ≤ Nat.logStar 2).trans (Nat.logStar_mono hn)
-  have hiter1 : max (Nat.iterLog (Nat.logStar n) n) 1 = 1 := by
-    have hle : Nat.iterLog (Nat.logStar n) n ≤ 1 :=
-      (Nat.iterLog_anti_left n (Nat.floorLogStar_le_logStar n)).trans
-        (Nat.iterLog_floorLogStar_le_one n)
-    omega
-  exact ⟨hk1, by rw [hiter1, Nat.cast_one, mul_one]; exact hspace⟩
+  have hle : Nat.iterLog (Nat.logStar n) n ≤ 1 :=
+    (Nat.iterLog_anti_left n (Nat.floorLogStar_le_logStar n)).trans
+      (Nat.iterLog_floorLogStar_le_one n)
+  exact ⟨hk1, by simpa only [max_eq_right hle, Nat.cast_one, mul_one] using hspace⟩
 
 theorem combine_iterLogStar_and_sublinear {c₁ c₂ L R E : ℝ} {n : ℕ}
     (hn : 2 ≤ n) (hL_nn : 0 ≤ L) (hE_nn : 0 ≤ E)

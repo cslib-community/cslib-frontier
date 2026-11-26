@@ -181,29 +181,22 @@ theorem indexed_step_keys {n K : ℕ} (s : IndexedMinPQ.State n) (o : IndexedMin
     (hb : ∀ v k, s v = some k → k ≤ K) :
     ∀ v k, (IndexedMinPQ.step s o).1 v = some k → k ≤ K := by
   cases o with
-  | isEmpty => exact hb
-  | getKey _ => exact hb
+  | isEmpty | getKey _ => exact hb
   | insert u d | decreaseKey u d =>
     intro v k hk
-    by_cases h : v = u
-    · subst v
-      simp only [IndexedMinPQ.step, Function.update_self] at hk
-      cases hk
-      exact hv.2
-    · apply hb v k
-      simpa only [IndexedMinPQ.step, Function.update_of_ne h] using hk
+    rcases eq_or_ne v u with rfl | h
+    · simp only [IndexedMinPQ.step, Function.update_self, Option.some.injEq] at hk
+      exact hk ▸ hv.2
+    · exact hb v k (by simpa only [IndexedMinPQ.step, Function.update_of_ne h] using hk)
   | extractMin =>
     cases hf : IndexedMinPQ.findMin s with
     | none => simpa only [IndexedMinPQ.step, hf] using hb
     | some e =>
       rcases e with ⟨u, d⟩
       intro v k hk
-      by_cases h : v = u
-      · subst v
-        simp only [IndexedMinPQ.step, hf, Function.update_self] at hk
-        contradiction
-      · apply hb v k
-        simpa only [IndexedMinPQ.step, hf, Function.update_of_ne h] using hk
+      rcases eq_or_ne v u with rfl | h
+      · simp [IndexedMinPQ.step, hf] at hk
+      · exact hb v k (by simpa only [IndexedMinPQ.step, hf, Function.update_of_ne h] using hk)
 
 /-- A Dijkstra-interface step preserves the bound on every queued key. -/
 theorem composite_step_keys {n K V : ℕ} (s : (spec n K V).State)
@@ -369,8 +362,7 @@ theorem abstractLoopStep_extract {n K V w a : ℕ}
     have htail := hv.2
     rw [hq] at htail
     dsimp only at htail
-    rw [StateTransitionSpec.clientHistory_bind, StateTransitionSpec.validHistory_append,
-      StateTransitionSpec.run_runClient] at htail
+    rw [StateTransitionSpec.clientHistory_bind, StateTransitionSpec.validHistory_append] at htail
     exact htail.1
 
 /-- Installing the source distance word at `f + G.source.val` and executing the queue insertion
@@ -416,14 +408,10 @@ theorem initial_loop_safe_insert {K V w f : ℕ}
     rw [hpeq, StateTransitionSpec.clientState_bind]
     exact clientState_width _ _ _
   rw [hs] at hstate hinv
-  refine ⟨hinv, ?_, ?_⟩
-  · rw [hstate]
-    apply client_keys (M.abs s) p hv.1
-    intro v k hk
-    rw [habs] at hk
-    change (none : Option ℕ) = some k at hk
-    cases hk
-  · rw [hstate]
-    exact hv.2
+  refine ⟨hinv, ?_, hstate ▸ hv.2⟩
+  rw [hstate]
+  refine client_keys (M.abs s) p hv.1 fun v k hk => ?_
+  rw [habs] at hk
+  cases hk
 
 end Cslib.Algorithms.Lean.Dijkstra.Native

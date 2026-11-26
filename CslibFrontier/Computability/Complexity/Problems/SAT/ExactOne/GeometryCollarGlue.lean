@@ -84,12 +84,10 @@ theorem collarPoint_injective (reflected : Bool) : Function.Injective (collarPoi
 /-- Placement maps the full continuous support. -/
 theorem support_collarRoute (reflected : Bool) (r : Route) :
     support (collarRoute reflected r) = collarReal reflected '' support r := by
-  unfold collarRoute
-  rw [support_translate]
+  rw [collarRoute, support_translate]
   cases reflected
   · rfl
-  · change (fun p => p + realPoint (collarOffset true)) '' support (mirrorRoute r) = _
-    rw [support_mirrorRoute, Set.image_image]
+  · rw [ite_eq_left rfl, support_mirrorRoute, Set.image_image]
     rfl
 
 /-- Membership in a placed support is exactly placed membership. -/
@@ -101,29 +99,19 @@ theorem mem_support_collarRoute_iff (reflected : Bool) (r : Route) (p : ℝ × �
 /-- Placement preserves proper orthogonality. -/
 theorem isOrthogonal_collarRoute (reflected : Bool) {r : Route} (hr : IsOrthogonal r) :
     IsOrthogonal (collarRoute reflected r) := by
-  unfold collarRoute
-  rw [isOrthogonal_translate_iff]
-  cases reflected
-  · exact hr
-  · exact (isOrthogonal_mirrorRoute_iff r).2 hr
+  cases reflected <;>
+    simpa [collarRoute, isOrthogonal_translate_iff, isOrthogonal_mirrorRoute_iff] using hr
 
 /-- Placement preserves continuous simplicity. -/
 theorem isSimple_collarRoute (reflected : Bool) {r : Route} (hr : IsSimple r) :
     IsSimple (collarRoute reflected r) := by
-  unfold collarRoute
-  rw [isSimple_translate_iff]
-  cases reflected
-  · exact hr
-  · exact (isSimple_mirrorRoute_iff r).2 hr
+  cases reflected <;>
+    simpa [collarRoute, isSimple_translate_iff, isSimple_mirrorRoute_iff] using hr
 
 /-- Placement preserves total Manhattan wire length. -/
 theorem wireLength_collarRoute (reflected : Bool) (r : Route) :
     wireLength (collarRoute reflected r) = wireLength r := by
-  unfold collarRoute
-  rw [wireLength_translate]
-  cases reflected
-  · rfl
-  · exact wireLength_mirrorRoute r
+  cases reflected <;> simp [collarRoute, wireLength_translate, wireLength_mirrorRoute]
 
 /-- Placement preserves the listed segment count. -/
 theorem consecutivePairs_length_collarRoute (reflected : Bool) (r : Route) :

@@ -339,11 +339,7 @@ private theorem card_filter_not_injective_mul_le (n : ℕ) (β : Type*) [Fintype
     (fun R : Fin n → β => Function.Injective R)
   rw [Finset.card_univ, Fintype.card_fun, Fintype.card_fin, hinj] at hsum
   cases n with
-  | zero =>
-    have hemp : (Finset.univ.filter fun R : Fin 0 → β => ¬ Function.Injective R) = ∅ :=
-      Finset.ext fun R => by simp [Function.injective_of_subsingleton R]
-    rw [hemp]
-    simp
+  | zero => simp [Function.injective_of_subsingleton]
   | succ m =>
     have := pow_succ_le_descFactorial_add (Fintype.card β) m
     calc (Finset.univ.filter fun R : Fin (m + 1) → β => ¬ Function.Injective R).card *
@@ -468,11 +464,9 @@ theorem acceptProb_round_le {x : GraphIsomorphismInstance} (hx : x ∈ GraphIsom
   refine (acceptProb_guessingRound_le (δ := 1 / 16) (fun f hf => ?_) P).trans_eq ?_
   · simp only [eval_message]
     exact tsum_relabelDist_le σ hσ hf
-  · have h1 : ((17 : ENNReal) / 32) = ((17 / 32 : NNReal) : ENNReal) := by
-      rw [ENNReal.coe_div (by norm_num)]; norm_num
-    have h2 : ((1 : ENNReal) + 1 / 16) / 2 = (((1 + 1 / 16) / 2 : NNReal) : ENNReal) := by
-      rw [ENNReal.coe_div (by norm_num), ENNReal.coe_add, ENNReal.coe_div (by norm_num)]; norm_num
-    rw [h1, h2, ENNReal.coe_inj]
+  · simp (discharger := norm_num) only [← ENNReal.coe_ofNat, ← ENNReal.coe_one,
+      ← ENNReal.coe_div, ← ENNReal.coe_add, ENNReal.coe_inj, ← NNReal.coe_inj,
+      NNReal.coe_div, NNReal.coe_add, NNReal.coe_ofNat, NNReal.coe_one]
     norm_num
 
 /-- **Completeness of one round.** On non-isomorphic graphs the honest prover always names the
@@ -552,11 +546,9 @@ theorem isOraclePPTOn_verifier :
 theorem mem_IP : GraphNonIsomorphism ∈ IP encGraphIsomorphism := by
   refine mem_IP_of isOraclePPTOn_verifier isInteractiveProof_verifier
     (ENNReal.div_le_of_le_mul (by norm_num)) ?_
-  have h1 : ((17 : ENNReal) / 32) = ((17 / 32 : NNReal) : ENNReal) := by
-    rw [ENNReal.coe_div (by norm_num)]; norm_num
-  have h2 : (1 : ENNReal) / 3 = ((1 / 3 : NNReal) : ENNReal) := by
-    rw [ENNReal.coe_div (by norm_num)]; norm_num
-  rw [h1, h2, ← ENNReal.coe_pow, ENNReal.coe_le_coe, ← NNReal.coe_le_coe]
+  simp (discharger := norm_num) only [← ENNReal.coe_ofNat, ← ENNReal.coe_one,
+    ← ENNReal.coe_div, ← ENNReal.coe_pow, ENNReal.coe_le_coe, ← NNReal.coe_le_coe,
+    NNReal.coe_pow, NNReal.coe_div, NNReal.coe_ofNat, NNReal.coe_one]
   norm_num
 
 end GraphNonIsomorphism

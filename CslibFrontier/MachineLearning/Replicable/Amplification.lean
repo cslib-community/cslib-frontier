@@ -127,8 +127,7 @@ private theorem exists_nat_div_le (M : ℝ) {ε : ℝ} (hε : 0 < ε) :
   obtain ⟨N, hN⟩ := exists_nat_gt (max (M / ε) 0)
   have hNpos : 0 < N := by exact_mod_cast (le_max_right (M / ε) 0).trans_lt hN
   refine ⟨N, ⟨hNpos.ne'⟩, (div_le_iff₀ (Nat.cast_pos.mpr hNpos)).mpr ?_⟩
-  have hlt := (div_lt_iff₀ hε).mp ((le_max_left (M / ε) 0).trans_lt hN)
-  linarith
+  linarith [(div_lt_iff₀ hε).mp ((le_max_left (M / ε) 0).trans_lt hN)]
 
 private theorem isAccurateFor_replicate_map {X : Type u} {Ω : Type v} {α : Type w} {m : ℕ}
     {A : Algorithm X Ω α m} {𝒟 : Set (PMF X)} {good : PMF X → Set α} {β₀ : ℝ}
@@ -421,8 +420,7 @@ theorem isAccurateFor_amplifyFinite [Fintype α] [Nonempty α] [LinearOrder α]
   let cand := Finset.univ.filter fun y : α => thresholdRound a b N i (empFreq k v y) = true
   have hcand : cand.Nonempty := ⟨y₀, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hy₀_pass⟩⟩
   have hmem : pickThresholded a b N k i v ∈ cand := by
-    dsimp only [pickThresholded]
-    rw [dite_eq_left_of_eq_true (eq_true hcand)]
+    rw [pickThresholded, dite_eq_left_of_eq_true (eq_true hcand)]
     exact Finset.min'_mem cand hcand
   have hbad_mass : (A.marginal D (pickThresholded a b N k i v)).toReal ≤ β₀ := by
     rw [← PMF.toOuterMeasure_apply_singleton]
@@ -833,21 +831,17 @@ private theorem pickFirstThresholded_eq_of_rounds_eq (A : Algorithm X Ω α m) (
     pickFirstThresholded a b N i trials₁ = pickFirstThresholded a b N i trials₂ := by
   have ht₀_pass : thresholdRound a b N i (trials₁ t₀).1 = true :=
     thresholdRound_true_of_right_le hab i (by linarith [(abs_sub_le_iff.mp (htr₁ t₀).1).2])
-  have hcand : (Finset.univ.filter fun t : Fin T => thresholdRound a b N i (trials₁ t).1 = true) =
-      Finset.univ.filter fun t : Fin T => thresholdRound a b N i (trials₂ t).1 = true := by
-    ext t; simp only [Finset.mem_filter, Finset.mem_univ, true_and, hround t]
-  have hne₁ : (Finset.univ.filter fun t : Fin T =>
-      thresholdRound a b N i (trials₁ t).1 = true).Nonempty :=
-    ⟨t₀, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ht₀_pass⟩⟩
-  let tStar := (Finset.univ.filter fun t : Fin T =>
-    thresholdRound a b N i (trials₁ t).1 = true).min' hne₁
-  obtain ⟨yStar, hcoll_ge, hyStar, h1eq⟩ := goodTrial_heavy_of_thresholdPass A D hab htr₁ i tStar
-    (Finset.mem_filter.mp (Finset.min'_mem _ hne₁)).2
-  have hpick₁ : pickFirstThresholded a b N i trials₁ = (trials₁ tStar).2 := by
-    dsimp only [pickFirstThresholded]; simp only [hne₁, ↓reduceDIte]; rfl
-  have hpick₂ : pickFirstThresholded a b N i trials₂ = (trials₂ tStar).2 := by
-    dsimp only [pickFirstThresholded]; simp only [← hcand, hne₁, ↓reduceDIte]; rfl
-  rw [hpick₁, hpick₂, h1eq, (htr₂ tStar).2 hcoll_ge yStar hyStar]
+  let cands₁ := Finset.univ.filter fun t : Fin T => thresholdRound a b N i (trials₁ t).1 = true
+  have hcand : cands₁ =
+      Finset.univ.filter fun t : Fin T => thresholdRound a b N i (trials₂ t).1 = true :=
+    Finset.filter_congr fun t _ => by rw [hround t]
+  have hne₁ : cands₁.Nonempty := ⟨t₀, Finset.mem_filter.mpr ⟨Finset.mem_univ _, ht₀_pass⟩⟩
+  obtain ⟨yStar, hcoll_ge, hyStar, h1eq⟩ :=
+    goodTrial_heavy_of_thresholdPass A D hab htr₁ i (cands₁.min' hne₁)
+      (Finset.mem_filter.mp (Finset.min'_mem _ hne₁)).2
+  dsimp only [pickFirstThresholded]
+  rw [← hcand, dite_eq_left_of_eq_true (eq_true hne₁), dite_eq_left_of_eq_true (eq_true hne₁)]
+  exact h1eq.trans ((htr₂ _).2 hcoll_ge yStar hyStar).symm
 
 /-- Disagreement probability upper bound for `amplifyReplicability`: if
 `1 / 2 + δ < a < b ≤ θ_acc - δ` and `θ_acc < 1`, then
@@ -939,11 +933,9 @@ theorem isAccurateFor_amplifyReplicability [DecidableEq α] (A : Algorithm X Ω 
     obtain ⟨tStar, yStar, hpick, hyStar⟩ :=
       pickFirstThresholded_eq_heavy A D hab.le hb_acc ht₀ htr i
     rw [Set.mem_preimage, hpick] at hy_bad
-    have hle_y : (seedOutput A D (rs tStar) yStar).toReal ≤
-        ((seedOutput A D (rs tStar)).toOuterMeasure (good D)ᶜ).toReal := by
-      rw [← PMF.toOuterMeasure_apply_singleton]
-      exact Probability.PMF.toOuterMeasure_toReal_mono _ (Set.singleton_subset_iff.mpr hy_bad)
-    exact herr ⟨tStar, hyStar.trans hle_y⟩
+    refine herr ⟨tStar, hyStar.trans ?_⟩
+    rw [← PMF.toOuterMeasure_apply_singleton]
+    exact Probability.PMF.toOuterMeasure_toReal_mono _ (Set.singleton_subset_iff.mpr hy_bad)
   simp [hempty]
 
 /-- **General-domain replicability and accuracy-preserving amplification**: over any

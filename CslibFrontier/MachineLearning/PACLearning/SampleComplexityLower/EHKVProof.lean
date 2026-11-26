@@ -213,12 +213,6 @@ theorem ehkv_sum_lower_bound
       have h_same_sample : sampleOf (concepts S) xs = sampleOf (concepts (σ S)) xs :=
         sampleOf_eq_of_agree h_sample_agree
       set h₀_local := A' (sampleOf (concepts S) xs)
-      have hU_in_S : ∀ w ∈ U, w ∈ S → w ∉ σ S := by
-        intro w hwU hwS
-        simp only [σ, U, Finset.mem_union, Finset.mem_inter, Finset.mem_sdiff] at *; tauto
-      have hU_not_S : ∀ w ∈ U, w ∉ S → w ∈ σ S := by
-        intro w hwU hwnS
-        simp only [σ, Finset.mem_union, Finset.mem_sdiff]; exact Or.inr ⟨hwU, hwnS⟩
       have hU_sub_symmDiff : (↑U : Set α) ⊆
           symmDiff h₀_local (concepts S) ∪ symmDiff h₀_local (concepts (σ S)) := by
         intro w hwU
@@ -230,6 +224,9 @@ theorem ehkv_sum_lower_bound
         have hmem_iff {S' : Finset α} (hS' : S' ∈ W'.powerset) : w ∈ concepts S' ↔ w ∈ S' := by
           have h := Set.ext_iff.mp (hconcepts_eq S' hS') w
           simpa [hwW, hw_ne_w₀] using h
+        have hσ_iff : w ∈ concepts (σ S) ↔ w ∉ S :=
+          (hmem_iff hσS_mem).trans (by
+            simp only [σ, U, Finset.mem_union, Finset.mem_inter, Finset.mem_sdiff] at *; tauto)
         -- Place w in the appropriate symmDiff based on its h₀_local membership.
         have hplace : ∀ {A B : Set α}, w ∈ A → w ∉ B →
             w ∈ symmDiff h₀_local A ∨ w ∈ symmDiff h₀_local B := by
@@ -238,10 +235,8 @@ theorem ehkv_sum_lower_bound
           · exact Or.inr (Set.mem_symmDiff.mpr (Or.inl ⟨hwh, hwB⟩))
           · exact Or.inl (Set.mem_symmDiff.mpr (Or.inr ⟨hwA, hwh⟩))
         by_cases hwS : w ∈ S
-        · exact hplace ((hmem_iff hS).mpr hwS)
-            (mt (hmem_iff hσS_mem).mp (hU_in_S w hwU' hwS))
-        · exact (hplace ((hmem_iff hσS_mem).mpr (hU_not_S w hwU' hwS))
-            (mt (hmem_iff hS).mp hwS)).symm
+        · exact hplace ((hmem_iff hS).mpr hwS) (hσ_iff.not.mpr (not_not.mpr hwS))
+        · exact (hplace (hσ_iff.mpr hwS) (mt (hmem_iff hS).mp hwS)).symm
       have h2U : d ≤ 2 * U.card := by
         have hTeq : U.card = d - T.card := card_sdiff_of_subset (filter_subset _ _)
         have hTle : T.card ≤ d / 2 := hxs_bad
@@ -259,16 +254,12 @@ theorem ehkv_sum_lower_bound
       exact complementary_error_contradiction hε'_pos hU_sub_symmDiff hP_U hS_ok hσS_ok
     rw [← card_powerset]
     convert involution_half_count (P := fun S => xs ∈ fail (concepts S)) hσ_self hσ_mem hpairing
-  have haem : ∀ S ∈ W'.powerset,
-      AEMeasurable (fun xs =>
-        (fail (concepts S)).indicator (1 : (Fin m → α) → ℝ≥0∞) xs) μ :=
-    fun S _ => (aemeasurable_indicator_const_iff (1 : ℝ≥0∞)).mpr (hnull_meas _)
   have hsum_eq_integral :
       ∑ S ∈ W'.powerset, μ (fail (concepts S)) =
-      ∫⁻ xs, ∑ S ∈ W'.powerset, (fail (concepts S)).indicator 1 xs ∂μ := by
-    rw [lintegral_finsetSum' _ haem]
-    congr 1; ext S
-    exact (lintegral_indicator_one₀ (hnull_meas _)).symm
+      ∫⁻ xs, ∑ S ∈ W'.powerset, (fail (concepts S)).indicator 1 xs ∂μ :=
+    (sum_congr rfl fun S _ => (lintegral_indicator_one₀ (hnull_meas _)).symm).trans
+      (lintegral_finsetSum' _ fun S _ =>
+        (aemeasurable_indicator_const_iff (1 : ℝ≥0∞)).mpr (hnull_meas _)).symm
   rw [hsum_eq_integral, nsmul_eq_mul]
   rw [show (↑(2 ^ d / 2 : ℕ) : ℝ≥0∞) * μ B =
       ∫⁻ xs, B.indicator (fun _ => (↑(2 ^ d / 2 : ℕ) : ℝ≥0∞)) xs ∂μ from

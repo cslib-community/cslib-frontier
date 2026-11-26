@@ -248,9 +248,7 @@ theorem realizationProbBehavior_pureToBehavior_eq {i : ι} [∀ h, DecidableEq (
   | cons p σ ih =>
     rw [realizationProbBehavior_cons, ih]
     simp only [matchesSeq_cons]
-    by_cases hp : s p.1 = p.2
-    · simp [pureToBehavior, hp]
-    · simp [pureToBehavior, hp]
+    by_cases hp : s p.1 = p.2 <;> simp [pureToBehavior, hp]
 
 open Classical in
 theorem realizationProbMixed_single_eq {i : ι} [Fintype (H i)] [DecidableEq (H i)]
@@ -601,14 +599,10 @@ theorem terminalProbPure_eq [Fintype ι] [DecidableEq ι] [∀ i h, DecidableEq 
       if MatchesSeq (s k) ((Terminal.decision a sub).seq k) then (1 : ℝ) else 0) (mem_univ j)]
     have hother : ∀ k ∈ univ.erase j,
         (if MatchesSeq (s k) ((Terminal.decision a sub).seq k) then (1 : ℝ) else 0) =
-          (if MatchesSeq (s k) (sub.seq k) then 1 else 0) := by
-      intro k hk
-      have hne : j ≠ k := (ne_of_mem_erase hk).symm
-      simp [hne]
+          (if MatchesSeq (s k) (sub.seq k) then 1 else 0) :=
+      fun _ hk => by simp [(ne_of_mem_erase hk).symm]
     rw [prod_congr rfl hother, Terminal.seq_decision_self]
-    by_cases hsa : s j h = a
-    · simp [hsa, matchesSeq_cons]
-    · simp [hsa, matchesSeq_cons]
+    by_cases hsa : s j h = a <;> simp [hsa, matchesSeq_cons]
 
 /-- Sequence-factor decomposition of `terminalProbBehavior`. -/
 theorem terminalProbBehavior_eq [Fintype ι] [DecidableEq ι]
@@ -628,10 +622,8 @@ theorem terminalProbBehavior_eq [Fintype ι] [DecidableEq ι]
       realizationProbBehavior (β k) ((Terminal.decision a sub).seq k)) (mem_univ j)]
     have hother : ∀ k ∈ univ.erase j,
         realizationProbBehavior (β k) ((Terminal.decision a sub).seq k) =
-          realizationProbBehavior (β k) (sub.seq k) := by
-      intro k hk
-      have hne : j ≠ k := (ne_of_mem_erase hk).symm
-      simp [hne]
+          realizationProbBehavior (β k) (sub.seq k) :=
+      fun _ hk => by simp [(ne_of_mem_erase hk).symm]
     rw [prod_congr rfl hother, Terminal.seq_decision_self, realizationProbBehavior_cons]
     ring
 
@@ -870,23 +862,15 @@ theorem terminalProbWithFactor_realizationProbMixed [Fintype ι] [DecidableEq ι
       terminalProbMixed
         (Function.update (fun j => (Pi.single (s j) (1 : ℝ) : PureStrategy H Act j → ℝ)) i μ)
         z := by
-  rw [terminalProbMixed_eq, terminalProbWithFactor]
-  rw [← mul_prod_erase univ _ (mem_univ i)]
-  have hself : realizationProbMixed
-      (Function.update (fun j => (Pi.single (s j) (1 : ℝ) : PureStrategy H Act j → ℝ)) i μ i)
-        (z.seq i) = realizationProbMixed μ (z.seq i) := by
-    rw [Function.update_self]
+  rw [terminalProbMixed_eq, terminalProbWithFactor, ← mul_prod_erase univ _ (mem_univ i),
+    Function.update_self]
   have hother : ∀ j ∈ univ.erase i,
       realizationProbMixed
           (Function.update (fun j => (Pi.single (s j) (1 : ℝ) : PureStrategy H Act j → ℝ)) i μ j)
           (z.seq j) =
-        if MatchesSeq (s j) (z.seq j) then 1 else 0 := by
-    intro j hj
-    rw [Function.update_of_ne (ne_of_mem_erase hj)]
-    simp only [realizationProbMixed]
-    rw [sum_eq_single (s j) (fun t _ ht => by simp [Pi.single_eq_of_ne ht]) (by simp)]
-    simp
-  rw [hself, prod_congr rfl hother]
+        if MatchesSeq (s j) (z.seq j) then 1 else 0 := fun j hj => by
+    rw [Function.update_of_ne (ne_of_mem_erase hj), realizationProbMixed_single_eq]
+  rw [prod_congr rfl hother]
   ring
 
 theorem terminalProbWithFactor_realizationProbBehavior [Fintype ι] [DecidableEq ι]
@@ -895,18 +879,13 @@ theorem terminalProbWithFactor_realizationProbBehavior [Fintype ι] [DecidableEq
     terminalProbWithFactor i (realizationProbBehavior β) s z =
       terminalProbBehavior (Function.update (fun j => pureToBehavior (s j)) i β) z := by
   classical
-  rw [terminalProbBehavior_eq, terminalProbWithFactor]
-  rw [← mul_prod_erase univ _ (mem_univ i)]
-  have hself : realizationProbBehavior
-      (Function.update (fun j => pureToBehavior (s j)) i β i) (z.seq i) =
-        realizationProbBehavior β (z.seq i) := by
-    rw [Function.update_self]
+  rw [terminalProbBehavior_eq, terminalProbWithFactor, ← mul_prod_erase univ _ (mem_univ i),
+    Function.update_self]
   have hother : ∀ j ∈ univ.erase i,
       realizationProbBehavior (Function.update (fun j => pureToBehavior (s j)) i β j)
-          (z.seq j) = if MatchesSeq (s j) (z.seq j) then 1 else 0 := by
-    intro j hj
+          (z.seq j) = if MatchesSeq (s j) (z.seq j) then 1 else 0 := fun j hj => by
     rw [Function.update_of_ne (ne_of_mem_erase hj), realizationProbBehavior_pureToBehavior_eq]
-  rw [hself, prod_congr rfl hother]
+  rw [prod_congr rfl hother]
   ring
 
 namespace ExtensiveTree

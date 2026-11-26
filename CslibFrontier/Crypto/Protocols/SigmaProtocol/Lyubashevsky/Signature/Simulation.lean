@@ -212,17 +212,8 @@ private theorem outerMeasure_entry_le_lookup_isSome {M α : Type} [DecidableEq M
         ((trace.2.2.map
           (fun entry : Σ _ : M × (Fin n → ZMod q), BitString k => (entry.1, entry.2))).lookup
             target).isSome) true := by
-  have hsub :
-      {out : α × List ((M × (Fin n → ZMod q)) × BitString k) ×
-        List (Σ _ : M × (Fin n → ZMod q), BitString k) | ∃ entry ∈ out.2.2, entry.1 = target} ⊆
-      (fun trace : α × List ((M × (Fin n → ZMod q)) × BitString k) ×
-        List (Σ _ : M × (Fin n → ZMod q), BitString k) =>
-        ((trace.2.2.map
-          (fun entry : Σ _ : M × (Fin n → ZMod q), BitString k => (entry.1, entry.2))).lookup
-            target).isSome) ⁻¹' {true} :=
-    fun out hout => (entry_mem_iff_lookup_isSome out.2.2 target).mp hout
   rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
-  exact μ.toOuterMeasure.mono hsub
+  exact μ.toOuterMeasure.mono fun out hout => (entry_mem_iff_lookup_isSome out.2.2 target).mp hout
 
 /-- The one-attempt programmed signing hybrid with attempted-query cache programming
 and a visible oracle continuation. Note: this programs the cache by prepending `(msg, t) ↦ c`
@@ -402,10 +393,9 @@ public theorem lyubashevskySignVisibleProg_eq_sim_of_pure {Ω M α : Type} [Deci
       Option ((Fin n → ZMod q) × (Fin m → ℤ)) → α) :
     lyubashevskySignVisibleProg n m k q γ β H S T msg cache (fun A h sig => pure (f A h sig)) =
       lyubashevskySignVisibleSim n m k q γ β H T msg cache (fun A h sig => pure (f A h sig)) := by
-  have h := hybrid_eq_simulate (n := n) (m := m) (k := k) (q := q) (η := η) (γ := γ) (β := β)
-    hβ hη H S T hvalid msg cache (fun A h sig => pure (f A h sig))
   simpa only [lyubashevskySignVisibleProg_eq_pure, lyubashevskySignVisibleSim_eq_pure,
-    interp_norm, pmf_norm] using h
+    interp_norm, pmf_norm] using
+    hybrid_eq_simulate n m k q η γ β hβ hη H S T hvalid msg cache fun A h sig => pure (f A h sig)
 
 /-- One-attempt signing simulation through a visible oracle continuation:
 the visible output of the one-attempt programmed signing hybrid
@@ -500,21 +490,11 @@ public theorem closeTo_lyubashevskySign_simulate {Ω M α : Type} [DecidableEq M
       (fun A h => cont A h none) (fun A h hh => hcont A h none hh)
   have hprog : lyubashevskySignVisibleProg n m k q γ β H S T msg cache cont = src.bind f := by
     simp only [pmf_norm, lyubashevskySignVisibleProg, src, f, PMF.map]
-  have hhyb :
-      (do
-        let A ← PMF.uniformOfFintype (Matrix (Fin n) (Fin m) (ZMod q))
-        let h ← H A
-        let coin ← (lyubashevsky n m k q γ β).commit (S h) (A, T A h)
-        let c ← PMF.uniformOfFintype (BitString k)
-        let sig := ((lyubashevsky n m k q γ β).respond (S h) (A, T A h) coin.2 c).map
-          fun z => (coin.1, z)
-        let out ← (interpret (oracle (BitString k)) (cont A h sig)).run
-          (lyubashevskySimCache (msg h) c (cache h) sig)
-        return (A, h, out.1)) = src.bind g := by
+  have htrans : lyubashevskySignVisibleSim n m k q γ β H T msg cache cont = src.bind g := by
+    unfold lyubashevskySignVisibleSim
+    rw [← hsim]
     simp only [pmf_norm, src, g, PMF.map]
-  have htrans : lyubashevskySignVisibleSim n m k q γ β H T msg cache cont = src.bind g :=
-    hsim.symm.trans hhyb
-  exact hprog.symm ▸ htrans.symm ▸ (hc.mono hbound)
+  exact hprog.symm ▸ htrans.symm ▸ hc.mono hbound
 
 /-- Simulating all `K` signing attempts without the secret key.
 Each attempt samples a uniform challenge and runs `lyubashevskySimulate`.

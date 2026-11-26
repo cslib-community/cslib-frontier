@@ -257,10 +257,9 @@ private theorem realize_ulift {N : ℕ} (φ : Language.graph.Formula (Fin 2)) (a
       (letI := relStructure (M := Fin N) (· ⋖ ·); φ.Realize ![a, b]) := by
   let := relStructure (M := Fin N) (· ⋖ ·)
   let := @Equiv.inducedStructure Language.graph (Fin N) (ULift.{u} (Fin N)) _ Equiv.ulift.symm
-  have h := StrongHomClass.realize_formula (ulift.{u} N) φ (v := ![a, b])
-  have h2 : (ulift.{u} N ∘ ![a, b]) = ![ULift.up a, ULift.up b] := by
-    ext i; fin_cases i <;> rfl
-  rwa [h2] at h
+  have h2 : (ulift.{u} N ∘ ![a, b]) = ![ULift.up a, ULift.up b] :=
+    funext (Fin.forall_fin_two.2 ⟨rfl, rfl⟩)
+  simpa only [h2] using StrongHomClass.realize_formula (ulift.{u} N) φ (v := ![a, b])
 
 /-- **Transitive closure is not first-order definable** ([Libkin, §4.1][Libkin2004]): no formula
 `φ(x, y)` of the language of graphs, read as the language of directed graphs, defines the
@@ -304,15 +303,12 @@ theorem isNbhdIso_of_iso (e : G ≃g H) {k r : ℕ} {a : Fin k → V} {b : Fin k
     @IsNbhdIso Language.graph V W G.structure H.structure k r a b e := by
   let := G.structure
   let := H.structure
-  have hball : ∀ x, x ∈ ball Language.graph a r ↔ e x ∈ ball Language.graph b r := by
-    intro x
+  have hball (x : V) : x ∈ ball Language.graph a r ↔ e x ∈ ball Language.graph b r := by
     simp only [mem_ball, gaifmanGraph_structure, ← hab, e.edist_eq]
-  refine ⟨⟨fun x hx => (hball x).1 hx, fun x _ y _ h => e.injective h, fun y hy => ?_⟩,
-    hab, ?_⟩
-  · exact ⟨e.symm y, (hball _).2 (by simpa using hy), by simp⟩
-  · intro l R t _
-    match l, R with
-    | 2, .adj => exact e.map_adj_iff
+  refine ⟨⟨fun x hx => (hball x).1 hx, fun x _ y _ h => e.injective h,
+    fun y hy => ⟨e.symm y, (hball _).2 (by simpa using hy), by simp⟩⟩, hab, ?_⟩
+  rintro _ ⟨⟩ _ _
+  exact e.map_adj_iff
 
 /-- **Far-apart pairs in one copy look like pairs across two copies**: in `G ⊕g G`, if `u` and
 `v` are at distance more than `2r + 1` in `G`, then the radius-`r` neighborhoods of
@@ -421,11 +417,9 @@ theorem realize_distLE_succ {M : Type*} [Language.graph.Structure M] (k : ℕ) (
     (distLE (k + 1)).Realize ![x, y] ↔
       ∃ z, (distLE k).Realize ![x, z] ∧ (distLE k).Realize ![z, y] := by
   fo_simp [distLE]
-  refine exists_congr fun z => and_congr ?_ ?_ <;>
-  · apply iff_of_eq
-    congr 1
-    · ext i; fin_cases i <;> rfl
-    · exact Subsingleton.elim _ _
+  exact exists_congr fun z => and_congr
+    (iff_of_eq (congrArg₂ _ (funext (Fin.forall_fin_two.2 ⟨rfl, rfl⟩)) (Subsingleton.elim _ _)))
+    (iff_of_eq (congrArg₂ _ (funext (Fin.forall_fin_two.2 ⟨rfl, rfl⟩)) (Subsingleton.elim _ _)))
 
 /-- `distLE k` says that the distance is at most `2 ^ k`. -/
 theorem realize_distLE (G : SimpleGraph V) (k : ℕ) (x y : V) :

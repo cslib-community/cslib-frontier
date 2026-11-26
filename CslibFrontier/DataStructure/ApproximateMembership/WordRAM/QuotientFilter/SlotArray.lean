@@ -245,15 +245,11 @@ theorem extractBit_writeBitMem (arrBase b w : ℕ) (mem : ℕ → ℕ)
       Function.update (extractBit arrBase b w mem) q bval := by
   ext q'
   dsimp only [extractBit, writeBitMem]
-  let v : Fin (2 ^ 1) := ⟨bval.toNat, toNat_lt_two bval⟩
-  have h1 := congrFun (extractPacked_writePackedMem arrBase b 1 w mem q v) q'
-  rw [h1]
+  rw [extractPacked_writePackedMem arrBase b 1 w mem q ⟨bval.toNat, toNat_lt_two bval⟩]
   by_cases hq : q' = q
   · subst hq
-    rw [Function.update_self, Function.update_self]
-    cases bval <;> rfl
-  · rw [Function.update_of_ne hq, Function.update_of_ne hq]
-    rfl
+    cases bval <;> simp
+  · simp [hq, extractBit]
 
 @[simp]
 theorem extractPacked_zero (arrBase b d w : ℕ) (q : Fin (2 ^ b)) :
@@ -377,18 +373,16 @@ theorem space_le {w w₀ n k : ℕ} (hw₀ : 0 < w₀) (hw : 2 * w₀ ≤ w) (hb
     space w w₀ n k ≤ 640 * ((n * k + w - 1) / w + 1) := by
   set b := quotBits w₀ n
   set f := remBits w₀ k
-  have hw₀_le : w₀ ≤ w := by omega
   have hw2 : 2 ≤ w := by omega
-  have hb3 : b ≤ 3 * b := by omega
   have hf_pos : 0 < f := remBits_pos hw₀
   have h2f_le : 2 * f ≤ w := by have := remBits_le_w₀ w₀ k; omega
   have hpow_b : 2 ^ b ≤ 16 * n := two_pow_quotBits_le_sixteen_mul hn
-  have hmax_b2 : max 8 (2 ^ (b / 2)) ≤ 16 * n := by
-    have hle : 2 ^ (b / 2) ≤ 2 ^ b := Nat.pow_le_pow_right two_pos (Nat.div_le_self b 2)
-    exact max_le (by omega) (hle.trans hpow_b)
+  have hmax_b2 : max 8 (2 ^ (b / 2)) ≤ 16 * n :=
+    max_le (by omega) ((Nat.pow_le_pow_right two_pos (Nat.div_le_self b 2)).trans hpow_b)
   have hnk : n ≤ n * k := Nat.le_mul_of_pos_right n hk
   have hsp_kwise : ReducedKWise.space w w₀ b b 5 ≤ 272 + (32 * (n * k)) / w := by
-    have h1 := ReducedKWise.space_le (k := 5) hw₀_le hb3 hb_w hw2
+    have h1 := ReducedKWise.space_le (k := 5)
+      ((Nat.le_mul_of_pos_left w₀ two_pos).trans hw) (Nat.le_mul_of_pos_left b (by decide)) hb_w hw2
     have h3 : 2 * max 8 (2 ^ (b / 2)) / w ≤ (32 * (n * k)) / w := Nat.div_le_div_right (by omega)
     omega
   have hbit_words : packedWords b 1 w ≤ (64 * (n * k)) / w + 1 :=

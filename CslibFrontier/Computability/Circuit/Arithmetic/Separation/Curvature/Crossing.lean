@@ -147,13 +147,11 @@ private theorem prop_crossing_some {J : Type} [Fintype J] (Ψ : J → α → β 
     ∃ j, (Fintype.card α : ℝ) ^ F.wireExponent x v * (Fintype.card β : ℝ) ^ F.wireExponent y u ≤
       Fintype.card J * F (push ![x, y, v, u] (four (Ψ j))) := by
   have h1 := prop_crossing_cover F Ψ hΨ x y v u
-  have : Nonempty J :=
-    Finset.univ_nonempty_iff.mp <| Finset.nonempty_of_ne_empty fun h => by
-      simp only [h, Finset.sum_empty] at h1
-      exact h1.not_gt (mul_pos (Real.rpow_pos_of_pos (Nat.cast_pos.2 Fintype.card_pos) _)
-        (Real.rpow_pos_of_pos (Nat.cast_pos.2 Fintype.card_pos) _))
-  obtain ⟨j, -, hj⟩ := Finset.exists_max_image (Finset.univ : Finset J)
-    (fun j => F (push ![x, y, v, u] (four (Ψ j)))) Finset.univ_nonempty
+  have hne : (Finset.univ : Finset J).Nonempty := Finset.nonempty_of_ne_empty fun h => by
+    simp only [h, Finset.sum_empty] at h1
+    exact h1.not_gt (by positivity)
+  obtain ⟨j, -, hj⟩ := Finset.exists_max_image Finset.univ
+    (fun j => F (push ![x, y, v, u] (four (Ψ j)))) hne
   exact ⟨j, h1.trans ((Finset.sum_le_sum hj).trans_eq (by simp [nsmul_eq_mul]))⟩
 
 /-- Proof of Proposition B.3: Lemma A.3, with the hubs `o, o'` for (c) and `w, w'` for (b), bounds
@@ -302,8 +300,7 @@ private theorem prop_crossing_tensors (K : Type) [Field K] {p q : ℝ} (hp : 0 �
   have hH : ((2 * (e₁ + e₂) : ℕ) : ℝ) ≤ A * n := by
     have h1 : (e₁ : ℝ) ≤ p ^ 2 * n := (Nat.cast_le.2 he₁).trans (Nat.floor_le (by positivity))
     have h2 : (e₂ : ℝ) ≤ q ^ 2 * n := (Nat.cast_le.2 he₂).trans (Nat.floor_le (by positivity))
-    push_cast
-    linarith [hA]
+    push_cast; linarith [hA]
   have hnum' (M : ℕ) (hM : M ≤ 2 * (e₁ + e₂)) :
       Real.log (((M + 1) * stateCount M : ℕ) : ℝ) ≤
         (Real.sqrt M / Real.sqrt n + δ) * (c * Real.sqrt n) :=
@@ -415,20 +412,19 @@ theorem isPrice_crossing {Y : Type} {d : Y → Y → ℝ} (hd : IsPrice K d)
     have hsum : 3 * (p * η) + 3 * (q * η) + (ρ + 1) * η = δ := by
       rw [hη]
       field_simp
-      rw [hT]
-      ring
+      rw [hT]; ring
+    obtain ⟨a1, a2⟩ : _ ∧ _ := ⟨hi 0 2 hp, hi 1 3 hq⟩
+    dsimp at a1 a2
     rw [← min_add_add_right]
     refine le_min ?_ ?_
-    · have ha : _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ :=
-        ⟨hi 0 2 hp, hi 1 3 hq, lo 0 4 hp, lo 1 4 hq, lo 2 5 hp, lo 3 5 hq, lo 4 5 hz1⟩
-      dsimp at ha
-      rcases ha with ⟨a1, a2, a3, a4, a5, a6, a7⟩
+    · obtain ⟨a3, a4, a5, a6, a7⟩ : _ ∧ _ ∧ _ ∧ _ ∧ _ :=
+        ⟨lo 0 4 hp, lo 1 4 hq, lo 2 5 hp, lo 3 5 hq, lo 4 5 hz1⟩
+      dsimp at a3 a4 a5 a6 a7
       linarith [mul_le_mul_of_nonneg_left (h.trans (min_le_left _ _)) hc,
         mul_le_mul_of_nonneg_right q1 hη0.le]
-    · have ha : _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ :=
-        ⟨hi 0 2 hp, hi 1 3 hq, lo 0 6 hp, lo 3 6 hq, lo 1 7 hq, lo 2 7 hp, lo 6 7 hz2⟩
-      dsimp at ha
-      rcases ha with ⟨a1, a2, a3, a4, a5, a6, a7⟩
+    · obtain ⟨a3, a4, a5, a6, a7⟩ : _ ∧ _ ∧ _ ∧ _ ∧ _ :=
+        ⟨lo 0 6 hp, lo 3 6 hq, lo 1 7 hq, lo 2 7 hp, lo 6 7 hz2⟩
+      dsimp at a3 a4 a5 a6 a7
       linarith [mul_le_mul_of_nonneg_left (h.trans (min_le_right _ _)) hc,
         mul_le_mul_of_nonneg_right q2 hη0.le]
   exact ⟨z.1, z.2, h1, h2, h3, le_min_iff.1 h⟩
@@ -447,8 +443,7 @@ theorem isPrice_crossing_two_mul_le {Y : Type} {d : Y → Y → ℝ} (hd : IsPri
   obtain ⟨r, l, hr, hl, hrl, h1, h2⟩ := isPrice_crossing hd x v y u o o' w w' hp hq
   have am (a b : ℝ) : a * b ≤ τ / 2 * a ^ 2 + b ^ 2 / (2 * τ) := by
     have e : τ / 2 * a ^ 2 + b ^ 2 / (2 * τ) - a * b = (τ * a - b) ^ 2 / (2 * τ) := by
-      field_simp
-      ring
+      field_simp; ring
     linarith [div_nonneg (sq_nonneg (τ * a - b)) (mul_nonneg zero_le_two hτ.le)]
   rw [add_div]
   linarith [am r (d o o'), am l (d w w'),

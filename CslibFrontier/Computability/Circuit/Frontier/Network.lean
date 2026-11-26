@@ -208,11 +208,11 @@ private theorem frontierValues_of_notMem {t : ℕ} {α : E → U} {e : E} (he : 
 `N.frontier π t`. -/
 theorem frontierValues_eq_iff {t : ℕ} {α β : E → U} :
     N.frontierValues π t α = N.frontierValues π t β ↔ EqOn α β (N.frontier π t) := by
-  refine ⟨fun h e he => ?_, fun h => funext fun e => ?_⟩
-  · simpa [frontierValues, he] using congrFun h e
-  · by_cases he : e ∈ N.frontier π t
-    · simp [frontierValues, he, h he]
-    · simp [frontierValues, he]
+  refine ⟨fun h e he => by simpa [frontierValues, he] using congrFun h e,
+    fun h => funext fun e => ?_⟩
+  simp only [frontierValues]
+  split_ifs with he
+  exacts [congrArg some (h he), rfl]
 
 /-- The inputs revealed by time `t`: those read by the first `t` vertices, and after the last
 vertex, all inputs, including those the network does not read. -/
@@ -237,15 +237,10 @@ private theorem revealedBy_succ_diff {t : ℕ} (ht : t < Nat.card V) :
   ext i
   simp only [revealedBy, show t + 1 ≤ Nat.card V by omega, ht.le, ite_true, mem_sdiff, readIn,
     readAt, mem_ofPred_eq, Layout.mem_initial]
-  constructor
-  · rintro ⟨⟨u, hu, hiu⟩, hi'⟩
-    have hut : (π u : ℕ) = t := by
-      by_contra hne
-      exact hi' ⟨u, by omega, hiu⟩
+  refine ⟨fun ⟨⟨u, hu, hiu⟩, hi'⟩ => ?_, fun hi => ⟨⟨_, by simp, hi⟩, fun ⟨u, hu, hiu⟩ => ?_⟩⟩
+  · have hut : (π u : ℕ) = t := of_not_not fun hne => hi' ⟨u, by omega, hiu⟩
     exact hiu.trans (congrArg some (π.symm_apply_eq.mpr (Fin.ext hut.symm)).symm)
-  · rintro hi
-    refine ⟨⟨_, by simp, hi⟩, fun ⟨u, hu, hiu⟩ => ?_⟩
-    simp [Option.some.inj (hiu.symm.trans hi)] at hu
+  · simp [Option.some.inj (hiu.symm.trans hi)] at hu
 
 /-- The inputs revealed while processing the vertex numbered `t` are read at that vertex. -/
 theorem revealedBy_succ_diff_subset {t : ℕ} (ht : t < Nat.card V) :

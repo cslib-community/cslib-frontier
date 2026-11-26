@@ -222,23 +222,17 @@ private theorem mem_Reach_comp {L L' : Language} [L'.IsRelational] {k l : ℕ}
   have hedge (x y : J.toDomainInterpretation.map hJ M') :
       graphAdj (J.toDomainInterpretation.map hJ M') x y ↔
         graphAdj ((J.comp I).toDomainInterpretation.map hcomp M) (e x) (e y) := by
-    rw [graphAdj, graphAdj, J.relMap_map_toDomainInterpretation hl,
-      (J.comp I).relMap_map_toDomainInterpretation (Nat.mul_pos hl hk)]
     have hcast : Fin.cast hc₂ ∘ ![e x, e y] = iso ∘ (Fin.cast hc₁ ∘ ![x, y]) := by
       funext b
       cases b using Fin.cases with
       | zero => rfl
-      | succ b' =>
-        have hb' : b' = 0 := Subsingleton.elim _ _
-        subst hb'
-        rfl
-    have hiso : (J.inputStructure (n := M.size ^ k)).RelMap Language.adj
-        (Fin.cast hc₁ ∘ ![x, y]) ↔
-        ((J.comp I).inputStructure (n := M.size)).RelMap Language.adj
-          (iso ∘ (Fin.cast hc₁ ∘ ![x, y])) :=
-      (iso.map_rel (.inl Language.adj) (Fin.cast hc₁ ∘ ![x, y])).symm
-    rw [← hcast] at hiso
-    exact hiso
+      | succ b' => exact Subsingleton.elim b' 0 ▸ rfl
+    rw [graphAdj, graphAdj, J.relMap_map_toDomainInterpretation hl,
+      (J.comp I).relMap_map_toDomainInterpretation (Nat.mul_pos hl hk)]
+    change (J.inputStructure (n := M.size ^ k)).RelMap Language.adj (Fin.cast hc₁ ∘ ![x, y]) ↔
+      ((J.comp I).inputStructure (n := M.size)).RelMap Language.adj (Fin.cast hc₂ ∘ ![e x, e y])
+    rw [hcast]
+    exact (iso.map_rel (.inl Language.adj) _).symm
   change Relation.ReflTransGen (graphAdj ((J.comp I).toDomainInterpretation.map hcomp M)) 0
       ((J.comp I).toDomainInterpretation.map hcomp M).maxElem ↔
     Relation.ReflTransGen (graphAdj (J.toDomainInterpretation.map hJ M')) 0
@@ -345,11 +339,9 @@ noncomputable def toSTCONInstance (M : Ordered.Structure Language.graph) : STCON
 @[simp]
 theorem toSTCONInstance_mem_STCON (M : Ordered.Structure Language.graph) :
     toSTCONInstance M ∈ STCON ↔ M ∈ Reach := by
-  rw [mem_STCON, mem_Reach]
-  have hadj : (toSTCONInstance M).Adj = graphAdj M := by
-    ext x y
-    simp only [STCONInstance.Adj, toSTCONInstance, decide_eq_true_eq]
-  rw [hadj]
+  have hadj : (toSTCONInstance M).Adj = graphAdj M :=
+    funext₂ fun _ _ => by simp [STCONInstance.Adj, toSTCONInstance]
+  rw [mem_STCON, mem_Reach, hadj]
   rfl
 
 end Cslib.Logic.FO.Ordered.Reach
@@ -414,9 +406,7 @@ theorem toOrderedGraph_mem_Reach (I : STCONInstance) :
           · have := I.t.isLt; omega
     rcases hinv hpath with h0 | ⟨a, ha, -⟩ | ⟨_, hst⟩
     · omega
-    · have ha' := congrArg Fin.val ha
-      rw [hval] at ha'
-      simp only [shift] at ha'
+    · have ha' : a.val + 1 = I.n + 1 := (congrArg Fin.val ha).symm.trans hval
       have := a.isLt
       omega
     · exact hst
@@ -526,15 +516,12 @@ private theorem getD_rawOneHot {n k i : ℕ} (hk : k < n) (hi : i < n) :
   rw [rawOneHot, List.getD_eq_getElem?_getD, List.getElem?_take_of_lt hi]
   rcases lt_trichotomy i k with hik | rfl | hki
   · rw [List.getElem?_append_left (by simp only [List.length_replicate]; exact hik)]
-    have hne : i ≠ k := by omega
-    simp [hik, hne]
+    simp [hik, hik.ne]
   · rw [List.getElem?_append_right (by simp only [List.length_replicate]; exact le_rfl)]
     simp
   · rw [List.getElem?_append_right (by simp only [List.length_replicate]; omega)]
     obtain ⟨d, hd⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : i - k ≠ 0)
-    have hdn : d < n := by omega
-    have hne : i ≠ k := by omega
-    simp [hd, hdn, hne]
+    simp [hd, (by omega : d < n), hki.ne']
 
 private def yesSTEncoded : EncodedStructure :=
   (2, [ [false, false, false, false], [true, false], [true, false] ])
@@ -546,11 +533,8 @@ private theorem yesSTEncoded_mem_STReach :
     match i, hi with
     | 0, _ | 1, _ | 2, _ => rfl
   · rw [mem_STReach]
-    refine ⟨0, 0, ?_, ?_, .refl⟩
-    · change [true, false].getD (tupleIndex (![0] : Fin 1 → Fin 2)) false = true
-      decide
-    · change [true, false].getD (tupleIndex (![0] : Fin 1 → Fin 2)) false = true
-      decide
+    have h0 : [true, false].getD (tupleIndex (![0] : Fin 1 → Fin 2)) false = true := by decide
+    exact ⟨0, 0, h0, h0, .refl⟩
 
 private def stconToSTEncoded (I : STCONInstance) : EncodedStructure :=
   if I.n ≤ 1 then yesSTEncoded
@@ -598,17 +582,13 @@ private theorem stconToSTEncoded_mem_iff (I : STCONInstance) :
           (![x, y] : Fin 2 → M) ↔ Function.swap I.Adj x y := by
       change I.matrix.getD (tupleIndex ![x, y]) false = true ↔ I.adj y x = true
       rw [htuple2, I.getD_matrix y x]
-    constructor
-    · rintro ⟨s', t', hs', ht', hpath⟩
-      rw [(hsrc s').mp hs', (htgt t').mp ht'] at hpath
-      have hswap : Relation.ReflTransGen (Function.swap I.Adj) I.t I.s :=
-        Relation.ReflTransGen.lift id (fun x y hxy => (hadj x y).mp hxy) I.t I.s hpath
-      exact Relation.reflTransGen_swap.mp hswap
-    · intro hst
-      refine ⟨I.t, I.s, (hsrc I.t).mpr rfl, (htgt I.s).mpr rfl, ?_⟩
-      have hswap : Relation.ReflTransGen (Function.swap I.Adj) I.t I.s :=
-        Relation.reflTransGen_swap.mpr hst
-      exact Relation.ReflTransGen.lift id (fun x y hxy => (hadj x y).mpr hxy) I.t I.s hswap
+    refine ⟨?_, fun hst => ⟨I.t, I.s, (hsrc I.t).mpr rfl, (htgt I.s).mpr rfl,
+      Relation.ReflTransGen.lift id (fun x y => (hadj x y).mpr) I.t I.s
+        (Relation.reflTransGen_swap.mpr hst)⟩⟩
+    rintro ⟨s', t', hs', ht', hpath⟩
+    rw [(hsrc s').mp hs', (htgt t').mp ht'] at hpath
+    exact Relation.reflTransGen_swap.mp
+      (Relation.ReflTransGen.lift id (fun x y => (hadj x y).mp) I.t I.s hpath)
 
 private theorem computableInLogSpace_stconToSTEncoded :
     ComputableInLogSpace stconToSTEncoded encSTCON encStructure := by

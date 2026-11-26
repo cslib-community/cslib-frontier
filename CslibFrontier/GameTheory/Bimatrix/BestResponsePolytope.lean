@@ -218,24 +218,21 @@ theorem IsNondegenerate.isNondegenerateSystem_matP (hG : G.IsNondegenerate) :
   rw [isNondegenerateSystem_iff]
   intro x hx
   obtain ⟨hx₀, hxB⟩ := matP_mulVec_le_iff.1 hx
-  have hL : (tightRows G.matP (rhsP M N) x).toLeft = univ.filter (x · = 0) := by
-    ext
-    simp
+  have hL : (tightRows G.matP (rhsP M N) x).toLeft = univ.filter (x · = 0) :=
+    Finset.ext fun _ => by simp
   rw [← card_toLeft_add_card_toRight, hL]
   rcases eq_or_ne x 0 with rfl | hx0
-  · have hR : (tightRows G.matP (rhsP M N) 0).toRight = ∅ := by
-      ext
-      simp
-    rw [hR, card_empty, add_zero]
+  · rw [show (tightRows G.matP (rhsP M N) 0).toRight = ∅ from Finset.ext fun _ => by simp,
+      card_empty, add_zero]
     exact card_le_univ _
   obtain ⟨i₀, hi₀⟩ := Function.ne_iff.1 hx0
   have hpos : 0 < ∑ i, x i :=
     (sum_pos_iff_of_nonneg fun j _ => hx₀ j).2 ⟨i₀, mem_univ _, (hx₀ i₀).lt_of_ne' hi₀⟩
-  have hsupp : (Function.support ((∑ i, x i)⁻¹ • x)).ncard = #(univ.filter fun i => ¬x i = 0) := by
-    rw [Function.support_const_smul_of_ne_zero _ _ (inv_ne_zero hpos.ne'), ← Set.ncard_coe_finset]
-    congr 1
-    ext
-    simp
+  have hsupp : (Function.support ((∑ i, x i)⁻¹ • x)).ncard =
+      #(univ.filter fun i => ¬x i = 0) := by
+    rw [Function.support_const_smul_of_ne_zero _ _ (inv_ne_zero hpos.ne'),
+      ← Set.ncard_coe_finset]
+    exact congrArg Set.ncard (Set.ext fun _ => by simp)
   have hT : ((tightRows G.matP (rhsP M N) x).toRight : Set N) ⊆
       {j | G.IsPureBestResponse₂ ((∑ i, x i)⁻¹ • x) j} := fun j hj => by
     rw [Finset.mem_coe, mem_toRight, inr_mem_tightRows_matP] at hj
@@ -506,10 +503,8 @@ theorem IsNondegenerate.odd_ncard_isNash_of_pos [Nonempty M] [Nonempty N] (hG : 
   have hfin : (G.toPolytopes '' {p | G.IsNash p.1 p.2}).Finite :=
     ((setOf_isVertex_finite (A := G.matP) (b := rhsP M N)).prod
       (setOf_isVertex_finite (A := G.matQ) (b := rhsQ M N))).subset fun p hp => by
-      have hp' : p ∈ insert 0 (G.toPolytopes '' {p | G.IsNash p.1 p.2}) :=
-        Set.mem_insert_of_mem _ hp
-      rw [← setOf_completelyLabeled_eq hG hA hB, Set.mem_ofPred_eq] at hp'
-      exact Set.mem_prod.2 ⟨hp'.1, hp'.2.1⟩
+      have hp' := (setOf_completelyLabeled_eq hG hA hB).symm ▸ Set.mem_insert_of_mem 0 hp
+      exact ⟨hp'.1, hp'.2.1⟩
   rwa [setOf_completelyLabeled_eq hG hA hB, Set.ncard_insert_of_notMem
     (zero_notMem_image_toPolytopes hB) hfin, (injOn_toPolytopes hA hB).ncard_image,
     Nat.even_add_one, Nat.not_even_iff_odd] at heven

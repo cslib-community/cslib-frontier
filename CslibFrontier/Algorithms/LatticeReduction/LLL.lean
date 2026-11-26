@@ -309,11 +309,7 @@ theorem rows_swap (B : Vector (Vector ℤ m) n) (i j : Fin n) :
   funext l k
   simp only [rows, Function.comp_apply, Fin.getElem_fin, Vector.getElem_swap,
     Equiv.swap_apply_def]
-  rcases eq_or_ne l i with rfl | h1
-  · simp
-  · rcases eq_or_ne l j with rfl | h2
-    · simp [h1, Fin.val_ne_of_ne h1]
-    · simp [h1, h2, Fin.val_ne_of_ne h1, Fin.val_ne_of_ne h2]
+  grind [Fin.ext_iff]
 
 theorem realRows_swap (B : Vector (Vector ℤ m) n) (i j : Fin n) :
     realRows (B.swap i j) = realRows B ∘ Equiv.swap i j := by
@@ -464,8 +460,7 @@ theorem lllLoop_spec {δ : ℚ} (hδ0 : 0 < δ) : ∀ (fuel : ℕ) (B : Vector (
   induction fuel with
   | zero =>
     intro B k s hli hpre hpot hfuel
-    have hs : s = 0 := by omega
-    subst hs
+    obtain rfl : s = 0 := by omega
     rw [pow_zero] at hpot
     exact absurd hpot (not_lt.2 (hpos B hli))
   | succ fuel ih =>
@@ -538,13 +533,11 @@ def sqNormSum (B : Vector (Vector ℤ m) n) : ℕ :=
 
 theorem norm_sq_realRows_le (B : Vector (Vector ℤ m) n) (i : Fin n) :
     ‖realRows B i‖ ^ 2 ≤ (sqNormSum B : ℝ) := by
-  have hterm : ∀ j, 0 ≤ dotProduct (rows B j) (rows B j) :=
-    fun j => Finset.sum_nonneg fun _ _ => mul_self_nonneg _
-  have hle : dotProduct (rows B i) (rows B i) ≤ ∑ j, dotProduct (rows B j) (rows B j) :=
-    Finset.single_le_sum (fun j _ => hterm j) (Finset.mem_univ i)
+  have hterm (j : Fin n) : 0 ≤ dotProduct (rows B j) (rows B j) :=
+    Finset.sum_nonneg fun _ _ => mul_self_nonneg _
   rw [norm_sq_realRows, ← Int.cast_natCast, sqNormSum,
     Int.toNat_of_nonneg (Finset.sum_nonneg fun j _ => hterm j)]
-  exact_mod_cast hle
+  exact_mod_cast Finset.single_le_sum (fun j _ => hterm j) (Finset.mem_univ i)
 
 /-- The number of exchange steps allowed by the potential argument: `3 (⌊log₂ B⌋ + 1) · n(n-1)/2`
 bounds `log_{4/3} B^{n(n-1)/2}`. -/

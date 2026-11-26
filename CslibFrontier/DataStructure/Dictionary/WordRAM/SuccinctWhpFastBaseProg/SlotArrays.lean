@@ -80,8 +80,7 @@ theorem realizes_readQuotGen :
       (fun w ((cp, base), p) _ => WhpLargeEnvGen w cp base ∧ p < wpNMax cp)
       (fun _ _ => 0) := by
   unfold readQuotGenProg
-  have hrp := realizes_readPackedGen
-  realize
+  realize [realizes_readPackedGen]
   rcases d with ⟨⟨cp, base⟩, p⟩
   exact quot_pre_safe h
 
@@ -113,8 +112,7 @@ theorem realizes_writeQuotGen :
       (fun w (((cp, base), p), _) _ => WhpLargeEnvGen w cp base ∧ p < wpNMax cp)
       (fun _ _ => 0) := by
   unfold writeQuotGenProg
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   rcases d with ⟨⟨⟨cp, base⟩, p⟩, q_val⟩
   exact quot_pre_safe h
 
@@ -184,8 +182,7 @@ theorem realizes_readValGen :
       (fun w ((cp, base), p) _ => WhpLargeEnvGen w cp base ∧ p < wpNMax cp)
       (fun _ _ => 0) := by
   unfold readValGenProg
-  have hrp := realizes_readPackedGen
-  realize
+  realize [realizes_readPackedGen]
   rcases d with ⟨⟨cp, base⟩, p⟩
   exact val_pre_safe h
 
@@ -217,8 +214,7 @@ theorem realizes_writeValGen :
       (fun w (((cp, base), p), _) _ => WhpLargeEnvGen w cp base ∧ p < wpNMax cp)
       (fun _ _ => 0) := by
   unfold writeValGenProg
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   rcases d with ⟨⟨⟨cp, base⟩, p⟩, v_val⟩
   exact val_pre_safe h
 
@@ -565,6 +561,34 @@ private theorem coordHashPrefix_spec {c U V w n_max base b loc : ℕ}
     refine validProg_bind hmh_vp ?_; rw [hmh_st, hmh_res]
     exact hc_vp
 
+private theorem coordHashPre_goals {w base b loc : ℕ} {wp : WhpParams} {s : Memory.State}
+    (h : CoordHashPre w (((wp, base), b), loc) s) :
+    let cp := wp.1
+    let p := (Memory.spec 0).clientResult s (physSlotGenProg (((cp, base), b), loc))
+    let s1 := (Memory.spec 0).clientState s (physSlotGenProg (((cp, base), b), loc))
+    let q := (Memory.spec 0).clientResult s1 (readQuotGenProg ((cp, base), p))
+    let s2 := (Memory.spec 0).clientState s1 (readQuotGenProg ((cp, base), p))
+    let hrt := (Memory.spec 0).clientResult s2 (mkHashRtGenProg (wp, base))
+    let s3 := (Memory.spec 0).clientState s2 (mkHashRtGenProg (wp, base))
+    PhysSlotPre w (((cp, base), b), loc) s ∧
+    (WhpLargeEnvGen w cp base ∧ p < wpNMax cp) ∧
+    QuotHashRtEnv w hrt q s3 := by
+  obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, rfl, hseed, hrep, hq_all, hb, hloc, hbp⟩ := h
+  have hw_eq := henv.2.2.1
+  subst hw_eq
+  have hth := henv.2.2.2.1
+  have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
+    simp [mkWhpParams, Nat.not_lt.mpr hth]
+  obtain ⟨hps_st, hps_res, hps_lt, _, _⟩ := physSlotGenProg_spec henv hb hloc hbp hrep (s := s)
+  obtain ⟨hrq_st, hrq_res, _, _⟩ := readQuotGenProg_spec henv hps_lt hrep (s := s)
+  obtain ⟨hmh_st, hmh_res, _, _⟩ := mkHashRtGenProg_spec (c := c) (U := U) (V := V)
+    (w := w) (n_max := n_max) (base := base) hth s
+  dsimp only
+  simp only [hcp_eq, hps_st, hps_res, hrq_st, hrq_res, hmh_st, hmh_res, wp_large_nMax hth]
+  exact ⟨⟨c, U, V, w, n_max, fs, henv, rfl, hrep, hb, hloc, hbp⟩,
+    ⟨⟨c, U, V, w, n_max, henv, rfl⟩, hps_lt⟩,
+    ⟨c, U, V, w, n_max, θ, henv, rfl, hseed, hq_all _ hps_lt⟩⟩
+
 theorem realizes_rKeyAtGen :
     Realizes .exact rKeyAtGenProg
       (WordEncoding.encode (α := ((WhpParams × ℕ) × ℕ) × ℕ))
@@ -572,31 +596,11 @@ theorem realizes_rKeyAtGen :
       CoordHashPre
       (fun _ _ => 0) := by
   unfold rKeyAtGenProg
-  have hps := realizes_physSlotGen
-  have hrq := realizes_readQuotGen
-  have hmh := realizes_mkHashRtGen
-  have hrk := realizes_rKeyOfQuotRt
-  realize
+  realize [realizes_physSlotGen, realizes_readQuotGen, realizes_mkHashRtGen, realizes_rKeyOfQuotRt]
   all_goals (
     rcases d with ⟨⟨⟨wp, base⟩, b⟩, loc⟩
-    dsimp only at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, heq_wp, hseed, hrep, hq_all, hb, hloc, hbp⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
-    have hth := henv.2.2.2.1
-    have hcp_eq : wp.1 = mkWhpCoreParams c U V w n_max := by
-      rw [heq_wp]; simp [mkWhpParams, Nat.not_lt.mpr hth]
-    obtain ⟨hps_st, hps_res, hps_lt, _, _⟩ := physSlotGenProg_spec henv hb hloc hbp hrep (s := s)
-    obtain ⟨hrq_st, hrq_res, _, _⟩ := readQuotGenProg_spec henv hps_lt hrep (s := s)
-    obtain ⟨hmh_st, hmh_res, _, _⟩ := mkHashRtGenProg_spec (c := c) (U := U) (V := V)
-      (w := w) (n_max := n_max) (base := base) hth s
-    simp only [hcp_eq] at *
-    simp only [heq_wp] at *
-    simp only [hps_st, hps_res, hrq_st, hrq_res, hmh_st, hmh_res, wp_large_nMax hth] at *
-    first
-    | exact ⟨c, U, V, w, n_max, fs, henv, rfl, hrep, hb, hloc, hbp⟩
-    | exact ⟨c, U, V, w, n_max, henv, rfl⟩
-    | exact hps_lt
-    | exact ⟨c, U, V, w, n_max, θ, henv, rfl, hseed, hq_all _ hps_lt⟩
+    obtain ⟨h1, ⟨h2a, h2b⟩, h3⟩ := coordHashPre_goals h
+    first | exact h1 | exact h2a | exact h2b | exact h3
   )
 
 theorem rKeyAtGenProg_spec {c U V w n_max base b loc : ℕ} {θ : SeedWhp c U n_max}
@@ -633,31 +637,11 @@ theorem realizes_fpAtGen :
       (fun w ((((wp, base), _), b), loc) s => CoordHashPre w (((wp, base), b), loc) s)
       (fun _ _ => 0) := by
   unfold fpAtGenProg
-  have hps := realizes_physSlotGen
-  have hrq := realizes_readQuotGen
-  have hmh := realizes_mkHashRtGen
-  have hfp := realizes_fpOfQuotRt
-  realize
+  realize [realizes_physSlotGen, realizes_readQuotGen, realizes_mkHashRtGen, realizes_fpOfQuotRt]
   all_goals (
     rcases d with ⟨⟨⟨⟨wp, base⟩, salt⟩, b⟩, loc⟩
-    dsimp only at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, heq_wp, hseed, hrep, hq_all, hb, hloc, hbp⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq
-    have hth := henv.2.2.2.1
-    have hcp_eq : wp.1 = mkWhpCoreParams c U V w n_max := by
-      rw [heq_wp]; simp [mkWhpParams, Nat.not_lt.mpr hth]
-    obtain ⟨hps_st, hps_res, hps_lt, _, _⟩ := physSlotGenProg_spec henv hb hloc hbp hrep (s := s)
-    obtain ⟨hrq_st, hrq_res, _, _⟩ := readQuotGenProg_spec henv hps_lt hrep (s := s)
-    obtain ⟨hmh_st, hmh_res, _, _⟩ := mkHashRtGenProg_spec (c := c) (U := U) (V := V)
-      (w := w) (n_max := n_max) (base := base) hth s
-    simp only [hcp_eq] at *
-    simp only [heq_wp] at *
-    simp only [hps_st, hps_res, hrq_st, hrq_res, hmh_st, hmh_res, wp_large_nMax hth] at *
-    first
-    | exact ⟨c, U, V, w, n_max, fs, henv, rfl, hrep, hb, hloc, hbp⟩
-    | exact ⟨c, U, V, w, n_max, henv, rfl⟩
-    | exact hps_lt
-    | exact ⟨c, U, V, w, n_max, θ, henv, rfl, hseed, hq_all _ hps_lt⟩
+    obtain ⟨h1, ⟨h2a, h2b⟩, h3⟩ := coordHashPre_goals h
+    first | exact h1 | exact h2a | exact h2b | exact h3
   )
 
 theorem fpAtGenProg_spec {c U V w n_max base salt b loc : ℕ} {θ : SeedWhp c U n_max}

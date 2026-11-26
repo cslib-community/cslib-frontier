@@ -86,9 +86,8 @@ private theorem lintegral_eq_lintegral_ennreal_lt {α : Type*} [MeasurableSpace 
       (measurableSet_lt measurable_const measurable_id).inter
         (measurableSet_lt ENNReal.measurable_ofReal measurable_const)
     have hslice : (fun t : ℝ => S.indicator (fun _ => (1 : ℝ≥0∞)) (x, t)) =
-        Tx.indicator (1 : ℝ → ℝ≥0∞) := by
-      ext t
-      by_cases ht : 0 < t ∧ ENNReal.ofReal t < f x <;> simp [S, Tx, ht]
+        Tx.indicator (1 : ℝ → ℝ≥0∞) :=
+      funext fun t => by by_cases ht : 0 < t ∧ ENNReal.ofReal t < f x <;> simp [S, Tx, ht]
     rw [hslice, lintegral_indicator hTxm]
     simp only [Pi.one_apply, lintegral_const, MeasurableSet.univ, Measure.restrict_apply,
       Set.univ_inter, one_mul]
@@ -114,8 +113,7 @@ private theorem lintegral_eq_lintegral_ennreal_lt {α : Type*} [MeasurableSpace 
             rw [Set.indicator_of_mem ht, hslice,
               lintegral_indicator (measurableSet_lt measurable_const hf)]
             simp
-          · rw [Set.indicator_of_notMem ht]
-            simp [S, ht]
+          · simp [S, ht]
 
 namespace StochasticallyDominates
 
@@ -184,11 +182,8 @@ private theorem forall_Ioi_le_iff_Iic_le {α : Type*} [MeasurableSpace α] [Line
     [TopologicalSpace α] [OrderClosedTopology α] [OpensMeasurableSpace α]
     {μ ν : Measure α} [IsProbabilityMeasure μ] [IsProbabilityMeasure ν] :
     (∀ x : α, ν (Set.Ioi x) ≤ μ (Set.Ioi x)) ↔ ∀ x : α, μ (Set.Iic x) ≤ ν (Set.Iic x) := by
-  refine ⟨fun h x => ?_, fun h x => ?_⟩
-  · rw [← Set.compl_Ioi]
-    exact measure_compl_le_of_le measurableSet_Ioi (h x)
-  · rw [← Set.compl_Iic]
-    exact measure_compl_le_of_le measurableSet_Iic (h x)
+  exact ⟨fun h x => Set.compl_Ioi (a := x) ▸ measure_compl_le_of_le measurableSet_Ioi (h x),
+    fun h x => Set.compl_Iic (a := x) ▸ measure_compl_le_of_le measurableSet_Iic (h x)⟩
 
 /-- A dominating probability measure assigns no more mass to `Set.Iic a` than the dominated
 probability measure. -/
@@ -799,18 +794,14 @@ theorem stochasticallyDominates_bool_iff {p q : PMF Bool} :
     simpa [hIci, PMF.toOuterMeasure_apply_singleton] using h (Set.Ici true) (IsUpperSet.Ici true)
   · by_cases ht : true ∈ U
     · by_cases hf : false ∈ U
-      · have hUuniv : U = Set.univ :=
-          Set.eq_univ_iff_forall.mpr fun b => by cases b <;> assumption
+      · rw [(Set.eq_univ_iff_forall (s := U)).mpr fun b => by cases b <;> assumption]
         have huniv (r : PMF Bool) : r.toOuterMeasure Set.univ = 1 := by
-          let _ : MeasurableSpace Bool := ⊤
-          rw [← PMF.toMeasure_apply_eq_toOuterMeasure_apply r MeasurableSet.univ, measure_univ]
-        rw [hUuniv, huniv p, huniv q]
+          simpa using toOuterMeasure_add_compl_ennreal r ∅
+        rw [huniv p, huniv q]
       · have hUs : U = {true} := Set.ext fun b => by cases b <;> simp [ht, hf]
         simpa [hUs, PMF.toOuterMeasure_apply_singleton] using h
-    · by_cases hf : false ∈ U
-      · exact absurd (hU (by decide : false ≤ true) hf) ht
-      · have hUe : U = ∅ :=
-          Set.eq_empty_iff_forall_notMem.mpr fun b => by cases b <;> assumption
-        simp [hUe]
+    · have hUe : U = ∅ := Set.eq_empty_iff_forall_notMem.mpr fun b hb =>
+        ht (hU (by cases b <;> decide) hb)
+      simp [hUe]
 
 end Cslib.Probability.PMF

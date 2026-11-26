@@ -87,12 +87,10 @@ structure Horizon (P : ℕ) where
 
 /-- Every grid side is positive for a positive supplied modulus. -/
 @[positivity_lemma]
-theorem side_pos (P k : ℕ) (hP : 0 < P) : 0 < side P k := by
-  by_contra! h
-  have hh := le_smul_ceilDiv (by positivity : 0 < 2 ^ k) (b := P)
-  change P ≤ 2 ^ k * side P k at hh
-  rw [Nat.le_zero.1 h, mul_zero] at hh
-  omega
+theorem side_pos (P k : ℕ) (hP : 0 < P) : 0 < side P k :=
+  Nat.pos_of_ne_zero fun h => hP.not_ge <| by
+    simpa [smul_eq_mul, show P ⌈/⌉ 2 ^ k = 0 from h] using
+      le_smul_ceilDiv (Nat.pow_pos two_pos : 0 < 2 ^ k) (b := P)
 
 /-- Grid sides never exceed the supplied modulus. -/
 theorem side_le (P k : ℕ) : side P k ≤ P :=
@@ -646,21 +644,18 @@ theorem padNat_bound {D n x : ℕ} (hx : x < n) (suffix : List ℕ)
   induction suffix generalizing n x with
   | nil => simpa [padNat] using hx
   | cons j suffix ih =>
-    have hj := hd j (by simp)
-    have hstart : D * x + j < n * D := by nlinarith
-    have hh := ih hstart (fun j hj => hd j (by simp [hj]))
+    have hstart : D * x + j < n * D := by nlinarith [hd j List.mem_cons_self]
     simpa only [padNat, List.foldl_cons, List.length_cons, pow_succ,
-      Nat.mul_assoc, Nat.mul_comm, Nat.mul_left_comm] using hh
+      Nat.mul_assoc, Nat.mul_comm, Nat.mul_left_comm] using
+      ih hstart fun _ hj => hd _ (List.mem_cons_of_mem _ hj)
 
 omit [Fact P.Prime] in
 /-- Finite-horizon no-wrap condition charges both stage growth and copy suffix
 length before the prime is supplied. It says nothing about unbounded stages. -/
 theorem padNat_lt_prime (H : Horizon P) {D n x : ℕ} (hx : x < n) (suffix : List ℕ)
     (hd : ∀ j ∈ suffix, j < D) (hb : n * D ^ suffix.length ≤ H.maxIdentifier + 1) :
-    padNat D suffix x < P := by
-  have hpad := padNat_bound hx suffix hd
-  have hP := H.identifier_admissible
-  omega
+    padNat D suffix x < P :=
+  (padNat_bound hx suffix hd).trans_le (hb.trans H.identifier_admissible)
 
 /-- The fourth-power dyadic grid is the hierarchy source grid with q=16. -/
 theorem rate_eq_source_grid (k : ℕ) : rate k = (16: ℝ)⁻¹ ^ k := by

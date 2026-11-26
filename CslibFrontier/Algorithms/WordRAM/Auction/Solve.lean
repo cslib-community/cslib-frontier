@@ -221,37 +221,27 @@ private theorem solveAuctionProg_spec {w maxMag : ℕ} (a : SolveArgs)
       hf_fr1.of_le (by dsimp only [s₁, base]; omega),
       hfit_ws.of_le (by dsimp only [ws₀]; omega),
       hsafe_scan, hsafe_fill, hsafe_core, hsafe_scat⟩
+  dsimp only [s₁, base] at hs₂_eq
   have hres_solve : (Memory.spec 0).clientResult s₀ (solveAuctionProg a) = ws₀ := by
-    unfold solveAuctionProg
-    dsimp only
-    rw [clientResult_bind, clientResult_allocDirty, clientState_allocDirty]
-    change (Memory.spec 0).clientResult s₁ (scanMaxProg ⟨a.matBase, a.n * a.n⟩ >>= _) = _
-    rw [clientResult_bind, hs₂_eq, clientResult_bind, clientResult_bind, clientResult_bind,
-      clientResult_pure]
+    dsimp only [solveAuctionProg]
+    rw [clientResult_bind, clientResult_allocDirty, clientState_allocDirty, clientResult_bind,
+      hs₂_eq, clientResult_bind, clientResult_bind, clientResult_bind, clientResult_pure]
   have hst_solve : (Memory.spec 0).clientState s₀ (solveAuctionProg a) =
       (Memory.spec 0).clientState s₄ (scatterProg ws₀) := by
-    unfold solveAuctionProg
-    dsimp only
-    rw [clientState_bind, clientResult_allocDirty, clientState_allocDirty]
-    change (Memory.spec 0).clientState s₁ (scanMaxProg ⟨a.matBase, a.n * a.n⟩ >>= _) = _
-    rw [clientState_bind, hs₂_eq, clientState_bind, clientState_bind, clientState_bind,
-      clientState_pure]
+    dsimp only [solveAuctionProg]
+    rw [clientState_bind, clientResult_allocDirty, clientState_allocDirty, clientState_bind,
+      hs₂_eq, clientState_bind, clientState_bind, clientState_bind, clientState_pure]
   refine ⟨hsafe_solve, ?_, ?_, ?_⟩
-  · unfold solveAuctionProg
-    dsimp only
-    refine validHistory_allocDirty_bind hf_fr1 ?_
-    refine validHistory_bind_step hv_scan ?_
+  · dsimp only [solveAuctionProg]
+    refine validHistory_allocDirty_bind hf_fr1 (validHistory_bind_step hv_scan ?_)
     rw [hs₂_eq]
-    exact validHistory_bind_step hv_fill
-      (validHistory_bind_step hv_core
-        (validHistory_bind_step hv_scat (validHistory_pure w _ _)))
-  · unfold solveAuctionProg
-    dsimp only
-    rw [memoryCost_bind', memoryCost_allocDirty, clientResult_allocDirty, clientState_allocDirty]
-    change 1 + memoryCost (scanMaxProg ⟨a.matBase, a.n * a.n⟩ >>= _) s₁ ≤ _
-    rw [memoryCost_bind', hs₂_eq, memoryCost_bind', memoryCost_bind', memoryCost_bind',
+    exact validHistory_bind_step hv_fill (validHistory_bind_step hv_core
+      (validHistory_bind_step hv_scat (validHistory_pure w _ _)))
+  · dsimp only [solveAuctionProg]
+    rw [memoryCost_bind', memoryCost_allocDirty, clientResult_allocDirty, clientState_allocDirty,
+      memoryCost_bind', hs₂_eq, memoryCost_bind', memoryCost_bind', memoryCost_bind',
       memoryCost_pure]
-    dsimp only [ws₀, M, base, s₃, s₄] at hmc_scan hmc_fill hmc_core hmc_scat ⊢
+    dsimp only [ws₀, M, s₁, base, s₃, s₄] at hmc_scan hmc_fill hmc_core hmc_scat ⊢
     omega
   · rw [hres_solve, hst_solve]
     exact ⟨hws₄.of_frontier_eq hfr_scat, rfl, rfl, hM_le, hM_ge, hC_scat, hout_scat, hfit_ws⟩
@@ -313,15 +303,12 @@ theorem epsMainProg_spec {w C : ℕ} (inst : EpsInstance) (hε : 0 < inst.eps)
       inst.n * (C + inst.eps) / inst.eps + 1 := by
     simpa only [bidBound, ← Nat.cast_add, Int.toNat_natCast] using
       bids_auction_le (c := inst.cost) (Nat.cast_pos.mpr hε) hC
-  have hmul_le :
-      (auction inst.cost (inst.eps : ℤ)).bids * (4 * inst.n + 6) ≤
-        (inst.n * (C + inst.eps) / inst.eps + 1) * (4 * inst.n + 6) :=
-    Nat.mul_le_mul_right _ hbids_le
   unfold epsMainProg
   dsimp only
   refine ⟨⟨hf1, hf3, hsafe_s⟩, validHistory_bind_step hv_s (validHistory_pure w _ _),
     ?_, ?_, ?_⟩
   · rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
+    have := Nat.mul_le_mul_right (4 * inst.n + 6) hbids_le
     omega
   · rw [clientState_bind, clientState_pure, clientResult_bind, clientResult_pure]
     exact hout_s
@@ -392,12 +379,11 @@ theorem scaledSolveProg_spec {w C : ℕ} (inst : Instance)
     have hcast : (((inst.n : ℤ) + 1) * (C : ℤ) + 1).toNat = (inst.n + 1) * C + 1 := by
       exact_mod_cast Int.toNat_natCast ((inst.n + 1) * C + 1)
     rwa [hcast] at hb_raw
-  have hmul_le :
-      (scaledAuction inst.cost).bids * (4 * inst.n + 6) ≤
-        (inst.n * ((inst.n + 1) * C + 1) + 1) * (4 * inst.n + 6) :=
-    Nat.mul_le_mul_right _ hbids_le
-  exact ⟨⟨hf1, hfn1, hf2, hsafe_s⟩, hv_s, by unfold scaledSolveProg; omega,
+  refine ⟨⟨hf1, hfn1, hf2, hsafe_s⟩, hv_s, ?_,
     hws_s, hws_n, hws_sc, hM_le, hM_ge, hC_s, hout_s, hfit_ws⟩
+  unfold scaledSolveProg
+  have := Nat.mul_le_mul_right (4 * inst.n + 6) hbids_le
+  omega
 
 end
 

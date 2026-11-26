@@ -172,8 +172,8 @@ private theorem card_corruptPoints_le (f : (Fin n → F) → F) {δ : ℝ} (hδ 
   have hn : 0 < n := Fin.pos i
   let bases : Finset (Fin n → F) := {u | u i = 0}
   have hfib : #bases = Fintype.card F ^ (n - 1) := by
-    have := Fintype.card_filter_piFinset_const_eq_of_mem (univ : Finset F) i (mem_univ 0)
-    simpa [bases, Fintype.piFinset_univ] using this
+    simpa [bases, Fintype.piFinset_univ] using
+      Fintype.card_filter_piFinset_const_eq_of_mem (univ : Finset F) i (mem_univ 0)
   let target : Finset ((_: Fin n → F) × F) :=
     bases.sigma fun u =>
       if u ∈ wrongPointsApprox f δ i then ∅
@@ -189,9 +189,7 @@ private theorem card_corruptPoints_le (f : (Fin n → F) → F) {δ : ℝ} (hδ 
       simpa [lineRestrict, lineApprox_update] using hx.2
     · intro x _ x' _ hxx'
       have h1 : update x i 0 = update x' i 0 := congrArg Sigma.fst hxx'
-      have h2 : x i = x' i := by
-        have := congrArg (fun p : (_ : Fin n → F) × F => p.2) hxx'
-        simpa using this
+      have h2 : x i = x' i := by simpa using congrArg Sigma.snd hxx'
       calc x = update (update x i 0) i (x i) := by simp
         _ = update (update x' i 0) i (x' i) := by rw [h1, h2]
         _ = x' := by simp
@@ -284,14 +282,9 @@ theorem IsMultilinear.hammingDist_le_of_two_mul_le_approx {f g : (Fin n → F) �
     push Not at hyW hyC
     have hfy : f y = g y := not_ne_iff.mp fun hne => hyS ⟨hne, hyW, hyC⟩
     have hxC : f (update y i t) = lineApprox f δ i y t := by
-      have := hs.2.2 i
-      simp only [corruptPoints, mem_filter, mem_univ, true_and, not_and, not_not,
-        lineApprox_update, update_self] at this
-      exact this (hs.2.1 i)
+      simpa [corruptPoints, lineApprox_update, hs.2.1 i] using hs.2.2 i
     have hyC' : f y = lineApprox f δ i y (y i) := by
-      have := hyC i
-      simp only [corruptPoints, mem_filter, mem_univ, true_and, not_and, not_not] at this
-      exact this (hyW i)
+      simpa [corruptPoints, hyW i] using hyC i
     refine ⟨i, mem_filter.mpr ⟨mem_univ _, hyW i, fun heq => hs.1 ?_, hyC'.symm.trans hfy⟩⟩
     exact hxC.trans (congrFun heq t)
   have hexp : #S ≤ 2 * n * #(lineClosure S \ S) :=
@@ -685,9 +678,8 @@ theorem exists_isMultilinear_hammingDist_lt (f : (Fin n → F) → F) {ε : ℝ}
     (hW : ∀ i, (#(wrongPoints f i) : ℝ) < ε * Fintype.card F ^ n) :
     ∃ g, IsMultilinear g ∧
       (hammingDist f g : ℝ) < 3 * n ^ 2 * (ε + 1 / Fintype.card F) * Fintype.card F ^ n := by
-  have h := exists_isMultilinear_hammingDist_lt_of_approx f (δ := 0) hn hq le_rfl (by positivity)
-    hε (fun i => by simpa [wrongPointsApprox_zero] using hW i)
-  simpa [add_zero] using h
+  simpa [add_zero] using exists_isMultilinear_hammingDist_lt_of_approx f (δ := 0) hn hq le_rfl
+    (by positivity) hε (fun i => by simpa [wrongPointsApprox_zero] using hW i)
 
 /-- **Two-prover `Test0` soundness**: if a line oracle `L : Fin n → (Fin n → F) → (F → F)`
 returning affine functions on canonical axis-parallel lines `update x i 0` agrees with a point
@@ -704,7 +696,6 @@ theorem exists_isMultilinear_hammingDist_lt_of_lineOracle (f : (Fin n → F) →
     ∃ g, IsMultilinear g ∧
       (hammingDist f g : ℝ) < 3 * n ^ 2 * (ε + δ + 1 / Fintype.card F) * Fintype.card F ^ n := by
   classical
-  have hn' : (0 : ℝ) < n := by exact_mod_cast hn
   have hq' : (0 : ℝ) < Fintype.card F := by exact_mod_cast Fintype.card_pos
   have hcard : (Fintype.card (Fin n → F) : ℝ) = (Fintype.card F : ℝ) ^ n := by
     simp [Fintype.card_pi]
@@ -724,7 +715,7 @@ theorem exists_isMultilinear_hammingDist_lt_of_lineOracle (f : (Fin n → F) →
       div_lt_iff₀ (show (0 : ℝ) < (Fintype.card F : ℝ) ^ n * n by positivity)] at hrej
     have hrhs : ε * δ / (n : ℝ) * ((Fintype.card F : ℝ) ^ n * n) =
         ε * δ * (Fintype.card F : ℝ) ^ n := by
-      have hn0 : (n : ℝ) ≠ 0 := hn'.ne'
+      have : (n : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr hn.ne'
       field_simp
     rwa [hrhs] at hrej
   refine exists_isMultilinear_hammingDist_lt_of_approx f hn hq hδ0 hδ hε fun i => ?_

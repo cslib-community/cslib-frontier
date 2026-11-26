@@ -158,11 +158,9 @@ theorem bucketRun_erase_self {U b f : ℕ} {S : Finset (Fin U)}
   have hfilter : S.filter (fun x => quot x = quot u) =
       insert u ((S.erase u).filter fun x => quot x = quot u) := by
     rw [Finset.filter_erase, Finset.insert_erase (by simp [hu])]
-  have hu_notMem : u ∉ (S.erase u).filter (fun x => quot x = quot u) := by
-    simp
   have hval : ((S.erase u).filter (fun x => quot x = quot u)).val.map rem =
       ((S.filter (fun x => quot x = quot u)).val.map rem).erase (rem u) := by
-    conv_rhs => rw [hfilter, Finset.insert_val_of_notMem hu_notMem, Multiset.map_cons,
+    conv_rhs => rw [hfilter, Finset.insert_val_of_notMem (by simp), Multiset.map_cons,
       Multiset.erase_cons_head]
   dsimp only [bucketRun]
   rw [← Multiset.coe_eq_coe, Multiset.sort_eq, ← Multiset.coe_erase, Multiset.sort_eq, hval]
@@ -383,38 +381,24 @@ theorem IntervalValid.lt_runOffset_iff {U b f : ℕ} {S : Finset (Fin U)}
   have hpref_len : pref.length = runOffset S quot rem o m := rfl
   have hstream_len : stream.length = ℓ := hinv.runOffset_eq
   have hruns_eq : runsBefore st o (i + 1) = (stream.take (i + 1)).countP Prod.fst := by
-    have hmap_fst :
-        ((List.range ℓ).map fun s => st.isRunStart (probeSlot b o s)) =
-          stream.map Prod.fst := by
-      have := congrArg (List.map Prod.fst) hinv.slots_eq_flatMap
-      simpa [List.map_map, Function.comp_def] using this
-    have htake :
-        ((List.range (i + 1)).map fun s => st.isRunStart (probeSlot b o s)) =
-          (stream.take (i + 1)).map Prod.fst := by
-      have hr : List.range (i + 1) = (List.range ℓ).take (i + 1) := by
-        rw [List.take_range, Nat.min_eq_left (by omega)]
-      rw [hr, List.map_take, hmap_fst, ← List.map_take]
-    dsimp only [runsBefore]
-    rw [htake, List.countP_map]
+    have htake := congrArg (fun l => (l.take (i + 1)).map Prod.fst) hinv.slots_eq_flatMap
+    simp only [← List.map_take, List.take_range, Nat.min_eq_left (by omega : i + 1 ≤ ℓ),
+      List.map_map, Function.comp_def] at htake
+    rw [runsBefore, htake, List.countP_map]
     rfl
   have hpref_count : pref.countP Prod.fst = occBefore st o m :=
     countP_fst_flatMap_taggedRun S quot rem st o m (fun j _ => hocc _)
   rw [hruns_eq, ← hpref_count]
   constructor
   · intro hlt
-    have hi1_le : i + 1 ≤ pref.length := by omega
-    rw [hstream_eq, List.take_append_of_le_length hi1_le]
-    have hsplit : pref = pref.take (i + 1) ++ pref.drop (i + 1) :=
-      (List.take_append_drop (i + 1) pref).symm
-    conv_rhs => rw [hsplit, List.countP_append]
+    rw [hstream_eq, List.take_append_of_le_length (by omega : i + 1 ≤ pref.length)]
+    conv_rhs => rw [← List.take_append_drop (i + 1) pref, List.countP_append]
     omega
   · intro hle
     by_contra! hge
     have hlen_lt : pref.length < stream.length := by omega
-    have hsuff_ne : suff ≠ [] := by
-      intro hnil
-      rw [hstream_eq, hnil, List.append_nil] at hlen_lt
-      exact Nat.lt_irrefl _ hlen_lt
+    have hsuff_ne : suff ≠ [] := fun hnil => by
+      simp [hstream_eq, hnil] at hlen_lt
     obtain ⟨p, rest, hsuff_cons⟩ := List.exists_cons_of_ne_nil hsuff_ne
     have hp_fst : p.1 = true :=
       fst_head_nonempty_flatMap_taggedRun ((List.range (ℓ - m)).map (m + ·))
@@ -566,13 +550,10 @@ theorem FilterInv.isFull_backSlot_of_le_backLen {U b f n : ℕ} {S : Finset (Fin
     (hinv : FilterInv n S quot rem st) (hS_lt : #S < 2 ^ b) (q : Fin (2 ^ b))
     {r : ℕ} (hr1 : 1 ≤ r) (hr : r ≤ hinv.backLen hS_lt q) :
     st.isFull (backSlot b q r) = true := by
-  have hlt : r - 1 < hinv.backLen hS_lt q := by omega
-  have hmin := Nat.find_min (hinv.exists_backSlot_empty hS_lt q) hlt
+  have hmin := Nat.find_min (hinv.exists_backSlot_empty hS_lt q)
+    (by omega : r - 1 < hinv.backLen hS_lt q)
   push Not at hmin
-  have hle : r - 1 ≤ #S := by
-    have := hinv.backLen_le_card hS_lt q
-    omega
-  have hne := hmin hle
+  have hne := hmin (by have := hinv.backLen_le_card hS_lt q; omega)
   rw [Nat.sub_add_cancel hr1] at hne
   exact Bool.eq_true_of_not_eq_false hne
 
@@ -837,13 +818,7 @@ theorem IntervalValid.queryCluster_eq_true_iff {U b f : ℕ} {S : Finset (Fin U)
     have hlen_pref :
         ((List.range a).flatMap (fun j => bucketRun S quot rem (probeSlot b o j))).length =
           S_a := by
-      have hmap :
-          (List.range a).flatMap (fun j => bucketRun S quot rem (probeSlot b o j)) =
-            ((List.range a).flatMap
-              (fun j => taggedRun (bucketRun S quot rem (probeSlot b o j)))).map Prod.snd := by
-        simp [List.map_flatMap, map_snd_taggedRun]
-      rw [hmap, List.length_map]
-      rfl
+      simp [S_a, runOffset, List.length_flatMap]
     rw [← hlen_pref, List.drop_append_of_le_length le_rfl, List.drop_length,
       List.nil_append, List.take_append_of_le_length le_rfl, List.take_length]
   have hrun : bucketRun S quot rem (probeSlot b o a) =
@@ -898,12 +873,8 @@ theorem FilterInv.querySlot_eq_true_iff {U b f n : ℕ} {S : Finset (Fin U)}
     have hvalid := hinv.intervalValid_cluster hS_lt q
     rw [FilterInv.querySlot, hvalid.queryCluster_eq_true_iff hinv.isOcc_eq ha_lt_ℓ, hq_eq]
   · obtain ⟨hocc_q, hrun_nil⟩ := hinv.isOcc_eq_false_of_fwdLen_eq_zero hS_lt q (by omega)
-    have hqs : hinv.querySlot hS_lt u = false := by
-      dsimp only [FilterInv.querySlot, queryCluster]
-      change (st.isOcc (probeSlot b o a) && _) = false
-      rw [hq_eq, hocc_q]
-      rfl
-    simp [hqs, hrun_nil]
+    dsimp only [o, a, q] at *
+    simp [FilterInv.querySlot, queryCluster, hq_eq, hocc_q, hrun_nil]
 
 /-- **Pathwise zero false negatives**: if `u ∈ S`, `hinv.querySlot hS_lt u = true`. -/
 theorem FilterInv.querySlot_of_mem {U b f n : ℕ} {S : Finset (Fin U)}

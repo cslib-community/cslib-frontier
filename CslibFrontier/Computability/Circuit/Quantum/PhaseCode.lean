@@ -210,8 +210,7 @@ theorem realSimulates_ofCodes {g : GateCode} (hg : g.WellFormed m) :
   obtain ⟨p, hp⟩ := Option.isSome_iff_exists.mp (isSome_toPlacedGate?_iff.mpr hg)
   have hp' : toPlacedGate? (m + 1) g = some (p.mapWires Fin.castSuccEmb) := by
     have h := toPlacedGate?_shift (o := 0) (N := m + 1) (by omega) hg
-    rw [shift_zero, hp, Option.map_some] at h
-    exact h
+    rwa [shift_zero, hp, Option.map_some] at h
   simp only [Circuit.ofCodes, List.filterMap_cons, hp, hp', List.filterMap_nil]
   exact p.realSimulates_mapWires_castSuccEmb (im_toPlacedGate?_gate hp)
 
@@ -289,23 +288,19 @@ theorem exists_toPlacedGate?_eq_ctrlPhase {inv : Bool} {t : ℕ} {cs : List ℕ}
     refine ⟨1, ⟨![⟨t, ht⟩], fun i j _ => Subsingleton.elim i j⟩, by simp [toPlacedGate?, ht],
       fun w => ?_⟩
     rw [List.all_cons, List.all_nil, Bool.and_true, hread w ht]
-    simp only [Fin.forall_fin_one]
-    change Fin.init w ⟨t, ht⟩ = decide (Fin.init w ⟨t, ht⟩ = true)
-    simp
+    simp only [Fin.forall_fin_one, Bool.decide_coe]
+    rfl
   | [c], _, hnd, hlt =>
     have ht : t < m := hlt t (by simp)
     have hc : c < m := hlt c (by simp)
     have hct : c ≠ t := fun h => by simp [h] at hnd
     have h : c < m ∧ t < m ∧ c ≠ t := ⟨hc, ht, hct⟩
-    refine ⟨2, ⟨![⟨c, h.1⟩, ⟨t, h.2.1⟩], ?_⟩, ?_, fun w => ?_⟩
+    refine ⟨2, ⟨![⟨c, h.1⟩, ⟨t, h.2.1⟩], ?_⟩, by simp [toPlacedGate?, h], fun w => ?_⟩
     · intro i j hij
       fin_cases i <;> fin_cases j <;> first | rfl | (simp [Fin.ext_iff] at hij; omega)
-    · simp only [toPlacedGate?]
-      rw [dite_eq_left h]
     · rw [List.all_cons, List.all_cons, List.all_nil, Bool.and_true, hread w ht, hread w hc]
-      simp only [Fin.forall_fin_two]
-      change _ = decide (Fin.init w ⟨c, hc⟩ = true ∧ Fin.init w ⟨t, ht⟩ = true)
-      cases Fin.init w ⟨t, ht⟩ <;> cases Fin.init w ⟨c, hc⟩ <;> simp
+      simp only [Fin.forall_fin_two, Bool.decide_and, Bool.decide_coe]
+      exact Bool.and_comm _ _
   | _ :: _ :: _, hlen, _, _ => simp at hlen
 
 /-- The classical gate code that flips the encoding qubit `m` under the controls `t :: cs` of a
@@ -316,9 +311,8 @@ theorem wellFormed_ctrlCode {inv : Bool} {t : ℕ} {cs : List ℕ}
   refine ⟨by simpa using hlen, List.nodup_cons.mpr ⟨fun h => Nat.lt_irrefl m (hlt m h), hnd⟩,
     fun i hi => ?_⟩
   rcases List.mem_cons.mp hi with rfl | hi
-  · omega
-  · have := hlt i hi
-    omega
+  · exact Nat.lt_succ_self _
+  · exact Nat.lt_succ_of_lt (hlt i hi)
 
 end PhaseGateCode
 
@@ -469,10 +463,8 @@ theorem realSimulates_toRealCodes {gs : List PhaseGateCode} (hgs : ∀ c ∈ gs,
     | (false, g), hc => exact GateCode.realSimulates_ofCodes hc
     | (true, inv, t, cs), hc =>
       obtain ⟨k, e, he, hall⟩ := exists_toPlacedGate?_eq_ctrlPhase hc
-      have hdec : Circuit.ofPhaseCodes m [(true, inv, t, cs)] = [PlacedGate.ctrlPhase inv e] := by
-        simp [Circuit.ofPhaseCodes, he]
-      rw [hdec]
-      exact realSimulates_phaseCodes inv e (wellFormed_ctrlCode hc) hall
+      simpa only [realCodes, ↓reduceIte, Circuit.ofPhaseCodes, List.filterMap_cons, he,
+        List.filterMap_nil] using realSimulates_phaseCodes inv e (wellFormed_ctrlCode hc) hall
 
 /-- The input `x` on `m + 1` qubits is the input on `m` qubits followed by a zero, when `x` fits
 into `m` qubits. -/

@@ -183,17 +183,12 @@ theorem toFinset_lruNext_subset {k : Nat} (q : List α) (p : α) :
 theorem validStep_lruNext {k : Nat} (hk : 0 < k) {q : List α}
     (hlen : q.length ≤ k) (p : α) :
     ValidStep k q.toFinset p (lruNext k q p).toFinset := by
-  have hcard : q.toFinset.card ≤ k := (List.toFinset_card_le q).trans hlen
-  have hcard' : (lruNext k q p).toFinset.card ≤ k :=
-    (List.toFinset_card_le _).trans (length_lruNext_le hlen p)
-  have hmem : p ∈ (lruNext k q p).toFinset := List.mem_toFinset.mpr (mem_lruNext hk q p)
-  refine ⟨hcard, hcard', hmem, ?_⟩
+  refine ⟨(List.toFinset_card_le q).trans hlen,
+    (List.toFinset_card_le _).trans (length_lruNext_le hlen p),
+    List.mem_toFinset.mpr (mem_lruNext hk q p), ?_⟩
   by_cases hp : p ∈ q
-  · have hps : p ∈ q.toFinset := List.mem_toFinset.mpr hp
-    simp only [hps, ↓reduceIte, toFinset_lruNext_of_mem hp]
-  · have hps : p ∉ q.toFinset := by simpa only [List.mem_toFinset] using hp
-    simp only [hps, ↓reduceIte]
-    exact toFinset_lruNext_subset q p
+  · simp [List.mem_toFinset.mpr hp, toFinset_lruNext_of_mem hp]
+  · simpa [List.mem_toFinset, hp] using toFinset_lruNext_subset q p
 
 /-! ### Packaging LRU as an `Online.DetStrategy` -/
 
@@ -398,7 +393,7 @@ theorem lruPotential_step {k : Nat} (hk : 0 < k) {s s' : Finset α} {q : List α
       simp only [lruNext, hpq, ↓reduceIte, maxWeightFrom_cons, hps]
       exact max_le_max_right _ (maxWeightFrom_erase_of_mem hps k q)
     · -- Online miss (`p ∉ q`) while offline hits (`p ∈ s`)
-      have hpqs : p ∉ q.toFinset := by simpa only [List.mem_toFinset] using hpq
+      have hpqs : p ∉ q.toFinset := mt List.mem_toFinset.mp hpq
       rw [stepCost_of_notMem hpqs, lruNext_of_notMem hk hpq]
       have hp_sdiff : 1 ≤ (s \ q.toFinset).card := by finset_card
       have hle := maxWeightFrom_take_le (k - 1) s q (k - 1)
@@ -471,8 +466,7 @@ the same valid cache `s₀` (including `∅`), `lruStrategy k hk` incurs at most
 of any valid offline schedule, with zero additive constant. -/
 theorem lruStrategy_isCompetitive (k : Nat) (hk : 0 < k) :
     (lruStrategy (α := α) k hk).IsCompetitive k 0 := by
-  apply (lruStrategy (α := α) k hk).competitive_of_amortized (lruAmortized k hk)
-  intro s₀ _
+  refine (lruStrategy (α := α) k hk).competitive_of_amortized (lruAmortized k hk) fun s₀ _ => ?_
   simp only [lruPotential_eq_zero_of_toFinset_eq k (Finset.toList_toFinset s₀), le_refl]
 
 /-- **LRU `k`-competitiveness across arbitrary initial caches** ([SleatorTarjan1985], Theorem 6 at
@@ -480,8 +474,7 @@ theorem lruStrategy_isCompetitive (k : Nat) (hk : 0 < k) :
 `lruStrategy k hk` incurs at most `k * optCost + k` faults. -/
 theorem lruStrategy_isCompetitiveAnyInit (k : Nat) (hk : 0 < k) :
     (lruStrategy (α := α) k hk).IsCompetitiveAnyInit k k := by
-  apply (lruStrategy (α := α) k hk).competitiveAnyInit_of_amortized (lruAmortized k hk)
-  intro s₀ s_off _ hs_off
-  exact lruPotential_le hs_off s₀.toList
+  exact (lruStrategy (α := α) k hk).competitiveAnyInit_of_amortized (lruAmortized k hk)
+    fun s₀ _ _ hs_off => lruPotential_le hs_off s₀.toList
 
 end Cslib.DataStructure.Paging

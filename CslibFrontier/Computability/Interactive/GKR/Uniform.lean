@@ -670,10 +670,8 @@ private def constWeightNat (p kOut : ℕ) (lit : WireLit) (r : ℕ) : ℕ :=
 
 private theorem natCast_constWeightNat {p : ℕ} [NeZero p] (kOut : ℕ) (lit : WireLit) (r : ℕ) :
     ((constWeightNat p kOut lit r : ℕ) : ZMod p) = lit.constWeight kOut (r : ZMod p) := by
-  cases lit <;> simp only [constWeightNat, encWireLit_elim, encWireLit_toSum, Sum.elim_inl,
-    Sum.elim_inr, WireLit.constWeight]
-  · exact natCast_litFactorNat _ _
-  · split_ifs <;> simp [natCast_litFactorNat]
+  cases lit <;> simp [constWeightNat, encWireLit_elim, encWireLit_toSum, WireLit.constWeight,
+    apply_ite (Nat.cast : ℕ → ZMod p), natCast_litFactorNat]
 
 /-- Natural representative of `WireLit.varWeight` modulo `p`. -/
 private def varWeightNat (p : ℕ) (lit : WireLit) (j : ℕ) (b : Bool) (r : ℕ) : ℕ :=
@@ -683,10 +681,8 @@ private def varWeightNat (p : ℕ) (lit : WireLit) (j : ℕ) (b : Bool) (r : ℕ
 
 private theorem natCast_varWeightNat {p : ℕ} [NeZero p] (lit : WireLit) (j : ℕ) (b : Bool) (r : ℕ) :
     ((varWeightNat p lit j b r : ℕ) : ZMod p) = lit.varWeight j b (r : ZMod p) := by
-  cases lit <;> simp only [varWeightNat, encWireLit_elim, encWireLit_toSum, Sum.elim_inl,
-    Sum.elim_inr, WireLit.varWeight]
-  · simp
-  · split_ifs <;> simp [natCast_litFactorNat]
+  cases lit <;> simp [varWeightNat, encWireLit_elim, encWireLit_toSum, WireLit.varWeight,
+    apply_ite (Nat.cast : ℕ → ZMod p), natCast_litFactorNat]
 
 /-- Natural representative of `WiringClause.maskWeight`. -/
 private def maskWeightNat (m : Option Bool) (b : Bool) : ℕ :=
@@ -694,8 +690,7 @@ private def maskWeightNat (m : Option Bool) (b : Bool) : ℕ :=
 
 private theorem natCast_maskWeightNat {p : ℕ} (m : Option Bool) (b : Bool) :
     ((maskWeightNat m b : ℕ) : ZMod p) = WiringClause.maskWeight m b := by
-  unfold maskWeightNat WiringClause.maskWeight
-  split_ifs <;> simp
+  simp [maskWeightNat, WiringClause.maskWeight, apply_ite (Nat.cast : ℕ → ZMod p)]
 
 /-- Modular coordinate-`j` bit term of a `WiringClause`. -/
 private def bitTermNat (p kIn : ℕ) (cl : WiringClause) (zs ys ws : List ℕ) (j : ℕ) (b : Bool) : ℕ :=
@@ -1077,9 +1072,7 @@ private theorem clausesPartition_singleton_unmasked (kOut : ℕ) (g : Gate)
     (litsL litsR : List WireLit) :
     ClausesPartition kOut [⟨g, [], litsL, litsR⟩] := by
   intro a
-  have hm : (⟨g, [], litsL, litsR⟩ : WiringClause).matchesVec a = true := by
-    simp [WiringClause.matchesVec, WiringClause.matchOpt]
-  simp [hm]
+  simp [WiringClause.matchesVec, WiringClause.matchOpt]
 
 private theorem clausesPartition_powerSum (P : PowerSumParams) (i : ℕ) :
     ClausesPartition (P.width (i + 1)) (P.layerClauses i) := by
@@ -1106,22 +1099,17 @@ private theorem padOrTakeBits_ofFn {midWidth kMid inWidth : ℕ} (hk : kMid = mi
     simp only [padOrTakeBits, List.getElem_take, List.getElem_ofFn, List.getD_eq_getElem?_getD,
       List.getElem?_map, List.getElem?_range hℓ, Option.map_some, Option.getD_some]
     by_cases hm : ℓ < midWidth
-    · have hkℓ : ℓ < kMid := by omega
-      rw [List.getElem_append_left (by simp [hkℓ])]
-      simp [hm, hkℓ, WireLit.eval]
-    · have hnk : ¬ ℓ < kMid := by omega
-      rw [List.getElem_append_right (by simp; omega)]
+    · rw [List.getElem_append_left (by simp [hk, hm])]
+      simp [hm, hk, WireLit.eval]
+    · rw [List.getElem_append_right (by simp [hk]; omega)]
       simp [hm, WireLit.eval]
 
 private theorem powerSum_width_tree_succ (P : PowerSumParams) {i : ℕ}
     (hi : i < P.depth) (hsq : ¬ i ≤ P.sqDepth) :
     P.width i = P.width (i + 1) + 1 := by
   have hi_lt : i < 1 + P.sqDepth + P.midWidth := hi
-  have hne0 : i ≠ 0 := by omega
-  have hne1 : i + 1 ≠ 0 := Nat.succ_ne_zero i
-  have hgt1 : ¬ i + 1 ≤ 1 + P.sqDepth := by omega
-  simp only [PowerSumParams.width, hne0, hne1, hgt1, ↓reduceIte]
-  split_ifs with hle <;> omega
+  simp only [PowerSumParams.width, Nat.succ_ne_zero, ↓reduceIte]
+  split_ifs <;> omega
 
 private theorem listOfFn_eval_id {kOut kIn kRng : ℕ} (hk : kIn = kOut) (hrng : kRng = kOut)
     (a : Fin kOut → Bool) :
@@ -1132,11 +1120,7 @@ private theorem listOfFn_eval_id {kOut kIn kRng : ℕ} (hk : kIn = kOut) (hrng :
   apply List.ext_getElem (by simp [hk])
   intro ℓ h1 h2
   have hℓ : ℓ < kOut := by simpa only [List.length_ofFn] using h1
-  have hget : (((List.range kRng).map fun j => WireLit.var j false).getD ℓ (WireLit.const false)) =
-      WireLit.var ℓ false := by
-    rw [hrng, List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_range hℓ]
-    rfl
-  simp only [List.getElem_ofFn, hget, WireLit.eval, hℓ, ↓reduceDIte, Bool.bne_false]
+  simp [hrng, List.getD_eq_getElem?_getD, hℓ, WireLit.eval]
 
 private theorem listOfFn_eval_snoc {kOut kIn : ℕ} (hk : kIn = kOut + 1) (b : Bool)
     (a : Fin kOut → Bool) :

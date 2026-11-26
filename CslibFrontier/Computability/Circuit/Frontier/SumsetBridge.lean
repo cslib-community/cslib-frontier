@@ -118,9 +118,8 @@ theorem denseRectangleFree_of_eventually_rectangleBias {U : Type u} [Finite U] [
     have hK_pow : ∀ᶠ n in atTop, K n ≤ q ^ (n / 2) := by
       filter_upwards [hKlog.bound (show 0 < Real.log q / 3 by positivity), hKpos,
         eventually_ge_atTop 6] with n hn hKn hn6
-      have hdiv : (n : ℝ) / 3 ≤ ((n / 2 : ℕ) : ℝ) := by
-        have : (n : ℝ) ≤ 3 * ((n / 2 : ℕ) : ℝ) := by exact_mod_cast (by omega : n ≤ 3 * (n / 2))
-        linarith
+      have hdiv : (n : ℝ) ≤ 3 * ((n / 2 : ℕ) : ℝ) := by
+        exact_mod_cast (by omega : n ≤ 3 * (n / 2))
       simp only [Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg (α := ℝ) n)] at hn
       have hlog_le : Real.log (K n) ≤ Real.log ((q : ℝ) ^ (n / 2)) := by
         rw [Real.log_pow]
@@ -302,13 +301,10 @@ theorem rectangleBias_of_isSumsetExtractor {n m k : ℕ} {ε : ℝ}
       (hcardB ▸ hB)
   have hsum : (pA.bind fun x => pB.map fun y => x + y) =
       (PMF.uniformOfFintype R).map Subtype.val := by
-    have h1 : (pA.bind fun x => pB.map fun y => x + y) =
-        ((PMF.uniformOfFintype A).bind fun a =>
-          (PMF.uniformOfFintype B).map fun b => padLeft X a.val + padRight X b.val) := by
-      simp [pA, pB, PMF.bind_map, PMF.map_comp, Function.comp_def]
-    rw [h1, PMF.uniformOfFintype_bind_map,
-      show (fun p : ↥A × ↥B => padLeft X p.1.val + padRight X p.2.val) =
-        Subtype.val ∘ rectProdEquiv X A B from rfl, ← PMF.map_comp, PMF.uniformOfFintype_map_equiv]
+    simp only [pA, pB, PMF.bind_map, PMF.map_comp, Function.comp_def,
+      PMF.uniformOfFintype_bind_map]
+    rw [show (fun p : ↥A × ↥B => padLeft X p.1.val + padRight X p.2.val) =
+      Subtype.val ∘ rectProdEquiv X A B from rfl, ← PMF.map_comp, PMF.uniformOfFintype_map_equiv]
   let proj : BitString m → Bool := fun y => eqBoolEquiv val (y j)
   have hunif : (PMF.uniformOfFintype (BitString m)).map proj = PMF.uniformOfFintype Bool := by
     rw [show proj = ⇑(eqBoolEquiv val) ∘ (fun y : BitString m => y j) from rfl, ← PMF.map_comp,
@@ -364,11 +360,10 @@ theorem denseRectangleFree_of_isSumsetExtractor {m k : ℕ → ℕ} {ε : ℕ �
     (hk : (fun n => (k n : ℝ)) =o[atTop] fun n => (n : ℝ))
     (hε : ∃ c < 1 / 2, ∀ᶠ n in atTop, ε n ≤ c) :
     DenseRectangleFree (fun n => {x : BitString n | ext n x (j n) = val n})
-      (fun n => 2 ^ k n) := by
-  refine denseRectangleFree_of_eventually_rectangleBias ?_ ?_ (isLittleO_log_two_pow hk) hε
-  · filter_upwards [hext] with n hn
-    exact rectangleBias_of_isSumsetExtractor hn (j n) (val n)
-  · exact Eventually.of_forall fun n => Nat.one_le_two_pow
+      (fun n => 2 ^ k n) :=
+  denseRectangleFree_of_eventually_rectangleBias
+    (hext.mono fun n hn => rectangleBias_of_isSumsetExtractor hn (j n) (val n))
+    (Eventually.of_forall fun _ => Nat.one_le_two_pow) (isLittleO_log_two_pow hk) hε
 
 /-- **Worst-case `(L₃ - δ) n` multiary frontier step from a sumset extractor.** Conditional
 reduction step (not an unconditional `P` lower bound): if `ext n` is eventually a
@@ -403,14 +398,10 @@ theorem exists_eventually_agreement_le_of_isSumsetExtractor {m k : ℕ → ℕ} 
         (c.multiarySize : ℝ) ≤ (1 + 2 * π / (3 * arccos (5 / 6)) - δ) * n →
           agreement {x : BitString n | ext n x (j n) = val n} {x | c.eval I x 0 ∈ Acc} ≤
             1 / 2 + ε n + Real.exp (-γ * n) := by
-  have hbias : ∀ᶠ n in atTop,
-      RectangleBias {x : BitString n | ext n x (j n) = val n} (2 ^ k n) (ε n) := by
-    filter_upwards [hext] with n hn
-    exact rectangleBias_of_isSumsetExtractor hn (j n) (val n)
   obtain ⟨γ, hγ, H⟩ := multiaryAverageCaseBound_switched.{0, v} δ hδ
-  refine ⟨γ, hγ, ?_⟩
-  filter_upwards [H Bool (fun n => {x | ext n x (j n) = val n}) (fun n => 2 ^ k n) ε hbias
-    (isLittleO_log_two_pow hk)] with n hn σ I Acc c hfan hsize
+  refine ⟨γ, hγ, (H Bool (fun n => {x | ext n x (j n) = val n}) (fun n => 2 ^ k n) ε
+    (hext.mono fun n hn => rectangleBias_of_isSumsetExtractor hn (j n) (val n))
+    (isLittleO_log_two_pow hk)).mono fun n hn σ I Acc c hfan hsize => ?_⟩
   simpa only [neg_mul] using hn σ I Acc c hfan hsize
 
 /-- **Conditional reduction step from a polynomial-time sumset extractor to a language in `P`

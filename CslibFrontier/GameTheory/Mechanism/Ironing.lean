@@ -441,19 +441,16 @@ theorem Mechanism.IsDSIC.integral_sum_payment_le_ironed {M : Mechanism ι} (hM :
     ∫ v, ∑ i, M.payment v i ∂Measure.pi μ ≤
       ∫ v, ∑ i, φBar i (v i) * M.allocation v i ∂Measure.pi μ := by
   refine (hM.integral_sum_payment_le hIR hμ hx hB).trans ?_
-  rw [integral_finsetSum _ fun i _ =>
-      integrable_virtualValue_mul hμ i (hx i) fun v hv => hB v hv i,
-    integral_finsetSum _ fun i _ =>
-      integrable_ironed_mul hμ hφ i (hx i) fun v hv => hB v hv i]
+  have hint_vv (i : ι) := integrable_virtualValue_mul hμ i (hx i) fun v hv => hB v hv i
+  have hint_ir (i : ι) := integrable_ironed_mul hμ hφ i (hx i) fun v hv => hB v hv i
+  rw [integral_finsetSum _ fun i _ => hint_vv i, integral_finsetSum _ fun i _ => hint_ir i]
   refine Finset.sum_le_sum fun i _ => ?_
-  have hint_vv_i := integrable_virtualValue_mul hμ i (hx i) fun v hv => hB v hv i
-  have hint_ir_i := integrable_ironed_mul hμ hφ i (hx i) fun v hv => hB v hv i
-  rw [← integral_integral_update μ hint_vv_i i, ← integral_integral_update μ hint_ir_i i]
+  rw [← integral_integral_update μ (hint_vv i) i, ← integral_integral_update μ (hint_ir i) i]
   refine integral_mono_ae
     (integrable_integral_update_measure μ i (μ i)
-      (by simpa only [Function.update_eq_self] using hint_vv_i))
+      (by simpa only [Function.update_eq_self] using hint_vv i))
     (integrable_integral_update_measure μ i (μ i)
-      (by simpa only [Function.update_eq_self] using hint_ir_i)) ?_
+      (by simpa only [Function.update_eq_self] using hint_ir i)) ?_
   filter_upwards [ae_nonneg hμ] with v hv
   simp only [Function.update_self]
   exact (hφ i).integral_virtualValue_mul_le (hμ i)
@@ -471,15 +468,12 @@ theorem integral_sum_myersonPayment_eq_ironed (hμ : ∀ i, HasValueDensity (μ 
       φBar i z₁ = φBar i z₂ → x (Function.update v i z₁) i = x (Function.update v i z₂) i) :
     ∫ v, ∑ i, myersonPayment x v i ∂Measure.pi μ =
       ∫ v, ∑ i, φBar i (v i) * x v i ∂Measure.pi μ := by
+  have hint_vv (i : ι) := integrable_virtualValue_mul hμ i (hx i) fun v hv => hB v hv i
+  have hint_ir (i : ι) := integrable_ironed_mul hμ hφ i (hx i) fun v hv => hB v hv i
   rw [integral_sum_myersonPayment_eq hμ hx hB,
-    integral_finsetSum _ fun i _ =>
-      integrable_virtualValue_mul hμ i (hx i) fun v hv => hB v hv i,
-    integral_finsetSum _ fun i _ =>
-      integrable_ironed_mul hμ hφ i (hx i) fun v hv => hB v hv i]
+    integral_finsetSum _ fun i _ => hint_vv i, integral_finsetSum _ fun i _ => hint_ir i]
   refine Finset.sum_congr rfl fun i _ => ?_
-  have hint_vv_i := integrable_virtualValue_mul hμ i (hx i) fun v hv => hB v hv i
-  have hint_ir_i := integrable_ironed_mul hμ hφ i (hx i) fun v hv => hB v hv i
-  rw [← integral_integral_update μ hint_vv_i i, ← integral_integral_update μ hint_ir_i i]
+  rw [← integral_integral_update μ (hint_vv i) i, ← integral_integral_update μ (hint_ir i) i]
   refine integral_congr_ae ?_
   filter_upwards [ae_nonneg hμ] with v hv
   simp only [Function.update_self]
@@ -1813,12 +1807,11 @@ theorem expectedDiscreteSumPayment_le_ironed_of_isDiscreteIronedVirtualValue
     (∑ k : ∀ i, Fin (m i + 1), (∏ j, (D j).prob (k j)) * ∑ i, p' k i) ≤
       ∑ k : ∀ i, Fin (m i + 1), (∏ j, (D j).prob (k j)) *
         ∑ i, (D i).envelopePayment (fun r => x (Function.update k i r) i) (k i) := by
-  have hsum_coord : ∀ (i : ι) (G : (∀ j, Fin (m j + 1)) → Fin (m i + 1) → ℝ)
-      (hG : ∀ k r, G (Function.update k i r) = G k),
+  have hsum_coord : ∀ (i : ι) (G : (∀ j, Fin (m j + 1)) → Fin (m i + 1) → ℝ),
       (∑ k : ∀ j, Fin (m j + 1), (∏ j, (D j).prob (k j)) * G k (k i)) =
         ∑ k : ∀ j, Fin (m j + 1), (∏ j, (D j).prob (k j)) *
-          ∑ r : Fin (m i + 1), (D i).prob r * G k r := by
-    intro i G hG
+          ∑ r : Fin (m i + 1), (D i).prob r * G (Function.update k i r) r := by
+    intro i G
     -- Split k into (k i, k_{-i}) by summing over r' = k i on LHS!
     -- Equivalently, introduce `x.2` via `(D i).sum_prob = 1` and swap `(x.1 i, x.2)`.
     have hinv : Function.Involutive fun x : (∀ j, Fin (m j + 1)) × Fin (m i + 1) =>
@@ -1829,9 +1822,10 @@ theorem expectedDiscreteSumPayment_le_ironed_of_isDiscreteIronedVirtualValue
           simp only [Fintype.sum_prod_type, ← Finset.sum_mul, ← Finset.mul_sum, (D i).sum_prob,
             mul_one]
       _ = ∑ x : (∀ j, Fin (m j + 1)) × Fin (m i + 1),
-            (∏ j, (D j).prob (x.1 j)) * ((D i).prob x.2 * G x.1 x.2) := by
+            (∏ j, (D j).prob (x.1 j)) *
+              ((D i).prob x.2 * G (Function.update x.1 i x.2) x.2) := by
           refine (Fintype.sum_equiv (Function.Involutive.toPerm _ hinv) _ _ fun x => ?_).symm
-          simp only [Function.Involutive.coe_toPerm, Function.update_self, hG,
+          simp only [Function.Involutive.coe_toPerm, Function.update_self,
             Finset.prod_apply_update_of_mem (Finset.mem_univ i) (fun j a => (D j).prob a)]
           rw [← Finset.mul_prod_erase _ (fun j => (D j).prob (x.1 j)) (Finset.mem_univ i)]
           ring
@@ -1843,12 +1837,7 @@ theorem expectedDiscreteSumPayment_le_ironed_of_isDiscreteIronedVirtualValue
     conv_lhs => rw [Finset.sum_comm]
     conv_rhs => rw [Finset.sum_comm]
     refine Finset.sum_le_sum fun i _ => ?_
-    have h1 := hsum_coord i (fun k r => p' (Function.update k i r) i)
-      (fun k r => by funext s; simp only [Function.update_idem])
-    have h2 := hsum_coord i (fun k r => φBar i r * x' (Function.update k i r) i)
-      (fun k r => by funext s; simp only [Function.update_idem])
-    simp only [Function.update_eq_self] at h1 h2
-    rw [h1, h2]
+    rw [hsum_coord i (fun k _ => p' k i), hsum_coord i (fun k r => φBar i r * x' k i)]
     refine Finset.sum_le_sum fun k _ => mul_le_mul_of_nonneg_left ?_
       (Finset.prod_nonneg fun j _ => ((D j).prob_pos (k j)).le)
     simp_rw [← mul_assoc]
@@ -1862,13 +1851,9 @@ theorem expectedDiscreteSumPayment_le_ironed_of_isDiscreteIronedVirtualValue
     conv_lhs => rw [Finset.sum_comm]
     conv_rhs => rw [Finset.sum_comm]
     refine Finset.sum_congr rfl fun i _ => ?_
-    have h1 := hsum_coord i
-      (fun k r => (D i).envelopePayment (fun s => x (Function.update k i s) i) r)
-      (fun k r => by funext s; simp only [Function.update_idem])
-    have h2 := hsum_coord i (fun k r => φBar i r * x (Function.update k i r) i)
-      (fun k r => by funext s; simp only [Function.update_idem])
-    simp only [Function.update_eq_self] at h1 h2
-    rw [h1, h2]
+    rw [hsum_coord i (fun k r => (D i).envelopePayment (fun s => x (Function.update k i s) i) r),
+      hsum_coord i (fun k r => φBar i r * x k i)]
+    simp only [Function.update_idem]
     refine Finset.sum_congr rfl fun k _ => congrArg ((∏ j, (D j).prob (k j)) * ·) ?_
     simp_rw [← mul_assoc]
     exact ((D i).expectedEnvelopePayment_eq_expectedVirtualSurplus _).trans

@@ -89,9 +89,7 @@ private theorem explicitThreshold_le_add (N : ℕ) (hT1 : 1 ≤ N / (Nat.log 2 N
   set ℓ := Nat.log 2 N
   set L := primeBound N
   set T := N / (ℓ + 1) ^ 2
-  have hT : T = N / (ℓ + 1) / (ℓ + 1) := by
-    change N / (ℓ + 1) ^ 2 = _
-    rw [Nat.div_div_eq_div_mul, sq]
+  have hT : T = N / (ℓ + 1) / (ℓ + 1) := by rw [Nat.div_div_eq_div_mul, ← sq]
   set n := fieldDegree N
   set r := numBlocks N
   have hr : r = N / n := rfl
@@ -185,9 +183,8 @@ private theorem eventually_four_mul_numBlocks_le :
   have hn0 : 0 < n := Nat.pos_of_ne_zero (fieldDegree_ne_zero N)
   have hn : n = (selectBelow T (primesIoc L (4 * L))).prod := fieldDegree_eq_prod N
   -- the number of blocks is small
-  have hps : ∀ p ∈ primesIoc L (4 * L), 0 < p ∧ p ≤ 4 * L := fun p hp => by
-    obtain ⟨-, h2, h3⟩ := mem_primesIoc.1 hp
-    exact ⟨h3.pos, h2⟩
+  have hps : ∀ p ∈ primesIoc L (4 * L), 0 < p ∧ p ≤ 4 * L := fun _ hp =>
+    ⟨(mem_primesIoc.1 hp).2.2.pos, (mem_primesIoc.1 hp).2.1⟩
   rcases prod_le_or_lt_mul_prod_selectBelow T hps with hP | hTn
   · -- every prime in `(L, 4 L]` is chosen
     rw [← hn] at hP
@@ -226,9 +223,7 @@ theorem eventually_explicitThreshold_le :
   set L := primeBound N
   have hL : L = ℓ / 3 := rfl
   set T := N / (ℓ + 1) ^ 2
-  have hT : T = N / (ℓ + 1) / (ℓ + 1) := by
-    change N / (ℓ + 1) ^ 2 = _
-    rw [Nat.div_div_eq_div_mul, sq]
+  have hT : T = N / (ℓ + 1) / (ℓ + 1) := by rw [Nat.div_div_eq_div_mul, ← sq]
   have hT1 : 1 ≤ T := (Nat.one_le_div_iff (by positivity)).2 (hsq.trans hNℓ)
   have hthr := explicitThreshold_le_add N hT1
   set r := numBlocks N
@@ -270,8 +265,7 @@ theorem isBigO_explicitThreshold :
     rw [Real.log_pow] at h2
     push_cast at h2
     nlinarith [Real.log_two_lt_one, Real.log_pos one_lt_two]
-  have h' : ((Nat.log 2 N + 1 : ℕ) : ℝ) * explicitThreshold N ≤ 6 * N := by exact_mod_cast h
-  push_cast at h'
+  have h' : ((Nat.log 2 N : ℝ) + 1) * explicitThreshold N ≤ 6 * N := by exact_mod_cast h
   rw [← mul_div_assoc, le_div_iff₀ hlogpos]
   nlinarith [(Nat.cast_nonneg (explicitThreshold N) : (0 : ℝ) ≤ explicitThreshold N)]
 

@@ -94,17 +94,14 @@ theorem dicutAngleSet_mem_of_unit {u w z : F} (hu : ‖u‖ = 1) (hw : ‖w‖ =
   rw [← angle_eq_arccos_inner_of_norm_eq_one hu hw,
     ← angle_eq_arccos_inner_of_norm_eq_one hu hz,
     ← angle_eq_arccos_inner_of_norm_eq_one hw hz]
-  have h1 := angle_le_angle_add_angle u z w
-  have h2 := angle_le_angle_add_angle u w z
-  have h3 := angle_le_angle_add_angle w u z
   have h4 := angle_le_angle_add_angle u (-z) w
   rw [angle_neg_right, angle_neg_left, angle_comm z w] at h4
   refine Real.mem_dicutAngleSet_iff.2 ⟨angle_nonneg _ _, angle_le_pi _ _,
-    angle_nonneg _ _, angle_le_pi _ _, angle_nonneg _ _, angle_le_pi _ _, ?_, ?_, ?_, ?_⟩
-  · linarith [angle_comm z w]
-  · linarith [angle_comm w u, angle_comm w z]
-  · linarith [angle_comm u w]
-  · linarith
+    angle_nonneg _ _, angle_le_pi _ _, angle_nonneg _ _, angle_le_pi _ _,
+    by linarith [angle_le_angle_add_angle u z w, angle_comm z w],
+    by linarith [angle_le_angle_add_angle u w z, angle_comm w u, angle_comm w z],
+    by linarith [angle_le_angle_add_angle w u z, angle_comm u w],
+    by linarith⟩
 
 omit [Fintype ι] in
 private theorem inner_bounds_of_unit {u w : F} (hu : ‖u‖ = 1) (hw : ‖w‖ = 1) :
@@ -368,11 +365,9 @@ private theorem dicutValue_eq_tripleCutValue (ends : ι → V × V) (w : ι → 
       tripleCutValue (dicutTriple ends) w 0 side := by
   unfold dicutValue tripleCutValue dicutTriple
   refine Finset.sum_congr rfl fun e _ => ?_
-  simp only [Pi.zero_apply, ite_self, add_zero]
-  by_cases h1 : side (some (ends e).1) = true <;>
-    by_cases h2 : side (some (ends e).2) = true <;>
-    by_cases h3 : side none = true <;>
-    simp [h1, h2, h3]
+  rcases Bool.eq_false_or_eq_true (side (some (ends e).1)) with h1 | h1 <;>
+    rcases Bool.eq_false_or_eq_true (side (some (ends e).2)) with h2 | h2 <;>
+    rcases Bool.eq_false_or_eq_true (side none) with h3 | h3 <;> simp [h1, h2, h3]
 
 private theorem dicutSdpValue_eq_tripleSdpValue (ends : ι → V × V) (w : ι → ℝ)
     (v : Option V → F) :
@@ -557,9 +552,6 @@ theorem goemansWilliamsonConstant_mul_sub_le_integral_of_isBalancedDigraph (ends
   have hcut : (fun r : F => dicutValue ends w (dicutHyperplaneSet v r)) =
       fun r => cutValue ends w (hyperplaneSide (fun x => v (some x)) r) / 2 := by
     ext r
-    have heq : dicutValue ends w (dicutHyperplaneSet v r) =
-        cutValue ends w (dicutHyperplaneSet v r) / 2 := by
-      linarith [two_mul_dicutValue_eq_cutValue_of_isBalancedDigraph hbal (dicutHyperplaneSet v r)]
     have hinv : cutValue ends w (dicutHyperplaneSet v r) =
         cutValue ends w (hyperplaneSide (fun x => v (some x)) r) := by
       unfold cutValue dicutHyperplaneSet hyperplaneSide
@@ -567,7 +559,7 @@ theorem goemansWilliamsonConstant_mul_sub_le_integral_of_isBalancedDigraph (ends
       cases decide (0 ≤ ⟪v (some (ends e).1), r⟫) <;>
         cases decide (0 ≤ ⟪v (some (ends e).2), r⟫) <;>
         cases decide (0 ≤ ⟪v none, r⟫) <;> simp
-    rw [heq, hinv]
+    linarith [two_mul_dicutValue_eq_cutValue_of_isBalancedDigraph hbal (dicutHyperplaneSet v r)]
   rw [hcut, integral_div]
   have hsdp := goemansWilliamsonConstant_mul_sdpValue_le_integral ends hw
     (v := fun x => v (some x)) (fun x => hv (some x))

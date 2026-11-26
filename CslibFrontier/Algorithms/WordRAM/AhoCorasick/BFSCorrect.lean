@@ -215,8 +215,7 @@ theorem innerStep_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
           simp only [or_comm, or_assoc, or_self_left]
         delta_exp := hδe
         delta_r := hδr
-        tables := ⟨hinv.tables.zero_vals, hinv.tables.fail_spec, hinv.tables.outHead_spec,
-          hinv.tables.outNext_spec, hinv.tables.follow_spec⟩ }
+        tables := { hinv.tables with } }
 
 private theorem innerLoop_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
     (hT : TreeInv σ T)
@@ -275,11 +274,8 @@ theorem innerLoopInv_of_bfsInv {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
       r_eq := rfl
       q_bounds := hinv.q_bounds
       q_inj := hinv.q_inj
-      disc_iff := fun w hw => by
-        change w ∈ B.disc ↔ _
-        rw [hinv.disc_iff w hw]
-        simp only [Nat.not_lt_zero, false_and, exists_false, or_false]
-        rfl
+      disc_iff := fun w hw => (hinv.disc_iff w hw).trans
+        (by simp only [PBFS.expAt, qh, Nat.not_lt_zero, false_and, exists_false, or_false])
       q_mono := hinv.q_mono
       q_depth_ub := fun j hj => hinv.q_depth_ub j hj hlt
       lt_depth_mem_exp := fun v hv hdv => hinv.lt_depth_mem_exp v hv hlt hdv
@@ -304,8 +300,8 @@ theorem outerStep_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
   set r := B.queue qh
   set fr := B.fail r
   set B₁ : PBFS := { B with qHead := qh + 1 }
-  have hInner₀ : InnerLoopInv P σ T qh r fr 0 B₁ := innerLoopInv_of_bfsInv hT hinv hlt
-  have hInner := innerLoop_spec hT hchar hterm qh r fr σ 0 B₁ (by omega) hInner₀
+  have hInner := innerLoop_spec hT hchar hterm qh r fr σ 0 B₁ (by omega)
+    (innerLoopInv_of_bfsInv hT hinv hlt)
   rw [Nat.zero_add] at hInner
   set B₂ := PBFS.innerLoop T r fr σ 0 B₁
   have hexp₂ : B₂.expAt B₂.qHead = insert r (B₂.expAt qh) := by
@@ -330,8 +326,7 @@ theorem outerStep_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
         have hub := hInner.q_depth_ub B₂.qHead hlt₂
         rcases lt_or_ge (T.depth v) (T.depth r) with hlt_r | hge_r
         · rw [hexp₂]; exact Finset.mem_insert_of_mem (hInner.lt_depth_mem_exp v hv hlt_r)
-        · have hdv_le : T.depth v ≤ T.depth r := by omega
-          have hv_disc := hInner.le_depth_mem_disc v hv hdv_le
+        · have hv_disc := hInner.le_depth_mem_disc v hv (by omega)
           simp only [PBFS.disc, Finset.mem_insert, Finset.mem_image, Finset.mem_range] at hv_disc
           rcases hv_disc with rfl | ⟨i, hi, rfl⟩
           · exact Finset.mem_insert_self 0 _
@@ -461,27 +456,24 @@ theorem build_bfs_spec (P : List (List ℕ)) (σ : ℕ)
       · obtain ⟨u, huw, c, hc, htuc, _⟩ := hT.parent_exists w hpos hw
         exact (hFinal.disc_iff w hw).mpr
           (Or.inr ⟨u, hexp_eq_disc.symm ▸ ih u huw (lt_trans huw hw), c, hc, htuc⟩)
+  have hlt_of_disc {x : ℕ} (hx : x ∈ B.disc) : x < T.numStates :=
+    mem_disc_lt hT.one_le hFinal.q_bounds hx
   refine
     { qHead_eq_qTail := hqh_eq
       qTail_lt := qTail_lt_numStates hT.one_le hFinal.q_bounds hFinal.q_inj
       fail_zero := hFinal.tables.zero_vals.1
       fail_spec := fun u hu hup => by
         obtain ⟨hf_d, hf_s⟩ := hFinal.tables.fail_spec u (hall_disc u hu) hup
-        have hf_lt := mem_disc_lt hT.one_le hFinal.q_bounds hf_d
-        refine ⟨hf_lt, hf_s, ?_⟩
-        rw [hT.depth_eq _ hf_lt, hT.depth_eq u hu, hf_s]
+        refine ⟨hlt_of_disc hf_d, hf_s, ?_⟩
+        rw [hT.depth_eq _ (hlt_of_disc hf_d), hT.depth_eq u hu, hf_s]
         exact length_failure_lt P (hT.str_ne_nil u hup hu)
-      delta_spec := fun u hu a ha => by
-        have hu_exp : u ∈ B.expAt B.qHead := hexp_eq_disc.symm ▸ hall_disc u hu
-        obtain ⟨hd_d, hd_s⟩ := hFinal.delta_spec u hu_exp a ha
-        exact ⟨mem_disc_lt hT.one_le hFinal.q_bounds hd_d, hd_s⟩
+      delta_spec := fun u hu a ha =>
+        (hFinal.delta_spec u (hexp_eq_disc.symm ▸ hall_disc u hu) a ha).imp_left hlt_of_disc
       outHead_zero := hFinal.tables.zero_vals.2.1
-      outHead_spec := fun u hu => by
-        obtain ⟨h1, h2⟩ := hFinal.tables.outHead_spec u (hall_disc u hu)
-        exact ⟨mem_disc_lt hT.one_le hFinal.q_bounds h1, h2⟩
-      outNext_spec := fun q hq hqp => by
-        obtain ⟨h1, h2⟩ := hFinal.tables.outNext_spec q (hall_disc q hq) hqp
-        exact ⟨mem_disc_lt hT.one_le hFinal.q_bounds h1, h2⟩
+      outHead_spec := fun u hu =>
+        (hFinal.tables.outHead_spec u (hall_disc u hu)).imp_left hlt_of_disc
+      outNext_spec := fun q hq hqp =>
+        (hFinal.tables.outNext_spec q (hall_disc q hq) hqp).imp_left hlt_of_disc
       follow_spec := fun u hu => hFinal.tables.follow_spec u (hall_disc u hu) }
 
 end Cslib.Algorithms.WordRAM.AhoCorasick

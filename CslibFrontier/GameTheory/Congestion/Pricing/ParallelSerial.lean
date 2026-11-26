@@ -480,14 +480,8 @@ theorem serialTightness_smoothConvex (n : ℕ) :
     · refine ⟨convex_Ici 0, fun a _ b _ w₁ w₂ _ _ _ => ?_⟩
       simp only [serialTightnessLatency, one_ne_zero, ↓reduceIte, smul_eq_mul]
       linarith
-    · simp only [serialTightnessLatencyDeriv, one_ne_zero, ↓reduceIte]
-      have hfun : serialTightnessLatency n 1 j = fun y => y * ((1 : ℝ) / 2) := by
-        ext y
-        simp only [serialTightnessLatency, one_ne_zero, ↓reduceIte]
-        ring
-      rw [hfun]
-      convert (hasDerivAt_id' x).mul_const ((1 : ℝ) / 2) using 1
-      ring
+    · dsimp only [serialTightnessLatency, serialTightnessLatencyDeriv, one_ne_zero, ↓reduceIte]
+      exact (hasDerivAt_id x).div_const 2
 
 private theorem serialTightness_pathLatency_zero (n : ℕ) (u : ℝ) :
     serialPathLatency (serialTightnessLatency n) 0 u = 0 := by
@@ -515,7 +509,6 @@ theorem serialTightness_isStrongSerialOligopolyEquilibrium (n : ℕ) :
     IsStrongSerialOligopolyEquilibrium 1 1 (serialTightnessLatency n)
       (serialTightnessPrice n) (serialTightnessFlow n) := by
   have hn4 : (0 : ℝ) < (n : ℝ) + 4 := by positivity
-  have hn2 : (0 : ℝ) < (n : ℝ) + 2 := by positivity
   have hsum : ∑ i : Fin 2, serialTightnessFlow n i = 1 := by
     rw [Fin.sum_univ_two]
     simp only [serialTightnessFlow, ↓reduceIte, one_ne_zero]
@@ -616,8 +609,7 @@ theorem serialTightness_isSocialOptimum (n : ℕ) :
   simp only [socialSurplus, Fin.sum_univ_two, serialTightness_pathLatency_zero,
     serialTightness_pathLatency_one]
   have hysum : y 0 + y 1 ≤ 1 := by simpa only [Fin.sum_univ_two] using hy.2
-  have hy1 : 0 ≤ y 1 ^ 2 := sq_nonneg (y 1)
-  nlinarith [hy.1 0, hy.1 1]
+  nlinarith [hy.1 0, hy.1 1, sq_nonneg (y 1)]
 
 /-- Exact equilibrium social surplus `1 - ((n + 2) / (n + 4)) ^ 2 / 2` of the tightness family. -/
 theorem serialTightness_socialSurplus (n : ℕ) :
@@ -647,14 +639,8 @@ theorem serialTightness_surplus_lt_half_add {ε : ℝ} (hε : 0 < ε) :
       1 / 2 + 2 * ((n : ℝ) + 3) / ((n : ℝ) + 4) ^ 2 := by
     field_simp
     ring
-  rw [hid]
-  have hlt1 : 2 * ((n : ℝ) + 3) / ((n : ℝ) + 4) ^ 2 < 2 / ((n : ℝ) + 4) := by
-    rw [div_lt_div_iff₀ (sq_pos_of_pos hn4) hn4]
-    nlinarith [Nat.cast_nonneg (α := ℝ) n]
-  have hlt2 : 2 / ((n : ℝ) + 4) < ε := by
-    rw [div_lt_iff₀ hn4]
-    nlinarith [(div_lt_iff₀ hε).mp hn]
-  linarith
+  rw [hid, add_lt_add_iff_left, div_lt_iff₀ (sq_pos_of_pos hn4)]
+  nlinarith [(div_lt_iff₀ hε).mp hn, Nat.cast_nonneg (α := ℝ) n]
 
 end TightnessFamily
 

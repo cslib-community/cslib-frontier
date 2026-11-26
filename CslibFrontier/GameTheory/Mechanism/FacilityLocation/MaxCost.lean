@@ -704,9 +704,8 @@ theorem not_isStrategyProof_centerMechanism [DecidableEq ι] (hcard : 2 ≤ Fint
 theorem maxCost_le_two_mul_optMaxCost_of_mem_Icc {x : ι → ℝ} {y : ℝ}
     (hy : y ∈ Set.Icc (leftmost x) (rightmost x)) :
     maxCost x y ≤ 2 * optMaxCost x := by
-  rw [maxCost_real_eq, optMaxCost_real_eq]
-  have hcen_def : center x = (leftmost x + rightmost x) / 2 := rfl
-  have habs : |y - center x| ≤ (rightmost x - leftmost x) / 2 := by
+  rw [maxCost_real_eq, optMaxCost_real_eq, center]
+  have habs : |y - (leftmost x + rightmost x) / 2| ≤ (rightmost x - leftmost x) / 2 := by
     rw [abs_le]
     constructor <;> linarith [hy.1, hy.2]
   linarith
@@ -1014,33 +1013,24 @@ theorem three_halves_le_of_isStrategyProof [DecidableEq ι] (hcard : 2 ≤ Finty
   let x : ι → ℝ := fun j => if j = i₁ then 0 else if j = i₂ then 1 else 1 / 2
   have hhalf := exists_expectedCost_ge_half_dist (hfin x) (0 : ℝ) 1
   rw [show dist (0 : ℝ) 1 / 2 = 1 / 2 by rw [Real.dist_eq]; norm_num] at hhalf
+  have hdev (i : ι) (z : ℝ) {c l r : ℝ}
+      (hx' : leftmost (Function.update x i z) = l ∧ rightmost (Function.update x i z) = r)
+      (hxi : x i = c) (hge : 1 / 2 ≤ expectedCost (M x) c)
+      (hlr : r - l = 2 ∧ (l + r) / 2 = c) : 3 / 2 ≤ α := by
+    set x' := Function.update x i z
+    have hsp' : expectedCost (M x) c ≤ expectedCost (M x') c := hxi ▸ hsp_real x i z
+    have hmc := expectedMaxCost_eq_expectedCost_center_add (hfin x') x'
+    have hbd := happrox_real x'
+    rw [center, optMaxCost_real_eq, hx'.1, hx'.2, hlr.1, hlr.2] at hmc
+    rw [optMaxCost_real_eq, hx'.1, hx'.2, hlr.1] at hbd
+    linarith
   rcases hhalf with h0 | h1
   · -- `1/2 ≤ expectedCost (M x) 0`: deviate agent `i₁` from `0` to `-1` (center `0`, opt `1`).
-    let x' := Function.update x i₁ (-1)
-    have hx' : leftmost x' = -1 ∧ rightmost x' = 1 :=
-      leftmost_rightmost_update_first h12 (by norm_num) (by norm_num)
-    have hcen : center x' = 0 := by rw [center, hx'.1, hx'.2]; norm_num
-    have hopt : optMaxCost x' = 1 := by rw [optMaxCost_real_eq, hx'.1, hx'.2]; norm_num
-    have hsp1 : expectedCost (M x) 0 ≤ expectedCost (M x') 0 := by
-      simpa only [show x i₁ = 0 by simp [x]] using hsp_real x i₁ (-1)
-    have hmc := expectedMaxCost_eq_expectedCost_center_add (hfin x') x'
-    have hbd := happrox_real x'
-    rw [hcen, hopt] at hmc
-    rw [hopt] at hbd
-    linarith
+    refine hdev i₁ (-1) (leftmost_rightmost_update_first h12 ?_ ?_) (by simp [x]) h0 ?_
+    all_goals norm_num
   · -- `1/2 ≤ expectedCost (M x) 1`: deviate agent `i₂` from `1` to `2` (center `1`, opt `1`).
-    let x' := Function.update x i₂ 2
-    have hx' : leftmost x' = 0 ∧ rightmost x' = 2 :=
-      leftmost_rightmost_update_second h12 (by norm_num) (by norm_num)
-    have hcen : center x' = 1 := by rw [center, hx'.1, hx'.2]; norm_num
-    have hopt : optMaxCost x' = 1 := by rw [optMaxCost_real_eq, hx'.1, hx'.2]; norm_num
-    have hsp2 : expectedCost (M x) 1 ≤ expectedCost (M x') 1 := by
-      simpa only [show x i₂ = 1 by simp [x, h12.symm]] using hsp_real x i₂ 2
-    have hmc := expectedMaxCost_eq_expectedCost_center_add (hfin x') x'
-    have hbd := happrox_real x'
-    rw [hcen, hopt] at hmc
-    rw [hopt] at hbd
-    linarith
+    refine hdev i₂ 2 (leftmost_rightmost_update_second h12 ?_ ?_) (by simp [x, h12.symm]) h1 ?_
+    all_goals norm_num
 
 end RealMaxCost
 

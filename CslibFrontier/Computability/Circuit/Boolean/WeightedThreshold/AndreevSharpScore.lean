@@ -344,23 +344,15 @@ theorem andreevSharpLoad_le (x : BitString b → Bool) (s : Fin b → ℕ) (hs :
     andreevSharpLoad b m x s ≤ andreevSharpRange b m := by
   have hμ : ∑ c, andreevSharpMult b m c * (x c).toNat ≤ ∑ c, andreevSharpMult b m c :=
     sum_le_sum fun c _ => by cases x c <;> simp
-  have hsum : (∑ c, (andreevSharpMult b m c : ℝ)) = (2 ^ b - 1) + andreevSharpAmp m * b := by
-    simp only [cast_andreevSharpMult, sum_add_distrib, ← mul_sum]
-    have h1 := sum_onSingles_mul (1 : Fin b → ℝ) fun _ => 1
-    simp only [mul_one, Pi.one_apply, sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul] at h1
-    rw [h1]
-    have h2 : ∑ c : BitString b, (if c = 0 then (0 : ℝ) else 1) = 2 ^ b - 1 := by
-      have h (c : BitString b) : (if c = 0 then (0 : ℝ) else 1) = 1 - if c = 0 then 1 else 0 := by
-        split_ifs <;> norm_num
-      simp [h, sum_sub_distrib]
-    rw [h2]
-  have hpow : 1 ≤ 2 ^ b := Nat.one_le_two_pow
   have hμN : ∑ c, andreevSharpMult b m c = (2 ^ b - 1) + andreevSharpAmp m * b := by
-    have : ((∑ c, andreevSharpMult b m c : ℕ) : ℝ) =
-        (((2 ^ b - 1) + andreevSharpAmp m * b : ℕ) : ℝ) := by
-      push_cast [Nat.cast_sub hpow]
-      exact hsum
-    exact_mod_cast this
+    suffices ((∑ c, andreevSharpMult b m c : ℕ) : ℝ) =
+        (((2 ^ b - 1) + andreevSharpAmp m * b : ℕ) : ℝ) from mod_cast this
+    have h1 : (∑ c : BitString b, onSingles (1 : Fin b → ℝ) c) = b := by
+      simpa using sum_onSingles_mul (1 : Fin b → ℝ) fun _ => 1
+    have h0 (c : BitString b) : (if c = 0 then (0 : ℝ) else 1) = 1 - if c = 0 then 1 else 0 := by
+      split_ifs <;> norm_num
+    push_cast [Nat.cast_sub Nat.one_le_two_pow]
+    simp [cast_andreevSharpMult, sum_add_distrib, ← mul_sum, h1, h0, sum_sub_distrib]
   have hσ : ∑ i, s i ≤ b * m := (sum_le_sum fun i _ => hs i).trans (by simp)
   rw [andreevSharpLoad, andreevSharpRange]
   have := hμ.trans hμN.le
@@ -395,8 +387,7 @@ theorem andreevSharpScore_margin (x : BitString b → Bool) (s : Fin b → ℕ)
   · simp only [hp0, ↓reduceIte, mul_zero, sub_zero, add_zero]
     by_cases hu : IsSingle p
     · obtain ⟨i, hi⟩ := hu
-      have hpi : p i = true := by simp [hi]
-      have hsi : s i % 2 = 1 := by simpa [hp, blockParities] using hpi
+      have hsi : s i % 2 = 1 := by simpa [hp, blockParities] using congrFun hi i
       have hsim := hs i
       have hα : s i ≤ 2 * andreevSharpAmp m + 1 := by rw [andreevSharpAmp]; omega
       have hα' : (s i : ℝ) ≤ 2 * andreevSharpAmp m + 1 := by exact_mod_cast hα

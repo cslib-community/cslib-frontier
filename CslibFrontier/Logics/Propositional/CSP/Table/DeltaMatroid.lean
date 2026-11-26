@@ -150,11 +150,8 @@ private theorem count_eq_one_iff {n : ℕ} (x : Fin n → Bool) :
   · intro h
     obtain ⟨k, hk, he⟩ := exists_listSingle_of_count_true h
     have hk' : k < n := by simpa using hk
-    have hh : (fun j : Fin n => decide (j = (⟨k, hk'⟩ : Fin n))) = x := by
-      apply List.ofFn_injective
-      have he' : listSingle n k = List.ofFn x := by simpa only [List.length_ofFn] using he
-      rwa [listSingle_eq_ofFn (⟨k, hk'⟩ : Fin n)] at he'
-    exact ⟨⟨k, hk'⟩, fun j => congrFun hh.symm j⟩
+    rw [List.length_ofFn, listSingle_eq_ofFn ⟨k, hk'⟩] at he
+    exact ⟨⟨k, hk'⟩, fun j => (congrFun (List.ofFn_injective he) j).symm⟩
   · rintro ⟨k, hk⟩
     rw [funext hk, ← listSingle_eq_ofFn]
     exact count_true_listSingle k.isLt
@@ -269,21 +266,14 @@ theorem isEvenDeltaMatroid_contract {table : Table} {reference : List Bool}
           exact ⟨hdv.symm.trans hs,
             List.singleton_injective ((List.append_inj heq (by simp [project, href, m])).2).symm⟩
   have hne : C.Nonempty := by
-    have hsem := sem_contract_reference hc
-    have hlen :
-        (project reference (outsidePositions reference.length positions) ++ [false]).length =
-        (contract table reference positions).arity := by
-      simpa [project] using (arity_contract hc).symm
-    let y : Fin (contract table reference positions).arity → Bool :=
-      fun j =>
-        (project reference (outsidePositions reference.length positions) ++ [false]).getD j false
-    have hy : y ∈ booleanRelation arity sem (contract table reference positions) := by
-      change (contract table reference positions).sem (List.ofFn y) = true
-      convert hsem using 1
-      congr 1
-      exact List.ext_getElem (by simpa using hlen.symm) fun j _ _ => by
-        simp only [List.getElem_ofFn]; exact (List.getElem_eq_getD false).symm
-    exact ⟨fun i => y (F i), (Set.ext_iff.mp he y).mpr hy⟩
+    let row := project reference (outsidePositions reference.length positions) ++ [false]
+    have hlen : row.length = (contract table reference positions).arity := by
+      simpa [row, project] using (arity_contract hc).symm
+    let y : Fin (contract table reference positions).arity → Bool := fun j => row[j]'(by omega)
+    have hy : List.ofFn y = row := List.ext_getElem (by simp [hlen]) fun j _ _ => by simp [y]
+    exact ⟨fun i => y (F i), (Set.ext_iff.mp he y).mpr
+      (show (contract table reference positions).sem (List.ofFn y) = true from
+        hy.symm ▸ sem_contract_reference hc)⟩
   rw [← he]
   exact ((hR.reindex E.symm).comp (isEvenDeltaMatroid_starAt r) hne).reindex F
 

@@ -974,19 +974,17 @@ theorem expenditure_phantomExcessDemand_ge_delta [Nonempty G]
         rw [ExchangeMarket.excessDemand_eq, Fintype.sum_option,
           E.withPhantomTrader_totalSupply η hη0.le g]
         simp only [xHat, Z, phantomExcessDemand_apply, hZ'_eq hpHat_pos g]; ring
-    refine ⟨fun g => (hpHat_pos g).le, ?_, fun g => ?_,
+    refine ⟨fun g => (hpHat_pos g).le, ?_, fun g => le_of_eq ((hex_eq g).trans (congrFun hz0 g)),
       fun g => by rw [hex_eq, hz0, Pi.zero_apply, mul_zero]⟩
-    · rintro (rfl | i)
-      · rw [ExchangeMarket.mem_demandSet, ExchangeMarket.withPhantomTrader_utility_none,
-          ExchangeMarket.income_eq]
-        exact cobbDouglasDemand_mem_demandSet (fun _ => by positivity) sum_uniformWeight
-          hpHat_pos (expenditure_nonneg (fun g => (hpHat_pos g).le) fun _ => hη0.le)
-      · rw [ExchangeMarket.mem_demandSet, ExchangeMarket.withPhantomTrader_utility_some,
-          ExchangeMarket.income_eq]
-        have hmem := (E.mem_demandSet).1 (hd hpHat_pos i)
-        rwa [E.income_eq] at hmem
-    · rw [hex_eq, hz0]
-      exact le_rfl
+    rintro (rfl | i)
+    · rw [ExchangeMarket.mem_demandSet, ExchangeMarket.withPhantomTrader_utility_none,
+        ExchangeMarket.income_eq]
+      exact cobbDouglasDemand_mem_demandSet (fun _ => by positivity) sum_uniformWeight
+        hpHat_pos (expenditure_nonneg (fun g => (hpHat_pos g).le) fun _ => hη0.le)
+    · rw [ExchangeMarket.mem_demandSet, ExchangeMarket.withPhantomTrader_utility_some,
+        ExchangeMarket.income_eq]
+      have hmem := (E.mem_demandSet).1 (hd hpHat_pos i)
+      rwa [E.income_eq] at hmem
   -- Contrapositive of Exercise 6.5 gives a pair of goods violating `(1 + ε / 3)`.
   have hspread : ∃ j l : G, (1 + ε / 3) * (p l / pHat l) < p j / pHat j := by
     by_contra hall
@@ -1082,14 +1080,12 @@ theorem expenditure_phantomExcessDemand_ge_delta [Nonempty G]
     have h0_le_s : sFirst ≤ s := Nat.zero_le _
     have hZ'_nn := sub_nonneg.2
       (excessDemand_hybridPrice_le_succ_of_le hWGS' hpHat_pos hp_pos hss' h0_le_s)
-    have hqs'_0 : q s' (σ sFirst) = p (σ sFirst) :=
-      hybridPrice_sorted_of_le hpHat_pos (h0_le_s.trans hss')
-    have hqs_0 : q s (σ sFirst) = p (σ sFirst) :=
-      hybridPrice_sorted_of_le hpHat_pos h0_le_s
     have hph_diff : phantomDemand η (q s') (σ sFirst) - phantomDemand η (q s) (σ sFirst) =
         (1 / (n : ℝ)) * (expenditure (q s') (fun _ => η) - expenditure (q s) (fun _ => η)) /
           p (σ sFirst) := by
-      simp only [phantomDemand_apply, hqs'_0, hqs_0]
+      simp only [phantomDemand_apply, q, α, σ,
+        hybridPrice_sorted_of_le hpHat_pos (h0_le_s.trans hss'),
+        hybridPrice_sorted_of_le hpHat_pos h0_le_s]
       ring
     have hp0_pos := hp_pos (σ sFirst)
     have hph_ge : (ε * α s * pHat (σ sLast) * η) / (6 * (n : ℝ) ^ 2 * p (σ sFirst)) ≤
@@ -1348,12 +1344,10 @@ theorem exists_le_tatonnementIter_sep_lt [Nonempty G] {Z : (G → ℝ) → G →
               max_eq_right (by linarith)]
             nlinarith
       -- At least one coordinate violates `Δ⁺`, contributing `≥ (η / (4n))^2`.
-      have hex_viol : ∃ g₀ : G,
+      obtain ⟨g₀, hviol⟩ : ∃ g₀ : G,
           p g₀ < η / (4 * (n : ℝ)) ∨ 1 + η / (4 * (n : ℝ)) < p g₀ := by
-        by_contra hall
-        push Not at hall
-        exact hp_in fun g => ⟨(hall g).1, (hall g).2⟩
-      obtain ⟨g₀, hviol⟩ := hex_viol
+        by_contra! hall
+        exact hp_in hall
       have hg₀_drop : (η / (4 * (n : ℝ))) ^ 2 ≤
           (pStar g₀ - p g₀) ^ 2 - (pStar g₀ - projectTatonnementBox η p g₀) ^ 2 := by
         have hr_pos : 0 < η / (4 * (n : ℝ)) := by positivity

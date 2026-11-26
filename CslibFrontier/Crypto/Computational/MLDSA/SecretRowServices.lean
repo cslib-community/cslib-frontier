@@ -45,23 +45,20 @@ private theorem agree_at_setup {s : Level} {base : Xofs} {a b : ℕ} {ha : 528 �
   simp only [Xofs.withKeySeedExpansion, byteAt_withPrefixes, key, ↓reduceIte, Option.bind_none,
     Option.getD_none]
   cases share
-  · rfl
-  · exact original.2 x i (Or.inr short)
+  exacts [rfl, original.2 x i (Or.inr short)]
 
 private theorem RowAgreement.write {s : Level} {v : SecretExpansionViews s} {L R : Xofs}
     (h : RowAgreement v L R) (x : List Bool) (out : List Byte) :
     RowAgreement v (L.writeCommitment x out) (R.writeCommitment x out) := by
-  refine ⟨h.1, ?_⟩
-  intro y key short i
-  simp only [Xofs.writeCommitment, byteAt_withPrefixes, h.2 y key short i]
+  exact ⟨h.1, fun y key short i => by
+    simp only [Xofs.writeCommitment, byteAt_withPrefixes, h.2 y key short i]⟩
 
 private theorem RowAgreement.read {s : Level} {v : SecretExpansionViews s} {L R : Xofs}
     (h : RowAgreement v L R) {x : List Bool} (hk : x.length ≠ 272) (hn : x.length ≠ 528)
     (n : ℕ) : L.h256.read x n = R.h256.read x n := by
-  apply read_eq_of_byteAt_eq
-  intro i _
-  exact h.2 x (fun e => hk (e ▸ length_keySeedInput ..))
-    (fun _ e => hn (e ▸ length_nonceInput_bits ..)) i
+  exact read_eq_of_byteAt_eq fun i _ =>
+    h.2 x (fun e => hk (e ▸ length_keySeedInput ..))
+      (fun _ e => hn (e ▸ length_nonceInput_bits ..)) i
 
 private theorem RowAgreement.publicKey {s : Level} {v : SecretExpansionViews s} {L R : Xofs}
     (h : RowAgreement v L R) (pk : MLDSA.PublicKey s.params) :
@@ -244,9 +241,8 @@ private theorem scoreProgram_congr (C : QuantumSigningForger) {s : Level}
         st₁.trace.replay_eq.symm.trans (congrArg (TerminalSigningWrite.replay base₁) writes)
       simp only [programmedCommands, statefulSigningCommands, OracleComp.sumHandler, deviceCommand,
         PMF.bind_map, Function.comp_def, raw]
-      apply congrArg (PMF.bind _ ·)
-      funext ⟨reply, device⟩
-      exact ih reply device st₁ st₂ h log writes
+      exact congrArg (PMF.bind _ ·) (funext fun ⟨reply, device⟩ =>
+        ih reply device st₁ st₂ h log writes)
     · simp only [programmedCommands, statefulSigningCommands, OracleComp.sumHandler, PMF.bind_map,
         Function.comp_def]
       exact publicCall_congr st₁ st₂ h log writes size safe pair ask
@@ -380,17 +376,13 @@ theorem secretRow_changedResponse_le (C : QuantumSigningForger) (s : Level) (bas
       | some pk => C.publicPairResponseChange s j (if share then v.shared else v.background)
           H v.publicSeed pk) true ≤
       (2 ^ 256 : ℝ≥0∞)⁻¹ := by
-  refine le_trans ?_ (C.publicPairQueryHit_le s j base ha hb)
-  apply PMF.bind_apply_mono_on_support
-  intro v hv
-  apply PMF.bind_apply_mono_on_support
-  intro H hH
+  refine le_trans (PMF.bind_apply_mono_on_support _ true fun v hv =>
+    PMF.bind_apply_mono_on_support _ true fun H hH => ?_) (C.publicPairQueryHit_le s j base ha hb)
   cases hp : v.pair with
   | none => exact le_rfl
   | some pk =>
     simp only [publicPairResponseChange, publicPairQueryAddress, PMF.map_comp, Function.comp_def]
-    apply PMF.map_true_mono
-    exact fun o _ => C.hit_of_change (agree_at_setup hv hH share) o
+    exact PMF.map_true_mono _ fun o _ => C.hit_of_change (agree_at_setup hv hH share) o
 
 end QuantumSigningForger
 

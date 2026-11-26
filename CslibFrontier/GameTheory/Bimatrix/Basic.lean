@@ -273,8 +273,7 @@ theorem payoff₁_pos (hA : ∀ i j, 0 < G.A i j) (hx : IsMixedStrategy x) (hy :
 /-- With positive payoffs, player 2 earns a positive expected payoff. -/
 theorem payoff₂_pos (hB : ∀ i j, 0 < G.B i j) (hx : IsMixedStrategy x) (hy : IsMixedStrategy y) :
     0 < G.payoff₂ x y := by
-  rw [← payoff₁_swap]
-  exact G.swap.payoff₁_pos (fun j i => hB i j) hy hx
+  exact payoff₁_swap G y x ▸ G.swap.payoff₁_pos (fun j i => hB i j) hy hx
 
 private theorem IsNash.ncard_support_le (hG : G.IsNondegenerate) (h : G.IsNash x y) :
     (Function.support x).ncard ≤ (Function.support y).ncard :=
@@ -365,12 +364,8 @@ theorem exists_addConst_pos [Finite M] [Finite N] :
   obtain ⟨c, hc⟩ :=
     (Set.toFinite (Set.range fun p : M × N => max (-G.A p.1 p.2) (-G.B p.1 p.2))).bddAbove
   refine ⟨c + 1, fun i j => ?_, fun i j => ?_⟩
-  · have : -G.A i j ≤ c := (le_max_left _ _).trans (hc ⟨(i, j), rfl⟩)
-    rw [addConst_A_apply]
-    linarith
-  · have : -G.B i j ≤ c := (le_max_right _ _).trans (hc ⟨(i, j), rfl⟩)
-    rw [addConst_B_apply]
-    linarith
+  · linarith [G.addConst_A_apply (c + 1) i j, (le_max_left _ _).trans (hc ⟨(i, j), rfl⟩)]
+  · linarith [G.addConst_B_apply (c + 1) i j, (le_max_right _ _).trans (hc ⟨(i, j), rfl⟩)]
 
 end BimatrixGame
 

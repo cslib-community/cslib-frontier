@@ -308,18 +308,10 @@ theorem step_comm_of_ne_target (π : Protocol P objs S V) {p q : P} {c : Config 
     (hp : c.Active p) (hq : c.Active q) (hpq : p ≠ q)
     (htarget : π.target p (c.proc p).state ≠ π.target q (c.proc q).state) :
     π.step q (π.step p c) = π.step p (π.step q c) := by
-  have hqp : q ≠ p := hpq.symm
-  have hq' : (π.step p c).Active q := (π.active_step_of_ne hqp).mpr hq
-  have hp' : (π.step q c).Active p := (π.active_step_of_ne hpq).mpr hp
-  have hproc_q : (π.step p c).proc q = c.proc q := π.step_proc_of_ne c hqp
-  have hproc_p : (π.step q c).proc p = c.proc p := π.step_proc_of_ne c hpq
-  have hmem_q : (π.step p c).mem (π.target q (c.proc q).state) =
-      c.mem (π.target q (c.proc q).state) :=
-    π.step_mem_of_ne_target hp htarget.symm
-  have hmem_p : (π.step q c).mem (π.target p (c.proc p).state) =
-      c.mem (π.target p (c.proc p).state) :=
-    π.step_mem_of_ne_target hq htarget
-  rw [π.step_of_active hq', π.step_of_active hp', hproc_q, hproc_p, hmem_q, hmem_p,
+  rw [π.step_of_active ((π.active_step_of_ne hpq.symm).mpr hq),
+    π.step_of_active ((π.active_step_of_ne hpq).mpr hp),
+    π.step_proc_of_ne c hpq.symm, π.step_proc_of_ne c hpq,
+    π.step_mem_of_ne_target hp htarget.symm, π.step_mem_of_ne_target hq htarget,
     π.step_of_active hp, π.step_of_active hq]
   exact Config.ext (Function.update_comm htarget _ _ c.mem) (Function.update_comm hpq _ _ c.proc)
 

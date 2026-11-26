@@ -174,15 +174,12 @@ instance instInhabitedRouterSeed (ℓ : ℕ) : Inhabited (P.RouterSeed ℓ) :=
 theorem card_routerSeed (ℓ : ℕ) :
     Fintype.card (P.RouterSeed ℓ) = 2 ^ P.routerSeedBits ℓ := by
   dsimp only [routerSeedBits]
-  by_cases h : P.usesDoubleTabRouter ℓ
-  · have hth : FeistelPerm.childRouterThreshold P.epsInv P.alphaInv ≤ P.nLow ℓ := h
-    rw [ite_eq_left hth, ← Fintype.card_congr (P.routerSeedDoubleTabEquiv h)]
+  split_ifs with h
+  · rw [← Fintype.card_congr (P.routerSeedDoubleTabEquiv h)]
     exact FeistelPerm.card_childRouterSeed _ _ _ _
-  · have hth : ¬ FeistelPerm.childRouterThreshold P.epsInv P.alphaInv ≤ P.nLow ℓ := h
-    rw [ite_eq_right hth, ← Fintype.card_congr (P.routerSeedTrinomialEquiv h)]
+  · rw [← Fintype.card_congr (P.routerSeedTrinomialEquiv h)]
     simp only [SmallRouterSeed, Fintype.card_fun, Fintype.card_fin, ← Nat.pow_mul]
-    congr 1
-    ring
+    exact congrArg (2 ^ ·) (by ring)
 
 /-- Below `childRouterThreshold`, the trinomial child-router polynomial degree is bounded by the
 capacity-independent constant `smallRouterMaxDegree P.epsInv P.alphaInv`. -/
@@ -371,16 +368,12 @@ theorem dens_routerRound_outside_bounds_le (hcr : P.ConcentrationReady) {ℓ : �
     let u : ℝ := μ ^ ((1 : ℝ) / 3)
     have hu_pos : 0 < u := Real.rpow_pos_of_pos hμ_pos _
     have hu_pow (k : ℕ) : μ ^ ((k : ℝ) / 3) = u ^ k := by
-      dsimp only [u]
       rw [← Real.rpow_natCast, ← Real.rpow_mul hμ_pos.le]
-      congr 1
-      ring
+      exact congrArg (μ ^ ·) (by ring)
     have hu3 : u ^ 3 = μ := by rw [← hu_pow]; norm_num
     have h150 : 150 * (m_hi : ℝ) ≤ u := by
-      refine (pow_le_pow_iff_left₀ (by positivity) hu_pos.le (by decide : 3 ≠ 0)).mp ?_
-      rw [hu3]
-      dsimp only [μ]
-      rw [le_div_iff₀ (pow_pos two_pos s), mul_comm]
+      refine (pow_le_pow_iff_left₀ (by positivity) hu_pos.le (Nat.succ_ne_zero 2)).mp ?_
+      rw [hu3, le_div_iff₀ (pow_pos two_pos s), mul_comm]
       exact_mod_cast hconc_hi
     have ha_pos : 0 < a := mul_pos (by norm_num) (Real.rpow_pos_of_pos hμ_pos _)
     have hm_real : (1 : ℝ) ≤ m_hi := by exact_mod_cast hm1
@@ -640,16 +633,14 @@ theorem card_isGoodNodeSeed_ge (hcr : P.ConcentrationReady) {ℓ : ℕ} (hℓ : 
   have := P.nFloor_pos ℓ hℓ
   rw [dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast,
     div_le_div_iff₀ (Nat.cast_pos.mpr Fintype.card_pos) (by positivity)] at hbad
-  have hbad' : (P.nFloor ℓ) ^ 2 * #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S} ≤
-      3 * Fintype.card (P.NodeSeed ℓ) := by
-    rw [Nat.mul_comm]
-    exact_mod_cast hbad
+  have hbad' : #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S} * (P.nFloor ℓ) ^ 2 ≤
+      3 * Fintype.card (P.NodeSeed ℓ) := by exact_mod_cast hbad
   have hpart : (P.nFloor ℓ) ^ 2 * #{g : P.NodeSeed ℓ | P.IsGoodNodeSeed ℓ g S} +
-      (P.nFloor ℓ) ^ 2 * #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S} =
+      #{g : P.NodeSeed ℓ | ¬ P.IsGoodNodeSeed ℓ g S} * (P.nFloor ℓ) ^ 2 =
       (P.nFloor ℓ) ^ 2 * Fintype.card (P.NodeSeed ℓ) := by
-    rw [← Nat.mul_add, card_filter_add_card_filter_not, card_univ]
-  rw [Nat.sub_mul]
-  omega
+    rw [Nat.mul_comm _ ((P.nFloor ℓ) ^ 2), ← Nat.mul_add, card_filter_add_card_filter_not,
+      card_univ]
+  rw [Nat.sub_mul]; omega
 
 open scoped Classical in
 private theorem dens_not_isGoodNodeSeed_lt_half (hcr : P.ConcentrationReady) {ℓ : ℕ}

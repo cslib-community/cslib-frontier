@@ -314,6 +314,16 @@ theorem probOracleComp_uniform_bind_run_interpret_nonceFnHandler {α β : Type}
       ((PMF.uniformOfFintype (N → Y)).bind fun table =>
         post a tr' (reconstructPadFn hash k tr' table)) = c := by
     simp only [hpost a tr' _ hnot, PMF.bind_const]
+  have hlhs (p : ProbOracleComp (fun _ : M × N => Y) α) {tr₁ : List ((M × N) × Y)}
+      (hnot : ¬ (tr₁.map (fun e => e.1.2)).Nodup) (padFn : N → Y) :=
+    runWith_bind_of_not_nodup (happ_fn padFn) p hnot (fun a tr' => post a tr' padFn) c
+      fun a tr' => hpost a tr' padFn
+  have hrhs (p : ProbOracleComp (fun _ : M × N => Y) α) {tr₁ : List ((M × N) × Y)}
+      (hnot : ¬ (tr₁.map (fun e => e.1.2)).Nodup) :=
+    runWith_bind_of_not_nodup happ_sim p hnot
+      (fun a tr' => (PMF.uniformOfFintype (N → Y)).bind fun table =>
+        post a tr' (reconstructPadFn hash k tr' table))
+      c hpost_sim
   induction prog using ProbOracleComp.induction generalizing tr with
   | pure a => simp
   | sample_bind m cont ih =>
@@ -325,34 +335,15 @@ theorem probOracleComp_uniform_bind_run_interpret_nonceFnHandler {α β : Type}
     · simp only [pmf_norm, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
         nonceFnHandler, nonceSimHandler]
       by_cases hx : q.2 ∈ tr.map (fun e => e.1.2)
-      · have hnot (t : Y) : ¬ ((tr ++ [(q, t)]).map (fun e => e.1.2)).Nodup :=
-          not_nodup_map_append_of_mem q.1 t hx
-        have hlhs (table : N → Y) :=
-          let padFn := reconstructPadFn hash k tr table
-          let t := sign hash k (padFn q.2) q.1
-          runWith_bind_of_not_nodup (happ_fn padFn) (cont t) (hnot t)
-            (fun a tr' => post a tr' padFn) c (fun a tr' h => hpost a tr' padFn h)
-        have hrhs (t : Y) :=
-          runWith_bind_of_not_nodup happ_sim (cont t) (hnot t)
-            (fun a tr' => (PMF.uniformOfFintype (N → Y)).bind fun table =>
-              post a tr' (reconstructPadFn hash k tr' table))
-            c hpost_sim
-        simp only [hlhs, hrhs, PMF.bind_const]
+      · have hnot (t : Y) := not_nodup_map_append_of_mem q.1 t hx
+        simp only [fun t => hlhs (cont t) (hnot t), fun t => hrhs (cont t) (hnot t), PMF.bind_const]
       · rw [uniform_reconstructPadFn_step hash k q.1 hx
           (fun t tr' fn => (ProbOracleComp.runWith (nonceFnHandler hash k fn) (cont t) tr').bind
             fun res => post res.1 res.2 fn)]
         congr 1 with t : 1
         exact ih t (tr ++ [(q, t)])
-    · have hlhs (table : N → Y) :=
-        let padFn := reconstructPadFn hash k tr table
-        runWith_bind_of_not_nodup (happ_fn padFn) (ProbOracleComp.query q >>= cont) hnodup
-          (fun a tr' => post a tr' padFn) c (fun a tr' h => hpost a tr' padFn h)
-      have hrhs :=
-        runWith_bind_of_not_nodup happ_sim (ProbOracleComp.query q >>= cont) hnodup
-          (fun a tr' => (PMF.uniformOfFintype (N → Y)).bind fun table =>
-            post a tr' (reconstructPadFn hash k tr' table))
-          c hpost_sim
-      simp only [hlhs, hrhs, PMF.bind_const]
+    · simp only [hlhs (ProbOracleComp.query q >>= cont) hnodup,
+        hrhs (ProbOracleComp.query q >>= cont) hnodup, PMF.bind_const]
 
 /-- **Multi-query simulation equivalence for `nonceFnHandler` under a random function**:
 specialization of `probOracleComp_uniform_bind_run_interpret_nonceFnHandler` to deterministic

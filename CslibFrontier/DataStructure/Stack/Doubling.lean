@@ -220,11 +220,9 @@ theorem runClient_push_not_full (v : ℕ) (s : State) (h : count hdr s ≠ capac
           (count hdr s + 1), s.frontier⟩,
         [.read hdr, .read (hdr + 1), .read (hdr + 2), .write (base hdr s + count hdr s) v,
           .write hdr (count hdr s + 1)]) := by
-  have he : ensure hdr (count hdr s) (capacity hdr s) = pure () := by
-    simp only [ensure, h, ↓reduceIte]
+  have he : ensure hdr (s.mem hdr) (s.mem (hdr + 1)) = pure () := ite_eq_right h
   unfold push
-  simp only [StateTransitionSpec.runClient_lift_bind', StateTransitionSpec.stepFn, step_read]
-  rw [show ensure hdr (s.mem hdr) (s.mem (hdr + 1)) = pure () from he]
+  simp only [StateTransitionSpec.runClient_lift_bind', StateTransitionSpec.stepFn, step_read, he]
   rfl
 
 /-- A push into a full array grows it, then appends. -/
@@ -236,15 +234,11 @@ theorem push_full_eq (v : ℕ) (s : State) (h : count hdr s = capacity hdr s) :
         .read hdr :: .read (hdr + 1) ::
           (Memory.spec w).clientHistory s (grow hdr (count hdr s) >>= fun _ =>
             append hdr (count hdr s) v) := by
-  have he : ensure hdr (count hdr s) (capacity hdr s) = grow hdr (count hdr s) := by
-    simp only [ensure, h, ↓reduceIte]
-  exact ⟨by
-    change (Memory.spec w).clientState s (ensure hdr (count hdr s) (capacity hdr s) >>= fun _ =>
-      append hdr (count hdr s) v) = _
-    rw [he], by
-    change _ :: _ :: (Memory.spec w).clientHistory s (ensure hdr (count hdr s) (capacity hdr s) >>=
-      fun _ => append hdr (count hdr s) v) = _
-    rw [he]⟩
+  have he : ensure hdr (count hdr s) (capacity hdr s) = grow hdr (count hdr s) := ite_eq_left h
+  exact ⟨congrArg (fun m =>
+      (Memory.spec w).clientState s (m >>= fun _ => append hdr (count hdr s) v)) he,
+    congrArg (fun m => Op.read hdr :: Op.read (hdr + 1) ::
+      (Memory.spec w).clientHistory s (m >>= fun _ => append hdr (count hdr s) v)) he⟩
 
 /-- A pop from an empty stack reads the count only. -/
 theorem runClient_pop_of_eq_zero (s : State) (h : count hdr s = 0) :
@@ -621,11 +615,9 @@ theorem amortized : (framed hdr w C).Amortized charge (fun _ _ => 13) (potential
       simp only [potential, hn, hcap]
       omega
     · obtain ⟨hn, hcap, -⟩ := push_not_full hs heq v
-      simp only [StateTransitionSpec.clientHistory, runClient_push_not_full hdr v s heq]
-      simp only [StateTransitionSpec.clientState, runClient_push_not_full hdr v s heq] at hn hcap
-      simp only [StateTransitionSpec.clientState, runClient_push_not_full hdr v s heq, potential,
-        hn, hcap, StateTransitionSpec.totalCost_cons, charge_read, charge_write,
-        StateTransitionSpec.totalCost_nil]
+      simp only [potential, hn, hcap, StateTransitionSpec.clientHistory,
+        runClient_push_not_full hdr v s heq, StateTransitionSpec.totalCost_cons, charge_read,
+        charge_write, StateTransitionSpec.totalCost_nil]
       omega
   | pop =>
     change (Memory.spec w).totalCost charge s ((Memory.spec w).clientHistory s (pop hdr)) +

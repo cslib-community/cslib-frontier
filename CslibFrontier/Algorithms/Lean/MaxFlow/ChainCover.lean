@@ -133,8 +133,7 @@ private theorem mem_foldl_uncoveredStep (C : VertexCover (Fin n) (Fin n)) (l : L
 theorem foldl_uncoveredStep (C : VertexCover (Fin n) (Fin n)) :
     (List.finRange n).foldl (uncoveredStep C) ∅ = C.uncovered := by
   ext i
-  rw [mem_foldl_uncoveredStep, mem_uncovered]
-  simp
+  simp [mem_foldl_uncoveredStep, mem_uncovered]
 
 private theorem chainLabels_append (M : Finset (Fin n × Fin n))
     (ps₁ ps₂ : List (Fin n × Fin n)) (labels : Vector (Fin n) n) :
@@ -169,11 +168,7 @@ theorem chainLabels_eq_foldl_rowMate {M : Finset (Fin n × Fin n)}
       simp only [List.map_cons, chainLabels, ← hrm, ih hnd']
       cases rm i with
       | none => rfl
-      | some j₁ =>
-        by_cases heq : j₁ = j₀
-        · subst heq
-          simp [hj₀]
-        · simp [heq]
+      | some j₁ => by_cases heq : j₁ = j₀ <;> simp [heq, hj₀]
   have houter : ∀ (is : List (Fin n)) (lab : Vector (Fin n) n),
       chainLabels M (is.flatMap fun i => (List.finRange n).map fun j => (i, j)) lab =
         is.foldl (fun lab i => match rm i with | some j => mergeChains lab (i, j) | none => lab)
@@ -205,13 +200,7 @@ private theorem chainLabels_spec (e : Fin n ≃ α) (M : Finset (Fin n × Fin n)
   induction ps generalizing labels with
   | nil => rfl
   | cons p ps ih =>
-    by_cases hp : p ∈ M
-    · rw [List.filter_cons_of_pos (by simpa using hp), List.map_cons, List.foldl_cons]
-      simp only [chainLabels, hp, ite_true, ih]
-      rw [vget_mergeChains]
-      rfl
-    · rw [List.filter_cons_of_neg (by simpa using hp)]
-      simp only [chainLabels, hp, ite_false, ih]
+    by_cases hp : p ∈ M <;> simp [chainLabels, hp, ih, vget_mergeChains, Prod.map_def]
 
 /-- Scanning all pairs of indices visits each element of `M` exactly once. -/
 private theorem nodup_filter_pairs (M : Finset (Fin n × Fin n)) :

@@ -202,43 +202,25 @@ public theorem subsetMobius_bitVal_mul [DecidableEq ι] (i : ι) (f : Finset ι 
     (S : Finset ι) :
     subsetMobius (fun T => bitVal R (decide (i ∈ T)) * f T) S =
       if i ∈ S then subsetMobius f S + subsetMobius f (S.erase i) else 0 := by
+  have hzero {X : Finset ι} (hiX : i ∉ X) (k : ℕ) :
+      ∑ T ∈ X.powerset, (-1 : ℤ) ^ (k - #T) • (bitVal R (decide (i ∈ T)) * f T) = 0 :=
+    sum_eq_zero fun T hT => by
+      rw [decide_eq_false (fun h => hiX (mem_powerset.1 hT h)), bitVal_false, zero_mul, smul_zero]
   split_ifs with hi
   · set S' := S.erase i with hS'
     have hiS' : i ∉ S' := notMem_erase i S
-    rw [(insert_erase hi).symm]
-    simp only [subsetMobius]
-    rw [sum_powerset_insert hiS', sum_powerset_insert hiS', card_insert_of_notMem hiS']
-    have h0 : ∑ T ∈ S'.powerset,
-        (-1 : ℤ) ^ (#S' + 1 - #T) • (bitVal R (decide (i ∈ T)) * f T) = 0 := by
-      refine sum_eq_zero fun T hT => ?_
-      have : i ∉ T := fun h => hiS' (mem_powerset.1 hT h)
-      rw [decide_eq_false this, bitVal_false, zero_mul, smul_zero]
-    have h1 : ∀ T ∈ S'.powerset, (-1 : ℤ) ^ (#S' + 1 - #(insert i T)) •
-        (bitVal R (decide (i ∈ insert i T)) * f (insert i T)) =
-          (-1 : ℤ) ^ (#S' - #T) • f (insert i T) := by
-      intro T hT
-      have hiT : i ∉ T := fun h => hiS' (mem_powerset.1 hT h)
-      rw [card_insert_of_notMem hiT, Nat.add_sub_add_right,
-        decide_eq_true (mem_insert_self i T), bitVal_true, one_mul]
-    have h2 : ∀ T ∈ S'.powerset, (-1 : ℤ) ^ (#S' + 1 - #T) • f T +
-        (-1 : ℤ) ^ (#S' - #T) • f T = 0 := by
-      intro T hT
-      have hT' : #T ≤ #S' := card_le_card (mem_powerset.1 hT)
-      rw [show #S' + 1 - #T = (#S' - #T) + 1 by omega, pow_succ, mul_neg_one, neg_smul,
-        neg_add_cancel]
-    have h4 : ∀ T ∈ S'.powerset, (-1 : ℤ) ^ (#S' + 1 - #(insert i T)) • f (insert i T) =
-        (-1 : ℤ) ^ (#S' - #T) • f (insert i T) := by
-      intro T hT
-      have hiT : i ∉ T := fun h => hiS' (mem_powerset.1 hT h)
-      rw [card_insert_of_notMem hiT, Nat.add_sub_add_right]
-    rw [h0, zero_add, sum_congr rfl h1, sum_congr rfl h4]
-    have h3 := sum_congr rfl h2
-    rw [sum_add_distrib, sum_const_zero] at h3
+    rw [(insert_erase hi).symm, ← hS']
+    simp only [subsetMobius, sum_powerset_insert hiS', card_insert_of_notMem hiS',
+      mem_insert_self, decide_true, bitVal_true, one_mul, hzero hiS', zero_add]
+    have h3 : ∑ T ∈ S'.powerset, ((-1 : ℤ) ^ (#S' + 1 - #T) • f T +
+        (-1 : ℤ) ^ (#S' - #T) • f T) = 0 :=
+      sum_eq_zero fun T hT => by
+        have := card_le_card (mem_powerset.1 hT)
+        rw [show #S' + 1 - #T = (#S' - #T) + 1 by omega, pow_succ, mul_neg_one, neg_smul,
+          neg_add_cancel]
+    rw [sum_add_distrib] at h3
     linear_combination -h3
-  · simp only [subsetMobius]
-    refine sum_eq_zero fun T hT => ?_
-    have : i ∉ T := fun h => hi (mem_powerset.1 hT h)
-    rw [decide_eq_false this, bitVal_false, zero_mul, smul_zero]
+  · exact hzero hi #S
 
 end SubsetMobius
 

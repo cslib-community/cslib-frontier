@@ -302,17 +302,13 @@ theorem length_add_length_le {W : ℕ} {h h' r u s : List α} (heq : h ++ r = h'
     h'.length + u.length ≤ h.length + min (copyLen W h r + 1) r.length := by
   have hlen := congrArg List.length heq
   simp only [List.length_append] at hlen
-  rcases Nat.lt_or_ge h.length (h'.length + u.length) with hlt | hle
-  swap
+  obtain hle | hlt := le_or_gt (h'.length + u.length) h.length
   · omega
-  obtain ⟨k, hk⟩ : ∃ k, k = h.length - h'.length := ⟨_, rfl⟩
+  generalize hk : h.length - h'.length = k
   have hku : k < u.length := by omega
-  have hsplit : h = h' ++ u.take k ∧ r = u.drop k ++ s := by
-    have h1 : h' ++ (u ++ s) = (h' ++ u.take k) ++ (u.drop k ++ s) := by
-      rw [List.append_assoc, ← List.append_assoc (u.take k), List.take_append_drop]
-    rw [h1] at heq
+  obtain ⟨rfl, rfl⟩ : h = h' ++ u.take k ∧ r = u.drop k ++ s := by
+    rw [← List.take_append_drop k u, List.append_assoc (u.take k), ← List.append_assoc h'] at heq
     exact List.append_inj heq (by simp only [List.length_append, List.length_take]; omega)
-  obtain ⟨rfl, rfl⟩ := hsplit
   have htk : u.dropLast.take k = u.take k := by
     rw [List.dropLast_eq_take, List.take_take, Nat.min_eq_left (by omega)]
   have hrep' := hrep.drop k
@@ -334,9 +330,7 @@ private theorem length_parseAux_le (W : ℕ) :
     rw [List.eq_nil_of_length_eq_zero (by omega : r.length = 0), parseAux_nil]
   | u :: ws, 0, h, h', r, _, _, _, _ => by simp [parseAux]
   | u :: ws, n + 1, h, h', [], _, _, _, _ => by simp [parseAux]
-  | u :: ws, n + 1, h, h', a :: r, hr, heq, hh, hhist => by
-    rw [isHistory_cons] at hhist
-    obtain ⟨_, hrep, hws⟩ := hhist
+  | u :: ws, n + 1, h, h', a :: r, hr, heq, hh, ⟨_, hrep, hws⟩ => by
     rw [List.flatten_cons] at heq
     have hstep := length_add_length_le heq hh hrep
     rw [parseAux, List.length_cons, List.length_cons]
@@ -457,9 +451,7 @@ private theorem foldl_decodeStep_encodeAux {W : ℕ} :
     ∀ (h : List α) (ws : List (List α)), IsHistory W h ws →
       (encodeAux W h ws).foldl decodeStep h = h ++ ws.flatten
   | h, [], _ => by simp [encodeAux]
-  | h, u :: ws, hhist => by
-    rw [isHistory_cons] at hhist
-    obtain ⟨hne, hrep, hws⟩ := hhist
+  | h, u :: ws, ⟨hne, hrep, hws⟩ => by
     rw [encodeAux, List.getLast?_eq_some_getLast hne, List.foldl_cons, decodeStep_phrase hne hrep,
       foldl_decodeStep_encodeAux (h ++ u) ws hws, List.flatten_cons, List.append_assoc]
 

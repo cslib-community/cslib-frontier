@@ -109,11 +109,9 @@ theorem IsDeltaMatroid.tracePair {R : Set ((ι ⊕ Bool) → Bool)}
       obtain ⟨k, hk, hff⟩ := hR.exchange hf hy hnext
       rcases k with k | d
       · have hki : k ≠ i := by
-          intro he
-          subst k
-          simp only [flipOn, mem_insert, mem_singleton, true_or,
-            ite_true, Sum.elim_inl] at hk
-          cases hx : x i <;> cases hy : y i <;> simp_all
+          rintro rfl
+          simp only [flipOn, mem_insert, mem_singleton, true_or, ite_true, Sum.elim_inl] at hk
+          cases hx : x k <;> cases hy : y k <;> simp_all
         have hk' : x k ≠ y k := by simpa [flipOn, hki] using hk
         refine ⟨k, hk', c, ?_⟩
         convert hff using 1
@@ -121,10 +119,8 @@ theorem IsDeltaMatroid.tracePair {R : Set ((ι ⊕ Bool) → Bool)}
         · by_cases hti : t = i <;> by_cases htk : t = k <;> simp_all [flipOn]
         · cases a <;> cases t <;> cases b <;> cases c <;> simp_all [flipOn]
       · have hda : d ≠ a := by
-          intro he
-          subst d
-          simp only [flipOn, mem_insert, mem_singleton, or_true,
-            ite_true, Sum.elim_inr] at hk
+          rintro rfl
+          simp only [flipOn, mem_insert, mem_singleton, or_true, ite_true, Sum.elim_inr] at hk
           cases b <;> cases c <;> simp_all
         refine ⟨i, hi, c, ?_⟩
         convert hff using 1
@@ -325,20 +321,16 @@ theorem isEvenDeltaMatroid_oneHotRelation [Fintype ι] [Nonempty ι] :
     nonempty := Set.range_nonempty _
     exchange := by
       rintro x y ⟨a, rfl⟩ ⟨b, rfl⟩ i hi
-      have hab : a ≠ b := by intro h; subst b; exact hi rfl
+      have hab : a ≠ b := fun h => hi (h ▸ rfl)
       have hiab : i = a ∨ i = b := by
-        by_contra hn
-        push Not at hn
+        by_contra! hn
         simp [hn.1, hn.2] at hi
-      have hf : flipOn {a, b} (fun j => decide (j = a)) =
-          (fun j => decide (j = b)) := by
+      have hf : flipOn {a, b} (fun j => decide (j = a)) = fun j => decide (j = b) := by
         ext j
         by_cases hja : j = a <;> by_cases hjb : j = b <;> simp_all [flipOn]
-      rcases hiab with hi | hi
-      · subst i
-        exact ⟨b, by simp [hab.symm], b, hf.symm⟩
-      · subst i
-        exact ⟨a, by simp [hab], b, by simpa only [pair_comm] using hf.symm⟩ }
+      rcases hiab with rfl | rfl
+      · exact ⟨b, by simp [hab.symm], b, hf.symm⟩
+      · exact ⟨a, by simp [hab], i, by simpa only [pair_comm] using hf.symm⟩ }
   parity_eq := by
     rintro x y ⟨a, rfl⟩ ⟨b, rfl⟩
     have hp (a : ι) : parityOn univ (fun j => decide (j = a)) = true := by
@@ -368,10 +360,8 @@ theorem mem_star_iff {x : (κ ⊕ Unit) → Bool} : x ∈ star κ ↔
     · exact .inl ⟨fun j => by simpa [flipOn] using (congrFun hk (.inl j)).symm,
         by simpa [flipOn] using (congrFun hk (.inr ())).symm⟩
   · rintro (⟨hx, hc⟩ | ⟨k, hx, hc⟩)
-    · refine ⟨.inr (), ?_⟩
-      ext (j | u) <;> simp [flipOn, hx, hc]
-    · refine ⟨.inl k, ?_⟩
-      ext (j | u) <;> simp [flipOn, hx, hc]
+    · exact ⟨.inr (), by ext (j | _) <;> simp [flipOn, hx, hc]⟩
+    · exact ⟨.inl k, by ext (j | _) <;> simp [flipOn, hx, hc]⟩
 
 /-- The star gadget based at an arbitrary internal reference tuple; its connector reference
 is false. Only the internal coordinates are twisted. -/

@@ -902,15 +902,11 @@ private theorem gaifmanGraph_dirSumPathRel {m : ℕ} (S : Fin m ⊕ Fin m → Pr
   unfold dirSumPathRel
   rw [gaifmanGraph_or_eq_and]
   ext u v
-  rcases u with x | x <;> rcases v with y | y
-  · simp only [SimpleGraph.fromRel_adj, dirSumBase, SimpleGraph.sum_adj_inl,
-      SimpleGraph.pathGraph_adj, ne_eq, Sum.inl.injEq, Fin.ext_iff]
-    exact ⟨fun h => h.2, fun h => ⟨by omega, h⟩⟩
-  · simp [SimpleGraph.fromRel_adj, dirSumBase]
-  · simp [SimpleGraph.fromRel_adj, dirSumBase]
-  · simp only [SimpleGraph.fromRel_adj, dirSumBase, SimpleGraph.sum_adj_inr,
-      SimpleGraph.pathGraph_adj, ne_eq, Sum.inr.injEq, Fin.ext_iff]
-    exact ⟨fun h => h.2, fun h => ⟨by omega, h⟩⟩
+  rcases u with x | x <;> rcases v with y | y <;>
+    simp only [SimpleGraph.fromRel_adj, dirSumBase, SimpleGraph.sum_adj_inl,
+      SimpleGraph.sum_adj_inr, SimpleGraph.pathGraph_adj, ne_eq, Sum.inl.injEq, Sum.inr.injEq,
+      Fin.ext_iff] <;>
+    first | omega | simp
 
 private theorem realize_distLE_dirSumPathRel_inl {m : ℕ} (S : Fin m ⊕ Fin m → Prop) (k : ℕ) :
     ∀ (x : Fin m) (v : Fin m ⊕ Fin m),
@@ -932,19 +928,15 @@ private theorem realize_distLE_dirSumPathRel_inl {m : ℕ} (S : Fin m ⊕ Fin m 
   | succ k ih =>
     intro x v
     rw [realize_distLE_succ]
+    simp only [Sum.exists, ih, false_and, exists_false, or_false]
     have hpow : 2 ^ (k + 1) = 2 ^ k + 2 ^ k := by rw [pow_succ, mul_two]
     cases v with
     | inl y =>
-      refine ⟨?_, fun ⟨hxy, hyx⟩ => ⟨.inl ⟨min (y : ℕ) ((x : ℕ) + 2 ^ k), by omega⟩, ?_⟩⟩
-      · rintro ⟨z | z, hz⟩ <;> simp only [ih] at hz
-        · omega
-        · exact False.elim hz.1
-      · simp only [ih]; omega
-    | inr y =>
-      refine ⟨?_, False.elim⟩
-      rintro ⟨z | z, hz⟩ <;> simp only [ih] at hz
-      · exact hz.2
-      · exact hz.1
+      refine ⟨fun ⟨z, hz⟩ => by omega,
+        fun ⟨hxy, hyx⟩ => ⟨⟨min (y : ℕ) ((x : ℕ) + 2 ^ k), by omega⟩, ?_⟩⟩
+      dsimp only
+      omega
+    | inr _ => simp
 
 private theorem realize_distLE_dirSumPathRel {m : ℕ} (S : Fin m ⊕ Fin m → Prop) (k : ℕ) :
     ∀ u v : Fin m ⊕ Fin m,
@@ -1030,24 +1022,13 @@ private theorem realize_fwdStrict_dirSumPathRel_inl {m : ℕ} (S : Fin m ⊕ Fin
   | zero =>
     intro z
     rw [realize_fwdStrict_zero]
-    constructor
-    · rintro ⟨u | u, huL, huE⟩
-      · rw [realize_loopReach_zero, relMap_relStructure] at huL
-        rw [realize_strictEdge, relMap_relStructure] at huE
-        rcases huE with ⟨hne, hadj⟩
-        simp only [dirSumPathRel, dirSumBase, Nat.add_eq_left, one_ne_zero, true_and, false_or,
-          hne, false_and, or_false] at huL hadj
-        exact ⟨u, huL, by omega, by omega⟩
-      · rw [realize_strictEdge, relMap_relStructure] at huE
-        rcases huE with ⟨_, hadj⟩
-        simp only [dirSumPathRel, dirSumBase, reduceCtorEq, false_and, or_false] at hadj
-    · rintro ⟨u, huS, h1, h2⟩
-      have huz : (u : ℕ) + 1 = (z : ℕ) := by omega
-      refine ⟨Sum.inl u, ?_, ?_⟩
-      · rw [realize_loopReach_zero, relMap_relStructure]
-        exact .inr ⟨rfl, huS⟩
-      · rw [realize_strictEdge, relMap_relStructure]
-        exact ⟨fun h => by have := congrArg Fin.val (Sum.inl.inj h); omega, .inl huz⟩
+    simp only [Sum.exists, realize_loopReach_zero, realize_strictEdge, relMap_relStructure,
+      dirSumPathRel, dirSumBase, Nat.add_eq_left, one_ne_zero, ne_eq, Sum.inl.injEq, Fin.ext_iff,
+      reduceCtorEq, true_and, false_and, and_false, false_or, or_false, exists_false]
+    refine exists_congr fun u => ⟨fun ⟨huS, hne, hadj⟩ => ?_, fun ⟨huS, h1, h2⟩ => ?_⟩
+    · have := hadj.resolve_right fun h => hne h.1
+      exact ⟨huS, by omega, by omega⟩
+    · exact ⟨huS, by omega, .inl (by omega)⟩
   | succ k ih =>
     intro z
     rw [realize_fwdStrict_succ]
@@ -1063,7 +1044,7 @@ private theorem realize_fwdStrict_dirSumPathRel_inl {m : ℕ} (S : Fin m ⊕ Fin
         (ih _).2 ⟨u, huS, ?_, ?_⟩, ?_⟩ <;>
       · dsimp only
         have := @Nat.one_le_two_pow k
-        have : 2 ≤ 2 ^ (k + 1) := by rw [pow_succ]; omega
+        rw [pow_succ] at *
         omega
 
 private theorem realize_fwdStrict_dirSumPathRel {m : ℕ} (S : Fin m ⊕ Fin m → Prop) (k : ℕ) :
@@ -1122,8 +1103,7 @@ private theorem exists_dirSumPath_hanfEquiv {k d : ℕ} (hd : d < 2 ^ (k + 1) - 
       omega
     by_cases hswap : D ≤ (coord c : ℕ) + d
     · -- Near `D`: `f c = Sum.swap c`, and `Sum.swap` is the local isomorphism.
-      have hfc : f c = Sum.swap c := by change fFun c = c.swap; simp only [fFun, hswap, ↓reduceIte]
-      rw [hfc]
+      rw [show f c = Sum.swap c from ite_eq_left hswap]
       refine @IsNbhdIso.nbhdIso Language.graph _ _ (relStructure (dirSumPathRel S₁))
         (relStructure (dirSumPathRel S₂)) 1 d _ _ _
         (isNbhdIso_or_eq_and c (Equiv.sumComm (Fin m) (Fin m)) dirSumBase_swap fun u hu => ?_)
@@ -1134,8 +1114,7 @@ private theorem exists_dirSumPath_hanfEquiv {k d : ℕ} (hd : d < 2 ^ (k + 1) - 
       · simp only [Equiv.sumComm_apply, Sum.swap_inr, S₁, S₂]
         exact iff_of_false (by omega) False.elim
     · -- Away from `D`: `f c = c`, and `id` is the local isomorphism.
-      have hfc : f c = c := by change fFun c = c; simp only [fFun, hswap, ↓reduceIte]
-      rw [hfc]
+      rw [show f c = c from ite_eq_right hswap]
       refine @IsNbhdIso.nbhdIso Language.graph _ _ (relStructure (dirSumPathRel S₁))
         (relStructure (dirSumPathRel S₂)) 1 d _ _ _
         (isNbhdIso_or_eq_and c (Equiv.refl (Fin m ⊕ Fin m)) (fun _ _ => Iff.rfl) fun u hu => ?_)
@@ -1218,10 +1197,8 @@ private theorem edist_optRel_some_some {V : Type*} (R : V → V → Prop) (x y :
   let proj : GO →g G :=
     { toFun := fun u => u.getD x
       map_rel' := fun {u v} h => by
-        dsimp only [GO] at h
-        rw [gaifmanGraph_optRel_adj] at h
-        rcases u with _ | a <;> rcases v with _ | b <;>
-          [exact False.elim h; exact False.elim h; exact False.elim h; exact h] }
+        rw [show GO = _ from rfl, gaifmanGraph_optRel_adj] at h
+        rcases u with _ | a <;> rcases v with _ | b <;> first | exact h.elim | exact h }
   exact le_antisymm (emb.edist_le x y) (proj.edist_le (some x) (some y))
 
 private theorem isNbhdIso_optRel_none {V₁ V₂ : Type*} (R₁ : V₁ → V₁ → Prop)
@@ -1331,12 +1308,11 @@ private theorem hanfEquiv_optRel_none {V₁ V₂ : Type*} {R₁ : V₁ → V₁ 
       fun w => ?_⟩
   cases w with
   | none =>
-    have e1 : (Fin.snoc (fun _ : Fin 1 => (none : Option V₁)) none : Fin 2 → Option V₁) =
-        fun _ => none := by ext i; fin_cases i <;> rfl
-    have e2 : (Fin.snoc (fun _ : Fin 1 => (none : Option V₂))
-        (Equiv.optionCongr f none) : Fin 2 → Option V₂) = fun _ => none := by
-      ext i; fin_cases i <;> rfl
-    rw [e1, e2]
+    rw [Equiv.optionCongr_apply, Option.map_none,
+      show (Fin.snoc (fun _ : Fin 1 => (none : Option V₁)) none : Fin 2 → Option V₁) =
+        fun _ => none from funext (Fin.forall_fin_two.2 ⟨rfl, rfl⟩),
+      show (Fin.snoc (fun _ : Fin 1 => (none : Option V₂)) none : Fin 2 → Option V₂) =
+        fun _ => none from funext (Fin.forall_fin_two.2 ⟨rfl, rfl⟩)]
     exact @IsNbhdIso.nbhdIso Language.graph (Option V₁) (Option V₂)
       (relStructure (optRel R₁)) (relStructure (optRel R₂)) 2 d _ _ _
       (isNbhdIso_optRel_none R₁ R₂ d)

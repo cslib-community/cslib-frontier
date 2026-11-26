@@ -440,12 +440,8 @@ private theorem wordHandle_routeCorrupt {n : ℕ} {ιI : Type} {I : ιI → Type
     · simp only [hmem, ↓reduceIte]
   · dsimp only [wordHandle, WordInterface.protocol, WordInterface.sum, WordInterface.net,
       WordPort.sum, Decoder.sum]
-    cases hhd : w.headD false
-    · have hdec : (if false = true then Sum.inr (netPort.queryDecoder.decode w.tail)
-          else Sum.inl (party.queryDecoder.decode w.tail)) =
-          Sum.inl (party.queryDecoder.decode w.tail) := rfl
-      simp only [Bool.false_eq_true, ↓reduceIte]
-      rw [hdec]
+    cases w.headD false
+    · rw [ite_eq_right Bool.false_ne_true]
       dsimp only [UC.routeCorrupt]
       by_cases hmem : (party.queryDecoder.decode w.tail).1 ∈ p.corrupted
       · simp only [hmem, ↓reduceIte, StateT.run_map, ProbOracleComp.lowerWith,
@@ -454,11 +450,7 @@ private theorem wordHandle_routeCorrupt {n : ℕ} {ιI : Type} {I : ιI → Type
       · simp only [hmem, ↓reduceIte, StateT.run_pure, ProbOracleComp.lowerWith,
           ProbOracleComp.simulate_pure, map_pure, encSum_inl]
         rfl
-    · have hdec : (if true = true then Sum.inr (netPort.queryDecoder.decode w.tail)
-          else Sum.inl (party.queryDecoder.decode w.tail)) =
-          Sum.inr (netPort.queryDecoder.decode w.tail) := rfl
-      simp only [↓reduceIte]
-      rw [hdec]
+    · rw [ite_eq_left rfl]
       dsimp only [UC.routeCorrupt]
       simp only [StateT.run_map, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map,
         Functor.map_map, encSum_inr]

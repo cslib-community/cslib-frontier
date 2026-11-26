@@ -37,8 +37,8 @@ private theorem find?_append_of_forall_not {α : Type*} {l₁ l₂ : List α} {p
 
 private theorem find?_append_of_forall_not' {α : Type*} {l₁ l₂ : List α} {p : α → Bool}
     (h : ∀ e ∈ l₂, p e = false) : (l₁ ++ l₂).find? p = l₁.find? p := by
-  have h₂ : l₂.find? p = none := List.find?_eq_none.mpr fun e he => by simp [h e he]
-  rw [List.find?_append, h₂, Option.or_none]
+  rw [List.find?_append, (List.find?_eq_none (l := l₂)).mpr fun e he => by simp [h e he],
+    Option.or_none]
 
 
 /-! ### Dispatching on a computed bit -/
@@ -148,13 +148,10 @@ theorem state_redirectEntries {b : Bool} {e : Key × Act} (he : e ∈ redirectEn
 theorem find?_prep {e : Key × Act} (he : e ∈ markerEntries eS tm d ++ branchEntries d k) :
     (dispatch eS tm d).table.find? (·.1 = e.1) = some e := by
   refine find?_eq_some_of_mem ?_ fun e' he' hk => ?_
-  · rw [table_dispatch]
-    simp only [List.mem_append] at he ⊢
+  · simp only [table_dispatch, List.mem_append] at he ⊢
     tauto
-  · have hs := (prep_spec eS tm d he).1
-    rw [← hk] at hs
-    rw [table_dispatch] at he'
-    simp only [List.mem_append] at he'
+  · have hs := hk ▸ (prep_spec eS tm d he).1
+    simp only [table_dispatch, List.mem_append] at he'
     rcases he' with (((he' | he') | he') | he') | he'
     · rw [(prep_spec eS tm d (List.mem_append_left _ he')).2, (prep_spec eS tm d he).2, hk]
     · have := state_runEntries eS tm d he'; omega
@@ -195,18 +192,17 @@ theorem find?_redirectEntries (b : Bool) (q : ℕ) (ws : List (Option ℕ)) :
     (dispatch eS tm d).table.find? (·.1 = ⟨dstate b q, none, ws⟩) =
       (redirectEntries d k b).find? (·.1 = ⟨dstate b q, none, ws⟩) := by
   have hprep : ∀ e ∈ markerEntries eS tm d ++ runEntries eS tm d ++ branchEntries d k,
-      decide (e.1 = ⟨dstate b q, none, ws⟩) = false := by
-    intro e he
-    refine decide_eq_false fun h => ?_
-    have hb := Bool.toNat_le b
-    simp only [List.mem_append] at he
-    rcases he with (he | he) | he
-    · have := (prep_spec eS tm d (List.mem_append_left _ he)).1
-      rw [h] at this; simp only [dstate] at this; omega
-    · have := state_runEntries eS tm d he
-      rw [h] at this; simp only [dstate] at this; omega
-    · have := (prep_spec eS tm d (List.mem_append_right _ he)).1
-      rw [h] at this; simp only [dstate] at this; omega
+      decide (e.1 = ⟨dstate b q, none, ws⟩) = false := fun e he =>
+    decide_eq_false fun h => by
+      have hb := Bool.toNat_le b
+      simp only [List.mem_append] at he
+      rcases he with (he | he) | he
+      · have := h ▸ (prep_spec eS tm d (List.mem_append_left _ he)).1
+        simp only [dstate] at this; omega
+      · have := h ▸ state_runEntries eS tm d he
+        simp only [dstate] at this; omega
+      · have := h ▸ (prep_spec eS tm d (List.mem_append_right _ he)).1
+        simp only [dstate] at this; omega
   have hother : ∀ b', b' ≠ b → ∀ e ∈ redirectEntries d k b',
       decide (e.1 = ⟨dstate b q, none, ws⟩) = false := fun b' hb' e he =>
     decide_eq_false fun h => by
@@ -408,9 +404,8 @@ theorem Desc.computes_dispatch {k : ℕ} {S : Type} [Fintype S] (eS : S ↪ ℕ)
     simp only [Act.apply, moveInput, applyTapes, applyTapes_nil_right, Option.toList_none,
       List.append_nil, redirectCfg, init, Option.map_some]
     refine congrArg₂ _ (congrArg₂ _ rfl (congrArg₂ _ rfl (congrArg₂ _ rfl ?_))) rfl
-    change List.replicate (width d) Tape.blank = List.replicate (d b).tapes Tape.blank ++
-      List.replicate (width d - (d b).tapes) Tape.blank
-    rw [← List.replicate_add, Nat.add_sub_cancel' hkb]
+    exact (congrArg (List.replicate · Tape.blank) (Nat.add_sub_cancel' hkb).symm).trans
+      (List.replicate_add _ _ _)
   refine Desc.computes_iff_of_iterate (redirectCfg (dstate b) 0 1 [some marker] (v.map eBit)
     c.workTapes (List.replicate (width d - (d b).tapes) Tape.blank)) (fun c => by
       simp [redirectCfg]) (1 + ((((b :: v).map eBit).length + 1 + 1) + (u + 1))) (fun t => ?_) o

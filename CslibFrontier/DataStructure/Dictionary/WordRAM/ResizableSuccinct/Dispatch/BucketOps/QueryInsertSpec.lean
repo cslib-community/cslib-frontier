@@ -174,37 +174,27 @@ theorem compInsertSearchWithHashGenProg_dict_spec {metaBase itemBase U V w N m_i
       (compFeistelCoordsProg (mkCompParams U V w N, (u.val, h_q)) >>= fun c =>
         compSearchBucketGenProg (((mkCompParams U V w N, (metaBase, itemBase)), c.1), c.2) >>=
           fun res => compPackInsertSearchResProg (res, c)) := rfl
-  refine ⟨hpre, ?_, ?_, ?_, ?_, ?_⟩
+  have hhit : (sbFound res_sb = 1 ↔ (s_abs u).isSome) ∧
+      (sbFound res_sb = 1 →
+        ∃ j < bCount N (compGmAt metaBase U w N s.mem) b,
+          res_sb.2 = slotOf N (compGmAt metaBase U w N s.mem) b j) := by
+    by_cases hex : ∃ j < bCount N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b,
+        quotAt 0 U (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem
+          (slotOf N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b j) = q
+    · rw [ite_eq_left hex] at hres_branch
+      rw [← hbm, hcpl.gm_eq]
+      exact ⟨⟨fun _ => (hb_inv.hmap_dom b hb_lt q).mpr hex, fun _ => hres_branch.1⟩,
+        fun _ => ⟨res_sb.1.2, hres_branch.2.1, hres_branch.2.2.2⟩⟩
+    · rw [ite_eq_right hex] at hres_branch
+      change sbFound res_sb = 0 at hres_branch
+      exact ⟨⟨by omega, fun hs => (hex ((hb_inv.hmap_dom b hb_lt q).mp (hbm ▸ hs))).elim⟩,
+        by omega⟩
+  refine ⟨hpre, ?_, ?_, hhit.1, hhit.2, ?_⟩
   · rw [hprog_eq, StateTransitionSpec.clientState_bind, clientState_compFeistelCoordsProg, hc_res,
       StateTransitionSpec.clientState_bind, hst_sb, clientState_compPackInsertSearchResProg]
   · rw [hprog_eq, StateTransitionSpec.clientResult_bind, clientState_compFeistelCoordsProg, hc_res,
       StateTransitionSpec.clientResult_bind, hst_sb, hres_sb,
       clientResult_compPackInsertSearchResProg]
-  · by_cases hex : ∃ j < bCount N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b,
-        quotAt 0 U (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem
-          (slotOf N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b j) = q
-    · rw [ite_eq_left hex] at hres_branch
-      have hsome : (s_abs u).isSome := by
-        rw [← hbm]; exact (hb_inv.hmap_dom b hb_lt q).mpr hex
-      change res_sb.1.1 = 1 ↔ _
-      exact ⟨fun _ => hsome, fun _ => hres_branch.1⟩
-    · rw [ite_eq_right hex] at hres_branch
-      have hnot : ¬(s_abs u).isSome := by
-        rw [← hbm]; exact mt (hb_inv.hmap_dom b hb_lt q).mp hex
-      change res_sb.1.1 = 1 ↔ _
-      exact ⟨fun h1 => False.elim (by change res_sb.1.1 = 0 at hres_branch; omega),
-        fun hs => False.elim (hnot hs)⟩
-  · intro hf1
-    by_cases hex : ∃ j < bCount N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b,
-        quotAt 0 U (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem
-          (slotOf N (gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem) b j) = q
-    · rw [ite_eq_left hex] at hres_branch
-      obtain ⟨_, hj_lt, _, hphys_eq⟩ := hres_branch
-      rw [hcpl.gm_eq]
-      exact ⟨res_sb.1.2, hj_lt, hphys_eq⟩
-    · rw [ite_eq_right hex] at hres_branch
-      change sbFound res_sb = 0 at hres_branch
-      omega
   · rw [hprog_eq, memoryCost_bind_of_clientState_eq (clientState_compFeistelCoordsProg _ s) _,
       memoryCost_compFeistelCoordsProg, hc_res, zero_add,
       memoryCost_bind_of_clientState_eq hst_sb _, memoryCost_compPackInsertSearchResProg, add_zero]

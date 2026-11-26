@@ -143,15 +143,12 @@ private theorem binary_minor_of_failure {R : Set (Fin m → Bool)}
   have heout : (fun i => f (fun q => a q i)) = fun _ => b :=
     funext fun i => hdiff _ (bad_pair a ha hout i)
   have hz : (fun _ : Fin (n + 1) => b) ∉ S := heout ▸ hout
-  have hu (j : Fin (n + 1)) : spike b j ∈ S := by
-    apply spike_mem b hz j
-    have hp : IsPolymorphism f (project S j) := by
-      by_contra hh
-      exact hmin n _ ⟨.project c j⟩ (by omega) hh
-    have hm := hp (fun q => j.removeNth (a q)) (fun q => remove_mem_project (ha q) j)
+  have hu (j : Fin (n + 1)) : spike b j ∈ S := spike_mem b hz j <| by
+    have hp : IsPolymorphism f (project S j) :=
+      of_not_not (hmin n _ ⟨.project c j⟩ (by omega))
     have heq : (fun i => f (fun q => j.removeNth (a q) i)) = fun _ : Fin n => b :=
       congrArg j.removeNth heout
-    exact heq ▸ hm
+    exact heq ▸ hp (fun q => j.removeNth (a q)) (fun q => remove_mem_project (ha q) j)
   have hn2 : 2 ≤ n + 1 := by
     by_contra hh
     obtain rfl : n = 0 := by omega
@@ -163,15 +160,13 @@ private theorem binary_minor_of_failure {R : Set (Fin m → Bool)}
     let i : Fin (n + 1) := ⟨0, by omega⟩
     let j : Fin (n + 1) := ⟨1, by omega⟩
     let z : Fin 2 → Fin (n + 1) → Bool := ![spike b i, spike b j]
-    have hez : (fun p => f (fun q => z q p)) = fun _ => b := by
-      ext p
+    have hez : (fun p => f (fun q => z q p)) = fun _ => b := funext fun p => by
       by_cases hi : p = i
       · exact hdiff _ (by simp [z, spike, hi, i, j])
       by_cases hj : p = j
       · exact hdiff _ (by simp [z, spike, hj, i, j])
-      have hconst : (fun q => z q p) = fun _ => b := by
-        ext q
-        fin_cases q <;> simp [z, spike, hi, hj]
+      have hconst : (fun q => z q p) = fun _ => b :=
+        funext fun q => by fin_cases q <;> simp [z, spike, hi, hj]
       rw [hconst, hid]
     exact bad_pair z (fun q => by fin_cases q <;> exact hu _) (hez.symm ▸ hz) ⟨2, by omega⟩
       (by simp [z, spike, i, j])
@@ -214,12 +209,11 @@ theorem pins_of_disequality {R : Set (Fin m → Bool)}
   classical
   obtain ⟨n, S, ⟨c⟩, hb, hmin⟩ := minimal_available
     (fun _ S => ¬IsPolymorphism (fun a : Fin 1 → Bool => !(a 0)) S) hR h
-  obtain ⟨a, ha, hout⟩ : ∃ a : Fin 1 → Fin n → Bool,
+  obtain ⟨a, ha, hnot⟩ : ∃ a : Fin 1 → Fin n → Bool,
       (∀ q, a q ∈ S) ∧ (fun i => !(a 0 i)) ∉ S := by
     simpa only [IsPolymorphism, not_forall, exists_prop] using hb
-  let x := a 0
+  set x := a 0
   have hx : x ∈ S := ha 0
-  have hnot : (fun i => !(x i)) ∉ S := hout
   have hn : n ≠ 0 := by
     rintro rfl
     exact hnot ((Subsingleton.elim x (fun i => !(x i))) ▸ hx)
@@ -253,18 +247,13 @@ The ZERO/ONE witnesses and the AND/OR witnesses are selected independently. -/
 theorem disequality_of_not_hasSchaeferPolymorphism
     (h : ¬HasSchaeferPolymorphism arity sem) : Available arity sem disequality := by
   classical
-  simp only [HasSchaeferPolymorphism, not_or] at h
-  obtain ⟨hzero, hone, hand, hor, -⟩ := h
-  rw [hasPolymorphism_const_iff] at hzero hone
-  simp only [not_forall] at hzero hone
-  obtain ⟨r, hr, hz⟩ := hzero
-  obtain ⟨s, hs, ho⟩ := hone
-  rcases disequality_or_pin_of_missing_constant ⟨.atom r⟩ false hr hz with hd | h1
+  rw [HasSchaeferPolymorphism, hasPolymorphism_const_iff, hasPolymorphism_const_iff] at h
+  simp only [HasPolymorphism, not_or, not_forall] at h
+  obtain ⟨⟨r₀, hr₀, hz⟩, ⟨s₀, hs₀, ho⟩, ⟨r, hr⟩, ⟨s, hs⟩, -⟩ := h
+  rcases disequality_or_pin_of_missing_constant ⟨.atom r₀⟩ false hr₀ hz with hd | h1
   · exact hd
-  rcases disequality_or_pin_of_missing_constant ⟨.atom s⟩ true hs ho with hd | h0
+  rcases disequality_or_pin_of_missing_constant ⟨.atom s₀⟩ true hs₀ ho with hd | h0
   · exact hd
-  obtain ⟨r, hr⟩ := not_forall.1 hand
-  obtain ⟨s, hs⟩ := not_forall.1 hor
   exact disequality_of_pins ⟨.atom r⟩ ⟨.atom s⟩ (fun b => by cases b; exacts [h0, h1]) hr hs
 
 /-- Lemma 3's nonselfdual endpoint, with no adjoined-constant premise: disequality and both

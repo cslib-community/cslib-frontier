@@ -321,27 +321,21 @@ private lemma realCtx_split_at {V : Type*} {stay : V → V → Prop}
     intro K h1 hle
     simp only [RealCtx.size] at hle ⊢
     by_cases hK : K = 1
-    · exact ⟨u, v, u', v', .hole u v, rest,
-        by simp [RealCtx.size]; omega,
-        by omega, .inl h⟩
+    · exact ⟨u, v, u', v', .hole u v, rest, h1, by omega, .inl h⟩
     · exact realCtx_split_lift (.pushPop h) (fun _ => rfl) Nat.one_pos (by omega)
         (ih (by omega) (by omega))
   | @transLeft u w v x y l rest ih =>
     intro K h1 hle
     simp only [RealCtx.size] at hle ⊢
     by_cases hK : K ≤ 1 + l.size
-    · exact ⟨u, v, w, v, .hole u v, rest,
-        by simp [RealCtx.size]; omega,
-        by omega, .inr (.inl ⟨rfl, l, by omega⟩)⟩
+    · exact ⟨u, v, w, v, .hole u v, rest, h1, by omega, .inr (.inl ⟨rfl, l, by omega⟩)⟩
     · exact realCtx_split_lift (.transLeft l) (fun _ => rfl) (by omega) (by omega)
         (ih (by omega) (by omega))
   | @transRight u w v x y rest r ih =>
     intro K h1 hle
     simp only [RealCtx.size] at hle ⊢
     by_cases hK : K ≤ 1 + r.size
-    · exact ⟨u, v, u, w, .hole u v, rest,
-        by simp [RealCtx.size]; omega,
-        by omega, .inr (.inr ⟨rfl, r, by omega⟩)⟩
+    · exact ⟨u, v, u, w, .hole u v, rest, h1, by omega, .inr (.inr ⟨rfl, r, by omega⟩)⟩
     · rw [show 1 + rest.size + r.size = (1 + r.size) + rest.size by omega]
       exact realCtx_split_lift (stepSz := 1 + r.size) (fun Ctop => .transRight Ctop r)
         (fun _ => by simp only [RealCtx.size]; omega) (by omega) (by omega)
@@ -684,8 +678,7 @@ private lemma eval_orQ_mono {r₁ r₂ : ℕ} (hle : r₁ ≤ r₂) (hr₂ : r�
     (C start accept stay pushPop R).Eval (.orQ ⟨r₂, hr₂⟩ u v x y) := by
   induction r₂ with
   | zero =>
-    have hr1 : r₁ = 0 := by omega
-    subst hr1
+    obtain rfl := Nat.eq_zero_of_le_zero hle
     exact h
   | succ r₂ ih =>
     rcases lt_or_eq_of_le hle with hlt | rfl
@@ -698,8 +691,7 @@ private lemma eval_orP_mono {r₁ r₂ : ℕ} (hle : r₁ ≤ r₂) (hr₂ : r�
     (C start accept stay pushPop R).Eval (.orP ⟨r₂, hr₂⟩ u v) := by
   induction r₂ with
   | zero =>
-    have hr1 : r₁ = 0 := by omega
-    subst hr1
+    obtain rfl := Nat.eq_zero_of_le_zero hle
     exact h
   | succ r₂ ih =>
     rcases lt_or_eq_of_le hle with hlt | rfl
@@ -752,11 +744,8 @@ private lemma eval_orP_orQ_complete :
         cases T with
         | refl _ => exact (eval_orP_zero_iff _ _).mpr (.inl rfl)
         | stay h => exact (eval_orP_zero_iff _ _).mpr (.inr h)
-        | pushPop _ sub =>
+        | pushPop _ sub | trans sub _ =>
           have := sub.size_pos
-          simp only [RealTree.size, growthBound] at hsz; omega
-        | trans l _ =>
-          have := l.size_pos
           simp only [RealTree.size, growthBound] at hsz; omega,
      fun Ctx hsz => by
         cases Ctx with
@@ -809,9 +798,7 @@ accepting realizability tree of size at most `sz` makes the output gate evaluate
 theorem balancedCircuit_eval_output_complete {sz : ℕ} (hR : roundsForSize sz ≤ R)
     {v : V} (hacc : accept v) (T : RealTree stay pushPop start v) (hsz : T.size ≤ sz) :
     (balancedCircuit start accept stay pushPop R).Eval .output := by
-  have h3k : 3 * (2 * (Nat.log2 sz + 1)) ≤ R := by
-    unfold roundsForSize at hR
-    omega
+  have h3k : 3 * (2 * (Nat.log2 sz + 1)) ≤ R := by rw [roundsForSize] at hR; omega
   have hev3k := (eval_orP_orQ_complete (start := start) (accept := accept) (stay := stay)
     (pushPop := pushPop) (R := R) (2 * (Nat.log2 sz + 1)) (by omega)).1 T
     (hsz.trans (le_growthBound_roundsForSize sz))

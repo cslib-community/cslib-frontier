@@ -66,40 +66,28 @@ theorem RestrictOK.pairTame {S : State n} {x : ℕ} {ℓ : Lit} {P : Finset (ℕ
   intro pr hpr
   by_cases hP : pr ∈ P
   · have hav := h.avoid pr hP
-    rcases htame pr hP with ht | ht | ht
-    · exact Or.inl fun u v => by simpa only [Function.update_of_ne hav.1] using ht u v
-    · exact Or.inr (Or.inl fun u v => by simpa only [Function.update_of_ne hav.2] using ht u v)
-    · exact Or.inr (Or.inr fun u v => by
-        simpa only [Function.update_of_ne hav.1, Function.update_of_ne hav.2] using ht u v)
+    simpa only [PairTame, Function.update_of_ne hav.1, Function.update_of_ne hav.2] using
+      htame pr hP
   · obtain ⟨hx, hy⟩ := h.drop pr hpr hP
     obtain ⟨p1, p2⟩ := pr
     obtain ⟨_ | t, c⟩ := ℓ
-    · simp only at hx
-      rcases hx with rfl | rfl
-      · exact Or.inl fun u v => by simp only [Function.update_self, Lit.eval, Arg.eval_const]
-      · exact Or.inr (Or.inl fun u v => by
+    · rcases hx with rfl | rfl
+      · exact Or.inl fun _ _ => by simp only [Function.update_self, Lit.eval, Arg.eval_const]
+      · exact Or.inr (Or.inl fun _ _ => by
           simp only [Function.update_self, Lit.eval, Arg.eval_const])
     · have ht := hy t rfl
       have htx : t ≠ x := (h.reads t rfl).2
       refine Or.inr (Or.inr fun u v => ?_)
-      simp only at hx ht ⊢
-      rcases hx with rfl | rfl <;> rcases ht with rfl | rfl
-      · exact absurd rfl htx
-      · simp only [Function.update_self, Function.update_of_ne htx, Lit.eval, Arg.eval_node]
+      rcases hx with rfl | rfl <;> rcases ht with rfl | rfl <;> try exact absurd rfl htx
+      all_goals
+        simp only [Function.update_self, Function.update_of_ne htx, Lit.eval, Arg.eval_node]
         cases τ u t <;> cases τ v t <;> cases c <;> rfl
-      · simp only [Function.update_self, Function.update_of_ne htx, Lit.eval, Arg.eval_node]
-        cases τ u t <;> cases τ v t <;> cases c <;> rfl
-      · exact absurd rfl htx
 
 /-- Restrictions preserve validity. -/
 theorem Valid.restrict {S : State n} (hS : S.Valid f) {x : ℕ} {ℓ : Lit} {P : Finset (ℕ × ℕ)}
     (h : S.RestrictOK x ℓ P) : (S.restrict x ℓ P).Valid f :=
   Valid.restrict_of hS h.mem h.reads h.subset
-    (fun pr hpr hc => by
-      have hav := h.avoid pr hpr
-      rcases hc with hc | hc
-      · exact hav.1 hc
-      · exact hav.2 hc)
+    (fun pr hpr hc => hc.elim (h.avoid pr hpr).1 (h.avoid pr hpr).2)
     (fun k τ hτ htame =>
       hS.phi_affine k (fun u => Function.update (τ u) x (ℓ.eval (τ u)))
         (isAffine_update hτ x (isAffine_lit_eval hτ ℓ)) (h.pairTame htame))

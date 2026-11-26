@@ -89,13 +89,9 @@ theorem satExt_iff (ρ : Fin n → Option Bool) (ψ : CNF (Fin n)) :
     refine ⟨ls, hls, ?_⟩
     simp only [compatible, Bool.and_eq_true, List.all_eq_true, bne_iff_ne, ne_eq]
     refine ⟨fun l hl' h => ?_, fun l hl' l' hl'' h => ?_⟩
-    · have := hσρ _ _ h
-      have := hl l hl'
-      grind
+    · grind [hσρ _ _ h, hl l hl']
     · subst h
-      have := hl _ hl''
-      have := hl l hl'
-      grind
+      grind [hl _ hl'', hl l hl']
   · rintro ⟨ls, hls, hc⟩
     simp only [compatible, Bool.and_eq_true, List.all_eq_true, bne_iff_ne, ne_eq] at hc
     obtain ⟨hρ, hpair⟩ := hc
@@ -207,12 +203,11 @@ theorem wImplied_iff_test (φ : CNF (Fin n)) (w : ℕ) (τ : Fin n → Option Bo
         refine ⟨by simp at hlen ⊢; omega, fun c hc => ?_⟩
         rcases List.mem_append.mp hc with hc | hc
         · exact hsub c hc
-        · rw [List.eq_of_mem_replicate hc]; exact hsub c₀ (by simp)
-      · rwa [satExt_congr fun c => ?_]
-        refine ⟨fun hc => ?_, List.mem_append_left _⟩
+        · exact List.eq_of_mem_replicate hc ▸ hsub c₀ List.mem_cons_self
+      · rwa [satExt_congr fun c => ⟨fun hc => ?_, List.mem_append_left _⟩]
         rcases List.mem_append.mp hc with hc | hc
         · exact hc
-        · rw [List.eq_of_mem_replicate hc]; simp
+        · exact List.eq_of_mem_replicate hc ▸ List.mem_cons_self
     · rintro ⟨cs, hcs, hsat⟩
       rw [mem_sections_replicate] at hcs
       exact ⟨cs, hcs.2, hcs.1.le, hsat⟩

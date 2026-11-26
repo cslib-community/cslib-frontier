@@ -292,30 +292,26 @@ private theorem partrec₂_master (hr : Computable₂ r) : Partrec₂ (master Φ
         (Computable.unpair.comp Computable.snd)))
     · exact Computable.snd.comp (Computable.unpair.comp Computable.snd)
   have hcost : Computable₂ fun (p : Code × ℕ) (B : ℕ) =>
-      costOK Φ p.1 p.2.unpair.1.unpair.1 p.2.unpair.2 B := by
-    have h := (computable_costOK Φ).comp (α := (Code × ℕ) × ℕ)
+      costOK Φ p.1 p.2.unpair.1.unpair.1 p.2.unpair.2 B :=
+    ((computable_costOK Φ).comp (α := (Code × ℕ) × ℕ)
       (Computable.pair (Computable.pair (Computable.pair
         (Computable.fst.comp (hq.comp Computable.fst))
         (Computable.fst.comp (Computable.snd.comp (hq.comp Computable.fst))))
         (Computable.snd.comp (Computable.snd.comp (Computable.snd.comp
-          (hq.comp Computable.fst))))) Computable.snd)
-    exact h.of_eq fun _ => rfl
+          (hq.comp Computable.fst))))) Computable.snd)).of_eq fun _ => rfl
   have hsel : Computable₂ fun (p : Code × ℕ) (B : ℕ) =>
-      selCode Φ r p.1 p.2.unpair.1.unpair.1 p.2.unpair.1.unpair.2 p.2.unpair.2 B := by
-    have h := (computable_selCode Φ r hr).comp (α := (Code × ℕ) × ℕ)
-      (Computable.pair (hq.comp Computable.fst) Computable.snd)
-    exact h.of_eq fun _ => rfl
+      selCode Φ r p.1 p.2.unpair.1.unpair.1 p.2.unpair.1.unpair.2 p.2.unpair.2 B :=
+    ((computable_selCode Φ r hr).comp (α := (Code × ℕ) × ℕ)
+      (Computable.pair (hq.comp Computable.fst) Computable.snd)).of_eq fun _ => rfl
   have hpost : Computable₂ fun (q : (Code × ℕ) × ℕ) (w : ℕ) =>
-      post Φ r q.1.1 q.1.2.unpair.1.unpair.1 q.1.2.unpair.1.unpair.2 q.1.2.unpair.2 q.2 w := by
-    have h := (computable_post Φ r hr).comp (α := ((Code × ℕ) × ℕ) × ℕ)
+      post Φ r q.1.1 q.1.2.unpair.1.unpair.1 q.1.2.unpair.1.unpair.2 q.1.2.unpair.2 q.2 w :=
+    ((computable_post Φ r hr).comp (α := ((Code × ℕ) × ℕ) × ℕ)
       (Computable.pair (Computable.pair (hq.comp (Computable.fst.comp Computable.fst))
-        (Computable.snd.comp Computable.fst)) Computable.snd)
-    exact h.of_eq fun _ => rfl
+        (Computable.snd.comp Computable.fst)) Computable.snd)).of_eq fun _ => rfl
   have hx : Computable fun q : (Code × ℕ) × ℕ => q.1.2.unpair.2 :=
     Computable.snd.comp (Computable.unpair.comp (Computable.snd.comp Computable.fst))
-  have h := Partrec.bind (Partrec.rfind (hcost.partrec₂))
-    (Partrec.map (Code.eval_part.comp hsel hx) hpost).to₂
-  exact h.of_eq fun _ => rfl
+  exact (Partrec.bind (Partrec.rfind hcost.partrec₂)
+    (Partrec.map (Code.eval_part.comp hsel hx) hpost).to₂).of_eq fun _ => rfl
 
 /-! ### Semantics of the construction -/
 
@@ -453,20 +449,18 @@ theorem speedup {r : ℕ → ℕ → ℕ} (hr : Computable₂ r) :
   let f : ℕ → ℕ := fun x => (run Φ r e 0 d₀ x).get (hdom x)
   have hfmem : ∀ x, f x ∈ run Φ r e 0 d₀ x := fun x => Part.get_mem (hdom x)
   -- the value of `f` at a stage with a cancellation, and at a stage without one
+  have hC₀ (x) : canc (elig Φ r e) (ovB d₀) 0 x = C₀ x :=
+    congrArg (canc (elig Φ r e) · 0 x) hov₀
   have hfc : ∀ x i w, C₀ x = some i → w ∈ (ofNat Code i).eval x → f x = 1 - w := by
     intro x i w hc hw
-    have hc' : canc (elig Φ r e) (ovB d₀) 0 x = some i := by rw [hov₀]; exact hc
     have h := mem_run he (u := 0) (d := d₀) (x := x) (w := w)
-      (by rw [hc', Option.map_some, Option.getD_some]; exact hw)
-    rw [hovd₀, Option.getD_none, hc', Option.map_some, Option.getD_some] at h
-    exact Part.mem_unique (hfmem x) h
+      (by simpa [(hC₀ x).trans hc] using hw)
+    exact Part.mem_unique (hfmem x) (by simpa [hovd₀, (hC₀ x).trans hc] using h)
   have hf0 : ∀ x, C₀ x = none → f x = 0 := by
     intro x hc
-    have hc' : canc (elig Φ r e) (ovB d₀) 0 x = none := by rw [hov₀]; exact hc
     have h := mem_run he (u := 0) (d := d₀) (x := x) (w := 0)
-      (by rw [hc', Option.map_none, Option.getD_none]; exact Part.mem_some 0)
-    rw [hovd₀, Option.getD_none, hc', Option.map_none, Option.getD_none] at h
-    exact Part.mem_unique (hfmem x) h
+      (by simpa [(hC₀ x).trans hc] using id (α := 0 ∈ Code.zero.eval x) (Part.mem_some 0))
+    exact Part.mem_unique (hfmem x) (by simpa [hovd₀, (hC₀ x).trans hc] using h)
   have hf1 : ∀ x, f x ≤ 1 := by
     intro x
     cases hc : C₀ x with
@@ -498,10 +492,8 @@ theorem speedup {r : ℕ → ℕ → ℕ} (hr : Computable₂ r) :
     · rfl
     · have : ¬∃ j < i + 1, C₀ y = some j := fun ⟨j, hj, hc⟩ => hN y (by omega) j hj hc
       simp only [g, this, ↓reduceIte]
-  have hovB : ∀ y, ovB D y = true ↔ ∃ j < i + 1, C₀ y = some j := by
-    intro y
-    simp only [ovB, hovD, g]
-    split_ifs with h <;> simp [h]
+  have hovB : ∀ y, ovB D y = true ↔ ∃ j < i + 1, C₀ y = some j := fun y => by
+    simp [ovB, hovD, g]
   have hsame := canc_override hovB
   -- the version `vers e (i + 1) D` computes `f`
   let c' := vers e (i + 1) D

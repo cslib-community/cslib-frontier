@@ -437,11 +437,7 @@ private theorem mul_totalWeight_le_of_cycle {δ : α → α → ℕ} {R : List �
     R.length * totalWeight (kruskalEdges (completeEdges (terminalCost δ R))) ≤
       2 * (R.length - 1) * edgeCost δ T := by
   have hC := mul_totalWeight_kruskalEdges_le (terminalCost δ R) hq_nd hq_cov
-  have hmap : cycleCost (terminalCost δ R) q = cycleCost δ (q.map (fun i => R[i])) := by
-    unfold cycleCost
-    rw [← List.map_rotate, List.zipWith_map]
-    rfl
-  rw [hmap] at hC
+  rw [show terminalCost δ R = fun x y => δ R[x] R[y] from rfl, ← cycleCost_map] at hC
   calc _ ≤ (R.length - 1) * (2 * edgeCost δ T) := hC.trans (Nat.mul_le_mul_left _ hcost)
     _ = 2 * (R.length - 1) * edgeCost δ T := by ring
 
@@ -457,10 +453,9 @@ theorem length_mul_edgeCost_steinerMST_le {δ : α → α → ℕ} (hsymm : ∀ 
   classical
   rw [edgeCost_steinerMST]
   rcases Nat.lt_or_ge R.length 2 with hk | hk
-  · have := mul_totalWeight_kruskalEdges_le (terminalCost δ R) (List.nodup_finRange R.length)
-      (fun x => List.mem_finRange x)
-    rw [show R.length - 1 = 0 by omega] at this ⊢
-    simpa using this
+  · simpa [Nat.sub_eq_zero_of_le (by omega : R.length ≤ 1)] using
+      mul_totalWeight_kruskalEdges_le (terminalCost δ R) (List.nodup_finRange R.length)
+        List.mem_finRange
   have hne : ∃ a ∈ R, ∃ b ∈ R, a ≠ b := by
     refine ⟨R[0], List.getElem_mem (by omega), R[1], List.getElem_mem (by omega), ?_⟩
     intro h
@@ -489,10 +484,9 @@ theorem length_mul_edgeCost_steinerMST_le_of_diag {δ : α → α → ℕ} (hdia
   classical
   rw [edgeCost_steinerMST]
   rcases Nat.lt_or_ge R.length 2 with hk | hk
-  · have := mul_totalWeight_kruskalEdges_le (terminalCost δ R) (List.nodup_finRange R.length)
-      (fun x => List.mem_finRange x)
-    rw [show R.length - 1 = 0 by omega] at this ⊢
-    simpa using this
+  · simpa [Nat.sub_eq_zero_of_le (by omega : R.length ≤ 1)] using
+      mul_totalWeight_kruskalEdges_le (terminalCost δ R) (List.nodup_finRange R.length)
+        List.mem_finRange
   by_cases hne : ∃ a ∈ R, ∃ b ∈ R, a ≠ b
   · obtain ⟨s, hs_nd, hs_R, hR_s, hs_cost⟩ :=
       exists_cycleCost_le_of_connects hsymm htri hne hT
@@ -552,16 +546,14 @@ theorem edgeCost_steinerMST_le_two_mul_steinerOpt {δ : α → α → ℕ}
     (hsymm : ∀ x y, δ x y = δ y x) (htri : ∀ x y z, δ x z ≤ δ x y + δ y z) {R : List α}
     (hR : R.Nodup) : edgeCost δ (steinerMST δ R) ≤ 2 * steinerOpt δ R := by
   obtain ⟨T, hT, hc⟩ := exists_connects_edgeCost_eq_steinerOpt δ R
-  rw [← hc]
-  exact edgeCost_steinerMST_le_two_mul hsymm htri hR hT
+  exact hc ▸ edgeCost_steinerMST_le_two_mul hsymm htri hR hT
 
 /-- The 2-approximation against the optimum for zero-diagonal costs. -/
 theorem edgeCost_steinerMST_le_two_mul_steinerOpt_of_diag {δ : α → α → ℕ}
     (hdiag : ∀ x, δ x x = 0) (hsymm : ∀ x y, δ x y = δ y x) (htri : ∀ x y z, δ x z ≤ δ x y + δ y z)
     {R : List α} : edgeCost δ (steinerMST δ R) ≤ 2 * steinerOpt δ R := by
   obtain ⟨T, hT, hc⟩ := exists_connects_edgeCost_eq_steinerOpt δ R
-  rw [← hc]
-  exact edgeCost_steinerMST_le_two_mul_of_diag hdiag hsymm htri hT
+  exact hc ▸ edgeCost_steinerMST_le_two_mul_of_diag hdiag hsymm htri hT
 
 /-- The sharp form against the optimum: `|R| · cost(steinerMST δ R) ≤ 2 (|R| - 1) · OPT`. -/
 theorem length_mul_edgeCost_steinerMST_le_steinerOpt {δ : α → α → ℕ}
@@ -569,8 +561,7 @@ theorem length_mul_edgeCost_steinerMST_le_steinerOpt {δ : α → α → ℕ}
     (hR : R.Nodup) :
     R.length * edgeCost δ (steinerMST δ R) ≤ 2 * (R.length - 1) * steinerOpt δ R := by
   obtain ⟨T, hT, hc⟩ := exists_connects_edgeCost_eq_steinerOpt δ R
-  rw [← hc]
-  exact length_mul_edgeCost_steinerMST_le hsymm htri hR hT
+  exact hc ▸ length_mul_edgeCost_steinerMST_le hsymm htri hR hT
 
 /-- The sharp form against the optimum for zero-diagonal costs. -/
 theorem length_mul_edgeCost_steinerMST_le_steinerOpt_of_diag {δ : α → α → ℕ}
@@ -578,7 +569,6 @@ theorem length_mul_edgeCost_steinerMST_le_steinerOpt_of_diag {δ : α → α →
     {R : List α} :
     R.length * edgeCost δ (steinerMST δ R) ≤ 2 * (R.length - 1) * steinerOpt δ R := by
   obtain ⟨T, hT, hc⟩ := exists_connects_edgeCost_eq_steinerOpt δ R
-  rw [← hc]
-  exact length_mul_edgeCost_steinerMST_le_of_diag hdiag hsymm htri hT
+  exact hc ▸ length_mul_edgeCost_steinerMST_le_of_diag hdiag hsymm htri hT
 
 end Cslib.Algorithms.Lean.SteinerTree

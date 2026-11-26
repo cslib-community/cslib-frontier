@@ -189,12 +189,8 @@ theorem decodeSelfDelimiting?_eq_some_iff {q b p : List Bool} :
       List.drop_left' (Nat.size_eq_bits_len _)
     have hfold : ((b.length.bits ++ (b ++ p)).take b.length.size).foldr Nat.bit 0 = b.length := by
       rw [List.take_left' (Nat.size_eq_bits_len _), Nat.foldr_bit_bits]
-    have hlen_q : b.length.size < (selfDelimitingCode b ++ p).length := by
-      simp [selfDelimitingCode, Nat.size_eq_bits_len]
-    have hlen_r : b.length.size + b.length ≤ (b.length.bits ++ (b ++ p)).length := by
-      simp [Nat.size_eq_bits_len]
-    simp only [decodeSelfDelimiting?, hidx, hdrop, hfold, hlen_q, hlen_r, true_and, ↓reduceIte,
-      hdrop2, List.take_left, List.drop_left]
+    simp only [decodeSelfDelimiting?, hidx, hdrop, hfold, hdrop2, List.take_left, List.drop_left]
+    simp [selfDelimitingCode, Nat.size_eq_bits_len]
 
 @[simp]
 theorem decodeSelfDelimiting?_selfDelimitingCode_append (b p : List Bool) :
@@ -316,11 +312,9 @@ theorem parseCodeHeader_eq_some_iff {q : List Bool} {c : Code} {p : List Bool} :
     parseCodeHeader q = some (c, p) ↔ codeHeader c ++ p = q := by
   constructor
   · simp only [parseCodeHeader]
-    cases hd : decodeSelfDelimiting? q with
-    | none => simp
-    | some bp =>
-      rcases bp with ⟨b, p'⟩
-      dsimp only
+    rcases hd : decodeSelfDelimiting? q with _ | ⟨b, p'⟩
+    · simp
+    · dsimp only
       split_ifs with hsz <;>
         simp only [Option.some.injEq, Prod.mk.injEq, false_imp_iff]
       rintro ⟨rfl, rfl⟩
@@ -420,25 +414,21 @@ private theorem prefixAccepted_invariants (c : Code) (n : ℕ) :
   | succ n ih =>
     rcases ih with ⟨hpf, hnodup, hsound⟩
     simp only [prefixAccepted]
-    cases hcand : prefixCand c n with
-    | none => exact ⟨hpf, hnodup, hsound⟩
-    | some qx =>
-      rcases qx with ⟨q, x⟩
-      dsimp only
+    rcases hcand : prefixCand c n with _ | ⟨q, x⟩
+    · exact ⟨hpf, hnodup, hsound⟩
+    · dsimp only
       split_ifs with hconf
       · exact ⟨hpf, hnodup, hsound⟩
       · have hno : ∀ entry ∈ prefixAccepted c n, ¬ (q <+: entry.1) ∧ ¬ (entry.1 <+: q) := by
           intro entry hent
           simpa [List.any_eq_true, not_or] using fun h : q <+: entry.1 ∨ entry.1 <+: q =>
             hconf (List.any_eq_true.mpr ⟨entry, hent, by simpa using h⟩)
-        have hq_notMem : q ∉ (prefixAccepted c n).map Prod.fst := by
-          rintro hmem
-          obtain ⟨entry, hent, rfl⟩ := List.mem_map.mp hmem
-          exact (hno entry hent).1 List.prefix_rfl
+        have hq_notMem : q ∉ (prefixAccepted c n).map Prod.fst := fun hmem =>
+          let ⟨entry, hent, heq⟩ := List.mem_map.mp hmem
+          (hno entry hent).1 (heq ▸ List.prefix_rfl)
         have hq_eval : x ∈ c.eval (encode q) := by
           simp only [prefixCand, Option.bind_eq_some_iff, Option.map_eq_some_iff] at hcand
-          obtain ⟨⟨_, _⟩, _, _, hx', hpair⟩ := hcand
-          cases hpair
+          obtain ⟨⟨_, _⟩, _, _, hx', rfl, rfl⟩ := hcand
           exact Code.evaln_sound hx'
         refine ⟨?_, ?_, ?_⟩
         · rintro p₁ ⟨y₁, hy₁⟩ p₂ ⟨y₂, hy₂⟩ hp
@@ -450,11 +440,10 @@ private theorem prefixAccepted_invariants (c : Code) (n : ℕ) :
           · rfl
         · rw [List.map_append, List.map_cons, List.map_nil]
           exact hnodup.append (List.nodup_singleton q) (by simpa using hq_notMem)
-        · intro p y hy
-          rcases List.mem_append.mp hy with hy | hy
+        · simp only [List.mem_append, List.mem_singleton, Prod.mk.injEq]
+          rintro p y (hy | ⟨rfl, rfl⟩)
           · exact hsound p y hy
-          · obtain ⟨rfl, rfl⟩ := Prod.mk.inj (List.mem_singleton.mp hy)
-            exact hq_eval
+          · exact hq_eval
 
 theorem mem_prefixAccepted_iff_lookup {c : Code} {n : ℕ} {p : List Bool} {x : ℕ} :
     (p, x) ∈ prefixAccepted c n ↔ (prefixAccepted c n).lookup p = some x :=
@@ -484,11 +473,9 @@ theorem isPrefixFree_ofPrefixCode (c : Code) : (ofPrefixCode c).IsPrefixFree := 
   rintro p₁ ⟨x₁, h₁⟩ p₂ ⟨x₂, h₂⟩ hp
   obtain ⟨n₁, hn₁⟩ := ofPrefixCode_produces_iff.mp h₁
   obtain ⟨n₂, hn₂⟩ := ofPrefixCode_produces_iff.mp h₂
-  have h1' : (p₁, x₁) ∈ prefixAccepted c (max n₁ n₂) :=
-    (prefixAccepted_prefix c (le_max_left n₁ n₂)).subset hn₁
-  have h2' : (p₂, x₂) ∈ prefixAccepted c (max n₁ n₂) :=
-    (prefixAccepted_prefix c (le_max_right n₁ n₂)).subset hn₂
-  exact (prefixAccepted_invariants c (max n₁ n₂)).1 p₁ ⟨x₁, h1'⟩ p₂ ⟨x₂, h2'⟩ hp
+  exact (prefixAccepted_invariants c (max n₁ n₂)).1 p₁
+    ⟨x₁, (prefixAccepted_prefix c (le_max_left n₁ n₂)).subset hn₁⟩ p₂
+    ⟨x₂, (prefixAccepted_prefix c (le_max_right n₁ n₂)).subset hn₂⟩ hp
 
 /-- Every program halting under `ofPrefixCode c` halts with the same output under `ofCode c`. -/
 theorem ofCode_produces_of_ofPrefixCode_produces {c : Code} {p : List Bool} {x : ℕ}
@@ -581,11 +568,7 @@ private theorem primrec₂_prefixAccepted : Primrec₂ prefixAccepted := by
   | succ n ih =>
     change (match prefixCand c n with | Option.none => _ | some qx => _) = prefixAccepted c (n + 1)
     rw [ih]
-    cases h : prefixCand c n with
-    | none => simp [prefixAccepted, h]
-    | some qx =>
-      rcases qx with ⟨q, x⟩
-      simp [prefixAccepted, h]
+    rcases h : prefixCand c n with _ | ⟨q, x⟩ <;> simp [prefixAccepted, h]
 
 theorem primrec₂_prefixAccepted_lookup :
     Primrec₂ fun (cp : Code × List Bool) (n : ℕ) => (prefixAccepted cp.1 n).lookup cp.2 := by
@@ -664,11 +647,7 @@ theorem universalPrefix_produces_iff {q : List Bool} {x : ℕ} :
     universalPrefix.Produces q x ↔
       ∃ c p, parseCodeHeader q = some (c, p) ∧ (ofPrefixCode c).Produces p x := by
   simp only [Produces, universalPrefix]
-  cases h : parseCodeHeader q with
-  | none => simp [Computation.notMem_empty]
-  | some cp =>
-    rcases cp with ⟨c, p⟩
-    simp
+  rcases parseCodeHeader q with _ | ⟨c, p⟩ <;> simp [Computation.notMem_empty]
 
 theorem universalPrefix_produces_codeHeader_append {c : Code} {p : List Bool} {x : ℕ} :
     universalPrefix.Produces (codeHeader c ++ p) x ↔ (ofPrefixCode c).Produces p x := by
@@ -776,7 +755,6 @@ theorem IsAdditivelyOptimal.minorizesPrefixPartrec {U : DescriptionMethod ℕ}
     U.MinorizesPrefixPartrec := by
   intro g hg hg_pf
   obtain ⟨c, hc⟩ := Code.exists_code.mp hg
-  have hcode_part : (ofCode c).IsPartrec := isPartrec_ofCode c
   have hcode_pf : (ofCode c).IsPrefixFree := by
     rintro p₁ ⟨x₁, h₁⟩ p₂ ⟨x₂, h₂⟩ hp
     have h₁' : (g p₁).Dom :=
@@ -784,12 +762,10 @@ theorem IsAdditivelyOptimal.minorizesPrefixPartrec {U : DescriptionMethod ℕ}
     have h₂' : (g p₂).Dom :=
       Part.dom_iff_mem.mpr ⟨x₂, by simpa [hc, encodek] using ofCode_produces_iff.mp h₂⟩
     exact hg_pf p₁ h₁' p₂ h₂' hp
-  obtain ⟨d, hd⟩ := hU.exists_ecomplexity_le (ofCode c) ⟨hcode_part, hcode_pf⟩
-  refine ⟨d, fun p x hx => ?_⟩
-  have hpx : (ofCode c).Produces p x := by
-    rw [ofCode_produces_iff, hc]
-    simpa [encodek] using hx
-  exact (hd x).trans (add_le_add_left (ecomplexity_le_length hpx) d)
+  obtain ⟨d, hd⟩ := hU.exists_ecomplexity_le (ofCode c) ⟨isPartrec_ofCode c, hcode_pf⟩
+  refine ⟨d, fun p x hx => (hd x).trans (add_le_add_left (ecomplexity_le_length ?_) d)⟩
+  rw [ofCode_produces_iff, hc]
+  simpa [encodek] using hx
 
 /-- `universalPrefix` minorizes every prefix-free partial recursive decoder. -/
 theorem minorizesPrefixPartrec_universalPrefix : universalPrefix.MinorizesPrefixPartrec :=

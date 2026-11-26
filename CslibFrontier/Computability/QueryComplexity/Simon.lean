@@ -157,11 +157,8 @@ private theorem simonRep_add (s a : Fin n → Bool) : simonRep s (a + s) = simon
   · rfl
   · exact absurd (le_of_lt (not_le.mp h2)) h1
 
-private theorem simonRep_mem (s a : Fin n → Bool) : simonRep s a = a ∨ simonRep s a = a + s := by
-  unfold simonRep
-  split_ifs
-  · exact Or.inl rfl
-  · exact Or.inr rfl
+private theorem simonRep_mem (s a : Fin n → Bool) : simonRep s a = a ∨ simonRep s a = a + s :=
+  ite_eq_or_eq _ _ _
 
 @[simp] private theorem simonRep_zero : simonRep (0 : Fin n → Bool) = id := by
   funext a
@@ -245,18 +242,12 @@ private theorem simonFix_apply_of_mem {s : Fin n → Bool} {A : Finset (Fin n �
   unfold simonFixFun
   rcases simonRep_mem s a with h | h
   · rw [h]
-    have hn : ¬((a ∈ A ∧ a ≠ a) ∨ (a + s ∈ A ∧ simonRep s (a + s) ≠ a + s)) := by
-      rintro (⟨_, hne⟩ | ⟨hmem, _⟩)
-      · exact hne rfl
-      · exact hA a ha hmem
-    exact ite_eq_right hn
+    exact ite_eq_right fun
+      | .inl ⟨_, hne⟩ => hne rfl
+      | .inr ⟨hmem, _⟩ => hA a ha hmem
   · rw [h]
-    have hy : (a ∈ A ∧ a + s ≠ a) ∨ (a + s ∈ A ∧ simonRep s (a + s) ≠ a + s) := by
-      left
-      refine ⟨ha, fun h' => ?_⟩
-      have : s = 0 := add_left_cancel (h'.trans (add_zero a).symm)
-      exact hA a ha (by rw [this, add_zero]; exact ha)
-    exact ite_eq_left hy
+    refine ite_eq_left (.inl ⟨ha, fun h' => hA a ha ?_⟩)
+    simpa only [add_left_cancel (h'.trans (add_zero a).symm), add_zero] using ha
 
 private theorem simonFix_simonFix (s : Fin n → Bool) (A : Finset (Fin n → Bool)) :
     simonFix s A * simonFix s A = 1 :=
@@ -494,9 +485,8 @@ theorem simon_randomized_lower_bound (μ : RandomizedDecisionTree (Fin N) Bool)
         ((μ.depth * μ.depth - μ.depth : ℕ) : ℝ) *
           ∑ t ∈ μ.weights.support, μ.weights t * (numFalse0 E t : ℝ) := by
     rw [mul_sum, mul_sum, mul_sum, ← sum_add_distrib]
-    refine sum_le_sum fun t ht => ?_
-    have := mul_le_mul_of_nonneg_left (hpt t ht) (μ.weights_nonneg t)
-    linarith
+    exact sum_le_sum fun t ht => by
+      linarith [mul_le_mul_of_nonneg_left (hpt t ht) (μ.weights_nonneg t)]
   have hε0 : 0 ≤ ε :=
     RandomizedDecisionTree.errorProb_nonneg.trans (hμ _ _ (simonPromise_simonHard E 1 0))
   have hQ : (0 : ℝ) ≤ ((μ.depth * μ.depth - μ.depth : ℕ) : ℝ) := Nat.cast_nonneg _
@@ -516,11 +506,9 @@ theorem simon_randomized_lower_bound_third (μ : RandomizedDecisionTree (Fin N) 
     (hμ : ∀ X s, SimonPromise (simonFun E X) s → μ.errorProb F X ≤ 1 / 3) :
     2 ^ n - 1 ≤ μ.depth * μ.depth - μ.depth := by
   have h := simon_randomized_lower_bound E μ F hF hμ (by norm_num)
-  have hR : ((2 ^ n - 1 : ℕ) : ℝ) ≤ ((μ.depth * μ.depth - μ.depth : ℕ) : ℝ) := by
-    rw [Nat.cast_sub Nat.one_le_two_pow]
-    push_cast
-    linarith
-  exact_mod_cast hR
+  suffices ((2 ^ n - 1 : ℕ) : ℝ) ≤ ((μ.depth * μ.depth - μ.depth : ℕ) : ℝ) from mod_cast this
+  rw [Nat.cast_sub Nat.one_le_two_pow]
+  push_cast; linarith
 
 /-- **Exponential classical lower bound**: for `n ≥ 1`, a randomized decision tree that decides
 Simon's problem with error `1/3` has depth `q` with `2^n ≤ q²`, so `q ≥ 2^{n/2}`. -/

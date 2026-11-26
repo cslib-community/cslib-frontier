@@ -97,22 +97,16 @@ arities. -/
 theorem isCodeFrom_circuitGates {n : ℕ} {E : List (ℕ × ℕ)} (hE : ∀ e ∈ E, e.1 < n ∧ e.2 < n) :
     Program.IsCodeFrom Unbounded.signature n 0 (circuitGates n E) := by
   rw [circuitGates, Program.isCodeFrom_append, Program.isCodeFrom_append]
-  refine ⟨⟨Program.isCodeFrom_of_forall ?_, Program.isCodeFrom_of_forall ?_⟩,
-    Program.isCodeFrom_of_forall ?_⟩
-  · intro g hg
-    obtain ⟨i, hi, rfl⟩ := List.mem_map.1 hg
-    simp only [List.mem_range] at hi
-    exact ⟨rfl, by simp only [List.mem_singleton]; omega⟩
-  · intro g hg
-    obtain ⟨e, he, rfl⟩ := List.mem_map.1 hg
-    have := hE e he
-    simp only [List.length_map, List.length_range]
-    exact ⟨rfl, by simp only [List.mem_cons, List.not_mem_nil, or_false]; omega⟩
-  · rintro _ (_ | ⟨_, ⟨⟩⟩)
-    refine ⟨by simp, ?_⟩
-    simp only [List.length_append, List.length_map, List.length_range, List.mem_map,
-      List.mem_range]
-    rintro _ ⟨j, hj, rfl⟩
+  refine ⟨⟨Program.isCodeFrom_of_forall
+      (List.forall_mem_map.2 fun i hi => ⟨rfl, fun _ hx => by simp_all⟩),
+    Program.isCodeFrom_of_forall (List.forall_mem_map.2 fun e he => ⟨rfl, fun x hx => ?_⟩)⟩,
+    Program.isCodeFrom_of_forall (List.forall_mem_singleton.2 ⟨by simp,
+      List.forall_mem_map.2 fun j hj => ?_⟩)⟩
+  · have := hE e he
+    simp only [List.mem_cons, List.not_mem_nil, or_false, List.length_map,
+      List.length_range] at hx ⊢
+    omega
+  · simp only [List.mem_range, List.length_append, List.length_map, List.length_range] at hj ⊢
     omega
 
 /-- The code of the circuit of a graph decodes to a circuit. -/
@@ -151,11 +145,7 @@ theorem evalCode_circuitGates {n : ℕ} {E : List (ℕ × ℕ)} (hE : ∀ e ∈ 
       refine List.ext_getElem (by simp) fun i h₁ h₂ => ?_
       simp only [List.length_map, List.length_range] at h₁
       simp [List.getElem?_eq_getElem h₁]
-    · intro g hg i hi
-      obtain ⟨j, hj, rfl⟩ := List.mem_map.1 hg
-      simp only [List.mem_range] at hj
-      simp only [List.mem_singleton] at hi
-      omega
+    · exact List.forall_mem_map.2 fun j hj _ hi => by simp_all
   have h2 : evalCode Unbounded.interpretation false (x ++ x.map (!·))
       (E.map fun e => (Unbounded.Op.or 2, [x.length + e.1, x.length + e.2])) =
       (x ++ x.map (!·)) ++ E.map fun e => (!x.getD e.1 false || !x.getD e.2 false) := by
@@ -166,17 +156,15 @@ theorem evalCode_circuitGates {n : ℕ} {E : List (ℕ × ℕ)} (hE : ∀ e ∈ 
       obtain ⟨h₁, h₂⟩ := hE e he
       simp [List.getElem?_append_right, List.getElem?_eq_getElem h₁,
         List.getElem?_eq_getElem h₂, Fin.exists_fin_two]
-    · intro g hg i hi
-      obtain ⟨e, he, rfl⟩ := List.mem_map.1 hg
+    · refine List.forall_mem_map.2 fun e he i hi => ?_
       obtain ⟨h₁, h₂⟩ := hE e he
-      simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
-      simp only [List.length_append, List.length_map]
+      simp only [List.mem_cons, List.not_mem_nil, or_false, List.length_append,
+        List.length_map] at hi ⊢
       omega
   rw [h1, h2, evalCode_layer]
   · have hlen : (x ++ x.map (!·) ++
         E.map fun e => (!x.getD e.1 false || !x.getD e.2 false)).length =
-        x.length + x.length + E.length := by
-      simp only [List.length_append, List.length_map]
+        x.length + x.length + E.length := by simp [Nat.add_assoc]
     rw [← hlen, List.getD_append_right _ _ _ _ le_rfl, Nat.sub_self]
     simp only [List.map_singleton, List.getD_cons_zero, Unbounded.interpretation_and]
     rw [decide_eq_decide, List.forall_mem_iff_getElem, Fin.forall_iff]
@@ -187,10 +175,8 @@ theorem evalCode_circuitGates {n : ℕ} {E : List (ℕ × ℕ)} (hE : ∀ e ∈ 
       List.getD_append_right _ _ _ _ (Nat.le_add_right _ _), Nat.add_sub_cancel_left,
       List.getD_eq_getElem _ _ (by simpa using hj), List.getElem_map]
     cases x.getD E[j].1 false <;> cases x.getD E[j].2 false <;> decide
-  · rintro _ (_ | ⟨_, ⟨⟩⟩) i hi
-    obtain ⟨j, hj, rfl⟩ := List.mem_map.1 hi
-    simp only [List.mem_range] at hj
-    simp only [List.length_append, List.length_map]
+  · refine List.forall_mem_singleton.2 (List.forall_mem_map.2 fun j hj => ?_)
+    simp only [List.mem_range, List.length_append, List.length_map] at hj ⊢
     omega
 
 /-- The circuit of `G` has one input for each distinct declared vertex. -/
@@ -288,32 +274,22 @@ private theorem le_of_mem_evalCode_circuitGates (cost : Unbounded.Op → ℕ) {n
       (circuitGates n E),
       v ≤ 0 + c₁ + c₂ + c₃ := by
   rw [circuitGates, evalCode_append, evalCode_append]
-  refine le_of_mem_evalCode_depth_layer _ _ _ ?_ (le_of_mem_evalCode_depth_layer _ _ _ ?_
-    (le_of_mem_evalCode_depth_layer _ _ _ ?_ ?_ ?_) ?_) ?_
-  · rintro _ (_ | ⟨_, ⟨⟩⟩) i hi
-    obtain ⟨j, hj, rfl⟩ := List.mem_map.1 hi
-    simp only [List.mem_range] at hj
-    simp only [length_evalCode, List.length_replicate, List.length_map, List.length_range]
+  refine le_of_mem_evalCode_depth_layer _ _ _
+    (List.forall_mem_singleton.2 (List.forall_mem_map.2 fun j hj => ?_))
+    (le_of_mem_evalCode_depth_layer _ _ _ (List.forall_mem_map.2 fun e he i hi => ?_)
+      (le_of_mem_evalCode_depth_layer _ _ _
+        (List.forall_mem_map.2 fun j hj _ hi => by simp_all)
+        (fun _ hv => (List.eq_of_mem_replicate hv).le)
+        (by simp [h₁]))
+      (List.forall_mem_map.2 fun _ _ => h₂))
+    (by simp [h₃])
+  · simp only [List.mem_range, length_evalCode, List.length_replicate, List.length_map,
+      List.length_range] at hj ⊢
     omega
-  · intro g hg i hi
-    obtain ⟨e, he, rfl⟩ := List.mem_map.1 hg
-    obtain ⟨he₁, he₂⟩ := hE e he
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
-    simp only [length_evalCode, List.length_replicate, List.length_map, List.length_range]
+  · obtain ⟨he₁, he₂⟩ := hE e he
+    simp only [List.mem_cons, List.not_mem_nil, or_false, length_evalCode, List.length_replicate,
+      List.length_map, List.length_range] at hi ⊢
     omega
-  · intro g hg i hi
-    obtain ⟨j, hj, rfl⟩ := List.mem_map.1 hg
-    simp only [List.mem_range] at hj
-    simp only [List.mem_singleton] at hi
-    simp only [List.length_replicate]
-    omega
-  · intro v hv
-    exact (List.eq_of_mem_replicate hv).le
-  · simp [h₁]
-  · intro g hg
-    obtain ⟨e, -, rfl⟩ := List.mem_map.1 hg
-    exact h₂
-  · simp [h₃]
 
 /-- The circuit of a graph has weft at most `1`: its only large gate is the final conjunction. -/
 theorem weft_toCircuit_le (G : Graph) : (toCircuit G).2.weft ≤ 1 := by
@@ -391,8 +367,7 @@ theorem computableInPolyTime_toWCS :
       encIndependentSetInstance
       (encPair (encPair encUnary (Circuit.encCode Unbounded.encOp)) encNat) := by
     fun_prop
-  refine h.of_enc_eq fun x => ?_
-  obtain ⟨G, k⟩ := x
+  refine h.of_enc_eq fun ⟨G, k⟩ => ?_
   simp only [toWCS, encWCS_apply, encPair_apply, encWeftCircuit_apply, Circuit.encCircuit_apply,
     code_toCircuit]
   rfl

@@ -729,19 +729,12 @@ theorem length_amplifyIterLabels (fallback : Constraint) (rotate : ℕ × (ℕ �
     (hlen : labels.length = g.vertices) :
     (amplifyIterLabels fallback rotate T q k g labels).length =
       (amplifyIter fallback rotate T q k g).vertices := by
-  have hinv : ∀ m (g₀ : Graph Constraint) (L₀ : List SelectedAlphabet),
-      L₀.length = g₀.vertices →
-      ((amplifyIterStep fallback rotate T q)^[m] (g₀, L₀)).2.length =
-        ((amplifyIterStep fallback rotate T q)^[m] (g₀, L₀)).1.vertices := by
-    intro m
-    induction m with
-    | zero => exact fun _ _ h => h
-    | succ m ih =>
-      intro g₀ L₀ _
-      rw [Function.iterate_succ_apply]
-      exact ih _ _ (length_amplifyLabels fallback rotate T q g₀ L₀)
-  rw [amplifyIterLabels, ← fst_amplifyIterStep]
-  exact hinv k g labels hlen
+  rw [amplifyIterLabels, amplifyIter]
+  induction k generalizing g labels with
+  | zero => exact hlen
+  | succ k ih =>
+    rw [Function.iterate_succ_apply, Function.iterate_succ_apply]
+    exact ih (length_amplifyLabels fallback rotate T q g labels)
 
 /-- Iterated normalized amplification rounds preserve satisfaction of explicit label lists. -/
 theorem satisfies_amplifyIterLabels (fallback : Constraint)

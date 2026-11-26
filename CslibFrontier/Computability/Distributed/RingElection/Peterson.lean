@@ -359,14 +359,9 @@ private theorem strip_one_step {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
       obtain ⟨hb_en, rfl⟩ := hstep
       obtain ⟨hb_after_a, ha_after_b, hcomm, hw_comm⟩ :=
         twoHopStep_comm (Ne.symm hba) ha_en hb_en
-      let cfg₂ := twoHopStep b (twoHopStep a cfg)
-      have htr_b' : (twoHopLTS n U).Tr (twoHopStep a cfg) b cfg₂ := ⟨hb_after_a, rfl⟩
-      have htr_a' : (twoHopLTS n U).Tr (twoHopStep b cfg) a cfg₂ := ⟨ha_after_b, hcomm⟩
-      obtain ⟨rest', hmtr_rest', hlen_rest', hw_rest'⟩ := ih hrest htr_b'
-      refine ⟨a :: rest', LTS.MTr.stepL htr_a' hmtr_rest', by simp [hlen_rest'], ?_⟩
-      simp only [twoHopEmittedMsgs]
-      rw [← hcomm]
-      dsimp only [cfg₂] at hw_rest'
+      obtain ⟨rest', hmtr_rest', hlen_rest', hw_rest'⟩ := ih hrest ⟨hb_after_a, rfl⟩
+      refine ⟨a :: rest', LTS.MTr.stepL ⟨ha_after_b, hcomm⟩ hmtr_rest', by simp [hlen_rest'], ?_⟩
+      simp only [twoHopEmittedMsgs, ← hcomm]
       linarith
 
 /-- **Global confluence from a canonical terminating run (`confluence_of_canonical_terminal`).**
@@ -389,8 +384,7 @@ private theorem confluence_of_canonical_terminal {n : ℕ} [NeZero n] {U : Type*
   | @stepL s1 b s2 tail s3 htr _ ih =>
     obtain ⟨sync', hsync', hlen', hw'⟩ := strip_one_step hsync hterm htr
     obtain ⟨rem, hrem, hlen_rem, hw_rem⟩ := ih hsync'
-    have hs2 : s2 = twoHopStep b s1 := htr.2
-    subst hs2
+    obtain ⟨_, rfl⟩ := htr
     refine ⟨rem, hrem, by simp only [List.length_cons]; omega, ?_⟩
     simp only [twoHopEmittedMsgs]
     linarith
@@ -424,9 +418,8 @@ private theorem backLen_bounds_and_mem {n : ℕ} [NeZero n] {A : Finset (Fin n)}
   have hneg_sub : ∀ d, -q + Fin.ofNat n d = -(q - Fin.ofNat n d) := fun d => by
     rw [neg_sub, sub_eq_add_neg, add_comm]
   rw [hneg_sub, mem_neg_image_iff] at hmem
-  refine ⟨h1, hn, hmem, fun k hk1 hk2 => ?_⟩
-  have hk := hmin k hk1 hk2
-  rwa [hneg_sub, mem_neg_image_iff] at hk
+  exact ⟨h1, hn, hmem, fun k hk1 hk2 => by
+    simpa only [hneg_sub, mem_neg_image_iff] using hmin k hk1 hk2⟩
 
 private theorem nextActive_mem {n : ℕ} [NeZero n] {A : Finset (Fin n)} {p : Fin n} (hp : p ∈ A) :
     nextActive A p ∈ A :=
@@ -536,12 +529,9 @@ theorem twoHopSurvivors_card_halving {n : ℕ} [NeZero n] {U : Type*} [LinearOrd
     -- contradicting `h1.2 : tidMap r₁ < tidMap (prevActive A r₁)`!
     rw [hprev_eq] at h2
     exact lt_asymm h1.2 h2.1
-  have hP_card : P.card = S.card := by
-    refine Finset.card_image_of_injOn fun r₁ hr₁ r₂ hr₂ heq => ?_
-    have hA₁ : r₁ ∈ A := (Finset.mem_filter.mp hr₁).1
-    have hA₂ : r₂ ∈ A := (Finset.mem_filter.mp hr₂).1
-    have h := congrArg (nextActive A) heq
-    rwa [nextActive_prevActive hA₁, nextActive_prevActive hA₂] at h
+  have hP_card : P.card = S.card := Finset.card_image_of_injOn fun r₁ hr₁ r₂ hr₂ heq => by
+    simpa [nextActive_prevActive (Finset.mem_filter.mp hr₁).1,
+      nextActive_prevActive (Finset.mem_filter.mp hr₂).1] using congrArg (nextActive A) heq
   have hle := Finset.card_le_card hSP_sub
   rw [Finset.card_union_of_disjoint hSP_disj, hP_card] at hle
   dsimp only [S] at hle
@@ -1040,16 +1030,7 @@ private theorem mtr_elimination_phase {n : ℕ} [NeZero n] {U : Type*} [LinearOr
       else ⟨.relay, []⟩ := by
     intro r hr
     rw [hnode₁ r, ite_eq_left hr, hpass1_out r hr]
-    simp only [twoHopRecv]
-    by_cases hrS : r ∈ st'.active
-    · have hpeak := (Finset.mem_filter.mp hrS).2
-      simp only [hrS, hpeak, and_self, ↓reduceIte, st']
-    · have hnot_peak :
-          ¬ (st.tidMap (prevActive st.active (prevActive st.active r)) <
-              st.tidMap (prevActive st.active r) ∧
-            st.tidMap r < st.tidMap (prevActive st.active r)) :=
-        fun hp => hrS (Finset.mem_filter.mpr ⟨hr, hp⟩)
-      simp only [hrS, hnot_peak, ↓reduceIte]
+    simp only [twoHopRecv, st', twoHopSurvivors, Finset.mem_filter, hr, true_and]
   have hmsgs₂_eq : twoHopEmittedMsgs cfg₁ w₂ = (n - st.active.card) + st'.active.card := by
     rw [hmsgs₂, Finset.sum_congr rfl fun r hr =>
       (congrArg (fun o : TwoHopLocalOut U => o.sent.length) (hpass2_out r hr)).trans
@@ -1125,57 +1106,49 @@ private theorem exists_canonical_terminal {n : ℕ} [NeZero n] {U : Type*} [Line
   let stK := twoHopAllActivePhase uid K
   have hiStar_mem : iStar ∈ stK.active := hiStar_eq ▸ Finset.mem_singleton_self iStar
   obtain ⟨_, _, ⟨qMax, hqMax_mem, hqMax_eq, _⟩⟩ := twoHopAllActivePhase_inv huid K
-  have hqMax_iStar : qMax = iStar :=
-    Finset.mem_singleton.mp (hiStar_eq ▸ hqMax_mem)
-  rw [hqMax_iStar] at hqMax_eq
-  let maxUid := stK.tidMap iStar
+  obtain rfl : qMax = iStar := Finset.mem_singleton.mp (hiStar_eq ▸ hqMax_mem)
+  let maxUid := stK.tidMap qMax
   -- Run the final `active = 1` wave (`mtr_wave`) from `cfgK`:
   obtain ⟨w_end, cfg_term, hmtr_end, hmsgs_end, hnode_end, hchan_end⟩ :=
-    mtr_wave ⟨iStar, hiStar_mem⟩ (fun i => TwoHopMsg.hop1 (stK.tidMap i))
-      (fun i hi => by
-        rw [hstartK.1 i]
-        change (if i ∈ stK.active then _ else _) = _
-        simp only [hi, ↓reduceIte])
+    mtr_wave ⟨qMax, hiStar_mem⟩ (fun i => TwoHopMsg.hop1 (stK.tidMap i))
+      (fun i hi => by simp [hstartK.1 i, show i ∉ (twoHopAllActivePhase uid K).active from hi])
       hstartK.2
-  have hprev_self : prevActive stK.active iStar = iStar :=
+  have hprev_self : prevActive stK.active qMax = qMax :=
     Finset.mem_singleton.mp (hiStar_eq ▸ prevActive_mem hiStar_mem)
   have hout_iStar :
-      twoHopRecv (cfgK.node iStar) (.hop1 (stK.tidMap (prevActive stK.active iStar)))
-        = ⟨.leader maxUid, []⟩ := by
-    rw [hprev_self, hstartK.1 iStar]
-    change twoHopRecv (if iStar ∈ stK.active then .active1 (stK.tidMap iStar) else .relay)
-      (.hop1 (stK.tidMap iStar)) = ⟨.leader maxUid, []⟩
-    simp only [hiStar_mem, ↓reduceIte, twoHopRecv, maxUid]
+      twoHopRecv (cfgK.node qMax) (.hop1 (stK.tidMap (prevActive stK.active qMax))) =
+        ⟨.leader maxUid, []⟩ := by
+    rw [hprev_self, hstartK.1 qMax]
+    dsimp only [stK, maxUid] at hiStar_mem ⊢
+    simp only [hiStar_mem, ↓reduceIte, twoHopRecv]
   have hchan_empty : ∀ e, cfg_term.chan e = [] := fun e => by
     rw [hchan_end e]
     split_ifs with he
-    · rw [show e = iStar from Finset.mem_singleton.mp (hiStar_eq ▸ he), hout_iStar]
+    · rw [show e = qMax from Finset.mem_singleton.mp (hiStar_eq ▸ he), hout_iStar]
     · rfl
   have hterm : (twoHopLTS n U).IsTerminal cfg_term := by
     intro target _ ⟨hne, _⟩
     exact hne (hchan_empty (target - 1))
   have hmsgs_end_eq : twoHopEmittedMsgs cfgK w_end = n - 1 := by
-    rw [hmsgs_end, show stK.active = {iStar} from hiStar_eq]
+    rw [hmsgs_end, show stK.active = {qMax} from hiStar_eq]
     simp only [Finset.card_singleton, Finset.sum_singleton]
     rw [← hiStar_eq, hout_iStar]
-    simp only [List.length_nil, add_zero]
+    rfl
   have hn_pos : 1 ≤ n := Nat.pos_of_ne_zero (NeZero.ne n)
   -- Identify `maxUid` with `(Finset.univ.image uid).max'` for `∀ j, uid j ≤ maxUid`:
   have hne_univ : (Finset.univ : Finset (Fin n)).Nonempty :=
     ⟨⟨0, Nat.pos_of_ne_zero (NeZero.ne n)⟩, Finset.mem_univ _⟩
   rcases Finset.mem_image.mp (Finset.max'_mem (Finset.univ.image uid) (hne_univ.image uid)) with
     ⟨j₀, _, hj₀_eq⟩
-  refine ⟨sK ++ w_end, cfg_term, iStar, maxUid, hmtrK.comp (twoHopLTS n U) hmtr_end, hterm,
-    ?_, ?_, ⟨j₀, hj₀_eq.trans hqMax_eq.symm⟩, ?_, ?_⟩
+  refine ⟨sK ++ w_end, cfg_term, qMax, maxUid, hmtrK.comp (twoHopLTS n U) hmtr_end, hterm,
+    ?_, fun j => ?_, ⟨j₀, hj₀_eq.trans hqMax_eq.symm⟩, ?_, ?_⟩
   · rw [twoHopAllActiveExecMsgs, twoHopEmittedMsgs_append, twoHopExec_of_mtr hmtrK, hmsgs_end_eq]
     change n + (twoHopEmittedMsgs (twoHopAllActiveInit uid) sK + (n - 1)) = 2 * n * K + n
     rw [← add_assoc, hmsgsK, hcard_K]
     omega
-  · intro j
-    dsimp only [maxUid, stK]
-    rw [hqMax_eq]
-    exact Finset.le_max' _ (uid j) (Finset.mem_image_of_mem uid (Finset.mem_univ j))
-  · simp only [hnode_end iStar, hiStar_mem, ↓reduceIte, hout_iStar]
+  · dsimp only [maxUid, stK]
+    exact hqMax_eq ▸ Finset.le_max' _ (uid j) (Finset.mem_image_of_mem uid (Finset.mem_univ j))
+  · simp only [hnode_end qMax, hiStar_mem, ↓reduceIte, hout_iStar]
   · intro j hj
     have hj_not : j ∉ stK.active := fun h => hj (Finset.mem_singleton.mp (hiStar_eq ▸ h))
     simp only [hnode_end j, hj_not, ↓reduceIte]

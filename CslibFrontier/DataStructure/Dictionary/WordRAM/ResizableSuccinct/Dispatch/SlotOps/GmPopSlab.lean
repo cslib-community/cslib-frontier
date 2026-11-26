@@ -145,6 +145,23 @@ private def CompGmCompactSlabPre (w : ℕ) : (CompParams × ℕ) × ℕ → Memo
         PureMovedSlabInv N (compGmAt metaBase U w N s.mem) p_del
           (compGmAt metaBase U w N s.mem 0 - 1))
 
+private theorem unlinkTopSlab_indices {metaBase U w N b : ℕ} {mem : ℕ → ℕ}
+    (hb_pos : 0 < bucketBits N) (hb : b < numBuckets N)
+    (hslab : SlabBijection N (compGmAt metaBase U w N mem)
+      (fun b' => compGmAt metaBase U w N mem (gmQIdx b')) (compGmAt metaBase U w N mem 0))
+    (hq_pos : 1 ≤ compGmAt metaBase U w N mem (gmQIdx b)) :
+    gmQIdx b < globalMetaLen N ∧ 4 + (b + b + b) = gmQIdx b ∧
+    gmSlabTopIdx b < globalMetaLen N ∧
+    gmSlabBelowIdx N (compGmAt metaBase U w N mem (gmSlabTopIdx b)) < globalMetaLen N ∧
+    gmSlabMetaBase N + (compGmAt metaBase U w N mem (gmSlabTopIdx b) +
+        compGmAt metaBase U w N mem (gmSlabTopIdx b) +
+        (compGmAt metaBase U w N mem (gmSlabTopIdx b) +
+          compGmAt metaBase U w N mem (gmSlabTopIdx b))) + 2 =
+      gmSlabBelowIdx N (compGmAt metaBase U w N mem (gmSlabTopIdx b)) :=
+  ⟨gmQIdx_lt hb_pos hb, by simp only [gmQIdx]; omega, gmSlabTopIdx_lt hb_pos hb,
+    gmSlabBelowIdx_lt hb_pos (lt_of_lt_of_le (hslab.top_lt hb hq_pos) hslab.nslabs_le),
+    by simp only [gmSlabBelowIdx]; omega⟩
+
 private theorem realizesBounded_compGmUnlinkTopSlab :
     RealizesBounded .exact compGmUnlinkTopSlabGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
@@ -155,20 +172,9 @@ private theorem realizesBounded_compGmUnlinkTopSlab :
   all_goals (
     rcases d with ⟨⟨cp, metaBase⟩, b⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, hslab, hq_pos⟩ := h
-    have hq_idx_lt : gmQIdx b < globalMetaLen N := gmQIdx_lt hb_pos hb
-    have hq_eq : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
-    have htop_idx_lt : gmSlabTopIdx b < globalMetaLen N := gmSlabTopIdx_lt hb_pos hb
+    obtain ⟨hq_idx_lt, hq_eq, htop_idx_lt, hbel_idx_lt, hbel_eq⟩ :=
+      unlinkTopSlab_indices hb_pos hb hslab hq_pos
     have htop_eq : gmQIdx b + 2 = gmSlabTopIdx b := rfl
-    have hp_del_cap : compGmAt metaBase U w N s.mem (gmSlabTopIdx b) < maxFullSlabs N :=
-      lt_of_lt_of_le (hslab.top_lt hb hq_pos) hslab.nslabs_le
-    have hbel_idx_lt := gmSlabBelowIdx_lt hb_pos hp_del_cap
-    have hbel_eq : gmSlabMetaBase N +
-        (compGmAt metaBase U w N s.mem (gmSlabTopIdx b) +
-          compGmAt metaBase U w N s.mem (gmSlabTopIdx b) +
-          (compGmAt metaBase U w N s.mem (gmSlabTopIdx b) +
-            compGmAt metaBase U w N s.mem (gmSlabTopIdx b))) + 2 =
-        gmSlabBelowIdx N (compGmAt metaBase U w N s.mem (gmSlabTopIdx b)) := by
-      unfold gmSlabBelowIdx; omega
     simp only [cpGmSlabMetaBase_mk, hq_eq, htop_eq, StateTransitionSpec.clientState,
       runClient_state_readCompGMGenProg] at *
     try rw [clientResult_readCompGMGenProg htop_idx_lt] at *
@@ -190,19 +196,8 @@ private theorem validProg_compGmUnlinkTopSlab {w : ℕ} {d : (CompParams × ℕ)
   have mkEnv : ∀ s' : Memory.State, s'.frontier = s.frontier →
       CompMetaEnv w (mkCompParams U V w N) metaBase s' :=
     fun s' hs' => ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hs' ▸ hfr⟩
-  have hq_lt : gmQIdx b < globalMetaLen N := gmQIdx_lt hb_pos hb
-  have hq_eq : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
-  have htop_lt : gmSlabTopIdx b < globalMetaLen N := gmSlabTopIdx_lt hb_pos hb
+  obtain ⟨hq_lt, hq_eq, htop_lt, hbel_lt, hp4⟩ := unlinkTopSlab_indices hb_pos hb hslab hq_pos
   have htop_eq : gmQIdx b + 2 = gmSlabTopIdx b := rfl
-  have hp_del_max : compGmAt metaBase U w N s.mem (gmSlabTopIdx b) < maxFullSlabs N :=
-    lt_of_lt_of_le (hslab.top_lt hb hq_pos) hslab.nslabs_le
-  have hbel_lt := gmSlabBelowIdx_lt hb_pos hp_del_max
-  have hp4 : gmSlabMetaBase N + (compGmAt metaBase U w N s.mem (gmSlabTopIdx b) +
-      compGmAt metaBase U w N s.mem (gmSlabTopIdx b) +
-      (compGmAt metaBase U w N s.mem (gmSlabTopIdx b) +
-      compGmAt metaBase U w N s.mem (gmSlabTopIdx b))) + 2 =
-      gmSlabBelowIdx N (compGmAt metaBase U w N s.mem (gmSlabTopIdx b)) := by
-    unfold gmSlabBelowIdx; omega
   dsimp only [compGmUnlinkTopSlabGenProg, compGmUnlinkWriteProg, cpGmSlabMetaBase_mk]
   rw [hq_eq, htop_eq]
   refine validProg_bind (validProg_readCompGMGen ⟨mkEnv s rfl, htop_lt⟩) ?_
@@ -341,20 +336,17 @@ private theorem pureCompactSlab_of_slabBijection {N b : ℕ} {gm : ℕ → ℕ}
     (p_del < gm' 0 - 1 → PureMovedSlabInv N gm' p_del (gm' 0 - 1)) := by
   intro p_del gm'
   obtain ⟨hu0, _, _, huQ, _, huGe, _⟩ := gmUnlinkTopSlab_fields gm hb
-  have hB_ge : ∀ p, gmSlabDirBase N ≤ gmSlabOwnerBIdx N p :=
-    fun _ => by unfold gmSlabOwnerBIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase; omega
-  have hS_ge : ∀ p, gmSlabDirBase N ≤ gmSlabOwnerSIdx N p :=
-    fun _ => by unfold gmSlabOwnerSIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase; omega
-  have hBel_ge : ∀ p, gmSlabDirBase N ≤ gmSlabBelowIdx N p :=
-    fun _ => by unfold gmSlabBelowIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase; omega
-  have hAbv_ge : ∀ p, gmSlabDirBase N ≤ gmSlabAboveIdx N p :=
-    fun _ => by unfold gmSlabAboveIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase; omega
+  have hge_dir (idx : ℕ) (h : gmSlabMetaBase N ≤ idx) : gmUnlinkTopSlab N gm b idx = gm idx :=
+    huGe idx (by simp only [gmSlabMetaBase, gmTailOwnerBase, gmTailPtrBase] at h; omega)
   have hp_del_lt : p_del < gm 0 := hslab.top_lt hb hq_pos
   dsimp only [gm']
   rw [hu0]
   refine ⟨by omega, hslab.nslabs_le, hp_del_lt, fun hlt => ?_⟩
   unfold PureMovedSlabInv; dsimp only
-  rw [huGe _ (hB_ge _), huGe _ (hS_ge _), huGe _ (hBel_ge _), huGe _ (hAbv_ge _)]
+  rw [hge_dir (gmSlabOwnerBIdx N _) (by simp only [gmSlabOwnerBIdx]; omega),
+    hge_dir (gmSlabOwnerSIdx N _) (by simp only [gmSlabOwnerSIdx]; omega),
+    hge_dir (gmSlabBelowIdx N _) (by simp only [gmSlabBelowIdx]; omega),
+    hge_dir (gmSlabAboveIdx N _) (by simp only [gmSlabAboveIdx]; omega)]
   obtain ⟨hb_last, hs_last, hptr_last⟩ := hslab.owner_valid (gm 0 - 1) (by omega)
   have hq_last_le : gm (gmQIdx (gm (gmSlabOwnerBIdx N (gm 0 - 1)))) ≤ gm 0 :=
     q_le_nslabs_of_slabBijection hslab hb_last
@@ -363,20 +355,17 @@ private theorem pureCompactSlab_of_slabBijection {N b : ℕ} {gm : ℕ → ℕ}
     lt_of_lt_of_le (by omega : gm 0 - 1 < gm 0) hslab.nslabs_le,
     hb_last, by have := hslab.nslabs_le; omega, ?_, ?_, hb_pos⟩
   · intro hs_pos
-    have hbel_eq := hslab.below_eq _ hb_last _ hs_last hs_pos
-    rw [hptr_last] at hbel_eq
-    rw [hbel_eq]
+    rw [← hptr_last, hslab.below_eq _ hb_last _ hs_last hs_pos]
     exact hslab.ptr_lt_maxFullSlabs hb_last (by omega)
   · intro hs_lt_q
     rw [huQ _ hb_last] at hs_lt_q
     have hs1_lt : gm (gmSlabOwnerSIdx N (gm 0 - 1)) + 1 <
         gm (gmQIdx (gm (gmSlabOwnerBIdx N (gm 0 - 1)))) := by
       split_ifs at hs_lt_q with hbeq
-      · subst hbeq; omega
+      · rw [hbeq]
+        omega
       · exact hs_lt_q
-    have habv_eq := hslab.above_eq _ hb_last _ hs_last hs1_lt
-    rw [hptr_last] at habv_eq
-    rw [habv_eq]
+    rw [← hptr_last, hslab.above_eq _ hb_last _ hs_last hs1_lt]
     exact hslab.ptr_lt_maxFullSlabs hb_last hs1_lt
 
 theorem compGmPopSlabGenProg_effect {metaBase itemBase U V w N m_items b : ℕ}

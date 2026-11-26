@@ -193,14 +193,10 @@ theorem bandIdx_eq_iff {m k : ℕ} : bandIdx m = k ↔ bandStart k ≤ m ∧ m <
   · rintro ⟨hlo, hhi⟩
     have hmem := mem_band_bandIdx m
     rcases lt_trichotomy (bandIdx m) k with hlt | heq | hgt
-    · have hle : bandEnd (bandIdx m) ≤ bandStart k := by
-        rw [← bandStart_succ_eq_bandEnd]
-        exact bandStart_mono (Nat.succ_le_of_lt hlt)
+    · have := bandStart_succ_eq_bandEnd (bandIdx m) ▸ bandStart_mono (Nat.succ_le_of_lt hlt)
       omega
     · exact heq
-    · have hle : bandEnd k ≤ bandStart (bandIdx m) := by
-        rw [← bandStart_succ_eq_bandEnd]
-        exact bandStart_mono (Nat.succ_le_of_lt hgt)
+    · have := bandStart_succ_eq_bandEnd k ▸ bandStart_mono (Nat.succ_le_of_lt hgt)
       omega
 
 theorem ten_add_two_mul_le_bandMargin (k : ℕ) : 10 + 2 * k ≤ bandMargin k := by
@@ -269,14 +265,11 @@ theorem bandSum_emod_eq_bandWindowSum_emod (x y : ℕ → ℤ) (t q k : ℕ) :
   have hsplit := sum_filter_add_sum_filter_not (bandPairs t k) (fun p => t < p.1 + p.2 + q)
     (fun p => x p.1 * y p.2 * (2 : ℤ) ^ (t + bandMargin k - (p.1 + p.2)))
   rw [← hsplit]
-  have hdvd : (2 : ℤ) ^ (q + bandMargin k) ∣
+  obtain ⟨c, hc⟩ : (2 : ℤ) ^ (q + bandMargin k) ∣
       ∑ p ∈ (bandPairs t k).filter (fun p => ¬ t < p.1 + p.2 + q),
-        x p.1 * y p.2 * (2 : ℤ) ^ (t + bandMargin k - (p.1 + p.2)) := by
-    refine dvd_sum fun p hp => ?_
-    have hnot : ¬ t < p.1 + p.2 + q := (mem_filter.mp hp).2
-    have hle : q + bandMargin k ≤ t + bandMargin k - (p.1 + p.2) := by omega
-    exact dvd_mul_of_dvd_right (pow_dvd_pow 2 hle) _
-  obtain ⟨c, hc⟩ := hdvd
+        x p.1 * y p.2 * (2 : ℤ) ^ (t + bandMargin k - (p.1 + p.2)) :=
+    dvd_sum fun p hp => dvd_mul_of_dvd_right
+      (pow_dvd_pow 2 (by have := (mem_filter.mp hp).2; omega)) _
   rw [hc, Int.add_mul_emod_self_left]
 
 theorem bandFoldMod_eq_bandFold_emod (x y : ℕ → ℤ) (t q : ℕ) :
@@ -542,13 +535,10 @@ private theorem sum_omitted_le {x y : ℕ → ℤ} (hx : IsSignedStream x) (hy :
       intro r hr
       have hr_le : r ≤ N := Nat.lt_succ_iff.mp (mem_range.mp hr)
       refine mem_biUnion.mpr ⟨bandIdx r, mem_range.mpr ?_, ?_⟩
-      · have hN_hi := (mem_band_bandIdx N).2
-        have hr_lo := (mem_band_bandIdx r).1
-        by_contra hge
-        have hB_le : bandIdx N + 1 ≤ bandIdx r := not_lt.mp hge
-        have hstart_le : bandEnd (bandIdx N) ≤ bandStart (bandIdx r) := by
-          rw [← bandStart_succ_eq_bandEnd]
-          exact bandStart_mono hB_le
+      · by_contra hge
+        have := bandStart_succ_eq_bandEnd (bandIdx N) ▸ bandStart_mono (not_lt.mp hge)
+        have := (mem_band_bandIdx N).2
+        have := (mem_band_bandIdx r).1
         omega
       · rw [mem_Ico]
         exact mem_band_bandIdx r
@@ -614,13 +604,8 @@ theorem mulApprox_isScaledApprox {x y : ℕ → ℤ}
       ∑ p ∈ retainedUnion t K, term p| ≤ 1 / 768 := by
     have h1 := abs_bandFold_sub_sum_le x y t K le_rfl
     rw [Nat.sub_self, bandMargin_zero, ← Finset.range_eq_Ico] at h1
-    have hret_eq : ∑ k ∈ range K, (bandSum x y t k : ℝ) / (2 : ℝ) ^ bandMargin k =
-        ∑ p ∈ retainedUnion t K, term p := by
-      unfold retainedUnion
-      rw [sum_biUnion (bandPairs_pairwiseDisjoint t)]
-      refine sum_congr rfl fun k _ => sum_bandPairs_real x y t k
-    rw [hret_eq] at h1
-    exact h1.trans (sum_floor_err_le K)
+    rw [retainedUnion, sum_biUnion (bandPairs_pairwiseDisjoint t)]
+    simpa only [sum_bandPairs_real] using h1.trans (sum_floor_err_le K)
   have hSq_eq : ∑ p ∈ range (N + 1) ×ˢ range (N + 1), term p =
       (2 : ℝ) ^ t * (streamPrefix x N * streamPrefix y N) := by
     unfold streamPrefix

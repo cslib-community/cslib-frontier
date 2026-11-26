@@ -195,17 +195,9 @@ theorem code_input_frontier : code.input (Backend.frontier family) = false := by
 theorem code_input_argument (i : Fin 4) : code.input (argument (i.castAdd 2)) = false := by
   change decide (_ ∨ _ ∨ _ ∨ _ ∨ _) = false
   simp only [decide_eq_false_iff_not, not_or]
-  refine ⟨(bank_ne_argument 0 (i.castAdd 2)).symm,
-    (bank_ne_argument 1 (i.castAdd 2)).symm, (bank_ne_argument 2 (i.castAdd 2)).symm,
-    argument_injective.ne ?_, argument_injective.ne ?_⟩
-  · intro he
-    have hh : i.val = 4 := congrArg (fun z : Fin 6 => z.val) he
-    have hi := i.isLt
-    omega
-  · intro he
-    have hh : i.val = 5 := congrArg (fun z : Fin 6 => z.val) he
-    have hi := i.isLt
-    omega
+  exact ⟨(bank_ne_argument 0 (i.castAdd 2)).symm, (bank_ne_argument 1 (i.castAdd 2)).symm,
+    (bank_ne_argument 2 (i.castAdd 2)).symm, argument_injective.ne (Fin.ne_of_lt i.isLt),
+    argument_injective.ne (Fin.ne_of_lt (Nat.lt_succ_of_lt i.isLt))⟩
 
 private theorem code_outFlag_aux : code.outFlag = bank 0 := rfl
 private theorem code_outV_aux : code.outV = bank 1 := rfl
@@ -397,15 +389,10 @@ theorem stage_zero {w : ℕ} (x : Data registers) (hx : x.Bounded w) :
       memoryState (Backend.frontier family) (x.set (bank 3) 0) =
         memoryState (Backend.frontier family) x ∧
       ∀ i : Fin 4, (x.set (bank 3) 0).regs (argument (i.castAdd 2)) =
-        x.regs (argument (i.castAdd 2)) := by
-  refine ⟨(Exec.const (B := Basis.exact) (d := bank 3) (fits_zero w)).bounded hx, ?_, ?_⟩
-  · refine @Memory.State.ext (memoryState (Backend.frontier family) (x.set (bank 3) 0))
-      (memoryState (Backend.frontier family) x) rfl ?_
-    change Function.update x.regs (bank 3) 0 (Backend.frontier family) = _
-    exact Function.update_of_ne (bank_ne_frontier 3).symm _ _
-  · intro i
-    change Function.update x.regs (bank 3) 0 (argument (i.castAdd 2)) = _
-    exact Function.update_of_ne (bank_ne_argument 3 (i.castAdd 2)).symm _ _
+        x.regs (argument (i.castAdd 2)) :=
+  ⟨(Exec.const (B := Basis.exact) (d := bank 3) (fits_zero w)).bounded hx,
+    Memory.State.ext rfl (Function.update_of_ne (bank_ne_frontier 3).symm 0 x.regs),
+    fun i => Function.update_of_ne (bank_ne_argument 3 (i.castAdd 2)).symm 0 x.regs⟩
 
 /-- Every selected method's live input words survive the actual zero staging. -/
 theorem stage_zero_input (i : Fin 5) (x : Data registers) :
@@ -534,15 +521,12 @@ theorem setup_registers {w n base : ℕ} (x : Data registers) (hx : x.Bounded w)
   change x.regs (argument 0) = n at hn
   change x.regs (argument 3) = base at hb
   have hin : x.regs ∘ ![argument 0, argument 3] =
-      WordEncoding.encode (α := ℕ × ℕ) (n, base) := by
-    funext i
+      WordEncoding.encode (α := ℕ × ℕ) (n, base) := funext fun i => by
     fin_cases i
     exacts [hn, hb]
-  have hd : ∀ (i : Fin 2) j, ![argument 0, argument 3] i ≠ metadataScratch j := by
-    intro i j
+  have hd : ∀ (i : Fin 2) j, ![argument 0, argument 3] i ≠ metadataScratch j := fun i j => by
     fin_cases i <;> exact (metadataScratch_ne_argument j _ (by decide) (by decide)).symm
-  have hs : ∀ i : Fin 2, ![argument 0, argument 3] i ≠ Backend.frontier family := by
-    intro i
+  have hs : ∀ i : Fin 2, ![argument 0, argument 3] i ≠ Backend.frontier family := fun i => by
     fin_cases i <;> exact argument_ne_frontier _
   obtain ⟨y, hy, hbounded, hm, ho, _, hframe⟩ := Initialize.metadata_exec
     (Backend.frontier family) ![argument 0, argument 3] metadataScratch

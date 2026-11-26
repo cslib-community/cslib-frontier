@@ -347,11 +347,9 @@ theorem wp_gather {sz : ℕ} (hfit : Fits w n) :
     rcases h.table.lookup hdn with ⟨h0, hnone⟩ | ⟨i, hi, hdi, hci, hlen, hno⟩
     · have h0' : g (.cons d) = 0 := h0
       simp only [h0', ite_true]
-      refine Record.wp_mono (fun _ g' t ⟨gs', hG, hl, ht⟩ => ⟨gs', hG, hl, by omega⟩)
-        (wp_gather hfit k h (fun T hT => ?_) (by omega))
-      have := hge T hT
-      have := hnone T hT
-      omega
+      exact Record.wp_mono (fun _ _ _ ⟨gs', hG, hl, ht⟩ => ⟨gs', hG, hl, by omega⟩)
+        (wp_gather hfit k h (fun T hT => Nat.lt_of_le_of_ne (hge T hT) (hnone T hT).symm)
+          (by omega))
     · have hci' : g (.cons d) = slots[i].root.val + 1 := hci
       simp only [hci', Nat.add_one_ne_zero, ite_false, Record.wp_write_bind, Nat.add_sub_cancel,
         Cell.ok]
@@ -360,12 +358,11 @@ theorem wp_gather {sz : ℕ} (hfit : Fits w n) :
       obtain ⟨hroot, hnr, hnext⟩ := h.take hi hdi hdn hno (view_update_cons g 0 d)
       refine wp_addRoot hroot hfit (hfit.of_le hnr) fun g₂ t₂ ht₂ hadd => ?_
       obtain ⟨h₂, hback⟩ := hnext hadd
-      refine Record.wp_mono (fun _ g' t ⟨gs', hG, hl, ht⟩ => ⟨gs', hback hG, by
+      exact Record.wp_mono (fun _ _ _ ⟨gs', hG, hl, ht⟩ => ⟨gs', hback hG, by
         simp only [List.length_cons] at hl; omega, by omega⟩)
-        (wp_gather hfit k h₂ (fun T hT => ?_) (by omega))
-      have := hge T (List.mem_of_mem_eraseIdx hT)
-      have := hno T hT
-      omega
+        (wp_gather hfit k h₂
+          (fun T hT => Nat.lt_of_le_of_ne (hge T (List.mem_of_mem_eraseIdx hT)) (hno T hT).symm)
+          (by omega))
 
 /-- **Extracting the minimum.** `extractMin n` implements `IndexedMinPQ.step` on `.extractMin`,
 preserves the invariant, and costs at most `extractCharge` of the queue's size, amortized. -/
@@ -384,8 +381,7 @@ theorem wp_extractMin {K : ℕ} {g : Cell → ℕ} (hI : Inv n K g) (hfit : Fits
   have hmn := m.isLt
   have hdeg : g (.deg m) = cs.length := hD.deg
   have hnr : g .numRoots - 1 = E.length := by
-    have := hD.numRoots
-    change g .numRoots = _ at this
+    rw [show g .numRoots = _ from hD.numRoots]
     omega
   have hszn : (view n g).sz ≤ n := by
     rw [hD.sz]; exact (Finset.card_le_univ _).trans (by simp)

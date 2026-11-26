@@ -418,12 +418,8 @@ theorem optOut_def : optOut k ε = fairCostSharing (optOutResources k) (optOutCo
 /-- For `ε ≥ 0` the resource costs of the opt-out game are nonnegative, the hypothesis of the
 `H k` bounds for fair cost-sharing games. -/
 theorem optOutCost_nonneg (hε : 0 ≤ ε) : ∀ e, 0 ≤ optOutCost k ε e
-  | some _ => by
-    rw [optOutCost]
-    positivity
-  | none => by
-    rw [optOutCost]
-    linarith
+  | some _ => by rw [optOutCost]; positivity
+  | none => by rw [optOutCost]; linarith
 
 private theorem optOut_resources (i : Fin k) (b : Bool) :
     (optOut k ε).resources i b = if b then {some i} else {none} := by
@@ -437,10 +433,7 @@ private theorem optOut_load_some (s : Fin k → Bool) (j : Fin k) :
     (optOut k ε).load s (some j) = if s j then 1 else 0 := by
   have hmem (i : Fin k) : some j ∈ (optOut k ε).resources i (s i) ↔ i = j ∧ s j = true := by
     rw [optOut_resources]
-    by_cases hij : i = j
-    · subst hij
-      cases s i <;> simp
-    · cases s i <;> simp [hij, Ne.symm hij]
+    grind
   unfold load
   rw [Finset.filter_congr fun i _ => hmem i]
   cases s j <;> simp [Finset.filter_eq']
@@ -522,14 +515,8 @@ theorem socialCost_optOut_true :
 cost `1 + ε`. -/
 theorem socialCost_optOut_false (hk : k ≠ 0) :
     (optOut k ε).toCostGame.socialCost (fun _ => false) = 1 + ε := by
-  have h (i : Fin k) : (optOut k ε).toCostGame.cost i (fun _ => false) = (1 + ε) / k := by
-    rw [optOut_cost]
-    simp
-  unfold CostGame.socialCost
-  rw [Finset.sum_congr rfl fun i _ => h i, Finset.sum_const, Finset.card_univ, Fintype.card_fin,
-    nsmul_eq_mul]
-  have : (k : ℝ) ≠ 0 := by exact_mod_cast hk
-  field_simp
+  have hne : (k : ℝ) ≠ 0 := Nat.cast_ne_zero.2 hk
+  simp [CostGame.socialCost, optOut_cost, mul_div_cancel₀ _ hne]
 
 /-- **The bound `H k` is tight** ([Roughgarden2013CS364A], Lecture #15, Section 2, the remark after
 Theorem 2.1 that the opt-out example rules out any smaller factor): for `k ≥ 1` players and

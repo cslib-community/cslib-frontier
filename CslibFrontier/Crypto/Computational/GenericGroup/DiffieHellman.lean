@@ -154,13 +154,9 @@ theorem succProbability_cdhGame_le_choose [NeZero q] [Fintype S] [DecidableEq S]
         decide (∑ i, (F ()).1 i * x i + (F ()).2 = x 0 * x 1) = true).card ≤ 2 * q - 1 := by
       refine (Finset.card_le_card_of_injOn (fun x => (x 0, x 1)) (fun x hx => ?_)
         fun x _ y _ hxy => ?_).trans (card_filter_mul_eq_le ((F ()).1 0) ((F ()).1 1) (F ()).2)
-      · rw [Finset.mem_coe, Finset.mem_filter] at hx ⊢
-        simp only [Finset.mem_univ, true_and, decide_eq_true_eq, Fin.sum_univ_two] at hx ⊢
-        exact hx.symm
-      · simp only [Prod.mk.injEq] at hxy
-        funext i
-        fin_cases i
-        exacts [hxy.1, hxy.2]
+      · simpa only [Finset.mem_coe, Finset.mem_filter, Finset.mem_univ, true_and,
+          decide_eq_true_eq, Fin.sum_univ_two, @eq_comm _ _ (x 0 * x 1)] using hx
+      · exact funext (Fin.forall_fin_two.mpr (Prod.mk.inj hxy))
     calc ((_ : ℕ) : ℝ≥0) ≤ ((2 * q : ℕ) : ℝ≥0) := by exact_mod_cast hcard.trans (Nat.sub_le _ _)
       _ = 2 / q * (q : ℝ≥0) ^ Fintype.card (Fin 2) := by
         rw [Fintype.card_fin]
@@ -193,10 +189,8 @@ theorem le_of_half_le_succProbability_cdhGame [NeZero q] [Fintype S] [DecidableE
     {A : S → S → S → ProbOracleComp (GroupOracleSpec q S) S}
     (hA : ∀ g u v, (A g u v).IsQueryBounded T) (h : 1 / 2 ≤ (cdhGame A).succProbability) :
     q ≤ (3 * T + 4) ^ 2 + 4 := by
-  have h' := h.trans (succProbability_cdhGame_le hq hA)
-  rw [le_div_iff₀ (Nat.cast_pos.mpr hq.pos)] at h'
+  have h' := (le_div_iff₀ (Nat.cast_pos.mpr hq.pos)).mp (h.trans (succProbability_cdhGame_le hq hA))
   have h'' : ((1 / 2 * q : ℝ≥0) : ℝ) ≤ (((3 * T + 4 : ℝ≥0) ^ 2 / 2 + 2 : ℝ≥0) : ℝ) := h'
-  push_cast at h''
-  exact_mod_cast (by push_cast; linarith : (q : ℝ) ≤ ((3 * T + 4) ^ 2 + 4 : ℕ))
+  exact_mod_cast (by push_cast at h'' ⊢; linarith : (q : ℝ) ≤ ((3 * T + 4) ^ 2 + 4 : ℕ))
 
 end Cslib.Crypto.GenericGroup

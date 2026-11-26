@@ -70,11 +70,7 @@ private theorem sum_Tp {K : Type} [Fintype K] (f : Tp K → ℕ) :
         | .inr 4 => .ls
       left_inv := fun s => by cases s <;> rfl
       right_inv := fun y => by
-        rcases y with (i | b | k) | j
-        · rfl
-        · rfl
-        · rfl
-        · fin_cases j <;> rfl }
+        rcases y with (i | b | k) | j <;> first | rfl | (fin_cases j <;> rfl) }
   rw [← e.symm.sum_comp, Fintype.sum_sum_type, Fintype.sum_sum_type, Fintype.sum_sum_type,
     Fin.sum_univ_five (fun j => f (e.symm (.inr j)))]
   change (∑ i, f (.rg i)) + ((∑ b, f (.bk b)) + ∑ k, f (.cm k)) +
@@ -100,11 +96,8 @@ theorem length_rot {K : Type} {n j : ℕ} (hj : j ≤ n) (x : Fin n → Bl K) :
 
 theorem length_encW_recs {M K : Type} {n j : ℕ} (hj : j ≤ n) (l : List (Rc n (Bl K))) :
     (encW (recs j l) : List (Sy M K)).length = l.length * (n + 3) := by
-  rw [length_encW (n := n + 1)]
-  · simp [recs]
-  · intro r hr
-    obtain ⟨_, -, rfl⟩ := List.mem_map.1 hr
-    exact length_rot hj _
+  rw [recs, length_encW (n := n + 1) (List.forall_mem_map.2 fun _ _ => length_rot hj _),
+    List.length_map]
 
 theorem canon_length {M K : Type} [Fintype K] [DecidableEq K] {n : ℕ}
     (l : List (Rc n (Bl K))) (k j : ℕ) (hjk : j + k = n) :
@@ -162,18 +155,10 @@ theorem imu_length {M K : Type} [Fintype K] [DecidableEq K] {n : ℕ}
     congr 1
     rw [Finset.sum_list_sum_comm, h1,
       sum_const_map _ _ (l.length * (n + 3)) (fun p hp => (c2 p hp).2), c1]
-  have e3 : ∀ k, (emU x (.tp (.cm k) true)).length = l.length * (n + 2) := by
-    intro k
-    rw [emU_cm_true]
-    have h7 : (if k then QlG x.cmp else PlG x.cmp) = finL l :=
-      Bool.rec (by simpa using h3)
-        (by simpa using h4) k
-    rw [h7, length_encW (n := n)]
-    · rw [fOut, List.length_map, hfin]
-    · intro r hr
-      obtain ⟨r', hr', rfl⟩ := List.mem_map.1 hr
-      obtain ⟨_, -, rfl⟩ := List.mem_map.1 hr'
-      simp
+  have e3 (k) : (emU x (.tp (.cm k) true)).length = l.length * (n + 2) := by
+    have h7 : (if k then QlG x.cmp else PlG x.cmp) = finL l := by cases k <;> simp [h3, h4]
+    rw [emU_cm_true, h7, length_encW (n := n), fOut, List.length_map, hfin]
+    exact List.forall_mem_map.2 (List.forall_mem_map.2 fun _ _ => by simp)
   rw [e1, e2, Finset.sum_congr rfl fun k _ => e3 k]
   simp
 
@@ -213,34 +198,22 @@ theorem MX.total {A M K : Type} [Fintype K] [DecidableEq K] {P : Mach A M K}
       (x.steps.length + 1) * (x.init.length + 2) := by
     rw [emX_rg_true, length_bws (n := x.init.length + 1)]
     · simp
-    · intro w hw
-      rcases List.mem_append.mp hw with hw | hw
-      · obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hw
-        exact hcw s hs _
-      · rw [List.mem_singleton.mp hw]
-        exact hend i
+    · exact List.forall_mem_append.2
+        ⟨List.forall_mem_map.2 fun s hs => hcw s hs _, List.forall_mem_singleton.2 (hend i)⟩
   have e3 : (emX P x (.tp .cp true)).length = (x.steps.length + 1) * (x.init.length + 2) := by
     rw [emX_cp_true, length_bws (n := x.init.length + 1)]
     · simp [hx.length_eq]
-    · intro w hw
-      rcases List.mem_append.mp hw with hw | hw
-      · obtain ⟨r, hr, rfl⟩ := List.mem_map.mp hw
-        exact hx.len_cn.1 r hr
-      · rw [List.mem_singleton.mp hw]
-        simpa using hx.len_cn.2
+    · exact List.forall_mem_append.2 ⟨List.forall_mem_map.2 hx.len_cn.1,
+        List.forall_mem_singleton.2 (by simpa using hx.len_cn.2)⟩
   have e4 : (emX P x (.tp .fr true)).length = x.steps.length * (x.init.length + 2) := by
-    rw [emX_fr_true, length_bws (n := x.init.length + 1)]
-    · simp
-    · intro w hw
-      obtain ⟨s, hs, rfl⟩ := List.mem_map.mp hw
-      exact hcw s hs _
+    rw [emX_fr_true, length_bws (n := x.init.length + 1)
+      (List.forall_mem_map.2 fun s hs => hcw s hs _)]
+    simp
   have e5 : (emX P x (.tp .lk true)).length = x.steps.length * (x.init.length + 5) := by
     rw [emX_lk_true, hx.lk, length_encW (n := x.init.length + 3)]
     · simp [lks]
-    · intro r hr
-      obtain ⟨c, hc, rfl⟩ := List.mem_map.1 hr
-      obtain ⟨s, hs, rfl⟩ := List.mem_map.1 hc
-      simp [oc, cont, ldc, hx.len s hs]
+    · exact List.forall_mem_map.2 (List.forall_mem_map.2 fun s hs => by
+        simp [oc, cont, ldc, hx.len s hs])
   have e6 := imu_length (lsN_ne _ _) (hx.block ▸ hx.ls)
   have hN : (lsN (x.init.length + 1) (x.steps.map nst)).length = 2 * x.steps.length + 1 := by
     simp [lsN, dfN]; ring

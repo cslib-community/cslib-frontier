@@ -80,9 +80,7 @@ theorem recursive_sensitivity_zero_at {k r h : ℕ} {I : Type} [Fintype I]
       apply Finset.mem_union_right
       by_cases hs : i ∈ SC
       · refine Finset.mem_union_right _ (Finset.mem_biUnion.mpr ⟨i, hs, ?_⟩)
-        have hn : F (gateIndex q) (BitString.flipOn {a} (recursiveChild x j (A.label i j))) ≠
-            F (gateIndex q) (recursiveChild x j (A.label i j)) := by simp [hgon, hgoff]
-        simpa [childChanges, w, hj] using hn
+        simp [childChanges, w, ← hj, hgon, hgoff]
       · have hwg := nonsink_gateWitness_mem T A.label F hF q x i hig hs
         have hjg : j ∈ gateCandidates T A.label F q x := by simpa [hj] using hwg
         have hton :=
@@ -90,13 +88,7 @@ theorem recursive_sensitivity_zero_at {k r h : ℕ} {I : Type} [Fintype I]
         have htoff := hF.rejects_of_le (gateIndex_lt_last q).le hgoff
         refine Finset.mem_union_left _
           (Finset.mem_biUnion.mpr ⟨i, Finset.mem_sdiff.mpr ⟨hig, hs⟩, ?_⟩)
-        have hn :
-            F (gateIndex q) (BitString.flipOn {a} (recursiveChild x j (A.label i j))) ≠
-              F (gateIndex q) (recursiveChild x j (A.label i j)) ∧
-            F (Fin.last h) (BitString.flipOn {a} (recursiveChild x j (A.label i j))) ≠
-              F (Fin.last h) (recursiveChild x j (A.label i j)) := by
-          simp [hgon, hgoff, hton, htoff]
-        simpa [childJointChanges, w, hj] using hn
+        simp [childJointChanges, w, ← hj, hgon, hgoff, hton, htoff]
   have hU : U.card ≤ 15 * sideSensitivity F false :=
     targetCandidates_biUnion_card_le T A F hF hr q x
   have hV : V.card ≤ 3 * jointSensitivity F true := by
@@ -135,8 +127,7 @@ theorem recursive_side_zero {k r h : ℕ} {I : Type} [Fintype I]
     (F : Fin (h + 1) → (I → Bool) → Bool) (hF : NestedFamily F) (hr : 0 < r) :
     sideSensitivity (recursiveFamily T A.label F) false ≤
       15 * sideSensitivity F false + sideSensitivity F true + 3 * jointSensitivity F true := by
-  apply sideSensitivity_le
-  exact fun q x hx => recursive_sensitivity_zero_at T A F hF hr q x hx
+  exact sideSensitivity_le _ _ _ fun q x hx => recursive_sensitivity_zero_at T A F hF hr q x hx
 
 end Internal
 

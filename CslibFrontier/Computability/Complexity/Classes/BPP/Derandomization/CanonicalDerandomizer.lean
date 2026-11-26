@@ -108,9 +108,7 @@ theorem Generator.exists_complexity_le_advantage_ge {k L : ℕ}
       obtain ⟨z, -, rfl⟩ := List.mem_map.1 hc
       obtain ⟨i, -, rfl⟩ := List.mem_map.1 hl
       exact ⟨i, rfl⟩
-    have hsyn := Synthesis.any_all_literal hw hD
-    have hlen : D.length = 2 ^ k := by simp [D]
-    rw [hlen] at hsyn
+    have hsyn := (show D.length = 2 ^ k by simp [D]) ▸ Synthesis.any_all_literal hw hD
     refine Synthesis.complexity_le (Synthesis.congr_iff hsyn fun x => ?_)
     simp only [D, List.any_map, List.any_eq_true, Function.comp_apply, List.all_map,
       List.all_eq_true, List.mem_finRange, decide_eq_true_eq, true_implies, BitString.mem_enum,
@@ -127,15 +125,10 @@ theorem Generator.exists_complexity_le_advantage_ge {k L : ℕ}
             exact mem_image_of_mem Gk (mem_univ z)
         _ ≤ (univ : Finset (BitString k)).card := card_image_le
         _ = 2 ^ k := by rw [card_univ, BitString.card]
-    rw [hseeds]
-    have hrange' : (#{y : BitString L | decide (∃ z, Gk z = y) = true} : ℝ) ≤ 2 ^ k :=
-      mod_cast hrange
-    have hpos : (0 : ℝ) < 2 ^ L := by positivity
-    have hk : ((2 ^ k : ℕ) : ℝ) / 2 ^ k = 1 := by push_cast; exact div_self (by positivity)
-    rw [hk]
-    refine le_trans ?_ (le_abs_self _)
-    have := div_le_div_of_nonneg_right hrange' hpos.le
-    linarith
+    rw [hseeds, Nat.cast_pow, Nat.cast_ofNat, div_self (by positivity)]
+    exact (sub_le_sub_left (div_le_div_of_nonneg_right
+      (show (#{y : BitString L | decide (∃ z, Gk z = y) = true} : ℝ) ≤ 2 ^ k from mod_cast hrange)
+      (by positivity)) 1).trans (le_abs_self _)
 
 end Cslib.Crypto.PRG
 

@@ -434,17 +434,15 @@ private theorem Eval.pencil_isUnit {f : Formula n} {a : R} (ha : f.Eval c X a) :
 theorem Eval.augmented_isUnit_iff {f : Formula n} {a : R} (ha : f.Eval c X a) :
     IsUnit (realized c X (Formula.inv f)) ↔ IsUnit a := by
   obtain ⟨M, hM, hM', hr⟩ := ha.realization
-  have key := Matrix.isUnit_fromBlocks_zero₂₂_iff _ _ (colR c f) (rowR c f) hM hM'
-  rw [hr] at key
   rw [realized_inv]
-  refine key.trans ⟨fun h => ?_, fun h => h.map (Matrix.uniqueRingEquiv (m := Unit)).symm⟩
-  simpa using h.map (Matrix.uniqueRingEquiv (m := Unit))
+  exact (hr ▸ Matrix.isUnit_fromBlocks_zero₂₂_iff _ _ (colR c f) (rowR c f) hM hM').trans
+    ⟨fun h => by simpa using h.map (Matrix.uniqueRingEquiv (m := Unit)),
+      fun h => h.map (Matrix.uniqueRingEquiv (m := Unit)).symm⟩
 
 private theorem Eval.inverseNodes_units {f : Formula n} {a : R} (ha : f.Eval c X a) :
     ∀ h ∈ inverseNodes f, IsUnit (realized c X h) := by
   induction f using inductionOn generalizing a with
-  | var i => simp
-  | const q => simp
+  | var _ | const _ => simp
   | add f g ihf ihg =>
     obtain ⟨a₁, a₂, ha₁, ha₂, -⟩ := eval_add_iff.mp ha
     simpa only [inverseNodes_add, List.mem_append, or_imp, forall_and] using
@@ -455,10 +453,7 @@ private theorem Eval.inverseNodes_units {f : Formula n} {a : R} (ha : f.Eval c X
       And.intro (ihf ha₁) (ihg ha₂)
   | inv f ih =>
     obtain ⟨b, hb, -, -⟩ := eval_inv_iff.mp ha
-    intro h hh
-    rcases List.mem_cons.mp hh with rfl | hh
-    · exact ha.pencil_isUnit
-    · exact ih hb h hh
+    simpa only [inverseNodes_inv, List.mem_cons, forall_eq_or_imp] using ⟨ha.pencil_isUnit, ih hb⟩
 
 /-- If the realized pencil of every inverse node of `f` is a unit, then `f` evaluates to some
 value at `X`. -/
@@ -499,8 +494,7 @@ theorem certificates_iff (f : Formula n) :
 
 private theorem inverseNodes_length (f : Formula n) : (inverseNodes f).length ≤ f.nodeCount := by
   induction f using inductionOn with
-  | var i => simp
-  | const q => simp
+  | var _ | const _ => simp
   | add f g ihf ihg => simp only [inverseNodes_add, List.length_append, nodeCount_add]; omega
   | mul f g ihf ihg => simp only [inverseNodes_mul, List.length_append, nodeCount_mul]; omega
   | inv f ih => simp only [inverseNodes_inv, List.length_cons, nodeCount_inv]; omega
@@ -610,8 +604,8 @@ theorem homogeneous_flat {K : Type*} [Field K] [CharZero K] {ι κ : Type*} [Fin
   funext ⟨i, a⟩ ⟨j, b⟩
   change (∑ r, (algebraMap ℚ (Matrix κ κ K)) (coeff (L i j) r) * Z r) a b = _
   rw [Matrix.sum_apply]
-  refine Finset.sum_congr rfl fun r _ => ?_
-  exact Matrix.diagonal_mul (fun _ : κ => (algebraMap ℚ K) (coeff (L i j) r)) (Z r) a b
+  exact Finset.sum_congr rfl fun r _ =>
+    Matrix.diagonal_mul (fun _ : κ => (algebraMap ℚ K) (coeff (L i j) r)) (Z r) a b
 
 end
 

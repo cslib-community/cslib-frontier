@@ -121,9 +121,8 @@ theorem exists_subdivision_embedding_with_reference_spokes {I : FixedRotationInp
       route (subdivisionDart I d).1 = orientSpoke (spoke d hd) d.2 := by
     simp only [route, dite_eq_left ((hchange d).mpr hd)]
     have hcongr : ∀ d' (hd' : fixed d'.vertex), d' = d →
-        orientSpoke (spoke d' hd') d'.2 = orientSpoke (spoke d hd) d.2 := by
-      rintro _ _ rfl
-      rfl
+        orientSpoke (spoke d' hd') d'.2 = orientSpoke (spoke d hd) d.2
+      | _, _, rfl => rfl
     exact hcongr _ _ (endDart_subdivisionDart I d)
   have hends (d : Dart I.graph) (hd : fixed d.vertex) (b : Bool) :
       (route (subdivisionDart I d).1).endpoint b =
@@ -222,9 +221,7 @@ theorem exists_subdivision_embedding_with_reference_spokes {I : FixedRotationInp
         refine ⟨!d.2, ?_⟩
         change (subdivisionDart I d).reverse.vertex = v
         simpa only [had] using ha.symm
-    · change E.vertex v ∈ (route e).support at hx
-      rw [hkeep e he] at hx
-      obtain ⟨k, t, ht, hval⟩ := ((E.route e).mem_support_iff _).mp hx
+    · obtain ⟨k, t, ht, hval⟩ := ((E.route e).mem_support_iff _).mp (by rwa [← hkeep e he])
       obtain ⟨b, _, hb⟩ := hE.vertex_contacts e k t ht v hv hval
       exact ⟨b, hb⟩
   have hvertex : ∀ e (k : Fin (F.route e).segments) (t : ℝ), t ∈ Set.Icc 0 1 →
@@ -247,9 +244,8 @@ theorem exists_subdivision_embedding_with_reference_spokes {I : FixedRotationInp
       by_contra hn
       exact Set.disjoint_left.mp (hdisj _ (horig a) _ (horig d) hn)
         (hclosed a ha hy) (hclosed d hd hx)
-    have hcoh : ∀ v (hv : a.vertex = v) (h₂ : fixed v), spoke a ha = T v h₂ ⟨a, hv⟩ := by
-      rintro _ rfl _
-      rfl
+    have hcoh : ∀ v (hv : a.vertex = v) (h₂ : fixed v), spoke a ha = T v h₂ ⟨a, hv⟩
+      | _, rfl, _ => rfl
     have he : (⟨d, rfl⟩ : {b : Dart I.graph // b.vertex = d.vertex}) ≠ ⟨a, hsame⟩ :=
       fun hh => hne (congrArg Subtype.val hh)
     have hmem : x ∈ (T d.vertex hd ⟨d, rfl⟩).support ∩ (T d.vertex hd ⟨a, hsame⟩).support :=
@@ -300,12 +296,8 @@ theorem exists_subdivision_embedding_with_reference_spokes {I : FixedRotationInp
         rw [hchanged_supp hf] at hy
         exact ⟨(subdivisionDart I a).reverse.vertex, hdecl _ _,
           (hmeetKept a hf.2 e he hy hx).trans (hport a).symm⟩
-      · change x ∈ (route e).support at hx
-        change x ∈ (route f).support at hy
-        rw [hkeep e he] at hx
-        rw [hkeep f hf] at hy
-        obtain ⟨i, s, hs, hxs⟩ := ((E.route e).mem_support_iff x).mp hx
-        obtain ⟨j, t, ht, hxt⟩ := ((E.route f).mem_support_iff x).mp hy
+      · obtain ⟨i, s, hs, hxs⟩ := ((E.route e).mem_support_iff x).mp (by rwa [← hkeep e he])
+        obtain ⟨j, t, ht, hxt⟩ := ((E.route f).mem_support_iff x).mp (by rwa [← hkeep f hf])
         obtain ⟨b, _, hb, _, _⟩ := hE.edge_contacts e f hne i j s t hs ht (hxs.trans hxt.symm)
         exact ⟨Dart.vertex (e, b), hdecl e b, hxs.symm.trans
           (((E.route e).at_eq_endpoint i hs b hb).trans (E.endpoint_eq e b))⟩

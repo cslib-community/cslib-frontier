@@ -69,22 +69,18 @@ theorem exec_prepare {W b m n i out rho piece s t q : ℕ}
   refine ⟨y, (hrun hy).mono (by omega), yb,
     by regs_frame, by regs_frame, by regs_frame, ?_, ?_, ?_,
     fun j hj => (yr j hj).trans (hregs j hj)⟩
-  · intro a ha
-    by_cases h0 : a = 0
-    · subst a
-      rw [ym]
+  · rintro (_ | _ | a) ha
+    · rw [ym]
       simp only [Nat.add_zero]
       rw [Function.update_of_ne (by omega), Function.update_self]
       exact (BoxProduct.input_length true (21 * m) (m / 9) X Y qs).symm
-    · by_cases h1 : a = 1
-      · subst a
-        rw [ym, Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-          Function.update_self]
-        rfl
-      · rw [ym, Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-          Function.update_of_ne (by omega), header_readback X Y qs h.mem hhead ha]
-        exact (QueriedProduct.input_change_level true (19 * m) (21 * m) X Y qs a h1).trans
-          (BoxProduct.input_prefix true X Y qs a (by omega) (by omega)).symm
+    · rw [ym, Function.update_of_ne (by omega), Function.update_of_ne (by omega),
+        Function.update_self]
+      rfl
+    · rw [ym, Function.update_of_ne (by omega), Function.update_of_ne (by omega),
+        Function.update_of_ne (by omega), header_readback X Y qs h.mem hhead ha]
+      exact (QueriedProduct.input_change_level true (19 * m) (21 * m) X Y qs (a + 2)
+        (by omega)).trans (BoxProduct.input_prefix true X Y qs (a + 2) (by omega) (by omega)).symm
   · rw [ym, Function.update_self]
   · intro a ha
     rw [ym, Function.update_of_ne (by omega), Function.update_of_ne (by omega),

@@ -207,9 +207,7 @@ theorem internalCoveringNumber_le_packingNumber (s : Set X) {ε : ℝ} (hε : 0 
   change (P.card : ℕ∞) = packingNumber s ε at hPcard
   rw [← hPcard]
   refine internalCoveringNumber_le_card hPs fun x hx => ?_
-  by_contra hnot
-  have hfar : ∀ y ∈ P, ε < dist x y := by
-    simpa only [not_exists, not_and, not_le] using hnot
+  by_contra! hfar
   have hxP : x ∉ P := fun hmem => (hfar x hmem).not_ge ((dist_self x).trans_le hε)
   have hle : ((insert x P).card : ℕ∞) ≤ packingNumber s ε := by
     refine card_le_packingNumber (fun y hy => (Finset.mem_insert.1 hy).elim (· ▸ hx) (hPs y))
@@ -220,8 +218,7 @@ theorem internalCoveringNumber_le_packingNumber (s : Set X) {ε : ℝ} (hε : 0 
     · rw [dist_comm]; exact hfar y hy'
     · exact hsep y hy' z hz' hyz
   rw [Finset.card_insert_of_notMem hxP, ← hPcard] at hle
-  have hnat : P.card + 1 ≤ P.card := by exact_mod_cast hle
-  omega
+  exact ((Nat.lt_succ_self P.card).not_ge (by exact_mod_cast hle)).elim
 
 /-- **Packing is bounded by external covering at half scale** [Vershynin2018, Lemma 4.2.8]
 (locator unverified): no closed `ε`-ball can contain two points that are more than `2 ε` apart, so
@@ -266,17 +263,14 @@ theorem internalCoveringNumber_image_le_of_lipschitz {Y : Type*} [PseudoMetricSp
     (hf : ∀ x ∈ s, ∀ y ∈ s, dist (f x) (f y) ≤ L * dist x y) (ε : ℝ) :
     internalCoveringNumber (f '' s) (L * ε) ≤ internalCoveringNumber s ε := by
   classical
-  refine le_sInf ?_
-  rintro _ ⟨T, rfl, hTs, hT⟩
-  refine (internalCoveringNumber_le_card (T := T.image f) ?_ ?_).trans
-    (Nat.cast_le.2 Finset.card_image_le)
-  · intro z hz
-    obtain ⟨y, hy, rfl⟩ := Finset.mem_image.1 hz
-    exact ⟨y, hTs y hy, rfl⟩
-  · rintro _ ⟨x, hx, rfl⟩
-    obtain ⟨y, hy, hxy⟩ := hT x hx
-    exact ⟨f y, Finset.mem_image_of_mem f hy,
-      (hf x hx y (hTs y hy)).trans (mul_le_mul_of_nonneg_left hxy hL)⟩
+  refine le_sInf fun _ ⟨T, hcard, hTs, hT⟩ => hcard ▸
+    (internalCoveringNumber_le_card (s := f '' s) (T := T.image f)
+      (Finset.forall_mem_image.2 fun y hy => ⟨y, hTs y hy, rfl⟩) ?_).trans
+      (Nat.cast_le.2 Finset.card_image_le)
+  rintro _ ⟨x, hx, rfl⟩
+  obtain ⟨y, hy, hxy⟩ := hT x hx
+  exact ⟨f y, Finset.mem_image_of_mem f hy,
+    (hf x hx y (hTs y hy)).trans (mul_le_mul_of_nonneg_left hxy hL)⟩
 
 end PseudoMetric
 
@@ -289,18 +283,15 @@ theorem coveringNumber_vadd (c : E) (s : Set E) (ε : ℝ) :
     coveringNumber ((fun x => x + c) '' s) ε = coveringNumber s ε := by
   classical
   have hle (d : E) (t : Set E) : coveringNumber ((fun x => x + d) '' t) ε ≤ coveringNumber t ε := by
-    refine le_sInf ?_
-    rintro _ ⟨T, rfl, hT⟩
-    refine (coveringNumber_le_card (T := T.image fun y => y + d) ?_).trans
-      (Nat.cast_le.2 Finset.card_image_le)
+    refine le_sInf fun _ ⟨T, hcard, hT⟩ => hcard ▸
+      (coveringNumber_le_card (T := T.image fun y => y + d) ?_).trans
+        (Nat.cast_le.2 Finset.card_image_le)
     rintro _ ⟨x, hx, rfl⟩
     obtain ⟨y, hy, hxy⟩ := hT x hx
     exact ⟨y + d, Finset.mem_image_of_mem _ hy, by simpa only [dist_add_right] using hxy⟩
-  have hs : (fun x => x + -c) '' ((fun x => x + c) '' s) = s := by
-    rw [Set.image_image]
-    simp
   refine le_antisymm (hle c s) ?_
-  simpa only [hs] using hle (-c) ((fun x => x + c) '' s)
+  simpa only [Set.image_image, add_neg_cancel_right, Set.image_id'] using
+    hle (-c) ((fun x => x + c) '' s)
 
 end NormedGroup
 
@@ -365,9 +356,7 @@ theorem card_le_of_separated_closedBall {x₀ : E} {R ε : ℝ} (hR : 0 ≤ R) (
     rwa [← ENNReal.ofReal_pow hhalf_pos.le, ← ENNReal.ofReal_natCast,
       ← ENNReal.ofReal_mul (Nat.cast_nonneg _), ← ENNReal.ofReal_pow hbig_pos.le,
       ENNReal.ofReal_le_ofReal_iff (by positivity)] at hcancel
-  have hdiv : (P.card : ℝ) ≤ (R + ε / 2) ^ Module.finrank ℝ E / (ε / 2) ^ Module.finrank ℝ E :=
-    (le_div_iff₀ (pow_pos hhalf_pos _)).2 hreal
-  refine hdiv.trans_eq ?_
+  refine ((le_div_iff₀ (pow_pos hhalf_pos _)).2 hreal).trans_eq ?_
   rw [← div_pow]
   congr 1
   field_simp
@@ -422,8 +411,7 @@ theorem coveringNumber_closedBall_toNat_le_three_pow (x₀ : E) {R ε : ℝ} (h�
   refine (Nat.cast_le.2 hnat).trans
     ((internalCoveringNumber_closedBall_toNat_le x₀ hR hε).trans ?_)
   refine pow_le_pow_left₀ (by positivity) ?_ _
-  have : (1 : ℝ) ≤ R / ε := (one_le_div hε).2 hεR
-  linarith [show 3 * R / ε = R / ε + 2 * R / ε by ring]
+  linarith [(one_le_div hε).2 hεR, show 3 * R / ε = R / ε + 2 * R / ε by ring]
 
 end Volumetric
 

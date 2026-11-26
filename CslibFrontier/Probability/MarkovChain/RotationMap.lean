@@ -157,9 +157,8 @@ theorem returnTime_randomWalk_eq_card (u : V) :
   · rw [ite_eq_left (SimpleGraph.Reachable.refl u), one_mul] at h
     rw [h, sum_boole, Nat.card_eq_fintype_card, Fintype.card_subtype]
   · refine (ENNReal.sum_lt_top.2 fun x _ => ?_).ne
-    by_cases hx : G.toSimpleGraph.Reachable u x
-    · simpa [hx] using (hittingTime_randomWalk_ne_top hx).lt_top
-    · simp [hx]
+    by_cases hx : G.toSimpleGraph.Reachable u x <;>
+      simp [hx, hittingTime_randomWalk_ne_top, lt_top_iff_ne_top]
 
 /-- **Arora–Barak, Exercise 7.9(c).** On a connected regular multigraph, the expected return time
 to every vertex is the number of vertices. -/
@@ -305,8 +304,7 @@ theorem ten_mul_card_filter_walkAt_ne_le (hD : Fintype.card D ≤ Fintype.card V
       exact_mod_cast (show (n - 1) * (Fintype.card D * n) ≤ n ^ 3 by
         rw [pow_three]; gcongr; omega)
     have hT : (10 : ℝ≥0∞) * (n : ℝ≥0∞) ^ 3 ≤ (T : ℝ≥0∞) + 1 := by
-      have : 10 * n ^ 3 ≤ T + 1 := by omega
-      exact_mod_cast this
+      exact_mod_cast (by omega : 10 * n ^ 3 ≤ T + 1)
     have hn3 : (n : ℝ≥0∞) ^ 3 ≠ 0 := pow_ne_zero _ (by exact_mod_cast (by omega : n ≠ 0))
     have hn3' : (n : ℝ≥0∞) ^ 3 ≠ ⊤ := ENNReal.pow_ne_top (ENNReal.natCast_ne_top _)
     refine (ENNReal.mul_le_mul_iff_left hn3 hn3').1 ?_
@@ -315,11 +313,10 @@ theorem ten_mul_card_filter_walkAt_ne_le (hD : Fintype.card D ≤ Fintype.card V
       _ ≤ ((T : ℝ≥0∞) + 1) * survival G.randomWalk t T s := by gcongr
       _ ≤ (n : ℝ≥0∞) ^ 3 := hM.trans (hH.trans hnum)
       _ = 1 * (n : ℝ≥0∞) ^ 3 := (one_mul _).symm
-  have : (10 * #{k : Fin T → D | ∀ i ≤ T, G.walkAt (s, k) i ≠ t} : ℝ≥0∞) ≤
-      (Fintype.card D : ℝ≥0∞) ^ T := by
-    rw [← survival_randomWalk_mul_pow (G := G) t T s, ← mul_assoc]
-    exact mul_le_of_le_one_left' hsurv
-  exact_mod_cast this
+  suffices (10 * #{k : Fin T → D | ∀ i ≤ T, G.walkAt (s, k) i ≠ t} : ℝ≥0∞) ≤
+      (Fintype.card D : ℝ≥0∞) ^ T from mod_cast this
+  rw [← survival_randomWalk_mul_pow (G := G) t T s, ← mul_assoc]
+  exact mul_le_of_le_one_left' hsurv
 
 /-! ### Uniqueness of the stationary distribution -/
 
@@ -416,9 +413,7 @@ theorem randomWalk_lazy : G.lazy.randomWalk = G.randomWalk.lazy := by
       Fintype.sum_sum_type]
     simp only [neighbor_lazy_inl, neighbor_lazy_inr]
     congr 1
-    rcases eq_or_ne y x with rfl | hyx
-    · simp
-    · simp [hyx, Ne.symm hyx]
+    by_cases hxy : x = y <;> simp [hxy, eq_comm]
   have hne1 : (2 : ℝ≥0∞)⁻¹ * G.randomWalk x y ≠ ⊤ :=
     ENNReal.mul_ne_top (by simp) ((G.randomWalk x).apply_ne_top y)
   have hne2 : (if y = x then (2 : ℝ≥0∞)⁻¹ else 0) ≠ ⊤ := by split_ifs <;> simp
@@ -446,9 +441,8 @@ theorem spectralContraction_randomWalk [Nonempty V] :
   · refine G.spectralExpansion_le
       (G.randomWalk.spectralContraction_nonneg (PMF.uniformOfFintype V)) fun f hf => ?_
     rw [← hunif] at hf
-    have hle :=
+    simpa only [stepOp_randomWalk, hunif] using
       (isStationary_uniform_randomWalk (G := G)).sum_mul_stepOp_sq_le_spectralContraction hf
-    rwa [stepOp_randomWalk, hunif, hunif] at hle
 
 omit [DecidableEq V] in
 /-- **Total-variation contraction of a regular random walk**:

@@ -112,8 +112,7 @@ theorem length_compile : ∀ {Γ : List ℕ} {α : Type w} (fv : α → ℕ) (ba
       List.length_nil]
     omega
   | _, _, fv, base, .op k body args, b, T, F => by
-    simp only [compile, len, length_dtcCode]
-    rw [length_compile]
+    simp only [compile, len, length_dtcCode, length_compile]
 
 variable {v}
 
@@ -159,11 +158,9 @@ theorem correct_neg {Γ : List ℕ} {α : Type} {φ : Formula (language L) TC.sh
   intro hΓ hW fv base val ρ b T F regs hP hbase hfv hd h0 hv hregs
   obtain ⟨res, regs', hres, hreach, hk⟩ :=
     ih hΓ hW fv base val ρ b F T regs hP hbase hfv hd h0 hv hregs
-  refine ⟨!res, regs', ?_, ?_, hk⟩
-  · cases res
-    · exact iff_of_true rfl fun h => Bool.false_ne_true (hres.mpr h)
-    · exact iff_of_false Bool.false_ne_true fun h => h (hres.mp rfl)
-  · cases res <;> exact hreach
+  cases res with
+  | false => exact ⟨true, regs', iff_of_true rfl (mt hres.mpr Bool.false_ne_true), hreach, hk⟩
+  | true => exact ⟨false, regs', iff_of_false Bool.false_ne_true (· (hres.mp rfl)), hreach, hk⟩
 
 theorem correct_conj {Γ : List ℕ} {α : Type} {φ ψ : Formula (language L) TC.shape Γ α}
     (ihφ : Correct v a P B φ) (ihψ : Correct v a P B ψ) : Correct v a P B (φ.conj ψ) := by
@@ -174,10 +171,8 @@ theorem correct_conj {Γ : List ℕ} {α : Type} {φ ψ : Formula (language L) T
   have hdφ : base + scratch φ ≤ regs.length := (Nat.add_le_add_left (le_max_left _ _) _).trans hd
   have hdψ : base + scratch ψ ≤ regs.length :=
     (Nat.add_le_add_left (le_max_right _ _) _).trans hd
-  have hP' : P.CodeAt b (compile v fv base φ b (b + len φ) F ++
-      compile v fv base ψ (b + len φ) T F) := hP
-  rw [codeAt_append, length_compile] at hP'
-  obtain ⟨hPφ, hPψ⟩ := hP'
+  obtain ⟨hPφ, hPψ⟩ : P.CodeAt b _ ∧ P.CodeAt (b + len φ) _ := by
+    simpa only [compile, codeAt_append, length_compile] using hP
   obtain ⟨r₁, regs₁, hr₁, hreach₁, hk₁⟩ :=
     ihφ hΓ hWφ fv base val ρ b (b + len φ) F regs hPφ hbase hfv hdφ h0 hv hregs
   cases r₁ with
@@ -189,9 +184,8 @@ theorem correct_conj {Γ : List ℕ} {α : Type} {φ ψ : Formula (language L) T
     obtain ⟨r₂, regs₂, hr₂, hreach₂, hk₂⟩ :=
       ihψ hΓ hWψ fv base val ρ (b + len φ) T F regs₁ hPψ hbase hfv hd₁ h0₁ hv₁ hk₁.bounded
     rw [ite_eq_left rfl] at hreach₁
-    refine ⟨r₂, regs₂, ?_, hreach₁.trans hreach₂, hk₁.trans hk₂⟩
-    rw [hr₂]
-    exact ⟨fun h => ⟨hr₁.mp rfl, h⟩, fun h => h.2⟩
+    exact ⟨r₂, regs₂, hr₂.trans ⟨fun h => ⟨hr₁.mp rfl, h⟩, And.right⟩, hreach₁.trans hreach₂,
+      hk₁.trans hk₂⟩
 
 theorem correct_ex (hE : Env v a B) {Γ : List ℕ} {α : Type}
     {φ : Formula (language L) TC.shape Γ (Option α)}

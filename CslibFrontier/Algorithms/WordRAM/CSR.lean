@@ -144,16 +144,7 @@ private theorem encode_getD_edge (k : ℕ) :
 /-- The encoded input has `n + 2 * m + 3` words. -/
 theorem encode_length :
     (encode n source adj encodeWeight).length = n + 2 * m n adj + 3 := by
-  have h : ∀ l : List (Fin n × W),
-      (l.flatMap fun e => [(e.1 : ℕ), encodeWeight e.2]).length = 2 * l.length := by
-    intro l
-    induction l with
-    | nil => simp
-    | cons _ l ih =>
-      simp only [List.flatMap_cons, List.cons_append, List.nil_append, List.length_cons, ih]
-      ring
-  simp only [encode, edgeWords_eq, List.length_cons, List.length_append, List.length_map,
-    List.length_range, h, length_edges, Nat.add_right_cancel_iff]
+  simp [encode, edgeWords_eq, List.length_flatMap, length_edges]
   ring
 
 /-- The offset of `u + 1` is the offset of `u` plus `(adj u).length`. -/

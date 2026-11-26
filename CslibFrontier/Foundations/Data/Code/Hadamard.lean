@@ -104,9 +104,7 @@ theorem card_filter_selfCorrect_ne_le (f : (ι → Bool) → Bool) (S : Finset �
     #{y | selfCorrect f x y ≠ parityOn S x} ≤ 2 * hammingDist f (parityOn S) := by
   have htrans : #{y : ι → Bool | f (x + y) ≠ parityOn S (x + y)} =
       hammingDist f (parityOn S) :=
-    card_equiv (Equiv.addLeft x) fun y => by
-      simp only [mem_filter, mem_univ, true_and]
-      exact Iff.rfl
+    card_equiv (Equiv.addLeft x) fun _ => by simp
   calc #{y | selfCorrect f x y ≠ parityOn S x}
       ≤ #(({y | f y ≠ parityOn S y} : Finset (ι → Bool)) ∪
           ({y | f (x + y) ≠ parityOn S (x + y)} : Finset _)) := by
@@ -194,11 +192,8 @@ theorem exists_eq_hadamardCode_iff {f : (ι → Bool) → Bool} :
     (∃ x, f = hadamardCode x) ↔ ∀ x y, f (x + y) = (f x ^^ f y) := by
   classical
   rw [← exists_eq_parityOn_iff]
-  constructor
-  · rintro ⟨x, rfl⟩
-    exact ⟨_, hadamardCode_eq_parityOn x⟩
-  · rintro ⟨S, rfl⟩
-    exact ⟨_, (hadamardCode_decide_mem S).symm⟩
+  exact ⟨fun ⟨x, hx⟩ => ⟨_, hx.trans (hadamardCode_eq_parityOn x)⟩,
+    fun ⟨S, hS⟩ => ⟨_, hS.trans (hadamardCode_decide_mem S).symm⟩⟩
 
 /-- The Hadamard code is injective. -/
 theorem hadamardCode_injective : Function.Injective (hadamardCode (ι := ι)) := fun x y h => by
@@ -220,12 +215,9 @@ zero string with none. -/
 theorem two_mul_card_dotProduct_eq_true_add (x : ι → Bool) :
     2 * #{y | x ⬝ᵥ y = true} + (if x = 0 then 2 ^ Fintype.card ι else 0) = 2 ^ Fintype.card ι := by
   split_ifs with hx
-  · subst hx
-    simp [zero_dotProduct]
-  · have h := two_mul_hammingDist_hadamardCode hx
-    rw [hammingDist] at h
-    simpa [zero_dotProduct,
-      show ∀ b : Bool, ¬b = 0 ↔ b = true by decide] using h
+  · simp [hx, zero_dotProduct]
+  · simpa [hammingDist, zero_dotProduct, Bool.zero_eq_false] using
+      two_mul_hammingDist_hadamardCode hx
 
 /-- The inner product is `true` on `2 ^ (k - 1) (2 ^ k - 1)` pairs of `k`-bit strings, in the form
 `2 c + 2 ^ k = 2 ^ k 2 ^ k`. -/

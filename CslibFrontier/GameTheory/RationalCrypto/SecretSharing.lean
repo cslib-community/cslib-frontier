@@ -1143,17 +1143,9 @@ theorem broadcast_weaklyDominates_withhold_geometricStageGame {p : ℝ} (hp0 : 0
       have hpay : ∀ b : Bool, (R.geometricStageGame p).payoff i (Function.update s i b) =
           p * R.prefs.uMinus + (1 - p) * R.prefs.uMinus := fun b => by
         have hnot_b : ¬ ∀ l, Function.update s i b l = true := fun h => by
-          have hj := h j
-          rw [Function.update_of_ne hji, hj_false] at hj
-          exact Bool.false_ne_true hj
-        have hsub : insert i (broadcastSet (Function.update s i b)) ⊆ Finset.univ.erase j := by
-          intro l hl
-          simp only [Finset.mem_erase, ne_eq, Finset.mem_univ, and_true]
-          rintro rfl
-          rcases Finset.mem_insert.mp hl with hji' | hmem
-          · exact hji hji'
-          · rw [mem_broadcastSet_iff, Function.update_of_ne hji, hj_false] at hmem
-            exact Bool.false_ne_true hmem
+          simpa [Function.update_of_ne hji, hj_false] using h j
+        have hsub : insert i (broadcastSet (Function.update s i b)) ⊆ Finset.univ.erase j :=
+          Finset.subset_erase.mpr ⟨Finset.subset_univ _, by simp [hji, hj_false]⟩
         have hle := Finset.card_le_card hsub
         rw [Finset.card_erase_of_mem (Finset.mem_univ j), Finset.card_univ] at hle
         have := R.two_le_threshold
@@ -1900,11 +1892,7 @@ theorem payoff_piecewise_le_coalitionPayoff {C : Finset ι} (hC : C ≠ Finset.u
     (τ : ∀ i, Strategy (Share := Share) i) {i : ι} (hi : i ∈ C) :
     proto.toPayoffGame.payoff i (C.piecewise τ honestProfile) ≤
       proto.coalitionPayoff C (CoalitionStrategy.ofProfile C τ) i := by
-  have hex : ∃ h₀ : ι, h₀ ∉ C := by
-    by_contra hall
-    push Not at hall
-    exact hC (Finset.eq_univ_iff_forall.mpr hall)
-  obtain ⟨h₀, hh₀C⟩ := hex
+  obtain ⟨h₀, hh₀C⟩ := not_forall.mp (mt Finset.eq_univ_iff_forall.mpr hC)
   refine proto.evalHorizon_tsum_le_of_pointwise
     (fun r b => (proto.roundCoalitionBroadcastDist_ofProfile C τ r proto.genuine ▸ rfl))
     (fun r => (proto.roundCoalitionBroadcastDist_ofProfile C τ r proto.dummy ▸ rfl)) ?_
@@ -2155,10 +2143,8 @@ theorem honestProfile_isPureNash_iff
   refine ⟨fun hnash => ?_, fun hp => ?_⟩
   · obtain ⟨i⟩ := Fintype.card_pos_iff.mp (by omega : 0 < Fintype.card ι)
     let τ₀ : ∀ j, Strategy (Share := Share) j := fun _ _ _ => false
-    have hC_univ : ({i} : Finset ι) ≠ Finset.univ := fun heq => by
-      have := congrArg Finset.card heq
-      simp only [Finset.card_singleton, Finset.card_univ] at this
-      omega
+    have hC_univ : ({i} : Finset ι) ≠ Finset.univ :=
+      ne_of_apply_ne Finset.card (by rw [Finset.card_singleton, Finset.card_univ]; omega)
     have hOut : ¬ proto.scheme.access.authorized (Finset.univ \ {i}) := by
       rw [hall_acc, AccessStructure.all_authorized_iff]
       exact fun h => (Finset.mem_sdiff.mp (h i)).2 (Finset.mem_singleton_self i)

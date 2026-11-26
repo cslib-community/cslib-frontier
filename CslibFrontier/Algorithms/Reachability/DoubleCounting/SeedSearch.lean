@@ -401,17 +401,13 @@ theorem runSeedScheduler_clock {σ : Type} {count : ℕ} (clock : σ → ℕ) (c
     rw [Nat.add_mul, Nat.one_mul]
     unfold testSeedWith
     apply bind_optionT_clock clock cost (count * cost) _ _ (hc i none source)
-    intro verdict state
-    cases verdict with
-    | none => exact Nat.le_add_right _ _
-    | some verdict =>
-      cases verdict with
-      | bad _ => exact Nat.le_add_right _ _
-      | decided answer =>
-        rw [← Nat.add_zero (count * cost)]
-        apply bind_optionT_clock clock (count * cost) 0 _ _ (hothers i answer count 0 (by simp))
-        intro good t
-        cases good <;> exact Nat.le_refl _
+    rintro (_ | _ | answer) state
+    · exact Nat.le_add_right _ _
+    · exact Nat.le_add_right _ _
+    · rw [← Nat.add_zero (count * cost)]
+      apply bind_optionT_clock clock (count * cost) 0 _ _ (hothers i answer count 0 (by simp))
+      intro good t
+      cases good <;> exact Nat.le_refl _
   let test := rankedSeedTest (testScheduledSeed scan sourceAt source)
   let budget := (1 + count) * cost
   have hstep i t : clock ((test i).run t).2 ≤ clock t + budget := by
@@ -525,12 +521,10 @@ theorem runSeedSearch_correct (sources : List (Fin n))
   let makeAnswer (j : Fin (2 ^ length)) : SeedAnswer length :=
     ⟨j, decide (Relation.ReflTransGen (r (bits j)) source target)⟩
   have hfind : (List.finRange (2 ^ length)).find? (fun j => decide (good j)) = some i := by
-    apply List.find?_eq_some_iff_getElem.mpr
-    refine ⟨by simpa only [decide_eq_true_eq] using (show good i from Fin.find_spec hex'), i.val,
-      by simpa only [List.length_finRange] using i.isLt, ?_, ?_⟩
-    · simp
-    · exact fun j hj => by
-        simpa using Fin.find_min hex' (show (⟨j, by omega⟩ : Fin (2 ^ length)) < i from hj)
+    refine List.find?_eq_some_iff_getElem.mpr
+      ⟨decide_eq_true (Fin.find_spec hex'), i.val,
+        by simpa only [List.length_finRange] using i.isLt, by simp, fun j hj => ?_⟩
+    simpa using Fin.find_min hex' (show (⟨j, by omega⟩ : Fin (2 ^ length)) < i from hj)
   have htest (j : Fin (2 ^ length)) :
       rankedSeedTest (fun k => testSeed (controller (bits k)) sources source) j =
         pure ((Option.guard (fun j => decide (good j)) j).map makeAnswer) := by

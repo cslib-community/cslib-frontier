@@ -195,10 +195,8 @@ theorem rootPassProg_spec {w : ℕ} (args : RootPassArgs) {inst : MWISInstance}
         else bCur) = rootPassInst inst.adj inst.wt L0 arr0 (curC + 1) := by
       dsimp only [rootPassInst, bCur]
       rw [hfc_eq]
-      by_cases hind : indepInst inst.adj L0 curC = true
-      · simp only [hind, ↓reduceIte]
-        split_ifs <;> omega
-      · simp [hind]
+      cases indepInst inst.adj L0 curC <;> simp [Nat.max_def]
+      split_ifs <;> omega
     unfold MWISInstance.adj MWISInstance.wt at hb_next
     dsimp only at hres_step
     rw [hr_ind, hr_fw, hb_next] at hres_step
@@ -210,23 +208,20 @@ theorem rootPassProg_spec {w : ℕ} (args : RootPassArgs) {inst : MWISInstance}
       rw [hst_ind, hr_ind]
       exact validHistory_bind_step hv_fw (validHistory_pure w _ _)
     have hc_step : memoryCost (rootPassStep (args, ⟨curC, bCur⟩)) s ≤ stepCost := by
-      have hr_s (x : ℕ) : (Memory.spec 0).clientState s (Memory.read x) = s := rfl
-      have hr_r (x : ℕ) : (Memory.spec 0).clientResult s (Memory.read x) = s.mem x := rfl
       unfold rootPassStep
       dsimp only
-      rw [memoryCost_bind', memoryCost_read, hr_s, hr_r,
+      rw [memoryCost_bind', memoryCost_read,
+        show (Memory.spec 0).clientState s (Memory.read _) = s from rfl,
+        show (Memory.spec 0).clientResult s (Memory.read _) = s.mem _ from rfl,
         memoryCost_bind', hst_ind, hr_ind,
         memoryCost_bind', hst_fw, memoryCost_pure]
       dsimp only [stepCost]
       omega
     obtain ⟨hv_rem, hr_rem, hc_rem⟩ := ih (curC + 1) (by omega)
-    have hiter_eq : iterate rootPassStep args (rem + 1) ⟨curC, bCur⟩ =
-        (rootPassStep (args, ⟨curC, bCur⟩) >>= iterate rootPassStep args rem) := rfl
-    rw [hiter_eq]
+    dsimp only [iterate]
     refine ⟨validHistory_bind_step hv_step (by rwa [hst_step, hres_step]), ?_, ?_⟩
     · rw [StateTransitionSpec.clientResult_bind, hst_step, hres_step]
-      have hadd : curC + (rem + 1) = curC + 1 + rem := by omega
-      rwa [hadd]
+      rwa [show curC + (rem + 1) = curC + 1 + rem by omega]
     · rw [memoryCost_bind', hst_step, hres_step]
       calc memoryCost (rootPassStep (args, ⟨curC, bCur⟩)) s +
             memoryCost
@@ -296,11 +291,8 @@ theorem rootPassProg_realizes :
   · dsimp only [rootPassStep]
     rw [indepBagProg_state]
     repeat (first | split | exact hind_safe | exact hfw_safe | assumption | refine And.intro ?_ ?_)
-  · rw [hres_ev]
-    change (st.curC + 1) + j = d.tbl0Len
-    omega
-  · rw [hres_ev]
-    change (if _ then (if _ then _ else st.best) else st.best) ≤ cap
+  · simp only [hres_ev]; omega
+  · simp only [hres_ev]
     split_ifs <;> omega
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

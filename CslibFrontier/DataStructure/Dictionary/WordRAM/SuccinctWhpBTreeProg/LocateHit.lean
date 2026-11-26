@@ -251,21 +251,13 @@ theorem btreeLocateHitGenProg_spec {c U V w n_max base sIdx insCount q : ℕ}
         by_cases hrc : r < cnt
         · simp only [hrc, ↓reduceIte]
           rw [clientResult_bind, clientState_laneGetGenProg, clientResult_laneGetGenProg]
-          dsimp only [keyLaneBitsWhp]
-          simp [hne hrc, StateTransitionSpec.clientResult_pure]
+          simp [keyLaneBitsWhp, hne hrc, StateTransitionSpec.clientResult_pure]
         · simp [hrc, StateTransitionSpec.clientResult_pure]
-      · rw [← hlk_eq]; unfold btreeLookup
-        by_cases hrc : r < cnt
-        · simp [ha_ne, hlf_def, cnt, r, hrc, hne hrc]
-        · simp [ha_ne, hlf_def, cnt, r, hrc]
-      · unfold btreeDelete
-        by_cases hrc : r < cnt
-        · simp [ha_ne, leafIdx, cnt, r, hrc, hne hrc]
-        · simp [ha_ne, leafIdx, cnt, r, hrc]
-      · intro newVal; unfold btreeUpdate
-        by_cases hrc : r < cnt
-        · simp [ha_ne, leafIdx, cnt, r, hrc, hne hrc]
-        · simp [ha_ne, leafIdx, cnt, r, hrc]
+      · rw [← hlk_eq]
+        simp +contextual [btreeLookup, ha_ne, hlf_def, cnt, r, hne]
+      · simp +contextual [btreeDelete, ha_ne, leafIdx, cnt, r, hne]
+      · intro newVal
+        simp +contextual [btreeUpdate, ha_ne, leafIdx, cnt, r, hne]
 
 theorem realizes_btreeLocateHitGen :
     Realizes .exact btreeLocateHitGenProg
@@ -274,12 +266,8 @@ theorem realizes_btreeLocateHitGen :
       BTreeQueryGenPre
       (fun _ _ => 0) := by
   unfold btreeLocateHitGenProg
-  have hrh := realizes_readSliceHeaderGen
-  have hdl := realizes_descendLoopGen
-  have hrn := realizes_readBTreeNodeGen
-  have hsr := realizes_swarRankGen
-  have hlg := realizes_laneGetGen
-  realize
+  realize [realizes_readSliceHeaderGen, realizes_descendLoopGen, realizes_readBTreeNodeGen,
+    realizes_swarRankGen, realizes_laneGetGen]
   all_goals
     rcases d with ⟨⟨⟨cp, base⟩, sIdx⟩, q⟩
     dsimp only at *

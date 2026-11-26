@@ -249,16 +249,12 @@ private theorem counts_valid (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     K.body.length = F.length + g.body.length ∧
     K.body.occurrences.length = F.occurrences.length + g.body.occurrences.length ∧
     K.ports.length = L.length + 2 + R.length := by
-  let I : State Rel := ⟨F, L ++ [x, y] ++ R, c⟩
-  let J := (rotateRight^[R.length]) I
   have hf := positioned_fields g w F L x y R c
   have hj := positioned_state F L x y R c
-  constructor
-  · rw [hf.1, hj, length_transposeTail_body]
-  constructor
-  · rw [hf.1, hj, length_transposeTail_occurrences]
-  · rw [ports_transposeAdjacent]
-    simp only [List.length_append, List.length_map, List.length_cons, List.length_nil]
+  refine ⟨by rw [hf.1, hj, length_transposeTail_body],
+    by rw [hf.1, hj, length_transposeTail_occurrences], ?_⟩
+  rw [ports_transposeAdjacent]
+  simp only [List.length_append, List.length_map, List.length_cons, List.length_nil]
 
 private theorem split_valid (I : State Rel) (j : ℕ) (h : j + 1 < I.ports.length) :
     ∃ L x y R, L.length = j ∧ I = (⟨I.body, L ++ [x, y] ++ R, I.rotation⟩ : State Rel) := by
@@ -353,40 +349,34 @@ private theorem turn_table (b : Bool) (I : State Rel) (B : ℕ)
       max I.rotation.successor.length (2 * (I.body.occurrences.length + I.ports.length)) ∧
     ∀ v ∈ (turn b I).rotation.successor, v.size ≤ B := by
   rcases I with ⟨F, ports, c⟩
-  cases ports with
-  | nil =>
-    simpa only [turn, rotateLeft, rotateRight, ite_self, List.length_nil, Nat.add_zero] using
-      (show c.successor.length ≤ max c.successor.length (2 * F.occurrences.length) ∧
-        ∀ v ∈ c.successor, v.size ≤ B from ⟨le_max_left _ _, he⟩)
-  | cons x ps =>
-    cases ps with
-    | nil =>
-      simp only [turn, rotateLeft, rotateRight, ite_self]
-      exact ⟨le_max_left _ _, he⟩
-    | cons y ps =>
-      let N := (x :: y :: ps).length
-      let M := F.occurrences.length
-      have hN : 1 < N := by simp [N]
-      have hread (i : ℕ) : (c.successor.getD i 0).size ≤ B := by
-        by_cases hi : i < c.successor.length
-        · rw [List.getD_eq_getElem _ _ hi]
-          exact he _ (List.getElem_mem hi)
-        · rw [List.getD_eq_default _ _ (by omega)]
-          simp
-      have hentry (shift : ℕ → ℕ) (hs : ∀ j, shift j < N) (i : ℕ) :
-          (boundaryIndexMap M N shift (c.successor.getD i 0)).size ≤ B :=
-        (size_boundaryIndexMap_le M N shift hs _).trans (max_le (hread i) hd)
-      cases b <;>
-        simp only [turn, Bool.false_eq_true, ↓reduceIte, rotateLeft, rotateRight,
-          rotateBoundaryCertificate, rotateBoundaryCertificateRight_eq_reindex_mod,
-          show ¬(x :: y :: ps).length ≤ 1 from by simp, ↓reduceIte]
-      all_goals
-        constructor
-        · rw [RotationCertificate.length_reindex]
-          exact le_max_right _ _
-        · intro v hv
-          obtain ⟨i, _, rfl⟩ := List.mem_map.mp hv
-          exact hentry _ (fun _ => Nat.mod_lt _ (by omega)) _
+  match ports with
+  | [] | [_] =>
+    simp only [turn, rotateLeft, rotateRight, ite_self]
+    exact ⟨le_max_left _ _, he⟩
+  | x :: y :: ps =>
+    let N := (x :: y :: ps).length
+    let M := F.occurrences.length
+    have hN : 1 < N := by simp [N]
+    have hread (i : ℕ) : (c.successor.getD i 0).size ≤ B := by
+      by_cases hi : i < c.successor.length
+      · rw [List.getD_eq_getElem _ _ hi]
+        exact he _ (List.getElem_mem hi)
+      · rw [List.getD_eq_default _ _ (by omega)]
+        simp
+    have hentry (shift : ℕ → ℕ) (hs : ∀ j, shift j < N) (i : ℕ) :
+        (boundaryIndexMap M N shift (c.successor.getD i 0)).size ≤ B :=
+      (size_boundaryIndexMap_le M N shift hs _).trans (max_le (hread i) hd)
+    cases b <;>
+      simp only [turn, Bool.false_eq_true, ↓reduceIte, rotateLeft, rotateRight,
+        rotateBoundaryCertificate, rotateBoundaryCertificateRight_eq_reindex_mod,
+        show ¬(x :: y :: ps).length ≤ 1 from by simp, ↓reduceIte]
+    all_goals
+      constructor
+      · rw [RotationCertificate.length_reindex]
+        exact le_max_right _ _
+      · intro v hv
+        obtain ⟨i, _, rfl⟩ := List.mem_map.mp hv
+        exact hentry _ (fun _ => Nat.mod_lt _ (by omega)) _
 
 private theorem enc_ports_perm {xs ys : List ℕ} (h : xs.Perm ys) :
     (encList encNat xs).length = (encList encNat ys).length :=
@@ -479,7 +469,6 @@ private def boundedTurn (b : Bool) (I : State Rel) (n : ℕ) : State Rel :=
 private theorem boundedTurn_poly (encRel : Rel ↪ List Bool) (b : Bool) :
     ComputableInPolyTime (fun p : State Rel × ℕ => boundedTurn b p.1 p.2)
       (encPair (encState encRel) encNat) (encState encRel) := by
-  let input := encPair (encState encRel) encNat
   have hI := ComputableInPolyTime.fst (encState encRel) encNat
   have hn := ComputableInPolyTime.snd (encState encRel) encNat
   have hP := (ComputableInPolyTime.length_list encNat).comp
@@ -516,7 +505,6 @@ states have an internal component/bit-width budget; no growth provider is a hypo
 theorem computableInPolyTime_transposeAdjacent (encRel : Rel ↪ List Bool) :
     ComputableInPolyTime (fun p : State Rel × ℕ => transposeAdjacent g w p.1 p.2)
       (encPair (encState encRel) encNat) (encState encRel) := by
-  let input := encPair (encState encRel) encNat
   have hI := ComputableInPolyTime.fst (encState encRel) encNat
   have hj := ComputableInPolyTime.snd (encState encRel) encNat
   have hP := (ComputableInPolyTime.length_list encNat).comp

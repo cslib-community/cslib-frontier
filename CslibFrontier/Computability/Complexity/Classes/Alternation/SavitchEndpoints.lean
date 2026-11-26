@@ -126,14 +126,14 @@ theorem lastMidpoint_eq_some_iff {i : ℕ} {z : List Bool} {d : Bool} {m : List 
       getD_drop_level, drop_drop_level]
     constructor
     · rintro (⟨j, hj, h1, h2, h3⟩ | ⟨hn, hs⟩)
-      · refine ⟨j + 1, by omega, h1, h2, fun j' hj' hj'' => ?_⟩
-        obtain ⟨k, rfl⟩ : ∃ k, j' = k + 1 := ⟨j' - 1, by omega⟩
-        exact h3 k (by omega) (by omega)
+      · refine ⟨j + 1, by omega, h1, h2, fun
+          | 0, hj', _ => by omega
+          | k + 1, hj', hj'' => h3 k (by omega) (by omega)⟩
       · obtain ⟨hd, rfl⟩ : z.getD (2 * w + 1) false = d ∧ midpointMoves w z = m := by
           simpa using hs
-        refine ⟨0, by omega, by simpa using hd, by simp, fun j' hj' hj'' => ?_⟩
-        obtain ⟨k, rfl⟩ : ∃ k, j' = k + 1 := ⟨j' - 1, by omega⟩
-        exact hn k (by omega)
+        refine ⟨0, by omega, by simpa using hd, by simp, fun
+          | 0, hj', _ => by omega
+          | k + 1, _, hj'' => hn k (by omega)⟩
     · rintro ⟨j, hj, h1, h2, h3⟩
       cases j with
       | zero =>
@@ -156,13 +156,10 @@ theorem iterate_midpointStep (i : ℕ) (u v z : List Bool) :
     change (midpointStep w)^[i] (if z.getD (2 * w + 1) false then
         (midpointMoves w z, v, z.drop (2 * w + 2))
       else (u, midpointMoves w z, z.drop (2 * w + 2))) = _
-    cases z.getD (2 * w + 1) false
-    · rw [ite_eq_right Bool.false_ne_true, ih, drop_drop_level]
+    cases z.getD (2 * w + 1) false <;>
+      simp only [Bool.false_eq_true, ↓reduceIte, ih, drop_drop_level] <;>
       cases lastMidpoint w i (z.drop (2 * w + 2)) true <;>
-        cases lastMidpoint w i (z.drop (2 * w + 2)) false <;> rfl
-    · rw [ite_eq_left rfl, ih, drop_drop_level]
-      cases lastMidpoint w i (z.drop (2 * w + 2)) true <;>
-        cases lastMidpoint w i (z.drop (2 * w + 2)) false <;> rfl
+      cases lastMidpoint w i (z.drop (2 * w + 2)) false <;> rfl
 
 /-- **The midpoint game depends on two levels.** The existential player wins a play of the
 midpoint game at level `i` between `u` and `v` exactly when the edge test accepts the midpoint of
@@ -484,15 +481,12 @@ option. -/
 private theorem endpointWord_eq (d : Bool) {i : ℕ} {z : List Bool}
     (hz : z.length = (2 * w + 2) * i) :
     endpointWord d (w, i, z) = encOption encBits (lastMidpoint w i z d) := by
-  rcases run_seek_levelMarks d i z hz with ⟨hn, hseek⟩ | ⟨m, q, hs, hq, hseek⟩
-  · have h := hseek [] []
-    simp only [List.append_nil] at h
-    simp only [endpointWord, h, hn, ZipTransducer.run_nil_nil]
-    rfl
-  · have h := hseek [] []
-    simp only [List.append_nil] at h
-    rcases hq with rfl | rfl <;> simp only [endpointWord, h, hs, ZipTransducer.run_nil_nil] <;>
-      simp [endpointZip, encBits_apply]
+  rcases run_seek_levelMarks d i z hz with ⟨hn, hseek⟩ | ⟨m, _, hs, rfl | rfl, hseek⟩
+  · simpa [endpointWord, hn, ZipTransducer.run_nil_nil, endpointZip] using
+      congrArg List.reverse (hseek [] [])
+  all_goals
+    simpa [endpointWord, hs, ZipTransducer.run_nil_nil, endpointZip, encBits_apply] using
+      congrArg List.reverse (hseek [] [])
 
 /-- **The endpoint machine runs in linear time.** The word `endpointWord d (w, i, z)` is computed
 on a multi-tape machine within time and space `O((2 * w + 2) * i + w + |z|)`, linear in the number

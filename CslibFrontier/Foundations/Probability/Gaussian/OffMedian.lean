@@ -81,13 +81,10 @@ private theorem angular_crossing_integral_le {c θ : ℝ} (hc0 : 0 ≤ c) (hcπ 
   have hg0 : ∀ ψ, 0 ≤ g ψ := fun ψ => by simp only [g]; split_ifs <;> norm_num
   have hg1 : ∀ ψ, g ψ ≤ 1 := fun ψ => by simp only [g]; split_ifs <;> norm_num
   have hint_bdd : ∀ f : ℝ → ℝ, Measurable f → (∀ x, 0 ≤ f x) → (∀ x, f x ≤ 2) →
-      IntervalIntegrable f volume (-π) π := fun f hf h0 h2 => by
-    rw [intervalIntegrable_iff]
-    refine Measure.integrableOn_of_bounded (M := 2) measure_Ioc_lt_top.ne
-      hf.aestronglyMeasurable ?_
-    filter_upwards with x
-    rw [Real.norm_eq_abs, abs_of_nonneg (h0 x)]
-    exact h2 x
+      IntervalIntegrable f volume (-π) π := fun f hf h0 h2 =>
+    intervalIntegrable_iff.mpr <| Measure.integrableOn_of_bounded measure_Ioc_lt_top.ne
+      hf.aestronglyMeasurable <| ae_of_all _ fun x => by
+        simpa [Real.norm_eq_abs, abs_of_nonneg (h0 x)] using h2 x
   have hg_ii : IntervalIntegrable g volume (-π) π :=
     hint_bdd g hg_meas hg0 fun x => (hg1 x).trans (by norm_num)
   have hg_shift_ii : IntervalIntegrable (fun φ => g (φ - θ)) volume (-π) π :=
@@ -331,17 +328,13 @@ theorem measureReal_pi_gaussianReal_inner_eq_zero {ι : Type*} [Fintype ι]
     {u : EuclideanSpace ℝ ι} (hu : ‖u‖ = 1) :
     (Measure.pi fun _ : ι => gaussianReal 0 1).real {ω | ⟪u, WithLp.toLp 2 ω⟫ = 0} = 0 := by
   have := nullSingletonClass_gaussianReal (μ := 0) (v := 1) one_ne_zero
-  have hnn : ‖u‖₊ ^ 2 = 1 := by ext; simp [hu]
+  have hnn : ‖u‖₊ ^ 2 = 1 := Subtype.ext (by simp [hu])
   have hmp : MeasurePreserving (fun ω : ι → ℝ => ⟪u, WithLp.toLp 2 ω⟫)
-      (Measure.pi fun _ : ι => gaussianReal 0 1) (gaussianReal 0 1) := by
-    have h1 := measurePreserving_toLp_pi_gaussianReal ι
-    have h2 : MeasurePreserving (fun x : EuclideanSpace ℝ ι => ⟪u, x⟫)
-        (stdGaussian (EuclideanSpace ℝ ι)) (gaussianReal 0 1) :=
-      ⟨by fun_prop, by rw [stdGaussian_map_inner, hnn]⟩
-    exact h2.comp h1
-  have hpre : {ω : ι → ℝ | ⟪u, WithLp.toLp 2 ω⟫ = 0} =
-      (fun ω => ⟪u, WithLp.toLp 2 ω⟫) ⁻¹' ({0} : Set ℝ) := rfl
-  rw [hpre, hmp.measureReal_preimage (measurableSet_singleton 0).nullMeasurableSet,
+      (Measure.pi fun _ : ι => gaussianReal 0 1) (gaussianReal 0 1) :=
+    MeasurePreserving.comp ⟨by fun_prop, by rw [stdGaussian_map_inner, hnn]⟩
+      (measurePreserving_toLp_pi_gaussianReal ι)
+  rw [show {ω : ι → ℝ | ⟪u, WithLp.toLp 2 ω⟫ = 0} = (⟪u, WithLp.toLp 2 ·⟫) ⁻¹' {0} from rfl,
+    hmp.measureReal_preimage (measurableSet_singleton 0).nullMeasurableSet,
     measureReal_def, measure_singleton, ENNReal.toReal_zero]
 
 end ProbabilityTheory

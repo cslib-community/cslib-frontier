@@ -300,15 +300,14 @@ private theorem sum_map_hashCost_findSomeM?_le_of_no_false_alarm {h : P → Y}
       sum_map_hashCost_queriesWith_rainbowAttackStep h lookup g y hk, List.sum_cons]
     cases hlk : lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y)) with
     | none =>
-      rw [evalPure_rainbowAttackStep, hlk]
-      simp only [Option.isSome_none, Bool.false_eq_true, ↓reduceIte]
+      simp only [evalPure_rainbowAttackStep, hlk, Option.isSome_none, Bool.false_eq_true,
+        ↓reduceIte]
       have htail := ih (fun k' hk' => hxs k' (List.mem_cons_of_mem k hk'))
         fun k' hk' => hnofa k' (List.mem_cons_of_mem k hk')
       omega
     | some pw₀ =>
-      have hgood := hnofa k List.mem_cons_self pw₀ hlk
-      rw [evalPure_rainbowAttackStep, hlk]
-      simp only [hgood, Option.isSome_some, ↓reduceIte, List.map_nil, List.sum_nil, Nat.add_zero]
+      simp only [evalPure_rainbowAttackStep, hlk, hnofa k List.mem_cons_self pw₀ hlk,
+        Option.isSome_some, ↓reduceIte, List.map_nil, List.sum_nil, Nat.add_zero]
       omega
 
 /-- **Rainbow-table run hash bound without false alarms** (cf. [BonehShoup2023], Section 18.7,
@@ -427,13 +426,11 @@ private theorem sum_map_hashCost_hellmanLoop_of_no_false_alarm {h : P → Y}
     rw [sum_map_hashCost_queriesWith_hellmanLoop_succ]
     cases hlk : lookup z with
     | none =>
-      simp only
       have hrec := ih (g₀ (h z)) fun k hk pw₀ hlk' => by
-        have hk' : k + 1 < m + 1 := by omega
         rw [← Function.iterate_succ_apply (fun x => g₀ (h x)) k z] at hlk'
-        have hidx : m + 1 - 1 - (k + 1) = m - 1 - k := by omega
-        exact hidx ▸ hnofa (k + 1) hk' pw₀ hlk'
-      omega
+        simpa only [Nat.add_sub_cancel, Nat.sub_add_eq, Nat.sub_right_comm] using
+          hnofa (k + 1) (Nat.succ_lt_succ hk) pw₀ hlk'
+      simp only [hrec]; omega
     | some pw₀ =>
       have hgood : h ((fun x => g₀ (h x))^[m] pw₀) = y := by
         simpa only [Nat.add_sub_cancel, Nat.sub_zero] using hnofa 0 (Nat.zero_lt_succ m) pw₀ hlk
@@ -465,11 +462,11 @@ private theorem add_le_sum_map_hashCost_hellmanLoop_of_false_alarm {h : P → Y}
   induction k generalizing rem z with
   | zero =>
     obtain ⟨m, rfl⟩ : ∃ m, rem = m + 1 := ⟨rem - 1, by omega⟩
-    simp only [Function.iterate_zero_apply] at hhit
+    rw [Function.iterate_zero_apply] at hhit
     simp only [Nat.add_sub_cancel, Nat.sub_zero] at hfa
     rw [sum_map_hashCost_queriesWith_hellmanLoop_succ, hhit]
     simp only [hfa, ↓reduceIte]
-    have hrec := le_sum_map_hashCost_hellmanLoop h lookup g₀ y m (g₀ (h z))
+    have := le_sum_map_hashCost_hellmanLoop h lookup g₀ y m (g₀ (h z))
     omega
   | succ k ih =>
     obtain ⟨m, rfl⟩ : ∃ m, rem = m + 1 := ⟨rem - 1, by omega⟩
@@ -484,10 +481,8 @@ private theorem add_le_sum_map_hashCost_hellmanLoop_of_false_alarm {h : P → Y}
     | none => simp only; omega
     | some pw₁ =>
       have hne₀ : h ((fun x => g₀ (h x))^[m] pw₁) ≠ y := by
-        simpa only [Nat.add_sub_cancel, Nat.sub_zero] using
-          hbefore 0 (Nat.zero_lt_succ k) pw₁ hlk
-      simp only [hne₀, ↓reduceIte]
-      omega
+        simpa only [Nat.add_sub_cancel, Nat.sub_zero] using hbefore 0 (Nat.zero_lt_succ k) pw₁ hlk
+      simp only [hne₀, ↓reduceIte]; omega
 
 /-- **Extra hash cost of a false alarm in Hellman's attack** ([BonehShoup2023], Section 18.7,
 pp. 744–745; Fig. 18.14, p. 745): a false alarm reached at iteration `k < τ` (with only misses or

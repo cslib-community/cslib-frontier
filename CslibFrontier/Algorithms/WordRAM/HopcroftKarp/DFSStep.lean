@@ -151,8 +151,7 @@ theorem VisCovers.snoc {m r : ℕ} {vis : Vector Bool r} {ps : List (Fin m × Fi
 
 theorem VisCovers.length_le {m r : ℕ} {vis : Vector Bool r} {ps : List (Fin m × Fin r)}
     (h : VisCovers vis ps) : ps.length ≤ r := by
-  have hcard := h.1.length_le_card
-  simpa using hcard
+  simpa using h.1.length_le_card
 
 /-- Per-vertex instruction-potential weight assigned to an unvisited right vertex `v`. -/
 @[expose] def dfsVertWeight (inst : SparseInstance) (mate : Vector (Option (Fin inst.m)) inst.r)
@@ -179,13 +178,8 @@ theorem dfsPot_replicate_le {inst : SparseInstance}
       (fun v : Fin inst.r => vget (Vector.replicate inst.r false) v = false), 14) ≤
       14 * inst.r :=
     (Finset.sum_le_sum_of_subset (Finset.filter_subset _ _)).trans (by simp [Nat.mul_comm])
-  have heq : dfsPot inst mate (Vector.replicate inst.r false) =
-      38 * vecPotential (fun b : Bool => b = false) (hkDfsCost inst.adj mate)
-        (Vector.replicate inst.r false) +
-      ∑ _ ∈ Finset.univ.filter
-        (fun v : Fin inst.r => vget (Vector.replicate inst.r false) v = false), 14 := by
-    simp only [dfsPot, vecPotential, dfsVertWeight, Finset.sum_add_distrib, ← Finset.mul_sum]
-  rw [heq]
+  simp only [vecPotential] at hcost
+  simp only [dfsPot, vecPotential, dfsVertWeight, Finset.sum_add_distrib, ← Finset.mul_sum]
   change _ ≤ 38 * bipAdjSteps inst.adj + 14 * inst.r
   omega
 
@@ -489,9 +483,7 @@ private theorem exec_copyAugCode {w bOff k : ℕ} {inst : SparseInstance}
   obtain ⟨y, hl, hPend, _⟩ := ExecWithin.loop_count P (fun y hy => hy.2.2.2.1) hbody
     (x := (x.set limit (k + 1)).set idx 0) (by simp) (by simpa using hP₀)
   obtain ⟨_, hr, hact', _, hal', haug', hf'⟩ := hPend
-  have htake_full : stackPairs.take (k + 1) = stackPairs :=
-    List.take_of_length_le (by omega)
-  rw [htake_full] at haug'
+  rw [List.take_of_length_le (by omega)] at haug'
   refine ⟨y, (he₀.seq hl).mono (by simp; omega), hr, hact',
     by rw [List.length_append, hlen_st]; exact hal', haug', hf'⟩
 
@@ -601,20 +593,11 @@ private theorem stack_snoc {inst : SparseInstance} {bOff d : ℕ}
         ((path ++ [(u, v)])[i]'(by simp [hplen]; omega)).2.val := by
   intro i hi
   by_cases hlt : i < d
-  · have hlt_p : i < path.length := by omega
-    have hget : (path ++ [(u, v)])[i]'(by simp [hplen]; omega) = path[i]'hlt_p :=
-      List.getElem_append_left hlt_p
-    rw [hget, hkeep_u i (le_of_lt hlt), hkeep_v i hlt]
+  · rw [List.getElem_append_left (by omega), hkeep_u i hlt.le, hkeep_v i hlt]
     exact hstack i hlt
-  · have heq : i = d := by omega
-    subst i
-    have hlt_end : d < (path ++ [(u, v)]).length := by
-      simp only [List.length_append, List.length_singleton, hplen]; omega
-    have hget : (path ++ [(u, v)])[d]'hlt_end = (u, v) := by
-      rw [List.getElem_append_right (by omega)]
-      simp [hplen]
-    rw [hget, hkeep_u d (le_refl d), hsu, hset_v]
-    exact ⟨rfl, rfl⟩
+  · obtain rfl : i = d := by omega
+    rw [List.getElem_append_right (by omega), hkeep_u _ le_rfl, hsu, hset_v]
+    simp [hplen]
 
 theorem exec_dfsStep_pop {w bOff k d : ℕ} {inst : SparseInstance}
     {mate : Vector (Option (Fin inst.m)) inst.r} {dist : Vector (Option ℕ) inst.m}

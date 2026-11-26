@@ -225,11 +225,9 @@ theorem sum_map_consecutivePairs_eq {β : Type*} [AddCommMonoid β] {δ : α →
     (hsymm : ∀ a b, δ a b = δ b a) {H : List (α × α)} {u : α} {w : List α}
     (h : IsEulerCircuit H u w) :
     (w.consecutivePairs.map fun e => δ e.1 e.2).sum = (H.map fun e => δ e.1 e.2).sum := by
-  have hd : ∀ L : List (α × α), (L.map fun e => δ e.1 e.2).sum =
+  have hd (L : List (α × α)) : (L.map fun e => δ e.1 e.2).sum =
       ((L.map undirected).map (Sym2.lift ⟨δ, hsymm⟩)).sum := by
-    intro L
-    simp only [List.map_map]
-    rfl
+    rw [List.map_map]; rfl
   rw [hd, hd]
   exact (h.perm.map _).sum_eq
 
@@ -256,12 +254,10 @@ theorem degree_append (H K : List (α × α)) (x : α) :
 /-- The degree depends only on the edges up to orientation. -/
 theorem degree_eq_of_perm {H K : List (α × α)}
     (h : (H.map undirected).Perm (K.map undirected)) (x : α) : degree H x = degree K x := by
-  have hd : ∀ L : List (α × α), degree L x = ((L.map undirected).map (Sym2.lift
+  have hd (L : List (α × α)) : degree L x = ((L.map undirected).map (Sym2.lift
       ⟨fun a b => (if x = a then 1 else 0) + (if x = b then 1 else 0),
         fun _ _ => Nat.add_comm _ _⟩)).sum := by
-    intro L
-    simp only [degree, List.map_map]
-    rfl
+    rw [degree, List.map_map]; rfl
   rw [hd, hd]
   exact (h.map _).sum_eq
 
@@ -272,9 +268,8 @@ theorem degree_consecutivePairs_cons (a : α) (l : List α) (x : α) :
       (if x = (a :: l).getLast (List.cons_ne_nil a l) then 1 else 0) = 2 * (a :: l).count x := by
   induction l generalizing a with
   | nil =>
-    by_cases h : x = a
-    · subst h
-      simp
+    rcases eq_or_ne x a with rfl | h
+    · simp
     · simp [h, Ne.symm h]
   | cons b l ih =>
     have := ih b
@@ -310,36 +305,25 @@ theorem undirected_eq_of_touches {x : α} {e : α × α} (h : touches x e = true
     undirected e = undirected (x, other x e) := by
   obtain ⟨a, b⟩ := e
   simp only [touches, Bool.or_eq_true, decide_eq_true_eq] at h
-  by_cases ha : x = a
-  · subst ha
-    simp [other]
-  · have hb : x = b := h.resolve_left ha
-    subst hb
-    simp only [other, ha, ↓reduceIte, undirected_mk]
-    exact Sym2.eq_swap
+  rcases eq_or_ne x a with rfl | ha
+  · simp only [other, ↓reduceIte]
+  · simpa only [other, ha, ↓reduceIte, ← h.resolve_left ha, undirected_mk] using Sym2.eq_swap
 
 theorem ends_of_touches {x : α} {e : α × α} (h : touches x e = true) (y : α) :
     ends y e = (if y = x then 1 else 0) + (if y = other x e then 1 else 0) := by
   obtain ⟨a, b⟩ := e
   simp only [touches, Bool.or_eq_true, decide_eq_true_eq] at h
-  by_cases ha : x = a
-  · subst ha
-    simp [other, ends]
-  · have hb : x = b := h.resolve_left ha
-    subst hb
-    simp only [other, ends, ha, ↓reduceIte]
-    exact Nat.add_comm _ _
+  rcases eq_or_ne x a with rfl | ha
+  · simp only [other, ends, ↓reduceIte]
+  · simpa only [other, ends, ha, ↓reduceIte, ← h.resolve_left ha] using Nat.add_comm _ _
 
 theorem degree_eq_zero_of_find?_eq_none {H : List (α × α)} {u : α}
     (h : H.find? (touches u) = none) : degree H u = 0 := by
-  rw [List.find?_eq_none] at h
-  unfold degree
-  apply List.sum_eq_zero
-  intro n hn
+  refine List.sum_eq_zero fun n hn => ?_
   obtain ⟨e, he, rfl⟩ := List.mem_map.mp hn
-  have := h e he
-  simp only [touches, Bool.or_eq_true, decide_eq_true_eq, not_or] at this
-  simp [ends, this.1, this.2]
+  have hne := List.find?_eq_none.mp h e he
+  simp only [touches, Bool.or_eq_true, decide_eq_true_eq, not_or] at hne
+  simp only [ends, hne.1, hne.2, ↓reduceIte]; rfl
 
 /-- Follow unused edges of `H` greedily from `u`, for at most `fuel` steps. Returns the walk and
 the edges it did not use. -/

@@ -87,21 +87,18 @@ private theorem exists_protocol_clique_indepSet [Fintype V] [DecidableEq V] (r :
       | none => qb.bind afterB
     refine ⟨qa.bind afterA, ?_, fun hW C I hC hI hsub => ?_⟩
     · set c := Nat.clog 2 (Fintype.card V + 1)
-      have hB : ∀ o, (afterB o).depth ≤ 1 + r * (2 * c + 1) := by
-        rintro (_ | u)
-        · simp [afterB]
-        · simp only [afterB, Protocol.depth_alice, Protocol.depth_output]
+      have hB : ∀ o, (afterB o).depth ≤ 1 + r * (2 * c + 1)
+        | none => by simp [afterB]
+        | some u => by
           have := hnext (nonNbr u)
-          omega
-      have hA : ∀ o, (afterA o).depth ≤ c + 1 + r * (2 * c + 1) := by
-        rintro (_ | v)
-        · exact (Protocol.depth_bind_le hB).trans (by omega)
-        · simp only [afterA, Protocol.depth_bob, Protocol.depth_output]
+          simp only [afterB, Protocol.depth_alice, Protocol.depth_output]; omega
+      have hA : ∀ o, (afterA o).depth ≤ c + 1 + r * (2 * c + 1)
+        | none => (Protocol.depth_bind_le hB).trans (by omega)
+        | some v => by
           have := hnext (nbr v)
-          omega
+          simp only [afterA, Protocol.depth_bob, Protocol.depth_output]; omega
       have hmul : (r + 1) * (2 * c + 1) = r * (2 * c + 1) + (2 * c + 1) := by ring
-      refine (Protocol.depth_bind_le hA).trans ?_
-      omega
+      exact (Protocol.depth_bind_le hA).trans (by omega)
     have hpow : 2 ^ (r + 1) = 2 * 2 ^ r := by rw [pow_succ]; ring
     -- A named vertex in both sets is their unique common vertex.
     have hone : ∀ v ∈ C, v ∈ I → 1 = #(C ∩ I) := fun v hvC hvI =>
@@ -128,8 +125,7 @@ private theorem exists_protocol_clique_indepSet [Fintype V] [DecidableEq V] (r :
       simp only [huC, decide_false, Bool.cond_false]
       refine hnext_run _ (by omega) C I hC hI fun w hw => ?_
       obtain ⟨hwC, hwI⟩ := mem_inter.mp hw
-      have hne : w ≠ u := fun h => huC (h ▸ hwC)
-      exact mem_filter.mpr ⟨hsub hw, hne, hI huI hwI hne.symm⟩
+      exact mem_filter.mpr ⟨hsub hw, fun h => huC (h ▸ hwC), hI huI hwI fun h => huC (h ▸ hwC)⟩
     -- Neither player can announce a vertex: no vertex is common.
     simp only [choiceA, dite_eq_right hA, afterA, Protocol.run_bind, hqb_run, choiceB,
       dite_eq_right hB, afterB, Protocol.run_output]

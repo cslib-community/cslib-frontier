@@ -829,7 +829,8 @@ theorem fits_mkDictParams {U V w n_max base : ℕ}
   have hmax_fit : Fits w (max n_max 1) := max_n_one_lt_two_pow_w hw hnU hU
   have hb_mask := fits_bucketBits_and_mask henv hw hnU hU
   have hslab_fit : Fits w (slabSize n_max) := hmax_fit.of_le (slabSize_le_max_n_one n_max)
-  have hmeta : Fits w (2 * slabSize n_max) ∧ Fits w (dirSlabsPerBucket n_max) ∧
+  obtain ⟨h2s, hdir, htail, hgd, hgp, hgo, hgm⟩ :
+      Fits w (2 * slabSize n_max) ∧ Fits w (dirSlabsPerBucket n_max) ∧
       Fits w (tailCapPerBucket n_max) ∧ Fits w (gmSlabDirBase n_max) ∧
       Fits w (gmTailPtrBase n_max) ∧ Fits w (gmTailOwnerBase n_max) ∧
       Fits w (gmSlabMetaBase n_max) := by
@@ -839,9 +840,7 @@ theorem fits_mkDictParams {U V w n_max base : ℕ}
       simp only [h1, mul_one, gmSlabMetaBase, gmTailOwnerBase, gmTailPtrBase, gmSlabDirBase,
         maxTailItems, tailCapPerBucket, dirSlabsPerBucket, numBuckets, hb0, ↓reduceIte,
         Nat.pow_zero, Nat.mul_zero, Nat.add_zero]
-      exact ⟨fits_const_of_dictEnv henv (by decide),
-        fits_const_of_dictEnv henv (by decide), fits_const_of_dictEnv henv (by decide),
-        h7, h7, h7, h7⟩
+      exact ⟨fits_const_of_dictEnv henv (by decide), fits_zero w, fits_zero w, h7, h7, h7, h7⟩
     · have hgm {x : ℕ} (hx : x ≤ globalMetaLen n_max) : Fits w x :=
         fits_of_le_globalMetaLen henv hb_pos hw hnU hU hx
       have h2slab : 2 * slabSize n_max ≤ numBuckets n_max * (slabScale n_max) ^ 3 := by
@@ -850,15 +849,15 @@ theorem fits_mkDictParams {U V w n_max base : ℕ}
           (Nat.mul_le_mul_left ((slabScale n_max) ^ 2) (two_le_slabScale n_max))
         linarith
       have hlen := gmSlabMetaBase_add_eq_globalMetaLen hb_pos
-      have h2_fit : Fits w (2 * slabSize n_max) :=
-        hmax_fit.of_le (le_trans (h2slab.trans (numBuckets_mul_slabScale_cubed_le hb_pos))
-          (le_max_left _ _))
-      refine ⟨h2_fit, hgm (dirSlabsPerBucket_le_globalMetaLen hb_pos),
+      unfold gmSlabMetaBase gmTailOwnerBase gmTailPtrBase at hlen
+      refine ⟨hmax_fit.of_le ((h2slab.trans (numBuckets_mul_slabScale_cubed_le hb_pos)).trans
+          (le_max_left _ _)),
+        hgm (dirSlabsPerBucket_le_globalMetaLen hb_pos),
         hgm (tailCapPerBucket_le_globalMetaLen hb_pos),
-        hgm (by unfold gmSlabMetaBase gmTailOwnerBase gmTailPtrBase at hlen; omega),
-        hgm (by unfold gmSlabMetaBase gmTailOwnerBase at hlen; omega),
-        hgm (by unfold gmSlabMetaBase at hlen; omega),
-        hgm (by omega)⟩
+        hgm (by omega),
+        hgm (by simp only [gmTailPtrBase]; omega),
+        hgm (by simp only [gmTailOwnerBase, gmTailPtrBase]; omega),
+        hgm (by simp only [gmSlabMetaBase, gmTailOwnerBase, gmTailPtrBase]; omega)⟩
   have hmicro_fit : Fits w (numMicroPerBucket n_max) :=
     hmax_fit.of_le ((totalMicroBuckets_eq_mul n_max ▸
       Nat.le_mul_of_pos_left _ (numBuckets_pos n_max)).trans (totalMicroBuckets_le n_max))
@@ -872,8 +871,8 @@ theorem fits_mkDictParams {U V w n_max base : ℕ}
   have hoffLM (c : ℕ) (hc : c ≤ 8) : Fits w (offLMSub U V w n_max h_space c) :=
     hspace.of_le (by
       have := Nat.mul_le_mul_right (lmSubWords n_max w) hc
-      unfold totalSpace offGM offLMSub offLM; omega)
-  have ⟨h2s, hdir, htail, hgd, hgp, hgo, hgm⟩ := hmeta
+      unfold totalSpace offGM offLMSub offLM
+      omega)
   rcases i with ⟨_ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ |
     _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | _ | k, hi⟩
   exacts [hw_fit, hU_fit.of_le hnU, hU_fit.of_le (show n_max - 1 ≤ U by omega), hoffQ,
@@ -1246,8 +1245,8 @@ private theorem exec_opCode_query {U V w n_max base : ℕ}
     factor_queryWithHash_le
   have hcost_scaled := Nat.mul_le_mul_left opFactor hcost_qry
   rw [Nat.mul_add, ← mul_assoc, mul_comm opFactor 26, mul_comm opFactor 8] at hcost_scaled
-  rw [show potential U V w n_max base θ y = potential U V w n_max base θ x by
-    unfold potential; rw [hymem]]
+  unfold potential
+  rw [hymem]
   dsimp only [d_qry] at hmul_qry ⊢
   omega
 
@@ -1308,11 +1307,8 @@ private theorem exec_opCode_insert {U V w n_max base : ℕ}
     (c := memoryCost (insertWithHashProg U V w n_max d_ins) (memoryState frontierReg x₄))
     factor_insertWithHash_le
   have hcost_scaled := opFactor_mul_amortized_le hcost_ins
-  have hgm_y : gmAt base U V w n_max (hashSpace U w n_max) y.mem = _ :=
-    congrArg (fun s : Memory.State =>
-      gmAt base U V w n_max (hashSpace U w n_max) s.mem) hm_ins
   unfold potential
-  rw [hgm_y]
+  rw [show y.mem = _ from congrArg Memory.State.mem hm_ins]
   dsimp only [d_ins] at hmul_ins ⊢
   omega
 
@@ -1454,11 +1450,8 @@ private theorem exec_opCode_delete {U V w n_max base : ℕ}
     factor_deleteFinishWithHash_le
   have hcost_scaled := opFactor_mul_amortized_le hcost_del
   rw [Nat.mul_add] at hcost_scaled
-  have hgm_y : gmAt base U V w n_max (hashSpace U w n_max) y.mem = _ :=
-    congrArg (fun s : Memory.State =>
-      gmAt base U V w n_max (hashSpace U w n_max) s.mem) hm_fin
   unfold potential
-  rw [hgm_y]
+  rw [show y.mem = _ from congrArg Memory.State.mem hm_fin]
   dsimp only [s₅, x₅, hqReg, dp, d_fin, h_q] at hmul_prep hmul_fin ⊢
   omega
 

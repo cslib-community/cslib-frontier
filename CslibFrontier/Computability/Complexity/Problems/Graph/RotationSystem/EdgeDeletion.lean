@@ -193,15 +193,11 @@ theorem rotate_deleteLastEdge_eq_iff {G : Graph} {u v : ℕ}
   -- When a retained dart reaches a removed end, injectivity excludes revisiting it,
   -- and preservation of the vertex excludes reaching the other removed end.
   have between : f (some none) ≠ none ∧ f none ≠ some none := by
-    refine ⟨fun h => ?_, fun h => ?_⟩
-    · have h' := r.vertex_rotate (lastEdgeDart G u v false)
-      rw [show r.rotate (lastEdgeDart G u v false) = lastEdgeDart G u v true from
-        (hstep _ _).mp h] at h'
-      exact huv (by simpa using h'.symm)
-    · have h' := r.vertex_rotate (lastEdgeDart G u v true)
-      rw [show r.rotate (lastEdgeDart G u v true) = lastEdgeDart G u v false from
-        (hstep _ _).mp h] at h'
-      exact huv (by simpa using h')
+    refine ⟨fun h => huv ?_, fun h => huv ?_⟩
+    · have h' : r.rotate (lastEdgeDart G u v false) = lastEdgeDart G u v true := (hstep _ _).mp h
+      simpa [h'] using (r.vertex_rotate (lastEdgeDart G u v false)).symm
+    · have h' : r.rotate (lastEdgeDart G u v true) = lastEdgeDart G u v false := (hstep _ _).mp h
+      simpa [h'] using r.vertex_rotate (lastEdgeDart G u v true)
   refine ⟨fun h => ?_, ?_⟩
   · rcases h₁ : f (some (some a)) with _ | (_ | d)
     · rcases h₂ : f none with _ | (_ | d)
@@ -223,12 +219,9 @@ theorem rotate_deleteLastEdge_eq_iff {G : Graph} {u v : ℕ}
 theorem lastEdgeDartEquiv_reversal (G : Graph) (u v : ℕ) :
     (lastEdgeDartEquiv G u v).permCongr (Dart.reversal (lastEdgeGraph G u v)) =
       (Dart.reversal G).optionCongr.optionCongr * swap (some none) none := by
-  ext z
-  rcases z with _ | (_ | ⟨i, b⟩)
-  · simp [lastEdgeDartEquiv, appendedDartEquiv, Dart.reverse, Dart.reversal]
-  · simp [lastEdgeDartEquiv, appendedDartEquiv, Dart.reverse, Dart.reversal]
-  · cases b <;> simp [lastEdgeDartEquiv, appendedDartEquiv, Dart.reverse, i.isLt,
-      swap_apply_def, Dart.reversal]
+  ext (_ | _ | ⟨i, _ | _⟩) <;>
+    simp [lastEdgeDartEquiv, appendedDartEquiv, Dart.reverse, Fin.is_lt, swap_apply_def,
+      Dart.reversal]
 
 /-- Deletion splices face successors with the original chirality. The preliminary outgoing
 swap cancels reversal on the two deleted ends; it is essential even for a loop. -/
@@ -272,7 +265,6 @@ theorem card_faces_deleteLastEdge_balance {G : Graph} {u v : ℕ}
     r.faceNext_deleteLastEdge.trans (congrArg (fun q => removeNone (removeNone q)) hf)
   have hc : Nat.card (Quotient (Perm.SameCycle.setoid f)) =
       Nat.card (Quotient (Perm.SameCycle.setoid r.rotate)) := by
-    dsimp only [f]
     rw [card_orbits_inv, card_orbits_permCongr]
   rw [removeNone_mul_optionCongr, ← hf, hc] at h₁
   have hσ : removeNone (removeNone f) = r.deleteLastEdge.rotate⁻¹ := rfl

@@ -146,9 +146,8 @@ theorem Algorithm.le_of_approx_freqMoment {σ : Type*} {L b k : ℕ} {η : ℝ} 
   have hη0 : 0 ≤ η := nonneg_of_mul_nonneg_left ((abs_nonneg _).trans h1) (by positivity)
   have hd' : (L : ℝ) ≤ 2 * (hammingDist y x : ℝ) := by exact_mod_cast hd
   have hδle : (hammingDist y x : ℝ) ≤ L := by exact_mod_cast (by omega : hammingDist y x ≤ L)
-  have hc : ((#{i | y i = x i} : ℕ) : ℝ) = L - (hammingDist y x : ℝ) := by
-    have : ((#{i | y i = x i} : ℕ) : ℝ) + (hammingDist y x : ℝ) = L := by exact_mod_cast hsum
-    linarith
+  have hc : ((#{i | y i = x i} : ℕ) : ℝ) = L - (hammingDist y x : ℝ) :=
+    eq_sub_of_add_eq (by exact_mod_cast hsum)
   set δ : ℝ := (hammingDist y x : ℝ)
   rw [hc] at h2
   rw [abs_le] at h1 h2
@@ -233,16 +232,13 @@ theorem le_of_solves_freqMoment {σ : Type*} {n b r k : ℕ} {ε : ℝ} (hk : k 
   have hcc := μ.ecomplexityFun_le_of_spaceLE hspace u v
     (fun x => (length_graphStream _).le) (fun c => decide (c = 2 * n))
     disjointness (ε := ε) fun x y => by
-      have hlen : (u x ++ v y).length ≤ 2 * n := by
-        simp only [u, v, List.length_append, length_graphStream]
-        omega
-      refine le_trans ?_ (hμ _ hlen)
+      refine le_trans ?_
+        (hμ (u x ++ v y) (by simp only [u, v, List.length_append, length_graphStream]; omega))
       unfold Randomized.errorProb
       refine ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
         (μ.toOuterMeasure.mono fun A hA => ?_)
-      simp only [Set.mem_ofPred_eq] at hA ⊢
-      intro h
-      exact hA (by rw [h, disjointness_eq_decide_freqMoment_eq hk])
+      rw [Set.mem_ofPred_eq] at hA ⊢
+      exact fun h => hA (by rw [h, disjointness_eq_decide_freqMoment_eq hk])
   exact PublicCoin.le_of_ecomplexityFun_disjointness_le hε hr (by exact_mod_cast hcc)
 
 /-- **Computing `F_k` exactly needs `Ω(n)` bits of memory, even with randomness**
@@ -286,11 +282,8 @@ theorem Algorithm.le_of_run_eq_freqMoment {σ : Type*} {n b k : ℕ} (hk : k ≠
     disjointness fun x y => by
       rw [hA _ (by rw [List.length_append, length_graphStream, length_graphStream]; omega),
         disjointness_eq_decide_freqMoment_eq hk]
-  have h2 := ecomplexity_disjointness hn
-  unfold Protocol.ecomplexityFun at h
-  rw [h2] at h
-  have h3 : n + 1 ≤ b + 1 := by exact_mod_cast h
-  omega
+  rw [Protocol.ecomplexityFun, ecomplexity_disjointness hn] at h
+  exact Nat.succ_le_succ_iff.mp (by exact_mod_cast h)
 
 /-- **Computing `F_k` exactly and deterministically needs `Ω(n)` bits of memory**, for `k ≠ 1`, over
 the universe `Fin N`: with at most `b` bits of memory on streams of at most `N / 3` items, a

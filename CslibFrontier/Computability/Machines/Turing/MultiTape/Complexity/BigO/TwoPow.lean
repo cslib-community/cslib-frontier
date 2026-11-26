@@ -51,16 +51,14 @@ theorem ComputableInPolyTime.exists_computableInO_unary_two_pow {α : Type} {enc
   obtain ⟨C₁, hC₁⟩ := hT.exists_le_mul_two_pow
   obtain ⟨C₂, hC₂⟩ := hS.exists_le_mul_two_pow
   refine ⟨C₁ + C₂, (ComputableInO.unary_two_pow.comp h).mono_le (fun x => ?_) fun x => ?_⟩
-  · have h₁ := hC₁ x
-    have h₂ : (L x + 1) * 2 ^ L x ≤ 4 ^ L x := by
-      rw [show (4 : ℕ) = 2 * 2 by rfl, mul_pow]
-      exact Nat.mul_le_mul_right _ Nat.lt_two_pow_self
-    have h₃ : C₁ * 2 ^ (enc x).length ≤ (C₁ + C₂) * 2 ^ (enc x).length :=
-      Nat.mul_le_mul_right _ (by omega)
+  · have := hC₁ x
+    have : (L x + 1) * 2 ^ L x ≤ 4 ^ L x := by
+      rw [show (4 : ℕ) = 2 * 2 from rfl, mul_pow]
+      exact Nat.mul_le_mul_right _ (L x).lt_two_pow_self
+    rw [Nat.add_mul C₁ C₂]
     omega
-  · have h₁ := hC₂ x
-    have h₃ : C₂ * 2 ^ (enc x).length ≤ (C₁ + C₂) * 2 ^ (enc x).length :=
-      Nat.mul_le_mul_right _ (by omega)
+  · have := hC₂ x
+    rw [Nat.add_mul C₁ C₂]
     omega
 
 /-- The arithmetic of padding: with `P = 2 ^ n * (L + 1)`, the cost of writing the padding and of
@@ -74,25 +72,21 @@ private theorem pad_bound_le {L n t₁ e t₂ c₁ d₁ c₂ d₂ D : ℕ}
     rw [Nat.mul_pow, ← Nat.pow_mul, Nat.mul_comm n D]
   rw [Nat.mul_assoc, hPD']
   set P := 2 ^ n * (L + 1) with hP
-  have h2n : 1 ≤ 2 ^ n := Nat.one_le_two_pow
-  have hLP : L + 1 ≤ P := Nat.le_mul_of_pos_left _ h2n
+  have hLP : L + 1 ≤ P := Nat.le_mul_of_pos_left _ Nat.one_le_two_pow
   have h2P : 2 ^ n ≤ P := Nat.le_mul_of_pos_right _ (Nat.succ_pos L)
-  have hn : n + 1 ≤ 2 ^ n := Nat.lt_two_pow_self
-  have hP1 : 1 ≤ P := le_trans h2n h2P
+  have hP1 : 1 ≤ P := Nat.one_le_two_pow.trans h2P
   have hPD : P ≤ P ^ D := Nat.le_self_pow (by omega) P
-  have hPP : P * P ≤ P ^ D := by
-    rw [← pow_two]
-    exact Nat.pow_le_pow_right hP1 hD
+  have hPP : P * P ≤ P ^ D := pow_two P ▸ Nat.pow_le_pow_right hP1 hD
   have hpad : 2 * L + 1 + 2 ^ n + 1 ≤ 4 * P := by omega
   have h₁ : (L + 1) ^ d₁ ≤ P ^ D :=
     (Nat.pow_le_pow_left hLP d₁).trans (Nat.pow_le_pow_right hP1 hd₁)
   have h₂ : (2 * L + 1 + 2 ^ n + 1) ^ d₂ ≤ 4 ^ D * P ^ D := by
     rw [← Nat.mul_pow]
     exact (Nat.pow_le_pow_left hpad d₂).trans (Nat.pow_le_pow_right (by omega) hd₂)
-  have he' : e ≤ P * P := he.trans (Nat.mul_le_mul (hn.trans h2P) h2P)
+  have he' : e ≤ P * P :=
+    he.trans (Nat.mul_le_mul ((Nat.succ_le_of_lt n.lt_two_pow_self).trans h2P) h2P)
   have ht₁' := ht₁.trans (Nat.mul_le_mul_left c₁ h₁)
   have ht₂' := ht₂.trans (Nat.mul_le_mul_left c₂ h₂)
-  have hLP' : L ≤ P := by omega
   rw [Nat.add_mul, Nat.add_mul, Nat.mul_assoc c₂]
   linarith
 
@@ -124,12 +118,10 @@ theorem ComputableInPolyTime.exists_computableInO_pad {α β : Type} {encIn : α
     hcomp.mono_le (fun a => ?_) fun a => ?_⟩
   · have := pad_bound_le (L := (encIn a).length) (n := ν a) (D := D) (e := (ν a + 1) * 2 ^ ν a)
       (h₁ a) le_rfl (hlen a ▸ h₂ (a, 2 ^ ν a)) (by omega) (by omega) (by omega)
-    refine this.trans (Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ ?_))
-    omega
+    exact this.trans (Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ (Nat.le_add_right _ _)))
   · have := pad_bound_le (L := (encIn a).length) (n := ν a) (D := D) (e := 2 ^ ν a)
       (h₁' a) (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)) (hlen a ▸ h₂' (a, 2 ^ ν a))
       (by omega) (by omega) (by omega)
-    refine this.trans (Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ ?_))
-    omega
+    exact this.trans (Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ (Nat.le_add_left _ _)))
 
 end Turing.MultiTapeTM

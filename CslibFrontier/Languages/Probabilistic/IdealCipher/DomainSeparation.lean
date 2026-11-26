@@ -602,8 +602,7 @@ private lemma identicalUntilBad_game1_game2 (f : U → V) :
         · simp [hc, apply_dite (DFunLike.coe · (a, uCache', false)), PMF.map_apply]
       · have hzero : (freshAnswers (fiberCache f uCache (f q.1)) q.2) = ∅ :=
           Finset.eq_empty_iff_forall_notMem.2 fun c hc => hu_ne ⟨c, freshAnswers_fiber_subset hc⟩
-        simp only [hu_ne, ↓reduceDIte, PMF.map_apply]
-        simp [hzero]
+        simp [hu_ne, hzero, PMF.map_apply]
 
 omit [Fintype V] in
 private lemma game2_bad_iff_domainOverlap_inv (f : U → V) (q : IdealCipher.Query U X)
@@ -663,14 +662,12 @@ private lemma game2_bad_iff_domainOverlap_inv (f : U → V) (q : IdealCipher.Que
       generalize PermQuery.toCacheEntry ⟨q.2, c⟩ = e at hx₀ hy₀ ⊢
       constructor
       · rintro (⟨μ', hμ', hx⟩ | ⟨μ', hμ', hy⟩)
-        · have hne : q.1 ≠ μ' := by rintro rfl; exact hx₀ hx
-          refine ⟨q.1, μ', hne, hμ'.symm, Or.inl ⟨e.1, Finset.mem_inter.mpr ⟨?_, ?_⟩⟩⟩
-          · simp [cacheDomains_cons]
-          · simpa [Function.update_of_ne hne.symm] using hx
-        · have hne : q.1 ≠ μ' := by rintro rfl; exact hy₀ hy
-          refine ⟨q.1, μ', hne, hμ'.symm, Or.inr ⟨e.2, Finset.mem_inter.mpr ⟨?_, ?_⟩⟩⟩
-          · simp [cacheDomains_cons]
-          · simpa [Function.update_of_ne hne.symm] using hy
+        · have hne : q.1 ≠ μ' := fun h => hx₀ (h ▸ hx)
+          exact ⟨q.1, μ', hne, hμ'.symm, Or.inl ⟨e.1, Finset.mem_inter.mpr
+            ⟨by simp [cacheDomains_cons], by simpa [Function.update_of_ne hne.symm] using hx⟩⟩⟩
+        · have hne : q.1 ≠ μ' := fun h => hy₀ (h ▸ hy)
+          exact ⟨q.1, μ', hne, hμ'.symm, Or.inr ⟨e.2, Finset.mem_inter.mpr
+            ⟨by simp [cacheDomains_cons], by simpa [Function.update_of_ne hne.symm] using hy⟩⟩⟩
       · rintro ⟨μ₁, μ₂, hne, hf, hov⟩
         -- An overlap between the new cache of `q.1` and the cache of another key `μ'` of its
         -- fiber is either at the new entry, or an overlap that existed before.
@@ -751,21 +748,15 @@ theorem coalescedExperiment_closeTo_splitExperiment (f : U → V)
     CloseTo (coalescedExperiment f A) ((splitExperiment A).map Prod.fst)
       ((splitExperiment A).toOuterMeasure {x | DomainOverlap f x.2}) := by
   classical
-  have hclose := (identicalUntilBad_game1_game2 (U := U) (V := V) (X := X) f).closeTo_run A
-    (fun _ => [], false)
-  have hclose_fst := hclose.map Prod.fst
+  have hclose_fst := ((identicalUntilBad_game1_game2 (U := U) (V := V) (X := X) f).closeTo_run A
+    (fun _ => [], false)).map Prod.fst
   rw [← coalescedExperiment_eq_game1 f A] at hclose_fst
   have hsplit_fst :
       (runWith (withBadFlag (game2Step f)) A (fun _ => [], false)).map Prod.fst =
         (splitExperiment A).map Prod.fst := by
     rw [← splitExperiment_eq_answer A, ← game2_map_fst f A]
     simp [PMF.map_comp, Function.comp_def]
-  rw [hsplit_fst] at hclose_fst
-  have hbad : (runWith (withBadFlag (game1Step f)) A (fun _ => [], false)).toOuterMeasure
-      {x | FlagBad x.2} = (splitExperiment A).toOuterMeasure {x | DomainOverlap f x.2} := by
-    rw [(identicalUntilBad_game1_game2 (U := U) (V := V) (X := X) f).bad_eq A
-      (fun _ => [], false)]
-    exact game2_bad_eq_failureProb f A
-  simpa only [hbad] using hclose_fst
+  rwa [hsplit_fst, (identicalUntilBad_game1_game2 (U := U) (V := V) (X := X) f).bad_eq A
+    (fun _ => [], false), game2_bad_eq_failureProb f A] at hclose_fst
 
 end Cslib.IdealCipher

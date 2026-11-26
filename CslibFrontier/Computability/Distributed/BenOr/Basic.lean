@@ -221,11 +221,7 @@ theorem stage1Proposal_eq_some_iff {P : Type*} [Fintype P] (st : P → ProcState
       majorityThreshold (Fintype.card P) ≤ reportCount st S b := by
   cases b <;> dsimp only [stage1Proposal] <;> split_ifs with ht hf
   · exact ⟨(fun h => nomatch h), fun _ => by finset_card [reportCount, majorityThreshold]⟩
-  · exact ⟨fun _ => hf, fun _ => rfl⟩
-  · exact ⟨(fun h => nomatch h), fun hf' => (hf hf').elim⟩
-  · exact ⟨fun _ => ht, fun _ => rfl⟩
-  · exact ⟨(fun h => nomatch h), fun ht' => (ht ht').elim⟩
-  · exact ⟨(fun h => nomatch h), fun ht' => (ht ht').elim⟩
+  all_goals simp [*]
 
 /-- Symmetric characterization of when `stage1Proposal` emits `none`. -/
 theorem stage1Proposal_eq_none_iff {P : Type*} [Fintype P] (st : P → ProcState)
@@ -321,11 +317,7 @@ private lemma stage2Update_decided_eq_some_iff_of_none {P : Type*} {t : ℕ} {pr
   rw [hd]
   cases b <;> split_ifs with ht hf
   · exact ⟨(fun h => nomatch h), fun hf' => (not_both ⟨ht, hf'⟩).elim⟩
-  · exact ⟨fun _ => hf, fun _ => rfl⟩
-  · exact ⟨(fun h => nomatch h), fun hf' => (hf hf').elim⟩
-  · exact ⟨fun _ => ht, fun _ => rfl⟩
-  · exact ⟨(fun h => nomatch h), fun ht' => (ht ht').elim⟩
-  · exact ⟨(fun h => nomatch h), fun ht' => (ht ht').elim⟩
+  all_goals simp [*]
 
 /-- Execute one two-stage phase of Ben-Or's protocol on global state `st` under quorum-phase
 schedule `sched` and coin assignment `coins`. -/
@@ -666,8 +658,7 @@ theorem crashRun_eq_run {P : Type*} [Fintype P] [DecidableEq P] {t : ℕ} {cs : 
     (∀ p, crashRun t cs coins inp 0 p = run t cs.toSchedule coins inp 0 p) ∧
     ∀ r, ∀ p ∉ cs.crashed2 r,
       crashRun t cs coins inp (r + 1) p = run t cs.toSchedule coins inp (r + 1) p := by
-  refine ⟨fun _ => rfl, ?_⟩
-  intro r
+  refine ⟨fun _ => rfl, fun r => ?_⟩
   induction r with
   | zero =>
     intro p hp2
@@ -769,8 +760,6 @@ theorem exists_nonterminating_of_fixed_coin (fallback : Fin 3 → Bool) :
     induction r with
     | zero => rfl
     | succ r ih => simpa only [run, ih] using phaseStep_fin3SplitSchedule_fixed fallback
-  intro r p
-  rw [hfix r]
-  rfl
+  exact fun r p => by rw [hfix r]; rfl
 
 end Cslib.Distributed.BenOr

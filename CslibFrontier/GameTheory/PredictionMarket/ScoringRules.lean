@@ -336,14 +336,11 @@ theorem savageScoringRule_isProperOn_iff {P : Set (Ω → ℝ)} (hP : P ⊆ prob
     (savageScoringRule G g).IsProperOn P ↔
       ∀ p ∈ P, ∀ q ∈ P, G p + (q - p) ⬝ᵥ g p ≤ G q :=
   ⟨fun h p hp q hq => by
-      have h' := h q hq p hp
-      rw [savageScoringRule_expectedScore (hP hq).sum_eq_one,
-        savageScoringRule_expectedScore_self (hP hq).sum_eq_one] at h'
-      exact h',
+      simpa only [savageScoringRule_expectedScore_self (hP hq).sum_eq_one,
+        savageScoringRule_expectedScore (hP hq).sum_eq_one] using h q hq p hp,
     fun h q hq p hp => by
-      rw [savageScoringRule_expectedScore (hP hq).sum_eq_one,
-        savageScoringRule_expectedScore_self (hP hq).sum_eq_one]
-      exact h p hp q hq⟩
+      simpa only [savageScoringRule_expectedScore_self (hP hq).sum_eq_one,
+        savageScoringRule_expectedScore (hP hq).sum_eq_one] using h p hp q hq⟩
 
 /-- `savageScoringRule G g` is strictly proper on `P ⊆ probSimplex Ω` iff `g` is a strict
 subgradient of `G` on `P`. -/
@@ -352,14 +349,11 @@ theorem savageScoringRule_isStrictlyProperOn_iff {P : Set (Ω → ℝ)} (hP : P 
     (savageScoringRule G g).IsStrictlyProperOn P ↔
       ∀ p ∈ P, ∀ q ∈ P, q ≠ p → G p + (q - p) ⬝ᵥ g p < G q :=
   ⟨fun h p hp q hq hqp => by
-      have h' := h q hq p hp hqp.symm
-      rw [savageScoringRule_expectedScore (hP hq).sum_eq_one,
-        savageScoringRule_expectedScore_self (hP hq).sum_eq_one] at h'
-      exact h',
+      simpa only [savageScoringRule_expectedScore_self (hP hq).sum_eq_one,
+        savageScoringRule_expectedScore (hP hq).sum_eq_one] using h q hq p hp hqp.symm,
     fun h q hq p hp hpq => by
-      rw [savageScoringRule_expectedScore (hP hq).sum_eq_one,
-        savageScoringRule_expectedScore_self (hP hq).sum_eq_one]
-      exact h p hp q hq hpq.symm⟩
+      simpa only [savageScoringRule_expectedScore_self (hP hq).sum_eq_one,
+        savageScoringRule_expectedScore (hP hq).sum_eq_one] using h p hp q hq hpq.symm⟩
 
 /-- Differentiable sufficient condition for propriety: if `G` is convex on `P ⊆ probSimplex Ω`
 and has Fréchet derivative `dotCLM (g p)` within `P` at every `p ∈ P`, then
@@ -456,11 +450,8 @@ theorem quadraticScore_score {Ω : Type*} [Fintype Ω] (p : Ω → ℝ) (ω : Ω
 theorem quadraticScore_eq_savage {Ω : Type*} [Fintype Ω] :
     quadraticScore Ω = savageScoringRule (fun p => ∑ ω, p ω ^ 2) (fun p ω => 2 * p ω) := by
   ext p ω
-  simp only [quadraticScore_score, savageScoringRule_score, dotProduct]
-  have hsum : ∑ i : Ω, p i * (2 * p i) = 2 * ∑ i : Ω, p i ^ 2 := by
-    rw [mul_sum]
-    exact sum_congr rfl fun i _ => by ring
-  rw [hsum]
+  simp only [quadraticScore_score, savageScoringRule_score, dotProduct, mul_left_comm _ (2 : ℝ),
+    ← mul_sum, ← sq]
   ring
 
 /-- The expected score gap of `quadraticScore` equals the squared Euclidean distance
@@ -559,10 +550,8 @@ theorem logScore_eq_savage {Ω : Type*} [Fintype Ω] {p : Ω → ℝ} (hp : ∑ 
     (logScore Ω).score p ω =
       (savageScoringRule (fun r => ∑ i, r i * Real.log (r i))
         (fun r i => Real.log (r i) + 1)).score p ω := by
-  simp only [logScore_score, savageScoringRule_score, dotProduct]
-  have hsum : ∑ i : Ω, p i * (Real.log (p i) + 1) = (∑ i : Ω, p i * Real.log (p i)) + 1 := by
-    simp only [mul_add, mul_one, sum_add_distrib, hp]
-  rw [hsum]
+  simp only [logScore_score, savageScoringRule_score, dotProduct, mul_add, mul_one,
+    sum_add_distrib, hp]
   ring
 
 /-- Strict Gibbs / KL-divergence inequality for the logarithmic scoring rule: for any

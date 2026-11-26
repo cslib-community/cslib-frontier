@@ -110,16 +110,13 @@ theorem sumScopeLen_valid {w : ℕ} {args : SumScopeArgs} {bucket : List (Factor
     this bucket args.bucketPtr 0 hb
   intro fs
   induction fs with
-  | nil => intro _ _ _; exact validHistory_pure w s _
+  | nil => exact fun _ _ _ => validHistory_pure w s _
   | cons f rest ih =>
-    intro cur acc ⟨hf, hrest⟩
-    have hlt : cur + 1 < s.frontier := by have := hf.1; omega
-    change (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s
-        (sumScopeStep ((), (cur, acc)) >>= iterate sumScopeStep () rest.length))
-    refine validHistory_bind_step
-      (validHistory_read_bind hlt (validHistory_pure w s _)) ?_
-    exact ih (cur + 4) (acc + s.mem (cur + 1)) hrest
+    rintro cur acc ⟨hf, hrest⟩
+    exact validHistory_bind_step
+      (validHistory_read_bind (Nat.lt_of_lt_of_le (by omega : cur + 1 < cur + 4) hf.1)
+        (validHistory_pure w s _))
+      (ih (cur + 4) (acc + s.mem (cur + 1)) hrest)
 
 theorem sumScopeLen_result {args : SumScopeArgs} {bucket : List (FactorTable ℕ ℕ)}
     {s : Memory.State} (hb : HoldsFactorList args.bucketPtr bucket s)
@@ -134,18 +131,15 @@ theorem sumScopeLen_result {args : SumScopeArgs} {bucket : List (FactorTable ℕ
     simpa using this bucket args.bucketPtr 0 hb
   intro fs
   induction fs with
-  | nil => intro cur acc _; change acc = acc + 0; simp
+  | nil => exact fun cur acc _ => (Nat.add_zero acc).symm
   | cons f rest ih =>
-    intro cur acc ⟨hf, hrest⟩
+    rintro cur acc ⟨hf, hrest⟩
     change ((Memory.spec 0).clientResult s
       (sumScopeStep ((), (cur, acc)) >>= iterate sumScopeStep () rest.length)).2 = _
     rw [StateTransitionSpec.clientResult_bind]
-    have hst : (Memory.spec 0).clientState s (sumScopeStep ((), (cur, acc))) = s := rfl
-    have hres : (Memory.spec 0).clientResult s (sumScopeStep ((), (cur, acc))) =
-        (cur + 4, acc + f.scope.length) := by
-      change (cur + 4, acc + s.mem (cur + 1)) = _
-      rw [hf.2.1]
-    rw [hst, hres, ih (cur + 4) _ hrest, List.flatMap_cons, List.length_append, Nat.add_assoc]
+    change ((Memory.spec 0).clientResult s
+      (iterate sumScopeStep () rest.length (cur + 4, acc + s.mem (cur + 1)))).2 = _
+    rw [hf.2.1, ih (cur + 4) _ hrest, List.flatMap_cons, List.length_append, Nat.add_assoc]
 
 theorem sumScopeLen_realizes :
     Realizes .exact sumScopeLen WordEncoding.encode WordEncoding.encode

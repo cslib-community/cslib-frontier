@@ -216,12 +216,7 @@ theorem walkSeq_eq_walk {s : σ} {w : List Bool} (hw : T.IsLeafWord s w)
     {f : ℕ → Bool} (hf : ∀ i < w.length, f i = w.getD i false) {n : ℕ} (hn : w.length ≤ n) :
     T.walkSeq n s f = T.walk s w := by
   induction w generalizing s f n with
-  | nil =>
-    cases n with
-    | zero => rfl
-    | succ n =>
-      simp only [walkSeq, walk]
-      exact ite_eq_left hw
+  | nil => cases n <;> simp_all [walkSeq, walk, IsLeafWord]
   | cons b w ih =>
     obtain ⟨n, rfl⟩ : ∃ n', n = n' + 1 := ⟨n - 1, by simp only [List.length_cons] at hn; omega⟩
     simp only [walkSeq, walk, ite_eq_right hw.1, show f 0 = b by simpa using hf 0 (by simp)]
@@ -245,13 +240,9 @@ theorem card_le_sum_choose_of_isLeafWord {s : σ} {W : Finset (List Bool)}
   have hinj : Set.InjOn pos W := fun w hw w' hw' h =>
     (hW w hw).eq_of_getD_eq (hW w' hw') fun i => by
       by_cases hi : i < Λ
-      · have hmem := congrArg (i ∈ ·) h
-        simp only [pos, mem_filter, mem_range, hi, true_and, eq_iff_iff] at hmem
-        cases hwi : w.getD i false <;> cases hw'i : w'.getD i false <;> simp_all
-      · have := hlen w hw
-        have := hlen w' hw'
-        rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega),
-          List.getD_eq_getElem?_getD, List.getElem?_eq_none (by omega)]
+      · exact Bool.eq_iff_iff.mpr (by simpa [pos, hi] using congrArg (i ∈ ·) h)
+      · rw [List.getD_eq_getElem?_getD, List.getElem?_eq_none ((hlen w hw).trans (not_lt.mp hi)),
+          List.getD_eq_getElem?_getD, List.getElem?_eq_none ((hlen w' hw').trans (not_lt.mp hi))]
   calc W.card = (W.image pos).card := (card_image_of_injOn hinj).symm
     _ ≤ #{S ∈ (range Λ).powerset | #S ≤ ρ} := card_le_card fun S hS => by
         obtain ⟨w, hw, rfl⟩ := mem_image.mp hS

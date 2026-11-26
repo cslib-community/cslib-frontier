@@ -188,9 +188,7 @@ theorem acceptAllocation_mem_singleItemFeasible [Fintype ι] (accept : ι → �
   refine ⟨acceptAllocation_binary accept b, ?_⟩
   by_cases h : ∃ i, AcceptWins accept b i
   · obtain ⟨i, hi⟩ := h
-    have h1 := hi.sum_mul_acceptAllocation 1
-    simp only [Pi.one_apply, one_mul] at h1
-    exact h1.le
+    simpa only [Pi.one_apply, one_mul] using (hi.sum_mul_acceptAllocation 1).le
   · push Not at h
     simp only [fun j => acceptAllocation_eq_zero_iff.mpr (h j), Finset.sum_const_zero, zero_le_one]
 
@@ -300,11 +298,10 @@ theorem acceptMechanism_isGroupStrategyProof [Finite ι] {p : ι → ℝ} {accep
         refine and_congr_right fun _ => forall_congr' fun j => imp_congr_right fun hj => ?_
         rw [Function.update_of_ne hj.ne, Classical.not_not.mp (hbefore j hj)])
     refine ⟨k, hkS, ?_⟩
-    simp only [Mechanism.utility, acceptMechanism, halloc_eq]
-    have hdsic := acceptMechanism_isDSIC hlt hle k (Function.update v k (b k)) (v k)
-      (update_nonneg hv k (hb k)) (hv k)
-    simpa only [Mechanism.utility, acceptMechanism, Function.update_idem,
-      Function.update_eq_self] using hdsic
+    simpa only [Mechanism.utility, acceptMechanism, halloc_eq, Function.update_idem,
+      Function.update_eq_self] using
+      acceptMechanism_isDSIC hlt hle k (Function.update v k (b k)) (v k)
+        (update_nonneg hv k (hb k)) (hv k)
 
 /-- **Strong group strategy-proofness away from indifference ties**: when no member `i ∈ S` has
 valuation equal to its posted price `p i`, if a coalition `S` does not hurt any of its members
@@ -492,10 +489,9 @@ theorem expectedWelfare_postedPrice_const {n : ℕ} (t : ℝ≥0) (μ : Fin n �
     expectedWelfare (postedPrice (fun _ : Fin n => (t : ℝ))).allocation μ =
       expectedReward (thresholdRule t) (List.ofFn μ) := by
   rw [expectedWelfare, expectedReward, tsum_jointLaw_ofFn_mul]
-  refine tsum_congr fun v => ?_
-  congr 1
-  exact payoff_acceptRule_ofFn (fun x => decide (t ≤ x)) (fun _ z => (t : ℝ) ≤ z)
-    (fun _ z => by simp [NNReal.coe_le_coe]) v
+  exact tsum_congr fun v => congrArg (piFin μ v * ·) <|
+    payoff_acceptRule_ofFn (fun x => decide (t ≤ x)) (fun _ z => (t : ℝ) ≤ z)
+      (fun _ z => by simp [NNReal.coe_le_coe]) v
 
 /-- At a uniform posted price `t : ℝ≥0`, the expected social welfare of `strictPostedPrice` equals
 `expectedReward (strictThresholdRule t) (List.ofFn μ)`. -/
@@ -503,10 +499,9 @@ theorem expectedWelfare_strictPostedPrice_const {n : ℕ} (t : ℝ≥0) (μ : Fi
     expectedWelfare (strictPostedPrice (fun _ : Fin n => (t : ℝ))).allocation μ =
       expectedReward (strictThresholdRule t) (List.ofFn μ) := by
   rw [expectedWelfare, expectedReward, tsum_jointLaw_ofFn_mul]
-  refine tsum_congr fun v => ?_
-  congr 1
-  exact payoff_acceptRule_ofFn (fun x => decide (t < x)) (fun _ z => (t : ℝ) < z)
-    (fun _ z => by simp [NNReal.coe_lt_coe]) v
+  exact tsum_congr fun v => congrArg (piFin μ v * ·) <|
+    payoff_acceptRule_ofFn (fun x => decide (t < x)) (fun _ z => (t : ℝ) < z)
+      (fun _ z => by simp [NNReal.coe_lt_coe]) v
 
 /-- **Posted-price welfare `1/2`-approximation via balanced threshold**
 ([Roughgarden2013CS364A], Lecture 6, Theorem 2.1, pp. 2–4; [Roughgarden2016], Lecture 6,
@@ -533,10 +528,9 @@ theorem exists_expectedWelfare_vickrey_le_two_mul_postedPrice {n : ℕ} (μ : Fi
         2 * expectedWelfare (postedPrice (fun _ : Fin n => (m : ℝ))).allocation μ ∨
       expectedWelfare Vickrey.allocation μ ≤
         2 * expectedWelfare (strictPostedPrice (fun _ : Fin n => (m : ℝ))).allocation μ := by
-  obtain ⟨m, hm⟩ := exists_expectedMax_le_two_mul_expectedReward (List.ofFn μ)
-  refine ⟨m, ?_⟩
-  rwa [expectedWelfare_vickrey_eq_expectedMax, expectedWelfare_postedPrice_const,
+  simp_rw [expectedWelfare_vickrey_eq_expectedMax, expectedWelfare_postedPrice_const,
     expectedWelfare_strictPostedPrice_const]
+  exact exists_expectedMax_le_two_mul_expectedReward (List.ofFn μ)
 
 /-- Maximum of an offline sample vector `s : Fin n → ℝ≥0`, cast to `ℝ` (`0` when `n = 0`). -/
 noncomputable def sampleMaxPrice {n : ℕ} (s : Fin n → ℝ≥0) : ℝ :=
@@ -555,24 +549,18 @@ noncomputable def singleSamplePostedPrice {n : ℕ} (s : Fin n → ℝ≥0)
   acceptMechanism (fun _ => sampleMaxPrice s) (singleSampleAccept s π)
 
 private theorem sampleMaxPrice_lt_imp {n : ℕ} (s : Fin n → ℝ≥0) (π : Equiv.Perm (Fin (2 * n)))
-    (i : Fin n) {z : ℝ} (hz : sampleMaxPrice s < z) : singleSampleAccept s π i z := by
-  have hs0 : 0 ≤ sampleMaxPrice s := NNReal.coe_nonneg _
-  have hz0 : 0 ≤ z := hs0.trans hz.le
-  refine ⟨hz0, fun j => ?_⟩
-  have hle_j : (s j : ℝ) ≤ sampleMaxPrice s :=
-    NNReal.coe_le_coe.mpr ((Finset.le_fold_max _).mpr (Or.inr ⟨j, Finset.mem_univ j, le_rfl⟩))
-  have hlt_j : s j < z.toNNReal :=
-    Real.lt_toNNReal_iff_coe_lt.mpr (hle_j.trans_lt hz)
-  exact Prod.Lex.toLex_lt_toLex.mpr (Or.inl hlt_j)
+    (i : Fin n) {z : ℝ} (hz : sampleMaxPrice s < z) : singleSampleAccept s π i z :=
+  ⟨(NNReal.coe_nonneg _).trans hz.le, fun j => Prod.Lex.toLex_lt_toLex.mpr <| Or.inl <|
+    Real.lt_toNNReal_iff_coe_lt.mpr <|
+      (NNReal.coe_le_coe.mpr ((Finset.le_fold_max _).mpr
+        (Or.inr ⟨j, Finset.mem_univ j, le_rfl⟩))).trans_lt hz⟩
 
 private theorem singleSampleAccept_le {n : ℕ} (s : Fin n → ℝ≥0) (π : Equiv.Perm (Fin (2 * n)))
     (i : Fin n) {z : ℝ} (hz : 0 ≤ z) (ha : singleSampleAccept s π i z) :
     sampleMaxPrice s ≤ z := by
-  have hfold : Finset.univ.fold max (0 : ℝ≥0) s ≤ z.toNNReal := by
-    refine (Finset.fold_max_le z.toNNReal).mpr ⟨zero_le, fun j _ => ?_⟩
-    exact Prod.Lex.monotone_fst _ _ (ha.2 j).le
-  have := NNReal.coe_le_coe.mpr hfold
-  rwa [Real.coe_toNNReal z hz] at this
+  rw [← Real.coe_toNNReal z hz]
+  exact NNReal.coe_le_coe.mpr <| (Finset.fold_max_le z.toNNReal).mpr
+    ⟨zero_le, fun j _ => Prod.Lex.monotone_fst _ _ (ha.2 j).le⟩
 
 theorem singleSamplePostedPrice_isDSIC {n : ℕ} (s : Fin n → ℝ≥0)
     (π : Equiv.Perm (Fin (2 * n))) : (singleSamplePostedPrice s π).IsDSIC :=
@@ -604,28 +592,22 @@ theorem expectedWelfare_singleSamplePostedPrice {n : ℕ} (s : Fin n → ℝ≥0
   congr 1
   rw [payoff_singleSampleRule_ofFn]
   -- Compare the first index in `Fin n` where `singleSampleAccept` holds with `firstBeatReward`.
-  have hacc : ∀ i : Fin n, singleSampleAccept s π i (v i : ℝ) ↔
-      ∀ j : Fin n, sampleTag s π j < onlineTag (v i) π i := by
-    intro i
-    simp [singleSampleAccept]
+  have hacc (i : Fin n) : singleSampleAccept s π i (v i : ℝ) ↔
+      ∀ j : Fin n, sampleTag s π j < onlineTag (v i) π i := by simp [singleSampleAccept]
   set W := Finset.univ.filter fun i : Fin n => ∀ j : Fin n, sampleTag s π j < onlineTag (v i) π i
   by_cases hW : W.Nonempty
   · let w := W.min' hW
     have hwW : w ∈ W := Finset.min'_mem W hW
-    have hwin : AcceptWins (singleSampleAccept s π) (fun j => (v j : ℝ)) w := by
-      refine ⟨(hacc w).mpr (Finset.mem_filter.mp hwW).2, fun j hj hja => ?_⟩
-      exact not_le.mpr hj
-        (Finset.min'_le W j (Finset.mem_filter.mpr ⟨Finset.mem_univ _, (hacc j).mp hja⟩))
-    have hsum : ∑ i : Fin n, (v i : ℝ) *
-        (singleSamplePostedPrice s π).allocation (fun j => (v j : ℝ)) i = v w :=
-      hwin.sum_mul_acceptAllocation fun i => (v i : ℝ)
-    rw [hsum]
+    have hwin : AcceptWins (singleSampleAccept s π) (fun j => (v j : ℝ)) w :=
+      ⟨(hacc w).mpr (Finset.mem_filter.mp hwW).2, fun j hj hja => not_le.mpr hj
+        (Finset.min'_le W j (Finset.mem_filter.mpr ⟨Finset.mem_univ _, (hacc j).mp hja⟩))⟩
+    dsimp only [singleSamplePostedPrice, acceptMechanism]
+    rw [hwin.sum_mul_acceptAllocation fun i => (v i : ℝ)]
     unfold firstBeatReward
     simp [W, hW, w, ENNReal.ofReal_coe_nnreal]
-  · have hlose : ∀ i : Fin n,
-        (singleSamplePostedPrice s π).allocation (fun j => (v j : ℝ)) i = 0 := by
-      intro i
-      exact acceptAllocation_eq_zero_iff.mpr fun hw =>
+  · have hlose (i : Fin n) :
+        (singleSamplePostedPrice s π).allocation (fun j => (v j : ℝ)) i = 0 :=
+      acceptAllocation_eq_zero_iff.mpr fun hw =>
         hW ⟨i, Finset.mem_filter.mpr ⟨Finset.mem_univ _, (hacc i).mp hw.1⟩⟩
     unfold firstBeatReward
     simp [W, hW, hlose]

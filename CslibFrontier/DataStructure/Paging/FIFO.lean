@@ -377,9 +377,7 @@ theorem lifoStrategy_one_isCompetitive :
         simp only [lifoNext, fifoNext, hp, ↓reduceIte, List.length_nil, Nat.zero_lt_one,
           List.take_succ_cons, List.take_zero]
       | cons e rest =>
-        simp only [List.length_cons] at hq
-        have hrest : rest = [] := List.eq_nil_of_length_eq_zero (by omega)
-        subst hrest
+        obtain rfl := List.eq_nil_of_length_eq_zero (by simpa using hq)
         simp only [lifoNext, fifoNext, hp, ↓reduceIte, List.length_singleton, Nat.lt_irrefl,
           List.drop_succ_cons, List.drop_zero, List.take_succ_cons, List.take_zero]
   intro s₀ hs₀ reqs offStates hv
@@ -412,12 +410,11 @@ private theorem lifoRun_warmup {k : Nat} :
     have hxq : x ∉ q := (List.nodup_cons.mp (List.nodup_append.mp hnodup).2.1).1
     have hlt : q.length < k := by simp only [List.length_cons] at hlen; omega
     have hstep : lifoNext k q x = x :: q := by simp only [lifoNext, hxq, hlt, ↓reduceIte]
-    have hlen' : xs.length + (x :: q).length ≤ k := by
-      simp only [List.length_cons] at hlen ⊢; omega
-    obtain ⟨hrun, hfault⟩ := lifoRun_warmup xs (x :: q) hnodup hlen'
+    obtain ⟨hrun, hfault⟩ := lifoRun_warmup (k := k) xs (x :: q) hnodup
+      (by simp only [List.length_cons] at hlen ⊢; omega)
     refine ⟨?_, ?_⟩
     · rw [lifoRun_cons, hstep, hrun, List.reverse_cons, List.append_assoc, List.singleton_append]
-    · simp only [lifoFaults_cons, hxq, ↓reduceIte, hstep, hfault, List.length_cons]
+    · rw [lifoFaults_cons, ite_eq_right hxq, hstep, hfault, List.length_cons]
       omega
 
 private theorem lifoFaults_alternating {k : Nat} {base : List α} {a b : α}
@@ -527,11 +524,10 @@ theorem exists_offline_lifoCounterexample {k : Nat} (hk2 : 2 ≤ k) {init : List
     Finset.mem_insert_of_mem (Finset.mem_erase.mpr ⟨he₀_ne_a.symm, Finset.mem_insert_self a _⟩)
   have hb_pair : b ∈ s_pair := Finset.mem_insert_self b _
   set tailReqs := (List.replicate t [a, b]).flatten
-  have hmem_tail : ∀ p ∈ tailReqs, p ∈ s_pair := by
-    intro p hp
-    rcases List.mem_flatten.mp hp with ⟨l, hl, hpl⟩
-    simp only [(List.mem_replicate.mp hl).2, List.mem_cons, List.not_mem_nil, or_false] at hpl
-    exact hpl.elim (· ▸ ha_pair) (· ▸ hb_pair)
+  have hmem_tail : ∀ p ∈ tailReqs, p ∈ s_pair := fun p hp => by
+    obtain ⟨_, hl, hpl⟩ := List.mem_flatten.mp hp
+    rcases (by simpa [(List.mem_replicate.mp hl).2] using hpl : p = a ∨ p = b) with rfl | rfl
+    exacts [ha_pair, hb_pair]
   have hv_tail := validSchedule_replicate_of_forall_mem hcard_pair hmem_tail
   have hcost_tail := scheduleCost_replicate_of_forall_mem (k := k) hmem_tail
   set afterInitReqs := a :: b :: tailReqs
@@ -540,10 +536,9 @@ theorem exists_offline_lifoCounterexample {k : Nat} (hk2 : 2 ≤ k) {init : List
     ⟨hstep_a, hstep_b, hv_tail⟩
   have hcost_after :
       (problem α k).scheduleCost init.toFinset afterInitReqs afterInitStates = 2 := by
-    change stepCost init.toFinset a (insert a init.toFinset) +
-      (stepCost (insert a init.toFinset) b s_pair +
-        (problem α k).scheduleCost s_pair tailReqs (List.replicate tailReqs.length s_pair)) = 2
-    rw [stepCost_of_notMem ha_not, stepCost_of_notMem hb_not_a, hcost_tail]
+    simpa only [afterInitReqs, afterInitStates, Problem.scheduleCost, problem,
+      Problem.offlineSpec, stepCost_of_notMem ha_not, stepCost_of_notMem hb_not_a] using
+      congrArg (fun n => 1 + (1 + n)) hcost_tail
   have hreq_eq : lifoCounterexample init a b t = init ++ afterInitReqs := by
     simp only [lifoCounterexample, afterInitReqs, tailReqs, List.replicate_succ, List.flatten_cons,
       List.cons_append, List.nil_append]
@@ -558,16 +553,13 @@ theorem exists_offline_lifoCounterexample {k : Nat} (hk2 : 2 ≤ k) {init : List
 theorem lifo_not_isCompetitiveFrom_empty {k : Nat} (hk2 : 2 ≤ k) {pages : List α}
     (hnodup : pages.Nodup) (hlen : pages.length = k + 1) (c b : Nat) :
     ¬ (lifoStrategy (α := α) k (by omega)).IsCompetitiveFrom ∅ c b := by
-  have hsplit : pages.take (k - 1) ++ pages.drop (k - 1) = pages := List.take_append_drop _ _
   have hdrop_len : (pages.drop (k - 1)).length = 2 := by
     simp only [List.length_drop, hlen]; omega
   rcases hdrop : pages.drop (k - 1) with _ | ⟨a, _ | ⟨b_pg, _ | _⟩⟩ <;>
     simp only [hdrop, List.length_cons, List.length_nil] at hdrop_len <;> try omega
   set init := pages.take (k - 1)
-  have hinit_len : init.length = k - 1 := by
-    simp only [init, List.length_take, hlen]; omega
-  have hnodup' : (init ++ [a, b_pg]).Nodup := by
-    rwa [← hdrop, hsplit]
+  have hinit_len : init.length = k - 1 := by simp only [init, List.length_take, hlen]; omega
+  have hnodup' : (init ++ [a, b_pg]).Nodup := by rwa [← hdrop, List.take_append_drop]
   set t := c * (k + 1) + b
   obtain ⟨offStates, hv, hoff⟩ := exists_offline_lifoCounterexample hk2 hinit_len hnodup' t
   have hlifo := lifoFaults_lifoCounterexample (k := k) (by omega) hinit_len hnodup' t

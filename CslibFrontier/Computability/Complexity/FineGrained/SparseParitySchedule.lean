@@ -599,9 +599,7 @@ theorem CNF.exists_branch_schedule_parityRowSystem_of_le_clog_pow (k C_B β_B : 
   refine ⟨max (2 * n₀) (2 ^ (C + 1)), by omega,
     fun {V _ _ φ n' B W} hk hN₀ hm hB hW_bound {rows} hW hlen => ?_⟩
   intro b₀ e
-  have hn20 : 20 ≤ Fintype.card V := by
-    have : 2 * n₀ ≤ Fintype.card V := (le_max_left _ _).trans hN₀
-    omega
+  have hn20 : 20 ≤ Fintype.card V := (by omega : 20 ≤ 2 * n₀).trans ((le_max_left _ _).trans hN₀)
   have hsqrt := two_le_sqrt_clog_two hn20
   have hthresh : (6 * (k * (W * 2 ^ k))) * (Nat.clog 2 (Fintype.card V)).sqrt ≤ b₀ :=
     Nat.le_succ _
@@ -693,24 +691,14 @@ theorem CNF.exists_greedy_parityRowSystem_branch_schedule_of_le_clog_pow (k C_B 
   have hscope_D₀ : ∀ j : Fin (A i).length,
       #(equationScope (φ.parityRowSystem (A i) j)) ≤ k * (D₀ * 2 ^ k) := fun j => by
     simpa only [D₀, P, max_initialRowWeightBound_greedyRowListLength] using (hscope_i j).2.2
-  have hn20 : 20 ≤ Fintype.card V := by
-    have : 2 * n₀ ≤ Fintype.card V := (le_max_left _ _).trans hN₀
-    omega
+  have hn20 : 20 ≤ Fintype.card V := (by omega : 20 ≤ 2 * n₀).trans ((le_max_left _ _).trans hN₀)
   have hsqrt := two_le_sqrt_clog_two hn20
-  have hM_le :
-      totalIncidence (univ : Finset (Fin (A i).length))
-          (fun j => equationScope (φ.parityRowSystem (A i) j)) *
-        (Nat.clog 2 (Fintype.card V)).sqrt ≤
-      b₀ * Fintype.card V :=
-    CNF.totalIncidence_mul_le_of_card_equationScope_le hscope_D₀ hlen_i (Nat.le_succ _)
-  have hcard : Fintype.card V ≤ 2 * n' ∧ Fintype.card V / 2 ≤ n' :=
+  have hM_le :=
+    CNF.totalIncidence_mul_le_of_card_equationScope_le hscope_D₀ hlen_i (Nat.le_succ _ : _ ≤ b₀)
+  have hcard :=
     card_le_two_mul_freeVar_of_heavyVars univ
       (fun j => equationScope (φ.parityRowSystem (A i) j)) hsqrt hM_le e
-  have hbr :
-      #(branchAssignments
-          (heavyVars univ (univ : Finset (Fin (A i).length))
-            (fun j => equationScope (φ.parityRowSystem (A i) j)) b₀)) ≤
-        2 ^ (Fintype.card V / (Nat.clog 2 (Fintype.card V)).sqrt) :=
+  have hbr :=
     card_branchAssignments_heavyVars_le_two_pow_div univ
       (fun j => equationScope (φ.parityRowSystem (A i) j)) (by omega) hM_le
   obtain ⟨hn₀_le, hcoeff⟩ := le_and_le_clog_of_max_le hN₀ hcard.1

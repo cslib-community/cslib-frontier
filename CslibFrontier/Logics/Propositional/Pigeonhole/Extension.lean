@@ -105,13 +105,7 @@ theorem mem_pigeonholeExt {c : Clause (PHPExtVar m n)} :
       (∃ i j, c = phpStepClause i j) ∨ ∃ i i' j, i < i' ∧ c = phpExtHoleClause i i' j := by
   simp only [pigeonholeExt, List.mem_append, List.mem_map, List.mem_finRange, true_and,
     List.mem_flatMap, List.mem_filter, decide_eq_true_eq]
-  constructor
-  · rintro (((⟨i, rfl⟩ | ⟨i, rfl⟩) | ⟨i, j, rfl⟩) | ⟨j, i, i', hii', rfl⟩)
-    exacts [Or.inl ⟨i, rfl⟩, Or.inr (Or.inl ⟨i, rfl⟩), Or.inr (Or.inr (Or.inl ⟨i, j, rfl⟩)),
-      Or.inr (Or.inr (Or.inr ⟨i, i', j, hii', rfl⟩))]
-  · rintro (⟨i, rfl⟩ | ⟨i, rfl⟩ | ⟨i, j, rfl⟩ | ⟨i, i', j, hii', rfl⟩)
-    exacts [Or.inl (Or.inl (Or.inl ⟨i, rfl⟩)), Or.inl (Or.inl (Or.inr ⟨i, rfl⟩)),
-      Or.inl (Or.inr ⟨i, j, rfl⟩), Or.inr ⟨j, i, i', hii', rfl⟩]
+  grind
 
 /-- **`EPHP^m_n` is a `3`-CNF**: its clauses have length at most `3`. -/
 theorem length_le_three_of_mem_pigeonholeExt {c : Clause (PHPExtVar m n)}
@@ -129,32 +123,22 @@ theorem not_satisfiable_pigeonholeExt (h : n < m) : ¬ (pigeonholeExt m n).Satis
   refine ⟨fun i => ?_, fun i i' j hi hi' => ?_⟩
   · by_contra! hno
     -- following the step clauses, pigeon `i` sits in a hole `≥ j` for every `j ≤ n`
-    have hy : ∀ j : ℕ, (hj : j ≤ n) → σ (.inr (i, ⟨j, Nat.lt_succ_of_le hj⟩)) = true := by
-      intro j
+    have hy (j : ℕ) (hj : j ≤ n) : σ (.inr (i, ⟨j, Nat.lt_succ_of_le hj⟩)) = true := by
       induction j with
       | zero =>
-        intro _
         simpa [phpStartClause, Clause.eval, Literal.eval] using
           hσ _ (mem_pigeonholeExt.2 (Or.inl ⟨i, rfl⟩))
       | succ j ih =>
-        intro hj
-        have h₁ := ih (by omega)
-        have h₂ := hno ⟨j, by omega⟩
         have h₃ := hσ _ (mem_pigeonholeExt.2 (Or.inr (Or.inr (Or.inl ⟨i, ⟨j, by omega⟩, rfl⟩))))
-        simp only [phpStepClause, Clause.eval, Literal.eval, List.any_cons, List.any_nil,
-          Bool.or_false, Fin.castSucc_mk, Fin.succ_mk] at h₃
-        simp_all
-    have h₁ := hy n le_rfl
+        simpa [phpStepClause, Clause.eval, Literal.eval, ih (by omega), hno ⟨j, by omega⟩] using h₃
     have h₂ := hσ _ (mem_pigeonholeExt.2 (Or.inr (Or.inl ⟨i, rfl⟩)))
-    simp only [phpStopClause, Clause.eval, Literal.eval, List.any_cons, List.any_nil,
-      Bool.or_false] at h₂
-    simp_all [Fin.last]
-  · by_contra hne
-    rcases lt_or_gt_of_ne hne with hlt | hlt
-    · have := hσ _ (mem_pigeonholeExt.2 (Or.inr (Or.inr (Or.inr ⟨i, i', j, hlt, rfl⟩))))
-      simp_all [phpExtHoleClause, Clause.eval, Literal.eval]
-    · have := hσ _ (mem_pigeonholeExt.2 (Or.inr (Or.inr (Or.inr ⟨i', i, j, hlt, rfl⟩))))
-      simp_all [phpExtHoleClause, Clause.eval, Literal.eval]
+    simp [phpStopClause, Clause.eval, Literal.eval, Fin.last, hy n le_rfl] at h₂
+  · suffices ∀ a b, a < b → σ (.inl (a, j)) = true → σ (.inl (b, j)) ≠ true from
+      by_contra fun hne => (lt_or_gt_of_ne hne).elim (fun hlt => this i i' hlt hi hi')
+        (fun hlt => this i' i hlt hi' hi)
+    intro a b hlt ha hb
+    simpa [phpExtHoleClause, Clause.eval, Literal.eval, ha, hb] using
+      hσ _ (mem_pigeonholeExt.2 (Or.inr (Or.inr (Or.inr ⟨a, b, j, hlt, rfl⟩))))
 
 /-- The assignment **placing** each pigeon `i` in the hole `f i`: `inl (i, j)` holds when
 `f i = j`, and `inr (i, j)` when `j ≤ f i`. -/

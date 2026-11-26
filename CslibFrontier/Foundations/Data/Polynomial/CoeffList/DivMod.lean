@@ -231,21 +231,16 @@ theorem length_mod_lt {a b : List K} (hb : ofCoeffList b ≠ 0) :
         omega
       · have := hdrop (by omega) hbt_ne
         omega
-  have hlen := (hiter a.length).2.2
-  rw [Nat.sub_self] at hlen
-  exact lt_of_le_of_lt hlen (by omega)
+  exact (hiter a.length).2.2.trans_lt (by omega)
 
 private theorem divMod_eq_zero_divisor {a b : List K} (hb : ofCoeffList b = 0) :
     div a b = [] ∧ mod a b = trim a := by
-  have hiter (k : ℕ) : (divModStep ([] : List K))^[k] ([], trim a) = ([], trim a) := by
-    induction k with
-    | zero => rfl
-    | succ k ih =>
-      rw [Function.iterate_succ_apply', ih]
-      simp [divModStep]
-  have h := hiter a.length
-  exact ⟨by simp [div, divMod, (trim_eq_nil_iff b).mpr hb, h],
-    by simp [mod, divMod, (trim_eq_nil_iff b).mpr hb, h]⟩
+  suffices ∀ k, (divModStep ([] : List K))^[k] ([], trim a) = ([], trim a) by
+    simp [div, mod, divMod, (trim_eq_nil_iff b).mpr hb, this a.length]
+  intro k
+  induction k with
+  | zero => rfl
+  | succ k ih => simp [Function.iterate_succ_apply', ih, divModStep]
 
 private theorem ofCoeffList_eq_div_and_mod_of_lt {a b q r : List K} (hb : ofCoeffList b ≠ 0)
     (hr : IsTrimmed r) (hr_lt : r.length < (trim b).length)
@@ -402,22 +397,19 @@ theorem length_gcd_le (a b : List K) : (gcd a b).length ≤ max a.length b.lengt
 
 /-- `ofCoeffList (gcd a b)` divides `ofCoeffList a`. -/
 theorem ofCoeffList_gcd_dvd_left (a b : List K) :
-    ofCoeffList (gcd a b) ∣ ofCoeffList a := by
-  rw [ofCoeffList_gcd]
-  exact EuclideanDomain.gcd_dvd_right _ _
+    ofCoeffList (gcd a b) ∣ ofCoeffList a :=
+  ofCoeffList_gcd a b ▸ EuclideanDomain.gcd_dvd_right _ _
 
 /-- `ofCoeffList (gcd a b)` divides `ofCoeffList b`. -/
 theorem ofCoeffList_gcd_dvd_right (a b : List K) :
-    ofCoeffList (gcd a b) ∣ ofCoeffList b := by
-  rw [ofCoeffList_gcd]
-  exact EuclideanDomain.gcd_dvd_left _ _
+    ofCoeffList (gcd a b) ∣ ofCoeffList b :=
+  ofCoeffList_gcd a b ▸ EuclideanDomain.gcd_dvd_left _ _
 
 /-- Every common divisor of `ofCoeffList a` and `ofCoeffList b` divides `ofCoeffList (gcd a b)`. -/
 theorem dvd_ofCoeffList_gcd {a b : List K} {u : K[X]}
     (ha : u ∣ ofCoeffList a) (hb : u ∣ ofCoeffList b) :
-    u ∣ ofCoeffList (gcd a b) := by
-  rw [ofCoeffList_gcd]
-  exact EuclideanDomain.dvd_gcd hb ha
+    u ∣ ofCoeffList (gcd a b) :=
+  ofCoeffList_gcd a b ▸ EuclideanDomain.dvd_gcd hb ha
 
 /-- `ofCoeffList (gcd a b) ≠ 0` whenever either input represents a nonzero polynomial. -/
 theorem ofCoeffList_gcd_ne_zero {a b : List K} (h : ofCoeffList a ≠ 0 ∨ ofCoeffList b ≠ 0) :

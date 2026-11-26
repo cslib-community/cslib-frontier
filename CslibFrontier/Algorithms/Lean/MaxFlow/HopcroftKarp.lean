@@ -744,9 +744,7 @@ theorem bfsInit_potential (ml : Vector Bool m) (c : Fin m → ℕ) (l : List (Fi
     split_ifs
     · omega
     · have := vecPotential_vset_le (p := (· = none)) (c := c) p.1 x (x := some 0) (by simp)
-      simp only [List.map_append, List.sum_append, List.map_cons, List.map_nil, List.sum_cons,
-        List.sum_nil]
-      omega
+      simp; omega
 
 private theorem hkBfsStep_potential (G : Fin m × Fin r → Bool) (mate : Vector (Option (Fin m)) r)
     (c : Fin m → ℕ) (j : ℕ) (u : Fin m) (s : HKBfsState m) (v : Fin r) :
@@ -762,9 +760,7 @@ private theorem hkBfsStep_potential (G : Fin m × Fin r → Bool) (mate : Vector
       split_ifs with hd
       · have := vecPotential_vset_add (c := c) (p := (· = none)) (t := s.dist)
           (x := some (j + 1)) hd (by simp)
-        simp only [List.map_append, List.sum_append, List.map_cons, List.map_nil, List.sum_cons,
-          List.sum_nil]
-        omega
+        simp; omega
       · rfl
   · rfl
 
@@ -774,18 +770,14 @@ theorem layerFold_potential (G : Fin m × Fin r → Bool) (adj : Fin m → List 
     vecPotential (· = none) c (hkBfsLayer G adj mate j us s).dist +
         ((hkBfsLayer G adj mate j us s).next.map c).sum =
       vecPotential (· = none) c s.dist + (s.next.map c).sum := by
-  have step : ∀ (u : Fin m) (l : List (Fin r)) (st : HKBfsState m),
-      vecPotential (· = none) c (l.foldl (hkBfsStep G mate j u) st).dist +
-          ((l.foldl (hkBfsStep G mate j u) st).next.map c).sum =
-        vecPotential (· = none) c st.dist + (st.next.map c).sum := by
-    intro u l
-    induction l with
-    | nil => intro _; rfl
-    | cons _ _ ih => intro _; rw [List.foldl_cons, ih, hkBfsStep_potential]
   unfold hkBfsLayer
   induction us generalizing s with
   | nil => rfl
-  | cons _ _ ih => rw [List.foldl_cons, ih, step]
+  | cons u _ ih =>
+    rw [List.foldl_cons, ih]
+    induction adj u generalizing s with
+    | nil => rfl
+    | cons _ _ ihl => rw [List.foldl_cons, ihl, hkBfsStep_potential]
 
 end BfsLoop
 
@@ -1140,12 +1132,10 @@ theorem hkApplyEdges_eq_of_toFinset_eq (mate : Vector (Option (Fin m)) r)
   ext j hj u
   let v : Fin r := ⟨j, hj⟩
   change vget (hkApplyEdges mate es₁) v = some u ↔ vget (hkApplyEdges mate es₂) v = some u
-  rw [hkApplyEdges, hkApplyEdges, vget_foldl_apply mate es₁ hnd₁ u v,
-    vget_foldl_apply mate es₂ hnd₂ u v]
+  rw [hkApplyEdges, hkApplyEdges, vget_foldl_apply mate es₁ hnd₁, vget_foldl_apply mate es₂ hnd₂]
   have hmem (w : Fin m) : (w, v) ∈ es₁ ↔ (w, v) ∈ es₂ := by
-    rw [← List.mem_toFinset, heq, List.mem_toFinset]
-  have hsnd : v ∈ es₁.map Prod.snd ↔ v ∈ es₂.map Prod.snd := by simp [Prod.exists, hmem]
-  rw [hmem u, hsnd]
+    simpa using Finset.ext_iff.mp heq (w, v)
+  simp [Prod.exists, hmem]
 
 /-- Rematching a mate table along a compatible edge list realizes `augment`. -/
 theorem mateMatching_applyEdges (mate : Vector (Option (Fin m)) r)
@@ -1388,24 +1378,17 @@ theorem hopcroftKarp_correct (hadj : BipAdjValid G adj) :
       (hopcroftKarp G adj).matching.card = (hopcroftKarp G adj).cover.size ∧
       (hopcroftKarp G adj).phases ≤ 2 * Nat.sqrt (hopcroftKarp G adj).matching.card := by
   have hpost := hkLoop_start (G := G) hadj
-  unfold hopcroftKarp
   obtain ⟨k, hstable, hsub, hdist⟩ := hpost.closed
   have hM := hpost.isMatching
   set out := hkLoop G adj (m + 1) 0 (Vector.replicate r none)
-  have hmatch : (List.finRange r).foldl (hkMatchingStep out.mate) ∅ = mateMatching out.mate := by
-    ext ⟨u, v⟩
-    simp [mem_foldl_hkMatchingStep]
-  have hcover : (⟨(List.finRange m).foldl (hkCoverLeftStep out.dist) ∅,
-      (List.finRange r).foldl (hkCoverRightStep out.mate out.dist) ∅⟩ :
-        VertexCover (Fin m) (Fin r)) = layerCover G (mateMatching out.mate) k := by
-    simp only [layerCover, VertexCover.mk.injEq]
-    refine ⟨by ext u; simp [mem_foldl_hkCoverLeftStep, hdist u], by
-      ext v
-      simp only [mem_foldl_hkCoverRightStep, mem_altRight_iff_of_stable hM hstable hsub,
-        Finset.notMem_empty, List.mem_finRange, true_and, false_or, mem_mateMatching]
-      exact exists_congr fun w => and_congr_right fun _ => by simp [hdist w]⟩
-  dsimp only
-  rw [hmatch, hcover]
+  have hcover : (hopcroftKarp G adj).cover = layerCover G (mateMatching out.mate) k := by
+    simp only [hopcroftKarp, layerCover, VertexCover.mk.injEq]
+    refine ⟨?_, ?_⟩
+    · ext u
+      simp [mem_foldl_hkCoverLeftStep, out, hdist]
+    · ext v
+      simp [mem_foldl_hkCoverRightStep, mem_altRight_iff_of_stable hM hstable hsub, out, hdist]
+  rw [hopcroftKarp_matching_eq_mateMatching, hcover]
   obtain ⟨hmax, hmin⟩ := isMaxMatching_isMinVertexCover_of_stable hM hstable hsub
   exact ⟨hmax, hmin, (size_layerCover_of_stable hM hstable hsub).symm,
     (mateMatching_replicate_none ▸ Nat.sub_zero _ ▸ hpost.run).le_two_mul_sqrt hmax⟩

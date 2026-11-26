@@ -123,9 +123,7 @@ theorem exists_log_sub_log_log_le_mul_gateSweepCoefficient {r : ℕ} (hr : 2 ≤
             ≤ Real.logb 2 ((2 : ℝ) ^ (2 : ℕ)) :=
               Real.logb_le_logb_of_le (by norm_num) (by norm_num) (by norm_num)
           _ = 2 := by rw [Real.logb_two_pow]; norm_num
-      have hrhs : ((3 : ℕ) - 1 : ℝ) * gateSweepCoefficient 3 1 = 2 := by
-        norm_num [gateSweepCoefficient]
-      push_cast at hrhs ⊢
+      norm_num [gateSweepCoefficient]
       linarith [Real.logb_nonneg (by norm_num : (1 : ℝ) < 2) hlog3_ge]
   · obtain ⟨k₀, _, hk₀_pow, hlog⟩ := exists_mul_two_pow_le_and_logb_sub_logb_le hr4
     refine ⟨k₀, ?_⟩
@@ -444,11 +442,9 @@ private theorem agreement_le_of_div_le {a half_b R qn μ' μ l2 n : ℝ}
 private theorem mul_le_of_norm_le {c x η : ℝ} {n : ℕ} (hc : 0 < c) (hx : 0 ≤ x)
     (hn : ‖x‖ ≤ (η / c) * ‖(n : ℝ)‖) :
     c * x ≤ η * n := by
-  have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg n
-  rw [Real.norm_eq_abs, abs_of_nonneg hx, Real.norm_eq_abs, abs_of_nonneg hn0] at hn
-  have hmul := mul_le_mul_of_nonneg_left hn hc.le
-  have hcancel : c * (η / c * n) = η * n := by field_simp
-  linarith
+  rw [Real.norm_eq_abs, abs_of_nonneg hx, Real.norm_eq_abs, abs_of_nonneg (Nat.cast_nonneg n),
+    div_mul_eq_mul_div, le_div_iff₀ hc, mul_comm] at hn
+  exact hn
 
 private theorem logb_node_err_le {q V L₀ η : ℝ} {n : ℕ}
     (hq2 : 2 ≤ q) (hV0 : 0 ≤ V) (hV : V ≤ L₀ * n + 1)
@@ -920,11 +916,8 @@ private theorem eventually_exists_layout_signalWidth_le_multiFanoutSize {U : Typ
   have hM3 : (3 * Nat.card (Compiler.Node c) : ℝ) / M ≤ η * n := by
     simpa only [show ((2 : ℕ) + 1 : ℝ) = 3 by norm_num] using hM_term
   have hsqrt3 : 3 * √((M * (2 * B + 1) * Nat.card (Compiler.Node c) : ℝ)) ≤ η * n := by
-    convert hsqrt_term using 2
-    · norm_num
-    · congr 1
-      push_cast
-      ring
+    simpa only [show (2 : ℝ) + 1 = 3 by norm_num, Nat.cast_mul, Nat.cast_add,
+      Nat.cast_ofNat, Nat.cast_one, mul_assoc] using hsqrt_term
   have hB_term : (Nat.card (Compiler.Node c) : ℝ) / (2 * (B + 1)) ≤ η * n := by
     have hnat : (Nat.card (Compiler.Node c) : ℝ) ≤ c.innerSize + 1 := by
       exact_mod_cast Compiler.card_node_le c

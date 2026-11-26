@@ -172,6 +172,15 @@ omit [DecidableEq T] in
 theorem mem_nodeCell {tbl : Table G} {i l : ℕ} {A : G.NT} :
     A ∈ nodeCell G tbl i l ↔ ∃ k < l - 1, ∃ B C, node A B C ∈ G.rules ∧
       B ∈ tbl i (k + 1) ∧ C ∈ tbl (i + k + 1) (l - k - 1) := by
+  have hnm (L R : List G.NT) :
+      (∃ r ∈ G.rules, nodeMatch G L R r = some A) ↔
+        ∃ B C, node A B C ∈ G.rules ∧ B ∈ L ∧ C ∈ R := by
+    constructor
+    · rintro ⟨⟨_, _⟩ | ⟨A', B, C⟩, hr, h⟩
+      · cases h
+      · obtain ⟨⟨hB, hC⟩, heq⟩ := Option.ite_none_right_eq_some.1 h
+        exact ⟨B, C, Option.some.inj heq ▸ hr, hB, hC⟩
+    · exact fun ⟨B, C, hr, hB, hC⟩ => ⟨node A B C, hr, ite_eq_left ⟨hB, hC⟩⟩
   have key : ∀ (ks : List ℕ) (acc : List G.NT), A ∈ ks.foldl (fun acc k =>
       scan G (nodeMatch G (tbl i (k + 1)) (tbl (i + k + 1) (l - k - 1))) acc) acc ↔
       A ∈ acc ∨ ∃ k ∈ ks, ∃ B C, node A B C ∈ G.rules ∧
@@ -181,24 +190,8 @@ theorem mem_nodeCell {tbl : Table G} {i l : ℕ} {A : G.NT} :
     | nil => simp
     | cons k ks ih =>
       intro acc
-      rw [List.foldl_cons, ih, mem_scan]
-      constructor
-      · rintro ((h | ⟨r, hr, h⟩) | ⟨k', hk', h⟩)
-        · exact Or.inl h
-        · cases r with
-          | leaf => simp [nodeMatch] at h
-          | node A' B C =>
-            simp only [nodeMatch, Option.ite_none_right_eq_some, Option.some.injEq] at h
-            obtain ⟨⟨hB, hC⟩, rfl⟩ := h
-            exact Or.inr ⟨k, List.mem_cons_self, B, C, hr, hB, hC⟩
-        · exact Or.inr ⟨k', List.mem_cons_of_mem _ hk', h⟩
-      · rintro (h | ⟨k', hk', B, C, hr, hB, hC⟩)
-        · exact Or.inl (Or.inl h)
-        · rcases List.mem_cons.mp hk' with rfl | hk'
-          · exact Or.inl (Or.inr ⟨node A B C, hr, by simp [nodeMatch, hB, hC]⟩)
-          · exact Or.inr ⟨k', hk', B, C, hr, hB, hC⟩
-  rw [nodeCell, key]
-  simp
+      simp only [List.foldl_cons, ih, mem_scan, hnm, List.mem_cons, exists_eq_or_imp, or_assoc]
+  simpa [nodeCell] using key (List.range (l - 1)) []
 
 omit [DecidableEq T] [DecidableEq G.NT] in
 private theorem foldl_setCell (c : ℕ → List G.NT) (l : ℕ) (is : List ℕ) (tbl : Table G)
@@ -216,10 +209,7 @@ theorem level_apply (tbl : Table G) (l i' l' : ℕ) :
     level G w tbl l i' l' =
       if l' = l ∧ i' + l ≤ w.length then cell G w tbl i' l else tbl i' l' := by
   rw [level, foldl_setCell]
-  congr 1
-  simp only [List.mem_range]
-  apply propext
-  constructor <;> rintro ⟨rfl, h⟩ <;> exact ⟨rfl, by omega⟩
+  exact if_congr (and_congr_right fun _ => by simp; omega) rfl rfl
 
 /-- Once level `l` has been filled (`l ≤ L`), cells of length `l` are unchanged by later levels. -/
 theorem table_eq_of_le {l L : ℕ} (hl : l ≤ L) (i : ℕ) :

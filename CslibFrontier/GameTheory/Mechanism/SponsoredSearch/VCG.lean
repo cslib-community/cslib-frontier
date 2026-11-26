@@ -173,17 +173,8 @@ private theorem welfare_shiftUp_sub [Fintype ι] [DecidableEq ι]
       minEnvyFreePrice μ v σ t := by
   let v' := Function.update v (σ t) 0
   rw [sum_erase_linearProfile μ v (σ t) σ]
-  have hold_eq : welfare μ v' σ = ∑ r : Fin k, if r = t then 0 else μ r * v (σ r) := by
-    refine Finset.sum_congr rfl fun r _ => ?_
-    by_cases hr : r = t
-    · subst hr; simp only [v', Function.update_self, mul_zero, ↓reduceIte]
-    · simp only [hr, ↓reduceIte, v', Function.update_of_ne (σ.injective.ne hr)]
-  have hsplit : (Finset.univ : Finset (Fin k)) = Finset.Iio t ∪ Finset.Ici t := by
-    ext r
-    simp [lt_or_ge]
-  have hdisj : Disjoint (Finset.Iio t) (Finset.Ici t) :=
-    Finset.disjoint_left.mpr fun _ hr1 hr2 =>
-      not_le_of_gt (Finset.mem_Iio.mp hr1) (Finset.mem_Ici.mp hr2)
+  have hold_eq : welfare μ v' σ = ∑ r : Fin k, if r = t then 0 else μ r * v (σ r) :=
+    Finset.sum_congr rfl fun r _ => by split_ifs with hr <;> simp [v', hr, σ.injective.eq_iff]
   have hk : 0 < k := Fin.pos t
   let last : Fin k := ⟨k - 1, by omega⟩
   have hbelow_eq : ∑ r : Fin k, (if r = t then (0 : ℝ) else μ r * v (σ r)) =
@@ -222,12 +213,12 @@ private theorem welfare_shiftUp_sub [Fintype ι] [DecidableEq ι]
       · have hsucc : r.val + 1 < k := by omega
         simp [hlt, hsucc,
           show (⟨r.val + 1, hsucc⟩ : Fin k) ≠ t from Fin.ne_of_val_ne (by dsimp; omega)]
-  rw [welfare, hold_eq, hbelow_eq, ← Finset.sum_sub_distrib, hsplit, Finset.sum_union hdisj,
-    Finset.sum_eq_zero (s := Finset.Iio t) fun r hr => by
-      have hlt : r.val < t.val := (Finset.mem_Iio.mp hr : r < t)
+  rw [welfare, hold_eq, hbelow_eq, ← Finset.sum_sub_distrib,
+    ← Finset.sum_subset (Finset.subset_univ (Finset.Ici t)) fun r _ hr => by
+      have hlt : r.val < t.val := Nat.lt_of_not_le (Finset.mem_Ici.not.mp hr : ¬t ≤ r)
       rw [shiftUp_value v σ t tail htail r]
       simp only [hlt, ↓reduceIte, sub_self],
-    zero_add, minEnvyFreePrice_eq_sum]
+    minEnvyFreePrice_eq_sum]
   refine Finset.sum_congr rfl fun r hr => ?_
   have hnotlt : ¬(r.val < t.val) := Nat.not_lt.mpr (Finset.mem_Ici.mp hr : t ≤ r)
   rw [shiftUp_value v σ t tail htail r]
@@ -326,16 +317,13 @@ theorem vcg_payment_slot_eq_minEnvyFreePrice [Fintype ι] [DecidableEq ι]
     · intro r
       simpa only [Function.update_self] using hv (σ r)
     · intro j hj
-      have hsurj : j ∈ Set.range σ := by
+      obtain ⟨r, rfl⟩ : j ∈ Set.range σ := by
         by_contra hnot
-        exact hne ⟨j, Finset.mem_sdiff.mpr ⟨Finset.mem_univ j,
-          Finset.mem_map.not.mpr fun ⟨r, _, hr⟩ => hnot ⟨r, hr⟩⟩⟩
-      obtain ⟨r, rfl⟩ := hsurj
+        exact hne ⟨j, Finset.mem_sdiff.mpr ⟨Finset.mem_univ j, by simpa using hnot⟩⟩
       rcases eq_or_ne r t with rfl | hrt
-      · have := Fin.pos r
-        exact False.elim <| hj ⟨⟨k - 1, by omega⟩,
-          shiftUp_last σ r (σ r) htail (by dsimp; omega)⟩
-      · exact False.elim (hj (mem_range_shiftUp_of_ne hrt))
+      · exact (hj ⟨⟨k - 1, Nat.sub_lt (Fin.pos r) Nat.one_pos⟩,
+          shiftUp_last σ r (σ r) htail (Nat.sub_add_cancel (Fin.pos r))⟩).elim
+      · exact (hj (mem_range_shiftUp_of_ne hrt)).elim
 
 /-- Every unassigned bidder pays `0` under the VCG mechanism on `Fin k ↪ ι`. -/
 theorem vcg_payment_unassigned_eq_zero [Fintype ι] [DecidableEq ι]

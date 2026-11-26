@@ -202,12 +202,8 @@ theorem expect_bitVal_eq_half_of_selfDual {f : (ι → Bool) → Bool}
     rintro x ⟨y, z, hy, hz, hne⟩
     exact hne (congrArg f ((funext fun i => hy i (notMem_empty i)).trans
       (funext fun i => hz i (notMem_empty i)).symm))
-  have hinf : coalitionInfluence (PMF.uniformOfFintype (ι → Bool)) ∅ f = 0 :=
-    coalitionInfluence_eq_zero_of_forall_not _ h0
-  have h := expect_not_isUndetermined_and_eq_true hf ∅
-  rw [hinf, sub_zero] at h
-  refine Eq.trans (expect_congr rfl fun x _ => ?_) h
-  by_cases hfx : f x = true <;> simp [h0 x, hfx]
+  simpa [h0, coalitionInfluence_eq_zero_of_forall_not _ h0, bitVal] using
+    expect_not_isUndetermined_and_eq_true hf ∅
 
 end SelfDual
 
@@ -356,10 +352,8 @@ theorem coalitionInfluence_iterMaj3_le (d : ℕ) (Q : Finset (Fin (3 ^ d))) :
     by_cases h0 : (0 : Fin (3 ^ 0)) ∈ Q
     · exact (coalitionInfluence_le_one _ _ _).trans <|
         (by exact_mod_cast card_pos.mpr ⟨0, h0⟩ : (1 : ℝ) ≤ #Q).trans_eq (by norm_num)
-    · have hzero : ∀ x : BitString (3 ^ 0), ¬IsUndetermined Q (fun y => y 0) x := by
-        rintro x ⟨y, z, hy, hz, hne⟩
-        exact hne ((hy 0 h0).trans (hz 0 h0).symm)
-      rw [coalitionInfluence_eq_zero_of_forall_not _ hzero]
+    · rw [coalitionInfluence_eq_zero_of_forall_not _
+        fun _ ⟨_, _, hy, hz, hne⟩ => hne ((hy 0 h0).trans (hz 0 h0).symm)]
       positivity
   | succ d ih =>
     let Q' : Finset (Fin (3 * 3 ^ d)) :=

@@ -177,9 +177,7 @@ theorem scanMaxProg_spec {w n matBase maxM : ℕ} {cost : Fin n × Fin n → ℤ
         obtain ⟨i, j, hij⟩ := pairIndex_of_lt (hidx ▸ hk)
         simpa [← hij, hcost_mem i j, Signed.encode_div_two] using hmag i j
       refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun _ _ => by rw [hst_eq], hst_eq, ?_⟩
-      have hres : (Memory.spec 0).clientResult s₀ (scanMaxStep (d, st)) = next :=
-        congrArg Prod.fst run
-      rw [hres]
+      rw [StateTransitionSpec.clientResult, run]
       refine ⟨congrArg (· + 1) hidx, max_le hle hdiv_le, fun idx hidx_lt => ?_⟩
       rcases Nat.lt_succ_iff_lt_or_eq.mp hidx_lt with hlt | rfl
       · exact (hprev idx hlt).trans (le_max_left _ _)
@@ -320,11 +318,10 @@ theorem fillC_spec {w : ℕ} (ws : AuctionWS) {cost : Fin ws.n × Fin ws.n → �
       have hv : (Memory.spec w).ValidHistory s
           ((Memory.spec w).clientHistory s (fillCStep (ws, k))) := by
         have hf_written : Fits w written := by
-          unfold written
+          dsimp only [written]
           split_ifs
           · exact hf_sc
-          · exact hf_sc.of_le (Nat.mul_le_mul_left _
-              ((Nat.sub_le _ _).trans (Nat.le_add_right _ _)))
+          · exact hf_sc.of_le (Nat.mul_le_mul_left _ (by omega))
         rw [StateTransitionSpec.clientHistory, runClient_width w, run]
         have hwrite := (Nat.add_lt_add_left hk ws.bC).trans_le (hsfr.symm ▸ hfr)
         have hread := (Nat.add_lt_add_left hk ws.matBase).trans_le
@@ -335,12 +332,10 @@ theorem fillC_spec {w : ℕ} (ws : AuctionWS) {cost : Fin ws.n × Fin ws.n → �
       have hst_eq : (Memory.spec 0).clientState s (fillCStep (ws, k)) =
           ⟨Function.update s.mem (ws.bC + k) written, s.frontier⟩ :=
         congrArg (fun r => r.2.1) run
-      have hres_eq : (Memory.spec 0).clientResult s (fillCStep (ws, k)) = k + 1 :=
-        congrArg Prod.fst run
       refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun x hx => ?_, ?_⟩
       · rw [hst_eq]
         exact Function.update_of_ne (by omega) _ _
-      · rw [hst_eq, hres_eq]
+      · rw [hst_eq, StateTransitionSpec.clientResult, run]
         dsimp only
         refine ⟨rfl, hsfr, fun a ha => ?_, fun i j hij => ?_⟩
         · rw [Function.update_of_ne (by omega)]

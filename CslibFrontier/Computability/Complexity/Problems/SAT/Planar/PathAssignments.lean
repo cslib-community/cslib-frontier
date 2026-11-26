@@ -125,18 +125,12 @@ theorem wire_first_entry {φ : CNF ℕ} {o : Occurrence ℕ}
     ((wire (crossingSites φ) (occurrencePath φ o)).headD (fallback, fallback)).1 =
       (Layout.center (φ.distinctVars.idxOf o.lit.1), none) := by
   have hlen := occurrencePath_length_ge_two ho
-  have hwpos : 0 < (wire (crossingSites φ) (occurrencePath φ o)).length := by
-    rw [length_wire]; omega
-  have hhead : (wire (crossingSites φ) (occurrencePath φ o)).headD (fallback, fallback) =
-      (wire (crossingSites φ) (occurrencePath φ o))[0] := by
-    generalize wire (crossingSites φ) (occurrencePath φ o) = xs at hwpos ⊢
-    cases xs
-    exacts [absurd hwpos (by simp), rfl]
-  rw [hhead, getElem_wire _ _ 0 (by omega), Nat.zero_sub, List.getD_eq_getElem _ _ (by omega)]
   have hp := (occurrencePath_endpoints ho).1
-  rw [List.head?_eq_getElem?, List.getElem?_eq_getElem (by omega)] at hp
-  rw [Option.some.inj hp]
-  simp only [signal, source_center_not_crossing ho, ite_false]
+  rcases hpath : occurrencePath φ o with _ | ⟨p₀, _ | ⟨p₁, rest⟩⟩
+  · simp [hpath] at hlen
+  · simp [hpath] at hlen
+  · simp only [hpath, List.head?_cons, Option.some.injEq] at hp
+    simp [wire, signal, hp, source_center_not_crossing ho]
 
 private theorem path_mem_paths_get {φ : CNF ℕ} {o : Occurrence ℕ}
     (ho : o ∈ Cslib.Logic.PL.occurrences φ) {p : Point} (hp : p ∈ occurrencePath φ o) :
@@ -211,9 +205,8 @@ theorem ordinary_cell_source_eq {φ : CNF ℕ}
   · rw [hot]
   have hc := shared_ordinary_cell_center hw hv ho ht hot hp
     (List.dropLast_subset _ hpo) (List.dropLast_subset _ hpt)
-  have he := (dropLast_center_eq_source ho hpo hc).symm.trans
-    (dropLast_center_eq_source ht hpt hc)
-  have hx := congrArg Prod.fst he
+  have hx := congrArg Prod.fst ((dropLast_center_eq_source ho hpo hc).symm.trans
+    (dropLast_center_eq_source ht hpt hc))
   simp only [Layout.center] at hx
   exact (List.idxOf_inj (CNF.mem_distinctVars.mpr
     (Cslib.Logic.PL.variable_mem_of_mem_occurrences ho))).1 (by omega)

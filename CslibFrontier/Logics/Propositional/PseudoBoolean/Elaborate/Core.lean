@@ -53,10 +53,13 @@ of the VeriPB/CakePB documentation, 22 June 2026 edition.
 The other rules are kernel rules; their subproofs are elaborated in turn. The goals of `red`,
 `dom`, a checked deletion, `obju` and the changes of the preserved set that the kernel format does
 not autoprove (§5.5.1) but the augmented format does (§5.5.2) get `proofgoal` blocks closed by a
-hinted `rup`, or by the sum of the negated goal and a constraint of the database equal to it; the
-goals that must be derived from the core set alone (§5.7.1, §5.9, §5.10) use a propagation engine
-holding only the core set. Every `red`, `dom`, checked deletion, `obju` and change of the
-preserved set gets a subproof, possibly empty, as CakePB's parser requires.
+hinted `rup`, or by the sum of the negated goal and a constraint of the database equal to it, or
+by syntactic implication, as in VeriPB 3.0.2: from the additional premise, from `D` for the goal
+`D|ω`, or from a constraint of the database once the assignment that the database propagates is
+substituted into it and into the goal, the block then deriving that assignment by a hinted
+`rup`. The goals that must be derived from the core set alone (§5.7.1, §5.9, §5.10) use a
+propagation engine holding only the core set. Every `red`, `dom`, checked deletion, `obju` and
+change of the preserved set gets a subproof, possibly empty, as CakePB's parser requires.
 
 **Trimming.** As VeriPB's elaborator does, the kernel proof keeps only the top-level `pol` and
 `rup` steps that the rest of the proof uses (by a private pass, `trim`), except when
@@ -851,19 +854,137 @@ private def covered (S : St σ) (start : ℕ) (core db : Bool) (negC : Option PB
   if !db then return false
   return (← S.findBelow start core G).isSome
 
-/-- A goal to prove: its label, its premises, and the goal constraint when the premise is its
-negation. -/
-private abbrev Goal := GoalId × List PBConstr × Option PBConstr
+/-- A goal to prove: its label, its premises, the goal constraint when the premise is its
+negation, and, for the goal `D|ω` of a database constraint `D`, the augmented number of `D`. -/
+private abbrev Goal := GoalId × List PBConstr × Option PBConstr × Option ℕ
+
+/-- The canonical form `k` with the assignment `ρ` substituted, as VeriPB 3.0.2 substitutes the
+propagated assignment (`PBConstraint::substitute`): a true term is dropped and lowers the degree,
+a false term is dropped. A negative degree becomes `0`, which changes no answer of `implies`: a
+constraint of degree at most `0` is trivial as a target and implies no non-trivial target. -/
+private def substKey (ρ : Std.HashMap ℕ Bool) (k : Key) : Key := Id.run do
+  let mut ts : Array KTerm := .mkEmpty k.1.size
+  let mut d := k.2
+  for t in k.1 do
+    match ρ[t.var]? with
+    | some b => if b == t.pos then d := d - t.coeff
+    | none => ts := ts.push t
+  return (ts, d)
+
+/-- `implies (substKey ρ s) t`, without building the substituted constraint; `tm` maps the
+literals of `t` to their coefficients. -/
+private def substImplies (ρ : Std.HashMap ℕ Bool) (tm : Std.HashMap (ℕ × Bool) ℕ) (s t : Key) :
+    Bool := Id.run do
+  if t.2 == 0 then return true
+  let mut d := s.2
+  let mut sum := 0
+  for x in s.1 do
+    match ρ[x.var]? with
+    | some b => if b == x.pos then d := d - x.coeff
+    | none => sum := sum + x.coeff
+  if sum < d then return true
+  let mut cost : ℤ := (t.2 : ℤ) - d
+  if cost > 0 then return false
+  for x in s.1 do
+    if ρ.contains x.var then continue
+    match tm[(x.var, x.pos)]? with
+    | some b => if x.coeff > b && b < t.2 then cost := cost + (x.coeff - b)
+    | none => cost := cost + x.coeff
+    if cost > 0 then return false
+  return true
+
+/-- The largest coefficient of a canonical form, at least `1`. -/
+private def maxCoeff (k : Key) : ℕ := k.1.foldl (fun m t => max m t.coeff) 1
+
+/-- **The refutation of `¬G` by syntactic implication**: kernel operations that derive `t` from the
+premise `e` (`impOps`), after adding `M` times the units `u` (canonical form and kernel number;
+`M` the largest coefficient of `e`), which substitutes them into `e`, and then add `¬G` (kernel
+number `pk`) and `M'` times the units (`M'` the largest coefficient of `G`), a contradiction if
+`t` is `G` with the units substituted. As VeriPB 3.0.2 elaborates the autoproving of a
+substituted implication (`write_substituted_implication_subproof`), whose `ia` step becomes the
+weakening, saturation and literal axioms of `impOps`. `none` if the result is not a
+contradiction. -/
+private def implRefute (S : St σ) (e : Entry) (G : PBConstr) (t : Key) (pk : ℕ)
+    (u : Option (Key × ℕ)) : EM σ (Option (List PolOp)) := do
+  let v₀ : PVal := match u with
+    | some (ku, ui) =>
+      let m := maxCoeff e.key
+      ⟨fadd e.key (fmul ku m), #[.id e.kid, .id ui, .mul m, .add]⟩
+    | none => ⟨e.key, #[.id e.kid]⟩
+  let v := impOps v₀ t (← S.lowerVar (e.c.terms ++ G.terms))
+  if v.k != t then return none
+  let negG := keyOf G.negate
+  let (w, ops) : Key × Array PolOp := match u with
+    | some (ku, ui) =>
+      let m := maxCoeff (keyOf G)
+      (fadd negG (fmul ku m), #[.id pk, .id ui, .mul m, .add])
+    | none => (negG, #[.id pk])
+  if !(fadd v.k w).isContradiction then return none
+  return some (v.ops ++ ops |>.push .add).toList
+
+/-- **Autoproving by syntactic implication** (§5.5.2; VeriPB 3.0.2, `Proofgoal::autoprove`), for
+a goal `G` whose negation has the kernel number `pk` and is no longer in the engine: the steps of
+a `proofgoal` block refuting `¬G`, if
+* one of `direct` (the additional premise, and for the goal `D|ω` the constraint `D`) strongly
+  syntactically implies `G` (`implies`), or
+* with the assignment `ρ` that the database propagates (the root trail of the engine), some live
+  constraint `D` not in `skip` has `D|ρ` implying `G|ρ`. Then the block first derives the units
+  of `ρ` on the variables of `D` and `G` by a hinted `rup`. If `core`, `D` is a core constraint
+  or numbered from `start`: VeriPB 3.0.2 adds the constraints of a core-only subproof to the core
+  set (`ForwardsChecker::execute_rule`), `¬C` among them when the step has a subproof.
+
+VeriPB tries every constraint of the database for the second case; only those containing a
+literal of `G|ρ` can succeed, since with no conflict at the root no `D|ρ` is a contradiction, and
+a constraint sharing no literal with `G|ρ` implies it only if `G|ρ` is trivial, when the goal is
+RUP. So the constraints tried are those containing a variable of `G|ρ`, from `varOcc`, the
+variables with fewer occurrences first. -/
+private def implGoal (S : St σ) (start : ℕ) (core : Bool) (direct skip : List ℕ) (G : PBConstr)
+    (pk : ℕ) : EM σ (Option (Array Step)) := do
+  let t := keyOf G
+  for i in direct do
+    let e ← S.entry i
+    if implies e.key t then
+      if let some ops ← S.implRefute e G t pk none then return some #[.pol ops]
+  let some tr ← S.eng.extend [] | return none
+  let ρ : Std.HashMap ℕ Bool := tr.foldl (fun m l => m.insert l.1 l.2) {}
+  let st := substKey ρ t
+  let db ← S.db.get
+  let occ ← S.varOcc.get
+  let tm : Std.HashMap (ℕ × Bool) ℕ := st.1.foldl (fun m x => m.insert (x.var, x.pos) x.coeff) {}
+  -- The shortest occurrence lists first.
+  let lists := (st.1.map fun x => (occ[x.var]?).getD #[]).qsort (·.size < ·.size)
+  let mut seen : Std.HashSet ℕ := {}
+  for l in lists do
+    for i in l do
+      if seen.contains i then continue
+      seen := seen.insert i
+      let some e := db[i]? | continue
+      if i == 0 || !e.alive || (core && !e.core && i < start) || skip.contains i then continue
+      if !substImplies ρ tm e.key st then continue
+      -- The units of `ρ` on the variables of `D` and `G`.
+      let vs : Std.HashSet ℕ := (e.key.1 ++ t.1).foldl (fun m t => m.insert t.var) {}
+      let us := tr.filter (vs.contains ·.1)
+      if us.isEmpty then
+        let some ops ← S.implRefute e G st pk none | return none
+        return some #[.pol ops]
+      let U : PBConstr := ⟨us.toList.map ((1, ·)), us.size⟩
+      let some h ← S.eng.rupHints (negateParsed U) | return none
+      let u ← S.takeKid
+      let some ops ← S.implRefute e G st pk (some (keyOfParsed U, u)) | return none
+      return some #[.rup U h.toList, .pol ops]
+  return none
 
 /-- **Prove goals automatically** (§5.5.2): for each goal not proved by the user (`proved`), a
 `proofgoal` block whose premises propagate to a conflict, closed by a hinted `rup` of `0 ≥ 1`, or,
 for a goal that is a constraint of the database numbered below `start` (a core constraint if
-`core`), the sum of its negation and that constraint. A goal neither proves fails the
-elaboration, as in VeriPB. The premises take kernel numbers but no augmented ones. -/
-private def autoGoals (S : St σ) (start : ℕ) (core : Bool) (proved : List GoalId) (gs : List Goal) :
-    EM σ (Array RedItem) := do
+`core`), the sum of its negation and that constraint, or else a refutation by syntactic
+implication (`implGoal`) from the additional premise `prem` or a database constraint other than
+those of `skip` (a core constraint or one numbered from `start` if `core`). A goal none proves
+fails the elaboration, as in VeriPB. The premises take kernel numbers but no augmented ones. -/
+private def autoGoals (S : St σ) (start : ℕ) (core : Bool) (proved : List GoalId) (gs : List Goal)
+    (prem : Option ℕ := none) (skip : List ℕ := []) : EM σ (Array RedItem) := do
   let mut out := #[]
-  for (g, ps, G?) in gs do
+  for (g, ps, G?, src) in gs do
     if proved.contains g then continue
     let mark ← S.augNext
     let mut pk := 0
@@ -875,15 +996,19 @@ private def autoGoals (S : St σ) (start : ℕ) (core : Bool) (proved : List Goa
       let k ← S.takeKid
       out := out.push (.goal g [.rup ⟨[], 1⟩ h] k)
     | none =>
-      match G? with
-      | some G =>
-        match ← S.findBelow start core G with
-        | some i =>
-          let e ← S.entry i
-          let k ← S.takeKid
-          out := out.push (.goal g [.pol [.id pk, .id e.kid, .add]] k)
-        | none => S.fail s!"a proof goal could not be autoproven ({repr g})"
-      | none => S.fail s!"a proof goal could not be autoproven ({repr g})"
+      let some G := G? | S.fail s!"a proof goal could not be autoproven ({repr g})"
+      match ← S.findBelow start core G with
+      | some i =>
+        let e ← S.entry i
+        let k ← S.takeKid
+        out := out.push (.goal g [.pol [.id pk, .id e.kid, .add]] k)
+      | none =>
+        -- The substituted assignment is propagated without `¬G`.
+        S.popTo mark
+        let some sub ← S.implGoal start core (prem.toList ++ src.toList) skip G pk
+          | S.fail s!"a proof goal could not be autoproven ({repr g})"
+        let k ← S.takeKid
+        out := out.push (.goal g sub.toList k)
     S.popTo mark
   return out
 
@@ -914,7 +1039,7 @@ private def dbGoals (S : St σ) (start : ℕ) (core : Bool) (negC : Option PBCon
     let G := Witness.substC ω e.c
     if Witness.touchedTrue ω e.c || weakImplies e.c G then continue
     if ← S.covered start core true negC G then continue
-    out := out.push (GoalId.db e.kid, [G.negate], some G)
+    out := out.push (GoalId.db e.kid, [G.negate], some G, some i)
   return out.toList
 
 /-- The goals of `red C : ω` that are not covered (§5.4.1, §5.5.1), with the database of the step
@@ -933,7 +1058,7 @@ private def redGoals (S : St σ) (start : ℕ) (gsCore : Bool) (c : PBConstr) (�
     -- The order goals need no proof when the witness leaves the order alone.
     if 1 ≤ k && k ≤ n && ord.any (·.untouched ω) then continue
     if !(← S.covered start false false (some negC) G) then
-      out := out.push (.hash (k + 1), [G.negate], some G)
+      out := out.push (.hash (k + 1), [G.negate], some G, none)
   let ids ← S.touched start gsCore ω skip
   return out.toList ++ (← S.dbGoals start false (some negC) ω ids)
 
@@ -948,12 +1073,12 @@ private def domGoals (S : St σ) (start : ℕ) (L : LoadedOrder) (c : PBConstr) 
   let mut out : Array Goal := #[]
   for (G, k) in le.zipIdx do
     if !(← S.covered start false false (some negC) G) then
-      out := out.push (.hash (k + 1), [G.negate], some G)
-  out := out.push (.hash (le.length + 1), (L.geGoals ω).map normalize, none)
+      out := out.push (.hash (k + 1), [G.negate], some G, none)
+  out := out.push (.hash (le.length + 1), (L.geGoals ω).map normalize, none, none)
   if let some f := obj then
     let G := objGoal f ω
     if !(← S.covered start false false (some negC) G) then
-      out := out.push (.hash (le.length + 2), [G.negate], some G)
+      out := out.push (.hash (le.length + 2), [G.negate], some G, none)
   let ids ← S.touched start true ω
   return out.toList ++ (← S.dbGoals start false (some negC) ω ids)
 
@@ -967,7 +1092,7 @@ private def givenGoals : List RedItem → List GoalId
 /-- Run `act` with a fresh propagation engine holding only the live core constraints (other than
 `skip`) and the constraints numbered from `start`: the goals of `obju`, of the changes of the
 preserved set and of checked deletion are derived from the core set alone (§5.9, §5.10,
-§5.7.1). -/
+§5.7.1), to which VeriPB 3.0.2 adds the constraints of the subproof. -/
 private def withCoreEngine {α : Type} (S : St σ) (start : ℕ) (skip : ℕ) (act : St σ → EM σ α) :
     EM σ α := do
   let eng ← (Engine.new : ST σ (Engine σ))
@@ -1040,7 +1165,8 @@ private partial def top (S : St σ) (s : AStep) : EM σ (Array TopStep) := do
           | some L => S.domGoals start L c ω
           | none => S.fail "dom: no order loaded"
         else S.redGoals start core c ω
-      S.autoGoals start false (givenGoals ki.toList) gs
+      S.autoGoals start false (givenGoals ki.toList) gs (prem := some start)
+        (skip := if sub.isNone then [start] else [])
     let ki := ki ++ auto
     -- The kernel step always has a subproof, as CakePB's parser requires; without one in the
     -- augmented proof, `¬C` takes no augmented number.
@@ -1090,7 +1216,8 @@ private partial def top (S : St σ) (s : AStep) : EM σ (Array TopStep) := do
     let auto ← if qk.isSome then pure #[] else
       S.withCoreEngine start i fun S' => do
         let gs ← S'.redGoals start true e.c ω (skip := i)
-        S'.autoGoals start true (givenGoals ki.toList) gs
+        S'.autoGoals start true (givenGoals ki.toList) gs (prem := some start)
+          (skip := i :: if sub.isNone then [start] else [])
     let ki := ki ++ auto
     if sub.isNone then S.popTo start else S.dropFrom start
     S.drop i
@@ -1151,7 +1278,7 @@ private partial def top (S : St σ) (s : AStep) : EM σ (Array TopStep) := do
       let mut need : Array Goal := #[]
       for (G, k) in gs.zipIdx do
         if !(← S'.covered start true false none G) then
-          need := need.push (GoalId.hash (k + 1), [G.negate], some G)
+          need := need.push (GoalId.hash (k + 1), [G.negate], some G, none)
       S'.autoGoals start true (givenGoals ki.toList) need.toList
     let ki := ki ++ auto
     S.obj.set (some f')
@@ -1182,7 +1309,7 @@ private partial def top (S : St σ) (s : AStep) : EM σ (Array TopStep) := do
       | none => pure #[]
     let auto ← S.withCoreEngine start 0 fun S' => do
       let need : List Goal := (gs.zipIdx.filter fun (G, _) => G.normalize.degree != 0).map
-        fun (G, k) => (GoalId.hash (k + 1), [G.negate], some G)
+        fun (G, k) => (GoalId.hash (k + 1), [G.negate], some G, none)
       S'.autoGoals start true (givenGoals ki.toList) need
     let ki := ki ++ auto
     S.pres.set (some (if add then P.insert x else P.filter (· != x)))

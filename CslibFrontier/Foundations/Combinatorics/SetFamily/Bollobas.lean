@@ -82,11 +82,9 @@ private theorem inv_choose_add_step {K : Type*}
   have h1 : ((k + b).choose k : K) ≠ 0 := mod_cast (Nat.choose_pos (Nat.le_add_right k b)).ne'
   have h2 : (((k + 1 + b).choose (k + 1) : ℕ) : K) ≠ 0 :=
     mod_cast (Nat.choose_pos (Nat.le_add_right (k + 1) b)).ne'
-  have hchoose_id : (k + 1 + b) * (k + b).choose k = (k + 1 + b).choose (k + 1) * (k + 1) := by
-    simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using
-      Nat.add_one_mul_choose_eq (k + b) k
   have hid : ((k : K) + 1 + b) * ((k + b).choose k : K) =
-      ((k + 1 + b).choose (k + 1) : K) * ((k : K) + 1) := mod_cast hchoose_id
+      ((k + 1 + b).choose (k + 1) : K) * ((k : K) + 1) := by
+    exact_mod_cast (Nat.add_right_comm k b 1 ▸ Nat.add_one_mul_choose_eq (k + b) k)
   rw [Nat.add_sub_cancel_right, Nat.cast_sub habu]
   push_cast
   field_simp
@@ -339,11 +337,8 @@ theorem Fintype.card_le_choose_of_lt_not_disjoint {ι α : Type*}
       b, exteriorPower.ιMulti_apply_coe, a, ExteriorAlgebra.ιMulti_mul_ιMulti,
       ExteriorAlgebra.liftAlternating_apply_ιMulti, dite_true, AlternatingMap.domDomCongr_apply]
     have hrow : Fin.append (v ∘ enumA i) (v ∘ enumB j) ∘ ⇑(finCongr (rfl : r + s = r + s)) =
-        v ∘ Fin.append (enumA i) (enumB j) := by
-      funext x
-      rw [Function.comp_apply, Function.comp_apply,
-        show (finCongr (rfl : r + s = r + s)) x = x from Fin.ext rfl]
-      exact Fin.addCases (fun _ => by simp) (fun _ => by simp) x
+        v ∘ Fin.append (enumA i) (enumB j) :=
+      funext fun x => Fin.addCases (fun _ => by simp [finCongr]) (fun _ => by simp [finCongr]) x
     rw [hrow]; rfl
   have hAppend_memU (i j k) : Fin.append (enumA i) (enumB j) k ∈ U := by
     refine Fin.addCases (fun p => ?_) (fun q => ?_) k
@@ -373,9 +368,7 @@ theorem Fintype.card_le_choose_of_lt_not_disjoint {ι α : Type*}
     refine ⟨Fin.castAdd s p, Fin.natAdd r q, ?_, ?_⟩
     · simp only [Function.comp_apply, Fin.append_left, Fin.append_right, enumA, enumB, hp, hq]
     · intro h
-      have hv := congrArg Fin.val h
-      simp only [Fin.val_castAdd, Fin.val_natAdd] at hv
-      omega
+      rw [Fin.ext_iff, Fin.val_castAdd, Fin.val_natAdd] at h; omega
   have hlin : LinearIndependent ℚ b := Fintype.linearIndependent_iff.mpr fun c hc i => by
     by_contra hci
     let S : Finset ι := Finset.univ.filter fun j => c j ≠ 0

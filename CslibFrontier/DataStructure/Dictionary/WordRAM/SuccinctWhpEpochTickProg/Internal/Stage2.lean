@@ -173,16 +173,13 @@ theorem realizes_epochTickStage2Gen :
     have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       simp [mkWhpParams, Nat.not_lt.mpr hth]
-    obtain ⟨hdi_st, hdi_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrDirtyIdx)
-      (by dsimp [hdrDirtyIdx]; omega) (s := s)
-    obtain ⟨hdc_st, hdc_res, _, _⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrDirtyCount)
-      (by dsimp [hdrDirtyCount]; omega) (s := s)
+    have hdr (off : ℕ) (hoff : off < 32) := readHdrProg_spec (w := w)
+      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := off) (by omega) (s := s)
+    obtain ⟨hdi_st, hdi_res, _, _⟩ := hdr hdrDirtyIdx (by decide)
+    obtain ⟨hdc_st, hdc_res, _, _⟩ := hdr hdrDirtyCount (by decide)
     rw [hh.dirtyIdx] at hdi_res
     rw [hh.dirtyCount] at hdc_res
-    simp only [hcp_eq] at *
-    simp only [hdi_st, hdi_res, hdc_st, hdc_res, wp_large_sMax hth] at *
+    simp only [hcp_eq, hdi_st, hdi_res, hdc_st, hdc_res, wp_large_sMax hth] at *
     first
     | exact h2w
     | exact henv.fits_const (by decide)
@@ -190,9 +187,7 @@ theorem realizes_epochTickStage2Gen :
     | exact henv.fits_largeSpace.of_le (by omega)
     | (have hdi_lt : fs.dirtyIdx < fs.dirtyCount := by assumption
        obtain ⟨hrd_st, hrd_res, _, _⟩ := readDirtyBucketGenProg_spec henv hdi_lt hrep (s := s)
-       obtain ⟨hcd_st, hcd_res, _, _⟩ := readHdrProg_spec (w := w)
-         (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebCandSalt)
-         (by dsimp [hdrRebCandSalt]; omega) (s := s)
+       obtain ⟨hcd_st, hcd_res, _, _⟩ := hdr hdrRebCandSalt (by decide)
        rw [hh.rebCandSalt] at hcd_res
        simp only [hrd_st, hrd_res, hcd_st, hcd_res] at *
        first
@@ -232,12 +227,10 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
     simp [mkWhpParams, Nat.not_lt.mpr hth]
   set cp := mkWhpCoreParams c U V w n_max
   have hsmax_cp : wpSMax cp = sMaxWhp c n_max := wp_large_sMax hth
-  obtain ⟨hdi_st, hdi_res, hdi_mc, hdi_vp⟩ := readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrDirtyIdx)
-    (by dsimp [hdrDirtyIdx]; omega) (s := s)
-  obtain ⟨hdc_st, hdc_res, hdc_mc, hdc_vp⟩ := readHdrProg_spec (w := w)
-    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrDirtyCount)
-    (by dsimp [hdrDirtyCount]; omega) (s := s)
+  have hdr (off : ℕ) (hoff : off < 32) := readHdrProg_spec (w := w)
+    (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := off) (by omega) (s := s)
+  obtain ⟨hdi_st, hdi_res, hdi_mc, hdi_vp⟩ := hdr hdrDirtyIdx (by decide)
+  obtain ⟨hdc_st, hdc_res, hdc_mc, hdc_vp⟩ := hdr hdrDirtyCount (by decide)
   rw [hh.dirtyIdx] at hdi_res
   rw [hh.dirtyCount] at hdc_res
   dsimp only
@@ -255,9 +248,7 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
     have hb : b < numBucketsWhp n_max := hpre2.2.2.1 _ hdi_lt
     obtain ⟨hrd_st, hrd_res, hrd_mc, hrd_vp⟩ :=
       readDirtyBucketGenProg_spec henv hdi_lt hrep (s := s)
-    obtain ⟨hcd_st, hcd_res, hcd_mc, hcd_vp⟩ := readHdrProg_spec (w := w)
-      (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebCandSalt)
-      (by dsimp [hdrRebCandSalt]; omega) (s := s)
+    obtain ⟨hcd_st, hcd_res, hcd_mc, hcd_vp⟩ := hdr hdrRebCandSalt (by decide)
     rw [hh.rebCandSalt] at hcd_res
     by_cases hcs_lt : fs.rebCandSalt < sMaxWhp c n_max
     · rw [ite_eq_left hcs_lt]

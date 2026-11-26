@@ -186,21 +186,14 @@ private theorem le_two_mul_of_forall {S a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b)
   · -- `S ≤ τb²` for every `τ > 0`
     refine le_of_forall_pos_lt_add fun ε hε => ?_
     have h1 := h (ε / (b ^ 2 + 1)) (by positivity)
-    have h2 : ε / (b ^ 2 + 1) * b ^ 2 < ε := by
-      rw [div_mul_eq_mul_div, div_lt_iff₀ (by positivity)]
-      linarith
-    simp only [ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, zero_div, add_zero] at h1
-    linarith
+    simp only [zero_pow two_ne_zero, zero_div, add_zero, div_mul_eq_mul_div] at h1
+    exact (zero_add ε).symm ▸ h1.trans_lt ((div_lt_iff₀ (by positivity)).2 (by linarith))
   rcases hb.eq_or_lt with rfl | hb
   · -- `S ≤ a²/τ` for every `τ > 0`
     refine le_of_forall_pos_lt_add fun ε hε => ?_
     have h1 := h ((a ^ 2 + 1) / ε) (by positivity)
-    have h2 : a ^ 2 / ((a ^ 2 + 1) / ε) < ε := by
-      rw [div_div_eq_mul_div, div_lt_iff₀ (by positivity)]
-      linarith
-    simp only [ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, mul_zero, zero_add]
-      at h1
-    linarith
+    simp only [zero_pow two_ne_zero, mul_zero, zero_add, div_div_eq_mul_div] at h1
+    exact (zero_add ε).symm ▸ h1.trans_lt ((div_lt_iff₀ (by positivity)).2 (by linarith))
   · have h1 := h (a / b) (by positivity)
     have h2 : a / b * b ^ 2 + a ^ 2 / (a / b) = 2 * a * b := by
       field_simp

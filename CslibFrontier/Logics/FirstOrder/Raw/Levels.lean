@@ -184,14 +184,9 @@ private def allDepths (x : ℕ) (p : ℕ × Option ℕ) : ℕ × Option ℕ :=
 private theorem inDepths_allDepths {d x : ℕ} {p : ℕ × Option ℕ} :
     InDepths d (allDepths x p) ↔ x = 2 * d ∧ InDepths (d + 1) p := by
   unfold allDepths
-  split_ifs with h
-  · refine ⟨fun hd => ?_, fun ⟨hx, _⟩ => by simp [InDepths]; omega⟩
-    simp only [InDepths, Option.getD_some] at hd
-    have hd' : d + 1 = x / 2 + 1 := by omega
-    exact ⟨by omega, hd' ▸ h.2⟩
-  · refine ⟨fun hd => by simp [InDepths] at hd; omega, fun ⟨hx, hp⟩ => ?_⟩
-    have hd' : 2 * d / 2 = d := by omega
-    exact (h ⟨by omega, by simpa [hx, hd'] using hp⟩).elim
+  split_ifs with h <;> simp only [InDepths, Option.getD_some]
+  · exact ⟨fun _ => ⟨by omega, (show d + 1 = x / 2 + 1 by omega) ▸ h.2⟩, fun _ => by omega⟩
+  · exact ⟨by omega, fun ⟨hx, hp⟩ => (h ⟨by omega, (show x / 2 + 1 = d + 1 by omega) ▸ hp⟩).elim⟩
 
 /-- The depth interval at which a formula is well scoped. -/
 private def depths (F : ℕ → Prop) [DecidablePred F] (A : ℕ → ℕ → Prop) [DecidableRel A] :
@@ -353,10 +348,8 @@ private theorem nameOk_bindShift {F : ℕ → Prop} {x d y : ℕ}
     (hy : NameOk F d y) : NameOk (fun z => F z ∧ z ≠ x) (d + 1) (bindShift x y) := by
   unfold NameOk at hy ⊢
   unfold bindShift
-  split_ifs with h1 h2
-  · omega
-  · omega
-  · exact hy.elim (fun hy => by omega) fun hy => Or.inr ⟨hy.1, hy.2, by omega⟩
+  split_ifs with h1 h2 <;>
+    first | omega | exact hy.elim (fun _ => by omega) fun hy => Or.inr ⟨hy.1, hy.2, by omega⟩
 
 private theorem nameOk_bindShift_self {F : ℕ → Prop} {x d : ℕ} :
     NameOk F (d + 1) (bindShift x (2 * x + 1)) := by

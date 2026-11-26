@@ -109,11 +109,8 @@ theorem two_mul_sum_oddForm (f : (ι → Bool) → ℝ) :
     rw [sum_comm]
     exact sum_congr rfl fun c _ => sum_congr rfl fun S _ => by ring
   rw [hexp]
-  simp_rw [two_mul_sum_toNat_parityOn]
-  have h (c : ι → Bool) : f c * (2 ^ Fintype.card ι * (1 - if c = 0 then (1 : ℝ) else 0)) =
-      2 ^ Fintype.card ι * f c - if c = 0 then 2 ^ Fintype.card ι * f 0 else 0 := by
-    split_ifs with hc <;> [subst hc; skip] <;> ring
-  simp_rw [h, sum_sub_distrib, sum_ite_eq', mem_univ, ite_true, ← mul_sum]
+  simp_rw [two_mul_sum_toNat_parityOn, mul_sub, mul_ite, mul_one, mul_zero, sum_sub_distrib,
+    sum_ite_eq', mem_univ, ite_true, ← sum_mul]
   ring
 
 /-- **Bilinear character sum.** For functions `f, h` on the cube,
@@ -147,8 +144,7 @@ theorem four_mul_sum_oddForm_mul_oddForm (f h : (ι → Bool) → ℝ) :
     simp only [eq_comm (a := (0 : ι → Bool))]
     split_ifs <;> ring
   simp_rw [h1, sum_add_distrib, sum_sub_distrib, sum_ite_eq, mem_univ, ite_true]
-  simp only [sum_ite_irrel, sum_const_zero, sum_ite_eq, mem_univ, ite_true]
-  simp only [← mul_sum, ← sum_mul]
+  simp only [sum_ite_irrel, sum_const_zero, sum_ite_eq, mem_univ, ite_true, ← mul_sum, ← sum_mul]
   ring
 
 end OddForm
@@ -215,9 +211,7 @@ theorem ite_isSingle_eq_onSingles (c : ι → Bool) :
 theorem oddForm_onSingles (a : ι → ℝ) (S : Finset ι) :
     oddForm (onSingles a) S = ∑ i ∈ S, a i := by
   rw [oddForm, sum_onSingles_mul]
-  have h (i : ι) : a i * ((decide (i ∈ S)).toNat : ℝ) = if i ∈ S then a i else 0 := by
-    split_ifs <;> simp [*]
-  simp only [parityOn_single, h, sum_ite_mem, univ_inter]
+  simp [parityOn_single, Bool.toNat]
 
 end Single
 

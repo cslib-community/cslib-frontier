@@ -130,21 +130,15 @@ theorem rfimEnergy_crossing_le [DecidableEq V] [Finite E] (G : Multigraph V E) (
     rw [Finset.coe_inter, Finset.coe_union]
     exact_mod_cast G.ncard_edgeCut_inter_add_union_le (A : Set V) (B : Set V)
   have hA : ∑ v ∈ A, (y v - t₁) = (∑ v ∈ A ∩ B, (y v - t₁)) + ∑ v ∈ A \ B, (y v - t₁) := by
-    have h : A = (A ∩ B) ∪ (A \ B) := by
-      ext v
-      simp only [Finset.mem_union, Finset.mem_inter, Finset.mem_sdiff]
-      tauto
-    conv_lhs => rw [h]
-    exact Finset.sum_union (Finset.disjoint_left.mpr fun _ h₁ h₂ =>
-      (Finset.mem_sdiff.mp h₂).2 (Finset.mem_inter.mp h₁).2)
+    conv_lhs => rw [← Finset.sdiff_union_inter A B]
+    rw [Finset.sum_union (Finset.disjoint_sdiff_inter A B), add_comm]
   have hB : ∑ v ∈ A ∪ B, (y v - t₂) =
       (∑ v ∈ A \ B, (y v - t₂)) + ∑ v ∈ B, (y v - t₂) := by
     rw [← Finset.sdiff_union_self_eq_union, Finset.sum_union
       (Finset.disjoint_left.mpr fun _ h₁ h₂ => (Finset.mem_sdiff.mp h₁).2 h₂)]
   have hdiff : (∑ v ∈ A \ B, (y v - t₂)) - (∑ v ∈ A \ B, (y v - t₁)) =
       -(t₂ - t₁) * ((A \ B).card : ℝ) := by
-    have hconst : ∀ v ∈ A \ B, (y v - t₂) - (y v - t₁) = -(t₂ - t₁) := fun _ _ => by ring
-    rw [← Finset.sum_sub_distrib, Finset.sum_congr rfl hconst, Finset.sum_const, nsmul_eq_mul]
+    simp only [← Finset.sum_sub_distrib, sub_sub_sub_cancel_left, Finset.sum_const, nsmul_eq_mul]
     ring
   linarith [congrArg (α * ·) hA, congrArg (α * ·) hB, congrArg (α * ·) hdiff]
 
@@ -387,12 +381,7 @@ private theorem mem_incidenceSet_otherEnd_eq {G : Multigraph V E} {v w : V} {e :
   unfold otherEnd at hw ⊢
   by_cases hs : G.src e = v
   · simp only [hs, ↓reduceIte] at hw
-    refine ⟨Or.inr hw, ?_⟩
-    by_cases hvw : v = w
-    · exact Or.inl hvw
-    · right
-      have hne : w ≠ v := Ne.symm hvw
-      simp [hs, Ne.symm hne]
+    exact ⟨Or.inr hw, or_iff_not_imp_left.mpr fun hvw => (ite_eq_right (hs.trans_ne hvw)).trans hs⟩
   · have ht : G.tgt e = v := he.resolve_left hs
     simp only [hs, ↓reduceIte] at hw
     exact ⟨Or.inl hw, Or.inr (by simp [hw, ht])⟩

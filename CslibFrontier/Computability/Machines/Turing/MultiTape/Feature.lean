@@ -66,13 +66,8 @@ theorem mem_window_iff_abs_le {T : ℕ} {z : ℤ} : z ∈ window T ↔ |z| ≤ T
 def windowList (T : ℕ) : List ℤ := (List.range (2 * T + 1)).map fun i : ℕ => (i : ℤ) - T
 
 @[simp] theorem mem_windowList {T : ℕ} {z : ℤ} : z ∈ windowList T ↔ |z| ≤ T := by
-  rw [windowList, List.mem_map, abs_le]
-  constructor
-  · rintro ⟨i, hi, rfl⟩
-    have := List.mem_range.1 hi
-    omega
-  · intro h
-    exact ⟨(z + T).toNat, List.mem_range.2 (by omega), by omega⟩
+  simp only [windowList, List.mem_map, List.mem_range, abs_le]
+  exact ⟨fun ⟨_, _, _⟩ => by omega, fun _ => ⟨(z + T).toNat, by omega, by omega⟩⟩
 
 @[simp] theorem length_windowList (T : ℕ) : (windowList T).length = 2 * T + 1 := by
   simp [windowList]
@@ -237,16 +232,12 @@ theorem holds_step_inPos_iff (j : ℕ) :
   · simp only [holds_state, hq, reduceCtorEq, false_and, false_or, Finset.mem_filter,
       Finset.mem_product, Finset.mem_univ, true_and, holds_inPos,
       step_eq_apply tm hq, Action.apply_inputPos, val_moveInputPos_eq_moveInputPosNat]
-    constructor
-    · intro h
-      have hlt := cfg.inputPos.isLt
-      have := le_add_one_of_moveInputPosNat_eq hlt h
-      refine ⟨(cfg.situation q, cfg.inputPos.val), ⟨?_, hlt, h⟩, (holds_sit_iff_eq hq _).2 rfl, rfl⟩
-      simp only [Finset.mem_insert, Finset.mem_singleton]
-      omega
-    · rintro ⟨⟨y, j'⟩, ⟨-, -, hy⟩, hsit, rfl⟩
-      obtain rfl := (holds_sit_iff_eq hq y).1 hsit
-      exact hy
+    refine ⟨fun h => ⟨(cfg.situation q, cfg.inputPos.val), ⟨?_, cfg.inputPos.isLt, h⟩,
+      (holds_sit_iff_eq hq _).2 rfl, rfl⟩, ?_⟩
+    · have := le_add_one_of_moveInputPosNat_eq cfg.inputPos.isLt h
+      simp only [Finset.mem_insert, Finset.mem_singleton]; omega
+    · rintro ⟨⟨y, _⟩, ⟨-, -, hy⟩, hsit, rfl⟩
+      exact (holds_sit_iff_eq hq y).1 hsit ▸ hy
 
 /-- The step equation for a work head within the window `|z| ≤ T`, for a head that was within
 the window. -/
@@ -496,9 +487,7 @@ theorem holds_step_iff_exists_stepTerms (hn : input.length = n)
   · rw [holds_step_head_iff tm (hb i)]
     simp [stepTerms, or_and_right, exists_or]
   · rw [holds_step_cell_iff]
-    simp only [stepTerms, List.mem_cons, List.mem_map, List.mem_filter, exists_eq_or_imp,
-      Term.holds_cons, Term.holds_nil, iff_true, Bool.false_eq_true, iff_false, and_true]
-    simp [and_or_left, or_assoc, and_assoc]
+    simp [stepTerms, and_or_left, or_assoc, and_assoc]
   · rw [holds_step_out_iff]
     simp [stepTerms, or_and_right, exists_or]
 

@@ -490,9 +490,7 @@ private theorem length_pack {r : ℕ} {ss : List ℕ} {first : BPlusTree α β}
   | last => rfl
   | @cut s r ss _ _ _ ih =>
     rcases hd : rest.drop s with _ | ⟨⟨k, c⟩, rest'⟩
-    · have := congrArg List.length hd
-      simp only [List.length_drop, List.length_nil] at this
-      omega
+    · exact absurd (List.drop_eq_nil_iff.1 hd) (by omega)
     · have := congrArg List.length hd
       simp only [List.length_drop, List.length_cons] at this
       rw [pack_cons_of_drop_eq_cons ss hd, List.length_cons, List.length_cons, ih (by omega)]
@@ -514,9 +512,7 @@ private theorem good_pack {h r : ℕ} {ss : List ℕ} {first : BPlusTree α β}
     exact ⟨good_node hf hr (by omega) (by omega), by simp⟩
   | @cut s r ss h₁ h₂ _ ih =>
     rcases hd : rest.drop s with _ | ⟨⟨k, c⟩, rest'⟩
-    · have := congrArg List.length hd
-      simp only [List.length_drop, List.length_nil] at this
-      omega
+    · exact absurd (List.drop_eq_nil_iff.1 hd) (by omega)
     · rw [pack_cons_of_drop_eq_cons ss hd]
       have hmem : ∀ e ∈ rest.drop s, e ∈ rest := fun e he => List.mem_of_mem_drop he
       rw [hd] at hmem
@@ -612,20 +608,16 @@ private theorem good_leafLevel (ht : 2 ≤ t) {l : List (α × β)}
     Good t 1 (leafLevel (chunkSizes t l.length l.length) l).1 ∧
       ∀ e ∈ (leafLevel (chunkSizes t l.length l.length) l).2,
         Good t 1 e.child ∧ HeadKey e := by
-  obtain ⟨n, hn⟩ : ∃ n, l.length = n + 1 := ⟨l.length - 1, by omega⟩
-  have hc : chunkSizes t l.length l.length =
-      (if l.length < 3 * t - 2 then t - 1 else 2 * t - 1) ::
-        chunkSizes t n (l.length - (if l.length < 3 * t - 2 then t - 1 else 2 * t - 1)) := by
-    have := chunkSizes_succ_of_lt (t := t) (fuel := n) hlt
-    rwa [← hn] at this
-  rw [hc, leafLevel_cons]
+  rcases hn : l.length with _ | n
+  · omega
+  rw [chunkSizes_succ_of_lt (hn ▸ hlt), ← hn, leafLevel_cons]
   generalize hsd : (if l.length < 3 * t - 2 then t - 1 else 2 * t - 1) = s
-  have hs₁ : t - 1 ≤ s := by rw [← hsd]; split <;> omega
-  have hs₂ : s ≤ 2 * t - 1 := by rw [← hsd]; split <;> omega
-  have hs₃ : t - 1 ≤ l.length - s := by rw [← hsd]; split <;> omega
+  have hs : (t - 1 ≤ s ∧ s ≤ 2 * t - 1) ∧ t - 1 ≤ l.length - s := by
+    rw [← hsd]
+    split <;> omega
   have hlen : (l.take s).length = s := by rw [List.length_take]; omega
   exact ⟨⟨.leaf, rfl, .leaf (by omega) (by omega)⟩,
-    good_leafBranches (l := l.drop s) ht (chunkSizes_bounds (fuel := n) ht hs₃ (by omega))
+    good_leafBranches (l := l.drop s) ht (chunkSizes_bounds (fuel := n) ht hs.2 (by omega))
       (by rw [sum_chunkSizes, List.length_drop])⟩
 
 /-- Bulk loading builds a tree of root shape at a minimum degree of at least `2`, for every

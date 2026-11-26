@@ -84,10 +84,8 @@ def maxEvictions (n_max : ℕ) : ℕ :=
 
 theorem seven_le_tableBits (n_max : ℕ) : 7 ≤ tableBits n_max := by
   unfold tableBits
-  have h128 : 128 ≤ 32 * max n_max 4 := by omega
-  have h7 : Nat.clog 2 128 = 7 := by decide
-  rw [← h7]
-  exact Nat.clog_mono_right 2 h128
+  have h7 : 7 = Nat.clog 2 128 := by decide
+  exact h7 ▸ Nat.clog_mono_right 2 (by omega)
 
 theorem two_le_tableBits (n_max : ℕ) : 2 ≤ tableBits n_max := by
   have := seven_le_tableBits n_max
@@ -139,11 +137,7 @@ theorem tableSize_le_sixtyFour_mul_max (n_max : ℕ) :
 
 theorem eighteen_le_maxEvictions (n_max : ℕ) : 18 ≤ maxEvictions n_max := by
   unfold maxEvictions
-  have h1 : 1 ≤ Nat.clog 2 (max n_max 2) := by
-    have h2 : 2 ≤ max n_max 2 := le_max_right _ _
-    have hc : Nat.clog 2 2 = 1 := by decide
-    rw [← hc]
-    exact Nat.clog_mono_right 2 h2
+  have := (by decide : 1 = Nat.clog 2 2) ▸ Nat.clog_mono_right 2 (le_max_right n_max 2)
   omega
 
 theorem maxEvictions_pos (n_max : ℕ) : 0 < maxEvictions n_max := by
@@ -265,14 +259,10 @@ theorem WellPlaced.entry_unique_of_key_eq {U m : ℕ} {h₁ h₂ : Fin U → Fin
     e₁ = e₂ := by
   rcases (hwp.entryIn_iff_home e₁).mp h₁in with ht1 | ht2 <;>
     rcases (hwp.entryIn_iff_home e₂).mp h₂in with hs1 | hs2
-  · rw [hk] at ht1
-    exact Option.some.inj (ht1.symm.trans hs1)
-  · exfalso
-    exact hwp.disjoint_keys _ _ _ _ ht1 hs2 hk
-  · exfalso
-    exact hwp.disjoint_keys _ _ _ _ hs1 ht2 hk.symm
-  · rw [hk] at ht2
-    exact Option.some.inj (ht2.symm.trans hs2)
+  · exact Option.some.inj ((hk ▸ ht1).symm.trans hs1)
+  · exact (hwp.disjoint_keys _ _ _ _ ht1 hs2 hk).elim
+  · exact (hwp.disjoint_keys _ _ _ _ hs1 ht2 hk.symm).elim
+  · exact Option.some.inj ((hk ▸ ht2).symm.trans hs2)
 
 theorem WellPlaced.lookupEntry_eq_some_iff {U m : ℕ} {h₁ h₂ : Fin U → Fin m} {tbl : PureTable U m}
     (hwp : WellPlaced h₁ h₂ tbl) (u : Fin U) (e : SlotEntry U) :
@@ -734,18 +724,12 @@ theorem mem_survivingSeeds_of_goodForSet {Θ : Type*} [Fintype Θ] {U m : ℕ}
 theorem pureReplay_isSome_of_length_le_one {U m : ℕ} (h₁ h₂ : Fin U → Fin m)
     {maxLoop : ℕ} (hloop : 0 < maxLoop) {ks : List (Fin U)} (hlen : ks.length ≤ 1) :
     (pureReplay h₁ h₂ maxLoop ks).isSome := by
-  cases ks with
-  | nil => simp
-  | cons u rest =>
-    cases rest with
-    | nil =>
-      cases maxLoop with
-      | zero => omega
-      | succ k =>
-        simp [pureReplay, pureEvict, pureEvictRound, putT1, PureTable.empty]
-    | cons v _ =>
-      simp only [List.length_cons] at hlen
-      omega
+  rcases ks with _ | ⟨u, _ | ⟨v, _⟩⟩
+  · simp
+  · obtain ⟨k, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hloop.ne'
+    simp [pureReplay, pureEvict, pureEvictRound, putT1, PureTable.empty]
+  · simp only [List.length_cons] at hlen
+    omega
 
 /-- When `ks` has length at most `2` and `0 < maxLoop`, `pureReplay` succeeds for every hash pair
 `(h₁, h₂)` in at most `1` displacement round per key: the first key lands in `T₁`, and even if the

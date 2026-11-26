@@ -311,39 +311,21 @@ private theorem compDeleteFoundGenProg_effect {metaBase itemBase U V w N m_cap b
     obtain ⟨hfr_pop, hcpl_pop, hcost_pop⟩ := compPopBackSlotGenProg_effect
       henv2 hcpl_sw (hgm2.symm ▸ hslot) hb (hgm2.symm ▸ hbc_pos) (hgm2.symm ▸ hm_cap)
     rw [hgm2] at hcost_pop
-    have hs'_eq : s' = (Memory.spec 0).clientState s₂
-        (compPopBackSlotGenProg ((mkCompParams U V w N, (metaBase, itemBase)), b)) := by
-      rw [hs'_tail, ite_eq_left hlt, StateTransitionSpec.clientState_bind]
-    have hs_fix'_eq : s_fix' = (Memory.spec 0).clientState sf₂
-        (popBackSlotProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (0, b)) := by
-      rw [hs_fix'_tail, ite_eq_left hlt, StateTransitionSpec.clientState_bind]
-    have hcost_tot : memoryCost (compDeleteFoundGenProg d) s ≤
-        70 + memoryCost (compPopBackSlotGenProg
-          ((mkCompParams U V w N, (metaBase, itemBase)), b)) s₂ := by
-      rw [ite_eq_left hlt, Realization.memoryCost_bind'] at hcost_pre
-      have hc3 := memoryCost_compDeleteSwapGenProg_le
-        (((((mkCompParams U V w N, (metaBase, itemBase)), (b, j_del)), phys_del),
-          (m_last, j_last))) s₁
-      dsimp only [s₂, j_last] at hc3 hcost_pre ⊢
-      omega
-    refine ⟨by rw [hs'_eq]; exact hfr1.trans (hfr_sw.trans hfr_pop),
-      by rw [hs'_eq, hs_fix'_eq]; exact hcpl_pop, ?_⟩
-    rw [hs'_eq]
-    dsimp only [s₂, s₁, j_last, c_b] at hcost_pop hcost_tot ⊢
+    rw [hs'_tail, hs_fix'_tail, ite_eq_left hlt, ite_eq_left hlt,
+      StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind]
+    refine ⟨hfr1.trans (hfr_sw.trans hfr_pop), hcpl_pop, ?_⟩
+    rw [ite_eq_left hlt, Realization.memoryCost_bind'] at hcost_pre
+    have hc3 := memoryCost_compDeleteSwapGenProg_le
+      (((((mkCompParams U V w N, (metaBase, itemBase)), (b, j_del)), phys_del),
+        (m_last, j_last))) s₁
+    dsimp only [s₂, s₁, j_last, c_b] at hc3 hcost_pre hcost_pop ⊢
     omega
   · obtain ⟨hfr_pop, hcpl_pop, hcost_pop⟩ := compPopBackSlotGenProg_effect
       henv1 hcpl1 hslot1 hb (hgm1.symm ▸ hbc_pos) hm_cap1
     rw [hgm1] at hcost_pop
-    have hs'_eq : s' = (Memory.spec 0).clientState s₁
-        (compPopBackSlotGenProg ((mkCompParams U V w N, (metaBase, itemBase)), b)) := by
-      rw [hs'_tail, ite_eq_right hlt]
-    have hs_fix'_eq : s_fix' = (Memory.spec 0).clientState sf₁
-        (popBackSlotProg U V (ghostW w) N (epochHashSpace U (ghostW w) N) (0, b)) := by
-      rw [hs_fix'_tail, ite_eq_right hlt]
+    rw [hs'_tail, hs_fix'_tail, ite_eq_right hlt, ite_eq_right hlt]
     rw [ite_eq_right hlt] at hcost_pre
-    refine ⟨by rw [hs'_eq]; exact hfr1.trans hfr_pop,
-      by rw [hs'_eq, hs_fix'_eq]; exact hcpl_pop, ?_⟩
-    rw [hs'_eq]
+    refine ⟨hfr1.trans hfr_pop, hcpl_pop, ?_⟩
     dsimp only [s₁, j_last, c_b] at hcost_pop hcost_pre ⊢
     omega
 

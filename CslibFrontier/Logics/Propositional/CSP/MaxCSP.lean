@@ -158,11 +158,9 @@ theorem score_le_optimum [Fintype D] [Inhabited D] (sem : Rel → List D → Boo
 
 theorem exists_score_eq_optimum [Fintype D] [Inhabited D] (sem : Rel → List D → Bool)
     (F : MaxCSPInstance Rel ℕ) :
-    ∃ x : Fin F.numVars → D, F.score sem x = F.optimum sem := by
-  obtain ⟨x, _, hx⟩ :=
-    Finset.exists_mem_eq_sup (Finset.univ : Finset (Fin F.numVars → D))
-      Finset.univ_nonempty (F.score sem)
-  exact ⟨x, hx.symm⟩
+    ∃ x : Fin F.numVars → D, F.score sem x = F.optimum sem :=
+  let ⟨x, _, hx⟩ := Finset.exists_mem_eq_sup Finset.univ Finset.univ_nonempty (F.score sem)
+  ⟨x, hx.symm⟩
 
 theorem optimum_le [Fintype D] [Inhabited D] (sem : Rel → List D → Bool)
     (F : MaxCSPInstance Rel ℕ) :
@@ -265,10 +263,9 @@ theorem score_le_optimum [Fintype D] [Inhabited D] [AddCommMonoid W] [LinearOrde
 
 theorem exists_score_eq_optimum [Fintype D] [Inhabited D] [AddCommMonoid W] [LinearOrder W]
     (sem : Rel → List D → Bool) (F : WeightedMaxCSP Rel ℕ W) :
-    ∃ x : Fin F.numVars → D, F.score sem x = F.optimum sem := by
-  obtain ⟨x, _, hx⟩ :=
-    Finset.exists_mem_eq_sup' (Finset.univ_nonempty (α := Fin F.numVars → D)) (F.score sem)
-  exact ⟨x, hx.symm⟩
+    ∃ x : Fin F.numVars → D, F.score sem x = F.optimum sem :=
+  let ⟨x, _, hx⟩ := Finset.exists_mem_eq_sup' Finset.univ_nonempty (F.score sem)
+  ⟨x, hx.symm⟩
 
 theorem optimum_le_of_forall [Fintype D] [Inhabited D] [AddCommMonoid W] [LinearOrder W]
     {sem : Rel → List D → Bool} {F : WeightedMaxCSP Rel ℕ W} {B : W}
@@ -503,13 +500,12 @@ theorem optimum_ofCNF_toCNF_add_length {Rel : Type*} (sem : Rel → List Bool �
   apply le_antisymm
   · obtain ⟨x, hx⟩ :=
       (ofCNF F.numVars (F.constraints.toCNF sem)).exists_score_eq_optimum MaxCSP.clauseSem
-    have hs := F.score_ofCNF_toCNF_add_length sem x
-    have hle := F.score_le_optimum sem x
-    omega
+    exact hx ▸ (F.score_ofCNF_toCNF_add_length sem x).trans_le
+      (Nat.add_le_add_left (F.score_le_optimum sem x) _)
   · obtain ⟨x, hx⟩ := F.exists_score_eq_optimum sem
-    have hs := F.score_ofCNF_toCNF_add_length sem x
-    have hle := (ofCNF F.numVars (F.constraints.toCNF sem)).score_le_optimum MaxCSP.clauseSem x
-    omega
+    exact hx ▸ (F.score_ofCNF_toCNF_add_length sem x).symm.trans_le
+      (Nat.add_le_add_right
+        ((ofCNF F.numVars (F.constraints.toCNF sem)).score_le_optimum MaxCSP.clauseSem x) _)
 
 end MaxCSPInstance
 
@@ -555,12 +551,10 @@ theorem decodeFinAssign_encodeFinAssign (q : ℕ) (hq : 0 < q) (N : ℕ) (y : Fi
           (by rw [← Nat.succ_mul]; exact Nat.mul_le_mul_right b v.isLt)
       simp only [CSP.bitScope, List.getElem_map, List.getElem_range, assignment_lt _ hlt]
       dsimp only [encodeFinAssign]
-      have hdiv : (v.val * b + j) / b = v.val := Nat.mul_add_div_of_lt v.val hj1
-      have hmod : (v.val * b + j) % b = j := Nat.mul_add_mod_of_lt hj1
       have hfin : (⟨(v.val * b + j) / b,
           Nat.div_lt_of_lt_mul (by simpa only [Nat.mul_comm] using hlt)⟩ : Fin N) = v :=
-        Fin.ext hdiv
-      rw [hfin, hmod, List.getD_eq_getElem _ false hj2]
+        Fin.ext (Nat.mul_add_div_of_lt v.val hj1)
+      rw [hfin, Nat.mul_add_mod_of_lt hj1, List.getD_eq_getElem _ false hj2]
   dsimp only [decodeFinAssign]
   rw [hbits]
   have hval_lt : (y v).val < 2 ^ b := (y v).isLt.trans_le (CSP.le_two_pow_bitWidth q)

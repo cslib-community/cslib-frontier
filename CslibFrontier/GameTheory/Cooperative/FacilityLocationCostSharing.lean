@@ -288,17 +288,14 @@ theorem flCostShareScheme_sum_le_cost (I : FacilityLocationInstance A F) (T : Fi
       rw [Finset.sum_add_distrib, ← I.sum_max_sub_openTime_eq_openCost i hT]
       linarith [Finset.sum_le_sum_of_subset_of_nonneg (Finset.filter_subset (fun j => φ j = i) T)
         fun j _ _ => le_max_left (0 : ℝ) (I.openTime i T - I.connCost i j)]
-    have hsplit_share : ∑ j ∈ T, I.flCostShareScheme.share T j =
-        ∑ i ∈ F', ∑ j ∈ T.filter (fun j => φ j = i), I.flCostShareScheme.share T j := by
-      rw [← Finset.sum_fiberwise_of_maps_to (fun j _ => hφ_mem j)
-        (fun j => I.flCostShareScheme.share T j)]
     have hsplit_conn : ∑ j ∈ T, F'.inf' hF' (fun i => I.connCost i j) =
         ∑ i ∈ F', ∑ j ∈ T.filter (fun j => φ j = i), I.connCost i j := by
       rw [← Finset.sum_fiberwise_of_maps_to (fun j _ => hφ_mem j)
         (fun j => F'.inf' hF' (fun i => I.connCost i j))]
       refine Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j hj => ?_
       rw [hφ_eq j, (Finset.mem_filter.1 hj).2]
-    rw [hsplit_share, planCost_eq, hsplit_conn, ← Finset.sum_add_distrib]
+    rw [← Finset.sum_fiberwise_of_maps_to (fun j _ => hφ_mem j)
+      (fun j => I.flCostShareScheme.share T j), planCost_eq, hsplit_conn, ← Finset.sum_add_distrib]
     exact Finset.sum_le_sum hfiber
   · simp [Finset.not_nonempty_iff_eq_empty.1 hT, I.toCostSharingGame.cost_empty]
 
@@ -312,49 +309,39 @@ private theorem exists_greedy_cover {F : Type*} (rem : Finset F) (t : F → ℝ)
       (∀ a ∈ F', ∀ b ∈ F', a ≠ b → 2 * max (t a) (t b) < dF a b) ∧
       (∀ i ∈ rem, ∃ i' ∈ F', t i' ≤ t i ∧ dF i' i ≤ 2 * t i) := by
   classical
-  have step : ∀ (n : ℕ) (S : Finset F), S.card = n →
-      ∃ F' : Finset F, F' ⊆ S ∧
-        (∀ a ∈ F', ∀ b ∈ F', a ≠ b → 2 * max (t a) (t b) < dF a b) ∧
-        (∀ i ∈ S, ∃ i' ∈ F', t i' ≤ t i ∧ dF i' i ≤ 2 * t i) := by
-    intro n
-    induction n using Nat.strong_induction_on with
-    | ind n ih =>
-      intro S hcard
-      by_cases hS : S.Nonempty
-      · obtain ⟨i₀, hi₀, hi₀_min⟩ := Finset.exists_min_image S t hS
-        let S' : Finset F := S.filter fun i => 2 * t i < dF i₀ i
-        have hi₀_nmem : i₀ ∉ S' := by
-          simp only [S', Finset.mem_filter, not_and, not_lt]
-          intro _
-          rw [hd_self i₀]
-          linarith [ht_nn i₀]
-        have hlt_card : S'.card < n := by
-          rw [← hcard]
-          exact Finset.card_lt_card (Finset.ssubset_iff_subset_ne.2
-            ⟨Finset.filter_subset _ S, fun h => hi₀_nmem (h ▸ hi₀)⟩)
-        obtain ⟨F', hF'sub, hind, hdom⟩ := ih S'.card hlt_card S' rfl
-        refine ⟨insert i₀ F',
-          Finset.insert_subset hi₀ (hF'sub.trans (Finset.filter_subset _ S)), ?_, ?_⟩
-        · intro a ha b hb hab
-          rcases Finset.mem_insert.1 ha with rfl | ha' <;>
-            rcases Finset.mem_insert.1 hb with rfl | hb'
-          · exact absurd rfl hab
-          · have hb'S' := hF'sub hb'
-            rw [max_eq_right (hi₀_min b (Finset.mem_filter.1 hb'S').1)]
-            exact (Finset.mem_filter.1 hb'S').2
-          · have ha'S' := hF'sub ha'
-            rw [max_eq_left (hi₀_min a (Finset.mem_filter.1 ha'S').1), hd_sym a b]
-            exact (Finset.mem_filter.1 ha'S').2
-          · exact hind a ha' b hb' hab
-        · intro i hi
-          by_cases hclose : dF i₀ i ≤ 2 * t i
-          · exact ⟨i₀, Finset.mem_insert_self _ _, hi₀_min i hi, hclose⟩
-          · obtain ⟨i', hi', ht_le, hd_le⟩ :=
-              hdom i (Finset.mem_filter.2 ⟨hi, lt_of_not_ge hclose⟩)
-            exact ⟨i', Finset.mem_insert_of_mem hi', ht_le, hd_le⟩
-      · exact ⟨∅, Finset.empty_subset _, fun _ h => absurd h (Finset.notMem_empty _),
-          fun i hi => absurd ⟨i, hi⟩ hS⟩
-  exact step rem.card rem rfl
+  induction rem using Finset.strongInduction with
+  | H S ih =>
+    by_cases hS : S.Nonempty
+    · obtain ⟨i₀, hi₀, hi₀_min⟩ := Finset.exists_min_image S t hS
+      let S' : Finset F := S.filter fun i => 2 * t i < dF i₀ i
+      have hi₀_nmem : i₀ ∉ S' := by
+        simp only [S', Finset.mem_filter, not_and, not_lt]
+        intro _
+        rw [hd_self i₀]
+        linarith [ht_nn i₀]
+      obtain ⟨F', hF'sub, hind, hdom⟩ := ih S' (Finset.ssubset_iff_subset_ne.2
+        ⟨Finset.filter_subset _ S, fun h => hi₀_nmem (h ▸ hi₀)⟩)
+      refine ⟨insert i₀ F',
+        Finset.insert_subset hi₀ (hF'sub.trans (Finset.filter_subset _ S)), ?_, ?_⟩
+      · intro a ha b hb hab
+        rcases Finset.mem_insert.1 ha with rfl | ha' <;>
+          rcases Finset.mem_insert.1 hb with rfl | hb'
+        · exact absurd rfl hab
+        · have hb'S' := hF'sub hb'
+          rw [max_eq_right (hi₀_min b (Finset.mem_filter.1 hb'S').1)]
+          exact (Finset.mem_filter.1 hb'S').2
+        · have ha'S' := hF'sub ha'
+          rw [max_eq_left (hi₀_min a (Finset.mem_filter.1 ha'S').1), hd_sym a b]
+          exact (Finset.mem_filter.1 ha'S').2
+        · exact hind a ha' b hb' hab
+      · intro i hi
+        by_cases hclose : dF i₀ i ≤ 2 * t i
+        · exact ⟨i₀, Finset.mem_insert_self _ _, hi₀_min i hi, hclose⟩
+        · obtain ⟨i', hi', ht_le, hd_le⟩ :=
+            hdom i (Finset.mem_filter.2 ⟨hi, lt_of_not_ge hclose⟩)
+          exact ⟨i', Finset.mem_insert_of_mem hi', ht_le, hd_le⟩
+    · exact ⟨∅, Finset.empty_subset _, fun _ h => absurd h (Finset.notMem_empty _),
+        fun i hi => absurd ⟨i, hi⟩ hS⟩
 
 /-- Some facility witnesses an agent's `FLCostShare` share: its opening time and its connection
 cost are both at most the share. -/

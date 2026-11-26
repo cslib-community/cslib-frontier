@@ -87,7 +87,6 @@ theorem var_eq_mk_X (R : Type*) [CommRing R] (r : ℕ) : var R r = mk r X := by
   simp only [var]
 
 theorem mk_apply (p : R[X]) : mk r p = Ideal.Quotient.mk (Ideal.span {(X : R[X]) ^ r}) p := by
-  simp only [mk]
   rfl
 
 @[elab_as_elim]
@@ -127,7 +126,6 @@ def coeff (i : ℕ) (x : Truncated R r) : R :=
 
 @[simp]
 theorem coeff_mk (i : ℕ) (p : R[X]) : coeff i (mk r p) = if i < r then p.coeff i else 0 := by
-  rw [coeff, mk_apply]
   rfl
 
 theorem coeff_mk_of_lt {i : ℕ} (hi : i < r) (p : R[X]) : coeff i (mk r p) = p.coeff i := by
@@ -280,17 +278,8 @@ theorem mk_toPoly (x : Truncated R r) : mk r (toPoly x) = x := by
 
 theorem toPoly_mk (p : R[X]) :
     toPoly (mk r p) = ∑ i ∈ Finset.range r, C (p.coeff i) * X ^ i := by
-  ext i
-  rw [coeff_toPoly, coeff_mk]
-  conv_rhs => rw [← Polynomial.lcoeff_apply, map_sum]
-  simp only [Polynomial.lcoeff_apply, Polynomial.coeff_C_mul_X_pow]
-  by_cases hi : i < r
-  · rw [ite_eq_left hi, Finset.sum_eq_single i (fun _ _ hbi => by simp [hbi.symm])
-      (fun h => absurd (Finset.mem_range.mpr hi) h)]
-    simp
-  · rw [ite_eq_right hi]
-    exact (Finset.sum_eq_zero fun b hb => by
-      simp [show i ≠ b from fun h => hi (h ▸ mem_range.mp hb)]).symm
+  refine Finset.sum_congr rfl fun i hi => ?_
+  rw [coeff_mk_of_lt (Finset.mem_range.mp hi)]
 
 theorem natDegree_toPoly_lt (hr : 0 < r) (x : Truncated R r) : (toPoly x).natDegree < r := by
   by_cases h0 : toPoly x = 0
@@ -446,7 +435,6 @@ def liftAlgHom {B : Type*} [CommRing B] [Algebra R B] {g : B} (hg : g ^ r = 0) :
 @[simp]
 theorem liftAlgHom_mk {B : Type*} [CommRing B] [Algebra R B] {g : B} (hg : g ^ r = 0)
     (p : R[X]) : liftAlgHom hg (mk r p) = Polynomial.aeval g p := by
-  rw [liftAlgHom, mk_apply]
   rfl
 
 @[simp]
@@ -634,7 +622,6 @@ def map {S : Type*} [CommRing S] (φ : R →+* S) (r : ℕ) : Truncated R r →+
 @[simp]
 theorem map_mk {S : Type*} [CommRing S] (φ : R →+* S) (r : ℕ) (p : R[X]) :
     map φ r (mk r p) = mk r (p.map φ) := by
-  rw [map, mk_apply, Ideal.Quotient.lift_mk]
   rfl
 
 @[simp]
@@ -702,8 +689,6 @@ def equivAdjoinRoot (R : Type*) [CommRing R] (r : ℕ) :
 @[simp]
 theorem equivAdjoinRoot_mk (R : Type*) [CommRing R] (r : ℕ) (p : R[X]) :
     equivAdjoinRoot R r (mk r p) = AdjoinRoot.mk ((X : R[X]) ^ r) p := by
-  change toAdjoinRootAlgHom R r (mk r p) = AdjoinRoot.mk _ p
-  rw [toAdjoinRootAlgHom, mk_apply]
   rfl
 
 @[simp]

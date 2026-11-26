@@ -242,12 +242,10 @@ theorem wireCount_andreevTruncatedCircuit_le {b r : ℕ} (hr : r ≤ b) (m R : �
     (andreevTruncatedCircuit b m r R).wireCount ≤
       (4 * (2 ^ r - 1) * (R + 1) + 1) * (2 ^ b + b * m) +
         (4 * (2 ^ r - 1) * (R + 1) + 1 + (2 ^ b + b * m)) := by
-  have h := wireCount_depthTwoInputs_le (andreevTruncatedBottomOp b m r R) (fun _ => id)
+  rw [andreevTruncatedCircuit, ← card_andreevPrefixSubsetsNonempty hr]
+  exact wireCount_depthTwoInputs_le (andreevTruncatedBottomOp b m r R) (fun _ => id)
     (andreevTruncatedTopWeight b m r R) (andreevTruncatedInputWeight b m)
     ((1 - andreevVoteThreshold b r + 2 * 2 ^ b : ℤ) : ℝ) (A := 2 ^ b + b * m) fun _ => le_rfl
-  refine h.trans (le_of_eq ?_)
-  rw [card_andreevPrefixSubsetsNonempty hr]
-  rfl
 
 /-- **The bottom gates are sign-coherent**: inside every address block, the weights of a bottom
 gate are all `1`, all `-1` or all `0`. -/
@@ -355,10 +353,9 @@ theorem size_andreevTruncatedCircuit_le_of_balanced {b m : ℕ} (hbal : b * m = 
   have h20 : Real.log (16 * andreevVarianceProxy b m / (2 ^ b * δ)) ≤ 6 * L := by
     rw [hv, show 16 * (5 / 4 * N) / (2 ^ b * δ) = 20 * (1 / δ) by simp only [N]; field_simp; ring,
       Real.log_mul (by norm_num) (by positivity)]
-    have : Real.log 20 ≤ Real.log (2 ^ 5) := Real.log_le_log (by norm_num) (by norm_num)
-    rw [Real.log_pow] at this
-    push_cast at this
-    linarith only [hL, hl2, this]
+    have hlog20 : Real.log 20 ≤ 5 * Real.log 2 := by
+      simpa using Real.log_le_log (by norm_num) (show (20 : ℝ) ≤ 2 ^ 5 by norm_num)
+    linarith only [hL, hl2, hlog20]
   set R := andreevTruncationRadius b m b δ
   have hNL : 1 / 2 ≤ N * L := by
     simpa only [one_mul] using mul_le_mul hN hL2 (by norm_num) (by linarith only [hN])
@@ -457,18 +454,14 @@ theorem andreevTruncatedCircuit_part_two_of_balanced {b m : ℕ} (hbal : b * m =
   set L := Real.log (1 / ε)
   have hl2 : (1 : ℝ) / 2 ≤ Real.log 2 := by linarith only [Real.log_two_gt_d9]
   have hL : 3 * Real.log 2 ≤ L := by
-    have h3 := Real.log_pow (2 : ℝ) 3
-    push_cast at h3
-    rw [← h3]
-    exact Real.log_le_log (by norm_num) (by rw [le_div_iff₀ hε0]; linarith only [hε8])
+    simpa only [Real.log_pow, Nat.cast_ofNat] using Real.log_le_log (by norm_num)
+      (show (2 : ℝ) ^ 3 ≤ 1 / ε by rw [le_div_iff₀ hε0]; linarith only [hε8])
   have hL1 : 1 ≤ L := by linarith only [hL, hl2]
   refine ⟨half_add_mul_le_card_eval_andreevTruncatedCircuit_eq_andreev hrb m hε0 hq32, ?_⟩
   -- The radius: `16 v / (q ε) ≤ 5 / (8 ε³) ≤ ε⁻³`, so `R ≤ 8 √(N L) + 1`.
   set R := andreevTruncationRadius b m r ε
-  have hq0 : (0 : ℝ) < 2 ^ r := by positivity
   have hlog : Real.log (16 * andreevVarianceProxy b m / (2 ^ r * ε)) ≤ 3 * L := by
     rw [hv]
-    have hpos : 0 < 16 * (5 / 4 * N) / (2 ^ r * ε) := by positivity
     have hle : 16 * (5 / 4 * N) / (2 ^ r * ε) ≤ (1 / ε) ^ 3 := by
       rw [div_le_iff₀ (by positivity),
         show (1 / ε) ^ 3 * (2 ^ r * ε) = 2 ^ r / ε ^ 2 by field_simp,
@@ -497,11 +490,9 @@ theorem andreevTruncatedCircuit_part_two_of_balanced {b m : ℕ} (hbal : b * m =
   refine ⟨hsize.trans hsize', ?_⟩
   -- Wires: `(G + 1) n + G + 1 + n ≤ (G + 1) (n + 1) + n`.
   have hw' : (C.wireCount : ℝ) ≤ (C.size : ℝ) * n + C.size + n := by
-    have hnat : C.wireCount ≤ C.size * (2 ^ b + b * m) + C.size + (2 ^ b + b * m) := by
-      rw [size_andreevTruncatedCircuit hrb.le m R, add_assoc (_ * _)]
-      exact wireCount_andreevTruncatedCircuit_le hrb.le m R
-    simp only [n]
-    exact_mod_cast hnat
+    dsimp only [n]
+    exact_mod_cast (wireCount_andreevTruncatedCircuit_le hrb.le m R).trans_eq
+      (by rw [size_andreevTruncatedCircuit hrb.le m R]; omega)
   have hn1 : 1 ≤ n := hN.trans hn
   have hεn : 1 ≤ ε ^ 2 * n := hεN.trans (by gcongr)
   have hX' : 1 ≤ Real.sqrt (n * L) := hX.trans hsqrt

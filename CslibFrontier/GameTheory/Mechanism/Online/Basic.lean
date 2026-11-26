@@ -164,20 +164,18 @@ theorem realizedValue_nonneg (θ : AgentType τ) (o : Option τ) : 0 ≤ θ.real
   cases o with
   | none => exact le_rfl
   | some t =>
-    simp only [realizedValue]
+    dsimp only [realizedValue]
     split_ifs
-    · exact θ.value_nonneg
-    · exact le_rfl
+    exacts [θ.value_nonneg, le_rfl]
 
 theorem realizedValue_le_value (θ : AgentType τ) (o : Option τ) :
     θ.realizedValue o ≤ θ.value := by
   cases o with
   | none => exact θ.value_nonneg
   | some t =>
-    simp only [realizedValue]
+    dsimp only [realizedValue]
     split_ifs
-    · exact le_rfl
-    · exact θ.value_nonneg
+    exacts [le_rfl, θ.value_nonneg]
 
 end AgentType
 
@@ -273,17 +271,8 @@ theorem criticalValue_le_of_isSome {π : Policy ι τ} {θ : ι → AgentType τ
 theorem criticalValue_le_self {π : Policy ι τ} {θ : ι → AgentType τ} {i : ι}
     (hwin : (π.alloc θ i).isSome) :
     π.criticalValue θ i (θ i).arrival (θ i).departure (θ i).arrival_le_departure ≤
-      ENNReal.ofReal (θ i).value := by
-  have hmem : (π.alloc (Function.update θ i
-      ⟨(θ i).arrival, (θ i).departure, (θ i).value, (θ i).arrival_le_departure,
-        (θ i).value_nonneg⟩) i).isSome := by
-    have heq :
-        (⟨(θ i).arrival, (θ i).departure, (θ i).value, (θ i).arrival_le_departure,
-          (θ i).value_nonneg⟩ : AgentType τ) = θ i := by
-      cases θ i
-      rfl
-    rwa [heq, Function.update_eq_self]
-  exact criticalValue_le_of_isSome (θ i).value_nonneg hmem
+      ENNReal.ofReal (θ i).value :=
+  criticalValue_le_of_isSome (θ i).value_nonneg (by rwa [Function.update_eq_self])
 
 /-- For a monotone policy, any nonnegative value strictly above the critical value wins. -/
 theorem isSome_of_criticalValue_lt {π : Policy ι τ} (hmono : π.IsMonotone)
@@ -308,10 +297,8 @@ theorem criticalValue_antitone {π : Policy ι τ} (hmono : π.IsMonotone)
   have hrε : 0 ≤ r + (ε : ℝ) := by linarith
   have hwin₂ : (π.alloc (Function.update θ i ⟨a₂, d₂, r + (ε : ℝ), had₂, hrε⟩) i).isSome :=
     hmono i θ ⟨a₁, d₁, r, had₁, hr⟩ ⟨a₂, d₂, r + (ε : ℝ), had₂, hrε⟩ ha hd (by linarith) hwin
-  have hle := criticalValue_le_of_isSome hrε hwin₂
-  have hadd : ENNReal.ofReal (r + (ε : ℝ)) = ENNReal.ofReal r + (ε : ℝ≥0∞) := by
-    rw [ENNReal.ofReal_add hr hεpos.le, ENNReal.ofReal_coe_nnreal]
-  exact hadd ▸ hle
+  simpa only [ENNReal.ofReal_add hr hεpos.le, ENNReal.ofReal_coe_nnreal] using
+    criticalValue_le_of_isSome hrε hwin₂
 
 /-- If `i` wins under `π` on `[a, d]` for every value strictly above `t ≥ 0` and only for values
 at least `t`, then `π.criticalValue θ i a d had = ENNReal.ofReal t`. -/
@@ -326,10 +313,8 @@ theorem criticalValue_eq_of_threshold {π : Policy ι τ} {θ : ι → AgentType
   · refine ENNReal.le_of_forall_pos_le_add fun ε hε _ => ?_
     have hεpos : (0 : ℝ) < ε := NNReal.coe_pos.mpr hε
     have htε : 0 ≤ t + (ε : ℝ) := by linarith
-    have hle := criticalValue_le_of_isSome htε (hwin (t + ε) htε (by linarith))
-    have hadd : ENNReal.ofReal (t + (ε : ℝ)) = ENNReal.ofReal t + (ε : ℝ≥0∞) := by
-      rw [ENNReal.ofReal_add ht hεpos.le, ENNReal.ofReal_coe_nnreal]
-    exact hadd ▸ hle
+    simpa only [ENNReal.ofReal_add ht hεpos.le, ENNReal.ofReal_coe_nnreal] using
+      criticalValue_le_of_isSome htε (hwin (t + ε) htε (by linarith))
   · refine le_sInf fun w hw => ?_
     obtain ⟨r, hr, rfl, h⟩ := hw
     exact ENNReal.ofReal_le_ofReal (hlose r hr h)
@@ -431,13 +416,9 @@ theorem criticalMechanism_isIR (π : Policy ι τ) : π.criticalMechanism.IsIR :
       AgentType.realizedValue_none, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, sub_self,
       le_rfl]
   | some t =>
-    have hwin : (π.alloc θ i).isSome := by simp [h]
-    have hle := criticalValue_le_self hwin
-    have hreal :
-        (π.criticalValue θ i (θ i).arrival (θ i).departure (θ i).arrival_le_departure).toReal ≤
-          (θ i).value := by
-      have := ENNReal.toReal_mono ENNReal.ofReal_ne_top hle
-      rwa [ENNReal.toReal_ofReal (θ i).value_nonneg] at this
+    have hle := ENNReal.toReal_mono ENNReal.ofReal_ne_top
+      (criticalValue_le_self (h.symm ▸ Option.isSome_some))
+    rw [ENNReal.toReal_ofReal (θ i).value_nonneg] at hle
     rw [Mechanism.utility_of_alloc_some _ h]
     simp only [criticalMechanism, criticalPayment, h, Option.isSome_some, ↓reduceIte]
     linarith

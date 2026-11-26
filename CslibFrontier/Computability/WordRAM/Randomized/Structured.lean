@@ -396,9 +396,8 @@ theorem seq (h₁ : ExecRandWithin w c₁ x P T₁ R₁)
       (hstep z₁ hz₁).2.1.bind fun _ => .pure _ 0
   · intro z hz
     supp_cases hz with ⟨z₁, hz₁, z₂, hz₂, rfl⟩
-    have h₁' := hsup₁ z₁ hz₁
-    have h₂' := (hstep z₁ hz₁).2.2 z₂ hz₂
-    exact ⟨h₂'.1, Nat.add_le_add h₁'.2 h₂'.2⟩
+    exact ⟨((hstep z₁ hz₁).2.2 z₂ hz₂).1,
+      Nat.add_le_add (hsup₁ z₁ hz₁).2 ((hstep z₁ hz₁).2.2 z₂ hz₂).2⟩
 
 /-- Positive branch rule (`+1` step, same call budget). -/
 theorem branch_pos (hc : cond.Holds x) (h : ExecRandWithin w pos x P T R) :
@@ -451,9 +450,8 @@ theorem loop_iter (hc : cond.Holds x)
       (hstep z₁ hz₁).2.1.bind fun _ => .pure _ 0
   · intro z hz
     supp_cases hz with ⟨z₁, hz₁, z₂, hz₂, rfl⟩
-    have h₁' := hsupb z₁ hz₁
-    have h₂' := (hstep z₁ hz₁).2.2 z₂ hz₂
-    exact ⟨h₂'.1, by omega⟩
+    exact ⟨((hstep z₁ hz₁).2.2 z₂ hz₂).1,
+      Nat.add_le_add_right (Nat.add_le_add (hsupb z₁ hz₁).2 ((hstep z₁ hz₁).2.2 z₂ hz₂).2) 2⟩
 
 /-- **Potential rule for randomized loops.** Suppose every state `x` satisfying `I x` and
 `cond.Holds x` runs `body` within some `T_b` instructions and `R_b` `rand` calls such that every
@@ -471,17 +469,14 @@ theorem loop_potential (I : Data r → Prop) (Φ Ψ : Data r → ℕ)
     subst hm
     by_cases hc : cond.Holds x
     · obtain ⟨T_b, R_b, hb⟩ := hbody x hx hc
-      have hnonempty : ∃ y, I y ∧ T_b + 2 + Φ y ≤ Φ x ∧ R_b + Ψ y ≤ Ψ x := by
-        obtain ⟨mb, -, -, hsupb⟩ := hb
-        obtain ⟨z₀, hz₀⟩ := ProbComp.support_nonempty mb
-        exact ⟨z₀.1, (hsupb z₀ hz₀).1⟩
-      obtain ⟨y₀, -, hΦ₀, hΨ₀⟩ := hnonempty
+      obtain ⟨mb, -, -, hsupb⟩ := id hb
+      obtain ⟨z₀, hz₀⟩ := ProbComp.support_nonempty mb
+      obtain ⟨-, hΦ₀, hΨ₀⟩ := (hsupb z₀ hz₀).1
       have hstep : ExecRandWithin w (.loop cond body) x (fun y => I y ∧ ¬cond.Holds y)
           (T_b + (Φ x - T_b - 2 + 2) + 2) (R_b + (Ψ x - R_b)) := by
         refine loop_iter hc hb ?_
         rintro y ⟨hIy, hΦy, hΨy⟩
-        have hlt : Φ y < Φ x := by omega
-        exact (ih (Φ y) hlt hIy rfl).mono (fun _ h => h) (by omega) (by omega)
+        exact (ih (Φ y) (by omega) hIy rfl).mono (fun _ h => h) (by omega) (by omega)
       exact hstep.mono (fun _ h => h) (by omega) (by omega)
     · exact (loop_exit hc ⟨hx, hc⟩).mono (fun _ h => h) (by omega) (Nat.zero_le _)
 
@@ -556,16 +551,15 @@ private theorem ExecRand.toGeneric {c : Code B r} {x : Data r}
     Cslib.Program.ExecRand (I := instructionSet w B r) (evalGenericOp w) c.toGeneric x m := by
   induction h with
   | @op o x y h =>
-    have he := Cslib.Program.ExecRand.op (I := instructionSet w B r)
+    simpa [Code.toGeneric] using Cslib.Program.ExecRand.op (I := instructionSet w B r)
       (evalRand := evalGenericOp w) (o := .inl o) (x := x) (m := pure y)
       (by simp [evalGenericOp, h])
-    simpa [Code.toGeneric] using he
   | @rand dst src x h =>
-    have he := Cslib.Program.ExecRand.op (I := instructionSet w B r)
-      (evalRand := evalGenericOp w) (o := .inr (dst, src)) (x := x)
-      (m := (fun k => x.set dst k.val) <$> ProbComp.unifFin (x.regs src))
-      (by simp [evalGenericOp, h])
-    simpa only [Code.toGeneric, ← bind_pure_comp, bind_assoc, pure_bind] using he
+    simpa only [Code.toGeneric, ← bind_pure_comp, bind_assoc, pure_bind] using
+      Cslib.Program.ExecRand.op (I := instructionSet w B r)
+        (evalRand := evalGenericOp w) (o := .inr (dst, src)) (x := x)
+        (m := (fun k => x.set dst k.val) <$> ProbComp.unifFin (x.regs src))
+        (by simp [evalGenericOp, h])
   | seq _ _ ih₁ ih₂ => exact .seq ih₁ ih₂
   | branch_pos h _ ih => exact .branch_pos h ih
   | branch_neg h _ ih => exact .branch_neg h ih
@@ -597,9 +591,7 @@ theorem ExecRand.runRand_program {c : Code B r} {x : Data r} {m : ProbComp (Data
   rw [h.runRand_assemble (Program.Contains.self (c.program out)).append_left hT_le,
     ← bind_pure_comp]
   refine OracleComp.bind_congr_on_support fun z hz => ?_
-  have h1 : 1 ≤ T - z.2 := by
-    have := hT z hz
-    omega
+  have h1 := hT z hz
   obtain ⟨k, hk⟩ : ∃ k, T - z.2 = k + 1 := ⟨T - z.2 - 1, by omega⟩
   have hhalt : (c.program out)[0 + c.size]? = some (.halt out) := by
     simp [Code.program]

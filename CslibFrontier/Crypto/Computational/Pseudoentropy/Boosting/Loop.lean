@@ -209,9 +209,8 @@ theorem Invariant.shift_add {rounds : ℕ} {state : State}
     (hcorrelation : GoodPredictor source predict truth params (state.shift yes) code) :
     Invariant source predict truth params (rounds + 1)
       ((state.shift yes).add params.codeBound code) := by
-  have hinvariant := hstate
-  simp only [Invariant, hactive, Bool.false_eq_true, ite_false] at hinvariant
-  obtain ⟨hrestore, hpotential⟩ := hinvariant
+  obtain ⟨hrestore, hpotential⟩ : params.delta ≤ _ ∧ _ := by
+    simpa only [Invariant, hactive, Bool.false_eq_true, ite_false] using hstate
   let before := fun x => state.margin predict truth x - state.threshold
   let vote := fun x => signedVote (predict (code.take params.codeBound) x) (truth x)
   have hshift (x : α) : (state.shift yes).margin predict truth x - (state.shift yes).threshold =
@@ -250,15 +249,10 @@ theorem Invariant.shift_add {rounds : ℕ} {state : State}
       (fun x => (abs_le.mp (by simp [vote] : |vote x| ≤ 1)).2))
   have hactiveNext : ((state.shift yes).add params.codeBound code).stopped = false := hactive
   simp only [Invariant, hactiveNext, Bool.false_eq_true, ite_false]
-  constructor
-  · simpa only [hnext] using hrestored
-  · have hthreshold : (((state.shift yes).add params.codeBound code).threshold : ℝ) =
-        state.threshold + if yes then 1 else 0 := by cases yes <;> simp [shift, add]
-    refine hstep.trans ?_
-    rw [hthreshold]
-    dsimp only [before]
-    push_cast
-    cases yes <;> simp only [Bool.false_eq_true, ite_false, ite_true] <;> linarith
+  refine ⟨by simpa only [hnext] using hrestored, hstep.trans ?_⟩
+  dsimp only [before]
+  cases yes <;> simp only [shift, add, Bool.false_eq_true, ite_false, ite_true,
+    Nat.cast_add, Nat.cast_one, Nat.cast_zero] <;> linarith
 
 /-- At the clock, the program has either a good majority predictor or a collection with large
 average signed margin on every dense soft set. The latter is the input to the clipped-vote step. -/
@@ -337,16 +331,8 @@ theorem round_sound (hparams : params.Valid) {error : ℝ} (herror : 0 ≤ error
     params.denominator_pos (by
       simpa only [Parameters.delta, Parameters.rate, Parameters.inverseRate, Nat.cast_one]
         using hparams.shift_precision)
-  by_cases hactive : state.stopped = true
-  · have hnext : State.Invariant (ProbComp.eval source) predict truth params
-        (rounds + 1) state := by
-      simpa only [State.Invariant, hactive, ite_true] using hstate
-    dsimp only [predict] at hnext
-    simp only [round, hactive, ite_true, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply,
-      Set.mem_ofPred_eq, hnext, not_true_eq_false, ite_false, ENNReal.toReal_zero]
-    positivity
-  · have hflag : state.stopped = false := by cases hs : state.stopped <;> simp_all
-    simp only [round, hflag, Bool.false_eq_true, ite_false, withVotes, Functor.map_map,
+  cases hflag : state.stopped
+  · simp only [round, hflag, Bool.false_eq_true, ite_false, withVotes, Functor.map_map,
       bind_map_left, ProbComp.eval_bind]
     refine (PMF.toOuterMeasure_bind_failure_toReal_le _ _ {stop | stopGuard stop} _
       (error := (1 / 2 : ℝ) ^ params.confidence + error) (by positivity) ?_).trans ?_
@@ -381,15 +367,20 @@ theorem round_sound (hparams : params.Valid) {error : ℝ} (herror : 0 ≤ error
         · exact add_le_add (by simpa only [Set.compl_ofPred, Nat.cast_one, shiftGuard, votes,
             predict, State.margin, State.votes, Parameters.delta, Parameters.rate,
             Parameters.inverseRate] using hshift) le_rfl
-      · have hnext := State.invariant_stop (ProbComp.eval source) predict truth params
-          (rounds + 1) state hgoodStop
-        dsimp only [predict] at hnext
+      · have hnext := State.invariant_stop (ProbComp.eval source)
+          (fun code x => evaluate code (observe x)) truth params (rounds + 1) state hgoodStop
         simp only [ite_true, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply,
           Set.mem_ofPred_eq, hnext, not_true_eq_false, ite_false, ENNReal.toReal_zero]
         positivity
     · exact (add_le_add (b := (1 / 2 : ℝ) ^ params.confidence) (by
         simpa only [Set.compl_ofPred, stopGuard, votes, predict, State.margin, State.votes,
           Parameters.delta] using hstop) le_rfl).trans_eq (by ring)
+  · have hnext : State.Invariant (ProbComp.eval source)
+        (fun code x => evaluate code (observe x)) truth params (rounds + 1) state := by
+      simpa only [State.Invariant, hflag, ite_true] using hstate
+    simp only [round, hflag, ite_true, ProbComp.eval_pure, PMF.toOuterMeasure_pure_apply,
+      Set.mem_ofPred_eq, hnext, not_true_eq_false, ite_false, ENNReal.toReal_zero]
+    positivity
 
 variable (hparams : params.Valid) {error : ℝ} (herror : 0 ≤ error)
   (hlearn : ∀ state : State,

@@ -283,12 +283,9 @@ private theorem complexity_addr_le (L : ℕ) (τ o : ℕ → ℕ) :
     · exact card_image_le.trans (by simp)
     · simp
   · intro x y hxy
-    have hj : formulaIndex x = formulaIndex y := by
-      have : (fun i => x (indexPos I Δ k lam i)) = fun i => y (indexPos I Δ k lam i) :=
-        funext fun i => hxy _ (mem_union_left _ (mem_image_of_mem _ (mem_univ i)))
-      simp only [formulaIndex, this]
-    simp only [addr, Equiv.symm_apply_apply]
-    rw [hj]
+    have hidx : (fun i => x (indexPos I Δ k lam i)) = fun i => y (indexPos I Δ k lam i) :=
+      funext fun i => hxy _ (mem_union_left _ (mem_image_of_mem _ (mem_univ i)))
+    simp only [addr, Equiv.symm_apply_apply, formulaIndex, hidx]
     unfold addrBit
     split_ifs with h
     · exact hxy _ (mem_union_right _ (by
@@ -310,13 +307,10 @@ private theorem complexity_combine_le (τ : ℕ → ℕ) :
     simp only [card_univ, Fintype.card_fin, Fintype.card_prod]
     omega
   · intro x y hxy
-    have hj : formulaIndex (I := I) (Δ := Δ) (k := k) (lam := lam)
-        (fun i => x (Fin.castAdd _ i)) = formulaIndex fun i => y (Fin.castAdd _ i) := by
-      have : (fun i => x (Fin.castAdd (Δ * k) (indexPos I Δ k lam i))) =
-          fun i => y (Fin.castAdd (Δ * k) (indexPos I Δ k lam i)) :=
-        funext fun i => hxy _ (mem_union_left _ (mem_union_left _
-          (mem_image_of_mem _ (mem_univ i))))
-      simp only [formulaIndex, this]
+    have hidx : (fun i => x (Fin.castAdd (Δ * k) (indexPos I Δ k lam i))) =
+        fun i => y (Fin.castAdd (Δ * k) (indexPos I Δ k lam i)) :=
+      funext fun i => hxy _ (mem_union_left _ (mem_union_left _
+        (mem_image_of_mem _ (mem_univ i))))
     have hm : (fun t q => x (Fin.castAdd (Δ * k) (maskPos I Δ k lam t q))) =
         fun t q => y (Fin.castAdd (Δ * k) (maskPos I Δ k lam t q)) :=
       funext fun t => funext fun q => hxy _ (mem_union_left _ (mem_union_right _
@@ -324,8 +318,7 @@ private theorem complexity_combine_le (τ : ℕ → ℕ) :
     have hv : (fun p => x (Fin.natAdd (inputLength I Δ k lam) p)) =
         fun p => y (Fin.natAdd (inputLength I Δ k lam) p) :=
       funext fun p => hxy _ (mem_union_right _ (mem_image_of_mem _ (mem_univ p)))
-    simp only [combine]
-    rw [hj, hm, hv]
+    simp only [combine, formulaIndex, hidx, hm, hv]
 
 /-- A junta on `a + e` inputs, with `2 ^ a ≤ 2 (m + 1)` and `a ≤ L`, costs `O((m + 1) (L + 1))`. -/
 private theorem junta_le {a L m : ℕ} (e : ℕ) (ha : 2 ^ a ≤ 2 * (m + 1)) (haL : a ≤ L) :

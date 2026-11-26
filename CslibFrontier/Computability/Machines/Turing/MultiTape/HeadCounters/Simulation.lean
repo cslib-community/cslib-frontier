@@ -417,10 +417,8 @@ private lemma run_addDigit (δ : ℕ) (hδ : δ < 3) (cs : Fin (k + k + 1) → �
       moveCounters_single_one, ih (by omega)]
     congr 1
     funext i
-    by_cases h2 : i = target j (dir tm q inp sc j)
-    · subst h2
-      simp only [update_self]
-      omega
+    rcases eq_or_ne i (target j (dir tm q inp sc j)) with rfl | h2
+    · simp only [update_self]; omega
     · simp only [update_of_ne h2]
 
 /-- The residue modulo three. -/
@@ -501,10 +499,7 @@ private lemma run_move (hd : dir tm q inp sc j ≠ 0) (cs : Fin (k + k + 1) → 
     ⟨_, run_restore tm pos out q inp sc cur j (cs (source j (dir tm q inp sc j)) / 3) _ _
       (by simp [moveCounters_zero, hx.symm, h0])⟩
   refine ⟨n, hn.trans ?_⟩
-  have hsym : symbol (rem3 (0 + cs (source j (dir tm q inp sc j)))) =
-      symbol (cs (source j (dir tm q inp sc j))) := by
-    simp only [rem3, Nat.zero_add, symbol_mod]
-  rw [hsym]
+  simp only [rem3, Nat.zero_add, symbol_mod]
   congr 1
   refine funext_two tmp (target j (dir tm q inp sc j))
     (by simp [moveCounters_zero, hx.symm, hy.symm, h0])
@@ -613,8 +608,7 @@ private lemma run_tape (pos : Fin (input.length + 2)) (out : List Bool) (q : Sta
     · rw [update_of_ne (fun e => lo_ne_hi j i e.symm), update_of_ne (fun e => hi (hi_inj.mp e))]
     · have hpos : (tm.tr q c.inputSymbol c.workTapeSymbols |>.apply c).workTapePos j =
           c.workTapePos j - 1 := by
-        simp only [Action.apply_workTapePos, hd, SignType.coe_neg_one]
-        omega
+        simp only [Action.apply_workTapePos, hd, SignType.coe_neg_one]; omega
       simp only [Cfg.workTapeSymbols, hw, hpos, update_self, update_of_ne (lo_ne_hi j j).symm,
         update_of_ne (show c.workTapePos j - 1 ≠ c.workTapePos j by omega)]
       exact ⟨henc.symbol_left.symm, henc.move_left _⟩
@@ -632,10 +626,8 @@ private lemma run_tape (pos : Fin (input.length + 2)) (out : List Bool) (q : Sta
     · simp [(lo_ne_tmp j).symm, (hi_ne_tmp j).symm, h0]
     · rw [update_of_ne (lo_ne_hi i j), update_of_ne (fun e => hi (lo_inj.mp e))]
     · rw [update_of_ne (fun e => hi (hi_inj.mp e)), update_of_ne (fun e => lo_ne_hi j i e.symm)]
-    · have hpos : (tm.tr q c.inputSymbol c.workTapeSymbols |>.apply c).workTapePos j =
-          c.workTapePos j + 1 := by
-        simp only [Action.apply_workTapePos, hd, SignType.coe_one]
-      simp only [Cfg.workTapeSymbols, hw, hpos, update_self, update_of_ne (lo_ne_hi j j),
+    · simp only [Cfg.workTapeSymbols, hw, Action.apply_workTapePos, hd, SignType.coe_one,
+        update_self, update_of_ne (lo_ne_hi j j),
         update_of_ne (show c.workTapePos j + 1 ≠ c.workTapePos j by omega)]
       exact ⟨henc.symbol_right.symm, henc.move_right _⟩
 
@@ -732,8 +724,6 @@ theorem exists_fixed_support_computes [Finite State] (tm : MultiTapeTM k Bool St
   rintro input output ⟨u, hu, hout⟩
   obtain ⟨n, cs, -, -, h⟩ := sim_runFrom tm input u
   have hs : (tm.runFrom (tm.initCfg input) u).state = none := hu
-  refine ⟨n, ?_, ?_⟩ <;> rw [h]
-  · simp only [Cfg.Halted, cfg, hs, Option.map_none]
-  · exact hout
+  exact ⟨n, by simp only [Cfg.Halted, h, cfg, hs, Option.map_none], h.symm ▸ hout⟩
 
 end Turing.MultiTapeTM.HeadCounter

@@ -404,11 +404,7 @@ private theorem sweepCost_swap_head {G : CostGame ι S} (h : G.FourCycleZero) {i
   have hrect := h hij cur (cur i) (target i) (cur j) (target j)
   dsimp only at hrect
   have hB : update (update cur i (target i)) j (cur j) = update cur i (target i) := by
-    ext k
-    by_cases hk : k = j
-    · subst hk
-      simp [hij.symm]
-    · simp [hk]
+    rw [update_comm hij, update_eq_self]
   simp only [update_eq_self, hB] at hrect
   simp only [sweepCost, update_comm hij.symm (target j) (target i) cur]
   linarith
@@ -453,12 +449,11 @@ theorem FourCycleZero.isExactPotential_potentialOfBase [Fintype ι] {G : CostGam
       simp only [L_all, L_rem, List.mem_append, Finset.mem_toList, Finset.mem_univ,
         Finset.mem_erase, List.mem_singleton, and_true]
       exact ⟨fun _ => (em (x = i)).symm, fun _ => trivial⟩
-  have hw_rem : ∀ t : ∀ k, S k, sweepProfile L_rem z t = update t i (z i) := fun t => by
+  have hw_rem (t : ∀ k, S k) : sweepProfile L_rem z t = update t i (z i) := by
     funext k
     rw [sweepProfile_apply]
-    by_cases hki : k = i
-    · subst hki
-      simp [L_rem]
+    rcases eq_or_ne k i with rfl | hki
+    · simp [L_rem]
     · simp [L_rem, hki]
   unfold potentialOfBase
   rw [sweepCost_perm h hperm hnd_all z (update s i a),
@@ -589,13 +584,7 @@ theorem IsWeightedPotential.mixedExtension {G : CostGame ι S} {w : ι → ℝ} 
     (hΦ : G.IsWeightedPotential w Φ) :
     G.mixedExtension.IsWeightedPotential w (fun p => mixedPotential Φ (fun j => (p j).1)) := by
   intro p i q
-  have hmap : (fun j => (update p i q j).1) = update (fun j => (p j).1) i q.1 := by
-    funext j
-    by_cases hj : j = i
-    · subst hj
-      simp
-    · simp [hj]
-  simp only [CostGame.mixedExtension, hmap]
+  simp only [CostGame.mixedExtension, funext (apply_update (fun _ => Subtype.val) p i q)]
   exact hΦ.expectedCost_update_sub (fun j => (p j).2.sum_eq_one) i q.2.sum_eq_one
 
 /-- **[MondererShapley1996], Lemma 2.10 (pp. 131–132)**: a finite game `G` is a `w`-potential game
@@ -604,19 +593,12 @@ theorem exists_isWeightedPotential_mixedExtension_iff {G : CostGame ι S} {w : �
     (∃ Ψ, G.mixedExtension.IsWeightedPotential w Ψ) ↔ ∃ Φ, G.IsWeightedPotential w Φ := by
   classical
   refine ⟨fun ⟨Ψ, hΨ⟩ => ?_, fun ⟨Φ, hΦ⟩ => ⟨_, hΦ.mixedExtension⟩⟩
-  let pureProf : (∀ j, S j) → ∀ j, { q : S j → ℝ // IsMixedStrategy q } :=
-    fun s j => ⟨Pi.single (s j) 1, isMixedStrategy_single (s j)⟩
-  refine ⟨fun s => Ψ (pureProf s), fun s i a => ?_⟩
-  have hupd : pureProf (update s i a) =
-      update (pureProf s) i ⟨Pi.single a 1, isMixedStrategy_single a⟩ := by
-    funext j
-    by_cases hj : j = i
-    · subst hj
-      simp [pureProf]
-    · simp [pureProf, hj]
-  have hstep := hΨ (pureProf s) i ⟨Pi.single a 1, isMixedStrategy_single a⟩
-  rw [← hupd] at hstep
-  simpa only [mixedExtension, pureProf, G.expectedCost_single] using hstep
+  let f : ∀ j, S j → { q : S j → ℝ // IsMixedStrategy q } :=
+    fun _ x => ⟨Pi.single x 1, isMixedStrategy_single x⟩
+  refine ⟨fun s => Ψ fun j => f j (s j), fun s i a => ?_⟩
+  have hstep := hΨ (fun j => f j (s j)) i (f i a)
+  rw [← funext (apply_update f s i a)] at hstep
+  simpa only [mixedExtension, f, G.expectedCost_single] using hstep
 
 /-- Exact-potential (`w = 1`) specialization of [MondererShapley1996], Lemma 2.10 (pp. 131–132): a
 finite game admits an exact potential if and only if its mixed extension does. -/

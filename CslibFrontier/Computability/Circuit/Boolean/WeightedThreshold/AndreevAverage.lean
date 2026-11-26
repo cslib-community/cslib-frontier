@@ -376,11 +376,9 @@ private theorem cast_two_mul_card_andreevSubcubeEval_eq_andreev {b r : ℕ} (hr 
 theorem sub_andreevWindowCenter_mem_Icc {b : ℕ} (m : ℕ) (S : Finset (Fin b)) :
     0 ≤ (#S * m : ℝ) / 2 - andreevWindowCenter m S ∧
       (#S * m : ℝ) / 2 - andreevWindowCenter m S ≤ 1 / 2 := by
-  have hdiv : 2 * ((#S * m) / 2) ≤ #S * m ∧ #S * m ≤ 2 * ((#S * m) / 2) + 1 :=
-    ⟨Nat.mul_div_le (#S * m) 2, by omega⟩
-  have h1 : (2 * (((#S * m) / 2 : ℕ) : ℝ)) ≤ ((#S * m : ℕ) : ℝ) := by exact_mod_cast hdiv.1
-  have h2 : ((#S * m : ℕ) : ℝ) ≤ 2 * (((#S * m) / 2 : ℕ) : ℝ) + 1 := by exact_mod_cast hdiv.2
-  push_cast at h1 h2
+  have h1 : 2 * (((#S * m) / 2 : ℕ) : ℝ) ≤ #S * m := by exact_mod_cast Nat.mul_div_le (#S * m) 2
+  have h2 : (#S * m : ℝ) ≤ 2 * (((#S * m) / 2 : ℕ) : ℝ) + 1 := by
+    exact_mod_cast (show #S * m ≤ 2 * ((#S * m) / 2) + 1 by omega)
   simp only [andreevWindowCenter, Int.cast_natCast]
   constructor <;> linarith
 
@@ -509,13 +507,9 @@ private theorem two_pow_mul_half_add_le_two_pow_add_choose {b r : ℕ} (hr : r <
     Nat.sub_add_cancel (by omega : 1 ≤ b - r)] at hbinom_nat
   have hbinom : (2 : ℝ) ^ (2 ^ (b - r) - 1) ≤
       Real.sqrt (2 * 2 ^ (b - r)) * ((2 ^ (b - r) - 1).choose (2 ^ (b - r - 1) - 1) : ℝ) := by
-    have hsq : ((2 : ℝ) ^ (2 ^ (b - r) - 1)) ^ 2 ≤
-        (Real.sqrt (2 * 2 ^ (b - r)) *
-          ((2 ^ (b - r) - 1).choose (2 ^ (b - r - 1) - 1) : ℝ)) ^ 2 := by
-      rw [mul_pow, Real.sq_sqrt (by positivity)]
-      exact_mod_cast hbinom_nat
-    have := Real.sqrt_le_sqrt hsq
-    rwa [Real.sqrt_sq (by positivity), Real.sqrt_sq (by positivity)] at this
+    refine le_of_sq_le_sq ?_ (by positivity)
+    rw [mul_pow, Real.sq_sqrt (by positivity)]
+    exact_mod_cast hbinom_nat
   have hpow_split : (2 : ℝ) ^ (2 ^ b + b * m) =
       (2 : ℝ) ^ (2 ^ b + b * m - (2 ^ (b - r) - 1)) * (2 : ℝ) ^ (2 ^ (b - r) - 1) := by
     rw [← pow_add, Nat.sub_add_cancel ((Nat.sub_le _ _).trans
