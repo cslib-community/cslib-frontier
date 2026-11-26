@@ -169,9 +169,8 @@ theorem trackerPotential_init {α : Type} (s₀ : Finset α) :
     zero_mul]
 
 theorem trackerPotential_nonneg {α : Type} (tr : MarkTracker α) :
-    0 ≤ trackerPotential tr := by
-  unfold trackerPotential
-  exact mul_nonneg (Nat.cast_nonneg _) (sub_nonneg.mpr (harmonic_mono (Nat.sub_le _ _)))
+    0 ≤ trackerPotential tr :=
+  mul_nonneg (Nat.cast_nonneg _) (sub_nonneg.mpr (harmonic_mono (Nat.sub_le _ _)))
 
 section Decidable
 
@@ -248,9 +247,7 @@ noncomputable abbrev markingStrategy (k : ℕ) (hk : 0 < k) :
 theorem stepExpectedCost_markingStrategy {k : ℕ} (hk : 0 < k) (m : MarkMem α) (p : α) :
     (markingStrategy k hk).stepExpectedCost m p = if p ∈ m.cache then 0 else 1 := by
   simp only [BehavioralStrategy.stepExpectedCost, markingStrategy, problem, stepCost]
-  split_ifs with hp
-  · simp only [Nat.cast_zero, mul_zero, tsum_zero]
-  · simp only [Nat.cast_one, mul_one, PMF.tsum_coe]
+  split_ifs <;> simp [PMF.tsum_coe]
 
 /-- Expected cost of `markingStrategy` on any valid initial cache and request sequence `reqs` is at
 most `reqs.length`, hence finite (`≠ ⊤`). -/
@@ -419,12 +416,11 @@ theorem markLaw_bind_markingStep {k : ℕ} (hk : 0 < k) {tr : MarkTracker α}
   have hne : (tr.stale.powersetCard tr.staleCached).Nonempty :=
     Finset.powersetCard_nonempty.mpr hst
   by_cases hpM : p ∈ tr.marked
-  · have hinsert : insert p tr.marked = tr.marked := Finset.insert_eq_of_mem hpM
-    simp only [stepTracker, hpM, ↓reduceIte]
+  · simp only [stepTracker, hpM, ↓reduceIte]
     rw [markLaw, dite_eq_left hne, PMF.bind_map, ← PMF.bind_pure_comp]
     refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun U _ => ?_
-    have hpMU : p ∈ tr.marked ∪ U := Finset.mem_union_left U hpM
-    simp only [Function.comp_apply, markingStep, hpMU, ↓reduceIte, hinsert]
+    simp only [Function.comp_apply, markingStep, Finset.mem_union_left U hpM, ↓reduceIte,
+      Finset.insert_eq_of_mem hpM]
   · by_cases ht0 : tr.staleCached = 0
     · rcases tr with ⟨M, S, t⟩
       dsimp only at hpM ht0 hdisj hst hsk hmk hfull
@@ -452,7 +448,6 @@ theorem markLaw_bind_markingStep {k : ℕ} (hk : 0 < k) {tr : MarkTracker α}
         ext m
         simp only [PMF.map_apply, Function.comp_apply, Finset.singleton_union, Finset.insert_empty]
     · have htpos : 0 < tr.staleCached := Nat.pos_of_ne_zero ht0
-      have ht1 : 1 ≤ tr.staleCached := htpos
       have hsum : tr.marked.card + tr.staleCached = k := hfull htpos
       rw [markLaw, dite_eq_left hne, PMF.bind_map]
       simp only [stepTracker, hpM, ht0, ↓reduceIte]
@@ -461,7 +456,7 @@ theorem markLaw_bind_markingStep {k : ℕ} (hk : 0 < k) {tr : MarkTracker α}
         have hne' : ((tr.stale.erase p).powersetCard (tr.staleCached - 1)).Nonempty :=
           Finset.powersetCard_nonempty.mpr (by rw [Finset.card_erase_of_mem hpS]; omega)
         rw [markLaw, dite_eq_left hne',
-          ← uniformOfFinset_powersetCard_hitOrErase hpS ht1 hst, PMF.map_bind]
+          ← uniformOfFinset_powersetCard_hitOrErase hpS htpos hst, PMF.map_bind]
         refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun U hU => ?_
         rw [mem_support_uniformOfFinset_iff] at hU
         obtain ⟨hUS, hUcard⟩ := Finset.mem_powersetCard.mp hU
@@ -471,7 +466,7 @@ theorem markLaw_bind_markingStep {k : ℕ} (hk : 0 < k) {tr : MarkTracker α}
         have hne' : (tr.stale.powersetCard (tr.staleCached - 1)).Nonempty :=
           Finset.powersetCard_nonempty.mpr (by omega)
         rw [markLaw, dite_eq_left hne',
-          ← uniformOfFinset_powersetCard_erase ht1 hst, PMF.map_bind]
+          ← uniformOfFinset_powersetCard_erase htpos hst, PMF.map_bind]
         refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun U hU => ?_
         rw [mem_support_uniformOfFinset_iff] at hU
         obtain ⟨hUS, hUcard⟩ := Finset.mem_powersetCard.mp hU
@@ -492,9 +487,7 @@ theorem stepExpectedCost_markLaw {k : ℕ} (hk : 0 < k) {tr : MarkTracker α}
   rw [markLaw, dite_eq_left hne, tsum_map_mul]
   simp only [stepExpectedCost_markingStrategy]
   by_cases hpM : p ∈ tr.marked
-  · have hmem : ∀ U : Finset α, p ∈ tr.marked ∪ U := fun U => Finset.mem_union_left U hpM
-    simp only [hmem, ↓reduceIte, mul_zero, tsum_zero, stepTrackerCost, hpM, Rat.cast_zero,
-      ENNReal.ofReal_zero]
+  · simp [stepTrackerCost, hpM]
   · by_cases ht0 : tr.staleCached = 0
     · rcases tr with ⟨M, S, t⟩
       dsimp only at hpM ht0 hst hne
@@ -504,9 +497,7 @@ theorem stepExpectedCost_markLaw {k : ℕ} (hk : 0 < k) {tr : MarkTracker α}
       · simp only [Finset.powersetCard_zero, Finset.mem_singleton, uniformOfFinset_apply,
           ↓reduceIte, Finset.card_singleton, Nat.cast_one, inv_one, Finset.union_empty, hpM,
           one_mul]
-      · intro U hU
-        simp only [Finset.powersetCard_zero, uniformOfFinset_apply, Finset.mem_singleton, hU,
-          ↓reduceIte, zero_mul]
+      · exact fun U hU => by simp [Finset.powersetCard_zero, uniformOfFinset_apply, hU]
     · simp only [stepTrackerCost, hpM, ht0, ↓reduceIte]
       by_cases hpS : p ∈ tr.stale
       · simp only [hpS, ↓reduceIte]
@@ -537,9 +528,7 @@ theorem expectedCostDist_markLaw_eq {k : ℕ} (hk : 0 < k) {tr : MarkTracker α}
     (markingStrategy k hk).expectedCostDist (markLaw tr) reqs =
       ENNReal.ofReal (trackerExpectedCost k tr reqs) := by
   induction reqs generalizing tr with
-  | nil =>
-    rw [(markingStrategy k hk).expectedCostDist_nil]
-    simp only [trackerExpectedCost, Rat.cast_zero, ENNReal.ofReal_zero]
+  | nil => simp [trackerExpectedCost, (markingStrategy k hk).expectedCostDist_nil]
   | cons p rs ih =>
     rw [(markingStrategy k hk).expectedCostDist_cons, stepExpectedCost_markLaw hk htr p,
       markLaw_bind_markingStep hk htr p, ih (validTracker_step hk htr p), trackerExpectedCost,
@@ -619,10 +608,9 @@ theorem trackerExpectedCost_add_potential_le {k : ℕ} (hk : 0 < k) {tr : MarkTr
     simp only [trackerExpectedCost, runTracker, cleanCount]
     have hstep := stepTrackerCost_add_potential_le hk htr p
     have hih := ih (validTracker_step hk htr p)
-    cases h : isCleanReq tr p
-    · simp only [h, ↓reduceIte, Bool.false_eq_true, zero_add] at hstep ⊢
-      linarith
-    · simp only [h, ↓reduceIte, Nat.cast_add, Nat.cast_one, mul_add, mul_one] at hstep ⊢
+    cases h : isCleanReq tr p <;>
+      simp only [h, ↓reduceIte, Bool.false_eq_true, zero_add, Nat.cast_add, Nat.cast_one,
+        mul_add, mul_one] at hstep ⊢ <;>
       linarith
 
 /-- **Harmonic phase bound (`E[MARK] ≤ H_k · #clean`).** From any valid initial cache `s₀`, the
@@ -855,9 +843,8 @@ theorem markingStrategy_expectedCost_le {k : ℕ} (hk : 0 < k) {s₀ : Finset α
 [FiatKarpLubyMcGeochSleatorYoung1991]: the randomized marking strategy is `(2 * H_k, 0)`-competitive
 for demand paging against an oblivious adversary. -/
 theorem markingStrategy_isCompetitive {k : ℕ} (hk : 0 < k) :
-    (markingStrategy (α := α) k hk).IsCompetitive (2 * ENNReal.ofReal (harmonic k)) 0 := by
-  intro s₀ hs₀ reqs offStates hv
-  simpa only [add_zero] using markingStrategy_expectedCost_le hk hs₀ hv
+    (markingStrategy (α := α) k hk).IsCompetitive (2 * ENNReal.ofReal (harmonic k)) 0 :=
+  fun _ hs₀ _ _ hv => by simpa only [add_zero] using markingStrategy_expectedCost_le hk hs₀ hv
 
 /-- Real-valued expectation form of FKLMSY Theorem 1. -/
 theorem markingStrategy_expectedCost_toReal_le {k : ℕ} (hk : 0 < k) {s₀ : Finset α}

@@ -140,9 +140,8 @@ theorem eq_of_andreev_andreevCubePoint_add {x x' : BitString (2 ^ b)} (q : Fin b
   have hpar (a : ℕ) (c : Bool) : decide ((a + (c ^^ decide (a % 2 = 1)).toNat) % 2 = 1) = c := by
     cases c <;> rcases Nat.mod_two_eq_zero_or_one a with ha | ha <;> simp [ha] <;> omega
   have hz : (fun j => decide ((q j + (z j).toNat) % 2 = 1)) = p := funext fun j => hpar _ _
-  have := h z
-  rwa [andreev_andreevCubePoint x (hs z), andreev_andreevCubePoint x' (hs z), hz,
-    Equiv.apply_symm_apply] at this
+  simpa only [andreev_andreevCubePoint x (hs z), andreev_andreevCubePoint x' (hs z), hz, p,
+    Equiv.apply_symm_apply] using h z
 
 /-! ### Lemma 14: many gates split each cube -/
 
@@ -311,11 +310,9 @@ theorem monotone_or_antitone_blockForm {a : Fin (2 ^ b + b * m) → ℝ}
         ∑ t : Fin m, if (t : ℕ) < s then a (andreevBlockVar b m j t) else 0 := by
   rcases ha j with h | h
   · refine Or.inl fun s s' hs => sum_le_sum fun t _ => ?_
-    have := h t
-    split_ifs <;> first | exact le_rfl | exact this | omega
+    split_ifs <;> first | exact le_rfl | exact h t | omega
   · refine Or.inr fun s s' hs => sum_le_sum fun t _ => ?_
-    have := h t
-    split_ifs <;> first | exact le_rfl | exact this | omega
+    split_ifs <;> first | exact le_rfl | exact h t | omega
 
 /-- A gate that splits the cube `q` for the table `x` makes the threshold of its block forms split
 `q`. -/
@@ -358,9 +355,8 @@ theorem card_cubes_mem_circuitSplitGates_le (c : Circuit signature (2 ^ b + b * 
   classical
   refine (card_le_card fun q hq => mem_filter.mpr ⟨mem_univ q,
     cubeSplits_of_mem_circuitSplitGates (mem_filter.mp hq).2⟩).trans ?_
-  refine (Cslib.Combinatorics.card_cubeSplits_le _ (monotone_or_antitone_blockForm hk)
-    _).trans_eq ?_
-  rw [Fintype.card_fin]
+  simpa only [Fintype.card_fin] using
+    Cslib.Combinatorics.card_cubeSplits_le _ (monotone_or_antitone_blockForm hk) _
 
 /-- Summed over all cubes, the splitting gates of a circuit with sign-coherent bottom gates number
 at most `G (m ^ b - (m - 1) ^ b)` for every table. -/
@@ -495,8 +491,7 @@ theorem min_le_card_outputBottomGates (c : Circuit signature (2 ^ b + b * m) 1)
     exact div_le_div₀ (le_max_left _ _) ((by linarith : (2 : ℝ) ^ b - 3 * b - 1 ≤
       (2 : ℝ) ^ b - b - 1 - Real.logb 2 (G + 1)).trans (le_max_right _ _))
       (by linarith) (by linarith)
-  have hm0 : (0 : ℝ) ≤ m := Nat.cast_nonneg m
-  have hstep := (mul_le_mul_of_nonneg_left hD hm0).trans hmain
+  have hstep := (mul_le_mul_of_nonneg_left hD (Nat.cast_nonneg m)).trans hmain
   rw [div_le_iff₀ (by positivity)]
   rw [mul_div_assoc', div_le_iff₀ (by positivity)] at hstep
   nlinarith
@@ -514,19 +509,17 @@ theorem le_card_outputBottomGates_of_balanced (c : Circuit signature (2 ^ b + b 
   have hb1 : (1 : ℝ) ≤ b := Nat.one_le_cast.mpr hb
   have hm : (m : ℝ) = (2 : ℝ) ^ b / b := by
     rw [eq_div_iff (by positivity), mul_comm]; exact_mod_cast hbal
-  have hG : (0 : ℝ) ≤ #(outputBottomGates c 0) := Nat.cast_nonneg _
-  have hN : (1 : ℝ) ≤ 2 ^ b := one_le_pow₀ one_le_two
   have heq : (m : ℝ) * ((2 : ℝ) ^ b - 3 * b - 1) / (3 * (b : ℝ) ^ 2) =
       (2 : ℝ) ^ b * ((2 : ℝ) ^ b - 3 * b - 1) / (3 * (b : ℝ) ^ 3) := by
     rw [hm]; field_simp
   rw [heq] at hmin
   rcases le_or_gt ((2 : ℝ) ^ b - 3 * b - 1) 0 with hn | hn
   · exact (div_nonpos_of_nonpos_of_nonneg (mul_nonpos_of_nonneg_of_nonpos (by positivity) hn)
-      (by positivity)).trans hG
+      (by positivity)).trans (Nat.cast_nonneg _)
   refine le_trans (le_min ?_ le_rfl) hmin
   rw [div_le_iff₀ (by positivity)]
   have hb3 : (1 : ℝ) ≤ 3 * (b : ℝ) ^ 3 := by nlinarith [pow_le_pow_left₀ zero_le_one hb1 3]
-  nlinarith
+  nlinarith [one_le_pow₀ (a := (2 : ℝ)) (n := b) one_le_two]
 
 /-! ### Theorem 13 for `depthTwoInputs` circuits -/
 

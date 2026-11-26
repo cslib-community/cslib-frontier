@@ -98,10 +98,9 @@ theorem slicePastingError_le (m : ℝ) (k : ℕ) (q ε δ γ r σ θ : ℝ)
     30 * ζ + 20 * ((m - 1) * r)
   let e := √(162 * c + 176 * ζ)
   have hm₀ : 0 ≤ m := by linarith
-  have hζ₀ : 0 ≤ ζ :=
-    mul_nonneg (mul_nonneg (by norm_num) hm₀)
-      (add_nonneg (add_nonneg (Real.rpow_nonneg hε.1 _) (Real.rpow_nonneg hδ.1 _))
-        (Real.rpow_nonneg hr.1 _))
+  have hζ₀ : 0 ≤ ζ := mul_nonneg (by positivity)
+    (add_nonneg (add_nonneg (Real.rpow_nonneg hε.1 _) (Real.rpow_nonneg hδ.1 _))
+      (Real.rpow_nonneg hr.1 _))
   have hz4 : ζ ≤ 9000 * m * t ^ 4 := by
     have h₁ := rpow_le_fourth_power hε.1 (Real.rpow_le_rpow hε.1 hεs (by norm_num))
     have h₂ := rpow_le_fourth_power hδ.1 (Real.rpow_le_rpow hδ.1 hδs (by norm_num))
@@ -120,11 +119,13 @@ theorem slicePastingError_le (m : ℝ) (k : ℕ) (q ε δ γ r σ θ : ℝ)
   have hγsqrt : √(64 * m * γ) ≤ 8 * m * t ^ 2 := by
     apply sqrt_le_scaled_power (a := 64) hm ht₀ (by norm_num) (by norm_num)
     exact mul_le_mul_of_nonneg_left (hγs.trans hs4) (by positivity)
-  have hv : v ≤ 4 * m * t ^ 2 := by
-    apply sqrt_le_scaled_power (a := 12) hm ht₀ (by norm_num) (by norm_num)
+  have hs2 : s ≤ t ^ 2 := hs_pow.trans_le (hpow 2 128 (by norm_num))
+  have hv' : v ≤ 4 * m * t := by
+    rw [← pow_one t]
+    apply sqrt_le_scaled_power (a := 12) (j := 1) hm ht₀ (by norm_num) (by norm_num)
     norm_num
-    linarith only [mul_le_mul_of_nonneg_left (hεs.trans hs4) hm₀,
-      (hδs.trans hs4).trans (le_mul_of_one_le_left (pow_nonneg ht₀ 4) hm)]
+    linarith only [mul_le_mul_of_nonneg_left (hεs.trans hs2) hm₀,
+      (hδs.trans hs2).trans (le_mul_of_one_le_left (pow_nonneg ht₀ 2) hm)]
   have hmt (a b : ℕ) (h : a ≤ b) : m * t ^ b ≤ m * t ^ a :=
     mul_le_mul_of_nonneg_left (hpow a b h) hm₀
   have hc : c ≤ 310000 * m * t ^ 2 := by
@@ -157,8 +158,6 @@ theorem slicePastingError_le (m : ℝ) (k : ℕ) (q ε δ γ r σ θ : ℝ)
   have hsqrt2 : √(2 : ℝ) ≤ 2 := by rw [Real.sqrt_le_left (by norm_num)]; norm_num
   have hz' : ζ ≤ 9000 * m * t := by
     linarith only [hz4, hmt 1 4 (by norm_num)]
-  have hv' : v ≤ 4 * m * t := by
-    linarith only [hv, hmt 1 2 (by norm_num)]
   have hq' : (m - 1) * r ≤ m * t := by
     linarith only [hqterm, hmt 1 4 (by norm_num)]
   have hsz' : √(2 * ζ) ≤ 140 * m * t := by
@@ -259,10 +258,8 @@ theorem slicePastingError_le_dimensionInductionError {m q ε δ γ r σ : ℝ} {
   have hθ : θ ≤ 1 / 2 := by dsimp only [θ]; rw [div_le_iff₀ (by positivity)]; linarith
   have hθ' : 0 < 1 - θ := by linarith
   have hsampling : Real.exp (-(θ ^ 2 * k) / 2) = E := by
-    unfold θ E
-    congr 1
-    field_simp
-    ring
+    dsimp only [θ, E]
+    exact congrArg Real.exp (by field_simp; ring)
   have hb : 0 ≤ b :=
     mul_nonneg (mul_nonneg (by positivity) hM₀.le)
       (inductionLossTerm_nonneg hε.1 hδ.1 hγ.1 hr.1)
@@ -330,10 +327,9 @@ theorem one_le_dimensionInductionError_of_large_ratio {m ε δ γ r : ℝ} {k : 
     dsimp only [R, inductionLossTerm]
     linarith only [hsmall, Real.rpow_nonneg hε (1 / 128 : ℝ),
       Real.rpow_nonneg hδ (1 / 128 : ℝ), Real.rpow_nonneg hγ (1 / 128 : ℝ)]
-  have hkR : (1 : ℝ) ≤ 400 * (k : ℝ) * R := (div_le_iff₀' hq₀).mp hR
   have hR₀ : 0 ≤ R := h₀.trans hR
   calc
-    _ ≤ 400 * (k : ℝ) * R := hkR
+    _ ≤ 400 * (k : ℝ) * R := (div_le_iff₀' hq₀).mp hR
     _ ≤ 100000 * (k : ℝ) ^ 2 * m * R := by
       apply mul_le_mul_of_nonneg_right _ hR₀
       nlinarith only [le_self_pow₀ hk₁ two_ne_zero, le_mul_of_one_le_right (sq_nonneg (k : ℝ)) hm,

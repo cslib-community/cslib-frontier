@@ -80,9 +80,7 @@ private theorem sum_edge_target_le (j : Fin (J + 1)) (w : T.Ed j → ℕ) :
   simp only [← mul_ite_zero]
   rw [sum_congr rfl fun x _ => sum_comm, sum_comm]
   refine sum_le_sum fun e _ => ?_
-  rw [edgeLoads_of_lt _ j.2]
-  simp only [← mul_sum]
-  exact Nat.mul_le_mul_left _ (sum_relayAlive_le _)
+  simpa only [edgeLoads_of_lt _ j.2, ← mul_sum] using Nat.mul_le_mul_left _ (sum_relayAlive_le _)
 
 /-- One channel of a relay whose units lie on an edge of the level `j`. -/
 private theorem le_sum_edge_target {x : Relay T m A} {d : Bool} {j : Fin (J + 1)} {e : T.Ed j}
@@ -252,8 +250,7 @@ private theorem middle_le (hg : ∀ mv, GoodOutcome lhat n o mv) (P : T.Node) (j
     Tower.parentChamber, Matrix.cons_val]
   by_cases ht : T.IsChosenType (edgeLoads (load lhat n o) j) (T.ty e)
   · simp only [ht, ↓reduceIte] at hM
-    simp only [(Tower.isChosenType_iff hh).1 ht]
-    grind
+    simp only [(Tower.isChosenType_iff hh).1 ht]; grind
   · simp only [ht, ↓reduceIte, Nat.le_zero] at hM
     simp [hM]
 
@@ -273,9 +270,8 @@ private theorem images_le (P : T.Node) (j : Fin J) :
     (subset_univ _) (fun e _ => le_trans (le_of_eq ?_) (le_sum_edge_target (d := false)
       (j := j.succ) (e := T.πE e) rfl _)) fun _ _ _ => Nat.zero_le _
   simp only [endsAt, add_mul, ite_mul, one_mul, zero_mul]
-  rcases Sym2.eq_iff.1 (T.π_ends j.2 e) with ⟨h3, h4⟩ | ⟨h3, h4⟩
-  · rw [h3, h4]
-  · rw [h3, h4, add_comm]
+  exact (Sym2.eq_iff.1 (T.π_ends j.2 e)).elim (fun ⟨h3, h4⟩ => by rw [h3, h4])
+    fun ⟨h3, h4⟩ => by rw [h3, h4, add_comm]
 
 /-- The relays after the last stage: at the ends of an edge of the last level, and at the root. -/
 private theorem final_le (P : T.Node) (e : T.Ed J) :
@@ -320,8 +316,8 @@ theorem sum_unitsAt_relay_le (hg : ∀ mv, GoodOutcome lhat n o mv) (P : T.Node)
     sum_le_sum fun j _ => (sum_le_sum fun e _ => middle_le hh hg P j e).trans (by
       rw [Tower.sum_ite_childUnits, Tower.sum_ite_incidentSum, Tower.sum_ite_incidentSum]
       simp only [sum_add_distrib, ← mul_sum]
-      have := images_le (lhat := lhat) (n := n) (o := o) (R := R) (ch := ch) P j
-      rw [sum_add_distrib] at this
+      have := sum_add_distrib.symm.trans_le
+        (images_le (lhat := lhat) (n := n) (o := o) (R := R) (ch := ch) P j)
       omega)
   have hF : ∑ e, relayAt lhat n o P (.final e) ≤
       (∑ c : T.X J, if Tower.Node.ofChamber le_rfl c = P then
@@ -343,8 +339,7 @@ theorem sum_unitsAt_relay_le (hg : ∀ mv, GoodOutcome lhat n o mv) (P : T.Node)
   have hC0 : (∑ c : T.X 0, if Tower.Node.ofChamber (Nat.zero_le J) c = P then
       T.childUnits hh (edgeLoads (load lhat n o)) 0 c else 0) = 0 := by
     simp [Tower.childUnits]
-  rw [h0, Relay.sum_eq, hL]
-  omega
+  rw [h0, Relay.sum_eq, hL]; omega
 
 /-! ### Law moves -/
 
@@ -408,22 +403,19 @@ theorem sum_unitsAt_vertex_le (hg : ∀ mv, GoodOutcome lhat n o mv)
     _ = ∑ i, if T.IsChosenType (edgeLoads (load lhat n o) j) i then Fintype.card FL.Kind *
         ∑ c : T.X (j + 1), (if Tower.Node.ofChamber j.2 c = P then V else 0) else 0 :=
       sum_congr rfl fun i _ => by
-        by_cases hi : T.IsChosenType (edgeLoads (load lhat n o) j) i
-        · simp only [hi, ↓reduceIte]
-          rw [sum_comm]
+        split_ifs with hi
+        · rw [sum_comm]
           simp [h2]
-        · simp [hi]
+        · simp
     _ ≤ _ := by
       rw [← sum_filter, sum_const, smul_eq_mul]
       exact (Nat.mul_le_mul_right _ (card_le_one.2 fun a ha b hb =>
         (mem_filter.1 ha).2.unique (mem_filter.1 hb).2)).trans_eq (one_mul _)
   have h4 := Tower.Node.sum_ofChamber_succ (fun _ _ => V) P
   have h5 : P.lift (fun _ _ => V) 0 ≤ V := by cases P <;> simp [Tower.Node.lift, V]
-  rw [VertexMove.sum_eq]
-  refine (sum_le_sum fun j _ => (sum_le_sum fun i _ => sum_le_sum fun ω _ =>
-    sum_le_sum fun d _ => h1 ⟨j, i, ω, d⟩).trans (h3 j)).trans ?_
+  refine (VertexMove.sum_eq _).trans_le ((sum_le_sum fun j _ => (sum_le_sum fun i _ =>
+    sum_le_sum fun ω _ => sum_le_sum fun d _ => h1 ⟨j, i, ω, d⟩).trans (h3 j)).trans ?_)
   rw [← mul_sum]
-  gcongr
-  omega
+  exact Nat.mul_le_mul_left _ (by omega)
 
 end Cslib.Circuits.Arithmetic.Separation.TowerPlan

@@ -110,9 +110,7 @@ theorem forcedToAtMostOne_iff_const_or_literal {ι : Type*} [DecidableEq ι]
           f (restrictUpdate B w u) =
             cond (u i₀) (f (restrictUpdate B w fun _ => true))
               (f (restrictUpdate B w fun _ => false)) := by
-        cases hu : u i₀
-        · exact hdep u _ hu
-        · exact hdep u _ hu
+        cases hu : u i₀ <;> exact hdep u _ hu
       cases hb₀ : f (restrictUpdate B w fun _ => false) <;>
         cases hb₁ : f (restrictUpdate B w fun _ => true)
       · exact Or.inl ⟨false, fun u => by simp [hval u, hb₀, hb₁]⟩
@@ -183,16 +181,12 @@ theorem not_forcedToConst_ltfEval_iff {ι : Type*} [Fintype ι] [DecidableEq ι]
   have hmax_eq := sum_ltfMaxAssign_eq_sum_ltfMinAssign_add a B w
   constructor
   · intro hnot
-    have hlt : (∑ i : ι, a i * (ltfMinAssign a B w i).toNat) < θ := by
-      by_contra hge
-      refine hnot ⟨true, fun u => ?_⟩
-      simp only [ltfEval, decide_eq_true_eq]
-      exact (not_lt.mp hge).trans (sum_ltfMinAssign_le_and_le_sum_ltfMaxAssign a B w u).1
-    have hge : θ ≤ ∑ i : ι, a i * (ltfMaxAssign a B w i).toNat := by
-      by_contra hlt'
-      refine hnot ⟨false, fun u => ?_⟩
-      simp only [ltfEval, decide_eq_false_iff_not, not_le]
-      exact (sum_ltfMinAssign_le_and_le_sum_ltfMaxAssign a B w u).2.trans_lt (not_le.mp hlt')
+    have hlt : (∑ i : ι, a i * (ltfMinAssign a B w i).toNat) < θ := by_contra fun hge =>
+      hnot ⟨true, fun u => decide_eq_true ((not_lt.mp hge).trans
+        (sum_ltfMinAssign_le_and_le_sum_ltfMaxAssign a B w u).1)⟩
+    have hge : θ ≤ ∑ i : ι, a i * (ltfMaxAssign a B w i).toNat := by_contra fun hlt' =>
+      hnot ⟨false, fun u => decide_eq_false (not_le.mpr
+        ((sum_ltfMinAssign_le_and_le_sum_ltfMaxAssign a B w u).2.trans_lt (not_le.mp hlt')))⟩
     exact ⟨by linarith, hlt⟩
   · rintro ⟨hlow, hhigh⟩ ⟨_, hc⟩
     have h12 : ltfEval a θ (ltfMinAssign a B w) = ltfEval a θ (ltfMaxAssign a B w) :=
@@ -417,12 +411,9 @@ theorem sum_card_not_forcedToAtMostOne_ltfEval_le {Ω ι : Type*} [Fintype Ω] [
       (#{ω : Ω | i ∈ B ω ∧ 2 ≤ #(B ω ∩ ltfSupport a)} : ℝ) ≤
         Real.sqrt #(ltfSupport a) * p * Real.sqrt p * (Fintype.card Ω : ℝ) := by
     set S := ltfSupport a
-    have hb1 : (#{ω : Ω | i ∈ B ω ∧ 2 ≤ #(B ω ∩ S)} : ℝ) ≤ p * (Fintype.card Ω : ℝ) := by
-      have hsub :
-          (univ.filter fun ω : Ω => i ∈ B ω ∧ 2 ≤ #(B ω ∩ S)) ⊆
-            (univ.filter fun ω : Ω => i ∈ B ω) :=
-        fun _ h => mem_filter.mpr ⟨mem_univ _, (mem_filter.mp h).2.1⟩
-      exact (Nat.cast_le.mpr (card_le_card hsub)).trans (hp1 i hi)
+    have hb1 : (#{ω : Ω | i ∈ B ω ∧ 2 ≤ #(B ω ∩ S)} : ℝ) ≤ p * (Fintype.card Ω : ℝ) :=
+      (Nat.cast_le.mpr (card_le_card fun _ h =>
+        mem_filter.mpr ⟨mem_univ _, (mem_filter.mp h).2.1⟩)).trans (hp1 i hi)
     have hb2 :
         (#{ω : Ω | i ∈ B ω ∧ 2 ≤ #(B ω ∩ S)} : ℝ) ≤
           (#S : ℝ) * p ^ 2 * (Fintype.card Ω : ℝ) := by

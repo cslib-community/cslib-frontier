@@ -142,13 +142,11 @@ private theorem computableInPolyTime_occ_unary :
     ComputableInPolyTime (fun p : CNF ℕ × ℕ => occ p.1 p.2) (encPair encCNF encNat)
       (encList encUnary) := by
   unfold occ
-  refine ComputableInPolyTime.filterWithInput (encA := encUnary) ?_ ?_
-  · fun_prop
-  · have h1 : ComputableInPolyTime (fun q : (CNF ℕ × ℕ) × ℕ => (q.1.1.getD q.2 []).map Prod.fst)
-        (encPair (encPair encCNF encNat) encUnary) (encList encNat) := by
-      unfold encCNF
-      fun_prop
+  have h1 : ComputableInPolyTime (fun q : (CNF ℕ × ℕ) × ℕ => (q.1.1.getD q.2 []).map Prod.fst)
+      (encPair (encPair encCNF encNat) encUnary) (encList encNat) := by
+    unfold encCNF
     fun_prop
+  exact ComputableInPolyTime.filterWithInput (encA := encUnary) (by fun_prop) (by fun_prop)
 
 private theorem computableInPolyTime_occ :
     ComputableInPolyTime (fun p : CNF ℕ × ℕ => occ p.1 p.2) (encPair encCNF encNat)
@@ -358,12 +356,8 @@ private theorem card_filter_toFinset_eq_one {L : List (List ℕ)} (hL : L.flatte
   have hpw := (List.nodup_flatten.mp hL).2
   refine Finset.card_eq_one.mpr ⟨S, Finset.ext fun S' => ?_⟩
   simp only [Finset.mem_filter, List.mem_toFinset, Finset.mem_singleton]
-  constructor
-  · rintro ⟨hS', huS'⟩
-    by_contra hne
-    exact List.disjoint_left.mp (hpw.forall hS' hS hne) huS' huS
-  · rintro rfl
-    exact ⟨hS, huS⟩
+  exact ⟨fun ⟨hS', huS'⟩ => by_contra fun hne =>
+    List.disjoint_left.mp (hpw.forall hS' hS hne) huS' huS, fun h => h ▸ ⟨hS, huS⟩⟩
 
 /-- The clause indices of a set of a reduced instance are the occurrences of a variable: every
 set containing a clause index comes from the gadget of a variable. -/
@@ -492,8 +486,7 @@ private theorem mem_padBlocks {m : ℕ} {Os : List (List ℕ)} {off : ℕ} {S : 
   | cons O Os ih =>
     rcases List.mem_cons.mp h with rfl | h
     · exact ⟨O, List.mem_cons_self, off, rfl⟩
-    · obtain ⟨O', hO', off', rfl⟩ := ih h
-      exact ⟨O', List.mem_cons_of_mem _ hO', off', rfl⟩
+    · exact (ih h).imp fun O' ⟨hO', off', hS⟩ => ⟨List.mem_cons_of_mem _ hO', off', hS⟩
 
 /-- **Exact-one assignments give exact covers.** The true variables of the clauses have disjoint
 occurrence lists covering all clause indices; padding them with distinct dummy elements and

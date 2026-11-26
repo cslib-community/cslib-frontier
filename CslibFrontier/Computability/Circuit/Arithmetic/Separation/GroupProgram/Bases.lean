@@ -229,15 +229,12 @@ private theorem exists_length_le_simSem (mu : Tape.Letter S Unit Γ → Matrix Q
       rcases List.mem_append.1 ha with ha | ha
       · rcases z with _ | ⟨ch, x⟩
         · simp [letterPush] at ha
-        · simp only [letterPush] at ha
-          split_ifs at ha
-          · simp [List.mem_singleton.1 ha, letterCode]
-          · simp at ha
+        · obtain ⟨-, rfl⟩ : channelSide ch = outputSide j ∧ a = letterCode cb x := by
+            simpa [letterPush] using ha
+          simp [letterCode]
       · exact hm j a ha) (fun j a ha => by simp at ha) s hs
-  split_ifs at hz
-  · obtain rfl := List.mem_singleton.1 hz
-    exact ⟨hκ T _ (fun _ => rfl) s hs j, h2 j⟩
-  · simp at hz
+  obtain ⟨-, rfl⟩ : s.2.control = q' ∧ z = (1, s.2.outputs) := by simpa using hz
+  exact ⟨hκ T _ (fun _ => rfl) s hs j, h2 j⟩
 
 /-- The cut items of a list of items. -/
 private theorem listF_items_gives {n c : ℕ} {f g : Fin n → Fm} {x : Tree} (it : Fin n → CutItem)
@@ -426,13 +423,10 @@ theorem exists_formula_block (mu : Tape.Letter S Unit Γ → Matrix Q Q A)
     (d := κp * (κl * T + B.cost ub) + 10) fun b hb => (Does.of_gives ((Gives.id _).tl.cons
       (Gives.id _).hd.tl) (hFP ub (κl * T) B b.2 t (fun j => (hκl T _ _ b hb j).1)
       fun j => (hκl T _ _ b hb j).2)).mono (by omega)).mono ?_
-  have f1 : κs * (T + 1) ≤ κs * (T + B.cost ub) := Nat.mul_le_mul_left _ (by omega)
   have f2 : κp * (κl * T + B.cost ub) ≤ κp * (κl + 1) * (T + B.cost ub) := by
-    rw [mul_assoc]; exact Nat.mul_le_mul_left _ (by nlinarith)
-  have e : (κs + κp * (κl + 1) + 20) * (T + B.cost ub) =
-      κs * (T + B.cost ub) + κp * (κl + 1) * (T + B.cost ub) + 20 * (T + B.cost ub) := by ring
-  rw [e]
-  omega
+    rw [mul_assoc]
+    exact Nat.mul_le_mul_left _ (by nlinarith)
+  nlinarith
 
 omit [Fintype Γ] in
 /-- **One formula makes an input part.** Its argument is (codes of the letters, (`num ub`, (trie,
@@ -463,9 +457,6 @@ theorem exists_formula_input (cb : Option Γ → Fin c → Bool) : ∃ F κ, ∀
       simp only [inputOutputs] at ha
       split_ifs at ha
       exacts [hc a ha, absurd ha List.not_mem_nil])).mono ?_
-  have e : (κp + 6 * n + 10) * (part.length + B.cost ub) =
-      κp * (part.length + B.cost ub) + (6 * n + 10) * (part.length + B.cost ub) := by ring
-  rw [e]
   nlinarith
 
 end Automaton

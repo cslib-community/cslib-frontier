@@ -154,9 +154,8 @@ theorem threshold_pos {p : CoordinationPayoffs} (hp : p.IsCoordination) : 0 < p.
   div_pos (sub_pos.mpr hp.1) (add_pos (sub_pos.mpr hp.1) (sub_pos.mpr hp.2))
 
 theorem threshold_lt_one {p : CoordinationPayoffs} (hp : p.IsCoordination) : p.threshold < 1 := by
-  rw [threshold, div_lt_one]
-  · linarith [hp.2]
-  · linarith [hp.1, hp.2]
+  rw [threshold, div_lt_one (by linarith [hp.1, hp.2])]
+  linarith [hp.2]
 
 /-- Single-edge payoff to a player choosing `mine` against a neighbor choosing `other`
 (`false` = old behavior `A`, `true` = new behavior `B`). -/
@@ -244,19 +243,13 @@ private theorem card_filter_neighborFinset_eq_ncard_inter (s : V → Bool) (v : 
     ((G.neighborFinset v).filter (fun w => s w = true)).card =
       (G.neighborSet v ∩ {w | s w = true}).ncard := by
   rw [← Set.ncard_coe_finset]
-  congr 1
-  ext w
-  simp only [Finset.coe_filter, Set.mem_ofPred_eq, SimpleGraph.mem_neighborFinset,
-    Set.mem_inter_iff, SimpleGraph.mem_neighborSet]
+  exact congrArg Set.ncard (Set.ext fun w => by simp [SimpleGraph.mem_neighborSet])
 
 private theorem card_filter_neighborFinset_false_eq_ncard_sdiff (s : V → Bool) (v : V) :
     ((G.neighborFinset v).filter (fun w => s w = false)).card =
       (G.neighborSet v \ {w | s w = true}).ncard := by
   rw [← Set.ncard_coe_finset]
-  congr 1
-  ext w
-  simp only [Finset.coe_filter, Set.mem_ofPred_eq, SimpleGraph.mem_neighborFinset, Set.mem_sdiff,
-    SimpleGraph.mem_neighborSet, Bool.not_eq_true]
+  exact congrArg Set.ncard (Set.ext fun w => by simp [SimpleGraph.mem_neighborSet])
 
 private theorem payoff_update_bool [DecidableEq V] (b : Bool) (v : V) (s : V → Bool) :
     p.payoff G v (Function.update s v b) =
@@ -349,8 +342,7 @@ theorem CoordinationPayoffs.normalized_bestResponseStep (q : ℝ) :
   simp only [CoordinationPayoffs.mem_bestResponseStep_iff, CoordinationPayoffs.normalized_payoffA,
     CoordinationPayoffs.normalized_payoffB, Network.mem_bestResponseStep_iff]
   have hdeg : ((G.neighborSet v ∩ S).ncard : ℝ) + ((G.neighborSet v \ S).ncard : ℝ) =
-      (G.degree v : ℝ) := by
-    exact_mod_cast ncard_neighborSet_inter_add_sdiff G S v
+      (G.degree v : ℝ) := mod_cast ncard_neighborSet_inter_add_sdiff G S v
   rw [← hdeg]
   constructor <;> intro h <;> linarith
 
@@ -364,8 +356,7 @@ theorem CoordinationPayoffs.bestResponseStep_eq {p : CoordinationPayoffs} (hp : 
     CoordinationPayoffs.payoffB_def, Network.mem_bestResponseStep_iff,
     CoordinationPayoffs.threshold_def]
   have hdeg : ((G.neighborSet v ∩ S).ncard : ℝ) + ((G.neighborSet v \ S).ncard : ℝ) =
-      (G.degree v : ℝ) := by
-    exact_mod_cast ncard_neighborSet_inter_add_sdiff G S v
+      (G.degree v : ℝ) := mod_cast ncard_neighborSet_inter_add_sdiff G S v
   have hden : 0 < (p.uAA - p.uBA) + (p.uBB - p.uAB) := by linarith [hp.1, hp.2]
   rw [div_mul_eq_mul_div, div_le_iff₀ hden, ← hdeg]
   constructor <;> intro h <;> linarith
@@ -407,15 +398,13 @@ theorem bestResponseStep_subset_progressiveStep (q : ℝ) (S : Set V) :
     bestResponseStep G q S ⊆ progressiveStep G q S :=
   Set.subset_union_right
 
-theorem progressiveStep_mono (q : ℝ) : Monotone (progressiveStep G q) := by
-  intro S T hST
-  exact Set.union_subset_union hST (bestResponseStep_mono G q hST)
+theorem progressiveStep_mono (q : ℝ) : Monotone (progressiveStep G q) :=
+  fun _ _ hST => Set.union_subset_union hST (bestResponseStep_mono G q hST)
 
 theorem progressiveStep_iterate_mono (q : ℝ) (S : Set V) :
     Monotone fun j => (progressiveStep G q)^[j] S :=
-  monotone_nat_of_le_succ fun j => by
-    rw [Function.iterate_succ_apply']
-    exact subset_progressiveStep G q _
+  monotone_nat_of_le_succ fun _ =>
+    (Function.iterate_succ_apply' ..).symm ▸ subset_progressiveStep G q _
 
 private theorem bestResponseStep_iterate_subset_progressiveStep_iterate (q : ℝ) (S : Set V) :
     ∀ j, (bestResponseStep G q)^[j] S ⊆ (progressiveStep G q)^[j] S
@@ -452,26 +441,20 @@ eventually permanently converted: there exists `k` such that `w ∈ step^[j] S` 
 the union of all iterates `⋃ j, (progressiveStep G q)^[j] S` is `Set.univ`. -/
 theorem isContagious_progressiveStep_iff_iUnion_eq_univ (q : ℝ) (S : Set V) :
     IsContagious (progressiveStep G q) S ↔ (⋃ j, (progressiveStep G q)^[j] S) = Set.univ := by
-  rw [Set.eq_univ_iff_forall]
-  refine ⟨fun h w => ?_, fun h w => ?_⟩
-  · obtain ⟨k, hk⟩ := h w
-    exact Set.mem_iUnion.mpr ⟨k, hk k le_rfl⟩
-  · obtain ⟨k, hk⟩ := Set.mem_iUnion.mp (h w)
-    exact ⟨k, fun j hj => progressiveStep_iterate_mono G q S hj hk⟩
+  simp only [IsContagious, Set.eq_univ_iff_forall, Set.mem_iUnion]
+  exact forall_congr' fun w => ⟨fun ⟨k, hk⟩ => ⟨k, hk k le_rfl⟩,
+    fun ⟨k, hk⟩ => ⟨k, fun j hj => progressiveStep_iterate_mono G q S hj hk⟩⟩
 
 theorem isContagious_bestResponseStep_of_le {q₁ q₂ : ℝ} (hq : q₁ ≤ q₂) {S : Set V}
     (hS : IsContagious (bestResponseStep G q₂) S) :
     IsContagious (bestResponseStep G q₁) S := by
-  have hsub : ∀ j, (bestResponseStep G q₂)^[j] S ⊆ (bestResponseStep G q₁)^[j] S := by
-    intro j
+  have hsub (j : ℕ) : (bestResponseStep G q₂)^[j] S ⊆ (bestResponseStep G q₁)^[j] S := by
     induction j with
     | zero => exact Set.Subset.rfl
     | succ j ih =>
         rw [Function.iterate_succ_apply', Function.iterate_succ_apply']
         exact (bestResponseStep_mono G q₂ ih).trans (bestResponseStep_antitone_threshold G hq _)
-  intro w
-  obtain ⟨k, hk⟩ := hS w
-  exact ⟨k, fun j hj => hsub j (hk j hj)⟩
+  exact fun w => (hS w).imp fun _ hk j hj => hsub j (hk j hj)
 
 theorem isContagious_bestResponseStep_of_nonpos {q : ℝ} (hq : q ≤ 0) (S : Set V) :
     IsContagious (bestResponseStep G q) S := by
@@ -771,23 +754,18 @@ on any infinite locally finite graph with no isolated vertices, no finite set is
 `bestResponseStep G q` whenever `q > 1 / 2`. -/
 theorem not_isContagious_bestResponseStep_of_half_lt [Infinite V]
     (hdeg : ∀ v, 0 < G.degree v) {q : ℝ} (hq : 1 / 2 < q) (S : Finset V) :
-    ¬ IsContagious (bestResponseStep G q) (S : Set V) := by
-  intro hcont
-  apply not_isContagious_progressiveStep_of_half_lt G hdeg hq S
-  intro w
-  obtain ⟨k, hk⟩ := hcont w
-  exact ⟨k, fun j hj =>
-    bestResponseStep_iterate_subset_progressiveStep_iterate G q S j (hk j hj)⟩
+    ¬ IsContagious (bestResponseStep G q) (S : Set V) :=
+  fun hcont => not_isContagious_progressiveStep_of_half_lt G hdeg hq S fun w =>
+    (hcont w).imp fun _ hk j hj =>
+      bestResponseStep_iterate_subset_progressiveStep_iterate G q S j (hk j hj)
 
 /-- **Theorem 24.2** ([Kleinberg2007], Section 24.2, p. 618; [Morris2000]):
 the contagion threshold of any infinite locally finite graph with no isolated vertices is at most
 `1 / 2`. -/
 theorem contagionThreshold_le_half [Infinite V] (hdeg : ∀ v, 0 < G.degree v) :
     contagionThreshold G ≤ 1 / 2 := by
-  refine csSup_le (contagionSet_nonempty G) fun q hq => ?_
-  by_contra hlt
-  push Not at hlt
-  obtain ⟨S, hS⟩ := hq.2
+  refine csSup_le (contagionSet_nonempty G) fun q ⟨_, S, hS⟩ => ?_
+  by_contra! hlt
   exact not_isContagious_bestResponseStep_of_half_lt G hdeg hlt S hS
 
 end Dynamics

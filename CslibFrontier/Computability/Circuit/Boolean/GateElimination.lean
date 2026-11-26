@@ -93,18 +93,15 @@ def IsConstOrLiteral (φ : BooleanFunction n) : Prop :=
 
 /-- Equality up to negation is symmetric. -/
 @[symm] theorem EqUpToNeg.symm (h : EqUpToNeg φ ψ) : EqUpToNeg ψ φ := by
-  obtain ⟨c, h⟩ := h
-  exact ⟨c, fun x => by rw [h x, Bool.xor_assoc, Bool.xor_self, Bool.xor_false]⟩
+  exact h.imp fun c h x => by rw [h x, Bool.xor_assoc, Bool.xor_self, Bool.xor_false]
 
 /-- Equality up to negation is transitive. -/
 @[trans] theorem EqUpToNeg.trans (h₁ : EqUpToNeg φ ψ) (h₂ : EqUpToNeg ψ χ) : EqUpToNeg φ χ := by
-  obtain ⟨c, h₁⟩ := h₁
-  obtain ⟨d, h₂⟩ := h₂
-  exact ⟨d ^^ c, fun x => by rw [h₁ x, h₂ x, Bool.xor_assoc]⟩
+  exact h₁.elim fun c h₁ => h₂.elim fun d h₂ =>
+    ⟨d ^^ c, fun x => by rw [h₁ x, h₂ x, Bool.xor_assoc]⟩
 
 private theorem EqUpToNeg.isConst (h : EqUpToNeg φ ψ) (hψ : IsConst ψ) : IsConst φ := by
-  obtain ⟨c, h⟩ := h
-  exact fun x y => by rw [h, h, hψ x y]
+  exact h.elim fun _ h x y => by rw [h, h, hψ x y]
 
 private theorem EqUpToNeg.isConstOrLiteral (h : EqUpToNeg φ ψ) (hψ : IsConstOrLiteral ψ) :
     IsConstOrLiteral φ :=
@@ -112,13 +109,11 @@ private theorem EqUpToNeg.isConstOrLiteral (h : EqUpToNeg φ ψ) (hψ : IsConstO
 
 private theorem EqUpToNeg.dependsOn {s : Set (Fin n)} (h : EqUpToNeg φ ψ) (hψ : DependsOn ψ s) :
     DependsOn φ s := by
-  obtain ⟨c, h⟩ := h
-  exact fun x y hxy => by rw [h, h, hψ hxy]
+  exact h.elim fun _ h x y hxy => by rw [h, h, hψ hxy]
 
 private theorem EqUpToNeg.comp_right (h : EqUpToNeg φ ψ) (f : BitString n → BitString n) :
     EqUpToNeg (φ ∘ f) (ψ ∘ f) := by
-  obtain ⟨c, h⟩ := h
-  exact ⟨c, fun x => h _⟩
+  exact h.imp fun _ h _ => h _
 
 private theorem isConstOrLiteral_literal (i : Fin n) :
     IsConstOrLiteral fun x : BitString n => x i :=
@@ -221,22 +216,18 @@ private theorem exists_two_literals (h : ℓ.op.IsBinary)
   rcases Op.isBinary_iff.1 h with rfl | rfl
   · obtain ⟨i, c, hi⟩ := lit 0
     obtain ⟨j, d, hj⟩ := lit 1
-    simp only at hi hj
-    have hij : i ≠ j := fun he => hℓ (isConstOrLiteral_of_eq_comp (i := i)
+    refine ⟨0, i, j, fun he => hℓ (isConstOrLiteral_of_eq_comp (i := i)
       (fun t => (t ^^ c) && (t ^^ d)) fun x => by
-        simp only [lineFunction, interpretation, hi, he ▸ hj])
-    exact ⟨0, i, j, hij, ⟨c, hi⟩,
-      ⟨c, false, fun x hx => by simp [lineFunction, interpretation, hi, hx]⟩,
-      ⟨d, false, fun x hx => by simp [lineFunction, interpretation, hj, hx]⟩⟩
+        simp only [lineFunction, interpretation, hi x, he ▸ hj x]), ⟨c, hi⟩,
+      ⟨c, false, fun x hx => by simp [lineFunction, interpretation, hi x, hx]⟩,
+      ⟨d, false, fun x hx => by simp [lineFunction, interpretation, hj x, hx]⟩⟩
   · obtain ⟨i, c, hi⟩ := lit 0
     obtain ⟨j, d, hj⟩ := lit 1
-    simp only at hi hj
-    have hij : i ≠ j := fun he => hℓ (isConstOrLiteral_of_eq_comp (i := i)
+    refine ⟨0, i, j, fun he => hℓ (isConstOrLiteral_of_eq_comp (i := i)
       (fun t => (t ^^ c) || (t ^^ d)) fun x => by
-        simp only [lineFunction, interpretation, hi, he ▸ hj])
-    exact ⟨0, i, j, hij, ⟨c, hi⟩,
-      ⟨!c, true, fun x hx => by simp [lineFunction, interpretation, hi, hx]⟩,
-      ⟨!d, true, fun x hx => by simp [lineFunction, interpretation, hj, hx]⟩⟩
+        simp only [lineFunction, interpretation, hi x, he ▸ hj x]), ⟨c, hi⟩,
+      ⟨!c, true, fun x hx => by simp [lineFunction, interpretation, hi x, hx]⟩,
+      ⟨!d, true, fun x hx => by simp [lineFunction, interpretation, hj x, hx]⟩⟩
 
 end Line
 
@@ -354,11 +345,8 @@ private theorem isConstOrLiteral_or_eqUpToNeg_of_not_nonRedundant {k : Fin g}
       ∃ s, EqUpToNeg (restricted p ρ (.gate k)) (restricted p ρ ((p.lines k).wires s)) := by
   by_cases hb : (p.lines k).op.IsBinary
   · simp only [NonRedundant, hb, true_and, not_and, not_forall, not_not] at hk
-    by_cases ht : IsConstOrLiteral (restricted p ρ (.gate k))
-    · exact Or.inl ht
-    · exact Or.inr (hk ht)
-  · rw [restricted_gate]
-    exact (isConst_or_eqUpToNeg_of_not_isBinary _ _ hb).imp_left Or.inl
+    exact (Classical.em _).imp_right hk
+  · exact (restricted_gate p ρ k ▸ isConst_or_eqUpToNeg_of_not_isBinary _ _ hb).imp_left Or.inl
 
 /-- A binary gate with a constant argument is redundant. -/
 private theorem not_nonRedundant_of_isConst_wires {k : Fin g}

@@ -126,16 +126,13 @@ theorem exists_le_of_fastGuard_eq_false (C : ℕ) :
   obtain ⟨L₀, hL₀⟩ := exists_pow_ten_le C
   refine ⟨2 ^ L₀, fun s G hA hg => ?_⟩
   obtain ⟨hrows, -, hdeg, -, htab, hsm⟩ := hA
-  have hbig : degreeBound G.2.numEdges < G.2.maxDegree := by
-    simp only [fastGuard, decide_eq_false_iff_not, not_and, not_le] at hg
-    exact hg hrows htab
+  simp only [fastGuard, decide_eq_false_iff_not, not_and, not_le] at hg
   by_contra! hs
-  have hL : L₀ ≤ Nat.log 2 s := Nat.le_log_of_pow_le one_lt_two hs.le
   have h1 : s ^ 9 ≤ G.2.numEdges ^ 9 := Nat.pow_le_pow_left hsm 9
   have h2 := pow_nine_le_degreeBound_pow_ten G.2.numEdges
   have h3 : degreeBound G.2.numEdges ^ 10 < (C * Nat.log 2 s) ^ 10 :=
-    Nat.pow_lt_pow_left (hbig.trans_le hdeg) (by norm_num)
-  have h4 := hL₀ _ hL
+    Nat.pow_lt_pow_left ((hg hrows htab).trans_le hdeg) (by norm_num)
+  have h4 := hL₀ _ (Nat.le_log_of_pow_le one_lt_two hs.le)
   have h5 : 2 ^ (9 * Nat.log 2 s) ≤ s ^ 9 := by
     rw [pow_mul']
     exact Nat.pow_le_pow_left
@@ -354,19 +351,15 @@ theorem outputStep_le {β : Type*} {o : Option (ℕ × β)} {valid : ℕ × β �
         (o.elim dirS fun v => tagS v + if decide (v.1 = 0) = true then decS v else fstS v + dirS) ≤
       2 * Y + 2 * Z := by
   rcases hr : o with _ | v
-  · have hs₀ : s < s₀ := Nat.lt_of_not_le fun h => by rw [hbig h] at hr; cases hr
-    have := hdir hs₀
+  · have := hdir (Nat.lt_of_not_le fun h => nomatch hr.symm.trans (hbig h))
     simp only [Option.elim_none]
     omega
   · have hd := hdec v (hval v hr)
     simp only [Option.elim_some]
     split_ifs with h0
     · omega
-    · have hs₀ : s < s₀ := Nat.lt_of_not_le fun h => by
-        rw [hbig h] at hr
-        cases hr
-        simp at h0
-      have := hdir hs₀
+    · have := hdir (Nat.lt_of_not_le fun h => by
+        simp [Option.some.inj (hr.symm.trans (hbig h))] at h0)
       omega
 
 /-- **The cost of decoding a value**, for the output step of a clocked run (`outputStep_le`): a

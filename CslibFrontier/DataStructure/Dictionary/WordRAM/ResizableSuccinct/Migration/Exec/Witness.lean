@@ -565,15 +565,13 @@ theorem fixedCoupled_of_shift {metaBase srcItemBase dstItemBase U V w N n : ℕ}
       fun i => by rw [htd_eq]; exact hcpl.td_lt i,
       fun i => by rw [hdt_eq]; exact hcpl.dt_lt i,
       fun d hd => by
-        obtain ⟨hd_n, hd₀⟩ := hd_bd d hd
-        rw [compQuotAt_of_lt s₁.mem hd hd_n, hq_eq, compQuotAt_of_lt s₀.mem hd_n hd₀,
-          hgm_eq, hdt_eq]
-        exact hcpl.quot_eq d hd₀,
+        rw [compQuotAt_of_lt s₁.mem hd (hd_bd d hd).1, hq_eq,
+          compQuotAt_of_lt s₀.mem (hd_bd d hd).1 (hd_bd d hd).2, hgm_eq, hdt_eq]
+        exact hcpl.quot_eq d (hd_bd d hd).2,
       fun d hd => by
-        obtain ⟨hd_n, hd₀⟩ := hd_bd d hd
-        rw [compValAt_of_lt s₁.mem hd hd_n, hv_eq, compValAt_of_lt s₀.mem hd_n hd₀,
-          hgm_eq, hdt_eq]
-        exact hcpl.val_eq d hd₀⟩,
+        rw [compValAt_of_lt s₁.mem hd (hd_bd d hd).1, hv_eq,
+          compValAt_of_lt s₀.mem (hd_bd d hd).1 (hd_bd d hd).2, hgm_eq, hdt_eq]
+        exact hcpl.val_eq d (hd_bd d hd).2⟩,
     hgm_eq⟩
 
 /-- Agreement on the caller-supplied ABI input registers `(mBase, mTag, mArgU, mArgV)`. -/
@@ -634,15 +632,13 @@ theorem hashSpace_bounds_of_fits_offCompItems {U w N metaBase : ℕ}
       ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3) ∧
     2 * reducedChunkBits
       (reducedTrinomialStep (qBits U N) (hashB N) (totalMicroBits N)) < w := by
-  have h225_fit : Fits w 225 := fits_const_of_offCompItems hfit_nm le_rfl
   have hw2 : 2 ≤ w := by
     by_contra hlt2
-    have hpow := Nat.pow_le_pow_right two_pos (show w ≤ 1 by omega)
-    change 225 < 2 ^ w at h225_fit
-    linarith only [hpow, h225_fit]
+    linarith only [Nat.pow_le_pow_right two_pos (by omega : w ≤ 1),
+      show 225 < 2 ^ w from fits_const_of_offCompItems hfit_nm le_rfl]
   have hsp_le : 225 + ReducedKWise.space w (qBits U N) (hashB N) (totalMicroBits N) 3 ≤
       offCompItems U w N := by
-    change offCompLM U w N ≤ offCompItems U w N
+    change offCompLM U w N ≤ _
     unfold offCompItems offDenseToTail offTailToDense offCompGM
     omega
   have hfit_h : Fits w ((metaBase + epochHdrWords) +

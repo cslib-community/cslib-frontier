@@ -113,19 +113,16 @@ theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
   have hfit1 : Fits w 1 := hfit_nm.of_le (by linarith only [h225_new])
   -- Leftward copy #1: `[newMeta, newMeta + offNew)` -> `[base, base + offNew)`
   set z₅ := z₄.set mTmpA newMeta
-  have hex_c5 := RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
+  have hex_c5 := hz₄_nm ▸ RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
     (d := mTmpA) (s := mNewMeta) (x := z₄) hz₄f_eq.le
-  rw [hz₄_nm] at hex_c5
   set z₆ := z₅.set mTmpB base
-  have hex_c6 := RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
-    (d := mTmpB) (s := mBase) (x := z₅) hz₄f_eq.le
   have hz₅_base : z₅.regs mBase = base := by simp [z₅, RData.set, hz₄_base]
-  rw [hz₅_base] at hex_c6
+  have hex_c6 := hz₅_base ▸ RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
+    (d := mTmpB) (s := mBase) (x := z₅) hz₄f_eq.le
   set z₇ := z₆.set mCur offNew
-  have hex_c7 := RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
-    (d := mCur) (s := mOffNew) (x := z₆) hz₄f_eq.le
   have hz₆_off : z₆.regs mOffNew = offNew := by simp [z₆, z₅, RData.set, hz₄_off]
-  rw [hz₆_off] at hex_c7
+  have hex_c7 := hz₆_off ▸ RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
+    (d := mCur) (s := mOffNew) (x := z₆) hz₄f_eq.le
   have hz₇b : z₇.Bounded w :=
     ((hz₄b.set (hfit_nm.of_le (Nat.le_add_right _ _))).set
       (hfit_nm.of_le (by dsimp only [newMeta]; linarith only [h225_old]))).set
@@ -169,20 +166,17 @@ theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
     (w := w) (L_peak := peakF) (x := z₈) hz₈f_eq.le (v := base + offNew)
     (by simp [BinOp.evalExact, hz₈_base, hz₈_off]) hfit_ib
   set z₁₀ := z₉.set mTmpA arenaB
-  have hex_c10 := RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
-    (d := mTmpA) (s := mArena) (x := z₉) hz₈f_eq.le
   have hz₉_ar : z₉.regs mArena = arenaB := by simp [z₉, RData.set, hz₈_ar]
-  rw [hz₉_ar] at hex_c10
+  have hex_c10 := hz₉_ar ▸ RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
+    (d := mTmpA) (s := mArena) (x := z₉) hz₈f_eq.le
   set z₁₁ := z₁₀.set mTmpB (base + offNew)
-  have hex_c11 := RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
-    (d := mTmpB) (s := mItemBase) (x := z₁₀) hz₈f_eq.le
   have hz₁₀_ib : z₁₀.regs mItemBase = base + offNew := by simp [z₁₀, z₉, RData.set]
-  rw [hz₁₀_ib] at hex_c11
+  have hex_c11 := hz₁₀_ib ▸ RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
+    (d := mTmpB) (s := mItemBase) (x := z₁₀) hz₈f_eq.le
   set z₁₂ := z₁₁.set mCur iwNew
-  have hex_c12 := RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
-    (d := mCur) (s := mIwNew) (x := z₁₁) hz₈f_eq.le
   have hz₁₁_iwn : z₁₁.regs mIwNew = iwNew := by simp [z₁₁, z₁₀, z₉, RData.set, hz₈_iwn]
-  rw [hz₁₁_iwn] at hex_c12
+  have hex_c12 := hz₁₁_iwn ▸ RDemonicExec.copy (B := .exact) (w := w) (L_peak := peakF)
+    (d := mCur) (s := mIwNew) (x := z₁₁) hz₈f_eq.le
   have hz₁₂b : z₁₂.Bounded w :=
     (((hz₈b.set hfit_ib).set hfit_nm).set hfit_ib).set
       (hfit_ar.of_le (by linarith only [hiwn_le_aw]))
@@ -236,10 +230,9 @@ theorem migrateCompactBackCode_exec {U V w N_old N_new n base : ℕ}
     rw [hz₁₅_k, show z₁₅.frontier = peakF from hz₁₃f_eq]; exact Nat.sub_le _ _
   have hsub_frNew : z₁₅.frontier - z₁₅.regs mK = frNew := by
     rw [show z₁₅.frontier = peakF from hz₁₃f_eq, hz₁₅_k]; exact Nat.sub_sub_self hfrNew_le
-  have hex_sh := shrinkCode_exec (w := w) (L_peak := peakF)
+  have hex_sh := hz₁₅_k ▸ shrinkCode_exec (w := w) (L_peak := peakF)
     (count := mK) (idx := mIdx) (zero := mZero) (one := mOne)
     hz₁₅b mShrink_nodup hfit1 hz₁₃f_eq.le hsub_le_z15
-  rw [hz₁₅_k] at hex_sh
   set z := shrinkPost mK mIdx mZero mOne z₁₅
   have hzb : z.Bounded w := shrinkPost_bounded hz₁₅b hfit1 hsub_le_z15
   have hce_new : compactedEpochWords U V w N_new n = offNew + iwNew := by

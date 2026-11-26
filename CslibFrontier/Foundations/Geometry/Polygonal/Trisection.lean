@@ -152,8 +152,7 @@ theorem exists_trisect_eval (p : Route) {s t : ℝ}
     ⟨mul_left_cancel₀ ha, congrArg (a * ·)⟩
   fin_cases k
   · change Fin 1 at i
-    have hi : i = (0 : Fin 1) := Subsingleton.elim _ _
-    subst i
+    obtain rfl : i = (0 : Fin 1) := Subsingleton.elim _ _
     have hpos : p.position 0 (s * u) = s * u := p.position_near_end false (s * u)
     have hlo : 0 ≤ s * u := mul_nonneg hs.le hu.1
     have hhi : s * u ≤ s := by simpa using mul_le_mul_of_nonneg_left hu.2 hs.le
@@ -170,8 +169,7 @@ theorem exists_trisect_eval (p : Route) {s t : ℝ}
     exact ⟨i, _, p.cutTime_mem hs.le ht.le hst i hu, (p.eval_cutEnds s t i u).symm,
       ⟨hl, hh⟩, hL, hH⟩
   · change Fin 1 at i
-    have hi : i = (0 : Fin 1) := Subsingleton.elim _ _
-    subst i
+    obtain rfl : i = (0 : Fin 1) := Subsingleton.elim _ _
     let r := 1 - t + t * u
     have hlo : 0 ≤ t * u := mul_nonneg ht.le hu.1
     have hhi : t * u ≤ t := by simpa using mul_le_mul_of_nonneg_left hu.2 ht.le
@@ -216,14 +214,12 @@ theorem support_trisect (p : Route) {s t : ℝ}
       ∃ u ∈ Set.Icc (0 : ℝ) 1, AffineMap.lineMap a b u = r := by
     rwa [← segment_eq_Icc hab, segment_eq_image_lineMap] at hr
   ext z
-  constructor
-  · intro hz
-    obtain ⟨k, hk⟩ := Set.mem_iUnion.mp hz
+  refine ⟨fun hz => ?_, fun hz => ?_⟩
+  · obtain ⟨k, hk⟩ := Set.mem_iUnion.mp hz
     obtain ⟨i, u, hu, he⟩ := ((p.trisect s t k).mem_support_iff z).mp hk
     obtain ⟨j, r, hr, h, _, _, _⟩ := p.exists_trisect_eval hs ht hst k i u hu
     exact (p.mem_support_iff z).mpr ⟨j, r, hr, h.trans he⟩
-  · intro hz
-    obtain ⟨i, r, hr, rfl⟩ := (p.mem_support_iff z).mp hz
+  · obtain ⟨i, r, hr, rfl⟩ := (p.mem_support_iff z).mp hz
     rcases lt_or_ge r (p.cutLower s i) with hlow | hlow
     · obtain rfl : i = 0 := by
         by_contra h
@@ -241,13 +237,12 @@ theorem support_trisect (p : Route) {s t : ℝ}
           ⟨1, ((p.trisect s t 1).mem_support_iff _).mpr ⟨i, u, hu, ?_⟩⟩
         change (p.cutEnds s t).eval i u = _
         rw [eval_cutEnds, show p.cutTime s t i u = r from he]
-      · have hi : i = Fin.last p.bends := by
+      · obtain rfl : i = Fin.last p.bends := by
           by_contra h
           have hn : i.val + 1 ≠ p.segments := fun he =>
             h (Fin.ext (by simp only [Fin.val_last]; unfold segments at he; omega))
           simp only [cutUpper, ite_eq_right hn] at hupp
           exact (not_lt_of_ge hr.2) hupp
-        subst i
         have hupp' : 1 - t < r := by simpa [cutUpper, segments] using hupp
         obtain ⟨u, hu, he⟩ := preimage (show 1 - t ≤ (1 : ℝ) by linarith) ⟨hupp'.le, hr.2⟩
         have hr' : 1 - t + t * u = r := by rw [AffineMap.lineMap_apply_ring'] at he; linarith
@@ -281,34 +276,25 @@ theorem exists_subroute_between (p : Route) (i j : Fin p.segments) (hij : i ≤ 
     omega⟩⟩
   let q := r.cutEnds s (1 - t)
   let source (k : Fin r.segments) : Fin p.segments := ⟨i.val + k.val, by
-    have hk := k.isLt
-    change k.val < j.val - i.val + 1 at hk
-    have hj := j.isLt
+    have hk : k.val < j.val - i.val + 1 := k.isLt
+    have := j.isLt
     omega⟩
   let e : Fin q.segments ≃o Set.Icc i j := {
     toEquiv := {
       toFun k := ⟨source k, by
-        have hk := k.isLt
-        change k.val < j.val - i.val + 1 at hk
+        have hk : k.val < j.val - i.val + 1 := k.isLt
         change i.val ≤ i.val + k.val ∧ i.val + k.val ≤ j.val
         omega⟩
       invFun k := ⟨k.val.val - i.val, by
         have hk : k.val.val ≤ j.val := k.property.2
         change k.val.val - i.val < j.val - i.val + 1
         omega⟩
-      left_inv := fun k => Fin.ext (by change i.val + k.val - i.val = k.val; omega)
-      right_inv := fun k => Subtype.ext (Fin.ext (by
-        have hk : i.val ≤ k.val.val := k.property.1
-        change i.val + (k.val.val - i.val) = k.val.val
-        omega)) }
-    map_rel_iff' := by
-      intro a b
-      change i.val + a.val ≤ i.val + b.val ↔ a.val ≤ b.val
-      omega }
+      left_inv := fun k => Fin.ext (Nat.add_sub_cancel_left i.val k.val)
+      right_inv := fun k => Subtype.ext (Fin.ext (Nat.add_sub_of_le k.property.1)) }
+    map_rel_iff' := fun {a b} => Nat.add_le_add_iff_left }
   have heval (k : Fin q.segments) (u : ℝ) : r.eval k u = p.eval (e k).val u := rfl
-  have hfirst : (e 0).val = i := Fin.ext (by change i.val + 0 = i.val; omega)
-  have hlast : (e (Fin.last r.bends)).val = j :=
-    Fin.ext (by change i.val + (j.val - i.val) = j.val; omega)
+  have hfirst : (e 0).val = i := Fin.ext (Nat.add_zero i.val)
+  have hlast : (e (Fin.last r.bends)).val = j := Fin.ext (Nat.add_sub_of_le hij')
   have hcuts (k : Fin q.segments) :
       r.cutLower s k = (if (e k).val = i then s else 0) ∧
       r.cutUpper (1 - t) k = (if (e k).val = j then t else 1) := by
@@ -346,9 +332,7 @@ theorem exists_subroute_between (p : Route) (i j : Fin p.segments) (hij : i ≤ 
     exact (heval (Fin.last r.bends) t).trans (congrArg (fun k => p.eval k t) hlast)
   · intro k
     obtain ⟨hlo, hhi⟩ := hcuts k
-    have hb := hbounds k
-    rw [hlo, hhi] at hb
-    obtain ⟨hl, hlt, hh⟩ := hb
+    obtain ⟨hl, hlt, hh⟩ := hlo ▸ hhi ▸ hbounds k
     refine ⟨hl, hlt, hh, fun u => ?_⟩
     calc
       q.eval k u = r.eval k (r.cutTime s (1 - t) k u) := r.eval_cutEnds s (1 - t) k u

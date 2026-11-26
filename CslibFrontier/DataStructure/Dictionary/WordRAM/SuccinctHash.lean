@@ -328,10 +328,8 @@ theorem tsum_uniform_probeExcess_reducedPolyHash_le_five {U n_max : ℕ} (hnU : 
       qStage1 U n_max α u₁ = qStage1 U n_max α u₂ →
         keyQuotient (bucketBits n_max) u₁.val = keyQuotient (bucketBits n_max) u₂.val := by
     intro α hα u₁ hu₁ u₂ hu₂ hcoll
-    have hinj := mem_reducedGoodTop.mp hα
-    have hq₁ : quotientFin U n_max u₁ ∈ S_Q := mem_image_of_mem _ hu₁
-    have hq₂ : quotientFin U n_max u₂ ∈ S_Q := mem_image_of_mem _ hu₂
-    exact keyQuotient_eq_of_quotientFin_eq hnU u₁ u₂ (hinj hq₁ hq₂ hcoll)
+    exact keyQuotient_eq_of_quotientFin_eq hnU u₁ u₂
+      (mem_reducedGoodTop.mp hα (mem_image_of_mem _ hu₁) (mem_image_of_mem _ hu₂) hcoll)
   have hbad : #(univ \ G) * (2 * #(S.erase u)) ≤
       2 * Fintype.card (ReducedTopSeed (qBits U n_max)) := by
     have h1 : #S_Q ≤ n_max + 1 :=
@@ -449,29 +447,23 @@ theorem bucketMapOfState_update {U n_max : ℕ} (hnU : n_max ≤ U) (h1 : ℕ �
       (Function.update (bucketMapOfState U n_max h1 s_abs b) q v_opt) =
     bucketMapOfState U n_max h1 (Function.update s_abs u v_opt) := by
   intro b q
-  have hne_pair : ∀ b' q', (b' ≠ b ∨ q' ≠ q) →
+  have hne_pair (b' q') (hne : b' ≠ b ∨ q' ≠ q) :
       bucketMapOfState U n_max h1 s_abs b' q' =
         bucketMapOfState U n_max h1 (Function.update s_abs u v_opt) b' q' := by
-    intro b' q' hne
     unfold bucketMapOfState
     split_ifs with h
-    · have hne_u : (⟨feistelReconstruct (bucketBits n_max) h1 b' q', h.1⟩ : Fin U) ≠ u := by
-        intro heq
-        have hval : feistelReconstruct (bucketBits n_max) h1 b' q' = u.val := congrArg Fin.val heq
-        have hrec := feistelBucket_feistelReconstruct h1 h.2.1 q'
-        rw [hval] at hrec
-        exact hne.elim (· hrec.1.symm) (· hrec.2.symm)
-      rw [Function.update_of_ne hne_u]
+    · refine (Function.update_of_ne (fun heq => ?_) _ _).symm
+      have hval : feistelReconstruct (bucketBits n_max) h1 b' q' = u.val := congrArg Fin.val heq
+      have hrec := hval ▸ feistelBucket_feistelReconstruct h1 h.2.1 q'
+      exact hne.elim (· hrec.1.symm) (· hrec.2.symm)
     · rfl
   funext b' q'
   rcases eq_or_ne b' b with rfl | hbeq
   · rw [Function.update_self]
     rcases eq_or_ne q' q with rfl | hqeq
     · rw [Function.update_self, bucketMapOfState_feistelBucket hnU h1 _ u, Function.update_self]
-    · rw [Function.update_of_ne hqeq]
-      exact hne_pair b q' (Or.inr hqeq)
-  · rw [Function.update_of_ne hbeq]
-    exact hne_pair b' q' (Or.inl hbeq)
+    · rw [Function.update_of_ne hqeq, hne_pair b q' (Or.inr hqeq)]
+  · rw [Function.update_of_ne hbeq, hne_pair b' q' (Or.inl hbeq)]
 
 /-- Full dictionary state invariant coupling `s_abs : Dictionary.State U` with `BucketStateInv` at
 `base` under quotient hash seed `θ`. -/
@@ -555,10 +547,8 @@ theorem chain_and_overflow_le_probeExcess {U V w₀ n_max base : ℕ}
   have hkeyAt_inj : ∀ j₁ < bCount n_max gm b, ∀ j₂ < bCount n_max gm b,
       keyAt j₁ = keyAt j₂ → j₁ = j₂ := by
     intro j₁ hj₁ j₂ hj₂ heq
-    have hq₁ := (hkeyAt_props j₁ hj₁).2.2
-    have hq₂ := (hkeyAt_props j₂ hj₂).2.2
-    rw [heq] at hq₁
-    exact hinv.hnodup_q b hb j₁ hj₁ j₂ hj₂ (hq₁.symm.trans hq₂)
+    have hq₁ := heq ▸ (hkeyAt_props j₁ hj₁).2.2
+    exact hinv.hnodup_q b hb j₁ hj₁ j₂ hj₂ (hq₁.symm.trans (hkeyAt_props j₂ hj₂).2.2)
   -- Bound 1: micro-chain length
   have hlen : (L b m).length ≤
       1 + microCollCount n_max (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
@@ -567,9 +557,8 @@ theorem chain_and_overflow_le_probeExcess {U V w₀ n_max base : ℕ}
     refine card_microSlots_le (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
       (Dictionary.dom s_abs) u (L b m).toFinset keyAt ?_ ?_
     · intro j₁ hj₁ j₂ hj₂ heq
-      have hj₁_lt := ((hinv.hchain_mem b hb m hm j₁).mp (List.mem_toFinset.mp hj₁)).1
-      have hj₂_lt := ((hinv.hchain_mem b hb m hm j₂).mp (List.mem_toFinset.mp hj₂)).1
-      exact hkeyAt_inj j₁ hj₁_lt j₂ hj₂_lt heq
+      exact hkeyAt_inj j₁ (((hinv.hchain_mem b hb m hm j₁).mp (List.mem_toFinset.mp hj₁)).1) j₂
+        (((hinv.hchain_mem b hb m hm j₂).mp (List.mem_toFinset.mp hj₂)).1) heq
     · intro j hj
       obtain ⟨hj_lt, _, hm_j⟩ := (hinv.hchain_mem b hb m hm j).mp (List.mem_toFinset.mp hj)
       obtain ⟨hdom, hb_eq, hq_eq⟩ := hkeyAt_props j hj_lt
@@ -581,10 +570,8 @@ theorem chain_and_overflow_le_probeExcess {U V w₀ n_max base : ℕ}
         (Dictionary.dom s_abs) u := by
     refine bucketOverflow_le (qStage1 U n_max θ.1) (polyStage2 U n_max) θ.2
       (Dictionary.dom s_abs) u (fun j : Fin (bCount n_max gm b) => keyAt j.val) ?_ ?_
-    · intro j₁ j₂ heq
-      exact Fin.ext (hkeyAt_inj j₁.val j₁.isLt j₂.val j₂.isLt heq)
-    · intro j
-      exact ⟨(hkeyAt_props j.val j.isLt).1, (hkeyAt_props j.val j.isLt).2.1⟩
+    · exact fun j₁ j₂ heq => Fin.ext (hkeyAt_inj j₁.val j₁.isLt j₂.val j₂.isLt heq)
+    · exact fun j => ⟨(hkeyAt_props j.val j.isLt).1, (hkeyAt_props j.val j.isLt).2.1⟩
   refine ⟨hlen, hovf, ?_⟩
   unfold probeExcess
   omega

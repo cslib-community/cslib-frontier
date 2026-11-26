@@ -141,9 +141,7 @@ theorem hit_nonneg (hk : 1 ≤ k) (t d : ℕ) : 0 ≤ hit k t d := by
     | zero => simp
     | succ d =>
       rw [hit_succ_succ]
-      have := ih d
-      have := ih (d + 2)
-      positivity
+      exact div_nonneg (add_nonneg (ih d) (mul_nonneg hk1 (ih (d + 2)))) (Nat.cast_nonneg k)
 
 theorem hit_le_one (hk : 1 ≤ k) (t d : ℕ) : hit k t d ≤ 1 := by
   have hk1 : (1 : ℝ) ≤ k := by exact_mod_cast hk
@@ -298,9 +296,7 @@ theorem inv_le_hit (hk : 3 ≤ k) (d : ℕ) :
   set i := d / (k - 2)
   set e := d % (k - 2)
   have hdie : (k - 2) * i + e = d := Nat.div_add_mod d (k - 2)
-  have he : e ≤ k - 3 := by
-    have := Nat.mod_lt d (show 0 < k - 2 by omega)
-    omega
+  have he : e < k - 2 := Nat.mod_lt d (by omega)
   have hlen : i + (i + d) = k * i + e := by
     rw [← hdie]
     obtain ⟨k', rfl⟩ : ∃ k', k = k' + 2 := ⟨k - 2, by omega⟩
@@ -426,9 +422,8 @@ theorem hit_le_succeedProb (hk : 1 ≤ k) {φ : CNF V} {σs : V → Bool} (hs : 
         rw [hammingDist_flip, hd]
         split_ifs <;> omega
       have hterm₀ : hit k t d ≤ f i₀ := by
-        have hdist : hammingDist (flipOn {(c.get i₀).1} σ) σs = d := by
-          rw [hi₀, hammingDist_flip, hd, ite_eq_right hne, Nat.succ_sub_one]
-        exact hdist ▸ ih _
+        simpa only [f, hi₀, hammingDist_flip, hd, ite_eq_right hne, Nat.succ_sub_one] using
+          ih (flipOn {(c.get i₀).1} σ)
       have hsum : hit k t d + ((c.length : ℝ) - 1) * hit k t (d + 2) ≤ ∑ i, f i := by
         rw [← add_sum_erase _ _ (mem_univ i₀)]
         refine add_le_add hterm₀ ((sum_le_sum fun i _ => hterm i).trans_eq' ?_)
@@ -454,12 +449,10 @@ coordinates. -/
 theorem sum_pow_hammingDist [DecidableEq V] (q : ℝ) (τ : V → Bool) :
     ∑ σ : V → Bool, q ^ hammingDist σ τ = (1 + q) ^ Fintype.card V := by
   have hprod (σ : V → Bool) : q ^ hammingDist σ τ = ∏ i, if σ i = τ i then 1 else q := by
-    rw [prod_ite, prod_const_one, one_mul, prod_const]
-    rfl
+    simp [prod_ite, hammingDist]
   simp only [hprod]
   rw [← Fintype.prod_sum (fun i b => if b = τ i then (1 : ℝ) else q)]
   have hb (i : V) : ∑ b : Bool, (if b = τ i then (1 : ℝ) else q) = 1 + q := by
-    rw [Fintype.sum_bool]
     cases τ i <;> simp [add_comm]
   simp only [hb, prod_const, card_univ]
 

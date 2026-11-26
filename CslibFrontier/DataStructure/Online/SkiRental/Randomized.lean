@@ -190,17 +190,12 @@ of the threshold strategies is `B^B * n`. -/
 private theorem sum_buy_mul_cost_aux (m n : ℕ) (hn : n ≤ m + 1) :
     ∑ t ∈ range (m + 1), m ^ (m - t) * (m + 1) ^ t * (if n ≤ t then n else t + (m + 1)) =
       (m + 1) ^ (m + 1) * n := by
-  have hlo : ∑ t ∈ range n, m ^ (m - t) * (m + 1) ^ t * (if n ≤ t then n else t + (m + 1)) =
-      ∑ t ∈ range n, m ^ (m - t) * (m + 1) ^ t * (t + (m + 1)) :=
-    Finset.sum_congr rfl fun t ht => by
-      rw [ite_eq_right (by rw [Finset.mem_range] at ht; omega)]
-  have hhi : ∑ t ∈ Ico n (m + 1), m ^ (m - t) * (m + 1) ^ t * (if n ≤ t then n else t + (m + 1)) =
-      (∑ t ∈ Ico n (m + 1), m ^ (m - t) * (m + 1) ^ t) * n := by
-    rw [Finset.sum_mul]
-    exact Finset.sum_congr rfl fun t ht => by
-      rw [ite_eq_left (by rw [Finset.mem_Ico] at ht; omega)]
-  rw [← Finset.sum_range_add_sum_Ico _ hn, hlo, hhi, sum_buy_mul_aux m n hn,
-    ← sum_Ico_buy_aux m n hn]
+  rw [← Finset.sum_range_add_sum_Ico _ hn,
+    Finset.sum_congr rfl fun t ht =>
+      congrArg (_ * ·) (ite_eq_right (not_le.mpr (Finset.mem_range.mp ht))),
+    Finset.sum_congr rfl fun t ht =>
+      congrArg (_ * ·) (ite_eq_left (Finset.mem_Ico.mp ht).1),
+    ← Finset.sum_mul, sum_buy_mul_aux m n hn, ← sum_Ico_buy_aux m n hn]
   ring
 
 private theorem sum_adv_aux (m n : ℕ) (hn : n ≤ m) :
@@ -234,24 +229,17 @@ private theorem le_sum_adv_mul_cost_aux (m t : ℕ) :
     have ha := sum_adv_aux m t htm.le
     have ha' := sum_adv_aux m m le_rfl
     rw [← Finset.sum_range_add_sum_Ico _ htm.le, Nat.sub_self, pow_zero, mul_one] at ha'
-    have hlo : ∑ k ∈ range t, m ^ k * (m + 1) ^ (m - 1 - k) *
-        (if k + 1 ≤ t then k + 1 else t + (m + 1)) =
-        ∑ k ∈ range t, m ^ k * (m + 1) ^ (m - 1 - k) * (k + 1) :=
-      Finset.sum_congr rfl fun k hk => by
-        rw [ite_eq_left (by rw [Finset.mem_range] at hk; omega)]
-    have hhi : ∑ k ∈ Ico t m, m ^ k * (m + 1) ^ (m - 1 - k) *
-        (if k + 1 ≤ t then k + 1 else t + (m + 1)) =
-        (∑ k ∈ Ico t m, m ^ k * (m + 1) ^ (m - 1 - k)) * (t + (m + 1)) := by
-      rw [Finset.sum_mul]
-      exact Finset.sum_congr rfl fun k hk => by
-        rw [ite_eq_right (by rw [Finset.mem_Ico] at hk; omega)]
-    rw [ite_eq_right (by omega), ← Finset.sum_range_add_sum_Ico _ htm.le, hlo, hhi]
+    rw [ite_eq_right (by omega), ← Finset.sum_range_add_sum_Ico _ htm.le,
+      Finset.sum_congr rfl fun k hk =>
+        congrArg (_ * ·) (ite_eq_left (Nat.succ_le_of_lt (Finset.mem_range.mp hk))),
+      Finset.sum_congr rfl fun k hk =>
+        congrArg (_ * ·) (ite_eq_right (not_le.mpr (Nat.lt_succ_of_le (Finset.mem_Ico.mp hk).1))),
+      ← Finset.sum_mul]
     have htail : ∑ k ∈ Ico t m, m ^ k * (m + 1) ^ (m - 1 - k) + m ^ m =
         m ^ t * (m + 1) ^ (m - t) := by omega
     rw [← htail] at hb
     rw [← hb]
-    apply le_of_eq
-    ring
+    exact le_of_eq (by ring)
   · -- the strategy rents through every short sequence: it pays at least `2B - 1` on the long one
     have hb := sum_adv_mul_aux m m le_rfl
     rw [Nat.sub_self, pow_zero, mul_one] at hb

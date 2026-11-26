@@ -44,17 +44,12 @@ private theorem exists_matchingMass_of_complete {n d : ℕ}
           (decodedPoint S.toCommuting.alice u).effect (MvPolynomial.eval u g.val))).re := by
   classical
   let G := (H.toMeasurement.map some).toPOVM
-  let R := QuantumStrategy.rightMeasurement (ι := ι) H
-  let P := decodedPoint S.toCommuting.alice
   have hG (g : BoundedPolynomial F (n + 1) d) :
-      (QuantumStrategy.rightMeasurement (ι := ι) G).effect (some g) = R.effect g := by
+      (QuantumStrategy.rightMeasurement (ι := ι) G).effect (some g) =
+        (QuantumStrategy.rightMeasurement (ι := ι) H).effect g := by
     change (1 : Matrix ι ι ℂ) ⊗ₖ G.effect (some g) = _ ⊗ₖ H.effect g
     simp [G, Measurement.toPOVM_effect, Measurement.map_effect, sum_filter]
-  have hread (u : Point F (n + 1)) := Measurement.agreement_map_left S.toCommuting.state R (P u)
-    (fun g => MvPolynomial.eval u g.val)
-  change (𝔼 u : Point F (n + 1), (1 - Measurement.agreement S.toCommuting.state
-    (R.map fun g => MvPolynomial.eval u g.val) (P u))) ≤ s at h
-  simp only [hread, expect_sub_distrib, Fintype.expect_const] at h
+  simp only [Measurement.agreement_map_left, expect_sub_distrib, Fintype.expect_const] at h
   exact ⟨G, by simp only [hG]; linarith only [h]⟩
 
 private theorem loss_mem_Icc {n : ℕ}
@@ -118,10 +113,9 @@ private theorem exists_polynomial_POVM_of_symmetric_in_range
     obtain ⟨hε, hδ, hγ⟩ := losses_mem_Icc C d D
     have hbase := baseError_le_dimensionInductionError (m := 1) (by norm_num) hk hε hδ hγ.1
       (div_nonneg (Nat.cast_nonneg d) hq.le)
-    have hwin : (branchGame (F := F) 0 d .axis).commutingWinProb S.toCommuting = 1 - ε :=
-      (sub_sub_cancel 1 _).symm
-    rw [hwin, Nat.cast_zero, zero_add]
-    exact sub_le_sub_left (by linarith only [hbase, hε.1, hδ.1]) 1
+    dsimp only [ε, C] at hbase hε ⊢
+    rw [Nat.cast_zero, zero_add]
+    linarith only [hbase, hε.1, hδ.1]
   | succ n ih =>
     let m := (n + 1 : ℝ)
     let M := (n + 2 : ℝ)
@@ -286,9 +280,8 @@ theorem exists_polynomial_POVM_of_symmetric
     linarith
   by_cases hk₀ : k = 0
   · apply htrivial
-    dsimp only [B, dimensionInductionError]
-    simp only [hk₀, Nat.cast_zero, zero_pow (by norm_num : (2 : ℕ) ≠ 0), mul_zero, zero_mul,
-      zero_add, neg_zero, zero_div, Real.exp_zero, mul_one]
+    simp only [B, dimensionInductionError, hk₀, Nat.cast_zero, zero_pow (by norm_num : (2 : ℕ) ≠ 0),
+      mul_zero, zero_mul, zero_add, neg_zero, zero_div, Real.exp_zero, mul_one]
     exact one_le_pow₀ hm
   have hpos := Nat.pos_of_ne_zero hk₀
   by_cases hd : d = 0

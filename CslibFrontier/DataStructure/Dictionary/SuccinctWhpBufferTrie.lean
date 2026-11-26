@@ -510,12 +510,9 @@ private theorem BufTrieInv.allocStep {cTab bChar cur ch off : ℕ} {tr : BufTrie
   have hmono : ∀ v c, tr.trieChild v c ≠ 0 → tr'.trieChild v c = tr.trieChild v c :=
     fun v c hnz => Function.update_update_apply_of_ne fun ⟨hv, hc⟩ => hnz (hv ▸ hc ▸ h0)
   refine ⟨⟨by dsimp [tr']; omega,
-    fun w hw_ge => by
-      dsimp only [tr'] at hw_ge ⊢
-      rw [Function.update_of_ne (by omega)]; exact hinv.zero w (by omega),
-    by
-      dsimp only [depth']
-      rw [Function.update_of_ne (by have := hinv.alloc; omega)]; exact hinv.d0,
+    fun w hw_ge => (Function.update_of_ne (by dsimp [tr'] at hw_ge; omega) ..).trans
+      (hinv.zero w (by dsimp [tr'] at hw_ge; omega)),
+    (Function.update_of_ne (by have := hinv.alloc; omega) ..).trans hinv.d0,
     ?_, ?_, ?_⟩, hmono⟩
   · intro w hw1 hw_lt
     dsimp only [tr', depth'] at hw_lt ⊢
@@ -760,16 +757,13 @@ theorem ValidBufTrie.insert_spec {cTab bChar rKey b loc : ℕ} {tr : BufTrie}
         cases hwk_old : bufWalk bChar tr.trieChild k cTab 0 0 with
         | some leaf_k =>
           obtain ⟨hwk1, _, _, hli_eq⟩ := hsome leaf_k hwk_old
-          rw [hwk1]; simp [hli_eq]
+          simp [hwk1, hli_eq]
         | none =>
           cases hwk1 : bufWalk bChar tr1.trieChild k cTab 0 0 with
           | none => rfl
           | some leaf_k => simp [hnone hwk_old leaf_k hwk1]
   · simp only [hid1, ↓reduceIte]
-    have htr1_eq : tr1 = tr := by
-      rcases hwalk_or with ⟨_, htr_eq⟩ | ⟨_, hge_leaf⟩
-      · exact htr_eq
-      · exact absurd (hz_ge1 leaf hge_leaf) hid1
+    have htr1_eq : tr1 = tr := hwalk_or.elim And.right fun h => absurd (hz_ge1 leaf h.2) hid1
     obtain ⟨_, _, hil_leaf, _⟩ := hinv1.leaf leaf hleaf_lt hid1
     have hever_true : bufEverPresent cTab bChar tr rKey = true := by
       rw [← htr1_eq]; simp [bufEverPresent, hw_rKey, hid1]
@@ -894,9 +888,8 @@ theorem ValidBufTrie.toClearable {cTab bChar : ℕ} {tr : BufTrie}
 safety. -/
 theorem ClearableBufTrie.bounds {tr : BufTrie} (hc : ClearableBufTrie tr) :
     1 ≤ tr.nodeAlloc ∧
-    (∀ u, 1 ≤ u → u < tr.nodeAlloc → tr.nodeParent u < u) := by
-  obtain ⟨halloc, _, hedge, _⟩ := hc
-  exact ⟨halloc, fun u h1 h2 => (hedge u h1 h2).1⟩
+    (∀ u, 1 ≤ u → u < tr.nodeAlloc → tr.nodeParent u < u) :=
+  ⟨hc.1, fun u h1 h2 => (hc.2.2.1 u h1 h2).1⟩
 
 /-- One step of `bufClearOne` preserves `ClearableBufTrie` and decrements `nodeAlloc` toward `1`. -/
 theorem ClearableBufTrie.clearOne_step {tr : BufTrie} (hc : ClearableBufTrie tr) :

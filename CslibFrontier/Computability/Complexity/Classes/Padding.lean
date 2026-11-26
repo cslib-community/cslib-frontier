@@ -149,8 +149,7 @@ def padded (ntm : MultiTapeNTM k Bool State) (c : ℕ) : Set (List Bool) :=
 /-- The padded problem is in `NP`, with certificates of length `c * |x|`. -/
 theorem padded_mem_NP (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
     ntm.padded c ∈ Cslib.Complexity.NP encBits :=
-  ⟨Polynomial.C c * Polynomial.X, ntm.checkPadded,
-    (ntm.computableInPolyTime_checkPadded),
+  ⟨Polynomial.C c * Polynomial.X, ntm.checkPadded, ntm.computableInPolyTime_checkPadded,
     fun x => by simp [padded]⟩
 
 /-- **Padded instances.** If `ntm` decides `A` within `t`, then the padded word
@@ -305,12 +304,9 @@ theorem NTIME_two_pow_subset_iUnion_DTIME_of_expPaddedNPEasy (hNP : ExpPaddedNPE
     NTIME enc (fun n => 2 ^ f n) ⊆ ⋃ d, DTIME enc fun n => 2 ^ (d * f n) := by
   intro A hA
   obtain ⟨d, hpad⟩ := exists_computableInO_two_pow_length hf
-  have hagree : ∀ B ∈ NP encBits, ∃ B' ∈ P encBits, ∀ u : List Bool,
-      (frame u ++ List.replicate (2 ^ f u.length) true ∈ B' ↔
-        frame u ++ List.replicate (2 ^ f u.length) true ∈ B) := fun B hB => by
-    obtain ⟨B', hB', h⟩ := hNP B hB
-    exact ⟨B', hB', fun u => h u _ (Nat.pow_le_pow_right (by norm_num) (hn _))⟩
-  obtain ⟨D, hD⟩ := Set.mem_iUnion.mp (NTIME_subset_iUnion_DTIME_of_agree_padded hagree
+  obtain ⟨D, hD⟩ := Set.mem_iUnion.mp (NTIME_subset_iUnion_DTIME_of_agree_padded
+    (fun B hB => (hNP B hB).imp fun B' ⟨hB', h⟩ =>
+      ⟨hB', fun u => h u _ (Nat.pow_le_pow_right (by norm_num) (hn _))⟩)
     (T := fun n => n + (n + 1) ^ d + (f n + 1) * 2 ^ f n) hpad hA)
   -- the padded instances are written within time `2 ^ O(f n)`
   refine Set.mem_iUnion.mpr ⟨(d + 2) * D, DTIME_mono_of_le_mul_add (C := 2 ^ (2 * D))
@@ -428,8 +424,7 @@ theorem preimage_mem_NTIME_of_mem_NP {B : Set (List Bool)} {g : α → List Bool
           (M_NP.runClosedConfigFrom (t₂ a) (M_NP.initialConfig word))).support,
           final.tapes.state = none := by
     intro word hword final hfinal
-    rw [hout₁ a, PMF.mem_support_pure_iff] at hword
-    subst hword
+    obtain rfl : word = g a := by simpa [hout₁ a] using hword
     rw [M_NP.eval_runClosedConfigFrom_eq_of_halted _ (ht₂_le a) (hhalt₂ (g a))] at hfinal
     exact hhalt₂ (g a) final hfinal
   let M_comp := M_NP.comp M_pad false

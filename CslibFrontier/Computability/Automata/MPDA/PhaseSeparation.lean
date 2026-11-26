@@ -174,19 +174,15 @@ theorem phaseBounded_two (hM : M.IsVisibly kind) {c c' : Config 2 State Γ}
     have hpop : ∀ μ ∈ u, ∀ i γ, μ.2 = .pop i γ → i = o := fun μ hμ i γ hpop =>
       hx μ.1 (List.mem_map_of_mem hμ) i (by rw [← hu μ hμ, hpop]; rfl)
     exact fun μ hμ ν hν i j γ δ hμp hνp => (hpop μ hμ i γ hμp).trans (hpop ν hν j δ hνp).symm
-  intro v hv
-  simp only [List.mem_cons, List.not_mem_nil, or_false] at hv
-  rcases hv with rfl | rfl
-  · refine hphase _ 0 (fun μ hμ => hkind μ (by simp [hμ])) fun x hx i hi => ?_
-    rw [hw₁] at hx
+  simp only [List.forall_mem_cons]
+  refine ⟨hphase _ 0 (fun μ hμ => hkind μ (by simp [hμ])) fun x hx i hi => ?_,
+    hphase _ 1 (fun μ hμ => hkind μ (by simp [hμ])) fun x hx i hi => ?_, nofun⟩
+  · rw [hw₁] at hx
     simp only [List.mem_append, List.mem_flatten, List.mem_replicate] at hx
     rcases hx with ⟨l, ⟨-, rfl⟩, hl⟩ | ⟨-, rfl⟩
-    · simp only [List.mem_cons, List.not_mem_nil, or_false] at hl
-      rcases hl with rfl | rfl <;> simp_all [kind]
+    · rcases (by simpa using hl : x = .a ∨ x = .b) with rfl | rfl <;> simp_all [kind]
     · simp_all [kind]
-  · refine hphase _ 1 (fun μ hμ => hkind μ (by simp [hμ])) fun x hx i hi => ?_
-    obtain ⟨-, rfl⟩ := List.mem_replicate.mp (hw₂ ▸ hx)
-    simp_all [kind]
+  · simpa [kind, (List.mem_replicate.mp (hw₂ ▸ hx)).2] using hi.symm
 
 /-! ## `L'` is not hole-bounded -/
 
@@ -424,9 +420,7 @@ private theorem mem_phaseLanguage_of_accepts {w : List Letter}
     obtain rfl : k = 0 := by simpa using h₀.symm
     exact ⟨0, by simpa [phaseWord] using hu⟩
   · obtain ⟨k, r, t, hrk, -, htk, hu, h₀, h₁⟩ := hinv
-    simp only [List.length_nil] at h₀ h₁
-    obtain rfl : r = k := by omega
-    obtain rfl : t = r := by omega
+    obtain ⟨rfl, rfl⟩ : r = k ∧ t = r := by simp only [List.length_nil] at h₀ h₁; omega
     exact ⟨t, hu⟩
 
 /-- Repeating `a b` from `x` pushes on both stacks. -/

@@ -182,11 +182,9 @@ private theorem createLeaf_correct [LinearOrder M.Value] (zero maxSucc : M.Op)
     cases hp : s.ptr 2 with
     | none => simpa [hp] using vacant
     | some a =>
-      rw [hp] at vacant
-      obtain ⟨par, get, slot⟩ := vacant
-      refine ⟨par, get, ?_⟩
-      cases h : M.evalTest lt (s.data 0) (par.data 0) <;>
-        simpa [side, parentKey, State.deref, hp, get, h] using slot
+      obtain ⟨par, get, slot⟩ := hp ▸ vacant
+      exact ⟨par, get, by cases h : M.evalTest lt (s.data 0) (par.data 0) <;>
+        simpa [side, parentKey, State.deref, hp, get, h] using slot⟩
   obtain ⟨t, run, heap, rep, size, cursor, rootReg, data, _, ptr, _⟩ :=
     SearchTree.PointerMachine.Structured.insertLeaf_correct (leafRegisters field source) side q
       vacancy
@@ -369,15 +367,12 @@ private theorem rebalance_correct [LinearOrder M.Value]
     · -- The loop ends at the root: no ancestor is left, and the focus is the whole tree.
       obtain ⟨cs', before', after', focused', -, om, fm, fv, cm, -, rep', dist', fp, cur, top,
         nil⟩ := hy
-      obtain rfl : cs' = [] := by
-        cases cs' with
-        | nil => rfl
-        | cons f _ =>
-          obtain ⟨d, label, sib, -, hpar, -⟩ := frame_view f
-          simp [pm_simps, cur, nil, hpar] at holds
-      obtain rfl : focused' = original := fv.heightConsistent.eq_of_toBinaryTree_eq
-        valid.heightConsistent (fm.keys.symm.trans om.keys)
-      exact ⟨by omega, after', rep', cm, dist', fp, cur, top⟩
+      rcases cs' with _ | ⟨f, _⟩
+      · obtain rfl : focused' = original := fv.heightConsistent.eq_of_toBinaryTree_eq
+          valid.heightConsistent (fm.keys.symm.trans om.keys)
+        exact ⟨by omega, after', rep', cm, dist', fp, cur, top⟩
+      · obtain ⟨_, _, _, -, hpar, -⟩ := frame_view f
+        simp [pm_simps, cur, nil, hpar] at holds
   obtain ⟨t, run, tree, rt, mt, dt, at', ct, rootT⟩ := main
   exact ⟨t, tree, run, rt, mt, dt, at', ct, rootT,
     run.length_eq (rebalance_keepsSize zero maxSucc heavy le field),
@@ -517,18 +512,14 @@ theorem insert_correct [LinearOrder M.Value]
     cases focus with
     | nil =>
       let cleared := a.setPtr 5 none
-      have complete : Represents cleared.heap none (plug cs .nil) := by
-        rw [show cleared.heap = s.heap from ra.heap, ← ra.reconstruction]; exact rep
-      have path : SearchPath (cleared.data 0) cs := by
-        simpa only [cleared, State.setPtr, query] using ra.path
       have parent : cleared.ptr 2 = contextParent cs := by
         simpa [cleared, State.setPtr] using ra.parent
       have rootCleared : cleared.ptr 1 = root (plug cs .nil) := by
         simpa [cleared, State.setPtr, ra.reconstruction] using rootA
       obtain ⟨b, result, eb, rb⟩ := missing_correct zero maxSucc lt heavy le encode
         zero_spec max_spec compare heavy_spec le_spec field notKey source safe
-        cleared cs original (ra.reconstruction ▸ matched) valid path complete
-        (ra.reconstruction ▸ distinct) parent rootCleared
+        cleared cs original (ra.reconstruction ▸ matched) valid (query.symm ▸ ra.path)
+        (ra.heap.symm ▸ ra.reconstruction ▸ rep) (ra.reconstruction ▸ distinct) parent rootCleared
       have run := ExecWithin.seq ea
         (afterSeek_missing zero maxSucc lt heavy le field source a ra.cursor b _ eb)
       have depth := height_add_context_length_le cs (.nil : BinaryTree (Label M extra))
@@ -552,7 +543,6 @@ theorem insert_correct [LinearOrder M.Value]
       · simp [t, State.setPtr, ra.heap]
       · intro z f _ _; simp only [t, State.setPtr, ra.heap]
       · intro grows; simp [t, State.setPtr, ra.heap] at grows
-  have logarithmic := valid.cachedHeight_le_two_mul_log
-  exact ⟨t, result, exec, exec.mono (by omega), outcome⟩
+  exact ⟨t, result, exec, exec.mono (by have := valid.cachedHeight_le_two_mul_log; omega), outcome⟩
 
 end Cslib.DataStructure.AVLTree.PointerMachine.Structured

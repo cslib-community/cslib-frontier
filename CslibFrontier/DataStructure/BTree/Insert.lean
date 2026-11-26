@@ -495,10 +495,8 @@ theorem insertRest_spec {rest : List (Triple α β)}
       · -- the key is at this triple: its value is replaced
         obtain rfl : k = k' := le_antisymm h₁ h₂
         refine ⟨by simp, fun r hr => ?_⟩
-        simp only [h₁, ↓reduceIte, Option.some.injEq] at hr
-        subst hr
-        rw [SortedAssoc.insert_append_of_forall_lt hlt, SortedAssoc.insert_cons]
-        simp
+        obtain rfl : _ = r := by simpa only [h₁, ↓reduceIte, Option.some.injEq] using hr
+        simp [SortedAssoc.insert_append_of_forall_lt hlt, SortedAssoc.insert_cons]
       · -- the key is below this triple: defer to the child before it
         have hk : k < k' := lt_of_le_of_ne h₁ fun h => h₂ (h ▸ le_rfl)
         exact ⟨fun _ => List.forall_mem_cons.2 ⟨hk, fun p hp => hk.trans (hgt p hp)⟩,
@@ -579,13 +577,10 @@ theorem fits_insertOrSplit {tr : BTree α β} (hb : Balanced tr)
   | node first rest ihf ihr =>
     obtain ⟨hf, hr⟩ := good_of_balanced_node hb ho
     -- the hypotheses of the induction, for an occupied child
-    have hchild : ∀ c : BTree α β, Occupied t c →
-        (∀ c' ∈ c.children, Occupied t c') ∧ c.rootKeys ≤ 2 * t - 1 :=
-      fun _ hc => ⟨fun _ hc' => hc.of_mem_children hc', hc.rootKeys_le⟩
     have hrest : ∀ e ∈ rest, Good t first.height e.child ∧
-        (insertOrSplit t k v e.child).Fits t e.child := fun e he => by
-      obtain ⟨h₁, h₂⟩ := hchild _ (hr e he).occupied
-      exact ⟨hr e he, ihr e he (hr e he).balanced h₁ h₂⟩
+        (insertOrSplit t k v e.child).Fits t e.child := fun e he =>
+      ⟨hr e he, ihr e he (hr e he).balanced
+        (fun _ hc' => (hr e he).occupied.of_mem_children hc') (hr e he).occupied.rootKeys_le⟩
     have hh := hb.height_node
     simp only [rootKeys_node] at hk
     rw [insertOrSplit_node]
@@ -594,9 +589,9 @@ theorem fits_insertOrSplit {tr : BTree α β} (hb : Balanced tr)
       obtain ⟨h₁, h₂, h₃⟩ := fits_insertRest hrest hrs
       exact InsertResult.fits_ofNode hf h₁ (by omega) (by simp) hh (by simpa using h₂)
     | none =>
-      obtain ⟨h₁, h₂⟩ := hchild first hf.occupied
-      obtain ⟨hp₁, hp₂, hl₁, hl₂⟩ :=
-        InsertResult.fits_withRest (ihf hb.first h₁ h₂) hf.occupied rfl hr
+      obtain ⟨hp₁, hp₂, hl₁, hl₂⟩ := InsertResult.fits_withRest
+        (ihf hb.first (fun _ hc' => hf.occupied.of_mem_children hc') hf.occupied.rootKeys_le)
+        hf.occupied rfl hr
       exact InsertResult.fits_ofNode hp₁ hp₂ (by omega) (by simp) hh (by simpa using hl₁)
 
 variable {tr : BTree α β}

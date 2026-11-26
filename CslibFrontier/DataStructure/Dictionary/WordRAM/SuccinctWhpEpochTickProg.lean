@@ -282,32 +282,16 @@ theorem realizes_fastStepPureGen :
     first
     | exact henv.fits_const (by decide)
     | exact ⟨c, U, V, w, n_max, fs, henv, rfl, hrep, hv.curEp_or, hv.epochClock_lt⟩
-    | (cases op with
-       | query u =>
-         obtain ⟨rfl, rfl, rfl⟩ := hop_enc
-         first
-         | (exfalso; omega)
-         | exact ⟨c, U, V, w, n_max, θ, fs, dict, u, henv, rfl, hseed, hrep, hv, rfl⟩
-       | insert u v =>
-         obtain ⟨rfl, rfl, rfl⟩ := hop_enc
-         first
-         | (exfalso; omega)
-         | exact ⟨c, U, V, w, n_max, θ, fs, dict, u, henv, rfl, hseed, hrep, hv, hval_op, rfl⟩
-       | delete u =>
-         obtain ⟨rfl, rfl, rfl⟩ := hop_enc
-         first
-         | (exfalso; omega)
-         | exact ⟨c, U, V, w, n_max, θ, fs, dict, u, henv, rfl, hseed, hrep, hv, rfl⟩)
+    | (rcases op with u | ⟨u, v⟩ | u <;> obtain ⟨rfl, rfl, rfl⟩ := hop_enc <;> first
+       | omega
+       | exact ⟨c, U, V, w, n_max, θ, fs, dict, u, henv, rfl, hseed, hrep, hv, rfl⟩
+       | exact ⟨c, U, V, w, n_max, θ, fs, dict, u, henv, rfl, hseed, hrep, hv, hval_op, rfl⟩)
   )
 
 private theorem epochTick_eq_none_of_false {c U n_max : ℕ} {θ : SeedWhp c U n_max}
     {fs : FastState} (hle : fs.rebStage ≤ 5) (hnot : epochTickWillSucceed n_max fs = false) :
     epochTick c U n_max θ fs = none := by
-  have his := epochTick_isSome_iff θ hle
-  rw [hnot] at his
-  cases h : epochTick c U n_max θ fs with
-  | none => rfl
-  | some _ => rw [h] at his; cases his
+  simp [← Option.not_isSome_iff_eq_none, epochTick_isSome_iff θ hle, hnot]
 
 private theorem fastStepPure_notOk_tail {c U V w n_max base : ℕ} {s : Memory.State}
     {fs : FastState} {pThen : Memory.Prog (ℕ × (ℕ × ℕ))}
@@ -465,8 +449,7 @@ theorem fastStepPureGenProg_spec {c U V w n_max base : ℕ}
     dsimp only [encodeOpWhp, fastStepPure]
     unfold fastStepPureGenProg fastStepDeleteProg; dsimp only
     rw [hwp1]
-    simp only [pure_bind, show ¬((2 : ℕ) = 0) by decide, show ¬((2 : ℕ) = 1) by decide,
-      ↓reduceIte]
+    simp only [pure_bind, Nat.reduceEqDiff, ↓reduceIte]
     obtain ⟨hcore1, _, hpre1, _⟩ := hv.fastDelete_spec u
     by_cases hok : epochTickWillSucceed n_max fs = true
     · rw [hok] at hck_res; simp only [↓reduceIte] at hck_res
