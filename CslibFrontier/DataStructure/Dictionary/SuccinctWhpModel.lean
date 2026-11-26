@@ -1440,20 +1440,9 @@ theorem ValidFastState.fastFindLoc_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_
         exact (hliveRel.1 fp).mp hlm loc hloc hinL hfp_loc
       | some loc' =>
         dsimp only
-        by_cases hm_ok : fs.matchesKey n_max b q b loc' = true
-        · have hm_ok' : fs.matchesKey n_max
-              (feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val)
-              (keyQuotient (bWhp n_max) u.val)
-              (feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val) loc' = true := hm_ok
-          rw [hm_ok']
-          exact ((hmatch_iff b loc').mp hm_ok).2
-        · have hm_fls : fs.matchesKey n_max
-              (feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val)
-              (keyQuotient (bWhp n_max) u.val)
-              (feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val) loc' = false :=
-            Bool.eq_false_iff.mpr hm_ok
-          rw [hm_fls]
-          obtain ⟨hloc', hinL', hfp'⟩ := (hliveRel.2 fp loc').mp hlm
+        split_ifs with hm_ok
+        · exact ((hmatch_iff b loc').mp hm_ok).2
+        · obtain ⟨hloc', hinL', hfp'⟩ := (hliveRel.2 fp loc').mp hlm
           refine (hv.dict_map u).1.mpr fun loc hloc hq_eq => ?_
           obtain ⟨hinL, hfp_loc⟩ := live_entry loc hloc hq_eq
           obtain rfl := hv.live_fp_inj b hb_lt loc' hloc' loc hloc hinL' hinL
@@ -1466,13 +1455,9 @@ theorem ValidFastState.fastQuery_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_ma
     fastQuery c U n_max θ fs u = dict u := by
   have hfl := hv.fastFindLoc_spec u
   unfold fastQuery
-  cases h : fastFindLoc c U n_max θ fs u with
-  | none =>
-    rw [h] at hfl
-    exact hfl.symm
-  | some loc =>
-    rw [h] at hfl
-    exact (((hv.dict_map u).2 _).mpr ⟨loc, hfl.1, hfl.2, rfl⟩).symm
+  cases h : fastFindLoc c U n_max θ fs u <;> rw [h] at hfl
+  · exact hfl.symm
+  · exact (((hv.dict_map u).2 _).mpr ⟨_, hfl.1, hfl.2, rfl⟩).symm
 
 /-! ## Section 5: Mode transitions (`fastToCsr_spec`, `csrToFast_spec`, `trySelfHeal_spec`) -/
 
@@ -1590,11 +1575,10 @@ theorem ValidFastState.fastToCsr_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_ma
       rw [mem_coe, mem_sigma, mem_range, mem_range] at hx hy
       obtain ⟨rfl, rfl⟩ := hp_inj bx hx.1 lx hx.2 by_ hy.1 ly hy.2 heq
       rfl
-    have hsub : S.image fSlot ⊆ range n_max := by
-      intro p hp
-      obtain ⟨x, hx, rfl⟩ := mem_image.mp hp
-      rw [mem_sigma, mem_range, mem_range] at hx
-      exact mem_range.mpr (hp_lt x.1 hx.1 x.2 hx.2)
+    have hsub : S.image fSlot ⊆ range n_max :=
+      image_subset_iff.mpr fun x hx =>
+        let ⟨hb, hl⟩ := mem_sigma.mp hx
+        mem_range.mpr (hp_lt x.1 (mem_range.mp hb) x.2 (mem_range.mp hl))
     calc ∑ b ∈ range M, fs.bktCount b = #S := hcard_S.symm
       _ = #(S.image fSlot) := (card_image_of_injOn hinj_S).symm
       _ ≤ #(range n_max) := card_le_card hsub
@@ -1816,31 +1800,20 @@ private theorem buildBucketSlice_spec {c U n_max : ℕ} (hth : whpThreshold c �
     have hins := hvm.insert_spec hth hk_ins hfp_lt hk_val
     refine ⟨Function.update m (fpFn k) (some k), hins.2, ⟨fun fp => ?_, fun fp loc => ?_⟩⟩
     · by_cases hfp : fp = fpFn k
-      · subst hfp
-        simp only [Function.update_self, reduceCtorEq, false_iff, not_forall, not_not]
+      · simp only [hfp, Function.update_self, reduceCtorEq, false_iff, not_forall, not_not]
         exact ⟨k, Nat.lt_succ_self k, trivial, rfl⟩
       · rw [Function.update_of_ne hfp, hrel.1 fp]
-        constructor
-        · intro hall loc hlt _
-          rcases Nat.lt_succ_iff_lt_or_eq.mp hlt with hlt' | rfl
-          · exact hall loc hlt' trivial
-          · exact Ne.symm hfp
-        · intro hall loc hlt _
-          exact hall loc (Nat.lt_succ_of_lt hlt) trivial
+        exact ⟨fun hall loc hlt _ => (Nat.lt_succ_iff_lt_or_eq.mp hlt).elim
+            (fun h => hall loc h trivial) fun e => e ▸ Ne.symm hfp,
+          fun hall loc hlt _ => hall loc (Nat.lt_succ_of_lt hlt) trivial⟩
     · by_cases hfp : fp = fpFn k
-      · subst hfp
-        simp only [Function.update_self, Option.some.injEq]
-        constructor
-        · rintro rfl; exact ⟨Nat.lt_succ_self k, trivial, rfl⟩
-        · rintro ⟨hlt, _, heq⟩
-          exact (hinj loc (Nat.lt_of_lt_of_le hlt hk) k (Nat.lt_of_succ_le hk) heq).symm
+      · simp only [hfp, Function.update_self, Option.some.injEq]
+        exact ⟨fun h => ⟨h ▸ Nat.lt_succ_self k, trivial, congrArg fpFn h.symm⟩,
+          fun ⟨hlt, _, heq⟩ => (hinj loc (hlt.trans_le hk) k (Nat.lt_of_succ_le hk) heq).symm⟩
       · rw [Function.update_of_ne hfp, hrel.2 fp loc]
-        constructor
-        · rintro ⟨hlt, _, heq⟩; exact ⟨Nat.lt_succ_of_lt hlt, trivial, heq⟩
-        · rintro ⟨hlt, _, heq⟩
-          rcases Nat.lt_succ_iff_lt_or_eq.mp hlt with hlt' | rfl
-          · exact ⟨hlt', trivial, heq⟩
-          · exact absurd heq.symm hfp
+        exact ⟨fun ⟨hlt, _, heq⟩ => ⟨Nat.lt_succ_of_lt hlt, trivial, heq⟩,
+          fun ⟨hlt, _, heq⟩ => ⟨(Nat.lt_succ_iff_lt_or_eq.mp hlt).resolve_right
+            fun e => hfp (heq.symm.trans (congrArg fpFn e)), trivial, heq⟩⟩
 
 /-- `trySelfHeal` preserves `ValidWhpState` and, whenever `GoodSeedOnState c U n_max θ dict` holds,
 produces a clean `.fast` state (`Buf[0] = emptyBufTrie`, `Buf[1] = emptyBufTrie`, `epochClock = 0`,

@@ -101,11 +101,8 @@ private theorem sum_sum_diamLowerTerm [DecidableEq V] (G : SimpleGraph V) [Decid
     ring
   have hadj1 : (∑ u : V, ∑ v : V, if G.Adj u v then (1 : ℝ) else 0) =
       2 * (G.edgeSet.ncard : ℝ) := by
-    have hinner : ∀ u : V, (∑ v : V, if G.Adj u v then (1 : ℝ) else 0) = (G.degree u : ℝ) :=
-      fun u => by
-        rw [← sum_filter, sum_const, nsmul_eq_mul, mul_one, ← G.neighborFinset_eq_filter,
-          G.card_neighborFinset_eq_degree]
-    simp only [hinner, ncard_edgeSet_eq_card_edgeFinset]
+    simp only [← sum_filter, sum_const, nsmul_eq_mul, mul_one, ← G.neighborFinset_eq_filter,
+      G.card_neighborFinset_eq_degree, ncard_edgeSet_eq_card_edgeFinset]
     exact_mod_cast G.sum_degrees_eq_twice_card_edges
   rw [hne2, hadj1]
 
@@ -184,10 +181,8 @@ theorem isOptimalNetwork_iff_eq_top_of_lt_two {α : ℝ} (hα₀ : 0 ≤ α) (h�
       networkECost_eq_ofReal_of_preconnected hα₀ preconnected_top,
       ENNReal.ofReal_le_ofReal_iff (networkCost_nonneg hα₀ ⊤)] at hleE
     have hlow := le_networkCost_of_preconnected (α := α) hconn.preconnected
-    have hle_m : G.edgeFinset.card ≤ (⊤ : SimpleGraph V).edgeFinset.card :=
-      card_le_card (edgeFinset_mono le_top)
     have hle_mR : (G.edgeFinset.card : ℝ) ≤ ((⊤ : SimpleGraph V).edgeFinset.card : ℝ) :=
-      Nat.cast_le.mpr hle_m
+      Nat.cast_le.mpr (card_le_card (edgeFinset_mono le_top))
     have hcost_top := networkCost_top_eq_diam_form (V := V) α
     simp only [ncard_edgeSet_eq_card_edgeFinset] at hlow hcost_top
     have heq_card : G.edgeFinset.card = (⊤ : SimpleGraph V).edgeFinset.card :=
@@ -214,13 +209,10 @@ private theorem exists_eq_starGraph_of_isTree_of_diam_le_two [Finite V] {G : Sim
     intro v hvc
     by_cases hvl : v = l
     · subst hvl; exact hlc.symm
-    · have hnot_lv : ¬ G.Adj l v := fun h => hvc.symm (hc_uniq v h)
-      have hge2 : 2 ≤ G.dist l v :=
-        hT.connected.one_lt_dist_of_ne_of_not_adj (Ne.symm hvl) hnot_lv
-      have hd2 : G.dist l v = 2 := le_antisymm (hdiam l v) hge2
-      have hed2 : G.edist l v = 2 := by
-        rw [← (hT.connected l v).coe_dist_eq_edist, hd2]
-        rfl
+    · have hed2 : G.edist l v = 2 := by
+        rw [← (hT.connected l v).coe_dist_eq_edist]
+        exact congrArg Nat.cast (le_antisymm (hdiam l v)
+          (hT.connected.one_lt_dist_of_ne_of_not_adj (Ne.symm hvl) fun h => hvc.symm (hc_uniq v h)))
       obtain ⟨_, -, ⟨x, hx⟩⟩ := edist_eq_two_iff.mp hed2
       rw [mem_commonNeighbors] at hx
       exact hc_uniq x hx.1 ▸ hx.2.symm
@@ -277,11 +269,7 @@ theorem isOptimalNetwork_two_iff [Nonempty V] {G : SimpleGraph V} :
       networkECost_eq_ofReal_of_preconnected (by norm_num) preconnected_top,
       ENNReal.ofReal_le_ofReal_iff (networkCost_nonneg (by norm_num) _), hcost_top2] at hleE
     have hlow := le_networkCost_of_preconnected (α := 2) hconn.preconnected
-    have heq : networkCost 2 G =
-        (2 - 2) * (G.edgeSet.ncard : ℝ) +
-          2 * (Fintype.card V : ℝ) * (Fintype.card V - 1 : ℕ) := by
-      linarith
-    exact ⟨hconn, (networkCost_eq_iff_diam_le_two hconn.preconnected).mp heq⟩
+    exact ⟨hconn, (networkCost_eq_iff_diam_le_two (α := 2) hconn.preconnected).mp (by linarith)⟩
   · have heq := (networkCost_eq_iff_diam_le_two (α := 2) hc.preconnected).mpr hdiam
     by_cases hc' : G'.Connected
     · rw [networkECost_eq_ofReal_of_connected (by norm_num) hc,
@@ -339,23 +327,17 @@ private theorem sum_dist_sub_addLink_le {α : ℝ} (hα₀ : 0 ≤ α) {s : Prof
   have hmono : formedGraph s ≤ formedGraph s' := formedGraph_le_addLink s u v
   have hreach' : ∀ x, (formedGraph s').Reachable u x :=
     fun x => (hs.preconnected u x).mono hmono
-  have hdist_le : ∀ x, (formedGraph s').dist u x ≤ (formedGraph s).dist u x := fun x =>
-    (hs.preconnected u x).dist_anti hmono
-  have hnonneg : ∀ x : V,
-      0 ≤ ((formedGraph s).dist u x : ℝ) - ((formedGraph s').dist u x : ℝ) :=
-    fun x => sub_nonneg.mpr (by exact_mod_cast hdist_le x)
   have hsub : ∑ x ∈ S, (((formedGraph s).dist u x : ℝ) - ((formedGraph s').dist u x : ℝ)) ≤
       (∑ x : V, ((formedGraph s).dist u x : ℝ)) -
         ∑ x : V, ((formedGraph s').dist u x : ℝ) := by
     rw [← sum_sub_distrib]
-    exact sum_le_univ_sum_of_nonneg hnonneg
+    exact sum_le_univ_sum_of_nonneg fun x =>
+      sub_nonneg.mpr (Nat.cast_le.mpr ((hs.preconnected u x).dist_anti hmono))
   have hne_cost := hs.playerCost_le hα₀ hreach'
   rw [playerCost_def, playerCost_def] at hne_cost
   have hcard : ((s' u).neighbors.card : ℝ) ≤ ((s u).neighbors.card : ℝ) + 1 := by
     simp only [s', addLink, Function.update_self, LinkSet.neighbors_ofFinset]
-    have h1 := card_erase_le (a := u) (s := insert v (s u).neighbors)
-    have h2 := card_insert_le v (s u).neighbors
-    exact_mod_cast h1.trans h2
+    exact_mod_cast (card_erase_le (a := u)).trans (card_insert_le v (s u).neighbors)
   dsimp only [s', addLink] at hsub hcard
   dsimp only [addLink]
   nlinarith
@@ -712,13 +694,11 @@ theorem IsPureNash.socialCost_le_three_mul_sub_one_of_dist_le {α : ℝ} (hα₀
             ring
     have hlow_s' : α * (Fintype.card V - 1 : ℕ) +
         (Fintype.card V : ℝ) * (Fintype.card V - 1 : ℕ) ≤ socialCost α s' := by
-      have hnet : networkCost α (formedGraph s') ≤ socialCost α s' := by
-        have hle := networkECost_formedGraph_le α s'
-        rw [networkECost_eq_ofReal_of_connected hα₀ hc',
-          socialECost_eq_ofReal_of_connected hα₀ hc',
-          ENNReal.ofReal_le_ofReal_iff (socialCost_nonneg hα₀ s')] at hle
-        exact hle
-      exact (edge_add_dist_le_networkCost_of_connected hα₀ hc').trans hnet
+      have hle := networkECost_formedGraph_le α s'
+      rw [networkECost_eq_ofReal_of_connected hα₀ hc',
+        socialECost_eq_ofReal_of_connected hα₀ hc',
+        ENNReal.ofReal_le_ofReal_iff (socialCost_nonneg hα₀ s')] at hle
+      exact (edge_add_dist_le_networkCost_of_connected hα₀ hc').trans hle
     rcases eq_or_lt_of_le hα₀ with rfl | hα_pos
     · rw [hs.socialCost_eq_networkCost le_rfl, networkCost_def, zero_mul, zero_add]
       have hd_le_3d : d ≤ 3 * d - 1 := by linarith
@@ -862,14 +842,12 @@ theorem IsPureNash.socialCost_le_three_mul_sub_one_of_dist_le {α : ℝ} (hα₀
         rw [← card_sigma (s := univ)]
         refine (card_le_card_of_injOn (fun p => s(p.1, p.2)) ?_ ?_).trans hH₀_edges
         · rintro ⟨u, w⟩ hp
-          rw [mem_coe, mem_sigma] at hp
-          have hmem : w ∈ (keep u).neighbors := hp.2
+          have hmem : w ∈ (keep u).neighbors := (mem_sigma.mp (mem_coe.mp hp)).2
           rw [LinkSet.neighbors_ofFinset, mem_erase, mem_filter] at hmem
           exact mem_edgeFinset.mpr hmem.2.2
         · rintro ⟨u₁, w₁⟩ hp₁ ⟨u₂, w₂⟩ hp₂ heq
-          rw [mem_coe, mem_sigma] at hp₁ hp₂
-          have h1 : w₁ ∈ (keep u₁).neighbors := hp₁.2
-          have h2 : w₂ ∈ (keep u₂).neighbors := hp₂.2
+          have h1 : w₁ ∈ (keep u₁).neighbors := (mem_sigma.mp (mem_coe.mp hp₁)).2
+          have h2 : w₂ ∈ (keep u₂).neighbors := (mem_sigma.mp (mem_coe.mp hp₂)).2
           rw [LinkSet.neighbors_ofFinset, mem_erase, mem_filter] at h1 h2
           rcases Sym2.eq_iff.mp heq with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
           · rfl
