@@ -206,9 +206,8 @@ theorem extractPacked_writePackedMem (arrBase b d w : ℕ) (mem : ℕ → ℕ)
     extractPacked arrBase b d w (writePackedMem arrBase b d w mem q val.val) =
       Function.update (extractPacked arrBase b d w mem) q val := by
   ext q'
-  by_cases h : q' = q
-  · subst h
-    rw [extractPacked_writePackedMem_self, Function.update_self]
+  rcases eq_or_ne q' q with rfl | h
+  · rw [extractPacked_writePackedMem_self, Function.update_self]
   · rw [extractPacked_writePackedMem_of_ne _ _ _ _ _ _ _ _ h, Function.update_of_ne h]
 
 /-- Extract the boolean flag at slot `q : Fin (2 ^ b)` from a `1`-bit packed array at `arrBase`. -/
@@ -231,17 +230,14 @@ theorem extractBit_writeBitMem (arrBase b w : ℕ) (mem : ℕ → ℕ)
   ext q'
   dsimp only [extractBit, writeBitMem]
   rw [extractPacked_writePackedMem arrBase b 1 w mem q ⟨bval.toNat, toNat_lt_two bval⟩]
-  by_cases hq : q' = q
-  · subst hq
-    cases bval <;> simp
+  rcases eq_or_ne q' q with rfl | hq
+  · cases bval <;> simp
   · simp [hq, extractBit]
 
 @[simp]
 theorem extractPacked_zero (arrBase b d w : ℕ) (q : Fin (2 ^ b)) :
     extractPacked arrBase b d w (fun _ => 0) q = ⟨0, Nat.two_pow_pos d⟩ := by
-  apply Fin.ext
-  dsimp only [extractPacked]
-  exact getLimb_zero d _
+  exact Fin.ext (getLimb_zero d _)
 
 @[simp]
 theorem extractBit_zero (arrBase b w : ℕ) (q : Fin (2 ^ b)) :
@@ -263,8 +259,7 @@ private theorem extractBit_congr {arrBase b w : ℕ} {mem₁ mem₂ : ℕ → �
     (h : ∀ a, arrBase ≤ a → a < arrBase + packedWords b 1 w → mem₁ a = mem₂ a) :
     extractBit arrBase b w mem₁ = extractBit arrBase b w mem₂ := by
   ext q
-  dsimp only [extractBit]
-  rw [extractPacked_congr h]
+  simp only [extractBit, extractPacked_congr h]
 
 /-- Writing a packed array leaves a read of a disjoint packed array unchanged. -/
 private theorem extractPacked_writePackedMem_of_disjoint {arr₁ arr₂ b d₁ d₂ w : ℕ}
@@ -333,10 +328,8 @@ theorem quotBits_le_add_three (w₀ n : ℕ) : quotBits w₀ n ≤ w₀ + 3 := b
 
 theorem two_pow_quotBits_le_sixteen_mul {w₀ n : ℕ} (hn : 1 ≤ n) :
     2 ^ quotBits w₀ n ≤ 16 * n := by
-  have h1 : 2 ^ quotBits w₀ n ≤ 16 * max (effCap w₀ n) 1 :=
-    tableSize_le_sixteen_mul (effCap w₀ n)
-  have h2 : max (effCap w₀ n) 1 ≤ n := max_le (min_le_left n (2 ^ w₀)) hn
-  exact h1.trans (Nat.mul_le_mul_left 16 h2)
+  exact (tableSize_le_sixteen_mul (effCap w₀ n)).trans
+    (Nat.mul_le_mul_left 16 (max_le (min_le_left n (2 ^ w₀)) hn))
 
 theorem remBits_pos {w₀ k : ℕ} (hw₀ : 0 < w₀) : 0 < remBits w₀ k :=
   lt_min hw₀ k.succ_pos
@@ -493,8 +486,7 @@ theorem extractFilterState_writeRem (base w w₀ n k : ℕ) (mem : ℕ → ℕ)
 /-- Bitwise identity `(o.val + d) &&& (2 ^ b - 1) = (probeSlot b o d).val`. -/
 theorem add_and_eq_probeSlot_val {b : ℕ} (o : Fin (2 ^ b)) (d : ℕ) :
     (o.val + d) &&& (2 ^ b - 1) = (probeSlot b o d).val := by
-  rw [Nat.and_two_pow_sub_one_eq_mod]
-  rfl
+  exact Nat.and_two_pow_sub_one_eq_mod _ b
 
 /-- Bitwise identity `(q.val + 2 ^ b - a) &&& (2 ^ b - 1) = (backSlot b q a).val` for `a ≤ 2 ^ b`.
 -/

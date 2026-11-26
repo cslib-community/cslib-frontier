@@ -210,8 +210,7 @@ theorem nil_mem_branches (M : CountingAuxPDA k Symbol StackSym State)
     | some _ =>
       simp only [branches, hs, Finset.mem_biUnion, Finset.mem_univ, true_and, AuxPDA.Cfg.Halted,
         Turing.Cfg.Halted, reduceCtorEq, iff_false, not_exists]
-      intro i
-      cases hact : (M.actions cfg)[i.val].apply? cfg <;> simp
+      exact fun i => by cases (M.actions cfg)[i.val].apply? cfg <;> simp
 
 theorem cons_mem_branches (M : CountingAuxPDA k Symbol StackSym State)
     (cfg : AuxPDA.Cfg k Symbol StackSym State input) (fuel index : ℕ) (rest : List ℕ) :
@@ -222,14 +221,12 @@ theorem cons_mem_branches (M : CountingAuxPDA k Symbol StackSym State)
     simp [M.branches_of_halted hs, M.step?_of_halted hs]
   | some q =>
     simp only [branches, hs, Finset.mem_biUnion, Finset.mem_univ, true_and, step?_eq_some_iff]
-    constructor
-    · rintro ⟨i, hi⟩
-      cases hact : (M.actions cfg)[i.val].apply? cfg <;> rw [hact] at hi
-      · exact absurd hi (Finset.notMem_empty _)
-      · obtain ⟨r, hr, ⟨⟩⟩ := Finset.mem_image.mp hi
-        exact ⟨_, ⟨i.isLt, hact⟩, hr⟩
-    · rintro ⟨next, ⟨hidx, hact⟩, hrest⟩
-      exact ⟨⟨index, hidx⟩, by simpa [hact] using hrest⟩
+    refine ⟨?_, fun ⟨_, ⟨hidx, hact⟩, hrest⟩ => ⟨⟨index, hidx⟩, by simpa [hact] using hrest⟩⟩
+    rintro ⟨i, hi⟩
+    cases hact : (M.actions cfg)[i.val].apply? cfg <;> rw [hact] at hi
+    · exact absurd hi (Finset.notMem_empty _)
+    · obtain ⟨r, hr, ⟨⟩⟩ := Finset.mem_image.mp hi
+      exact ⟨_, ⟨i.isLt, hact⟩, hr⟩
 
 /-- `branches` enumerates precisely the first-halting occurrence traces within `fuel` steps. -/
 theorem mem_branches_iff (M : CountingAuxPDA k Symbol StackSym State)
@@ -385,16 +382,13 @@ theorem HaltsWithin.branchCount_pos_iff {M : CountingAuxPDA k Symbol StackSym St
     0 < M.branchCount verdict fuel cfg ↔
       ∃ p : M.toAuxPDA.RunPath input, p.head = cfg ∧ p.last.Halted ∧
         verdict p.last.tapes.output := by
-  constructor
-  · intro hpos
-    obtain ⟨indices, hmem⟩ := Finset.card_pos.mp hpos
-    rw [Finset.mem_filter, M.mem_branches_iff] at hmem
-    obtain ⟨⟨_, final, hrun, hh⟩, hv⟩ := hmem
+  refine ⟨fun hpos => ?_, fun ⟨p, hp, hh, hv⟩ => ?_⟩
+  · obtain ⟨indices, hmem⟩ := Finset.card_pos.mp hpos
+    obtain ⟨⟨_, final, hrun, hh⟩, hv⟩ :=
+      (Finset.mem_filter.mp hmem).imp_left (M.mem_branches_iff _ _ _).mp
     obtain ⟨q, hhead, hlast, _⟩ := M.exists_runningPath_of_runBranch hrun
-    exact ⟨q.map ⟨id, fun hs => hs.2⟩, by simpa using hhead, by simpa [hlast] using hh,
-      by simpa [hlast, hrun] using hv⟩
-  · rintro ⟨p, hp, hh, hv⟩
-    obtain ⟨q, hhead, hlast, _, _⟩ := p.exists_running hh
+    exact ⟨q.map ⟨id, fun hs => hs.2⟩, hhead, hlast ▸ hh, by simpa [hlast, hrun] using hv⟩
+  · obtain ⟨q, hhead, hlast, _, _⟩ := p.exists_running hh
     obtain ⟨indices, hi, _⟩ := M.exists_runBranch_of_runningPath q
     rw [hhead, hp, hlast] at hi
     refine Finset.card_pos.mpr ⟨indices, Finset.mem_filter.mpr ⟨?_, by simpa [hi] using hv⟩⟩
@@ -568,15 +562,13 @@ theorem ofMultiTapeCTM_haltsWithin_iff (M : MultiTapeCTM k Symbol State) (fuel :
   induction fuel generalizing c with
   | zero => constructor <;> rintro ⟨hh⟩ <;> exact .halt hh
   | succ fuel ih =>
-    constructor
+    refine ⟨?_, ?_⟩
     · rintro (⟨hh⟩ | ⟨hne, _, hnext⟩)
       · exact .halt hh
       · refine .step (by simpa only [ofMultiTapeCTM_actions, ne_eq, List.map_eq_nil_iff] using hne)
-          fun idx => ?_
-        have hlt : idx.val < ((ofMultiTapeCTM M).actions ⟨c, s⟩).length := by
-          simpa only [ofMultiTapeCTM_actions, List.length_map] using idx.isLt
-        refine (ih _).mp (hnext ⟨idx.val, hlt⟩ ⟨(M.actions c)[idx].apply c, s⟩ ?_)
-        simp [ofMultiTapeCTM_actions, AuxPDA.Action.apply?]
+          fun idx => (ih _).mp (hnext ⟨idx.val, ?_⟩ ⟨(M.actions c)[idx].apply c, s⟩
+            (by simp [ofMultiTapeCTM_actions, AuxPDA.Action.apply?]))
+        simpa only [ofMultiTapeCTM_actions, List.length_map] using idx.isLt
     · rintro (⟨hh⟩ | ⟨hne, hnext⟩)
       · exact .halt hh
       · refine .step (by simpa only [ofMultiTapeCTM_actions, ne_eq, List.map_eq_nil_iff] using hne)

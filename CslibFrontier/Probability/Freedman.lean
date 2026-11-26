@@ -268,8 +268,7 @@ private theorem freedman_step_le (step : ∀ t : ℕ, (Fin t → α) → PMF α)
   refine (mul_le_mul_right hben _).trans_eq ?_
   rw [mul_assoc, ← ENNReal.ofReal_mul (Real.exp_pos _).le, ← Real.exp_add]
   have hcancel : -(ψ * V k h) + (V k h / b ^ 2) * (Real.exp (s * b) - 1 - s * b) = 0 := by
-    dsimp only [ψ]
-    ring
+    dsimp only [ψ]; ring
   rw [hcancel, Real.exp_zero, ENNReal.ofReal_one, mul_one]
 
 /-- **Freedman's compensated exponential supermartingale bound** [Freedman1975, §1]: under
@@ -438,21 +437,17 @@ theorem seqProcess_exists_prefix_ge_and_var_le (step : ∀ t : ℕ, (Fin t → �
             have hinit : Fin.init pm1 = pm := funext fun _ => rfl
             obtain ⟨hp_init, hx_init⟩ :=
               mem_support_seqProcess_succ step (mem_support_seqProcess_take step hmk hsupp_k)
-            have hp' : pm ∈ (seqProcess step m).support := hinit ▸ hp_init
-            have hx : pm1 (Fin.last m) ∈ (step m pm).support := hinit ▸ hx_init
-            have hsingle := ((hd2 m (hm_lt.trans_le hk) pm hp').sum_le_tsum {pm1 (Fin.last m)}
+            rw [hinit] at hp_init hx_init
+            have hsingle := ((hd2 m (hm_lt.trans_le hk) pm hp_init).sum_le_tsum {pm1 (Fin.last m)}
               fun _ _ => mul_nonneg ENNReal.toReal_nonneg (sq_nonneg _)).trans
-              (hV_zero ⟨m, hm_lt⟩ ▸ hvar m (hm_lt.trans_le hk) pm hp')
+              (hV_zero ⟨m, hm_lt⟩ ▸ hvar m (hm_lt.trans_le hk) pm hp_init)
             rw [Finset.sum_singleton] at hsingle
-            have hprob_pos :=
-              ENNReal.toReal_pos ((PMF.mem_support_iff _ _).mp hx) (PMF.apply_ne_top _ _)
-            have hdiff0 := sq_eq_zero_iff.mp
-              (le_antisymm (nonpos_of_mul_nonpos_right hsingle hprob_pos) (sq_nonneg _))
+            have hdiff0 := sq_eq_zero_iff.mp (le_antisymm (nonpos_of_mul_nonpos_right hsingle
+              (ENNReal.toReal_pos ((PMF.mem_support_iff _ _).mp hx_init) (PMF.apply_ne_top _ _)))
+              (sq_nonneg _))
             rw [← hinit, Fin.snoc_init_self, hinit] at hdiff0
             linarith [ihm hm_lt.le]
-        have hkend := hzero_step k le_rfl
-        rw [take_self_eq] at hkend
-        linarith
+        linarith [take_self_eq le_rfl hk_pref ▸ hzero_step k le_rfl]
       · exact (seqProcess_exists_prefix_ge_and_var_le_bennett step X V hb_pos hv_pos hε n
           hd1 hd2 hmean hupper hvar).trans
           (Cslib.Probability.exp_neg_klFun_le_exp_bernstein hb_pos hv_pos hε)

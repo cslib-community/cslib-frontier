@@ -65,24 +65,21 @@ theorem slotRotN_val (I : USTCONInstance) (v : Fin I.n × Fin I.n) (b : Label) :
       Prod.map id slotLabel ((slotGraph I.graph (finRotate I.n)).rot ((v₁, v₂), d)) :=
     rot_extendLabels_apply _ _ (v₁, v₂) d
   have hne₁ : slotLabel (.inr ((), (), false)) ≠ slotLabel (.inl ()) :=
-    fun h ↦ by simpa using slotLabel.injective h
+    slotLabel.injective.ne (by decide)
   have hne₂ : slotLabel (.inr ((), (), true)) ≠ slotLabel (.inl ()) :=
-    fun h ↦ by simpa using slotLabel.injective h
+    slotLabel.injective.ne (by decide)
   have hne₃ : slotLabel (.inr ((), (), true)) ≠ slotLabel (.inr ((), (), false)) :=
-    fun h ↦ by simpa using slotLabel.injective h
+    slotLabel.injective.ne (by decide)
   unfold slotRotN
-  by_cases h₁ : b = slotLabel (.inl ())
-  · subst h₁
-    rw [ite_eq_left rfl, hrot]
+  rcases eq_or_ne b (slotLabel (.inl ())) with rfl | h₁
+  · rw [ite_eq_left rfl, hrot]
     by_cases hadj : I.adj v₁ v₂ = true <;> simp [slotSwap, hadj, slotVal]
-  by_cases h₂ : b = slotLabel (.inr ((), (), false))
-  · subst h₂
-    rw [ite_eq_right hne₁, ite_eq_left rfl, hrot]
+  rcases eq_or_ne b (slotLabel (.inr ((), (), false))) with rfl | h₂
+  · rw [ite_eq_right hne₁, ite_eq_left rfl, hrot]
     simp only [rot_slotGraph_inr_false, Prod.map, slotVal, id, val_finRotate]
     congr 3
-  by_cases h₃ : b = slotLabel (.inr ((), (), true))
-  · subst h₃
-    rw [ite_eq_right hne₂, ite_eq_right hne₃, ite_eq_left rfl, hrot]
+  rcases eq_or_ne b (slotLabel (.inr ((), (), true))) with rfl | h₃
+  · rw [ite_eq_right hne₂, ite_eq_right hne₃, ite_eq_left rfl, hrot]
     simp only [rot_slotGraph_inr_true, Prod.map, slotVal, id, val_finRotate_symm]
     congr 3
   rw [ite_eq_right h₁, ite_eq_right h₂, ite_eq_right h₃, input,
@@ -462,9 +459,7 @@ private theorem outputs_start {m T : ℕ} (hm : m ≠ 0) :
   | zero =>
     intro q hd hc₀ hc hn hs ht hd' hl
     have hcT : q.c = numLabels ^ T := by omega
-    have hfalse : decide (∃ c', q.c ≤ c' ∧ c' < numLabels ^ T ∧ Success I m T c') = false := by
-      grind
-    rw [hfalse]
+    rw [decide_eq_false (by grind)]
     refine (reaches_start hm q hc hn hs ht hd').outputs (outputs_check_overflow _ rfl ?_)
     simp [hl, hcT, Nat.div_self (pow_pos numLabels_pos T)]
   | succ d ih =>
@@ -482,10 +477,8 @@ private theorem outputs_start {m T : ℕ} (hm : m ≠ 0) :
           ⟨c', Nat.lt_of_le_of_ne h₁ fun h ↦ hsucc (h ▸ h₃), h₂, h₃⟩,
           fun ⟨c', h₁, h₂, h₃⟩ ↦ ⟨c', by omega, h₂, h₃⟩⟩
       rw [heq]
-      have hne : ((walkFrom I (IteratedProd.mk (I.s, I.s) 0 m) q.c q.len).root.1 : ℕ) ≠ I.t :=
-        fun h ↦ hsucc (Fin.ext (by rwa [hl] at h))
       refine (reaches_check_next _ rfl (by simp [hl, hdiv])
-        (by simpa [slotVal, ht] using hne)).outputs ?_
+        (fun h ↦ hsucc (Fin.ext (by simpa [slotVal, ht, hl] using h)))).outputs ?_
       exact ih _ (by simp only; omega) (by simp only; omega) rfl hn hs ht hd' hl
 
 /-! ### Every sequence of labels is a counter -/
@@ -547,10 +540,8 @@ private theorem outputs_init : Outputs I init (decide (I ∈ USTCON)) := by
     (Nat.lt_size_self I.n).le I.s I.t
   rw [show I ∈ USTCON ↔ I.graph.Reachable I.s I.t from Iff.rfl, hreach]
   refine ⟨fun ⟨k, hk⟩ ↦ ?_, fun ⟨c, _, hc, hsucc⟩ ↦ ?_⟩
-  · obtain ⟨c, hc, hck⟩ := exists_labelOfNat_eq (walkLength a) k
-    refine ⟨c, Nat.zero_le _, hc, ?_⟩
-    rw [Success, walkFrom_eq, hck]
-    exact hk
+  · obtain ⟨c, hc, rfl⟩ := exists_labelOfNat_eq (walkLength a) k
+    exact ⟨c, Nat.zero_le _, hc, by rwa [Success, walkFrom_eq]⟩
   · exact ⟨fun i ↦ labelOfNat (c / numLabels ^ (i : ℕ)), by rwa [Success, walkFrom_eq] at hsucc⟩
 
 open scoped Classical in

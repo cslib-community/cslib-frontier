@@ -172,23 +172,16 @@ private theorem clockedBounds_aux (cA cD cO C₂ : ℕ) : ∃ K, ∀ {n A D N J 
     omega
   have hLY : L ≤ C₂ * (J + 1) := (Nat.le_succ L).trans ((Nat.le_self_pow two_ne_zero _).trans hL)
   have hI1 : I + 1 ≤ R * ((n + 1) * (J + 1)) := by
-    have h₁ : 5 * P * (n + 1) ≤ 5 * P * ((n + 1) * (J + 1)) :=
-      Nat.mul_le_mul_left _ (Nat.le_mul_of_pos_right _ hY1)
-    have h₂ : C₂ * (J + 1) ≤ C₂ * ((n + 1) * (J + 1)) :=
-      Nat.mul_le_mul_left _ (Nat.le_mul_of_pos_left _ hX1)
-    have e₁ : R * ((n + 1) * (J + 1)) =
-        5 * P * ((n + 1) * (J + 1)) + C₂ * ((n + 1) * (J + 1)) := by
-      rw [hR]; ring
-    have e₂ : 5 * P * (n + 1) = 5 * (P * (n + 1)) := by ring
-    omega
+    calc I + 1 ≤ 5 * (P * (n + 1)) + C₂ * (J + 1) := by omega
+      _ ≤ 5 * (P * (n + 1)) * (J + 1) + C₂ * ((n + 1) * (J + 1)) :=
+        Nat.add_le_add (Nat.le_mul_of_pos_right _ hY1)
+          (Nat.mul_le_mul_left _ (Nat.le_mul_of_pos_left _ hX1))
+      _ = R * ((n + 1) * (J + 1)) := by rw [hR]; ring
   have hpre : n + A + (n + J) ≤ (cA + 3) * ((n + 1) * (J + 1)) := by
-    have h₁ : (cA + 2) * (n + 1) ≤ (cA + 2) * ((n + 1) * (J + 1)) :=
-      Nat.mul_le_mul_left _ (Nat.le_mul_of_pos_right _ hY1)
-    have h₂ : (J + 1) ≤ (n + 1) * (J + 1) := Nat.le_mul_of_pos_left _ hX1
-    have e₁ : (cA + 3) * ((n + 1) * (J + 1)) =
-        (cA + 2) * ((n + 1) * (J + 1)) + (n + 1) * (J + 1) := by ring
-    have e₂ : (cA + 2) * (n + 1) = cA * (n + 1) + 2 * (n + 1) := by ring
-    omega
+    calc n + A + (n + J) ≤ (cA * (n + 1) + 2 * (n + 1)) + (J + 1) := by omega
+      _ ≤ (cA * (n + 1) + 2 * (n + 1)) * (J + 1) + (n + 1) * (J + 1) :=
+        Nat.add_le_add (Nat.le_mul_of_pos_right _ hY1) (Nat.le_mul_of_pos_left _ hX1)
+      _ = (cA + 3) * ((n + 1) * (J + 1)) := by ring
   have hsum : n + A + (n + J) + (runBound D N J + I) + 1 ≤ Q * Z := by
     have h₁ := Nat.mul_le_mul_left (cA + 3) hXYZ
     have h₂ := Nat.mul_le_mul_left R hXYZ
@@ -368,15 +361,12 @@ theorem DTIME_ssubset_DTIME_of_clock {f g J : ℕ → ℕ} (hJ : TimeConstructib
     (hfJ : ∀ c, ∀ᶠ n in atTop, c * f n + c ≤ J n)
     (hg : ∀ᶠ n in atTop, (n + 1) ^ 5 * (J n + 1) ^ 3 ≤ g n) :
     DTIME encBits f ⊂ DTIME encBits g := by
-  have hsub : DTIME encBits f ⊆ DTIME encBits g := DTIME_mono_of_eventually_le <| by
-    filter_upwards [hfJ 1, hg] with n h₁ h₂
-    have : J n ≤ (n + 1) ^ 5 * (J n + 1) ^ 3 :=
-      (Nat.le_succ _).trans ((Nat.le_self_pow (by norm_num) _).trans
-        (Nat.le_mul_of_pos_left _ (Nat.pow_pos (by omega))))
-    omega
-  exact (Set.ssubset_iff_of_subset hsub).mpr ⟨_,
-    DTIME_mono_of_eventually_le hg (setOf_timeDiagonal_mem_DTIME hJ),
-    setOf_timeDiagonal_notMem_DTIME hfJ⟩
+  refine DTIME_ssubset_DTIME_of_frequently_clock hJ (fun c => (hfJ c).frequently) ?_ hg
+  filter_upwards [hfJ 1, hg] with n h₁ h₂
+  have : J n ≤ (n + 1) ^ 5 * (J n + 1) ^ 3 :=
+    (Nat.le_succ _).trans ((Nat.le_self_pow (by norm_num) _).trans
+      (Nat.le_mul_of_pos_left _ (Nat.pow_pos (by omega))))
+  omega
 
 /-- **The time hierarchy theorem.** If `f` is time-constructible and `n ≤ f n`, then `DTIME f` is
 strictly contained in every `DTIME g` with `(n + 1) ^ 8 * (f n + 1) ^ 3 ≤ g n` eventually

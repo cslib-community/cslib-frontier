@@ -95,11 +95,8 @@ theorem entropy_le_expected_length_of_isPrefixFree {α : Type*} [Fintype α]
       (2 : ℝ) ^ (-((enc a).length : ℝ)) ≤ (q a).toReal := by
     rw [hq_toReal a ha, Real.rpow_neg (by norm_num), Real.rpow_natCast, ← inv_pow]
     exact le_div_self (by positivity) hZ_pos hZ_le
-  have hsupp : p.support ⊆ q.support := by
-    intro a ha
-    have hpos : 0 < (q a).toReal :=
-      (Real.rpow_pos_of_pos (by norm_num : (0 : ℝ) < 2) _).trans_le (hmass_ge a ha)
-    exact (PMF.mem_support_iff q a).mpr fun h0 => by simp [h0] at hpos
+  have hsupp : p.support ⊆ q.support := fun a ha => (PMF.mem_support_iff q a).mpr fun h0 =>
+    not_le.mpr (by simp [h0]) (hmass_ge a ha)
   refine (entropy_le_sum_mul_surprisal hsupp).trans (Finset.sum_le_sum fun a _ => ?_)
   by_cases ha : a ∈ p.support
   · exact mul_le_mul_of_nonneg_left (surprisal_le_of_mass_ge q a (hmass_ge a ha))
@@ -163,9 +160,8 @@ theorem conditionalEntropy_map_le_expected_length_of_isPrefixFree {Ω Obs α : T
     refine Cslib.Probability.PMF.map_congr_on_support p _ _ fun ω hω => ?_
     have hex : ∃ ω' ∈ p.support, obs ω' = obs ω ∧ cw ω' = cw ω := ⟨ω, hω, rfl, rfl⟩
     obtain ⟨hω', hobs', hcw'⟩ := Classical.choose_spec hex
-    have hmsg' : msg (Classical.choose hex) = msg ω := congrArg Subtype.val hcw'
     simp only [Function.comp_apply, dec, dite_eq_left hex]
-    exact Prod.ext rfl (hdec (Classical.choose hex) hω' ω hω hobs' hmsg')
+    exact Prod.ext rfl (hdec (Classical.choose hex) hω' ω hω hobs' (congrArg Subtype.val hcw'))
   have hent_le : conditionalEntropy joint_tgt ≤ conditionalEntropy joint_cw := by
     have hm_fst : joint_tgt.map Prod.fst = joint_cw.map Prod.fst := by
       simp only [joint_tgt, joint_cw, PMF.map_comp, Function.comp_def]
@@ -327,16 +323,12 @@ theorem logb_le_conditionalEntropy_of_fiber_le {Ω ObsT TgtT : Type*}
       ((μ.map fun ω => (obs ω, target ω)) (o, t)).toReal ≤ ((μ.map obs) o).toReal / M) :
     Real.logb 2 M ≤ PMF.conditionalEntropy (μ.map fun ω => (obs ω, target ω)) := by
   classical
-  have htrue : (μ.map fun _ => true) true = 1 := by
-    change (μ.map (Function.const Ω true)) true = 1
-    rw [_root_.PMF.map_const, _root_.PMF.pure_apply_self]
+  have htrue : (μ.map fun _ => true) true = 1 := by simp
   have hcond : PMF.conditionalSnd (μ.map fun ω => (true, ω)) true = μ := by
-    have hfst : ((μ.map fun ω => (true, ω)).map Prod.fst) true = 1 := by
-      rw [_root_.PMF.map_comp]; exact htrue
     ext ω
-    have h := PMF.marginal_mul_conditionalSnd (μ.map fun ω => (true, ω)) true ω
-    rw [hfst, one_mul] at h
-    exact h.trans (PMF.map_apply_of_injective μ (fun _ _ h => congrArg Prod.snd h) ω)
+    simpa [_root_.PMF.map_comp, Function.comp_def, htrue] using
+      (PMF.marginal_mul_conditionalSnd (μ.map fun ω => (true, ω)) true ω).trans
+        (PMF.map_apply_of_injective μ (fun _ _ h => congrArg Prod.snd h) ω)
   simpa only [htrue, ENNReal.toReal_one, Real.logb_one, zero_add, hcond] using
     logb_prob_add_logb_le_conditionalEntropy_of_fiber_le μ (fun _ => true) obs target hM
       (htrue ▸ one_ne_zero) hfiber

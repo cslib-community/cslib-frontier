@@ -174,12 +174,9 @@ theorem Allocation.indicator_isLPRFeasible {N M : Type*} [Fintype N] [Fintype M]
     (a : Allocation N M) : IsLPRFeasible a.indicator where
   item_le j := by
     classical
-    have hsum : ∀ i : N, (∑ S : Finset M with j ∈ S, a.indicator i S) =
+    have hsum (i : N) : (∑ S : Finset M with j ∈ S, a.indicator i S) =
         if j ∈ a.bundle i then (1 : ℝ) else 0 := by
-      intro i
-      unfold Allocation.indicator
-      rw [Finset.sum_ite_eq']
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and]
+      simp [Allocation.indicator]
     simp_rw [hsum]
     by_cases h : ∃ i : N, j ∈ a.bundle i
     · obtain ⟨i₀, hi₀⟩ := h
@@ -325,8 +322,7 @@ private theorem lprMatrix_mulVec_inl [DecidableEq N] (x : N → Finset M → ℝ
       ∑ i : N, ∑ S : Finset M with j ∈ S, x i S := by
   simp only [Matrix.mulVec, dotProduct, lprMatrix, Matrix.of_apply, Fintype.sum_prod_type,
     Function.uncurry_apply_pair, ite_mul, one_mul, zero_mul]
-  refine Finset.sum_congr rfl fun i _ => ?_
-  rw [Finset.sum_filter]
+  exact Finset.sum_congr rfl fun _ _ => (Finset.sum_filter _ _).symm
 
 private theorem lprMatrix_mulVec_inr [DecidableEq N] (x : N → Finset M → ℝ) (k : N) :
     (lprMatrix *ᵥ Function.uncurry x) (.inr k) = ∑ S : Finset M, x k S := by
@@ -340,8 +336,7 @@ private theorem vecMul_lprMatrix [DecidableEq N] (p : M → ℝ) (u : N → ℝ)
     (Sum.elim p u ᵥ* lprMatrix) (i, S) = u i + ∑ j ∈ S, p j := by
   simp only [Matrix.vecMul, dotProduct, lprMatrix, Matrix.of_apply, Fintype.sum_sum_type,
     Sum.elim_inl, Sum.elim_inr, mul_ite, mul_one, mul_zero]
-  rw [Finset.sum_ite_mem, Finset.univ_inter, add_comm]
-  simp
+  simp [Finset.sum_ite_mem, add_comm]
 
 omit [DecidableEq M] in
 private theorem dotProduct_lprCost (v : N → Finset M → ℝ) (x : N → Finset M → ℝ) :
@@ -358,19 +353,13 @@ private theorem dotProduct_dlprRhs (p : M → ℝ) (u : N → ℝ) :
 private theorem isLPRFeasible_iff_matrix [DecidableEq N] (x : N → Finset M → ℝ) :
     IsLPRFeasible x ↔
       0 ≤ Function.uncurry x ∧ lprMatrix *ᵥ Function.uncurry x ≤ (1 : M ⊕ N → ℝ) := by
-  constructor
-  · intro hx
-    refine ⟨fun ⟨i, S⟩ => hx.nonneg i S, ?_⟩
-    rintro (j | k)
-    exacts [(lprMatrix_mulVec_inl x j).trans_le (hx.item_le j),
-      (lprMatrix_mulVec_inr x k).trans_le (hx.bidder_le k)]
-  · rintro ⟨hnonneg, hmul⟩
-    exact
-      { item_le := fun j => by
-          simpa [lprMatrix_mulVec_inl] using hmul (.inl j)
-        bidder_le := fun k => by
-          simpa [lprMatrix_mulVec_inr] using hmul (.inr k)
-        nonneg := fun i S => hnonneg (i, S) }
+  refine ⟨fun hx => ⟨fun ⟨i, S⟩ => hx.nonneg i S, fun | .inl j => ?_ | .inr k => ?_⟩,
+    fun ⟨hnonneg, hmul⟩ =>
+      { item_le := fun j => by simpa [lprMatrix_mulVec_inl] using hmul (.inl j)
+        bidder_le := fun k => by simpa [lprMatrix_mulVec_inr] using hmul (.inr k)
+        nonneg := fun i S => hnonneg (i, S) }⟩
+  · exact (lprMatrix_mulVec_inl x j).trans_le (hx.item_le j)
+  · exact (lprMatrix_mulVec_inr x k).trans_le (hx.bidder_le k)
 
 private theorem isDLPRFeasible_iff_matrix [DecidableEq N]
     (v : N → Finset M → ℝ) (u : N → ℝ) (p : M → ℝ) :

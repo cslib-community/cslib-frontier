@@ -126,9 +126,8 @@ private theorem angular_crossing_integral_le {c θ : ℝ} (hc0 : 0 ≤ c) (hcπ 
     intervalIntegral.integral_add hg_ii hg_shift_ii, intervalIntegral.integral_const_mul,
     hint_g, hint_g_shift]
   rcases le_or_gt (2 * c) θ with hcθ | hθc
-  · have hprod_nonneg : 0 ≤ ∫ φ in (-π)..π, g φ * g (φ - θ) :=
-      intervalIntegral.integral_nonneg (by linarith [pi_pos]) fun φ _ => mul_nonneg (hg0 _) (hg0 _)
-    linarith
+  · linarith [intervalIntegral.integral_nonneg (μ := volume) (by linarith [pi_pos] : -π ≤ π)
+      fun φ _ => mul_nonneg (hg0 φ) (hg0 (φ - θ))]
   · have hover : 2 * c - θ ≤ ∫ φ in (-π)..π, g φ * g (φ - θ) := by
       let indI : ℝ → ℝ := (Icc (θ - c) c).indicator fun _ => (1 : ℝ)
       have hind_ii : IntervalIntegrable indI volume (-π) π :=
@@ -144,9 +143,7 @@ private theorem angular_crossing_integral_le {c θ : ℝ} (hc0 : 0 ≤ c) (hcπ 
         · simp only [indI, indicator_of_notMem hφ]
           exact mul_nonneg (hg0 _) (hg0 _)
       have hmono := intervalIntegral.integral_mono_on (by linarith [pi_pos]) hind_ii hprod_ii hpt
-      refine le_trans ?_ hmono
-      rw [hint_Icc (by linarith) (by linarith) hcπ]
-      linarith
+      linarith [hint_Icc (a := θ - c) (b := c) (by linarith) (by linarith) hcπ]
     linarith
 
 private theorem integrable_mul_exp_neg_sq_div_two :
@@ -197,9 +194,7 @@ theorem measureReal_stdGaussian_mem_uIoc_le_exp_mul_angle
   have hmap2 : (correlatedGaussian ρ).real S =
       ((gaussianReal 0 1).prod (gaussianReal 0 1)).real A := by
     rw [correlatedGaussian_def, map_measureReal_apply (by fun_prop) hSm]
-    congr 1
-    ext g
-    simp [S, A, hcosθ, hsinθ]
+    exact congrArg _ (Set.ext fun g => by simp [S, A, hcosθ, hsinθ])
   rw [hmap1, hmap2]
   let rad : ℝ → ℝ := fun r => (2 * π)⁻¹ * (r * exp (-(r ^ 2) / 2))
   have hrad_nonneg : ∀ r ≥ 0, 0 ≤ rad r := fun r hr => by

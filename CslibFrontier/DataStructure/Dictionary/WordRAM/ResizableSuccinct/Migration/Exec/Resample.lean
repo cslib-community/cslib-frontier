@@ -237,9 +237,9 @@ theorem exec_postResample_initMeta {U V w N metaBase peakF : ℕ}
   have hs₂_st_eq : ({ mem := z₂.mem, frontier := peakF } : Memory.State) =
       (Memory.spec 0).clientState ⟨y_rs.mem, peakF⟩ (initNewEpochMetaProg d_im) :=
     Memory.State.ext hz₂_mem_eq hfr_im.symm
-  refine ⟨z₁, z₂, hex_c1, hex_im, hc_im, hfr_im, hz₂b, hz₂f_eq, hz₂_fr_reg, hz₂_mem_eq,
+  exact ⟨z₁, z₂, hex_c1, hex_im, hc_im, hfr_im, hz₂b, hz₂f_eq, hz₂_fr_reg, hz₂_mem_eq,
     hz₂_mem_eq ▸ hrep_im, hz₂_mem_eq ▸ htot_im, hz₂_mem_eq ▸ hpot_im,
-    by obtain ⟨s_fix₀, hi₀, hc₀⟩ := h_empty_im; exact ⟨s_fix₀, hi₀, hs₂_st_eq ▸ hc₀⟩,
+    h_empty_im.imp (fun _ ⟨hi₀, hc₀⟩ => ⟨hi₀, hs₂_st_eq ▸ hc₀⟩),
     hkeep_set_2, hz₂_not_im⟩
 
 theorem exec_setup_resample_finish
@@ -327,11 +327,9 @@ theorem exec_setup_resample_finish
       · exact hseed₁.1.trans hseed₂.1.symm
       · exact (hseed₁.2 j m).trans (hseed₂.2 j m).symm
     · exact hfr₁.trans hfr₂.symm
-  have hex_rep : ∀ θ : QuotHashSeed U N_new,
-      ∃ y_rs ∈ μ_rs.support, extSeed y_rs = θ := fun θ => by
-    have hmem_u := Cslib.Probability.PMF.mem_support_uniformOfFintype θ
-    rw [← hmap_unif, PMF.mem_support_map_iff] at hmem_u
-    exact hmem_u
+  have hex_rep (θ : QuotHashSeed U N_new) : ∃ y_rs ∈ μ_rs.support, extSeed y_rs = θ :=
+    (PMF.mem_support_map_iff _ _ _).mp (hmap_unif.symm ▸
+      Cslib.Probability.PMF.mem_support_uniformOfFintype θ)
   choose yRep hyRep_supp hyRep_seed using hex_rep
   have hfin_rep := fun θ =>
     hfin_spec θ (yRep θ) (hrs_supp _ (hyRep_supp θ)).1
@@ -347,11 +345,9 @@ theorem exec_setup_resample_finish
     obtain ⟨z₀, hz₀_def, hex_zr, _, _, _, _⟩ :=
       zeroResampleRegsCode_exec hy_set_b hfr_y hy_set_fr.le
         (qBits_le_of_le_pow hw hU.le) hc_lt hsw_le_fr hseed_y hmem_y hreg_y
-    have hz₀_eq : z₀ =
-        ((((( (yRep (extSeed y_rs)).set mCur 0).set mIdx 0).set mK 0).set mOne 0).set mRes 0) :=
-      hz₀_def.trans (hcanon_z₀ hy_rs (hyRep_supp (extSeed y_rs)) (hyRep_seed (extSeed y_rs)).symm)
-    have hex_cl := hz₀_eq ▸ (hfin_res (extSeed y_rs)).1
-    exact ExecRCodeDist.of_demonicExec (hex_zr.seq_eq hex_cl)
+    exact ExecRCodeDist.of_demonicExec (hex_zr.seq_eq
+      ((hz₀_def.trans (hcanon_z₀ hy_rs (hyRep_supp _) (hyRep_seed _).symm)).symm ▸
+        (hfin_res (extSeed y_rs)).1))
   have hex_tail := hex_rs.seq hfin_any
   have hmu_eq : μ_rs.bind (fun y_rs => PMF.pure (zOf (extSeed y_rs))) =
       (PMF.uniformOfFintype (QuotHashSeed U N_new)).map zOf := by

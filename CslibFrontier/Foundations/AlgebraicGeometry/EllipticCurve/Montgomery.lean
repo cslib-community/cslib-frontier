@@ -164,14 +164,11 @@ theorem equation_iff_toWeierstrass (x y : F) :
     M.Equation (M.B * x) (M.B * y) ↔ M.toWeierstrass.toAffine.Equation x y := by
   have hB : M.B ≠ 0 := M.B_ne_zero
   have hq := (ofCubic M.A 1 0).quadraticTwist_equation_iff (inv_ne_zero hB) (M.B * x) (M.B ^ 2 * y)
-  have hy : M.B⁻¹ ^ 2 * (M.B ^ 2 * y) = y := by
-    rw [inv_pow, inv_mul_cancel_left₀ (pow_ne_zero 2 hB)]
+  have hy : M.B⁻¹ ^ 2 * (M.B ^ 2 * y) = y := by field_simp
   have heq : M.B⁻¹ * (M.B ^ 2 * y) ^ 2 = M.B * (M.B * y) ^ 2 := by field_simp
   rw [← toWeierstrass_eq_quadraticTwist, inv_mul_cancel_left₀ hB, hy] at hq
   rw [hq, heq, Equation]
-  simp only [ofCubic_a₂, ofCubic_a₄, ofCubic_a₆]
-  rw [show (M.B * x) ^ 3 + M.A * (M.B * x) ^ 2 + 1 * (M.B * x) + 0 =
-    (M.B * x) ^ 3 + M.A * (M.B * x) ^ 2 + M.B * x by ring]
+  simp only [ofCubic_a₂, ofCubic_a₄, ofCubic_a₆, one_mul, add_zero]
 
 /-- An affine point `(u, v)` on `M` maps to an affine solution `(u / B, v / B)` of
 `M.toWeierstrass`. -/
@@ -253,11 +250,7 @@ theorem isShortNF_toShortWeierstrass (h3 : (3 : F) ≠ 0) : M.toShortWeierstrass
   have hB : M.B ≠ 0 := M.B_ne_zero
   constructor <;> simp only [toShortWeierstrass, toWeierstrass, variableChange_a₁,
     variableChange_a₂, variableChange_a₃, ofCubic_a₁, ofCubic_a₂, ofCubic_a₃, inv_one,
-    Units.val_one]
-  · ring
-  · field_simp
-    ring
-  · ring
+    Units.val_one] <;> field_simp <;> ring
 
 /-- In characteristic three (`3 = 0` in `F`), if `M.A ≠ 0` then `M.toShortWeierstrass` is not in
 short normal form, since `a₂ = A / B ≠ 0`. -/
@@ -308,28 +301,20 @@ private lemma four_dvd_of_twoTorsion (M : MontgomeryCurve F) (h2 : (2 : F) ≠ 0
     exact mul_ne_zero h2 h2 (by linear_combination -(M.A + s * r) * hnum + r ^ 2 * hs + hr)
   have hx₁0 : x₁ ≠ 0 := hroot_ne 1 (one_pow 2)
   have hx₂0 : x₂ ≠ 0 := hroot_ne (-1) (by norm_num)
-  have hx₁₂ : x₁ ≠ x₂ := by
-    intro h
-    have hmul : (2 : F) * r = 0 := by
-      dsimp [x₁, x₂] at h
-      have h' := congr_arg ((2 * M.B) * ·) h
-      field_simp at h'
-      linear_combination h'
-    exact absurd (mul_eq_zero.mp hmul) (not_or.mpr ⟨h2, hr0⟩)
+  have hx₁₂ : x₁ ≠ x₂ := fun h ↦ by
+    have h' := congr_arg ((2 * M.B) * ·) h
+    dsimp only [x₁, x₂] at h'
+    field_simp at h'
+    exact mul_ne_zero h2 hr0 (by linear_combination h')
   have hEq0 : M.toWeierstrass.toAffine.Equation 0 0 := by
-    rw [← M.equation_iff_toWeierstrass, Equation]
-    simp
+    simp [← M.equation_iff_toWeierstrass, Equation]
   have hEqs (s : F) (hs : s ^ 2 = 1) :
       M.toWeierstrass.toAffine.Equation ((-M.A + s * r) / (2 * M.B)) 0 := by
     rw [← M.equation_iff_toWeierstrass, Equation]
     have hBx : M.B * ((-M.A + s * r) / (2 * M.B)) = (-M.A + s * r) / 2 := by field_simp
-    have hfac : ((-M.A + s * r) / 2) ^ 3 + M.A * ((-M.A + s * r) / 2) ^ 2 + (-M.A + s * r) / 2 =
-        ((-M.A + s * r) / 8) * ((s * r) ^ 2 - (M.A ^ 2 - 4)) := by
-      have h8 : (8 : F) ≠ 0 := by rw [show (8 : F) = 2 ^ 3 by ring]; exact pow_ne_zero 3 h2
-      field_simp
-      ring
-    rw [hBx, mul_zero, zero_pow two_ne_zero, mul_zero, hfac, mul_pow, hs, one_mul,
-      sub_eq_zero.mpr hr, mul_zero]
+    rw [hBx]
+    field_simp
+    linear_combination -(-M.A + s * r) * (r ^ 2 * hs + hr)
   have hEq1 : M.toWeierstrass.toAffine.Equation x₁ 0 := hEqs 1 (one_pow 2)
   have hEq2 : M.toWeierstrass.toAffine.Equation x₂ 0 := hEqs (-1) (by norm_num)
   let P₀ : M.toWeierstrass.toAffine.Point := Affine.Point.mk hEq0
@@ -366,18 +351,12 @@ private lemma four_dvd_of_twoTorsion (M : MontgomeryCurve F) (h2 : (2 : F) ≠ 0
         have heq := (M.equation_iff_toWeierstrass x 0).mpr h.1
         rw [Equation] at heq
         have hfac : x * (x - x₁) * (x - x₂) = 0 := by
-          have hsub : r ^ 2 - (M.A ^ 2 - 4) = 0 := sub_eq_zero.mpr hr
-          have hzero : (M.B * x) ^ 3 + M.A * (M.B * x) ^ 2 + M.B * x = 0 := by
-            linear_combination -heq
-          have hid : 4 * M.B ^ 3 * (x * (x - x₁) * (x - x₂)) =
-              4 * ((M.B * x) ^ 3 + M.A * (M.B * x) ^ 2 + M.B * x) -
-                M.B * x * (r ^ 2 - (M.A ^ 2 - 4)) := by
-            dsimp [x₁, x₂]
+          have hid : (2 * 2) * M.B ^ 3 * (x * (x - x₁) * (x - x₂)) = 0 := by
+            dsimp only [x₁, x₂]
             field_simp
-            ring
-          rw [hzero, hsub, mul_zero, mul_zero, sub_zero] at hid
-          have h4 : (4 : F) ≠ 0 := by rw [show (4 : F) = 2 ^ 2 by ring]; exact pow_ne_zero 2 h2
-          exact (mul_eq_zero.mp hid).resolve_left (mul_ne_zero h4 (pow_ne_zero 3 hB))
+            linear_combination -4 * heq - M.B * x * hr
+          exact (mul_eq_zero.mp hid).resolve_left
+            (mul_ne_zero (mul_ne_zero h2 h2) (pow_ne_zero 3 hB))
         simp only [mul_eq_zero, sub_eq_zero] at hfac
         rcases hfac with (rfl | rfl) | rfl <;> simp [P₀, P₁, P₂, Affine.Point.mk]
     · rcases hP with rfl | rfl | rfl | rfl
@@ -402,17 +381,12 @@ private lemma four_dvd_of_fourTorsion (M : MontgomeryCurve F) (h2 : (2 : F) ≠ 
   let _ : M.toWeierstrass.IsElliptic := M.isElliptic_toWeierstrass h2
   have hB : M.B ≠ 0 := M.B_ne_zero
   have hs' : M.B * s ^ 2 = M.A + 2 * ε := by rw [hs, mul_div_cancel₀ _ hB]
-  have hAε : M.A + 2 * ε ≠ 0 := by
-    intro h
-    have hA : M.A = -2 * ε := by linear_combination h
-    apply M.discr_ne_zero
-    rw [hA]
-    linear_combination 4 * hε
+  have hAε : M.A + 2 * ε ≠ 0 := fun h ↦
+    M.discr_ne_zero (by linear_combination (M.A - 2 * ε) * h + 4 * hε)
   have hs0 : s ≠ 0 := fun h ↦
     hAε (by linear_combination -hs' + M.B * (by rw [h]; ring : s ^ 2 = 0))
   have hEq0 : M.toWeierstrass.toAffine.Equation 0 0 := by
-    rw [← M.equation_iff_toWeierstrass, Equation]
-    simp
+    simp [← M.equation_iff_toWeierstrass, Equation]
   have hEq : M.toWeierstrass.toAffine.Equation (ε / M.B) (s / M.B) := by
     rw [← M.equation_iff_toWeierstrass, mul_div_cancel₀ _ hB, mul_div_cancel₀ _ hB, Equation]
     linear_combination hs' - (ε + M.A) * hε

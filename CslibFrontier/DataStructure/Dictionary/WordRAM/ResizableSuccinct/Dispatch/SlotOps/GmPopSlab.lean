@@ -105,11 +105,7 @@ theorem memoryCost_compGmPopSlabGenProg_le
   rcases d with ⟨⟨cp, metaBase⟩, b⟩
   dsimp only [compGmPopSlabGenProg]
   rw [Realization.memoryCost_bind', memoryCost_compGmUnlinkTopSlabGenProg_eq]
-  have h2 := memoryCost_compGmCompactSlabGenProg_le
-    ((cp, metaBase),
-      (Memory.spec 0).clientResult s (compGmUnlinkTopSlabGenProg ((cp, metaBase), b)))
-    ((Memory.spec 0).clientState s (compGmUnlinkTopSlabGenProg ((cp, metaBase), b)))
-  omega
+  exact Nat.add_le_add_left (memoryCost_compGmCompactSlabGenProg_le _ _) 14
 
 /-- Precondition for popping a slab in global metadata. -/
 @[expose] def CompGmPopSlabPre (w : ℕ) : (CompParams × ℕ) × ℕ → Memory.State → Prop
@@ -378,13 +374,11 @@ theorem compGmPopSlabGenProg_effect {metaBase itemBase U V w N m_items b : ℕ}
     compGmUnlinkTopSlabGenProg_effect (m_items := m_items) hw hitem hb_pos hb s hslab hq_pos
   obtain ⟨hc1, hc2, _, hc4⟩ := pureCompactSlab_of_slabBijection hb_pos hb hslab hq_pos
   obtain ⟨hf2, hg2⟩ := compGmCompactSlabGenProg_effect
-    (p_del := (Memory.spec 0).clientResult s
+    (V := V) (p_del := (Memory.spec 0).clientResult s
       (compGmUnlinkTopSlabGenProg ((mkCompParams U V w N, metaBase), b)))
-    (m_items := m_items) hw hitem
-    ((Memory.spec 0).clientState s
-      (compGmUnlinkTopSlabGenProg ((mkCompParams U V w N, metaBase), b)))
-    (hg1.symm ▸ hc1) (hg1.symm ▸ hc2)
-    (by rw [hg1, hres1]; exact hc4)
+    (m_items := m_items) hw hitem _ (hg1.symm ▸ hc1) (hg1.symm ▸ hc2) (by
+      rw [hg1, hres1]
+      exact hc4)
   dsimp only [s', compGmPopSlabGenProg]
   rw [StateTransitionSpec.clientState_bind]
   refine ⟨hf1.trans hf2, ?_⟩
@@ -416,14 +410,11 @@ private theorem validProg_compGmMoveLastSlabMeta {w : ℕ} {d : ((CompParams × 
   obtain ⟨hf_r, hg_r⟩ := compGmRelinkMovedSlabGenProg_effect
     (itemBase := metaBase + offCompItems U w N) (m_items := 0) hw le_rfl s hm1
   refine validProg_bind_unit
-    (validProg_compGmRelinkMovedSlab ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hm1⟩)
-    fun s1 hs1 => ?_
-  have hfr1 : metaBase + offCompItems U w N ≤ s1.frontier :=
-    hfr.trans_eq ((congrArg Memory.State.frontier hs1).trans hf_r.frontier_eq).symm
-  have hgm1 := (congrArg (fun st : Memory.State => compGmAt metaBase U w N st.mem) hs1).trans hg_r
-  have hm2 : PureMovedSlabInv N (compGmAt metaBase U w N s1.mem) p_del p_last :=
-    pureMovedSlabInv_congr hgm1.symm rfl (pureMovedSlabInv_after_relink hm1)
-  exact validProg_compGmLinkMovedNeighbors ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr1, hm2⟩
+    (validProg_compGmRelinkMovedSlab ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hm1⟩) ?_
+  rintro _ rfl
+  exact validProg_compGmLinkMovedNeighbors
+    ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hf_r.frontier_eq.symm ▸ hfr,
+      hg_r.symm ▸ pureMovedSlabInv_after_relink hm1⟩
 
 private theorem validProg_compGmCompactSlabStep {w : ℕ} {d : ((CompParams × ℕ) × ℕ) × ℕ}
     {s : Memory.State} (h : CompGmCompactSlabStepPre w d s) :
@@ -433,11 +424,12 @@ private theorem validProg_compGmCompactSlabStep {w : ℕ} {d : ((CompParams × �
   have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
   dsimp only [compGmCompactSlabStepProg]
   refine validProg_bind_unit
-    (validProg_ite (fun hlt => ?_) (fun _ => validProg_pure ())) fun s1 hs1 => ?_
-  · exact validProg_compGmMoveLastSlabMeta ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hcond hlt⟩
-  · have hfr1 : metaBase + offCompItems U w N ≤ s1.frontier := by
-      rw [hs1, frontier_compGmCompactSlabMove hw s hcond]; exact hfr
-    exact validProg_writeCompGMGen ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr1⟩, h0_lt⟩
+    (validProg_ite (fun hlt =>
+      validProg_compGmMoveLastSlabMeta ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hcond hlt⟩)
+      fun _ => validProg_pure ()) ?_
+  rintro _ rfl
+  exact validProg_writeCompGMGen ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl,
+    (frontier_compGmCompactSlabMove hw s hcond).symm ▸ hfr⟩, h0_lt⟩
 
 private theorem validProg_compGmCompactSlab {w : ℕ} {d : (CompParams × ℕ) × ℕ}
     {s : Memory.State} (h : CompGmCompactSlabPre w d s) :
@@ -464,17 +456,10 @@ theorem validProg_compGmPopSlabGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {s
   obtain ⟨hc1, hc2, hc3, hc4⟩ := pureCompactSlab_of_slabBijection hb_pos hb hslab hq_pos
   refine validProg_bind_of_eq
     (validProg_compGmUnlinkTopSlab ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, hslab,
-      hq_pos⟩) hres1 fun s1 hs1 => ?_
-  have hfr1 : metaBase + offCompItems U w N ≤ s1.frontier :=
-    hfr.trans_eq ((congrArg Memory.State.frontier hs1).trans hf1.frontier_eq).symm
-  have hgm1 : compGmAt metaBase U w N s1.mem =
-      gmUnlinkTopSlab N (compGmAt metaBase U w N s.mem) b :=
-    (congrArg (fun st : Memory.State => compGmAt metaBase U w N st.mem) hs1).trans hg1
-  refine validProg_compGmCompactSlab ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr1, hb_pos,
-    by rwa [hgm1], by rwa [hgm1], by rwa [hgm1], fun hlt => ?_⟩
-  have hlt' : compGmAt metaBase U w N s.mem (gmSlabTopIdx b) <
-      gmUnlinkTopSlab N (compGmAt metaBase U w N s.mem) b 0 - 1 :=
-    hlt.trans_eq (congrArg (· - 1) (congrFun hgm1 0))
-  exact pureMovedSlabInv_congr hgm1.symm (congrArg (· - 1) (congrFun hgm1.symm 0)) (hc4 hlt')
+      hq_pos⟩) hres1 ?_
+  rintro _ rfl
+  exact validProg_compGmCompactSlab ⟨U, V, N, hw, hN, hnU, hU, hV, rfl,
+    hf1.frontier_eq.symm ▸ hfr, hb_pos, hg1.symm ▸ hc1, hg1.symm ▸ hc2, hg1.symm ▸ hc3,
+    by simpa only [hg1] using hc4⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

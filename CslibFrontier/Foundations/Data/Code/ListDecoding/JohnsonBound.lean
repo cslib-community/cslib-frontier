@@ -105,8 +105,7 @@ noncomputable def johnsonRadiusLimit (δ : ℝ) : ℝ :=
 @[simp]
 theorem johnsonRadius_two (δ : ℝ) :
     johnsonRadius 2 δ = (1 - Real.sqrt (1 - 2 * δ)) / 2 := by
-  simp only [johnsonRadius]
-  ring_nf
+  simp only [johnsonRadius]; ring_nf
 
 @[simp]
 theorem johnsonRadius_zero_right (q : ℝ) : johnsonRadius q 0 = 0 := by
@@ -155,16 +154,12 @@ theorem johnsonRadius_antitone {q₁ q₂ δ : ℝ} (hq₁ : 1 < q₁) (hq : q�
   set θ₁ : ℝ := 1 - 1 / q₁
   set θ₂ : ℝ := 1 - 1 / q₂
   have hθ₁ : 0 < θ₁ := sub_pos.2 ((div_lt_one (zero_lt_one.trans hq₁)).2 hq₁)
-  have hθ₁₂ : θ₁ ≤ θ₂ := by
-    dsimp only [θ₁, θ₂]
-    gcongr
+  have hθ₁₂ : θ₁ ≤ θ₂ := sub_le_sub_left (one_div_le_one_div_of_le (zero_lt_one.trans hq₁) hq) 1
   have hrad₁ : 0 ≤ θ₁ ^ 2 - θ₁ * δ := by nlinarith
   set s₁ : ℝ := Real.sqrt (θ₁ ^ 2 - θ₁ * δ)
   have hs₁0 : 0 ≤ s₁ := Real.sqrt_nonneg _
   have hs₁sq : s₁ ^ 2 = θ₁ ^ 2 - θ₁ * δ := Real.sq_sqrt hrad₁
-  have hs₁le : s₁ ≤ θ₁ := by
-    rw [← Real.sqrt_sq hθ₁.le]
-    exact Real.sqrt_le_sqrt (by nlinarith)
+  have hs₁le : s₁ ≤ θ₁ := Real.sqrt_le_iff.2 ⟨hθ₁.le, by nlinarith⟩
   have hkey : δ ≤ 2 * (θ₁ - s₁) := by
     have hprod : (θ₁ + s₁) * (θ₁ - s₁) = θ₁ * δ := by nlinarith [hs₁sq]
     nlinarith [mul_le_mul_of_nonneg_right (by linarith : θ₁ + s₁ ≤ 2 * θ₁)
@@ -298,15 +293,9 @@ theorem mul_le_sub_one_mul_and_lt_of_lt_johnsonRadius {q n d e : ℕ} (hq : 2 �
 
 private theorem isListDecodable_of_neg [Nonempty ι] {C : Set (ι → α)} {ρ : ℝ} {L : ℕ}
     (hρ : ρ < 0) : IsListDecodable C ρ L := fun w => by
-  have hnR : (0 : ℝ) < Fintype.card ι := Nat.cast_pos.2 Fintype.card_pos
-  have hempty : {c ∈ C | (hammingDist c w : ℝ) ≤ ρ * Fintype.card ι} = ∅ := by
-    ext c
-    simp only [Set.mem_sep_iff, Set.mem_empty_iff_false, iff_false, not_and]
-    intro _
-    have h1 : ρ * Fintype.card ι < 0 := mul_neg_of_neg_of_pos hρ hnR
-    linarith [Nat.cast_nonneg (α := ℝ) (hammingDist c w)]
-  rw [hempty, Set.encard_empty]
-  exact zero_le
+  refine (Set.encard_eq_zero.2 (Set.eq_empty_iff_forall_notMem.2 fun c hc => ?_)).trans_le zero_le
+  linarith [hc.2, mul_neg_of_neg_of_pos hρ (Nat.cast_pos.2 (Fintype.card_pos (α := ι))),
+    Nat.cast_nonneg (α := ℝ) (hammingDist c w)]
 
 private theorem subsingleton_of_card_lt_of_le_minDist {C : Set (ι → α)} {d : ℕ}
     (hd : (d : ℕ∞) ≤ minDist C) (hnd : Fintype.card ι < d) : C.Subsingleton := by
@@ -486,9 +475,8 @@ theorem isListDecodable_reedSolomon [Nonempty ι] {F : Type*} [Field F] [Decidab
       div_self hnR.ne']
   have hρ' : ρ ≤ johnsonRadiusLimit (((n - k + 1 : ℕ) : ℝ) / n) - ε := by
     rwa [johnsonRadiusLimit, hd_eq, sub_sub_cancel]
-  have h := isListDecodable_of_le_johnsonRadiusLimit (le_minDist_reedSolomon hα k) hε hρ'
-  convert h using 3
-  exact hd_eq.symm
+  simpa only [← hd_eq] using
+    isListDecodable_of_le_johnsonRadiusLimit (le_minDist_reedSolomon hα k) hε hρ'
 
 end JohnsonBounds
 

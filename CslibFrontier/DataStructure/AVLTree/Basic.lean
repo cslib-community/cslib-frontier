@@ -197,10 +197,9 @@ private theorem two_pow_half_succ_le_fib : ∀ h : ℕ, 2 ^ ((h + 1) / 2) ≤ Na
   | 1 => by decide
   | h + 2 => by
     have ih := two_pow_half_succ_le_fib h
-    have hdiv : (h + 2 + 1) / 2 = (h + 1) / 2 + 1 := by omega
     have hfib : Nat.fib (h + 2 + 2) = Nat.fib (h + 2) + Nat.fib (h + 2 + 1) := Nat.fib_add_two
     have hmono : Nat.fib (h + 2) ≤ Nat.fib (h + 2 + 1) := Nat.fib_le_fib_succ
-    rw [hdiv, pow_succ]
+    rw [Nat.add_right_comm h 2 1, Nat.add_div_right _ zero_lt_two, pow_succ]
     omega
 
 /-- Construct a node computing its cached height in `O(1)` from its children's cached heights. -/
@@ -477,21 +476,18 @@ theorem successor_eq_searchTree (x : α) (t : AVLTree α) :
 
 /-- Membership search agrees with finite-set membership on any ordered tree. -/
 theorem contains_eq_true {t : AVLTree α} (ht : Ordered t) (x : α) :
-    contains x t = true ↔ x ∈ elements t := by
-  rw [contains_eq_searchTree]
-  exact SearchTree.contains_eq_true ht x
+    contains x t = true ↔ x ∈ elements t :=
+  contains_eq_searchTree x t ▸ SearchTree.contains_eq_true ht x
 
 /-- Leftmost descent returns the least stored key, or `none` when empty. -/
 theorem minimum_spec {t : AVLTree α} (ht : Ordered t) :
-    LeastResult (elements t) (minimum t) := by
-  rw [minimum_eq_searchTree]
-  exact SearchTree.minimum_spec ht
+    LeastResult (elements t) (minimum t) :=
+  minimum_eq_searchTree t ▸ SearchTree.minimum_spec ht
 
 /-- `successor x t` returns the least stored key strictly greater than `x`, or `none`. -/
 theorem successor_spec {t : AVLTree α} (ht : Ordered t) (x : α) :
-    LeastResult ((elements t).filter (x < ·)) (successor x t) := by
-  rw [successor_eq_searchTree]
-  exact SearchTree.successor_spec ht x
+    LeastResult ((elements t).filter (x < ·)) (successor x t) :=
+  successor_eq_searchTree x t ▸ SearchTree.successor_spec ht x
 
 /-- `mkNode` stores `a` together with the keys of `l` and `r`. -/
 @[simp]
@@ -715,22 +711,19 @@ theorem insert_eq_self {t : AVLTree α} (ht : Valid t) {x : α} (hx : x ∈ elem
 
 /-- Search and insertion visit at most `t.cachedHeight` downward-path internal nodes. -/
 theorem searchVisits_le_cachedHeight {t : AVLTree α} (hc : HeightConsistent t) (x : α) :
-    searchVisits x t ≤ t.cachedHeight := by
-  rw [cachedHeight_eq_height hc]
-  exact SearchTree.searchVisits_le_height x t.toBinaryTree
+    searchVisits x t ≤ t.cachedHeight :=
+  (SearchTree.searchVisits_le_height x t.toBinaryTree).trans_eq (cachedHeight_eq_height hc).symm
 
 omit [LinearOrder α] in
 /-- Leftmost minimum descent visits at most `t.cachedHeight` internal nodes. -/
 theorem minimumVisits_le_cachedHeight {t : AVLTree α} (hc : HeightConsistent t) :
-    minimumVisits t ≤ t.cachedHeight := by
-  rw [cachedHeight_eq_height hc]
-  exact SearchTree.minimumVisits_le_height t.toBinaryTree
+    minimumVisits t ≤ t.cachedHeight :=
+  (SearchTree.minimumVisits_le_height t.toBinaryTree).trans_eq (cachedHeight_eq_height hc).symm
 
 /-- Strict-successor search visits at most `t.cachedHeight` internal nodes. -/
 theorem successorVisits_le_cachedHeight {t : AVLTree α} (hc : HeightConsistent t) (x : α) :
-    successorVisits x t ≤ t.cachedHeight := by
-  rw [cachedHeight_eq_height hc]
-  exact SearchTree.successorVisits_le_height x t.toBinaryTree
+    successorVisits x t ≤ t.cachedHeight :=
+  (SearchTree.successorVisits_le_height x t.toBinaryTree).trans_eq (cachedHeight_eq_height hc).symm
 
 end Ordered
 

@@ -402,14 +402,12 @@ theorem correctionRequest_children_root_stability
       |maximum σ y - maximum' σ y| := by
   obtain ⟨C, LI, Lτ, Lγ, hC, hLI, hLτ, hLγ, hd⟩ :=
     correctionRequest_children_root_stability_of_bounds HP
-  refine ⟨C, LI, Lτ, Lγ, hC, hLI, hLτ, hLγ, ?_⟩
-  intro P J instP V instV k D ident r hr hf Kc hKc raw raw' prep prep'
-    maximum maximum' σ x y
-  dsimp only
-  apply hd P J V k D ident r hr hf Kc hKc raw raw' prep prep' maximum maximum' σ x y
-    _ _ kthLargest_nonneg kthLargest_nonneg
-    (fun z hz => abs_le_kthLargest_one _ (fun z => raw σ z y - raw' σ z y) z hz)
-    (fun _ hz => kthLargest_row_le_rectangle_max _ _ (fun z w => raw σ z w - raw' σ z w) hz)
+  exact ⟨C, LI, Lτ, Lγ, hC, hLI, hLτ, hLγ, fun P J _ V _ k D ident r hr hf Kc hKc
+    raw raw' prep prep' maximum maximum' σ x y =>
+    hd P J V k D ident r hr hf Kc hKc raw raw' prep prep' maximum maximum' σ x y
+      _ _ kthLargest_nonneg kthLargest_nonneg
+      (fun z hz => abs_le_kthLargest_one _ (fun z => raw σ z y - raw' σ z y) z hz)
+      (fun _ hz => kthLargest_row_le_rectangle_max _ _ (fun z w => raw σ z w - raw' σ z w) hz)⟩
 
 private lemma error_sum_bound {C B LI Lτ Lγ f d q e m z : ℝ}
     (hC : 0 ≤ C) (hf : 0 < f) (hd : d ≤ e) (hq : q ≤ e) :
@@ -564,21 +562,18 @@ theorem correctionRequest_children_root_moment
   have ha : rowNormPow 4 N u X Y A ≤
       (Cr / r.terminal.rate) ^ 4 * (Fintype.card V : ℝ) ^ 2 *
         rowNormPow 4 N u X Y (fun σ x y => raw σ x y - raw' σ x y) := by
-    rw [show A = (fun σ x y => (Cr / r.terminal.rate) * (fun σ _ _ => E σ) σ x y)
-      from rfl, rowNormPow_mul (div_nonneg hCr hf.le)]
+    rw [rowNormPow_mul (D := fun σ _ _ => E σ) (div_nonneg hCr hf.le)]
     simpa only [mul_assoc] using mul_le_mul_of_nonneg_left
       (rowNormPow_rectangle_max_le (X := X) (Y := Y) hNu
         (fun σ x y => raw σ x y - raw' σ x y)) (by positivity)
   have hb : rowNormPow 4 N u X Y F ≤
       Cp ^ 4 * rowNormPow 4 N u X U (fun σ x y => prep σ x y - prep' σ x y) := by
-    rw [show F = (fun σ x y => Cp * (if U σ y then M x y else 0)) from rfl,
-      rowNormPow_mul hCp]
+    rw [rowNormPow_mul hCp]
     exact mul_le_mul_of_nonneg_left (rowNormPow_usage_conditional_abs_le hNu hUY
       (fun σ x y => prep σ x y - prep' σ x y)) (by positivity)
   have hg : rowNormPow 4 N u X Y G =
       Cm ^ 4 * rowNormPow 4 N u X Y (fun σ _ y => maximum σ y - maximum' σ y) := by
-    rw [show G = (fun σ x y => Cm * |maximum σ y - maximum' σ y|) from rfl,
-      rowNormPow_mul hCm]
+    rw [rowNormPow_mul hCm]
     simp only [rowNormPow, abs_abs]
   exact (rowNormPow_le_three hNu Z A F G (fun _ _ _ => by dsimp only [A, E]; positivity) hF
     (fun _ _ _ => by dsimp only [G]; positivity)

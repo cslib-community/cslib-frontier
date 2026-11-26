@@ -57,8 +57,7 @@ private theorem density_polar (r t : ℝ) :
   rw [mul_mul_mul_comm, ← Real.exp_add]
   have h : -(r * Real.cos t) ^ 2 / 2 + -(r * Real.sin t) ^ 2 / 2 = -r ^ 2 / 2 := by
     nlinarith [Real.cos_sq_add_sin_sq t]
-  rw [h]
-  ring
+  rw [h]; ring
 
 /-- Density formula for integration against `normal2`. -/
 private theorem integral_normal2 (f : ℝ × ℝ → ℝ) :
@@ -206,10 +205,8 @@ private theorem cos_lt_cos_of_mem {c u : ℝ} (hc : 0 ≤ c) (_hcπ : c ≤ π) 
     (h2 : u < 2 * π - c) : Real.cos u < Real.cos c := by
   rcases le_or_gt u π with hu | hu
   · exact Real.cos_lt_cos_of_nonneg_of_le_pi hc hu h1
-  · have : Real.cos u = Real.cos (2 * π - u) := by
-      rw [Real.cos_sub, Real.cos_two_pi, Real.sin_two_pi]; ring
-    rw [this]
-    exact Real.cos_lt_cos_of_nonneg_of_le_pi hc (by linarith) (by linarith)
+  · exact Real.cos_two_pi_sub u ▸
+      Real.cos_lt_cos_of_nonneg_of_le_pi hc (by linarith) (by linarith)
 
 /-- `cos c ≤ cos u` for `|u| ≤ c ≤ π`. -/
 private theorem cos_le_cos_of_abs_le {c u : ℝ} (hcπ : c ≤ π) (h : |u| ≤ c) :
@@ -372,11 +369,8 @@ private theorem radial_nonneg {r : ℝ} (hr : 0 ≤ r) : 0 ≤ radial r :=
 private theorem measurable_radial : Measurable radial :=
   measurable_id.mul ((measurable_gaussianPDFReal 0 1).mul measurable_const)
 
-private theorem integrableOn_radial : IntegrableOn radial (Ioi 0) := by
-  apply Integrable.of_integral_ne_zero
-  rw [radial_integral]
-  have := Real.pi_pos
-  positivity
+private theorem integrableOn_radial : IntegrableOn radial (Ioi 0) :=
+  Integrable.of_integral_ne_zero (by rw [radial_integral]; positivity)
 
 private theorem planarSet_polar {γ₀ γ₁ h r t : ℝ} (hr : 0 < r) :
     (r * Real.cos t, r * Real.sin t) ∈ planarSet γ₀ γ₁ h ↔ FreeAngle γ₀ γ₁ (h / r) t := by
@@ -427,11 +421,9 @@ private theorem angMeasure_compare {γ₀ γ₁ k : ℝ} (h0 : 0 ≤ γ₀) (h0'
     (h1' : γ₁ ≤ π) : angMeasure (2 * π / 3) (2 * π / 3) k ≤ angMeasure γ₀ γ₁ k := by
   rcases le_or_gt k 1 with hk | hk
   · exact (angMeasure_eq_le hk).trans (angMeasure_ge h0 h0' h1 h1' hk)
-  · have hall : ∀ a b t, freeInd a b k t = 1 := by
-      intro a b t
-      have : FreeAngle a b k t := ⟨by linarith [Real.cos_le_one t],
-        by linarith [Real.cos_le_one (t - a)], by linarith [Real.cos_le_one (t + b)]⟩
-      simp [freeInd, this]
+  · have hall (a b t : ℝ) : freeInd a b k t = 1 := ite_eq_left
+      ⟨(Real.cos_le_one t).trans_lt hk, (Real.cos_le_one _).trans_lt hk,
+        (Real.cos_le_one _).trans_lt hk⟩
     simp only [angMeasure, hall, le_refl]
 
 /-- **Planar comparison.** For `γ₀, γ₁ ∈ [0, π]`, the planar probability is at

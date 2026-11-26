@@ -126,8 +126,7 @@ theorem convex_negOrthant : Convex ℝ (negOrthant G) := by
 theorem isOpen_negOrthant [Finite G] : IsOpen (negOrthant G) := by
   have hrep : negOrthant G = ⋂ g : G, (fun z : G → ℝ => z g) ⁻¹' Set.Iio (0 : ℝ) :=
     Set.ext fun z => by simp [mem_negOrthant]
-  rw [hrep]
-  exact isOpen_iInter_of_finite fun g => isOpen_Iio.preimage (continuous_apply g)
+  exact hrep ▸ isOpen_iInter_of_finite fun g => isOpen_Iio.preimage (continuous_apply g)
 
 /-- Finite-dimensional separating price lemma: if `K ⊆ (G → ℝ)` is convex, nonempty, disjoint from
 `negOrthant G`, and contains arbitrarily small vectors in `ℓ_∞` norm (`0 ∈ closure K`), then there
@@ -142,20 +141,15 @@ theorem exists_price_of_convex_disjoint_negOrthant [Fintype G]
   obtain ⟨f, u, hlt, hge⟩ :=
     geometric_hahn_banach_open convex_negOrthant isOpen_negOrthant hK_conv hdisj
   let p : G → ℝ := fun g => f (Pi.single g 1)
-  have hf_eq : ∀ z : G → ℝ, f z = expenditure p z := by
-    intro z
-    have hz_sum : z = ∑ g : G, z g • Pi.single g (1 : ℝ) :=
-      funext fun k => by simp [Pi.single_apply]
-    conv_lhs => rw [hz_sum]
-    rw [map_sum, expenditure_eq_sum]
-    refine sum_congr rfl fun g _ => ?_
-    rw [f.map_smul, smul_eq_mul, mul_comm]
+  have hf_eq (z : G → ℝ) : f z = expenditure p z := by
+    have hz : z = ∑ g : G, z g • Pi.single g (1 : ℝ) := funext fun k => by simp [Pi.single_apply]
+    conv_lhs => rw [hz]
+    simp only [map_sum, expenditure_eq_sum, f.map_smul, smul_eq_mul, mul_comm, p]
   set S : ℝ := ∑ g : G, |p g|
   have hS_nn : 0 ≤ S := sum_nonneg fun g _ => abs_nonneg _
   -- Step 1: `0 ≤ u` via small uniform negative vectors `fun _ => -ε ∈ negOrthant G`.
   have hu_nn : 0 ≤ u := by
-    by_contra hu_neg
-    push Not at hu_neg
+    by_contra! hu_neg
     set ε : ℝ := (-u) / (2 * (1 + S))
     have hε_pos : 0 < ε := div_pos (neg_pos.2 hu_neg) (by positivity)
     have ha_lt : expenditure p (fun _ => -ε) < u := by
@@ -169,10 +163,8 @@ theorem exists_price_of_convex_disjoint_negOrthant [Fintype G]
       nlinarith
     linarith
   -- Step 2: `∀ g, 0 ≤ p g` by scaling `-Pi.single g₀ 1` inside `negOrthant G`.
-  have hp_nn : ∀ g : G, 0 ≤ p g := by
-    intro g₀
-    by_contra hpg_neg
-    push Not at hpg_neg
+  have hp_nn (g₀ : G) : 0 ≤ p g₀ := by
+    by_contra! hpg_neg
     set M : ℝ := (|u| + S + 1) / (-p g₀)
     have hM_pos : 0 < M := div_pos (by positivity) (neg_pos.2 hpg_neg)
     let a : G → ℝ := (fun _ => (-1 : ℝ)) - M • Pi.single g₀ 1
@@ -188,8 +180,7 @@ theorem exists_price_of_convex_disjoint_negOrthant [Fintype G]
     linarith [sum_le_sum fun g (_ : g ∈ univ) => le_abs_self (p g), le_abs_self u]
   -- Step 3: `∃ g, 0 < p g` since `p = 0` collapses `f` to `0`.
   have hp_pos : ∃ g : G, 0 < p g := by
-    by_contra hall
-    push Not at hall
+    by_contra! hall
     have hp0 : ∀ g : G, p g = 0 := fun g => le_antisymm (hall g) (hp_nn g)
     obtain ⟨z₀, hz₀⟩ := hK_ne
     have h1 := hlt (fun _ => (-1 : ℝ)) (fun _ => by norm_num)
@@ -198,8 +189,7 @@ theorem exists_price_of_convex_disjoint_negOrthant [Fintype G]
     linarith
   -- Step 4: `u ≤ 0` from `hzero`, hence `0 ≤ expenditure p z` on `K`.
   have hu_le : u ≤ 0 := by
-    by_contra hu_pos
-    push Not at hu_pos
+    by_contra! hu_pos
     obtain ⟨g₀, hpg₀⟩ := hp_pos
     set P : ℝ := ∑ g : G, p g
     have hP_pos : 0 < P :=
@@ -280,9 +270,7 @@ theorem StrictConcaveOn.sum_mul_lt_of_ne {ι : Type*} {u : (G → ℝ) → ℝ}
     have hc₁_ne_c₂ : c₂ ≠ c₁ := fun h => hne₁₂ (congrArg f h.symm)
     set T := S.erase c₁
     have hc₂_T : c₂ ∈ T := mem_erase.2 ⟨hc₁_ne_c₂, hc₂⟩
-    have hW_split : w c₁ + ∑ c ∈ T, w c = 1 := by
-      rw [← hw_sum]
-      exact add_sum_erase S w hc₁
+    have hW_split : w c₁ + ∑ c ∈ T, w c = 1 := (add_sum_erase S w hc₁).trans hw_sum
     set WT := ∑ c ∈ T, w c
     have hWT_pos : 0 < WT :=
       lt_of_lt_of_le (hw_pos c₂ hc₂)
@@ -290,10 +278,7 @@ theorem StrictConcaveOn.sum_mul_lt_of_ne {ι : Type*} {u : (G → ℝ) → ℝ}
     let wT : ι → ℝ := fun c => w c / WT
     have hwT_pos : ∀ c ∈ T, 0 < wT c := fun c hc =>
       div_pos (hw_pos c (mem_of_mem_erase hc)) hWT_pos
-    have hwT_sum : ∑ c ∈ T, wT c = 1 := by
-      dsimp only [wT]
-      rw [← sum_div]
-      exact div_self hWT_pos.ne'
+    have hwT_sum : ∑ c ∈ T, wT c = 1 := by rw [← sum_div, div_self hWT_pos.ne']
     let rest : G → ℝ := ∑ c ∈ T, wT c • f c
     have hrest_nn : ∀ g, 0 ≤ rest g := fun g => by
       simp only [rest, Finset.sum_apply, Pi.smul_apply, smul_eq_mul]
@@ -315,14 +300,11 @@ theorem StrictConcaveOn.sum_mul_lt_of_ne {ι : Type*} {u : (G → ℝ) → ℝ}
     by_cases heq_rest : f c₁ = rest
     · -- Since `f c₂ ≠ f c₁ = rest`, `f` cannot be constant on `T`.
       have hT_nonconst : ∃ d₁ ∈ T, ∃ d₂ ∈ T, f d₁ ≠ f d₂ := by
-        by_contra hall_eq
-        push Not at hall_eq
-        have hrest_eq_c2 : rest = f c₂ := by
-          have hcongr : ∑ c ∈ T, wT c • f c = ∑ c ∈ T, wT c • f c₂ :=
-            sum_congr rfl fun c hc => by rw [hall_eq c hc c₂ hc₂_T]
-          dsimp only [rest]
-          rw [hcongr, ← sum_smul, hwT_sum, one_smul]
-        exact hne₁₂ (heq_rest.trans hrest_eq_c2)
+        by_contra! hall_eq
+        have hcongr : rest = ∑ c ∈ T, wT c • f c₂ :=
+          sum_congr rfl fun c hc => by rw [hall_eq c hc c₂ hc₂_T]
+        rw [hcongr, ← sum_smul, hwT_sum, one_smul] at heq_rest
+        exact hne₁₂ heq_rest
       have hT_strict : ∑ c ∈ T, wT c * u (f c) < u rest :=
         ih T (erase_ssubset hc₁) hwT_pos hwT_sum
           (fun c hc => hf_nn c (mem_of_mem_erase hc)) hT_nonconst
@@ -390,8 +372,7 @@ theorem IsQuasiDemand.mem_demandSet_of_budget_pos {u : (G → ℝ) → ℝ} {p :
     x ∈ demandSet u p m := by
   rw [mem_demandSet]
   refine ⟨hq.1, fun b hb => ?_⟩
-  by_contra hlt
-  push Not at hlt
+  by_contra! hlt
   have hcw : ContinuousWithinAt (fun c : ℝ => u (c • b)) (Set.Ici 0) 1 :=
     (hcont.comp (continuous_id.smul continuous_const).continuousOn
       fun c hc g => mul_nonneg hc (hb.1 g)).continuousWithinAt (by norm_num)

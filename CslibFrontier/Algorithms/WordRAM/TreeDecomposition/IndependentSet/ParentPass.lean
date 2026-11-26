@@ -103,16 +103,14 @@ theorem mem_parentPassPrefix_le {LB LP oldL bestL : List ℕ} {capO capB k : ℕ
     (hold : ∀ x ∈ oldL, x ≤ capO) (hbest : ∀ x ∈ bestL, x ≤ capB) :
     ∀ x ∈ parentPassPrefix LB LP oldL bestL k, x ≤ capO + capB := by
   intro x hx
-  rw [parentPassPrefix, List.mem_ofFn] at hx
-  obtain ⟨i, rfl⟩ := hx
+  obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hx
   have ho : oldL[i] ≤ capO := hold _ (List.getElem_mem i.isLt)
   split_ifs
-  · refine Nat.add_le_add ho ?_
-    rw [List.getD_eq_getElem?_getD]
+  · rw [List.getD_eq_getElem?_getD]
     cases hget : bestL[restrictMask LB LP i.val]? with
-    | none => exact Nat.zero_le _
-    | some v => exact hbest v (List.mem_of_getElem? hget)
-  · omega
+    | none => exact Nat.add_le_add ho (Nat.zero_le _)
+    | some v => exact Nat.add_le_add ho (hbest v (List.mem_of_getElem? hget))
+  · exact ho.trans (Nat.le_add_right _ _)
 
 /-! ### Word-RAM parent pass (`parentPassProg`) -/
 
@@ -336,14 +334,13 @@ theorem parentPassProg_realizes :
       (∀ addr, (addr < d.tblPPtr ∨ d.tblPPtr + d.tblPLen ≤ addr) → t.mem addr = s.mem addr) ∧
       HoldsIn d.tblPPtr (parentPassPrefix LB LP oldL bestL curS) t)
     (fun j curS t ⟨hj_le, hcur, hfr, hout, hpfx_t⟩ => ?_)
-    ⟨le_rfl, Nat.zero_add _, rfl, fun _ _ => rfl,
-      by rw [parentPassPrefix_zero]; exact hold_h⟩
+    ⟨le_rfl, Nat.zero_add _, rfl, fun _ _ => rfl, (parentPassPrefix_zero _ _ _ _).symm ▸ hold_h⟩
   have hLB_t : HoldsIn d.bagBPtr LB t :=
-    ⟨by rw [hfr]; exact hLB_h.1, hLB_h.2.frame fun a _ ha => hout a (.inl (by omega))⟩
+    ⟨hfr.symm ▸ hLB_h.1, hLB_h.2.frame fun a _ ha => hout a (.inl (by omega))⟩
   have hLP_t : HoldsIn d.bagPPtr LP t :=
-    ⟨by rw [hfr]; exact hLP_h.1, hLP_h.2.frame fun a _ ha => hout a (.inl (by omega))⟩
+    ⟨hfr.symm ▸ hLP_h.1, hLP_h.2.frame fun a _ ha => hout a (.inl (by omega))⟩
   have hbest_t : HoldsIn d.bestPtr bestL t :=
-    ⟨by rw [hfr]; exact hbest_h.1, hbest_h.2.frame fun a ha _ => hout a (.inr (by omega))⟩
+    ⟨hfr.symm ▸ hbest_h.1, hbest_h.2.frame fun a ha _ => hout a (.inr (by omega))⟩
   obtain ⟨_, _, hr_rk, _⟩ :=
     restrictMaskProg_spec (w := w) ⟨d.bagBPtr, d.bagBLen, d.bagPPtr, d.bagPLen, curS⟩
       hLB_t hLB_len hLP_t hLP_len
@@ -351,8 +348,7 @@ theorem parentPassProg_realizes :
   let rk := (Memory.spec 0).clientResult t
     (restrictMaskProg ⟨d.bagBPtr, d.bagBLen, d.bagPPtr, d.bagPLen, curS⟩)
   have hrk_lt : rk < bestL.length := by
-    rw [show rk = _ from hr_rk, hbest_len, ← hLP_len]
-    exact restrictMask_lt_two_pow LB LP curS
+    simpa only [rk, hr_rk, hbest_len, ← hLP_len] using restrictMask_lt_two_pow LB LP curS
   have hcur_lt : curS < oldL.length := by omega
   have hold_val : t.mem (d.tblPPtr + curS) = oldL[curS] := by
     simpa [parentPassPrefix] using

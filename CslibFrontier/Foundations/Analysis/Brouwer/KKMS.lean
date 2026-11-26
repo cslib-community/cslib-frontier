@@ -142,28 +142,25 @@ theorem exists_balanced_inter_of_kkmCover {A : Type*} [Fintype A] [DecidableEq A
     isOpen_iInter_of_finite fun S => (hclosed S.1 S.2.1).isOpen_compl
   have hmem_U : ∀ x : A → ℝ, x ∈ U x := fun x =>
     Set.mem_iInter.2 fun S hx => S.2.2 hx
-  have hU_sub : ∀ x z : A → ℝ, z ∈ U x → ∀ S : Finset A, S.Nonempty → z ∈ F S → S ∈ active x := by
-    intro x z hz S hSne hzS
-    refine Finset.mem_filter.2 ⟨Finset.mem_univ _, hSne, ?_⟩
-    by_contra hxS
-    exact (Set.mem_iInter.1 hz ⟨S, hSne, hxS⟩) hzS
+  have hU_sub (x z : A → ℝ) (hz : z ∈ U x) (S : Finset A) (hSne : S.Nonempty)
+      (hzS : z ∈ F S) : S ∈ active x :=
+    Finset.mem_filter.2 ⟨Finset.mem_univ _, hSne,
+      by_contra fun hxS => (Set.mem_iInter.1 hz ⟨S, hSne, hxS⟩) hzS⟩
   have hΔ_cov : Δ ⊆ ⋃ x : Δ, U x.1 := fun x hx => Set.mem_iUnion.2 ⟨⟨x, hx⟩, hmem_U x⟩
   obtain ⟨t, ht⟩ := isCompact_simplex.elim_finite_subcover (fun x : Δ => U x.1)
     (fun x => hU_open x.1) hΔ_cov
-  have hsep : ∀ x : Δ, ∃ v : A → ℝ, 0 < ∑ i, v i ∧ ∀ S ∈ active x.1, ∑ i ∈ S, v i < 0 := by
-    intro x
-    refine exists_strictSep_of_not_balanced (active x.1)
-      (fun S hS => (Finset.mem_filter.1 hS).2.1) fun ⟨w, hw0, hw_empty, hw_bal, hw_supp⟩ => ?_
-    refine hnone ⟨x.1, x.2, w, hw0, hw_empty, hw_bal, fun S hSw => ?_⟩
-    exact (Finset.mem_filter.1 (hw_supp S hSw)).2.2
+  have hsep (x : Δ) : ∃ v : A → ℝ, 0 < ∑ i, v i ∧ ∀ S ∈ active x.1, ∑ i ∈ S, v i < 0 :=
+    exists_strictSep_of_not_balanced (active x.1) (fun S hS => (Finset.mem_filter.1 hS).2.1)
+      fun ⟨w, hw0, hw_empty, hw_bal, hw_supp⟩ =>
+        hnone ⟨x.1, x.2, w, hw0, hw_empty, hw_bal,
+          fun S hSw => (Finset.mem_filter.1 (hw_supp S hSw)).2.2⟩
   choose sep hsep_pos hsep_lt using hsep
   let wt : Δ → (A → ℝ) → ℝ := fun k z =>
     if (U k.1)ᶜ.Nonempty then Metric.infDist z (U k.1)ᶜ else 1
   have hwt_cont (k : Δ) : Continuous (wt k) := by
     dsimp only [wt]
     split_ifs
-    · exact Metric.continuous_infDist_pt _
-    · exact continuous_const
+    exacts [Metric.continuous_infDist_pt _, continuous_const]
   have hwt_nonneg (k : Δ) (z : A → ℝ) : 0 ≤ wt k z := by
     by_cases h : (U k.1)ᶜ.Nonempty <;> simp [wt, h, Metric.infDist_nonneg]
   have hwt_pos_iff (k : Δ) (z : A → ℝ) : 0 < wt k z ↔ z ∈ U k.1 := by
@@ -290,22 +287,18 @@ theorem exists_mem_iInter_of_kkmCover {A : Type*} [Fintype A] [Nonempty A]
     (fun S _ => by
       dsimp only [G]
       split_ifs with h
-      · exact hclosed h.choose
-      · exact isClosed_empty)
+      exacts [hclosed h.choose, isClosed_empty])
     fun T hT q hq0 hq1 hqout => by
       obtain ⟨i, hiT, hqi⟩ := hcover T hT q hq0 hq1 hqout
       exact ⟨{i}, Finset.singleton_subset_iff.2 hiT, Finset.singleton_nonempty i,
         hG_single i ▸ hqi⟩
   refine ⟨q, hq, fun i => hG_single i ▸ hqG {i} ?_⟩
   suffices w {i} = 1 by linarith
-  rw [← hw_bal i, Finset.sum_eq_single {i}]
-  · intro S hS hSne
-    refine le_antisymm (not_lt.1 fun hwS => ?_) (hw0 S)
-    have hqS := hqG S hwS
-    by_cases hex : ∃ j, S = {j}
-    · obtain ⟨j, rfl⟩ := hex
-      exact hSne (congrArg singleton (Finset.mem_singleton.1 (Finset.mem_filter.1 hS).2).symm)
-    · simp [G, hex] at hqS
-  · simp
+  rw [← hw_bal i, Finset.sum_eq_single {i} (fun S hS hSne => ?_) (by simp)]
+  refine le_antisymm (not_lt.1 fun hwS => ?_) (hw0 S)
+  by_cases hex : ∃ j, S = {j}
+  · obtain ⟨j, rfl⟩ := hex
+    exact hSne (congrArg singleton (Finset.mem_singleton.1 (Finset.mem_filter.1 hS).2).symm)
+  · exact absurd (hqG S hwS) (by simp [G, hex])
 
 end Cslib.Brouwer

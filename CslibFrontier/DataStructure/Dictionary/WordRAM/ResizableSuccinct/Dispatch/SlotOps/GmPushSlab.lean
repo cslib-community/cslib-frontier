@@ -251,11 +251,9 @@ private theorem realizesBounded_compGmPushWriteOwner :
   all_goals (
     rcases d with ⟨⟨⟨cp, metaBase⟩, ⟨b, q_b⟩⟩, ⟨p_new, top_old⟩⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, _, hp_lt, _⟩ := h
-    have hownB_lt := gmSlabOwnerBIdx_lt hb_pos hp_lt
-    have hownS_lt : gmSlabOwnerBIdx N p_new + 1 < globalMetaLen N :=
-      gmSlabOwnerSIdx_lt hb_pos hp_lt
-    have hbel_lt : gmSlabOwnerBIdx N p_new + 2 < globalMetaLen N :=
-      gmSlabBelowIdx_lt hb_pos hp_lt
+    have := gmSlabOwnerBIdx_lt hb_pos hp_lt
+    have : gmSlabOwnerBIdx N p_new + 1 < globalMetaLen N := gmSlabOwnerSIdx_lt hb_pos hp_lt
+    have : gmSlabOwnerBIdx N p_new + 2 < globalMetaLen N := gmSlabBelowIdx_lt hb_pos hp_lt
     have hp4 : gmSlabMetaBase N + (p_new + p_new + (p_new + p_new)) =
         gmSlabOwnerBIdx N p_new := by unfold gmSlabOwnerBIdx; omega
     simp only [cpGmSlabMetaBase_mk, hp4,
@@ -347,14 +345,13 @@ private theorem realizesBounded_compGmPushApply :
   have hfin := realizesBounded_compGmPushFinish
   realize
   · exact h
-  · rcases d with ⟨⟨⟨cp, metaBase⟩, b⟩, ⟨⟨q_b, p_new⟩, top_old⟩⟩
-    obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, hq_le_p, hp_lt, htop_lt⟩ := h
-    refine ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, ?_, hb_pos, hb, hq_le_p, hp_lt, htop_lt⟩
-    dsimp only [compGmPushWriteOwnerProg, StateTransitionSpec.clientState]
-    simp [runClient_state_writeCompGMGenProg, hfr]
-  · rcases d with ⟨⟨⟨cp, metaBase⟩, b⟩, ⟨⟨q_b, p_new⟩, top_old⟩⟩
-    obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, hq_le_p, hp_lt, _⟩ := h
-    refine ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, ?_, hb_pos, hb, hq_le_p, hp_lt⟩
+  all_goals (
+    rcases d with ⟨⟨⟨cp, metaBase⟩, b⟩, ⟨⟨q_b, p_new⟩, top_old⟩⟩
+    obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, hq_le_p, hp_lt, htop_lt⟩ := h)
+  · refine ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, ?_, hb_pos, hb, hq_le_p, hp_lt, htop_lt⟩
+    simp [compGmPushWriteOwnerProg, StateTransitionSpec.clientState,
+      runClient_state_writeCompGMGenProg, hfr]
+  · refine ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, ?_, hb_pos, hb, hq_le_p, hp_lt⟩
     dsimp only [compGmPushWriteOwnerProg, compGmPushWriteLinksProg, StateTransitionSpec.clientState]
     by_cases hc0 : 0 < q_b <;> by_cases hc1 : q_b < dirSlabsPerBucket N <;>
       simp [cpDirSlabs_mk, hc0, hc1, runClient_state_writeCompGMGenProg, hfr]
@@ -424,16 +421,13 @@ theorem validProg_compGmPushSlabGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {
     validProg_writeCompGM_bind ⟨mkEnv s1 hs1, gmSlabOwnerSIdx_lt hb_pos hp_lt⟩ fun s2 hs2 =>
       validProg_writeCompGM_bind
         ⟨mkEnv s2 (hs2.trans hs1), gmSlabBelowIdx_lt hb_pos hp_lt⟩ fun s3 hs3 => ?_
-  have hs3_eq : s3.frontier = s.frontier := hs3.trans (hs2.trans hs1)
   refine validProg_writeCompGM_ite_bind (0 < q_b)
-    (fun hq_pos =>
-      ⟨mkEnv s3 hs3_eq, gmSlabAboveIdx_lt hb_pos ((hslab.top_lt hb hq_pos).trans hp_lt)⟩)
-    fun s4 hs4 => ?_
-  have hs4_eq : s4.frontier = s.frontier := hs4.trans hs3_eq
+    (fun hq_pos => ⟨mkEnv s3 (hs3.trans (hs2.trans hs1)),
+      gmSlabAboveIdx_lt hb_pos ((hslab.top_lt hb hq_pos).trans hp_lt)⟩) fun s4 hs4 => ?_
   refine validProg_writeCompGM_ite_bind (q_b < dirSlabsPerBucket N)
-    (fun hdir => ⟨mkEnv s4 hs4_eq, gmSlabDirIdx_lt hb_pos hb hdir⟩)
-    fun s5 hs5 => ?_
-  have hs5_eq : s5.frontier = s.frontier := hs5.trans hs4_eq
+    (fun hdir => ⟨mkEnv s4 (hs4.trans (hs3.trans (hs2.trans hs1))),
+      gmSlabDirIdx_lt hb_pos hb hdir⟩) fun s5 hs5 => ?_
+  have hs5_eq : s5.frontier = s.frontier := hs5.trans (hs4.trans (hs3.trans (hs2.trans hs1)))
   exact validProg_writeCompGM_bind ⟨mkEnv s5 hs5_eq, htop_lt⟩ fun s6 hs6 =>
     validProg_writeCompGM_bind ⟨mkEnv s6 (hs6.trans hs5_eq), hq_lt⟩ fun s7 hs7 =>
       validProg_writeCompGMGen ⟨mkEnv s7 (hs7.trans (hs6.trans hs5_eq)), h0_lt⟩

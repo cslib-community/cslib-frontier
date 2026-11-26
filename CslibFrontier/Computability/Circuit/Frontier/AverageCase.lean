@@ -164,18 +164,15 @@ theorem agreement_le {ι U : Type*} [Finite ι] [Finite U] [Nonempty U] {S T : S
       simp only [mem_ofPred_eq, mem_union, mem_inter_iff, Set.mem_sdiff, mem_compl_iff]; tauto
   have hdisj : Disjoint (T ∩ S) (Tᶜ \ S) := disjoint_left.mpr fun x hx hx' => hx'.1 hx.1
   have hcard : ({x | x ∈ S ↔ x ∈ T}.ncard : ℝ) = (T ∩ S).ncard + (Tᶜ \ S).ncard := by
-    rw [hagree, ncard_union_eq hdisj]
-    exact Nat.cast_add _ _
+    rw [hagree, ncard_union_eq hdisj, Nat.cast_add]
   have hT : ((T ∩ S).ncard : ℝ) + (T \ S).ncard = T.ncard := by
     exact_mod_cast ncard_inter_add_ncard_sdiff_eq_ncard T S
   have hTc : ((Tᶜ ∩ S).ncard : ℝ) + (Tᶜ \ S).ncard = Tᶜ.ncard := by
     exact_mod_cast ncard_inter_add_ncard_sdiff_eq_ncard Tᶜ S
   have htotal : (T.ncard : ℝ) + Tᶜ.ncard = Nat.card (ι → U) := by
     exact_mod_cast ncard_add_ncard_compl T
-  have hs₁ := le_abs_self (signedCount S T)
-  have hs₂ := neg_abs_le (signedCount S Tᶜ)
-  have e₁ : signedCount S T = (T ∩ S).ncard - (T \ S).ncard := rfl
-  have e₂ : signedCount S Tᶜ = (Tᶜ ∩ S).ncard - (Tᶜ \ S).ncard := rfl
+  have hs₁ : ((T ∩ S).ncard : ℝ) - (T \ S).ncard ≤ |signedCount S T| := le_abs_self _
+  have hs₂ : -|signedCount S Tᶜ| ≤ ((Tᶜ ∩ S).ncard : ℝ) - (Tᶜ \ S).ncard := neg_abs_le _
   have hβ : β * T.ncard + β * Tᶜ.ncard = β * Nat.card (ι → U) := by rw [← htotal]; ring
   rw [agreement, div_le_iff₀ hN, hcard]
   have hRHS : ((1 + β) / 2 + (R₁ + R₂) / (2 * Nat.card (ι → U))) * Nat.card (ι → U) =
@@ -316,12 +313,8 @@ theorem agreement_le_of_layout {S : Set (Fin n → U)} {K : ℕ} {b : ℝ}
       ((K ^ 3 * (V + 1) * q ^ (w + 4) : ℕ) : ℝ) := by exact_mod_cast hres
   have hq : 0 < q := Nat.card_pos
   have hN : (0 : ℝ) < (q : ℝ) ^ n := by positivity
-  rw [card_input_eq] at h
-  refine h.trans ?_
-  have hhalf : ∀ R : ℝ, (R + R) / (2 * (q : ℝ) ^ n) = R / (q : ℝ) ^ n := fun R => by
-    field_simp
-    ring
-  rw [hhalf]
+  have hhalf (R : ℝ) : (R + R) / (2 * (q : ℝ) ^ n) = R / (q : ℝ) ^ n := by field_simp; ring
+  rw [card_input_eq, hhalf] at h
   linarith [div_le_div_of_nonneg_right hresR hN.le]
 
 /-- **A narrow layout of a circuit, charging only multiary gates.** Suppose that connected,
@@ -477,12 +470,9 @@ theorem multiaryAverageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout 
         c.multiarySize - n + e n by simp only [e]; linarith) (by linarith : 0 ≤ A + η)
       linarith
     have hVκ : (V : ℝ) ≤ κ * (n + c.multiarySize + 1) := by
-      have hV : V ≤ 2 * 2 * (c.multiarySize + q + (c.multiarySize + n) * q ^ q) + 3 :=
-        (Compiler.card_vertex_le hfan').trans
-          (Nat.add_le_add_right (Nat.mul_le_mul_left 4
-            (c'.innerSize_le_size.trans hsize_c')) 3)
-      have hVR : (V : ℝ) ≤ 4 * (c.multiarySize + q + (c.multiarySize + n) * (q : ℝ) ^ q) + 3 := by
-        exact_mod_cast hV
+      have hVR : (V : ℝ) ≤ 4 * (c.multiarySize + q + (c.multiarySize + n) * (q : ℝ) ^ q) + 3 :=
+        mod_cast (Compiler.card_vertex_le hfan').trans
+          (Nat.add_le_add_right (Nat.mul_le_mul_left 4 (c'.innerSize_le_size.trans hsize_c')) 3)
       have h1div : (0 : ℝ) ≤ 1 / Real.log 2 := by positivity
       have hqq : (0 : ℝ) ≤ (q : ℝ) ^ q := by positivity
       simp only [κ]

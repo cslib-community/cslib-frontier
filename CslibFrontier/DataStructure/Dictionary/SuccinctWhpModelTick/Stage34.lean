@@ -110,21 +110,19 @@ private theorem epochTickStage3Finish_spec {c U V n_max : ℕ} {θ : SeedWhp c U
       have hms : oldMap (s.rKeyAt c U n_max θ b loc) = some (b, loc) :=
         (hrel_o.2 _ b loc).mpr ⟨hb, hloc, hst, rfl⟩
       obtain ⟨id, hid, hchk⟩ := hv_o.exists_checkSlot_of_map_some hms
-      have hn := hnone_lt id (hid.trans_le hdone)
-      rw [hn] at hchk; cases hchk
+      exact nomatch (hnone_lt id (hid.trans_le hdone)).symm.trans hchk
     refine step_of_inLiveTree_eq hc hom rfl hc.epochClock_lt
       (show 4 ≤ 5 by decide) hc.rebCollision_zero rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
       rfl rfl rfl rfl rfl (fun _ _ => rfl) (fun _ _ => rfl)
       (fun b hb loc hloc => by
-        have hne := hno_old b hb loc hloc
         change inLiveTree 4 s.oldEp (s.rebDoneFlag b) (s.locState b loc) =
           inLiveTree s.rebStage s.oldEp (s.rebDoneFlag b) (s.locState b loc)
-        simp [inLiveTree, hs3, hne])
+        simp [inLiveTree, hs3, hno_old b hb loc hloc])
       (by
         dsimp only [FastState.oldEp]
         simp only [Nat.reduceLeDiff, ↓reduceIte]
-        refine ⟨hno_old, hv_o.toClearable, ?_⟩
-        exact hna_o.trans (Nat.add_le_add_left (Nat.mul_le_mul_left _ hia_o) 1))
+        exact ⟨hno_old, hv_o.toClearable,
+          hna_o.trans (Nat.add_le_add_left (Nat.mul_le_mul_left _ hia_o) 1)⟩)
       ?_ rfl
     dsimp only [ValidEpochStage]
     simp
@@ -251,10 +249,8 @@ theorem epochTickStage3_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
               omega
             · rw [Function.update_update_apply_of_ne hbl]
           bufOld_valid := by
-            have hst_eq : fs'.rebStage = 3 := hs3
-            have hold_eq : fs'.oldEp = oldEp := rfl
-            have hbuf_o : fs'.buf oldEp = tr' := by dsimp only [fs']; simp
-            rw [hst_eq, hold_eq, ite_eq_left (by decide : (3 : ℕ) ≤ 3), hbuf_o]
+            dsimp only [fs', FastState.oldEp, oldEp]
+            simp only [hs3, Nat.reduceLeDiff, ↓reduceIte, Function.update_self]
             refine ⟨hia_eq ▸ hia_o, hna_eq.symm ▸ hia_eq.symm ▸ hna_o,
               Function.update oldMap rKey none, hv_tr', ?_⟩
             exact hrel_o.untag_one hb₀ hl₀ hst₀
@@ -268,18 +264,14 @@ theorem epochTickStage3_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
         · exact Or.inr ⟨ha1, h16, hcur, hlin, hins_om, omM, hvO,
             hrO.congr (fun _ _ => rfl) fun loc hlt_c => by
               rw [hinL_pres b hb loc (hlt_c.trans hcur)]⟩
-      have hbuf_o' : fs'.buf fs'.oldEp = tr' := by
-        change Function.update fs.buf oldEp tr' oldEp = tr'
-        exact Function.update_self _ _ _
-      have hnone_next : ∀ id < nextCur, bufCheckSlot (fs'.buf fs'.oldEp) id = none := by
-        intro id hid
-        rw [hbuf_o']
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hid with hid' | rfl
-        · exact hnone_pres id (hnone0 id hid')
-        · exact hself_none
+      have hbuf_o' : fs'.buf fs'.oldEp = tr' := Function.update_self _ _ _
       exact epochTickStage3Finish_spec hc' hom' hs3
-        (by rw [hbuf_o', hia_eq]; exact Nat.succ_le_of_lt hlt)
-        hnone_next
+        (hbuf_o'.symm ▸ hia_eq.symm ▸ Nat.succ_le_of_lt hlt)
+        fun id hid => by
+          rw [hbuf_o']
+          rcases Nat.lt_succ_iff_lt_or_eq.mp hid with hid' | rfl
+          · exact hnone_pres id (hnone0 id hid')
+          · exact hself_none
     | none =>
       dsimp only
       set fs' : FastState := { fs with stageCursor := nextCur }
@@ -331,8 +323,7 @@ theorem epochTickStage4_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
   dsimp only [epochTickStage4]
   by_cases hle8 : oldTr.nodeAlloc ≤ 8
   · obtain ⟨hv_empty, hna1, hia0⟩ := hclr.clearSteps_spec (cTabWhp c) (bCharWhp n_max) 8 hle8
-    have hd_true : decide (oldTr.nodeAlloc ≤ 8) = true := decide_eq_true hle8
-    rw [hd_true, ite_eq_left rfl]
+    rw [decide_eq_true hle8, ite_eq_left rfl]
     refine step_of_inLiveTree_eq hc hom rfl hc.epochClock_lt
       le_rfl hc.rebCollision_zero rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
       (Function.update_of_ne (curEp_ne_oldEp hc.curEp_or) _ _)
@@ -346,8 +337,7 @@ theorem epochTickStage4_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       (by simp [ValidEpochStage]) rfl
   · obtain ⟨hclr', hna'⟩ := hclr.clearSteps_pres 8
     have h1_le : 1 ≤ oldTr.nodeAlloc := hclr.bounds.1
-    have hd_false : decide (oldTr.nodeAlloc ≤ 8) = false := decide_eq_false hle8
-    rw [hd_false, ite_eq_right Bool.false_ne_true]
+    rw [decide_eq_false hle8, ite_eq_right Bool.false_ne_true]
     refine step_of_inLiveTree_eq hc hom rfl hc.epochClock_lt
       (show 4 ≤ 5 by decide) hc.rebCollision_zero rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
       rfl rfl rfl rfl

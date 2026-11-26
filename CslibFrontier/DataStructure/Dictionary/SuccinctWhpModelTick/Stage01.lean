@@ -177,13 +177,11 @@ private theorem epochTickStage1Finish_spec {c U V n_max : ℕ} {θ : SeedWhp c U
       (show 3 ≤ 5 by decide) hc.rebCollision_zero rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl rfl
       rfl rfl rfl rfl (fun _ _ => rfl) (fun _ _ => rfl)
       (fun b hb loc hloc => by
-        have hne := hno_old b hb loc hloc
         change inLiveTree 3 s.oldEp (s.rebDoneFlag b) (s.locState b loc) =
           inLiveTree s.rebStage s.oldEp (s.rebDoneFlag b) (s.locState b loc)
-        simp [inLiveTree, hs1, hne])
+        simp [inLiveTree, hs1, hno_old b hb loc hloc])
       (by
-        dsimp only [FastState.oldEp]
-        rw [ite_eq_left (by decide)]
+        simp only [FastState.oldEp, Nat.reduceLeDiff, ↓reduceIte]
         exact hbo) ?_ rfl
     dsimp only [ValidEpochStage]
     simp only [Nat.reduceEqDiff, ↓reduceIte]
@@ -215,13 +213,11 @@ private theorem epochTickStage1Finish_spec {c U V n_max : ℕ} {θ : SeedWhp c U
         change inLiveTree 2 s.oldEp (s.rebDoneFlag b) (s.locState b loc) =
           inLiveTree s.rebStage s.oldEp (s.rebDoneFlag b) (s.locState b loc)
         by_cases hst : s.locState b loc = 2 + s.oldEp
-        · obtain ⟨j, hj, hdb_eq⟩ := hold_dirty b hb loc hloc hst
-          have hdf0 : s.rebDoneFlag b = 0 := hdb_eq ▸ (hd_props j hj).2.2
-          simp [inLiveTree, hs1, hst, hdf0]
+        · obtain ⟨j, hj, rfl⟩ := hold_dirty b hb loc hloc hst
+          simp [inLiveTree, hs1, hst, (hd_props j hj).2.2]
         · simp [inLiveTree, hs1, hst])
       (by
-        dsimp only [FastState.oldEp]
-        rw [ite_eq_left (by decide)]
+        simp only [FastState.oldEp, Nat.reduceLeDiff, ↓reduceIte]
         exact hbo) ?_ rfl
     dsimp only [ValidEpochStage]
     simp only [Nat.reduceEqDiff, ↓reduceIte]
