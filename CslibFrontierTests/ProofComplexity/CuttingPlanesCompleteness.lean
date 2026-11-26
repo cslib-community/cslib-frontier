@@ -17,7 +17,7 @@ A `module` client of the public API. It refutes a system with a fractional solut
 solution, an infinite system, and the unsatisfiable cardinality constraints
 `x₀ + x₁ + x₂ ≥ 2` and `¬x₀ + ¬x₁ + ¬x₂ ≥ 2`; and it shows that a satisfiable list of
 constraints is not refutable. For implicational completeness, it derives `x₁ ≥ 1` from
-`x₀ + x₁ ≥ 1` and `¬x₀ + x₁ ≥ 1`, the non-unit `3 x₀ + 2 x₁ + x₂ ≥ 3` from "two of three", and a
+`x₀ + x₁ ≥ 1` and `¬x₀ + x₁ ≥ 1`, the cut `3 x₀ + 2 x₁ + 2 x₂ ≥ 4` from "two of three", and a
 pseudo-Boolean consequence; and it checks that over no variables the empty system does not
 derive the implied `0 ≥ 0`, so the hypothesis `Nonempty V` is needed.
 -/
@@ -94,11 +94,12 @@ example : ∃ s, DerivableInSize
   revert h₁ h₂
   cases σ 0 <;> cases σ 1 <;> decide
 
-/-- A non-unit consequence: if two of `x₀, x₁, x₂` hold, then `3 x₀ + 2 x₁ + x₂ ≥ 3`. -/
+/-- A cut: if two of `x₀, x₁, x₂` hold, then `3 x₀ + 2 x₁ + 2 x₂ ≥ 4`, which the fractional
+solution `(1/2, 1/2, 1/2)` of the hypotheses violates. -/
 example : ∃ s, DerivableInSize
     {(⟨Finsupp.single 0 1 + Finsupp.single 1 1, 1⟩ : Ineq (Fin 3)),
       ⟨Finsupp.single 1 1 + Finsupp.single 2 1, 1⟩, ⟨Finsupp.single 0 1 + Finsupp.single 2 1, 1⟩}
-    ⟨Finsupp.single 0 3 + Finsupp.single 1 2 + Finsupp.single 2 1, 3⟩ s := by
+    ⟨Finsupp.single 0 3 + Finsupp.single 1 2 + Finsupp.single 2 2, 4⟩ s := by
   refine exists_derivableInSize_of_forall_holds fun σ hσ => ?_
   have h₁ := hσ _ (Set.mem_insert _ _)
   have h₂ := hσ _ (Set.mem_insert_of_mem _ (Set.mem_insert _ _))

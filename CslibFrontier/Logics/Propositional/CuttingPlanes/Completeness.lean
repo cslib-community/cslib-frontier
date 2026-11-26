@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.CuttingPlanes
-import CslibFrontier.Logics.Propositional.CuttingPlanes.Resolution
 import Mathlib.Tactic.LinearCombination
 import Mathlib.Topology.Algebra.Monoid
 import Mathlib.Topology.Compactness.Compact
@@ -28,8 +27,9 @@ infinite and over any type of variables; the refutations may be exponentially lo
 Completeness of cutting planes over nonempty bounded polyhedra goes back to
 [Chvátal][Chvatal1973]. The proof here is this module's own route, specific to 0/1 solutions:
 compactness reduces to a finite system, a clause excluding each assignment is derived from an
-inequality that the assignment falsifies, and the resulting unsatisfiable CNF is refuted by the
-simulation of resolution by cutting planes
+inequality that the assignment falsifies, and a decision tree eliminates the variables. Its merge
+steps are resolution steps, carried out by addition and division by `2` as in the simulation of
+resolution by cutting planes
 ([Cook, Coullard and Turán, Section 3, pp. 34–35][CookCoullardTuran1987]).
 
 1. **Compactness.** The 0/1 solutions of an inequality form a closed subset of the compact space
@@ -45,33 +45,34 @@ simulation of resolution by cutting planes
    `∑_{v ∈ S} ℓᵥ ≥ 1` of the clause `⋁_{v ∈ S} ℓᵥ` (`Cslib.Logic.PL.Clause.toIneq`). This uses
    only the axioms for literals false under `σ`: the literals true under `σ` are weakened away
    implicitly, since their coefficients are brought to the right multiple of `M` directly.
-3. **Resolution.** The `2^|S|` clauses excluding the assignments of `S` form an unsatisfiable CNF,
-   which cutting planes refute by simulating resolution
-   (`Cslib.Logic.PL.CuttingPlanes.exists_refutableInSize_iff_not_satisfiable`). Replaying that
-   refutation on top of the derivations of its clauses
-   (`Cslib.Logic.PL.CuttingPlanes.DerivableInSize.extend`) refutes `Γ`.
+3. **Elimination.** If the line `I + ∑_{v ∈ W} (ℓᵥ ≥ 0)`, with `ℓᵥ` the literal on `v` false
+   under `τ`, is derivable for every assignment `τ`, then so is `I`. Two siblings `L + (x ≥ 0)` and
+   `L + (¬x ≥ 0)`, with `L = I + ∑_{v ∈ T} ℓᵥ`, add up to `2 • L - (0 ≥ 1)`, and division by `2`
+   gives `L`; eliminating the variables of `W` one at a time leaves `I`. With `I = (0 ≥ 1)` and
+   `W = S`, the leaves are the clauses of step 2, and this refutes `Γ`.
 
 **Implicational completeness.** Over a nonempty type of variables, every inequality
 `I = (A ≥ b)` satisfied by all 0/1 solutions of `Γ` is derivable from `Γ`
 (`Cslib.Logic.PL.CuttingPlanes.exists_derivableInSize_of_forall_holds`), so `I` is derivable iff
 `Γ` implies it over 0/1 assignments
-(`Cslib.Logic.PL.CuttingPlanes.exists_derivableInSize_iff_forall_holds`). Implicational
-completeness of cutting planes goes back to [Chvátal][Chvatal1973] (locator to be checked) and
-[Cook, Coullard and Turán][CookCoullardTuran1987] (locator to be checked); the proof here derives
-the exact line `I`, with no weakening rule, in these steps.
+(`Cslib.Logic.PL.CuttingPlanes.exists_derivableInSize_iff_forall_holds`). Over 0/1 assignments
+the axioms `xᵥ ≥ 0` and `-xᵥ ≥ -1` bound the solutions, the setting of
+[Chvátal][Chvatal1973]'s completeness theorem for nonempty bounded polyhedra; with a variable they
+also derive `0 ≥ -1`, so the theorem holds as well for a `Γ` with no 0/1 solution.
+[Cook, Coullard and Turán, Section 1, pp. 26–27][CookCoullardTuran1987] work with indirect proofs
+of an inequality: refutations of the system together with its negation. Here such a refutation
+is used only in step 1, to find finitely many hypotheses; the rest is a direct derivation of the
+exact line `I`, with no weakening rule, by a decision tree as in refutation completeness.
 
 1. **Compactness.** `Γ` with `¬I = (-A ≥ 1 - b)` has no 0/1 solution, so it has a refutation, and
    the finitely many hypotheses `Γ₀ ⊆ Γ` among its lines already imply `I`. Let `W` be the
    variables of `Γ₀` and `A`.
 2. **Base.** `A ≥ c₀` is a sum of multiples of literal axioms, plus `0 ≥ -1`.
-3. **Step `A ≥ c` to `A ≥ c + 1` for `c < b`**, by a decision tree on `W`. At a leaf, an
-   assignment `τ`, with `ℓᵥ` the literal on `v` false under `τ`, derive `A + ∑_{v ∈ W} ℓᵥ ≥ c + 1`:
-   if `τ` falsifies some `J ∈ Γ₀`, add `A ≥ c` to the clause excluding `τ`, derived from `J` as
-   in refutation completeness;
-   otherwise `A(τ) ≥ b > c`, and with `d = ∑_{v ∈ W} |aᵥ| + A(τ) - c + 1`, adding
-   `(d + aᵥ eᵥ) • (ℓᵥ ≥ 0)` to `(d - 1) • (A ≥ c)` and dividing by `d` gives the line. Two
-   siblings `A + R + x ≥ c + 1` and `A + R + ¬x ≥ c + 1` add up to `2A + 2R ≥ 2c + 1`, and
-   division by `2` gives `A + R ≥ c + 1`; at the root `R` is empty.
+3. **Step `A ≥ c` to `A ≥ c + 1` for `c < b`**, by eliminating the variables of `W` from the
+   lines `A + ∑_{v ∈ W} ℓᵥ ≥ c + 1` at the leaves `τ`, as in step 3 of refutation completeness.
+   If `τ` falsifies some `J ∈ Γ₀`, add `A ≥ c` to the clause excluding `τ`, derived from `J` as
+   in step 2; otherwise `A(τ) ≥ b > c`, and with `d = ∑_{v ∈ W} |aᵥ| + A(τ) - c + 1`, adding
+   `(d + aᵥ eᵥ) • (ℓᵥ ≥ 0)` to `(d - 1) • (A ≥ c)` and dividing by `d` gives the line.
 4. **Iteration.** Start from `min c₀ b`, lowering `c₀` by multiples of `0 ≥ -1`, and step up to
    `b`.
 
@@ -104,30 +105,6 @@ namespace Cslib.Logic.PL.CuttingPlanes
 open Finset Ineq
 
 variable {V : Type*} {Γ : Set (Ineq V)}
-
-/-! ### Composing derivations -/
-
-/-- Derivations of the inequalities of a list combine into one proof containing all of them. -/
-private theorem exists_isProof_forall_mem {L : List (Ineq V)}
-    (h : ∀ J ∈ L, ∃ s, DerivableInSize Γ J s) : ∃ ls, IsProof Γ ls ∧ ∀ J ∈ L, J ∈ ls := by
-  induction L with
-  | nil => exact ⟨[], .nil, by simp⟩
-  | cons J L ih =>
-    obtain ⟨ls, hls, hmem⟩ := ih fun K hK => h K (List.mem_cons_of_mem _ hK)
-    obtain ⟨s, ls', hls', hJ, -⟩ := h J List.mem_cons_self
-    refine ⟨ls' ++ ls, hls'.append hls, fun K hK => ?_⟩
-    rcases List.mem_cons.1 hK with rfl | hK
-    · exact List.mem_append_left _ hJ
-    · exact List.mem_append_right _ (hmem K hK)
-
-/-- A derivation from inequalities, each of which is derivable from `Γ`, gives a derivation from
-`Γ`. -/
-private theorem exists_derivableInSize_of_forall {Δ : Set (Ineq V)} {L : List (Ineq V)}
-    (hΔ : ∀ J ∈ Δ, J ∈ L) (hL : ∀ J ∈ L, ∃ s, DerivableInSize Γ J s) {I : Ineq V} {t : ℕ}
-    (hI : DerivableInSize Δ I t) : ∃ s, DerivableInSize Γ I s := by
-  obtain ⟨ls, hls, hmem⟩ := exists_isProof_forall_mem hL
-  obtain ⟨ls'', h'', hI', -⟩ := hI.extend hls fun J hJ => Or.inr (hmem J (hΔ J hJ))
-  exact ⟨_, ls'' ++ ls, h'', hI', le_rfl⟩
 
 /-! ### The clause excluding an assignment -/
 
@@ -199,53 +176,74 @@ private theorem derivableInSize_excl {I : Ineq V} {S : Finset V} (hS : I.coeff.s
   rw [hdiv] at this
   exact this
 
-/-- The clause of the literals on `S` that are false under `σ`. -/
-private noncomputable def exclClause (S : Finset V) (σ : V → Bool) : Clause V :=
-  S.toList.map (falseLit σ)
+/-! ### Eliminating variables by a decision tree -/
 
-private theorem toIneq_exclClause [DecidableEq V] (S : Finset V) (σ : V → Bool) :
-    (exclClause S σ).toIneq = contra + ∑ v ∈ S, (falseLit σ v).toIneq := by
-  have hinj : Function.Injective (falseLit σ) := fun v w h => congrArg Prod.fst h
-  rw [exclClause, Clause.toIneq_of_nodup ((nodup_toList S).map hinj), List.map_map,
-    Function.comp_def, sum_map_toList]
+/-- **Merging two siblings** of the decision tree on `x`: the lines `L + (x ≥ 0)` and
+`L + (¬x ≥ 0)`, with `L = I + ∑_{v ∈ T} ℓᵥ`, add up to `2 • L - (0 ≥ 1)`, and rounded division
+by `2` gives `L`. -/
+private theorem exists_derivableInSize_merge [DecidableEq V] {I : Ineq V} {T : Finset V}
+    {x : V} (hx : x ∉ T) {τ : V → Bool}
+    (h : ∀ τ' : V → Bool,
+      ∃ t, DerivableInSize Γ (I + ∑ v ∈ insert x T, (falseLit τ' v).toIneq) t) :
+    ∃ t, DerivableInSize Γ (I + ∑ v ∈ T, (falseLit τ v).toIneq) t := by
+  set τ' := Function.update τ x (!τ x)
+  set L : Ineq V := I + ∑ v ∈ T, (falseLit τ v).toIneq
+  have hT : ∑ v ∈ T, (falseLit τ' v).toIneq = ∑ v ∈ T, (falseLit τ v).toIneq :=
+    sum_congr rfl fun v hv => by
+      simp only [falseLit, τ', Function.update_of_ne (ne_of_mem_of_not_mem hv hx)]
+  have hx' : (falseLit τ x).toIneq + (falseLit τ' x).toIneq = -contra := by
+    rw [← nonneg_add_leOne x]
+    cases hτ : τ x <;> simp [τ', falseLit, hτ, add_comm]
+  obtain ⟨t, ht⟩ := h τ
+  obtain ⟨t', ht'⟩ := h τ'
+  rw [sum_insert hx, ← add_assoc, add_comm _ (falseLit τ x).toIneq, add_assoc] at ht
+  rw [sum_insert hx, hT, ← add_assoc, add_comm _ (falseLit τ' x).toIneq, add_assoc] at ht'
+  have hsum : (falseLit τ x).toIneq + L + ((falseLit τ' x).toIneq + L) = 2 • L - contra := by
+    rw [two_nsmul, sub_eq_add_neg, ← hx']
+    abel
+  have hcoeff : (2 • L - contra).coeff = ((2 : ℕ) : ℤ) • L.coeff := by
+    simp [two_smul]
+  have := (ht.add ht').div 2 two_pos fun v => by rw [hsum, hcoeff]; exact ⟨_, rfl⟩
+  rw [hsum, div_eq_of two_pos hcoeff (by simp; omega) (by simp)] at this
+  exact ⟨_, this⟩
 
-/-- The clause excluding `τ` fails under every assignment agreeing with `τ` on `S`. -/
-private theorem eval_exclClause {S : Finset V} {σ τ : V → Bool}
-    (h : ∀ v ∈ S, τ v = σ v) : (exclClause S τ).eval σ = false := by
-  rw [Bool.eq_false_iff, ne_eq, Clause.eval_eq_true_iff]
-  rintro ⟨l, hl, hσ⟩
-  obtain ⟨v, hv, rfl⟩ := List.mem_map.1 hl
-  simp [falseLit, ← h v (mem_toList.1 hv)] at hσ
+/-- **Eliminating the variables of `W`**: if `I + ∑_{v ∈ W} ℓᵥ` is derivable for every
+assignment `τ`, where `ℓᵥ` is the literal on `v` false under `τ`, then `I` is derivable, by
+merging siblings (`exists_derivableInSize_merge`) one variable at a time. -/
+private theorem exists_derivableInSize_of_forall_falseLit {I : Ineq V} (W : Finset V)
+    (hleaf : ∀ τ : V → Bool, ∃ t, DerivableInSize Γ (I + ∑ v ∈ W, (falseLit τ v).toIneq) t) :
+    ∃ t, DerivableInSize Γ I t := by
+  classical
+  have key : ∀ U T : Finset V, (∀ τ : V → Bool,
+      ∃ t, DerivableInSize Γ (I + ∑ v ∈ T ∪ U, (falseLit τ v).toIneq) t) →
+      ∀ τ : V → Bool, ∃ t, DerivableInSize Γ (I + ∑ v ∈ T, (falseLit τ v).toIneq) t := by
+    intro U
+    induction U using Finset.induction_on with
+    | empty => simp
+    | @insert x U _ ih =>
+      intro T h τ
+      have h' := ih (insert x T) fun τ => by rw [insert_union, ← union_insert]; exact h τ
+      by_cases hxT : x ∈ T
+      · simpa [insert_eq_of_mem hxT] using h' τ
+      · exact exists_derivableInSize_merge hxT h'
+  simpa using key W ∅ (by simpa using hleaf) fun _ => false
 
 /-! ### Completeness -/
 
-/-- Refutation completeness for a finite system. -/
+/-- Refutation completeness for a finite system: at every assignment `τ` some inequality of `Γ`
+fails, which gives the clause excluding `τ`, and eliminating the variables of `Γ` leaves
+`0 ≥ 1`. -/
 private theorem exists_refutableInSize_of_finite (hΓ : Γ.Finite)
     (h : ¬ ∃ σ : V → Bool, ∀ I ∈ Γ, I.Holds σ) : ∃ s, RefutableInSize Γ s := by
   classical
   set S : Finset V := hΓ.toFinset.biUnion fun I => I.coeff.support
-  let ext (ρ : S → Bool) (v : V) : Bool := if hv : v ∈ S then ρ ⟨v, hv⟩ else false
-  let φ : CNF V := (univ : Finset (S → Bool)).toList.map fun ρ => exclClause S (ext ρ)
-  have hφ : ¬ φ.Satisfiable := by
-    rintro ⟨σ, hσ⟩
-    have := (CNF.eval_eq_true_iff σ φ).1 hσ (exclClause S (ext fun v => σ v))
-      (List.mem_map.2 ⟨fun v => σ v, mem_toList.2 (mem_univ _), rfl⟩)
-    rw [eval_exclClause fun v hv => by simp [ext, hv]] at this
-    exact Bool.false_ne_true this
-  obtain ⟨t, ht⟩ := exists_refutableInSize_iff_not_satisfiable.2 hφ
-  refine exists_derivableInSize_of_forall (L := φ.map Clause.toIneq) ?_ ?_ ht
-  · rintro J ⟨c, hc, rfl⟩
-    exact List.mem_map_of_mem hc
-  · intro J hJ
-    obtain ⟨c, hc, rfl⟩ := List.mem_map.1 hJ
-    obtain ⟨ρ, -, rfl⟩ := List.mem_map.1 hc
-    obtain ⟨I, hI, hIσ⟩ : ∃ I ∈ Γ, ¬ I.Holds (ext ρ) := by
-      by_contra hne
-      exact h ⟨ext ρ, fun I hI => not_not.1 fun hn => hne ⟨I, hI, hn⟩⟩
-    have hsub : I.coeff.support ⊆ S :=
-      subset_biUnion_of_mem (fun I : Ineq V => I.coeff.support) (hΓ.mem_toFinset.2 hI)
-    rw [toIneq_exclClause]
-    exact ⟨_, derivableInSize_excl hsub hIσ (.hyp hI)⟩
+  refine exists_derivableInSize_of_forall_falseLit S fun τ => ?_
+  obtain ⟨I, hI, hIτ⟩ : ∃ I ∈ Γ, ¬ I.Holds τ := by
+    by_contra hne
+    exact h ⟨τ, fun I hI => not_not.1 fun hn => hne ⟨I, hI, hn⟩⟩
+  have hsub : I.coeff.support ⊆ S :=
+    subset_biUnion_of_mem (fun I : Ineq V => I.coeff.support) (hΓ.mem_toFinset.2 hI)
+  exact ⟨_, derivableInSize_excl hsub hIτ (.hyp hI)⟩
 
 /-- The 0/1 solutions of an inequality form a closed set of assignments. -/
 private theorem isClosed_setOf_holds (I : Ineq V) : IsClosed {σ : V → Bool | I.Holds σ} := by
@@ -339,35 +337,6 @@ private theorem exists_derivableInSize_leaf {A : V →₀ ℤ} {c : ℤ} {S : Fi
   rw [hdiv] at this
   exact ⟨_, this⟩
 
-/-- **Merging two siblings** of the decision tree on `x`: the lines `A + R + x ≥ c + 1` and
-`A + R + ¬x ≥ c + 1` add up to `2A + 2R ≥ 2c + 1`, and rounded division by `2` gives
-`A + R ≥ c + 1`. -/
-private theorem exists_derivableInSize_merge [DecidableEq V] {A : V →₀ ℤ} {c : ℤ} {T : Finset V}
-    {x : V} (hx : x ∉ T) {τ : V → Bool}
-    (h : ∀ τ' : V → Bool,
-      ∃ t, DerivableInSize Γ (⟨A, c + 1⟩ + ∑ v ∈ insert x T, (falseLit τ' v).toIneq) t) :
-    ∃ t, DerivableInSize Γ (⟨A, c + 1⟩ + ∑ v ∈ T, (falseLit τ v).toIneq) t := by
-  set τ' := Function.update τ x (!τ x)
-  set L : Ineq V := ⟨A, c + 1⟩ + ∑ v ∈ T, (falseLit τ v).toIneq
-  have hT : ∑ v ∈ T, (falseLit τ' v).toIneq = ∑ v ∈ T, (falseLit τ v).toIneq :=
-    sum_congr rfl fun v hv => by
-      simp only [falseLit, τ', Function.update_of_ne (ne_of_mem_of_not_mem hv hx)]
-  have hx' : (falseLit τ x).toIneq + (falseLit τ' x).toIneq = -contra := by
-    rw [← nonneg_add_leOne x]
-    cases hτ : τ x <;> simp [τ', falseLit, hτ, add_comm]
-  obtain ⟨t, ht⟩ := h τ
-  obtain ⟨t', ht'⟩ := h τ'
-  rw [sum_insert hx, ← add_assoc, add_comm _ (falseLit τ x).toIneq, add_assoc] at ht
-  rw [sum_insert hx, hT, ← add_assoc, add_comm _ (falseLit τ' x).toIneq, add_assoc] at ht'
-  have hsum : (falseLit τ x).toIneq + L + ((falseLit τ' x).toIneq + L) = 2 • L - contra := by
-    rw [two_nsmul, sub_eq_add_neg, ← hx']
-    abel
-  have hcoeff : (2 • L - contra).coeff = ((2 : ℕ) : ℤ) • L.coeff := by
-    simp [two_smul]
-  have := (ht.add ht').div 2 two_pos fun v => by rw [hsum, hcoeff]; exact ⟨_, rfl⟩
-  rw [hsum, div_eq_of two_pos hcoeff (by simp; omega) (by simp)] at this
-  exact ⟨_, this⟩
-
 /-- **The inductive step** `A ≥ c ⟹ A ≥ c + 1` for `c` below every value of `A` at the 0/1
 solutions of a finite `Γ₀ ⊆ Γ`, by the decision tree over the variables `W` of `Γ₀` and `A`. -/
 private theorem exists_derivableInSize_succ {Γ₀ : Finset (Ineq V)} (hΓ₀ : ↑Γ₀ ⊆ Γ)
@@ -390,19 +359,7 @@ private theorem exists_derivableInSize_succ {Γ₀ : Finset (Ineq V)} (hΓ₀ : 
       exact ⟨_, this⟩
     · push Not at hτ
       exact exists_derivableInSize_leaf subset_union_left (himp τ hτ) hI
-  have key : ∀ U T : Finset V, (∀ τ : V → Bool,
-      ∃ t, DerivableInSize Γ (⟨A, c + 1⟩ + ∑ v ∈ T ∪ U, (falseLit τ v).toIneq) t) →
-      ∀ τ : V → Bool, ∃ t, DerivableInSize Γ (⟨A, c + 1⟩ + ∑ v ∈ T, (falseLit τ v).toIneq) t := by
-    intro U
-    induction U using Finset.induction_on with
-    | empty => simp
-    | @insert x U _ ih =>
-      intro T h τ
-      have h' := ih (insert x T) fun τ => by rw [insert_union, ← union_insert]; exact h τ
-      by_cases hxT : x ∈ T
-      · simpa [insert_eq_of_mem hxT] using h' τ
-      · exact exists_derivableInSize_merge hxT h'
-  simpa using key W ∅ (by simpa using hleaf) fun _ => false
+  exact exists_derivableInSize_of_forall_falseLit W hleaf
 
 /-- **Implicational completeness of cutting planes**: over a nonempty type of variables, every
 inequality satisfied by all 0/1 solutions of `Γ` is derivable from `Γ`. -/
