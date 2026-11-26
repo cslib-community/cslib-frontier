@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Circuit.Frontier.Layouts.Support
 import CslibFrontier.Computability.Circuit.Program
 import CslibFrontier.Foundations.Data.Nat.Card
 import Mathlib.Tactic.Linarith
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # `U₂` circuit interpretations and clean-block saturated compressions
@@ -220,10 +221,9 @@ theorem edgeCut_union_of_inter_singleton {V E : Type*} {G : Multigraph V E}
     simp only [mem_union, mem_sdiff, mem_singleton_iff, hmem_f, Multigraph.mem_edgeCut]
     tauto
   · ext e
-    have hd_src : ¬(G.src e ∈ S₁ ∧ G.src e ∈ S₂) := fun ⟨h1, h2⟩ => disjoint_left.mp hd h1 h2
-    have hd_tgt : ¬(G.tgt e ∈ S₁ ∧ G.tgt e ∈ S₂) := fun ⟨h1, h2⟩ => disjoint_left.mp hd h1 h2
     simp only [mem_union, mem_singleton_iff, hmem_f, Multigraph.mem_edgeCut, mem_ofPred_eq]
-    tauto
+    lrat_tauto [(fun ⟨h1, h2⟩ => disjoint_left.mp hd h1 h2 : ¬(G.src e ∈ S₁ ∧ G.src e ∈ S₂)),
+      (fun ⟨h1, h2⟩ => disjoint_left.mp hd h1 h2 : ¬(G.tgt e ∈ S₁ ∧ G.tgt e ∈ S₂))]
 
 /-- Glue local wire-patching witnesses across two disjoint vertex sets joined by `f`. -/
 theorem patch_union {c : Circuit σ m_in m_out} {I : Interpretation σ Bool}
