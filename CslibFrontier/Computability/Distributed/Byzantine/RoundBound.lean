@@ -197,24 +197,17 @@ private theorem silenceAt_empty (k : ℕ) (C : Finset P) (p : P) (alive : ℕ �
     silenceAt k C p ∅ alive = extAlive (k + 1) (insert p C) (extAlive k C alive) := by
   funext r j i
   unfold silenceAt extAlive
-  by_cases hlt : r < k
-  · have hlt' : r < k + 1 := by omega
-    simp only [hlt, hlt', ↓reduceIte]
-  · by_cases heq : r = k
-    · subst heq
-      simp
-    · have hlt' : ¬(r < k + 1) := by omega
-      simp only [hlt, heq, hlt', ↓reduceIte]
+  rcases lt_trichotomy r k with hlt | rfl | hgt
+  · simp [hlt, Nat.lt_succ_of_lt hlt]
+  · simp
+  · simp [Nat.not_lt.mpr hgt.le, hgt.ne', Nat.not_lt.mpr hgt]
 
 private theorem silenceAt_univ [Fintype P] (k : ℕ) (C : Finset P) (p : P)
     (alive : ℕ → P → P → Bool) :
     silenceAt k C p Finset.univ alive = extAlive k (insert p C) alive := by
   funext r j i
   unfold silenceAt extAlive
-  split_ifs with h₁ h₂
-  · rfl
-  · simp [Finset.mem_insert, not_or, and_comm]
-  · rfl
+  split_ifs <;> simp [Finset.mem_insert, not_or, and_comm]
 
 private theorem extAlive_succ_silenceAt (k : ℕ) (C : Finset P) (p : P) (U : Finset P)
     (alive : ℕ → P → P → Bool) :
@@ -242,17 +235,10 @@ private theorem crashState_silenceAt_insert_eq_of_ne (m₀ : M) (k : ℕ) (C : F
       π.crashState m₀ (silenceAt k C p U alive) x (k + 1) q := by
   have hk : π.crashState m₀ (silenceAt k C p (insert qstar U) alive) x k =
       π.crashState m₀ (silenceAt k C p U alive) x k :=
-    π.crashState_congr_lt m₀ x (fun r hr => by
-      funext j i
-      unfold silenceAt
-      simp only [hr, ↓reduceIte]) k le_rfl
+    π.crashState_congr_lt m₀ x (fun r hr => funext₂ fun j i => by simp [silenceAt, hr]) k le_rfl
   simp only [crashState, hk]
-  congr 1
-  funext j
-  have hmem : silenceAt k C p (insert qstar U) alive k j q = silenceAt k C p U alive k j q := by
-    unfold silenceAt
-    simp only [lt_irrefl, ↓reduceIte, Finset.mem_insert, hq, false_or]
-  rw [hmem]
+  refine congrArg _ (funext fun j => ?_)
+  simp [silenceAt, hq]
 
 private theorem crashState_extAlive_eq (m₀ : M) (k : ℕ) (C : Finset P)
     (alive : ℕ → P → P → Bool) (x : P → Bool) :
@@ -275,13 +261,7 @@ private theorem crashState_extAlive_eq_of_agree (m₀ : M) {k : ℕ} {C : Finset
     congr 1
     · exact crashState_extAlive_eq_of_agree m₀ hagree d q hq
     · funext j
-      have hext₁ : extAlive k C alive₁ (k + d) j q = decide (j ∉ C) := by
-        unfold extAlive
-        simp only [show ¬(k + d < k) by omega, ↓reduceIte]
-      have hext₂ : extAlive k C alive₂ (k + d) j q = decide (j ∉ C) := by
-        unfold extAlive
-        simp only [show ¬(k + d < k) by omega, ↓reduceIte]
-      rw [hext₁, hext₂]
+      simp only [extAlive, show ¬(k + d < k) by omega, ↓reduceIte]
       by_cases hj : j ∈ C
       · simp only [hj, not_true_eq_false, decide_false, Bool.false_eq_true, ↓reduceIte]
       · simp only [hj, not_false_eq_true, decide_true, ↓reduceIte,
@@ -298,93 +278,71 @@ private theorem not_agreement_and_zero_unanimity [Fintype P] {R : ℕ}
       π.decision ∅ adv (fun _ => false) R p₀ = false ∧
         π.decision ∅ adv (fun _ => true) R p₀ = true) : False := by
   let m₀ : M := π.send 0 p₀ (π.init p₀ false) p₀
-  -- Backward induction on `d` (`k + d = R`), simultaneously proving single-process silencing
-  -- (`P_silence`) and single-process state masking (`P_agree`).
-  have peel : ∀ d : ℕ,
-      (∀ (k : ℕ), k + d = R → ∀ (C : Finset P), C.card ≤ k → ∀ (p : P)
-        (alive : ℕ → P → P → Bool) (x : P → Bool),
-        (∀ r < k, ∀ j ∉ C, ∀ i, alive r j i = true) →
-        ∀ i₁ ∉ C, ∀ i₂ ∉ insert p C,
-          π.output i₁ (π.crashState m₀ (extAlive k C alive) x R i₁) =
-            π.output i₂ (π.crashState m₀ (extAlive k (insert p C) alive) x R i₂)) ∧
-      (∀ (k : ℕ), k + d = R → ∀ (C : Finset P), C.card ≤ k → ∀ (p : P)
-        (alive₁ alive₂ : ℕ → P → P → Bool) (x₁ x₂ : P → Bool),
-        (∀ r < k, ∀ j ∉ C, ∀ i, alive₁ r j i = true) →
-        (∀ r < k, ∀ j ∉ C, ∀ i, alive₂ r j i = true) →
-        (∀ q ∉ insert p C, π.crashState m₀ alive₁ x₁ k q = π.crashState m₀ alive₂ x₂ k q) →
-        ∀ i₁ ∉ C, ∀ i₂ ∉ C,
-          π.output i₁ (π.crashState m₀ (extAlive k C alive₁) x₁ R i₁) =
-            π.output i₂ (π.crashState m₀ (extAlive k C alive₂) x₂ R i₂)) := by
-    intro d
+  -- Single-process silencing (`Sil d`) and single-process state masking (`Agr d`) at `k + d = R`.
+  let Sil (d : ℕ) : Prop := ∀ (k : ℕ), k + d = R → ∀ (C : Finset P), C.card ≤ k → ∀ (p : P)
+    (alive : ℕ → P → P → Bool) (x : P → Bool),
+    (∀ r < k, ∀ j ∉ C, ∀ i, alive r j i = true) →
+    ∀ i₁ ∉ C, ∀ i₂ ∉ insert p C,
+      π.output i₁ (π.crashState m₀ (extAlive k C alive) x R i₁) =
+        π.output i₂ (π.crashState m₀ (extAlive k (insert p C) alive) x R i₂)
+  let Agr (d : ℕ) : Prop := ∀ (k : ℕ), k + d = R → ∀ (C : Finset P), C.card ≤ k → ∀ (p : P)
+    (alive₁ alive₂ : ℕ → P → P → Bool) (x₁ x₂ : P → Bool),
+    (∀ r < k, ∀ j ∉ C, ∀ i, alive₁ r j i = true) →
+    (∀ r < k, ∀ j ∉ C, ∀ i, alive₂ r j i = true) →
+    (∀ q ∉ insert p C, π.crashState m₀ alive₁ x₁ k q = π.crashState m₀ alive₂ x₂ k q) →
+    ∀ i₁ ∉ C, ∀ i₂ ∉ C,
+      π.output i₁ (π.crashState m₀ (extAlive k C alive₁) x₁ R i₁) =
+        π.output i₂ (π.crashState m₀ (extAlive k C alive₂) x₂ R i₂)
+  -- Silencing gives masking: both runs agree with the masked run at some `q₀ ∉ insert p C`.
+  have agr_of_sil (d : ℕ) (hsil : Sil d) : Agr d := by
+    intro k hk C hC p alive₁ alive₂ x₁ x₂ halive₁ halive₂ hagree i₁ hi₁ i₂ hi₂
+    obtain ⟨q₀, hq₀⟩ : ∃ q₀, q₀ ∉ insert p C := by finset_card
+    have hmid := π.crashState_extAlive_eq_of_agree m₀ hagree d q₀ hq₀
+    rw [hk] at hmid
+    exact (hsil k hk C hC p alive₁ x₁ halive₁ i₁ hi₁ q₀ hq₀).trans
+      ((congrArg (π.output q₀) hmid).trans (hsil k hk C hC p alive₂ x₂ halive₂ i₂ hi₂ q₀ hq₀).symm)
+  -- Backward induction on `d`.
+  have sil (d : ℕ) : Sil d := by
     induction d with
     | zero =>
-      refine ⟨?_, ?_⟩
-      · intro k hk C hC p alive x halive i₁ hi₁ i₂ hi₂
-        rw [Nat.add_zero] at hk
-        subst hk
-        rw [π.crashState_extAlive_eq m₀ k (insert p C) alive x,
-          ← π.crashState_extAlive_eq m₀ k C alive x]
-        exact π.crashDecision_agree hagr m₀ hC
-          (fun r _ j hj i => extAlive_honest halive r j hj i) x hi₁
-          (fun hmem => hi₂ (Finset.mem_insert_of_mem hmem))
-      · intro k hk C hC p alive₁ alive₂ x₁ x₂ halive₁ halive₂ hagree i₁ hi₁ i₂ hi₂
-        rw [Nat.add_zero] at hk
-        subst hk
-        obtain ⟨q₀, hq₀⟩ : ∃ q₀, q₀ ∉ insert p C := by finset_card
-        have hq₀C : q₀ ∉ C := fun hmem => hq₀ (Finset.mem_insert_of_mem hmem)
-        have h₁ := π.crashDecision_agree hagr m₀ hC
-          (fun r _ j hj i => extAlive_honest halive₁ r j hj i) x₁ hi₁ hq₀C
-        have h₂ := π.crashDecision_agree hagr m₀ hC
-          (fun r _ j hj i => extAlive_honest halive₂ r j hj i) x₂ hq₀C hi₂
-        have hmid : π.crashState m₀ (extAlive k C alive₁) x₁ k q₀ =
-            π.crashState m₀ (extAlive k C alive₂) x₂ k q₀ := by
-          rw [π.crashState_extAlive_eq, π.crashState_extAlive_eq, hagree q₀ hq₀]
-        rw [h₁, hmid, h₂]
+      intro k hk C hC p alive x halive i₁ hi₁ i₂ hi₂
+      rw [Nat.add_zero] at hk
+      subst hk
+      rw [π.crashState_extAlive_eq m₀ k (insert p C) alive x,
+        ← π.crashState_extAlive_eq m₀ k C alive x]
+      exact π.crashDecision_agree hagr m₀ hC
+        (fun r _ j hj i => extAlive_honest halive r j hj i) x hi₁
+        (fun hmem => hi₂ (Finset.mem_insert_of_mem hmem))
     | succ d ih =>
-      obtain ⟨ih_sil, ih_agr⟩ := ih
-      have hsil : ∀ (k : ℕ), k + (d + 1) = R → ∀ (C : Finset P), C.card ≤ k → ∀ (p : P)
-          (alive : ℕ → P → P → Bool) (x : P → Bool),
-          (∀ r < k, ∀ j ∉ C, ∀ i, alive r j i = true) →
-          ∀ i₁ ∉ C, ∀ i₂ ∉ insert p C,
-            π.output i₁ (π.crashState m₀ (extAlive k C alive) x R i₁) =
-              π.output i₂ (π.crashState m₀ (extAlive k (insert p C) alive) x R i₂) := by
-        intro k hk C hC p alive x halive i₁ hi₁ i₂ hi₂
-        have hk' : (k + 1) + d = R := by omega
-        -- Step 1: silence `p` from round `k + 1` onward (`silenceAt k C p ∅ alive`).
-        have hstep1 := ih_sil (k + 1) hk' C (by omega) p (extAlive k C alive) x
-          (fun r _ j hj i => extAlive_honest halive r j hj i) i₁ hi₁ i₂ hi₂
-        rw [extAlive_succ_extAlive, ← silenceAt_empty] at hstep1
-        -- Step 2: silence `p` in round `k` one recipient at a time across `U : Finset P`.
-        have hC' : (insert p C).card ≤ k + 1 := by finset_card
-        have hstep2 : ∀ U : Finset P,
-            π.output i₂ (π.crashState m₀ (silenceAt k C p ∅ alive) x R i₂) =
-              π.output i₂ (π.crashState m₀ (silenceAt k C p U alive) x R i₂) := by
-          intro U
-          induction U using Finset.induction with
-          | empty => rfl
-          | insert qstar U hqU ihU =>
-            refine ihU.trans ?_
-            have hstep := ih_agr (k + 1) hk' (insert p C) hC' qstar
-              (silenceAt k C p U alive) (silenceAt k C p (insert qstar U) alive) x x
-              (silenceAt_honest halive) (silenceAt_honest halive)
-              (fun q hq => (π.crashState_silenceAt_insert_eq_of_ne m₀ k C p qstar U alive x
-                (fun heq => hq (by simp [heq]))).symm)
-              i₂ hi₂ i₂ hi₂
-            simpa only [extAlive_succ_silenceAt] using hstep
-        have huniv := hstep2 Finset.univ
-        rw [silenceAt_univ] at huniv
-        exact hstep1.trans huniv
-      refine ⟨hsil, ?_⟩
-      intro k hk C hC p alive₁ alive₂ x₁ x₂ halive₁ halive₂ hagree i₁ hi₁ i₂ hi₂
-      obtain ⟨q₀, hq₀⟩ : ∃ q₀, q₀ ∉ insert p C := by finset_card
-      have h₁ := hsil k hk C hC p alive₁ x₁ halive₁ i₁ hi₁ q₀ hq₀
-      have h₂ := hsil k hk C hC p alive₂ x₂ halive₂ i₂ hi₂ q₀ hq₀
-      have hmid := π.crashState_extAlive_eq_of_agree m₀ hagree (d + 1) q₀ hq₀
-      rw [hk] at hmid
-      exact h₁.trans ((congrArg (π.output q₀) hmid).trans h₂.symm)
-  -- Apply `P_agree` at `k = 0, C = ∅, d = R`, flipping inputs from `false` to `true` one process
-  -- at a time.
+      have ih_agr := agr_of_sil d ih
+      intro k hk C hC p alive x halive i₁ hi₁ i₂ hi₂
+      have hk' : (k + 1) + d = R := by omega
+      -- Step 1: silence `p` from round `k + 1` onward (`silenceAt k C p ∅ alive`).
+      have hstep1 := ih (k + 1) hk' C (by omega) p (extAlive k C alive) x
+        (fun r _ j hj i => extAlive_honest halive r j hj i) i₁ hi₁ i₂ hi₂
+      rw [extAlive_succ_extAlive, ← silenceAt_empty] at hstep1
+      -- Step 2: silence `p` in round `k` one recipient at a time across `U : Finset P`.
+      have hC' : (insert p C).card ≤ k + 1 := by finset_card
+      have hstep2 : ∀ U : Finset P,
+          π.output i₂ (π.crashState m₀ (silenceAt k C p ∅ alive) x R i₂) =
+            π.output i₂ (π.crashState m₀ (silenceAt k C p U alive) x R i₂) := by
+        intro U
+        induction U using Finset.induction with
+        | empty => rfl
+        | insert qstar U hqU ihU =>
+          refine ihU.trans ?_
+          simpa only [extAlive_succ_silenceAt] using ih_agr (k + 1) hk' (insert p C) hC' qstar
+            (silenceAt k C p U alive) (silenceAt k C p (insert qstar U) alive) x x
+            (silenceAt_honest halive) (silenceAt_honest halive)
+            (fun q hq => (π.crashState_silenceAt_insert_eq_of_ne m₀ k C p qstar U alive x
+              (fun heq => hq (by simp [heq]))).symm)
+            i₂ hi₂ i₂ hi₂
+      exact hstep1.trans ((hstep2 Finset.univ).trans (by rw [silenceAt_univ]))
+  -- Apply `Agr R` at `k = 0, C = ∅`, flipping inputs from `false` to `true` one process at a time.
   let aliveTrue : ℕ → P → P → Bool := fun _ _ _ => true
+  have hext : extAlive 0 ∅ aliveTrue = aliveTrue := by
+    funext r j i
+    simp [extAlive, aliveTrue]
   have hall_eq : ∀ U : Finset P,
       π.output p₀ (π.crashState m₀ aliveTrue (fun _ => false) R p₀) =
         π.output p₀ (π.crashState m₀ aliveTrue (fun i => decide (i ∈ U)) R p₀) := by
@@ -394,33 +352,18 @@ private theorem not_agreement_and_zero_unanimity [Fintype P] {R : ℕ}
       simp only [Finset.notMem_empty, decide_false]
     | insert p U hpU ihU =>
       refine ihU.trans ?_
-      have hstep := (peel R).2 0 (Nat.zero_add R) ∅ (by simp) p aliveTrue aliveTrue
-        (fun i => decide (i ∈ U)) (fun i => decide (i ∈ insert p U))
+      simpa only [hext] using agr_of_sil R (sil R) 0 (Nat.zero_add R) ∅ (by simp) p
+        aliveTrue aliveTrue (fun i => decide (i ∈ U)) (fun i => decide (i ∈ insert p U))
         (fun _ hr => absurd hr (Nat.not_lt_zero _))
         (fun _ hr => absurd hr (Nat.not_lt_zero _))
-        (fun q hq => by
-          have hqp : q ≠ p := fun heq => hq (by simp [heq])
-          simp only [crashState, Finset.mem_insert, hqp, false_or])
+        (fun q hq => by simp [crashState, show q ≠ p from fun heq => hq (by simp [heq])])
         p₀ (Finset.notMem_empty p₀) p₀ (Finset.notMem_empty p₀)
-      have hext : extAlive 0 ∅ aliveTrue = aliveTrue := by
-        funext r j i
-        simp [extAlive, aliveTrue]
-      simpa only [hext] using hstep
-  have hfalse_true :
-      π.output p₀ (π.crashState m₀ aliveTrue (fun _ => false) R p₀) =
-        π.output p₀ (π.crashState m₀ aliveTrue (fun _ => true) R p₀) := by
-    simpa only [Finset.mem_univ, decide_true] using hall_eq Finset.univ
   have hstate_eq : ∀ x, π.crashState m₀ aliveTrue x R p₀ =
       π.state ∅ (π.crashAdv m₀ aliveTrue x) x R p₀ := fun x =>
     congrFun (π.state_crashAdv_eq m₀ ∅ aliveTrue x (fun _ _ _ _ _ => rfl) R le_rfl).symm p₀
-  have hval_false : π.output p₀ (π.crashState m₀ aliveTrue (fun _ => false) R p₀) = false := by
-    rw [hstate_eq]
-    exact (hval _).1
-  have hval_true : π.output p₀ (π.crashState m₀ aliveTrue (fun _ => true) R p₀) = true := by
-    rw [hstate_eq]
-    exact (hval _).2
-  rw [hval_false, hval_true] at hfalse_true
-  exact Bool.false_ne_true hfalse_true
+  have h := hall_eq Finset.univ
+  simp only [Finset.mem_univ, decide_true, hstate_eq] at h
+  exact Bool.false_ne_true (((hval _).1.symm.trans h).trans (hval _).2)
 
 private theorem not_solvesByzantineAgreement_self [Fintype P] {R : ℕ}
     (hn : R + 2 ≤ Fintype.card P) : ¬ π.SolvesByzantineAgreement R R := by
@@ -472,13 +415,7 @@ private theorem reindex_state {P Q S S' M M' : Type*} [DecidableEq P] [Decidable
     rw [Equiv.apply_symm_apply]
     congr 1
     funext j
-    by_cases hj : eP.symm j ∈ F
-    · have hj' : j ∈ F.map eP.toEmbedding := by
-        simpa only [Finset.mem_map_equiv] using hj
-      simp only [hj, hj', ↓reduceIte, Equiv.symm_apply_apply]
-    · have hj' : j ∉ F.map eP.toEmbedding := by
-        simpa only [Finset.mem_map_equiv] using hj
-      simp only [hj, hj', ↓reduceIte, reindex, Equiv.apply_symm_apply]
+    by_cases hj : eP.symm j ∈ F <;> simp [hj, reindex]
 
 private theorem reindex_decision {P Q S S' M M' : Type*} [DecidableEq P] [DecidableEq Q]
     (eP : P ≃ Q) (eS : S' ≃ S) (eM : M' ≃ M) (π : Protocol Q S M)
@@ -625,8 +562,8 @@ theorem not_solvesInteractiveConsistency_of_rounds_le [Fintype P] [Nontrivial V]
   refine π₀.not_agreement_and_zero_unanimity (R := R) (by omega) ?_ (p₀ := p₀) ?_
   · intro F hF adv x i hi j hj
     simp only [Protocol.decision, hstate, π₀]
-    have hvec := hR_solves.agreement F hF adv (fun q => if x q then v₁ else v₀) i hi j hj
-    exact congrArg (fun vec => decide (vec p₀ = v₁)) hvec
+    exact congrArg (fun vec => decide (vec p₀ = v₁))
+      (hR_solves.agreement F hF adv (fun q => if x q then v₁ else v₀) i hi j hj)
   · intro adv
     have h₀ := hR_solves.validity ∅ (Nat.zero_le R) adv (fun _ => v₀) p₀
       (Finset.notMem_empty p₀) p₀ (Finset.notMem_empty p₀)
@@ -714,11 +651,8 @@ theorem exists_solvesByzantineAgreement_iff_full.{u, v, w} (P : Type u) [Fintype
   · rintro ⟨S, M, π, h⟩
     by_cases h1 : Fintype.card P ≤ 1
     · exact Or.inl h1
-    · refine Or.inr ⟨?_, ?_⟩
-      · by_contra h3
-        exact π.not_solvesByzantineAgreement (by omega) (by omega) h
-      · by_contra hR
-        exact π.not_solvesByzantineAgreement_of_rounds_le (by omega) (by omega) h
+    · exact Or.inr ⟨by_contra fun h3 => π.not_solvesByzantineAgreement (by omega) (by omega) h,
+        by_contra fun hR => π.not_solvesByzantineAgreement_of_rounds_le (by omega) (by omega) h⟩
   · rintro (h1 | ⟨h3, hR⟩)
     · have : Subsingleton P := Fintype.card_le_one_iff_subsingleton.1 h1
       exact ⟨ULift.{v} Bool, ULift.{w} Unit,

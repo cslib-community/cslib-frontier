@@ -46,16 +46,14 @@ def branching (w : ℕ) : ℕ :=
 /-- The fusion-tree branching factor `branching w` is always at least `2`. -/
 theorem two_le_branching (w : ℕ) : 2 ≤ branching w := by
   unfold branching
-  split
-  · rename_i hw
-    have hk : 1 ≤ (Nat.log 2 w - 4) / 5 := by omega
-    simpa only [pow_one] using Nat.pow_le_pow_right (by decide : 1 ≤ 2) hk
+  split_ifs with hw
+  · exact le_self_pow₀ (by decide) (by omega)
   · exact le_rfl
 
 /-- Large-width nodes have slack for compression and both rank multiplications. -/
 theorem branching_capacity {w : ℕ} (hw : 9 ≤ Nat.log 2 w) :
     16 * branching w ^ 5 ≤ w := by
-  have hw0 : w ≠ 0 := by intro he; simp [he] at hw
+  have hw0 : w ≠ 0 := fun h => by simp [h] at hw
   rw [branching, ite_eq_left hw, ← pow_mul, show 16 = 2 ^ 4 by decide, ← pow_add]
   exact (Nat.pow_le_pow_right (by decide) (by omega)).trans (Nat.pow_log_le_self 2 hw0)
 
@@ -63,16 +61,10 @@ theorem branching_capacity {w : ℕ} (hw : 9 ≤ Nat.log 2 w) :
 private theorem word_le_branching_pow (w : ℕ) : w ≤ branching w ^ 14 := by
   have hupper := (Nat.lt_pow_succ_log_self Nat.one_lt_two w).le
   unfold branching
-  split
-  · rename_i hw
-    rw [← pow_mul]
-    apply hupper.trans
-    apply Nat.pow_le_pow_right (by decide)
-    have hdiv := Nat.div_add_mod (Nat.log 2 w - 4) 5
-    have hmod := Nat.mod_lt (Nat.log 2 w - 4) (by decide : 0 < 5)
-    omega
-  · rename_i hw
+  split_ifs with hw
+  · rw [← pow_mul]
     exact hupper.trans (Nat.pow_le_pow_right (by decide) (by omega))
+  · exact hupper.trans (Nat.pow_le_pow_right (by decide) (by omega))
 
 /-- A single constant bounds the constructed tree's word-logarithmic height, including empty
 and singleton inputs. Predecessor runtime still requires a constant-time node implementation. -/

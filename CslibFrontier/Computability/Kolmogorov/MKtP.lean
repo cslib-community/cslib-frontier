@@ -143,16 +143,12 @@ theorem exists_length_add_clog_eq_levinKtNat (x : List Bool) :
     ∃ (p : List Bool) (s : ℕ),
       0 < s ∧ x ∈ (universalTM.run p).runFor s ∧ p.length + Nat.clog 2 s = levinKtNat x := by
   obtain ⟨p, s, hp, hle⟩ := levinKt_le_natCast_iff.mp (natCast_levinKtNat x).symm.le
-  have hs : 0 < s := by
-    rcases Nat.eq_zero_or_pos s with rfl | hs
-    · simp only [universalTM_runFor, universalTMRunFor_zero, Option.mem_def, reduceCtorEq] at hp
-    · exact hs
-  have hge : levinKtNat x ≤ p.length + Nat.clog 2 s := by
-    rw [levinKtNat_le_iff]
-    refine (levinKt_le_timeBoundedAt_add s x).trans ?_
-    rw [Nat.cast_add]
-    exact add_le_add_left (etimeBoundedComplexity_le_length hp) _
-  exact ⟨p, s, hs, hp, le_antisymm hle hge⟩
+  rcases Nat.eq_zero_or_pos s with rfl | hs
+  · simp [universalTM_runFor, universalTMRunFor_zero] at hp
+  refine ⟨p, s, hs, hp, le_antisymm hle (levinKtNat_le_iff.mpr ?_)⟩
+  refine (levinKt_le_timeBoundedAt_add s x).trans ?_
+  rw [Nat.cast_add]
+  exact add_le_add_left (etimeBoundedComplexity_le_length hp) _
 
 /-- Every string `x` admits an optimal `Kt`-witness `(p, s)` in `ℕ∞` with `0 < s`,
 `x ∈ (universalTM.run p).runFor s`, and `(p.length + Nat.clog 2 s : ℕ) = levinKt x`. -/
@@ -176,13 +172,10 @@ theorem plain_lt_of_levinKtNat_witness_two_pow_lt {x p : List Bool} {s m : ℕ}
     (hopt : p.length + Nat.clog 2 s ≤ levinKtNat x)
     (hs : 2 ^ (copyOverhead + Nat.clog 2 (x.length + 1) + m) < s) :
     plain x < (x.length - m : ℕ) := by
-  have hkt : levinKtNat x ≤ x.length + copyOverhead + Nat.clog 2 (x.length + 1) :=
-    levinKtNat_le_iff.mpr (levinKt_le_length_add x)
-  have hclog : copyOverhead + Nat.clog 2 (x.length + 1) + m < Nat.clog 2 s :=
-    (Nat.lt_clog_iff_pow_lt one_lt_two).mpr hs
-  have hplen : p.length < x.length - m := by omega
-  have hprod : universalTM.Produces p x := .of_mem_runFor hp
-  exact (ecomplexity_le_length hprod).trans_lt (by exact_mod_cast hplen)
+  have := levinKtNat_le_iff.mpr (levinKt_le_length_add x)
+  have := (Nat.lt_clog_iff_pow_lt one_lt_two).mpr hs
+  exact (ecomplexity_le_length (.of_mem_runFor hp)).trans_lt
+    (by exact_mod_cast (by omega : p.length < x.length - m))
 
 /-- **[Liu and Pass, Section 3.1, Fact 3.1, p. 10][LiuPass2021Crypto]:**
 For $m \le n$, fewer than $2^{n - m}$ strings $x \in \{0, 1\}^n$ have the property that every
@@ -213,25 +206,18 @@ theorem two_pow_lt_ncard_setOf_exists_optimal_levinKt_le_two_pow {n m : ℕ} (hm
           x ∈ (universalTM.run p).runFor s ∧
             p.length + Nat.clog 2 s ≤ levinKtNat x ∧
               s ≤ 2 ^ (copyOverhead + Nat.clog 2 (n + 1) + m)}.ncard + 2 ^ (n - m) := by
-  have hsub : {x : List Bool | x.length = n ∧ ((n - m : ℕ) : ℕ∞) ≤ plain x} ⊆
-      {x : List Bool | x.length = n ∧
-        ∃ (p : List Bool) (s : ℕ),
-          x ∈ (universalTM.run p).runFor s ∧
-            p.length + Nat.clog 2 s ≤ levinKtNat x ∧
-              s ≤ 2 ^ (copyOverhead + Nat.clog 2 (n + 1) + m)} := by
-    rintro x ⟨rfl, hplain⟩
-    obtain ⟨p, s, _, hp, hopt⟩ := exists_length_add_clog_eq_levinKtNat x
-    refine ⟨rfl, p, s, hp, hopt.le, ?_⟩
-    by_contra! hlt
-    exact not_lt_of_ge hplain (plain_lt_of_levinKtNat_witness_two_pow_lt hm hp hopt.le hlt)
   have hfin : {x : List Bool | x.length = n ∧
       ∃ (p : List Bool) (s : ℕ),
         x ∈ (universalTM.run p).runFor s ∧
           p.length + Nat.clog 2 s ≤ levinKtNat x ∧
             s ≤ 2 ^ (copyOverhead + Nat.clog 2 (n + 1) + m)}.Finite :=
     (Set.finite_of_encard_eq_coe (BitString.encard_setOf_length_eq n)).subset fun _ hx => hx.1
-  exact (universalTM.two_pow_lt_ncard_setOf_length_eq_le_ecomplexity_add n m).trans_le
-    (Nat.add_le_add_right (Set.ncard_le_ncard hsub hfin) _)
+  refine (universalTM.two_pow_lt_ncard_setOf_length_eq_le_ecomplexity_add n m).trans_le
+    (Nat.add_le_add_right (Set.ncard_le_ncard ?_ hfin) _)
+  rintro x ⟨rfl, hplain⟩
+  obtain ⟨p, s, _, hp, hopt⟩ := exists_length_add_clog_eq_levinKtNat x
+  refine ⟨rfl, p, s, hp, hopt.le, le_of_not_gt fun hlt => ?_⟩
+  exact not_lt_of_ge hplain (plain_lt_of_levinKtNat_witness_two_pow_lt hm hp hopt.le hlt)
 
 /-! ### The Minimum `Kt` Problem (`MKtP`) and `MKtP ∈ E ⊆ EXP` -/
 
@@ -311,23 +297,18 @@ theorem boundedSearch_eq_true_iff_of_two_pow_le {i : MKtPInstance} {N : ℕ}
     (hN : 2 ^ (i.threshold + 1) ≤ N) :
     boundedSearch i N = true ↔ i ∈ MKtP := by
   dsimp only [boundedSearch]
-  rw [List.any_eq_true, mem_iff_exists_runFor_two_pow]
-  constructor
-  · rintro ⟨j, _, hj⟩
-    simp only [Bool.and_eq_true, decide_eq_true_eq] at hj
-    refine ⟨Ladner.word j, hj.1, ?_⟩
-    rw [universalTM_runFor]
-    exact universalTMRunFor_mono _ (Nat.min_le_left _ _) hj.2
-  · rintro ⟨p, hplen, hp⟩
-    refine ⟨Ladner.index p, List.mem_range.mpr ?_, ?_⟩
-    · have hind := Ladner.index_add_two_le p
-      have hpow : 2 ^ (p.length + 1) ≤ 2 ^ (i.threshold + 1) := by gcongr
-      omega
-    · simp only [Ladner.word_index, Bool.and_eq_true, decide_eq_true_eq]
-      refine ⟨hplen, ?_⟩
-      have hcap : Ladner.capPow 2 (i.threshold - p.length) N = 2 ^ (i.threshold - p.length) :=
-        Nat.min_eq_left ((Nat.pow_le_pow_right (by norm_num) (by omega)).trans hN)
-      rwa [hcap]
+  simp only [List.any_eq_true, List.mem_range, Bool.and_eq_true, decide_eq_true_eq,
+    mem_iff_exists_runFor_two_pow]
+  refine ⟨fun ⟨j, _, h1, h2⟩ => ⟨Ladner.word j, h1,
+    universalTM_runFor _ _ ▸ universalTMRunFor_mono _ (Nat.min_le_left _ _) h2⟩, ?_⟩
+  rintro ⟨p, hplen, hp⟩
+  refine ⟨Ladner.index p, ?_, ?_⟩
+  · have := Ladner.index_add_two_le p
+    have : 2 ^ (p.length + 1) ≤ 2 ^ (i.threshold + 1) := by gcongr
+    omega
+  · simpa only [Ladner.word_index, Ladner.capPow, Nat.min_eq_left
+      ((Nat.pow_le_pow_right (by norm_num) ((Nat.sub_le _ _).trans (Nat.le_succ _))).trans hN)]
+      using ⟨hplen, hp⟩
 
 /-- `boundedSearch` is computable in polynomial time when the instance is encoded by `encMKtP` and
 the search cap `N` is encoded in unary. -/

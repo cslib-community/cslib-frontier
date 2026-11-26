@@ -46,20 +46,17 @@ theorem sourceDetector_sum_moment {π : ℝ} (hπ : 0 < π)
         ∑ y ∈ ({y | Y t y} : Finset V), |A s t x y - B s t x y| ^ 4 := by
   classical
   let E := fun s t y => ∑ x ∈ ({x | X s x} : Finset V), |A s t x y - B s t x y| ^ 4
-  have he (s : ι) (t : κ) (y : V) : 0 ≤ E s t y :=
-    sum_nonneg fun _ _ => by positivity
   have hc (s : ι) (y : V) :
-      (𝔼 t ∈ {t | Y t y}, E s t y) ≤
-        π⁻¹ * 𝔼 t, if Y t y then E s t y else 0 := by
-    have hid : (𝔼 t, if Y t y then E s t y else 0) =
+      (𝔼 t ∈ {t | Y t y}, E s t y) ≤ π⁻¹ * 𝔼 t, if Y t y then E s t y else 0 := by
+    have hite : (𝔼 t, if Y t y then E s t y else 0) =
         (dens {t | Y t y} : ℝ) * 𝔼 t ∈ {t | Y t y}, E s t y := by
       simpa only [mem_filter, mem_univ, true_and, NNRat.smul_def] using
-        (Fintype.expect_ite_mem ({t | Y t y} : Finset κ) (E s · y))
-    rw [hid]
-    have hm : 0 ≤ 𝔼 t ∈ {t | Y t y}, E s t y := expect_nonneg fun t _ => he s t y
+        Fintype.expect_ite_mem ({t | Y t y} : Finset κ) (E s · y)
+    rw [hite]
+    have hm : 0 ≤ 𝔼 t ∈ {t | Y t y}, E s t y := expect_nonneg fun _ _ =>
+      sum_nonneg fun _ _ => by positivity
     have hi : 1 ≤ π⁻¹ * (dens {t | Y t y} : ℝ) := by
-      rw [inv_mul_eq_div, le_div_iff₀ hπ]
-      simpa only [one_mul] using hY y
+      rw [inv_mul_eq_div, le_div_iff₀ hπ]; linarith [hY y]
     nlinarith [mul_le_mul_of_nonneg_right hi hm]
   calc
     _ ≤ ∑ y, 𝔼 s, 𝔼 t ∈ {t | Y t y}, E s t y :=
@@ -69,15 +66,10 @@ theorem sourceDetector_sum_moment {π : ℝ} (hπ : 0 < π)
     _ = _ := by
       simp_rw [← mul_expect]
       rw [← mul_sum, ← expect_sum_comm]
-      congr 1
-      apply expect_congr rfl
-      intro s _
+      refine congrArg (_ * ·) (expect_congr rfl fun s _ => ?_)
       rw [← expect_sum_comm]
-      apply expect_congr rfl
-      intro t _
-      rw [← sum_filter]
-      dsimp only [E]
-      rw [sum_comm]
+      refine expect_congr rfl fun t _ => ?_
+      rw [← sum_filter, sum_comm]
 
 /-- Source integration coordinate `p.2.1` of a combined `(outer, source, terminal)` sample. -/
 abbrev sourceCoord {Ω ι κ : Type*} (p : Ω × (ι × κ)) : ι := p.2.1
@@ -109,14 +101,11 @@ theorem sourceDetector_row_moment_transport {Ω : Type*} [Fintype Ω]
       (Fintype.card V : ℝ) * (π⁻¹ * 𝔼 s, 𝔼 t,
         ∑ x ∈ ({x | X s x} : Finset V), ∑ y ∈ ({y | Y t y} : Finset V),
           |A σ s t x y - B σ s t x y| ^ 4) := by
-    have hsum : (∑ y ∈ ({y | Z σ y} : Finset V),
-        |sourceDetector P X Y (A σ) y - sourceDetector P X Y (B σ) y| ^ 4) ≤
-        ∑ y, |sourceDetector P X Y (A σ) y - sourceDetector P X Y (B σ) y| ^ 4 :=
-      sum_le_sum_of_subset_of_nonneg (filter_subset _ _) (fun _ _ _ => by positivity)
     calc
       _ ≤ ∑ _a ∈ ({a | Xs σ a} : Finset V),
           ∑ y, |sourceDetector P X Y (A σ) y - sourceDetector P X Y (B σ) y| ^ 4 :=
-        sum_le_sum fun _ _ => hsum
+        sum_le_sum fun _ _ => sum_le_sum_of_subset_of_nonneg (filter_subset _ _)
+          fun _ _ _ => by positivity
       _ ≤ (Fintype.card V : ℝ) *
           (∑ y, |sourceDetector P X Y (A σ) y - sourceDetector P X Y (B σ) y| ^ 4) := by
         simp only [sum_const, nsmul_eq_mul]
@@ -124,8 +113,8 @@ theorem sourceDetector_row_moment_transport {Ω : Type*} [Fintype Ω]
       _ ≤ _ := mul_le_mul_of_nonneg_left
         (sourceDetector_sum_moment P X Y hπ hY (A σ) (B σ)) (Nat.cast_nonneg _)
   unfold rowNormPow
-  apply (mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => hpoint σ)
-    (inv_nonneg.mpr (mul_pos hN hu).le)).trans_eq
+  refine (mul_le_mul_of_nonneg_left (expect_le_expect fun σ _ => hpoint σ)
+    (inv_nonneg.mpr (mul_pos hN hu).le)).trans_eq ?_
   rw [← univ_product_univ, expect_product]
   simp_rw [← univ_product_univ, expect_product]
   rw [← mul_expect, ← mul_expect]

@@ -9,15 +9,18 @@ module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Computability.Probabilistic.QueryBounds
 import CslibFrontier.Crypto.Protocols.UC.PPT
-import CslibFrontier.Crypto.Protocols.UC.PPT.Link
+import CslibFrontier.Crypto.Protocols.UC.PPT.Execution
+public import CslibFrontier.Crypto.Protocols.UC.PPT.Link
 import CslibFrontier.Crypto.Protocols.UC.PPT.Wrappers
 import CslibFrontier.Foundations.Analysis.SpecificLimits.PolyLtPow
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
-import CslibFrontierTests.Crypto.UCPPT
+public import CslibFrontierTests.Crypto.UCPPT
 
 /-!
 # Tests for `UC.PPT.Link`
@@ -25,15 +28,17 @@ import CslibFrontierTests.Crypto.UCPPT
 Non-degenerate witnesses for `CslibFrontier.Crypto.Protocols.UC.PPT.Link`:
 
 1. `Machine.IsReplyBounded` admits unbounded coin-masked growing state (`windowProtocol`,
-   returning a `κ`-bit prefix, lifted via `Machine.IsReplyBounded.routeCorrupt`), while
-   `coinStore.toProtocol` fails `Machine.IsReplyBounded` (`coinStore_not_isReplyBounded`).
+   certified strict PPT by `windowProtocolCert` / `windowProtocol_isPPT`, returning a `κ`-bit
+   prefix, and lifted via `Machine.IsReplyBounded.routeCorrupt`), while `coinStore.toProtocol`
+   fails `Machine.IsReplyBounded` (`coinStore_not_isReplyBounded`).
 2. `Environment.IsPPT.link` and `Machine.IsReplyBounded.liftRight` for a reply-growing adversary
    `tagAdv` linked with `advPollEnv`, plus an observable witness
    (`tagAdv_enlarged_cap_prevents_truncation`) that without an enlarged cap the reply is truncated.
 3. Negative linking witness (`link_without_isReplyBounded_not_isPPT`) showing
    `Environment.IsPPT.link` fails without `Machine.IsReplyBounded`: `doubleForwardAdv` is PPT yet
    reply-unbounded, and `iterLinkEnv` is PPT, yet linking them yields a non-PPT environment via
-   `IsOraclePPTOn.query_bounds`.
+   `IsOraclePPTOn.query_bounds`, whereas absorbing the reply-bounded `tagAdv` into `iterLinkEnv`
+   stays strict PPT (`iterLinkEnv_absorbAdversary_tagAdv_isPPT`).
 -/
 
 set_option linter.privateModule false
@@ -49,16 +54,133 @@ section ReplyBoundWitnesses
 
 /-- Two-party protocol with coin-masked growing state: party `0` appends `b ^^ c`, party `1`
 polls the `κ`-bit prefix, and the backdoor is a no-op. -/
-private noncomputable def windowProtocol : Protocol 2 Bool (List Bool) Unit Unit := fun κ _ =>
-  { State := List Bool
-    init := pure []
-    handle := fun
-      | Sum.inl (i, b), s =>
-        if i = 0 then do
-          let c ← ProbOracleComp.sample (ProbComp.uniform Bool)
-          pure (none, (b ^^ c) :: s)
-        else pure (some (List.take κ s), s)
-      | Sum.inr (), s => pure ((), s) }
+@[expose] public noncomputable def windowProtocol : Protocol 2 Bool (List Bool) Unit Unit :=
+  fun κ _ =>
+    { State := List Bool
+      init := pure []
+      handle := fun
+        | Sum.inl (i, b), s =>
+          if i = 0 then do
+            let c ← ProbOracleComp.sample (ProbComp.uniform Bool)
+            pure (none, (b ^^ c) :: s)
+          else pure (some (List.take κ s), s)
+        | Sum.inr (), s => pure ((), s) }
+
+/-- Strict-PPT certificate for `windowProtocol` reusing `bitsWordCodec` and
+`isPPTOn_coinWriteStep`. -/
+public noncomputable def windowProtocolCert :
+    PPTCertificate windowProtocol WordInterface.empty
+      (WordInterface.protocol coinPartyPort unitPort) where
+  codec _ _ := bitsWordCodec
+  init := (ComputableInPolyTime.const (encIn := encPPTParam 2) (encOut := encBits) []).isPPTOn
+  handle := by
+    let iP := WordInterface.protocol coinPartyPort unitPort
+    let EIn := encHandlerCall (encPPTParam 2) (encFinite iP.Channel) encBits
+    have htag : ComputableInPolyTime
+        (fun x : PPTParam 2 × (iP.Channel × List Bool) × List Bool => x.2.1.1)
+        EIn (encFinite iP.Channel) := by
+      unfold EIn encHandlerCall; fun_prop
+    have hreqState : ComputableInPolyTime
+        (fun x : PPTParam 2 × (iP.Channel × List Bool) × List Bool => (x.2.1.2, x.2.2))
+        EIn (encPair encBits encBits) := by
+      unfold EIn encHandlerCall; fun_prop
+    have hstate : ComputableInPolyTime
+        (fun x : PPTParam 2 × (iP.Channel × List Bool) × List Bool => x.2.2) EIn encBits := by
+      unfold EIn encHandlerCall; fun_prop
+    have hcond : ComputableInPolyTime
+        (fun x : PPTParam 2 × (iP.Channel × List Bool) × List Bool =>
+          decide ((coinPartyPort.queryDecoder.decode x.2.1.2).1 = 0))
+        EIn encBool :=
+      (ComputableInPolyTime.of_finite (fun i : Fin 2 => decide (i = 0))).comp
+        ((WordPort.computable_partyIndex coinInputPort).comp
+          (by unfold EIn encHandlerCall; fun_prop))
+    have hyes : IsOraclePPTOn (Operation := WordInterface.empty.Channel) EIn
+        (encPair encBits encBits)
+        (fun x => ProbOracleComp.sample
+          ((fun c => (coinPartyPort.reply none,
+            ((coinPartyPort.queryDecoder.decode x.2.1.2).2 ^^ c) :: x.2.2)) <$>
+              ProbComp.uniform Bool)) :=
+      (isPPTOn_coinWriteStep.preprocess hreqState).isOraclePPTOn
+    have hno : IsOraclePPTOn (Operation := WordInterface.empty.Channel) EIn
+        (encPair encBits encBits)
+        (fun x => pure (coinPartyPort.reply (some (List.take x.1.secParam x.2.2)), x.2.2)) := by
+      have htake : ComputableInPolyTime
+          (fun x : PPTParam 2 × (iP.Channel × List Bool) × List Bool =>
+            List.take x.1.secParam x.2.2) EIn encBits :=
+        ComputableInPolyTime.bitsTakeWithInput hstate (by unfold EIn encHandlerCall; fun_prop)
+      have hrep : ComputableInPolyTime
+          (fun x : PPTParam 2 × (iP.Channel × List Bool) × List Bool =>
+            coinPartyPort.reply (some (List.take x.1.secParam x.2.2))) EIn encBits :=
+        (ComputableInPolyTime.of_eq (encIn := encOption encBits) (encOut := encBits)
+          (f := coinPartyPort.reply) (fun _ => rfl)).comp
+          (by fun_prop : ComputableInPolyTime
+            (fun x : PPTParam 2 × (iP.Channel × List Bool) × List Bool =>
+              some (List.take x.1.secParam x.2.2)) EIn (encOption encBits))
+      exact (hrep.prod hstate).isPPTOn.isOraclePPTOn
+    have hnet : IsOraclePPTOn (Operation := WordInterface.empty.Channel) EIn
+        (encPair encBits encBits)
+        (fun x => pure (unitPort.reply (), x.2.2)) :=
+      ((ComputableInPolyTime.const (unitPort.reply ())).prod hstate).isPPTOn.isOraclePPTOn
+    let branch : iP.Channel → PPTParam 2 × (iP.Channel × List Bool) × List Bool →
+        WordOracleComp WordInterface.empty.Channel (List Bool × List Bool) := fun c x =>
+      match c with
+      | .inl () =>
+        if (coinPartyPort.queryDecoder.decode x.2.1.2).1 = 0 then
+          ProbOracleComp.sample
+            ((fun c => (coinPartyPort.reply none,
+              ((coinPartyPort.queryDecoder.decode x.2.1.2).2 ^^ c) :: x.2.2)) <$>
+                ProbComp.uniform Bool)
+        else pure (coinPartyPort.reply (some (List.take x.1.secParam x.2.2)), x.2.2)
+      | .inr () => pure (unitPort.reply (), x.2.2)
+    refine (IsOraclePPTOn.finite_cases (branch := branch) htag ?_).congr fun x State oracle s => ?_
+    · rintro (⟨⟨⟩⟩ | ⟨⟨⟩⟩)
+      · exact IsOraclePPTOn.ite hcond hyes hno
+      · exact hnet
+    · rcases x with ⟨p, ⟨⟨⟨⟩⟩ | ⟨⟨⟩⟩, req⟩, sw⟩
+      · by_cases hi : (coinPartyPort.queryDecoder.decode req).1 = 0
+        · simp only [branch, wordHandle, windowProtocol, bitsWordCodec, WordInterface.protocol,
+            WordInterface.sum, WordInterface.net, StateT.run, hi, ↓reduceIte,
+            ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind, ProbOracleComp.simulate_sample,
+            ProbOracleComp.simulate_pure, ProbOracleComp.sample_bind, ProbOracleComp.sample_pure,
+            map_eq_bind_pure_comp, bind_assoc, pure_bind, Function.comp_apply, id_eq]; rfl
+        · simp only [branch, wordHandle, windowProtocol, bitsWordCodec, WordInterface.protocol,
+            WordInterface.sum, WordInterface.net, StateT.run, hi, ↓reduceIte,
+            ProbOracleComp.lowerWith, ProbOracleComp.simulate_pure, map_pure, id_eq]; rfl
+      · simp only [branch, wordHandle, windowProtocol, bitsWordCodec, WordInterface.protocol,
+          WordInterface.sum, WordInterface.net, StateT.run, ProbOracleComp.lowerWith,
+          ProbOracleComp.simulate_pure, map_pure, id_eq]; rfl
+  normalize := ComputableInPolyTime.snd (encPPTParam 2) encBits
+  growth _ _ := 1
+  growth_poly := PolyBounded.const 1
+  preserve p request s out hout := by
+    let s' : List Bool := s
+    rcases request with ⟨⟨⟨⟩⟩ | ⟨⟨⟩⟩, req⟩
+    · by_cases hi : (coinPartyPort.queryDecoder.decode req).1 = 0
+      · simp only [wordHandle, windowProtocol, bitsWordCodec, WordInterface.protocol,
+          WordInterface.sum, WordInterface.net, StateT.run, hi, ↓reduceIte,
+          ProbOracleComp.lowerWith, ProbOracleComp.simulate_bind, ProbOracleComp.simulate_sample,
+          ProbOracleComp.simulate_pure, OracleComp.support] at hout
+        rcases OracleComp.mem_supportWith_map_iff.mp hout with ⟨y, hy, rfl⟩
+        rcases OracleComp.mem_supportWith_bind_iff.mp hy with ⟨c, _, hc⟩
+        obtain rfl := OracleComp.eq_of_mem_supportWith_pure hc
+        change (((coinPartyPort.queryDecoder.decode req).2 ^^ c) :: s').length ≤ s'.length + 1
+        simp
+      · simp only [wordHandle, windowProtocol, bitsWordCodec, WordInterface.protocol,
+          WordInterface.sum, WordInterface.net, StateT.run, hi, ↓reduceIte,
+          ProbOracleComp.lowerWith, ProbOracleComp.simulate_pure, OracleComp.support] at hout
+        rcases OracleComp.mem_supportWith_map_iff.mp hout with ⟨y, hy, rfl⟩
+        obtain rfl := OracleComp.eq_of_mem_supportWith_pure hy
+        change s'.length ≤ s'.length + 1; omega
+    · simp only [wordHandle, windowProtocol, bitsWordCodec, WordInterface.protocol,
+        WordInterface.sum, WordInterface.net, StateT.run, ProbOracleComp.lowerWith,
+        ProbOracleComp.simulate_pure, OracleComp.support] at hout
+      rcases OracleComp.mem_supportWith_map_iff.mp hout with ⟨y, hy, rfl⟩
+      obtain rfl := OracleComp.eq_of_mem_supportWith_pure hy
+      change s'.length ≤ s'.length + 1; omega
+
+/-- `windowProtocol` is strict PPT (`Protocol.IsPPT`). -/
+public theorem windowProtocol_isPPT : windowProtocol.IsPPT coinPartyPort unitPort :=
+  ⟨windowProtocolCert⟩
 
 /-- Polling `windowProtocol` on a length-`2 * κ` state returns length `κ < 2 * κ`. -/
 theorem windowProtocol_poll_shorter_than_state (κ : ℕ) (hκ : 1 ≤ κ) :
@@ -75,7 +197,7 @@ theorem windowProtocol_poll_shorter_than_state (κ : ℕ) (hκ : 1 ≤ κ) :
   rw [show min κ (2 * κ) = κ by omega]
 
 /-- `windowProtocol` satisfies `Machine.IsReplyBounded` with bound `p.secParam + 1`. -/
-theorem windowProtocol_isReplyBounded :
+public theorem windowProtocol_isReplyBounded :
     Machine.IsReplyBounded windowProtocol WordInterface.empty
       (WordInterface.protocol coinPartyPort unitPort) := by
   have hsec : PolyBounded (fun p : PPTParam 2 => (encPPTParam 2 p).length)
@@ -510,6 +632,12 @@ theorem link_without_isReplyBounded_not_isPPT :
   simp only [iE, WordInterface.exec, WordInterface.sum, WordInterface.net, msgPort, Sum.elim_inr,
     encBits_apply, hlen] at hqlen
   exact Nat.lt_irrefl _ ((hqlen.trans hpoly).trans_lt hκ)
+
+/-- Contrast with `link_without_isReplyBounded_not_isPPT`: absorbing the reply-bounded `tagAdv`
+into the same `iterLinkEnv` stays strict PPT. -/
+theorem iterLinkEnv_absorbAdversary_tagAdv_isPPT :
+    (absorbAdversary {1} tagAdv iterLinkEnv).IsPPT coinPartyPort msgPort :=
+  iterLinkEnv_isPPT.absorbAdversary tagAdv_isPPT tagAdv_isReplyBounded {1}
 
 end NegativeLinkWitness
 

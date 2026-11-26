@@ -11,6 +11,7 @@ module
 -- vendored: this is `Universal/Compose.lean` of that branch, moved out of `Universal` at the branch
 -- author's request (#2179) so that composition depends on the universal machine; `eBit` is in
 -- `Universal/Bit.lean` and two halting lemmas are in `HaltsAt.lean`
+-- vendored: `computableInTimeAndSpace_compose` returns plain `ComputableInTimeAndSpace` (#862)
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.HaltsAt
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.TapeLemmas
@@ -40,8 +41,8 @@ and counting down its emitted symbols to the one needed.
 * `Turing.MultiTapeTM.ComputableInTimeAndSpace.comp_space`: composition within small space.
 * `Turing.MultiTapeTM.ComputableInTimeAndSpace.comp_logSpace`: logarithmic space is closed under
   composition.
-* `Turing.MultiTapeTM.Universal.computableTidily_compose`: the composition, on descriptions, as a
-  multi-pass fold.
+* `Turing.MultiTapeTM.Universal.computableInTimeAndSpace_compose`: the composition, on descriptions,
+  as a multi-pass fold.
 -/
 
 namespace Turing.MultiTapeTM
@@ -691,9 +692,9 @@ lemma compose_time (c N L E Q : ℕ) (hE : E ≤ L) (hQ : 1 ≤ Q) :
 
 /-- **The composition, on given descriptions.** If the machine described by `df` halts on the
 bits of every input after `uf` steps with the symbols `y`, which are bits, and the machine
-described by `dg` halts on `y` after `ug` steps with the encoded value of `h`, then `h` is tidily
+described by `dg` halts on `y` after `ug` steps with the encoded value of `h`, then `h` is
 computable in space linear in `composeSpace`. -/
-public theorem computableTidily_compose {α γ : Type} {encIn : α ↪ List Bool}
+public theorem computableInTimeAndSpace_compose {α γ : Type} {encIn : α ↪ List Bool}
     {encOut : γ ↪ List Bool} (h : α → γ) (dg df : Desc) (y : α → List ℕ) (uf ug : α → ℕ)
     (hhaltf : ∀ a r, (run df ((encIn a).map eBit) r).state = none ↔ uf a ≤ r)
     (hy : ∀ a, ((List.range (uf a)).map fun j => (step df ((encIn a).map eBit)
@@ -701,7 +702,7 @@ public theorem computableTidily_compose {α γ : Type} {encIn : α ↪ List Bool
     (hbits : ∀ a, ∀ n ∈ y a, n ≤ 1)
     (hhaltg : ∀ a q, (run dg (y a) q).state = none ↔ ug a ≤ q) (hug : ∀ a, 0 < ug a)
     (hout : ∀ a, encOut (h a) = (simulate dg (y a) (ug a)).1.map fun n => decide (n ≠ 0)) :
-    ∃ c, ComputableTidilyInTimeAndSpace h encIn encOut
+    ∃ c, ComputableInTimeAndSpace h encIn encOut
       (fun a => c * (ug a * (uf a + 1) * ((encIn a).length + 1) ^ 2 *
         (composeSpace dg df ((encIn a).map eBit) (y a) (uf a) (ug a) + 1) ^ 3))
       (fun a => c * (composeSpace dg df ((encIn a).map eBit) (y a) (uf a) (ug a) + 1)) := by
@@ -777,7 +778,8 @@ public theorem computableTidily_compose {α γ : Type} {encIn : α ↪ List Bool
   case refine_8 =>
     intro a
     exact hL a (show ug a * (uf a + 1) - 1 + 1 ≤ ug a * (uf a + 1) by have := hpos a; omega) 0
-  refine ⟨20 * c, hc.mono (fun a => ?_) fun a => ?_⟩
+  refine ⟨20 * c, (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hc).mono
+    (fun a => ?_) fun a => ?_⟩
   all_goals
     have hE : (eCSt (passState (cInit dg df) cNext cEnd (bitTr.events (encIn a))
         (ug a * (uf a + 1) - 1 + 1))).length ≤ L a :=
@@ -878,7 +880,8 @@ public theorem ComputableInTimeAndSpace.comp_space {α β γ : Type} {encIn : α
   set dg := desc ⟨eg, heg⟩ eBit tmg
   choose uf huf_le huf using fun a => exists_haltsAt_of_runsInTime (htmf a).2.1
   choose ug hug_le hug using fun a => exists_haltsAt_of_runsInTime (htmg (f a)).2.1
-  obtain ⟨c, hc⟩ := computableTidily_compose (encIn := encIn) (encOut := encOut) (g ∘ f) dg df
+  obtain ⟨c, hc⟩ := computableInTimeAndSpace_compose (encIn := encIn) (encOut := encOut)
+    (g ∘ f) dg df
     (fun a => (encMid (f a)).map eBit) uf ug
     (fun a => run_desc_halted _ tmf (encIn a) (huf a))
     (fun a => (congrArg Prod.fst (simulate_eq df _ (uf a))).symm.trans
@@ -904,7 +907,7 @@ public theorem ComputableInTimeAndSpace.comp_space {α β γ : Type} {encIn : α
     have := composeSpace_le (descLen dg) (descLen df) _ _ _ _ _ _ _ _ hg hf
     simp only [composeSpace, List.length_map] at this ⊢
     omega
-  refine ⟨c * K ^ 3, (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hc).mono
+  refine ⟨c * K ^ 3, hc.mono
     (fun a => ?_) fun a => ?_⟩
   · exact final_time_le c K _ _ _ _ _ (Nat.mul_le_mul (by have := hug_le a; omega)
       (by have := huf_le a; omega)) (hK a)

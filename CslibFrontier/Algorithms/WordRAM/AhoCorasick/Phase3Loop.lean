@@ -30,6 +30,13 @@ open Cslib.WordRAM
 open Cslib.Algorithms.Lean.AhoCorasick
 open Reg
 
+/-- Add `LayoutInv` to the postcondition of a block that writes no layout register. -/
+private theorem exists_layoutInv {inp : Input} {w t : ℕ} {c : Code .standard 26} {x : Data 26}
+    {P : Data 26 → Prop} (hL : LayoutInv inp x) (h : ∃ y, ExecWithin w c x y t ∧ P y)
+    (hk : 18 ≤ c.writeStart := by decide) : ∃ y, ExecWithin w c x y t ∧ LayoutInv inp y ∧ P y :=
+  let ⟨y, he, hP⟩ := h
+  ⟨y, he, hL.of_preserves he hk, hP⟩
+
 private theorem exec_bfsInnerStore (inp : Input) (w : ℕ) (hw : Fits w inp.wordBound)
     {r a s df qt : ℕ} {x₀ : Data 26} {mem₀ : ℕ → ℕ}
     (ha : a < inp.alphabetSize) (hr_maxS : r < inp.maxS)
@@ -57,24 +64,13 @@ private theorem exec_bfsInnerStore (inp : Input) (w : ℕ) (hw : Fits w inp.word
   have hf_fs : Fits w (inp.failBase + s) := fits_of_le_outBase hw (by omega)
   have hf_qt : Fits w (inp.queueBase + qt) := fits_of_le_outBase hw (by omega)
   have hf_qt1 : Fits w (qt + 1) := fits_of_le_outBase hw (by omega)
-  have hm1 : ∃ x_s, ExecWithin w bfsInnerStoreCode x₀ x_s 9 ∧
-      x_s.regs r6 = s ∧ x_s.regs r7 = df ∧
-      x_s.regs r1 = x₀.regs r1 ∧ x_s.regs r2 = qt + 1 ∧
-      x_s.regs r3 = r ∧ x_s.regs r4 = x₀.regs r4 ∧ x_s.regs r5 = a ∧
-      x_s.mem = Function.update
-        (Function.update
-          (Function.update mem₀ (inp.deltaBase + (r * inp.alphabetSize + a)) s)
-          (inp.failBase + s) df)
-        (inp.queueBase + qt) s := by
-    refine WP.exists_execWithin ?_
-    unfold bfsInnerStoreCode
-    wram_exec [hL₀.h_sigma, hL₀.h_deltaBase, hL₀.h_failBase, hL₀.h_queueBase, hL₀.h_one,
-      hx₀_r3, hx₀_r5, hx₀_r6, hx₀_r7, hx₀_r2, hf_mr, hf_ra, hf_dra, hf_fs, hf_qt, hf_qt1]
-    exact ⟨by wram_simp [hx₀_r6], by wram_simp [hx₀_r7], by wram_simp,
-      by wram_simp, by wram_simp [hx₀_r3], by wram_simp, by wram_simp [hx₀_r5],
-      by wram_simp [hx₀_mem]⟩
-  obtain ⟨x_s, he_s, r6s, r7s, r1s, r2s, r3s, r4s, r5s, mems⟩ := hm1
-  exact ⟨x_s, he_s, hL₀.of_preserves he_s, r6s, r7s, r1s, r2s, r3s, r4s, r5s, mems⟩
+  refine exists_layoutInv hL₀ (WP.exists_execWithin ?_)
+  unfold bfsInnerStoreCode
+  wram_exec [hL₀.h_sigma, hL₀.h_deltaBase, hL₀.h_failBase, hL₀.h_queueBase, hL₀.h_one,
+    hx₀_r3, hx₀_r5, hx₀_r6, hx₀_r7, hx₀_r2, hf_mr, hf_ra, hf_dra, hf_fs, hf_qt, hf_qt1]
+  exact ⟨by wram_simp [hx₀_r6], by wram_simp [hx₀_r7], by wram_simp,
+    by wram_simp, by wram_simp [hx₀_r3], by wram_simp, by wram_simp [hx₀_r5],
+    by wram_simp [hx₀_mem]⟩
 
 private theorem exec_bfsInnerLink (inp : Input) (w : ℕ) (hw : Fits w inp.wordBound)
     {r a s df qt ohdf tms : ℕ} {x_s : Data 26} {mem₀ : ℕ → ℕ}
@@ -101,27 +97,16 @@ private theorem exec_bfsInnerLink (inp : Input) (w : ℕ) (hw : Fits w inp.wordB
   have hf_ons : Fits w (inp.outNextBase + s) := fits_of_le_outBase hw (by omega)
   have hf_tms : Fits w (inp.termBase + s) := fits_of_le_outBase hw (by omega)
   have hoh_xs : x_s.mem (inp.outHeadBase + df) = ohdf := by
-    rw [hxs_mem]
-    simp (disch := omega) only [Function.update_of_ne]
-    exact hoh_read
+    simpa (disch := omega) only [hxs_mem, Function.update_of_ne] using hoh_read
   have htm_xs : x_s.mem (inp.termBase + s) = tms := by
-    rw [hxs_mem]
-    simp (disch := omega) only [Function.update_of_ne]
-    exact htm_read
+    simpa (disch := omega) only [hxs_mem, Function.update_of_ne] using htm_read
   have hne_tm_on : inp.termBase + s ≠ inp.outNextBase + s := by omega
-  have hm2 : ∃ x_m, ExecWithin w bfsInnerLinkCode x_s x_m 6 ∧
-      x_m.regs rState = tms ∧ x_m.regs r6 = s ∧ x_m.regs r7 = ohdf ∧
-      x_m.regs r1 = x_s.regs r1 ∧ x_m.regs r2 = x_s.regs r2 ∧
-      x_m.regs r3 = x_s.regs r3 ∧ x_m.regs r4 = x_s.regs r4 ∧ x_m.regs r5 = x_s.regs r5 ∧
-      x_m.mem = Function.update x_s.mem (inp.outNextBase + s) ohdf := by
-    refine WP.exists_execWithin ?_
-    unfold bfsInnerLinkCode
-    wram_exec [hL_s.h_outHeadBase, hL_s.h_outNextBase, hL_s.h_termBase,
-      hxs_r6, hxs_r7, hf_ohdf, hf_ons, hf_tms, hoh_xs, htm_xs, hne_tm_on]
-    exact ⟨by wram_simp, by wram_simp [hxs_r6], by wram_simp, by wram_simp,
-      by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
-  obtain ⟨x_m, he_l, rSm, r6m, r7m, r1m, r2m, r3m, r4m, r5m, memm⟩ := hm2
-  exact ⟨x_m, he_l, hL_s.of_preserves he_l, rSm, r6m, r7m, r1m, r2m, r3m, r4m, r5m, memm⟩
+  refine exists_layoutInv hL_s (WP.exists_execWithin ?_)
+  unfold bfsInnerLinkCode
+  wram_exec [hL_s.h_outHeadBase, hL_s.h_outNextBase, hL_s.h_termBase,
+    hxs_r6, hxs_r7, hf_ohdf, hf_ons, hf_tms, hoh_xs, htm_xs, hne_tm_on]
+  exact ⟨by wram_simp, by wram_simp [hxs_r6], by wram_simp, by wram_simp,
+    by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
 
 private theorem exec_bfsInnerBranch (inp : Input) (w : ℕ) (hw : Fits w inp.wordBound)
     {a s ohdf tms : ℕ} {x_m : Data 26}
@@ -142,33 +127,12 @@ private theorem exec_bfsInnerBranch (inp : Input) (w : ℕ) (hw : Fits w inp.wor
   have ha_rm := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt h0_maxS ha
   have hf_ohs : Fits w (inp.outHeadBase + s) := fits_of_le_outBase hw (by omega)
   have hf_a1 : Fits w (a + 1) := fits_of_le_outBase hw (by omega)
-  by_cases ht_pos : 0 < tms
-  · have hct : (Cond.lt zero rState).Holds x_m := by
-      simp only [Cond.holds_lt, hL_m.h_zero, hxm_rS]; exact ht_pos
-    have hp : ∃ x₁, ExecWithin w
-        (ram[ rState ← outHeadBase + r6; *rState ← r6; r5 ← r5 + one ]) x_m x₁ 3 ∧
-        x₁.regs r1 = x_m.regs r1 ∧ x₁.regs r2 = x_m.regs r2 ∧
-        x₁.regs r3 = x_m.regs r3 ∧ x₁.regs r4 = x_m.regs r4 ∧ x₁.regs r5 = a + 1 ∧
-        x₁.mem = Function.update x_m.mem (inp.outHeadBase + s) s := by
-      refine WP.exists_execWithin ?_
-      wram_exec [hL_m.h_outHeadBase, hL_m.h_one, hxm_r6, hxm_r5, hf_ohs, hf_a1]
-      exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
-    obtain ⟨x₁, hep, h1, h2, h3, h4, h5, hm_p⟩ := hp
-    simp only [ht_pos, ↓reduceIte]
-    exact ⟨x₁, (ExecWithin.branch_pos hct hep).mono (by omega), h1, h2, h3, h4, h5, hm_p⟩
-  · have hct : ¬(Cond.lt zero rState).Holds x_m := by
-      simp only [Cond.holds_lt, hL_m.h_zero, hxm_rS]; exact ht_pos
-    have hn : ∃ x₁, ExecWithin w
-        (ram[ rState ← outHeadBase + r6; *rState ← r7; r5 ← r5 + one ]) x_m x₁ 3 ∧
-        x₁.regs r1 = x_m.regs r1 ∧ x₁.regs r2 = x_m.regs r2 ∧
-        x₁.regs r3 = x_m.regs r3 ∧ x₁.regs r4 = x_m.regs r4 ∧ x₁.regs r5 = a + 1 ∧
-        x₁.mem = Function.update x_m.mem (inp.outHeadBase + s) ohdf := by
-      refine WP.exists_execWithin ?_
-      wram_exec [hL_m.h_outHeadBase, hL_m.h_one, hxm_r6, hxm_r7, hxm_r5, hf_ohs, hf_a1]
-      exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
-    obtain ⟨x₁, hen, h1, h2, h3, h4, h5, hm_n⟩ := hn
-    simp only [ht_pos, ↓reduceIte]
-    exact ⟨x₁, ExecWithin.branch_neg hct hen, h1, h2, h3, h4, h5, hm_n⟩
+  refine WP.exists_execWithin ?_
+  wram_exec [hL_m.h_zero, hL_m.h_outHeadBase, hL_m.h_one, hxm_rS, hxm_r6, hxm_r7, hxm_r5, hf_ohs,
+    hf_a1]
+  all_goals
+    simp only [hc, ↓reduceIte]
+    exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩
 
 private theorem exec_bfsInnerStep_pos (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     (hw : Fits w inp.wordBound) {qh r fr a s df : ℕ} {B : PBFS} {x x₀ : Data 26}
@@ -240,11 +204,8 @@ private theorem exec_bfsInnerStep (inp : Input) (w : ℕ) (hvalid : inp.Valid)
       x₁.regs r3 = r ∧ x₁.regs r4 = fr ∧ x₁.regs r5 = a + 1 := by
   obtain ⟨hT, hT_maxS, _, _, _⟩ := inp.trie_spec hvalid
   have hlo := layout_order inp
-  have hqh_lt : qh < B.qTail := by
-    have := hinv.qHead_eq; have := hinv.qHead_le; omega
-  have hr_lt : r < inp.trie.numStates := by
-    have h := (hinv.q_bounds qh hqh_lt).2
-    rwa [hinv.r_eq] at h
+  have hqh_lt : qh < B.qTail := by linarith [hinv.qHead_eq, hinv.qHead_le]
+  have hr_lt : r < inp.trie.numStates := hinv.r_eq ▸ (hinv.q_bounds qh hqh_lt).2
   have hr_maxS : r < inp.maxS := lt_of_lt_of_le hr_lt hT_maxS
   have hfr_lt : fr < inp.trie.numStates := by
     have hfexp := hinv.fr_mem
@@ -275,18 +236,18 @@ private theorem exec_bfsInnerStep (inp : Input) (w : ℕ) (hvalid : inp.Valid)
   have hf_dfra : Fits w (inp.deltaBase + (fr * inp.alphabetSize + a)) :=
     fits_of_le_outBase hw (by omega)
   have hf_a1 : Fits w (a + 1) := fits_of_le_outBase hw (by omega)
-  have hld : ∃ x₀, ExecWithin w (ram[
-      r6 ← r3 * sigma; r6 ← r6 + r5; r6 ← trieBase + r6; r6 ← *r6;
-      r7 ← r4 * sigma; r7 ← r7 + r5; r7 ← deltaBase + r7; r7 ← *r7 ]) x x₀ 8 ∧
-      x₀.regs r6 = inp.trie.trie r a ∧ x₀.regs r7 = B.delta fr a ∧
-      x₀.regs r1 = B.qHead ∧ x₀.regs r2 = B.qTail ∧
-      x₀.regs r3 = r ∧ x₀.regs r4 = fr ∧ x₀.regs r5 = a ∧ x₀.mem = x.mem := by
+  obtain ⟨x₀, he₀, hx₀_r6, hx₀_r7, hx₀_r1, hx₀_r2, hx₀_r3, hx₀_r4, hx₀_r5, hx₀_mem⟩ :
+      ∃ x₀, ExecWithin w (ram[
+        r6 ← r3 * sigma; r6 ← r6 + r5; r6 ← trieBase + r6; r6 ← *r6;
+        r7 ← r4 * sigma; r7 ← r7 + r5; r7 ← deltaBase + r7; r7 ← *r7 ]) x x₀ 8 ∧
+        x₀.regs r6 = inp.trie.trie r a ∧ x₀.regs r7 = B.delta fr a ∧
+        x₀.regs r1 = B.qHead ∧ x₀.regs r2 = B.qTail ∧
+        x₀.regs r3 = r ∧ x₀.regs r4 = fr ∧ x₀.regs r5 = a ∧ x₀.mem = x.mem := by
     refine WP.exists_execWithin ?_
     wram_exec [hL.h_sigma, hL.h_trieBase, hL.h_deltaBase, hr3, hr4, hr5, ht_read, hd_read,
       hf_mr, hf_ra, hf_tra, hf_mfr, hf_fra, hf_dfra]
     exact ⟨by wram_simp, by wram_simp, by wram_simp [hr1], by wram_simp [hr2],
       by wram_simp [hr3], by wram_simp [hr4], by wram_simp [hr5], by wram_simp⟩
-  obtain ⟨x₀, he₀, hx₀_r6, hx₀_r7, hx₀_r1, hx₀_r2, hx₀_r3, hx₀_r4, hx₀_r5, hx₀_mem⟩ := hld
   by_cases hs_pos : 0 < inp.trie.trie r a
   · exact exec_bfsInnerStep_pos inp w hvalid hw ha hr_maxS hdf_maxS hs_pos
       (hT.trie_lt r hr_lt a ha) hL hM hinv he₀ hx₀_r6 hx₀_r7 hx₀_r1 hx₀_r2 hx₀_r3 hx₀_r4
@@ -309,13 +270,11 @@ private theorem exec_bfsInnerStep (inp : Input) (w : ℕ) (hvalid : inp.Valid)
     obtain ⟨x₁, he_n, hx₁_r1, hx₁_r2, hx₁_r3, hx₁_r4, hx₁_r5, hx₁_mem⟩ := hneg
     have he_tot : ExecWithin w bfsInnerStepCode x x₁ 29 :=
       (he₀.seq (ExecWithin.branch_neg hcond_s he_n)).mono (by omega)
-    have hL₁ : LayoutInv inp x₁ := hL.of_preserves he_tot
     have hB'_eq : PBFS.innerStep inp.trie r fr B a =
         { B with delta := fun u c => if u = r ∧ c = a then df else B.delta u c } := by
-      dsimp only [PBFS.innerStep]
-      simp only [hs_pos, hdf_eq, ↓reduceIte]
+      simp only [PBFS.innerStep, hs_pos, hdf_eq, ↓reduceIte]
     rw [hB'_eq]
-    refine ⟨x₁, he_tot, hL₁, ?_, hx₁_r1, hx₁_r2, hx₁_r3, hx₁_r4, hx₁_r5⟩
+    refine ⟨x₁, he_tot, hL.of_preserves he_tot, ?_, hx₁_r1, hx₁_r2, hx₁_r3, hx₁_r4, hx₁_r5⟩
     rw [hx₁_mem]
     exact bfsMem_of_set_delta hr_maxS ha hM
 
@@ -416,28 +375,20 @@ private theorem exec_bfsOuterLoop (inp : Input) (w : ℕ) (hvalid : inp.Valid)
         exact ⟨by wram_simp, by wram_simp [hr2], by wram_simp, by wram_simp, by wram_simp,
           by wram_simp⟩
       obtain ⟨x₁, he_hd, hx₁_r1, hx₁_r2, hx₁_r3, hx₁_r4, hx₁_r5, hx₁_mem⟩ := hhd
-      have hL₁ : LayoutInv inp x₁ :=
-        hL.of_preserves he_hd
       set B₁ : PBFS := { B with qHead := qh + 1 }
-      have hM₁ : BFSMem inp inp.trie B₁ x₁.mem := by
-        rw [hx₁_mem]
-        exact ⟨hM.txt, hM.trie_cell, hM.delta_cell, hM.fail_cell, hM.depth_cell, hM.term_cell,
-          hM.outHead_cell, hM.outNext_cell, hM.queue_cell⟩
       obtain ⟨x₂, he_in, hL₂, hM₂, hx₂_r1, hx₂_r2⟩ :=
-        exec_bfsInnerLoop inp w hvalid hw qh r fr inp.alphabetSize 0 B₁ x₁
-          (Nat.zero_add _) hL₁ hM₁ hInner₀ hx₁_r1 hx₁_r2 hx₁_r3 hx₁_r4 hx₁_r5
+        exec_bfsInnerLoop inp w hvalid hw qh r fr inp.alphabetSize 0 B₁ x₁ (Nat.zero_add _)
+          (hL.of_preserves he_hd) (hx₁_mem ▸ { hM with }) hInner₀ hx₁_r1 hx₁_r2 hx₁_r3 hx₁_r4
+          hx₁_r5
       obtain ⟨hinv₂, hqh₂⟩ := outerStep_spec hT hchar hterm hinv hlt
-      have hqh₂' : (PBFS.innerLoop inp.trie r fr inp.alphabetSize 0 B₁).qHead = B.qHead + 1 :=
-        hqh₂
-      obtain ⟨y, he_tl, hLy, hMy⟩ :=
-        ih (PBFS.innerLoop inp.trie r fr inp.alphabetSize 0 B₁) x₂ hL₂ hM₂ hinv₂
-          (by omega) hx₂_r1 hx₂_r2
-      refine ⟨y, (ExecWithin.loop_iter hc (he_hd.seq he_in) he_tl).mono ?_, hLy, hMy⟩
-      rw [Nat.mul_succ]
-      omega
+      obtain ⟨y, he_tl, hLy, hMy⟩ := ih _ x₂ hL₂ hM₂ hinv₂
+        (by linarith [show (PBFS.innerLoop inp.trie r fr inp.alphabetSize 0 B₁).qHead =
+          B.qHead + 1 from hqh₂]) hx₂_r1 hx₂_r2
+      exact ⟨y, (ExecWithin.loop_iter hc (he_hd.seq he_in) he_tl).mono
+        (by rw [Nat.mul_succ]; omega), hLy, hMy⟩
     · simp only [hlt, ↓reduceIte]
       have hstop : ¬(Cond.lt r1 r2).Holds x := by
-        simp only [Cond.holds_lt, hr1, hr2]; exact hlt
+        simpa only [Cond.holds_lt, hr1, hr2] using hlt
       exact ⟨x, (ExecWithin.loop_exit hstop).mono (by omega), hL, hM⟩
 
 theorem exec_bfsBuild (inp : Input) (w : ℕ) (hvalid : inp.Valid)
@@ -470,19 +421,8 @@ theorem exec_bfsBuild (inp : Input) (w : ℕ) (hvalid : inp.Valid)
   have hcost_le :
       3 + (21 * inp.alphabetSize + 2) + ((31 * inp.alphabetSize + 10) * inp.trie.numStates + 2) ≤
         52 * inp.maxS * inp.alphabetSize + 10 * inp.maxS + 7 := by
-    have hmul1 : 21 * inp.alphabetSize ≤ 21 * (inp.maxS * inp.alphabetSize) :=
-      Nat.mul_le_mul_left 21 (by
-        simpa only [Nat.one_mul] using Nat.mul_le_mul_right inp.alphabetSize h1_maxS)
-    have hmul2 : (31 * inp.alphabetSize + 10) * inp.trie.numStates ≤
-        (31 * inp.alphabetSize + 10) * inp.maxS :=
-      Nat.mul_le_mul_left _ hT_maxS
-    simp only [Nat.add_mul] at hmul2 ⊢
-    have hcomm : 31 * inp.alphabetSize * inp.maxS = 31 * (inp.maxS * inp.alphabetSize) := by
-      rw [Nat.mul_assoc, Nat.mul_comm inp.alphabetSize inp.maxS]
-    have hsum : 52 * inp.maxS * inp.alphabetSize =
-        21 * (inp.maxS * inp.alphabetSize) + 31 * (inp.maxS * inp.alphabetSize) := by
-      rw [Nat.mul_assoc]; omega
-    omega
+    linarith [Nat.mul_le_mul_left inp.alphabetSize hT_maxS,
+      Nat.mul_le_mul_right inp.alphabetSize h1_maxS]
   rw [Input.bfs_eq]
   exact ⟨y, ((he₀.seq he_rt).seq he_out).mono hcost_le, hLy, hMy⟩
 

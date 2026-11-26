@@ -153,60 +153,48 @@ theorem scanMaxProg_spec {w n matBase maxM : ℕ} {cost : Fin n × Fin n → ℤ
       have hsafe : ScanMaxStepSafe w (d, st) s₀ :=
         ⟨hfit2, hfit_end.of_le (by dsimp only [d]; omega),
           hfit_end.of_le (by dsimp only [d]; omega)⟩
+      let addr := matBase + st.idx
+      let next : ScanState := ⟨st.idx + 1, max st.curM (s₀.mem addr / 2)⟩
+      have run : (Memory.spec 0).runClient s₀ (scanMaxStep (d, st)) =
+          (next, s₀, [.read addr]) := by
+        unfold scanMaxStep
+        rw [← PFunctor.FreeM.bind_eq_bind, StateTransitionSpec.runClient_bind, runClient_read]
+        dsimp only [d, next, addr]
+        split_ifs with h
+        · rw [max_eq_right h.le]
+          rfl
+        · rw [max_eq_left (Nat.le_of_not_lt h)]
+          rfl
       have hv : (Memory.spec w).ValidHistory s₀
-          ((Memory.spec w).clientHistory s₀ (scanMaxStep (d, st))) :=
-        validHistory_read_bind (by dsimp only [d]; omega)
-          (validHistory_ite (fun _ => validHistory_pure w _ _)
-            (fun _ => validHistory_pure w _ _))
+          ((Memory.spec w).clientHistory s₀ (scanMaxStep (d, st))) := by
+        rw [StateTransitionSpec.clientHistory, runClient_width w, run]
+        exact ⟨(Nat.add_lt_add_left (hidx ▸ hk) matBase).trans_le hfr, trivial⟩
       have hmc : memoryCost (scanMaxStep (d, st)) s₀ ≤ 1 := by
-        unfold scanMaxStep
-        exact memoryCost_read_bind_le fun _ _ =>
-          memoryCost_ite_le (Nat.le_refl 0) (Nat.le_refl 0)
-      have hst_eq : (Memory.spec 0).clientState s₀ (scanMaxStep (d, st)) = s₀ := by
-        unfold scanMaxStep
-        rw [clientState_bind_read, prog_clientState_ite, clientState_pure, clientState_pure,
-          ite_self]
+        simp [memoryCost, StateTransitionSpec.clientHistory, run]
+      have hst_eq : (Memory.spec 0).clientState s₀ (scanMaxStep (d, st)) = s₀ :=
+        congrArg (fun r => r.2.1) run
       have hdiv_le : s₀.mem (matBase + st.idx) / 2 ≤ maxM := by
         obtain ⟨i, j, hij⟩ := pairIndex_of_lt (hidx ▸ hk)
-        rw [← hij, hcost_mem i j, Signed.encode_div_two]
-        exact hmag i j
+        simpa [← hij, hcost_mem i j, Signed.encode_div_two] using hmag i j
       refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun _ _ => by rw [hst_eq], hst_eq, ?_⟩
-      unfold scanMaxStep
-      rw [clientResult_bind_read]
-      dsimp only [d]
-      by_cases hlt : st.curM < s₀.mem (matBase + st.idx) / 2
-      · rw [ite_eq_left hlt, clientResult_pure]
-        dsimp only
-        refine ⟨by omega, hdiv_le, fun idx hidx_lt => ?_⟩
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hidx_lt with hlt' | rfl
-        · exact (hprev idx hlt').trans (le_of_lt hlt)
-        · rw [← hidx]
-      · rw [ite_eq_right hlt, clientResult_pure]
-        dsimp only
-        refine ⟨by omega, hle, fun idx hidx_lt => ?_⟩
-        rcases Nat.lt_succ_iff_lt_or_eq.mp hidx_lt with hlt' | rfl
-        · exact hprev idx hlt'
-        · rw [← hidx]; omega)
+      rw [StateTransitionSpec.clientResult, run]
+      refine ⟨congrArg (· + 1) hidx, max_le hle hdiv_le, fun idx hidx_lt => ?_⟩
+      rcases Nat.lt_succ_iff_lt_or_eq.mp hidx_lt with hlt | rfl
+      · exact (hprev idx hlt).trans (le_max_left _ _)
+      · exact hidx ▸ le_max_right _ _)
     ⟨0, 0⟩ s₀ ⟨rfl, rfl, Nat.zero_le _, fun _ h => absurd h (Nat.not_lt_zero _)⟩
   obtain ⟨hsafe, hv_it, hmc_it, _, _, hs_eq, _, hM_le, hprev⟩ := hit
   dsimp only [d]
   unfold scanMaxProg
-  refine ⟨hsafe, validHistory_bind_step hv_it (validHistory_pure w _ _), ?_, ?_, ?_, ?_⟩
-  · rw [memoryCost_bind']
-    have hp : memoryCost (pure ((Memory.spec 0).clientResult s₀
-        (iterate scanMaxStep d (n * n) ⟨0, 0⟩)).curM : Memory.Prog ℕ)
-        ((Memory.spec 0).clientState s₀ (iterate scanMaxStep d (n * n) ⟨0, 0⟩)) = 0 := rfl
-    dsimp only [d] at hmc_it ⊢
-    rw [hp]; omega
-  · rw [clientState_bind, clientState_pure]
-    exact hs_eq
+  refine ⟨hsafe, validHistory_bind_step hv_it (validHistory_pure w _ _), ?_,
+    by rw [clientState_bind, clientState_pure, hs_eq], ?_, fun i j => ?_⟩
+  · rw [memoryCost_bind', memoryCost_pure]
+    dsimp only [d] at hmc_it ⊢; omega
   · rw [clientResult_bind, clientResult_pure]
     exact hM_le
-  · intro i j
-    rw [clientResult_bind, clientResult_pure]
-    have hlt : i.val * n + j.val < n * n := Cslib.Matrix.pairIndex_lt (i, j)
-    have h := hprev (i.val * n + j.val) hlt
-    rwa [hcost_mem i j, Signed.encode_div_two] at h
+  · rw [clientResult_bind, clientResult_pure]
+    simpa [hcost_mem i j, Signed.encode_div_two] using
+      hprev (i.val * n + j.val) (Cslib.Matrix.pairIndex_lt (i, j))
 
 end
 
@@ -297,32 +285,18 @@ theorem fillC_spec {w : ℕ} (ws : AuctionWS) {cost : Fin ws.n × Fin ws.n → �
       obtain ⟨i₀, j₀, hij₀⟩ := pairIndex_of_lt hk
       have hraw : s.mem (ws.matBase + k) = Signed.encode (cost (i₀, j₀)) := by
         rw [hlow _ (by omega), ← hij₀, hcost_mem i₀ j₀]
-      have hmag_eq : s.mem (ws.matBase + k) / 2 = (cost (i₀, j₀)).natAbs := by
-        rw [hraw, Signed.encode_div_two]
-      have hmag_le : s.mem (ws.matBase + k) / 2 ≤ ws.M := hmag_eq.trans_le (hM_ge i₀ j₀)
+      have hmag_le : s.mem (ws.matBase + k) / 2 ≤ ws.M := by
+        simpa [hraw, Signed.encode_div_two] using hM_ge i₀ j₀
       have hf_sc : Fits w (ws.scale * (ws.M + s.mem (ws.matBase + k) / 2)) :=
         hfit_val.of_le (Nat.mul_le_mul_left _ (by omega))
       have hf_add : Fits w (ws.M + s.mem (ws.matBase + k) / 2) :=
         hf_sc.of_le (Nat.le_mul_of_pos_left _ hsc)
       have hsafe : FillCStepSafe w (ws, k) s := by
         dsimp only [FillCStepSafe]
-        exact ⟨hfit2, hfit_addr.of_le (by omega), hfit_addr.of_le (by omega),
+        exact ⟨hfit2,
+          hfit_addr.of_le (by omega),
+          hfit_addr.of_le (by omega),
           hfit_addr.of_le (by omega), hmag_le, hf_add, hf_sc⟩
-      have hv : (Memory.spec w).ValidHistory s
-          ((Memory.spec w).clientHistory s (fillCStep (ws, k))) := by
-        unfold fillCStep
-        dsimp only
-        exact validHistory_read_bind (by omega)
-          (validHistory_ite
-            (fun _ => validHistory_write_bind (by omega) hf_sc (validHistory_pure w _ _))
-            (fun _ => validHistory_write_bind (by omega)
-              (hf_sc.of_le (Nat.mul_le_mul_left _ (by omega))) (validHistory_pure w _ _)))
-      have hmc : memoryCost (fillCStep (ws, k)) s ≤ 2 := by
-        unfold fillCStep
-        exact memoryCost_read_bind_le fun _ _ =>
-          memoryCost_ite_le
-            (memoryCost_write_bind_le fun _ _ => Nat.le_refl 0)
-            (memoryCost_write_bind_le fun _ _ => Nat.le_refl 0)
       let written :=
         if s.mem (ws.matBase + k) % 2 = 0 then
           ws.scale * (ws.M + s.mem (ws.matBase + k) / 2)
@@ -334,22 +308,34 @@ theorem fillC_spec {w : ℕ} (ws : AuctionWS) {cost : Fin ws.n × Fin ws.n → �
         have hm := hM_ge i₀ j₀
         by_cases hneg : cost (i₀, j₀) < 0 <;> simp only [hneg, ↓reduceIte, one_ne_zero] <;>
           exact congrArg _ (by omega)
-      have hst_eq : (Memory.spec 0).clientState s (fillCStep (ws, k)) =
-          ⟨Function.update s.mem (ws.bC + k) written, s.frontier⟩ := by
+      have run : (Memory.spec 0).runClient s (fillCStep (ws, k)) =
+          (k + 1, ⟨Function.update s.mem (ws.bC + k) written, s.frontier⟩,
+            [.read (ws.matBase + k), .write (ws.bC + k) written]) := by
         unfold fillCStep
-        rw [clientState_bind_read]
+        rw [← PFunctor.FreeM.bind_eq_bind, StateTransitionSpec.runClient_bind, runClient_read]
         dsimp only [written]
-        split_ifs <;> rw [clientState_bind_write, clientState_pure]
-      have hres_eq : (Memory.spec 0).clientResult s (fillCStep (ws, k)) = k + 1 := by
-        unfold fillCStep
-        rw [clientResult_bind_read]
-        dsimp only
-        split_ifs <;> rw [clientResult_bind_write, clientResult_pure]
+        split_ifs <;> rfl
+      have hv : (Memory.spec w).ValidHistory s
+          ((Memory.spec w).clientHistory s (fillCStep (ws, k))) := by
+        have hf_written : Fits w written := by
+          dsimp only [written]
+          split_ifs
+          · exact hf_sc
+          · exact hf_sc.of_le (Nat.mul_le_mul_left _ (by omega))
+        rw [StateTransitionSpec.clientHistory, runClient_width w, run]
+        have hwrite := (Nat.add_lt_add_left hk ws.bC).trans_le (hsfr.symm ▸ hfr)
+        have hread := (Nat.add_lt_add_left hk ws.matBase).trans_le
+          (hdisj.trans (Nat.le_add_right ws.bC k))
+        exact ⟨hread.trans hwrite, ⟨hwrite, hf_written⟩, trivial⟩
+      have hmc : memoryCost (fillCStep (ws, k)) s ≤ 2 := by
+        simp [memoryCost, StateTransitionSpec.clientHistory, run]
+      have hst_eq : (Memory.spec 0).clientState s (fillCStep (ws, k)) =
+          ⟨Function.update s.mem (ws.bC + k) written, s.frontier⟩ :=
+        congrArg (fun r => r.2.1) run
       refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun x hx => ?_, ?_⟩
       · rw [hst_eq]
-        dsimp only
         exact Function.update_of_ne (by omega) _ _
-      · rw [hst_eq, hres_eq]
+      · rw [hst_eq, StateTransitionSpec.clientResult, run]
         dsimp only
         refine ⟨rfl, hsfr, fun a ha => ?_, fun i j hij => ?_⟩
         · rw [Function.update_of_ne (by omega)]

@@ -110,29 +110,23 @@ theorem withRejectingChoice_firstHalting_iff (M : QueryMachine σ) (input : List
   constructor
   · rintro ⟨hfirst, hsuccess⟩
     have hbits := replicate_of_success M input bits (some s) hfirst hsuccess
-    have hlength : bits.length = t := by
-      apply le_antisymm
-      · by_contra! hlate
-        have hprefix := hfirst.2 t hlate
-        rw [hbits, List.take_replicate, Nat.min_eq_left hlate.le,
-          M.withRejectingChoice_replay_false] at hprefix
-        change M.halted (M.runFrom input s t) = false at hprefix
-        simp [hhalt] at hprefix
-      · by_contra! hearly
-        have hfinal := hfirst.1
-        rw [hbits, M.withRejectingChoice_replay_false] at hfinal
-        change M.halted (M.runFrom input s bits.length) = true at hfinal
-        simp [hbefore _ hearly] at hfinal
-    exact hbits.trans (congrArg (fun n => List.replicate n false) hlength)
+    obtain ⟨hfinal, hpre⟩ := hfirst
+    rw [hbits, M.withRejectingChoice_replay_false] at hfinal
+    have hle : bits.length ≤ t := by
+      by_contra! hlate
+      have hprefix := hpre t hlate
+      rw [hbits, List.take_replicate, Nat.min_eq_left hlate.le,
+        M.withRejectingChoice_replay_false] at hprefix
+      exact absurd hhalt (by simpa [withRejectingChoice] using hprefix)
+    have hge : t ≤ bits.length := by
+      by_contra! hearly
+      exact absurd (hbefore _ hearly) (by simpa [withRejectingChoice] using hfinal)
+    exact hbits.trans (congrArg (List.replicate · false) (le_antisymm hle hge))
   · rintro rfl
-    refine ⟨⟨?_, ?_⟩, ?_⟩
-    · rw [M.withRejectingChoice_replay_false]
-      exact hhalt
-    · intro i hi
-      rw [List.length_replicate] at hi
+    refine ⟨⟨?_, fun i hi => ?_⟩, by simp [M.withRejectingChoice_replay_false]⟩
+    · rwa [M.withRejectingChoice_replay_false]
+    · rw [List.length_replicate] at hi
       rw [List.take_replicate, Nat.min_eq_left hi.le, M.withRejectingChoice_replay_false]
       exact hbefore i hi
-    · rw [M.withRejectingChoice_replay_false]
-      rfl
 
 end Turing.QueryMachine

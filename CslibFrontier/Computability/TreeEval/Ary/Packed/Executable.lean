@@ -67,28 +67,11 @@ theorem counterGateExtension_eq {p s b d r : ℕ} [Fact p.Prime] (hs : 0 < s)
     (decode : (Fin r → Fin s) → Fin b → Bool) (f : Gate d b)
     (x : Fin d → Fin r → ZMod p) (i : Fin r) :
     counterGateExtension hs encode decode f x i = gateExtension h encode decode f x i := by
-  rw [counterGateExtension, cast_interpolateGrid hs h hh]
-  have htable :
-      (fun a : Fin (d * r) → Fin s =>
-        ((encode (f fun j => decode
-          (blocksEquiv (counterAssignment hs (finFunctionFinEquiv a)) j)) i).val : ZMod p)) =
-      (fun a => h (encode (f fun j => decode (blocksEquiv a j)) i)) := by
-    funext a
+  rw [counterGateExtension, cast_interpolateGrid hs h hh, gateExtension]
+  refine congrArg₂ (Code.lowDegreeExtension h) (funext fun a => ?_) (funext fun q => ?_)
+  · change ((encode (f fun j => decode
+      (blocksEquiv (counterAssignment hs (finFunctionFinEquiv a)) j)) i).val : ZMod p) = _
     rw [counterAssignment_number, hh]
-  have hpoint :
-      (fun q : Fin (d * r) =>
-        (((List.ofFn fun j : Fin (d * r) => (blocksEquiv.symm x j).val).getD q.val 0 : ℕ) :
-          ZMod p)) = blocksEquiv.symm x := by
-    funext q
-    simp [List.getD_eq_getElem?_getD]
-  change Code.lowDegreeExtension h
-    (fun a : Fin (d * r) → Fin s =>
-      ((encode (f fun j => decode
-        (blocksEquiv (counterAssignment hs (finFunctionFinEquiv a)) j)) i).val : ZMod p))
-    (fun q : Fin (d * r) =>
-      (((List.ofFn fun j : Fin (d * r) => (blocksEquiv.symm x j).val).getD q.val 0 : ℕ) :
-        ZMod p)) = _
-  rw [htable, hpoint]
-  rfl
+  · simp [List.getD_eq_getElem?_getD]
 
 end Cslib.TreeEval.Ary.Packed

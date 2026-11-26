@@ -114,25 +114,20 @@ private theorem exists_coeff_decomp (p : Program (affineSignature K) n g)
     ∃ (β : Wire n g → K) (S : Finset (Fin n)), S.card ≤ 2 ^ ψ w ∧
       ∀ j ∉ S, p.coeff w j = ∑ u ∈ T, β u * p.coeff u j := by
   classical
-  -- a wire in `T` is its own decomposition
-  have hT : ∀ w ∈ T, ∃ (β : Wire n g → K) (S : Finset (Fin n)), S.card = 0 ∧
-      ∀ j ∉ S, p.coeff w j = ∑ u ∈ T, β u * p.coeff u j := fun w hw =>
-    ⟨Pi.single w 1, ∅, rfl, fun j _ => by
-      rw [Finset.sum_eq_single_of_mem w hw (fun u _ hu => by simp [hu])]
-      simp⟩
   induction w using p.wire_induction with
   | input i =>
     refine ⟨0, {i}, (Finset.card_singleton i).trans_le Nat.one_le_two_pow, fun j hj => ?_⟩
-    have hij : i ≠ j := fun h => hj (Finset.mem_singleton.2 h.symm)
-    simp [coeff, hij]
+    simp [coeff, show i ≠ j from fun h => hj (Finset.mem_singleton.2 h.symm)]
   | gate k ih =>
     -- every argument decomposes with at most `2 ^ ψ (.gate k) / 2` exceptional inputs
     have harg : ∀ a, ∃ (β : Wire n g → K) (S : Finset (Fin n)), S.card ≤ 2 ^ ψ (.gate k) / 2 ∧
         ∀ j ∉ S, p.coeff ((p.lines k).wires a) j = ∑ u ∈ T, β u * p.coeff u j := by
       intro a
       by_cases ha : (p.lines k).wires a ∈ T
-      · obtain ⟨β, S, hS, h⟩ := hT _ ha
-        exact ⟨β, S, hS ▸ Nat.zero_le _, h⟩
+      · -- a wire in `T` is its own decomposition
+        refine ⟨Pi.single ((p.lines k).wires a) 1, ∅, Nat.zero_le _, fun j _ => ?_⟩
+        rw [Finset.sum_eq_single_of_mem _ ha (fun u _ hu => by simp [hu])]
+        simp
       · obtain ⟨β, S, hS, h⟩ := ih a
         refine ⟨β, S, hS.trans ?_, h⟩
         obtain ⟨d, hd⟩ := Nat.exists_eq_add_of_lt (hψ k a ha)
@@ -223,10 +218,8 @@ theorem Computes.rigidity_le {c : Circuit (affineSignature K) n m}
     obtain rfl : t = 0 := by omega
     refine (A.rigidity_antitone (Nat.zero_le _)).trans
       (rigidity_le_of_cut hc hfan ∅ c.program.wireDepths
-        (fun k a _ => c.program.wireDepths_lines_lt k a) fun o => ?_)
-    have := hout o
-    simp only [pow_zero, Nat.sub_self] at this ⊢
-    omega
+        (fun k a _ => c.program.wireDepths_lines_lt k a)
+        fun o => by have := hout o; omega)
   -- the wires read by gates of depth below `2 ^ D`, as (tail, head) pairs
   let E : Finset (Wire n c.size × Wire n c.size) :=
     (Finset.univ.biUnion fun k : Fin c.size =>
@@ -248,9 +241,7 @@ theorem Computes.rigidity_le {c : Circuit (affineSignature K) n m}
   -- the depths, capped below `2 ^ D`, grade these wires
   have hgrade : IsGrading E (2 ^ D) fun w => min (c.program.wireDepths w) (2 ^ D - 1) := by
     refine ⟨fun w => ?_, fun e he => ?_⟩
-    · have := Nat.two_pow_pos D
-      change min (c.program.wireDepths w) (2 ^ D - 1) < 2 ^ D
-      omega
+    · exact (min_le_right _ _).trans_lt (Nat.sub_lt (Nat.two_pow_pos D) one_pos)
     obtain ⟨he, hlt⟩ := Finset.mem_filter.1 he
     obtain ⟨k, -, he⟩ := Finset.mem_biUnion.1 he
     obtain ⟨a, -, rfl⟩ := Finset.mem_image.1 he
@@ -283,18 +274,14 @@ theorem Computes.rigidity_le {c : Circuit (affineSignature K) n m}
         ha (Finset.mem_image.2 ⟨_, h, rfl⟩)
       have := hg'.2 _ (Finset.mem_sdiff.2 ⟨hmem k a hk, hnot⟩)
       dsimp only [ψ]
-      rw [ite_eq_left (h1.trans hk), ite_eq_left (h2 ▸ hk)]
-      exact this
+      rwa [ite_eq_left (h1.trans hk), ite_eq_left (h2 ▸ hk)]
     · -- a deep gate is above every label
       dsimp only [ψ]
       rw [ite_eq_right (by omega : ¬c.program.wireDepths (Wire.gate k) < 2 ^ D)]
-      split_ifs with h
-      · have := hg'lt ((c.program.lines k).wires a)
-        omega
-      · omega
-  · have h := hout o
-    dsimp only [ψ]
-    rw [ite_eq_left h]
+      have := hg'lt ((c.program.lines k).wires a)
+      split_ifs <;> omega
+  · dsimp only [ψ]
+    rw [ite_eq_left (hout o)]
     exact (hg'.1 _).le
 
 /-- **Valiant's rigidity criterion, asymptotic form** ([Valiant1977]; [Lokam2009], Theorem 2.1).
@@ -349,9 +336,7 @@ theorem Computes.mul_log_log_lt_size {C k e : ℕ} (hC : 0 < C) (hk : 0 < k) (he
   have hDpos : 0 < D := Nat.succ_pos _
   have h1 : (n / e + 1) * D ≤ 2 * t * c.size :=
     (Nat.le_div_iff_mul_le hDpos).1 (Nat.succ_le_of_lt hrank)
-  have h2 : n < (n / e + 1) * e := by
-    rw [Nat.add_mul, one_mul]
-    exact Nat.lt_div_mul_add he
+  have h2 : n < (n / e + 1) * e := (Nat.lt_div_mul_add he).trans_eq (Nat.succ_mul _ _).symm
   have h3 : n * D < 2 * e * t * c.size :=
     calc n * D < (n / e + 1) * e * D := Nat.mul_lt_mul_of_pos_right h2 hDpos
       _ = (n / e + 1) * D * e := by ring

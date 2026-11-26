@@ -66,17 +66,13 @@ theorem ncard_externalNeighbors_le_cutRank_mul (S : Set V) (d : ℕ)
       _ ≤ d := hdegree i i.property
   have hcols : #{j : ↥(Sᶜ) | ∃ i : S, B i j ≠ 0} =
       #{v : V | v ∉ S ∧ ∃ u ∈ S, G.Adj u v} := by
-    refine card_bij (fun j _ ↦ (j : V)) ?_ ?_ ?_
-    · intro j hj
-      obtain ⟨i, hi⟩ := (mem_filter.mp hj).2
-      refine mem_filter.mpr ⟨mem_univ _, j.property, i, i.property, ?_⟩
-      simpa [B, adjMatrix_apply] using hi
-    · intro i hi j hj hij
-      exact Subtype.ext hij
-    · intro v hv
-      obtain ⟨hvS, u, huS, huv⟩ := (mem_filter.mp hv).2
-      refine ⟨⟨v, hvS⟩, mem_filter.mpr ⟨mem_univ _, ⟨⟨u, huS⟩, ?_⟩⟩, rfl⟩
-      simp [B, adjMatrix_apply, huv]
+    refine card_bij (fun j _ ↦ (j : V)) (fun j hj => ?_) (fun _ _ _ _ => Subtype.ext) fun v hv => ?_
+    · obtain ⟨i, hi⟩ := (mem_filter.mp hj).2
+      exact mem_filter.mpr ⟨mem_univ _, j.property, i, i.property,
+        by simpa [B, adjMatrix_apply] using hi⟩
+    · obtain ⟨hvS, u, huS, huv⟩ := (mem_filter.mp hv).2
+      exact ⟨⟨v, hvS⟩, mem_filter.mpr ⟨mem_univ _,
+        ⟨⟨u, huS⟩, by simp [B, adjMatrix_apply, huv]⟩⟩, rfl⟩
   have h := B.card_nonzero_columns_le_rank_mul d hrow
   rw [hcols, show B.rank = (G.adjMatrix K).cutRank S from
     ((G.adjMatrix K).cutRank_eq_rank S).symm] at h
@@ -96,9 +92,7 @@ theorem card_neighbors_le_card_add_cutRank_mul [DecidableEq V] (S : Finset V) (d
     tauto
   have h := G.ncard_externalNeighbors_le_cutRank_mul (K := K) (↑S : Set V) d hdegree
   rw [Set.ncard_eq_toFinset_card', hext] at h
-  have hc : #(S.biUnion (fun v ↦ G.neighborFinset v)) ≤
-      #(S.biUnion (fun v ↦ G.neighborFinset v) \ S) + #S :=
-    card_le_card_sdiff_add_card
+  have hc := card_le_card_sdiff_add_card (s := S.biUnion fun v ↦ G.neighborFinset v) (t := S)
   omega
 
 end SimpleGraph

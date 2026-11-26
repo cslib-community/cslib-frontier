@@ -678,9 +678,10 @@ theorem validProg_lmPrepend {U V w n_max h_space : ℕ}
       (lmPrependProg U V w n_max h_space d) := by
   rcases d with ⟨⟨⟨base, b⟩, m⟩, j⟩
   rcases hpre with ⟨_, hb, hm, hj, _, hold⟩
-  dsimp only at hb hm hj hold
-  simp only [lmPrependProg, lmPrependGenProg, readLMHeadGenProg_mk, writeLMPrevGenProg_mk,
-    writeLMNextGenProg_mk, writeLMHeadGenProg_mk, pure_bind]
+  dsimp only [lmEntryBase, lmEntryBucket, lmEntryIdx] at hb hm hj hold
+  simp only [lmPrependProg, lmPrependGenProg, lmWriteLoc, lmWriteVal, lmWriteHeadArg,
+    readLMHeadGenProg_mk, writeLMPrevGenProg_mk, writeLMNextGenProg_mk, writeLMHeadGenProg_mk,
+    pure_bind]
   valid_prog [validProg_readLMHead, validProg_writeLMPrev, validProg_writeLMNext,
     validProg_writeLMHead] with [clientState_readLMHeadProg, clientResult_readLMHeadProg]
   omega
@@ -693,9 +694,10 @@ theorem validProg_lmUnlink {U V w n_max h_space : ℕ}
       (lmUnlinkProg U V w n_max h_space d) := by
   rcases d with ⟨⟨⟨base, b⟩, m⟩, j⟩
   rcases hpre with ⟨_, hb, hm, hj, hp, hn⟩
-  dsimp only at hb hm hj hp hn
-  simp only [lmUnlinkProg, lmUnlinkGenProg, readLMPrevGenProg_mk, readLMNextGenProg_mk,
-    writeLMNextGenProg_mk, writeLMHeadGenProg_mk, writeLMPrevGenProg_mk, pure_bind]
+  dsimp only [lmEntryBase, lmEntryBucket, lmEntryIdx] at hb hm hj hp hn
+  simp only [lmUnlinkProg, lmUnlinkGenProg, lmWriteLoc, lmWriteVal, lmWriteHeadArg,
+    readLMPrevGenProg_mk, readLMNextGenProg_mk, writeLMNextGenProg_mk, writeLMHeadGenProg_mk,
+    writeLMPrevGenProg_mk, pure_bind]
   valid_prog [validProg_readLMPrev, validProg_readLMNext, validProg_writeLMNext,
     validProg_writeLMHead, validProg_writeLMPrev]
     with [clientState_readLMPrevProg, clientResult_readLMPrevProg,
@@ -708,9 +710,12 @@ theorem validProg_microStep {U V w n_max h_space : ℕ}
     ValidProg w (dictFrontier U V w n_max h_space (nestedCallBase x)) s
       (microStepProg U V w n_max h_space x) := by
   rcases hpre with ⟨_, hb, _, hj_cap, hj_bc, hinv⟩
+  dsimp only [microStepBase, microStepBucket, microStepPtr] at hb hj_cap hj_bc hinv
   have hphys_lt := (slotOf_lt_and_injective hinv).1 x.1.1.1.2 hb (x.2.1.1.1 - 1) hj_bc
-  simp only [microStepProg, microStepGenProg, readLMNextGenProg_mk, resolveIndexedSlotGenProg_mk,
-    readQuotGenProg_mk, pure_bind]
+  simp only [microStepProg, microStepGenProg, microLoopCtxParams, microStepGenLoc,
+    microStepGenBase, microStepGenQuot, microStepQuery, microStepPtr, microStepMatchIdx,
+    microStepPhys, readLMNextGenProg_mk, resolveIndexedSlotGenProg_mk, readQuotGenProg_mk,
+    pure_bind]
   valid_prog [validProg_readLMNext]
     with [clientState_readLMNextProg, clientState_resolveIndexedSlotProg,
       clientResult_resolveIndexedSlotProg]
@@ -722,7 +727,8 @@ theorem validProg_microLoop {U V w n_max h_space : ℕ}
       (MicroStepPre U V w n_max h_space) w x.1 (effBucketCap n_max) x.2 s) :
     ValidProg w (dictFrontier U V w n_max h_space (nestedCallBase x)) s
       (microLoopProg U V w n_max h_space x) := by
-  simp only [microLoopProg, microLoopGenProg, p_nMax_mk, boundedWhile_microStepGenProg_mk]
+  simp only [microLoopProg, microLoopGenProg, microLoopCtxParams, microStepQuery, microStepTag,
+    p_nMax_mk, boundedWhile_microStepGenProg_mk]
   exact validProg_boundedWhile (effBucketCap n_max) x.2 s
     (fun a' s' h => validProg_microStep (x := (x.1, a')) hw h) hsafe
 
@@ -732,8 +738,8 @@ theorem validProg_searchMicroChain {U V w n_max h_space : ℕ}
     ValidProg w (dictFrontier U V w n_max h_space (bucketCallBase d)) s
       (searchMicroChainProg U V w n_max h_space d) := by
   rcases hpre with ⟨henv, hb, hm, hinv, L, hchain, hc_lt⟩
-  simp only [searchMicroChainProg, searchMicroChainGenProg, readLMHeadGenProg_mk,
-    microLoopGenProg_mk, pure_bind]
+  simp only [searchMicroChainProg, searchMicroChainGenProg, lmWriteLoc, lmWriteVal,
+    lmWriteHeadArg, readLMHeadGenProg_mk, microLoopGenProg_mk, pure_bind]
   refine validProg_bind (validProg_readLMHead hw hb hm) ?_
   rw [clientState_readLMHeadProg, clientResult_readLMHeadProg s hb hm]
   exact validProg_microLoop
@@ -986,7 +992,8 @@ theorem validProg_deletePrep {U V w n_max h_space : ℕ}
   rw [clientState_lastSlotOfProg, clientResult_lastSlotOfProg d.1.1 s hpre.2.2.2.1 hpre.2.1 hbc]
   have hlast_lt : slotOf n_max (gmAt d.1.1.1 U V w n_max h_space s.mem) d.1.1.2
       (bCount n_max (gmAt d.1.1.1 U V w n_max h_space s.mem) d.1.1.2 - 1) < n_max :=
-    (slotOf_lt_and_injective hpre.2.2.2.1).1 d.1.1.2 hpre.2.1 _ (by omega)
+    (slotOf_lt_and_injective hpre.2.2.2.1).1 d.1.1.2 hpre.2.1 _
+      (by dsimp only [lmEntryBase, lmEntryBucket]; omega)
   exact validProg_bind (validProg_readQuot hw hlast_lt) (validProg_pure _)
 
 theorem validProg_deleteSwap {U V w n_max h_space : ℕ}

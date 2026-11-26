@@ -160,10 +160,10 @@ private theorem solveAuctionProg_spec {w maxMag : ℕ} (a : SolveArgs)
   have hf1 : Fits w 1 := hfit2.of_le (by omega)
   have hf_fr1 : Fits w s₁.frontier :=
     hfit_fr.of_le (by dsimp only [s₁, base]; rw [hs₀_fr]; omega)
-  have hscan := scanMaxProg_spec (s₀ := s₁) hcost_mem hmag
-    (by dsimp only [s₁, base]; rw [hs₀_fr]; omega)
-    hfit2 (hf_fr1.of_le (by dsimp only [s₁, base]; rw [hs₀_fr]; omega))
-  obtain ⟨hsafe_scan, hv_scan, hmc_scan, hs₂_eq, hM_le, hM_ge⟩ := hscan
+  obtain ⟨hsafe_scan, hv_scan, hmc_scan, hs₂_eq, hM_le, hM_ge⟩ :=
+    scanMaxProg_spec (s₀ := s₁) hcost_mem hmag
+      (by dsimp only [s₁, base]; rw [hs₀_fr]; omega)
+      hfit2 (hf_fr1.of_le (by dsimp only [s₁, base]; rw [hs₀_fr]; omega))
   let M := (Memory.spec 0).clientResult s₁ (scanMaxProg ⟨a.matBase, a.n * a.n⟩)
   let ws₀ : AuctionWS :=
     ⟨a.n, a.eps, a.scale, M, a.matBase, base, base + a.n * a.n, base + a.n * a.n + a.n,
@@ -172,40 +172,26 @@ private theorem solveAuctionProg_spec {w maxMag : ℕ} (a : SolveArgs)
     ⟨rfl, rfl, rfl, rfl, by dsimp only [ws₀, s₁]; omega⟩
   have hfit_ws : Fits w (ws₀.outBase + ws₀.n + 1) :=
     hf_fr1.of_le (by dsimp only [ws₀, s₁]; omega)
-  have hscM_le : a.scale * M ≤ a.scale * maxMag := Nat.mul_le_mul_left a.scale hM_le
   have hfit_val : Fits w (ws₀.scale * (2 * ws₀.M)) :=
-    hfit_p.of_le <| by
-      dsimp only [ws₀]
-      calc a.scale * (2 * M) = 2 * (a.scale * M) := by ring
-        _ ≤ 2 * (a.scale * maxMag) := Nat.mul_le_mul_left 2 hscM_le
-        _ ≤ 4 * a.scale * maxMag + 2 * a.eps := by
-          rw [show 4 * a.scale * maxMag = 4 * (a.scale * maxMag) by ring]; omega
+    hfit_p.of_le (by dsimp only [ws₀]; nlinarith [Nat.mul_le_mul_left a.scale hM_le])
   have hfit_core : Fits w (4 * ws₀.scale * ws₀.M + 2 * ws₀.eps) :=
-    hfit_p.of_le <| by
-      dsimp only [ws₀]
-      calc 4 * a.scale * M + 2 * a.eps
-          = 4 * (a.scale * M) + 2 * a.eps := by ring
-        _ ≤ 4 * (a.scale * maxMag) + 2 * a.eps :=
-            Nat.add_le_add_right (Nat.mul_le_mul_left 4 hscM_le) _
-        _ = 4 * a.scale * maxMag + 2 * a.eps := by ring
-  have hfill := fillC_spec ws₀ s₁ hsc
-    (by dsimp only [ws₀, base]; rw [hs₀_fr])
-    (by dsimp only [ws₀, s₁]; omega)
-    hcost_mem hM_ge hfit2
-    (hfit_ws.of_le (by dsimp only [ws₀]; omega))
-    hfit_val
-  obtain ⟨hsafe_fill, hv_fill, hmc_fill, hfr_fill, _, hC_filled⟩ := hfill
+    hfit_p.of_le (by dsimp only [ws₀]; gcongr)
+  obtain ⟨hsafe_fill, hv_fill, hmc_fill, hfr_fill, _, hC_filled⟩ :=
+    fillC_spec ws₀ s₁ hsc
+      (by dsimp only [ws₀, base]; rw [hs₀_fr])
+      (by dsimp only [ws₀, s₁]; omega)
+      hcost_mem hM_ge hfit2
+      (hfit_ws.of_le (by dsimp only [ws₀]; omega))
+      hfit_val
   let s₃ := (Memory.spec 0).clientState s₁ (fillCProg ws₀)
   have hws₃ : ValidWS ws₀ s₃ := hws₁.of_frontier_eq hfr_fill
   let C_work : Fin a.n × Fin a.n → ℕ := fun p => a.scale * (cost p + (M : ℤ)).toNat
   have hC_le : ∀ i j : Fin a.n, C_work (i, j) ≤ 2 * ws₀.scale * ws₀.M := fun i j => by
     have hle2M : (cost (i, j) + (M : ℤ)).toNat ≤ 2 * M := by have := hM_ge i j; omega
     dsimp only [C_work, ws₀]
-    calc a.scale * (cost (i, j) + (M : ℤ)).toNat
-        ≤ a.scale * (2 * M) := Nat.mul_le_mul_left _ hle2M
-      _ = 2 * a.scale * M := by ring
-  have hcore := auctionCoreProg_spec ws₀ hε hC_le s₃ hws₃ hC_filled hf1 hfit_ws hfit_core
-  obtain ⟨hsafe_core, hv_core, hmc_core, hfr_core, ham_core⟩ := hcore
+    exact (Nat.mul_le_mul_left _ hle2M).trans_eq (by ring)
+  obtain ⟨hsafe_core, hv_core, hmc_core, hfr_core, ham_core⟩ :=
+    auctionCoreProg_spec ws₀ hε hC_le s₃ hws₃ hC_filled hf1 hfit_ws hfit_core
   let s₄ := (Memory.spec 0).clientState s₃ (auctionCoreProg ws₀)
   have hws₄ : ValidWS ws₀ s₄ := hws₃.of_frontier_eq hfr_core
   have hC_cast :
@@ -222,13 +208,9 @@ private theorem solveAuctionProg_spec {w maxMag : ℕ} (a : SolveArgs)
     rw [hC_cast]
     exact auction_add_const (fun e => (a.scale : ℤ) * cost e)
       ((a.scale : ℤ) * (M : ℤ)) (Nat.cast_pos.mpr hε)
-  have hinv_fin : AuctionInv (fun e => (C_work e : ℤ)) (ws₀.eps : ℤ)
-      (auction (fun e => (C_work e : ℤ)) (ws₀.eps : ℤ)) :=
-    auctionInv_auction (Nat.cast_pos.mpr hε)
-  have hfree_fin : (auction (fun e => (C_work e : ℤ)) (ws₀.eps : ℤ)).free = [] :=
-    auction_free (Nat.cast_pos.mpr hε)
-  have hscat := scatterProg_spec ws₀ hinv_fin hfree_fin s₄ hws₄ ham_core hf1 hfit_ws
-  obtain ⟨hsafe_scat, hv_scat, hmc_scat, hfr_scat, _, hC_scat, hout_scat⟩ := hscat
+  obtain ⟨hsafe_scat, hv_scat, hmc_scat, hfr_scat, _, hC_scat, hout_scat⟩ :=
+    scatterProg_spec ws₀ (auctionInv_auction (Nat.cast_pos.mpr hε))
+      (auction_free (Nat.cast_pos.mpr hε)) s₄ hws₄ ham_core hf1 hfit_ws
   dsimp only [ws₀] at hmc_core hout_scat
   rw [hs_eq] at hmc_core hout_scat
   have hsafe_solve : SolveAuctionSafe w a s₀ := by
@@ -239,46 +221,30 @@ private theorem solveAuctionProg_spec {w maxMag : ℕ} (a : SolveArgs)
       hf_fr1.of_le (by dsimp only [s₁, base]; omega),
       hfit_ws.of_le (by dsimp only [ws₀]; omega),
       hsafe_scan, hsafe_fill, hsafe_core, hsafe_scat⟩
+  dsimp only [s₁, base] at hs₂_eq
   have hres_solve : (Memory.spec 0).clientResult s₀ (solveAuctionProg a) = ws₀ := by
-    unfold solveAuctionProg
-    dsimp only
-    rw [clientResult_bind, clientResult_allocDirty, clientState_allocDirty]
-    change (Memory.spec 0).clientResult s₁ (scanMaxProg ⟨a.matBase, a.n * a.n⟩ >>= _) = _
-    rw [clientResult_bind, hs₂_eq, clientResult_bind, clientResult_bind, clientResult_bind,
-      clientResult_pure]
+    dsimp only [solveAuctionProg]
+    rw [clientResult_bind, clientResult_allocDirty, clientState_allocDirty, clientResult_bind,
+      hs₂_eq, clientResult_bind, clientResult_bind, clientResult_bind, clientResult_pure]
   have hst_solve : (Memory.spec 0).clientState s₀ (solveAuctionProg a) =
       (Memory.spec 0).clientState s₄ (scatterProg ws₀) := by
-    unfold solveAuctionProg
-    dsimp only
-    rw [clientState_bind, clientResult_allocDirty, clientState_allocDirty]
-    change (Memory.spec 0).clientState s₁ (scanMaxProg ⟨a.matBase, a.n * a.n⟩ >>= _) = _
-    rw [clientState_bind, hs₂_eq, clientState_bind, clientState_bind, clientState_bind,
-      clientState_pure]
-  refine ⟨hsafe_solve, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · unfold solveAuctionProg
-    dsimp only
-    refine validHistory_allocDirty_bind hf_fr1 ?_
-    refine validHistory_bind_step hv_scan ?_
+    dsimp only [solveAuctionProg]
+    rw [clientState_bind, clientResult_allocDirty, clientState_allocDirty, clientState_bind,
+      hs₂_eq, clientState_bind, clientState_bind, clientState_bind, clientState_pure]
+  refine ⟨hsafe_solve, ?_, ?_, ?_⟩
+  · dsimp only [solveAuctionProg]
+    refine validHistory_allocDirty_bind hf_fr1 (validHistory_bind_step hv_scan ?_)
     rw [hs₂_eq]
-    exact validHistory_bind_step hv_fill
-      (validHistory_bind_step hv_core
-        (validHistory_bind_step hv_scat (validHistory_pure w _ _)))
-  · unfold solveAuctionProg
-    dsimp only
-    rw [memoryCost_bind', memoryCost_allocDirty, clientResult_allocDirty, clientState_allocDirty]
-    change 1 + memoryCost (scanMaxProg ⟨a.matBase, a.n * a.n⟩ >>= _) s₁ ≤ _
-    rw [memoryCost_bind', hs₂_eq, memoryCost_bind', memoryCost_bind', memoryCost_bind',
+    exact validHistory_bind_step hv_fill (validHistory_bind_step hv_core
+      (validHistory_bind_step hv_scat (validHistory_pure w _ _)))
+  · dsimp only [solveAuctionProg]
+    rw [memoryCost_bind', memoryCost_allocDirty, clientResult_allocDirty, clientState_allocDirty,
+      memoryCost_bind', hs₂_eq, memoryCost_bind', memoryCost_bind', memoryCost_bind',
       memoryCost_pure]
-    dsimp only [ws₀, M, base, s₃, s₄] at hmc_scan hmc_fill hmc_core hmc_scat ⊢
+    dsimp only [ws₀, M, s₁, base, s₃, s₄] at hmc_scan hmc_fill hmc_core hmc_scat ⊢
     omega
-  · rw [hres_solve, hst_solve]; exact hws₄.of_frontier_eq hfr_scat
-  · rw [hres_solve]
-  · rw [hres_solve]
-  · rw [hres_solve]; exact hM_le
-  · rw [hres_solve]; exact hM_ge
-  · rw [hres_solve, hst_solve]; exact hC_scat
-  · rw [hres_solve, hst_solve]; exact hout_scat
-  · rw [hres_solve]; exact hfit_ws
+  · rw [hres_solve, hst_solve]
+    exact ⟨hws₄.of_frontier_eq hfr_scat, rfl, rfl, hM_le, hM_ge, hC_scat, hout_scat, hfit_ws⟩
 
 public section
 
@@ -322,31 +288,27 @@ theorem epsMainProg_spec {w C : ℕ} (inst : EpsInstance) (hε : 0 < inst.eps)
   let a : SolveArgs := ⟨inst.n, inst.eps, 1, 3⟩
   have hf1 : Fits w 1 := hw.of_le (by unfold EpsInstance.wordBound; nlinarith)
   have hf3 : Fits w 3 := hw.of_le (by unfold EpsInstance.wordBound; nlinarith)
-  have hsolve := solveAuctionProg_spec (w := w) (maxMag := inst.maxMag) a
-    (s₀ := Memory.State.init inst.encode) hε (Nat.le_refl 1)
-    (by change inst.encode.length + 1 = _; dsimp only [a]; rw [inst.encode_length]; omega)
-    (init_mem_cost_eps inst) inst.toInstance.natAbs_cost_le_maxMag
-    (hw.of_le (by unfold EpsInstance.wordBound; nlinarith))
-    (hw.of_le (by dsimp only [a]; unfold EpsInstance.wordBound; nlinarith))
-    (hw.of_le (by dsimp only [a, EpsInstance.maxMag]; unfold EpsInstance.wordBound; nlinarith))
-  obtain ⟨hsafe_s, hv_s, hmc_s, _, hws_n, _, _, _, _, hout_s, hfit_ws⟩ := hsolve
-  have hcost_one : (fun e => ((1 : ℕ) : ℤ) * inst.cost e) = inst.cost := by
-    funext e; simp
+  obtain ⟨hsafe_s, hv_s, hmc_s, _, hws_n, _, _, _, _, hout_s, hfit_ws⟩ :=
+    solveAuctionProg_spec (w := w) (maxMag := inst.maxMag) a
+      (s₀ := Memory.State.init inst.encode) hε (Nat.le_refl 1)
+      (by change inst.encode.length + 1 = _; dsimp only [a]; rw [inst.encode_length]; omega)
+      (init_mem_cost_eps inst) inst.toInstance.natAbs_cost_le_maxMag
+      (hw.of_le (by unfold EpsInstance.wordBound; nlinarith))
+      (hw.of_le (by dsimp only [a]; unfold EpsInstance.wordBound; nlinarith))
+      (hw.of_le (by dsimp only [a, EpsInstance.maxMag]; unfold EpsInstance.wordBound; nlinarith))
+  have hcost_one : (fun e => ((1 : ℕ) : ℤ) * inst.cost e) = inst.cost := funext fun _ => by simp
   dsimp only [a] at hsafe_s hv_s hmc_s hws_n hout_s hfit_ws
   rw [hcost_one] at hmc_s hout_s
   have hbids_le : (auction inst.cost (inst.eps : ℤ)).bids ≤
       inst.n * (C + inst.eps) / inst.eps + 1 := by
-    have hb_raw := bids_auction_le (c := inst.cost) (Nat.cast_pos.mpr hε) hC
-    simpa only [bidBound, ← Nat.cast_add, Int.toNat_natCast] using hb_raw
-  have hmul_le :
-      (auction inst.cost (inst.eps : ℤ)).bids * (4 * inst.n + 6) ≤
-        (inst.n * (C + inst.eps) / inst.eps + 1) * (4 * inst.n + 6) :=
-    Nat.mul_le_mul_right _ hbids_le
+    simpa only [bidBound, ← Nat.cast_add, Int.toNat_natCast] using
+      bids_auction_le (c := inst.cost) (Nat.cast_pos.mpr hε) hC
   unfold epsMainProg
   dsimp only
   refine ⟨⟨hf1, hf3, hsafe_s⟩, validHistory_bind_step hv_s (validHistory_pure w _ _),
     ?_, ?_, ?_⟩
   · rw [memoryCost_bind', memoryCost_pure, Nat.add_zero]
+    have := Nat.mul_le_mul_right (4 * inst.n + 6) hbids_le
     omega
   · rw [clientState_bind, clientState_pure, clientResult_bind, clientResult_pure]
     exact hout_s
@@ -417,12 +379,11 @@ theorem scaledSolveProg_spec {w C : ℕ} (inst : Instance)
     have hcast : (((inst.n : ℤ) + 1) * (C : ℤ) + 1).toNat = (inst.n + 1) * C + 1 := by
       exact_mod_cast Int.toNat_natCast ((inst.n + 1) * C + 1)
     rwa [hcast] at hb_raw
-  have hmul_le :
-      (scaledAuction inst.cost).bids * (4 * inst.n + 6) ≤
-        (inst.n * ((inst.n + 1) * C + 1) + 1) * (4 * inst.n + 6) :=
-    Nat.mul_le_mul_right _ hbids_le
-  exact ⟨⟨hf1, hfn1, hf2, hsafe_s⟩, hv_s, by unfold scaledSolveProg; omega,
+  refine ⟨⟨hf1, hfn1, hf2, hsafe_s⟩, hv_s, ?_,
     hws_s, hws_n, hws_sc, hM_le, hM_ge, hC_s, hout_s, hfit_ws⟩
+  unfold scaledSolveProg
+  have := Nat.mul_le_mul_right (4 * inst.n + 6) hbids_le
+  omega
 
 end
 

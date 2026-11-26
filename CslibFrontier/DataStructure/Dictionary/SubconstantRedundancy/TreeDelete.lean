@@ -359,6 +359,7 @@ private theorem DeletePrefixPost.replaceAtNode
       hwf.dom_eq (m + 2) (by omega) hℓ u₀, mem_image_filter_of_injOn hinj hz,
       mem_image_filter_of_injOn hinj hy]
     exact ⟨hslz, by omega⟩
+  replace hnew := mt (mem_of_mem_erase (a := st.seeds.idAt (m + 2) (by omega) hℓ z)) hnew
   refine
     { seeds_eq := (st₁.seeds_replaceAtNode scheme h2 hℓ ..).trans hpost.seeds_eq
       sentCount_eq := (st₁.sentCount_replaceAtNode scheme h2 hℓ ..).trans hpost.sentCount_eq
@@ -386,10 +387,9 @@ private theorem DeletePrefixPost.replaceAtNode
   · obtain rfl | hlt := hjℓ.eq_or_lt
     · by_cases hu : u = u₀
       · subst hu
-        rw [nodeDom_replaceAtNode_same scheme _ hj1 h2 hℓ _ _ _ _ _ hold
-            (mt mem_of_mem_erase hnew), hpost.above_dom_eq (m + 2) hj1 hℓ (by omega) u,
-          hwf.dom_eq (m + 2) hj1 hℓ u, image_erase_of_injOn (filter_subset _ _) hinj hz,
-          ← image_insert]
+        rw [nodeDom_replaceAtNode_same scheme _ hj1 h2 hℓ _ _ _ _ _ hold hnew,
+          hpost.above_dom_eq (m + 2) hj1 hℓ (by omega) u, hwf.dom_eq (m + 2) hj1 hℓ u,
+          image_erase_of_injOn (filter_subset _ _) hinj hz, ← image_insert]
         congr 1; grind [SeedAssignment.mem_activeAt_iff]
       · rw [nodeDom_replaceAtNode_other scheme _ h2 hℓ _ _ _ _ _ hj1 hℓ u fun _ => hu,
           hpost.above_dom_eq (m + 2) hj1 hℓ (by omega) u, hwf.dom_eq (m + 2) hj1 hℓ u]
@@ -406,16 +406,16 @@ private theorem DeletePrefixPost.replaceAtNode
       rw [Function.update_self] at hslw
       subst hslw
       obtain rfl : u = u₀ := hnw.symm.trans (SeedAssignment.mem_activeAt_iff.mp hy).2
-      rw [nodeQuery_replaceAtNode_same scheme _ hj1 h2 hℓ _ _ _ _ _ _ hold
-        (mt mem_of_mem_erase hnew), Function.update_self, Option.some.inj (hdy.symm.trans hdw)]
+      rw [nodeQuery_replaceAtNode_same scheme _ hj1 h2 hℓ _ _ _ _ _ _ hold hnew,
+        Function.update_self, Option.some.inj (hdy.symm.trans hdw)]
     · rw [Function.update_of_ne hwy] at hslw
       obtain rfl | hlt := hjℓ.eq_or_lt
       · rw [← hwf.query_eq_of_storeLvl (m + 2) hj1 hℓ u w vw hdw hnw ((hsl w hwy).1.mp hslw),
           ← hpost.above_query_eq (m + 2) hj1 hℓ (by omega) u]
         by_cases hu : u = u₀
         · subst hu
-          rw [nodeQuery_replaceAtNode_same scheme _ hj1 h2 hℓ _ _ _ _ _ _ hold
-            (mt mem_of_mem_erase hnew), Function.update_of_ne (hinj.ne hw_act hy hwy),
+          rw [nodeQuery_replaceAtNode_same scheme _ hj1 h2 hℓ _ _ _ _ _ _ hold hnew,
+            Function.update_of_ne (hinj.ne hw_act hy hwy),
             Function.update_of_ne (hinj.ne hw_act hz hwz)]
         · exact nodeQuery_replaceAtNode_other scheme _ h2 hℓ _ _ _ _ _ hj1 hℓ u _ fun _ => hu
       · rw [nodeQuery_replaceAtNode_other scheme _ h2 hℓ _ _ _ _ _ hj1 _ u _ fun h => by omega]
@@ -425,16 +425,15 @@ private theorem DeletePrefixPost.replaceAtNode
   · rw [← nodeDom_inner _ (by omega) hj2 hjlt hjlt.le, ← hpost.card_nodeDom hwf hj2 hjlt u]
     by_cases hsame : ∃ h : j = m + 2, h ▸ u = u₀
     · obtain ⟨rfl, rfl⟩ := hsame
-      rw [nodeDom_replaceAtNode_same scheme _ _ h2 hℓ _ _ _ _ _ hold (mt mem_of_mem_erase hnew),
-        card_insert_of_notMem (mt mem_of_mem_erase hnew), card_erase_add_one hold]
+      rw [nodeDom_replaceAtNode_same scheme _ _ h2 hℓ _ _ _ _ _ hold hnew,
+        card_insert_of_notMem hnew, card_erase_add_one hold]
     · rw [nodeDom_replaceAtNode_other scheme _ h2 hℓ _ _ _ _ _ _ _ u (not_exists.mp hsame)]
   -- waiting-list domains: only the list at `(m + 2, u₀)` loses `y`
   · obtain rfl | hlt := hjℓ.eq_or_lt
     · by_cases hu : u = u₀
       · subst hu
-        rw [nodeWait_replaceAtNode_same scheme _ (by omega) h2 hℓ _ _ _ _ _ hold
-            (mt mem_of_mem_erase hnew), hwd, hwf.wait_dom_eq (m + 2) h2 hℓ u,
-          image_erase_of_injOn (filter_subset _ _) hinj hy]
+        rw [nodeWait_replaceAtNode_same scheme _ (by omega) h2 hℓ _ _ _ _ _ hold hnew, hwd,
+          hwf.wait_dom_eq (m + 2) h2 hℓ u, image_erase_of_injOn (filter_subset _ _) hinj hy]
         congr 1; grind [SeedAssignment.mem_activeAt_iff]
       · rw [nodeWait_replaceAtNode_other scheme _ h2 hℓ _ _ _ _ _ h2 hℓ u fun _ => hu,
           hpost.above_wait_eq (m + 2) h2 hℓ (by omega) u, hwf.wait_dom_eq (m + 2) h2 hℓ u]
@@ -453,8 +452,8 @@ private theorem DeletePrefixPost.replaceAtNode
     · have hlk := hwf.wait_lookup_eq (m + 2) h2 hℓ u w hw_act ((hsl w hwy).2.mp hslw)
       by_cases hu : u = u₀
       · subst hu
-        rw [nodeWait_replaceAtNode_same scheme _ (by omega) h2 hℓ _ _ _ _ _ hold
-            (mt mem_of_mem_erase hnew), hwl, Function.update_of_ne (hinj.ne hw_act hy hwy), hlk]
+        rw [nodeWait_replaceAtNode_same scheme _ (by omega) h2 hℓ _ _ _ _ _ hold hnew, hwl,
+          Function.update_of_ne (hinj.ne hw_act hy hwy), hlk]
       · rw [nodeWait_replaceAtNode_other scheme _ h2 hℓ _ _ _ _ _ h2 hℓ u fun _ => hu,
           hpost.above_wait_eq (m + 2) h2 hℓ (by omega) u, hlk]
     · rw [nodeWait_replaceAtNode_other scheme _ h2 hℓ _ _ _ _ _ hj2 _ u fun h => by omega]

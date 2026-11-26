@@ -179,27 +179,18 @@ theorem decision_ext {i p : ι} {A : Type} {instF : Fintype A} {instN : Nonempty
     {s₁ s₂ : PureStrategy i (@PerfectInfoTree.decision ι p A instF instN next)}
     (hhead : ∀ h : p = i, s₁.choiceFun h = s₂.choiceFun h)
     (hchild : ∀ a, s₁.childDecision a = s₂.childDecision a) : s₁ = s₂ := by
-  cases s₁ with
-  | decision c₁ sub₁ =>
-    cases s₂ with
-    | decision c₂ sub₂ =>
-      have hc : c₁ = c₂ := funext fun h => hhead h
-      have hsub : sub₁ = sub₂ := funext hchild
-      subst hc hsub
-      rfl
+  rcases s₁ with ⟨c₁, sub₁⟩
+  rcases s₂ with ⟨c₂, sub₂⟩
+  exact congrArg₂ _ (funext hhead) (funext hchild)
 
 /-- Two pure strategies at a chance node coincide iff all child sub-strategies coincide. -/
 theorem chance_ext {i : ι} {C : Type} {instF : Fintype C} {prob : C → ℝ}
     {hprob : IsMixedStrategy prob} {next : C → PerfectInfoTree ι}
     {s₁ s₂ : PureStrategy i (@PerfectInfoTree.chance ι C instF prob hprob next)}
     (hchild : ∀ c, s₁.childChance c = s₂.childChance c) : s₁ = s₂ := by
-  cases s₁ with
-  | chance sub₁ =>
-    cases s₂ with
-    | chance sub₂ =>
-      have hsub : sub₁ = sub₂ := funext hchild
-      subst hsub
-      rfl
+  rcases s₁ with ⟨sub₁⟩
+  rcases s₂ with ⟨sub₂⟩
+  exact congrArg _ (funext hchild)
 
 /-- Every `PureStrategy i T` is nonempty because every decision node has `[Nonempty A]`. -/
 instance instNonempty (i : ι) : (T : PerfectInfoTree ι) → Nonempty (PureStrategy i T)
@@ -284,6 +275,14 @@ theorem expectedPayoff_decision (p : ι) {A : Type} {instF : Fintype A} {instN :
         (fun i => (s i).childDecision (s p).headChoice) := by
   simp [expectedPayoff]
 
+theorem expectedPayoff_decision_of_headChoice_eq {p : ι} {A : Type} {instF : Fintype A}
+    {instN : Nonempty A} {next : A → PerfectInfoTree ι}
+    {s : ∀ i, PureStrategy i (@PerfectInfoTree.decision ι p A instF instN next)} {a : A}
+    (ha : (s p).headChoice = a) :
+    expectedPayoff (@PerfectInfoTree.decision ι p A instF instN next) s =
+      expectedPayoff (next a) (fun i => (s i).childDecision a) := by
+  rw [expectedPayoff_decision, ha]
+
 @[simp]
 theorem expectedPayoff_chance {C : Type} [Fintype C] (prob : C → ℝ)
     (hprob : IsMixedStrategy prob) (next : C → PerfectInfoTree ι)
@@ -345,8 +344,19 @@ theorem backwardInduction_payoff :
     let _ := instF
     ext j
     simp only [backwardInduction, expectedPayoff_chance, PureStrategy.childChance_chance]
-    refine sum_congr rfl fun c _ => ?_
-    rw [backwardInduction_payoff (next c)]
+    exact sum_congr rfl fun c _ => by rw [backwardInduction_payoff (next c)]
+
+@[simp]
+theorem backwardInduction_leaf_payoff (w : ι → ℝ) :
+    (PerfectInfoTree.leaf w).backwardInduction.payoff = w := by
+  simp [backwardInduction]
+
+@[simp]
+theorem backwardInduction_chance_payoff {C : Type} [Fintype C] (prob : C → ℝ)
+    (hprob : IsMixedStrategy prob) (next : C → PerfectInfoTree ι) (j : ι) :
+    (PerfectInfoTree.chance prob hprob next).backwardInduction.payoff j =
+      ∑ c, prob c * (next c).backwardInduction.payoff j := by
+  simp [backwardInduction]
 
 section SubgamePerfect
 
@@ -368,11 +378,8 @@ equilibrium of that subgame. -/
 theorem IsPureSPE.isPureNash {T : PerfectInfoTree ι} {s : ∀ i, PureStrategy i T}
     (hs : T.IsPureSPE s) : T.toCostGame.IsPureNash s := by
   cases T with
-  | leaf w =>
-    intro i σ'
-    exact le_rfl
-  | decision p next => exact hs.1
-  | chance prob hprob next => exact hs.1
+  | leaf _ => exact fun _ _ => le_rfl
+  | decision _ _ | chance _ _ _ => exact hs.1
 
 /-- Local optimality at every decision node (the one-shot deviation condition): at every
 `.decision p next`, player `p`'s chosen action achieves at least the payoff of any alternative
@@ -394,10 +401,9 @@ private theorem childDecision_update_eq {i p : ι} {A : Type} {instF : Fintype A
     (fun j => (Function.update s i σ' j).childDecision a) =
       Function.update (fun j => (s j).childDecision a) i (σ'.childDecision a) := by
   funext j
-  by_cases hj : j = i
-  · subst hj
-    simp only [Function.update_self]
-  · simp only [Function.update_of_ne hj]
+  rcases eq_or_ne j i with rfl | hj
+  · simp
+  · simp [hj]
 
 private theorem childChance_update_eq {i : ι} {C : Type} {instF : Fintype C} {prob : C → ℝ}
     {hprob : IsMixedStrategy prob} {next : C → PerfectInfoTree ι}
@@ -406,10 +412,9 @@ private theorem childChance_update_eq {i : ι} {C : Type} {instF : Fintype C} {p
     (fun j => (Function.update s i σ' j).childChance c) =
       Function.update (fun j => (s j).childChance c) i (σ'.childChance c) := by
   funext j
-  by_cases hj : j = i
-  · subst hj
-    simp only [Function.update_self]
-  · simp only [Function.update_of_ne hj]
+  rcases eq_or_ne j i with rfl | hj
+  · simp
+  · simp [hj]
 
 /-- **One-shot deviation principle** for finite extensive games of perfect information: a pure
 strategy profile is a subgame-perfect equilibrium iff no player can strictly gain by a single
@@ -419,58 +424,34 @@ theorem isPureSPE_iff_oneShot :
       T.IsPureSPE s ↔ T.IsLocallyOptimal s
   | .leaf w, s => by simp [IsPureSPE, IsLocallyOptimal]
   | @PerfectInfoTree.decision _ p A instF instN next, s => by
-    constructor
-    · intro ⟨hnash, hsub⟩
-      refine ⟨fun a => ?_, fun a => (isPureSPE_iff_oneShot).1 (hsub a)⟩
-      let σ' : PureStrategy p (@PerfectInfoTree.decision ι p A instF instN next) :=
+    refine ⟨fun ⟨hnash, hsub⟩ => ⟨fun a => ?_, fun a => isPureSPE_iff_oneShot.1 (hsub a)⟩,
+      fun ⟨hroot, hsub⟩ => ?_⟩
+    · let σ' : PureStrategy p (@PerfectInfoTree.decision ι p A instF instN next) :=
         .decision (fun _ => a) fun a' => (s p).childDecision a'
       have hdev := hnash p σ'
-      simp only [toCostGame, neg_le_neg_iff] at hdev
-      rw [expectedPayoff_decision, expectedPayoff_decision] at hdev
-      have hupd : (Function.update s p σ' p).headChoice = a := by
-        simp [σ']
-      rw [hupd] at hdev
-      have hchild : (fun i => (Function.update s p σ' i).childDecision a) =
-          fun i => (s i).childDecision a := by
-        funext i
-        by_cases hi : i = p
-        · subst hi
-          simp [σ']
-        · simp [Function.update_of_ne hi]
-      rwa [hchild] at hdev
-    · intro ⟨hroot, hsub⟩
-      have hspe : ∀ a, (next a).IsPureSPE fun i => (s i).childDecision a :=
-        fun a => (isPureSPE_iff_oneShot).2 (hsub a)
+      simp only [toCostGame, neg_le_neg_iff, expectedPayoff_decision] at hdev
+      rw [Function.update_self, show σ'.headChoice = a from rfl] at hdev
+      simpa [σ', childDecision_update_eq] using hdev
+    · have hspe := fun a => isPureSPE_iff_oneShot.2 (hsub a)
       refine ⟨fun i σ' => ?_, hspe⟩
-      simp only [toCostGame, neg_le_neg_iff]
+      simp only [toCostGame, neg_le_neg_iff, expectedPayoff_decision, childDecision_update_eq]
       by_cases hi : i = p
       · subst hi
-        let a' := σ'.headChoice
-        have hhead : (Function.update s i σ' i).headChoice = a' := by
-          simp [a']
-        rw [expectedPayoff_decision, hhead, childDecision_update_eq]
-        have hsubnash := (hspe a').isPureNash i (σ'.childDecision a')
-        simp only [toCostGame, neg_le_neg_iff] at hsubnash
-        exact hsubnash.trans (hroot a')
-      · have hhead : (Function.update s i σ' p).headChoice = (s p).headChoice := by
-          rw [Function.update_of_ne (Ne.symm hi)]
-        rw [expectedPayoff_decision, expectedPayoff_decision, hhead, childDecision_update_eq]
-        have hsubnash := (hspe (s p).headChoice).isPureNash i (σ'.childDecision (s p).headChoice)
-        simpa [toCostGame, neg_le_neg_iff] using hsubnash
+        rw [Function.update_self]
+        exact (hroot σ'.headChoice).trans' (by
+          simpa [toCostGame] using
+            (hspe σ'.headChoice).isPureNash i (σ'.childDecision σ'.headChoice))
+      · rw [Function.update_of_ne (Ne.symm hi)]
+        simpa [toCostGame] using
+          (hspe (s p).headChoice).isPureNash i (σ'.childDecision (s p).headChoice)
   | @PerfectInfoTree.chance _ C instF prob hprob next, s => by
     let _ := instF
-    constructor
-    · intro ⟨_, hsub⟩ c
-      exact (isPureSPE_iff_oneShot).1 (hsub c)
-    · intro hsub
-      have hspe : ∀ c, (next c).IsPureSPE fun i => (s i).childChance c :=
-        fun c => (isPureSPE_iff_oneShot).2 (hsub c)
-      refine ⟨fun i σ' => ?_, hspe⟩
-      simp only [toCostGame, expectedPayoff_chance, neg_le_neg_iff]
-      refine sum_le_sum fun c _ => mul_le_mul_of_nonneg_left ?_ (hprob.nonneg c)
-      rw [childChance_update_eq]
-      have hsubnash := (hspe c).isPureNash i (σ'.childChance c)
-      simpa [toCostGame, neg_le_neg_iff] using hsubnash
+    refine ⟨fun ⟨_, hsub⟩ c => isPureSPE_iff_oneShot.1 (hsub c), fun hsub => ?_⟩
+    have hspe := fun c => isPureSPE_iff_oneShot.2 (hsub c)
+    refine ⟨fun i σ' => ?_, hspe⟩
+    simp only [toCostGame, expectedPayoff_chance, neg_le_neg_iff, childChance_update_eq]
+    exact sum_le_sum fun c _ => mul_le_mul_of_nonneg_left
+      (by simpa [toCostGame] using (hspe c).isPureNash i (σ'.childChance c)) (hprob.nonneg c)
 
 /-- Backward induction produces a pure subgame-perfect equilibrium ([vonStengel2007], Section 3.8,
 Algorithm 3.9). -/
@@ -614,37 +595,23 @@ theorem eq_backwardInduction_of_isPureSPE [DecidableEq ι] :
   | @PerfectInfoTree.decision _ p A instF instN next, s, ⟨htie, hsub⟩, hspe => by
     let _ := instF
     let _ := instN
-    have hchild : ∀ a, (fun i => (s i).childDecision a) = (next a).backwardInduction.strategy :=
-      fun a => eq_backwardInduction_of_isPureSPE (hsub a) (hspe.2 a)
-    have hval : ∀ a, expectedPayoff (next a) (fun i => (s i).childDecision a) =
+    have hchild := fun a => eq_backwardInduction_of_isPureSPE (hsub a) (hspe.2 a)
+    have hval (a : A) : expectedPayoff (next a) (fun i => (s i).childDecision a) =
         (next a).backwardInduction.payoff := by
-      intro a
       rw [hchild a, ← backwardInduction_payoff (next a)]
-    have hopt := ((isPureSPE_iff_oneShot).1 hspe).1
-    let aStar := (Finset.univ.exists_max_image
-      (fun a => (next a).backwardInduction.payoff p) Finset.univ_nonempty).choose
-    have hmax := (Finset.univ.exists_max_image
-      (fun a => (next a).backwardInduction.payoff p) Finset.univ_nonempty).choose_spec
-    have ha : (s p).headChoice = aStar := by
+    have hopt := (isPureSPE_iff_oneShot.1 hspe).1
+    have hex := Finset.univ.exists_max_image (fun a => (next a).backwardInduction.payoff p)
+      Finset.univ_nonempty
+    have ha : (s p).headChoice = hex.choose := by
       by_contra hne
-      have h1 : (next (s p).headChoice).backwardInduction.payoff p ≤
-          (next aStar).backwardInduction.payoff p := hmax.2 _ (mem_univ _)
-      have h2 : (next aStar).backwardInduction.payoff p ≤
-          (next (s p).headChoice).backwardInduction.payoff p := by
-        have := hopt aStar
-        rwa [hval aStar, hval (s p).headChoice] at this
-      exact htie _ _ hne (le_antisymm h1 h2)
-    funext i
-    refine PureStrategy.decision_ext (fun hpi => ?_) fun a => ?_
-    · cases hpi
-      change (s p).headChoice = aStar
-      exact ha
-    · exact congrFun (hchild a) i
+      exact htie _ _ hne (le_antisymm (hex.choose_spec.2 _ (mem_univ _))
+        (by simpa [hval] using hopt hex.choose))
+    exact funext fun i => PureStrategy.decision_ext (fun | rfl => ha) fun a =>
+      congrFun (hchild a) i
   | @PerfectInfoTree.chance _ _ instF prob hprob next, s, htie, hspe => by
     let _ := instF
-    funext i
-    refine PureStrategy.chance_ext fun c => ?_
-    exact congrFun (eq_backwardInduction_of_isPureSPE (htie c) (hspe.2 c)) i
+    exact funext fun i => PureStrategy.chance_ext fun c =>
+      congrFun (eq_backwardInduction_of_isPureSPE (htie c) (hspe.2 c)) i
 
 /-- Under `HasNoContinuationTies`, `T` has a unique pure subgame-perfect equilibrium. -/
 theorem existsUnique_isPureSPE_of_hasNoContinuationTies [DecidableEq ι]

@@ -273,9 +273,7 @@ private theorem validHistory_ekFullProg {n B w : ℕ} (N : Network (Fin n))
   have h2 : st.mem 2 = N.s.1 := by simp [st, Memory.State.init, encodeFlowInput]
   have h3 : st.mem 3 = N.t.1 := by simp [st, Memory.State.init, encodeFlowInput]
   unfold ekFullProg
-  refine validHistory_read_bind (by omega) ?_
-  refine validHistory_read_bind (by omega) ?_
-  refine validHistory_read_bind (by omega) ?_
+  iterate 3 refine validHistory_read_bind (by omega) ?_
   rw [h1, h2, h3]
   unfold ekFullMain
   dsimp only

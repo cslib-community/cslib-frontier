@@ -71,20 +71,10 @@ theorem exec_kernel {w L f a0 b0 q0 o0 Q E A B : ℕ}
       unfold kernelBudget evaluationBudget nodeBudget
       nlinarith only [hpow, hLcap]))
   have hregs : KernelRegs L f a0 b0 u := by
-    constructor
-    · regs_frame
-    · regs_frame
-    · regs_frame
-    · regs_frame
-    · exact huf.trans hpFrame
-    · simpa only [hpFrame, hpL] using hul
-    · simpa only [hpFrame, hpL, hspan] using huv
-    · simpa only [hpFrame, hpL, hspan] using hus
-    · regs_frame
-    · regs_frame
-    · regs_frame
-    · regs_frame
-    · regs_frame
+    refine ⟨?_, ?_, ?_, ?_, huf.trans hpFrame,
+      by simpa only [hpFrame, hpL] using hul,
+      by simpa only [hpFrame, hpL, hspan] using huv,
+      by simpa only [hpFrame, hpL, hspan] using hus, ?_, ?_, ?_, ?_, ?_⟩ <;> regs_frame
   have hmem : u.mem = x.mem := humem.trans hpmem
   obtain ⟨y, hy, hvalues, hframe, hout, hel, heu, htable⟩ := exec_evaluate a b qs u hregs
     (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
@@ -92,8 +82,7 @@ theorem exec_kernel {w L f a0 b0 q0 o0 Q E A B : ℕ}
     (by simpa only [hmem] using hright) hbeforeA hbeforeB hqueryOut houtFrame
     (by simpa only [hmem] using hmarks) ha hb hw hmag
     (hfit.of_le (by unfold kernelBudget; omega))
-  refine ⟨y, ?_, hvalues, ?_, hout, hel, heu, htable⟩
-  · exact (hp.seq (hu.seq hy)).mono (by omega)
-  · simpa only [hmem] using hframe
+  exact ⟨y, (hp.seq (hu.seq hy)).mono (by omega), hvalues, by simpa only [hmem] using hframe,
+    hout, hel, heu, htable⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

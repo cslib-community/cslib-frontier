@@ -16,6 +16,7 @@ import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctTailOps
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabMove
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # `WindowCoupled` Simulation for One Slab-Promotion Step (`compPromoteStep_effect`)
@@ -41,8 +42,9 @@ open Cslib.DataStructure.HashFamily.WordRAM
 
 attribute [local simp] Realization.memoryCost_bind'
 attribute [local simp] prog_clientResult_bind prog_runClient_state_bind prog_clientResult_pure
-attribute [local simp] prog_runClient_state_pure prog_clientResult_map prog_runClient_state_map
-attribute [local simp] prog_memoryCost_map prog_clientResult_read prog_runClient_state_read
+attribute [local simp] prog_runClient_state_pure StateTransitionSpec.clientResult_map
+  StateTransitionSpec.fst_snd_runClient_map
+attribute [local simp] Realization.memoryCost_map prog_clientResult_read prog_runClient_state_read
 attribute [local simp] prog_memoryCost_read prog_clientResult_write prog_runClient_state_write
 attribute [local simp] prog_memoryCost_write
 
@@ -233,14 +235,6 @@ private theorem compPromoteStep_effect {metaBase itemBase U V w N m_cap b k : �
     dsimp only [s₁]; rw [clientState_copyCompItemGenProg hp_top.2.1]
     exact (writeCompVal_meta_frame henv.pos_w henv.meta_le_item hp_u.2.1 _).2.2.1.trans
       (writeCompQuot_meta_frame henv.pos_w henv.meta_le_item hp_u.2.1 s.mem).2.2.1
-  have hd_last2_eq : denseOfCirc (maxTailItems N) b_win (compTDAt metaBase U w N s₂.mem n') =
-      d_last := by rw [htd2_eq]
-  have hs6_eq : s₆ = {
-      mem := writeCompVal itemBase U V w N (writeCompQuot itemBase U V w N s₄.mem b_win (qA g_u))
-        b_win (vA g_u),
-      frontier := s₄.frontier } := by
-    dsimp only [s₆, s₅]
-    rw [clientState_writeCompValGenProg, clientState_writeCompQuotGenProg]
   have hcpl6 : WindowCoupled metaBase itemBase U V w N (b_win + 1) n' ((b_win + 1) + n')
       sf₃ s₆ := by
     have h := windowCoupled_shrinkLeft_write henv.pos_w henv.meta_le_item hb_pos
@@ -249,12 +243,9 @@ private theorem compPromoteStep_effect {metaBase itemBase U V w N m_cap b k : �
       (hg_f3b.trans hg_f3a) (hl_f3b.trans hl_f3a) (hq_f3b.trans hq_f3a)
       (hv_f3b.trans (congrArg (fun f => Function.update f _ _) hv_f3a))
     dsimp only at h
-    rw [hd_last2_eq] at h
-    change WindowCoupled metaBase itemBase U V w N (b_win + 1) n' ((b_win + 1) + n') sf₃
-      { mem := writeCompVal itemBase U V w N
-          (writeCompQuot itemBase U V w N s₄.mem b_win (qA g_u)) b_win (vA g_u),
-        frontier := s₄.frontier } at h
-    rw [← hs6_eq] at h
+    rw [htd2_eq] at h
+    dsimp only [s₆, s₅]
+    rw [clientState_writeCompValGenProg, clientState_writeCompQuotGenProg]
     exact h
   have hgm6_eq : compGmAt metaBase U w N s₆.mem = gm :=
     hcpl6.gm_eq.trans ((hg_f3b.trans (hg_f3a.trans (hg_f2b.trans (hg_f2a.trans
@@ -303,18 +294,12 @@ private theorem compPromoteStep_effect {metaBase itemBase U V w N m_cap b k : �
     rw [hgm7_0]; dsimp only [b_win]; omega
   have hq_sf3_eq : quotAt 0 U (ghostW w) N (epochHashSpace U (ghostW w) N) sf₃.mem =
       quotAt 0 U (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix'.mem := by
-    have hq_sf1 : quotAt 0 U (ghostW w) N (epochHashSpace U (ghostW w) N) sf₁.mem =
-        Function.update qA g_u (qA g_top) := by
-      dsimp only [qA₁] at hq_f1b; exact hq_f1b.trans hq_f1a
-    dsimp only [sf₃, sf₂]
-    rw [hq_f3b, hq_f3a, hq_ps, hgm_fix_eq, ← hr_top_eq, hq_f2b, hq_f2a, hq_sf1]
+    dsimp only [sf₃, sf₂, qA₁] at hq_f1b hq_f2a ⊢
+    rw [hq_f3b, hq_f3a, hq_ps, hgm_fix_eq, ← hr_top_eq, hq_f2b, hq_f2a, hq_f1b, hq_f1a]
   have hv_sf3_eq : valAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₃.mem =
       valAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix'.mem := by
-    have hv_sf1 : valAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₁.mem =
-        Function.update vA g_u (vA g_top) := by
-      dsimp only [vA₁] at hv_f1b; rw [hv_f1b, hv_f1a]
-    dsimp only [sf₃, sf₂]
-    rw [hv_f3b, hv_f3a, hv_ps, hgm_fix_eq, ← hr_top_eq, hv_f2b, hv_f2a, hv_sf1]
+    dsimp only [sf₃, sf₂, vA₁] at hv_f1b hv_f2a ⊢
+    rw [hv_f3b, hv_f3a, hv_ps, hgm_fix_eq, ← hr_top_eq, hv_f2b, hv_f2a, hv_f1b, hv_f1a]
   have hl_sf3_eq : lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) sf₃.mem =
       lmAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix'.mem := by
     dsimp only [sf₃, sf₂, sf₁]

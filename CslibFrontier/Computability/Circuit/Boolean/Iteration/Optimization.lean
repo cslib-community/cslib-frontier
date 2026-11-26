@@ -87,10 +87,8 @@ theorem exists_le_add_add_two_mul_sqrt (a b M N : ℕ) (hb : 0 < b) (hba : b ≤
   have hza : (a : ℝ) ≤ z := (pow_le_pow_iff_left₀ ha.le hz0 two_ne_zero).mp
     (by rw [hz2, sq]; exact mul_le_mul_of_nonneg_right hqa ha.le)
   have hzpos : 0 < z := lt_of_lt_of_le ha hza
-  have hM : 0 < M := by
-    by_contra h
-    have : M = 0 := by omega
-    simp only [q, this, Nat.cast_zero, mul_zero] at hqa
+  have hM : 0 < M := Nat.pos_of_ne_zero fun h => by
+    simp only [q, h, Nat.cast_zero, mul_zero] at hqa
     linarith only [ha, hqa]
   have hM1 : (1 : ℝ) ≤ M := by exact_mod_cast hM
   have hzM : z ≤ (a : ℝ) * M := (pow_le_pow_iff_left₀ hz0 (by positivity) two_ne_zero).mp <| by
@@ -139,10 +137,8 @@ theorem fixed_power_optimized {n : ℕ} (c : Circuit signature n n) (T : ℕ) :
       (out.size : ℝ) ≤ 80000 * optimizedBudget n c.size (2 ^ n) := by
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, hout, hs⟩ := fixed_power n c T L hL hLN
-  refine ⟨out, hout, ?_⟩
-  have hs' : (out.size : ℝ) ≤ 40000 * (powerBudget n c.size (2 ^ n) L : ℝ) := by
-    exact_mod_cast hs
-  linarith
+  have hs' : (out.size : ℝ) ≤ 40000 * powerBudget n c.size (2 ^ n) L := mod_cast hs
+  exact ⟨out, hout, by linarith⟩
 
 /-- **Square-root fixed powers on an invariant set.** -/
 theorem fixed_power_on_optimized {n : ℕ} (c : Circuit signature n n) (S : Finset (BitString n))
@@ -150,13 +146,11 @@ theorem fixed_power_on_optimized {n : ℕ} (c : Circuit signature n n) (S : Fins
     ∃ out : Circuit signature n n,
       out.ComputesOn interpretation ↑S (c.eval interpretation)^[T] ∧
       (out.size : ℝ) ≤ 80000 * optimizedBudget n c.size S.card := by
-  have hcard : S.card ≤ 2 ^ n := by simpa using Finset.card_le_univ S
-  obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size S.card hcard
+  obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size S.card
+    (by simpa using Finset.card_le_univ S)
   obtain ⟨out, hout, hs⟩ := fixed_power_on n c S T L hS hL hLN
-  refine ⟨out, hout, ?_⟩
-  have hs' : (out.size : ℝ) ≤ 40000 * (powerBudget n c.size S.card L : ℝ) := by
-    exact_mod_cast hs
-  linarith
+  have hs' : (out.size : ℝ) ≤ 40000 * powerBudget n c.size S.card L := mod_cast hs
+  exact ⟨out, hout, by linarith⟩
 
 /-- A closed-form half-exponential bound. -/
 theorem fixed_power_half_exponent {n : ℕ} (c : Circuit signature n n) (T : ℕ) :

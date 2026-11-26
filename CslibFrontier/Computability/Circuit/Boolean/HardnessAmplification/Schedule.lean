@@ -290,15 +290,10 @@ private theorem errors_le {M b σ : ℕ} (hM : 1 ≤ M) (hb : 1 ≤ b)
         _ = q := by rw [hq, ← pow_add]; congr 1; omega
     have h3 : 1 ≤ 18 * M * 2 ^ (4 * b - b / 4) := Nat.one_le_iff_ne_zero.2 (by positivity)
     linarith
-  have hq1 : (1 : ℝ) < q := by
-    have : 2 ≤ q :=
-      calc 2 = 2 ^ 1 := by norm_num
-        _ ≤ 2 ^ (4 * b) := Nat.pow_le_pow_right (by norm_num) (by omega)
-    exact_mod_cast this
+  have hq1 : (1 : ℝ) < q := by exact_mod_cast Nat.one_lt_two_pow (by omega : 4 * b ≠ 0)
   have hdpos : (0 : ℝ) < 18 * ((d : ℝ) + 1) := by positivity
-  have e1 : 1 / (q : ℝ) ^ M ≤ 1 / (18 * ((d : ℝ) + 1)) := by
-    apply one_div_le_one_div_of_le hdpos
-    exact_mod_cast hT1
+  have e1 : 1 / (q : ℝ) ^ M ≤ 1 / (18 * ((d : ℝ) + 1)) :=
+    one_div_le_one_div_of_le hdpos (by exact_mod_cast hT1)
   have e2 : (2 : ℝ) ^ (K + 4) / ((q : ℝ) * (1 / ((2 ^ σ : ℕ) : ℝ))) ≤
       1 / (18 * ((d : ℝ) + 1)) := by
     rw [mul_one_div, div_div_eq_mul_div, div_le_div_iff₀ (by linarith) hdpos, one_mul]
@@ -310,11 +305,8 @@ private theorem errors_le {M b σ : ℕ} (hM : 1 ≤ M) (hb : 1 ≤ b)
     have : ((18 * (d + 1) * D + 1 : ℕ) : ℝ) ≤ q := by exact_mod_cast hT3
     push_cast at this
     linarith
-  have hsum : 1 / (q : ℝ) ^ M + 2 ^ (K + 4) / ((q : ℝ) * (1 / ((2 ^ σ : ℕ) : ℝ))) +
-      (D : ℝ) / ((q : ℝ) - 1) ≤ 3 * (1 / (18 * ((d : ℝ) + 1))) := by
-    linarith
   have hne : (d : ℝ) + 1 ≠ 0 := by positivity
-  calc _ ≤ 6 * ((d : ℝ) + 1) * (3 * (1 / (18 * ((d : ℝ) + 1)))) := by gcongr
+  calc _ ≤ 6 * ((d : ℝ) + 1) * (3 * (1 / (18 * ((d : ℝ) + 1)))) := by gcongr; linarith
     _ = 1 := by field_simp; ring
 
 /-- The final size bound: for the circuit size `s = 2 ^ σ + 2` after fixing the ignored bits,

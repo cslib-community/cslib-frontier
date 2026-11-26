@@ -185,17 +185,14 @@ private theorem reaches_formulaCodeWith_equal (hC : C.Correct w fv base val) {k 
   have e₁ := hC.term regs xs h0 hv hxs t₁
   have e₂ := hC.term regs xs h0 hv hxs t₂
   refine ⟨decide (t₁.realize (Sum.elim val xs) = t₂.realize (Sum.elim val xs)), regs,
-    by simp only [decide_eq_true_eq]; rfl, ?_, rfl, fun _ _ => rfl, hB⟩
-  refine Reaches.lt h₀ hB ?_
+    by simp only [decide_eq_true_eq]; rfl, Reaches.lt h₀ hB ?_, rfl, fun _ _ => rfl, hB⟩
   simp only [e₁, e₂]
   rcases lt_trichotomy (t₁.realize (Sum.elim val xs)) (t₂.realize (Sum.elim val xs)) with
     hlt | heq | hgt
   · simpa [hlt, hlt.ne] using Reaches.refl _
   · simp only [heq, lt_irrefl, ↓reduceIte, decide_true]
     exact Reaches.lt h₁ hB (by simp only [e₁, e₂, heq, lt_irrefl, ↓reduceIte]; exact Reaches.refl _)
-  · simp only [show ¬ (((t₁.realize (Sum.elim val xs) : Fin n) : ℕ) <
-        (t₂.realize (Sum.elim val xs) : Fin n)) from
-      not_lt.mpr (Fin.le_iff_val_le_val.mp hgt.le), ↓reduceIte, hgt.ne', decide_false]
+  · simp only [not_lt.mpr (Fin.le_iff_val_le_val.mp hgt.le), ↓reduceIte, hgt.ne', decide_false]
     exact Reaches.lt h₁ hB (by
       simp only [e₁, e₂, Fin.lt_def.mp hgt, ↓reduceIte, Bool.false_eq_true]; exact Reaches.refl _)
 
@@ -224,28 +221,22 @@ private theorem reaches_formulaCodeWith_imp (hbase : 0 < base) (hfv : ∀ x, fv 
       P.Reaches w (P.Running B) (b, regs) (if res then T else F, regs') ∧
       Kept B (base + k) regs regs' := by
   simp only [formulaCodeWith, codeAt_append, length_formulaCodeWith] at hP
-  have hd₁ : base + boundDepth φ ≤ regs.length :=
-    (Nat.add_le_add_left (le_max_left _ _) base).trans hd
-  have hd₂ : base + boundDepth ψ ≤ regs.length :=
-    (Nat.add_le_add_left (le_max_right _ _) base).trans hd
-  obtain ⟨r₁, regs₁, hr₁, hreach₁, hlen₁, hkeep₁, hB₁⟩ :=
-    ihφ b (b + codeLength φ) T regs xs hP.1 hd₁ h0 hB hv hxs
+  obtain ⟨r₁, regs₁, hr₁, hreach₁, hlen₁, hkeep₁, hB₁⟩ := ihφ b (b + codeLength φ) T regs xs hP.1
+    ((Nat.add_le_add_left (le_max_left _ _) base).trans hd) h0 hB hv hxs
   cases r₁ with
   | false =>
-    refine ⟨true, regs₁, ?_, by simpa using hreach₁, hlen₁, hkeep₁, hB₁⟩
-    simp only [BoundedFormula.realize_imp, true_iff]
-    exact fun h => absurd (hr₁.mpr h) (by simp)
+    exact ⟨true, regs₁,
+      by simp only [BoundedFormula.realize_imp, ← hr₁, Bool.false_eq_true, false_implies],
+      by simpa only [Bool.false_eq_true, ↓reduceIte] using hreach₁, hlen₁, hkeep₁, hB₁⟩
   | true =>
-    obtain ⟨r₂, regs₂, hr₂, hreach₂, hlen₂, hkeep₂, hB₂⟩ :=
-      ihψ (b + codeLength φ) T F regs₁ xs hP.2 (hlen₁ ▸ hd₂)
-        (by rw [hkeep₁ 0 (by omega), h0]) hB₁
-        (fun x => by rw [hkeep₁ _ (by have := hfv x; omega), hv])
-        (fun i => by rw [hkeep₁ _ (by omega), hxs])
-    refine ⟨r₂, regs₂, ?_,
-      (show P.Reaches _ _ _ (b + codeLength φ, regs₁) by simpa using hreach₁).trans hreach₂,
+    obtain ⟨r₂, regs₂, hr₂, hreach₂, hlen₂, hkeep₂, hB₂⟩ := ihψ (b + codeLength φ) T F regs₁ xs
+      hP.2 (hlen₁ ▸ (Nat.add_le_add_left (le_max_right _ _) base).trans hd)
+      (by rw [hkeep₁ 0 (by omega), h0]) hB₁
+      (fun x => by rw [hkeep₁ _ (by have := hfv x; omega), hv])
+      (fun i => by rw [hkeep₁ _ (by omega), hxs])
+    exact ⟨r₂, regs₂, by simp only [BoundedFormula.realize_imp, hr₁.mp rfl, true_implies, hr₂],
+      (show P.Reaches _ _ _ _ by simpa only [↓reduceIte] using hreach₁).trans hreach₂,
       hlen₂.trans hlen₁, fun i hi => (hkeep₂ i hi).trans (hkeep₁ i hi), hB₂⟩
-    rw [BoundedFormula.realize_imp, hr₂]
-    exact ⟨fun h _ => h, fun h => h (hr₁.mp rfl)⟩
 
 private theorem reaches_formulaCodeWith_all_loop (hnB : n ≤ B) (hbase : 0 < base)
     (hfv : ∀ x, fv x < base) {k : ℕ} (φ : L.BoundedFormula α (k + 1)) (b T F : ℕ)
@@ -285,16 +276,17 @@ private theorem reaches_formulaCodeWith_all_loop (hnB : n ≤ B) (hbase : 0 < ba
         (fun x => by rw [hkeepm _ (by have := hfv x; omega), hv]) hxs'
     cases r₁ with
     | false =>
-      refine ⟨false, regs₁, ?_, by simpa using hreach₁, hlen₁.trans hlenm,
-        fun i hi => (hkeep₁ i (by omega)).trans (hkeepm i hi), hB₁⟩
+      refine ⟨false, regs₁, ?_, by simpa only [Bool.false_eq_true, ↓reduceIte] using hreach₁,
+        hlen₁.trans hlenm, fun i hi => (hkeep₁ i (by omega)).trans (hkeepm i hi), hB₁⟩
       simp only [Bool.false_eq_true, false_iff, not_forall]
-      exact ⟨⟨m, hm⟩, fun h => absurd (hr₁.mpr h) (by simp)⟩
+      exact ⟨⟨m, hm⟩, fun h => absurd (hr₁.mpr h) Bool.false_ne_true⟩
     | true =>
       have hv₁ : regs₁.getD (base + k) 0 = m := by rw [hkeep₁ _ (by omega), hvm]
       have h0₁ : regs₁.getD 0 0 = n := by rw [hkeep₁ 0 (by omega), hkeepm 0 (by omega), h0]
       have hprev' (m' : ℕ) (hm' : m' < m + 1) : φ.Realize val (Fin.snoc xs ⟨m', by omega⟩) :=
         (lt_or_eq_of_le (Nat.lt_succ_iff.mp hm')).elim (hprev m') (fun h => h ▸ hr₁.mp rfl)
-      have hr₁' : P.Reaches w (P.Running B) (b + 3, regsm) (b + 2, regs₁) := by simpa using hreach₁
+      have hr₁' : P.Reaches w (P.Running B) (b + 3, regsm) (b + 2, regs₁) := by
+        simpa only [↓reduceIte] using hreach₁
       by_cases hnext : m + 1 < n
       · obtain ⟨r, regs', hr, hreach, hlen, hkeep, hB'⟩ :=
           reaches_formulaCodeWith_all_loop hnB hbase hfv φ b T F regs xs hc₂ hc₃ hcφ hd hk h0 hv
@@ -329,15 +321,15 @@ private theorem reaches_formulaCodeWith_all (hnB : n ≤ B) (hbase : 0 < base)
       (res = true ↔ φ.all.Realize val xs) ∧
       P.Reaches w (P.Running B) (b, regs) (if res then T else F, regs') ∧
       Kept B (base + k) regs regs' := by
-  simp only [formulaCodeWith, codeAt_append, codeAt_cons, List.length_cons, List.length_nil] at hP
+  simp only [formulaCodeWith, codeAt_append, codeAt_cons, List.length_append,
+    length_formulaCodeWith, List.length_cons, List.length_nil] at hP
   obtain ⟨⟨⟨hc₀, hc₁, hc₂, -⟩, hcφ⟩, hc₃, -⟩ := hP
   rw [show b + 1 + 1 = b + 2 by omega] at hc₂
   rw [show b + (0 + 1 + 1 + 1) = b + 3 by omega] at hcφ
-  rw [List.length_append, length_formulaCodeWith] at hc₃
-  simp only [List.length_cons, List.length_nil] at hc₃
   rw [show b + (0 + 1 + 1 + 1 + codeLength φ) = b + 3 + codeLength φ by omega] at hc₃
   have hk : base + k < regs.length := by
-    have := le_boundDepth φ; simp only [boundDepth] at hd; omega
+    have := le_boundDepth φ
+    simp only [boundDepth] at hd; omega
   by_cases hn : 0 < n
   · obtain ⟨res, regs', hres, hreach, hlen, hkeep, hB'⟩ :=
       reaches_formulaCodeWith_all_loop hnB hbase hfv φ b T F regs xs hc₂ hc₃ hcφ hd hk h0 hv hxs
@@ -348,9 +340,9 @@ private theorem reaches_formulaCodeWith_all (hnB : n ≤ B) (hbase : 0 < base)
     refine ⟨res, regs', by rw [hres, BoundedFormula.realize_all], ?_, hlen, hkeep, hB'⟩
     cp_step [h0, hn]
     cp_step
-  · refine ⟨true, regs, ?_, ?_, rfl, fun _ _ => rfl, hB⟩
-    · simp only [true_iff, BoundedFormula.realize_all]; exact fun y => absurd y.2 (by omega)
-    · cp_step [h0, hn]
+  · refine ⟨true, regs, ?_, by cp_step [h0, hn], rfl, fun _ _ => rfl, hB⟩
+    simp only [true_iff, BoundedFormula.realize_all]
+    exact fun y => absurd y.2 (by omega)
 
 end Reaches
 

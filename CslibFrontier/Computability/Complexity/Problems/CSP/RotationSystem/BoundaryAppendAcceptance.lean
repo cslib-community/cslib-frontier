@@ -115,13 +115,11 @@ theorem ofRotation_appendRotation (F H : CSP Rel V) (hd : List.Disjoint F.vars H
       have hl : (RotationCertificate.ofRotation r).successor.length =
           2 * F.occurrences.length := by
         simp only [RotationCertificate.length_ofRotation, incidenceGraph_edges, List.length_map]
-      rw [List.getD_append_right _ _ _ _ (by rw [hl]; omega), hl, Nat.add_sub_cancel_left]
-      have hi : d.index < (RotationCertificate.ofRotation s).successor.length := by
-        rw [RotationCertificate.length_ofRotation]
-        exact (Dart.indexEquiv _ d).isLt
-      rw [List.getD_eq_getElem _ _ (by simpa only [List.length_map] using hi),
-        List.getElem_map, ← List.getD_eq_getElem _ _ hi,
-        RotationCertificate.getD_ofRotation]
+      have hi : d.index < (RotationCertificate.ofRotation s).successor.length :=
+        (RotationCertificate.length_ofRotation s) ▸ (Dart.indexEquiv _ d).isLt
+      rw [List.getD_append_right _ _ _ _ (by rw [hl]; omega), hl, Nat.add_sub_cancel_left,
+        List.getD_eq_getElem _ _ (by simpa only [List.length_map] using hi),
+        List.getElem_map, ← List.getD_eq_getElem _ _ hi, RotationCertificate.getD_ofRotation]
 
 /-- Concatenating the two actual supplied tables with the actual right offset preserves
 the full numerical-genus and directed-order checker on disjoint variable supports.
@@ -209,21 +207,16 @@ private theorem scopeJoin_dart_index (F H : CSP Rel V) (r : Rel) {m n : ℕ}
   simp only [scopeJoinOccurrenceEquiv, Equiv.trans_apply, Equiv.symm_apply_apply,
     Dart.index, incidenceDart, scopeJoin_source_index, scopeJoin_target_index]
   have hside := Bool.toNat_le side
-  rcases a with (o | i) | (o | i)
+  simp only [Nat.blockMove]
+  rcases a with (o | i) | (o | i) <;> dsimp only
   · have ho : incidenceEdgeIndex o < F.occurrences.length := by
       simpa only [incidenceGraph_edges, List.length_map] using incidenceEdgeIndex_lt o
-    simp only [Nat.blockMove]
     split_ifs <;> omega
-  · have hi := i.isLt
-    simp only [Nat.blockMove]
-    split_ifs <;> omega
+  · have hi := i.isLt; split_ifs <;> omega
   · have ho : incidenceEdgeIndex o < H.occurrences.length := by
       simpa only [incidenceGraph_edges, List.length_map] using incidenceEdgeIndex_lt o
-    simp only [Nat.blockMove]
     split_ifs <;> omega
-  · have hi := i.isLt
-    simp only [Nat.blockMove]
-    split_ifs <;> omega
+  · have hi := i.isLt; split_ifs <;> omega
 
 private theorem reindex_constraintJoin {Other W : Type} [DecidableEq W]
     {F : CSP Rel V} {T : CSP Other W} (e : F.Occurrence ≃ T.Occurrence)
@@ -253,6 +246,14 @@ private theorem reindex_constraintJoin {Other W : Type} [DecidableEq W]
 
 namespace OrderedBoundary
 
+private theorem scopeJoin_target_edges (F H : CSP Rel V) (r : Rel) {m n : ℕ}
+    (x : Fin m → V) (y : Fin n → V) :
+    2 * (F.occurrences.length + m + H.occurrences.length + n) =
+      2 * (incidenceGraph ((F ++ H) ++
+        [Constraint.mk r (List.ofFn (Fin.addCases y x))])).edges.length := by
+  rw [incidenceGraph_edges, List.length_map, appended_scope_length, occurrences_length_append]
+  omega
+
 /-- For two nonempty scopes the entire executed word is the table of the existing actual
 scope-join rotation. The selected entries are the two last outgoing probe darts, and the
 forward/back maps are the concrete opposite block moves, with no reflected port order. -/
@@ -276,15 +277,9 @@ theorem appendRawCertificate_eq_scopeJoin (F H : CSP Rel V) (r : Rel) {m n : ℕ
           2 * (H.occurrences.length + (n + 1)) - 1 := by
     simp only [Dart.index, incidenceDart, scopeJoin_source_index, Bool.toNat_true, Fin.val_last]
     omega
-  have hcount : 2 * (F.occurrences.length + (m + 1) + H.occurrences.length + (n + 1)) =
-      2 * (incidenceGraph ((F ++ H) ++
-        [Constraint.mk r (List.ofFn (Fin.addCases y x))])).edges.length := by
-    rw [incidenceGraph_edges, List.length_map, appended_scope_length,
-      occurrences_length_append]
-    omega
   simp only [appendRawCertificate, Nat.add_eq_zero_iff, Nat.one_ne_zero, and_false,
     false_or, ite_false]
-  rw [hcount, ← hleft, ← hright]
+  rw [scopeJoin_target_edges F H r x y, ← hleft, ← hright]
   unfold scopeJoinRotation
   apply reindex_constraintJoin
   · simpa only [appended_scope_length] using ofRotation_appendRotation _ _ hd rho tau
@@ -335,17 +330,14 @@ private theorem verify_appendRawCertificate_nil_left (F H : CSP Rel V) (r : Rel)
       (appendRawCertificate F.occurrences.length 0 H.occurrences.length ys.length c d) = true := by
   have hb : verifyRotationCertificate F c = true := by
     rwa [verifyRotationCertificate_append_nullary] at hc
-  have hR : (H ++ [Constraint.mk r ys]).occurrences.length =
-      H.occurrences.length + ys.length := by
-    simp only [occurrences_append_scope, List.length_append, List.length_map,
-      List.length_zipIdx]
   obtain ⟨hc', -, -⟩ := (verifyRotationCertificate_eq_true_iff _ _).mp hb
   obtain ⟨hq', -, -⟩ := (verifyRotationCertificate_eq_true_iff _ _).mp hq
   have hl : c.successor.length = 2 * F.occurrences.length := by
     simpa only [incidenceGraph_edges, List.length_map] using
       RotationCertificate.length_of_verifyRotation hc'
   have hr : d.successor.length = 2 * (H.occurrences.length + ys.length) := by
-    simpa only [incidenceGraph_edges, List.length_map, hR] using
+    simpa only [incidenceGraph_edges, List.length_map, occurrences_append_scope,
+      List.length_append, List.length_zipIdx] using
       RotationCertificate.length_of_verifyRotation hq'
   rw [appendRawCertificate_zero_left _ _ _ _ _ hl hr]
   simpa only [List.append_assoc] using
@@ -359,16 +351,11 @@ private theorem scopeJoin_no_right_probe (F H : CSP Rel V) (r : Rel) {m : ℕ}
     o.1.val ≠ F.length + 1 + H.length := by
   obtain ⟨a, rfl⟩ := (scopeJoinSourceEquiv F H r x y).surjective o
   have hc := congrArg Prod.fst (record_scopeJoinSourceEquiv F H r x y a)
+  dsimp only [Occurrence.record] at hc
   rcases a with (o | i) | (o | i)
-  · change (scopeJoinSourceEquiv F H r x y (Sum.inl (Sum.inl o))).1.val = o.1.val at hc
-    have ho := o.1.isLt
-    omega
-  · change (scopeJoinSourceEquiv F H r x y (Sum.inl (Sum.inr i))).1.val = F.length at hc
-    omega
-  · change (scopeJoinSourceEquiv F H r x y (Sum.inr (Sum.inl o))).1.val =
-        F.length + 1 + o.1.val at hc
-    have ho := o.1.isLt
-    omega
+  · have := o.1.isLt; dsimp only at hc; omega
+  · dsimp only at hc; omega
+  · have := o.1.isLt; dsimp only at hc; omega
   · exact i.elim0
 
 omit [DecidableEq V] in
@@ -400,9 +387,8 @@ private theorem scopeJoin_target_successor_nil_right (F H : CSP Rel V) (r : Rel)
         appendOfFnOccurrenceEquiv _ r (Fin.addCases y x)
           (Sum.inr (Fin.natAdd 0 (finRotate m i)))
     rw [argumentSuccessor_appendOfFnOccurrenceEquiv_inr]
-    apply congrArg (fun j => appendOfFnOccurrenceEquiv _ r (Fin.addCases y x) (Sum.inr j))
-    apply Fin.ext
-    simp only [val_finRotate, Fin.val_natAdd, Nat.zero_add]
+    exact congrArg (fun j => appendOfFnOccurrenceEquiv _ r (Fin.addCases y x) (Sum.inr j))
+      (Fin.ext (by simp only [val_finRotate, Fin.val_natAdd, Nat.zero_add]))
   · change argumentSuccessor (appendOfFnOccurrenceEquiv _ r (Fin.addCases y x)
       (Sum.inl (appendOccurrenceEquiv F H (Sum.inr o)))) = _
     rw [argumentSuccessor_appendOfFnOccurrenceEquiv_inl, argumentSuccessor_appendOccurrenceEquiv]
@@ -444,31 +430,21 @@ private theorem verify_appendRawCertificate_nil_right_ofFn (F H : CSP Rel V) (r 
     rw [ofRotation_appendRotation]
     simp only [rho, tau, RotationCertificate.ofRotation_decode,
       appended_scope_length]
-  have hcount : 2 * (F.occurrences.length + m + H.occurrences.length + 0) =
-      2 * (incidenceGraph ((F ++ H) ++
-        [Constraint.mk r (List.ofFn (Fin.addCases y x))])).edges.length := by
-    rw [incidenceGraph_edges, List.length_map, appended_scope_length,
-      occurrences_length_append]
-    omega
+  have hidx (a) : (occurrenceDartEquiv e a).index =
+      Nat.blockMove (2 * F.occurrences.length) (2 * m) (2 * H.occurrences.length) a.index := by
+    simpa only [Nat.add_zero] using scopeJoin_dart_index F H r x y a
   have heq : appendRawCertificate F.occurrences.length m H.occurrences.length 0 c d =
       RotationCertificate.ofRotation target := by
     simp only [appendRawCertificate, or_true, ite_true, Nat.add_zero]
     rw [show 2 * (F.occurrences.length + m + H.occurrences.length) =
       2 * (incidenceGraph ((F ++ H) ++
-        [Constraint.mk r (List.ofFn (Fin.addCases y x))])).edges.length by simpa using hcount]
+        [Constraint.mk r (List.ofFn (Fin.addCases y x))])).edges.length by
+          simpa only [Nat.add_zero] using scopeJoin_target_edges F H r x y]
     unfold target occurrenceTransport
     apply RotationCertificate.reindex_eq_ofRotation_transport
-    · intro a
-      rw [← ht]
-      exact RotationCertificate.getD_ofRotation source a
-    · intro a
-      simpa only [Nat.add_zero] using scopeJoin_dart_index F H r x y a
-    · intro a
-      rw [show (occurrenceDartEquiv e a).index =
-        Nat.blockMove (2 * F.occurrences.length) (2 * m)
-          (2 * H.occurrences.length) a.index by
-            simpa only [Nat.add_zero] using scopeJoin_dart_index F H r x y a]
-      exact Nat.blockMove_inverse _ _ _ _
+    · intro a; rw [← ht]; exact RotationCertificate.getD_ofRotation source a
+    · exact hidx
+    · intro a; rw [hidx]; exact Nat.blockMove_inverse _ _ _ _
   rw [heq]
   apply verifyRotationCertificate_ofRotation
   · exact numericalGenusZero_occurrenceTransport source e hv hfib
@@ -497,14 +473,13 @@ theorem verify_appendRawCertificate_scopes (F H : CSP Rel V) (r : Rel) (xs ys : 
   | cons x xs =>
     let p : Fin (xs.length + 1) → V := Fin.cons x xs.get
     have hp : List.ofFn p = x :: xs := by rw [List.ofFn_cons, List.ofFn_get]
+    have hscope {k} (q : Fin k → V) : List.ofFn (Fin.addCases q p) = List.ofFn q ++ List.ofFn p :=
+      List.ofFn_fin_append q p
     cases ys with
     | nil =>
-      let q : Fin 0 → V := Fin.elim0
-      have h := verify_appendRawCertificate_nil_right_ofFn F H r p q
+      have h := verify_appendRawCertificate_nil_right_ofFn F H r p Fin.elim0
         (by simpa only [hp, List.ofFn_zero] using hd) c d
         (by simpa only [hp] using hc) (by simpa only [List.ofFn_zero] using hq)
-      have hscope : List.ofFn (Fin.addCases q p) = List.ofFn q ++ List.ofFn p :=
-        List.ofFn_fin_append q p
       rw [hscope, List.ofFn_zero, List.nil_append, hp] at h
       simpa only [List.length_cons, List.length_nil, List.nil_append] using h
     | cons y ys =>
@@ -513,8 +488,6 @@ theorem verify_appendRawCertificate_scopes (F H : CSP Rel V) (r : Rel) (xs ys : 
       have h := verify_appendRawCertificate_ofFn F H r p q
         (by simpa only [hp, hq'] using hd) c d
         (by simpa only [hp] using hc) (by simpa only [hq'] using hq)
-      have hscope : List.ofFn (Fin.addCases q p) = List.ofFn q ++ List.ofFn p :=
-        List.ofFn_fin_append q p
       rw [hscope, hq', hp] at h
       simpa only [List.length_cons] using h
 

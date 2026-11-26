@@ -315,8 +315,8 @@ theorem seedSchedulerStep_inSpace :
     let E := encPair encSeedSchedulerFrame
       (encOption _root_.Turing.DoubleCounting.SourceRoundLoop.encVerdict)
     ComputableInSpace (fun p => seedSchedulerStep p.1 p.2)
-      E encSeedSchedulerStepResult (fun p => (E p).length) := by
-  exact (_root_.Turing.DoubleCounting.SourceRoundLoop.verdictElimSnd_inSpace
+      E encSeedSchedulerStepResult (fun p => (E p).length) :=
+  (_root_.Turing.DoubleCounting.SourceRoundLoop.verdictElimSnd_inSpace
     seedSchedulerStep_noReply_inSpace seedSchedulerStep_bad_inSpace
     seedSchedulerStep_decided_inSpace).of_enc_eq fun
     | (_, none) | (_, some (.bad _)) | (_, some (.decided _)) => rfl
@@ -408,34 +408,26 @@ theorem seedSchedulerStep_progress {f g : SeedSchedulerFrame} {reply : Option Co
     exact ⟨hv, hs, hi, hj ▸ Nat.lt_succ_self _⟩
   cases ha : f.answer with
   | none =>
-    cases reply with
-    | none => simp [seedSchedulerStep, ha] at h
-    | some verdict =>
-      cases verdict with
-      | bad radius =>
-        obtain ⟨hv, hs, hi⟩ := nextSeed (by simpa [seedSchedulerStep, ha] using h)
-        exact ⟨hv, hs, .inl hi⟩
-      | decided answer =>
-        obtain ⟨hv, hs, hi, hr, _⟩ :=
-          seedSchedulerRoot_progress hf (by simpa [seedSchedulerStep, ha] using h)
-        exact ⟨hv, hs, .inr ⟨hi, .inl ⟨rfl, by rw [hr]; rfl⟩⟩⟩
+    rcases reply with _ | (_ | answer)
+    · simp [seedSchedulerStep, ha] at h
+    · obtain ⟨hv, hs, hi⟩ := nextSeed (by simpa [seedSchedulerStep, ha] using h)
+      exact ⟨hv, hs, .inl hi⟩
+    · obtain ⟨hv, hs, hi, hr, _⟩ :=
+        seedSchedulerRoot_progress hf (by simpa [seedSchedulerStep, ha] using h)
+      exact ⟨hv, hs, .inr ⟨hi, .inl ⟨rfl, by simp [hr]⟩⟩⟩
   | some answer =>
     by_cases heq : f.request.sourceID = f.request.setup.sourceID
     · obtain ⟨hv, hs, hi, hj⟩ := nextRoot
         (by simpa [seedSchedulerStep, SeedSchedulerFrame.needsScan, ha, heq] using h)
       exact ⟨hv, hs, .inr ⟨hi, .inr hj⟩⟩
-    · cases reply with
-      | none => simp [seedSchedulerStep, SeedSchedulerFrame.needsScan, ha, heq] at h
-      | some verdict =>
-        cases verdict with
-        | bad radius =>
-          obtain ⟨hv, hs, hi⟩ := nextSeed
-            (by simpa [seedSchedulerStep, SeedSchedulerFrame.needsScan, ha, heq] using h)
-          exact ⟨hv, hs, .inl hi⟩
-        | decided bit =>
-          obtain ⟨hv, hs, hi, hj⟩ := nextRoot
-            (by simpa [seedSchedulerStep, SeedSchedulerFrame.needsScan, ha, heq] using h)
-          exact ⟨hv, hs, .inr ⟨hi, .inr hj⟩⟩
+    · rcases reply with _ | (_ | _)
+      · simp [seedSchedulerStep, SeedSchedulerFrame.needsScan, ha, heq] at h
+      · obtain ⟨hv, hs, hi⟩ := nextSeed
+          (by simpa [seedSchedulerStep, SeedSchedulerFrame.needsScan, ha, heq] using h)
+        exact ⟨hv, hs, .inl hi⟩
+      · obtain ⟨hv, hs, hi, hj⟩ := nextRoot
+          (by simpa [seedSchedulerStep, SeedSchedulerFrame.needsScan, ha, heq] using h)
+        exact ⟨hv, hs, .inr ⟨hi, .inr hj⟩⟩
 
 /-- A frame that requests a scan rejects a missing verdict. -/
 theorem seedSchedulerStep_noReply_of_needsScan (f : SeedSchedulerFrame)
@@ -587,55 +579,53 @@ theorem runSeedSchedulerForFrom_step {m : Type → Type} [AlternativeMonad m] [L
     exact hscan value hvalue hneeds
   cases hanswer : f.answer with
   | none =>
-    have hu : f.request.sourceID = s.sourceID := by
-      have hf' : f.cursor = 0 ∧ f.request.sourceID = s.sourceID := by
-        simpa only [SeedSchedulerFrame.Valid, hanswer, hsetup] using hf.2
-      exact hf'.2
+    obtain ⟨_, hu⟩ : f.cursor = 0 ∧ f.request.sourceID = s.sourceID := by
+      simpa only [SeedSchedulerFrame.Valid, hanswer, hsetup] using hf.2
     have hneeds : f.needsScan = true := by simp [SeedSchedulerFrame.needsScan, hanswer]
     cases reply with
     | none => simp [seedSchedulerStep, hanswer] at hstep
     | some value =>
-      have hagree := runSeedSchedulerFrom_designated call rootAt source hseed value
-        (scanAt hu rfl hneeds)
+      have hrf : runFrame f =
+          runSeedSchedulerFrom call rootAt source f.request.seed none := by
+        simp [runFrame, runSeedSchedulerForFrom, hanswer, call, rootAt, source]
+      have hagree := hrf.trans
+        (runSeedSchedulerFrom_designated call rootAt source hseed value (scanAt hu rfl hneeds))
       cases value with
       | bad _ =>
-        refine Eq.trans ?_ (seedOutcome (by simpa [seedSchedulerStep, hanswer] using hstep))
-        simpa only [runFrame, runSeedSchedulerForFrom, hanswer, Option.map_none] using hagree
+        exact hagree.trans (seedOutcome (by simpa [seedSchedulerStep, hanswer] using hstep))
       | decided answer =>
-        refine Eq.trans ?_ (rootOutcome 0 answer ?_)
-        · simpa only [runFrame, runSeedSchedulerForFrom, hanswer, Option.map_none] using hagree
-        · simpa [seedSchedulerStep, hanswer] using hstep
+        exact hagree.trans
+          (rootOutcome 0 answer (by simpa [seedSchedulerStep, hanswer] using hstep))
   | some answer =>
     have hposition : f.cursor < s.parameters.search.subdivision.originalCount ∧
         f.request.sourceID = s.originalSourceID f.cursor := by
       simpa only [SeedSchedulerFrame.Valid, hanswer, hsetup] using hf.2
     have hroot : (rootAt ⟨f.cursor, hposition.1⟩ = source) ↔
         s.originalSourceID f.cursor = s.sourceID := Fin.ext_iff
+    have hrf : runFrame f =
+        runSeedSchedulerFrom call rootAt source f.request.seed (some (f.cursor, answer)) := by
+      simp [runFrame, runSeedSchedulerForFrom, hanswer, call, rootAt, source]
     by_cases hskip : s.originalSourceID f.cursor = s.sourceID
     · have hneeds : f.needsScan = false := by
         simp [SeedSchedulerFrame.needsScan, hanswer, hsetup, hposition.2, hskip]
-      have hagree := runSeedSchedulerFrom_indexed call rootAt source hseed hposition.1 answer none
-        (by simp [hroot, hskip]) (by simp)
-      refine Eq.trans ?_ (rootOutcome (f.cursor + 1) answer ?_)
-      · simpa only [runFrame, runSeedSchedulerForFrom, hanswer, Option.map_some] using hagree
-      · simpa [seedSchedulerStep, hanswer, hneeds] using hstep
+      have hagree := hrf.trans (runSeedSchedulerFrom_indexed call rootAt source hseed hposition.1
+        answer none (by simp [hroot, hskip]) (by simp))
+      exact hagree.trans (rootOutcome (f.cursor + 1) answer
+        (by simpa [seedSchedulerStep, hanswer, hneeds] using hstep))
     · have hneeds : f.needsScan = true := by
         simp [SeedSchedulerFrame.needsScan, hanswer, hsetup, hposition.2, hskip]
       cases reply with
       | none => simp [seedSchedulerStep, hanswer, hneeds] at hstep
       | some value =>
-        have hagree := runSeedSchedulerFrom_indexed call rootAt source hseed hposition.1 answer
-          (some value) (by simp [hroot, hskip]) (fun _ hv => scanAt hposition.2 hv hneeds)
+        have hagree := hrf.trans (runSeedSchedulerFrom_indexed call rootAt source hseed hposition.1
+          answer (some value) (by simp [hroot, hskip]) (fun _ hv => scanAt hposition.2 hv hneeds))
         cases value with
         | bad _ =>
-          refine Eq.trans ?_ (seedOutcome ?_)
-          · simpa only [runFrame, runSeedSchedulerForFrom, hanswer, Option.map_some] using hagree
-          · simpa [seedSchedulerStep, hanswer, hneeds] using hstep
+          exact hagree.trans (seedOutcome
+            (by simpa [seedSchedulerStep, hanswer, hneeds] using hstep))
         | decided hit =>
-          refine Eq.trans ?_ (rootOutcome (f.cursor + 1) answer ?_)
-          · simpa only [runFrame, runSeedSchedulerForFrom, hanswer, Option.map_some] using hagree
-          · exact Option.some.inj ((seedSchedulerStep_indexed_decided f hanswer hit).symm.trans
-              hstep)
+          exact hagree.trans (rootOutcome (f.cursor + 1) answer
+            (Option.some.inj ((seedSchedulerStep_indexed_decided f hanswer hit).symm.trans hstep)))
 
 /-- Retained scheduler bits are linear in the setup size, even when a scanner rejects.
 The bound covers all pending scans, including the designated scan with cursor zero. -/

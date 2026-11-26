@@ -104,10 +104,9 @@ theorem exists_hardwired_comp {n m p : ℕ} (u : Circuit signature m p)
       (∀ x, d.eval interpretation x = u.eval interpretation (hardwired place x)) ∧
       d.size ≤ u.size + 2 := by
   refine ⟨u.comp (substituteCircuit place), fun x => ?_, ?_⟩
-  · rw [Circuit.eval_comp, eval_substituteCircuit]
-    rfl
-  · simp only [Circuit.size_comp, size_substituteCircuit, Nat.add_comm]
-    exact le_rfl
+  · exact (Circuit.eval_comp ..).trans
+      (congrArg (u.eval interpretation) (eval_substituteCircuit place x))
+  · simp [Circuit.size_comp, size_substituteCircuit, Nat.add_comm]
 
 /-- Hardwire constants, run `u`, and read selected output wires. -/
 theorem exists_hardwired_projection {n m p k : ℕ} (u : Circuit signature m p)
@@ -168,16 +167,13 @@ theorem prodMap_power_circuit {m k : ℕ} (U : BitString m → BitString m)
   let a : BitString m := fun _ => false
   let place : Fin (m + k) → Fin k ⊕ Bool :=
     Fin.append (fun _ : Fin m => Sum.inr false) Sum.inl
-  have hpl (y : BitString k) : hardwired place y = Fin.append a y := by
-    funext j
-    induction j using Fin.addCases with
-    | left i => simp [hardwired, place, a]
-    | right i => simp [hardwired, place]
+  have hpl (y : BitString k) : hardwired place y = Fin.append a y :=
+    funext fun j => Fin.addCases (fun _ => by simp [hardwired, place, a])
+      (fun _ => by simp [hardwired, place]) j
   obtain ⟨d, hd, hs⟩ := exists_hardwired_projection u place (Fin.natAdd m)
   refine ⟨d, fun y => ?_, hs⟩
   rw [hd y, hu, hpl y, prodMap_iterate_append]
-  funext i
-  simp
+  exact funext fun _ => by simp
 
 /-- Each power of a product map is at least as hard as the same power of its first factor. -/
 theorem prodMap_power_circuit_left {m k : ℕ} (U : BitString m → BitString m)
@@ -188,16 +184,13 @@ theorem prodMap_power_circuit_left {m k : ℕ} (U : BitString m → BitString m)
   let a : BitString k := fun _ => false
   let place : Fin (m + k) → Fin m ⊕ Bool :=
     Fin.append Sum.inl (fun _ : Fin k => Sum.inr false)
-  have hpl (y : BitString m) : hardwired place y = Fin.append y a := by
-    funext j
-    induction j using Fin.addCases with
-    | left i => simp [hardwired, place]
-    | right i => simp [hardwired, place, a]
+  have hpl (y : BitString m) : hardwired place y = Fin.append y a :=
+    funext fun j => Fin.addCases (fun _ => by simp [hardwired, place])
+      (fun _ => by simp [hardwired, place, a]) j
   obtain ⟨d, hd, hs⟩ := exists_hardwired_projection u place (Fin.castAdd k)
   refine ⟨d, fun y => ?_, hs⟩
   rw [hd y, hu, hpl y, prodMap_iterate_append]
-  funext i
-  simp
+  exact funext fun _ => by simp
 
 /-! ### Group actions by a hardwired element -/
 
@@ -224,11 +217,8 @@ theorem smul_zpow_circuit {G α : Type*} [Group G] [MulAction G α] {k n : ℕ}
   obtain ⟨d, hd, hs⟩ := exists_hardwired_comp act place
   refine ⟨d, fun x => ?_, hs⟩
   rw [hd, ← hact]
-  congr 1
-  funext j
-  induction j using Fin.addCases with
-  | left i => simp [hardwired, place]
-  | right i => simp [hardwired, place]
+  exact congrArg _ (funext fun j => Fin.addCases (fun _ => by simp [hardwired, place])
+    (fun _ => by simp [hardwired, place]) j)
 
 /-- Every power of the action of a fixed element, as an iterate. -/
 theorem smul_iterate_circuit {G α : Type*} [Group G] [MulAction G α] {k n : ℕ}
@@ -330,6 +320,14 @@ def describe (G : ℕ) (c : Circuit σ n n) (pad : σ.Op) : Description σ n G w
 def start (D : Description σ n G) (x : Fin n → V) : Config σ V n G :=
   ⟨D, x, fun _ => default, 0⟩
 
+private theorem castSucc_eq_gate {g : ℕ} {w : Wire n g} {b : Fin (g + 1)}
+    (h : (Wire.Renaming.castSucc : Wire.Renaming n g (g + 1)) w = Wire.gate b) :
+    ∃ b' : Fin g, w = Wire.gate b' ∧ b = b'.castSucc := by
+  rw [Wire.Renaming.castSucc_apply] at h
+  cases w with
+  | input _ => cases h
+  | gate b' => cases h; exact ⟨b', rfl, rfl⟩
+
 /-- The widened lines of a program read only earlier gates. -/
 theorem lines_wire_lt {g : ℕ} (p : Program σ n g) (j : Fin g) :
     ∀ (a : Fin (σ.Arity (p.lines j).op)) (b : Fin g),
@@ -341,27 +339,13 @@ theorem lines_wire_lt {g : ℕ} (p : Program σ n g) (j : Fin g) :
     | last =>
       rw [Program.lines_gate_last]
       intro a b h
-      have h' : (Wire.Renaming.castSucc : Wire.Renaming n g (g + 1)) (line.wires a) =
-          Wire.gate b := h
-      rw [Wire.Renaming.castSucc_apply] at h'
-      cases hw : line.wires a with
-      | input i => rw [hw] at h'; cases h'
-      | gate b' =>
-        rw [hw] at h'
-        cases h'
-        simp
+      obtain ⟨b', -, rfl⟩ := castSucc_eq_gate h
+      exact b'.isLt
     | cast j =>
       rw [Program.lines_gate_castSucc]
       intro a b h
-      have h' : (Wire.Renaming.castSucc : Wire.Renaming n g (g + 1)) ((p.lines j).wires a) =
-          Wire.gate b := h
-      rw [Wire.Renaming.castSucc_apply] at h'
-      cases hw : (p.lines j).wires a with
-      | input i => rw [hw] at h'; cases h'
-      | gate b' =>
-        rw [hw] at h'
-        cases h'
-        simpa using ih j a b' hw
+      obtain ⟨b', hw, rfl⟩ := castSucc_eq_gate h
+      exact ih j a b' hw
 
 /-- Reading a wire by its index, from work registers that hold the gate values. -/
 private theorem read_wireIndex {g : ℕ} (x : Fin n → V) (w : Fin G → V) (e : Fin g → V)
@@ -400,26 +384,16 @@ theorem run (I : Interpretation σ V) (c : Circuit σ n n) (pad : σ.Op) (hG : c
       by_cases hjk : j = ⟨k, hkG⟩
       · subst hjk
         rw [Function.update_self]
-        have hks : k < c.size := hs
         have hent : (describe G c pad).entries ⟨k, hkG⟩ =
-            ⟨(c.program.lines ⟨k, hks⟩).op,
-              fun a => wireIndex ((c.program.lines ⟨k, hks⟩).wires a)⟩ := by simp [describe, hks]
+            ⟨(c.program.lines ⟨k, hs⟩).op,
+              fun a => wireIndex ((c.program.lines ⟨k, hs⟩).wires a)⟩ := by simp [describe, hs]
         simp only [v]
-        rw [hent, ← Program.lines_eval c.program I x ⟨k, hks⟩]
-        unfold Line.eval
-        congr 1
-        funext a
-        simp only [Function.comp_apply]
-        apply read_wireIndex
-        · intro b hb
-          have hbk : b.val < k := lines_wire_lt c.program ⟨k, hks⟩ a b hb
-          omega
-        · intro b hbG hb
-          have hbk : b.val < k := lines_wire_lt c.program ⟨k, hks⟩ a b hb
-          exact hw ⟨b, hbG⟩ hbk b.isLt
+        rw [hent, ← Program.lines_eval c.program I x ⟨k, hs⟩]
+        exact congrArg _ (funext fun a => read_wireIndex _ _ _ _
+          (fun b _ => b.isLt.trans_le hG)
+          (fun b hbG hb => hw ⟨b, hbG⟩ (lines_wire_lt c.program ⟨k, hs⟩ a b hb) b.isLt))
       · rw [Function.update_of_ne hjk]
-        have hjk' : j.val ≠ k := fun h => hjk (Fin.ext h)
-        exact hw j (by omega) hs
+        exact hw j (by have : j.val ≠ k := fun h => hjk (Fin.ext h); omega) hs
 
 /-- One round of `G + 1` steps of the universal map runs a circuit with at most `G` gates and
 returns to a start state. -/
@@ -432,11 +406,7 @@ theorem step_round (I : Interpretation σ V) (c : Circuit σ n n) (pad : σ.Op)
   congr 1
   funext i
   simp only [describe, Circuit.eval, Function.comp_apply, Program.trace]
-  apply read_wireIndex
-  · intro b _
-    omega
-  · intro b hbG _
-    exact hw ⟨b, hbG⟩ hbG b.isLt
+  exact read_wireIndex _ _ _ _ (fun _ _ => by omega) fun b hbG _ => hw ⟨b, hbG⟩ hbG b.isLt
 
 /-- `(G + 1) * T` steps of the universal map run `T` rounds of the circuit. -/
 theorem step_iterate (I : Interpretation σ V) (c : Circuit σ n n) (pad : σ.Op)

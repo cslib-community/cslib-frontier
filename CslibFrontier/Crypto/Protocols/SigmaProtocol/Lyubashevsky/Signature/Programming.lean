@@ -86,19 +86,17 @@ private theorem closeTo_attempt_program {Ω M : Type} [DecidableEq M]
       (a.1, a.2.1, ((a.2.2.1,
         (lyubashevsky n m k q γ β).respond (S a.2.1) (a.1, T a.1 a.2.1) a.2.2.2 c),
         ((msg a.2.1, a.2.2.1), c) :: cache a.2.1))
-  have hc := CloseTo.bind_of_eq_on src real programmed {a | hit a} (by
-    intro a _ hgood
+  have hc := CloseTo.bind_of_eq_on src real programmed {a | hit a} fun a _ hgood => by
     have hlookup : (cache a.2.1).lookup (msg a.2.1, a.2.2.1) = none := by
-      cases hq : (cache a.2.1).lookup (msg a.2.1, a.2.2.1) with
-      | none => rfl
-      | some c => exact False.elim (hgood (by
-          simp only [Set.mem_ofPred_eq, hit, hq, Option.isSome_some]))
+      cases hq : (cache a.2.1).lookup (msg a.2.1, a.2.2.1)
+      · rfl
+      · exact (hgood (by simp only [Set.mem_ofPred_eq, hit, hq, Option.isSome_some])).elim
     dsimp only [real, programmed]
     simp only [interp_norm, pmf_norm]
     change ((oracle (BitString k) (msg a.2.1, a.2.2.1) (cache a.2.1)).map _) = _
     rw [oracle, memoize_of_none _ _ _ hlookup]
     simp only [pmf_norm]
-    rfl)
+    rfl
   have hb := lyubashevsky_commit_lookup_le n m k q γ β Q hγ H S T msg cache hcache
   have hevent : src.toOuterMeasure {a | hit a} = (src.map hit) true := by
     rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
@@ -157,11 +155,10 @@ theorem closeTo_lyubashevskySign_program {Ω M : Type} [DecidableEq M]
       let c ← PMF.uniformOfFintype (BitString k)
       return (h, ((coin.1, (lyubashevsky n m k q γ β).respond (S h) (A, T A h) coin.2 c),
         ((msg h, coin.1), c) :: cache h))
-    have hlength : ∀ A v, v ∈ (history A).support → v.2.2.length ≤ Q + 1 := by
-      intro A v hv
+    have hlength (A) (v) (hv : v ∈ (history A).support) : v.2.2.length ≤ Q + 1 := by
       simp only [history, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
         PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hv
-      obtain ⟨h, hh, coin, _, c, _, rfl⟩ := hv
+      obtain ⟨h, hh, _, _, _, _, rfl⟩ := hv
       exact Nat.succ_le_succ (hcache A h hh)
     let combine := fun (A : Matrix (Fin n) (Fin m) (ZMod q)) (v : History)
         (later : Option ((Fin n → ZMod q) × (Fin m → ℤ)) ×
@@ -183,7 +180,7 @@ theorem closeTo_lyubashevskySign_program {Ω M : Type} [DecidableEq M]
     simp only [pmf_norm, fiatShamirAbortSign_run_succ, PMF.map]
     simp only [interp_norm, pmf_norm, PMF.map, combine] at hboth ⊢
     simp only [StateT.run, PMF.bind_bind, PMF.pure_bind] at hboth ⊢
-    simpa only [Finset.sum_range_succ', Nat.add_zero, add_assoc,
-      add_left_comm, add_comm] using hboth
+    simpa only [Finset.sum_range_succ', Nat.add_zero, add_assoc, add_left_comm, add_comm]
+      using hboth
 
 end Cslib.Crypto.Protocols.SigmaProtocol

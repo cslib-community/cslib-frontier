@@ -147,15 +147,8 @@ relaxation of MAX-CUT at the vector assignment `v` [GoemansWilliamson1995, Secti
 theorem hyperplaneSide_ne_iff (v : V → F) (r : F) (i j : V) :
     hyperplaneSide v r i ≠ hyperplaneSide v r j ↔ (0 : ℝ) ∈ Ι ⟪v i, r⟫ ⟪v j, r⟫ := by
   simp only [hyperplaneSide, ne_eq, decide_eq_decide, mem_uIoc]
-  constructor
-  · intro h
-    by_cases hi : 0 ≤ ⟪v i, r⟫
-    · exact Or.inr ⟨lt_of_not_ge fun hj => h ⟨fun _ => hj, fun _ => hi⟩, hi⟩
-    · exact Or.inl ⟨lt_of_not_ge hi, not_lt.1 fun hj => h ⟨fun h' => (hi h').elim,
-        fun h' => (not_le.2 hj h').elim⟩⟩
-  · rintro (⟨hi, hj⟩ | ⟨hj, hi⟩) h
-    · exact (not_le.2 hi) (h.2 hj)
-    · exact (not_le.2 hj) (h.1 hi)
+  by_cases hi : 0 ≤ ⟪v i, r⟫ <;> by_cases hj : 0 ≤ ⟪v j, r⟫ <;>
+    simp [hi, hj, not_lt_of_ge, lt_of_not_ge]
 
 omit [InnerProductSpace ℝ F] in
 /-- Each vector of a cut's vector solution is a unit vector when `u` is. -/
@@ -182,15 +175,10 @@ theorem cutValue_le_sdpValue_add {ends : ι → V × V} {w : ι → ℝ} {v : V 
     (hv : ∀ i, ‖v i‖ = 1)
     (hopt : ∀ v' : V → F, (∀ i, ‖v' i‖ = 1) → sdpValue ends w v' ≤ sdpValue ends w v + ε)
     (side : V → Bool) : cutValue ends w side ≤ sdpValue ends w v + ε := by
-  cases isEmpty_or_nonempty ι with
-  | inl _ =>
-    have := hopt v hv
-    simp only [cutValue, sdpValue, Finset.univ_eq_empty, Finset.sum_empty] at this ⊢
-    exact this
-  | inr h =>
-    obtain ⟨e⟩ := h
-    rw [← sdpValue_signVector ends w (hv (ends e).1) side]
-    exact hopt _ (norm_signVector (hv (ends e).1) side)
+  rcases isEmpty_or_nonempty ι with _ | ⟨⟨e⟩⟩
+  · simpa [cutValue, sdpValue] using hopt v hv
+  · exact sdpValue_signVector ends w (hv (ends e).1) side ▸
+      hopt _ (norm_signVector (hv (ends e).1) side)
 
 /-! ### The expected weight of the rounded cut -/
 
@@ -199,23 +187,18 @@ private theorem cutValue_hyperplaneSide_eq_sum_indicator (ends : ι → V × V) 
     (v : V → F) (r : F) :
     cutValue ends w (hyperplaneSide v r) = ∑ e,
       {r : F | hyperplaneSide v r (ends e).1 ≠ hyperplaneSide v r (ends e).2}.indicator
-        (fun _ => w e) r := by
-  unfold cutValue
-  refine Finset.sum_congr rfl fun e _ => ?_
-  simp only [indicator, mem_ofPred_eq]
+        (fun _ => w e) r :=
+  Finset.sum_congr rfl fun _ _ => by simp only [indicator, mem_ofPred_eq]
 
 variable [MeasurableSpace F] [BorelSpace F]
 
 /-- The hyperplane side `hyperplaneSide v r i` is a measurable function of `r`. -/
 theorem measurable_hyperplaneSide (v : V → F) (i : V) :
     Measurable (fun r : F => hyperplaneSide v r i) := by
-  have hs : MeasurableSet {r : F | 0 ≤ ⟪v i, r⟫} := measurableSet_le measurable_const (by fun_prop)
-  have heq : (fun r : F => hyperplaneSide v r i) =
-      fun r : F => if 0 ≤ ⟪v i, r⟫ then true else false := by
-    ext r
-    simp [hyperplaneSide]
-  rw [heq]
-  exact Measurable.ite hs measurable_const measurable_const
+  have heq : (fun r : F => hyperplaneSide v r i) = fun r => if 0 ≤ ⟪v i, r⟫ then true else false :=
+    funext fun _ => by simp [hyperplaneSide]
+  exact heq ▸ Measurable.ite (measurableSet_le measurable_const (by fun_prop))
+    measurable_const measurable_const
 
 /-- The event that the hyperplane orthogonal to `r` separates two vertices is measurable. -/
 theorem measurableSet_hyperplaneSide_ne (v : V → F) (i j : V) :
@@ -234,12 +217,10 @@ omit [Fintype ι] [NormedAddCommGroup F] [InnerProductSpace ℝ F] [BorelSpace F
 under any finite measure. -/
 theorem integrable_ite_const (μ : Measure F) [IsFiniteMeasure μ]
     {p : F → Prop} [DecidablePred p] (hp : MeasurableSet {r | p r}) (c : ℝ) :
-    Integrable (fun r => if p r then c else 0) μ := by
-  have heq : (fun r : F => if p r then c else 0) = {r | p r}.indicator (fun _ => c) := by
-    ext r
-    simp only [Set.indicator_apply, Set.mem_ofPred_eq]
-  rw [heq]
-  exact (integrable_const c).indicator hp
+    Integrable (fun r => if p r then c else 0) μ :=
+  (show (fun r => if p r then c else 0) = {r | p r}.indicator fun _ => c from
+    funext fun _ => by simp only [indicator, mem_ofPred_eq]) ▸
+    (integrable_const (μ := μ) c).indicator hp
 
 /-- The weight of the rounded cut is integrable. -/
 theorem integrable_cutValue_hyperplaneSide (ends : ι → V × V) (w : ι → ℝ) (v : V → F)
@@ -271,28 +252,19 @@ theorem integral_cutValue_hyperplaneSide (ends : ι → V × V) (w : ι → ℝ)
 theorem integral_hyperplaneSide_ne {v : V → F} (hv : ∀ k, ‖v k‖ = 1) (i j : V) :
     ∫ r : F, (if hyperplaneSide v r i ≠ hyperplaneSide v r j then (1 : ℝ) else 0) ∂stdGaussian F =
       arccos ⟪v i, v j⟫ / π := by
-  have heq : (fun r : F =>
-      if hyperplaneSide v r i ≠ hyperplaneSide v r j then (1 : ℝ) else 0) =
-      {r : F | hyperplaneSide v r i ≠ hyperplaneSide v r j}.indicator (fun _ => 1) := by
-    ext r
-    simp [Set.indicator_apply]
-  rw [heq, integral_indicator_const _ (measurableSet_hyperplaneSide_ne v i j), smul_eq_mul, mul_one]
-  simp only [hyperplaneSide_ne_iff]
-  exact measureReal_stdGaussian_zero_mem_uIoc_eq_arccos (hv i) (hv j)
+  simpa [cutValue] using integral_cutValue_hyperplaneSide (fun _ : Unit => (i, j)) (fun _ => 1) hv
 
 /-- Probability that two unit vectors fall on the same side of a standard Gaussian hyperplane. -/
 theorem integral_hyperplaneSide_eq {v : V → F} (hv : ∀ k, ‖v k‖ = 1) (i j : V) :
     ∫ r : F, (if hyperplaneSide v r i = hyperplaneSide v r j then (1 : ℝ) else 0) ∂stdGaussian F =
       1 - arccos ⟪v i, v j⟫ / π := by
-  have hcomp : (fun r : F =>
-      if hyperplaneSide v r i = hyperplaneSide v r j then (1 : ℝ) else 0) =
-      fun r : F => 1 - if hyperplaneSide v r i ≠ hyperplaneSide v r j then (1 : ℝ) else 0 := by
-    ext r
-    by_cases h : hyperplaneSide v r i = hyperplaneSide v r j <;> simp [h]
-  rw [hcomp,
-    integral_sub (integrable_const 1)
-      (integrable_ite_const (stdGaussian F) (measurableSet_hyperplaneSide_ne v i j) 1),
-    integral_const, probReal_univ, smul_eq_mul, mul_one, integral_hyperplaneSide_ne hv i j]
+  have hcomp : (fun r : F => if hyperplaneSide v r i = hyperplaneSide v r j then (1 : ℝ) else 0) =
+      fun r => 1 - if hyperplaneSide v r i ≠ hyperplaneSide v r j then (1 : ℝ) else 0 :=
+    funext fun r => by by_cases h : hyperplaneSide v r i = hyperplaneSide v r j <;> simp [h]
+  rw [hcomp, integral_sub (integrable_const 1)
+    (integrable_ite_const (stdGaussian F) (measurableSet_hyperplaneSide_ne v i j) 1),
+    integral_hyperplaneSide_ne hv i j]
+  simp
 
 omit [MeasurableSpace F] [BorelSpace F] [FiniteDimensional ℝ F] in
 /-- Same-side rounding inequality: `α · (1 + ⟪u, w⟫) / 2 ≤ 1 - arccos ⟪u, w⟫ / π` for unit
@@ -316,12 +288,9 @@ theorem goemansWilliamsonConstant_mul_sdpValue_le_integral (ends : ι → V × V
       ∫ r, cutValue ends w (hyperplaneSide v r) ∂stdGaussian F := by
   rw [integral_cutValue_hyperplaneSide ends w hv, sdpValue, Finset.mul_sum]
   refine Finset.sum_le_sum fun e _ => ?_
-  have h := abs_real_inner_le_norm (v (ends e).1) (v (ends e).2)
-  rw [hv, hv, mul_one, abs_le] at h
-  have := mul_le_mul_of_nonneg_left (goemansWilliamsonConstant_mul_le_arccos h.1 h.2) (hw e)
-  calc goemansWilliamsonConstant * (w e * (1 - ⟪v (ends e).1, v (ends e).2⟫) / 2)
-      = w e * (goemansWilliamsonConstant * ((1 - ⟪v (ends e).1, v (ends e).2⟫) / 2)) := by ring
-    _ ≤ w e * (arccos ⟪v (ends e).1, v (ends e).2⟫ / π) := this
+  have h := abs_le.1 (by simpa [hv] using abs_real_inner_le_norm (v (ends e).1) (v (ends e).2))
+  exact le_of_eq_of_le (by ring)
+    (mul_le_mul_of_nonneg_left (goemansWilliamsonConstant_mul_le_arccos h.1 h.2) (hw e))
 
 /-! ### The approximation guarantee -/
 

@@ -112,8 +112,7 @@ theorem fsAbortVerify_of_fsAbortSignStep_eq_some {P : SigmaProtocol X Y T C (Opt
   cases hresp : P.respond x y ts.2 (h (msg, ts.1)) with
   | none => simp [hresp] at hsig
   | some z =>
-    simp only [hresp, Option.map_some, Option.some.injEq] at hsig
-    subst hsig
+    obtain rfl : (ts.1, z) = sig := by simpa [hresp] using hsig
     refine hP x y hxy (h (msg, ts.1)) ts.1 z ?_
     simp only [acceptedTranscript, transcript, PMF.map_comp, PMF.mem_support_map_iff]
     exact ⟨ts, hts, by simp [hresp]⟩
@@ -125,9 +124,9 @@ theorem fsAbortVerify_of_fsAbortSignAttempt_eq_some {P : SigmaProtocol X Y T C (
     {R : X → Y → Prop} (hP : P.NonAbortComplete R) (h : M × T → C)
     {x : X} {y : Y} (hxy : R x y) {msg : M} {sig : T × Z}
     (hsig : some sig ∈ (fsAbortSignAttempt P h x y msg).support) :
-    fsAbortVerify P h y msg sig = true := by
-  obtain ⟨ts, hts, hstep⟩ := (PMF.mem_support_map_iff _ _ _).mp hsig
-  exact fsAbortVerify_of_fsAbortSignStep_eq_some hP h hxy hts hstep
+    fsAbortVerify P h y msg sig = true :=
+  let ⟨_, hts, hstep⟩ := (PMF.mem_support_map_iff _ _ _).mp hsig
+  fsAbortVerify_of_fsAbortSignStep_eq_some hP h hxy hts hstep
 
 /-- **Completeness of bounded `K`-attempt signing.** If `P` is complete up to aborts for `R` and
 `R x y` holds, every signature `sig` produced by `fsAbortSignBounded P h K x y msg` verifies. -/
@@ -141,13 +140,10 @@ theorem fsAbortVerify_of_fsAbortSignBounded_eq_some {P : SigmaProtocol X Y T C (
   | succ K ih =>
     simp only [fsAbortSignBounded, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
       PMF.mem_support_bind_iff] at hsig
-    rcases hsig with ⟨attempt, hattempt, hrest⟩
-    cases attempt with
-    | some sig' =>
-      simp only [PMF.mem_support_pure_iff, Option.some.injEq] at hrest
-      subst hrest
+    rcases hsig with ⟨_ | sig', hattempt, hrest⟩
+    · exact ih hrest
+    · obtain rfl : sig = sig' := by simpa using hrest
       exact fsAbortVerify_of_fsAbortSignAttempt_eq_some hP h hxy hattempt
-    | none => exact ih hrest
 
 /-- **Abort probability after `K` independent attempts.** `fsAbortSignBounded` aborts only when all
 `K` attempts abort, so its abort probability is the `K`-th power of a single attempt's abort
@@ -162,8 +158,8 @@ theorem fsAbortSignBounded_apply_none (P : SigmaProtocol X Y T C (Option Z))
       PMF.bind_apply]
     rw [tsum_eq_single none]
     · simp only [ih, pow_succ']
-    · rintro (_ | sig) hne
-      · exact absurd rfl hne
+    · rintro (_ | _) hne
+      · exact (hne rfl).elim
       · simp
 
 /-- Exact bounded signing is independent sampling followed by selection of the first success,
@@ -179,18 +175,13 @@ theorem fsAbortSignBounded_map_eq_iid {W : Type u}
   | succ K ih =>
     simp only [fsAbortSignBounded, PMF.iid, PMF.monad_bind_eq_bind,
       PMF.monad_pure_eq_pure, PMF.map_bind, PMF.bind_map]
-    congr 1 with attempt : 1
-    cases attempt with
-    | none => simpa [PMF.map_comp, Function.comp_def, List.ofFn_cons] using ih
-    | some sig =>
-      simp only [Function.comp_apply, Option.map_some, PMF.pure_map, PMF.map_comp]
-      have hf : ((fun attempts : Fin (K + 1) → Option W =>
-          ((List.ofFn attempts).find? Option.isSome).getD none) ∘
-          Fin.cons (some (encode sig))) =
-          Function.const (Fin K → Option W) (some (encode sig)) := by
-        funext attempts
-        simp
-      rw [hf]
+    congr 1 with (_ | sig) : 1
+    · simpa [PMF.map_comp, Function.comp_def, List.ofFn_cons] using ih
+    · simp only [Function.comp_apply, Option.map_some, PMF.pure_map, PMF.map_comp]
+      have hconst : ((fun attempts : Fin (K + 1) → Option W =>
+          ((List.ofFn attempts).find? Option.isSome).getD none) ∘ Fin.cons (some (encode sig))) =
+        Function.const _ (some (encode sig)) := funext fun _ => by simp
+      rw [hconst]
       exact (PMF.map_const _ _).symm
 
 /-- **Forking extraction for Fiat–Shamir with aborts.** Two valid signatures `(t, z₁)` and

@@ -202,16 +202,12 @@ def viewToLists {n m : ℕ} :
 
 /-- The transmitted list is precisely the adapter's finite weight vector. -/
 theorem weights_eq_ofFn (count : ℕ) (r : List F) :
-    weights count r = List.ofFn (fun i : Fin count => r.getD i.val 0) := by
-  apply List.ext_getElem (by simp [weights])
-  intro i hi hi'
-  simp [weights]
+    weights count r = List.ofFn (fun i : Fin count => r.getD i.val 0) :=
+  List.ext_getElem (by simp [weights]) fun _ _ _ => by simp [weights]
 
 /-- Normalization leaves an already correctly sized vector unchanged. -/
 theorem weights_ofFn {m : ℕ} (r : Fin m → F) : weights m (List.ofFn r) = List.ofFn r := by
-  rw [weights_eq_ofFn]
-  congr 1 with i : 1
-  simp
+  simp [weights_eq_ofFn]
 
 /-- The total list algorithm agrees with the existing algebraic check on valid wire maps. -/
 theorem checkValue_ofFn {n m : ℕ} (left right output : Fin m → Fin n)
@@ -222,23 +218,16 @@ theorem checkValue_ofFn {n m : ℕ} (left right output : Fin m → Fin n)
   have hzip :
       (List.ofFn (fun i => (⟨(left i).val, (right i).val, (output i).val⟩ : Gate))).zip
         (List.ofFn r) = List.ofFn (fun i =>
-          ((⟨(left i).val, (right i).val, (output i).val⟩ : Gate), r i)) := by
-    apply List.ext_getElem (by simp)
-    intro i hi hi'
-    simp
+          ((⟨(left i).val, (right i).val, (output i).val⟩ : Gate), r i)) :=
+    List.ext_getElem (by simp) fun _ _ _ => by simp
   rw [hzip, List.map_ofFn, List.sum_ofFn]
-  simp only [maskedMulCheckValue, voleAdjustReceiver, Fin.init]
-  congr 1
-  · apply Finset.sum_congr rfl
-    intro i _
-    simp only [Function.comp_def, List.getD_eq_getElem?_getD, List.getElem?_ofFn,
-      (left i).isLt, (right i).isLt, (output i).isLt,
-      Nat.lt_succ_of_lt (left i).isLt, Nat.lt_succ_of_lt (right i).isLt,
-      Nat.lt_succ_of_lt (output i).isLt, ↓reduceDIte, Option.getD_some]
-    rfl
-  · simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn,
-      Nat.lt_succ_self, ↓reduceDIte, Option.getD_some]
-    rfl
+  simp only [maskedMulCheckValue, voleAdjustReceiver, Fin.init, List.getD_eq_getElem?_getD,
+    List.getElem?_ofFn, Nat.lt_succ_self, ↓reduceDIte, Option.getD_some]
+  refine congrArg (· + q (Fin.last n)) (Finset.sum_congr rfl fun i _ => ?_)
+  simp only [Function.comp_def, (left i).isLt, (right i).isLt, (output i).isLt,
+    Nat.lt_succ_of_lt (left i).isLt, Nat.lt_succ_of_lt (right i).isLt,
+    Nat.lt_succ_of_lt (output i).isLt, ↓reduceDIte, Option.getD_some]
+  rfl
 
 variable [Fintype F] [DecidableEq F]
 

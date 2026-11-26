@@ -209,24 +209,20 @@ exactly when `x` is on Alice's side and `y` on Bob's side of its rectangle. -/
 theorem leaf_eq_iff {p : Protocol X Y Z} {x : X} {y : Y} {i : Fin p.leafCount} :
     p.leaf x y = i ↔ x ∈ p.leafAlice i ∧ y ∈ p.leafBob i := by
   induction p with
-  | output z =>
+  | output =>
     simp only [leaf, leafAlice, leafBob, Set.mem_univ, and_self, iff_true]
     exact Subsingleton.elim (α := Fin 1) _ _
-  | alice send p₀ p₁ ih₀ ih₁ =>
-    induction i using Fin.addCases with
-    | left i =>
-      cases h : send x <;>
+  | alice send _ _ ih₀ ih₁ =>
+    refine Fin.addCases (fun i => ?_) (fun i => ?_) i
+    · cases h : send x <;>
         simp [leaf, leafAlice, leafBob, h, ih₀, Fin.castAdd_inj, (Fin.castAdd_ne_natAdd _ _).symm]
-    | right i =>
-      cases h : send x <;>
+    · cases h : send x <;>
         simp [leaf, leafAlice, leafBob, h, ih₁, Fin.natAdd_inj, Fin.castAdd_ne_natAdd]
-  | bob send p₀ p₁ ih₀ ih₁ =>
-    induction i using Fin.addCases with
-    | left i =>
-      cases h : send y <;>
+  | bob send _ _ ih₀ ih₁ =>
+    refine Fin.addCases (fun i => ?_) (fun i => ?_) i
+    · cases h : send y <;>
         simp [leaf, leafAlice, leafBob, h, ih₀, Fin.castAdd_inj, (Fin.castAdd_ne_natAdd _ _).symm]
-    | right i =>
-      cases h : send y <;>
+    · cases h : send y <;>
         simp [leaf, leafAlice, leafBob, h, ih₁, Fin.natAdd_inj, Fin.castAdd_ne_natAdd]
 
 variable {p : Protocol X Y Z} {x : X} {y : Y}
@@ -265,8 +261,7 @@ def toRectanglePartition (p : Protocol X Y Z) : RectanglePartition X Y Z where
 @[simp] theorem run_toRectanglePartition (p : Protocol X Y Z) :
     p.toRectanglePartition.run = p.run := by
   funext x y
-  rw [RectanglePartition.run_eq_output (i := p.leaf x y)
-    (mem_leafAlice_leaf (p := p)) (mem_leafBob_leaf (p := p))]
+  rw [RectanglePartition.run_eq_output (i := p.leaf x y) mem_leafAlice_leaf mem_leafBob_leaf]
   exact (run_eq_leafOutput_leaf p x y).symm
 
 /-- **A protocol sending `d` bits partitions `X × Y` into at most `2 ^ d` monochromatic
@@ -317,15 +312,11 @@ theorem sum_filter_run_le_mul {M : Type*} [Semiring M] [PartialOrder M] [IsOrder
   rw [sum_filter, Fintype.sum_prod_type' (fun x y => if p.run x y = z then w x y else 0),
     p.sum_eq_sum_leaves, card_eq_sum_ones, Nat.cast_sum, sum_mul, sum_filter]
   refine sum_le_sum fun i _ => ?_
-  have hrect : ∀ x ∈ ({x | x ∈ p.leafAlice i} : Finset X),
-      ∀ y ∈ ({y | y ∈ p.leafBob i} : Finset Y), p.run x y = p.leafOutput i := fun x hx y hy =>
-    run_eq_leafOutput (mem_filter.mp hx).2 (mem_filter.mp hy).2
+  rw [sum_congr rfl fun x hx => sum_congr rfl fun y hy => by
+    rw [run_eq_leafOutput (mem_filter.mp hx).2 (mem_filter.mp hy).2]]
   split_ifs with hi
-  · rw [Nat.cast_one, one_mul]
-    refine le_of_eq_of_le (sum_congr rfl fun x hx => sum_congr rfl fun y hy => ?_) (hK i hi)
-    simp [hrect x hx y hy, hi]
-  · refine (sum_eq_zero fun x hx => sum_eq_zero fun y hy => ?_).le
-    simp [hrect x hx y hy, hi]
+  · simpa only [Nat.cast_one, one_mul] using hK i hi
+  · simp
 
 /-- **The weighted area bound.** If `f` is constantly `z` only on rectangles of weight at most `K`
 under `w`, then for every protocol computing `f` the inputs where `f` is `z` have weight at most
@@ -338,17 +329,18 @@ theorem sum_filter_le_mul {M : Type*} [Semiring M] [PartialOrder M] [IsOrderedAd
     ∑ q : X × Y with f q.1 q.2 = z, w q.1 q.2 ≤ #{i | p.leafOutput i = z} * K := by
   subst hp
   classical
-  exact p.sum_filter_run_le_mul z w fun i hi => hK _ _ fun x hx y hy => by
-    rw [run_eq_leafOutput (mem_filter.mp hx).2 (mem_filter.mp hy).2, hi]
+  exact p.sum_filter_run_le_mul z w fun i hi => hK _ _ fun _ hx _ hy =>
+    (run_eq_leafOutput (mem_filter.mp hx).2 (mem_filter.mp hy).2).trans hi
 
 /-- **The area bound.** If `f` is constantly `z` only on rectangles with at most `K` entries, every
 protocol computing `f` has at least `|f⁻¹(z)| / K` leaves labelled `z`. -/
 theorem card_filter_le_mul [DecidableEq Z] {f : X → Y → Z} (hp : p.run = f) (z : Z) {K : ℕ}
     (hK : ∀ (A : Finset X) (B : Finset Y), (∀ x ∈ A, ∀ y ∈ B, f x y = z) → #A * #B ≤ K) :
     #{q : X × Y | f q.1 q.2 = z} ≤ #{i | p.leafOutput i = z} * K := by
-  have h := sum_filter_le_mul hp z (fun _ _ => 1) fun A B hAB => by
+  have h := sum_filter_le_mul (M := ℕ) hp z (fun _ _ => 1) fun A B hAB => by
     simpa only [sum_const, smul_eq_mul, mul_one] using hK A B hAB
-  simpa only [sum_const, smul_eq_mul, mul_one, Nat.cast_id] using h
+  simp only [sum_const, smul_eq_mul, mul_one, Nat.cast_id] at h
+  exact h
 
 end Sums
 

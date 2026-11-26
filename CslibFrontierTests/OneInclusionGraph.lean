@@ -83,32 +83,32 @@ theorem exists_orientation_cornerL :
 
 /-! ### 2. Concrete predictions and leave-one-out bound on infinite-Littlestone thresholds -/
 
-/-- `thresholdClass` on `ℕ` shatters no two points (`vcDim = 1`), even though
-`littlestoneDim thresholdClass = ⊤`. -/
+/-- `thresholdClass ℕ` shatters no two points (`vcDim = 1`), even though
+`littlestoneDim (thresholdClass ℕ) = ⊤`. -/
 theorem card_le_one_of_setShatters_thresholdClass (W : Finset ℕ)
-    (hW : SetShatters thresholdClass ↑W) : W.card ≤ 1 :=
+    (hW : SetShatters (thresholdClass ℕ) ↑W) : W.card ≤ 1 :=
   not_lt.mp fun h => not_setShatters_thresholdClass h hW
 
-theorem hasFiniteVCDim_thresholdClass : HasFiniteVCDim thresholdClass :=
+theorem hasFiniteVCDim_thresholdClass : HasFiniteVCDim (thresholdClass ℕ) :=
   hasFiniteVCDim_iff.mpr ⟨1, card_le_one_of_setShatters_thresholdClass⟩
 
 /-- Concrete bracket sample `(2, true), (5, false)`, realized by `thresholdConcept 4`. -/
 def bracketSample : LabeledSample ℕ Bool 2 := ![(2, true), (5, false)]
 
-theorem realizable_bracketSample : Realizable thresholdClass bracketSample :=
+theorem realizable_bracketSample : Realizable (thresholdClass ℕ) bracketSample :=
   ⟨thresholdConcept 4, ⟨4, rfl⟩, by intro j; fin_cases j <;> decide⟩
 
 /-- `oneInclusionLearner` reproduces the observed labels on `bracketSample`. -/
-example : oneInclusionLearner thresholdClass bracketSample 2 = true ∧
-    oneInclusionLearner thresholdClass bracketSample 5 = false :=
+example : oneInclusionLearner (thresholdClass ℕ) bracketSample 2 = true ∧
+    oneInclusionLearner (thresholdClass ℕ) bracketSample 5 = false :=
   ⟨oneInclusionLearner_apply_sample_of_realizable realizable_bracketSample 0,
     oneInclusionLearner_apply_sample_of_realizable realizable_bracketSample 1⟩
 
 /-- Every threshold consistent with `(2, true)` and `(5, false)` has `3 ≤ θ ≤ 5`, so
 `oneInclusionLearner` deterministically predicts `true` at `1` and `false` at `6`. -/
 theorem oneInclusionLearner_bracketSample_forced :
-    oneInclusionLearner thresholdClass bracketSample 1 = true ∧
-      oneInclusionLearner thresholdClass bracketSample 6 = false := by
+    oneInclusionLearner (thresholdClass ℕ) bracketSample 1 = true ∧
+      oneInclusionLearner (thresholdClass ℕ) bracketSample 6 = false := by
   constructor
   · refine oneInclusionLearner_eq_of_forall_consistent realizable_bracketSample ?_
     rintro _ ⟨θ, rfl⟩ hS
@@ -122,12 +122,12 @@ theorem oneInclusionLearner_bracketSample_forced :
     omega
 
 /-- Across all four leave-one-out folds of the realizable sample
-`![(0, true), (2, true), (5, false), (8, false)]`, `oneInclusionLearner thresholdClass` makes at
-most `1` mistake, despite `littlestoneDim thresholdClass = ⊤`. -/
+`![(0, true), (2, true), (5, false), (8, false)]`, `oneInclusionLearner (thresholdClass ℕ)` makes at
+most `1` mistake, despite `littlestoneDim (thresholdClass ℕ) = ⊤`. -/
 theorem leaveOneOut_threshold_four :
-    littlestoneDim thresholdClass = ⊤ ∧
+    littlestoneDim (thresholdClass ℕ) = ⊤ ∧
       (Finset.univ.filter fun t : Fin 4 =>
-        oneInclusionLearner thresholdClass
+        oneInclusionLearner (thresholdClass ℕ)
           (t.removeNth ![(0, true), (2, true), (5, false), (8, false)])
           (![(0, true), (2, true), (5, false), (8, false)] t).1 ≠
           (![(0, true), (2, true), (5, false), (8, false)] t).2).card ≤ 1 := by
@@ -141,16 +141,17 @@ folds `0` and `1` (held-out `2`) see `(2, true)` in the remaining folds and make
 total leave-one-out mistakes across all `5` folds remain at most `1`. -/
 def dupSample : LabeledSample ℕ Bool 5 := ![(2, true), (2, true), (4, true), (5, false), (5, false)]
 
-theorem realizable_dupSample : Realizable thresholdClass dupSample :=
+theorem realizable_dupSample : Realizable (thresholdClass ℕ) dupSample :=
   ⟨thresholdConcept 5, ⟨5, rfl⟩, by intro j; fin_cases j <;> decide⟩
 
 theorem leaveOneOut_dupSample :
-    oneInclusionLearner thresholdClass (Fin.removeNth 0 dupSample) (dupSample 0).1 = true ∧
-      oneInclusionLearner thresholdClass (Fin.removeNth 4 dupSample) (dupSample 4).1 = false ∧
+    oneInclusionLearner (thresholdClass ℕ) (Fin.removeNth 0 dupSample) (dupSample 0).1 = true ∧
+      oneInclusionLearner (thresholdClass ℕ)
+        (Fin.removeNth 4 dupSample) (dupSample 4).1 = false ∧
       (Finset.univ.filter fun t : Fin 5 =>
-        oneInclusionLearner thresholdClass (t.removeNth dupSample) (dupSample t).1 ≠
+        oneInclusionLearner (thresholdClass ℕ) (t.removeNth dupSample) (dupSample t).1 ≠
           (dupSample t).2).card ≤ 1 := by
-  have hrem : ∀ t : Fin 5, Realizable thresholdClass (t.removeNth dupSample) := fun t =>
+  have hrem : ∀ t : Fin 5, Realizable (thresholdClass ℕ) (t.removeNth dupSample) := fun t =>
     ⟨thresholdConcept 5, ⟨5, rfl⟩, fun j => by
       have h := realizable_dupSample
       rcases h with ⟨_, _, _⟩
@@ -166,15 +167,15 @@ theorem leaveOneOut_dupSample :
 
 /-! ### 3. Expected error bound and PAC sample-complexity separation from `vcSampleSize` -/
 
-/-- Concrete instantiation of `lintegral_error_oneInclusionLearner_le`: on any `thresholdClass`-
+/-- Concrete instantiation of `lintegral_error_oneInclusionLearner_le`: on any `thresholdClass ℕ`-
 realizable distribution `D` (for instance `Measure.dirac (2, true)`), `3` i.i.d. examples achieve
 expected true error at most `1 / 4`. -/
 theorem lintegral_error_thresholdClass_three_le_quarter :
     let D : Measure (ℕ × Bool) := Measure.dirac (2, true)
-    ∫⁻ S, error D (oneInclusionLearner thresholdClass S) ∂Measure.pi (fun _ : Fin 3 => D) ≤
+    ∫⁻ S, error D (oneInclusionLearner (thresholdClass ℕ) S) ∂Measure.pi (fun _ : Fin 3 => D) ≤
       1 / 4 := by
   intro D
-  have hD : IsRealizableBy D thresholdClass :=
+  have hD : IsRealizableBy D (thresholdClass ℕ) :=
     ⟨thresholdConcept 4, ⟨4, rfl⟩, by simp [D, error, thresholdConcept]⟩
   have h := lintegral_error_oneInclusionLearner_le (m := 3)
     card_le_one_of_setShatters_thresholdClass (measurable_of_countable _) hD
@@ -185,21 +186,22 @@ noncomputable def half : Set.Ioo (0 : ℝ≥0) 1 := ⟨1 / 2, by norm_num, by no
 
 noncomputable def hundredth : Set.Ioo (0 : ℝ≥0) 1 := ⟨1 / 100, by norm_num, by norm_num⟩
 
-/-- Three i.i.d. examples already learn `thresholdClass` to accuracy and confidence `1 / 2` via
+/-- Three i.i.d. examples already learn `thresholdClass ℕ` to accuracy and confidence `1 / 2` via
 `oneInclusionLearner`, since `1 ≤ (1 / 2) * (1 / 2) * (3 + 1)`. -/
 theorem isPACLearnerFor_thresholdClass_three :
-    IsPACLearnerFor 3 half half thresholdClass (realizableDistributions thresholdClass) :=
+    IsPACLearnerFor 3 half half (thresholdClass ℕ) (realizableDistributions (thresholdClass ℕ)) :=
   isPACLearnerFor_oneInclusionLearner card_le_one_of_setShatters_thresholdClass
     (measurable_of_countable _) (by simp only [half]; norm_num)
 
-/-- Non-vacuity: `0` examples do not learn `thresholdClass` to accuracy and confidence `1 / 2`. -/
+/-- Non-vacuity: `0` examples do not learn `thresholdClass ℕ` to accuracy and confidence `1 / 2`. -/
 theorem not_isPACLearnerFor_thresholdClass_zero :
-    ¬ IsPACLearnerFor 0 half half thresholdClass (realizableDistributions thresholdClass) := by
+    ¬ IsPACLearnerFor 0 half half (thresholdClass ℕ)
+        (realizableDistributions (thresholdClass ℕ)) := by
   rintro ⟨A, hA⟩
   set h0 := A Fin.elim0
   set θ : ℕ := if h0 0 then 0 else 1
   set D : Measure (ℕ × Bool) := Measure.dirac (0, !h0 0)
-  have hD : D ∈ realizableDistributions thresholdClass := by
+  have hD : D ∈ realizableDistributions (thresholdClass ℕ) := by
     refine ⟨thresholdConcept θ, ⟨θ, rfl⟩, ?_⟩
     cases h : h0 0 <;> simp [D, error, θ, h]
   have key := hA D hD
@@ -214,12 +216,12 @@ theorem not_isPACLearnerFor_thresholdClass_zero :
   rw [hset, measure_univ] at key
   exact absurd key (by simp [half])
 
-/-- At accuracy `1 / 100` and confidence `1 / 2`, `thresholdClass` has realizable PAC sample
+/-- At accuracy `1 / 100` and confidence `1 / 2`, `thresholdClass ℕ` has realizable PAC sample
 complexity at most `200`, strictly smaller than the ERM sample-size bound
 `⌈vcSampleSize 1 (1 / 100) (1 / 2)⌉₊`. -/
 theorem sampleComplexity_thresholdClass_hundredth_lt_vcSampleSize :
-    sampleComplexity IsPACLearnerFor thresholdClass hundredth half
-        (realizableDistributions thresholdClass) ≤ 200 ∧
+    sampleComplexity IsPACLearnerFor (thresholdClass ℕ) hundredth half
+        (realizableDistributions (thresholdClass ℕ)) ≤ 200 ∧
       200 < ⌈vcSampleSize 1 (1 / 100) (1 / 2)⌉₊ := by
   constructor
   · have h := sampleComplexity_realizableDistributions_le_div_vcDim

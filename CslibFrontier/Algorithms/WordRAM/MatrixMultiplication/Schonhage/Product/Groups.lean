@@ -130,33 +130,17 @@ public theorem exec_saveGroups {w L m N Q : ℕ} (x : Data 160)
   obtain ⟨b, hb, bp, bm, bf⟩ := exec_saveCodes a ap (by regs_frame) hfit
   obtain ⟨y, hy, yp, ym, _⟩ := exec_saveOriginals b bp (by regs_frame) hfit
   have hbounds := group_copy_bounds L m N Q
-  have horder : offsetBase L m N Q ≤ codeBase L m N Q ∧
-      codeBase L m N Q ≤ originalBase L m N Q := by
-    simp only [codeBase, originalBase]
-    omega
-  refine ⟨y, (ha.seq (hb.seq hy)).mono (by omega), yp, ?_, ?_, ?_, ?_⟩
-  · intro t ht
-    have hbefore : offsetBase L m N Q + t < codeBase L m N Q := by unfold codeBase; omega
-    rw [ym, ArrayCopy.copyPrefix_outside (by omega), bm,
-      ArrayCopy.copyPrefix_outside (by omega), am]
-    exact ArrayCopy.copyPrefix_read (by omega)
-  · intro j hj
-    have hbefore : codeBase L m N Q + j < originalBase L m N Q := by
-      unfold originalBase
-      omega
-    have hlow : Wanted.codeAddress L m N Q + j < offsetBase L m N Q := by omega
-    rw [ym, ArrayCopy.copyPrefix_outside (by omega), bm, ArrayCopy.copyPrefix_read hj,
+  have hoff : offsetBase L m N Q + (numBands L m N ^ 2 + 1) = codeBase L m N Q := rfl
+  have hcode : codeBase L m N Q + Q = originalBase L m N Q := rfl
+  refine ⟨y, (ha.seq (hb.seq hy)).mono (by omega), yp, fun t ht => ?_, fun j hj => ?_,
+    fun j hj => ?_, fun p hp => ?_⟩
+  · rw [ym, ArrayCopy.copyPrefix_outside (by omega), bm, ArrayCopy.copyPrefix_outside (by omega),
+      am, ArrayCopy.copyPrefix_read (by omega)]
+  · rw [ym, ArrayCopy.copyPrefix_outside (by omega), bm, ArrayCopy.copyPrefix_read hj,
       am, ArrayCopy.copyPrefix_outside (by omega)]
-  · intro j hj
-    have hlow : Wanted.originalAddress L m N Q + j < offsetBase L m N Q := by omega
-    rw [ym, ArrayCopy.copyPrefix_read hj, bm, ArrayCopy.copyPrefix_outside (by omega),
+  · rw [ym, ArrayCopy.copyPrefix_read hj, bm, ArrayCopy.copyPrefix_outside (by omega),
       am, ArrayCopy.copyPrefix_outside (by omega)]
-  · intro p hp
-    have hoff : offsetBase L m N Q + (numBands L m N ^ 2 + 1) = codeBase L m N Q := by
-      unfold codeBase
-      omega
-    have hcode : codeBase L m N Q + Q = originalBase L m N Q := rfl
-    rw [ym, ArrayCopy.copyPrefix_outside (by omega), bm,
-      ArrayCopy.copyPrefix_outside (by omega), am, ArrayCopy.copyPrefix_outside (by omega)]
+  · rw [ym, ArrayCopy.copyPrefix_outside (by omega), bm, ArrayCopy.copyPrefix_outside (by omega),
+      am, ArrayCopy.copyPrefix_outside (by omega)]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct

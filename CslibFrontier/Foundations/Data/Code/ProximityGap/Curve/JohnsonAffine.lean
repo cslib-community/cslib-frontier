@@ -51,18 +51,15 @@ open Finset Polynomial
 private theorem maxYDeg_le_johnsonCurveBound (n m d D r W_tot : ℕ) :
     ProximityGap.maxYDeg d D ≤ ProximityGap.johnsonCurveBound n m d D r W_tot := by
   rcases Nat.eq_zero_or_pos D with rfl | hD
-  · have h0 : ProximityGap.maxYDeg d 0 = 0 :=
-      Nat.eq_zero_of_le_zero (Finset.sup_le fun p hp => (Sudan.mem_monomials.1 hp).2.1)
-    rw [h0]
+  · rw [show ProximityGap.maxYDeg d 0 = 0 from
+      Nat.eq_zero_of_le_zero (Finset.sup_le fun p hp => (Sudan.mem_monomials.1 hp).2.1)]
     exact Nat.zero_le _
-  · calc ProximityGap.maxYDeg d D
-        = 1 * (ProximityGap.maxYDeg d D * 1) := by ring
-      _ ≤ 2 * (ProximityGap.maxYDeg d D * (D + ProximityGap.siegelZDeg n m d D r)) :=
-          Nat.mul_le_mul (by omega) (Nat.mul_le_mul_left _ (by omega))
-      _ = 2 * ProximityGap.maxYDeg d D * (D + ProximityGap.siegelZDeg n m d D r) := by ring
-      _ ≤ ProximityGap.johnsonCurveBound n m d D r W_tot := by
-          dsimp only [ProximityGap.johnsonCurveBound]
-          omega
+  · have hmul : ProximityGap.maxYDeg d D ≤
+        2 * ProximityGap.maxYDeg d D * (D + ProximityGap.siegelZDeg n m d D r) :=
+      (by omega : ProximityGap.maxYDeg d D ≤ 2 * ProximityGap.maxYDeg d D).trans
+        (Nat.le_mul_of_pos_right _ (by omega))
+    dsimp only [ProximityGap.johnsonCurveBound]
+    omega
 
 /-- Private helper: converts the real density strict inequality `B / q < cardT / q ^ ℓ` (`0 < q`)
 to the exact integer form `B * q ^ ℓ < q * cardT` uniformly for all `ℓ : ℕ`. -/
@@ -71,11 +68,9 @@ private theorem affine_mul_lt_of_density_lt
     (hlt : (B : ℝ) / (q : ℝ) < (cardT : ℝ) / ((q : ℝ) ^ ℓ)) :
     B * q ^ ℓ < q * cardT := by
   have hqR : (0 : ℝ) < (q : ℝ) := Nat.cast_pos.2 hq
-  have hpowR : (0 : ℝ) < (q : ℝ) ^ ℓ := pow_pos hqR ℓ
   have hmulR : (B : ℝ) * ((q : ℝ) ^ ℓ) < (cardT : ℝ) * (q : ℝ) :=
-    (div_lt_div_iff₀ hqR hpowR).1 hlt
-  have hcast : ((B * q ^ ℓ : ℕ) : ℝ) < ((q * cardT : ℕ) : ℝ) := by cast_linarith
-  exact Nat.cast_lt.1 hcast
+    (div_lt_div_iff₀ hqR (pow_pos hqR ℓ)).1 hlt
+  exact Nat.cast_lt.1 (by cast_linarith : ((B * q ^ ℓ : ℕ) : ℝ) < ((q * cardT : ℕ) : ℝ))
 
 /-- Private helper: uniform Reed–Solomon list-size bound `≤ maxYDeg (k - 1) D` for all `1 ≤ k`
 (covering both `k ≥ 2` via `guruswamiSudan` and `k = 1` via disjoint constant-codeword fibers). -/
@@ -96,34 +91,31 @@ private theorem card_reedSolomon_list_le_maxYDeg
   have hagree_ge (c : ι → F) (hcW : B_W ≤ ∑ i ∈ Finset.univ.filter (fun i => u i = c i), W i) :
       t ≤ (Finset.univ.filter fun i => u i = c i).card := by
     have hsum_le : ∑ i ∈ Finset.univ.filter (fun i => u i = c i), W i ≤
-        M * (Finset.univ.filter fun i => u i = c i).card :=
-      (Finset.sum_le_sum fun i _ => hW_le i).trans_eq
-        (by rw [Finset.sum_const, smul_eq_mul, mul_comm])
-    rw [Nat.div_le_iff_le_mul_add_pred hM]; omega
+        (Finset.univ.filter fun i => u i = c i).card * M :=
+      Finset.sum_le_card_nsmul _ _ M fun i _ => hW_le i
+    rw [Nat.div_le_iff_le_mul_add_pred hM, mul_comm]; omega
   rcases Nat.eq_or_lt_of_le hk with rfl | hk2
   · have ht_pos : 0 < t := Nat.pos_of_ne_zero fun h0 => by rw [h0, Nat.mul_zero] at hroot; omega
     let A_good :=
       (Finset.univ.image u).filter fun a => t ≤ (Finset.univ.filter fun i => u i = a).card
-    have hmem0 : (0, D) ∈ Sudan.monomials 0 D :=
-      Sudan.mem_monomials.2 ⟨Nat.zero_le D, le_rfl, by simp⟩
-    have hD_le_maxY : D ≤ ProximityGap.maxYDeg 0 D := Finset.le_sup (f := Prod.snd) hmem0
-    have hmon0 : #(Sudan.monomials 0 D) = (D + 1) * (D + 1) := by
-      have : Sudan.monomials 0 D = range (D + 1) ×ˢ range (D + 1) := by
-        ext ⟨a, b⟩
-        simp only [Sudan.mem_monomials, mem_product, mem_range, Nat.lt_succ_iff, zero_mul, add_zero]
-        tauto
-      rw [this, Finset.card_product, Finset.card_range]
+    have hD_le_maxY : D ≤ ProximityGap.maxYDeg 0 D :=
+      Finset.le_sup (f := Prod.snd) (b := (0, D))
+        (Sudan.mem_monomials.2 ⟨Nat.zero_le D, le_rfl, by simp⟩)
+    have hmon0 : Sudan.monomials 0 D = range (D + 1) ×ˢ range (D + 1) := by
+      ext ⟨a, b⟩
+      simp only [Sudan.mem_monomials, mem_product, mem_range, Nat.lt_succ_iff, zero_mul, add_zero]
+      tauto
     have hcard_mul : A_good.card * t ≤ Fintype.card ι := calc
-      A_good.card * t = ∑ _a ∈ A_good, t := by rw [Finset.sum_const, smul_eq_mul]
-      _ ≤ ∑ a ∈ A_good, (Finset.univ.filter fun i => u i = a).card :=
-          Finset.sum_le_sum fun _ ha => (mem_filter.1 ha).2
+      A_good.card * t ≤ ∑ a ∈ A_good, (Finset.univ.filter fun i => u i = a).card :=
+          Finset.card_nsmul_le_sum _ _ t fun _ ha => (mem_filter.1 ha).2
       _ = (A_good.biUnion fun a => Finset.univ.filter fun i => u i = a).card :=
           (Finset.card_biUnion fun _ _ _ _ hne =>
             Finset.disjoint_filter.2 fun _ _ h1 h2 => hne (h1.symm.trans h2)).symm
       _ ≤ Fintype.card ι := Finset.card_le_univ _
-    have hm_le : m ≤ m * (m + 1) / 2 := (Nat.le_div_iff_mul_le (by norm_num)).2 (by nlinarith)
+    have hm_le : m ≤ m * (m + 1) / 2 :=
+      (Nat.le_div_iff_mul_le two_pos).2 (Nat.mul_le_mul_left m (by omega))
     have hlt_sq : A_good.card * (D + 1) < (D + 1) * (D + 1) := by
-      rw [Nat.sub_self, hmon0] at hinterp
+      rw [Nat.sub_self, hmon0, Finset.card_product, Finset.card_range] at hinterp
       calc A_good.card * (D + 1) ≤ A_good.card * (m * t) := Nat.mul_le_mul_left _ hroot
         _ = A_good.card * t * m := by ring
         _ ≤ Fintype.card ι * m := Nat.mul_le_mul_right _ hcard_mul
@@ -133,22 +125,19 @@ private theorem card_reedSolomon_list_le_maxYDeg
       ((Nat.lt_succ_iff.1 (Nat.lt_of_mul_lt_mul_right hlt_sq)).trans hD_le_maxY),
       fun c hcRS hcW => ?_⟩
     obtain ⟨P, hPdeg, rfl⟩ := mem_reedSolomon.1 hcRS
-    have hconst : (fun i => P.eval (α i)) = fun _ => P.coeff 0 := funext fun i => by
+    have hP : P = C (P.coeff 0) := Polynomial.eq_C_of_natDegree_eq_zero <| by
       rcases eq_or_ne P 0 with rfl | hP0
-      · simp
-      · have hnd : P.natDegree = 0 := by
-          have := (natDegree_lt_iff_degree_lt hP0).2 hPdeg; omega
-        conv_lhs => rw [Polynomial.eq_C_of_natDegree_eq_zero hnd]
-        exact eval_C
+      exacts [natDegree_zero, Nat.lt_one_iff.1 ((natDegree_lt_iff_degree_lt hP0).2 hPdeg)]
+    have hconst : (fun i => P.eval (α i)) = fun _ => P.coeff 0 :=
+      funext fun i => (congrArg (eval (α i)) hP).trans eval_C
     have hcard_a : t ≤ (Finset.univ.filter fun i => u i = P.coeff 0).card := by
       simpa only [congrFun hconst] using hagree_ge (fun i => P.eval (α i)) hcW
     obtain ⟨i₀, hi₀⟩ := Finset.card_pos.1 (ht_pos.trans_le hcard_a)
     exact mem_image.2 ⟨P.coeff 0, mem_filter.2
       ⟨mem_image.2 ⟨i₀, mem_univ i₀, (mem_filter.1 hi₀).2⟩, hcard_a⟩, hconst.symm⟩
-  · have hmem : (0, D / (k - 1)) ∈ Sudan.monomials (k - 1) D := Sudan.mem_monomials.2
-      ⟨Nat.zero_le D, Nat.div_le_self D (k - 1), by rw [zero_add]; exact Nat.mul_div_le D (k - 1)⟩
-    have hdiv_le : D / (k - 1) ≤ ProximityGap.maxYDeg (k - 1) D :=
-      Finset.le_sup (f := Prod.snd) hmem
+  · have hdiv_le : D / (k - 1) ≤ ProximityGap.maxYDeg (k - 1) D :=
+      Finset.le_sup (f := Prod.snd) (b := (0, D / (k - 1))) <| Sudan.mem_monomials.2
+        ⟨Nat.zero_le D, Nat.div_le_self D (k - 1), by rw [zero_add]; exact Nat.mul_div_le D (k - 1)⟩
     refine ⟨(guruswamiSudan α u m k D).image fun P i => P.eval (α i),
       Finset.card_image_le.trans
         (((Nat.le_div_iff_mul_le (by omega)).2 card_guruswamiSudan_mul_le).trans hdiv_le),
@@ -163,10 +152,8 @@ private theorem card_reedSolomon_list_le_maxYDeg
 private theorem nonempty_of_pos_lt_density {F : Type*} [Fintype F] {ℓ : ℕ}
     {T : Finset (Fin ℓ → F)} {B : ℝ} (hB_pos : 0 < B)
     (hT : B < (T.card : ℝ) / ((Fintype.card F : ℝ) ^ ℓ)) : T.Nonempty :=
-  Finset.card_pos.1 <| by
-    by_contra h0
-    have hcz : T.card = 0 := by omega
-    rw [hcz, Nat.cast_zero, zero_div] at hT
+  Finset.card_pos.1 <| Nat.pos_of_ne_zero fun h0 => by
+    rw [h0, Nat.cast_zero, zero_div] at hT
     exact lt_irrefl 0 (hB_pos.trans hT)
 
 /-- Private helper: reduces `ℚ`-weighted affine correlated agreement with common denominator `M`
@@ -196,12 +183,11 @@ private theorem ratWeighted_to_nat_affine_ca
   obtain ⟨W, _, hW_le, _, hsum_iff, hθ_le_t⟩ := rat_weights_to_nat hM hμ_le hμ_den θ
   obtain ⟨z₀, hz₀⟩ := hT_ne
   obtain ⟨c₀, _, hc₀_ge⟩ := hclose z₀ hz₀
-  have hθ_le_n : (θ : ℝ) ≤ (Fintype.card ι : ℝ) := by
-    exact_mod_cast hc₀_ge.trans (sum_le_card_of_le_one hμ_le _)
-  have hB := ceilDiv_radius_le hM (hk.trans hkn) hθ_le_t hθ_le_n hθ
-  obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree⟩ := hw hW_le hB fun z hz => by
-    obtain ⟨c, hcRS, hge⟩ := hclose z hz
-    exact ⟨c, hcRS, (hsum_iff _).1 hge⟩
+  have hB := ceilDiv_radius_le hM (hk.trans hkn) hθ_le_t
+    (mod_cast hc₀_ge.trans (sum_le_card_of_le_one hμ_le _)) hθ
+  obtain ⟨D', hD', v₀, hv₀, v, hvRS, hagree⟩ := hw hW_le hB fun z hz =>
+    let ⟨c, hcRS, hge⟩ := hclose z hz
+    ⟨c, hcRS, (hsum_iff _).1 hge⟩
   exact ⟨D', (hsum_iff D').2 hD', v₀, hv₀, v, hvRS, hagree⟩
 
 /-- **Explicit-parameter `ℕ`-weighted correlated-agreement step on affine spaces up to the Johnson
@@ -236,17 +222,15 @@ theorem exists_weighted_correlatedAgreement_affine_johnson
     ∃ D' : Finset ι, B_W ≤ ∑ i ∈ D', W i ∧
       ∃ v₀ ∈ reedSolomon α k, ∃ v : Fin ℓ → (ι → F), (∀ j, v j ∈ reedSolomon α k) ∧
         ∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i := by
-  have hB_lt_q :
-      ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 W_tot < Fintype.card F :=
-    lt_card_field_of_density_threshold hT
   have hL_lt_q : 2 ≤ ℓ → ProximityGap.maxYDeg (k - 1) D < Fintype.card F := fun _ =>
-    (maxYDeg_le_johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 W_tot).trans_lt hB_lt_q
+    (maxYDeg_le_johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 W_tot).trans_lt
+      (lt_card_field_of_density_threshold hT)
   obtain ⟨D', _, hD'_ge, v₀, hv₀, v, hvRS, hagree⟩ :=
     exists_weighted_correlatedAgreement_affine_of_line
       (C := reedSolomon α k) (W := W) (B_W := B_W)
       (B_line := ProximityGap.johnsonCurveBound (Fintype.card ι) m (k - 1) D 1 W_tot)
       (L := ProximityGap.maxYDeg (k - 1) D)
-      (fun w => card_reedSolomon_list_le_maxYDeg hα hk hm hM hW_le hinterp hroot w)
+      (card_reedSolomon_list_le_maxYDeg hα hk hm hM hW_le hinterp hroot)
       (fun {B'} hB' a b S hS hcl => by
         have ht_le : (B_W + M - 1) / M ≤ (B' + M - 1) / M :=
           Nat.div_le_div_right (by omega)
@@ -385,11 +369,10 @@ theorem exists_correlatedAgreement_affine_johnson_of_eta
       ∃ v₀ ∈ reedSolomon α k, ∃ v : Fin ℓ → (ι → F), (∀ j, v j ∈ reedSolomon α k) ∧
         ∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i := by
   obtain ⟨m, hm, he', hpow⟩ := ProximityGap.exists_multiplicity_of_eta hk hkn hη he
-  have hle := by
-    simpa only [mul_one] using
-      siegel_eta_bound_le hk hkn (Fintype.card_pos (α := F)) zero_le_one hη hpow
   exact exists_correlatedAgreement_affine_johnson_of_multiplicity hα hk hkn hm he' u₀ u T
-    (hle.trans_lt hT) hclose
+    (lt_of_le_of_lt (by simpa only [mul_one] using
+      siegel_eta_bound_le hk hkn (Fintype.card_pos (α := F)) zero_le_one hη hpow) hT)
+    hclose
 
 /-- **Original explicit-constant `ℕ`-weighted correlated-agreement variant on affine spaces up to
 the Johnson bound** (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 on
@@ -419,11 +402,8 @@ theorem exists_weighted_correlatedAgreement_affine_johnson_of_multiplicity
     ∃ D' : Finset ι, B_W ≤ ∑ i ∈ D', W i ∧
       ∃ v₀ ∈ reedSolomon α k, ∃ v : Fin ℓ → (ι → F), (∀ j, v j ∈ reedSolomon α k) ∧
         ∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i := by
-  have hpos : 0 < 1800 * (M : ℝ) * ((m + 1 : ℝ) ^ 6) * ((Fintype.card ι : ℝ) ^ 2) /
-      (((k : ℝ) / Fintype.card ι) * Fintype.card F) := by
-    have : 1 ≤ Fintype.card ι := hk.trans hkn
-    have : 0 < Fintype.card F := Fintype.card_pos; positivity
-  obtain ⟨z₀, hz₀⟩ := nonempty_of_pos_lt_density hpos hT
+  have : Nonempty ι := Fintype.card_pos_iff.1 (hk.trans hkn)
+  obtain ⟨z₀, hz₀⟩ := nonempty_of_pos_lt_density (by positivity) hT
   have hBW_le : B_W ≤ M * Fintype.card ι :=
     let ⟨_, _, hge⟩ := hclose z₀ hz₀; hge.trans (sum_le_mul_card_of_le hW _)
   have ht_le : (B_W + M - 1) / M ≤ Fintype.card ι :=
@@ -495,13 +475,11 @@ theorem exists_ratWeighted_correlatedAgreement_affine_johnson_of_multiplicity
     ∃ D' : Finset ι, θ ≤ ∑ i ∈ D', μ i ∧
       ∃ v₀ ∈ reedSolomon α k, ∃ v : Fin ℓ → (ι → F), (∀ j, v j ∈ reedSolomon α k) ∧
         ∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i := by
-  have hB : 0 < (1800 * (M : ℝ) * ((m + 1 : ℝ) ^ 6) * ((Fintype.card ι : ℝ) ^ 2) /
-      (((k : ℝ) / Fintype.card ι) * Fintype.card F)) := by
-    have : 0 < Fintype.card ι := hk.trans hkn
-    have : 0 < Fintype.card F := Fintype.card_pos; positivity
-  exact ratWeighted_to_nat_affine_ca hk hkn hM hμ_le hμ_den hθ (nonempty_of_pos_lt_density hB hT)
-    hclose fun hW_le hB' hclW => exists_weighted_correlatedAgreement_affine_johnson_of_multiplicity
-      hα hk hkn hm hM hW_le hB' u₀ u T hT hclW
+  have : Nonempty ι := Fintype.card_pos_iff.1 (hk.trans hkn)
+  exact ratWeighted_to_nat_affine_ca hk hkn hM hμ_le hμ_den hθ
+    (nonempty_of_pos_lt_density (by positivity) hT) hclose fun hW_le hB' hclW =>
+      exists_weighted_correlatedAgreement_affine_johnson_of_multiplicity
+        hα hk hkn hm hM hW_le hB' u₀ u T hT hclW
 
 /-- **Original explicit-constant `ℚ`-weighted correlated-agreement variant on affine spaces up to
 `1 - √ρ - η`** (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 on printed
@@ -531,8 +509,8 @@ theorem exists_ratWeighted_correlatedAgreement_affine_johnson_of_eta
         (u₀ + ∑ j : Fin ℓ, z j • u j) i = c i), μ i) :
     ∃ D' : Finset ι, θ ≤ ∑ i ∈ D', μ i ∧
       ∃ v₀ ∈ reedSolomon α k, ∃ v : Fin ℓ → (ι → F), (∀ j, v j ∈ reedSolomon α k) ∧
-        ∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i := by
-  exact ratWeighted_to_nat_affine_ca hk hkn hM hμ_le hμ_den hθ
+        ∀ i ∈ D', u₀ i = v₀ i ∧ ∀ j, u j i = v j i :=
+  ratWeighted_to_nat_affine_ca hk hkn hM hμ_le hμ_den hθ
     (nonempty_of_pos_lt_density (by
       have : 1 ≤ Fintype.card ι := hk.trans hkn
       have : 0 < Fintype.card F := Fintype.card_pos; positivity) hT)

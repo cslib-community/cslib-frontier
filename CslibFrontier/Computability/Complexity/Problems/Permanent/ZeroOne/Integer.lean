@@ -76,24 +76,23 @@ theorem tableMatrix_eq_intTableEntry (A : List (List ℤ)) (i j : Fin A.length) 
   simp [tableMatrix_apply, intTableEntry, List.getD_eq_getElem?_getD]
 
 theorem natAbs_intTableEntry_le {A : List (List ℤ)} {i j : ℕ} (hi : i < A.length)
-    (hj : j < A.length) : (intTableEntry A i j).natAbs ≤ intTableAbsSum A := by
-  refine List.le_sum_of_mem ?_
-  simp only [List.mem_flatMap, List.mem_range, List.mem_map]
-  exact ⟨i, hi, j, hj, rfl⟩
+    (hj : j < A.length) : (intTableEntry A i j).natAbs ≤ intTableAbsSum A :=
+  List.le_sum_of_mem <| by
+    simp only [List.mem_flatMap, List.mem_range, List.mem_map]
+    exact ⟨i, hi, j, hj, rfl⟩
 
 /-- **The permanent is at most `n! · S ^ n` in absolute value.** -/
 theorem abs_intPermanent_le (A : List (List ℤ)) :
     |IntPermanent A| ≤ (A.length.factorial * intTableAbsSum A ^ A.length : ℕ) := by
   rw [IntPermanent, Matrix.permanent]
   refine (Finset.abs_sum_le_sum_abs _ _).trans ?_
-  have hterm : ∀ σ : Equiv.Perm (Fin A.length),
+  have hterm (σ : Equiv.Perm (Fin A.length)) :
       |∏ i, tableMatrix A (σ i) i| ≤ (intTableAbsSum A : ℤ) ^ A.length := by
-    intro σ
     rw [Finset.abs_prod]
     calc ∏ i, |tableMatrix A (σ i) i| ≤ ∏ _i : Fin A.length, (intTableAbsSum A : ℤ) :=
-          Finset.prod_le_prod₀ (fun _ _ => abs_nonneg _) (fun i _ => by
+          Finset.prod_le_prod₀ (fun _ _ => abs_nonneg _) fun i _ => by
             rw [tableMatrix_eq_intTableEntry, Int.abs_eq_natAbs]
-            exact_mod_cast natAbs_intTableEntry_le (σ i).isLt i.isLt)
+            exact_mod_cast natAbs_intTableEntry_le (σ i).isLt i.isLt
       _ = (intTableAbsSum A : ℤ) ^ A.length := by simp
   calc ∑ σ : Equiv.Perm (Fin A.length), |∏ i, tableMatrix A (σ i) i|
       ≤ ∑ _σ : Equiv.Perm (Fin A.length), (intTableAbsSum A : ℤ) ^ A.length :=
@@ -115,28 +114,22 @@ theorem permanent_reduceIntTable_modEq (A : List (List ℤ)) :
       [ZMOD (permanentModulus A : ℤ)] := by
   have hQ : (0 : ℤ) < permanentModulus A := by exact_mod_cast Nat.succ_pos _
   have hl := length_reduceIntTable A
-  rw [← ZMod.intCast_eq_intCast_iff, IntPermanent]
   have hcast : (((tableMatrix (reduceIntTable A)).permanent : ℕ) : ℤ) =
       ((tableMatrix (reduceIntTable A)).map (Nat.cast : ℕ → ℤ)).permanent :=
     (Nat.castRingHom ℤ).map_permanent _
-  have hmap : ∀ M : Matrix (Fin A.length) (Fin A.length) ℤ,
+  have hmap {n : ℕ} (M : Matrix (Fin n) (Fin n) ℤ) :
       ((M.permanent : ℤ) : ZMod (permanentModulus A)) =
-        (M.map (Int.castRingHom (ZMod (permanentModulus A)))).permanent := fun M => by
+        (M.map (Int.castRingHom (ZMod (permanentModulus A)))).permanent := by
     simpa using (Int.castRingHom (ZMod (permanentModulus A))).map_permanent M
-  have hmap' : ∀ M : Matrix (Fin (reduceIntTable A).length) (Fin (reduceIntTable A).length) ℤ,
-      ((M.permanent : ℤ) : ZMod (permanentModulus A)) =
-        (M.map (Int.castRingHom (ZMod (permanentModulus A)))).permanent := fun M => by
-    simpa using (Int.castRingHom (ZMod (permanentModulus A))).map_permanent M
-  rw [hcast, hmap, hmap', ← Matrix.permanent_submatrix_equiv_equiv (finCongr hl.symm)
-    (finCongr hl.symm)]
-  refine congrArg Matrix.permanent ?_
-  ext i j
+  rw [← ZMod.intCast_eq_intCast_iff, IntPermanent, hcast, hmap, hmap,
+    ← Matrix.permanent_submatrix_equiv_equiv (finCongr hl.symm) (finCongr hl.symm)]
+  refine congrArg Matrix.permanent (Matrix.ext fun i j => ?_)
   simp only [Matrix.submatrix_apply, Matrix.map_apply, finCongr_apply, eq_intCast,
     tableMatrix_eq_intTableEntry]
   rw [tableMatrix_apply]
   simp only [Fin.getElem_fin, Fin.val_cast]
-  rw [getD_reduceIntTable _ j.isLt]
-  rw [Int.toNat_of_nonneg (Int.emod_nonneg _ hQ.ne'), ZMod.intCast_mod]
+  rw [getD_reduceIntTable _ j.isLt, Int.toNat_of_nonneg (Int.emod_nonneg _ hQ.ne'),
+    ZMod.intCast_mod]
 
 /-- Recovering an integer from its residue modulo `Q = 2T + 1` when its absolute value is at most
 `T`. -/
@@ -144,20 +137,13 @@ theorem recover_of_modEq {Q T p : ℕ} {P : ℤ} (hQ : Q = 2 * T + 1) (hP : |P| 
     (hp : (p : ℤ) ≡ P [ZMOD (Q : ℤ)]) :
     (if 2 * (p % Q) < Q then ((p % Q : ℕ) : ℤ) else ((p % Q : ℕ) : ℤ) - Q) = P := by
   have hQpos : (0 : ℤ) < Q := by omega
-  have hmod : ((p % Q : ℕ) : ℤ) = P % Q := by
-    rw [Int.natCast_mod]; exact hp
+  have hmod : ((p % Q : ℕ) : ℤ) = P % Q := Int.natCast_mod p Q ▸ hp
   rw [abs_le] at hP
   rcases le_or_gt 0 P with h | h
-  · have hPQ : P % Q = P := Int.emod_eq_of_lt h (by omega)
-    rw [hPQ] at hmod
-    have : 2 * (p % Q) < Q := by omega
-    simp [this, hmod]
-  · have hPQ : P % Q = P + Q := by
-      rw [← Int.add_emod_right]
-      exact Int.emod_eq_of_lt (by omega) (by omega)
-    rw [hPQ] at hmod
-    have : ¬ 2 * (p % Q) < Q := by omega
-    simp only [this, ite_false, hmod]
+  · rw [Int.emod_eq_of_lt h (by omega)] at hmod
+    simp [show 2 * (p % Q) < Q by omega, hmod]
+  · rw [← Int.add_emod_right, Int.emod_eq_of_lt (by omega) (by omega)] at hmod
+    simp only [show ¬ 2 * (p % Q) < Q by omega, ite_false, hmod]
     ring
 
 /-- **The integer step of Goldreich's Proposition 6.22**: the integer permanent of `A` is

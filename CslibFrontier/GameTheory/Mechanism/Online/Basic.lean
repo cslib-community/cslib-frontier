@@ -164,20 +164,18 @@ theorem realizedValue_nonneg (θ : AgentType τ) (o : Option τ) : 0 ≤ θ.real
   cases o with
   | none => exact le_rfl
   | some t =>
-    simp only [realizedValue]
+    dsimp only [realizedValue]
     split_ifs
-    · exact θ.value_nonneg
-    · exact le_rfl
+    exacts [θ.value_nonneg, le_rfl]
 
 theorem realizedValue_le_value (θ : AgentType τ) (o : Option τ) :
     θ.realizedValue o ≤ θ.value := by
   cases o with
   | none => exact θ.value_nonneg
   | some t =>
-    simp only [realizedValue]
+    dsimp only [realizedValue]
     split_ifs
-    · exact le_rfl
-    · exact θ.value_nonneg
+    exacts [le_rfl, θ.value_nonneg]
 
 end AgentType
 
@@ -273,17 +271,8 @@ theorem criticalValue_le_of_isSome {π : Policy ι τ} {θ : ι → AgentType τ
 theorem criticalValue_le_self {π : Policy ι τ} {θ : ι → AgentType τ} {i : ι}
     (hwin : (π.alloc θ i).isSome) :
     π.criticalValue θ i (θ i).arrival (θ i).departure (θ i).arrival_le_departure ≤
-      ENNReal.ofReal (θ i).value := by
-  have hmem : (π.alloc (Function.update θ i
-      ⟨(θ i).arrival, (θ i).departure, (θ i).value, (θ i).arrival_le_departure,
-        (θ i).value_nonneg⟩) i).isSome := by
-    have heq :
-        (⟨(θ i).arrival, (θ i).departure, (θ i).value, (θ i).arrival_le_departure,
-          (θ i).value_nonneg⟩ : AgentType τ) = θ i := by
-      cases θ i
-      rfl
-    rwa [heq, Function.update_eq_self]
-  exact criticalValue_le_of_isSome (θ i).value_nonneg hmem
+      ENNReal.ofReal (θ i).value :=
+  criticalValue_le_of_isSome (θ i).value_nonneg (by rwa [Function.update_eq_self])
 
 /-- For a monotone policy, any nonnegative value strictly above the critical value wins. -/
 theorem isSome_of_criticalValue_lt {π : Policy ι τ} (hmono : π.IsMonotone)
@@ -308,10 +297,8 @@ theorem criticalValue_antitone {π : Policy ι τ} (hmono : π.IsMonotone)
   have hrε : 0 ≤ r + (ε : ℝ) := by linarith
   have hwin₂ : (π.alloc (Function.update θ i ⟨a₂, d₂, r + (ε : ℝ), had₂, hrε⟩) i).isSome :=
     hmono i θ ⟨a₁, d₁, r, had₁, hr⟩ ⟨a₂, d₂, r + (ε : ℝ), had₂, hrε⟩ ha hd (by linarith) hwin
-  have hle := criticalValue_le_of_isSome hrε hwin₂
-  have hadd : ENNReal.ofReal (r + (ε : ℝ)) = ENNReal.ofReal r + (ε : ℝ≥0∞) := by
-    rw [ENNReal.ofReal_add hr hεpos.le, ENNReal.ofReal_coe_nnreal]
-  exact hadd ▸ hle
+  simpa only [ENNReal.ofReal_add hr hεpos.le, ENNReal.ofReal_coe_nnreal] using
+    criticalValue_le_of_isSome hrε hwin₂
 
 /-- If `i` wins under `π` on `[a, d]` for every value strictly above `t ≥ 0` and only for values
 at least `t`, then `π.criticalValue θ i a d had = ENNReal.ofReal t`. -/
@@ -326,10 +313,8 @@ theorem criticalValue_eq_of_threshold {π : Policy ι τ} {θ : ι → AgentType
   · refine ENNReal.le_of_forall_pos_le_add fun ε hε _ => ?_
     have hεpos : (0 : ℝ) < ε := NNReal.coe_pos.mpr hε
     have htε : 0 ≤ t + (ε : ℝ) := by linarith
-    have hle := criticalValue_le_of_isSome htε (hwin (t + ε) htε (by linarith))
-    have hadd : ENNReal.ofReal (t + (ε : ℝ)) = ENNReal.ofReal t + (ε : ℝ≥0∞) := by
-      rw [ENNReal.ofReal_add ht hεpos.le, ENNReal.ofReal_coe_nnreal]
-    exact hadd ▸ hle
+    simpa only [ENNReal.ofReal_add ht hεpos.le, ENNReal.ofReal_coe_nnreal] using
+      criticalValue_le_of_isSome htε (hwin (t + ε) htε (by linarith))
   · refine le_sInf fun w hw => ?_
     obtain ⟨r, hr, rfl, h⟩ := hw
     exact ENNReal.ofReal_le_ofReal (hlose r hr h)
@@ -431,13 +416,9 @@ theorem criticalMechanism_isIR (π : Policy ι τ) : π.criticalMechanism.IsIR :
       AgentType.realizedValue_none, Option.isSome_none, Bool.false_eq_true, ↓reduceIte, sub_self,
       le_rfl]
   | some t =>
-    have hwin : (π.alloc θ i).isSome := by simp [h]
-    have hle := criticalValue_le_self hwin
-    have hreal :
-        (π.criticalValue θ i (θ i).arrival (θ i).departure (θ i).arrival_le_departure).toReal ≤
-          (θ i).value := by
-      have := ENNReal.toReal_mono ENNReal.ofReal_ne_top hle
-      rwa [ENNReal.toReal_ofReal (θ i).value_nonneg] at this
+    have hle := ENNReal.toReal_mono ENNReal.ofReal_ne_top
+      (criticalValue_le_self (h.symm ▸ Option.isSome_some))
+    rw [ENNReal.toReal_ofReal (θ i).value_nonneg] at hle
     rw [Mechanism.utility_of_alloc_some _ h]
     simp only [criticalMechanism, criticalPayment, h, Option.isSome_some, ↓reduceIte]
     linarith
@@ -451,12 +432,9 @@ theorem criticalMechanism_isDSIC {π : Policy ι τ} (hmono : π.IsMonotone) :
   set θ_t := Function.update θ i θ_true
   cases hrep : π.alloc θ i with
   | none =>
-    have h0 : π.criticalMechanism.utility i θ_true θ = 0 := by
-      rw [Mechanism.utility_of_alloc_none _ hrep,
-        π.criticalMechanism_isLoserZero i θ hrep, neg_zero]
-    rw [h0]
-    have hir := π.criticalMechanism_isIR i θ_t
-    simpa only [θ_t, Function.update_self] using hir
+    rw [Mechanism.utility_of_alloc_none _ hrep, π.criticalMechanism_isLoserZero i θ hrep,
+      neg_zero]
+    simpa only [θ_t, Function.update_self] using π.criticalMechanism_isIR i θ_t
   | some t_rep =>
     have hwin_rep : (π.alloc θ i).isSome := by simp [hrep]
     have hin_rep : θ_true.InWindow t_rep :=
@@ -490,17 +468,10 @@ theorem criticalMechanism_isDSIC {π : Policy ι τ} (hmono : π.IsMonotone) :
       have hutil_true : π.criticalMechanism.utility i θ_true θ_t = 0 := by
         rw [Mechanism.utility_of_alloc_none _ ht,
           π.criticalMechanism_isLoserZero i θ_t ht, neg_zero]
-      have hle_cv : ENNReal.ofReal θ_true.value ≤ cv_true := by
-        by_contra hlt
-        push Not at hlt
-        have hsome := isSome_of_criticalValue_lt hmono θ_true.value_nonneg hlt
-        have heq :
-            (⟨θ_true.arrival, θ_true.departure, θ_true.value, θ_true.arrival_le_departure,
-              θ_true.value_nonneg⟩ : AgentType τ) = θ_true := by
-          cases θ_true
-          rfl
-        rw [heq] at hsome
-        simp only [θ_t, ht, Option.isSome_none, Bool.false_eq_true] at hsome
+      have hle_cv : ENNReal.ofReal θ_true.value ≤ cv_true := le_of_not_gt fun hlt => by
+        have hsome : (π.alloc θ_t i).isSome :=
+          isSome_of_criticalValue_lt hmono θ_true.value_nonneg hlt
+        simp only [ht, Option.isSome_none, Bool.false_eq_true] at hsome
       have hv_le : θ_true.value ≤ cv_rep.toReal := by
         have hle' := ENNReal.toReal_mono hcv_rep_ne_top (hle_cv.trans hcv_anti)
         rwa [ENNReal.toReal_ofReal θ_true.value_nonneg] at hle'
@@ -519,24 +490,21 @@ theorem criticalMechanism_isDSICNoEarlyArrival {τ : Type*} [LinearOrder τ]
   · exact criticalMechanism_isDSIC hmono i θ θ_true ⟨ha, hd⟩
   · push Not at hd
     have hir : 0 ≤ π.criticalMechanism.utility i θ_true (Function.update θ i θ_true) := by
-      have := π.criticalMechanism_isIR i (Function.update θ i θ_true)
-      simpa only [Function.update_self] using this
+      simpa only [Function.update_self] using
+        π.criticalMechanism_isIR i (Function.update θ i θ_true)
     cases hrep : π.alloc θ i with
     | none =>
-      rw [Mechanism.utility_of_alloc_none _ hrep,
+      rwa [Mechanism.utility_of_alloc_none _ hrep,
         π.criticalMechanism_isLoserZero i θ hrep, neg_zero]
-      exact hir
     | some t_rep =>
       have ht_eq : t_rep = (θ i).departure := hlate θ i t_rep hrep
-      have hnotwin : ¬ θ_true.InWindow t_rep := fun hin =>
-        not_le_of_gt hd (ht_eq ▸ hin.2)
+      have hnotwin : ¬ θ_true.InWindow t_rep := fun hin => not_le_of_gt hd (ht_eq ▸ hin.2)
       have hutil_rep :
           π.criticalMechanism.utility i θ_true θ = -π.criticalMechanism.payment θ i := by
         simp only [Mechanism.utility, criticalMechanism, hrep,
           AgentType.realizedValue_some_of_not_inWindow hnotwin, zero_sub]
-      have hnpt := π.criticalMechanism_isNPT i θ
       rw [hutil_rep]
-      linarith
+      linarith [π.criticalMechanism_isNPT i θ]
 
 end Policy
 
@@ -555,11 +523,9 @@ theorem IsDSIC.isMonotone {M : Mechanism ι τ} (hdsic : M.IsDSIC) (hir : M.IsIR
   have hmis : θ₂.IsValidMisreport θ₁ := ⟨ha, hd⟩
   have hir₁ := hir i (Function.update θ i θ₁)
   rw [M.utility_of_alloc_some ht₁, Function.update_self] at hir₁
-  have hin₂ : θ₂.InWindow t₁ := by
-    have hin₁ : θ₁.InWindow t₁ := by
-      simpa only [Function.update_self] using
-        M.policy.alloc_in_window (Function.update θ i θ₁) i t₁ ht₁
-    exact AgentType.InWindow.of_isValidMisreport hmis hin₁
+  have hin₂ : θ₂.InWindow t₁ := .of_isValidMisreport hmis (by
+    simpa only [Function.update_self] using
+      M.policy.alloc_in_window (Function.update θ i θ₁) i t₁ ht₁)
   have hdsic₂ :=
     hdsic i (Function.update θ i θ₁) θ₂ (by simpa only [Function.update_self] using hmis)
   rw [Function.update_idem] at hdsic₂
@@ -585,31 +551,17 @@ private theorem IsDSIC.payment_eq_of_same_window {M : Mechanism ι τ} (hdsic : 
   obtain ⟨t₂, ht₂⟩ := Option.isSome_iff_exists.mp hwin₂
   have hmis₁₂ : θ₁.IsValidMisreport θ₂ := ⟨le_of_eq ha, le_of_eq hd.symm⟩
   have hmis₂₁ : θ₂.IsValidMisreport θ₁ := ⟨le_of_eq ha.symm, le_of_eq hd⟩
-  have hin₁_at_t₂ : θ₁.InWindow t₂ :=
-    AgentType.InWindow.of_isValidMisreport hmis₁₂ (by
-      simpa only [Function.update_self] using
-        M.policy.alloc_in_window (Function.update θ i θ₂) i t₂ ht₂)
-  have hin₂_at_t₁ : θ₂.InWindow t₁ :=
-    AgentType.InWindow.of_isValidMisreport hmis₂₁ (by
-      simpa only [Function.update_self] using
-        M.policy.alloc_in_window (Function.update θ i θ₁) i t₁ ht₁)
+  have hin₁ : θ₁.InWindow t₁ := by
+    simpa only [Function.update_self] using M.policy.alloc_in_window _ i t₁ ht₁
+  have hin₂ : θ₂.InWindow t₂ := by
+    simpa only [Function.update_self] using M.policy.alloc_in_window _ i t₂ ht₂
   have h1 := hdsic i (Function.update θ i θ₂) θ₁ (by simpa only [Function.update_self] using hmis₁₂)
   have h2 := hdsic i (Function.update θ i θ₁) θ₂ (by simpa only [Function.update_self] using hmis₂₁)
   rw [Function.update_idem] at h1 h2
-  have h1' :
-      θ₁.value - M.payment (Function.update θ i θ₂) i ≤
-        θ₁.value - M.payment (Function.update θ i θ₁) i := by
-    simpa only [utility, ht₁, ht₂, AgentType.realizedValue_some_of_inWindow hin₁_at_t₂,
-      AgentType.realizedValue_some_of_inWindow (by
-        simpa only [Function.update_self] using
-          M.policy.alloc_in_window (Function.update θ i θ₁) i t₁ ht₁)] using h1
-  have h2' :
-      θ₂.value - M.payment (Function.update θ i θ₁) i ≤
-        θ₂.value - M.payment (Function.update θ i θ₂) i := by
-    simpa only [utility, ht₁, ht₂, AgentType.realizedValue_some_of_inWindow hin₂_at_t₁,
-      AgentType.realizedValue_some_of_inWindow (by
-        simpa only [Function.update_self] using
-          M.policy.alloc_in_window (Function.update θ i θ₂) i t₂ ht₂)] using h2
+  simp only [utility, ht₁, ht₂, AgentType.realizedValue_some_of_inWindow hin₁,
+    AgentType.realizedValue_some_of_inWindow hin₂,
+    AgentType.realizedValue_some_of_inWindow (hin₂.of_isValidMisreport hmis₁₂),
+    AgentType.realizedValue_some_of_inWindow (hin₁.of_isValidMisreport hmis₂₁)] at h1 h2
   linarith
 
 /-- Uniqueness of critical-value payments: every DSIC, IR, NPT, loser-zero deterministic online
@@ -643,10 +595,7 @@ theorem IsDSIC.payment_eq_criticalPayment {M : Mechanism ι τ} (hdsic : M.IsDSI
         obtain ⟨t_r, ht_r⟩ := Option.isSome_iff_exists.mp hwin_r
         have hir_r := hir i (Function.update θ i θ_r)
         rw [M.utility_of_alloc_some ht_r, Function.update_self] at hir_r
-        have hpr : M.payment θ i ≤ r := by
-          rw [hpeq]
-          linarith
-        exact ENNReal.ofReal_le_ofReal hpr
+        exact ENNReal.ofReal_le_ofReal (by rw [hpeq]; linarith)
       have hreal := ENNReal.toReal_mono hcv_ne_top hp_le_cv
       rwa [ENNReal.toReal_ofReal (hnpt i θ)] at hreal
     · by_contra hlt
@@ -656,16 +605,12 @@ theorem IsDSIC.payment_eq_criticalPayment {M : Mechanism ι τ} (hdsic : M.IsDSI
       have hp_nonneg : 0 ≤ M.payment θ i := hnpt i θ
       have hz_nonneg : 0 ≤ z := by linarith
       have hp_lt_z : M.payment θ i < z := by linarith
-      have hz_lt_cv : ENNReal.ofReal z < cv := by
-        have h1 : ENNReal.ofReal z < ENNReal.ofReal cv.toReal :=
-          (ENNReal.ofReal_lt_ofReal_iff_of_nonneg hz_nonneg).mpr (by linarith)
-        rwa [ENNReal.ofReal_toReal hcv_ne_top] at h1
+      have hz_lt_cv : ENNReal.ofReal z < cv :=
+        (ENNReal.ofReal_lt_iff_lt_toReal hz_nonneg hcv_ne_top).2 (by linarith)
       set θ_z : AgentType τ := ⟨a, d, z, had, hz_nonneg⟩
-      have hlose_z : M.policy.alloc (Function.update θ i θ_z) i = none := by
-        by_contra hne
-        have hsome : (M.policy.alloc (Function.update θ i θ_z) i).isSome :=
-          Option.isSome_iff_ne_none.mpr hne
-        exact not_le_of_gt hz_lt_cv (M.policy.criticalValue_le_of_isSome hz_nonneg hsome)
+      have hlose_z : M.policy.alloc (Function.update θ i θ_z) i = none :=
+        Option.not_isSome_iff_eq_none.1 fun hsome =>
+          not_le_of_gt hz_lt_cv (M.policy.criticalValue_le_of_isSome hz_nonneg hsome)
       have hmis : θ_z.IsValidMisreport (θ i) := ⟨le_rfl, le_rfl⟩
       have hdsic_z := hdsic i θ θ_z hmis
       have hin_z : θ_z.InWindow t :=

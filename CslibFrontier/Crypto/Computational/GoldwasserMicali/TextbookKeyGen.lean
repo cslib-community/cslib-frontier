@@ -195,10 +195,9 @@ theorem isNonresidueModPrime_eq_true_iff {p : ℕ} [Fact p.Prime] (hp : 2 < p) (
       intro h1
       obtain ⟨r, hr⟩ := (ZMod.euler_criterion_units p u).mpr h1
       exact hnotsq ⟨r, by rw [← hr, sq]⟩
-    have hm1 : (u.val : ZMod p) ^ (p / 2) = -1 := by
-      rcases ZMod.pow_div_two_eq_neg_one_or_one p u.ne_zero with h1 | hm1
-      · exact False.elim (hne1 (Units.ext (by rwa [Units.val_pow_eq_pow_val])))
-      · exact hm1
+    have hm1 : (u.val : ZMod p) ^ (p / 2) = -1 :=
+      (ZMod.pow_div_two_eq_neg_one_or_one p u.ne_zero).resolve_left fun h1 =>
+        hne1 (Units.ext (by rwa [Units.val_pow_eq_pow_val]))
     have hmod : ((u.val.val ^ (p / 2) % p : ℕ) : ZMod p) = -1 := by
       rw [ZMod.natCast_mod, Nat.cast_pow, ZMod.natCast_zmod_val, hm1]
     have hval := congrArg ZMod.val hmod
@@ -256,8 +255,7 @@ theorem crtCombine_modInv_eq_unitsChineseRemainder_symm_val (d : ModulusDesc)
     simpa only [ZMod.val_natCast] using congrArg ZMod.val hc
   have hinv : (BinaryGcd.modInv d.p d.q : ZMod d.q) * d.p = 1 := by
     have hm := BinaryGcd.mul_modInv_modEq_one d.prime_q.pos hcop
-    rw [← ZMod.natCast_eq_natCast_iff, Nat.cast_mul, Nat.cast_one, mul_comm] at hm
-    exact hm
+    rwa [← ZMod.natCast_eq_natCast_iff, Nat.cast_mul, Nat.cast_one, mul_comm] at hm
   exact crtCombine_eq u.val.val_lt
     ((Nat.mod_eq_of_lt u_p.val.val_lt).trans h1.symm) h2.symm _ hinv
 
@@ -444,26 +442,11 @@ private theorem singleLaw_qnrRejectionSpec_some_raw (p a : ℕ) :
     · simp [g, ha, PMF.uniformOfFintype_apply]
     · intro j _ hj
       simp only [Function.comp_apply, g]
-      by_cases hj_nr : isNonresidueModPrime p j.val
-      · simp only [hj_nr, ↓reduceIte, Option.some.injEq]
-        split_ifs with heq
-        · exfalso
-          apply hj
-          ext
-          exact heq.symm
-        · rfl
-      · simp [hj_nr]
-    · intro hnot
-      exact False.elim (hnot (Finset.mem_univ _))
+      split_ifs <;> simp_all [Fin.ext_iff]
+    · exact fun hnot => (hnot (Finset.mem_univ _)).elim
   · refine Finset.sum_eq_zero fun j _ => ?_
     simp only [Function.comp_apply, g]
-    by_cases hj_nr : isNonresidueModPrime p j.val
-    · simp only [hj_nr, ↓reduceIte, Option.some.injEq]
-      split_ifs with heq
-      · exfalso
-        exact ha (heq ▸ hj_nr)
-      · rfl
-    · simp [hj_nr]
+    split_ifs <;> simp_all
 
 private theorem primeNonresidueLaw_apply {p : ℕ} [Fact p.Prime] (hp : 2 < p) (a : ℕ) :
     primeNonresidueLaw p hp a =
@@ -484,8 +467,7 @@ private theorem primeNonresidueLaw_apply {p : ℕ} [Fact p.Prime] (hp : 2 < p) (
         ext
         rw [← ZMod.natCast_zmod_val u.val, ← ZMod.natCast_zmod_val v.1.val, heq]
       · rfl
-    · intro hnot
-      exact False.elim (hnot (Finset.mem_univ _))
+    · exact fun hnot => (hnot (Finset.mem_univ _)).elim
   · refine Finset.sum_eq_zero fun v _ => ?_
     split_ifs with heq
     · exfalso
@@ -745,28 +727,19 @@ theorem toOuterMeasure_not_exists_keyDesc_textbookKeyGen_le
       ((1 / 2 ^ (n + 1) : ℝ≥0) : ℝ≥0∞) ?_).trans
       (add_le_add (toOuterMeasure_not_isNonresidueModPrime_le d.two_lt_p n) le_rfl)
     intro z_p _ hzp_good
-    have hp_ok : isNonresidueModPrime d.p z_p = true :=
-      Bool.eq_true_of_not_eq_false hzp_good
     refine (Probability.PMF.toOuterMeasure_bind_le_add _ _
       {z_q | isNonresidueModPrime d.q z_q = false} bad 0 ?_).trans ?_
     · intro z_q _ hzq_good
-      have hq_ok : isNonresidueModPrime d.q z_q = true :=
-        Bool.eq_true_of_not_eq_false hzq_good
       have hnot_bad :
-          (textbookPublicKey d.p d.q z_p z_q, encPair encNat encNat (d.p, d.q)) ∉ bad := by
-        intro hbad
-        exact hbad ⟨KeyDesc.ofNonresidues d hp_ok hq_ok, rfl⟩
+          (textbookPublicKey d.p d.q z_p z_q, encPair encNat encNat (d.p, d.q)) ∉ bad :=
+        fun hbad => hbad ⟨KeyDesc.ofNonresidues d (Bool.eq_true_of_not_eq_false hzp_good)
+          (Bool.eq_true_of_not_eq_false hzq_good), rfl⟩
       rw [PMF.toOuterMeasure_pure_apply, ite_eq_right hnot_bad]
-    · rw [add_zero]
-      exact toOuterMeasure_not_isNonresidueModPrime_le d.two_lt_q n
+    · exact (add_zero _).trans_le (toOuterMeasure_not_isNonresidueModPrime_le d.two_lt_q n)
   simp only [textbookKeyGen, ProbComp.eval_bind, ProbComp.eval_pure]
   rw [PMF.toOuterMeasure_bind_apply]
-  calc
-    ∑' d, ProbComp.eval (gen n) d * _
-      ≤ ∑' d, ProbComp.eval (gen n) d * ((1 / 2 ^ n : ℝ≥0) : ℝ≥0∞) :=
-        tsum_le_tsum fun d => mul_le_mul_of_nonneg_left (hper d) zero_le
-    _ = ((1 / 2 ^ n : ℝ≥0) : ℝ≥0∞) := by
-        rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+  refine (tsum_le_tsum fun d => mul_le_mul_of_nonneg_left (hper d) zero_le).trans_eq ?_
+  rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
 
 private theorem closeTo_roundTrip_textbookKeyGen {Msg : Type}
     (encProg : ℕ → List Bool → Msg → ProbComp (List Bool))

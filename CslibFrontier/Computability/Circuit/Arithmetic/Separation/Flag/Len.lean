@@ -50,9 +50,8 @@ variable {G : Type*} [Group G] (l : Len G)
 
 theorem conj (g h : G) : l (g * h * g⁻¹) ≤ 2 * l g + l h := by
   have h1 := map_mul_le_add l (g * h) g⁻¹
-  have h2 := map_mul_le_add l g h
   rw [map_inv_eq_map l] at h1
-  linarith
+  linarith [map_mul_le_add l g h]
 
 end Len
 
@@ -104,13 +103,10 @@ theorem dg_empty : dg (∅ : Finset ι) = 0 := by
 
 omit [Fintype ι] in
 theorem dg_union {S T : Finset ι} (h : Disjoint S T) : dg (S ∪ T) = dg S + dg T := by
-  unfold dg
-  rw [Matrix.diagonal_add]
-  congr 1
-  funext i
+  rw [dg, dg, dg, Matrix.diagonal_add]
+  refine congrArg Matrix.diagonal (funext fun i => ?_)
   by_cases hS : i ∈ S
-  · have hT : i ∉ T := Finset.disjoint_left.1 h hS
-    simp [hS, hT]
+  · simp [hS, Finset.disjoint_left.1 h hS]
   · simp [hS]
 
 /-- The unit of a permutation. -/
@@ -131,23 +127,21 @@ theorem permU_conj (σ : Equiv.Perm ι) (M : Matrix ι ι F2) :
 
 theorem DM_dg_congr (f : Matrix ι ι F2 → ℝ) {S T : Finset ι} (h : S.card = T.card) :
     DM f (dg S) = DM f (dg T) := by
-  obtain ⟨σ, hσ⟩ : ∃ σ : Equiv.Perm ι, ∀ i, σ i ∈ S ↔ i ∈ T := by
-    have e : {i // i ∈ T} ≃ {i // i ∈ S} := Fintype.equivOfCardEq (by simp [h])
-    refine ⟨e.extendSubtype, fun i => ⟨fun hi => ?_, fun hi => ?_⟩⟩
-    · by_contra hT
-      exact e.extendSubtype_not_mem i hT hi
-    · exact e.extendSubtype_mem i hi
-  rw [← DM_mul f (permU σ) ((permU σ)⁻¹) (dg S), permU_conj]
+  have e : {i // i ∈ T} ≃ {i // i ∈ S} := Fintype.equivOfCardEq (by simp [h])
+  have hσ (i : ι) : e.extendSubtype i ∈ S ↔ i ∈ T :=
+    ⟨fun hi => by_contra fun hT => e.extendSubtype_not_mem i hT hi, e.extendSubtype_mem i⟩
+  rw [← DM_mul f (permU e.extendSubtype) ((permU e.extendSubtype)⁻¹) (dg S), permU_conj]
   congr 1
   ext i j
-  simp only [dg, Matrix.submatrix_apply, Matrix.diagonal_apply, σ.injective.eq_iff, hσ]
+  simp only [dg, Matrix.submatrix_apply, Matrix.diagonal_apply, e.extendSubtype.injective.eq_iff,
+    hσ]
 
 theorem DM_dg_le (f : Matrix ι ι F2 → ℝ) (hf : ∀ M, 0 ≤ f M)
     (hadd : ∀ M N, f (M + N) ≤ f M + f N) {S T : Finset ι} (h : Disjoint S T) :
     √(DM f (dg (S ∪ T))) ≤ √(DM f (dg S)) + √(DM f (dg T)) := by
   unfold DM
   simp only [← Fintype.sum_prod_type']
-  refine sqrt_sum_le univ _ _ _ (fun _ => hf _) fun x => ?_
+  refine sqrt_sum_le univ _ _ _ (fun _ => hf _) fun _ => ?_
   rw [dg_union h, Matrix.mul_add, Matrix.add_mul]
   exact hadd _ _
 

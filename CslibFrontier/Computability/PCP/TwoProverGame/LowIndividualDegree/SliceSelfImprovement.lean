@@ -52,9 +52,7 @@ private theorem transcriptProduct_lift {α : Type*} [Fintype α] {k : ℕ}
   | zero => simp only [Measurement.transcriptProduct_zero, map_one]
   | succ k ih =>
     rw [Measurement.transcriptProduct_succ, Measurement.transcriptProduct_succ,
-      map_mul, he, ih]
-    intro j a
-    exact he j.succ a
+      map_mul, he, ih _ _ fun j a => he j.succ a]
 
 private theorem completedPaste_effect_lift
     (e : Local →⋆ₐ[ℂ] Joint) (k : ℕ) [Nonempty (Fin k ↪ F)]
@@ -84,10 +82,9 @@ private theorem rightMeasurement_completedPaste
     QuantumStrategy.rightMeasurement (ι := ι)
       (completedPaste k (fun x => (P x).toMeasurement) hP fallback).toPOVM =
       completedPaste k (fun x => QuantumStrategy.rightMeasurement (ι := ι) (P x))
-        (fun x => QuantumStrategy.rightMeasurement_isProjective (P x) (hP x)) fallback := by
-  apply Measurement.ext
-  intro a
-  exact completedPaste_effect_lift oneKronecker k _ hP _ _ (fun _ _ => rfl) fallback a
+        (fun x => QuantumStrategy.rightMeasurement_isProjective (P x) (hP x)) fallback :=
+  Measurement.ext fun a =>
+    completedPaste_effect_lift oneKronecker k _ hP _ _ (fun _ _ => rfl) fallback a
 
 omit [DecidableEq F] in
 private theorem average_slice_budget
@@ -174,8 +171,7 @@ theorem exists_paste_of_slice_agreement
   have hstate (x : F) : (T x).toCommuting.state = C.state := restrictSliceTensor_joint_state S x
   have hpt (x : F) (u : Point F (n + 1)) :
       decodedPoint (T x).toCommuting.alice u = decodedPoint C.alice (Fin.snoc u x) := by
-    change decodedPoint (restrictSliceTensor S x).toCommuting.alice u = _
-    rw [restrictSliceTensor_toCommuting, decodedPoint_restrictSlice]
+    simp only [T, C, restrictSliceTensor_toCommuting, decodedPoint_restrictSlice]
   have hex (x : F) :=
     exists_projectiveSymmetricSelfImprovement (T x) (G x) (σ x)
       (restrictSliceTensor_bob_eq_alice S x hM)
@@ -226,8 +222,7 @@ theorem exists_paste_of_slice_agreement
     simp only [expect_sub_distrib, Fintype.expect_const] at hm
     have hsum (x : F) : (∑ a with a.isSome, (R x).effect a) = (R x).successfulEffect := by
       simp [Measurement.successfulEffect, sum_filter, Fintype.sum_option]
-    simp only [hsum]
-    dsimp only [κ]
+    simp only [hsum, κ]
     linarith only [hm, hbudget]
   have hpoint : (𝔼 u : Point F (n + 1), 𝔼 x : F, Measurement.successfulMismatch C.state
       (evaluatePolynomialMeasurement (M x) u) (decodedPoint C.alice (Fin.snoc u x))) ≤ ζ := by
@@ -236,12 +231,9 @@ theorem exists_paste_of_slice_agreement
     simpa only [hstate, hpt] using hpoint₀ x
   have hcopy : (𝔼 x : F, Measurement.successfulCopyDefect C.state (M x) (R x)) ≤ ζ := by
     refine (expect_le_expect fun x _ => ?_).trans hbudget
-    have he : Measurement.successfulCopyDefect C.state (M x) (R x) =
-        Measurement.successfulCopyDefect C.state (R x) (M x) := by
-      unfold Measurement.successfulCopyDefect
-      exact sum_congr rfl fun g _ => congrArg (· ^ 2) (C.state.norm_sub_comm _ _)
-    rw [he]
-    simpa only [hstate] using hcopy₀ x
+    dsimp only [Measurement.successfulCopyDefect]
+    refine (sum_congr rfl fun g _ => congrArg (· ^ 2) (C.state.norm_sub_comm _ _)).trans_le ?_
+    simpa only [Measurement.successfulCopyDefect, hstate] using hcopy₀ x
   have hgap : (𝔼 x : F, (C.state ((M x).effect none * W x)).re) ≤ ζ := by
     refine (expect_le_expect fun x _ => ?_).trans hbudget
     rw [(hMW x x none).eq]
@@ -270,13 +262,10 @@ theorem exists_paste_of_slice_agreement
   change (𝔼 u : Point F (n + 1), 𝔼 x : F, (1 - Measurement.agreement C.state
     ((QuantumStrategy.rightMeasurement H).map (fun p => MvPolynomial.eval (Fin.snoc u x) p.val))
     (decodedPoint C.alice (Fin.snoc u x)))) ≤ _
-  rw [show QuantumStrategy.rightMeasurement H = completedPaste k M hMpr fallback from
-    rightMeasurement_completedPaste k P hP₀ fallback]
-  have hn : (n + 1 : ℝ) + 1 = n + 2 := by ring
+  rw [rightMeasurement_completedPaste k P hP₀ fallback]
   dsimp only [slicePastingError, ε, δ, γ, r]
-  simp only [show (n + 2 : ℝ) - 1 = n + 1 by ring,
-    show (n + 1 : ℝ) * ((d : ℝ) / Fintype.card F) =
-      (n + 1 : ℝ) * d / Fintype.card F from (mul_div_assoc _ _ _).symm]
-  simpa only [Nat.cast_succ, hn, C, CommutingStrategy.swap] using hpaste
+  simp only [show (n + 2 : ℝ) - 1 = n + 1 by ring, ← mul_div_assoc (n + 1 : ℝ)]
+  simpa only [Nat.cast_succ, show (n + 1 : ℝ) + 1 = n + 2 by ring, C, CommutingStrategy.swap]
+    using hpaste
 
 end Cslib.PCP.LowIndividualDegree

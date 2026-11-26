@@ -80,12 +80,9 @@ theorem fourierCoeff_piecewise (f : (ι → Bool) → ℝ) (J : Finset ι) (z : 
       ∑ U, (fourierCoeff f U * chi ℝ (U \ J) z) * chi ℝ (U ∩ J) x := by
     rw [← sum_fourierCoeff_mul_chi f (J.piecewise x z)]
     exact sum_congr rfl fun U _ => by rw [chi_piecewise]; ring
-  rw [fourierCoeff]
-  simp only [h, sum_mul, mul_assoc]
-  rw [expect_sum_comm, sum_filter]
-  refine sum_congr rfl fun U _ => ?_
-  simp only [← mul_expect, expect_chi_mul_chi]
-  split_ifs <;> simp
+  simp only [fourierCoeff, h, sum_mul, mul_assoc, expect_sum_comm, sum_filter, ← mul_expect,
+    expect_chi_mul_chi]
+  exact sum_congr rfl fun _ _ => by split_ifs <;> simp
 
 /-- Averaged over the fixed bits, the squared coefficient of a restriction on `S` is the weight of
 `f` on the sets meeting `J` in `S`. -/
@@ -136,19 +133,16 @@ theorem fourierCoeff_expect_piecewise (f : (ι → Bool) → ℝ) (J S : Finset 
       𝔼 z, fourierCoeff (fun x => f (J.piecewise x z)) S := by
     simp only [fourierCoeff, expect_mul]
     exact expect_comm _ _ _
-  simp only [h, fourierCoeff_piecewise]
-  rw [expect_sum_comm]
-  simp only [← mul_expect, expect_chi, sdiff_eq_empty_iff_subset, mul_ite, mul_one, mul_zero]
+  simp only [h, fourierCoeff_piecewise, expect_sum_comm, ← mul_expect, expect_chi,
+    sdiff_eq_empty_iff_subset, mul_ite, mul_one, mul_zero]
   split_ifs with hS
-  · have hSmem : S ∈ ({U | U ∩ J = S} : Finset (Finset ι)) :=
-      mem_filter.2 ⟨mem_univ S, inter_eq_left.2 hS⟩
-    rw [sum_eq_single_of_mem S hSmem fun U hU hUS => ?_, ite_eq_left hS]
+  · rw [sum_eq_single_of_mem S (mem_filter (p := (· ∩ J = S)).2 ⟨mem_univ S, inter_eq_left.2 hS⟩)
+      fun U hU hUS => ite_eq_right fun hUJ =>
+        hUS ((inter_eq_left.2 hUJ).symm.trans (mem_filter.1 hU).2)]
     -- another set meeting `J` in `S` has elements outside `J`
-    rw [mem_filter] at hU
-    exact ite_eq_right fun hUJ => hUS (by rw [← hU.2, inter_eq_left.2 hUJ])
-  · refine sum_eq_zero fun U hU => ?_
-    rw [mem_filter] at hU
-    exact ite_eq_right fun hUJ => hS (by rw [← hU.2]; exact inter_subset_right)
+    simp [hS]
+  · exact sum_eq_zero fun U hU => ite_eq_right fun hUJ =>
+      hS ((mem_filter.1 hU).2 ▸ inter_subset_right)
 
 /-- **The average over the coordinates outside `J`** is the part of the Fourier expansion on the
 subsets of `J`. -/

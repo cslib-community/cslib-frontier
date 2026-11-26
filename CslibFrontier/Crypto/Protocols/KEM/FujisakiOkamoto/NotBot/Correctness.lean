@@ -184,10 +184,7 @@ private theorem eval_testHashH_apply_congr (S : Scheme PK SK M R CT K) (pk : PK)
   refine tsum_congr fun z => ?_
   by_cases hz : z ∈ (ProbComp.eval (simHashG S.pke.sampleCoins m st)).support
   · by_cases hgz : GoodCache S.pke pk sk z.2
-    · have hiff := ht z.1 (hgz _ (simHashG_mem_gCache hz))
-      by_cases h1 : t₁ z.1
-      · simp only [h1, hiff.mp h1, ↓reduceIte]
-      · simp only [h1, (not_congr hiff).mp h1, ↓reduceIte]
+    · simp only [ht z.1 (hgz _ (simHashG_mem_gCache hz))]
     · have h0 (p : Prop) [Decidable p] :
           ProbComp.eval ((if p then simHashHq S.sampleKey c
             else simHashHRaw S.sampleKey (false, m, c)) z.2) y = 0 := by
@@ -267,9 +264,8 @@ private theorem testHandler_gCache_subset (S : Scheme PK SK M R CT K)
   rcases q with m | ⟨_ | _, m, c⟩ | c
   · exact simHashG_gCache_subset hx
   · obtain ⟨z, hz, heq⟩ := mem_support_testHashH S m c _ st x hx
-    intro e he
     rw [heq]
-    exact simHashG_gCache_subset hz e he
+    exact simHashG_gCache_subset hz
   · intro e he
     rwa [simHashHRaw_gCache_eq _ _ _ _ hx]
   · intro e he
@@ -413,40 +409,29 @@ theorem advantage_coupledFilterGame_simFilterGame_le [Fintype M] [Nonempty M]
     (Game.advantage (ProbComp.eval (S.coupledFilterGame d₁ A b))
         (ProbComp.eval (S.simFilterGame d₂ A b)) : ℝ) ≤
       ((qG + qH + 1 : ℕ) : ℝ) * δ := by
-  let real : PK → SK → PMF Bool := fun pk sk => ProbComp.eval do
+  let gameAt (pk : PK) (hH : Bool × M × CT → StateT (SimState M R CT K) ProbComp K)
+      (hdl : CT → (q : ROQuery M CT) → StateT (SimState M R CT K) ProbComp (ROResp R K q)) :
+      ProbComp Bool := do
     let mStar ← S.sampleMsg
     let rStar ← S.pke.sampleCoins
     let cStar := S.pke.encDet pk mStar rStar
-    let (kReal, st₀) ← (S.coupledHashH pk sk (false, mStar, cStar)).run
-      { gCache := [(mStar, rStar)] }
+    let (kReal, st₀) ← (hH (false, mStar, cStar)).run { gCache := [(mStar, rStar)] }
     let kRand ← S.sampleKey
-    let (guess, _) ← (OracleComp.interpret
-      (S.coupledFilterHandler (d₁ pk sk) pk sk cStar)
+    let (guess, _) ← (OracleComp.interpret (hdl cStar)
       (A ⟨pk, cStar, if b then kRand else kReal⟩)).run st₀
     return guess
-  let simulated : PK → SK → PMF Bool := fun pk _ => ProbComp.eval do
-    let mStar ← S.sampleMsg
-    let rStar ← S.pke.sampleCoins
-    let cStar := S.pke.encDet pk mStar rStar
-    let (kReal, st₀) ← (S.simHashH pk (false, mStar, cStar)).run
-      { gCache := [(mStar, rStar)] }
-    let kRand ← S.sampleKey
-    let (guess, _) ← (OracleComp.interpret (S.simFilterHandler (d₂ pk) pk cStar)
-      (A ⟨pk, cStar, if b then kRand else kReal⟩)).run st₀
-    return guess
-  have hreal : ProbComp.eval (S.coupledFilterGame d₁ A b) =
-      (ProbComp.eval S.pke.keyGen).bind fun keys => real keys.1 keys.2 := by
-    simp only [coupledFilterGame, real, ProbComp.eval_bind, ProbComp.eval_pure,
-      OracleComp.map_run_interpret ProbComp.isMonadHom_eval]
-  have hsim : ProbComp.eval (S.simFilterGame d₂ A b) =
-      (ProbComp.eval S.pke.keyGen).bind fun keys => simulated keys.1 keys.2 := by
-    simp only [simFilterGame, simulated, ProbComp.eval_bind, ProbComp.eval_pure,
-      OracleComp.map_run_interpret ProbComp.isMonadHom_eval]
-  rw [hreal, hsim]
-  refine S.pke.advantage_bind_keyGen_le real simulated (qG + qH + 1) ?_ hδ
-  intro pk sk
-  dsimp only [real, simulated]
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure,
+  change (Game.advantage
+    (ProbComp.eval (S.pke.keyGen >>= fun (pk, sk) =>
+      gameAt pk (S.coupledHashH pk sk) (S.coupledFilterHandler (d₁ pk sk) pk sk)))
+    (ProbComp.eval (S.pke.keyGen >>= fun (pk, _) =>
+      gameAt pk (S.simHashH pk) (S.simFilterHandler (d₂ pk) pk))) : ℝ) ≤ _
+  rw [ProbComp.eval_bind, ProbComp.eval_bind]
+  refine S.pke.advantage_bind_keyGen_le
+    (fun pk sk => ProbComp.eval
+      (gameAt pk (S.coupledHashH pk sk) (S.coupledFilterHandler (d₁ pk sk) pk sk)))
+    (fun pk _ => ProbComp.eval (gameAt pk (S.simHashH pk) (S.simFilterHandler (d₂ pk) pk)))
+    (qG + qH + 1) (fun pk sk => ?_) hδ
+  simp only [gameAt, ProbComp.eval_bind, ProbComp.eval_pure,
     OracleComp.map_run_interpret ProbComp.isMonadHom_eval]
   set p := ENNReal.ofReal (S.pke.keyPairMaxFailProb pk sk) with hp
   have hconst {α : Type} (μ : PMF α) (c : ℝ≥0∞) : ∑' a, μ a * c = c := by
@@ -468,22 +453,19 @@ theorem advantage_coupledFilterGame_simFilterGame_le [Fintype M] [Nonempty M]
       by_cases h : S.pke.dec sk (S.pke.encDet pk mStar r) = some mStar <;>
         simp [h, Set.indicator]
     rw [hfail]
-    calc ENNReal.ofReal (S.pke.msgFailProb pk sk mStar) + ((qG + qH : ℕ) : ℝ≥0∞) * p
-        ≤ p + ((qG + qH : ℕ) : ℝ≥0∞) * p := by
-          gcongr
-          exact ENNReal.ofReal_le_ofReal (S.pke.msgFailProb_le_keyPairMaxFailProb pk sk mStar)
-      _ = ((qG + qH + 1 : ℕ) : ℝ≥0∞) * p := by push_cast; ring
+    refine (add_le_add (ENNReal.ofReal_le_ofReal
+      (S.pke.msgFailProb_le_keyPairMaxFailProb pk sk mStar)) le_rfl).trans_eq ?_
+    push_cast
+    ring
   by_cases hr : S.pke.dec sk (S.pke.encDet pk mStar rStar) = some mStar
   · rw [ite_eq_left_of_eq_true _ _ (eq_true hr), zero_add,
       eval_coupledHashH_init S pk sk mStar rStar hr,
       eval_simHashH_init]
     refine (CloseTo.bind_right_tsum _ (err := fun _ => ((qG + qH : ℕ) : ℝ≥0∞) * p)
       fun x hx => ?_).mono (le_of_eq (hconst _ _))
-    have hgood : GoodCache S.pke pk sk x.2 := by
-      intro e he
+    have hgood : GoodCache S.pke pk sk x.2 := fun e he => by
       rw [simHashHq_gCache_eq _ _ _ _ hx, List.mem_singleton] at he
-      subst he
-      exact hr
+      exact he ▸ hr
     refine (CloseTo.bind_right_tsum _ (err := fun _ => ((qG + qH : ℕ) : ℝ≥0∞) * p)
       fun kRand _ => ?_).mono (le_of_eq (hconst _ _))
     exact closeTo_run_coupledFilterHandler_simFilterHandler S pk sk _ (d₁ pk sk) (d₂ pk)

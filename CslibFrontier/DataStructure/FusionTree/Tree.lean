@@ -194,20 +194,12 @@ private theorem height_join_le {cs : List Tree} {h : ℕ} (hc : ∀ t ∈ cs, t.
   · simp [join, height]
   · exact (hc t (by simp)).trans (Nat.le_succ h)
   · simp only [join, height]
-    apply Nat.add_le_add_right _ 1
-    apply foldr_max_le
-    intro n hn
-    obtain ⟨t, ht, rfl⟩ := List.mem_map.mp hn
-    exact hc t ht
+    exact Nat.add_le_add_right (foldr_max_le (List.forall_mem_map.mpr hc)) 1
 
 private theorem height_buildAux_le (B h : ℕ) (xs : List ℕ) : (buildAux B h xs).height ≤ h := by
   induction h generalizing xs with
   | zero => simp [buildAux, height]
-  | succ h ih =>
-    apply height_join_le
-    intro t ht
-    obtain ⟨ys, _, rfl⟩ := List.mem_map.mp ht
-    exact ih ys
+  | succ h ih => exact height_join_le (List.forall_mem_map.mpr fun ys _ => ih ys)
 
 /-- Construction preserves the complete input list, including its order. -/
 theorem keys_build {B : ℕ} (hB : 2 ≤ B) (xs : List ℕ) : (build B xs).keys = xs :=
@@ -260,15 +252,12 @@ private theorem slots_of_keys_eq_nil {B : ℕ} {t : Tree} (ht : Valid B t) (hne 
     t.slots = 2 := by
   cases t with
   | leaf xs =>
-    simp only [keys] at hne
-    simp [slots, hne]
+    cases xs <;> simp [keys, slots] at hne ⊢
   | node m cs =>
-    simp only [Valid] at ht
-    have hcs : cs ≠ [] := by intro h; simp [h] at ht
-    obtain ⟨u, us, rfl⟩ := List.exists_cons_of_ne_nil hcs
-    have hu := (ht.2.2.2 u (by simp)).2
-    simp only [keys, List.flatMap_cons, List.append_eq_nil_iff] at hne
-    exact (hu hne.1).elim
+    rcases cs with _ | ⟨u, us⟩
+    · simp [Valid] at ht
+    · simp only [Valid, keys, List.flatMap_cons, List.append_eq_nil_iff] at ht hne
+      exact ((ht.2.2.2 u List.mem_cons_self).2 hne.1).elim
 
 /-- Total keys, child pointers, cached minima, node headers and list links use at most `14n+2`
 scalar slots. The numerical constant is independent of `B`. This is a structural bound,
@@ -277,11 +266,9 @@ theorem slots_build_le {B : ℕ} (hB : 2 ≤ B) (xs : List ℕ) :
     (build B xs).slots ≤ 14 * xs.length + 2 := by
   have hv := valid_build hB xs
   by_cases hn : xs = []
-  · have he : (build B xs).keys = [] := by simpa only [keys_build hB] using hn
-    rw [slots_of_keys_eq_nil hv he, hn]
-    simp
-  · have he : (build B xs).keys ≠ [] := by simpa only [keys_build hB] using hn
-    have hs := slots_add_nine_le hv he
+  · subst hn
+    simp [slots_of_keys_eq_nil hv (keys_build hB [])]
+  · have hs := slots_add_nine_le hv (by simpa only [keys_build hB] using hn)
     rw [keys_build hB] at hs
     omega
 
@@ -291,9 +278,8 @@ def selectChild (q : ℕ) : List Tree → Option Tree
   | [] => none
   | t :: ts => (selectChild q ts).or (if t.minimum ≤ q then some t else none)
 
-/-- Any child selected by `selectChild` belongs to the input child list. -/
-theorem selectChild_mem {q : ℕ} {cs : List Tree} {t : Tree}
-    (h : selectChild q cs = some t) : t ∈ cs := by
+private theorem selectChild_spec {q : ℕ} {cs : List Tree} {t : Tree}
+    (h : selectChild q cs = some t) : t ∈ cs ∧ t.minimum ≤ q := by
   induction cs with
   | nil => simp [selectChild] at h
   | cons u us ih =>
@@ -302,12 +288,18 @@ theorem selectChild_mem {q : ℕ} {cs : List Tree} {t : Tree}
     | none =>
       simp only [hs, Option.or] at h
       split at h
-      · cases h; simp
+      · cases h; exact ⟨List.mem_cons_self, ‹_›⟩
       · contradiction
     | some v =>
       simp only [hs, Option.or, Option.some.injEq] at h
       subst v
-      exact List.mem_cons_of_mem u (ih hs)
+      have ⟨hm, hle⟩ := ih hs
+      exact ⟨List.mem_cons_of_mem u hm, hle⟩
+
+/-- Any child selected by `selectChild` belongs to the input child list. -/
+theorem selectChild_mem {q : ℕ} {cs : List Tree} {t : Tree}
+    (h : selectChild q cs = some t) : t ∈ cs :=
+  (selectChild_spec h).1
 
 /-- Rightmost qualifying key in an input list. For sorted input this is inclusive predecessor. -/
 def listPredecessor (q : ℕ) : List ℕ → Option ℕ
@@ -342,13 +334,11 @@ theorem listPredecessor_eq_none_iff (q : ℕ) (xs : List ℕ) :
   | cons x xs ih =>
     cases hs : listPredecessor q xs with
     | none =>
-      have ht := ih.mp hs
       by_cases hx : x ≤ q
       · simp [listPredecessor, hs, Option.or, hx]
-      · have hlt : q < x := by omega
-        simpa [listPredecessor, hs, Option.or, hx, hlt] using ht
+      · simpa [listPredecessor, hs, Option.or, hx, Nat.lt_of_not_le hx] using ih.mp hs
     | some y =>
-      have ht : ¬ ∀ x ∈ xs, q < x := by grind
+      have ht : ¬ ∀ x ∈ xs, q < x := mt ih.mpr (by simp [hs])
       simp [listPredecessor, hs, Option.or, ht]
 
 theorem listPredecessor_append (q : ℕ) (xs ys : List ℕ) :
@@ -365,17 +355,11 @@ theorem listPredecessor_ne_none_iff {q : ℕ} {xs : List ℕ}
   obtain ⟨x, xs, rfl⟩ := List.exists_cons_of_ne_nil hn
   simp only [List.headD_cons]
   rw [ne_eq, listPredecessor_eq_none_iff]
-  constructor
-  · intro h
-    by_contra hx
-    apply h
-    intro y hy
-    rcases List.mem_cons.mp hy with rfl | hy
-    · omega
-    · exact lt_of_lt_of_le (by omega) ((List.pairwise_cons.mp hs).1 y hy)
-  · intro hx h
-    have := h x (by simp)
-    omega
+  refine ⟨fun h => not_lt.mp fun hx => h fun y hy => ?_,
+    fun hx h => (h x List.mem_cons_self).not_ge hx⟩
+  rcases List.mem_cons.mp hy with rfl | hy
+  · exact hx
+  · exact hx.trans_le ((List.pairwise_cons.mp hs).1 y hy)
 
 private theorem selectChild_listPredecessor (q : ℕ) (cs : List Tree)
     (hc : ∀ t ∈ cs, t.keys ≠ [] ∧ t.keys.Pairwise (· ≤ ·) ∧
@@ -396,26 +380,10 @@ private theorem selectChild_listPredecessor (q : ℕ) (cs : List Tree)
     | none =>
       by_cases hm : t.minimum ≤ q
       · simp [Option.or, hm]
-      · have hp := not_iff_not.mpr hgate |>.mpr hm
-        simp only [not_not] at hp
-        simp [Option.or, hm, hp]
+      · simp [Option.or, hm, not_ne_iff.mp (mt hgate.mp hm)]
     | some u =>
-      have hu := (hc u (List.mem_cons_of_mem t (selectChild_mem hs)))
-      have hum : u.minimum ≤ q := by
-        clear hts hgate ht ih hc hu
-        induction ts with
-        | nil => simp [selectChild] at hs
-        | cons v vs ih =>
-          cases hv : selectChild q vs with
-          | none =>
-            simp only [selectChild, hv, Option.or] at hs
-            split at hs
-            · cases hs; assumption
-            · contradiction
-          | some z =>
-            have hz : z = u := by simpa [selectChild, hv, Option.or] using hs
-            subst z
-            exact ih hv
+      obtain ⟨hu_mem, hum⟩ := selectChild_spec hs
+      have hu := hc u (List.mem_cons_of_mem t hu_mem)
       have hup : listPredecessor q u.keys ≠ none :=
         (listPredecessor_ne_none_iff hu.1 hu.2.1).mpr (by simpa only [← hu.2.2] using hum)
       cases hp : listPredecessor q u.keys with
@@ -466,14 +434,10 @@ theorem listPredecessor_some_spec {q p : ℕ} {xs : List ℕ}
           omega
       · contradiction
     | some r =>
-      have heq : r = p := by simpa [listPredecessor, htail, Option.or] using hp
-      subst r
+      obtain rfl : r = p := by simpa [listPredecessor, htail, Option.or] using hp
       obtain ⟨hmem, hle, hmax⟩ := ih hsort htail
-      refine ⟨List.mem_cons_of_mem x hmem, hle, ?_⟩
-      intro y hy hyq
-      rcases List.mem_cons.mp hy with rfl | hy
-      · exact hhead p hmem
-      · exact hmax y hy hyq
+      exact ⟨List.mem_cons_of_mem x hmem, hle,
+        List.forall_mem_cons.mpr ⟨fun _ => hhead r hmem, hmax⟩⟩
 
 /-- The list search returns exactly the greatest stored key not exceeding the query. -/
 theorem listPredecessor_eq_some_iff {q p : ℕ} {xs : List ℕ}

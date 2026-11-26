@@ -176,28 +176,23 @@ private def Move.valid (grid : Nat → Nat → Index) (m : Move) : Bool :=
 private theorem Move.link {grid : Nat → Nat → Index} (m : Move)
     (h : m.valid grid = true) : Link grid m.first m.second m.parity := by
   rcases m with ⟨x, y, kind, reverse⟩
-  cases kind <;> cases reverse <;>
-    simp only [Move.valid, Move.first, Move.second, Move.baseFirst,
-      Move.baseSecond, Move.parity, Bool.false_eq_true, Bool.and_eq_true,
-      beq_self_eq_true] at h ⊢
-  · exact Link.horizontalMatch x y
-  · exact Link.symm (Link.horizontalMatch x y)
-  · exact Link.verticalMatch x y
-  · exact Link.symm (Link.verticalMatch x y)
-  · exact Link.horizontal x y h
-  · exact Link.symm (Link.horizontal x y h)
-  · exact Link.vertical x y h
-  · exact Link.symm (Link.vertical x y h)
-  · exact Link.westNorth x y h.1 h.2
-  · exact Link.symm (Link.westNorth x y h.1 h.2)
-  · exact Link.westSouth x y h.1 h.2
-  · exact Link.symm (Link.westSouth x y h.1 h.2)
-  · exact Link.eastNorth x y h.1 h.2
-  · exact Link.symm (Link.eastNorth x y h.1 h.2)
-  · exact Link.eastSouth x y h.1 h.2
-  · exact Link.symm (Link.eastSouth x y h.1 h.2)
-  · exact Link.crossing x y h.1 h.2
-  · exact Link.symm (Link.crossing x y h.1 h.2)
+  have h0 : Link grid (Move.mk x y kind false).first (Move.mk x y kind false).second
+      (Move.mk x y kind false).parity := by
+    cases kind <;>
+      simp only [Move.valid, Move.first, Move.second, Move.baseFirst, Move.baseSecond,
+        Move.parity, Bool.false_eq_true, ↓reduceIte, Bool.and_eq_true, beq_self_eq_true] at h ⊢
+    · exact Link.horizontalMatch x y
+    · exact Link.verticalMatch x y
+    · exact Link.horizontal x y h
+    · exact Link.vertical x y h
+    · exact Link.westNorth x y h.1 h.2
+    · exact Link.westSouth x y h.1 h.2
+    · exact Link.eastNorth x y h.1 h.2
+    · exact Link.eastSouth x y h.1 h.2
+    · exact Link.crossing x y h.1 h.2
+  cases reverse
+  · exact h0
+  · exact h0.symm
 
 /-- One predecessor edge in a finite red-path certificate. Port codes use row-major
 coordinates with four sides in west/east/south/north order; move codes use row-major
@@ -614,14 +609,7 @@ private theorem verified (parent : Index) : Verified parent := by
   have key : ∀ k : Fin 8, ∀ i : Fin 13, Verified ⟨13 * k.val + i.val, by omega⟩ := by
     intro k
     fin_cases k
-    · exact verified0
-    · exact verified1
-    · exact verified2
-    · exact verified3
-    · exact verified4
-    · exact verified5
-    · exact verified6
-    · exact verified7
+    exacts [verified0, verified1, verified2, verified3, verified4, verified5, verified6, verified7]
   have h := key ⟨parent.val / 13, by omega⟩ ⟨parent.val % 13, Nat.mod_lt _ (by decide)⟩
   have e : (⟨13 * (parent.val / 13) + parent.val % 13, by omega⟩ : Index) = parent :=
     Fin.ext (Nat.div_add_mod _ _)
@@ -638,12 +626,10 @@ private theorem Forest.reaches_sound {width : Nat} {grid : Nat → Nat → Index
 private theorem connects_sound {grid : Nat → Nat → Index} {f : Forest 8}
     (valid : f.Valid grid) {start finish : Port} (h : connects f start finish = true) :
     BoundedPath grid 8 8 start finish false := by
-  simp only [connects, Bool.and_eq_true] at h
-  obtain ⟨hroot, hnode⟩ := h
-  have rootEq : decodePort 8 f.root = start := of_decide_eq_true hroot
+  obtain ⟨hroot, hnode⟩ := Bool.and_eq_true_iff.mp h
   obtain ⟨r, hr, hend⟩ := List.any_eq_true.mp hnode
   obtain ⟨targetEq, parityEq⟩ := of_decide_eq_true hend
-  simpa only [rootEq, targetEq, parityEq] using Forest.sound_mem valid hr
+  simpa only [of_decide_eq_true hroot, targetEq, parityEq] using Forest.sound_mem valid hr
 
 end RedPathCertificate
 open RedPathCertificate
@@ -655,11 +641,8 @@ private theorem boundedConnectorPath (parent : Index) (exit : ExitSide)
     (present : portPresent (coarseGrid parent) (internalPort exit offset) = true) :
     BoundedPath (fineGrid parent) 8 8 (internalPort exit offset)
       (externalPort exit offset) false := by
-  have checked := (verified parent).2.2
-  have accepted : ((selected parent).any fun id =>
-      connects (forest id) (internalPort exit offset) (externalPort exit offset)) = true :=
-    checked exit ⟨offset, hoffset⟩ present
-  obtain ⟨id, hid, h⟩ := List.any_eq_true.mp accepted
+  obtain ⟨id, hid, h⟩ :=
+    List.any_eq_true.mp ((verified parent).2.2 exit ⟨offset, hoffset⟩ present)
   exact connects_sound ((verified parent).1 id hid).1 h
 
 open RedPathCertificate
@@ -688,14 +671,10 @@ theorem base_exists_boundedPath {target : Port}
     (south : 2 ≤ target.y) (north : target.y < 6)
     (present : portPresent (fineGrid 0) target = true) :
     ∃ parity, BoundedPath (fineGrid 0) 8 8 cycleSource target parity := by
-  have targetEq : (⟨2 + (target.x - 2), 2 + (target.y - 2), target.side⟩ : Port) = target := by
-    have hx : 2 + (target.x - 2) = target.x := by omega
-    have hy : 2 + (target.y - 2) = target.y := by omega
-    cases target
-    simp only [Port.mk.injEq]
-    exact ⟨hx, hy, trivial⟩
-  have h := baseChecked ⟨target.x - 2, by omega⟩ ⟨target.y - 2, by omega⟩ target.side
-  rw [targetEq] at h
+  rcases target with ⟨tx, ty, ts⟩
+  dsimp only at *
+  have h := baseChecked ⟨tx - 2, by omega⟩ ⟨ty - 2, by omega⟩ ts
+  rw [Nat.add_sub_of_le west, Nat.add_sub_of_le south] at h
   exact Forest.reaches_sound ((verified 0).1 2 (by decide)).1 (h present)
 
 private abbrev oddGrid := iterateRefine 4 (fun _ _ => (0 : Index))
@@ -761,13 +740,10 @@ theorem odd_base_exists_boundedPath {target : Port}
     ∃ source parity,
       source ∈ ([⟨5, 5, .east⟩, ⟨12, 5, .west⟩, ⟨12, 12, .west⟩, ⟨5, 12, .east⟩] : List Port) ∧
       BoundedPath (iterateRefine 4 (fun _ _ => (0 : Index))) 16 16 source target parity := by
-  have target_eq : (⟨4 + (target.x - 4), 4 + (target.y - 4), target.side⟩ : Port) = target := by
-    cases target
-    dsimp only at *
-    simp only [Port.mk.injEq]
-    exact ⟨by omega, by omega, trivial⟩
-  have h := oddCovers ⟨target.x - 4, by omega⟩ ⟨target.y - 4, by omega⟩ target.side
-  rw [target_eq] at h
+  rcases target with ⟨tx, ty, ts⟩
+  dsimp only at *
+  have h := oddCovers ⟨tx - 4, by omega⟩ ⟨ty - 4, by omega⟩ ts
+  rw [Nat.add_sub_of_le west, Nat.add_sub_of_le south] at h
   obtain ⟨forest, mem, reached⟩ := List.any_eq_true.mp (h present)
   obtain ⟨valid, source⟩ := oddChecked forest mem
   obtain ⟨parity, path⟩ := Forest.reaches_sound valid reached
@@ -800,42 +776,15 @@ private theorem link_translate
       quadrantAt (offsetX + x) (offsetY + y) = quadrantAt x y := by
     intro x y
     simp [quadrantAt, Nat.add_mod, hx, hy]
-  induction link with
-  | horizontalMatch x y =>
+  induction link
+  case horizontalMatch x y =>
     simpa only [translatePort, Nat.add_assoc] using
       Link.horizontalMatch (indexGrid := other) (offsetX + x) (offsetY + y)
-  | verticalMatch x y =>
+  case verticalMatch x y =>
     simpa only [translatePort, Nat.add_assoc] using
       Link.verticalMatch (indexGrid := other) (offsetX + x) (offsetY + y)
-  | horizontal x y hpath =>
-    apply Link.horizontal
-    rw [← componentsEq x y hfirst.1 hfirst.2, quadrant]
-    exact hpath
-  | vertical x y hpath =>
-    apply Link.vertical
-    rw [← componentsEq x y hfirst.1 hfirst.2, quadrant]
-    exact hpath
-  | westNorth x y hwest hnorth =>
-    apply Link.westNorth <;> rw [← componentsEq x y hfirst.1 hfirst.2, quadrant]
-    · exact hwest
-    · exact hnorth
-  | westSouth x y hwest hsouth =>
-    apply Link.westSouth <;> rw [← componentsEq x y hfirst.1 hfirst.2, quadrant]
-    · exact hwest
-    · exact hsouth
-  | eastNorth x y heast hnorth =>
-    apply Link.eastNorth <;> rw [← componentsEq x y hfirst.1 hfirst.2, quadrant]
-    · exact heast
-    · exact hnorth
-  | eastSouth x y heast hsouth =>
-    apply Link.eastSouth <;> rw [← componentsEq x y hfirst.1 hfirst.2, quadrant]
-    · exact heast
-    · exact hsouth
-  | crossing x y hhorizontal hvertical =>
-    apply Link.crossing <;> rw [← componentsEq x y hfirst.1 hfirst.2, quadrant]
-    · exact hhorizontal
-    · exact hvertical
-  | symm _ ih => exact Link.symm (ih hsecond hfirst)
+  case symm _ ih => exact Link.symm (ih hsecond hfirst)
+  all_goals constructor! <;> rwa [← componentsEq _ _ hfirst.1 hfirst.2, quadrant]
 
 /-- Transport a bounded path to any even translate with the same local components. -/
 theorem boundedPath_translate
@@ -890,11 +839,9 @@ private theorem southwest_component (parent : Index) :
 theorem componentAt_iterateRefine_two_sparse (grid : Nat → Nat → Index) (x y : Nat) :
     componentAt (iterateRefine 2 grid) (sparseCoordinate x) (sparseCoordinate y) =
       componentAt grid x y := by
-  rw [sparseCoordinate, sparseCoordinate,
-    componentAt_two_block grid (x / 2) (y / 2) (x % 2) (y % 2) (by omega) (by omega)]
-  have old := southwest_component (grid (x / 2) (y / 2))
-    ⟨x % 2, by omega⟩ ⟨y % 2, by omega⟩
-  exact old
+  exact (componentAt_two_block grid (x / 2) (y / 2) (x % 2) (y % 2) (by omega)
+    (by omega)).trans (southwest_component (grid (x / 2) (y / 2))
+      ⟨x % 2, by omega⟩ ⟨y % 2, by omega⟩)
 
 private theorem quadrantAt_sparse (x y : Nat) :
     quadrantAt (sparseCoordinate x) (sparseCoordinate y) = quadrantAt x y := by
@@ -974,10 +921,9 @@ theorem livePortPath (grid : Nat → Nat → Index) (port : Port)
     · have present : portPresent (coarseGrid (grid (port.x / 2) (port.y / 2)))
         (internalPort .east (port.y % 2)) = true := by
         simpa only [internalPort, hs, hx] using (portPresent_local grid port).trans live
-      have path := boundedPath_two_block grid (port.x / 2) (port.y / 2)
-        (boundedConnectorPath _ .east (by omega) present)
-      simpa [sparsePort, refinedPort, hs, exitCoordinate, hx,
-        internalPort, externalPort, translatePort, sparseCoordinate] using path
+      simpa [sparsePort, refinedPort, hs, exitCoordinate, hx, internalPort, externalPort,
+        translatePort, sparseCoordinate] using boundedPath_two_block grid (port.x / 2)
+          (port.y / 2) (boundedConnectorPath _ .east (by omega) present)
     · simpa [refinedPort, hs, exitCoordinate, hx, sparsePort]
         using Path.refl (sparsePort port)
   | north =>
@@ -985,10 +931,9 @@ theorem livePortPath (grid : Nat → Nat → Index) (port : Port)
     · have present : portPresent (coarseGrid (grid (port.x / 2) (port.y / 2)))
         (internalPort .north (port.x % 2)) = true := by
         simpa only [internalPort, hs, hy] using (portPresent_local grid port).trans live
-      have path := boundedPath_two_block grid (port.x / 2) (port.y / 2)
-        (boundedConnectorPath _ .north (by omega) present)
-      simpa [sparsePort, refinedPort, hs, exitCoordinate, hy,
-        internalPort, externalPort, translatePort, sparseCoordinate] using path
+      simpa [sparsePort, refinedPort, hs, exitCoordinate, hy, internalPort, externalPort,
+        translatePort, sparseCoordinate] using boundedPath_two_block grid (port.x / 2)
+          (port.y / 2) (boundedConnectorPath _ .north (by omega) present)
     · simpa [refinedPort, hs, exitCoordinate, hy, sparsePort]
         using Path.refl (sparsePort port)
 
@@ -1005,56 +950,21 @@ private theorem path_of_sparseLink {grid : Nat → Nat → Index} {first second 
 theorem Link.refine {grid : Nat → Nat → Index} {first second : Port} {parity : Bool}
     (link : Link grid first second parity) :
     Path (iterateRefine 2 grid) (refinedPort first) (refinedPort second) parity := by
-  induction link with
-  | horizontalMatch x y =>
+  induction link
+  case horizontalMatch x y =>
     simpa only [refinedPort, sparsePort, exitCoordinate_succ] using
       Path.ofLink (Link.horizontalMatch (indexGrid := iterateRefine 2 grid)
         (exitCoordinate x) (sparseCoordinate y))
-  | verticalMatch x y =>
+  case verticalMatch x y =>
     simpa only [refinedPort, sparsePort, exitCoordinate_succ] using
       Path.ofLink (Link.verticalMatch (indexGrid := iterateRefine 2 grid)
         (sparseCoordinate x) (exitCoordinate y))
-  | horizontal x y h =>
-    apply path_of_sparseLink (by simp [portPresent, hasWest, h])
-      (by simp [portPresent, hasEast, h])
-    apply Link.horizontal
-    simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using h
-  | vertical x y h =>
-    apply path_of_sparseLink (by simp [portPresent, hasSouth, h])
-      (by simp [portPresent, hasNorth, h])
-    apply Link.vertical
-    simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using h
-  | westNorth x y hw hn =>
-    apply path_of_sparseLink (by simp [portPresent, hasWest, hw])
-      (by simp [portPresent, hasNorth, hn])
-    apply Link.westNorth
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using hw
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using hn
-  | westSouth x y hw hs =>
-    apply path_of_sparseLink (by simp [portPresent, hasWest, hw])
-      (by simp [portPresent, hasSouth, hs])
-    apply Link.westSouth
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using hw
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using hs
-  | eastNorth x y he hn =>
-    apply path_of_sparseLink (by simp [portPresent, hasEast, he])
-      (by simp [portPresent, hasNorth, hn])
-    apply Link.eastNorth
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using he
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using hn
-  | eastSouth x y he hs =>
-    apply path_of_sparseLink (by simp [portPresent, hasEast, he])
-      (by simp [portPresent, hasSouth, hs])
-    apply Link.eastSouth
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using he
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using hs
-  | crossing x y hh hv =>
-    apply path_of_sparseLink (by simp [portPresent, hasWest, hh])
-      (by simp [portPresent, hasSouth, hv])
-    apply Link.crossing
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using hh
-    · simpa only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse] using hv
-  | symm _ ih => exact ih.symm
+  case symm _ ih => exact ih.symm
+  all_goals
+    apply path_of_sparseLink (by simp [portPresent, hasWest, hasEast, hasSouth, *])
+      (by simp [portPresent, hasEast, hasSouth, hasNorth, *])
+    constructor! <;>
+      (simp only [componentAt_iterateRefine_two_sparse, quadrantAt_sparse]; assumption)
 
 /-- Two substitutions preserve the crossing parity of every red path. -/
 theorem Path.refine {grid : Nat → Nat → Index} {first second : Port} {parity : Bool}

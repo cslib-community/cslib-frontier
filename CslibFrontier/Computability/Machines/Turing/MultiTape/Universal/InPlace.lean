@@ -7,12 +7,14 @@ Authors: Christian Reitwiessner
 module
 -- upstream: vendored crei:crei/tidy-universal @7f7c0696 (unsubmitted)
 -- vendored: `spaceUsed` is the space of a run path since cslib #1133 and #1122; `try` steps
--- that the unused-tactic linter flags are dropped
+-- that the unused-tactic linter flags are dropped; the public universal theorem returns plain
+-- `ComputableInTimeAndSpace` (#862)
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Translate
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Machine
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Space
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Transducer
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -40,7 +42,7 @@ a plain function on events.
 * `Turing.MultiTapeTM.Universal.events_eIn`: the events of the encoded input.
 * `Turing.MultiTapeTM.Universal.inputSymbol_scan`: the countdown finds the symbol under the input
   head.
-* `Turing.MultiTapeTM.Universal.computableTidilyInTimeAndSpace_universal_inPlace`: the universal
+* `Turing.MultiTapeTM.Universal.computableInTimeAndSpace_universal_inPlace`: the universal
   function is computable in space linear in `stateSpace`.
 * `Turing.MultiTapeTM.Universal.stateSpace_desc`: on descriptions of machines, `stateSpace` is
   linear in the description times the space of the machine, plus logarithms of the length of the
@@ -304,15 +306,13 @@ public theorem passState_fold (d : Desc) (x : List ℕ) (t i : ℕ) :
   | zero => rfl
   | succ i ih =>
     rw [passState, ih, streamState_foldNext, List.take_length, foldEnd]
-    simp only
+    dsimp only
     rw [stepAt_scan]
     split_ifs with h
     · rw [show min (i + 1) t = min i t by omega]
-      simp only [Prod.mk.injEq, true_and, and_true]
-      omega
+      simp only [Prod.mk.injEq, true_and, and_true]; omega
     · rw [show min (i + 1) t = min i t + 1 by omega, run_succ]
-      simp only [Prod.mk.injEq, true_and, and_true]
-      omega
+      simp only [Prod.mk.injEq, true_and, and_true]; omega
 
 /-- What pass `i` emits. -/
 lemma foldEmit_pass (d : Desc) (x : List ℕ) (t i : ℕ) :
@@ -320,15 +320,10 @@ lemma foldEmit_pass (d : Desc) (x : List ℕ) (t i : ℕ) :
       (events x) (events x).length) =
       if i < t then (step d x (run d x i)).2.elim [] fun n => doubled (frame (encUnary n))
       else [] := by
-  rw [passState_fold, streamState_foldNext, List.take_length, foldEmit]
-  simp only
-  rw [stepAt_scan]
+  rw [passState_fold, streamState_foldNext, List.take_length, foldEmit, stepAt_scan]
   by_cases h : i < t
-  · have h' : ¬t - i = 0 := by omega
-    simp only [h, h', ↓reduceIte, show min i t = i by omega]
-  · have h' : t - i = 0 := by omega
-    simp only [h, h', ↓reduceIte]
-    rfl
+  · simp [h, Nat.sub_ne_zero_of_lt h, Nat.min_eq_left h.le]
+  · simp [h, Nat.sub_eq_zero_of_le (Nat.not_lt.mp h)]
 
 public lemma simulate_eq (d : Desc) (x : List ℕ) (t : ℕ) : simulate d x t =
     (((List.range t).map fun i => (step d x (run d x i)).2.toList).flatten,
@@ -643,21 +638,16 @@ public lemma scan_take (x : List ℕ) (k cur j : ℕ) :
     · simp only [List.foldr_cons] at h₅ ⊢
       omega
     · rcases Nat.lt_or_ge j (tok n).length with hj | hj
-      · rw [Nat.sub_eq_zero_of_le hj.le]
-        simp only [List.take_zero, List.foldl_nil, List.foldr_cons]
+      · simp only [Nat.sub_eq_zero_of_le hj.le, List.take_zero, List.foldl_nil, List.foldr_cons]
         omega
-      · have hp : p = (0, cur + n) := by
-          simp only [p, List.take_of_length_le hj, scan_tok, ↓reduceIte]
-        rw [hp, scan_zero]
-        simp only [List.foldr_cons]
+      · simp only [p, List.take_of_length_le hj, scan_tok, Nat.sub_self, ↓reduceIte, scan_zero,
+          List.foldr_cons]
         omega
 
 public lemma simSpace_mono (d : Desc) (x : List ℕ) {j j' : ℕ} (h : j ≤ j') :
     simSpace d x j ≤ simSpace d x j' :=
-  Finset.sum_le_sum fun _ _ => Finset.card_le_card (Finset.image_subset_image (by
-    intro a ha
-    simp only [Finset.mem_range] at ha ⊢
-    omega))
+  Finset.sum_le_sum fun _ _ =>
+    Finset.card_le_card (Finset.image_subset_image (Finset.range_mono (Nat.succ_le_succ h)))
 
 /-- A bound on the configurations of the simulation within `t` steps, from
 `Turing.MultiTapeTM.Universal.length_eCfg_le_space`. -/
@@ -739,13 +729,12 @@ lemma length_eSt_le' (d : Desc) (x : List ℕ) (t i j : ℕ) :
   rw [events_eIn]
   exact length_eSt_le d x t i j
 
-/-- **The universal machine, reading its input in place.** The universal function is tidily
-computable in space linear in a bound on the states of the simulation (`stateSpace`): the
-description, a configuration, the number of steps and the position of the input head in binary,
-and the largest symbol of the input. It never copies the input. Each step reads the whole
-input. -/
-public theorem computableTidilyInTimeAndSpace_universal_inPlace : ∃ c,
-    ComputableTidilyInTimeAndSpace universal eIn eOut
+/-- **The universal machine, reading its input in place.** The universal function is computable
+in space linear in a bound on the states of the simulation (`stateSpace`): the description, a
+configuration, the number of steps and the position of the input head in binary, and the largest
+symbol of the input. It never copies the input. Each step reads the whole input. -/
+public theorem computableInTimeAndSpace_universal_inPlace : ∃ c,
+    ComputableInTimeAndSpace universal eIn eOut
       (fun i => c * ((i.2.2 + 1) * ((eIn i).length + 1) ^ 2 * (stateSpace i.1 i.2.1 i.2.2 + 1) ^ 3))
       (fun i => c * (stateSpace i.1 i.2.1 i.2.2 + 1)) := by
   refine Exists.elim (ComputableTidilyInTimeAndSpace.multiPassFold_translate inTr
@@ -759,9 +748,7 @@ public theorem computableTidilyInTimeAndSpace_universal_inPlace : ∃ c,
     rintro ⟨d, x, t⟩ i hi
     rw [events_eIn]
     change foldCont (passState (foldInit (d, x, t)) foldNext foldEnd (events x) (i + 1)) = _
-    rw [passState_fold]
-    simp only [foldCont, decide_eq_decide]
-    omega
+    simp only [passState_fold, foldCont, decide_eq_decide]; omega
   case refine_2 =>
     rintro ⟨d, x, t⟩
     rw [events_eIn]
@@ -779,8 +766,7 @@ public theorem computableTidilyInTimeAndSpace_universal_inPlace : ∃ c,
     rintro ⟨d, x, t⟩ i - j -
     have := length_eSt_le' d x t i j
     rw [length_encPair, encBool_apply, List.length_singleton]
-    dsimp only
-    omega
+    dsimp only; omega
   case refine_5 =>
     rintro ⟨d, x, t⟩ i -
     have h₁ := length_eSt_le' d x t i (inTr.events (eIn (d, x, t))).length
@@ -796,16 +782,14 @@ public theorem computableTidilyInTimeAndSpace_universal_inPlace : ∃ c,
     have h₁ := length_eSt_le' d x t i (inTr.events (eIn (d, x, t))).length
     have h₂ : (eSt (passState (foldInit (d, x, t)) foldNext foldEnd (inTr.events (eIn (d, x, t)))
       (i + 1))).length ≤ _ := length_eSt_le' d x t (i + 1) 0
-    dsimp only
-    omega
-  case refine_7 =>
-    rintro ⟨d, x, t⟩ i - j -
-    exact length_eSt_le' d x t i j
+    dsimp only; omega
+  case refine_7 => exact fun ⟨d, x, t⟩ i _ j _ => length_eSt_le' d x t i j
   case refine_8 =>
     rintro ⟨d, x, t⟩
     dsimp only
     exact length_eSt_le' d x t (t - 1 + 1) 0
-  refine ⟨20 * c, h.mono (fun i => ?_) fun i => ?_⟩ <;> obtain ⟨d, x, t⟩ := i <;> dsimp only
+  refine ⟨20 * c, (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h).mono
+    (fun i => ?_) fun i => ?_⟩ <;> obtain ⟨d, x, t⟩ := i <;> dsimp only
   · exact final_time c _ t _ _ _ (by simp only [length_encPair, stateSpace, descLen]; omega)
       (length_eSt_le' d x t (t - 1 + 1) 0)
   · exact (final_space c _ _ _ (by simp only [length_encPair, stateSpace, descLen]; omega)

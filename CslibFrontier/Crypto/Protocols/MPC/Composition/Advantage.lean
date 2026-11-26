@@ -30,12 +30,20 @@ oracle world `W₁` and expands the coalition's views with the subprotocol simul
   subprotocol-replacement gap. `semiHonestAdvantage_compose_le` keeps it as an explicit term. It
   vanishes when the subprotocols are perfectly private (`Protocol.bind_realJoint_compose`), which
   gives the equality `semiHonestAdvantage_compose`.
+* **The gap as a kernel gap.** With no assumption on the subprotocols, the two executions of the
+  replacement gap are one kernel program, `Composition.kernelRun` of the outer steps after sampling
+  the outer coins, run on the ideal and on the real joint distributions of the subprotocols
+  (`advantage_replacement_eq_kernelRun`). The two runs differ only in the kernel that each oracle
+  round draws from, which is what a hybrid argument over the oracle rounds has to bound.
 
 Everything here is original bookkeeping around Goldreich's composition theorem (Section 7.5.2.1,
 Theorem 7.5.7) rather than a cited statement: the quantities are concrete, for a fixed input tuple
 and distinguisher, with no security parameter and no efficiency claim about `composeDistinguisher`.
-Bounding the subprotocol-replacement gap for computationally private subprotocols, and the
-asymptotic statement with certified reductions, are not proved here (#6045).
+The bound of the subprotocol-replacement gap by the semi-honest advantages against computationally
+private subprotocols (the hybrid argument over the oracle rounds of the kernel program, with an
+explicit distinguisher for each round) is in
+`CslibFrontier/Crypto/Protocols/MPC/Composition/Hybrid.lean`. The asymptotic statement with
+certified reductions is not proved (#6045).
 
 ## Main definitions
 
@@ -50,6 +58,10 @@ asymptotic statement with certified reductions, are not proved here (#6045).
   subprotocol-replacement gap.
 * `Cslib.Crypto.Protocols.MPC.semiHonestAdvantage_compose`: with perfectly private subprotocols the
   two advantages are equal.
+* `Cslib.Crypto.Protocols.MPC.Protocol.bind_realJoint_composeDistinguisher_eq_kernelRun`,
+  `Cslib.Crypto.Protocols.MPC.advantage_replacement_eq_kernelRun`: the hybrid game and the
+  subprotocol-replacement gap in terms of the kernel program, with no assumption on the
+  subprotocols.
 
 ## References
 
@@ -168,5 +180,65 @@ theorem semiHonestAdvantage_compose {P : Protocol m spec₁ sc₁ In Coins₁ Ou
       semiHonestAdvantage P W₁ f I S₁ x (composeDistinguisher P S₂ I x D) := by
   unfold semiHonestAdvantage
   rw [eval_idealJoint_composeSim_bind, Protocol.bind_realJoint_compose hSub]
+
+/-- **The hybrid game as a kernel game.** The real execution of the outer protocol `P` in `W₁`
+against the reduction `composeDistinguisher P S₂ I x D` samples the outer coins, runs the kernel
+program of `P.steps` on the ideal joint distributions of the subprotocols and runs `D` on the
+resulting views and outputs. -/
+theorem Protocol.bind_realJoint_composeDistinguisher_eq_kernelRun
+    (P : Protocol m spec₁ sc₁ In Coins₁ Out) (W₁ : MultiOracleWorld spec₁)
+    (S₂ : (op : spec₁.Op) → (J : Finset (Fin (spec₁.arity op))) →
+      CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J)
+    (I : Finset (Fin m)) (x : (i : Fin m) → In i)
+    (D : ((i : I) → PartyView In (Schedule.ComposedCoins Coins₂ Coins₁ sc₁)
+      (Schedule.compose sc₂ sc₁) i) × ((i : Fin m) → Out i) → ProbComp Bool) :
+    ((P.realJoint W₁ I x).bind fun r => ProbComp.eval (composeDistinguisher P S₂ I x D r)) =
+      (ProbComp.eval (OracleComp.pi P.sampleCoins)).bind fun c₁ =>
+        (kernelRun (fun op J q => ProbComp.eval (idealJoint (W₁ op) J (S₂ op J) q)) I P.steps
+          (fun i => (x i, c₁ i))).bind fun res =>
+            ProbComp.eval
+              (D (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2)) := by
+  have h := congrArg (fun p => p.bind fun r => ProbComp.eval (D r))
+    (Protocol.realJoint_bind_expandSimSteps_eq_kernelRun P W₁ S₂ I x)
+  simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def] at h
+  rw [← h]
+  refine congrArg (P.realJoint W₁ I x).bind (funext fun r => ?_)
+  obtain ⟨v₁, y⟩ := r
+  simp only [composeDistinguisher, ProbComp.eval_bind]
+
+/-- **The subprotocol-replacement gap is a kernel gap.** The replacement gap of
+`semiHonestAdvantage_compose_le` is the advantage of one test between two runs of the same kernel
+program `kernelRun` of `P.steps`, after sampling the outer coins: on the ideal joint distributions
+`idealJoint (W₁ op) J (S₂ op J) q` of the subprotocols and on their real joint distributions
+`(Sub op).realJoint W₂ J q`. The two runs differ only in the kernel that each oracle round draws
+from, which is the setting of the hybrid argument over the oracle rounds. Nothing is assumed about
+`P`, `Sub` or the simulators, and no bound on the gap is derived here. -/
+theorem advantage_replacement_eq_kernelRun (P : Protocol m spec₁ sc₁ In Coins₁ Out)
+    (W₁ : MultiOracleWorld spec₁) (W₂ : MultiOracleWorld spec₂)
+    (Sub : (op : spec₁.Op) →
+      Protocol (spec₁.arity op) spec₂ (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op))
+    (S₂ : (op : spec₁.Op) → (J : Finset (Fin (spec₁.arity op))) →
+      CoalitionSimulator (sc₂ op) (spec₁.Query op) (Coins₂ op) (spec₁.Answer op) J)
+    (I : Finset (Fin m)) (x : (i : Fin m) → In i)
+    (D : ((i : I) → PartyView In (Schedule.ComposedCoins Coins₂ Coins₁ sc₁)
+      (Schedule.compose sc₂ sc₁) i) × ((i : Fin m) → Out i) → ProbComp Bool) :
+    Game.advantage
+        ((P.realJoint W₁ I x).bind fun r =>
+          ProbComp.eval (composeDistinguisher P S₂ I x D r))
+        (((P.compose Sub).realJoint W₂ I x).bind fun r => ProbComp.eval (D r)) =
+      Game.advantage
+        ((ProbComp.eval (OracleComp.pi P.sampleCoins)).bind fun c₁ =>
+          (kernelRun (fun op J q => ProbComp.eval (idealJoint (W₁ op) J (S₂ op J) q)) I P.steps
+            (fun i => (x i, c₁ i))).bind fun res =>
+              ProbComp.eval
+                (D (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2)))
+        ((ProbComp.eval (OracleComp.pi P.sampleCoins)).bind fun c₁ =>
+          (kernelRun (fun op J q => (Sub op).realJoint W₂ J q) I P.steps
+            (fun i => (x i, c₁ i))).bind fun res =>
+              ProbComp.eval
+                (D (fun i : I => ⟨x i.1, (c₁ i.1, (res.1 i).1), (res.1 i).2⟩, res.2))) := by
+  rw [Protocol.bind_realJoint_composeDistinguisher_eq_kernelRun,
+    Protocol.realJoint_compose_eq_kernelRun]
+  simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def]
 
 end Cslib.Crypto.Protocols.MPC

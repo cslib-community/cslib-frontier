@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Encoding
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Words
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.TransformsTapes
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.OutputToTape
 import Cslib.Foundations.Data.Fin.Tuple
@@ -82,21 +82,15 @@ theorem exists_prepare {α β : Type u} (enc₁ : α ↪ List Bool) (enc₂ : β
   have hseq := transformsTapes_seq hfirst hsecond (by
     rintro input ws ws' emitted ⟨hin, rfl⟩ ⟨rfl, rfl⟩
     exact ⟨hin, fun j => Function.update_of_ne (secondTapes_ne_first_last k l j) _ _⟩)
-  refine hseq.imp (fun _ _ h => h) ?_ ?_ ?_
-  · rintro _ _ _ _ ⟨_, rfl⟩ ⟨_, _, _, ⟨rfl, rfl⟩, ⟨rfl, rfl⟩, rfl⟩
-    refine ⟨?_, rfl⟩
-    funext i
-    cases i using Fin.addCases with
-    | left i => simp [firstTapes, secondTapes, Fin.Embedding.snoc_last,
-        Fin.castAdd_ne_natAdd]
-    | right i =>
-      match i with
-      | 0 | 1 => simp [firstTapes, secondTapes, Fin.Embedding.snoc_last, Function.update_apply]
-  · have hlen₀ := (h₀ p).length_output_le
-    have hlen₁ := (h₁ p).length_output_le
-    nlinarith
-  · have hlen₀ := (h₀ p).length_output_le
-    have hlen₁ := (h₁ p).length_output_le
-    nlinarith [Nat.sub_le (k + l + 2) (k + 1), Nat.sub_le (k + l + 2) (l + 1)]
+  have hlen₀ := (h₀ p).length_output_le
+  have hlen₁ := (h₁ p).length_output_le
+  refine hseq.imp (fun _ _ h => h) ?_ (by nlinarith)
+    (by nlinarith [Nat.sub_le (k + l + 2) (k + 1), Nat.sub_le (k + l + 2) (l + 1)])
+  rintro _ _ _ _ ⟨_, rfl⟩ ⟨_, _, _, ⟨rfl, rfl⟩, ⟨rfl, rfl⟩, rfl⟩
+  refine ⟨funext fun i => ?_, rfl⟩
+  cases i using Fin.addCases with
+  | left i => simp [firstTapes, secondTapes, Fin.Embedding.snoc_last, Fin.castAdd_ne_natAdd]
+  | right i =>
+    fin_cases i <;> simp [firstTapes, secondTapes, Fin.Embedding.snoc_last, Function.update_apply]
 
 end Turing.MultiTapeTM.PairEncoding

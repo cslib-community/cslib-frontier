@@ -239,23 +239,12 @@ theorem measure_pi_bernstein_single_le (D : Measure (α × β)) [IsProbabilityMe
   set p := (error D h).toReal
   have hp0 : 0 ≤ p := ENNReal.toReal_nonneg
   rcases eq_or_lt_of_le hp0 with hpz | hppos
-  · have hempty : {S : LabeledSample α β n |
-        (empiricalMiscount h S : ℝ) / n + c +
-          Real.sqrt (c ^ 2 + 2 * ((empiricalMiscount h S : ℝ) / n) * c) < p} = ∅ := by
-      ext S
-      simp only [mem_ofPred_eq, mem_empty_iff_false, iff_false, not_lt]
-      rw [← hpz]
-      positivity
-    rw [hempty, measure_empty]
-    exact zero_le
+  · refine (measure_mono_null (fun S hS => ?_) measure_empty).le.trans zero_le
+    rw [mem_ofPred_eq, ← hpz] at hS
+    exact absurd hS (not_lt.2 (by positivity))
   set f : α × β → Bool := fun x => decide (h x.1 ≠ x.2)
-  have hf : Measurable f := by
-    refine measurable_to_countable' fun b => ?_
-    cases b
-    · have : f ⁻¹' {false} = {x : α × β | h x.1 ≠ x.2}ᶜ := by ext x; simp [f]
-      rw [this]; exact hh.compl
-    · have : f ⁻¹' {true} = {x : α × β | h x.1 ≠ x.2} := by ext x; simp [f]
-      rw [this]; exact hh
+  have hft : f ⁻¹' {true} = {x : α × β | h x.1 ≠ x.2} := by ext x; simp [f]
+  have hf : Measurable f := measurable_to_bool (hft ▸ hh)
   set qPmf : PMF Bool := (D.map f).toPMF
   have hmap : (Measure.pi fun _ : Fin n => D).map (fun S i => f (S i)) =
       (Cslib.Probability.PMF.pi fun _ : Fin n => qPmf).toMeasure :=
@@ -263,9 +252,7 @@ theorem measure_pi_bernstein_single_le (D : Measure (α × β)) [IsProbabilityMe
   have hfm : Measurable fun (S : Fin n → α × β) i => f (S i) :=
     measurable_pi_iff.2 fun i => hf.comp (measurable_pi_apply i)
   have hqt : (qPmf true).toReal = p := by
-    rw [Measure.toPMF_apply, Measure.map_apply hf (measurableSet_singleton _)]
-    have : f ⁻¹' {true} = {x : α × β | h x.1 ≠ x.2} := by ext x; simp [f]
-    rw [this]; rfl
+    rw [Measure.toPMF_apply, Measure.map_apply hf (measurableSet_singleton _), hft]; rfl
   let score : Fin n → Bool → ℝ := fun _ b => if b = true then 1 else 0
   have hscore : ∀ i b, b ∈ qPmf.support → score i b ∈ Set.Icc (0 : ℝ) 1 := by
     intro _ b _; cases b <;> simp [score]
@@ -287,26 +274,19 @@ theorem measure_pi_bernstein_single_le (D : Measure (α × β)) [IsProbabilityMe
     intro S hS
     simp only [mem_ofPred_eq, mem_preimage, ← hcount]
     set q := (empiricalMiscount h S : ℝ) / n
-    have hS' : q + c + Real.sqrt (c ^ 2 + 2 * q * c) < p := hS
     have hq0 : 0 ≤ q := div_nonneg (Nat.cast_nonneg _) hnR.le
-    have hlt_sqrt : Real.sqrt (c ^ 2 + 2 * q * c) < p - q - c := by linarith [hS']
-    have hpos_rhs : 0 < p - q - c := lt_of_le_of_lt (Real.sqrt_nonneg _) hlt_sqrt
-    have hsq : c ^ 2 + 2 * q * c < (p - q - c) ^ 2 := by
-      rw [← Real.sq_sqrt (by positivity : 0 ≤ c ^ 2 + 2 * q * c)]
-      exact pow_lt_pow_left₀ hlt_sqrt (Real.sqrt_nonneg _) two_ne_zero
-    have hgap_sq : 2 * c * p < (p - q) ^ 2 := by nlinarith
-    have hgap : Real.sqrt (2 * c * p) ≤ p - q :=
-      Real.sqrt_le_iff.2 ⟨by linarith, hgap_sq.le⟩
-    have hδp : δ * p = Real.sqrt (2 * c * p) := by
-      have hsq1 : (δ * p) ^ 2 = 2 * c * p := by
+    have hlt_sqrt : Real.sqrt (c ^ 2 + 2 * q * c) < p - q - c := by
+      linarith [show q + c + Real.sqrt (c ^ 2 + 2 * q * c) < p from hS]
+    have hpos_rhs : 0 < p - q - c := (Real.sqrt_nonneg _).trans_lt hlt_sqrt
+    have hsq := (Real.sqrt_lt' hpos_rhs).1 hlt_sqrt
+    have hδp : δ * p ≤ p - q := by
+      refine (pow_le_pow_iff_left₀ (by positivity) (by linarith) two_ne_zero).1 ?_
+      have : (δ * p) ^ 2 = 2 * c * p := by
         rw [mul_pow, Real.sq_sqrt (by positivity)]
         field_simp
-      rw [← hsq1, Real.sqrt_sq (mul_nonneg hδ0 hppos.le)]
-    have hqn : (empiricalMiscount h S : ℝ) = n * q := by
-      dsimp only [q]
-      field_simp
-    rw [hqn]
-    nlinarith [hgap, hδp]
+      nlinarith
+    rw [show (empiricalMiscount h S : ℝ) = n * q by dsimp only [q]; field_simp]
+    nlinarith
   calc Measure.pi (fun _ : Fin n => D)
           {S | (empiricalMiscount h S : ℝ) / n + c +
               Real.sqrt (c ^ 2 + 2 * ((empiricalMiscount h S : ℝ) / n) * c) < p}
@@ -560,15 +540,9 @@ theorem measure_pi_abs_sub_heldOutError_le (κ : GeneralCompressionScheme α β 
     exact measurableSet_le measurable_const (continuous_abs.measurable.comp (hq.sub hp))
   · refine (measure_pi_le_abs_empiricalMiscount_div_sub_error D hh
       (m - (Finset.univ.image ι.2).card) hε).trans ?_
-    refine ENNReal.ofReal_le_ofReal ?_
-    have hcard_le : (m - k : ℕ) ≤ m - (Finset.univ.image ι.2).card :=
-      Nat.sub_le_sub_left hJk m
-    have hexp : -2 * ((m - (Finset.univ.image ι.2).card : ℕ) : ℝ) * ε ^ 2 ≤
-        -2 * ((m - k : ℕ) : ℝ) * ε ^ 2 := by
-      have hcast : ((m - k : ℕ) : ℝ) ≤ ((m - (Finset.univ.image ι.2).card : ℕ) : ℝ) :=
-        Nat.cast_le.2 hcard_le
-      nlinarith [sq_nonneg ε]
-    gcongr
+    refine ENNReal.ofReal_le_ofReal (mul_le_mul_of_nonneg_left (Real.exp_le_exp.2 ?_) two_pos.le)
+    have := (Nat.cast_le (α := ℝ)).2 (Nat.sub_le_sub_left hJk m)
+    nlinarith [sq_nonneg ε]
 
 private theorem pow_add_one_mul_exp_neg_le (m k : ℕ) {a δ : ℝ} (ha : 0 < a) (hδ : 0 < δ) :
     (((m + 1) ^ k : ℕ) : ℝ≥0∞) *
@@ -638,12 +612,9 @@ theorem measure_pi_bernstein_tail_le (κ : GeneralCompressionScheme α β k)
       ((hq.add measurable_const).add
         ((measurable_const.add ((measurable_const.mul hq).mul measurable_const)).sqrt)) hp
   · refine (measure_pi_bernstein_single_le D hh hpos hc).trans ?_
-    refine ENNReal.ofReal_le_ofReal ?_
-    have hcard_le : ((m - k : ℕ) : ℝ) ≤ ((m - (Finset.univ.image ι.2).card : ℕ) : ℝ) :=
-      Nat.cast_le.2 (Nat.sub_le_sub_left hJk m)
-    have hexp : -(((m - (Finset.univ.image ι.2).card : ℕ) : ℝ) * c) ≤
-        -(((m - k : ℕ) : ℝ) * c) := by nlinarith
-    exact Real.exp_le_exp.2 hexp
+    refine ENNReal.ofReal_le_ofReal (Real.exp_le_exp.2 ?_)
+    have := (Nat.cast_le (α := ℝ)).2 (Nat.sub_le_sub_left hJk m)
+    nlinarith
 
 /-- **Sharp quadratic agnostic sample compression bound** [ShalevShwartzBenDavid2014, Theorem 30.2]
 (locator unverified; tighter constants). For `k < m`, `0 < δ`, and

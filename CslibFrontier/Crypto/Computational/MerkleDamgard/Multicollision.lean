@@ -142,11 +142,9 @@ differ and collide at `t`, and the rest is a chain from their common next value.
 /-- The two messages of each pair of a collision chain differ. -/
 theorem IsCollisionChain.fst_ne_snd {step : T → M → T} :
     ∀ {t : T} {pairs : List (M × M)}, IsCollisionChain step t pairs → ∀ p ∈ pairs, p.1 ≠ p.2
-  | _, [], _, _, hp => by simp at hp
-  | _, _ :: _, ⟨hne, _, hrest⟩, p, hp => by
-    rcases List.mem_cons.mp hp with rfl | hp
-    · exact hne
-    · exact hrest.fst_ne_snd p hp
+  | _, [], _, _, hp => nomatch hp
+  | _, _ :: _, ⟨hne, _, hrest⟩, p, hp =>
+    (List.mem_cons.mp hp).elim (fun h => h ▸ hne) (hrest.fst_ne_snd p)
 
 /-- **Joux's observation** ([BonehShoup2023], §8.4.1, printed p. 299): every choice of one message
 from each pair of a collision chain reaches the same value as the first messages. -/
@@ -157,11 +155,9 @@ theorem IsCollisionChain.foldl_jouxMessage {step : T → M → T} :
   | _, [], _, _ => by simp [jouxMessage]
   | t, p :: rest, ⟨_, hcol, hrest⟩, σ => by
     have ih := hrest.foldl_jouxMessage fun i => σ i.succ
-    simp only [jouxMessage] at ih ⊢
-    simp only [List.length_cons, List.ofFn_succ, List.foldl_cons, List.map_cons]
-    by_cases h0 : σ 0
-    · simpa [h0, hcol] using ih
-    · simpa [h0] using ih
+    simp only [jouxMessage, List.length_cons, List.ofFn_succ, List.foldl_cons,
+      List.map_cons] at ih ⊢
+    cases h0 : σ 0 <;> simpa [h0, hcol] using ih
 
 /-- Different selections from a collision chain are different messages. -/
 theorem IsCollisionChain.jouxMessage_injective {step : T → M → T} {t : T}
@@ -184,13 +180,11 @@ theorem IsCollisionChain.isMulticollision [DecidableEq M] {step : T → M → T}
     {pairs : List (M × M)} (hc : IsCollisionChain step t pairs) (tail : List M) :
     IsMulticollision (fun ms => (ms ++ tail).foldl step t) (2 ^ pairs.length)
       (Finset.univ.image (jouxMessage pairs)) := by
-  refine ⟨?_, ?_⟩
-  · rw [Finset.card_image_of_injective _ hc.jouxMessage_injective, Finset.card_univ,
-      BitString.card]
-  · intro x hx y hy
-    obtain ⟨σ, -, rfl⟩ := Finset.mem_image.mp hx
-    obtain ⟨τ, -, rfl⟩ := Finset.mem_image.mp hy
-    simp only [List.foldl_append, hc.foldl_jouxMessage]
+  refine ⟨by rw [Finset.card_image_of_injective _ hc.jouxMessage_injective, Finset.card_univ,
+    BitString.card], fun x hx y hy => ?_⟩
+  obtain ⟨σ, -, rfl⟩ := Finset.mem_image.mp hx
+  obtain ⟨τ, -, rfl⟩ := Finset.mem_image.mp hy
+  simp only [List.foldl_append, hc.foldl_jouxMessage]
 
 /-- Two different valid members of a multicollision of `H key` are a collision in the sense of the
 collision-resistance game (`isCollision`). -/
@@ -231,17 +225,16 @@ theorem isQueryBounded_jouxFinder {stage : T → M → ProbOracleComp spec T} {c
     (hstage : ∀ t m, ProbOracleComp.IsQueryBounded (stage t m) c) (sampler : ProbComp M) (s : ℕ) :
     ∀ (f b : ℕ) (t : T),
       ProbOracleComp.IsQueryBounded (jouxFinder stage sampler s f b t) (f * (s * c))
-  | 0, 0, _ => by rw [jouxFinder]; exact OracleComp.IsCostBounded.pure _ _
-  | 0, _ + 1, _ => by rw [jouxFinder]; exact OracleComp.IsCostBounded.pure _ _
-  | _ + 1, 0, _ => by rw [jouxFinder]; exact OracleComp.IsCostBounded.pure _ _
+  | 0, 0, _ | 0, _ + 1, _ | _ + 1, 0, _ => by
+    rw [jouxFinder]
+    exact OracleComp.IsCostBounded.pure _ _
   | f + 1, b + 1, t => by
     rw [jouxFinder]
-    refine ((isQueryBounded_birthdayFinder (hstage t) sampler s).bind (m := f * (s * c))
-      fun r => ?_).mono (by rw [Nat.succ_mul, Nat.add_comm])
-    match r with
-    | none => exact isQueryBounded_jouxFinder hstage sampler s f (b + 1) t
-    | some (m, m', t') =>
-      exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
+    refine ((isQueryBounded_birthdayFinder (hstage t) sampler s).bind (m := f * (s * c)) ?_).mono
+      (by rw [Nat.succ_mul, Nat.add_comm])
+    rintro (_ | ⟨m, m', t'⟩)
+    · exact isQueryBounded_jouxFinder hstage sampler s f (b + 1) t
+    · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
         (isQueryBounded_jouxFinder hstage sampler s f b t')
 
 /-- The successful outputs of the Joux finder: `b` pairs forming a collision chain of `step`
@@ -252,10 +245,7 @@ from `t`. -/
 /-- The arithmetic of one step of the budget induction: `x B + y (2 B) ≤ (1 + ε) B` when
 `x + y = 1` and `x ≥ 1 - ε`. -/
 private theorem budget_step {x y ε B : ℝ} (hadd : x + y = 1) (hx : 1 - ε ≤ x) (hB : 0 ≤ B) :
-    x * B + y * (2 * B) ≤ (1 + ε) * B := by
-  have h1 : y * B ≤ ε * B := mul_le_mul_of_nonneg_right (by linarith) hB
-  have h2 : x * B + y * B = B := by rw [← add_mul, hadd, one_mul]
-  linarith
+    x * B + y * (2 * B) ≤ (1 + ε) * B := by nlinarith
 
 variable [Fintype M] [Nonempty M]
 
@@ -306,14 +296,11 @@ private theorem jouxFinder_failure_le {stage : T → M → ProbOracleComp spec T
       refine (ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
         (MeasureTheory.measure_mono ?_)).trans
           (jouxFinder_failure_le O step hstage D hD s hε f b (step t m) (hD t ht m))
-      intro o ho hmem
-      obtain ⟨pairs, rfl, hlen, hchain⟩ := hmem
+      rintro o ho ⟨pairs, rfl, hlen, hchain⟩
       exact ho ⟨(m, m') :: pairs, rfl, by simp [hlen], hne, hcol, hchain⟩
     · intro a ha hna
-      have ha' : a = none := by
-        by_contra hsome
-        exact hna (birthdayFinder_sound O (step t) (hstage t) _ s ha hsome)
-      subst ha'
+      obtain rfl : a = none := Classical.byContradiction fun hsome =>
+        hna (birthdayFinder_sound O (step t) (hstage t) _ s ha hsome)
       exact (jouxFinder_failure_le O step hstage D hD s hε f (b + 1) t ht).trans_eq (by ring)
 
 /-- **Success probability of the Joux finder.** Run against a deterministic oracle `O` under which
@@ -341,8 +328,7 @@ attempts leaves success probability at least `1/2`: the bound is `(27/32) ^ b / 
 private theorem half_le_one_sub_budget_bound (b : ℕ) :
     (1 / 2 : ℝ) ≤ 1 - 2 ^ b * ((1 + 1 / 2) / 2) ^ (3 * b) / 2 := by
   have h2 : (2 : ℝ) ^ b * ((1 + 1 / 2) / 2) ^ (3 * b) = (27 / 32) ^ b := by
-    rw [pow_mul, ← mul_pow]
-    norm_num
+    rw [pow_mul, ← mul_pow]; norm_num
   have h3 : ((27 : ℝ) / 32) ^ b ≤ 1 := pow_le_one₀ (by norm_num) (by norm_num)
   linarith
 
@@ -402,16 +388,14 @@ theorem isMulticollision_merkleDamgardChain {ℓ : ℕ} {iv : List Bool}
     (tail : List (List Bool)) :
     IsMulticollision (fun bs => merkleDamgardChain h k iv (bs ++ tail)) (2 ^ pairs.length)
       ((Finset.univ.image (jouxMessage pairs)).image (List.map List.ofFn)) := by
-  refine ⟨?_, ?_⟩
-  · rw [Finset.card_image_of_injective _ (List.map_injective_iff.mpr List.ofFn_injective),
-      Finset.card_image_of_injective _ hc.jouxMessage_injective, Finset.card_univ,
-      BitString.card]
-  · intro x hx y hy
-    obtain ⟨_, hx', rfl⟩ := Finset.mem_image.mp hx
-    obtain ⟨_, hy', rfl⟩ := Finset.mem_image.mp hy
-    obtain ⟨σ, -, rfl⟩ := Finset.mem_image.mp hx'
-    obtain ⟨τ, -, rfl⟩ := Finset.mem_image.mp hy'
-    simp only [merkleDamgardChain_append, ← foldl_blockStep, hc.foldl_jouxMessage]
+  refine ⟨by rw [Finset.card_image_of_injective _ (List.map_injective_iff.mpr List.ofFn_injective),
+    Finset.card_image_of_injective _ hc.jouxMessage_injective, Finset.card_univ, BitString.card],
+    fun x hx y hy => ?_⟩
+  obtain ⟨_, hx', rfl⟩ := Finset.mem_image.mp hx
+  obtain ⟨_, hy', rfl⟩ := Finset.mem_image.mp hy
+  obtain ⟨σ, -, rfl⟩ := Finset.mem_image.mp hx'
+  obtain ⟨τ, -, rfl⟩ := Finset.mem_image.mp hy'
+  simp only [merkleDamgardChain_append, ← foldl_blockStep, hc.foldl_jouxMessage]
 
 /-- The outputs of `merkleDamgardJouxFinder` that are `b` pairs whose `2 ^ b` selections, each
 followed by any common list of blocks `tail`, are a `2 ^ b`-collision of the chain from `iv`. One
@@ -517,8 +501,7 @@ theorem isQueryBounded_absorbBits (n : ℕ) (t m : List Bool) :
   | nil => exact OracleComp.IsCostBounded.pure _ _
   | cons b m ih =>
     rw [absorbBits, List.foldlM_cons]
-    refine OracleComp.IsCostBounded.mono (n := 1 + m.length) ?_ (by simp [Nat.add_comm])
-    exact (ProbOracleComp.IsQueryBounded.query _).bind fun acc => ih acc
+    exact ((ProbOracleComp.IsQueryBounded.query _).bind ih).mono (by simp [Nat.add_comm])
 
 /-- Hashing a concatenation of `g`-bit groups with `merkleDamgard` continues the chain group by
 group from the value after the marker block. -/
@@ -535,10 +518,9 @@ private theorem merkleDamgard_flatMap_ofFn {g : ℕ} (ms : List (BitString g)) :
 /-- Lists of `g`-bit groups of the same length with the same concatenation are equal. -/
 private theorem flatMap_ofFn_inj {g : ℕ} {ms ms' : List (BitString g)}
     (hl : ms.length = ms'.length) (he : ms.flatMap List.ofFn = ms'.flatMap List.ofFn) :
-    ms = ms' := by
-  refine List.map_injective_iff.mpr List.ofFn_injective (List.eq_iff_flatten_eq.mpr ⟨?_, ?_⟩)
-  · simpa [List.flatMap_def] using he
-  · simp [Function.comp_def, hl]
+    ms = ms' :=
+  List.map_injective_iff.mpr List.ofFn_injective <| List.eq_iff_flatten_eq.mpr
+    ⟨by simpa [List.flatMap_def] using he, by simp [Function.comp_def, hl]⟩
 
 /-- A collision chain of `g`-bit groups, from the value after the marker block, gives a
 `2 ^ b`-collision of `merkleDamgard h k` among messages of `b * g` bits. -/
@@ -550,12 +532,11 @@ theorem isMulticollision_merkleDamgard_of_chain {g : ℕ}
       (h k (List.replicate k.length false ++ mdEndBlock k.length)) pairs) :
     IsMulticollision (merkleDamgard h k) (2 ^ pairs.length)
       (Finset.univ.image fun σ => (jouxMessage pairs σ).flatMap List.ofFn) := by
-  refine ⟨?_, ?_⟩
-  · rw [Finset.card_image_of_injective, Finset.card_univ, BitString.card]
-    intro σ τ hστ
-    exact hc.jouxMessage_injective (flatMap_ofFn_inj (by simp [jouxMessage]) hστ)
-  · intro x hx y hy
-    obtain ⟨σ, -, rfl⟩ := Finset.mem_image.mp hx
+  refine ⟨?_, fun x hx y hy => ?_⟩
+  · rw [Finset.card_image_of_injective _ fun _ _ h =>
+      hc.jouxMessage_injective (flatMap_ofFn_inj (by simp [jouxMessage]) h),
+      Finset.card_univ, BitString.card]
+  · obtain ⟨σ, -, rfl⟩ := Finset.mem_image.mp hx
     obtain ⟨τ, -, rfl⟩ := Finset.mem_image.mp hy
     simp only [merkleDamgard_flatMap_ofFn, hc.foldl_jouxMessage]
 

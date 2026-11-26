@@ -236,28 +236,26 @@ theorem natCard_submodule_bool {ι : Type*} [Finite ι] (V : Submodule Bool (ι 
 theorem exists_isCompl_bool {ι : Type*} (U : Submodule Bool (ι → Bool)) :
     ∃ W : Submodule Bool (ι → Bool), IsCompl U W := by
   obtain ⟨WZ, hWZ⟩ := Submodule.exists_isCompl (submoduleZModIso ι U)
-  refine ⟨(submoduleZModIso ι).symm WZ, ?_⟩
-  have h := ((submoduleZModIso ι).symm.isCompl_iff (x := submoduleZModIso ι U) (y := WZ)).mp hWZ
-  rwa [(submoduleZModIso ι).symm_apply_apply] at h
+  exact ⟨(submoduleZModIso ι).symm WZ, by
+    simpa only [(submoduleZModIso ι).symm_apply_apply] using
+      (submoduleZModIso ι).symm.isCompl_iff.mp hWZ⟩
 
 /-- Relative complement existence inside a `Bool`-submodule `V` of `ι → Bool`. -/
 theorem exists_isCompl_submodule_bool {ι : Type*} {K V : Submodule Bool (ι → Bool)}
     (hKV : K ≤ V) :
     ∃ U : Submodule Bool (ι → Bool), U ≤ V ∧ U ⊓ K = ⊥ ∧ U ⊔ K = V := by
-  let KZ := (submoduleZModIso ι K).comap (submoduleZModIso ι V).subtype
-  obtain ⟨UZ, hUZ⟩ := Submodule.exists_isCompl KZ
-  let WZ := UZ.map (submoduleZModIso ι V).subtype
-  refine ⟨(submoduleZModIso ι).symm WZ, ?_, ?_, ?_⟩
+  let VZ := submoduleZModIso ι V
+  obtain ⟨UZ, hUZ⟩ := Submodule.exists_isCompl ((submoduleZModIso ι K).comap VZ.subtype)
+  refine ⟨(submoduleZModIso ι).symm (UZ.map VZ.subtype), ?_, ?_, ?_⟩
   · rw [← (submoduleZModIso ι).le_iff_le, (submoduleZModIso ι).apply_symm_apply]
     exact Submodule.map_subtype_le _ _
   · rw [eq_bot_iff, ← (submoduleZModIso ι).le_iff_le, map_inf,
       (submoduleZModIso ι).apply_symm_apply, map_bot]
     rintro y ⟨hy1, hy2⟩
     obtain ⟨⟨w, hwV⟩, hwU, rfl⟩ := Submodule.mem_map.mp hy1
-    have hmem : (⟨w, hwV⟩ : submoduleZModIso ι V) ∈ KZ ⊓ UZ := ⟨hy2, hwU⟩
+    have hmem : (⟨w, hwV⟩ : VZ) ∈ (submoduleZModIso ι K).comap VZ.subtype ⊓ UZ := ⟨hy2, hwU⟩
     rw [hUZ.inf_eq_bot, Submodule.mem_bot] at hmem
-    have hw0 : w = 0 := congrArg Subtype.val hmem
-    subst hw0
+    rcases congrArg Subtype.val hmem with rfl
     exact Submodule.zero_mem _
   · refine le_antisymm (sup_le (by
       rw [← (submoduleZModIso ι).le_iff_le, (submoduleZModIso ι).apply_symm_apply]
@@ -265,7 +263,7 @@ theorem exists_isCompl_submodule_bool {ι : Type*} {K V : Submodule Bool (ι →
     rw [← (submoduleZModIso ι).le_iff_le, map_sup, (submoduleZModIso ι).apply_symm_apply, sup_comm]
     intro w hw
     obtain ⟨k, hk, u, hu, hku⟩ := Submodule.mem_sup.mp
-      (hUZ.sup_eq_top ▸ Submodule.mem_top : (⟨w, hw⟩ : submoduleZModIso ι V) ∈ _)
+      (hUZ.sup_eq_top ▸ Submodule.mem_top : (⟨w, hw⟩ : VZ) ∈ _)
     exact Submodule.mem_sup.mpr ⟨k.1, hk, u.1, Submodule.mem_map.mpr ⟨u, hu, rfl⟩,
       congrArg Subtype.val hku⟩
 
@@ -306,9 +304,8 @@ theorem finrank_range_add_finrank_ker_bool {ι₁ ι₂ : Type*} [Fintype ι₁]
     (f : (ι₁ → Bool) →ₗ[Bool] (ι₂ → Bool)) :
     finrank Bool (LinearMap.range f) + finrank Bool (LinearMap.ker f) = Fintype.card ι₁ := by
   have h := finrank_map_add_finrank_inf_ker_bool f ⊤
-  rw [Submodule.map_top, top_inf_eq, ← finrank_submoduleZModIso ⊤, map_top, finrank_top,
+  rwa [Submodule.map_top, top_inf_eq, ← finrank_submoduleZModIso ⊤, map_top, finrank_top,
     Module.finrank_fintype_fun_eq_card] at h
-  exact h
 
 /-- Preimage codimension bound: pulling back a `Bool`-submodule `V` of `ι₂ → Bool` along any
 `Bool`-linear map `f : (ι₁ → Bool) →ₗ[Bool] (ι₂ → Bool)` increases codimension by at most `0`, i.e.
@@ -323,11 +320,10 @@ theorem finrank_comap_codim_le_bool {ι₁ ι₂ : Type*} [Fintype ι₁] [Finty
     ext z
     simp only [gZ, LinearMap.mem_ker, LinearMap.comp_apply, Submodule.mkQ_apply,
       Submodule.Quotient.mk_eq_zero, Submodule.mem_comap, VZ]
-  have hrank : finrank (ZMod 2) (LinearMap.range gZ) + finrank (ZMod 2) (LinearMap.ker gZ) =
-      Fintype.card ι₁ :=
-    (LinearMap.finrank_range_add_finrank_ker gZ).trans (Module.finrank_fintype_fun_eq_card _)
-  have hquot : finrank (ZMod 2) ((ι₂ → ZMod 2) ⧸ VZ) + finrank (ZMod 2) VZ = Fintype.card ι₂ :=
-    (Submodule.finrank_quotient_add_finrank VZ).trans (Module.finrank_fintype_fun_eq_card _)
+  have hrank := (LinearMap.finrank_range_add_finrank_ker gZ).trans
+    (Module.finrank_fintype_fun_eq_card _)
+  have hquot := (Submodule.finrank_quotient_add_finrank VZ).trans
+    (Module.finrank_fintype_fun_eq_card _)
   have hle : finrank (ZMod 2) (LinearMap.range gZ) ≤ finrank (ZMod 2) ((ι₂ → ZMod 2) ⧸ VZ) :=
     Submodule.finrank_le _
   rw [hker, finrank_submoduleZModIso] at hrank
@@ -420,12 +416,10 @@ theorem finrank_orthogonal_add_finrank {K ι : Type*} [Field K] [Fintype ι]
       exact funext (Fintype.linearIndependent_iff.mp b.linearIndependent c hsum)
   have hrankT : M.transpose.rank = finrank K W := by
     have h := LinearMap.finrank_range_add_finrank_ker M.transpose.mulVecLin
-    rw [LinearMap.ker_eq_bot.mpr hinj, finrank_bot, add_zero, Module.finrank_fin_fun] at h
-    exact h
+    rwa [LinearMap.ker_eq_bot.mpr hinj, finrank_bot, add_zero, Module.finrank_fin_fun] at h
   have hnull := LinearMap.finrank_range_add_finrank_ker M.mulVecLin
   change M.rank + finrank K (LinearMap.ker M.mulVecLin) = _ at hnull
-  rw [← rank_transpose, hrankT, ← hker, Module.finrank_fintype_fun_eq_card, add_comm] at hnull
-  exact hnull
+  rwa [← rank_transpose, hrankT, ← hker, Module.finrank_fintype_fun_eq_card, add_comm] at hnull
 
 /-- Over a field `K`, the double orthogonal complement of a subspace `W` of `ι → K` is `W`. -/
 @[simp]

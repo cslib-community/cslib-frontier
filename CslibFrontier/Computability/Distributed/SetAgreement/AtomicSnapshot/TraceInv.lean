@@ -109,9 +109,7 @@ theorem lastIdleStep_keep (τ : SnapshotTrace ord dInit) (i : P) {t : ℕ}
     (h0 : (τ.stateAt t).proc i ≠ .idle) (h1 : (τ.stateAt (t + 1)).proc i ≠ .idle) :
     τ.lastIdleStep i (t + 1) = τ.lastIdleStep i t := by
   rw [τ.lastIdleStep_eq_of_step_not_idle i h1]
-  split_ifs with hid
-  · exact absurd ((ProcSnapshotState.isIdle_eq_true _).mp hid) h0
-  · rfl
+  exact ite_eq_right fun hid => h0 ((ProcSnapshotState.isIdle_eq_true _).mp hid)
 
 /-- Per-actor frame lemma for `TraceInv`: given `TraceInv τ t`, if actor `i` transitions from `t`
 to `t + 1` leaving every other process `p ≠ i` unchanged and modifying `history` at most at a
@@ -179,8 +177,7 @@ theorem TraceInv.of_actor_step {τ : SnapshotTrace ord dInit} {t : ℕ}
   stepCount_eq := hstepCount
   reg_view_valid j w hw hwrite := by
     rcases Nat.lt_succ_iff_lt_or_eq.mp hw with hw' | rfl
-    · exact inv.reg_view_valid j w hw' hwrite
-    · exact hreg_t j hwrite
+    exacts [inv.reg_view_valid j w hw' hwrite, hreg_t j hwrite]
   proc_ready p opId val snap hp := by
     by_cases hpi : p = i
     · subst hpi; exact hready_i opId val snap hp
@@ -193,8 +190,7 @@ theorem TraceInv.of_actor_step {τ : SnapshotTrace ord dInit} {t : ℕ}
         intro heq; subst heq
         exact hpi ((congrArg SnapshotOpRecord.caller hrec₀).symm.trans (hmod_old hId₀).1)
       refine ⟨hId₁, ?_, by omega, v, by omega, by omega, hsnap⟩
-      rw [hhist_unchanged opId hId₁ hId₀ hne_mod, hkeep]
-      exact hrec₀
+      rw [hhist_unchanged opId hId₁ hId₀ hne_mod, hkeep]; exact hrec₀
   proc_scan p st hp := by
     by_cases hpi : p = i
     · subst hpi; exact hscan_i st hp
@@ -202,12 +198,9 @@ theorem TraceInv.of_actor_step {τ : SnapshotTrace ord dInit} {t : ℕ}
       have hkeep := τ.lastIdleStep_keep p (by rw [hp_old]; nofun) (by rw [hp]; nofun)
       obtain ⟨hId₀, hrec₀, hlt₀, hloop⟩ := inv.proc_scan p st hp_old
       have hId₁ : st.opId < (τ.stateAt (t + 1)).history.length := lt_of_lt_of_le hId₀ hhist_len
-      have hne_mod : st.opId ≠ modId := by
-        intro heq
-        have hidx : (τ.stateAt t).history[st.opId]'hId₀ =
-            (τ.stateAt t).history[modId]'(heq ▸ hId₀) := _root_.getElem_congr_idx heq
-        exact hpi ((congrArg SnapshotOpRecord.caller (hrec₀.symm.trans hidx)).trans
-          (hmod_old (heq ▸ hId₀)).1)
+      have hne_mod : st.opId ≠ modId := fun heq => by
+        subst heq
+        exact hpi ((congrArg SnapshotOpRecord.caller hrec₀).symm.trans (hmod_old hId₀).1)
       refine ⟨hId₁, ?_, by omega, hkeep ▸ hloop.mono_hi (Nat.le_succ t)⟩
       rw [hhist_unchanged st.opId hId₁ hId₀ hne_mod, hkeep]; exact hrec₀
   hist_pending id hId₁ hpend := by
@@ -222,21 +215,18 @@ theorem TraceInv.of_actor_step {τ : SnapshotTrace ord dInit} {t : ℕ}
         rcases hact_old with ⟨_, hp, -⟩ | ⟨_, _, hp⟩ <;> rw [hp] <;> nofun
       have hproc_same := hproc_other _ hcase.2
       have hkeep := τ.lastIdleStep_keep _ hnot_old (hproc_same ▸ hnot_old)
-      rw [hkeep, hproc_same]
-      exact ⟨hinv, by omega, hact_old⟩
+      rw [hkeep, hproc_same]; exact ⟨hinv, by omega, hact_old⟩
   hist_doneScan id hId₁ resp snap hdone := by
     by_cases hid : id = modId
     · subst hid; exact hdoneScan_mod hId₁ resp snap hdone
-    · have hId₀ := hbound_unchanged id hId₁ hid
-      rw [hhist_unchanged id hId₁ hId₀ hid] at hdone ⊢
-      obtain ⟨hk, hi, hr, v, hv⟩ := inv.hist_doneScan id hId₀ resp snap hdone
+    · rw [hhist_unchanged id hId₁ (hbound_unchanged id hId₁ hid) hid] at hdone ⊢
+      obtain ⟨hk, hi, hr, v, hv⟩ := inv.hist_doneScan id _ resp snap hdone
       exact ⟨hk, hi, by omega, v, hv⟩
   hist_doneUpdate id hId₁ resp hdone := by
     by_cases hid : id = modId
     · subst hid; exact hdoneUpdate_mod hId₁ resp hdone
-    · have hId₀ := hbound_unchanged id hId₁ hid
-      rw [hhist_unchanged id hId₁ hId₀ hid] at hdone ⊢
-      obtain ⟨val', hk, hi, hr, hw, hd⟩ := inv.hist_doneUpdate id hId₀ resp hdone
+    · rw [hhist_unchanged id hId₁ (hbound_unchanged id hId₁ hid) hid] at hdone ⊢
+      obtain ⟨val', hk, hi, hr, hw, hd⟩ := inv.hist_doneUpdate id _ resp hdone
       exact ⟨val', hk, hi, by omega, hw, hd⟩
   writeStep_in_hist j w hw hwrite := by
     rcases Nat.lt_succ_iff_lt_or_eq.mp hw with hw' | rfl
@@ -245,9 +235,7 @@ theorem TraceInv.of_actor_step {τ : SnapshotTrace ord dInit} {t : ℕ}
       have hne_mod : id ≠ modId := by
         intro heq; subst heq
         exact absurd ((hmod_old hId₀).2.symm.trans hs) nofun
-      refine ⟨id, hId₁, ?_, ?_⟩ <;> rw [hhist_unchanged id hId₁ hId₀ hne_mod]
-      · exact hc
-      · exact hs
+      refine ⟨id, hId₁, ?_, ?_⟩ <;> rw [hhist_unchanged id hId₁ hId₀ hne_mod] <;> assumption
     · exact hwrite_t j hwrite
 
 end SnapshotTrace

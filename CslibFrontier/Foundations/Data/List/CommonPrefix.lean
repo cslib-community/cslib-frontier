@@ -77,28 +77,24 @@ theorem lcpLen_comm (u v : List α) : lcpLen u v = lcpLen v u := by
     cases v with
     | nil => simp only [lcpLen_nil_left, lcpLen_nil_right]
     | cons b v =>
-      simp only [lcpLen_cons_cons, ih v]
-      by_cases h : a = b
-      · simp only [h, ↓reduceIte]
-      · simp only [h, ↓reduceIte, Ne.symm h]
+      rcases eq_or_ne a b with rfl | h
+      · rw [lcpLen_cons_cons_self, lcpLen_cons_cons_self, ih v]
+      · simp only [lcpLen_cons_cons, h, h.symm, ↓reduceIte]
 
 theorem lcpLen_le_length_left (u v : List α) : lcpLen u v ≤ u.length := by
   induction u generalizing v with
-  | nil => simp only [lcpLen_nil_left, length_nil, Nat.le_refl]
+  | nil => simp only [lcpLen_nil_left, length_nil, le_rfl]
   | cons a u ih =>
     cases v with
     | nil => simp only [lcpLen_nil_right, Nat.zero_le]
     | cons b v =>
-      rw [lcpLen_cons_cons]
+      rw [lcpLen_cons_cons, length_cons]
       split_ifs
-      · have := ih v
-        simp only [length_cons]
-        omega
+      · exact Nat.succ_le_succ (ih v)
       · exact Nat.zero_le _
 
-theorem lcpLen_le_length_right (u v : List α) : lcpLen u v ≤ v.length := by
-  rw [lcpLen_comm]
-  exact lcpLen_le_length_left v u
+theorem lcpLen_le_length_right (u v : List α) : lcpLen u v ≤ v.length :=
+  lcpLen_comm u v ▸ lcpLen_le_length_left v u
 
 /-- `k ≤ lcpLen u v` iff both lists have length at least `k` and agree on their first `k`
 entries. -/
@@ -115,10 +111,9 @@ theorem le_lcpLen_iff {u v : List α} {k : ℕ} :
       | cons b v =>
         rw [lcpLen_cons_cons, take_succ_cons, take_succ_cons, cons_eq_cons, length_cons,
           length_cons]
-        by_cases hab : a = b
-        · simp only [hab, ↓reduceIte, true_and, Nat.add_le_add_iff_right, ih]
-        · simp only [hab, ↓reduceIte, false_and, and_false, iff_false]
-          omega
+        rcases eq_or_ne a b with rfl | hab
+        · simp only [↓reduceIte, true_and, Nat.add_le_add_iff_right, ih]
+        · simp only [hab, ↓reduceIte, false_and, and_false, iff_false]; omega
 
 /-- A common prefix of length `h` splits off the longest common prefix. -/
 theorem lcpLen_eq_add_lcpLen_drop {u v : List α} {h : ℕ} (hh : h ≤ lcpLen u v) :
@@ -133,12 +128,10 @@ theorem lcpLen_eq_add_lcpLen_drop {u v : List α} {h : ℕ} (hh : h ≤ lcpLen u
       | nil => simp only [lcpLen_nil_right] at hh; omega
       | cons b v =>
         rw [lcpLen_cons_cons] at hh ⊢
-        by_cases hab : a = b
-        · simp only [hab, ↓reduceIte] at hh ⊢
-          rw [ih (by omega), drop_succ_cons, drop_succ_cons]
-          omega
-        · simp only [hab, ↓reduceIte] at hh
-          omega
+        split_ifs at hh ⊢ with hab
+        · subst hab
+          rw [ih (by omega), drop_succ_cons, drop_succ_cons]; omega
+        · omega
 
 /-- Dropping one leading entry from both lists shortens their longest common prefix by at most
 one. -/
@@ -174,13 +167,9 @@ theorem min_lcpLen_eq_of_take_eq {u v : List α} (x : List α) {m : ℕ}
 theorem length_le_lcpLen_append_iff {u x v : List α} :
     u.length ≤ lcpLen (u ++ x) v ↔ u <+: v := by
   rw [le_lcpLen_iff, take_left, prefix_iff_eq_take, length_append]
-  constructor
-  · rintro ⟨_, _, h⟩
-    exact h
-  · intro h
-    have := congrArg length h
-    rw [length_take] at this
-    exact ⟨by omega, by omega, h⟩
+  refine ⟨fun ⟨_, _, h⟩ => h, fun h => ⟨by omega, ?_, h⟩⟩
+  have := congrArg length h
+  rw [length_take] at this; omega
 
 end lcp
 
@@ -192,17 +181,11 @@ variable [LinearOrder α]
 with `u`. -/
 theorem lcpLen_le_lcpLen_of_le_of_le_left {u v x : List α} (huv : u ≤ v) (hvx : v ≤ x) :
     lcpLen u x ≤ lcpLen u v := by
-  set k := lcpLen u x
-  obtain ⟨hku, hkx, htake⟩ := le_lcpLen_iff.mp (le_refl k)
-  have hpu : u.take k <+: u := take_prefix k u
-  have hpx : u.take k <+: x := htake ▸ take_prefix k x
-  have hpv : u.take k <+: v := IsPrefix.of_prefix_of_le_of_le hpu hpx huv hvx
-  have hlen : (u.take k).length = k := by simp only [length_take]; omega
-  refine le_lcpLen_iff.mpr ⟨hku, ?_, ?_⟩
-  · have := hpv.length_le; omega
-  · have := prefix_iff_eq_take.mp hpv
-    rw [hlen] at this
-    exact this
+  obtain ⟨hku, -, htake⟩ := le_lcpLen_iff.mp (le_refl (lcpLen u x))
+  have hpv := IsPrefix.of_prefix_of_le_of_le (take_prefix _ u) (htake ▸ take_prefix _ x) huv hvx
+  have hlen : (u.take (lcpLen u x)).length = lcpLen u x := length_take_of_le hku
+  exact le_lcpLen_iff.mpr ⟨hku, by simpa only [hlen] using hpv.length_le,
+    by simpa only [hlen] using prefix_iff_eq_take.mp hpv⟩
 
 /-- A list lexicographically between `u` and `x` shares at least `lcpLen u x` leading entries
 with `x`. -/

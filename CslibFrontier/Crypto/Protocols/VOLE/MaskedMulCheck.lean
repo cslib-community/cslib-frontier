@@ -212,25 +212,17 @@ theorem maskedMulCheck_complete (left right output : ι → Fin n) :
       ProbOracleComp.runWith_pure, pure_bind, VOLECorrelation.senderView]
     apply PMF.bind_congr_on_support
     intro c hc
-    let oracle : (q : Unit ⊕ Unit) →
-        StateT (Option (VOLECorrelation F (n + 1))) PMF
-          ((voleSenderSpec F (n + 1) ⊕ₒ voleReceiverSpec F (n + 1)) q) :=
-      (voleWorld F (n + 1)).impl
     rw [← OracleComp.substitute_eq_interpret]
-    change (ProbOracleComp.runWith oracle
-      (ProbOracleComp.sample
-        (spec := voleSenderSpec F (n + 1) ⊕ₒ voleReceiverSpec F (n + 1))
-        (ProbComp.uniform (ι → F))) (some c)).bind _ = _
-    rw [ProbOracleComp.runWith_sample, PMF.bind_map]
-    simp only [pmf_norm, ProbComp.eval_uniform]
+    change (ProbOracleComp.runWith _ (ProbOracleComp.sample _) (some c)).bind _ = _
+    simp only [pmf_norm, ProbOracleComp.runWith_sample, ProbComp.eval_uniform]
     congr 1 with r : 1
     simp only [VOLECorrelation.receiverView, MaskedMulCheckAccepts,
       maskedMulCheckReply_correct left right output w c
         (valid_of_mem_support_voleIdealDist hc) r h, ite_true]
   rw [hrun]
-  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  simp only [PMF.toOuterMeasure_bind_apply]
-  simp only [PMF.toOuterMeasure_pure_apply, Set.mem_ofPred_eq, Interactive.Accept]
+  simp only [PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+    PMF.toOuterMeasure_bind_apply, PMF.toOuterMeasure_pure_apply, Set.mem_ofPred_eq,
+    Interactive.Accept]
   simp
 
 /-- Expanding the actual role-separated execution exposes exactly one ideal setup sample and
@@ -247,17 +239,9 @@ theorem maskedMulCheckView_eq (left right output : ι → Fin n) (w : Fin n → 
     ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
     pure_bind]
   congr 1 with c : 1
-  let oracle : (q : Unit ⊕ Unit) →
-      StateT (Option (VOLECorrelation F (n + 1))) PMF
-        ((voleSenderSpec F (n + 1) ⊕ₒ voleReceiverSpec F (n + 1)) q) :=
-    (voleWorld F (n + 1)).impl
   rw [← OracleComp.substitute_eq_interpret]
-  change (ProbOracleComp.runWith oracle
-    (ProbOracleComp.sample
-      (spec := voleSenderSpec F (n + 1) ⊕ₒ voleReceiverSpec F (n + 1))
-      (ProbComp.uniform (ι → F))) (some c)).bind _ = _
-  rw [ProbOracleComp.runWith_sample, PMF.bind_map]
-  simp [PMF.bind_const, ProbComp.eval_uniform, Function.comp_def]
+  change (ProbOracleComp.runWith _ (ProbOracleComp.sample _) (some c)).bind _ = _
+  simp [pmf_norm, ProbOracleComp.runWith_sample, ProbComp.eval_uniform, PMF.bind_const]
 
 omit [DecidableEq F] [DecidableEq ι] in
 private theorem maskedView_fixed (left right output : ι → Fin n) (w : Fin n → F)
@@ -278,26 +262,18 @@ private theorem maskedView_fixed (left right output : ι → Fin n) (w : Fin n �
   · rintro ⟨u₁, v₁⟩ ⟨u₂, v₂⟩ h
     simp only [Prod.mk.injEq] at h
     rcases h with ⟨hq, hd, ha⟩
-    have hi : Fin.init u₁ = Fin.init u₂ := funext fun j => by
-      simpa [voleCommitWitness] using congrFun hd j
-    have hv : ∀ j : Fin n, v₁ j.castSucc = v₂ j.castSucc := fun j => by
-      have hqj := congrFun hq j.castSucc
-      have hij : u₁ j.castSucc = u₂ j.castSucc := congrFun hi j
-      dsimp only [voleSample] at hqj
-      rw [hij] at hqj
-      exact add_left_cancel hqj
-    have hm : u₁ (Fin.last n) = u₂ (Fin.last n) := by
-      dsimp only [maskedMulCheckReply] at ha
-      simp only [hv] at ha
-      exact add_left_cancel ha
+    have hi (j : Fin n) : u₁ j.castSucc = u₂ j.castSucc := by
+      simpa [voleCommitWitness, Fin.init] using congrFun hd j
+    have hv : ∀ j : Fin n, v₁ j.castSucc = v₂ j.castSucc := fun j =>
+      add_left_cancel (by simpa only [voleSample, hi j] using congrFun hq j.castSucc)
+    have hm : u₁ (Fin.last n) = u₂ (Fin.last n) :=
+      add_left_cancel (by simpa only [maskedMulCheckReply, hv] using ha)
     have hu : u₁ = u₂ := funext fun j => by
       cases j using Fin.lastCases with
       | last => exact hm
-      | cast k => exact congrFun hi k
-    refine Prod.ext hu (funext fun j => ?_)
+      | cast k => exact hi k
     subst hu
-    dsimp only [voleSample] at hq
-    exact add_left_cancel (congrFun hq j)
+    exact Prod.ext rfl (funext fun j => add_left_cancel (congrFun hq j))
   · simp [Fintype.card_prod, pow_succ]
   · have hc := maskedMulCheckReply_correct left right output w (voleSample uv.1 uv.2 delta)
       (valid_voleSample _ _ _) r h

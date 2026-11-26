@@ -200,11 +200,9 @@ theorem memoryCost_resolveOvfStepProg_le (U V w n_max h_space : ℕ)
   unfold resolveOvfStepProg
   simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
   rw [memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg]
-  split_ifs
-  · rw [memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg, memoryCost_pure]
-  · rw [memoryCost_pure]; omega
-  · rw [memoryCost_pure]; omega
-  · rw [memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg, memoryCost_pure]
+  split_ifs <;>
+    simp only [memoryCost_bind, memoryCost_readGMProg, memoryCost_pure] <;>
+    omega
 
 /-- Precondition for `resolveOvfStepProg` (`d = ((base, b), (j, p_cur))`). -/
 @[expose] def ResolveOvfStepPre (U V w₀ n_max h_space w : ℕ)
@@ -728,10 +726,7 @@ theorem iterate_ovfStepProg_spec {U V w₀ n_max h_space w base b q_target : ℕ
         refine ⟨hih.1, by have := hih.2.1; omega, ⟨hpre, hih.2.2.1⟩, ?_⟩
         have hih_res := hih.2.2.2
         rw [ite_eq_right (by decide : (1 : ℕ) ≠ 0)] at hih_res
-        have hex : ∃ k, j ≤ k ∧ k < j + (m + 1) ∧ quotAt base U w₀ n_max h_space s.mem
-            (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b k) = q_target :=
-          ⟨j, le_rfl, by omega, hmatch⟩
-        rw [ite_eq_left hf0, ite_eq_left hex]
+        rw [ite_eq_left hf0, ite_eq_left ⟨j, le_rfl, by omega, hmatch⟩]
         exact ⟨hih_res.1, by rw [hih_res.2.1], by rw [hih_res.2.1]; omega,
           by rw [hih_res.2.1]; exact hmatch, by rw [hih_res.2.1, hih_res.2.2]⟩
       · rw [ite_eq_left hf0, ite_eq_right hmatch]
@@ -745,20 +740,14 @@ theorem iterate_ovfStepProg_spec {U V w₀ n_max h_space w base b q_target : ℕ
           split_ifs with hex
           · exact ⟨hih_res.1, by omega, by omega, hih_res.2.2.2.1, hih_res.2.2.2.2⟩
           · exact (hex ⟨k, by omega, by omega, hqk⟩).elim
-        · have hno : ¬∃ k, j ≤ k ∧ k < j + (m + 1) ∧ quotAt base U w₀ n_max h_space s.mem
-              (slotOf n_max (gmAt base U V w₀ n_max h_space s.mem) b k) = q_target := by
-            rintro ⟨k, hk1, hk2, hqk⟩
-            rcases eq_or_lt_of_le hk1 with rfl | hlt
-            · exact hmatch hqk
-            · exact hex' ⟨k, by omega, by omega, hqk⟩
-          rw [ite_eq_right hno]
+        · rw [ite_eq_right fun ⟨k, hk1, hk2, hqk⟩ =>
+            (eq_or_lt_of_le hk1).elim (fun h => hmatch (by rwa [← h] at hqk))
+              (fun hlt => hex' ⟨k, by omega, by omega, hqk⟩)]
           exact hih_res
     · rw [ite_eq_right hf0]
       have hih := ih (j + 1) pair.2 found j_found phys_found hjm' hp_next
-      refine ⟨hih.1, by have := hih.2.1; omega, ⟨hpre, hih.2.2.1⟩, ?_⟩
-      have hih_res := hih.2.2.2
-      rw [ite_eq_right hf0] at hih_res ⊢
-      exact hih_res
+      exact ⟨hih.1, by have := hih.2.1; omega, ⟨hpre, hih.2.2.1⟩,
+        by simpa only [ite_eq_right hf0] using hih.2.2.2⟩
 
 /-- Base address `d.2.1` in an overflow-init call `(dp, (base, b))`. -/
 abbrev ovfInitBase (d : DictParams × (ℕ × ℕ)) : ℕ := d.2.1
@@ -840,12 +829,11 @@ theorem memoryCost_initOvfSearchProg_le (U V w n_max h_space : ℕ)
     memoryCost (initOvfSearchProg U V w n_max h_space d) s ≤ 8 := by
   unfold initOvfSearchProg
   simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind]
-  rw [memoryCost_bind, clientState_readGMProg, memoryCost_bind, clientState_readGMProg]
-  split_ifs
-  · rw [memoryCost_bind, clientState_readGMProg, memoryCost_bind, clientState_readGMProg,
-      memoryCost_pure]; change 2 + (2 + (2 + (2 + 0))) ≤ 8; omega
-  · rw [memoryCost_pure]; change 2 + (2 + 0) ≤ 8; omega
-  · rw [memoryCost_pure]; change 2 + (2 + 0) ≤ 8; omega
+  rw [memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg,
+    memoryCost_bind, clientState_readGMProg, memoryCost_readGMProg]
+  split_ifs <;>
+    simp only [memoryCost_bind, memoryCost_readGMProg, memoryCost_pure] <;>
+    omega
 
 theorem dirSlabsPerBucket_pos_of_pos {n_max : ℕ} (hb : 0 < bucketBits n_max) :
     0 < dirSlabsPerBucket n_max := by
@@ -1248,7 +1236,8 @@ theorem searchBucketProg_spec {U V w₀ n_max h_space w : ℕ}
     ovfSearchFound, ovfSearchIdx] at *
   have h1 := searchMicroChainProg_spec henv hb hm hinv hchain hc_lt
   have h2 := searchOverflowProg_spec (d := d.1) henv hb hinv
-  dsimp only [ovfBucketBase, ovfBucketIdx, ovfSearchFound, ovfSearchIdx] at h1 h2
+  dsimp only [lmEntryBase, lmEntryBucket, lmEntryIdx, microAccStatus, microAccIdx,
+    ovfBucketBase, ovfBucketIdx, ovfSearchFound, ovfSearchIdx] at h1 h2
   unfold searchBucketProg
   simp only [pure_bind]
   rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
@@ -1276,9 +1265,9 @@ theorem realizes_searchBucketGen :
       (fun _ _ => 0) := by
   have hm := realizes_searchMicroChainGen
   have ho := realizes_searchOverflowGen
-  realizeDictWith [searchMicroChainGenPre_mk, SearchMicroChainPre, searchMicroChainGenProg_mk,
-    searchOverflowGenPre_mk, SearchOverflowPre, searchOverflowGenProg_mk,
-    microSearchFound, microSearchIdx, searchBucketGenQuery]
+  realizeDictWith [searchMicroChainGenPre_mk, SearchMicroChainPre, lmEntryBase, lmEntryBucket,
+    searchMicroChainGenProg_mk, searchOverflowGenPre_mk, SearchOverflowPre,
+    searchOverflowGenProg_mk, microSearchFound, microSearchIdx, searchBucketGenQuery]
   · exact h
   · exact fits_const_of_dictEnv h.1 (by decide)
   · obtain ⟨L, hchain, hc_lt⟩ := h.2.2.2.2

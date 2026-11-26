@@ -73,16 +73,11 @@ private theorem compatible_iff_get {L : ℕ} (η : OutStr L) (k : ℕ) (xs : Lis
 /-- Compatibility of a complete tuple is exactly the existing contribution relation. -/
 theorem compatible_ofFn_iff {L : ℕ} (η : OutStr L) (τ : Leaf L) :
     Compatible η 0 (List.ofFn τ) ↔ Leaf.Contributes τ η := by
-  constructor
-  · intro hc i
-    have hh := (compatible_iff_get η 0 (List.ofFn τ)).mp hc
-      ⟨i.val, by simpa only [List.length_ofFn] using i.isLt⟩
-    simpa [outAt, i.isLt] using hh
-  · intro hc
-    apply (compatible_iff_get η 0 (List.ofFn τ)).mpr
-    intro i
-    have hi : i.val < L := by simpa only [List.length_ofFn] using i.isLt
-    simpa [outAt, hi] using hc ⟨i.val, hi⟩
+  rw [compatible_iff_get, Leaf.Contributes]
+  refine (finCongr List.length_ofFn).forall_congr fun i => ?_
+  have hi : i.val < L := (finCongr List.length_ofFn i).isLt
+  simp only [outAt, zero_add, hi, ↓reduceDIte, List.get_eq_getElem, List.getElem_ofFn,
+    finCongr, Equiv.coe_fn_mk, Fin.cast]
 
 private theorem usedFrom_eq_sum_get {L : ℕ} (η : OutStr L) (k : ℕ) (xs : List Term) :
     usedFrom η k xs = ∑ i : Fin xs.length,
@@ -99,22 +94,19 @@ private theorem usedFrom_eq_sum_get {L : ℕ} (η : OutStr L) (k : ℕ) (xs : Li
 /-- The full used-count is the number of inner positions selecting a non-P0 term. -/
 theorem usedFrom_ofFn {L : ℕ} (η : OutStr L) (τ : Leaf L) :
     usedFrom η 0 (List.ofFn τ) = ((innerSetO η).filter fun i => τ i ≠ .P0).card := by
-  have hh := usedFrom_eq_sum_get η 0 (List.ofFn τ)
-  rw [hh]
+  rw [usedFrom_eq_sum_get]
   calc
-    _ = ∑ i : Fin L, if (η i).IsInner ∧ τ i ≠ .P0 then 1 else 0 := by
-      apply Fintype.sum_equiv (finCongr (show (List.ofFn τ).length = L from List.length_ofFn)) _ _
-      intro i
-      have hi : i.val < L := by simpa only [List.length_ofFn] using i.isLt
-      simp only [outAt, zero_add, hi, ↓reduceDIte, List.get_eq_getElem, List.getElem_ofFn,
-        ne_eq, finCongr, Equiv.coe_fn_mk, Fin.cast]
-      rfl
-    _ = _ := by
-      have hset : (univ.filter fun i : Fin L => (η i).IsInner ∧ τ i ≠ .P0) =
-          (innerSetO η).filter (fun i => τ i ≠ .P0) := by
-        ext i
-        simp [innerSetO]
-      simpa only [sum_boole, Nat.cast_id] using congrArg Finset.card hset
+    _ = ∑ i : Fin L, if (η i).IsInner ∧ τ i ≠ .P0 then 1 else 0 :=
+      Fintype.sum_equiv (finCongr List.length_ofFn) _ _ fun i => by
+        have hi : i.val < L := (finCongr List.length_ofFn i).isLt
+        simp only [outAt, zero_add, hi, ↓reduceDIte, List.get_eq_getElem, List.getElem_ofFn,
+          ne_eq, finCongr, Equiv.coe_fn_mk, Fin.cast]
+        rfl
+    _ = ((innerSetO η).filter fun i => τ i ≠ .P0).card := by
+      rw [sum_boole, Nat.cast_id]
+      congr 1
+      ext i
+      simp [innerSetO]
 
 /-- With actual contribution, native used-count is exactly the original signed order. -/
 theorem usedFrom_ofFn_eq_order {L m : ℕ} (η : OutStr L) (τ : Leaf L)
@@ -133,11 +125,8 @@ theorem Good_ofFn_iff {L m t : ℕ} (η : OutStr L) (hη : (innerSetO η).card =
     (τ : Leaf L) :
     Good η t (List.ofFn τ) ↔ Leaf.Contributes τ η ∧ order m τ ≤ (t : ℤ) := by
   simp only [Good, List.length_ofFn, le_refl, true_and, compatible_ofFn_iff]
-  constructor
-  · rintro ⟨hc, hu⟩
-    exact ⟨hc, by rw [← usedFrom_ofFn_eq_order η τ hη hc]; exact_mod_cast hu⟩
-  · rintro ⟨hc, ho⟩
-    exact ⟨hc, by rw [← usedFrom_ofFn_eq_order η τ hη hc] at ho; exact_mod_cast ho⟩
+  exact and_congr_right fun hc => by
+    rw [← usedFrom_ofFn_eq_order η τ hη hc, Nat.cast_le]
 
 /-- Complete compatible prefixes give actual contributing leaves. -/
 theorem completeLeaf_contributes {L t : ℕ} {η : OutStr L} {xs : List Term}
@@ -165,29 +154,19 @@ private theorem starsFrom_ofFn_eq_sum {L : ℕ} (η : OutStr L) (τ : Leaf L) :
       if (η i).IsInner ∧ (∀ j : Fin L, j ≤ i → (η j).IsInner → τ j = .P0)
       then 1 else 0 := by
   rw [starsFrom_eq_sum_get]
-  let e : Fin (List.ofFn τ).length ≃ Fin L :=
-    finCongr (show (List.ofFn τ).length = L from List.length_ofFn)
-  apply Fintype.sum_equiv e _ _
-  intro i
-  have hi : i.val < L := by simpa only [List.length_ofFn] using i.isLt
+  let e : Fin (List.ofFn τ).length ≃ Fin L := finCongr List.length_ofFn
+  refine Fintype.sum_equiv e _ _ fun i => ?_
+  have hi : i.val < L := (e i).isLt
   have hpred :
       (∀ j : Fin (List.ofFn τ).length, j ≤ i →
         (outAt η (0 + j.val)).IsInner → (List.ofFn τ).get j = .P0) ↔
-      (∀ j : Fin L, j ≤ e i → (η j).IsInner → τ j = .P0) := by
-    constructor
-    · intro h j hji hj
-      have hs := h (e.symm j) (by exact hji)
-      have hjL : (e.symm j).val < L := j.isLt
-      simpa [outAt, hjL, e, finCongr, Fin.cast] using hs (by
-        simpa [outAt, hjL, e, finCongr, Fin.cast] using hj)
-    · intro h j hji hj
-      have hjL : j.val < L := by simpa only [List.length_ofFn] using j.isLt
-      have hs := h (e j) (by exact hji) (by
-        simpa [outAt, hjL, e, finCongr, Fin.cast] using hj)
-      simpa [e, finCongr, Fin.cast] using hs
-  simp only [hpred]
-  have he : e i = ⟨i.val, hi⟩ := rfl
-  simp only [Nat.zero_add, outAt, dite_eq_left hi, he]
+      (∀ j : Fin L, j ≤ e i → (η j).IsInner → τ j = .P0) :=
+    e.forall_congr fun j => by
+      have hj : j.val < L := (e j).isLt
+      simp only [outAt, zero_add, hj, ↓reduceDIte, List.get_eq_getElem, List.getElem_ofFn,
+        e, finCongr, Equiv.coe_fn_mk, Fin.cast, Fin.le_def]
+  refine ite_congr (propext (and_congr ?_ hpred)) (fun _ => rfl) (fun _ => rfl)
+  simp only [Nat.zero_add, outAt, hi, ↓reduceDIte, e, finCongr, Equiv.coe_fn_mk, Fin.cast]
 
 /-- The native initial-P0 count is exactly the existing canonical output box's star count. -/
 theorem starsFrom_ofFn {L : ℕ} (η : OutStr L) (τ : Leaf L) :

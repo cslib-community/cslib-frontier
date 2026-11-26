@@ -165,18 +165,15 @@ theorem Satisfies.splice {N : Network U ι V E} {L : Set V} {x y z : ι → U} {
     have : e ∈ N.touching L := by rcases he with h | h <;> [left; right] <;> rw [h] <;> exact hv
     exact (piecewise_eq_of_mem _ _ _ this).symm
   · -- Away from `L`, it is `β` and the input reads like `y`; the two agree on the cut.
-    have hinputs : ∀ i, N.site i = some v → y i = z i := by
-      intro i hi
-      refine (hzy fun hiL => ?_).symm
-      obtain ⟨u, hu, hiu⟩ := hiL
-      exact hv (Option.some_injective _ (hiu.symm.trans hi) ▸ hu)
+    have hinputs : ∀ i, N.site i = some v → y i = z i := fun i hi =>
+      (hzy fun ⟨u, hu, hiu⟩ => hv (Option.some.inj (hiu.symm.trans hi) ▸ hu)).symm
     have hedges : ∀ e, N.src e = v ∨ N.tgt e = v → β e = (N.touching L).piecewise α β e := by
       intro e he
       by_cases ht : e ∈ N.touching L
       · rw [piecewise_eq_of_mem _ _ _ ht]
-        refine (hcut ?_).symm
-        rcases he with h | h <;> rcases ht with h' | h' <;>
-          simp_all [Multigraph.mem_edgeCut]
+        exact (hcut (by
+          rcases he with h | h <;> rcases ht with h' | h' <;>
+            simp_all [Multigraph.mem_edgeCut])).symm
       · exact (piecewise_eq_of_notMem _ _ _ ht).symm
     exact N.constraint_congr v y z β _ hinputs hedges (hy v)
 
@@ -211,11 +208,11 @@ private theorem frontierValues_of_notMem {t : ℕ} {α : E → U} {e : E} (he : 
 `N.frontier π t`. -/
 theorem frontierValues_eq_iff {t : ℕ} {α β : E → U} :
     N.frontierValues π t α = N.frontierValues π t β ↔ EqOn α β (N.frontier π t) := by
-  refine ⟨fun h e he => ?_, fun h => funext fun e => ?_⟩
-  · simpa [frontierValues, he] using congrFun h e
-  · by_cases he : e ∈ N.frontier π t
-    · simp [frontierValues, he, h he]
-    · simp [frontierValues, he]
+  refine ⟨fun h e he => by simpa [frontierValues, he] using congrFun h e,
+    fun h => funext fun e => ?_⟩
+  simp only [frontierValues]
+  split_ifs with he
+  exacts [congrArg some (h he), rfl]
 
 /-- The inputs revealed by time `t`: those read by the first `t` vertices, and after the last
 vertex, all inputs, including those the network does not read. -/
@@ -240,19 +237,10 @@ private theorem revealedBy_succ_diff {t : ℕ} (ht : t < Nat.card V) :
   ext i
   simp only [revealedBy, show t + 1 ≤ Nat.card V by omega, ht.le, ite_true, mem_sdiff, readIn,
     readAt, mem_ofPred_eq, Layout.mem_initial]
-  constructor
-  · rintro ⟨⟨u, hu, hiu⟩, hi'⟩
-    have hut : (π u : ℕ) = t := by
-      by_contra hne
-      exact hi' ⟨u, by omega, hiu⟩
-    rw [hiu, Option.some.injEq]
-    exact (π.symm_apply_eq.mpr (Fin.ext hut.symm)).symm
-  · intro hi
-    refine ⟨⟨_, by simp, hi⟩, ?_⟩
-    rintro ⟨u, hu, hiu⟩
-    rw [hi, Option.some.injEq] at hiu
-    subst hiu
-    simp at hu
+  refine ⟨fun ⟨⟨u, hu, hiu⟩, hi'⟩ => ?_, fun hi => ⟨⟨_, by simp, hi⟩, fun ⟨u, hu, hiu⟩ => ?_⟩⟩
+  · have hut : (π u : ℕ) = t := of_not_not fun hne => hi' ⟨u, by omega, hiu⟩
+    exact hiu.trans (congrArg some (π.symm_apply_eq.mpr (Fin.ext hut.symm)).symm)
+  · simp [Option.some.inj (hiu.symm.trans hi)] at hu
 
 /-- The inputs revealed while processing the vertex numbered `t` are read at that vertex. -/
 theorem revealedBy_succ_diff_subset {t : ℕ} (ht : t < Nat.card V) :
@@ -355,16 +343,12 @@ theorem exists_satisfies_of_isAcceptingPath {x : ι → U} {γ : ℕ → E → O
   have : Nonempty (ι → U) := ⟨x⟩
   choose! αs ys hfv hfv' hys hcheck using hedge
   -- The positions of the earlier and the later end of each edge.
-  obtain ⟨lo, hlo⟩ : ∃ lo : E → ℕ, ∀ e, lo e = min (π (N.src e) : ℕ) (π (N.tgt e)) :=
-    ⟨_, fun _ => rfl⟩
-  obtain ⟨hi, hhi⟩ : ∃ hi : E → ℕ, ∀ e, hi e = max (π (N.src e) : ℕ) (π (N.tgt e)) :=
-    ⟨_, fun _ => rfl⟩
+  let lo (e : E) : ℕ := min (π (N.src e) : ℕ) (π (N.tgt e))
+  let hi (e : E) : ℕ := max (π (N.src e) : ℕ) (π (N.tgt e))
   have hmem (e : E) (t : ℕ) : e ∈ N.frontier π t ↔ lo e < t ∧ t ≤ hi e := by
-    rw [Multigraph.mem_frontier, hlo, hhi]
+    simp only [Multigraph.mem_frontier, lo, hi]
     omega
-  have hhiV (e : E) : hi e < Nat.card V := by
-    rw [hhi]
-    exact max_lt (π _).isLt (π _).isLt
+  have hhiV (e : E) : hi e < Nat.card V := max_lt (π _).isLt (π _).isLt
   -- While an edge is on the frontier, the path carries the value given to it by the step that
   -- processes its earlier end.
   have hpersist (e : E) (t : ℕ) (h₁ : lo e + 1 ≤ t) (h₂ : t ≤ hi e) :
@@ -383,15 +367,13 @@ theorem exists_satisfies_of_isAcceptingPath {x : ι → U} {γ : ℕ → E → O
     refine N.constraint_congr _ (ys t) x (αs t) _ (fun i hread => ?_) (fun e he => ?_)
       (hcheck t (by omega) ht)
     · -- The inputs read at the vertex are read during its step.
-      have hi' : i ∈ (N.branchingProgram π).newly t := by
-        rw [N.newly_branchingProgram π ht]
-        exact hread
+      have hi' : i ∈ (N.branchingProgram π).newly t := by rwa [N.newly_branchingProgram π ht]
       exact congrFun (hys t (by omega)) ⟨i, hi'⟩
     · -- The vertex is the earlier end of the edge, or the edge is on the frontier before it.
       have hend : lo e = t ∨ lo e < t ∧ t ≤ hi e := by
         have : (π (N.src e) : ℕ) = t ∨ (π (N.tgt e) : ℕ) = t :=
           he.imp (fun h => by rw [h, hπt]) (fun h => by rw [h, hπt])
-        rw [hlo, hhi]
+        simp only [lo, hi]
         omega
       rcases hend with h | ⟨h₁, h₂⟩
       · rw [h]
@@ -410,12 +392,8 @@ theorem exists_satisfies_of_isAcceptingPath {x : ι → U} {γ : ℕ → E → O
 network. -/
 theorem accepted_branchingProgram : (N.branchingProgram π).accepted = N.accepted := by
   ext x
-  constructor
-  · rintro ⟨γ, hγ⟩
-    obtain ⟨α, hα, -⟩ := N.exists_satisfies_of_isAcceptingPath π hγ
-    exact ⟨α, hα⟩
-  · rintro ⟨α, hα⟩
-    exact ⟨_, N.isAcceptingPath_frontierValues π hα⟩
+  exact ⟨fun ⟨_, hγ⟩ => ⟨_, (N.exists_satisfies_of_isAcceptingPath π hγ).choose_spec.1⟩,
+    fun ⟨_, hα⟩ => ⟨_, N.isAcceptingPath_frontierValues π hα⟩⟩
 
 /-- If every input has at most one satisfying assignment, the branching program of every layout
 is unambiguous: an accepting path lists the frontier values of a satisfying assignment. -/
@@ -460,11 +438,9 @@ unread inputs. -/
 theorem ncard_edges_last_le [Finite ι] [Finite U] :
     ((N.branchingProgram π).edges (Nat.card V)).ncard ≤ Nat.card U ^ N.readᶜ.ncard := by
   have hempty (s : ℕ) (hs : Nat.card V ≤ s) (α : E → U) :
-      N.frontierValues π s α = fun _ => none := by
-    funext e
-    refine N.frontierValues_of_notMem π ?_
-    rw [Multigraph.frontier_of_card_le _ _ hs]
-    exact notMem_empty _
+      N.frontierValues π s α = fun _ => none :=
+    funext fun e => N.frontierValues_of_notMem π
+      (Multigraph.frontier_of_card_le _ _ hs ▸ notMem_empty e)
   have hsub : (N.branchingProgram π).edges (Nat.card V) ⊆
       range fun a : (N.branchingProgram π).newly (Nat.card V) → U =>
         ((fun _ => none : E → Option U), a, (fun _ => none : E → Option U)) := by

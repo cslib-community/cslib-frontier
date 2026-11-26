@@ -82,24 +82,21 @@ theorem sum_tsub_length_le_of_nodup [Fintype α] {ws : List (List α)} (hws : ws
     (ws.map fun w => m - w.length).sum ≤
       ∑ i ∈ Finset.range m, (m - i) * Fintype.card α ^ i := by
   classical
-  rw [← List.sum_toFinset _ hws]
   set s := ws.toFinset
   have h1 : ∑ w ∈ s, (m - w.length) =
       ∑ w ∈ s.filter (fun w => w.length < m), (m - w.length) := by
     rw [Finset.sum_filter]
-    refine Finset.sum_congr rfl fun w _ => ?_
-    split_ifs with h <;> omega
-  rw [h1, ← Finset.sum_fiberwise_of_maps_to (g := List.length) (t := Finset.range m)
-    (fun w hw => Finset.mem_range.2 (Finset.mem_filter.1 hw).2)]
+    exact Finset.sum_congr rfl fun _ _ => by split_ifs <;> omega
+  rw [← List.sum_toFinset _ hws, h1, ← Finset.sum_fiberwise_of_maps_to (g := List.length)
+    (t := Finset.range m) fun w hw => Finset.mem_range.2 (Finset.mem_filter.1 hw).2]
   refine Finset.sum_le_sum fun i _ => ?_
   calc ∑ w ∈ (s.filter fun w => w.length < m).filter (fun w => w.length = i), (m - w.length)
       = ∑ w ∈ (s.filter fun w => w.length < m).filter (fun w => w.length = i), (m - i) :=
         Finset.sum_congr rfl fun w hw => by rw [(Finset.mem_filter.1 hw).2]
-    _ = ((s.filter fun w => w.length < m).filter (fun w => w.length = i)).card * (m - i) := by
-        rw [Finset.sum_const, smul_eq_mul]
-    _ ≤ Fintype.card α ^ i * (m - i) :=
-        Nat.mul_le_mul_right _ Finset.card_filter_length_eq_le
-    _ = (m - i) * Fintype.card α ^ i := Nat.mul_comm _ _
+    _ = (m - i) * ((s.filter fun w => w.length < m).filter (fun w => w.length = i)).card := by
+        rw [Finset.sum_const, smul_eq_mul, Nat.mul_comm]
+    _ ≤ (m - i) * Fintype.card α ^ i :=
+        Nat.mul_le_mul_left _ Finset.card_filter_length_eq_le
 
 /-- `∑_{i < m} (m - i) k ^ i + (m + 2) ≤ 2 k ^ m` for `k ≥ 2`. -/
 private theorem sum_range_sub_mul_pow_add_le {k : ℕ} (hk : 2 ≤ k) (m : ℕ) :
@@ -107,16 +104,13 @@ private theorem sum_range_sub_mul_pow_add_le {k : ℕ} (hk : 2 ≤ k) (m : ℕ) 
   induction m with
   | zero => simp
   | succ m ih =>
-    rw [Finset.sum_range_succ']
     have hshift : ∑ i ∈ Finset.range m, (m + 1 - (i + 1)) * k ^ (i + 1) =
         k * ∑ i ∈ Finset.range m, (m - i) * k ^ i := by
       rw [Finset.mul_sum]
-      refine Finset.sum_congr rfl fun i _ => ?_
-      rw [Nat.add_sub_add_right, pow_succ]
-      ring
-    rw [hshift, pow_succ]
+      exact Finset.sum_congr rfl fun i _ => by rw [Nat.add_sub_add_right, pow_succ]; ring
+    rw [Finset.sum_range_succ', hshift, pow_succ]
     simp only [Nat.sub_zero, pow_zero, mul_one]
-    nlinarith [Nat.mul_le_mul_left k ih, Nat.mul_le_mul_right (m + 2) hk]
+    nlinarith [Nat.mul_le_mul_left k ih]
 
 private theorem mul_length_le_add_deficit (m : ℕ) (ws : List (List α)) :
     m * ws.length ≤ ws.flatten.length + (ws.map fun w => m - w.length).sum := by
@@ -132,10 +126,8 @@ length `n` over an alphabet of size `k ≥ 2`, then `m * c ≤ n + 2 * k ^ m` fo
 theorem mul_length_le_of_nodup [Fintype α] (hα : 2 ≤ Fintype.card α) {ws : List (List α)}
     (hws : ws.Nodup) (m : ℕ) :
     m * ws.length ≤ ws.flatten.length + 2 * Fintype.card α ^ m := by
-  have h1 := sum_tsub_length_le_of_nodup hws m
-  have h2 := sum_range_sub_mul_pow_add_le hα m
-  have h3 := mul_length_le_add_deficit m ws
-  omega
+  linarith [sum_tsub_length_le_of_nodup hws m, sum_range_sub_mul_pow_add_le hα m,
+    mul_length_le_add_deficit m ws]
 
 /-- The distinct-parsing inequality `m * c ≤ n + 2 * k ^ m` also holds when the phrases are
 nonempty and only the phrases before the last are pairwise distinct, as in LZ78's parse, whose
@@ -165,14 +157,10 @@ theorem mul_length_le_of_nodup_dropLast [Fintype α] (hα : 2 ≤ Fintype.card �
 theorem mul_log_le_of_forall_mul_le {k c n : ℕ}
     (hc : 2 ≤ k → ∀ m : ℕ, m * c ≤ n + 2 * k ^ m) : c * Nat.log k c ≤ n + 2 * c := by
   rcases Nat.lt_or_ge k 2 with hk | hk
-  · rw [Nat.log_of_left_le_one (by omega)]
-    omega
+  · rw [Nat.log_of_left_le_one (by omega)]; omega
   rcases Nat.eq_zero_or_pos c with rfl | hpos
   · simp
-  have h := hc hk (Nat.log k c)
-  have hpow := Nat.pow_log_le_self k hpos.ne'
-  rw [Nat.mul_comm]
-  omega
+  linarith [hc hk (Nat.log k c), Nat.pow_log_le_self k hpos.ne']
 
 private theorem logb_natCast_nonneg {k : ℝ} (hk : 1 < k) (n : ℕ) : 0 ≤ Real.logb k n := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
@@ -185,50 +173,33 @@ that `4 (log_k n) k ^ m ≤ n`, following [CoverThomas2006], §13.5. -/
 theorem mul_logb_sub_le_of_forall_mul_le {k c n : ℕ} (hk : 2 ≤ k)
     (hc : ∀ m : ℕ, m * c ≤ n + 2 * k ^ m) :
     (c : ℝ) * (Real.logb k n - Real.logb k (Real.logb k n) - 4) ≤ n := by
-  have hk2' : (2 : ℝ) ≤ k := by exact_mod_cast hk
-  have hk1 : (1 : ℝ) < k := by linarith
-  have hk0 : (0 : ℝ) < k := by linarith
-  have hkne : (k : ℝ) ≠ 1 := hk1.ne'
+  have hk1 : (1 : ℝ) < k := mod_cast hk
+  have hk0 : (0 : ℝ) < k := by positivity
   have hlogk : 0 < Real.log k := Real.log_pos hk1
   set L := Real.logb k n with hL
   set t := L - Real.logb k L - 4 with ht
-  have hc0 : (0 : ℝ) ≤ c := c.cast_nonneg
-  have hn0 : (0 : ℝ) ≤ n := n.cast_nonneg
   rcases le_or_gt t 0 with ht0 | ht0
-  · nlinarith
+  · nlinarith [c.cast_nonneg (α := ℝ), n.cast_nonneg (α := ℝ)]
   have hL0 : 0 ≤ L := logb_natCast_nonneg hk1 n
   have hLpos : 0 < L := by grind [Real.logb_zero, sub_zero, zero_sub]
-  have hn1 : (1 : ℝ) < n := by
-    by_contra h
-    replace h := not_lt.1 h
-    have : L ≤ 0 := by
-      rcases Nat.eq_zero_or_pos n with h0 | h0
-      · rw [hL, h0]; simp
-      · exact Real.logb_nonpos hk1 (by exact_mod_cast h0.le) h
-    linarith
-  have hlogn : Real.log n = L * Real.log k := by
-    rw [hL, Real.logb, div_mul_cancel₀ _ hlogk.ne']
+  have hn1 : (1 : ℝ) < n := by_contra fun h => by
+    rcases Nat.eq_zero_or_pos n with rfl | h0
+    · simp [L] at hLpos
+    · linarith [Real.logb_nonpos hk1 (mod_cast h0.le) (not_lt.1 h)]
+  have hlogn : Real.log n = L * Real.log k := by rw [hL, Real.logb, div_mul_cancel₀ _ hlogk.ne']
   -- In the remaining case `log_k n ≥ 1`: otherwise `-log_k log_k n < 3`, so `t < 0`.
-  have hL1 : 1 ≤ L := by
-    by_contra hlt
-    replace hlt := not_le.1 hlt
+  have hL1 : 1 ≤ L := by_contra fun hlt => by
     have hlog2 : (1 : ℝ) / 2 ≤ Real.log 2 := by
-      have := Real.one_sub_inv_le_log_of_pos (x := 2) (by norm_num)
-      norm_num at this ⊢
-      linarith
+      linarith [Real.one_sub_inv_le_log_of_pos (x := 2) (by norm_num)]
     have hlogn2 : Real.log 2 ≤ Real.log n :=
-      Real.log_le_log (by norm_num) (by exact_mod_cast (show (2 : ℕ) ≤ n by exact_mod_cast hn1))
+      Real.log_le_log (by norm_num) (mod_cast (show (2 : ℕ) ≤ n from mod_cast hn1))
     have hneg : -Real.log L ≤ 1 / L - 1 := by
-      have := Real.log_le_sub_one_of_pos (inv_pos.2 hLpos)
-      rw [Real.log_inv] at this
-      simpa [one_div] using this
+      simpa [Real.log_inv, one_div] using Real.log_le_sub_one_of_pos (inv_pos.2 hLpos)
     have hlb : -Real.logb k L < 3 := by
       rw [Real.logb, ← neg_div, div_lt_iff₀ hlogk]
-      have h2 : 1 / L = Real.log k / Real.log n := by
-        rw [hlogn]; field_simp
-      have hlogn0 : 0 < Real.log n := by linarith
       have h3 : 1 / L < 3 * Real.log k := by
-        rw [h2, div_lt_iff₀ hlogn0]
+        rw [show 1 / L = Real.log k / Real.log n by rw [hlogn]; field_simp,
+          div_lt_iff₀ (by linarith)]
         nlinarith
       linarith
     linarith
@@ -238,27 +209,21 @@ theorem mul_logb_sub_le_of_forall_mul_le {k c n : ℕ} (hk : 2 ≤ k)
   set m : ℕ := ⌊u⌋₊ - 2 with hm
   have hfl' : u < ⌊u⌋₊ + 1 := Nat.lt_floor_add_one u
   have hfl : (⌊u⌋₊ : ℝ) ≤ u := Nat.floor_le (by linarith)
-  have hfl4 : 4 ≤ ⌊u⌋₊ := Nat.le_floor (by exact_mod_cast hu4.le)
+  have hfl4 : 4 ≤ ⌊u⌋₊ := Nat.le_floor (mod_cast hu4.le)
   have hmR : (m : ℝ) = ⌊u⌋₊ - 2 := by
-    rw [hm, Nat.cast_sub (by omega)]; norm_num
+    rw [hm, Nat.cast_sub (by omega)]
+    norm_num
   -- `k ^ m * k ^ 2 * log_k n ≤ n`, since `m + 2 + log_k log_k n ≤ log_k n`.
   have hpow : (k : ℝ) ^ m * ((k : ℝ) ^ 2 * L) ≤ n := by
-    have hexp : (m : ℝ) + 2 + Real.logb k L ≤ L := by rw [hmR]; linarith
-    have := Real.rpow_le_rpow_of_exponent_le hk1.le hexp
-    rw [Real.rpow_add hk0, Real.rpow_add hk0, Real.rpow_logb hk0 hkne hLpos, hL,
-      Real.rpow_logb hk0 hkne (by linarith)] at this
-    rw [← hL] at this
+    have := Real.rpow_le_rpow_of_exponent_le hk1.le
+      (show (m : ℝ) + 2 + Real.logb k L ≤ L by rw [hmR]; linarith)
+    rw [Real.rpow_add hk0, Real.rpow_add hk0, Real.rpow_logb hk0 hk1.ne' hLpos, hL,
+      Real.rpow_logb hk0 hk1.ne' (by linarith), ← hL] at this
     simpa [Real.rpow_natCast, mul_assoc] using this
-  have hk2 : (4 : ℝ) ≤ (k : ℝ) ^ 2 := by nlinarith
-  have hpow' : 4 * L * (k : ℝ) ^ m ≤ n := by
-    have : 0 ≤ (k : ℝ) ^ m := by positivity
-    nlinarith
-  have hcm : (m : ℝ) * c ≤ n + 2 * (k : ℝ) ^ m := by exact_mod_cast hc m
+  have hk2 : (4 : ℝ) ≤ (k : ℝ) ^ 2 := mod_cast Nat.pow_le_pow_left hk 2
+  have hpow' : 4 * L * (k : ℝ) ^ m ≤ n := by nlinarith [pow_nonneg hk0.le m]
+  have hcm : (m : ℝ) * c ≤ n + 2 * (k : ℝ) ^ m := mod_cast hc m
   have htm : t * (2 * L + 1) ≤ 2 * L * m := by rw [hmR]; nlinarith
-  have key : (c : ℝ) * t * (2 * L + 1) ≤ n * (2 * L + 1) := by
-    have : 0 ≤ (k : ℝ) ^ m := by positivity
-    nlinarith
-  have h2L : 0 < 2 * L + 1 := by linarith
   nlinarith
 
 /-- The slack `ε_n = min(1, (log_k log_k n + 4) / log_k n)` of [CoverThomas2006], §13.5
@@ -269,7 +234,6 @@ noncomputable def epsilon (k n : ℕ) : ℝ :=
 /-- The formula of `epsilon`, for use outside this module. -/
 theorem epsilon_def (k n : ℕ) :
     epsilon k n = min 1 ((Real.logb k (Real.logb k n) + 4) / Real.logb k n) := by
-  unfold epsilon
   rfl
 
 /-- `(1 - ε_n) log_k n` is at most `log_k n - log_k log_k n - 4` whenever the latter is relevant:
@@ -277,21 +241,14 @@ precisely, `c * ((1 - ε_n) log_k n) ≤ n` follows from the Cover–Thomas form
 private theorem mul_one_sub_epsilon_le {k c n : ℕ} (hk : 2 ≤ k)
     (h : (c : ℝ) * (Real.logb k n - Real.logb k (Real.logb k n) - 4) ≤ n) :
     (c : ℝ) * ((1 - epsilon k n) * Real.logb k n) ≤ n := by
-  have hk1 : (1 : ℝ) < k := by exact_mod_cast hk
-  have hL0 : 0 ≤ Real.logb k n := logb_natCast_nonneg hk1 n
-  have hc0 : (0 : ℝ) ≤ c := c.cast_nonneg
-  have hn0 : (0 : ℝ) ≤ n := n.cast_nonneg
   rw [epsilon_def]
   set L := Real.logb k n
-  set r := (Real.logb k L + 4) / L
+  have hL0 : 0 ≤ L := logb_natCast_nonneg (mod_cast hk) n
   rcases hL0.lt_or_eq with hLpos | hL
-  · rcases le_total r 1 with hr | hr
-    · rw [min_eq_right hr]
-      have : (1 - r) * L = L - Real.logb k L - 4 := by
-        simp only [r]; field_simp; ring
-      rw [this]; exact h
-    · rw [min_eq_left hr]; simp [hn0]
-  · rw [← hL]; simp [hn0]
+  · rcases le_total ((Real.logb k L + 4) / L) 1 with hr | hr
+    · rwa [min_eq_right hr, sub_mul, one_mul, div_mul_cancel₀ _ hLpos.ne', sub_add_eq_sub_sub]
+    · simp [min_eq_left hr]
+  · simp [← hL]
 
 /-- **Cover–Thomas distinct-parsing bound, arithmetic form.** If `m * c ≤ n + 2 * k ^ m` for
 every `m` and `ε_n < 1`, then `c ≤ n / ((1 - ε_n) log_k n)`. -/
@@ -306,22 +263,18 @@ theorem le_div_of_forall_mul_le {k c n : ℕ} (hk : 2 ≤ k)
 /-- The slack `ε_n` tends to `0`. -/
 theorem tendsto_epsilon {k : ℕ} (hk : 2 ≤ k) :
     Filter.Tendsto (epsilon k) Filter.atTop (nhds 0) := by
-  have hk1 : (1 : ℝ) < k := by exact_mod_cast hk
   have hg : Filter.Tendsto (fun y : ℝ => (Real.logb k y + 4) / y) Filter.atTop (nhds 0) := by
-    have h1 := Real.tendsto_pow_log_div_mul_add_atTop 1 0 1 one_ne_zero
-    have h2 : Filter.Tendsto (fun y : ℝ => 4 / y) Filter.atTop (nhds 0) :=
-      tendsto_const_nhds.div_atTop Filter.tendsto_id
-    have h3 := (h1.div_const (Real.log k)).add h2
+    have h3 := ((Real.tendsto_pow_log_div_mul_add_atTop 1 0 1 one_ne_zero).div_const
+      (Real.log k)).add ((tendsto_const_nhds (x := (4 : ℝ))).div_atTop Filter.tendsto_id)
     simp only [zero_div, add_zero] at h3
     refine h3.congr' ?_
     filter_upwards [Filter.eventually_gt_atTop 0] with y hy
     rw [Real.logb]
+    dsimp only [id]
     field_simp
-  have hL : Filter.Tendsto (fun n : ℕ => Real.logb k n) Filter.atTop Filter.atTop :=
-    (Real.tendsto_logb_atTop hk1).comp tendsto_natCast_atTop_atTop
-  have := (tendsto_const_nhds (x := (1 : ℝ))).min (hg.comp hL)
   unfold epsilon
-  simpa [Function.comp_def] using this
+  simpa [Function.comp_def] using (tendsto_const_nhds (x := (1 : ℝ))).min
+    (hg.comp ((Real.tendsto_logb_atTop (mod_cast hk)).comp tendsto_natCast_atTop_atTop))
 
 /-! ## The distinct-parsing bound -/
 

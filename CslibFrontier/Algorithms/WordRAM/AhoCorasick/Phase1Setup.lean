@@ -89,68 +89,45 @@ private theorem exec_setupCode (inp : Input) (w : ℕ) (hw : Fits w inp.wordBoun
       LayoutInv inp x₀ ∧ x₀.regs r1 = inp.trieBase ∧ x₀.mem = d₀.mem := by
   obtain ⟨hmaxS_eq, htb_eq, htr_eq, hdb_eq, hfb_eq, hdp_eq, htm_eq, hoh_eq, hon_eq, hqb_eq,
     hob_eq⟩ := layout_order inp
-  have hob : inp.outBase = inp.trieBase + (2 * (inp.maxS * inp.alphabetSize) + 6 * inp.maxS) := by
-    omega
-  have hf1 : Fits w 1 := fits_of_le_outBase hw (by omega)
-  have hf2 : Fits w 2 := fits_of_le_outBase hw (by omega)
-  have hf3 : Fits w 3 := fits_of_le_outBase hw (by omega)
-  have hf4 : Fits w 4 := fits_of_le_outBase hw (by omega)
-  have hf5 : Fits w 5 := fits_of_le_outBase hw (by omega)
-  have hf_maxS : Fits w inp.maxS := fits_of_le_outBase hw (by omega)
-  have hf_maxS' : Fits w (totalPatternLen inp.patterns + 1) := by rw [← hmaxS_eq]; exact hf_maxS
-  have hf_tb1 : Fits w (5 + inp.patterns.length) := fits_of_le_outBase hw (by omega)
-  have hf_tb2 : Fits w (5 + inp.patterns.length + totalPatternLen inp.patterns) :=
-    fits_of_le_outBase hw (by omega)
-  have hf_tr : Fits w inp.trieBase := fits_of_le_outBase hw (by omega)
-  have hf_msig : Fits w (inp.maxS * inp.alphabetSize) := fits_of_le_outBase hw (by omega)
-  have hf_db : Fits w inp.deltaBase := fits_of_le_outBase hw (by omega)
-  have hf_fb : Fits w inp.failBase := fits_of_le_outBase hw (by omega)
-  have hf_dp : Fits w inp.depthBase := fits_of_le_outBase hw (by omega)
-  have hf_tm : Fits w inp.termBase := fits_of_le_outBase hw (by omega)
-  have hf_oh : Fits w inp.outHeadBase := fits_of_le_outBase hw (by omega)
-  have hf_on : Fits w inp.outNextBase := fits_of_le_outBase hw (by omega)
-  have hf_qb : Fits w inp.queueBase := fits_of_le_outBase hw (by omega)
   have hf_ob : Fits w inp.outBase := fits_of_le_outBase hw (Nat.le_refl _)
-  have h1 : ∃ x₁, ExecWithin w setupHeaderCode d₀ x₁ 12 ∧
-      x₁.regs zero = 0 ∧ x₁.regs one = 1 ∧
-      x₁.regs sigma = inp.alphabetSize ∧ x₁.regs numPat = inp.patterns.length ∧
-      x₁.regs totPat = totalPatternLen inp.patterns ∧ x₁.regs textLen = inp.text.length ∧
-      x₁.regs maxS = inp.maxS ∧ x₁.regs patBase = 5 ∧ x₁.mem = d₀.mem := by
+  have hf_qb := hf_ob.of_le (hob_eq ▸ Nat.le_add_right _ _)
+  have hf_on := hf_qb.of_le (hqb_eq ▸ Nat.le_add_right _ _)
+  have hf_oh := hf_on.of_le (hon_eq ▸ Nat.le_add_right _ _)
+  have hf_tm := hf_oh.of_le (hoh_eq ▸ Nat.le_add_right _ _)
+  have hf_dp := hf_tm.of_le (htm_eq ▸ Nat.le_add_right _ _)
+  have hf_fb := hf_dp.of_le (hdp_eq ▸ Nat.le_add_right _ _)
+  have hf_db := hf_fb.of_le (hfb_eq ▸ Nat.le_add_right _ _)
+  have hf_tr := hf_db.of_le (hdb_eq ▸ Nat.le_add_right _ _)
+  have hf_tb2 : Fits w (5 + inp.patterns.length + totalPatternLen inp.patterns) :=
+    htb_eq ▸ hf_tr.of_le (htr_eq ▸ Nat.le_add_right _ _)
+  have hf_tb1 := hf_tb2.of_le (Nat.le_add_right _ _)
+  have hf5 := hf_tb1.of_le (Nat.le_add_right _ _)
+  have hf_maxS' : Fits w (totalPatternLen inp.patterns + 1) :=
+    hmaxS_eq ▸ hf_ob.of_le (hob_eq ▸ Nat.le_add_left _ _)
+  obtain ⟨x₁, he₁, hz1, ho1, hsig1, hnp1, htp1, htl1, hms1, hpb1, hmem1⟩ :
+      ∃ x₁, ExecWithin w setupHeaderCode d₀ x₁ 12 ∧
+        x₁.regs zero = 0 ∧ x₁.regs one = 1 ∧
+        x₁.regs sigma = inp.alphabetSize ∧ x₁.regs numPat = inp.patterns.length ∧
+        x₁.regs totPat = totalPatternLen inp.patterns ∧ x₁.regs textLen = inp.text.length ∧
+        x₁.regs maxS = inp.maxS ∧ x₁.regs patBase = 5 ∧ x₁.mem = d₀.mem := by
     refine WP.exists_execWithin ?_
     unfold setupHeaderCode
-    wram_exec [hf1, hf2, hf3, hf4, hf5, hm1, hm2, hm3, hm4, hf_maxS']
+    wram_exec [hf5.of_le (Nat.le_of_ble_eq_true rfl : 1 ≤ 5),
+      hf5.of_le (Nat.le_of_ble_eq_true rfl : 2 ≤ 5),
+      hf5.of_le (Nat.le_of_ble_eq_true rfl : 3 ≤ 5),
+      hf5.of_le (Nat.le_of_ble_eq_true rfl : 4 ≤ 5), hf5, hm1, hm2, hm3, hm4, hf_maxS']
     exact ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
       by wram_simp [hmaxS_eq], by wram_simp, by wram_simp⟩
-  obtain ⟨x₁, he₁, hz1, ho1, hsig1, hnp1, htp1, htl1, hms1, hpb1, hmem1⟩ := h1
-  have h2 : ∃ x₀, ExecWithin w setupBaseCode x₁ x₀ 13 ∧
+  obtain ⟨x₀, he₂, hL₀, hr1₀, hmem0⟩ : ∃ x₀, ExecWithin w setupBaseCode x₁ x₀ 13 ∧
       LayoutInv inp x₀ ∧ x₀.regs r1 = inp.trieBase ∧ x₀.mem = x₁.mem := by
     refine WP.exists_execWithin ?_
     unfold setupBaseCode
     wram_exec [hpb1, hnp1, htp1, htl1, hms1, hsig1, hf_tb1, hf_tb2, htb_eq.symm, hf_tr,
-      htr_eq.symm, hf_msig, hf_db, hdb_eq.symm, hf_fb, hfb_eq.symm, hf_dp, hdp_eq.symm,
-      hf_tm, htm_eq.symm, hf_oh, hoh_eq.symm, hf_on, hon_eq.symm, hf_qb, hqb_eq.symm,
-      hf_ob, hob_eq.symm]
+      htr_eq.symm, hf_db.of_le (hdb_eq ▸ Nat.le_add_left _ _), hf_db, hdb_eq.symm, hf_fb,
+      hfb_eq.symm, hf_dp, hdp_eq.symm, hf_tm, htm_eq.symm, hf_oh, hoh_eq.symm, hf_on,
+      hon_eq.symm, hf_qb, hqb_eq.symm, hf_ob, hob_eq.symm]
     refine ⟨?_, by wram_simp, by wram_simp⟩
-    exact
-      { h_sigma := by wram_simp [hsig1]
-        h_numPat := by wram_simp [hnp1]
-        h_totPat := by wram_simp [htp1]
-        h_textLen := by wram_simp [htl1]
-        h_maxS := by wram_simp [hms1]
-        h_patBase := by wram_simp [hpb1]
-        h_textBase := by wram_simp
-        h_trieBase := by wram_simp
-        h_deltaBase := by wram_simp
-        h_failBase := by wram_simp
-        h_depthBase := by wram_simp
-        h_termBase := by wram_simp
-        h_outHeadBase := by wram_simp
-        h_outNextBase := by wram_simp
-        h_out := by wram_simp
-        h_queueBase := by wram_simp
-        h_zero := by wram_simp [hz1]
-        h_one := by wram_simp [ho1] }
-  obtain ⟨x₀, he₂, hL₀, hr1₀, hmem0⟩ := h2
+    constructor <;> wram_simp <;> assumption
   exact ⟨x₀, he₁.seq he₂, hL₀, hr1₀, hmem0.trans hmem1⟩
 
 private theorem trieMem_of_clear_init {inp : Input} {mem : ℕ → ℕ}
@@ -197,12 +174,11 @@ theorem exec_setupAndClear (inp : Input) (w : ℕ) (hw : Fits w inp.wordBound) :
   obtain ⟨hm2', hinit2⟩ := Block.holdsList_cons_iff.mp hinit1
   obtain ⟨hm3', hinit3⟩ := Block.holdsList_cons_iff.mp hinit2
   obtain ⟨hm4', hinit4⟩ := Block.holdsList_cons_iff.mp hinit3
-  obtain ⟨hpats0', htxt0⟩ := Block.holdsList_append_iff.mp hinit4
-  have hpats0 : Block.HoldsList 5 (encodePatterns inp.patterns) d₀.mem := hpats0'
+  obtain ⟨hpats0, htxt0⟩ := Block.holdsList_append_iff.mp hinit4
+  have heq : 1 + 1 + 1 + 1 + 1 + (inp.patterns.length + totalPatternLen inp.patterns) =
+      inp.textBase := by omega
   have htxt0' : Block.HoldsList inp.textBase inp.text d₀.mem := by
-    have heq : 1 + 1 + 1 + 1 + 1 + (encodePatterns inp.patterns).length = inp.textBase := by
-      rw [length_encodePatterns]; omega
-    rwa [heq] at htxt0
+    rwa [length_encodePatterns, heq] at htxt0
   obtain ⟨x₀, he₀, hL₀, hr1₀, hm₀⟩ := exec_setupCode inp w hw d₀ hm1 hm2' hm3' hm4'
   have hzf := (zeroFill_exec (w := w) (cur := r1) (stop := out) (zero := zero) (one := one)
     (x := x₀) (by decide) (by decide) (by decide) hL₀.h_zero hL₀.h_one

@@ -59,11 +59,8 @@ namespace Internal
 private theorem seed_ratio_identity (d : ℕ) {L M k : ℝ} (hL : L ≠ 0) (hM : M ≠ 0) :
     (M ^ 2 * k ^ d) / (2 * L * M ^ (d + 1)) ^ 2 =
       (k / M ^ 2) ^ d / (4 * L ^ 2) := by
-  have hp : (M ^ 2) ^ d = (M ^ d) ^ 2 := by
-    rw [← pow_mul, ← pow_mul, Nat.mul_comm 2 d]
-  rw [div_pow, hp, pow_succ]
-  field_simp
-  ring
+  rw [div_pow, show (M ^ 2) ^ d = (M ^ d) ^ 2 by rw [← pow_mul, ← pow_mul, mul_comm], pow_succ]
+  field_simp; ring
 
 /-- For `0 < M`,
 `2 ^ d / (4 * (d + 2) ^ 2) ≤ (M ^ 2 * (2 * M ^ 2 + 1) ^ d) / (2 * (d + 2) * M ^ (d + 1)) ^ 2`. -/
@@ -71,11 +68,10 @@ private theorem seed_ratio_lower (d : ℕ) {M : ℝ} (hM : 0 < M) :
     (2 : ℝ) ^ d / (4 * ((d : ℝ) + 2) ^ 2) ≤
       (M ^ 2 * (2 * M ^ 2 + 1) ^ d) /
         (2 * ((d : ℝ) + 2) * M ^ (d + 1)) ^ 2 := by
-  rw [seed_ratio_identity d (by positivity) (ne_of_gt hM)]
-  have hk : 2 ≤ (2 * M ^ 2 + 1) / M ^ 2 := by
-    apply (le_div_iff₀ (pow_pos hM 2)).mpr
-    linarith
-  exact div_le_div_of_nonneg_right (pow_le_pow_left₀ (by norm_num) hk d) (by positivity)
+  rw [seed_ratio_identity d (by positivity) hM.ne']
+  exact div_le_div_of_nonneg_right
+    (pow_le_pow_left₀ (by norm_num) ((le_div_iff₀ (pow_pos hM 2)).mpr (by linarith)) d)
+    (by positivity)
 
 /-- If `0 < sensitivity f ≤ s` and `0 ≤ b ≤ blockSensitivityAt f (fun _ => false)`, then
 `b / s ^ 2 ≤ blockSensitivityAt f (fun _ => false) / sensitivity f ^ 2`. -/
@@ -102,13 +98,9 @@ theorem quantitative_ratio_of_bounds {I : Type} [Fintype I]
     (hb : M ^ 2 * (2 * M ^ 2 + 1) ^ d ≤ blockSensitivityAt f (fun _ => false)) :
     (2 : ℝ) ^ d / (4 * ((d : ℝ) + 2) ^ 2) ≤
       (blockSensitivityAt f (fun _ => false) : ℝ) / (sensitivity f : ℝ) ^ 2 := by
-  have hMr : 0 < (M : ℝ) := by exact_mod_cast hM
-  apply (seed_ratio_lower d hMr).trans
-  apply ratio_of_bounds
-  · exact_mod_cast sensitivity_pos_of_nonconstant f hnc
-  · exact_mod_cast hs
-  · exact_mod_cast hb
-  · positivity
+  exact (seed_ratio_lower d (Nat.cast_pos.mpr hM)).trans <| ratio_of_bounds f _ _
+    (by exact_mod_cast sensitivity_pos_of_nonconstant f hnc) (by exact_mod_cast hs)
+    (by exact_mod_cast hb) (by positivity)
 
 /-- For `0 < M`, `128 / 121 ≤ M ^ 2 * (2 * M ^ 2 + 1) ^ 9 / (22 * M ^ 10) ^ 2`. -/
 theorem depth_nine_seed_ratio {M : ℝ} (hM : 0 < M) :
@@ -118,40 +110,26 @@ theorem depth_nine_seed_ratio {M : ℝ} (hM : 0 < M) :
 /-- For `0 < M`, in `ℕ`, `1 < 22 * M ^ 10` and `(22 * M ^ 10) ^ 2 < M ^ 2 * (2 * M ^ 2 + 1) ^ 9`. -/
 theorem depth_nine_seed_gap (M : ℕ) (hM : 0 < M) :
     1 < 22 * M ^ 10 ∧ (22 * M ^ 10) ^ 2 < M ^ 2 * (2 * M ^ 2 + 1) ^ 9 := by
-  constructor
-  · have hp := pow_pos hM 10
-    omega
-  · have hp := pow_pos hM 20
-    have hmono : M ^ 2 * (2 * M ^ 2) ^ 9 ≤ M ^ 2 * (2 * M ^ 2 + 1) ^ 9 := by
-      gcongr
-      omega
-    calc
-      _ = 484 * M ^ 20 := by ring
-      _ < 512 * M ^ 20 := by omega
-      _ = M ^ 2 * (2 * M ^ 2) ^ 9 := by ring
-      _ ≤ _ := hmono
+  refine ⟨by have := pow_pos hM 10; omega, ?_⟩
+  have := pow_pos hM 20
+  calc (22 * M ^ 10) ^ 2 = 484 * M ^ 20 := by ring
+    _ < 512 * M ^ 20 := by omega
+    _ = M ^ 2 * (2 * M ^ 2) ^ 9 := by ring
+    _ ≤ M ^ 2 * (2 * M ^ 2 + 1) ^ 9 := by
+        gcongr
+        omega
 
 /-- The ratio bound `2 ^ d / (4 * (d + 2) ^ 2)` tends to infinity as `d → ∞`. -/
 theorem quantitative_ratio_tendsto :
     Tendsto (fun d : ℕ => (2 : ℝ) ^ d / (4 * ((d : ℝ) + 2) ^ 2)) atTop atTop := by
-  have hb := (tendsto_pow_const_div_const_pow_of_one_lt 2 (by norm_num : (1 : ℝ) < 2)).comp
-    (tendsto_add_atTop_nat 2)
-  have hz : Tendsto (fun d : ℕ => 4 * ((d : ℝ) + 2) ^ 2 / (2 : ℝ) ^ d)
-      atTop (𝓝 0) := by
-    have h := hb.const_mul (16 : ℝ)
-    convert h using 1
+  have hz : Tendsto (fun d : ℕ => 4 * ((d : ℝ) + 2) ^ 2 / (2 : ℝ) ^ d) atTop (𝓝 0) := by
+    convert (((tendsto_pow_const_div_const_pow_of_one_lt 2 (by norm_num : (1 : ℝ) < 2)).comp
+      (tendsto_add_atTop_nat 2)).const_mul (16 : ℝ)) using 1
     · funext d
-      simp only [Function.comp_apply, Nat.cast_add, Nat.cast_ofNat, pow_add]
-      ring
+      simp only [Function.comp_apply, Nat.cast_add, Nat.cast_ofNat, pow_add]; ring
     · simp
-  have hr : Tendsto (fun d : ℕ => 4 * ((d : ℝ) + 2) ^ 2 / (2 : ℝ) ^ d)
-      atTop (𝓝[>] (0 : ℝ)) := by
-    apply tendsto_nhdsWithin_iff.mpr
-    refine ⟨hz, Filter.Eventually.of_forall ?_⟩
-    intro d
-    change 0 < 4 * ((d : ℝ) + 2) ^ 2 / (2 : ℝ) ^ d
-    positivity
-  simpa only [Function.comp_def, inv_div] using tendsto_inv_nhdsGT_zero.comp hr
+  simpa only [Function.comp_def, inv_div] using tendsto_inv_nhdsGT_zero.comp
+    (tendsto_nhdsWithin_iff.mpr ⟨hz, .of_forall fun d => Set.mem_Ioi.mpr (by positivity)⟩)
 
 end Internal
 

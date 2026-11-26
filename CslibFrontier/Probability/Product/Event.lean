@@ -49,10 +49,9 @@ theorem toOuterMeasure_pi_inter_eq_mul {V : Type*} [Fintype V] {α : V → Type*
     (hF : DependsOn (· ∈ F) T) :
     (pi p).toOuterMeasure (E ∩ F) = (pi p).toOuterMeasure E * (pi p).toOuterMeasure F := by
   let (v : V) : MeasurableSpace (α v) := ⊤
-  have hmeas (B : Set (∀ v, α v)) : MeasurableSet B := (Set.to_countable B).measurableSet
-  have hind := indepSet_pi_of_dependsOn (μ := fun v => (p v).toMeasure) (hmeas E) (hmeas F)
-    hE hF hST
-  rw [← toMeasure_pi] at hind
+  have hmeas (B : Set (∀ v, α v)) : MeasurableSet B := B.to_countable.measurableSet
+  have hind := toMeasure_pi p ▸ indepSet_pi_of_dependsOn (μ := fun v => (p v).toMeasure)
+    (hmeas E) (hmeas F) hE hF hST
   simpa only [PMF.toMeasure_apply_eq_toOuterMeasure_apply _ (hmeas _)] using
     (indepSet_iff_measure_inter_eq_mul (hmeas E) (hmeas F) _).1 hind
 
@@ -79,9 +78,8 @@ theorem toOuterMeasure_pi_forall {ι : Type*} [Fintype ι] {α : ι → Type*} [
   by_cases hu : ∀ i, u i ∈ E i
   · rw [ite_eq_left hu]
     exact Finset.prod_congr rfl fun i _ => (ite_eq_left (hu i)).symm
-  · rw [ite_eq_right hu]
-    push Not at hu
-    obtain ⟨i, hi⟩ := hu
+  · obtain ⟨i, hi⟩ := not_forall.mp hu
+    rw [ite_eq_right hu]
     exact (Finset.prod_eq_zero (Finset.mem_univ i) (ite_eq_right hi)).symm
 
 /-- The probability that some coordinate lies in its bad event is at most the sum of the
@@ -90,14 +88,12 @@ theorem toOuterMeasure_pi_exists_le {ι : Type*} [Fintype ι] {α : ι → Type*
     [∀ i, Finite (α i)] (p : ∀ i, PMF (α i)) (bad : ∀ i, Set (α i)) :
     (pi p).toOuterMeasure {x | ∃ i, x i ∈ bad i} ≤ ∑ i, (p i).toOuterMeasure (bad i) := by
   classical
-  have hset : {x : ∀ i, α i | ∃ i, x i ∈ bad i} =
-      ⋃ i, (fun x : ∀ i, α i => x i) ⁻¹' bad i := by ext; simp
+  have hset : {x : ∀ i, α i | ∃ i, x i ∈ bad i} = ⋃ i, (· i) ⁻¹' bad i := by
+    ext
+    simp
   rw [hset]
-  calc
-    _ ≤ ∑ i, (pi p).toOuterMeasure ((fun x => x i) ⁻¹' bad i) :=
-      MeasureTheory.measure_iUnion_fintype_le _ _
-    _ = _ := by
-      congr 1 with i : 1
-      rw [← PMF.toOuterMeasure_map_apply, pi_map_eval]
+  calc _ ≤ ∑ i, (pi p).toOuterMeasure ((· i) ⁻¹' bad i) :=
+        MeasureTheory.measure_iUnion_fintype_le _ _
+    _ = _ := Finset.sum_congr rfl fun i _ => by rw [← PMF.toOuterMeasure_map_apply, pi_map_eval]
 
 end Cslib.Probability.PMF

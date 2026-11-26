@@ -106,9 +106,8 @@ private theorem CountClose.of_add_one {r : ℕ} {x y : ℕ∞} (h : CountClose (
     CountClose r x y := by
   rcases h with h | ⟨hx, hy⟩
   · exact .inl (WithTop.add_right_cancel ENat.one_ne_top h)
-  · refine .inr ⟨?_, ?_⟩
-    · rwa [Nat.cast_add, Nat.cast_one, ENat.add_le_add_iff_right ENat.one_ne_top] at hx
-    · rwa [Nat.cast_add, Nat.cast_one, ENat.add_le_add_iff_right ENat.one_ne_top] at hy
+  · simp only [Nat.cast_add, Nat.cast_one, ENat.add_le_add_iff_right ENat.one_ne_top] at hx hy
+    exact .inr ⟨hx, hy⟩
 
 /-- Removing corresponding elements `c` and `d` from two sets with close counts. -/
 private theorem CountClose.diff_singleton {r : ℕ} {F : Set M} {G : Set N} {c : M} {d : N}
@@ -144,21 +143,18 @@ private theorem free_snoc {k : ℕ} (a : Fin k → M) (c : M) (C : Set (L.Relati
 private theorem Good.snoc {r k : ℕ} {a : Fin k → M} {b : Fin k → N} (h : Good L (r + 1) a b)
     {c : M} {d : N} (hcd : ∀ i, a i = c ↔ b i = d) (hcol : color L c = color L d) :
     Good L r (Fin.snoc a c : Fin (k + 1) → M) (Fin.snoc b d : Fin (k + 1) → N) := by
-  have hmem : ∀ C, c ∈ free a C ↔ d ∈ free b C := fun C => by
-    simp only [free, Set.mem_sdiff, Set.mem_ofPred_eq, Set.mem_range, not_exists]
-    exact and_congr (by rw [hcol]) (forall_congr' fun i => not_congr (hcd i))
-  refine ⟨fun i j => ?_, fun i => ?_, fun C => ?_⟩
+  refine ⟨fun i j => ?_,
+    fun i => Fin.lastCases (by simp [hcol]) (fun j => by simp [h.color_eq j]) i, fun C => ?_⟩
   · induction i using Fin.lastCases <;> induction j using Fin.lastCases <;>
       simp only [Fin.snoc_last, Fin.snoc_castSucc] <;>
       first
         | exact hcd _
         | exact (eq_comm.trans (hcd _)).trans eq_comm
         | exact h.eq_iff _ _
-  · induction i using Fin.lastCases <;> simp only [Fin.snoc_last, Fin.snoc_castSucc]
-    · exact hcol
-    · exact h.color_eq _
   · rw [free_snoc, free_snoc]
-    exact (h.count C).diff_singleton (hmem C)
+    refine (h.count C).diff_singleton ?_
+    simp only [free, Set.mem_sdiff, Set.mem_ofPred_eq, Set.mem_range, not_exists, hcol]
+    exact and_congr_right' (forall_congr' fun i => not_congr (hcd i))
 
 private theorem Good.forth {r k : ℕ} {a : Fin k → M} {b : Fin k → N} (h : Good L (r + 1) a b)
     (c : M) :
@@ -166,15 +162,12 @@ private theorem Good.forth {r k : ℕ} {a : Fin k → M} {b : Fin k → N} (h : 
   by_cases hc : c ∈ Set.range a
   · obtain ⟨i, rfl⟩ := hc
     exact ⟨b i, h.snoc (fun j => h.eq_iff j i) (h.color_eq i)⟩
-  · have hfree : c ∈ free a (color L c) := ⟨rfl, hc⟩
-    have hpos : (free b (color L c)).Nonempty := by
-      rw [← Set.encard_pos]
+  · have hpos : 0 < (free b (color L c)).encard := by
       rcases h.count (color L c) with h' | ⟨-, h'⟩
-      · rw [← h']
-        exact Set.encard_pos.2 ⟨c, hfree⟩
+      · exact h' ▸ Set.encard_pos.2 ⟨c, rfl, hc⟩
       · exact lt_of_lt_of_le (by exact_mod_cast Nat.succ_pos r) h'
-    obtain ⟨d, hd, hdb⟩ := hpos
-    refine ⟨d, h.snoc (fun i => iff_of_false (fun hi => hc ⟨i, hi⟩) fun hi => hdb ⟨i, hi⟩) hd.symm⟩
+    obtain ⟨d, hd, hdb⟩ := Set.encard_pos.1 hpos
+    exact ⟨d, h.snoc (fun i => iff_of_false (hc ⟨i, ·⟩) (hdb ⟨i, ·⟩)) hd.symm⟩
 
 private theorem Good.back {r k : ℕ} {a : Fin k → M} {b : Fin k → N} (h : Good L (r + 1) a b)
     (d : N) :
@@ -236,30 +229,27 @@ theorem exists_substructure_realize [L.IsRelational] [Finite (L.Relations 1)]
   classical
   set Q := max (quantifierRank φ) 1
   -- keep at most `Q` elements of each color
-  have hT : ∀ C : Set (L.Relations 1), ∃ T ⊆ {m : M | color L m = C},
-      T.encard = min (Q : ℕ∞) {m : M | color L m = C}.encard :=
-    fun C => Set.exists_subset_encard_eq (min_le_right _ _)
-  choose T hTsub hTcard using hT
+  choose T hTsub hTcard using fun C : Set (L.Relations 1) =>
+    Set.exists_subset_encard_eq (min_le_right (Q : ℕ∞) {m : M | color L m = C}.encard)
   let s : Set M := {m | m ∈ T (color L m)}
   let S : L.Substructure M := ⟨s, fun f => isEmptyElim f⟩
-  have hclass : ∀ C, {m : M | m ∈ s ∧ color L m = C} = T C := fun C => by
-    ext m
-    refine ⟨fun ⟨hm, hC⟩ => hC ▸ hm, fun hm => ?_⟩
-    have hC : color L m = C := hTsub C hm
-    exact ⟨by simp only [s, Set.mem_ofPred_eq, hC, hm], hC⟩
-  have hcolorS : ∀ C, {x : S | color L x = C}.encard = (T C).encard := fun C => by
-    rw [← hclass C, ← Subtype.val_injective.encard_image]
+  have hcolorS (C) : {x : S | color L x = C}.encard = (T C).encard := by
+    rw [← Subtype.val_injective.encard_image]
     congr 1
     ext m
     simp only [Set.mem_image, Set.mem_ofPred_eq, Subtype.exists, exists_and_right, exists_eq_right]
-    have hc : ∀ hm : m ∈ S, color L (⟨m, hm⟩ : S) = color L m := fun hm =>
-      S.subtype.color_apply ⟨m, hm⟩ |>.symm
-    exact ⟨fun ⟨hm, hC⟩ => ⟨hm, (hc hm).symm.trans hC⟩, fun ⟨hm, hC⟩ => ⟨hm, (hc hm).trans hC⟩⟩
-  have hsub : s ⊆ ⋃ C, T C := fun m hm => Set.mem_iUnion.2 ⟨_, hm⟩
+    refine ⟨fun ⟨hm, hC⟩ => ?_, fun hm => ?_⟩
+    · have hc : color L m = C := (S.subtype.color_apply ⟨m, hm⟩).trans hC
+      exact hc ▸ hm
+    · have hm' : m ∈ S := by
+        change m ∈ T (color L m)
+        rwa [hTsub C hm]
+      exact ⟨hm', (S.subtype.color_apply ⟨m, hm'⟩).symm.trans (show color L m = C from hTsub C hm)⟩
   have hcard : s.encard ≤ (Q * 2 ^ Nat.card (L.Relations 1) : ℕ) := by
     have := Fintype.ofFinite (L.Relations 1)
     calc s.encard ≤ ∑ C, (T C).encard :=
-          (Set.encard_mono hsub).trans (Set.encard_iUnion_le_of_fintype T)
+          (Set.encard_mono fun m hm => Set.mem_iUnion.2 ⟨color L m, hm⟩).trans
+            (Set.encard_iUnion_le_of_fintype T)
       _ ≤ ∑ _C : Set (L.Relations 1), (Q : ℕ∞) :=
           Finset.sum_le_sum fun C _ => (hTcard C).trans_le (min_le_left _ _)
       _ = (Q * 2 ^ Nat.card (L.Relations 1) : ℕ) := by
@@ -267,26 +257,19 @@ theorem exists_substructure_realize [L.IsRelational] [Finite (L.Relations 1)]
             Nat.card_eq_fintype_card]
           push_cast
           exact mul_comm _ _
-  have hfin : s.Finite := Set.finite_of_encard_le_coe hcard
   have hrealize : S ⊨ φ ↔ M ⊨ φ := by
     refine realize_iff_of_encard (n := Q) hmon (fun R => ?_) (fun C => ?_) (le_max_left _ _)
     · rw [← S.subtype.map_rel R default, Subsingleton.elim (S.subtype ∘ default) default]
     · rw [hcolorS, hTcard]
       rcases le_total (Q : ℕ∞) {m : M | color L m = C}.encard with hQ | hQ
-      · rw [min_eq_left hQ]
-        exact .inr ⟨le_rfl, hQ⟩
+      · exact .inr ⟨(min_eq_left hQ).symm.le, hQ⟩
       · exact .inl (min_eq_right hQ)
   obtain ⟨m⟩ := ‹Nonempty M›
-  obtain ⟨x, hx⟩ : (T (color L m)).Nonempty := by
-    rw [← Set.encard_pos, hTcard]
-    exact lt_min (by exact_mod_cast lt_of_lt_of_le zero_lt_one (le_max_right _ _))
-      (Set.encard_pos.2 ⟨m, rfl⟩)
-  have hxs : x ∈ s := by
-    change x ∈ T (color L x)
-    rw [hTsub _ hx]
-    exact hx
-  exact ⟨S, hfin.to_subtype, ⟨⟨x, hxs⟩⟩, (Set.encard_le_coe_iff_finite_ncard_le.1 hcard).2,
-    hrealize.2 h⟩
+  obtain ⟨x, hx⟩ := Set.encard_pos.1 <| (hTcard (color L m)).symm ▸
+    lt_min (by exact_mod_cast Nat.succ_le_iff.1 (le_max_right _ _)) (Set.encard_pos.2 ⟨m, rfl⟩)
+  exact ⟨S, (Set.finite_of_encard_le_coe hcard).to_subtype,
+    ⟨⟨x, show x ∈ T (color L x) by rwa [hTsub _ hx]⟩⟩,
+    (Set.encard_le_coe_iff_finite_ncard_le.1 hcard).2, hrealize.2 h⟩
 
 /-- **The small model property for monadic sentences** [Lowenheim1915]. In a relational language
 with finitely many unary and no higher-arity relation symbols, every sentence `φ` that holds in a

@@ -224,10 +224,7 @@ theorem walkAt_length (p : V × (Fin t → D)) : G.walkAt p t = (G.pow t).neighb
   | zero => rfl
   | succ t ih =>
     obtain ⟨v, k⟩ := p
-    calc G.walkAt (v, k) (t + 1) = G.walkAt (v, Fin.cons (k 0) (Fin.tail k)) (t + 1) := by
-          rw [Fin.cons_self_tail]
-      _ = (G.pow (t + 1)).neighbor v k := by
-          rw [walkAt_cons_succ, ih, neighbor_pow_succ]
+    rw [← Fin.cons_self_tail k, walkAt_cons_succ, ih, ← neighbor_pow_succ, Fin.cons_self_tail]
 
 /-- The `n`-th vertex of a walk is the neighbor along its first `n` labels in the power `G ^ n`. -/
 theorem walkAt_eq_neighbor_pow (p : V × (Fin t → D)) {n : ℕ} (hn : n ≤ t) :
@@ -252,16 +249,14 @@ theorem walkDart_rot_pow (p : V × (Fin t → D)) (i : Fin t) :
     induction i using Fin.lastCases with
     | last =>
       rw [Fin.rev_last]
-      refine Prod.ext ?_ ?_
-      · rw [walkDart_fst, Fin.val_last, G.walkAt_snoc _ _ _ le_rfl, Prod.mk.eta, walkAt_length]
-        exact (G.pow t).neighbor_neighbor_rot _ _
-      · simp [walkDart]
+      refine Prod.ext ?_ (by simp [walkDart])
+      rw [walkDart_fst, Fin.val_last, G.walkAt_snoc _ _ _ le_rfl, Prod.mk.eta, walkAt_length]
+      exact (G.pow t).neighbor_neighbor_rot _ _
     | cast i =>
       rw [walkDart_snoc_castSucc, Prod.mk.eta, ih, Fin.rev_castSucc]
       congr 1
       conv_rhs => rw [← Fin.cons_self_tail k]
-      rw [walkDart_cons_succ]
-      rfl
+      exact (G.walkDart_cons_succ _ _ _ _).symm
 
 /-- Reversing a walk in `G ^ t` reverses its trajectory. -/
 theorem walkAt_rot_pow (p : V × (Fin t → D)) {i : ℕ} (hi : i ≤ t) :
@@ -269,8 +264,7 @@ theorem walkAt_rot_pow (p : V × (Fin t → D)) {i : ℕ} (hi : i ≤ t) :
   rcases hi.lt_or_eq with hi | rfl
   · change G.walkAt _ (⟨i, hi⟩ : Fin t) = _
     rw [← walkDart_fst, walkDart_rot_pow, fst_rot_walkDart, Fin.val_rev, Fin.val_mk]
-    congr 1
-    omega
+    exact congrArg (G.walkAt p) (by omega)
   · rw [walkAt_length, Nat.sub_self, walkAt_zero]
     exact (G.pow i).neighbor_neighbor_rot _ _
 
@@ -280,12 +274,11 @@ theorem rot_pow_walkDrop (p : V × (Fin t → D)) (n : ℕ) :
     (G.pow (t - n)).rot (G.walkDrop p n) =
       (((G.pow t).rot p).1, Fin.take (t - n) (Nat.sub_le t n) ((G.pow t).rot p).2) := by
   refine Prod.ext ?_ (funext fun j ↦ ?_)
-  · have h : G.walkAt (G.walkDrop p n) (t - n) = G.walkAt p t := by
-      rw [walkAt_walkDrop]
-      rcases le_total n t with h | h
-      · rw [Nat.add_sub_of_le h]
-      · rw [G.walkAt_of_le p (by omega : t ≤ n + (t - n))]
-    exact (G.walkAt_length (G.walkDrop p n)).symm.trans (h.trans (G.walkAt_length p))
+  · refine (G.walkAt_length (G.walkDrop p n)).symm.trans (Eq.trans ?_ (G.walkAt_length p))
+    rw [walkAt_walkDrop]
+    rcases le_total n t with h | h
+    · rw [Nat.add_sub_of_le h]
+    · exact G.walkAt_of_le p (by omega)
   · have h₁ := congrArg Prod.snd (G.walkDart_rot_pow (G.walkDrop p n) j)
     have h₂ := congrArg Prod.snd (G.walkDart_rot_pow p (Fin.castLE (Nat.sub_le t n) j))
     simp only [walkDart_snd] at h₁ h₂
@@ -519,10 +512,7 @@ theorem expect_walkDart_mul_walkDart {i j : Fin t} (hij : i < j) (f g : V × D �
       f (G.splitWalk i p).1 *
         g (G.walkDart ((G.rot (G.splitWalk i p).1).1, (G.splitWalk i p).2.2) ⟨_, hj⟩) := by
     rw [splitWalk_apply, fst_rot_walkDart, ← walkDrop_fst, Prod.mk.eta, walkDart_walkDrop]
-    congr 3
-    ext
-    simp only
-    omega
+    exact congrArg (fun k ↦ f (G.walkDart p i) * g (G.walkDart p k)) (by fin_index)
   simp only [h]
   rw [G.expect_splitWalk i fun x ↦ f x.1 * g (G.walkDart ((G.rot x.1).1, x.2.2) ⟨_, hj⟩)]
   simp only [Fintype.expect_const, ← mul_expect, expect_walkDart_mk]
@@ -549,9 +539,9 @@ theorem sq_expect_walkDart_mul_walkDart_sub_le {i j : Fin t} (hij : i < j) (f g 
   have hφ₂ : 𝔼 v, φ v ^ 2 ≤ 𝔼 q, f q ^ 2 := by
     rw [← G.expect_comp_rot fun q ↦ f q ^ 2, Fintype.expect_prod_type]
     exact expect_le_expect fun v _ ↦ sq_expect_le_expect_sq _ _
-  have hψ₂ : 𝔼 w, ψ w ^ 2 ≤ 𝔼 q, g q ^ 2 := by
-    rw [Fintype.expect_prod_type fun q ↦ g q ^ 2]
-    exact expect_le_expect fun v _ ↦ sq_expect_le_expect_sq _ _
+  have hψ₂ : 𝔼 w, ψ w ^ 2 ≤ 𝔼 q, g q ^ 2 :=
+    (expect_le_expect fun v _ ↦ sq_expect_le_expect_sq _ _).trans_eq
+      (Fintype.expect_prod_type fun q ↦ g q ^ 2).symm
   have hmix := G.sq_expect_mul_walk_pow_sub_le (j - (i + 1)) φ ψ
   rw [hφ, hψ] at hmix
   rw [G.expect_walkDart_mul_walkDart hij]

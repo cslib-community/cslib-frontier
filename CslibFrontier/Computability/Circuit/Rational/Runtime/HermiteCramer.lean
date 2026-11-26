@@ -156,10 +156,7 @@ theorem length_of_mem_cramerColZeroRows {mat : List (List ℤ)} {rhs : List ℤ}
   obtain ⟨⟨r, k⟩, hmem, rfl⟩ := hrow
   have hr_mem : r ∈ mat := (List.mem_zipIdx hmem).2.2 ▸ List.getElem_mem _
   have hr_len : r.length = mat.length := hmat r hr_mem
-  have hpos : 0 < mat.length := by
-    rcases mat with _ | ⟨_, _⟩
-    · simp at hr_mem
-    · simp
+  have hpos : 0 < mat.length := List.length_pos_of_mem hr_mem
   simp only [List.length_cons, List.length_tail, hr_len]
   omega
 
@@ -281,16 +278,12 @@ theorem detRows_cramerColZeroRows_hermiteRows (nodes : List ℤ) (J : ℕ) (jets
     detRows (cramerColZeroRows (hermiteRows nodes J) jets.flatten) =
       ((Polynomial.hermiteMatrix (fun i : Fin nodes.length => nodes[i]) J).updateCol
         (⟨0, hQ⟩, ⟨0, hJ⟩) fun r => rowEntry jets r.1 r.2).det := by
-  have hpos : 0 < (hermiteRows nodes J).length := by
-    rw [length_hermiteRows]
-    exact Nat.mul_pos hQ hJ
+  have hpos : 0 < (hermiteRows nodes J).length :=
+    (length_hermiteRows nodes J).symm ▸ Nat.mul_pos hQ hJ
   set e : Fin nodes.length × Fin J ≃ Fin (hermiteRows nodes J).length :=
     finProdFinEquiv.trans (finCongr (length_hermiteRows nodes J).symm)
-  have he0 : e.symm ⟨0, hpos⟩ = (⟨0, hQ⟩, ⟨0, hJ⟩) := by
-    apply e.injective
-    rw [Equiv.apply_symm_apply]
-    ext
-    simp [e]
+  have he0 : e.symm ⟨0, hpos⟩ = (⟨0, hQ⟩, ⟨0, hJ⟩) :=
+    e.symm_apply_eq.mpr (Fin.ext (by simp [e]))
   have hrhs : (fun r : Fin nodes.length × Fin J => jets.flatten.getD (e r) 0) =
       fun r => rowEntry jets r.1 r.2 := by
     funext ⟨i, j⟩
@@ -336,14 +329,10 @@ theorem detRows_cramerColZeroRows_eq_mul_eval_zero {nodes : List ℤ} {J : ℕ} 
     simp only [p, AddMonoidAlgebra.coeff_smul_apply, smul_eq_mul,
       Polynomial.coeff_eq_zero_of_natDegree_lt (hdeg.trans_le hm), mul_zero]
   have hp_c0 : p.coeff (finProdFinEquiv c0) = (Ω : ℚ) * (H_zero : ℚ) := by
-    have hc0_val : (finProdFinEquiv c0 : ℕ) = 0 := by simp [c0]
-    rw [hc0_val, AddMonoidAlgebra.coeff_smul_apply, smul_eq_mul,
-      Polynomial.coeff_zero_eq_eval_zero, hH0]
+    simp [p, c0, Polynomial.coeff_zero_eq_eval_zero, hH0]
   have hjet_eq : Polynomial.taylorJet (fun i => (t i : ℚ)) J p =
-      fun r => (rowEntry jets r.1 r.2 : ℚ) := by
-    funext ⟨i, j⟩
-    simp only [p, map_smul, Polynomial.taylorJet_apply, t]
-    exact (hjets i j).symm
+      fun r => (rowEntry jets r.1 r.2 : ℚ) :=
+    funext fun ⟨i, j⟩ => by simpa [p, Polynomial.taylorJet_apply, t] using (hjets i j).symm
   have hcramer := Polynomial.det_hermiteMatrix_mul_coeff t hp_deg c0
   rw [hp_c0, hjet_eq] at hcramer
   have hmap_update :
@@ -471,11 +460,8 @@ theorem intBits_emod_le_add_one_of_ne_zero (a : ℤ) {b : ℤ} (hb : b ≠ 0) :
 /-- Unconditionally on `b` (including `b = 0`),
 `intBits (a.emod b) ≤ max (intBits a) (intBits b)`. -/
 theorem intBits_emod_le_max (a b : ℤ) : intBits (a.emod b) ≤ max (intBits a) (intBits b) := by
-  by_cases hb : b = 0
-  · subst hb
-    change intBits (a % 0) ≤ _
-    rw [Int.emod_zero]
-    exact le_max_left _ _
+  rcases eq_or_ne b 0 with rfl | hb
+  · exact le_of_eq_of_le (congrArg intBits (Int.emod_zero a)) (le_max_left _ _)
   · exact (intBits_emod_le_of_ne_zero a hb).trans (le_max_right _ _)
 
 /-- Reducing modulo `2 ^ ℓ` produces an integer of sign-magnitude bit length at most `ℓ + 1`. -/
@@ -546,22 +532,20 @@ open Turing MultiTapeTM
 
 private theorem nat_choose_eq_ite (m j : ℕ) :
     m.choose j = if j ≤ m then m.factorial / (j.factorial * (m - j).factorial) else 0 := by
-  by_cases h : j ≤ m
-  · rw [ite_eq_left h]
-    exact Nat.choose_eq_factorial_div_factorial h
-  · rw [ite_eq_right h]
-    exact Nat.choose_eq_zero_of_lt (Nat.lt_of_not_ge h)
+  split_ifs with h
+  · exact Nat.choose_eq_factorial_div_factorial h
+  · exact Nat.choose_eq_zero_of_lt (not_le.mp h)
 
-private theorem unary_choose_intBin :
-    ComputableInPolyTime (fun p : ℕ × ℕ => (p.1.choose p.2 : ℤ))
-      (encPair encUnary encUnary) encIntBin := by
-  have hle : ComputableInPolyTime (fun p : ℕ × ℕ => decide (p.2 ≤ p.1))
-      (encPair encUnary encUnary) encBool := by fun_prop
+@[local fun_prop]
+private theorem computableInPolyTime_choose_intBin {α : Type} {encIn : α ↪ List Bool}
+    {m j : α → ℕ} (hm : ComputableInPolyTime m encIn encUnary)
+    (hj : ComputableInPolyTime j encIn encUnary) :
+    ComputableInPolyTime (fun x => ((m x).choose (j x) : ℤ)) encIn encIntBin := by
+  have hle : ComputableInPolyTime (fun x => decide (j x ≤ m x)) encIn encBool := by fun_prop
   have hdiv : ComputableInPolyTime
-      (fun p : ℕ × ℕ => ((p.1.factorial / (p.2.factorial * (p.1 - p.2).factorial) : ℕ) : ℤ))
-      (encPair encUnary encUnary) encIntBin := by fun_prop
-  have h := hle.ite_decide hdiv (.const 0)
-  refine h.of_enc_eq fun ⟨m, j⟩ => congrArg encIntBin ?_
+      (fun x => (((m x).factorial / ((j x).factorial * (m x - j x).factorial) : ℕ) : ℤ))
+      encIn encIntBin := by fun_prop
+  refine (hle.ite_decide hdiv (.const 0)).of_enc_eq fun x => congrArg encIntBin ?_
   simp only [nat_choose_eq_ite]
   split_ifs <;> rfl
 
@@ -579,41 +563,7 @@ theorem computableInPolyTime_hermiteRows {nodes : α → List ℤ} {J : α → �
     (hnodes : ComputableInPolyTime nodes encIn (encList encIntBin))
     (hJ : ComputableInPolyTime J encIn encUnary) :
     ComputableInPolyTime (fun x => hermiteRows (nodes x) (J x)) encIn encIntTable := by
-  have hdim : ComputableInPolyTime (fun x => (nodes x).length * J x) encIn encUnary := by
-    fun_prop
-  have hentry : ComputableInPolyTime
-      (fun q : ((α × ℤ) × ℕ) × ℕ => (q.2.choose q.1.2 : ℤ) * q.1.1.2 ^ (q.2 - q.1.2))
-      (encPair (encPair (encPair encIn encIntBin) encUnary) encUnary) encIntBin := by
-    have hchoose : ComputableInPolyTime
-        (fun q : ((α × ℤ) × ℕ) × ℕ => (q.2.choose q.1.2 : ℤ))
-        (encPair (encPair (encPair encIn encIntBin) encUnary) encUnary) encIntBin :=
-      unary_choose_intBin.comp ((ComputableInPolyTime.snd _ _).prod
-        ((ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)))
-    have hpow : ComputableInPolyTime
-        (fun q : ((α × ℤ) × ℕ) × ℕ => q.1.1.2 ^ (q.2 - q.1.2))
-        (encPair (encPair (encPair encIn encIntBin) encUnary) encUnary) encIntBin := by fun_prop
-    exact ComputableInPolyTime.intBin_mul' hchoose hpow
-  have hrow : ComputableInPolyTime
-      (fun p : (α × ℤ) × ℕ =>
-        (List.range ((nodes p.1.1).length * J p.1.1)).map fun m =>
-          (m.choose p.2 : ℤ) * p.1.2 ^ (m - p.2))
-      (encPair (encPair encIn encIntBin) encUnary) (encList encIntBin) :=
-    ComputableInPolyTime.mapWithInput
-      (ComputableInPolyTime.range.comp
-        (hdim.comp ((ComputableInPolyTime.fst _ _).comp
-          (ComputableInPolyTime.fst _ _))))
-      hentry
-  have hblock : ComputableInPolyTime
-      (fun p : α × ℤ =>
-        (List.range (J p.1)).map fun j =>
-          (List.range ((nodes p.1).length * J p.1)).map fun m =>
-            (m.choose j : ℤ) * p.2 ^ (m - j))
-      (encPair encIn encIntBin) (encList (encList encIntBin)) :=
-    ComputableInPolyTime.mapWithInput
-      (ComputableInPolyTime.range.comp
-        (hJ.comp (ComputableInPolyTime.fst _ _)))
-      hrow
-  exact ComputableInPolyTime.flatMapWithInput hnodes hblock
+  fun_prop [hermiteRows]
 
 /-- `hermiteRows` is computable in polynomial time on `encHermiteNodes`. -/
 theorem hermiteRows_polytime :

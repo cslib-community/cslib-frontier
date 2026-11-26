@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Word
+import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # Shared reached-state reasoning for native Dijkstra clients
@@ -61,9 +62,7 @@ theorem relax_valid_queue {n K V : ℕ}
   · rw [hd] at hv
     exact hv.2.2.2.1
   · intro hc
-    rw [hd] at hv
-    dsimp only at hv
-    rw [ite_eq_left hc] at hv
+    simp only [hd, ite_eq_left hc] at hv
     exact hv.2.2.2.1
 
 
@@ -76,10 +75,8 @@ theorem remainingEdges_cons {n K V : ℕ} (u : Fin n) (du b i : ℕ) (hi : i < b
     remainingEdges (K := K) (V := V) u du b i = (do
       relaxEdge u du i
       remainingEdges u du b (i + 1)) := by
-  unfold remainingEdges
   have he : b - i = (b - (i + 1)) + 1 := by omega
-  rw [he, List.range'_succ]
-  rfl
+  rw [remainingEdges, he, List.range'_succ]; rfl
 
 /-- A valid scan suffix retains the refinement invariant and next suffix validity. -/
 theorem remainingEdges_step {n K V w : ℕ}
@@ -98,9 +95,7 @@ theorem remainingEdges_step {n K V w : ℕ}
   rw [remainingEdges_cons u du b i hi, StateTransitionSpec.clientHistory_bind,
     StateTransitionSpec.validHistory_append, StateTransitionSpec.run_runClient] at hv
   obtain ⟨_, _, he, hinv'⟩ := M.simulates_client (relaxEdge u du i) hinv hv.1
-  refine ⟨hv.1, hinv', ?_⟩
-  rw [he]
-  exact hv.2
+  exact ⟨hv.1, hinv', he.symm ▸ hv.2⟩
 
 /-- An admissible `scan u du` history supplies an admissible `remainingEdges` suffix from `0`. -/
 theorem scan_valid_remainingEdges {n K V : ℕ}
@@ -128,18 +123,14 @@ theorem loopStepWord_result_le (extract : Memory.Prog (Option (ℕ × ℕ)))
     (Memory.spec 0).clientResult s (loopStepWord extract ins dec T A n x) ≤ x.2 - 1 := by
   unfold loopStepWord
   rw [StateTransitionSpec.clientResult_bind]
-  cases he : (Memory.spec 0).clientResult s extract with
-  | none =>
-    change 0 ≤ x.2 - 1
-    omega
+  cases (Memory.spec 0).clientResult s extract with
+  | none => exact Nat.zero_le _
   | some e =>
     rcases e with ⟨u, du⟩
     by_cases hu : u < n
-    · simp only [ite_eq_left hu, StateTransitionSpec.clientResult_bind]
-      rfl
+    · simp only [ite_eq_left hu, StateTransitionSpec.clientResult_bind]; rfl
     · simp only [ite_eq_right hu]
-      change 0 ≤ x.2 - 1
-      omega
+      exact Nat.zero_le _
 
 /-- One original abstract extraction and scan, with its early-exit round counter. -/
 @[expose] def abstractLoopStep {n K V : ℕ} (a : ℕ) : (spec n K V).Client ℕ := do
@@ -190,29 +181,22 @@ theorem indexed_step_keys {n K : ℕ} (s : IndexedMinPQ.State n) (o : IndexedMin
     (hb : ∀ v k, s v = some k → k ≤ K) :
     ∀ v k, (IndexedMinPQ.step s o).1 v = some k → k ≤ K := by
   cases o with
-  | isEmpty => exact hb
-  | getKey _ => exact hb
+  | isEmpty | getKey _ => exact hb
   | insert u d | decreaseKey u d =>
     intro v k hk
-    by_cases h : v = u
-    · subst v
-      simp only [IndexedMinPQ.step, Function.update_self] at hk
-      cases hk
-      exact hv.2
-    · apply hb v k
-      simpa only [IndexedMinPQ.step, Function.update_of_ne h] using hk
+    rcases eq_or_ne v u with rfl | h
+    · simp only [IndexedMinPQ.step, Function.update_self, Option.some.injEq] at hk
+      exact hk ▸ hv.2
+    · exact hb v k (by simpa only [IndexedMinPQ.step, Function.update_of_ne h] using hk)
   | extractMin =>
     cases hf : IndexedMinPQ.findMin s with
     | none => simpa only [IndexedMinPQ.step, hf] using hb
     | some e =>
       rcases e with ⟨u, d⟩
       intro v k hk
-      by_cases h : v = u
-      · subst v
-        simp only [IndexedMinPQ.step, hf, Function.update_self] at hk
-        contradiction
-      · apply hb v k
-        simpa only [IndexedMinPQ.step, hf, Function.update_of_ne h] using hk
+      rcases eq_or_ne v u with rfl | h
+      · simp [IndexedMinPQ.step, hf] at hk
+      · exact hb v k (by simpa only [IndexedMinPQ.step, hf, Function.update_of_ne h] using hk)
 
 /-- A Dijkstra-interface step preserves the bound on every queued key. -/
 theorem composite_step_keys {n K V : ℕ} (s : (spec n K V).State)
@@ -273,17 +257,11 @@ theorem scan_while_safe {n K V w : ℕ}
       simp only [client_simps]
     have hstate : (Memory.spec 0).clientState s (do step a; pure (a + 1)) =
         (Memory.spec w).clientState s (link M.methods (relaxEdge u du a)) := by
-      rw [StateTransitionSpec.clientState_bind]
-      change (Memory.spec 0).clientState s (step a) = _
-      rw [← clientState_width w, heq]
+      simpa only [client_simps, heq] using (clientState_width w (step a) s).symm
     refine ⟨⟨hsafe a s ha hi.2.1 hfirst, hfit.of_le (by omega)⟩, ?_, ?_⟩
-    · change I ((Memory.spec 0).clientResult s (do step a; pure (a + 1)))
-        ((Memory.spec 0).clientState s (do step a; pure (a + 1)))
-      rw [hres, hstate]
+    · simp only [I, hres, hstate]
       exact ⟨by omega, hinv, hrest⟩
-    · change b - (Memory.spec 0).clientResult s (do step a; pure (a + 1)) < b - a
-      rw [hres]
-      omega
+    · simp only [hres]; omega
 
 /-- The original remaining-round history and a strictly decreasing native counter justify a
 complete early-exit loop. The existing key invariant is retained through every abstract step. -/
@@ -318,15 +296,12 @@ theorem loop_while_safe {n K V w : ℕ} {ε : Type}
     have hp := hi.2.2
     rw [loop_eq_step a (by omega), StateTransitionSpec.clientHistory_bind,
       StateTransitionSpec.validHistory_append, StateTransitionSpec.run_runClient] at hp
-    have hs := M.simulates_client (abstractLoopStep a) hi.1 hp.1
+    obtain ⟨_, hres, hst, hinv⟩ := M.simulates_client (abstractLoopStep a) hi.1 hp.1
     refine ⟨hsafe a s hpos hi.1 hi.2.1 hp.1, ?_, ?_⟩
     · rw [heq, ← clientResult_width w, ← clientState_width w]
-      refine ⟨hs.2.2.2, ?_, ?_⟩
-      · rw [hs.2.2.1]
-        exact client_keys (M.abs s) (abstractLoopStep a) hp.1 hi.2.1
-      · rw [hs.2.2.1, hs.2.1]
-        exact hp.2
-    · have hl := hdown a s
+      exact ⟨hinv, hst ▸ client_keys (M.abs s) (abstractLoopStep a) hp.1 hi.2.1,
+        hst ▸ hres ▸ hp.2⟩
+    · have := hdown a s
       omega
 
 /-- Running an erased native `extractMin` on an admissible `abstractLoopStep` state either yields
@@ -367,14 +342,10 @@ theorem abstractLoopStep_extract {n K V w a : ℕ}
   have hrmap : (Memory.spec 0).clientResult s extract =
       Option.map (fun p => (p.1.val, p.2))
         ((spec n K V).clientResult (M.abs s) (queue .extractMin)) := by
-    rw [hex, ← PFunctor.FreeM.bind_pure_comp, StateTransitionSpec.clientResult,
-      StateTransitionSpec.runClient_bind]
-    simp only [Function.comp_apply, StateTransitionSpec.runClient_pure']
-    exact congrArg (Option.map fun p : Fin n × ℕ => (p.1.val, p.2)) hres
+    rw [hex, StateTransitionSpec.clientResult]
+    simp only [client_simps, hres]
   have hsmap : (Memory.spec 0).clientState s extract = (Memory.spec 0).clientState s q := by
-    rw [hex, ← PFunctor.FreeM.bind_pure_comp, StateTransitionSpec.clientState,
-      StateTransitionSpec.runClient_bind]
-    rfl
+    simp only [hex, StateTransitionSpec.clientState, client_simps]
   cases hq : (spec n K V).clientResult (M.abs s) (queue .extractMin) with
   | none => exact Or.inl (by simp only [hrmap, hq, Option.map_none])
   | some uk =>
@@ -391,8 +362,7 @@ theorem abstractLoopStep_extract {n K V w a : ℕ}
     have htail := hv.2
     rw [hq] at htail
     dsimp only at htail
-    rw [StateTransitionSpec.clientHistory_bind, StateTransitionSpec.validHistory_append,
-      StateTransitionSpec.run_runClient] at htail
+    rw [StateTransitionSpec.clientHistory_bind, StateTransitionSpec.validHistory_append] at htail
     exact htail.1
 
 /-- Installing the source distance word at `f + G.source.val` and executing the queue insertion
@@ -438,14 +408,10 @@ theorem initial_loop_safe_insert {K V w f : ℕ}
     rw [hpeq, StateTransitionSpec.clientState_bind]
     exact clientState_width _ _ _
   rw [hs] at hstate hinv
-  refine ⟨hinv, ?_, ?_⟩
-  · rw [hstate]
-    apply client_keys (M.abs s) p hv.1
-    intro v k hk
-    rw [habs] at hk
-    change (none : Option ℕ) = some k at hk
-    cases hk
-  · rw [hstate]
-    exact hv.2
+  refine ⟨hinv, ?_, hstate ▸ hv.2⟩
+  rw [hstate]
+  refine client_keys (M.abs s) p hv.1 fun v k hk => ?_
+  rw [habs] at hk
+  cases hk
 
 end Cslib.Algorithms.Lean.Dijkstra.Native

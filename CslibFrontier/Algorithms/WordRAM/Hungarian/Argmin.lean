@@ -62,9 +62,6 @@ theorem exec_argminCode {w n bC M W : ℕ} {c : Fin n × Fin n → ℤ} {r : Fin
     obtain ⟨hr, hmem, hbAt⟩ := hy
     let j : Fin n := ⟨y.regs idx, hlt⟩
     have hby : BaseRegs n bC M y := hb.of_eq fun i hi => hr i (by omega)
-    have hf1 : Fits w (bC + n * n + 3 * n + y.regs idx) := hfit.of_le (by omega)
-    have hf2 : Fits w (bC + n * n + 5 * n + y.regs idx) := hfit.of_le (by omega)
-    have hf3 : Fits w (y.regs idx + 1) := hfit.of_le (by omega)
     have hused_j : y.mem (bC + n * n + 3 * n + y.regs idx) =
         if vget s.used j = true then 1 else 0 := by
       rw [hmem]
@@ -79,30 +76,22 @@ theorem exec_argminCode {w n bC M W : ℕ} {c : Fin n × Fin n → ℤ} {r : Fin
     refine WP.exists_execWithin ?_
     unfold argminBody
     by_cases hu : vget s.used j = true
-    · have hu_val : (if vget s.used j = true then 1 else 0) = 1 := ite_eq_left hu
-      wram_exec [hby.hbaseUsed, hby.hzero, hby.hone, hused_j, hu_val, hf1, hf3]
+    · wram_exec [hby.hbaseUsed, hby.hzero, hby.hone, hused_j, hu]
       refine ⟨⟨fun i hi => by wram_simp [hr i hi], hmem, ?_⟩, by wram_simp⟩
-      rw [hb_step]
-      unfold hgArgminStep
-      rw [ite_eq_left hu]
-      cases hbk : bAt (y.regs idx) with
-      | none =>
-        rw [hbk] at hbAt
-        wram_simp [hbAt]
-      | some j₀ =>
-        rw [hbk] at hbAt
-        exact ⟨by wram_simp [hbAt.1], by wram_simp [hbAt.2]⟩
+      rw [hb_step, hgArgminStep.eq_def, ite_eq_left hu]
+      cases hbk : bAt (y.regs idx) <;> rw [hbk] at hbAt
+      · wram_simp [hbAt]
+      · constructor
+        · wram_simp [hbAt.1]
+        · wram_simp [hbAt.2]
     · have huf : vget s.used j = false := Bool.eq_false_iff.mpr hu
-      have hu_val : (if vget s.used j = true then 1 else 0) = 0 := ite_eq_right hu
       cases hbk : bAt (y.regs idx) with
       | none =>
         rw [hbk] at hbAt
         wram_exec [hby.hbaseUsed, hby.hbaseMinv, hby.hzero, hby.hone, hby.hrn,
-          hused_j, hu_val, hminv_j, hbAt, hf1, hf2, hf3]
+          hused_j, huf, hminv_j, hbAt]
         refine ⟨⟨fun i hi => by wram_simp [hr i hi], hmem, ?_⟩, by wram_simp⟩
-        rw [hb_step]
-        unfold hgArgminStep
-        rw [ite_eq_right hu, hbk]
+        rw [hb_step, hgArgminStep.eq_def, ite_eq_right hu, hbk]
         exact ⟨by wram_simp; rfl, by wram_simp⟩
       | some j₀ =>
         rw [hbk] at hbAt
@@ -110,26 +99,15 @@ theorem exec_argminCode {w n bC M W : ℕ} {c : Fin n × Fin n → ℤ} {r : Fin
         have hj₀_ne : j₀.val ≠ n := ne_of_lt j₀.isLt
         have hm_j := (hSI.minv_bounds j).1
         have hm_j₀ := (hSI.minv_bounds j₀).1
-        by_cases hlt_m : (vget s.minv j).toNat < (vget s.minv j₀).toNat
-        · have hlt_z : vget s.minv j < vget s.minv j₀ := by omega
-          wram_exec [hby.hbaseUsed, hby.hbaseMinv, hby.hzero, hby.hone, hby.hrn,
-            hused_j, hu_val, hminv_j, hrj1, hrdelta, hj₀_ne, hlt_m, hf1, hf2, hf3]
+        wram_exec [hby.hbaseUsed, hby.hbaseMinv, hby.hzero, hby.hone, hby.hrn,
+          hused_j, huf, hminv_j, hrj1, hrdelta, hj₀_ne]
+        all_goals
           refine ⟨⟨fun i hi => by wram_simp [hr i hi], hmem, ?_⟩, by wram_simp⟩
-          rw [hb_step]
-          unfold hgArgminStep
-          rw [ite_eq_right hu, hbk]
+          rw [hb_step, hgArgminStep.eq_def, ite_eq_right hu, hbk]
           dsimp only
-          rw [ite_eq_left hlt_z]
+        · rw [ite_eq_left (show vget s.minv j < vget s.minv j₀ by omega)]
           exact ⟨by wram_simp; rfl, by wram_simp⟩
-        · have hlt_z : ¬vget s.minv j < vget s.minv j₀ := by omega
-          wram_exec [hby.hbaseUsed, hby.hbaseMinv, hby.hzero, hby.hone, hby.hrn,
-            hused_j, hu_val, hminv_j, hrj1, hrdelta, hj₀_ne, hlt_m, hf1, hf2, hf3]
-          refine ⟨⟨fun i hi => by wram_simp [hr i hi], hmem, ?_⟩, by wram_simp⟩
-          rw [hb_step]
-          unfold hgArgminStep
-          rw [ite_eq_right hu, hbk]
-          dsimp only
-          rw [ite_eq_right hlt_z]
+        · rw [ite_eq_right (show ¬vget s.minv j < vget s.minv j₀ by omega)]
           exact ⟨by wram_simp [hrj1], by wram_simp [hrdelta]⟩
   have hsetup : ∃ y₀,
       ExecWithin w (ram[ rj1 ← rn; rdelta ← #0; idx ← #0 ] : Code .standard 28) x y₀ 3 ∧

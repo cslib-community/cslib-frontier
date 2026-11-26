@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.InEpoch
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.SlotOps.Env
 import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.SlotOps.Internal
+import CslibFrontier.DataStructure.StateTransition.ClientMap
 
 /-!
 # Compacted `GlobalMeta` Slab Push (`compGmPushSlabGenProg`)
@@ -47,8 +48,9 @@ open Cslib.DataStructure.HashFamily.WordRAM
 
 attribute [local simp] Realization.memoryCost_bind'
 attribute [local simp] prog_clientResult_bind prog_runClient_state_bind prog_clientResult_pure
-attribute [local simp] prog_runClient_state_pure prog_clientResult_map prog_runClient_state_map
-attribute [local simp] prog_memoryCost_map prog_clientResult_read prog_runClient_state_read
+attribute [local simp] prog_runClient_state_pure StateTransitionSpec.clientResult_map
+  StateTransitionSpec.fst_snd_runClient_map
+attribute [local simp] Realization.memoryCost_map prog_clientResult_read prog_runClient_state_read
 attribute [local simp] prog_memoryCost_read prog_clientResult_write prog_runClient_state_write
 attribute [local simp] prog_memoryCost_write
 
@@ -66,17 +68,20 @@ private theorem clientState_compGmPushReadProg (d : (CompParams × ℕ) × ℕ) 
   rcases d with ⟨⟨cp, metaBase⟩, b⟩
   unfold StateTransitionSpec.clientState; simp [compGmPushReadProg]
 
+private theorem gmPush_q_indices {N b : ℕ} (hb_pos : 0 < bucketBits N) (hb : b < numBuckets N) :
+    gmQIdx b < globalMetaLen N ∧ 4 + (b + b + b) = gmQIdx b ∧
+    gmSlabTopIdx b < globalMetaLen N ∧ gmQIdx b + 2 = gmSlabTopIdx b ∧
+    0 < globalMetaLen N :=
+  ⟨gmQIdx_lt hb_pos hb, by simp only [gmQIdx]; omega, gmSlabTopIdx_lt hb_pos hb, rfl,
+    by simp only [globalMetaLen]; omega⟩
+
 private theorem clientResult_compGmPushReadProg {U V w N metaBase b : ℕ}
     (hb_pos : 0 < bucketBits N) (hb : b < numBuckets N) (s : Memory.State) :
     (Memory.spec 0).clientResult s
         (compGmPushReadProg ((mkCompParams U V w N, metaBase), b)) =
       ((compGmAt metaBase U w N s.mem (gmQIdx b), compGmAt metaBase U w N s.mem 0),
         compGmAt metaBase U w N s.mem (gmSlabTopIdx b)) := by
-  have hq_idx_lt : gmQIdx b < globalMetaLen N := gmQIdx_lt hb_pos hb
-  have hq_eq : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
-  have htop_idx_lt : gmSlabTopIdx b < globalMetaLen N := gmSlabTopIdx_lt hb_pos hb
-  have htop_eq : gmQIdx b + 2 = gmSlabTopIdx b := rfl
-  have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
+  obtain ⟨hq_idx_lt, hq_eq, htop_idx_lt, htop_eq, h0_lt⟩ := gmPush_q_indices hb_pos hb
   dsimp only [compGmPushReadProg]
   rw [hq_eq, StateTransitionSpec.clientResult_bind, clientResult_readCompGMGenProg hq_idx_lt,
     clientState_readCompGMGenProg, StateTransitionSpec.clientResult_bind,
@@ -169,18 +174,14 @@ theorem compGmPushSlabGenProg_effect {metaBase itemBase U V w N m_items b : ℕ}
     compGmAt metaBase U w N s'.mem = gmPushSlab N (compGmAt metaBase U w N s.mem) b := by
   intro s'
   let gm := compGmAt metaBase U w N s.mem
-  have hq_idx_lt : gmQIdx b < globalMetaLen N := gmQIdx_lt hb_pos hb
-  have hq_eq : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
-  have htop_idx_lt : gmSlabTopIdx b < globalMetaLen N := gmSlabTopIdx_lt hb_pos hb
-  have htop_eq : gmQIdx b + 2 = gmSlabTopIdx b := rfl
-  have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
+  obtain ⟨hq_idx_lt, hq_eq, htop_idx_lt, htop_eq, h0_lt⟩ := gmPush_q_indices hb_pos hb
   have hownB_lt : gmSlabOwnerBIdx N (gm 0) < globalMetaLen N := gmSlabOwnerBIdx_lt hb_pos hp_lt
-  have hownS_lt : gmSlabOwnerSIdx N (gm 0) < globalMetaLen N := gmSlabOwnerSIdx_lt hb_pos hp_lt
-  have hbel_lt : gmSlabBelowIdx N (gm 0) < globalMetaLen N := gmSlabBelowIdx_lt hb_pos hp_lt
+  have hownS_lt : gmSlabOwnerBIdx N (gm 0) + 1 < globalMetaLen N := gmSlabOwnerSIdx_lt hb_pos hp_lt
+  have hbel_lt : gmSlabOwnerBIdx N (gm 0) + 2 < globalMetaLen N := gmSlabBelowIdx_lt hb_pos hp_lt
   have habv_lt : 0 < gm (gmQIdx b) → gmSlabAboveIdx N (gm (gmSlabTopIdx b)) < globalMetaLen N :=
     fun hq_pos => gmSlabAboveIdx_lt hb_pos ((hslab.top_lt hb hq_pos).trans hp_lt)
   have hdir_lt : gm (gmQIdx b) < dirSlabsPerBucket N →
-      gmSlabDirIdx N b (gm (gmQIdx b)) < globalMetaLen N :=
+      gmSlabDirBase N + b * dirSlabsPerBucket N + gm (gmQIdx b) < globalMetaLen N :=
     fun hdir => gmSlabDirIdx_lt hb_pos hb hdir
   have hmax_le : maxFullSlabs N ≤ N := maxFullSlabs_le N
   have hq_le_p : gm (gmQIdx b) ≤ gm 0 := q_le_nslabs_of_slabBijection hslab hb
@@ -199,81 +200,35 @@ theorem compGmPushSlabGenProg_effect {metaBase itemBase U V w N m_items b : ℕ}
       (gm (gmSlabTopIdx b) + gm (gmSlabTopIdx b) +
         (gm (gmSlabTopIdx b) + gm (gmSlabTopIdx b))) + 3 =
       gmSlabAboveIdx N (gm (gmSlabTopIdx b)) := by unfold gmSlabAboveIdx; omega
-  have hrd_st := clientState_compGmPushReadProg ((mkCompParams U V w N, metaBase), b) s
-  have hrd_res : (Memory.spec 0).clientResult s
-      (compGmPushReadProg ((mkCompParams U V w N, metaBase), b)) =
-      ((gm (gmQIdx b), gm 0), gm (gmSlabTopIdx b)) :=
-    clientResult_compGmPushReadProg hb_pos hb s
-  let s_own := (Memory.spec 0).clientState
-    ((Memory.spec 0).clientState
-      ((Memory.spec 0).clientState s
-        (writeCompGMGenProg (((mkCompParams U V w N, metaBase), gmSlabOwnerBIdx N (gm 0)), b)))
-      (writeCompGMGenProg (((mkCompParams U V w N, metaBase),
-        gmSlabOwnerSIdx N (gm 0)), gm (gmQIdx b))))
-    (writeCompGMGenProg (((mkCompParams U V w N, metaBase),
-      gmSlabBelowIdx N (gm 0)), gm (gmSlabTopIdx b)))
-  have hown_st : (Memory.spec 0).clientState s
-      (compGmPushWriteOwnerProg ((((mkCompParams U V w N, metaBase), (b, gm (gmQIdx b))),
-        (gm 0, gm (gmSlabTopIdx b))))) = s_own := by
-    dsimp only [compGmPushWriteOwnerProg, cpGmSlabMetaBase_mk, gmSlabOwnerSIdx, gmSlabBelowIdx,
-      s_own, gm]
-    dsimp only [gm] at hp4
-    rw [hp4]
-    repeat rw [StateTransitionSpec.clientState_bind]
-    rfl
-  let s_lnk := (Memory.spec 0).clientState
-    ((Memory.spec 0).clientState s_own
-      (if 0 < gm (gmQIdx b) then
-        writeCompGMGenProg (((mkCompParams U V w N, metaBase),
-          gmSlabAboveIdx N (gm (gmSlabTopIdx b))), gm 0)
-      else pure ()))
-    (if gm (gmQIdx b) < dirSlabsPerBucket N then
-      writeCompGMGenProg (((mkCompParams U V w N, metaBase),
-        gmSlabDirIdx N b (gm (gmQIdx b))), gm 0)
-    else pure ())
-  have hlnk_st : (Memory.spec 0).clientState s_own
-      (compGmPushWriteLinksProg ((((mkCompParams U V w N, metaBase), (b, gm (gmQIdx b))),
-        (gm 0, gm (gmSlabTopIdx b))))) = s_lnk := by
-    dsimp only [compGmPushWriteLinksProg, cpGmSlabMetaBase_mk, cpDirSlabs_mk, cpGmSlabDirBase_mk,
-      gmSlabDirIdx, s_lnk, gm]
-    dsimp only [gm] at ht4
-    rw [ht4, StateTransitionSpec.clientState_bind]
-    rfl
-  have hst : s' = (Memory.spec 0).clientState
-      ((Memory.spec 0).clientState
-        ((Memory.spec 0).clientState s_lnk
-          (writeCompGMGenProg (((mkCompParams U V w N, metaBase), gmSlabTopIdx b), gm 0)))
-        (writeCompGMGenProg (((mkCompParams U V w N, metaBase), gmQIdx b), gm (gmQIdx b) + 1)))
-      (writeCompGMGenProg (((mkCompParams U V w N, metaBase), 0), gm 0 + 1)) := by
-    change (Memory.spec 0).clientState s _ = _
-    dsimp only [compGmPushSlabGenProg]
-    rw [StateTransitionSpec.clientState_bind, hrd_st, hrd_res]
-    dsimp only [compGmPushApplyProg]
-    rw [StateTransitionSpec.clientState_bind, hown_st,
-      StateTransitionSpec.clientState_bind, hlnk_st]
-    dsimp only [compGmPushFinishProg, gm]
-    rw [hq_eq, htop_eq]
-    repeat rw [StateTransitionSpec.clientState_bind]
+  dsimp only [gm] at *
+  dsimp only [s', compGmPushSlabGenProg]
+  rw [StateTransitionSpec.clientState_bind, clientState_compGmPushReadProg,
+    clientResult_compGmPushReadProg hb_pos hb]
+  dsimp only [compGmPushApplyProg, compGmPushWriteOwnerProg, compGmPushWriteLinksProg,
+    compGmPushFinishProg, cpGmSlabMetaBase_mk, cpDirSlabs_mk, cpGmSlabDirBase_mk]
+  rw [hp4, ht4, hq_eq, htop_eq]
+  repeat rw [StateTransitionSpec.clientState_bind]
   obtain ⟨hf1, hg1⟩ := compGmFrame_writeCompGMGenProg (m_items := m_items) hw hitem hownB_lt
     hb_val s
   obtain ⟨hf2, hg2⟩ := compGmFrame_writeCompGMGenProg (m_items := m_items) hw hitem hownS_lt
     hq_val _
   obtain ⟨hf3, hg3⟩ := compGmFrame_writeCompGMGenProg (m_items := m_items) hw hitem hbel_lt
     htop_val _
-  obtain ⟨hf4, hg4⟩ := compGmFrame_writeCompGM_ite (m_items := m_items) (0 < gm (gmQIdx b))
-    hw hitem habv_lt (fun _ => hp_val) _
-  obtain ⟨hf5, hg5⟩ := compGmFrame_writeCompGM_ite (m_items := m_items)
-    (gm (gmQIdx b) < dirSlabsPerBucket N) hw hitem hdir_lt (fun _ => hp_val) _
+  obtain ⟨hf4, hg4⟩ := compGmFrame_writeCompGM_ite (m_items := m_items) _ hw hitem habv_lt
+    (fun _ => hp_val) _
+  obtain ⟨hf5, hg5⟩ := compGmFrame_writeCompGM_ite (m_items := m_items) _ hw hitem hdir_lt
+    (fun _ => hp_val) _
   obtain ⟨hf6, hg6⟩ := compGmFrame_writeCompGMGenProg (m_items := m_items) hw hitem htop_idx_lt
     hp_val _
   obtain ⟨hf7, hg7⟩ := compGmFrame_writeCompGMGenProg (m_items := m_items) hw hitem hq_idx_lt
     hq1_val _
   obtain ⟨hf8, hg8⟩ := compGmFrame_writeCompGMGenProg (m_items := m_items) hw hitem h0_lt
     hp1_val _
-  rw [hst]
   refine ⟨hf1.trans (hf2.trans (hf3.trans (hf4.trans (hf5.trans (hf6.trans (hf7.trans hf8)))))),
     ?_⟩
-  rw [hg8, hg7, hg6, hg5, hg4, hg3, hg2, hg1]; rfl
+  -- `dsimp` leaves `cpDirSlabs` in a `Decidable` instance, so match the goal up to defeq.
+  refine hg8.trans ?_
+  rw [hg7, hg6, hg5, hg4, hg3, hg2, hg1]; rfl
 
 private def CompGmPushMetaPre (w : ℕ) :
     ((CompParams × ℕ) × (ℕ × ℕ)) × (ℕ × ℕ) → Memory.State → Prop
@@ -339,9 +294,7 @@ private theorem realizesBounded_compGmPushWriteLinks :
     have hdir_lt := gmSlabDirIdx_lt hb_pos hb hc_dir
     first
     | (refine ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, ?_⟩, ?_⟩
-       · by_cases hc0 : 0 < q_b
-         · simp [hc0, runClient_state_writeCompGMGenProg, hfr]
-         · simp [hc0, hfr]
+       · split_ifs <;> simp [runClient_state_writeCompGMGenProg, hfr]
        · simp only [cpN_mk]; unfold gmSlabDirIdx at hdir_lt; omega)
     | (refine fits_of_le_globalMetaLen_comp hb_pos hw hnU hU ?_
        unfold gmSlabDirIdx gmSlabDirBase at *; omega))
@@ -408,11 +361,9 @@ private theorem realizesBounded_compGmPushApply :
       StateTransitionSpec.clientState]
     simp only [prog_runClient_state_bind, StateTransitionSpec.clientState,
       runClient_state_writeCompGMGenProg]
-    by_cases hc0 : 0 < q_b
-    · by_cases hc1 : q_b < dirSlabsPerBucket N
-      · simp [hc0, hc1, runClient_state_writeCompGMGenProg, hfr]
-      · simp [hc0, hc1, hfr]
-    · by_cases hc1 : q_b < dirSlabsPerBucket N
+    by_cases hc1 : q_b < dirSlabsPerBucket N
+    · by_cases hc0 : 0 < q_b <;> simp [hc0, hc1, runClient_state_writeCompGMGenProg, hfr]
+    · by_cases hc0 : 0 < q_b
       · simp [hc0, hc1, runClient_state_writeCompGMGenProg, hfr]
       · simp [hc0, hc1, hfr]
 
@@ -426,11 +377,7 @@ private theorem realizesBounded_compGmPushRead :
   all_goals (
     rcases d with ⟨⟨cp, metaBase⟩, b⟩
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hb, hslab, hp_lt⟩ := h
-    have hq_idx_lt : gmQIdx b < globalMetaLen N := gmQIdx_lt hb_pos hb
-    have hq_eq : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
-    have htop_idx_lt : gmSlabTopIdx b < globalMetaLen N := gmSlabTopIdx_lt hb_pos hb
-    have htop_eq : gmQIdx b + 2 = gmSlabTopIdx b := rfl
-    have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
+    obtain ⟨hq_idx_lt, hq_eq, htop_idx_lt, htop_eq, h0_lt⟩ := gmPush_q_indices hb_pos hb
     simp only [hq_eq, htop_eq, StateTransitionSpec.clientState,
       runClient_state_readCompGMGenProg] at *)
   all_goals try exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, by simp only [cpN_mk]; omega⟩
@@ -460,11 +407,7 @@ theorem validProg_compGmPushSlabGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {
   have mkEnv : ∀ s' : Memory.State, s'.frontier = s.frontier →
       CompMetaEnv w (mkCompParams U V w N) metaBase s' :=
     fun s' hs' => ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hs' ▸ hfr⟩
-  have hq_lt : gmQIdx b < globalMetaLen N := gmQIdx_lt hb_pos hb
-  have hq_eq : 4 + (b + b + b) = gmQIdx b := by unfold gmQIdx; omega
-  have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
-  have htop_lt : gmSlabTopIdx b < globalMetaLen N := gmSlabTopIdx_lt hb_pos hb
-  have htop_eq : gmQIdx b + 2 = gmSlabTopIdx b := rfl
+  obtain ⟨hq_lt, hq_eq, htop_lt, htop_eq, h0_lt⟩ := gmPush_q_indices hb_pos hb
   have hownB_lt := gmSlabOwnerBIdx_lt hb_pos hp_lt
   have hownS_lt : gmSlabOwnerBIdx N (compGmAt metaBase U w N s.mem 0) + 1 < globalMetaLen N :=
     gmSlabOwnerSIdx_lt hb_pos hp_lt

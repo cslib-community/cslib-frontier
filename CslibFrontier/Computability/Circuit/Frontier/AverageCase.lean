@@ -83,15 +83,10 @@ noncomputable def correlation (S T : Set (ι → U)) : ℝ :=
 /-- Complementing the first set negates the correlation. -/
 @[simp]
 theorem correlation_compl_left (S T : Set (ι → U)) : correlation Sᶜ T = -correlation S T := by
-  have hs₁ : {x : ι → U | x ∈ Sᶜ ↔ x ∈ T} = {x | x ∈ S ↔ x ∈ Tᶜ} := by
-    ext x
-    simp only [mem_compl_iff, mem_ofPred_eq]
-    tauto
-  have hs₂ : {x : ι → U | x ∈ Sᶜ ↔ x ∈ Tᶜ} = {x | x ∈ S ↔ x ∈ T} := by
-    ext x
-    simp only [mem_compl_iff, mem_ofPred_eq]
-    tauto
-  rw [correlation, correlation, agreement, agreement, hs₁, hs₂, ← agreement, ← agreement, neg_sub]
+  have hs (A : Set (ι → U)) : {x | x ∈ Sᶜ ↔ x ∈ A} = {x | x ∈ S ↔ x ∈ Aᶜ} :=
+    Set.ext fun _ => by simp only [mem_compl_iff, mem_ofPred_eq]; tauto
+  rw [correlation, correlation, agreement, agreement, hs T, hs Tᶜ, compl_compl, ← agreement,
+    ← agreement, neg_sub]
 
 /-- Complementing the second set negates the correlation. -/
 @[simp]
@@ -106,10 +101,8 @@ variable [Finite ι] [Finite U]
 theorem agreement_add_agreement_compl [Nonempty U] (S T : Set (ι → U)) :
     agreement S T + agreement S Tᶜ = 1 := by
   have hN : (0 : ℝ) < Nat.card (ι → U) := by exact_mod_cast Nat.card_pos
-  have hcompl : {x : ι → U | x ∈ S ↔ x ∈ Tᶜ} = {x | x ∈ S ↔ x ∈ T}ᶜ := by
-    ext x
-    simp only [mem_compl_iff, mem_ofPred_eq]
-    tauto
+  have hcompl : {x : ι → U | x ∈ S ↔ x ∈ Tᶜ} = {x | x ∈ S ↔ x ∈ T}ᶜ :=
+    Set.ext fun _ => by simp only [mem_compl_iff, mem_ofPred_eq]; tauto
   rw [agreement, agreement, hcompl, ← add_div, div_eq_one_iff_eq hN.ne']
   exact_mod_cast ncard_add_ncard_compl _
 
@@ -166,15 +159,13 @@ theorem agreement_le {ι U : Type*} [Finite ι] [Finite U] [Nonempty U] {S T : S
     agreement S T ≤ (1 + β) / 2 + (R₁ + R₂) / (2 * Nat.card (ι → U)) := by
   have hN : (0 : ℝ) < Nat.card (ι → U) := by exact_mod_cast Nat.card_pos
   -- The agreeing inputs are those of `T` in `S` and those of `Tᶜ` outside `S`.
-  have hagree : {x | x ∈ S ↔ x ∈ T} = (T ∩ S) ∪ (Tᶜ \ S) := by
-    ext x
-    simp only [mem_ofPred_eq, mem_union, mem_inter_iff, Set.mem_sdiff, mem_compl_iff]
-    tauto
+  have hagree : {x | x ∈ S ↔ x ∈ T} = (T ∩ S) ∪ (Tᶜ \ S) :=
+    Set.ext fun _ => by
+      simp only [mem_ofPred_eq, mem_union, mem_inter_iff, Set.mem_sdiff, mem_compl_iff]; tauto
   have hdisj : Disjoint (T ∩ S) (Tᶜ \ S) := disjoint_left.mpr fun x hx hx' => hx'.1 hx.1
   have hcard : ({x | x ∈ S ↔ x ∈ T}.ncard : ℝ) = (T ∩ S).ncard + (Tᶜ \ S).ncard := by
     rw [hagree, ncard_union_eq hdisj]
-    push_cast
-    ring
+    exact Nat.cast_add _ _
   have hT : ((T ∩ S).ncard : ℝ) + (T \ S).ncard = T.ncard := by
     exact_mod_cast ncard_inter_add_ncard_sdiff_eq_ncard T S
   have hTc : ((Tᶜ ∩ S).ncard : ℝ) + (Tᶜ \ S).ncard = Tᶜ.ncard := by
@@ -188,9 +179,7 @@ theorem agreement_le {ι U : Type*} [Finite ι] [Finite U] [Nonempty U] {S T : S
   have hβ : β * T.ncard + β * Tᶜ.ncard = β * Nat.card (ι → U) := by rw [← htotal]; ring
   rw [agreement, div_le_iff₀ hN, hcard]
   have hRHS : ((1 + β) / 2 + (R₁ + R₂) / (2 * Nat.card (ι → U))) * Nat.card (ι → U) =
-      (1 + β) / 2 * Nat.card (ι → U) + (R₁ + R₂) / 2 := by
-    field_simp
-  rw [hRHS]
+      (1 + β) / 2 * Nat.card (ι → U) + (R₁ + R₂) / 2 := by field_simp
   linarith
 
 /-- A count whose base-`q` logarithm is at most `(1 - μ) n` is at most an
@@ -279,15 +268,13 @@ theorem agreement_le_of_unread {S : Set (Fin n → U)} {K : ℕ} {b : ℝ}
     (hu : K ≤ Nat.card U ^ (Compiler.network c I fun _ => Acc).readᶜ.ncard) :
     agreement S {x | c.eval I x 0 ∈ Acc} ≤
       1 / 2 + b + (Nat.card U * K ^ 2 : ℕ) / (Nat.card U : ℝ) ^ n := by
-  have bound (A : Set U) := hS.abs_signedCount_le_of_dependsOn hb
-    (Compiler.network c I fun _ => A).dependsOn_read hK hu
-  have h₁ := bound Acc
-  have h₂ := bound Accᶜ
-  rw [accepted_network_eq_eval] at h₁ h₂
-  have hN : (0 : ℝ) < (Nat.card U : ℝ) ^ n := by
-    have : 0 < Nat.card U := Nat.card_pos
-    positivity
-  refine (agreement_le h₁ h₂).trans (le_of_eq ?_)
+  have bound (A : Set U) : |signedCount S {x | c.eval I x 0 ∈ A}| ≤
+      2 * b * {x | c.eval I x 0 ∈ A}.ncard + (Nat.card U * K ^ 2 : ℕ) := by
+    rw [← accepted_network_eq_eval]
+    exact hS.abs_signedCount_le_of_dependsOn hb
+      (Compiler.network c I fun _ => A).dependsOn_read hK hu
+  have hN : (0 : ℝ) < (Nat.card U : ℝ) ^ n := pow_pos (Nat.cast_pos.mpr Nat.card_pos) n
+  refine (agreement_le (bound Acc) (bound Accᶜ)).trans_eq ?_
   rw [card_input_eq]
   field_simp
   ring
@@ -387,8 +374,7 @@ theorem MultiaryAverageCaseBound.mono {L L' : ℝ} (h : MultiaryAverageCaseBound
   intro ε hε
   obtain ⟨γ, hγ, H⟩ := h ε hε
   refine ⟨γ, hγ, fun U _ _ S K b hbias hK => ?_⟩
-  filter_upwards [H U S K b hbias hK] with n hn
-  intro σ I Acc c hfan hs
+  filter_upwards [H U S K b hbias hK] with n hn σ I Acc c hfan hs
   exact hn σ I Acc c hfan
     (hs.trans (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n)))
 
@@ -424,8 +410,7 @@ theorem AverageCaseBound.mono {L L' : ℝ} (h : AverageCaseBound.{u, v} L) (hL :
   intro ε hε
   obtain ⟨γ, hγ, H⟩ := h ε hε
   refine ⟨γ, hγ, fun U _ _ S K b hbias hK => ?_⟩
-  filter_upwards [H U S K b hbias hK] with n hn
-  intro σ I Acc c hfan hs
+  filter_upwards [H U S K b hbias hK] with n hn σ I Acc c hfan hs
   exact hn σ I Acc c hfan
     (hs.trans (mul_le_mul_of_nonneg_right (sub_le_sub_right hL ε) (Nat.cast_nonneg n)))
 
@@ -462,10 +447,7 @@ theorem multiaryAverageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout 
   intro σ I Acc c hfan hsize
   obtain ⟨c', heval, hfan_c', hmult, hsize_c'⟩ := c.exists_eval_eq_multiarySize_size_le I
   have hfan' : c'.FanInAtMost 2 := hfan_c' 2 hfan
-  have hacc_eq : {x : Fin n → U | c.eval I x 0 ∈ Acc} = {x | c'.eval I x 0 ∈ Acc} := by
-    ext x
-    simp [congrFun (congrFun heval x) 0]
-  rw [hacc_eq]
+  rw [← heval]
   have hK2 : 2 ≤ K' n := le_max_right _ _
   have hS : RectangleBias (S n) (K' n) (b n) := hbiasn.mono (le_max_left _ _)
   have hb : 0 ≤ b n := hS.nonneg (by
@@ -479,9 +461,8 @@ theorem multiaryAverageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout 
   by_cases hu : K' n ≤ q ^ (Compiler.network c' I fun _ => Acc).readᶜ.ncard
   · have hlog : Real.logb q ((q * K' n ^ 2 : ℕ) : ℝ) ≤ (1 - 1 / 2) * n := by
       push_cast
-      rw [Real.logb_mul (by positivity) (by positivity), Real.logb_pow,
+      rwa [Real.logb_mul (by positivity) (by positivity), Real.logb_pow,
         Real.logb_self_eq_one (by linarith)]
-      exact hsmalln
     linarith [agreement_le_of_unread I Acc c' hS hb (by omega) hu,
       div_pow_le_exp hq2 (by positivity) (by norm_num) hlog, hexp_mono _ (min_le_right _ _)]
   · push Not at hu
@@ -515,11 +496,9 @@ theorem multiaryAverageCaseBound_of_layoutBound {A : ℝ} (hA : 0 < A) (hlayout 
       have hlogV1 : 0 ≤ Real.log ((V : ℝ) + 1) :=
         Real.log_nonneg (by linarith [Nat.cast_nonneg (α := ℝ) V])
       have hlogbV : Real.logb q ((V : ℝ) + 1) ≤ κ * Real.log ((V : ℝ) + 1) := by
-        refine (logb_le_mul_log hq2 (by linarith [Nat.cast_nonneg (α := ℝ) V])).trans ?_
-        refine mul_le_mul_of_nonneg_right ?_ hlogV1
-        simp only [κ]
-        have hqq : (0 : ℝ) ≤ (q : ℝ) ^ q := by positivity
-        linarith [Nat.cast_nonneg (α := ℝ) q]
+        refine (logb_le_mul_log hq2 (by linarith [Nat.cast_nonneg (α := ℝ) V])).trans
+          (mul_le_mul_of_nonneg_right ?_ hlogV1)
+        linarith [Nat.cast_nonneg (α := ℝ) q, pow_nonneg (Nat.cast_nonneg (α := ℝ) q) q]
       simp only [e] at hmargin
       linarith
     linarith [agreement_le_of_layout I Acc c' hS hb hfan' hu π le_rfl,

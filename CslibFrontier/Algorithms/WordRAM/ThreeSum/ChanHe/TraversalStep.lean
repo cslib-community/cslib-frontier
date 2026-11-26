@@ -44,31 +44,21 @@ theorem body_skip {w : ℕ} {x y : Data 128} {e : Entry}
     (hskip : e.fuel = 0 ∨ (e.data 0).length = 0 ∨
       (e.data 1).length = 0 ∨ (e.data 2).length = 0) :
     ExecWithin w body x y 107 := by
-  have hf : y.regs (slot 0) = e.fuel := hl.1
-  have hn₀ : y.regs (slot 2) = (e.data 0).length := hl.2.2 0
-  have hn₁ : y.regs (slot 4) = (e.data 1).length := hl.2.2 1
-  have hn₂ : y.regs (slot 6) = (e.data 2).length := hl.2.2 2
+  have pos {r} {n : ℕ} (hr : y.regs r = n) (hn : n = 0) : (Cond.eq r zero).Holds y :=
+    hr.trans (hn.trans hz.symm)
+  have neg {r} {n : ℕ} (hr : y.regs r = n) (hn : n ≠ 0) : ¬(Cond.eq r zero).Holds y :=
+    fun hc => hn (hr.symm.trans (hc.trans hz))
   by_cases h₀ : e.fuel = 0
-  · exact (hp.seq (Exec.branch_pos
-      (by change y.regs (slot 0) = y.regs zero; omega) (copy_self y))).within.mono (by omega)
-  · by_cases h₁ : (e.data 0).length = 0
-    · exact (hp.seq (Exec.branch_neg
-        (by change ¬y.regs (slot 0) = y.regs zero; omega)
-        (Exec.branch_pos (by change y.regs (slot 2) = y.regs zero; omega)
-          (copy_self y)))).within.mono (by omega)
-    · by_cases h₂ : (e.data 1).length = 0
-      · exact (hp.seq (Exec.branch_neg
-          (by change ¬y.regs (slot 0) = y.regs zero; omega)
-          (Exec.branch_neg (by change ¬y.regs (slot 2) = y.regs zero; omega)
-            (Exec.branch_pos (by change y.regs (slot 4) = y.regs zero; omega)
-              (copy_self y))))).within.mono (by omega)
-      · have h₃ : (e.data 2).length = 0 := by omega
-        exact (hp.seq (Exec.branch_neg
-          (by change ¬y.regs (slot 0) = y.regs zero; omega)
-          (Exec.branch_neg (by change ¬y.regs (slot 2) = y.regs zero; omega)
-            (Exec.branch_neg (by change ¬y.regs (slot 4) = y.regs zero; omega)
-              (Exec.branch_pos (by change y.regs (slot 6) = y.regs zero; omega)
-                (copy_self y)))))).within.mono (by omega)
+  · exact (hp.seq (.branch_pos (pos hl.1 h₀) (copy_self y))).within.mono (by omega)
+  by_cases h₁ : (e.data 0).length = 0
+  · exact (hp.seq (.branch_neg (neg hl.1 h₀)
+      (.branch_pos (pos (hl.2.2 0) h₁) (copy_self y)))).within.mono (by omega)
+  by_cases h₂ : (e.data 1).length = 0
+  · exact (hp.seq (.branch_neg (neg hl.1 h₀) (.branch_neg (neg (hl.2.2 0) h₁)
+      (.branch_pos (pos (hl.2.2 1) h₂) (copy_self y))))).within.mono (by omega)
+  exact (hp.seq (.branch_neg (neg hl.1 h₀) (.branch_neg (neg (hl.2.2 0) h₁)
+    (.branch_neg (neg (hl.2.2 1) h₂)
+      (.branch_pos (pos (hl.2.2 2) (by omega)) (copy_self y)))))).within.mono (by omega)
 
 /-- A live entry takes all four native negative branches before executing the supplied actual
 visit and three-push executions. The bound charges the seven pops and eight branch/jump steps. -/
@@ -78,17 +68,12 @@ theorem body_live {w T : ℕ} {x a b y : Data 128} {e : Entry}
     (hv : ExecWithin w visit a b T) (hc : Exec w pushChildren b y 207) :
     ExecWithin w body x y (T + 314) := by
   obtain ⟨t, ht, he⟩ := hv
-  have hg₀ : ¬(Cond.eq (slot 0) zero).Holds a := by
-    change a.regs (slot 0) ≠ a.regs zero
-    rw [hl.1, hz]
-    exact hf
-  have hg (j : Fin 3) : ¬(Cond.eq (arrayLength j) zero).Holds a := by
-    change a.regs (arrayLength j) ≠ a.regs zero
-    rw [hl.2.2 j, hz]
-    exact hn j
-  have he' : Exec w body x y (99 + (t + 207 + 2 + 2 + 2 + 2)) :=
-    hp.seq (Exec.branch_neg hg₀ (Exec.branch_neg (hg 0) (Exec.branch_neg (hg 1)
-      (Exec.branch_neg (hg 2) (he.seq hc)))))
-  exact he'.within.mono (by omega)
+  have neg {r} {n : ℕ} (hr : a.regs r = n) (hn' : n ≠ 0) : ¬(Cond.eq r zero).Holds a :=
+    fun hc => hn' (hr.symm.trans (hc.trans hz))
+  exact (hp.seq (.branch_neg (neg hl.1 hf)
+    (.branch_neg (neg (hl.2.2 0) (hn 0))
+      (.branch_neg (neg (hl.2.2 1) (hn 1))
+        (.branch_neg (neg (hl.2.2 2) (hn 2))
+          (he.seq hc)))))).within.mono (by omega)
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Traversal

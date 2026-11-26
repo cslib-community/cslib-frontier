@@ -150,30 +150,20 @@ theorem card_avoiders_mul_le_card_filter (x : ℕ → Finset U) (K : ℕ)
   have hpair : ∀ j ∈ C, (#(D ∩ univ.filter (s ∪ x j ⊆ ·)) : ℝ) ≤
       #D * (1 / 2) ^ #s * (1 / 2) ^ #(x j \ s) := by
     intro j _
-    have hup : IsUpperSet ((univ.filter (s ∪ x j ⊆ ·) : Finset (Finset U)) : Set (Finset U)) := by
-      intro a b hab ha
-      simp only [coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at ha ⊢
+    set B : Finset (Finset U) := univ.filter (s ∪ x j ⊆ ·)
+    have hup : IsUpperSet (B : Set (Finset U)) := fun a b hab ha => by
+      simp only [B, coe_filter, mem_univ, true_and, Set.mem_ofPred_eq] at ha ⊢
       exact ha.trans hab
-    have hHK := hDlow.card_inter_le_finset hup
-    have hcnt := card_filter_subset_univ_mul_two_pow (s ∪ x j)
-    have hunion : #(s ∪ x j) = #s + #(x j \ s) := by
+    have hHK : (2 : ℝ) ^ Fintype.card U * #(D ∩ B) ≤ #D * #B := by
+      exact_mod_cast hDlow.card_inter_le_finset hup
+    have hcnt : (#B : ℝ) * 2 ^ (#s + #(x j \ s)) = 2 ^ Fintype.card U := by
       rw [← card_union_of_disjoint disjoint_sdiff, union_sdiff_self_eq_union]
-    rw [hunion] at hcnt
-    have h2 : (0 : ℝ) < 2 ^ Fintype.card U := by positivity
-    have hHK' : (2 : ℝ) ^ Fintype.card U * #(D ∩ univ.filter (s ∪ x j ⊆ ·)) ≤
-        #D * #((univ : Finset (Finset U)).filter (s ∪ x j ⊆ ·)) := by exact_mod_cast hHK
-    have hcnt' : (#((univ : Finset (Finset U)).filter (s ∪ x j ⊆ ·)) : ℝ) * 2 ^ (#s + #(x j \ s))
-        = 2 ^ Fintype.card U := by exact_mod_cast hcnt
+      exact_mod_cast card_filter_subset_univ_mul_two_pow (s ∪ x j)
     have hpow : (1 / 2 : ℝ) ^ #s * (1 / 2) ^ #(x j \ s) * 2 ^ (#s + #(x j \ s)) = 1 := by
       rw [← pow_add, ← mul_pow]; norm_num
-    have hb : (#((univ : Finset (Finset U)).filter (s ∪ x j ⊆ ·)) : ℝ) =
-        2 ^ Fintype.card U * ((1 / 2) ^ #s * (1 / 2) ^ #(x j \ s)) := by
-      rw [← hcnt']
-      linear_combination (-(#((univ : Finset (Finset U)).filter (s ∪ x j ⊆ ·)) : ℝ)) * hpow
-    rw [hb] at hHK'
-    refine le_of_mul_le_mul_left ?_ h2
-    calc (2 : ℝ) ^ Fintype.card U * #(D ∩ univ.filter (s ∪ x j ⊆ ·)) ≤ _ := hHK'
-      _ = _ := by ring
+    refine le_of_mul_le_mul_left (hHK.trans_eq ?_) (by positivity : (0 : ℝ) < 2 ^ Fintype.card U)
+    rw [← hcnt]
+    linear_combination -((#D : ℝ) * #B) * hpow
   -- the subsets of `D` containing `s` either avoid all earlier sets or contain an overlapping one
   have hcover : D.filter (s ⊆ ·) ⊆
       (avoiders x K).filter (s ⊆ ·) ∪ C.biUnion fun j => D ∩ univ.filter (s ∪ x j ⊆ ·) := by
@@ -221,12 +211,8 @@ theorem card_filter_forall_not_subset_le (x : ℕ → Finset U) (K : ℕ)
     have hstep := card_avoiders_mul_le_card_filter x K (hx K (Nat.lt_succ_self K))
     have hsplit : avoiders x (K + 1) = (avoiders x K).filter (¬ x K ⊆ ·) := by
       ext y
-      simp only [mem_filter, mem_univ, true_and, Nat.lt_succ_iff_lt_or_eq]
-      constructor
-      · intro h; exact ⟨fun k hk => h k (Or.inl hk), h K (Or.inr rfl)⟩
-      · rintro ⟨h, hK⟩ k (hk | rfl)
-        · exact h k hk
-        · exact hK
+      simp only [mem_filter, mem_univ, true_and, Nat.lt_succ_iff_lt_or_eq, or_imp, forall_and,
+        forall_eq]
     have hsum := card_filter_add_card_filter_not (s := avoiders x K) (x K ⊆ ·)
     have hfac : (0 : ℝ) ≤ 1 - (1 / 2 : ℝ) ^ (#(x K) + 1) := by
       rw [sub_nonneg]; exact pow_le_one₀ (by norm_num) (by norm_num)
@@ -300,10 +286,7 @@ theorem card_filter_avoidsPatterns_le_update (I : Finset ι) (s : ι → Finset 
     intro y hu h i hi
     by_cases hus : u ∈ s i
     · exact ⟨u, hus, by simp [β', hu]⟩
-    · rcases h with h | h
-      · obtain ⟨v, hv, hne⟩ := h i hi
-        have hvu : v ≠ u := fun e => hus (e ▸ hv)
-        exact ⟨v, hv, hmove hvu Iff.rfl hne⟩
+    · rcases h with h | h <;>
       · obtain ⟨v, hv, hne⟩ := h i hi
         have hvu : v ≠ u := fun e => hus (e ▸ hv)
         exact ⟨v, hv, hmove hvu (by simp [hvu]) hne⟩

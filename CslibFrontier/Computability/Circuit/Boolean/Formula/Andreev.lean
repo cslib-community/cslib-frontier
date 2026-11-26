@@ -107,11 +107,8 @@ def andreev (b m : ℕ) : BooleanFunction (2 ^ b + b * m) :=
 
 /-- Within each block `j`, the block variable map `andreevBlockVar b m j` is injective. -/
 theorem andreevBlockVar_injective (b m : ℕ) (j : Fin b) :
-    Function.Injective (andreevBlockVar b m j) := by
-  intro t₁ t₂ h
-  have h1 := Fin.natAdd_injective (b * m) (2 ^ b) h
-  have h2 := finProdFinEquiv.injective h1
-  exact (Prod.ext_iff.1 h2).2
+    Function.Injective (andreevBlockVar b m j) :=
+  fun _ _ h => (Prod.ext_iff.1 (finProdFinEquiv.injective (Fin.natAdd_injective _ _ h))).2
 
 /-- Each parity block `andreevBlock b m j` has cardinality `m`. -/
 @[simp] theorem card_andreevBlock (b m : ℕ) (j : Fin b) :
@@ -149,11 +146,9 @@ private theorem free_andreevFixTable (b m : ℕ) (h : BooleanFunction b) :
     (andreevFixTable b m h).free = univ.image (Fin.natAdd (2 ^ b)) := by
   ext i
   simp only [PartialAssignment.mem_free, mem_image, mem_univ, true_and]
-  refine ⟨?_, ?_⟩
-  · refine Fin.addCases (fun idx hbad => ?_) (fun u _ => ⟨u, rfl⟩) i
-    simp [andreevFixTable] at hbad
-  · rintro ⟨u, rfl⟩
-    exact andreevFixTable_natAdd b m h u
+  refine ⟨Fin.addCases (fun _ hbad => ?_) (fun u _ => ⟨u, rfl⟩) i,
+    fun ⟨u, hu⟩ => hu ▸ andreevFixTable_natAdd b m h u⟩
+  simp [andreevFixTable] at hbad
 
 /-- `andreevFixTable b m h` has `b * m` free variables. -/
 @[simp] theorem card_free_andreevFixTable (b m : ℕ) (h : BooleanFunction b) :
@@ -241,19 +236,10 @@ theorem formulaSize_le_of_andreevBlock_nonempty {h : BooleanFunction b}
         · rfl
       by_cases ht : t = t_fn j
       · subst ht
-        have hnone : ρ (andreevBlockVar b m j (t_fn j)) = none :=
-          PartialAssignment.mem_free.1 (ht_fn j)
-        have hσ_eq : (σ (andreevBlockVar b m j (t_fn j))).eval interpretation z = (z j ^^ r j) := by
-          simp [hσ_val]
-        rw [PartialAssignment.fill_of_eq_none hnone, hσ_eq, update_self]
+        rw [PartialAssignment.fill_of_eq_none (PartialAssignment.mem_free.1 (ht_fn j)), hσ_val,
+          ite_eq_left rfl, update_self]
       · rw [update_of_ne ht]
-        have hσ_false : (σ (andreevBlockVar b m j t)).eval interpretation z = false := by
-          simp [hσ_val, ht]
-        cases hρ : ρ (andreevBlockVar b m j t) with
-        | none =>
-          simp [y₀, PartialAssignment.fill, hρ, hσ_false]
-        | some c =>
-          simp [y₀, PartialAssignment.fill, hρ]
+        cases hρ : ρ (andreevBlockVar b m j t) <;> simp [y₀, PartialAssignment.fill, hρ, hσ_val, ht]
     have hy₀_false : y₀ j (t_fn j) = false :=
       PartialAssignment.fill_of_eq_none (PartialAssignment.mem_free.1 (ht_fn j)) (fun _ => false)
     rw [hblock_eq, parity_update_of_eq_false hy₀_false]
@@ -405,17 +391,10 @@ theorem two_pow_five_mul_le_formulaSize_andreev_sq :
         144 * b ^ 2 * (Nat.log 2 b + 2) ^ 3 * formulaSize (andreev b (2 ^ b)) ^ 2 := by
   obtain ⟨B, hB⟩ := pow_two_mul_pow_three_le_formulaSize_andreev_sq
   refine ⟨max B 16, fun b hb => ?_⟩
-  have hbB : B ≤ b := (le_max_left B 16).trans hb
-  have hb16 : 16 ≤ b := (le_max_right B 16).trans hb
   have hlog : Nat.log 2 b ≤ b := Nat.log_le_self 2 b
-  have hexp := twelve_mul_sq_mul_add_two_le_two_pow hb16
-  have hm : Nat.log 2 b + 2 ≤ 2 ^ b := by nlinarith
-  have h := hB b hbB (2 ^ b) hm
-  have hpow : 2 ^ (5 * b) = 2 ^ (2 * b) * (2 ^ b) ^ 3 := by
-    rw [← pow_mul, ← pow_add]
-    congr 1
-    ring
-  rw [hpow]
-  exact h
+  have hexp := twelve_mul_sq_mul_add_two_le_two_pow ((le_max_right B 16).trans hb)
+  have h5 : 2 * b + b * 3 = 5 * b := by ring
+  simpa only [← pow_mul, ← pow_add, h5] using
+    hB b ((le_max_left B 16).trans hb) (2 ^ b) (by nlinarith [(le_max_right B 16).trans hb])
 
 end Cslib.Circuits.Boolean

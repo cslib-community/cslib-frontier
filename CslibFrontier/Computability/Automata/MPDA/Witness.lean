@@ -98,9 +98,8 @@ theorem isSome_atomicWitness {i : Fin n} {s t : State} {γ : Γ}
     (h : ⟨s, γ, t⟩ ∈ M.atomicHoles i) : (M.atomicWitness i s γ t).isSome := by
   obtain ⟨a, s₁, hT, hwn⟩ := (mem_atomicHoles M).mp h
   refine List.findSome?_isSome_iff.mpr ⟨(a, s₁), FinEnum.mem_toList _, ?_⟩
-  dsimp only
-  simp only [hT, ↓reduceIte, Option.isSome_map]
-  exact isSome_wrWitness ((mem_wellNestedPairs M).mpr hwn)
+  simpa only [hT, ↓reduceIte, Option.isSome_map] using
+    isSome_wrWitness ((mem_wellNestedPairs M).mpr hwn)
 
 /-- The run of a realization is a block run of it. -/
 theorem blockWitness_spec {i : Fin n} {s t : State} {r : List (Γ × State)}
@@ -108,8 +107,7 @@ theorem blockWitness_spec {i : Fin n} {s t : State} {r : List (Γ × State)}
     ∀ {v : List (Symbol × Op n Γ)}, M.blockWitness i s r = some v → M.BlockRun i s t r v := by
   induction hr with
   | nil =>
-    intro v h
-    obtain rfl := Option.some.inj h
+    rintro _ ⟨⟩
     exact blockRun_nil
   | cons hr' _ ih =>
     intro v h
@@ -166,9 +164,7 @@ theorem reachUpTo_mono {K : ℕ} {k k' : ℕ} (h : k ≤ k') : M.reachUpTo K k �
 theorem reachUpTo_stable {K k : ℕ} (h : M.reachUpTo K (k + 1) = M.reachUpTo K k) :
     ∀ j, M.reachUpTo K (k + j) = M.reachUpTo K k
   | 0 => rfl
-  | j + 1 => by
-    rw [← Nat.add_assoc, reachUpTo, reachUpTo_stable h j]
-    exact h
+  | j + 1 => (congrArg (fun R => R ∪ R.biUnion (M.successors K)) (reachUpTo_stable h j)).trans h
 
 /-- The worklist loop only adds lists reached in as many more steps as it has fuel. -/
 theorem explore_subset_reachUpTo {K : ℕ} :
@@ -300,11 +296,9 @@ theorem initWitness_spec {K : ℕ} {μ : HoleList n State} {w : List (Symbol × 
   obtain ⟨s₀, -, h⟩ := List.exists_of_findSome?_eq_some h
   split_ifs at h with hs₀
   obtain ⟨hwn, hrun⟩ := wnWitness_spec h
-  refine ⟨hh, ?_⟩
   obtain ⟨holes, last⟩ := μ
-  simp only at hh
-  subst hh
-  exact runsTo_init hs₀ hwn hrun
+  cases hh
+  exact ⟨rfl, runsTo_init hs₀ hwn hrun⟩
 
 variable (M) in
 /-- The hypothesis on the recursive call of a backward step. -/
@@ -334,10 +328,10 @@ theorem holeBack_spec {K : ℕ} {R : Finset (HoleList n State)}
       simp only [List.length_append, List.length_reverse, List.length_singleton] at this ⊢
       omega
     obtain ⟨hpre, hlast⟩ := List.Forall₂.split_of_length_eq hlen hrs
-    have hreal : M.Realizes i s t r := by
-      cases hlast with
-      | cons h _ => exact h
-    exact (hrec ⟨hs.reverse, s⟩ _ _ hpre hw').hole (by simpa using hK) (blockWitness_spec hreal hv)
+    cases hlast with
+    | cons hreal _ =>
+      exact (hrec ⟨hs.reverse, s⟩ _ _ hpre hw').hole (by simpa using hK)
+        (blockWitness_spec hreal hv)
   next => simp at h
 
 omit [DecidablePred (· ∈ M.start)] in
@@ -359,12 +353,8 @@ theorem popBack_spec {K : ℕ} {R : Finset (HoleList n State)}
     obtain ⟨w', hw', h⟩ := Option.bind_eq_some_iff.mp h
     obtain ⟨v, hv, rfl⟩ := Option.map_eq_some_iff.mp h
     obtain ⟨hwn, hvrun⟩ := wnWitness_spec hv
-    have hjh := (List.getElem?_eq_some_iff.mp hhj).1
-    have hjr := (List.getElem?_eq_some_iff.mp hrj).1
+    have hlen : (rs.take j).length = (holes.take j).length := by simp [hrs.length_eq]
     rw [← take_append_cons_drop hhj, ← take_append_cons_drop hrj] at hrs ⊢
-    have hlen : (rs.take j).length = (holes.take j).length := by
-      simp only [List.length_take]
-      omega
     obtain ⟨hrpre, hrest⟩ := List.Forall₂.split_of_length_eq hlen hrs
     cases hrest with
     | cons hr hrpost =>
@@ -383,7 +373,7 @@ theorem closeBack_spec {K : ℕ} {R : Finset (HoleList n State)}
   obtain ⟨holes, last⟩ := μ
   unfold closeBack at h
   dsimp only at h hrs
-  obtain ⟨j, hj, h⟩ := List.exists_of_findSome?_eq_some h
+  obtain ⟨j, -, h⟩ := List.exists_of_findSome?_eq_some h
   obtain ⟨⟨i, s₁, γ, s₃, ℓ, ℓ', b⟩, -, h⟩ := List.exists_of_findSome?_eq_some h
   dsimp only at h
   split_ifs at h with hc
@@ -391,13 +381,8 @@ theorem closeBack_spec {K : ℕ} {R : Finset (HoleList n State)}
   obtain ⟨w', hw', h⟩ := Option.bind_eq_some_iff.mp h
   obtain ⟨v, hv, rfl⟩ := Option.map_eq_some_iff.mp h
   obtain ⟨hwn, hvrun⟩ := wnWitness_spec hv
-  have hj' := List.mem_range.mp hj
-  have hrl := hrs.length_eq
-  rw [← List.take_append_drop j holes, ← List.take_append_drop j rs] at hrs
-  rw [← List.take_append_drop j holes, ← List.take_append_drop j rs]
-  have hlen : (rs.take j).length = (holes.take j).length := by
-    simp only [List.length_take]
-    omega
+  have hlen : (rs.take j).length = (holes.take j).length := by simp [hrs.length_eq]
+  rw [← List.take_append_drop j holes, ← List.take_append_drop j rs] at hrs ⊢
   obtain ⟨hrpre, hrpost⟩ := List.Forall₂.split_of_length_eq hlen hrs
   have hν : M.RealizesAll (rs.take j ++ [(γ, s₃)] :: rs.drop j)
       (holes.take j ++ ⟨i, s₁, s₃⟩ :: holes.drop j) :=
@@ -409,16 +394,12 @@ theorem holeWitness_spec {K : ℕ} :
     ∀ (Rs : List (Finset (HoleList n State))), RecSound M K (M.holeWitness K Rs)
   | [], μ, rs, w, hrs, h => by
     obtain ⟨hh, hw⟩ := initWitness_spec (K := K) h
-    rw [hh] at hrs
-    obtain rfl := List.forall₂_nil_right_iff.mp hrs
-    exact hw
+    exact List.forall₂_nil_right_iff.mp (hh ▸ hrs) ▸ hw
   | R :: Rs, μ, rs, w, hrs, h => by
     simp only [holeWitness, Option.orElse_eq_orElse, Option.orElse_eq_or] at h
     rcases Option.or_eq_some_iff.mp h with h | ⟨-, h⟩
     · obtain ⟨hh, hw⟩ := initWitness_spec (K := K) h
-      rw [RealizesAll, hh] at hrs
-      cases hrs
-      exact hw
+      exact List.forall₂_nil_right_iff.mp (hh ▸ hrs) ▸ hw
     rcases Option.or_eq_some_iff.mp h with h | ⟨-, h⟩
     · exact holeBack_spec (holeWitness_spec Rs) hrs h
     rcases Option.or_eq_some_iff.mp h with h | ⟨-, h⟩
@@ -443,11 +424,8 @@ private theorem isSome_bind_map {α β γ : Type*} {a : Option α} {b : Option �
 theorem isSome_initWitness {μ : HoleList n State} (h : μ ∈ M.initialLists) :
     (M.initWitness μ).isSome := by
   obtain ⟨hh, s₀, hs₀, hwr⟩ := mem_initialLists.mp h
-  unfold initWitness
-  simp only [hh, ↓reduceIte]
-  refine List.findSome?_isSome_iff.mpr ⟨s₀, FinEnum.mem_toList _, ?_⟩
-  simp only [hs₀, ↓reduceIte]
-  exact isSome_wrWitness hwr
+  simp only [initWitness, hh, ↓reduceIte, List.findSome?_isSome_iff]
+  exact ⟨s₀, FinEnum.mem_toList _, by simp [hs₀, isSome_wrWitness hwr]⟩
 
 theorem isSome_holeWitness_of_init {K : ℕ} {Rs : List (Finset (HoleList n State))}
     {μ : HoleList n State} {rs : List (List (Γ × State))} (h : μ ∈ M.initialLists) :
@@ -481,9 +459,7 @@ theorem isSome_holeWitness {K : ℕ} :
     rcases hν with hν | hν
     · -- A new hole.
       refine .inl ?_
-      split_ifs at hν with hK
-      swap
-      · simp at hν
+      split_ifs at hν with hK <;> [skip; simp at hν]
       obtain ⟨i, -, hν⟩ := Finset.mem_biUnion.mp hν
       obtain ⟨⟨s, t⟩, hss, rfl⟩ := Finset.mem_image.mp hν
       obtain ⟨-, hs⟩ := Finset.mem_filter.mp hss
@@ -586,20 +562,13 @@ theorem map_fst_mem_boundedLanguage_of_witness {K : ℕ} {w : List (Symbol × Op
 answers `false`, that is, by Theorem 1, exactly when the `K`-hole-bounded language is not
 empty. -/
 theorem isSome_witness_iff {K : ℕ} : (M.witness K).isSome ↔ M.isEmpty K = false := by
-  constructor
-  · intro h
-    obtain ⟨w, hw⟩ := Option.isSome_iff_exists.mp h
+  refine ⟨fun h => ?_, fun h => ?_⟩
+  · obtain ⟨_, hw⟩ := Option.isSome_iff_exists.mp h
     exact isEmpty_eq_false_of_mem_boundedLanguage (map_fst_mem_boundedLanguage_of_witness hw)
-  · intro h
-    unfold isEmpty isEmptyFrom at h
-    rw [decide_eq_false_iff_not, not_not] at h
-    obtain ⟨μ, hμ, hholes, f, hf, hwr⟩ := h
-    have hμR : μ ∈ M.reachUpTo K (0 + listBound n State K) :=
-      explore_subset_reachUpTo _ 0 _ _ le_rfl le_rfl hμ
+  · simp only [isEmpty, isEmptyFrom, decide_eq_false_iff_not, not_not] at h
+    obtain ⟨⟨_, ℓ⟩, hμ, rfl, f, hf, hwr⟩ := h
+    have hμR := explore_subset_reachUpTo _ 0 _ _ le_rfl le_rfl hμ
     obtain ⟨e, -, heq, hsub⟩ := stableLayers_eq (M := M) (K := K) (listBound n State K) 0
-    obtain ⟨holes, ℓ⟩ := μ
-    simp only at hholes hwr
-    subst hholes
     have hL : M.stableLayers K (listBound n State K) [M.initialLists] = M.layers K (e + 1) := heq
     refine List.findSome?_isSome_iff.mpr ⟨(ℓ, f), FinEnum.mem_toList _, ?_⟩
     simp only [hL]

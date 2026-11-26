@@ -114,11 +114,7 @@ private theorem foldl_listGetNatNext_found (remaining : ℕ) (value : Value)
       (remaining, some value) = (remaining, some value) := by
   induction list with
   | nil => rfl
-  | cons element list ih =>
-      rw [List.foldl_cons]
-      rw [show listGetNatNext ((remaining, some value), element) =
-        (remaining, some value) by simp [listGetNatNext]]
-      exact ih
+  | cons element list ih => exact ih
 
 private theorem listGetNatFinish_foldl (default : Value) (index : ℕ) : ∀ list : List Value,
     listGetNatFinish default
@@ -129,10 +125,7 @@ private theorem listGetNatFinish_foldl (default : Value) (index : ℕ) : ∀ lis
       cases index with
       | zero =>
           rw [List.foldl_cons]
-          rw [show listGetNatNext ((0, none), element) = (0, some element) by
-            simp [listGetNatNext]]
-          rw [foldl_listGetNatNext_found]
-          rfl
+          exact congrArg (listGetNatFinish default) (foldl_listGetNatNext_found 0 element list)
       | succ index =>
           simpa [listGetNatNext, listGetNatFinish] using
             listGetNatFinish_foldl default index list
@@ -152,10 +145,7 @@ private theorem listGetNatOption_foldl (index : ℕ) : ∀ list : List Value,
       cases index with
       | zero =>
           rw [List.foldl_cons]
-          rw [show listGetNatNext ((0, none), element) = (0, some element) by
-            simp [listGetNatNext]]
-          rw [foldl_listGetNatNext_found]
-          rfl
+          exact congrArg Prod.snd (foldl_listGetNatNext_found 0 element list)
       | succ index => simpa [listGetNatNext] using listGetNatOption_foldl index list
 
 /-- The completed countdown scan also implements optional list access without a sentinel. -/
@@ -576,12 +566,10 @@ theorem streamEmit_listReplace_done (encValue : Value ↪ List Bool)
   induction list with
   | nil => rfl
   | cons element list ih =>
-      have hemit : listReplaceEmit ((remaining, true, replacement), element) = element := by
-        simp [listReplaceEmit]
-      have hnext : listReplaceNext ((remaining, true, replacement), element) =
-          (remaining, true, replacement) := by
-        simp [listReplaceNext]
-      rw [streamEmit, hemit, hnext, ih, encList_cons]
+      rw [streamEmit]
+      change frame (encValue element) ++
+          streamEmit listReplaceNext _ (remaining, true, replacement) list = _
+      rw [ih, encList_cons]
 
 /-- The replacement stream agrees with `List.modify`; an out-of-range index changes nothing. -/
 theorem streamEmit_listReplace (encValue : Value ↪ List Bool) (replacement : Value) :
@@ -595,24 +583,17 @@ theorem streamEmit_listReplace (encValue : Value ↪ List Bool) (replacement : V
   | cons element list ih =>
       cases index with
       | zero =>
-          have hemit : listReplaceEmit ((0, false, replacement), element) = replacement := by
-            simp [listReplaceEmit]
-          have hnext : listReplaceNext ((0, false, replacement), element) =
-              (0, true, replacement) := by
-            simp [listReplaceNext]
-          have hmodify : (element :: list).modify 0 (fun _ => replacement) =
-              replacement :: list := rfl
-          rw [streamEmit, hemit, hnext,
-            streamEmit_listReplace_done encValue 0 replacement list, hmodify, encList_cons]
+          rw [streamEmit]
+          change frame (encValue replacement) ++
+              streamEmit listReplaceNext _ (0, true, replacement) list =
+            encList encValue (replacement :: list)
+          rw [streamEmit_listReplace_done, encList_cons]
       | succ index =>
-          have hemit : listReplaceEmit ((index + 1, false, replacement), element) = element := by
-            simp [listReplaceEmit]
-          have hnext : listReplaceNext ((index + 1, false, replacement), element) =
-              (index, false, replacement) := by
-            simp [listReplaceNext]
-          have hmodify : (element :: list).modify (index + 1) (fun _ => replacement) =
-              element :: list.modify index (fun _ => replacement) := rfl
-          rw [streamEmit, hemit, hnext, ih index, hmodify, encList_cons]
+          rw [streamEmit]
+          change frame (encValue element) ++
+              streamEmit listReplaceNext _ (index, false, replacement) list =
+            encList encValue (element :: list.modify index fun _ => replacement)
+          rw [ih index, encList_cons]
 
 /-- Retained per-occurrence state update for unary-indexed replacement. -/
 @[expose] def listReplaceNextCompiler (encValue : Value ↪ List Bool) :

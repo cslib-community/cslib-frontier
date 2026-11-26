@@ -43,12 +43,10 @@ theorem sameCycle_mul_swap_iff_of_separating {f : Perm α} {a b : α}
     (f * swap a b).SameCycle x y ↔ f.SameCycle x y ∧ (p x ↔ p y) := by
   let g := f * swap a b
   have hswap (z : α) : f.SameCycle (swap a b z) z := by
-    by_cases hza : z = a
-    · subst z
-      simpa only [swap_apply_left] using hab.symm
-    by_cases hzb : z = b
-    · subst z
-      simpa only [swap_apply_right] using hab
+    rcases eq_or_ne z a with rfl | hza
+    · simpa only [swap_apply_left] using hab.symm
+    rcases eq_or_ne z b with rfl | hzb
+    · simpa only [swap_apply_right] using hab
     rw [swap_apply_of_ne_of_ne hza hzb]
   have hstep (z : α) : f.SameCycle (g z) z := Perm.sameCycle_apply_left.mpr (hswap z)
   have hsub {u v : α} (h : g.SameCycle u v) : f.SameCycle u v :=
@@ -144,11 +142,8 @@ theorem card_orbits_removeNone_fixed (f : Perm (Option α)) (hn : f none = none)
       Nat.card (Quotient (Perm.SameCycle.setoid (removeNone f))) + 1 := by
   classical
   have he : (removeNone f).optionCongr = f := by
-    calc
-      _ = swap none (f none) * f := map_equiv_removeNone f
-      _ = f := by rw [hn, swap_self]; rfl
-  conv_lhs => rw [← he]
-  exact card_orbits_optionCongr (removeNone f)
+    rw [map_equiv_removeNone, hn, swap_self]; rfl
+  exact he ▸ card_orbits_optionCongr (removeNone f)
 
 omit [DecidableEq α] in
 /-- Deleting a permutation point preserves the orbit relation on every retained pair,
@@ -158,11 +153,8 @@ theorem sameCycle_removeNone (f : Perm (Option α)) (a b : α) :
   classical
   by_cases hn : f none = none
   · have he : (removeNone f).optionCongr = f := by
-      calc
-        _ = swap none (f none) * f := map_equiv_removeNone f
-        _ = f := by rw [hn, swap_self]; rfl
-    conv_rhs => rw [← he]
-    exact (sameCycle_optionCongr _ _ _).symm
+      rw [map_equiv_removeNone, hn, swap_self]; rfl
+    exact he ▸ (sameCycle_optionCongr _ _ _).symm
   · exact sameCycle_removeNone_iff f hn a b
 
 omit [Finite α] in
@@ -179,9 +171,7 @@ theorem removeNone_mul_swap (f : Perm (Option α)) (a b : α) :
     _ = (removeNone f).optionCongr * (swap a b).optionCongr := by
       rw [map_equiv_removeNone]
     _ = _ := by
-      apply Equiv.ext
-      intro x
-      cases x <;> rfl
+      ext (_ | _) <;> rfl
 
 omit [DecidableEq α] [Finite α] in
 /-- Deleting the extra point commutes with postcomposition by a permutation of the
@@ -190,13 +180,10 @@ theorem removeNone_mul_optionCongr (f : Perm (Option α)) (g : Perm α) :
     removeNone (f * g.optionCongr) = removeNone f * g := by
   classical
   apply Equiv.optionCongr_injective
-  have hm : (removeNone f * g).optionCongr =
-      (removeNone f).optionCongr * g.optionCongr := by
-    ext x
-    cases x <;> rfl
-  rw [hm, map_equiv_removeNone, map_equiv_removeNone]
-  have hn : (f * g.optionCongr) none = f none := rfl
-  rw [hn, mul_assoc]
+  have hm : (removeNone f * g).optionCongr = (removeNone f).optionCongr * g.optionCongr := by
+    ext (_ | _) <;> rfl
+  rw [hm, map_equiv_removeNone, map_equiv_removeNone,
+    show (f * g.optionCongr) none = f none from rfl, mul_assoc]
 
 omit [DecidableEq α] in
 /-- Transporting a permutation retains its complete orbit count. -/
@@ -240,25 +227,16 @@ private theorem card_orbits_twoPoints (f : Perm α) (a b : α) (hab : a ≠ b)
   classical
   let e := Equiv.optionSubtypeNe a
   let f' := e.symm.permCongr f
-  have hs : Subsingleton {x : α // x ≠ a} := ⟨by
-    intro x y
-    apply Subtype.ext
-    exact ((cover x).resolve_left x.property).trans
-      ((cover y).resolve_left y.property).symm⟩
-  let := hs
-  have hi : Nonempty (Quotient (Perm.SameCycle.setoid (removeNone f'))) :=
-    ⟨Quotient.mk _ ⟨b, hab.symm⟩⟩
-  let := hi
-  have hcsmall : Nat.card (Quotient (Perm.SameCycle.setoid (removeNone f'))) = 1 :=
-    Nat.card_unique
+  let : Subsingleton {x : α // x ≠ a} := ⟨fun x y => Subtype.ext <|
+    ((cover x).resolve_left x.2).trans ((cover y).resolve_left y.2).symm⟩
+  let : Nonempty (Quotient (Perm.SameCycle.setoid (removeNone f'))) := ⟨Quotient.mk _ ⟨b, hab.symm⟩⟩
   have hc := card_orbits_removeNone_add f'
-  rw [hcsmall] at hc
   have hfix : f' none = none ↔ f a = a := by
     change e.symm (f (e none)) = none ↔ f a = a
     rw [← e.symm_apply_apply none, e.symm.injective.eq_iff]
-    simp only [e, Equiv.apply_symm_apply, Equiv.optionSubtypeNe_none]
-  rw [card_orbits_permCongr] at hc
-  simp only [hfix] at hc
+    simp [e]
+  rw [Nat.card_unique (α := Quotient (Perm.SameCycle.setoid (removeNone f'))),
+    card_orbits_permCongr, if_congr hfix rfl rfl] at hc
   split_ifs at hc ⊢ <;> omega
 
 /-- Swapping two distinct outgoing successors splits their common orbit into two,
@@ -290,66 +268,33 @@ theorem card_orbits_mul_swap (f : Perm α) (a b : α) (hab : a ≠ b) :
         exact (Perm.sameCycle_equiv_iff e f' f
           (fun z => by simp only [f', Equiv.permCongr_apply, Equiv.apply_symm_apply,
             Equiv.symm_symm]) (some a') (some b')).symm
-      have hconj : e.symm.permCongr (f * swap a b) =
-          f' * swap (some a') (some b') := by
-        ext z
-        simp only [Equiv.permCongr_apply, Perm.coe_mul, Function.comp_apply, f']
-        cases z with
-        | none => simp [e, swap_apply_of_ne_of_ne, hca, hcb]
-        | some z =>
-          by_cases hza : z = a'
-          · subst z; simp [e, a', b']
-          · by_cases hzb : z = b'
-            · subst z; simp [e, a', b']
-            · have hza' : (z : α) ≠ a := fun h => hza (Subtype.ext h)
-              have hzb' : (z : α) ≠ b := fun h => hzb (Subtype.ext h)
-              simp [e, swap_apply_of_ne_of_ne, hza, hzb, hza', hzb']
+      have ha' : e.symm a = some a' := e.symm_apply_eq.mpr (by simp [e, a'])
+      have hb' : e.symm b = some b' := e.symm_apply_eq.mpr (by simp [e, b'])
+      have hconj : e.symm.permCongr (f * swap a b) = f' * swap (some a') (some b') := by
+        rw [Equiv.permCongr_mul, Equiv.permCongr_def e.symm (swap a b),
+          Equiv.symm_trans_swap_trans, ha', hb']
       have hcf := card_orbits_removeNone_add f'
       have hcg := card_orbits_removeNone_add (f' * swap (some a') (some b'))
-      rw [removeNone_mul_swap] at hcg
       have hfixed : (f' * swap (some a') (some b')) none = f' none := by
         simp [swap_apply_def]
-      rw [hfixed] at hcg
-      rw [← hconj, card_orbits_permCongr] at hcg
+      rw [removeNone_mul_swap, hfixed, ← hconj, card_orbits_permCongr] at hcg
       rw [card_orbits_permCongr] at hcf
-      constructor
-      · intro h
-        have hi' := hi.1 (hsame.mpr h)
-        omega
-      · intro h
-        have hi' := hi.2 (fun h' => h (hsame.mp h'))
-        omega
-    · have cover : ∀ x, x = a ∨ x = b := by
-        intro x
-        by_contra hx
-        push Not at hx
-        exact hex ⟨x, hx⟩
+      exact ⟨fun h => by have := hi.1 (hsame.mpr h); omega,
+        fun h => by have := hi.2 (h ∘ hsame.mp); omega⟩
+    · have cover (x : α) : x = a ∨ x = b := by_contra fun hx => hex ⟨x, not_or.mp hx⟩
       have hcf := card_orbits_twoPoints f a b hab cover
       have hcg := card_orbits_twoPoints (f * swap a b) a b hab cover
       by_cases hfa : f a = a
-      · have hfb : f b = b := by
-          rcases cover (f b) with h | h
-          · exact False.elim (hab (f.injective (hfa.trans h.symm)))
-          · exact h
+      · have hfb : f b = b := (cover (f b)).resolve_left fun h =>
+          hab (f.injective (hfa.trans h.symm))
         have hga : (f * swap a b) a = b := by simp [hfb]
-        have hnot : ¬ f.SameCycle a b := fun h => hab (h.eq_of_left hfa)
         simp only [hfa, ite_true, hga, hab.symm, ite_false] at hcf hcg
-        constructor
-        · exact fun h => False.elim (hnot h)
-        · intro _; omega
-      · have hfb : f b = a := by
-          have hfa' := (cover (f a)).resolve_left hfa
-          rcases cover (f b) with h | h
-          · exact h
-          · exact False.elim (hab (f.injective (hfa'.trans h.symm)))
+        exact ⟨fun h => (hab (h.eq_of_left hfa)).elim, fun _ => by omega⟩
+      · have hfb : f b = a := (cover (f b)).resolve_right fun h =>
+          hab (f.injective (((cover (f a)).resolve_left hfa).trans h.symm))
         have hga : (f * swap a b) a = a := by simp [hfb]
-        have hsame : f.SameCycle a b := by
-          rw [← hfb]
-          exact Perm.sameCycle_apply_left.mpr .rfl
         simp only [hfa, ite_false, hga, ite_true] at hcf hcg
-        constructor
-        · intro _; omega
-        · exact fun h => False.elim (h hsame)
+        exact ⟨fun _ => by omega, fun h => (h (hfb ▸ Perm.sameCycle_apply_left.mpr .rfl)).elim⟩
 
 omit [DecidableEq α] [Finite α] in
 /-- Reversing the directed traversal of every orbit retains the full orbit quotient. -/

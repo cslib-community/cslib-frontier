@@ -102,27 +102,19 @@ theorem Generator.exists_complexity_le_advantage_ge {k L : ℕ}
   · -- a disjunction over the seeds of the conjunction of the output bits
     set D : List (List (BooleanFunction L × Bool)) := (BitString.enum k).map fun z =>
       (List.finRange L).map fun i => ((fun x : BitString L => x i), Gk z i)
-    have hw : ∀ c ∈ D, c.length ≤ L := by
-      intro c hc
-      obtain ⟨z, -, rfl⟩ := List.mem_map.1 hc
-      simp
-    have hD : ∀ c ∈ D, ∀ l ∈ c, l.1 ∈ inputs L := by
-      intro c hc l hl
+    have hw : ∀ c ∈ D, c.length ≤ L := fun c hc => by
+      obtain ⟨z, -, rfl⟩ := List.mem_map.1 hc; simp
+    have hD : ∀ c ∈ D, ∀ l ∈ c, l.1 ∈ inputs L := fun c hc l hl => by
       obtain ⟨z, -, rfl⟩ := List.mem_map.1 hc
       obtain ⟨i, -, rfl⟩ := List.mem_map.1 hl
       exact ⟨i, rfl⟩
-    have hsyn := Synthesis.any_all_literal hw hD
-    have hlen : D.length = 2 ^ k := by simp [D]
-    rw [hlen] at hsyn
+    have hsyn := (show D.length = 2 ^ k by simp [D]) ▸ Synthesis.any_all_literal hw hD
     refine Synthesis.complexity_le (Synthesis.congr_iff hsyn fun x => ?_)
     simp only [D, List.any_map, List.any_eq_true, Function.comp_apply, List.all_map,
       List.all_eq_true, List.mem_finRange, decide_eq_true_eq, true_implies, BitString.mem_enum,
       true_and]
-    constructor
-    · rintro ⟨z, hz⟩
-      exact ⟨z, funext fun i => (hz i).symm⟩
-    · rintro ⟨z, rfl⟩
-      exact ⟨z, fun i => rfl⟩
+    exact ⟨fun ⟨z, hz⟩ => ⟨z, funext fun i => (hz i).symm⟩,
+      fun ⟨z, hz⟩ => ⟨z, fun i => (congrFun hz i).symm⟩⟩
   · rw [Generator.advantage_pure_eq]
     have hseeds : #{z : BitString k | decide (∃ z', Gk z' = Gk z) = true} = 2 ^ k := by
       rw [filter_true_of_mem fun z _ => decide_eq_true ⟨z, rfl⟩, card_univ, BitString.card]
@@ -133,15 +125,10 @@ theorem Generator.exists_complexity_le_advantage_ge {k L : ℕ}
             exact mem_image_of_mem Gk (mem_univ z)
         _ ≤ (univ : Finset (BitString k)).card := card_image_le
         _ = 2 ^ k := by rw [card_univ, BitString.card]
-    rw [hseeds]
-    have hrange' : (#{y : BitString L | decide (∃ z, Gk z = y) = true} : ℝ) ≤ 2 ^ k := by
-      exact_mod_cast hrange
-    have hpos : (0 : ℝ) < 2 ^ L := by positivity
-    have hk : ((2 ^ k : ℕ) : ℝ) / 2 ^ k = 1 := by push_cast; exact div_self (by positivity)
-    rw [hk]
-    refine le_trans ?_ (le_abs_self _)
-    have := div_le_div_of_nonneg_right hrange' hpos.le
-    linarith
+    rw [hseeds, Nat.cast_pow, Nat.cast_ofNat, div_self (by positivity)]
+    exact (sub_le_sub_left (div_le_div_of_nonneg_right
+      (show (#{y : BitString L | decide (∃ z, Gk z = y) = true} : ℝ) ≤ 2 ^ k from mod_cast hrange)
+      (by positivity)) 1).trans (le_abs_self _)
 
 end Cslib.Crypto.PRG
 

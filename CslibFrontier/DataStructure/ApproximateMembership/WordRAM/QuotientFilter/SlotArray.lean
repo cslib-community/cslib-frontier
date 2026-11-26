@@ -245,15 +245,11 @@ theorem extractBit_writeBitMem (arrBase b w : ℕ) (mem : ℕ → ℕ)
       Function.update (extractBit arrBase b w mem) q bval := by
   ext q'
   dsimp only [extractBit, writeBitMem]
-  let v : Fin (2 ^ 1) := ⟨bval.toNat, toNat_lt_two bval⟩
-  have h1 := congrFun (extractPacked_writePackedMem arrBase b 1 w mem q v) q'
-  rw [h1]
+  rw [extractPacked_writePackedMem arrBase b 1 w mem q ⟨bval.toNat, toNat_lt_two bval⟩]
   by_cases hq : q' = q
   · subst hq
-    rw [Function.update_self, Function.update_self]
-    cases bval <;> rfl
-  · rw [Function.update_of_ne hq, Function.update_of_ne hq]
-    rfl
+    cases bval <;> simp
+  · simp [hq, extractBit]
 
 @[simp]
 theorem extractPacked_zero (arrBase b d w : ℕ) (q : Fin (2 ^ b)) :
@@ -377,30 +373,20 @@ theorem space_le {w w₀ n k : ℕ} (hw₀ : 0 < w₀) (hw : 2 * w₀ ≤ w) (hb
     space w w₀ n k ≤ 640 * ((n * k + w - 1) / w + 1) := by
   set b := quotBits w₀ n
   set f := remBits w₀ k
-  have hw₀_le : w₀ ≤ w := by omega
   have hw2 : 2 ≤ w := by omega
-  have hb3 : b ≤ 3 * b := by omega
   have hf_pos : 0 < f := remBits_pos hw₀
   have h2f_le : 2 * f ≤ w := by have := remBits_le_w₀ w₀ k; omega
   have hpow_b : 2 ^ b ≤ 16 * n := two_pow_quotBits_le_sixteen_mul hn
-  have hmax_b2 : max 8 (2 ^ (b / 2)) ≤ 16 * n := by
-    have hle : 2 ^ (b / 2) ≤ 2 ^ b := Nat.pow_le_pow_right two_pos (Nat.div_le_self b 2)
-    exact max_le (by omega) (hle.trans hpow_b)
+  have hmax_b2 : max 8 (2 ^ (b / 2)) ≤ 16 * n :=
+    max_le (by omega) ((Nat.pow_le_pow_right two_pos (Nat.div_le_self b 2)).trans hpow_b)
+  have hnk : n ≤ n * k := Nat.le_mul_of_pos_right n hk
   have hsp_kwise : ReducedKWise.space w w₀ b b 5 ≤ 272 + (32 * (n * k)) / w := by
-    have h1 := ReducedKWise.space_le (k := 5) hw₀_le hb3 hb_w hw2
-    have h2 : 2 * max 8 (2 ^ (b / 2)) ≤ 32 * (n * k) := by
-      calc 2 * max 8 (2 ^ (b / 2)) ≤ 2 * (16 * n) := Nat.mul_le_mul_left 2 hmax_b2
-        _ = 32 * (n * 1) := by ring
-        _ ≤ 32 * (n * k) := Nat.mul_le_mul_left 32 (Nat.mul_le_mul_left n hk)
-    have h3 : 2 * max 8 (2 ^ (b / 2)) / w ≤ (32 * (n * k)) / w := Nat.div_le_div_right h2
+    have h1 := ReducedKWise.space_le (k := 5)
+      ((Nat.le_mul_of_pos_left w₀ two_pos).trans hw) (Nat.le_mul_of_pos_left b (by decide)) hb_w hw2
+    have h3 : 2 * max 8 (2 ^ (b / 2)) / w ≤ (32 * (n * k)) / w := Nat.div_le_div_right (by omega)
     omega
-  have hbit_words : packedWords b 1 w ≤ (64 * (n * k)) / w + 1 := by
-    have h1 := packedWords_le (b := b) (d := 1) (w := w) one_pos hw2
-    have h2 : 4 * (2 ^ b * 1) ≤ 64 * (n * k) := by
-      calc 4 * (2 ^ b * 1) ≤ 4 * (16 * n) := by omega
-        _ = 64 * (n * 1) := by ring
-        _ ≤ 64 * (n * k) := Nat.mul_le_mul_left 64 (Nat.mul_le_mul_left n hk)
-    exact h1.trans (Nat.add_le_add_right (Nat.div_le_div_right h2) 1)
+  have hbit_words : packedWords b 1 w ≤ (64 * (n * k)) / w + 1 :=
+    (packedWords_le one_pos hw2).trans (Nat.add_le_add_right (Nat.div_le_div_right (by omega)) 1)
   have hrem_words : packedWords b f w ≤ (128 * (n * k)) / w + 1 := by
     have h1 := packedWords_le (b := b) (d := f) (w := w) hf_pos h2f_le
     have hf2k : f ≤ 2 * k := remBits_le_two_mul hk
@@ -410,16 +396,13 @@ theorem space_le {w w₀ n k : ℕ} (hw₀ : 0 < w₀) (hw : 2 * w₀ ≤ w) (hb
         _ = 128 * (n * k) := by ring
     exact h1.trans (Nat.add_le_add_right (Nat.div_le_div_right h2) 1)
   have hdiv_bound (c x : ℕ) : (c * x) / w ≤ c * (x / w) + c := by
-    have h1 := Nat.div_add_mod x w
-    have h2 : x % w < w := Nat.mod_lt x (by omega)
-    have h3 : c * x < w * (c * (x / w) + c + 1) := by
-      have h4 : c * x ≤ c * (w * (x / w)) + c * w := by
-        calc c * x = c * (w * (x / w) + x % w) := by conv_lhs => rw [← h1]
-          _ = c * (w * (x / w)) + c * (x % w) := by ring
-          _ ≤ c * (w * (x / w)) + c * w := Nat.add_le_add_left (Nat.mul_le_mul_left c h2.le) _
-      have h5 : c * (w * (x / w)) + c * w + w = w * (c * (x / w) + c + 1) := by ring
-      omega
-    exact Nat.le_of_lt_succ (Nat.div_lt_of_lt_mul h3)
+    refine Nat.div_le_of_le_mul ?_
+    calc c * x = w * (c * (x / w)) + c * (x % w) := by
+          conv_lhs => rw [← Nat.div_add_mod x w]
+          ring
+      _ ≤ w * (c * (x / w)) + c * w :=
+          Nat.add_le_add_left (Nat.mul_le_mul_left c (Nat.mod_lt x (by omega)).le) _
+      _ = w * (c * (x / w) + c) := by ring
   have h32 := hdiv_bound 32 (n * k)
   have h64 := hdiv_bound 64 (n * k)
   have h128 := hdiv_bound 128 (n * k)

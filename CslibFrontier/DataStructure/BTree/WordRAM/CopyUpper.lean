@@ -115,45 +115,34 @@ theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
   have haz_le := nodeAddr_add_le_arena (base := base) hz_cap (o := 6 * t) le_rfl
   have hsep : nodeAddr base t c + 6 * t ≤ nodeAddr base t z ∨
       nodeAddr base t z + 6 * t ≤ nodeAddr base t c := nodeAddr_sep base t hcz
-  have hf_cmul : Fits w (c * (6 * t)) := hfit.of_le (by
-    simp only [nodeAddr, nodeStride] at hac_le; omega)
-  have hf_cb0 : Fits w (base + c * (6 * t)) := hfit.of_le (by
-    simp only [nodeAddr, nodeStride] at hac_le; omega)
-  have hf_cb1 : Fits w (base + c * (6 * t) + 1) := hfit.of_le (by
-    simp only [nodeAddr, nodeStride] at hac_le; omega)
-  have hf_ac : Fits w (nodeAddr base t c) := hfit.of_le (by omega)
-  have hf_ac1 : Fits w (nodeAddr base t c + 1) := hfit.of_le (by omega)
-  have hf_ac2 : Fits w (nodeAddr base t c + 2) := hfit.of_le (by omega)
-  have hf_ac2t : Fits w (nodeAddr base t c + 2 + t) := hfit.of_le (by omega)
-  have hf_zmul : Fits w (z * (6 * t)) := hfit.of_le (by
-    simp only [nodeAddr, nodeStride] at haz_le; omega)
-  have hf_zb0 : Fits w (base + z * (6 * t)) := hfit.of_le (by
-    simp only [nodeAddr, nodeStride] at haz_le; omega)
-  have hf_zb1 : Fits w (base + z * (6 * t) + 1) := hfit.of_le (by
-    simp only [nodeAddr, nodeStride] at haz_le; omega)
-  have hf_az : Fits w (nodeAddr base t z) := hfit.of_le (by omega)
-  have hf_az1 : Fits w (nodeAddr base t z + 1) := hfit.of_le (by omega)
-  have hf_az2 : Fits w (nodeAddr base t z + 2) := hfit.of_le (by omega)
-  have hf_tm1 : Fits w (t - 1) := hfit.of_le (by omega)
   have hna_c : base + c * (6 * t) + 1 + 1 = nodeAddr base t c := by
     simp only [nodeAddr, nodeStride]; omega
   have hna_z : base + z * (6 * t) + 1 + 1 = nodeAddr base t z := by
     simp only [nodeAddr, nodeStride]; omega
+  have hf_cmul : Fits w (c * (6 * t)) := hfit.of_le (by omega)
+  have hf_cb0 : Fits w (base + c * (6 * t)) := hfit.of_le (by omega)
+  have hf_cb1 : Fits w (base + c * (6 * t) + 1) := hfit.of_le (by omega)
+  have hf_ac : Fits w (nodeAddr base t c) := hfit.of_le (by omega)
+  have hf_ac1 : Fits w (nodeAddr base t c + 1) := hfit.of_le (by omega)
+  have hf_ac2 : Fits w (nodeAddr base t c + 2) := hfit.of_le (by omega)
+  have hf_ac2t : Fits w (nodeAddr base t c + 2 + t) := hfit.of_le (by omega)
+  have hf_zmul : Fits w (z * (6 * t)) := hfit.of_le (by omega)
+  have hf_zb0 : Fits w (base + z * (6 * t)) := hfit.of_le (by omega)
+  have hf_zb1 : Fits w (base + z * (6 * t) + 1) := hfit.of_le (by omega)
+  have hf_az : Fits w (nodeAddr base t z) := hfit.of_le (by omega)
+  have hf_az1 : Fits w (nodeAddr base t z + 1) := hfit.of_le (by omega)
+  have hf_az2 : Fits w (nodeAddr base t z + 2) := hfit.of_le (by omega)
+  have hf_tm1 : Fits w (t - 1) := hfit.of_le (by omega)
   -- Step 1: `copyUpperPre1` + `copyArrayCode` (keys)
-  let x₁ : Data 20 :=
-    (((((((((((((x.set rSrc (c * (6 * t))).set rSrc (base + c * (6 * t))).set rSrc
-      (base + c * (6 * t) + 1)).set rSrc (nodeAddr base t c)).set rSrc
-      (nodeAddr base t c + 1)).set rSrc (nodeAddr base t c + 2)).set rSrc
-      (nodeAddr base t c + 2 + t)).set rDst (z * (6 * t))).set rDst
-      (base + z * (6 * t))).set rDst (base + z * (6 * t) + 1)).set rDst
-      (nodeAddr base t z)).set rDst (nodeAddr base t z + 1)).set rDst
-      (nodeAddr base t z + 2)).set rLim (t - 1)
+  -- Infer the states after straight-line instructions by symbolic execution.
+  let x₁ : Data 20 := ?keySetup
   have he1 : ExecWithin w copyUpperPre1 x x₁ 14 := by
     unfold copyUpperPre1
     dsimp only [x₁]
     wram_exec [ho, hbase, hdeg, hstride, hchild, hcnt, hna_c, hna_z,
       hf_cmul, hf_cb0, hf_cb1, hf_ac, hf_ac1, hf_ac2, hf_ac2t,
       hf_zmul, hf_zb0, hf_zb1, hf_az, hf_az1, hf_az2, hf_tm1]
+    rfl
   obtain ⟨x₂, hc1, hb₂, hmem₂, hreg₂⟩ :=
     copyArrayCode_spec (srcBase := nodeAddr base t c + 2 + t)
       (dstBase := nodeAddr base t z + 2) (N := t - 1)
@@ -169,10 +158,7 @@ theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
       nodeAddr base t c + (2 * t + 1) + t := by omega
   have hv_z_eq : nodeAddr base t z + 2 + (t - 1) + t =
       nodeAddr base t z + (2 * t + 1) := by omega
-  let x₃ : Data 20 :=
-    (((x₂.set rSrc (nodeAddr base t c + 2 + t + (t - 1))).set rSrc
-      (nodeAddr base t c + (2 * t + 1) + t)).set rDst
-      (nodeAddr base t z + 2 + (t - 1))).set rDst (nodeAddr base t z + (2 * t + 1))
+  let x₃ : Data 20 := ?valueSetup
   have he2 : ExecWithin w copyUpperPre2 x₂ x₃ 4 := by
     unfold copyUpperPre2
     dsimp only [x₃]
@@ -181,6 +167,7 @@ theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
     have hf_d1 : Fits w (nodeAddr base t z + 2 + (t - 1)) := hfit.of_le (by omega)
     have hf_d2 : Fits w (nodeAddr base t z + (2 * t + 1)) := hfit.of_le (by omega)
     wram_exec [hsrc₂, hdst₂, hlim₂, hd₂, hv_c_eq, hv_z_eq, hf_s1, hf_s2, hf_d1, hf_d2]
+    rfl
   obtain ⟨x₄, hc2, hb₄, hmem₄, hreg₄⟩ :=
     copyArrayCode_spec (srcBase := nodeAddr base t c + (2 * t + 1) + t)
       (dstBase := nodeAddr base t z + (2 * t + 1)) (N := t - 1)
@@ -253,60 +240,48 @@ theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
           hna_c, hlf₄, hlf0, hc_c_eq, hc_z_eq,
           hf_cmul, hf_cb0, hf_cb1, hf_ac, hf_s1, hf_s2, hf_d1, hf_d2, hf_t]
         exact WP.of_execWithin hc3 ⟨by omega, rfl⟩
-      refine ⟨x₅, he3, hb₅, ?_, ?_, fun reg hnot => ?_⟩
-      · simp only [hlf0, ↓reduceIte]; exact hmem₅
-      · rw [hreg₅ rZero (by decide)]; exact hz₄
-      · simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot
-        obtain ⟨hs1, hd1, hl1, hi1, ht1, ht2, _⟩ := hnot
-        rw [hreg₅ reg (by simp [hi1, ht1, ht2])]
-        dsimp only [x₄']
-        simp only [Data.set_regs_of_ne hl1 _, Data.set_regs_of_ne hd1 _,
-          Data.set_regs_of_ne hs1 _, Data.set_regs_of_ne ht2 _, Data.set_regs_of_ne ht1 _]
-        exact hkeep₄ reg (by simp [hs1, hd1, hl1, hi1, ht1, ht2])
+      refine ⟨x₅, he3, hb₅, by rw [ite_eq_left hlf0, hmem₅]; rfl,
+        (hreg₅ rZero (by decide)).trans hz₄, fun reg hnot => ?_⟩
+      simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot
+      obtain ⟨hs1, hd1, hl1, hi1, ht1, ht2, _⟩ := hnot
+      rw [hreg₅ reg (by simp [hi1, ht1, ht2])]
+      simp only [x₄', Data.set_regs_of_ne hl1 _, Data.set_regs_of_ne hd1 _,
+        Data.set_regs_of_ne hs1 _, Data.set_regs_of_ne ht2 _, Data.set_regs_of_ne ht1 _]
+      exact hkeep₄ reg (by simp [hs1, hd1, hl1, hi1, ht1, ht2])
     · have hf0 : Fits w 0 := hfit.of_le (Nat.zero_le _)
-      let x₅ : Data 20 :=
-        (((((x₄.set rTmp1 (c * (6 * t))).set rTmp1 (base + c * (6 * t))).set rTmp1
-          (base + c * (6 * t) + 1)).set rTmp1 (nodeAddr base t c)).set rTmp2
-          (x.mem (nodeAddr base t c))).set rZero 0
+      let x₅ : Data 20 := ?leafState
       have he3 : ExecWithin w copyUpperBranch x₄ x₅ (7 * t + 16) := by
         unfold copyUpperBranch
         dsimp only [x₅]
         wram_exec [hz₄, ho₄, hb₄_reg, hst₄, hch₄, hna_c, hlf₄, hlf0,
           hf_cmul, hf_cb0, hf_cb1, hf_ac, hf0]
-      refine ⟨x₅, he3, he3.bounded hb₄, ?_, rfl, fun reg hnot => ?_⟩
-      · simp only [hlf0, ↓reduceIte]; rfl
-      · simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot
-        obtain ⟨hs1, hd1, hl1, hi1, ht1, ht2, hzr⟩ := hnot
-        dsimp only [x₅]
-        simp only [Data.set_regs_of_ne hzr _, Data.set_regs_of_ne ht2 _,
-          Data.set_regs_of_ne ht1 _]
-        exact hkeep₄ reg (by simp [hs1, hd1, hl1, hi1, ht1, ht2])
+        rfl
+      refine ⟨x₅, he3, he3.bounded hb₄, by rw [ite_eq_right hlf0]; rfl, rfl,
+        fun reg hnot => ?_⟩
+      simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot
+      obtain ⟨hs1, hd1, hl1, hi1, ht1, ht2, hzr⟩ := hnot
+      simp only [x₅, Data.set_regs_of_ne hzr _, Data.set_regs_of_ne ht2 _,
+        Data.set_regs_of_ne ht1 _]
+      exact hkeep₄ reg (by simp [hs1, hd1, hl1, hi1, ht1, ht2])
   obtain ⟨x₅, he3, hb₅, hmem₅, hz₅, hkeep₅⟩ := hmem₃_step
   -- Step 4: `copyUpperPost`
   have hlf₅ : x₅.mem (nodeAddr base t c) = x.mem (nodeAddr base t c) := by
     rw [hmem₅]
     split_ifs
-    · rw [ArrayCopy.copyPrefix_outside (by omega)]; exact hlf₄
-    · exact hlf₄
+    exacts [(ArrayCopy.copyPrefix_outside (by omega)).trans hlf₄, hlf₄]
   have ho₅ : x₅.regs rOne = 1 := (hkeep₅ rOne (by decide)).trans ho
   have hb₅_reg : x₅.regs rBase = base := (hkeep₅ rBase (by decide)).trans hbase
   have hd₅ : x₅.regs rDeg = t := (hkeep₅ rDeg (by decide)).trans hdeg
   have hst₅ : x₅.regs rStride = 6 * t := (hkeep₅ rStride (by decide)).trans hstride
   have hch₅ : x₅.regs rChild = c := (hkeep₅ rChild (by decide)).trans hchild
   have hcnt₅ : x₅.regs rCnt = z := (hkeep₅ rCnt (by decide)).trans hcnt
-  let y : Data 20 :=
-    ((((((((((((((x₅.set rSrc (c * (6 * t))).set rSrc (base + c * (6 * t))).set rSrc
-      (base + c * (6 * t) + 1)).set rSrc (nodeAddr base t c)).set rTmp2
-      (x.mem (nodeAddr base t c))).set rDst (z * (6 * t))).set rDst
-      (base + z * (6 * t))).set rDst (base + z * (6 * t) + 1)).set rDst
-      (nodeAddr base t z)).write (nodeAddr base t z) (x.mem (nodeAddr base t c))).set rLim
-      (t - 1)).set rTmp1 (nodeAddr base t z + 1)).write (nodeAddr base t z + 1) (t - 1)).set rTmp1
-      (nodeAddr base t c + 1)).write (nodeAddr base t c + 1) (t - 1)
+  let y : Data 20 := ?finalState
   have he4 : ExecWithin w copyUpperPost x₅ y 15 := by
     unfold copyUpperPost
     dsimp only [y]
     wram_exec [ho₅, hb₅_reg, hd₅, hst₅, hch₅, hcnt₅, hna_c, hna_z, hlf₅,
       hf_cmul, hf_cb0, hf_cb1, hf_ac, hf_ac1, hf_zmul, hf_zb0, hf_zb1, hf_az, hf_az1, hf_tm1]
+    rfl
   have hfull : ExecWithin w copyUpperCode x y (21 * t + 48) :=
     (he1.seq (hc1.seq (he2.seq (hc2.seq (he3.seq he4))))).mono (by omega)
   have hymem : y.mem = memCopyUpper base t c z x.mem := by
@@ -318,26 +293,17 @@ theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
   have hmod : Modifies (Block.mk base (arenaWords t capNodes)).footprint x.mem y.mem := by
     intro addr hnot
     rw [hymem]
-    apply memCopyUpper_outside ht
-    · by_contra hc_in
-      apply hnot
-      simp only [Block.mem_footprint, Block.Owns, nodeStride] at hc_in ⊢
-      have := base_lt_nodeAddr base t c 0
-      omega
-    · by_contra hz_in
-      apply hnot
-      simp only [Block.mem_footprint, Block.Owns, nodeStride] at hz_in ⊢
-      have := base_lt_nodeAddr base t z 0
-      omega
-  refine ⟨y, hfull, hfull.bounded hbdd, hymem, hmod, ?_, fun reg hnot => ?_⟩
-  · dsimp only [y]; wram_simp; exact hz₅
-  · have hnot' := hnot
-    simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot'
-    obtain ⟨hs1, hd1, hl1, _, ht1, ht2, _⟩ := hnot'
-    dsimp only [y]
-    simp only [Data.write_regs, Data.set_regs_of_ne ht1 _, Data.set_regs_of_ne hl1 _,
-      Data.set_regs_of_ne hd1 _, Data.set_regs_of_ne ht2 _, Data.set_regs_of_ne hs1 _]
-    exact hkeep₅ reg hnot
+    have := base_lt_nodeAddr base t c 0
+    have := base_lt_nodeAddr base t z 0
+    apply memCopyUpper_outside ht <;> by_contra h_in <;> apply hnot <;>
+      simp only [Block.mem_footprint, Block.Owns, nodeStride] at h_in ⊢ <;> omega
+  refine ⟨y, hfull, hfull.bounded hbdd, hymem, hmod, by wram_simp [y, hz₅], fun reg hnot => ?_⟩
+  have hnot' := hnot
+  simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot'
+  obtain ⟨hs1, hd1, hl1, _, ht1, ht2, _⟩ := hnot'
+  simp only [y, Data.write_regs, Data.set_regs_of_ne ht1 _, Data.set_regs_of_ne hl1 _,
+    Data.set_regs_of_ne hd1 _, Data.set_regs_of_ne ht2 _, Data.set_regs_of_ne hs1 _]
+  exact hkeep₅ reg hnot
 
 /-- `memCopyUpper` leaves every key, value, and child cell (`2 ≤ o < 6 * t`) of `c` unchanged when
 `nodeAddr c + 6 * t ≤ nodeAddr cnt`. -/
@@ -345,11 +311,8 @@ theorem memCopyUpper_at_c {base t c cnt : ℕ}
     (hsep : nodeAddr base t c + 6 * t ≤ nodeAddr base t cnt)
     (o : ℕ) (ho_lo : 2 ≤ o) (ho_hi : o < 6 * t) (mem : ℕ → ℕ) :
     memCopyUpper base t c cnt mem (nodeAddr base t c + o) = mem (nodeAddr base t c + o) := by
-  obtain ⟨ac, hac_def⟩ : ∃ ac, nodeAddr base t c = ac := ⟨_, rfl⟩
-  obtain ⟨az, haz_def⟩ : ∃ az, nodeAddr base t cnt = az := ⟨_, rfl⟩
-  rw [hac_def, haz_def] at hsep
   dsimp only [memCopyUpper]
-  simp only [hac_def, haz_def]
+  generalize nodeAddr base t c = ac, nodeAddr base t cnt = az at hsep ⊢
   rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
     Function.update_of_ne (by omega)]
   split_ifs

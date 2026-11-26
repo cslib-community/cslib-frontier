@@ -184,10 +184,10 @@ example :
 
 /-! ### Seven-way Fundamental Theorem bridge on `ℕ` -/
 
-example : IsPACLearnable thresholdClass Set.univ := by
-  have hcomp : ∃ k : ℕ, Nonempty (SampleCompressionScheme thresholdClass k) :=
+example : IsPACLearnable (thresholdClass ℕ) Set.univ := by
+  have hcomp : ∃ k : ℕ, Nonempty (SampleCompressionScheme (thresholdClass ℕ) k) :=
     ⟨1, ⟨(lowerSetScheme (α := ℕ)).ofSubset thresholdClass_subset_lowerSetClass⟩⟩
-  exact ((tfae_hasFiniteVCDim_compression (α := ℕ) (C := thresholdClass)).out 7 3).mp hcomp
+  exact ((tfae_hasFiniteVCDim_compression (α := ℕ) (C := thresholdClass ℕ)).out 7 3).mp hcomp
 
 /-! ### Agnostic `GeneralCompressionScheme` & noisy non-realizable distribution checks -/
 
@@ -246,7 +246,7 @@ example (S : LabeledSample Bool Bool 4) :
     heldOutError_le_empiricalMiscount_div (firstLabelScheme.card_keptSet_le S) (by omega) _ _⟩
 
 /-- Check `SampleCompressionScheme.toGeneral` preserves `learner` on realizable samples. -/
-example (S : LabeledSample ℕ Bool 3) (hS : Realizable thresholdClass S) :
+example (S : LabeledSample ℕ Bool 3) (hS : Realizable (thresholdClass ℕ) S) :
     let κ := (lowerSetScheme (α := ℕ)).ofSubset thresholdClass_subset_lowerSetClass
     κ.toGeneral.learner S = κ.learner S :=
   ((lowerSetScheme (α := ℕ)).ofSubset thresholdClass_subset_lowerSetClass).toGeneral_learner_eq hS

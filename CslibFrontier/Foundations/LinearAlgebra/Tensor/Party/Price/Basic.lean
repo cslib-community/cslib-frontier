@@ -115,8 +115,7 @@ variable {Y : Type*} {w : Y → Y → ℝ}
 
 theorem IsPrice.mem (h : IsPrice K w) {V : Type} [Fintype V] [DecidableEq V] (g : V → Y) :
     (fun a b => w (g a) (g b)) ∈ prices K V := by
-  have h1 := prices_comp (Fintype.equivFin V) (h _ fun i => g ((Fintype.equivFin V).symm i))
-  simpa using h1
+  simpa using prices_comp (Fintype.equivFin V) (h _ fun i => g ((Fintype.equivFin V).symm i))
 
 theorem isPrice_of_mem {V : Type} [Fintype V] [DecidableEq V] {d : V → V → ℝ}
     (h : d ∈ prices K V) : IsPrice K d := fun _ f => prices_comp f h
@@ -138,9 +137,8 @@ theorem IsPrice.exists_spectralPoint (h : IsPrice K w) {V : Type} [Fintype V] [D
     ∃ (F : SpectralPoint K V) (c : ℝ), 0 ≤ c ∧
       ∀ a b, |w (g a) (g b) - c * F.wireExponent a b| < δ := by
   obtain ⟨d, ⟨F, c, hc, rfl⟩, hd⟩ := Metric.mem_closure_iff.1 (h.mem g) δ hδ
-  refine ⟨F, c, hc, fun a b => ?_⟩
-  have := (dist_pi_lt_iff hδ).1 ((dist_pi_lt_iff hδ).1 hd a) b
-  rwa [Real.dist_eq] at this
+  exact ⟨F, c, hc, fun a b =>
+    Real.dist_eq _ _ ▸ (dist_pi_lt_iff hδ).1 ((dist_pi_lt_iff hδ).1 hd a) b⟩
 
 /-- `0` is a price. -/
 theorem isPrice_zero : IsPrice K fun _ _ : Y => 0 := fun n _ =>
@@ -165,30 +163,19 @@ kept by multiples. -/
 private theorem isPseudometric (h : IsPrice K w) :
     (∀ a b, 0 ≤ w a b) ∧ (∀ a, w a a = 0) ∧ (∀ a b, w a b = w b a) ∧
       ∀ a b c, w a c ≤ w a b + w b c := by
-  refine ⟨fun a b => ?_, fun a => ?_, fun a b => ?_, fun a b c => ?_⟩
-  · have h2 : (fun i j : Fin 2 => w (![a, b] i) (![a, b] j)) ∈
-        {d : Fin 2 → Fin 2 → ℝ | 0 ≤ d 0 1} :=
-      prices_induction (h 2 ![a, b]) (isClosed_le continuous_const (by fun_prop)) fun F c hc =>
-        mul_nonneg hc (F.wireExponent_nonneg 0 1)
-    exact h2
-  · have h2 : (fun i j : Fin 1 => w (![a] i) (![a] j)) ∈ {d : Fin 1 → Fin 1 → ℝ | d 0 0 = 0} :=
-      prices_induction (h 1 ![a]) (isClosed_eq (by fun_prop) continuous_const) fun F c hc => by
-        change c * F.wireExponent 0 0 = 0
-        rw [F.wireExponent_self, mul_zero]
-    exact h2
-  · have h2 : (fun i j : Fin 2 => w (![a, b] i) (![a, b] j)) ∈
-        {d : Fin 2 → Fin 2 → ℝ | d 0 1 = d 1 0} :=
-      prices_induction (h 2 ![a, b]) (isClosed_eq (by fun_prop) (by fun_prop)) fun F c hc => by
-        change c * F.wireExponent 0 1 = c * F.wireExponent 1 0
-        rw [F.wireExponent_comm]
-    exact h2
-  · have h2 : (fun i j : Fin 3 => w (![a, b, c] i) (![a, b, c] j)) ∈
-        {d : Fin 3 → Fin 3 → ℝ | d 0 2 ≤ d 0 1 + d 1 2} :=
-      prices_induction (h 3 ![a, b, c]) (isClosed_le (by fun_prop) (by fun_prop)) fun F c hc => by
-        change c * F.wireExponent 0 2 ≤ c * F.wireExponent 0 1 + c * F.wireExponent 1 2
-        rw [← mul_add]
-        exact mul_le_mul_of_nonneg_left (F.wireExponent_triangle _ _ _) hc
-    exact h2
+  refine ⟨fun a b => prices_induction (S := {d | 0 ≤ d 0 1}) (h 2 ![a, b])
+      (isClosed_le continuous_const (by fun_prop))
+      fun F c hc => mul_nonneg hc (F.wireExponent_nonneg 0 1),
+    fun a => prices_induction (S := {d | d 0 0 = 0}) (h 1 ![a])
+      (isClosed_eq (by fun_prop) continuous_const)
+      fun F c _ => by simp [F.wireExponent_self],
+    fun a b => prices_induction (S := {d | d 0 1 = d 1 0}) (h 2 ![a, b])
+      (isClosed_eq (by fun_prop) (by fun_prop))
+      fun F c _ => congrArg (c * ·) (F.wireExponent_comm 0 1),
+    fun a b c => prices_induction (S := {d | d 0 2 ≤ d 0 1 + d 1 2}) (h 3 ![a, b, c])
+      (isClosed_le (by fun_prop) (by fun_prop))
+      fun F s hs => (mul_le_mul_of_nonneg_left (F.wireExponent_triangle 0 1 2) hs).trans_eq
+        (mul_add _ _ _)⟩
 
 theorem IsPrice.nonneg (h : IsPrice K w) (a b : Y) : 0 ≤ w a b := (isPseudometric h).1 a b
 
@@ -211,39 +198,29 @@ theorem IsPrice.smul (h : IsPrice K w) {c : ℝ} (hc : 0 ≤ c) : IsPrice K fun 
 variable (K) in
 /-- The set of prices is closed under pointwise convergence. -/
 theorem isClosed_setOf_isPrice : IsClosed {w : Y → Y → ℝ | IsPrice K w} := by
-  have : {w : Y → Y → ℝ | IsPrice K w} = ⋂ (n : ℕ) (f : Fin n → Y),
-      (fun (w : Y → Y → ℝ) i j => w (f i) (f j)) ⁻¹' prices K (Fin n) := by
-    ext w
-    simp [IsPrice]
-  rw [this]
-  exact isClosed_iInter fun n => isClosed_iInter fun f =>
+  simp only [IsPrice, prices, Set.ofPred_forall]
+  exact isClosed_iInter fun _ => isClosed_iInter fun f =>
     isClosed_closure.preimage (continuous_comp f)
 
 /-- Pointwise limits of prices are prices. -/
 theorem isPrice_of_tendsto {ι : Type*} {l : Filter ι} [l.NeBot] {d : ι → Y → Y → ℝ}
     (h : ∀ a b, Tendsto (fun i => d i a b) l (nhds (w a b))) (hd : ∀ᶠ i in l, IsPrice K (d i)) :
-    IsPrice K w := by
-  refine (isClosed_setOf_isPrice K).mem_of_tendsto ?_ hd
-  rw [tendsto_pi_nhds]
-  intro a
-  rw [tendsto_pi_nhds]
-  exact h a
+    IsPrice K w :=
+  (isClosed_setOf_isPrice K).mem_of_tendsto
+    (tendsto_pi_nhds.2 fun a => tendsto_pi_nhds.2 (h a)) hd
 
 variable (K) in
 /-- The prices below a given function form a compact set, by Tychonoff's theorem. -/
 theorem isCompact_setOf_isPrice_le (C : Y → Y → ℝ) :
     IsCompact {w : Y → Y → ℝ | IsPrice K w ∧ ∀ a b, w a b ≤ C a b} := by
   have h1 : IsCompact {w : Y → Y → ℝ | ∀ a, w a ∈ {v : Y → ℝ | ∀ b, v b ∈ Set.Icc 0 (C a b)}} :=
-    isCompact_pi_infinite fun a => isCompact_pi_infinite fun b => isCompact_Icc
+    isCompact_pi_infinite fun _ => isCompact_pi_infinite fun _ => isCompact_Icc
   have h2 : IsClosed {w : Y → Y → ℝ | ∀ a b, w a b ≤ C a b} := by
-    have : {w : Y → Y → ℝ | ∀ a b, w a b ≤ C a b} = ⋂ (a : Y) (b : Y), {w | w a b ≤ C a b} := by
-      ext w; simp
-    rw [this]
-    exact isClosed_iInter fun a => isClosed_iInter fun b =>
-      isClosed_le (by fun_prop) continuous_const
-  refine h1.of_isClosed_subset ((isClosed_setOf_isPrice K).inter h2) ?_
-  rintro w ⟨hw, hC⟩ a b
-  exact ⟨hw.nonneg a b, hC a b⟩
+    simpa only [Set.ofPred_forall] using
+      isClosed_iInter fun _ => isClosed_iInter fun _ =>
+        isClosed_le (by fun_prop) continuous_const
+  exact h1.of_isClosed_subset ((isClosed_setOf_isPrice K).inter h2)
+    fun _ ⟨hw, hC⟩ a b => ⟨hw.nonneg a b, hC a b⟩
 
 end General
 

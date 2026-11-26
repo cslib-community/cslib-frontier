@@ -148,17 +148,7 @@ private theorem stage1RedGenProg_spec {U w w₀ R c_tab d b_char M_out hBase F :
   unfold stage1RedGenProg
   simp only [pure_bind, hpMaskM_mk, hpMaskHalf_mk, hpHalfM_mk, hpMaskRem_mk, hpMaskTop_mk,
     hpTwoHalfM_mk, hpShiftR_mk]
-  have hr_st : (Memory.spec 0).clientState s (Memory.read hBase) = s := rfl
-  have hr_res : (Memory.spec 0).clientResult s (Memory.read hBase) = s.mem hBase := rfl
-  have hr_mc : memoryCost (Memory.read hBase) s = 1 := rfl
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hr_st]; rfl
-  · rw [clientResult_bind, hr_st, hr_res]
-    exact hrkey_eq
-  · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hr_mc, hr_st]; rfl
-  · refine validProg_bind (validProg_read hh_lt) ?_
-    rw [hr_st]
-    exact validProg_pure _
+  exact ⟨rfl, hrkey_eq, rfl, validProg_bind (validProg_read hh_lt) (validProg_pure _)⟩
 
 /-- Precondition for `evalHashGenProg` (`d = (hp, ((hBase, salt), u_val))`), without `s.frontier`.
 -/
@@ -228,26 +218,13 @@ private theorem validWhpProg_innerLoop {w w₀ R c_tab d b_char M_out hBase F j 
         (BitPackedDoubleTabulation.innerStepGenProg ((hp, (hBase, j)), ((i, y), r))) := by
       unfold BitPackedDoubleTabulation.innerStepGenProg
       simp only [hp, pure_bind, hpMaskB_mk, hpCPlusOne_mk, hpPowB_mk, hpBChar_mk, hpW_mk]
-      refine validProg_bind (validProg_readPacked hw hidx₁ htop_seg) ?_
-      exact validProg_pure _
-    have hstep_st : (Memory.spec 0).clientState s
-        (BitPackedDoubleTabulation.innerStepGenProg ((hp, (hBase, j)), ((i, y), r))) = s := rfl
-    set res₁ := (Memory.spec 0).clientResult s
-      (BitPackedDoubleTabulation.innerStepGenProg ((hp, (hBase, j)), ((i, y), r)))
-    have hi_eq : res₁.1.1 = i + 1 := rfl
-    obtain ⟨hvp_m, hst_m⟩ := ih res₁.1.1 res₁.1.2 res₁.2 s (by rw [hi_eq]; omega)
-    refine ⟨?_, ?_⟩
-    · change ValidProg w F s
-        (BitPackedDoubleTabulation.innerStepGenProg ((hp, (hBase, j)), ((i, y), r)) >>=
-          fun x => BitPackedDoubleTabulation.innerLoopGenProg (((hp, (hBase, j)), x), m))
-      refine validProg_bind hstep_vp ?_
-      rw [hstep_st]
-      exact hvp_m
-    · change (Memory.spec 0).clientState s
-        (BitPackedDoubleTabulation.innerStepGenProg ((hp, (hBase, j)), ((i, y), r)) >>=
-          fun x => BitPackedDoubleTabulation.innerLoopGenProg (((hp, (hBase, j)), x), m)) = s
-      rw [clientState_bind, hstep_st]
-      exact hst_m
+      exact validProg_bind (validProg_readPacked hw hidx₁ htop_seg) (validProg_pure _)
+    obtain ⟨hvp_m, hst_m⟩ := ih (i + 1) _ _ s (by omega)
+    refine ⟨validProg_bind hstep_vp hvp_m, ?_⟩
+    change (Memory.spec 0).clientState s
+      (BitPackedDoubleTabulation.innerStepGenProg ((hp, (hBase, j)), ((i, y), r)) >>=
+        fun x => BitPackedDoubleTabulation.innerLoopGenProg (((hp, (hBase, j)), x), m)) = s
+    rwa [clientState_bind]
 
 private theorem validWhpProg_outerLoop {w w₀ R c_tab d b_char M_out hBase F s_val rKey : ℕ}
     (henv : HashEnv w (mkHashParams w w₀ R c_tab d b_char M_out) hBase)
@@ -316,44 +293,27 @@ private theorem validWhpProg_outerLoop {w w₀ R c_tab d b_char M_out hBase F s_
       have hrp1_st : (Memory.spec 0).clientState s
           (readPackedGenProg (((hBase, 1), (b_char, w)),
             (j * (c_tab + 1) + c_tab) * 2 ^ b_char + s_val)) = s := rfl
-      have hrp1_res : (Memory.spec 0).clientResult s
-          (readPackedGenProg (((hBase, 1), (b_char, w)),
-            (j * (c_tab + 1) + c_tab) * 2 ^ b_char + s_val)) =
-          readPacked (hBase + 1) b_char w s.mem
-            ((j * (c_tab + 1) + c_tab) * 2 ^ b_char + s_val) :=
-        clientResult_readPackedProg _ _ _ _ _ _
-      rw [hrp1_st, hrp1_res]
-      refine validProg_bind (validProg_readPacked hw hidx₂ hbot_seg) ?_
-      exact validProg_pure _
-    have hstep_st : (Memory.spec 0).clientState s
+      rw [hrp1_st]
+      dsimp only [readPackedGenProg]
+      rw [clientResult_readPackedProg]
+      exact validProg_bind (validProg_readPacked hw hidx₂ hbot_seg) (validProg_pure _)
+    have hstep : (Memory.spec 0).clientState s
         (BitPackedDoubleTabulation.outerStepGenProg ((hp, (hBase, (s_val, rKey))), (j, out))) =
-        s := by
-      unfold BitPackedDoubleTabulation.outerStepGenProg
-        readPackedGenProg
+        s ∧ ((Memory.spec 0).clientResult s
+        (BitPackedDoubleTabulation.outerStepGenProg ((hp, (hBase, (s_val, rKey))), (j, out)))).1 =
+        j + 1 := by
+      unfold BitPackedDoubleTabulation.outerStepGenProg readPackedGenProg
       simp only [hp, pure_bind, hpCTab_mk]
-      rw [clientState_bind, hst_in,
-        clientState_bind, clientState_readPackedProg,
-        clientState_bind, clientState_readPackedProg]
-      rfl
-    set res₁ := (Memory.spec 0).clientResult s
-      (BitPackedDoubleTabulation.outerStepGenProg ((hp, (hBase, (s_val, rKey))), (j, out)))
-    have hj_eq : res₁.1 = j + 1 := by
-      dsimp only [res₁]
-      unfold BitPackedDoubleTabulation.outerStepGenProg
-        readPackedGenProg
-      simp only [hp, pure_bind, hpCTab_mk]
-      rw [clientResult_bind, hst_in,
-        clientResult_bind, clientState_readPackedProg,
-        clientResult_bind, clientState_readPackedProg]
-      rfl
+      rw [clientState_bind, clientResult_bind, hst_in, clientState_bind, clientResult_bind,
+        clientState_readPackedProg, clientState_bind, clientResult_bind, clientState_readPackedProg]
+      exact ⟨rfl, rfl⟩
     change ValidProg w F s
       (BitPackedDoubleTabulation.outerStepGenProg ((hp, (hBase, (s_val, rKey))), (j, out)) >>=
         fun x => BitPackedDoubleTabulation.outerLoopGenProg
           (((hp, (hBase, (s_val, rKey))), x), m))
     refine validProg_bind hstep_vp ?_
-    rw [hstep_st]
-    have hrec := ih res₁.1 res₁.2 s (by rw [hj_eq]; omega)
-    rwa [Prod.mk.eta] at hrec
+    rw [hstep.1]
+    exact ih _ _ s (by rw [hstep.2]; omega)
 
 private theorem evalHashGenProg_spec {U w w₀ R c_tab d b_char M_out s_max hBase F : ℕ}
     {θ : BitPackedDoubleTabulation.Seed w₀ c_tab d b_char M_out} {s : Memory.State}
@@ -382,18 +342,10 @@ private theorem evalHashGenProg_spec {U w w₀ R c_tab d b_char M_out s_max hBas
     simp only [pure_bind, hpD_mk]
     refine validProg_bind hs1.2.2.2 ?_
     rw [hs1.1]
-    refine validProg_bind hol_vp ?_
-    exact validProg_pure _
+    exact validProg_bind hol_vp (validProg_pure _)
   rw [evalHashGenProg_eq_evalGenProg] at hvp ⊢
-  have heq : BitPackedDoubleTabulation.evalGenProg
-      (mkHashParams w w₀ R c_tab d b_char M_out, ((hBase, salt.val), u.val)) =
-      BitPackedDoubleTabulation.evalProg w w₀ R c_tab d b_char M_out
-        ((hBase, salt.val), u.val) := rfl
   obtain ⟨hres, hst⟩ := BitPackedDoubleTabulation.evalProg_spec (R := R) hw₀ hs_max hrep salt u
-  have hmc := BitPackedDoubleTabulation.memoryCost_evalProg w w₀ R c_tab d b_char M_out
-    ((hBase, salt.val), u.val) s
-  rw [heq] at hvp ⊢
-  exact ⟨hst, hres, hmc, hvp⟩
+  exact ⟨hst, hres, BitPackedDoubleTabulation.memoryCost_evalProg .., hvp⟩
 
 /-! ## Section 2: Compact 38-Word Hash Runtime Parameter Bundle (`HashRt`) -/
 
@@ -466,6 +418,16 @@ theorem mkHashRtGenProg_spec {c U V w n_max base : ℕ} (hth : whpThreshold c �
     wp_large_offHashFp hth]
   exact ⟨rfl, rfl, rfl, validProg_pure _⟩
 
+/-- A key below `U` meets the stage-1 input bound `(2 ^ (w0Whp U - 1) - 1) <<< 1 + 1`. -/
+private theorem le_maskM_shiftLeft_of_lt {U x : ℕ} (hx : x < U) :
+    x ≤ ((2 ^ (w0Whp U - 1) - 1) <<< 1) + 1 := by
+  have hpow : 2 * 2 ^ (w0Whp U - 1) = 2 ^ w0Whp U := by
+    rw [← pow_succ', Nat.sub_add_cancel (w0Whp_pos U)]
+  have : 1 ≤ 2 ^ (w0Whp U - 1) := Nat.one_le_two_pow
+  have := hx.trans_le (le_two_pow_w0Whp U)
+  rw [Nat.shiftLeft_eq, pow_one]
+  omega
+
 private theorem hashRt_segments_le {c U V w n_max base : ℕ} :
     base + offHashBkt +
       BitPackedDoubleTabulation.space w (cTabWhp c) (dTabWhp c) (bCharWhp n_max) (bWhp n_max) ≤
@@ -534,13 +496,7 @@ private theorem realizes_bktHashRt :
       rw [hseed.1.1]
       have := θ.1.1.isLt; omega
     · dsimp only [hpMaskM_mk]
-      rw [Nat.shiftLeft_eq, pow_one]
-      have hw0 := w0Whp_pos U
-      have hpow : 2 * 2 ^ (w0Whp U - 1) = 2 ^ w0Whp U := by
-        rw [← pow_succ', Nat.sub_add_cancel hw0]
-      have : 1 ≤ 2 ^ (w0Whp U - 1) := Nat.one_le_two_pow
-      have hqU : q < 2 ^ w0Whp U := (by rwa [← hU_eq] : q < U).trans_le (le_two_pow_w0Whp U)
-      omega
+      exact le_maskM_shiftLeft_of_lt (by rwa [← hU_eq] : q < U)
 
 private theorem bktHashRtProg_spec {c U V w n_max base q : ℕ} {θ : SeedWhp c U n_max}
     {s : Memory.State}
@@ -558,18 +514,11 @@ private theorem bktHashRtProg_spec {c U V w n_max base q : ℕ} {θ : SeedWhp c 
     (base := base)).1
   dsimp only
   unfold bktHashRtProg bktHash
-  simp only [pure_bind]
-  have hULim : hrULim (mkHashRt c U w n_max base) = U := rfl
-  have hBase : hrBase (mkHashRt c U w n_max base) = base := rfl
-  have hHpBkt : hrHpBkt (mkHashRt c U w n_max base) =
-      mkHashParams w (w0Whp U) (rRedWhp c n_max) (cTabWhp c) (dTabWhp c)
-        (bCharWhp n_max) (bWhp n_max) := rfl
-  rw [hULim, hBase, hHpBkt]
+  simp only [pure_bind, mkHashRt, hrULim, hrBase, hrHpBkt]
   by_cases hq : q < U
   · rw [ite_eq_left hq, dite_eq_left hq]
     have hev := evalHashGenProg_spec henv1 hw (w0Whp_pos U) (le_two_pow_w0Whp U)
       Nat.one_le_two_pow hseg1 hseed.1 ⟨0, Nat.zero_lt_one⟩ ⟨q, hq⟩
-    dsimp only [offHashBkt] at hev
     exact ⟨hev.1, hev.2.1, hev.2.2.1.le, hev.2.2.2⟩
   · rw [ite_eq_right hq, dite_eq_right hq]
     exact ⟨rfl, rfl, Nat.zero_le _, validProg_pure 0⟩
@@ -625,23 +574,18 @@ theorem feistelSplitRtProg_spec {c U V w n_max base u_val : ℕ} {θ : SeedWhp c
   have hq_eq : q = keyQuotient (bWhp n_max) u_val := Nat.shiftRight_eq_div_pow u_val (bWhp n_max)
   dsimp only
   unfold feistelSplitRtProg
-  simp only [pure_bind]
-  have hBBits : hrBBits (mkHashRt c U w n_max base) = bWhp n_max := rfl
-  have hMask : hrMaskBkt (mkHashRt c U w n_max base) = numBucketsWhp n_max - 1 := rfl
-  rw [hBBits, hMask]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hst]; rfl
+  have hrt_eq : hrBBits (mkHashRt c U w n_max base) = bWhp n_max ∧
+      hrMaskBkt (mkHashRt c U w n_max base) = numBucketsWhp n_max - 1 := ⟨rfl, rfl⟩
+  simp only [pure_bind, hrt_eq.1, hrt_eq.2]
+  refine ⟨by rw [clientState_bind, hst]; rfl, ?_, ?_,
+    validProg_bind hvp (hst ▸ validProg_pure _)⟩
   · rw [clientResult_bind, hst, hres, StateTransitionSpec.clientResult_pure]
     apply Prod.ext
     · unfold feistelBucket keyLow numBucketsWhp
       rw [← hq_eq, Nat.and_two_pow_sub_one_eq_mod, Nat.and_two_pow_sub_one_eq_mod]
     · exact hq_eq
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hst, memoryCost_pure, Nat.add_zero]
-    exact hmc
-  · refine validProg_bind hvp ?_
-    rw [hst]
-    exact validProg_pure _
+  · simpa only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, memoryCost_pure,
+      Nat.add_zero] using hmc
 
 /-- Reconstruct key `feistelReconstruct (bWhp n_max) (bktHash ...) b q` (`d = ((hrt, b), q)` with
 `q < 2 ^ quotBitsWhp U n_max`). -/
@@ -719,21 +663,16 @@ private theorem feistelReconstructRtProg_spec {c U V w n_max base b q : ℕ} {θ
   obtain ⟨hst, hres, hmc, hvp⟩ := bktHashRtProg_spec (q := q) henv hseed (s := s)
   dsimp only
   unfold feistelReconstructRtProg
-  simp only [pure_bind]
-  have hMask : hrMaskBkt (mkHashRt c U w n_max base) = numBucketsWhp n_max - 1 := rfl
-  have hBBits : hrBBits (mkHashRt c U w n_max base) = bWhp n_max := rfl
-  rw [hMask, hBBits]
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · rw [clientState_bind, hst]; rfl
+  have hrt_eq : hrMaskBkt (mkHashRt c U w n_max base) = numBucketsWhp n_max - 1 ∧
+      hrBBits (mkHashRt c U w n_max base) = bWhp n_max := ⟨rfl, rfl⟩
+  simp only [pure_bind, hrt_eq.1, hrt_eq.2]
+  refine ⟨by rw [clientState_bind, hst]; rfl, ?_, ?_,
+    validProg_bind hvp (hst ▸ validProg_pure _)⟩
   · rw [clientResult_bind, hst, hres, StateTransitionSpec.clientResult_pure]
     unfold feistelReconstruct numBucketsWhp
     rw [Nat.shiftLeft_eq, Nat.and_two_pow_sub_one_eq_mod, Nat.and_two_pow_sub_one_eq_mod]
-  · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-    rw [hst, memoryCost_pure, Nat.add_zero]
-    exact hmc
-  · refine validProg_bind hvp ?_
-    rw [hst]
-    exact validProg_pure _
+  · simpa only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, memoryCost_pure,
+      Nat.add_zero] using hmc
 
 /-- Compute `if h : kv < U then fpReducedKey c U n_max θ.2 ⟨kv, h⟩ else 0` (`d = (hrt, kv)`). -/
 @[irreducible] def fpReducedKeyOptRtProg (d : HashRt × ℕ) : Memory.Prog ℕ := do
@@ -779,13 +718,7 @@ theorem realizes_fpReducedKeyOptRt :
       rw [hseed.2.1]
       have := θ.2.1.isLt; omega
     · dsimp only [hpMaskM_mk]
-      rw [Nat.shiftLeft_eq, pow_one]
-      have hw0 := w0Whp_pos U
-      have hpow : 2 * 2 ^ (w0Whp U - 1) = 2 ^ w0Whp U := by
-        rw [← pow_succ', Nat.sub_add_cancel hw0]
-      have : 1 ≤ 2 ^ (w0Whp U - 1) := Nat.one_le_two_pow
-      have hkvU : kv < 2 ^ w0Whp U := (by rwa [← hU_eq] : kv < U).trans_le (le_two_pow_w0Whp U)
-      omega
+      exact le_maskM_shiftLeft_of_lt (by rwa [← hU_eq] : kv < U)
 
 theorem fpReducedKeyOptRtProg_spec {c U V w n_max base kv : ℕ} {θ : SeedWhp c U n_max}
     {s : Memory.State}
@@ -801,14 +734,7 @@ theorem fpReducedKeyOptRtProg_spec {c U V w n_max base kv : ℕ} {θ : SeedWhp c
     (base := base)).2.2
   dsimp only
   unfold fpReducedKeyOptRtProg
-  simp only [pure_bind]
-  have hULim : hrULim (mkHashRt c U w n_max base) = U := rfl
-  have hBase : hrBase (mkHashRt c U w n_max base) = base := rfl
-  have hOffFp : hrOffFp (mkHashRt c U w n_max base) = offHashFp c w n_max := rfl
-  have hHpFp : hrHpFp (mkHashRt c U w n_max base) =
-      mkHashParams w (w0Whp U) (rRedWhp c n_max) (cTabWhp c) (dTabWhp c)
-        (bCharWhp n_max) (fpBitsWhp n_max) := rfl
-  rw [hULim, hBase, hOffFp, hHpFp]
+  simp only [pure_bind, mkHashRt, hrULim, hrBase, hrOffFp, hrHpFp]
   by_cases hkv : kv < U
   · rw [ite_eq_left hkv, dite_eq_left hkv]
     have hs1 := stage1RedGenProg_spec (R := rRedWhp c n_max) (w0Whp_pos U) hh_lt hseed.2 ⟨kv, hkv⟩
@@ -869,13 +795,7 @@ theorem realizes_fpOfSaltOptRt :
     · dsimp only [hpPowB_mk]
       exact (by rwa [← hS_eq] : salt < sMaxWhp c n_max).trans_le (sMaxWhp_le_pow_bChar hth)
     · dsimp only [hpMaskM_mk]
-      rw [Nat.shiftLeft_eq, pow_one]
-      have hw0 := w0Whp_pos U
-      have hpow : 2 * 2 ^ (w0Whp U - 1) = 2 ^ w0Whp U := by
-        rw [← pow_succ', Nat.sub_add_cancel hw0]
-      have : 1 ≤ 2 ^ (w0Whp U - 1) := Nat.one_le_two_pow
-      have hkvU : kv < 2 ^ w0Whp U := (by rwa [← hU_eq] : kv < U).trans_le (le_two_pow_w0Whp U)
-      omega
+      exact le_maskM_shiftLeft_of_lt (by rwa [← hU_eq] : kv < U)
 
 theorem fpOfSaltOptRtProg_spec {c U V w n_max base salt kv : ℕ} {θ : SeedWhp c U n_max}
     {s : Memory.State}
@@ -896,15 +816,7 @@ theorem fpOfSaltOptRtProg_spec {c U V w n_max base salt kv : ℕ} {θ : SeedWhp 
     (base := base)).2.1
   dsimp only
   unfold fpOfSaltOptRtProg
-  simp only [pure_bind]
-  have hSMax : hrSMax (mkHashRt c U w n_max base) = sMaxWhp c n_max := rfl
-  have hULim : hrULim (mkHashRt c U w n_max base) = U := rfl
-  have hBase : hrBase (mkHashRt c U w n_max base) = base := rfl
-  have hOffFp : hrOffFp (mkHashRt c U w n_max base) = offHashFp c w n_max := rfl
-  have hHpFp : hrHpFp (mkHashRt c U w n_max base) =
-      mkHashParams w (w0Whp U) (rRedWhp c n_max) (cTabWhp c) (dTabWhp c)
-        (bCharWhp n_max) (fpBitsWhp n_max) := rfl
-  rw [hSMax, hULim, hBase, hOffFp, hHpFp]
+  simp only [pure_bind, mkHashRt, hrSMax, hrULim, hrBase, hrOffFp, hrHpFp]
   by_cases hs : salt < sMaxWhp c n_max
   · rw [ite_eq_left hs, dite_eq_left hs]
     by_cases hu : kv < U

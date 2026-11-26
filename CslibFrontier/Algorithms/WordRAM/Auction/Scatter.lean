@@ -99,28 +99,9 @@ theorem scatterProg_spec {w : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
       (∀ i j : Fin ws.n, s'.mem (ws.bC + (i.val * ws.n + j.val)) = C (i, j)) ∧
       outputList s'.mem ws.outBase = (List.finRange ws.n).map fun i => (st.objectOf i).val := by
   obtain ⟨hbO, hbP, hbS, hout, hfr⟩ := hws
-  have howner_some : ∀ j : Fin ws.n, ∃ i : Fin ws.n, st.owner j = some i := fun j => by
-    cases ho : st.owner j with
-    | some i => exact ⟨i, rfl⟩
-    | none =>
-      exfalso
-      have hcard : (Finset.univ.image st.objectOf).card = ws.n := by
-        rw [Finset.card_image_of_injective _ fun i₁ i₂ e =>
-          Option.some_injective _
-            ((hinv.owner_objectOf hfree i₁).symm.trans (by
-              rw [e]; exact hinv.owner_objectOf hfree i₂)),
-          Finset.card_univ, Fintype.card_fin]
-      have hsub : Finset.univ.image st.objectOf ⊆ Finset.univ.erase j := by
-        intro x hx
-        obtain ⟨i, _, rfl⟩ := Finset.mem_image.mp hx
-        refine Finset.mem_erase.mpr ⟨fun hEq => ?_, Finset.mem_univ _⟩
-        have := hinv.owner_objectOf hfree i
-        rw [hEq, ho] at this
-        cases this
-      have hlt := (Finset.card_le_card hsub).trans_lt
-        (Finset.card_erase_lt_of_mem (Finset.mem_univ j))
-      rw [hcard, Finset.card_univ, Fintype.card_fin] at hlt
-      exact Nat.lt_irrefl _ hlt
+  have howner_some (j : Fin ws.n) : ∃ i : Fin ws.n, st.owner j = some i :=
+    ⟨_, (congrArg st.owner (hinv.objectOf_personOf hfree j)).symm.trans
+      (hinv.owner_objectOf hfree _)⟩
   let s₁ : Memory.State := ⟨Function.update s₀.mem ws.outBase ws.n, s₀.frontier⟩
   have hit := iterate_spec scatterStep ScatterStepSafe w ws 2 ws.n
     (fun k idx s => idx = k ∧ s.frontier = s₀.frontier ∧
@@ -141,45 +122,35 @@ theorem scatterProg_spec {w : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
         rw [ho_k]; exact hfit_ws.of_le (by have := ik.isLt; omega)
       have hv : (Memory.spec w).ValidHistory s
           ((Memory.spec w).clientHistory s (scatterStep (ws, k))) := by
-        unfold scatterStep
-        dsimp only
+        dsimp only [scatterStep]
         exact validHistory_read_bind (by omega)
           (validHistory_write_bind (by rw [ho_k]; have := ik.isLt; omega)
             (hfit_ws.of_le (by omega)) (validHistory_pure w _ _))
-      have hmc : memoryCost (scatterStep (ws, k)) s ≤ 2 := by
-        unfold scatterStep
-        exact memoryCost_read_bind_le fun _ _ =>
-          memoryCost_write_bind_le fun _ _ => Nat.le_refl 0
+      have hmc : memoryCost (scatterStep (ws, k)) s ≤ 2 :=
+        memoryCost_read_bind_le fun _ _ => memoryCost_write_bind_le fun _ _ => le_rfl
       have hst_eq : (Memory.spec 0).clientState s (scatterStep (ws, k)) =
           ⟨Function.update s.mem (ws.outBase + 1 + ik.val) k, s.frontier⟩ := by
-        unfold scatterStep
-        rw [clientState_bind_read]
+        rw [scatterStep, clientState_bind_read]
         dsimp only
         rw [ho_k, clientState_bind_write, clientState_pure]
       have hres_eq : (Memory.spec 0).clientResult s (scatterStep (ws, k)) = k + 1 := by
-        unfold scatterStep
-        rw [clientResult_bind_read, clientResult_bind_write, clientResult_pure]
+        rw [scatterStep, clientResult_bind_read, clientResult_bind_write, clientResult_pure]
       refine ⟨hsafe, hv, hmc, by rw [hst_eq], fun x hx => ?_, ?_⟩
       · rw [hst_eq]
-        dsimp only
         exact Function.update_of_ne (by have := ik.isLt; omega) _ _
       · rw [hst_eq, hres_eq]
         dsimp only
         refine ⟨rfl, hsfr, ?_, fun a ha => ?_, fun j hj i hi => ?_⟩
         · rw [Function.update_of_ne (by omega)]; exact hhdr
         · rw [Function.update_of_ne (by omega)]; exact hlow a ha
-        · rcases Nat.lt_succ_iff_lt_or_eq.mp hj with hlt' | heq
-          · have hij_ne : i ≠ ik := fun hEq => by
-              subst hEq
-              have hj_eq : j = jk := hinv.owner_inj j jk i hi hik
-              exact absurd (congrArg Fin.val hj_eq) (ne_of_lt hlt')
-            rw [Function.update_of_ne (by have := Fin.val_ne_of_ne hij_ne; omega)]
-            exact hscat j hlt' i hi
-          · have hj_eq : j = jk := Fin.ext heq
-            subst hj_eq
-            have hi_eq : i = ik := Option.some_injective _ (hi.symm.trans hik)
-            subst hi_eq
-            exact Function.update_self _ _ _)
+        · by_cases hii : i = ik
+          · subst hii
+            obtain rfl : j = jk := hinv.owner_inj j jk i hi hik
+            exact Function.update_self _ _ _
+          · have hjk : j.val ≠ k := fun h => hii (Option.some_injective _
+              (hi.symm.trans ((congrArg st.owner (Fin.ext h : j = jk)).trans hik)))
+            rw [Function.update_of_ne (by have := Fin.val_ne_of_ne hii; omega)]
+            exact hscat j (by omega) i hi)
     0 s₁ ⟨rfl, rfl, Function.update_self _ _ _,
       fun a ha => Function.update_of_ne (by omega) _ _,
       fun _ h => absurd h (Nat.not_lt_zero _)⟩
@@ -192,20 +163,15 @@ theorem scatterProg_spec {w : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n �
   · rw [memoryCost_bind', memoryCost_write, clientState_write, memoryCost_bind', memoryCost_pure]
     dsimp only [s₁] at hmc_it
     omega
-  · rw [clientState_bind_write, clientState_bind, clientState_pure]
-    exact hfr_it
+  · rwa [clientState_bind_write, clientState_bind, clientState_pure]
   · rw [clientResult_bind_write, clientResult_bind, clientResult_pure]
   · rw [clientState_bind_write, clientState_bind, clientState_pure]
     have hlt_ij : i.val * ws.n + j.val < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i, j)
     exact (hlow _ (by omega)).trans (ham.hC i j)
   · rw [clientState_bind_write, clientState_bind, clientState_pure, outputList_eq_iff]
-    refine ⟨by simp only [List.length_map, List.length_finRange]; exact hhdr, fun idx => ?_⟩
-    have hi_lt : idx.val < ws.n := by simpa using idx.isLt
-    let iFin : Fin ws.n := ⟨idx.val, hi_lt⟩
-    change ((Memory.spec 0).clientState s₁ (iterate scatterStep ws ws.n 0)).mem
-        (ws.outBase + 1 + idx.val) =
-      ((List.finRange ws.n).map fun i => (st.objectOf i).val)[idx.val]
-    simp only [List.getElem_map, List.getElem_finRange]
+    refine ⟨by simpa only [List.length_map, List.length_finRange] using hhdr, fun idx => ?_⟩
+    let iFin : Fin ws.n := ⟨idx.val, by simpa using idx.isLt⟩
+    simp only [Fin.getElem_fin, List.getElem_map, List.getElem_finRange]
     exact hscat (st.objectOf iFin) (st.objectOf iFin).isLt iFin (hinv.owner_objectOf hfree iFin)
 
 end

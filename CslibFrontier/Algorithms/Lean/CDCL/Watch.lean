@@ -179,33 +179,31 @@ theorem size_modifyWatch (W : Watches) (i : ℕ) (f : Array ℕ → Array ℕ) :
 
 /-- Two arrays of watch lists of the same size with the same lists are equal. -/
 theorem watches_ext {W W' : Watches} (hs : W.size = W'.size)
-    (h : ∀ j, W.getD j #[] = W'.getD j #[]) : W = W' := by
-  apply Array.ext hs
-  intro j h₁ h₂
-  have := h j
-  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem h₁,
-    Array.getElem?_eq_getElem h₂, Option.getD_some] at this
-  exact this
+    (h : ∀ j, W.getD j #[] = W'.getD j #[]) : W = W' :=
+  Array.ext hs fun j h₁ h₂ => by
+    simpa only [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem h₁,
+      Array.getElem?_eq_getElem h₂, Option.getD_some] using h j
 
 /-- Modifying the same watch list twice is modifying it once. -/
 theorem modifyWatch_modifyWatch (W : Watches) (i : ℕ) (f g : Array ℕ → Array ℕ) :
     modifyWatch (modifyWatch W i f) i g = modifyWatch W i (g ∘ f) := by
-  apply watches_ext
-  · simp only [size_modifyWatch]; omega
-  · intro j
-    simp only [getD_modifyWatch]
+  refine watches_ext ?_ fun j => ?_
+  · simp only [size_modifyWatch]
+    omega
+  · simp only [getD_modifyWatch]
     split <;> rfl
 
 /-- Modifying two different watch lists, in either order. -/
 theorem modifyWatch_comm (W : Watches) {i j : ℕ} (hij : i ≠ j)
     (f g : Array ℕ → Array ℕ) :
     modifyWatch (modifyWatch W i f) j g = modifyWatch (modifyWatch W j g) i f := by
-  apply watches_ext
-  · simp only [size_modifyWatch]; omega
-  · intro k
-    simp only [getD_modifyWatch]
+  refine watches_ext ?_ fun k => ?_
+  · simp only [size_modifyWatch]
+    omega
+  · simp only [getD_modifyWatch]
     by_cases hk : k = j
-    · subst hk; simp [Ne.symm hij]
+    · subst hk
+      simp [Ne.symm hij]
     · simp [hk, hij]
 
 /-- Adding a watcher to a list just replaced is replacing it with the longer array. -/
@@ -745,37 +743,25 @@ theorem WatchStore.Inv.addClause {F : List (ℕ × Clause ℕ)} {M : Trail} {Q :
       exact ⟨e'', Array.mem_push_of_mem _ he'', h1, h2⟩
   · intro k hk w hw
     simp only [Array.size_push] at hk
-    simp only [watchList_addWatch]
     by_cases hks : k = S.clauses.size
     · subst hks
       simp only [Array.getElem_push_eq, List.toList_toArray,
         List.take_succ_cons, List.take_zero, List.mem_cons, List.not_mem_nil, or_false] at hw
-      clear hcl hW
-      rcases hw with rfl | rfl <;> split_ifs <;> simp_all
+      rcases hw with rfl | rfl
+      · by_cases heq : litCode w = litCode w₂
+        · rw [heq]
+          exact mem_clauseIds_addWatch_self ..
+        · exact mem_clauseIds_addWatch (mem_clauseIds_addWatch_self ..)
+      · exact mem_clauseIds_addWatch_self ..
     · have hk' : k < S.clauses.size := by omega
       rw [Array.getElem_push_lt hk'] at hw
-      have := h.listed k hk' w hw
-      split
-      · exact List.mem_cons_of_mem _ (by split <;> simp_all)
-      · split
-        · exact List.mem_cons_of_mem _ (by simp_all)
-        · exact this
+      exact mem_clauseIds_addWatch (mem_clauseIds_addWatch (h.listed k hk' w hw))
   · intro i x hx
-    have hold : ∀ x ∈ watchList S.watches i,
-        ∃ (hk : x.clause < (S.clauses.push (id, (w₁ :: w₂ :: rest).toArray)).size),
-          x.blocker ∈ (S.clauses.push (id, (w₁ :: w₂ :: rest).toArray))[x.clause].2.toList :=
-      fun x hx => by
-        obtain ⟨hk, hb⟩ := h.blocker_mem i x hx
-        exact ⟨by simp; omega, by rw [Array.getElem_push_lt hk]; exact hb⟩
-    have hnew : ∀ b ∈ w₁ :: w₂ :: rest, ∃ (hk : S.clauses.size < (S.clauses.push
-        (id, (w₁ :: w₂ :: rest).toArray)).size),
-        b ∈ (S.clauses.push (id, (w₁ :: w₂ :: rest).toArray))[S.clauses.size].2.toList :=
-      fun b hb => ⟨by simp, by simpa using hb⟩
-    rcases mem_watchList_addWatch hx with rfl | hx
-    · exact hnew _ (by simp)
-    rcases mem_watchList_addWatch hx with rfl | hx
-    · exact hnew _ (by simp)
-    exact hold x hx
+    rcases (mem_watchList_addWatch hx).imp_right mem_watchList_addWatch with rfl | rfl | hx
+    · exact ⟨by simp, by simp⟩
+    · exact ⟨by simp, by simp⟩
+    · obtain ⟨hk, hb⟩ := h.blocker_mem i x hx
+      exact ⟨by simp; omega, by rw [Array.getElem_push_lt hk]; exact hb⟩
   · intro e' he' v₁ v₂ rest' hc' h₁ h₂
     rcases Array.mem_push.1 he' with he' | rfl
     · obtain ⟨b, hb, hs⟩ := h.covered e' he' v₁ v₂ rest' hc' h₁ h₂
@@ -1017,10 +1003,7 @@ theorem WatchStore.buildWith_inv (P : Array ℕ) {A : Assign} {M : Trail} (hA : 
       obtain ⟨rest', hc'⟩ := watchOrderAt_head hc
       exact hF e List.mem_cons_self hlen fun l hl =>
         falsifies_of_watchOrder hA hc' hp.1 l (hd.1.mem_iff.2 (List.mem_dedup.2 hl))
-    | [] =>
-      rw [hc] at hperm
-      exact ih.consShort e (by simp [← hperm.length_eq])
-    | [_] =>
+    | [] | [_] =>
       rw [hc] at hperm
       exact ih.consShort e (by simp [← hperm.length_eq])
 

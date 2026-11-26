@@ -62,28 +62,20 @@ theorem exists_compression {r w : ℕ} (hr : 0 < r) (b : Fin r → ℕ)
         projectBits (List.ofFn b) x < projectBits (List.ofFn b) y) := by
   obtain ⟨m, hcross, hmono, hspan⟩ := exists_spread_shifts hr b hb hw
   have hlow (i : Fin r) : w ≤ b i + m i := (hspan i).1.le
-  have hdiag : StrictMono (fun i => b i + m i - w) := by
-    intro i j hij
-    have hi := hlow i
-    have hj := hlow j
-    have hlt := hmono hij
-    change b i + m i < b j + m j at hlt
-    change b i + m i - w < b j + m j - w
+  have hdiag : StrictMono (fun i => b i + m i - w) := fun i j hij => by
+    have := hlow i
+    have := hlow j
+    have : b i + m i < b j + m j := hmono hij
+    dsimp only
     omega
-  have hminj : Function.Injective m := by
-    intro i j he
-    let k : Fin r := ⟨0, hr⟩
-    exact congrArg Prod.snd (hcross (show b (k, i).1 + m (k, i).2 =
-      b (k, j).1 + m (k, j).2 by dsimp only; rw [he]))
-  refine ⟨m, hcross, ?_, ?_, fun x y =>
-    approximateSketch_lt_iff_projectBits b m hcross hb hlow hdiag x y⟩
-  · exact positionMask_lt m hminj (fun i => lt_of_le_of_lt (Nat.le_add_left _ _) (hspan i).2)
-  · intro x
-    apply Nat.and_le_right.trans_lt
-    apply positionMask_lt _ hdiag.injective
-    intro i
-    have hi := hspan i
-    change b i + m i - w < 2 * r ^ 4
-    omega
+  have hminj : Function.Injective m := fun i j he =>
+    congrArg Prod.snd (@hcross (⟨0, hr⟩, i) (⟨0, hr⟩, j) (congrArg (b ⟨0, hr⟩ + ·) he))
+  refine ⟨m, hcross,
+    positionMask_lt m hminj (fun i => lt_of_le_of_lt (Nat.le_add_left _ _) (hspan i).2),
+    fun x => Nat.and_le_right.trans_lt (positionMask_lt _ hdiag.injective fun i => ?_),
+    fun x y => approximateSketch_lt_iff_projectBits b m hcross hb hlow hdiag x y⟩
+  have := hspan i
+  change b i + m i - w < 2 * r ^ 4
+  omega
 
 end Cslib.DataStructure.FusionTree

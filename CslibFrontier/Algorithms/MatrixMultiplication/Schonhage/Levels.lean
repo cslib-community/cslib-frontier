@@ -237,36 +237,30 @@ part. -/
 theorem leftStr_eq_leftStrOf {u : LeftStr L} (hu : innerSetL u = Q) (h : (innerSetL u).card = m) :
     u = leftStrOf Q hQ (outerPartL u h) (innerPartL u h) := by
   subst hu
-  refine eq_glue_of_reconstruct _ h LeftVar.IsInner
-    (fromSubset := fun π : Fin 2 × Fin 2 => .p π.1 π.2) ?_ ?_ rfl
-  · rintro (i | ⟨i, j⟩) hs
-    exacts [hs.elim, rfl]
-  · rintro (i | ⟨i, j⟩) hs
-    exacts [rfl, (hs trivial).elim]
+  exact eq_glue_of_reconstruct _ h LeftVar.IsInner
+    (fromSubset := fun π : Fin 2 × Fin 2 => .p π.1 π.2)
+    (fun | .x _, hs => hs.elim | .p _ _, _ => rfl)
+    (fun | .x _, _ => rfl | .p _ _, hs => (hs trivial).elim) rfl
 
 /-- A right string with inner set `Q` is the string `rightStrOf` of its inner part and its outer
 part. -/
 theorem rightStr_eq_rightStrOf {v : RightStr L} (hv : innerSetR v = Q)
     (h : (innerSetR v).card = m) : v = rightStrOf Q hQ (innerPartR v h) (outerPartR v h) := by
   subst hv
-  refine eq_glue_of_reconstruct _ h RightVar.IsInner
-    (fromSubset := fun π : Fin 2 × Fin 2 => .q π.1 π.2) ?_ ?_ rfl
-  · rintro (j | ⟨i, j⟩) ht
-    exacts [ht.elim, rfl]
-  · rintro (j | ⟨i, j⟩) ht
-    exacts [rfl, (ht trivial).elim]
+  exact eq_glue_of_reconstruct _ h RightVar.IsInner
+    (fromSubset := fun π : Fin 2 × Fin 2 => .q π.1 π.2)
+    (fun | .y _, ht => ht.elim | .q _ _, _ => rfl)
+    (fun | .y _, _ => rfl | .q _ _, ht => (ht trivial).elim) rfl
 
 /-- An output string with inner set `Q` is the string `outStrOf` of its row and its column. -/
 theorem outStr_eq_outStrOf {w : OutStr L} (hw : innerSetO w = Q) (h : (innerSetO w).card = m) :
     w = outStrOf Q hQ (rowO w h) (colO w h) := by
   subst hw
-  refine eq_glue_of_reconstruct _ h OutVar.IsInner (fromSubset := fun _ : Unit => .z0)
+  exact eq_glue_of_reconstruct _ h OutVar.IsInner (fromSubset := fun _ : Unit => .z0)
     (fromCompl := fun rc : Fin 3 × Fin 3 => .z rc.1 rc.2) (toSubset := fun _ => ())
-    (toCompl := fun z => (z.rowIndex, z.colIndex)) ?_ ?_ rfl
-  · rintro (⟨i, j⟩ | _) hz
-    exacts [hz.elim, rfl]
-  · rintro (⟨i, j⟩ | _) hz
-    exacts [rfl, (hz trivial).elim]
+    (toCompl := fun z => (z.rowIndex, z.colIndex))
+    (fun | .z _ _, hz => hz.elim | .z0, _ => rfl)
+    (fun | .z _ _, _ => rfl | .z0, hz => (hz trivial).elim) rfl
 
 variable {hQ}
 
@@ -295,10 +289,9 @@ theorem existsUnique_leftStr (r : OuterStr L m) (π : InnerStr m) :
     ∃! u : LeftStr L, innerSetL u = Q
       ∧ ∃ h : (innerSetL u).card = m, outerPartL u h = r ∧ innerPartL u h = π := by
   have hset := innerSetL_leftStrOf Q hQ r π
-  refine ⟨leftStrOf Q hQ r π, ⟨hset, hset.symm ▸ hQ, outerPartL_leftStrOf Q hQ r π _,
-    innerPartL_leftStrOf Q hQ r π _⟩, ?_⟩
-  rintro u ⟨hu, h, rfl, rfl⟩
-  exact leftStr_eq_leftStrOf hQ hu h
+  exact ⟨leftStrOf Q hQ r π, ⟨hset, hset.symm ▸ hQ, outerPartL_leftStrOf Q hQ r π _,
+    innerPartL_leftStrOf Q hQ r π _⟩,
+    fun _ ⟨hu, h, hr, hπ⟩ => hr ▸ hπ ▸ leftStr_eq_leftStrOf hQ hu h⟩
 
 /-- For a set `Q` of cardinality `m`, an inner index `π` and an outer index `c` determine a
 unique right string with those extracted parts and inner set `Q`. -/
@@ -306,10 +299,9 @@ theorem existsUnique_rightStr (π : InnerStr m) (c : OuterStr L m) :
     ∃! v : RightStr L, innerSetR v = Q
       ∧ ∃ h : (innerSetR v).card = m, innerPartR v h = π ∧ outerPartR v h = c := by
   have hset := innerSetR_rightStrOf Q hQ π c
-  refine ⟨rightStrOf Q hQ π c, ⟨hset, hset.symm ▸ hQ,
-    innerPartR_rightStrOf Q hQ π c _, outerPartR_rightStrOf Q hQ π c _⟩, ?_⟩
-  rintro v ⟨hv, h, rfl, rfl⟩
-  exact rightStr_eq_rightStrOf hQ hv h
+  exact ⟨rightStrOf Q hQ π c, ⟨hset, hset.symm ▸ hQ, innerPartR_rightStrOf Q hQ π c _,
+    outerPartR_rightStrOf Q hQ π c _⟩,
+    fun _ ⟨hv, h, hπ, hc⟩ => hπ ▸ hc ▸ rightStr_eq_rightStrOf hQ hv h⟩
 
 /-- For a set `Q` of cardinality `m`, a row `r` and a column `c` determine a unique output
 string with those extracted indices and inner set `Q`. -/
@@ -317,9 +309,8 @@ theorem existsUnique_outStr (r c : OuterStr L m) :
     ∃! w : OutStr L, innerSetO w = Q
       ∧ ∃ h : (innerSetO w).card = m, rowO w h = r ∧ colO w h = c := by
   have hset := innerSetO_outStrOf Q hQ r c
-  refine ⟨outStrOf Q hQ r c, ⟨hset, hset.symm ▸ hQ, rowO_outStrOf Q hQ r c _,
-    colO_outStrOf Q hQ r c _⟩, ?_⟩
-  rintro w ⟨hw, h, rfl, rfl⟩
-  exact outStr_eq_outStrOf hQ hw h
+  exact ⟨outStrOf Q hQ r c, ⟨hset, hset.symm ▸ hQ, rowO_outStrOf Q hQ r c _,
+    colO_outStrOf Q hQ r c _⟩,
+    fun _ ⟨hw, h, hr, hc⟩ => hr ▸ hc ▸ outStr_eq_outStrOf hQ hw h⟩
 
 end Cslib.Algorithms.MatrixMultiplication.Schonhage

@@ -191,12 +191,13 @@ private theorem poly_slots (L : ℕ) :
     (encL := encList (encUGEdge L)) g.edges e he
   have hle : (encList (encUGEdge L) g.edges).length ≤ (encUGGraph L g).length := by
     change _ ≤ (encPair encUnary (encList (encUGEdge L)) (g.vertices, g.edges)).length
-    rw [length_encPair]; dsimp only; omega
-  have hlen' : (encUGEdge L e).length =
-      (encPair encUnary (encPair encUnary (encUGFn L)) (e.src, e.dst, e.constraint)).length :=
-    rfl
+    rw [length_encPair]
+    dsimp only
+    omega
   have hend : e.src + 1 ≤ (encUGEdge L e).length ∧ e.dst + 1 ≤ (encUGEdge L e).length := by
-    rw [hlen', length_encPair, length_encPair]
+    rw [show (encUGEdge L e).length =
+        (encPair encUnary (encPair encUnary (encUGFn L)) (e.src, e.dst, e.constraint)).length
+      from rfl, length_encPair, length_encPair]
     dsimp only
     simp only [encUnary_apply, List.length_replicate]
     omega
@@ -425,15 +426,7 @@ private lemma length_encUGState_scan_le (L : ℕ) (labels : List (Fin L))
     let S₀ : State (Fin L) :=
       { table := S.table, cand := S.cand, stack := rest, comp := u :: S.comp }
     have hS₀ : (encUGState L S₀).length ≤ (encUGState L S).length := by
-      have hst : (encUGVerts (u :: rest)).length =
-          (frame (encUnary u)).length + (encUGVerts rest).length := by
-        simp [encUGVerts, encList_cons]
-      have hco : (encUGVerts (u :: S.comp)).length =
-          (frame (encUnary u)).length + (encUGVerts S.comp).length := by
-        simp [encUGVerts, encList_cons]
-      rw [length_encUGState_eq, length_encUGState_eq]
-      dsimp only [S₀]
-      rw [hs, hst, hco]
+      simp only [S₀, length_encUGState_eq, hs, encUGVerts, encList_cons, List.length_append]
       omega
     have hfold : ∀ (l : List (Edge (Fin L → Fin L))) (acc : State (Fin L)),
         (∀ e ∈ l, e ∈ g.edges) →
@@ -447,15 +440,10 @@ private lemma length_encUGState_scan_le (L : ℕ) (labels : List (Fin L))
         have hv := length_encUGState_visit_le L labels acc e (slots g)
           (src_lt_slots he) (dst_lt_slots he)
         have hih := ih (visit labels acc e) fun e' he' => hl e' (List.mem_cons_of_mem _ he')
-        simp only [List.foldl_cons, List.length_cons] at hih hv ⊢
-        rw [Nat.succ_mul]
+        simp only [List.foldl_cons, List.length_cons, Nat.succ_mul] at hih hv ⊢
         omega
-    have hadj := hfold (adj g u) S₀ fun e he => (List.mem_filter.mp he).1
-    have hlen : (adj g u).length ≤ g.edges.length := List.length_filter_le _ _
-    have hmul : (adj g u).length * visitGrowth L (slots g) ≤
-        g.edges.length * visitGrowth L (slots g) :=
-      Nat.mul_le_mul_right (visitGrowth L (slots g)) hlen
-    exact hadj.trans (Nat.add_le_add hS₀ hmul)
+    exact (hfold (adj g u) S₀ fun e he => (List.mem_filter.mp he).1).trans
+      (Nat.add_le_add hS₀ (Nat.mul_le_mul_right _ (List.length_filter_le _ _)))
 
 private lemma length_encUGState_iterate_scan_le (L : ℕ) (labels : List (Fin L))
     (g : Graph (Fin L → Fin L)) (S : State (Fin L)) (k : ℕ) :
@@ -479,9 +467,7 @@ private lemma length_encUGState_settle_le (L : ℕ) [NeZero L] (labels : List (F
   have hcand := candBound_spec L (settle labels S).cand
   have hcomp : (settle labels S).comp = [] := rfl
   have hstack : (settle labels S).stack = S.stack := rfl
-  rw [length_encUGState_eq]
-  rw [hstack, hcomp]
-  simp only [encUGVerts, encList_nil, List.length_nil]
+  simp only [length_encUGState_eq, hstack, hcomp, encUGVerts, encList_nil, List.length_nil]
   omega
 
 private theorem poly_step (L : ℕ) [NeZero L] :
@@ -712,13 +698,12 @@ theorem satisfiable_uniqueGame_mem_P (L : ℕ) :
     {g : Graph (Fin L → Fin L) | IsUniqueGame g ∧ (g.toGraph permutationEval).Satisfiable} ∈
       P (Graph.encoding (encPi (encFinEnum (Fin L)))) := by
   rcases Nat.eq_zero_or_pos L with rfl | hL
-  · have heq :
-        {g : Graph (Fin 0 → Fin 0) | IsUniqueGame g ∧ (g.toGraph permutationEval).Satisfiable} =
-          ∅ := by
-      ext g
-      simp [not_satisfiable_fin_zero g]
-    rw [heq]
-    exact empty_mem_P
+  · suffices {g : Graph (Fin 0 → Fin 0) | IsUniqueGame g ∧ (g.toGraph permutationEval).Satisfiable}
+        = ∅ by
+      rw [this]
+      exact empty_mem_P
+    ext g
+    simp [not_satisfiable_fin_zero g]
   · have : NeZero L := ⟨hL.ne'⟩
     refine ⟨fun g => isUniqueGameBool L g && (solve (List.finRange L) g).isSome, ?_, fun g => ?_⟩
     · exact ComputableInPolyTime.bool_and.comp

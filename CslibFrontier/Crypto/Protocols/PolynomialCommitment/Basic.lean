@@ -227,12 +227,9 @@ theorem EvaluationBinding.commitmentBinding_of_eval_inj (hbind : S.EvaluationBin
     (hcomp : S.EvalComplete)
     (hinj : ∀ p₁ p₂, S.ValidPoly p₁ → S.ValidPoly p₂ →
       (∀ z, S.eval p₁ z = S.eval p₂ z) → p₁ = p₂) :
-    S.CommitmentBinding := by
-  intro p₁ r₁ p₂ r₂ hp₁ hp₂ hcomm
-  refine hinj p₁ p₂ hp₁ hp₂ fun z => ?_
-  have h₁ := hcomp p₁ r₁ z hp₁
-  rw [hcomm] at h₁
-  exact hbind.eq_eval_of_verifyEval hcomp hp₂ r₂ z h₁
+    S.CommitmentBinding :=
+  fun p₁ r₁ p₂ r₂ hp₁ hp₂ hcomm => hinj p₁ p₂ hp₁ hp₂ fun z =>
+    hbind.eq_eval_of_verifyEval hcomp hp₂ r₂ z (hcomm ▸ hcomp p₁ r₁ z hp₁)
 
 /-- Strict commitment binding implies witness-extracting commitment binding for any relation. -/
 theorem CommitmentBinding.commitmentBindingExtract (hbind : S.CommitmentBinding)
@@ -260,24 +257,19 @@ evaluation. -/
   verifyEval c z y _ := decide (c.natDegree ≤ d ∧ c.eval z = y)
 
 theorem direct_evalComplete (F : Type) [CommSemiring F] [DecidableEq F] (d : ℕ) :
-    (direct F d).EvalComplete := by
-  intro p _ z hp
-  simp only [direct, decide_eq_true_eq, and_true]
-  exact hp
+    (direct F d).EvalComplete :=
+  fun _ _ _ hp => by simpa [direct] using hp
 
 theorem direct_openValueCorrect (F : Type) [CommSemiring F] [DecidableEq F] (d : ℕ) :
-    (direct F d).OpenValueCorrect := by
-  intro _ _ _ _
-  rfl
+    (direct F d).OpenValueCorrect :=
+  fun _ _ _ _ => rfl
 
 theorem direct_commitmentBinding (F : Type) [CommSemiring F] [DecidableEq F] (d : ℕ) :
-    (direct F d).CommitmentBinding := by
-  intro _ _ _ _ _ _ h
-  exact h
+    (direct F d).CommitmentBinding :=
+  fun _ _ _ _ _ _ h => h
 
 theorem direct_evaluationBinding (F : Type) [CommSemiring F] [DecidableEq F] (d : ℕ) :
-    (direct F d).EvaluationBinding := by
-  intro c z y₁ _ y₂ _ hv₁ hv₂
+    (direct F d).EvaluationBinding := fun _ _ _ _ _ _ hv₁ hv₂ => by
   simp only [direct, decide_eq_true_eq] at hv₁ hv₂
   exact hv₁.2.symm.trans hv₂.2
 
@@ -361,11 +353,9 @@ theorem batchEvalReduction_complete [Field F] [Fintype F] (eval : Poly → Point
   intro y _ hy
   rw [Reduction.run, World.plain_eval_execute, PMF.toOuterMeasure_map_apply]
   simp only [batchEvalReduction, runStrategy, plainLaw_bind, plainLaw_pure, plainLaw_sample,
-    PMF.pure_bind]
-  rw [PMF.toOuterMeasure_bind_apply]
-  refine Probability.PMF.tsum_mul_le_of_forall_le _ fun r => le_of_eq ?_
-  refine (PMF.toOuterMeasure_pure_apply _ _).trans (ite_eq_right fun h => h ⟨rfl, ?_⟩)
-  simp only [batchEvalRelOut]
+    PMF.pure_bind, PMF.toOuterMeasure_bind_apply]
+  refine Probability.PMF.tsum_mul_le_of_forall_le _ fun r => le_of_eq
+    ((PMF.toOuterMeasure_pure_apply _ _).trans (ite_eq_right fun h => h ⟨rfl, ?_⟩))
   exact Finset.sum_congr rfl fun i _ => by rw [hy i]
 
 /-- **Round-by-round soundness of random linear combination batching**: a false multi-evaluation
@@ -378,17 +368,12 @@ theorem batchEvalReduction_rbrSound [Field F] [Fintype F] (eval : Poly → Point
   refine ⟨fun y pfx => match pfx with
     | none => ∀ i, eval (p i) z = y i
     | some (r, _) => ∑ i, r i * eval (p i) z = ∑ i, r i * y i,
-    fun y hy h => hy ⟨(), h⟩, fun y => ⟨?_, fun r => ?_⟩⟩
-  · intro hS
-    change ¬ (∀ i, eval (p i) z = y i) at hS
-    push Not at hS
-    obtain ⟨i₀, hi₀⟩ := hS
+    fun y hy h => hy ⟨(), h⟩, fun y => ⟨fun hS => ?_, fun r hS ⟨c, ⟨_, hc⟩, hout⟩ => ?_⟩⟩
+  · obtain ⟨i₀, hi₀⟩ := not_forall.mp hS
     change (ProbComp.eval (ProbComp.uniform (Fin k → F))).toOuterMeasure
       {r | ∑ i, r i * eval (p i) z = ∑ i, r i * y i} ≤ 1 / (Fintype.card F : ℝ≥0∞)
     rw [ProbComp.eval_uniform, toOuterMeasure_batchEval_eq eval p z y hi₀]
-  · rintro hS ⟨c, ⟨_, hc⟩, hout⟩
-    rw [batchEvalReduction_outputOn] at hout
-    obtain rfl := Option.some.inj hout
+  · obtain rfl := Option.some.inj ((batchEvalReduction_outputOn eval p z y _).symm.trans hout)
     exact hS hc
 
 /-- **Soundness of random linear combination batching**: against any prover strategy, a false
@@ -398,8 +383,7 @@ theorem batchEvalReduction_sound [Field F] [Fintype F] (eval : Poly → Point �
     (batchEvalReduction eval p z).verifier.Sound (oP := OracleSpec.empty) World.plain
       (language (batchEvalRelIn eval p z)) (language (batchEvalRelOut eval p z))
       (1 / (Fintype.card F : ℝ≥0∞)) := by
-  have h := (batchEvalReduction_rbrSound eval p z).sound
-  simpa only [PerChallenge.sum, add_zero] using h
+  simpa only [PerChallenge.sum, add_zero] using (batchEvalReduction_rbrSound eval p z).sound
 
 end BatchEval
 
@@ -428,9 +412,8 @@ theorem ligeroRowComb_mul [Semiring F] (r : Fin m → F) (U : Matrix (Fin m) (Fi
 `((U i) ᵥ* G) j`. -/
 theorem ligeroRowComb_mul_eq_sum [CommSemiring F] (r : Fin m → F) (U : Matrix (Fin m) (Fin l) F)
     (G : Matrix (Fin l) (Fin n) F) (j : Fin n) :
-    (ligeroRowComb r U ᵥ* G) j = ∑ i : Fin m, r i * ((U i) ᵥ* G) j := by
-  rw [ligeroRowComb_mul]
-  rfl
+    (ligeroRowComb r U ᵥ* G) j = ∑ i : Fin m, r i * ((U i) ᵥ* G) j :=
+  congrFun (ligeroRowComb_mul r U G) j
 
 /-- Target bilinear evaluation `(b ᵥ* U) ⬝ᵥ c` of a witness matrix `U : Matrix (Fin m) (Fin l) F` at
 outer-product query vectors `b : Fin m → F` and `c : Fin l → F`. -/
@@ -578,15 +561,13 @@ theorem columnReduction_complete [Field F] [Fintype F] [DecidableEq F]
   intro j _ hj
   rw [Reduction.run, World.plain_eval_execute, PMF.toOuterMeasure_map_apply]
   simp only [columnReduction, runStrategy, plainLaw_bind, plainLaw_pure, plainLaw_sample,
-    PMF.pure_bind, PMF.bind_bind]
-  rw [PMF.toOuterMeasure_bind_apply]
-  refine Probability.PMF.tsum_mul_le_of_forall_le _ fun r => le_of_eq ?_
-  have hchk : ligeroColumnCheck L.G L.M r (ligeroRowComb r L.U) j = true := by
-    simp only [ligeroColumnCheck, decide_eq_true_eq, ligeroRowComb_mul_eq_sum]
-    rw [Matrix.vecMul_apply_eq_sum r L.M j]
-    exact (Finset.sum_congr rfl fun i _ => by rw [hj i]).symm
-  refine (PMF.toOuterMeasure_pure_apply _ _).trans (ite_eq_right fun h => h ⟨?_, rfl⟩)
-  exact (L.columnReduction_outputOn j r (ligeroRowComb r L.U)).trans (ite_eq_left hchk)
+    PMF.pure_bind, PMF.bind_bind, PMF.toOuterMeasure_bind_apply]
+  refine Probability.PMF.tsum_mul_le_of_forall_le _ fun r => le_of_eq
+    ((PMF.toOuterMeasure_pure_apply _ _).trans (ite_eq_right fun h => h ⟨?_, rfl⟩))
+  refine (L.columnReduction_outputOn j r _).trans (ite_eq_left ?_)
+  simp only [ligeroColumnCheck, decide_eq_true_eq, ligeroRowComb_mul_eq_sum,
+    Matrix.vecMul_apply_eq_sum r L.M j]
+  exact (Finset.sum_congr rfl fun i _ => by rw [hj i]).symm
 
 /-- **Round-by-round soundness of the Ligero column reduction**: if column `j` has any inconsistent
 row `L.M i₀ j ≠ ((L.U i₀) ᵥ* L.G) j`, then any prover produces an accepted transcript in
@@ -597,15 +578,10 @@ theorem columnReduction_rbrSound [Field F] [Fintype F] [DecidableEq F]
       (1 / (Fintype.card F : ℝ≥0∞), ()) := by
   refine ⟨fun j pfx => match pfx with
     | none => L.RowConsistentAt j
-    | some (r, none) => (r ᵥ* L.M) j = (ligeroRowComb r L.U ᵥ* L.G) j
-    | some (r, some (v, _)) => (r ᵥ* L.M) j = (ligeroRowComb r L.U ᵥ* L.G) j,
+    | some (r, none) | some (r, some _) => (r ᵥ* L.M) j = (ligeroRowComb r L.U ᵥ* L.G) j,
     fun j hj h => hj ⟨(), h⟩,
-    fun j => ⟨?_, fun r => ⟨fun hS _ h => hS h, fun v hS ⟨rv, ⟨_, hrv⟩, hout⟩ => ?_⟩⟩⟩
-  · intro hS
-    change ¬ L.RowConsistentAt j at hS
-    unfold RowConsistentAt at hS
-    push Not at hS
-    obtain ⟨i₀, hi₀⟩ := hS
+    fun j => ⟨fun hS => ?_, fun r => ⟨fun hS _ => hS, fun v hS ⟨rv, ⟨_, hrv⟩, hout⟩ => ?_⟩⟩⟩
+  · obtain ⟨i₀, hi₀⟩ := not_forall.mp hS
     change (ProbComp.eval (ProbComp.uniform (Fin m → F))).toOuterMeasure
       {r | (r ᵥ* L.M) j = (ligeroRowComb r L.U ᵥ* L.G) j} ≤ 1 / (Fintype.card F : ℝ≥0∞)
     rw [ProbComp.eval_uniform]
@@ -615,8 +591,7 @@ theorem columnReduction_rbrSound [Field F] [Fintype F] [DecidableEq F]
     obtain rfl := Option.some.inj hout
     change v = ligeroRowComb r L.U at hrv
     subst hrv
-    simp only [ligeroColumnCheck, decide_eq_true_eq] at hchk
-    exact hS hchk.symm
+    exact hS (of_decide_eq_true hchk).symm
 
 /-- **Soundness of the Ligero column reduction, for the honest claim only**: if column `j` is not
 row-consistent with `L.U * L.G`, then against every prover the verifier accepts and outputs a claim
@@ -627,8 +602,7 @@ theorem columnReduction_sound [Field F] [Fintype F] [DecidableEq F]
     (L : LigeroMatrixIOP F m l n) :
     L.columnReduction.verifier.Sound (oP := OracleSpec.empty) World.plain
       (language L.relIn) (language L.relOut) (1 / (Fintype.card F : ℝ≥0∞)) := by
-  have h := L.columnReduction_rbrSound.sound
-  simpa only [PerChallenge.sum, add_zero] using h
+  simpa only [PerChallenge.sum, add_zero] using L.columnReduction_rbrSound.sound
 
 end LigeroMatrixIOP
 

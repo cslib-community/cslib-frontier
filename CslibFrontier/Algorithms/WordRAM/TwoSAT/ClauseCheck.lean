@@ -59,10 +59,8 @@ theorem checkClausesLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBoun
         (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r)
   | [], idx, _, ok, x, hidx, _, _, _, _, _, hm, hi, _, hok => by
     simp only [List.length_nil] at hidx
-    have hend : ¬ (Cond.lt iReg mClauses).Holds x := by
-      change ¬ x.regs iReg < x.regs mClauses
-      omega
-    refine ⟨x, ⟨2, by omega, Exec.loop_exit hend⟩, rfl, hok, fun _ _ => rfl⟩
+    exact ⟨x, ExecWithin.loop_exit (by change ¬ x.regs iReg < x.regs mClauses; omega), rfl, hok,
+      fun _ _ => rfl⟩
   | c :: cs, idx, p, ok, x, hidx, hp, hcm, hc0, hc1, hc2, hm, hi, hpR, hok => by
     obtain ⟨hlen_p, -, hcm_rest⟩ := clauseMemAt_cons hcm
     have hflat_cons : ((c :: cs).flatMap (encodeClauseBy Fin.val)).length =
@@ -74,37 +72,22 @@ theorem checkClausesLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBoun
       G.fits_of_le hfit (by have := G.encode_length; unfold Instance.wordBound; omega)
     have hi_bound : Fits w (idx + 1) :=
       G.fits_of_le hfit (by unfold Instance.wordBound; omega)
-    let StepPost (x₁ : Data 28) : Prop :=
-      x₁.mem = x.mem ∧
-        x₁.regs iReg = idx + 1 ∧
-        x₁.regs pReg = p + 1 + c.length ∧
-        x₁.regs compIdxReg = (ok && isValidTwoClause c).toNat ∧
-        (∀ r : Fin 28, r.val < 18 → x₁.regs r = x.regs r)
-    have hstep : ∃ x₁, ExecWithin w checkClauseBody x x₁ 10 ∧ StepPost x₁ := by
+    obtain ⟨x₁, hx₁_ex, hx₁_mem, hx₁_i, hx₁_p, hx₁_ok, hx₁_fr⟩ :
+        ∃ x₁, ExecWithin w checkClauseBody x x₁ 10 ∧ x₁.mem = x.mem ∧
+          x₁.regs iReg = idx + 1 ∧ x₁.regs pReg = p + 1 + c.length ∧
+          x₁.regs compIdxReg = (ok && isValidTwoClause c).toNat ∧
+          (∀ r : Fin 28, r.val < 18 → x₁.regs r = x.regs r) := by
       unfold checkClauseBody
       wram_exec [hc0, hc1, hc2, hi, hpR, hok, hlen_p, hp_bound, hp_bound1, hi_bound]
-      · dsimp only [StepPost]
-        refine ⟨rfl, by wram_simp, by wram_simp; omega, ?_, fun r hr => ?_⟩
-        · wram_simp
-          simp [isValidTwoClause, ‹c.length = 0›]
-        · regs_lt
-      · dsimp only [StepPost]
-        refine ⟨rfl, by wram_simp, by wram_simp; omega, ?_, fun r hr => ?_⟩
-        · wram_simp
-          have hc_gt : ¬ c.length ≤ 2 := by omega
-          simp [isValidTwoClause, hc_gt]
-        · regs_lt
-      · dsimp only [StepPost]
-        refine ⟨rfl, by wram_simp, by wram_simp; omega, ?_, fun r hr => ?_⟩
-        · wram_simp
-          have hc_ok : 1 ≤ c.length ∧ c.length ≤ 2 := by omega
-          simp [isValidTwoClause, hc_ok]
-        · regs_lt
-    obtain ⟨x₁, hx₁_ex, hx₁_mem, hx₁_i, hx₁_p, hx₁_ok, hx₁_fr⟩ := hstep
+      all_goals
+        refine ⟨rfl, by wram_simp, by wram_simp; omega, ?_, fun r hr => by regs_lt⟩
+        wram_simp
+      · simp [isValidTwoClause, ‹c.length = 0›]
+      · simp [isValidTwoClause, show ¬c.length ≤ 2 by omega]
+      · simp [isValidTwoClause, show 1 ≤ c.length ∧ c.length ≤ 2 by omega]
     have hlt : (Cond.lt iReg mClauses).Holds x := by
-      change x.regs iReg < x.regs mClauses
-      simp only [List.length_cons] at hidx
-      omega
+      simp only [Cond.holds_lt, hi, hm]
+      simp only [List.length_cons] at hidx; omega
     obtain ⟨y, hy_ex, hy_mem, hy_ok, hy_fr⟩ := checkClausesLoop_spec G hfit cs (idx + 1)
       (p + 1 + c.length) (ok && isValidTwoClause c) x₁
       (by simp only [List.length_cons] at hidx; omega)
@@ -115,12 +98,8 @@ theorem checkClausesLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBoun
       ((hx₁_fr cTwo (by decide)).trans hc2)
       ((hx₁_fr mClauses (by decide)).trans hm)
       hx₁_i hx₁_p hx₁_ok
-    obtain ⟨t₁, ht₁, he₁⟩ := hx₁_ex
-    obtain ⟨t₂, ht₂, he₂⟩ := hy_ex
-    refine ⟨y, ⟨t₁ + t₂ + 2, by simp only [List.length_cons]; omega,
-        Exec.loop_iter hlt he₁ he₂⟩, hy_mem.trans hx₁_mem, hy_ok,
-      fun r hr => (hy_fr r hr).trans (hx₁_fr r hr)⟩
-
+    exact ⟨y, (ExecWithin.loop_iter hlt hx₁_ex hy_ex).mono (by simp only [List.length_cons]; omega),
+      hy_mem.trans hx₁_mem, hy_ok, fun r hr => (hy_fr r hr).trans (hx₁_fr r hr)⟩
 
 theorem not_readsWidth_headerSetupCode : ¬ headerSetupCode.ReadsWidth := by
   simp [headerSetupCode, Code.ReadsWidth, Op.ReadsWidth, Op.bin]

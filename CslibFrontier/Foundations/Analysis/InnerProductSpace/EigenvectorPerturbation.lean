@@ -62,11 +62,11 @@ theorem gap_mul_sq_norm_sub_projection_le (j : Fin n) (x : E) (μ gap : ℝ)
   · simp only [hij, ite_true, mul_one, sub_self, zero_pow (by omega : 2 ≠ 0), mul_zero]
     exact sq_nonneg _
   · simp only [hij, ite_false, mul_zero, sub_zero]
-    have hs := (sq_le_sq₀ hgap (abs_nonneg _)).mpr (hsep i hij)
-    rw [sq_abs] at hs
-    have hm := mul_le_mul_of_nonneg_right hs (sq_nonneg (b.repr x i))
+    have hs : gap ^ 2 ≤ (hT.eigenvalues hn i - μ) ^ 2 := by
+      simpa only [sq_abs] using (sq_le_sq₀ hgap (abs_nonneg _)).mpr (hsep i hij)
     calc
-      _ ≤ (hT.eigenvalues hn i - μ) ^ 2 * (b.repr x i) ^ 2 := hm
+      _ ≤ (hT.eigenvalues hn i - μ) ^ 2 * (b.repr x i) ^ 2 :=
+        mul_le_mul_of_nonneg_right hs (sq_nonneg _)
       _ = _ := by ring
 
 /-- The largest ordered eigenvalue bounds the quadratic form in every direction. -/
@@ -114,14 +114,10 @@ theorem third_eigenvalue_le_of_orthogonal_complement (hnthree : 3 ≤ n) (p q : 
     ring
   have hXne : X d ≠ 0 := by
     intro hzero
-    have hs := hcoords d
-    rw [hzero, norm_zero, zero_pow (by omega : 2 ≠ 0)] at hs
-    have h₀ : d 0 = 0 := by nlinarith [sq_nonneg (d 1), sq_nonneg (d 2)]
-    have h₁ : d 1 = 0 := by nlinarith [sq_nonneg (d 0), sq_nonneg (d 2)]
-    have h₂ : d 2 = 0 := by nlinarith [sq_nonneg (d 0), sq_nonneg (d 1)]
+    have hs := by simpa only [hzero, norm_zero, zero_pow (by omega : 2 ≠ 0)] using hcoords d
     apply hd
     funext i
-    fin_cases i <;> assumption
+    fin_cases i <;> dsimp <;> nlinarith [sq_nonneg (d 0), sq_nonneg (d 1), sq_nonneg (d 2)]
   have hp : inner ℝ p (X d) = 0 := congrArg Prod.fst hLd
   have hq : inner ℝ q (X d) = 0 := congrArg Prod.snd hLd
   have heig (i : Fin n) : T (b i) = hT.eigenvalues hn i • b i :=
@@ -164,10 +160,9 @@ theorem exists_sign_second_eigenvector_sub_sq_le_of_rank_two
   have huu : inner ℝ u u = 1 := by rw [real_inner_self_eq_norm_sq, hu]; norm_num
   have huw : inner ℝ u w = t := real_inner_comm _ _
   have hfirst : a - b / 128 ≤ hT.eigenvalues hn ⟨0, by omega⟩ := by
-    have hr := hR w
-    rw [hw, mul_one] at hr
-    have hi := abs_real_inner_le_norm w (R w)
-    rw [hw, one_mul] at hi
+    have hr : ‖R w‖ ≤ b / 128 := by simpa only [hw, mul_one] using hR w
+    have hi : |inner ℝ w (R w)| ≤ ‖R w‖ := by
+      simpa only [hw, one_mul] using abs_real_inner_le_norm w (R w)
     have heq : inner ℝ w (R w) = inner ℝ w (T w) - a - b * t ^ 2 := by
       simp only [R, inner_sub_right, inner_add_right, real_inner_smul_right, hww, huw,
         mul_one]
@@ -191,16 +186,12 @@ theorem exists_sign_second_eigenvector_sub_sq_le_of_rank_two
       b / 2 ≤ |hT.eigenvalues hn i - b| := by
     by_cases hi₀ : i = ⟨0, by omega⟩
     · subst i
-      have hlow : b / 2 ≤ hT.eigenvalues hn ⟨0, by omega⟩ - b := by linarith
-      exact hlow.trans (le_abs_self _)
-    · have hi₂ : (⟨2, by omega⟩ : Fin n) ≤ i := by
-        have : i.val ≠ 0 := fun h => hi₀ (Fin.ext h)
-        have : i.val ≠ 1 := fun h => hi (Fin.ext h)
-        change 2 ≤ i.val
-        omega
-      have hupp := (hT.eigenvalues_antitone hn hi₂).trans hthird
-      have hlow : b / 2 ≤ -(hT.eigenvalues hn i - b) := by linarith
-      exact hlow.trans (neg_le_abs _)
+      exact (le_abs_self _).trans' (by linarith)
+    · have : i.val ≠ 0 := fun h => hi₀ (Fin.ext h)
+      have : i.val ≠ 1 := fun h => hi (Fin.ext h)
+      have h2 : 2 ≤ i.val := by omega
+      have hupp := hthird.trans' (hT.eigenvalues_antitone hn h2)
+      exact (neg_le_abs _).trans' (by linarith)
   have hx : ‖x‖ ≤ 2 := by
     calc
       ‖x‖ ≤ ‖u‖ + ‖t • w‖ := norm_sub_le _ _
@@ -226,8 +217,7 @@ theorem exists_sign_second_eigenvector_sub_sq_le_of_rank_two
           ‖R x‖ + ‖(b * t) • w‖ + ‖(b * t ^ 2) • u‖ :=
         (norm_sub_le _ _).trans (add_le_add (norm_add_le _ _) le_rfl)
       _ = ‖R x‖ + b * |t| + b * t ^ 2 := by
-        rw [norm_smul, norm_smul, hw, hu, mul_one, mul_one, Real.norm_eq_abs,
-          Real.norm_eq_abs, abs_mul, abs_of_pos hb, abs_mul, abs_of_pos hb,
+        simp only [norm_smul, hw, hu, mul_one, Real.norm_eq_abs, abs_mul, abs_of_pos hb,
           abs_of_nonneg (sq_nonneg t)]
       _ ≤ 3 * b / 64 := by nlinarith [mul_le_mul_of_nonneg_left ht hb.le,
         mul_le_mul_of_nonneg_left htab hb.le]

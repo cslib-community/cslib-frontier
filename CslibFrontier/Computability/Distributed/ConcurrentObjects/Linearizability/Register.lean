@@ -95,12 +95,10 @@ private theorem filter_proc_bool_length_sum {Obj : Type*} {Op Resp : Obj → Typ
     (l : List (OpCall Bool Op Resp)) :
     (l.filter fun c => decide (c.proc = false)).length +
       (l.filter fun c => decide (c.proc = true)).length = l.length := by
-  have h := List.length_eq_length_filter_add (l := l) (fun c => decide (c.proc = false))
   have hnot : (fun c : OpCall Bool Op Resp => !decide (c.proc = false)) =
-      fun c => decide (c.proc = true) := by
-    funext c; cases c.proc <;> rfl
-  rw [hnot] at h
-  exact h.symm
+      fun c => decide (c.proc = true) := funext fun c => by cases c.proc <;> rfl
+  simpa only [hnot] using
+    (List.length_eq_length_filter_add (l := l) (fun c => decide (c.proc = false))).symm
 
 private theorem dekker_write_not_lt_stale_read
     {c0 c1 c2 c3 : OpCall Bool (fun _ : Bool => RegOp Bool) (fun _ : Bool => RegResp Bool)}
@@ -117,9 +115,6 @@ private theorem dekker_write_not_lt_stale_read
     (eB1 : [c0, c1, c2, c3][jB1] = ⟨!reg, reg, .read, .readRet false⟩) :
     ¬ jA0 < jB1 := by
   intro hlt
-  rw [History.objSubhistory_flatMap_toEvents] at hleg
-  unfold registerSeqSpec at hleg
-  rw [SeqSpec.mem_ofMachine_allowed] at hleg
   have hother : ∀ (k : ℕ) (hk : k < 4), k ≠ jA0 → k ≠ jB1 →
       decide (([c0, c1, c2, c3][k]'hk).obj = reg) = false := by
     intro k hk h1 h2
@@ -131,32 +126,17 @@ private theorem dekker_write_not_lt_stale_read
       (jA0 = 1 ∧ jB1 = 2) ∨ (jA0 = 1 ∧ jB1 = 3) ∨ (jA0 = 2 ∧ jB1 = 3) := by omega
   have hfil : ([c0, c1, c2, c3].filter fun c => decide (c.obj = reg)) =
       [⟨reg, reg, .write true, .writeAck⟩, ⟨!reg, reg, .read, .readRet false⟩] := by
-    rcases h6 with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
-    · have h2 := hother 2 (by omega) (by omega) (by omega)
-      have h3 := hother 3 (by omega) (by omega) (by omega)
-      simp only [List.getElem_cons_zero, List.getElem_cons_succ] at eA0 eB1 h2 h3
-      simp only [List.filter, eA0, eB1, h2, h3, decide_true]
-    · have h1 := hother 1 (by omega) (by omega) (by omega)
-      have h3 := hother 3 (by omega) (by omega) (by omega)
-      simp only [List.getElem_cons_zero, List.getElem_cons_succ] at eA0 eB1 h1 h3
-      simp only [List.filter, eA0, eB1, h1, h3, decide_true]
-    · have h1 := hother 1 (by omega) (by omega) (by omega)
-      have h2 := hother 2 (by omega) (by omega) (by omega)
-      simp only [List.getElem_cons_zero, List.getElem_cons_succ] at eA0 eB1 h1 h2
-      simp only [List.filter, eA0, eB1, h1, h2, decide_true]
-    · have h0 := hother 0 (by omega) (by omega) (by omega)
-      have h3 := hother 3 (by omega) (by omega) (by omega)
-      simp only [List.getElem_cons_zero, List.getElem_cons_succ] at eA0 eB1 h0 h3
-      simp only [List.filter, eA0, eB1, h0, h3, decide_true]
-    · have h0 := hother 0 (by omega) (by omega) (by omega)
-      have h2 := hother 2 (by omega) (by omega) (by omega)
-      simp only [List.getElem_cons_zero, List.getElem_cons_succ] at eA0 eB1 h0 h2
-      simp only [List.filter, eA0, eB1, h0, h2, decide_true]
-    · have h0 := hother 0 (by omega) (by omega) (by omega)
-      have h1 := hother 1 (by omega) (by omega) (by omega)
-      simp only [List.getElem_cons_zero, List.getElem_cons_succ] at eA0 eB1 h0 h1
-      simp only [List.filter, eA0, eB1, h0, h1, decide_true]
-  rw [hfil] at hleg
+    have h0 := hother 0 (by decide)
+    have h1 := hother 1 (by decide)
+    have h2 := hother 2 (by decide)
+    have h3 := hother 3 (by decide)
+    clear hleg hltA hltB hne00 hne01 hne10 hne11 eA1 eB0 hjA1 hjB0 hother hlt
+    simp only [List.getElem_cons_zero, List.getElem_cons_succ] at h0 h1 h2 h3
+    rcases h6 with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;>
+      simp_all [List.filter]
+  rw [History.objSubhistory_flatMap_toEvents, hfil] at hleg
+  unfold registerSeqSpec at hleg
+  rw [SeqSpec.mem_ofMachine_allowed] at hleg
   simp only [List.flatMap_cons, List.flatMap_nil, OpCall.toEvents, List.cons_append,
     List.nil_append, SeqSpec.evalMachine, registerStep] at hleg
   obtain ⟨_, _, _, _, _, _, _, hbad, _⟩ := hleg
@@ -197,9 +177,7 @@ theorem exists_sequentiallyConsistent_not_linearizable :
       have ht := congrArg List.length (heqS true)
       rw [History.procSubhistory_flatMap_toEvents, History.length_flatMap_toEvents] at hf ht
       have hp_sum := filter_proc_bool_length_sum cs
-      have hf_val : (History.procSubhistory (History.complete H) false).length = 2 := rfl
-      have ht_val : (History.procSubhistory (History.complete H) true).length = 2 := rfl
-      rw [hf_val] at hf; rw [ht_val] at ht
+      change 2 = _ at hf ht
       omega
     match cs, hlen_cs with
     | [c₀, c₁], _ =>
@@ -213,27 +191,18 @@ theorem exists_sequentiallyConsistent_not_linearizable :
           simp only [History.procSubhistory_flatMap_toEvents, List.filter, hp₀, hp₁,
             Bool.false_eq_true, decide_false, List.flatMap_nil] at ht
           nomatch ht
-        · have hf_eq := heqS false
-          have ht_eq := heqS true
-          have hf_comp :
-              History.procSubhistory (History.complete H) false =
-                ([⟨false, (), .write true, .writeAck⟩] :
-                  List (OpCall Bool (fun _ : Unit => RegOp Bool)
-                    (fun _ : Unit => RegResp Bool))).flatMap OpCall.toEvents := rfl
-          have ht_comp :
-              History.procSubhistory (History.complete H) true =
-                ([⟨true, (), .read, .readRet false⟩] :
-                  List (OpCall Bool (fun _ : Unit => RegOp Bool)
-                    (fun _ : Unit => RegResp Bool))).flatMap OpCall.toEvents := rfl
-          rw [hf_comp, History.procSubhistory_flatMap_toEvents] at hf_eq
-          rw [ht_comp, History.procSubhistory_flatMap_toEvents] at ht_eq
-          simp only [List.filter, hp₀, hp₁, decide_true, Bool.true_eq_false,
-            Bool.false_eq_true, decide_false] at hf_eq ht_eq
-          have hc₀_eq := flatMap_toEvents_injective hf_eq
-          have hc₁_eq := flatMap_toEvents_injective ht_eq
-          injection hc₀_eq with hc₀_val
-          injection hc₁_eq with hc₁_val
-          rw [← hc₀_val, ← hc₁_val] at hleg0
+        · obtain rfl : c₀ = ⟨false, (), .write true, .writeAck⟩ :=
+            List.singleton_injective (flatMap_toEvents_injective (by
+              have h := (heqS false).symm
+              rw [History.procSubhistory_flatMap_toEvents] at h
+              simp only [List.filter, hp₀, hp₁, decide_true, Bool.true_eq_false, decide_false] at h
+              exact h))
+          obtain rfl : c₁ = ⟨true, (), .read, .readRet false⟩ :=
+            List.singleton_injective (flatMap_toEvents_injective (by
+              have h := (heqS true).symm
+              rw [History.procSubhistory_flatMap_toEvents] at h
+              simp only [List.filter, hp₁, Bool.false_eq_true, decide_false, decide_true] at h
+              exact h))
           simp only [List.flatMap_cons, List.flatMap_nil, OpCall.toEvents, List.cons_append,
             List.nil_append, SeqSpec.evalMachine, registerStep] at hleg0
           obtain ⟨_, _, _, _, _, _, _, hbad, _⟩ := hleg0
@@ -276,10 +245,7 @@ theorem exists_obj_sequentiallyConsistent_not_global :
     refine ⟨History.objSubhistory H x, History.IsExtension.refl (hwfH.objSubhistory x),
       Sx, ⟨rfl, rfl, rfl, rfl, trivial⟩, ?_, ?_⟩
     · intro y; cases x <;> cases y <;> (unfold registerSeqSpec; rw [SeqSpec.mem_ofMachine_allowed])
-      · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, trivial⟩
-      · trivial
-      · trivial
-      · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, trivial⟩
+        <;> first | trivial | exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, trivial⟩
     · intro p; cases x <;> cases p <;> rfl
   · rintro ⟨H', ⟨R, hrespR, rfl, hwf'⟩, S, hseqS, hlegS, heqS⟩
     have hR_nil : R = [] :=
@@ -321,9 +287,8 @@ theorem exists_obj_sequentiallyConsistent_not_global :
       have hb := hc_cnt b
       dsimp only [countProcCalls] at hb ⊢
       omega
-    have hj_ord : ∀ b {j0 j1} (hj0 : j0 < cs.length) (hj1 : j1 < cs.length),
-        opIdAt cs j0 hj0 = ⟨b, 0⟩ → opIdAt cs j1 hj1 = ⟨b, 1⟩ → j0 < j1 := by
-      intro b j0 j1 hj0 hj1 hop0 hop1
+    have hj_ord b {j0 j1} (hj0 : j0 < cs.length) (hj1 : j1 < cs.length)
+        (hop0 : opIdAt cs j0 hj0 = ⟨b, 0⟩) (hop1 : opIdAt cs j1 hj1 = ⟨b, 1⟩) : j0 < j1 := by
       have hpr := History.prec_of_same_proc_lt (e₀ := ⟨b, 0⟩) (e₁ := ⟨b, 1⟩) rfl
         (by dsimp only; omega) (hc_S b 0 (by omega)) (hc_S b 1 (by omega))
       rw [← hop0, ← hop1] at hpr

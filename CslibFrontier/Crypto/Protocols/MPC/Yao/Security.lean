@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
+import CslibFrontier.Crypto.Protocols.MPC.EmptyCoalition
 import CslibFrontier.Computability.Probabilistic.PPT.Extension
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
@@ -431,24 +432,13 @@ private theorem viewWordsOfPrvView_polyTime {γ : Type} {enc : γ ↪ List Bool}
     (hV : ComputableInPolyTime V enc encPrvView) :
     ComputableInPolyTime (fun a => viewWordsOfPrvView (N a) (g a) (x₁ a) (V a)) enc
       encEvaluatorViewWords := by
-  have hX : ComputableInPolyTime (fun a => (V a).input) enc encBits :=
-    encPrvView_input_polyTime hV
-  have hL : ComputableInPolyTime (fun a => (V a).input.length / N a) enc encUnary := by
-    fun_prop
-  have hT : ComputableInPolyTime
-      (fun a => BitString.listRows (N a) ((V a).input.length / N a) (V a).input) enc
-      (encList encBits) :=
-    ComputableInPolyTime.bitsRowsWithInput hN hL hX
-  have hrange : ComputableInPolyTime (fun a => List.range (N a - g a)) enc
-      (encList encUnary) := by
-    fun_prop
-  have hget : ComputableInPolyTime (fun p : γ × ℕ =>
-      (BitString.listRows (N p.1) ((V p.1).input.length / N p.1) (V p.1).input).getD
-        (g p.1 + p.2) []) (encPair enc encUnary) encBits := by
-    fun_prop
+  unfold viewWordsOfPrvView
+  dsimp only
   exact encEvaluatorViewWords_mk_polyTime hx (encPrvView_fn_polyTime hV)
-    (ComputableInPolyTime.listTakeWithInput hT hg) (encPrvView_decInfo_polyTime hV)
-    (ComputableInPolyTime.mapWithInput hrange hget)
+    (ComputableInPolyTime.listTakeWithInput
+      (ComputableInPolyTime.bitsRowsWithInput hN (by fun_prop) (encPrvView_input_polyTime hV)) hg)
+    (encPrvView_decInfo_polyTime hV)
+    (ComputableInPolyTime.mapWithInput (by fun_prop) (by fun_prop))
 
 /-- The word that the evaluator's simulator writes: the one-entry table of the evaluator's view
 words. -/
@@ -689,25 +679,17 @@ theorem isPPT_oneSidedEvaluatorToPrvSim {encFn : Fn ↪ List Bool} {samp : ℕ �
 
 /-! ### Empty and full coalitions of `oneSidedFamily` -/
 
-/-- Simulator for `I = ∅` (no corrupted parties) in `oneSidedFamily`: returns the unique empty view
-table. -/
-private def oneSidedEmptySim : SimulatorFamily (oneSidedFamily G) ∅ :=
-  fun _ _ _ _ => pure fun i => nomatch i.2
-
-private theorem isPPT_oneSidedEmptySim {encFn : Fn ↪ List Bool} :
-    (oneSidedEmptySim (G := G)).IsPPT (oneSidedEncoding G encFn) :=
-  (ComputableInPolyTime.dpi fun i : (∅ : Finset (Fin 2)) => nomatch i.2).isPPTOn.congr fun _ => rfl
-
-private theorem idealJoint_oneSidedEmptySim (hproj : G.encode = projectiveEncode)
+private theorem idealJoint_oneSided_empty (hproj : G.encode = projectiveEncode)
     (hcorrect : G.Correct) {n : ℕ} (hn : 0 < n) (c : Params G) (x : (i : Fin 2) → Input c i) :
-    ProbComp.eval (idealJoint (oneSidedFunctionality G c) ∅ (oneSidedEmptySim n c) x) =
+    ProbComp.eval (idealJoint (oneSidedFunctionality G c) ∅
+        (SimulatorFamily.empty (oneSidedFamily G) n c) x) =
       (oneSidedProtocol G n c).realJoint (batchOTWorld c.evaluatorLen (List Bool)) ∅ x := by
   rw [realJoint_oneSided, ← PMF.bind_pure_comp]
-  simp only [idealJoint, oneSidedFunctionality, Functionality.ofDeterministic, oneSidedEmptySim,
-    ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind]
+  simp only [idealJoint, oneSidedFunctionality, Functionality.ofDeterministic,
+    SimulatorFamily.empty, ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind]
   symm
   refine (Probability.PMF.bind_congr_on_support (BitString.uniformList (G.coins n c.fn)) _
-    (fun _ => PMF.pure ((fun i : (∅ : Finset (Fin 2)) => nomatch i.2),
+    (fun _ => PMF.pure ((fun i : (∅ : Finset (Fin 2)) => isEmptyElim i),
       oneSidedOutputs (G.ev c.fn (circuitInput x)))) fun coins hcoins => ?_).trans
     (PMF.bind_const _ _)
   simp only [Function.comp_apply,
@@ -851,8 +833,8 @@ correctness at `n ≥ 1`. -/
 private theorem hybridSemiHonestSecure_oneSided_empty {encFn : Fn ↪ List Bool}
     (hproj : G.encode = projectiveEncode) (hcorrect : G.Correct) (setup : ℕ → PMF (Params G)) :
     (oneSidedFamily G).SemiHonestSecure setup ∅ (oneSidedEncoding G encFn) :=
-  oneSided_semiHonestSecure_of_pos_perfect isPPT_oneSidedEmptySim
-    (fun hn c x => idealJoint_oneSidedEmptySim hproj hcorrect hn c x)
+  oneSided_semiHonestSecure_of_pos_perfect (SimulatorFamily.isPPT_empty _)
+    (fun hn c x => idealJoint_oneSided_empty hproj hcorrect hn c x)
 
 /-- Unconditional semi-honest security of `oneSidedFamily` for `I = Finset.univ` (both parties
 corrupted) from correctness at `n ≥ 1` and polynomial-time scheme algorithms. -/
@@ -926,13 +908,8 @@ theorem Scheme.PrvSimSecureUniversal.yaoOneSidedHybridSemiHonestSecure {encFn : 
     (hsamp : IsPPTOn encUnary (Yao.encParams encFn) samp) (I : Finset (Fin 2)) :
     (Yao.oneSidedFamily G).SemiHonestSecure (fun n => ProbComp.eval (samp n)) I
       (Yao.oneSidedEncoding G encFn) := by
-  have hcases : I = ∅ ∨ I = {0} ∨ I = {1} ∨ I = Finset.univ := by
-    by_cases h0 : (0 : Fin 2) ∈ I <;> by_cases h1 : (1 : Fin 2) ∈ I
-    · right; right; right; ext i; fin_cases i <;> simp [h0, h1]
-    · right; left; ext i; fin_cases i <;> simp [h0, h1]
-    · right; right; left; ext i; fin_cases i <;> simp [h0, h1]
-    · left; ext i; fin_cases i <;> simp [h0, h1]
-  rcases hcases with rfl | rfl | rfl | rfl
+  have hcases : ∀ J : Finset (Fin 2), J = ∅ ∨ J = {0} ∨ J = {1} ∨ J = Finset.univ := by decide
+  rcases hcases I with rfl | rfl | rfl | rfl
   · exact Yao.hybridSemiHonestSecure_oneSided_empty hproj hcorrect _
   · exact Yao.hybridSemiHonestSecure_oneSided_garbler heff.coins hproj hcorrect _
   · exact hG.yaoOneSidedHybridSemiHonestSecure_evaluator heff.inLen heff.ev hproj hcorrect hΦ hsamp

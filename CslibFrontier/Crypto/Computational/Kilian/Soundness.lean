@@ -244,12 +244,9 @@ theorem merkleBreaksBinding_kilianBindingOutput {n : ℕ} {k : List Bool} {x : �
     simpa [hpos] using hb
   obtain ⟨⟨p₁, p₂⟩, hfind⟩ := Option.isSome_iff_exists.mp hsome
   have hp := List.find?_some hfind
-  obtain ⟨q₁, hq₁, hq⟩ := List.mem_flatMap.mp (List.mem_of_find?_eq_some hfind)
-  obtain ⟨q₂, hq₂, hqeq⟩ := List.mem_map.mp hq
-  simp only [Prod.mk.injEq] at hqeq
-  obtain ⟨rfl, rfl⟩ := hqeq
-  obtain ⟨c₁, o₁'⟩ := q₁
-  obtain ⟨c₂, o₂'⟩ := q₂
+  obtain ⟨⟨c₁, o₁'⟩, hq₁, hq⟩ := List.mem_flatMap.mp (List.mem_of_find?_eq_some hfind)
+  obtain ⟨⟨c₂, o₂'⟩, hq₂, hqeq⟩ := List.mem_map.mp hq
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj hqeq
   have v₁ := merkleVerify_of_mem_kilianOpenings h₁ hq₁
   have v₂ := merkleVerify_of_mem_kilianOpenings h₂ hq₂
   simp only [bne_iff_ne, ne_eq, Bool.and_eq_true, beq_iff_eq] at hp
@@ -365,20 +362,18 @@ private theorem disagreement_le_merkleBindingGame (L : Set α) (P : KilianProver
   refine Probability.PMF.bind_apply_mono_on_support _ _ fun response₁ _ => ?_
   refine Probability.PMF.bind_apply_mono_on_support _ _ fun ρs₂ _ => ?_
   refine Probability.PMF.bind_apply_mono_on_support _ _ fun response₂ _ => ?_
-  by_cases hE : (kilianWins H V L (k, out) (ρs₁, response₁) &&
+  cases hE : (kilianWins H V L (k, out) (ρs₁, response₁) &&
       kilianWins H V L (k, out) (ρs₂, response₂) && (List.range M).any fun j =>
         kilianOpens V (k, out) (ρs₁, response₁) j false &&
-          kilianOpens V (k, out) (ρs₂, response₂) j true) = true
-  · rw [hE]
-    simp only [kilianWins, kilianOpens, Bool.and_eq_true, decide_eq_true_eq, List.any_eq_true,
+          kilianOpens V (k, out) (ρs₂, response₂) j true)
+  · simp
+  · simp only [kilianWins, kilianOpens, Bool.and_eq_true, decide_eq_true_eq, List.any_eq_true,
       beq_iff_eq] at hE
     obtain ⟨⟨⟨-, h₁⟩, -, h₂⟩, j, -, ⟨⟨a₁, o₁⟩, ho₁, hj₁, hb₁⟩,
       ⟨⟨a₂, o₂⟩, ho₂, hj₂, hb₂⟩⟩ := hE
+    dsimp only at hb₁ hb₂
     rw [merkleBreaksBinding_kilianBindingOutput h₁ h₂ ho₁ ho₂ (hj₁.trans hj₂.symm)
-      (by simp only at hb₁ hb₂; rw [hb₁, hb₂]; decide)]
-  · rw [Bool.not_eq_true] at hE
-    rw [hE]
-    simp
+      (by simp [hb₁, hb₂])]
 
 variable {H V}
 
@@ -503,10 +498,13 @@ private abbrev AddressedOpening := ℕ × MerkleOpening Bool
 /-- The encoding of an opening together with its address. -/
 private abbrev encAddressed : AddressedOpening ↪ List Bool := encPair encNat encKilianOpening
 
-private theorem computableInPolyTime_kilianOpenings (hV : V.PolyTime enc) :
+/-- Polynomial-time opening-extraction helper `kilianOpenings` for any poly-time PCP verifier
+`V`. -/
+theorem computableInPolyTime_kilianOpenings (hV : V.PolyTime enc) :
     ComputableInPolyTime
       (fun p : α × List (List Bool) × KilianResponse => kilianOpenings V p.1 p.2.1 p.2.2)
-      (encPair enc (encPair (encList encBits) encKilianResponse)) (encList encAddressed) := by
+      (encPair enc (encPair (encList encBits) encKilianResponse))
+      (encList (encPair encNat encKilianOpening)) := by
   have hx := ComputableInPolyTime.fst enc (encPair (encList encBits) encKilianResponse)
   have hrest := ComputableInPolyTime.snd enc (encPair (encList encBits) encKilianResponse)
   have hρs := (ComputableInPolyTime.fst (encList encBits) encKilianResponse).comp hrest
@@ -760,14 +758,11 @@ theorem length_kilianVerifierInput_of_isPPT_le {enc : α ↪ List Bool} {c : ℕ
         simp [hk]
         ring
       rwa [hin] at h₁
-    have hcm_parts :
+    obtain ⟨hx, hroot, hstate⟩ :
         (enc cm.stmt).length ≤ B₁ n ∧ cm.root.length ≤ B₁ n ∧ cm.state.length ≤ B₁ n := by
       simp only [encKilianCommitment_apply, encKilianMessage_apply, length_encPair,
         encBits_apply] at hcm
       omega
-    have hx := hcm_parts.1
-    have hroot := hcm_parts.2.1
-    have hstate := hcm_parts.2.2
     rw [kilianChallenges, ProbComp.mem_support_replicate_iff] at hρs_mem
     have hchal_elem : ∀ ρ ∈ ρs, ρ.length ≤ c * (B₁ n + 1) := by
       intro ρ hρ
@@ -819,18 +814,11 @@ theorem computableInTimeAndSpace_kilianVerify_of_isPPT {enc : α ↪ List Bool} 
         v.stmt = cm.stmt ∧ v.root = cm.root ∧
         v.challenges ∈ (ProbComp.eval (kilianChallenges V v.key.length cm.stmt)).support ∧
         v.response ∈ (ProbComp.eval (P.answer v.key.length cm.state v.challenges)).support)
-      (fun v => v.key.length) pBound hpBound fun view hview => by
-        rcases hview with ⟨cm, hcm, hstmt, hroot, hρs, hresp⟩
-        have hview_eq : view =
-            { key := view.key, stmt := cm.stmt, root := cm.root,
-              challenges := view.challenges, response := view.response } := by
-          rcases view with ⟨⟨k, stmt, root⟩, challenges, response⟩
-          dsimp only at hstmt hroot
-          subst hstmt hroot
-          rfl
-        rw [hview_eq]
-        exact hlen_view view.key.length view.key rfl cm hcm view.challenges hρs
-          view.response hresp
+      (fun v => v.key.length) pBound hpBound fun ⟨⟨k, stmt, root⟩, challenges, response⟩
+          ⟨cm, hcm, hstmt, hroot, hρs, hresp⟩ => by
+        dsimp only at hstmt hroot
+        subst hstmt hroot
+        exact hlen_view k.length k rfl cm hcm challenges hρs response hresp
   refine ⟨kTM, State, hfin, tm, tAdv, sAdv, ht_pb, hs_pb,
     fun n key hk cm hcm ρs hρs resp hresp => ?_⟩
   simpa [hk] using (hbound

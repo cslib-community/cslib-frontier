@@ -159,13 +159,11 @@ theorem ancestry_length (es : Log F) (v : V) :
 theorem ancestry_length_le (es : Log F) (v : V) :
     (es.ancestry v).walk.steps.length ≤ es.length := by
   induction es generalizing v with
-  | nil => exact Nat.le_refl 0
+  | nil => rfl
   | cons e es ih =>
     simp only [ancestry]
     split
-    · simpa only [Walk.snoc, List.length_append, List.length_singleton, List.length_cons,
-        List.length_nil]
-        using Nat.add_le_add_right (ih e.input.var) 1
+    · simpa [Walk.snoc] using Nat.add_le_add_right (ih e.input.var) 1
     · exact (ih v).trans (Nat.le_succ _)
 
 /-- Every copy along a reconstructed ancestral path strictly predates the next expansion. -/
@@ -178,8 +176,7 @@ theorem ancestry_time_lt (es : Log F) (v : V) {t : ℕ}
     split at ht
     · rcases List.mem_append.mp ht with ht | ht
       · exact (ih e.input.var ht).trans (Nat.lt_succ_self _)
-      · have he : t = es.length := List.mem_singleton.mp ht
-        simpa only [he, List.length_cons] using Nat.lt_succ_self es.length
+      · simp [List.mem_singleton.mp ht]
     · exact (ih v ht).trans (Nat.lt_succ_self _)
 
 end Log
@@ -194,11 +191,10 @@ end Log
     v ∈ roots f ↔ Inconsistent f v := by
   simp only [roots, List.mem_eraseDups, List.mem_map, List.mem_filter, decide_eq_true_eq]
   constructor
-  · rintro ⟨o, ⟨_, ho⟩, rfl⟩
+  · rintro ⟨_, ⟨_, ho⟩, rfl⟩
     exact ho
   · intro h
-    have hx := h
-    obtain ⟨o, _, ho, _, _⟩ := hx
+    have ⟨o, _, ho, _, _⟩ := h
     exact ⟨o, ⟨mem_incidenceList o, ho ▸ h⟩, ho⟩
 
 /-- The distinct same-constraint partners whose two-port flip is valid, in positional order.
