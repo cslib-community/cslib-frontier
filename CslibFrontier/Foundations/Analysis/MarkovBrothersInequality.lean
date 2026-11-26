@@ -417,7 +417,8 @@ theorem sub_mul_abs_eval_le_of_forall_nat {d N : ℕ} {q : ℝ[X]} (hq : q.natDe
     fun k hk => abs_le.1 (hb k hk)
   have hB : 0 ≤ B := (abs_nonneg _).trans (hb 0 (Nat.zero_le _))
   have hq' : |q.eval x| ≤ B + c / 2 := by
-    linarith [show |q.eval x| ≤ (B - -B + c) / 2 by simpa using hval x hx]
+    have hv : |q.eval x| ≤ (B - -B + c) / 2 := by simpa using hval x hx
+    linarith
   have h0 : 0 ≤ c := (abs_nonneg _).trans (hc x hx)
   rcases le_or_gt ((N : ℝ) - d ^ 2) 0 with h | h
   · nlinarith [abs_nonneg (q.eval x), (Nat.cast_nonneg N : (0 : ℝ) ≤ N)]

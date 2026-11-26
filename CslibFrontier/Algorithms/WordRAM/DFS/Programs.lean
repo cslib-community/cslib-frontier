@@ -114,8 +114,9 @@ theorem sccIndexCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → List (Fin N)
     have htriv : s₃ = s₂.set finB (kOrdAddr wb N Mc + N) := by
       simp only [s₃, kOrdAddr, kFinAddr]; ring_nf
     rw [htriv]
-    wram_exec [hs₂_fr0, hordB, hNv,
-      (hfit.of_le (by simp only [kOrdAddr, kTopAddr]; omega) : Fits w (kOrdAddr wb N Mc + N))]
+    have hf_on : Fits w (kOrdAddr wb N Mc + N) :=
+      hfit.of_le (by simp only [kOrdAddr, kTopAddr]; omega)
+    wram_exec [hs₂_fr0, hordB, hNv, hf_on]
   have hs₃_fr : ∀ r : Fin 28, r.val < 18 → r ≠ offB → r ≠ edgeB → r ≠ finB →
       s₃.regs r = x.regs r := fun r hr h1 h2 h3 => by
     wram_simp [s₃, hs₂_fr0 r hr h1 h2]
@@ -400,7 +401,8 @@ theorem topoCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound) :
   let x₂ := ((s₁.set outReg P).write P G.n).set iReg 0
   have hs₂_ex : ExecWithin (B := .standard) w
       (ram[ outReg ← ordB + nVerts; *outReg ← nVerts; iReg ← cZero ]) s₁ x₂ 3 := by
-    wram_exec [hs₁_fr, hs_ord, hs_n, hs_r.czero, (hP_fit.of_le (by omega) : Fits w P)]
+    have hf_P : Fits w P := hP_fit.of_le (by omega)
+    wram_exec [hs₁_fr, hs_ord, hs_n, hs_r.czero, hf_P]
   have hlen : (topoWords G).length = G.n := by simp [topoWords, length_topologicalSort_finRange]
   obtain ⟨y, hy_ex, hy_cp, hy_low, hy_fr⟩ :=
     revCopyLoop_spec O P le_rfl hP_fit (fun q => (topoWords G).getD q 0) G.n 0 x₂ (by omega)
@@ -449,7 +451,8 @@ theorem sccCode_spec (G : Graph) {w : ℕ} (hfit : Fits w G.wordBound) :
   let y := (s₁.set outReg P).write P G.n
   have hs₂_ex : ExecWithin (B := .standard) w (ram[ outReg ← compB - cOne; *outReg ← nVerts ])
       s₁ y 2 := by
-    wram_exec [hs₁_fr, hs_comp, hs_r.cone, hs_n, (hP_fit.of_le (by omega) : Fits w P)]
+    have hf_P : Fits w P := hP_fit.of_le (by omega)
+    wram_exec [hs₁_fr, hs_comp, hs_r.cone, hs_n, hf_P]
   have hlen : (sccWords G).length = G.n := by simp [sccWords]
   have hy_out : y.regs outReg = P := by wram_simp [y]
   refine ⟨y, (hs_ex.seq ((hs₁_ex.seq hs₂_ex).branch_neg hncond)).mono (by omega),

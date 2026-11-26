@@ -434,7 +434,8 @@ theorem rootStep_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
           · simp only [and_self, ↓reduceIte]
             refine ⟨Finset.mem_insert_self 0 _, ?_⟩
             rw [hT.str_zero, nextMove_of_not_isNode_of_eq_nil hnot_node rfl]
-        tables := ⟨hinv.tables.1, hinv.tables.2, hinv.tables.3, hinv.tables.4, hinv.tables.5⟩ }
+        tables := ⟨hinv.tables.zero_vals, hinv.tables.fail_spec, hinv.tables.outHead_spec,
+          hinv.tables.outNext_spec, hinv.tables.follow_spec⟩ }
 
 theorem rootLoop_spec {P : List (List ℕ)} {σ : ℕ} {T : PTrie}
     (hT : TreeInv σ T)
