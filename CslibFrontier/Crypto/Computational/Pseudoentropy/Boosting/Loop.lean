@@ -103,16 +103,12 @@ theorem Valid.majority_precision {params : Parameters} (h : params.Valid) :
 /-- The executable sampling precision meets the density guard's tolerance. -/
 theorem Valid.shift_precision {params : Parameters} (h : params.Valid) :
     1 / (params.shiftPrecision : ℝ) ≤ params.delta * params.rate / 32 := by
-  have hd : (0 : ℝ) < params.denominator := by exact_mod_cast params.denominator_pos
-  have hr : (0 : ℝ) < params.inverseRate := by exact_mod_cast params.inverseRate_pos
+  have hd : (0 : ℝ) < params.denominator := Nat.cast_pos.mpr params.denominator_pos
+  have hr : (0 : ℝ) < params.inverseRate := Nat.cast_pos.mpr params.inverseRate_pos
   have hsp : (0 : ℝ) < params.shiftPrecision := by
-    unfold shiftPrecision
-    push_cast
-    positivity
-  rw [div_le_iff₀ hsp]
-  unfold delta rate shiftPrecision
-  push_cast
-  field_simp
+    simp only [shiftPrecision, Nat.cast_mul, Nat.cast_ofNat]; positivity
+  rw [div_le_iff₀ hsp, delta, rate, shiftPrecision]
+  push_cast; field_simp
   exact_mod_cast h.1
 
 /-- The integer clock pays for the initial potential, including equality at the boundary. -/
@@ -176,13 +172,12 @@ def Invariant (rounds : ℕ) (state : State) : Prop :=
 /-- Before any predictors, the density is full and the potential equals its initial budget. -/
 theorem invariant_initial (hparams : params.Valid) :
     Invariant source predict truth params 0 initial := by
-  simp only [Invariant, show initial.stopped = false from rfl, Bool.false_eq_true, ite_false,
-    margin_initial, show initial.threshold = 0 from rfl, Nat.cast_zero, mul_zero, zero_mul,
+  simp_rw [Invariant, margin_initial]
+  simp only [initial, Bool.false_eq_true, ite_false, Nat.cast_zero, mul_zero, zero_mul,
     sub_zero, add_zero]
-  refine ⟨?_, by simp⟩
-  have hdensity := density_antitone source params.rate_pos.le
-    (margin := fun _ => 0) (margin' := fun _ => -1) (by intro; norm_num)
-  exact hparams.delta_le_one.trans (by simpa using hdensity)
+  refine ⟨hparams.delta_le_one.trans ?_, by simp⟩
+  simpa using density_antitone source params.rate_pos.le (margin := fun _ => 0)
+    (margin' := fun _ => -1) (fun _ => by norm_num)
 
 /-- A valid stopping decision establishes the stopped branch for every subsequent round. -/
 theorem invariant_stop (rounds : ℕ) (state : State)
@@ -345,14 +340,13 @@ theorem round_sound (hparams : params.Valid) {error : ℝ} (herror : 0 ≤ error
             · simp only [State.Invariant, hflag, Bool.false_eq_true, ite_false] at hstate
               simpa only [State.shift, ite_true, Nat.cast_add, Nat.cast_one,
                 sub_add_eq_sub_sub, predict] using hstate.1
-          have hlearner := hlearn yes hdensity
           simp only [ProbComp.eval_pure]
           change (((ProbComp.eval (learn (state.shift yes))).map
             ((state.shift yes).add params.codeBound)).toOuterMeasure
             {next | ¬ State.Invariant (ProbComp.eval source) predict truth params
               (rounds + 1) next}).toReal ≤ error
           rw [PMF.toOuterMeasure_map_apply]
-          exact hlearner.trans' <|
+          exact (hlearn yes hdensity).trans' <|
             ENNReal.toReal_mono (Cslib.Probability.PMF.toOuterMeasure_ne_top _ _) <|
               MeasureTheory.measure_mono fun code hbad hgood => hbad (State.Invariant.shift_add
                 _ _ _ _ hstate hparams hflag yes code hgoodShift hgoodStop hgood)

@@ -246,10 +246,9 @@ theorem not_hasKOSBadTriple_of_length_le_two (h : V →ₗ[F] W) {responses : Li
     (hlen : responses.length ≤ 2) : ¬ HasKOSBadTriple h responses := by
   classical
   rintro ⟨p₀, hp₀, p₁, hp₁, p₂, hp₂, hne₀₁, hne₀₂, hne₁₂, _, _⟩
-  have hmem {p : F × V} (hp : p ∈ responses) : p.1 ∈ (responses.map Prod.fst).toFinset :=
-    List.mem_toFinset.mpr (List.mem_map_of_mem hp)
   have hsub : ({p₀.1, p₁.1, p₂.1} : Finset F) ⊆ (responses.map Prod.fst).toFinset := by
-    simp [Finset.insert_subset_iff, hmem hp₀, hmem hp₁, hmem hp₂]
+    simp [Finset.insert_subset_iff, List.mem_map_of_mem hp₀, List.mem_map_of_mem hp₁,
+      List.mem_map_of_mem hp₂]
   have hcard := (Finset.card_le_card hsub).trans (List.toFinset_card_le _)
   rw [Finset.card_eq_three.mpr ⟨_, _, _, hne₀₁, hne₀₂, hne₁₂, rfl⟩, List.length_map] at hcard
   omega
@@ -454,9 +453,7 @@ private theorem kosAffineDefect_index_perm_eq_or_neg (responses : List (F × V))
   rcases hm₀ with rfl | rfl | rfl <;>
     rcases hm₁ with rfl | rfl | rfl <;>
     rcases hm₂ with rfl | rfl | rfl
-  all_goals try exact False.elim (hi₀₁ rfl)
-  all_goals try exact False.elim (hi₀₂ rfl)
-  all_goals try exact False.elim (hi₁₂ rfl)
+  all_goals try contradiction
   · exact Or.inl rfl
   · exact Or.inr (kosAffineDefect_swap₁₂ _ _ _)
   · exact Or.inr (kosAffineDefect_swap₀₁ _ _ _)
@@ -493,10 +490,8 @@ theorem toOuterMeasure_hasKOSBadPair_le
     rintro s ⟨p₀, hp₀, p₁, hp₁, _, hqne, hcoll⟩ hinj
     exact hqne (hinj (List.mem_toFinset.mpr (List.mem_map_of_mem hp₀))
       (List.mem_toFinset.mpr (List.mem_map_of_mem hp₁)) hcoll)
-  have hcard : S.card ≤ responses.length :=
-    (List.toFinset_card_le _).trans_eq (List.length_map _)
   have hchoose : (S.card.choose 2 : ℝ≥0∞) ≤ (responses.length.choose 2 : ℝ≥0∞) :=
-    mod_cast Nat.choose_le_choose 2 hcard
+    mod_cast Nat.choose_le_choose 2 ((List.toFinset_card_le _).trans_eq (List.length_map _))
   calc
     seed.toOuterMeasure {s | HasKOSBadPair (h s) responses}
         ≤ seed.toOuterMeasure {s | ¬ Set.InjOn (h s) S} := seed.toOuterMeasure.mono hsub
@@ -570,11 +565,9 @@ theorem toOuterMeasure_kosExtract_graph_failure_le [DecidableEq F] [DecidableEq 
         p ∈ responses ∧ H s p.2 = target.eval p.1 ∧
           (kosExtract (H s) responses target).eval p.1 ≠ p.2} ≤
       ε * (responses.length.choose 3 : ℝ≥0∞) := by
-  refine (seed.toOuterMeasure.mono fun s hs => ?_).trans
-    (toOuterMeasure_hasKOSBadTriple_le hH responses)
-  rcases hs with ⟨target, p, hp, hhash, hfail⟩
-  by_contra hnobad
-  exact hfail (kosExtract_eval_eq_of_not_hasKOSBadTriple (H s) hgraph hnobad target hp hhash)
+  refine le_trans ?_ (toOuterMeasure_hasKOSBadTriple_le hH responses)
+  exact seed.toOuterMeasure.mono fun s ⟨target, p, hp, hhash, hfail⟩ => not_not.mp fun hnobad =>
+    hfail (kosExtract_eval_eq_of_not_hasKOSBadTriple (H s) hgraph hnobad target hp hhash)
 
 /-- Abstract universal-hash step of [BaumEtAl2026FAEST], §10.6, Lemma 10.26 (pp. 97–98), not the
 concrete `VOLEHash` instantiation (tracked in #4987): on an arbitrary finite opening list

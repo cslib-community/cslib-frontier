@@ -370,12 +370,10 @@ theorem succProbability_indexedEufCmaGame_double_le {S : IndexedSignatureScheme}
     Game.succProbability (ProbComp.eval ((S.double hcap).indexedEufCmaGame adversary n)) ≤
       2 * Game.succProbability
         (ProbComp.eval (S.indexedEufCmaGame (S.doubleForger bound adversary) n)) := by
-  have hsplit :
-      ProbComp.eval (S.indexedEufCmaGame (S.doubleForger bound adversary) n) =
-        (ProbComp.eval (ProbComp.uniform Bool)).bind fun b =>
-          ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary b) n) := by
-    simp only [indexedEufCmaGame, doubleForger, runWith_norm, pmf_norm]
-    exact PMF.bind_comm _ _ _
+  have hsplit : ProbComp.eval (S.indexedEufCmaGame (S.doubleForger bound adversary) n) =
+      (ProbComp.eval (ProbComp.uniform Bool)).bind fun b =>
+        ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary b) n) := by
+    simpa only [indexedEufCmaGame, doubleForger, runWith_norm, pmf_norm] using PMF.bind_comm _ _ _
   have htwo :
       (2 : ℝ≥0∞) * (ProbComp.eval (S.indexedEufCmaGame (S.doubleForger bound adversary) n)) true =
         (ProbComp.eval (S.indexedEufCmaGame (S.doubleForgerAt bound adversary false) n)) true +
@@ -487,11 +485,10 @@ private theorem isOraclePPTOn_doubleHandler (S : IndexedSignatureScheme) {bound 
       (fun pair : DoubleHandlerIn =>
         decide ((requestDecoder.decode pair.2.1.2).1 = pair.1.1.2.toNat))
       encDoubleHandlerIn encBool := by
-    have heq : (fun pair : DoubleHandlerIn =>
-        decide ((requestDecoder.decode pair.2.1.2).1 = pair.1.1.2.toNat)) =
-      fun pair => (requestDecoder.decode pair.2.1.2).1 == (if pair.1.1.2 then 1 else 0) := by
-      funext pair; rw [Bool.eq_iff_iff]; cases pair.1.1.2 <;> simp
-    rw [heq]; polytime
+    convert (by polytime : ComputableInPolyTime (fun p : DoubleHandlerIn =>
+        (requestDecoder.decode p.2.1.2).1 == if p.1.1.2 then 1 else 0)
+      encDoubleHandlerIn encBool) using 1
+    exact funext fun p => Bool.eq_iff_iff.mpr (by cases p.1.1.2 <;> simp)
   ppt [doubleHandler]
 
 /-- `S.doubleForger bound adversary` is uniformly strict oracle PPT for every strict oracle-PPT
@@ -549,8 +546,7 @@ theorem IndexedEUFCMA.double {S : IndexedSignatureScheme} (hS : S.IndexedEUFCMA)
     (hcap : ∀ n, 1 ≤ S.capacity n) :
     (S.double hcap).IndexedEUFCMA := by
   obtain ⟨bound, hboundPoly, hbound⟩ := S.exists_sign_length_bound
-  apply IndexedEUFCMA.of_negligible
-  intro adversary hadversary
+  refine IndexedEUFCMA.of_negligible fun adversary hadversary => ?_
   refine negligible_of_le
     ((hS.negligible (S.doubleForger bound adversary)
       (isOraclePPT_doubleForger S hboundPoly hadversary)).const_mul 2) fun n => ?_

@@ -475,9 +475,7 @@ private theorem raw_complete {x : Input} (hx : x.graph.Valid)
       induction h with
       | refl => exact .refl
       | tail _ hm ih =>
-        exact ih.trans (run_source_step hx hlen
-          (by simpa only [List.length_ofFn] using hlen.symm)
-          (by simpa only [List.length_ofFn] using hlen.symm)
+        exact ih.trans (run_source_step hx hlen (by simp [hlen]) (by simp [hlen])
           (by simpa only [AndOrGraph.config_ofFn] using hm))
     simpa only [AndOrGraph.ofFn_config _ _ hlen, AndOrGraph.ofFn_config _ _ ht] using hsim hr
   exact ⟨⟨1, x.target⟩, hrun.trans (run_target (ht.trans hlen.symm)), rfl⟩
@@ -551,8 +549,7 @@ private theorem localVertex_polyTime :
       (fun q : WeightedPort ℕ × ℕ =>
         (⟨⟨q.2, q.1.port.dir⟩, q.1.weight⟩ : WeightedPort ℕ))
       (encPair (encWeightedPort encNat) encUnary) (encWeightedPort encNat) := by
-    have hi : ComputableInPolyTime (fun q : WeightedPort ℕ × ℕ => q.2)
-        (encPair (encWeightedPort encNat) encUnary) encNat :=
+    have hi : ComputableInPolyTime (·.2) (encPair (encWeightedPort encNat) encUnary) encNat :=
       ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
     fun_prop
   have hp := (ComputableInPolyTime.map hm).comp (by fun_prop : ComputableInPolyTime
@@ -587,8 +584,7 @@ private theorem flips_polyTime :
     ComputableInPolyTime flips encAndOrNCL (encList encInstruction) := by
   unfold flips
   refine ComputableInPolyTime.flatMapWithInput (by fun_prop) ?_
-  have hi : ComputableInPolyTime (fun q : Input × ℕ => q.2)
-      (encPair encAndOrNCL encUnary) encNat :=
+  have hi : ComputableInPolyTime (·.2) (encPair encAndOrNCL encUnary) encNat :=
     ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
   fun_prop
 
@@ -623,8 +619,7 @@ private theorem guard_polyTime : ComputableInPolyTime guard encAndOrNCL encBool 
       encAndOrNCL encNat := ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
   have ht : ComputableInPolyTime (fun x : Input => x.target.length)
       encAndOrNCL encNat := ComputableInPolyTime.unary_to_binary.comp (by fun_prop)
-  have hg : ComputableInPolyTime (fun x : Input => x.graph) encAndOrNCL encAndOrGraph := by
-    fun_prop
+  have hg : ComputableInPolyTime (·.graph) encAndOrNCL encAndOrGraph := by fun_prop
   exact (((AndOrGraph.computableInPolyTime_checkValid.comp hg).bool_and'
     (hs.decide_eq' (by fun_prop))).bool_and' (ht.decide_eq' (by fun_prop))).bool_and'
     (AndOrGraph.computableInPolyTime_checkLegal hg

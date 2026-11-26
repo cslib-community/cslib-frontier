@@ -308,10 +308,8 @@ private theorem fsTraceSound_cons_iff {V : PCPVerifier α} {L : Set α}
         FSTraceSound V L tr tr_FS := by
   refine ⟨fun h => ⟨h x rt ρs List.mem_cons_self, fun x' rt' ρs' he => h x' rt' ρs'
     (List.mem_cons_of_mem _ he)⟩, fun ⟨hhead, htail⟩ x' rt' ρs' he => ?_⟩
-  rcases List.mem_cons.mp he with heq | he
-  · cases heq
-    exact hhead
-  · exact htail x' rt' ρs' he
+  rcases List.mem_cons.mp he with ⟨⟨rfl, rfl⟩, rfl⟩ | he
+  exacts [hhead, htail x' rt' ρs' he]
 
 /-- **Single-step Fiat–Shamir bad-event bound**: from a Fiat–Shamir trace `tr_FS` satisfying
 `FSTraceSound V L tr tr_FS`, one call to the lazy Fiat–Shamir oracle violates `FSTraceSound` with
@@ -546,12 +544,9 @@ private theorem mem_micaliForbiddenDigests_of_not_micaliGoodState_cons
     not_and] at hnot_mem
   obtain ⟨⟨⟨hnot_snd, hnot_left⟩, hnot_right⟩, hnot_rt⟩ := hnot_mem
   refine hbad ⟨traceCollisionFree_cons_iff.mpr
-    ⟨hfree, fun p hp heq => False.elim (hnot_snd p hp heq)⟩, fun x rt ρs he hx => ?_⟩
-  have hchildren : ∀ p ∈ tr_MT, ans ≠ unframe p.1 ∧ ans ≠ dropFrame p.1 :=
-    fun ⟨m, a⟩ hp =>
-      ⟨fun heq => hnot_left (m, a) hp heq.symm, fun heq => hnot_right (m, a) hp heq.symm⟩
+    ⟨hfree, fun p hp heq => (hnot_snd p hp heq).elim⟩, fun x rt ρs he hx => ?_⟩
   rw [micaliExtractProof_cons_of_ne V tr_MT msg x (fun heq => hnot_rt ((x, rt), ρs) he heq.symm)
-    hchildren]
+    fun ⟨m, a⟩ hp => ⟨mt Eq.symm (hnot_left (m, a) hp), mt Eq.symm (hnot_right (m, a) hp)⟩]
   exact hfs x rt ρs he hx
 
 /-- **Single-step bad-state bound for `micaliMemoize`**: from a good state `(tr_MT, tr_FS)`, a call
@@ -581,11 +576,11 @@ private theorem toOuterMeasure_micaliMemoize_not_goodState_step [BEq α]
         change ((BitString.uniformList σ).map
           (fun ans => (ans, (msg, ans) :: tr_MT))).toOuterMeasure _ ≤ _
         rw [PMF.toOuterMeasure_map_apply]
-        refine ((BitString.uniformList σ).toOuterMeasure.mono (s₂ :=
-          {ans | ans ∈ micaliForbiddenDigests (tr_MT, tr_FS)})
-          fun ans hans => mem_micaliForbiddenDigests_of_not_micaliGoodState_cons hst hans).trans ?_
-        simpa [length_micaliForbiddenDigests] using
-          toOuterMeasure_uniformList_mem_list_le σ (micaliForbiddenDigests (tr_MT, tr_FS))
+        refine le_trans ?_ (by
+          simpa [length_micaliForbiddenDigests] using
+            toOuterMeasure_uniformList_mem_list_le σ (micaliForbiddenDigests (tr_MT, tr_FS)))
+        exact (BitString.uniformList σ).toOuterMeasure.mono fun ans hans =>
+          mem_micaliForbiddenDigests_of_not_micaliGoodState_cons hst hans
     | inr xrt =>
       simp only [micaliMTCost, micaliFSCost, Nat.cast_zero, Nat.cast_one, zero_mul, one_mul,
         zero_add, RandomOracle.memoizeSum_inr, PMF.toOuterMeasure_map_apply]
@@ -863,8 +858,9 @@ theorem micaliProofBits_micaliProvePure_le_log {enc : α ↪ List Bool} {c : ℕ
       σ + m * (q * (1 + (c * ℓ + L) * σ)) := by gcongr
   refine ((micaliProofBits_micaliProvePure_le hlen hm hρs hq).trans hstep).trans ?_
   have hms : m * σ ≤ (σ + m + 1) ^ 2 := by nlinarith
+  have hmℓ : m ≤ (σ + m + 1) ^ 2 * ℓ := by nlinarith
   have h₄ : m * σ ≤ (σ + m + 1) ^ 2 * ℓ := by nlinarith
-  nlinarith [Nat.mul_le_mul_left q (show m ≤ (σ + m + 1) ^ 2 * ℓ by nlinarith),
+  nlinarith [Nat.mul_le_mul_left q hmℓ,
     Nat.mul_le_mul_left (q * c) (Nat.mul_le_mul_right ℓ hms), Nat.mul_le_mul_left (q * L) h₄]
 
 /-- **Micali's CS Proofs for arbitrary NP relations in the Random Oracle Model**

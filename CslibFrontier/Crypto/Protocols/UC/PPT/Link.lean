@@ -94,28 +94,25 @@ theorem Machine.IsReplyBounded.routeCorrupt {n : ℕ} {ιI : Type} {I : ιI → 
   obtain ⟨bound, hpoly, hle⟩ := h
   refine ⟨fun p => bound p + (party.reply none).length + 1,
     (hpoly.add (PolyBounded.const _)).add (PolyBounded.const 1), fun p q => ?_⟩
-  rcases q with ⟨i, inp⟩ | ⟨i, inp⟩ | nq <;> simp only [UC.routeCorrupt] <;> intro s x hx
+  rcases q with ⟨i, inp⟩ | ⟨i, inp⟩ | nq <;>
+    simp only [UC.routeCorrupt, WordInterface.protocol, WordInterface.sum, WordInterface.net,
+      WordPort.sum] <;> intro s x hx
   · split_ifs at hx with hi
     · obtain rfl := OracleComp.eq_of_mem_supportWith_pure hx
-      simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net]; omega
+      exact (Nat.le_add_left _ _).trans (Nat.le_add_right _ _)
     · exact (hle p (.inl (i, inp)) s x hx).trans (by omega)
   · split_ifs at hx with hi
     · simp only [StateT.run_map, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map] at hx
       obtain ⟨y, hy, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hx
-      have h1 := hle p (.inl (i, inp)) s y hy
-      simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
-        encSum_inl, List.length_cons] at h1 ⊢
-      omega
+      rw [encSum_inl, List.length_cons]
+      exact Nat.succ_le_succ ((hle p (.inl (i, inp)) s y hy).trans (Nat.le_add_right _ _))
     · obtain rfl := OracleComp.eq_of_mem_supportWith_pure hx
-      simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
-        encSum_inl, List.length_cons]
-      omega
+      rw [encSum_inl, List.length_cons]
+      exact Nat.succ_le_succ (Nat.le_add_left _ _)
   · simp only [StateT.run_map, ProbOracleComp.lowerWith, ProbOracleComp.simulate_map] at hx
     obtain ⟨y, hy, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hx
-    have h1 := hle p (.inr nq) s y hy
-    simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net, WordPort.sum,
-      encSum_inr, List.length_cons] at h1 ⊢
-    omega
+    rw [encSum_inr, List.length_cons]
+    exact Nat.succ_le_succ ((hle p (.inr nq) s y hy).trans (Nat.le_add_right _ _))
 
 /-- Library infrastructure (no cited result): a reply word truncated at `p.replyBound`, decoded and
 re-encoded through a `WordInterface`, has length at most a polynomial in
@@ -300,10 +297,8 @@ private theorem runWith_wordHandle_lowerWith_eq_runWith_lowerWith_runFrom
           (fun res => (iE.reply eQ res.1, cod.enc res.2)) <$>
             ProbOracleComp.lowerWith iI p.replyBound ((m.handle eQ).run s0) := by
         unfold wordHandle
-        have hq : iE.decodeQuery (iE.channel eQ) (iE.request eQ) = eQ :=
-          iE.decodeQuery_request eQ
-        generalize iE.decodeQuery (iE.channel eQ) (iE.request eQ) = q' at hq ⊢
-        subst hq
+        generalize hq : iE.decodeQuery (iE.channel eQ) (iE.request eQ) = q'
+        obtain rfl := hq.symm.trans (iE.decodeQuery_request eQ)
         simp only [cod, m, (codec p.secParam p.corrupted).decode_enc]
       simp only [OracleComp.interpret_bind, OracleComp.interpret_map, StateT.run_bind,
         StateT.run_map, ProbOracleComp.interpret_query, H]

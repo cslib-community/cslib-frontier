@@ -182,10 +182,10 @@ private lemma exists_boundedRealTree_of_sameHeightRun {M : AuxPDA k Bool StackSy
     intro p hlen hsame hfits
     match d with
     | 0 =>
+      have hlast : p.last = p.head := congrArg p (Fin.ext hlen)
       obtain ⟨T, hT⟩ := realTree_cast _
         (BoundedSurfaceCfg.ofSurface p.last.surface (hfits p.last p.last_mem)) rfl
-        (BoundedSurfaceCfg.toSurface_injective
-          (by simp [show p.last = p.head from congrArg p (Fin.ext hlen)]))
+        (BoundedSurfaceCfg.toSurface_injective (by simp [hlast]))
         (.refl (BoundedSurfaceCfg.ofSurface p.head.surface (hfits p.head p.head_mem)))
       exact ⟨T, hT.le.trans (le_max_left 1 _)⟩
     | 1 =>
@@ -276,9 +276,7 @@ theorem accepts_iff_exists_boundedRealTree {M : AuxPDA k Bool StackSym State} {t
       let q : M.withEmptyStackHalt.ComputationPath input :=
         ⟨p.toRunPath.take j, by rw [RelSeries.head_take]; exact p.head_eq⟩
       have hqHalt : q.last.Halted := ht' q (by simp [q, ComputationPath.time, RunPath.time, j])
-      have hlastEq : p.last = q.last := by
-        simpa [q, RelSeries.last_take] using RunPath.last_eq_of_halted p.toRunPath j
-          (by simpa [q, RelSeries.last_take] using hqHalt)
+      have hlastEq : p.last = q.last := RunPath.last_eq_of_halted p.toRunPath j hqHalt
       exact ⟨q, by simp [q, j], hqHalt, hlastEq ▸ hout⟩
   have hstack : q.last.stack = [] := withEmptyStackHalt_halted_stack_nil q hqHalt
   have hsame : SameHeightRun q.toRunPath :=
@@ -428,9 +426,8 @@ theorem compileAuxPDA_andLevel_le_log_gateCount (M : AuxPDA k Bool StackSym Stat
     _ = 2 ^ (B + D * L) := by rw [← pow_mul, ← pow_add, Nat.mul_comm L D]
   have hlogLe : Nat.log2 (4 * t + 3) ≤ B + D * L := by
     rw [Nat.log2_eq_log_two]
-    refine Nat.le_of_lt_succ (Nat.log_lt_of_lt_pow (by omega) ?_)
-    rw [pow_succ']
-    omega
+    exact Nat.le_of_lt_succ
+      (Nat.log_lt_of_lt_pow (Nat.succ_ne_zero _) (by rw [pow_succ']; omega))
   refine (compileAuxPDA_andLevel_le M eStack eState input s t g).trans ?_
   unfold compiledRounds roundsForSize depthConstant
   have : 1 ≤ L := Nat.succ_pos _
@@ -443,22 +440,17 @@ bounded in `n`. -/
 theorem compileAuxPDA_gateCount_polynomiallyBounded (mStack mState k c A D : ℕ) :
     Cslib.PolynomiallyBounded fun n =>
       compiledGateCount mStack mState k n (c * (Nat.log2 n + 1)) (A * (n + 1) ^ D) := by
-  open Cslib.PolynomiallyBounded in
+  let C := Cslib.PolynomiallyBounded.const
   have hS : Cslib.PolynomiallyBounded fun n =>
       compiledSurfaceCount mStack mState k n (c * (Nat.log2 n + 1)) :=
     boundedSurfaceCard_log_polynomiallyBounded mStack (mState + 1) k c
   have hR : Cslib.PolynomiallyBounded fun n => compiledRounds (A * (n + 1) ^ D) := by
-    refine ((Cslib.PolynomiallyBounded.const 6).mul
-      (((Cslib.PolynomiallyBounded.const 4).mul ((Cslib.PolynomiallyBounded.const A).mul
-        ((Cslib.PolynomiallyBounded.id.add (Cslib.PolynomiallyBounded.const 1)).pow D))).add
-          (Cslib.PolynomiallyBounded.const 4))).mono_of_le fun n => ?_
-    unfold compiledRounds roundsForSize
-    rw [Nat.log2_eq_log_two]
+    refine ((C 6).mul (((C 4).mul ((C A).mul
+      ((Cslib.PolynomiallyBounded.id.add (C 1)).pow D))).add (C 4))).mono_of_le fun n => ?_
+    rw [compiledRounds, roundsForSize, Nat.log2_eq_log_two]
     exact Nat.mul_le_mul_left 6 (Nat.succ_le_succ (Nat.log_le_self 2 _))
-  exact (((Cslib.PolynomiallyBounded.const 6).mul
-    (hR.add (Cslib.PolynomiallyBounded.const 1))).mul
-      ((hS.add (Cslib.PolynomiallyBounded.const 1)).pow 6)).mono_of_le
-        fun n => balancedGateCount_le _ _
+  exact (((C 6).mul (hR.add (C 1))).mul ((hS.add (C 1)).pow 6)).mono_of_le
+    fun n => balancedGateCount_le _ _
 
 /-! ### Direct bridge to Work Packages 1 & 2 (`MinIsolation` and `WeightGenerator`) -/
 

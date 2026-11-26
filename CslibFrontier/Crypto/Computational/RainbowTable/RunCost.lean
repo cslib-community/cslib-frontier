@@ -160,14 +160,13 @@ theorem sum_map_lookupCost_queriesWith_rainbowAttackStep (h : P → Y) (lookup :
   rw [sum_map_queriesWith_liftLeft_bind TableAttackSpec.lookupCost_inl, Nat.mul_zero, Nat.zero_add,
     evalPure_rainbowChain, sum_map_queriesWith_liftRight_query_bind, TableAttackSpec.lookupCost_inr]
   cases lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y)) with
-  | none => simp only [OracleComp.queriesWith_pure, List.map_nil, List.sum_nil, Nat.add_zero]
+  | none => simp
   | some pw₀ =>
     rw [sum_map_queriesWith_liftLeft_bind TableAttackSpec.lookupCost_inl, Nat.mul_zero,
       Nat.zero_add, evalPure_rainbowChain,
       sum_map_queriesWith_liftLeft_bind TableAttackSpec.lookupCost_inl, Nat.mul_zero, Nat.zero_add,
       OracleComp.evalPure_query]
-    split_ifs <;>
-      simp only [OracleComp.queriesWith_pure, List.map_nil, List.sum_nil, Nat.add_zero]
+    split_ifs <;> simp
 
 /-- At step `k < τ`, `rainbowAttackStep` makes `k` hash queries when `lookup` misses and `τ` hash
 queries (`k` forward, `τ - 1 - k` backward from `pw₀`, `1` verification) when `lookup` hits. -/
@@ -240,10 +239,7 @@ private theorem sum_map_hashCost_findSomeM?_le (h : P → Y) (lookup : P → Opt
         (xs.countP fun k =>
           (lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y))).isSome) * τ := by
   induction xs with
-  | nil =>
-    rw [List.findSomeM?_nil]
-    simp only [OracleComp.queriesWith_pure, List.map_nil, List.sum_nil, List.countP_nil,
-      Nat.zero_mul, Nat.zero_le]
+  | nil => simp
   | cons k ks ih =>
     have hk : k < τ := hxs k List.mem_cons_self
     rw [OracleComp.queriesWith_findSomeM?_cons, List.map_append, List.sum_append,
@@ -287,9 +283,7 @@ private theorem sum_map_hashCost_findSomeM?_le_of_no_false_alarm {h : P → Y}
       (xs.findSomeM? (rainbowAttackStep g τ y))).map TableAttackSpec.hashCost).sum ≤
       xs.sum + τ := by
   induction xs with
-  | nil =>
-    simp only [List.findSomeM?_nil, OracleComp.queriesWith_pure, List.map_nil, List.sum_nil,
-      Nat.zero_le]
+  | nil => simp
   | cons k ks ih =>
     have hk : k < τ := hxs k List.mem_cons_self
     rw [OracleComp.queriesWith_findSomeM?_cons, List.map_append, List.sum_append,
@@ -456,8 +450,7 @@ private theorem add_le_sum_map_hashCost_hellmanLoop_of_false_alarm {h : P → Y}
   induction k generalizing rem z with
   | zero =>
     obtain ⟨m, rfl⟩ : ∃ m, rem = m + 1 := ⟨rem - 1, by omega⟩
-    rw [Function.iterate_zero_apply] at hhit
-    simp only [Nat.add_sub_cancel, Nat.sub_zero] at hfa
+    simp only [Function.iterate_zero_apply, Nat.add_sub_cancel, Nat.sub_zero] at hhit hfa
     rw [sum_map_hashCost_queriesWith_hellmanLoop_succ, hhit]
     simp only [hfa, ↓reduceIte]
     have := le_sum_map_hashCost_hellmanLoop h lookup g₀ y m (g₀ (h z))

@@ -136,12 +136,9 @@ private theorem justesenRetainedSourceRound_firstHalting_iff_scalar
       scalar.FirstHalting w bits scalar.init ∧
         SourceRound.answer (scalar.run w bits) = some update := by
   intro M ctx scalar
-  change (SourceRoundLoop.retainedRound _ _ _ _ _ r).FirstHalting w bits
-      (SourceRoundLoop.retainedRoundEntry _ _ r) ∧
-    justesenRetainedSourceRoundReply
-      ((SourceRoundLoop.retainedRound _ _ _ _ _ r).run w bits) = some update ↔ _
-  rw [SourceRoundLoop.retainedRound_firstHalting, SourceRoundLoop.retainedRound_run]
-  rfl
+  exact and_congr (SourceRoundLoop.retainedRound_firstHalting _ _ _ _ _ r w bits)
+    (congrArg (justesenRetainedSourceRoundReply · = some update)
+      (SourceRoundLoop.retainedRound_run _ _ _ _ _ r w bits)).to_iff
 
 /-- The retained round consumes exactly the selectors of the corresponding scalar replay. -/
 theorem justesenRetainedSourceRound_firstHalting_iff_replayScan
@@ -245,13 +242,10 @@ theorem configurationJustesenRetainedSourceRound_existsUnique_firstHalting
   have hctx : SourceRoundLoop.roundContext JustesenSourceContext.size
       JustesenSourceContext.sourceID r = ctx :=
     initializedRoundContext ntm c w seed.val source.val target.val fuel radius _
-  have htransfer (selectors : List Bool) (result : RoundUpdate) :
-      M.FirstHalting w selectors M.init ∧
-        justesenRetainedSourceRoundReply (M.run w selectors) = some result ↔
-      scalar.FirstHalting w selectors scalar.init ∧
-        SourceRound.answer (scalar.run w selectors) = some result := by
-    simpa only [hctx] using
-      justesenRetainedSourceRound_firstHalting_iff_scalar ntm c r w selectors result
+  have htransfer (s : List Bool) (res : RoundUpdate) : M.FirstHalting w s M.init ∧
+      justesenRetainedSourceRoundReply (M.run w s) = some res ↔
+      scalar.FirstHalting w s scalar.init ∧ SourceRound.answer (scalar.run w s) = some res := by
+    simpa only [hctx] using justesenRetainedSourceRound_firstHalting_iff_scalar ntm c r w s res
   refine ⟨bits, ⟨update, (htransfer bits update).mpr ⟨hfirst, hanswer⟩⟩,
     fun other ⟨result, hresult⟩ => ?_⟩
   obtain ⟨hfirst', hanswer'⟩ := (htransfer other result).mp hresult
@@ -442,9 +436,8 @@ theorem configurationJustesenRetainedSourceRound_exact_advance
           JustesenSourceRoundExact context edge source (r.advance update.tally) := by
   intro I n seed source target context edge r hexact M bits update hfirst hreply hgoodUpdate hgrew
   rcases r with ⟨actual, fuel, radius, tally⟩
-  obtain ⟨rfl, hfuel, hpos, rfl, hgood⟩ :
-      actual = context ∧ fuel + radius = n ∧ 0 < fuel ∧ tally = expected edge source radius ∧
-        ∀ j ≤ radius, ∃! transcript, Passes edge source j transcript := hexact
+  dsimp only [JustesenSourceRoundExact] at hexact
+  obtain ⟨rfl, hfuel, hpos, rfl, hgood⟩ := hexact
   obtain ⟨hnext, hpass⟩ := configurationJustesenRetainedSourceRound_correct ntm c w
     seed source target fuel radius (hgood radius le_rfl) bits update hfirst hreply
   have hradius : radius + 1 < n := radius_succ_lt_of_expected_count_ne (hnext ▸ hgrew)

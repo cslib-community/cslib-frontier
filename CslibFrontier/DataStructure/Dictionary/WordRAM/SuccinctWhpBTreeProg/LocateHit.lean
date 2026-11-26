@@ -162,8 +162,7 @@ theorem btreeLocateHitGenProg_spec {c U V w n_max base sIdx insCount q : ℕ}
       fun _ => by simp [btreeUpdate, ha0]⟩⟩
     · rw [clientState_bind, hcs_h, hres_h]; simp only [ha0, ↓reduceIte]; rfl
     · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hcs_h, hmc_h, hres_h]; simp [ha0]
-    · refine validProg_bind hvp_h ?_
-      rw [hcs_h, hres_h]; simp only [ha0, ↓reduceIte]; exact validProg_pure _
+    · exact validProg_bind hvp_h (by simp [hcs_h, hres_h, ha0, validProg_pure])
     · rw [clientResult_bind, hcs_h, hres_h]; simp [ha0, StateTransitionSpec.clientResult_pure]
     · rw [← hlk_eq]; simp [btreeLookup, ha0]
   · have ha_ne : sl.alloc ≠ 0 := by omega
@@ -187,8 +186,7 @@ theorem btreeLocateHitGenProg_spec {c U V w n_max base sIdx insCount q : ℕ}
     dsimp only at hnd_st hnd_res hnd_mc hnd_vp
     set cnt := metaCount (sl.nodes leafIdx).metaWord
     set r := swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) cnt q (sl.nodes leafIdx).keysWord
-    have hr_def : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) cnt q
-        (sl.nodes leafIdx).keysWord = r := rfl
+      with ← hr_def
     have hcnt_div : (sl.nodes leafIdx).metaWord / 2 = cnt := rfl
     have hvw_cnt : (sl.nodes leafIdx).valsWord < 2 ^ (cnt * valLaneBitsWhp n_max) := by
       obtain ⟨_, hm0, _, _, hvw0, _⟩ := hv_leaf
@@ -205,8 +203,8 @@ theorem btreeLocateHitGenProg_spec {c U V w n_max base sIdx insCount q : ℕ}
     · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hcs_h, hmc_h, hres_h]
       simp only [ha_ne, ↓reduceIte]
       rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hdl_st, hdl_mc, hdl_res,
-        ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hnd_st, hnd_mc, hnd_res]
-      rw [memoryCost_bind, clientState_swarRankGenProg, memoryCost_swarRankGenProg, hMaxBTree_eq]
+        ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hnd_st, hnd_mc, hnd_res,
+        memoryCost_bind, clientState_swarRankGenProg, memoryCost_swarRankGenProg, hMaxBTree_eq]
       split_ifs with hrc
       · rw [memoryCost_bind, clientState_laneGetGenProg, memoryCost_laneGetGenProg]
         split_ifs <;> simp [memoryCost_pure]
@@ -234,8 +232,7 @@ theorem btreeLocateHitGenProg_spec {c U V w n_max base sIdx insCount q : ℕ}
           hcnt_div, hr_def]
         simp only [hrc, ↓reduceIte]
         rw [clientResult_bind, clientState_laneGetGenProg, clientResult_laneGetGenProg]
-        dsimp only [keyLaneBitsWhp]
-        simp [hkeq, StateTransitionSpec.clientResult_pure]
+        simp [keyLaneBitsWhp, hkeq, StateTransitionSpec.clientResult_pure]
       · simp [← hlk_eq, btreeLookup, ha_ne, leafIdx, cnt, r, hrc, hkeq]
     · left
       have hne : r < cnt → laneGet (fpBitsWhp n_max + 2) (sl.nodes leafIdx).keysWord r ≠ q :=
@@ -311,11 +308,10 @@ theorem realizes_btreeLocateHitGen :
         readBTreeNodeGenProg_spec hth henv.2.1 hsIdx hleaf_lt hrep (s := s)
       dsimp only at hnd_st hnd_res
       rw [hdl_st, hdl_res, hnd_res]
-      refine ⟨⟨base, c, U, V, w, n_max, henv, rfl⟩, ?_,
+      refine ⟨⟨base, c, U, V, w, n_max, henv, rfl⟩,
+        (wp_large_capLanes hth).symm ▸ Nat.lt_of_le_of_lt hcnt_le (by omega),
         (wp_large_powFp hth).symm ▸ hq, (wp_large_wKey hth).symm ▸ hkw_cnt, ?_⟩
-      · simp only [wp_large_capLanes hth]
-        exact Nat.lt_of_le_of_lt hcnt_le (by omega)
-      · rwa [wp_large_wKey hth, wp_large_powFp hth]
+      rwa [wp_large_wKey hth, wp_large_powFp hth]
   · exact (Nat.le_mul_of_pos_left _ (by have := eight_le_tMinWhp hth; omega)).trans_lt
       henv.keysWordBits_lt_w
   · obtain ⟨_, ⟨ha0, _⟩ | ⟨_, T, hrt, hht_lt, _, _, hT⟩⟩ := hv.alloc_and_height_lt hth hins
@@ -336,9 +332,9 @@ theorem realizes_btreeLocateHitGen :
         readBTreeNodeGenProg_spec hth henv.2.1 hsIdx hleaf_lt hrep (s := s)
       dsimp only at hnd_st hnd_res
       simp only [hdl_st, hdl_res, hnd_st, hnd_res, clientResult_swarRankGenProg hth] at *
-      have hrc : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max)
-          ((sl.nodes leafIdx).metaWord / 2) q (sl.nodes leafIdx).keysWord <
-          (sl.nodes leafIdx).metaWord / 2 := by assumption
+      let mW := (sl.nodes leafIdx).metaWord
+      have hrc : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max) (mW / 2) q
+          (sl.nodes leafIdx).keysWord < mW / 2 := by assumption
       exact ((Nat.mul_le_mul_right _ (hrc.le.trans (hcnt_le.trans (Nat.sub_le _ _)))).trans_lt
         henv.keysWordBits_lt_w).trans Nat.lt_two_pow_self
   · exact henv.fits_const (by decide)

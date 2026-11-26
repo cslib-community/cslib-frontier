@@ -216,8 +216,7 @@ private theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.keySamplePublicKe
     {sample : α → List Bool} (hP : ComputableInPolyTime P input encParams)
     (hsample : ComputableInPolyTime sample input encBits) :
     ComputableInPolyTime (fun x => keySamplePublicKey (P x) (sample x)) input encBits := by
-  unfold Cslib.Crypto.MLKEM.keySamplePublicKey
-  dsimp only
+  dsimp only [Cslib.Crypto.MLKEM.keySamplePublicKey]
   have hn : ComputableInPolyTime (fun x => (P x).n) input encUnary := by fun_prop
   have hk : ComputableInPolyTime (fun x => (P x).k) input encUnary := by fun_prop
   have hs := ModuleLWE.sampleDecoder.computableInPolyTime.comp hsample
@@ -230,8 +229,7 @@ private theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.extendedSamplePub
     {P : α → Params} {sample : α → List Bool} (hP : ComputableInPolyTime P input encParams)
     (hsample : ComputableInPolyTime sample input encBits) :
     ComputableInPolyTime (fun x => extendedSamplePublicKey (P x) (sample x)) input encBits := by
-  unfold Cslib.Crypto.MLKEM.extendedSamplePublicKey
-  dsimp only
+  dsimp only [Cslib.Crypto.MLKEM.extendedSamplePublicKey]
   have hn : ComputableInPolyTime (fun x => (P x).n) input encUnary := by fun_prop
   have hk : ComputableInPolyTime (fun x => (P x).k) input encUnary := by fun_prop
   have hk1 : ComputableInPolyTime (fun x => (P x).k + 1) input encUnary := by fun_prop
@@ -262,8 +260,7 @@ private theorem _root_.Turing.MultiTapeTM.ComputableInPolyTime.extendedSampleCip
     (hm : ComputableInPolyTime m input encBits) :
     ComputableInPolyTime (fun x => extendedSampleCiphertext (P x) (sample x) (m x)) input
       encBits := by
-  unfold Cslib.Crypto.MLKEM.extendedSampleCiphertext
-  dsimp only
+  dsimp only [Cslib.Crypto.MLKEM.extendedSampleCiphertext]
   have hn : ComputableInPolyTime (fun x => (P x).n) input encUnary := by fun_prop
   have hq : ComputableInPolyTime (fun x => (P x).q) input encNat := by fun_prop
   have hk : ComputableInPolyTime (fun x => (P x).k) input encUnary := by fun_prop
@@ -420,8 +417,8 @@ theorem isPPT_keyReduction [∀ κ, NeZero (P κ).q] (hP : ComputableInPolyTime 
     simp only [Encryption.ChoiceOut.msg₀, Encryption.ChoiceOut.msg₁, Encryption.ChoiceOut.msgs,
       Encryption.ChoiceOut.state, select_getD]
     by_cases hv : (kpke P).IsMessagePair κ (encodePublicKey (M, t)) choice.1.1 choice.1.2 = true
-    · simp only [hv, ite_true, ctOf, keySamplePublicKey_encodeSample, ProbComp.eval_bind]
-      simpa only [ProbComp.eval_bind, ProbComp.eval_map, PMF.bind_map, Function.comp_def] using
+    · simpa only [hv, ite_true, ctOf, keySamplePublicKey_encodeSample, ProbComp.eval_bind,
+        ProbComp.eval_map, PMF.bind_map, Function.comp_def] using
         congrArg (fun μ => μ.bind fun ct => ProbComp.eval (A.guess κ choice.2 ct))
           (eval_encDetWord_sampleList (P κ) (M, t) (if b then choice.1.2 else choice.1.1)).symm
     · simp only [hv, Bool.false_eq_true, ite_false, PMF.bind_const]
@@ -508,8 +505,7 @@ private theorem advantage_gameOn_cpaExperiment_le (A : Encryption.WordAdversary)
   rw [eval_gameOn_eq, eval_cpaExperiment_eq, Game.advantage_comm, ← ENNReal.coe_le_coe]
   refine (Game.coe_advantage_bind_le_of_closeTo (closeTo_keyGenWord (P κ) κ)
     (afterKey P A b κ)).trans_eq ?_
-  rw [ENNReal.coe_div (pow_ne_zero _ two_ne_zero)]
-  push_cast; rfl
+  push_cast [ENNReal.coe_div (pow_ne_zero _ two_ne_zero)]; rfl
 
 /-- **Concrete IND-CPA bound for the word family**, a step of
 `indCPA_kpkeIdealCoins_of_decisionModuleLWEWith`: at each `κ`, the
@@ -558,8 +554,7 @@ theorem eval_sampleVecCBD (k n q η : ℕ) [NeZero q] :
   congr 1 with _ : 1
   simp_rw [← ProbComp.eval_map, ← ProbComp.eval_replicateFin,
     ProbComp.eval_replicateFin_map_coords, samplePolyCBD]
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.map]
-  rfl
+  simp [PMF.map]
 
 /-- **IND-CPA of K-PKE with ideal coin expansion and the matrix in the public key** (fair coins in
 place of `PRF`; no `XOF` or `G` oracles), a step towards Kyber v3.02 Theorem 1 ([AvanziEtAl2021],

@@ -312,8 +312,6 @@ private theorem computableInPolyTime_entryCapped :
         ColorCoding.entryCapped q.input.graph (colorOf q.input.graph q.input.colors) q.table
           q.mask)
       ColorCoding.encStepInput (encList encNat) := by
-  have hv : ComputableInPolyTime (fun q : ColorCoding.StepInput × ℕ => q.2)
-      (encPair ColorCoding.encStepInput encNat) encNat := by fun_prop
   have hmU : ComputableInPolyTime (fun q : ColorCoding.StepInput × ℕ => q.1.mask)
       (encPair ColorCoding.encStepInput encNat) encUnary := by fun_prop
   have hmB := unary_to_binary.comp hmU
@@ -332,7 +330,7 @@ private theorem computableInPolyTime_entryCapped :
       (by fun_prop : ComputableInPolyTime
         (fun p : (ColorCoding.StepInput × ℕ) × ℕ => p.1.1.input.graph)
         (encPair (encPair ColorCoding.encStepInput encNat) encNat) encGraph)
-      (snd _ _) (hv.comp (fst _ _))
+      (snd _ _) ((snd _ _).comp (fst _ _))
   unfold ColorCoding.entryCapped
   exact filterWithInput (by fun_prop)
     (bool_and' (binary_testBit hmB hcap) (bool_or.comp ((beq hmB hpow).prod hany)))
@@ -408,8 +406,6 @@ private theorem computableInPolyTime_colorfulPathPad :
       (encPair encColorfulPathInstance encUnary) encBool := by
   have hk : ComputableInPolyTime (fun y : ColorfulPathInstance × ℕ => y.1.length)
       (encPair encColorfulPathInstance encUnary) encNat := by fun_prop
-  have hN : ComputableInPolyTime (fun y : ColorfulPathInstance × ℕ => y.2)
-      (encPair encColorfulPathInstance encUnary) encUnary := snd _ _
   have hn := (length_list_binary encNat).comp
     (Graph.computableInPolyTime_distinctVertices.comp
       (by fun_prop : ComputableInPolyTime (fun y : ColorfulPathInstance × ℕ => y.1.graph)
@@ -419,7 +415,8 @@ private theorem computableInPolyTime_colorfulPathPad :
       (fun y : ColorfulPathInstance × ℕ =>
         (⟨y.1.graph, y.1.colors, y.2⟩ : ColorCoding.TableInput))
       (encPair encColorfulPathInstance encUnary) ColorCoding.encTableInput)
-  have hget := (listGetD (encA := encList encNat) []).comp (htab.prod (unary_sub' hN (const 1)))
+  have hget := (listGetD (encA := encList encNat) []).comp
+    (htab.prod (unary_sub' (snd _ _) (const 1)))
   exact bool_or.comp ((beq hk (const 0)).prod
     (bool_and' (binary_le' hk hn) (bool_not.comp ((listIsEmpty (encA := encNat)).comp hget))))
 
@@ -451,7 +448,6 @@ theorem ColorfulPath_decidableInExpTime :
 /-- **Colorful k-Path is fixed-parameter tractable** in `k`. -/
 theorem ColorfulPath_mem_FPT :
     ColorfulPath ∈ FPT encColorfulPathInstance ColorfulPathInstance.length :=
-  let ⟨_, h⟩ := ColorfulPath_decidableInExpTime
-  h.mem_FPT
+  ColorfulPath_decidableInExpTime.elim fun _ => DecidableInExpTime.mem_FPT
 
 end Cslib.Complexity

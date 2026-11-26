@@ -161,7 +161,8 @@ theorem berExpLazyTrace_accepted {thresholds samples : List Byte}
   -- sample < threshold: accept
   | case1 threshold thresholds sample samples hlt => simpa using List.Lex.rel hlt
   | case2 threshold thresholds sample samples _ hgt => -- threshold < sample: reject
-    simp [(show threshold :: thresholds < sample :: samples from List.Lex.rel hgt).le]
+    have hlt : threshold :: thresholds < sample :: samples := List.Lex.rel hgt
+    simp [hlt.le]
   | case3 threshold thresholds sample samples hle hge _ ih => -- equal bytes: recurse
     obtain rfl := le_antisymm (not_lt.mp hge) (not_lt.mp hle)
     simpa [List.lex_cons_iff] using ih (by simpa using hlength)
@@ -239,11 +240,8 @@ private theorem eval_berExpLazyByte :
   rw [berExpLazyByte, ProbComp.eval_map, ProbComp.eval_sampleBinaryNat, PMF.map_comp]
   calc
     (PMF.uniformOfFintype (Fin (2 ^ 8))).map (berExpByteOfNat ∘ Fin.val) =
-        (PMF.uniformOfFintype (Fin (2 ^ 8))).map id := by
-      apply PMF.map_congr_on_support
-      intro value _hvalue
-      apply Fin.ext
-      simp [berExpByteOfNat]
+        (PMF.uniformOfFintype (Fin (2 ^ 8))).map id :=
+      PMF.map_congr_on_support _ _ _ fun _ _ => Fin.ext (by simp [berExpByteOfNat])
     _ = _ := PMF.map_id _
 
 /-- Make sequential eight-bit draws until a byte differs from the corresponding threshold byte. -/
@@ -360,14 +358,10 @@ theorem eval_berExpLazyCoin_accepted (threshold : BerExpThreshold) :
       ((BitString.uniformList (8 * 8)).map
         (fun tape => decide (BitString.binaryValue tape < threshold.val))) true =
           (threshold.val : ENNReal) / 2 ^ 64 := by
-    rw [show 8 * 8 = 64 by norm_num,
-      show (fun tape => decide (BitString.binaryValue tape < threshold.val)) =
-          (fun value : Nat => decide (value < threshold.val)) ∘ BitString.binaryValue by rfl,
-      ← PMF.map_comp,
-      BitString.uniformList_binaryValue, PMF.map_comp,
-      show ((fun value : Nat => decide (value < threshold.val)) ∘ Fin.val) =
-          (fun value : Fin (2 ^ 64) => decide (value.val < threshold.val)) by rfl,
-      Cslib.Probability.uniformFin_decide_lt, Nat.min_eq_right threshold.isLt.le]
+    have hmap := congrArg (PMF.map fun value : Nat => decide (value < threshold.val))
+      (BitString.uniformList_binaryValue 64)
+    simp only [PMF.map_comp, Function.comp_def] at hmap
+    rw [hmap, Cslib.Probability.uniformFin_decide_lt, Nat.min_eq_right threshold.isLt.le]
     norm_num
   exact PMF.ext_bool (htrue.trans (eval_berExpThresholdCoin_true threshold).symm)
 
@@ -426,16 +420,11 @@ private theorem eval_berExpLazyBytes_bytesRead_gt_one (first second : Byte)
     ((ProbComp.eval (berExpLazyBytes (first :: second :: thresholds))).map
       (fun result => decide (1 < result.bytesRead))) true = (1 : ENNReal) / 2 ^ 8 := by
   rw [eval_berExpLazyBytes, PMF.map_comp]
-  apply Eq.trans (congrArg (fun law : PMF Bool => law true) (PMF.map_congr_on_support
-    (ProbComp.eval (OracleComp.replicate (first :: second :: thresholds).length
-      berExpLazyByte)) _
-    (fun samples => decide (samples.headD 0 = first)) fun samples hsamples => by
-      apply berExpLazyTrace_bytesRead_gt_one
-      exact ((ProbComp.mem_support_replicate_iff _ _ _).mp hsamples).1))
-  rw [show (first :: second :: thresholds).length = (thresholds.length + 1) + 1 by simp,
-    OracleComp.replicate_succ]
-  simp only [ProbComp.eval_bind, ProbComp.eval_map, PMF.map_bind, PMF.map_comp,
-    Function.comp_def]
+  apply Eq.trans (congrArg (· true) (PMF.map_congr_on_support _ _
+    (fun samples => decide (samples.headD 0 = first)) fun _ hsamples =>
+      berExpLazyTrace_bytesRead_gt_one ((ProbComp.mem_support_replicate_iff _ _ _).mp hsamples).1))
+  rw [List.length_cons, OracleComp.replicate_succ]
+  simp only [ProbComp.eval_bind, ProbComp.eval_map, PMF.map_bind, PMF.map_comp, Function.comp_def]
   rw [PMF.bind_congr_on_support (ProbComp.eval berExpLazyByte) _
     (fun sample => PMF.pure (decide (sample = first))) fun sample _ =>
       (PMF.map_congr_on_support _ _ _ fun _ _ => by simp).trans (PMF.map_const _ _),

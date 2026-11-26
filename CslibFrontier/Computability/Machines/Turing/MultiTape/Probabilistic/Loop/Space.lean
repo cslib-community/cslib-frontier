@@ -50,9 +50,7 @@ private theorem natAbs_workTapePos_step_le (M : MultiTapePTM k Bool State) (bit 
     (((M.withCoin bit).step c).tapes.workTapePos j).natAbs ≤
       (c.tapes.workTapePos j).natAbs + 1 := by
   cases hs : c.tapes.state with
-  | none =>
-    simp only [MultiTapeMachine.step, hs]
-    omega
+  | none => simp only [MultiTapeMachine.step, hs]; omega
   | some q =>
     simp only [MultiTapeMachine.step, withCoin, hs]
     cases htr : M.tr q c.tapes.inputSymbol c.tapes.workTapeSymbols c.answerSymbols bit with
@@ -70,15 +68,13 @@ private theorem natAbs_workTapePos_replay_le (M : MultiTapePTM k Bool State)
       ((M.runClosedConfigFromCoins cs cfg).tapes.workTapePos j).natAbs ≤
         (cfg.tapes.workTapePos j).natAbs + cs.length by
     simpa only [hzero j, Int.natAbs_zero, Nat.zero_add] using this coins c
-  intro cs
-  induction cs with
+  intro cs cfg
+  induction cs generalizing cfg with
   | nil => simp [runClosedConfigFromCoins]
   | cons bit rest ih =>
-    intro cfg
     have h1 := natAbs_workTapePos_step_le M bit cfg j
     have h2 := ih ((M.withCoin bit).step cfg)
-    simp only [runClosedConfigFromCoins, List.foldl_cons, List.length_cons] at h2 ⊢
-    omega
+    simp only [runClosedConfigFromCoins, List.foldl_cons, List.length_cons] at h2 ⊢; omega
 
 private theorem replay_cons (M : MultiTapePTM k Bool State) (bit : Bool) (rest : List Bool)
     (c : Config k Bool State Empty x) :
@@ -370,13 +366,12 @@ theorem runsInSpace_toNTM_seq_repeatUntilBlank {S₀ S₁ S₂ : Type} (i : Fin 
     have hinit_tapes : (first.initialConfig x).tapes =
         wordsCfg x (some first.initial) (fun _ => []) [] :=
       Cfg.init_eq_wordsCfg first.initial x
-    rw [show M_all.initialConfig x = Sequential.left M_tail (first.initialConfig x) from rfl]
     rcases replay_seq_cases first M_tail (first.initialConfig x) coins with
       ⟨b₁, hb₁⟩ | ⟨b₁, a₁, hh₁, hs₁⟩
-    · rw [hb₁]
+    · erw [hb₁]
       simpa only [Sequential.left, Cfg.mapState] using
         hmono (workTapePos_runsWords_mem_window first hfirst _ hinit_tapes b₁ j) hB₁
-    · rw [hs₁]
+    · erw [hs₁]
       simp only [Sequential.right, Cfg.mapState]
       obtain ⟨_, _, ht₁⟩ := runsWords_closed_completed first hfirst _ hinit_tapes b₁ hh₁
       rw [List.append_nil] at ht₁

@@ -119,9 +119,7 @@ private theorem scored_bound {C : QuantumSigningForger} {α : Type} {prog : Prog
     _ ≤ 4 * j * ∑ _i ∈ Finset.range j, (1 / 2 ^ 256 : ℝ) := by
       gcongr with i
       exact mean_keySeed_hit prog s H out sign d log tape i
-    _ = _ := by
-      simp only [Finset.sum_const, Finset.card_range, nsmul_eq_mul]
-      ring
+    _ = _ := by simp only [Finset.sum_const, Finset.card_range, nsmul_eq_mul]; ring
 
 private theorem prefix_queries_le {C : QuantumSigningForger} {α : Type}
     (p : Program C α) (j : ℕ) :
@@ -183,9 +181,6 @@ private theorem fixed_observations_le (C : QuantumSigningForger) (s : Level) (H 
   let game seed := seeds.bind fun K =>
     (C.observations (H.withKeySeedExpansion s seed (Fin.append p K)) s sv rows j).map (test K)
   let ref := seeds.bind fun K => (C.observations H s sv rows j).map (test K)
-  have hdist : ‖amps game - amps (fun _ => ref)‖ ≤ j * (2 / 2 ^ 128) :=
-    amps_bind_le seeds _ _ (by positivity) fun K => observations_bound C s H (Fin.append p K)
-      sv rows j (test K)
   have hmass : ref true ≤ 2 * (2 ^ 256 : ℝ≥0∞)⁻¹ := by
     simp only [ref, observations, PMF.map_comp]
     change (seeds.bind fun K => (C.serviceAddress H s sv rows j).bind fun addr =>
@@ -203,9 +198,9 @@ private theorem fixed_observations_le (C : QuantumSigningForger) (s : Level) (H 
   have bound : ‖amps game‖ ≤ √(2 / 2 ^ 256) + j * (2 / 2 ^ 128) := by
     calc
       _ ≤ ‖amps game - amps (fun _ => ref)‖ + ‖amps (fun _ => ref)‖ := by
-        simpa only [sub_add_cancel] using norm_add_le (amps game - amps (fun _ => ref))
-          (amps (fun _ => ref))
-      _ ≤ _ := (add_le_add hdist href).trans_eq (add_comm ..)
+        simpa using norm_add_le (amps game - amps fun _ => ref) (amps fun _ => ref)
+      _ ≤ _ := (add_le_add (amps_bind_le seeds _ _ (by positivity) fun K =>
+        observations_bound C s H (Fin.append p K) sv rows j (test K)) href).trans_eq (add_comm ..)
   change (seeds.bind game) true ≤ _
   rw [ENNReal.le_ofReal_iff_toReal_le ((seeds.bind game).apply_ne_top true) (sq_nonneg _),
     ← norm_amps_sq]
@@ -219,9 +214,8 @@ theorem signingSeedPredictionGame_le (C : QuantumSigningForger) (s : Level) (bas
     {a b : ℕ} (ha : 272 ≤ a) (hb : 128 ≤ b) (n j : ℕ) :
     (Game.succProbability (C.signingSeedPredictionGame s base a b n j) : ℝ) ≤
       (√(2 / 2 ^ 256) + j * (2 / 2 ^ 128)) ^ 2 := by
-  rw [← C.keySeedDeviceGame_true s base ha hb n j, Game.coe_succProbability,
-    ← ENNReal.toReal_ofReal (sq_nonneg ((√(2 / 2 ^ 256) + j * (2 / 2 ^ 128)) : ℝ))]
-  refine ENNReal.toReal_mono ENNReal.ofReal_ne_top ?_
+  rw [← C.keySeedDeviceGame_true s base ha hb n j, Game.coe_succProbability]
+  refine ENNReal.toReal_le_of_le_ofReal (sq_nonneg _) ?_
   simp only [keySeedDeviceGame, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, ↓reduceIte]
   rw [PMF.bind_comm]
   refine PMF.bind_apply_le_on_support _ fun rows _ => ?_
@@ -262,8 +256,9 @@ theorem sqrt_maskSeedGame_le (C : QuantumSigningForger) (s : Level) (base : Xofs
       _ ≤ 4 * m * ∑ _i ∈ Finset.range m, (rate * pred m ^ 2) :=
         mul_le_mul_of_nonneg_left (Finset.sum_le_sum bound) (by positivity)
       _ = _ := by
+        have hrate : 0 ≤ rate := by positivity
         simp only [loss, Finset.sum_const, Finset.card_range, nsmul_eq_mul, mul_pow,
-          Real.sq_sqrt (show 0 ≤ rate by positivity)]
+          Real.sq_sqrt hrate]
         ring
   exact sub_le_iff_le_add'.mp ((le_abs_self _).trans ((sq_le_sq₀ (abs_nonneg _)
     (by positivity)).mp (by simpa only [sq_abs] using sq)))

@@ -364,12 +364,9 @@ theorem sizeOf_lt_of_mem_children {first c : BPlusTree α β} {rest : List (Bran
     (hc : c ∈ (node first rest).children) : sizeOf c < sizeOf (node first rest) := by
   simp only [children_node, List.mem_cons, List.mem_map] at hc
   rcases hc with rfl | ⟨⟨a, c⟩, he, rfl⟩
-  · simp only [node.sizeOf_spec]
-    omega
+  · simp [node.sizeOf_spec]; omega
   · have := List.sizeOf_lt_of_mem he
-    simp only [Prod.mk.sizeOf_spec] at this
-    simp only [node.sizeOf_spec, Branch.child_mk]
-    omega
+    simp [Prod.mk.sizeOf_spec, node.sizeOf_spec] at this ⊢; omega
 
 /-- Induction on B+-trees, with a hypothesis for the first child and for every child among the
 branches. This replaces the raw nested recursor in proofs. -/
@@ -407,10 +404,8 @@ theorem size_node {first : BPlusTree α β} {rest : List (Branch α β)} :
 /-- Every tree has positive height: a leaf is a node on its own path. -/
 theorem height_pos : 0 < tr.height := by
   cases tr with
-  | leaf entries => simp
-  | node first rest =>
-    rw [height_node]
-    omega
+  | leaf => simp
+  | node => simp [height_node]
 
 /-- The trees of height `1` are the leaves. -/
 theorem height_eq_one_iff : tr.height = 1 ↔ ∃ entries, tr = .leaf entries := by
@@ -429,8 +424,7 @@ theorem height_eq_one_iff : tr.height = 1 ↔ ∃ entries, tr = .leaf entries :=
   | node first rest ih₁ ih₂ =>
     simp only [map_node, leaves_node, leavesRest_eq_flatMap, mapRest_eq_map, List.map_append, ih₁,
       List.flatMap_map, List.map_flatMap, Branch.child]
-    congr 1
-    exact List.flatMap_congr fun e he => ih₂ e he
+    exact congrArg (_ ++ ·) (List.flatMap_congr ih₂)
 
 /-- Mapping over values maps the entries. -/
 @[simp] theorem toList_map (f : β → γ) :
@@ -484,15 +478,13 @@ theorem toList_sublist_of_mem_children {c : BPlusTree α β} (hc : c ∈ tr.chil
 
 /-- A child among the branches is lower than its node. -/
 theorem height_succ_le_of_mem_rest {first : BPlusTree α β} {rest : List (Branch α β)}
-    {e : Branch α β} (he : e ∈ rest) : e.child.height + 1 ≤ (node first rest).height := by
-  rw [height_node]
-  exact (heightRest_le_iff.1 le_rfl e he).trans (le_max_right _ _)
+    {e : Branch α β} (he : e ∈ rest) : e.child.height + 1 ≤ (node first rest).height :=
+  (heightRest_le_iff.1 le_rfl e he).trans (le_max_right _ _)
 
 /-- The first child is lower than its node. -/
 theorem height_first_succ_le {first : BPlusTree α β} {rest : List (Branch α β)} :
-    first.height + 1 ≤ (node first rest).height := by
-  rw [height_node]
-  exact le_max_left _ _
+    first.height + 1 ≤ (node first rest).height :=
+  le_max_left _ _
 
 /-- A child is lower than its tree. -/
 theorem height_succ_le_of_mem_children {c : BPlusTree α β} (hc : c ∈ tr.children) :

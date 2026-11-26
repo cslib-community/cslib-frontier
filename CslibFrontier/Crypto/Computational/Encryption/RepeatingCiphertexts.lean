@@ -217,16 +217,12 @@ private theorem eval_cpaGame_repeatToCPAAdversary_true {α : Type} (E : Symmetri
         obtain ⟨rawCt, hrawCt, heq⟩ := hstep
         rw [List.take_of_length_le (hctBound k hk r hrLen rawCt hrawCt)] at heq
         obtain ⟨-, rfl⟩ := Prod.mk.inj heq.symm
-        intro p hp
-        rcases List.mem_cons.mp hp with rfl | hp
-        · exact ⟨hrLen, hrawCt⟩
-        · exact hseen p hp
+        exact List.forall_mem_cons.mpr ⟨⟨hrLen, hrawCt⟩, hseen⟩
       · simp only [hq, Bool.false_eq_true, ↓reduceIte, runWith_norm,
           PMF.mem_support_pure_iff] at hstep
         exact (Prod.mk.inj hstep).2 ▸ hseen)
     (A n []) [] (by simp) out.1 out.2 hout
-  rw [Bool.eq_false_iff]
-  intro hcol
+  refine Bool.eq_false_iff.mpr fun hcol => ?_
   simp only [hasDistinctCollision, List.any_eq_true, Bool.and_eq_true, beq_iff_eq,
     bne_iff_ne] at hcol
   obtain ⟨p, hp, q, hq, hpq1, hpq2⟩ := hcol
@@ -292,12 +288,11 @@ private theorem half_le_map_hasDistinctCollision_pairWithUniform {n : ℕ} (hn :
     rcases hnd with hmem | hndRest
     · simp only [pairWithUniform, pmf_norm]
       refine PMF.le_bind_apply_on_support _ fun seen hseen => ?_
-      have hfst := map_fst_of_mem_support_pairWithUniform hseen
-      obtain ⟨p₀, hp₀, hp₀Eq⟩ := List.mem_map.mp (hfst ▸ hmem)
-      refine (half_le_uniformList_bne hn p₀.2).trans ?_
-      change ((BitString.uniformList n).map (· != p₀.2)) true ≤
-        ((BitString.uniformList n).map fun r => hasDistinctCollision ((c, r) :: seen)) true
-      refine PMF.map_true_mono (BitString.uniformList n) fun r _ hr => ?_
+      obtain ⟨p₀, hp₀, hp₀Eq⟩ :=
+        List.mem_map.mp (map_fst_of_mem_support_pairWithUniform hseen ▸ hmem)
+      refine (half_le_uniformList_bne hn p₀.2).trans <|
+        PMF.map_true_mono (F := fun r => hasDistinctCollision ((c, r) :: seen))
+          (BitString.uniformList n) fun r _ hr => ?_
       simp only [hasDistinctCollision, List.any_eq_true, Bool.and_eq_true, beq_iff_eq, bne_iff_ne]
       exact ⟨(c, r), List.mem_cons_self, p₀, List.mem_cons_of_mem _ hp₀, hp₀Eq.symm,
         bne_iff_ne.mp hr⟩
