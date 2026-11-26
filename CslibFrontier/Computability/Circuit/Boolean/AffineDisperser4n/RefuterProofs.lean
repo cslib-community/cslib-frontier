@@ -125,19 +125,16 @@ theorem length_getChildren (S : State n) (p : ℕ) : (getChildren S p).length = 
 /-- A parameter of degree at least `1` has a listed child. -/
 theorem exists_getChildren_cons {S : State n} {p : ℕ} (h : 1 ≤ S.deg p) :
     ∃ N l, getChildren S p = N :: l := by
-  have hlen := length_getChildren S p
-  rcases hl : getChildren S p with _ | ⟨N, l⟩
-  · simp only [hl, List.length_nil] at hlen; omega
-  · exact ⟨N, l, rfl⟩
+  rw [← length_getChildren] at h
+  match h' : getChildren S p, h with
+  | N :: l, _ => exact ⟨N, l, rfl⟩
 
 /-- A parameter of degree at least `2` has two listed children. -/
 theorem exists_getChildren_cons_cons {S : State n} {p : ℕ} (h : 2 ≤ S.deg p) :
     ∃ N₁ N₂ l, getChildren S p = N₁ :: N₂ :: l := by
-  have hlen := length_getChildren S p
-  rcases hl : getChildren S p with _ | ⟨N₁, _ | ⟨N₂, l⟩⟩
-  · simp only [hl, List.length_nil] at hlen; omega
-  · simp only [hl, List.length_singleton] at hlen; omega
-  · exact ⟨N₁, N₂, l, rfl⟩
+  rw [← length_getChildren] at h
+  match h' : getChildren S p, h with
+  | N₁ :: N₂ :: l, _ => exact ⟨N₁, N₂, l, rfl⟩
 
 
 /-! ### The step chosen -/
@@ -180,12 +177,10 @@ theorem chooseStep?_spec {S : State n} {c : StepChoice} (h : chooseStep? S = som
   unfold chooseStep? at h
   rcases hout : S.out.arg with b | u
   · simp [hout] at h
-  simp only [hout] at h
-  refine ⟨u, rfl, ?_⟩
   by_cases hu : u ∈ S.params
-  · simp [hu] at h
-  refine ⟨hu, ?_⟩
-  simp only [hu, ite_false] at h
+  · simp [hout, hu] at h
+  simp only [hout, hu, ite_false] at h
+  refine ⟨u, rfl, hu, ?_⟩
   rcases h1 : findD1 S with _ | J
   · rcases h2 : findD2 S with _ | J
     · rcases h3 : findD3 S with _ | e
@@ -341,14 +336,11 @@ theorem RefuterStep.spec {S S' : State n} (h : RefuterStep f S S') :
   have h1 := minAuxIn_le S
   have h2 := minAuxIn_le S'
   rcases h with ⟨hs, hg⟩ | ⟨hp, hg | ⟨hg, hne, haux⟩⟩
-  · have hcard := Finset.card_le_card hg
-    have hpot := hs.potential
-    rw [config_ca] at hpot
-    refine ⟨?_, hs.valid, hpot, hs.a_le⟩
-    unfold refuterMeasure
+  · have := Finset.card_le_card hg
     have := hs.lt
     have := hs.a_le
-    omega
+    refine ⟨?_, hs.valid, by simpa only [config_ca] using hs.potential, hs.a_le⟩
+    dsimp only [refuterMeasure]; omega
   all_goals
     have ha := hp.a_eq
     refine ⟨?_, hp.valid, by have := hp.W_le; omega, ha.le⟩

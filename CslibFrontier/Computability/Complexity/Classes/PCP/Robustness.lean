@@ -360,12 +360,11 @@ theorem polyTime_repeatAll (hV : V.PolyTime enc) (k : ℕ) :
   have hqueries : ComputableInPolyTime (V.repeatQueries k)
       (encPair enc encBits) (encList encNat) := by
     have hp := ComputableInPolyTime.fst (encPair enc encBits) encUnary
-    have hi := ComputableInPolyTime.snd (encPair enc encBits) encUnary
-    have hrow := ComputableInPolyTime.bitsRowWithInput (hwidth.comp hp) hi hp.snd'
     unfold repeatQueries
     exact ComputableInPolyTime.flatMapWithInput
       (.const (encOut := encList encUnary) (List.range k))
-      (hV.queries.comp (hp.fst'.prod hrow))
+      (hV.queries.comp (hp.fst'.prod
+        (.bitsRowWithInput (hwidth.comp hp) (.snd _ _) hp.snd')))
   refine { coins := ?_, queries := hqueries, verdict := ?_ }
   · exact (ComputableInPolyTime.const k).binary_mul' hV.coins
   · have hp := ComputableInPolyTime.fst (encPair (encPair enc encBits) encBits) encUnary
@@ -374,18 +373,15 @@ theorem polyTime_repeatAll (hV : V.PolyTime enc) (k : ℕ) :
     have hρ := hp.fst'.snd'
     have hans := hp.snd'
     have hrow := ComputableInPolyTime.bitsRowWithInput (hwidth.comp hp.fst') hi hρ
-    have hqi := hV.queries.comp (ha.prod hrow)
-    have hallQ := hqueries.comp hp.fst'
     have hx := ComputableInPolyTime.fst
       (encPair (encPair (encPair enc encBits) encBits) encUnary) encNat
-    have haddr := ComputableInPolyTime.snd
-      (encPair (encPair (encPair enc encBits) encBits) encUnary) encNat
-    have hlookup := (ComputableInPolyTime.bitsGetD false).comp
-      ((hans.comp hx).prod ((ComputableInPolyTime.idxOf encNat).comp ((hallQ.comp hx).prod haddr)))
     have hmap := ComputableInPolyTime.mapToBitsWithInput
       (f := fun (x : ((α × List Bool) × List Bool) × ℕ) (addr : ℕ) =>
         x.1.2.getD ((V.repeatQueries k x.1.1).idxOf addr) false)
-      hqi hlookup
+      (hV.queries.comp (ha.prod hrow))
+      ((ComputableInPolyTime.bitsGetD false).comp ((hans.comp hx).prod
+        ((ComputableInPolyTime.idxOf encNat).comp
+          (((hqueries.comp hp.fst').comp hx).prod (.snd _ _)))))
     simpa only [repeatAll] using ComputableInPolyTime.allWithInput
       (test := fun (p : (α × List Bool) × List Bool) (i : ℕ) =>
         V.verdict ((p.1.1, BitString.listRow (V.repeatRowWidth p.1.1 p.1.2) i p.1.2),
@@ -430,11 +426,9 @@ theorem PCPWith_one_subset_of_lt_one {s s' : ℝ} {r q : ℕ → ℕ} (hs1 : s <
 /-- **Arora and Barak, Chapter 18, Problem 1:** for all `r q : ℕ → ℕ` and every soundness constant
 `0 < s < 1`, `PCPWith 1 s r q enc = PCP r q enc`. -/
 theorem PCPWith_one {s : ℝ} (hs0 : 0 < s) (hs1 : s < 1) (r q : ℕ → ℕ) :
-    PCPWith 1 s r q enc = PCP r q enc := by
-  rw [← PCPWith_one_half]
-  exact Set.Subset.antisymm
-    (PCPWith_one_subset_of_lt_one hs1 (by norm_num))
-    (PCPWith_one_subset_of_lt_one (by norm_num) hs0)
+    PCPWith 1 s r q enc = PCP r q enc :=
+  ((PCPWith_one_subset_of_lt_one hs1 one_half_pos).antisymm
+    (PCPWith_one_subset_of_lt_one one_half_lt_one hs0)).trans (PCPWith_one_half r q)
 
 /-! ### Threshold table verification and Arora–Barak Chapter 18, Problem 2 (corrected) -/
 

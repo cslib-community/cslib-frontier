@@ -482,28 +482,19 @@ private theorem pushList_batchSlice_depth [DecidableEq V] [DecidableEq ι]
     obtain ⟨hle', ⟨p, hpS', hpt, hp_in⟩⟩ := ih (r + 1) t S hle
       (by rwa [← Nat.add_assoc, Nat.add_right_comm] at hex)
     obtain ⟨j, hj, hadj⟩ := parallel_step_adj vbl A hA hrule T r hp_in
-    have hspec := mem_pushList_spec (Adj vbl) (hrule.pairwise T (parallelRun psel T r))
-      (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S)
-    have hj_bound (x : ι) :
-        levelRel (Adj vbl) x (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S) ≤ t + d + 1 := by
-      rcases Nat.eq_zero_or_pos
-          (levelRel (Adj vbl) x (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S)) with
-        hl0 | hlpos
+    set S' := pushList (Adj vbl) (batchSlice psel T (r + 1) d) S
+    have hspec := mem_pushList_spec (Adj vbl) (hrule.pairwise T (parallelRun psel T r)) S'
+    have hj_bound (x : ι) : levelRel (Adj vbl) x S' ≤ t + d + 1 := by
+      by_cases hl0 : levelRel (Adj vbl) x S' = 0
       · omega
-      · obtain ⟨q, hq, hql, -⟩ := exists_of_levelRel_ne_zero hlpos.ne'
+      · obtain ⟨q, hq, hql, -⟩ := exists_of_levelRel_ne_zero hl0
         linarith [hle' q hq]
-    have hlt :
-        t + d < levelRel (Adj vbl) j (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S) :=
-      hpt ▸ lt_levelRel hpS' hadj
-    have hjeq : levelRel (Adj vbl) j (pushList (Adj vbl) (batchSlice psel T (r + 1) d) S) =
-        t + d + 1 :=
-      le_antisymm (hj_bound j) hlt
-    constructor
-    · intro q hq
-      rcases hspec.1 q hq with hq' | ⟨x, -, -, rfl⟩
-      · exact (hle' q hq').trans (by omega)
-      · exact (hj_bound x).trans (by omega)
-    · exact ⟨(j, t + (d + 1)), hjeq ▸ hspec.2 j hj (by omega), rfl, hj⟩
+    have hjeq : levelRel (Adj vbl) j S' = t + d + 1 :=
+      le_antisymm (hj_bound j) (hpt ▸ lt_levelRel hpS' hadj)
+    refine ⟨fun q hq => ?_, (j, t + (d + 1)), hjeq ▸ hspec.2 j hj (by omega), rfl, hj⟩
+    rcases hspec.1 q hq with hq' | ⟨x, -, -, rfl⟩
+    · exact (hle' q hq').trans (by omega)
+    · exact (hj_bound x).trans (by omega)
 
 /-- **Parallel witness-tree depth lemma** [MoserTardos2010, Lemma 4.1]: if round `k` selects a
 non-empty batch containing `i` (with suffix `suff` after `i` in that batch), then the witness

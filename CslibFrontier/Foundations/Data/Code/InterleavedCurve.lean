@@ -478,31 +478,22 @@ theorem toOuterMeasure_sum_pow_smul_reedSolomon_close_le_johnson
     rcases Nat.eq_zero_or_pos r with rfl | hr
     · have hemp : {z : F | ∃ c ∈ reedSolomon α k,
           hammingDist (fun i => ∑ r : Fin 1, z ^ (r : ℕ) • W i r) c ≤ e} = ∅ :=
-        Set.eq_empty_iff_forall_notMem.2 fun z ⟨c, hc, hd⟩ => by
-          refine (hfar (fun i _ => c i) (mem_interleavedLinear.2 fun _ => hc)).not_ge
-            (le_trans (Finset.card_le_card fun i hi => ?_) hd)
-          simp only [Finset.mem_filter, Finset.mem_univ, true_and, Fin.sum_univ_one, Fin.val_zero,
-            pow_zero, one_smul] at hi ⊢
-          exact fun hEq => hi (funext fun j => Fin.eq_zero j ▸ hEq)
+        Set.eq_empty_iff_forall_notMem.2 fun z ⟨c, hc, hd⟩ =>
+          (hfar (fun i _ => c i) (mem_interleavedLinear.2 fun _ => hc)).not_ge
+            ((Finset.card_le_card fun i hi => by
+              simp only [Finset.mem_filter, Finset.mem_univ, true_and, Fin.sum_univ_one,
+                Fin.val_zero, pow_zero, one_smul] at hi ⊢
+              exact fun hEq => hi (funext fun j => Fin.eq_zero j ▸ hEq)).trans hd)
       rw [hemp]
       simp
-    · let T : Finset F := Finset.univ.filter fun z =>
-        ∃ c ∈ reedSolomon α k, hammingDist (fun i => ∑ j : Fin (r + 1), z ^ (j : ℕ) • W i j) c ≤ e
-      refine Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_le_of_dens_le _ T
-        (fun z hz => Finset.mem_coe.2 (Finset.mem_filter.2 ⟨Finset.mem_univ z, hz⟩)) ?_
-      rw [Finset.nnratCast_dens]
-      obtain ⟨hk_sub, hinterp, hroot, hjb⟩ :=
+    · obtain ⟨hk_sub, hinterp, hroot, hjb⟩ :=
         ProximityGap.johnson_curve_params_bound hk hkn hm_GS hr he
-      have hcard_le := le_of_not_gt fun hlt => by
-        obtain ⟨D', hD', v, hv, hag⟩ :=
-          exists_correlatedAgreement_curve_johnson hα hk (by omega) hk_sub hinterp hroot
-            (fun j i => W i j) T hlt fun z hz =>
-              curve_eval_eq_sum_pow W z ▸ (Finset.mem_filter.1 hz).2
-        obtain ⟨V, hV, hdist⟩ :=
-          exists_mem_interleavedLinear_hammingDist_le_iff.2 ⟨D', hD', v, hv, hag⟩
-        exact (hfar V hV).not_ge hdist
-      simpa only [div_div] using div_le_div_of_nonneg_right
-        ((Nat.cast_le.2 hcard_le).trans hjb) (Nat.cast_nonneg (Fintype.card F))
+      refine (toOuterMeasure_sum_pow_smul_reedSolomon_close_le_johnson_exact hα hk (by omega)
+        hk_sub hinterp hroot hfar).trans ?_
+      rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_natCast,
+        ← ENNReal.ofReal_div_of_pos (Nat.cast_pos.2 Fintype.card_pos)]
+      exact ENNReal.ofReal_le_ofReal
+        ((div_le_div_of_nonneg_right hjb (Nat.cast_nonneg _)).trans_eq (div_div _ _ _))
 
 /-- **Original explicit-constant interleaved Reed–Solomon proximity bound up to `1 - √ρ - η`
 (single-scalar power batching)** (in the setting of

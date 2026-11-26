@@ -126,8 +126,7 @@ private theorem source_row (u : U) (s : Edge C R → Bool) :
       (polarity N A (.inl u) + s) (port N A (.inl u) (.inl i)) =
         s (.inl (input (rowInputs N A u) i)) := by
     have hc := (of_decide_eq_true (List.mem_filter.mp (input_mem (rowInputs N A u) i)).2).2
-    dsimp only [input] at hc ⊢
-    simp only [List.get_eq_getElem, Fin.val_cast] at hc
+    simp only [input, List.get_eq_getElem, Fin.val_cast] at hc ⊢
     simp [port, polarity, hc, Pi.add_apply, Bool.add_eq_xor]
   have ho : (polarity N A (.inl u) + s) (port N A (.inl u) (.inr 0)) =
       !(s (.inl (A.character u))) := by simp [port, polarity, Pi.add_apply, Bool.add_eq_xor]
@@ -287,14 +286,12 @@ private theorem endpoint_boundary (v : Vert U C R) (x : Boundary N A v) :
   rcases v with u | (c | r)
   · rcases x with i | i
     · have hc := of_decide_eq_true (List.mem_filter.mp (input_mem (rowInputs N A u) i)).2
-      dsimp only [input] at hc
-      simp only [List.get_eq_getElem, Fin.val_cast] at hc
+      simp only [input, List.get_eq_getElem, Fin.val_cast] at hc
       simp [port, direction, polarity, hc.2, endpoints, hc.1]
     · simp [port, direction, polarity, endpoints, A.row_character]
   · rcases x with i | i
     · have hc := of_decide_eq_true (List.mem_filter.mp (input_mem (N.incident c) i)).2
-      dsimp only [input] at hc
-      simp only [List.get_eq_getElem, Fin.val_cast] at hc
+      simp only [input, List.get_eq_getElem, Fin.val_cast] at hc
       simpa [port, direction, polarity, endpoints] using hc
     · rfl
   · rcases x with i | i
@@ -316,11 +313,8 @@ private theorem boundaryEnd_surjective : Function.Surjective (boundaryEnd N A) :
       · exact ⟨⟨.inl (N.row c), .inr 0⟩, by simp [boundaryEnd, port, direction, polarity, ← hc]⟩
       · obtain ⟨i, hi⟩ := exists_input (rowInputs N A (N.row c))
           (List.mem_filter.mpr ⟨N.characters_complete c, decide_eq_true ⟨rfl, hc⟩⟩)
-        refine ⟨⟨.inl (N.row c), .inl i⟩, ?_⟩
-        change (Sum.inl (input (rowInputs N A (N.row c)) i),
-          decide ((Sum.inl (input (rowInputs N A (N.row c)) i) : Edge C R) =
-            .inl (A.character (N.row c))) ^^ true) = (.inl c, true)
-        simp [hi, hc]
+        simp only [input, List.get_eq_getElem, Fin.val_cast] at hi
+        exact ⟨⟨.inl (N.row c), .inl i⟩, by simp [boundaryEnd, port, direction, polarity, hi, hc]⟩
   · cases b
     · cases d
       exacts [⟨⟨.inr (.inr r), .inr 0⟩, rfl⟩, ⟨⟨.inr (.inr r), .inr 1⟩, rfl⟩]

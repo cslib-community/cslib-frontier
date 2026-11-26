@@ -88,11 +88,11 @@ private theorem exists_projective_approx_of_symmetric_successfulGap
         rw [map_mul (kroneckerOne (κ := ι)), POVM.toMeasurement_effect]
   obtain ⟨P, hP, hround⟩ := Measurement.exists_isProjective_sum_norm_map_sub_sq_le_of_le
     φ (kroneckerOne (κ := ι)) H.toMeasurement hlocal
-  have h18 : (9 : ℝ) * (2 * ζ) = 18 * ζ := by ring
   simp only [← map_sub (kroneckerOne (κ := ι))] at hround
-  simp only [POVM.toMeasurement_effect, kroneckerOne_apply, h18] at hround
+  simp only [POVM.toMeasurement_effect, kroneckerOne_apply] at hround
+  have hround' := hround.trans_eq (by ring : (9 : ℝ) * (2 * ζ) = 18 * ζ)
   refine ⟨P.toPOVM, hP, hcomplete, ?_, ?_⟩
-  · simpa only [Measurement.toPOVM_effect] using hround
+  · simpa only [Measurement.toPOVM_effect] using hround'
   · have he (a : Option α) :
         φ.norm ((H.effect a - P.effect a) ⊗ₖ (1 : Local)) ^ 2 =
           φ.norm ((1 : Local) ⊗ₖ (H.effect a - P.effect a)) ^ 2 := by
@@ -102,7 +102,7 @@ private theorem exists_projective_approx_of_symmetric_successfulGap
         ← map_star (oneKronecker (ι := ι)), ← map_mul (kroneckerOne (κ := ι)),
         ← map_mul (oneKronecker (ι := ι)), kroneckerOne_apply, oneKronecker_apply]
       exact congrArg Complex.re (hφ _ _)
-    simpa only [he, Measurement.toPOVM_effect] using hround
+    simpa only [he, Measurement.toPOVM_effect] using hround'
 
 private theorem boundedness_le_evaluatedGap
     (φ : AlgState (Matrix (ι × ι) (ι × ι) ℂ))
@@ -169,9 +169,6 @@ private theorem exists_roundedSymmetricSelfImprovement
   intro C δ ε ζ s t
   obtain ⟨H, Z, hZ, hmajor, hmass, hpoint, hgap, hstrong⟩ :=
     exists_symmetricSelfImprovement S G η hM hψ hprojective hinput
-  change (C.state (QuantumStrategy.leftMeasurement H).successfulEffect).re -
-    ∑ g, (C.state ((QuantumStrategy.leftMeasurement H).effect (some g) *
-      (QuantumStrategy.rightMeasurement H).effect (some g))).re ≤ ζ at hstrong
   obtain ⟨P, hP, hcomplete, hdistL, hdistR⟩ :=
     exists_projective_approx_of_symmetric_successfulGap S.state S.norm_state hψ H ζ hstrong
   let A := decodedPoint C.alice
@@ -246,9 +243,7 @@ private theorem exists_roundedSymmetricSelfImprovement
     change 1 - 2 * ζ ≤ Measurement.agreement C.state HL HR at hcomplete
     linarith only [(abs_le.mp h1).2, (abs_le.mp h2).2, hcomplete]
   refine ⟨P, Z, hP, hZ, hmajor, ?_, ?_, ?_, ?_⟩
-  · change 1 - η - ζ ≤ (C.state HL.successfulEffect).re at hmass
-    change 1 - η - (ζ + s) ≤ (C.state PL.successfulEffect).re
-    linarith only [hmass, (abs_le.mp hmL).2]
+  · linarith only [hmass, (abs_le.mp hmL).2]
   · have hpt (u : Point F (n + 1)) :
         Measurement.successfulMismatch C.state (evaluatePolynomialMeasurement PR u) (A u) ≤
           Measurement.successfulMismatch C.state (evaluatePolynomialMeasurement HR u) (A u) +
@@ -257,8 +252,6 @@ private theorem exists_roundedSymmetricSelfImprovement
       linarith only [(abs_le.mp hmR).1, (abs_le.mp (hscore u)).2]
     have he := expect_le_expect (s := univ) fun u _ => hpt u
     rw [Finset.expect_add_distrib, Fintype.expect_const] at he
-    change (𝔼 u : Point F (n + 1), Measurement.successfulMismatch C.state
-      (evaluatePolynomialMeasurement HR u) (A u)) ≤ ζ at hpoint
     exact he.trans (by linarith only [hpoint])
   · have hlift (g : Poly) : averagePolynomialPointEffect A g ≤ Z ⊗ₖ (1 : Local) := by
       change averagePolynomialPointEffect
@@ -270,14 +263,10 @@ private theorem exists_roundedSymmetricSelfImprovement
       (fun g => (commute_kroneckerOne_oneKronecker Z (P.effect g)).symm)
     have he := expect_le_expect (s := univ) fun u _ => sub_le_iff_le_add.mp (abs_le.mp (hscore u)).2
     rw [Finset.expect_add_distrib, Fintype.expect_const] at he
-    change (C.state (Z ⊗ₖ (1 : Local))).re - (𝔼 u : Point F (n + 1), ∑ b,
-      (C.state ((A u).effect b * (evaluatePolynomialMeasurement HR u).effect (some b))).re) ≤
-        ζ at hgap
     exact hb.trans (by linarith only [hgap, he])
   · have h := Measurement.sum_norm_sub_sq_le_of_agreement C.state PL PR
       (fun a => hcomm P P a a) hmatch
     rw [Fintype.sum_option] at h
-    change Measurement.successfulCopyDefect C.state PL PR ≤ _
     unfold Measurement.successfulCopyDefect
     linarith only [h, sq_nonneg (C.state.norm (PL.effect none - PR.effect none))]
 

@@ -131,9 +131,8 @@ private theorem sortLE_getElem_map_mono {α : Type*} [LinearOrder K] {xs : List 
     rw [List.countP_eq_length.mpr, List.length_take_of_le (by omega)]
     intro y hy
     obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hy
-    rw [List.getElem_take, decide_eq_true_eq]
-    rw [List.length_take] at hi
-    exact List.sortedLE_mergeSort.getElem_le_getElem_of_le (by omega)
+    simpa using List.sortedLE_mergeSort.getElem_le_getElem_of_le
+      (by rw [List.length_take] at hi; omega)
   have hcnt_f : k + 1 ≤ sf.countP (· ≤ B) := by
     rw [(List.mergeSort_perm (xs.map f) _).countP_eq, List.countP_map]
     rw [List.countP_map] at hcnt_g
@@ -306,22 +305,19 @@ theorem lockstepDriftFreeByzantineOffset_abs_sub_le {t : ℕ} (ht : 3 * t < Fint
     · linarith
     · linarith [(abs_le.mp (herr_honest hb hj)).1]
   have h2t : 2 * t < Fintype.card P := by omega
+  have hcard (f : P → K) : 2 * t < (Finset.univ.val.map f).card := by simpa using h2t
   have hma : lockstepDriftFreeByzantineOffset t d_min d_max F adv c δ a ≤
       e + multisetMidTrim t (Finset.univ.val.map ya) := by
-    rw [offset_eq_multisetMidTrim h2t,
-      add_multisetMidTrim e t (by rw [Multiset.card_map, Finset.card_val]; exact h2t),
-      Multiset.map_map]
+    rw [offset_eq_multisetMidTrim h2t, add_multisetMidTrim e t (hcard ya), Multiset.map_map]
     exact multisetMidTrim_map_mono t hxa_le
   have hmb : -e + multisetMidTrim t (Finset.univ.val.map zb) ≤
       lockstepDriftFreeByzantineOffset t d_min d_max F adv c δ b := by
-    rw [offset_eq_multisetMidTrim h2t,
-      add_multisetMidTrim (-e) t (by rw [Multiset.card_map, Finset.card_val]; exact h2t),
-      Multiset.map_map]
+    rw [offset_eq_multisetMidTrim h2t, add_multisetMidTrim (-e) t (hcard zb), Multiset.map_map]
     exact multisetMidTrim_map_mono t hzb_le
   have hcore := abs_multisetMidTrim_map_sub_le hF (S₁ := Finset.univ) (S₂ := Finset.univ)
     (by simp only [Finset.card_univ]; omega) hc_Icc (f₁ := ya) (f₂ := zb)
     (fun j _ hj => ite_eq_right hj) (fun j _ hj => ite_eq_right hj)
-  have he : 2 * e = u := by dsimp only [e]; ring
+  dsimp only [e] at hma hmb
   linarith [(le_abs_self _).trans hcore]
 
 /-- A separated lockstep-round, drift-free `R`-round step after [Welch and Lynch][WelchLynch1988],

@@ -214,18 +214,15 @@ theorem oracleTable_eq_iff (f : CCR.Query (K × Bool) T → K × Bool) (X : Fin 
     (ct : Slot C → K × Bool) :
     oracleTable C H tw x f X = ct ↔ (fun s => f (slotQuery C tw x (evalLabels C H tw ct X) s)) =
       fun s => ct s - slotKnown C H tw (evalLabels C H tw ct X) s := by
-  constructor
-  · rintro rfl
-    funext s
-    rw [evalLabels_oracleTable, oracleTable, entry, add_sub_cancel_left]
-  · intro hf
-    have hent : entry C H tw x f (evalLabels C H tw ct X) = ct :=
-      funext fun s => by rw [entry, congrFun hf s, add_sub_cancel]
-    have hL : oracleLabels C H tw x f X = evalLabels C H tw ct X :=
-      (isLocal_entry C H tw x f X).iterate_eq_of_isFixed 0 (by
-        rw [hent]
-        exact (isLocal_evalStep_const C H tw ct X).isFixed_iterate 0)
-    rw [oracleTable, hL, hent]
+  refine ⟨fun h => funext fun s => by
+    rw [← h, evalLabels_oracleTable, oracleTable, entry, add_sub_cancel_left], fun hf => ?_⟩
+  have hent : entry C H tw x f (evalLabels C H tw ct X) = ct :=
+    funext fun s => by rw [entry, congrFun hf s, add_sub_cancel]
+  have hL : oracleLabels C H tw x f X = evalLabels C H tw ct X :=
+    (isLocal_entry C H tw x f X).iterate_eq_of_isFixed 0 (by
+      rw [hent]
+      exact (isLocal_evalStep_const C H tw ct X).isFixed_iterate 0)
+  rw [oracleTable, hL, hent]
 
 end Oracle
 
@@ -268,9 +265,8 @@ theorem oracleTable_keyed (H : K × Bool → T → K × Bool) (tw : Slot C → T
   have hL : oracleLabels C H tw x (CCR.keyed H CCR.offset CCR.offset R)
       (fun i => Z i + bitOffset (CCR.offset R) (x i)) =
       activeLabel C (zeroLabels C H tw (CCR.offset R) Z) (CCR.offset R) x :=
-    (isLocal_entry C H tw x _ _).iterate_eq_of_isFixed 0 (by
-      rw [hent]
-      exact evalStep_activeLabel C hK H tw R Z x _ (zeroLabels_isFixed C H tw (CCR.offset R) Z))
+    (isLocal_entry C H tw x _ _).iterate_eq_of_isFixed 0
+      (hent ▸ evalStep_activeLabel C hK H tw R Z x _ (zeroLabels_isFixed C H tw (CCR.offset R) Z))
   rw [oracleTable, hL, hent]
 
 /-- The real view is the simulated view built from the evaluator's input labels and the
@@ -330,9 +326,7 @@ theorem run_tableRun (f : CCR.Query (K × Bool) T → K × Bool) (X : Fin n → 
   | succ k ih =>
     simp only [tableRun, gateStep, OracleComp.interpret_bind, ih, pure_bind,
       ProbOracleComp.interpret_tabulate, OracleComp.interpret_pure]
-    congr 1
-    funext s
-    by_cases h : (s.gate : ℕ) = k <;> simp [detRun, entry, h]
+    exact congrArg _ (funext fun s => by by_cases h : (s.gate : ℕ) = k <;> simp [detRun, entry, h])
 
 theorem detRun_eq (f : CCR.Query (K × Bool) T → K × Bool) (X : Fin n → K × Bool) :
     detRun C H tw x f X C.size = oracleTable C H tw x f X := by

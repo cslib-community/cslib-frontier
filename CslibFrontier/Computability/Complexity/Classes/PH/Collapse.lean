@@ -117,8 +117,7 @@ theorem mem_SigmaP_of_exists {k : ℕ} (hk : 1 ≤ k) {B : Set (α × List Bool)
   · simp only [Set.mem_ofPred_eq, List.map_cons, alternation_true_cons, Polynomial.eval_add,
       Polynomial.eval_comp, List.map_map, Function.comp_def, exists_length_add_iff]
     refine exists_congr fun w => and_congr_right fun hw => ?_
-    rw [hB' (a, w)]
-    simp only [List.map_cons, alternation_true_cons, hL a w hw]
+    simp only [hB' (a, w), List.map_cons, alternation_true_cons, hL a w hw]
     exact exists_congr fun _ => and_congr_right fun _ => alternation_congr fun _ => by
       simp [hw, List.append_assoc]
 
@@ -222,10 +221,9 @@ theorem exists_mem_SigmaP_encBits_preimage {k : ℕ} {A : Set α} (hA : A ∈ Si
     ∃ B ∈ SigmaP k encBits, enc ⁻¹' B = A := by
   obtain ⟨ps, V, hps, hV, hAV⟩ := hA
   obtain ⟨W, hW, hWV⟩ := hV.exists_pair_bool_extension
-  refine ⟨{u | Alternation true (ps.map fun p => p.eval u.length) fun w => W (u, w) = true},
-    ⟨ps, W, hps, hW, fun _ => Iff.rfl⟩, Set.ext fun a => ?_⟩
-  rw [Set.mem_preimage, Set.mem_ofPred_eq, hAV a]
-  exact alternation_congr fun w => by rw [hWV a w]
+  exact ⟨{u | Alternation true (ps.map fun p => p.eval u.length) fun w => W (u, w) = true},
+    ⟨ps, W, hps, hW, fun _ => Iff.rfl⟩,
+    Set.ext fun a => (alternation_congr fun w => by rw [hWV a w]).trans (hAV a).symm⟩
 
 /-- **Raw-word preimage representation for `Πₖ`:** every `A ∈ PiP k enc` is `enc ⁻¹' B` for a
 raw-word language `B ∈ PiP k encBits`. -/
@@ -295,9 +293,7 @@ theorem coNP_encBits_subset_NP_iff :
 theorem NP_encBits_eq_coNP_iff :
     NP encBits = coNP encBits ↔
       ∀ {β : Type} (encB : β ↪ List Bool), NP encB = coNP encB := by
-  rw [eq_comm, ← PiP_one_eq_coNP, ← SigmaP_one, PiP_encBits_eq_SigmaP_iff]
-  exact ⟨fun h _ encB => by rw [← SigmaP_one, ← PiP_one_eq_coNP, h encB],
-    fun h _ encB => by rw [PiP_one_eq_coNP, SigmaP_one, h encB]⟩
+  simpa only [PiP_one_eq_coNP, SigmaP_one, eq_comm] using PiP_encBits_eq_SigmaP_iff (k := 1)
 
 /-- **`NP ⊆ P` on bit strings transfers to every instance encoding.** -/
 theorem NP_encBits_subset_P_iff :
@@ -310,9 +306,8 @@ theorem NP_encBits_subset_P_iff :
 theorem P_encBits_eq_NP_iff :
     P encBits = NP encBits ↔
       ∀ {β : Type} (encB : β ↪ List Bool), P encB = NP encB := by
-  rw [eq_comm, ← SigmaP_one, ← SigmaP_zero, SigmaP_succ_encBits_eq_SigmaP_iff (k := 0)]
-  exact ⟨fun h _ encB => by rw [← SigmaP_zero, ← SigmaP_one, h encB],
-    fun h _ encB => by rw [zero_add, SigmaP_one, SigmaP_zero, h encB]⟩
+  simpa only [zero_add, SigmaP_one, SigmaP_zero, eq_comm] using
+    SigmaP_succ_encBits_eq_SigmaP_iff (k := 0)
 
 /-- **Arora–Barak Theorem 5.6 / Goldreich Proposition 3.10 (fixed-domain inclusion form):** if
 `Πₖ ⊆ Σₖ` for bit-string languages (`encBits`), with `1 ≤ k`, then `PH = Σₖ` for every instance

@@ -135,18 +135,14 @@ private theorem sum_point_index_slices_le {n : ℕ}
       ∑ i, (uniformOfFintype (Fin (n + 2)) i).toReal * f u i) := by
   rw [← uniformPoint_succ (m := n + 1), sum_bind_mul]
   simp only [sum_map_mul]
-  have hspread (c : ℝ) (g : F → Point F (n + 1) → ℝ) :
-      c * (∑ x, (uniformOfFintype F x).toReal *
-        ∑ u, (uniformOfFintype (Point F (n + 1)) u).toReal * g x u) =
-      ∑ x, (uniformOfFintype F x).toReal *
-        ∑ u, (uniformOfFintype (Point F (n + 1)) u).toReal * (c * g x u) := by
-    simp only [mul_sum, mul_left_comm c]
-  rw [hspread, hspread]
-  refine sum_le_sum fun x _ => mul_le_mul_of_nonneg_left
-    (sum_le_sum fun u _ => mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg)
-    ENNReal.toReal_nonneg
-  rw [sum_uniform_fin_split]
-  exact le_add_of_nonneg_right (hf _ _)
+  rw [mul_sum, mul_sum]
+  refine sum_le_sum fun x _ => ?_
+  rw [mul_left_comm, mul_left_comm (n + 2 : ℝ)]
+  refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
+  rw [mul_sum, mul_sum]
+  refine sum_le_sum fun u _ => ?_
+  rw [mul_left_comm, mul_left_comm (n + 2 : ℝ), sum_uniform_fin_split]
+  exact mul_le_mul_of_nonneg_left (le_add_of_nonneg_right (hf _ _)) ENNReal.toReal_nonneg
 
 omit [Field F] [DecidableEq F] in
 private theorem roleScore_append (x : F) (L u : Question F m)

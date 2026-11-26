@@ -91,9 +91,8 @@ theorem dotProduct_le_dotProduct_add_parts_of_mulVec_le {A : Matrix ι κ K}
     by_cases hj : d j < 0
     · exact mul_le_mul_of_nonneg_left (hl j hj) (negPart_nonneg _)
     · simp [negPart_eq_zero.mpr (le_of_not_gt hj)]
-  have hd : d ⬝ᵥ x = d⁺ ⬝ᵥ x - d⁻ ⬝ᵥ x := by rw [← sub_dotProduct, posPart_sub_negPart]
-  have hres : d ⬝ᵥ x = c ⬝ᵥ x - y ⬝ᵥ (A *ᵥ x) := by
-    simp only [d, sub_dotProduct, ← dotProduct_mulVec]
+  have hd : c ⬝ᵥ x - y ⬝ᵥ (A *ᵥ x) = d⁺ ⬝ᵥ x - d⁻ ⬝ᵥ x := by
+    rw [← sub_dotProduct, posPart_sub_negPart, dotProduct_mulVec, ← sub_dotProduct]
   linarith [dotProduct_le_dotProduct_of_nonneg_left hx hy]
 
 /-- With two-sided variable bounds, the residual correction can equivalently be written
@@ -184,8 +183,7 @@ theorem exists_dual_eq_of_bddAbove (A : Matrix ι κ K) (b : ι → K) (c : κ �
     linarith
   refine ⟨x, (β r)⁻¹ • u, hx, fun i => smul_nonneg (inv_nonneg.2 hr.le) (hT r _), ?_, ?_⟩
   · rw [smul_vecMul, huA, smul_smul, inv_mul_cancel₀ hr.ne', one_smul]
-  · rw [smul_dotProduct, ← hγ, smul_eq_mul, inv_mul_eq_div]
-    exact le_antisymm htx hxt
+  · rw [smul_dotProduct, ← hγ, smul_eq_mul, inv_mul_eq_div, le_antisymm htx hxt]
 
 omit [Fintype ι] in
 /-- A linear objective bounded above on a nonempty polyhedron attains its supremum
@@ -237,9 +235,8 @@ theorem bddBelow_image_dotProduct_iff (A : Matrix ι κ K) (b : ι → K) (c : �
     set s := (|y₀ ⬝ᵥ b - m| + 1) / -(z ⬝ᵥ b)
     have hs : s * -(z ⬝ᵥ b) = |y₀ ⬝ᵥ b - m| + 1 := div_mul_cancel₀ _ (by linarith)
     have hs0 : 0 ≤ s := div_nonneg (by positivity) (by linarith)
-    have := hm ⟨y₀ + s • z, ⟨add_nonneg hy₀ (smul_nonneg hs0 hz), by
+    have : m ≤ (y₀ + s • z) ⬝ᵥ b := hm ⟨y₀ + s • z, ⟨add_nonneg hy₀ (smul_nonneg hs0 hz), by
       rw [add_vecMul, smul_vecMul, hzA, smul_zero, add_zero, hy₀A]⟩, rfl⟩
-    change m ≤ (y₀ + s • z) ⬝ᵥ b at this
     rw [add_dotProduct, smul_dotProduct, smul_eq_mul] at this
     linarith [le_abs_self (y₀ ⬝ᵥ b - m)]
 
@@ -258,10 +255,8 @@ iff every constraint `i` with `y i ≠ 0` is tight at `x` [Schrijver1986, Sectio
 theorem dotProduct_eq_dotProduct_iff_of_mulVec_le {A : Matrix ι κ K} {b : ι → K} {c : κ → K}
     {x : κ → K} {y : ι → K} (hx : A *ᵥ x ≤ b) (hy : 0 ≤ y) (hyA : y ᵥ* A = c) :
     c ⬝ᵥ x = y ⬝ᵥ b ↔ ∀ i, y i = 0 ∨ (A *ᵥ x) i = b i := by
-  have hgap : y ⬝ᵥ b - c ⬝ᵥ x = ∑ i, y i * (b i - (A *ᵥ x) i) := by
-    rw [← hyA, ← dotProduct_mulVec, ← dotProduct_sub]; rfl
-  rw [eq_comm, ← sub_eq_zero, hgap,
-    Finset.sum_eq_zero_iff_of_nonneg fun i _ => mul_nonneg (hy i) (sub_nonneg.2 (hx i))]
+  rw [eq_comm, ← sub_eq_zero, ← hyA, ← dotProduct_mulVec, ← dotProduct_sub, dotProduct,
+    Finset.sum_eq_zero_iff_of_nonneg fun i _ => mul_nonneg (hy i) (sub_nonneg.2 hx i)]
   simp [mul_eq_zero, sub_eq_zero, eq_comm]
 
 /-- **Affine Farkas lemma**: if the inequality `c ⬝ᵥ x ≤ δ` holds on a nonempty polyhedron
@@ -271,7 +266,7 @@ theorem exists_dual_le_of_forall_le (A : Matrix ι κ K) (b : ι → K) (c : κ 
     (hP : ∃ x, A *ᵥ x ≤ b) (h : ∀ x, A *ᵥ x ≤ b → c ⬝ᵥ x ≤ δ) :
     ∃ y, 0 ≤ y ∧ y ᵥ* A = c ∧ y ⬝ᵥ b ≤ δ := by
   obtain ⟨x, y, hx, hy, hyA, hxy⟩ :=
-    exists_dual_eq_of_bddAbove A b c hP ⟨δ, by rintro _ ⟨x, hx, rfl⟩; exact h x hx⟩
+    exists_dual_eq_of_bddAbove A b c hP ⟨δ, Set.forall_mem_image.2 h⟩
   exact ⟨y, hy, hyA, hxy ▸ h x hx⟩
 
 /-! ### The canonical pair `max {c ⬝ᵥ x | A *ᵥ x ≤ b, 0 ≤ x}`, `min {y ⬝ᵥ b | c ≤ y ᵥ* A, 0 ≤ y}` -/

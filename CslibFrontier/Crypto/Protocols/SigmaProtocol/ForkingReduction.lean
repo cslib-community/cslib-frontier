@@ -325,11 +325,9 @@ private theorem consistent_step (default : C) (answers : List C)
   cases q with
   | inl q =>
     rw [run_handler_inl, runWithAnswers_pure, List.append_nil]
-    cases hr : (σ.step (st.samples.headD σ.fallback) q).2 with
-    | none => exact ⟨hcount, hpos, hprog⟩
-    | some r =>
-      obtain ⟨x, c, l⟩ := r
-      refine ⟨hcount, fun x' c' i hx => hpos x' c' i (by simpa [State.record] using hx),
+    rcases hr : (σ.step (st.samples.headD σ.fallback) q).2 with _ | ⟨x, c, l⟩
+    · exact ⟨hcount, hpos, hprog⟩
+    · refine ⟨hcount, fun x' c' i hx => hpos x' c' i (by simpa [State.record] using hx),
         fun x' c' hx => ?_⟩
       simp only [State.record, List.mem_cons, Prod.mk.injEq] at hx
       rcases hx with ⟨rfl, rfl, -⟩ | hx
@@ -376,10 +374,15 @@ theorem runWithAnswers_program (default : C) (σ : Signer Req Reply Point C Log 
     r at hinv hout
   obtain ⟨⟨⟨m, t, z⟩, st⟩, qs⟩ := r
   obtain ⟨hcount, hpos, hprog⟩ := hinv
-  cases hl : st.table.lookup (κ.point m t) with
-  | some e =>
-    obtain ⟨c, i⟩ := e
-    obtain ⟨l₁, l₂, htable, -⟩ := List.lookup_eq_some_iff.mp hl
+  rcases hl : st.table.lookup (κ.point m t) with _ | ⟨c, i⟩
+  · simp only [finish, hl, runWithAnswers_map_query, verdict, Prod.mk.injEq] at hout
+    obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hout
+    refine ⟨fun hwin => by simpa using hwin, fun j hj => ?_⟩
+    simp only [Option.ite_none_right_eq_some, Option.some.injEq, Bool.and_eq_true] at hj
+    rcases hj with ⟨⟨hacc, -⟩, rfl⟩
+    refine ⟨by rw [hcount, List.getElem?_concat_length], ?_, hacc⟩
+    rw [hcount, List.getD_eq_getElem?_getD, List.headD_eq_head?_getD, List.head?_drop]
+  · obtain ⟨_, _, htable, -⟩ := List.lookup_eq_some_iff.mp hl
     have hmem : (κ.point m t, c, i) ∈ st.table :=
       htable ▸ List.mem_append_right _ List.mem_cons_self
     simp only [finish, hl, runWithAnswers_pure, List.append_nil, verdict, Prod.mk.injEq] at hout
@@ -394,14 +397,6 @@ theorem runWithAnswers_program (default : C) (σ : Signer Req Reply Point C Log 
       simp only [Option.ite_none_right_eq_some, Option.some.injEq, Bool.and_eq_true] at hj
       rcases hj with ⟨⟨hacc, -⟩, rfl⟩
       exact ⟨hq, hc, hacc⟩
-  | none =>
-    simp only [finish, hl, runWithAnswers_map_query, verdict, Prod.mk.injEq] at hout
-    obtain ⟨⟨rfl, rfl⟩, rfl⟩ := hout
-    refine ⟨fun hwin => by simpa using hwin, fun j hj => ?_⟩
-    obtain ⟨⟨hacc, -⟩, rfl⟩ : (_ ∧ _) ∧ _ = j :=
-      by simpa only [Option.ite_none_right_eq_some, Option.some.injEq, Bool.and_eq_true] using hj
-    refine ⟨by rw [hcount, List.getElem?_concat_length], ?_, hacc⟩
-    rw [hcount, List.getD_eq_getElem?_getD, List.headD_eq_head?_getD, List.head?_drop]
 
 /-- The reduction asks at most one query per hash call of the adversary, and one more to check
 the candidate. -/
@@ -498,12 +493,10 @@ theorem exists_of_mem_support_fork [DecidableEq C] {Coins : Type}
       (κ s).accepts outcome'.message outcome'.commitment outcome'.challenge outcome'.response =
         true := by
   obtain ⟨s, hs, h, h', -, hne, hout, hout', hj, hj', -, query, hq, hq'⟩ := mem_support_fork hfork
-  obtain ⟨-, hnamed⟩ :=
-    runWithAnswers_program default σ (κ s) (hκ s) (A s) (samples s) (List.ofFn h) hout.symm
-  obtain ⟨-, hnamed'⟩ :=
-    runWithAnswers_program default σ (κ s) (hκ s) (A s) (samples s) (List.ofFn h') hout'.symm
-  obtain ⟨hp, hc, hv⟩ := hnamed j hj
-  obtain ⟨hp', hc', hv'⟩ := hnamed' j hj'
+  obtain ⟨hp, hc, hv⟩ := (runWithAnswers_program default σ (κ s) (hκ s) (A s) (samples s)
+    (List.ofFn h) hout.symm).2 j hj
+  obtain ⟨hp', hc', hv'⟩ := (runWithAnswers_program default σ (κ s) (hκ s) (A s) (samples s)
+    (List.ofFn h') hout'.symm).2 j hj'
   rw [List.getD_ofFn] at hc hc'
   exact ⟨s, hs, Option.some.inj (hp.symm.trans (hq.trans (hq'.symm.trans hp'))),
     by rw [← hc, ← hc']; exact hne, hv, hv'⟩

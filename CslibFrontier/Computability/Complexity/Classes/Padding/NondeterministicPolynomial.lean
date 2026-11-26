@@ -92,13 +92,9 @@ theorem polynomialPadded_mem_NTIME {A : Set (List Bool)} {b k : ℕ} (hb : 2 ≤
       _ ≤ 2 ^ (c + 1) * 2 ^ (b * k * Nat.size ((unframe x).length + 1)) := Nat.mul_le_mul hc' hp
       _ = L x := by rw [Nat.mul_comm, ← pow_add]
   have hset : polynomialPadded A (k + 1) =
-      {x | ∃ w : List Bool, w.length = ℓ x ∧ V' (x, w) = true} := by
-    ext x
-    simp only [mem_polynomialPadded_iff, Set.mem_ofPred_eq, ℓ, V', guard]
-    by_cases hg : ((unframe x).length + 1) ^ (k + 1) ≤ x.length
-    · simp only [hg, decide_true, ↓reduceIte, true_and]
-      exact hc (unframe x) (L x) (by simpa only [encBits_apply] using hL x)
-    · simp [hg]
+      {x | ∃ w : List Bool, w.length = ℓ x ∧ V' (x, w) = true} := Set.ext fun x => by
+    by_cases hg : ((unframe x).length + 1) ^ (k + 1) ≤ x.length <;>
+      simp [mem_polynomialPadded_iff, ℓ, V', guard, hg, ← hc (unframe x) (L x) (hL x)]
   rw [hset]
   -- the certificate length and the verifier, as plain computations
   have hlen := ComputableInO.lengthNat.comp ComputableInO.unframe
@@ -142,9 +138,7 @@ theorem polynomialPadded_mem_NTIME {A : Set (List Bool)} {b k : ℕ} (hb : 2 ≤
         _ = 2 ^ (b * k + (c + 1)) * (m + 1) ^ (b * k) := by rw [pow_add]; ring
         _ ≤ _ := Nat.mul_le_mul_left _ (hpow.trans hpad)
     calc
-      _ ≤ 40 * (n + 1) ^ b + 8 * (2 ^ (b * k + (c + 1)) * (n + 1) ^ b) := by
-        have := hpow.trans hpad
-        omega
+      _ ≤ 40 * (n + 1) ^ b + 8 * (2 ^ (b * k + (c + 1)) * (n + 1) ^ b) := by omega
       _ = (40 + 8 * 2 ^ (b * k + (c + 1))) * (n + 1) ^ b := by ring
       _ ≤ _ := Nat.le_add_right _ _
   · simp only [hw, ℓ, guard, ← hn, ← hm, decide_eq_true_eq, hg, ↓reduceIte]

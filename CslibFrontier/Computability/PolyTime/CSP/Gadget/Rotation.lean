@@ -66,11 +66,9 @@ theorem computableInPolyTime_occurrencePrefix [Finite Src]
       (encList (encPair encBool encUnary)) := .of_finite _
   unfold occurrencePrefix encCSP
   refine (ComputableInPolyTime.length (encPair encBool encUnary)
-    (encL := encList (encPair encBool encUnary))).comp
-    (g := fun p : CSP Src ℕ × ℕ => (p.1.take p.2).flatMap fun c => (templates c.rel).vars) ?_
+    (encL := encList (encPair encBool encUnary))).comp ?_
   exact ComputableInPolyTime.flatMapWithInput (encA := encConstraint encSrc encNat)
-    (by fun_prop) (ht.comp (g := fun p : (CSP Src ℕ × ℕ) × Constraint Src ℕ => p.2.rel)
-      (by fun_prop))
+    (by fun_prop) (ht.comp (by fun_prop))
 
 /-- Shift unary occurrence positions by a unary prefix; this is independent of labels. -/
 theorem computableInPolyTime_shiftBlock :
@@ -256,18 +254,11 @@ malformed words and empty targets. The counter encodings are converted explicitl
 theorem computableInPolyTime_certificate (encRel : Rel ↪ List Bool) :
     ComputableInPolyTime (fun p : CSP Rel ℕ × List (List ℕ) => certificate p.1 p.2)
       (encTargetCycles encRel) Graph.encRotationCertificate := by
-  have hflat : ComputableInPolyTime (fun p : CSP Rel ℕ × List (List ℕ) =>
-      (successorPairs p.1 p.2).flatMap fun q => [q.1, q.2])
-      (encTargetCycles encRel) (encList encUnary) :=
+  have hq := ComputableInPolyTime.snd (encTargetCycles encRel) (encPair encUnary encUnary)
+  have h1 := ComputableInPolyTime.unary_to_binary.comp hq.fst'
+  have h2 := ComputableInPolyTime.unary_to_binary.comp hq.snd'
+  exact Graph.encRotationCertificate_mk_polyTime <|
     ComputableInPolyTime.flatMapWithInput (successorPairs_polyTime encRel) (by fun_prop)
-  have hbinary : ComputableInPolyTime (fun p : CSP Rel ℕ × List (List ℕ) =>
-      (successorPairs p.1 p.2).flatMap fun q => [q.1, q.2])
-      (encTargetCycles encRel) (encList encNat) := by
-    have h := ComputableInPolyTime.mapWithInput (f := fun _ n => n) (encB := encNat) hflat
-      (ComputableInPolyTime.unary_to_binary.comp
-        (ComputableInPolyTime.snd (encTargetCycles encRel) encUnary))
-    simpa only [Function.comp_def, List.map_id'] using h
-  exact Graph.encRotationCertificate_mk_polyTime hbinary
 
 /-- Full native computation of the explicit candidate target certificate from the original
 CSP and original binary source certificate. There is no valid-input premise on this bound. -/

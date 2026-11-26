@@ -79,8 +79,7 @@ theorem word_start (s : Fin n → Fin q) : word (r := r) s 0 = code .start := by
 /-- The canonical word ends with the right end marker. -/
 theorem word_finish (s : Fin n → Fin q) :
     word (r := r) s ⟨n + 2, by omega⟩ = code .finish := by
-  rw [word, Function.comp_apply, encode, ite_eq_right (by change n + 2 ≠ 0; omega),
-    ite_eq_left rfl]
+  simp [word, encode]
 
 private theorem encode_pair (s : Fin n → Fin q) (i : Fin (n + 1)) :
     encode (r := r) s ⟨i.val + 1, by omega⟩ =
@@ -136,8 +135,7 @@ theorem word_legal (rules : Fin r → Rule q) (s : Fin n → Fin q) (hn : 0 < n)
   intro i j hij
   apply (compatibility_adj rules _ _).mpr
   by_cases hi : i.val = 0
-  · have hj : j.val = 1 := by omega
-    simp [encode, hi, hj, padded, Compatible]; omega
+  · simp [encode, ← hij, hi, padded, Compatible]; omega
   · by_cases hj : j.val = n + 2
     · have hi' : i.val = n + 1 := by omega
       simp [encode, hi', hj, padded, Compatible]; omega
@@ -285,11 +283,10 @@ theorem Application.rewrites (rules : Fin r → Rule q) (i : Fin r) {s t : Fin n
       | zero =>
         exact False.elim (by simpa [hf, Nat.lt_one_iff.mp app.second.isLt] using app.adjacent)
       | succ m => exact front_rewrites rules i app hf
-    · have hr := (ih (tail_application app hf)).append_left [s 0]
-      have hzero : s 0 = t 0 := app.unchanged 0 (Ne.symm hf)
-        (Fin.ne_of_val_ne (by simpa only [Fin.val_zero, ← app.adjacent] using
-          (Nat.succ_ne_zero _).symm))
-      simpa only [List.ofFn_succ, List.cons_append, List.nil_append, hzero] using hr
+    · have hzero : s 0 = t 0 := app.unchanged 0 (Ne.symm hf)
+        (Fin.ne_of_val_ne fun h => Nat.succ_ne_zero _ (app.adjacent.trans h.symm))
+      simpa only [List.ofFn_succ, List.cons_append, List.nil_append, hzero] using
+        (ih (tail_application app hf)).append_left [s 0]
 
 private theorem padded_unchanged {rule : Rule q} {s t : Fin n → Fin q}
     (app : Application rule s t) (k : ℕ)
@@ -368,15 +365,11 @@ theorem rule_word_reachable (rules : Fin r → Rule q) (i : Fin r)
   let left := padded s k
   let right := padded s (k + 3)
   have hleft : padded t k = left := (padded_unchanged app k (by omega) (by omega)).symm
-  have hright : padded t (k + 3) = right :=
-    (padded_unchanged app (k + 3) (by omega) (by omega)).symm
+  have hright : padded t (k + 3) = right := (padded_unchanged app _ (by omega) (by omega)).symm
   have hvw : encode (r := r) s ⟨k, by omega⟩ = encode t ⟨k, by omega⟩ :=
     encode_unchanged app _ (by simp [k]) (by simp [k]) (by simp [k])
   have hww : encode (r := r) s ⟨k + 4, by omega⟩ = encode t ⟨k + 4, by omega⟩ :=
     encode_unchanged app _ (by simp [k]) (by simp [k]) (by simp [k])
-  let target := segment v (.pair left (some (rules i).first'))
-    (.pair (some (rules i).first') (some (rules i).second'))
-    (.pair (some (rules i).second') right) w
   have hsrc := word_window (r := r) s app.first app.second app.adjacent
   simp only [app.source_first, app.source_second] at hsrc
   have hdst := word_window (r := r) t app.first app.second app.adjacent
@@ -384,7 +377,7 @@ theorem rule_word_reachable (rules : Fin r → Rule q) (i : Fin r)
   simp only [← hvw, ← hww, hleft, hright, app.target_first, app.target_second] at hdst
   have hlegal := word_legal rules s (by omega)
   obtain ⟨hv, hw⟩ := window_edges rules window (word s) hlegal v _ _ _ w hsrc
-  exact patch_word app window rfl target hdst ▸
+  exact patch_word app window rfl _ hdst ▸
     rule_in_window rules window (word s) hlegal i left right v w hv hw hsrc
 
 private theorem start_pair (rules : Fin r → Rule q) {v : Symbol q r}

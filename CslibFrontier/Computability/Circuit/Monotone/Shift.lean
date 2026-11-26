@@ -484,8 +484,7 @@ private def orInputList (n : ℕ) : List (Fin n) → Circuit signature n 1
 private theorem eval_orInputList (n : ℕ) :
     ∀ (idxs : List (Fin n)) (z : Fin n → Bool),
       (orInputList n idxs).eval interpretation z 0 = idxs.any z
-  | [], _ => by simp [orInputList]
-  | [r], z => by simp [orInputList]
+  | [], _ | [r], _ => by simp [orInputList]
   | r :: r' :: rs, z => by
     simp only [orInputList, Circuit.eval_comp, Circuit.eval_oneGate, interpretation_or,
       Circuit.eval_append, Matrix.cons_val_zero, Matrix.cons_val_one]
@@ -494,8 +493,7 @@ private theorem eval_orInputList (n : ℕ) :
 
 private theorem cost_orInputList_le (n : ℕ) :
     ∀ idxs : List (Fin n), (orInputList n idxs).program.cost binaryCost ≤ idxs.length
-  | [] => by simp [circuit_simps, orInputList]
-  | [r] => by simp [circuit_simps, orInputList]
+  | [] | [r] => by simp [circuit_simps, orInputList]
   | r :: r' :: rs => by
     rw [orInputList, Circuit.cost_program_comp, Circuit.cost_program_append,
       Circuit.cost_program_wiring, Circuit.cost_program_oneGate, binaryCost_or, Nat.zero_add]
@@ -629,8 +627,7 @@ theorem computesMonotoneShift_oneHotShiftCircuit (n q : ℕ) :
     ComputesMonotoneShift (oneHotShiftCircuit n q) (oneHotShiftAntichain n) := by
   refine computesMonotoneShift_monotoneShiftCircuit (injective_oneHotShiftAntichain n)
     (isAntichain_range_oneHotShiftAntichain n) fun Y => funext fun r => ?_
-  change Y r = decide (oneHotShiftAntichain n r ≤ Y)
-  simp [Pi.le_def, oneHotShiftAntichain, Bool.le_iff_imp]
+  simp [Circuit.id, Pi.le_def, oneHotShiftAntichain, Bool.le_iff_imp]
 
 /-- `oneHotShiftCircuit n q` uses at most `4 * q * n * Nat.clog 2 n` binary monotone gates
 ([Sergeev2020MonotoneShift], p. 3). -/
@@ -729,16 +726,14 @@ private theorem inputsWithin_mono {N G : ℕ} (p : Program signature N G) :
       · intro x hx
         rw [inputsWithin, mem_biUnion] at hx ⊢
         exact hx.imp fun a ha => ⟨ha.1, ih _ ha.2⟩
-  intro d₁ d₂ hd w
-  exact monotone_nat_of_le_succ (f := fun d => inputsWithin p d w) (hstep · w) hd
+  exact fun {_ _} hd w => monotone_nat_of_le_succ (f := fun d => inputsWithin p d w) (hstep · w) hd
 
 private theorem arity_le_two (op : Op) : signature.Arity op ≤ 2 := by
   cases op <;> simp
 
 private theorem card_inputsWithin_le_two_pow {N G : ℕ} (p : Program signature N G) :
     ∀ (d : ℕ) (w : Wire N G), (inputsWithin p d w).card ≤ 2 ^ d
-  | 0, .input _ => by simp [inputsWithin]
-  | 0, .gate _ => by simp [inputsWithin]
+  | 0, .input _ | 0, .gate _ => by simp [inputsWithin]
   | d + 1, .input _ => by simpa [inputsWithin] using Nat.one_le_two_pow
   | d + 1, .gate g => by
     rw [inputsWithin, pow_succ']
@@ -748,8 +743,7 @@ private theorem card_inputsWithin_le_two_pow {N G : ℕ} (p : Program signature 
           Finset.card_biUnion_le_card_mul _ _ _ fun a _ =>
             card_inputsWithin_le_two_pow p d ((p.lines g).wires a)
       _ ≤ 2 * 2 ^ d := by
-          rw [card_univ, Fintype.card_fin]
-          exact Nat.mul_le_mul_right _ (arity_le_two (p.lines g).op)
+          simpa using Nat.mul_le_mul_right (2 ^ d) (arity_le_two (p.lines g).op)
 
 private theorem exists_arg_eq_proj_of_interpretation_eq_proj {N : ℕ} (op : Op)
     (args : Fin (signature.Arity op) → (Fin N → Bool) → Bool) (u : Fin N)
@@ -795,20 +789,17 @@ private theorem exists_projection_path {D m G : ℕ} (p : Program signature (D +
       (fun a X => p.trace interpretation (Fin.append X Y) ((p.lines g).wires a)) u hmono_arg
       fun X => (p.trace_gate interpretation (Fin.append X Y) g).symm.trans (hg X)
     obtain ⟨S', hin', hS', hle', hemp'⟩ := ih a ha
-    have hg_notMem : g ∉ S' := by
+    have hg_lt : ∀ g' ∈ S', g' < g := by
       cases hw : (p.lines g).wires a with
-      | input v => rw [hemp' v hw]; exact notMem_empty g
-      | gate j => exact fun hmem => (p.lt_of_lines_wires_eq_gate g a j hw).not_ge (hle' j hw g hmem)
-    refine ⟨insert g S', ?_, ?_, ?_, fun _ h => by cases h⟩
-    · rw [card_insert_of_notMem hg_notMem, inputsWithin, mem_biUnion]
+      | input v => simp [hemp' v hw]
+      | gate j =>
+        exact fun g' hg' => (hle' j hw g' hg').trans_lt (p.lt_of_lines_wires_eq_gate g a j hw)
+    refine ⟨insert g S', ?_, (forall_mem_insert _ _ _).2 ⟨⟨hg, hcost⟩, hS'⟩, ?_,
+      fun _ h => nomatch h⟩
+    · rw [card_insert_of_notMem fun h => lt_irrefl g (hg_lt g h), inputsWithin, mem_biUnion]
       exact ⟨a, mem_univ a, hin'⟩
-    · exact (forall_mem_insert _ _ _).2 ⟨⟨hg, hcost⟩, hS'⟩
     · rintro j ⟨⟩
-      refine (forall_mem_insert _ _ _).2 ⟨le_rfl, fun g' hg' => ?_⟩
-      cases hw : (p.lines g).wires a with
-        | input v => rw [hemp' v hw] at hg'; exact absurd hg' (notMem_empty _)
-        | gate j' =>
-          exact (hle' j' hw g' hg').trans (p.lt_of_lines_wires_eq_gate g a j' hw).le
+      exact (forall_mem_insert _ _ _).2 ⟨le_rfl, fun g' hg' => (hg_lt g' hg').le⟩
 
 /-- Lamagna–Savage peeling bound on finite depth functions: if at most `2^d` elements of `s` have
 `L x ≤ d` for every `d`, then `∑_{t=1}^{|s|} ⌈log₂ t⌉ ≤ ∑_{x ∈ s} L x`. -/
@@ -941,7 +932,7 @@ theorem mul_sum_clog_le_cost_of_computesMonotoneShift {n q m : ℕ}
             refine card_le_card fun v hv => ?_
             obtain ⟨i, hi, rfl⟩ := mem_image.1 hv
             have hji : (cyclicShiftPerm (cyclicShiftPerm i j)).symm i = j :=
-              show i + (j - i) = j by rw [add_comm, sub_add_cancel]
+              (add_comm i (j - i)).trans (sub_add_cancel j i)
             have hmem := (hpath (cyclicShiftPerm i j) (finProdFinEquiv (i, b))).1
             simp only [outIdx, Equiv.symm_apply_apply, hji] at hmem
             exact inputsWithin_mono c.program (mem_filter.1 hi).2 w hmem

@@ -972,7 +972,6 @@ theorem Params.default_pos (hK : 0 < K) (T : ℕ) :
     0 < (Params.default K T).grid ∧ 0 < (Params.default K T).challengerSamples ∧
       0 < (Params.default K T).verifierSamples ∧ 0 < (Params.default K T).challengerTolerance ∧
         0 < (Params.default K T).verifierTolerance := by
-  have hK' : (0 : ℝ) < K := by exact_mod_cast hK
   exact ⟨sampleCount_pos (by positivity) (by positivity) (default_failure_lt_two T),
     sampleCount_pos (by positivity) (by positivity) (default_failure_lt_two T),
     sampleCount_pos (by positivity) (by norm_num) (by norm_num),
@@ -1049,7 +1048,6 @@ theorem completeness_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ) {law : List Bo
     3 / 5 ≤ OracleComp.evalWith (sumHandler ProbComp.unifOracle law)
       (run (Params.default K T) (honestProposer (Params.default K T)) B) true := by
   have : NeZero (Params.default K T).grid := ⟨(Params.default_pos hK T).1.ne'⟩
-  have hT : (0 : ℝ) < (T : ℝ) + 1 := by positivity
   have hacc := accept_ge law (Params.default K T) B
     (fun bits => default_claim_tail hK T (law bits))
     (fun bits k h => default_verdict_false_le hK T law bits k h) (T + 1) []
@@ -1070,7 +1068,6 @@ theorem completeness_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ) {law : List Bo
     at hreal
   have hslack : (1 - 1 / 100 : ℝ) * ((T : ℝ) + 1) * (1 / (100 * (T + 1))) = 99 / 10000 := by
     field_simp; ring
-  rw [hslack] at hreal
   rw [← ENNReal.toReal_le_toReal (ENNReal.div_ne_top (by simp) (by simp)) hfin, ENNReal.toReal_div,
     ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
   linarith
@@ -1093,7 +1090,6 @@ theorem soundness_of_lipschitzAt_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
     OracleComp.evalWith (sumHandler ProbComp.unifOracle law)
       (run (Params.default K T) A (honestChallenger (Params.default K T))) true ≤ 2 / 5 := by
   have : NeZero (Params.default K T).grid := ⟨(Params.default_pos hK T).1.ne'⟩
-  have hK' : (0 : ℝ) < K := by exact_mod_cast hK
   have hT : (0 : ℝ) < (T : ℝ) + 1 := by positivity
   have hrej := reject_ge law (Params.default K T) A (s := 2 / (100 * (K : ℝ)))
     (b := 5 / (100 * (K : ℝ))) (by gcongr; norm_num)
@@ -1109,8 +1105,7 @@ theorem soundness_of_lipschitzAt_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
   rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at hclose
   change ev law (output (T + 1)) false ≤
     ev (bestLaw law (5 / (100 * (K : ℝ))) T) (output (T + 1)) false + _ at hclose
-  rw [ev_output (bestLaw law (5 / (100 * (K : ℝ))) T),
-    lawFrom_bestLaw law (5 / (100 * (K : ℝ))) T (T + 1) [] (by simp)] at hclose
+  rw [ev_output (bestLaw law _ T), lawFrom_bestLaw law _ T (T + 1) [] (by simp)] at hclose
   have hUtop : rejectValue law (5 / (100 * (K : ℝ))) (T + 1) [] ≠ ⊤ :=
     ne_top_of_le_ne_top ENNReal.one_ne_top (rejectValue_le_one law _ (T + 1) [])
   have hno' : ((ev law (output (T + 1))) true).toReal ≤ 1 / 3 := by
@@ -1130,9 +1125,8 @@ theorem soundness_of_lipschitzAt_stepLaw {K : ℝ≥0} (hK : 0 < K) (T : ℕ)
     toReal_one_sub_ofReal (by positivity) h1] at hrej'
   have hbern : (99 / 100 : ℝ) ≤ (1 - 1 / (100 * ((T : ℝ) + 1))) ^ (T + 1) := by
     have h := one_add_mul_le_pow (a := -(1 / (100 * ((T : ℝ) + 1)))) (by linarith [h1]) (T + 1)
-    have hcancel : ((T : ℝ) + 1) * -(1 / (100 * ((T : ℝ) + 1))) = -(1 / 100) := by field_simp
-    rw [Nat.cast_add, Nat.cast_one, hcancel, ← sub_eq_add_neg, ← sub_eq_add_neg] at h
-    linarith
+    have hc : ((T : ℝ) + 1) * -(1 / (100 * ((T : ℝ) + 1))) = -(1 / 100) := by field_simp
+    rw [Nat.cast_add, Nat.cast_one, hc, ← sub_eq_add_neg, ← sub_eq_add_neg] at h; linarith
   rw [← ENNReal.toReal_le_toReal (PMF.apply_ne_top _ _) (by finiteness), ENNReal.toReal_div,
     ENNReal.toReal_ofNat, ENNReal.toReal_ofNat]
   nlinarith [hbern]

@@ -328,7 +328,7 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
         have hbB : (List.ofFn c).count true ≤ B := by
           simpa using List.count_le_length (a := true) (l := List.ofFn c)
         have hsum_nonneg : (0 : ℚ) ≤ ∑ b ∈ range (B + 1), if r ∈ bad b then (1 : ℚ) else 0 :=
-          sum_nonneg fun _ _ => by split_ifs <;> norm_num
+          sum_nonneg fun _ _ => ite_nonneg zero_le_one le_rfl
         by_cases hloc : affineHash (affineSeedEquiv B (n + Z) r) (Fin.append m z) = 0 ∧
             (!((List.ofFn z).take (Z + κ - ((List.ofFn c).count true + K))).any fun b => b) = true
         · rw [decide_eq_true hloc, Bool.toNat_true, Nat.cast_one, one_mul]
@@ -338,13 +338,10 @@ theorem value_le (B Z K μ : ℕ) (hBK : B ≤ K) (hμ : 0 < μ) (V : List Bool 
             have h1 : (1 : ℚ) ≤ ∑ b ∈ range (B + 1), if r ∈ bad b then (1 : ℚ) else 0 := by
               simpa only [hr, ite_true] using single_le_sum
                 (f := fun b => if r ∈ bad b then (1 : ℚ) else 0)
-                (fun _ _ => by split_ifs <;> norm_num) (mem_range.2 (Nat.lt_succ_of_le hbB))
-            have hv := AMGame.value_le_one true (shape B Z g)
-              (f := fun t => ((check B Z K V g ((List.ofFn c).count true)
-                (p ++ List.ofFn m) t).toNat : ℚ)) fun _ => Nat.cast_le.2 (Bool.toNat_le _)
-            have hE : (0 : ℚ) ≤ verifierMoves g * ((B + 1) * 2 ^ K / (μ * 2 ^ B)) +
-                μ ^ (verifierMoves g + 1) * N / 2 ^ κ := by positivity
-            linarith
+                (fun _ _ => ite_nonneg zero_le_one le_rfl) (mem_range.2 (Nat.lt_succ_of_le hbB))
+            exact (AMGame.value_le_one true (shape B Z g)
+              fun _ => Nat.cast_le.2 (Bool.toNat_le _)).trans
+              (le_add_of_le_of_nonneg h1 (by positivity))
           · have hle : (2 : ℚ) ^ κ * countFrom g V (p ++ List.ofFn m) ≤
                 μ * 2 ^ ((List.ofFn c).count true) * N := by
               exact_mod_cast not_lt.1 fun h => hm (mem_filter.2 ⟨mem_univ m, h⟩)
@@ -540,33 +537,23 @@ theorem computableInPolyTime_check {γ : Type} {encIn : γ ↪ List Bool}
       (ComputableInPolyTime.const 0)) (hV hp)).of_enc_eq fun _ => rfl
   | cons y G ih =>
     obtain ⟨_ | _, q⟩ := y
-    · have hn : ComputableInPolyTime (fun x => q.eval (len x)) encIn encUnary :=
-        (ComputableInPolyTime.unary_eval q).comp hlen
-      have hnZ := ComputableInPolyTime.unary_add' hn hZ
-      have hP := ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_mul' hB hnZ) hB
-      have hr := ComputableInPolyTime.bitsTakeWithInput hw hP
-      have hy := ComputableInPolyTime.bitsDropWithInput hw hP
-      have hb := ComputableInPolyTime.bitsCountWithInput
-        (ComputableInPolyTime.bitsTakeWithInput hy hB) (ComputableInPolyTime.const true)
-      have hyB := ComputableInPolyTime.bitsDropWithInput hy hB
-      have hx := ComputableInPolyTime.bitsTakeWithInput hyB hnZ
-      have hhash := computableInPolyTime_hashZero hB hnZ hr hx
-      have hpad := ComputableInPolyTime.bool_not.comp (ComputableInPolyTime.bitsAnyWithInput
-        (test := fun _ b => b)
-        (ComputableInPolyTime.bitsTakeWithInput (ComputableInPolyTime.bitsDropWithInput hx hn)
-          (ComputableInPolyTime.unary_sub' (ComputableInPolyTime.unary_add' hZ hκ)
-            (ComputableInPolyTime.unary_add' hb hK)))
-        (ComputableInPolyTime.snd _ _))
-      have hrec := ih hb (ComputableInPolyTime.bitsAppend hp
-        (ComputableInPolyTime.bitsTakeWithInput hx hn))
-        (ComputableInPolyTime.bitsDropWithInput hyB hnZ)
-      exact (ComputableInPolyTime.bool_and' (ComputableInPolyTime.bool_and' hhash hpad)
-        hrec).of_enc_eq fun x => rfl
-    · have hn : ComputableInPolyTime (fun x => q.eval (len x)) encIn encUnary :=
-        (ComputableInPolyTime.unary_eval q).comp hlen
-      exact (ih hκ (ComputableInPolyTime.bitsAppend hp
-        (ComputableInPolyTime.bitsTakeWithInput hw hn))
-        (ComputableInPolyTime.bitsDropWithInput hw hn)).of_enc_eq fun x => rfl
+    · have hn := (ComputableInPolyTime.unary_eval q).comp hlen
+      have hnZ := hn.unary_add' hZ
+      have hP := (hB.unary_mul' hnZ).unary_add' hB
+      have hy := hw.bitsDropWithInput hP
+      have hb := (hy.bitsTakeWithInput hB).bitsCountWithInput (.const true)
+      have hyB := hy.bitsDropWithInput hB
+      have hx := hyB.bitsTakeWithInput hnZ
+      have hhash := computableInPolyTime_hashZero hB hnZ (hw.bitsTakeWithInput hP) hx
+      have hpad := ComputableInPolyTime.bool_not.comp <|
+        ((hx.bitsDropWithInput hn).bitsTakeWithInput
+          ((hZ.unary_add' hκ).unary_sub' (hb.unary_add' hK))).bitsAnyWithInput
+          (test := fun _ b => b) (.snd _ _)
+      have hrec := ih hb (hp.bitsAppend (hx.bitsTakeWithInput hn)) (hyB.bitsDropWithInput hnZ)
+      exact ((hhash.bool_and' hpad).bool_and' hrec).of_enc_eq fun _ => rfl
+    · have hn := (ComputableInPolyTime.unary_eval q).comp hlen
+      exact (ih hκ (hp.bitsAppend (hw.bitsTakeWithInput hn))
+        (hw.bitsDropWithInput hn)).of_enc_eq fun _ => rfl
 
 end Emulation
 

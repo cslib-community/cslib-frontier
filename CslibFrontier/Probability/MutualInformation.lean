@@ -144,9 +144,7 @@ theorem condMutualInfo_nonneg [Finite γ] [Finite α] [Finite β] (joint : PMF (
   have e1 : entropy (joint.map fun t => ((t.1, t.2.1), t.2.2)) = entropy joint :=
     entropy_map_of_injective joint (Equiv.prodAssoc γ α β).symm.injective
   simp only [conditionalEntropy, PMF.map_comp, Function.comp_def, e1] at h
-  change 0 ≤ entropy (joint.map fun x => (x.1, x.2.1)) + entropy (joint.map fun x => (x.1, x.2.2)) -
-    entropy joint - entropy (joint.map fun x => x.1)
-  linarith
+  simp only [condMutualInfo, Prod.map_def, id_eq]; linarith only [h]
 
 /-- `I(A; B | C) ≤ H(A | C)`. -/
 theorem condMutualInfo_le_conditionalEntropy_fst [Finite γ] [Finite α] [Finite β]
@@ -154,8 +152,7 @@ theorem condMutualInfo_le_conditionalEntropy_fst [Finite γ] [Finite α] [Finite
     condMutualInfo joint ≤ conditionalEntropy (joint.map (Prod.map id Prod.fst)) := by
   have h := entropy_map_le joint (Prod.map id Prod.snd)
   rw [condMutualInfo, conditionalEntropy, PMF.map_comp]
-  change _ ≤ _ - entropy (joint.map Prod.fst)
-  linarith
+  dsimp only [Function.comp_def, Prod.map, id]; linarith only [h]
 
 /-- `I(A; B | C) ≤ H(B | C)`. -/
 theorem condMutualInfo_le_conditionalEntropy_snd [Finite γ] [Finite α] [Finite β]
@@ -163,8 +160,7 @@ theorem condMutualInfo_le_conditionalEntropy_snd [Finite γ] [Finite α] [Finite
     condMutualInfo joint ≤ conditionalEntropy (joint.map (Prod.map id Prod.snd)) := by
   have h := entropy_map_le joint (Prod.map id Prod.fst)
   rw [condMutualInfo, conditionalEntropy, PMF.map_comp]
-  change _ ≤ _ - entropy (joint.map Prod.fst)
-  linarith
+  dsimp only [Function.comp_def, Prod.map, id]; linarith only [h]
 
 /-- Revealing `B`, the joint entropy of `(B, F)` splits into that of `B` and the average entropy
 of `F` given each value of `B`. -/
@@ -218,8 +214,7 @@ theorem condMutualInfo_eq_zero_of_apply_eq_mul [Finite γ] [Finite α] [Finite �
         (joint.map (Prod.map id Prod.fst) (c, a)).toReal *
           (joint.map (Prod.map id Prod.snd) (c, b)).toReal := by
     rw [← ENNReal.toReal_mul, ← ENNReal.toReal_mul, h, hC, hCA, hCB]
-    congr 1
-    ring
+    exact congrArg ENNReal.toReal (by ring)
   rw [condMutualInfo, entropy_map_eq_sum, entropy_map_eq_sum, entropy_eq_sum_surprisal,
     entropy_map_eq_sum, ← Finset.sum_add_distrib, ← Finset.sum_sub_distrib,
     ← Finset.sum_sub_distrib]
@@ -365,10 +360,10 @@ theorem map_fst_map_prodMk (ν : PMF Ω) (f : Ω → β) :
 theorem eq_of_mem_support_conditionalSnd_map (ν : PMF Ω) (f : Ω → β) {c : β}
     (hc : ν.map f c ≠ 0) {ω : Ω}
     (hω : ω ∈ (conditionalSnd (ν.map fun ω => (f ω, ω)) c).support) : f ω = c := by
-  have hc' : c ∈ ((ν.map fun ω => (f ω, ω)).map Prod.fst).support := by rwa [map_fst_map_prodMk]
-  rw [mem_support_conditionalSnd_iff _ _ hc', PMF.mem_support_map_iff] at hω
-  obtain ⟨_, -, h⟩ := hω
-  exact (Prod.mk.inj h).2 ▸ (Prod.mk.inj h).1
+  rw [mem_support_conditionalSnd_iff _ _ (by rwa [map_fst_map_prodMk]),
+    PMF.mem_support_map_iff] at hω
+  obtain ⟨_, -, rfl, rfl⟩ := hω
+  rfl
 
 /-- Conditioning on `f = c` restricts to `f ω = c` and renormalizes. -/
 theorem conditionalSnd_map_prodMk_apply [DecidableEq β] (ν : PMF Ω) (f : Ω → β) {c : β}

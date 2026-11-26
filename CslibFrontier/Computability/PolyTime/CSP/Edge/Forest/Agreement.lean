@@ -112,7 +112,7 @@ theorem partners_eq (input : Input) (a : Occurrence input.body)
   by_cases hv : a.var = b.var
   · simp [hv]
   · rw [DAG.pairFlip_eq _ fun h => hv (congrArg Occurrence.var h)]
-    exact Bool.eq_iff_iff.mpr (by simp [Bool.and_eq_true, hv, Fin.val_inj])
+    simp [hv, Fin.val_inj]
 
 private theorem scan_stopped (rs : List ℕ) (es : WorkLog) (a : Record)
     (os bs : List Record) (b : Record) :
@@ -137,16 +137,12 @@ theorem scan_eq {F : CSP Table ℕ} (rs : List ℕ) (es : Forest.Log F) (a : Occ
     have hcon : a.record.1 = a.1.val := rfl
     dsimp only [scan] at ih ⊢
     simp only [List.map_cons, List.foldl_cons, scanStep, hc, hvar, hcon, visited_workLog,
-      Option.isSome_none, Bool.false_eq_true, ite_false, Forest.scan]
+      sameParent_workLog, Option.isSome_none, Bool.false_eq_true, ite_false, Forest.scan]
     by_cases hv : Forest.Log.Visited rs ((⟨a, os⟩ : Forest.Expansion F) :: es) b.var
     · by_cases hp : Forest.Log.SameParent ((⟨a, os⟩ : Forest.Expansion F) :: es) b.var a.1
-      · simpa only [hv, decide_true, Bool.not_true, Bool.false_eq_true, ite_false,
-          sameParent_workLog, hp, ite_true, not_true_eq_false] using ih os
-      · simp only [hv, decide_true, Bool.not_true, Bool.false_eq_true, ite_false,
-          sameParent_workLog, hp, ite_false, not_true_eq_false]
-        exact scan_stopped rs (workLog es) a.record _ _ _
-    · simpa only [hv, decide_false, Bool.not_false, ite_true, not_false_eq_true,
-        List.map_append, List.map_cons, List.map_nil] using ih (os ++ [b])
+      · simpa [hv, hp] using ih os
+      · simp [hv, hp, scan_stopped]
+    · simpa [hv] using ih (os ++ [b])
 
 private theorem finishExpansion_workExpansion {F : CSP Table ℕ} (e : Forest.Expansion F) :
     finishExpansion F (workExpansion e) = codeExpansion e := by

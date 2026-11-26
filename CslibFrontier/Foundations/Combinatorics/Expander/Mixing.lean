@@ -163,10 +163,9 @@ theorem abs_card_interedges_sub_le (S T : Finset V) :
         Fintype.card V := by
   rcases isEmpty_or_nonempty D with hD | hD
   · simp [interedges]
-  rcases (Fintype.card V).eq_zero_or_pos with hV | hV
-  · have : IsEmpty V := Fintype.card_eq_zero_iff.1 hV
-    simp [Subsingleton.elim S ∅]
-  have hn : (0 : ℝ) < Fintype.card V := Nat.cast_pos.2 hV
+  rcases isEmpty_or_nonempty V with hV | hV
+  · simp [Subsingleton.elim S ∅]
+  have hn : (0 : ℝ) < Fintype.card V := Nat.cast_pos.2 Fintype.card_pos
   have hd : (0 : ℝ) < Fintype.card D := Nat.cast_pos.2 Fintype.card_pos
   have h := G.sq_expect_mul_walk_pow_sub_le 1 (fun v ↦ if v ∈ S then 1 else 0)
     (fun v ↦ if v ∈ T then 1 else 0)
@@ -175,11 +174,8 @@ theorem abs_card_interedges_sub_le (S T : Finset V) :
     nnratCast_dens, nnratCast_dens] at h
   refine abs_le_of_sq_le_sq ?_ (by positivity)
   rw [div_pow, mul_pow, mul_pow, Real.sq_sqrt (by positivity), card_compl_eq, card_compl_eq]
-  generalize (#(G.interedges S T) : ℝ) = e at h ⊢
-  generalize (#S : ℝ) = s at h ⊢
-  generalize (#T : ℝ) = t at h ⊢
-  generalize (Fintype.card V : ℝ) = n at h hn ⊢
-  generalize (Fintype.card D : ℝ) = d at h hd ⊢
+  generalize (#(G.interedges S T) : ℝ) = e, (#S : ℝ) = s, (#T : ℝ) = t,
+    (Fintype.card V : ℝ) = n, (Fintype.card D : ℝ) = d at h hn hd ⊢
   calc
     _ = (n * d) ^ 2 * (e / (n * d) - s / n * (t / n)) ^ 2 := by field_simp
     _ ≤ (n * d) ^ 2 *
@@ -230,11 +226,8 @@ theorem le_card_interedges_compl_of_expect_mul_walk_le {μ : ℝ}
   have he : (#(G.interedges S S) : ℝ) + #(G.interedges S Sᶜ) = #S * Fintype.card D := by
     exact_mod_cast G.card_interedges_add_card_interedges_compl S S
   rw [card_compl_eq, div_le_iff₀ hn]
-  generalize (#(G.interedges S S) : ℝ) = e₁ at h he
-  generalize (#(G.interedges S Sᶜ) : ℝ) = e₂ at he ⊢
-  generalize (#S : ℝ) = s at h he ⊢
-  generalize (Fintype.card V : ℝ) = n at h hn ⊢
-  generalize (Fintype.card D : ℝ) = d at h hd he ⊢
+  generalize (#(G.interedges S S) : ℝ) = e₁, (#(G.interedges S Sᶜ) : ℝ) = e₂, (#S : ℝ) = s,
+    (Fintype.card V : ℝ) = n, (Fintype.card D : ℝ) = d at h he hn hd ⊢
   have h' := mul_le_mul_of_nonneg_left h (by positivity : 0 ≤ n ^ 2 * d)
   field_simp at h'
   have he' : (1 - μ) * d * s * (n - s) - e₂ * n =
@@ -256,10 +249,9 @@ theorem le_card_interedges_compl_of_two_mul_card_le {S : Finset V}
     (hS : 2 * #S ≤ Fintype.card V) :
     (1 - G.spectralExpansion) * Fintype.card D * #S / 2 ≤ #(G.interedges S Sᶜ) := by
   refine le_trans ?_ (G.le_card_interedges_compl S)
-  rcases (Fintype.card V).eq_zero_or_pos with hV | hV
-  · have : IsEmpty V := Fintype.card_eq_zero_iff.1 hV
-    simp [Subsingleton.elim S ∅]
-  have hn : (0 : ℝ) < Fintype.card V := Nat.cast_pos.2 hV
+  rcases isEmpty_or_nonempty V with hV | hV
+  · simp [Subsingleton.elim S ∅]
+  have hn : (0 : ℝ) < Fintype.card V := Nat.cast_pos.2 Fintype.card_pos
   have hA : 0 ≤ (1 - G.spectralExpansion) * Fintype.card D * #S :=
     mul_nonneg (mul_nonneg (sub_nonneg.2 G.spectralExpansion_le_one) (Nat.cast_nonneg _))
       (Nat.cast_nonneg _)
@@ -296,10 +288,9 @@ theorem mul_card_filter_ne_le_card_filter_ne_neighbor {α : Type*} [DecidableEq 
     (1 - G.spectralExpansion) * Fintype.card D * #{v | f v ≠ c} ≤
       #{p : V × D | f p.1 ≠ f (G.neighbor p.1 p.2)} := by
   classical
-  rcases (Fintype.card V).eq_zero_or_pos with hV | hV
-  · have : IsEmpty V := Fintype.card_eq_zero_iff.1 hV
-    simp
-  have hn : (0 : ℝ) < Fintype.card V := Nat.cast_pos.2 hV
+  rcases isEmpty_or_nonempty V with hV | hV
+  · simp
+  have hn : (0 : ℝ) < Fintype.card V := Nat.cast_pos.2 Fintype.card_pos
   have hlam : 0 ≤ (1 - G.spectralExpansion) * Fintype.card D :=
     mul_nonneg (sub_nonneg.2 G.spectralExpansion_le_one) (Nat.cast_nonneg _)
   set T := univ.image f
@@ -315,7 +306,6 @@ theorem mul_card_filter_ne_le_card_filter_ne_neighbor {α : Type*} [DecidableEq 
       (Fintype.card V - s a) / Fintype.card V ≤
         #(G.interedges {v | f v = a} ({v | f v = a} : Finset V)ᶜ) :=
     card_compl_eq ({v | f v = a} : Finset V) ▸ G.le_card_interedges_compl {v | f v = a}
-  have hsc (a : α) : s a ≤ s c := by simp only [s]; exact_mod_cast hc a
   rw [hne, G.card_filter_ne_neighbor_eq_sum_card_interedges f]
   calc (1 - G.spectralExpansion) * Fintype.card D * (Fintype.card V - s c)
       = ∑ a ∈ T, (1 - G.spectralExpansion) * Fintype.card D * s a * (Fintype.card V - s c) /
@@ -325,7 +315,7 @@ theorem mul_card_filter_ne_le_card_filter_ne_neighbor {α : Type*} [DecidableEq 
     _ ≤ ∑ a ∈ T, (1 - G.spectralExpansion) * Fintype.card D * s a * (Fintype.card V - s a) /
           Fintype.card V := by
         gcongr with a
-        exact hsc a
+        exact Nat.cast_le.2 (hc a)
     _ ≤ _ := sum_le_sum fun a _ ↦ hterm a
 
 end Cslib.RotationMap

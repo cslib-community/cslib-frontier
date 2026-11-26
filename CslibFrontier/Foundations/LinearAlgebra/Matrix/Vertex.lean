@@ -240,8 +240,7 @@ theorem isVertex_of_card_tightRows (hnd : IsNondegenerateSystem A b)
     rcases mem_insert.1 hk with rfl | hk
     · exact mem_tightRows.2 htight
     · simp [mulVec_add, mulVec_smul, hv k hk, mem_tightRows.1 hk]
-  have h1 := card_le_card hsub
-  rw [card_insert_of_notMem fun h => (hv c' h ▸ hc').false] at h1
+  have h1 := (card_insert_of_notMem fun h => (hv c' h ▸ hc').false) ▸ card_le_card hsub
   have := hnd _ hle
   omega
 
@@ -270,9 +269,7 @@ theorem IsVertex.exists_pivot (hnd : IsNondegenerateSystem A b)
   have hv0 : ¬ A *ᵥ v ≤ 0 := fun h => by simpa [hrec v h] using hvT l hl
   obtain ⟨c, hc⟩ : ∃ c, 0 < (A *ᵥ v) c := by simpa [Pi.le_def] using hv0
   obtain ⟨t, c', hc', hle, htight⟩ := exists_tight_add_smul hx.1 hc
-  have hc'T : c' ∉ T := fun h => by
-    have := hvT c' h
-    split_ifs at this <;> linarith
+  have hc'T : c' ∉ T := fun h => absurd (hvT c' h) (by split_ifs <;> linarith)
   have hsub : insert c' (T.erase l) ⊆ tightRows A b (x + t • v) := fun k hk => by
     rcases mem_insert.1 hk with rfl | hk
     · exact mem_tightRows.2 htight
@@ -318,19 +315,17 @@ theorem IsVertex.eq_of_erase_subset (hnd : IsNondegenerateSystem A b) (hx : IsVe
   have hw : z - x = s • (y - x) := sub_eq_zero.1 <| hx.2 _ fun k hk => by
     rw [mulVec_sub, mulVec_smul, Pi.sub_apply, Pi.smul_apply, smul_eq_mul]
     by_cases hkl : k = l
-    · subst hkl
-      rw [hs, div_mul_cancel₀ _ hyl.ne, sub_self]
+    · simp [hkl, hs, div_mul_cancel₀ _ hyl.ne]
     · rw [hrow hyT k hk hkl, hrow hzT k hk hkl, mul_zero, sub_zero]
-  have hz' : z = x + s • (y - x) := by rw [← hw]; abel
-  have hzc := hz.1 c
-  have hyc' := hy.1 c'
-  rw [hz', mulVec_add, mulVec_smul, Pi.add_apply, Pi.smul_apply, smul_eq_mul] at hzc hc'z
-  rw [hw, mulVec_smul, Pi.smul_apply, smul_eq_mul] at hc'
-  have hyc'' : (A *ᵥ (y - x)) c' + (A *ᵥ x) c' ≤ b c' := by rw [mulVec_sub, Pi.sub_apply]; linarith
-  have hcy' : (A *ᵥ (y - x)) c = b c - (A *ᵥ x) c := by rw [mulVec_sub, Pi.sub_apply, hcy]
-  have hpos' : 0 < (A *ᵥ (y - x)) c' := pos_of_mul_pos_right hc' (div_pos_of_neg_of_neg hzl hyl).le
+  have hsub {u v d} (h : (A *ᵥ u) d ≤ (A *ᵥ v) d) : (A *ᵥ (u - x)) d ≤ (A *ᵥ (v - x)) d := by
+    simpa only [mulVec_sub, Pi.sub_apply, sub_le_sub_iff_right] using h
+  have hmul (d) : (A *ᵥ (z - x)) d = s * (A *ᵥ (y - x)) d := by simp [hw, mulVec_smul]
+  have h1 : s * (A *ᵥ (y - x)) c ≤ (A *ᵥ (y - x)) c := hmul c ▸ hsub (hcy.symm ▸ hz.1 c)
+  have h2 : (A *ᵥ (y - x)) c' ≤ s * (A *ᵥ (y - x)) c' := hmul c' ▸ hsub (hc'z.symm ▸ hy.1 c')
+  have hpos' : 0 < (A *ᵥ (y - x)) c' :=
+    pos_of_mul_pos_right (hmul c' ▸ hc') (div_pos_of_neg_of_neg hzl hyl).le
   have hs1 : s = 1 := le_antisymm (by nlinarith) (by nlinarith)
-  rw [hz', hs1, one_smul]; abel
+  rwa [hs1, one_smul, sub_left_inj] at hw
 
 /-- The vertex reached from the vertex `x` by dropping its tight row `l`: the other vertex at which
 all tight rows of `x` except `l` are tight. For a bounded nondegenerate system it exists and is
@@ -374,12 +369,12 @@ theorem vertexAdj_iff_exists_pivotVertex (hnd : IsNondegenerateSystem A b)
     VertexAdj A b x y ↔ ∃ l ∈ tightRows A b x, y = pivotVertex A b x l := by
   refine ⟨?_, ?_⟩
   · rintro ⟨-, hy, hxy, hcard⟩
-    have hTx := hx.card_tightRows hnd
     obtain ⟨l, hlx, hly⟩ := not_subset.1 fun h => hxy (hx.eq_of_tightRows_subset h).symm
     refine ⟨l, hlx, hx.eq_pivotVertex hnd hrec hlx hy hxy.symm ?_⟩
     have hsub : tightRows A b x ∩ tightRows A b y ⊆ (tightRows A b x).erase l :=
       fun k hk => mem_erase.2 ⟨fun h => hly (h ▸ (mem_inter.1 hk).2), (mem_inter.1 hk).1⟩
-    exact eq_of_subset_of_card_le hsub (by rw [card_erase_of_mem hlx]; omega) ▸ inter_subset_right
+    exact eq_of_subset_of_card_le hsub
+      (by rw [card_erase_of_mem hlx, hx.card_tightRows hnd]; omega) ▸ inter_subset_right
   · rintro ⟨l, hl, rfl⟩
     obtain ⟨h1, h2, h3⟩ := hx.pivotVertex_spec hnd hrec hl
     have := card_le_card (subset_inter (erase_subset l _) h3)

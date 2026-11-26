@@ -736,18 +736,14 @@ theorem exists_sim_involution {N : ℕ}
   classical
   let R := (step a₀).symm.trans (step a₁)
   let G := invBoolV R
-  have hstep : ∀ (b : Fin N → Bool) (y : ValueState ι V W),
-      liftBoolV G (phaseOracle b (liftBoolV G (liftValueIso e
-        (valueOracle step fun _ => a₀).toLinearIsometry (embedState e y)))) =
-        embedState e (valueOracle step (fun i => if b (e i) then a₁ else a₀) y) := fun b y => by
-    refine eq_embedState_of_bvSlice e _ _ fun j w => ?_
-    rw [bvSlice_liftBoolV, bvSlice_phaseOracle, bvSlice_liftBoolV,
-      bvSlice_liftValueIso_valueOracle, invBoolV_ctrlZ_invBoolV R hR]
-    congr 1
-    ext v
-    exact step_rel_ite_apply e step a₀ a₁ b y j v w
   simpa only [one_mul] using exists_sim_stride e step a₀ a₁ U ψ₀ T 1 Nat.one_pos G G
-    LinearIsometry.id fun b y => by simpa using hstep b y
+    LinearIsometry.id fun b y => by
+      refine eq_embedState_of_bvSlice e _ _ fun j w => ?_
+      rw [Function.iterate_zero_apply, bvSlice_liftBoolV, bvSlice_phaseOracle, bvSlice_liftBoolV,
+        bvSlice_liftValueIso_valueOracle, invBoolV_ctrlZ_invBoolV R hR]
+      congr 1
+      ext v
+      exact step_rel_ite_apply e step a₀ a₁ b y j v w
 
 /-! #### 2-query simulation for arbitrary unitary relative step -/
 
@@ -922,19 +918,15 @@ theorem exists_sim_value {N : ℕ}
           PiLp.smul_apply, EuclideanSpace.single, PiLp.single_apply, smul_eq_mul]
         simp [mul_comm]
     rw [hQ, hRbas, ← liftBasis_embedBoolFalse bas.repr, LinearIsometryEquiv.symm_apply_apply]
-  have hstep : ∀ (b : Fin N → Bool) (y : ValueState ι V W),
-      liftBoolV Gpost (phaseOracle b ((liftBoolV Gmid).toLinearIsometry (phaseOracle b
-        (liftBoolV Gpre (liftValueIso e (valueOracle step fun _ => a₀).toLinearIsometry
-          (embedState e y)))))) =
-        embedState e (valueOracle step (fun i => if b (e i) then a₁ else a₀) y) := fun b y => by
-    refine eq_embedState_of_bvSlice e _ _ fun j w => ?_
-    simp only [LinearIsometryEquiv.coe_toLinearIsometry, bvSlice_liftBoolV, bvSlice_phaseOracle]
-    rw [bvSlice_liftValueIso_valueOracle, hgadget]
-    congr 1
-    ext v
-    exact step_rel_ite_apply e step a₀ a₁ b y j v w
-  exact exists_sim_stride e step a₀ a₁ U ψ₀ T 2 (by omega) Gpre Gpost
-    (liftBoolV Gmid).toLinearIsometry hstep
+  refine exists_sim_stride e step a₀ a₁ U ψ₀ T 2 (by omega) Gpre Gpost
+    (liftBoolV Gmid).toLinearIsometry fun b y => ?_
+  refine eq_embedState_of_bvSlice e _ _ fun j w => ?_
+  simp only [Nat.reduceSub, Function.iterate_one, LinearIsometryEquiv.coe_toLinearIsometry,
+    bvSlice_liftBoolV, bvSlice_phaseOracle]
+  rw [bvSlice_liftValueIso_valueOracle, hgadget]
+  congr 1
+  ext v
+  exact step_rel_ite_apply e step a₀ a₁ b y j v w
 
 end TwoValueSim
 
@@ -1081,9 +1073,7 @@ theorem exists_sim_index_to_value {ι V W α : Type*} [Fintype ι] [Fintype V] [
       (route (embedFalse v₀ i₀ ψT)).ofLp (j, v', b, v, w, i) =
         if b = true ∧ v' = v₀ ∧ idx (i, v, w) = j then ψT.ofLp (i, v, w) else 0 := by
     change (embedFalse v₀ i₀ ψT).ofLp (indexRouteFun idx v₀ i₀ (j, v', b, v, w, i)) = _
-    cases b <;> dsimp only [indexRouteFun]
-    · by_cases h : v = v₀ ∧ i = i₀ <;> simp [h]
-    · by_cases h : v' = v₀ ∧ idx (i, v, w) = j <;> simp [h]
+    cases b <;> dsimp only [indexRouteFun] <;> split_ifs <;> simp_all
   have hslice (j : ι) (b : Bool) (v : V) (w : W) (i : ι) :
       (WithLp.toLp 2 fun v' => (route (embedFalse v₀ i₀ ψT)).ofLp (j, v', b, v, w, i)) =
         if b = true ∧ idx (i, v, w) = j then ψT.ofLp (i, v, w) • ket v₀ else 0 := by

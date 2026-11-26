@@ -230,10 +230,8 @@ private theorem pair_rightwards (hD : WellFormed N slots M D)
     Follows p (rowNode i (3 * s + 4)) (rowNode i (3 * s + 5)) := by
   have hnd := hp.1
   have hch := hp.2.2.2.2
-  have hq := rowNode_mem_vertices (slots := slots) (M := M) (a := 3 * s + 3) hi
-    (by simp only [rowLength]; omega)
-  have hpp := rowNode_mem_vertices (slots := slots) (M := M) (a := 3 * s + 2) hi
-    (by simp only [rowLength]; omega)
+  have hsucc (a : ℕ) (ha : a < 3 * slots i + 3) :=
+    exists_succ hp (rowNode_mem_vertices (M := M) (a := a) hi ha) (rowNode_ne_topNode _ _ _)
   -- The successor of the right pair node lies to its right.
   have hsucc_q {w : ℕ} (hw : Follows p (rowNode i (3 * s + 3)) w)
       (h₁ : w ≠ rowNode i (3 * s + 2))
@@ -244,8 +242,8 @@ private theorem pair_rightwards (hD : WellFormed N slots M D)
     · -- Leaving the right pair node towards the right separator makes it rightward.
       exact (separator_dir_succ hp hi hs).elim And.right fun ⟨_, h'⟩ => absurd h' (hw.asymm hnd)
     · exact (h₂ d hd hdi hds rfl).elim
-  obtain ⟨w, hw⟩ := exists_succ hp hpp (rowNode_ne_topNode _ _ _)
-  obtain ⟨w', hw'⟩ := exists_succ hp hq (rowNode_ne_topNode _ _ _)
+  obtain ⟨w, hw⟩ := hsucc (3 * s + 2) (by omega)
+  obtain ⟨w', hw'⟩ := hsucc (3 * s + 3) (by omega)
   rcases pairLeft_nbrs hs (Or.inr (hw.rel hch)) with rfl | rfl | ⟨d, hd, hdi, hds, rfl⟩
   · exact absurd hw (h.asymm hnd)
   · -- `p → q`: the successor of `q` is neither `p` nor a clause node of the slot.
@@ -271,15 +269,13 @@ private theorem not_pair_left_right (hD : WellFormed N slots M D)
   rintro ⟨hl, hr⟩
   have hnd := hp.1
   have hch := hp.2.2.2.2
-  obtain ⟨u, hu⟩ := exists_pred hp
-    (rowNode_mem_vertices (slots := slots) (M := M) (a := 3 * s + 2) hi
-      (by simp only [rowLength]; omega)) (rowNode_ne_topNode _ _ _)
+  have hpred (a : ℕ) (ha : a < 3 * slots i + 3) :=
+    exists_pred hp (rowNode_mem_vertices (M := M) (a := a) hi ha) (rowNode_ne_topNode _ _ _)
+  obtain ⟨u, hu⟩ := hpred (3 * s + 2) (by omega)
   rcases pairLeft_nbrs hs (Or.inl (hu.rel hch)) with rfl | rfl | ⟨d, hd, hdi, hds, rfl⟩
   · exact hu.asymm hnd hl
   · simpa using hu.right_unique hnd hr
-  · obtain ⟨u', hu'⟩ := exists_pred hp
-      (rowNode_mem_vertices (slots := slots) (M := M) (a := 3 * s + 3) hi
-        (by simp only [rowLength]; omega)) (rowNode_ne_topNode _ _ _)
+  · obtain ⟨u', hu'⟩ := hpred (3 * s + 3) (by omega)
     rcases pairRight_nbrs (Or.inl (hu'.rel hch)) with rfl | rfl | ⟨d', hd', hdi', hds', rfl⟩
     · simpa using hu'.right_unique hnd hl
     · exact hu'.asymm hnd hr

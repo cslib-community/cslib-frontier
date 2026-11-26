@@ -236,9 +236,7 @@ theorem computableInPolyTime_tableQueries (d : ℕ) :
       tableQueries input.1 (tableArity d input.1)) (encPair encUnary encBits)
       (encList encBits) := by
   unfold tableQueries
-  have harity : ComputableInPolyTime (fun input : ℕ × List Bool => tableArity d input.1)
-      (encPair encUnary encBits) encUnary :=
-    (computableInPolyTime_tableArity d).comp (fst _ _)
+  have harity := (computableInPolyTime_tableArity d).comp (fst encUnary encBits)
   refine mapWithInput (bitsEnumList harity
     (size := fun L => (2 * (L + 1)) ^ d * (2 * (d * (2 * (L + 1))) + 1)) (by fun_prop)
     fun input => ?_) ?_
@@ -258,15 +256,11 @@ theorem computableInPolyTime_tableInstance (d : ℕ) :
     ComputableInPolyTime (fun pair : (ℕ × List Bool) × List Bool =>
       tableInstance (tableArity d pair.1.1) pair.2) (encPair (encPair encUnary encBits) encBits)
       MCSP.encInstance := by
-  have harity : ComputableInPolyTime (fun pair : (ℕ × List Bool) × List Bool =>
-      tableArity d pair.1.1) (encPair (encPair encUnary encBits) encBits) encUnary :=
-    (computableInPolyTime_tableArity d).comp (fst _ _).fst'
-  have hsize : ComputableInPolyTime (fun pair : (ℕ × List Bool) × List Bool =>
-      2 ^ tableArity d pair.1.1) (encPair (encPair encUnary encBits) encBits) encUnary :=
-    (computableInPolyTime_two_pow_tableArity d).comp (fst _ _).fst'
+  let p1 := (fst (encPair encUnary encBits) encBits).fst'
+  have hsize := (computableInPolyTime_two_pow_tableArity d).comp p1
   refine ((bitsTakeWithInput (bitsAppend (snd _ _) ((bitsReplicate false).comp hsize)) hsize).prod
     (unary_to_binary.comp (unary_div.comp (hsize.prod (unary_mul.comp
-      ((const 5).prod harity)))))).of_enc_eq fun pair => ?_
+      ((const 5).prod ((computableInPolyTime_tableArity d).comp p1))))))).of_enc_eq fun pair => ?_
   simp [MCSP.encInstance_apply, tableInstance, BitString.ofFn_ofList_eq_take]
 
 /-- **The Kabanets–Cai distinguisher is uniform strict oracle PPT**, for a polynomial-time

@@ -173,9 +173,7 @@ theorem polyOfCode_eq_and_add_shiftRight (a k : ℕ) :
   ext i
   rw [coeff_add, coeff_X_pow_mul', coeff_polyOfCode, coeff_polyOfCode,
     Nat.testBit_and, Nat.testBit_two_pow_sub_one]
-  by_cases hik : k ≤ i
-  · simp [hik, not_lt.mpr hik, coeff_polyOfCode, Nat.testBit_shiftRight, Nat.add_sub_of_le hik]
-  · simp [hik, lt_of_not_ge hik]
+  by_cases hik : k ≤ i <;> simp [← not_le, hik, coeff_polyOfCode, Nat.testBit_shiftRight]
 
 /-- Carryless multiplication of natural-number polynomial codes over `ZMod 2`. -/
 @[expose] def clmul (a b : ℕ) : ℕ :=
@@ -207,9 +205,7 @@ theorem and_xor_shiftRight_shiftLeft (a c : ℕ) :
   refine Nat.eq_of_testBit_eq fun i => ?_
   rw [Nat.testBit_xor, Nat.testBit_and, Nat.testBit_two_pow_sub_one,
     Nat.testBit_shiftLeft, Nat.testBit_shiftRight]
-  by_cases h : i < c
-  · simp [h, not_le.mpr h]
-  · simp [h, le_of_not_gt h, Nat.add_sub_of_le (le_of_not_gt h)]
+  by_cases h : c ≤ i <;> simp [← not_le, h]
 
 /-- Bitwise decomposition of `idx < 2 ^ (2 * c)` into high `c`-bit chunk `u = idx >>> c` and low
 `c`-bit chunk `v = idx &&& (2 ^ c - 1)`, together with properties of
@@ -342,21 +338,17 @@ theorem mk_polyOfCode_reduceTrinomialCode (t c : ℕ) :
   set c3 := c >>> (3 * r)
   set c2 := (c >>> (2 * r)) &&& (2 ^ r - 1)
   set cLow := c &&& (2 ^ (2 * r) - 1)
-  have hsplit1 : polyOfCode c = polyOfCode cLow + X ^ (2 * r) * polyOfCode (c >>> (2 * r)) :=
-    polyOfCode_eq_and_add_shiftRight c (2 * r)
+  have h3r : 2 * r + r = 3 * r := by ring
   have hsplit2 : polyOfCode (c >>> (2 * r)) = polyOfCode c2 + X ^ r * polyOfCode c3 := by
-    have h := polyOfCode_eq_and_add_shiftRight (c >>> (2 * r)) r
-    rwa [← Nat.shiftRight_add, show 2 * r + r = 3 * r by omega] at h
-  have hred : polyOfCode (reduceTrinomialCode t c) =
-      polyOfCode cLow + polyOfCode c3 + polyOfCode c2 + X ^ r * polyOfCode c2 := by
-    change polyOfCode (((cLow ^^^ c3) ^^^ c2) ^^^ (c2 <<< r)) = _
-    simp only [polyOfCode_xor, polyOfCode_shiftLeft]
+    simpa only [← Nat.shiftRight_add, h3r] using polyOfCode_eq_and_add_shiftRight (c >>> (2 * r)) r
   have hdiff : polyOfCode c =
       polyOfCode (reduceTrinomialCode t c) +
         (polyOfCode c2 + (X ^ r + 1) * polyOfCode c3) * trinomial t := by
-    rw [hsplit1, hsplit2, hred, show trinomial t = X ^ (2 * r) + X ^ r + 1 from rfl]
+    rw [polyOfCode_eq_and_add_shiftRight c (2 * r), hsplit2]
+    simp only [reduceTrinomialCode, c3, c2, trinomial, polyOfCode_xor, polyOfCode_shiftLeft]
     linear_combination (-(polyOfCode c3 + polyOfCode c2 + X ^ r * polyOfCode c2 +
-      X ^ (2 * r) * polyOfCode c3 + X ^ r * polyOfCode c3)) * CharTwo.two_eq_zero (R := (ZMod 2)[X])
+      X ^ (2 * r) * polyOfCode c3 + X ^ r * polyOfCode c3)) *
+        CharTwo.two_eq_zero (R := (ZMod 2)[X])
   rw [hdiff, map_add, map_mul, AdjoinRoot.mk_self, mul_zero, add_zero]
 
 /-! ## The explicit trinomial field `TrinomialField t` -/

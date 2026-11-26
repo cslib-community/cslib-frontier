@@ -190,10 +190,9 @@ theorem rowEntry_hermiteRows (nodes : List ℤ) (J : ℕ)
       Polynomial.hermiteMatrix (fun i : Fin nodes.length => nodes[i]) J r c := by
   obtain ⟨i, j⟩ := r
   have hr_eq : (finProdFinEquiv (i, j) : ℕ) = j.val + J * i.val := rfl
-  have hc_lt : (finProdFinEquiv c : ℕ) < nodes.length * J := (finProdFinEquiv c).isLt
   rw [rowEntry, hermiteRows, hr_eq,
     getD_flatMap_uniform nodes J _ (fun _ _ => by simp) [] i j]
-  simp only [List.getD_eq_getElem?_getD, j.isLt, hc_lt, List.getElem?_map,
+  simp only [List.getD_eq_getElem?_getD, j.isLt, (finProdFinEquiv c).isLt, List.getElem?_map,
     List.getElem?_range, Option.map_some, Option.getD_some, Polynomial.hermiteMatrix_apply]
 
 /-- `ofRows (hermiteRows nodes J)` is `Polynomial.hermiteMatrix` reindexed along
@@ -319,17 +318,10 @@ theorem detRows_cramerColZeroRows_eq_mul_eval_zero {nodes : List ℤ} {J : ℕ} 
   have hp_c0 : p.coeff (finProdFinEquiv c0) = (Ω : ℚ) * (H_zero : ℚ) := by
     simp [p, c0, Polynomial.coeff_zero_eq_eval_zero, hH0]
   have hjet_eq : Polynomial.taylorJet (fun i => (t i : ℚ)) J p =
-      fun r => (rowEntry jets r.1 r.2 : ℚ) :=
+      (Int.cast : ℤ → ℚ) ∘ fun r => rowEntry jets r.1 r.2 :=
     funext fun ⟨i, j⟩ => by simpa [p, Polynomial.taylorJet_apply, t] using (hjets i j).symm
   have hcramer := Polynomial.det_hermiteMatrix_mul_coeff t hp_deg c0
-  rw [hp_c0, hjet_eq] at hcramer
-  have hmap_update :
-      ((Polynomial.hermiteMatrix t J).map (Int.cast : ℤ → ℚ)).updateCol c0
-        (fun r => (rowEntry jets r.1 r.2 : ℚ)) =
-      (((Polynomial.hermiteMatrix t J).updateCol c0
-        fun r => rowEntry jets r.1 r.2).map (Int.cast : ℤ → ℚ)) :=
-    Matrix.ext fun r c => by by_cases h : c = c0 <;> simp [h]
-  rw [hmap_update, ← Int.cast_det] at hcramer
+  rw [hp_c0, hjet_eq, ← Matrix.map_updateCol, ← Int.cast_det] at hcramer
   rw [detRows_cramerColZeroRows_hermiteRows nodes J jets hQ hJ hjets_row, detRows_hermiteRows]
   exact Int.cast_injective (α := ℚ)
     (by simpa only [Int.cast_mul, mul_assoc, mul_left_comm (Ω : ℚ)] using hcramer.symm)

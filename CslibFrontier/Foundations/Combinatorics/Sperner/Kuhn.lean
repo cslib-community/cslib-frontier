@@ -392,10 +392,7 @@ theorem across_across {N : Fin (n + 1) → ℕ} {s : KuhnSimplex (n + 1)} {k : F
           finRotate_eq_zero]
         split_ifs <;> omega
       · simp only [rank_across_zero, rank_across_last, Equiv.trans_apply, Equiv.symm_apply_apply]
-    · rw [mate_of_ne hk0 hkl]
-      ext i
-      · simp only [base_across_of_ne _ hk0 hkl]
-      · simp only [rank_across_of_ne _ hk0 hkl, Equiv.trans_apply, Equiv.swap_apply_self]
+    · ext i <;> simp [mate_of_ne hk0 hkl, base_across_of_ne _ hk0 hkl, rank_across_of_ne _ hk0 hkl]
 
 /-- Crossing an interior facet stays in the hypergrid. -/
 theorem across_mem {N : Fin (n + 1) → ℕ} {s : KuhnSimplex (n + 1)} {k : Fin (n + 2)}
@@ -424,15 +421,13 @@ theorem isInteriorFacet_across {N : Fin (n + 1) → ℕ} {s : KuhnSimplex (n + 1
     refine ⟨fun h' => absurd h' hl, fun _ i hi => ?_⟩
     rw [rank_across_zero, Equiv.trans_apply, finRotate_symm_eq_last] at hi
     rw [base_across_zero, ite_eq_left hi]
-    have := h.1 rfl i hi
-    have := mem_kuhnSimplices.mp hs i
-    omega
+    exact Nat.sub_add_cancel (h.1 rfl i hi) ▸ mem_kuhnSimplices.mp hs i
   · rcases eq_or_ne k (Fin.last (n + 1)) with rfl | hkl
     · rw [mate_last]
       refine ⟨fun _ i hi => ?_, fun h' => absurd h'.symm hl⟩
       rw [rank_across_last, Equiv.trans_apply, finRotate_eq_zero] at hi
       rw [base_across_last, ite_eq_left hi]
-      omega
+      exact Nat.succ_pos _
     · rw [mate_of_ne hk0 hkl]
       exact ⟨fun h' => absurd h' hk0, fun h' => absurd h' hkl⟩
 
@@ -617,8 +612,7 @@ theorem IsHypergridSperner.odd_card_isPanchromatic {n : ℕ} {N : Fin n → ℕ}
     Odd #{s ∈ kuhnSimplices n N | IsPanchromatic c s} := by
   induction n with
   | zero =>
-    have hall : ∀ s : KuhnSimplex 0, IsPanchromatic c s := fun s a => ⟨0, by omega⟩
-    rw [filter_true_of_mem fun s _ => hall s]
+    rw [filter_true_of_mem fun s _ a => ⟨0, by omega⟩]
     simp [kuhnSimplices]
   | succ n ih =>
     set S := kuhnSimplices (n + 1) N
@@ -641,16 +635,15 @@ theorem IsHypergridSperner.odd_card_isPanchromatic {n : ℕ} {N : Fin n → ℕ}
       · exact fun p _ => across_ne p.1 p.2
     · -- boundary doors are the panchromatic simplices of the face `x 0 = 0`
       have hN := hc.pos 0
-      have hface := isHypergridSperner_faceColoring hc
-      convert ih hface using 1
+      convert ih (isHypergridSperner_faceColoring hc) using 1
       refine card_nbij' (fun p => face p.1) (fun t => (ofFace t, 0)) ?_ ?_ ?_ ?_
       · rintro ⟨s, k⟩ hp
         simp only [D, coe_filter, mem_filter, mem_product, mem_univ, and_true,
           Set.mem_ofPred_eq] at hp ⊢
         obtain ⟨rfl, hr, hb⟩ := eq_zero_of_isDoor_of_not_isInteriorFacet hc hp.1.1 hp.1.2 hp.2
         rw [← ofFace_face hr hb] at hp
-        rw [← ofFace_mem hN]
-        exact ⟨hp.1.1, (isDoor_ofFace_iff hc ((ofFace_mem hN).mp hp.1.1)).mp hp.1.2⟩
+        exact ⟨(ofFace_mem hN).mp hp.1.1,
+          (isDoor_ofFace_iff hc ((ofFace_mem hN).mp hp.1.1)).mp hp.1.2⟩
       · intro t ht
         simp only [D, coe_filter, mem_filter, mem_product, mem_univ, and_true,
           Set.mem_ofPred_eq] at ht ⊢

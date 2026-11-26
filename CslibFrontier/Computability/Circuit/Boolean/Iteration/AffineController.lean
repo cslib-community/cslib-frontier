@@ -194,8 +194,7 @@ theorem controlled_circuit (g : BitString q → BitString q)
       induction i using Fin.addCases with
       | left i => exact Or.inl (by simpa only [records, Fin.append_left] using hc (g (e j) i))
       | right i => exact Or.inr ⟨i, by simp only [records, Fin.append_right]⟩
-    exact (h.trans (Synthesis.of_subset hav)).mono Set.Subset.rfl Set.Subset.rfl
-      (by simpa using hs)
+    exact (h.trans (Synthesis.of_subset hav)).mono .rfl .rfl hs
   have hall := Synthesis.iUnion (fun j => {flags j} ∪ wires (records j))
     (fun _ => (2 * q + 1) + K) (fun j => (hflag j).union (hrecord j))
   let all := ⋃ j, {flags j} ∪ wires (records j)
@@ -210,9 +209,8 @@ theorem controlled_circuit (g : BitString q → BitString q)
     obtain ⟨j, _, hj, hout⟩ := chooseRecord_spec (fun j => flags j x)
       (fun j => records j x) (fun _ => false) (2 ^ q)
       ⟨e.symm (u x), (e.symm (u x)).isLt, by simp [flags]⟩
-    have hj' : e j = u x := (of_decide_eq_true hj).symm
-    rw [hout]
-    exact congrArg₂ Fin.append (congrArg g hj') (congrFun (congrArg a hj') _)
+    dsimp only [records] at hout
+    rw [hout, (of_decide_eq_true hj).symm]; rfl
   simp only [he] at hselect
   obtain ⟨c, hc', hs⟩ := (hconst.trans (hall.trans hselect)).exists_circuit_outputs
   refine ⟨c, hc', hs.trans (le_of_eq ?_)⟩
@@ -273,14 +271,9 @@ theorem affineHash_circuit {k n : ℕ} (seed : (Fin k → BitString n) × BitStr
               Set.Subset.rfl Set.Subset.rfl (Nat.zero_le 1)
     have hsum := Synthesis.sum (s := inputs n) (Finset.univ : Finset (Fin (n + 1)))
       term (fun _ => 1) fun j _ => hterm j
-    have heq : (fun x : BitString n => ∑ j : Fin (n + 1), term j x) =
-        fun x => affineHash seed x row := by
-      funext x
-      simp [Fin.sum_univ_castSucc, term, affineHash, BitString.LinearHash.hash, dotProduct]
-    rw [heq] at hsum
-    refine hsum.mono Set.Subset.rfl Set.Subset.rfl ?_
-    simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul]
-    omega
+    refine hsum.mono .rfl (Set.singleton_subset_iff.mpr (funext fun x => ?_)) ?_
+    · simp [Fin.sum_univ_castSucc, term, affineHash, BitString.LinearHash.hash, dotProduct]
+    · simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul]; omega
   obtain ⟨c, hc, hs⟩ := (Synthesis.family (I := interpretation) (s := inputs n)
     (fun row x => affineHash seed x row) (fun _ => 5 * (n + 1) + 1) hrow).exists_circuit_outputs
   exact ⟨c, hc, hs.trans_eq (by simp)⟩
