@@ -22,9 +22,11 @@ The four clauses over `a = 0` and `b = 1`, numbered `1` to `4`,
 have the certificate `5: a` with hints `1, 2`, then the empty clause with hints `5, 3, 4`. Its
 translation is `rup a : ~ 1 2`, then `rup 0 ≥ 1 : 5 3 4`, with the conclusion `6`, and the
 kernel accepts it, also through `checkRed`. Certificate numbers that are not consecutive are
-renumbered, a reused number shadows the earlier clause, and a deletion of a number that is not
-present is dropped. A RUP clause with complementary literals is a tautology, which the kernel
-accepts at once from its negation.
+renumbered, and a deletion of a number that is not present is dropped. A number may be reused
+after its clause is deleted, or while that clause is still present: then the new clause shadows
+the earlier one, a hint with the number names the new clause, and a deletion of the number
+deletes both, so the translated `del` names both kernel numbers. A RUP clause with complementary
+literals is a tautology, which the kernel accepts at once from its negation.
 
 **The converse fails.** With the superfluous hint `3` first, `¬a ∨ b` has two literals left on
 the trail `¬a`: the LRAT checker rejects the certificate, while the kernel skips the hint and
@@ -79,6 +81,23 @@ example : (φ.toVeriPB certRenamed).steps =
   ⟨rfl, rfl⟩
 
 example : check (φ.map Clause.toPB) (φ.toVeriPB certRenamed) = true := by decide +kernel
+
+/-- The number `100` reused while its clause `a ∨ b` is present: the unit `a` shadows it, the hint
+`100` names `a`, and the deletion of `100` deletes both clauses. -/
+private abbrev certShadowed : Array LRAT.IntAction :=
+  #[.addRup 100 #[1, 2] #[1], .addRup 100 #[1] #[1, 2], .addRup 8 #[1] #[100], .del #[100],
+    .addEmpty 9 #[8, 3, 4]]
+
+example : φ.checkLRAT certShadowed = true := by decide +kernel
+
+example : (φ.toVeriPB certShadowed).steps =
+    [.rup ⟨[(1, (0, true)), (1, (1, true))], 1⟩ [.neg, .id 1],
+      .rup ⟨[(1, (0, true))], 1⟩ [.neg, .id 1, .id 2], .rup ⟨[(1, (0, true))], 1⟩ [.neg, .id 6],
+      .del [6, 5], .rup ⟨[], 1⟩ [.id 7, .id 3, .id 4]] ∧
+    (φ.toVeriPB certShadowed).conclusion = 8 :=
+  ⟨rfl, rfl⟩
+
+example : check (φ.map Clause.toPB) (φ.toVeriPB certShadowed) = true := by decide +kernel
 
 /-- A tautological RUP clause, `a ∨ ¬a ∨ b`: its negation conflicts at once. -/
 private abbrev certTaut : Array LRAT.IntAction :=

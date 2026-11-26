@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Logics.Propositional.CNF.LRAT
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 import CslibFrontier.Algorithms.Lean.DPLL
+import CslibFrontier.Logics.Propositional.CNF.Tautology
 import CslibFrontier.Logics.Propositional.PseudoBoolean.Fast
 
 /-! # LRAT certificates are VeriPB proofs
@@ -230,8 +231,10 @@ theorem propagate_eq_unitStep {c : PBConstr} (hv : (c.terms.map termVar).Nodup)
     simp only [List.contains_eq_mem] at hnil
     simp [hs, hb, hnil]
 
+end VeriPB
+
 /-- The terms of a normalized constraint have positive coefficients. -/
-theorem _root_.Cslib.Logic.PL.PBConstr.pos_of_mem_normalize {c : PBConstr}
+theorem PBConstr.pos_of_mem_normalize {c : PBConstr}
     {t : ℕ × Literal ℕ} (ht : t ∈ c.normalize.terms) : 0 < t.1 := by
   obtain ⟨e, -, he⟩ := List.mem_filterMap.1 ht
   unfold entryTerm at he
@@ -242,15 +245,7 @@ theorem _root_.Cslib.Logic.PL.PBConstr.pos_of_mem_normalize {c : PBConstr}
 private theorem nodup_termVar_toPB {d : Clause ℕ} (hd : ¬ ∃ l ∈ d, Std.Sat.Literal.negate l ∈ d) :
     ((Clause.toPB d).terms.map termVar).Nodup := by
   simp only [Clause.toPB, List.map_map]
-  refine (List.nodup_dedup d).map_on fun x hx y hy hxy => ?_
-  obtain ⟨v, b⟩ := x
-  obtain ⟨w, b'⟩ := y
-  simp only [Function.comp_apply, termVar_mk] at hxy
-  subst hxy
-  by_contra hne
-  have hb : b' = !b := by cases b <;> cases b' <;> simp_all
-  subst hb
-  exact hd ⟨(v, b), List.mem_dedup.1 hx, List.mem_dedup.1 hy⟩
+  exact CNF.nodup_map_fst_dedup_of_not_isTautClause (by simpa [CNF.isTautClause] using hd)
 
 /-- **A clause without complementary literals normalizes to itself**: its distinct literals, in
 reverse order, with coefficient `1` and degree `1`. -/
@@ -287,15 +282,8 @@ theorem Clause.degree_normalize_toPB_of_isTautology {d : Clause ℕ}
     have hσ : σ v = !b := by simp only [σ, ht', termPos_mk]
     simp [Literal.eval, hσ]
   have hholds : N.Holds σ := by
-    rw [holds_normalize, Clause.holds_toPB_iff, Clause.eval_eq_true_iff]
-    obtain ⟨l, hl, hnl⟩ := hd
-    have key : ∀ m : Literal ℕ, ¬ σ m.1 = m.2 →
-        σ (Std.Sat.Literal.negate m).1 = (Std.Sat.Literal.negate m).2 := by
-      rintro ⟨v, b⟩ h
-      cases b <;> simpa [Std.Sat.Literal.negate] using h
-    by_cases h : σ l.1 = l.2
-    · exact ⟨l, hl, h⟩
-    · exact ⟨_, hnl, key l h⟩
+    rw [holds_normalize, Clause.holds_toPB_iff]
+    exact CNF.eval_eq_true_of_isTautClause (by simpa [CNF.isTautClause] using hd) σ
   have hlhs : lhs σ N.terms = 0 := by
     refine List.sum_eq_zero fun x hx => ?_
     obtain ⟨t, ht, rfl⟩ := List.mem_map.1 hx
@@ -310,6 +298,8 @@ theorem Clause.degree_normalize_toPB_le (d : Clause ℕ) : d.toPB.normalize.degr
   · simp [Clause.degree_normalize_toPB_of_isTautology hd]
   · simp [Clause.normalize_toPB_of_not_isTautology hd]
 
+namespace VeriPB
+
 private theorem coeffSum_map_negate (ts : List (ℕ × Literal ℕ)) :
     coeffSum (ts.map fun t => (t.1, Std.Sat.Literal.negate t.2)) = coeffSum ts := by
   simp [coeffSum, List.map_map, Function.comp_def]
@@ -319,7 +309,7 @@ private theorem filter_falsified_nil (ts : List (ℕ × Literal ℕ)) :
   List.filter_eq_self.2 fun _ _ => by simp [falsified]
 
 /-- The negation of a tautological clause conflicts at once. -/
-theorem propagate_nil_negate_toPB_of_isTautology {d : Clause ℕ}
+private theorem propagate_nil_negate_toPB_of_isTautology {d : Clause ℕ}
     (hd : ∃ l ∈ d, Std.Sat.Literal.negate l ∈ d) :
     propagate [] d.toPB.negate = none := by
   have h0 := Clause.degree_normalize_toPB_of_isTautology hd
@@ -328,7 +318,8 @@ theorem propagate_nil_negate_toPB_of_isTautology {d : Clause ℕ}
 
 /-- **The negation of a clause without complementary literals** forces the negation of each of
 its literals, starting from the empty trail. -/
-theorem propagate_nil_negate_toPB {d : Clause ℕ} (hd : ¬ ∃ l ∈ d, Std.Sat.Literal.negate l ∈ d) :
+private theorem propagate_nil_negate_toPB {d : Clause ℕ}
+    (hd : ¬ ∃ l ∈ d, Std.Sat.Literal.negate l ∈ d) :
     ∃ ρ, propagate [] d.toPB.negate = some ρ ∧
       ∀ l, l ∈ ρ ↔ l ∈ d.map Std.Sat.Literal.negate := by
   have hN := Clause.normalize_toPB_of_not_isTautology hd
