@@ -117,6 +117,12 @@ noncomputable def instanceOfTableau {k : ℕ} {State : Type} [Fintype State]
   ⟨QBF.appendLast (certBlocks w n i 0) (baseVars tab w),
     if r then baseMatrix tab w else (baseMatrix tab w).not⟩
 
+/-- The matrix of the tableau uses the polarity of the last block. -/
+theorem instanceOfTableau_matrix {k : ℕ} {State : Type} [Fintype State]
+    (tab : CNF (CookLevin.Var k State)) (w n i : ℕ) (r : Bool) :
+    (instanceOfTableau tab w n i r).matrix =
+      (if r then baseMatrix tab w else (baseMatrix tab w).not) := by rfl
+
 /-- Merging the tableau variables preserves well-formedness and the number of blocks. -/
 theorem instanceOfTableau_wellFormed {k : ℕ} {State : Type} [Fintype State]
     (tab : CNF (CookLevin.Var k State)) (w n i : ℕ) (hi : 1 ≤ i)

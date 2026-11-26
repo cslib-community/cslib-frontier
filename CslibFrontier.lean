@@ -3582,6 +3582,8 @@ public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb.TickSta
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.NonnegMulVec
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.EmbeddingNecessity
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Tableau
+public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.TableauDNF
+public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.WidthThree
 public import CslibFrontier.GameTheory.NetworkFormation.LocalConnection
 public import CslibFrontier.Languages.Probabilistic.Norm
 public import CslibFrontier.Foundations.Combinatorics.Expander.RelativeShearTranslation
