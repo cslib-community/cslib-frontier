@@ -184,18 +184,15 @@ theorem evalBucketProd_valid {w : ℕ} {args : BucketProdArgs}
         ((Memory.spec w).clientHistory s (bucketProdStep (env, ⟨cur, prod⟩))) := by
       unfold bucketProdStep
       dsimp only [env]
-      refine validHistory_read_bind (by omega) ?_
-      refine validHistory_read_bind (by omega) ?_
-      refine validHistory_read_bind (by omega) ?_
-      refine validHistory_read_bind (by omega) ?_
+      refine validHistory_read_bind (by omega) (validHistory_read_bind (by omega)
+        (validHistory_read_bind (by omega) (validHistory_read_bind (by omega) ?_)))
       refine validHistory_bind_step
         (evalScopeIdx_valid _ hout (by dsimp only; rw [hsl]; exact hsc.1)) ?_
       rw [evalScopeIdx_state]
       refine validHistory_bind_step ?_ (validHistory_pure w _ _)
       split_ifs with hlt
-      · rw [hel] at hlt
-        have hent_le : s.mem (cur + 2) + f.entries.size ≤ s.frontier := by
-          simpa [Array.length_toList] using hent.1
+      · have hent_le : s.mem (cur + 2) + s.mem (cur + 3) ≤ s.frontier := by
+          simpa [hel] using hent.1
         exact validHistory_read (by omega)
       · exact validHistory_pure w s _
     rw [List.length_cons, iterate, validHistory_bind', bucketProdStep_state, bucketProdStep_result]
@@ -231,8 +228,7 @@ theorem evalBucketProd_result {args : BucketProdArgs} {outScope : List ℕ}
         f.evalAt args.dom σ := by
       rw [hel, FactorTable.evalAt, Array.getD]
       split_ifs with hlt
-      · rw [hent.2.get _ (by simpa using hlt), Array.getElem_toList]
-        rfl
+      · exact (hent.2.get _ (Array.length_toList ▸ hlt)).trans (Array.getElem_toList _)
       · rfl
     dsimp only [env]
     rw [evalScopeIdx_result hout hout_len hsc.2 hsl.symm, hentry, ih (cur + 4) _ hrest,
@@ -285,9 +281,8 @@ theorem evalBucketProd_realizes :
       have he := hent_le fIdx
       split_ifs with hlt
       · rw [ite_eq_left hlt] at he
-        have hent_sz : s.mem (st.curDesc + 2) + f.entries.size ≤ s.frontier := by
-          simpa [Array.length_toList] using hent.1
-        have hlt_sz : fIdx < f.entries.size := by simpa [hel] using hlt
+        have hent_sz : s.mem (st.curDesc + 2) + s.mem (st.curDesc + 3) ≤ s.frontier := by
+          simpa [hel] using hent.1
         exact ⟨hmem.frontier_fits.of_le (by omega), hmem.frontier_fits.of_le hd,
           hB.of_le ((Nat.mul_le_mul_left st.prod he).trans hprod_f)⟩
       · exact ⟨trivial, hmem.frontier_fits.of_le hd, Nat.mul_zero st.prod ▸ fits_zero w⟩

@@ -329,41 +329,29 @@ noncomputable def fosterVohraDist (K : ℕ) (w : EuclideanSpace ℝ (Fin (K + 1)
 
 theorem fosterVohraDist_nonneg (K : ℕ) (w : EuclideanSpace ℝ (Fin (K + 1)))
     (k : Fin (K + 1)) : 0 ≤ fosterVohraDist K w k := by
-  classical
-  dsimp only [fosterVohraDist]
-  by_cases h0 : w 0 ≤ 0
-  · simp only [dite_eq_left h0]
-    split_ifs <;> norm_num
-  · by_cases hlast : 0 ≤ w (Fin.last K)
-    · simp only [dite_eq_right h0, dite_eq_left hlast]
-      split_ifs <;> norm_num
-    · simp only [dite_eq_right h0, dite_eq_right hlast]
-      have hspec :=
-        (exists_adjacent_sign_change w (lt_of_not_ge h0) (lt_of_not_ge hlast)).choose_spec
-      have ha : 0 < w _ := hspec.1
-      have hb : 0 ≤ -w _ := neg_nonneg.mpr hspec.2
-      split_ifs
-      · exact div_nonneg hb (by linarith)
-      · exact div_nonneg ha.le (by linarith)
-      · exact le_rfl
+  unfold fosterVohraDist
+  split_ifs with h0 hlast <;> dsimp only
+  · split_ifs <;> norm_num
+  · split_ifs <;> norm_num
+  · obtain ⟨ha, hb⟩ :=
+      (exists_adjacent_sign_change w (lt_of_not_ge h0) (lt_of_not_ge hlast)).choose_spec
+    split_ifs
+    · exact div_nonneg (neg_nonneg.mpr hb) (by linarith)
+    · exact div_nonneg ha.le (by linarith)
+    · exact le_rfl
 
 theorem sum_fosterVohraDist (K : ℕ) (w : EuclideanSpace ℝ (Fin (K + 1))) :
     ∑ k : Fin (K + 1), fosterVohraDist K w k = 1 := by
-  classical
-  dsimp only [fosterVohraDist]
-  by_cases h0 : w 0 ≤ 0
-  · simp [dite_eq_left h0]
-  · by_cases hlast : 0 ≤ w (Fin.last K)
-    · simp [dite_eq_right h0, dite_eq_left hlast]
-    · simp only [dite_eq_right h0, dite_eq_right hlast]
-      set hex := exists_adjacent_sign_change w (lt_of_not_ge h0) (lt_of_not_ge hlast)
-      set i := hex.choose
-      have ha : 0 < w i.castSucc := hex.choose_spec.1
-      have hb : 0 ≤ -w i.succ := neg_nonneg.mpr hex.choose_spec.2
-      have hne : i.castSucc ≠ i.succ := i.castSucc_lt_succ.ne
-      rw [Fintype.sum_eq_add _ _ hne fun k hk => by simp [hk.1, hk.2]]
-      simp only [↓reduceIte, hne.symm]
-      rw [← add_div, add_comm (-w i.succ), div_self (by linarith)]
+  unfold fosterVohraDist
+  split_ifs with h0 hlast
+  · simp
+  · simp
+  · set hex := exists_adjacent_sign_change w (lt_of_not_ge h0) (lt_of_not_ge hlast)
+    obtain ⟨ha, hb⟩ := hex.choose_spec
+    have hne := hex.choose.castSucc_lt_succ.ne
+    rw [Fintype.sum_eq_add _ _ hne fun k hk => by simp [hk.1, hk.2]]
+    simp only [↓reduceIte, hne.symm]
+    rw [← add_div, add_comm (-w _), div_self (by linarith)]
 
 /-- **Core Foster–Vohra halfspace lemma**: for *every* dual vector `w`, `fosterVohraDist K w`
 forces `⟪w, expectedPayoff (calPayoff K) (fosterVohraDist K w) b⟫ ≤ ⟪w, s*⟫` for an explicit
@@ -415,33 +403,22 @@ theorem fosterVohraDist_inner_le {K : ℕ} (hK : 0 < K)
         simp only [↓reduceIte, hne.symm]
         rw [show w i.succ = -c by simp [c]]
         linear_combination (a * c / (a + c)) * gridPoint_succ_sub i
-      have ham : a * c / (a + c) ≤ max a c / 2 := by
-        rw [div_le_div_iff₀ hac two_pos]
-        rcases le_total a c with h | h
-        · rw [max_eq_right h]; nlinarith
-        · rw [max_eq_left h]; nlinarith
-      have hbasis : ∀ (j : Fin (K + 1)) (sgn : ℝ), |sgn| = 1 →
-          let e : EuclideanSpace ℝ (Fin (K + 1)) :=
-            WithLp.toLp 2 fun k => if k = j then sgn * (1 / (2 * (K : ℝ))) else 0
-          e ∈ l1Ball (K + 1) (1 / (2 * (K : ℝ))) ∧
-            ⟪w, e⟫ = sgn * w j / (2 * (K : ℝ)) := by
-        intro j sgn hsgn e
-        refine ⟨?_, ?_⟩
-        · change ∑ k : Fin (K + 1), |(if k = j then sgn * (1 / (2 * (K : ℝ))) else 0 : ℝ)| ≤
-              1 / (2 * (K : ℝ))
-          rw [Fintype.sum_eq_single j fun k hk => by simp [hk]]
+      have hbasis (j : Fin (K + 1)) (sgn : ℝ) (hsgn : |sgn| = 1) :
+          ∃ e ∈ l1Ball (K + 1) (1 / (2 * (K : ℝ))), ⟪w, e⟫ = sgn * w j / (2 * (K : ℝ)) := by
+        refine ⟨WithLp.toLp 2 fun k => if k = j then sgn * (1 / (2 * (K : ℝ))) else 0, ?_, ?_⟩
+        · rw [l1Ball, Set.mem_ofPred, Fintype.sum_eq_single j fun k hk => by simp [hk]]
           simp [abs_mul, hsgn]
-        · rw [PiLp.inner_apply, Fintype.sum_eq_single j fun k hk => by simp [e, hk]]
-          simp only [e, ↓reduceIte, RCLike.inner_apply, conj_trivial]
+        · rw [PiLp.inner_apply, Fintype.sum_eq_single j fun k hk => by simp [hk]]
+          simp only [↓reduceIte, RCLike.inner_apply, conj_trivial]
           ring
       rcases le_total a c with h | h
-      · obtain ⟨hm, hi⟩ := hbasis i.succ (-1) (by norm_num)
-        rw [max_eq_right h] at ham
-        exact ⟨_, hm, hinner_eq.trans_le ((div_le_div_of_nonneg_right ham hKpos.le).trans_eq
+      · obtain ⟨e, hm, hi⟩ := hbasis i.succ (-1) (by norm_num)
+        have ham : a * c / (a + c) ≤ c / 2 := (div_le_div_iff₀ hac two_pos).mpr (by nlinarith)
+        exact ⟨e, hm, hinner_eq.trans_le ((div_le_div_of_nonneg_right ham hKpos.le).trans_eq
           (by simp only [hi, c]; ring))⟩
-      · obtain ⟨hm, hi⟩ := hbasis i.castSucc 1 (by norm_num)
-        rw [max_eq_left h] at ham
-        exact ⟨_, hm, hinner_eq.trans_le ((div_le_div_of_nonneg_right ham hKpos.le).trans_eq
+      · obtain ⟨e, hm, hi⟩ := hbasis i.castSucc 1 (by norm_num)
+        have ham : a * c / (a + c) ≤ a / 2 := (div_le_div_iff₀ hac two_pos).mpr (by nlinarith)
+        exact ⟨e, hm, hinner_eq.trans_le ((div_le_div_of_nonneg_right ham hKpos.le).trans_eq
           (by simp only [hi, a]; ring))⟩
 
 /-- Explicit stationary **Foster–Vohra feedback rule** targeting `l1Ball (K + 1) (1 / (2 * K))`:

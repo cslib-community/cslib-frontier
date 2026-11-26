@@ -396,12 +396,9 @@ private theorem GInv.disjoint_farSide (hsym : ∀ X, f Xᶜ = f X) {r : V} {P : 
     intro x
     simp only [Y, Finset.mem_inter]
     obtain rfl | hxk := eq_or_ne x k
-    · have h2 : p x ∉ farSide S t k' := fun h => hnot hk hk' hne ((I.mem_farSide_iff hk' hne).mpr h)
-      exact iff_of_false (fun h => hnot hk hk' hne h.2) (fun h => h2 h.2)
+    · simp only [← I.mem_farSide_iff hk' hne, hnot hk hk' hne, and_false]
     obtain rfl | hxk' := eq_or_ne x k'
-    · have h2 : p x ∉ farSide S t k := fun h =>
-        hnot hk' hk (Ne.symm hne) ((I.mem_farSide_iff hk (Ne.symm hne)).mpr h)
-      exact iff_of_false (fun h => hnot hk' hk (Ne.symm hne) h.1) (fun h => h2 h.1)
+    · simp only [← I.mem_farSide_iff hk hne.symm, hnot hk' hk hne.symm, false_and]
     rw [I.mem_farSide_iff hk hxk, I.mem_farSide_iff hk' hxk']
   have hzt := mem_iff_of_reflTransGen_tAdj hY
     ((I.conn z).trans (reflTransGen_tAdj_symm (I.conn t)))
@@ -437,12 +434,10 @@ private theorem GInv.cover {r : V} {P : Finset V} {p : V → V} {S : V → Finse
       · by_cases hwP : w ∈ P
         · obtain rfl | hwr := eq_or_ne w r
           · exact .inr (.inl (h.symm.trans I.parent_root).symm)
-          obtain rfl | hwt := eq_or_ne w c
-          · exact .inr (.inl rfl)
           have hwK : w ∈ edgesAt r P p c := mem_edgesAt.mpr ⟨hwP, hwr, .inl h⟩
-          rcases I.edgesAt_cases hwK with ⟨htw, -⟩ | ⟨-, hwt'⟩
+          rcases I.edgesAt_cases hwK with ⟨htw, -⟩ | ⟨-, hwc'⟩
           · exact .inl ⟨w, hwK, I.self_mem_farSide hwK htw⟩
-          · exact absurd hwt' hwt
+          · exact .inr (.inl hwc')
         · exact .inr (.inr ⟨hwP, h⟩)
       · obtain rfl | hwt := eq_or_ne w c
         · exact .inr (.inl rfl)
@@ -602,42 +597,35 @@ private theorem gInv_step (hsym : ∀ X, f Xᶜ = f X) (hsub : IsSubmodular f) {
       · rw [qs', Function.update_of_ne hst, Function.update_self]
         exact isMinCutBetween_swap hsym hct U0 ((hsS t htP htr).mpr hct.left_mem) (U2.mpr hswap)
       rcases eq_or_ne i t with rfl | hit
-      · rw [qt', Function.update_self]
-        exact U0.compl hsym
-      rw [Function.update_of_ne hit, Function.update_of_ne (hne_s hiP)]
-      exact hcut_other i hiP hir (hne_s hiP) hit
+      · simpa only [qt', Function.update_self] using U0.compl hsym
+      simpa only [Function.update_of_ne hit, Function.update_of_ne (hne_s hiP)] using
+        hcut_other i hiP hir (hne_s hiP) hit
     · rintro i hi hir z hzi
       rcases Finset.mem_insert.mp hi with rfl | hiP
       · rw [Function.update_of_ne hst, Function.update_self]
         rcases eq_or_ne z t with rfl | hzt
-        · rw [qt']
-          exact iff_of_true hct.left_mem ((hsS _ htP htr).mpr hct.left_mem)
+        · simp only [qt', hct.left_mem, (hsS t htP htr).mpr hct.left_mem]
         · exact hgen (S t) (hsS t htP htr) z hzi hzt (I.lam t htP htr z hzt)
       rcases eq_or_ne i t with rfl | hit
       · rw [Function.update_self]
         rcases eq_or_ne z s with rfl | hzs
-        · rw [qs', Finset.mem_compl, Finset.mem_compl]
-          exact iff_of_false (not_not.mpr U0.left_mem) (not_not.mpr (U2.mpr hswap))
-        · simp only [Finset.mem_compl]
-          exact not_congr (hgenU z hzs hzi)
+        · simp only [qs', Finset.mem_compl, U0.left_mem, U2.mpr hswap]
+        · simpa only [Finset.mem_compl] using not_congr (hgenU z hzs hzi)
       rw [Function.update_of_ne hit, Function.update_of_ne (hne_s hiP)]
       rcases eq_or_ne z s with rfl | hzs
-      · rw [qs', hsS i hiP hir]
-        exact I.lam i hiP hir t hit.symm
+      · simpa only [qs', hsS i hiP hir] using I.lam i hiP hir t hit.symm
       rcases eq_or_ne z t with rfl | hzt
       · rw [qt', hsS i hiP hir]
       exact hgen (S i) (hsS i hiP hir) z hzs hzt (I.lam i hiP hir z hzi)
     · rintro i hi hir
       rcases Finset.mem_insert.mp hi with rfl | hiP
-      · rw [Function.update_of_ne hst, Function.update_self, gusfieldStepWeight, ht,
-          ite_eq_left hswap, ite_eq_left rfl]
-        exact I.weight t htP htr
+      · simp only [Function.update_of_ne hst, Function.update_self, gusfieldStepWeight, ht,
+          hswap, ↓reduceIte, I.weight t htP htr]
       rcases eq_or_ne i t with rfl | hit
-      · rw [Function.update_self, gusfieldStepWeight, ht, ite_eq_left hswap,
-          ite_eq_right hst.symm, ite_eq_left rfl, hval, ← hfUX, hsym U]
-      rw [Function.update_of_ne hit, Function.update_of_ne (hne_s hiP), gusfieldStepWeight, ht,
-        ite_eq_left hswap, ite_eq_right (hne_s hiP), ite_eq_right hit]
-      exact I.weight i hiP hir
+      · simp only [Function.update_self, gusfieldStepWeight, ht, hswap, hst.symm, ↓reduceIte,
+          hval, ← hfUX, hsym U]
+      simp only [Function.update_of_ne hit, Function.update_of_ne (hne_s hiP), gusfieldStepWeight,
+        ht, hswap, hne_s hiP, hit, ↓reduceIte, I.weight i hiP hir]
     · refine reflTransGen_tAdj_of_step I.conn fun z => ?_
       rcases eq_or_ne z s with rfl | hzs
       · exact ht ▸ Relation.ReflTransGen.single (Or.inr qt')
@@ -664,8 +652,7 @@ private theorem gInv_step (hsym : ∀ X, f Xᶜ = f X) (hsub : IsSubmodular f) {
       rcases Finset.mem_insert.mp hi with rfl | hiP
       · rw [Function.update_self]
         rcases eq_or_ne z t with rfl | hzt
-        · rw [qt']
-          exact iff_of_false U0.right_notMem (fun h => hswap (U2.mp h))
+        · simp only [qt', U0.right_notMem, mt U2.mp hswap]
         · exact hgenU z hzi hzt
       rw [Function.update_of_ne (hne_s hiP)]
       rcases eq_or_ne z s with rfl | hzs
@@ -736,17 +723,9 @@ private theorem gInv_edgeSide_eq {r : V} {p : V → V} {S : V → Finset V} {w :
     (hadj : (parentGraph p).Adj u (p u)) : edgeSide (parentGraph p) u (p u) = S u := by
   have hc := I.cut u (Finset.mem_univ u) hur
   refine edgeSide_eq_of_forall_adj hT hadj hc.left_mem hc.right_notMem fun x y hxy hne => ?_
-  rcases (parentGraph_adj.mp hxy).2 with h | h
-  · by_cases hxu : x = u
-    · exact absurd (by rw [← h, hxu]) hne
-    by_cases hxr : x = r
-    · rw [← h, hxr, I.parent_root]
-    rw [← h]
-    exact I.lam u (Finset.mem_univ u) hur x hxu
-  · by_cases hyu : y = u
-    · exact absurd (by rw [← h, hyu, Sym2.eq_swap]) hne
-    rw [← h]
-    exact (I.lam u (Finset.mem_univ u) hur y hyu).symm
+  rcases (parentGraph_adj.mp hxy).2 with rfl | rfl
+  · exact I.lam u (Finset.mem_univ u) hur x fun h => hne (h ▸ rfl)
+  · exact (I.lam u (Finset.mem_univ u) hur y fun h => hne (h ▸ Sym2.eq_swap)).symm
 
 /-- **The final invariant yields a Gomory–Hu tree** whose parent edges carry the cuts `S u` and
 weights `w u = f (edgeSide (parentGraph p) u (p u))`. -/
@@ -783,15 +762,13 @@ private theorem gInv_isGomoryHuTree (hsym : ∀ X, f Xᶜ = f X) {r : V} {p : V 
       · exact ⟨(hne i (Finset.mem_erase.mp hi).1).symm, Or.inl rfl⟩
       · exact ⟨hne i (Finset.mem_erase.mp hi).1, Or.inr rfl⟩
   have hinj : Set.InjOn (fun i => s(i, p i)) ↑(Finset.univ.erase r) := by
-    intro i hi j hj hij
+    intro i hi j _ hij
     replace hi := (Finset.mem_erase.mp (Finset.mem_coe.mp hi)).1
-    rcases Sym2.eq_iff.mp hij with ⟨h, -⟩ | ⟨h1, h2⟩
+    rcases Sym2.eq_iff.mp hij with ⟨h, -⟩ | ⟨h1, rfl⟩
     · exact h
     · have hc := I.cut i (Finset.mem_univ i) hi
-      have hji : j ≠ i := fun h => hne i hi (h2.trans h)
-      have hl := I.lam i (Finset.mem_univ i) hi j hji
-      rw [← h1, ← h2] at hl
-      exact absurd (hl.mpr hc.left_mem) hc.right_notMem
+      exact absurd ((I.lam i (Finset.mem_univ i) hi (p i) (hne i hi)).mpr (h1 ▸ hc.left_mem))
+        hc.right_notMem
   have htree : (parentGraph p).IsTree := by
     rw [SimpleGraph.isTree_iff_connected_and_card]
     refine ⟨hconn, ?_⟩
