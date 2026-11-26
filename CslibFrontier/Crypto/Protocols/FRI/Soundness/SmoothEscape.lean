@@ -66,9 +66,8 @@ private theorem friSmoothTargetWord_append (params : FRISmoothParams F)
   cases i with
   | zero => rfl
   | succ k =>
-    have hk : k < pref.length := Nat.lt_of_succ_le hlen
-    simp only [friSmoothTargetWord, prefOracle_append_left pref extra hk,
-      prefFoldScalar_append_left pref extra hk]
+    simp only [friSmoothTargetWord, prefOracle_append_left pref extra (Nat.lt_of_succ_le hlen),
+      prefFoldScalar_append_left pref extra (Nat.lt_of_succ_le hlen)]
 
 private theorem friSmoothPreWeight_append [DecidableEq F] (params : FRISmoothParams F)
     (stmt : OracleTable params.d F)
@@ -224,9 +223,7 @@ theorem friSmoothIOP_rbrSound [DecidableEq F] (params : FRISmoothParams F) (e : 
       friCumLog_zero, Nat.sub_zero, Fin.eta, Finset.sum_const, smul_eq_mul, mul_one]
     intro c hc
     have he_lt : e < hammingDist stmt c := Nat.lt_of_not_ge fun h => hnot ⟨c, hc, h⟩
-    have hpart : (Finset.univ.filter fun j => stmt j = c j).card + hammingDist stmt c =
-        2 ^ params.d := by
-      simpa only [Fintype.card_fin] using card_filter_eq_add_hammingDist stmt c
+    have hpart := Fintype.card_fin (2 ^ params.d) ▸ card_filter_eq_add_hammingDist stmt c
     change (Finset.univ.filter fun j => stmt j = c j).card ≤ 2 ^ params.d - e - 1
     omega
   step_doomed stmt pref π c _ hgood := by
@@ -274,10 +271,9 @@ theorem card_filter_friSmoothFinalPasses_le_of_friSmoothDoomed [DecidableEq F]
     (hdoomed : friSmoothDoomed params B stmt pref) :
     (Finset.univ.filter fun s => friSmoothFinalPasses params stmt pref π s).card ≤ B := by
   simp only [friSmoothDoomed, hlen.le, ↓reduceDIte] at hdoomed
-  have hcommit := (friSmoothCommitDoomed_congr_round params B stmt pref hlen hlen.le le_rfl).mp
-    hdoomed
   exact (card_filter_friSmoothFinalPasses_le params stmt pref hlen π).trans
-    (hcommit (friSmoothFinalCodeword params π) (friSmoothFinalCodeword_mem_rsCode params π))
+    (((friSmoothCommitDoomed_congr_round params B stmt pref hlen hlen.le le_rfl).mp hdoomed)
+      (friSmoothFinalCodeword params π) (friSmoothFinalCodeword_mem_rsCode params π))
 
 /-- **Unconditional smooth query-round escape bound**: when `pref.length = m` and `pref` is doomed
 at threshold `B`, the probability over a uniform `FRIChal` that all `q` query repetitions pass is
@@ -386,11 +382,10 @@ theorem friSmoothCommitRound_escape_le_of_weightedCurveEscapePerRound [Fintype F
         B < ∑ j ∈ Finset.univ.filter
           (fun j => (∑ r : Fin (params.arity ir), z ^ r.val • u r) j = v j), W_next j} := by
     ext c
-    have hlen' : (pref ++ [(π, c)]).length = pref.length + 1 := by simp
-    have hle' : (pref ++ [(π, c)]).length ≤ params.m := by omega
+    have hle' : (pref ++ [(π, c)]).length ≤ params.m := by simp [Nat.succ_le_of_lt hpm]
     simp only [Set.mem_ofPred_eq, Set.mem_preimage, friSmoothGoodStep, hpm.le, ↓reduceIte,
       friSmoothDoomed, hle', ↓reduceDIte]
-    rw [friSmoothCommitDoomed_congr_round params B stmt (pref ++ [(π, c)]) hlen' hle' hpm]
+    rw [friSmoothCommitDoomed_congr_round params B stmt (pref ++ [(π, c)]) (by simp) hle' hpm]
     simp only [friSmoothCommitDoomed, friSmoothTargetWord_append_step params stmt pref hpm π c,
       friSmoothPreWeight_append_step params stmt pref hpm π c, foldWord_eq_sum_smul, not_forall,
       not_le, exists_prop, W_next, u, ir]

@@ -138,8 +138,7 @@ theorem matrix_fiber_correlation_le {n count initial rest : ℕ} {Image : Type*}
   let append := Fin.appendEquiv (α := Bool) initial rest
   let hash (rows : Fin count → BitString n) x :=
     append.symm (LinearHash.hash (rows ∘ Fin.castLE hlen) x)
-  have hsource : ∀ x ∈ source.support, f x = image := by
-    rintro x hx
+  have hsource : ∀ x ∈ source.support, f x = image := fun _ hx => by
     obtain ⟨preimage, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
     exact preimage.property
   have h := correlation_le_guessInverter f image source hsource
@@ -163,9 +162,8 @@ theorem matrix_fiber_correlation_le {n count initial rest : ℕ} {Image : Type*}
       linarith only [hdist]
   simp only [source, sum_map_mul, hash, Equiv.apply_symm_apply,
     guessInverter_equiv f predictor seed precision image append, Fintype.card_fun,
-    Fintype.card_bool, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat] at h
+    Fintype.card_bool, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat, ← pow_succ'] at h
   dsimp only [seed] at h hprefix
-  rw [pow_succ']
   linarith only [h, hprefix]
 
 open Classical in
@@ -218,11 +216,10 @@ theorem matrix_fiber_mean_correlation_le {n count : ℕ} [NeZero count] {Image :
     (((guessInverter f (predictor image i) (PMF.uniformOfFintype (Fin count → BitString n))
       precision image).map (fun x => f x == image)) true).toReal
   have hcutoff : cutoff ≤ count := by
-    have hlog := Nat.log_mono_right (b := 2) (show Nat.card {x // f x = image} ≤ 2 ^ n by
-      simpa only [Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
-        using Fintype.card_subtype_le (fun x => f x = image))
-    rw [Nat.log_pow Nat.one_lt_two] at hlog
-    dsimp [cutoff]; omega
+    have hcard : Nat.card {x // f x = image} ≤ 2 ^ n := by
+      simpa [Nat.card_eq_fintype_card] using Fintype.card_subtype_le fun x => f x = image
+    have hlog := (Nat.log_mono_right hcard).trans_eq (Nat.log_pow Nat.one_lt_two n)
+    omega
   have hpoint (i : Fin count) :
       (∑ rows, (PMF.uniformOfFintype (Fin count → BitString n) rows).toReal *
         ∑ x : {x // f x = image}, (PMF.uniformOfFintype {x // f x = image} x).toReal *
@@ -317,8 +314,7 @@ theorem matrixPrediction_correlation_le {n count : ℕ} [NeZero count] {Image : 
     have ha (value : ℝ) : 2 * value - 1 = -1 + 2 * value := by ring
     simp only [correlation, ha, sum_affine, agreement_eq_probability,
       matrixPrediction, monad_bind_eq_bind, bind_apply_toReal, source]
-  rw [hprediction] at havg
-  apply havg.trans_eq
+  refine (hprediction ▸ havg).trans_eq ?_
   simp only [mul_add, mul_sub, mul_one, ← mul_div_assoc, Finset.sum_add_distrib,
     Finset.sum_sub_distrib, ← Finset.sum_div, ← Finset.sum_mul, sum_toReal, one_mul,
     mul_left_comm _ (128 * (dyadicSize (16 * count) : ℝ) ^ 2), ← Finset.mul_sum,
@@ -358,10 +354,10 @@ theorem matrixPrediction_entropy_le_of_coins {n count : ℕ} [NeZero count] {Ima
   have h := Finset.sum_le_sum (s := Finset.univ) (fun seed _ =>
     mul_le_mul_of_nonneg_left (matrixPrediction_entropy_le f hcount (predictor seed) precision hp)
       (ENNReal.toReal_nonneg (a := coins seed)))
-  simp only [mul_add, mul_sub, mul_one, Finset.sum_add_distrib, Finset.sum_sub_distrib,
+  simpa only [mul_add, mul_sub, mul_one, Finset.sum_add_distrib, Finset.sum_sub_distrib,
     mul_left_comm _ (2 : ℝ), mul_left_comm _ (128 * (dyadicSize (16 * count) : ℝ) ^ 2),
-    ← Finset.mul_sum, ← Finset.sum_mul, sum_toReal, one_mul] at h
-  simpa only [inversionExperiment_bind, bind_apply_toReal] using h
+    ← Finset.mul_sum, ← Finset.sum_mul, sum_toReal, one_mul, inversionExperiment_bind,
+    bind_apply_toReal] using h
 
 /-- Beating the entropy threshold by `1 / count` yields inverse-polynomial inversion success.
 Since `dyadicSize (16 * count) ≤ 32 * count + 2`, the denominator is cubic in the hash range. -/
@@ -374,11 +370,10 @@ theorem matrixInverter_success_ge {n count : ℕ} [NeZero count] {Image : Type*}
       (inversionExperiment (PMF.uniformOfFintype _) f
         (matrixInverter f predictor precision) true).toReal := by
   have h := matrixPrediction_entropy_le f hcount predictor precision hp
-  have hscale : (0 : ℝ) < dyadicSize (16 * count) := by
-    exact_mod_cast dyadicSize_pos (16 * count)
-  rw [show (1 : ℝ) / (128 * count * (dyadicSize (16 * count) : ℝ) ^ 2) =
-    (1 / (count : ℝ)) / (128 * (dyadicSize (16 * count) : ℝ) ^ 2) by ring,
-    div_le_iff₀' (by positivity)]
+  have hscale : (0 : ℝ) < dyadicSize (16 * count) := Nat.cast_pos.mpr (dyadicSize_pos _)
+  have hdiv : (1 : ℝ) / (128 * count * (dyadicSize (16 * count) : ℝ) ^ 2) =
+      1 / count / (128 * (dyadicSize (16 * count) : ℝ) ^ 2) := by ring
+  rw [hdiv, div_le_iff₀' (by positivity)]
   have htwo : (2 : ℝ) / count = 2 * (1 / count) := by ring
   linarith only [h, hprediction, htwo]
 

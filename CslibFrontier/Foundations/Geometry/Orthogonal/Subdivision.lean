@@ -134,9 +134,8 @@ theorem wireLength_walk (a d : Point) (k : ℕ) (hd : UnitVector d) :
   induction k generalizing a with
   | zero => simp [walk, wireLength, List.consecutivePairs]
   | succ k ih =>
-    simp only [wireLength, consecutivePairs_walk, List.map_cons, List.sum_cons]
-    rw [length_add_unit a d hd, ← wireLength, ih]
-    omega
+    rw [wireLength, consecutivePairs_walk, List.map_cons, List.sum_cons, length_add_unit a d hd,
+      ← wireLength, ih, Nat.add_comm]
 
 /-- Cardinal direction from `a` toward `b`; equal points use an arbitrary unit direction. -/
 def direction (a b : Point) : Point :=
@@ -251,10 +250,9 @@ theorem subdivide_length (r : Route) :
   fun_induction subdivide r with
   | case1 | case2 => rfl
   | case3 a b r ih =>
-    have hwire : wireLength (a :: b :: r) = length a b + wireLength (b :: r) := rfl
     simp only [List.length_append, List.length_tail, segmentWalk_length,
       List.cons_ne_nil, ↓reduceIte] at ih ⊢
-    rw [hwire]
+    change _ = length a b + wireLength (b :: r) + 1
     omega
 
 /-- Subdivision preserves the final endpoint of an orthogonal route. -/
@@ -297,9 +295,8 @@ theorem wireLength_subdivide {r : Route} (hr : IsOrthogonal r) :
   | case1 | case2 => rfl
   | case3 a b r ih =>
     have hab := (hr (a, b) (by simp [List.consecutivePairs])).1
-    rw [wireLength_join (segmentWalk_last hab) (subdivide_head (b :: r)),
-      wireLength_segmentWalk, ih hr.of_cons]
-    rfl
+    exact (wireLength_join (segmentWalk_last hab) (subdivide_head (b :: r))).trans
+      (congrArg₂ _ (wireLength_segmentWalk a b) (ih hr.of_cons))
 
 /-- Unit subdivision is itself a proper orthogonal route. -/
 theorem subdivide_orthogonal {r : Route} (hr : IsOrthogonal r) : IsOrthogonal (subdivide r) :=
@@ -385,10 +382,8 @@ theorem walk_nodup (a d : Point) (k : ℕ) (hd : UnitVector d) : (walk a d k).No
   rw [walk_eq_map_range]
   refine List.Nodup.map (l := List.range (k + 1)) (fun i j hij => ?_) List.nodup_range
   rcases hd with rfl | rfl | rfl | rfl <;>
-    (have hx := congrArg Prod.fst hij
-     have hy := congrArg Prod.snd hij
-     simp only [Prod.smul_mk, Int.nsmul_eq_mul, mul_one, nsmul_zero, Prod.fst_add,
-       Prod.snd_add, add_zero, mul_neg_one, add_right_inj, Nat.cast_inj, neg_inj] at hx hy
+    (simp only [Prod.smul_mk, Int.nsmul_eq_mul, mul_one, nsmul_zero, mul_neg_one,
+       Prod.mk.injEq, add_right_inj, Nat.cast_inj, neg_inj] at hij
      omega)
 
 /-- The unit walk along one segment has no repeated listed point. -/

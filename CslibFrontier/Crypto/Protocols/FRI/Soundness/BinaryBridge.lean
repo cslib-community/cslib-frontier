@@ -92,8 +92,7 @@ private theorem friTargetWord_apply_eq_smooth (params : FRIParams F)
       (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))⟩
     have hdom := params.toSmooth_domainSize hi
     have hfin : toSmoothDomEquiv params hi j = friSmoothFoldedFin params.toSmooth ⟨k, hkm⟩ s :=
-      Fin.ext (Nat.mod_eq_of_lt
-        (show s.val < params.toSmooth.domainSize (k + 1) by simpa only [hdom] using j.isLt)).symm
+      Fin.ext (Nat.mod_eq_of_lt (toSmoothDomEquiv params hi j).isLt).symm
     simp only [friTargetWord, friSmoothTargetWord, foldWord_apply_eq_foldFiber]
     rw [hfin, foldFiber_toSmooth_eq_fold2Fiber params ⟨k, hkm⟩ _ s (prefFoldScalar pref k)]
     change fold2Fiber _ _ _ _ = fold2Fiber _ _ _ _
@@ -263,9 +262,7 @@ theorem friGoodStep_iff_friSmoothGoodStep [DecidableEq F] (params : FRIParams F)
     (π : OracleTable params.d F) (c : FRIChal F params.d params.q) :
     friGoodStep params B stmt pref π c ↔ friSmoothGoodStep params.toSmooth B stmt pref π c := by
   unfold friGoodStep friSmoothGoodStep
-  split_ifs
-  · exact friDoomed_iff_friSmoothDoomed params B stmt (pref ++ [(π, c)])
-  · exact Iff.rfl
+  split_ifs <;> simp [friDoomed_iff_friSmoothDoomed]
 
 
 /-- Exact equality between binary `friCommitGame` and smooth `friSmoothCommitGame` at
@@ -284,11 +281,10 @@ theorem friCommitGame_eq_friSmoothCommitGame [Fintype F] (params : FRIParams F) 
 private theorem forall_fin_toSmooth_arity_iff (params : FRIParams F) (i : Fin params.m)
     (P : Fin (params.toSmooth.arity i) → Prop) :
     (∀ r : Fin (params.toSmooth.arity i), P r) ↔ P ⟨0, by simp⟩ ∧ P ⟨1, by simp⟩ :=
-  ⟨fun h => ⟨h _, h _⟩, fun ⟨h0, h1⟩ r => by
-    have : r.val < 2 := by simpa only [params.toSmooth_arity i] using r.isLt
-    rcases (by omega : r.val = 0 ∨ r.val = 1) with hr | hr
-    · exact (Fin.ext hr : r = ⟨0, by simp⟩) ▸ h0
-    · exact (Fin.ext hr : r = ⟨1, by simp⟩) ▸ h1⟩
+  ⟨fun h => ⟨h _, h _⟩, fun ⟨h0, h1⟩ ⟨r, hr⟩ => by
+    have : r < 2 := params.toSmooth_arity i ▸ hr
+    rcases (by omega : r = 0 ∨ r = 1) with rfl | rfl
+    exacts [h0, h1]⟩
 
 private theorem curveSum_toSmooth_eq_line {α : Type*} (params : FRIParams F) (i : Fin params.m)
     (u : Fin (params.toSmooth.arity i) → α → F) (z : F) :
@@ -463,9 +459,8 @@ theorem friTargetWord_append (params : FRIParams F) (stmt : OracleTable params.d
   cases i with
   | zero => rfl
   | succ k =>
-    have hk : k < pref.length := Nat.lt_of_succ_le hlen
-    simp only [friTargetWord, prefOracle_append_left pref extra hk,
-      prefFoldScalar_append_left pref extra hk]
+    simp only [friTargetWord, prefOracle_append_left pref extra (Nat.lt_of_succ_le hlen),
+      prefFoldScalar_append_left pref extra (Nat.lt_of_succ_le hlen)]
 
 /-- Appending suffix rounds `extra` does not change `friPreWeight` at round `i ≤ pref.length`. -/
 theorem friPreWeight_append [DecidableEq F] (params : FRIParams F)
@@ -675,10 +670,9 @@ theorem weightedLineGapPerRound_of_uniqueLineGap [DecidableEq F]
     (hgap : UniqueLineGapHypothesis params e) :
     WeightedLineGapPerRound params (2 ^ params.d - e - 1)
       (fun i => 2 ^ (params.d - (i.val + 1))) := by
-  have huniq' : 2 * e + params.toSmooth.dim 0 ≤ 2 ^ params.toSmooth.d := by
-    simpa only [params.toSmooth_dim (Nat.zero_le params.m)] using huniq
   rw [weightedLineGapPerRound_iff_weightedCurveGapPerRound]
-  refine (weightedCurveGapPerRound_of_uniqueCurveGap params.toSmooth huniq'
+  refine (weightedCurveGapPerRound_of_uniqueCurveGap params.toSmooth
+    (params.toSmooth_dim (Nat.zero_le params.m) ▸ huniq)
     (uniqueLineGapHypothesis_to_smooth params hgap)).mono fun i => ?_
   simp [FRISmoothParams.arity, params.toSmooth_domainSize i.isLt]
 

@@ -232,16 +232,12 @@ theorem runTrials_succ (spec : BlockRejectionSpec α) (t : ℕ) :
         | some a => PMF.pure (some a)
         | none => spec.runTrials t := by
   unfold runTrials singleLaw
-  rw [show (t + 1) * spec.width = spec.width + t * spec.width by rw [Nat.succ_mul, Nat.add_comm]]
-  refine (BitString.uniformList_bind_split spec.width (t * spec.width)
-    (fun front rest => PMF.pure (match spec.attempt front with
+  rw [Nat.succ_mul, Nat.add_comm (t * spec.width), PMF.bind_map]
+  refine (BitString.uniformList_bind_split spec.width (t * spec.width) fun front rest =>
+    PMF.pure (match spec.attempt front with
       | some a => some a
-      | none => spec.decodeTrials t rest))).trans ?_
-  rw [PMF.bind_map]
-  congr 1
-  funext front
-  dsimp only [Function.comp_apply]
-  cases spec.attempt front <;> simp [PMF.bind_const, PMF.map, Function.comp_def]
+      | none => spec.decodeTrials t rest)).trans (congrArg _ (funext fun front => ?_))
+  cases h : spec.attempt front <;> simp [h, PMF.bind_const, PMF.map, Function.comp_def]
 
 /-- Failure probability after `t` trials is `rejectProb ^ t`. -/
 theorem runTrials_none (spec : BlockRejectionSpec α) (t : ℕ) :
@@ -367,10 +363,9 @@ theorem run_toDDGTree (spec : BlockRejectionSpec α) (n : ℕ) :
     spec.toDDGTree.run n = spec.runTrials (n / spec.width) := by
   unfold DDGTree.run runTrials
   rw [← BitString.uniformList_take (Nat.div_mul_le_self n spec.width), PMF.map_comp]
-  apply PMF.map_congr_on_support
-  intro w hw
-  dsimp only [toDDGTree, Function.comp_apply]
-  rw [BitString.length_of_mem_support_uniformList hw, decodeTrials_take]
+  refine PMF.map_congr_on_support _ _ _ fun w hw => ?_
+  simp only [toDDGTree, Function.comp_apply, BitString.length_of_mem_support_uniformList hw,
+    decodeTrials_take]
 
 /-- If `0 < width`, `acceptProb ≠ 0`, and accepted trials follow `target`, `toDDGTree` generates
 `target` exactly. -/
@@ -406,9 +401,7 @@ theorem expectedFlips_toDDGTree (spec : BlockRejectionSpec α) (hw : 0 < spec.wi
   have hdiv (p : ℕ × Fin spec.width) : (Nat.divModEquiv spec.width).symm p / spec.width = p.1 := by
     rw [Nat.divModEquiv_symm_apply, Nat.mul_comm, Nat.mul_add_div hw, Nat.div_eq_of_lt p.2.isLt,
       Nat.add_zero]
-  simp_rw [hdiv]
-  rw [tsum_prod']
-  simp_rw [tsum_fintype]
+  simp_rw [hdiv, tsum_prod', tsum_fintype]
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
   rw [ENNReal.tsum_mul_left, ENNReal.tsum_geometric, ← one_sub_rejectProb, div_eq_mul_inv]
 
@@ -593,11 +586,10 @@ theorem singleLaw_dyadicFinRejectionSpec_some (n : ℕ) [NeZero n] (i : Fin n) :
   singleLaw_finCutoffSpec_eq_mul (lt_dyadicSize n).le i
 
 theorem dyadicFinRejectionSpec_generates (n : ℕ) [NeZero n] :
-    (dyadicFinRejectionSpec n).toDDGTree.Generates (PMF.uniformOfFintype (Fin n)) := by
-  have hacc : (dyadicFinRejectionSpec n).acceptProb ≠ 0 := by
-    rw [dyadicFinRejectionSpec, acceptProb_finCutoffSpec (lt_dyadicSize n).le]
-    exact ENNReal.div_ne_zero.mpr ⟨Nat.cast_ne_zero.mpr (NeZero.ne n), ENNReal.natCast_ne_top _⟩
-  exact BlockRejectionSpec.toDDGTree_generates (Nat.succ_pos (Nat.log 2 n)) hacc
+    (dyadicFinRejectionSpec n).toDDGTree.Generates (PMF.uniformOfFintype (Fin n)) :=
+  BlockRejectionSpec.toDDGTree_generates (Nat.succ_pos (Nat.log 2 n))
+    ((acceptProb_finCutoffSpec (lt_dyadicSize n).le).symm ▸ ENNReal.div_ne_zero.mpr
+      ⟨Nat.cast_ne_zero.mpr (NeZero.ne n), ENNReal.natCast_ne_top _⟩)
     (singleLaw_dyadicFinRejectionSpec_some n)
 
 theorem runTrials_dyadicFinRejectionSpec_none_le (n : ℕ) [NeZero n] (t : ℕ) :

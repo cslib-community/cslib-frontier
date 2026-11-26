@@ -208,10 +208,9 @@ private theorem isPPTOn_lorToSingleAt_choose {Msg : Type} {encMsg : Msg ↪ List
     fun r choice => ((ChoiceOut.msg₀ choice, ChoiceOut.msg₁ choice),
       encLoRToSingleState ⟨true, r.1.1.1.2, r.1.1.2, ChoiceOut.state choice, r.2.2⟩)
   have hpost : ComputableInPolyTime (fun s : _ × ChoiceOut Msg => fPost s.1 s.2)
-      E3 (encPair (encPair encMsg encMsg) encBits) :=
-    ComputableInPolyTime.prod (by
-      dsimp only [E3, encChoiceOut]
-      fun_prop) hrec.encoding_comp
+      E3 (encPair (encPair encMsg encMsg) encBits) := by
+    dsimp only [E3, encChoiceOut]
+    exact ComputableInPolyTime.prod (by fun_prop) hrec.encoding_comp
   have hyes : IsPPTOn EIn (encPair (encPair encMsg encMsg) encBits)
       (fun p : (ℕ × List Bool) × ℕ => do
         let st₀ ← adversary.start p.1.1 p.1.2
@@ -219,11 +218,9 @@ private theorem isPPTOn_lorToSingleAt_choose {Msg : Type} {encMsg : Msg ↪ List
         let choice ← adversary.query p.1.1 mid.1 mid.2
         return fPost ((p, st₀), mid) choice) :=
     hstart.bind_with (hrun.bind_with (by simpa only [bind_pure_comp] using hquery.map_with hpost))
-  have hno : IsPPTOn EIn (encPair (encPair encMsg encMsg) encBits)
-      (fun _ => let m := dummyMsg adversary; return ((m, m), rejectLoRToSingleState)) :=
+  exact IsPPTOn.cond hcond hyes
     (ComputableInPolyTime.const ((dummyMsg adversary, dummyMsg adversary),
       rejectLoRToSingleState)).isPPTOn
-  exact IsPPTOn.cond hcond hyes hno
 
 /-- `lorToSingleAt` is uniformly strict PPT in `AdversaryOf.IsPPT encMsg`: `hvalid`, `hencrypt`,
 `hctBound`/`hctLen`, and `hQ` certify the prefix/suffix simulation (`valid`, `encrypt`, bounded
@@ -260,13 +257,11 @@ theorem isPPT_lorToSingleAt {Msg : Type} {encMsg : Msg ↪ List Bool}
         (ComputableInPolyTime.const false)
         (by
           have := encLoRToSingleState_split_polyTime hdecoded
-          dsimp only [encGuessInput]
-          fun_prop)
+          dsimp only [encGuessInput]; fun_prop)
         (by
           have := encLoRToSingleState_stateA_polyTime hdecoded
           have := encLoRToSingleState_transcript_polyTime hdecoded
-          dsimp only [encGuessInput, encLoRLoopState]
-          fun_prop)
+          dsimp only [encGuessInput, encLoRLoopState]; fun_prop)
     have harg : ComputableInPolyTime
         (fun q : (ℕ × List Bool × List Bool) × (List Bool × List (List Bool)) => (q.1.1, q.2))
         (encPair encGuessInput encLoRLoopState) encLoRStageInput := by
@@ -496,9 +491,8 @@ private theorem advantage_lorGameOn_eq_mixture {Msg : Type}
       (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary split) false n))
     (game2 := fun split => ProbComp.eval
       (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary split) true n))
-    (Q n) capacity hle 1
-    (fun split _ => by
-      rw [one_mul]; exact lorHybridGameOn_step_gap valid keyGen encrypt Q adversary split n)
+    (Q n) capacity hle 1 fun split _ => by
+      simpa only [one_mul] using lorHybridGameOn_step_gap valid keyGen encrypt Q adversary split n
   rw [eval_lorHybridGameOn_zero, eval_lorHybridGameOn_of_le valid keyGen encrypt Q adversary le_rfl,
     mul_one] at hred
   apply NNReal.eq

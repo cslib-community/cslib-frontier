@@ -188,8 +188,7 @@ theorem eval_runWithServer (x : ι → β) (s₀ : S) (malAns : Q → A) (i : ι
 output distribution as the honest execution `P.run x i`. -/
 @[simp] theorem eval_runWithServer_answer (x : ι → β) (s₀ : S) (i : ι) :
     ProbComp.eval (P.runWithServer x s₀ (P.answer s₀ x) i) = ProbComp.eval (P.run x i) := by
-  rw [eval_runWithServer, eval_run]
-  simp only [Function.update_eq_self]
+  simp only [eval_runWithServer, eval_run, Function.update_eq_self]
 
 /-- Protocol-agnostic `SelectiveFailure.Model` instantiated for single-server active deviations in
 `P` on a fixed database `x : ι → β`:
@@ -373,9 +372,7 @@ theorem not_isSelectiveFailureFree_rows [Nonempty S] [Nonempty ι] [Nontrivial �
     (hcorrect : P.IsCorrect) (hxor : P.HasXorReconstruct) :
     ¬ (P.rows ρ).IsSelectiveFailureFree := by
   classical
-  obtain ⟨s₀⟩ := ‹Nonempty S›
-  obtain ⟨i₀⟩ := ‹Nonempty ι›
-  obtain ⟨j₀, j₁, hj⟩ := exists_pair_ne ρ
+  rcases ‹Nonempty S›, ‹Nonempty ι›, exists_pair_ne ρ with ⟨⟨s₀⟩, ⟨i₀⟩, j₀, j₁, hj⟩
   exact (isDeterministicAttack_rows hcorrect hxor (fun _ => false) s₀ j₀).not_isSelectiveFailureFree
     (i₀ := (j₀, i₀)) (i₁ := (j₁, i₀)) (by simp [hj.symm])
 
@@ -422,12 +419,9 @@ theorem not_isSelectiveFailureFree_toBlock_toBitScheme [Nonempty S] [Nonempty ι
     (hcorrect : P.IsCorrect) (hxor : P.HasXorReconstruct) :
     ¬ (P.toBlock κ).toBitScheme.IsSelectiveFailureFree := by
   classical
-  obtain ⟨s₀⟩ := ‹Nonempty S›
-  obtain ⟨i₀⟩ := ‹Nonempty ι›
-  obtain ⟨b₀, b₁, hb⟩ := exists_pair_ne κ
-  exact (isDeterministicAttack_toBlock_toBitScheme hcorrect hxor
-    (fun _ => false) s₀ b₀).not_isSelectiveFailureFree
-    (i₀ := (i₀, b₀)) (i₁ := (i₀, b₁)) (by simp [hb.symm])
+  rcases ‹Nonempty S›, ‹Nonempty ι›, exists_pair_ne κ with ⟨⟨s₀⟩, ⟨i₀⟩, b₀, b₁, hb⟩
+  exact (isDeterministicAttack_toBlock_toBitScheme hcorrect hxor (fun _ => false) s₀
+    b₀).not_isSelectiveFailureFree (i₀ := (i₀, b₀)) (i₁ := (i₀, b₁)) (by simp [hb.symm])
 
 end RowsAndBlockAttack
 
@@ -692,13 +686,11 @@ selective failure attacks** on any nontrivial index type `[Nontrivial ι]`. -/
 theorem not_isSelectiveFailureFree [Nontrivial ι] (ht : 0 < params.threshold) :
     ¬ P.IsSelectiveFailureFree := by
   classical
-  have hcard : 0 < Fintype.card S := lt_trans ht params.threshold_lt_card
-  obtain ⟨s₀⟩ := Fintype.card_pos_iff.mp hcard
+  obtain ⟨s₀⟩ := Fintype.card_pos_iff.mp (lt_trans ht params.threshold_lt_card)
   obtain ⟨i₀, i₁, hi⟩ := exists_pair_ne ι
   obtain ⟨Δ, hΔ0, hΔ1⟩ := exists_ne_zero_ne_one params ht
-  let x : ι → Bool := fun i => decide (i = i₀)
-  exact (hP.isDeterministicAttack x s₀ hΔ0 hΔ1).not_isSelectiveFailureFree
-    (i₀ := i₀) (i₁ := i₁) (by simp [x, hi.symm])
+  exact (hP.isDeterministicAttack (fun i => decide (i = i₀)) s₀ hΔ0
+    hΔ1).not_isSelectiveFailureFree (i₀ := i₀) (i₁ := i₁) (by simp [hi.symm])
 
 end HasLagrangeReconstruct
 

@@ -386,10 +386,9 @@ private theorem isPPT_mlweWordReduction [∀ κ, NeZero (P κ).q] {r : ℕ → �
         (z.1.1.1, z.1.2.2, z.2))
       (encPair F encBits) _ by fun_prop)
     exact IsPPTOn.cond hvalid (hctF.bind_with hguess) (ComputableInPolyTime.const false).isPPTOn
-  have h := hW.preprocess (ComputableInPolyTime.of_eq fun _ => rfl :
-    ComputableInPolyTime ModuleLWE.Input.words
-      (ModuleLWE.encInput r (fun κ => (P κ).k) (fun κ => (P κ).n) (fun κ => (P κ).q)) E)
-  exact h.congr fun x => (heval x.secParam x.matrix x.target).symm
+  exact (hW.preprocess (prepare := ModuleLWE.Input.words)
+    (ComputableInPolyTime.of_eq fun _ => rfl)).congr
+    fun x => (heval x.secParam x.matrix x.target).symm
 
 /-- **The public-key hop is uniform strict PPT** when the parameters are computable in polynomial
 time and `A` is uniform strict PPT. -/
@@ -472,9 +471,8 @@ omit [∀ κ, NeZero (P κ).q] in
 private theorem eval_gameOn_eq (A : Encryption.WordAdversary) (b : Bool) (κ : ℕ) :
     ProbComp.eval
       (Encryption.gameOn (kpke P).IsMessagePair (kpke P).keyGen (kpke P).encrypt A b κ) =
-      ((ProbComp.eval ((kpke P).keyGen κ)).map Prod.fst).bind (afterKey P A b κ) := by
-  rw [Encryption.eval_gameOn]
-  rfl
+      ((ProbComp.eval ((kpke P).keyGen κ)).map Prod.fst).bind (afterKey P A b κ) :=
+  Encryption.eval_gameOn ..
 
 private theorem eval_cpaExperiment_eq (A : Encryption.WordAdversary) (b : Bool) (κ : ℕ) :
     ProbComp.eval ((toExplicitCoinPKE (P κ)).toPKE.cpaExperiment (fun _ _ _ => true)
@@ -490,12 +488,9 @@ private theorem eval_cpaExperiment_eq (A : Encryption.WordAdversary) (b : Bool) 
     Encryption.ChoiceOut.msgs, Encryption.ChoiceOut.state, select_getD]
   by_cases hv : (kpke P).IsMessagePair κ (encodePublicKey keys.1) choice.1.1 choice.1.2 = true
   · simp only [hv, ite_true]
-    rw [show (kpke P).encrypt κ (encodePublicKey keys.1) (if b then choice.1.2 else choice.1.1) =
-      (BitString.sampleList (coinLength (P κ)) >>= fun coins =>
-        pure (encDetWord (P κ) (encodePublicKey keys.1) (if b then choice.1.2 else choice.1.1)
-          coins)) from rfl,
-      eval_encDetWord_sampleList (P κ) keys.1 (if b then choice.1.2 else choice.1.1)]
-    simp only [ExplicitCoinPKE.toPKE, ExplicitCoinPKE.encrypt, toExplicitCoinPKE, pmf_norm]
+    simp only [WordPKE.encrypt, kpke,
+      eval_encDetWord_sampleList (P κ) keys.1 (if b then choice.1.2 else choice.1.1),
+      ExplicitCoinPKE.toPKE, ExplicitCoinPKE.encrypt, toExplicitCoinPKE, pmf_norm]
   · simp only [hv, Bool.false_eq_true, ite_false, PMF.bind_const, ProbComp.eval_pure]
 
 /-- **The word game is the two-stage experiment up to the matrix sampler.** At each `κ` and

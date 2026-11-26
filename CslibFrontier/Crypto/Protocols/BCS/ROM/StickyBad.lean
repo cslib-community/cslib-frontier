@@ -171,8 +171,8 @@ private theorem bad_fs_step_cases {r d : ℕ} {Stmt Sym Chal : Type} {S : Set St
       ((x, rts.take (j + 1), chals.take j), chals[j]'(hlen ▸ hj)) ∈ tr_FS :=
     (List.mem_cons.mp (hsteps j hj)).resolve_left fun hsame => by
       have hlen_eq := congrArg (fun e : BCSFSQuery Stmt Chal × Chal => e.1.2.1.length) hsame
-      rw [show _ = j + 1 from List.length_take_of_le (Nat.succ_le_of_lt hj), hrts₀_len] at hlen_eq
-      exact hne (by omega)
+      simp only [List.length_take_of_le (Nat.succ_le_of_lt hj), hrts₀_len] at hlen_eq
+      omega
   refine ⟨hx, ?_⟩
   by_cases hmore : i₀ + 1 < rts.length
   · right
@@ -181,25 +181,24 @@ private theorem bad_fs_step_cases {r d : ℕ} {Stmt Sym Chal : Type} {S : Set St
       i₀ < (chals.take (i₀ + 1)).length), hc_eq]
   · left
     have hlast : i₀ + 1 = rts.length := by omega
-    have hrts_eq : rts = rts₀ := by rw [← hrts₀_eq, hlast, List.take_length]
-    have hparent : ValidFSChain tr_FS x (rts₀.take i₀) prev₀ := by
-      subst hrts_eq hprev₀_eq
+    obtain rfl : rts = rts₀ := by rw [← hrts₀_eq, hlast, List.take_length]
+    have hparent : ValidFSChain tr_FS x (rts.take i₀) prev₀ := by
+      subst hprev₀_eq
       refine ⟨by simp [List.length_take_of_le hi₀.le,
         List.length_take_of_le (hlen ▸ hi₀.le)], fun j hj => ?_⟩
       rw [List.length_take_of_le hi₀.le] at hj
       simpa [List.take_take, Nat.min_eq_left (Nat.succ_le_of_lt hj),
         Nat.min_eq_left hj.le] using hmem_of_ne j (hj.trans hi₀) hj.ne
-    have hparent_doomed := hi₀_eq ▸ hdoomed x hx (rts₀.take i₀) prev₀
-      ((List.length_take_le i₀ rts₀).trans (by omega)) hparent
+    have hparent_doomed := hi₀_eq ▸ hdoomed x hx (rts.take i₀) prev₀
+      ((List.length_take_le i₀ rts).trans (by omega)) hparent
     refine ⟨hparent_doomed, fun hgood_c => hnot_doomed ?_⟩
     have hrts_split : rts =
-        rts₀.take (rts₀.length - 1) ++ [(rts₀[rts₀.length - 1]?).getD []] := by
-      subst hrts_eq
+        rts.take (rts.length - 1) ++ [(rts[rts.length - 1]?).getD []] := by
       simp [hi₀_eq, hlast, List.getElem?_eq_getElem hi₀]
     have hchals_split : chals = prev₀ ++ [c] := by
       simp [hlast.trans hlen, ← hprev₀_eq, ← hc_eq]
-    have hlen_p : (rts₀.take (rts₀.length - 1)).length = prev₀.length := by
-      simp [hi₀_eq, ← hprev₀_eq, Nat.min_eq_left (by omega : i₀ ≤ rts₀.length),
+    have hlen_p : (rts.take (rts.length - 1)).length = prev₀.length := by
+      simp [hi₀_eq, ← hprev₀_eq, Nat.min_eq_left (by omega : i₀ ≤ rts.length),
         Nat.min_eq_left (by omega : i₀ ≤ chals.length)]
     rw [hrts_split, hchals_split,
       bcsExtractTranscript_append_singleton decSym defaultSym d tr_MT hlen_p]
@@ -225,9 +224,7 @@ theorem toOuterMeasure_memoize_not_bcsChainDoomed_step {r d : ℕ} {Stmt Sym Cha
       ε_rbr + (tr_FS.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal) := by
   rcases fsq with ⟨x₀, rts₀, prev₀⟩
   cases hlookup : tr_FS.lookup (x₀, rts₀, prev₀) with
-  | some c₀ =>
-    rw [memoize_of_some _ _ _ _ hlookup, PMF.monad_pure_eq_pure, PMF.toOuterMeasure_pure_apply]
-    simp [hdoomed]
+  | some c₀ => simp [memoize_of_some _ _ _ _ hlookup, hdoomed]
   | none =>
     rw [memoize_of_none _ _ _ hlookup]
     change ((PMF.uniformOfFintype Chal).map
@@ -332,11 +329,9 @@ private theorem run_interpret_bcsStickyMemoize_map {Stmt Sym Chal γ : Type}
         (st, badFlag)).map (fun (res, p') => (res, p'.1)) =
       (OracleComp.interpret (bcsMemoize σ) prog).run st := by
   refine OracleComp.run_interpret_map_state
-    (bcsStickyMemoize r d S doomed decSym defaultSym σ) (bcsMemoize σ) Prod.fst ?_ prog
-    (st, badFlag)
-  rintro q ⟨st₀, flag₀⟩
-  dsimp only [bcsStickyMemoize]
-  simp [Function.comp_def, PMF.map, PMF.bind_pure]
+    (bcsStickyMemoize r d S doomed decSym defaultSym σ) (bcsMemoize σ) Prod.fst
+    (fun q ⟨st₀, flag₀⟩ => ?_) prog (st, badFlag)
+  simp [bcsStickyMemoize, Function.comp_def, PMF.map, PMF.bind_pure]
 
 private theorem toOuterMeasure_bcsStickyMemoize_step [BEq Stmt] [BEq Chal]
     [Fintype Chal] [Nonempty Chal]
