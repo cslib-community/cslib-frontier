@@ -78,13 +78,12 @@ prefixes of each input, not monotonicity in the prefix.
 
 ## References
 
-* [K. Weihrauch, *Computable Analysis: An Introduction*][Weihrauch2000], Chapters 2 and 3
-  (type-2 machines, composition, the continuity of computable functions and their domains; the
-  precise locators are to be checked).
-* [S. C. Kleene and R. E. Vesley, *The Foundations of Intuitionistic Mathematics*][KleeneVesley1965]
-  (neighbourhood functions and associates; the locator is to be checked).
-* [J. van Oosten, *Realizability: An Introduction to its Categorical Side*][vanOosten2008], §1.4
-  (Kleene's second model and its computable submodel; to be checked).
+* [K. Weihrauch, *Computable Analysis: An Introduction*][Weihrauch2000]: background on type-2
+  machines, composition, and the continuity of computable functions and their domains.
+* [S. C. Kleene and R. E. Vesley, *The Foundations of Intuitionistic
+  Mathematics*][KleeneVesley1965]: background on neighbourhood functions and associates.
+* [J. van Oosten, *Realizability: An Introduction to its Categorical Side*][vanOosten2008]:
+  background on Kleene's second model and its computable submodel.
 -/
 
 public section

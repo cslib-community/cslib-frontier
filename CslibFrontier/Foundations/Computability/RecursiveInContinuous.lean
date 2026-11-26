@@ -62,11 +62,10 @@ are in `CslibFrontier.Foundations.Computability.RecursiveInStream`.
 
 ## References
 
-* [K. Weihrauch, *Computable Analysis: An Introduction*][Weihrauch2000], Chapters 2 and 3
-  (type-2 machines and the continuity of computable functions; the precise locators are to be
-  checked).
-* [J. van Oosten, *Realizability: An Introduction to its Categorical Side*][vanOosten2008], §1.4
-  (Kleene's second model, whose elements code continuous functionals; to be checked).
+* [K. Weihrauch, *Computable Analysis: An Introduction*][Weihrauch2000]: background on type-2
+  machines and the continuity of computable functions.
+* [J. van Oosten, *Realizability: An Introduction to its Categorical Side*][vanOosten2008]:
+  background on Kleene's second model, whose elements code continuous functionals.
 -/
 
 public section

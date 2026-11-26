@@ -74,10 +74,10 @@ chosen once, so they are computable, and `K₂^rec` is a sub-pca with the same `
 
 ## References
 
-* [J. van Oosten, *Realizability: An Introduction to its Categorical Side*][vanOosten2008],
-  §1.4 (Kleene's second model; the precise locator is to be checked).
-* [J. Longley and D. Normann, *Higher-Order Computability*][LongleyNormann2015], §3.2 (Kleene's
-  second model and its computable submodel; the subsection numbers are to be checked).
+* [J. van Oosten, *Realizability: An Introduction to its Categorical Side*][vanOosten2008]:
+  background on Kleene's second model.
+* [J. Longley and D. Normann, *Higher-Order Computability*][LongleyNormann2015]: background on
+  Kleene's second model and its computable submodel.
 -/
 
 public section
