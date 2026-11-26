@@ -8,8 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.AhoCorasick.Phase1Setup
+import all CslibFrontier.Algorithms.WordRAM.AhoCorasick.Layout
 import CslibFrontier.Computability.WordRAM.SymbolicExec
-import CslibFrontier.Foundations.Data.Nat.Div
 
 /-!
 # Phase 2: Flat Array-Trie Construction (`buildTrieCode`)
@@ -55,15 +55,10 @@ private theorem trieMem_stepChar_new {inp : Input} {T : PTrie} {mem : ℕ → �
       trie_cell := fun u hu c hc => by
         have huc_lt := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
         dsimp only
-        rw [Function.update_of_ne (by omega)]
-        by_cases huc : u = u₀ ∧ c = a
-        · simp [huc.1, huc.2]
-        · have hne_addr : inp.trieBase + u * inp.alphabetSize + c ≠
-              inp.trieBase + u₀ * inp.alphabetSize + a := fun heq =>
-            huc (Nat.eq_of_add_mul_eq (b := u) (b' := u₀) hc ha (by omega)).symm
-          simp [huc, Function.update_of_ne hne_addr, hM.trie_cell u hu c hc]
-      depth_cell := fun u hu => by
-        by_cases hus : u = T.numStates <;> simp (disch := omega) [hus, hM.depth_cell u hu]
+        rw [Function.update_of_ne (by lia), Nat.add_assoc inp.trieBase (u₀ * inp.alphabetSize)]
+        exact read_update_matrix_cell hc ha (hM.trie_cell u hu c hc)
+      depth_cell := fun u hu => read_update_array_cell
+        ((Function.update_of_ne (by lia) _ _).trans (hM.depth_cell u hu))
       term_cell := fun u hu => by simp (disch := omega) [Function.update_of_ne, hM.term_cell u hu]
       zero_df := fun addr ha1 ha2 => by
         simp (disch := omega) [Function.update_of_ne, hM.zero_df addr ha1 ha2]
@@ -83,8 +78,7 @@ private theorem trieMem_insertPat_pos {inp : Input} {T : PTrie} {mem : ℕ → �
         have huc_lt := Nat.mul_comm _ _ ▸ Nat.mul_add_lt_mul_of_lt_of_lt hu hc
         simp (disch := omega) [Function.update_of_ne, hM.trie_cell u hu c hc]
       depth_cell := fun u hu => (Function.update_of_ne (by omega) _ _).trans (hM.depth_cell u hu)
-      term_cell := fun u hu => by
-        by_cases huu : u = u₁ <;> simp (disch := omega) [huu, hM.term_cell u hu]
+      term_cell := fun u hu => read_update_array_cell (hM.term_cell u hu)
       zero_df := fun addr ha1 ha2 =>
         (Function.update_of_ne (by omega) _ _).trans (hM.zero_df addr ha1 ha2)
       zero_rest := fun addr ha1 ha2 =>
@@ -134,10 +128,8 @@ private theorem exec_trieCharLoop (inp : Input) (w : ℕ) (hw : Fits w inp.wordB
       rw [← Nat.add_assoc]; exact hM.trie_cell (x.regs r4) hu_maxS a ha_lt
     have hf_ptr1 : Fits w (x.regs r2 + 1) := fits_of_le_outBase hw (by omega)
     have hf_rem1 : Fits w (x.regs r3 - 1) := fits_of_le_outBase hw (by omega)
-    have hf_mul : Fits w (x.regs r4 * inp.alphabetSize) := fits_of_le_outBase hw (by omega)
-    have hf_rm : Fits w (x.regs r4 * inp.alphabetSize + a) := fits_of_le_outBase hw (by omega)
-    have hf_taddr : Fits w (inp.trieBase + (x.regs r4 * inp.alphabetSize + a)) :=
-      fits_of_le_outBase hw (by omega)
+    obtain ⟨hf_mul, hf_rm, hf_taddr⟩ :=
+      fits_matrix_cell (base := inp.trieBase) hw hu_maxS ha_lt (by lia)
     obtain ⟨x₂, he_st, hM₂, hx₂_rS, hx₂_r4, hx₂_r2, hx₂_r3, hx₂_r1, hhold₂⟩ :
         ∃ x₂, ExecWithin w trieCharStepCode x x₂ 17 ∧
           TrieMem inp (T.stepChar (x.regs r4) a).1 x₂.mem ∧
