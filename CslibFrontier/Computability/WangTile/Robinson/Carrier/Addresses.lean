@@ -312,11 +312,8 @@ private theorem alongOwner_eq_of_mutual_carriers
         simp [crossingCarrier, orientedNat, isHorizontalCarrier,
           isVerticalCarrier, alongOwner] at crossing
   | some alongDepth =>
-      have transverseInFrame :=
-        (crossingCarrier_iff_of_owner axis alongOwner).1 crossing
-      have sameDepth := ownerDepth_eq_of_mutual_containment
-        alongOwner owner alongInFrame.1 transverseInFrame.1
-      simp [sameDepth]
+      exact congrArg some (ownerDepth_eq_of_mutual_containment alongOwner owner alongInFrame.1
+        ((crossingCarrier_iff_of_owner axis alongOwner).1 crossing).1)
 
 private theorem free_eq_true_of_mutual_carriers
     (axis : AddressAxis) {level along transverse depth : Nat}
@@ -335,17 +332,10 @@ private theorem free_eq_false_of_not_crossing
     (transverseInterior : onFrameBoundary depth transverse = false)
     (crossing : crossingCarrier axis level along transverse = false) :
     isFreeCoordinate depth along = false := by
-  cases free : isFreeCoordinate depth along with
-  | false => rfl
-  | true =>
-      have alongOwner := depthAt_eq_some_mono
-        (depthAt_self_eq_some_of_isFreeCoordinate free)
-        (depthAt_le owner)
-      have transverseInside := inFrame_eq_true_of_depthAt_eq_some owner
-      have : crossingCarrier axis level along transverse = true :=
-        (crossingCarrier_iff_of_owner axis alongOwner).2
-          ⟨transverseInside, transverseInterior⟩
-      simp [this] at crossing
+  refine Bool.eq_false_iff.2 fun free => Bool.false_ne_true (crossing.symm.trans ?_)
+  exact (crossingCarrier_iff_of_owner axis
+    (depthAt_eq_some_mono (depthAt_self_eq_some_of_isFreeCoordinate free) (depthAt_le owner))).2
+    ⟨inFrame_eq_true_of_depthAt_eq_some owner, transverseInterior⟩
 
 private theorem pointAt_eq_of_mutual_carriers
     (axis : AddressAxis) {level along transverse depth : Nat}
@@ -494,15 +484,13 @@ private theorem axis_step (axis : AddressAxis) (level along transverse : Nat)
       rw [roleAt_eq_of_primary axis firstPrimary, roleAt_eq_of_primary axis secondPrimary]
       cases transverseBoundary : onFrameBoundary depth transverse with
       | true =>
-          have firstCrossing : crossingCarrier axis level along transverse = false :=
-            Bool.eq_false_iff.2 fun crossing => by
-              simpa [transverseBoundary] using
-                transverseInterior_of_mutual_carriers axis owner firstPrimary crossing
-          have secondCrossing : crossingCarrier axis level (along + 1) transverse = false :=
-            Bool.eq_false_iff.2 fun crossing => by
-              simpa [transverseBoundary] using
-                transverseInterior_of_mutual_carriers axis owner secondPrimary crossing
-          simp only [firstCrossing, secondCrossing, Bool.false_eq_true, ↓reduceIte]
+          have notCrossing {a} (hp : primaryCarrier axis level a transverse = true) :
+              crossingCarrier axis level a transverse = false :=
+            Bool.eq_false_iff.2 fun hc => Bool.false_ne_true
+              ((transverseInterior_of_mutual_carriers axis owner hp hc).symm.trans
+                transverseBoundary)
+          simp only [notCrossing firstPrimary, notCrossing secondPrimary, Bool.false_eq_true,
+            ↓reduceIte]
           rw [axisStepAt_primary, axisOutgoing_primary,
             sourceAt_eq_zero_of_transverseBoundary axis owner transverseBoundary,
             sourceAt_eq_zero_of_transverseBoundary axis owner transverseBoundary]
@@ -999,8 +987,6 @@ private theorem horizontalCarrier_of_intervalEdge_pair
   have coordinateClear : interior coordinate = none :=
     Canonical.interior_eq_none_of_adjacent_clear
       interior coordinate_lt clear.1 clear.2
-  have coordinateClear' : selectedBorder level coordinate transverse = none := by
-    simpa [interior] using coordinateClear
   have edgeData := (Canonical.intervalEdge_eq_none_iff
     interior (2 * scale level) coordinate).1 clear.1
   cases owner : depthAt (level - 1) transverse with
@@ -1017,22 +1003,14 @@ private theorem horizontalCarrier_of_intervalEdge_pair
         have := depthAt_le owner
         have := depthAt_pos owner
         omega
-      have closingBeforeEnd := frameClosing_lt_two_mul_scale
-        depth_lt_level coordinate_lt
-      have openingBorder := selectedBorder_frameOpening
-        (level := level) (coordinate := coordinate) owner
-      have closingBorder := selectedBorder_frameClosing
-        (level := level) (coordinate := coordinate) owner
       have bounds := between_borders_of_intervalEdge_eq_none
         clear.1 coordinateClear
-        (by simpa [interior] using openingBorder)
-        (by simpa [interior] using closingBorder)
-        (frameOpening_lt_frameClosing depth coordinate) closingBeforeEnd
-        (fun candidate lower before =>
-          selectedBorder_ne_some_false_before_frameOpening owner
-            coordinateClear' lower before)
-        (fun candidate after before =>
-          selectedBorder_eq_none_after_frameClosing owner after before)
+        (selectedBorder_frameOpening owner)
+        (selectedBorder_frameClosing owner)
+        (frameOpening_lt_frameClosing depth coordinate)
+        (frameClosing_lt_two_mul_scale depth_lt_level coordinate_lt)
+        (fun _ => selectedBorder_ne_some_false_before_frameOpening owner coordinateClear)
+        (fun _ => selectedBorder_eq_none_after_frameClosing owner)
       have geometry := between_frameBounds bounds.1 bounds.2
       simpa [isHorizontalCarrier, owner] using geometry
 

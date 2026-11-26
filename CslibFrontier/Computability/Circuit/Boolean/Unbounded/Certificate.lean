@@ -400,9 +400,8 @@ theorem exists_determining {d n : ℕ} {gates : List (Op × List ℕ)}
           _ ≤ 2 * 2 ^ (D - 1) :=
               Nat.mul_le_mul_right _ ((List.toFinset_card_le _).trans h2')
           _ = 2 ^ D := by rw [← pow_succ', Nat.sub_add_cancel hD1]
-      · intro s hs
-        obtain ⟨c, hc, hs⟩ := Finset.mem_biUnion.1 hs
-        exact hSlt c (List.mem_toFinset.1 hc) s hs
+      · exact fun s hs => let ⟨c, hc, hs⟩ := Finset.mem_biUnion.1 hs
+          hSlt c (List.mem_toFinset.1 hc) s hs
       · have hcs : ∀ c ∈ g.2, (kleeneEval ρ gates).getD c none =
             some ((evalCode interpretation false x gates).getD c false) := fun c hc =>
           hSdet c hc x ρ hx hρ fun s hs => hagree s
@@ -508,9 +507,7 @@ theorem exists_claims {d n : ℕ} {gates : List (Op × List ℕ)}
         exact ⟨by omega, rfl⟩
       · simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil, claimChecks, hwn,
           ↓reduceIte, List.mem_singleton] at he
-        subst he
-        rw [getD_smallDepths_of_lt _ _ _ hwn]
-        exact Nat.zero_le _
+        exact he ▸ (getD_smallDepths_of_lt _ _ _ hwn).le.trans (Nat.zero_le _)
       · have hmem := hsub (List.mem_singleton_self _)
         rw [getD_kleeneEval_of_lt _ _ (by rw [hρ]; exact hwn), getD_claimInputs _ hwn,
           claimInput]
@@ -583,10 +580,8 @@ theorem exists_claims {d n : ℕ} {gates : List (Op × List ℕ)}
           (Nat.pow_le_pow_right (by decide) (Nat.le_sub_one_of_lt (hdpc c hc))))).trans ?_
         rw [List.length_map, smul_eq_mul]
         exact (Nat.mul_le_mul_right _ hlarge).trans_eq (by rw [← pow_succ', Nat.sub_add_cancel hX])
-      · intro e he
-        obtain ⟨c', hc', he⟩ := List.mem_flatMap.1 he
-        obtain ⟨c, hc, hc'⟩ := List.mem_flatMap.1 hc'
-        exact hCL_chk c hc e (List.mem_flatMap.2 ⟨c', hc', he⟩)
+      · rw [List.flatMap_assoc]
+        exact List.forall_mem_flatMap.2 hCL_chk
       · have hkc : ∀ c ∈ g.2, (kleeneEval (claimInputs n claims)
             (overrideGates n claims gates)).getD c none = some (v.getD c false) := fun c hc =>
           getD_kleeneEval_overrideGates_eq h hx hcorr (hCL_fin c hc claims
@@ -727,8 +722,7 @@ theorem computableInPolyTime_checks
 private theorem computableInPolyTime_smallDepthOp (d : ℕ) :
     ComputableInPolyTime (fun l : List ℕ => smallDepthOp d Op.not l) (encList encUnary)
       encUnary := by
-  unfold smallDepthOp maxTwo
-  fun_prop
+  fun_prop [smallDepthOp, maxTwo]
 
 private theorem smallDepthOp_le (d : ℕ) (op : Op) (l : List ℕ) : smallDepthOp d op l ≤ d + 1 := by
   unfold smallDepthOp

@@ -111,11 +111,8 @@ private theorem mean_abs_of_root {ι : Type} [Fintype ι] (μ : PMF ι) (p q : �
   let root y := |√(prob (p y)) - √(prob (q y))|
   have avg := Real.pow_arith_mean_le_arith_mean_pow Finset.univ (fun y => (μ y).toReal) root
     (fun _ _ => ENNReal.toReal_nonneg) (PMF.sum_toReal μ) (fun _ _ => abs_nonneg _) 2
-  have avg_le : ∑ y, (μ y).toReal * root y ≤ B := by
-    apply le_of_abs_le
-    rw [← Real.sqrt_sq_eq_abs]
-    exact (Real.sqrt_le_sqrt (avg.trans (by simpa only [root, sq_abs] using h))).trans_eq
-      (Real.sqrt_sq hB)
+  have avg_le : ∑ y, (μ y).toReal * root y ≤ B :=
+    (abs_le_of_sq_le_sq' (avg.trans (by simpa only [root, sq_abs] using h)) hB).2
   have each (y) : |prob (p y) - prob (q y)| ≤ 2 * root y := by
     let u := √(prob (p y))
     let v := √(prob (q y))
@@ -129,9 +126,7 @@ private theorem mean_abs_of_root {ι : Type} [Fintype ι] (μ : PMF ι) (p q : �
   calc
     _ ≤ ∑ y, (μ y).toReal * (2 * root y) :=
       Finset.sum_le_sum fun y _ => mul_le_mul_of_nonneg_left (each y) ENNReal.toReal_nonneg
-    _ = 2 * ∑ y, (μ y).toReal * root y := by
-      rw [Finset.mul_sum]
-      exact Finset.sum_congr rfl fun _ _ => mul_left_comm ..
+    _ = 2 * ∑ y, (μ y).toReal * root y := by simp_rw [Finset.mul_sum, mul_left_comm]
     _ ≤ _ := mul_le_mul_of_nonneg_left avg_le (by norm_num)
 
 private theorem meanGap_of_agree {ι : Type} [Fintype ι] (μ : PMF ι) (p q : ι → PMF Bool)
@@ -253,11 +248,10 @@ private theorem scored_meanGap_le {C : QuantumSigningForger} {α V ι : Type} [Z
       simp only [scored_eq_measured, measured_sign (C := C) (ask := ask) (k := k), tapeReply,
         PMF.pure_bind, isXofQuery, Bool.toNat_false, Nat.add_zero]
       simp only [← scored_eq_measured]
-      have len : n = n - 1 + 1 := (Nat.sub_add_cancel fits).symm
-      have eq : S + (m * Q + (n - 1 : ℕ) * S + T) = m * Q + n * S + T := by
-        conv_rhs => rw [len, Nat.cast_add_one]
-        ring
-      exact (PMF.meanAbsDiffAt_triangle μ true _ _ _).trans ((add_le_add one rest).trans_eq eq)
+      refine (PMF.meanAbsDiffAt_triangle μ true _ _ _).trans ((add_le_add one rest).trans_eq ?_)
+      rw [Nat.cast_sub fits]
+      simp only [isSigningCall, Sum.elim_inr, Bool.toNat_true, Nat.cast_one]
+      ring
 
 private theorem prob_row_changes (H : Xofs) (s : Level) (A : PublicMatrix s) (m : BitString 512)
     (D) (key : List Byte) (q : SigningQuery) (row : ExpansionRow (maskPolyBytes s)) :

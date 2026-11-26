@@ -844,9 +844,8 @@ private lemma tr_history_entry_preserves {s s' : State P S M V} {a : Action P M 
     simp [doInvoke, List.getElem_append_left hi]
   | deliver e =>
     obtain ⟨_, rfl⟩ := htr
-    obtain ⟨hc, hk, hv, _⟩ :=
-      deliverHistory_entry_preserves s.history _ s.step (s.proc e.dest).pending hi hi'
-    exact ⟨hc, hk, hv⟩
+    have h := deliverHistory_entry_preserves s.history _ s.step (s.proc e.dest).pending hi hi'
+    exact ⟨h.1, h.2.1, h.2.2.1⟩
   | stutter =>
     obtain rfl := htr
     exact ⟨rfl, rfl, rfl⟩
@@ -884,9 +883,8 @@ theorem tr_history_completed_stable {s s' : State P S M V} {a : Action P M V}
     exact getElem_deliverHistory_of_ne s.history _ s.step (s.proc e.dest).pending hi
       fun pend hp heq => by
         obtain ⟨_, hppend⟩ := hpend e.dest pend hp
-        subst heq
-        rw [hppend] at hcomp
-        cases hcomp
+        cases heq
+        exact Bool.noConfusion (hppend ▸ hcomp)
   | stutter =>
     obtain rfl := htr
     rfl
@@ -1106,12 +1104,9 @@ theorem linearizable_iff_admissible [Fintype P] (v₀ : V) (t : ℕ) :
     (∀ (F : Finset P), F.card ≤ t →
       ∀ (ss : ωSequence (State P S M V)) (xs : ωSequence (Action P M V)),
       π.AdmissibleRun F ss xs → ∀ k, Linearizable v₀ (ss k).history) := by
-  constructor
-  · intro h F _ ss xs ha k
-    exact h (ss k) (π.admissibleRun_reachable ha k)
-  · intro h s hr
-    obtain ⟨ss, xs, k, ha, hsk, _⟩ := hr.exists_admissibleRun ∅
-    exact hsk ▸ h ∅ (Nat.zero_le t) ss xs ha k
+  refine ⟨fun h F _ ss xs ha k => h (ss k) (π.admissibleRun_reachable ha k), fun h s hr => ?_⟩
+  obtain ⟨ss, xs, k, ha, rfl, _⟩ := hr.exists_admissibleRun ∅
+  exact h ∅ (Nat.zero_le t) ss xs ha k
 
 end Protocol
 

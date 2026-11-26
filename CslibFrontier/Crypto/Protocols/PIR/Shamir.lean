@@ -202,8 +202,7 @@ theorem reconstruct_answer_shamir {ι : Type} [Fintype ι] [DecidableEq ι]
 theorem isCorrect_shamir {ι : Type} [Fintype ι] [DecidableEq ι] (params : Shamir.Params F S) :
     (shamir ι params).IsCorrect := by
   classical
-  rw [Scheme.isCorrect_iff]
-  intro x i r q hrq
+  refine (Scheme.isCorrect_iff _).2 fun x i r q hrq => ?_
   rw [reconstruct_shamir, reconstruct_answer_shamir params x i hrq]
   cases x i <;> simp
 
@@ -317,20 +316,18 @@ theorem reconstruct_answer_shamirCube {D ι : Type} [Fintype D] [DecidableEq D]
     refine _root_.Polynomial.natDegree_sum_le_of_forall_le _ _ fun j _ => ?_
     by_cases hxj : x j
     · simp only [term, hxj, ↓reduceIte]
-      refine (_root_.Polynomial.natDegree_prod_le _ _).trans ?_
-      exact (Finset.sum_le_sum fun l _ =>
-        Shamir.Polynomial.natDegree_sharingPolynomial_le _ _
-          (Shamir.Polynomial.tailPolynomial_degree_lt _ _)).trans_eq (by simp)
+      exact (_root_.Polynomial.natDegree_prod_le _ _).trans
+        ((Finset.sum_le_sum fun l _ => Shamir.Polynomial.natDegree_sharingPolynomial_le _ _
+          (Shamir.Polynomial.tailPolynomial_degree_lt _ _)).trans_eq (by simp))
     · simp [term, hxj]
   dsimp only [shamirCube]
   rw [hans,
     Shamir.Polynomial.reconstruct_eq_constantCoeff_of_eval_eq params.point_injective hpoly_deg]
   simp only [poly, term, map_sum _root_.Polynomial.constantCoeff]
   rw [Finset.sum_eq_single i ?_ (fun hi => (hi (Finset.mem_univ i)).elim)]
-  · by_cases hxi : x i
-    · simp only [hxi, ↓reduceIte, map_prod _root_.Polynomial.constantCoeff, factor,
-        Shamir.Polynomial.constantCoeff_sharingPolynomial, Finset.prod_const_one]
-    · simp [hxi]
+  · by_cases hxi : x i <;> simp only [hxi, Bool.false_eq_true, ↓reduceIte, map_zero,
+      map_prod _root_.Polynomial.constantCoeff, factor,
+      Shamir.Polynomial.constantCoeff_sharingPolynomial, Finset.prod_const_one]
   · intro j _ hji
     obtain ⟨l₀, hl₀⟩ := Function.ne_iff.mp hji
     by_cases hxj : x j
@@ -346,8 +343,7 @@ theorem isCorrect_shamirCube {D ι : Type} [Fintype D] [DecidableEq D] [Fintype 
     (params : Shamir.Params F S) (hdeg : Fintype.card D * params.threshold < Fintype.card S) :
     (shamirCube D ι params).IsCorrect := by
   classical
-  rw [Scheme.isCorrect_iff]
-  intro x i r q hrq
+  refine (Scheme.isCorrect_iff _).2 fun x i r q hrq => ?_
   rw [reconstruct_shamirCube, reconstruct_answer_shamirCube params hdeg x i hrq]
   cases x i <;> simp
 
@@ -406,9 +402,8 @@ theorem hasTPrivateScheme_of_le_mul_self (params : Shamir.Params F S) {n m : ℕ
   refine (((isCorrect_shamir (ι := Fin m) params).rows (Fin m)).hasTPrivateScheme
     ((isTPrivate_shamir (ι := Fin m) params).rows (Fin m))).mono ?_ |>.fin_of_le_card
     (by simpa using h)
-  have hcomm := communication_shamir_rows_le (F := F) (S := S) (ρ := Fin m) (ι := Fin m)
-  simp only [Fintype.card_fin] at hcomm
-  linarith
+  simpa only [Fintype.card_fin, two_mul] using
+    communication_shamir_rows_le (F := F) (S := S) (ρ := Fin m) (ι := Fin m)
 
 /-- **Unbalanced `(d t + 1)`-server `O(n ^ (1 / d))` `t`-private PIR**: whenever
 `d * params.threshold < |S|` and `n ≤ ℓ ^ d`, `PIR.shamirCube` gives a perfectly correct `t`-private

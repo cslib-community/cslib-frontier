@@ -252,11 +252,8 @@ private lemma cellAt_paste {r : ℕ} {O I : Tape} {h h' : ℤ} (h₁ : h - r ≤
       (by intro hb; have := hL hb; omega)
       (fun m hm => by
         have := hB (h' - m - 1) (Or.inl (by omega))
-        simp only [cellAt] at this
-        rw [ite_eq_right (by omega)] at this
-        rw [← this]
-        congr 1
-        omega) (-(z - h') - 1).toNat
+        simp only [cellAt, ite_eq_right (by omega : ¬0 ≤ h' - (m : ℤ) - 1 - h')] at this
+        exact (congrArg (I.left.getD · none) (by omega)).trans this) (-(z - h') - 1).toNat
     simp only [cellAt, paste, ite_eq_right hz, e]
     split_ifs <;> first | rfl | omega | (congr 1; omega)
 
@@ -388,15 +385,14 @@ private lemma tr_apply {W : Tape} {F : ATape} (h : Agr 1 W F)
     (a : Option (Option ℕ) × SignType) : Tr 1 W F (W.apply a) (absApply F a) := by
   obtain ⟨f, p⟩ := F
   have hm := sign_bounds a.2
-  refine ⟨?_, ?_, fun z hz => ?_, fun z h1 h2 => ?_, fun z hz => ?_, fun hl => ?_, fun hr => ?_⟩ <;>
-    simp only [absApply] at *
-  · omega
-  · omega
-  · rw [ite_eq_right (by omega)]
-  · rw [cellAt_apply, h z h1 h2]
-  · rw [cellAt_apply, ite_eq_right (by omega)]
-  · linarith [length_left_apply W a (by omega)]
-  · linarith [length_right_apply W a (by omega)]
+  dsimp only [absApply]
+  refine ⟨by omega,
+    by omega,
+    fun z hz => ite_eq_right (by omega),
+    fun z h1 h2 => by rw [cellAt_apply, h z h1 h2],
+    fun z hz => (cellAt_apply W a p z).trans (ite_eq_right (by omega)),
+    fun hl => by linarith [length_left_apply W a hl],
+    fun hr => by linarith [length_right_apply W a hr]⟩
 
 private lemma Agr.mono {n m : ℕ} {W : Tape} {F : ATape} (h : Agr n W F) (hmn : m ≤ n) :
     Agr m W F :=
@@ -579,13 +575,11 @@ private theorem sim_spec (d : Desc) (x : List ℕ) (n : ℕ) : ∀ (c : SCfg) (w
     · simp only [List.getElem?_cons_succ, view, List.getElem?_map, getElem?_applyTapes,
         Option.map_eq_some_iff] at hW hF hW' hF'
       obtain ⟨t, ht, rfl⟩ := hF
-      obtain ⟨W₀, hW₀, rfl⟩ := hW'
-      obtain ⟨_, ht', rfl⟩ := hF'
-      obtain ⟨_, ht'', rfl⟩ := ht'
-      cases hW.symm.trans hW₀
-      cases ht.symm.trans ht''
-      rw [realView_apply]
-      exact tr_apply (hws k W t hW ht) _
+      obtain ⟨_, hW₀, rfl⟩ := hW'
+      obtain ⟨_, ⟨_, ht'', rfl⟩, rfl⟩ := hF'
+      obtain rfl := Option.some.inj (hW.symm.trans hW₀)
+      obtain rfl := Option.some.inj (ht.symm.trans ht'')
+      exact realView_apply t _ ▸ tr_apply (hws k W t hW ht) _
   | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     intro c hq hlen hagr
     have hrs : firstHalf (n + 2) + (n + 2) / 2 = n + 2 := by simp only [firstHalf]; omega
@@ -708,8 +702,7 @@ theorem length_sim_le (d : Desc) (n : ℕ) (w : Win) {k : ℕ} {W W' : Tape}
     W'.left.length ≤ W.left.length + n ∧ W'.right.length ≤ max W.right.length 1 + n := by
   fun_induction sim d n w generalizing k W W' with
   | case1 w => -- 0 steps
-    rw [hW, Option.some.injEq] at hW'
-    subst hW'
+    obtain rfl := Option.some.inj (hW.symm.trans hW')
     omega
   | case2 w => -- 1 step: `wstep`
     obtain ⟨q, _ | ⟨i, ws⟩⟩ := w
@@ -724,13 +717,11 @@ theorem length_sim_le (d : Desc) (n : ℕ) (w : Win) {k : ℕ} {W W' : Tape}
     · simp only [List.getElem?_cons_succ] at hW
       simp only [List.getElem?_cons_succ, getElem?_applyTapes, hW, Option.map_some,
         Option.some.injEq] at hW'
-      subst hW'
-      exact length_apply_le W _
+      exact hW' ▸ length_apply_le W _
   | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     obtain ⟨P, J, hP, hJ, rfl⟩ := getElem?_restore_eq_some.mp hW'
     obtain ⟨W₀, I, hW₀, hI, rfl⟩ := getElem?_restore_eq_some.mp hP
-    rw [hW, Option.some.injEq] at hW₀
-    subst hW₀
+    obtain rfl := Option.some.inj (hW.symm.trans hW₀)
     have h₁ := ih₁ (getElem?_extract hW) hI
     have h₂ := ih₂ (getElem?_extract (getElem?_restore hW hI)) hJ
     simp only [cut, paste, firstHalf, List.length_append, List.length_drop,

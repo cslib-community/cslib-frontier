@@ -183,20 +183,18 @@ theorem contents_decodeLetter (n : ℕ) (r : ZMod b) :
   · simp only [BlockLetter.contents, contentsEquiv, Equiv.symm_trans_apply, Equiv.arrowCongr_symm,
       Equiv.arrowCongr_apply, Function.comp_apply, Equiv.symm_symm]
     congr 1
-    ext
-    rw [finFunctionFinEquiv_symm_apply_val]
-    simp only [val_zmodEquiv]
-    exact mod_pow_div_pow_mod _ (ZMod.val_lt r)
+    refine Fin.ext ?_
+    simpa only [finFunctionFinEquiv_symm_apply_val, val_zmodEquiv] using
+      mod_pow_div_pow_mod _ (ZMod.val_lt r)
 
 /-- The accepting weight of a decoded letter. -/
 theorem acceptWeight_decodeLetter (n : ℕ) :
     acceptWeight (decodeLetter (k := k) e b n) = acceptNum k s b n := by
   unfold decodeLetter acceptNum
   by_cases h : n < controlCount k s b
-  · have hc := decodeControlData_controlEquiv e b ((controlEquiv e).symm ⟨n, h⟩)
-    rw [Equiv.apply_symm_apply] at hc
-    have htr : (decodeControlData e b n).2.2 = ((controlEquiv e).symm ⟨n, h⟩).2.2 :=
-      congrArg (·.2.2) hc
+  · have htr : (decodeControlData (k := k) e b n).2.2 = ((controlEquiv e).symm ⟨n, h⟩).2.2 := by
+      simpa only [Equiv.apply_symm_apply, controlData] using
+        congrArg (·.2.2) (decodeControlData_controlEquiv e b ((controlEquiv e).symm ⟨n, h⟩))
     simp only [h, ↓reduceDIte, acceptWeight, ← htr, decodeControlData, equivFin_symm_eq_accept_iff,
       true_and]
   · simp only [h, ↓reduceDIte, acceptWeight, false_and, ↓reduceIte]
@@ -394,33 +392,28 @@ theorem blockNetwork_tensor_decodeLetter (σ : ℕ) (u : Fin q ⊕ BlockEdge k q
     · obtain ⟨hctl, hblk⟩ := hcond
       have hc : x (.inl i) = .inl (x (.inl i)).control := by
         obtain ⟨c, hc⟩ := (exists_decodeLetter_eq_inl_iff e b _).mpr hctl
-        rw [hxl, hc]; rfl
+        exact (hxl i).trans hc ▸ rfl
       have hw : ∀ h d, x (.inr (i, h, d)) = .inr (x (.inr (i, h, d))).contents := fun h d => by
         obtain ⟨w, hw⟩ := (exists_decodeLetter_eq_inr_iff e b _).mpr (hblk h d)
-        rw [hxr, hw]; rfl
+        exact (hxr i h d).trans hw ▸ rfl
       rw [card_intervalHolds machine input b _ i hc hw, ← localIntervalCount_eq_intervalCount]
       congr 1
-      · funext head
-        exact scheduleBlock_scheduleOfNat σ i.isLt.le head
+      · exact funext (scheduleBlock_scheduleOfNat σ i.isLt.le)
       · unfold inControl inControlNum
         split_ifs with h0
         · simp only [controlData, Pi.zero_apply, ZMod.val_zero]
         · rw [hxl ⟨i - 1, by omega⟩, controlData_control_decodeLetter]
-      · funext h
-        unfold windowCells inCellsNum
-        refine List.map_congr_left fun c hc => ?_
-        rw [dite_eq_left (hc3 hc), inWindow, lastBeforeNum_eq σ i h ⟨c / b, hc3 hc⟩]
-        cases lastBefore (InWindow (scheduleOfNat k q σ) h
-            (portBlock (scheduleOfNat k q σ) i h ⟨c / b, hc3 hc⟩)) i with
-        | none => rfl
-        | some i' =>
-          simp only [Option.elim_some, Option.map_some]
-          rw [hxr, contents_decodeLetter, ZMod.val_natCast, val_portOf σ i i' h ⟨c / b, hc3 hc⟩]
+      · exact funext fun h => List.map_congr_left fun c hc => by
+          rw [dite_eq_left (hc3 hc), inWindow, lastBeforeNum_eq σ i h ⟨c / b, hc3 hc⟩]
+          cases lastBefore (InWindow (scheduleOfNat k q σ) h
+              (portBlock (scheduleOfNat k q σ) i h ⟨c / b, hc3 hc⟩)) i with
+          | none => rfl
+          | some i' =>
+            simp only [Option.elim_some, Option.map_some, hxr, contents_decodeLetter,
+              ZMod.val_natCast, val_portOf σ i i' h ⟨c / b, hc3 hc⟩]
       · rw [hxl, controlData_control_decodeLetter, controlDataOfNum, ite_eq_left hctl]
-      · funext h
-        unfold windowCells outCellsNum
-        refine List.map_congr_left fun c hc => ?_
-        simp only [dite_eq_left (hc3 hc), hxr, contents_decodeLetter, ZMod.val_natCast]
+      · exact funext fun h => List.map_congr_left fun c hc => by
+          simp only [dite_eq_left (hc3 hc), hxr, contents_decodeLetter, ZMod.val_natCast]
     · exact card_intervalHolds_eq_zero machine input b _ i fun ⟨⟨c, hc⟩, hw⟩ => hcond
         ⟨(exists_decodeLetter_eq_inl_iff e b _).mp ⟨c, (hxl i).symm.trans hc⟩, fun h d =>
           (exists_decodeLetter_eq_inr_iff e b _).mp ((hw h d).imp fun _ => (hxr i h d).symm.trans)⟩

@@ -350,12 +350,9 @@ theorem evalPure_rainbowAttackStep (h : P → Y) (lookup : P → Option P) (g : 
         if h pw = y then some pw else none := by
   simp only [rainbowAttackStep, OracleComp.evalPure_bind, OracleComp.evalPure_liftLeft,
     evalPure_rainbowChain, OracleComp.evalPure_liftRight, OracleComp.evalPure_query]
-  cases lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y)) with
-  | none => rfl
-  | some pw₀ =>
-    simp only [OracleComp.evalPure_bind, OracleComp.evalPure_liftLeft, evalPure_rainbowChain,
-      OracleComp.evalPure_query]
-    split_ifs <;> rfl
+  cases lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y)) <;>
+    simp [OracleComp.evalPure_bind, OracleComp.evalPure_liftLeft, evalPure_rainbowChain,
+      OracleComp.evalPure_query, apply_ite]
 
 /-- Deterministic evaluation of `rainbowAttack` against `h` and `lookup`. -/
 theorem evalPure_rainbowAttack (h : P → Y) (lookup : P → Option P) (g : ℕ → Y → P)
@@ -378,11 +375,10 @@ theorem rainbowAttack_sound {h : P → Y} {lookup : P → Option P} {g : ℕ →
     h pw = y := by
   rw [evalPure_rainbowAttack] at heval
   obtain ⟨k, -, hk⟩ := List.exists_of_findSome?_eq_some heval
-  cases hlk : lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y)) <;> rw [hlk] at hk
+  cases hlk : lookup (rainbowChainPure h g (τ - k) k (g (τ - 1 - k) y)) <;>
+    simp only [hlk, Option.ite_none_right_eq_some, Option.some.injEq] at hk
   · cases hk
-  · dsimp only at hk
-    split_ifs at hk with hcheck
-    exact Option.some.inj hk ▸ hcheck
+  · exact hk.2 ▸ hk.1
 
 /-- **Completeness of rainbow-table inversion on covered points** ([BonehShoup2023], Section 18.7,
 pp. 745–746): if `y` is the hash of the column-`col` value (`col < τ`) of a chain starting at `pw₀`

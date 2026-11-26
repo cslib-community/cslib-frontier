@@ -281,9 +281,8 @@ private theorem cell_half {scale block cell : ℕ}
     (lower : 2 * scale * block ≤ cell) (upper : cell < 2 * scale * (block + 1)) :
     ∃ corner : Fin 2, scale * (2 * block + corner.val) ≤ cell ∧
       cell < scale * (2 * block + corner.val + 1) := by
-  by_cases h : cell < scale * (2 * block + 1)
-  · refine ⟨0, ?_, ?_⟩ <;> dsimp <;> nlinarith
-  · refine ⟨1, ?_, ?_⟩ <;> dsimp <;> nlinarith
+  refine ⟨if cell < scale * (2 * block + 1) then 0 else 1, ?_, ?_⟩ <;>
+    split_ifs <;> dsimp <;> nlinarith
 
 /-- Each binary refinement step changes the shade between a board and each of its four
 corner descendants. Iterating gives the shade of every finest cell cycle. -/
@@ -922,12 +921,10 @@ private theorem RefinementComparison.agreement_sparse (C : RefinementComparison)
       value (C.localStates d bx by₀) (sparsePort old) := by
   let oldGlobal := translatePort old (2 * bx) (2 * by₀)
   have oldGlobalPresent : portPresent (C.grid d) oldGlobal = true := by
-    have heq := portPresent_local (C.grid d) oldGlobal
-    simp only [oldGlobal, translatePort,
-      show (2 * bx + old.x) / 2 = bx by omega, show (2 * by₀ + old.y) / 2 = by₀ by omega,
-      show (2 * bx + old.x) % 2 = old.x by omega,
-      show (2 * by₀ + old.y) % 2 = old.y by omega] at heq
-    exact heq.symm.trans oldPresent
+    rw [← portPresent_local]
+    simpa only [oldGlobal, translatePort, Nat.mul_add_div Nat.two_pos, Nat.mul_add_mod,
+      Nat.div_eq_of_lt oldBounds.1, Nat.div_eq_of_lt oldBounds.2, Nat.mod_eq_of_lt oldBounds.1,
+      Nat.mod_eq_of_lt oldBounds.2, Nat.add_zero] using oldPresent
   have previous := ih oldGlobal
     (by dsimp only [oldGlobal, translatePort]; omega)
     (by dsimp only [oldGlobal, translatePort]; omega)
@@ -978,11 +975,9 @@ private theorem RefinementComparison.agreement (C : RefinementComparison) :
         rw [h] at rel1
         rw [← C.block d bx by₀ localPort hx hy, hlocation] at rel2
         exact Related.right_unique rel1 rel2
-      rcases source_cases hsource with heq | ⟨old, _, oldPresent, heq⟩
-      · subst source
-        exact finish (C.new_source d actual bx by₀ valid shaded hbx hbX hby hbY)
-      · subst source
-        have coarseShaded : CycleShade (coarsen actual) (C.scale d) (3 * C.scale d)
+      rcases source_cases hsource with rfl | ⟨old, _, oldPresent, rfl⟩
+      · exact finish (C.new_source d actual bx by₀ valid shaded hbx hbX hby hbY)
+      · have coarseShaded : CycleShade (coarsen actual) (C.scale d) (3 * C.scale d)
             (C.scale d) (3 * C.scale d) .light :=
           CycleShade.coarsen validFine (C.cycle d)
             (by convert shaded using 1 <;> rw [C.scale_succ] <;> omega)
@@ -1340,12 +1335,11 @@ theorem exists_markedFreeGrid {P : Cslib.WangTile.Plane scaffold.tiles}
       coarse rootEq states (gridEq.symm ▸ valid) shaded⟩
   rcases has_light_cycle coarse (2 * n + 2) (by omega)
       (s := states) (by simpa only [Nat.add_assoc] using valid) with large | small
-  · have power : 2 ^ (2 * n + 2) = 4 ^ (n + 1) := by
-      rw [show 2 * n + 2 = 2 * (n + 1) by omega, pow_mul]; norm_num
+  · have power : 2 ^ (2 * n + 2) = 4 ^ (n + 1) := by rw [pow_add, pow_mul, pow_succ 4]; norm_num
     exact ⟨a, b, finish true (n + 1) (by omega) (fun _ => Nat.succ_pos n) rfl
       (by simpa only [phaseScale, ↓reduceIte, Nat.one_mul, power] using large)⟩
   · have power : 2 ^ (2 * n + 2 - 1) = 2 * 4 ^ n := by
-      rw [show 2 * n + 2 - 1 = 1 + 2 * n by omega, pow_add, pow_mul]; norm_num
+      rw [Nat.add_sub_cancel (2 * n + 1) 1, pow_add, pow_mul, mul_comm]; norm_num
     exact ⟨a, b, finish false n le_rfl (by simp) rfl
       (by simpa only [phaseScale, Bool.false_eq_true, ↓reduceIte, power] using small)⟩
 

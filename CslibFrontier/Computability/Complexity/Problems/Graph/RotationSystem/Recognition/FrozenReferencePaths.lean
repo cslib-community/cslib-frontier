@@ -85,8 +85,7 @@ private theorem spoke_support (I : FixedRotationInput) (d : Dart I.graph) :
     (referencePoint I (Dart.vertex (G := subdivisionGraph I) (e, true)))).support = _
   rw [Route.support_line, ← hcenter, ← hleaf]
   cases hb : d.2
-  · rfl
-  · exact segment_symm ℝ _ _
+  exacts [rfl, segment_symm ℝ _ _]
 
 /-- The protected reference set is compact, being a finite union of points and closed
 segments. -/
@@ -116,27 +115,20 @@ theorem frozenReferenceObstacle_compl_isPathConnected {I : FixedRotationInput}
     (fun v => (referencePoint I v.val).re - 1 / 8) (fun v => right v.val) (-R) R
     (fun v => frozenStar_starConvex I v.val) hcenter ?_ ?_ (x := -1) ?_
   · intro v z hz
-    have hOb : z ∈ frozenReferenceObstacle I := Set.mem_iUnion.mpr ⟨v, hz⟩
     have hnorm : ‖z‖ < R := by
-      simpa only [Metric.mem_ball, dist_zero_right] using hbound hOb
+      simpa only [Metric.mem_ball, dist_zero_right] using hbound (Set.mem_iUnion.mpr ⟨v, hz⟩)
     refine ⟨?_, abs_lt.mp ((Complex.abs_im_le_norm z).trans_lt hnorm)⟩
-    rcases hz with hz | hz
-    · obtain rfl : z = referencePoint I v.val := hz
-      exact ⟨by linarith, hright _ (hmem v)⟩
+    rcases hz with rfl | hz
+    · exact ⟨by linarith, hright _ (hmem v)⟩
     · obtain ⟨d, hd⟩ := Set.mem_iUnion.mp hz
-      have h := hstrip d.val d.property.2 z hd
-      rw [d.property.1] at h
+      have h := d.property.1 ▸ hstrip d.val d.property.2 z hd
       exact ⟨by linarith only [h.1], h.2⟩
   · refine fun u v hne => Set.disjoint_left.mpr fun x hu hv => ?_
-    have huve : u.val ≠ v.val := fun h => hne (Fin.ext h)
-    rcases lt_or_gt_of_ne huve with h | h
-    · have hs := hsep _ (hmem u) _ (hmem v) h
-      linarith only [hs, hu.2, hv.1]
-    · have hs := hsep _ (hmem v) _ (hmem u) h
-      linarith only [hs, hv.2, hu.1]
-  · intro v hv
-    have hnonneg : 0 ≤ (referencePoint I v.val).re := Nat.cast_nonneg _
-    linarith only [hnonneg, hv.1]
+    rcases lt_or_gt_of_ne (Fin.val_ne_of_ne hne) with h | h
+    · linarith only [hsep _ (hmem u) _ (hmem v) h, hu.2, hv.1]
+    · linarith only [hsep _ (hmem v) _ (hmem u) h, hv.2, hu.1]
+  · exact fun v hv => by
+      linarith only [show 0 ≤ (referencePoint I v.val).re from Nat.cast_nonneg _, hv.1]
 
 /-- An original vertex or the occurrence leaf at the end of a frozen reference spoke.
 These are exactly the declared vertex names whose positions belong to the protected set
