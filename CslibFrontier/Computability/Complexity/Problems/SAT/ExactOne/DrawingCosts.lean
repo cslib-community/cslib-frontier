@@ -130,32 +130,27 @@ theorem clauseGeometry_local_costs {φ : CNF ℕ} {d : Graph.OrthogonalDrawing}
   let s := clausePorts φ d i
   have hs := (clausePorts_spec hd hi).1
   have hg := profilePrefixGeometry_check p
-  have hmeta := profilePrefixGeometry_costs p
-  have hend {e : LocalIncidence} (he : e ∈ g.incidenceRoutes)
-      (ht : e.variableIndex ∈ g.terminalVariables) := by
-    have h := (LocalGeometry.prefix_incidence_endpoints hg he).2.2.2
-    rwa [profile_prefix_terminal_endpoint p e.variableIndex ht] at h
-  have hseg (e : LocalIncidence) (he : e ∈ g.incidenceRoutes) :
-      (profileCollarRoute p s e).consecutivePairs.length ≤ e.route.consecutivePairs.length + 7 := by
-    unfold profileCollarRoute
-    split_ifs with ht
-    · rw [consecutivePairs_length_collarPrefixRoute hs (hend he ht)]
-      exact Nat.add_le_add_left (collar_route_costs s hs _).1 _
-    · rw [consecutivePairs_length_collarRoute]; omega
-  have hwire (e : LocalIncidence) (he : e ∈ g.incidenceRoutes) :
+  obtain ⟨hm0, hm1, hlen, hsc0, hwc, hm2⟩ := profilePrefixGeometry_costs p
+  have hlocal (e : LocalIncidence) (he : e ∈ g.incidenceRoutes) :
+      (profileCollarRoute p s e).consecutivePairs.length ≤
+        e.route.consecutivePairs.length + 7 ∧
       wireLength (profileCollarRoute p s e) ≤ wireLength e.route + 600000 := by
     unfold profileCollarRoute
     split_ifs with ht
-    · rw [wireLength_collarPrefixRoute hs (hend he ht)]
-      exact Nat.add_le_add_left (collar_route_costs s hs _).2 _
-    · rw [wireLength_collarRoute]; omega
+    · obtain ⟨h0, h1, h2, hend⟩ := LocalGeometry.prefix_incidence_endpoints hg he
+      rw [profile_prefix_terminal_endpoint p e.variableIndex ht] at hend
+      obtain ⟨hc1, hc2⟩ := collar_route_costs s hs (terminalIndex g e.variableIndex)
+      rw [consecutivePairs_length_collarPrefixRoute hs hend,
+        wireLength_collarPrefixRoute hs hend]
+      exact ⟨Nat.add_le_add_left hc1 _, Nat.add_le_add_left hc2 _⟩
+    · rw [consecutivePairs_length_collarRoute, wireLength_collarRoute]
+      omega
   have hsc : ((g.incidenceRoutes.map fun e => e.route.consecutivePairs.length).sum) ≤ 113 := by
-    simpa only [segmentCount_eq] using hmeta.2.2.2.1
-  have hlen : g.incidenceRoutes.length ≤ 66 := hmeta.2.2.1
-  have hwc : (g.incidenceRoutes.map fun e => wireLength e.route).sum ≤ 652600 := hmeta.2.2.2.2.1
-  have hs' := List.sum_le_sum hseg
-  have hw' := List.sum_le_sum hwire
+    simpa only [segmentCount_eq] using hsc0
+  have hs' := List.sum_le_sum fun e he => (hlocal e he).1
+  have hw' := List.sum_le_sum fun e he => (hlocal e he).2
   rw [List.sum_map_add, List.map_const', List.sum_replicate_nat] at hs' hw'
+  dsimp only [g] at hs' hw' hsc
   simp only [clauseGeometry, collaredPrefixGeometry, List.map_map, Function.comp_def]
   exact ⟨hs'.trans (by omega), hw'.trans (by omega)⟩
 

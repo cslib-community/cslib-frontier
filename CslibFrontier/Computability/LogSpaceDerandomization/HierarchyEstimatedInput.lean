@@ -129,16 +129,14 @@ theorem estimatedPositiveSample_abs_le
   let child := incomingChildren HP D id Kc cutoff raw prep maximum
   let CA := 2 * HP.Q HP.toHierarchyParams.atomCap
   have hCA : 0 ≤ CA := by positivity
-  have hleft : ∀ a b, child req.left σ a b = correctionRequest D id req.left
+  have hleft (a b : ZMod P) : child req.left σ a b = correctionRequest D id req.left
       (polynomialAuxCutoff4 HP.θ) HP.incomingCutoff HP.ρ HP.toHierarchyParams.atomCutoff
       HP.γ HP.K Kc (raw req.left) (prep req.left) (maximum req.left) σ a b := by
-    intro a b
     simp only [child, incomingChildren, req, HierarchyTask.rawRequests,
       HierarchyTask.correctionAtomTask_last HP.k_pos]
   have habs {v M : ℝ} (h : v ∈ Set.Icc 0 M) : |v| ≤ M := (abs_of_nonneg h.1).trans_le h.2
-  have hl (z : ZMod P) : |child req.left σ x z| ≤ CA := by
-    rw [hleft]
-    exact habs (selectedRequest_mem_Icc HP D id req.left Kc (raw req.left) (prep req.left)
+  have hl (z : ZMod P) : |child req.left σ x z| ≤ CA := hleft x z ▸ habs
+    (selectedRequest_mem_Icc HP D id req.left Kc (raw req.left) (prep req.left)
       (maximum req.left) σ x z)
   have hr (z : ZMod P) : |child req.right σ z y| ≤ 2 * CB := habs <|
     normalizedRequest_mem_Icc HP D req.right cutoff hCB hcut (raw req.right) (prep req.right) σ z y
@@ -152,8 +150,7 @@ theorem estimatedPositiveSample_abs_le
   have hz (z : ZMod P) (hz : z ∉ T) : child req.left σ x z = 0 := by
     by_cases hm : mid.retains (channels D) σ z
     · exact not_not.mp fun hn => hz (mem_filter.mpr ⟨mem_filter.mpr ⟨mem_univ _, hm⟩, hn⟩)
-    · rw [hleft]
-      exact correctionRequest_eq_zero_of_not_usage D id req.left _ _ _ _ _ _ _ _ _ _
+    · exact hleft x z ▸ correctionRequest_eq_zero_of_not_usage D id req.left _ _ _ _ _ _ _ _ _ _
         σ x z hm
   have hp : |∑ z, child req.left σ x z * child req.right σ z y| ≤ HP.K * CA * (2 * CB) := by
     rw [← sum_subset (subset_univ T) fun z _ hz' => by rw [hz z hz', zero_mul]]
@@ -345,13 +342,11 @@ theorem estimatedResidualInput_scaled_noise_le_dyadic
     nlinarith
   have hr : 0 < 1 - 1 / (155648 * (J + 1) * (4 : ℝ) ^ 4) :=
     sub_pos.mpr ((div_lt_one (by linarith)).mpr hden)
-  have hp := spectralWalkLength_payment hr (sub_lt_self _ (by positivity))
-    (show 0 ≤ amplification * 32 * (16 * P *
-      (estimatedResidualBound HP P km kt n kb CB) ^ 4) from by positivity)
+  have hp := spectralWalkLength_payment hr (sub_lt_self _ (by positivity)) (by positivity)
     hε slack steps hsteps
   have hn := mul_le_mul_of_nonneg_left
     (estimatedResidualInput_noise_le HP hK D R H l ks km kt n hks ss sm st kb Kc
       cutoff CB hCB hcut raw prep maximum precision steps) ha
-  exact hn.trans (by convert hp using 1; ring)
+  linarith only [hn, hp]
 
 end Matrix.HierarchyParams.H4RankEnvironment

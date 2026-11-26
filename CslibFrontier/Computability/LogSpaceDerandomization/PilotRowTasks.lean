@@ -106,12 +106,10 @@ theorem rank_lt_of_mem_children {parent child : PilotRowTask} (h : child ∈ par
   | .pilot (.input i) | .pilot (.score i) | .pilot (.detector i) | .pilot (.maximum i) =>
     obtain ⟨s, hs, rfl⟩ := List.mem_map.mp h
     have := PilotTask.rank_lt_of_mem_children hs
-    simp only [rank]
-    omega
+    simp only [rank]; omega
   | .preparation i =>
     obtain rfl := List.mem_singleton.mp h
-    simp only [rank, PilotTask.rank]
-    omega
+    simp only [rank, PilotTask.rank]; omega
 
 /-- Expanded tasks have a fixed number of slots per finite pilot iteration. -/
 @[expose] def iteration : PilotRowTask → ℕ
@@ -124,8 +122,7 @@ theorem rank_le {t : PilotRowTask} {k : ℕ} (h : t.iteration ≤ k) :
   cases t with
   | pilot t =>
     have := PilotTask.rank_le h
-    simp only [rank]
-    omega
+    simp only [rank]; omega
   | preparation _ | normalized _ => simp only [iteration, rank] at *; omega
 
 /-- The original rank is preserved up to a fixed factor on deterministic tasks. -/
@@ -401,14 +398,12 @@ theorem normalizedRecipe_eq_atom (hf : 0 < f) (hC : ∀ x y, 0 ≤ C x y)
   have hb := PilotTask.value_input_bounds P X Y f C hf hC hC1 i
   have hseq := isCorrectionSeq_pilotCorrection
     (U := columnDetector X Y P.ϕ P.ρ P.J P.K f) hC (P.cutoff_nonneg hf)
-    (fun t ht => (P.cutoff_le hf t).trans (max_le (by
-      have := mul_nonneg P.θ_pos.le hf.le
-      linarith) ht)) P.γ_nonneg P.γ_le_one
+    (fun t ht => (P.cutoff_le hf t).trans (max_le (sub_le_self t (mul_nonneg P.θ_pos.le hf.le)) ht))
+    P.γ_nonneg P.γ_le_one
   have hd0 : 0 ≤ PilotTask.value P X Y f C (.input i) x y / f :=
     div_nonneg (hb.1 x y) hf.le
-  have hdk : PilotTask.value P X Y f C (.input i) x y / f ≤ (P.k : ℝ) + 1 := by
-    apply (div_le_iff₀ hf).mpr
-    exact (hseq.input_le_mul hCf hf.le hC1 i x y).trans
+  have hdk : PilotTask.value P X Y f C (.input i) x y / f ≤ (P.k : ℝ) + 1 :=
+    (div_le_iff₀ hf).mpr <| (hseq.input_le_mul hCf hf.le hC1 i x y).trans
       (mul_le_mul_of_nonneg_right (by exact_mod_cast Nat.add_le_add_right hi 1) hf.le)
   simp only [value, PilotRowRecipe.value, normalizedRecipe, CorrectionRowRecipe.normalized,
     correctionAtom,
@@ -425,9 +420,7 @@ theorem expect_normalizedRecipe (hf : 0 < f) (hC : ∀ x y, 0 ≤ C x y)
   rw [← mul_expect, A.toCorrectionSamplingLaws.expect_atom hf
     (PilotTask.value_input_bounds P X Y f C hf hC hC1 i).1
     (PilotTask.value_input_bounds P X Y f C hf hC hC1 i).2 hx y]
-  simp only [value, PilotRowRecipe.value]
-  rw [PilotTask.value_correction_succ]
-  ring
+  simp only [value, PilotRowRecipe.value, PilotTask.value_correction_succ]; ring
 
 /-- The actual deterministic correction constructor is the mean of its earlier normalized child.
 The actual usage density, rather than the nominal rate, cancels the membership mask. -/

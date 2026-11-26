@@ -122,9 +122,7 @@ theorem isClassical_outputCopyCodes {W z base : ℕ} {outputs : List ℕ} (hzb :
   have hi : p.2 < outputs.length := by
     simpa only [Nat.zero_add] using (List.mem_zipIdx hp).2.1
   have hout : outQubit z p.1 ≤ z := by unfold outQubit; omega
-  refine ⟨rfl, by simp, ?_, ?_⟩
-  · simp; omega
-  · simp; omega
+  refine ⟨rfl, by simp, ?_, ?_⟩ <;> (simp; omega)
 
 /-- The classical suffix is well formed for the sampler's declared width. -/
 theorem isClassical_samplerClassicalCodes (n : ℕ)
@@ -178,8 +176,7 @@ theorem readBit_classicalRun_outputCopyCodes {W z base : ℕ} {outputs : List �
     List.mem_map.mpr ⟨(outputs[j], j),
       List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_getElem hj),
       by simp [List.getD_eq_getElem?_getD, hj]⟩
-  simpa [hX j hj] using
-    (readBit_classicalRun_of_mem hlt hnd hread X hmem)
+  simpa [hX j hj] using readBit_classicalRun_of_mem hlt hnd hread X hmem
 
 /-- **Basis-state correctness of the classical suffix**: on a seed `x` followed by zero ancillas,
 the copied output block is exactly the output of the typed Boolean circuit. -/
@@ -216,9 +213,7 @@ theorem samplerReadout_classicalRun {n m : ℕ} (C : Circuits.Circuit signature 
   have houtz : (C.outputs j).toNat ≤ z := by
     rw [hz, Circuit.length_code_fst]
     exact (C.outputs j).toNat_lt.le
-  rw [hout, outQubit, min_eq_right houtz, hcodes,
-    Circuit.eval_eq_evalOutput]
-  rfl
+  rw [hout, outQubit, min_eq_right houtz, hcodes, Circuit.eval_eq_evalOutput]; rfl
 
 /-! ### Exact output law -/
 
@@ -238,10 +233,8 @@ theorem samplerDist_eq_outputDist {n m : ℕ} (C : Circuits.Circuit signature n 
     simp only [W, samplerWidth, samplerOutputStart, samplerZero]; omega
   have hX (r : BitString n) : X r = glue (blockEmb 0 hnW) r X₀ :=
     (glue_blockEmb_inputState hnW [] rfl r).symm
-  have hXinj : Function.Injective X := by
-    intro r r' h
-    rw [hX, hX] at h
-    simpa using congrArg (· ∘ blockEmb 0 hnW) h
+  have hXinj : Function.Injective X := fun r r' h => by
+    simpa [hX] using congrArg (· ∘ blockEmb 0 hnW) h
   have hv : Orthonormal ℂ fun r => ket (X r) :=
     (EuclideanSpace.orthonormal_single (𝕜 := ℂ)).comp X hXinj
   have hX₀ (i : Fin n) : X₀ (blockEmb 0 hnW i) = false := by

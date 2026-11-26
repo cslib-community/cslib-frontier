@@ -122,8 +122,8 @@ theorem cvColor_ne {a b c : ℕ} (hab : a ≠ b) : cvColor a b ≠ cvColor b c :
   unfold cvColor at h
   have := Bool.toNat_le (a.testBit (lowestDiffBit a b))
   have := Bool.toNat_le (b.testBit (lowestDiffBit b c))
-  have hne := testBit_lowestDiffBit_ne hab
   have hi : lowestDiffBit a b = lowestDiffBit b c := by omega
+  refine testBit_lowestDiffBit_ne hab ?_
   rw [← hi] at h
   cases ha : a.testBit (lowestDiffBit a b) <;> cases hb' : b.testBit (lowestDiffBit a b) <;>
     simp_all
@@ -204,10 +204,9 @@ theorem iterate_cvBound_twoTower_le (m s : ℕ) :
     omega
 
 /-- `log* N` Cole–Vishkin rounds take colours below `N` to colours below `6`. -/
-theorem iterate_cvBound_logStar_le (N : ℕ) : cvBound^[Nat.logStar N] N ≤ 6 := by
-  have h := iterate_cvBound_twoTower_le 0 (Nat.logStar N)
-  rw [Nat.zero_add, Nat.twoTower_zero] at h
-  exact le_trans (cvBound_monotone.iterate _ (Nat.le_twoTower_logStar N)) h
+theorem iterate_cvBound_logStar_le (N : ℕ) : cvBound^[Nat.logStar N] N ≤ 6 :=
+  (cvBound_monotone.iterate _ (Nat.le_twoTower_logStar N)).trans
+    (by simpa using iterate_cvBound_twoTower_le 0 (Nat.logStar N))
 
 /-- At least `log* N` Cole–Vishkin rounds take colours below `N` to colours below `6`: further
 rounds keep the bound, since `cvBound M ≤ 6` for `M ≤ 6`. -/
@@ -271,9 +270,7 @@ theorem state_add_of_le (hx : IsProperColoring x) (hN : ∀ v, x v < N) (h6 : cv
     IsProperColoring ((threeColoring K).state x (K + i)) ∧
       ∀ v, (threeColoring K).state x (K + i) v < 6 - i := by
   induction i with
-  | zero =>
-    obtain ⟨hp, hb⟩ := state_of_le hx hN le_rfl
-    exact ⟨hp, fun v => lt_of_lt_of_le (hb v) h6⟩
+  | zero => exact (state_of_le hx hN le_rfl).imp_right fun hb v => (hb v).trans_le h6
   | succ i ih =>
     obtain ⟨hp, hb⟩ := ih (by omega)
     have hst (v) : (threeColoring K).state x (K + (i + 1)) v =
@@ -293,8 +290,7 @@ theorem state_add_three_add (j : ℕ) :
   induction j with
   | zero => rfl
   | succ j ih =>
-    funext v
-    rw [← Nat.add_assoc, Algorithm.state_succ, step_of_le (by omega), ih]
+    exact funext fun v => by rw [← Nat.add_assoc, Algorithm.state_succ, step_of_le (by omega), ih]
 
 end threeColoring
 
@@ -404,8 +400,7 @@ theorem fastThreeColoring_run {n N s : ℕ} {x : ZMod n → ℕ} (hx : IsProperC
   have hrun : (fastThreeColoring s).run x (s + 3 + t) =
       (threeColoring 0).run ((cvRule s).apply x) (3 + t) :=
     funext fun v => Nat.add_assoc s 3 t ▸ LocalRule.andThen_run _ _ x _ v
-  rw [hrun]
-  exact threeColoring_run_of_iterate_le (cvRule_apply_isProperColoring hx s)
+  exact hrun ▸ threeColoring_run_of_iterate_le (cvRule_apply_isProperColoring hx s)
     (cvRule_apply_lt hx hN hs) le_rfl (by omega)
 
 /-- The Cole–Vishkin algorithm `fastThreeColoring s` as a rule of radius `s + 3`. -/

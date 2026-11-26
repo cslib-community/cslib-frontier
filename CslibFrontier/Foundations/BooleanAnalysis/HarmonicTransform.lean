@@ -78,10 +78,9 @@ theorem harmonicTransform_reindex {ι κ : Type*} [Fintype ι] [Fintype κ]
     [DecidableEq ι] [DecidableEq κ] (e : ι ≃ κ) (f : (κ → Bool) → ℝ)
     (s : ι → Bool) :
     harmonicTransform (fun y => f (fun j => y (e.symm j))) s =
-      harmonicTransform f (fun j => s (e.symm j)) := by
-  unfold harmonicTransform
-  rw [funext (projectionAverage_reindex e f s)]
-  exact harmonicMean_equiv (Equiv.arrowCongr e (Equiv.refl Bool)) _
+      harmonicTransform f (fun j => s (e.symm j)) :=
+  (congrArg harmonicMean (funext (projectionAverage_reindex e f s))).trans
+    (harmonicMean_equiv (Equiv.arrowCongr e (Equiv.refl Bool)) _)
 
 section
 
@@ -118,21 +117,21 @@ theorem harmonicTransform_nonneg {f : (ι → Bool) → ℝ} (hf : ∀ x, 0 ≤ 
 
 /-- Constants are fixed by the harmonic transform. -/
 theorem harmonicTransform_const (c : ℝ) (selected : ι → Bool) :
-    harmonicTransform (fun _ => c) selected = c := by
-  rw [harmonicTransform, show projectionAverage (fun _ => c) selected = fun _ => c from
-    funext fun _ => by simp [projectionAverage], harmonicMean_const]
+    harmonicTransform (fun _ => c) selected = c :=
+  (congrArg harmonicMean (funext fun _ => by simp [projectionAverage])).trans
+    (harmonicMean_const c)
 
 /-- Selecting no coordinates gives the ordinary mean. -/
 theorem harmonicTransform_empty (f : (ι → Bool) → ℝ) :
-    harmonicTransform f (fun _ => false) = 𝔼 x, f x := by
-  rw [harmonicTransform, show projectionAverage f (fun _ => false) = fun _ => 𝔼 x, f x from
-    funext fun _ => by simp only [projectionAverage, resample_false], harmonicMean_const]
+    harmonicTransform f (fun _ => false) = 𝔼 x, f x :=
+  (congrArg harmonicMean (funext fun _ => by simp only [projectionAverage, resample_false])).trans
+    (harmonicMean_const _)
 
 /-- Selecting all coordinates gives the harmonic mean of the original function. -/
 theorem harmonicTransform_full (f : (ι → Bool) → ℝ) :
-    harmonicTransform f (fun _ => true) = harmonicMean f := by
-  rw [harmonicTransform, show projectionAverage f (fun _ => true) = f from
-    funext fun _ => by simp only [projectionAverage, resample_true, Fintype.expect_const]]
+    harmonicTransform f (fun _ => true) = harmonicMean f :=
+  congrArg harmonicMean <| funext fun _ => by
+    simp only [projectionAverage, resample_true, Fintype.expect_const]
 
 /-- **The transform is concave in the function** [Korten, Corollary 1][Korten2026]: for every
 selected set, it is concave on nonnegative functions. -/
@@ -140,13 +139,11 @@ theorem concaveOn_harmonicTransform (selected : ι → Bool) :
     ConcaveOn ℝ (Set.Ici 0) (fun f : (ι → Bool) → ℝ => harmonicTransform f selected) := by
   refine ⟨convex_Ici 0, fun f hf g hg a b ha hb hab => ?_⟩
   have he : projectionAverage (a • f + b • g) selected =
-      a • projectionAverage f selected + b • projectionAverage g selected := by
-    funext x
+      a • projectionAverage f selected + b • projectionAverage g selected := funext fun x => by
     simp only [projectionAverage, Pi.add_apply, Pi.smul_apply, smul_eq_mul, expect_add_distrib,
       ← mul_expect]
-  simp only [harmonicTransform, he]
-  exact concaveOn_harmonicMean.2 (projectionAverage_nonneg hf selected)
-    (projectionAverage_nonneg hg selected) ha hb hab
+  simpa only [harmonicTransform, he] using concaveOn_harmonicMean.2
+    (projectionAverage_nonneg hf selected) (projectionAverage_nonneg hg selected) ha hb hab
 
 private theorem harmonicTransform_midpoint {f g : (ι → Bool) → ℝ} (hf : ∀ x, 0 ≤ f x)
     (hg : ∀ x, 0 ≤ g x) (selected : ι → Bool) :
@@ -384,12 +381,11 @@ theorem le_bernoulliAverage_le_harmonicTransform
     {B : ℝ} (hB : 1 ≤ B) (hbound : ∀ x, f x ≤ B) :
     1 / (2 * Real.sqrt B) ≤ bernoulliAverage (1 / 4)
       (fun selected => if 1 / (4 * B) ≤ harmonicTransform f selected then 1 else 0) := by
-  have hBp : 0 < B := lt_of_lt_of_le zero_lt_one hB
-  have hBs : 0 < Real.sqrt B := Real.sqrt_pos.mpr hBp
+  have hBs : 0 < Real.sqrt B := Real.sqrt_pos.mpr (zero_lt_one.trans_le hB)
   let a := 1 / (2 * Real.sqrt B)
   have ha : 0 ≤ a := by dsimp [a]; positivity
   have ha2 : a ^ 2 = 1 / (4 * B) := by
-    rw [div_pow, mul_pow, Real.sq_sqrt hBp.le]; norm_num
+    rw [div_pow, mul_pow, Real.sq_sqrt (zero_le_one.trans hB)]; norm_num
   have hlower : 1 / Real.sqrt B ≤ 𝔼 x, Real.sqrt (f x) := by
     rw [div_le_iff₀ hBs, ← hmean, expect_mul]
     exact expect_le_expect fun x _ => (Real.mul_self_sqrt (hf x)).symm.trans_le
@@ -397,13 +393,13 @@ theorem le_bernoulliAverage_le_harmonicTransform
   have hpoint (s : ι → Bool) : Real.sqrt (harmonicTransform f s) ≤
       a + if 1 / (4 * B) ≤ harmonicTransform f s then 1 else 0 := by
     by_cases hs : 1 / (4 * B) ≤ harmonicTransform f s
-    · rw [ite_eq_left hs]
-      linarith [show Real.sqrt (harmonicTransform f s) ≤ 1 by
-        simpa [hmean] using Real.sqrt_le_sqrt (harmonicTransform_le_expect hf s)]
+    · have hs1 : Real.sqrt (harmonicTransform f s) ≤ 1 := by
+        simpa [hmean] using Real.sqrt_le_sqrt (harmonicTransform_le_expect hf s)
+      rw [ite_eq_left hs]
+      linarith
     · rw [ite_eq_right hs, add_zero, ← Real.sqrt_sq ha, ha2]
       exact Real.sqrt_le_sqrt (le_of_not_ge hs)
-  have havg := bernoulliAverage_mono (by norm_num : (0 : ℝ) ≤ 1 / 4)
-    (by norm_num : (1 : ℝ) / 4 ≤ 1) hpoint
+  have havg := bernoulliAverage_mono (p := 1 / 4) (by norm_num) (by norm_num) hpoint
   rw [bernoulliAverage_add, bernoulliAverage_const] at havg
   have ha' : 2 * a = 1 / Real.sqrt B := by dsimp [a]; field_simp
   linarith [expect_sqrt_le_bernoulliAverage_sqrt_harmonicTransform hf]

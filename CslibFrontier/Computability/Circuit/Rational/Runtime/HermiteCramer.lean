@@ -136,8 +136,7 @@ theorem length_hermiteRows (nodes : List ℤ) (J : ℕ) :
 /-- Every row of `hermiteRows nodes J` has length `nodes.length * J`. -/
 theorem length_of_mem_hermiteRows {nodes : List ℤ} {J : ℕ} {row : List ℤ}
     (hrow : row ∈ hermiteRows nodes J) : row.length = nodes.length * J := by
-  obtain ⟨_, -, hmem⟩ := List.mem_flatMap.mp hrow
-  obtain ⟨_, -, rfl⟩ := List.mem_map.mp hmem
+  obtain ⟨_, -, _, -, rfl⟩ := by simpa [hermiteRows] using hrow
   simp
 
 /-- `cramerColZeroRows mat rhs` preserves the number of rows of `mat`. -/
@@ -220,10 +219,9 @@ theorem detRows_hermiteRows (nodes : List ℤ) (J : ℕ) :
 
 /-- At distinct integer nodes (`nodes.Nodup`), `detRows (hermiteRows nodes J)` is nonzero. -/
 theorem detRows_hermiteRows_ne_zero {nodes : List ℤ} (hnodup : nodes.Nodup) (J : ℕ) :
-    detRows (hermiteRows nodes J) ≠ 0 := by
-  rw [detRows_hermiteRows]
-  refine Polynomial.det_hermiteMatrix_ne_zero fun i j hij => Fin.ext ?_
-  exact (hnodup.getElem_inj_iff (hi := i.isLt) (hj := j.isLt)).mp hij
+    detRows (hermiteRows nodes J) ≠ 0 :=
+  detRows_hermiteRows nodes J ▸ Polynomial.det_hermiteMatrix_ne_zero fun i j hij =>
+    Fin.ext ((hnodup.getElem_inj_iff (hi := i.isLt) (hj := j.isLt)).mp hij)
 
 /-- Looking up entry `(i, j)` of `cramerColZeroRows mat rhs` for `i < mat.length` returns
 `rhs.getD i 0` in column `0` and `rowEntry mat i j` in columns `j > 0`. -/
@@ -231,8 +229,7 @@ theorem rowEntry_cramerColZeroRows (mat : List (List ℤ)) (rhs : List ℤ)
     {i : ℕ} (hi : i < mat.length) (j : ℕ) :
     rowEntry (cramerColZeroRows mat rhs) i j =
       if j = 0 then rhs.getD i 0 else rowEntry mat i j := by
-  have hi' : i < (cramerColZeroRows mat rhs).length := by simpa using hi
-  rw [rowEntry, List.getD_eq_getElem _ _ hi']
+  rw [rowEntry, List.getD_eq_getElem (cramerColZeroRows mat rhs) [] (by simpa using hi)]
   simp only [cramerColZeroRows, List.getElem_map, List.getElem_zipIdx, Nat.zero_add]
   cases j with
   | zero => simp
@@ -283,14 +280,12 @@ theorem detRows_cramerColZeroRows_hermiteRows (nodes : List ℤ) (J : ℕ) (jets
   have hrhs : (fun r : Fin nodes.length × Fin J => jets.flatten.getD (e r) 0) =
       fun r => rowEntry jets r.1 r.2 := by
     funext ⟨i, j⟩
-    have her : (e (i, j) : ℕ) = j.val + J * i.val := rfl
-    rw [her]
+    change jets.flatten.getD (j.val + J * i.val) 0 = rowEntry jets i j
     by_cases hi' : i.val < jets.length
     · exact getD_flatten_eq_rowEntry hjets_row ⟨i.val, hi'⟩ j
     · -- Rows past the end of `jets` read as zero on both sides.
       have hlen : jets.flatten.length = jets.length * J := by
-        rw [List.length_flatten, List.map_eq_replicate_iff.2 hjets_row, List.sum_replicate,
-          smul_eq_mul]
+        simp [List.length_flatten, List.map_eq_replicate_iff.2 hjets_row]
       rw [rowEntry, List.getD_eq_default _ _ (not_lt.1 hi'), List.getD_nil,
         List.getD_eq_default _ _ ?_]
       calc jets.flatten.length = jets.length * J := hlen
@@ -313,17 +308,14 @@ theorem detRows_cramerColZeroRows_eq_mul_eval_zero {nodes : List ℤ} {J : ℕ} 
       (rowEntry jets i j : ℚ) = (Ω : ℚ) * (Polynomial.taylor (nodes[i] : ℚ) H).coeff j) :
     detRows (cramerColZeroRows (hermiteRows nodes J) jets.flatten) =
       (Ω * detRows (hermiteRows nodes J)) * H_zero := by
-  have hN : 0 < nodes.length * J := Nat.zero_lt_of_lt hdeg
-  have hQ : 0 < nodes.length := Nat.pos_of_mul_pos_right hN
-  have hJ : 0 < J := Nat.pos_of_mul_pos_left hN
+  have hQ : 0 < nodes.length := Nat.pos_of_mul_pos_right (Nat.zero_lt_of_lt hdeg)
+  have hJ : 0 < J := Nat.pos_of_mul_pos_left (Nat.zero_lt_of_lt hdeg)
   let t : Fin nodes.length → ℤ := fun i => nodes[i]
   let c0 : Fin nodes.length × Fin J := (⟨0, hQ⟩, ⟨0, hJ⟩)
   set p : Polynomial ℚ := (Ω : ℚ) • H
-  have hp_deg : p.degree < ↑(nodes.length * J) := by
-    rw [Polynomial.degree_lt_iff_coeff_zero]
-    intro m hm
-    simp only [p, AddMonoidAlgebra.coeff_smul_apply, smul_eq_mul,
-      Polynomial.coeff_eq_zero_of_natDegree_lt (hdeg.trans_le hm), mul_zero]
+  have hp_deg : p.degree < ↑(nodes.length * J) :=
+    (Polynomial.degree_lt_iff_coeff_zero p _).mpr fun m hm => by
+      simp [p, Polynomial.coeff_eq_zero_of_natDegree_lt (hdeg.trans_le hm)]
   have hp_c0 : p.coeff (finProdFinEquiv c0) = (Ω : ℚ) * (H_zero : ℚ) := by
     simp [p, c0, Polynomial.coeff_zero_eq_eval_zero, hH0]
   have hjet_eq : Polynomial.taylorJet (fun i => (t i : ℚ)) J p =
@@ -338,10 +330,9 @@ theorem detRows_cramerColZeroRows_eq_mul_eval_zero {nodes : List ℤ} {J : ℕ} 
         fun r => rowEntry jets r.1 r.2).map (Int.cast : ℤ → ℚ)) :=
     Matrix.ext fun r c => by by_cases h : c = c0 <;> simp [h]
   rw [hmap_update, ← Int.cast_det] at hcramer
-  rw [detRows_cramerColZeroRows_hermiteRows nodes J jets hQ hJ hjets_row,
-    detRows_hermiteRows]
-  apply Int.cast_injective (α := ℚ)
-  simpa only [Int.cast_mul, mul_assoc, mul_left_comm (Ω : ℚ)] using hcramer.symm
+  rw [detRows_cramerColZeroRows_hermiteRows nodes J jets hQ hJ hjets_row, detRows_hermiteRows]
+  exact Int.cast_injective (α := ℚ)
+    (by simpa only [Int.cast_mul, mul_assoc, mul_left_comm (Ω : ℚ)] using hcramer.symm)
 
 /-- **Exact confluent Hermite Cramer recovery (`rowEntry` form).** When `nodes` are distinct,
 `Ω ≠ 0`, `H ∈ ℚ[X]` has `natDegree < nodes.length * J` and integer value `H(0) = H_zero`, and
@@ -461,9 +452,8 @@ theorem natAbs_lt_of_mem_hermiteRows {nodes : List ℤ} {J b : ℕ}
     (hnodes : ∀ t ∈ nodes, t.natAbs < 2 ^ b) {row : List ℤ} (hrow : row ∈ hermiteRows nodes J)
     {z : ℤ} (hz : z ∈ row) :
     z.natAbs < 2 ^ ((nodes.length * J) * (b + 1)) := by
-  rw [hermiteRows, List.mem_flatMap] at hrow
-  obtain ⟨t, ht, hrow_map⟩ := hrow
-  obtain ⟨j, -, rfl⟩ := List.mem_map.mp hrow_map
+  obtain ⟨t, ht, j, -, rfl⟩ := by
+    simpa only [hermiteRows, List.mem_flatMap, List.mem_map] using hrow
   obtain ⟨m, hm_mem, rfl⟩ := List.mem_map.mp hz
   have hm : m < nodes.length * J := List.mem_range.mp hm_mem
   have hchoose : m.choose j < 2 ^ (nodes.length * J) :=
@@ -478,13 +468,10 @@ theorem natAbs_lt_of_mem_hermiteRows {nodes : List ℤ} {J b : ℕ}
           Nat.pow_le_pow_right (by norm_num) (Nat.mul_le_mul_left b (by omega))
   rw [Int.natAbs_mul, Int.natAbs_natCast]
   calc m.choose j * (t ^ (m - j)).natAbs
-      < 2 ^ (nodes.length * J) * 2 ^ (b * (nodes.length * J)) := by
-        exact (Nat.mul_le_mul_left (m.choose j) hpow).trans_lt
-          (Nat.mul_lt_mul_of_pos_right hchoose (by positivity))
-    _ = 2 ^ ((nodes.length * J) * (b + 1)) := by
-        rw [← pow_add]
-        congr 1
-        ring
+      < 2 ^ (nodes.length * J) * 2 ^ (b * (nodes.length * J)) :=
+        (Nat.mul_le_mul_left (m.choose j) hpow).trans_lt
+          (Nat.mul_lt_mul_of_pos_right hchoose (Nat.two_pow_pos _))
+    _ = 2 ^ ((nodes.length * J) * (b + 1)) := by rw [← pow_add]; ring_nf
 
 /-- Entry bit-length bound for `hermiteRows`: if every node has `intBits t ≤ b + 1`, then every
 entry `z` of `hermiteRows nodes J` satisfies `intBits z ≤ (nodes.length * J) * (b + 1) + 1`. -/
@@ -562,8 +549,7 @@ theorem computableInPolyTime_cramerColZeroRows
     (hmat : ComputableInPolyTime mat encIn encIntTable)
     (hrhs : ComputableInPolyTime rhs encIn (encList encIntBin)) :
     ComputableInPolyTime (fun x => cramerColZeroRows (mat x) (rhs x)) encIn encIntTable := by
-  unfold cramerColZeroRows
-  fun_prop
+  fun_prop [cramerColZeroRows]
 
 /-- `cramerColZeroRows` is computable in polynomial time on pairs of integer matrix and RHS. -/
 theorem cramerColZeroRows_polytime :
@@ -605,8 +591,7 @@ theorem computableInPolyTime_hermiteRecoverModPowTwo
     ComputableInPolyTime
       (fun x => hermiteRecoverModPowTwo (nodes x) (J x) (ℓ x) (Ω x) (jets x))
       encIn encIntBin := by
-  unfold hermiteRecoverModPowTwo
-  fun_prop
+  fun_prop [hermiteRecoverModPowTwo]
 
 /-- Direct tuple certificate for `hermiteRecoverModPowTwo`. -/
 theorem hermiteRecoverModPowTwo_polytime :
