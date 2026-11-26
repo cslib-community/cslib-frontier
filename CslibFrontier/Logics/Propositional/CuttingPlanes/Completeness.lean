@@ -370,27 +370,15 @@ theorem exists_derivableInSize_of_forall_holds [Nonempty V] {I : Ineq V}
       (h σ fun J hJ => hσ J (Set.mem_insert_of_mem _ hJ))
   set Γ₀ : Finset (Ineq V) := ls.toFinset.filter (· ∈ Γ)
   have hΓ₀ : ↑Γ₀ ⊆ Γ := fun J hJ => (mem_filter.1 hJ).2
-  have himp (σ : V → Bool) (hσ : ∀ J ∈ Γ₀, J.Holds σ) : I.Holds σ := by
-    by_contra hI
-    refine not_holds_contra σ (hls.restrict.holds (fun J ⟨hJ, hJls⟩ => ?_) hc)
-    rcases Set.mem_insert_iff.1 hJ with rfl | hJ
-    · exact (hN σ).2 hI
-    · exact hσ J (mem_filter.2 ⟨List.mem_toFinset.2 hJls, hJ⟩)
-  -- Bound lowering: `0 ≥ -1` is `x ≥ 0` plus `-x ≥ -1`.
-  have hlow {c b : ℤ} (hbc : b ≤ c) (hc : ∃ s, DerivableInSize Γ ⟨I.coeff, c⟩ s) :
-      ∃ s, DerivableInSize Γ ⟨I.coeff, b⟩ s := by
-    obtain ⟨s, hs⟩ := hc
-    obtain rfl | hlt := hbc.eq_or_lt
-    · exact ⟨s, hs⟩
-    have e : (⟨I.coeff, c⟩ : Ineq V) + (c - b).toNat • (nonneg v₀ + leOne v₀) = ⟨I.coeff, b⟩ := by
-      ext <;> simp [nonneg_add_leOne]
-      omega
-    exact ⟨_, e ▸ hs.add (((DerivableInSize.nonneg v₀).add (.leOne v₀)).smul _ (by omega))⟩
+  have himp (σ : V → Bool) (hσ : ∀ J ∈ Γ₀, J.Holds σ) : I.Holds σ :=
+    of_not_not fun hI => not_holds_contra σ (hls.restrict.holds (fun J ⟨hJ, hJls⟩ =>
+      (Set.mem_insert_iff.1 hJ).elim (fun e => e ▸ (hN σ).2 hI)
+        fun hJ => hσ J (mem_filter.2 ⟨List.mem_toFinset.2 hJls, hJ⟩)) hc)
   -- The base `A ≥ c₀`, a sum of multiples of literal axioms.
   set τ₀ : V → Bool := fun v => decide (I.coeff v < 0)
   set J₀ : Ineq V := (nonneg v₀ + leOne v₀) +
     ∑ v ∈ I.coeff.support, (|I.coeff v|).toNat • (falseLit τ₀ v).toIneq
-  have hJ₀ : ∃ s, DerivableInSize Γ ⟨I.coeff, J₀.bound⟩ s := by
+  obtain ⟨s₀, hJ₀⟩ : ∃ s, DerivableInSize Γ ⟨I.coeff, J₀.bound⟩ s := by
     have hterm (v : V) : |I.coeff v| * sgn τ₀ v = I.coeff v := by
       by_cases h : I.coeff v < 0 <;> simp [sgn, τ₀, h, abs_of_neg, abs_of_nonneg, le_of_not_gt]
     have e : J₀ = ⟨I.coeff, J₀.bound⟩ := Ineq.ext (by
@@ -398,25 +386,30 @@ theorem exists_derivableInSize_of_forall_holds [Nonempty V] {I : Ineq V}
         coeff_neg, coeff_contra, neg_zero, zero_add, Finsupp.smul_single, nsmul_eq_mul,
         Int.toNat_of_nonneg (abs_nonneg _), hterm]
       exact Finsupp.sum_single I.coeff) rfl
-    exact ⟨_, by
-      rw [← e]
-      exact ((DerivableInSize.nonneg v₀).add (.leOne v₀)).add_sum I.coeff.support
-        fun v hv => (DerivableInSize.literal (Γ := Γ) (falseLit τ₀ v)).smul (|I.coeff v|).toNat
-          (by simpa [Int.lt_toNat] using abs_pos.2 (Finsupp.mem_support_iff.1 hv))⟩
+    rw [← e]
+    exact ⟨_, ((DerivableInSize.nonneg v₀).add (.leOne v₀)).add_sum I.coeff.support fun v hv =>
+      (DerivableInSize.literal (Γ := Γ) (falseLit τ₀ v)).smul (|I.coeff v|).toNat
+        (by simpa [Int.lt_toNat] using abs_pos.2 (Finsupp.mem_support_iff.1 hv))⟩
+  -- Bound lowering: `0 ≥ -1` is `x ≥ 0` plus `-x ≥ -1`.
+  obtain hlt | hle := lt_or_ge I.bound J₀.bound
+  · have e : (⟨I.coeff, J₀.bound⟩ : Ineq V) + (J₀.bound - I.bound).toNat • (nonneg v₀ + leOne v₀) =
+        I := by
+      ext <;> simp [nonneg_add_leOne]
+      omega
+    exact ⟨_, e ▸ hJ₀.add (((DerivableInSize.nonneg v₀).add (.leOne v₀)).smul _ (by omega))⟩
   -- Iterate the step from `min c₀ b` up to `b`.
-  set c₀ : ℤ := min J₀.bound I.bound
-  have hstep : ∀ n : ℕ, c₀ + n ≤ I.bound → ∃ s, DerivableInSize Γ ⟨I.coeff, c₀ + n⟩ s := by
-    intro n
+  have hstep (n : ℕ) (hn : J₀.bound + n ≤ I.bound) :
+      ∃ s, DerivableInSize Γ ⟨I.coeff, J₀.bound + n⟩ s := by
     induction n with
-    | zero => exact fun _ => by simpa using hlow (b := c₀) (min_le_left _ _) hJ₀
+    | zero => exact ⟨_, by simpa using hJ₀⟩
     | succ n ih =>
-      intro hn
       obtain ⟨_, hs⟩ := ih (by omega)
       simpa [add_assoc] using exists_derivableInSize_succ hΓ₀ (fun τ hτ => by
-        rw [lhs_congr (I := ⟨I.coeff, c₀ + n⟩) (J := I) rfl]
+        rw [lhs_congr (I := ⟨I.coeff, J₀.bound + n⟩) (J := I) rfl]
         exact lt_of_lt_of_le (by omega) (himp τ hτ)) hs
-  obtain ⟨s, hs⟩ := hstep (I.bound - c₀).toNat (by omega)
-  have e : (⟨I.coeff, c₀ + (I.bound - c₀).toNat⟩ : Ineq V) = I := Ineq.ext rfl (by dsimp; omega)
+  obtain ⟨s, hs⟩ := hstep (I.bound - J₀.bound).toNat (by omega)
+  have e : (⟨I.coeff, J₀.bound + (I.bound - J₀.bound).toNat⟩ : Ineq V) = I :=
+    Ineq.ext rfl (by dsimp; omega)
   exact ⟨s, e ▸ hs⟩
 
 /-- **Cutting planes derive exactly the implied inequalities**: over a nonempty type of variables,

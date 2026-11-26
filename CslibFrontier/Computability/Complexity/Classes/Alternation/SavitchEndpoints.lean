@@ -99,12 +99,8 @@ theorem lastMidpoint_eq_none_iff {i : ℕ} {z : List Bool} {d : Bool} :
   induction i generalizing z with
   | zero => simp [lastMidpoint]
   | succ i ih =>
-    simp only [lastMidpoint, Option.or_eq_none_iff, ih, getD_drop_level]
-    exact ⟨fun ⟨h1, h2⟩ j hj => by
-        rcases j with _ | j
-        · simpa using h2
-        · exact h1 j (by omega),
-      fun h => ⟨fun j hj => h (j + 1) (by omega), by simpa using h 0 (by omega)⟩⟩
+    simp only [lastMidpoint, Option.or_eq_none_iff, ih, getD_drop_level, ite_eq_right_iff,
+      reduceCtorEq, imp_false, Nat.forall_lt_succ_left, Nat.mul_zero, Nat.zero_add, and_comm]
 
 /-- **The midpoint of the last level with half `d`.** `lastMidpoint w i z d` is `some m` exactly
 when some level `j < i` of the moves `z` has half `d`, no later level `j' < i` has half `d`, and `m`
@@ -118,24 +114,20 @@ theorem lastMidpoint_eq_some_iff {i : ℕ} {z : List Bool} {d : Bool} {m : List 
   | zero => simp [lastMidpoint]
   | succ i ih =>
     simp only [lastMidpoint, Option.or_eq_some_iff, ih, lastMidpoint_eq_none_iff,
-      getD_drop_level, drop_drop_level]
-    constructor
+      getD_drop_level, drop_drop_level, Nat.exists_lt_succ_left, Nat.mul_zero, Nat.zero_add,
+      List.drop_zero]
+    refine ⟨?_, ?_⟩
     · rintro (⟨j, hj, h1, h2, h3⟩ | ⟨hn, hs⟩)
-      · refine ⟨j + 1, by omega, h1, h2, fun
+      · exact .inr ⟨j, hj, h1, h2, fun
           | 0, hj', _ => by omega
           | k + 1, hj', hj'' => h3 k (by omega) (by omega)⟩
-      · obtain ⟨hd, rfl⟩ : z.getD (2 * w + 1) false = d ∧ midpointMoves w z = m := by
-          simpa using hs
-        refine ⟨0, by omega, by simpa using hd, by simp, fun
+      · obtain ⟨hd, rfl⟩ : z.getD (2 * w + 1) false = d ∧ midpointMoves w z = m := by simpa using hs
+        exact .inl ⟨hd, rfl, fun
           | 0, hj', _ => by omega
           | k + 1, _, hj'' => hn k (by omega)⟩
-    · rintro ⟨j, hj, h1, h2, h3⟩
-      cases j with
-      | zero =>
-        refine .inr ⟨fun k hk => h3 (k + 1) (by omega) (by omega), ?_⟩
-        simp_all
-      | succ j =>
-        exact .inl ⟨j, by omega, h1, h2, fun k hk hk' => h3 (k + 1) (by omega) (by omega)⟩
+    · rintro (⟨h1, rfl, h3⟩ | ⟨j, hj, h1, h2, h3⟩)
+      · exact .inr ⟨fun k hk => h3 (k + 1) (Nat.succ_pos _) (by omega), ite_eq_left h1⟩
+      · exact .inl ⟨j, hj, h1, h2, fun k hk hk' => h3 (k + 1) (by omega) (by omega)⟩
 
 /-- **The endpoints after `i` levels.** After `i` levels of the midpoint game from `u` and `v`,
 the left endpoint is the midpoint of the last level whose half is `true`, or `u`, and the right
@@ -499,11 +491,10 @@ theorem padZip_run (u z : List Bool) :
   | nil =>
     induction z with
     | nil => simp [padZip]
-    | cons b z ih => simpa [padZip] using ih
-  | cons a u ih =>
-    cases z with
-    | nil => simpa [padZip, List.range_succ_eq_map, Function.comp_def] using ih []
-    | cons b z => simpa [padZip, List.range_succ_eq_map, Function.comp_def] using ih z
+    | cons _ z ih => simpa [padZip] using ih
+  | cons _ u ih =>
+    have h := ih z.tail
+    cases z <;> simpa [padZip, List.range_succ_eq_map, Function.comp_def] using h
 
 /-- `lastMidpoint w i z d` reads only the first `(2 * w + 2) * i` moves of `z`. -/
 theorem lastMidpoint_congr {i : ℕ} {z z' : List Bool} {d : Bool}

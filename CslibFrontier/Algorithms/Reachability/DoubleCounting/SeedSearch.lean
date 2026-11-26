@@ -381,24 +381,23 @@ theorem runSeedScheduler_clock {σ : Type} {count : ℕ} (clock : σ → ℕ) (c
         apply bind_optionT_clock clock cost (remaining * cost) _ _ (hgood i _ _)
         rintro (_ | _) _
         exacts [Nat.le_add_right _ _, ih _ _ _]
-  have htest i t :
-      clock ((testSeedWith (scan i none) source (fun answer =>
-        checkSourcesFrom (fun position => scan i (some (position, answer)))
-          source sourceAt count 0 (by simp))).run t).2 ≤
-        clock t + (1 + count) * cost := by
-    rw [Nat.add_mul, Nat.one_mul, testSeedWith]
+  let budget := (1 + count) * cost
+  have htest i t : clock ((testScheduledSeed scan sourceAt source i).run t).2 ≤
+      clock t + budget := by
+    rw [testScheduledSeed, testSeedWith]
+    dsimp only [budget]
+    rw [Nat.add_mul, Nat.one_mul]
     apply bind_optionT_clock clock cost (count * cost) _ _ (hc i none source)
     rintro (_ | _ | answer) _
     · exact Nat.le_add_right _ _
     · exact Nat.le_add_right _ _
     · simpa only [Nat.add_zero] using bind_optionT_clock clock (count * cost) 0 _ _
         (hothers i answer count 0 (Nat.zero_add count).le)
-        (fun b _ => by cases b <;> exact Nat.le_refl _) _
+        (fun b _ => by cases b <;> exact le_rfl) _
   let test := rankedSeedTest (testScheduledSeed scan sourceAt source)
-  let budget := (1 + count) * cost
   have hstep i t : clock ((test i).run t).2 ≤ clock t + budget := by
-    simpa only [test, rankedSeedTest, testScheduledSeed, Nat.add_zero] using
-      bind_optionT_clock clock budget 0 _ _ (htest i) (fun _ _ => Nat.le_refl _) t
+    simpa only [test, rankedSeedTest, Nat.add_zero] using
+      bind_optionT_clock clock budget 0 _ _ (htest i) (fun _ _ => le_rfl) t
   have hloop (remaining cursor : ℕ) (h : cursor + remaining ≤ 2 ^ length) (t : σ) :
       clock ((findSeedFrom test remaining cursor h).run t).2 ≤
         clock t + remaining * budget := by
@@ -442,20 +441,12 @@ theorem testSeed_correct {r : Fin n → Fin n → Prop} {target source : Fin n}
   classical
   have hsource' : sourceGood controller = fun s => pure (decide (∀ j, ∃! w, Passes r s j w)) :=
     funext fun s => by
-      obtain ⟨verdict, hv, hs⟩ := hc s
-      cases verdict with
-      | bad j =>
-        have hnot : ¬ ∀ i, ∃! w, Passes r s i w := fun h => hs (h j)
-        simp [sourceGood, hv, hnot]
-      | decided b => simp [sourceGood, hv, hs.1]
-  obtain ⟨verdict, hv, hs⟩ := hc source
-  cases verdict with
-  | bad j =>
-    have hnot : ¬ ((∀ i, ∃! w, Passes r source i w) ∧
-        ∀ s ∈ sources, ∀ i, ∃! w, Passes r s i w) := fun h => hs (h.1 j)
-    simp [testSeed, testSeedWith, hv, hnot]
-  | decided b =>
-    have hb : b = decide (Relation.ReflTransGen r source target) :=
+      rcases hc s with ⟨_ | _, hv, hs⟩ <;> simp only [sourceGood, hv, pure_bind]
+      · exact congrArg pure (decide_eq_false fun h => hs (h _)).symm
+      · simp [hs.1]
+  rcases hc source with ⟨j | b, hv, hs⟩
+  · rw [testSeed, testSeedWith, hv, pure_bind, ite_eq_right fun h => hs (h.1 j)]
+  · have hb : b = decide (Relation.ReflTransGen r source target) :=
       Bool.eq_iff_iff.mpr (by simpa only [decide_eq_true_eq] using hs.2)
     have hall : (sources.filter (fun u => u != source)).all
         (fun s => decide (∀ j, ∃! w, Passes r s j w)) =
