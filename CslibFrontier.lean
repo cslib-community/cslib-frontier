@@ -6660,6 +6660,7 @@ public import CslibFrontier.Computability.Complexity.Problems.SAT.Planar.PathGeo
 public import CslibFrontier.Computability.PointerMachine.WordRAM.Natural
 public import CslibFrontier.Computability.Complexity.Problems.Graph.CountingCNF
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelTick.Stage01
+public import CslibFrontier.Computability.Circuit.Boolean.CycleMinor
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
 public import CslibFrontier.DataStructure.Queue.WordRAM.RegisterExecution
 public import CslibFrontier.Computability.Machines.AuxPDA.Surface
