@@ -620,10 +620,9 @@ theorem eval_multilinearExtension_wiringPred_ofClauses {R : Type*} [CommRing R]
               eval w (indicatorPoly (cl.evalRight (width i) a))
           else 0
         else 0).sum := fun a => by
-    have hne : (clauses i).find? (fun cl => cl.matchesVec a) ≠ none := fun h0 => by
-      have := List.countP_eq_zero.mpr (List.find?_eq_none.mp h0)
-      linarith [hpart a]
-    obtain ⟨cl₀, hfind⟩ := Option.ne_none_iff_exists'.mp hne
+    obtain ⟨cl₀, hfind⟩ := Option.ne_none_iff_exists'.mp
+      fun h0 : (clauses i).find? (fun cl => cl.matchesVec a) = none => by
+        linarith [hpart a, List.countP_eq_zero.mpr (List.find?_eq_none.mp h0)]
     have hsum := sum_list_of_unique
       (fun cl : WiringClause =>
         if cl.gate = g then
@@ -635,22 +634,16 @@ theorem eval_multilinearExtension_wiringPred_ofClauses {R : Type*} [CommRing R]
     exact congrArg List.sum
       (List.map_congr_left fun cl _ => by by_cases hg : cl.gate = g <;> simp [hg])
   refine (Finset.sum_congr rfl fun a _ => hpoint a).trans ?_
-  suffices ∀ l : List WiringClause,
-      (∑ a : Fin (width (i + 1)) → Bool,
-        (l.map fun cl =>
-          if cl.gate = g then
-            if cl.matchesVec a then
-              eval z (indicatorPoly a) * eval y (indicatorPoly (cl.evalLeft (width i) a)) *
-                eval w (indicatorPoly (cl.evalRight (width i) a))
-            else 0
-          else 0).sum) =
-      (l.map fun cl => if cl.gate = g then cl.evalFactor z y w else 0).sum from this (clauses i)
-  intro l
+  dsimp only [C, LayeredCircuit.ofClauses]
+  generalize clauses i = l
   induction l with
   | nil => simp
   | cons cl cls ih =>
     simp only [List.map_cons, List.sum_cons, Finset.sum_add_distrib, ih]
-    by_cases hg : cl.gate = g <;> simp [hg, WiringClause.sum_matchesVec_eq_evalFactor]
+    by_cases hg : cl.gate = g
+    · simp only [hg, ↓reduceIte]
+      exact congrArg (· + _) (cl.sum_matchesVec_eq_evalFactor z y w)
+    · simp [hg]
 
 /-! ### Executable modular wiring-clause evaluator and polynomial-time certificate -/
 
@@ -738,20 +731,13 @@ private theorem natCast_evalClauseNat {p : ℕ} [NeZero p] (kOut kIn : ℕ) (cl 
     simp only [List.toFinset_range, Nat.cast_prod, Finset.prod_range, natCast_maskWeightNat,
       natCast_litFactorNat, natCast_varWeightNat, vecOfList, WiringClause.bitTerm,
       List.getD_eq_getElem?_getD]
-  have hcoords : (∏ i : Fin kOut,
-      ((bitTermNat p kIn cl zs ys ws i.val false +
-        bitTermNat p kIn cl zs ys ws i.val true : ℕ) : ZMod p)) =
-      ∏ j : Fin kOut,
-        (cl.bitTerm (vecOfList p kOut zs) (vecOfList p kIn ys) (vecOfList p kIn ws) j false +
-          cl.bitTerm (vecOfList p kOut zs) (vecOfList p kIn ys) (vecOfList p kIn ws) j true) := by
-    refine Finset.prod_congr rfl fun j _ => ?_
-    rw [Nat.cast_add, hbit j false, hbit j true]
   simp only [evalClauseNat, ZMod.natCast_mod, Nat.cast_mul]
   rw [← List.prod_toFinset _ List.nodup_range, ← List.prod_toFinset _ List.nodup_range,
     ← List.prod_toFinset _ List.nodup_range]
   simp only [List.toFinset_range, Nat.cast_prod, Finset.prod_range, ZMod.natCast_mod,
     natCast_constWeightNat, WiringClause.evalFactor, vecOfList]
-  rw [hcoords]
+  exact congrArg _ (Finset.prod_congr rfl fun j _ => by
+    rw [Nat.cast_add, hbit j false, hbit j true])
 
 private theorem natCast_evalClausesMod {p : ℕ} [NeZero p] (kOut kIn : ℕ) (g : Gate)
     (clauses : List WiringClause) (zs ys ws : List ℕ) :

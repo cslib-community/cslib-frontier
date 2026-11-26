@@ -116,9 +116,7 @@ private theorem eq_bits_foldr_of_length_eq_size {l : List Bool}
 private theorem size_eq_iff_pow_le_of_lt {n k : ℕ} (hn : n < 2 ^ k) :
     n.size = k ↔ k = 0 ∨ 2 ^ (k - 1) ≤ n := by
   cases k with
-  | zero =>
-    simp only [pow_zero, Nat.lt_one_iff] at hn
-    simp [hn]
+  | zero => simp [Nat.lt_one_iff.mp hn]
   | succ k =>
     simp only [Nat.add_eq_zero_iff, one_ne_zero, and_false, false_or, Nat.add_sub_cancel,
       ← not_lt (a := n), ← Nat.size_le]
@@ -143,9 +141,8 @@ private theorem take_idxOf_false_append (q : List Bool) (hk : q.idxOf false < q.
   | cons b q' ih =>
     cases b
     · rfl
-    · have hidx : (true :: q').idxOf false = q'.idxOf false + 1 := by simp [List.idxOf_cons_ne]
-      rw [hidx, List.take_succ_cons, ih (by simp only [List.length_cons] at hk; omega),
-        List.replicate_succ, List.cons_append]
+    · rw [List.idxOf_cons_ne _ Bool.false_ne_true.symm, List.take_succ_cons,
+        ih (by simp [List.idxOf_cons_ne] at hk; omega), List.replicate_succ, List.cons_append]
 
 private theorem drop_take_foldr_eq {r : List Bool} {k : ℕ} (hk : k ≤ r.length)
     (hsize : ((r.take k).foldr Nat.bit 0).size = k) :
@@ -206,8 +203,7 @@ theorem decodeSelfDelimiting?_selfDelimitingCode (b : List Bool) :
 theorem isPrefixFree_range_selfDelimitingCode :
     InformationTheory.IsPrefixFree (Set.range selfDelimitingCode) := by
   rintro _ ⟨b₁, rfl⟩ _ ⟨b₂, rfl⟩ ⟨r, hr⟩
-  have heq : selfDelimitingCode b₁ ++ r = selfDelimitingCode b₂ ++ [] := by simpa using hr
-  obtain ⟨rfl, rfl⟩ := selfDelimitingCode_append_inj heq
+  obtain ⟨rfl, rfl⟩ := selfDelimitingCode_append_inj (q' := []) (by simpa using hr)
   simp
 
 theorem primrec_two_pow : Primrec (fun n : ℕ => 2 ^ n) :=
@@ -390,13 +386,11 @@ steps. -/
 theorem prefixAccepted_prefix_succ (c : Code) (n : ℕ) :
     prefixAccepted c n <+: prefixAccepted c (n + 1) := by
   simp only [prefixAccepted]
-  cases prefixCand c n with
-  | none => exact List.prefix_refl _
-  | some qx =>
-    dsimp only
+  rcases prefixCand c n with _ | ⟨q, x⟩
+  · exact List.prefix_rfl
+  · dsimp only
     split_ifs
-    · exact List.prefix_refl _
-    · exact List.prefix_append _ _
+    exacts [List.prefix_rfl, List.prefix_append _ _]
 
 theorem prefixAccepted_prefix (c : Code) {m n : ℕ} (h : m ≤ n) :
     prefixAccepted c m <+: prefixAccepted c n := by
@@ -442,8 +436,7 @@ private theorem prefixAccepted_invariants (c : Code) (n : ℕ) :
           exact hnodup.append (List.nodup_singleton q) (by simpa using hq_notMem)
         · simp only [List.mem_append, List.mem_singleton, Prod.mk.injEq]
           rintro p y (hy | ⟨rfl, rfl⟩)
-          · exact hsound p y hy
-          · exact hq_eval
+          exacts [hsound p y hy, hq_eval]
 
 theorem mem_prefixAccepted_iff_lookup {c : Code} {n : ℕ} {p : List Bool} {x : ℕ} :
     (p, x) ∈ prefixAccepted c n ↔ (prefixAccepted c n).lookup p = some x :=
@@ -505,15 +498,12 @@ theorem ofPrefixCode_produces_iff_of_isPrefixFree {c : Code} (hpf : (ofCode c).I
         (fun entry => decide (p <+: entry.1) || decide (entry.1 <+: p)) = false := by
       refine List.any_eq_false.mpr fun entry hent => ?_
       have he_halt : entry.1 ∈ (ofCode c).haltingSet :=
-        ⟨entry.2,
-          ofCode_produces_iff.mpr ((prefixAccepted_invariants c k).2.2 entry.1 entry.2 hent)⟩
-      have hp_halt : p ∈ (ofCode c).haltingSet := ⟨x, h⟩
+        ⟨entry.2, ofCode_produces_iff.mpr ((prefixAccepted_invariants c k).2.2 _ _ hent)⟩
       have hne : p ≠ entry.1 := fun heq => hmem (List.mem_map.mpr ⟨entry, hent, heq.symm⟩)
-      have h1 : ¬ (p <+: entry.1) := fun hp' => hne (hpf p hp_halt entry.1 he_halt hp')
-      have h2 : ¬ (entry.1 <+: p) := fun hp' => hne (hpf entry.1 he_halt p hp_halt hp').symm
-      simp [h1, h2]
-    refine ofPrefixCode_produces_iff.mpr ⟨k + 1, ?_⟩
-    simp [prefixAccepted, hcand, hno]
+      simp only [Bool.or_eq_true, decide_eq_true_eq, not_or]
+      exact ⟨fun hp' => hne (hpf p ⟨x, h⟩ entry.1 he_halt hp'),
+        fun hp' => hne (hpf entry.1 he_halt p ⟨x, h⟩ hp').symm⟩
+    exact ofPrefixCode_produces_iff.mpr ⟨k + 1, by simp [prefixAccepted, hcand, hno]⟩
 
 private theorem primrec₂_prefixCand : Primrec₂ prefixCand := by
   have hdec : Primrec (decode (α := List Bool × ℕ)) := Primrec.decode
@@ -610,8 +600,7 @@ private theorem exists_produces_ofPrefixCode_of_exists {c : Code}
   have hex : ∃ k, (prefixCand c k).isSome := by
     obtain ⟨p, x, hx⟩ := h
     obtain ⟨t, ht⟩ := Code.evaln_complete.mp (ofCode_produces_iff.mp hx)
-    refine ⟨encode (p, t), ?_⟩
-    simp [prefixCand, Option.mem_def.mp ht]
+    exact ⟨encode (p, t), by simp [prefixCand, Option.mem_def.mp ht]⟩
   let k₀ := Nat.find hex
   obtain ⟨⟨p₀, x₀⟩, hcand⟩ := Option.isSome_iff_exists.mp (Nat.find_spec hex)
   have hacc0 : prefixAccepted c k₀ = [] := by
@@ -621,13 +610,10 @@ private theorem exists_produces_ofPrefixCode_of_exists {c : Code}
     | zero => rfl
     | succ m ih =>
       have hm_lt : m < k₀ := by omega
-      have hnone : prefixCand c m = Option.none :=
-        Option.not_isSome_iff_eq_none.mp (Nat.find_min hex hm_lt)
-      simp [prefixAccepted, ih (Nat.le_of_lt hm_lt), hnone]
-  have hmem : (p₀, x₀) ∈ prefixAccepted c (k₀ + 1) := by
-    rw [prefixAccepted, hacc0, hcand]
-    simp
-  exact ⟨p₀, x₀, ofPrefixCode_produces_iff.mpr ⟨k₀ + 1, hmem⟩⟩
+      simp [prefixAccepted, ih hm_lt.le, Option.not_isSome_iff_eq_none.mp (Nat.find_min hex hm_lt)]
+  refine ⟨p₀, x₀, ofPrefixCode_produces_iff.mpr ⟨k₀ + 1, ?_⟩⟩
+  rw [prefixAccepted, hacc0, hcand]
+  exact .head []
 
 /-! ### The universal prefix-free description method -/
 
@@ -778,9 +764,8 @@ theorem MinorizesPrefixPartrec.map {α β : Type*} [Primcodable α] [Primcodable
     (hs : Computable s) (hfs : ∀ y, f (s y) = y) :
     (U.map f).MinorizesPrefixPartrec := by
   intro g hg hg_pf
-  have hpf' : InformationTheory.IsPrefixFree {p | ((g p).map s).Dom} := by
-    simpa using hg_pf
-  obtain ⟨c, hc⟩ := hU (fun p => (g p).map s) (hg.map (hs.comp Computable.snd).to₂) hpf'
+  obtain ⟨c, hc⟩ := hU (fun p => (g p).map s) (hg.map (hs.comp Computable.snd).to₂)
+    (by simpa using hg_pf)
   refine ⟨c, fun p y hy => ?_⟩
   calc (U.map f).ecomplexity y = (U.map f).ecomplexity (f (s y)) := by rw [hfs]
     _ ≤ U.ecomplexity (s y) := U.ecomplexity_map_le f (s y)
@@ -938,11 +923,9 @@ theorem MinorizesPrefixPartrec.not_computable_complexity {α : Type*} [Primcodab
   intro hcomp
   have hunb : ∀ k : ℕ, ∃ x : α, k ≤ U.complexity x := fun k => by
     obtain ⟨x, hx⟩ := (U.eventually_natCast_le_ecomplexity k).exists
-    rw [← natCast_complexity (hfin x), Nat.cast_le] at hx
-    exact ⟨x, hx⟩
+    exact ⟨x, Nat.cast_le.mp (hx.trans_eq (natCast_complexity (hfin x)).symm)⟩
   obtain ⟨x, hx⟩ := hU.exists_ecomplexity_lt_of_computable hcomp hunb
-  rw [← natCast_complexity (hfin x), Nat.cast_lt] at hx
-  exact lt_irrefl _ hx
+  exact lt_irrefl _ (hx.trans_eq (natCast_complexity (hfin x)))
 
 /-- **The prefix-free Kolmogorov complexity of natural numbers is not computable.** -/
 theorem not_computable_complexity_universalPrefix : ¬ Computable universalPrefix.complexity :=

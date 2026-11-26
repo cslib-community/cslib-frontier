@@ -459,9 +459,8 @@ theorem card_eval_eq_kaneWilliamsB_le_of_unforced_mean_le (hℓ : 0 < ℓ)
       (hU σ w).mono (not_lt.mp hq)
     have hcorr : |∑ u, signVal (f (embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w
         (u + kaneWilliamsResidualParities n k ℓ σ w))) *
-          signVal (r u ⬝ᵥ kaneWilliamsMessage n k ℓ w)| < γ * 2 ^ k := by
-      by_contra hge
-      exact hb (mem_filter.mpr ⟨mem_univ _, σ, _, _, hh, not_lt.mp hge⟩)
+          signVal (r u ⬝ᵥ kaneWilliamsMessage n k ℓ w)| < γ * 2 ^ k :=
+      lt_of_not_ge fun hge => hb (mem_filter.mpr ⟨mem_univ _, σ, _, _, hh, hge⟩)
     have hagree := two_mul_card_agree_eq (r := r) σ w
       fun u => f (embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w u)
     have hlt := (le_abs_self _).trans_lt hcorr
@@ -566,11 +565,9 @@ theorem one_le_of_threshold_eq_kaneWilliamsB_of_unforced_mean_le {t : ℕ} (hℓ
   have hbal : |∑ u, signVal (r u ⬝ᵥ x)| ≤ δ * 2 ^ k := by
     simpa only [hcardZ] using abs_sum_signVal_dotProduct_le hr hx0
   -- every restricted vote has correlation below `γ`
-  have hsmall (o : Fin t) : ∑ u, signVal (V u o) * signVal (r u ⬝ᵥ x) ≤ γ * 2 ^ k := by
-    have hh : IsDepthTwoOverWeights (W σ) Q
-        fun u => v (embedUpdate (kaneWilliamsLiveVar n k ℓ σ) w u) o := (hU σ w o).mono hq
-    by_contra! hgt
-    exact hgood (mem_filter.mpr ⟨mem_univ _, σ, c, _, hh, hgt.le.trans (le_abs_self _)⟩)
+  have hsmall (o : Fin t) : ∑ u, signVal (V u o) * signVal (r u ⬝ᵥ x) ≤ γ * 2 ^ k :=
+    le_of_not_gt fun hgt => hgood
+      (mem_filter.mpr ⟨mem_univ _, σ, c, _, (hU σ w o).mono hq, hgt.le.trans (le_abs_self _)⟩)
   have hsum : ∑ o, ∑ u, signVal (V u o) * signVal (r u ⬝ᵥ x) ≤ t * (γ * 2 ^ k) := by
     refine (sum_le_sum fun o _ => hsmall o).trans ?_
     rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul]
@@ -1017,11 +1014,10 @@ private theorem le_two_pow_of_balanced (hp : 1 ≤ p) (hnℓ : n = 16 * p * ℓ)
 /-- In the balanced case `n = 16 p ℓ`, `√n = 4 √p √ℓ`. -/
 private theorem sqrt_balanced (hnℓ : n = 16 * p * ℓ) :
     Real.sqrt n = 4 * Real.sqrt p * Real.sqrt ℓ := by
-  have h16 : Real.sqrt 16 = 4 := by
-    rw [show (16 : ℝ) = 4 ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]
   rw [hnℓ, Nat.cast_mul, Nat.cast_mul, Nat.cast_ofNat,
     Real.sqrt_mul (show (0 : ℝ) ≤ 16 * p by positivity),
-    Real.sqrt_mul (show (0 : ℝ) ≤ 16 by norm_num), h16]
+    Real.sqrt_mul (show (0 : ℝ) ≤ 16 by norm_num),
+    show (16 : ℝ) = 4 ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]
 
 private theorem mul_sqrt_balanced (hnℓ : n = 16 * p * ℓ) :
     (n : ℝ) * Real.sqrt n = 64 * p * Real.sqrt p * (ℓ * Real.sqrt ℓ) := by
@@ -1080,9 +1076,8 @@ theorem size_ge_of_threshold_eval_eq_kaneWilliamsB_balanced {t : ℕ} (hp : 1 �
   refine balanced_threshold_bound hp hnℓ hn ht (K := 16 * p) (A := ℓ)
     (X := c.size * Real.sqrt (2 * n)) (by exact_mod_cast hnℓ) (by ring)
     (fun h0 => by simp [h0]) (by positivity) (by positivity) fun hℓ hℓp ht' => ?_
-  have h := size_ge_of_threshold_eval_eq_kaneWilliamsB_of_le_two_pow hp hn hℓ hℓp ht' hr c hd θ hc
-  rw [h2n] at h
-  simpa only [mul_assoc] using h
+  simpa only [← h2n, mul_assoc] using
+    size_ge_of_threshold_eval_eq_kaneWilliamsB_of_le_two_pow hp hn hℓ hℓp ht' hr c hd θ hc
 
 /-- **`MAJ ∘ THR ∘ THR` wire lower bound for the balanced function** (original, improving
 [KaneWilliams2016], `arXiv:1511.07860v1`, Theorem 1.3 from `Ω(n ^ (5 / 2) / log^(7/2) n)` to
@@ -1123,9 +1118,8 @@ theorem card_eval_eq_kaneWilliamsB_le_balanced_size (hp : 1 ≤ p) (hnℓ : n = 
   refine balanced_corr_bound hp hnℓ hn (by omega) (K := 16 * p) (A := ℓ)
     (X := c.size * Real.sqrt (2 * n)) (by exact_mod_cast hnℓ) (by positivity) (by ring)
     fun hℓ hℓp => ?_
-  have h := card_eval_eq_kaneWilliamsB_le_of_le_two_pow_size hp hn hℓ hℓp hnR hr c hd o
-  rw [h2n] at h
-  simpa only [mul_assoc] using h
+  simpa only [← h2n, mul_assoc] using
+    card_eval_eq_kaneWilliamsB_le_of_le_two_pow_size hp hn hℓ hℓp hnR hr c hd o
 
 /-- **Average-case wire bound for the balanced function** (original): under the hypotheses of
 `card_eval_eq_kaneWilliamsB_le_balanced_size`, a depth-two weighted threshold circuit agrees with

@@ -85,9 +85,8 @@ theorem rfind {F : ι → ℕ →. ℕ} (hF : HasUniformCode o F) :
   exact ⟨Code.rfind c, fun i => funext fun a => by rw [eval_rfind, hc]⟩
 
 theorem of_eq {F G : ι → ℕ →. ℕ} (hF : HasUniformCode o F) (h : ∀ i n, F i n = G i n) :
-    HasUniformCode o G := by
-  obtain ⟨c, hc⟩ := hF
-  exact ⟨c, fun i => (hc i).trans (funext (h i))⟩
+    HasUniformCode o G :=
+  hF.imp fun _ hc i => (hc i).trans (funext (h i))
 
 /-- A total computable function, used by the same code for every oracle. -/
 theorem of_computable {f : ℕ → ℕ} (hf : Computable f) :
@@ -104,18 +103,14 @@ theorem ite {b : ℕ → ℕ} (hb : Computable b) {F : ι → ℕ →. ℕ} (hF 
   refine ((HasUniformCode.prec (of_primrec Nat.Primrec.id)
     (hF.comp (of_primrec Nat.Primrec.left))).comp (of_computable hflag)).of_eq fun i n => ?_
   rcases Nat.eq_zero_or_pos (b n) with h | h
-  · simp only [h, ↓reduceIte, ← Part.pure_eq_some, pure_bind, Nat.unpaired, Nat.unpair_pair]
-    rfl
+  · simp [h, Nat.unpaired]
   · simp only [h.ne', ↓reduceIte, Nat.min_eq_right h, ← Part.pure_eq_some, pure_bind,
       Nat.unpaired, Nat.unpair_pair]
-    change (pure n >>= fun _ => pure n >>= F i) = F i n
-    simp only [pure_bind]
-    exact Part.bind_some _ _
+    exact (Part.bind_some _ _).trans (Part.bind_some _ _)
 
 theorem recursiveIn {F : ι → ℕ →. ℕ} (hF : HasUniformCode o F) (i : ι) :
-    Nat.RecursiveIn {o i} (F i) := by
-  obtain ⟨c, hc⟩ := hF
-  exact exists_code.mpr ⟨c, hc i⟩
+    Nat.RecursiveIn {o i} (F i) :=
+  hF.elim fun c hc => exists_code.mpr ⟨c, hc i⟩
 
 end HasUniformCode
 

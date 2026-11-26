@@ -133,8 +133,7 @@ theorem IsQuadraticOn.comp_affineMap {g : F → ℝ} {T : Set F}
     IsQuadraticOn (g ∘ a) S := by
   rcases hg with ⟨n, u, v, hu⟩
   refine ⟨n, fun i => (u i).comp a, fun i => (v i).comp a, fun x hx => ?_⟩
-  simp only [Function.comp_apply, AffineMap.coe_comp]
-  exact hu (hmaps hx)
+  simpa only [Function.comp_apply, AffineMap.coe_comp] using hu (hmaps hx)
 
 end BasicQuadratic
 
@@ -235,8 +234,7 @@ private lemma affineMap_eq_mvPolynomial_basis {ι : Type*} [Finite ι]
       rw [MvPolynomial.totalDegree_C, MvPolynomial.totalDegree_X])
   · simp only [p, map_add, map_sum, map_mul, MvPolynomial.eval_C, MvPolynomial.eval_X,
       Module.Basis.equivFun_apply]
-    have hx : x = ∑ i, e.repr x i • e i := (e.sum_repr x).symm
-    conv_rhs => rw [congrFun (AffineMap.decomp a) x, hx]
+    conv_rhs => rw [congrFun (AffineMap.decomp a) x, ← e.sum_repr x]
     simp only [Pi.add_apply, map_sum, map_smul, smul_eq_mul, mul_comm]
 
 /-- On a finite-dimensional real normed space equipped with a finite basis `e`, `f` is quadratic on
@@ -255,8 +253,7 @@ theorem isQuadraticOn_iff_mvPolynomial_basis {ι : Type*} [Finite ι]
     refine ⟨∑ i : Fin n, pa i * pb i, ?_, fun x hx => ?_⟩
     · refine MvPolynomial.totalDegree_finsetSum_le fun i _ => ?_
       exact (MvPolynomial.totalDegree_mul _ _).trans (Nat.add_le_add (hpa i) (hpb i))
-    · rw [hf hx]
-      simp only [map_sum, map_mul, hpa_eq, hpb_eq]
+    · simp only [hf hx, map_sum, map_mul, hpa_eq, hpb_eq]
   · rintro ⟨p, hp, hpf⟩
     refine IsQuadraticOn.congr (IsQuadraticOn.sum p.support
       (f := fun m x => MvPolynomial.eval (e.equivFun x) (MvPolynomial.monomial m (p.coeff m)))
@@ -273,10 +270,8 @@ theorem isQuadraticOn_iff_mvPolynomial_basis {ι : Type*} [Finite ι]
             (p.coeff (Finsupp.single i 1 + Finsupp.single j 1) • (e.coord i).toAffineMap) S)
           (IsAffineOn.affineMap (e.coord j).toAffineMap S)).congr fun x _ => by
             simp [MvPolynomial.eval_monomial, Finsupp.prod_add_index', pow_add, mul_assoc]
-    · intro x hx
-      rw [hpf hx]
-      conv_lhs => rw [p.as_sum]
-      simp only [map_sum]
+    · exact fun x hx => (hpf hx).trans <| by
+        simpa only [map_sum] using congrArg (MvPolynomial.eval (e.equivFun x)) p.as_sum
 
 /-- Variant of `isQuadraticOn_iff_mvPolynomial_basis` using `Module.finBasis ℝ E`. -/
 theorem isQuadraticOn_iff_mvPolynomial [FiniteDimensional ℝ E] {f : E → ℝ} {S : Set E} :
@@ -395,9 +390,8 @@ theorem IsPQOn.sum {ι : Type*} (s : Finset ι) {P : Set E} (hP : IsPolyhedron P
   induction s using Finset.induction with
   | empty => exact (IsPQOn.const hP 0).congr fun _ _ => Finset.sum_empty
   | @insert a s ha ih =>
-    have h1 := hf a (Finset.mem_insert_self a s)
-    have h2 := ih fun i hi => hf i (Finset.mem_insert_of_mem hi)
-    exact (h1.add h2).congr fun _ _ => Finset.sum_insert ha
+    exact ((hf a (Finset.mem_insert_self a s)).add
+      (ih fun i hi => hf i (Finset.mem_insert_of_mem hi))).congr fun _ _ => Finset.sum_insert ha
 
 /-- The pointwise product of two real-valued PL functions on `P` is PQ on `P` (cited in issue #4325
 notes as `STOC 1056 Lemma 3.1`, unverified against the primary manuscript). -/
@@ -461,10 +455,9 @@ theorem IsPQOn.exists_cell_list_mvPolynomial_basis {ι : Type*} [Finite ι]
   classical
   obtain ⟨K, hfin, hsp, p, hp⟩ := hf.exists_triangulation_mvPolynomial_basis e
   refine ⟨hfin.toFinset.toList.map (fun s : Finset E => (convexHull ℝ (s : Set E), p s)), ?_, ?_⟩
-  · intro S q hSq
-    simp only [List.mem_map, Finset.mem_toList, Set.Finite.mem_toFinset, Prod.mk.injEq] at hSq
-    obtain ⟨s, hs, rfl, rfl⟩ := hSq
-    exact ⟨isPolytope_convexHull s.finite_toSet, hp s hs⟩
+  · rintro _ _ hSq
+    rcases List.mem_map.1 hSq with ⟨s, hs, ⟨⟩⟩
+    exact ⟨isPolytope_convexHull s.finite_toSet, hp s (by simpa using hs)⟩
   · ext x
     simp [← hsp, Geometry.SimplicialComplex.space]
 

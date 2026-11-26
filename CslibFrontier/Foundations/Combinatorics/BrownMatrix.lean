@@ -102,11 +102,9 @@ private def circleSet (p : ℕ) [NeZero p] (c : ZMod p) : Finset (ZMod p × ZMod
   univ.filter fun q => q.1 ^ 2 + q.2 ^ 2 = c
 
 private theorem card_circleSet_zero (hp : p % 4 = 3) : #(circleSet p 0) = 1 := by
-  have heq : circleSet p 0 = {(0, 0)} := by
-    ext ⟨u, v⟩
-    simp only [circleSet, mem_filter, mem_univ, true_and, mem_singleton, Prod.mk.injEq,
-      sq_add_sq_eq_zero_iff hp]
-  rw [heq, card_singleton]
+  suffices circleSet p 0 = {(0, 0)} by rw [this, card_singleton]
+  ext ⟨u, v⟩
+  simp [circleSet, sq_add_sq_eq_zero_iff hp]
 
 private theorem card_circleSet_eq_of_ne_zero {c : ZMod p} (hc : c ≠ 0) :
     #(circleSet p c) = #(circleSet p 1) := by
@@ -134,11 +132,9 @@ private theorem card_circleSet_eq_of_ne_zero {c : ZMod p} (hc : c ≠ 0) :
 private theorem card_circleSet_of_ne_zero (hp : p % 4 = 3) {c : ZMod p} (hc : c ≠ 0) :
     #(circleSet p c) = p + 1 := by
   have hpart : ∑ d : ZMod p, #(circleSet p d) = p ^ 2 := by
-    have hfib := card_eq_sum_card_fiberwise
-      (s := (univ : Finset (ZMod p × ZMod p))) (t := (univ : Finset (ZMod p)))
-      (f := fun q => q.1 ^ 2 + q.2 ^ 2) (fun _ _ => mem_univ _)
-    rw [card_univ, Fintype.card_prod, ZMod.card, ← sq] at hfib
-    exact hfib.symm
+    simpa only [circleSet, card_univ, Fintype.card_prod, ZMod.card, ← sq] using
+      (card_eq_sum_card_fiberwise (s := univ) (t := univ)
+        (f := fun q : ZMod p × ZMod p => q.1 ^ 2 + q.2 ^ 2) fun _ _ => mem_univ _).symm
   rw [← add_sum_erase _ _ (mem_univ 0), card_circleSet_zero hp,
     sum_congr rfl fun d hd => card_circleSet_eq_of_ne_zero (ne_of_mem_erase hd), sum_const,
     smul_eq_mul, card_erase_of_mem (mem_univ _), card_univ, ZMod.card] at hpart
@@ -269,14 +265,10 @@ private theorem no_three_collinear_on_unit_sphere (hp : p % 4 = 3)
   have heq {s : ZMod p} (hs : s ≠ 0) (h : normSq3 (u + s • w) = 1) :
       2 * dot3 u w + s * normSq3 w = 0 :=
     (mul_eq_zero.mp (by rw [← hexpand s, h, h0, sub_self])).resolve_left hs
-  have eq₁ := heq hs₁ h1
-  have eq₂ := heq hs₂ h2
-  have hnorm_w : normSq3 w = 0 := by
-    have hdiff : (s₁ - s₂) * normSq3 w = 0 := by linear_combination eq₁ - eq₂
-    exact (mul_eq_zero.mp hdiff).resolve_left (sub_ne_zero.mpr hs₁₂)
-  have hdot_uw : dot3 u w = 0 := by
-    rw [hnorm_w, mul_zero, add_zero] at eq₁
-    exact (mul_eq_zero.mp eq₁).resolve_left (two_ne_zero_zmod hp)
+  have hnorm_w : normSq3 w = 0 :=
+    mul_left_cancel₀ (sub_ne_zero.mpr hs₁₂) (by linear_combination heq hs₁ h1 - heq hs₂ h2)
+  have hdot_uw : dot3 u w = 0 :=
+    mul_left_cancel₀ (two_ne_zero_zmod hp) (by linear_combination heq hs₁ h1 - s₁ * hnorm_w)
   obtain ⟨i, hi⟩ := Function.ne_iff.mp hw
   refine not_isSquare_neg_one hp ?_
   fin_cases i

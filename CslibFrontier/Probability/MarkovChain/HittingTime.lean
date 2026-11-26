@@ -249,13 +249,10 @@ theorem hittingTime_ne_top {S : Set V}
   choose m hm using hm
   set M := univ.sup m + 1
   set c := univ.sup fun y => if y ∈ S then survival P v M y else 0
-  have hc1 : c < 1 := by
-    rw [Finset.sup_lt_iff (by simp)]
-    intro y _
+  have hc1 : c < 1 := (Finset.sup_lt_iff zero_lt_one).2 fun y _ => by
     split_ifs with hy
-    · exact (survival_antitone v y ((le_sup (mem_univ y)).trans (Nat.le_succ _))).trans_lt
-        (hm y hy)
-    · simp
+    · exact (survival_antitone v y ((le_sup (mem_univ y)).trans (Nat.le_succ _))).trans_lt (hm y hy)
+    · exact zero_lt_one
   have hcy (y) (hy : y ∈ S) : survival P v M y ≤ c := by
     simpa [hy] using le_sup (f := fun y => if y ∈ S then survival P v M y else 0) (mem_univ y)
   have hgeom (k r : ℕ) : ∀ x ∈ S, survival P v (k * M + r) x ≤ c ^ k := by
@@ -286,14 +283,11 @@ theorem hittingTime_ne_top {S : Set V}
 /-- The Cauchy product formula in `ℝ≥0∞`, where every family is summable. -/
 private theorem tsum_mul_tsum_eq_tsum_sum_range (f g : ℕ → ℝ≥0∞) :
     (∑' n, f n) * ∑' n, g n = ∑' n, ∑ k ∈ range (n + 1), f k * g (n - k) := by
-  simp_rw [← Nat.sum_antidiagonal_eq_sum_range_succ fun k l => f k * g l]
-  rw [← ENNReal.tsum_mul_right]
-  simp_rw [← ENNReal.tsum_mul_left]
+  simp_rw [← Nat.sum_antidiagonal_eq_sum_range_succ fun k l => f k * g l,
+    ← ENNReal.tsum_mul_right, ← ENNReal.tsum_mul_left]
   rw [← tsum_prod' (f := fun p : ℕ × ℕ => f p.1 * g p.2),
     ← HasAntidiagonal.sigmaAntidiagonalEquivProd.tsum_eq, tsum_sigma']
-  refine tsum_congr fun _ => ?_
-  rw [← Finset.tsum_subtype]
-  rfl
+  exact tsum_congr fun _ => Finset.tsum_subtype _ fun ij : ℕ × ℕ => f ij.1 * g ij.2
 
 theorem firstHit_self_succ (v : V) (t : ℕ) : firstHit P v (t + 1) v = 0 := by
   simp [firstHit]
@@ -323,10 +317,9 @@ theorem sum_firstHit_add_survival (v : V) :
       exact sum_apply P x
 
 theorem tsum_firstHit_le_one (v x : V) : ∑' j, firstHit P v j x ≤ 1 :=
-  ENNReal.tsum_le_of_sum_range_le fun n => by
-    cases n with
-    | zero => simp
-    | succ t => exact (le_self_add).trans (sum_firstHit_add_survival v t x).le
+  ENNReal.tsum_le_of_sum_range_le fun
+    | 0 => by simp
+    | t + 1 => le_self_add.trans (sum_firstHit_add_survival v t x).le
 
 /-- To avoid `w` up to time `t`, the chain either avoids `v` or visits `v` first at some time
 `j ≤ t` and then avoids `w` for the remaining `t - j` steps. -/

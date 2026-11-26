@@ -125,9 +125,9 @@ private theorem checkShorter_eq_true_iff {C : Type} {test : C × List Bool → B
   simp only [checkShorter, List.all_eq_true, Cslib.BitString.mem_enumList]
   constructor
   · intro h x hx
-    have hu := h (pad x (n - 1 - x.length)) (by rw [length_pad]; omega)
     have hlt : n - 1 - x.length < n := by omega
-    simpa only [unpad_pad, decide_eq_true hlt, ↓reduceIte] using hu
+    simpa only [unpad_pad, decide_eq_true hlt, ↓reduceIte] using
+      h (pad x (n - 1 - x.length)) (by rw [length_pad]; omega)
   · intro h u hu
     split_ifs with hlt
     · have hlen := congrArg List.length (pad_unpad (hu ▸ of_decide_eq_true hlt))
@@ -231,19 +231,16 @@ private theorem recursivelyPresentable_coneOf {W : Set (List Bool) → Set (List
       simp only [eqTest, decide_eq_true_eq, hj x]
       exact Bool.eq_iff_iff.mpr (by rw [← hB' x, hL₂ x, ← hWLi, Set.mem_ofPred_eq])
     refine ⟨Nat.pair i j, Set.ext fun w => ?_⟩
-    have hchk : Ladner.checkShorter eqTest ((i, j), w.length) = true :=
-      Ladner.checkShorter_eq_true_iff.mpr fun x _ => hall x
-    simp only [Set.mem_ofPred_eq, present, Nat.unpair_pair, hchk, ↓reduceIte]
-    exact Set.ext_iff.mp hLi w
+    simp only [present, Nat.unpair_pair,
+      Ladner.checkShorter_eq_true_iff.mpr fun x _ => hall x, ↓reduceIte, Set.ext_iff.mp hLi w]
   · rintro ⟨m, rfl⟩
     dsimp only
     set i := m.unpair.1
     set j := m.unpair.2
     by_cases hall : ∀ x : List Bool, eqTest ((i, j), x) = true
-    · have hchk : ∀ w : List Bool, Ladner.checkShorter eqTest ((i, j), w.length) = true :=
-        fun w => Ladner.checkShorter_eq_true_iff.mpr fun x _ => hall x
-      have heq : {a | present (m, a) = true} = {u | g (i, u) = true} := by
-        ext w
+    · have hchk (w : List Bool) : Ladner.checkShorter eqTest ((i, j), w.length) = true :=
+        Ladner.checkShorter_eq_true_iff.mpr fun x _ => hall x
+      have heq : {a | present (m, a) = true} = {u | g (i, u) = true} := Set.ext fun w => by
         simp only [Set.mem_ofPred_eq, present, show m.unpair = (i, j) from rfl, hchk w, ↓reduceIte]
       rw [heq]
       refine ⟨⟨fun w => transducerIndexed (i, w), computableInPolyTime_transducerIndexed i,
@@ -339,9 +336,7 @@ private theorem symmDiff_markedUnion_finite (A : Set (List Bool)) {L L' : Set (L
     (hfin : (L ∆ L').Finite) : (markedUnion A L ∆ markedUnion A L').Finite := by
   refine (hfin.image (true :: ·)).subset ?_
   rintro (_ | ⟨_ | _, u⟩) hw
-  · have hnil : ∀ S, ([] : List Bool) ∉ markedUnion A S := by
-      rintro S ⟨_, ⟨h, -⟩ | ⟨h, -⟩⟩ <;> cases h
-    simp [Set.mem_symmDiff, hnil] at hw
+  · rcases hw with ⟨⟨_, ⟨h, -⟩ | ⟨h, -⟩⟩, -⟩ | ⟨⟨_, ⟨h, -⟩ | ⟨h, -⟩⟩, -⟩ <;> cases h
   · simp [Set.mem_symmDiff, cons_mem_markedUnion] at hw
   · exact ⟨u, by simpa [Set.mem_symmDiff, cons_mem_markedUnion] using hw, rfl⟩
 
@@ -351,9 +346,7 @@ private theorem polyTimeReducible_ite_of_reducible {G A B : Set (List Bool)}
   obtain ⟨g, hg, hG'⟩ := hG
   obtain ⟨r, hr, hAB'⟩ := hAB
   refine ⟨fun w => if g w then w else r w, hg.ite .id' hr, fun w => ?_⟩
-  by_cases hw : w ∈ G
-  · simp [Set.ite, hw, (hG' w).mp hw]
-  · simp [Set.ite, hw, Bool.eq_false_iff.mpr fun h => hw ((hG' w).mpr h), hAB' w]
+  by_cases hw : w ∈ G <;> simp [Set.ite, hw, ← hG' w, hAB' w]
 
 /-- Core witness for full Ladner density when both `A` and `B` lie outside `P`: uniform
 diagonalization yields `G ∈ P` such that `markedUnion A (G.ite B A)` sits strictly between `A` and

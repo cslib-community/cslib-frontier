@@ -165,9 +165,8 @@ theorem IsLeafWord.eq_nil {s : σ} (hs : T.IsLeaf s) {w : List Bool} (hw : T.IsL
 theorem isLeafWord_iff {s : σ} {w : List Bool} :
     T.IsLeafWord s w ↔ T.IsNodeWord s w ∧ T.IsLeaf (T.walk s w) := by
   induction w generalizing s with
-  | nil => exact ⟨fun h => ⟨trivial, h⟩, fun h => h.2⟩
-  | cons b w ih =>
-    exact ⟨fun h => ⟨⟨h.1, (ih.mp h.2).1⟩, (ih.mp h.2).2⟩, fun h => ⟨h.1.1, ih.mpr ⟨h.1.2, h.2⟩⟩⟩
+  | nil => simp [IsLeafWord, IsNodeWord, walk]
+  | cons b w ih => simp [IsLeafWord, IsNodeWord, walk, ih, and_assoc]
 
 theorem IsNodeWord.append {s : σ} {u v : List Bool} (hu : T.IsNodeWord s u)
     (hv : T.IsNodeWord (T.walk s u) v) : T.IsNodeWord s (u ++ v) := by
@@ -269,8 +268,7 @@ theorem exists_isLeafWord (s : σ) : ∃ w, T.IsLeafWord s w := by
 theorem IsNodeWord.exists_isLeafWord_append {s : σ} {w : List Bool} (h : T.IsNodeWord s w) :
     ∃ u, T.IsLeafWord s (w ++ u) := by
   obtain ⟨u, hu⟩ := exists_isLeafWord hT (T.walk s w)
-  rw [isLeafWord_iff] at hu
-  exact ⟨u, isLeafWord_iff.mpr ⟨h.append hu.1, walk_append s w u ▸ hu.2⟩⟩
+  exact ⟨u, isLeafWord_iff.mpr ⟨h.append hu.isNodeWord, walk_append s w u ▸ hu.isLeaf_walk⟩⟩
 
 omit hT in
 /-- At an inner state, the leaf words are those of the two children after their branch. -/
@@ -282,9 +280,8 @@ private theorem nodup_and_mem_iff_isLeafWord {s : σ} (hs : ¬ T.IsLeaf s)
       ∀ w, w ∈ L₀.map (false :: ·) ++ L₁.map (true :: ·) ↔ T.IsLeafWord s w := by
   refine ⟨(hnd₀.map List.cons_injective).append (hnd₁.map List.cons_injective)
     (List.disjoint_left.mpr fun w hw₀ hw₁ => ?_), fun w => ?_⟩
-  · obtain ⟨u₀, -, rfl⟩ := List.mem_map.mp hw₀
-    obtain ⟨u₁, -, hu₁⟩ := List.mem_map.mp hw₁
-    exact Bool.false_ne_true (List.head_eq_of_cons_eq hu₁).symm
+  · obtain ⟨_, -, rfl⟩ := List.mem_map.mp hw₀
+    simp at hw₁
   · cases w with
     | nil => simp [IsLeafWord, hs]
     | cons b u => cases b <;> simp [IsLeafWord, hs, hL₀, hL₁]
@@ -321,11 +318,8 @@ theorem exists_iterate_searchStep (f : α → σ → α) (s : σ) {h : ℕ}
         w.length ≤ h - 1 := by
       have := hh (b :: w) ⟨hs, hw⟩
       simp only [List.length_cons] at this; omega
-    obtain ⟨u, hu⟩ := exists_isLeafWord hT s
-    have hh1 : 1 ≤ h := by
-      cases u with
-      | nil => exact absurd hu hs
-      | cons b u => have := hh _ hu; simp only [List.length_cons] at this; omega
+    obtain ⟨u, hu⟩ := exists_isLeafWord hT (T.next s false)
+    have hh1 : 1 ≤ h := (Nat.zero_lt_succ u.length).trans_le (hh (false :: u) ⟨hs, hu⟩)
     obtain ⟨L₀, hnd₀, hL₀, N₀, hN₀, h₀⟩ := ih false (hh' false)
     obtain ⟨L₁, hnd₁, hL₁, N₁, hN₁, h₁⟩ := ih true (hh' true)
     have hstep (rest : List σ) (acc : α) : T.searchStep f (s :: rest, acc) =

@@ -284,14 +284,11 @@ private theorem inv_step_check {l c n s t cur steps v : ℕ} (hl7 : 7 ≤ l) (hl
   case «8» =>
     obtain ⟨rfl, rfl, rfl, ⟨hR, hst, hvn⟩, hle⟩ := hP
     search_step
-    by_cases h : (I.t : ℕ) < cur
-    · simp only [h, ↓reduceIte]
-      search_finish [hR]
-    · have hmem : I ∈ STCON := by
-        obtain ⟨hlt, hr⟩ := hR
-        rwa [show (⟨cur, hlt⟩ : Fin I.n) = I.t from Fin.ext (show cur = I.t by omega)] at hr
-      simp only [h, ↓reduceIte]
-      search_finish [hmem]
+    by_cases h : (I.t : ℕ) < cur <;> simp only [h, ↓reduceIte]
+    · search_finish [hR]
+    · have hmem : Relation.ReflTransGen I.Adj I.s I.t :=
+        (Fin.ext (show cur = I.t by omega) : (⟨cur, hR.1⟩ : Fin I.n) = I.t) ▸ hR.2
+      search_finish [show I ∈ STCON from hmem]
   case «9» =>
     obtain ⟨rfl, rfl, rfl, hR, hst, hvn⟩ := hP
     search_step
@@ -348,8 +345,7 @@ private theorem inv_step_edge {l c n s t cur steps v : ℕ} (hl14 : 14 ≤ l) (h
   case «15» =>
     obtain ⟨rfl, rfl, rfl, ⟨⟨hc', hr⟩, hst, hvn⟩, hlt, hc'', hv'', hadj⟩ := hP
     search_step
-    have hR' : Reach I v := ⟨hvn, hr.tail hadj⟩
-    search_finish [hR']
+    search_finish [show Reach I v from ⟨hvn, hr.tail hadj⟩]
   case «16» =>
     obtain ⟨rfl, rfl, rfl, ⟨hR, hst, hvn⟩, hlt⟩ := hP
     search_step
@@ -469,13 +465,10 @@ private theorem branches_step {cur steps c v next : ℕ} (hc : cur < I.n) (hnext
       (7, [0, I.n, I.s, I.t, next, steps + 1, next]) := by
   have hto9 : Branches (P := searchProgram) (w := I.encode)
       (7, [c, I.n, I.s, I.t, cur, steps, v]) (9, [0, I.n, I.s, I.t, cur, steps, v]) := by
-    by_cases h : cur < I.t
+    search_head false
+    by_cases h : cur < I.t <;> simp only [h, ↓reduceIte]
+    · exact Branches.refl _
     · search_head false
-      simp only [h, ↓reduceIte]
-      exact Branches.refl _
-    · search_head false
-      simp only [h, ↓reduceIte]
-      search_head false
       simp only [show (I.t : ℕ) < cur by omega, ↓reduceIte]
       exact Branches.refl _
   refine hto9.trans ?_
@@ -536,9 +529,8 @@ theorem exists_decidesInLogSpace :
   searchProgram.exists_decidesInLogSpace (fun I => rank I searchProgram.init) 1
     (fun I => haltsWithin I)
     (fun I choices r hr => by
-      have := le_length_of_mem_run I choices hr
-      simp only [encSTCON_apply, pow_one]
-      omega)
+      simpa only [encSTCON_apply, pow_one] using
+        (le_length_of_mem_run I choices hr).trans (Nat.le_succ _))
     (fun I => (accepts_searchProgram_iff I).symm)
 
 

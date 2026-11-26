@@ -222,15 +222,10 @@ private theorem intervalIntegrable_exp_smul_mulVec (A : Matrix n n ℝ) {g : ℝ
     IntervalIntegrable (fun s => exp ((t - s) • A) *ᵥ g s) volume 0 t := by
   refine ContinuousOn.intervalIntegrable ?_
   rw [uIcc_of_le ht]
-  have h : (fun s => exp ((t - s) • A) *ᵥ g s) = fun s =>
-      (exp ((t - s) • toEuclideanCLM (𝕜 := ℝ) A) (WithLp.toLp 2 (g s))).ofLp := by
-    funext s
-    simp
   have hc : Continuous fun s : ℝ => exp ((t - s) • toEuclideanCLM (𝕜 := ℝ) A) :=
     (differentiable_exp_smul_const ℝ (toEuclideanCLM (𝕜 := ℝ) A)).continuous.comp
       (continuous_const.sub continuous_id)
-  rw [h]
-  exact (PiLp.continuous_ofLp 2 _).comp_continuousOn
+  simpa [Function.comp_def] using (PiLp.continuous_ofLp 2 (fun _ : n => ℝ)).comp_continuousOn
     (hc.continuousOn.clm_apply ((PiLp.continuous_toLp 2 _).comp_continuousOn hg))
 
 /-! ### Existence and uniqueness: variation of constants -/
@@ -242,10 +237,9 @@ theorem isSolutionOn_Icc (x₀ : n → ℝ) {T : ℝ} (hu : ContinuousOn u (Icc 
       (fun t => exp (t • S.A) *ᵥ x₀ + ∫ s in 0..t, exp ((t - s) • S.A) *ᵥ (S.B *ᵥ u s))
       (Icc 0 T) := by
   refine isSolutionOn_iff_toLp.2 fun t ht => ?_
-  have h := (toEuclideanCLM (𝕜 := ℝ) S.A).hasDerivWithinAt_exp_smul_apply_add_integral_Icc
-    (WithLp.toLp 2 x₀) (continuousOn_toLp_mulVec S.B hu) ht
-  simp only [← ofLp_variationOfConstants, WithLp.toLp_ofLp]
-  exact h
+  simpa only [← ofLp_variationOfConstants, WithLp.toLp_ofLp] using
+    (toEuclideanCLM (𝕜 := ℝ) S.A).hasDerivWithinAt_exp_smul_apply_add_integral_Icc
+      (WithLp.toLp 2 x₀) (continuousOn_toLp_mulVec S.B hu) ht
 
 /-- **Existence on `[0, ∞)`.** For an input continuous on `[0, ∞)` and any initial state `x₀`, the
 variation-of-constants curve is a solution on `[0, ∞)`. -/
@@ -254,10 +248,9 @@ theorem isSolutionOn_Ici (x₀ : n → ℝ) (hu : ContinuousOn u (Ici 0)) :
       (fun t => exp (t • S.A) *ᵥ x₀ + ∫ s in 0..t, exp ((t - s) • S.A) *ᵥ (S.B *ᵥ u s))
       (Ici 0) := by
   refine isSolutionOn_iff_toLp.2 fun t ht => ?_
-  have h := (toEuclideanCLM (𝕜 := ℝ) S.A).hasDerivWithinAt_exp_smul_apply_add_integral_Ici
-    (WithLp.toLp 2 x₀) (continuousOn_toLp_mulVec S.B hu) ht
-  simp only [← ofLp_variationOfConstants, WithLp.toLp_ofLp]
-  exact h
+  simpa only [← ofLp_variationOfConstants, WithLp.toLp_ofLp] using
+    (toEuclideanCLM (𝕜 := ℝ) S.A).hasDerivWithinAt_exp_smul_apply_add_integral_Ici
+      (WithLp.toLp 2 x₀) (continuousOn_toLp_mulVec S.B hu) ht
 
 /-- **Uniqueness on `[0, T]`.** For an input continuous on `[0, T]`, every solution on `[0, T]` is
 the variation-of-constants curve of its initial state:
@@ -294,11 +287,9 @@ theorem IsSolutionOn.output_eq {T : ℝ} (hx : S.IsSolutionOn u x (Icc 0 T))
       (Icc_subset_Icc_right ht.2)
   rw [hx.eq_Icc hu ht, mulVec_add, add_right_comm]
   congr 1
-  have hL := (LinearMap.toContinuousLinearMap (Matrix.toLin' S.C)).intervalIntegral_comp_comm hint
-  simp only [LinearMap.coe_toContinuousLinearMap', Matrix.toLin'_apply, Function.comp_apply,
-    id] at hL
-  simp only [responseKernel_eq, ← mulVec_mulVec]
-  exact hL.symm
+  simpa only [LinearMap.coe_toContinuousLinearMap', Matrix.toLin'_apply, Function.comp_apply,
+    id, responseKernel_eq, ← mulVec_mulVec] using
+    ((LinearMap.toContinuousLinearMap (Matrix.toLin' S.C)).intervalIntegral_comp_comm hint).symm
 
 /-- **Output formula on `[0, ∞)`.** For an input continuous on `[0, ∞)`, every solution on
 `[0, ∞)` has output

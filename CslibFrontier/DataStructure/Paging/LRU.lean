@@ -131,19 +131,17 @@ theorem lruFaults_cons (k : Nat) (q : List α) (p : α) (ps : List α) :
 theorem nodup_lruNext {k : Nat} {q : List α} (hq : q.Nodup) (p : α) :
     (lruNext k q p).Nodup := by
   unfold lruNext
-  split
+  split_ifs with hp
   · exact List.nodup_cons.mpr ⟨hq.not_mem_erase, hq.erase p⟩
-  · next hp =>
-    exact (List.nodup_cons.mpr ⟨hp, hq⟩).take
+  · exact (List.nodup_cons.mpr ⟨hp, hq⟩).take
 
 /-- `lruNext k` preserves `length ≤ k`. -/
 theorem length_lruNext_le {k : Nat} {q : List α} (hq : q.length ≤ k) (p : α) :
     (lruNext k q p).length ≤ k := by
   unfold lruNext
-  split
-  · next hp =>
+  split_ifs with hp
+  · have := List.length_pos_of_mem hp
     rw [List.length_cons, List.length_erase_of_mem hp]
-    have hpos : 1 ≤ q.length := List.length_pos_of_mem hp
     omega
   · exact List.length_take_le k (p :: q)
 
@@ -164,17 +162,14 @@ private theorem lruNext_of_notMem {k : Nat} (hk : 0 < k) {q : List α} {p : α} 
 theorem mem_lruNext {k : Nat} (hk : 0 < k) (q : List α) (p : α) :
     p ∈ lruNext k q p := by
   by_cases hp : p ∈ q
-  · simp only [lruNext, hp, ↓reduceIte, List.mem_cons_self]
-  · rw [lruNext_of_notMem hk hp]
-    exact List.mem_cons_self
+  · simp [lruNext, hp]
+  · simp [lruNext_of_notMem hk hp]
 
 /-- Every page in `lruNext k q p` comes from `insert p q.toFinset`. -/
 theorem toFinset_lruNext_subset {k : Nat} (q : List α) (p : α) :
     (lruNext k q p).toFinset ⊆ insert p q.toFinset := by
   intro x hx
-  rw [List.mem_toFinset] at hx
-  rw [Finset.mem_insert, List.mem_toFinset]
-  unfold lruNext at hx
+  simp only [List.mem_toFinset, Finset.mem_insert, lruNext] at hx ⊢
   split at hx
   · exact (List.mem_cons.mp hx).imp_right List.mem_of_mem_erase
   · exact List.mem_cons.mp (List.mem_of_mem_take hx)
@@ -296,12 +291,10 @@ theorem maxWeightFrom_erase_of_mem {s : Finset α} {p : α} (hp : p ∈ s) (w : 
   induction q generalizing w with
   | nil => simp
   | cons x xs ih =>
-    by_cases hxp : x = p
-    · subst hxp
-      simp only [List.erase_cons_head, maxWeightFrom_cons, hp, ↓reduceIte, le_refl]
+    rcases eq_or_ne x p with rfl | hxp
+    · simp [hp]
     · have := ih (w - 1)
-      rw [List.erase_cons_tail (by simp [hxp])]
-      simp only [maxWeightFrom_cons]
+      rw [List.erase_cons_tail (by simp [hxp]), maxWeightFrom_cons, maxWeightFrom_cons]
       split <;> omega
 
 /-- Decrementing the starting weight either yields `0` or decreases `maxWeightFrom` by at least
@@ -344,17 +337,15 @@ private theorem one_add_sdiff_le_maxWeightFrom_snoc :
     have hne : p ≠ last := fun h => hpnot (by simp [h])
     finset_card [List.length_nil]
   | x :: xs, last, p, s, hnodup, hcard, hps, hpnot, hlast => by
-    simp only [List.cons_append, List.length_cons, maxWeightFrom_cons] at hnodup hcard hpnot ⊢
+    simp only [List.cons_append, List.length_cons, maxWeightFrom_cons, List.mem_cons,
+      not_or] at hnodup hcard hpnot ⊢
     rcases List.nodup_cons.mp hnodup with ⟨hxnot, hnodup'⟩
-    simp only [List.mem_cons, not_or] at hpnot
     rcases hpnot with ⟨hpx, hpnot'⟩
     split
     · next hxs =>
       have hlx : last ≠ x := fun h => hxnot (by simp [h])
-      have hcard' : (s.erase x).card ≤ xs.length + 1 := by finset_card
-      have hps' : p ∈ s.erase x := Finset.mem_erase.mpr ⟨hpx, hps⟩
-      have hlast' : last ∈ s.erase x := Finset.mem_erase.mpr ⟨hlx, hlast⟩
-      have ih := one_add_sdiff_le_maxWeightFrom_snoc xs hnodup' hcard' hps' hpnot' hlast'
+      have ih := one_add_sdiff_le_maxWeightFrom_snoc xs hnodup' (by finset_card)
+        (Finset.mem_erase.mpr ⟨hpx, hps⟩) hpnot' (Finset.mem_erase.mpr ⟨hlx, hlast⟩)
       rw [maxWeightFrom_erase_finset_of_notMem hxnot] at ih
       rw [Nat.add_sub_cancel]
       finset_card [List.toFinset_cons]
@@ -383,8 +374,7 @@ theorem lruPotential_step {k : Nat} (hk : 0 < k) {s s' : Finset α} {q : List α
   have hps' : p ∈ s' := hv.2.2.1
   by_cases hps : p ∈ s
   · -- Offline hit (`stepCost s p s' = 0`, `s' = s`)
-    have hs'_eq : s' = s := validStep_hit_eq hv hps
-    subst s'
+    obtain rfl : s = s' := (validStep_hit_eq hv hps).symm
     rw [stepCost_of_mem hps, Nat.mul_zero, Nat.zero_add]
     by_cases hpq : p ∈ q
     · -- Online hit (`p ∈ q`)

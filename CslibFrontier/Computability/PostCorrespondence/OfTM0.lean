@@ -194,8 +194,7 @@ private theorem peel_left_sym {L : List Γ} {p : List (Letter Γ Λ)} {c : Γ}
   rcases L with _ | ⟨c', L'⟩
   · exact nomatch (List.append_inj' (s₂ := []) (t₂ := [lb]) h rfl).2
   · rw [List.reverse_cons, List.map_append, List.map_singleton, ← List.cons_append] at h
-    obtain ⟨rfl, h₂⟩ := List.append_inj' h rfl
-    cases h₂
+    obtain ⟨rfl, ⟨⟩⟩ := List.append_inj' h rfl
     exact ⟨L', rfl, rfl⟩
 
 private theorem peel_left_lb {L : List Γ} {p : List (Letter Γ Λ)}
@@ -279,33 +278,27 @@ private theorem good_of_rewrites {M : TM0.Machine Γ Λ} {l : List Γ} {u v : Li
   rcases hu with ⟨q, a, L, R, hr, hw⟩ | ⟨hh, hw | ⟨L, R, hw⟩⟩
   · cases hd with
     | stop hM =>
-      obtain ⟨rfl, h, rfl⟩ := split1 hw trivial
-      cases h
+      obtain ⟨rfl, ⟨⟩, rfl⟩ := split1 hw trivial
       exact Or.inr ⟨⟨_, hr, step_of_eq_none hM L R⟩, Or.inr ⟨L, R, by simp [word]⟩⟩
     | @write _ _ q' b hM =>
-      obtain ⟨rfl, h, rfl⟩ := split1 hw trivial
-      cases h
+      obtain ⟨rfl, ⟨⟩, rfl⟩ := split1 hw trivial
       exact Or.inl ⟨q', b, L, R, hr.tail (step_of_eq_write hM L R), by simp [word]⟩
     | @right _ _ q' c hM =>
-      obtain ⟨rfl, h, hs⟩ := split2 hw trivial
-      cases h
+      obtain ⟨rfl, ⟨⟩, hs⟩ := split2 hw trivial
       obtain ⟨R', rfl, rfl⟩ := peel_right_sym hs
       exact Or.inl ⟨q', c, _ :: L, R', hr.tail (step_of_eq_right hM L (c :: R')),
         by simp [word]⟩
     | @rightEnd _ _ q' hM =>
-      obtain ⟨rfl, h, hs⟩ := split2 hw trivial
-      cases h
+      obtain ⟨rfl, ⟨⟩, hs⟩ := split2 hw trivial
       obtain ⟨rfl, rfl⟩ := peel_right_rb hs
       exact Or.inl ⟨q', default, _ :: L, [], hr.tail (step_of_eq_right hM L []), by simp [word]⟩
     | @left _ _ q' c hM =>
-      obtain ⟨hp, h, rfl⟩ := split2' hw trivial
-      cases h
+      obtain ⟨hp, ⟨⟩, rfl⟩ := split2' hw trivial
       obtain ⟨L', rfl, rfl⟩ := peel_left_sym hp
       exact Or.inl ⟨q', c, L', _ :: R, hr.tail (step_of_eq_left hM (c :: L') R),
         by simp [word]⟩
     | @leftEnd _ _ q' hM =>
-      obtain ⟨hp, h, rfl⟩ := split2' hw trivial
-      cases h
+      obtain ⟨hp, ⟨⟩, rfl⟩ := split2' hw trivial
       obtain ⟨rfl, rfl⟩ := peel_left_lb hp
       exact Or.inl ⟨q', default, [], _ :: R, hr.tail (step_of_eq_left hM [] R), by simp [word]⟩
     | eatLeft c => exact nomatch (split2' hw trivial).2.1
@@ -438,13 +431,11 @@ theorem primrec_mInstance [Fintype Γ] [Fintype Λ] [Primcodable Γ] [Primcodabl
     (M : TM0.Machine Γ Λ) : Primrec (mInstance M) := by
   have hsym : Primrec (sym : Γ → Letter Γ Λ) := Primrec.dom_finite _
   have hcell : Primrec fun a : Γ => (cell default a : Letter Γ Λ) := Primrec.dom_finite _
-  have hw : Primrec fun l : List Γ => word (cell (default : Λ) l.headI) [] l.tail := by
-    have : Primrec fun l : List Γ => (lb : Letter Γ Λ) :: (cell (default : Λ) l.headI ::
-        (l.tail.map sym ++ [rb])) :=
-      Primrec.list_cons.comp (Primrec.const _) (Primrec.list_cons.comp
-        (hcell.comp Primrec.list_headI) (Primrec.list_append.comp
-          (Primrec.list_map Primrec.list_tail (hsym.comp Primrec.snd).to₂) (Primrec.const _)))
-    exact this.of_eq fun _ => rfl
+  have hw : Primrec fun l : List Γ => word (cell (default : Λ) l.headI) [] l.tail :=
+    (Primrec.list_cons.comp (Primrec.const _) (Primrec.list_cons.comp
+      (hcell.comp Primrec.list_headI) (Primrec.list_append.comp
+        (Primrec.list_map Primrec.list_tail (hsym.comp Primrec.snd).to₂)
+        (Primrec.const _)))).of_eq fun _ => rfl
   exact (MInstance.primrec₂_mk.comp
     (Domino.primrec₂_mk.comp (Primrec.const ([] : List (Letter Γ Λ))) hw)
     (Primrec.const _)).of_eq fun _ => rfl

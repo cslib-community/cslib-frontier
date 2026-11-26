@@ -162,9 +162,9 @@ private theorem sum_straddle_le_of_tangent_on {σ : Signature.{v}} {n m : ℕ} (
   have hcompl :
       ({i : Fin n | Compiler.Reach c (.input i)}.ncard : ℝ) +
         {i : Fin n | ¬ Compiler.Reach c (.input i)}.ncard = n := by
-    have hnc : {i : Fin n | ¬ Compiler.Reach c (.input i)} =
-        {i : Fin n | Compiler.Reach c (.input i)}ᶜ := rfl
-    rw [hnc, ← Nat.cast_add, ncard_add_ncard_compl, Nat.card_eq_fintype_card, Fintype.card_fin]
+    rw [show {i : Fin n | ¬ Compiler.Reach c (.input i)} =
+      {i : Fin n | Compiler.Reach c (.input i)}ᶜ from rfl, ← Nat.cast_add, ncard_add_ncard_compl,
+      Nat.card_eq_fintype_card, Fintype.card_fin]
   have hd_nn : (0 : ℝ) ≤ {i : Fin n | ¬ Compiler.Reach c (.input i)}.ncard := Nat.cast_nonneg _
   have htan :
       (∑ w ∈ S, (1 - (1 / 2 : ℝ) ^ ((Compiler.support c w).ncard - 1))) ≤
@@ -239,9 +239,9 @@ private theorem sum_nonUnit_straddle_le_of_tangent {σ : Signature.{v}} {n m : �
     rw [← ncard_coe_finset, ← himg, ncard_image_of_injective _ emb.injective]
   have hG_split : {g : Compiler.InnerGate c | g ∉ Compiler.multiFanoutGates c}.ncard +
       Compiler.multiFanoutSize c = Nat.card (Compiler.InnerGate c) := by
-    have hnc : {g : Compiler.InnerGate c | g ∉ Compiler.multiFanoutGates c} =
-        (Compiler.multiFanoutGates c)ᶜ := rfl
-    rw [hnc, add_comm, Compiler.multiFanoutSize, ncard_add_ncard_compl]
+    rw [show {g : Compiler.InnerGate c | g ∉ Compiler.multiFanoutGates c} =
+      (Compiler.multiFanoutGates c)ᶜ from rfl, add_comm, Compiler.multiFanoutSize,
+      ncard_add_ncard_compl]
   have htot := Finset.card_filter_add_card_filter_not (s := Finset.univ)
     (Compiler.IsUnitGateSignal c)
   rw [Finset.card_univ, card_activeSignal_eq c, hcard_unit] at htot
@@ -250,11 +250,8 @@ private theorem sum_nonUnit_straddle_le_of_tangent {σ : Signature.{v}} {n m : �
     (B := (c.innerSize : ℝ) + 2 * Compiler.multiFanoutSize c)
     (by exact_mod_cast (show (Finset.univ.filter fun w => ¬ Compiler.IsUnitGateSignal c w).card =
       {i : Fin n | Compiler.Reach c (.input i)}.ncard + Compiler.multiFanoutSize c by omega))
-    (by
-      have hnat := (Compiler.sum_ncard_support_nonUnit_le hfan).trans
-        (Nat.add_le_add_right
-          (Nat.add_le_add_right (Compiler.card_innerGate_le (c := c)) _) m)
-      exact_mod_cast hnat)
+    (by exact_mod_cast ((Compiler.sum_ncard_support_nonUnit_le hfan).trans
+      (Nat.add_le_add_right (Nat.add_le_add_right (Compiler.card_innerGate_le (c := c)) _) m)))
     (le_of_eq (by field_simp; ring))
 
 /-! ### Single-circuit Steiner demand and agreement lemmas -/
@@ -357,18 +354,11 @@ theorem agreement_le_of_signalWidth {S : Set (Fin n → U)} {K r : ℕ} {b : ℝ
           · exact Nat.le_mul_of_pos_right _ hK_pos
           · exact hu.le.trans (Nat.le_mul_of_pos_right _ hq1)
       _ = K ^ 3 * (V + 1) * q ^ (w + 3 * r + 2) := by ring
-  have hresR :
-      (((K - 1) ^ 2 * (V * q ^ (w + 3 * r + 2) +
-          q ^ {i : Fin n | ¬ Compiler.Reach c (.input i)}.ncard) : ℕ) : ℝ) ≤
-        ((K ^ 3 * (V + 1) * q ^ (w + 3 * r + 2) : ℕ) : ℝ) := by
-    exact_mod_cast hres
-  have hN_card : (Nat.card (Fin n → U) : ℝ) = (q : ℝ) ^ n := by simp [q, Nat.card_fun]
-  have hN_pos : (0 : ℝ) < (q : ℝ) ^ n := pow_pos (Nat.cast_pos.mpr Nat.card_pos) n
-  rw [hN_card] at h
+  rw [show (Nat.card (Fin n → U) : ℝ) = (q : ℝ) ^ n by simp [q, Nat.card_fun]] at h
   refine h.trans ?_
-  have hhalf (R : ℝ) : (R + R) / (2 * (q : ℝ) ^ n) = R / (q : ℝ) ^ n := by field_simp; ring
-  rw [hhalf]
-  linarith [div_le_div_of_nonneg_right hresR hN_pos.le]
+  rw [← two_mul, mul_div_mul_left _ _ two_ne_zero]
+  linarith [div_le_div_of_nonneg_right ((Nat.cast_le (α := ℝ)).mpr hres)
+    (pow_nonneg (Nat.cast_nonneg q) n)]
 
 end SingleCircuit
 
@@ -575,11 +565,9 @@ private theorem eventually_not_decides_of_signalWidth_supply {U : Type u}
     logb_ncard_le_signalWidth I Acc c hr hfan hdec hfree hbig (Finite.equivFin (Compiler.Node c))
   obtain ⟨π, hB⟩ := hsup σ c hfan hPc hunread
   obtain ⟨hdem, _⟩ := logb_ncard_le_signalWidth I Acc c hr hfan hdec hfree hbig π
-  have hdef_err : (n : ℝ) - Real.logb (Nat.card U) (S n).ncard ≤ (δ / (2 * b)) * n := by
-    simp only [Real.norm_eq_abs, Nat.abs_cast] at hndef
-    exact (le_abs_self _).trans hndef
-  have hn1' : (1 : ℝ) ≤ n := by exact_mod_cast hn1
-  exact contra_of_logb_base hb (mul_pos hδ (by linarith)) hdef_err hdem hB
+  simp only [Real.norm_eq_abs, Nat.abs_cast] at hndef
+  exact contra_of_logb_base hb (mul_pos hδ (Nat.cast_pos.mpr hn1)) ((le_abs_self _).trans hndef)
+    hdem hB
 
 /-- Shared eventual Steiner layout-supply bound for fan-in at most `r`: under
 `(c.innerSize : ℝ) ≤ (gateSweepCoefficient r k₀ - ε) * n` and fewer than `K_fn n` assignments to
@@ -1051,7 +1039,6 @@ theorem eventually_four_div_lt_innerSize_of_nondeterministicDecides {r : ℕ} (h
   by_contra! hsize
   classical
   have := Fintype.ofFinite (Compiler.ActiveSignal c)
-  have hn1' : (1 : ℝ) ≤ n := by exact_mod_cast hn1
   obtain ⟨π, hπ⟩ := Compiler.exists_layout_signalWidth_le c hfan hM1
   obtain ⟨hM_term, hsqrt_term, hlogV_err⟩ :=
     hcerr c (by have := mul_nonneg hε.le (Nat.cast_nonneg n); linarith)
@@ -1082,21 +1069,17 @@ theorem eventually_four_div_lt_innerSize_of_nondeterministicDecides {r : ℕ} (h
         (∑ w : Compiler.ActiveSignal c, ((Compiler.support c w).ncard : ℝ)) ≤
           (r + 1 : ℝ) * c.innerSize + 1 := by
       exact_mod_cast Compiler.sum_ncard_support_le hfan
-    have hs_mul : (r + 1 : ℝ) * c.innerSize ≤ (4 - 4 * δ) * n := by
-      have h1 := mul_le_mul_of_nonneg_left hsize (by positivity : (0 : ℝ) ≤ (r : ℝ) + 1)
-      have hid : (r + 1 : ℝ) * ((L₀ - ε) * n) = (4 - 4 * δ) * n := by
-        dsimp only [L₀, δ]
-        field_simp
-      rwa [hid] at h1
+    have hs_mul : (r + 1 : ℝ) * c.innerSize ≤ (4 - 4 * δ) * n :=
+      (mul_le_mul_of_nonneg_left hsize (by positivity)).trans_eq
+        (by dsimp only [L₀, δ]; field_simp)
     linarith
-  have hdef_err : (n : ℝ) - Real.logb (Nat.card U) (S n).ncard ≤ (δ / (2 * 4)) * n := by
-    simp only [Real.norm_eq_abs, Nat.abs_cast] at hndef
-    exact (le_abs_self _).trans hndef
+  simp only [Real.norm_eq_abs, Nat.abs_cast] at hndef
   have hη_nn : 0 ≤ η * n := by positivity
   have hB := supply_base_le (b := 4) (L_K := Real.logb (Nat.card U) (K n)) (by norm_num)
     (hπ.trans_eq (add_assoc _ _ _)) hstr (by linarith) (by simp)
     (by dsimp only [η] at hM_term hsqrt_term hη_nn ⊢; linarith) hK_err hlogV_err hconst_err
-  exact contra_of_logb_base (b := 4) (by norm_num) (mul_pos hδ (by linarith)) hdef_err hdem hB
+  exact contra_of_logb_base (b := 4) (by norm_num) (mul_pos hδ (Nat.cast_pos.mpr hn1))
+    ((le_abs_self _).trans hndef) hdem hB
 
 /-- Scaled `(r - 1) * c.innerSize` form of
 `eventually_four_div_lt_innerSize_of_nondeterministicDecides` (approaching `4 n` as `r → ∞`). -/

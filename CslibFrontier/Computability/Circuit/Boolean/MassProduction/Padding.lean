@@ -40,15 +40,10 @@ theorem massComplexity_comp_castLE {n p : ℕ} (hn : 0 < n) (hle : n ≤ p)
     (f : (Fin n → Bool) → Bool) (k : ℕ) :
     massComplexity (fun x => f (x ∘ Fin.castLE hle)) k = massComplexity f k := by
   refine le_antisymm (massComplexity_comp_wiring_le _ _) ?_
-  let retract : Fin p → Fin n := fun i =>
-    if h : i.val < n then ⟨i.val, h⟩ else ⟨0, hn⟩
-  have h := massComplexity_comp_wiring_le (f := fun x => f (x ∘ Fin.castLE hle)) retract k
-  have heq : (fun x => f ((x ∘ retract) ∘ Fin.castLE hle)) = f := by
-    funext x
-    apply congrArg f
-    funext i
-    simp [retract]
-  simpa only [heq] using h
+  let retract : Fin p → Fin n := fun i => if h : i.val < n then ⟨i.val, h⟩ else ⟨0, hn⟩
+  convert massComplexity_comp_wiring_le (f := fun x => f (x ∘ Fin.castLE hle)) retract k using 4
+  ext i
+  simp [retract]
 
 /-- Moving a coefficient outside natural division loses at most a factor two when the quotient
 is nonzero. This is the rounding step in the padding argument. -/
@@ -84,8 +79,7 @@ theorem MassProducesAt.allLengths {numerator denominator : ℕ}
     (fun x => f (x ∘ Fin.castLE hle)) copies hc
     (hb.trans (rationalCopyBudget_mono_inputs hle))
   rw [massComplexity_comp_castLE hn hle] at hbound
-  refine hbound.trans ?_
-  have hscale := shannonScale_le_of_le_add hn hle (le_rfl : n + cutoff ≤ n + cutoff)
-  exact_mod_cast (Nat.mul_le_mul_left constant hscale).trans_eq (by ring)
+  exact hbound.trans (mod_cast (Nat.mul_le_mul_left constant
+    (shannonScale_le_of_le_add hn hle le_rfl)).trans_eq (by ring))
 
 end Cslib.Circuits.Boolean.MassProduction

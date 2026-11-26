@@ -55,9 +55,7 @@ variable {K : Type} [Field K] {Y : Type} {w : Y → Y → ℝ}
 theorem dist_congr_of_zero (hw : IsPrice K w) {a b : Y} (h : w a b = 0) (c : Y) : w a c =
     w b c :=
     by
-  have h2 := hw.triangle b a c
-  rw [hw.symm b a] at h2
-  linarith [hw.triangle a b c]
+  linarith [hw.triangle a b c, hw.symm b a ▸ hw.triangle b a c]
 
 /-- Steps of length at most c add up. -/
 theorem dist_chain_le (hw : IsPrice K w) (p : ℕ → Y)
@@ -193,10 +191,8 @@ theorem thm_cn_fan (hw : IsPrice K w) (x : Bool → Y) (m z : Y)
     rw [hw1.symm]
     exact le_antisymm (by simpa using a3 b 0 (Nat.zero_le _)) (hw1.nonneg _ _)
   have hm (b : Bool) : w1 (Sum.inr (b, n ^ 2)) (Sum.inl m) = 0 := by
-    have h := a4 b (n ^ 2) le_rfl
-    push_cast at h
-    rw [div_self (by positivity), sub_self, zero_mul, ← hw1.symm] at h
-    exact le_antisymm h (hw1.nonneg _ _)
+    rw [hw1.symm]
+    exact le_antisymm (by simpa [hn'.ne'] using a4 b (n ^ 2) le_rfl) (hw1.nonneg _ _)
   have hγ (b : Bool) (i : ℕ) (hi : i < n ^ 2) :
       w1 (Sum.inr (b, i)) (Sum.inr (b, i + 1)) ≤ D / n ^ 2 := by
     have h := a2 b i (i + 1) (Nat.le_succ i) hi
@@ -220,8 +216,7 @@ theorem thm_cn_fan (hw : IsPrice K w) (x : Bool → Y) (m z : Y)
     rw [e2, hw1.symm (Sum.inl z)]
     have h := b2 (b, i) j (j + 1) (Nat.le_succ j) hj
     push_cast at h
-    rw [add_sub_cancel_left] at h
-    exact h.trans_eq (by field_simp)
+    exact (add_sub_cancel_left (j : ℝ) 1 ▸ h).trans_eq (by field_simp)
   · dsimp only [G]
     have h := b1 (b, i) (b, i + 1) j hj
     rw [hw1.self, mul_zero, add_zero] at h
@@ -312,8 +307,7 @@ theorem z_γ_le (F : IsFan K w x m z D T n d) (hn : 0 < n) (b : Bool) (i : ℕ)
   have hn' : (0 : ℝ) < n := by exact_mod_cast hn
   have h1 := F.z_γ_last b ▸ F.price.triangle (FanPts.old z) (γ b (n ^ 2)) (γ b i)
   have h4 : |((n ^ 2 : ℕ) : ℝ) - i| ≤ (n : ℝ) ^ 2 := by
-    push_cast
-    rw [abs_of_nonneg (sub_nonneg.2 (by exact_mod_cast hi))]
+    rw [Nat.cast_pow, abs_of_nonneg (sub_nonneg.2 (by exact_mod_cast hi))]
     linarith [Nat.cast_nonneg (α := ℝ) i]
   have h5 := (F.γ_le hn b (n ^ 2) i le_rfl hi).trans
     (mul_le_mul_of_nonneg_right h4 (F.D_nonneg hn))
@@ -732,13 +726,11 @@ theorem thm_cn_iv_bound (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (n : �
       have e : (n : ℝ) ^ 2 * (fanL d z n b (i + (S + 1 : ℕ)) - fanL d z n b i) =
           n ^ 2 * (fanL d z n b (i + S + 1) - fanL d z n b (i + S))
             + n ^ 2 * (fanL d z n b (i + S) - fanL d z n b i) := by
-        push_cast
-        rw [← add_assoc]
+        rw [Nat.cast_succ, ← add_assoc]
         ring
       rw [e]
       refine (abs_add_le _ _).trans ?_
-      push_cast
-      linarith [fanL_step hd n b (i + S)]
+      push_cast; linarith [fanL_step hd n b (i + S)]
   rw [show (n : ℝ) ^ 2 * (fanL d z n b (i + S) ^ 2 - fanL d z n b i ^ 2) =
       (fanL d z n b (i + S) + fanL d z n b i) *
         (n ^ 2 * (fanL d z n b (i + S) - fanL d z n b i)) by ring, abs_mul]
@@ -910,11 +902,9 @@ theorem thm_cn_end (hd : ∀ n, IsFan K w x m z D T (max n 1) (d n)) (hT : 2 ≤
   have c1 (j : ℕ) : N (1, -1 - ((j + 2 : ℕ) : ℤ)) ^ 2 + N (1, -1 - (j : ℤ)) ^ 2 ≤
       2 * N (1, -1 - ((j + 1 : ℕ) : ℤ)) ^ 2 + 2 * (θ ^ 2 * Λ₂) := by
     have h := par (1, -1 - ((j + 1 : ℕ) : ℤ)) (0, 1)
-    have e1 : ((1, -1 - ((j + 1 : ℕ) : ℤ)) : ℤ × ℤ) + (0, 1) = (1, -1 - (j : ℤ)) :=
-      Prod.ext rfl (by simp; ring)
-    have e2 : ((1, -1 - ((j + 1 : ℕ) : ℤ)) : ℤ × ℤ) - (0, 1) = (1, -1 - ((j + 2 : ℕ) : ℤ)) :=
-      Prod.ext rfl (by simp; ring)
-    rw [e1, e2] at h
+    rw [Prod.mk_add_mk, Prod.mk_sub_mk, add_zero, sub_zero,
+      show -1 - ((j + 1 : ℕ) : ℤ) + 1 = -1 - (j : ℤ) by omega,
+      show -1 - ((j + 1 : ℕ) : ℤ) - 1 = -1 - ((j + 2 : ℕ) : ℤ) by omega] at h
     linarith
   have c2 := le_of_second_diff_le (f := fun j : ℕ => N (1, -1 - (j : ℤ)) ^ 2)
     (φ := N (1, 0) ^ 2) c0 c1

@@ -95,10 +95,9 @@ theorem rayCrosses_iff_exists (a b z : ℂ) :
       (AffineMap.lineMap a b t).im = z.im ∧
       z.re < (AffineMap.lineMap a b t).re ∧ z.im < max a.im b.im := by
   by_cases hab : a.im = b.im
-  · refine iff_of_false (not_rayCrosses_of_im_eq hab z) ?_
-    rintro ⟨t, -, ht, -, hz⟩
+  · refine iff_of_false (not_rayCrosses_of_im_eq hab z) fun ⟨t, _, ht, _, hz⟩ => ?_
     rw [lineMap_im, hab, sub_self, mul_zero, add_zero] at ht
-    simp only [hab, max_self, ← ht, lt_self_iff_false] at hz
+    simp [hab, ← ht] at hz
   · have hden : b.im - a.im ≠ 0 := sub_ne_zero.mpr (Ne.symm hab)
     constructor
     · rintro ⟨hlo, hhi, hx⟩
@@ -113,9 +112,8 @@ theorem rayCrosses_iff_exists (a b z : ℂ) :
           rw [max_eq_left hab.le] at hhi
           exact ⟨div_nonneg_of_nonpos (by linarith) (by linarith),
             (div_le_one_of_neg (sub_neg.mpr hab)).mpr (by linarith)⟩
-      refine ⟨t, ht, ?_, ?_, hhi⟩
-      · simp only [lineMap_im, t, div_mul_cancel₀ _ hden, add_sub_cancel]
-      · exact (lineMap_re a b t).symm ▸ hx
+      exact ⟨t, ht, by simp [lineMap_im, t, div_mul_cancel₀ _ hden], (lineMap_re a b t).symm ▸ hx,
+        hhi⟩
     · rintro ⟨t, ht, him, hre, hhi⟩
       rw [lineMap_im] at him
       have ht' : t = (z.im - a.im) / (b.im - a.im) := (eq_div_iff hden).mpr (by linarith)
@@ -169,12 +167,9 @@ theorem decide_rayCrosses_split (a b z : ℂ) {t : ℝ} (ht : t ∈ Set.Ioo 0 1)
       decide (RayCrosses (AffineMap.lineMap a b t) b z) = decide (RayCrosses a b z) := by
   rcases lt_trichotomy a.im b.im with hab | hab | hab
   · exact decide_rayCrosses_split_of_im_lt hab z ht
-  · have hm : (AffineMap.lineMap a b t).im = a.im := by
-      rw [lineMap_im, hab, sub_self, mul_zero, add_zero]
-    rw [decide_eq_false (not_rayCrosses_of_im_eq hm.symm z),
-      decide_eq_false (not_rayCrosses_of_im_eq (hm.trans hab) z),
-      decide_eq_false (not_rayCrosses_of_im_eq hab z)]
-    rfl
+  · have hm : (AffineMap.lineMap a b t).im = a.im := by simp [lineMap_im, hab]
+    simp [not_rayCrosses_of_im_eq hm.symm, not_rayCrosses_of_im_eq (hm.trans hab),
+      not_rayCrosses_of_im_eq hab, Bool.add_eq_xor]
   · have ht' : 1 - t ∈ Set.Ioo (0 : ℝ) 1 := ⟨sub_pos.mpr ht.2, sub_lt_self _ ht.1⟩
     have h := decide_rayCrosses_split_of_im_lt hab z ht'
     rwa [AffineMap.lineMap_apply_one_sub,
@@ -216,15 +211,12 @@ theorem intercept_ne_of_not_mem_segment (a b z : ℂ)
     (hz : z ∉ segment ℝ a b) : z.re ≠ horizontalIntercept a b z.im := by
   intro hx
   have hab : a.im ≠ b.im := fun h => (hlo.trans_lt hhi).ne (by rw [h, min_self, max_self])
-  let w : ℂ := ⟨z.re - 1, z.im⟩
-  have hw : RayCrosses a b w := ⟨hlo, hhi, (sub_one_lt z.re).trans_eq hx⟩
-  obtain ⟨t, ht, him, -, -⟩ := (rayCrosses_iff_exists a b w).mp hw
-  have ht' : t = (z.im - a.im) / (b.im - a.im) := by
-    rw [eq_div_iff (sub_ne_zero.mpr hab.symm)]
-    change _ = z.im at him
-    linarith [lineMap_im a b t]
+  obtain ⟨t, ht, him, -, -⟩ :=
+    (rayCrosses_iff_exists a b ⟨z.re - 1, z.im⟩).mp ⟨hlo, hhi, (sub_one_lt z.re).trans_eq hx⟩
+  have ht' : t = (z.im - a.im) / (b.im - a.im) :=
+    (eq_div_iff (sub_ne_zero.mpr hab.symm)).mpr (by linarith [lineMap_im a b t, him])
   have heq : AffineMap.lineMap a b t = z :=
-    Complex.ext (by rw [lineMap_re, ht']; exact hx.symm) him
+    Complex.ext (by simpa only [lineMap_re, ht', horizontalIntercept] using hx.symm) him
   exact hz (heq ▸ lineMap_mem_segment ℝ a b ht)
 
 /-- Away from the endpoint heights, avoiding the actual segment is enough for local

@@ -156,9 +156,7 @@ theorem one_le_acceptProb_iff (a : α) (π : List Bool) :
     1 ≤ V.acceptProb a π ↔
       ∀ ρ : List Bool, ρ.length = V.coins a → V.accepts a π ρ = true := by
   rw [← V.acceptCount_eq_two_pow_iff a π, acceptProb, le_div_iff₀ (by positivity), one_mul]
-  norm_cast
-  have := V.acceptCount_le_two_pow a π
-  omega
+  exact ⟨fun h => le_antisymm (V.acceptCount_le_two_pow a π) (mod_cast h), fun h => mod_cast h.ge⟩
 
 /-- Acceptance probability at most `1 / 2` is equivalent to `2 * V.acceptCount a π ≤ 2 ^ V.coins a`.
 -/
@@ -491,10 +489,8 @@ accept its query table with arbitrary trailing padding. -/
 theorem majorityTableVerifier_complete (a : α) (proof padding : List Bool)
     (h : 1 / 2 < V.acceptProb a proof) :
     V.majorityTableVerifier (a, answers proof (V.queryTable a) ++ padding) = true := by
-  simp only [majorityTableVerifier, BitString.length_enumList, decide_eq_true_eq,
-    V.tableAcceptCount_answers_append]
-  have hnot : ¬ V.acceptProb a proof ≤ 1 / 2 := not_le.mpr h
-  rwa [V.acceptProb_le_half_iff, not_le] at hnot
+  simpa only [majorityTableVerifier, BitString.length_enumList, decide_eq_true_eq,
+    V.tableAcceptCount_answers_append, ← not_le, ← V.acceptProb_le_half_iff] using not_le.mpr h
 
 variable {V} {c : ℕ}
 
@@ -526,12 +522,10 @@ theorem IsPCPVerifierWith.mem_iff_exists_majorityTableVerifier {c : ℝ} {r q : 
   refine ⟨fun ha => ?_, fun ⟨table, htable⟩ => ?_⟩
   · obtain ⟨proof, hproof⟩ := h.complete a ha
     exact ⟨_, by simpa using V.majorityTableVerifier_complete a proof [] (hc.trans_le hproof)⟩
-  · by_contra ha
-    simp only [PCPVerifier.majorityTableVerifier, BitString.length_enumList,
-      decide_eq_true_eq, V.tableAcceptCount_eq_acceptCount_proofOfTable] at htable
-    have hsound := (V.acceptProb_le_half_iff a (V.proofOfTable a table)).mp
-      (h.sound a ha (V.proofOfTable a table))
-    omega
+  · rw [PCPVerifier.majorityTableVerifier, BitString.length_enumList, decide_eq_true_eq,
+      V.tableAcceptCount_eq_acceptCount_proofOfTable, ← not_le,
+      ← V.acceptProb_le_half_iff] at htable
+    exact Classical.byContradiction fun ha => htable (h.sound a ha _)
 
 /-- Logarithmically many random bits with completeness `c > 1 / 2` and soundness `1 / 2` can be
 checked exhaustively in `NP`, regardless of the query bound `q`. -/

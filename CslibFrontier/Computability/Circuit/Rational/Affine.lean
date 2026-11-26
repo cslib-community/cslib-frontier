@@ -445,12 +445,10 @@ private theorem Eval.inverseNodes_units {f : Formula n} {a : R} (ha : f.Eval c X
   | var _ | const _ => simp
   | add f g ihf ihg =>
     obtain ⟨a₁, a₂, ha₁, ha₂, -⟩ := eval_add_iff.mp ha
-    simpa only [inverseNodes_add, List.mem_append, or_imp, forall_and] using
-      And.intro (ihf ha₁) (ihg ha₂)
+    simpa [or_imp, forall_and] using ⟨ihf ha₁, ihg ha₂⟩
   | mul f g ihf ihg =>
     obtain ⟨a₁, a₂, ha₁, ha₂, -⟩ := eval_mul_iff.mp ha
-    simpa only [inverseNodes_mul, List.mem_append, or_imp, forall_and] using
-      And.intro (ihf ha₁) (ihg ha₂)
+    simpa [or_imp, forall_and] using ⟨ihf ha₁, ihg ha₂⟩
   | inv f ih =>
     obtain ⟨b, hb, -, -⟩ := eval_inv_iff.mp ha
     simpa only [inverseNodes_inv, List.mem_cons, forall_eq_or_imp] using ⟨ha.pencil_isUnit, ih hb⟩
@@ -505,13 +503,11 @@ theorem nodeCount_le_of_mem_inverseNodes {f h : Formula n} (hh : h ∈ inverseNo
   induction f using inductionOn with
   | var _ | const _ => simp at hh
   | add f g ihf ihg =>
-    rcases List.mem_append.mp hh with hh | hh
-    · exact (ihf hh).trans (by simp only [nodeCount_add]; omega)
-    · exact (ihg hh).trans (by simp only [nodeCount_add]; omega)
+    have := (List.mem_append.mp hh).imp ihf ihg
+    simp only [nodeCount_add]; omega
   | mul f g ihf ihg =>
-    rcases List.mem_append.mp hh with hh | hh
-    · exact (ihf hh).trans (by simp only [nodeCount_mul]; omega)
-    · exact (ihg hh).trans (by simp only [nodeCount_mul]; omega)
+    have := (List.mem_append.mp hh).imp ihf ihg
+    simp only [nodeCount_mul]; omega
   | inv f ih =>
     rcases List.mem_cons.mp hh with rfl | hh
     · rfl
@@ -585,8 +581,7 @@ theorem normalized_pencil_unit {ι : Type*} [Fintype ι] [DecidableEq ι] [Algeb
     (L : Matrix ι ι (Form n)) (Z : Fin (n + 1) → R) (z : Rˣ) (hz : (z : R) = Z 0)
     (hL : IsUnit (L.map (homogeneous (algebraMap ℚ R) Z))) :
     IsUnit (L.map (eval (algebraMap ℚ R) (fun i => (↑z⁻¹ : R) * Z i.succ))) := by
-  have hu : Z 0 * (↑z⁻¹ : R) = 1 := by rw [← hz]; exact z.val_inv
-  rw [normalized_pencil L Z (↑z⁻¹ : R) hu] at hL
+  rw [normalized_pencil L Z (↑z⁻¹ : R) (hz ▸ z.val_inv)] at hL
   exact (z.isUnit.map (Matrix.scalar ι) |>.mul_left_iff).mp (by simpa [hz] using hL)
 
 /-- Reindexing a pencil's coefficients does not alter its matrix evaluation. -/
