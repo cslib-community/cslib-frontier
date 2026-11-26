@@ -56,8 +56,8 @@ theorem xorSketchNeighbor_spec {n w q : ℕ} {keys : Fin n → ℕ} {j : Fin n}
 /-- `xorSketchNeighbor` returns `none` if and only if the key table is empty. -/
 theorem xorSketchNeighbor_eq_none_iff {n w q : ℕ} {keys : Fin n → ℕ} :
     xorSketchNeighbor w keys q = none ↔ n = 0 := by
-  rw [xorSketchNeighbor, chooseByScore_eq_none_iff]
-  rw [← chooseByScore_eq_none_iff (fun i => divergenceScore w (keys i) q)]
+  rw [xorSketchNeighbor, chooseByScore_eq_none_iff,
+    ← chooseByScore_eq_none_iff (fun i => divergenceScore w (keys i) q)]
   exact bestSketchNeighbor_eq_none_iff
 
 private theorem miss_of_xorSketchNeighbor {n w q : ℕ} {keys : Fin n → ℕ}
@@ -95,20 +95,14 @@ theorem xorCorrectedRank_eq_upperRank {n w q : ℕ} {keys : Fin n → ℕ}
     xorCorrectedRank w keys q = upperRank keys q := by
   cases hj : xorSketchNeighbor w keys q with
   | none =>
-    have hn := xorSketchNeighbor_eq_none_iff.mp hj
-    subst n
+    rcases xorSketchNeighbor_eq_none_iff.mp hj with rfl
     simp [xorCorrectedRank, hj, upperRank]
   | some j =>
-    rw [xorCorrectedRank, hj]
-    dsimp only
-    by_cases hhit : keys j = q
-    · rw [ite_eq_left hhit]
-      unfold sketchRank
-      rw [← hhit]
-      exact upperRank_sketch_apply hsorted hbound j
-    · rw [ite_eq_right hhit]
-      have hmiss := miss_of_xorSketchNeighbor hsorted hbound hj hhit
+    simp only [xorCorrectedRank, hj]
+    split_ifs with hhit
+    · simpa only [sketchRank, ← hhit] using upperRank_sketch_apply hsorted hbound j
+    · have hmiss := miss_of_xorSketchNeighbor hsorted hbound hj hhit
       exact boundaryRank_eq_upperRank hsorted hbound hq hmiss j
-        (fun i hi => xorSketchNeighbor_highestDiff_le hq hbound hmiss hj i hi)
+        (xorSketchNeighbor_highestDiff_le hq hbound hmiss hj)
 
 end Cslib.DataStructure.FusionTree

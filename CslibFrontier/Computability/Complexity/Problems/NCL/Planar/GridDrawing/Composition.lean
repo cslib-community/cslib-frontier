@@ -80,8 +80,8 @@ private theorem targetLeft_bottom (P : DiagramDrawing I D₁) (Q : DiagramDrawin
   classical
   unfold targetLeft
   split_ifs with h
-  · have he : h.choose = j := (bottom_injective D₁) h.choose_spec
-    rw [he]
+  · exact congrArg (fun j => shift P.height (Q.target (.inl j)))
+      ((bottom_injective D₁) h.choose_spec)
   · exact (h ⟨j, rfl⟩).elim
 
 @[simp] private theorem target_right (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D₂)
@@ -116,23 +116,11 @@ private theorem vertex_injective (P : DiagramDrawing I D₁) (Q : DiagramDrawing
     Function.Injective (vertex P Q) := by
   rintro (v | v) (w | w) he
   · exact congrArg Sum.inl (P.vertex_injective he)
-  · have hy := congrArg Prod.snd he
-    have := (P.vertex_rows v).2
-    have := (Q.vertex_rows w).1
-    simp only [vertex, Sum.elim_inl, Sum.elim_inr, Function.comp_def, shift] at hy
-    omega
-  · have hy := congrArg Prod.snd he
-    have := (Q.vertex_rows v).1
-    have := (P.vertex_rows w).2
-    simp only [vertex, Sum.elim_inl, Sum.elim_inr, Function.comp_def, shift] at hy
-    omega
-  · have hx := congrArg Prod.fst he
-    have hy := congrArg Prod.snd he
-    have hp : Q.vertex v = Q.vertex w := Prod.ext
-      (by simpa only [vertex, Sum.elim_inr, Function.comp_def, shift] using hx)
-      (by simpa only [vertex, Sum.elim_inr, Function.comp_def, shift,
-        Nat.add_right_cancel_iff] using hy)
-    exact congrArg Sum.inr (Q.vertex_injective hp)
+  · exact absurd (congrArg Prod.snd he) ((P.vertex_rows v).2.trans_le (Nat.le_add_left _ _)).ne
+  · exact absurd (congrArg Prod.snd he).symm ((P.vertex_rows w).2.trans_le (Nat.le_add_left _ _)).ne
+  · simp only [vertex, Sum.elim_inr, Function.comp_def, shift, Prod.mk.injEq,
+      Nat.add_right_cancel_iff] at he
+    exact congrArg Sum.inr (Q.vertex_injective (Prod.ext he.1 he.2))
 
 /-- All stacked vertices stay strictly inside the combined drawing. -/
 private theorem vertex_rows (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D₂)
@@ -150,16 +138,13 @@ private theorem vertex_rows (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D�
 private theorem edge_rows_left (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D₂) (e : D₁.Edge) :
     (source P Q (compLeft D₁ D₂ e)).2 < (target P Q (compLeft D₁ D₂ e)).2 := by
   classical
-  rw [source_left, target_left]
-  unfold targetLeft
+  rw [source_left, target_left, targetLeft]
   split_ifs with h
   · have hp := P.edge_rows e
-    have hb := congrArg Prod.snd (P.target_bottom h.choose)
-    rw [h.choose_spec] at hb
-    have hq := Q.edge_rows (.inl h.choose)
-    rw [Q.source_top] at hq
-    simp only [shift]
-    simp only at hb hq
+    have hb := congrArg Prod.snd ((congrArg P.target h.choose_spec).symm.trans
+      (P.target_bottom h.choose))
+    have hq := (Q.source_top h.choose) ▸ Q.edge_rows (.inl h.choose)
+    simp only [shift] at hb hq ⊢
     omega
   · exact P.edge_rows e
 
@@ -170,17 +155,11 @@ private theorem vertex_separation (P : DiagramDrawing I D₁) (Q : DiagramDrawin
       (vertex P Q w).2 + 1 < (vertex P Q v).2 := by
   rcases v with v | v <;> rcases w with w | w
   · exact P.vertex_separation v w (fun he => hvw (congrArg Sum.inl he))
-  · have hp := (P.vertex_rows v).2
-    have hq := (Q.vertex_rows w).1
-    left
-    change (P.vertex v).2 + 1 < (Q.vertex w).2 + P.height
-    omega
-  · have hp := (Q.vertex_rows v).1
-    have hq := (P.vertex_rows w).2
-    right
-    change (P.vertex w).2 + 1 < (Q.vertex v).2 + P.height
-    omega
-  · have h := Q.vertex_separation v w (fun he => hvw (congrArg Sum.inr he))
+  · exact Or.inl ((Nat.succ_le_of_lt (P.vertex_rows v).2).trans_lt
+      (Nat.lt_add_of_pos_left (Q.vertex_rows w).1))
+  · exact Or.inr ((Nat.succ_le_of_lt (P.vertex_rows w).2).trans_lt
+      (Nat.lt_add_of_pos_left (Q.vertex_rows v).1))
+  · have := Q.vertex_separation v w (fun he => hvw (congrArg Sum.inr he))
     simp only [vertex, Sum.elim_inr, Function.comp_def, shift]
     omega
 
@@ -191,21 +170,17 @@ private theorem path_left (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D₂
   classical
   rw [source_left, target_left]
   by_cases h : ∃ j, D₁.bottom j = e
-  · have hj := h.choose_spec
-    have he : P.target e = shift P.height (Q.source (.inl h.choose)) := by
-      calc
-        P.target e = P.target (D₁.bottom h.choose) := congrArg P.target hj.symm
+  · have he : P.target e = shift P.height (Q.source (.inl h.choose)) := by
+      calc P.target e = P.target (D₁.bottom h.choose) := congrArg P.target h.choose_spec.symm
         _ = (4 * h.choose.val, P.height) := P.target_bottom _
-        _ = shift P.height (Q.source (.inl h.choose)) := by rw [Q.source_top]; simp [shift]
-    have hp := (P.path e).mono (fun _ hp => trace_left P Q e hp)
-    have hq := ((Q.path (.inl h.choose)).shift P.height).mono
-      (fun _ hq => trace_right P Q (.inl h.choose) hq)
-    have hedge : compRight D₁ D₂ (.inl h.choose) = compLeft D₁ D₂ e := by
-      simp only [compRight, hj]
-    rw [hedge] at hq
-    rw [he] at hp
-    have hpq := hp.comp hq
-    simpa only [targetLeft, dite_eq_left h] using hpq
+        _ = shift P.height (Q.source (.inl h.choose)) := by simp [Q.source_top, shift]
+    have hp := he ▸ (P.path e).mono (fun _ hp => trace_left P Q e hp)
+    have hq : Connected (Trace P Q (compLeft D₁ D₂ e))
+        (shift P.height (Q.source (.inl h.choose)))
+        (shift P.height (Q.target (.inl h.choose))) := by
+      simpa only [compRight, h.choose_spec] using ((Q.path (.inl h.choose)).shift P.height).mono
+        (fun _ hq => trace_right P Q (.inl h.choose) hq)
+    simpa only [targetLeft, dite_eq_left h] using hp.comp hq
   · simpa only [targetLeft, dite_eq_right h] using
       (P.path e).mono (fun _ hp => trace_left P Q e hp)
 
@@ -263,11 +238,9 @@ private theorem target_port_left (P : DiagramDrawing I D₁) (Q : DiagramDrawing
   classical
   have hn : ¬∃ j, D₁.bottom j = e := by
     rintro ⟨j, rfl⟩
-    have hh := P.target_port v (D₁.bottom j) hp
-    rw [P.target_bottom] at hh
-    have hy := congrArg Prod.snd hh
+    have hy := congrArg Prod.snd ((P.target_bottom j).symm.trans (P.target_port v _ hp))
     have := (P.vertex_rows v).2
-    simp only at hy
+    dsimp only at hy
     omega
   rw [target_left, targetLeft, dite_eq_right hn]
   exact P.target_port v e hp
@@ -278,11 +251,9 @@ private theorem source_port_right (P : DiagramDrawing I D₁) (Q : DiagramDrawin
     source P Q (compRight D₁ D₂ e) = vertex P Q (.inr v) := by
   cases e with
   | inl i =>
-    have hh := Q.source_port v (.inl i) hp
-    rw [Q.source_top] at hh
-    have hy := congrArg Prod.snd hh
+    have hy := congrArg Prod.snd ((Q.source_top i).symm.trans (Q.source_port v (.inl i) hp))
     have := (Q.vertex_rows v).1
-    simp only at hy
+    dsimp only at hy
     omega
   | inr e => exact congrArg (shift P.height) (Q.source_port v (.inr e) hp)
 
@@ -375,13 +346,11 @@ private theorem meet (P : DiagramDrawing I D₁) (Q : DiagramDrawing I D₂)
   · have hne : e' ≠ f' := fun h => hef (he.symm.trans ((congrArg _ h).trans hf))
     obtain ⟨v, hv, ⟨de, hde⟩, ⟨df, hdf⟩⟩ := Q.meet e' f' _ hne hp hq
     have hpv : p = shift P.height (Q.vertex v) := by
-      apply Prod.ext
-      · have hx := congrArg Prod.fst hv
-        exact hx
-      · have hh := congrArg Prod.snd hv
-        change p.2 = (Q.vertex v).2 + P.height
-        simp only at hh
-        omega
+      have hx := congrArg Prod.fst hv
+      refine Prod.ext hx ?_
+      have hh : p.2 - P.height = (Q.vertex v).2 := congrArg Prod.snd hv
+      change p.2 = (Q.vertex v).2 + P.height
+      omega
     exact ⟨.inr v, hpv, he ▸ ⟨de, port_right hde⟩, hf ▸ ⟨df, port_right hdf⟩⟩
 
 /-- All false-direction ports remain first endpoints after stacking. -/

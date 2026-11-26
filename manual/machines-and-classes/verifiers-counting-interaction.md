@@ -380,14 +380,19 @@ uncertified `true` reply for the empty oracle, and places an `NP` problem and it
 `Σ₂ ∩ Π₂`.
 
 For integer threshold optimization and witness recovery via adaptive oracle queries, import
-[`Classes.Oracle.ThresholdSearch`](../../CslibFrontier/Computability/Complexity/Classes/Oracle/ThresholdSearch.lean).
+[`Classes.Oracle.ThresholdSearch`](../../CslibFrontier/Computability/Complexity/Classes/Oracle/ThresholdSearch.lean)
+and [`Algorithms.Lean.Query.BinarySearch`](../../CslibFrontier/Algorithms/Lean/Query/BinarySearch.lean).
 `MaxThresholdSpec` and `MinThresholdSpec` bisect over `[0, bound x]` via
-`Cslib.Algorithms.Lean.lowerBoundM` in `TimeM` (`maxOptWitnessM_spec`, `minOptWitnessM_spec`),
-returning `none` when no valid witness exists and otherwise an optimal value and witness in at most
-`Nat.log 2 (bound x + 1) + 1` threshold probes plus one witness-finder call. In the native oracle
-model, `bisectProgram` iterates `bisectStepProgram` for `(hi x - lo x).size` rounds (`IsOraclePPTOn`
-via `ComputableInPolyTime.binary_size`, so exponentially large binary bounds `hi x` are supported),
-agrees with `lowerBoundM` (`iterate_bisectStep_eq_lowerBoundM`), makes at most
+`Cslib.Algorithms.Lean.lowerBound` (`maxOptWitness_spec`, `minOptWitness_spec`) and in the `FreeM`
+threshold-probe query model (`maxOptWitnessQ`, `minOptWitnessQ` over `ThresholdWitnessQuery`,
+`maxOptWitnessQ_query_bounds`, `minOptWitnessQ_query_bounds`), returning `none` when no valid
+witness exists and otherwise an optimal value and witness using at most
+`Nat.log 2 (bound x + 1) + 1` threshold decision queries (`SumQuery.countInl`) and at most `1`
+witness query (`SumQuery.countInr`, `0` when infeasible; pure index arithmetic is uncharged in the
+query model). In the native oracle model, `bisectProgram` iterates `bisectStepProgram` for
+`(hi x - lo x).size` rounds (`IsOraclePPTOn` via `ComputableInPolyTime.binary_size`, so
+exponentially large binary bounds `hi x` are supported), agrees with `lowerBound`
+(`iterate_bisectStep_eq_lowerBound`), makes at most
 `(hi x - lo x).size ≤ Nat.log 2 (hi x - lo x) + 1` requests all in `[lo x, hi x)`
 (`computableInPolyTimeWithOracleQueries_bisect`), and sequences with a witness-recovery stage via
 `ComputableInPolyTimeWithOracleQueries.bind_with`.
@@ -408,7 +413,7 @@ a supplied fixed-width `k`-SAT solver. The optima agree: `MaxSAT.maxClauseScore_
 Unweighted `MaxSAT` clauses have unit weight; general integer-weighted objectives instantiate
 `MaxThresholdSpec` / `MinThresholdSpec` and `computableInPolyTimeWithOracleQueries_bisect` directly.
 The [checked examples](../../CslibFrontierTests/ThresholdSearchAndExactSampler.lean) exercise
-feasible, zero-cost, and infeasible `TimeM` specs, exponential-range `[0, 2 ^ n)` oracle bisection,
+feasible, zero-cost, and infeasible query-model specs, exponential-range `[0, 2 ^ n)` oracle bisection,
 and `solveMaxSAT` on an unsatisfiable 4-clause 2-CNF, the empty formula, and gapped variable labels.
 [Bridge examples](../../CslibFrontierTests/MaxSATThresholdBridge.lean) check
 `maxClauseScore_eq_optimum` and show the declared-range hypothesis cannot be dropped.

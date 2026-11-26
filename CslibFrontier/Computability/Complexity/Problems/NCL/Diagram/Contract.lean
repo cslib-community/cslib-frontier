@@ -114,8 +114,7 @@ theorem comp {D₁ : Diagram Γ a b} {D₂ : Diagram Γ b c} {C₁ C₂ : List B
     (h₁ : Holds I D₁ C₁) (h₂ : Holds I D₂ C₂) :
     Holds I (D₁.comp D₂) fun x z => ∃ y, C₁ x y ∧ C₂ y z := fun t ht => by
   obtain ⟨ht₁, ht₂⟩ := (legal_comp_iff D₁ D₂ t).1 ht
-  refine ⟨_, h₁ _ ht₁, ?_⟩
-  simpa only [botList_compRight, topList_compRight] using h₂ _ ht₂
+  exact ⟨_, h₁ _ ht₁, by simpa only [botList_compRight, topList_compRight] using h₂ _ ht₂⟩
 
 /-- **A juxtaposition satisfies the product of the contracts of its parts.** -/
 theorem tensor {D₁ : Diagram Γ a b} {D₂ : Diagram Γ c d} {C₁ C₂ : List Bool → List Bool → Prop}
@@ -158,20 +157,17 @@ theorem moveLeft : ∀ (l : List Color) (x : Color) (r : List Color),
       ∃ us bit rs, u = us ++ bit :: rs ∧ v = bit :: (us ++ rs) ∧
         us.length = l.length ∧ rs.length = r.length
   | [], x, r => (id _).mono <| by
-    rintro u v hu - h
-    subst h
+    rintro u _ hu - rfl
     obtain ⟨bit, rs, rfl⟩ := List.exists_cons_of_length_eq_add_one hu
     exact ⟨[], bit, rs, rfl, rfl, rfl, by simpa using hu⟩
   | y :: l, x, r => (((moveLeft l x r).id_tensor [y]).comp
       ((swap y x).tensor_id (l ++ r))).mono <| by
     rintro _ _ - - ⟨_, ⟨z, _, _, rfl, rfl, hz, us, bit, rs, rfl, rfl, hus, hrs⟩,
-      ⟨u, v, tail, hmid, rfl, hu, -, hv⟩⟩
+      ⟨u, _, tail, hmid, rfl, hu, -, rfl⟩⟩
     obtain ⟨first, rfl⟩ := List.length_eq_one_iff.1 hz
     obtain ⟨a, b, rfl⟩ := List.length_eq_two.1 hu
-    simp only [List.cons_append, List.nil_append, List.cons.injEq] at hmid
-    obtain ⟨rfl, rfl, rfl⟩ := hmid
-    subst hv
-    exact ⟨first :: us, bit, rs, rfl, rfl, by simp [hus], hrs⟩
+    obtain ⟨rfl, rfl, rfl⟩ : first = a ∧ bit = b ∧ us ++ rs = tail := by simpa using hmid
+    exact ⟨_ :: us, _, rs, rfl, rfl, by simp [hus], hrs⟩
 
 end Holds
 
@@ -199,8 +195,6 @@ theorem Holds.of_check {D : Diagram Γ a b} {C : List Bool → List Bool → Pro
   refine (h _ (mem_allLists (length_topList ..)) _ (mem_allLists (length_botList ..))).resolve_right
     fun hr => not_extends_of_refutes ((Refutation.conflict).refutes hr) ht fun p hp => ?_
   simp only [boundaryOf, List.mem_append, List.mem_map, List.mem_finRange, true_and] at hp
-  rcases hp with ⟨i, rfl⟩ | ⟨j, rfl⟩
-  · simp [topList]
-  · simp [botList]
+  rcases hp with ⟨_, rfl⟩ | ⟨_, rfl⟩ <;> simp [topList, botList]
 
 end Cslib.Complexity.NCL.Diagram

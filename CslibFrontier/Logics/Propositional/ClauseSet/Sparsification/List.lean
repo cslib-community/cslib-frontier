@@ -164,11 +164,8 @@ theorem toClauseSet_mono {ψ χ : CNF V} (h : ψ ⊆ χ) : ψ.toClauseSet ⊆ χ
 theorem subclause_eq_true_iff {D C : Clause V} :
     subclause D C = true ↔ D.toFinset ⊆ C.toFinset := by
   simp only [subclause, List.all_eq_true, List.any_eq_true, beq_iff_eq, exists_eq_right]
-  constructor
-  · intro h l hl
-    exact List.mem_toFinset.mpr (h l (List.mem_toFinset.mp hl))
-  · intro h l hl
-    exact List.mem_toFinset.mp (h (List.mem_toFinset.mpr hl))
+  exact ⟨fun h l hl => List.mem_toFinset.mpr (h l (List.mem_toFinset.mp hl)),
+    fun h l hl => List.mem_toFinset.mp (h (List.mem_toFinset.mpr hl))⟩
 
 /-- `reduce ψ` is a sublist of `ψ`. -/
 theorem reduce_sublist (ψ : CNF V) : reduce ψ <+ ψ := List.filter_sublist
@@ -184,20 +181,17 @@ theorem toClauseSet_reduce (ψ : CNF V) :
   have hkeep (C : Clause V) : (ψ.all fun D => !(subclause D C && !subclause C D)) = true ↔
       ∀ D' ∈ ψ.toClauseSet, ¬ D' ⊂ C.toFinset := by
     rw [List.all_eq_true]
-    constructor
-    · intro h D' hD'
-      obtain ⟨D, hD, rfl⟩ := mem_toClauseSet.mp hD'
-      exact not_and_not_subclause_iff.mp (h D hD)
-    · intro h D hD
-      exact not_and_not_subclause_iff.mpr (h _ (mem_toClauseSet.mpr ⟨D, hD, rfl⟩))
+    refine ⟨fun h D' hD' => ?_,
+      fun h D hD => not_and_not_subclause_iff.mpr (h _ (mem_toClauseSet.mpr ⟨D, hD, rfl⟩))⟩
+    obtain ⟨D, hD, rfl⟩ := mem_toClauseSet.mp hD'
+    exact not_and_not_subclause_iff.mp (h D hD)
   ext C'
-  rw [mem_toClauseSet, ClauseSet.Sparsification.mem_reduce]
+  rw [mem_toClauseSet, ClauseSet.Sparsification.mem_reduce, mem_toClauseSet]
   constructor
   · rintro ⟨C, hC, rfl⟩
     obtain ⟨hCψ, hk⟩ := List.mem_filter.mp hC
-    exact ⟨mem_toClauseSet.mpr ⟨C, hCψ, rfl⟩, (hkeep C).mp hk⟩
-  · rintro ⟨hC', hk⟩
-    obtain ⟨C, hC, rfl⟩ := mem_toClauseSet.mp hC'
+    exact ⟨⟨C, hCψ, rfl⟩, (hkeep C).mp hk⟩
+  · rintro ⟨⟨C, hC, rfl⟩, hk⟩
     exact ⟨C, List.mem_filter.mpr ⟨hC, (hkeep C).mpr hk⟩, rfl⟩
 
 /-- The list-level flower computes the clause-set flower when clauses have no repeated literals. -/
@@ -233,8 +227,7 @@ private theorem toClauseSet_intro {ψ : CNF V} (hnd : ∀ C ∈ ψ, C.Nodup) (c 
       ClauseSet.Sparsification.intro ψ.toClauseSet c H.toFinset b := by
   cases b
   · simp [intro, ClauseSet.Sparsification.intro, CNF.toClauseSet]
-  · simp only [intro, ite_true, ClauseSet.Sparsification.intro]
-    exact toClauseSet_petals hnd c H
+  · exact toClauseSet_petals hnd c H
 
 /-- The list-level children compute the clause-set children. -/
 theorem toClauseSet_child {ψ : CNF V} (hnd : ∀ C ∈ ψ, C.Nodup) (c : ℕ) (H : Clause V)
@@ -265,8 +258,7 @@ theorem Normalized.card_le {k : ℕ} {ψ : CNF V} (h : Normalized k ψ) :
     ∀ C ∈ ψ.toClauseSet, C.card ≤ k := by
   intro C hC
   obtain ⟨D, hD, rfl⟩ := mem_toClauseSet.mp hC
-  rw [List.toFinset_card_of_nodup (h.nodup D hD)]
-  exact h.length_le D hD
+  exact (List.toFinset_card_le D).trans (h.length_le D hD)
 
 private theorem Normalized.length_flower {k : ℕ} {ψ : CNF V} (h : Normalized k ψ) (c : ℕ)
     (H : Clause V) : (flower ψ c H).length =
@@ -304,14 +296,11 @@ private theorem exists_mem_hearts {k : ℕ} {C : Clause V} (hk : C.length ≤ k)
     rw [Bool.eq_iff_iff, List.any_eq_true, decide_eq_true_iff]
     constructor
     · rintro ⟨i, hi, hip⟩
-      rw [beq_iff_eq] at hip
       obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hi
       obtain ⟨hqz, hqH⟩ := List.mem_filter.mp hq
       have h₁ := List.mem_zipIdx_iff_getElem?.mp hqz
-      have h₂ := List.mem_zipIdx_iff_getElem?.mp hp
-      rw [hip, h₂, Option.some_inj] at h₁
-      rw [h₁]
-      exact of_decide_eq_true hqH
+      rw [beq_iff_eq.mp hip, List.mem_zipIdx_iff_getElem?.mp hp, Option.some_inj] at h₁
+      exact h₁ ▸ of_decide_eq_true hqH
     · intro hpH
       exact ⟨p.2, List.mem_map.mpr ⟨p, List.mem_filter.mpr ⟨hp, decide_eq_true hpH⟩, rfl⟩,
         beq_self_eq_true _⟩
@@ -366,14 +355,10 @@ private theorem le_of_rank_le {k : ℕ} {x y : ℕ × Clause V} (hx : x.2.length
     (hy : y.2.length ≤ k) (h : rank k x ≤ rank k y) :
     x.1 ≤ y.1 ∧ (x.1 = y.1 → y.2.length ≤ x.2.length) := by
   unfold rank at h
-  constructor
-  · by_contra hlt
-    have h₁ : (y.1 + 1) * (k + 1) ≤ x.1 * (k + 1) := Nat.mul_le_mul_right _ (by omega)
-    have h₂ : (y.1 + 1) * (k + 1) = y.1 * (k + 1) + k + 1 := by ring
-    omega
-  · intro heq
-    rw [heq] at h
-    omega
+  refine ⟨by_contra fun hlt => ?_, fun heq => by rw [heq] at h; omega⟩
+  have h₁ : (y.1 + 1) * (k + 1) ≤ x.1 * (k + 1) := Nat.mul_le_mul_right _ (by omega)
+  have h₂ : (y.1 + 1) * (k + 1) = y.1 * (k + 1) + k + 1 := by ring
+  omega
 
 /-- The head of a list of blocks, over ranks below `R`: it lies in the first nonempty block. -/
 private theorem exists_of_head?_flatMap_range {α : Type*} (g : ℕ → List α) {R : ℕ} {x : α}
@@ -416,17 +401,9 @@ theorem choice_spec {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ θ j) {k : ℕ} {ψ :
   obtain ⟨y₀, hy₀, -, -, hy₀g⟩ := hcand c₀ H₀ hH₀
   have hy₀R : rank k y₀ < (k + 1) * (k + 1) + 1 := rank_lt h (List.mem_filter.mp hy₀).1
   -- the head of the blocks
-  obtain ⟨x, hx⟩ : ∃ x, ((List.range ((k + 1) * (k + 1) + 1)).flatMap g).head? = some x := by
-    rcases hhead : ((List.range ((k + 1) * (k + 1) + 1)).flatMap g).head? with _ | x
-    · exfalso
-      have := List.flatMap_eq_nil_iff.mp (List.head?_eq_none_iff.mp hhead) (rank k y₀)
-        (List.mem_range.mpr hy₀R)
-      rw [this] at hy₀g
-      simp at hy₀g
-    · exact ⟨x, rfl⟩
-  have hchoice : choice θ k ψ = x := by
-    simp only [choice]
-    rw [show (List.range ((k + 1) * (k + 1) + 1)).flatMap g = _ from rfl, hx, Option.getD_some]
+  obtain ⟨x, hx⟩ := Option.isSome_iff_exists.mp (List.isSome_head?.mpr
+    (List.ne_nil_of_mem (List.mem_flatMap.mpr ⟨_, List.mem_range.mpr hy₀R, hy₀g⟩)))
+  have hchoice : choice θ k ψ = x := congrArg (·.getD (0, [])) hx
   obtain ⟨r, -, hxr, hmin⟩ := exists_of_head?_flatMap_range g hx
   obtain ⟨hxhc, hxr'⟩ := List.mem_filter.mp hxr
   rw [beq_iff_eq] at hxr'
@@ -456,12 +433,10 @@ theorem choice_spec {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ θ j) {k : ℕ} {ψ :
 theorem isSparse_eq_true_iff {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ θ j) {k : ℕ} {ψ : CNF V}
     (h : Normalized k ψ) : isSparse θ k ψ = true ↔ Sparse θ ψ.toClauseSet := by
   simp only [isSparse, Bool.not_eq_true', List.any_eq_false]
-  constructor
-  · intro hno c H' hH'
-    obtain ⟨H, hH, hHeq⟩ := h.exists_mem_candidates hθ hH'
-    exact hno _ hH ((heavy_eq_true_iff h (h.nodup_of_mem_candidates hH)).mpr (hHeq ▸ hH'))
-  · intro hs x hx hheavy
-    exact hs x.1 x.2.toFinset ((heavy_eq_true_iff h (h.nodup_of_mem_candidates hx)).mp hheavy)
+  refine ⟨fun hno c H' hH' => ?_, fun hs x hx hheavy =>
+    hs x.1 x.2.toFinset ((heavy_eq_true_iff h (h.nodup_of_mem_candidates hx)).mp hheavy)⟩
+  obtain ⟨H, hH, hHeq⟩ := h.exists_mem_candidates hθ hH'
+  exact hno _ hH ((heavy_eq_true_iff h (h.nodup_of_mem_candidates hH)).mpr (hHeq ▸ hH'))
 
 /-! ### The step preserves the normal form -/
 
@@ -487,8 +462,7 @@ private theorem normalized_child {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ θ j) {k
     cases b
     · simp only [intro, Bool.false_eq_true, ite_false, List.mem_singleton] at hC
       exact hC ▸ hH
-    · simp only [intro, ite_true, petals, List.mem_map] at hC
-      obtain ⟨E, hE, rfl⟩ := hC
+    · obtain ⟨E, hE, rfl⟩ := List.mem_map.mp hC
       exact (h.nodup E (List.filter_sublist.subset hE)).filter _
   have hnodupIntro : ((intro ψ c H b).map List.toFinset).Nodup := by
     cases b
@@ -504,15 +478,12 @@ private theorem normalized_child {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ θ j) {k
         rw [← sdiff_union_of_subset hE'.2.2, ← sdiff_union_of_subset hF'.2.2, heq]
       exact List.inj_on_of_nodup_map h.nodup_toFinset hE'.1 hF'.1 hEF
   refine ⟨fun C hC => ?_, fun C hC => ?_, ?_, ?_⟩
-  · rcases List.mem_append.mp (hsub.subset hC) with hC | hC
-    · exact h.nodup C hC
-    · exact (hintro C hC).1
+  · exact (List.mem_append.mp (hsub.subset hC)).elim (h.nodup C) fun hC => (hintro C hC).1
   · rcases List.mem_append.mp (hsub.subset hC) with hC | hC
     · exact h.length_le C hC
     · obtain ⟨hnd, D, hD, hlt⟩ := hintro C hC
       rw [← List.toFinset_card_of_nodup hnd]
-      exact (card_lt_card hlt).le.trans (by
-        rw [List.toFinset_card_of_nodup (h.nodup D hD)]; exact h.length_le D hD)
+      exact (card_lt_card hlt).le.trans ((List.toFinset_card_le D).trans (h.length_le D hD))
   · refine (hsub.map _).nodup ?_
     rw [List.map_append, List.nodup_append]
     refine ⟨h.nodup_toFinset, hnodupIntro, fun A hA B hB hAB => ?_⟩
@@ -550,22 +521,14 @@ def rule {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ θ j) (k : ℕ) :
     simp only [hs]
     exact toClauseSet_next ψ.2 b
 
-private theorem rule_next_val {θ : ℕ → ℕ} (hθ : ∀ j, 1 ≤ θ j) {k : ℕ}
-    (ψ : {ψ : CNF V // Normalized k ψ}) (hs : isSparse θ k ψ.1 = false) (b : Bool) :
-    ((rule hθ k).next ψ b).1 = next θ k ψ.1 b := by
-  simp [rule, hs]
-
 /-! ### Normalization -/
 
 /-- Literal membership is preserved by `dedup`. -/
 theorem mem_dedup {C : Clause V} {l : Literal V} : l ∈ dedup C ↔ l ∈ C := by
   simp only [dedup, List.mem_map, List.mem_filter, beq_iff_eq, Prod.exists, exists_and_right,
     exists_eq_right]
-  constructor
-  · rintro ⟨i, hi, -⟩
-    exact List.mem_of_getElem? (List.mem_zipIdx_iff_getElem?.mp hi)
-  · intro hl
-    exact ⟨C.idxOf l, List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_idxOf hl), rfl⟩
+  exact ⟨fun ⟨_, hi, _⟩ => List.mem_of_getElem? (List.mem_zipIdx_iff_getElem?.mp hi),
+    fun hl => ⟨C.idxOf l, List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_idxOf hl), rfl⟩⟩
 
 /-- Literal deduplication yields a duplicate-free clause. -/
 theorem nodup_dedup (C : Clause V) : (dedup C).Nodup := by
@@ -601,8 +564,7 @@ private theorem pairwise_zipIdx (ψ : CNF V) :
     ψ.zipIdx.Pairwise fun p q => p.2 < q.2 := by
   rw [List.pairwise_iff_getElem]
   intro i j hi hj hij
-  simp only [List.getElem_zipIdx, Nat.zero_add]
-  exact hij
+  simpa only [List.getElem_zipIdx, Nat.zero_add] using hij
 
 /-- Deduplicating clauses produces clauses with pairwise distinct literal sets. -/
 theorem nodup_toFinset_dedupClauses (ψ : CNF V) :
@@ -634,9 +596,7 @@ theorem toClauseSet_dedupClauses (ψ : CNF V) :
     ⟨List.mem_zipIdx_iff_getElem?.mpr (List.getElem?_eq_getElem hi), ?_⟩, rfl⟩, hieq⟩
   refine List.all_eq_true.mpr fun q hq => ?_
   obtain ⟨j, hj, hjq⟩ : ∃ j, ∃ hj : j < ψ.length, q = (ψ[j], j) := by
-    have := List.mem_zipIdx_iff_getElem?.mp hq
-    rw [List.getElem?_eq_some_iff] at this
-    obtain ⟨hj, hjq⟩ := this
+    obtain ⟨hj, hjq⟩ := List.getElem?_eq_some_iff.mp (List.mem_zipIdx_iff_getElem?.mp hq)
     exact ⟨q.2, hj, by rw [hjq]⟩
   subst hjq
   by_cases hji : j < i

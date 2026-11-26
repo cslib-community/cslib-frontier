@@ -181,35 +181,28 @@ theorem reconstruct_answer_shamir {ι : Type} [Fintype ι] [DecidableEq ι]
     (hrq : (r, q) ∈ (ProbComp.eval ((shamir ι params).query i)).support) :
     Shamir.Polynomial.reconstruct params.point
       (fun s => (shamir ι params).answer s x (q s)) = if x i then 1 else 0 := by
-  simp only [shamir, ProbComp.mem_support_eval_uniform_bind_pure, Prod.mk.injEq] at hrq
-  obtain ⟨r, -, rfl⟩ := hrq
-  let sec : ι → F := fun j => if x j then (if j = i then 1 else 0) else 0
-  let coeff : ι → Shamir.Randomness params := fun j => if x j then r j else 0
-  have hans :
-      (fun s : S =>
-        ∑ j : ι, if x j then Shamir.share params (r j) (if j = i then 1 else 0) s else 0) =
-        fun s : S => Shamir.share params (∑ j : ι, coeff j) (∑ j : ι, sec j) s := by
-    funext s
-    rw [Shamir.share_sum Finset.univ params coeff sec s]
-    refine Finset.sum_congr rfl fun j _ => ?_
-    by_cases hxj : x j <;> simp [coeff, sec, hxj]
+  obtain ⟨r, -, rfl⟩ := (by
+    simpa only [shamir, ProbComp.mem_support_eval_uniform_bind_pure, Prod.mk.injEq] using hrq)
+  let sec (j : ι) : F := if x j then (if j = i then 1 else 0) else 0
+  let coeff (j : ι) : Shamir.Randomness params := if x j then r j else 0
   dsimp only [shamir]
-  rw [hans, Shamir.Polynomial.reconstruct_share_eq_secret params]
-  simp only [sec]
-  rw [Finset.sum_eq_single i]
-  · simp
-  · intro j _ hji
-    simp [hji]
-  · intro hi
-    exact (hi (Finset.mem_univ i)).elim
+  have hans : (fun s : S =>
+        ∑ j : ι, if x j then Shamir.share params (r j) (if j = i then 1 else 0) s else 0) =
+      fun s : S => Shamir.share params (∑ j : ι, coeff j) (∑ j : ι, sec j) s :=
+    funext fun s => (Finset.sum_congr rfl fun j _ => by
+      by_cases hxj : x j <;> simp [coeff, sec, hxj]).trans
+      (Shamir.share_sum Finset.univ params coeff sec s).symm
+  rw [hans, Shamir.Polynomial.reconstruct_share_eq_secret params,
+    Finset.sum_eq_single i (fun j _ hji => by simp [sec, hji])
+      (fun hi => (hi (Finset.mem_univ i)).elim)]
+  simp [sec]
 
 /-- **Linear Shamir PIR is perfectly correct**: Lagrange reconstruction at `0` recovers `1` when
 `x i = true` and `0` when `x i = false`. -/
 theorem isCorrect_shamir {ι : Type} [Fintype ι] [DecidableEq ι] (params : Shamir.Params F S) :
     (shamir ι params).IsCorrect := by
   classical
-  rw [Scheme.isCorrect_iff]
-  intro x i r q hrq
+  refine (Scheme.isCorrect_iff _).2 fun x i r q hrq => ?_
   rw [reconstruct_shamir, reconstruct_answer_shamir params x i hrq]
   cases x i <;> simp
 
@@ -243,19 +236,18 @@ theorem eval_coalitionQuery_shamirCube {D ι : Type} [Fintype D] [DecidableEq D]
       PMF.uniformOfFintype (T → D → ι → F) := by
   rw [Scheme.eval_coalitionQuery, shamirCube]
   simp only [pmf_norm, ProbComp.eval_uniform]
-  change (PMF.uniformOfFintype (D → ι → Shamir.Randomness params)).map
-    (fun r (s : T) l u => Shamir.share params (r l u) (if u = i l then 1 else 0) s) = _
   let cur : ((D × ι) → Shamir.Randomness params) ≃ (D → ι → Shamir.Randomness params) :=
     Equiv.curry D ι (Shamir.Randomness params)
   let outCur : (T → (D × ι) → F) ≃ (T → D → ι → F) :=
     Equiv.arrowCongr (Equiv.refl T) (Equiv.curry D ι F)
-  rw [← PMF.uniformOfFintype_map_equiv cur, PMF.map_comp]
-  have hcomp :
-      ((fun (r : D → ι → Shamir.Randomness params) (s : T) l u =>
-          Shamir.share params (r l u) (if u = i l then 1 else 0) s) ∘ cur) =
-        outCur ∘ (fun (r : (D × ι) → Shamir.Randomness params) (s : T) lu =>
-          Shamir.share params (r lu) (if lu.2 = i lu.1 then 1 else 0) s) := rfl
-  rw [hcomp, ← PMF.map_comp,
+  change (PMF.uniformOfFintype (D → ι → Shamir.Randomness params)).map
+    (fun r (s : T) l u => Shamir.share params (r l u) (if u = i l then 1 else 0) s) = _
+  rw [← PMF.uniformOfFintype_map_equiv cur, PMF.map_comp,
+    show ((fun (r : D → ι → Shamir.Randomness params) (s : T) l u =>
+        Shamir.share params (r l u) (if u = i l then 1 else 0) s) ∘ cur) =
+      outCur ∘ fun (r : (D × ι) → Shamir.Randomness params) (s : T) lu =>
+        Shamir.share params (r lu) (if lu.2 = i lu.1 then 1 else 0) s from rfl,
+    ← PMF.map_comp,
     Shamir.uniformOfFintype_map_restrict_share_pi params T hT
       (fun lu : D × ι => if lu.2 = i lu.1 then 1 else 0)]
   exact PMF.uniformOfFintype_map_equiv outCur
@@ -303,68 +295,43 @@ theorem reconstruct_answer_shamirCube {D ι : Type} [Fintype D] [DecidableEq D]
     (hrq : (r, q) ∈ (ProbComp.eval ((shamirCube D ι params).query i)).support) :
     Shamir.Polynomial.reconstruct params.point
       (fun s => (shamirCube D ι params).answer s x (q s)) = if x i then 1 else 0 := by
-  simp only [shamirCube, ProbComp.mem_support_eval_uniform_bind_pure, Prod.mk.injEq] at hrq
-  obtain ⟨r, -, rfl⟩ := hrq
+  obtain ⟨r, -, rfl⟩ := (by
+    simpa only [shamirCube, ProbComp.mem_support_eval_uniform_bind_pure, Prod.mk.injEq] using hrq)
   let factor (l : D) (u : ι) : _root_.Polynomial F :=
     Shamir.Polynomial.sharingPolynomial (if u = i l then 1 else 0)
       (Shamir.Polynomial.tailPolynomial params.threshold (r l u))
   let term (j : D → ι) : _root_.Polynomial F :=
     if x j then ∏ l : D, factor l (j l) else 0
   let poly : _root_.Polynomial F := ∑ j : D → ι, term j
-  have heval (s : S) :
-      poly.eval (params.point s) =
-        ∑ j : D → ι,
-          if x j then
-            ∏ l : D, Shamir.share params (r l (j l)) (if j l = i l then 1 else 0) s
-          else 0 := by
+  have hans : (fun s : S => ∑ j : D → ι, if x j then
+        ∏ l : D, Shamir.share params (r l (j l)) (if j l = i l then 1 else 0) s else 0) =
+      fun s : S => poly.eval (params.point s) := funext fun s => by
     simp only [poly, term, _root_.Polynomial.eval_finsetSum]
     refine Finset.sum_congr rfl fun j _ => ?_
-    by_cases hxj : x j
-    · simp only [hxj, ↓reduceIte, _root_.Polynomial.eval_prod, factor, Shamir.share]
-    · simp [hxj]
-  have hfactor_deg (l : D) (u : ι) : (factor l u).natDegree ≤ params.threshold :=
-    Shamir.Polynomial.natDegree_sharingPolynomial_le _ _
-      (Shamir.Polynomial.tailPolynomial_degree_lt _ _)
-  have hterm_deg (j : D → ι) : (term j).natDegree ≤ Fintype.card D * params.threshold := by
-    by_cases hxj : x j
-    · simp only [term, hxj, ↓reduceIte]
-      refine (_root_.Polynomial.natDegree_prod_le _ _).trans ?_
-      simpa using Finset.sum_le_sum fun l (_ : l ∈ Finset.univ) => hfactor_deg l (j l)
-    · simp [term, hxj]
-  have hpoly_deg : poly.degree < Fintype.card S := by
-    have hnat : poly.natDegree ≤ Fintype.card D * params.threshold :=
-      _root_.Polynomial.natDegree_sum_le_of_forall_le _ _ fun j _ => hterm_deg j
-    refine _root_.Polynomial.degree_le_natDegree.trans_lt ?_
-    exact_mod_cast hnat.trans_lt hdeg
-  have hconst : poly.constantCoeff = if x i then 1 else 0 := by
-    simp only [poly, term, map_sum _root_.Polynomial.constantCoeff]
-    rw [Finset.sum_eq_single i]
-    · by_cases hxi : x i
-      · simp only [hxi, ↓reduceIte, map_prod _root_.Polynomial.constantCoeff, factor,
-          Shamir.Polynomial.constantCoeff_sharingPolynomial, Finset.prod_const_one]
-      · simp [hxi]
-    · intro j _ hji
-      obtain ⟨l₀, hl₀⟩ := Function.ne_iff.mp hji
-      by_cases hxj : x j
-      · simp only [hxj, ↓reduceIte, map_prod _root_.Polynomial.constantCoeff]
-        refine Finset.prod_eq_zero (Finset.mem_univ l₀) ?_
-        dsimp only [factor]
-        rw [ite_eq_right hl₀, Shamir.Polynomial.constantCoeff_sharingPolynomial]
-      · simp [hxj]
-    · intro hi
-      exact (hi (Finset.mem_univ i)).elim
-  have hans :
-      (fun s : S =>
-        ∑ j : D → ι,
-          if x j then
-            ∏ l : D, Shamir.share params (r l (j l)) (if j l = i l then 1 else 0) s
-          else 0) =
-        fun s : S => poly.eval (params.point s) :=
-    funext fun s => (heval s).symm
+    by_cases hxj : x j <;> simp [hxj, _root_.Polynomial.eval_prod, factor, Shamir.share]
+  have hpoly_deg : poly.degree < Fintype.card S :=
+    _root_.Polynomial.degree_le_natDegree.trans_lt <| WithBot.coe_lt_coe.2 <|
+      (_root_.Polynomial.natDegree_sum_le_of_forall_le _ _ fun j _ => by
+        by_cases hxj : x j
+        · simp only [term, hxj, ↓reduceIte]
+          exact (_root_.Polynomial.natDegree_prod_le _ _).trans
+            ((Finset.sum_le_sum fun l _ => Shamir.Polynomial.natDegree_sharingPolynomial_le _ _
+              (Shamir.Polynomial.tailPolynomial_degree_lt _ _)).trans_eq (by simp))
+        · simp [term, hxj]).trans_lt hdeg
   dsimp only [shamirCube]
   rw [hans,
-    Shamir.Polynomial.reconstruct_eq_constantCoeff_of_eval_eq params.point_injective hpoly_deg,
-    hconst]
+    Shamir.Polynomial.reconstruct_eq_constantCoeff_of_eval_eq params.point_injective hpoly_deg]
+  simp only [poly, term, map_sum _root_.Polynomial.constantCoeff]
+  rw [Finset.sum_eq_single i ?_ (fun hi => (hi (Finset.mem_univ i)).elim)]
+  · by_cases hxi : x i <;> simp only [hxi, Bool.false_eq_true, ↓reduceIte, map_zero,
+      map_prod _root_.Polynomial.constantCoeff, factor,
+      Shamir.Polynomial.constantCoeff_sharingPolynomial, Finset.prod_const_one]
+  · intro j _ hji
+    obtain ⟨l₀, hl₀⟩ := Function.ne_iff.mp hji
+    cases hxj : x j <;> simp only [Bool.false_eq_true, ↓reduceIte, map_zero,
+      map_prod _root_.Polynomial.constantCoeff]
+    exact Finset.prod_eq_zero (Finset.mem_univ l₀)
+      (by simp only [factor, hl₀, ↓reduceIte, Shamir.Polynomial.constantCoeff_sharingPolynomial])
 
 /-- **Degree-`d` polynomial PIR is perfectly correct** whenever `|D| * params.threshold < |S|`:
 each server evaluates a polynomial of degree at most `|D| * t` whose constant term is `1` if `x i`
@@ -373,8 +340,7 @@ theorem isCorrect_shamirCube {D ι : Type} [Fintype D] [DecidableEq D] [Fintype 
     (params : Shamir.Params F S) (hdeg : Fintype.card D * params.threshold < Fintype.card S) :
     (shamirCube D ι params).IsCorrect := by
   classical
-  rw [Scheme.isCorrect_iff]
-  intro x i r q hrq
+  refine (Scheme.isCorrect_iff _).2 fun x i r q hrq => ?_
   rw [reconstruct_shamirCube, reconstruct_answer_shamirCube params hdeg x i hrq]
   cases x i <;> simp
 
@@ -433,9 +399,8 @@ theorem hasTPrivateScheme_of_le_mul_self (params : Shamir.Params F S) {n m : ℕ
   refine (((isCorrect_shamir (ι := Fin m) params).rows (Fin m)).hasTPrivateScheme
     ((isTPrivate_shamir (ι := Fin m) params).rows (Fin m))).mono ?_ |>.fin_of_le_card
     (by simpa using h)
-  have hcomm := communication_shamir_rows_le (F := F) (S := S) (ρ := Fin m) (ι := Fin m)
-  simp only [Fintype.card_fin] at hcomm
-  linarith
+  simpa only [Fintype.card_fin, two_mul] using
+    communication_shamir_rows_le (F := F) (S := S) (ρ := Fin m) (ι := Fin m)
 
 /-- **Unbalanced `(d t + 1)`-server `O(n ^ (1 / d))` `t`-private PIR**: whenever
 `d * params.threshold < |S|` and `n ≤ ℓ ^ d`, `PIR.shamirCube` gives a perfectly correct `t`-private
@@ -444,12 +409,11 @@ theorem hasTPrivateScheme_of_le_pow (params : Shamir.Params F S) {n d ℓ : ℕ}
     (hdeg : d * params.threshold < Fintype.card S) (h : n ≤ ℓ ^ d) :
     HasTPrivateScheme (Fin n) params.threshold (Fintype.card S)
       (Fintype.card S * ((d * ℓ + 1) * Nat.clog 2 (Fintype.card F))) := by
-  have hdeg' : Fintype.card (Fin d) * params.threshold < Fintype.card S := by
-    simpa using hdeg
-  refine ((isCorrect_shamirCube (D := Fin d) (ι := Fin ℓ) params hdeg').hasTPrivateScheme
-    (isTPrivate_shamirCube params)).mono ?_ |>.fin_of_le_card (by simpa using h)
-  have hcomm := communication_shamirCube_le (F := F) (S := S) (D := Fin d) (ι := Fin ℓ)
-  simpa only [Fintype.card_fin] using hcomm
+  refine ((isCorrect_shamirCube (D := Fin d) (ι := Fin ℓ) params
+      (by simpa using hdeg)).hasTPrivateScheme (isTPrivate_shamirCube params)).mono ?_
+    |>.fin_of_le_card (by simpa using h)
+  simpa only [Fintype.card_fin] using
+    communication_shamirCube_le (F := F) (S := S) (D := Fin d) (ι := Fin ℓ)
 
 /-- **Balanced `c t`-server finite-field `t`-private PIR** (weaker finite-field communication
 variant of [CGKS, Section 1.1, pp. 1–2, via Section 3.4, p. 11][ChorGoldreichKushilevitzSudan1998]):
@@ -461,15 +425,11 @@ theorem hasTPrivateScheme_rows_of_le_pow (params : Shamir.Params F S) {n d ℓ :
     (hdeg : d * params.threshold < Fintype.card S) (h : n ≤ ℓ ^ (d + 1)) :
     HasTPrivateScheme (Fin n) params.threshold (Fintype.card S)
       (Fintype.card S * ((d + 1) * ℓ * Nat.clog 2 (Fintype.card F))) := by
-  have hdeg' : Fintype.card (Fin d) * params.threshold < Fintype.card S := by
-    simpa using hdeg
-  refine (((isCorrect_shamirCube (D := Fin d) (ι := Fin ℓ) params hdeg').rows
+  refine (((isCorrect_shamirCube (D := Fin d) (ι := Fin ℓ) params (by simpa using hdeg)).rows
     (Fin ℓ)).hasTPrivateScheme ((isTPrivate_shamirCube params).rows (Fin ℓ))).mono ?_
     |>.fin_of_le_card (by simpa [pow_succ'] using h)
-  have hcomm :=
+  simpa only [Fintype.card_fin, add_one_mul, one_mul] using
     communication_shamirCube_rows_le (F := F) (S := S) (ρ := Fin ℓ) (D := Fin d) (ι := Fin ℓ)
-  simp only [Fintype.card_fin] at hcomm
-  nlinarith
 
 end ShamirBounds
 
@@ -504,9 +464,8 @@ def zmodShamirParams {t k p : ℕ} [Fact p.Prime] (htk : t < k) (hkp : k < p) :
 theorem hasTPrivateScheme_prime_of_le_pow {n d ℓ t k p : ℕ} [Fact p.Prime]
     (hdeg : d * t < k) (hd : 0 < d) (hkp : k < p) (hn : n ≤ ℓ ^ d) :
     HasTPrivateScheme (Fin n) t k (k * ((d * ℓ + 1) * Nat.clog 2 p)) := by
-  have htk : t < k := (Nat.le_mul_of_pos_left t hd).trans_lt hdeg
-  have h := hasTPrivateScheme_of_le_pow (zmodShamirParams htk hkp) (by simpa using hdeg) hn
-  simpa [ZMod.card] using h
+  simpa [ZMod.card] using hasTPrivateScheme_of_le_pow
+    (zmodShamirParams ((Nat.le_mul_of_pos_left t hd).trans_lt hdeg) hkp) (by simpa using hdeg) hn
 
 /-- Concrete prime-field `rows`-balanced `t`-private `k`-server polynomial PIR for `d * t < k < p`
 and `n ≤ ℓ ^ (d + 1)` (weaker finite-field communication variant of
@@ -515,7 +474,7 @@ exact `k = c * t` servers at `d = c - 1` when `1 < c` and `0 < t` with factor `�
 theorem hasTPrivateScheme_prime_rows_of_le_pow {n d ℓ t k p : ℕ} [Fact p.Prime]
     (htk : t < k) (hdeg : d * t < k) (hkp : k < p) (hn : n ≤ ℓ ^ (d + 1)) :
     HasTPrivateScheme (Fin n) t k (k * ((d + 1) * ℓ * Nat.clog 2 p)) := by
-  have h := hasTPrivateScheme_rows_of_le_pow (zmodShamirParams htk hkp) (by simpa using hdeg) hn
-  simpa [ZMod.card] using h
+  simpa [ZMod.card] using
+    hasTPrivateScheme_rows_of_le_pow (zmodShamirParams htk hkp) (by simpa using hdeg) hn
 
 end Cslib.Crypto.Protocols.PIR

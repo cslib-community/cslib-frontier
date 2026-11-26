@@ -53,7 +53,7 @@ theorem chunkCount_inSpace :
 theorem alphabetSize_inSpace :
     ComputableInSpace (fun q : ℕ × ℕ => 2 ^ chunkWidth q.1 q.2)
       (encPair encNat encNat) encNat (fun q => (encPair encNat encNat q).length) := by
-  refine budget_natPow_variable (budget_const (encB := encNat) 2 (.refl _))
+  refine budget_natPow_variable (budget_const (encB := encNat) 2)
     chunkWidth_inSpace ?_
   refine .of_le_linear 8 8 fun q => ?_
   have hm := Nat.size_mul_le q.1 q.2

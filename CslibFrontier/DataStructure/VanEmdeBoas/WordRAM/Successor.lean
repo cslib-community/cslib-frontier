@@ -11,6 +11,8 @@ public import CslibFrontier.DataStructure.VanEmdeBoas.Successor
 public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Model
 public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Program
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.StructFrame
 
 /-!
 # Native van Emde Boas strict-successor certification
@@ -62,21 +64,6 @@ structure SuccessorEntry (stackBase₀ sp₀ base query : ℕ) (s : Data 32) : P
   x_eq : s.regs x = query
   runFlag_eq : s.regs runFlag = 1
 
-/-- Transfer `SuccessorEntry` across register updates once `sp`, `p`, `x`, and `runFlag` are
-checked and `zero..five` and `stackBase` are preserved. -/
-private theorem SuccessorEntry.of_regs {stackBase₀ sp₀ base query sp' base' query' : ℕ}
-    {s s' : Data 32} (hs : SuccessorEntry stackBase₀ sp₀ base query s)
-    (h0 : s'.regs zero = s.regs zero) (h1 : s'.regs one = s.regs one)
-    (h2 : s'.regs two = s.regs two) (h3 : s'.regs three = s.regs three)
-    (h4 : s'.regs four = s.regs four) (h5 : s'.regs five = s.regs five)
-    (hsb : s'.regs stackBase = s.regs stackBase)
-    (hsp : s'.regs sp = sp') (hp : s'.regs p = base') (hx : s'.regs x = query')
-    (hrun : s'.regs runFlag = 1) :
-    SuccessorEntry stackBase₀ sp' base' query' s' :=
-  ⟨h0.trans hs.zero_eq, h1.trans hs.one_eq, h2.trans hs.two_eq,
-    h3.trans hs.three_eq, h4.trans hs.four_eq, h5.trans hs.five_eq,
-    hsb.trans hs.stackBase_eq, hsp, hp, hx, hrun⟩
-
 /-- Register and memory invariant at the start of an unwind stage at stack pointer `sp₀`. -/
 structure UnwindState (stackBase₀ sp₀ ans : ℕ) (mem : ℕ → ℕ) (s : Data 32) : Prop where
   zero_eq : s.regs zero = 0
@@ -88,18 +75,6 @@ structure UnwindState (stackBase₀ sp₀ ans : ℕ) (mem : ℕ → ℕ) (s : Da
   out_eq : s.regs out = ans
   mem_eq : s.mem = mem
 
-/-- Transfer `UnwindState` across register updates once `sp`, `out`, and `mem` are checked and
-`zero`, `one`, `five`, `stackBase`, and `found` are preserved. -/
-private theorem UnwindState.of_regs {stackBase₀ sp₀ ans sp' ans' : ℕ} {mem : ℕ → ℕ}
-    {s s' : Data 32} (hs : UnwindState stackBase₀ sp₀ ans mem s)
-    (h0 : s'.regs zero = s.regs zero) (h1 : s'.regs one = s.regs one)
-    (h5 : s'.regs five = s.regs five) (hsb : s'.regs stackBase = s.regs stackBase)
-    (hsp : s'.regs sp = sp') (hfound : s'.regs found = s.regs found)
-    (hout : s'.regs out = ans') (hmem : s'.mem = s.mem) :
-    UnwindState stackBase₀ sp' ans' mem s' :=
-  ⟨h0.trans hs.zero_eq, h1.trans hs.one_eq, h5.trans hs.five_eq,
-    hsb.trans hs.stackBase_eq, hsp, hfound.trans hs.found_eq, hout, hmem.trans hs.mem_eq⟩
-
 /-- One cluster-return unwind step (`kind = 0`) executes in at most 19 instructions and reconstructs
 `pay + childAns` in `out` at stack pointer `sp₀`. -/
 private theorem successorUnwindBody_cluster_spec {w stackBase₀ sp₀ pay childAns : ℕ}
@@ -109,13 +84,11 @@ private theorem successorUnwindBody_cluster_spec {w stackBase₀ sp₀ pay child
     (hsp : Fits w (sp₀ + 4)) (hout : Fits w (pay + childAns)) :
     ∃ s', ExecWithin w successorUnwindBody s s' 19 ∧
       UnwindState stackBase₀ sp₀ (pay + childAns) mem s' := by
-  obtain ⟨hz, ho, hfive, hsb, hsp_eq, hfound, hout_eq, hmem⟩ := hs
+  have ⟨hz, ho, hfive, _, hsp_eq, _, hout_eq, hmem⟩ := hs
   apply WP.exists_execWithin
   unfold successorUnwindBody popFrame
   wram_exec [hz, ho, hfive, hsp_eq, hout_eq, hmem, hk, hpay, Nat.add_sub_assoc, Nat.add_zero]
-  exact UnwindState.of_regs ⟨hz, ho, hfive, hsb, hsp_eq, hfound, hout_eq, hmem⟩
-    (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-    (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
+  struct_frame hs
 
 /-- One summary-return unwind step (`kind = 1`) executes in at most 19 instructions and reconstructs
 `j * universeSize d + cm` in `out` at stack pointer `sp₀`. -/
@@ -129,7 +102,7 @@ private theorem successorUnwindBody_summary_spec {d w stackBase₀ sp₀ base j 
     (ha : Fits w (base + span (d + 1))) (hsp : Fits w (sp₀ + 4)) :
     ∃ s', ExecWithin w successorUnwindBody s s' 19 ∧
       UnwindState stackBase₀ sp₀ (j * universeSize d + cm) mem s' := by
-  obtain ⟨hz, ho, hfive, hsb, hsp_eq, hfound, hout_eq, hmem⟩ := hs
+  have ⟨hz, ho, hfive, _, hsp_eq, _, hout_eq, hmem⟩ := hs
   have hend := cluster_end_le_span d hj
   dsimp only [clusterOffset] at hend
   have hj1 : Fits w (j + 1) :=
@@ -147,21 +120,7 @@ private theorem successorUnwindBody_summary_spec {d w stackBase₀ sp₀ base j 
   unfold successorUnwindBody popFrame readAt
   wram_exec [hz, ho, hfive, hsp_eq, hout_eq, hmem, hk, hpay, hqv, htv, hcm,
     Nat.add_sub_assoc, Nat.add_zero]
-  exact UnwindState.of_regs ⟨hz, ho, hfive, hsb, hsp_eq, hfound, hout_eq, hmem⟩
-    (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-    (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-
-/-- Four consecutive memory updates at `sp₀ .. sp₀ + 3` leave every address outside
-`[sp₀, sp₀ + 4)` unchanged. -/
-private theorem update4_away (m : ℕ → ℕ) (sp₀ v₀ v₁ v₂ v₃ a : ℕ)
-    (ha : a < sp₀ ∨ sp₀ + 4 ≤ a) :
-    Function.update
-      (Function.update
-        (Function.update (Function.update m sp₀ v₀) (sp₀ + 1) v₁)
-        (sp₀ + 2) v₂)
-      (sp₀ + 3) v₃ a = m a := by
-  rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-    Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+  struct_frame hs
 
 /-- One frame-pushing descent step: a `successorDescentBody` step to `next` that pushes `(k, pay,
 qv, tv)` at `sp₀` and enters child `child` at `(P, X)` combines with the child's recursive
@@ -204,20 +163,12 @@ private theorem successor_push_step
     simpa only [Nat.mul_succ, ← Nat.add_assoc, Nat.add_right_comm sp₀ (4 * d) 4] using hfit
   obtain ⟨s₁, s₂, hs₁, hframe₁, hs₂, hunwind₁⟩ :=
     hrec hentry hrc_next (by omega) (by omega) hfit'
-  have hframe_sp : ∀ a < sp₀ + 4, s₁.mem a = next.mem a := fun a ha' => hframe₁ a (Or.inl ha')
   obtain ⟨s₃, hbody, hs₃⟩ := hclose s₁ s₂ hs₂
-    ((hframe_sp _ (by omega)).trans hw0)
-    ((hframe_sp _ (by omega)).trans hw1)
-    ((hframe_sp _ (by omega)).trans hw2)
-    ((hframe_sp _ (by omega)).trans hw3)
-    (fun a ha' => (hframe_sp a (by omega)).trans (hnext_away a (Or.inl ha')))
-  refine ⟨s₁, s₃, (he.loop_iter (cond := .lt zero runFlag) ?_ hs₁).mono (by omega), ?_, hs₃, ?_⟩
+    (by mem_frame) (by mem_frame) (by mem_frame) (by mem_frame) (by mem_frame)
+  refine ⟨s₁, s₃, (he.loop_iter (cond := .lt zero runFlag) ?_ hs₁).mono (by omega),
+    by mem_frame, hs₃, ?_⟩
   · simp only [Cond.holds_lt, hs.zero_eq, hs.runFlag_eq]
     decide
-  · intro a ha'
-    by_cases ha4 : a < sp₀
-    · exact (hframe₁ a (Or.inl (by omega))).trans (hnext_away a (Or.inl ha4))
-    · exact (hframe₁ a (Or.inr (by omega))).trans (hnext_away a (Or.inr (by omega)))
   · intro z T hcont
     have hiter : ExecWithin w successorUnwind s₂ z (21 + T) := by
       refine (hbody.loop_iter (cond := .lt stackBase sp) ?_ hcont).mono (by omega)
@@ -256,14 +207,9 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
         ExecWithin w successorUnwind s₁ z (21 * d + T) := by
   have ha : Fits w (base + span d) := hfit.of_le (by omega)
   have hbase4 : Fits w (base + 4) := ha.of_le (by have := five_le_span d; omega)
-  have hz := hs.zero_eq; have ho := hs.one_eq; have htwo := hs.two_eq
-  have hthree := hs.three_eq; have hfour := hs.four_eq; have hfive := hs.five_eq
-  have hsb := hs.stackBase_eq; have hsp_eq := hs.sp_eq; have hp := hs.p_eq
-  have hx := hs.x_eq; have hrun := hs.runFlag_eq
   have hheader := hr.header
   rcases hb : tree.bounds with _ | ⟨m, M⟩ <;> rw [hb] at hheader
-  · exfalso
-    cases tree <;> simp_all [Tree.bounds, Tree.successor]
+  · cases tree <;> simp_all [Tree.bounds, Tree.successor]
   obtain ⟨hpres_raw, ⟨hm, hM⟩, hq, hspan⟩ := hheader
   have hpres : s.mem base = 1 := hpres_raw
   by_cases hlt_m : query < m
@@ -272,10 +218,8 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
     apply successor_some_finish hs
     apply WP.exists_execWithin
     unfold successorDescentBody readAt finishMin
-    wram_exec [hz, ho, hp, hx, hpres, hm, hlt_m]
-    exact ⟨by wram_simp, ⟨by wram_simp [hz], by wram_simp [ho], by wram_simp [hfive],
-      by wram_simp [hsb], by wram_simp [hsp_eq], by wram_simp,
-      by wram_simp [hans_eq], by wram_simp⟩⟩
+    wram_exec* [hpres, hm, hlt_m]
+    exact ⟨by wram_simp, by constructor <;> wram_simp * [hans_eq]⟩
   cases tree with
   | leaf b =>
     obtain rfl : b = some (m, M) := hb
@@ -287,16 +231,13 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
     apply successor_some_finish hs
     apply WP.exists_execWithin
     unfold successorDescentBody readAt finishMax
-    wram_exec [hz, ho, htwo, hthree, hp, hx, hpres, hm, hM, hq, splitSize, hlt_m, hlt_M]
-    exact ⟨by wram_simp, ⟨by wram_simp [hz], by wram_simp [ho], by wram_simp [hfive],
-      by wram_simp [hsb], by wram_simp [hsp_eq], by wram_simp,
-      by wram_simp [hans_eq], by wram_simp⟩⟩
+    wram_exec* [hpres, hm, hM, hq, splitSize, hlt_m, hlt_M]
+    exact ⟨by wram_simp, by constructor <;> wram_simp * [hans_eq]⟩
   | @node d b summary cluster =>
     obtain rfl : b = some (m, M) := hb
     have hlt_M : query < M := by
       by_contra hge
-      have hle : M ≤ query := Nat.le_of_not_lt hge
-      simp [Tree.successor, hlt_m, hle] at hans
+      simp [Tree.successor, hlt_m, Nat.le_of_not_lt hge] at hans
     have hnot_le : ¬M ≤ query := not_le.mpr hlt_M
     obtain ⟨hi, hlo, hend⟩ := member_descent_safe ht hr (by simpa only [hM] using hlt_M)
     have hu_le : universeSize d ≤ span (d + 1) :=
@@ -331,40 +272,36 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
             else none) = some ans := by
         simpa only [Tree.successor, hlt_m, hnot_le, hi, ↓reduceDIte, ↓reduceIte,
           i, lo, hc_max, Bool.false_eq_true, bind] using hans
-      cases hsuc : summary.successor i.val with
-      | none => simp [hsuc] at hans'
-      | some j =>
-        simp only [hsuc, Option.bind_some] at hans'
-        by_cases hj : j < universeSize d
-        · simp only [hj, ↓reduceDIte] at hans'
-          let k : Fin (universeSize d) := ⟨j, hj⟩
-          change (cluster k).minimum.map (j * universeSize d + ·) = some ans at hans'
-          cases hck : (cluster k).bounds with
-          | none => simp [Tree.minimum, hck] at hans'
-          | some cbounds =>
-            obtain ⟨cm, cM⟩ := cbounds
-            have hans_eq : j * universeSize d + cm = ans := by
-              simpa [Tree.minimum, hck] using hans'
-            have hce := (ht.2.2.1 k).extrema_of_bounds hck
-            have hcm_lt : cm < universeSize d := hce.1.trans_lt hce.2.1
-            have hcm_mem : s.mem (base + 5 + (j + 1) * span d + 1) = cm := by
-              have hh := (hr.2.2 k).header
-              simp only [Header, hck] at hh
-              simpa only [clusterOffset, k, Nat.add_assoc] using hh.2.1.1
-            have hsum_end := summary_end_le_span d
-            dsimp only [summaryOffset] at hsum_end
-            refine successor_push_step hs hsp_le hdisj hfit hstep hr.2.1 (by omega)
-              (fun hentry' hrc' hsp' hdisj' hfit' =>
-                successor_some_spec hentry' ht.2.1 hrc' hsuc hsp' hdisj' hfit') ?_
-            intro s₁ s₂ hs₂ hk_mem hpay_mem hqv_mem htv_mem hlow
-            have hcm_s₁ : s₁.mem (base + 5 + (j + 1) * span d + 1) = cm := by
-              have hend_j := cluster_end_le_span d hj
-              have := five_le_span d
-              dsimp only [clusterOffset] at hend_j
-              rw [hlow _ (by omega), hcm_mem]
-            exact hans_eq ▸ successorUnwindBody_summary_spec hs₂ hk_mem hpay_mem hqv_mem htv_mem
-              hj hcm_s₁ hcm_lt ha (hfit.of_le (by omega))
-        · simp [hj] at hans'
+      obtain ⟨j, hsuc, hans'⟩ := Option.bind_eq_some_iff.mp hans'
+      have hj : j < universeSize d := by
+        by_contra h
+        simp [h] at hans'
+      simp only [hj, ↓reduceDIte] at hans'
+      set k : Fin (universeSize d) := ⟨j, hj⟩
+      cases hck : (cluster k).bounds with
+      | none => simp [Tree.minimum, hck] at hans'
+      | some cbounds =>
+        obtain ⟨cm, cM⟩ := cbounds
+        have hans_eq : j * universeSize d + cm = ans := by simpa [Tree.minimum, hck] using hans'
+        have hce := (ht.2.2.1 k).extrema_of_bounds hck
+        have hcm_lt : cm < universeSize d := hce.1.trans_lt hce.2.1
+        have hcm_mem : s.mem (base + 5 + (j + 1) * span d + 1) = cm := by
+          have hh := (hr.2.2 k).header
+          simp only [Header, hck] at hh
+          simpa only [clusterOffset, k, Nat.add_assoc] using hh.2.1.1
+        have hsum_end := summary_end_le_span d
+        dsimp only [summaryOffset] at hsum_end
+        refine successor_push_step hs hsp_le hdisj hfit hstep hr.2.1 (by omega)
+          (fun hentry' hrc' hsp' hdisj' hfit' =>
+            successor_some_spec hentry' ht.2.1 hrc' hsuc hsp' hdisj' hfit') ?_
+        intro s₁ s₂ hs₂ hk_mem hpay_mem hqv_mem htv_mem hlow
+        have hcm_s₁ : s₁.mem (base + 5 + (j + 1) * span d + 1) = cm := by
+          have hend_j := cluster_end_le_span d hj
+          have := five_le_span d
+          dsimp only [clusterOffset] at hend_j
+          mem_frame
+        exact hans_eq ▸ successorUnwindBody_summary_spec hs₂ hk_mem hpay_mem hqv_mem htv_mem
+          hj hcm_s₁ hcm_lt ha (hfit.of_le (by omega))
     cases hcb : (cluster i).bounds with
     | none =>
       have hch0 : s.mem (base + 5 + (query / universeSize d + 1) * span d) = 0 := by
@@ -375,15 +312,9 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
       apply summary_branch hc_max
       apply WP.exists_execWithin
       unfold successorDescentBody readAt coordinates descendSummary pushFrame
-      wram_exec [hz, ho, htwo, hthree, hfour, hfive, hsp_eq, hp, hx,
-        hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne, hch0]
-      refine ⟨hs.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-        (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-        (by wram_simp [i]) (by wram_simp [hrun]),
-        ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩,
-        fun a ha' => ?_⟩
-      simpa only [Data.set_mem, Data.write_mem, Nat.add_assoc] using
-        update4_away s.mem sp₀ 1 base (universeSize d) (span d) a ha'
+      wram_exec* [hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne, hch0]
+      exact ⟨by struct_frame hs, ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩,
+        by mem_frame⟩
     | some cbounds =>
       obtain ⟨cm, cM⟩ := cbounds
       have hch1 : s.mem ch = 1 := by
@@ -418,17 +349,10 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
             (∀ a, a < sp₀ ∨ sp₀ + 4 ≤ a → next.mem a = s.mem a) := by
           apply WP.exists_execWithin
           unfold successorDescentBody readAt coordinates descendCluster pushFrame
-          wram_exec [hz, ho, htwo, hthree, hfour, hfive, hsp_eq, hp, hx,
-            hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne, hch_ne0, hcM,
-            hlo_mx]
-          refine ⟨hs.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-            (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-            (by wram_simp [hch_eq]) (by wram_simp [lo]) (by wram_simp [hrun]),
-            ⟨by wram_simp, by wram_simp [i], by wram_simp, by wram_simp⟩,
-            fun a ha' => ?_⟩
-          simpa only [Data.set_mem, Data.write_mem, Nat.add_assoc] using
-            update4_away s.mem sp₀ 0 (query / universeSize d * universeSize d)
-              (universeSize d) (span d) a ha'
+          wram_exec* [hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne,
+            hch_ne0, hcM, hlo_mx]
+          exact ⟨by struct_frame hs,
+            ⟨by wram_simp, by wram_simp [i], by wram_simp, by wram_simp⟩, by mem_frame⟩
         refine successor_push_step hs hsp_le hdisj hfit hstep (hr.2.2 i) hend
           (fun hentry' hrc' hsp' hdisj' hfit' =>
             successor_some_spec hentry' (ht.2.2.1 i) hrc' hy_suc hsp' hdisj' hfit') ?_
@@ -450,16 +374,10 @@ private theorem successor_some_spec {d w stackBase₀ sp₀ base query ans : ℕ
         apply summary_branch hc_max
         apply WP.exists_execWithin
         unfold successorDescentBody readAt coordinates descendSummary pushFrame
-        wram_exec [hz, ho, htwo, hthree, hfour, hfive, hsp_eq, hp, hx,
-          hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne, hch_ne0, hcM,
-          hlo_mx]
-        refine ⟨hs.of_regs (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-          (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-          (by wram_simp [i]) (by wram_simp [hrun]),
-          ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩,
-          fun a ha' => ?_⟩
-        simpa only [Data.set_mem, Data.write_mem, Nat.add_assoc] using
-          update4_away s.mem sp₀ 1 base (universeSize d) (span d) a ha'
+        wram_exec* [hpres, hm, hM, hq, hspan, splitSize, childSpan, hlt_m, hlt_M, hqne,
+          hch_ne0, hcM, hlo_mx]
+        exact ⟨by struct_frame hs, ⟨by wram_simp, by wram_simp, by wram_simp, by wram_simp⟩,
+          by mem_frame⟩
 
 /-- When `tree.successor query = none`, `successorDescent` terminates in one iteration (46
 instructions) with `found = 0`, `out = 0`, `sp = sp₀`, and unchanged memory. -/
@@ -472,9 +390,6 @@ private theorem successor_none_spec {d w stackBase₀ sp₀ base query : ℕ} {t
       s₁.regs found = 0 ∧ s₁.regs out = 0 ∧ s₁.mem = s.mem := by
   have ha : Fits w (base + span d) := hfit.of_le (by omega)
   have hbase4 : Fits w (base + 4) := ha.of_le (by have := five_le_span d; omega)
-  have hz := hs.zero_eq; have ho := hs.one_eq; have htwo := hs.two_eq
-  have hsb := hs.stackBase_eq; have hsp_eq := hs.sp_eq; have hp := hs.p_eq
-  have hx := hs.x_eq; have hrun := hs.runFlag_eq
   have hheader := hr.header
   have hstep : ∃ s₁, ExecWithin w successorDescentBody s s₁ 42 ∧
       s₁.regs zero = 0 ∧ s₁.regs runFlag = 0 ∧ s₁.regs stackBase = stackBase₀ ∧
@@ -483,9 +398,8 @@ private theorem successor_none_spec {d w stackBase₀ sp₀ base query : ℕ} {t
     unfold successorDescentBody readAt finishNone
     rcases hb : tree.bounds with _ | ⟨m, M⟩ <;> rw [hb] at hheader
     · have hempty : s.mem base = 0 := hheader.1
-      wram_exec [hz, hp, hempty]
-      exact ⟨by wram_simp [hz], by wram_simp, by wram_simp [hsb], by wram_simp [hsp_eq],
-        by wram_simp, by wram_simp, by wram_simp⟩
+      wram_exec* [hempty]
+      and_intros <;> wram_simp *
     · obtain ⟨hpres_raw, ⟨hm, hM⟩, _⟩ := hheader
       have hpres : s.mem base = 1 := hpres_raw
       have hnot_M : ¬query < M := by
@@ -495,12 +409,11 @@ private theorem successor_none_spec {d w stackBase₀ sp₀ base query : ℕ} {t
       have hnot_m : ¬query < m := by
         have := (ht.extrema_of_bounds hb).1
         omega
-      wram_exec [hz, ho, htwo, hp, hx, hpres, hm, hM, hnot_m, hnot_M]
-      exact ⟨by wram_simp [hz], by wram_simp, by wram_simp [hsb], by wram_simp [hsp_eq],
-        by wram_simp, by wram_simp, by wram_simp⟩
+      wram_exec* [hpres, hm, hM, hnot_m, hnot_M]
+      and_intros <;> wram_simp *
   obtain ⟨s₁, he, hz₁, hk₁, hsb₁, hsp₁, hfound₁, hout₁, hmem₁⟩ := hstep
   refine ⟨s₁, he.loop_once (cond := .lt zero runFlag) ?_ ?_, hsb₁, hsp₁, hfound₁, hout₁, hmem₁⟩
-  · simp only [Cond.holds_lt, hz, hrun]
+  · simp only [Cond.holds_lt, hs.zero_eq, hs.runFlag_eq]
     decide
   · simp only [Cond.holds_lt, hz₁, hk₁, lt_self_iff_false, not_false_eq_true]
 
@@ -521,26 +434,16 @@ theorem successor_loop_spec {d w stackBase₀ base query : ℕ} {tree : Tree d} 
   | none =>
     obtain ⟨s₁, hs₁, hsb₁, hsp₁, hfound₁, _, hmem₁⟩ :=
       successor_none_spec hs ht hr hsuc hdisj hfit
-    have hexit : ExecWithin w successorUnwind s₁ s₁ 2 := by
-      apply ExecWithin.loop_exit
-      simp only [Cond.holds_lt, hsb₁, hsp₁, lt_self_iff_false, not_false_eq_true]
-    refine ⟨s₁, (hs₁.seq hexit).mono (by omega), ?_, hsp₁, hmem₁ ▸ hr, fun a _ => by rw [hmem₁]⟩
-    simp [hfound₁]
+    have hexit : ExecWithin w successorUnwind s₁ s₁ 2 :=
+      ExecWithin.loop_exit (by simp [Cond.holds_lt, hsb₁, hsp₁])
+    exact ⟨s₁, (hs₁.seq hexit).mono (by omega), by simp [hfound₁], hsp₁, hmem₁ ▸ hr,
+      fun a _ => by rw [hmem₁]⟩
   | some ans =>
     obtain ⟨s₁, z, hs₁, hframe₁, hz, hunwind₁⟩ :=
       successor_some_spec hs ht hr hsuc le_rfl hdisj hfit
-    have hexit : ExecWithin w successorUnwind z z 2 := by
-      apply ExecWithin.loop_exit
-      simp only [Cond.holds_lt, hz.stackBase_eq, hz.sp_eq, lt_self_iff_false, not_false_eq_true]
-    have hunwind := hunwind₁ z 2 hexit
-    refine ⟨z, (hs₁.seq hunwind).mono (by omega), ?_, hz.sp_eq, ?_, ?_⟩
-    · simp [hz.found_eq, hz.out_eq]
-    · apply rep_frame hr
-      intro a hlo hhi
-      rw [hz.mem_eq]
-      exact hframe₁ a (Or.inl (by omega))
-    · intro a ha
-      rw [hz.mem_eq]
-      exact hframe₁ a ha
+    have hunwind := hunwind₁ z 2
+      (ExecWithin.loop_exit (by simp [Cond.holds_lt, hz.stackBase_eq, hz.sp_eq]))
+    exact ⟨z, (hs₁.seq hunwind).mono (by omega), by simp [hz.found_eq, hz.out_eq], hz.sp_eq,
+      rep_frame hr fun a _ _ => by mem_frame, by mem_frame⟩
 
 end Cslib.DataStructure.VanEmdeBoas.WordRAM

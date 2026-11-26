@@ -87,16 +87,12 @@ theorem interpret_readBitsProgram (A : Set (List Bool)) (req : α → ℕ → Li
     OracleComp.interpret (m := Id) (languageOracle A) (readBitsProgram req count a) =
       List.ofFn fun i : Fin (count a) => decide (req a i ∈ A) := by
   rw [readBitsProgram, OracleComp.interpret_id_iterate]
-  have hstep : ∀ s, OracleComp.interpret (m := Id) (languageOracle A) (readBitStep req a s) =
-      s ++ [decide (req a s.length ∈ A)] := fun s => by
-    rw [readBitStep, OracleComp.interpret_map, interpret_queryBit]
-    rfl
   generalize count a = n
   induction n with
   | zero => rfl
   | succ n ih =>
-    rw [Function.iterate_succ_apply', ih, hstep, List.ofFn_succ_last, List.length_ofFn]
-    simp
+    rw [Function.iterate_succ_apply', ih, readBitStep, List.ofFn_succ_last, List.length_ofFn]
+    simp [OracleComp.interpret_map, interpret_queryBit]; rfl
 
 open ComputableInPolyTime in
 theorem isOraclePPTOn_readBitsProgram {encA : α ↪ List Bool} {req : α → ℕ → List Bool}
@@ -105,29 +101,22 @@ theorem isOraclePPTOn_readBitsProgram {encA : α ↪ List Bool} {req : α → �
     (hcount : ComputableInPolyTime count encA encUnary) :
     IsOraclePPTOn encA encBits
       (fun a => OracleComp.interpret ProbOracleComp.query (readBitsProgram req count a)) := by
-  have hword : ComputableInPolyTime
-      (fun pair : α × List Bool => req pair.1 pair.2.length) (encPair encA encBits) encBits :=
-    hreq.comp ((fst encA encBits).prod (length_bits.comp (snd encA encBits)))
   have hstep : IsOraclePPTOn (encPair encA encBits) encBits
-      (fun pair => OracleComp.interpret ProbOracleComp.query (readBitStep req pair.1 pair.2)) := by
-    have happend : ComputableInPolyTime
-        (fun p : (α × List Bool) × Bool => p.1.2 ++ [p.2])
-        (encPair (encPair encA encBits) encBool) encBits :=
-      bitsAppend ((fst _ _).snd') (bitsCons (snd _ _) (const []))
-    have h := (isOraclePPTOn_queryBit hword).map_with
-      (f := fun (pair : α × List Bool) (b : Bool) => pair.2 ++ [b]) happend
-    refine h.congr fun pair State oracle s => ?_
-    simp only [readBitStep, OracleComp.interpret_map]
-  have hsize : PolyBounded (fun a => (encA a).length) count := hcount.polyBounded
+      (fun pair => OracleComp.interpret ProbOracleComp.query (readBitStep req pair.1 pair.2)) :=
+    ((isOraclePPTOn_queryBit (hreq.comp ((fst encA encBits).prod
+      (length_bits.comp (snd encA encBits))))).map_with
+      (f := fun (pair : α × List Bool) (b : Bool) => pair.2 ++ [b])
+      (bitsAppend ((fst _ _).snd') (bitsCons (snd _ _) (const [])))).congr
+      fun _ _ _ _ => by simp only [readBitStep, OracleComp.interpret_map, Function.comp_apply]
   have hit := IsOraclePPTOn.iterateWith_spec (input := encA) (stateEncoding := encBits)
     (count := count) (initial := fun _ => []) (step := fun a s =>
       OracleComp.interpret ProbOracleComp.query (readBitStep req a s))
     hcount (by fun_prop) hstep (fun _ i s => s.length = i) (fun _ => rfl)
-    (fun a i s _ hs next hnext => by
+    (fun _ _ _ _ hs _ hnext => by
       simp only [readBitStep, OracleComp.interpret_map] at hnext
-      obtain ⟨b, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
+      obtain ⟨_, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
       simp [hs])
-    hsize (fun a i s hi hs => by simpa [hs] using hi)
+    hcount.polyBounded fun _ _ _ hi hs => by simpa [hs] using hi
   simpa only [readBitsProgram, OracleComp.interpret_iterate] using hit.1
 
 variable {encA : α ↪ List Bool} {encB : β ↪ List Bool} {encY : Y ↪ List Bool}
@@ -146,30 +135,28 @@ theorem MetricReducible.polyTimeOracleProgram {f : α → Y} {g : β → ℕ}
   let count : α → ℕ := fun a => p.eval (encB (r a)).length
   have hreq : ComputableInPolyTime (fun q : α × ℕ => req q.1 q.2) (encPair encA encUnary)
       encBits :=
-    ComputableInPolyTime.encoding_comp (f := fun q : α × ℕ => (r q.1, q.2))
-      ((hr.comp (ComputableInPolyTime.fst _ _)).prod
-        (ComputableInPolyTime.unary_to_binary.comp (ComputableInPolyTime.snd _ _)))
-  have hcount : ComputableInPolyTime count encA encUnary := by
-    have : ComputableInPolyTime (fun b => p.eval (encB b).length) encB encUnary := by fun_prop
-    exact this.comp hr
-  have hread := isOraclePPTOn_readBitsProgram hreq hcount
+    .encoding_comp (f := fun q : α × ℕ => (r q.1, q.2))
+      ((hr.comp (.fst _ _)).prod (ComputableInPolyTime.unary_to_binary.comp (.snd _ _)))
+  have hcount : ComputableInPolyTime count encA encUnary :=
+    (by fun_prop : ComputableInPolyTime (fun b => p.eval (encB b).length) encB encUnary).comp hr
   have hpost' : ComputableInPolyTime (fun q : α × List Bool => post (q.1, ofBits q.2))
       (encPair encA encBits) encY :=
     hpost.comp ((ComputableInPolyTime.fst _ _).prod
-      (ComputableInPolyTime.bitsToNat.comp (ComputableInPolyTime.snd _ _)))
+      (ComputableInPolyTime.bitsToNat.comp (.snd _ _)))
   refine ⟨fun a => (fun bits => post (a, ofBits bits)) <$> readBitsProgram req count a,
-    ?_, fun A hA => funext fun a => ?_⟩
-  · simpa only [OracleComp.interpret_map] using hread.map_with hpost'
-  · rw [OracleComp.interpret_map, interpret_readBitsProgram, hfg a]
-    have hbits : (List.ofFn fun i : Fin (count a) => decide (req a i ∈ A)) =
-        Cslib.BitString.lowBits (count a) (g (r a)) := by
-      refine List.ext_getElem (by simp [Cslib.BitString.lowBits]) fun i h₁ h₂ => ?_
-      simp only [List.getElem_ofFn, Cslib.BitString.lowBits, List.getElem_map,
-        List.getElem_range, req]
-      rw [Bool.eq_iff_iff, decide_eq_true_iff]
-      exact hA (r a) i
-    change post (a, ofBits (List.ofFn _)) = _
-    rw [hbits, ofBits_lowBits (hp (r a))]
+    by simpa only [OracleComp.interpret_map] using
+      (isOraclePPTOn_readBitsProgram hreq hcount).map_with hpost',
+    fun A hA => funext fun a => ?_⟩
+  rw [OracleComp.interpret_map, interpret_readBitsProgram, hfg a]
+  have hbits : (List.ofFn fun i : Fin (count a) => decide (req a i ∈ A)) =
+      Cslib.BitString.lowBits (count a) (g (r a)) := by
+    refine List.ext_getElem (by simp [Cslib.BitString.lowBits]) fun i _ _ => ?_
+    simp only [List.getElem_ofFn, Cslib.BitString.lowBits, List.getElem_map,
+      List.getElem_range, req]
+    rw [Bool.eq_iff_iff, decide_eq_true_iff]
+    exact hA (r a) i
+  change post (a, ofBits (List.ofFn _)) = _
+  rw [hbits, ofBits_lowBits (hp (r a))]
 
 /-- A metric reduction to a function `g` with polynomially many bits makes `f` computable in
 polynomial time relative to the bit graph of `g`: `f ∈ FP^g` in the sense of Arora and Barak. -/

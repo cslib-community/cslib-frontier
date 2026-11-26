@@ -67,9 +67,8 @@ theorem card_lt_startRadix (n : ℕ) : Fintype.card (Option State) + 3 < startRa
   have hm : 2 ^ (Fintype.card (Option State) + 2) ≤ startRadix State n :=
     Nat.le_mul_of_pos_left _ (by omega)
   have hp : 2 ^ (Fintype.card (Option State) + 2) = 4 * 2 ^ Fintype.card (Option State) := by
-    rw [pow_add]
-    ring
-  have h2 := Nat.lt_two_pow_self (n := Fintype.card (Option State))
+    rw [pow_add]; ring
+  have := Nat.lt_two_pow_self (n := Fintype.card (Option State))
   omega
 
 variable (State) in
@@ -80,8 +79,7 @@ theorem roundRadix_zero (n : ℕ) : roundRadix State n 0 = startRadix State n :=
   simp [roundRadix]
 
 theorem roundRadix_succ (n j : ℕ) : roundRadix State n (j + 1) = 4 * roundRadix State n j := by
-  simp only [roundRadix, pow_succ]
-  ring
+  simp only [roundRadix, pow_succ]; ring
 
 theorem startRadix_le_roundRadix (n j : ℕ) : startRadix State n ≤ roundRadix State n j :=
   Nat.le_mul_of_pos_left _ (pow_pos (by omega) _)
@@ -102,18 +100,16 @@ theorem vertexBound_mono {B B' : ℕ} (h : B ≤ B') :
 /-- Round `j` has a radix below `2 ^ (2 * j + log₂ n + O(1))`. -/
 theorem roundRadix_le_two_pow (n j : ℕ) :
     roundRadix State n j ≤ 2 ^ (2 * j + Nat.log2 n + Fintype.card (Option State) + 4) := by
-  have hn : n + 2 ≤ 2 ^ (Nat.log2 n + 2) := by
-    have := Nat.lt_log2_self (n := n)
-    rw [pow_succ]
-    omega
+  have := Nat.lt_log2_self (n := n)
+  have hn : n + 2 ≤ 2 ^ (Nat.log2 n + 2) := by rw [pow_succ]; omega
   have h4 : (4 : ℕ) ^ j = 2 ^ (2 * j) := by rw [pow_mul]; norm_num
-  calc roundRadix State n j = 2 ^ (2 * j) * ((n + 2) * 2 ^ (Fintype.card (Option State) + 2)) := by
+  calc roundRadix State n j
+      = 2 ^ (2 * j) * ((n + 2) * 2 ^ (Fintype.card (Option State) + 2)) := by
         rw [roundRadix, startRadix, h4]
     _ ≤ 2 ^ (2 * j) * (2 ^ (Nat.log2 n + 2) * 2 ^ (Fintype.card (Option State) + 2)) := by
         gcongr
     _ = 2 ^ (2 * j + Nat.log2 n + Fintype.card (Option State) + 4) := by
-        rw [← pow_add, ← pow_add]
-        ring_nf
+        rw [← pow_add, ← pow_add]; ring_nf
 
 variable (k State) in
 /-- **The vertices of round `j` have `O(j + log₂ n)` bits.** -/
@@ -143,8 +139,7 @@ theorem fits_init (hB : Fintype.card (Option State) + 1 < B) :
 /-- The start vertex lies below the ambient bound of every radix above the finite tags. -/
 theorem startID_lt (hB : Fintype.card (Option State) + 1 < B) :
     startID ntm B < vertexBound (k := k) B := by
-  have h := vertexID_lt (fits_init (ntm := ntm) (w := []) hB)
-  rwa [vertexID_init] at h
+  simpa only [vertexID_init] using vertexID_lt (fits_init (ntm := ntm) (w := []) hB)
 
 /-- **A space bound fits the late rounds**: every view reachable by a source that visits at most
 `S` work cells fits the radix of every round from `4 * S + 1` on. -/

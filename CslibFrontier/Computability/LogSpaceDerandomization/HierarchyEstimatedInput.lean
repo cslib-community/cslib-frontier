@@ -68,12 +68,10 @@ theorem boundedRoutedBinCutoff_grid_range
     rw [he]
     exact ⟨mul_nonneg hv hc.1, (mul_le_of_le_one_right hv hc.2).trans hvc⟩
   | succ i =>
-    have hb := boundedRoutedBinCutoff_mem_Icc (cap := 0) (B := 16)
-      (by norm_num) (by norm_num) (by norm_num) hχ hχ0 hχ1 hχrange
-      (fun j => rate_pos (kb j)) hanti hratio
-      (fun _ => 1) (fun _ => ⟨zero_le_one, le_rfl⟩) (i + 1) d
-    simpa only [estimatedBinCap, boundedRoutedBinCutoff, Nat.succ_ne_zero,
-      ↓reduceIte] using hb
+    simpa only [estimatedBinCap, boundedRoutedBinCutoff, Nat.succ_ne_zero, ↓reduceIte] using
+      boundedRoutedBinCutoff_mem_Icc (cap := 0) (B := 16) (by norm_num) (by norm_num)
+        (by norm_num) hχ hχ0 hχ1 hχrange (fun j => rate_pos (kb j)) hanti hratio
+        (fun _ => 1) (fun _ => ⟨zero_le_one, le_rfl⟩) (i + 1) d
 
 /-- Actual once-negative finite residual, with independent statistical precision. -/
 @[expose] def estimatedResidualInput
@@ -142,19 +140,15 @@ theorem estimatedPositiveSample_abs_le
     intro a b
     simp only [child, incomingChildren, req, HierarchyTask.rawRequests,
       HierarchyTask.correctionAtomTask_last HP.k_pos]
+  have habs {v M : ℝ} (h : v ∈ Set.Icc 0 M) : |v| ≤ M := (abs_of_nonneg h.1).trans_le h.2
   have hl (z : ZMod P) : |child req.left σ x z| ≤ CA := by
     rw [hleft]
-    have hb := selectedRequest_mem_Icc HP D id req.left Kc (raw req.left) (prep req.left)
-      (maximum req.left) σ x z
-    exact (abs_of_nonneg hb.1).trans_le hb.2
-  have hr (z : ZMod P) : |child req.right σ z y| ≤ 2 * CB := by
-    have hb := normalizedRequest_mem_Icc HP D req.right cutoff hCB hcut
-      (raw req.right) (prep req.right) σ z y
-    exact (abs_of_nonneg hb.1).trans_le hb.2
-  have hd : |child req.direct σ x y| ≤ 2 * CB := by
-    have hb := normalizedRequest_mem_Icc HP D req.direct cutoff hCB hcut
-      (raw req.direct) (prep req.direct) σ x y
-    exact (abs_of_nonneg hb.1).trans_le hb.2
+    exact habs (selectedRequest_mem_Icc HP D id req.left Kc (raw req.left) (prep req.left)
+      (maximum req.left) σ x z)
+  have hr (z : ZMod P) : |child req.right σ z y| ≤ 2 * CB := habs <|
+    normalizedRequest_mem_Icc HP D req.right cutoff hCB hcut (raw req.right) (prep req.right) σ z y
+  have hd : |child req.direct σ x y| ≤ 2 * CB := habs <| normalizedRequest_mem_Icc HP D
+    req.direct cutoff hCB hcut (raw req.direct) (prep req.direct) σ x y
   let T : Finset (ZMod P) := {z ∈ {z | mid.retains (channels D) σ z} |
     child req.left σ x z ≠ 0}
   have hT : T.card ≤ HP.K := by
@@ -168,22 +162,14 @@ theorem estimatedPositiveSample_abs_le
       exact correctionRequest_eq_zero_of_not_usage D id req.left _ _ _ _ _ _ _ _ _ _
         σ x z hm
   have hp : |∑ z, child req.left σ x z * child req.right σ z y| ≤ HP.K * CA * (2 * CB) := by
-    have heq : (∑ z, child req.left σ x z * child req.right σ z y) =
-        ∑ z ∈ T, child req.left σ x z * child req.right σ z y := by
-      symm
-      apply sum_subset (subset_univ T)
-      intro z _ hz'
-      rw [hz z hz', zero_mul]
-    rw [heq]
+    rw [← sum_subset (subset_univ T) fun z _ hz' => by rw [hz z hz', zero_mul]]
     calc
       _ ≤ ∑ z ∈ T, |child req.left σ x z * child req.right σ z y| := abs_sum_le_sum_abs _ _
       _ ≤ ∑ _z ∈ T, CA * (2 * CB) := sum_le_sum fun z _ => by
         rw [abs_mul]
         exact mul_le_mul (hl z) (hr z) (abs_nonneg _) hCA
       _ = T.card * (CA * (2 * CB)) := by simp
-      _ ≤ HP.K * (CA * (2 * CB)) := mul_le_mul_of_nonneg_right
-        (by exact_mod_cast hT) (by positivity)
-      _ = _ := by ring
+      _ ≤ _ := by rw [← mul_assoc]; gcongr
   have ratioD : HierarchyTask.usageRatio (channels D) terminal req.direct y =
       gridMass P kt / gridMass P (max kt kb) :=
     usageRatio_grid D terminal req.direct kt (max kt kb) rfl (rate_min kt kb) y
@@ -248,31 +234,20 @@ theorem estimatedResidualInput_abs_le
       (incomingChildren_final_range HP D id Kc _ _ _ _ neg l rfl σ x y)
       (by unfold gridMass rate; positivity)
   unfold estimatedResidualInput estimatedResidualBound
-  apply (abs_sub _ _).trans
-  apply add_le_add _ hn
-  exact (abs_sum_le_sum_abs _ _).trans (sum_le_sum fun i _ =>
-    estimatedPositiveSample_abs_le HP hK D R l i ks km kt (kb i) ss sm st Kc
-      (cutoff i) (hCB i) (hcut i) (raw precision i) (prep precision i)
-      (maximum precision i) σ x y)
+  exact (abs_sub _ _).trans (add_le_add ((abs_sum_le_sum_abs _ _).trans (sum_le_sum fun i _ =>
+    estimatedPositiveSample_abs_le HP hK D R l i ks km kt (kb i) ss sm st Kc (cutoff i)
+      (hCB i) (hcut i) (raw precision i) (prep precision i) (maximum precision i) σ x y)) hn)
 
 /-- Nonnegative finite payment; zero cutoffs and empty slices need no exceptional rule. -/
 theorem estimatedResidualBound_nonneg
     (HP : FourthRootHierarchyParams 16 1 16 32 8) (P km kt n : ℕ)
     (kb : ℕ → ℕ) (CB : ℕ → ℝ) (hCB : ∀ i, 0 ≤ CB i) :
     0 ≤ estimatedResidualBound HP P km kt n kb CB := by
-  unfold estimatedResidualBound
-  dsimp only
-  have hQ := HP.Q_nonneg HP.toHierarchyParams.atomCap
-  have hmass (k : ℕ) : 0 ≤ gridMass P k := by unfold gridMass; positivity
-  have hr (k : ℕ) := (rate_pos k).le
-  apply add_nonneg
-  · exact sum_nonneg fun i _ => mul_nonneg
-      (mul_nonneg (mul_nonneg (hr _) (div_nonneg (hmass _) (hmass _)))
-        (mul_nonneg (by norm_num) (hCB i)))
-      (add_nonneg zero_le_one (div_nonneg (mul_nonneg (mul_nonneg (Nat.cast_nonneg HP.K)
-        (mul_nonneg (by norm_num) hQ)) (hr _)) (hmass _)))
-  · exact mul_nonneg (mul_nonneg (hr _) (div_nonneg (hmass _) (hmass _)))
-      (mul_nonneg (by norm_num) hQ)
+  unfold estimatedResidualBound gridMass rate
+  have := HP.Q_nonneg HP.toHierarchyParams.atomCap
+  refine add_nonneg (sum_nonneg fun i _ => ?_) (by positivity)
+  have := hCB i
+  positivity
 
 /-- Fourth moment of the shared actual finite input, paid before walking. -/
 theorem estimatedResidualInput_moment_le

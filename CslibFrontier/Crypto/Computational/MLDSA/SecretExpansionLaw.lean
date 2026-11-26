@@ -75,9 +75,7 @@ private theorem read_halves {n : ℕ} (s : Level) (t : FixedBytes n) :
   have two : List.finRange 2 = [0, 1] := rfl
   simp only [rejBoundedPoly, List.ofFn_eq_map, List.flatMap_map, positions,
     List.product, List.filterMap_flatMap, List.filterMap_map, two]
-  congr 1
-  apply List.flatMap_congr
-  intro i _
+  refine congrArg asPoly (List.flatMap_congr fun i _ => ?_)
   have eq : ∀ b : Byte, ((byteHalves b 0).val, (byteHalves b 1).val) = (b.val % 16, b.val / 16) :=
     by decide +kernel
   simp only [show halves n t (i, 0) = byteHalves (t i) 0 from rfl,
@@ -119,19 +117,15 @@ private theorem selected_poly {n : ℕ} (s : Level) (l : List (Pos n)) (hl : l.N
     have parse (d : Pos n → Digit s) :
         asPoly (l.map fun j => shortCoeff s (d j)) = value (fun i => d (e i)) := by
       simp only [asPoly, List.size_toArray, List.length_map, Nat.not_lt.mpr enough, ↓reduceIte]
-      apply congrArg some
-      funext j
+      refine congrArg some (funext fun j => ?_)
       rw [getElem!_pos _ _ (by simpa using j.isLt.trans_le enough)]
       simp [e, List.get_eq_getElem]
     simp_rw [parse]
     change (PMF.uniformOfFintype (Pos n → Digit s)).map (value ∘ fun d j => d (e j)) = _
-    rw [← PMF.map_comp, PMF.uniformOfFintype_pi_map_comp_embedding]
-    rw [MatrixOracle.shortPolyLaw, MatrixOracle.shortCoefficientLaw, PMF.pi_map,
-       PMF.pi_uniformOfFintype, PMF.map_comp]
+    rw [← PMF.map_comp, PMF.uniformOfFintype_pi_map_comp_embedding, MatrixOracle.shortPolyLaw,
+      MatrixOracle.shortCoefficientLaw, PMF.pi_map, PMF.pi_uniformOfFintype, PMF.map_comp]
     rfl
-  · have parse (d : Pos n → Digit s) : asPoly (l.map fun j => shortCoeff s (d j)) = none := by
-      simp [asPoly, Nat.lt_of_not_ge enough]
-    simp only [parse, PMF.map_const, Function.const_def]
+  · simp [asPoly, Nat.lt_of_not_ge enough, PMF.map_const, Function.const_def]
 
 /-- Algorithm 31 on uniform bytes has an exact two-stage law: test the native prefix for
 exhaustion, then on success return one independent short-secret MLWE polynomial. This
@@ -152,12 +146,11 @@ theorem uniform_rejBoundedPoly (s : Level) (n : ℕ) :
     if (nibbleRead s t).isSome then (MatrixOracle.shortPolyLaw s).map some else PMF.pure none
   change _ = U.bind (score ∘ halves n)
   rw [← PMF.bind_map, half]
-  have swap := PMF.uniformOfFintype_bind_map_fst_equiv (tapeExchange s n)
-  have law := congrArg (PMF.map (nibbleRead s)) swap
+  have law := congrArg (PMF.map (nibbleRead s))
+    (PMF.uniformOfFintype_bind_map_fst_equiv (tapeExchange s n))
   simp only [PMF.map_bind, PMF.map_comp, Function.comp_def, exchanged_poly] at law
   rw [← law]
-  apply congrArg (PMF.bind V ·)
-  funext t
+  refine congrArg (PMF.bind V ·) (funext fun t => ?_)
   have nd : (acceptedPositions s t).Nodup :=
     ((List.nodup_finRange n).product (List.nodup_finRange 2)).filter _
   rw [selected_poly s (acceptedPositions s t) nd]
@@ -169,9 +162,7 @@ theorem uniform_rejBoundedPoly (s : Level) (n : ℕ) :
     induction positions n with
     | nil => rfl
     | cons j l ih =>
-      have ho := one (t j)
-      cases h : boundedCoeff s.params.η (t j).val <;>
-        simp [h, ← ho, ih]
+      cases h : boundedCoeff s.params.η (t j).val <;> simp [h, ← one (t j), ih]
   by_cases ok : 256 ≤ (acceptedPositions s t).length <;>
     simp [score, nibbleRead, asPoly, count, ok]
 
@@ -191,12 +182,10 @@ private theorem vector_law (s : Level) (n r : ℕ) :
   let B := PMF.uniformOfFintype (FixedBytes n)
   have single : B.map decode = B.bind fun t => P.map fun p => (decode t).map fun _ => p := by
     rw [uniform_rejBoundedPoly]
-    apply congrArg (PMF.bind B ·)
-    funext t
+    refine congrArg (PMF.bind B ·) (funext fun t => ?_)
     change (if (decode t).isSome then P.map some else PMF.pure none) = _
-    cases decode t with
-    | none => exact (PMF.map_const ..).symm
-    | some _ => rfl
+    cases decode t
+    exacts [(PMF.map_const ..).symm, rfl]
   have joint := congrArg (PMF.pi (ι := Fin r) ∘ Function.const (Fin r)) single
   change PMF.pi (fun _ : Fin r => B.map decode) = PMF.pi (fun _ : Fin r => B.bind _) at joint
   rw [PMF.pi_map, PMF.pi_bind] at joint
@@ -205,8 +194,7 @@ private theorem vector_law (s : Level) (n r : ℕ) :
   simp only [PMF.map_bind, PMF.map_comp, Function.comp_def, PMF.pi_map] at score
   change U.map (fun v => tabulate r fun i => decode (v i)) = _
   rw [score]
-  apply congrArg (PMF.bind U ·)
-  funext v
+  refine congrArg (PMF.bind U ·) (funext fun v => ?_)
   have exchange (p : Fin r → Poly) : tabulate r (fun i => (decode (v i)).map fun _ => p i) =
       (rejBoundedVector s v).map fun _ => p := by
     simp only [tabulate, rejBoundedVector, Vector.ofFnM_option_replace, Functor.map, Option.map_map]
@@ -214,9 +202,8 @@ private theorem vector_law (s : Level) (n r : ℕ) :
     | none => rfl
     | some _ => exact congrArg some (funext (Vector.get_ofFn p))
   simp_rw [exchange]
-  cases h : rejBoundedVector s v with
-  | none => exact PMF.map_const ..
-  | some _ => rfl
+  cases h : rejBoundedVector s v
+  exacts [PMF.map_const .., rfl]
 
 /-- Independent 481-byte streams at the distinct secret-vector nonces of Algorithm 33.
 The actual Algorithm 31 parser is applied separately at every nonce used for the MLWE secret
@@ -243,12 +230,9 @@ private theorem uniform_vector_pair (s : Level) :
     (vector_law s 481 s.params.ℓ) (vector_law s 481 s.params.k)
   simp only [PMF.bind_map, PMF.map_comp, Function.comp_def, PMF.map_bind, PMF.bind_bind] at law
   change (U.bind _) = _ at law
-  apply law.trans
-  apply congrArg (PMF.bind U ·)
-  funext x
+  refine law.trans (congrArg (PMF.bind U ·) (funext fun x => ?_))
   rw [PMF.bind_comm _ V]
-  apply congrArg (PMF.bind V ·)
-  funext y
+  refine congrArg (PMF.bind V ·) (funext fun y => ?_)
   cases hx : rejBoundedVector s x <;> cases hy : rejBoundedVector s y <;>
     simp only [parse, pair, hx, hy, Option.isSome_some, Option.isSome_none, Bool.false_eq_true,
       ↓reduceIte, Option.bind_eq_bind, Option.bind_none, Option.bind_some, Option.pure_def,
@@ -337,11 +321,11 @@ private theorem uniformPrefixes_secretRows (base : Xofs) (s : Level) (rho : Fixe
   simp_rw [ignore]
   change (PMF.uniformOfFintype (Table a b)).map
     ((vectors s ∘ rowPair s) ∘ fun t j => t (secretPoint s rho ha hb j)) = _
-  have uniform := PMF.uniformOfFintype_pi_map_comp_embedding (α := Byte) (secretPoint s rho ha hb)
-  have eq := congrArg (PMF.map (vectors s ∘ rowPair s)) uniform
+  have eq := congrArg (PMF.map (vectors s ∘ rowPair s))
+    (PMF.uniformOfFintype_pi_map_comp_embedding (α := Byte) (secretPoint s rho ha hb))
   rw [PMF.map_comp] at eq
-  apply eq.trans
-  rw [← PMF.map_comp, PMF.uniformOfFintype_map_equiv, PMF.uniformOfFintype_bind_map]
+  exact eq.trans (by
+    rw [← PMF.map_comp, PMF.uniformOfFintype_map_equiv, PMF.uniformOfFintype_bind_map])
 
 /-- Algorithm 33 on the finite random SHAKE256 stream at a fixed 64-byte seed has exactly
 the joint short-secret MLWE law on success. The two vectors use disjoint little-endian nonces.

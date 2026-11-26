@@ -20,7 +20,8 @@ public import Mathlib.Logic.Function.Iterate
 A circuit `c` with as many outputs as inputs computes a map `c.eval I` on states. Composing `t`
 copies gives `c.iterate t`, which computes the `t`-th power of that map
 (`Circuit.eval_iterate`); its arbitrary weighted cost and its size are exactly `t` times those of
-`c` (`Circuit.cost_program_iterate`, `Circuit.size_iterate`). Zero copies are the identity
+`c` (`Circuit.cost_program_iterate`, `Circuit.size_iterate`), and its depth at most `t` times that
+of `c` (`Circuit.depth_iterate_le`, `Circuit.depthWith_iterate_le`). Zero copies are the identity
 wiring, with no gates.
 
 When the intermediate states are needed as well, the orbit prefix can be retained within the same
@@ -41,6 +42,8 @@ time of any construction of them.
 
 * `Cslib.Circuits.Circuit.eval_iterate`, `Cslib.Circuits.Circuit.cost_program_iterate`,
   `Cslib.Circuits.Circuit.size_iterate`: exact semantics, weighted cost and size.
+* `Cslib.Circuits.Circuit.depth_iterate_le`, `Cslib.Circuits.Circuit.depthWith_iterate_le`: depth,
+  also with costs, at most `t` times that of one copy.
 * `Cslib.Circuits.Synthesis.steps`: a sequence of constructions adds its costs.
 * `Cslib.Circuits.Synthesis.orbit`: retain an orbit prefix with one circuit per transition.
 
@@ -92,6 +95,21 @@ theorem cost_program_iterate (c : Circuit σ m m) (t : ℕ) (cost : σ.Op → �
 /-- Iterating a circuit multiplies its size exactly. -/
 @[simp] theorem size_iterate (c : Circuit σ m m) (t : ℕ) : (c.iterate t).size = t * c.size := by
   simpa only [Program.cost_const, one_mul] using c.cost_program_iterate t (fun _ => 1)
+
+/-- With costs, iterating a circuit at most multiplies its depth. -/
+theorem depthWith_iterate_le (c : Circuit σ m m) (cost : σ.Op → ℕ) (t : ℕ) :
+    (c.iterate t).depthWith cost ≤ t * c.depthWith cost := by
+  induction t with
+  | zero => rw [Nat.zero_mul]; exact (Circuit.depthWith_wiring cost _).le
+  | succ t ih =>
+    calc (c.iterate (t + 1)).depthWith cost = (c.comp (c.iterate t)).depthWith cost := rfl
+      _ ≤ c.depthWith cost + t * c.depthWith cost :=
+        (depthWith_comp_le cost c (c.iterate t)).trans (Nat.add_le_add_left ih _)
+      _ = (t + 1) * c.depthWith cost := by rw [Nat.succ_mul, Nat.add_comm]
+
+/-- Iterating a circuit at most multiplies its depth. -/
+theorem depth_iterate_le (c : Circuit σ m m) (t : ℕ) : (c.iterate t).depth ≤ t * c.depth := by
+  simpa only [Circuit.depthWith_one] using c.depthWith_iterate_le 1 t
 
 /-- A circuit computing `f` iterates to a circuit computing the powers of `f`. -/
 theorem Computes.iterate {c : Circuit σ m m} {I : Interpretation σ U}

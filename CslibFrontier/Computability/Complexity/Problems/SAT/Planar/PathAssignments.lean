@@ -61,11 +61,8 @@ theorem length_wire (sites : List Point) (r : Route) :
     (wire sites r).length = r.length - 1 := by simp [wire]
 
 /-- Every path of at least two points yields a nonempty cell wire. -/
-theorem wire_ne_nil (sites : List Point) (r : Route) (h : 2 ≤ r.length) : wire sites r ≠ [] := by
-  intro he
-  have hl := length_wire sites r
-  rw [he, List.length_nil] at hl
-  omega
+theorem wire_ne_nil (sites : List Point) (r : Route) (h : 2 ≤ r.length) : wire sites r ≠ [] :=
+  List.length_pos_iff_ne_nil.mp (by rw [length_wire]; omega)
 
 /-- Exact indexed cell signals in the executable wire list. -/
 theorem getElem_wire (sites : List Point) (r : Route) (i : ℕ) (hi : i < r.length - 1) :
@@ -84,6 +81,11 @@ theorem occurrence_edgeEndpoint {φ : CNF ℕ} {o : Occurrence ℕ}
   simp only [SAT.incidenceGraph, List.getElem_map,
     List.getElem_idxOf (List.idxOf_lt_length_of_mem ho)]
 
+private theorem occurrence_index_lt_paths {φ : CNF ℕ} {o : Occurrence ℕ}
+    (ho : o ∈ Cslib.Logic.PL.occurrences φ) :
+    (Cslib.Logic.PL.occurrences φ).idxOf o < (paths φ).length := by
+  simpa only [paths_eq_unitPaths, Graph.unitPaths_length] using occurrence_index_lt ho
+
 /-- A selected crossing is traversed straight along one coordinate axis by each occupying path. -/
 theorem occurrencePath_crossing_straight {φ : CNF ℕ}
     (hw : ∀ c ∈ φ, c.length ≤ 3) (hv : ∀ v, φ.vars.count v ≤ 3)
@@ -92,28 +94,16 @@ theorem occurrencePath_crossing_straight {φ : CNF ℕ}
     StraightThrough (occurrencePath φ o) p (1, 0) ∨
       StraightThrough (occurrencePath φ o) p (0, 1) := by
   have hsite := (mem_crossingSites φ p).1 hp
-  let G := SAT.incidenceGraph φ
-  have hG : ∀ e ∈ G.edges, e.1 ∈ G.vertices ∧ e.2 ∈ G.vertices :=
-    fun _ he => SAT.incidenceGraph_endpoints he
-  have hloop : ∀ e ∈ G.edges, e.1 ≠ e.2 := fun _ he => SAT.incidenceGraph_loopless he
-  have hdeg : ∀ v, G.incidenceVertices.count v ≤ 3 := SAT.incidenceGraph_degree_le hw hv
-  have hi := occurrence_index_lt ho
   obtain ⟨j, hj, hji, hpj⟩ := List.exists_other_index_of_two_le_filter_contains (paths φ) p
     ((Cslib.Logic.PL.occurrences φ).idxOf o) hsite.2.2
-  have hj' : j < G.edges.length := by
-    simpa only [paths_eq_unitPaths, Graph.unitPaths_length] using hj
-  have hpi' : p ∈ G.unitPath ((Cslib.Logic.PL.occurrences φ).idxOf o) := by
-    simpa only [occurrencePath_eq_unitPath] using hpi
-  have hpj' : p ∈ G.unitPath j := by
-    unfold Graph.unitPath
-    change p ∈ (SAT.incidenceGraph φ).unitPaths.getD j []
-    rw [← paths_eq_unitPaths, List.getD_eq_getElem _ _ hj]
-    exact hpj
-  have hnb := Graph.unitPath_crossing_neighbors G hG hloop hdeg hi hj' (Ne.symm hji)
-    hsite.2.1 hpi' hpj'
-  rcases hnb with ⟨h, _⟩ | ⟨h, _⟩
-  · exact Or.inl (by simpa only [occurrencePath_eq_unitPath] using h)
-  · exact Or.inr (by simpa only [occurrencePath_eq_unitPath] using h)
+  have hpj' : p ∈ (SAT.incidenceGraph φ).unitPath j := by
+    rwa [Graph.unitPath, ← paths_eq_unitPaths, List.getD_eq_getElem _ _ hj]
+  exact (Graph.unitPath_crossing_neighbors (SAT.incidenceGraph φ)
+      (fun _ he => SAT.incidenceGraph_endpoints he) (fun _ he => SAT.incidenceGraph_loopless he)
+      (SAT.incidenceGraph_degree_le hw hv) (occurrence_index_lt ho)
+      (by simpa only [paths_eq_unitPaths, Graph.unitPaths_length] using hj) (Ne.symm hji)
+      hsite.2.1 (occurrencePath_eq_unitPath φ o ▸ hpi) hpj').imp
+    ((occurrencePath_eq_unitPath φ o).symm ▸ ·.1) ((occurrencePath_eq_unitPath φ o).symm ▸ ·.1)
 
 /-- The initial source center is excluded from the actual selected crossing list. -/
 theorem source_center_not_crossing {φ : CNF ℕ} {o : Occurrence ℕ}
@@ -122,10 +112,7 @@ theorem source_center_not_crossing {φ : CNF ℕ} {o : Occurrence ℕ}
   intro hp
   have hvar := List.idxOf_lt_length_of_mem
     (CNF.mem_distinctVars.mpr (variable_mem_of_mem_occurrences ho))
-  apply ((mem_crossingSites φ _).1 hp).2.1
-  apply List.mem_map.mpr
-  refine ⟨φ.distinctVars.idxOf o.lit.1, ?_, rfl⟩
-  apply List.mem_range.mpr
+  refine ((mem_crossingSites φ _).1 hp).2.1 (List.mem_map.mpr ⟨_, List.mem_range.mpr ?_, rfl⟩)
   simp only [SAT.incidenceGraph, List.length_range]
   omega
 
@@ -135,28 +122,15 @@ theorem wire_first_entry {φ : CNF ℕ} {o : Occurrence ℕ}
     ((wire (crossingSites φ) (occurrencePath φ o)).headD (fallback, fallback)).1 =
       (Layout.center (φ.distinctVars.idxOf o.lit.1), none) := by
   have hlen := occurrencePath_length_ge_two ho
-  have hwpos : 0 < (wire (crossingSites φ) (occurrencePath φ o)).length := by grind [length_wire]
-  have hhead : (wire (crossingSites φ) (occurrencePath φ o)).headD (fallback, fallback) =
-      (wire (crossingSites φ) (occurrencePath φ o))[0] := by
-    generalize hc : wire (crossingSites φ) (occurrencePath φ o) = xs at hwpos ⊢
-    cases xs with
-    | nil => simp at hwpos
-    | cons a rest => rfl
-  rw [hhead, getElem_wire _ _ 0 (by omega)]
-  simp only [Nat.zero_sub]
-  rw [List.getD_eq_getElem _ _ (by omega)]
   have hp := (occurrencePath_endpoints ho).1
-  rw [List.head?_eq_getElem?, List.getElem?_eq_getElem (by omega)] at hp
-  rw [Option.some.inj hp]
-  simp only [signal, source_center_not_crossing ho, ite_false]
+  rcases hpath : occurrencePath φ o with _ | ⟨p₀, _ | ⟨p₁, rest⟩⟩ <;>
+    simp_all [wire, signal, source_center_not_crossing ho]
 
 private theorem path_mem_paths_get {φ : CNF ℕ} {o : Occurrence ℕ}
     (ho : o ∈ Cslib.Logic.PL.occurrences φ) {p : Point} (hp : p ∈ occurrencePath φ o) :
-    p ∈ (paths φ)[(Cslib.Logic.PL.occurrences φ).idxOf o]'(by
-      simpa only [paths_eq_unitPaths, Graph.unitPaths_length] using occurrence_index_lt ho) := by
+    p ∈ (paths φ)[(Cslib.Logic.PL.occurrences φ).idxOf o]'(occurrence_index_lt_paths ho) := by
   unfold occurrencePath at hp
-  rwa [List.getD_eq_getElem _ _ (by
-    simpa only [paths_eq_unitPaths, Graph.unitPaths_length] using occurrence_index_lt ho)] at hp
+  rwa [List.getD_eq_getElem _ _ (occurrence_index_lt_paths ho)] at hp
 
 /-- Two different occurrence paths sharing an ordinary cell meet at a declared vertex center. -/
 theorem shared_ordinary_cell_center {φ : CNF ℕ}
@@ -174,14 +148,10 @@ theorem shared_ordinary_cell_center {φ : CNF ℕ}
     (occurrence_index_lt ho) (occurrence_index_lt ht) hij hc
     (by simpa only [occurrencePath_eq_unitPath] using hpo)
     (by simpa only [occurrencePath_eq_unitPath] using hpt)
-  apply hp
-  apply (mem_crossingSites φ p).2
-  refine ⟨hcandidate, hc, ?_⟩
-  exact (List.two_le_filter_contains_iff (paths φ) p).2
-    ⟨_, _,
-      by simpa only [paths_eq_unitPaths, Graph.unitPaths_length] using occurrence_index_lt ho,
-      by simpa only [paths_eq_unitPaths, Graph.unitPaths_length] using occurrence_index_lt ht,
-      hij, path_mem_paths_get ho hpo, path_mem_paths_get ht hpt⟩
+  exact hp ((mem_crossingSites φ p).2 ⟨hcandidate, hc,
+    (List.two_le_filter_contains_iff (paths φ) p).2
+      ⟨_, _, occurrence_index_lt_paths ho, occurrence_index_lt_paths ht,
+        hij, path_mem_paths_get ho hpo, path_mem_paths_get ht hpt⟩⟩)
 
 /-- No retained wire cell is the clause-center endpoint removed by `dropLast`. -/
 theorem clause_center_not_mem_dropLast {φ : CNF ℕ} {o : Occurrence ℕ}
@@ -190,14 +160,11 @@ theorem clause_center_not_mem_dropLast {φ : CNF ℕ} {o : Occurrence ℕ}
   intro hp
   obtain ⟨k, hk, heq⟩ := List.mem_iff_getElem.mp hp
   have hlen := occurrencePath_length_ge_two ho
-  have hk' : k < (occurrencePath φ o).length := by grind
+  have hklt : k < (occurrencePath φ o).length - 1 := by simpa only [List.length_dropLast] using hk
   have hlast := (occurrencePath_endpoints ho).2
   rw [List.getLast?_eq_getElem?, List.getElem?_eq_getElem (by omega)] at hlast
-  have heq' : (occurrencePath φ o)[k] =
-      (occurrencePath φ o)[(occurrencePath φ o).length - 1] := by
-    rw [← List.getElem_dropLast hk, heq, Option.some.inj hlast]
-  have hidx := (occurrencePath_nodup ho).getElem_inj_iff.1 heq'
-  simp only [List.length_dropLast] at hk
+  have hidx := (occurrencePath_nodup ho).getElem_inj_iff.1
+    ((List.getElem_dropLast hk).symm.trans (heq.trans (Option.some.inj hlast).symm))
   omega
 
 /-- A retained cell at a declared center is the source-variable center of its occurrence. -/
@@ -207,22 +174,19 @@ theorem dropLast_center_eq_source {φ : CNF ℕ} {o : Occurrence ℕ}
     (hc : p ∈ (SAT.incidenceGraph φ).orthogonalPositions) :
     p = Layout.center (φ.distinctVars.idxOf o.lit.1) := by
   obtain ⟨w, hw, rfl⟩ := List.mem_map.mp hc
-  have hw' := List.mem_range.mp hw
-  have hwmem : w ∈ (SAT.incidenceGraph φ).vertices := by
-    apply List.mem_range.mpr
-    simpa only [SAT.incidenceGraph, List.length_range] using hw'
-  have hi := List.idxOf_lt_length_of_mem hwmem
+  have hwmem : w ∈ (SAT.incidenceGraph φ).vertices := List.mem_range.mpr
+    (by simpa only [SAT.incidenceGraph, List.length_range] using List.mem_range.mp hw)
   have hidx : (SAT.incidenceGraph φ).vertices.idxOf w = w := by
-    simpa only [SAT.incidenceGraph, List.getElem_range] using List.getElem_idxOf hi
+    simpa only [SAT.incidenceGraph, List.getElem_range] using
+      List.getElem_idxOf (List.idxOf_lt_length_of_mem hwmem)
   have h := (Graph.unitPath_declared_center_iff (SAT.incidenceGraph φ)
     (fun _ he => SAT.incidenceGraph_endpoints he)
     (fun _ he => SAT.incidenceGraph_loopless he) (occurrence_index_lt ho) hwmem).1
     (by rw [hidx]; simpa only [occurrencePath_eq_unitPath] using List.dropLast_subset _ hp)
   simp only [SAT.incidenceGraph, List.getElem_map,
     List.getElem_idxOf (List.idxOf_lt_length_of_mem ho)] at h
-  rcases h with h | h
-  · rw [h]
-  · exact False.elim (clause_center_not_mem_dropLast ho (h ▸ hp))
+  exact congrArg Layout.center
+    (h.resolve_right fun h => clause_center_not_mem_dropLast ho (h ▸ hp))
 
 /-- All occurrences using an ordinary retained cell have the same original variable. -/
 theorem ordinary_cell_source_eq {φ : CNF ℕ}
@@ -235,13 +199,11 @@ theorem ordinary_cell_source_eq {φ : CNF ℕ}
   · rw [hot]
   have hc := shared_ordinary_cell_center hw hv ho ht hot hp
     (List.dropLast_subset _ hpo) (List.dropLast_subset _ hpt)
-  have he := (dropLast_center_eq_source ho hpo hc).symm.trans
-    (dropLast_center_eq_source ht hpt hc)
-  have hx := congrArg Prod.fst he
+  have hx := congrArg Prod.fst ((dropLast_center_eq_source ho hpo hc).symm.trans
+    (dropLast_center_eq_source ht hpt hc))
   simp only [Layout.center] at hx
-  have hi : φ.distinctVars.idxOf o.lit.1 = φ.distinctVars.idxOf t.lit.1 := by omega
-  apply (List.idxOf_inj ?_).1 hi
-  exact CNF.mem_distinctVars.mpr (Cslib.Logic.PL.variable_mem_of_mem_occurrences ho)
+  exact (List.idxOf_inj (CNF.mem_distinctVars.mpr
+    (Cslib.Logic.PL.variable_mem_of_mem_occurrences ho))).1 (by omega)
 
 /-- Two straight passages of a duplicate-free route through the same point are parallel. -/
 private theorem straight_parallel {r : Route} (hn : r.Nodup) {p d e : Point} (hp : p ∈ r)
@@ -291,8 +253,7 @@ private theorem chosenValue_eq (τ : ℕ → Bool) (P : Occurrence ℕ → Prop)
     chosenValue τ P = τ o.lit.1 := by
   classical
   have h : ∃ t, P t := ⟨o, ho⟩
-  simp only [chosenValue, dite_eq_left h]
-  rw [heq _ (Classical.choose_spec h)]
+  simpa only [chosenValue, dite_eq_left h] using congrArg τ (heq _ (Classical.choose_spec h))
 
 /-- Every source assignment extends compatibly to all actual wire cells and crossover blocks.
 The choice of auxiliary values is logical; this theorem makes no computational claim. -/
@@ -311,17 +272,15 @@ theorem exists_compatible_assignment {φ : CNF ℕ}
       StraightThrough (occurrencePath φ o) p d)
   have hord {o : Occurrence ℕ} (ho : o ∈ Cslib.Logic.PL.occurrences φ) {p : Point}
       (hp : p ∉ crossingSites φ) (hpo : p ∈ (occurrencePath φ o).dropLast) :
-      ordinary p = τ o.lit.1 := by
-    apply chosenValue_eq τ _ ⟨ho, hpo⟩
-    intro t ht
-    exact ordinary_cell_source_eq hw hv ht.1 ho hp ht.2 hpo
+      ordinary p = τ o.lit.1 :=
+    chosenValue_eq τ _ ⟨ho, hpo⟩ fun _ ht => ordinary_cell_source_eq hw hv ht.1 ho hp ht.2 hpo
   have haxis {o : Occurrence ℕ} (ho : o ∈ Cslib.Logic.PL.occurrences φ) {p d : Point}
       (hp : p ∈ crossingSites φ) (hpo : p ∈ occurrencePath φ o)
       (hs : StraightThrough (occurrencePath φ o) p d) :
-      axis p d = τ o.lit.1 := by
-    apply chosenValue_eq τ _ ⟨ho, hpo, hs⟩
-    intro t ht
-    rw [crossing_axis_occurrence_eq hw hv ht.1 ho hp ht.2.1 hpo ht.2.2 hs]
+      axis p d = τ o.lit.1 :=
+    chosenValue_eq τ _ ⟨ho, hpo, hs⟩ fun _ ht =>
+      congrArg (fun x => x.lit.1)
+        (crossing_axis_occurrence_eq hw hv ht.1 ho hp ht.2.1 hpo ht.2.2 hs)
   let cross (p : Point) : Crossover.SplitVariable → Bool :=
     Classical.choose (Crossover.exists_split_holds (axis p (1, 0)) (axis p (0, 1)))
   have hcross (p : Point) :=
@@ -333,33 +292,31 @@ theorem exists_compatible_assignment {φ : CNF ℕ}
   intro o ho c hc
   unfold wire at hc
   obtain ⟨⟨p, k⟩, hpk, rfl⟩ := List.mem_map.mp hc
+  dsimp only
   obtain ⟨hk, heq⟩ := List.mem_zipIdx' hpk
-  have hk' : k < (occurrencePath φ o).length := by
-    simp only [List.length_dropLast] at hk
-    omega
+  have hk' : k < (occurrencePath φ o).length := by rw [List.length_dropLast] at hk; omega
   have heq' : (occurrencePath φ o)[k] = p := (List.getElem_dropLast hk).symm.trans heq.symm
   have hpod : p ∈ (occurrencePath φ o).dropLast := List.fst_mem_of_mem_zipIdx hpk
   have hpo : p ∈ occurrencePath φ o := List.dropLast_subset _ hpod
   by_cases hp : p ∈ crossingSites φ
   · obtain ⟨hl, hr, hb, ht⟩ := side_cardinal p
+    obtain ⟨ha1, ha2, hb1, hb2⟩ := (hcross p).2
+    have hsig (q : Point) :
+        σ (signal (crossingSites φ) p q) = cross p (Crossover.splitTerminal (side p q)) := by
+      simp only [signal, hp, ite_true, σ]
+    have hpair {d : Point} (hs : StraightThrough (occurrencePath φ o) p d)
+        (hminus : cross p (Crossover.splitTerminal (side p (p - d))) = axis p d)
+        (hplus : cross p (Crossover.splitTerminal (side p (p + d))) = axis p d) :
+        σ (signal (crossingSites φ) p ((occurrencePath φ o).getD (k - 1) p)) = τ o.lit.1 ∧
+        σ (signal (crossingSites φ) p ((occurrencePath φ o).getD (k + 1) p)) = τ o.lit.1 := by
+      obtain ⟨_, _, hnb⟩ := hs.getD_neighbors (occurrencePath_nodup ho) hk' heq'
+      have hav := haxis ho hp hpo hs
+      rcases hnb with ⟨hprev, hnext⟩ | ⟨hprev, hnext⟩
+      · rw [hprev, hnext, hsig, hsig]; exact ⟨hminus.trans hav, hplus.trans hav⟩
+      · rw [hprev, hnext, hsig, hsig]; exact ⟨hplus.trans hav, hminus.trans hav⟩
     rcases occurrencePath_crossing_straight hw hv ho hp hpo with hs | hs
-    · have hav := haxis ho hp hpo hs
-      have hports := (hcross p).2
-      obtain ⟨_, _, hnb⟩ := hs.getD_neighbors (occurrencePath_nodup ho) hk' heq'
-      rcases hnb with ⟨hprev, hnext⟩ | ⟨hprev, hnext⟩
-      all_goals
-        simp only [hprev, hnext, signal, hp, ite_true, hl, hr, Crossover.splitTerminal]
-        exact ⟨by simpa only [σ, cross, hports.1, hports.2.1] using hav,
-          by simpa only [σ, cross, hports.1, hports.2.1] using hav⟩
-    · have hav := haxis ho hp hpo hs
-      have hports := (hcross p).2.2.2
-      obtain ⟨_, _, hnb⟩ := hs.getD_neighbors (occurrencePath_nodup ho) hk' heq'
-      rcases hnb with ⟨hprev, hnext⟩ | ⟨hprev, hnext⟩
-      all_goals
-        simp only [hprev, hnext, signal, hp, ite_true, ht, hb, Crossover.splitTerminal]
-        exact ⟨by simpa only [σ, cross, hports.1, hports.2] using hav,
-          by simpa only [σ, cross, hports.1, hports.2] using hav⟩
-  · simpa only [signal, hp, ite_false, σ] using
-      And.intro (hord ho hp hpod) (hord ho hp hpod)
+    · exact hpair hs (by rw [hl]; exact ha1) (by rw [hr]; exact ha2)
+    · exact hpair hs (by rw [hb]; exact hb1) (by rw [ht]; exact hb2)
+  · simp [signal, hp, σ, hord ho hp hpod]
 
 end Cslib.Complexity.SAT.PlanarCompile

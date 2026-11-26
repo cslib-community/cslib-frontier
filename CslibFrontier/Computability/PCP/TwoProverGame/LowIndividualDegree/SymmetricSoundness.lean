@@ -44,29 +44,31 @@ private theorem exists_matchingMass_of_complete {n d : ℕ}
           (decodedPoint S.toCommuting.alice u).effect (MvPolynomial.eval u g.val))).re := by
   classical
   let G := (H.toMeasurement.map some).toPOVM
-  let R := QuantumStrategy.rightMeasurement (ι := ι) H
-  let P := decodedPoint S.toCommuting.alice
   have hG (g : BoundedPolynomial F (n + 1) d) :
-      (QuantumStrategy.rightMeasurement (ι := ι) G).effect (some g) = R.effect g := by
-    have he : G.effect (some g) = H.effect g := by
-      simp [G, Measurement.toPOVM_effect, Measurement.map_effect, sum_filter]
+      (QuantumStrategy.rightMeasurement (ι := ι) G).effect (some g) =
+        (QuantumStrategy.rightMeasurement (ι := ι) H).effect g := by
     change (1 : Matrix ι ι ℂ) ⊗ₖ G.effect (some g) = _ ⊗ₖ H.effect g
-    rw [he]
-  have hread (u : Point F (n + 1)) := Measurement.agreement_map_left S.toCommuting.state R (P u)
-    (fun g => MvPolynomial.eval u g.val)
-  change (𝔼 u : Point F (n + 1), (1 - Measurement.agreement S.toCommuting.state
-    (R.map fun g => MvPolynomial.eval u g.val) (P u))) ≤ s at h
-  simp only [hread, expect_sub_distrib, Fintype.expect_const] at h
-  refine ⟨G, ?_⟩
-  simp only [hG]
-  linarith only [h]
+    simp [G, Measurement.toPOVM_effect, Measurement.map_effect, sum_filter]
+  simp only [Measurement.agreement_map_left, expect_sub_distrib, Fintype.expect_const] at h
+  exact ⟨G, by simp only [hG]; linarith only [h]⟩
 
 private theorem loss_mem_Icc {n : ℕ}
     (S : CommutingStrategy (Question F (n + 1)) (Question F (n + 1))
       (Answer F (n + 1)) (Answer F (n + 1)) Joint) (d D : ℕ) (b : Branch) :
-    1 - (branchGameWithDiagonalCap (F := F) n d D b).commutingWinProb S ∈ Set.Icc (0 : ℝ) 1 := by
-  exact ⟨sub_nonneg.mpr (TwoProverGame.commutingWinProb_le_one _ _),
+    1 - (branchGameWithDiagonalCap (F := F) n d D b).commutingWinProb S ∈ Set.Icc (0 : ℝ) 1 :=
+  ⟨sub_nonneg.mpr (TwoProverGame.commutingWinProb_le_one _ _),
     sub_le_self _ (TwoProverGame.commutingWinProb_nonneg _ _)⟩
+
+private theorem losses_mem_Icc {n : ℕ}
+    (S : CommutingStrategy (Question F (n + 1)) (Question F (n + 1))
+      (Answer F (n + 1)) (Answer F (n + 1)) Joint) (d D : ℕ) :
+    1 - (branchGame (F := F) n d .axis).commutingWinProb S ∈ Set.Icc (0 : ℝ) 1 ∧
+      1 - (branchGame (F := F) n d .consistency).commutingWinProb S ∈ Set.Icc (0 : ℝ) 1 ∧
+      1 - (branchGameWithDiagonalCap (F := F) n d D .diagonal).commutingWinProb S ∈
+        Set.Icc (0 : ℝ) 1 :=
+  ⟨by simpa only [axisWinProbAtDegrees_eq] using loss_mem_Icc S d D .axis,
+    by simpa only [consistencyWinProbAtDegrees_eq] using loss_mem_Icc S d D .consistency,
+    loss_mem_Icc S d D .diagonal⟩
 
 /-- For a symmetric projective tensor strategy, the measurement supplied by the
 induction agrees with Alice's decoded point answers up to the explicit
@@ -92,44 +94,27 @@ private theorem exists_polynomial_POVM_of_symmetric_in_range
             (decodedPoint C.alice u).effect (MvPolynomial.eval u g.val))).re := by
   classical
   intro C ε δ γ r
-  have hε : ε ∈ Set.Icc (0 : ℝ) 1 := by
-    simpa only [axisWinProbAtDegrees_eq] using loss_mem_Icc C d D .axis
-  have hδ : δ ∈ Set.Icc (0 : ℝ) 1 := by
-    simpa only [consistencyWinProbAtDegrees_eq] using loss_mem_Icc C d D .consistency
-  have hγ : γ ∈ Set.Icc (0 : ℝ) 1 := loss_mem_Icc C d D .diagonal
+  obtain ⟨hε, hδ, hγ⟩ := losses_mem_Icc C d D
   have hq : (0 : ℝ) < Fintype.card F := by exact_mod_cast Fintype.card_pos (α := F)
-  have hdq : d ≤ Fintype.card F := by
-    have h : d ≤ 400 * (n + 1) * d := Nat.le_mul_of_pos_left d (by positivity)
-    exact (h.trans hsize).trans hfield
-  have hr : r ∈ Set.Icc (0 : ℝ) 1 :=
-    ⟨div_nonneg (Nat.cast_nonneg _) hq.le, (div_le_one hq).2 (by exact_mod_cast hdq)⟩
   by_cases hd₀ : d = 0
   · subst d
-    obtain ⟨G, hG⟩ := exists_degree_zero_polynomial_POVM S (fun u => hP (.point u)) (fun u => by
-      rw [hM]
-      exact hP (.point u))
+    obtain ⟨G, hG⟩ := exists_degree_zero_polynomial_POVM S (fun u => hP (.point u))
+      (fun u => hM ▸ hP (.point u))
     have hbase := baseError_le_dimensionInductionError
-      (m := (n + 1 : ℝ)) (by linarith [Nat.cast_nonneg (α := ℝ) n]) hk hε hδ hγ.1 hr.1
+      (m := (n + 1 : ℝ)) (by linarith [Nat.cast_nonneg (α := ℝ) n]) hk hε hδ hγ.1
+      (div_nonneg (Nat.cast_nonneg 0) hq.le)
     exact ⟨G, (sub_le_sub_left hbase 1).trans hG⟩
   -- The positive-degree induction retains the sampling length and the diagonal cutoff.
-  clear hε hδ hγ hr hdq
+  clear hε hδ hγ
   induction n with
   | zero =>
     obtain ⟨G, hG⟩ := exists_one_coordinate_polynomial_POVM S hM hψ d
-    refine ⟨G, ?_⟩
-    apply le_trans ?_ hG
-    have hε : ε ∈ Set.Icc (0 : ℝ) 1 := by
-      simpa only [axisWinProbAtDegrees_eq] using loss_mem_Icc C d D .axis
-    have hδ := loss_mem_Icc C d D .consistency
-    have hγ := loss_mem_Icc C d D .diagonal
-    rw [consistencyWinProbAtDegrees_eq] at hδ
-    have hr : 0 ≤ r := div_nonneg (Nat.cast_nonneg _) hq.le
-    have hbase := baseError_le_dimensionInductionError (m := 1) (by norm_num) hk hε hδ hγ.1 hr
-    rw [show (branchGame (F := F) 0 d .axis).commutingWinProb S.toCommuting = 1 - ε by
-      dsimp only [ε, C]
-      exact (sub_sub_cancel 1 _).symm]
-    simp only [Nat.cast_zero, zero_add]
-    apply sub_le_sub_left
+    refine ⟨G, le_trans ?_ hG⟩
+    obtain ⟨hε, hδ, hγ⟩ := losses_mem_Icc C d D
+    have hbase := baseError_le_dimensionInductionError (m := 1) (by norm_num) hk hε hδ hγ.1
+      (div_nonneg (Nat.cast_nonneg d) hq.le)
+    dsimp only [ε, C] at hbase hε ⊢
+    rw [Nat.cast_zero, zero_add]
     linarith only [hbase, hε.1, hδ.1]
   | succ n ih =>
     let m := (n + 1 : ℝ)
@@ -143,13 +128,9 @@ private theorem exists_polynomial_POVM_of_symmetric_in_range
     have hs : 2 * (d : ℝ) ≤ θ * k := by
       dsimp only [θ]
       rw [div_mul_eq_mul_div, le_div_iff₀ (by positivity)]
-      have h : (400 : ℝ) * M * d ≤ k := by
-        dsimp [M]
-        exact_mod_cast hsize
-      linarith only [h]
-    have hdq : d ≤ Fintype.card F := by
-      have h : d ≤ 400 * (n + 2) * d := Nat.le_mul_of_pos_left d (by positivity)
-      exact (h.trans hsize).trans hfield
+      linarith only [show (400 : ℝ) * (n + 1 + 1) * d ≤ k from mod_cast hsize]
+    have hdq : d ≤ Fintype.card F :=
+      ((Nat.le_mul_of_pos_left d (by positivity)).trans hsize).trans hfield
     have hrq : 1 / (Fintype.card F : ℝ) ≤ r :=
       div_le_div_of_nonneg_right (by exact_mod_cast Nat.pos_of_ne_zero hd₀) hq.le
     have hr : r ∈ Set.Icc (0 : ℝ) 1 :=
@@ -186,17 +167,10 @@ private theorem exists_polynomial_POVM_of_symmetric_in_range
         average_slice_consistency_loss_le C d D
     have hdiag : m * (𝔼 x, g x) ≤ M * γ := by
       simpa only [m, M, g, ht] using average_slice_diagonal_loss_le C d D
-    have he (x : F) : 0 ≤ e x :=
-      sub_nonneg.mpr (TwoProverGame.commutingWinProb_le_one _ _)
-    have hf (x : F) : 0 ≤ f x :=
-      sub_nonneg.mpr (TwoProverGame.commutingWinProb_le_one _ _)
-    have hg (x : F) : 0 ≤ g x :=
-      sub_nonneg.mpr (TwoProverGame.commutingWinProb_le_one _ _)
-    have hε : ε ∈ Set.Icc (0 : ℝ) 1 := by
-      simpa only [axisWinProbAtDegrees_eq] using loss_mem_Icc C d D .axis
-    have hδ : δ ∈ Set.Icc (0 : ℝ) 1 := by
-      simpa only [consistencyWinProbAtDegrees_eq] using loss_mem_Icc C d D .consistency
-    have hγ : γ ∈ Set.Icc (0 : ℝ) 1 := loss_mem_Icc C d D .diagonal
+    have he (x : F) : 0 ≤ e x := (losses_mem_Icc (T x).toCommuting d D).1.1
+    have hf (x : F) : 0 ≤ f x := (losses_mem_Icc (T x).toCommuting d D).2.1.1
+    have hg (x : F) : 0 ≤ g x := (losses_mem_Icc (T x).toCommuting d D).2.2.1
+    obtain ⟨hε, hδ, hγ⟩ := losses_mem_Icc C d D
     have hav := mul_expect_inductionLossTerm_le (show 0 < m by linarith) hmM hε.1 hδ.1 hγ.1 hr.1
       he hf hg haxis hcons hdiag
     have hσ : (𝔼 x, σ x) ≤ m ^ 2 * (100000 * (k : ℝ) ^ 2 * M * inductionLossTerm ε δ γ r +
@@ -210,10 +184,8 @@ private theorem exists_polynomial_POVM_of_symmetric_in_range
       change slicePastingError M k (Fintype.card F) ε δ γ r (𝔼 x, σ x) (1 / (200 * M)) ≤ _
       rw [← hsucc] at hσ ⊢
       exact slicePastingError_le_dimensionInductionError (m := m) hm hk hq hrq hε hδ hγ hr hσ
-    rw [show ((n + 1 : ℕ) : ℝ) + 1 = M by
-      push_cast
-      dsimp only [M]
-      ring]
+    have hM_eq : ((n + 1 : ℕ) : ℝ) + 1 = M := by push_cast [M]; ring
+    rw [hM_eq]
     exact exists_matchingMass_of_complete S H (hH.trans err)
 
 private theorem exists_complete_of_matchingMass {n d : ℕ}
@@ -233,9 +205,7 @@ private theorem exists_complete_of_matchingMass {n d : ℕ}
   let H := (G.toMeasurement.map f).toPOVM
   let R := QuantumStrategy.rightMeasurement (ι := ι) G
   let C := S.toCommuting
-  have hH : QuantumStrategy.rightMeasurement (ι := ι) H = R.map f := by
-    apply Measurement.ext
-    intro g
+  have hH : QuantumStrategy.rightMeasurement (ι := ι) H = R.map f := Measurement.ext fun g => by
     change oneKronecker (ι := ι) (H.effect g) = _
     simp only [H, Measurement.toPOVM_effect, Measurement.map_effect, POVM.toMeasurement_effect,
       map_sum, R]
@@ -248,8 +218,7 @@ private theorem exists_complete_of_matchingMass {n d : ℕ}
           ((QuantumStrategy.rightMeasurement H).map fun g => MvPolynomial.eval u g.val)
           (decodedPoint C.alice u) := by
     rw [hH, Measurement.map_map, Measurement.agreement_map_left, Fintype.sum_option]
-    apply le_add_of_nonneg_left
-    apply C.state.re_apply_nonneg
+    refine le_add_of_nonneg_left (C.state.re_apply_nonneg ?_)
     have hc (a : Answer F (n + 1)) :
         Commute (R.effect none) ((C.alice (.point u)).effect a) :=
       (commute_kroneckerOne_oneKronecker ((S.alice (.point u)).effect a) (G.effect none)).symm
@@ -292,11 +261,7 @@ theorem exists_polynomial_POVM_of_symmetric
   let m := (n + 1 : ℝ)
   let q := (Fintype.card F : ℝ)
   let B := dimensionInductionError m k ε δ γ r
-  have hε : ε ∈ Set.Icc (0 : ℝ) 1 := by
-    simpa only [axisWinProbAtDegrees_eq] using loss_mem_Icc C d D .axis
-  have hδ : δ ∈ Set.Icc (0 : ℝ) 1 := by
-    simpa only [consistencyWinProbAtDegrees_eq] using loss_mem_Icc C d D .consistency
-  have hγ : γ ∈ Set.Icc (0 : ℝ) 1 := loss_mem_Icc C d D .diagonal
+  obtain ⟨hε, hδ, hγ⟩ := losses_mem_Icc C d D
   have hm : 1 ≤ m := by dsimp [m]; linarith [Nat.cast_nonneg (α := ℝ) n]
   have hq : 0 < q := by dsimp [q]; exact_mod_cast Fintype.card_pos (α := F)
   have hr : 0 ≤ r := div_nonneg (Nat.cast_nonneg _) hq.le
@@ -315,9 +280,8 @@ theorem exists_polynomial_POVM_of_symmetric
     linarith
   by_cases hk₀ : k = 0
   · apply htrivial
-    dsimp only [B, dimensionInductionError]
-    simp only [hk₀, Nat.cast_zero, zero_pow (by norm_num : (2 : ℕ) ≠ 0), mul_zero, zero_mul,
-      zero_add, neg_zero, zero_div, Real.exp_zero, mul_one]
+    simp only [B, dimensionInductionError, hk₀, Nat.cast_zero, zero_pow (by norm_num : (2 : ℕ) ≠ 0),
+      mul_zero, zero_mul, zero_add, neg_zero, zero_div, Real.exp_zero, mul_one]
     exact one_le_pow₀ hm
   have hpos := Nat.pos_of_ne_zero hk₀
   by_cases hd : d = 0
@@ -326,17 +290,12 @@ theorem exists_polynomial_POVM_of_symmetric
       (fun u => hP (.point u)) (fun u => by rw [hM]; exact hP (.point u))
     apply exists_complete_of_matchingMass S G
     refine (sub_le_sub_left ?_ 1).trans hG
-    have hB : 8 * m * ε + 2 * δ ≤ B :=
-      baseError_le_dimensionInductionError hm hpos hε hδ hγ.1 hr
-    have hnonneg : 0 ≤ 8 * m * ε + 2 * δ :=
-      add_nonneg (mul_nonneg (by linarith) hε.1) (mul_nonneg (by norm_num) hδ.1)
-    linarith only [hB, hnonneg]
+    linarith only [baseError_le_dimensionInductionError hm hpos hε hδ hγ.1 hr,
+      mul_nonneg (by linarith : (0 : ℝ) ≤ 8 * m) hε.1, hδ.1]
   let K := max k (400 * (n + 1) * d)
   have hkK : k ≤ K := le_max_left _ _
-  have hK : K ≤ 400 * k := by
-    apply max_le
-    · omega
-    · simpa only [Nat.mul_assoc] using Nat.mul_le_mul_left 400 hk
+  have hK : K ≤ 400 * k := max_le (by omega)
+    (by simpa only [Nat.mul_assoc] using Nat.mul_le_mul_left 400 hk)
   by_cases hfield : K ≤ Fintype.card F
   · obtain ⟨G, hG⟩ := exists_polynomial_POVM_of_symmetric_in_range D
       (hpos.trans_le hkK) (le_max_right _ _) hfield S hM hψ hP

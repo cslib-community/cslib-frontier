@@ -96,9 +96,8 @@ private theorem sturmSeqAux_spec : ∀ (n : ℕ) (p q : List ℚ),
   | succ n ih =>
     intro p q hp hp0 hq hqn
     by_cases hqe : q.isEmpty = true
-    · have hnil : q = [] := List.isEmpty_iff.mp hqe
-      subst hnil
-      simpa only [sturmSeqAux, hqe, ↓reduceIte, List.length_nil] using base hp hp0
+    · obtain rfl := List.isEmpty_iff.mp hqe
+      simpa only [sturmSeqAux, List.isEmpty_nil, ↓reduceIte, List.length_nil] using base hp hp0
     · have hq0 : q ≠ [] := fun hnil => hqe (List.isEmpty_iff.mpr hnil)
       have hr_len_q : (CoeffList.negMod p q).length < q.length :=
         (CoeffList.length_negMod_lt (hq.ofCoeffList_ne_zero hq0)).trans_le
@@ -115,54 +114,48 @@ private theorem sturmSeqAux_spec : ∀ (n : ℕ) (p q : List ℚ),
         · exact (ih_mem f hf).trans
             (max_le (le_max_right _ _) (hr_len_q.le.trans (le_max_right _ _)))
 
+private theorem sturmSeqList_of_ne_nil {cs : List ℚ} (hne : CoeffList.trim cs ≠ []) :
+    (sturmSeqList cs).map ofCoeffList =
+        Polynomial.sturmSeq (ofCoeffList cs) (derivative (ofCoeffList cs)) ∧
+      (sturmSeqList cs).length ≤ (CoeffList.deriv (CoeffList.trim cs)).length + 1 ∧
+      ∀ f ∈ sturmSeqList cs, f.length ≤ (CoeffList.trim cs).length := by
+  have he : (CoeffList.trim cs).isEmpty = false := List.isEmpty_eq_false_iff.mpr hne
+  obtain ⟨hmap, hlen, hmem⟩ := sturmSeqAux_spec (CoeffList.deriv (CoeffList.trim cs)).length
+    (CoeffList.trim cs) (CoeffList.deriv (CoeffList.trim cs))
+    (CoeffList.isTrimmed_trim cs) hne (CoeffList.isTrimmed_deriv (CoeffList.trim cs)) le_rfl
+  simp only [sturmSeqList, he, Bool.false_eq_true, ↓reduceIte]
+  exact ⟨by simpa only [CoeffList.ofCoeffList_deriv, CoeffList.ofCoeffList_trim] using hmap,
+    hlen, fun f hf => (hmem f hf).trans
+      (max_le le_rfl ((CoeffList.length_deriv_le _).trans (Nat.sub_le _ _)))⟩
+
 /-- `sturmSeqList cs` represents
 `Polynomial.sturmSeq (ofCoeffList cs) (derivative (ofCoeffList cs))` elementwise under
 `ofCoeffList`. -/
 theorem sturmSeqList_map_ofCoeffList (cs : List ℚ) :
     (sturmSeqList cs).map ofCoeffList =
       Polynomial.sturmSeq (ofCoeffList cs) (derivative (ofCoeffList cs)) := by
-  simp only [sturmSeqList]
-  by_cases he : (CoeffList.trim cs).isEmpty = true
-  · have h0 : ofCoeffList cs = 0 :=
-      (CoeffList.trim_eq_nil_iff cs).mp (List.isEmpty_iff.mp he)
-    simp only [he, ↓reduceIte, List.map_nil, h0, derivative_zero, Polynomial.sturmSeq_zero_left]
-  · have hspec := sturmSeqAux_spec (CoeffList.deriv (CoeffList.trim cs)).length
-      (CoeffList.trim cs) (CoeffList.deriv (CoeffList.trim cs))
-      (CoeffList.isTrimmed_trim cs) (fun h => he (List.isEmpty_iff.mpr h))
-      (CoeffList.isTrimmed_deriv (CoeffList.trim cs)) le_rfl
-    simp only [he, Bool.false_eq_true, ↓reduceIte, hspec.1, CoeffList.ofCoeffList_deriv,
-      CoeffList.ofCoeffList_trim]
+  by_cases hne : CoeffList.trim cs = []
+  · simp [sturmSeqList, hne, (CoeffList.trim_eq_nil_iff cs).mp hne]
+  · exact (sturmSeqList_of_ne_nil hne).1
 
 /-- Length bound `(sturmSeqList cs).length ≤ (ofCoeffList cs).natDegree + 1`. -/
 theorem sturmSeqList_length_le (cs : List ℚ) :
     (sturmSeqList cs).length ≤ (ofCoeffList cs).natDegree + 1 := by
-  simp only [sturmSeqList]
-  by_cases he : (CoeffList.trim cs).isEmpty = true
-  · simp only [he, ↓reduceIte, List.length_nil, Nat.zero_le]
-  · have hne : CoeffList.trim cs ≠ [] := fun h => he (List.isEmpty_iff.mpr h)
-    have hcs : ofCoeffList cs ≠ 0 := mt (CoeffList.trim_eq_nil_iff cs).mpr hne
-    have hspec := sturmSeqAux_spec (CoeffList.deriv (CoeffList.trim cs)).length
-      (CoeffList.trim cs) (CoeffList.deriv (CoeffList.trim cs))
-      (CoeffList.isTrimmed_trim cs) hne (CoeffList.isTrimmed_deriv (CoeffList.trim cs)) le_rfl
-    have hdp_len := CoeffList.length_deriv_le (CoeffList.trim cs)
-    have hdeg := CoeffList.length_trim_eq_natDegree_add_one hcs
-    simp only [he, Bool.false_eq_true, ↓reduceIte]
+  by_cases hne : CoeffList.trim cs = []
+  · simp [sturmSeqList, hne]
+  · have hlen := (sturmSeqList_of_ne_nil hne).2.1
+    have hdp := CoeffList.length_deriv_le (CoeffList.trim cs)
+    have hdeg := CoeffList.length_trim_eq_natDegree_add_one
+      (mt (CoeffList.trim_eq_nil_iff cs).mpr hne)
     omega
 
 /-- Entry length bound: every list in `sturmSeqList cs` has length at most
 `(CoeffList.trim cs).length`. -/
 theorem sturmSeqList_entry_length_le (cs : List ℚ) {f : List ℚ} (hf : f ∈ sturmSeqList cs) :
     f.length ≤ (CoeffList.trim cs).length := by
-  simp only [sturmSeqList] at hf
-  by_cases he : (CoeffList.trim cs).isEmpty = true
-  · simp only [he, ↓reduceIte, List.not_mem_nil] at hf
-  · have hne : CoeffList.trim cs ≠ [] := fun h => he (List.isEmpty_iff.mpr h)
-    have hspec := sturmSeqAux_spec (CoeffList.deriv (CoeffList.trim cs)).length
-      (CoeffList.trim cs) (CoeffList.deriv (CoeffList.trim cs))
-      (CoeffList.isTrimmed_trim cs) hne (CoeffList.isTrimmed_deriv (CoeffList.trim cs)) le_rfl
-    simp only [he, Bool.false_eq_true, ↓reduceIte] at hf
-    exact (hspec.2.2 f hf).trans
-      (max_le le_rfl ((CoeffList.length_deriv_le (CoeffList.trim cs)).trans (Nat.sub_le _ _)))
+  by_cases hne : CoeffList.trim cs = []
+  · simp [sturmSeqList, hne] at hf
+  · exact (sturmSeqList_of_ne_nil hne).2.2 f hf
 
 /-- Rational Sturm sign variations of a precomputed Sturm sequence at `x : ℚ`. -/
 @[expose] def sturmVariationsList (seq : List (List ℚ)) (x : ℚ) : ℕ :=
@@ -180,16 +173,12 @@ theorem sturmVariationsList_eq_sturmVariations (cs : List ℚ) (x : ℚ) :
       (sturmSeqList cs).map ((eval (x : ℝ) ∘ Polynomial.map (algebraMap ℚ ℝ)) ∘ ofCoeffList) := by
     rw [List.map_map]
     refine List.map_congr_left fun g _ => ?_
-    change _ = eval ((algebraMap ℚ ℝ) x) ((ofCoeffList g).map (algebraMap ℚ ℝ))
-    rw [Polynomial.eval_map, Polynomial.eval₂_hom, eval_ofCoeffList]
-    rfl
+    simpa only [Function.comp_apply, Polynomial.eval_map, eval_ofCoeffList, eq_ratCast] using
+      (Polynomial.eval₂_hom (p := ofCoeffList g) (algebraMap ℚ ℝ) x).symm
   rw [← hlist, sturmVariationsList]
   refine (List.signVariations_map (fun q => ?_) _).symm
   change SignType.sign (q : ℝ) = SignType.sign q
-  rcases lt_trichotomy q 0 with hlt | rfl | hgt
-  · rw [sign_neg hlt, sign_neg (Rat.cast_lt_zero.mpr hlt)]
-  · simp only [Rat.cast_zero, sign_zero]
-  · rw [sign_pos hgt, sign_pos (Rat.cast_pos.mpr hgt)]
+  rcases lt_trichotomy q 0 with h | rfl | h <;> simp [sign_neg, sign_pos, *]
 
 /-- Maximum absolute value among a list of rational numbers (`0` on `[]`). -/
 @[expose] def maxAbsList : List ℚ → ℚ
@@ -243,9 +232,8 @@ theorem abs_lt_cauchyBoundNat_of_isRoot {cs : List ℚ} (hcs : ofCoeffList cs �
   have ht : CoeffList.IsTrimmed t := CoeffList.isTrimmed_trim cs
   have ht0 : ofCoeffList t ≠ 0 := (CoeffList.ofCoeffList_trim cs).symm ▸ hcs
   have htnil : t ≠ [] := mt (CoeffList.trim_eq_nil_iff cs).mp hcs
-  have hdeg : t.length = (ofCoeffList t).natDegree + 1 := by
-    rw [CoeffList.ofCoeffList_trim]
-    exact CoeffList.length_trim_eq_natDegree_add_one hcs
+  have hdeg : t.length = (ofCoeffList t).natDegree + 1 :=
+    CoeffList.ofCoeffList_trim cs ▸ CoeffList.length_trim_eq_natDegree_add_one hcs
   have hr' : ((ofCoeffList t).map (algebraMap ℚ ℝ)).IsRoot r :=
     (CoeffList.ofCoeffList_trim cs).symm ▸ hr
   dsimp only [cauchyBoundNat]
@@ -287,9 +275,7 @@ theorem abs_lt_cauchyBoundNat_of_isRoot {cs : List ℚ} (hcs : ofCoeffList cs �
 theorem one_le_lcmDens (cs : List ℚ) : 1 ≤ lcmDens cs := by
   induction cs with
   | nil => simp only [lcmDens, le_refl]
-  | cons q qs ih =>
-    simp only [lcmDens]
-    exact Nat.pos_of_ne_zero (Nat.lcm_ne_zero (Rat.den_nz q) (by omega))
+  | cons q qs ih => exact Nat.pos_of_ne_zero (Nat.lcm_ne_zero (Rat.den_nz q) (by omega))
 
 /-- Every element's denominator divides `lcmDens cs`. -/
 theorem dvd_lcmDens {cs : List ℚ} {q : ℚ} (hq : q ∈ cs) : q.den ∣ lcmDens cs := by
@@ -317,8 +303,7 @@ private theorem ofCoeffList_clearDenoms_aux (D : ℕ) (cs : List ℚ)
     simp only [List.map_cons, ofCoeffList_cons, Polynomial.map_add, Polynomial.map_C,
       Polynomial.map_mul, Polynomial.map_X]
     have hcast_div : ((D / q.den : ℕ) : ℚ) = (D : ℚ) / (q.den : ℚ) := by
-      have hd_pos : (q.den : ℚ) ≠ 0 := by exact_mod_cast Rat.den_nz q
-      rw [eq_div_iff hd_pos]
+      rw [eq_div_iff (by exact_mod_cast Rat.den_nz q)]
       exact_mod_cast Nat.div_mul_cancel (hD q List.mem_cons_self)
     have hterm : ((q.num * ((D / q.den : ℕ) : ℤ) : ℤ) : ℚ) = (D : ℚ) * q := by
       rw [Int.cast_mul, Int.cast_natCast, hcast_div, mul_div_assoc',
@@ -361,9 +346,8 @@ theorem coeffSqNorm_ofCoeffList_le (ns : List ℤ) :
   by_cases h0 : ofCoeffList ns = 0
   · simp only [h0, natDegree_zero, zero_add, Finset.range_one, Finset.sum_singleton, coeff_zero,
       Int.natAbs_zero, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, Nat.zero_le]
-  · have hne : ns ≠ [] := fun hnil => h0 (by rw [hnil, ofCoeffList_nil])
-    have := natDegree_ofCoeffList_le ns
-    have := List.length_pos_of_ne_nil hne
+  · have := natDegree_ofCoeffList_le ns
+    have := List.length_pos_of_ne_nil (l := ns) fun hnil => h0 (by rw [hnil, ofCoeffList_nil])
     exact (Finset.sum_le_sum_of_subset (Finset.range_mono (by omega))).trans_eq
       (Finset.sum_congr rfl fun i _ => by rw [coeff_ofCoeffList])
 
@@ -449,10 +433,7 @@ theorem dyadic_width_lt_root_sep {cs : List ℚ} (hsep : (ofCoeffList cs).Separa
     exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (coeffSqNorm_ofCoeffList_le res.2) _)
   have hmignotte_s : (3 : ℝ) ≤ |α - β| ^ 2 * (s : ℝ) :=
     hmignotte.trans (mul_le_mul_of_nonneg_left (by exact_mod_cast hs_ge) (sq_nonneg _))
-  have hs_pos : (0 : ℝ) < (s : ℝ) := by
-    by_contra hle
-    rw [le_antisymm (le_of_not_gt hle) (Nat.cast_nonneg _), mul_zero] at hmignotte_s
-    linarith
+  have hs_pos : (0 : ℝ) < (s : ℝ) := pos_of_mul_pos_right (by linarith) (sq_nonneg |α - β|)
   have hlt_nat : 4 * b ^ 2 * s < 3 * 4 ^ k := by
     change k = Nat.clog 4 (4 * b ^ 2 * s / 3 + 1) at hk_eq
     have := hk_eq ▸ Nat.le_pow_clog (by decide : 1 < 4) (4 * b ^ 2 * s / 3 + 1); omega

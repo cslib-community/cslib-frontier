@@ -114,14 +114,10 @@ theorem Feasible.mul_rowCost_le_of_le_two_mul {β n n' b_occ w_width M' : ℕ}
     (Nat.lt_clog_iff_pow_lt one_lt_two).mpr (by omega : 2 ^ 0 < n')
   have hlam_pos : 1 ≤ Nat.clog 2 n := hlam'_pos.trans (Nat.clog_mono_right 2 hn'_le)
   have hsqrt_le : Real.sqrt (Nat.clog 2 n) ≤ 2 * Real.sqrt (Nat.clog 2 n') := by
-    have hclog_le : (Nat.clog 2 n : ℝ) ≤ (2 : ℝ) ^ 2 * Nat.clog 2 n' := by
-      have hnat : (Nat.clog 2 n : ℝ) ≤ 2 * Nat.clog 2 n' := by
-        exact_mod_cast Nat.clog_two_le_two_mul_of_le_two_mul hn_le (by omega)
-      linarith [Nat.cast_nonneg (α := ℝ) (Nat.clog 2 n')]
-    calc Real.sqrt (Nat.clog 2 n)
-        ≤ Real.sqrt ((2 : ℝ) ^ 2 * Nat.clog 2 n') := Real.sqrt_le_sqrt hclog_le
-      _ = 2 * Real.sqrt (Nat.clog 2 n') := by
-          rw [Real.sqrt_mul (sq_nonneg 2), Real.sqrt_sq zero_le_two]
+    have hnat : (Nat.clog 2 n : ℝ) ≤ 2 * Nat.clog 2 n' :=
+      mod_cast Nat.clog_two_le_two_mul_of_le_two_mul hn_le (by omega)
+    rw [← Real.sqrt_sq zero_le_two, ← Real.sqrt_mul (sq_nonneg 2)]
+    exact Real.sqrt_le_sqrt (by linarith [Nat.cast_nonneg (α := ℝ) (Nat.clog 2 n')])
   have hnu_le : Nat.clog 2 (Nat.clog 2 n') ≤ Nat.clog 2 (Nat.clog 2 n) :=
     Nat.clog_mono_right 2 (Nat.clog_mono_right 2 hn'_le)
   have hsqrt'_pos : 0 < Real.sqrt (Nat.clog 2 n') := Real.sqrt_pos.mpr (by positivity)
@@ -153,15 +149,15 @@ private theorem two_mul_cube_le_two_pow_pred {m : ℕ} (hm : 14 ≤ m) :
   induction m, hm using Nat.le_induction with
   | base => norm_num
   | succ m hm ih =>
-    have hstep : (m + 1) ^ 3 ≤ 2 * m ^ 3 := by
-      obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hm
-      exact Nat.le.intro (by ring :
-        (14 + k + 1) ^ 3 + (k ^ 3 + 39 * k ^ 2 + 501 * k + 2113) = 2 * (14 + k) ^ 3)
-    have hpow : 2 ^ m = 2 * 2 ^ (m - 1) := by
-      conv_lhs => rw [show m = (m - 1) + 1 by omega, pow_succ']
-    calc 2 * (m + 1) ^ 3 ≤ 2 * (2 * m ^ 3) := Nat.mul_le_mul_left 2 hstep
-      _ ≤ 2 * 2 ^ (m - 1) := Nat.mul_le_mul_left 2 ih
-      _ = 2 ^ m := hpow.symm
+    obtain ⟨k, rfl⟩ := Nat.exists_eq_add_of_le hm
+    calc 2 * (14 + k + 1) ^ 3
+        ≤ 2 * (2 * (14 + k) ^ 3) :=
+          Nat.mul_le_mul_left 2 (Nat.le.intro
+            (by ring : (14 + k + 1) ^ 3 + (k ^ 3 + 39 * k ^ 2 + 501 * k + 2113) = _))
+      _ ≤ 2 * 2 ^ (14 + k - 1) := Nat.mul_le_mul_left 2 ih
+      _ = 2 ^ (14 + k + 1 - 1) := by
+          simp only [Nat.add_sub_cancel]
+          conv_rhs => rw [show 14 + k = (14 + k - 1) + 1 by omega, pow_succ']
 
 private theorem log_add_sixteen_bounds {n : ℕ} (hn : 16384 ≤ n) :
     14 ≤ Nat.clog 2 n ∧
@@ -175,28 +171,21 @@ private theorem log_add_sixteen_bounds {n : ℕ} (hn : 16384 ≤ n) :
   have hlam14 : 14 ≤ lam := (Nat.lt_clog_iff_pow_lt one_lt_two).mpr (by omega : 2 ^ 13 < n)
   have h2pow_lt : 2 ^ (lam - 1) < n :=
     (Nat.lt_clog_iff_pow_lt one_lt_two).mp (by change lam - 1 < lam; omega)
-  have hcube_le : 2 * lam ^ 3 ≤ n := (two_mul_cube_le_two_pow_pred hlam14).trans h2pow_lt.le
-  have hX9 : 9 < X := by
-    have hpow13 : (2 : ℝ) ^ (13 : ℕ) < (n : ℝ) + 16 := by
-      exact_mod_cast (by omega : 2 ^ 13 < n + 16)
-    have hlog_pow := Real.log_lt_log (by positivity) hpow13
-    rw [Real.log_pow] at hlog_pow
-    norm_num at hlog_pow
-    linarith [Real.log_two_gt_d9]
   have hX_pos : 0 < X := log_add_sixteen_pos n
-  have hL2 : 2 < L := by
-    rw [Real.lt_log_iff_exp_lt hX_pos]
-    have hexp2 : Real.exp 2 < 9 := by
-      rw [show (2 : ℝ) = 1 + 1 by norm_num, Real.exp_add]
-      nlinarith [Real.exp_one_lt_three, Real.exp_pos 1]
-    exact hexp2.trans hX9
+  have hX9 : 9 < X := by
+    have hlog_pow := Real.log_lt_log (by positivity)
+      (by exact_mod_cast (by omega : 2 ^ 13 < n + 16) : (2 : ℝ) ^ (13 : ℕ) < (n : ℝ) + 16)
+    rw [Real.log_pow] at hlog_pow; norm_num at hlog_pow
+    linarith [Real.log_two_gt_d9]
+  have hL2 : 2 < L := (Real.lt_log_iff_exp_lt hX_pos).mpr <| by
+    rw [show (2 : ℝ) = 1 + 1 by norm_num, Real.exp_add]
+    nlinarith [Real.exp_one_lt_three, Real.exp_pos 1]
   have hlam_r : (14 : ℝ) ≤ lam := Nat.cast_le.mpr hlam14
   have hX_le_lam : X ≤ (lam : ℝ) := by
     have hn_pow : (n : ℝ) + 16 ≤ (2 : ℝ) ^ (lam + 1) := by
-      have h1 : (n : ℝ) ≤ (2 : ℝ) ^ lam := by exact_mod_cast Nat.le_pow_clog one_lt_two n
-      have h2 : (16 : ℝ) ≤ n := by exact_mod_cast (by omega : 16 ≤ n)
       rw [pow_succ']
-      linarith
+      linarith [show (n : ℝ) ≤ (2 : ℝ) ^ lam by exact_mod_cast Nat.le_pow_clog one_lt_two n,
+        show (16 : ℝ) ≤ n by exact_mod_cast (by omega : 16 ≤ n)]
     have hlog : X ≤ ((lam : ℝ) + 1) * Real.log 2 := by
       simpa only [Real.log_pow, Nat.cast_add, Nat.cast_one] using
         Real.log_le_log (by positivity) hn_pow
@@ -208,28 +197,23 @@ private theorem log_add_sixteen_bounds {n : ℕ} (hn : 16384 ≤ n) :
       exact_mod_cast (by omega : 2 ^ (lam - 1) < n + 16)
     have hlog_lam : ((lam - 1 : ℕ) : ℝ) * Real.log 2 < X := by
       simpa only [Real.log_pow] using Real.log_lt_log (by positivity) hpow_r
-    have hlow : 0.69 * ((lam : ℝ) - 1) ≤ ((lam - 1 : ℕ) : ℝ) * Real.log 2 := by
-      rw [Nat.cast_sub (by omega : 1 ≤ lam), Nat.cast_one, mul_comm]
-      exact mul_le_mul_of_nonneg_left (by linarith [Real.log_two_gt_d9]) (by linarith)
-    linarith
+    rw [Nat.cast_sub (by omega : 1 ≤ lam), Nat.cast_one] at hlog_lam
+    linarith [mul_le_mul_of_nonneg_left Real.log_two_gt_d9.le (by linarith : (0 : ℝ) ≤ lam - 1)]
   have hnu_le_4L : (nu : ℝ) ≤ 4 * L := by
     have hnu4 : 4 ≤ nu := (Nat.lt_clog_iff_pow_lt one_lt_two).mpr (by omega : 2 ^ 3 < lam)
+    have hnu_r : (4 : ℝ) ≤ nu := Nat.cast_le.mpr hnu4
     have hpow_nu : (2 : ℝ) ^ (nu - 1) < 4 * X := by
       have hc : ((2 ^ (nu - 1) : ℕ) : ℝ) < (lam : ℝ) :=
         Nat.cast_lt.mpr ((Nat.lt_clog_iff_pow_lt one_lt_two).mp (by change nu - 1 < nu; omega))
       push_cast at hc
       exact hc.trans hlam_lt_4X
-    have hlog_nu : ((nu - 1 : ℕ) : ℝ) * Real.log 2 < 2 * Real.log 2 + L := by
-      have h1 := Real.log_lt_log (by positivity) hpow_nu
-      rw [Real.log_pow, Real.log_mul (by norm_num) hX_pos.ne',
-        show (4 : ℝ) = (2 : ℝ) ^ (2 : ℕ) by norm_num, Real.log_pow, Nat.cast_ofNat] at h1
-      exact h1
-    have hlow : 0.69 * ((nu : ℝ) - 1) ≤ ((nu - 1 : ℕ) : ℝ) * Real.log 2 := by
-      rw [Nat.cast_sub (by omega : 1 ≤ nu), Nat.cast_one, mul_comm]
-      have hnu_r : (4 : ℝ) ≤ nu := Nat.cast_le.mpr hnu4
-      exact mul_le_mul_of_nonneg_left (by linarith [Real.log_two_gt_d9]) (by linarith)
-    linarith [Real.log_two_lt_d9]
-  exact ⟨hlam14, hcube_le, hX_le_lam, hnu_le_4L⟩
+    have h1 := Real.log_lt_log (by positivity) hpow_nu
+    rw [Real.log_pow, Real.log_mul (by norm_num) hX_pos.ne',
+      show (4 : ℝ) = (2 : ℝ) ^ (2 : ℕ) by norm_num, Real.log_pow, Nat.cast_ofNat,
+      Nat.cast_sub (by omega : 1 ≤ nu), Nat.cast_one] at h1
+    linarith [mul_le_mul_of_nonneg_left Real.log_two_gt_d9.le (by linarith : (0 : ℝ) ≤ nu - 1),
+      Real.log_two_lt_d9]
+  exact ⟨hlam14, (two_mul_cube_le_two_pow_pred hlam14).trans h2pow_lt.le, hX_le_lam, hnu_le_4L⟩
 
 /-- **Explicit discrete-to-continuous scale bound:**
 Whenever `16384 ≤ n`,
@@ -266,11 +250,11 @@ theorem div_sqrt_clog_le_interpolationScale {n : ℕ} (hn : 16384 ≤ n) :
   have hsqrt_real_pos : 0 < Real.sqrt (lam : ℝ) :=
     Real.sqrt_pos.mpr (Nat.cast_pos.mpr (by omega))
   have hsqrt_le : Real.sqrt (lam : ℝ) ≤ 2 * (lam.sqrt : ℝ) := by
-    have h1 : Real.sqrt (lam : ℝ) ≤ (lam.sqrt : ℝ) + 1 := by
-      refine Real.sqrt_le_iff.mpr ⟨by positivity, ?_⟩
-      exact_mod_cast (show lam ≤ (lam.sqrt + 1) ^ 2 by
-        simpa only [sq] using (Nat.lt_succ_sqrt lam).le)
-    linarith [show (1 : ℝ) ≤ lam.sqrt from Nat.one_le_cast.mpr hsqrt_pos]
+    have hsq_lam : (lam : ℝ) ≤ ((lam.sqrt : ℝ) + 1) ^ 2 :=
+      mod_cast (by simpa only [sq] using (Nat.lt_succ_sqrt lam).le)
+    have h1 : Real.sqrt (lam : ℝ) ≤ (lam.sqrt : ℝ) + 1 :=
+      Real.sqrt_le_iff.mpr ⟨by positivity, hsq_lam⟩
+    linarith [Nat.one_le_cast (α := ℝ).mpr hsqrt_pos]
   have hdiv_le :
       ((n / lam.sqrt : ℕ) : ℝ) ≤ 2 * ((n : ℝ) * (nu : ℝ) ^ 2 / Real.sqrt (lam : ℝ)) := by
     refine Nat.cast_div_le.trans ?_
@@ -323,11 +307,9 @@ theorem two_mul_numNodes_mul_numGroups_le_interpolationScale {n n' : ℕ}
         Nat.mul_le_mul (Nat.mul_le_mul_left 2 hQ_le) hr_le
       _ = 2 * lam ^ 2 := by ring)
   have hsqrtX_pos : 0 < Real.sqrt X := Real.sqrt_pos.mpr (log_add_sixteen_pos n)
-  have hsqrtX_le_lam : Real.sqrt X ≤ (lam : ℝ) := by
-    have hsqrt_lam : Real.sqrt (lam : ℝ) ≤ (lam : ℝ) :=
-      Real.sqrt_le_iff.mpr ⟨Nat.cast_nonneg _,
-        le_self_pow₀ (by exact_mod_cast (by omega : 1 ≤ lam)) two_ne_zero⟩
-    exact (Real.sqrt_le_sqrt hX_le_lam).trans hsqrt_lam
+  have hsqrtX_le_lam : Real.sqrt X ≤ (lam : ℝ) :=
+    (Real.sqrt_le_sqrt hX_le_lam).trans <| Real.sqrt_le_iff.mpr
+      ⟨Nat.cast_nonneg _, le_self_pow₀ (mod_cast (by omega : 1 ≤ lam)) two_ne_zero⟩
   have hcube_r : 2 * (lam : ℝ) ^ 3 ≤ (n : ℝ) := by exact_mod_cast hcube_le
   have hL_sq1 : (1 : ℝ) ≤ L ^ 2 := one_le_pow₀ (one_lt_log_log_add_sixteen n).le
   unfold interpolationScale
@@ -399,7 +381,7 @@ theorem Feasible.branch_domainExaminationBound_le_two_pow_interpolationScale [Fi
   refine ⟨(hF.branch_domainExaminationBound_le (k := k) I D s hI hn_le).1, ?_⟩
   set N := Fintype.card ι
   have hpre_pow :
-      2 * (numNodes n' : ℝ) * (numGroups n' : ℝ) ≤ (2 : ℝ) ^ (2 * interpolationScale N) := by
+      2 * (numNodes n' : ℝ) * (numGroups n' : ℝ) ≤ (2 : ℝ) ^ (2 * interpolationScale N) :=
     calc 2 * (numNodes n' : ℝ) * (numGroups n' : ℝ)
         ≤ interpolationScale N := two_mul_numNodes_mul_numGroups_le_interpolationScale hn hn'_le
       _ ≤ Real.exp (interpolationScale N) :=
@@ -421,14 +403,12 @@ theorem Feasible.branch_domainExaminationBound_le_two_pow_interpolationScale [Fi
   set M_coeff : ℕ := k * (2 * c + 4) + 4
   have hexp_pow :
       Real.exp ((M_coeff : ℝ) * (n' : ℝ) * rowCost β n') ≤
-        (2 : ℝ) ^ ((65792 * M_coeff * (β + 3) : ℕ) * interpolationScale N) := by
-    refine (exp_le_two_rpow_two_mul
-      (by rw [mul_assoc]; exact mul_nonneg (Nat.cast_nonneg _) hrc_nonneg)).trans ?_
-    refine Real.rpow_le_rpow_of_exponent_le one_le_two ?_
-    calc 2 * ((M_coeff : ℝ) * (n' : ℝ) * rowCost β n')
-        = 2 * (M_coeff : ℝ) * ((n' : ℝ) * rowCost β n') := by ring
-      _ ≤ 2 * (M_coeff : ℝ) * (32896 * ((β : ℝ) + 3) * interpolationScale N) := by gcongr
-      _ = ((65792 * M_coeff * (β + 3) : ℕ) : ℝ) * interpolationScale N := by push_cast; ring
+        (2 : ℝ) ^ ((65792 * M_coeff * (β + 3) : ℕ) * interpolationScale N) :=
+    calc Real.exp ((M_coeff : ℝ) * (n' : ℝ) * rowCost β n')
+        ≤ (2 : ℝ) ^ (2 * ((M_coeff : ℝ) * (n' : ℝ) * rowCost β n')) :=
+          exp_le_two_rpow_two_mul (by rw [mul_assoc]; positivity)
+      _ ≤ (2 : ℝ) ^ ((65792 * M_coeff * (β + 3) : ℕ) * interpolationScale N) :=
+          Real.rpow_le_rpow_of_exponent_le one_le_two (by push_cast; nlinarith)
   calc 2 * (numNodes n' : ℝ) * (numGroups n' : ℝ) *
         Real.exp ((M_coeff : ℝ) * (n' : ℝ) * rowCost β n')
       ≤ (2 : ℝ) ^ (2 * interpolationScale N) *
@@ -655,19 +635,14 @@ theorem CNF.parityRowBranchExamBound_of_schedule [Fintype V] [DecidableEq V]
           (numNodes n') (numGroups n') (intervalStart (2 * β_B + 5) n')
           (rowBound (2 * β_B + 5) n') (tauRat n'))) :
     CNF.ParityRowBranchExamBound φ k β_B W b₀ rows e := by
-  have hn'_le : n' ≤ Fintype.card V := by
-    have heq :
-        #(univ \ heavyVars univ (univ : Finset (Fin rows.length))
-            (fun j => equationScope (φ.parityRowSystem rows j)) b₀) = n' := by
-      simpa only [Fintype.card_coe, Fintype.card_fin] using Fintype.card_congr e
-    rw [← heq]
-    exact card_le_univ _
-  refine ⟨⟨hn_le, hn'_le⟩, fun b => ?_, fun examSum hexam => ?_⟩
-  · obtain ⟨hF, ⟨D⟩⟩ := hfeas b
-    exact ⟨hF, D, fun s_active =>
-      CNF.branch_domainExaminationBound_parityRowSystem_le_two_pow_interpolationScale
-        rows hF D s_active hlen hn16384 hn_le hn'_le⟩
-  · exact sum_branchAssignments_le_two_pow_interpolationScale hn16384 hbranches examSum hexam
+  have hn'_le : n' ≤ Fintype.card V :=
+    Fintype.card_fin n' ▸ Fintype.card_congr e ▸ Fintype.card_coe _ ▸ card_le_univ _
+  refine ⟨⟨hn_le, hn'_le⟩, fun b => ?_,
+    sum_branchAssignments_le_two_pow_interpolationScale hn16384 hbranches⟩
+  obtain ⟨hF, ⟨D⟩⟩ := hfeas b
+  exact ⟨hF, D, fun s_active =>
+    CNF.branch_domainExaminationBound_parityRowSystem_le_two_pow_interpolationScale
+      rows hF D s_active hlen hn16384 hn_le hn'_le⟩
 
 /-- **End-to-end Section 6.3 schedule feasibility, `ReplacementDesign` existence, and
 `2 ^ (A * interpolationScale n)` examination bound for `CNF.parityRowSystem`**:
@@ -764,12 +739,10 @@ theorem CNF.exists_greedy_parityRowSystem_branch_schedule_and_examBound_of_le_cl
   intro D₀ P b₀
   obtain ⟨A₀, hlen0, hw0, hgreedy⟩ :=
     hgreedy_sched φ hk ((le_max_left _ _).trans hN₁) hB1 hB_le hm
-  refine ⟨A₀, hlen0, hw0, fun A γ h0 hA hγ => ?_⟩
-  obtain ⟨hcount, hstage⟩ := hgreedy A γ h0 hA hγ
-  refine ⟨hcount, fun i hi => ?_⟩
+  refine ⟨A₀, hlen0, hw0, fun A γ h0 hA hγ =>
+    (hgreedy A γ h0 hA hγ).imp_right fun hstage i hi => ?_⟩
   obtain ⟨hlen_i, hstage_e⟩ := hstage i hi
-  refine ⟨hlen_i, ?_⟩
-  intro S n' e
+  refine ⟨hlen_i, fun ⦃_⦄ e => ?_⟩
   obtain ⟨⟨hn_le, _⟩, hbranches, hfeas⟩ := hstage_e e
   exact CNF.parityRowBranchExamBound_of_schedule e hlen_i
     ((le_max_right _ _).trans hN₁) hn_le hbranches hfeas

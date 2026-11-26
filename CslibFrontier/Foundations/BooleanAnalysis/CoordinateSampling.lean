@@ -70,9 +70,8 @@ theorem conditionalSamplingRate_nonneg {p q : ℝ} (hp : 0 ≤ p) (hq : 0 ≤ q)
 
 /-- For `p ≥ 0` and `0 < q ≤ 1`, the conditional rate is at most one. -/
 theorem conditionalSamplingRate_le_one {p q : ℝ} (hp : 0 ≤ p) (hq : 0 < q) (hq' : q ≤ 1) :
-    conditionalSamplingRate p q ≤ 1 := by
-  apply (div_le_one (add_sub_mul_pos hp hq hq')).mpr
-  linarith
+    conditionalSamplingRate p q ≤ 1 :=
+  (div_le_one (add_sub_mul_pos hp hq hq')).mpr (by linarith)
 
 /-- For `p ≥ 0` and `0 < q ≤ 1`, the conditional rate is at most `p / q`. -/
 theorem conditionalSamplingRate_le_div {p q : ℝ} (hp : 0 ≤ p) (hq : 0 < q) (hq' : q ≤ 1) :
@@ -110,16 +109,11 @@ theorem bernoulliAverage_union_difference_subtype {ι : Type*} [Fintype ι] [Dec
     bernoulliAverage p (fun P => bernoulliAverage q (fun Q =>
       f (fun i => P i || Q i) (fun i => P i && !Q i))) =
       bernoulliAverage (p + q - p * q) (fun S => bernoulliAverage r (f S)) := by
-  change bernoulliAverage p (fun P => bernoulliAverage q (fun Q =>
-    (fun S R => f S (fun i => R i)) (fun i => P i || Q i)
-      (fun i => P i && !Q i))) = _
-  rw [bernoulliAverage_union_difference p q r hr (fun S R => f S (fun i => R i))]
+  refine (bernoulliAverage_union_difference p q r hr (fun S R => f S (fun i => R i))).trans ?_
   congr 1 with S : 1
-  have he (T : ι → Bool) : (fun i : {i // S i = true} => S i && T i) =
-      (fun i : {i // S i = true} => T i) := by
-    funext i
-    simp only [i.property, Bool.true_and]
-  simp_rw [he]
-  exact bernoulliAverage_restrict r S (f S)
+  have he (T : ι → Bool) :
+      (fun i : {i // S i = true} => S i && T i) = fun i : {i // S i = true} => T i :=
+    funext fun i => by simp only [i.property, Bool.true_and]
+  simpa only [he] using bernoulliAverage_restrict r S (f S)
 
 end Cslib.BitString

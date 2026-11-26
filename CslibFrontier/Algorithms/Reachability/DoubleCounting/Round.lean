@@ -95,8 +95,7 @@ private theorem predecessor_distance (hv : v ∉ round r s k) {u : α}
     (hu : u ∈ round r s k) (he : r u v) : distance r s u = k := by
   obtain ⟨hp, hle⟩ := distance_spec (mem_round.mp hu)
   by_contra hne
-  have hstep : RelatesInSteps r s v (distance r s u + 1) := hp.trans (.single he)
-  exact hv (mem_round.mpr ⟨_, by omega, hstep⟩)
+  exact hv (mem_round.mpr ⟨_, by omega, hp.trans (.single he)⟩)
 
 private theorem shortest_snoc (hv : v ∉ round r s k) {u : α}
     (hu : u ∈ round r s k) (he : r u v) {p : List α}
@@ -129,27 +128,23 @@ theorem existsUnique_shortest_iff_predecessor (hw : Passes r s k w) (hv : v ∈ 
     (hprev : ∃! t, Passes r s k t) :
     (∃! p : List α, p.IsChainFromTo r s v ∧ p.length = distance r s v + 1) ↔
       ∃! u, u ∈ round r s k ∧ r u v := by
-  have huniq := (existsUnique_passes_iff.mp hprev)
+  have huniq := existsUnique_passes_iff.mp hprev
   have hold := ((mem_frontier_iff hw).mp hv).2
   rw [distance_eq_succ_of_mem_frontier hw hv]
-  change (∃! p : List α, p.IsChainFromTo r s v ∧ p.length = k + 2) ↔ _
-  constructor
+  refine ⟨?_, ?_⟩
   · rintro ⟨p, hp, hpu⟩
-    obtain ⟨u, hu, he, hchain, hlen⟩ := exists_shortest_prefix hp hold
+    obtain ⟨u, hu, he, hchain, _⟩ := exists_shortest_prefix hp hold
     refine ⟨u, ⟨hu, he⟩, fun y hy => ?_⟩
     obtain ⟨q, hq, _⟩ := huniq y hy.1
-    have hq' := hpu (q ++ [v]) (shortest_snoc hold hy.1 hy.2 hq)
     have hdrop : q = p.dropLast := by
-      simpa using congrArg List.dropLast hq'
-    cases hdrop
-    exact hq.1.getLast_eq.symm.trans hchain.getLast_eq
+      simpa using congrArg List.dropLast (hpu (q ++ [v]) (shortest_snoc hold hy.1 hy.2 hq))
+    exact hq.1.getLast_eq.symm.trans (hdrop ▸ hchain.getLast_eq)
   · rintro ⟨u, ⟨hu, he⟩, huu⟩
     obtain ⟨p, hp, hpu⟩ := huniq u hu
     refine ⟨p ++ [v], shortest_snoc hold hu he hp, fun q hq => ?_⟩
     obtain ⟨y, hy, hye, hqchain, hqlen⟩ := exists_shortest_prefix hq hold
     obtain rfl : y = u := huu y ⟨hy, hye⟩
-    have hd := hpu q.dropLast ⟨hqchain, hqlen⟩
-    rw [← hd, ← hq.1.getLast_eq]
+    rw [← hpu q.dropLast ⟨hqchain, hqlen⟩, ← hq.1.getLast_eq]
     exact (List.dropLast_append_getLast hq.1.ne_nil).symm
 
 /-- A unique current transcript extends to a unique next-round transcript exactly when all

@@ -181,6 +181,45 @@ example {w k : ℕ} {c : Code .standard 4} {x : Data 4}
   wram_exec
   omega
 
+/-! ## Auto-discharge, witness retention, direct contracts, and seq peeling -/
+
+private def bumpParam (k : ℕ) : Code .standard 4 := ram[ out ← #k ]
+
+private theorem bumpParam_spec {w : ℕ} (k : ℕ) (x : Data 4) (hk : Fits w k) :
+    ∃ y, ExecWithin w (bumpParam k) x y 1 ∧ y.regs out = k := by
+  unfold bumpParam
+  wram_exec [hk]
+  wram_simp
+
+/-- Witness-preserving `wram_call` supplies `ExecWithin` to `regs_frame` automatically,
+including for a parameterized callee with a free `ℕ` constant. -/
+example {w : ℕ} (k v : ℕ) (x : Data 4) (hk : Fits w k) (hdest : x.regs dest = v) :
+    ∃ y, ExecWithin w (.seq (bumpParam k) (.op (.copy 2 3))) x y 2 ∧
+      y.regs out = k ∧ y.regs result = v := by
+  refine WP.exists_execWithin ?_
+  wram_call (bumpParam_spec k) [hk] with y hy
+  have hd : y.regs dest = v := by regs_frame
+  wram_exec *
+  wram_simp [hy, hd]
+
+/-- Direct `ExecWithin` contract without `with`, and `renamed` omitting explicit `hf`. -/
+example {w : ℕ} (x : Data 4) (h9 : Fits w 9) :
+    ∃ y, ExecWithin w caller x y 5 ∧ y.mem 9 = x.mem 3 ∧ y.regs dest = 9 := by
+  unfold caller
+  wram_exec [h9]
+  have h3 : Fits w 3 := h9.of_le (by omega)
+  wram_call readThird_spec renamed with y ⟨⟨hm, hv⟩, _⟩
+  wram_exec * [hv]
+  wram_simp * [hm]
+
+example {w : ℕ} (x : Data 4) (h3 : Fits w 3) (hv : x.regs dest = 42) :
+    WP w (.seq (bumpParam 3) (.op (.copy 0 3))) x (fun y t => t ≤ 2 ∧ y.regs 0 = 42) := by
+  have he : ExecWithin w (bumpParam 3) x (x.set out 3) 1 := by
+    unfold bumpParam; wram_exec [h3]
+  wram_call he
+  wram_exec *
+  wram_simp [hv]
+
 /-! ## Failure messages
 
 When no rule applies, `wram_call` names the goal and the contracts it accepts there, followed by

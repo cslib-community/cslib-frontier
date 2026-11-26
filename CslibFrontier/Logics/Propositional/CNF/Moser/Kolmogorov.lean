@@ -96,9 +96,8 @@ theorem length_description_le (k t L : ℕ) (x : ℕ → Bool) :
 
 /-- A program describes exactly the word it decodes to. -/
 theorem descriptionMethod_produces_iff {k L : ℕ} {p y : List Bool} :
-    (descriptionMethod φ k L).Produces p y ↔ decodeWord φ k L p = y := by
-  rw [eq_comm]
-  exact Computation.mem_pure_iff _ _
+    (descriptionMethod φ k L).Produces p y ↔ decodeWord φ k L p = y :=
+  (Computation.mem_pure_iff _ _).trans eq_comm
 
 /-- **Decoding.** If every clause shares a variable with fewer than `2 ^ L` other clauses, the
 description of a tape word `y` by a run that uses up its budget of `t` resamplings, with the tape
@@ -108,28 +107,24 @@ theorem decodeWord_description {k L : ℕ} (hφ : φ.IsExactDistinct k)
     (hy : y.length = n + t * k) (hex : Exhausts φ k t fun i => y.getD i false) :
     decodeWord φ k L (description φ k t L fun i => y.getD i false) = y := by
   set x : ℕ → Bool := fun i => y.getD i false
-  have hdrop : (description φ k t L x).drop n = log φ k t L x (fuel φ t) := by
-    rw [description, List.drop_left' (List.length_ofFn)]
+  have hdrop : (description φ k t L x).drop n = log φ k t L x (fuel φ t) :=
+    List.drop_left' List.length_ofFn
   have hassign : (fun v : Fin n => (description φ k t L x).getD v false) =
       (final φ k t x).assignment := by
     funext v
-    rw [description, List.getD_eq_getElem?_getD, List.getElem?_append_left (by simp),
-      List.getElem?_ofFn]
-    simp
+    simp [description, List.getD_eq_getElem?_getD, List.getElem?_append_left]
   have htrace : (replay φ L ⟨[], 0, []⟩ (log φ k t L x (fuel φ t))).trace.length = t := by
     have h := replay_log hL k t x (fuel φ t) []
     rw [List.append_nil, replay_nil] at h
-    rw [h]
-    exact length_trace_final_eq hex
-  refine List.ext_getElem ?_ fun i h₁ h₂ => ?_
-  · rw [hy, decodeWord, List.length_ofFn, hdrop, htrace]
-  · have hi : i < n + (run φ k t x (fuel φ t)).trace.length * k := by
-      change i < n + (final φ k t x).trace.length * k
-      rw [length_trace_final_eq hex, ← hy]
-      exact h₂
-    simp only [decodeWord, List.getElem_ofFn, hassign, hdrop, Fin.val_cast]
-    refine Eq.trans (decode_run hφ hL t x (fuel φ t) i hi) ?_
-    simp only [x, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h₂, Option.getD_some]
+    exact h ▸ length_trace_final_eq hex
+  refine List.ext_getElem (by rw [hy, decodeWord, List.length_ofFn, hdrop, htrace])
+    fun i _ h₂ => ?_
+  have hi : i < n + (run φ k t x (fuel φ t)).trace.length * k := by
+    change i < n + (final φ k t x).trace.length * k
+    rwa [length_trace_final_eq hex, ← hy]
+  simp only [decodeWord, List.getElem_ofFn, hassign, hdrop, Fin.val_cast]
+  exact (decode_run hφ hL t x (fuel φ t) i hi).trans
+    (by simp [x, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h₂])
 
 /-- The description of a tape word by a run that uses up its budget describes it. -/
 theorem descriptionMethod_produces {k L : ℕ} (hφ : φ.IsExactDistinct k)
@@ -162,8 +157,7 @@ theorem not_exhausts_of_length_sub_le_ecomplexity {k : ℕ} (hk : 3 ≤ k)
   have h := Nat.cast_le.1 (hc.trans (ecomplexity_le_of_exhausts hφ hdeg hy hex))
   have hk' : t * (k - 3 + 2) + t = t * k := by
     rw [← Nat.mul_succ]
-    congr 1
-    omega
+    exact congrArg (t * ·) (by omega)
   omega
 
 /-- **On a nearly incompressible tape the algorithm succeeds** [Fortnow2009]. If every clause of an

@@ -264,10 +264,7 @@ structure SolvesWaitFreeConsensus (π : Protocol P objs S V) : Prop where
 
 theorem step_of_not_active (π : Protocol P objs S V) {p : P} {c : Config P ObjState S V}
     (h : ¬ c.Active p) : π.step p c = c := by
-  simp only [Config.Active] at h
-  cases hdec : (c.proc p).decided with
-  | none => exact absurd hdec h
-  | some v => simp only [step, hdec]
+  cases hdec : (c.proc p).decided <;> simp_all [Config.Active, step]
 
 theorem step_of_active (π : Protocol P objs S V) {p : P} {c : Config P ObjState S V}
     (h : c.Active p) :
@@ -282,8 +279,7 @@ theorem step_of_active (π : Protocol P objs S V) {p : P} {c : Config P ObjState
             decided := π.decideVal p (c.proc p).state
               ((objs (π.target p (c.proc p).state)).step
                 (π.op p (c.proc p).state) (c.mem (π.target p (c.proc p).state))).2 } } := by
-  simp only [Config.Active] at h
-  simp only [step, h]
+  simp only [step, show (c.proc p).decided = none from h]
 
 @[simp]
 theorem step_proc_of_ne (π : Protocol P objs S V) {p q : P} (c : Config P ObjState S V)
@@ -308,22 +304,12 @@ theorem step_comm_of_ne_target (π : Protocol P objs S V) {p q : P} {c : Config 
     (hp : c.Active p) (hq : c.Active q) (hpq : p ≠ q)
     (htarget : π.target p (c.proc p).state ≠ π.target q (c.proc q).state) :
     π.step q (π.step p c) = π.step p (π.step q c) := by
-  have hqp : q ≠ p := hpq.symm
-  have hq' : (π.step p c).Active q := (π.active_step_of_ne hqp).mpr hq
-  have hp' : (π.step q c).Active p := (π.active_step_of_ne hpq).mpr hp
-  have hproc_q : (π.step p c).proc q = c.proc q := π.step_proc_of_ne c hqp
-  have hproc_p : (π.step q c).proc p = c.proc p := π.step_proc_of_ne c hpq
-  have hmem_q : (π.step p c).mem (π.target q (c.proc q).state) =
-      c.mem (π.target q (c.proc q).state) :=
-    π.step_mem_of_ne_target hp htarget.symm
-  have hmem_p : (π.step q c).mem (π.target p (c.proc p).state) =
-      c.mem (π.target p (c.proc p).state) :=
-    π.step_mem_of_ne_target hq htarget
-  rw [π.step_of_active hq', π.step_of_active hp', hproc_q, hproc_p, hmem_q, hmem_p,
+  rw [π.step_of_active ((π.active_step_of_ne hpq.symm).mpr hq),
+    π.step_of_active ((π.active_step_of_ne hpq).mpr hp),
+    π.step_proc_of_ne c hpq.symm, π.step_proc_of_ne c hpq,
+    π.step_mem_of_ne_target hp htarget.symm, π.step_mem_of_ne_target hq htarget,
     π.step_of_active hp, π.step_of_active hq]
-  refine Config.ext ?_ ?_
-  · exact Function.update_comm htarget _ _ c.mem
-  · exact Function.update_comm hpq _ _ c.proc
+  exact Config.ext (Function.update_comm htarget _ _ c.mem) (Function.update_comm hpq _ _ c.proc)
 
 /-- Decisions are write-once across single steps: once `p` decides `v`, every step preserves it. -/
 theorem procDecided_step (π : Protocol P objs S V) {p : P} (q : P) {c : Config P ObjState S V}
@@ -331,8 +317,7 @@ theorem procDecided_step (π : Protocol P objs S V) {p : P} (q : P) {c : Config 
     ((π.step q c).proc p).decided = some v := by
   by_cases hqp : p = q
   · subst hqp
-    have hna : ¬ c.Active p := by simp only [Config.Active, hd, reduceCtorEq, not_false_eq_true]
-    rw [π.step_of_not_active hna, hd]
+    rw [π.step_of_not_active (by simp [Config.Active, hd]), hd]
   · rw [π.step_proc_of_ne c hqp, hd]
 
 /-- Decisions are write-once across arbitrary reachable paths. -/
@@ -352,8 +337,7 @@ theorem reachable_initConfig (π : Protocol P objs S V) (inp : P → V) :
 
 theorem Reachable.trans {π : Protocol P objs S V} {inp : P → V} {c c' : Config P ObjState S V}
     (hr : π.Reachable inp c) (hc : π.lts.CanReach c c') : π.Reachable inp c' := by
-  obtain ⟨ps₁, h₁⟩ := hr
-  obtain ⟨ps₂, h₂⟩ := hc
+  rcases hr, hc with ⟨⟨ps₁, h₁⟩, ⟨ps₂, h₂⟩⟩
   exact ⟨ps₁ ++ ps₂, h₁.comp _ h₂⟩
 
 /-- Accessibility under `StepRel` propagates forward along any active multi-step path. -/
@@ -393,8 +377,7 @@ theorem canReach_run (π : Protocol P objs S V) (sched : List P) (c : Config P O
   induction sched generalizing c with
   | nil => exact LTS.CanReach.refl _ _
   | cons p sched ih =>
-    obtain ⟨ps₁, h₁⟩ := π.canReach_step p c
-    obtain ⟨ps₂, h₂⟩ := ih (π.step p c)
+    rcases π.canReach_step p c, ih (π.step p c) with ⟨⟨ps₁, h₁⟩, ⟨ps₂, h₂⟩⟩
     exact ⟨ps₁ ++ ps₂, h₁.comp _ h₂⟩
 
 theorem reachable_run (π : Protocol P objs S V) (inp : P → V) (sched : List P) :
@@ -418,8 +401,7 @@ def soloRun (π : Protocol P objs S V) (p : P) (c : Config P ObjState S V)
 theorem soloRun_of_not_active (π : Protocol P objs S V) (p : P)
     {c : Config P ObjState S V} (ha : Acc π.StepRel c) (h : ¬ c.Active p) :
     π.soloRun p c ha = c := by
-  rw [soloRun, WellFounded.fixF_eq]
-  simp only [h, ↓reduceDIte]
+  simp [soloRun, WellFounded.fixF_eq, h]
 
 theorem soloRun_of_active (π : Protocol P objs S V) (p : P)
     {c : Config P ObjState S V} (ha : Acc π.StepRel c) (h : c.Active p) :
@@ -442,12 +424,8 @@ theorem soloRun_not_active (π : Protocol P objs S V) (p : P)
 
 theorem exists_decided_soloRun (π : Protocol P objs S V) (p : P)
     {c : Config P ObjState S V} (ha : Acc π.StepRel c) :
-    ∃ v, ((π.soloRun p c ha).proc p).decided = some v := by
-  have hna := π.soloRun_not_active p ha
-  simp only [Config.Active] at hna
-  cases hdec : ((π.soloRun p c ha).proc p).decided with
-  | none => exact absurd hdec hna
-  | some v => exact ⟨v, rfl⟩
+    ∃ v, ((π.soloRun p c ha).proc p).decided = some v :=
+  Option.ne_none_iff_exists'.mp (π.soloRun_not_active p ha)
 
 theorem canReach_soloRun (π : Protocol P objs S V) (p : P)
     {c : Config P ObjState S V} (ha : Acc π.StepRel c) :
@@ -474,20 +452,14 @@ theorem soloRun_mem_proc_eq (π : Protocol P objs S V) (p : P)
   | intro c₁ ha₁ ih =>
     intro c₂ ha₂ hmem hproc
     by_cases h₁ : c₁.Active p
-    · have h₂ : c₂.Active p := by
-        simp only [Config.Active] at h₁ ⊢
-        rw [← hproc, h₁]
+    · have h₂ : c₂.Active p := by simpa only [Config.Active, ← hproc] using h₁
       rw [π.soloRun_of_active p (Acc.intro c₁ ha₁) h₁, π.soloRun_of_active p ha₂ h₂]
       apply ih (π.step p c₁) ⟨p, h₁, rfl⟩ (ha₂.inv ⟨p, h₂, rfl⟩)
-      · rw [π.step_of_active h₁, π.step_of_active h₂]
-        dsimp only
-        rw [hproc, hmem]
-      · rw [π.step_of_active h₁, π.step_of_active h₂]
-        dsimp only
-        rw [hproc, hmem, Function.update_self, Function.update_self]
-    · have h₂ : ¬ c₂.Active p := by
-        simp only [Config.Active] at h₁ ⊢
-        rwa [← hproc]
+      · simp only [π.step_of_active h₁, π.step_of_active h₂, hmem]
+        rw [hproc]
+      · simp only [π.step_of_active h₁, π.step_of_active h₂, Function.update_self, hmem]
+        rw [hproc]
+    · have h₂ : ¬ c₂.Active p := by simpa only [Config.Active, ← hproc] using h₁
       rw [π.soloRun_of_not_active p (Acc.intro c₁ ha₁) h₁, π.soloRun_of_not_active p ha₂ h₂]
       exact ⟨hmem, hproc⟩
 
@@ -497,9 +469,7 @@ def CanDecide (π : Protocol P objs S V) (c : Config P ObjState S V) (v : V) : P
 
 theorem CanDecide.of_canReach {π : Protocol P objs S V} {c₁ c₂ : Config P ObjState S V} {v : V}
     (hreach : π.lts.CanReach c₁ c₂) (hdec : π.CanDecide c₂ v) : π.CanDecide c₁ v := by
-  obtain ⟨c₃, h₂₃, hd⟩ := hdec
-  obtain ⟨ps₁, h₁⟩ := hreach
-  obtain ⟨ps₂, h₂⟩ := h₂₃
+  rcases hreach, hdec with ⟨⟨ps₁, h₁⟩, ⟨c₃, ⟨ps₂, h₂⟩, hd⟩⟩
   exact ⟨c₃, ⟨ps₁ ++ ps₂, h₁.comp _ h₂⟩, hd⟩
 
 /-- From every accessible configuration `c` and any process `p`, `p`'s solo execution reaches a
@@ -534,17 +504,24 @@ step leaving the set of bivalent configurations ([Herlihy1991], §3.1, pp. 131�
 def IsCritical (π : Protocol P objs S Bool) (c : Config P ObjState S Bool) : Prop :=
   π.IsBivalent c ∧ ∀ p, c.Active p → ¬ π.IsBivalent (π.step p c)
 
+/-- A decision reachable from a configuration that cannot reach `!b` is `b`. -/
+private theorem eq_of_canDecide_of_not {π : Protocol P objs S Bool}
+    {c : Config P ObjState S Bool} {b b' : Bool} (hb' : π.CanDecide c b')
+    (hnb : ¬ π.CanDecide c (!b)) : b' = b := by
+  cases b <;> cases b' <;> first | rfl | exact absurd hb' hnb
+
+/-- A bivalent configuration can reach either decision. -/
+private theorem IsBivalent.canDecide {π : Protocol P objs S Bool} {c : Config P ObjState S Bool}
+    (h : π.IsBivalent c) : ∀ b, π.CanDecide c b
+  | false => h.1
+  | true => h.2
+
 theorem IsUnivalent.of_canReach {π : Protocol P objs S Bool} (p : P)
     {c c' : Config P ObjState S Bool} {b : Bool} (ha : Acc π.StepRel c)
     (hu : π.IsUnivalent c b) (hreach : π.lts.CanReach c c') : π.IsUnivalent c' b := by
   refine ⟨?_, fun hnb => hu.2 (hnb.of_canReach hreach)⟩
   obtain ⟨b', hb'⟩ := π.exists_canDecide p (π.acc_of_canReach ha hreach)
-  have hcb' : π.CanDecide c b' := hb'.of_canReach hreach
-  cases b <;> cases b'
-  · exact hb'
-  · exact absurd hcb' hu.2
-  · exact absurd hcb' hu.2
-  · exact hb'
+  exact eq_of_canDecide_of_not (hb'.of_canReach hreach) hu.2 ▸ hb'
 
 /-- In any accessible configuration `c'` reachable from a `b`-univalent configuration `c`, running
 any process `w` solo decides `b`. -/
@@ -553,13 +530,9 @@ theorem IsUnivalent.soloRun_decided {π : Protocol P objs S Bool} (w : P)
     (hu : π.IsUnivalent c b) (hreach : π.lts.CanReach c c') (ha' : Acc π.StepRel c') :
     ((π.soloRun w c' ha').proc w).decided = some b := by
   obtain ⟨d, hd⟩ := π.exists_decided_soloRun w ha'
-  have hcan' : π.CanDecide c' d := ⟨π.soloRun w c' ha', π.canReach_soloRun w ha', w, hd⟩
-  have hcan : π.CanDecide c d := hcan'.of_canReach hreach
-  cases b <;> cases d
-  · exact hd
-  · exact absurd hcan hu.2
-  · exact absurd hcan hu.2
-  · exact hd
+  have hcan : π.CanDecide c d :=
+    CanDecide.of_canReach hreach ⟨π.soloRun w c' ha', π.canReach_soloRun w ha', w, hd⟩
+  exact eq_of_canDecide_of_not hcan hu.2 ▸ hd
 
 /-- **Solo-indistinguishability contradiction ([Herlihy1991], §3.1, pp. 131–133):** if `c₀` is
 reachable from an accessible `false`-univalent configuration `u₀`, `c₁` is reachable from an
@@ -574,11 +547,8 @@ theorem not_univalent_of_indistinguishable {π : Protocol P objs S Bool} (w : P)
     (hmem : c₀.mem = c₁.mem) (hproc : c₀.proc w = c₁.proc w) : False := by
   have ha₀' := π.acc_of_canReach ha₀ hr₀
   have ha₁' := π.acc_of_canReach ha₁ hr₁
-  have hd₀ := hu₀.soloRun_decided w hr₀ ha₀'
-  have hd₁ := hu₁.soloRun_decided w hr₁ ha₁'
-  have heq := (π.soloRun_mem_proc_eq w ha₀' ha₁' hmem hproc).2
-  rw [heq] at hd₀
-  exact Option.some.inj (hd₀.symm.trans hd₁) |> Bool.noConfusion
+  have hd := (π.soloRun_mem_proc_eq w ha₀' ha₁' hmem hproc).2 ▸ hu₀.soloRun_decided w hr₀ ha₀'
+  exact Bool.noConfusion (Option.some.inj (hd.symm.trans (hu₁.soloRun_decided w hr₁ ha₁')))
 
 /-- Under consensus agreement, every process in a reachable bivalent configuration is still active
 (undecided): a decided process's write-once decision would persist into a reachable configuration
@@ -590,33 +560,22 @@ theorem IsBivalent.active_all {π : Protocol P objs S Bool}
   cases hdec : (c.proc p).decided with
   | none => rfl
   | some b =>
-    exfalso
-    have hcan : π.CanDecide c (!b) := by
-      cases b with
-      | false => exact hbiv.2
-      | true => exact hbiv.1
-    obtain ⟨c', hreach, hd_not⟩ := hcan
-    have hd_b : c'.Decided b := ⟨p, π.procDecided_stable hdec hreach⟩
-    have heq := hcons.agreement inp c' (hr.trans hreach) b (!b) hd_b hd_not
-    exact Bool.not_ne_self b heq.symm
+    obtain ⟨c', hreach, hd_not⟩ := hbiv.canDecide (!b)
+    have heq := hcons.agreement inp c' (hr.trans hreach) b (!b)
+      ⟨p, π.procDecided_stable hdec hreach⟩ hd_not
+    exact absurd heq.symm (Bool.not_ne_self b)
 
 /-- For an adjacent input flip `inpK` along an enumeration `e : P ≃ Fin n`, unanimous `false` at
 `0` is `false`-valent and unanimous `true` at `n` cannot decide `false`. -/
 private theorem univalent_initConfig_const {π : Protocol P objs S Bool}
-    (hcons : π.SolvesWaitFreeConsensus) (p₀ : P) (b : Bool)
-    (hnot_biv : ¬ π.IsBivalent (π.initConfig fun _ => b)) :
+    (hcons : π.SolvesWaitFreeConsensus) (p₀ : P) (b : Bool) :
     π.IsUnivalent (π.initConfig fun _ => b) b := by
   have hno_opp : ¬ π.CanDecide (π.initConfig fun _ => b) (!b) := by
     rintro ⟨c, hreach, hd⟩
     obtain ⟨q, hq⟩ := hcons.validity (fun _ => b) c (!b) hreach hd
     exact Bool.not_ne_self b hq.symm
   obtain ⟨d, hd⟩ := π.exists_canDecide p₀ (hcons.waitFree fun _ => b)
-  refine ⟨?_, hno_opp⟩
-  cases b <;> cases d
-  · exact hd
-  · exact absurd hd hno_opp
-  · exact absurd hd hno_opp
-  · exact hd
+  exact ⟨eq_of_canDecide_of_not hd hno_opp ▸ hd, hno_opp⟩
 
 /-- **Initial bivalence (extending [Herlihy1991], §3.1, p. 131 from `|P| = 2` to
 `2 ≤ Fintype.card P` via single-input flips):** every wait-free binary consensus protocol over
@@ -631,28 +590,18 @@ theorem exists_bivalent_init [Fintype P] (π : Protocol P objs S Bool)
   have hn_pos : 0 < n := by omega
   let p₀ : P := e.symm ⟨0, hn_pos⟩
   let inpK : ℕ → P → Bool := fun k p => decide ((e p).val < k)
-  have hinp0 : inpK 0 = fun _ => false := by
-    funext p
-    simp only [inpK, Nat.not_lt_zero, decide_false]
-  have hinpN : inpK n = fun _ => true := by
-    funext p
-    simp only [inpK, (e p).isLt, decide_true]
   have hu0 : π.IsUnivalent (π.initConfig (inpK 0)) false := by
-    rw [hinp0]
-    exact univalent_initConfig_const hcons p₀ false (hnone _)
+    convert univalent_initConfig_const hcons p₀ false with p
+    simp only [inpK, Nat.not_lt_zero, decide_false]
   have huN : π.IsUnivalent (π.initConfig (inpK n)) true := by
-    rw [hinpN]
-    exact univalent_initConfig_const hcons p₀ true (hnone _)
+    convert univalent_initConfig_const hcons p₀ true with p
+    simp only [inpK, (e p).isLt, decide_true]
   have huniv : ∀ k, π.IsUnivalent (π.initConfig (inpK k)) false ∨
       π.IsUnivalent (π.initConfig (inpK k)) true := by
     intro k
     obtain ⟨b, hb⟩ := π.exists_canDecide p₀ (hcons.waitFree (inpK k))
-    have hnb := hnone (inpK k)
-    cases b with
-    | false =>
-      exact Or.inl ⟨hb, fun ht => hnb ⟨hb, ht⟩⟩
-    | true =>
-      exact Or.inr ⟨hb, fun hf => hnb ⟨hf, hb⟩⟩
+    cases b
+    exacts [Or.inl ⟨hb, fun ht => hnone _ ⟨hb, ht⟩⟩, Or.inr ⟨hb, fun hf => hnone _ ⟨hf, hb⟩⟩]
   have hex_switch : ∃ k < n, π.IsUnivalent (π.initConfig (inpK k)) false ∧
       π.IsUnivalent (π.initConfig (inpK (k + 1))) true := by
     by_contra hno_sw
@@ -661,31 +610,16 @@ theorem exists_bivalent_init [Fintype P] (π : Protocol P objs S Bool)
       intro k hk
       induction k with
       | zero => exact hu0
-      | succ k ih =>
-        have ih' := ih (Nat.le_of_succ_le hk)
-        rcases huniv (k + 1) with hf | ht
-        · exact hf
-        · exact absurd ht (hno_sw k (Nat.lt_of_succ_le hk) ih')
+      | succ k ih => exact (huniv (k + 1)).resolve_right (hno_sw k hk (ih (by omega)))
     exact (hall n le_rfl).2 huN.1
   obtain ⟨k, hk, huf, hut⟩ := hex_switch
   let q : P := e.symm ⟨k, hk⟩
-  have hex_other : ∃ p : P, p ≠ q := by
-    have hlt : 1 < Fintype.card P := by omega
-    exact Fintype.exists_ne_of_one_lt_card hlt q
-  obtain ⟨p, hpq⟩ := hex_other
-  have hval_ne : (e p).val ≠ k := by
-    intro heq
-    apply hpq
-    apply e.injective
-    ext
-    simp only [q, Equiv.apply_symm_apply, heq]
-  have hinp_eq : inpK k p = inpK (k + 1) p := by
-    simp only [inpK, decide_eq_decide]
-    omega
+  obtain ⟨p, hpq⟩ := Fintype.exists_ne_of_one_lt_card (by omega : 1 < Fintype.card P) q
+  have hval_ne : (e p).val ≠ k := fun heq => hpq (e.injective (Fin.ext (by simp [q, heq])))
   exact not_univalent_of_indistinguishable p
     (hcons.waitFree (inpK k)) (hcons.waitFree (inpK (k + 1))) huf hut
     (LTS.CanReach.refl _ _) (LTS.CanReach.refl _ _) rfl
-    (by simp only [initConfig, hinp_eq])
+    (congrArg (fun b => ProcState.mk (π.init p b) none) (decide_eq_decide.mpr (by omega)))
 
 /-- **Constructive critical configuration ([Herlihy1991], §3.1, pp. 131–132):** from any reachable
 bivalent configuration `c` of a wait-free binary consensus protocol, structural induction on
@@ -704,10 +638,9 @@ theorem exists_critical_config (π : Protocol P objs S Bool)
       π.IsUnivalent (π.step q cstar) true := by
   have hex_crit : ∀ {c₀}, Acc π.StepRel c₀ → π.IsBivalent c₀ →
       ∃ cstar, π.lts.CanReach c₀ cstar ∧ π.IsCritical cstar := by
-    intro c₀ ha
+    intro c₀ ha hbiv₀
     induction ha with
     | intro c₀ _ ih =>
-      intro hbiv₀
       by_cases hex : ∃ p, c₀.Active p ∧ π.IsBivalent (π.step p c₀)
       · obtain ⟨p, hact, hbiv'⟩ := hex
         obtain ⟨cstar, ⟨ps, hmtr⟩, hcrit⟩ := ih (π.step p c₀) ⟨p, hact, rfl⟩ hbiv'
@@ -719,30 +652,20 @@ theorem exists_critical_config (π : Protocol P objs S Bool)
   have hall_act : ∀ r, cstar.Active r := hcrit.1.active_all hcons hr_star
   have hex_step : ∀ b : Bool, ∃ p, π.IsUnivalent (π.step p cstar) b := by
     intro b
-    have hcan : π.CanDecide cstar b := by
-      cases b with
-      | false => exact hcrit.1.1
-      | true => exact hcrit.1.2
-    obtain ⟨cf, ⟨ps, hmtr⟩, hdf⟩ := hcan
+    obtain ⟨cf, ⟨ps, hmtr⟩, hdf⟩ := hcrit.1.canDecide b
     cases hmtr with
     | refl =>
       obtain ⟨r, hr_dec⟩ := hdf
-      have hact_r := hall_act r
-      simp only [Config.Active, hr_dec, reduceCtorEq] at hact_r
+      exact absurd ((hall_act r).symm.trans hr_dec) (by simp)
     | @stepL _ p u ps' _ htr hrest =>
       rw [← htr.2] at hrest
       have hcan_p : π.CanDecide (π.step p cstar) b := ⟨cf, ⟨ps', hrest⟩, hdf⟩
-      have hnbiv_p : ¬ π.IsBivalent (π.step p cstar) := hcrit.2 p htr.1
-      refine ⟨p, hcan_p, fun hcan_opp => hnbiv_p ?_⟩
-      cases b with
-      | false => exact ⟨hcan_p, hcan_opp⟩
-      | true => exact ⟨hcan_opp, hcan_p⟩
+      refine ⟨p, hcan_p, fun hcan_opp => hcrit.2 p htr.1 ?_⟩
+      cases b
+      exacts [⟨hcan_p, hcan_opp⟩, ⟨hcan_opp, hcan_p⟩]
   obtain ⟨p, hp⟩ := hex_step false
   obtain ⟨q, hq⟩ := hex_step true
-  have hpq : p ≠ q := by
-    rintro rfl
-    exact hq.2 hp.1
-  exact ⟨cstar, p, q, hreach, hcrit, hall_act, hpq, hp, hq⟩
+  exact ⟨cstar, p, q, hreach, hcrit, hall_act, fun h => hq.2 (h ▸ hp.1), hp, hq⟩
 
 end Bivalence
 

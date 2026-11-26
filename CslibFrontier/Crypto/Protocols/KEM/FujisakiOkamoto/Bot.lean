@@ -213,18 +213,12 @@ omit [DecidableEq M] in
 theorem eagerBotHandler_eq_romEagerHandler (S : Scheme PK SK M R CT K) (G : M → R)
     (H : Bool × M × CT → K) (pk : PK) (sk : SK) (cStar : CT) :
     S.eagerBotHandler G H pk sk cStar = romEagerHandler G H (S.botDecaps pk sk) cStar := by
-  have hd (c : CT) : PMF.pure (S.decapsBot G (fun mc => H (false, mc)) pk sk c) =
-      OracleComp.interpret
-        (OracleComp.sumHandler (fun m => PMF.pure (G m)) (fun x => PMF.pure (H x)))
-        (S.botDecaps pk sk c) := by
-    simp only [botDecaps, interpret_decapsBotM, OracleComp.interpret_query]
-    change _ = S.decapsBotM (m := PMF) (pure ∘ G) (pure ∘ fun mc => H (false, mc)) pk sk c
-    rw [decapsBotM_pure]
-    rfl
   funext q
   refine Eq.trans ?_ (dispatch_eq_interpret_romProgram _ _ cStar q)
-  simp only [eagerBotHandler, hd]
-  rfl
+  simp only [eagerBotHandler, botDecaps, interpret_decapsBotM, OracleComp.interpret_query,
+    OracleComp.sumHandler, Function.comp_def]
+  exact congrArg (ROQuery.dispatch _ _ · cStar q)
+    (funext fun c => (S.decapsBotM_pure (m := PMF) G (fun mc => H (false, mc)) pk sk c).symm)
 
 /-- `roIndCcaBotGame` is the ROM IND-CCA experiment of `FO^⊥`. -/
 @[simp] theorem romIndCcaExperiment_bot (S : Scheme PK SK M R CT K)
@@ -305,10 +299,8 @@ private theorem eagerBotHandler_coupledH (S : Scheme PK SK M R CT K) (G : M → 
       cases hd : decT S.pke G pk sk c with
       | none => rfl
       | some m' =>
-        have henc := encT_of_decT_eq_some hd
-        have hdec := dec_of_decT_eq_some hd
-        simp only [encT] at henc
-        simp [coupledH, henc, hdec]
+        have henc : S.pke.encDet pk m' (G m') = c := encT_of_decT_eq_some hd
+        simp [coupledH, henc, dec_of_decT_eq_some hd]
 
 /-- **Re-indexing the random oracle `H` of `FO^⊥`**: `eagerCoupledBotGame` and
 `eagerIndCcaBotGame` have the exact same output distribution. -/
@@ -320,15 +312,10 @@ theorem eagerCoupledBotGame_eq_eagerIndCcaBotGame [Fintype M] [Finite R] [Fintyp
     PMF.pure_bind]
   congr 1 with ⟨pk, sk⟩ : 1
   congr 1 with G : 1
-  symm
-  rw [S.bind_keyTable_coupledH G pk sk]
-  congr 1 with Hq : 1
-  congr 1 with Hraw : 1
-  congr 1 with mStar : 1
-  congr 1 with kRand : 1
-  congr 1
-  funext q
-  exact S.eagerBotHandler_coupledH G Hq Hraw pk sk _ q
+  rw [eq_comm, S.bind_keyTable_coupledH G pk sk]
+  have hfun (Hq : CT → K) (Hraw : Bool × M × CT → K) (cStar : CT) :=
+    funext (S.eagerBotHandler_coupledH G Hq Hraw pk sk cStar)
+  simp only [hfun]
 
 /-- Decapsulation filter of `cachedCoupledBotGame`: decrypts `c` under `sk` to `m'` and accepts
 only when `m'` is already cached in `gCache` with a coin `r'` satisfying `Enc(pk, m'; r') = c`. -/
@@ -406,14 +393,10 @@ private theorem closeTo_coupledCache_cachedCoupledBotHandler (S : Scheme PK SK M
             rw [RandomOracle.complete, PMF.pi_map_eval]
             simp only [SimState.coupledCache, RandomOracle.Cache.sum_inl, RandomOracle.ofList,
               hlook, Option.elim_none]
-          have hmeas : (RandomOracle.complete S.coupledDistribution st.coupledCache).toOuterMeasure
-              {T | S.pke.encDet pk m' (T (.inl (.inl m'))) = c} =
-              (ProbComp.eval S.pke.sampleCoins).toOuterMeasure {r | S.pke.encDet pk m' r = c} := by
-            rw [← hmap, PMF.toOuterMeasure_map_apply]
-            rfl
-          rw [hmeas]
-          exact (ENNReal.le_ofReal_iff_toReal_le (PMF.toOuterMeasure_ne_top _ _)
-            (by positivity)).mpr (hγ pk sk hpk m' c)
+          refine le_of_eq_of_le ?_ ((ENNReal.le_ofReal_iff_toReal_le
+            (PMF.toOuterMeasure_ne_top _ _) (by positivity)).mpr (hγ pk sk hpk m' c))
+          rw [← hmap, PMF.toOuterMeasure_map_apply]
+          rfl
 
 /-- Running a decapsulation-bounded program under the handler of `cachedCoupledBotGame` is within
 `d · 2^{-γ}` of completing the three caches into tables `G`, `Hraw` and `Hq` and running it under
@@ -458,7 +441,7 @@ theorem closeTo_cachedCoupledBotGame_eagerCoupledBotGame
     CloseTo (ProbComp.eval (S.cachedCoupledBotGame A b)) (S.eagerCoupledBotGame A b)
       (qD * ENNReal.ofReal ((2 : ℝ) ^ (-γ))) := by
   set ε := (qD : ℝ≥0∞) * ENNReal.ofReal ((2 : ℝ) ^ (-γ))
-  have hconst {α : Type} (μ : PMF α) : ∑' a, μ a * ε = ε := by
+  have hconst {α : Type} (μ : PMF α) : ∑' a, μ a * ε ≤ ε := by
     rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
   have hL : ProbComp.eval (S.cachedCoupledBotGame A b) =
       (ProbComp.eval S.pke.keyGen).bind fun keys =>
@@ -534,14 +517,10 @@ theorem closeTo_cachedCoupledBotGame_eagerCoupledBotGame
     unfold keyTable
     pmf_swap
   rw [hL, hR]
-  refine (CloseTo.bind_right_tsum _ (err := fun _ => ε) fun keys hkeys => ?_).mono
-    (le_of_eq (hconst _))
-  refine (CloseTo.bind_right_tsum _ (err := fun _ => ε) fun mStar _ => ?_).mono
-    (le_of_eq (hconst _))
-  refine (CloseTo.bind_right_tsum _ (err := fun _ => ε) fun rStar _ => ?_).mono
-    (le_of_eq (hconst _))
-  refine (CloseTo.bind_right_tsum _ (err := fun _ => ε) fun kRand _ => ?_).mono
-    (le_of_eq (hconst _))
+  refine (CloseTo.bind_right_tsum _ (err := fun _ => ε) fun keys hkeys => ?_).mono (hconst _)
+  refine (CloseTo.bind_right_tsum _ (err := fun _ => ε) fun mStar _ => ?_).mono (hconst _)
+  refine (CloseTo.bind_right_tsum _ (err := fun _ => ε) fun rStar _ => ?_).mono (hconst _)
+  refine (CloseTo.bind_right_tsum _ (err := fun _ => ε) fun kRand _ => ?_).mono (hconst _)
   set cStar := S.pke.encDet keys.1 mStar rStar
   have hd : OracleComp.IsCostBounded ROQuery.dCost
       (OracleComp.query (spec := ROResp (M := M) (CT := CT) R K)
@@ -647,8 +626,7 @@ private theorem simBotCheck_ens (S : Scheme PK SK M R CT K) (pk : PK) (mStar : M
     · subst hm
       simp only [↓reduceIte, Option.some.injEq] at hlook
       exact absurd (hlook ▸ henc).symm hc
-    · simp only [hm, ↓reduceIte] at hlook
-      exact ⟨m, r, hlook, henc⟩
+    · exact ⟨m, r, by simpa only [hm, ↓reduceIte] using hlook, henc⟩
   · rintro ⟨m, r, hlook, henc⟩
     have hm : m ≠ mStar := by
       rintro rfl
@@ -680,25 +658,16 @@ theorem advantage_eagerIndCcaBotGame_simBotGame_le [Fintype M] [Nonempty M] [Fin
       ((qG + qH + 1 : ℕ) : ℝ) * δ + qD * (2 : ℝ) ^ (-γ) := by
   have hclose := (S.closeTo_cachedCoupledBotGame_eagerCoupledBotGame A hq hγ b).symm
   rw [eagerCoupledBotGame_eq_eagerIndCcaBotGame] at hclose
-  have hadv₁ : (Game.advantage (S.eagerIndCcaBotGame A b)
-      (ProbComp.eval (S.cachedCoupledBotGame A b)) : ℝ≥0∞) ≤
-      (qD : ℝ≥0∞) * ENNReal.ofReal ((2 : ℝ) ^ (-γ)) :=
-    Game.closeTo_iff_coe_advantage_le.mp hclose
-  have htop : ((qD : ℝ≥0∞) * ENNReal.ofReal ((2 : ℝ) ^ (-γ))) ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) ENNReal.ofReal_ne_top
-  have h₁ : (Game.advantage (S.eagerIndCcaBotGame A b)
-      (ProbComp.eval (S.cachedCoupledBotGame A b)) : ℝ) ≤ qD * (2 : ℝ) ^ (-γ) := by
-    have hr := ENNReal.toReal_mono htop hadv₁
-    rwa [ENNReal.coe_toReal, ENNReal.toReal_mul, ENNReal.toReal_natCast,
-      ENNReal.toReal_ofReal (Real.rpow_nonneg (by norm_num) _)] at hr
+  have h₁ := ENNReal.toReal_mono
+    (ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) ENNReal.ofReal_ne_top)
+    (Game.closeTo_iff_coe_advantage_le.mp hclose)
+  rw [ENNReal.coe_toReal, ENNReal.toReal_mul, ENNReal.toReal_natCast,
+    ENNReal.toReal_ofReal (Real.rpow_nonneg (by norm_num) _)] at h₁
   have h₂ := S.advantage_cachedCoupledBotGame_simBotGame_le A hq.1 hδ b
-  calc (Game.advantage (S.eagerIndCcaBotGame A b) (ProbComp.eval (S.simBotGame A b)) : ℝ)
-      ≤ Game.advantage (S.eagerIndCcaBotGame A b) (ProbComp.eval (S.cachedCoupledBotGame A b)) +
-          Game.advantage (ProbComp.eval (S.cachedCoupledBotGame A b))
-            (ProbComp.eval (S.simBotGame A b)) := by
-        exact_mod_cast Game.advantage_triangle _ _ _
-    _ ≤ qD * (2 : ℝ) ^ (-γ) + ((qG + qH + 1 : ℕ) : ℝ) * δ := add_le_add h₁ h₂
-    _ = ((qG + qH + 1 : ℕ) : ℝ) * δ + qD * (2 : ℝ) ^ (-γ) := add_comm _ _
+  have h₃ := NNReal.coe_le_coe.mpr (Game.advantage_triangle (S.eagerIndCcaBotGame A b)
+    (ProbComp.eval (S.cachedCoupledBotGame A b)) (ProbComp.eval (S.simBotGame A b)))
+  rw [NNReal.coe_add] at h₃
+  linarith
 
 /-- The concrete ROM IND-CCA bound for `FO^⊥ = U^⊥ ∘ T` over one fixed scheme, the step at each
 parameter of `WordPKE.INDCPA.romINDCCABot`; it is not the bound of

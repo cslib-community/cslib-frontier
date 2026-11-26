@@ -99,11 +99,10 @@ theorem mem_of_mem_cyclePairsTail {v₀ u : V} :
 theorem mem_of_mem_cyclePairs {l : List V} {p : V × V} (h : p ∈ cyclePairs l) :
     p.1 ∈ l ∧ p.2 ∈ l := by
   match l, h with
-  | [v₀], h => simp only [cyclePairs, List.mem_singleton] at h; subst h; simp
+  | [v₀], h => simpa [cyclePairs, Prod.ext_iff] using h
   | v₀ :: v :: l, h =>
     have := mem_of_mem_cyclePairsTail h
-    simp only [List.mem_cons] at this ⊢
-    tauto
+    grind
 
 theorem getElem_mem_cyclePairsTail (v₀ : V) :
     ∀ (u : V) (l : List V) (j : ℕ) (hj : j + 1 < l.length),
@@ -143,9 +142,8 @@ theorem last_first_mem_cyclePairs {l : List V} (hl : 0 < l.length) :
   match l, hl with
   | [v₀], _ => simp [cyclePairs]
   | v₀ :: v :: l, _ =>
-    have := last_mem_cyclePairsTail v₀ v₀ (v :: l) (by simp)
-    simp only [List.getLast_eq_getElem, List.length_cons] at this
-    simpa [cyclePairs] using this
+    simpa [cyclePairs, List.getLast_eq_getElem] using
+      last_mem_cyclePairsTail v₀ v₀ (v :: l) (List.cons_ne_nil v l)
 
 /-! ### Reading a cycle cover -/
 
@@ -176,18 +174,12 @@ def cycleItems : List V → List (V × CycleLabel)
 
 theorem map_fst_cycleItemsTail (v₀ : V) :
     ∀ (u : V) (l : List V), (M.cycleItemsTail α β v₀ u l).map Prod.fst = l
-  | _, [] => rfl
-  | _, [_] => rfl
-  | _, v :: w :: l => by
-    simp only [cycleItemsTail, List.map_cons]
-    rw [map_fst_cycleItemsTail v₀ v (w :: l)]
+  | _, [] | _, [_] => rfl
+  | _, v :: w :: l => by simp [cycleItemsTail, map_fst_cycleItemsTail v₀ v (w :: l)]
 
 theorem map_fst_cycleItems : ∀ l : List V, (M.cycleItems α β l).map Prod.fst = l
-  | [] => rfl
-  | [_] => rfl
-  | v₀ :: v :: l => by
-    simp only [cycleItems, List.map_cons]
-    rw [map_fst_cycleItemsTail]
+  | [] | [_] => rfl
+  | _ :: _ :: _ => by simp [cycleItems, map_fst_cycleItemsTail]
 
 /-- The transition of the cycle automaton on the state (first bit, previous bit, `α` seen,
 `β` seen). -/
@@ -257,9 +249,7 @@ theorem runList_cycleItems (x : V → Bool) (l : List V) (f p s d : Bool) : ∃ 
   | [] => exact ⟨f, p, by simp [cycleItems, cyclePairs]⟩
   | [v₀] =>
     refine ⟨x v₀, x v₀, ?_⟩
-    simp only [cycleItems, cycleRun_cons, cycleRun_nil, cyclePairs, List.any_cons,
-      List.any_nil, cycleStep, pairLabel, pairHas, ite_true]
-    cases x v₀ <;> simp
+    cases hx : x v₀ <;> simp [cycleItems, cyclePairs, cycleStep, pairLabel, pairHas, hx]
   | v₀ :: v :: l =>
     obtain ⟨p', hp'⟩ := M.runList_cycleItemsTail α β x v₀ v₀ (v :: l) s d
     refine ⟨x v₀, p', ?_⟩
@@ -324,11 +314,8 @@ theorem IsCycleCover.eval_cycleProgram {blocks : List (List V)}
     (h : M.IsCycleCover α β blocks) (x : V → Bool) :
     (M.cycleProgram α β blocks).eval (x ∘ M.cycleOrder α β blocks) = true ↔
       M.HasColor x α ∧ ¬M.HasColor x β := by
-  have hα := h.any_pairHas_iff x (γ := α) (.inl rfl)
-  have hβ := h.any_pairHas_iff x (γ := β) (.inr rfl)
-  rw [CubicEdgeColoring.eval_cycleProgram]
-  cases h1 : (blocks.flatMap cyclePairs).any (M.pairHas α x) <;>
-    cases h2 : (blocks.flatMap cyclePairs).any (M.pairHas β x) <;> simp_all
+  simp only [CubicEdgeColoring.eval_cycleProgram, Bool.and_eq_true, Bool.not_eq_true',
+    Bool.eq_false_iff, ne_eq, h.any_pairHas_iff x (.inl rfl), h.any_pairHas_iff x (.inr rfl)]
 
 theorem map_fst_flatMap_cycleItems (blocks : List (List V)) :
     (blocks.flatMap (M.cycleItems α β)).map Prod.fst = blocks.flatten := by
@@ -343,8 +330,7 @@ def cycleStepMap (v : V) : V :=
 
 omit [DecidableEq V] in
 theorem cycleStepMap_injective : Function.Injective (M.cycleStepMap α β) := fun u v h => by
-  have := congrArg (fun w => M.mate α (M.mate β w)) h
-  simpa only [cycleStepMap, M.mate_mate] using this
+  simpa only [cycleStepMap, M.mate_mate] using congrArg (fun w => M.mate α (M.mate β w)) h
 
 omit [DecidableEq V] in
 theorem mate_mate_iterate (x : V) (i : ℕ) :
@@ -363,20 +349,13 @@ omit [DecidableEq V] in
 theorem iterate_ne_mate (k : ℕ) (y : V) : (M.cycleStepMap α β)^[k] y ≠ M.mate α y := by
   intro h
   set σ := M.cycleStepMap α β
-  have hrefl : ∀ m ≤ k, σ^[k - m] y = M.mate α (σ^[m] y) := by
-    intro m
+  have hrefl (m : ℕ) (hm : m ≤ k) : σ^[k - m] y = M.mate α (σ^[m] y) := by
     induction m with
-    | zero => intro; simpa using h
+    | zero => simpa using h
     | succ m ih =>
-      intro hm
-      have h1 := ih (by omega)
-      obtain ⟨j, hj⟩ : ∃ j, k - m = j + 1 := ⟨k - m - 1, by omega⟩
-      rw [hj] at h1
-      have h2 := congrArg (M.mate β) h1
-      rw [mate_iterate_succ, mate_mate_iterate] at h2
-      have h3 := congrArg (M.mate α) h2
-      rw [M.mate_mate] at h3
-      rw [show k - (m + 1) = j by omega, h3]
+      have h2 := congrArg (M.mate β) (ih (by omega))
+      rw [show k - m = (k - (m + 1)) + 1 by omega, mate_iterate_succ, mate_mate_iterate] at h2
+      rw [← h2, M.mate_mate]
   obtain ⟨m, rfl | rfl⟩ := Nat.even_or_odd' k
   · have := hrefl m (by omega)
     rw [show 2 * m - m = m by omega] at this
@@ -465,20 +444,20 @@ theorem nodup_cycleBlock (x : V) : (M.cycleBlock α β x).Nodup := by
   rw [cycleBlock, List.nodup_ofFn]
   rintro ⟨j, hj⟩ ⟨j', hj'⟩ h
   simp only at h
-  have hinj : ∀ i i', i < M.cyclePeriod α β x → i' < M.cyclePeriod α β x →
-      (M.cycleStepMap α β)^[i] x = (M.cycleStepMap α β)^[i'] x → i = i' :=
-    fun i i' hi hi' h => Function.iterate_injOn_Iio_minimalPeriod hi hi' h
   obtain ⟨i, rfl | rfl⟩ := Nat.even_or_odd' j <;> obtain ⟨i', rfl | rfl⟩ := Nat.even_or_odd' j'
   · rw [cycleVertex_even, cycleVertex_even] at h
-    exact Fin.ext (by simp only; rw [hinj i i' (by omega) (by omega) h])
+    exact Fin.ext (congrArg (2 * ·) (Function.iterate_injOn_Iio_minimalPeriod
+      (Nat.lt_of_mul_lt_mul_left hj) (Nat.lt_of_mul_lt_mul_left hj') h))
   · rw [cycleVertex_even, cycleVertex_odd] at h
     exact absurd h (iterate_ne_mate_iterate x i i')
   · rw [cycleVertex_odd, cycleVertex_even] at h
     exact absurd h.symm (iterate_ne_mate_iterate x i' i)
   · rw [cycleVertex_odd, cycleVertex_odd] at h
-    have h' := congrArg (M.mate α) h
-    rw [M.mate_mate, M.mate_mate] at h'
-    exact Fin.ext (by simp only; rw [hinj i i' (by omega) (by omega) h'])
+    have h' : (M.cycleStepMap α β)^[i] x = (M.cycleStepMap α β)^[i'] x := by
+      simpa [M.mate_mate] using congrArg (M.mate α) h
+    exact Fin.ext (congrArg (2 * · + 1) (Function.iterate_injOn_Iio_minimalPeriod
+      (Nat.lt_of_mul_lt_mul_left (Nat.lt_of_succ_lt hj))
+      (Nat.lt_of_mul_lt_mul_left (Nat.lt_of_succ_lt hj')) h'))
 
 omit [DecidableEq V] in
 /-- **Edges along the cycle.** Every edge of colour `α` or `β` at a vertex of the alternating
@@ -515,9 +494,7 @@ theorem cycleBlock_pairs (x : V) : ∀ v ∈ M.cycleBlock α β x, ∀ γ, (γ =
     · rcases Nat.eq_zero_or_pos i with rfl | hi
       · -- The edge of colour `β` at `x` closes the cycle.
         refine ⟨_, hclose, hβlast, .inr ?_⟩
-        have h' := congrArg (M.mate γ) hβlast
-        rw [M.mate_mate] at h'
-        rw [Function.iterate_zero_apply, h']
+        rw [Function.iterate_zero_apply, ← congrArg (M.mate γ) hβlast, M.mate_mate]
       · obtain ⟨i', rfl⟩ : ∃ i', i = i' + 1 := ⟨i - 1, by omega⟩
         refine ⟨_, hcons (2 * i' + 1) (by omega), ?_, .inr ?_⟩ <;>
           rw [show 2 * i' + 1 + 1 = 2 * (i' + 1) by omega, cycleVertex_odd, cycleVertex_even]
@@ -567,9 +544,7 @@ theorem exists_isCycleCover_of_closed : ∀ W : Finset V,
         exact (hclosed _ (hclosed _ ih').1).2
     have hbW : ∀ v ∈ b, v ∈ W := fun v hv => by
       obtain ⟨j, -, rfl⟩ := mem_cycleBlock.mp hv
-      unfold cycleVertex
-      split_ifs
-      exacts [hσ _, (hclosed _ (hσ _)).1]
+      by_cases hj : j % 2 = 0 <;> simp [cycleVertex, hj, hσ, fun i => (hclosed _ (hσ i)).1]
     set W' := W.filter (· ∉ b)
     have hlt : #W' < m := hW ▸ card_lt_card (filter_ssubset.mpr ⟨x, hx, by
       simpa using self_mem_cycleBlock x⟩)
@@ -584,18 +559,9 @@ theorem exists_isCycleCover_of_closed : ∀ W : Finset V,
       refine ⟨nodup_cycleBlock x, hnd, fun a ha a' ha' h => ?_⟩
       subst h
       exact (mem_filter.mp ((hmem a).mp ha')).2 ha
-    · rw [List.flatten_cons, List.mem_append, hmem]
-      constructor
-      · rintro (h | h)
-        exacts [hbW v h, (mem_filter.mp h).1]
-      · intro h
-        by_cases hvb : v ∈ b
-        · exact .inl hvb
-        · exact .inr (mem_filter.mpr ⟨h, hvb⟩)
-    · intro b' hb'
-      rcases List.mem_cons.mp hb' with rfl | hb'
-      · exact cycleBlock_pairs x
-      · exact hpairs b' hb'
+    · rw [List.flatten_cons, List.mem_append, hmem, mem_filter]
+      exact ⟨fun h => h.elim (hbW v) And.left, fun h => (em (v ∈ b)).imp_right (⟨h, ·⟩)⟩
+    · exact List.forall_mem_cons.2 ⟨cycleBlock_pairs x, hpairs⟩
 
 variable (M α β) in
 omit [DecidableEq V] in
@@ -641,9 +607,9 @@ theorem toFun_colorDNNF (α β : Fin 3) (x : V → Bool) :
 
 theorem isDecomposable_colorDNNF (α β : Fin 3) : (M.colorDNNF α β).IsDecomposable :=
   BranchingPrograms.ReadOnceProgram.isDecomposable_toNNF _ _
-    (BranchingPrograms.ReadOnceProgram.listOrder_injective (by
-      rw [map_fst_flatMap_cycleItems]
-      exact (M.exists_isCycleCover α β).choose_spec.nodup))
+    (BranchingPrograms.ReadOnceProgram.listOrder_injective
+      (map_fst_flatMap_cycleItems (M := M) (α := α) (β := β) _ ▸
+        (M.exists_isCycleCover α β).choose_spec.nodup))
 
 theorem isDeterministic_colorDNNF (α β : Fin 3) : (M.colorDNNF α β).IsDeterministic :=
   BranchingPrograms.ReadOnceProgram.isDeterministic_toNNF _ _
@@ -682,10 +648,7 @@ theorem isDeterministic_dDNNF : M.dDNNF.IsDeterministic := by
 
 theorem size_dDNNF : M.dDNNF.size ≤ 150 * Fintype.card V + 50 := by
   rw [dDNNF, NNF.size_disj, NNF.size_disj]
-  have := M.size_colorDNNF 0 1
-  have := M.size_colorDNNF 1 2
-  have := M.size_colorDNNF 2 0
-  omega
+  grind [M.size_colorDNNF 0 1, M.size_colorDNNF 1 2, M.size_colorDNNF 2 0]
 
 /-- **[ArenasBroadrickLiewVanDenBroeck2026, Proposition 5.1], upper bound.** For a cubic graph
 with a proper `3`-edge-colouring on `n` vertices, `f_G` is computed by a d-DNNF with at most

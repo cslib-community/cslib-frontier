@@ -93,22 +93,19 @@ theorem justesenRoundCallbackStart_inSpace :
   have hpred := snd E Predecessor.encState
   have hadj' := budget_comp_linear hadj hpair
   have hstate' := budget_comp_linear hstate hpair
-  have hctx := SourceRound.encState_context_budget hstate'
   have hcursor := Predecessor.encState_cursor_budget hpred
-  have htarget := SourceRound.encState_cursor_budget hstate'
-  have hphase := Predecessor.encState_memberPhase_budget hpred
-  have hmember := memberStart_budget hadj' hctx hcursor
-  have hedgeState := budget_comp_linear justesenSubdivisionEdgeStart_inSpace
-    (budget_prod hadj' (budget_prod hcursor htarget))
+  have hmember := memberStart_budget hadj' (SourceRound.encState_context_budget hstate') hcursor
   have hedge : ComputableInSpace
       (fun p : (JustesenSubdivisionContext × SourceRound.State) × Predecessor.State =>
         justesenRoundCallbackStart p.1.1 p.1.2.context (.edge p.2.cursor p.1.2.cursor))
       P encJustesenRoundCallbackState (fun p => (P p).length) :=
-    budget_comp_linear (of_inO (ComputableInO.inl _ _)) (budget_optionSome hedgeState)
-  have hoptional := budget_prod (budget_id (enc := E) (.refl _))
-    (SourceRound.encState_predecessor_budget hstate)
-  refine (budget_comp_linear (optionElimSnd houter (budget_ite hphase hmember hedge))
-    hoptional).of_enc_eq ?_
+    budget_comp_linear (of_inO (ComputableInO.inl _ _)) (budget_optionSome
+      (budget_comp_linear justesenSubdivisionEdgeStart_inSpace
+        (budget_prod hadj' (budget_prod hcursor (SourceRound.encState_cursor_budget hstate')))))
+  refine (budget_comp_linear (optionElimSnd houter
+      (budget_ite (Predecessor.encState_memberPhase_budget hpred) hmember hedge))
+    (budget_prod (budget_id (enc := E) (.refl _))
+      (SourceRound.encState_predecessor_budget hstate))).of_enc_eq ?_
   rintro ⟨adjacency, q⟩
   cases hp : q.predecessor with
   | none => simp only [hp, SourceRound.request, Option.elim_none]
@@ -164,13 +161,12 @@ theorem configurationJustesenRoundCallback_bounds
   | edge u v =>
     obtain ⟨hu, hv⟩ := hr
     obtain ⟨hclock, hlength⟩ := hedge w seed ⟨u, hu⟩ ⟨v, hv⟩
-    let start := some (justesenSubdivisionEdgeStart (adjacency, u, v))
-    have hhalt : ((justesenWeightedSubdivisionCallback ntm).withRejectingChoice.withInit
-        start).HaltsWithin w 3 := hclock
     refine ⟨fun bits hlen => ?_, fun bits => ?_⟩
     · simp only [M, entry, justesenRoundCallback, justesenRoundCallbackStart, replay_dispatch,
         Sum.map_inl]
-      exact HaltsWithin.mono _ _ hhalt (Nat.le_max_left _ _) bits hlen
+      exact HaltsWithin.mono ((justesenWeightedSubdivisionCallback ntm).withRejectingChoice.withInit
+        (some (justesenSubdivisionEdgeStart (adjacency, u, v)))) w hclock
+        (Nat.le_max_left _ _) bits hlen
     · simp only [M, entry, justesenRoundCallback, justesenRoundCallbackStart, replay_dispatch,
         Sum.map_inl, encJustesenRoundCallbackState, encSum_inl, List.length_cons]
       exact htag (Nat.le_max_left _ _) (hlength bits)

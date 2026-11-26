@@ -120,6 +120,13 @@ theorem IsCopositive.submatrix_equiv_iff {V W K : Type*} [Fintype V] [Fintype W]
     rw [dotProduct_submatrix_equiv M e x]
     exact hcop (x ∘ e.symm) fun v => hx (e.symm v)
 
+/-- A nonnegative vector whose entries sum to `1`, as a point of `Convexity.StdSimplex`. -/
+private noncomputable def stdSimplexOfFun {V K : Type*} [Fintype V] [Semiring K] [PartialOrder K]
+    (y : V → K) (hy0 : ∀ v, 0 ≤ y v) (hy1 : ∑ v, y v = 1) : Convexity.StdSimplex K V where
+  weights := Finsupp.equivFunOnFinite.symm y
+  nonneg := hy0
+  total := by rwa [Finsupp.sum_fintype _ _ fun _ => rfl]
+
 /-- Non-copositivity over a linearly ordered field is witnessed on the standard simplex
 `Convexity.StdSimplex K V`. -/
 theorem exists_nonneg_dotProduct_lt_zero_iff_stdSimplex {V K : Type*} [Fintype V]
@@ -127,36 +134,17 @@ theorem exists_nonneg_dotProduct_lt_zero_iff_stdSimplex {V K : Type*} [Fintype V
     (∃ x : V → K, (∀ v, 0 ≤ x v) ∧ x ⬝ᵥ (M *ᵥ x) < 0) ↔
       ∃ x : Convexity.StdSimplex K V,
         (x.weights : V → K) ⬝ᵥ (M *ᵥ (x.weights : V → K)) < 0 := by
-  constructor
-  · rintro ⟨x, hx0, hlt⟩
-    have hsum_ne : ∑ v, x v ≠ 0 := by
-      intro hsum0
-      have hxzero : ∀ v, x v = 0 := fun v =>
-        (Finset.sum_eq_zero_iff_of_nonneg fun w _ => hx0 w).1 hsum0 v (Finset.mem_univ v)
-      have hq0 : x ⬝ᵥ (M *ᵥ x) = 0 := by
-        simp only [dotProduct, hxzero, zero_mul, Finset.sum_const_zero]
-      linarith
-    have hsum_pos : 0 < ∑ v, x v :=
-      lt_of_le_of_ne (Finset.sum_nonneg fun v _ => hx0 v) hsum_ne.symm
-    let yVec : V → K := (∑ v, x v)⁻¹ • x
-    let y : Convexity.StdSimplex K V :=
-      { weights := Finsupp.equivFunOnFinite.symm yVec
-        nonneg := fun v => by
-          simpa only [Finsupp.coe_zero, Pi.zero_apply, Finsupp.coe_equivFunOnFinite_symm,
-            yVec, Pi.smul_apply, smul_eq_mul] using mul_nonneg (inv_nonneg.2 hsum_pos.le) (hx0 v)
-        total := by
-          rw [Finsupp.sum_fintype _ _ (fun _ => rfl)]
-          simp only [Finsupp.coe_equivFunOnFinite_symm, yVec, Pi.smul_apply, smul_eq_mul,
-            ← Finset.mul_sum]
-          exact inv_mul_cancel₀ hsum_pos.ne' }
-    refine ⟨y, ?_⟩
-    have hy_eq : (y.weights : V → K) = yVec := Finsupp.coe_equivFunOnFinite_symm yVec
-    rw [hy_eq, show yVec ⬝ᵥ (M *ᵥ yVec) = (∑ v, x v)⁻¹ ^ 2 * (x ⬝ᵥ (M *ᵥ x)) by
-      simp only [yVec, mulVec_smul, dotProduct_smul, smul_dotProduct, smul_eq_mul]
-      ring]
-    exact mul_neg_of_pos_of_neg (sq_pos_of_pos (inv_pos.2 hsum_pos)) hlt
-  · rintro ⟨x, hlt⟩
-    exact ⟨(x.weights : V → K), x.weights_nonneg, hlt⟩
+  refine ⟨fun ⟨x, hx0, hlt⟩ => ?_, fun ⟨x, hlt⟩ => ⟨_, x.weights_nonneg, hlt⟩⟩
+  have hsum_pos : 0 < ∑ v, x v := by
+    refine (Finset.sum_nonneg fun v _ => hx0 v).lt_of_ne fun hsum0 => hlt.not_ge ?_
+    simp [dotProduct, (Finset.sum_eq_zero_iff_of_nonneg fun w _ => hx0 w).1 hsum0.symm]
+  refine ⟨stdSimplexOfFun ((∑ v, x v)⁻¹ • x)
+    (fun v => mul_nonneg (inv_nonneg.2 hsum_pos.le) (hx0 v))
+    (by simp only [Pi.smul_apply, smul_eq_mul, ← Finset.mul_sum, inv_mul_cancel₀ hsum_pos.ne']),
+    ?_⟩
+  change ((∑ v, x v)⁻¹ • x) ⬝ᵥ (M *ᵥ ((∑ v, x v)⁻¹ • x)) < 0
+  rw [mulVec_smul, dotProduct_smul, smul_dotProduct, smul_eq_mul, smul_eq_mul, ← mul_assoc]
+  exact mul_neg_of_pos_of_neg (mul_pos (inv_pos.2 hsum_pos) (inv_pos.2 hsum_pos)) hlt
 
 /-- Scaling a quadratic form when `c * M₁ i j = M₂ i j` entrywise. -/
 theorem dotProduct_scale_of_eq {V K : Type*} [Fintype V] [CommSemiring K]
@@ -196,19 +184,10 @@ private theorem kkt_stationarity_on_simplex {n : ℕ} {M : Matrix (Fin n) (Fin n
     have ht₀_c : t₀ ≤ |a| / (2 * (|c| + 1)) := min_le_right _ _
     have hquad_nonneg : ∀ t : ℝ, -x i ≤ t → t ≤ x j → 0 ≤ 2 * t * a + t ^ 2 * c := by
       intro t hti htj
-      have hy0 : ∀ k, 0 ≤ (x + t • d) k := by
-        intro k
-        simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, d, Pi.sub_apply]
-        by_cases hki : k = i
-        · subst hki
-          rw [Pi.single_eq_same, Pi.single_eq_of_ne hij]
-          linarith
-        · by_cases hkj : k = j
-          · subst hkj
-            rw [Pi.single_eq_of_ne hki, Pi.single_eq_same]
-            linarith
-          · rw [Pi.single_eq_of_ne hki, Pi.single_eq_of_ne hkj]
-            simpa only [sub_self, mul_zero, add_zero] using hx0 k
+      have hy0 (k) : 0 ≤ (x + t • d) k := by
+        have := hx0 k
+        simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, d, Pi.sub_apply, Pi.single_apply]
+        split_ifs <;> subst_vars <;> first | exact absurd rfl hij | linarith
       have hy1 : ∑ k, (x + t • d) k = 1 := by
         simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, Finset.sum_add_distrib, hx1,
           ← Finset.mul_sum, d, Pi.sub_apply, Finset.sum_sub_distrib, Pi.single_apply,
@@ -248,156 +227,77 @@ private theorem exists_nat_dotProduct_lt_zero_of_isSymm_fin {n B : ℕ} {M : Mat
   obtain ⟨y₀, hy₀_neg⟩ :=
     (exists_nonneg_dotProduct_lt_zero_iff_stdSimplex (M.map (Int.cast : ℤ → ℝ))).1 hnc
   set MR : Matrix (Fin n) (Fin n) ℝ := M.map Int.cast
-  let f : Convexity.StdSimplex ℝ (Fin n) → ℝ := fun y =>
-    (y.weights : Fin n → ℝ) ⬝ᵥ (MR *ᵥ (y.weights : Fin n → ℝ))
   have hweights : Continuous fun y : Convexity.StdSimplex ℝ (Fin n) => (y.weights : Fin n → ℝ) :=
     continuous_pi fun i => Convexity.StdSimplex.continuous_weights_apply ℝ i
-  have hf : Continuous f := hweights.dotProduct (continuous_const.matrix_mulVec hweights)
-  obtain ⟨xStd, _, hxmin⟩ := isCompact_univ.exists_isMinOn ⟨y₀, Set.mem_univ _⟩ hf.continuousOn
+  obtain ⟨xStd, _, hxmin⟩ := isCompact_univ.exists_isMinOn ⟨y₀, Set.mem_univ _⟩
+    (hweights.dotProduct (continuous_const.matrix_mulVec hweights)).continuousOn
   let x : Fin n → ℝ := xStd.weights
   have hx0 : ∀ i, 0 ≤ x i := xStd.weights_nonneg
   have hx1 : ∑ i, x i = 1 := xStd.total_of_fintype
-  have hxmin_all : ∀ y : Fin n → ℝ, (∀ i, 0 ≤ y i) → ∑ i, y i = 1 →
-      x ⬝ᵥ (MR *ᵥ x) ≤ y ⬝ᵥ (MR *ᵥ y) := by
-    intro y hy0 hy1
-    let yStd : Convexity.StdSimplex ℝ (Fin n) :=
-      { weights := Finsupp.equivFunOnFinite.symm y
-        nonneg := fun i => by
-          simpa only [Finsupp.coe_zero, Pi.zero_apply, Finsupp.coe_equivFunOnFinite_symm] using
-            hy0 i
-        total := by
-          rw [Finsupp.sum_fintype _ _ (fun _ => rfl)]
-          simpa only [Finsupp.coe_equivFunOnFinite_symm] using hy1 }
-    have hy_eq : (yStd.weights : Fin n → ℝ) = y := Finsupp.coe_equivFunOnFinite_symm y
-    have hle : f xStd ≤ f yStd := hxmin (Set.mem_univ yStd)
-    dsimp only [f] at hle
-    rw [hy_eq] at hle
-    exact hle
-  have hSymmR : MR.IsSymm := by
-    ext i j
-    simp only [MR, transpose_apply, map_apply]
-    exact congrArg Int.cast (congrFun (congrFun hSymm i) j)
   set lam : ℝ := x ⬝ᵥ (MR *ᵥ x)
   have hlam_neg : lam < 0 := lt_of_le_of_lt (hxmin (Set.mem_univ y₀)) hy₀_neg
+  -- On the support `S` of the minimizer `x`, KKT stationarity makes `MR *ᵥ x` constant (`= lam`).
   let S : Finset (Fin n) := Finset.univ.filter fun i => 0 < x i
-  have hS_nonempty : S.Nonempty := by
-    by_contra hemp
-    rw [Finset.not_nonempty_iff_eq_empty] at hemp
-    have hxzero : ∀ i, x i = 0 := fun i => by
-      have hi : i ∉ S := hemp ▸ Finset.notMem_empty i
-      simp only [S, Finset.mem_filter, Finset.mem_univ, true_and, not_lt] at hi
-      exact le_antisymm hi (hx0 i)
-    have hsum0 : ∑ i, x i = 0 := Finset.sum_eq_zero fun i _ => hxzero i
-    linarith
-  obtain ⟨i₀, hi₀⟩ := hS_nonempty
-  have hi₀_pos : 0 < x i₀ := (Finset.mem_filter.1 hi₀).2
+  have hxout (i) (hi : i ∉ S) : x i = 0 := le_antisymm (by simpa [S] using hi) (hx0 i)
+  obtain ⟨i₀, -, hi₀_pos⟩ :=
+    Finset.exists_lt_of_sum_lt (s := Finset.univ) (f := fun _ => (0 : ℝ)) (g := x) (by simp [hx1])
   have hconst : ∀ i ∈ S, (MR *ᵥ x) i = (MR *ᵥ x) i₀ := fun i hi =>
-    kkt_stationarity_on_simplex hSymmR hx0 hx1 hxmin_all (Finset.mem_filter.1 hi).2 hi₀_pos
+    kkt_stationarity_on_simplex (hSymm.map _) hx0 hx1
+      (fun y hy0 hy1 => hxmin (Set.mem_univ (stdSimplexOfFun y hy0 hy1)))
+      (Finset.mem_filter.1 hi).2 hi₀_pos
   have hlam_eq : (MR *ᵥ x) i₀ = lam := by
-    have hxout : ∀ i, i ∉ S → x i = 0 := fun i hi => by
-      simp only [S, Finset.mem_filter, Finset.mem_univ, true_and, not_lt] at hi
-      exact le_antisymm hi (hx0 i)
-    have hdot : x ⬝ᵥ (MR *ᵥ x) = ∑ i ∈ S, x i * (MR *ᵥ x) i := by
-      rw [dotProduct, ← Finset.sum_subset (Finset.subset_univ S)]
-      intro i _ hi
-      rw [hxout i hi, zero_mul]
-    have hdot2 : ∑ i ∈ S, x i * (MR *ᵥ x) i = (∑ i ∈ S, x i) * (MR *ᵥ x) i₀ := by
-      rw [Finset.sum_mul]
-      exact Finset.sum_congr rfl fun i hi => by rw [hconst i hi]
-    have hxS : ∑ i ∈ S, x i = 1 := by
-      rw [← hx1]
-      exact Finset.sum_subset (Finset.subset_univ S) fun i _ hi => hxout i hi
-    dsimp only [lam]
-    rw [hdot, hdot2, hxS, one_mul]
-  have hMR_S : ∀ i ∈ S, (MR *ᵥ x) i = lam := fun i hi => (hconst i hi).trans hlam_eq
+    have hterm (i) : x i * (MR *ᵥ x) i = x i * (MR *ᵥ x) i₀ := by
+      by_cases hi : i ∈ S
+      · rw [hconst i hi]
+      · rw [hxout i hi, zero_mul, zero_mul]
+    simp only [lam, dotProduct, hterm, ← Finset.sum_mul, hx1, one_mul]
+  -- Rescale `x` on `S` to a nonnegative solution of `MS z = -1` and round it to integers.
   let MS : Matrix S S ℤ := Matrix.of fun i j => M i.1 j.1
-  let b : S → ℤ := fun _ => -1
   let B' : ℕ := max B 1
   have hMS_le : ∀ i j : S, |MS i j| ≤ (B' : ℤ) := fun i j =>
     (hB i.1 j.1).trans (by exact_mod_cast le_max_left B 1)
-  have hb_le : ∀ i : S, |b i| ≤ (B' : ℤ) := fun i => by
-    dsimp only [b]
-    norm_num
-    exact_mod_cast le_max_right B 1
+  have hb_le : ∀ _ : S, |(-1 : ℤ)| ≤ (B' : ℤ) := fun _ => by simp [B']
   let z : S → ℝ := fun j => (-lam)⁻¹ * x j.1
   have hz_nonneg : 0 ≤ z := fun j =>
     mul_nonneg (inv_nonneg.2 (neg_pos.2 hlam_neg).le) (hx0 j.1)
-  have hMSz : MS.map (Int.cast : ℤ → ℝ) *ᵥ z = fun i => (b i : ℝ) := by
+  have hMSz : MS.map (Int.cast : ℤ → ℝ) *ᵥ z = fun _ => ((-1 : ℤ) : ℝ) := by
     ext i
-    simp only [mulVec, dotProduct, map_apply, MS, of_apply, z, b, Int.cast_neg, Int.cast_one]
-    have hsum_eq : ∑ j : S, (M i.1 j.1 : ℝ) * ((-lam)⁻¹ * x j.1) =
-        (-lam)⁻¹ * ∑ j : S, (M i.1 j.1 : ℝ) * x j.1 := by
-      rw [Finset.mul_sum]
-      exact Finset.sum_congr rfl fun j _ => by ring
-    have hxS_sum : ∑ j : S, (M i.1 j.1 : ℝ) * x j.1 = (MR *ᵥ x) i.1 := by
-      rw [← Finset.sum_subtype S (fun _ => Iff.rfl) fun j => (M i.1 j : ℝ) * x j]
-      simp only [mulVec, dotProduct, MR, map_apply]
-      refine Finset.sum_subset (Finset.subset_univ S) fun j _ hj => ?_
-      simp only [S, Finset.mem_filter, Finset.mem_univ, true_and, not_lt] at hj
-      rw [le_antisymm hj (hx0 j), mul_zero]
-    rw [hsum_eq, hxS_sum, hMR_S i.1 i.2]
-    have hlam_ne : lam ≠ 0 := hlam_neg.ne
-    field_simp [hlam_ne]
+    have hxS_sum : ∑ j : S, (M i.1 j.1 : ℝ) * x j.1 = (MR *ᵥ x) i.1 :=
+      (Finset.sum_coe_sort S fun j => (M i.1 j : ℝ) * x j).trans
+        (Finset.sum_subset (Finset.subset_univ S) fun j _ hj => by rw [hxout j hj, mul_zero])
+    simp only [mulVec, dotProduct, map_apply, MS, of_apply, z, mul_left_comm _ (-lam)⁻¹,
+      ← Finset.mul_sum, Int.cast_neg, Int.cast_one]
+    rw [hxS_sum, (hconst i.1 i.2).trans hlam_eq]
+    field_simp [hlam_neg.ne]
   obtain ⟨d, pS, hd_pos, hpS_nonneg, hAp, _, hpS_le⟩ :=
     Matrix.exists_int_nonneg_mulVec_eq (K := ℝ) hMS_le hb_le hz_nonneg hMSz
   let p : Fin n → ℕ := fun i => if hi : i ∈ S then (pS ⟨i, hi⟩).toNat else 0
-  have hcard : Fintype.card S ≤ n := by
-    rw [Fintype.card_coe]
-    exact (S.card_le_univ).trans_eq (Fintype.card_fin n)
-  have hbound_nat :
-      Nat.factorial (Fintype.card S) * (Fintype.card S * B' ^ 2 + 1) ^ Fintype.card S ≤
-        Nat.factorial n * (n * B' ^ 2 + 1) ^ n := by
-    refine Nat.mul_le_mul (Nat.factorial_le hcard) ?_
-    have hbase : Fintype.card S * B' ^ 2 + 1 ≤ n * B' ^ 2 + 1 :=
-      Nat.add_le_add_right (Nat.mul_le_mul_right (B' ^ 2) hcard) 1
-    exact (Nat.pow_le_pow_left hbase _).trans (Nat.pow_le_pow_right (Nat.succ_pos _) hcard)
+  have hcard : Fintype.card S ≤ n := by simpa using S.card_le_univ
   refine ⟨p, fun i => ?_, ?_⟩
   · dsimp only [p]
     split_ifs with hi
-    · have hleZ : pS ⟨i, hi⟩ ≤ (Nat.factorial n * (n * B' ^ 2 + 1) ^ n : ℕ) :=
-        (hpS_le ⟨i, hi⟩).trans (Int.ofNat_le.2 hbound_nat)
-      exact Int.toNat_le.2 hleZ
+    · refine Int.toNat_le.2 ((hpS_le ⟨i, hi⟩).trans (Int.ofNat_le.2 ?_))
+      have hbase : Fintype.card S * B' ^ 2 + 1 ≤ n * B' ^ 2 + 1 := by gcongr
+      exact Nat.mul_le_mul (Nat.factorial_le hcard) ((Nat.pow_le_pow_left hbase _).trans
+        (Nat.pow_le_pow_right (Nat.succ_pos _) hcard))
     · exact Nat.zero_le _
-  · have hp_out : ∀ i : Fin n, i ∉ S → (p i : ℤ) = 0 := fun i hi => by
-      dsimp only [p]
-      split_ifs
-      rfl
-    have hp_in : ∀ i : S, (p i.1 : ℤ) = pS i := fun i => by
-      have hi := i.2
-      dsimp only [p]
-      split_ifs
-      exact Int.toNat_of_nonneg (hpS_nonneg i)
-    have hquad_S : (fun i => (p i : ℤ)) ⬝ᵥ (M *ᵥ fun i => (p i : ℤ)) =
-        ∑ i : S, pS i * (MS *ᵥ pS) i := by
-      simp only [dotProduct, mulVec]
-      rw [← Finset.sum_subset (Finset.subset_univ S) fun i _ hi => by rw [hp_out i hi, zero_mul]]
-      rw [Finset.sum_subtype S (fun _ => Iff.rfl)
-        fun i => (p i : ℤ) * ∑ j : Fin n, M i j * (p j : ℤ)]
-      refine Finset.sum_congr rfl fun i _ => ?_
-      rw [hp_in i]
-      congr 1
-      rw [← Finset.sum_subset (Finset.subset_univ S) fun j _ hj => by rw [hp_out j hj, mul_zero]]
-      rw [Finset.sum_subtype S (fun _ => Iff.rfl)
-        fun j => M i.1 j * (p j : ℤ)]
-      refine Finset.sum_congr rfl fun j _ => by simp only [MS, of_apply, hp_in j]
-    have hMSp_eq : ∀ i : S, (MS *ᵥ pS) i = -d := fun i => by
-      have hi := congrFun hAp i
-      simpa only [Pi.smul_apply, smul_eq_mul, b, mul_neg, mul_one] using hi
-    have hquad_eq : (fun i => (p i : ℤ)) ⬝ᵥ (M *ᵥ fun i => (p i : ℤ)) =
-        -d * ∑ i : S, pS i := by
-      rw [hquad_S, Finset.mul_sum]
-      exact Finset.sum_congr rfl fun i _ => by rw [hMSp_eq i]; ring
+  · have hp (i : S) : (p i : ℤ) = pS i := by
+      simp only [p, i.2, dite_true, Subtype.coe_eta, Int.toNat_of_nonneg (hpS_nonneg i)]
+    have hsum (f : Fin n → ℤ) : ∑ j, f j * (p j : ℤ) = ∑ j : S, f j * pS j := by
+      rw [← Finset.sum_subset (Finset.subset_univ S) fun j _ hj => by simp [p, hj],
+        ← Finset.sum_coe_sort S]
+      simp only [hp]
+    have hMp (i : S) : (M *ᵥ fun j => (p j : ℤ)) i = -d := by
+      simpa [mulVec, dotProduct, hsum, MS] using congrFun hAp i
     have hpS_sum_pos : 0 < ∑ i : S, pS i := by
-      by_contra hle
-      have hsum0 : ∑ i : S, pS i = 0 :=
-        le_antisymm (not_lt.1 hle) (Finset.sum_nonneg fun i _ => hpS_nonneg i)
-      have hpS_zero : ∀ i : S, pS i = 0 := fun i =>
-        (Finset.sum_eq_zero_iff_of_nonneg fun j _ => hpS_nonneg j).1 hsum0 i (Finset.mem_univ i)
-      have hi₀S : S := ⟨i₀, hi₀⟩
-      have hcontra := hMSp_eq hi₀S
-      simp only [mulVec, dotProduct, hpS_zero, mul_zero, Finset.sum_const_zero] at hcontra
-      linarith
-    rw [hquad_eq]
+      refine (Finset.sum_nonneg fun i _ => hpS_nonneg i).lt_of_ne fun h0 => ?_
+      have hz := (Finset.sum_eq_zero_iff_of_nonneg fun i _ => hpS_nonneg i).1 h0.symm
+      have := hMp ⟨i₀, by simpa [S] using hi₀_pos⟩
+      simp only [mulVec, dotProduct, hsum, hz, Finset.mem_univ, mul_zero,
+        Finset.sum_const_zero] at this
+      omega
+    rw [dotProduct_comm, dotProduct, hsum]
+    simp only [hMp, ← Finset.mul_sum]
     exact mul_neg_of_neg_of_pos (neg_lt_zero.2 hd_pos) hpS_sum_pos
 
 /-- If a symmetric integer matrix `M` has a nonnegative real vector with negative quadratic form,
@@ -444,11 +344,10 @@ theorem isCopositive_int_real_iff_nat {V : Type*} [Fintype V] {M : Matrix V V �
     exact not_lt.1 fun hn => not_le_of_gt (Int.cast_lt_zero (R := ℝ).2 hn) hreal
   · intro hnat
     by_contra hnc
-    let B : ℕ := Finset.univ.sup fun p : V × V => (M p.1 p.2).natAbs
-    have hB : ∀ i j, |M i j| ≤ (B : ℤ) := fun i j => by
-      rw [← Int.natCast_natAbs (M i j)]
-      exact Int.ofNat_le.2 (Finset.le_sup (f := fun p : V × V => (M p.1 p.2).natAbs)
-        (Finset.mem_univ (i, j)))
+    have hB (i j) : |M i j| ≤ ((Finset.univ.sup fun p : V × V => (M p.1 p.2).natAbs : ℕ) : ℤ) := by
+      rw [← Int.natCast_natAbs]
+      exact_mod_cast Finset.le_sup (f := fun p : V × V => (M p.1 p.2).natAbs)
+        (Finset.mem_univ (i, j))
     obtain ⟨p, _, hp_neg⟩ := exists_nat_dotProduct_lt_zero_of_isSymm hSymm hB hnc
     exact (not_lt_of_ge (hnat p)) hp_neg
 
@@ -476,12 +375,9 @@ private theorem exists_rat_clearDenom {V : Type*} [Finite V] (M : Matrix V V ℚ
     have hdvd : (M i j).den ∣ d :=
       Finset.dvd_prod_of_mem (fun p : V × V => (M p.1 p.2).den) (Finset.mem_univ (i, j))
     simpa only [M_Z, of_apply] using Rat.clearDenom_entry hdvd
-  let B : ℕ := Finset.univ.sup fun p : V × V => (M_Z p.1 p.2).natAbs
-  have hB : ∀ i j, |M_Z i j| ≤ (B : ℤ) := fun i j => by
-    rw [← Int.natCast_natAbs (M_Z i j)]
-    exact Int.ofNat_le.2 (Finset.le_sup (f := fun p : V × V => (M_Z p.1 p.2).natAbs)
-      (Finset.mem_univ (i, j)))
-  exact ⟨d, B, M_Z, hd, hMZ, hB⟩
+  refine ⟨d, Finset.univ.sup fun p : V × V => (M_Z p.1 p.2).natAbs, M_Z, hd, hMZ, fun i j => ?_⟩
+  rw [← Int.natCast_natAbs]
+  exact_mod_cast Finset.le_sup (f := fun p : V × V => (M_Z p.1 p.2).natAbs) (Finset.mem_univ (i, j))
 
 private theorem exists_nat_dotProduct_lt_zero_of_rat_real {V : Type*} [Fintype V] {d B : ℕ}
     {M : Matrix V V ℚ} {M_Z : Matrix V V ℤ}

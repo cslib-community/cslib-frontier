@@ -15,6 +15,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.WindowedP
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.WindowedInit
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.DivConq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
+import CslibFrontier.Tactic.Degree
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -105,19 +107,9 @@ lemma length_eProb (a : Prob) : (eProb a).length =
 /-- The test for base problems, in linear time. -/
 lemma isBase_inO : ComputableInO simDC.isBase eProb encBool (fun a => (eProb a).length)
     (fun a => (eProb a).length) :=
-  (((ComputableInDegree.unary_isZero.comp ComputableInDegree.unary_pred).mono
-    (d' := 1) (e' := 1)).inO_one.comp_linear prob_n).of_enc_eq fun a =>
-    congrArg encBool (decide_eq_decide.mpr (by dsimp only; omega))
-
-/-- `Option.toList` on symbols, in linear time. -/
-lemma toList_inO : ComputableInO Option.toList eSym (encList encUnary)
-    (fun o => (eSym o).length) (fun o => (eSym o).length) :=
-  ((((ComputableInDegree.isSome encUnary).inO_one).ite
-    ((ComputableInDegree.snoc encUnary).inO_one.comp_linear
-      ((const []).prod (ComputableInDegree.getD (enc₁ := encUnary) 0).inO_one))
-    (const [])).mono 4 (fun o => by dsimp only [eSym]; split_ifs <;> omega)
-      (fun o => by dsimp only [eSym]; split_ifs <;> omega)).of_enc_eq
-    fun o => by cases o <;> rfl
+  ((by degree : ComputableInDegree (fun n : ℕ => decide (n - 1 = 0))
+    encUnary encBool 1 0).inO_one.comp_linear prob_n).of_enc_eq fun a =>
+      congrArg encBool (decide_eq_decide.mpr (by dsimp only; omega))
 
 lemma length_dw_le (a : Prob) : (encPair eDesc eWin (a.1, a.2.2)).length ≤ (eProb a).length := by
   simp only [length_encPair]; omega
@@ -128,18 +120,17 @@ def Tb (a : Prob) : ℕ := ((eProb a).length + 1) ^ 3
 /-- Base problems: no step, or one windowed step. -/
 lemma base_inO : ComputableInO simDC.base eProb eSol Tb Tb := by
   have hstep := wstep_inO.comp (prob_d.prod prob_w)
-  have hlive := hstep.fst'.prod (toList_inO.comp_linear hstep.snd')
+  have hlive := hstep.fst'.prod hstep.snd'.optionToList'
   have hidle := prob_w.prod (const (encMid := encList encUnary) [])
-  refine ((((ComputableInDegree.unary_isZero.inO_one.comp_linear prob_n).ite hidle
-    hlive).mono 8 (fun a => ?_) (fun a => ?_)).of_enc_eq fun a => ?_)
+  refine ((((by degree : ComputableInDegree (fun n : ℕ => decide (n = 0))
+    encUnary encBool 1 0).inO_one.comp_linear prob_n).ite hidle
+    hlive).mono 8 (fun a => ?_) (fun a => ?_)).of_enc_eq fun a => ?_
   all_goals
     have h₁ := length_dw_le a
     have h₂ : (eProb a).length + 1 ≤ ((eProb a).length + 1) ^ 3 := Nat.le_self_pow (by omega) _
-    have h₃ : ((encPair eDesc eWin (a.1, a.2.2)).length + 1) ^ 3 ≤ ((eProb a).length + 1) ^ 3 :=
-      Nat.pow_le_pow_left (by omega) 3
+    have h₃ := Nat.pow_le_pow_left (Nat.add_le_add_right h₁ 1) 3
     simp only [Function.comp_apply, Tb]
-  · split_ifs <;> omega
-  · split_ifs <;> omega
+  iterate 2 · split_ifs <;> omega
   · simp only [simDC, baseSol]
     split_ifs <;> simp_all
 
@@ -195,17 +186,16 @@ lemma mid_inO :
           (eWin (restore (firstHalf n) w w₁')).length := by
       simp only [length_encPair, encUnary_apply, List.length_replicate]; omega
     have h₃ := length_restore_tapes_le (firstHalf n) w w₁'
-    have h₄ := Nat.mul_le_mul (Nat.add_le_add_right h₃ 1) (Nat.add_le_add_right h₂ 1)
-    have h₅ := Nat.mul_le_mul_left (w.2.length + 1) (Nat.add_le_add_right h₁ 1)
+    have h₄ : ((restore (firstHalf n) w w₁').2.length + 1) *
+        ((encPair encUnary eWin (n / 2, restore (firstHalf n) w w₁')).length + 1) ≤
+        Tm ((d, n, w), w₁', o₁) :=
+      Nat.mul_le_mul (Nat.add_le_add_right h₃ 1) (Nat.add_le_add_right h₂ 1)
+    have h₅ : (w.2.length + 1) * ((encPair encUnary (encPair eWin eWin)
+        (firstHalf n, w, w₁')).length + 1) ≤ Tm ((d, n, w), w₁', o₁) :=
+      (Nat.mul_le_mul_left _ (Nat.add_le_add_right h₁ 1)).trans (Nat.mul_le_mul_left _ (by omega))
     have h₆ : (encPair eProb eSol ((d, n, w), w₁', o₁)).length +
         (eWin (restore (firstHalf n) w w₁')).length + 1 ≤ Tm ((d, n, w), w₁', o₁) :=
       Nat.le_mul_of_pos_left _ (by omega)
-    have h₇ : (w.2.length + 1) * ((encPair eProb eSol ((d, n, w), w₁', o₁)).length + 1) ≤
-        Tm ((d, n, w), w₁', o₁) := Nat.mul_le_mul_left _ (by omega)
-    have h₈ : ((restore (firstHalf n) w w₁').2.length + 1) *
-        ((encPair encUnary eWin (n / 2, restore (firstHalf n) w w₁')).length + 1) ≤
-        Tm ((d, n, w), w₁', o₁) := by
-      unfold Tm; exact h₄
     simp only [Function.comp_apply] at *
     omega
 
@@ -220,8 +210,7 @@ lemma join_inO : ComputableInO simDC.join (encPair eSaved eSol) eSol Tj Tj := by
   have hw2 := (fst eWin (encList encUnary)).comp_linear (snd eSaved eSol)
   have ho2 := (snd eWin (encList encUnary)).comp_linear (snd eSaved eSol)
   have hres := restore_inO.comp (hr.prod (hs.fst'.prod hw2))
-  have happ := (ComputableInDegree.listAppend encUnary).inO_one.comp_linear
-    (hs.snd'.prod ho2)
+  have happ := hs.snd'.listAppend' ho2
   refine ((hres.prod happ).mono 8 (fun q => ?_) (fun q => ?_)).of_enc_eq fun q => rfl
   all_goals
     obtain ⟨⟨r, w₁, o₁⟩, w₂', o₂⟩ := q
@@ -261,11 +250,8 @@ lemma winBound_node (D B n : ℕ) :
     winBound D B 1 (4 * n + 1) + 1 ≤ 65 * ((D + 1) * (B + 1) * (n + 1)) ∧
       D + n + n * (2 * D + 1) ≤ winBound D B 1 (4 * n + 1) := by
   unfold winBound
-  constructor
-  · nlinarith [Nat.zero_le (D * B * n), Nat.zero_le (D * B), Nat.zero_le (D * n),
-      Nat.zero_le (B * n)]
-  · nlinarith [Nat.zero_le (D * B * n), Nat.zero_le (D * B), Nat.zero_le (D * n),
-      Nat.zero_le (B * n)]
+  constructor <;> nlinarith [Nat.zero_le (D * B * n), Nat.zero_le (D * B), Nat.zero_le (D * n),
+    Nat.zero_le (B * n)]
 
 lemma winBound_base (D B : ℕ) : winBound D B 1 5 ≤ 76 * ((D + 1) * (B + 1)) := by
   unfold winBound
@@ -276,9 +262,7 @@ lemma le_sq_X (D B : ℕ) : (D + 1) * (B + 1) ≤ (D + B + 2) ^ 2 := by
 
 lemma simDC_base_eq {d : Desc} {n : ℕ} (hn : n ≤ 1) (w : Win) :
     simDC.base (d, n, w) = sim d n w := by
-  rcases Nat.le_one_iff_eq_zero_or_eq_one.mp hn with rfl | rfl
-  · simp [simDC, baseSol, sim]
-  · simp [simDC, baseSol, sim]
+  rcases Nat.le_one_iff_eq_zero_or_eq_one.mp hn with rfl | rfl <;> simp [simDC, baseSol, sim]
 
 /-- The cost of a base problem, within `costA`. -/
 lemma baseCost_le {d : Desc} {B n : ℕ} {w : Win} (hDB : descLen d ≤ B) (hn : n ≤ 1)
@@ -346,28 +330,23 @@ lemma nodeCost_le {d : Desc} {B n : ℕ} {w : Win} (hDB : descLen d ≤ B)
       n * (2 * descLen d + 1) := by rw [← Nat.add_mul, hfh]
   generalize winBound (descLen d) B 1 (4 * n + 1) = Z at *
   -- the sizes of the values
-  have hA : (eProb (d, n, w)).length ≤ 5 * Z + 2 := by rw [length_eProb]; dsimp only; omega
+  have hA : (eProb (d, n, w)).length ≤ 5 * Z + 2 := by simp only [length_eProb]; omega
   have hLp : (eProb (simDC.left (d, n, w))).length ≤ 5 * Z + 2 := by
     change (eProb (d, firstHalf n, extract (firstHalf n) w)).length ≤ _
-    rw [length_eProb]; dsimp only; unfold firstHalf at sL ⊢; omega
-  have hB₁ : (eSol b₁).length ≤ 3 * Z + 1 := by
-    rw [length_encPair (enc₁ := eWin) (enc₂ := encList encUnary)]; omega
+    simp only [length_eProb, firstHalf] at sL ⊢; omega
+  have hB₁ : (eSol b₁).length ≤ 3 * Z + 1 := by rw [length_encPair (enc₁ := eWin)]; omega
   have hMp : (eProb (simDC.mid ((d, n, w), b₁)).1).length ≤ 5 * Z + 2 := by
     change (eProb (d, n / 2, extract (n / 2) w₁)).length ≤ _
-    rw [length_eProb]; dsimp only; omega
+    simp only [length_eProb]; omega
   have hS : (eSaved (simDC.mid ((d, n, w), b₁)).2).length ≤ 4 * Z + 2 := by
     change (eSaved (n / 2, w₁, b₁.2)).length ≤ _
-    rw [length_encPair (enc₁ := encUnary) (enc₂ := encPair eWin (encList encUnary)),
-      length_encPair (enc₁ := eWin) (enc₂ := encList encUnary)]
-    simp only [encUnary_apply, List.length_replicate]
-    omega
-  have hB₂ : (eSol b₂).length ≤ 3 * Z + 1 := by
-    rw [length_encPair (enc₁ := eWin) (enc₂ := encList encUnary)]; omega
+    rw [length_encPair (enc₁ := encUnary), length_encPair (enc₁ := eWin)]
+    simp only [encUnary_apply, List.length_replicate]; omega
+  have hB₂ : (eSol b₂).length ≤ 3 * Z + 1 := by rw [length_encPair (enc₁ := eWin)]; omega
   have hJs : (eSol (simDC.join ((simDC.mid ((d, n, w), b₁)).2, b₂))).length ≤ 3 * Z + 1 := by
     change (eSol (restore (n / 2) w₁ b₂.1, b₁.2 ++ b₂.2)).length ≤ _
     rw [length_encPair (enc₁ := eWin) (enc₂ := encList encUnary)]
-    simp only [encList_append, List.length_append]
-    omega
+    simp only [encList_append, List.length_append]; omega
   -- the products
   have hk := hw.tapes
   have hk₁ := iw₁.tapes
@@ -384,30 +363,20 @@ lemma nodeCost_le {d : Desc} {B n : ℕ} {w : Win} (hDB : descLen d ≤ B)
     rw [length_encPair (enc₁ := eSaved) (enc₂ := eSol)]; dsimp only; omega
   have hZP : Z + 1 ≤ (descLen d + 2) * (Z + 1) := Nat.le_mul_of_pos_left _ (by omega)
   have hX3 : (descLen d + 2) * ((descLen d + 1) * (B + 1)) ≤ (descLen d + B + 2) ^ 6 :=
-    calc _ ≤ (descLen d + B + 2) * ((descLen d + B + 2) * (descLen d + B + 2)) :=
-          Nat.mul_le_mul (by omega) (Nat.mul_le_mul (by omega) (by omega))
-      _ = (descLen d + B + 2) ^ 3 := by ring
+    calc _ ≤ (descLen d + B + 2) ^ 3 := by rw [pow_three]; gcongr <;> omega
       _ ≤ _ := Nat.pow_le_pow_right (by omega) (by omega)
-  have hfin : 100 * ((descLen d + 2) * (Z + 1)) ≤ costA (descLen d) B * (n + 1) :=
-    calc 100 * ((descLen d + 2) * (Z + 1))
-        ≤ 100 * ((descLen d + 2) * (65 * ((descLen d + 1) * (B + 1) * (n + 1)))) :=
-          Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ hZ)
-      _ = 6500 * ((descLen d + 2) * ((descLen d + 1) * (B + 1)) * (n + 1)) := by ring
-      _ ≤ 6500 * ((descLen d + B + 2) ^ 6 * (n + 1)) :=
-          Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hX3)
-      _ ≤ costA (descLen d) B * (n + 1) := by
-          unfold costA
-          rw [Nat.mul_assoc]
-          exact Nat.mul_le_mul_right _ (by norm_num)
+  have hfin : 100 * ((descLen d + 2) * (Z + 1)) ≤ costA (descLen d) B * (n + 1) := by
+    unfold costA
+    linarith [Nat.mul_le_mul_left (descLen d + 2) hZ, Nat.mul_le_mul_right (n + 1) hX3,
+      Nat.zero_le ((descLen d + B + 2) ^ 6 * (n + 1))]
   unfold nodeCost
   omega
 
 lemma eval_base {d : Desc} {B n : ℕ} {w : Win} (hDB : descLen d ≤ B) (hn : n ≤ 1)
     (hw : WInv (descLen d) B 0 (2 * n + 1) w) :
     ∃ c, simDC.Eval baseCost nodeCost (d, n, w) (sim d n w) c ∧ c ≤ costA (descLen d) B := by
-  refine ⟨baseCost (d, n, w), ?_, baseCost_le hDB hn hw⟩
-  rw [← simDC_base_eq hn]
-  exact .base (by simp only [simDC, decide_eq_true_eq]; exact hn)
+  exact ⟨baseCost (d, n, w), simDC_base_eq hn w ▸ .base (by simp [simDC, hn]),
+    baseCost_le hDB hn hw⟩
 
 /-- **The cost recurrence**: on `n ≤ 2 ^ k` steps, the windowed simulation costs at most
 `2 ^ (k + 1) * (k + 1) * costA D B`. -/
@@ -425,8 +394,7 @@ lemma eval_le (d : Desc) {B : ℕ} (hDB : descLen d ≤ B) (k : ℕ) :
     have hA : costA (descLen d) B ≤ 2 ^ (k + 1 + 1) * (k + 1 + 1) * costA (descLen d) B :=
       Nat.le_mul_of_pos_left _ (Nat.mul_pos (Nat.pow_pos (by omega)) (by omega))
     by_cases hn1 : n ≤ 1
-    · obtain ⟨c, hc, hle⟩ := eval_base hDB hn1 hw
-      exact ⟨c, hc, hle.trans hA⟩
+    · exact (eval_base hDB hn1 hw).imp fun _ ⟨hc, hle⟩ => ⟨hc, hle.trans hA⟩
     have iL := (hw.extract (firstHalf n)).mono (h' := 0) (L' := 2 * firstHalf n + 1) le_rfl
       (min_le_right _ _)
     obtain ⟨c₁, h₁, hc₁⟩ := ih (firstHalf n) _ (by unfold firstHalf; omega) iL
@@ -444,15 +412,12 @@ lemma eval_le (d : Desc) {B : ℕ} (hDB : descLen d ≤ B) (k : ℕ) :
             (extract (firstHalf (m + 2)) w)).1))) = sim d (m + 2) w by
       rw [sim_add_two]; rfl] at hnode
     refine ⟨_, hnode, ?_⟩
-    · have h2 : m + 2 + 1 ≤ 2 * 2 ^ (k + 1) := by omega
-      calc c₁ + c₂ + nodeCost (d, m + 2, w) _ _
-          ≤ 2 ^ (k + 1) * (k + 1) * costA (descLen d) B +
-              2 ^ (k + 1) * (k + 1) * costA (descLen d) B +
-              costA (descLen d) B * (m + 2 + 1) := by omega
-        _ ≤ 2 ^ (k + 1) * (k + 1) * costA (descLen d) B +
-              2 ^ (k + 1) * (k + 1) * costA (descLen d) B +
-              costA (descLen d) B * (2 * 2 ^ (k + 1)) := by gcongr
-        _ = 2 ^ (k + 1 + 1) * (k + 1 + 1) * costA (descLen d) B := by ring
+    have h2 := Nat.mul_le_mul_left (costA (descLen d) B)
+      (show m + 2 + 1 ≤ 2 * 2 ^ (k + 1) by omega)
+    rw [show 2 ^ (k + 1 + 1) * (k + 1 + 1) * costA (descLen d) B =
+      2 * (2 ^ (k + 1) * (k + 1) * costA (descLen d) B) + costA (descLen d) B * (2 * 2 ^ (k + 1))
+      by ring]
+    omega
 
 end Cost
 
@@ -526,12 +491,9 @@ public theorem computableInO_universal_nlogn :
             rw [pow_succ, pow_succ]; omega
         _ = _ := by ring
     have hC2 : costA (descLen d) (descLen d + listMax id x + 1) ≤
-        640000000 * (descLen d + listMax id x + 2) ^ 6 := by
-      unfold costA
-      calc 10000000 * (descLen d + (descLen d + listMax id x + 1) + 2) ^ 6
-          ≤ 10000000 * (2 * (descLen d + listMax id x + 2)) ^ 6 :=
-            Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) 6)
-        _ = _ := by ring
+        640000000 * (descLen d + listMax id x + 2) ^ 6 :=
+      (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left
+        (show _ ≤ 2 * (descLen d + listMax id x + 2) by omega) 6)).trans (le_of_eq (by ring))
     have hC3 := (hC (d, x, t)).2
     have hC4 : C (d, x, t) ≤ 5120000000 * ((descLen d + listMax id x + 2) ^ 6 *
         ((t + 1) * (Nat.log 2 (t + 1) + 1))) :=

@@ -139,33 +139,13 @@ theorem isOraclePPT_repeatToCPAAdversary {α : Type} {encOut : α ↪ List Bool}
     IsOraclePPT encBool (repeatToCPAAdversary ctBound A) := by
   let EState := encList (encPair encBits encBits)
   let EIn := encHandlerCall (encPair encUnary encBits) (encFinEnum Unit) EState
-  have hcond : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool × List Bool)) =>
-        p.2.1.2.length == p.1.1)
-      EIn encBool := by
-    dsimp only [EIn, encHandlerCall, EState]; fun_prop
-  have hyes : IsOraclePPTOn EIn (encPair encBits EState)
-      (fun p : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool × List Bool)) => do
-        let r ← ProbOracleComp.sample (BitString.sampleList p.1.1)
-        let c ← List.take (ctBound p.1.1) <$>
-          ProbOracleComp.query ((), encPair encBits encBits (p.2.1.2, r))
-        return (c, (c, r) :: p.2.2)) := by
-    dsimp only [EIn, encHandlerCall, EState]
-    ppt
-  have hno : IsOraclePPTOn EIn (encPair encBits EState)
-      (fun p : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool × List Bool)) =>
-        pure ([], p.2.2)) :=
-    (ComputableInPolyTime.prod (ComputableInPolyTime.const [])
-      (by dsimp only [EIn, encHandlerCall, EState]; fun_prop)).isOraclePPTOn (Operation := Unit)
   have hhandler : IsOraclePPTOn EIn (encPair encBits EState)
       (fun p : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool × List Bool)) =>
         repeatWrapperStep p.1.1 (ctBound p.1.1) p.2.1 p.2.2) := by
     unfold repeatWrapperStep
-    exact IsOraclePPTOn.cond hcond hyes hno
-  have hres : ComputableInPolyTime
-      (fun pair : (ℕ × List Bool) × List Bool => 4 * ctBound pair.1.1 + 2 * pair.1.1 + 6)
-      (encPair (encPair encUnary encBits) encBits) encUnary := by
-    fun_prop
+    dsimp only [EIn, encHandlerCall, EState]
+    exact IsOraclePPTOn.cond (by fun_prop) (by ppt)
+      ((ComputableInPolyTime.const []).prod (by fun_prop)).isOraclePPTOn (Operation := Unit)
   have hrun : IsOraclePPTOn (encPair encUnary encBits) (encPair encOut EState)
       (fun caller : ℕ × List Bool =>
         (OracleComp.interpret
@@ -178,31 +158,27 @@ theorem isOraclePPT_repeatToCPAAdversary {α : Type} {encOut : α ↪ List Bool}
       (initial := fun _ => ([] : List (List Bool × List Bool)))
       (resources := fun caller _ => 4 * ctBound caller.1 + 2 * caller.1 + 6)
       (by fun_prop) hhandler (ComputableInPolyTime.const [])
-      (fun _ _ => True) (fun _ => trivial) hres
+      (fun _ _ => True) (fun _ => trivial) (by fun_prop)
     intro caller request seen _ result hresult
     unfold repeatWrapperStep at hresult
     split_ifs at hresult with hlenEq
     · obtain ⟨r, hr, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
-      change r ∈ OracleComp.support (ProbOracleComp.sample (BitString.sampleList caller.1)) at hr
-      rw [ProbOracleComp.support_sample, BitString.eval_sampleList] at hr
-      have hrLen : r.length = caller.1 := BitString.length_of_mem_support_uniformList hr
+      have hrLen : r.length = caller.1 := BitString.length_of_mem_support_uniformList <| by
+        rwa [← BitString.eval_sampleList, ← ProbOracleComp.support_sample]
       obtain ⟨c, hc, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
       obtain ⟨rawCt, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hc
       cases OracleComp.eq_of_mem_supportWith_pure hresult
       refine ⟨trivial, (List.length_take_le _ _).trans (by omega), ?_⟩
-      have htake : (List.take (ctBound caller.1) rawCt).length ≤ ctBound caller.1 :=
-        List.length_take_le _ _
+      have := List.length_take_le (ctBound caller.1) rawCt
       simp only [EState, encList_cons, List.length_append, length_encPair, length_frame,
         encBits_apply, hrLen]
       omega
     · cases OracleComp.eq_of_mem_supportWith_pure hresult
       exact ⟨trivial, by simp, Nat.le_add_right _ _⟩
   unfold repeatToCPAAdversary
-  have hpost : ComputableInPolyTime
-      (fun out : α × List (List Bool × List Bool) => hasDistinctCollision out.2)
-      (encPair encOut EState) encBool :=
-    (polyTime_hasDistinctCollision encBits encBits).comp (ComputableInPolyTime.snd _ _)
-  simpa only [bind_pure_comp] using (IsOraclePPTOn.map hrun hpost).isOraclePPT
+  simpa only [bind_pure_comp] using (IsOraclePPTOn.map hrun
+    ((polyTime_hasDistinctCollision encBits encBits).comp
+      (ComputableInPolyTime.snd _ _))).isOraclePPT
 
 /-- In Experiment `true` (`b = 1`), every recorded entry `(c, r)` in `repeatToCPAAdversary`
 satisfies `c ∈ support(E.encrypt n k r)` when `ctBound n` bounds ciphertext lengths on `n`-bit
@@ -213,8 +189,7 @@ private theorem eval_cpaGame_repeatToCPAAdversary_true {α : Type} (E : Symmetri
     (ctBound : ℕ → ℕ) (A : ℕ → List Bool → WordOracleComp Unit α) (n : ℕ)
     (hctBound : E.CiphertextLengthLE n (ctBound n)) :
     ProbComp.eval (E.cpaGame (repeatToCPAAdversary ctBound A) true n) = PMF.pure false := by
-  simp only [cpaGame, symmetricCPAGameOn, ProbOracleComp.run, repeatToCPAAdversary, runWith_norm,
-    pmf_norm]
+  simp only [cpaGame, symmetricCPAGameOn, repeatToCPAAdversary, runWith_norm, pmf_norm]
   refine PMF.bind_eq_pure_of_forall_mem_support fun k hk => ?_
   refine PMF.map_eq_pure_iff.mpr fun out hout => ?_
   have hinv := ProbOracleComp.runWith_invariant
@@ -233,16 +208,14 @@ private theorem eval_cpaGame_repeatToCPAAdversary_true {α : Type} (E : Symmetri
       unfold repeatWrapperStep at hstep
       by_cases hq : (q.2.length == n) = true
       · simp only [hq, ↓reduceIte, runWith_norm, BitString.eval_sampleList, symmetricCPAReplyOn,
-          unframe_encPair_encBits, dropFrame_encPair_encBits, pmf_norm] at hstep
-        rw [PMF.mem_support_bind_iff] at hstep
+          unframe_encPair_encBits, dropFrame_encPair_encBits, pmf_norm,
+          PMF.mem_support_bind_iff] at hstep
         obtain ⟨r, hr, hstep⟩ := hstep
         have hrLen : r.length = n := BitString.length_of_mem_support_uniformList hr
         simp only [hrLen, beq_self_eq_true, Bool.and_self, ↓reduceIte, pmf_norm,
-          PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hstep
+          PMF.mem_support_pure_iff] at hstep
         obtain ⟨rawCt, hrawCt, heq⟩ := hstep
-        have htake : List.take (ctBound n) rawCt = rawCt :=
-          List.take_of_length_le (hctBound k hk r hrLen rawCt hrawCt)
-        rw [htake] at heq
+        rw [List.take_of_length_le (hctBound k hk r hrLen rawCt hrawCt)] at heq
         obtain ⟨-, rfl⟩ := Prod.mk.inj heq.symm
         intro p hp
         rcases List.mem_cons.mp hp with rfl | hp
@@ -259,10 +232,9 @@ private theorem eval_cpaGame_repeatToCPAAdversary_true {α : Type} (E : Symmetri
   obtain ⟨p, hp, q, hq, hpq1, hpq2⟩ := hcol
   obtain ⟨hpLen, hpEnc⟩ := hinv p hp
   obtain ⟨hqLen, hqEnc⟩ := hinv q hq
-  have hdecP := E.decrypt_encrypt n k hk p.2 hpLen p.1 hpEnc
-  have hdecQ := E.decrypt_encrypt n k hk q.2 hqLen q.1 hqEnc
-  rw [hpq1, hdecQ] at hdecP
-  exact hpq2 (Option.some.inj hdecP).symm
+  exact hpq2 <| Option.some.inj <|
+    (E.decrypt_encrypt n k hk p.2 hpLen p.1 hpEnc).symm.trans
+      (hpq1 ▸ E.decrypt_encrypt n k hk q.2 hqLen q.1 hqEnc)
 
 /-- Pair each logged ciphertext in `cs` independently with a uniform `n`-bit string. -/
 private noncomputable def pairWithUniform (n : ℕ) :
@@ -277,9 +249,7 @@ private theorem map_fst_of_mem_support_pairWithUniform {n : ℕ} {cs : List (Lis
     {seen : List (List Bool × List Bool)} (h : seen ∈ (pairWithUniform n cs).support) :
     seen.map Prod.fst = cs := by
   induction cs generalizing seen with
-  | nil =>
-    simp only [pairWithUniform, PMF.mem_support_pure_iff] at h
-    simp [h]
+  | nil => simp_all [pairWithUniform]
   | cons c rest ih =>
     simp only [pairWithUniform, pmf_norm, PMF.mem_support_bind_iff,
       PMF.mem_support_pure_iff] at h
@@ -300,16 +270,11 @@ private theorem half_le_uniformList_bne {n : ℕ} (hn : 1 ≤ n) (target : List 
     simpa only [bne] using PMF.map_not_true (BitString.uniformList n) (· == target)
   have heq : ((BitString.uniformList n).map (· == target)) true =
       BitString.uniformList n target := by
-    rw [PMF.map_apply, tsum_eq_single target]
-    · simp
-    · intro r hr
-      simp [beq_eq_false_iff_ne.mpr hr]
+    rw [PMF.map_apply, tsum_eq_single target fun r hr => by simp [beq_eq_false_iff_ne.mpr hr]]
+    simp
   have hle : BitString.uniformList n target ≤ (1 : ℝ≥0∞) / 2 := by
-    refine (BitString.uniformList_apply_le n target).trans ?_
-    have hpow : (2 : ℝ≥0∞) ≤ 2 ^ n := by
-      simpa only [pow_one] using
-        (pow_le_pow_right' (by norm_num : (1 : ℝ≥0∞) ≤ 2) hn)
-    exact ENNReal.div_le_div_left hpow 1
+    refine (BitString.uniformList_apply_le n target).trans (ENNReal.div_le_div_left ?_ 1)
+    simpa only [pow_one] using pow_le_pow_right' one_le_two hn
   rw [hnot, heq]
   calc (1 : ℝ≥0∞) / 2 = 1 - 1 / 2 := by norm_num
     _ ≤ 1 - BitString.uniformList n target := tsub_le_tsub_left hle 1
@@ -355,8 +320,8 @@ private theorem eval_cpaGame_repeatToCPAAdversary_false_eq {α : Type} (E : Symm
       (ProbComp.eval (E.keyGen n)).bind fun k =>
         (ProbComp.eval (((A n []).runState (E.ciEncryptionOracle n k)).run [])).bind fun out =>
           (pairWithUniform n out.2).map hasDistinctCollision := by
-  simp only [cpaGame, symmetricCPAGameOn, ProbOracleComp.run, repeatToCPAAdversary,
-    ProbOracleComp.eval_runState, runWith_norm, pmf_norm]
+  simp only [cpaGame, symmetricCPAGameOn, repeatToCPAAdversary, ProbOracleComp.eval_runState,
+    runWith_norm, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun k hk => ?_
   have hsim := ProbOracleComp.runWith_simulation
     (oracle := fun q cs => ProbComp.eval (E.ciEncryptionOracle n k q cs))
@@ -402,9 +367,8 @@ private theorem eval_cpaGame_repeatToCPAAdversary_false_eq {α : Type} (E : Symm
               rw [List.take_of_length_le (hctBound k hk q.2 hqLen ct hct)]
       · simp [hq, Bool.false_eq_true, runWith_norm, pmf_norm, PMF.map, Function.comp_def])
     (A n []) []
-  have hsim' := congrArg (fun d => d.map fun p => hasDistinctCollision p.2) hsim
-  simp only [pairWithUniform, pmf_norm] at hsim'
-  exact hsim'.symm
+  simpa only [pairWithUniform, PMF.map, pmf_norm] using
+    (congrArg (fun d => d.map fun p => hasDistinctCollision p.2) hsim).symm
 
 /-- **Quantitative repeated-ciphertext reduction** ([BonehShoup2023], Exercise 5.12, printed
 p. 211): for every `1 ≤ n` (`|M| = 2^n ≥ 2`) where `ctBound n` bounds ciphertext lengths on `n`-bit
@@ -422,8 +386,7 @@ theorem succProbability_repeatCiphertextGame_le_two_mul_advantage {α : Type}
       2 * (ProbComp.eval (E.cpaGame (repeatToCPAAdversary ctBound A) false n)) true := by
     rw [eval_cpaGame_repeatToCPAAdversary_false_eq E ctBound A n hctBound, repeatCiphertextGame]
     simp only [pmf_norm, PMF.bind_apply, ← ENNReal.tsum_mul_left]
-    refine tsum_le_tsum fun k => ?_
-    refine tsum_le_tsum fun out => ?_
+    refine tsum_le_tsum fun k => tsum_le_tsum fun out => ?_
     suffices hpt : (PMF.pure (!decide out.2.Nodup)) true ≤
         2 * ((pairWithUniform n out.2).map hasDistinctCollision) true by
       calc (ProbComp.eval (E.keyGen n)) k *
@@ -438,18 +401,13 @@ theorem succProbability_repeatCiphertextGame_le_two_mul_advantage {α : Type}
                 ((pairWithUniform n out.2).map hasDistinctCollision) true)) := by ring
     by_cases hnd : out.2.Nodup
     · simp [hnd]
-    · have hhalf := half_le_map_hasDistinctCollision_pairWithUniform hn hnd
-      have h1 : (!decide out.2.Nodup) = true := by simp [hnd]
-      rw [h1, PMF.pure_apply_self]
+    · simp only [hnd, decide_false, Bool.not_false, PMF.pure_apply_self]
       calc (1 : ℝ≥0∞) = 2 * (1 / 2) := by
             rw [ENNReal.mul_div_cancel (by norm_num) (by norm_num)]
         _ ≤ 2 * ((pairWithUniform n out.2).map hasDistinctCollision) true :=
-            mul_le_mul_right hhalf 2
-  have hneTop :
-      2 * (ProbComp.eval (E.cpaGame (repeatToCPAAdversary ctBound A) false n)) true ≠ ⊤ :=
-    ENNReal.mul_ne_top (by norm_num) (PMF.apply_ne_top _ _)
+            mul_le_mul_right (half_le_map_hasDistinctCollision_pairWithUniform hn hnd) 2
   simpa only [Game.succProbability, ENNReal.toNNReal_mul, ENNReal.toNNReal_ofNat] using
-    ENNReal.toNNReal_mono hneTop hle
+    ENNReal.toNNReal_mono (ENNReal.mul_ne_top (by norm_num) (PMF.apply_ne_top _ _)) hle
 
 /-- **CPA-secure symmetric ciphers have negligible ciphertext-collision probability**
 ([BonehShoup2023], Exercise 5.12, printed p. 211): if `E` satisfies `INDCPA`, then every uniform
@@ -460,12 +418,8 @@ theorem INDCPA.negligible_repeatCiphertextGame {α : Type} {encOut : α ↪ List
     Negligible fun n => Game.succProbability (E.repeatCiphertextGame A n) := by
   obtain ⟨ctBound, hpoly, hctBound⟩ := E.exists_ciphertext_length_bound_of_length_eq
   have hneg := h (repeatToCPAAdversary ctBound A) (isOraclePPT_repeatToCPAAdversary hpoly hA)
-  have htwo : Negligible fun n =>
-      (2 : ℝ≥0) * Game.advantage
-        (ProbComp.eval (E.cpaGame (repeatToCPAAdversary ctBound A) false n))
-        (ProbComp.eval (E.cpaGame (repeatToCPAAdversary ctBound A) true n)) :=
-    hneg.polynomiallyBounded_mul (p := fun _ => 2) (by fun_prop)
-  refine negligible_of_eventually_le htwo ?_
+  refine negligible_of_eventually_le
+    (hneg.polynomiallyBounded_mul (p := fun _ => 2) (by fun_prop)) ?_
   exact Filter.eventually_atTop.mpr ⟨1, fun n hn =>
     succProbability_repeatCiphertextGame_le_two_mul_advantage E ctBound A hn (hctBound n)⟩
 

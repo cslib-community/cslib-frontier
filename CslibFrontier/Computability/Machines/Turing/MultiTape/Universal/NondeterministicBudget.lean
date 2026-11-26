@@ -258,13 +258,12 @@ lemma step_fire {T r : List (Key × Act)} {B q : ℕ} {c : SCfg} {o : List ℕ} 
   have hr := nuSym_read (x := x) ⟨T, e :: r, B, c, o⟩
   simp only at hr
   have hk : e.1 = nuKey c (inputSymbol (x.map eBit) c.inputPos) := by
-    rw [hkey]
-    simp [nuKey, SCfg.key, hq]
+    simpa [nuKey, SCfg.key, hq] using hkey
   have ha : nuApply e.2 c (inputSymbol (x.map eBit) c.inputPos) = e.2.apply (x.map eBit) c := rfl
   simp only [NondeterministicQueryMachine.step, hh, Bool.false_eq_true, ↓reduceIte]
   change nuNext (⟨T, e :: r, B, c, o⟩, budgetedNUniversal.read x ⟨T, e :: r, B, c, o⟩, true) = _
-  simp only [nuNext, hr, List.isEmpty_cons, List.headD_cons, Bool.not_true, Bool.false_eq_true,
-    ↓reduceIte, ← hk, decide_true, ha, hb]
+  simp only [nuNext, hr, List.isEmpty_cons, List.headD_cons, Bool.not_true,
+    Bool.false_eq_true, ↓reduceIte, ← hk, decide_true, ha, hb]
 
 /-- A configuration stepping within the budget from the initial configuration is reached by the
 recognizer from `nuStart d b`, with the cursor at the start of the table. -/
@@ -364,8 +363,7 @@ private lemma keepTwo_budget {o : γ → List ℕ} {a : γ → Option ℕ}
   exact budget_comp_linear (f := fun x => (o x, a x)) hk (budget_prod ho ha)
 
 private lemma nuNext_budget {p : γ → NUState × Option Bool × Bool}
-    (hp : ComputableInSpace p encIn (encPair eNU (encPair (encOption encBool) encBool)) Bs)
-    (hin : (fun x => (encIn x).length) ≼ Bs) :
+    (hp : ComputableInSpace p encIn (encPair eNU (encPair (encOption encBool) encBool)) Bs) :
     ComputableInSpace (fun x => nuNext (p x)) encIn eNU Bs := by
   have hs := hp.fst'
   have hans := hp.snd'.fst'
@@ -392,7 +390,7 @@ private lemma nuNext_budget {p : γ → NUState × Option Bool × Bool}
       encBool fun q => (encPair eKey eKey q).length := of_inO (ComputableInO.eq eKey)
   have hmatch := budget_comp_linear heq (budget_prod hE.fst' (nuKey_budget hC hsym))
   have hfits := fits_budget (nuApply_budget hE.snd' hC hsym) hB
-  have hrej := budget_const (encB := eNU) nuReject hin
+  have hrej := budget_const (encIn := encIn) (Bs := Bs) (encB := eNU) nuReject
   exact (budget_ite (budget_isEmpty hR) hrej
     (budget_ite (budget_finite (encC := encBool) Bool.not hch) hskip
       (budget_ite hmatch (budget_ite hfits hfire hrej) hrej))).of_enc_eq fun _ => rfl
@@ -407,7 +405,7 @@ public theorem budgetedNUniversal_query_inSpace :
 public theorem budgetedNUniversal_next_inSpace :
     ComputableInSpace budgetedNUniversal.next (encPair eNU (encPair (encOption encBool) encBool))
       eNU fun p => (encPair eNU (encPair (encOption encBool) encBool) p).length :=
-  nuNext_budget (of_inO (ComputableInO.of_eq fun _ => rfl)) (.refl _)
+  nuNext_budget (of_inO (ComputableInO.of_eq fun _ => rfl))
 
 public theorem budgetedNUniversal_halted_inSpace :
     ComputableInSpace budgetedNUniversal.halted eNU encBool fun s => (eNU s).length :=
@@ -421,7 +419,7 @@ public theorem budgetedNUniversal_accept_inSpace :
       fun q => (encPair (encList encUnary) (encList encUnary) q).length :=
     of_inO (ComputableInO.eq (encList encUnary))
   exact (budget_comp_linear (f := fun s : NUState => (s.out, [eBit true])) heq
-    (budget_prod (eNU_out_budget nu_id) (budget_const [eBit true] (.refl _)))).of_enc_eq
+    (budget_prod (eNU_out_budget nu_id) (budget_const [eBit true]))).of_enc_eq
     fun _ => rfl
 
 end Certificates
@@ -458,20 +456,15 @@ lemma length_eCfg_of_reach {c : SCfg} {o : List ℕ}
   · cases h
     have := length_eCfg_init_le d
     omega
-  · have : (eCfg c).length ≤ b := hb
+  · dsimp only at hb
     omega
 
 lemma length_take_two_le {o : List ℕ} {D : ℕ} (h : ∀ a ∈ o, a ≤ D) :
     (encList encUnary (o.take 2)).length ≤ 4 * D + 2 := by
   rcases o with _ | ⟨a, _ | ⟨a', o⟩⟩
   · simp
-  · have := h a (by simp)
-    simp
-    omega
-  · have := h a (by simp)
-    have := h a' (by simp)
-    simp
-    omega
+  · simp at h ⊢; omega
+  · simp at h ⊢; omega
 
 lemma length_rest_le {r : List (Key × Act)} (h : r <:+ d.table) :
     (encList (encPair eKey eAct) r).length ≤ descLen d := by
@@ -515,13 +508,9 @@ public theorem length_eNU_run_le (d : Desc) (b : ℕ) (x choices : List Bool) :
 bound, is computed within that bound. -/
 public theorem nuStart_budget {α : Type} {enc : α ↪ List Bool} {D : α → Desc} {B S : α → ℕ}
     (hD : ComputableInSpace D enc eDesc S) (hB : ComputableInSpace B enc encUnary S) :
-    ComputableInSpace (fun a => nuStart (D a) (B a)) enc eNU S := by
-  have hT := eDesc_table_budget hD
-  have hI : ComputableInSpace (fun a => init (D a)) enc eCfg S :=
-    budget_comp_lin (of_inO init_inO) linear_succ hD
-  have hO : ComputableInSpace (fun _ : α => ([] : List ℕ)) enc (encList encUnary) S :=
-    (constZero []).mono_le fun _ => Nat.zero_le _
-  exact eNU_mk_budget hT hT hB hI hO
+    ComputableInSpace (fun a => nuStart (D a) (B a)) enc eNU S :=
+  eNU_mk_budget (eDesc_table_budget hD) (eDesc_table_budget hD) hB
+    (budget_comp_lin (of_inO init_inO) linear_succ hD) (budget_const [])
 
 /-! ### Machines within a space bound -/
 

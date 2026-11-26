@@ -133,9 +133,7 @@ theorem hit_succ_succ (k t d : ℕ) :
   rfl
 
 theorem hit_nonneg (hk : 1 ≤ k) (t d : ℕ) : 0 ≤ hit k t d := by
-  have hk1 : (0 : ℝ) ≤ (k : ℝ) - 1 := by
-    have : (1 : ℝ) ≤ k := by exact_mod_cast hk
-    linarith
+  have hk1 : (0 : ℝ) ≤ (k : ℝ) - 1 := by linarith [show (1 : ℝ) ≤ k from mod_cast hk]
   induction t generalizing d with
   | zero => cases d <;> simp
   | succ t ih =>
@@ -143,9 +141,7 @@ theorem hit_nonneg (hk : 1 ≤ k) (t d : ℕ) : 0 ≤ hit k t d := by
     | zero => simp
     | succ d =>
       rw [hit_succ_succ]
-      have := ih d
-      have := ih (d + 2)
-      positivity
+      exact div_nonneg (add_nonneg (ih d) (mul_nonneg hk1 (ih (d + 2)))) (Nat.cast_nonneg k)
 
 theorem hit_le_one (hk : 1 ≤ k) (t d : ℕ) : hit k t d ≤ 1 := by
   have hk1 : (1 : ℝ) ≤ k := by exact_mod_cast hk
@@ -300,9 +296,7 @@ theorem inv_le_hit (hk : 3 ≤ k) (d : ℕ) :
   set i := d / (k - 2)
   set e := d % (k - 2)
   have hdie : (k - 2) * i + e = d := Nat.div_add_mod d (k - 2)
-  have he : e ≤ k - 3 := by
-    have := Nat.mod_lt d (show 0 < k - 2 by omega)
-    omega
+  have he : e < k - 2 := Nat.mod_lt d (by omega)
   have hlen : i + (i + d) = k * i + e := by
     rw [← hdie]
     obtain ⟨k', rfl⟩ : ∃ k', k = k' + 2 := ⟨k - 2, by omega⟩
@@ -335,42 +329,31 @@ theorem inv_le_hit (hk : 3 ≤ k) (d : ℕ) :
             (3 * d + 1) := by
         gcongr
         omega
-  -- Transfer to the reals.
-  have hk1 : (1 : ℝ) ≤ (k : ℝ) - 1 := by
-    have : (3 : ℝ) ≤ k := by exact_mod_cast hk
-    linarith
+  -- Transfer to the reals: clear the common denominator `k^{k-3} (k-1)^d (3d+1) k^{2i+d}`.
+  have hpos1 : (0 : ℝ) < (k : ℝ) - 1 := by linarith [show (3 : ℝ) ≤ k from mod_cast hk]
   have hk0 : (0 : ℝ) < k := by linarith
-  have hcast : ((k - 1 : ℕ) : ℝ) = (k : ℝ) - 1 := by
-    rw [Nat.cast_sub (by omega), Nat.cast_one]
+  have hne : (k : ℝ) - 1 ≠ 0 := hpos1.ne'
   have hreal : ((k : ℝ) - 1) ^ (k - 3) * (k : ℝ) ^ (i + (i + d)) ≤
       ((i + (i + d)).choose i : ℝ) * ((k : ℝ) - 1) ^ (i + d) * (k : ℝ) ^ (k - 3) *
         (3 * d + 1) := by
-    rw [← hcast]
+    rw [← Nat.cast_one, ← Nat.cast_sub (by omega)]
     exact_mod_cast hnat
-  have hpos1 : (0 : ℝ) < ((k : ℝ) - 1) := by linarith
-  rw [div_le_iff₀ (by positivity)]
-  rw [div_pow, div_pow, div_pow, one_pow, one_pow]
-  rw [show ((k : ℝ) - 1) ^ (k - 3) / (k : ℝ) ^ (k - 3) * (1 / ((k : ℝ) - 1) ^ d) =
-      ((k : ℝ) - 1) ^ (k - 3) / ((k : ℝ) ^ (k - 3) * ((k : ℝ) - 1) ^ d) by
-    field_simp]
-  rw [div_le_iff₀ (by positivity)]
-  have hsplit : (k : ℝ) ^ (i + (i + d)) = (k : ℝ) ^ (i + d) * (k : ℝ) ^ i := by
-    rw [← pow_add]
-    congr 1
-    ring
+  have hD : (0 : ℝ) <
+      (k : ℝ) ^ (k - 3) * ((k : ℝ) - 1) ^ d * (3 * d + 1) * (k : ℝ) ^ (i + (i + d)) :=
+    mul_pos (mul_pos (mul_pos (pow_pos hk0 _) (pow_pos hpos1 d)) (by positivity)) (pow_pos hk0 _)
   calc
-    ((k : ℝ) - 1) ^ (k - 3) =
-        ((k : ℝ) - 1) ^ (k - 3) * (k : ℝ) ^ (i + (i + d)) / (k : ℝ) ^ (i + (i + d)) := by
+    _ = ((k : ℝ) - 1) ^ (k - 3) * (k : ℝ) ^ (i + (i + d)) /
+          ((k : ℝ) ^ (k - 3) * ((k : ℝ) - 1) ^ d * (3 * d + 1) * (k : ℝ) ^ (i + (i + d))) := by
+      simp only [div_pow, one_pow]
       field_simp
     _ ≤ ((i + (i + d)).choose i : ℝ) * ((k : ℝ) - 1) ^ (i + d) * (k : ℝ) ^ (k - 3) *
-          (3 * d + 1) / (k : ℝ) ^ (i + (i + d)) := by gcongr
-    _ = ((i + (i + d)).choose i : ℝ) * (1 / (k : ℝ) ^ (i + d)) *
-          (((k : ℝ) - 1) / (k : ℝ)) ^ i * (3 * d + 1) *
-          ((k : ℝ) ^ (k - 3) * ((k : ℝ) - 1) ^ d) := by
-      rw [hsplit, div_pow]
-      have hdd : ((k : ℝ) - 1) ^ (i + d) = ((k : ℝ) - 1) ^ i * ((k : ℝ) - 1) ^ d := pow_add _ _ _
-      rw [hdd]
+          (3 * d + 1) /
+          ((k : ℝ) ^ (k - 3) * ((k : ℝ) - 1) ^ d * (3 * d + 1) * (k : ℝ) ^ (i + (i + d))) :=
+      div_le_div_of_nonneg_right hreal hD.le
+    _ = _ := by
+      simp only [div_pow, one_pow]
       field_simp
+      ring
 
 /-! ### The local search dominates the biased walk -/
 
@@ -407,35 +390,26 @@ theorem hit_le_succeedProb (hk : 1 ≤ k) {φ : CNF V} {σs : V → Bool} (hs : 
   induction t generalizing σ with
   | zero =>
     rw [walk, succeedProb_pure]
-    rcases Nat.eq_zero_or_pos (hammingDist σ σs) with h0 | hpos
-    · rw [hammingDist_eq_zero.mp h0]
-      simp [hs]
-    · obtain ⟨d, hd⟩ := Nat.exists_eq_succ_of_ne_zero hpos.ne'
-      rw [hd, hit_zero_succ]
-      split_ifs <;> norm_num
+    cases hd : hammingDist σ σs with
+    | zero => simp [hammingDist_eq_zero.mp hd, hs]
+    | succ d => rw [hit_zero_succ]; split_ifs <;> norm_num
   | succ t ih =>
     rw [walk]
     cases hfu : firstUnsat φ σ with
     | none =>
-      have hsat : φ.eval σ = true := by
-        rw [CNF.eval_eq_true_iff]
-        intro c hc
-        have := List.find?_eq_none.mp hfu c hc
-        simpa using this
+      have hsat : φ.eval σ = true :=
+        (CNF.eval_eq_true_iff _ _).2 fun c hc => by simpa using List.find?_eq_none.mp hfu c hc
       simp only [succeedProb_pure, hsat, ite_true]
       exact hit_le_one hk _ _
     | some c =>
       have hc : c ∈ φ := List.mem_of_find?_eq_some hfu
-      have hcσ : ∀ l ∈ c, σ l.1 ≠ l.2 := by
-        have := List.find?_some hfu
-        simp only [Bool.not_eq_eq_eq_not, Bool.not_true] at this
-        intro l hl hl'
-        have hsat : c.eval σ = true := (Clause.eval_eq_true_iff σ c).mpr ⟨l, hl, hl'⟩
-        rw [hsat] at this
-        exact absurd this (by decide)
+      have hcσ : ∀ l ∈ c, σ l.1 ≠ l.2 := fun l hl hl' => by
+        have hfalse : c.eval σ = false := by simpa using List.find?_some hfu
+        exact Bool.false_ne_true
+          (hfalse.symm.trans ((Clause.eval_eq_true_iff σ c).mpr ⟨l, hl, hl'⟩))
       obtain ⟨l, hl, hls⟩ :=
         (Clause.eval_eq_true_iff σs c).mp ((CNF.eval_eq_true_iff σs φ).mp hs c hc)
-      have hne : σ l.1 ≠ σs l.1 := by rw [hls]; exact hcσ l hl
+      have hne : σ l.1 ≠ σs l.1 := hls ▸ hcσ l hl
       have hdpos : hammingDist σ σs ≠ 0 := fun h => hne (congrFun (hammingDist_eq_zero.mp h) _)
       obtain ⟨d, hd⟩ := Nat.exists_eq_succ_of_ne_zero hdpos
       have hlen : c.length ≠ 0 := (List.length_pos_of_mem hl).ne'
@@ -443,23 +417,18 @@ theorem hit_le_succeedProb (hk : 1 ≤ k) {φ : CNF V} {σs : V → Bool} (hs : 
       rw [hd, hit_succ_succ, succeedProb_flipStep_bind φ hlen]
       set f : Fin c.length → ℝ := fun i => succeedProb φ (walk φ t (flipOn {(c.get i).1} σ))
       obtain ⟨i₀, hi₀⟩ := List.get_of_mem hl
-      have hterm : ∀ i, hit k t (d + 2) ≤ f i := by
-        intro i
-        refine le_trans (hit_antitone hk t ?_) (ih _)
+      have hterm (i : Fin c.length) : hit k t (d + 2) ≤ f i := by
+        refine (hit_antitone hk t ?_).trans (ih _)
         rw [hammingDist_flip, hd]
         split_ifs <;> omega
       have hterm₀ : hit k t d ≤ f i₀ := by
-        refine le_trans (le_of_eq ?_) (ih _)
-        rw [hi₀, hammingDist_flip, hd]
-        simp [hne]
+        simpa only [f, hi₀, hammingDist_flip, hd, ite_eq_right hne, Nat.succ_sub_one] using
+          ih (flipOn {(c.get i₀).1} σ)
       have hsum : hit k t d + ((c.length : ℝ) - 1) * hit k t (d + 2) ≤ ∑ i, f i := by
         rw [← add_sum_erase _ _ (mem_univ i₀)]
-        have hcard : ((c.length : ℝ) - 1) * hit k t (d + 2) =
-            ∑ _i ∈ univ.erase i₀, hit k t (d + 2) := by
-          rw [sum_const, card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fin,
-            nsmul_eq_mul, Nat.cast_sub (Nat.one_le_iff_ne_zero.mpr hlen), Nat.cast_one]
-        rw [hcard]
-        exact add_le_add hterm₀ (sum_le_sum fun i _ => hterm i)
+        refine add_le_add hterm₀ ((sum_le_sum fun i _ => hterm i).trans_eq' ?_)
+        rw [sum_const, card_erase_of_mem (mem_univ _), card_univ, Fintype.card_fin,
+          nsmul_eq_mul, Nat.cast_sub (Nat.one_le_iff_ne_zero.mpr hlen), Nat.cast_one]
       rw [← mul_sum]
       have hm3 : (c.length : ℝ) ≤ k := by exact_mod_cast h3 c hc
       have hm1 : (1 : ℝ) ≤ c.length := by exact_mod_cast Nat.one_le_iff_ne_zero.mpr hlen
@@ -480,12 +449,10 @@ coordinates. -/
 theorem sum_pow_hammingDist [DecidableEq V] (q : ℝ) (τ : V → Bool) :
     ∑ σ : V → Bool, q ^ hammingDist σ τ = (1 + q) ^ Fintype.card V := by
   have hprod (σ : V → Bool) : q ^ hammingDist σ τ = ∏ i, if σ i = τ i then 1 else q := by
-    rw [prod_ite, prod_const_one, one_mul, prod_const]
-    rfl
+    simp [prod_ite, hammingDist]
   simp only [hprod]
   rw [← Fintype.prod_sum (fun i b => if b = τ i then (1 : ℝ) else q)]
   have hb (i : V) : ∑ b : Bool, (if b = τ i then (1 : ℝ) else q) = 1 + q := by
-    rw [Fintype.sum_bool]
     cases τ i <;> simp [add_comm]
   simp only [hb, prod_const, card_univ]
 

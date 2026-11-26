@@ -231,15 +231,11 @@ theorem exists_card_gapGraph_le :
       Fintype.card (cnfGraph φ).V = c₁ * φ.length :=
     ⟨_, fun φ ↦ card_vertices_cnfGraph φ⟩
   refine ⟨c₁ + 2 ^ f * c₀ ^ (f + 1), f + 1, fun φ ↦ ?_⟩
-  have hE : Fintype.card (gapGraph φ).E ≤ 2 ^ f * Fintype.card (cnfGraph φ).E ^ (f + 1) := by
-    rw [← hf]
-    exact amplifier.card_edges_iter_clog_le (cnfGraph φ)
+  have hE : Fintype.card (gapGraph φ).E ≤ 2 ^ f * (c₀ * φ.length) ^ (f + 1) :=
+    (amplifier.card_edges_iter_clog_le (cnfGraph φ)).trans_eq (by rw [hf, hc₀])
   have hV : Fintype.card (gapGraph φ).V ≤
-      max (Fintype.card (cnfGraph φ).V) (2 ^ f * Fintype.card (cnfGraph φ).E ^ (f + 1)) := by
-    rw [← hf]
-    exact amplifier.card_vertices_iter_clog_le (cnfGraph φ)
-  rw [hc₀] at hE hV
-  rw [hc₁] at hV
+      max (c₁ * φ.length) (2 ^ f * (c₀ * φ.length) ^ (f + 1)) :=
+    (amplifier.card_vertices_iter_clog_le (cnfGraph φ)).trans_eq (by rw [hf, hc₀, hc₁])
   have key : 2 ^ f * (c₀ * φ.length) ^ (f + 1) ≤
       (c₁ + 2 ^ f * c₀ ^ (f + 1)) * φ.length ^ (f + 1) := by
     rw [mul_pow, ← mul_assoc, add_mul]

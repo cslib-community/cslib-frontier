@@ -135,14 +135,12 @@ theorem eventually_legitimate (h : SelfStabilizing lts Legitimate)
     (hexec : lts.OmegaExecution ss μs) :
     ∃ k₀, ∀ k ≥ k₀, ss k ∈ Legitimate := by
   by_contra hnot
-  have hbad : ∀ k, ss k ∉ Legitimate := fun k hk =>
-    hnot ⟨k, fun m hm => h.omegaExecution_mem_of_le hexec hk hm⟩
-  have hno_chain : ∀ x, Acc (CorruptedStep lts Legitimate) x → ∀ k, ss k = x → False := by
-    intro x hacc
+  have hno_chain (x) (hacc : Acc (CorruptedStep lts Legitimate) x) : ∀ k, ss k = x → False := by
     induction hacc with
-    | intro x _ ih =>
-      intro k rfl
-      exact ih (ss (k + 1)) ⟨hbad k, μs k, hexec k⟩ (k + 1) rfl
+    | intro _ _ ih =>
+      rintro k rfl
+      exact ih (ss (k + 1)) ⟨fun hk => hnot ⟨k, fun m => h.omegaExecution_mem_of_le hexec hk⟩,
+        μs k, hexec k⟩ (k + 1) rfl
   exact hno_chain (ss 0) (h.converges.apply (ss 0)) 0 rfl
 
 /-- Because no state is terminal, every initial state `s₀` admits an infinite execution starting at
@@ -150,11 +148,9 @@ theorem eventually_legitimate (h : SelfStabilizing lts Legitimate)
 theorem exists_omegaExecution (h : SelfStabilizing lts Legitimate) (s₀ : State) :
     ∃ (ss : ωSequence State) (μs : ωSequence Label),
       ss 0 = s₀ ∧ lts.OmegaExecution ss μs := by
-  let stepS : State → State := fun s => (h.exists_tr s).choose_spec.choose
-  let stepL : State → Label := fun s => (h.exists_tr s).choose
-  let f : ℕ → State := fun k => stepS^[k] s₀
-  refine ⟨⟨f⟩, ⟨fun k => stepL (f k)⟩, rfl, fun k => ?_⟩
-  change lts.Tr (f k) (stepL (f k)) (stepS^[k + 1] s₀)
+  let f (k : ℕ) : State := (fun s => (h.exists_tr s).choose_spec.choose)^[k] s₀
+  refine ⟨⟨f⟩, ⟨fun k => (h.exists_tr (f k)).choose⟩, rfl, fun k => ?_⟩
+  change lts.Tr (f k) _ ((fun s => (h.exists_tr s).choose_spec.choose)^[k + 1] s₀)
   rw [Function.iterate_succ_apply']
   exact (h.exists_tr (f k)).choose_spec.choose_spec
 
@@ -165,19 +161,16 @@ theorem of_mTr_bound (B : ℕ)
     (hno_term : ∀ s, ¬ lts.IsTerminal s)
     (hbound : ∀ ⦃s₀ μs s'⦄, lts.MTr s₀ μs s' → B ≤ μs.length → s' ∈ Legitimate) :
     SelfStabilizing lts Legitimate := by
-  have hacc : ∀ rem s, (∃ s₀ μs, lts.MTr s₀ μs s ∧ B ≤ μs.length + rem) →
+  have hacc (rem : ℕ) : ∀ s, (∃ s₀ μs, lts.MTr s₀ μs s ∧ B ≤ μs.length + rem) →
       Acc (CorruptedStep lts Legitimate) s := by
-    intro rem
     induction rem with
     | zero =>
-      rintro s ⟨s₀, μs, hmtr, hlen⟩
-      have hs : s ∈ Legitimate := hbound hmtr (by omega)
-      exact Acc.intro s fun _ ⟨hnot, _⟩ => (hnot hs).elim
+      rintro s ⟨_, _, hmtr, hlen⟩
+      exact Acc.intro s fun _ ⟨hnot, _⟩ => (hnot (hbound hmtr (by omega))).elim
     | succ rem ih =>
       rintro s ⟨s₀, μs, hmtr, hlen⟩
-      refine Acc.intro s fun s' ⟨_, μ, htr⟩ => ih s' ⟨s₀, μs ++ [μ], hmtr.stepR lts htr, ?_⟩
-      rw [List.length_append, List.length_singleton]
-      omega
+      exact Acc.intro s fun s' ⟨_, μ, htr⟩ =>
+        ih s' ⟨s₀, μs ++ [μ], hmtr.stepR lts htr, by simp; omega⟩
   exact ⟨hclosed, hno_term, ⟨fun s => hacc B s ⟨s, [], .refl, by omega⟩⟩⟩
 
 end Basic

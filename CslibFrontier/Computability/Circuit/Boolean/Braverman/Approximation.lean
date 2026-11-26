@@ -14,6 +14,7 @@ import CslibFrontier.Computability.Circuit.CompositionDepth
 import CslibFrontier.Computability.Circuit.Formula
 import CslibFrontier.Computability.Circuit.Pointwise
 import CslibFrontier.Computability.Circuit.Program
+import CslibFrontier.Computability.Circuit.Simps
 import CslibFrontier.Probability.PMF
 
 /-!
@@ -122,9 +123,8 @@ private theorem tr_gate (k : Fin g) :
 private theorem snd_tr_gate (k : Fin g) (x : BitString n) :
     (tr ℓ s ν P (.gate k)).2 x =
       gateApprox (P.lines k).op (sets ℓ s ν P k)
-        fun a => (tr ℓ s ν P ((P.lines k).wires a)).2 x := by
-  rw [tr_gate]
-  rfl
+        fun a => (tr ℓ s ν P ((P.lines k).wires a)).2 x :=
+  congrArg (fun p => p.2 x) (tr_gate ℓ s ν P k)
 
 /-- **Degrees of the approximants**: at most `(ℓ s) ^ depth`. -/
 private theorem snd_tr_mem (h : 1 ≤ ℓ * s) (w : Wire n g) :
@@ -133,30 +133,25 @@ private theorem snd_tr_mem (h : 1 ≤ ℓ * s) (w : Wire n g) :
     lowDegree ℝ (Fin n) ((ℓ * s) ^ P.wireDepths w)) (fun i => ?_) (fun k ih => ?_) w
   · simp only [Program.wireDepths_input, pow_zero]
     exact bitVal_mem_lowDegree i
-  · rw [Program.wireDepths_gateWire]
-    have hpos := P.depths_pos k
-    have hfun : (tr ℓ s ν P (.gate k)).2 = fun x =>
-        gateApprox (P.lines k).op (sets ℓ s ν P k)
-          fun a => (tr ℓ s ν P ((P.lines k).wires a)).2 x :=
-      funext (snd_tr_gate ℓ s ν P k)
-    have hdeg := gateApprox_mem_lowDegree (by simpa using h) (P.lines k).op (sets ℓ s ν P k)
-      (D := (ℓ * s) ^ (P.depths k - 1)) fun a => lowDegree_mono
-        (Nat.pow_le_pow_right h (by have := P.wireDepths_lines_lt k a; omega)) (ih a)
-    rw [hfun, show P.depths k = (P.depths k - 1) + 1 by omega, pow_succ']
-    simpa using hdeg
+  · rw [Program.wireDepths_gateWire,
+      show P.depths k = (P.depths k - 1) + 1 by have := P.depths_pos k; omega, pow_succ',
+      show (tr ℓ s ν P (.gate k)).2 = _ from funext (snd_tr_gate ℓ s ν P k)]
+    simpa only [Fintype.card_fin] using
+      gateApprox_mem_lowDegree (by simpa only [Fintype.card_fin] using h) (P.lines k).op
+        (sets ℓ s ν P k) (D := (ℓ * s) ^ (P.depths k - 1)) fun a =>
+        lowDegree_mono (Nat.pow_le_pow_right h (by have := P.wireDepths_lines_lt k a; omega)) (ih a)
 
 /-- The exponent of the sup-norm bound at depth `d`. -/
 private theorem exp_step {ℓ t d : ℕ} (ht : 2 ≤ t) (hd : 1 ≤ d) :
     t * (2 * (ℓ + 1) * (t ^ (d - 1) - 1) + ℓ + 1) ≤ 2 * (ℓ + 1) * (t ^ d - 1) := by
   obtain ⟨T, hT⟩ : ∃ T, t ^ (d - 1) = T + 1 :=
     ⟨t ^ (d - 1) - 1, (Nat.sub_add_cancel (Nat.one_le_pow _ _ (by omega))).symm⟩
-  have hd' : t ^ d = t * (T + 1) := by
-    rw [← hT, ← pow_succ', Nat.sub_add_cancel hd]
-  obtain ⟨t', rfl⟩ : ∃ t', t = t' + 2 := ⟨t - 2, by omega⟩
+  have hd' : t ^ d - 1 = t * T + (t - 1) := by
+    rw [← Nat.sub_add_cancel hd, pow_succ', hT, mul_add, mul_one, Nat.add_sub_assoc (by omega)]
   rw [hT, hd', Nat.add_sub_cancel]
-  have h1 : (t' + 2) * (T + 1) - 1 = (t' + 2) * T + t' + 1 := by grind
-  rw [h1]
-  nlinarith
+  calc t * (2 * (ℓ + 1) * T + ℓ + 1) = (ℓ + 1) * (2 * t * T + t) := by ring
+    _ ≤ (ℓ + 1) * (2 * t * T + 2 * (t - 1)) := Nat.mul_le_mul_left _ (by omega)
+    _ = 2 * (ℓ + 1) * (t * T + (t - 1)) := by ring
 
 /-- **Sup-norm bound for the approximants**: at most `2 ^ (2 (ℓ + 1) ((ℓ s) ^ depth - 1))`. -/
 private theorem abs_snd_tr_le (h : 2 ≤ ℓ * s) (hfan : ∀ k, (P.lines k).op.arity < 2 ^ ℓ)
@@ -168,15 +163,13 @@ private theorem abs_snd_tr_le (h : 2 ≤ ℓ * s) (hfan : ∀ k, (P.lines k).op.
     change |bitVal ℝ (x i)| ≤ 1
     cases x i <;> simp
   · rw [Program.wireDepths_gateWire, snd_tr_gate]
-    have hpos := P.depths_pos k
     have hargs (a : Fin (P.lines k).op.arity) : |(tr ℓ s ν P ((P.lines k).wires a)).2 x| ≤
-        2 ^ (2 * (ℓ + 1) * ((ℓ * s) ^ (P.depths k - 1) - 1)) := by
-      have hlt := P.wireDepths_lines_lt k a
-      exact (ih a).trans (pow_le_pow_right₀ (by norm_num) (Nat.mul_le_mul_left _
-        (Nat.sub_le_sub_right (Nat.pow_le_pow_right (by omega) (by omega)) 1)))
+        2 ^ (2 * (ℓ + 1) * ((ℓ * s) ^ (P.depths k - 1) - 1)) :=
+      (ih a).trans (pow_le_pow_right₀ (by norm_num) (Nat.mul_le_mul_left _ (Nat.sub_le_sub_right
+        (Nat.pow_le_pow_right (by omega) (Nat.le_sub_one_of_lt (P.wireDepths_lines_lt k a))) 1)))
     refine (abs_gateApprox_le (by simpa using (by omega : 1 ≤ ℓ * s)) (P.lines k).op (hfan k)
       (sets ℓ s ν P k) hargs).trans (pow_le_pow_right₀ (by norm_num) ?_)
-    simpa using exp_step (ℓ := ℓ) h hpos
+    simpa using exp_step (ℓ := ℓ) h (P.depths_pos k)
 
 /-- Whether gate `k` misses at `x` on its true arguments. -/
 private abbrev Miss (k : Fin g) (x : BitString n) : Prop :=
@@ -191,15 +184,9 @@ private theorem snd_tr_eq {D : ℕ} {x : BitString n} (hx : ∀ k, P.depths k �
     (tr ℓ s ν P w).2 x = bitVal ℝ ((tr ℓ s ν P w).1 x)) (fun i _ => rfl)
     (fun k ih hk => ?_) w hw
   rw [Program.wireDepths_gateWire] at hk
-  have harg (a : Fin (P.lines k).op.arity) := ih a (by
-    have := P.wireDepths_lines_lt k a
-    omega)
   rw [tr_gate]
-  change gateApprox (P.lines k).op (sets ℓ s ν P k)
-      (fun a => (tr ℓ s ν P ((P.lines k).wires a)).2 x) =
-    bitVal ℝ (Unbounded.interpretation (P.lines k).op (args ℓ s ν P k x))
-  simp only [harg]
-  exact gateApprox_bitVal (hx k hk)
+  simpa only [pairInterpretation, fun a => ih a (by have := P.wireDepths_lines_lt k a; omega)] using
+    gateApprox_bitVal (hx k hk)
 
 end Pairs
 
@@ -233,24 +220,21 @@ private def lit (i : Fin N) (v : Bool) : F :=
     (lit i v).eval Unbounded.interpretation y = true ↔ y i = v := by
   cases v <;> simp [lit]
 
+@[circuit_bound]
 private theorem size_lit (i : Fin N) (v : Bool) : (lit i v).size ≤ 1 := by
-  cases v <;> simp [lit]
+  circuit_bound [lit]
 
+@[circuit_bound]
 private theorem depth_lit (i : Fin N) (v : Bool) : (lit i v).depth ≤ 1 := by
-  cases v <;> simp [lit]
+  circuit_bound [lit]
 
 /-- A set has a size other than one exactly when each of its elements has a distinct companion. -/
 private theorem card_ne_one_iff {α : Type*} (A : Finset α) :
     #A ≠ 1 ↔ ∀ j ∈ A, ∃ j' ∈ A, j' ≠ j := by
   rw [Ne, card_eq_one]
-  constructor
-  · intro h j hj
-    by_contra hno
-    exact h ⟨j, eq_singleton_iff_unique_mem.2
-      ⟨hj, fun x hx => by_contra fun hxj => hno ⟨x, hx, hxj⟩⟩⟩
-  · rintro h ⟨a, rfl⟩
-    obtain ⟨j', hj', hne⟩ := h a (mem_singleton_self a)
-    exact hne (mem_singleton.1 hj')
+  exact ⟨fun h j hj => by_contra fun hno => h ⟨j, eq_singleton_iff_unique_mem.2
+    ⟨hj, fun x hx => by_contra fun hxj => hno ⟨x, hx, hxj⟩⟩⟩,
+    fun h ⟨a, ha⟩ => by simpa [ha] using h a (eq_singleton_iff_unique_mem.1 ha).1⟩
 
 variable {t K : ℕ}
 
@@ -275,105 +259,46 @@ private theorem eval_andMissFormula (S : Fin t → Fin K → Bool) (w : Fin K �
       decide (AndMiss S fun j => xor (y (w j)) pol) := by
   have h0 (j : Fin K) : xor (y (w j)) pol = false ↔ y (w j) = pol := by
     cases pol <;> cases y (w j) <;> simp
-  have h1 (j : Fin K) : xor (y (w j)) pol = true ↔ y (w j) = !pol := by
-    cases pol <;> cases y (w j) <;> simp
   have hclause (c : Fin t) (j : Fin K) :
       (clause S w pol c j).eval Unbounded.interpretation y = true ↔
-        (S c j = true ∧ xor (y (w j)) pol = false →
-          ∃ j' ∈ ({j | S c j = true ∧ xor (y (w j)) pol = false} : Finset (Fin K)), j' ≠ j) := by
+        (S c j = true ∧ y (w j) = pol →
+          ∃ j', (S c j' = true ∧ y (w j') = pol) ∧ j' ≠ j) := by
     unfold clause
     split_ifs with hS
     · simp only [Formula.eval_gate, Unbounded.interpretation_or, decide_eq_true_eq]
       constructor
       · rintro ⟨j', hj'⟩ ⟨-, hz⟩
-        rw [h0] at hz
         split_ifs at hj' with hjj hS'
-        · subst hjj
-          rw [eval_lit, hz] at hj'
-          cases pol <;> simp at hj'
-        · rw [eval_lit] at hj'
-          refine ⟨j', ?_, hjj⟩
-          simp only [mem_filter, mem_univ, true_and]
-          exact ⟨hS', (h0 j').2 hj'⟩
+        · simp_all
+        · exact ⟨j', ⟨hS', (eval_lit ..).1 hj'⟩, hjj⟩
         · simp at hj'
       · intro h
-        by_cases hz : xor (y (w j)) pol = false
-        · obtain ⟨j', hj', hne⟩ := h ⟨hS, hz⟩
-          simp only [mem_filter, mem_univ, true_and] at hj'
-          refine ⟨j', ?_⟩
-          rw [ite_eq_right hne, ite_eq_left hj'.1, eval_lit]
-          exact (h0 j').1 hj'.2
-        · refine ⟨j, ?_⟩
-          rw [ite_eq_left rfl, eval_lit]
-          exact (h1 j).1 (by simpa using hz)
+        by_cases hz : y (w j) = pol
+        · obtain ⟨j', ⟨hS', hy'⟩, hne⟩ := h ⟨hS, hz⟩
+          exact ⟨j', by simp [hne, hS', hy']⟩
+        · exact ⟨j, by cases pol <;> cases h' : y (w j) <;> simp_all⟩
     · simp [hS]
   rw [Bool.eq_iff_iff, decide_eq_true_iff, AndMiss]
-  simp only [andMissFormula, Formula.eval_gate, Unbounded.interpretation_and,
-    Unbounded.interpretation_or, decide_eq_true_eq, Fin.forall_fin_two, Matrix.cons_val_zero,
-    Matrix.cons_val_one, eval_lit, hclause, card_ne_one_iff]
-  constructor
-  · rintro ⟨⟨j, hj⟩, h⟩
-    refine ⟨⟨j, (h0 j).2 hj⟩, fun c j' hj' => ?_⟩
-    simp only [mem_filter, mem_univ, true_and] at hj'
-    exact h c j' hj'
-  · rintro ⟨⟨j, hj⟩, h⟩
-    refine ⟨⟨j, (h0 j).1 hj⟩, fun c j' hj' => h c j' (by simpa using hj')⟩
+  simp only [circuit_simps, andMissFormula, Unbounded.interpretation_and,
+    Unbounded.interpretation_or, decide_eq_true_eq, Fin.forall_fin_two, eval_lit, hclause,
+    card_ne_one_iff, mem_filter, mem_univ, true_and, h0]
 
+@[circuit_bound]
 private theorem size_clause (S : Fin t → Fin K → Bool) (w : Fin K → Fin N) (pol : Bool)
     (c : Fin t) (j : Fin K) : (clause S w pol c j).size ≤ K + 1 := by
-  unfold clause
-  split_ifs
-  · rw [Formula.size_gate]
-    refine Nat.add_le_add_right ((sum_le_card_nsmul _ _ 1 fun j' _ => ?_).trans (by simp)) 1
-    split_ifs
-    exacts [size_lit _ _, size_lit _ _, le_rfl]
-  · simp [trueF]
+  circuit_bound [clause, falseF, trueF, Unbounded.Op.arity, zero_add, max_self, mul_one]
 
 private theorem size_andMissFormula (S : Fin t → Fin K → Bool) (w : Fin K → Fin N)
     (pol : Bool) : (andMissFormula S w pol).size ≤ (t + 1) * (K + 1) ^ 2 + 2 := by
-  have h1 : (Formula.gate (σ := Unbounded.signature) (n := N) (.or K)
-      fun j => lit (w j) pol).size ≤ K + 1 := by
-    rw [Formula.size_gate]
-    exact Nat.add_le_add_right
-      ((sum_le_card_nsmul _ _ 1 fun j _ => size_lit _ _).trans (by simp)) 1
-  have h2 : (Formula.gate (σ := Unbounded.signature) (n := N) (.and t)
-      fun c => .gate (.and K) fun j => clause S w pol c j).size ≤ t * (K * (K + 1) + 1) + 1 := by
-    rw [Formula.size_gate]
-    refine Nat.add_le_add_right ((sum_le_card_nsmul _ _ (K * (K + 1) + 1) fun c _ => ?_).trans
-      (by simp)) 1
-    rw [Formula.size_gate]
-    exact Nat.add_le_add_right
-      ((sum_le_card_nsmul _ _ (K + 1) fun j _ => size_clause S w pol c j).trans (by simp)) 1
-  rw [andMissFormula, Formula.size_gate, Fin.sum_univ_two]
-  simp only [Matrix.cons_val_zero, Matrix.cons_val_one]
+  have h : (andMissFormula S w pol).size ≤ K + 1 + (t * (K * (K + 1) + 1) + 1) + 1 := by
+    circuit_bound [andMissFormula, Unbounded.Op.arity]
   nlinarith
 
 private theorem depth_andMissFormula (S : Fin t → Fin K → Bool) (w : Fin K → Fin N)
     (pol : Bool) : (andMissFormula S w pol).depth ≤ 5 := by
   have hclause (c : Fin t) (j : Fin K) : (clause S w pol c j).depth ≤ 2 := by
-    unfold clause
-    split_ifs
-    · rw [Formula.depth_gate]
-      refine Nat.add_le_add_right (Finset.sup_le fun j' _ => ?_) 1
-      split_ifs
-      exacts [depth_lit _ _, depth_lit _ _, by simp [falseF]]
-    · simp [trueF]
-  rw [andMissFormula, Formula.depth_gate]
-  refine Nat.add_le_add_right (Finset.sup_le fun i _ => ?_) 1
-  have hA : (Formula.gate (σ := Unbounded.signature) (n := N) (.or K)
-      fun j => lit (w j) pol).depth ≤ 4 := by
-    rw [Formula.depth_gate]
-    exact (Nat.add_le_add_right (Finset.sup_le fun j _ => depth_lit (w j) pol) 1).trans
-      (by norm_num)
-  have hB : (Formula.gate (σ := Unbounded.signature) (n := N) (.and t)
-      fun c => .gate (.and K) fun j => clause S w pol c j).depth ≤ 4 := by
-    rw [Formula.depth_gate]
-    refine Nat.add_le_add_right (Finset.sup_le fun c _ => ?_) 1
-    rw [Formula.depth_gate]
-    exact Nat.add_le_add_right (Finset.sup_le fun j _ => hclause c j) 1
-  fin_cases i
-  · exact hA
-  · exact hB
+    circuit_bound [clause, falseF, trueF]
+  circuit_bound [andMissFormula]
 
 /-- The formula deciding whether the approximator of a gate misses at the bits `y (w a)`. -/
 private def missFormula :
@@ -393,6 +318,7 @@ private theorem eval_missFormula (op : Unbounded.Op) (S : Fin t → Fin op.arity
   | .or _, S, w => (eval_andMissFormula S w true y).trans
       (decide_eq_decide.2 (by simp only [GateMiss, Bool.xor_true]))
 
+@[circuit_bound]
 private theorem size_missFormula (op : Unbounded.Op) (S : Fin t → Fin op.arity → Bool)
     (w : Fin op.arity → Fin N) : (missFormula op S w).size ≤ (t + 1) * (op.arity + 1) ^ 2 + 2 :=
   match op, S, w with
@@ -400,6 +326,7 @@ private theorem size_missFormula (op : Unbounded.Op) (S : Fin t → Fin op.arity
   | .and _, S, w => size_andMissFormula S w false
   | .or _, S, w => size_andMissFormula S w true
 
+@[circuit_bound]
 private theorem depth_missFormula (op : Unbounded.Op) (S : Fin t → Fin op.arity → Bool)
     (w : Fin op.arity → Fin N) : (missFormula op S w).depth ≤ 5 :=
   match op, S, w with
@@ -444,16 +371,13 @@ theorem exists_lowDegree_approx (ν : PMF (BitString n)) {ℓ s r : ℕ} (hℓs 
   let e := wireEquiv n C.size
   let Cw : Circuit Unbounded.signature n (n + C.size) :=
     ⟨P, fun i => if P.wireDepths (e.symm i) ≤ D then e.symm i else C.outputs 0⟩
-  have hCw_depth : Cw.depth ≤ D := by
-    refine (Circuit.depth_le_iff Cw).2 fun i => ?_
-    change P.wireDepths (if P.wireDepths (e.symm i) ≤ D then e.symm i else C.outputs 0) ≤ D
+  have hCw_depth : Cw.depth ≤ D := (Circuit.depth_le_iff Cw).2 fun i => by
+    dsimp only [Cw, Circuit.outputDepths, Function.comp_apply]
     split_ifs with h
     exacts [h, C.outputDepths_le_depth 0]
   have hCw_eval (x : BitString n) (w : Wire n C.size) (hw : P.wireDepths w ≤ D) :
       Cw.eval Unbounded.interpretation x (e w) = P.trace Unbounded.interpretation x w := by
-    change P.trace Unbounded.interpretation x
-      (if P.wireDepths (e.symm (e w)) ≤ D then e.symm (e w) else C.outputs 0) = _
-    rw [Equiv.symm_apply_apply, ite_eq_left hw]
+    simp [Cw, Circuit.eval, hw]
   -- the witness formula: some gate of depth at most `D` misses
   let wf : Formula Unbounded.signature (n + C.size) :=
     .gate (.or C.size) fun k => if P.depths k ≤ D then
@@ -461,19 +385,14 @@ theorem exists_lowDegree_approx (ν : PMF (BitString n)) {ℓ s r : ℕ} (hℓs 
   let W := wf.toCircuit.comp Cw
   have hW (x : BitString n) : W.eval Unbounded.interpretation x 0 = true ↔
       ∃ k, P.depths k ≤ D ∧ Miss ℓ s ν P k x := by
-    change (wf.toCircuit.comp Cw).eval Unbounded.interpretation x 0 = true ↔ _
-    rw [Circuit.eval_comp, Formula.eval_toCircuit]
-    simp only [wf, Formula.eval_gate, Unbounded.interpretation_or, decide_eq_true_eq]
+    simp only [circuit_simps, W, wf, Unbounded.interpretation_or, decide_eq_true_eq]
     refine exists_congr fun k => ?_
     split_ifs with hk
-    · rw [eval_missFormula, decide_eq_true_iff]
-      have harg : (fun a => Cw.eval Unbounded.interpretation x (e ((P.lines k).wires a))) =
-          args ℓ s ν P k x := by
-        funext a
-        rw [hCw_eval x _ (by have := P.wireDepths_lines_lt k a; omega)]
-        exact (fst_tr ℓ s ν P _ x).symm
-      rw [harg]
-      exact ⟨fun h => ⟨hk, h⟩, fun h => h.2⟩
+    · have harg : (fun a => Cw.eval Unbounded.interpretation x (e ((P.lines k).wires a))) =
+          args ℓ s ν P k x := funext fun a =>
+        (hCw_eval x _ (by have := P.wireDepths_lines_lt k a; omega)).trans
+          (fst_tr ℓ s ν P _ x).symm
+      simp only [eval_missFormula, decide_eq_true_iff, harg, hk, true_and]
     · simp [hk]
   refine ⟨(tr ℓ s ν P (C.outputs 0)).2,
     lowDegree_mono (Nat.pow_le_pow_right h1 (C.outputDepths_le_depth 0)) (snd_tr_mem ℓ s ν P h1 _),
@@ -482,27 +401,14 @@ theorem exists_lowDegree_approx (ν : PMF (BitString n)) {ℓ s r : ℕ} (hℓs 
         (Nat.pow_le_pow_right h1 (C.outputDepths_le_depth 0)) 1))),
     W, ?_, ?_, ?_, fun x hx => ?_⟩
   · -- size
-    have hwf : wf.size ≤ C.size * ((ℓ * s + 1) * (r + 1) ^ 2 + 2) + 1 := by
-      rw [Formula.size_gate]
-      refine Nat.add_le_add_right ((sum_le_card_nsmul _ _ ((ℓ * s + 1) * (r + 1) ^ 2 + 2)
-        fun k _ => ?_).trans (by simp)) 1
-      split_ifs
-      · exact (size_missFormula _ _ _).trans (Nat.add_le_add_right (Nat.mul_le_mul_left _
-          (Nat.pow_le_pow_left (Nat.add_le_add_right (hfan k) 1) 2)) 2)
-      · simp [falseF]
-    change C.size + wf.toCircuit.size ≤ _
-    rw [Formula.size_toCircuit]
-    nlinarith
+    have hwf : wf.size ≤ C.size * max ((ℓ * s + 1) * (r + 1) ^ 2 + 2) 1 + 1 := by
+      circuit_bound [wf, falseF, Unbounded.Op.arity, zero_add]
+    rw [Nat.max_eq_left (by omega)] at hwf
+    calc W.size = C.size + wf.size := by simp [W, Cw, Formula.size_toCircuit]
+      _ ≤ C.size + (C.size * ((ℓ * s + 1) * (r + 1) ^ 2 + 2) + 1) := by omega
+      _ = C.size * ((ℓ * s + 1) * (r + 1) ^ 2 + 3) + 1 := by ring
   · -- depth
-    refine (Circuit.depth_comp_le _ _).trans ?_
-    have hwf : wf.depth ≤ 6 := by
-      rw [Formula.depth_gate]
-      refine Nat.add_le_add_right (Finset.sup_le fun k _ => ?_) 1
-      split_ifs
-      · exact depth_missFormula _ _ _
-      · simp [falseF]
-    have := Formula.depth_toCircuit_le wf
-    omega
+    circuit_bound [W, wf, falseF]
   · -- the probability of a miss
     calc ∑ x with W.eval Unbounded.interpretation x 0 = true, (ν x).toReal
         ≤ ∑ x, ∑ k, if Miss ℓ s ν P k x then (ν x).toReal else 0 := by
@@ -510,20 +416,17 @@ theorem exists_lowDegree_approx (ν : PMF (BitString n)) {ℓ s r : ℕ} (hℓs 
           refine sum_le_sum fun x _ => ?_
           split_ifs with hx
           · obtain ⟨k, -, hk⟩ := (hW x).1 hx
-            exact le_trans (by rw [ite_eq_left hk]) (single_le_sum (f := fun k =>
-              if Miss ℓ s ν P k x then (ν x).toReal else 0)
+            exact le_trans (by rw [ite_eq_left hk]) (single_le_sum
               (fun k _ => by split_ifs <;> simp) (mem_univ k))
           · exact sum_nonneg fun k _ => by split_ifs <;> simp
       _ = ∑ k, ∑ x with Miss ℓ s ν P k x, (ν x).toReal := by
-          rw [sum_comm]
-          exact sum_congr rfl fun k _ => (sum_filter _ _).symm
+          rw [sum_comm]; simp only [sum_filter]
       _ ≤ ∑ _k : Fin C.size, (41 / 50 : ℝ) ^ s := sum_le_sum fun k _ =>
           sum_gateMiss_gateSets_le ℓ s ν _ ((hfan k).trans_lt hr) (args ℓ s ν P k)
       _ = (41 / 50) ^ s * C.size := by simp [mul_comm]
   · -- exactness where the witness is false
-    have hno : ∀ k, P.depths k ≤ D → ¬Miss ℓ s ν P k x := fun k hk hm =>
-      Bool.false_ne_true (hx.symm.trans ((hW x).2 ⟨k, hk, hm⟩))
-    rw [snd_tr_eq ℓ s ν P hno _ (C.outputDepths_le_depth 0), fst_tr]
-    rfl
+    exact (snd_tr_eq ℓ s ν P (fun k hk hm =>
+      Bool.false_ne_true (hx.symm.trans ((hW x).2 ⟨k, hk, hm⟩))) _
+      (C.outputDepths_le_depth 0)).trans (congrArg (bitVal ℝ) (fst_tr ℓ s ν P _ x))
 
 end Cslib.Circuits.Boolean.Braverman

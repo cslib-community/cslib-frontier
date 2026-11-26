@@ -107,9 +107,7 @@ def baseExtension {I : Type} (D : ℕ) (F : Fin D → (I → Bool) → Bool)
 theorem tower_coordinates_card {k r : ℕ} {I : Type} [Fintype I] (n : ℕ) :
     Fintype.card (TowerCoordinates k r I n) = (k * r) ^ n * Fintype.card I := by
   induction n with
-  | zero =>
-    change Fintype.card I = (k * r) ^ 0 * Fintype.card I
-    simp
+  | zero => exact (one_mul (Fintype.card I)).symm
   | succ n ih =>
     change Fintype.card ((Fin k × Fin r) × TowerCoordinates k r I n) = _
     simp only [Fintype.card_prod, Fintype.card_fin, ih, pow_succ]
@@ -119,9 +117,7 @@ theorem tower_coordinates_card {k r : ℕ} {I : Type} [Fintype I] (n : ℕ) :
 theorem tower_block_index_card {k : ℕ} {K : Type} [Fintype K] (n : ℕ) :
     Fintype.card (TowerBlockIndex k K n) = k ^ n * Fintype.card K := by
   induction n with
-  | zero =>
-    change Fintype.card K = k ^ 0 * Fintype.card K
-    simp
+  | zero => exact (one_mul (Fintype.card K)).symm
   | succ n ih =>
     change Fintype.card (Fin k × TowerBlockIndex k K n) = _
     simp only [Fintype.card_prod, Fintype.card_fin, ih, pow_succ]
@@ -151,15 +147,8 @@ theorem towerFamily_nested {k r : ℕ} {I : Type} (T : Tournament k)
     (n h : ℕ) (hbase : NestedFamily (base (h + n))) :
     NestedFamily (towerFamily T label base n h) := by
   induction n generalizing h with
-  | zero =>
-    change NestedFamily (base h)
-    simpa only [Nat.add_zero] using hbase
-  | succ n ih =>
-    apply recursiveFamily_nested
-    apply ih
-    have he : (h + 1) + n = h + (n + 1) := by omega
-    rw [he]
-    exact hbase
+  | zero => exact hbase
+  | succ n ih => exact recursiveFamily_nested _ _ _ (ih (h + 1) (Nat.add_right_comm h 1 n ▸ hbase))
 
 /-- If `0 < r` and every predicate of `base (h + n)` rejects the all-false input, then every
 predicate of the `n`-level tower family with `h` indices rejects the all-false input. -/
@@ -168,15 +157,9 @@ theorem towerFamily_zero {k r : ℕ} {I : Type} (T : Tournament k)
     (hr : 0 < r) (n h : ℕ) (hbase : ∀ q, base (h + n) q (fun _ => false) = false) :
     ∀ q, towerFamily T label base n h q (fun _ => false) = false := by
   induction n generalizing h with
-  | zero =>
-    change ∀ q, base h q (fun _ => false) = false
-    simpa only [Nat.add_zero] using hbase
+  | zero => exact hbase
   | succ n ih =>
-    apply recursiveFamily_zero T label _ hr
-    apply ih
-    have he : (h + 1) + n = h + (n + 1) := by omega
-    rw [he]
-    exact hbase
+    exact recursiveFamily_zero T label _ hr (ih (h + 1) (Nat.add_right_comm h 1 n ▸ hbase))
 
 open scoped Classical in
 /-- If `0 < r` and every predicate of `base (h + n)` rejects the all-false input and accepts it
@@ -190,17 +173,12 @@ theorem towerFamily_blocks {k r : ℕ} {I K : Type} (T : Tournament k)
     ∀ b q, towerFamily T label base n h q
       (BitString.flipOn (towerBlocks blocks n b) (fun _ => false)) = true := by
   induction n generalizing h with
-  | zero =>
-    change ∀ b q, base h q (BitString.flipOn (blocks b) (fun _ => false)) = true
-    simpa only [Nat.add_zero] using hblocks
+  | zero => exact hblocks
   | succ n ih =>
     intro b q
-    have he : (h + 1) + n = h + (n + 1) := by omega
-    have hz : ∀ q, base ((h + 1) + n) q (fun _ => false) = false := by grind
-    have hb : ∀ b q,
-        base ((h + 1) + n) q (BitString.flipOn (blocks b) (fun _ => false)) = true := by
-      rw [he]
-      exact hblocks
+    have hz : ∀ q, base (h + 1 + n) q (fun _ => false) = false :=
+      Nat.add_right_comm h 1 n ▸ hzero
+    have hb := Nat.add_right_comm h 1 n ▸ hblocks
     exact BitString.flipOn_congr_decidableEq _ _ ▸ recursiveFamily_rowLift T label _
       (towerFamily_zero T label base hr n (h + 1) hz)
       (towerBlocks blocks n b.2) (ih (h + 1) hz hb b.2) b.1 q

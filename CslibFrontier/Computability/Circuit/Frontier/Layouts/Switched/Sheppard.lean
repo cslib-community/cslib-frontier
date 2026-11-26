@@ -76,9 +76,8 @@ theorem measureReal_neg_preimage_stdGaussian {s : Set E} (hs : MeasurableSet s) 
 /-- Under `stdGaussian E`, a nonzero linear projection vanishes with probability zero. -/
 theorem measure_stdGaussian_inner_eq_zero {u : E} (hu : u ≠ 0) :
     stdGaussian E {x | ⟪u, x⟫ = 0} = 0 := by
-  have hle := stdGaussian_inner_mem_le hu (measurableSet_singleton (0 : ℝ))
-  simp only [Real.volume_singleton, mul_zero, nonpos_iff_eq_zero] at hle
-  exact hle
+  simpa only [Real.volume_singleton, mul_zero, nonpos_iff_eq_zero, Set.mem_singleton_iff] using
+    stdGaussian_inner_mem_le hu (measurableSet_singleton (0 : ℝ))
 
 /-- Almost surely under `stdGaussian E`, `⟪u, x⟫ ≠ 0` for any nonzero `u`. -/
 theorem stdGaussian_inner_ne_zero_ae {u : E} (hu : u ≠ 0) :
@@ -94,16 +93,15 @@ theorem stdGaussian_unit_inner_ne_zero_ae {u : E} (hu : ⟪u, u⟫ = 1) :
 /-- Under `stdGaussian E`, a unit vector projects to `gaussianReal 0 1`. -/
 theorem stdGaussian_map_inner_unit {u : E} (hu : ‖u‖ = 1) :
     (stdGaussian E).map (fun x => ⟪u, x⟫) = gaussianReal 0 1 := by
-  rw [stdGaussian_map_inner]
   have hn : ‖u‖₊ = 1 := NNReal.eq hu
-  simp only [hn, one_pow]
+  simp [stdGaussian_map_inner, hn]
 
 /-- The covariance of two linear projections under `stdGaussian E` equals their inner product. -/
 theorem cov_inner_stdGaussian (u v : E) :
     cov[fun x => ⟪u, x⟫, fun x => ⟪v, x⟫; stdGaussian E] = ⟪u, v⟫ := by
-  have h := covarianceBilin_apply_eq_cov (μ := stdGaussian E) IsGaussian.memLp_two_id u v
-  rw [covarianceBilin_stdGaussian] at h
-  exact h.symm
+  rw [← covarianceBilin_apply_eq_cov (μ := stdGaussian E) IsGaussian.memLp_two_id,
+    covarianceBilin_stdGaussian]
+  rfl
 
 /-- Pairwise sign-disagreement probability for unit vectors, using the strict/non-strict sign
 predicate `0 < ⟪u, x⟫`. -/
@@ -116,14 +114,10 @@ theorem measureReal_stdGaussian_sign_disagree {u v : E} (hu : ‖u‖ = 1) (hv :
     filter_upwards [stdGaussian_inner_ne_zero_ae hu0, stdGaussian_inner_ne_zero_ae hv0] with x hx hy
     simp only [Set.mem_uIoc]
     rcases lt_or_gt_of_ne hx with hxn | hxp <;> rcases lt_or_gt_of_ne hy with hyn | hyp
-    · constructor <;> intro h
-      · exact absurd ⟨fun h' => absurd h' hxn.not_gt, fun h' => absurd h' hyn.not_gt⟩ h
-      · rcases h with ⟨_, h⟩ | ⟨_, h⟩ <;> linarith
-    · exact iff_of_true (fun h => hxn.not_gt (h.mpr hyp)) (Or.inl ⟨hxn, hyp.le⟩)
-    · exact iff_of_true (fun h => hyn.not_gt (h.mp hxp)) (Or.inr ⟨hyn, hxp.le⟩)
-    · constructor <;> intro h
-      · exact absurd ⟨fun _ => hyp, fun _ => hxp⟩ h
-      · rcases h with ⟨h, _⟩ | ⟨h, _⟩ <;> linarith
+    · simp [hxn.not_gt, hyn.not_gt, hxn.not_ge, hyn.not_ge]
+    · simp [hxn.not_gt, hyp, hxn, hyp.le]
+    · simp [hxp, hyn.not_gt, hyn, hxp.le]
+    · simp [hxp, hyp, hxp.not_gt, hyp.not_gt]
   rw [measureReal_congr hae, measureReal_stdGaussian_zero_mem_uIoc_eq_arccos hu hv]
 
 /-- The three-sign algebraic identity. -/
@@ -144,110 +138,41 @@ theorem stdGaussian_real_pos_orthant_three {u v w : E} (hu : ‖u‖ = 1) (hv : 
   set μ := stdGaussian E
   set A : Set E := {x | 0 < ⟪u, x⟫ ∧ 0 < ⟪v, x⟫ ∧ 0 < ⟪w, x⟫}
   set B : Set E := {x | ⟪u, x⟫ ≤ 0 ∧ ⟪v, x⟫ ≤ 0 ∧ ⟪w, x⟫ ≤ 0}
-  have hAm : MeasurableSet A := by
-    simp only [A, Set.ofPred_and]
-    exact (measurableSet_lt measurable_const (by fun_prop)).inter
-      ((measurableSet_lt measurable_const (by fun_prop)).inter
-        (measurableSet_lt measurable_const (by fun_prop)))
-  have hBm : MeasurableSet B := by
-    simp only [B, Set.ofPred_and]
-    exact (measurableSet_le (by fun_prop) measurable_const).inter
-      ((measurableSet_le (by fun_prop) measurable_const).inter
-        (measurableSet_le (by fun_prop) measurable_const))
-  have hu0 : u ≠ 0 := norm_ne_zero_iff.mp (by rw [hu]; exact one_ne_zero)
-  have hv0 : v ≠ 0 := norm_ne_zero_iff.mp (by rw [hv]; exact one_ne_zero)
-  have hw0 : w ≠ 0 := norm_ne_zero_iff.mp (by rw [hw]; exact one_ne_zero)
-  have hB : μ.real B = μ.real A := by
-    have h1 : B = Neg.neg ⁻¹' {x : E | 0 ≤ ⟪u, x⟫ ∧ 0 ≤ ⟪v, x⟫ ∧ 0 ≤ ⟪w, x⟫} := by
-      ext x
-      simp only [B, Set.mem_ofPred_eq, Set.mem_preimage, inner_neg_right, Left.nonneg_neg_iff]
-    have hCm : MeasurableSet {x : E | 0 ≤ ⟪u, x⟫ ∧ 0 ≤ ⟪v, x⟫ ∧ 0 ≤ ⟪w, x⟫} := by
-      simp only [Set.ofPred_and]
-      exact (measurableSet_le measurable_const (by fun_prop)).inter
-        ((measurableSet_le measurable_const (by fun_prop)).inter
-          (measurableSet_le measurable_const (by fun_prop)))
-    have h2 : {x : E | 0 ≤ ⟪u, x⟫ ∧ 0 ≤ ⟪v, x⟫ ∧ 0 ≤ ⟪w, x⟫} =ᵐ[μ] A := by
-      filter_upwards [stdGaussian_inner_ne_zero_ae hu0, stdGaussian_inner_ne_zero_ae hv0,
-        stdGaussian_inner_ne_zero_ae hw0] with x hx hy hz
-      simp only [A, Set.mem_ofPred_eq, le_iff_lt_or_eq]
-      constructor
-      · rintro ⟨a | a, b | b, c | c⟩ <;> first
-          | exact ⟨a, b, c⟩
-          | exact absurd a.symm hx
-          | exact absurd b.symm hy
-          | exact absurd c.symm hz
-      · rintro ⟨a, b, c⟩
-        exact ⟨Or.inl a, Or.inl b, Or.inl c⟩
-    rw [h1, measureReal_neg_preimage_stdGaussian hCm, measureReal_congr h2]
   let dSet (a b : E) : Set E := {x | ¬(0 < ⟪a, x⟫ ↔ 0 < ⟪b, x⟫)}
-  have hd_eq : ∀ (a b : E) (x : E),
-      (dSet a b).indicator (fun _ => (1 : ℝ)) x =
-        if (0 < ⟪a, x⟫ ↔ 0 < ⟪b, x⟫) then 0 else 1 := fun a b x => by
-    by_cases h : 0 < ⟪a, x⟫ ↔ 0 < ⟪b, x⟫ <;> simp [dSet, h]
-  have hid : ∀ x : E,
-      A.indicator (fun _ => (1 : ℝ)) x + B.indicator (fun _ => (1 : ℝ)) x =
-        1 - ((dSet u v).indicator (fun _ => (1 : ℝ)) x +
-          (dSet u w).indicator (fun _ => (1 : ℝ)) x +
-          (dSet v w).indicator (fun _ => (1 : ℝ)) x) / 2 := fun x => by
-    have h := three_sign_identity (0 < ⟪u, x⟫) (0 < ⟪v, x⟫) (0 < ⟪w, x⟫)
-    rw [hd_eq u v x, hd_eq u w x, hd_eq v w x]
-    simp only [not_lt] at h
-    simpa only [Set.indicator_apply, A, B, Set.mem_ofPred_eq] using h
-  have hdm (a b : E) : MeasurableSet (dSet a b) := by
-    have heq : dSet a b = ({x : E | 0 < ⟪a, x⟫} ∩ {x : E | ⟪b, x⟫ ≤ 0}) ∪
-        ({x : E | ⟪a, x⟫ ≤ 0} ∩ {x : E | 0 < ⟪b, x⟫}) := by
-      ext x
-      simp only [dSet, Set.mem_union, Set.mem_inter_iff, Set.mem_ofPred_eq, not_lt.symm]
-      tauto
-    rw [heq]
-    exact ((measurableSet_lt measurable_const (by fun_prop)).inter
-        (measurableSet_le (by fun_prop) measurable_const)).union
-      ((measurableSet_le (by fun_prop) measurable_const).inter
-        (measurableSet_lt measurable_const (by fun_prop)))
-  have hAi : Integrable (A.indicator fun _ => (1 : ℝ)) μ :=
-    (integrable_const (1 : ℝ)).indicator hAm
-  have hBi : Integrable (B.indicator fun _ => (1 : ℝ)) μ :=
-    (integrable_const (1 : ℝ)).indicator hBm
-  have hDi (a b : E) : Integrable ((dSet a b).indicator fun _ => (1 : ℝ)) μ :=
-    (integrable_const (1 : ℝ)).indicator (hdm a b)
-  have hind (S : Set E) (hS : MeasurableSet S) :
-      ∫ x, S.indicator (fun _ => (1 : ℝ)) x ∂μ = μ.real S := by
-    rw [integral_indicator hS, setIntegral_const, smul_eq_mul, mul_one]
-  have hL : ∫ x, (A.indicator (fun _ => (1 : ℝ)) x + B.indicator (fun _ => (1 : ℝ)) x) ∂μ =
-      μ.real A + μ.real B := by
-    rw [integral_add hAi hBi, hind A hAm, hind B hBm]
-  have hDsum : ∫ x, ((dSet u v).indicator (fun _ => (1 : ℝ)) x +
-      (dSet u w).indicator (fun _ => (1 : ℝ)) x +
-      (dSet v w).indicator (fun _ => (1 : ℝ)) x) ∂μ =
-      μ.real (dSet u v) + μ.real (dSet u w) + μ.real (dSet v w) := by
-    have h12 : Integrable (fun x => (dSet u v).indicator (fun _ => (1 : ℝ)) x +
-        (dSet u w).indicator (fun _ => (1 : ℝ)) x) μ := (hDi u v).add (hDi u w)
-    rw [integral_add h12 (hDi v w), integral_add (hDi u v) (hDi u w),
-      hind _ (hdm u v), hind _ (hdm u w), hind _ (hdm v w)]
-  have hDi_sum : Integrable (fun x =>
-      ((dSet u v).indicator (fun _ => (1 : ℝ)) x +
-        (dSet u w).indicator (fun _ => (1 : ℝ)) x +
-        (dSet v w).indicator (fun _ => (1 : ℝ)) x) / 2) μ :=
-    (((hDi u v).add (hDi u w)).add (hDi v w)).div_const 2
-  have hR : ∫ x, (1 - ((dSet u v).indicator (fun _ => (1 : ℝ)) x +
-      (dSet u w).indicator (fun _ => (1 : ℝ)) x +
-      (dSet v w).indicator (fun _ => (1 : ℝ)) x) / 2) ∂μ =
-      1 - (μ.real (dSet u v) + μ.real (dSet u w) + μ.real (dSet v w)) / 2 := by
-    rw [integral_sub (integrable_const (1 : ℝ)) hDi_sum,
-      integral_const, smul_eq_mul, mul_one, probReal_univ, integral_div, hDsum]
-  have hint : ∫ x, (A.indicator (fun _ => (1 : ℝ)) x + B.indicator (fun _ => (1 : ℝ)) x) ∂μ =
-      ∫ x, (1 - ((dSet u v).indicator (fun _ => (1 : ℝ)) x +
-        (dSet u w).indicator (fun _ => (1 : ℝ)) x +
-        (dSet v w).indicator (fun _ => (1 : ℝ)) x) / 2) ∂μ :=
-    congrArg (fun f : E → ℝ => ∫ x, f x ∂μ) (funext hid)
-  rw [hL, hR, hB] at hint
-  have h1 : μ.real (dSet u v) = arccos ⟪u, v⟫ / π :=
-    measureReal_stdGaussian_sign_disagree hu hv
-  have h2 : μ.real (dSet u w) = arccos ⟪u, w⟫ / π :=
-    measureReal_stdGaussian_sign_disagree hu hw
-  have h3 : μ.real (dSet v w) = arccos ⟪v, w⟫ / π :=
-    measureReal_stdGaussian_sign_disagree hv hw
-  rw [h1, h2, h3] at hint
+  have hpos (a : E) : Measurable fun x : E => 0 < ⟪a, x⟫ :=
+    measurableSet_setOfPred.mp (measurableSet_lt measurable_const (by fun_prop))
+  have hnpos (a : E) : MeasurableSet {x : E | ⟪a, x⟫ ≤ 0} :=
+    measurableSet_le (by fun_prop) measurable_const
+  have hAm : MeasurableSet A := measurableSet_setOfPred.mpr ((hpos u).and ((hpos v).and (hpos w)))
+  have hBm : MeasurableSet B := (hnpos u).inter ((hnpos v).inter (hnpos w))
+  have hdm (a b : E) : MeasurableSet (dSet a b) :=
+    measurableSet_setOfPred.mpr ((hpos a).iff (hpos b)).not
+  have hne {a : E} (ha : ‖a‖ = 1) : ∀ᵐ x ∂μ, ⟪a, x⟫ ≠ 0 :=
+    stdGaussian_inner_ne_zero_ae (norm_ne_zero_iff.mp (by rw [ha]; exact one_ne_zero))
+  have hB : μ.real B = μ.real A := by
+    rw [← measureReal_neg_preimage_stdGaussian hBm]
+    refine measureReal_congr ?_
+    filter_upwards [hne hu, hne hv, hne hw] with x hx hy hz
+    simp only [A, B, preimage_ofPred_eq, inner_neg_right, neg_nonpos]
+    exact ⟨fun ⟨a, b, c⟩ => ⟨a.lt_of_ne' hx, b.lt_of_ne' hy, c.lt_of_ne' hz⟩,
+      fun ⟨a, b, c⟩ => ⟨a.le, b.le, c.le⟩⟩
+  have hid (x : E) : A.indicator 1 x + B.indicator 1 x = 1 - ((dSet u v).indicator 1 x +
+      (dSet u w).indicator 1 x + (dSet v w).indicator 1 x) / (2 : ℝ) := by
+    simpa only [indicator_apply, Pi.one_apply, A, B, dSet, mem_ofPred_eq, not_lt, ite_not]
+      using three_sign_identity (0 < ⟪u, x⟫) (0 < ⟪v, x⟫) (0 < ⟪w, x⟫)
+  have hI {S : Set E} (hS : MeasurableSet S) : Integrable (S.indicator (1 : E → ℝ)) μ :=
+    (integrable_const 1).indicator hS
+  have hi (a b : E) := hI (hdm a b)
+  have hd {a b : E} (ha : ‖a‖ = 1) (hb : ‖b‖ = 1) : μ.real (dSet a b) = arccos ⟪a, b⟫ / π :=
+    measureReal_stdGaussian_sign_disagree ha hb
+  have hint := integral_congr_ae (μ := μ) (ae_of_all _ hid)
+  rw [integral_add (hI hAm) (hI hBm),
+    integral_sub (integrable_const 1) ((((hi u v).fun_add (hi u w)).fun_add (hi v w)).div_const 2),
+    integral_div, integral_add ((hi u v).fun_add (hi u w)) (hi v w),
+    integral_add (hi u v) (hi u w), integral_const, probReal_univ, one_smul,
+    integral_indicator_one hAm,
+    integral_indicator_one hBm, integral_indicator_one (hdm u v), integral_indicator_one (hdm u w),
+    integral_indicator_one (hdm v w), hB, hd hu hv, hd hu hw, hd hv hw] at hint
   linear_combination (1 / 2 : ℝ) * hint
 
 end Cslib.Circuits.Frontier.Switched

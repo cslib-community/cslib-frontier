@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyArray
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyPow
 
@@ -83,6 +84,14 @@ theorem powMap_injective : powMap.Injective := Fin.castLE_injective _
 theorem fillMap_injective : fillMap.Injective := by decide
 theorem cmpMap_injective : cmpMap.Injective := by decide
 
+@[local wram_simps] private theorem map_regs :
+    fillMap Fill.base = pa ∧ fillMap Fill.rr = rr ∧ fillMap Fill.nn = nn ∧
+    fillMap Fill.er = er ∧ fillMap Fill.aa = aa ∧ fillMap Fill.one = one ∧
+    powMap PolyPow.R = R ∧ powMap PolyPow.B = B ∧ powMap PolyPow.T = T ∧
+    powMap PolyPow.rr = rr ∧ powMap PolyPow.nn = nn ∧ powMap PolyPow.e = e ∧
+    cmpMap Compare.p = pa ∧ cmpMap Compare.q = pb ∧ cmpMap Compare.rr = rr ∧
+    cmpMap Compare.flag = flag ∧ cmpMap Compare.one = one := by decide
+
 /-- Write `X^e + a` into the block at `pa`. -/
 def fill : Code .standard 25 := Fill.program.rename fillMap
 
@@ -109,20 +118,6 @@ def Keep (j : Fin 25) : Prop := j = R ∨ j = B ∨ j = T ∨ j = rr ∨ j = nn 
 
 instance : DecidablePred Keep := fun _ => by unfold Keep; infer_instance
 
-private theorem fill_preserves : ∀ j, Keep j → fill.Preserves j := by decide
-private theorem cmp_preserves : ∀ j, Keep j → cmp.Preserves j := by decide
-
-private theorem fill_exec {w : ℕ} (x : Data 25) {bs r n e' A : ℕ} (hb : x.regs pa = bs)
-    (hr : x.regs rr = r) (hn : x.regs nn = n) (her : x.regs er = e' % r) (ha : x.regs aa = A)
-    (hr0 : 0 < r) (hn0 : 0 < n) (hfb : Fits w (bs + r)) (hfa : Fits w A) (hfn : Fits w (n + 1)) :
-    ∃ y, ExecWithin w fill x y (5 * r + 13) ∧
-      (∀ k < r, y.mem (bs + k) = powAddCoeff n r e' A k) ∧
-      (∀ a', ¬(bs ≤ a' ∧ a' < bs + r) → y.mem a' = x.mem a') ∧
-      (∀ j, Keep j → y.regs j = x.regs j) := by
-  obtain ⟨y, hy, hblk, hframe, -⟩ := Fill.exec (x.comap fillMap) hb hr hn her ha hr0 hn0 hfb hfa hfn
-  have hy' := hy.rename fillMap_injective
-  exact ⟨_, hy', hblk, hframe, fun j hj => hy'.regs_eq (fill_preserves j hj)⟩
-
 /-- The class of `1`, written as `X^0 + 0`. -/
 private theorem toQuot_one {n r : ℕ} (hr : 0 < r) : toQuot n r (powAddCoeff n r 0 0) = 1 := by
   rw [toQuot_powAddCoeff hr, pow_zero, Nat.cast_zero, C_0, add_zero, map_one]
@@ -144,95 +139,48 @@ theorem exec {w : ℕ} (x : Data 25) {a b t r n A : ℕ} (ha : x.regs R = a) (hb
   have hfnn : Fits w n := hfn.of_le (by nlinarith)
   have hmod1 : 1 % r ≤ 1 := Nat.mod_le 1 r
   have hmodn : n % r ≤ n := Nat.mod_le n r
-  unfold program
+  unfold program fill pow cmp
   wram_exec [hr, hA, hb]
-  refine WP.name fun x₁ hx₁ => ?_
-  have hx₁k (j : Fin 25) (hj : Keep j) : x₁.regs j = x.regs j := by
-    subst hx₁; rcases hj with rfl | rfl | rfl | rfl | rfl | rfl <;> wram_simp
-  wram_call (fill_exec (w := w) x₁ (bs := b) (r := r) (n := n) (e' := 1) (A := A)
-    (by subst hx₁; wram_simp) ((hx₁k rr (by simp [Keep])).trans hr)
-    ((hx₁k nn (by simp [Keep])).trans hn) (by subst hx₁; wram_simp)
-    (by subst hx₁; wram_simp) hr0 hn0 hfb hfA hfn1) with y₁ ⟨hB₁, -, hy₁⟩
-  have hy₁' (j : Fin 25) (hj : Keep j) : y₁.regs j = x.regs j :=
-    (hy₁ j hj).trans (hx₁k j hj)
-  wram_exec [hy₁' R (by simp [Keep]), ha]
-  refine WP.name fun x₂ hx₂ => ?_
-  have hx₂k (j : Fin 25) (hj : Keep j) : x₂.regs j = x.regs j := by
-    rw [← hy₁' j hj]; subst hx₂
-    rcases hj with rfl | rfl | rfl | rfl | rfl | rfl <;> wram_simp
-  have hx₂m : x₂.mem = y₁.mem := by subst hx₂; rfl
-  wram_call (fill_exec (w := w) x₂ (bs := a) (r := r) (n := n) (e' := 0) (A := 0)
-    (by subst hx₂; wram_simp) ((hx₂k rr (by simp [Keep])).trans hr)
-    ((hx₂k nn (by simp [Keep])).trans hn) (by subst hx₂; wram_simp [Nat.zero_mod])
-    (by subst hx₂; wram_simp) hr0 hn0 hfa (fits_zero w) hfn1) with y₂ ⟨hR₂, hfr₂, hy₂⟩
-  have hy₂' (j : Fin 25) (hj : Keep j) : y₂.regs j = x.regs j :=
-    (hy₂ j hj).trans (hx₂k j hj)
-  have hB₂ (k : ℕ) (hk : k < r) : y₂.mem (b + k) = powAddCoeff n r 1 A k :=
-    (hfr₂ _ (by rcases hab with h | h <;> omega)).trans (hx₂m ▸ hB₁ k hk)
-  wram_exec [hy₂' nn (by simp [Keep]), hn]
-  refine WP.name fun x₃ hx₃ => ?_
-  have hx₃k (j : Fin 25) (hj : Keep j) : x₃.regs j = x.regs j := by
-    rw [← hy₂' j hj]; subst hx₃
-    rcases hj with rfl | rfl | rfl | rfl | rfl | rfl <;> wram_simp
-  have hx₃e : x₃.regs e = n := by subst hx₃; wram_simp
-  have hx₃m : x₃.mem = y₂.mem := by subst hx₃; rfl
-  unfold pow
-  wram_call (PolyPow.exec (x₃.comap powMap)
-    ((hx₃k R (by simp [Keep])).trans ha) ((hx₃k B (by simp [Keep])).trans hb)
-    ((hx₃k T (by simp [Keep])).trans ht) ((hx₃k rr (by simp [Keep])).trans hr)
-    ((hx₃k nn (by simp [Keep])).trans hn) hn0 hab hta htb
-    (fun i hi => by change x₃.mem (a + i) < n; rw [hx₃m, hR₂ i hi]; exact powAddCoeff_lt hn0 _ _ _)
-    (fun i hi => by change x₃.mem (b + i) < n; rw [hx₃m, hB₂ i hi]; exact powAddCoeff_lt hn0 _ _ _)
-    hfa hfb hft hf2 hfn (by change Fits w (x₃.regs e); exact hx₃e ▸ hfnn))
-    renamed powMap_injective with y₃ ⟨⟨hq₃, hred₃, hy₃R, hy₃B, hy₃T, hy₃r, hy₃n⟩, hout₃⟩
-  change toQuot n r (fun i => y₃.mem (a + i)) =
-    toQuot n r (fun i => x₃.mem (a + i)) * toQuot n r (fun i => x₃.mem (b + i)) ^ x₃.regs e at hq₃
-  rw [hx₃e, hx₃m] at hq₃
-  have hy₃' (j : Fin 25) (hj : Keep j) : y₃.regs j = x.regs j := by
-    rcases hj with rfl | rfl | rfl | rfl | rfl | rfl
-    · exact (show y₃.regs R = a from hy₃R).trans ha.symm
-    · exact (show y₃.regs B = b from hy₃B).trans hb.symm
-    · exact (show y₃.regs T = t from hy₃T).trans ht.symm
-    · exact (show y₃.regs rr = r from hy₃r).trans hr.symm
-    · exact (show y₃.regs nn = n from hy₃n).trans hn.symm
-    · exact (hout₃ av (by decide)).trans (hx₃k av (by simp [Keep]))
-  wram_exec [hy₃' nn (by simp [Keep]), hn, hy₃' rr (by simp [Keep]), hr,
-    hy₃' av (by simp [Keep]), hA, hy₃' T (by simp [Keep]), ht]
-  refine WP.name fun x₄ hx₄ => ?_
-  have hx₄k (j : Fin 25) (hj : Keep j) : x₄.regs j = x.regs j := by
-    rw [← hy₃' j hj]; subst hx₄
-    rcases hj with rfl | rfl | rfl | rfl | rfl | rfl <;> wram_simp
-  have hx₄m : x₄.mem = y₃.mem := by subst hx₄; rfl
-  wram_call (fill_exec (w := w) x₄ (bs := t) (r := r) (n := n) (e' := n) (A := A)
-    (by subst hx₄; wram_simp) ((hx₄k rr (by simp [Keep])).trans hr)
-    ((hx₄k nn (by simp [Keep])).trans hn) (by subst hx₄; wram_simp)
-    (by subst hx₄; wram_simp) hr0 hn0 hft hfA hfn1) with y₄ ⟨hT₄, hfr₄, hy₄⟩
-  have hy₄' (j : Fin 25) (hj : Keep j) : y₄.regs j = x.regs j :=
-    (hy₄ j hj).trans (hx₄k j hj)
-  have hR₄ (k : ℕ) (hk : k < r) : y₄.mem (a + k) = y₃.mem (a + k) :=
-    (hfr₄ _ (by rcases hta with h | h <;> omega)).trans (congrFun hx₄m _)
-  wram_exec [hy₄' R (by simp [Keep]), ha, hy₄' T (by simp [Keep]), ht]
-  refine WP.name fun x₅ hx₅ => ?_
-  have hx₅k (j : Fin 25) (hj : Keep j) : x₅.regs j = x.regs j := by
-    rw [← hy₄' j hj]; subst hx₅
-    rcases hj with rfl | rfl | rfl | rfl | rfl | rfl <;> wram_simp
-  have hx₅m : x₅.mem = y₄.mem := by subst hx₅; rfl
-  obtain ⟨y₅, hy₅, ⟨hle, hiff, -⟩, -⟩ := ExecWithin.rename_post cmpMap_injective
-    (Compare.exec (x₅.comap cmpMap) (a := a) (b := t) (r := r)
-      (by change x₅.regs pa = a; subst hx₅; wram_simp)
-      (by change x₅.regs pb = t; subst hx₅; wram_simp)
-      ((hx₅k rr (by simp [Keep])).trans hr) hfa hft h1)
-  refine WP.of_execWithin hy₅ ⟨?_, hle, ?_,
-    fun j hj => (hy₅.regs_eq (cmp_preserves j hj)).trans (hx₅k j hj)⟩
-  · rw [show powMap PolyPow.e = e from rfl, hx₃e]; unfold time; omega
-  · rw [show y₅.regs flag = (y₅.comap cmpMap).regs Compare.flag from rfl, hiff,
-      congruence_iff_toQuot hr0]
-    change (∀ k' < r, x₅.mem (a + k') = x₅.mem (t + k')) ↔ _
-    simp only [hx₅m]
-    have hRred (k : ℕ) (hk : k < r) : y₄.mem (a + k) < n := by rw [hR₄ k hk]; exact hred₃ k hk
-    have hTred (k : ℕ) (hk : k < r) : y₄.mem (t + k) < n := by
-      rw [hT₄ k hk]; exact powAddCoeff_lt hn0 _ _ _
-    rw [← toQuot_eq_toQuot_iff hn0 hr0 hRred hTred, toQuot_congr hR₄, hq₃, toQuot_congr hT₄,
-      toQuot_congr hR₂, toQuot_congr hB₂, toQuot_one hr0, one_mul]
+  wram_call (Fill.exec (w := w) (b := b) (r := r) (n := n) (e := 1) (a := A)) renamed
+    [hn, hr0, hn0, hfb, hfA, hfn1] with y₁ ⟨⟨hB₁, -, -, hy₁r, hy₁n⟩, hout₁⟩
+  wram_simp at hy₁r hy₁n
+  have hy₁R : y₁.regs R = a := by regs_frame
+  wram_exec [hy₁R]
+  wram_call (Fill.exec (w := w) (b := a) (r := r) (n := n) (e := 0) (a := 0)) renamed
+    [hy₁r, hy₁n, Nat.zero_mod, hr0, hn0, hfa, fits_zero w, hfn1]
+    with y₂ ⟨⟨hR₂, hfr₂, -, hy₂r, hy₂n⟩, hout₂⟩
+  wram_simp at hy₂r hy₂n hfr₂
+  have hB₂ (k : ℕ) (hk : k < r) : y₂.mem (b + k) = powAddCoeff n r 1 A k := by
+    have : ¬(a ≤ b + k ∧ b + k < a + r) := by rcases hab with h | h <;> omega
+    mem_frame
+  wram_exec [hy₂n]
+  wram_call (PolyPow.exec (w := w) (a := a) (b := b) (t := t) (r := r) (n := n)) renamed
+    powMap_injective [ha, hb, ht, hy₂r, hy₂n, hn0, hab, hta, htb, hfa, hfb, hft, hf2, hfn, hfnn]
+    with y₃ ⟨⟨hq₃, hred₃, hy₃R, hy₃B, hy₃T, hy₃r, hy₃n⟩, hout₃⟩
+  · wram_simp at hy₃R hy₃B hy₃T hy₃r hy₃n hq₃
+    have hy₃A : y₃.regs av = A := by regs_frame
+    wram_exec [hy₃n, hy₃r, hy₃A, hy₃T]
+    wram_call (Fill.exec (w := w) (b := t) (r := r) (n := n) (e := n) (a := A)) renamed
+      [hy₃r, hy₃n, hr0, hn0, hft, hfA, hfn1] with y₄ ⟨⟨hT₄, hfr₄, -, hy₄r, hy₄n⟩, hout₄⟩
+    wram_simp at hy₄r hy₄n hfr₄
+    have hR₄ (k : ℕ) (hk : k < r) : y₄.mem (a + k) = y₃.mem (a + k) := by
+      have : ¬(t ≤ a + k ∧ a + k < t + r) := by rcases hta with h | h <;> omega
+      mem_frame
+    have hy₄R : y₄.regs R = a := by regs_frame
+    have hy₄T : y₄.regs T = t := by regs_frame
+    wram_exec [hy₄R, hy₄T]
+    wram_call (Compare.exec (w := w) (a := a) (b := t) (r := r)) renamed
+      [hy₄r, hfa, hft, h1] with y₅ ⟨⟨hle, hiff, -⟩, hout₅⟩
+    wram_simp at hle hiff ⊢
+    refine ⟨by unfold time; omega, hle, ?_, ?_⟩
+    · rw [hiff, congruence_iff_toQuot hr0]
+      have hRred (k : ℕ) (hk : k < r) : y₄.mem (a + k) < n := (hR₄ k hk).trans_lt (hred₃ k hk)
+      have hTred (k : ℕ) (hk : k < r) : y₄.mem (t + k) < n :=
+        (hT₄ k hk).trans_lt (powAddCoeff_lt hn0 _ _ _)
+      rw [← toQuot_eq_toQuot_iff hn0 hr0 hRred hTred, toQuot_congr hR₄, hq₃, toQuot_congr hT₄,
+        toQuot_congr hR₂, toQuot_congr hB₂, toQuot_one hr0, one_mul]
+    · rintro j (rfl | rfl | rfl | rfl | rfl | rfl) <;> regs_frame
+  · intro i hi; exact (hR₂ i hi).trans_lt (powAddCoeff_lt hn0 _ _ _)
+  · intro i hi; exact (hB₂ i hi).trans_lt (powAddCoeff_lt hn0 _ _ _)
 
 end Cslib.Algorithms.WordRAM.AKS.Congruence

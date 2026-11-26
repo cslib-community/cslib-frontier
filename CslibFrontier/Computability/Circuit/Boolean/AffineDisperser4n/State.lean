@@ -314,10 +314,8 @@ theorem Valid.exists_affine_embedding {f : BooleanFunction n} (hS : S.Valid f) :
     rwa [S.locusAssign_of_mem hF hFdisj u hi, S.locusAssign_of_mem hF hFdisj v hi] at hi'
   · obtain ⟨val, hval, hcons⟩ := hS.wf.exists_consistent (σ u)
     refine ⟨val, hcons, fun pr hpr => ?_, (hS.phi_congr val _ hval).symm⟩
-    exact ZeroPair.holds_of_eq_bias (hrep pr hpr)
-      (by rw [hval _ (by rcases hrep pr hpr with h | h <;> rw [← h] <;>
-            [exact (hS.pair_mem pr hpr).1; exact (hS.pair_mem pr hpr).2.1])]
-          exact locusAssign_rep hS hrep hF hFdisj u hpr)
+    exact ZeroPair.holds_of_eq_bias (hrep pr hpr) ((hval _ (hS.mem_params_of_contains hpr
+      (hrep pr hpr))).trans (locusAssign_rep hS hrep hF hFdisj u hpr))
 
 private theorem Valid.exists_affine_subspace_const_of_family {f : BooleanFunction n} {d k : ℕ}
     (hS : S.Valid f) (σ : BitString k → ℕ → Bool) (hσ : IsAffine σ) (hlocus : ∀ u, S.Locus (σ u))
@@ -423,21 +421,15 @@ theorem Valid.exists_affine_subspace_const_of_fix {f : BooleanFunction n} {d : �
     have hpr0_ne : pr₀.fst ≠ pr₀.snd := (hS.pair_mem pr₀ hpr₀).2.2
     have hy0 : pr₀.Contains y := pr₀.contains_partner hx0
     have hyx : y ≠ x := pr₀.partner_ne hpr0_ne hx0
-    have hyp : y ∈ S.params := by
-      rcases hy0 with h | h <;> rw [← h]
-      · exact (hS.pair_mem pr₀ hpr₀).1
-      · exact (hS.pair_mem pr₀ hpr₀).2.1
+    have hyp : y ∈ S.params := hS.mem_params_of_contains hpr₀ hy0
     let rep : ZeroPair → ℕ := fun pr => if pr.Contains x then x else pr.fst
     have hrep : ∀ pr ∈ S.pairs, pr.Contains (rep pr) := fun pr _ => by
-      by_cases h : pr.Contains x
-      · simp [rep, h]
-      · simp only [rep, h, ite_false]; exact Or.inl rfl
+      dsimp only [rep]; split_ifs with h
+      exacts [h, Or.inl rfl]
     have hrepy : ∀ pr ∈ S.pairs, rep pr ≠ y := fun pr hpr => by
-      by_cases h : pr.Contains x
-      · simp only [rep, h, ite_true]
-        exact hyx.symm
-      · simp only [rep, h, ite_false]
-        intro heq
+      dsimp only [rep]; split_ifs with h
+      · exact hyx.symm
+      · intro heq
         have hne : pr ≠ pr₀ := fun h' => h (h' ▸ hx0)
         have hdisj := hS.pairs_disjoint pr hpr pr₀ hpr₀ hne
         rcases hy0 with h1 | h1 <;> rw [← h1] at heq <;> tauto
@@ -456,18 +448,11 @@ theorem Valid.exists_affine_subspace_const_of_fix {f : BooleanFunction n} {d : �
   · push Not at hcase
     let rep : ZeroPair → ℕ := fun pr => if pr.Contains x then pr.partner x else pr.fst
     have hrep : ∀ pr ∈ S.pairs, pr.Contains (rep pr) := fun pr _ => by
-      by_cases h : pr.Contains x
-      · simp only [rep, h, ite_true]
-        exact pr.contains_partner h
-      · simp only [rep, h, ite_false]
-        exact Or.inl rfl
+      dsimp only [rep]; split_ifs with h
+      exacts [pr.contains_partner h, Or.inl rfl]
     have hrepx : ∀ pr ∈ S.pairs, rep pr ≠ x := fun pr hpr => by
-      by_cases h : pr.Contains x
-      · simp only [rep, h, ite_true]
-        exact pr.partner_ne (hS.pair_mem pr hpr).2.2 h
-      · simp only [rep, h, ite_false]
-        intro heq
-        exact h (Or.inl heq)
+      dsimp only [rep]; split_ifs with h
+      exacts [pr.partner_ne (hS.pair_mem pr hpr).2.2 h, fun heq => h (Or.inl heq)]
     refine Valid.exists_affine_subspace_const_of_erased hS ha c hx hR b hout rep hrep hx hrepx
       (fun g => c + ∑ j ∈ R, g j)
       (fun hg => isAffine_const_add_sum hg c R) fun g _ => by

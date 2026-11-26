@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.MachineLearning.OnlineLearning.MultiplicativeUpdate
 public import Mathlib.Analysis.SpecialFunctions.Exp
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpLogQuadratic
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Tactic.Linarith
@@ -41,6 +42,8 @@ rate `η = √(ln n / T)` gives regret at most `2 √(T ln n)` once `T ≥ ln n`
 
 ## Main results
 
+* `Cslib.MachineLearning.OnlineLearning.Experts.hedge_regret_le_of_nonneg`: the sharper `η / 2`
+  second-order regret bound for nonnegative losses.
 * `Cslib.MachineLearning.OnlineLearning.Experts.hedge_regret_le_of_neg_one_le`: the regret bound
   for losses with `η ℓ ≥ -1`.
 * `Cslib.MachineLearning.OnlineLearning.Experts.hedge_regret_le`:
@@ -52,6 +55,8 @@ rate `η = √(ln n / T)` gives regret at most `2 √(T ln n)` once `T ≥ ln n`
 
 * [S. Arora, E. Hazan, S. Kale, *The Multiplicative Weights Update Method: a Meta-Algorithm and
   Applications*][AroraHazanKale2012]
+* [S. Bubeck, N. Cesa-Bianchi, *Regret Analysis of Stochastic and Nonstochastic Multi-Armed Bandit
+  Problems*][BubeckCesaBianchi2012]
 * [Y. Freund, R. E. Schapire, *A decision-theoretic generalization of on-line learning and an
   application to boosting*][FreundSchapire1997]
 -/
@@ -71,12 +76,13 @@ noncomputable def hedgeFactor (η x : ℝ) : ℝ := exp (-(η * x))
 @[simp] theorem hedgeFactor_apply (η x : ℝ) : hedgeFactor η x = exp (-(η * x)) := by
   rw [hedgeFactor]
 
-/-- **Regret of Hedge** for losses with `η ℓ ≥ -1`: for `0 < η` and every expert `i`,
-`∑ t, ⟨p t, ℓ t⟩ ≤ ∑ t, ℓ t i + η ∑ t, ⟨p t, ℓ t ^ 2⟩ + ln n / η`. -/
-theorem hedge_regret_le_of_neg_one_le {η : ℝ} (hη : 0 < η)
-    (hℓ : ∀ s < T, ∀ i, -1 ≤ η * ℓ s i) (i : ι) :
+/-- Shared log-potential reduction for `hedgeFactor`: any per-round upper bound
+`exp (-(η * ℓ t j)) ≤ 1 - η * ℓ t j + (c * η) * ℓ t j ^ 2` implies regret at most
+`c * ∑ t, ⟨p t, ℓ t ^ 2⟩ + ln n / η`. -/
+private theorem hedge_regret_le_of_exp_bound {η c : ℝ} (hη : 0 < η)
+    (hexp : ∀ s < T, ∀ j, exp (-(η * ℓ s j)) ≤ 1 - η * ℓ s j + (c * η) * ℓ s j ^ 2) (i : ι) :
     ∑ t ∈ range T, ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j ≤
-      ∑ t ∈ range T, ℓ t i + η * ∑ t ∈ range T, ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j ^ 2 +
+      ∑ t ∈ range T, ℓ t i + c * ∑ t ∈ range T, ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j ^ 2 +
         log (Fintype.card ι) / η := by
   have : Nonempty ι := ⟨i⟩
   have hφ : ∀ s < T, ∀ j, 0 < hedgeFactor η (ℓ s j) := fun _ _ _ => exp_pos _
@@ -84,37 +90,52 @@ theorem hedge_regret_le_of_neg_one_le {η : ℝ} (hη : 0 < η)
   simp only [hedgeFactor_apply, log_exp] at hmaster
   have hup : ∀ t ∈ range T, log (∑ j, prob (hedgeFactor η) ℓ t j * exp (-(η * ℓ t j))) ≤
       -(η * ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j) +
-        η ^ 2 * ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j ^ 2 := by
+        (c * η) * ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j ^ 2 := by
     intro t ht
     have ht' := mem_range.mp ht
     have hφt : ∀ s < t, ∀ j, 0 < hedgeFactor η (ℓ s j) := fun _ _ _ => exp_pos _
     have hpos : 0 < ∑ j, prob (hedgeFactor η) ℓ t j * exp (-(η * ℓ t j)) :=
       sum_prob_mul_pos (φ := hedgeFactor η) fun _ _ _ => exp_pos _
     have hle : ∑ j, prob (hedgeFactor η) ℓ t j * exp (-(η * ℓ t j)) ≤
-        ∑ j, prob (hedgeFactor η) ℓ t j * (1 - η * ℓ t j + (η * ℓ t j) ^ 2) :=
-      sum_le_sum fun j _ => mul_le_mul_of_nonneg_left
-        (exp_neg_le_one_sub_add_sq (hℓ t ht' j)) (prob_nonneg hφt j)
-    have heq : ∑ j, prob (hedgeFactor η) ℓ t j * (1 - η * ℓ t j + (η * ℓ t j) ^ 2) =
+        ∑ j, prob (hedgeFactor η) ℓ t j * (1 - η * ℓ t j + (c * η) * ℓ t j ^ 2) :=
+      sum_le_sum fun j _ => mul_le_mul_of_nonneg_left (hexp t ht' j) (prob_nonneg hφt j)
+    have heq : ∑ j, prob (hedgeFactor η) ℓ t j * (1 - η * ℓ t j + (c * η) * ℓ t j ^ 2) =
         1 - η * ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j +
-          η ^ 2 * ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j ^ 2 := by
+          (c * η) * ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j ^ 2 := by
       simp only [mul_add, mul_sub, mul_one, sum_add_distrib, sum_sub_distrib, sum_prob hφt,
-        mul_sum]
-      congr 1
-      · congr 1
-        exact sum_congr rfl fun j _ => by ring
-      · exact sum_congr rfl fun j _ => by ring
+        mul_sum, mul_left_comm]
     linarith [log_le_sub_one_of_pos hpos]
   have hup' := sum_le_sum hup
   rw [sum_add_distrib, sum_neg_distrib, ← mul_sum, ← mul_sum] at hup'
-  have hlhs : ∑ s ∈ range T, -(η * ℓ s i) = -(η * ∑ t ∈ range T, ℓ t i) := by
-    rw [sum_neg_distrib, mul_sum]
-  rw [hlhs] at hmaster
-  have key : η * ∑ t ∈ range T, ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j ≤
-      η * (∑ t ∈ range T, ℓ t i + η * ∑ t ∈ range T, ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j ^ 2 +
-        log (Fintype.card ι) / η) := by
-    rw [mul_add, mul_add, mul_div_cancel₀ _ hη.ne']
-    nlinarith
-  exact le_of_mul_le_mul_left key hη
+  rw [sum_neg_distrib, ← mul_sum] at hmaster
+  refine le_of_mul_le_mul_left ?_ hη
+  rw [mul_add, mul_add, mul_div_cancel₀ _ hη.ne']
+  nlinarith
+
+/-- **Regret of Hedge for nonnegative losses**: for `0 < η`, losses `ℓ ≥ 0`, and every expert `i`,
+`∑ t, ⟨p t, ℓ t⟩ ≤ ∑ t, ℓ t i + (η / 2) ∑ t, ⟨p t, ℓ t ^ 2⟩ + ln n / η`. Using
+`exp (-x) ≤ 1 - x + x ^ 2 / 2` for `x ≥ 0` (`Real.exp_neg_le_one_sub_add_sq_div_two`) saves a
+factor of `2` on the variance term without upper-bounding `η ℓ` (compare the potential step of
+[BubeckCesaBianchi2012, Theorem 3.1], locator not re-verified against primary PDF). -/
+theorem hedge_regret_le_of_nonneg {η : ℝ} (hη : 0 < η)
+    (hℓ : ∀ s < T, ∀ i, 0 ≤ ℓ s i) (i : ι) :
+    ∑ t ∈ range T, ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j ≤
+      ∑ t ∈ range T, ℓ t i + (η / 2) * ∑ t ∈ range T, ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j ^ 2 +
+        log (Fintype.card ι) / η :=
+  hedge_regret_le_of_exp_bound hη (fun s hs j => by
+    have h := exp_neg_le_one_sub_add_sq_div_two (mul_nonneg hη.le (hℓ s hs j))
+    linarith [show (η * ℓ s j) ^ 2 / 2 = (η / 2 * η) * ℓ s j ^ 2 by ring]) i
+
+/-- **Regret of Hedge** for losses with `η ℓ ≥ -1`: for `0 < η` and every expert `i`,
+`∑ t, ⟨p t, ℓ t⟩ ≤ ∑ t, ℓ t i + η ∑ t, ⟨p t, ℓ t ^ 2⟩ + ln n / η`. -/
+theorem hedge_regret_le_of_neg_one_le {η : ℝ} (hη : 0 < η)
+    (hℓ : ∀ s < T, ∀ i, -1 ≤ η * ℓ s i) (i : ι) :
+    ∑ t ∈ range T, ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j ≤
+      ∑ t ∈ range T, ℓ t i + η * ∑ t ∈ range T, ∑ j, prob (hedgeFactor η) ℓ t j * ℓ t j ^ 2 +
+        log (Fintype.card ι) / η :=
+  hedge_regret_le_of_exp_bound hη (fun s hs j => by
+    have h := exp_neg_le_one_sub_add_sq (hℓ s hs j)
+    linarith [show (η * ℓ s j) ^ 2 = (η * η) * ℓ s j ^ 2 by ring]) i
 
 /-- **Regret of Hedge** [AroraHazanKale2012, Theorem 2.3]: for losses in `[-1, 1]` and
 `0 < η ≤ 1`, for every expert `i`,

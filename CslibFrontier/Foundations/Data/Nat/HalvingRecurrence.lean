@@ -35,6 +35,8 @@ that are not monotone, are covered directly. `Nat.pow_clog_two_le_mul_rpow_logb`
 * `Nat.add_mul_two_pow_clog_le_of_halving`: the same at `k = ⌈log₂ n⌉`.
 * `Nat.clog_two_lt_clog_two_of_le_half`: halving lowers `⌈log₂⌉`, for `2 ≤ m` and
   `k ≤ ⌈m / 2⌉`.
+* `Nat.pow_mul_le_of_step`: geometric halving bound `2 ^ r * C r ≤ C 0` from
+  `2 * C (k + 1) ≤ C k`.
 
 ## References
 
@@ -100,5 +102,17 @@ theorem clog_two_lt_clog_two_of_le_half {m k : ℕ} (hm : 2 ≤ m) (hk : k ≤ (
     Nat.clog 2 k < Nat.clog 2 m := by
   rw [Nat.clog_of_two_le one_lt_two hm]
   exact Nat.lt_succ_of_le (Nat.clog_mono_right 2 (by omega))
+
+/-- Geometric halving step `2 * C (k + 1) ≤ C k` yields `2 ^ r * C r ≤ C 0` for all `r`. -/
+theorem pow_mul_le_of_step {C : ℕ → ℕ} (hstep : ∀ k, 2 * C (k + 1) ≤ C k) :
+    ∀ r : ℕ, 2 ^ r * C r ≤ C 0
+  | 0 => by simp
+  | r + 1 => by
+      have ih := pow_mul_le_of_step hstep r
+      have hr := hstep r
+      calc 2 ^ (r + 1) * C (r + 1)
+          = 2 ^ r * (2 * C (r + 1)) := by ring
+        _ ≤ 2 ^ r * C r := Nat.mul_le_mul_left _ hr
+        _ ≤ C 0 := ih
 
 end Nat

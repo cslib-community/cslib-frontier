@@ -121,13 +121,11 @@ noncomputable def ogd (proj : E → E) (η : ℕ → ℝ) (grad : ℕ → E → 
 
 variable {K : Set E} {proj : E → E} {η : ℕ → ℝ} {grad : ℕ → E → E} {x₀ : E}
 
-@[simp] theorem ogd_zero : ogd proj η grad x₀ 0 = x₀ := by
-  rw [ogd]
+@[simp] theorem ogd_zero : ogd proj η grad x₀ 0 = x₀ := by rfl
 
 theorem ogd_succ (t : ℕ) :
     ogd proj η grad x₀ (t + 1) =
-      proj (ogd proj η grad x₀ t - η t • grad t (ogd proj η grad x₀ t)) := by
-  rw [ogd]
+      proj (ogd proj η grad x₀ t - η t • grad t (ogd proj η grad x₀ t)) := by rfl
 
 theorem ogd_mem (hP : IsPythagoreanProjection K proj) (hx₀ : x₀ ∈ K) (t : ℕ) :
     ogd proj η grad x₀ t ∈ K := by
@@ -200,33 +198,18 @@ theorem ogd_sum_inner_le (hP : IsPythagoreanProjection K proj) (hx₀ : x₀ ∈
     | zero =>
       have h := ogd_two_mul_inner_le (x₀ := x₀) (grad := grad) hP hu 0 (hη 0)
       simp only [zero_add, range_one, sum_singleton]
-      have : (‖ogd proj η grad x₀ 0 - u‖ ^ 2 - ‖ogd proj η grad x₀ 1 - u‖ ^ 2) / η 0 ≤
-          D ^ 2 / η 0 - ‖ogd proj η grad x₀ 1 - u‖ ^ 2 / η 0 := by
-        rw [← sub_div]
-        exact div_le_div_of_nonneg_right (by linarith [hd 0]) (hη 0).le
-      linarith
+      rw [sub_div] at h
+      linarith [div_le_div_of_nonneg_right (hd 0) (hη 0).le]
     | succ T ih =>
       have h := ogd_two_mul_inner_le (x₀ := x₀) (grad := grad) hP hu (T + 1) (hη (T + 1))
-      have hinv : 1 / η T ≤ 1 / η (T + 1) :=
-        one_div_le_one_div_of_le (hη _) (hanti (Nat.le_succ T))
+      have hmono := div_le_div_of_nonneg_left (sub_nonneg.2 (hd (T + 1))) (hη (T + 1))
+        (hanti (Nat.le_succ T))
+      rw [sub_div] at h
+      rw [sub_div, sub_div] at hmono
       rw [sum_range_succ, sum_range_succ (fun t => η t * _)]
-      set a := ‖ogd proj η grad x₀ (T + 1) - u‖ ^ 2
-      set a' := ‖ogd proj η grad x₀ (T + 1 + 1) - u‖ ^ 2
-      have hcomb : D ^ 2 / η T - a / η T + (a - a') / η (T + 1) ≤
-          D ^ 2 / η (T + 1) - a' / η (T + 1) := by
-        have e1 : D ^ 2 / η T - a / η T = (D ^ 2 - a) * (1 / η T) := by ring
-        have e2 : (a - a') / η (T + 1) = a * (1 / η (T + 1)) - a' / η (T + 1) := by ring
-        have e3 : D ^ 2 / η (T + 1) = D ^ 2 * (1 / η (T + 1)) := by ring
-        rw [e1, e2, e3]
-        nlinarith [mul_le_mul_of_nonneg_left hinv (sub_nonneg.mpr (hd (T + 1)))]
       linarith
-  have h := key T
-  have hpos : 0 ≤ ‖ogd proj η grad x₀ (T + 1) - u‖ ^ 2 / η T :=
-    div_nonneg (sq_nonneg _) (hη T).le
-  have hηT := hη T
-  rw [div_add_div _ _ (by positivity) two_ne_zero, le_div_iff₀ (by positivity)]
-  have : D ^ 2 / η T * (2 * η T) = 2 * D ^ 2 := by field_simp
-  nlinarith
+  rw [mul_comm 2 (η T), ← div_div]
+  linarith [key T, div_nonneg (sq_nonneg ‖ogd proj η grad x₀ (T + 1) - u‖) (hη T).le]
 
 /-- Online gradient descent with a constant step size `c > 0`: against every `u ∈ K`,
 `∑ t < T, ⟪grad t (x t), x t - u⟫ ≤ ‖x₀ - u‖ ^ 2 / (2 c) + c (∑ t < T, ‖grad t (x t)‖ ^ 2) / 2`.
@@ -248,11 +231,8 @@ theorem ogd_sum_inner_le_of_const (hP : IsPythagoreanProjection K proj) {c : ℝ
       rw [sum_range_succ, sum_range_succ, mul_add, mul_add]
       rw [sub_div] at h
       linarith
-  have h := key T
-  have hpos : 0 ≤ ‖ogd proj (fun _ => c) grad x₀ T - u‖ ^ 2 / c := by positivity
-  have e : ‖x₀ - u‖ ^ 2 / (2 * c) = ‖x₀ - u‖ ^ 2 / c / 2 := by rw [div_div, mul_comm]
-  rw [e]
-  linarith
+  rw [mul_comm 2 c, ← div_div]
+  linarith [key T, (by positivity : 0 ≤ ‖ogd proj (fun _ => c) grad x₀ T - u‖ ^ 2 / c)]
 
 /-- `∑ t < T + 1, 1 / √(t + 1) ≤ 2 √(T + 1) - 1`. -/
 theorem sum_range_one_div_sqrt_succ_le (T : ℕ) :
@@ -296,10 +276,7 @@ theorem ogd_sum_inner_le_sqrt (hP : IsPythagoreanProjection K proj) (hx₀ : x�
       D ^ 2 / (2 * c) * √((T : ℝ) + 1) + c * G ^ 2 * (√((T : ℝ) + 1) - 1 / 2) := by
   set η : ℕ → ℝ := fun t => c / √((t : ℝ) + 1) with hηdef
   have hη : ∀ t, 0 < η t := fun t => div_pos hc (sqrt_pos.mpr (by positivity))
-  have hanti : Antitone η := by
-    intro a b hab
-    simp only [hηdef]
-    gcongr
+  have hanti : Antitone η := fun a b hab => by simp only [hηdef]; gcongr
   have h := ogd_sum_inner_le (grad := grad) hP hx₀ hD hη hanti hu T
   have h1 : D ^ 2 / (2 * η T) = D ^ 2 / (2 * c) * √((T : ℝ) + 1) := by
     simp only [hηdef]
@@ -310,13 +287,10 @@ theorem ogd_sum_inner_le_sqrt (hP : IsPythagoreanProjection K proj) (hx₀ : x�
     refine sum_le_sum fun t _ => ?_
     have hg2 : ‖grad t (ogd proj η grad x₀ t)‖ ^ 2 ≤ G ^ 2 :=
       pow_le_pow_left₀ (norm_nonneg _) (hG t _ (ogd_mem hP hx₀ t)) 2
-    calc η t * ‖grad t (ogd proj η grad x₀ t)‖ ^ 2 ≤ η t * G ^ 2 :=
-          mul_le_mul_of_nonneg_left hg2 (hη t).le
-      _ = c * G ^ 2 * (1 / √((t : ℝ) + 1)) := by simp only [hηdef]; ring
-  have h3 := sum_range_one_div_sqrt_succ_le T
-  have hcG : 0 ≤ c * G ^ 2 := by positivity
+    exact (mul_le_mul_of_nonneg_left hg2 (hη t).le).trans_eq (by simp only [hηdef]; ring)
   rw [h1] at h
-  nlinarith [mul_le_mul_of_nonneg_left h3 hcG]
+  nlinarith [mul_le_mul_of_nonneg_left (sum_range_one_div_sqrt_succ_le T)
+    (by positivity : 0 ≤ c * G ^ 2)]
 
 /-- **Regret of online gradient descent** [Hazan2022, Theorem 3.1]: for losses satisfying the
 subgradient inequality with subgradients of norm at most `G` on a set of diameter at most `D`, the
@@ -329,9 +303,7 @@ theorem ogd_regret_le_three_halves {f : ℕ → E → ℝ} (hP : IsPythagoreanPr
     ∑ t ∈ range T, (f t (ogd proj (fun t => D / (G * √((t : ℝ) + 1))) grad x₀ t) - f t u) ≤
       3 / 2 * G * D * √(T : ℝ) := by
   have heta : (fun t : ℕ => D / (G * √((t : ℝ) + 1))) =
-      fun t : ℕ => D / G / √((t : ℝ) + 1) := by
-    funext t
-    rw [div_div]
+      fun t : ℕ => D / G / √((t : ℝ) + 1) := funext fun t => (div_div _ _ _).symm
   rw [heta]
   refine (sum_sub_le_sum_inner hsub (ogd_mem hP hx₀) hu T).trans ?_
   rcases T with _ | T
@@ -382,18 +354,16 @@ theorem ogd_regret_le_fixed_of_norm_sub_le {f : ℕ → E → ℝ} (hP : IsPytha
       _ = G * B * √(T : ℝ) / 2 := by rw [hcdef]; field_simp
   have h2 : c * (∑ t ∈ range T, ‖grad t (ogd proj (fun _ => c) grad x₀ t)‖ ^ 2) / 2 ≤
       G * B * √(T : ℝ) / 2 := by
-    have hsum : ∑ t ∈ range T, ‖grad t (ogd proj (fun _ => c) grad x₀ t)‖ ^ 2 ≤ T * G ^ 2 := by
-      calc ∑ t ∈ range T, ‖grad t (ogd proj (fun _ => c) grad x₀ t)‖ ^ 2
-          ≤ ∑ t ∈ range T, G ^ 2 := sum_le_sum fun t _ =>
-            pow_le_pow_left₀ (norm_nonneg _) (hG t _ (ogd_mem hP hx₀ t)) 2
-        _ = T * G ^ 2 := by simp only [sum_const, card_range, nsmul_eq_mul]
+    have hsum : ∑ t ∈ range T, ‖grad t (ogd proj (fun _ => c) grad x₀ t)‖ ^ 2 ≤ T * G ^ 2 :=
+      (sum_le_sum fun t _ =>
+        pow_le_pow_left₀ (norm_nonneg _) (hG t _ (ogd_mem hP hx₀ t)) 2).trans_eq
+        (by simp only [sum_const, card_range, nsmul_eq_mul])
     have e : c * ((T : ℝ) * G ^ 2) = G * B * √(T : ℝ) := by
       calc c * ((T : ℝ) * G ^ 2) =
             (√(T : ℝ) * √(T : ℝ)) * (B / (G * √(T : ℝ)) * G ^ 2) := by
             rw [mul_self_sqrt hTr.le, hcdef]; ring
         _ = G * B * √(T : ℝ) := by field_simp
-    have := mul_le_mul_of_nonneg_left hsum hc.le
-    linarith
+    linarith [mul_le_mul_of_nonneg_left hsum hc.le]
   linarith
 
 /-- **Fixed step size**: for a known horizon `T ≥ 1`, the constant step size `D / (G √T)` gives
@@ -416,20 +386,17 @@ theorem norm_sub_le_of_strongConvex {f : E → ℝ} {g : E → E} {G α : ℝ} (
     {x y : E} (hx : x ∈ K) (hy : y ∈ K) : ‖x - y‖ ≤ 2 * G / α := by
   have h1 := hsc x hx y hy
   have h2 := hsc y hy x hx
-  rw [norm_sub_rev y x] at h1
   -- `α ‖x - y‖ ^ 2 ≤ -⟪g x, y - x⟫ - ⟪g y, x - y⟫ ≤ 2 G ‖x - y‖`
   have hlow : ∀ z ∈ K, ∀ w : E, -(G * ‖w‖) ≤ ⟪g z, w⟫ := fun z hz w =>
     (neg_le_neg (mul_le_mul_of_nonneg_right (hG z hz) (norm_nonneg w))).trans
       (abs_le.mp (abs_real_inner_le_norm (g z) w)).1
   have hcx := hlow x hx (y - x)
-  have hcy := hlow y hy (x - y)
-  rw [norm_sub_rev y x] at hcx
-  have hsq : α * ‖x - y‖ ^ 2 ≤ 2 * G * ‖x - y‖ := by linarith
+  rw [norm_sub_rev y x] at h1 hcx
+  have hsq : α * ‖x - y‖ ^ 2 ≤ 2 * G * ‖x - y‖ := by linarith [hlow y hy (x - y)]
   rw [le_div_iff₀ hα]
   rcases (norm_nonneg (x - y)).eq_or_lt with h0 | hpos
   · rw [← h0, zero_mul]
-    have := (norm_nonneg (g x)).trans (hG x hx)
-    linarith
+    linarith [(norm_nonneg (g x)).trans (hG x hx)]
   · nlinarith
 
 /-- **Logarithmic regret for strongly convex losses** [Hazan2022, Theorem 3.3]: if every loss
@@ -458,36 +425,24 @@ theorem ogd_regret_le_log {f : ℕ → E → ℝ} (hP : IsPythagoreanProjection 
         α * (t + 1) * (‖x t - u‖ ^ 2 - ‖x (t + 1) - u‖ ^ 2) := by
       simp only [hηdef]
       field_simp
-    have e2 : η t * ‖grad t (x t)‖ ^ 2 ≤ G ^ 2 / α * (1 / (t + 1)) := by
-      calc η t * ‖grad t (x t)‖ ^ 2 ≤ η t * G ^ 2 := mul_le_mul_of_nonneg_left hg (hη t).le
-        _ = G ^ 2 / α * (1 / (t + 1)) := by simp only [hηdef]; field_simp
+    have e2 : η t * ‖grad t (x t)‖ ^ 2 ≤ G ^ 2 / α * (1 / (t + 1)) :=
+      (mul_le_mul_of_nonneg_left hg (hη t).le).trans_eq (by simp only [hηdef]; field_simp)
     rw [e1] at h1
     nlinarith
   have tele : ∀ T : ℕ, 2 * ∑ t ∈ range T, (f t (x t) - f t u) ≤
       -(α * T * ‖x T - u‖ ^ 2) + G ^ 2 / α * ∑ t ∈ range T, 1 / ((t : ℝ) + 1) := by
     intro T
     induction T with
-    | zero => simp only [range_zero, sum_empty, mul_zero, Nat.cast_zero, zero_mul, neg_zero,
-        add_zero, le_refl]
+    | zero => simp
     | succ T ih =>
       rw [sum_range_succ, sum_range_succ, mul_add, mul_add]
       have := step T
       push_cast
       linarith
   have hH : ∑ t ∈ range T, 1 / ((t : ℝ) + 1) ≤ 1 + log T := by
-    have h := harmonic_le_one_add_log T
-    have e : ((harmonic T : ℚ) : ℝ) = ∑ t ∈ range T, 1 / ((t : ℝ) + 1) := by
-      rw [harmonic]
-      push_cast
-      simp only [one_div]
-    rw [← e]
-    exact_mod_cast h
-  have hT := tele T
-  have hnn : 0 ≤ α * T * ‖x T - u‖ ^ 2 := by positivity
-  have hGα : 0 ≤ G ^ 2 / α := by positivity
-  have := mul_le_mul_of_nonneg_left hH hGα
-  have e : G ^ 2 / (2 * α) * (1 + log T) = G ^ 2 / α * (1 + log T) / 2 := by ring
-  rw [e]
-  linarith
+    simpa [harmonic] using harmonic_le_one_add_log T
+  rw [show G ^ 2 / (2 * α) * (1 + log T) = G ^ 2 / α * (1 + log T) / 2 by ring]
+  linarith [tele T, (by positivity : 0 ≤ α * T * ‖x T - u‖ ^ 2),
+    mul_le_mul_of_nonneg_left hH (by positivity : 0 ≤ G ^ 2 / α)]
 
 end Cslib.MachineLearning.OnlineLearning.OCO

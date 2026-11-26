@@ -127,9 +127,7 @@ theorem operands_natAbs_le {p k A r : ℕ} (a : ℕ → ℤ) (t : Fin 7)
   have h₂ := hq 2 (by decide)
   have h₃ := hq 3 (by decide)
   fin_cases t <;> constructor <;> simp only [leftOperand, rightOperand, Pi.add_apply, Pi.sub_apply]
-  all_goals first
-    | exact (Int.natAbs_add_le _ _).trans (by omega)
-    | omega
+  all_goals omega
 
 /-- Child coefficient bounds come from the already-proved finite recursion, rather than
 an assumed child result bound. -/

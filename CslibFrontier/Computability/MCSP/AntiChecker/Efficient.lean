@@ -99,20 +99,16 @@ theorem exists_antiChecker_circuit_le_of_NP_subset_PPoly (hNP : NP encBits ⊆ P
     set m := n + s + 1 with hmdef
     have hm1 : 1 ≤ m := Nat.le_add_left 1 _
     have hq : queryLength n s ℓ R R ≤ 5000 * m ^ 5 := queryLength_antiChecker_le n s
-    have hDle : ∀ q ≤ queryLength n s ℓ R R, (D q).size ≤ c₀ * (5001 * m ^ 5) ^ c₀ := by
-      intro q hqr
+    have hDle (q : ℕ) (hqr : q ≤ queryLength n s ℓ R R) :
+        (D q).size ≤ c₀ * (5001 * m ^ 5) ^ c₀ := by
       rw [hDsize]
-      refine (hc₀ q).trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left ?_ _))
       have : 1 ≤ m ^ 5 := Nat.one_le_pow _ _ hm1
-      omega
+      exact (hc₀ q).trans (Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (by omega) _))
     have hinl := size_inlineOracle_le G D (fanInAtMost_generator n s ℓ R) hDle
     have hmax : max 1 (c₀ * (5001 * m ^ 5) ^ c₀) ≤ (c₀ + 1) * 5001 ^ c₀ * m ^ (5 * c₀) := by
-      have h1 : 1 ≤ 5001 ^ c₀ * m ^ (5 * c₀) :=
-        Nat.one_le_iff_ne_zero.2 (Nat.mul_ne_zero (by positivity) (by positivity))
+      have h1 : 1 ≤ 5001 ^ c₀ * m ^ (5 * c₀) := Nat.one_le_iff_ne_zero.2 (by positivity)
       rw [mul_pow, ← pow_mul]
-      refine max_le ?_ ?_
-      · nlinarith
-      · nlinarith
+      exact max_le (by nlinarith) (by nlinarith)
     have hG : G.size ≤ 4270 * 2 ^ n * m ^ 5 := by
       rw [size_generator]
       have hR : R ≤ 610 * m ^ 4 := antiCheckerRounds_le n s
@@ -131,10 +127,8 @@ theorem exists_antiChecker_circuit_le_of_NP_subset_PPoly (hNP : NP encBits ⊆ P
       _ ≤ 2 ^ n * (A + 5 + 5 * c₀) * m ^ (A + 5 + 5 * c₀) := by
           gcongr <;> omega
   · -- Correctness: every sample's input appears as a block.
-    intro f hf
-    have hac := isAntiChecker_samplesOf_generator hn hagree hf
-    intro g hg
-    obtain ⟨x, hx, hgx⟩ := hac g hg
+    intro f hf g hg
+    obtain ⟨x, hx, hgx⟩ := isAntiChecker_samplesOf_generator hn hagree hf g hg
     refine ⟨x, ?_, hgx⟩
     rw [Set.mem_ofPred_eq, map_fst_samplesOf, List.mem_ofFn] at hx
     obtain ⟨j, rfl⟩ := hx
@@ -154,9 +148,7 @@ theorem eventually_mul_floor_div_add_le_floor {β : ℝ} (hβ : 0 < β) :
       n * ⌊(2 : ℝ) ^ (β * n) / (10 * n)⌋₊ + 2 + 2 * n * (n + 2) ≤ ⌊(2 : ℝ) ^ (β * n)⌋₊ := by
   have ha : 1 < (2 : ℝ) ^ β := Real.one_lt_rpow (by norm_num) hβ
   filter_upwards [eventually_mul_add_one_pow_lt_pow 4 2 ha, eventually_gt_atTop 0] with n hpoly hn
-  have hXβ : (2 : ℝ) ^ (β * n) = ((2 : ℝ) ^ β) ^ n := by
-    rw [Real.rpow_mul (by norm_num), Real.rpow_natCast]
-  rw [← hXβ] at hpoly
+  rw [← Real.rpow_natCast ((2 : ℝ) ^ β), ← Real.rpow_mul (by norm_num)] at hpoly
   set X := (2 : ℝ) ^ (β * n)
   have hX0 : 0 < X := by positivity
   have hn0 : (0 : ℝ) < n := by exact_mod_cast hn
@@ -196,9 +188,8 @@ theorem exists_antiChecker_circuit_of_NP_subset_PPoly (hNP : NP encBits ⊆ PPol
     eventually_mul_floor_div_add_le_floor hβ] with n hpoly hconst hn hgap
   -- `X = 2 ^ (β n)`.
   set X : ℝ := a ^ n with hX_def
-  have hpow (x : ℝ) : (2 : ℝ) ^ (x * n) = ((2 : ℝ) ^ x) ^ n := by
+  have hXβ : (2 : ℝ) ^ (β * n) = X := by
     rw [Real.rpow_mul (by norm_num), Real.rpow_natCast]
-  have hXβ : (2 : ℝ) ^ (β * n) = X := hpow β
   have hX10 : (2 : ℝ) ^ (10 * β * n) = X ^ 10 := by
     rw [show 10 * β * n = β * n * (10 : ℕ) by push_cast; ring,
       Real.rpow_mul_natCast (by norm_num : (0 : ℝ) ≤ 2), hXβ]
@@ -207,24 +198,19 @@ theorem exists_antiChecker_circuit_of_NP_subset_PPoly (hNP : NP encBits ⊆ PPol
   have hnX : 4 * ((n : ℝ) + 1) ^ 2 < X := hpoly
   have hcX : 10 + (c : ℝ) * 2 ^ c < X := by simpa using hconst
   have hX10le : (10 : ℝ) ≤ X := by
-    have : (0 : ℝ) ≤ c * 2 ^ c := by positivity
-    linarith
+    linarith [show (0 : ℝ) ≤ c * 2 ^ c by positivity]
   have hn1X : (n : ℝ) + 1 ≤ X := by nlinarith
   -- The parameters.
   set s := ⌊(2 : ℝ) ^ (β * n) / (10 * n)⌋₊
   set t := ⌊(2 : ℝ) ^ (10 * β * n)⌋₊
-  have hs : (s : ℝ) ≤ X / (10 * n) := by
-    rw [← hXβ]
-    exact Nat.floor_le (by positivity)
+  have hs : (s : ℝ) ≤ X / (10 * n) := hXβ ▸ Nat.floor_le (by positivity)
   have hsX : (s : ℝ) ≤ X := hs.trans (div_le_self hX0.le (by nlinarith))
   have hm : ((n + s + 1 : ℕ) : ℝ) ≤ 2 * X := by push_cast; linarith
   -- Enough rounds.
   have hRt : antiCheckerRounds n s ≤ t := by
     rw [Nat.le_floor_iff (by rw [hX10]; positivity), hX10]
-    have hR := antiCheckerRounds_le n s
-    have hR' : (antiCheckerRounds n s : ℝ) ≤ 610 * ((n + s + 1 : ℕ) : ℝ) ^ 4 := by exact_mod_cast hR
-    have hm0 : (0 : ℝ) ≤ ((n + s + 1 : ℕ) : ℝ) := Nat.cast_nonneg _
-    calc (antiCheckerRounds n s : ℝ) ≤ 610 * ((n + s + 1 : ℕ) : ℝ) ^ 4 := hR'
+    calc (antiCheckerRounds n s : ℝ) ≤ 610 * ((n + s + 1 : ℕ) : ℝ) ^ 4 := by
+          exact_mod_cast antiCheckerRounds_le n s
       _ ≤ 610 * (2 * X) ^ 4 := by gcongr
       _ = 9760 * X ^ 4 := by ring
       _ ≤ X ^ 6 * X ^ 4 := by
@@ -235,14 +221,12 @@ theorem exists_antiChecker_circuit_of_NP_subset_PPoly (hNP : NP encBits ⊆ PPol
   obtain ⟨C, hsize, hanti⟩ := hc n s t hn hRt
   refine ⟨C, ?_, fun f hf => hanti f ?_⟩
   · -- Size: `2 ^ n c (n + s + 1) ^ c ≤ 2 ^ n (c 2 ^ c) X ^ c ≤ 2 ^ n X ^ (c + 1)`.
-    have hsize' : (C.size : ℝ) ≤ 2 ^ n * c * ((n + s + 1 : ℕ) : ℝ) ^ c := by exact_mod_cast hsize
     have hRHS : (2 : ℝ) ^ ((n : ℝ) + (c + 1 : ℕ) * β * n) = 2 ^ n * X ^ (c + 1) := by
       rw [Real.rpow_add (by norm_num), Real.rpow_natCast,
         show ((c + 1 : ℕ) : ℝ) * β * n = β * n * (c + 1 : ℕ) by ring,
         Real.rpow_mul_natCast (by norm_num : (0 : ℝ) ≤ 2), hXβ]
     rw [hRHS]
-    have hm0 : (0 : ℝ) ≤ ((n + s + 1 : ℕ) : ℝ) := Nat.cast_nonneg _
-    calc (C.size : ℝ) ≤ 2 ^ n * c * ((n + s + 1 : ℕ) : ℝ) ^ c := hsize'
+    calc (C.size : ℝ) ≤ 2 ^ n * c * ((n + s + 1 : ℕ) : ℝ) ^ c := by exact_mod_cast hsize
       _ ≤ 2 ^ n * c * (2 * X) ^ c := by gcongr
       _ = 2 ^ n * (c * 2 ^ c) * X ^ c := by ring
       _ ≤ 2 ^ n * X * X ^ c := by gcongr; linarith
@@ -250,7 +234,7 @@ theorem exists_antiChecker_circuit_of_NP_subset_PPoly (hNP : NP encBits ⊆ PPol
   · -- Hardness: `n s + complexity (strictMajority n) ≤ n s + 2 + 2 n (n + 2) ≤ ⌊X⌋₊`.
     have hmaj : complexity interpretation (single (strictMajority n)) ≤ 2 + n * (2 * (n + 2)) :=
       complexity_threshold_le n (n / 2 + 1)
-    have hring : n * (2 * (n + 2)) = 2 * n * (n + 2) := by ring
+    rw [← Nat.mul_assoc, Nat.mul_comm n 2] at hmaj
     omega
 
 end Cslib.MCSP.AntiChecker

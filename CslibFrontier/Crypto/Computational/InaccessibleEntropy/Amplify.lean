@@ -194,20 +194,20 @@ attribute [local fun_prop] AdversaryInaccessibleEntropyFamily.polyTime_inLen
 @[fun_prop]
 theorem computableInPolyTime_ampSlack (F : AdversaryInaccessibleEntropyFamily) :
     ComputableInPolyTime (ampSlack F) encUnary encUnary := by
-  unfold ampSlack
-  fun_prop
+      unfold ampSlack
+      fun_prop
 
 @[fun_prop]
 theorem computableInPolyTime_ampReps (F : AdversaryInaccessibleEntropyFamily) :
     ComputableInPolyTime (ampReps F) encUnary encUnary := by
-  unfold ampReps
-  fun_prop
+      unfold ampReps
+      fun_prop
 
 @[fun_prop]
 theorem computableInPolyTime_ampGridCount (F : AdversaryInaccessibleEntropyFamily) :
     ComputableInPolyTime (ampGridCount F) encUnary encUnary := by
-  unfold ampGridCount
-  fun_prop
+      unfold ampGridCount
+      fun_prop
 
 @[fun_prop]
 theorem computableInPolyTime_ampShrinkLen :
@@ -255,16 +255,13 @@ private theorem le_ampRepInLen (F : AdversaryInaccessibleEntropyFamily) (n : ℕ
   · exact le_rfl
   · have := Nat.pos_of_ne_zero h0
     have := F.denom_pos n
-    have := le_ampSlack F n
-    exact (by omega : n + 2 ≤ ampSlack F n).trans
+    exact (by have := le_ampSlack F n; omega : n + 2 ≤ ampSlack F n).trans
       ((Nat.le_mul_of_pos_left _ (by positivity)).trans (Nat.le_mul_of_pos_right _ (by positivity)))
 
 private theorem add_ampShrinkLen_le_inputHashInLen (F : AdversaryInaccessibleEntropyFamily)
     (n : ℕ) : n + 1 + ampShrinkLen n ≤ inputHashInLen (ampRepInLen F n) := by
-  have := le_ampRepInLen F n
-  have := ampShrinkLen_le n
   unfold inputHashInLen
-  nlinarith
+  nlinarith [le_ampRepInLen F n, ampShrinkLen_le n]
 
 /-! ### Main grid theorem: STEPS 1–3 of Theorem 5.1 -/
 
@@ -284,42 +281,40 @@ private theorem ampGoodIdx_lt_ampGridCount (F : AdversaryInaccessibleEntropyFami
   dsimp only [ampGoodIdx]
   split_ifs with hlt
   · unfold ampGridCount; omega
-  · have hgap := hN₀ n (not_lt.mp hlt)
-    have hk_le : PMF.conditionalEntropy ((PMF.uniformOfFintype (BitString (F.inLen n))).map
+  · have hk_le : PMF.conditionalEntropy ((PMF.uniformOfFintype (BitString (F.inLen n))).map
         fun z => (wordToFinMap (F.inLen n) (F.outLen n) (F.evalWord n) z, z)) ≤ F.inLen n :=
       (PMF.conditionalEntropy_le_log_card _).trans_eq (by simp [Real.logb_pow])
-    have hD_pos : (0 : ℝ) < F.denom n := by exact_mod_cast F.denom_pos n
-    have ha_le : accessibleSetExpectation (accSet n) ≤ F.inLen n := by
-      linarith [div_pos zero_lt_one hD_pos]
-    have hΔ_pos : (0 : ℝ) < ampSlack F n := by
-      exact_mod_cast lt_of_lt_of_le (by omega) (le_ampSlack F n)
+    have hD_pos : (0 : ℝ) < F.denom n := Nat.cast_pos.2 (F.denom_pos n)
+    have hΔ_pos : (0 : ℝ) < ampSlack F n :=
+      Nat.cast_pos.2 (lt_of_lt_of_le (by omega) (le_ampSlack F n))
     have hfl : Nat.floor (((ampReps F n : ℝ) * accessibleSetExpectation (accSet n)) /
         (ampSlack F n : ℝ)) ≤ 6 * F.denom n * F.inLen n := by
       refine Nat.floor_le_of_le ?_
       simp only [ampReps, Nat.cast_mul, Nat.cast_ofNat]
       rw [mul_assoc, mul_comm (ampSlack F n : ℝ), ← mul_assoc, mul_div_cancel_right₀ _ hΔ_pos.ne']
       gcongr
-    have := F.denom_pos n
+      linarith [hN₀ n (not_lt.mp hlt), div_pos zero_lt_one hD_pos]
     unfold ampGridCount
-    nlinarith
+    nlinarith [F.denom_pos n]
 
 private theorem amp_hoeffding_exponent_le (F : AdversaryInaccessibleEntropyFamily) {n : ℕ}
     (hw₀_pos : 1 ≤ F.inLen n) :
     -2 * (ampSlack F n : ℝ) ^ 2 / ((ampReps F n : ℝ) * (F.inLen n : ℝ) ^ 2) ≤ -(n : ℝ) := by
   have hD : (1 : ℝ) ≤ F.denom n := by exact_mod_cast F.denom_pos n
   have hw : (1 : ℝ) ≤ F.inLen n := by exact_mod_cast hw₀_pos
-  have hΔ : (0 : ℝ) < ampSlack F n := by exact_mod_cast lt_of_lt_of_le (by omega) (le_ampSlack F n)
+  have hΔ : (0 : ℝ) < ampSlack F n := Nat.cast_pos.2 (lt_of_lt_of_le (by omega) (le_ampSlack F n))
   have ht : (ampReps F n : ℝ) = 6 * (F.denom n : ℝ) * (ampSlack F n : ℝ) := by
     simp only [ampReps, Nat.cast_mul, Nat.cast_ofNat]
   rw [div_le_iff₀ (by rw [ht]; positivity)]
-  have hΔ_eq : (ampSlack F n : ℝ) =
-      3 * ((n : ℝ) + 2) * (F.denom n : ℝ) * ((F.inLen n : ℝ) + 1) ^ 2 := by
-    unfold ampSlack; push_cast; ring
-  have hkey : (n : ℝ) * ((ampReps F n : ℝ) * (F.inLen n : ℝ) ^ 2) ≤ 2 * (ampSlack F n : ℝ) ^ 2 :=
+  have hkey :=
     calc (n : ℝ) * ((ampReps F n : ℝ) * (F.inLen n : ℝ) ^ 2)
       _ ≤ ((n : ℝ) + 2) * ((6 * (F.denom n : ℝ) * (ampSlack F n : ℝ)) *
-          ((F.inLen n : ℝ) + 1) ^ 2) := by rw [← ht]; gcongr <;> nlinarith
-      _ = 2 * (ampSlack F n : ℝ) ^ 2 := by rw [hΔ_eq]; ring
+          ((F.inLen n : ℝ) + 1) ^ 2) := by
+            rw [← ht]
+            gcongr <;> nlinarith
+      _ = 2 * (ampSlack F n : ℝ) ^ 2 := by
+            unfold ampSlack
+            push_cast; ring
   linarith
 
 private theorem amp_randomCollisionGame_succProbability_le
@@ -361,12 +356,10 @@ private theorem amp_randomCollisionGame_succProbability_le
   have hD_pos : (0 : ℝ) < D := by exact_mod_cast F.denom_pos n
   have hw₀_ne_zero : w₀ ≠ 0 := fun h0 => by
     linarith [div_pos zero_lt_one hD_pos, (Nat.cast_eq_zero (R := ℝ)).mpr h0]
-  have hn₁_eq : ampRepInLen F n = n₁True n := by
-    simp only [ampRepInLen, n₁True, hw₀_ne_zero, ↓reduceIte, w₀]
-  have hm₁_eq : ampRepOutLen F n = m₁True n := by
-    simp only [ampRepOutLen, m₁True, hw₀_ne_zero, ↓reduceIte, w₀]
-  have heval₁_eq : ampRepEvalWord F n = repEvalWord t w₀ (F.evalWord n) := by
-    funext u; simp only [ampRepEvalWord, hw₀_ne_zero, ↓reduceIte, t, w₀]
+  have hn₁_eq : ampRepInLen F n = n₁True n := ite_eq_right hw₀_ne_zero
+  have hm₁_eq : ampRepOutLen F n = m₁True n := ite_eq_right hw₀_ne_zero
+  have heval₁_eq : ampRepEvalWord F n = repEvalWord t w₀ (F.evalWord n) :=
+    funext fun _ => ite_eq_right hw₀_ne_zero
   have hs_le : ampShrinkLen n ≤ inputHashInLen (n₁True n) :=
     hn₁_eq ▸ Nat.le_of_add_left_le (add_ampShrinkLen_le_inputHashInLen F n)
   let A_max : ℝ := (t : ℝ) * a₀ + (Δ : ℝ)
@@ -406,12 +399,11 @@ private theorem amp_randomCollisionGame_succProbability_le
     Real.two_rpow_le_half_pow n (by rw [hmin_eq]; dsimp only [A_max]; linarith)
   have hpow_out : (2 : ℝ) ^ ((min j₀ (n₁True n) : ℝ) - K_min) ≤ (1 / 2 : ℝ) ^ n :=
     Real.two_rpow_le_half_pow n (by rw [hmin_eq]; dsimp only [K_min]; linarith)
-  have hout_term :=
-    (mul_le_mul (by exact_mod_cast two_pow_ampShrinkLen_le n :
-        (2 : ℝ) ^ ampShrinkLen n ≤ 2 * ((n : ℝ) + 1))
-      (add_le_add htail_ent hpow_out) (by positivity) (by positivity)).trans_eq
-      (show (2 * ((n : ℝ) + 1)) * ((1 / 2 : ℝ) ^ n + (1 / 2 : ℝ) ^ n) =
-        4 * ((n : ℝ) + 1) * (1 / 2 : ℝ) ^ n by ring)
+  have h2pow : (2 : ℝ) ^ ampShrinkLen n ≤ 2 * ((n : ℝ) + 1) := by
+    exact_mod_cast two_pow_ampShrinkLen_le n
+  have hout_term := (mul_le_mul h2pow (add_le_add htail_ent hpow_out) (by positivity)
+    (by positivity)).trans_eq
+      (by ring : _ = 4 * ((n : ℝ) + 1) * (1 / 2 : ℝ) ^ n)
   simp only [randomCollisionGame, hn₁_eq, hm₁_eq, heval₁_eq, t, w₀]
   rw [← NNReal.coe_le_coe]
   dsimp only [randomCollisionGame, n₁True, m₁True, B₁, t, w₀, m₀, j₀, Δ]

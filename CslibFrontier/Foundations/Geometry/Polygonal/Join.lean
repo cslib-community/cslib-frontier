@@ -129,14 +129,12 @@ private theorem start_finish_ne_of_prepend_contacts {p : Route} {a : ℂ}
         (s = 1 ∧ p.AtEnd j t false) ∨ (s = 0 ∧ p.AtEnd j t true)) :
     p.start ≠ p.finish := by
   intro heq
-  have hpoint : AffineMap.lineMap a p.start (1 : ℝ) =
-      p.eval (Fin.last p.bends) 1 := by simp [eval, finish, heq, segments]
-  have h := hcontact (Fin.last p.bends) 1 1 ⟨by norm_num, le_rfl⟩
-    ⟨by norm_num, le_rfl⟩ hpoint
-  rcases h with ⟨_, h⟩ | ⟨h, _⟩
+  have hpoint : AffineMap.lineMap a p.start (1 : ℝ) = p.eval (Fin.last p.bends) 1 := by
+    simp [eval, finish, heq, segments]
+  rcases hcontact (Fin.last p.bends) 1 1 ⟨by norm_num, le_rfl⟩ ⟨by norm_num, le_rfl⟩ hpoint
+    with ⟨_, h⟩ | ⟨h, _⟩
   · dsimp [AtEnd, position] at h
-    have hn : 0 ≤ (p.bends : ℝ) := Nat.cast_nonneg _
-    linarith
+    linarith [(Nat.cast_nonneg p.bends : (0 : ℝ) ≤ p.bends)]
   · norm_num at h
 
 /-- A simple route may be prepended with one nondegenerate segment if every contact
@@ -148,6 +146,7 @@ theorem IsSimple.prepend {p : Route} (hp : p.IsSimple) {a : ℂ} (ha : a ≠ p.s
         (s = 1 ∧ p.AtEnd j t false) ∨ (s = 0 ∧ p.AtEnd j t true)) :
     (Route.prepend a p).IsSimple := by
   have hopen := start_finish_ne_of_prepend_contacts hcontact
+  have hbends : (Route.prepend a p).bends = p.bends + 1 := rfl
   intro i j s t hs ht heq
   change Fin (p.segments + 1) at i j
   induction i using Fin.cases with
@@ -155,43 +154,33 @@ theorem IsSimple.prepend {p : Route} (hp : p.IsSimple) {a : ℂ} (ha : a ≠ p.s
     induction j using Fin.cases with
     | zero =>
       change AffineMap.lineMap a p.start s = AffineMap.lineMap a p.start t at heq
-      have hst := AffineMap.lineMap_injective ℝ ha heq
-      exact Or.inl (congrArg _ hst)
+      exact Or.inl (congrArg _ (AffineMap.lineMap_injective ℝ ha heq))
     | succ j =>
       change AffineMap.lineMap a p.start s = p.eval j t at heq
       rcases hcontact j s t hs ht heq with ⟨hs1, ht0⟩ | ⟨hs0, ht1⟩
       · left
-        rw [position_prepend_succ, show p.position j t = 0 from ht0, hs1]
+        have ht0' : p.position j t = 0 := ht0
+        rw [position_prepend_succ, ht0', hs1]
         simp [position]
-      · right
-        left
-        refine ⟨?_, ?_⟩
-        · simp [AtEnd, position, hs0]
-        · change (Route.prepend a p).position j.succ t = ((Route.prepend a p).segments : ℝ)
-          rw [position_prepend_succ, show p.position j t = (p.segments : ℝ) from ht1,
-            segments_prepend, Nat.cast_add, Nat.cast_one]
-          simp [segments, Nat.cast_add, Nat.cast_one, add_comm]
+      · have ht1' : p.position j t = (p.segments : ℝ) := ht1
+        refine Or.inr (Or.inl ⟨by simp [AtEnd, position, hs0], ?_⟩)
+        simp [AtEnd, position_prepend_succ, ht1', hbends, add_comm]
   | succ i =>
     induction j using Fin.cases with
     | zero =>
       change p.eval i s = AffineMap.lineMap a p.start t at heq
       rcases hcontact i t s ht hs heq.symm with ⟨ht1, hs0⟩ | ⟨ht0, hs1⟩
       · left
-        rw [position_prepend_succ, show p.position i s = 0 from hs0, ht1]
+        have hs0' : p.position i s = 0 := hs0
+        rw [position_prepend_succ, hs0', ht1]
         simp [position]
-      · right
-        right
-        refine ⟨?_, ?_⟩
-        · change (Route.prepend a p).position i.succ s = ((Route.prepend a p).segments : ℝ)
-          rw [position_prepend_succ, show p.position i s = (p.segments : ℝ) from hs1,
-            segments_prepend, Nat.cast_add, Nat.cast_one]
-          simp [segments, Nat.cast_add, Nat.cast_one, add_comm]
-        · simp [AtEnd, position, ht0]
+      · have hs1' : p.position i s = (p.segments : ℝ) := hs1
+        refine Or.inr (Or.inr ⟨?_, by simp [AtEnd, position, ht0]⟩)
+        simp [AtEnd, position_prepend_succ, hs1', hbends, add_comm]
     | succ j =>
       rw [eval_prepend_succ a p i s, eval_prepend_succ a p j t] at heq
-      left
-      rw [position_prepend_succ, position_prepend_succ,
-        IsSimple.position_eq_of_eval_eq hp hopen i j hs ht heq]
+      simp only [position_prepend_succ, IsSimple.position_eq_of_eval_eq hp hopen i j hs ht heq,
+        true_or]
 
 private theorem start_finish_ne_of_append_contacts {p : Route} {b : ℂ}
     (hcontact : ∀ (i : Fin p.segments) (s t : ℝ), s ∈ Set.Icc 0 1 → t ∈ Set.Icc 0 1 →
@@ -201,12 +190,10 @@ private theorem start_finish_ne_of_append_contacts {p : Route} {b : ℂ}
   intro heq
   have hpoint : p.eval 0 0 = AffineMap.lineMap p.finish b (0 : ℝ) := by
     simpa only [start, eval, AffineMap.lineMap_apply_zero, Fin.castSucc_zero] using heq
-  have h := hcontact 0 0 0 ⟨le_rfl, by norm_num⟩ ⟨le_rfl, by norm_num⟩ hpoint
-  rcases h with ⟨h, _⟩ | ⟨_, h⟩
-  · dsimp [AtEnd, position, segments] at h
-    have hn : 0 ≤ (p.bends : ℝ) := Nat.cast_nonneg _
-    simp only [Nat.cast_zero, zero_add, Nat.cast_add, Nat.cast_one] at h
-    linarith
+  rcases hcontact 0 0 0 ⟨le_rfl, by norm_num⟩ ⟨le_rfl, by norm_num⟩ hpoint with ⟨h, _⟩ | ⟨_, h⟩
+  · simp only [AtEnd, ↓reduceIte, position, segments, Fin.val_zero, Nat.cast_zero, zero_add,
+      Nat.cast_add, Nat.cast_one] at h
+    linarith [(Nat.cast_nonneg p.bends : (0 : ℝ) ≤ p.bends)]
   · norm_num at h
 
 /-- A simple route may be appended with one nondegenerate segment under the exact
@@ -224,19 +211,14 @@ theorem IsSimple.append {p : Route} (hp : p.IsSimple) {b : ℂ} (hb : p.finish �
     induction j using Fin.lastCases with
     | last =>
       rw [eval_append_last p b s, eval_append_last p b t] at heq
-      have hst := AffineMap.lineMap_injective ℝ hb heq
-      exact Or.inl (congrArg _ hst)
+      exact Or.inl (congrArg _ (AffineMap.lineMap_injective ℝ hb heq))
     | cast j =>
       rw [eval_append_last p b s, eval_append_castSucc p b j t] at heq
       rcases hcontact j t s ht hs heq.symm with ⟨ht1, hs0⟩ | ⟨ht0, hs1⟩
       · left
         rw [position_append_castSucc, show p.position j t = (p.segments : ℝ) from ht1]
         simp [position, hs0]
-      · right
-        right
-        refine ⟨?_, ?_⟩
-        · simp [AtEnd, position, hs1, segments]
-        · exact ht0
+      · exact Or.inr (Or.inr ⟨by simp [AtEnd, position, hs1, segments], ht0⟩)
   | cast i =>
     induction j using Fin.lastCases with
     | last =>
@@ -245,14 +227,10 @@ theorem IsSimple.append {p : Route} (hp : p.IsSimple) {b : ℂ} (hb : p.finish �
       · left
         rw [position_append_castSucc, show p.position i s = (p.segments : ℝ) from hs1]
         simp [position, ht0]
-      · right
-        left
-        refine ⟨hs0, ?_⟩
-        simp [AtEnd, position, ht1, segments]
+      · exact Or.inr (Or.inl ⟨hs0, by simp [AtEnd, position, ht1, segments]⟩)
     | cast j =>
       rw [eval_append_castSucc p b i s, eval_append_castSucc p b j t] at heq
-      left
-      exact IsSimple.position_eq_of_eval_eq hp hopen i j hs ht heq
+      exact Or.inl (IsSimple.position_eq_of_eval_eq hp hopen i j hs ht heq)
 
 /-- Simplicity rejects a degenerate newly prepended segment. -/
 theorem IsSimple.prepend_ne {p : Route} {a : ℂ} (h : (Route.prepend a p).IsSimple) :
@@ -261,8 +239,7 @@ theorem IsSimple.prepend_ne {p : Route} {a : ℂ} (h : (Route.prepend a p).IsSim
 /-- Simplicity rejects a degenerate newly appended segment. -/
 theorem IsSimple.append_ne {p : Route} {b : ℂ} (h : (p.append b).IsSimple) :
     p.finish ≠ b := by
-  have hne := h.segment_ne (Fin.last p.segments)
-  simpa [Route.append, finish, segments] using hne
+  simpa [Route.append, finish, segments] using h.segment_ne (Fin.last p.segments)
 
 /-- A route that was already closed cannot be extended at its start while remaining
 simple: its two old end occurrences would become an interior contact. -/
@@ -276,18 +253,13 @@ theorem IsSimple.prepend_start_ne_finish {p : Route} {a : ℂ}
   have hfirst : (Route.prepend a p).position 0 1 = 1 := by simp [position]
   have hlast : (Route.prepend a p).position (Fin.last p.bends).succ 1 =
       (p.segments : ℝ) + 1 := by
-    rw [position_prepend_succ]
-    simp [position, segments, Nat.cast_add, Nat.cast_one, add_comm]
+    simp [position, segments, add_comm]
   have hn : 1 ≤ (p.segments : ℝ) := by exact_mod_cast Nat.le_add_left 1 p.bends
   rcases h 0 (Fin.last p.bends).succ 1 1 ⟨by norm_num, le_rfl⟩
       ⟨by norm_num, le_rfl⟩ heval with h | ⟨h, _⟩ | ⟨h, _⟩
-  · rw [hfirst, hlast] at h
-    linarith
-  · change (Route.prepend a p).position 0 1 = 0 at h
-    rw [hfirst] at h
-    norm_num at h
-  · change (Route.prepend a p).position 0 1 = ((Route.prepend a p).segments : ℝ) at h
-    rw [hfirst, segments_prepend, Nat.cast_add, Nat.cast_one] at h
+  · linarith
+  · simp [AtEnd, hfirst] at h
+  · simp only [AtEnd, ↓reduceIte, hfirst, segments_prepend, Nat.cast_add, Nat.cast_one] at h
     linarith
 
 /-- A route that was already closed cannot be extended at its finish while remaining
@@ -306,14 +278,9 @@ theorem IsSimple.append_start_ne_finish {p : Route} {b : ℂ}
   have hn : 1 ≤ (p.segments : ℝ) := by exact_mod_cast Nat.le_add_left 1 p.bends
   rcases h (0 : Fin p.segments).castSucc (Fin.last p.segments) 0 0
       ⟨le_rfl, by norm_num⟩ ⟨le_rfl, by norm_num⟩ heval with h | ⟨_, h⟩ | ⟨h, _⟩
-  · rw [hfirst, hlast] at h
-    linarith
-  · change (p.append b).position (Fin.last p.segments) 0 = ((p.append b).segments : ℝ) at h
-    rw [hlast, segments_append, Nat.cast_add, Nat.cast_one] at h
-    norm_num [segments] at h
-  · change (p.append b).position (0 : Fin p.segments).castSucc 0 =
-      ((p.append b).segments : ℝ) at h
-    rw [hfirst, segments_append, Nat.cast_add, Nat.cast_one] at h
+  · linarith
+  · simp [AtEnd, hlast, segments] at h
+  · simp only [AtEnd, ↓reduceIte, hfirst, segments_append, Nat.cast_add, Nat.cast_one] at h
     linarith
 
 end Cslib.Polygonal.Route

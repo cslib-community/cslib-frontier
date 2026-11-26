@@ -57,9 +57,9 @@ theorem exec_coefficientMatrices {w n p k scratch a b c : ℕ} (x : Data 128)
   have h2 : 0 < 2 ^ k := by positivity
   have harea : 0 < 4 ^ k * p := Nat.mul_pos h4 hp
   have pair_lt (u v : Fin n) : u.val * n + v.val < n * n := by
-    have h := (finProdFinEquiv (u, v)).isLt
-    change v.val + n * u.val < n * n at h
-    simpa only [Nat.add_comm, Nat.mul_comm] using h
+    have := Nat.mul_le_mul_right n (Nat.succ_le_of_lt u.isLt)
+    rw [Nat.succ_mul] at this
+    omega
   have hTP : x.regs Reg.spread + 2 ^ k = x.regs Reg.matrixP := by
     rw [ready.layout.spread_eq, ready.layout.matrixP_eq]
   have hPQ : x.regs Reg.matrixP + 4 ^ k * p = x.regs Reg.matrixQ := by
@@ -86,10 +86,7 @@ theorem exec_coefficientMatrices {w n p k scratch a b c : ℕ} (x : Data 128)
     ready1.layout.paddedCells_eq (keep1 _ (by decide)) (keep1 _ (by decide))
     (keep1 _ (by decide)) ready1.zero ready1.one ready1.two
     (by omega) (by omega) table
-    (by
-      intro u v
-      rw [tableFrame _ (Or.inl (by have := pair_lt u v; omega))]
-      exact hAC u v)
+    (fun u v => (tableFrame _ (Or.inl (by have := pair_lt u v; omega))).trans (hAC u v))
     (by
       rw [ready.layout.matrixP_eq, ready.layout.spread_eq, ready.layout.residueAC_eq]
       exact hw.of_le (by unfold addressBudget; omega))
@@ -102,14 +99,10 @@ theorem exec_coefficientMatrices {w n p k scratch a b c : ℕ} (x : Data 128)
     ready2.layout.paddedCells_eq (keep2 _ (by decide)) (keep2 _ (by decide))
     (keep2 _ (by decide)) ready2.zero ready2.one ready2.two
     (by omega) (by omega)
-    (by
-      intro j hj
-      rw [leftFrame _ (Or.inl (by omega))]
-      exact table j hj)
-    (by
-      intro u v
-      rw [leftFrame _ (Or.inl (by have := pair_lt u v; omega)),
-        tableFrame _ (Or.inl (by have := pair_lt u v; omega))]
+    (fun j hj => (leftFrame _ (Or.inl (by omega))).trans (table j hj))
+    (fun u v => by
+      have := pair_lt u v
+      rw [leftFrame _ (Or.inl (by omega)), tableFrame _ (Or.inl (by omega))]
       exact hBC u v)
     (by
       rw [ready.layout.matrixQ_eq, ready.layout.spread_eq, ready.layout.residueBC_eq]
@@ -117,13 +110,10 @@ theorem exec_coefficientMatrices {w n p k scratch a b c : ℕ} (x : Data 128)
   have keep3 (j : Fin 128) (hj : MetadataRegister j) : y.regs j = x.regs j :=
     (rightRun.regs_eq (matrix_keeps_metadata true j hj)).trans (keep2 j hj)
   refine ⟨y, (tableRun.seq (leftRun.seq rightRun)).mono (by nlinarith),
-    ready.congr keep3, ?_, ?_, right, ?_⟩
-  · intro j hj
-    rw [rightFrame _ (Or.inl (by omega)), leftFrame _ (Or.inl (by omega))]
-    exact table j hj
-  · intro i hi
-    rw [rightFrame _ (Or.inl (by omega))]
-    exact left i hi
+    ready.congr keep3,
+    fun j hj => (rightFrame _ (Or.inl (by omega))).trans
+      ((leftFrame _ (Or.inl (by omega))).trans (table j hj)),
+    fun i hi => (rightFrame _ (Or.inl (by omega))).trans (left i hi), right, ?_⟩
   · intro d hd
     rw [rightFrame _ (hd.imp (fun h => by omega) (fun h => by omega)),
       leftFrame _ (hd.imp (fun h => by omega) (fun h => by omega)),

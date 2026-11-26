@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.SingleTape.BoundedCrossings
 public import Mathlib.Analysis.Asymptotics.Defs
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import CslibFrontier.Foundations.Data.List.LengthCounting
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 import Mathlib.Tactic.FieldSimp
@@ -96,40 +97,32 @@ private lemma crossings_cut (hdec : tm.DecidesByHeadInTime ι L yes T) {w : List
     rw [← List.map_append, List.take_append_drop]
   have e₂ : w.map ι = (w.take j).map ι ++ (w.drop j).map ι := by
     rw [← List.map_append, List.take_append_drop]
-  have e₃ : (w.take i).map ι ++ (w.drop j).map ι = (w.take i ++ w.drop j).map ι :=
-    (List.map_append ..).symm
-  have l₁ : ((w.take i).map ι).length = i := by
-    simp only [List.length_map, List.length_take]; omega
-  have l₂ : ((w.take j).map ι).length = j := by
-    simp only [List.length_map, List.length_take]; omega
+  have l₁ : ((w.take i).map ι).length = i :=
+    (List.length_map _).trans (List.length_take_of_le (hij.le.trans hj))
+  have l₂ : ((w.take j).map ι).length = j := (List.length_map _).trans (List.length_take_of_le hj)
   have hne : (w.take i).map ι = [] ↔ (w.take j).map ι = [] := by
-    rw [← List.length_eq_zero_iff, ← List.length_eq_zero_iff, l₁, l₂]
-    omega
+    simp only [← List.length_eq_zero_iff, l₁, l₂]; omega
   have hL : ((tm.absInit ((w.take i).map ι ++ (w.drop i).map ι)).run (T w.length)).state =
-      none := by
-    rw [← e₁]; exact hw
+      none := e₁ ▸ hw
   have hR : ((tm.absInit ((w.take j).map ι ++ (w.drop j).map ι)).run (T w.length)).state =
-      none := by
-    rw [← e₂]; exact hw
+      none := e₂ ▸ hw
   have hx : (tm.absInit ((w.take i).map ι ++ (w.drop i).map ι)).crossings
       ((w.take i).map ι).length (T w.length) =
       (tm.absInit ((w.take j).map ι ++ (w.drop j).map ι)).crossings
       ((w.take j).map ι).length (T w.length) := by
-    rw [← e₁, ← e₂, l₁, l₂]; exact h
+    rwa [← e₁, ← e₂, l₁, l₂]
   obtain ⟨hC, hcL, hcR, -⟩ := cut_and_paste_run hne hL hR hx
-  rw [e₃] at hC hcL hcR
+  rw [← List.map_append] at hC hcL hcR
   rw [← e₁] at hcL
   rw [← e₂] at hcR
   have heq (b : ℤ) : (tm.absInit ((w.take i ++ w.drop j).map ι)).crossings b
       (T (w.take i ++ w.drop j).length) =
       (tm.absInit ((w.take i ++ w.drop j).map ι)).crossings b (T w.length + T w.length) :=
     AbsCfg.crossings_eq_of_halted _ b hw' hC
-  refine ⟨fun b hb => ?_, fun b hb => ?_⟩
-  · rw [heq]
-    exact hcL b (by rw [l₁]; exact_mod_cast hb)
-  · rw [heq, hcR b (by rw [l₁]; exact_mod_cast hb), l₁, l₂]
-    congr 1
-    omega
+  refine ⟨fun b hb => (heq b).trans (hcL b (by rw [l₁]; exact_mod_cast hb)), fun b hb => ?_⟩
+  rw [heq, hcR b (by rw [l₁]; exact_mod_cast hb), l₁, l₂]
+  congr 1
+  omega
 
 /-- In a shortest input with a crossing sequence longer than `K` at a boundary `b`, two
 boundaries `i < j` with `b ≤ i` or `j ≤ b` have different crossing sequences: otherwise cutting
@@ -160,32 +153,24 @@ distinct, then `|S| ⌊(⌊log₂ |S|⌋ - 1) / d⌋ ≤ 2 t`, where `d = ⌈log
 private lemma card_mul_le_of_injOn (a : tm.AbsCfg) (t : ℕ) {S : Finset ℕ}
     (hS : Set.InjOn (fun b : ℕ => a.crossings (b : ℤ) t) S) :
     S.card * ((Nat.log 2 S.card - 1) / Nat.clog 2 (Fintype.card tm.State + 2)) ≤ 2 * t := by
-  obtain ⟨d, hd_def⟩ : ∃ d, d = Nat.clog 2 (Fintype.card tm.State + 2) := ⟨_, rfl⟩
-  rw [← hd_def]
+  set d := Nat.clog 2 (Fintype.card tm.State + 2) with hd_def
   have hd : 0 < d := hd_def ▸ Nat.clog_pos one_lt_two (by omega)
   have hsum : ∑ b ∈ S, (a.crossings (b : ℤ) t).length ≤ t := by
     have h := a.sum_length_crossings_le (S.image fun b : ℕ => (b : ℤ)) t
     rwa [Finset.sum_image fun i _ j _ hij => by exact_mod_cast hij] at h
-  obtain ⟨m, hm⟩ : ∃ m, m = S.card := ⟨_, rfl⟩
-  obtain ⟨L, hL⟩ : ∃ L, L = (Nat.log 2 m - 1) / d := ⟨_, rfl⟩
-  have hcnt := card_sub_pow_mul_le_sum_length hS L
-  rw [← hm] at hcnt ⊢
-  rw [← hL]
-  have hpow : Fintype.card (Option tm.State) + 1 ≤ 2 ^ d := by
-    rw [Fintype.card_option, hd_def]
-    exact Nat.le_pow_clog one_lt_two _
-  have hP : (Fintype.card (Option tm.State) + 1) ^ L ≤ 2 ^ (d * L) := by
-    rw [pow_mul]
-    exact Nat.pow_le_pow_left hpow L
+  set m := S.card
+  set L := (Nat.log 2 m - 1) / d with hL
+  have hcnt := Finset.card_sub_pow_mul_le_sum_length hS L
+  have hpow : Fintype.card (Option tm.State) + 1 ≤ 2 ^ d :=
+    Fintype.card_option (α := tm.State) ▸ Nat.le_pow_clog one_lt_two _
+  have hP : (Fintype.card (Option tm.State) + 1) ^ L ≤ 2 ^ (d * L) :=
+    pow_mul 2 d L ▸ Nat.pow_le_pow_left hpow L
   rcases Nat.eq_zero_or_pos L with h0 | hLpos
-  · rw [h0, Nat.mul_zero]
-    exact Nat.zero_le _
+  · simp [h0]
   · have hdiv : d * L + (Nat.log 2 m - 1) % d = Nat.log 2 m - 1 := hL ▸ Nat.div_add_mod _ d
     have hdL : 1 ≤ d * L := Nat.mul_pos hd hLpos
     have hlog : d * L + 1 ≤ Nat.log 2 m := by omega
-    have hm0 : m ≠ 0 := by
-      rintro rfl
-      simp at hlog
+    have hm0 : m ≠ 0 := fun h => by simp [h] at hlog
     have h2P : 2 * 2 ^ (d * L) ≤ m :=
       calc 2 * 2 ^ (d * L) = 2 ^ (d * L + 1) := by ring
         _ ≤ 2 ^ Nat.log 2 m := Nat.pow_le_pow_right two_pos hlog
@@ -200,11 +185,9 @@ are incompatible with `8 d t ≤ n ⌊log₂ n⌋` once `n ≥ 2 ^ (2 d + 3)`. -
 private lemma gap_arith {d n m t : ℕ} (hd : 0 < d) (hm : n + 1 ≤ 2 * m)
     (hn : 2 ^ (2 * d + 3) ≤ n) (hcount : m * ((Nat.log 2 m - 1) / d) ≤ 2 * t)
     (hT : 8 * d * t ≤ n * Nat.log 2 n) : False := by
-  obtain ⟨l, hl⟩ : ∃ l, l = Nat.log 2 m := ⟨_, rfl⟩
-  obtain ⟨g, hg⟩ : ∃ g, g = Nat.log 2 n := ⟨_, rfl⟩
-  obtain ⟨L, hL⟩ : ∃ L, L = (l - 1) / d := ⟨_, rfl⟩
-  rw [← hl, ← hL] at hcount
-  rw [← hg] at hT
+  set l := Nat.log 2 m with hl
+  set g := Nat.log 2 n with hg
+  set L := (l - 1) / d with hL
   have hg1 : 2 * d + 3 ≤ g := hg ▸ Nat.le_log_of_pow_le one_lt_two hn
   have hpos : 0 < 2 ^ (2 * d + 3) := by positivity
   have hg2 : g ≤ l + 1 := by
@@ -213,18 +196,8 @@ private lemma gap_arith {d n m t : ℕ} (hd : 0 < d) (hm : n + 1 ≤ 2 * m)
   have hdiv : d * L + (l - 1) % d = l - 1 := hL ▸ Nat.div_add_mod (l - 1) d
   have hmod := Nat.mod_lt (l - 1) hd
   have h3 : g + 1 ≤ 2 * (d * L) := by omega
-  have h1 : 2 * m * (d * L) ≤ 4 * d * t :=
-    calc 2 * m * (d * L) = 2 * d * (m * L) := by ring
-      _ ≤ 2 * d * (2 * t) := Nat.mul_le_mul_left _ hcount
-      _ = 4 * d * t := by ring
-  have h4 : (n + 1) * (g + 1) ≤ n * g :=
-    calc (n + 1) * (g + 1) ≤ (n + 1) * (2 * (d * L)) := Nat.mul_le_mul_left _ h3
-      _ = 2 * ((n + 1) * (d * L)) := by ring
-      _ ≤ 2 * (2 * m * (d * L)) := Nat.mul_le_mul_left _ (Nat.mul_le_mul_right _ hm)
-      _ ≤ 2 * (4 * d * t) := Nat.mul_le_mul_left _ h1
-      _ = 8 * d * t := by ring
-      _ ≤ n * g := hT
-  nlinarith
+  linarith [Nat.mul_le_mul_left (n + 1) h3, Nat.mul_le_mul_right (d * L) hm,
+    Nat.mul_le_mul_left (2 * d) hcount]
 
 /-- **The `n log n` gap for single-tape machines.** Let `d = ⌈log₂ (|Q| + 2)⌉` where `Q` is the
 state set. If `tm` decides `L` within time `T`, answering under the head, and
@@ -234,77 +207,62 @@ theorem isRegular_of_time_le_mul_log (hdec : tm.DecidesByHeadInTime ι L yes T) 
     (hT : ∀ n, N ≤ n → 8 * Nat.clog 2 (Fintype.card tm.State + 2) * T n ≤ n * Nat.log 2 n) :
     L.IsRegular := by
   classical
-  obtain ⟨d, hd_def⟩ : ∃ d, d = Nat.clog 2 (Fintype.card tm.State + 2) := ⟨_, rfl⟩
-  rw [← hd_def] at hT
+  set d := Nat.clog 2 (Fintype.card tm.State + 2) with hd_def
   have hd : 0 < d := hd_def ▸ Nat.clog_pos one_lt_two (by omega)
-  obtain ⟨N₀, hN₀⟩ : ∃ N₀, N₀ = max N (2 ^ (2 * d + 3)) := ⟨_, rfl⟩
-  obtain ⟨K, hK⟩ : ∃ K, K = ∑ n ∈ Finset.range N₀, T n := ⟨_, rfl⟩
+  set N₀ := max N (2 ^ (2 * d + 3))
+  set K := ∑ n ∈ Finset.range N₀, T n
   refine isRegular_of_crossings_le hdec K ?_
-  by_contra hbad
-  push Not at hbad
+  by_contra! hbad
+  obtain ⟨w₀, b₀, h1, h2, h3⟩ := hbad
   have hex : ∃ n, ∃ w : List α, w.length = n ∧ ∃ b : ℕ, 1 ≤ b ∧ b ≤ n ∧
-      K < ((tm.absInit (w.map ι)).crossings (b : ℤ) (T n)).length := by
-    obtain ⟨w, b, h1, h2, h3⟩ := hbad
-    exact ⟨_, w, rfl, b, h1, h2, h3⟩
+      K < ((tm.absInit (w.map ι)).crossings (b : ℤ) (T n)).length :=
+    ⟨_, w₀, rfl, b₀, h1, h2, h3⟩
   obtain ⟨w, hwn, b, hb1, hbn, hlong⟩ := Nat.find_spec hex
   have hmin : ∀ w' : List α, w'.length < Nat.find hex → ∀ b' : ℕ, 1 ≤ b' → b' ≤ w'.length →
-      ((tm.absInit (w'.map ι)).crossings (b' : ℤ) (T w'.length)).length ≤ K := by
-    intro w' hw' b' hb1' hb2'
-    by_contra hc
-    push Not at hc
-    exact Nat.find_min hex hw' ⟨w', rfl, b', hb1', hb2', hc⟩
+      ((tm.absInit (w'.map ι)).crossings (b' : ℤ) (T w'.length)).length ≤ K :=
+    fun w' hw' b' hb1' hb2' =>
+      le_of_not_gt fun hc => Nat.find_min hex hw' ⟨w', rfl, b', hb1', hb2', hc⟩
   rw [← hwn] at hbn hlong hmin
-  have hN : N₀ ≤ w.length := by
-    by_contra h
-    push Not at h
+  have hN : N₀ ≤ w.length := le_of_not_gt fun h => by
     have h1 : T w.length ≤ K :=
-      hK ▸ Finset.single_le_sum (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr h)
+      Finset.single_le_sum (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr h)
     have h2 := AbsCfg.length_crossings_le (tm.absInit (w.map ι)) (b : ℤ) (T w.length)
     omega
   have hinjL : Set.InjOn (fun i : ℕ => (tm.absInit (w.map ι)).crossings (i : ℤ) (T w.length))
-      (Finset.Icc 1 b) := by
-    intro i hi j hj hij
+      (Finset.Icc 1 b) := fun i hi j hj hij => by
     simp only [Finset.coe_Icc, Set.mem_Icc] at hi hj
-    by_contra hne
-    rcases Nat.lt_or_gt_of_ne hne with h | h
-    · exact crossings_ne_of_minimal hdec hb1 hbn hlong hmin hi.1 h (by omega) (Or.inr hj.2) hij
-    · exact crossings_ne_of_minimal hdec hb1 hbn hlong hmin hj.1 h (by omega) (Or.inr hi.2)
-        hij.symm
+    refine by_contra fun hne => (Nat.lt_or_gt_of_ne hne).elim
+      (fun h => crossings_ne_of_minimal hdec hb1 hbn hlong hmin hi.1 h (by omega) (.inr hj.2) hij)
+      (fun h => crossings_ne_of_minimal hdec hb1 hbn hlong hmin hj.1 h (by omega) (.inr hi.2)
+        hij.symm)
   have hinjR : Set.InjOn (fun i : ℕ => (tm.absInit (w.map ι)).crossings (i : ℤ) (T w.length))
-      (Finset.Icc b w.length) := by
-    intro i hi j hj hij
+      (Finset.Icc b w.length) := fun i hi j hj hij => by
     simp only [Finset.coe_Icc, Set.mem_Icc] at hi hj
-    by_contra hne
-    rcases Nat.lt_or_gt_of_ne hne with h | h
-    · exact crossings_ne_of_minimal hdec hb1 hbn hlong hmin (by omega) h hj.2 (Or.inl hi.1) hij
-    · exact crossings_ne_of_minimal hdec hb1 hbn hlong hmin (by omega) h hi.2 (Or.inl hj.1)
-        hij.symm
-  have hsplit : (Finset.Icc 1 b).card + (Finset.Icc b w.length).card = w.length + 1 := by
-    simp only [Nat.card_Icc]
-    omega
+    refine by_contra fun hne => (Nat.lt_or_gt_of_ne hne).elim
+      (fun h => crossings_ne_of_minimal hdec hb1 hbn hlong hmin (by omega) h hj.2 (.inl hi.1) hij)
+      (fun h => crossings_ne_of_minimal hdec hb1 hbn hlong hmin (by omega) h hi.2 (.inl hj.1)
+        hij.symm)
   obtain ⟨S, hS, hcard⟩ : ∃ S : Finset ℕ,
       Set.InjOn (fun i : ℕ => (tm.absInit (w.map ι)).crossings (i : ℤ) (T w.length)) S ∧
         w.length + 1 ≤ 2 * S.card := by
     by_cases hc : (Finset.Icc b w.length).card ≤ (Finset.Icc 1 b).card
-    · exact ⟨_, hinjL, by omega⟩
-    · exact ⟨_, hinjR, by omega⟩
-  have hc := card_mul_le_of_injOn (tm.absInit (w.map ι)) (T w.length) hS
-  rw [← hd_def] at hc
-  exact gap_arith hd hcard (by omega) hc (hT _ (by omega))
+    · exact ⟨_, hinjL, by simp only [Nat.card_Icc] at hc ⊢; omega⟩
+    · exact ⟨_, hinjR, by simp only [Nat.card_Icc] at hc ⊢; omega⟩
+  exact gap_arith hd hcard (by omega)
+    (card_mul_le_of_injOn (tm.absInit (w.map ι)) (T w.length) hS) (hT _ (by omega))
 
 /-- **Single-tape machines in time `o(n log n)` decide only regular languages.** If `tm` decides
 `L` within time `T`, answering under the head, and `T(n) = o(n log n)`, then `L` is regular. -/
 theorem isRegular_of_isLittleO (hdec : tm.DecidesByHeadInTime ι L yes T)
     (hT : (fun n : ℕ => (T n : ℝ)) =o[Filter.atTop] fun n : ℕ => (n : ℝ) * Real.log n) :
     L.IsRegular := by
-  obtain ⟨d, hd_def⟩ : ∃ d, d = Nat.clog 2 (Fintype.card tm.State + 2) := ⟨_, rfl⟩
+  set d := Nat.clog 2 (Fintype.card tm.State + 2) with hd_def
   have hd : 0 < d := hd_def ▸ Nat.clog_pos one_lt_two (by omega)
   have hlog2 := Real.log_pos one_lt_two
   have hd' : (0 : ℝ) < d := by exact_mod_cast hd
   have hc : (0 : ℝ) < 1 / (16 * d * Real.log 2) := by positivity
   obtain ⟨N, hN⟩ := Filter.eventually_atTop.mp (hT.bound hc)
   refine isRegular_of_time_le_mul_log hdec (N := max N 2) fun n hn => ?_
-  rw [← hd_def]
   have hn2 : 2 ≤ n := le_of_max_le_right hn
   have h1 := hN n (le_of_max_le_left hn)
   have hn1 : (1 : ℝ) ≤ n := by exact_mod_cast (by omega : 1 ≤ n)

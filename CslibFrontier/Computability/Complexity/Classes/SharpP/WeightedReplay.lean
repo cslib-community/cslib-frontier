@@ -106,13 +106,9 @@ theorem GapP.weightedReplay_mem [Finite Control] [Finite Operation]
   have hmask : (fun x : α × List Bool =>
       if (machine.replayOutput (input x.1) x.2).headD false then (1 : ℤ) else 0) ∈
       GapP (encPair enc encBits) := GapP.ite_mem hout GapP.one_mem GapP.zero_mem
-  have hsum := GapP.sum_bits_mem (GapP.mul_mem hprod hmask) hT
-  convert hsum using 1
+  convert GapP.sum_bits_mem (GapP.mul_mem hprod hmask) hT using 1
   funext a
-  rw [weightedReplay, acceptWeight_eq_sum]
-  apply sum_congr rfl
-  intro w _
-  rw [pathWeight_eq_prod]
-  rfl
+  simp only [weightedReplay, acceptWeight_eq_sum, pathWeight_eq_prod]
+  exact sum_congr rfl fun _ _ => rfl
 
 end Cslib.Complexity

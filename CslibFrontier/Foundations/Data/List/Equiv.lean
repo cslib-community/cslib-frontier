@@ -57,27 +57,19 @@ private theorem get_productIndexEquiv_symm (left : List α) (right : List β)
   | nil => exact Fin.elim0 i
   | cons a left ih =>
     have bound (i : Fin (a :: left).length) :
-        j.val + right.length * i.val < ((a :: left) ×ˢ right).length := by
-      rw [length_product]
-      exact (finProdFinEquiv (i, j)).isLt
+        j.val + right.length * i.val < ((a :: left) ×ˢ right).length :=
+      length_product (a :: left) right ▸ (finProdFinEquiv (i, j)).isLt
     refine Fin.cases ?_ (fun i => ?_) i
     · change ((a :: left) ×ˢ right)[j.val]'(by simpa using bound 0) = (a, right[j.val])
-      have hj : j.val < (right.map fun b => (a, b)).length := by
-        simpa only [length_map] using j.isLt
-      simp only [product_cons, getElem_append_left hj, getElem_map]
+      simp only [product_cons, getElem_append_left
+        (show j.val < (right.map fun b => (a, b)).length by simpa only [length_map] using j.isLt),
+        getElem_map]
     · change ((a :: left) ×ˢ right)[j.val + right.length * (i.val + 1)]'(bound i.succ) =
         (left[i.val], right[j.val])
-      have hbound : j.val + right.length * i.val < (left ×ˢ right).length := by
-        rw [length_product]
-        exact (finProdFinEquiv (i, j)).isLt
-      have h := ih i
-      change (left ×ˢ right)[j.val + right.length * i.val]'hbound = _ at h
-      have hoff : (right.map (fun b => (a, b))).length ≤
-          j.val + right.length * (i.val + 1) := by
-        simp only [length_map, Nat.mul_add, Nat.mul_one]
-        omega
+      have h : (left ×ˢ right)[j.val + right.length * i.val]'(length_product left right ▸
+          (finProdFinEquiv (i, j)).isLt) = (left.get i, right.get j) := ih i
       simp only [product_cons]
-      rw [getElem_append_right hoff]
+      rw [getElem_append_right (by simp only [length_map, Nat.mul_add, Nat.mul_one]; omega)]
       simpa only [length_map, Nat.mul_add, Nat.mul_one, ← Nat.add_assoc,
         Nat.add_sub_cancel, get_eq_getElem] using h
 
@@ -91,8 +83,7 @@ def appendIndexEquiv (left right : List α) :
 theorem ofFn_appendIndexEquiv (left right : List α) (f : Fin (left ++ right).length → β) :
     ofFn f = ofFn (fun i => f (appendIndexEquiv left right (.inl i))) ++
       ofFn (fun j => f (appendIndexEquiv left right (.inr j))) := by
-  rw [ofFn_congr (length_append ..), ofFn_add]
-  rfl
+  rw [ofFn_congr (length_append ..), ofFn_add]; rfl
 
 @[simp] theorem val_appendIndexEquiv_inl (left right : List α) (i : Fin left.length) :
     (appendIndexEquiv left right (.inl i) : ℕ) = i := by
@@ -104,14 +95,11 @@ theorem ofFn_appendIndexEquiv (left right : List α) (f : Fin (left ++ right).le
 
 theorem getElem_appendIndexEquiv_inl (left right : List α) (i : Fin left.length) :
     (left ++ right)[appendIndexEquiv left right (.inl i)] = left[i] := by
-  simp only [Fin.getElem_fin, val_appendIndexEquiv_inl]
-  exact getElem_append_left i.2
+  simp [getElem_append_left i.2]
 
 theorem getElem_appendIndexEquiv_inr (left right : List α) (j : Fin right.length) :
     (left ++ right)[appendIndexEquiv left right (.inr j)] = right[j] := by
-  simp only [Fin.getElem_fin, val_appendIndexEquiv_inr]
-  rw [getElem_append_right (by omega)]
-  simp
+  simp [getElem_append_right (Nat.le_add_right _ _)]
 
 /-- The order of the positions of `left ++ right` is the lexicographic order of the sum: positions
 of `left` precede positions of `right`. -/
@@ -119,19 +107,14 @@ theorem appendIndexEquiv_lt_iff (left right : List α) :
     ∀ x y : Fin left.length ⊕ Fin right.length,
       appendIndexEquiv left right x < appendIndexEquiv left right y ↔
         Sum.Lex (· < ·) (· < ·) x y
-  | .inl i, .inl j => by
-    rw [Sum.lex_inl_inl, Fin.lt_def, Fin.lt_def, val_appendIndexEquiv_inl,
-      val_appendIndexEquiv_inl]
+  | .inl i, .inl j => by simp only [Fin.lt_def, val_appendIndexEquiv_inl, Sum.lex_inl_inl]
   | .inl i, .inr j => by
-    rw [Fin.lt_def, val_appendIndexEquiv_inl, val_appendIndexEquiv_inr]
+    simp only [Fin.lt_def, val_appendIndexEquiv_inl, val_appendIndexEquiv_inr]
     exact iff_of_true (by omega) (Sum.Lex.sep _ _)
   | .inr i, .inl j => by
-    rw [Fin.lt_def, val_appendIndexEquiv_inl, val_appendIndexEquiv_inr]
+    simp only [Fin.lt_def, val_appendIndexEquiv_inl, val_appendIndexEquiv_inr]
     exact iff_of_false (by omega) Sum.lex_inr_inl
-  | .inr i, .inr j => by
-    rw [Sum.lex_inr_inr, Fin.lt_def, Fin.lt_def, val_appendIndexEquiv_inr,
-      val_appendIndexEquiv_inr]
-    omega
+  | .inr i, .inr j => by simp only [Fin.lt_def, val_appendIndexEquiv_inr, Sum.lex_inr_inr]; omega
 
 /-- An ordered enumeration of occurrences, allowing different indices to have the same value. -/
 structure Enumeration (xs : List α) (f : ι → α) where

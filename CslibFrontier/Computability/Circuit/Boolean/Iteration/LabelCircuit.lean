@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Label
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Optimization
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.SharedDictionary
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
 
@@ -21,7 +22,7 @@ Let `c` be a circuit of size `s` computing `f` on `n`-bit states. Some circuit o
 `60000 * powerBudget n s (2 ^ n) L` computes the canonical label of every state: the
 lexicographically least state of its eventual cycle, the cycle length and its phase
 (`cycle_label_circuit`), for every `0 < L ≤ 2 ^ n`; with the balanced parameter the size is at
-most `180000 * optimizedBudget n s (2 ^ n)` (`cycle_labels_optimized`).
+most `120000 * optimizedBudget n s (2 ^ n)` (`cycle_labels_optimized`).
 
 The construction first applies `f^[(2 ^ n)!]` with a fixed-power circuit. This moves every state
 onto its cycle without changing its label. On a periodic state, choose checkpoints as for fixed
@@ -149,12 +150,10 @@ theorem cyclic_labels_from_checkpoints (c : Circuit signature n n) (L : ℕ) (hL
       rw [chooseRecord_of_forall_eq_false _ _ _ hnone]
       apply shortLabel_eq_canonicalLabel f K hx
       rcases hcover x with ⟨i, j, hij, hj, he⟩ | ⟨t, ht, i, hi⟩
-      · have := transientDepth_add_cycleLength_le_of_iterate_eq f x hij he
-        omega
-      · exfalso
-        have hj := hnone ⟨t, by omega⟩
+      · have := transientDepth_add_cycleLength_le_of_iterate_eq f x hij he; omega
+      · have hj := hnone ⟨t, by omega⟩
         simp only [flags, result, queries, lookupOr, decide_eq_false_iff_not] at hj
-        exact hj ⟨i, hi.symm, rfl⟩
+        exact (hj ⟨i, hi.symm, rfl⟩).elim
   · simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul]
     unfold labelCost
     simp only [K, W, labelWidth] at hs ⊢
@@ -178,31 +177,27 @@ private theorem labelCost_le (n s M L : ℕ) (hL : 0 < L) (hLN : L ≤ 2 ^ n) (h
     simpa only [pow_one] using Nat.pow_le_pow_right (show 0 < n + 1 by omega) (by decide : 1 ≤ 3)
   have hn2 : (n + 1) ^ 2 ≤ P := Nat.pow_le_pow_right (by omega) (by decide)
   have hdict : 48 * ((2 * L + 1) + M + 1) * (d + 1) ^ 2 * (n + (labelWidth n + 1) + 1) ≤
-      13824 * P * (L + N / L + 1) := by
-    have h1 : (d + 1) ^ 2 ≤ 9 * (n + 1) ^ 2 := by
-      have := Nat.pow_le_pow_left (show d + 1 ≤ 3 * (n + 1) by omega) 2
-      nlinarith
+      13824 * (P * (L + N / L + 1)) := by
+    have h1 : (d + 1) ^ 2 ≤ 9 * (n + 1) ^ 2 :=
+      (Nat.pow_le_pow_left (show d + 1 ≤ 3 * (n + 1) by omega) 2).trans_eq (by ring)
     have h2 : n + (labelWidth n + 1) + 1 ≤ 8 * (n + 1) := by unfold labelWidth; omega
     have h3 : (2 * L + 1) + M + 1 ≤ 4 * (L + N / L + 1) := by omega
     calc 48 * ((2 * L + 1) + M + 1) * (d + 1) ^ 2 * (n + (labelWidth n + 1) + 1)
         ≤ 48 * (4 * (L + N / L + 1)) * (9 * (n + 1) ^ 2) * (8 * (n + 1)) := by gcongr
-      _ = 13824 * P * (L + N / L + 1) := by simp only [P]; ring
-  have hfour : (n + 4) ^ 2 ≤ 16 * (n + 1) ^ 2 := by
-    have := Nat.pow_le_pow_left (show n + 4 ≤ 4 * (n + 1) by omega) 2
-    nlinarith
+      _ = 13824 * (P * (L + N / L + 1)) := by simp only [P]; ring
+  have hfour : (n + 4) ^ 2 ≤ 16 * (n + 1) ^ 2 :=
+    (Nat.pow_le_pow_left (show n + 4 ≤ 4 * (n + 1) by omega) 2).trans_eq (by ring)
   have hrest : (2 * L + 1) * (50 * (n + 4) ^ 2) + ((2 * L + 1) * (30 * n + 27) +
       50 * (n + 4) ^ 2) + (2 * L + 1) * (4 * labelWidth n) + 2 ≤ 6000 * (P * (L + N / L + 1)) := by
     have h3L : 2 * L + 1 ≤ 3 * L := by omega
     have hw : 4 * labelWidth n ≤ 24 * (n + 1) := by unfold labelWidth; omega
-    have e1 : (2 * L + 1) * (50 * (n + 4) ^ 2) ≤ 3 * L * (800 * P) :=
-      Nat.mul_le_mul h3L (by nlinarith)
+    have e1 : (2 * L + 1) * (50 * (n + 4) ^ 2) ≤ 3 * L * (800 * P) := Nat.mul_le_mul h3L (by omega)
     have e2 : (2 * L + 1) * (30 * n + 27) ≤ 3 * L * (57 * P) := Nat.mul_le_mul h3L (by omega)
     have e3 : (2 * L + 1) * (4 * labelWidth n) ≤ 3 * L * (24 * P) :=
       Nat.mul_le_mul h3L (hw.trans (by omega))
-    have e4 : 50 * (n + 4) ^ 2 + 2 ≤ 802 * P := by nlinarith
-    have hLP : L * P ≤ P * (L + N / L + 1) := by nlinarith
-    nlinarith
-  nlinarith [Nat.zero_le (L * s)]
+    have e4 : 50 * (n + 4) ^ 2 + 2 ≤ 802 * P := by omega
+    nlinarith only [e1, e2, e3, e4, hL, Nat.mul_le_mul_left P (show L ≤ L + N / L + 1 by omega)]
+  nlinarith only [hdict, hrest, Nat.zero_le (L * s)]
 
 /-- **Labels of periodic states.** For every `0 < L ≤ 2 ^ n`, some circuit of size at most
 `20000 * powerBudget n c.size (2 ^ n) L` computes the canonical label of every periodic state. -/
@@ -241,20 +236,16 @@ theorem cycle_label_circuit (c : Circuit signature n n) (L : ℕ) (hL : 0 < L) (
   refine ⟨labels.comp project, fun x => ?_, ?_⟩
   · rw [Circuit.eval_comp, hp x, hl _ (iterate_factorial_mem_periodicPts _ x),
       canonicalLabel_iterate_factorial]
-  · rw [Circuit.size_comp]
-    omega
+  · rw [Circuit.size_comp]; omega
 
 /-- **Square-root cycle labels.** Some circuit of size at most
-`180000 * optimizedBudget n c.size (2 ^ n)` computes the canonical label of every state. -/
+`120000 * optimizedBudget n c.size (2 ^ n)` computes the canonical label of every state. -/
 theorem cycle_labels_optimized (c : Circuit signature n n) :
     ∃ out : Circuit signature n (labelWidth n),
       out.Computes interpretation (canonicalLabel (c.eval interpretation)) ∧
-      (out.size : ℝ) ≤ 180000 * optimizedBudget n c.size (2 ^ n) := by
+      (out.size : ℝ) ≤ 120000 * optimizedBudget n c.size (2 ^ n) := by
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl
   obtain ⟨out, hout, hs⟩ := cycle_label_circuit c L hL hLN
-  refine ⟨out, hout, ?_⟩
-  have hs' : (out.size : ℝ) ≤ 60000 * (powerBudget n c.size (2 ^ n) L : ℝ) := by
-    exact_mod_cast hs
-  linarith
+  exact ⟨out, hout, by cast_linarith [hs]⟩
 
 end Cslib.Circuits.Boolean.Iteration

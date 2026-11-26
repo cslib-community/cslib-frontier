@@ -183,9 +183,7 @@ private theorem conv_eq_prod_sum {J ℓ : ℕ} {R : Type*} [Semiring R]
   refine sum_congr rfl fun j₁ _ => ?_
   rw [sum_filter, sum_comm]
   refine sum_congr rfl fun j₂ _ => ?_
-  by_cases hj : (j₁ : ℕ) + (j₂ : ℕ) = (j : ℕ)
-  · simp only [hj, true_and, ↓reduceIte, sum_filter]
-  · simp only [hj, false_and, ↓reduceIte, sum_const_zero]
+  by_cases hj : (j₁ : ℕ) + (j₂ : ℕ) = (j : ℕ) <;> simp [hj, sum_filter]
 
 private theorem sum_fin_zero_left {M : Type*} [AddCommMonoid M] {N : ℕ} (k : Fin N)
     (f : Fin N → M) :
@@ -194,14 +192,9 @@ private theorem sum_fin_zero_left {M : Type*} [AddCommMonoid M] {N : ℕ} (k : F
   let z : Fin N := ⟨0, Nat.zero_lt_of_lt k.isLt⟩
   rw [Fintype.sum_eq_single z]
   · simp only [z, ↓reduceIte, Nat.zero_add, sum_filter]
-    rw [Fintype.sum_eq_single k]
-    · simp only [↓reduceIte]
-    · intro b hb
-      have hne : (b : ℕ) ≠ (k : ℕ) := fun h => hb (Fin.ext h)
-      simp only [hne, ↓reduceIte]
-  · intro a ha
-    have hne : (a : ℕ) ≠ 0 := fun h => ha (Fin.ext h)
-    simp only [hne, ↓reduceIte, sum_const_zero]
+    exact (Fintype.sum_eq_single k fun _ hb => ite_eq_right fun h => hb (Fin.ext h)).trans
+      (ite_eq_left rfl)
+  · exact fun _ ha => sum_eq_zero fun _ _ => ite_eq_right fun h => ha (Fin.ext h)
 
 private theorem sum_prod_assoc_left {J ℓ : ℕ} {M : Type*} [AddCommMonoid M]
     (p₁ p₂ p₃ q : Fin J × Fin ℓ) (x : M) :
@@ -226,10 +219,7 @@ private theorem sum_prod_assoc_left {J ℓ : ℕ} {M : Type*} [AddCommMonoid M]
   · simp only [h, ↓reduceIte]
     refine sum_eq_zero fun p₁₂ _ => ?_
     split_ifs with h1 h2
-    · exfalso
-      exact h ⟨by omega, by omega⟩
-    · rfl
-    · rfl
+    exacts [(h ⟨by omega, by omega⟩).elim, rfl, rfl]
 
 /-- A double convolution `conv (conv A B) C` as one sum over three index pairs whose
 coordinates add up to `(j, u)`. -/
@@ -251,9 +241,7 @@ private theorem conv_conv_eq_prod_sum {J ℓ : ℕ} {R : Type*} [Semiring R]
             A p₁.1 p₁.2 * B p₂.1 p₂.2 * C p₃.1 p₃.2
           else 0
         else 0
-  · refine sum_congr rfl fun p₃ _ => ?_
-    rw [sum_comm]
-    exact sum_congr rfl fun p₁ _ => sum_comm
+  · exact sum_congr rfl fun p₃ _ => sum_comm.trans <| sum_congr rfl fun p₁ _ => sum_comm
   · trans ∑ p₃ : Fin J × Fin ℓ, ∑ p₁ : Fin J × Fin ℓ, ∑ p₂ : Fin J × Fin ℓ,
         if (p₁.1 : ℕ) + (p₂.1 : ℕ) + (p₃.1 : ℕ) = (j : ℕ) ∧
             (p₁.2 : ℕ) + (p₂.2 : ℕ) + (p₃.2 : ℕ) = (u : ℕ) then
@@ -261,8 +249,7 @@ private theorem conv_conv_eq_prod_sum {J ℓ : ℕ} {R : Type*} [Semiring R]
         else 0
     · exact sum_congr rfl fun p₃ _ => sum_congr rfl fun p₁ _ => sum_congr rfl fun p₂ _ =>
         sum_prod_assoc_left p₁ p₂ p₃ (j, u) _
-    · rw [sum_comm]
-      exact sum_congr rfl fun p₁ _ => sum_comm
+    · exact sum_comm.trans <| sum_congr rfl fun p₁ _ => sum_comm
 
 private theorem sum_fin_filter_add_eq_antidiagonal {M : Type*} [AddCommMonoid M] {N : ℕ}
     (k : Fin N) (f : ℕ → ℕ → M) :
@@ -271,17 +258,12 @@ private theorem sum_fin_filter_add_eq_antidiagonal {M : Type*} [AddCommMonoid M]
       ∑ x ∈ antidiagonal (k : ℕ), f x.1 x.2 := by
   simp only [sum_filter]
   rw [← sum_product', ← sum_filter]
-  refine sum_bij (fun ab _ => ((ab.1 : ℕ), (ab.2 : ℕ))) ?_ ?_ ?_ fun _ _ => rfl
-  · intro ab hab
-    simp only [mem_filter] at hab
-    exact mem_antidiagonal.mpr hab.2
-  · intro ab₁ _ ab₂ _ h
-    simp only [Prod.mk.injEq] at h
-    exact Prod.ext (Fin.ext h.1) (Fin.ext h.2)
-  · intro x hx
-    have hsum : x.1 + x.2 = (k : ℕ) := mem_antidiagonal.mp hx
-    refine ⟨((⟨x.1, by omega⟩ : Fin N), (⟨x.2, by omega⟩ : Fin N)), ?_, rfl⟩
-    simp only [mem_filter, mem_product, mem_univ, and_self, hsum]
+  refine sum_bij (fun ab _ => ((ab.1 : ℕ), (ab.2 : ℕ)))
+    (fun _ hab => mem_antidiagonal.mpr (mem_filter.mp hab).2)
+    (fun _ _ _ _ h => Prod.ext (Fin.ext (Prod.mk.inj h).1) (Fin.ext (Prod.mk.inj h).2))
+    (fun x hx => ?_) fun _ _ => rfl
+  have hsum : x.1 + x.2 = (k : ℕ) := mem_antidiagonal.mp hx
+  exact ⟨(⟨x.1, by omega⟩, ⟨x.2, by omega⟩), by simp [hsum], rfl⟩
 
 /-! ### Ring structure and homomorphisms on `JetTable` -/
 
@@ -293,13 +275,7 @@ theorem conv_comm (A B : JetTable J ℓ R) : conv A B = conv B A := by
   ext j u
   rw [conv_eq_prod_sum, conv_eq_prod_sum, sum_comm]
   refine sum_congr rfl fun p₂ _ => sum_congr rfl fun p₁ _ => ?_
-  by_cases h : (p₁.1 : ℕ) + (p₂.1 : ℕ) = (j : ℕ) ∧ (p₁.2 : ℕ) + (p₂.2 : ℕ) = (u : ℕ)
-  · have h' : (p₂.1 : ℕ) + (p₁.1 : ℕ) = (j : ℕ) ∧ (p₂.2 : ℕ) + (p₁.2 : ℕ) = (u : ℕ) :=
-      ⟨by omega, by omega⟩
-    simp only [h, h', and_self, ↓reduceIte, mul_comm]
-  · have h' : ¬((p₂.1 : ℕ) + (p₁.1 : ℕ) = (j : ℕ) ∧ (p₂.2 : ℕ) + (p₁.2 : ℕ) = (u : ℕ)) :=
-      by omega
-    simp only [h, h', ↓reduceIte]
+  exact if_congr (by omega) (mul_comm _ _) rfl
 
 theorem const_conv (c : R) (A : JetTable J ℓ R) : conv (const c) A = smul c A := by
   ext j u
@@ -321,8 +297,7 @@ theorem conv_const (A : JetTable J ℓ R) (c : R) : conv A (const c) = smul c A 
 
 theorem one_conv (A : JetTable J ℓ R) : conv one A = A := by
   rw [one, const_conv]
-  ext j u
-  simp only [smul_apply, one_smul]
+  exact ext fun _ _ => one_smul _ _
 
 theorem conv_one (A : JetTable J ℓ R) : conv A one = A := by
   rw [conv_comm, one_conv]
@@ -351,12 +326,7 @@ theorem conv_assoc (A B C : JetTable J ℓ R) : conv (conv A B) C = conv A (conv
   refine sum_congr rfl fun p₂ _ => ?_
   rw [sum_comm]
   refine sum_congr rfl fun p₃ _ => sum_congr rfl fun p₁ _ => ?_
-  have h : (p₁.1 : ℕ) + (p₂.1 : ℕ) + (p₃.1 : ℕ) = (j : ℕ) ∧
-        (p₁.2 : ℕ) + (p₂.2 : ℕ) + (p₃.2 : ℕ) = (u : ℕ) ↔
-      (p₂.1 : ℕ) + (p₃.1 : ℕ) + (p₁.1 : ℕ) = (j : ℕ) ∧
-        (p₂.2 : ℕ) + (p₃.2 : ℕ) + (p₁.2 : ℕ) = (u : ℕ) := by
-    omega
-  exact if_congr h (mul_rotate _ _ _) rfl
+  exact if_congr (by omega) (mul_rotate _ _ _) rfl
 
 instance instCommRing : CommRing (JetTable J ℓ R) where
   zero := zero
@@ -440,9 +410,8 @@ theorem const_pow (c : R) (n : ℕ) : (const c : JetTable J ℓ R) ^ n = const (
   ((constRingHom J ℓ R).map_pow c n).symm
 
 theorem zsmul_eq_const_mul (c : ℤ) (A : JetTable J ℓ R) : c • A = const (c : R) * A := by
-  rw [const_mul]
   ext j u
-  simp only [coe_zsmul, smul_apply, smul_eq_mul, zsmul_eq_mul]
+  simp only [coe_zsmul, const_mul, smul_apply, smul_eq_mul, zsmul_eq_mul]
 
 /-- Apply a ring homomorphism `f : R →+* S` entrywise to a `(J × ℓ)` jet table. -/
 def mapRingHom {S : Type*} [CommRing S] (f : R →+* S) :
@@ -549,11 +518,8 @@ def transpose {J ℓ : ℕ} {R : Type*} [CommRing R] :
       ∑ j₂ ∈ univ.filter (fun j₂ : Fin J => (j₁ : ℕ) + (j₂ : ℕ) = (j : ℕ)),
         ∑ u₂ ∈ univ.filter (fun u₂ : Fin ℓ => (u₁ : ℕ) + (u₂ : ℕ) = (u : ℕ)),
           A u₁ j₁ * B u₂ j₂
-    · refine sum_congr rfl fun u₁ _ => ?_
-      rw [sum_comm]
-      exact sum_congr rfl fun j₁ _ => sum_comm
-    · rw [sum_comm]
-      exact sum_congr rfl fun j₁ _ => sum_comm
+    · exact sum_congr rfl fun u₁ _ => sum_comm.trans <| sum_congr rfl fun j₁ _ => sum_comm
+    · exact sum_comm.trans <| sum_congr rfl fun j₁ _ => sum_comm
   map_zero' := ext fun _ _ => by simp only [of_apply, coe_zero]
   map_add' _ _ := ext fun _ _ => by simp only [of_apply, coe_add]
 
@@ -592,9 +558,7 @@ theorem ofPolyVPolyZ_C_C {J ℓ : ℕ} {R : Type*} [CommRing R] (c : R) :
     ofPolyVPolyZ J ℓ (Polynomial.C (Polynomial.C c)) = const c := by
   ext j u
   simp only [ofPolyVPolyZ_apply, const_apply, coeff_C]
-  by_cases hu : (u : ℕ) = 0
-  · simp only [hu, and_true, ↓reduceIte, coeff_C]
-  · simp only [hu, and_false, ↓reduceIte, coeff_zero]
+  by_cases hu : (u : ℕ) = 0 <;> simp [hu, coeff_C]
 
 /-- Extracting `Polynomial.X ^ s : Polynomial (Polynomial R)` via `ofPolyVPolyZ J ℓ` yields
 `vPow s`. -/
@@ -603,9 +567,7 @@ theorem ofPolyVPolyZ_X_pow {J ℓ : ℕ} {R : Type*} [CommRing R] (s : ℕ) :
     ofPolyVPolyZ J ℓ ((Polynomial.X : Polynomial (Polynomial R)) ^ s) = vPow s := by
   ext j u
   simp only [ofPolyVPolyZ_apply, vPow_apply, coeff_X_pow]
-  by_cases hs : (u : ℕ) = s
-  · simp only [hs, and_true, ↓reduceIte, coeff_one]
-  · simp only [hs, and_false, ↓reduceIte, coeff_zero]
+  by_cases hs : (u : ℕ) = s <;> simp [hs, coeff_one]
 
 /-- `ofPolyZ J ℓ (Polynomial.C c)` is `const c`. -/
 @[simp]
@@ -625,9 +587,7 @@ theorem mul_vPow_apply (A : JetTable J ℓ R) (s : ℕ) (j : Fin J) (u : Fin ℓ
     let p₂₀ : Fin J × Fin ℓ := (⟨0, j.pos⟩, ⟨s, Nat.lt_of_le_of_lt hs u.isLt⟩)
     rw [Fintype.sum_eq_single p₁₀]
     · rw [Fintype.sum_eq_single p₂₀]
-      · have hsum : (p₁₀.1 : ℕ) + (p₂₀.1 : ℕ) = (j : ℕ) ∧ (p₁₀.2 : ℕ) + (p₂₀.2 : ℕ) = (u : ℕ) :=
-          ⟨Nat.add_zero _, Nat.sub_add_cancel hs⟩
-        simp only [p₁₀, p₂₀, vPow_apply, hsum.1, hsum.2, and_self, ↓reduceIte, mul_one]
+      · simp [p₁₀, p₂₀, vPow_apply, Nat.sub_add_cancel hs]
       · intro p₂ hp₂
         by_cases hv : (p₂.1 : ℕ) = 0 ∧ (p₂.2 : ℕ) = s
         · exact False.elim (hp₂ (Prod.ext (Fin.ext hv.1) (Fin.ext hv.2)))
@@ -636,20 +596,14 @@ theorem mul_vPow_apply (A : JetTable J ℓ R) (s : ℕ) (j : Fin J) (u : Fin ℓ
       refine sum_eq_zero fun p₂ _ => ?_
       by_cases hv : (p₂.1 : ℕ) = 0 ∧ (p₂.2 : ℕ) = s
       · have hne : ¬((p₁.1 : ℕ) + (p₂.1 : ℕ) = (j : ℕ) ∧ (p₁.2 : ℕ) + (p₂.2 : ℕ) = (u : ℕ)) :=
-          fun ⟨h1, h2⟩ => hp₁ (Prod.ext (Fin.ext (by
-            change (p₁.1 : ℕ) = (j : ℕ)
-            omega)) (Fin.ext (by
-            change (p₁.2 : ℕ) = (u : ℕ) - s
-            omega)))
+          fun ⟨h1, h2⟩ => hp₁ (Prod.ext (Fin.ext (by dsimp [p₁₀]; omega))
+            (Fin.ext (by dsimp [p₁₀]; omega)))
         simp only [hne, ↓reduceIte]
       · simp only [vPow_apply, hv, ↓reduceIte, mul_zero, ite_self]
   · simp only [hs, ↓reduceDIte]
     refine sum_eq_zero fun p₁ _ => sum_eq_zero fun p₂ _ => ?_
-    by_cases hv : (p₂.1 : ℕ) = 0 ∧ (p₂.2 : ℕ) = s
-    · have hne : ¬((p₁.1 : ℕ) + (p₂.1 : ℕ) = (j : ℕ) ∧ (p₁.2 : ℕ) + (p₂.2 : ℕ) = (u : ℕ)) :=
-        by omega
-      simp only [hne, ↓reduceIte]
-    · simp only [vPow_apply, hv, ↓reduceIte, mul_zero, ite_self]
+    simp only [vPow_apply]
+    split_ifs <;> first | omega | simp
 
 end CommRing
 
@@ -683,15 +637,11 @@ private theorem sum_ite_coord_eq_le (a b : ℕ) (m : ℕ) :
     (∑ p : Fin J × Fin ℓ, if (p.1 : ℕ) = a ∧ (p.2 : ℕ) = b then m else 0) ≤ m := by
   by_cases h : a < J ∧ b < ℓ
   · let p₀ : Fin J × Fin ℓ := (⟨a, h.1⟩, ⟨b, h.2⟩)
-    rw [Fintype.sum_eq_single p₀]
-    · simp only [p₀, and_self, ↓reduceIte, le_rfl]
-    · intro p hp
-      have hne : ¬((p.1 : ℕ) = a ∧ (p.2 : ℕ) = b) :=
-        fun ⟨h1, h2⟩ => hp (Prod.ext (Fin.ext h1) (Fin.ext h2))
-      simp only [hne, ↓reduceIte]
-  · refine (sum_eq_zero fun p _ => ?_).trans_le (Nat.zero_le _)
-    have hne : ¬((p.1 : ℕ) = a ∧ (p.2 : ℕ) = b) := fun ⟨h1, h2⟩ => h ⟨h1 ▸ p.1.isLt, h2 ▸ p.2.isLt⟩
-    simp only [hne, ↓reduceIte]
+    rw [Fintype.sum_eq_single p₀
+      (fun _ hp => ite_eq_right fun ⟨h1, h2⟩ => hp (Prod.ext (Fin.ext h1) (Fin.ext h2)))]
+    simp only [p₀, and_self, ↓reduceIte, le_rfl]
+  · rw [sum_eq_zero fun p _ => ite_eq_right fun ⟨h1, h2⟩ => h ⟨h1 ▸ p.1.isLt, h2 ▸ p.2.isLt⟩]
+    exact Nat.zero_le _
 
 theorem l1Norm_const_le (c : ℤ) : l1Norm (const c : JetTable J ℓ ℤ) ≤ c.natAbs := by
   rw [l1Norm_eq_prod_sum]
@@ -727,19 +677,16 @@ theorem l1Norm_smul (c : ℤ) (A : JetTable J ℓ ℤ) : l1Norm (c • A) = c.na
 theorem l1Norm_conv_le (A B : JetTable J ℓ ℤ) :
     l1Norm (conv A B) ≤ l1Norm A * l1Norm B := by
   rw [l1Norm_eq_prod_sum, l1Norm_eq_prod_sum, l1Norm_eq_prod_sum, sum_mul_sum]
-  have entry_le : ∀ q : Fin J × Fin ℓ, (conv A B q.1 q.2).natAbs ≤
+  have entry_le (q : Fin J × Fin ℓ) : (conv A B q.1 q.2).natAbs ≤
       ∑ p₁ : Fin J × Fin ℓ, ∑ p₂ : Fin J × Fin ℓ,
         if (q.1 : ℕ) = (p₁.1 : ℕ) + (p₂.1 : ℕ) ∧ (q.2 : ℕ) = (p₁.2 : ℕ) + (p₂.2 : ℕ) then
           (A p₁.1 p₁.2).natAbs * (B p₂.1 p₂.2).natAbs
         else 0 := by
-    intro q
     rw [conv_eq_prod_sum]
     refine (Int.natAbs_sum_le _ _).trans (sum_le_sum fun p₁ _ => ?_)
     refine (Int.natAbs_sum_le _ _).trans (sum_le_sum fun p₂ _ => ?_)
-    by_cases h1 : (p₁.1 : ℕ) + (p₂.1 : ℕ) = (q.1 : ℕ) ∧ (p₁.2 : ℕ) + (p₂.2 : ℕ) = (q.2 : ℕ)
-    · simp only [h1, and_self, ↓reduceIte, Int.natAbs_mul, le_rfl]
-    · simp only [h1, ↓reduceIte, Int.natAbs_zero]
-      exact Nat.zero_le _
+    by_cases h1 : (p₁.1 : ℕ) + (p₂.1 : ℕ) = (q.1 : ℕ) ∧ (p₁.2 : ℕ) + (p₂.2 : ℕ) = (q.2 : ℕ) <;>
+      simp [h1, Int.natAbs_mul]
   refine (sum_le_sum fun q _ => entry_le q).trans ?_
   rw [sum_comm]
   refine (sum_congr rfl fun p₁ _ => sum_comm).trans_le ?_
@@ -852,10 +799,8 @@ theorem cast_clearedUnivariateJet (Δ : ℤ) (D : ℕ) (a : ℕ → ℤ)
   rw [clearedUnivariateJet, map_sum, smul_sum]
   refine sum_congr rfl fun u hu => ?_
   have huD : u ≤ D := Nat.lt_succ_iff.mp (mem_range.mp hu)
-  rw [map_zsmul, map_pow, ← hL]
-  have hpow : (Δ • L_rat) ^ u = (Δ ^ u) • L_rat ^ u := by
-    rw [zsmul_eq_const_mul, mul_pow, const_pow, ← Int.cast_pow, ← zsmul_eq_const_mul]
-  rw [hpow, smul_smul, smul_smul]
+  rw [map_zsmul, map_pow, ← hL, zsmul_eq_const_mul Δ L_rat, mul_pow, const_pow, ← Int.cast_pow,
+    ← zsmul_eq_const_mul (Δ ^ u), smul_smul, smul_smul]
   congr 1
   rw [mul_assoc, ← pow_add, Nat.sub_add_cancel huD, mul_comm]
 
@@ -1161,9 +1106,8 @@ theorem hermiteCramerNumerator_eq_mul {Q J : ℕ} (nodes : Fin Q → ℤ) (hQ : 
   let c₀ : Fin Q × Fin J := (⟨0, hQ⟩, ⟨0, hJ⟩)
   have hc₀ : (finProdFinEquiv c₀ : ℕ) = 0 := rfl
   have hcol : (Int.cast : ℤ → ℚ) ∘ (fun r : Fin Q × Fin J => J_int r.1 r.2) =
-      (Ω : ℚ) • Polynomial.taylorJet (fun i => (nodes i : ℚ)) J H := by
-    funext r
-    simp only [Function.comp_apply, Pi.smul_apply, smul_eq_mul, Polynomial.taylorJet_apply, hjet]
+      (Ω : ℚ) • Polynomial.taylorJet (fun i => (nodes i : ℚ)) J H :=
+    funext fun r => by simp [Polynomial.taylorJet_apply, hjet]
   apply Int.cast_injective (α := ℚ)
   rw [hermiteCramerNumerator, Int.cast_det, Matrix.map_updateCol, hcol, Matrix.det_updateCol_smul,
     ← Polynomial.det_hermiteMatrix_mul_coeff nodes hp c₀, hc₀, Polynomial.coeff_zero_eq_eval_zero,
@@ -1237,12 +1181,8 @@ theorem sum_hermiteCramerNumerator_emod_two_pow_eq {Q J ℓ : ℕ} {nodes : Fin 
     (hZ0 : 0 ≤ Z) (hZlt : Z < (2 : ℤ) ^ ℓ) :
     (∑ s : Fin ℓ, hermiteCramerNumerator nodes hQ hJ (fun i j => T_int i j s) /
         (Ω * (Polynomial.hermiteMatrix nodes J).det)) % ((2 : ℤ) ^ ℓ) = Z := by
-  have hsum : (∑ s : Fin ℓ, hermiteCramerNumerator nodes hQ hJ (fun i j => T_int i j s) /
-      (Ω * (Polynomial.hermiteMatrix nodes J).det)) = ∑ s : Fin ℓ, H_zero s :=
-    sum_congr rfl fun s _ =>
-      hermiteCramerNumerator_ediv_eq hnodes hQ hJ hΩ (H_zero s) (fun i j => T_int i j s)
-        (hdeg s) (hzero s) (fun i j => hjet i j s)
-  rw [hsum, hmod]
+  rw [sum_congr rfl fun s _ => hermiteCramerNumerator_ediv_eq hnodes hQ hJ hΩ (H_zero s)
+    (fun i j => T_int i j s) (hdeg s) (hzero s) (fun i j => hjet i j s), hmod]
   exact Int.emod_eq_of_lt hZ0 hZlt
 
 end HermiteCramer

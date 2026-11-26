@@ -65,24 +65,21 @@ theorem slotRotN_val (I : USTCONInstance) (v : Fin I.n × Fin I.n) (b : Label) :
       Prod.map id slotLabel ((slotGraph I.graph (finRotate I.n)).rot ((v₁, v₂), d)) :=
     rot_extendLabels_apply _ _ (v₁, v₂) d
   have hne₁ : slotLabel (.inr ((), (), false)) ≠ slotLabel (.inl ()) :=
-    fun h ↦ by simpa using slotLabel.injective h
+    slotLabel.injective.ne (by decide)
   have hne₂ : slotLabel (.inr ((), (), true)) ≠ slotLabel (.inl ()) :=
-    fun h ↦ by simpa using slotLabel.injective h
+    slotLabel.injective.ne (by decide)
   have hne₃ : slotLabel (.inr ((), (), true)) ≠ slotLabel (.inr ((), (), false)) :=
-    fun h ↦ by simpa using slotLabel.injective h
+    slotLabel.injective.ne (by decide)
   unfold slotRotN
-  by_cases h₁ : b = slotLabel (.inl ())
-  · subst h₁
-    rw [ite_eq_left rfl, hrot]
+  rcases eq_or_ne b (slotLabel (.inl ())) with rfl | h₁
+  · rw [ite_eq_left rfl, hrot]
     by_cases hadj : I.adj v₁ v₂ = true <;> simp [slotSwap, hadj, slotVal]
-  by_cases h₂ : b = slotLabel (.inr ((), (), false))
-  · subst h₂
-    rw [ite_eq_right hne₁, ite_eq_left rfl, hrot]
+  rcases eq_or_ne b (slotLabel (.inr ((), (), false))) with rfl | h₂
+  · rw [ite_eq_right hne₁, ite_eq_left rfl, hrot]
     simp only [rot_slotGraph_inr_false, Prod.map, slotVal, id, val_finRotate]
     congr 3
-  by_cases h₃ : b = slotLabel (.inr ((), (), true))
-  · subst h₃
-    rw [ite_eq_right hne₂, ite_eq_right hne₃, ite_eq_left rfl, hrot]
+  rcases eq_or_ne b (slotLabel (.inr ((), (), true))) with rfl | h₃
+  · rw [ite_eq_right hne₂, ite_eq_right hne₃, ite_eq_left rfl, hrot]
     simp only [rot_slotGraph_inr_true, Prod.map, slotVal, id, val_finRotate_symm]
     congr 3
   rw [ite_eq_right h₁, ite_eq_right h₂, ite_eq_right h₃, input,
@@ -199,13 +196,10 @@ private theorem reaches_size (q : State) (m d l : ℕ) :
         (by simp) ?_).trans ?_
       · rw [readBit_of_addr_none rfl]
         simp [step, hm.ne']
-      · have h := ih (m / 2) (Nat.div_lt_self hm (by norm_num)) (d + 16) (l + 4168)
-        have hs := Nat.size_div_two_add_one hm.ne'
-        have e₁ : d + 16 * Nat.size m = d + 16 + 16 * Nat.size (m / 2) := by rw [← hs]; ring
-        have e₂ : l + 4168 * Nat.size m = l + 4168 + 4168 * Nat.size (m / 2) := by
-          rw [← hs]; ring
-        rw [e₁, e₂]
-        exact h
+      · have hs := Nat.size_div_two_add_one hm.ne'
+        simpa only [← hs, mul_add, mul_one, ← add_assoc, add_right_comm d _ 16,
+          add_right_comm l _ 4168] using
+          ih (m / 2) (Nat.div_lt_self hm (by norm_num)) (d + 16) (l + 4168)
 
 /-! ### Evaluating the rotation map -/
 
@@ -330,50 +324,38 @@ private theorem reaches_walk {m : ℕ} (hm : m ≠ 0) (q : State) (hc : q.ctl = 
     set lab := labelOfNat w
     set r := (reingold base baseEquiv (input I.graph) m).rot (x, lab)
     -- the next step pushes the frame of the top level
-    have h₁ : Reaches I q { q with
-        ctl := .eval
-        ev := (⟨(x.toList).1, (x.toList).2, [(.zig₀, lab)]⟩ :
-          ReingoldEvalState (Fin I.n × Fin I.n) Label).mapVertex slotVal
-        w := w / numLabels
-        j := j } := by
+    let q₁ : State := { q with
+      ctl := .eval
+      ev := (⟨(x.toList).1, (x.toList).2, [(.zig₀, lab)]⟩ :
+        ReingoldEvalState (Fin I.n × Fin I.n) Label).mapVertex slotVal
+      w := w / numLabels
+      j := j }
+    have h₁ : Reaches I q q₁ := by
       refine .single (by simp [hc]) ?_
       rw [readBit_of_addr_none (by simp [addr, hc])]
       obtain ⟨_, _, _, _, _, _, _, _, _, _, _⟩ := q
-      simp_all [step, ReingoldEvalState.mapVertex, lab]
+      simp_all [step, ReingoldEvalState.mapVertex, lab, q₁]
     -- the evaluation of the rotation map
-    have h₂ := reaches_eval { q with
-        ctl := .eval
-        ev := (⟨(x.toList).1, (x.toList).2, [(.zig₀, lab)]⟩ :
-          ReingoldEvalState (Fin I.n × Fin I.n) Label).mapVertex slotVal
-        w := w / numLabels
-        j := j } rfl hn hs ht hm x lab rfl
+    have h₂ := reaches_eval q₁ rfl hn hs ht hm x lab rfl
     -- the label at the far end is dropped
+    let q₂ : State := { q with
+      ctl := .next
+      ev := ⟨slotVal r.1.root, (r.1.toList).2, []⟩
+      w := w / numLabels
+      j := j }
     have h₃ : Reaches I { q with
         ctl := .eval
         ev := (⟨(r.1.toList).1, r.2 :: (r.1.toList).2, []⟩ :
           ReingoldEvalState (Fin I.n × Fin I.n) Label).mapVertex slotVal
         w := w / numLabels
-        j := j }
-        { q with
-          ctl := .next
-          ev := ⟨slotVal r.1.root, (r.1.toList).2, []⟩
-          w := w / numLabels
-          j := j } := by
+        j := j } q₂ := by
       refine .single (by simp) ?_
       rw [readBit_of_addr_none (by simp [addr, ReingoldEvalState.atRoot,
         ReingoldEvalState.mapVertex])]
-      simp [step, ReingoldEvalState.mapVertex]
-    have h₄ := ih { q with
-        ctl := .next
-        ev := ⟨slotVal r.1.root, (r.1.toList).2, []⟩
-        w := w / numLabels
-        j := j } rfl hn hs ht r.1 (w / numLabels) rfl rfl rfl
-    refine h₁.trans (h₂.trans (h₃.trans ?_))
-    have e₁ : walkFrom I x w (j + 1) = walkFrom I r.1 (w / numLabels) j := rfl
-    have e₂ : w / numLabels ^ (j + 1) = w / numLabels / numLabels ^ j := by
-      rw [pow_succ', Nat.div_div_eq_div_mul]
-    rw [e₁, e₂]
-    exact h₄
+      simp [step, ReingoldEvalState.mapVertex, q₂]
+    rw [show w / numLabels ^ (j + 1) = w / numLabels / numLabels ^ j by
+      rw [pow_succ', Nat.div_div_eq_div_mul]]
+    exact h₁.trans (h₂.trans (h₃.trans (ih q₂ rfl hn hs ht r.1 (w / numLabels) rfl rfl rfl)))
 
 /-- **A walk of a counter**: from the start of the walk of the counter `c`, the machine fills the
 labels of the start vertex `(⋯ ((s, s), 0) ⋯, 0)` and walks along the digits of `c`. -/
@@ -387,25 +369,22 @@ private theorem reaches_start {m : ℕ} (hm : m ≠ 0) (q : State) (hc : q.ctl =
       w := q.c / numLabels ^ q.len
       j := 0 } := by
   -- the start resets the registers
-  have h₁ : Reaches I q { q with
-      ctl := .fill
-      ev := ⟨(q.s, q.s), List.replicate 0 0, []⟩
-      w := q.c
-      j := q.len } := by
+  let q₁ : State := { q with
+    ctl := .fill
+    ev := ⟨(q.s, q.s), List.replicate 0 0, []⟩
+    w := q.c
+    j := q.len }
+  have h₁ : Reaches I q q₁ := by
     refine .single (by simp [hc]) ?_
     rw [readBit_of_addr_none (by simp [addr, hc])]
-    simp [step, hc]
+    simp [step, hc, q₁]
   -- the labels are filled with zeros
-  have h₂ : Reaches I { q with
-      ctl := .fill
-      ev := ⟨(q.s, q.s), List.replicate 0 0, []⟩
-      w := q.c
-      j := q.len }
-      { q with
-        ctl := .next
-        ev := ⟨(q.s, q.s), List.replicate m 0, []⟩
-        w := q.c
-        j := q.len } := by
+  let q₂ : State := { q with
+    ctl := .next
+    ev := ⟨(q.s, q.s), List.replicate m 0, []⟩
+    w := q.c
+    j := q.len }
+  have h₂ : Reaches I q₁ q₂ := by
     refine (reaches_iterate (fun i ↦ { q with
       ctl := .fill
       ev := ⟨(q.s, q.s), List.replicate i 0, []⟩
@@ -414,14 +393,9 @@ private theorem reaches_start {m : ℕ} (hm : m ≠ 0) (q : State) (hc : q.ctl =
     · rw [readBit_of_addr_none (by simp [addr])]
       simp [step, hd, hi.ne, List.replicate_succ]
     · rw [readBit_of_addr_none (by simp [addr])]
-      simp [step, hd]
-  have h₃ := reaches_walk hm { q with
-      ctl := .next
-      ev := ⟨(q.s, q.s), List.replicate m 0, []⟩
-      w := q.c
-      j := q.len } rfl hn hs ht (IteratedProd.mk (I.s, I.s) 0 m) q.c q.len
-    (by simp [slotVal, hs]) rfl rfl
-  exact h₁.trans (h₂.trans h₃)
+      simp [step, hd, q₂]
+  exact h₁.trans (h₂.trans (reaches_walk hm q₂ rfl hn hs ht (IteratedProd.mk (I.s, I.s) 0 m)
+    q.c q.len (by simp [slotVal, hs, q₂]) rfl rfl))
 
 variable (I) in
 /-- The machine halts from `q` with the output `b` appended to the output so far. -/
@@ -485,9 +459,7 @@ private theorem outputs_start {m T : ℕ} (hm : m ≠ 0) :
   | zero =>
     intro q hd hc₀ hc hn hs ht hd' hl
     have hcT : q.c = numLabels ^ T := by omega
-    have hfalse : decide (∃ c', q.c ≤ c' ∧ c' < numLabels ^ T ∧ Success I m T c') = false := by
-      grind
-    rw [hfalse]
+    rw [decide_eq_false (by grind)]
     refine (reaches_start hm q hc hn hs ht hd').outputs (outputs_check_overflow _ rfl ?_)
     simp [hl, hcT, Nat.div_self (pow_pos numLabels_pos T)]
   | succ d ih =>
@@ -496,27 +468,17 @@ private theorem outputs_start {m T : ℕ} (hm : m ≠ 0) :
     have hdiv : q.c / numLabels ^ T = 0 := Nat.div_eq_of_lt hcT
     refine (reaches_start hm q hc hn hs ht hd').outputs ?_
     by_cases hsucc : Success I m T q.c
-    · have htrue : decide (∃ c', q.c ≤ c' ∧ c' < numLabels ^ T ∧ Success I m T c') = true :=
-        decide_eq_true ⟨q.c, le_rfl, hcT, hsucc⟩
-      rw [htrue]
-      refine outputs_check_success _ rfl (by simp [hl, hdiv]) ?_
-      simp only [Success] at hsucc
-      simp [slotVal, ht, hl, hsucc]
+    · rw [decide_eq_true ⟨q.c, le_rfl, hcT, hsucc⟩]
+      exact outputs_check_success _ rfl (by simp [hl, hdiv])
+        (by simp [slotVal, ht, hl, congrArg Fin.val hsucc])
     · have heq : decide (∃ c', q.c ≤ c' ∧ c' < numLabels ^ T ∧ Success I m T c') =
           decide (∃ c', q.c + 1 ≤ c' ∧ c' < numLabels ^ T ∧ Success I m T c') := by
-        congr 1
-        refine propext ⟨fun ⟨c', h₁, h₂, h₃⟩ ↦ ⟨c', ?_, h₂, h₃⟩, fun ⟨c', h₁, h₂, h₃⟩ ↦
-          ⟨c', by omega, h₂, h₃⟩⟩
-        rcases h₁.lt_or_eq with h₁ | h₁
-        · exact h₁
-        · exact absurd (h₁ ▸ h₃) hsucc
+        refine decide_eq_decide.2 ⟨fun ⟨c', h₁, h₂, h₃⟩ ↦
+          ⟨c', Nat.lt_of_le_of_ne h₁ fun h ↦ hsucc (h ▸ h₃), h₂, h₃⟩,
+          fun ⟨c', h₁, h₂, h₃⟩ ↦ ⟨c', by omega, h₂, h₃⟩⟩
       rw [heq]
-      have hne : ((walkFrom I (IteratedProd.mk (I.s, I.s) 0 m) q.c q.len).root.1 : ℕ) ≠ I.t := by
-        intro h
-        rw [hl] at h
-        exact hsucc (Fin.ext h)
       refine (reaches_check_next _ rfl (by simp [hl, hdiv])
-        (by simpa [slotVal, ht] using hne)).outputs ?_
+        (fun h ↦ hsucc (Fin.ext (by simpa [slotVal, ht, hl] using h)))).outputs ?_
       exact ih _ (by simp only; omega) (by simp only; omega) rfl hn hs ht hd' hl
 
 /-! ### Every sequence of labels is a counter -/
@@ -578,15 +540,9 @@ private theorem outputs_init : Outputs I init (decide (I ∈ USTCON)) := by
     (Nat.lt_size_self I.n).le I.s I.t
   rw [show I ∈ USTCON ↔ I.graph.Reachable I.s I.t from Iff.rfl, hreach]
   refine ⟨fun ⟨k, hk⟩ ↦ ?_, fun ⟨c, _, hc, hsucc⟩ ↦ ?_⟩
-  · obtain ⟨c, hc, hck⟩ := exists_labelOfNat_eq (walkLength a) k
-    refine ⟨c, Nat.zero_le _, hc, ?_⟩
-    simp only [Success]
-    rw [walkFrom_eq, hck]
-    exact hk
-  · refine ⟨fun i ↦ labelOfNat (c / numLabels ^ (i : ℕ)), ?_⟩
-    simp only [Success] at hsucc
-    rw [walkFrom_eq] at hsucc
-    exact hsucc
+  · obtain ⟨c, hc, rfl⟩ := exists_labelOfNat_eq (walkLength a) k
+    exact ⟨c, Nat.zero_le _, hc, by rwa [Success, walkFrom_eq]⟩
+  · exact ⟨fun i ↦ labelOfNat (c / numLabels ^ (i : ℕ)), by rwa [Success, walkFrom_eq] at hsucc⟩
 
 open scoped Classical in
 /-- **The read machine decides undirected connectivity**: on the encoding of an instance, it halts

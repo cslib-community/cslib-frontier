@@ -108,16 +108,14 @@ theorem iterate_eq_projection_iff (x : α) (t : ℕ) :
 when they are at time `card α`. -/
 theorem exists_iterate_eq_iterate_iff (x y : α) :
     (∃ t, f^[t] x = f^[t] y) ↔ f^[Fintype.card α] x = f^[Fintype.card α] y := by
-  constructor
-  · rintro ⟨t, ht⟩
-    by_cases hle : t ≤ Fintype.card α
-    · have h := congrArg (f^[Fintype.card α - t]) ht
-      simpa only [← iterate_add_apply, Nat.sub_add_cancel hle] using h
-    · apply eq_of_iterate_eq_of_mem_periodicPts f (iterate_card_mem_periodicPts f x)
-        (iterate_card_mem_periodicPts f y) (t - Fintype.card α)
-      simpa only [← iterate_add_apply, Nat.sub_add_cancel (by omega : Fintype.card α ≤ t)]
-        using ht
-  · exact fun h => ⟨_, h⟩
+  refine ⟨?_, fun h => ⟨_, h⟩⟩
+  rintro ⟨t, ht⟩
+  by_cases hle : t ≤ Fintype.card α
+  · simpa only [← iterate_add_apply, Nat.sub_add_cancel hle] using
+      congrArg (f^[Fintype.card α - t]) ht
+  · refine eq_of_iterate_eq_of_mem_periodicPts f (iterate_card_mem_periodicPts f x)
+      (iterate_card_mem_periodicPts f y) (t - Fintype.card α) ?_
+    simpa only [← iterate_add_apply, Nat.sub_add_cancel (by omega : Fintype.card α ≤ t)] using ht
 
 /-- A time below `2 * card α` at which the orbit of `x` is in the same state as at time `t`:
 `t` itself if it is below `card α`, and otherwise `card α` plus the remaining time modulo the
@@ -130,8 +128,8 @@ theorem normalizedTime_lt (x : α) (t : ℕ) : normalizedTime f x t < 2 * Fintyp
   unfold normalizedTime
   split_ifs with ht
   · omega
-  · have hp := Nat.mod_lt (t - Fintype.card α) (cycleLength_pos f x)
-    have hc := transientDepth_add_cycleLength_le_card f x
+  · have := Nat.mod_lt (t - Fintype.card α) (cycleLength_pos f x)
+    have := transientDepth_add_cycleLength_le_card f x
     omega
 
 /-- At the normalized time, the orbit of `x` is in the same state as at time `t`. -/
@@ -152,20 +150,16 @@ theorem iterate_normalizedTime (x : α) (t : ℕ) : f^[normalizedTime f x t] x =
 of the cycle projection visits it. -/
 theorem recurring_target_iff (P : α → Prop) (x : α) :
     (∀ a, ∃ t, a ≤ t ∧ P (f^[t] x)) ↔ ∃ t, P (f^[t] (cycleProjection f x)) := by
-  constructor
-  · intro h
-    obtain ⟨t, ht, hp⟩ := h (Fintype.card α).factorial
-    refine ⟨t - (Fintype.card α).factorial, ?_⟩
-    simpa only [cycleProjection, ← iterate_add_apply, Nat.sub_add_cancel ht] using hp
+  refine ⟨fun h => ?_, ?_⟩
+  · obtain ⟨t, ht, hp⟩ := h (Fintype.card α).factorial
+    exact ⟨t - (Fintype.card α).factorial,
+      by simpa only [cycleProjection, ← iterate_add_apply, Nat.sub_add_cancel ht] using hp⟩
   · rintro ⟨t, ht⟩ a
     obtain ⟨p, hp, hperiod⟩ := mem_periodicPts.mp (cycleProjection_mem_periodicPts f x)
-    refine ⟨a * p + t + (Fintype.card α).factorial, ?_, ?_⟩
-    · have := Nat.mul_le_mul_left a hp
-      omega
-    · have he : f^[a * p + t + (Fintype.card α).factorial] x = f^[t] (cycleProjection f x) := by
-        rw [iterate_add_apply, iterate_add_apply, Nat.mul_comm]
-        exact (hperiod.apply_iterate t).mul_const a
-      rwa [he]
+    have hmul := Nat.mul_le_mul_left a hp
+    refine ⟨a * p + t + (Fintype.card α).factorial, by omega, ?_⟩
+    rwa [iterate_add_apply, iterate_add_apply, ← cycleProjection, Nat.mul_comm,
+      (hperiod.apply_iterate t).mul_const a]
 
 /-- **Eventually permanent targets.** A target holds from some time on exactly when the orbit of
 the cycle projection never leaves it. -/
@@ -193,17 +187,13 @@ theorem first_target_depth (P : α → Prop) [DecidablePred P] (x : α) (h : ∃
   have hbefore : g^[t] x = f^[t] x := absorb_iterate_of_forall_not f P x t hfirst
   have hfixed : IsFixedPt g (f^[t] x) := by simp only [IsFixedPt, g, absorb, hp, ite_true]
   have hcyclic : f^[t] x ∈ periodicPts g := mk_mem_periodicPts one_pos (hfixed.isPeriodicPt 1)
-  have hle : transientDepth g x ≤ t := by
-    rw [← iterate_mem_periodicPts_iff, hbefore]
-    exact hcyclic
-  have hcancel : g^[transientDepth g x] x = f^[t] x := by
-    apply eq_of_iterate_eq_of_mem_periodicPts g (iterate_transientDepth_mem_periodicPts g x)
-      hcyclic (t - transientDepth g x)
-    rw [← iterate_add_apply, Nat.sub_add_cancel hle, hbefore]
-    exact (hfixed.iterate _).symm
-  have hbefore' : g^[transientDepth g x] x = f^[transientDepth g x] x :=
-    absorb_iterate_of_forall_not f P x _ fun j hj => hfirst j (hj.trans_le hle)
-  exact ⟨by rw [← hbefore', hcancel]; exact hp, fun j hj => hfirst j (hj.trans_le hle)⟩
+  have hle : transientDepth g x ≤ t := (iterate_mem_periodicPts_iff g x t).mp (hbefore ▸ hcyclic)
+  have hcancel : g^[transientDepth g x] x = f^[t] x :=
+    eq_of_iterate_eq_of_mem_periodicPts g (iterate_transientDepth_mem_periodicPts g x) hcyclic
+      (t - transientDepth g x)
+      (by rw [← iterate_add_apply, Nat.sub_add_cancel hle, hbefore, hfixed.iterate])
+  rw [← absorb_iterate_of_forall_not f P x _ fun j hj => hfirst j (hj.trans_le hle), hcancel]
+  exact ⟨hp, fun j hj => hfirst j (hj.trans_le hle)⟩
 
 /-- **Halting depth.** If `f` fixes every halting state and the orbit of `x` halts, it first
 halts at the transient depth of `x`. -/
@@ -211,11 +201,8 @@ theorem halting_depth (H : α → Prop) (hstop : ∀ x, H x → f x = x) (x : α
     (h : ∃ t, H (f^[t] x)) :
     H (f^[transientDepth f x] x) ∧ ∀ j < transientDepth f x, ¬H (f^[j] x) := by
   classical
-  have he : absorb f H = f := by
-    funext y
-    by_cases hy : H y
-    · simp only [absorb, hy, ite_true, hstop y hy]
-    · simp only [absorb, hy, ite_false]
+  have he : absorb f H = f := funext fun y => by
+    by_cases hy : H y <;> simp [absorb, hy, hstop y]
   simpa only [he] using first_target_depth f H x h
 
 end Finite

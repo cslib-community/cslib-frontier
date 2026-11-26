@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.Data.BitString.Sign
 public import CslibFrontier.Foundations.Data.BitString.Threshold
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import CslibFrontier.Tactic.LinarithCast
 import Mathlib.Algebra.Order.Field.Basic
 import Mathlib.Tactic.Linarith
 
@@ -65,18 +66,11 @@ theorem sub_le_sum_sum_signVal_mul_of_threshold_eq {U : Type*} [Fintype U] {t θ
   rw [sum_comm]
   by_cases hθ : t + 1 < θ
   · -- the vote is constantly `false`
-    have hF (u : U) : F u = false := by
-      rw [← h u]
-      exact threshold_eq_false_of_lt (by omega) (v u)
-    have hsum : |∑ u, signVal (F u)| = Fintype.card U := by
-      simp [hF]
+    have hF (u : U) : F u = false := (h u).symm.trans (threshold_eq_false_of_lt (by omega) (v u))
+    have hsum : |∑ u, signVal (F u)| = Fintype.card U := by simp [hF]
     have hlow (u : U) : -(t : ℝ) ≤ ∑ i, signVal (v u i) * signVal (F u) := by
-      rw [hF, signVal_false]
-      simp only [mul_one]
-      have := weight_le_length (v u)
-      rw [sum_signVal_eq_sub_two_mul_weight]
-      have : (weight (v u) : ℝ) ≤ t := by exact_mod_cast this
-      linarith
+      simp only [hF, signVal_false, mul_one, sum_signVal_eq_sub_two_mul_weight]
+      cast_linarith [weight_le_length (v u)]
     calc (Fintype.card U : ℝ) - (t + 1) * |∑ u, signVal (F u)| = ∑ _u : U, -(t : ℝ) := by
           rw [hsum, sum_const, card_univ, nsmul_eq_mul]
           ring
@@ -84,19 +78,16 @@ theorem sub_le_sum_sum_signVal_mul_of_threshold_eq {U : Type*} [Fintype U] {t θ
   · -- the signed margin is at least one at every point
     set c : ℝ := 2 * θ - 1 - t with hc
     have hc_abs : |c| ≤ t + 1 := by
-      have : (θ : ℝ) ≤ t + 1 := by exact_mod_cast not_lt.mp hθ
       rw [abs_le]
-      constructor <;> linarith [(Nat.cast_nonneg θ : (0 : ℝ) ≤ θ)]
+      constructor <;> cast_linarith [not_lt.mp hθ, (Nat.cast_nonneg θ : (0 : ℝ) ≤ θ)]
     have hmargin (u : U) :
         1 ≤ signVal (F u) * c + ∑ i, signVal (v u i) * signVal (F u) := by
       rw [← sum_mul, sum_signVal_eq_sub_two_mul_weight, ← h u, threshold_apply]
       by_cases hle : θ ≤ weight (v u)
-      · have : (θ : ℝ) ≤ weight (v u) := by exact_mod_cast hle
-        simp only [hle, decide_true, signVal_true, hc]
-        linarith
-      · have : (weight (v u) : ℝ) + 1 ≤ θ := by exact_mod_cast not_le.mp hle
-        simp only [hle, decide_false, signVal_false, hc]
-        linarith
+      · simp only [hle, decide_true, signVal_true, hc]
+        cast_linarith [hle]
+      · simp only [hle, decide_false, signVal_false, hc]
+        cast_linarith [not_le.mp hle]
     have hsum := sum_le_sum fun u (_ : u ∈ univ) => hmargin u
     rw [sum_add_distrib, ← sum_mul, sum_const, card_univ, nsmul_eq_mul, mul_one] at hsum
     have hcS : (∑ u, signVal (F u)) * c ≤ (t + 1) * |∑ u, signVal (F u)| := by

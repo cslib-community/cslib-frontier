@@ -216,22 +216,14 @@ theorem exists_timeLayer_configMatrix_of_mem_BPL (h : A ∈ BPL enc) :
   refine ⟨V, hinit, order, ?_⟩
   have hP0 := M.half_configMatrix_nonneg (R := ℚ) (V := V)
   have hP1 := (M.half_configMatrix_mulVec_one (R := ℚ) hclosed).le
-  refine ⟨?_, timeLayer_isStrictUpperTriangular _ _, timeLayer_nonneg hP0 _,
-    timeLayer_mulVec_one_le hP1 _, ?_, one_sub_timeLayer_mulVec _ _ _,
-    inv_one_sub_timeLayer_mulVec _ _ _, M.timeLayer_configMatrix_potential_mem_Icc hclosed _,
-    ?_, ?_⟩
-  · rw [card_timeLayer, Fintype.card_coe]
-    exact Nat.mul_le_mul_left _ hcard
-  · intro x
-    unfold timeLayerReward FiniteCfg.acceptVec
+  refine ⟨by simpa only [card_timeLayer, Fintype.card_coe] using Nat.mul_le_mul_left _ hcard,
+    timeLayer_isStrictUpperTriangular _ _, timeLayer_nonneg hP0 _,
+    timeLayer_mulVec_one_le hP1 _, fun x => ?_, one_sub_timeLayer_mulVec _ _ _,
+    inv_one_sub_timeLayer_mulVec _ _ _, M.timeLayer_configMatrix_potential_mem_Icc hclosed _, ?_⟩
+  · unfold timeLayerReward FiniteCfg.acceptVec
     split_ifs <;> simp
-  · intro ha
-    rw [M.timeLayer_configMatrix_acceptance hclosed hinit,
+  · rw [M.timeLayer_configMatrix_acceptance hclosed hinit,
       M.acceptCoins_div_eq_inv_mulVec ℚ htime hclosed hreach hinit]
-    exact hmem ha
-  · intro ha
-    rw [M.timeLayer_configMatrix_acceptance hclosed hinit,
-      M.acceptCoins_div_eq_inv_mulVec ℚ htime hclosed hreach hinit]
-    exact hnot ha
+    exact ⟨hmem, hnot⟩
 
 end Cslib.Complexity

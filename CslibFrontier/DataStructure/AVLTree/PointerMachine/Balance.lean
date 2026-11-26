@@ -124,10 +124,8 @@ private theorem inChild_correct (right : Bool)
     refine ⟨1, .single ?_, rfl, rfl⟩
     cases right <;>
       simp [step, pc, Instr.effect, Instr.next, State.deref, cursor, lookup, record, hroot]
-  obtain ⟨nl, c, d, rfl⟩ : ∃ nl c d, new = .node nl c d := by
-    cases new with
-    | nil => exact (nonempty rfl).elim
-    | node nl c d => exact ⟨nl, c, d, rfl⟩
+  obtain _ | ⟨nl, c, d⟩ := new
+  · exact (nonempty rfl).elim
   have saved : t.ptr 6 = some o := by simpa [State.setPtr] using built.saved
   have read : ({ t with pc := 0 } : State M (layout extra (regs + 1))).deref 0 =
       some (record (root c) (root d) (some label.address) nl) := by
@@ -147,25 +145,23 @@ private theorem inChild_correct (right : Bool)
     (by simpa only [built.footprint] using dis) built.frame
   rw [fieldEq] at heap
   have repU : Represents u.heap parent (nodeAt right label (.node nl c d) sibling) := by
-    rw [heap]
-    simpa only [built.cursor, root] using semantic.1
+    simpa only [heap, built.cursor, root] using semantic.1
   have curU : u.ptr 0 = some nl.address :=
     (ptr 0 (by simp [layout]) (by simp [layout]) (by simp [layout])).trans built.cursor
   let v : State M (layout extra (regs + 1)) := { u.setPtr 0 (some label.address) with pc := 1 }
-  have back : Executes [.loadPtr 0 2 0, .halt] { u with pc := 0 } v 2 := by
-    refine ⟨1, .single ?_, rfl, rfl⟩
-    have child := ((represents_nodeAt_iff ..).mp repU).2.1.1
-    simp [step, Instr.effect, Instr.next, State.deref, curU, child, record, v, State.setPtr]
+  have back : Executes [.loadPtr 0 2 0, .halt] { u with pc := 0 } v 2 :=
+    ⟨1, .single (by simp [step, Instr.effect, Instr.next, State.deref, curU,
+      ((represents_nodeAt_iff ..).mp repU).2.1.1, record, v, State.setPtr]), rfl, rfl⟩
   have exec : Executes (Balance.inChild right body) s
       { v with pc := 2 + (sequence body (sequence reconnect [.loadPtr 0 2 0, .halt])).length }
       (time + 14) := by
     have run := nav.sequence (bodyExec.sequence (connected.sequence back))
     convert run using 1 <;> simp [Balance.inChild, Cslib.PointerMachine.sequence]; omega
   have keepTop := ptr 1 (by simp [layout]) (by simp [layout]) (by simp [layout])
-  refine ⟨_, exec, repU, semantic.2.1, by simp [v, State.setPtr],
+  exact ⟨_, exec, repU, semantic.2.1, by simp [v, State.setPtr],
     by simpa [v, State.setPtr] using keepTop.trans built.top, data,
-    by simp [v, State.setPtr, heap], fun z hz => ?_⟩
-  simpa only [v, State.setPtr, heap, built.cursor, root] using semantic.2.2 z hz
+    by simp [v, State.setPtr, heap], fun z hz =>
+      by simpa only [v, State.setPtr, heap, built.cursor, root] using semantic.2.2 z hz⟩
 
 private theorem rotate_effect {s t : State M (layout extra (regs + 1))} {right : Bool}
     {label ch : Label M extra} {a b sibling tree : BinaryTree (Label M extra)}
@@ -187,9 +183,8 @@ private theorem rotate_effect {s t : State M (layout extra (regs + 1))} {right :
     simp only [addresses, BinaryTree.map, SearchTree.elements,
       Finset.mem_insert, Finset.mem_union, not_or] at hz
     refine frame z hz.2.1.1 hz.1 fun eq => ?_
-    cases right
-    · exact hz.2.1.2.2 (root_mem_addresses eq)
-    · exact hz.2.1.2.1 (root_mem_addresses eq)⟩, size, data⟩
+    cases right; exacts [hz.2.1.2.2 (root_mem_addresses eq), hz.2.1.2.1 (root_mem_addresses eq)]⟩,
+    size, data⟩
 
 private theorem rotate_correct (right : Bool) {zero maxSucc : M.Op} {encode : ℕ → M.Value}
     (zero_spec : ∀ a b, M.evalOp zero a b = encode 0)
@@ -250,14 +245,12 @@ private theorem height_correct (zero maxSucc : M.Op) (encode : ℕ → M.Value)
       Effect s t (.node label l r) tree (mkNode (label.data 0) A B) encode field parent := by
   obtain ⟨t, run, heap, rt, mt, dt, data, ptr⟩ := recomputeHeight_mkNode zero maxSucc encode
     zero_spec max_spec field notKey s label l r A B parent rep distinct ml mr hl hr cursor pc
-  refine ⟨t, _, run, ⟨⟨rt, mt, dt, rfl, ?_, ?_, ?_, fun z hz => ?_⟩, ?_, data⟩⟩
-  · exact (ptr 0 (by simp [layout])).trans cursor
-  · exact (ptr 6 (by simp [layout])).trans saved
-  · exact ptr 1 (by simp [layout])
-  · rw [heap]
-    exact List.getElem?_modify_ne _ _ fun eq =>
-      hz (root_mem_addresses (t := .node label l r) (congrArg some eq))
-  · rw [heap, List.length_modify]
+  refine ⟨t, _, run, ⟨⟨rt, mt, dt, rfl,
+    (ptr 0 (by simp [layout])).trans cursor, (ptr 6 (by simp [layout])).trans saved,
+    ptr 1 (by simp [layout]), fun z hz => ?_⟩, by rw [heap, List.length_modify], data⟩⟩
+  rw [heap]
+  exact List.getElem?_modify_ne _ _ fun eq =>
+    hz (root_mem_addresses (t := .node label l r) (congrArg some eq))
 
 private theorem doubleRotate_correct (right : Bool) (zero maxSucc : M.Op) (encode : ℕ → M.Value)
     (zero_spec : ∀ a b, M.evalOp zero a b = encode 0)
@@ -289,10 +282,9 @@ private theorem doubleRotate_correct (right : Bool) (zero maxSucc : M.Op) (encod
   have rotNe : rotateAt (!right) (child.data 0) N O ≠ .nil := by
     cases right <;> cases N <;> simp [rotateAt, AVLTree.rotateLeft, AVLTree.rotateRight, mkNode]
   have midNe : mid ≠ .nil := fun h => by
-    subst h
     cases eq : rotateAt (!right) (child.data 0) N O with
     | nil => exact rotNe eq
-    | node => have m := eff.matched; rw [eq] at m; cases m
+    | node => cases h ▸ eq ▸ eff.matched
   have run' : Executes (if right then rotateRight zero maxSucc field
       else rotateLeft zero maxSucc field) start u 39 := by
     cases right <;> exact run
@@ -300,19 +292,16 @@ private theorem doubleRotate_correct (right : Bool) (zero maxSucc : M.Op) (encod
     s u label _ mid sibling parent child.address 39 _ rep distinct cursor pc (root_nodeAt ..)
     run' eff midNe
   have hcMid : (rotateAt (!right) (child.data 0) N O).HeightConsistent := by
-    cases right
-    · exact heightConsistent_rotateLeft ho hn
-    · exact heightConsistent_rotateRight hn ho
+    cases right; exacts [heightConsistent_rotateLeft ho hn, heightConsistent_rotateRight hn ho]
   obtain ⟨t, tree, outerRun, outer⟩ := rotate_correct right zero_spec max_spec notKey
     (s := { v with pc := 0 }) rv dv eff.matched ms hcMid hs rotNe cv rfl
   refine ⟨_, tree, innerRun.sequence outerRun,
-    ⟨⟨outer.rep, outer.matched, outer.distinct, ?_, outer.cursor,
+    ⟨⟨outer.rep, outer.matched, outer.distinct,
+      by rw [outer.footprint, nodeAt_addresses, nodeAt_addresses, eff.footprint], outer.cursor,
       outer.saved.trans (cv.trans cursor.symm), outer.top.trans pv, fun z hz => ?_⟩,
-      outer.size.trans (size.trans eff.size), fun i hi hj => ?_⟩⟩
-  · rw [outer.footprint, nodeAt_addresses, nodeAt_addresses, eff.footprint]
-  · rw [outer.frame z (by rwa [nodeAt_addresses, eff.footprint, ← nodeAt_addresses]), frame z hz]
-  · rw [outer.data i hi hj]
-    exact data ▸ eff.data i hi hj
+      outer.size.trans (size.trans eff.size),
+      fun i hi hj => (outer.data i hi hj).trans (data ▸ eff.data i hi hj)⟩⟩
+  rw [outer.frame z (by rwa [nodeAt_addresses, eff.footprint, ← nodeAt_addresses]), frame z hz]
 
 /-- Handle a heavy child: compare its two child heights and perform a single or double
 rotation. `side = true` selects the left-heavy case and its final right rotation. -/

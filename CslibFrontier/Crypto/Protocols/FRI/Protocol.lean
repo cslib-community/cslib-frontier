@@ -148,6 +148,8 @@ namespace Cslib.Crypto.Protocols.FRI
 open Finset Polynomial Cslib.Code Cslib.Crypto.Protocols.BCS Cslib.OracleComp
 open scoped BigOperators
 
+/-! ### Binary `FRIParams` Parameters -/
+
 section ParamsAndChallenges
 
 /-- Public parameters for an `(m + 1)`-round 2-to-1 FRI protocol over a field `F`:
@@ -233,6 +235,7 @@ opening list length `proofOracleQueries` ([BenSassonBentovHoreshRiabzev2018], pp
 abbrev totalWordQueries (params : FRIParams F) : ℕ :=
   params.inputWordReads + params.proofOracleQueries
 
+/-- Closed-form expression `kFinal + q * (3 * m + 3)` for `totalWordQueries`. -/
 theorem totalWordQueries_eq (params : FRIParams F) :
     params.totalWordQueries = params.kFinal + params.q * (3 * params.m + 3) := by
   simp only [totalWordQueries, inputWordReads, proofOracleQueries]
@@ -242,18 +245,18 @@ theorem totalWordQueries_eq (params : FRIParams F) :
 @[expose] def finalAnchorPoints (params : FRIParams F) : Fin params.kFinal → F :=
   fun t => params.eval params.m ⟨t.val, lt_of_lt_of_le t.isLt params.hkLe⟩
 
+/-- Injectivity of the `kFinal` anchor points of the final coset `L_m`. -/
 theorem finalAnchorPoints_injective (params : FRIParams F) :
-    Function.Injective params.finalAnchorPoints := by
-  intro t₁ t₂ h
-  have hfin := cosetEval_injective params.hg params.hω params.hm h
-  exact Fin.ext (Fin.mk.inj hfin)
+    Function.Injective params.finalAnchorPoints :=
+  fun _ _ h => Fin.ext (Fin.mk.inj (cosetEval_injective params.hg params.hω params.hm h))
 
+/-- Each 2-to-1 folding round halves the Reed–Solomon code dimension. -/
 theorem dim_eq_two_mul_succ (params : FRIParams F) {i : ℕ} (hi : i < params.m) :
     params.dim i = 2 * params.dim (i + 1) := by
   have hsub : params.m - i = (params.m - (i + 1)) + 1 := by omega
-  simp only [dim, hsub, pow_succ']
-  ring
+  rw [dim, dim, hsub, pow_succ', mul_left_comm]
 
+/-- Each 2-to-1 folding round halves the evaluation domain size. -/
 theorem domainSize_eq_two_mul_succ (params : FRIParams F) {i : ℕ} (hi : i < params.d) :
     params.domainSize i = 2 * params.domainSize (i + 1) := by
   have hsub : params.d - i = (params.d - (i + 1)) + 1 := by omega
@@ -261,24 +264,30 @@ theorem domainSize_eq_two_mul_succ (params : FRIParams F) {i : ℕ} (hi : i < pa
 
 end FRIParams
 
+/-! ### Cumulative Log-Arities & Smooth `FRISmoothParams` -/
+
 /-- Cumulative folding log-arity `∑_{k < i} stepLog k` after the first `i` rounds (`i ≤ m`). -/
 @[expose] def friCumLog {m : ℕ} (stepLog : Fin m → ℕ) : ℕ → ℕ
   | 0 => 0
   | i + 1 => friCumLog stepLog i + if h : i < m then stepLog ⟨i, h⟩ else 0
 
+/-- At round `0`, the cumulative folding log-arity `friCumLog stepLog 0` is `0`. -/
 @[simp]
 theorem friCumLog_zero {m : ℕ} (stepLog : Fin m → ℕ) : friCumLog stepLog 0 = 0 := rfl
 
+/-- One-step recurrence for `friCumLog` at `i < m`. -/
 theorem friCumLog_succ_of_lt {m : ℕ} (stepLog : Fin m → ℕ) {i : ℕ} (hi : i < m) :
     friCumLog stepLog (i + 1) = friCumLog stepLog i + stepLog ⟨i, hi⟩ := by
   simp only [friCumLog, hi, ↓reduceDIte]
 
+/-- Monotonicity of `friCumLog` in the round index. -/
 theorem friCumLog_mono {m : ℕ} (stepLog : Fin m → ℕ) {i j : ℕ} (hij : i ≤ j) :
     friCumLog stepLog i ≤ friCumLog stepLog j := by
   induction hij with
   | refl => exact le_rfl
   | step _ ih => exact ih.trans (Nat.le_add_right _ _)
 
+/-- Total cumulative log-arity `friCumLog stepLog m` equals the finite sum `∑ i, stepLog i`. -/
 theorem friCumLog_eq_sum_fin {m : ℕ} (stepLog : Fin m → ℕ) :
     friCumLog stepLog m = ∑ i : Fin m, stepLog i := by
   suffices ∀ (k : ℕ) (hk : k ≤ m),
@@ -292,6 +301,7 @@ theorem friCumLog_eq_sum_fin {m : ℕ} (stepLog : Fin m → ℕ) :
       ih (Nat.le_of_succ_le hk)]
     rfl
 
+/-- For the constant schedule `stepLog = 1` (binary 2-to-1 folding), `friCumLog` is the identity. -/
 theorem friCumLog_const_one {m : ℕ} : ∀ {i : ℕ}, i ≤ m → friCumLog (fun _ : Fin m => 1) i = i
   | 0, _ => rfl
   | i + 1, hi => by
@@ -409,6 +419,7 @@ with the exact committed-proof-oracle opening list length `proofOracleQueries`. 
 abbrev totalWordQueries (params : FRISmoothParams F) : ℕ :=
   params.inputWordReads + params.proofOracleQueries
 
+/-- Closed-form expression `kFinal + q * (aritySum + m + 3)` for `totalWordQueries`. -/
 theorem totalWordQueries_eq (params : FRISmoothParams F) :
     params.totalWordQueries = params.kFinal + params.q * (params.aritySum + params.m + 3) := by
   simp only [totalWordQueries, inputWordReads, proofOracleQueries, singleRepQueries]
@@ -418,52 +429,58 @@ theorem totalWordQueries_eq (params : FRISmoothParams F) :
 @[expose] def finalAnchorPoints (params : FRISmoothParams F) : Fin params.kFinal → F :=
   fun t => params.eval params.m ⟨t.val, lt_of_lt_of_le t.isLt params.hkLe⟩
 
+/-- Injectivity of the `kFinal` anchor points of the final coset `L_m`. -/
 theorem finalAnchorPoints_injective (params : FRISmoothParams F) :
-    Function.Injective params.finalAnchorPoints := by
-  intro t₁ t₂ h
-  have hfin := cosetEval_injective params.hg params.hω params.htotal h
-  exact Fin.ext (Fin.mk.inj hfin)
+    Function.Injective params.finalAnchorPoints :=
+  fun _ _ h => Fin.ext (Fin.mk.inj (cosetEval_injective params.hg params.hω params.htotal h))
 
+/-- Any prefix cumulative log-arity `cumLog i` (`i ≤ m`) is at most `totalLog`. -/
 theorem cumLog_le_totalLog (params : FRISmoothParams F) {i : ℕ} (hi : i ≤ params.m) :
     params.cumLog i ≤ params.totalLog :=
   friCumLog_mono params.stepLog hi
 
+/-- Any prefix cumulative log-arity `cumLog i` (`i ≤ m`) is at most `d`. -/
 theorem cumLog_le_d (params : FRISmoothParams F) {i : ℕ} (hi : i ≤ params.m) :
     params.cumLog i ≤ params.d :=
   (params.cumLog_le_totalLog hi).trans params.htotal
 
+/-- One-step recurrence for `cumLog` at folding round `i : Fin params.m`. -/
 theorem cumLog_succ (params : FRISmoothParams F) (i : Fin params.m) :
     params.cumLog (i.val + 1) = params.cumLog i.val + params.stepLog i :=
   friCumLog_succ_of_lt params.stepLog i.isLt
 
+/-- Bound `cumLog i + stepLog i ≤ d` for every folding round `i : Fin params.m`. -/
 theorem cumLog_add_stepLog_le_d (params : FRISmoothParams F) (i : Fin params.m) :
-    params.cumLog i.val + params.stepLog i ≤ params.d := by
-  rw [← params.cumLog_succ i]
-  exact params.cumLog_le_d i.isLt
+    params.cumLog i.val + params.stepLog i ≤ params.d :=
+  params.cumLog_succ i ▸ params.cumLog_le_d i.isLt
 
+/-- Every smooth folding round has arity `2 ^ stepLog i ≥ 2`. -/
 theorem two_le_arity (params : FRISmoothParams F) (i : Fin params.m) :
     2 ≤ params.arity i := by
   simpa only [arity, pow_one] using Nat.pow_le_pow_right (by omega : 0 < 2) (params.hstepPos i)
 
+/-- The cast of each round's smooth folding arity `2 ^ stepLog i` into `F` is nonzero. -/
 theorem arity_cast_ne_zero (params : FRISmoothParams F) (i : Fin params.m) :
     ((params.arity i : ℕ) : F) ≠ 0 := by
   simpa only [arity, Nat.cast_pow, Nat.cast_ofNat] using pow_ne_zero (params.stepLog i) params.h2
 
+/-- Folding round `i` shrinks the evaluation domain by a factor of `arity i`. -/
 theorem domainSize_eq_arity_mul_succ (params : FRISmoothParams F) (i : Fin params.m) :
     params.domainSize i.val = params.arity i * params.domainSize (i.val + 1) := by
   have := params.cumLog_add_stepLog_le_d i
   have := params.cumLog_succ i
-  simp only [domainSize, arity, ← pow_add]
+  rw [domainSize, arity, domainSize, ← pow_add]
   exact congrArg (2 ^ ·) (by omega)
 
+/-- Folding round `i` shrinks the Reed–Solomon code dimension by a factor of `arity i`. -/
 theorem dim_eq_arity_mul_succ (params : FRISmoothParams F) (i : Fin params.m) :
     params.dim i.val = params.arity i * params.dim (i.val + 1) := by
-  have hsucc := params.cumLog_succ i
-  have hle : params.cumLog (i.val + 1) ≤ params.totalLog := params.cumLog_le_totalLog i.isLt
-  have hexp : params.totalLog - params.cumLog i.val =
-      params.stepLog i + (params.totalLog - params.cumLog (i.val + 1)) := by omega
-  rw [dim, arity, dim, mul_left_comm, ← pow_add, ← hexp]
+  have := params.cumLog_succ i
+  have : params.cumLog (i.val + 1) ≤ params.totalLog := params.cumLog_le_totalLog i.isLt
+  rw [dim, arity, dim, mul_left_comm, ← pow_add]
+  exact congrArg (params.kFinal * 2 ^ ·) (by omega)
 
+/-- The final-round Reed–Solomon code dimension `dim m` equals `kFinal`. -/
 theorem dim_last (params : FRISmoothParams F) : params.dim params.m = params.kFinal := by
   simp [dim]
 
@@ -501,23 +518,21 @@ theorem sum_arity_sub_one_mul_domainSize (params : FRISmoothParams F) :
 theorem arity_sub_one_mul_domainSize_le_first (params : FRISmoothParams F) (i : Fin params.m) :
     (params.arity i - 1) * params.domainSize (i.val + 1) ≤
       2 ^ params.d - 2 ^ (params.d - params.firstStepLog) := by
-  have hm_pos : 0 < params.m := Nat.pos_of_ne_zero fun h => by have := i.isLt; omega
-  have hcum1 : params.cumLog 1 = params.firstStepLog := by
-    simp [cumLog, firstStepLog, hm_pos, friCumLog_succ_of_lt _ hm_pos]
-  rw [params.arity_sub_one_mul_domainSize i]
+  have hdom1 : params.domainSize 1 = 2 ^ (params.d - params.firstStepLog) := by
+    simp [domainSize, cumLog, firstStepLog, i.pos, friCumLog_succ_of_lt _ i.pos]
+  rw [params.arity_sub_one_mul_domainSize i, ← hdom1]
+  change _ ≤ params.domainSize 0 - _
   rcases Nat.eq_zero_or_pos i.val with hi0 | hi_pos
-  · simp [domainSize, hi0, hcum1]
-  · have hdom_le : params.domainSize i.val ≤ params.domainSize 1 := params.domainSize_anti hi_pos
-    have hdom0 := params.domainSize_eq_arity_mul_succ ⟨0, hm_pos⟩
-    have hmul : 2 * params.domainSize 1 ≤ params.domainSize 0 :=
-      (Nat.mul_le_mul_right _ (params.two_le_arity ⟨0, hm_pos⟩)).trans_eq hdom0.symm
-    change params.domainSize i.val - params.domainSize (i.val + 1) ≤
-      params.domainSize 0 - 2 ^ (params.d - params.firstStepLog)
-    have h1 : params.domainSize 1 = 2 ^ (params.d - params.firstStepLog) := by
-      simp [domainSize, hcum1]
+  · rw [hi0]
+  · have : params.domainSize i.val ≤ params.domainSize 1 := params.domainSize_anti hi_pos
+    have : 2 * params.domainSize 1 ≤ params.domainSize 0 :=
+      (Nat.mul_le_mul_right _ (params.two_le_arity ⟨0, i.pos⟩)).trans_eq
+        (params.domainSize_eq_arity_mul_succ ⟨0, i.pos⟩).symm
     omega
 
 end FRISmoothParams
+
+/-! ### Embedding `FRIParams` into `FRISmoothParams` (`toSmooth`) -/
 
 namespace FRIParams
 
@@ -539,42 +554,50 @@ abbrev toSmooth (params : FRIParams F) : FRISmoothParams F where
   h2 := params.h2
   hω := params.hω
 
+/-- Under `toSmooth`, cumulative folding log-arity at round `i ≤ m` is `i`. -/
 @[simp]
 theorem toSmooth_cumLog (params : FRIParams F) {i : ℕ} (hi : i ≤ params.m) :
     params.toSmooth.cumLog i = i :=
   friCumLog_const_one hi
 
+/-- Under `toSmooth`, total folding log-arity equals `params.m`. -/
 theorem toSmooth_totalLog (params : FRIParams F) :
     params.toSmooth.totalLog = params.m :=
   friCumLog_const_one le_rfl
 
+/-- Under `toSmooth`, every folding round has arity `2`. -/
 @[simp]
 theorem toSmooth_arity (params : FRIParams F) (i : Fin params.m) :
     params.toSmooth.arity i = 2 := by
   simp [FRISmoothParams.arity]
 
+/-- Under `toSmooth`, the sum of per-round arities equals `2 * params.m`. -/
 @[simp]
 theorem toSmooth_aritySum (params : FRIParams F) :
     params.toSmooth.aritySum = 2 * params.m := by
   simp only [FRISmoothParams.aritySum, FRISmoothParams.arity, pow_one, Finset.sum_const,
     Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_comm]
 
+/-- Under `toSmooth`, the first-round log-arity `firstStepLog` is `1`. -/
 theorem toSmooth_firstStepLog (params : FRIParams F) :
     params.toSmooth.firstStepLog = 1 := by
   dsimp only [FRISmoothParams.firstStepLog]
   split_ifs <;> rfl
 
+/-- Under `toSmooth`, round-`i` domain size matches `params.domainSize i` for `i ≤ m`. -/
 @[simp]
 theorem toSmooth_domainSize (params : FRIParams F) {i : ℕ} (hi : i ≤ params.m) :
     params.toSmooth.domainSize i = params.domainSize i := by
   simp only [FRISmoothParams.domainSize, FRISmoothParams.cumLog, friCumLog_const_one hi, domainSize]
 
+/-- Under `toSmooth`, round-`i` RS code dimension matches `params.dim i` for `i ≤ m`. -/
 @[simp]
 theorem toSmooth_dim (params : FRIParams F) {i : ℕ} (hi : i ≤ params.m) :
     params.toSmooth.dim i = params.dim i := by
   simp only [FRISmoothParams.dim, FRISmoothParams.totalLog, FRISmoothParams.cumLog,
     friCumLog_const_one le_rfl, friCumLog_const_one hi, dim]
 
+/-- Under `toSmooth`, the initial Reed–Solomon code matches `params.initialCode`. -/
 @[simp]
 theorem toSmooth_initialCode (params : FRIParams F) :
     params.toSmooth.initialCode = params.initialCode := by
@@ -582,39 +605,44 @@ theorem toSmooth_initialCode (params : FRIParams F) :
     FRISmoothParams.dim, FRISmoothParams.totalLog, FRISmoothParams.cumLog, friCumLog_zero,
     friCumLog_const_one le_rfl, initialCode, rsCode, eval, dim]
 
+/-- Under `toSmooth`, the proximity language at radius `e` matches `params.proximityLang e`. -/
 @[simp]
 theorem toSmooth_proximityLang [DecidableEq F] (params : FRIParams F) (e : ℕ) :
     params.toSmooth.proximityLang e = params.proximityLang e := by
   simp only [FRISmoothParams.proximityLang, proximityLang, params.toSmooth_initialCode]
 
+/-- Under `toSmooth`, the completeness relation matches `params.completenessRel`. -/
 @[simp]
 theorem toSmooth_completenessRel (params : FRIParams F) :
     params.toSmooth.completenessRel = params.completenessRel := by
   funext f₀ _
   simp only [FRISmoothParams.completenessRel, completenessRel, params.toSmooth_initialCode]
 
+/-- Under `toSmooth`, a single repetition takes `3 * params.m + 2` oracle openings. -/
 @[simp]
 theorem toSmooth_singleRepQueries (params : FRIParams F) :
     params.toSmooth.singleRepQueries = 3 * params.m + 2 := by
-  dsimp only [FRISmoothParams.singleRepQueries]
-  rw [params.toSmooth_aritySum]
+  simp only [FRISmoothParams.singleRepQueries, params.toSmooth_aritySum]
   omega
 
+/-- Under `toSmooth`, total committed proof oracle openings match `params.proofOracleQueries`. -/
 @[simp]
 theorem toSmooth_proofOracleQueries (params : FRIParams F) :
     params.toSmooth.proofOracleQueries = params.proofOracleQueries := by
   rw [FRISmoothParams.proofOracleQueries, params.toSmooth_singleRepQueries]
 
+/-- Under `toSmooth`, scheduled input word reads match `params.inputWordReads`. -/
 @[simp]
 theorem toSmooth_inputWordReads (params : FRIParams F) :
     params.toSmooth.inputWordReads = params.inputWordReads := rfl
 
+/-- Under `toSmooth`, combined word queries match `params.totalWordQueries`. -/
 @[simp]
 theorem toSmooth_totalWordQueries (params : FRIParams F) :
     params.toSmooth.totalWordQueries = params.totalWordQueries := by
-  rw [FRISmoothParams.totalWordQueries, params.toSmooth_inputWordReads,
-    params.toSmooth_proofOracleQueries]
+  simp only [FRISmoothParams.totalWordQueries, toSmooth_inputWordReads, toSmooth_proofOracleQueries]
 
+/-- Under `toSmooth`, the final anchor points match `params.finalAnchorPoints`. -/
 @[simp]
 theorem toSmooth_finalAnchorPoints (params : FRIParams F) :
     params.toSmooth.finalAnchorPoints = params.finalAnchorPoints := by
@@ -623,6 +651,8 @@ theorem toSmooth_finalAnchorPoints (params : FRIParams F) :
     finalAnchorPoints, eval, cosetEval, cosetPoint, friCumLog_const_one le_rfl]
 
 end FRIParams
+
+/-! ### Verifier Challenge Alphabet (`FRIChal`) -/
 
 /-- Public-coin verifier challenge for each round of `friIOP`: carries a folding scalar
 `foldScalar : F` (consumed in commit rounds `0, ..., m - 1`) and a batch of `q` query starting
@@ -651,12 +681,15 @@ instance [Nonempty F] {d q : ℕ} : Nonempty (FRIChal F d q) :=
   ⟨⟨Classical.choice ‹Nonempty F›, fun _ => ⟨0, Nat.pow_pos (by omega)⟩⟩⟩
 
 omit [Field F] in
+/-- Cardinality of the challenge space `FRIChal F d q`. -/
 theorem card_friChal [Fintype F] (d q : ℕ) :
     Fintype.card (FRIChal F d q) = Fintype.card F * (2 ^ d) ^ q := by
   rw [Fintype.card_congr (FRIChal.equivProd F d q), Fintype.card_prod, Fintype.card_fun,
     Fintype.card_fin, Fintype.card_fin]
 
 end ParamsAndChallenges
+
+/-! ### Lagrange Interpolation on Final Anchor Points -/
 
 section LagrangeInterpolation
 
@@ -673,6 +706,7 @@ theorem evalLagrange_eq_eval_interpolate {k : ℕ} (pts vals : Fin k → F) (x :
   simp only [evalLagrange, Lagrange.interpolate_apply, eval_finsetSum, eval_mul, eval_C,
     Lagrange.eval_basis]
 
+/-- `evalLagrange` recovers `vals s` at every distinct interpolation node `pts s`. -/
 theorem evalLagrange_node {k : ℕ} {pts : Fin k → F} (hpts : Function.Injective pts)
     (vals : Fin k → F) (s : Fin k) :
     evalLagrange pts vals (pts s) = vals s := by
@@ -706,6 +740,8 @@ theorem evalLagrange_eq_of_mem_reedSolomon {k n : ℕ} (hkn : k ≤ n)
 
 end LagrangeInterpolation
 
+/-! ### Oracle Padding and Honest FRI Prover Words -/
+
 section OraclePaddingAndHonestProver
 
 variable {F : Type} [Field F]
@@ -719,11 +755,13 @@ variable {F : Type} [Field F]
 @[expose] def restrictOracle {d i : ℕ} (π : OracleTable d F) : Fin (2 ^ (d - i)) → F :=
   fun j => π ⟨j.val, lt_of_lt_of_le j.isLt (Nat.pow_le_pow_right (by omega) (Nat.sub_le d i))⟩
 
+/-- Within the active prefix `idx < 2 ^ (d - i)`, `padOracle` returns the entry of `f`. -/
 theorem padOracle_apply_of_lt {d i : ℕ} (f : Fin (2 ^ (d - i)) → F) (idx : Fin (2 ^ d))
     (hlt : idx.val < 2 ^ (d - i)) :
     padOracle (i := i) f idx = f ⟨idx.val, hlt⟩ := by
   simp only [padOracle, hlt, ↓reduceDIte]
 
+/-- Restricting a padded round-`i` word recovers the original word `f`. -/
 theorem restrictOracle_padOracle {d i : ℕ} (f : Fin (2 ^ (d - i)) → F) :
     restrictOracle (i := i) (padOracle (d := d) f) = f := by
   ext j
@@ -813,9 +851,8 @@ theorem friSmoothHonestWord_congr (params : FRISmoothParams F) (f₀ : OracleTab
   | 0, _, _, _, _ => rfl
   | j + 1, hj, zs₁, zs₂, h => by
     simp only [friSmoothHonestWord]
-    have ih := friSmoothHonestWord_congr params f₀ j (Nat.le_of_succ_le hj)
-      (fun k => h k.castSucc)
-    rw [ih, h (Fin.last j)]
+    rw [friSmoothHonestWord_congr params f₀ j (Nat.le_of_succ_le hj) (fun k => h k.castSucc),
+      h (Fin.last j)]
 
 /-- Iterated 2-to-1 honest FRI prover word at round `j ≤ m`, computed causally from the initial
 oracle `f₀` and the first `j` folding scalars `zs : Fin j → F`. -/
@@ -928,11 +965,12 @@ theorem friHonestWord_congr (params : FRIParams F) (f₀ : OracleTable params.d 
   | 0, _, _, _, _ => rfl
   | j + 1, hj, zs₁, zs₂, h => by
     simp only [friHonestWord]
-    have ih := friHonestWord_congr params f₀ j (Nat.le_of_succ_le hj)
-      (fun i => h i.castSucc)
-    rw [ih, h (Fin.last j)]
+    rw [friHonestWord_congr params f₀ j (Nat.le_of_succ_le hj) (fun i => h i.castSucc),
+      h (Fin.last j)]
 
 end OraclePaddingAndHonestProver
+
+/-! ### Smooth FRI Query Indices and Schedules -/
 
 section FRISmoothProtocol
 
@@ -965,6 +1003,7 @@ at smooth folding round `i : Fin m`. -/
       Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _)
     omega⟩
 
+/-- Every smooth fiber query index lies inside `Fin (2 ^ (d - cumLog i))`. -/
 theorem friSmoothFiberIdx_val_lt (params : FRISmoothParams F) (i : Fin params.m)
     (s : Fin (2 ^ params.d)) (t : Fin (params.arity i)) :
     (friSmoothFiberIdx params i s t).val < 2 ^ (params.d - params.cumLog i.val) :=
@@ -991,6 +1030,7 @@ theorem friSmoothFiberIdx_val_lt (params : FRISmoothParams F) (i : Fin params.m)
       ⟨t.val, lt_of_lt_of_le (lt_of_lt_of_le t.isLt params.hkLe)
         (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))⟩)
 
+/-- The smooth header query schedule reads `params.kFinal` entries of the final oracle. -/
 @[simp]
 theorem length_friSmoothHeaderQueries (params : FRISmoothParams F) :
     (friSmoothHeaderQueries params).length = params.kFinal := by
@@ -1005,6 +1045,7 @@ in `π_i` and `1` folded point in `π_{i + 1}`) followed by the final-round chec
     (List.ofFn fun t : Fin (params.arity i) => (i.castSucc, friSmoothFiberIdx params i s t)) ++
       (i.succ, friSmoothFoldedIdx params i s) :: friSmoothFoldQueriesList params s is
 
+/-- Number of smooth folding-chain queries generated along `rounds`. -/
 theorem length_friSmoothFoldQueriesList (params : FRISmoothParams F) (s : Fin (2 ^ params.d))
     (rounds : List (Fin params.m)) :
     (friSmoothFoldQueriesList params s rounds).length =
@@ -1021,6 +1062,7 @@ theorem length_friSmoothFoldQueriesList (params : FRISmoothParams F) (s : Fin (2
     List (Fin (params.m + 1) × Fin (2 ^ params.d)) :=
   (⟨0, Nat.zero_lt_succ params.m⟩, s) :: friSmoothFoldQueriesList params s (List.finRange params.m)
 
+/-- A single smooth query repetition contains `params.singleRepQueries` proof-oracle openings. -/
 @[simp]
 theorem length_friSmoothSingleQueries (params : FRISmoothParams F) (s : Fin (2 ^ params.d)) :
     (friSmoothSingleQueries params s).length = params.singleRepQueries := by
@@ -1038,6 +1080,7 @@ theorem length_friSmoothSingleQueries (params : FRISmoothParams F) (s : Fin (2 ^
     friSmoothSingleQueries params ((chals (Fin.last params.m)).queryIdxs a) ++
       friSmoothRepQueriesList params chals as
 
+/-- Total length of concatenated smooth queries across `reps`. -/
 theorem length_friSmoothRepQueriesList (params : FRISmoothParams F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) (reps : List (Fin params.q)) :
     (friSmoothRepQueriesList params chals reps).length = reps.length * params.singleRepQueries := by
@@ -1055,6 +1098,7 @@ interpolation anchors followed by `q` query repetitions. -/
     List (Fin (params.m + 1) × Fin (2 ^ params.d)) :=
   friSmoothHeaderQueries params ++ friSmoothRepQueriesList params chals (List.finRange params.q)
 
+/-- Total length of `friSmoothQueries` matches `params.proofOracleQueries`. -/
 theorem length_friSmoothQueries (params : FRISmoothParams F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
     (friSmoothQueries params chals).length = params.proofOracleQueries := by
@@ -1068,11 +1112,14 @@ determine `friSmoothDecide` outside `PublicCoinIOP.queries`. -/
     List (Fin (2 ^ params.d)) :=
   (List.finRange params.q).map (chals (Fin.last params.m)).queryIdxs
 
+/-- Total length of `friSmoothInputQueries` matches `params.inputWordReads`. -/
 theorem length_friSmoothInputQueries (params : FRISmoothParams F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
     (friSmoothInputQueries params chals).length = params.inputWordReads := by
   simp only [friSmoothInputQueries, List.length_map, List.length_finRange,
     FRISmoothParams.inputWordReads]
+
+/-! ### Smooth FRI Final Codeword, Verifier Decisions, and `friSmoothIOP` -/
 
 /-- Final-round Reed–Solomon codeword interpolated from the first `kFinal` entries of `πFinal`. -/
 @[expose] def friSmoothFinalCodeword (params : FRISmoothParams F)
@@ -1157,9 +1204,7 @@ private theorem friSmoothCheckSingle_congr_stmt [DecidableEq F] (params : FRISmo
     (s : Fin (2 ^ params.d)) (hs : stmt₁ s = stmt₂ s) (ans : List F) :
     friSmoothCheckSingle params stmt₁ headerVals chals s ans =
       friSmoothCheckSingle params stmt₂ headerVals chals s ans := by
-  cases ans with
-  | nil => rfl
-  | cons y0 rest => simp only [friSmoothCheckSingle, hs]
+  cases ans <;> simp [friSmoothCheckSingle, hs]
 
 private theorem friSmoothCheckRepsList_congr_stmt [DecidableEq F] (params : FRISmoothParams F)
     {stmt₁ stmt₂ : OracleTable params.d F} (headerVals : Fin params.kFinal → F)
@@ -1306,6 +1351,8 @@ private theorem friSmoothCheckRepsList_map [DecidableEq F] (params : FRISmoothPa
       List.take_left' hlen, List.drop_left' hlen, Bool.and_eq_true, friSmoothCheckSingle_map, ih,
       List.mem_cons, forall_eq_or_imp]
 
+/-! ### Smooth FRI Completeness and BCS-ROM Compilation -/
+
 /-- **Exact characterization of smooth FRI IOP verification**: `iopVerify (friSmoothIOP params)`
 accepts `oracles` on `(stmt, chals)` if and only if every queried starting position
 `(chals (Fin.last m)).queryIdxs a` satisfies `friSmoothSingleAccepts`. -/
@@ -1391,6 +1438,8 @@ theorem isCostBounded_bcsMTCost_friSmoothVerifyROM [DecidableEq F] (params : FRI
 
 end FRISmoothProtocol
 
+/-! ### Binary 2-to-1 FRI Query Schedules and `friIOP` -/
+
 section FRIProtocol
 
 variable {F : Type} [Field F]
@@ -1444,6 +1493,7 @@ from `friSmoothHeaderQueries params.toSmooth`). -/
     List (Fin (params.m + 1) × Fin (2 ^ params.d)) :=
   friSmoothHeaderQueries params.toSmooth
 
+/-- The binary header query schedule reads `params.kFinal` entries of the final oracle. -/
 @[simp]
 theorem length_friHeaderQueries (params : FRIParams F) :
     (friHeaderQueries params).length = params.kFinal :=
@@ -1455,6 +1505,7 @@ theorem length_friHeaderQueries (params : FRIParams F) :
     List (Fin params.m) → List (Fin (params.m + 1) × Fin (2 ^ params.d)) :=
   friSmoothFoldQueriesList params.toSmooth s
 
+/-- Number of binary folding-chain queries generated along `rounds` (`3 * rounds.length + 1`). -/
 theorem length_friFoldQueriesList (params : FRIParams F) (s : Fin (2 ^ params.d))
     (rounds : List (Fin params.m)) :
     (friFoldQueriesList params s rounds).length = 3 * rounds.length + 1 := by
@@ -1467,6 +1518,7 @@ directly from `friSmoothSingleQueries params.toSmooth`). -/
     List (Fin (params.m + 1) × Fin (2 ^ params.d)) :=
   friSmoothSingleQueries params.toSmooth s
 
+/-- A single binary query repetition contains `3 * params.m + 2` proof-oracle openings. -/
 @[simp]
 theorem length_friSingleQueries (params : FRIParams F) (s : Fin (2 ^ params.d)) :
     (friSingleQueries params s).length = 3 * params.m + 2 := by
@@ -1479,6 +1531,7 @@ from `friSmoothRepQueriesList params.toSmooth`). -/
     List (Fin params.q) → List (Fin (params.m + 1) × Fin (2 ^ params.d)) :=
   friSmoothRepQueriesList params.toSmooth chals
 
+/-- Total length of concatenated binary queries across `reps`. -/
 theorem length_friRepQueriesList (params : FRIParams F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) (reps : List (Fin params.q)) :
     (friRepQueriesList params chals reps).length = reps.length * (3 * params.m + 2) := by
@@ -1493,6 +1546,7 @@ multiplicity, tracked by `friInputQueries`. -/
     List (Fin (params.m + 1) × Fin (2 ^ params.d)) :=
   friSmoothQueries params.toSmooth chals
 
+/-- Total length of `friQueries` matches `params.proofOracleQueries`. -/
 theorem length_friQueries (params : FRIParams F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
     (friQueries params chals).length = params.proofOracleQueries := by
@@ -1506,6 +1560,7 @@ determine `friDecide` outside `PublicCoinIOP.queries` (derived directly from
     List (Fin (2 ^ params.d)) :=
   friSmoothInputQueries params.toSmooth chals
 
+/-- Total length of `friInputQueries` matches `params.inputWordReads`. -/
 theorem length_friInputQueries (params : FRIParams F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
     (friInputQueries params chals).length = params.inputWordReads :=
@@ -1525,8 +1580,7 @@ theorem length_friInputQueries (params : FRIParams F)
 `params.rsCode params.m`. -/
 theorem friFinalCodeword_mem_rsCode (params : FRIParams F) (πFinal : OracleTable params.d F) :
     friFinalCodeword params πFinal ∈ params.rsCode params.m := by
-  have hdim : params.dim params.m = params.kFinal := by simp [FRIParams.dim]
-  rw [FRIParams.rsCode, hdim]
+  rw [FRIParams.rsCode, show params.dim params.m = params.kFinal by simp [FRIParams.dim]]
   exact evalLagrange_mem_reedSolomon params.finalAnchorPoints_injective _ _
 
 /-- Check the folding chain and final Lagrange equation against the answer list for a single
@@ -1595,33 +1649,31 @@ round-0 binding `oracles 0 s = stmt s`, all `m` 2-to-1 folding checks along the 
   oracles (Fin.last params.m) (friFinalIdx params s) =
     friFinalCodeword params (oracles (Fin.last params.m)) (friFinalFin params s)
 
+/-! ### Binary-to-Smooth Bridges, Completeness, and BCS-ROM Compilation -/
+
 /-- At `params.toSmooth`, the smooth folded target index `friSmoothFoldedIdx` equals the binary
 positive index `friRoundPosIdx`. -/
 theorem friSmoothFoldedIdx_toSmooth (params : FRIParams F) (i : Fin params.m)
     (s : Fin (2 ^ params.d)) :
-    friSmoothFoldedIdx params.toSmooth i s = friRoundPosIdx params i s := by
-  apply Fin.ext
-  simp [friSmoothFoldedIdx, friRoundPosIdx, params.toSmooth_cumLog i.isLt]
+    friSmoothFoldedIdx params.toSmooth i s = friRoundPosIdx params i s :=
+  Fin.ext (by simp [friSmoothFoldedIdx, friRoundPosIdx, params.toSmooth_cumLog i.isLt])
 
 /-- At `params.toSmooth`, fiber point `0` of `friSmoothFiberIdx` equals `friRoundPosIdx`. -/
 theorem friSmoothFiberIdx_toSmooth_zero (params : FRIParams F) (i : Fin params.m)
     (s : Fin (2 ^ params.d)) :
-    friSmoothFiberIdx params.toSmooth i s ⟨0, by simp⟩ = friRoundPosIdx params i s := by
-  apply Fin.ext
-  simp [friSmoothFiberIdx, friRoundPosIdx, params.toSmooth_cumLog i.isLt]
+    friSmoothFiberIdx params.toSmooth i s ⟨0, by simp⟩ = friRoundPosIdx params i s :=
+  Fin.ext (by simp [friSmoothFiberIdx, friRoundPosIdx, params.toSmooth_cumLog i.isLt])
 
 /-- At `params.toSmooth`, fiber point `1` of `friSmoothFiberIdx` equals `friRoundNegIdx`. -/
 theorem friSmoothFiberIdx_toSmooth_one (params : FRIParams F) (i : Fin params.m)
     (s : Fin (2 ^ params.d)) :
-    friSmoothFiberIdx params.toSmooth i s ⟨1, by simp⟩ = friRoundNegIdx params i s := by
-  apply Fin.ext
-  simp [friSmoothFiberIdx, friRoundNegIdx, params.toSmooth_cumLog i.isLt]
+    friSmoothFiberIdx params.toSmooth i s ⟨1, by simp⟩ = friRoundNegIdx params i s :=
+  Fin.ext (by simp [friSmoothFiberIdx, friRoundNegIdx, params.toSmooth_cumLog i.isLt])
 
 /-- At `params.toSmooth`, the smooth final-domain index `friSmoothFinalIdx` equals `friFinalIdx`. -/
 theorem friSmoothFinalIdx_toSmooth (params : FRIParams F) (s : Fin (2 ^ params.d)) :
-    friSmoothFinalIdx params.toSmooth s = friFinalIdx params s := by
-  apply Fin.ext
-  simp [friSmoothFinalIdx, friFinalIdx, params.toSmooth_totalLog]
+    friSmoothFinalIdx params.toSmooth s = friFinalIdx params s :=
+  Fin.ext (by simp [friSmoothFinalIdx, friFinalIdx, params.toSmooth_totalLog])
 
 /-- At `params.toSmooth`, final-round domain evaluation coincides with `FRIParams.eval`. -/
 theorem eval_toSmooth_final (params : FRIParams F) (s : Fin (2 ^ params.d)) :
@@ -1650,8 +1702,7 @@ theorem friIOP_eq_friSmoothIOP [DecidableEq F] (params : FRIParams F) :
   dsimp only [friIOP, friSmoothIOP]
   congr 1
   funext j stmt _ prevChals
-  exact padOracle_friHonestWord_eq_smooth params stmt j.val (Nat.le_of_lt_succ j.isLt)
-    (fun i => (prevChals i).foldScalar)
+  exact padOracle_friHonestWord_eq_smooth params stmt j.val (Nat.le_of_lt_succ j.isLt) _
 
 /-- Exact equivalence between binary `friSingleAccepts` and smooth
 `friSmoothSingleAccepts params.toSmooth`. -/
@@ -1724,10 +1775,9 @@ theorem friBCS_verify_prove_eq_true [DecidableEq F] (params : FRIParams F)
     (hFS : OracleTable params.d F → List (List Bool) → FRIChal F params.d params.q)
     {f₀ : OracleTable params.d F} (hf₀ : f₀ ∈ params.initialCode) :
     bcsVerify (friIOP params) H k encSym hFS f₀
-      (bcsProve (friIOP params) H k encSym hFS f₀ ()) = true := by
-  rw [friIOP_eq_friSmoothIOP]
-  exact friSmoothBCS_verify_prove_eq_true params.toSmooth H k hlen encSym hFS
-    (by simpa only [FRIParams.toSmooth_initialCode] using hf₀)
+      (bcsProve (friIOP params) H k encSym hFS f₀ ()) = true :=
+  friIOP_eq_friSmoothIOP params ▸ friSmoothBCS_verify_prove_eq_true params.toSmooth H k hlen
+    encSym hFS (params.toSmooth_initialCode.symm ▸ hf₀)
 
 /-- **Perfect BCS ROM completeness for FRI** (corollary of
 `friSmoothBCS_honestROMGame_eq_pure_true`): in the lazy two-channel random-oracle model with any
@@ -1736,10 +1786,9 @@ digest length `σ`, the honest BCS-FRI game outputs `PMF.pure true` for every co
 theorem friBCS_honestROMGame_eq_pure_true [DecidableEq F] [Fintype F] (params : FRIParams F)
     (encSym : F → List Bool) {f₀ : OracleTable params.d F} (hf₀ : f₀ ∈ params.initialCode)
     (σ : ℕ) :
-    bcsHonestROMGame (friIOP params) encSym f₀ () σ = PMF.pure true := by
-  rw [friIOP_eq_friSmoothIOP]
-  exact friSmoothBCS_honestROMGame_eq_pure_true params.toSmooth encSym
-    (by simpa only [FRIParams.toSmooth_initialCode] using hf₀) σ
+    bcsHonestROMGame (friIOP params) encSym f₀ () σ = PMF.pure true :=
+  friIOP_eq_friSmoothIOP params ▸ friSmoothBCS_honestROMGame_eq_pure_true params.toSmooth encSym
+    (params.toSmooth_initialCode.symm ▸ hf₀) σ
 
 /-- **Succinct verifier Merkle query cost bound for BCS-compiled FRI** (corollary of
 `isCostBounded_bcsMTCost_friSmoothVerifyROM`): for any proof `prf` whose opening paths have length
