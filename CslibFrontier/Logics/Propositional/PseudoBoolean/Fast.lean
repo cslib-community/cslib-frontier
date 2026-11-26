@@ -246,6 +246,13 @@ theorem nodup_termVar_normalize (c : PBConstr) : (c.normalize.terms.map termVar)
         simpa [this] using ih.cons_cons e.1
   exact (nodup_toLinear c.terms).sublist (hsub _)
 
+/-- The terms of a normalized constraint have positive coefficients. -/
+theorem pos_of_mem_normalize {c : PBConstr}
+    {t : ℕ × Literal ℕ} (ht : t ∈ c.normalize.terms) : 0 < t.1 := by
+  obtain ⟨e, -, he⟩ := List.mem_filterMap.1 ht
+  unfold entryTerm at he
+  split_ifs at he <;> cases he <;> omega
+
 /-- `Cslib.Logic.PL.PBConstr.normalize` of terms on distinct variables, without merging. -/
 private def normalizeDistinct (c : PBConstr) : PBConstr :=
   fromLinear (c.terms.map fun t => (termVar t, termCoeff t)).reverse

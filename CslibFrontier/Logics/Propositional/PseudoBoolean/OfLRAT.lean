@@ -229,13 +229,6 @@ theorem propagate_eq_unitStep {c : PBConstr} (hv : (c.terms.map termVar).Nodup)
 
 end VeriPB
 
-/-- The terms of a normalized constraint have positive coefficients. -/
-theorem PBConstr.pos_of_mem_normalize {c : PBConstr}
-    {t : ℕ × Literal ℕ} (ht : t ∈ c.normalize.terms) : 0 < t.1 := by
-  obtain ⟨e, -, he⟩ := List.mem_filterMap.1 ht
-  unfold entryTerm at he
-  split_ifs at he <;> cases he <;> omega
-
 /-! ### Clauses as constraints -/
 
 private theorem nodup_termVar_toPB {d : Clause ℕ} (hd : ¬ ∃ l ∈ d, Std.Sat.Literal.negate l ∈ d) :

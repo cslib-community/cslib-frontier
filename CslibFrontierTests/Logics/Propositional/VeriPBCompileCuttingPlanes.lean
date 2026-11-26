@@ -63,6 +63,24 @@ example {φ : CNF ℕ} {s : ℕ} (h : CuttingPlanes.RefutableInSize φ.toIneqs s
   let ⟨P, hP, hlen, _⟩ := exists_check_cnf_of_refutableInSize h
   ⟨P, hP, hlen⟩
 
+/-- The compiled pigeonhole proof has at most three operations per step. -/
+example : opCount proof.steps ≤ 3 * proof.steps.length := by decide
+
+/-- `x₀ + x₁ + x₂ ≥ 4` is refuted by the kernel with no steps, but cutting planes need a line for
+each axiom `-xᵥ ≥ -1`. -/
+example : check [wideContra 3] ⟨[], 1⟩ = true := by decide
+
+example {s : ℕ} (h : CuttingPlanes.RefutableInSize {I | ∃ c ∈ [wideContra 3], c.toIneq = I} s) :
+    3 ≤ s :=
+  le_of_refutableInSize_wideContra h
+
+/-- No bound in the number of constraints, steps and operations alone. -/
+example : ¬ ∃ g : ℕ → ℕ, ∀ (F : List PBConstr) (P : Proof), check F P = true →
+    P.steps.all Step.IsCP →
+    CuttingPlanes.RefutableInSize {I | ∃ c ∈ F, c.toIneq = I}
+      (g (F.length + P.steps.length + opCount P.steps)) :=
+  not_exists_refutableInSize_of_check
+
 end CslibFrontierTests.Logics.Propositional.VeriPBCompileCuttingPlanes
 
 end
