@@ -159,9 +159,8 @@ private noncomputable def scratchWhp : ℕ :=
 noncomputable def rWhp : ℕ :=
   132 + scratchWhp
 
-private theorem le_rWhp : 132 ≤ rWhp := by
-  dsimp only [rWhp]
-  omega
+private theorem le_rWhp : 132 ≤ rWhp :=
+  Nat.le_add_right 132 _
 
 /-- Canonical embedding `Fin 132 → Fin rWhp` for fixed hash, control, ABI, and parameter
 registers. -/
@@ -873,12 +872,10 @@ private theorem exec_initFastTail {c U V w n_max base : ℕ} {θ : SeedWhp c U n
     (hframe₄ baseReg (sReg_ne (by decide))
       fun j hj => by
         have hv : (tmpInit j).val = 16 := congrArg Fin.val hj
-        rw [val_tmpInit] at hv
-        omega).trans hy₃_base
+        rw [val_tmpInit] at hv; omega).trans hy₃_base
   have hy₄_bdd : y₄.Bounded w := he₂.bounded hy₃_bdd
   have hn₂' : n₂ ≤ realizes_initFastGen.factor * (initFastCostWhp n_max + 1) := by
-    dsimp only [cp] at hn₂
-    rwa [hmc, Nat.add_zero] at hn₂
+    simpa only [cp, hmc, Nat.add_zero] using hn₂
   refine ⟨(y₄, n₁ + n₂), by omega, he₁.seq he₂, hy₄_bdd, hbase₄, hfr₄,
     hmem₄ ▸ hseed', hmem₄ ▸ hfast',
     fun a ha => (congrFun hmem₄ a).trans ((hout a ha).trans (congrFun hy₃_mem a))⟩
@@ -1121,8 +1118,7 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
           ?_
         rw [hunif hb_le x₁]
         exact PMF.uniformOfFintype_prod _ _
-      intro θ
-      rw [hmap_fst, one_mul]
+      exact fun θ => by rw [hmap_fst, one_mul]
     refine ⟨m₀, ν₀, hex_all, hqb, htime, hsnd, hfst, fun p hp => ?_⟩
     obtain ⟨z₁₂, hz₁₂, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
     rw [ProbComp.support_eval] at hz₁₂
@@ -1201,9 +1197,7 @@ private theorem exec_opCode {c U V w n_max base : ℕ}
         (regs_comp_singleton argUReg enc.2.1 (congrArg (·.2.1) henc_x₀))
         (regs_comp_singleton argVReg enc.2.2 (congrArg (·.2.2) henc_x₀)))
   have hrep₀ : WhpMemRep base c U V w n_max θ (whpRunPure c U n_max θ ops)
-      (memoryState frontierReg x₀).mem := by
-    dsimp [memoryState]
-    rwa [hx₀_mem]
+      (memoryState frontierReg x₀).mem := by simpa only [memoryState, hx₀_mem] using hrep_mem
   obtain ⟨hrep', hres', hfr_st, hvp, hout, hfast_mc⟩ :=
     whpStepPureGenProg_spec hc hw hnU hU hV hfit hrep₀ hv_st hval_op
   have hvh_mem := hvp.validHistory (wellFormed_memoryState hx₀_bdd) hx₀_fr.ge
@@ -1251,12 +1245,9 @@ private theorem exec_opCode {c U V w n_max base : ℕ}
   · rwa [whpRunPure_snoc, hmem_y]
   · rwa [whpRunPure_snoc]
   have hmc_le := hfast_mc ops rfl hhit
-  have hn₂_le : n₂ ≤ realizes_whpStepPureGen.factor * (whpFastBranchCost c + 1) := by
-    have h1 : memoryCost (whpStepPureGenProg d_in) (memoryState frontierReg x₀) + 0 + 1 ≤
-        whpFastBranchCost c + 1 := by
-      dsimp only [d_in, wp, enc]
-      omega
-    exact hn₂.trans (Nat.mul_le_mul_left _ h1)
+  dsimp only [d_in, wp, enc] at hn₂
+  have hn₂_le : n₂ ≤ realizes_whpStepPureGen.factor * (whpFastBranchCost c + 1) :=
+    hn₂.trans (Nat.mul_le_mul_left _ (Nat.succ_le_succ hmc_le))
   dsimp only [worstCaseTimeWhp]
   omega
 
@@ -1422,10 +1413,9 @@ succinct dynamic dictionary (`Dynamic.spec U V n_max`). -/
 private theorem packedWords_le_bits_add_two {N k w : ℕ} (hw : 0 < w) :
     packedWords N k w ≤ N * k + 2 := by
   unfold packedWords
-  have h1 : N * k ≤ (N * k) * w := Nat.le_mul_of_pos_right _ hw
   have hlt : N * k + w - 1 < w * (N * k + 1) := by
-    rw [Nat.mul_add_one, Nat.mul_comm w]
-    omega
+    have : N * k ≤ N * k * w := Nat.le_mul_of_pos_right _ hw
+    rw [Nat.mul_add_one, Nat.mul_comm w]; omega
   have hdiv : (N * k + w - 1) / w ≤ N * k := Nat.lt_succ_iff.mp (Nat.div_lt_of_lt_mul hlt)
   omega
 
@@ -1535,12 +1525,11 @@ theorem seq_whp {c U V w n_max base : ℕ}
   obtain ⟨ν₀, τ_final, hhalts, heval₀, hsupp₀, hex, hsupp_fin, hfail, hsucc⟩ :=
     C.seq_whp_ofFn outReg ops hx hfr (fun j => Fin.elim0 j) hz hv
   have hmod_fin := execWhpSteps_modifies hex (m₀ := x.mem) fun tr htr => by
-    rw [PMF.mem_support_map_iff] at htr
-    obtain ⟨p, hp, rfl⟩ := htr
+    obtain ⟨p, hp, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp htr
     exact (hsupp₀ p hp).2.2.2
-  refine ⟨ν₀, τ_final, hhalts, heval₀, hsupp₀, hex, fun tr htr => ?_, hfail, hsucc⟩
-  obtain ⟨hst, htrans, hrep⟩ := hsupp_fin tr htr
-  exact ⟨hst, htrans, hrep, hmod_fin tr htr⟩
+  exact ⟨ν₀, τ_final, hhalts, heval₀, hsupp₀, hex, fun tr htr =>
+    let ⟨hst, htrans, hrep⟩ := hsupp_fin tr htr
+    ⟨hst, htrans, hrep, hmod_fin tr htr⟩, hfail, hsucc⟩
 
 /-- **Polynomial-horizon whole-sequence corollary (`poly_seq_whp`)**:
 Instantiating the dictionary at exponent `c + c₀` (`0 < c`) guarantees that starting from `⟨0, x⟩`,

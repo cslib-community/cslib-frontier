@@ -174,10 +174,10 @@ theorem IsApproxDemand.of_mem_demandSet {u : (G → ℝ) → ℝ} {p w x : G →
 theorem IsApproxDemand.mono {u : (G → ℝ) → ℝ} {μ μ' : ℝ} {p w x : G → ℝ}
     (h : IsApproxDemand u μ p w x) (hμμ' : μ ≤ μ')
     (hp : ∀ g, 0 ≤ p g) (hw : ∀ g, 0 ≤ w g) (hux : 0 ≤ u x) :
-    IsApproxDemand u μ' p w x := by
-  refine ⟨h.1.trans hμμ', h.2.1, ?_, fun y hy => ?_⟩
-  · exact h.2.2.1.trans (mul_le_mul_of_nonneg_right hμμ' (expenditure_nonneg hp hw))
-  · exact (h.2.2.2 y hy).trans (mul_le_mul_of_nonneg_right hμμ' hux)
+    IsApproxDemand u μ' p w x :=
+  ⟨h.1.trans hμμ', h.2.1,
+    h.2.2.1.trans (mul_le_mul_of_nonneg_right hμμ' (expenditure_nonneg hp hw)),
+    fun y hy => (h.2.2.2 y hy).trans (mul_le_mul_of_nonneg_right hμμ' hux)⟩
 
 /-- Utility function `u` is **subhomogeneous from `0`** on `ℝ_+^G` if scaling down any nonnegative
 bundle by `c ∈ (0, 1]` scales utility by at least `c` (`c * u b ≤ u (c • b)`). Every concave
@@ -198,9 +198,8 @@ theorem IsRayConcave.of_concaveOn {u : (G → ℝ) → ℝ}
   nlinarith
 
 theorem isRayConcave_cobbDouglasUtility {α : G → ℝ} (hα_sum : ∑ g : G, α g = 1) :
-    IsRayConcave (cobbDouglasUtility α) := by
-  intro b hb c hc0 _
-  rw [cobbDouglasUtility_smul hα_sum hb hc0]
+    IsRayConcave (cobbDouglasUtility α) :=
+  fun _ hb _ hc0 _ => (cobbDouglasUtility_smul hα_sum hb hc0).ge
 
 namespace ExchangeMarket
 
@@ -235,9 +234,9 @@ theorem IsWeakApproxEquilibrium.mono {E : ExchangeMarket I G} {μ μ' : ℝ} {p 
     (hu_nn : ∀ i b, (∀ g, 0 ≤ b g) → 0 ≤ E.utility i b) :
     E.IsWeakApproxEquilibrium μ' p := by
   obtain ⟨hμ, hp, x, hdem, hsup⟩ := h
-  refine ⟨hμ.trans hμμ', hp, x, fun i => ?_, fun g => ?_⟩
-  · exact (hdem i).mono hμμ' hp (E.endowment_nonneg i) (hu_nn i (x i) (hdem i).2.1)
-  · exact (hsup g).trans (mul_le_mul_of_nonneg_right hμμ' (E.totalSupply_nonneg g))
+  exact ⟨hμ.trans hμμ', hp, x,
+    fun i => (hdem i).mono hμμ' hp (E.endowment_nonneg i) (hu_nn i (x i) (hdem i).2.1),
+    fun g => (hsup g).trans (mul_le_mul_of_nonneg_right hμμ' (E.totalSupply_nonneg g))⟩
 
 /-- **NRTV Exercise 6.5** ([CodenottiVaradarajan2007], p. 158; used in Lemma 6.7, p. 146): if
 `(xHat, pHat)` is a positive competitive equilibrium of `E` (`pHat > 0`), `p > 0`, `0 ≤ ε`, and all
@@ -465,8 +464,7 @@ noncomputable def phantomDemand (η : ℝ) (p : G → ℝ) (g : G) : ℝ :=
 @[simp] theorem phantomDemand_apply (η : ℝ) (p : G → ℝ) (g : G) :
     phantomDemand η p g =
       (1 / (Fintype.card G : ℝ)) * expenditure p (fun _ => η) / p g := by
-  unfold phantomDemand
-  rw [cobbDouglasDemand_apply]
+  rw [phantomDemand, cobbDouglasDemand_apply]
 
 /-- Aggregate excess-demand function `Z_{M̂}(p) = Z'(p) + (phantomDemand η p - η)` of the
 regularized market `M̂` ([CodenottiVaradarajan2007], p. 144). -/
@@ -625,9 +623,9 @@ theorem exists_mem_tatonnementBox_isWalrasianEquilibrium [Nonempty G]
             simp only [mul_add, sum_add_distrib, ← sum_mul]
           _ = 1 + η := by rw [hw0, hp_sum, zero_add, one_mul]
       calc ∑ k : G, posPart p k
-          ≤ ∑ k : G, (Z p k + (1 + η)) := by
-            refine sum_le_sum fun k _ => ?_
-            exact max_le (by linarith [hZ_lower k]) (by linarith)
+          ≤ ∑ k : G, (Z p k + (1 + η)) :=
+            sum_le_sum fun k _ => max_le (by linarith [hZ_lower k])
+              (le_add_of_nonneg_right (add_nonneg zero_le_one hη0.le))
         _ ≤ 2 / δ := (le_div_iff₀' hδ_pos).2 (hmul_le.trans (by linarith))
     have hden_le_2 : 1 + τ * ∑ k : G, posPart p k ≤ 2 := by
       have := mul_le_mul_of_nonneg_left hpos_le_X hτ_pos.le
@@ -892,7 +890,7 @@ private theorem pow_one_add_div_six_lt {n : ℕ} (hn : 2 ≤ n) {ε : ℝ} (hε0
             push_cast; linarith
   have h1 := hind (n - 1) (by omega)
   have hcast : ((n - 1 : ℕ) : ℝ) = (n : ℝ) - 1 := by
-    rw [Nat.cast_sub (by omega : 1 ≤ n), Nat.cast_one]
+    rw [Nat.cast_sub (one_le_two.trans hn), Nat.cast_one]
   have hlt : ((n - 1 : ℕ) : ℝ) * (ε / (3 * (n : ℝ))) = ε / 3 - ε / (3 * (n : ℝ)) := by
     rw [hcast]; field_simp [hn_pos.ne']
   have : 0 < ε / (3 * (n : ℝ)) := by positivity
@@ -1181,10 +1179,8 @@ theorem sum_sq_phantomExcessDemand_le [Nonempty G] {Z' : (G → ℝ) → G → �
   -- Finally `∑ g, (Z p g)^2 ≤ (∑ g, |Z p g|)^2 ≤ L^2`.
   have hl2_le_l1 : ∑ g : G, (Z p g) ^ 2 ≤ (∑ g : G, |Z p g|) ^ 2 := by
     rw [sum_congr rfl fun g _ => (sq_abs (Z p g)).symm, sq, sum_mul]
-    exact sum_le_sum fun g hg => by
-      rw [sq]
-      exact mul_le_mul_of_nonneg_left
-        (single_le_sum (fun k _ => abs_nonneg (Z p k)) hg) (abs_nonneg (Z p g))
+    exact sum_le_sum fun g hg => (sq |Z p g|).symm ▸ mul_le_mul_of_nonneg_left
+      (single_le_sum (fun k _ => abs_nonneg (Z p k)) hg) (abs_nonneg (Z p g))
   exact hl2_le_l1.trans (pow_le_pow_left₀ (sum_nonneg fun g _ => abs_nonneg _) hl1_le 2)
 
 /-- Componentwise projection `max (η / (2 |G|)) (min 1 (p g))` onto `tatonnementBox G η` (`Δ`)
@@ -1208,16 +1204,12 @@ noncomputable def tatonnementStep (Z : (G → ℝ) → G → ℝ) (η δ : ℝ) 
 theorem tatonnementStep_of_mem (Z : (G → ℝ) → G → ℝ) (η δ : ℝ) {p : G → ℝ}
     (hp : p ∈ tatonnementOuterBox G η) :
     tatonnementStep Z η δ p = p + (δ / (tatonnementBoundL (Fintype.card G) η) ^ 2) • Z p := by
-  unfold tatonnementStep
-  classical
-  exact ite_eq_left_iff.2 fun h => (h hp).elim
+  rw [tatonnementStep, ite_eq_left hp]
 
 theorem tatonnementStep_of_not_mem (Z : (G → ℝ) → G → ℝ) (η δ : ℝ) {p : G → ℝ}
     (hp : p ∉ tatonnementOuterBox G η) :
     tatonnementStep Z η δ p = projectTatonnementBox η p := by
-  unfold tatonnementStep
-  classical
-  exact ite_eq_right_iff.2 fun h => (hp h).elim
+  rw [tatonnementStep, ite_eq_right hp]
 
 /-- `k`-th iterate of `tatonnementStep Z η δ` starting from `p₀`. -/
 noncomputable def tatonnementIter (Z : (G → ℝ) → G → ℝ) (η δ : ℝ) (p₀ : G → ℝ) (k : ℕ) : G → ℝ :=

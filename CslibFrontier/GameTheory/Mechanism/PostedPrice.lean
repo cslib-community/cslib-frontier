@@ -425,9 +425,7 @@ theorem expectedWelfare_vickrey_eq_expectedMax {n : ℕ} (μ : Fin n → PMF ℝ
     refine le_antisymm ((listMax_le_iff _ _).mpr fun y hy => ?_)
       ((listMax_le_iff _ _).mp le_rfl (v w) (List.mem_ofFn.mpr ⟨w, rfl⟩))
     obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hy
-    rcases eq_or_ne j w with rfl | hj
-    · exact le_rfl
-    · exact_mod_cast (hw j hj).1
+    exact (eq_or_ne j w).elim (· ▸ le_rfl) fun hj => by exact_mod_cast (hw j hj).1
   rw [hsum, hmax, ENNReal.ofReal_coe_nnreal]
 
 private theorem payoff_acceptRule_ofFn {n : ℕ} (a : ℝ≥0 → Bool) (accept : Fin n → ℝ → Prop)
@@ -464,10 +462,7 @@ private theorem payoff_acceptRule_ofFn {n : ℕ} (a : ℝ≥0 → Bool) (accept 
           induction xs with
           | nil => exact fun _ _ => rfl
           | cons y ys ihy =>
-              intro p₁ p₂
-              simp only [payoff_cons, acceptRule, reward]
-              congr 1
-              exact ihy _ _
+              exact fun _ _ => by simp only [payoff_cons, acceptRule, reward, ihy _ []]
         simp only [acceptRule, Bool.eq_false_iff.mpr h0, Bool.false_eq_true, ↓reduceIte, hlose0,
           mul_zero, zero_add, hpay _ [v 0] [], ← ih (fun k' z => accept k'.succ z)
             (fun i z => hacc i.succ z) (fun j => v j.succ), hsucc]
@@ -577,8 +572,7 @@ theorem expectedWelfare_singleSamplePostedPrice {n : ℕ} (s : Fin n → ℝ≥0
     expectedWelfare (singleSamplePostedPrice s π).allocation μ =
       expectedReward (singleSampleRule s π) (List.ofFn μ) := by
   rw [expectedWelfare, expectedReward, tsum_jointLaw_ofFn_mul]
-  refine tsum_congr fun v => ?_
-  congr 1
+  refine tsum_congr fun v => congrArg (piFin μ v * ·) ?_
   rw [payoff_singleSampleRule_ofFn]
   -- Compare the first index in `Fin n` where `singleSampleAccept` holds with `firstBeatReward`.
   have hacc (i : Fin n) : singleSampleAccept s π i (v i : ℝ) ↔
@@ -633,10 +627,7 @@ theorem expectedRevenuePMF_le_expectedWelfare {n : ℕ} {M : Mechanism (Fin n)} 
     expectedRevenuePMF M μ ≤ expectedWelfare M.allocation μ := by
   refine tsum_le_tsum fun v => mul_le_mul_right (ENNReal.ofReal_le_ofReal ?_) _
   have hv : 0 ≤ (fun j : Fin n => (v j : ℝ)) := fun j => NNReal.coe_nonneg _
-  refine Finset.sum_le_sum fun i _ => ?_
-  have hir := hIR i _ hv
-  simp only [Mechanism.utility] at hir
-  linarith
+  exact Finset.sum_le_sum fun i _ => sub_nonneg.mp (hIR i _ hv)
 
 /-- On `tightBidderLaws k`, *every* posted-price mechanism in arrival order `(0, 1)` gets expected
 welfare (and hence expected revenue) at most `1`. -/
@@ -785,10 +776,7 @@ theorem integrable_posVirtualSurplus [∀ i, IsProbabilityMeasure (μ i)]
 theorem sum_virtualValue_mul_le_posVirtualSurplus (v : ι → ℝ) {y : ι → ℝ}
     (hy : y ∈ Vickrey.singleItemFeasible) :
     ∑ i, virtualValue (μ i) (f i) (v i) * y i ≤ posVirtualSurplus μ f v := by
-  have hy0 : ∀ i, 0 ≤ y i := fun i => by
-    rcases hy.1 i with h0 | h1
-    · rw [h0]
-    · rw [h1]; exact zero_le_one
+  have hy0 : ∀ i, 0 ≤ y i := fun i => (hy.1 i).elim (· ▸ le_rfl) (· ▸ zero_le_one)
   calc ∑ i, virtualValue (μ i) (f i) (v i) * y i
       ≤ ∑ i, posVirtualSurplus μ f v * y i :=
         Finset.sum_le_sum fun i _ =>
@@ -914,9 +902,7 @@ theorem integral_sum_payment_le_two_mul_virtualPostedPrices [LinearOrder ι]
         t * (1 - allReject v) + ∑ i, priorReject i v * excess i (v i) := by
     filter_upwards [hae_pos_ne] with v hv
     have h1 : t * (1 - allReject v) = ∑ i, t * (postedPrice p).allocation v i := by
-      dsimp only [allReject]
-      rw [← Finset.mul_sum]
-      ring
+      simp only [allReject, ← Finset.mul_sum]; ring
     rw [h1, ← Finset.sum_add_distrib]
     refine Finset.sum_congr rfl fun i _ => ?_
     have hthr : IsReserveThreshold (fun z => virtualValue (μ i) (f i) z - t) (p i) :=

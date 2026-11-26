@@ -397,19 +397,9 @@ theorem greedyPolicy_alloc_eq_some_iff_priority (cap : Fin T → ℕ)
         ∀ s : Fin T, s < t → (greedyPolicy cap).alloc θ j ≠ some s := fun j => by
     simp only [mem_greedyAllocatedBefore_iff, not_exists, not_and, Fin.lt_def, ne_eq,
       greedyPolicy_alloc_eq_some_iff]
-  have hfilt :
-      ((Finset.univ.filter fun j : ι =>
-          j ∉ greedyAllocatedBefore cap θ t.val ∧ (θ j).InWindow t).filter
-        fun j => Beats θ j i) =
-      (Finset.univ.filter fun j : ι =>
-        (∀ s : Fin T, s < t → (greedyPolicy cap).alloc θ j ≠ some s) ∧
-        (θ j).InWindow t ∧
-        ((θ i).value < (θ j).value ∨ ((θ i).value = (θ j).value ∧ j < i))) := by
-    ext j
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, hprev, Beats, and_assoc]
   unfold greedyWinnersAt topK rankIn
-  rw [Finset.mem_filter, Finset.mem_filter, hfilt]
-  simp only [Finset.mem_univ, true_and, hprev, and_assoc]
+  simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.filter_filter, hprev, Beats,
+    and_assoc]
 
 /-- Greedy `Auction 2` is capacity-feasible for expiring items. -/
 theorem greedyPolicy_isExpiringFeasible (cap : Fin T → ℕ) :
@@ -826,7 +816,6 @@ theorem no_lt_two_competitive_truthful_expiring
       have hθDo : θD o = θA o := by simp only [θD, Function.update_of_ne ho2, hθCo]
       have hθDw : θD w = intervalType 0 1 h01 v_ext hv_ext := by
         simp only [θD, Function.update_of_ne hw2, hθCw]
-      have hθD2 : θD 2 = t1_0 := Function.update_self 2 _ _
       have hoD_none : M.policy.alloc θD o = none :=
         alloc_eq_none_of_point_of_eq_some hfeas (Fin.zero_le _)
           (by rw [hθDo, hθA_dep o ho2]) hwD hwo.symm
@@ -835,7 +824,8 @@ theorem no_lt_two_competitive_truthful_expiring
           (by rw [Finset.sum_singleton, hθDw])
         rcases eq_or_ne j o with rfl | hjo
         · exact .inl hoD_none
-        · exact .inr (by rw [hcover j (Finset.notMem_singleton.1 hj) hjo, hθD2])
+        · exact .inr (by simp only [hcover j (Finset.notMem_singleton.1 hj) hjo, θD,
+            Function.update_self, t1_0, pointType])
       have hoptD : 2 + 2 * δ ≤ optWelfare (fun _ => 1) θD := by
         have h := add_le_optWelfare_of_pair θD (t₀ := 0) (t₁ := 1) hwo.symm (by decide)
           (by rw [hθDo]; exact ⟨(θA o).arrival_le_departure.trans (hθA_dep o ho2).le,
@@ -843,10 +833,10 @@ theorem no_lt_two_competitive_truthful_expiring
           (by rw [hθDw]; exact ⟨h01, le_rfl⟩)
         rw [hθDo, hθDw] at h
         linarith
-      refine ⟨θD, ?_⟩
-      rcases le_or_gt 0 c with hc0 | hc0
-      · linarith [mul_le_mul_of_nonneg_left hwD_le hc0]
-      · nlinarith [welfare_nonneg θD (M.policy.alloc θD)]
+      exact ⟨θD, by
+        rcases le_or_gt 0 c with hc0 | hc0
+        · linarith [mul_le_mul_of_nonneg_left hwD_le hc0]
+        · nlinarith [welfare_nonneg θD (M.policy.alloc θD)]⟩
     · -- `w` moves to period `1`, so the high-value agent `2` arriving at period `1` loses.
       have hθC2 : θC 2 = t1_B := by
         simp only [θC, θB, Function.update_of_ne hw2.symm, Function.update_self]
@@ -861,11 +851,10 @@ theorem no_lt_two_competitive_truthful_expiring
           linarith
       have hoptC : B ≤ optWelfare (fun _ => 1) θC := by
         simpa only [hθC2, pointType] using value_le_optWelfare_of_single θC 2
-      refine ⟨θC, ?_⟩
       have hcwC : c * welfare θC (M.policy.alloc θC) ≤ |c| * (2 + 2 * δ) :=
         (mul_le_mul_of_nonneg_right (le_abs_self c) (welfare_nonneg _ _)).trans
           (mul_le_mul_of_nonneg_left hwC (abs_nonneg c))
-      linarith
+      exact ⟨θC, by linarith⟩
   by_cases h1A : M.policy.alloc θA 1 = some 0
   · exact hwin0_case 1 0 (by decide) (by decide) (by decide) (1 + 2 * δ) (by linarith)
       (by dsimp [θA, t0_1d]; linarith) (by dsimp [θA, t0_1]; ring) hδc1 h1A
@@ -881,9 +870,7 @@ theorem no_lt_two_competitive_truthful_expiring
     · exact .inl ((alloc_eq_none_or_eq_some_of_point M.policy le_rfl le_rfl).resolve_right h1A)
     · exact .inr rfl
   have hoptA : 1 + δ ≤ optWelfare (fun _ => 1) θA := value_le_optWelfare_of_single θA 1
-  refine ⟨θA, ?_⟩
-  rw [hwA, mul_zero]
-  linarith
+  exact ⟨θA, by rw [hwA, mul_zero]; linarith⟩
 
 /-- Impossibility under arbitrary departure misreports: for every `c : ℝ`, there exist a finite
 horizon `T` and agent count `n` such that no deterministic, causal, unit-capacity expiring-items
@@ -1118,9 +1105,8 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
           hmono i θk (pointType 0 (Y - 1) hY1_nonneg) (intervalType 0 tk h0tk Y hY_nonneg)
             le_rfl h0tk (by linarith) (by simp only [hsmall_wins, Option.isSome_some])
       obtain ⟨t, ht⟩ := Option.isSome_iff_exists.mp hθk_some
-      have ht_le : t.val ≤ tk.val := by
-        simpa only [hθki, Fin.le_def] using (M.policy.alloc_in_window θk i t ht).2
-      exact hθk_no t ht_le ht
+      exact hθk_no t
+        (by simpa only [hθki, Fin.le_def] using (M.policy.alloc_in_window θk i t ht).2) ht
     -- Step 3: Late-departure truthfulness gives `cv(0, 0) ≤ cv(0, tk) ≤ cv(tk, tk)`
     have hwin_00_Y :
         M.policy.alloc (Function.update θStar i (pointType 0 Y hY_nonneg)) i = some 0 := by
@@ -1145,13 +1131,12 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
       have hds := hdsic_nea i (Function.update θStar i (intervalType 0 tk h0tk Y hY_nonneg))
         (pointType 0 Y hY_nonneg) (by simp [AgentType.NoEarlyArrival])
       rw [Function.update_idem, hutil _ hwin_tk_at_0, hutil _ hwin_00_Y] at hds
-      have hfin00 : M.policy.criticalValue θStar i 0 0 le_rfl ≠ ⊤ :=
-        ne_top_of_le_ne_top ENNReal.ofReal_ne_top
-          (M.policy.criticalValue_le_of_isSome hY_nonneg (by rw [hwin_00_Y]; rfl))
-      have hfin0tk : M.policy.criticalValue θStar i 0 tk h0tk ≠ ⊤ :=
-        ne_top_of_le_ne_top ENNReal.ofReal_ne_top
-          (M.policy.criticalValue_le_of_isSome hY_nonneg (by rw [hwin_tk_at_0]; rfl))
-      exact (ENNReal.toReal_le_toReal hfin00 hfin0tk).mp (by linarith)
+      have hfin : ∀ {τ : AgentType (Fin (m + 1))},
+          M.policy.alloc (Function.update θStar i τ) i = some 0 →
+          M.policy.criticalValue θStar i τ.arrival τ.departure τ.arrival_le_departure ≠ ⊤ :=
+        fun {τ} h => ne_top_of_le_ne_top ENNReal.ofReal_ne_top
+          (M.policy.criticalValue_le_of_isSome τ.value_nonneg (by rw [h]; rfl))
+      exact (ENNReal.toReal_le_toReal (hfin hwin_00_Y) (hfin hwin_tk_at_0)).mp (by linarith)
     have hcv0tk_le_tktk :
         M.policy.criticalValue θStar i 0 tk h0tk ≤ M.policy.criticalValue θStar i tk tk le_rfl :=
       M.policy.criticalValue_antitone hmono le_rfl h0tk h0tk le_rfl

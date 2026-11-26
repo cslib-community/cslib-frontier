@@ -364,15 +364,9 @@ private theorem SHTree.corrupted_le_sum_countRank {rt lb K : ℕ} {t : SHTree} (
       by_cases hgt : rt + 1 ≤ r
       · simp only [hgt, ↓reduceIte]
         exact Nat.le_trans (List.length_filter_le _ _) (by simpa using hcap)
-      · simp only [hgt, ↓reduceIte]
-        have hzero : (items.map (fun it => (it, ck))).filter
-            (fun p => decide (p.1.origKey < p.2)) = [] := by
-          rw [List.filter_eq_nil_iff]
-          intro p hp
-          simp only [List.mem_map] at hp
-          rcases hp with ⟨it, hit, rfl⟩
-          simp [hrt (by omega) it hit]
-        rw [hzero, List.length_nil]
+      · simp only [hgt, ↓reduceIte, Nat.le_zero, List.length_eq_zero_iff, List.filter_eq_nil_iff,
+          List.mem_map, forall_exists_index, and_imp, forall_apply_eq_imp_iff₂]
+        exact fun it hit => by simp [hrt (by omega) it hit]
     have hL_bound : ((l.elim [] SHTree.allEntries).filter
         (fun p => decide (p.1.origKey < p.2))).length ≤
         ∑ k ∈ Finset.Icc (rt + 1) K, (l.elim 0 (SHTree.countRank k)) * sizeCap rt k := by
@@ -697,9 +691,8 @@ theorem TreeMemRep.congr {rt itemBase nodeBase : ℕ} {mem₁ mem₂ : ℕ → �
     have hi : ItemListRep itemBase mem₂ (mem₂ (nodeBase + 12 * id + 4))
         (mem₂ (nodeBase + 12 * id + 5)) items := by
       rw [← hn 4 (by decide), ← hn 5 (by decide)]
-      refine ItemListRep.congr (fun it hit j hj => ?_) h45
-      apply hitem it _ j hj
-      simp [SHTree.allItems, hit]
+      exact ItemListRep.congr (fun it hit j hj => hitem it (by simp [SHTree.allItems, hit]) j hj)
+        h45
     refine .node hid ?_ ?_ ?_ ?_ hi ?_ ?_ ?_ ?_
     · simpa using (hn 0 (by decide)).symm.trans h0
     · simpa using (hn 1 (by decide)).symm.trans h1
@@ -707,20 +700,18 @@ theorem TreeMemRep.congr {rt itemBase nodeBase : ℕ} {mem₁ mem₂ : ℕ → �
     · simpa using (hn 3 (by decide)).symm.trans h3
     · simpa using (hn 6 (by decide)).symm.trans h6
     · simpa using (hn 7 (by decide)).symm.trans h7
-    · intro c hc
-      refine ihL c hc ?_ ?_ (hl c hc)
-      · intro nid hnid j hj; apply hnode nid _ j hj; simp [hc, hnid]
-      · intro it hit j hj; apply hitem it _ j hj
-        simp only [SHTree.allItems, SHTree.allEntries_node, hc, Option.elim_some,
-          List.map_append, List.mem_append]
-        exact Or.inl (Or.inr hit)
-    · intro c hc
-      refine ihR c hc ?_ ?_ (hr c hc)
-      · intro nid hnid j hj; apply hnode nid _ j hj; simp [hc, hnid]
-      · intro it hit j hj; apply hitem it _ j hj
-        simp only [SHTree.allItems, SHTree.allEntries_node, hc, Option.elim_some,
-          List.map_append, List.mem_append]
-        exact Or.inr hit
+    · exact fun c hc => ihL c hc
+        (fun nid hnid => hnode nid (by simp [hc, hnid]))
+        (fun it hit => hitem it (by
+          simp only [SHTree.allItems, SHTree.allEntries_node, hc, Option.elim_some,
+            List.map_append, List.mem_append]
+          exact Or.inl (Or.inr hit))) (hl c hc)
+    · exact fun c hc => ihR c hc
+        (fun nid hnid => hnode nid (by simp [hc, hnid]))
+        (fun it hit => hitem it (by
+          simp only [SHTree.allItems, SHTree.allEntries_node, hc, Option.elim_some,
+            List.map_append, List.mem_append]
+          exact Or.inr hit)) (hr c hc)
 
 /-- Suffix-minimum root selector breaking ties to the front (`t.ckey ≤ sm.ckey`), matching
 `updateSuffixMinStep` and `shInsertLinkRoot`. -/
@@ -745,25 +736,16 @@ private theorem suffixMinTree_spec (roots : List SHTree) :
     | cons t2 rest2 =>
       simp only [suffixMinTree]
       cases hsm : suffixMinTree (t2 :: rest2) with
-      | none =>
-        rw [hsm] at ih
-        simp at ih
+      | none => simp [hsm] at ih
       | some sm =>
         rw [hsm] at ih
         rcases ih with ⟨hmem, hmin⟩
-        by_cases hle : t.ckey ≤ sm.ckey
-        · simp only [hle, ↓reduceIte]
-          refine ⟨by simp, ?_⟩
-          intro u hu
-          rcases List.mem_cons.mp hu with rfl | hu'
-          · exact le_rfl
-          · exact Nat.le_trans hle (hmin u hu')
-        · simp only [hle, ↓reduceIte]
-          refine ⟨by simp [hmem], ?_⟩
-          intro u hu
-          rcases List.mem_cons.mp hu with rfl | hu'
-          · omega
-          · exact hmin u hu'
+        dsimp only
+        split_ifs with hle
+        · exact ⟨by simp, fun u hu =>
+            (List.mem_cons.mp hu).elim (fun h => h ▸ le_rfl) fun hu' => hle.trans (hmin u hu')⟩
+        · exact ⟨by simp [hmem], fun u hu =>
+            (List.mem_cons.mp hu).elim (fun h => h ▸ Nat.le_of_not_ge hle) (hmin u)⟩
 
 /-- Doubly-linked root-list links (`+9 prevRoot`, `+10 nextRoot`, `+11 suffixMin`) with strictly
 increasing ranks. -/
@@ -940,17 +922,12 @@ private theorem rootList_pre_length_le_rank {pre suf : List SHTree} {x : SHTree}
     (hpw : (pre ++ [x] ++ suf).Pairwise (fun a b => a.rank < b.rank)) :
     pre.length ≤ x.rank := by
   rw [List.append_assoc] at hpw
-  have h1 := (List.pairwise_append.mp hpw).1
-  have h2 := (List.pairwise_append.mp hpw).2.2
-  have hrk_pw : (pre.map SHTree.rank).Pairwise (· < ·) :=
-    List.pairwise_map.mpr h1
-  have hrk_nd : (pre.map SHTree.rank).Nodup := hrk_pw.imp (fun h => Nat.ne_of_lt h)
-  have hrk_lt : ∀ r ∈ pre.map SHTree.rank, r < x.rank := by
-    intro r hr
-    rcases List.mem_map.mp hr with ⟨u, hu, rfl⟩
-    exact h2 u hu x (by simp)
+  rcases List.pairwise_append.mp hpw with ⟨h1, _, h2⟩
   rw [← List.length_map (as := pre) (f := SHTree.rank)]
-  exact List.length_le_of_nodup_lt hrk_nd hrk_lt
+  refine List.length_le_of_nodup_lt ((List.pairwise_map.mpr h1).imp fun h => Nat.ne_of_lt h)
+    fun r hr => ?_
+  rcases List.mem_map.mp hr with ⟨u, hu, rfl⟩
+  exact h2 u hu x (by simp)
 
 private theorem SHInv.pools_disj_node_item {w ic₀ nc₀ maxItems maxNodes : ℕ}
     {h : SHHandle} {roots : List SHTree} {created : ℕ → ℕ} {s : Memory.State}
@@ -1469,20 +1446,13 @@ private theorem forest_corrupted_le {rt K : ℕ} {roots : List SHTree}
   | nil => simp [forestEntries]
   | cons t rest ih =>
     have ht_val := hval t List.mem_cons_self
-    have ht_rk := hrk t List.mem_cons_self
     have ht_bd := SHTree.corrupted_le_sum_countRank (K := K) ht_val
-      (fun r hr => le_trans (ht_val.rank_le_of_countRank_pos hr) ht_rk)
+      fun r hr => (ht_val.rank_le_of_countRank_pos hr).trans (hrk t List.mem_cons_self)
     have hrest := ih (fun u hu => hval u (List.mem_cons_of_mem _ hu))
-      (fun u hu => hrk u (List.mem_cons_of_mem _ hu))
-    have hsum_add : ∑ k ∈ Finset.Icc (rt + 1) K,
-        ((t :: rest).map (SHTree.countRank k)).sum * sizeCap rt k =
-        (∑ k ∈ Finset.Icc (rt + 1) K, t.countRank k * sizeCap rt k) +
-        (∑ k ∈ Finset.Icc (rt + 1) K, (rest.map (SHTree.countRank k)).sum * sizeCap rt k) := by
-      rw [← Finset.sum_add_distrib]
-      refine Finset.sum_congr rfl fun k _ => ?_
-      simp only [List.map_cons, List.sum_cons, Nat.add_mul]
-    have hfe : forestEntries (t :: rest) = t.allEntries ++ forestEntries rest := rfl
-    rw [hfe, List.filter_append, List.length_append, hsum_add]
+      fun u hu => hrk u (List.mem_cons_of_mem _ hu)
+    dsimp only [forestEntries] at hrest
+    simp only [forestEntries, List.flatMap_cons, List.filter_append, List.length_append,
+      List.map_cons, List.sum_cons, Nat.add_mul, Finset.sum_add_distrib]
     omega
 
 /-- Every surviving entry in a valid soft heap has `origKey ≤ ckey` (keys are only ever
@@ -1504,16 +1474,12 @@ theorem shInv_corrupted_le {w ic₀ nc₀ maxItems maxNodes : ℕ}
       ((forestEntries roots).filter (fun p => decide (p.1.origKey < p.2))).length ≤
       12 * (h.itemCount - ic₀) := by
   have h1 := forest_corrupted_le hinv.trees_valid hinv.rank_le
-  have hmono : ∑ k ∈ Finset.Icc (h.rankThreshold + 1) (h.nodeCount - nc₀),
-      (roots.map (SHTree.countRank k)).sum * sizeCap h.rankThreshold k ≤
-      ∑ k ∈ Finset.Icc (h.rankThreshold + 1) (h.nodeCount - nc₀),
-        created k * sizeCap h.rankThreshold k :=
-    Finset.sum_le_sum (fun k _ => Nat.mul_le_mul_right _ (hinv.live_rank_le k))
+  have hmono := Finset.sum_le_sum (s := Finset.Icc (h.rankThreshold + 1) (h.nodeCount - nc₀))
+    fun k _ => Nat.mul_le_mul_right (sizeCap h.rankThreshold k) (hinv.live_rank_le k)
   have hc := corrupt_sum_bound h.rankThreshold created (h.nodeCount - nc₀)
-    (fun k => by have := hinv.created_step k; omega)
+    fun k => Nat.le_of_add_right_le (hinv.created_step k)
   rw [hinv.created_zero] at hc
-  have hmul := Nat.mul_le_mul_left (2 ^ h.rankThreshold) (Nat.le_trans h1 hmono)
-  exact Nat.le_trans hmul hc
+  exact (Nat.mul_le_mul_left (2 ^ h.rankThreshold) (h1.trans hmono)).trans hc
 
 /-- Rational error-rate specialization under `SHInv`: when `h.rankThreshold = rankThresholdForEps ε`
 with `0 < ε`, at most `ε * (h.itemCount - ic₀)` surviving items are corrupted. -/

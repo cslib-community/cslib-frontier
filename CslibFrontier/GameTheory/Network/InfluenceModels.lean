@@ -258,16 +258,14 @@ noncomputable def thresholdStep (θ : V → ℝ) (A : Finset V) : Finset V :=
 @[simp]
 theorem mem_thresholdStep {θ : V → ℝ} {A : Finset V} {v : V} :
     v ∈ M.thresholdStep θ A ↔ v ∈ A ∨ θ v ≤ M.thresholdFn v A := by
-  unfold thresholdStep
-  simp
+  simp [thresholdStep]
 
 theorem subset_thresholdStep (θ : V → ℝ) (A : Finset V) : A ⊆ M.thresholdStep θ A :=
   fun _ hv => M.mem_thresholdStep.mpr (Or.inl hv)
 
-theorem thresholdStep_mono (θ : V → ℝ) : Monotone (M.thresholdStep θ) := by
-  intro A B hAB v hv
-  exact M.mem_thresholdStep.mpr <|
-    (M.mem_thresholdStep.mp hv).imp (fun hvA => hAB hvA) fun hle => hle.trans (M.monotone v hAB)
+theorem thresholdStep_mono (θ : V → ℝ) : Monotone (M.thresholdStep θ) :=
+  fun _ _ hAB _ hv => M.mem_thresholdStep.mpr <|
+    (M.mem_thresholdStep.mp hv).imp (fun hvA => hAB hvA) fun hle => hle.trans (M.monotone _ hAB)
 
 /-- Final active set after `|V|` progressive steps from seed set `S` under thresholds `θ`
 ([Kleinberg2007], Section 24.4, p. 623). -/
@@ -475,9 +473,8 @@ theorem influence_eq_sum_activeSetProb (S : Finset V) :
     M.influence S = ∑ A : Finset V, M.activeSetProb S A * (A.card : ℝ) :=
   M.integral_thresholdFinal_eq_sum S fun A => (A.card : ℝ)
 
-theorem monotone_influence : Monotone M.influence := by
-  intro A B hAB
-  exact integral_mono (M.integrable_of_finset A fun X => (X.card : ℝ))
+theorem monotone_influence : Monotone M.influence := fun A B hAB =>
+  integral_mono (M.integrable_of_finset A fun X => (X.card : ℝ))
     (M.integrable_of_finset B fun X => (X.card : ℝ)) fun θ =>
     Nat.cast_le.mpr (Finset.card_le_card (M.thresholdFinal_mono_seed θ hAB))
 
@@ -636,8 +633,7 @@ private theorem seqSurvival_append (v : V) (us₁ us₂ : List V) :
     intro X
     simp only [List.cons_append, seqSurvival, ih (insert u X), mul_assoc]
     congr 3
-    ext w
-    simp
+    exact Finset.ext fun _ => by simp
 
 /-- Order-independent survival probability `∏_{i=1}^k (1 - p_v(u_i, X_{i-1}))` that vertex `v`
 is *not* activated when all vertices in `X` attempt to activate it ([Kleinberg2007], Section 24.3,
@@ -912,10 +908,9 @@ one exists and returns `none` when none exists. -/
       ∃ e ∈ untriedEdges G active tried, nextEdge active tried = some e) ∧
     (untriedEdges G active tried = ∅ → nextEdge active tried = none)
 
-theorem validNextEdge_defaultNextEdge : ValidNextEdge G (defaultNextEdge G) := by
-  intro active tried
-  refine ⟨fun hne => ⟨hne.choose, hne.choose_spec, by simp [defaultNextEdge, hne]⟩, fun hemp => ?_⟩
-  simp [defaultNextEdge, hemp]
+theorem validNextEdge_defaultNextEdge : ValidNextEdge G (defaultNextEdge G) :=
+  fun _ _ => ⟨fun hne => ⟨hne.choose, hne.choose_spec, by simp [defaultNextEdge, hne]⟩,
+    fun hemp => by simp [defaultNextEdge, hemp]⟩
 
 /-- Probability that the Cascade Model starting from seed set `S` (with empty initial `tried`
 histories) under selector `nextEdge` terminates at active set `A`. -/
@@ -1020,9 +1015,8 @@ private theorem survivalProd_mul_cascadeProbFrom_eq
         Finset.Subset.antisymm (hinv w hw) fun u hu => by
           rcases Finset.mem_inter.mp hu with ⟨hu_act, hadj⟩
           by_contra hu_not
-          have hmem : (u, w) ∈ untriedEdges G active tried :=
-            (mem_untriedEdges (e := (u, w))).mpr ⟨hu_act, hw, mem_inNeighbors.mp hadj, hu_not⟩
-          exact Finset.notMem_empty _ (hemp ▸ hmem)
+          exact Finset.notMem_empty _ (hemp ▸ (mem_untriedEdges (e := (u, w))).mpr
+            ⟨hu_act, hw, mem_inNeighbors.mp hadj, hu_not⟩)
       rw [cascadeProbFrom, (hvalid active tried).2 hemp, hbase active tried htr_eq]
       split_ifs <;> ring
 
@@ -1117,11 +1111,10 @@ theorem activeSetProb_eq_toGeneralThresholdModel
             · simpa only [tried', Function.update_of_ne hwv] using hsurv' w hw
       have hE_disj : Disjoint E1 E2 := Set.disjoint_left.mpr fun θ h1 h2 =>
         not_lt_of_ge h1.2 (by simpa only [tried', Function.update_self] using h2.1 v hv_inact)
-      have hmE2 : MeasurableSet E2 := measurableSet_survEvent M active tried' A
       have hmE1 : MeasurableSet E1 :=
         (measurableSet_survEvent M active tried A).inter
           (measurableSet_Iic.preimage (measurable_pi_apply v))
-      rw [hE_union, measureReal_union hE_disj hmE2]
+      rw [hE_union, measureReal_union hE_disj (measurableSet_survEvent M active tried' A)]
       congr 1
       let S_succ := survEvent M (insert v active) tried' A
       have hS_indep : ∀ θ z, S_succ.indicator (fun _ => (1 : ℝ)) (Function.update θ v z) =
@@ -1261,15 +1254,11 @@ theorem mem_seedLayer0 {V : Type*} {T : ℕ} {S : Finset V} {x : V × Fin (T + 1
 
 theorem seedLayer0_union {V : Type*} [DecidableEq V] (T : ℕ) (A B : Finset V) :
     seedLayer0 T (A ∪ B) = seedLayer0 T A ∪ seedLayer0 T B := by
-  ext x
-  simp only [Finset.mem_union, mem_seedLayer0]
-  tauto
+  simp only [seedLayer0, Finset.map_union]
 
 theorem seedLayer0_inter {V : Type*} [DecidableEq V] (T : ℕ) (A B : Finset V) :
     seedLayer0 T (A ∩ B) = seedLayer0 T A ∩ seedLayer0 T B := by
-  ext x
-  simp only [Finset.mem_inter, mem_seedLayer0]
-  tauto
+  simp only [seedLayer0, Finset.map_inter]
 
 namespace GeneralThresholdModel
 
@@ -1363,9 +1352,7 @@ theorem mem_thresholdFinal_toTimeLayered_iff {T : ℕ} {θ : V × Fin (T + 1) �
     simpa [B] using congrArg ((v, t) ∈ ·) hEq
   refine Finset.Subset.antisymm ?_ ?_
   · refine (M.toTimeLayered T).thresholdFinal_subset_of_lt
-      (fun x hx => by
-        rcases mem_seedLayer0.mp hx with ⟨hx0, hxS⟩
-        simp [B, hx0, hxS])
+      (fun x hx => by simp [B, mem_seedLayer0.mp hx])
       fun x hxnot => ?_
     rcases x with ⟨w, ⟨_ | k, hk⟩⟩
     · exact hθ0 w
@@ -1389,9 +1376,8 @@ theorem mem_thresholdFinal_toTimeLayered_iff {T : ℕ} {θ : V × Fin (T + 1) �
       have hsub : M.nonprogActive θ S ⟨k, Nat.lt_succ_of_le (Nat.le_of_succ_le hk')⟩ ⊆
           Finset.univ.filter fun u =>
             (u, (⟨k, Nat.lt_succ_of_le (Nat.le_of_succ_le hk')⟩ : Fin (T + 1))) ∈
-              (M.toTimeLayered T).thresholdFinal θ (seedLayer0 T S) := fun u hu => by
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and]
-        exact ih u (Nat.lt_trans (Nat.lt_succ_self k) hk) hu
+              (M.toTimeLayered T).thresholdFinal θ (seedLayer0 T S) := fun u hu =>
+        Finset.mem_filter.mpr ⟨Finset.mem_univ _, ih u (Nat.lt_trans (Nat.lt_succ_self k) hk) hu⟩
       have hmem_step : (w, (⟨k + 1, hk⟩ : Fin (T + 1))) ∈
           (M.toTimeLayered T).thresholdStep θ
             ((M.toTimeLayered T).thresholdFinal θ (seedLayer0 T S)) :=

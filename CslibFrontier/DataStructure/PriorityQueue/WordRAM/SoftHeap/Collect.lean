@@ -100,22 +100,12 @@ private def forestNodeEntries (roots : List SHTree) : List (ℕ × ℕ × List S
 
 private theorem forestNodeEntries_map_fst (roots : List SHTree) :
     (forestNodeEntries roots).map Prod.fst = forestNodeIds roots := by
-  induction roots with
-  | nil => rfl
-  | cons t rest ih =>
-    simp only [forestNodeEntries, forestNodeIds, List.flatMap_cons, List.map_append,
-      t.nodeEntries_map_fst]
-    exact congrArg (t.nodeIds ++ ·) ih
+  simp only [forestNodeEntries, forestNodeIds, List.map_flatMap, SHTree.nodeEntries_map_fst]
 
 private theorem forestNodeEntries_flatMap (roots : List SHTree) :
     ((forestNodeEntries roots).flatMap (fun e => e.2.2.map (fun it => (it, e.2.1)))) =
       forestEntries roots := by
-  induction roots with
-  | nil => rfl
-  | cons t rest ih =>
-    simp only [forestNodeEntries, forestEntries, List.flatMap_cons, List.flatMap_append,
-      t.nodeEntries_flatMap]
-    exact congrArg (t.allEntries ++ ·) ih
+  simp only [forestNodeEntries, forestEntries, List.flatMap_assoc, SHTree.nodeEntries_flatMap]
 
 private theorem TreeMemRep.nodeEntries_rep {rt itemBase nodeBase : ℕ} {mem : ℕ → ℕ}
     {t : SHTree} (hrep : TreeMemRep rt itemBase nodeBase mem t) :
@@ -214,25 +204,17 @@ private def nodeItemCountAt (roots : List SHTree) (idx : ℕ) : ℕ :=
 
 private theorem nodeCorruptedAt_eq_nil_of_not_mem {roots : List SHTree} {idx : ℕ}
     (hnot : idx ∉ forestNodeIds roots) : nodeCorruptedAt roots idx = [] := by
-  have hnil : (forestNodeEntries roots).filter (fun e => decide (e.1 = idx)) = [] := by
-    rw [List.filter_eq_nil_iff]
-    intro e he hdec
-    rw [decide_eq_true_eq] at hdec
-    apply hnot
-    rw [← forestNodeEntries_map_fst, ← hdec]
-    exact List.mem_map_of_mem he
-  simp [nodeCorruptedAt, hnil]
+  have hnil : (forestNodeEntries roots).filter (fun e => decide (e.1 = idx)) = [] :=
+    List.filter_eq_nil_iff.mpr fun e he hdec =>
+      hnot (forestNodeEntries_map_fst roots ▸ decide_eq_true_eq.mp hdec ▸ List.mem_map_of_mem he)
+  simp only [nodeCorruptedAt, hnil, List.flatMap_nil]
 
 private theorem nodeItemCountAt_eq_zero_of_not_mem {roots : List SHTree} {idx : ℕ}
     (hnot : idx ∉ forestNodeIds roots) : nodeItemCountAt roots idx = 0 := by
-  have hnil : (forestNodeEntries roots).filter (fun e => decide (e.1 = idx)) = [] := by
-    rw [List.filter_eq_nil_iff]
-    intro e he hdec
-    rw [decide_eq_true_eq] at hdec
-    apply hnot
-    rw [← forestNodeEntries_map_fst, ← hdec]
-    exact List.mem_map_of_mem he
-  simp [nodeItemCountAt, hnil]
+  have hnil : (forestNodeEntries roots).filter (fun e => decide (e.1 = idx)) = [] :=
+    List.filter_eq_nil_iff.mpr fun e he hdec =>
+      hnot (forestNodeEntries_map_fst roots ▸ decide_eq_true_eq.mp hdec ▸ List.mem_map_of_mem he)
+  simp only [nodeItemCountAt, hnil, List.map_nil, List.sum_nil]
 
 private theorem nodeCorruptedAt_eq_of_mem {roots : List SHTree}
     (hnd : (forestNodeIds roots).Nodup) {e : ℕ × ℕ × List SHItem}
@@ -347,9 +329,7 @@ private theorem collectItems_while_spec {w itemBase ck outBase outCap : ℕ}
       rcases hstep with ⟨hv_st, hm_st, hres_st, hs_st⟩
       set s₁ := (Memory.spec 0).clientState s
         (collectItemsStep ((itemBase, ck, outBase), (it.id, curOut))) with hs₁_def
-      have hwf₁ : Memory.WellFormed w s₁ := by
-        change Memory.WellFormed w ((Memory.spec 0).clientState s _)
-        exact wellFormed_clientState hwf hv_st
+      have hwf₁ : Memory.WellFormed w s₁ := wellFormed_clientState hwf hv_st
       have hfr₁ : s₁.frontier = s.frontier := by
         rw [hs_st]; split_ifs <;> rfl
       set curOut₁ := if it.origKey < ck then curOut + 1 else curOut
@@ -367,11 +347,8 @@ private theorem collectItems_while_spec {w itemBase ck outBase outCap : ℕ}
       have hrest₁ : ItemListRep itemBase s₁.mem nxt (if nxt = 0 then 0 else tail) rest :=
         ItemListRep.congr hagree_rest hrest
       have hcap₁ : curOut₁ + (corrVals ck rest).length ≤ outCap := by
-        by_cases hcor : it.origKey < ck
-        · simp only [corrVals_cons, hcor, ↓reduceIte, List.length_cons] at hcap
-          dsimp only [curOut₁]; simp only [hcor, ↓reduceIte]; omega
-        · simp only [corrVals_cons, hcor, ↓reduceIte] at hcap
-          dsimp only [curOut₁]; simp only [hcor, ↓reduceIte]; exact hcap
+        by_cases hcor : it.origKey < ck <;>
+          simp only [curOut₁, corrVals_cons, hcor, ↓reduceIte, List.length_cons] at hcap ⊢ <;> omega
       have hfit₁ : Fits w (curOut + 1) := hout_fit.of_le (by omega)
       have hih := ih nxt (if nxt = 0 then 0 else tail) curOut₁ fuel' hwf₁ hrest₁
         (by simp only [List.length_cons] at hfuel; omega) hcap₁
@@ -394,11 +371,8 @@ private theorem collectItems_while_spec {w itemBase ck outBase outCap : ℕ}
         simp only [List.length_cons]
         omega
       · rw [hbw, StateTransitionSpec.clientResult_bind, hres_st, hres_ih]
-        by_cases hcor : it.origKey < ck
-        · simp only [corrVals_cons, hcor, ↓reduceIte, List.length_cons]
-          dsimp only [curOut₁]; simp only [hcor, ↓reduceIte]; omega
-        · simp only [corrVals_cons, hcor, ↓reduceIte]
-          dsimp only [curOut₁]; simp only [hcor, ↓reduceIte]
+        by_cases hcor : it.origKey < ck <;>
+          simp only [curOut₁, corrVals_cons, hcor, ↓reduceIte, List.length_cons]; omega
       · rw [hbw, StateTransitionSpec.clientState_bind, hres_st]
         exact hfr_ih.trans hfr₁
       · intro a ha
@@ -406,23 +380,15 @@ private theorem collectItems_while_spec {w itemBase ck outBase outCap : ℕ}
         by_cases hcor : it.origKey < ck
         · simp only [corrVals_cons, hcor, ↓reduceIte, List.length_cons]
           by_cases hs₁a : s₁.mem a = s.mem a
-          · rw [← hs₁a] at ha
-            have ha' := hmem_ih a ha
-            dsimp only [curOut₁] at ha'
-            simp only [hcor, ↓reduceIte] at ha'
+          · have ha' := hmem_ih a (hs₁a ▸ ha)
+            simp only [curOut₁, hcor, ↓reduceIte] at ha'
             omega
-          · rw [hs_st] at hs₁a
-            simp only [hcor, ↓reduceIte] at hs₁a
+          · simp only [hs_st, hcor, ↓reduceIte] at hs₁a
             by_cases heqa : a = outBase + curOut
             · subst heqa; omega
-            · rw [Function.update_of_ne heqa] at hs₁a
-              exact absurd rfl hs₁a
-        · simp only [corrVals_cons, hcor, ↓reduceIte]
-          have hs₁_s : s₁ = s := by
-            rw [hs_st]; simp only [hcor, ↓reduceIte]
-          dsimp only [curOut₁] at hmem_ih ha
-          simp only [hcor, ↓reduceIte] at hmem_ih ha
-          rw [hs₁_s] at ha hmem_ih
+            · exact absurd (Function.update_of_ne heqa _ _) hs₁a
+        · have hs₁_s : s₁ = s := by simp only [hs_st, hcor, ↓reduceIte]
+          simp only [corrVals_cons, curOut₁, hcor, ↓reduceIte, hs₁_s] at hmem_ih ha ⊢
           exact hmem_ih a ha
       · intro i hi
         rw [hbw, StateTransitionSpec.clientState_bind, hres_st, ← hs₁_def]
@@ -436,27 +402,18 @@ private theorem collectItems_while_spec {w itemBase ck outBase outCap : ℕ}
                 s₁.mem (outBase + curOut + 0) := by
               by_contra hdiff
               have := hmem_ih _ hdiff
-              dsimp only [curOut₁] at this
-              simp only [hcor, ↓reduceIte] at this
+              simp only [curOut₁, hcor, ↓reduceIte] at this
               omega
             rw [hnot_mod, hs_st]
-            simp only [hcor, ↓reduceIte]
-            rw [Nat.add_zero, Function.update_self]
+            simp only [hcor, ↓reduceIte, Nat.add_zero, Function.update_self]
             rfl
           | succ j =>
             simp only [List.length_cons] at hi
-            have hj : j < (corrVals ck rest).length := by omega
-            have hget := hget_ih j hj
-            dsimp only [curOut₁] at hget
-            simp only [hcor, ↓reduceIte] at hget
+            have hget := hget_ih j (by omega)
+            simp only [curOut₁, hcor, ↓reduceIte] at hget ⊢
             have haddr : outBase + curOut + (j + 1) = outBase + (curOut + 1) + j := by omega
-            rw [haddr]
-            dsimp only [curOut₁]
-            simp only [hcor, ↓reduceIte]
-            exact hget
-        · simp only [corrVals_cons, hcor, ↓reduceIte] at hi ⊢
-          dsimp only [curOut₁] at hget_ih ⊢
-          simp only [hcor, ↓reduceIte] at hget_ih ⊢
+            rwa [haddr]
+        · simp only [corrVals_cons, curOut₁, hcor, ↓reduceIte] at hi hget_ih ⊢
           exact hget_ih i hi
 
 private theorem collectItems_spec {w itemBase ck outBase hd tail curOut fuel outCap : ℕ}
@@ -484,19 +441,10 @@ private theorem collectItems_spec {w itemBase ck outBase hd tail curOut fuel out
   rcases collectItems_while_spec items hd tail curOut fuel h16 hwf hil hfuel hcap hlt_items
     hout_lt hout_fit hdisj with ⟨hv, hsafe, hm, hres, hfr, hmem, hget⟩
   dsimp only [collectItems]
-  refine ⟨validHistory_bind_step hv (validHistory_pure w _ _), ⟨h16, hsafe⟩, ?_, ?_, ?_, ?_, ?_⟩
-  · rw [memoryCost_bind', memoryCost_pure, add_zero]
-    exact hm
-  · rw [StateTransitionSpec.clientResult_bind]
-    exact hres
-  · rw [StateTransitionSpec.clientState_bind]
-    exact hfr
-  · intro a ha
-    rw [StateTransitionSpec.clientState_bind] at ha
-    exact hmem a ha
-  · intro i hi
-    rw [StateTransitionSpec.clientState_bind]
-    exact hget i hi
+  rw [memoryCost_bind', memoryCost_pure, add_zero, StateTransitionSpec.clientResult_bind,
+    StateTransitionSpec.clientState_bind]
+  exact ⟨validHistory_bind_step hv (validHistory_pure w _ _), ⟨h16, hsafe⟩, hm, hres, hfr, hmem,
+    hget⟩
 
 private theorem collectNodeStep_head_zero_spec
     {w ic₀ nc₀ maxItems maxNodes outBase fuel : ℕ}
@@ -703,14 +651,9 @@ private theorem collectNodeStep_spec
 private theorem list_range_map_succ (idx n : ℕ) :
     (List.range (n + 1)).map (fun i => idx + i) =
       idx :: (List.range n).map (fun i => idx + 1 + i) := by
-  induction n generalizing idx with
-  | zero => rfl
-  | succ n ih =>
-    rw [List.range_succ, List.map_append, List.map_cons, List.map_nil, ih]
-    rw [List.range_succ, List.map_append, List.map_cons, List.map_nil]
-    simp only [List.cons_append]
-    congr 1; congr 1; congr 1
-    omega
+  rw [List.range_succ_eq_map, List.map_cons, List.map_map]
+  simp only [add_zero, Function.comp_def]
+  exact congrArg _ (List.map_congr_left fun _ _ => by omega)
 
 private theorem collectNode_iterate_spec
     {w ic₀ nc₀ maxItems maxNodes outBase outCount outCap fuel : ℕ}
@@ -873,23 +816,14 @@ theorem shCollectCorrupted_spec {w ic₀ nc₀ maxItems maxNodes outBase outCoun
     list_flatMap_filter_eq_perm hkeys_nd hkeys_sub
   have hwritten_eq : written =
       (keys.flatMap (fun k => (forestNodeEntries roots).filter (fun e => decide (e.1 = k)))).flatMap
-        (fun e => corrVals e.2.1 e.2.2) := by
-    dsimp only [written]
-    induction keys with
-    | nil => rfl
-    | cons k rest ih =>
-      simp only [List.flatMap_cons, List.flatMap_append] at ih ⊢
-      rw [nodeCorruptedAt, ih]
+        (fun e => corrVals e.2.1 e.2.2) :=
+    (List.flatMap_assoc ..).symm
   have hcorr_flat :
       (forestNodeEntries roots).flatMap (fun e => corrVals e.2.1 e.2.2) =
         ((forestEntries roots).filter (fun p => decide (p.1.origKey < p.2))).map
           (fun p => p.1.val) := by
-    rw [← forestNodeEntries_flatMap]
-    induction (forestNodeEntries roots) with
-    | nil => rfl
-    | cons e rest ih =>
-      simp only [List.flatMap_cons, List.filter_append, List.map_append]
-      rw [filter_map_entries_eq_corrVals, ih]
+    rw [← forestNodeEntries_flatMap, List.filter_flatMap, List.map_flatMap]
+    exact List.flatMap_congr fun ⟨_, ck, items⟩ _ => (filter_map_entries_eq_corrVals ck items).symm
   have hwritten_perm : written.Perm
       (((forestEntries roots).filter (fun p => decide (p.1.origKey < p.2))).map
         (fun p => p.1.val)) := by
@@ -905,34 +839,11 @@ theorem shCollectCorrupted_spec {w ic₀ nc₀ maxItems maxNodes outBase outCoun
     (by omega) (by have := hinv.nc_le; omega) hfuel le_rfl hout_lt hout_fit hout_disj hcap_it
   rcases hit with ⟨hv_it, hsafe_it, hm_it, hres_it, hfr_it, hmem_it, hinv', hget_it⟩
   have hsum_cnt : (keys.map (nodeItemCountAt roots)).sum = (forestEntries roots).length := by
-    have hperm_len :
-        ((keys.flatMap (fun k => (forestNodeEntries roots).filter
-          (fun e => decide (e.1 = k)))).flatMap (fun e => e.2.2.map (fun it => (it, e.2.1)))).Perm
-          ((forestNodeEntries roots).flatMap (fun e => e.2.2.map (fun it => (it, e.2.1)))) :=
-      List.Perm.flatMap_right _ hperm_fne
+    have hperm_len := (List.Perm.flatMap_right
+      (fun ⟨_, ck, items⟩ => items.map (fun it => (it, ck))) hperm_fne).length_eq
     rw [forestNodeEntries_flatMap] at hperm_len
-    have hl := hperm_len.length_eq
-    have hl_eq :
-        ((keys.flatMap (fun k => (forestNodeEntries roots).filter
-          (fun e => decide (e.1 = k)))).flatMap
-          (fun e => e.2.2.map (fun it => (it, e.2.1)))).length =
-          (keys.map (nodeItemCountAt roots)).sum := by
-      clear hl hperm_len
-      induction keys with
-      | nil => rfl
-      | cons k rest ih =>
-        simp only [List.flatMap_cons, List.flatMap_append, List.length_append, List.map_cons,
-          List.sum_cons]
-        rw [ih]
-        congr 1
-        unfold nodeItemCountAt
-        induction ((forestNodeEntries roots).filter (fun e => decide (e.1 = k))) with
-        | nil => rfl
-        | cons e rest' ih' =>
-          simp only [List.flatMap_cons, List.length_append, List.length_map, List.map_cons,
-            List.sum_cons]
-          omega
-    omega
+    simp only [List.flatMap_assoc, List.length_flatMap, List.length_map] at hperm_len
+    exact hperm_len
   have hnc_bound : h.nodeCount - nc₀ ≤ 2 * (h.itemCount - ic₀) := by
     have := hinv.nc_roots_le; omega
   have hlen_bound : (forestEntries roots).length ≤ h.itemCount - ic₀ :=
@@ -970,15 +881,11 @@ theorem shCollectCorrupted_spec {w ic₀ nc₀ maxItems maxNodes outBase outCoun
         (fun i => ((Memory.spec 0).clientState s
           (shCollectCorrupted (h, nc₀, outBase, outCount, fuel))).mem
             (outBase + outCount + i)) = written := by
-      apply List.ext_getElem
-      · simp
-      · intro i hi₁ hi₂
-        simp only [List.length_map, List.length_range] at hi₁
-        simp only [List.getElem_map, List.getElem_range]
-        rw [hs_raw]
-        exact hget_it i hi₁
-    rw [hrange_eq]
-    exact hwritten_perm
+      refine List.ext_getElem (by simp) fun i hi₁ _ => ?_
+      simp only [List.length_map, List.length_range] at hi₁
+      simp only [List.getElem_map, List.getElem_range, hs_raw]
+      exact hget_it i hi₁
+    exact hrange_eq.symm ▸ hwritten_perm
   · rw [hprog_eq, memoryCost_bind', memoryCost_pure, add_zero]
     rw [hsum_cnt] at hm_it
     omega

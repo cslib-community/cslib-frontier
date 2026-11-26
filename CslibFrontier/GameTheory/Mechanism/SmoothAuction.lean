@@ -160,8 +160,7 @@ theorem HasZeroBidFloor.utility_zero_nonneg [DecidableEq ι] {M : Mechanism ι}
     (h0 : M.HasZeroBidFloor) {i : ι} {b : ι → ℝ} (hb : 0 ≤ b) {v : ℝ} (hv : 0 ≤ v) :
     0 ≤ M.utility i v (update b i 0) := by
   obtain ⟨hx, hp⟩ := h0 i b hb
-  rw [utility]
-  nlinarith
+  rw [utility]; nlinarith
 
 /-- **Syrgkanis–Tardos `(λ, μ)`-smooth mechanism** ([SyrgkanisTardos2013]): for every nonnegative
 valuation profile `v` and feasible benchmark allocation `x ∈ X`, there exist finitely supported bid
@@ -221,9 +220,8 @@ theorem IsSmoothMechanism.welfare_ge {X : Set (ι → ℝ)}
     simp only [Finsupp.sum, mul_sum]
     rw [sum_comm]
     exact sum_nonneg fun i _ => hir i
-  have hpay_exp : 0 ≤ σ.weights.sum (fun b w => w * ∑ i, M.payment (fun j => (b j : ℝ)) i) := by
-    simp only [Finsupp.sum]
-    exact sum_nonneg fun b _ => mul_nonneg (Convexity.StdSimplex.weights_nonneg b)
+  have hpay_exp : 0 ≤ σ.weights.sum (fun b w => w * ∑ i, M.payment (fun j => (b j : ℝ)) i) :=
+    sum_nonneg fun b _ => mul_nonneg (Convexity.StdSimplex.weights_nonneg b)
       (hpay _ fun j => (b j).coe_nonneg)
   have hdev_le : ∀ i, σ.weights.sum (fun b w => w * (D i).weights.sum fun z wt =>
         wt * M.utility i (v i) (update (fun j => (b j : ℝ)) i (z : ℝ))) ≤
@@ -253,9 +251,8 @@ theorem IsSmoothMechanism.welfare_ge {X : Set (ι → ℝ)}
     have hpt : σ.weights.sum (fun b w =>
           w * (lam * socialWelfare v x - μ * ∑ i, M.payment (fun j => (b j : ℝ)) i)) ≤
         σ.weights.sum (fun b w => w * ∑ i, (D i).weights.sum fun z wt =>
-          wt * M.utility i (v i) (update (fun j => (b j : ℝ)) i (z : ℝ))) := by
-      simp only [Finsupp.sum]
-      exact sum_le_sum fun b _ => mul_le_mul_of_nonneg_left
+          wt * M.utility i (v i) (update (fun j => (b j : ℝ)) i (z : ℝ))) :=
+      sum_le_sum fun b _ => mul_le_mul_of_nonneg_left
         (hD _ fun j => (b j).coe_nonneg) (Convexity.StdSimplex.weights_nonneg b)
     have htot : ∑ b ∈ σ.weights.support, σ.weights b = 1 := σ.total
     have hL : σ.weights.sum (fun b w =>
@@ -266,9 +263,7 @@ theorem IsSmoothMechanism.welfare_ge {X : Set (ι → ℝ)}
         htot, one_mul]
     have hcomm : ∀ g : (ι → ℝ≥0) → ι → ℝ,
         σ.weights.sum (fun b w => w * ∑ i, g b i) = ∑ i, σ.weights.sum fun b w => w * g b i :=
-      fun _ => by
-        simp only [Finsupp.sum, mul_sum]
-        exact sum_comm
+      fun _ => (sum_congr rfl fun _ _ => mul_sum ..).trans sum_comm
     have hR := sum_le_sum fun i (_ : i ∈ univ) => hdev_le i
     rw [← hcomm, ← hcomm] at hR; linarith
   exact div_max_one_mul_le hsm_exp hir_sum hpay_exp
@@ -509,10 +504,8 @@ theorem highestOtherBid_le_sum_payment {b : ι → ℝ} (hb : 0 ≤ b) (i : ι) 
   obtain ⟨w, hw⟩ := Vickrey.exists_wins b
   dsimp only [FirstPrice.mechanism]
   rw [sum_mul_allocation_eq_of_wins hw]
-  refine Vickrey.highestOtherBid_le_iff.2 ⟨hb w, fun j _ => ?_⟩
-  rcases eq_or_ne j w with rfl | hjw
-  · exact le_rfl
-  · exact (hw j hjw).1
+  exact Vickrey.highestOtherBid_le_iff.2 ⟨hb w, fun j _ =>
+    (eq_or_ne j w).elim (· ▸ le_rfl) fun hjw => (hw j hjw).1⟩
 
 omit [Fintype ι] in
 theorem utility_nonneg_of_le (b : ι → ℝ) (i : ι) {v z : ℝ} (hzv : z ≤ v) :
@@ -846,11 +839,11 @@ private theorem highestOtherBid_le_welfare_of_noOverbidding {v b : ι → ℝ} (
     highestOtherBid b i ≤ Vickrey.mechanism.welfare v b := by
   have : Nonempty ι := ⟨i⟩
   obtain ⟨w, hw⟩ := exists_wins b
-  rw [show Vickrey.mechanism.welfare v b = v w from FirstPrice.sum_mul_allocation_eq_of_wins hw]
-  refine highestOtherBid_le_iff.2 ⟨hv w, fun j _ => ?_⟩
-  rcases eq_or_ne j w with rfl | hjw
-  · exact hnob j
-  · exact (hw j hjw).1.trans (hnob w)
+  have hwel : Vickrey.mechanism.welfare v b = v w := FirstPrice.sum_mul_allocation_eq_of_wins hw
+  rw [hwel]
+  exact highestOtherBid_le_iff.2 ⟨hv w, fun j _ =>
+    (eq_or_ne j w).elim (fun h => (hnob j).trans_eq (congrArg v h))
+      fun hjw => (hw j hjw).1.trans (hnob w)⟩
 
 private theorem sum_payment_nonneg_vickrey (b : ι → ℝ) :
     0 ≤ ∑ i, Vickrey.mechanism.payment b i :=
@@ -907,9 +900,8 @@ theorem welfare_ge_half_of_noOverbidding {v : ι → ℝ} (hv : 0 ≤ v) {x : ι
       rw [sum_comm]
     have hi₀_le := single_le_sum (fun j _ => hir j) (Finset.mem_univ i₀)
     have hpay0 : 0 ≤ σ.weights.sum fun b w =>
-        w * ∑ j, Vickrey.mechanism.payment (fun k => (b k : ℝ)) j := by
-      simp only [Finsupp.sum]
-      exact sum_nonneg fun b _ => mul_nonneg (Convexity.StdSimplex.weights_nonneg b)
+        w * ∑ j, Vickrey.mechanism.payment (fun k => (b k : ℝ)) j :=
+      sum_nonneg fun b _ => mul_nonneg (Convexity.StdSimplex.weights_nonneg b)
         (sum_payment_nonneg_vickrey _)
     rw [socialWelfare_eq_of_eq_one v x hi₀ hj0]
     linarith
@@ -1003,10 +995,8 @@ theorem integral_welfare_ge_half_of_isBayesNash_noOverbidding
     sum_congr rfl fun i _ => Vickrey.mechanism.integral_interimSliceUtil_eq (hutil_eq i),
     ← integral_finsetSum _ fun i _ => hutil_eq i] at hmain
   have hpay_nonneg :
-      0 ≤ ∫ w, ∑ i, Vickrey.mechanism.payment (fun j => β j (w j)) i ∂Measure.pi ν := by
-    refine integral_nonneg_of_ae ?_
-    filter_upwards [hbox] with w _
-    exact sum_payment_nonneg_vickrey _
+      0 ≤ ∫ w, ∑ i, Vickrey.mechanism.payment (fun j => β j (w j)) i ∂Measure.pi ν :=
+    integral_nonneg fun _ => sum_payment_nonneg_vickrey _
   linarith [Vickrey.mechanism.integral_welfare_eq_add_payment hutil_eq hpay_eq]
 
 /-- **Necessity of no-overbidding in the second-price auction**: with two bidders of valuations

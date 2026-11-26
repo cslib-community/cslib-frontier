@@ -392,8 +392,7 @@ private theorem depSet_eq {U m : ℕ} (T : Table U m) (π : Fin U → Equiv.Perm
     (r_ext : Fin U → ℕ) (x : Fin U) :
     depSet T π r_ext x = insert x (partialDepSet T π r_ext x m) := by
   rw [depSet, partialDepSet]
-  ext z
-  simp
+  simp [Finset.ext_iff]
 
 private theorem self_mem_depSet {U m : ℕ} (T : Table U m) (π : Fin U → Equiv.Perm (Fin m))
     (r_ext : Fin U → ℕ) (x : Fin U) :
@@ -552,9 +551,8 @@ private theorem missedProbes_lt_card_of_mem_partialDepSet {U m : ℕ}
     (hz : z ∈ partialDepSet T π (extRank s rank u) x r) :
     missedProbes (otherOccupiedSlots T z) (π z) <
       (partialDepSet T π (extRank s rank u) x r).card := by
-  have hcard_le := Finset.card_le_card
+  have hcard_le := card_depSet_eq T π (extRank s rank u) z ▸ Finset.card_le_card
     (rank_lt_and_depSet_subset_of_mem_partialDepSet T π (extRank s rank u) x r hz).2
-  rw [card_depSet_eq] at hcard_le
   have hge := card_partialDepSet_ge hrep hrank u (Finset.mem_insert_of_mem
     (mem_dom_of_mem_partialDepSet hrep (extRank s rank u) x r hz)) le_rfl
   omega
@@ -673,11 +671,11 @@ private theorem length_probePrefix {m : ℕ} (hm : 0 < m) (σ : Equiv.Perm (Fin 
   simp [probePrefix]
 
 private theorem nodup_probePrefix {m : ℕ} (hm : 0 < m) (σ : Equiv.Perm (Fin m)) {l : ℕ}
-    (hl : l ≤ m) : (probePrefix hm σ l).Nodup := by
-  refine List.nodup_range.map_on fun i hi j hj heq => ?_
-  rw [List.mem_range] at hi hj
-  rw [probeAt_eq_of_lt hm σ (hi.trans_le hl), probeAt_eq_of_lt hm σ (hj.trans_le hl)] at heq
-  exact Fin.mk.inj (σ.injective heq)
+    (hl : l ≤ m) : (probePrefix hm σ l).Nodup :=
+  List.nodup_range.map_on fun i hi j hj heq => by
+    rw [probeAt_eq_of_lt hm σ ((List.mem_range.mp hi).trans_le hl),
+      probeAt_eq_of_lt hm σ ((List.mem_range.mp hj).trans_le hl)] at heq
+    exact Fin.mk.inj (σ.injective heq)
 
 private theorem take_probePrefix {m : ℕ} (hm : 0 < m) (σ : Equiv.Perm (Fin m)) {k w : ℕ}
     (hkw : k ≤ w) : (probePrefix hm σ w).take k = probePrefix hm σ k := by
@@ -1384,9 +1382,8 @@ private theorem card_degSeqFinset_le_four_pow (w : ℕ) :
       rcases hb.eq_or_lt with rfl | hlt_b
       · rw [Finset.filter_true_of_mem fun a _ => Nat.le_of_lt_succ a.isLt,
           (Finset.mem_filter.mp hf₁).2, (Finset.mem_filter.mp hf₂).2]
-      · have hval := congrArg Fin.val (congrFun hg_eq ⟨b, hlt_b⟩)
-        rw [hg f₁ hf₁, hg f₂ hf₂] at hval
-        exact Nat.add_left_cancel hval
+      · simpa only [hg f₁ hf₁, hg f₂ hf₂, degPrefSum, add_right_inj] using
+          congrArg Fin.val (congrFun hg_eq ⟨b, hlt_b⟩)
     -- Equal prefix sums give equal entries, by strong induction on the index.
     refine funext fun a => ?_
     induction hn : a.val using Nat.strong_induction_on generalizing a with
@@ -1826,7 +1823,6 @@ theorem sum_probeCount_oddStride_doubleTab_le
       3 * Fintype.card (DoubleHashSeed c_exp n_max M) := by
   let c := 2 * max c_exp 1
   let b := (1 + Nat.clog 2 (max n_max 4)) / 2
-  have hc1 : 1 ≤ c := by omega
   have hM : 1 ≤ M := by grind
   obtain ⟨hU_cb, hb_ge, hmax_le_2b⟩ := doubleTab_canonical_params hge hU
   have hb_min_def : doubleTabMinB c_exp = 4 * (24 * c + 8) ^ 2 := doubleTabMinB_eq c_exp
@@ -1847,7 +1843,7 @@ theorem sum_probeCount_oddStride_doubleTab_le
       _ ≤ b ^ (24 * c + 8) := Nat.pow_le_pow_right (by omega) (by omega)
       _ ≤ 2 ^ b := Nat.pow_le_two_pow (by omega) (hb_min_def ▸ hb_ge)
       _ ≤ 2 ^ M := Nat.pow_le_pow_right (by decide) (by omega)
-  exact sum_probeCount_oddStride_doubleTab_of_codeBound_le hc1 hU_cb hM hm hw4
+  exact sum_probeCount_oddStride_doubleTab_of_codeBound_le (by omega) hU_cb hM hm hw4
     (mul_doubleTabCodeBound_le hb_ge h2cut_sq h2n_le) hrep hdom u
 
 /-- **`O(1)` Expected Probes (`≤ 3`) for Double Tabulation Odd-Stride Double Hashing above

@@ -187,21 +187,16 @@ private theorem isIdentical_finnHorowitzTight (m : ℕ) : (finnHorowitzTight m).
 private theorem load_finnHorowitzTightNE (m : ℕ) (j : Fin m) :
     (finnHorowitzTight m).load (finnHorowitzTightNE m) j =
       if j.val = 0 then 2 * (m : ℝ) else (m : ℝ) := by
-  rw [LoadBalancingGame.load_eq_sum_div]
-  simp only [finnHorowitzTight, identical, div_one]
   have hfilt : (univ.filter fun p : Bool × Fin m => finnHorowitzTightNE m p = j) =
       {(false, j), (true, j)} := by
     ext ⟨b, k⟩
     rw [Finset.mem_filter]
     cases b <;> simp [finnHorowitzTightNE]
-  change ∑ p ∈ (univ.filter fun p : Bool × Fin m => finnHorowitzTightNE m p = j),
-    (if p.2.val = 0 then (m : ℝ)
-     else if p.1 then ((m - p.2.val : ℕ) : ℝ) else p.2.val) = _
-  rw [hfilt, sum_pair (by simp)]
-  dsimp only
+  rw [LoadBalancingGame.load_eq_sum_div, hfilt, sum_pair (by simp)]
+  simp only [finnHorowitzTight, identical, div_one, Bool.false_eq_true, ↓reduceIte]
   by_cases hj : j.val = 0
   · simp only [hj, ↓reduceIte]; ring
-  · simp only [hj, ↓reduceIte, Bool.false_eq_true, Nat.cast_sub j.isLt.le]; ring
+  · simp only [hj, ↓reduceIte, Nat.cast_sub j.isLt.le]; ring
 
 theorem isPureNash_finnHorowitzTightNE (m : ℕ) :
     (finnHorowitzTight m).toCostGame.IsPureNash (finnHorowitzTightNE m) := by
@@ -247,13 +242,8 @@ theorem optMakespan_finnHorowitzTight (m : ℕ) [NeZero m] :
         have hj_lt := j.isLt
         simp only [Bool.true_eq_false, false_and, true_and, false_or, prev, ↓reduceIte, Fin.ext_iff]
         split_ifs <;> simp only <;> omega
-    rw [LoadBalancingGame.load_eq_sum_div]
-    simp only [finnHorowitzTight, identical, div_one]
-    change ∑ p ∈ univ.filter (fun p : Bool × Fin m => Aopt p = j),
-      (if p.2.val = 0 then (m : ℝ)
-       else if p.1 then ((m - p.2.val : ℕ) : ℝ) else p.2.val) = _
-    rw [hfilt, sum_pair (by simp)]
-    simp only [Bool.false_eq_true, ↓reduceIte]
+    rw [LoadBalancingGame.load_eq_sum_div, hfilt, sum_pair (by simp)]
+    simp only [finnHorowitzTight, identical, div_one, Bool.false_eq_true, ↓reduceIte]
     have hprev_eq : (if prev.val = 0 then (m : ℝ) else ((m - prev.val : ℕ) : ℝ)) =
         ((m - prev.val : ℕ) : ℝ) := by
       split_ifs with hp <;> simp [hp]
@@ -441,8 +431,8 @@ theorem makespan_le_goldenRatio_mul_optMakespan (G : LoadBalancingGame ι (Fin 2
         have hNE := (G.isPureNash_iff A).mp hA i₀ jother (hAi₀ ▸ hjne)
         rw [hAi₀, hwi₀] at hNE
         have hNE' : t * G.load A jstar ≤ t * G.load A jother + s * G.load A jstar := by
-          have := mul_le_mul_of_nonneg_left hNE ht.le
-          rw [mul_add, mul_div_cancel₀ _ ht.ne'] at this; linarith
+          simpa only [t, mul_add, mul_div_cancel₀ _ ht.ne'] using
+            mul_le_mul_of_nonneg_left hNE ht.le
         by_cases hratio : t ≤ φ * s
         · nlinarith
         · have hφ_pos : 0 < φ := by linarith
@@ -461,12 +451,9 @@ theorem makespan_le_goldenRatio_mul_optMakespan (G : LoadBalancingGame ι (Fin 2
     have hNE := (G.isPureNash_iff A).mp hA i₀ jother (hAi₀ ▸ hjne)
     rw [hAi₀] at hNE
     have hNE' : t * G.load A jstar ≤ t * G.load A jother + G.weight i₀ := by
-      have := mul_le_mul_of_nonneg_left hNE ht.le
-      rw [mul_add, mul_div_cancel₀ _ ht.ne'] at this; linarith
-    have hbound_small : s * G.load A jstar ≤ (s + t) * G.optMakespan := by
-      nlinarith [G.load_nonneg A jother]
+      simpa only [t, mul_add, mul_div_cancel₀ _ ht.ne'] using mul_le_mul_of_nonneg_left hNE ht.le
     have hthree_halves : G.load A jstar ≤ (3 / 2 : ℝ) * G.optMakespan := by
-      by_cases hst : 2 * t ≤ s <;> nlinarith
+      by_cases hst : 2 * t ≤ s <;> nlinarith [G.load_nonneg A jother]
     nlinarith
 
 /-- **Golden-ratio tightness witness** ([Vocking2007]): two jobs of weights
@@ -532,8 +519,8 @@ theorem makespan_goldenRatioTightNE :
     goldenRatioTight.makespan goldenRatioTightNE =
       ((1 + √5) / 2) * goldenRatioTight.optMakespan := by
   have hφ_pos : (0 : ℝ) < (1 + √5) / 2 := by positivity
-  have hφ_ge1 : (1 : ℝ) ≤ (1 + √5) / 2 := by
-    linarith [Real.sqrt_one ▸ Real.sqrt_le_sqrt (by norm_num : (1 : ℝ) ≤ 5)]
+  have h15 : (1 : ℝ) ≤ √5 := Real.one_le_sqrt.mpr (by norm_num)
+  have hφ_ge1 : (1 : ℝ) ≤ (1 + √5) / 2 := by linarith
   obtain ⟨hload0, hload1⟩ := load_goldenRatioTightNE
   rw [optMakespan_goldenRatioTight, mul_one]
   refine le_antisymm ((goldenRatioTight.makespan_le_iff _).mpr fun j => ?_)
@@ -724,9 +711,7 @@ theorem factorial_le_card_of_makespan_ge (G : LoadBalancingGame ι M) {A : ι �
     rw [hjstar]; nlinarith
   obtain ⟨i₀, hi₀⟩ : ∃ i₀ : ι, A i₀ = jstar := by
     by_contra! hnone
-    rw [G.load_eq_sum_div, filter_false_of_mem fun i _ => hnone i, sum_empty, zero_div]
-      at hpos_load
-    exact hpos_load.false
+    simp [G.load_eq_sum_div, filter_false_of_mem fun i _ => hnone i] at hpos_load
   exact factorial_le_card_of_prefix_step (G.speedPrefix A) (G.card_speedPrefix_ge hA hopt)
     (card_pos.mpr ⟨Aopt i₀, G.mem_speedPrefix_of_load_ge hA hAopt (by rwa [hi₀, hjstar])⟩)
 
@@ -765,21 +750,19 @@ theorem le_log_div_log_log_add_three_mul_of_factorial_le {m : ℕ} (hm : 3 ≤ m
     have hr_lt : (r : ℝ) < 2 * Real.log (m : ℝ) / Real.log (Real.log (m : ℝ)) := by
       by_contra! hge_r
       set x : ℝ := Real.log (m : ℝ)
+      have hx_pos : 0 < x := zero_lt_one.trans hlogm_gt1
       have hlogx_lt : Real.log x < 2 * √x := by
-        linarith [Real.log_le_sub_one_of_pos (Real.sqrt_pos.mpr (by linarith : 0 < x)),
-          Real.log_sqrt (by linarith : 0 ≤ x)]
+        linarith [Real.log_le_sub_one_of_pos (Real.sqrt_pos.mpr hx_pos), Real.log_sqrt hx_pos.le]
       have hsqrt_lt : √x < 2 * x / Real.log x := (lt_div_iff₀ hloglog_pos).mpr <| by
-        nlinarith [Real.mul_self_sqrt (by linarith : 0 ≤ x),
-          Real.sqrt_pos.mpr (by linarith : 0 < x)]
+        nlinarith [Real.mul_self_sqrt hx_pos.le, Real.sqrt_pos.mpr hx_pos]
       have hr_gt_sqrt : √x < (r : ℝ) := hsqrt_lt.trans_le hge_r
       have hsqrt_gt1 : 1 < √x := Real.sqrt_one ▸ Real.sqrt_lt_sqrt (by norm_num) hlogm_gt1
       have hr_pos : (0 : ℝ) < r := by linarith
       have hlogr_gt : Real.log x / 2 < Real.log (r : ℝ) :=
-        Real.log_sqrt (zero_lt_one.trans hlogm_gt1).le ▸
-          Real.log_lt_log (zero_lt_one.trans hsqrt_gt1) hr_gt_sqrt
+        Real.log_sqrt hx_pos.le ▸ Real.log_lt_log (zero_lt_one.trans hsqrt_gt1) hr_gt_sqrt
       have hmul_gt : x < (r : ℝ) * Real.log (r : ℝ) := by
         have h1 : (2 * x / Real.log x) * (Real.log x / 2) = x := by field_simp [hloglog_pos.ne']
-        linarith [mul_le_mul_of_nonneg_right hge_r (by positivity : 0 ≤ Real.log x / 2),
+        linarith [mul_le_mul_of_nonneg_right hge_r (half_pos hloglog_pos).le,
           mul_lt_mul_of_pos_left hlogr_gt hr_pos]
       have hlog_pow : (r : ℝ) * Real.log (r : ℝ) ≤ x :=
         Real.log_pow (r : ℝ) r ▸ Real.log_le_log (pow_pos hr_pos r) (by exact_mod_cast hpow)

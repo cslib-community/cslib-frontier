@@ -491,19 +491,16 @@ private theorem exists_tree_centroid {T : SimpleGraph V} (hT : T.IsTree) :
   let S := edgeSide T w c
   have hpt : ∀ x : V, (T.dist w x : ℤ) - (T.dist c x : ℤ) = if x ∈ S then -1 else 1 := fun x => by
     by_cases hx : x ∈ S
-    · simp only [hx, ↓reduceIte]
-      have hcx : x ∉ edgeSide T c w := (mem_edgeSide_swap hT hcw x).mp hx
+    · have hcx : x ∉ edgeSide T c w := (mem_edgeSide_swap hT hcw x).mp hx
       have hd := dist_eq_add_of_edgeSide hT (mem_edgeSide_self c w) hcx
       have hcw1 : T.dist c w = 1 := dist_eq_one_iff_adj.mpr hcw
-      omega
-    · simp only [hx, ↓reduceIte]
-      have hd := dist_eq_add_of_edgeSide hT (mem_edgeSide_self w c) hx
+      simp only [hx, ↓reduceIte]; omega
+    · have hd := dist_eq_add_of_edgeSide hT (mem_edgeSide_self w c) hx
       have hwc1 : T.dist w c = 1 := dist_eq_one_iff_adj.mpr hcw.symm
-      omega
-  have hmin : (0 : ℤ) ≤ (∑ x : V, (T.dist w x : ℤ)) - ∑ x : V, (T.dist c x : ℤ) :=
-    sub_nonneg.mpr (hc w)
-  rw [← sum_sub_distrib] at hmin
-  simp only [hpt] at hmin
+      simp only [hx, ↓reduceIte]; omega
+  have hmin : (0 : ℤ) ≤ ∑ x : V, if x ∈ S then (-1 : ℤ) else 1 := by
+    simp_rw [← hpt, sum_sub_distrib]
+    exact sub_nonneg.mpr (hc w)
   have hsum : (∑ x : V, if x ∈ S then (-1 : ℤ) else 1) =
       (Fintype.card V : ℤ) - 2 * (S.card : ℤ) := by
     have heq : ∀ x : V, (if x ∈ S then (-1 : ℤ) else 1) = 1 - if x ∈ S then 2 else 0 := fun x => by
@@ -529,8 +526,7 @@ theorem IsPureNash.socialCost_le_five_mul_of_isTree [DecidableEq V] {α : ℝ} (
   · rcases le_or_gt (Fintype.card V) 1 with hn | hn
     · exact hs.socialCost_le_mul_of_card_le_one hα₀ (by norm_num) s' hn
     · obtain ⟨c, hc⟩ := exists_tree_centroid hT
-      have hn_pos : (0 : ℝ) < (Fintype.card V : ℝ) := by
-        exact_mod_cast (by omega : 0 < Fintype.card V)
+      have hn_pos : (0 : ℝ) < (Fintype.card V : ℝ) := Nat.cast_pos.mpr (by omega)
       have hdist_c : ∀ u : V, u ≠ c →
           ((formedGraph s).dist u c : ℝ) ≤ 1 + 2 * α / (Fintype.card V : ℝ) := by
         intro u huc
@@ -538,16 +534,15 @@ theorem IsPureNash.socialCost_le_five_mul_of_isTree [DecidableEq V] {α : ℝ} (
         cases q with
         | nil => exact absurd rfl huc.symm
         | @cons _ w _ hcw q' =>
-          have hd_mem : (⟨(c, w), hcw⟩ : (formedGraph s).Dart) ∈ (Walk.cons hcw q').darts := by
-            simp
-          have hside := mem_edgeSide_of_mem_darts hT.isAcyclic hq_path hd_mem
+          have hside := mem_edgeSide_of_mem_darts hT.isAcyclic hq_path
+            (by simp : (⟨(c, w), hcw⟩ : (formedGraph s).Dart) ∈ (Walk.cons hcw q').darts)
           have hu_side : u ∈ edgeSide (formedGraph s) w c :=
             (mem_edgeSide_swap hT hcw u).mpr hside.2
           let S := edgeSide (formedGraph s) c w
           have hS_card : (Fintype.card V : ℝ) ≤ 2 * (S.card : ℝ) := by
             have hadd : S.card + (edgeSide (formedGraph s) w c).card = Fintype.card V := by
-              dsimp only [S]
-              rw [edgeSide_swap hT hcw.symm, card_compl_add_card]
+              simpa only [S, edgeSide_swap hT hcw.symm] using
+                card_compl_add_card (edgeSide (formedGraph s) w c)
             have hcw_le := hc w hcw
             exact_mod_cast (by omega : Fintype.card V ≤ 2 * S.card)
           let s_dev := addLink s u c
@@ -826,14 +821,7 @@ theorem IsPureNash.socialCost_le_three_mul_sub_one_of_dist_le {α : ℝ} (hα₀
       simp only [← mul_sum, sum_sub_distrib, sum_const, card_univ, nsmul_eq_mul] at hsum_dev
       have hkeepR : ∑ u : V, ((keep u).neighbors.card : ℝ) ≤ (Fintype.card V - 1 : ℕ) := by
         exact_mod_cast hsum_keep
-      have hsum_dev' : α * ∑ u : V, ((s u).neighbors.card : ℝ) ≤
-          α * (Fintype.card V - 1 : ℕ) +
-            (2 * d - 1) * ((Fintype.card V : ℝ) * (Fintype.card V - 1 : ℕ)) := by
-        nlinarith
-      have halpha_term : α * ((Fintype.card V - 1 : ℕ) : ℝ) ≤
-          (3 * d - 1) * (α * ((Fintype.card V - 1 : ℕ) : ℝ)) := by
-        have hprod_nn : 0 ≤ α * ((Fintype.card V - 1 : ℕ) : ℝ) := by positivity
-        nlinarith
+      have hprod_nn : 0 ≤ α * ((Fintype.card V - 1 : ℕ) : ℝ) := by positivity
       have hmul_low := mul_le_mul_of_nonneg_left hlow_s' h3d
       rw [socialCost_def]
       simp_rw [playerCost_def, sum_add_distrib, ← mul_sum]
@@ -893,18 +881,13 @@ omitted in `[TardosWexler2007]`'s informal `6√α` statement. -/
 theorem IsPureNash.socialECost_le_six_mul_sqrt_add_two_mul {α : ℝ} (hα₀ : 0 ≤ α)
     {s : Profile V} (hs : IsPureNash α s) (s' : Profile V) :
     socialECost α s ≤ ENNReal.ofReal (6 * Real.sqrt α + 2) * socialECost α s' := by
+  have hsq : Real.sqrt (4 * α + 1) ≤ 2 * Real.sqrt α + 1 :=
+    calc Real.sqrt (4 * α + 1)
+      _ ≤ Real.sqrt ((2 * Real.sqrt α + 1) ^ 2) :=
+          Real.sqrt_le_sqrt (by nlinarith [Real.sq_sqrt hα₀, Real.sqrt_nonneg α])
+      _ = 2 * Real.sqrt α + 1 := Real.sqrt_sq (by positivity)
   have hle : ENNReal.ofReal (3 * Real.sqrt (4 * α + 1) - 1) ≤
-      ENNReal.ofReal (6 * Real.sqrt α + 2) := by
-    refine ENNReal.ofReal_le_ofReal ?_
-    have hsq : Real.sqrt (4 * α + 1) ≤ 2 * Real.sqrt α + 1 := by
-      calc Real.sqrt (4 * α + 1)
-        _ ≤ Real.sqrt ((2 * Real.sqrt α + 1) ^ 2) := by
-            refine Real.sqrt_le_sqrt ?_
-            have h1 : Real.sqrt α ^ 2 = α := Real.sq_sqrt hα₀
-            have h2 : 0 ≤ Real.sqrt α := Real.sqrt_nonneg α
-            nlinarith
-        _ = 2 * Real.sqrt α + 1 := Real.sqrt_sq (by positivity)
-    linarith
+      ENNReal.ofReal (6 * Real.sqrt α + 2) := ENNReal.ofReal_le_ofReal (by linarith)
   calc socialECost α s
     _ ≤ ENNReal.ofReal (3 * Real.sqrt (4 * α + 1) - 1) * socialECost α s' :=
         hs.socialECost_le_three_mul_sqrt_four_add_one_sub_one_mul hα₀ s'

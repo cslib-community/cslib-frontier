@@ -295,8 +295,7 @@ theorem realizes_setOvermarsActRt :
       (fun w ((bm, b), _) _ => BktMetaBucketEnv w bm b)
       (fun _ _ => 0) := by
   unfold setOvermarsActRtProg
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   all_goals (
     rcases d with ⟨⟨bm, b⟩, actVal⟩
     dsimp only at *
@@ -358,9 +357,7 @@ private theorem realizes_overmarsSwapRolesRt :
       (fun w (bm, b) _ => BktMetaBucketEnv w bm b)
       (fun _ _ => 0) := by
   unfold overmarsSwapRolesRtProg
-  have hrp := realizes_readPackedGen
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_readPackedGen, realizes_writePackedGen]
   all_goals (
     rcases d with ⟨bm, b⟩
     dsimp only at *
@@ -430,11 +427,8 @@ private theorem realizes_overmarsDoActivateGen :
           fs.overmarsRole b < 3)
       (fun _ _ => 0) := by
   unfold overmarsDoActivateGenProg
-  have hrb := realizes_readBktFieldGen
-  have hmb := realizes_mkBktMetaRt
-  have hsa := realizes_setOvermarsActRt
-  have hrs := realizes_resetBTreeSliceGen
-  realize
+  realize [realizes_readBktFieldGen, realizes_mkBktMetaRt, realizes_setOvermarsActRt,
+    realizes_resetBTreeSliceGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -483,9 +477,7 @@ private theorem realizes_overmarsActivateGen :
           fs.overmarsRole b < 3)
       (fun _ _ => 0) := by
   unfold overmarsActivateGenProg
-  have hrb := realizes_readBktFieldGen
-  have hda := realizes_overmarsDoActivateGen
-  realize
+  realize [realizes_readBktFieldGen, realizes_overmarsDoActivateGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -573,12 +565,8 @@ private theorem realizes_checkCoordInLiveGen :
           loc < totalLocalCoordsWhp n_max)
       (fun _ _ => 0) := by
   unfold checkCoordInLiveGenProg
-  have hrh := realizes_readHdr
-  have hro := realizes_readOldEp
-  have hrb := realizes_readBktFieldGen
-  have hrl := realizes_readFastLocGen
-  have hil := realizes_inLiveTree
-  realize
+  realize [realizes_readHdr, realizes_readOldEp, realizes_readBktFieldGen,
+    realizes_readFastLocGen, realizes_inLiveTree]
   all_goals (
     rcases d with ⟨⟨⟨cp, base⟩, b⟩, loc⟩
     dsimp only at *
@@ -660,8 +648,7 @@ private theorem realizes_overmarsReadScanInfoGen :
           fs.overmarsRole b < 3)
       (fun _ _ => 0) := by
   unfold overmarsReadScanInfoGenProg
-  have hrb := realizes_readBktFieldGen
-  realize
+  realize [realizes_readBktFieldGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -718,8 +705,7 @@ private theorem realizes_overmarsWriteCurInsRt :
       (fun w (((bm, b), _), _) _ => BktMetaBucketEnv w bm b)
       (fun _ _ => 0) := by
   unfold overmarsWriteCurInsRtProg
-  have hwp := realizes_writePackedGen
-  realize
+  realize [realizes_writePackedGen]
   all_goals (
     rcases d with ⟨⟨⟨bm, b⟩, cur1⟩, omIns1⟩
     dsimp only at *
@@ -800,12 +786,8 @@ private theorem realizes_overmarsInsertCoordGen :
           s.mem (16 * b + 0))
       (fun _ _ => 0) := by
   unfold overmarsInsertCoordGenProg
-  have hri := realizes_overmarsReadScanInfoGen
-  have hfp := realizes_fpAtGen
-  have hbi := realizes_btreeInsertGen
-  have hmb := realizes_mkBktMetaRt
-  have hwc := realizes_overmarsWriteCurInsRt
-  realize
+  realize [realizes_overmarsReadScanInfoGen, realizes_fpAtGen, realizes_btreeInsertGen,
+    realizes_mkBktMetaRt, realizes_overmarsWriteCurInsRt]
   all_goals (
     rcases d with ⟨⟨⟨wp, base⟩, b⟩, cur⟩
     dsimp only at *
@@ -869,8 +851,7 @@ private theorem realizes_overmarsIncCurGen :
         WhpLargeEnvGen w cp base ∧ b < wpM cp ∧ cur < wpNMax cp)
       (fun _ _ => 0) := by
   unfold overmarsIncCurGenProg
-  have hwb := realizes_writeBktFieldGen
-  realize
+  realize [realizes_writeBktFieldGen]
   all_goals (
     rcases d with ⟨⟨⟨cp, base⟩, b⟩, cur⟩
     dsimp only at *
@@ -911,9 +892,8 @@ private theorem realizes_overmarsReadCurCntGen :
       (fun w ((cp, base), b) _ => WhpLargeEnvGen w cp base ∧ b < wpM cp)
       (fun _ _ => 0) := by
   unfold overmarsReadCurCntGenProg
-  have hrb := realizes_readBktFieldGen
   have hcs_r := clientState_readBktFieldGenProg
-  realize
+  realize [realizes_readBktFieldGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -969,10 +949,8 @@ private theorem realizes_overmarsScanInBounds :
           s.mem (16 * b + 0))
       (fun _ _ => 0) := by
   unfold overmarsScanInBoundsProg
-  have hcl := realizes_checkCoordInLiveGen
-  have hic := realizes_overmarsInsertCoordGen
-  have hinc := realizes_overmarsIncCurGen
-  realize
+  realize [realizes_checkCoordInLiveGen, realizes_overmarsInsertCoordGen,
+    realizes_overmarsIncCurGen]
   all_goals (
     rcases d with ⟨⟨⟨wp, base⟩, b⟩, cur⟩
     dsimp only at *
@@ -1029,10 +1007,8 @@ private theorem realizes_overmarsScanOne :
       OvermarsScanOnePre
       (fun _ _ => 0) := by
   unfold overmarsScanOneProg
-  have hrc := realizes_overmarsReadCurCntGen
-  have hib := realizes_overmarsScanInBounds
-  have hinc := realizes_overmarsIncCurGen
-  realize
+  realize [realizes_overmarsReadCurCntGen, realizes_overmarsScanInBounds,
+    realizes_overmarsIncCurGen]
   all_goals (
     rcases d with ⟨⟨⟨wp, base⟩, b⟩, ⟨⟩⟩
     dsimp only at *
@@ -1249,10 +1225,7 @@ private theorem realizes_overmarsDoSwapGen :
       (fun w ((cp, base), b) _ => WhpLargeEnvGen w cp base ∧ b < wpM cp)
       (fun _ _ => 0) := by
   unfold overmarsDoSwapGenProg
-  have hmb := realizes_mkBktMetaRt
-  have hsr := realizes_overmarsSwapRolesRt
-  have hsa := realizes_setOvermarsActRt
-  realize
+  realize [realizes_mkBktMetaRt, realizes_overmarsSwapRolesRt, realizes_setOvermarsActRt]
   rcases d with ⟨⟨cp, base⟩, b⟩
   obtain ⟨⟨c, U, V, w₀, n_max, henv, rfl⟩, hb⟩ := h
   obtain rfl := henv.2.2.1
@@ -1280,10 +1253,8 @@ private theorem realizes_overmarsFinishSwapGen :
       (fun w ((cp, base), b) _ => WhpLargeEnvGen w cp base ∧ b < wpM cp)
       (fun _ _ => 0) := by
   unfold overmarsFinishSwapGenProg
-  have hrb := realizes_readBktFieldGen
-  have hds := realizes_overmarsDoSwapGen
   have hcs_r := clientState_readBktFieldGenProg
-  realize
+  realize [realizes_readBktFieldGen, realizes_overmarsDoSwapGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -1440,11 +1411,8 @@ theorem realizes_overmarsStepGen :
       OvermarsStepPre
       (fun _ _ => 0) := by
   unfold overmarsStepGenProg
-  have hoa := realizes_overmarsActivateGen
-  have hrb := realizes_readBktFieldGen
-  have hsl := realizes_overmarsScanLoopGen
-  have hfs := realizes_overmarsFinishSwapGen
-  realize
+  realize [realizes_overmarsActivateGen, realizes_readBktFieldGen,
+    realizes_overmarsScanLoopGen, realizes_overmarsFinishSwapGen]
   all_goals (
     rcases d with ⟨⟨wp, base⟩, b⟩
     dsimp only at *
