@@ -135,23 +135,16 @@ private theorem differenceMap_apply (a b c d : ℂ) (h : ℝ) :
 private theorem common_open_iff {a b c d : ℂ} (hab : a.im < b.im) (hcd : c.im < d.im) :
     (openSegment ℝ a b ∩ openSegment ℝ c d).Nonempty ↔
       ∃ h ∈ Set.Ioo (max a.im c.im) (min b.im d.im), differenceMap a b c d h = 0 := by
-  constructor
-  · rintro ⟨z, hz⟩
-    obtain ⟨haz, ha⟩ := (mem_openSegment_height_iff hab z).mp hz.1
-    obtain ⟨hcz, hc⟩ := (mem_openSegment_height_iff hcd z).mp hz.2
-    refine ⟨z.im, ⟨max_lt_iff.mpr ⟨haz.1, hcz.1⟩,
-      lt_min_iff.mpr ⟨haz.2, hcz.2⟩⟩, ?_⟩
-    rw [differenceMap_apply, sub_eq_zero]
-    exact ha.symm.trans hc
-  · rintro ⟨h, hh, hf⟩
-    rw [differenceMap_apply, sub_eq_zero] at hf
-    refine ⟨heightMap a b h, ?_, ?_⟩
-    · rw [mem_openSegment_height_iff hab, heightMap_im hab.ne, heightMap_re]
-      exact ⟨⟨(le_max_left _ _).trans_lt hh.1,
-        hh.2.trans_le (min_le_left _ _)⟩, rfl⟩
-    · rw [mem_openSegment_height_iff hcd, heightMap_im hab.ne, heightMap_re]
-      exact ⟨⟨(le_max_right _ _).trans_lt hh.1,
-        hh.2.trans_le (min_le_right _ _)⟩, hf⟩
+  simp only [Set.mem_Ioo, max_lt_iff, lt_min_iff, differenceMap_apply, sub_eq_zero]
+  refine ⟨fun ⟨z, hz1, hz2⟩ => ?_, fun ⟨h, ⟨⟨ha, hc⟩, ⟨hb, hd⟩⟩, hf⟩ => ?_⟩
+  · obtain ⟨⟨ha, hb⟩, hre1⟩ := (mem_openSegment_height_iff hab z).mp hz1
+    obtain ⟨⟨hc, hd⟩, hre2⟩ := (mem_openSegment_height_iff hcd z).mp hz2
+    exact ⟨z.im, ⟨⟨ha, hc⟩, ⟨hb, hd⟩⟩, hre1.symm.trans hre2⟩
+  · refine ⟨heightMap a b h, ?_, ?_⟩
+    · simpa only [mem_openSegment_height_iff hab, Set.mem_Ioo, heightMap_im hab.ne, heightMap_re,
+        and_true] using ⟨ha, hb⟩
+    · simp only [mem_openSegment_height_iff hcd, Set.mem_Ioo, heightMap_im hab.ne, heightMap_re]
+      exact ⟨⟨hc, hd⟩, hf⟩
 
 private theorem difference_boundary_ne_zero {a b c d : ℂ}
     (hab : a.im < b.im) (hcd : c.im < d.im)
@@ -162,10 +155,9 @@ private theorem difference_boundary_ne_zero {a b c d : ℂ}
     differenceMap a b c d h ≠ 0 := by
   intro hz
   rw [differenceMap_apply, sub_eq_zero] at hz
-  have heq : heightMap a b h = heightMap c d h := by
-    apply Complex.ext
-    · simpa only [heightMap_re] using hz
-    · rw [heightMap_im hab.ne, heightMap_im hcd.ne]
+  have heq : heightMap a b h = heightMap c d h :=
+    Complex.ext ((heightMap_re a b h).trans (hz.trans (heightMap_re c d h).symm))
+      ((heightMap_im hab.ne h).trans (heightMap_im hcd.ne h).symm)
   have hmAB : heightMap a b h ∈ segment ℝ a b := by
     rw [mem_segment_height_iff hab, heightMap_im hab.ne, heightMap_re]
     exact ⟨hAB, rfl⟩
@@ -175,10 +167,8 @@ private theorem difference_boundary_ne_zero {a b c d : ℂ}
   rcases hend with rfl | rfl | rfl | rfl
   · exact ha (by simpa only [heightMap_left] using hmCD)
   · exact hb (by simpa only [heightMap_right hab.ne] using hmCD)
-  · rw [heq, heightMap_left] at hmAB
-    exact hc hmAB
-  · rw [heq, heightMap_right hcd.ne] at hmAB
-    exact hd hmAB
+  · exact hc (by simpa only [heq, heightMap_left] using hmAB)
+  · exact hd (by simpa only [heq, heightMap_right hcd.ne] using hmAB)
 
 open Classical in
 private theorem common_open_indicator {a b c d : ℂ}

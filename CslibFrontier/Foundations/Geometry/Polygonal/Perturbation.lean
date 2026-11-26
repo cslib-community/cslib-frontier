@@ -174,18 +174,14 @@ theorem family_affineSpan_separation {ι : Type*} (p : ι → Route) (protectedP
     · exact ⟨.inl (e, false), rfl⟩
     · exact ⟨.inr ⟨e, i⟩, congrArg (Sigma.mk e) (Fin.castSucc_succ i).symm⟩
   have hEnd (d : E) : point (endNode d) = (p d.1).endpoint d.2 := by
-    rcases d with ⟨e, b⟩
-    cases b <;> rfl
+    rcases d with ⟨_, _ | _⟩ <;> rfl
   have hEndFixed (d : E) : point (endNode d) ∈ fixed := by
-    rw [hEnd]
     rcases d with ⟨e, _ | _⟩
     · exact Or.inl (Or.inr ⟨e, rfl⟩)
     · exact Or.inr ⟨e, rfl⟩
   have hpoint : Function.Injective point := by
     apply Function.Injective.of_comp_right _ hnode
-    have heq : point ∘ node = Sum.elim (point ∘ endNode) (point ∘ bendNode) :=
-      funext fun d => by cases d <;> rfl
-    rw [heq]
+    rw [Sum.comp_elim]
     exact Sum.elim_injective.mpr ⟨fun x y h => hends ((hEnd x).symm.trans (h.trans (hEnd y))),
       hinj, fun x y h => hfixed y (h ▸ hEndFixed x : (point ∘ bendNode) y ∈ fixed)⟩
   have hpool (d : N) : point d ∈ fixed ∪ Set.range placed := by
@@ -209,23 +205,18 @@ theorem family_affineSpan_separation {ι : Type*} (p : ι → Route) (protectedP
     · exact Or.inl ⟨⟨e, k⟩, rfl⟩
   have hpair (d f : S) (hEq : ({point (left d), point (right d)} : Set ℂ) =
       {point (left f), point (right f)}) : d = f := by
-    have hl : point (left d) = point (left f) ∨ point (left d) = point (right f) := by
-      have h : point (left d) ∈ ({point (left f), point (right f)} : Set ℂ) :=
-        hEq ▸ Set.mem_insert _ _
-      simpa only [Set.mem_insert_iff, Set.mem_singleton_iff] using h
-    rcases hl with h | h
+    rcases (hEq ▸ Or.inl rfl : point (left d) ∈ ({point (left f), point (right f)} : Set ℂ))
+      with h | h
     · obtain ⟨e, i⟩ := d
       obtain ⟨f, j⟩ := f
       obtain ⟨rfl, hij⟩ := Sigma.mk.inj_iff.mp (hpoint h)
       exact congrArg (Sigma.mk e) (Fin.castSucc_inj.mp (eq_of_heq hij))
     · have hv : d.2.val = f.2.val + 1 := congrArg (fun x : N => x.2.val) (hpoint h)
-      have hmem : point (right d) ∈ ({point (left f), point (right f)} : Set ℂ) :=
-        hEq ▸ Set.mem_insert_of_mem _ (Set.mem_singleton _)
-      rcases Set.mem_insert_iff.mp hmem with hr | hr
+      rcases (hEq ▸ Or.inr rfl : point (right d) ∈ ({point (left f), point (right f)} : Set ℂ))
+        with hr | hr
       · have ht : d.2.val + 1 = f.2.val := congrArg (fun x : N => x.2.val) (hpoint hr)
         omega
-      · have ht : d.2.val + 1 = f.2.val + 1 :=
-          congrArg (fun x : N => x.2.val) (hpoint (Set.mem_singleton_iff.mp hr))
+      · have ht : d.2.val + 1 = f.2.val + 1 := congrArg (fun x : N => x.2.val) (hpoint hr)
         omega
   have hcompare (d : S) (a b : ℂ) (ha : a ∈ fixed ∪ Set.range placed)
       (hb : b ∈ fixed ∪ Set.range placed) (hab : a ≠ b)

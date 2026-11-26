@@ -117,11 +117,8 @@ theorem integral_mulVec_dotProduct_eq
       Icc_subset_Ici_self)
     (fun t ht => (hasDerivWithinAt_dotProduct_mulVec (P := W) hx (le_of_lt ht.1)).hasDerivAt
       (Ici_mem_nhds ht.1)) (hint _)
-  have hsplit : (fun t => x t ⬝ᵥ (Aᵀ * W + W * A + Cᵀ * C) *ᵥ x t) =
-      fun t => x t ⬝ᵥ (Aᵀ * W + W * A) *ᵥ x t + x t ⬝ᵥ (Cᵀ * C) *ᵥ x t := by
-    funext t
-    rw [add_mulVec, dotProduct_add]
-  rw [hsplit, intervalIntegral.integral_add (hint _) (hint _), hV]
+  conv_rhs => rw [intervalIntegral.integral_congr fun _ _ => by rw [add_mulVec, dotProduct_add]]
+  rw [intervalIntegral.integral_add (hint _) (hint _), hV]
   simp only [dotProduct_transpose_mul_mulVec]
   ring
 
@@ -177,8 +174,7 @@ theorem integrableOn_Ioi_and_integral_eq
       ∫ t in Ioi 0, C *ᵥ x t ⬝ᵥ C *ᵥ x t = x 0 ⬝ᵥ W *ᵥ x 0 := by
   have hpart : ∀ T, 0 ≤ T →
       ∫ t in 0..T, C *ᵥ x t ⬝ᵥ C *ᵥ x t = x 0 ⬝ᵥ W *ᵥ x 0 - x T ⬝ᵥ W *ᵥ x T := fun T hT => by
-    rw [integral_mulVec_dotProduct_eq (W := W) hx hT, hR]
-    simp
+    simp [integral_mulVec_dotProduct_eq (W := W) hx hT, hR]
   have hV : Tendsto (fun T => x T ⬝ᵥ W *ᵥ x T) atTop (𝓝 0) := by
     simpa [Function.comp_def] using ((continuous_dotProduct_mulVec W).tendsto 0).comp hx₀
   have hlim : Tendsto (fun T => ∫ t in 0..T, C *ᵥ x t ⬝ᵥ C *ᵥ x t) atTop
@@ -266,14 +262,11 @@ theorem mulVec_dotProduct_le_exp_neg_mul [DecidableEq n] {p : Type*} [Fintype p]
 theorem hasDerivWithinAt_exp_smul_mulVec [DecidableEq n] (A : Matrix n n ℝ) (y : n → ℝ) :
     ∀ t ∈ Ici (0 : ℝ),
       HasDerivWithinAt (fun τ => exp (τ • A) *ᵥ y) (A *ᵥ (exp (t • A) *ᵥ y)) (Ici 0) t := by
-  have h := ContinuousLinearMap.isTrajectoryOn_exp_smul_apply (toEuclideanCLM (𝕜 := ℝ) A)
-    (WithLp.toLp 2 y) (Ici 0)
   have e : (fun t : ℝ => exp (t • toEuclideanCLM (𝕜 := ℝ) A) (WithLp.toLp 2 y)) =
-      fun t => WithLp.toLp 2 (exp (t • A) *ᵥ y) := by
-    funext t
-    rw [← ofLp_exp_smul_toEuclideanCLM_apply, WithLp.toLp_ofLp]
-  rw [e] at h
-  exact isTrajectoryOn_toEuclideanCLM_iff.1 h
+      fun t => WithLp.toLp 2 (exp (t • A) *ᵥ y) :=
+    funext fun t => by rw [← ofLp_exp_smul_toEuclideanCLM_apply, WithLp.toLp_ofLp]
+  exact isTrajectoryOn_toEuclideanCLM_iff.1
+    (e ▸ ContinuousLinearMap.isTrajectoryOn_exp_smul_apply _ _ _)
 
 /-- An exponentially stable `ẋ = A x` drives every `exp (t • A) *ᵥ y` to `0`. -/
 theorem tendsto_exp_smul_mulVec [DecidableEq n]
@@ -299,10 +292,9 @@ private theorem gramian_key {W : Matrix n n ℝ} {p : Type*} [Fintype p] [Decida
     (hA : (toEuclideanCLM (𝕜 := ℝ) A).IsExponentiallyStable) (u : n → ℝ) :
     IntegrableOn (fun t : ℝ => C *ᵥ (exp (t • A) *ᵥ u) ⬝ᵥ C *ᵥ (exp (t • A) *ᵥ u)) (Ioi 0) ∧
       ∫ t in Ioi (0 : ℝ), C *ᵥ (exp (t • A) *ᵥ u) ⬝ᵥ C *ᵥ (exp (t • A) *ᵥ u) = u ⬝ᵥ W *ᵥ u := by
-  have h := integrableOn_Ioi_and_integral_eq (hasDerivWithinAt_exp_smul_mulVec A u) hR
-    (tendsto_exp_smul_mulVec hA u)
-  simp only [zero_smul, NormedSpace.exp_zero, one_mulVec] at h
-  exact h
+  simpa only [zero_smul, NormedSpace.exp_zero, one_mulVec] using
+    integrableOn_Ioi_and_integral_eq (hasDerivWithinAt_exp_smul_mulVec A u) hR
+      (tendsto_exp_smul_mulVec hA u)
 
 /-- **The observability Gramian as an integral.** If `W` is symmetric, `Aᵀ W + W A + Cᵀ C = 0`
 and `ẋ = A x` is exponentially stable, then for all `y`, `z`
@@ -445,9 +437,7 @@ theorem integrableOn_Ioi_and_integral_mulVec_le (hW : W.PosSemidef)
       simp only [star_trivial, neg_mulVec, dotProduct_neg] at this
       linarith)
     (fun y => by simpa using hW.dotProduct_mulVec_nonneg y)
-  simp only [zero_smul, NormedSpace.exp_zero, one_mulVec] at h
-  simp only [responseKernel_mulVec_eq']
-  exact h
+  simpa only [zero_smul, NormedSpace.exp_zero, one_mulVec, responseKernel_mulVec_eq'] using h
 
 /-- **Impulse-response energy bound.** If `W ⪰ 0` and `Aᵀ W + W A + Cᵀ C ⪯ 0`, then
 `‖h t‖_F²` is integrable on `(0, ∞)` and `∫₀^∞ ‖h t‖_F² ≤ tr (Bᵀ W B)`. No stability of `A` is

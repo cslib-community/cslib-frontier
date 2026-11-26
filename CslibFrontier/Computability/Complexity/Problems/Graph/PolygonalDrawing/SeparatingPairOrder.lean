@@ -76,36 +76,28 @@ theorem HasRegularContacts.opposite_orders_of_induced_reachable {G : Graph}
   have outside (k : Fin 3) (i : Fin (length k)) : site k i ≠ u ∧ site k i ≠ v :=
     ⟨fun h => (havoid k).1 (h ▸ siteMem k i), fun h => (havoid k).2 (h ▸ siteMem k i)⟩
   have contained (k : Fin 3) (i : Fin (length k + 1)) (tag : Bool) :
-      let w := Dart.vertex (G := G) ((path k i).1, tag)
-      w = u ∨ w = v ∨ w ∈ S k := by
-    let d : Dart G := ((path k i).1, tag)
-    change d.vertex = u ∨ d.vertex = v ∨ d.vertex ∈ S k
-    rcases Dart.eq_or_eq_reverse_of_edge_eq (d := d) (e := path k i) rfl with hd | hd
+      Dart.vertex (G := G) ((path k i).1, tag) = u ∨
+        Dart.vertex (G := G) ((path k i).1, tag) = v ∨
+        Dart.vertex (G := G) ((path k i).1, tag) ∈ S k := by
+    rcases Dart.eq_or_eq_reverse_of_edge_eq (d := ((path k i).1, tag)) (e := path k i) rfl with
+      hd | hd
     · rw [hd, start]
       exact Fin.cases (Or.inl rfl) (fun j => Or.inr (Or.inr (siteMem k j))) i
     · rw [hd, finish]
       refine Fin.lastCases ?_ (fun j => ?_) i
-      · rw [Fin.lastCases_last]
-        exact Or.inr (Or.inl rfl)
-      · rw [Fin.lastCases_castSucc]
-        exact Or.inr (Or.inr (siteMem k j))
+      · simp [Fin.lastCases_last]
+      · simp [Fin.lastCases_castSucc, siteMem k j]
   have sharedFirst {k l : Fin 3} (hkl : k ≠ l) (i : Fin (length k + 1))
       (j : Fin (length l + 1)) (he : (path k i).1 = (path l j).1) : i = 0 := by
-    revert he
-    refine Fin.cases (fun _ => rfl) (fun t he => ?_) i
-    have hs : (path k t.succ).vertex = site k t := start k t.succ
-    have hm := contained l j (path k t.succ).2
-    change Dart.vertex (G := G) ((path l j).1, (path k t.succ).2) = u ∨
-      Dart.vertex (G := G) ((path l j).1, (path k t.succ).2) = v ∨
-      Dart.vertex (G := G) ((path l j).1, (path k t.succ).2) ∈ S l at hm
-    rw [← he] at hm
-    change (path k t.succ).vertex = u ∨ (path k t.succ).vertex = v ∨
-      (path k t.succ).vertex ∈ S l at hm
-    rw [hs] at hm
-    rcases hm with hm | hm | hm
-    · exact ((outside k t).1 hm).elim
-    · exact ((outside k t).2 hm).elim
-    · exact (Set.disjoint_left.mp (hdisjoint hkl) (siteMem k t) hm).elim
+    cases i using Fin.cases with
+    | zero => rfl
+    | succ t =>
+      have hm := contained l j (path k t.succ).2
+      rw [← he, Prod.mk.eta, start k t.succ] at hm
+      rcases hm with hm | hm | hm
+      · exact ((outside k t).1 hm).elim
+      · exact ((outside k t).2 hm).elim
+      · exact (Set.disjoint_left.mp (hdisjoint hkl) (siteMem k t) hm).elim
   have edgeNe {k l : Fin 3} (hkl : k ≠ l) (i : Fin (length k + 1)) (j : Fin (length l + 1)) :
       (path k i).1 ≠ (path l j).1 := by
     intro he
@@ -198,20 +190,11 @@ theorem HasRegularContacts.rotationDistance_lt_iff_of_separating_components {G :
           ⟨(a k).reverse.vertex, ha'⟩ ⟨(b k).reverse.vertex, hb'⟩ := by
     have hp := hports k
     cases hc : component k with
-    | none =>
-      rw [hc] at hp
-      exact Or.inl hp
+    | none => exact Or.inl (by simpa only [hc] using hp)
     | some C =>
-      rw [hc] at hp
-      have hs : S k = projection '' C.supp := by simp only [S, hc, Option.elim_some]
-      have hmem : (a k).reverse.vertex ∈ projection '' C.supp ∧
-          (b k).reverse.vertex ∈ projection '' C.supp := by
-        change (a k).reverse.vertex ∈ (fun w => w.val.val) '' C.supp ∧
-          (b k).reverse.vertex ∈ (fun w => w.val.val) '' C.supp
-        simpa only [Set.image_image] using hp
-      right
-      rw [hs]
-      exact ⟨hmem.1, hmem.2, C.reachable_induce_image projection hmem.1 hmem.2⟩
+      simp only [hc, Set.image_image] at hp
+      rw [show S k = projection '' C.supp by simp only [S, hc, Option.elim_some]]
+      exact Or.inr ⟨hp.1, hp.2, C.reachable_induce_image projection hp.1 hp.2⟩
   have aNe {x y : ι} (hxy : x ≠ y) : a x ≠ a y :=
     fun he => hxy (haInj (congrArg Prod.fst he))
   have bNe {x y : ι} (hxy : x ≠ y) : b x ≠ b y := by
@@ -274,14 +257,10 @@ theorem HasRegularContacts.mergeSort_eq_reverse_of_separating_components {G : Gr
   let order (rank : ι → ℕ) := pieces.mergeSort (fun i j => decide (rank i ≤ rank j))
   have hperm (rank : ι → ℕ) : (order rank).Perm pieces := List.mergeSort_perm _ _
   have sorted (rank : ι → ℕ) : (order rank).Pairwise (fun i j => rank i ≤ rank j) := by
-    have hs := List.pairwise_mergeSort (le := fun i j => decide (rank i ≤ rank j))
-      (fun i j k hij hjk => by
-        simp only [decide_eq_true_eq] at hij hjk ⊢
-        exact hij.trans hjk)
-      (fun i j => by
-        simp only [Bool.or_eq_true, decide_eq_true_eq]
-        exact le_total _ _) pieces
-    exact hs.imp (fun he => of_decide_eq_true he)
+    simpa only [decide_eq_true_eq] using List.pairwise_mergeSort
+      (le := fun i j => decide (rank i ≤ rank j))
+      (fun _ _ _ => by simpa only [decide_eq_true_eq] using le_trans)
+      (fun i j => by simpa only [Bool.or_eq_true, decide_eq_true_eq] using le_total _ _) pieces
   have reverseLE {i j : ι} (hi : i ∈ pieces) (hj : j ∈ pieces) :
       fromA i ≤ fromA j ↔ fromB j ≤ fromB i := by
     have hne {k : ι} (hk : k ∈ pieces) : o ≠ k := fun he => ho (he.symm ▸ hk)

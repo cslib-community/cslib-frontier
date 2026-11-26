@@ -376,9 +376,8 @@ the original family satisfies `LineSourcePromise` or has width `n a = 0`. -/
 theorem lineSourcePromise_normalized (n : α → ℕ) (P S : α × List Bool → List Bool)
     (V : α × List Bool → ℕ) (a : α) :
     LineSourcePromise (normalizedPotentialWidth n)
-      (normalizedPotentialPred n P S V) (normalizedPotentialSucc n P S V) a := by
-  refine ⟨normalizedPotentialPred_zeroVertex n P S V a, ?_⟩
-  simp [normalizedPotentialSucc]
+      (normalizedPotentialPred n P S V) (normalizedPotentialSucc n P S V) a :=
+  ⟨normalizedPotentialPred_zeroVertex n P S V a, by simp [normalizedPotentialSucc]⟩
 
 /-- The normalized family satisfies the full syntactic promise `PromisedPotentialLine` of
 [Fearnley et al., Definition 9][FearnleyGordonMehtaSavani2020] (`P' (0 ^ (n + 1)) = 0 ^ (n + 1) ≠
@@ -453,12 +452,10 @@ theorem normalizedPotential_lt_succ {B : ℕ}
     (hB : ∀ u, u.length = n a → V (a, u) < B)
     (hw : w.length = normalizedPotentialWidth n a) :
     normalizedPotential V (a, w) < B + 1 := by
-  cases w with
-  | nil => simp [normalizedPotentialWidth] at hw
-  | cons b u =>
-    cases b
-    · simp
-    · exact Nat.succ_lt_succ (hB u (by simpa [normalizedPotentialWidth] using hw))
+  rcases w with _ | ⟨_ | _, u⟩
+  · simp [normalizedPotentialWidth] at hw
+  · simp
+  · exact Nat.succ_lt_succ (hB u (by simpa [normalizedPotentialWidth] using hw))
 
 /-- If `V` fits in `m` bits (`< 2 ^ m`) on `{0, 1} ^ (n a)`, then `normalizedPotential V` fits in
 `m + 1` bits (`< 2 ^ (m + 1)`) on `{0, 1} ^ (n a + 1)`. -/
@@ -483,8 +480,7 @@ theorem hasPotentialOut_normalized_zeroVertex (n : α → ℕ) (P S : α × List
     hasPotentialOut (normalizedPotentialWidth n)
       (normalizedPotentialPred n P S V) (normalizedPotentialSucc n P S V)
       (normalizedPotential V) a (zeroVertex (normalizedPotentialWidth n a)) = true := by
-  rw [hasPotentialOut_eq_true_iff]
-  simp [normalizedPotentialSucc]
+  simp [hasPotentialOut_eq_true_iff, normalizedPotentialSucc]
 
 theorem hasPotentialOut_normalized_false_of_ne (hu : u ≠ zeroVertex (n a)) :
     hasPotentialOut (normalizedPotentialWidth n)
@@ -513,8 +509,7 @@ theorem hasPotentialIn_normalized_true_zeroVertex (n : α → ℕ) (P S : α × 
     hasPotentialIn (normalizedPotentialWidth n)
       (normalizedPotentialPred n P S V) (normalizedPotentialSucc n P S V)
       (normalizedPotential V) a (true :: zeroVertex (n a)) = true := by
-  rw [hasPotentialIn_eq_true_iff]
-  simp [normalizedPotentialSucc]
+  simp [hasPotentialIn_eq_true_iff, normalizedPotentialSucc]
 
 theorem hasPotentialIn_normalized_true_of_ne (hu : u ≠ zeroVertex (n a)) :
     hasPotentialIn (normalizedPotentialWidth n)
@@ -574,26 +569,23 @@ theorem endOfPotentialLineRel_normalized_iff :
       (normalizedPotentialPred n P S V) (normalizedPotentialSucc n P S V)
       (normalizedPotential V) a w ↔
     ∃ u, w = true :: u ∧ endOfPotentialLineRel n P S V a u := by
-  cases w with
-  | nil =>
-    simp [endOfPotentialLineRel, normalizedPotentialWidth]
-  | cons b u =>
-    cases b
-    · by_cases huz : u = zeroVertex (n a)
-      · subst huz
-        simp [endOfPotentialLineRel, hasPotentialIn_normalized_false,
-          zeroVertex_normalizedPotentialWidth n a ▸ hasPotentialOut_normalized_zeroVertex n P S V a]
-      · simp [endOfPotentialLineRel, hasPotentialIn_normalized_false,
-          hasPotentialOut_normalized_false_of_ne huz, huz]
-    · simp only [List.cons.injEq, true_and, exists_eq_left']
-      by_cases huz : u = zeroVertex (n a)
-      · subst huz
-        cases hout : hasPotentialOut n P S V a (zeroVertex (n a)) <;>
-          simp [endOfPotentialLineRel, hasPotentialIn_normalized_true_zeroVertex,
-            hasPotentialOut_normalized_true, hout]
-      · cases hin : hasPotentialIn n P S V a u <;> cases hout : hasPotentialOut n P S V a u <;>
-          simp [endOfPotentialLineRel, hasPotentialIn_normalized_true_of_ne huz,
-            hasPotentialOut_normalized_true, huz, hin, hout]
+  rcases w with _ | ⟨_ | _, u⟩
+  · simp [endOfPotentialLineRel, normalizedPotentialWidth]
+  · by_cases huz : u = zeroVertex (n a)
+    · subst huz
+      simp [endOfPotentialLineRel, hasPotentialIn_normalized_false,
+        zeroVertex_normalizedPotentialWidth n a ▸ hasPotentialOut_normalized_zeroVertex n P S V a]
+    · simp [endOfPotentialLineRel, hasPotentialIn_normalized_false,
+        hasPotentialOut_normalized_false_of_ne huz, huz]
+  · simp only [List.cons.injEq, true_and, exists_eq_left']
+    by_cases huz : u = zeroVertex (n a)
+    · subst huz
+      cases hout : hasPotentialOut n P S V a (zeroVertex (n a)) <;>
+        simp [endOfPotentialLineRel, hasPotentialIn_normalized_true_zeroVertex,
+          hasPotentialOut_normalized_true, hout]
+    · cases hin : hasPotentialIn n P S V a u <;> cases hout : hasPotentialOut n P S V a u <;>
+        simp [endOfPotentialLineRel, hasPotentialIn_normalized_true_of_ne huz,
+          hasPotentialOut_normalized_true, huz, hin, hout]
 
 /-- Sinks of the normalized potential line are precisely `true :: u` for sinks `u` of
 `(n, P, S, V)`. -/
@@ -602,12 +594,9 @@ theorem sinkOfPotentialLineRel_normalized_iff :
       (normalizedPotentialPred n P S V) (normalizedPotentialSucc n P S V)
       (normalizedPotential V) a w ↔
     ∃ u, w = true :: u ∧ sinkOfPotentialLineRel n P S V a u := by
-  simp only [sinkOfPotentialLineRel_iff, endOfPotentialLineRel_normalized_iff]
-  constructor
-  · rintro ⟨⟨u, rfl, hu⟩, hout⟩
-    exact ⟨u, rfl, hu, (hasPotentialOut_normalized_true n P S V a u).symm.trans hout⟩
-  · rintro ⟨u, rfl, hu, hout⟩
-    exact ⟨⟨u, rfl, hu⟩, (hasPotentialOut_normalized_true n P S V a u).trans hout⟩
+  simp only [sinkOfPotentialLineRel_iff, endOfPotentialLineRel_normalized_iff, ← exists_and_right]
+  exact exists_congr fun u =>
+    by simp +contextual [and_assoc, hasPotentialOut_normalized_true]
 
 private theorem nonEmpty_normalizedPred (b : Bool) (u : List Bool) :
     ∃ b' u', normalizedPotentialPred n P S V (a, b :: u) = b' :: u' := by
@@ -791,12 +780,11 @@ theorem endOfPotentialLinePromisedRel_mem_FNP
     (hV : ComputableInPolyTime V (encPair enc encBits) encNat) :
     endOfPotentialLinePromisedRel n P S V ∈ FNP enc := by
   obtain ⟨p, hp⟩ := (polyBounded hn).exists_polynomial
-  refine ⟨⟨p, fun a u h => h.1 ▸ hp a⟩,
+  exact ⟨⟨p, fun a u h => h.1 ▸ hp a⟩,
     fun x => decide (x.2.length = n x.1 ∧
       ((S (x.1, P x) ≠ x.2 ∧ x.2 ≠ zeroVertex (n x.1)) ∨ P (x.1, S x) ≠ x.2 ∨
-        (x.2 ≠ S x ∧ P (x.1, S x) = x.2 ∧ V (x.1, S x) ≤ V x))), ?_, fun a u => ?_⟩
-  · fun_prop
-  · simp [endOfPotentialLinePromisedRel]
+        (x.2 ≠ S x ∧ P (x.1, S x) = x.2 ∧ V (x.1, S x) ≤ V x))), by fun_prop,
+    fun a u => by simp [endOfPotentialLinePromisedRel]⟩
 
 theorem sinkOfPotentialLinePromisedRel_mem_FNP
     (hn : ComputableInPolyTime n enc encUnary)
@@ -805,12 +793,11 @@ theorem sinkOfPotentialLinePromisedRel_mem_FNP
     (hV : ComputableInPolyTime V (encPair enc encBits) encNat) :
     sinkOfPotentialLinePromisedRel n P S V ∈ FNP enc := by
   obtain ⟨p, hp⟩ := (polyBounded hn).exists_polynomial
-  refine ⟨⟨p, fun a u h => h.1 ▸ hp a⟩,
+  exact ⟨⟨p, fun a u h => h.1 ▸ hp a⟩,
     fun x => decide (x.2.length = n x.1 ∧
       (P (x.1, S x) ≠ x.2 ∨
-        (x.2 ≠ S x ∧ P (x.1, S x) = x.2 ∧ V (x.1, S x) ≤ V x))), ?_, fun a u => ?_⟩
-  · fun_prop
-  · simp [sinkOfPotentialLinePromisedRel]
+        (x.2 ≠ S x ∧ P (x.1, S x) = x.2 ∧ V (x.1, S x) ≤ V x))), by fun_prop,
+    fun a u => by simp [sinkOfPotentialLinePromisedRel]⟩
 
 @[fun_prop]
 theorem computableInPolyTime_normalizedPotentialWidth

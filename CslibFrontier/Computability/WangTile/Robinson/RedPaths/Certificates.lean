@@ -610,10 +610,9 @@ private theorem verified (parent : Index) : Verified parent := by
     intro k
     fin_cases k
     exacts [verified0, verified1, verified2, verified3, verified4, verified5, verified6, verified7]
-  have h := key ⟨parent.val / 13, by omega⟩ ⟨parent.val % 13, Nat.mod_lt _ (by decide)⟩
   have e : (⟨13 * (parent.val / 13) + parent.val % 13, by omega⟩ : Index) = parent :=
     Fin.ext (Nat.div_add_mod _ _)
-  exact e ▸ h
+  exact e ▸ key ⟨parent.val / 13, by omega⟩ ⟨parent.val % 13, Nat.mod_lt _ (by decide)⟩
 
 /-- A valid forest that reaches a port supplies a bounded red path with some parity. -/
 private theorem Forest.reaches_sound {width : Nat} {grid : Nat → Nat → Index} {f : Forest width}
@@ -754,9 +753,7 @@ theorem source_cases {parent : Index} {source : Port} (h : source ∈ sources pa
     source = cycleSource ∨ ∃ old ∈ portsIn 2 2,
       portPresent (coarseGrid parent) old = true ∧ source = sparsePort old := by
   simp only [sources, List.mem_cons, List.mem_map, List.mem_filter] at h
-  rcases h with h | ⟨old, ⟨mem, live⟩, eq⟩
-  · exact Or.inl h
-  · exact Or.inr ⟨old, mem, live, eq.symm⟩
+  exact h.imp_right fun ⟨old, ⟨mem, live⟩, eq⟩ => ⟨old, mem, live, eq.symm⟩
 
 /-- Translate a quarter port without changing its side. -/
 @[expose] def translatePort (port : Port) (offsetX offsetY : Nat) : Port :=
@@ -772,9 +769,7 @@ private theorem link_translate
     (hfirst : PortInBounds first width height) (hsecond : PortInBounds second width height) :
     Link other (translatePort first offsetX offsetY)
       (translatePort second offsetX offsetY) parity := by
-  have quadrant : ∀ x y,
-      quadrantAt (offsetX + x) (offsetY + y) = quadrantAt x y := by
-    intro x y
+  have quadrant (x y) : quadrantAt (offsetX + x) (offsetY + y) = quadrantAt x y := by
     simp [quadrantAt, Nat.add_mod, hx, hy]
   induction link
   case horizontalMatch x y =>
@@ -893,11 +888,8 @@ theorem refinedPort_present (grid : Nat → Nat → Index) (port : Port) :
   let x : Fin 2 := ⟨port.x % 2, Nat.mod_lt _ (by decide)⟩
   let y : Fin 2 := ⟨port.y % 2, Nat.mod_lt _ (by decide)⟩
   let oldPort : Port := ⟨x, y, port.side⟩
-  have localBounds : ∀ (i j : Fin 2) (s : Side),
-      PortInBounds (refinedPort ⟨i, j, s⟩) 8 8 := by
-    intro i j s
+  have localBounds (i j : Fin 2) (s : Side) : PortInBounds (refinedPort ⟨i, j, s⟩) 8 8 := by
     cases s <;> fin_cases i <;> fin_cases j <;> unfold PortInBounds <;> decide
-  have bounds : PortInBounds (refinedPort oldPort) 8 8 := localBounds x y port.side
   have image : refinedPort port =
       translatePort (refinedPort oldPort) (8 * (port.x / 2)) (8 * (port.y / 2)) := by
     have hx : port.x % 2 / 2 = 0 := Nat.div_eq_of_lt (Nat.mod_lt _ (by decide))
@@ -906,8 +898,8 @@ theorem refinedPort_present (grid : Nat → Nat → Index) (port : Port) :
       simp [refinedPort, sparsePort, exitCoordinate, sparseCoordinate,
         translatePort, oldPort, x, y, hs, hx, hy, apply_ite]
   rw [image, ← portPresent_two_block grid (port.x / 2) (port.y / 2)
-    (refinedPort oldPort) bounds.1 bounds.2]
-  rw [local_refinedPort_present (grid (port.x / 2) (port.y / 2)) x y port.side]
+    (refinedPort oldPort) (localBounds x y port.side).1 (localBounds x y port.side).2,
+    local_refinedPort_present (grid (port.x / 2) (port.y / 2)) x y port.side]
   exact portPresent_local grid port
 
 /-- A live old port reaches its side-sensitive refined image with even parity. -/

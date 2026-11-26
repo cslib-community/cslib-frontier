@@ -167,15 +167,13 @@ private theorem cutStep_does {G : Tree} {R : Tree → List (A × Tree)} {x : Tre
       intro q hq
       simp only [List.mem_flatMap, List.map_cons, List.map_nil, List.mem_singleton] at hq
       obtain ⟨q1, hq1, rfl⟩ := hq
-      have h1 : Gives θ (.hd .id) (.cons q1.2 σ) (listT q1.2.toList) 2 := by
-        rw [listT_toList]
+      refine (appF_gives (ca := 2) (cb := 2) (xs := q1.2.toList) ?_ ?_).mono ?_
+      · rw [listT_toList]
         exact (Gives.id _).hd
-      have h2 : Gives θ (.tl .id) (.cons q1.2 σ) (listT σ.toList) 2 := by
-        rw [listT_toList]
+      · rw [listT_toList]
         exact (Gives.id _).tl
-      refine (appF_gives h1 h2).mono ?_
-      have := hP q1 hq1
-      omega)
+      · have := hP q1 hq1
+        omega)
   refine (e2.congr ?_ fun φ => ?_).mono (by omega)
   · intro q hq
     simp only [List.mem_map, List.mem_flatMap, List.map_cons, List.map_nil,
@@ -197,9 +195,7 @@ theorem IsCut.comp {τ s τ₁ s₁ P₁ t₁ τ₂ s₂ P₂ t₂ : ℕ} {G₁ 
   have hfold : ∀ q ∈ Q₁, Does θ (foldF (cutStep G₂) (.quote .nil) .id) q.2
       (foldW (cutStepW R) q.2.toList .nil) (P₁ * (t₂ + 62 * P₂ + 100) + 30) := by
     intro q hq
-    have hl : Gives θ .id q.2 (listT q.2.toList) 1 := by
-      rw [listT_toList]
-      exact Gives.id _
+    have hl : Gives θ .id q.2 (listT q.2.toList) 1 := (listT_toList q.2).symm ▸ Gives.id _
     refine (foldF_does (Inv := fun _ _ => True) (d := fun _ => t₂ + 62 * P₂ + 70)
       (Gives.quote (θ := θ) .nil q.2) hl (fun x ys σ hx _ => ⟨?_, fun _ _ => trivial⟩)
       trivial).mono ?_
@@ -233,12 +229,11 @@ theorem IsCut.comp {τ s τ₁ s₁ P₁ t₁ τ₂ s₂ P₂ t₂ : ℕ} {G₁ 
       Nat.mul_le_mul_left _ (by omega)
     omega
   · obtain ⟨q, hq, h1, h2⟩ := hmem p hp
-    refine ⟨h1, fun y hy => ?_⟩
-    obtain ⟨x, hx, q', hq', hy'⟩ := h2 y hy
-    exact ((hR x (hs₁ q hq x hx)).2.1 q' hq').2 y hy'
+    exact ⟨h1, fun y hy => let ⟨x, hx, q', hq', hy'⟩ := h2 y hy
+      ((hR x (hs₁ q hq x hx)).2.1 q' hq').2 y hy'⟩
   · obtain ⟨q, hq, -, h2⟩ := hmem p hp'
-    obtain ⟨x, hx, q', hq', hy'⟩ := h2 y hy
-    exact ((hR x (hs₁ q hq x hx)).2.2 ((hv₁ hp).1 q hq x hx)).1 q' hq' y hy'
+    exact let ⟨x, hx, q', hq', hy'⟩ := h2 y hy
+      ((hR x (hs₁ q hq x hx)).2.2 ((hv₁ hp).1 q hq x hx)).1 q' hq' y hy'
   · rw [(hv₁ hp).2, wsum_bindW]
     refine wsum_congr fun q hq => ?_
     rw [wsum_foldW_cutStepW fun x hx =>

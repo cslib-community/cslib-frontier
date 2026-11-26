@@ -104,11 +104,8 @@ theorem eventually_rayParity_rightGerm {ι : Type*} [Fintype ι]
     refine Finset.sum_congr rfl fun i _ => ?_
     rw [Fintype.sum_bool]
     simp only [cross, rayEndpoint, rayEndVector, ↓reduceIte]
-    have hbit (P : Prop) [Decidable P] :
-        (if P then x i else 0) = x i * decide P := by
-      by_cases h : P <;> simp [h, Bool.mul_eq_and, Bool.zero_eq_false]
-    by_cases ha : a i = p <;> by_cases hb : b i = p <;>
-      simp [hbit, ha, hb, add_comm]
+    by_cases ha : a i = p <;> by_cases hb : b i = p <;> cases x i <;>
+      simp [ha, hb, Bool.mul_eq_and, Bool.zero_eq_false, add_comm]
   filter_upwards [eventually_rayParity_germ a b x hheight p v
     (rayEndVector_im_ne_zero a b hheight k) hremote] with t ht hpos
   rw [ht hpos, hdelta, ← hcorrect, add_assoc, hsum]
@@ -204,23 +201,18 @@ theorem rayGermColor_ends_add_eq_crossings {ι : Type*} [Fintype ι]
       rw [hevent]
     · simp [hj, Bool.eq_false_iff.mpr hx, ← Bool.zero_eq_false]
   rw [hsum] at htrace
-  have hpoint0 : rayEndpoint a b (i, false) + t • rayEndVector a b (i, false) =
-      AffineMap.lineMap (a i) (b i) t := by
-    simp [rayEndpoint, rayEndVector, AffineMap.lineMap_apply_module', add_comm]
-  have hpoint1 : rayEndpoint a b (i, true) + t • rayEndVector a b (i, true) =
-      AffineMap.lineMap (a i) (b i) (1 - t) := by
-    simp only [rayEndpoint, rayEndVector, ↓reduceIte, AffineMap.lineMap_apply_module']
+  simp only [rayEndpoint, rayEndVector, Bool.false_eq_true, ↓reduceIte] at ht0 ht1
+  have hpoint0 : a i + t • (b i - a i) = point t := by
+    simp [point, AffineMap.lineMap_apply_module', add_comm]
+  have hpoint1 : b i + t • (a i - b i) = point (1 - t) := by
+    simp only [point, AffineMap.lineMap_apply_module']
     module
-  have ht0' := hpoint0 ▸ ht0 htpos
-  have ht1' := hpoint1 ▸ ht1 htpos
-  simp only [rayEndpoint, rayEndVector, Bool.false_eq_true, ↓reduceIte] at ht0' ht1'
   have hsign : (if (b i - a i).im < 0 then x i else 0) +
       (if (a i - b i).im < 0 then x i else 0) = x i := by
     simp only [Complex.sub_im, sub_neg]
     rcases lt_or_gt_of_ne (hheight i) with h | h <;> simp [h, not_lt_of_ge h.le]
-  rw [← ht0', ← ht1']
-  change (rayParity a b x (point t) + _) + (rayParity a b x (point (1 - t)) + _) = _
-  rw [add_add_add_comm, add_comm (rayParity a b x (point t)), htrace, hsign, add_comm]
+  rw [← ht0 htpos, ← ht1 htpos, hpoint0, hpoint1, add_add_add_comm,
+    add_comm (rayParity a b x (point t)), htrace, hsign, add_comm]
 
 /-- Endpoint prefix colors on the opposite sides of a segment differ by its label.
 All parameters are real and the open segment is isolated from every other occurrence.

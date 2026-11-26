@@ -135,12 +135,10 @@ theorem realTree_toRealizable {M : AuxPDA k Bool StackSym State}
   | refl u => exact ⟨0, .refl u.toSurface⟩
   | stay h => exact ⟨1, .stay h⟩
   | pushPop h _ ih =>
-    obtain ⟨γ, hp, hq⟩ := h
-    obtain ⟨d, hd⟩ := ih
+    rcases h, ih with ⟨⟨_, hp, hq⟩, ⟨d, hd⟩⟩
     exact ⟨d + 2, .pushPop hp hd hq⟩
   | trans _ _ ihl ihr =>
-    obtain ⟨d₁, h₁⟩ := ihl
-    obtain ⟨d₂, h₂⟩ := ihr
+    rcases ihl, ihr with ⟨⟨d₁, h₁⟩, ⟨d₂, h₂⟩⟩
     exact ⟨d₁ + d₂, .trans h₁ h₂⟩
 
 private lemma stayStep_of_sameHeightRun_length_one {M : AuxPDA k Bool StackSym State}
@@ -148,11 +146,7 @@ private lemma stayStep_of_sameHeightRun_length_one {M : AuxPDA k Bool StackSym S
     M.StayStep p.head.surface p.last.surface := by
   have hstep : M.Step p.head p.last := by
     have hs : M.Step (p ⟨0, by omega⟩) (p ⟨1, by omega⟩) := p.step ⟨0, by omega⟩
-    have h1 : p ⟨1, by omega⟩ = p.last :=
-      congrArg p <| Fin.ext <| by
-        change 1 = p.length
-        omega
-    rwa [h1] at hs
+    rwa [congrArg p (Fin.ext hlen.symm : (⟨1, by omega⟩ : Fin _) = Fin.last p.length)] at hs
   cases hq : p.head.tapes.state with
   | none => exact .inl ⟨hq, congrArg Cfg.surface ((AuxPDA.step_of_halt hq).mp hstep)⟩
   | some q =>
@@ -198,11 +192,8 @@ private lemma exists_boundedRealTree_of_sameHeightRun {M : AuxPDA k Bool StackSy
         (.refl (BoundedSurfaceCfg.ofSurface p.head.surface (hfits p.head p.head_mem)))
       exact ⟨T, hT.le.trans (le_max_left 1 _)⟩
     | 1 =>
-      refine ⟨.stay ?_, ?_⟩
-      · unfold BoundedStayStep
-        simpa only [BoundedSurfaceCfg.toSurface_ofSurface] using
-          stayStep_of_sameHeightRun_length_one p hlen hsame
-      · rfl
+      exact ⟨.stay (by simpa only [BoundedStayStep, BoundedSurfaceCfg.toSurface_ofSurface] using
+        stayStep_of_sameHeightRun_length_one p hlen hsame), le_rfl⟩
     | d' + 2 =>
       rcases sameHeightRun_split_ge_two p hlen hsame with
         ⟨j, hjpos, hjlt, h1, h2⟩ |
@@ -234,8 +225,7 @@ private lemma exists_boundedRealTree_of_sameHeightRun {M : AuxPDA k Bool StackSy
         · unfold BoundedPushStep
           simpa only [BoundedSurfaceCfg.toSurface_ofSurface] using hpush
         · unfold BoundedPopStep
-          rw [BoundedSurfaceCfg.toSurface_ofSurface, BoundedSurfaceCfg.toSurface_ofSurface]
-          exact hpop
+          rwa [BoundedSurfaceCfg.toSurface_ofSurface, BoundedSurfaceCfg.toSurface_ofSurface]
         · simp only [RealTree.size]; omega
 
 /-- Every configuration along a computation path of a space-`s`-bounded `AuxPDA` fits in
@@ -303,12 +293,10 @@ theorem accepts_iff_exists_boundedRealTree {M : AuxPDA k Bool StackSym State} {t
     (hfits q.toRunPath.last q.toRunPath.last_mem)
   obtain ⟨T', hsz'⟩ := realTree_cast (initBoundedSurface M.withEmptyStackHalt input s) v
     (BoundedSurfaceCfg.toSurface_injective (by simp [q.head_eq]; rfl)) rfl T
-  refine ⟨v, ⟨?_, ?_⟩, T', by omega⟩
-  · change v.toSurface.IsAccepting
-    rw [BoundedSurfaceCfg.toSurface_ofSurface, Cfg.isAccepting_surface_iff]
-    exact ⟨hqHalt, hqOut⟩
-  · change q.last.stack.head? = none
-    simp [hstack]
+  refine ⟨v, ⟨?_, List.head?_eq_none_iff.mpr hstack⟩, T', by omega⟩
+  change v.toSurface.IsAccepting
+  rw [BoundedSurfaceCfg.toSurface_ofSurface, Cfg.isAccepting_surface_iff]
+  exact ⟨hqHalt, hqOut⟩
 
 end BoundedRealTree
 

@@ -435,9 +435,7 @@ theorem AMGameClass_merge {enc : α ↪ List Bool} (σ τ : List AMMove) (x : AM
   rintro A ⟨G, V, hG, hV, hA⟩
   obtain ⟨Gσ, G', rfl, hσ, h'⟩ := List.map_eq_append_iff.1 hG
   obtain ⟨⟨x₁, p₁⟩, G'', rfl, rfl, h''⟩ := List.map_eq_cons_iff.1 h'
-  obtain ⟨⟨x₂, p₂⟩, Gτ, rfl, hx₂, hτ⟩ := List.map_eq_cons_iff.1 h''
-  dsimp only at hx₂
-  subst hx₂
+  obtain ⟨⟨x₂, p₂⟩, Gτ, rfl, rfl, hτ⟩ := List.map_eq_cons_iff.1 h''
   refine ⟨Gσ ++ (x₂, p₁ + p₂) :: Gτ, V, by simp [hσ, hτ], hV, ?_⟩
   rw [isAMGameVerifier_iff_value] at hA ⊢
   intro a
@@ -508,9 +506,8 @@ theorem isAMGameVerifier_arthur_iff {enc : α ↪ List Bool} {p : Polynomial ℕ
       acceptCount V a (p.eval (enc a).length) := by
     simp only [evalShape, List.map_cons, List.map_nil, count_arthur, count_nil,
       List.append_nil, sum_toNat_eq_card, acceptCount]
-  have hb : arthurBits (evalShape [(.arthur, p)] (enc a).length) = p.eval (enc a).length := by
-    simp [evalShape, arthurBits]
-  rw [hc, hb]
+  rw [hc]
+  simp only [evalShape, List.map_cons, List.map_nil, arthurBits, add_zero]
   exact and_congr (imp_congr_right fun _ => boundedErrorAt_true_iff.symm)
     (imp_congr_right fun _ => boundedErrorAt_false_iff.symm)
 
@@ -523,8 +520,8 @@ theorem isAMGameVerifier_merlin_iff {enc : α ↪ List Bool} {q : Polynomial ℕ
       (decide (∃ y : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn y) = true)).toNat := by
     simp only [evalShape, List.map_cons, List.map_nil, count_merlin, count_nil,
       List.append_nil, sup_toNat_eq]
-  have hb : arthurBits (evalShape [(.merlin, q)] (enc a).length) = 0 := rfl
-  rw [hc, hb, pow_zero, mul_one]
+  rw [hc]
+  simp only [evalShape, List.map_cons, List.map_nil, arthurBits, pow_zero, mul_one]
   have hex : (∃ y : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn y) = true) ↔
       ∃ w : List Bool, w.length = q.eval (enc a).length ∧ V (a, w) = true :=
     ⟨fun ⟨y, hy⟩ => ⟨List.ofFn y, List.length_ofFn, hy⟩,
@@ -542,15 +539,13 @@ theorem isAMGameVerifier_arthur_merlin_iff {enc : α ↪ List Bool} {p q : Polyn
         ∃ y : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn r ++ List.ofFn y) = true} := by
     simp only [evalShape, List.map_cons, List.map_nil, count_arthur, count_merlin,
       count_nil, List.append_nil, sup_toNat_eq, sum_toNat_eq_card, decide_eq_true_eq]
-  have hb : arthurBits (evalShape [(.arthur, p), (.merlin, q)] (enc a).length) =
-      p.eval (enc a).length := by
-    simp [evalShape, arthurBits]
   have hsum := card_filter_add_card_filter_not (s := (univ : Finset
     (Fin (p.eval (enc a).length) → Bool))) fun r =>
       ∃ y : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn r ++ List.ofFn y) = true
   simp only [card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, not_exists,
     Bool.not_eq_true] at hsum
-  rw [hc, hb]
+  rw [hc]
+  simp only [evalShape, List.map_cons, List.map_nil, arthurBits, add_zero]
   exact and_congr_right fun _ => imp_congr_right fun _ => by omega
 
 theorem isAMGameVerifier_merlin_arthur_iff {enc : α ↪ List Bool} {q p : Polynomial ℕ}
@@ -563,9 +558,6 @@ theorem isAMGameVerifier_merlin_arthur_iff {enc : α ↪ List Bool} {q p : Polyn
       univ.sup f := by
     simp only [evalShape, List.map_cons, List.map_nil, count_arthur, count_merlin,
       count_nil, List.append_nil, sum_toNat_eq_card, f]
-  have hb : arthurBits (evalShape [(.merlin, q), (.arthur, p)] (enc a).length) =
-      p.eval (enc a).length := by
-    simp [evalShape, arthurBits]
   have hsum (y : Fin (q.eval (enc a).length) → Bool) :
       f y + #{r : Fin (p.eval (enc a).length) → Bool | V (a, List.ofFn y ++ List.ofFn r) = false} =
         2 ^ p.eval (enc a).length := by
@@ -573,20 +565,16 @@ theorem isAMGameVerifier_merlin_arthur_iff {enc : α ↪ List Bool} {q p : Polyn
       Bool.not_eq_true] using card_filter_add_card_filter_not
       (s := (univ : Finset (Fin (p.eval (enc a).length) → Bool))) fun r =>
         V (a, List.ofFn y ++ List.ofFn r) = true
-  rw [hc, hb]
-  dsimp only [BoundedErrorAt]
+  rw [hc]
+  simp only [evalShape, List.map_cons, List.map_nil, arthurBits, add_zero, BoundedErrorAt]
   refine and_congr (imp_congr_right fun _ => ⟨fun h => ?_, fun ⟨y, hy⟩ => ?_⟩)
     (imp_congr_right fun _ => ⟨fun h y => ?_, fun h => ?_⟩)
   · obtain ⟨y, -, hy⟩ := exists_mem_eq_sup univ univ_nonempty f
     exact ⟨y, by rwa [hy] at h⟩
   · exact hy.trans (Nat.mul_le_mul_left 3 (Finset.le_sup (f := f) (mem_univ y)))
-  · have := (Nat.mul_le_mul_left 3 (Finset.le_sup (f := f) (mem_univ y))).trans h
-    have := hsum y
-    omega
+  · linarith [hsum y, (Nat.mul_le_mul_left 3 (Finset.le_sup (f := f) (mem_univ y))).trans h]
   · obtain ⟨y, -, hy⟩ := exists_mem_eq_sup univ univ_nonempty f
-    have := h y
-    have := hsum y
-    omega
+    linarith [hy, h y, hsum y]
 
 /-- **The empty game `[]` is `P`.** -/
 theorem AMGameClass_nil {enc : α ↪ List Bool} : AMGameClass enc [] = P enc := by
@@ -666,20 +654,14 @@ theorem mem_AMGameClass_cons_merlin {enc : α ↪ List Bool} {B : Set (α × Lis
   · have heval : evalShape (G.map fun x => (x.1, x.2.comp L)) (enc a).length =
         evalShape G (L.eval (enc a).length) := by
       simp [evalShape, List.map_map, Function.comp_def, Polynomial.eval_comp]
-    have htake (y : Fin (p.eval (enc a).length) → Bool) (t : List Bool) :
-        (List.ofFn y ++ t).take (p.eval (enc a).length) = List.ofFn y :=
-      List.take_left' List.length_ofFn
-    have hdrop (y : Fin (p.eval (enc a).length) → Bool) (t : List Bool) :
-        (List.ofFn y ++ t).drop (p.eval (enc a).length) = t :=
-      List.drop_left' List.length_ofFn
-    simp only [evalShape_cons, heval, arthurBits, count_merlin, htake, hdrop]
+    simp only [evalShape_cons, heval, arthurBits, count_merlin, List.take_left' List.length_ofFn,
+      List.drop_left' List.length_ofFn]
     set f : (Fin (p.eval (enc a).length) → Bool) → ℕ := fun y =>
       count (evalShape G (L.eval (enc a).length)) fun t => VB ((a, List.ofFn y), t)
     refine ⟨fun ⟨w, hw, hwB⟩ => ?_, fun ha => ?_⟩
     · let y := BitString.ofList (p.eval (enc a).length) w
-      have h1 := (hB' (a, List.ofFn y)).1 (by rwa [BitString.ofFn_ofList hw])
-      rw [hL a y] at h1
-      exact h1.trans (Nat.mul_le_mul_left 3 (Finset.le_sup (f := f) (mem_univ y)))
+      exact (hL a y ▸ (hB' (a, List.ofFn y)).1 (by rwa [BitString.ofFn_ofList hw])).trans
+        (Nat.mul_le_mul_left 3 (Finset.le_sup (f := f) (mem_univ y)))
     · obtain ⟨y, -, hy⟩ := exists_mem_eq_sup univ univ_nonempty f
       have h2 := (hB' (a, List.ofFn y)).2 fun h => ha ⟨List.ofFn y, List.length_ofFn, h⟩
       rw [hL a y] at h2

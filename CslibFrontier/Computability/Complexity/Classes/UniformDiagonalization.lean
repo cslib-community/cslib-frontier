@@ -205,11 +205,9 @@ theorem witness_sound (hS : Spec dA dF A F) {n k : ℕ} (h : witness dA dF (tabl
   obtain ⟨c, hc₁, hc₂⟩ := disagree_iff.mp hd
   have hlen : (word j).length < n := (length_word_lt j).trans_le hj
   rw [approxA, getD_table _ _ hlen] at hc₁
-  refine ⟨word j, fun hiff => ?_⟩
   have h₁ := hS.soundA _ _ _ _ hc₁
   have h₂ := hS.soundF _ _ _ _ _ hc₂
-  rw [D, Set.mem_ofPred_eq] at hiff
-  cases c <;> simp_all
+  exact ⟨word j, by cases c <;> simp_all [D]⟩
 
 /-- **A separating word is eventually a witness.** -/
 theorem witness_complete (hS : Spec dA dF A F) {k : ℕ} {w : List Bool}
@@ -407,9 +405,8 @@ theorem isDecidable_ite {α : Type} {enc : α ↪ List Bool} {G A₁ A₂ : Set 
   obtain ⟨f₁, hf₁, hA₁'⟩ := isDecidable_iff.mp hA₁
   obtain ⟨f₂, hf₂, hA₂'⟩ := isDecidable_iff.mp hA₂
   refine isDecidable_iff.mpr ⟨fun a => if g a then f₁ a else f₂ a, hg.ite hf₁ hf₂, fun a => ?_⟩
-  by_cases ha : a ∈ G
-  · simp [Set.ite, ha, (hG' a).mp ha, hA₁']
-  · simp [Set.ite, ha, (Bool.not_eq_true _).mp (mt (hG' a).mpr ha), hA₂']
+  have := hG' a
+  by_cases ha : a ∈ G <;> simp_all [Set.ite]
 
 /-- The **marked union** of two sets of words: `false :: x` for `x ∈ A₁` and `true :: x` for
 `x ∈ A₂`. -/
@@ -463,13 +460,11 @@ theorem isDecidable_markedUnion {A B : Set (List Bool)}
   let dec : List Bool → Bool := fun w =>
     if w.isEmpty then false else if w.headD false then fB w.tail else fA w.tail
   have hempty : ComputableInPolyTime List.isEmpty encBits encBool := by fun_prop
-  have hhead : ComputableInPolyTime (fun w : List Bool => w.headD false) encBits encBool := by
-    fun_prop
-  have htail : ComputableInPolyTime (fun w : List Bool => w.tail) encBits encBits := by fun_prop
-  have hfalse : ComputableInPolyTime (fun _ : List Bool => false) encBits encBool := .const false
-  refine isDecidable_iff.mpr ⟨dec, hempty.isComputable.ite hfalse.isComputable
-    (hhead.isComputable.ite (hfB.comp htail.isComputable) (hfA.comp htail.isComputable)),
-    fun w => ?_⟩
+  have hhead : ComputableInPolyTime (·.headD false) encBits encBool := by fun_prop
+  have htail := (show ComputableInPolyTime List.tail encBits encBits by fun_prop).isComputable
+  refine isDecidable_iff.mpr ⟨dec,
+    hempty.isComputable.ite (ComputableInPolyTime.const false).isComputable
+      (hhead.isComputable.ite (hfB.comp htail) (hfA.comp htail)), fun w => ?_⟩
   cases w with
   | nil =>
     simp only [dec, List.isEmpty_nil, ↓reduceIte, Bool.false_eq_true, iff_false]
@@ -486,10 +481,8 @@ theorem markedUnion_mem_NP {A B : Set (List Bool)}
       {w : List Bool | (w.isEmpty = false ∧ w.headD false = b) ∧ w.tail ∈ S} ∈ NP encBits := by
     have h₁ : {w : List Bool | w.isEmpty = false ∧ w.headD false = b} ∈ P encBits :=
       ⟨fun w => !w.isEmpty && (if b then w.headD false else !w.headD false),
-        by cases b <;> fun_prop, fun w => by
-          cases w with
-          | nil => simp
-          | cons c u => cases b <;> cases c <;> simp⟩
+        by cases b <;> fun_prop,
+        fun w => by rcases w with _ | ⟨_ | _, _⟩ <;> cases b <;> simp⟩
     exact inter_mem_NP (P_subset_NP h₁)
       (PolyTimeReducible.mem_NP (A := {w : List Bool | w.tail ∈ S})
         ⟨List.tail, by fun_prop, fun _ => Iff.rfl⟩ hS)
@@ -510,9 +503,8 @@ theorem polyTimeReducible_ite_markedUnion {G A₁ A₂ : Set (List Bool)} (hG : 
   obtain ⟨g, hg, hG'⟩ := hG
   refine ⟨fun w => (!g w) :: w, by fun_prop, fun w => ?_⟩
   rw [cons_mem_markedUnion]
-  by_cases hw : w ∈ G
-  · simp [Set.ite, hw, (hG' w).mp hw]
-  · simp [Set.ite, hw, (Bool.not_eq_true _).mp (mt (hG' w).mpr hw)]
+  have := hG' w
+  by_cases hw : w ∈ G <;> simp_all [Set.ite]
 
 /-- **The mixed set reduces to `A₂`** when `G` and `A₁` are in `P` and `A₂` has a member and a
 non-member: on `G`, the reduction answers with the member or the non-member. -/

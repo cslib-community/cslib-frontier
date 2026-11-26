@@ -95,18 +95,13 @@ private def highPart (k : ℕ) (hk : k ≤ b) (x : Fin (2 ^ b)) : Fin (2 ^ (b - 
 private theorem le_split (k : ℕ) (hk : k ≤ b) (x y : Fin (2 ^ b)) :
     x ≤ y ↔ highPart k hk x ≤ highPart k hk y ∧
       (highPart k hk x = highPart k hk y → lowPart k x ≤ lowPart k y) := by
-  change x.val ≤ y.val ↔ x.val / 2 ^ k ≤ y.val / 2 ^ k ∧
-    ((⟨_, _⟩ : Fin (2 ^ (b - k))) = ⟨_, _⟩ → x.val % 2 ^ k ≤ y.val % 2 ^ k)
-  simp only [Fin.mk.injEq]
+  simp only [Fin.le_def, Fin.ext_iff, highPart, lowPart]
   have hx := Nat.mod_add_div x.val (2 ^ k)
   have hy := Nat.mod_add_div y.val (2 ^ k)
-  constructor
-  · intro h
-    refine ⟨Nat.div_le_div_right h, fun he => ?_⟩
-    rw [he] at hx
+  refine ⟨fun h => ⟨Nat.div_le_div_right h, fun he => ?_⟩, fun ⟨h, he⟩ => ?_⟩
+  · rw [he] at hx
     lia
-  · rintro ⟨h, he⟩
-    obtain hlt | hq := h.lt_or_eq
+  · obtain hlt | hq := h.lt_or_eq
     · exact le_of_not_gt fun hn => hlt.not_ge (Nat.div_le_div_right hn.le)
     · have hmod := he hq
       rw [hq] at hx
@@ -150,12 +145,10 @@ private theorem synthesis_splitTests (s : Set (BooleanFunction a)) (v : BitStrin
         Or.inr (Or.inl (Or.inl (Or.inr ⟨D, rfl⟩)))]
     refine (htHi.and (hEq.not.or htLo)).congr_iff fun x => ?_
     cases reverse <;>
-      simp only [testHi, testLo, eqh, Bool.false_eq_true, ite_false, ite_true, Bool.and_eq_true,
-        Bool.or_eq_true, Bool.not_eq_true', decide_eq_false_iff_not, decide_eq_true_eq]
-    · rw [le_split k hk (v x) (c j)]
-      exact and_congr_right fun _ => imp_iff_not_or.symm
-    · rw [le_split k hk (c j) (v x)]
-      exact and_congr_right fun _ => (imp_iff_not_or.trans (or_congr_left (not_congr eq_comm))).symm
+      simp only [testHi, testLo, eqh, le_split k hk, Bool.false_eq_true, ite_false, ite_true,
+        Bool.and_eq_true, Bool.or_eq_true, Bool.not_eq_true', decide_eq_false_iff_not,
+        decide_eq_true_eq] <;>
+      grind
   refine ((hlo.union hhi).trans (Synthesis.family (s := src) _ _ row)).mono
     Set.Subset.rfl Set.Subset.rfl ?_
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, Nat.nsmul_eq_mul]
@@ -200,14 +193,11 @@ private theorem synthesis_firstFlag (s : Set (BooleanFunction a))
     refine ((Synthesis.of_mem (Or.inr (Synthesis.subset_stages q le_rfl rfl)) :
       Synthesis interpretation (src ∪ Synthesis.stages q t) {fun x => beforeFlag (flags x) t} 0).or
       (Synthesis.of_mem (Or.inl (Or.inl (hf i))))).congr_iff fun x => ?_
-    simp only [beforeFlag, Bool.or_eq_true, decide_eq_true_eq]
-    refine ⟨?_, fun ⟨j, hj, he⟩ => ?_⟩
-    · rintro (⟨j, hj, he⟩ | he)
-      · exact ⟨j, by lia, he⟩
-      · exact ⟨i, by simp [i], he⟩
-    · by_cases h : j.val < t
-      · exact Or.inl ⟨j, h, he⟩
-      · exact Or.inr ((Fin.ext (by dsimp only [i]; omega) : i = j) ▸ he)
+    simp only [beforeFlag, Bool.or_eq_true, decide_eq_true_eq, Nat.lt_succ_iff, le_iff_lt_or_eq]
+    refine ⟨?_, fun ⟨j, hj, he⟩ => hj.imp (⟨j, ·, he⟩) fun h => (Fin.ext (Eq.symm h) : i = j) ▸ he⟩
+    rintro (⟨j, hj, he⟩ | he)
+    · exact ⟨j, .inl hj, he⟩
+    · exact ⟨i, .inr rfl, he⟩
 
 private def windowFlags (q target : Fin (2 ^ b)) (lo hi floor height : Fin M → Fin (2 ^ b))
     (j : Fin M) : Bool := decide (lo j ≤ q ∧ q ≤ hi j ∧ floor j ≤ target ∧ target ≤ height j)

@@ -182,10 +182,8 @@ private theorem depthAt_liftCoordinate
       (depthAt bound coordinate).map (fun depth => depth + 1) := by
   induction bound with
   | zero =>
-      simp only [depthAt, Option.map_none]
-      rw [inFrame_succ_liftCoordinate 0 positive]
-      simp [inFrame, period, scale, frameStartResidue,
-        frameEndResidue, modOne]
+      simp only [depthAt, Option.map_none, inFrame_succ_liftCoordinate 0 positive]
+      simp [inFrame, period, scale, frameStartResidue, frameEndResidue, modOne]
   | succ bound inductionHypothesis =>
       conv_lhs => rw [depthAt]
       conv_rhs => rw [depthAt]
@@ -215,11 +213,8 @@ private theorem onFrameBoundary_eq_false_of_liftCoordinate
     apply (openingBoundary_succ_iff depth (liftCoordinate coordinate)).2
     exact ⟨by simpa [ceilDivFour_liftCoordinate coordinatePositive] using opening,
       liftCoordinate_mod_four coordinatePositive⟩
-  · have zeroResidue : coordinate % period 0 = 0 :=
-      largeClosing_mod_small depthPositive closing
-    have periodZero : period 0 = 4 := by simp [period]
-    rw [periodZero, modOne] at zeroResidue
-    contradiction
+  · have zeroResidue := largeClosing_mod_small depthPositive closing
+    simp [period, modOne] at zeroResidue
 
 private theorem horizontalCarrier_of_liftCoordinate
     {level x y : ℕ} (levelPositive : 0 < level)
@@ -235,15 +230,12 @@ private theorem horizontalCarrier_of_liftCoordinate
   cases owner : depthAt (level - 1) y with
   | none => simp [isHorizontalCarrier, rowShift, owner] at fineCarrier
   | some depth =>
-      have fineData : inFrame (depth + 1) (liftCoordinate x) = true ∧
+      obtain ⟨hIn, hNotBdy⟩ : inFrame (depth + 1) (liftCoordinate x) = true ∧
           onFrameBoundary (depth + 1) (liftCoordinate x) = false := by
         simpa [isHorizontalCarrier, rowShift, owner] using fineCarrier
-      have coarseData : inFrame depth x = true ∧
-          onFrameBoundary depth x = false := by
-        refine ⟨?_, onFrameBoundary_eq_false_of_liftCoordinate
-          (depthAt_pos owner) xPositive xMod fineData.2⟩
-        simpa [inFrame_succ_liftCoordinate depth xPositive] using fineData.1
-      simpa [isHorizontalCarrier, owner] using coarseData
+      simpa [isHorizontalCarrier, owner, ← inFrame_succ_liftCoordinate depth xPositive] using
+        ⟨hIn,
+          onFrameBoundary_eq_false_of_liftCoordinate (depthAt_pos owner) xPositive xMod hNotBdy⟩
 
 private theorem verticalCarrier_of_liftCoordinate
     {level x y : ℕ} (levelPositive : 0 < level)
@@ -260,11 +252,8 @@ private theorem depthAt_eq_one_of_center_one
     {bound coordinate : ℕ} (boundPositive : 0 < bound)
     (center : coordinate % period 1 = 2 * scale 1 + 1) :
     depthAt bound coordinate = some 1 := by
-  have inside : inFrame 1 coordinate = true := by
-    simp [inFrame, center, frameStartResidue, frameEndResidue, scale]
-  have atOne : depthAt 1 coordinate = some 1 := by
-    simp [depthAt, inside]
-  exact depthAt_eq_some_mono atOne boundPositive
+  refine depthAt_eq_some_mono ?_ boundPositive
+  simp [depthAt, inFrame, center, frameStartResidue, frameEndResidue, scale]
 
 /-- A crossing lies at the common center of one horizontal and vertical
 carrier frame. -/
@@ -279,15 +268,12 @@ private theorem Centered.lift
     (levelPositive : 0 < level) (xPositive : 0 < x) (yPositive : 0 < y)
     (xMod : x % 4 = 1) (yMod : y % 4 = 1) :
     Centered (level + 1) (liftCoordinate x) (liftCoordinate y) (depth + 1) := by
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · have shifted := depthAt_liftCoordinate (level - 1) y yPositive yMod
-    rw [Nat.sub_add_cancel levelPositive, centered.rowOwner] at shifted
-    simpa using shifted
-  · have shifted := depthAt_liftCoordinate (level - 1) x xPositive xMod
-    rw [Nat.sub_add_cancel levelPositive, centered.columnOwner] at shifted
-    simpa using shifted
-  · exact liftCoordinate_centerResidue xPositive centered.xCenter
-  · exact liftCoordinate_centerResidue yPositive centered.yCenter
+  refine ⟨?_, ?_, liftCoordinate_centerResidue xPositive centered.xCenter,
+    liftCoordinate_centerResidue yPositive centered.yCenter⟩
+  · simpa [Nat.sub_add_cancel levelPositive, centered.rowOwner] using
+      depthAt_liftCoordinate (level - 1) y yPositive yMod
+  · simpa [Nat.sub_add_cancel levelPositive, centered.columnOwner] using
+      depthAt_liftCoordinate (level - 1) x xPositive xMod
 
 private theorem centeredAtOne
     {level x y : ℕ} (levelPositive : 0 < level)
@@ -385,23 +371,17 @@ private theorem corner_point_zero
   have parity := (quadrantAt_eq_northeast_iff i.val j.val).mp northeast
   have iEq : i.val = 2 * (i.val / 2) + 1 := by omega
   have jEq : j.val = 2 * (j.val / 2) + 1 := by omega
-  have tileXBound : i.val / 2 < 4 ^ level := by
-    have := i.isLt
-    simp only [side] at this
-    omega
-  have tileYBound : j.val / 2 < 4 ^ level := by
-    have := j.isLt
-    simp only [side] at this
-    omega
+  have tileXBound : i.val / 2 < 4 ^ level :=
+    Nat.div_lt_of_lt_mul (by simpa only [side, Nat.mul_comm] using i.isLt)
+  have tileYBound : j.val / 2 < 4 ^ level :=
+    Nat.div_lt_of_lt_mul (by simpa only [side, Nat.mul_comm] using j.isLt)
   obtain ⟨depth, rowOwner, columnOwner, xCenter, yCenter⟩ := indexZero_crossing_centered level
     (i.val / 2) (j.val / 2) tileXBound tileYBound indexZero
     (by simpa only [← iEq, ← jEq] using horizontal)
     (by simpa only [← iEq, ← jEq] using vertical)
-  apply point_eq_zero_of_centerResidues (depth := depth)
-  · simpa only [← jEq] using rowOwner
-  · simpa only [← iEq] using columnOwner
-  · simpa only [← iEq] using xCenter
-  · simpa only [← jEq] using yCenter
+  rw [← iEq] at columnOwner xCenter
+  rw [← jEq] at rowOwner yCenter
+  exact point_eq_zero_of_centerResidues rowOwner columnOwner xCenter yCenter
 
 private theorem cast_square_tile {τ : List WangTile} {m n : ℕ}
     (R : Rectangle τ m m) (h : m = n) (i j : Fin n) :

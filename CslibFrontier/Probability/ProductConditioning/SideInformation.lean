@@ -132,13 +132,8 @@ theorem dist_map_pair_bind_eq (Q : PMF (S × X)) (f : X → Y) (K : S → PMF Y)
     dist (Q.map fun z => (z.1, f z.2)) ((Q.map Prod.fst).bind fun s => (K s).map (s, ·)) =
       ∑ s, ((Q.map Prod.fst) s).toReal * dist ((conditionalSnd Q s).map f) (K s) := by
   nth_rewrite 1 [← bind_conditionalSnd Q]
-  rw [PMF.map_bind]
-  have : ∀ s, ((conditionalSnd Q s).map (s, ·)).map (fun z => (z.1, f z.2)) =
-      ((conditionalSnd Q s).map f).map (s, ·) := fun s => by
-    rw [PMF.map_comp, PMF.map_comp]
-    rfl
-  simp only [this]
-  exact dist_bind_pair (Q.map Prod.fst) (fun s => (conditionalSnd Q s).map f) K
+  simpa only [PMF.map_bind, PMF.map_comp, Function.comp_def] using
+    dist_bind_pair (Q.map Prod.fst) (fun s => (conditionalSnd Q s).map f) K
 
 end Decomposition
 
@@ -220,11 +215,8 @@ theorem conditionalSnd_filter_sideJoint [Finite ι] [∀ i, Finite (β i)] [Fini
   have hPw : 0 < Pw := (toOuterMeasure_toReal_pos_iff _ W).mpr hW
   have hc : 0 < c := (toOuterMeasure_toReal_pos_iff _ _).mpr hWs
   have hw := map_fst_filter_sideJoint_toReal μ J W hW t v
-  have hwpos : 0 < ((((sideJoint μ J).filter W hW).map Prod.fst) (t, v)).toReal :=
-    ENNReal.toReal_pos ((PMF.mem_support_iff _ _).mp hs) (PMF.apply_ne_top _ _)
-  have hμ : 0 < (μ t).toReal := by
-    rw [hw] at hwpos
-    exact pos_of_mul_pos_left ((div_pos_iff_of_pos_right hPw).mp hwpos) hc.le
+  have hμ : 0 < (μ t).toReal := pos_of_mul_pos_left ((div_pos_iff_of_pos_right hPw).mp
+    (hw ▸ ENNReal.toReal_pos ((PMF.mem_support_iff _ _).mp hs) (PMF.apply_ne_top _ _))) hc.le
   ext u
   have hpoint :
       (((J t).filter (sliceEvent W t v) hWs).map Prod.fst) u =

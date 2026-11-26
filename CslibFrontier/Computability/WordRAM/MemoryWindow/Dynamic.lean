@@ -95,14 +95,11 @@ theorem dynamicWindowSize_bounds {widthCoeff S : ℕ} (hc : 1 ≤ widthCoeff) (h
     S ≤ dynamicWindowSize widthCoeff S ∧
       dynamicWidth widthCoeff S < dynamicWindowSize widthCoeff S ∧
       widthCoeff < dynamicWindowSize widthCoeff S := by
-  have hclog : 1 ≤ Nat.clog 2 S := Nat.clog_pos (by decide) (by omega)
   have hlog : Nat.clog 2 S ≤ dynamicWidth widthCoeff S := Nat.le_mul_of_pos_left _ hc
-  have hSle : S ≤ dynamicWindowSize widthCoeff S :=
-    (Nat.le_pow_clog (by decide) S).trans (Nat.pow_le_pow_right (by decide) hlog)
-  have hwlt : dynamicWidth widthCoeff S < dynamicWindowSize widthCoeff S := Nat.lt_two_pow_self
-  have hclt : widthCoeff < dynamicWindowSize widthCoeff S :=
-    (Nat.le_mul_of_pos_right _ hclog).trans_lt hwlt
-  exact ⟨hSle, hwlt, hclt⟩
+  exact ⟨(Nat.le_pow_clog Nat.one_lt_two S).trans (Nat.pow_le_pow_right Nat.zero_lt_two hlog),
+    Nat.lt_two_pow_self,
+    (Nat.le_mul_of_pos_right _ (Nat.clog_pos Nat.one_lt_two (by omega))).trans_lt
+      Nat.lt_two_pow_self⟩
 
 /-- When `b + 4 * dynamicWindowSize widthCoeff S` fits in physical width `W` (with
 `1 ≤ widthCoeff` and `2 ≤ S`), `dynamicWidth widthCoeff S + 2 ≤ W`, the window endpoint
@@ -117,8 +114,7 @@ theorem dynamicWidth_fits {W b widthCoeff S : ℕ} (hc : 1 ≤ widthCoeff) (hS :
       widthCoeff < dynamicWindowSize widthCoeff S := by
   obtain ⟨hSle, hwlt, hclt⟩ := dynamicWindowSize_bounds hc hS
   have hpow : 2 ^ (dynamicWidth widthCoeff S + 2) ≤ b + 4 * dynamicWindowSize widthCoeff S := by
-    have h4 : 2 ^ (dynamicWidth widthCoeff S + 2) = 4 * dynamicWindowSize widthCoeff S := by
-      simp only [dynamicWindowSize, pow_add, Nat.reducePow, Nat.mul_comm]
+    simp only [dynamicWindowSize, pow_add, Nat.reducePow]
     omega
   have hw2 : dynamicWidth widthCoeff S + 2 ≤ W := (hfit.lt_of_pow_le hpow).le
   exact ⟨hw2, by omega, hfit.of_le (by omega), hSle, hwlt, hclt⟩
@@ -164,15 +160,11 @@ theorem preserves_withDynamicModulus {R : ℕ} (scratch : Fin 5 → Fin R) (widt
     {cont : Code .standard R} {i : Fin R}
     (hscratch : ∀ k : Fin 5, scratch k ≠ i) (hcont : cont.Preserves i) :
     (withDynamicModulus scratch widthCoeff cont).Preserves i := by
-  have hclog := NatClog.program.preserves_rename_of_forall_ne
-    (fun j : Fin 4 => scratch (j.castAdd 1)) i (fun j => hscratch (j.castAdd 1))
-  have hargs : (modulusArgs scratch widthCoeff).Preserves i := by
-    refine ⟨?_, ?_, ?_⟩
-    · simp [Code.Preserves, Op.dest, hscratch 2]
-    · simp [Code.Preserves, hscratch 3]
-    · simp [Code.Preserves, Op.dest, hscratch 2]
-  have hpow := Power.program.preserves_rename_of_forall_ne scratch i hscratch
-  exact ⟨hclog, hargs, hpow, hcont⟩
+  refine ⟨NatClog.program.preserves_rename_of_forall_ne _ i (fun j => hscratch (j.castAdd 1)),
+    ⟨?_, ?_, ?_⟩, Power.program.preserves_rename_of_forall_ne scratch i hscratch, hcont⟩
+  · simp [Code.Preserves, Op.dest, hscratch 2]
+  · simp [Code.Preserves, hscratch 3]
+  · simp [Code.Preserves, Op.dest, hscratch 2]
 
 /-- Execute `NatClog.program`, multiply by `widthCoeff`, and run `Power.program` in `scratch`,
 delivering `dynamicWindowSize widthCoeff S` in `scratch 0` with unchanged memory and external

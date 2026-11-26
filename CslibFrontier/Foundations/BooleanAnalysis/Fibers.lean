@@ -192,7 +192,7 @@ theorem uniformDensity_eq_deficit {ι : Type*} [Fintype ι] {X : Finset (ι → 
 /-- Normalization of the density of a nonempty finite cube subset. -/
 theorem expect_uniformDensity {ι : Type*} [Fintype ι] [DecidableEq ι] {X : Finset (ι → Bool)}
     (hX : X.Nonempty) : (𝔼 x, uniformDensity X x) = 1 := by
-  unfold uniformDensity
+  simp_rw [uniformDensity]
   rw [Fintype.expect_eq_sum_div_card, ← mul_sum, sum_uniformMass hX]
   simp
 
@@ -211,9 +211,7 @@ theorem exists_uniformDeficit_fiber_le {ι M : Type*} [Fintype ι] [Fintype M] [
     rw [nsmul_eq_mul]
     calc
       _ ≤ (2 : ℝ) ^ m * b := mul_le_mul_of_nonneg_right hm (by dsimp [b]; positivity)
-      _ = _ := by
-        dsimp [b]
-        field_simp
+      _ = _ := mul_div_cancel₀ _ (by positivity)
   obtain ⟨a, _, ha⟩ := exists_le_card_fiber_of_nsmul_le_card_of_maps_to
     (fun _ _ => mem_univ _) univ_nonempty (by simpa only [card_univ] using hb)
   have hne : (X.filter fun x => send x = a).Nonempty :=
@@ -295,9 +293,8 @@ private theorem resample_update_not [DecidableEq ι] {s : ι → Bool} {i : ι} 
     resample s x (Function.update y i (!y i)) =
       Function.update (resample s x y) i (!(resample s x y i)) := by
   funext j
-  by_cases hj : j = i
-  · subst hj
-    simp [resample, hi]
+  rcases eq_or_ne j i with rfl | hj
+  · simp [resample, hi]
   · simp [resample, Set.piecewise, Function.update_of_ne hj]
 
 variable [Fintype ι] [DecidableEq ι]
@@ -327,9 +324,8 @@ theorem coordinateFiber_nonempty {X : Finset (ι → Bool)} (s : ι → Bool) {x
 
 /-- Fiber densities are nonnegative, including for empty fibers. -/
 theorem coordinateDensity_nonneg (X : Finset (ι → Bool)) (s x : ι → Bool) :
-    0 ≤ coordinateDensity X s x := by
-  unfold coordinateDensity
-  positivity
+    0 ≤ coordinateDensity X s x :=
+  div_nonneg (Nat.cast_nonneg _) (by positivity)
 
 /-- The fraction of a fiber is the probability that coordinate resampling
 lands in the set. -/
@@ -526,11 +522,9 @@ theorem expect_ite_eq_one_half_of_update_not {ι : Type*} [Fintype ι] [Decidabl
     (f : (ι → Bool) → Bool) (i : ι) (hf : ∀ x, f (Function.update x i (!x i)) = !f x) (b : Bool) :
     (𝔼 x, if f x = b then (1 : ℝ) else 0) = 1 / 2 := by
   have he := expect_update_not i fun x => if f x = b then (1 : ℝ) else 0
-  have hpoint (x : ι → Bool) : (if f (Function.update x i (!x i)) = b then (1 : ℝ) else 0) =
-      1 - (if f x = b then 1 else 0) := by
-    rw [hf]
-    cases h : f x <;> cases b <;> norm_num
-  simp_rw [hpoint, expect_sub_distrib, Fintype.expect_const] at he
+  have hpoint (x : ι → Bool) : (if (!f x) = b then (1 : ℝ) else 0) =
+      1 - (if f x = b then 1 else 0) := by cases f x <;> cases b <;> norm_num
+  simp_rw [hf, hpoint, expect_sub_distrib, Fintype.expect_const] at he
   linarith
 
 /-- A Boolean function that flips with the coordinate `i` is true on half of every fiber over a

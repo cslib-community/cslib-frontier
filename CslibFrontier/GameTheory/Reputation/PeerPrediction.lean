@@ -223,8 +223,7 @@ theorem stochasticallyRelevant_iff :
       ∀ s₁ s₂ : S, s₁ ≠ s₂ → ∃ s' : S, M.peerPosterior s₁ s' ≠ M.peerPosterior s₂ s' := by
   refine ⟨fun hinj _ _ hne => Function.ne_iff.mp fun heq => hne (hinj heq), fun h s₁ s₂ heq => ?_⟩
   by_contra hne
-  obtain ⟨s', hs'⟩ := h s₁ s₂ hne
-  exact hs' (congrFun heq s')
+  exact (h s₁ s₂ hne).elim fun s' hs' => hs' (congrFun heq s')
 
 /-! ### Simultaneous reporting game (Equation `(27.1)`) -/
 
@@ -285,9 +284,8 @@ theorem sum_condSignalProb_mul_ref [DecidableEq S] {I : Type*} [Fintype I]
       rw [← mul_prod_erase univ (fun j => M.likelihood θ (f j)) (mem_univ i),
         ← mul_prod_erase (univ.erase i) (fun j => M.likelihood θ (f j))
           (mem_erase.mpr ⟨hri, mem_univ r⟩), hset, prod_map]
-      have hrest : ∏ x : Rest, M.likelihood θ (f x.1) = ∏ j : Rest, M.likelihood θ (rest j) :=
-        prod_congr rfl fun ⟨j, hj⟩ _ => by simp [f, equiv, hj.1, hj.2]
-      rw [Function.Embedding.coeFn_mk, hrest]
+      rw [Function.Embedding.coeFn_mk, prod_congr (g := fun j => M.likelihood θ (rest j)) rfl
+        fun ⟨j, hj⟩ _ => by simp [f, equiv, hj.1, hj.2]]
       simp [f, equiv, hri, mul_assoc]
     have hsum_joint : ∑ rest : Rest → S, M.jointSignalProb (equiv.symm (s_i, s_r, rest)) =
         ∑ θ, M.prior θ * M.likelihood θ s_i * M.likelihood θ s_r := by
@@ -333,9 +331,7 @@ theorem IsStrictBayesNashReporting.isBayesNashReporting [DecidableEq S] {I : Typ
     (h : M.IsStrictBayesNashReporting τ σ) :
     M.IsBayesNashReporting τ σ := by
   intro i s_i report
-  by_cases hne : report = σ i s_i
-  · subst hne; exact le_rfl
-  · exact (h i s_i report hne).le
+  exact (eq_or_ne report (σ i s_i)).elim (fun e => e ▸ le_rfl) fun hne => (h i s_i report hne).le
 
 /-- Truthful signal announcement strategy `x_m^i = s_m` for every rater `i`
 [FriedmanResnickSami2007, §27.4.1, p. 686]. -/
@@ -357,10 +353,8 @@ theorem interimTransfer_logPeerTransfer [DecidableEq S] {I : Type*} [Fintype I]
     M.interimTransfer (M.logPeerTransfer r α β) σ i s_i report =
       ∑ s_r : S, M.peerPosterior s_i s_r *
         (α * Real.log (M.peerPosterior report (σ (r i) s_r)) + β) := by
-  have hri : r i ≠ i := hr i
-  simp only [interimTransfer, logPeerTransfer, Function.update_self,
-    Function.update_of_ne hri]
-  exact M.sum_condSignalProb_mul_ref hri s_i fun s_r =>
+  simp only [interimTransfer, logPeerTransfer, Function.update_self, Function.update_of_ne (hr i)]
+  exact M.sum_condSignalProb_mul_ref (hr i) s_i fun s_r =>
     α * Real.log (M.peerPosterior report (σ (r i) s_r)) + β
 
 /-- **Proposition 1** ([FriedmanResnickSami2007, §27.4.2, p. 687];
@@ -483,11 +477,8 @@ theorem truthful_isStrictBayesNash_balancedLogPeerTransfer [DecidableEq S]
           ∑ s_prof : I → S, M.condSignalProb i s_i s_prof *
             M.logPeerTransfer r α 0 (fun j => truthfulStrategy I j (s_prof j)) (b i) := by
     intro a
-    simp only [interimTransfer, balancedLogPeerTransfer, mul_sub, sum_sub_distrib]
-    congr 1
-    refine sum_congr rfl fun s_prof _ => ?_
-    congr 1
-    simp only [logPeerTransfer, Function.update_of_ne (hb i), Function.update_of_ne (hrb i)]
+    simp only [interimTransfer, balancedLogPeerTransfer, mul_sub, sum_sub_distrib,
+      logPeerTransfer, Function.update_of_ne (hb i), Function.update_of_ne (hrb i)]
   rw [hsplit report, hsplit (truthfulStrategy I i s_i)]
   linarith [M.truthful_isStrictBayesNash_logPeerTransfer hr hrel hα 0 i s_i report hne]
 

@@ -266,19 +266,16 @@ theorem collapse_polyTime (hvalid : ComputableInPolyTime H.valid encBits encBool
   let idx : List Bool → ℕ := fun r =>
     ((List.range (r.length + 1)).find? (fun k => H.valid (r.take k))).getD 0
   let findHdr : List Bool → List Bool := fun r => r.take (idx r)
-  have hrange : Turing.MultiTapeTM.ComputableInPolyTime
+  have hrange : ComputableInPolyTime
       (fun r : List Bool => List.range (r.length + 1)) encBits (encList encUnary) :=
-    Turing.MultiTapeTM.ComputableInPolyTime.range.comp (by polytime)
-  have hfind : Turing.MultiTapeTM.ComputableInPolyTime
+    ComputableInPolyTime.range.comp (by polytime)
+  have hfind : ComputableInPolyTime
       (fun r : List Bool => (List.range (r.length + 1)).find? (fun k => H.valid (r.take k)))
       encBits (encOption encUnary) :=
-    Turing.MultiTapeTM.ComputableInPolyTime.findWithInput hrange (by polytime)
-  have hidx : Turing.MultiTapeTM.ComputableInPolyTime idx encBits encUnary :=
-    (Turing.MultiTapeTM.ComputableInPolyTime.optionGetDWithInput hfind
-      (Turing.MultiTapeTM.ComputableInPolyTime.const 0
-        (encIn := encBits) (encOut := encUnary)))
-  have hfindHdr_pt : Turing.MultiTapeTM.ComputableInPolyTime findHdr encBits encBits := by
-    polytime
+    ComputableInPolyTime.findWithInput hrange (by polytime)
+  have hidx : ComputableInPolyTime idx encBits encUnary :=
+    ComputableInPolyTime.optionGetDWithInput hfind (ComputableInPolyTime.const 0)
+  have hfindHdr_pt : ComputableInPolyTime findHdr encBits encBits := by polytime
   have hpoly : ComputableInPolyTime (fun r =>
       if H.valid r then findHdr r ++ List.replicate (r.length - (findHdr r).length) true
       else r)
@@ -300,9 +297,7 @@ theorem collapse_polyTime (hvalid : ComputableInPolyTime H.valid encBits encBool
       obtain ⟨hp_k, as, bs, hL, hmin⟩ := List.find?_eq_some_iff_append.mp hopt
       have hk_le_hdr : k ≤ (H.header r).length := by
         rcases List.mem_append.mp (hL ▸ hlen) with h_as | h_kbs
-        · exfalso
-          have := hmin _ h_as
-          simp [hp_hdr] at this
+        · exact absurd (hmin _ h_as) (by simp [hp_hdr])
         · rcases List.mem_cons.mp h_kbs with h_eq | h_bs
           · exact h_eq.ge
           · have hp_pw : (as ++ k :: bs).Pairwise (· < ·) := hL ▸ List.pairwise_lt_range
@@ -383,8 +378,7 @@ theorem ensemble_dist_collapse {r : List Bool} (hv : H.valid r = true) :
     ring
   rw [hhi, Nat.cast_add, ENNReal.add_div] at hblock
   rw [← (ENNReal.add_right_inj (by finiteness)).mp hblock]
-  have hlen := H.length_header_le hv
-  obtain ⟨k, hk⟩ := Nat.exists_eq_add_of_le hlen
+  obtain ⟨k, hk⟩ := Nat.exists_eq_add_of_le (H.length_header_le hv)
   rw [hk, Nat.add_sub_cancel_left]
   exact two_pow_div_two_pow_add _ _
 

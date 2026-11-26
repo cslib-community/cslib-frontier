@@ -62,21 +62,15 @@ private theorem second_change_marker {p : Symbol q r} {a a' b b' : Option (Fin q
 
 private theorem before_marker {p : Symbol q r} (i : Fin r)
     (h : Compatible rules p (.marker i)) : ∃ a c, p = .pair a (some c) := by
-  rcases p with _ | _ | _ | ⟨a, b⟩
-  · exact h.elim
-  · exact h.elim
-  · exact h.elim
-  · exact h.elim (fun h => ⟨a, _, congrArg (Symbol.pair a) h⟩) fun h =>
-      ⟨a, _, congrArg (Symbol.pair a) h⟩
+  rcases p with _ | _ | _ | ⟨a, b⟩ <;> try exact h.elim
+  exact h.elim (fun h => ⟨a, _, congrArg (Symbol.pair a) h⟩) fun h =>
+    ⟨a, _, congrArg (Symbol.pair a) h⟩
 
 private theorem after_marker {p : Symbol q r} (i : Fin r)
     (h : Compatible rules (.marker i) p) : ∃ c b, p = .pair (some c) b := by
-  rcases p with _ | _ | _ | ⟨a, b⟩
-  · exact h.elim
-  · exact h.elim
-  · exact h.elim
-  · exact h.elim (fun h => ⟨_, b, congrArg (Symbol.pair · b) h⟩) fun h =>
-      ⟨_, b, congrArg (Symbol.pair · b) h⟩
+  rcases p with _ | _ | _ | ⟨a, b⟩ <;> try exact h.elim
+  exact h.elim (fun h => ⟨_, b, congrArg (Symbol.pair · b) h⟩) fun h =>
+    ⟨_, b, congrArg (Symbol.pair · b) h⟩
 
 private theorem pair_interior (k : Fin (n + 3)) (a b : Option (Fin q))
     (hpair : code.symm (u k) = .pair a b)
@@ -164,9 +158,7 @@ private theorem first_coordinate_rewrites (hu : HWord.Legal (compatibility rules
   have hy := readout_pair_left rules hv changed a' b
     (by simpa only [changed, Nat.sub_add_cancel (by omega : 2 ≤ k.val)] using hpv)
   have hcontext' : readout rules u hu context = readout rules v hv context :=
-    readout_first_off rules hu hv k he a a' b hpu hpv context (by
-      change k.val - 3 + 2 ≠ k.val
-      omega)
+    readout_first_off rules hu hv k he a a' b hpu hpv context (by dsimp [context]; omega)
   have hlocal := marker_right_rewrites rules C.rule C.letter (readout rules u hu changed)
     (readout rules v hv changed) C.left b b C.compatible
     (by simpa only [hx] using C.source) (by simpa only [hy] using C.target)
@@ -247,9 +239,7 @@ private theorem second_coordinate_rewrites (hu : HWord.Legal (compatibility rule
   have hy := readout_pair_right rules hv changed a b'
     (by simpa only [changed, Nat.sub_add_cancel hk0] using hpv)
   have hcontext' : readout rules u hu context = readout rules v hv context :=
-    readout_second_off rules hu hv k he a b b' hpu hpv context (by
-      change k.val + 1 ≠ k.val
-      omega)
+    readout_second_off rules hu hv k he a b b' hpu hpv context (by dsimp [context]; omega)
   have hlocal := marker_left_rewrites rules C.rule C.letter (readout rules u hu changed)
     (readout rules v hv changed) a a C.right C.compatible
     (by simpa only [hx] using C.source) (by simpa only [hy] using C.target)
@@ -264,9 +254,8 @@ private theorem same_pair_eq (k : Fin (n + 3)) (he : ∀ j, j ≠ k → u j = v 
     (a b : Option (Fin q)) (hpu : code.symm (u k) = .pair a b)
     (hpv : code.symm (v k) = .pair a b) : u = v := by
   funext j
-  by_cases hj : j = k
-  · subst j
-    exact code.symm.injective (hpu.trans hpv.symm)
+  rcases eq_or_ne j k with rfl | hj
+  · exact code.symm.injective (hpu.trans hpv.symm)
   · exact he j hj
 
 private theorem first_coordinate_reflGen (hu : HWord.Legal (compatibility rules) u)

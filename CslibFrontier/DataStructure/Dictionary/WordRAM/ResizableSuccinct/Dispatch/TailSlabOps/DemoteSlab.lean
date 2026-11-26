@@ -115,14 +115,12 @@ private theorem iterate_compDemoteStep_spec {metaBase itemBase U V w N m_cap b :
     have henv1 := henv.of_mem_eq (s' := s₁) (by rw [hfr1.frontier_eq])
     obtain ⟨hfr_m, hcpl_m, hcost_m, hsafe_m⟩ :=
       ih (k + 1) s_fix₁ s₁ (by omega) henv1 hloop' hcpl1 hm_cap1
-    have hkm_eq : (k + 1) + m = k + (m + 1) := by omega
     refine ⟨?_, ?_, ?_, ?_⟩
     · unfold iterate; rw [StateTransitionSpec.clientState_bind, hres_s]
       exact hfr1.trans hfr_m
     · unfold iterate
-      rw [StateTransitionSpec.clientState_bind, hres_s,
-        StateTransitionSpec.clientState_bind, hres_fix, ← hkm_eq]
-      exact hcpl_m
+      rwa [StateTransitionSpec.clientState_bind, hres_s,
+        StateTransitionSpec.clientState_bind, hres_fix, show k + (m + 1) = (k + 1) + m by omega]
     · dsimp only [s₁] at hcost_m
       simp only [iterate, Realization.memoryCost_bind', memoryCost_compDemoteStepGenProg,
         hres_s, hcost_m]
@@ -236,8 +234,9 @@ private theorem compDemoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
     gmPopSlabProg_effect (base := 0) (U := U) (V := V) (w := ghostW w) (n_max := N)
       (h_space := epochHashSpace U (ghostW w) N) hwg hb_pos hloopK.b_lt s_fix₁
       hloopK.slab_bij hloopK.qb_pos
-  have hs'_eq : s' = (Memory.spec 0).clientState s₁
-      (compGmPopSlabGenProg ((mkCompParams U V w N, metaBase), b)) := by
+  set s_pop := (Memory.spec 0).clientState s₁
+    (compGmPopSlabGenProg ((mkCompParams U V w N, metaBase), b))
+  have hs'_eq : s' = s_pop := by
     dsimp only [s', d, compDemoteSlabGenProg, compDemoteLoopGenProg]
     simp only [pure_bind, cpSlabSize_mk]
     rw [StateTransitionSpec.clientState_bind]
@@ -250,21 +249,14 @@ private theorem compDemoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
   refine ⟨by rw [hs'_eq]; exact hfr_loop.trans (CompOpFrame.of_gmFrame hfr_pop), ?_, ?_⟩
   · rw [hs'_eq, hs_fix'_eq]
     unfold FixedCoupled
-    have hgm0' : compGmAt metaBase U w N
-        ((Memory.spec 0).clientState s₁
-          (compGmPopSlabGenProg ((mkCompParams U V w N, metaBase), b))).mem 0 =
+    have hgm0' : compGmAt metaBase U w N s_pop.mem 0 =
         compGmAt metaBase U w N s₁.mem 0 - 1 := by rw [hgm_pop, hf_fields.1]
-    have hgm1' : compGmAt metaBase U w N
-        ((Memory.spec 0).clientState s₁
-          (compGmPopSlabGenProg ((mkCompParams U V w N, metaBase), b))).mem 1 =
+    have hgm1' : compGmAt metaBase U w N s_pop.mem 1 =
         compGmAt metaBase U w N s₁.mem 1 := by rw [hgm_pop, hf_fields.2.1]
-    have htot_eq' : epochTotalSlots N
-        (compGmAt metaBase U w N
-          ((Memory.spec 0).clientState s₁
-            (compGmPopSlabGenProg ((mkCompParams U V w N, metaBase), b))).mem) =
+    have htot_eq' : epochTotalSlots N (compGmAt metaBase U w N s_pop.mem) =
         (compGmAt metaBase U w N s₁.mem 0 - 1) * slabSize N +
           compGmAt metaBase U w N s₁.mem 1 := by
-      unfold epochTotalSlots; rw [ite_eq_right hb0, hgm0', hgm1']
+      simp only [epochTotalSlots, hb0, ↓reduceIte, hgm0', hgm1']
     refine ⟨hgm_pop.trans ((congrArg (fun g => gmPopSlab N g b) hcpl_loop.gm_eq).trans
         hgm_fpop.symm),
       hfr_pop.lm_eq.trans (hcpl_loop.lm_eq.trans hl_fpop.symm),

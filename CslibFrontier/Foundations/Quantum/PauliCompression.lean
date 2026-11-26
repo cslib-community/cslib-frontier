@@ -103,9 +103,7 @@ private theorem isHermitian_signProj_regularRep_negOne :
 
 private theorem regularRep_negOne_mul_signProj :
     reg negOne * signProj (reg negOne) true = -signProj (reg negOne) true := by
-  rw [mul_signProj regularRep_negOne_mul_self, signVal_true]
-  push_cast
-  rw [neg_one_smul]
+  simpa using mul_signProj (regularRep_negOne_mul_self (ι := ι) (κ := κ)) true
 
 private theorem commute_regularRep_signProj (y : PauliGroup ι) :
     reg y * signProj (reg negOne) true = signProj (reg negOne) true * reg y :=
@@ -133,9 +131,7 @@ private theorem compress_negOne_mul (hEE : Eᴴ * E = 1) (hEP : E * Eᴴ = signP
     rw [← signProj_mul_isometry hEE hEP, ← Matrix.mul_assoc, regularRep_negOne_mul_signProj,
       Matrix.neg_mul]
   rw [← regularRep_mul, commute_regularRep_negOne]
-  simp only [Matrix.mul_assoc]
-  rw [hJE]
-  simp
+  simp [Matrix.mul_assoc, hJE]
 
 /-- The regular representation compressed to the `-1` eigenspace of the central element satisfies
 the Pauli relations. -/
@@ -184,11 +180,8 @@ theorem pauliFamily_pauliXPow_mul (p q : PauliGroup ι) :
       pauliXPow p.x * pauliXPow q.x * (pauliZPow p.z * pauliZPow q.z) by
     simp only [Matrix.mul_assoc], pauliXPow_mul, pauliZPow_mul, dotProduct_comm q.x p.z]
   congr 1
-  have : signVal (p.sign + q.sign + p.z ⬝ᵥ q.x) =
-      signVal p.sign * signVal q.sign * signVal (p.z ⬝ᵥ q.x) := by
-    rw [show p.sign + q.sign + p.z ⬝ᵥ q.x = ((p.sign ^^ q.sign) ^^ p.z ⬝ᵥ q.x) from rfl,
-      signVal_xor, signVal_xor]
-  rw [this]
+  rw [show p.sign + q.sign + p.z ⬝ᵥ q.x = ((p.sign ^^ q.sign) ^^ p.z ⬝ᵥ q.x) from rfl,
+    signVal_xor, signVal_xor]
   push_cast
   ring
 
@@ -271,8 +264,7 @@ private theorem exists_isometry_pauliFamily (X Z : (ι → Bool) → Matrix κ �
     rw [← Matrix.mul_assoc Φ Φᴴ, hΦ2, Matrix.one_mul]
   have hPV : (E * Eᴴ) * V = V := (Matrix.mul_assoc _ _ _).trans hEV
   have hP (p : PauliGroup ι) : E * Eᴴ * (regularRep (ι := κ) p * V) = regularRep p * V := by
-    rw [← Matrix.mul_assoc, hEP, ← commute_regularRep_signProj, Matrix.mul_assoc]
-    rw [← hEP, hPV]
+    rw [← Matrix.mul_assoc, hEP, ← commute_regularRep_signProj, Matrix.mul_assoc, ← hEP, hPV]
   have hact (p : PauliGroup ι) :
       K * (regularRep p * V) =
         (pauliFamily pauliXPow pauliZPow p ⊗ₖ (1 : Matrix L₂ L₂ ℂ)) * W := by
@@ -356,8 +348,7 @@ theorem exists_isometry_compress_intertwine_pauliFamily
   obtain ⟨J, _, _, W, hWW, hcompress, hintertwine⟩ := exists_isometry_pauliFamily X Z hX hZ
   let f := pauliFamily X Z
   have hZexact (b : ι → Bool) : W * Z b = (pauliZPow b ⊗ₖ (1 : Matrix J J ℂ)) * W := by
-    apply sub_eq_zero.mp
-    apply conjTranspose_mul_self_eq_zero.mp
+    refine sub_eq_zero.mp <| conjTranspose_mul_self_eq_zero.mp ?_
     rw [← pauliFamily_ofZ pauliXPow pauliZPow pauliXPow_zero b, ← pauliFamily_ofZ X Z hX0 b,
       hintertwine]
     refine (expect_congr rfl fun p _ => ?_).trans (Fintype.expect_const _)

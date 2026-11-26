@@ -67,9 +67,7 @@ def walk (a d : Point) : ℕ → Route
     (walk a d k).getLast? = some (a + k • d) := by
   induction k generalizing a with
   | zero => simp [walk]
-  | succ k ih =>
-    rw [walk, List.getLast?_cons, ih, Option.getD_some, add_smul, one_smul]
-    exact congrArg some (by abel)
+  | succ k ih => rw [walk, List.getLast?_cons, ih, Option.getD_some, succ_nsmul', add_assoc]
 
 private theorem support_cons_of_head (a b : Point) {r : Route} (h : r.head? = some b) :
     support (a :: r) = segment a b ∪ support r := by
@@ -102,11 +100,8 @@ theorem support_walk (a d : Point) (k : ℕ) (hd : UnitVector d) :
   induction k generalizing a with
   | zero => simp [walk, support, segment, List.consecutivePairs]
   | succ k ih =>
-    have heq : a + d + k • d = a + (k + 1) • d := by
-      rw [add_smul, one_smul]
-      abel
-    rw [walk, support_cons_of_head a (a + d) (walk_head _ _ _), ih, heq]
-    exact segment_step_union a d k hd
+    simpa only [walk, support_cons_of_head a (a + d) (walk_head _ _ _), ih, succ_nsmul',
+      add_assoc] using segment_step_union a d k hd
 
 private theorem consecutivePairs_walk (a d : Point) (k : ℕ) :
     (walk a d (k + 1)).consecutivePairs =
@@ -316,17 +311,13 @@ theorem walk_eq_map_range (a d : Point) (k : ℕ) :
   induction k generalizing a with
   | zero => simp [walk]
   | succ k ih =>
-    rw [walk, List.range_succ_eq_map, List.map_cons, List.map_map, ih]
-    simp only [zero_smul, add_zero, List.cons.injEq, true_and]
-    refine List.map_congr_left fun i _ => ?_
-    simp only [Function.comp_apply, succ_nsmul]
-    abel
+    simp only [walk, List.range_succ_eq_map, List.map_cons, zero_smul, add_zero, List.map_map,
+      ih, Function.comp_def, succ_nsmul', ← add_assoc]
 
 /-- Omitting the final endpoint gives exactly the strict prefix of the range enumeration. -/
 theorem walk_dropLast_eq_map_range (a d : Point) (k : ℕ) :
     (walk a d k).dropLast = (List.range k).map fun i => a + i • d := by
-  rw [walk_eq_map_range, List.range_succ, List.map_append]
-  simp
+  simp [walk_eq_map_range, List.range_succ]
 
 private theorem join_eq_dropLast_append {q r : Route} {p : Point}
     (hq : q.getLast? = some p) (hr : r.head? = some p) :

@@ -420,9 +420,8 @@ private theorem phaseKing_step_odd {t : ℕ} (kings : Fin (t + 1) ↪ P) (F : Fi
       s.overwhelming.getD (if king ∈ F then adv (2 * k + 1) king i
         else ((phaseKing t kings).state F adv x (2 * k + 1) king).kingProposal) := by
   rw [show 2 * (k + 1) = (2 * k + 1) + 1 by omega]
-  have hdiv : (2 * k + 1) / 2 = k := by omega
-  have hmod : (2 * k + 1) % 2 ≠ 0 := by omega
-  simp only [MultivaluedProtocol.state, phaseKing, hdiv, hk, ↓reduceDIte, hmod, ↓reduceIte]
+  simp only [MultivaluedProtocol.state, phaseKing, show (2 * k + 1) / 2 = k by omega, hk,
+    ↓reduceDIte, show (2 * k + 1) % 2 ≠ 0 by omega, ↓reduceIte]
 
 /-- Unanimity persistence for `phaseKing`: across any phase `k < t + 1` (even when
 `kings ⟨k, hk⟩ ∈ F` equivocates arbitrarily), if `F.card ≤ t`, `2 * t < Fintype.card P`, and all
@@ -440,9 +439,8 @@ theorem phaseKing_persists {t : ℕ} (kings : Fin (t + 1) ↪ P) {F : Finset P} 
   have hover : uniqueAboveOn univ (Fintype.card P - t) m = some v := by
     rw [uniqueAboveOn_eq_some_iff_of_lt_two_mul (by finset_card)]
     have hsub : univ \ F ⊆ univ.filter (fun j => m j = v) := fun j hj => by
-      rw [Finset.mem_sdiff] at hj
-      rw [Finset.mem_filter]
-      exact ⟨hj.1, by simp only [m, hj.2, ↓reduceIte, huniv j hj.2]⟩
+      obtain ⟨hu, hjF⟩ := Finset.mem_sdiff.1 hj
+      exact Finset.mem_filter.2 ⟨hu, by simp only [m, hjF, ↓reduceIte, huniv j hjF]⟩
     finset_card
   rw [hover, Option.getD_some]
 
@@ -455,21 +453,17 @@ theorem phaseKing_converges_of_notMem {t : ℕ} (kings : Fin (t + 1) ↪ P) {F :
     ∀ i ∉ F, ((phaseKing t kings).state F adv x (2 * (k.val + 1)) i).est =
       ((phaseKing t kings).state F adv x (2 * k.val + 1) (kings k)).kingProposal := by
   intro i _
-  rw [phaseKing_step_odd kings F adv x k.isLt i]
-  dsimp only
+  rw [phaseKing_step_odd kings F adv x k.isLt i, phaseKing_step_even kings F adv x k.isLt i]
   simp only [Fin.eta, hking, ↓reduceIte]
-  rw [phaseKing_step_even kings F adv x k.isLt i]
-  dsimp only
   set mi : P → V := fun j =>
     if j ∈ F then adv (2 * k.val) j i
     else ((phaseKing t kings).state F adv x (2 * k.val) j).est
   cases hover : uniqueAboveOn univ (Fintype.card P - t) mi with
   | none => rfl
   | some v =>
-    rw [Option.getD_some]
     rw [uniqueAboveOn_eq_some_iff_of_lt_two_mul (by finset_card)] at hover
     -- At least `n - 2 * t` correct processes broadcast `v`, so the correct king sees `≥ n - 2 * t`.
-    rw [phaseKing_step_even kings F adv x k.isLt (kings k)]
+    rw [Option.getD_some, phaseKing_step_even kings F adv x k.isLt (kings k)]
     dsimp only
     set mk : P → V := fun j =>
       if j ∈ F then adv (2 * k.val) j (kings k)
@@ -503,9 +497,8 @@ theorem phaseKing_state_eq_of_le {t : ℕ} (kings : Fin (t + 1) ↪ P) (F : Fins
   | base => rfl
   | succ r hr ih =>
     funext i
-    have hnot : ¬ r / 2 < t + 1 := by omega
-    simp only [MultivaluedProtocol.state, phaseKing, hnot, ↓reduceDIte]
-    exact congrFun ih i
+    simpa only [MultivaluedProtocol.state, phaseKing, show ¬r / 2 < t + 1 by omega,
+      ↓reduceDIte] using congrFun ih i
 
 /-- Protocol-correctness step toward `#7210` (after [Berman and Garay][BermanGaray1989];
 primary-source check, inventory registration, and the 3-round-per-phase `3 * t < n` extension of
@@ -704,14 +697,8 @@ theorem turpinCoan_valueMessagesSent_eq (t : ℕ) (default : V) (πBool : Protoc
     turpinCoanValueMessagesSent t default πBool F adv x (R + 1) =
       (Fintype.card P - F.card) * Fintype.card P := by
   unfold turpinCoanValueMessagesSent
-  rw [Finset.sum_range_succ']
-  have htail : ∑ k ∈ range R, ∑ i ∈ univ \ F, ∑ j ∈ univ,
-      (if ((turpinCoan t default πBool).send (k + 1) i
-        ((turpinCoan t default πBool).state F adv x (k + 1) i) j).isVal then 1 else 0) = 0 := by
-    refine Finset.sum_eq_zero fun k _ => Finset.sum_eq_zero fun i _ =>
-      Finset.sum_eq_zero fun j _ => ?_
-    cases k <;> rfl
-  rw [htail, Nat.zero_add]
+  rw [Finset.sum_range_succ', Finset.sum_eq_zero fun k _ => Finset.sum_eq_zero fun _ _ =>
+    Finset.sum_eq_zero fun _ _ => by cases k <;> rfl, Nat.zero_add]
   simp only [turpinCoan, TurpinCoanMsg.isVal, ↓reduceIte, Finset.sum_const, Nat.nsmul_eq_mul,
     Nat.mul_one, Finset.card_univ]
   rw [show (univ \ F).card = Fintype.card P - F.card by finset_card]
@@ -768,11 +755,10 @@ private theorem turpinCoan_candidate_eq {t : ℕ} {default : V} {πBool : Protoc
     rw [uniqueAboveOn_eq_some_iff (by omega)]
     refine ⟨?_, fun w hw => ?_⟩
     · refine hC.trans (Finset.card_le_card fun j hj => ?_)
-      rw [Finset.mem_filter, Finset.mem_sdiff] at hj
-      rw [Finset.mem_filter, Finset.mem_filter]
-      exact ⟨⟨hj.1.1, by rw [hperp j hj.1.2]; exact hj.2⟩,
-        (turpinCoan_heard_of_notMem t default πBool F adv x i hj.1.2).trans
-          (turpinCoan_content_eq hF hj.2 hc₀)⟩
+      obtain ⟨⟨hu, hjF⟩, hj0⟩ := (Finset.mem_filter.1 hj).imp_left Finset.mem_sdiff.1
+      exact Finset.mem_filter.2 ⟨Finset.mem_filter.2 ⟨hu, (hperp j hjF).trans hj0⟩,
+        (turpinCoan_heard_of_notMem t default πBool F adv x i hjF).trans
+          (turpinCoan_content_eq hF hj0 hc₀)⟩
     · by_contra hne
       have hsub : (univ.filter fun j => perp j = false).filter
           (fun j => (s₁ i).heard j = w) ⊆ F := fun j hj => by
@@ -883,9 +869,9 @@ theorem turpinCoan_solvesByzantineAgreement {t R₀ : ℕ} (default : V)
       rw [turpinCoan_perplexed_eq_false_iff, hv q hq]
       have hsub : univ \ F ⊆ univ.filter (fun j =>
           ((turpinCoan t default πBool).state F adv x 1 q).heard j = v) := fun j hj => by
-        rw [Finset.mem_sdiff] at hj
-        rw [Finset.mem_filter]
-        exact ⟨hj.1, (turpinCoan_heard_of_notMem t default πBool F adv x q hj.2).trans (hv j hj.2)⟩
+        obtain ⟨hu, hjF⟩ := Finset.mem_sdiff.1 hj
+        exact Finset.mem_filter.2
+          ⟨hu, (turpinCoan_heard_of_notMem t default πBool F adv x q hjF).trans (hv j hjF)⟩
       finset_card
     -- Consequently, every correct process sees `≤ |F| ≤ t < n - 2 * t` perplexed reports and sets
     -- `alert = false`.
