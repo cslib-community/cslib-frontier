@@ -101,12 +101,7 @@ private theorem exists_eq_not_iff {τ : ℕ → Bool} {u : ℕ} {a : α} :
 at `u` and `v`. -/
 theorem eval_excludeClause_eq_true_iff (τ : ℕ → Bool) (u v : ℕ) (p : α × α) :
     (excludeClause e u v p).eval τ = true ↔ readLabel e τ u ≠ p.1 ∨ readLabel e τ v ≠ p.2 := by
-  simp only [excludeClause, Clause.eval_eq_true_iff, List.mem_append, List.mem_map,
-    List.mem_finRange, true_and, ← exists_eq_not_iff]
-  refine ⟨?_, fun h => h.elim (fun ⟨i, hi⟩ => ⟨_, Or.inl ⟨i, rfl⟩, hi⟩)
-    fun ⟨i, hi⟩ => ⟨_, Or.inr ⟨i, rfl⟩, hi⟩⟩
-  rintro ⟨_, ⟨i, rfl⟩ | ⟨i, rfl⟩, hl⟩
-  exacts [Or.inl ⟨i, hl⟩, Or.inr ⟨i, hl⟩]
+  simp [excludeClause, Clause.eval_eq_true_iff, ← exists_eq_not_iff, or_and_right, exists_or]
 
 /-- Every clause of `toCNF` has width `2 k`. -/
 theorem length_of_mem_toCNF {g : Graph (α → α → Bool)} {c : Clause ℕ}
@@ -158,9 +153,8 @@ no edge. -/
 theorem satisfiable_toCNF_iff (hpairs : ∀ p, p ∈ pairs) {g : Graph (α → α → Bool)} :
     (toCNF e pairs g).Satisfiable ↔ (g.toGraph id).Satisfiable := by
   refine ⟨fun ⟨τ, hτ⟩ => ⟨readLabel e τ, ?_⟩, satisfiable_toCNF e pairs⟩
-  have h := card_unsatEdges_le_countUnsat e pairs hpairs g τ
-  rwa [CNF.countUnsat_eq_zero_iff.2 hτ, Nat.le_zero, Finset.card_eq_zero,
-    ConstraintGraph.unsatEdges_eq_empty_iff] at h
+  simpa only [CNF.countUnsat_eq_zero_iff.2 hτ, Nat.le_zero, Finset.card_eq_zero,
+    ConstraintGraph.unsatEdges_eq_empty_iff] using card_unsatEdges_le_countUnsat e pairs hpairs g τ
 
 /-- Splitting the clauses of `toCNF`, all of width `2 k`, gives `2 k - 2` clauses for each, and at
 least one. -/
@@ -270,8 +264,7 @@ theorem mem_no_GapThreeSAT (hs : s < 1) :
     φ ∈ (GapThreeSAT s).no ↔ (∀ c ∈ φ, c.length ≤ 3) ∧ 1 - s ≤ φ.unsatVal := by
   simp only [GapThreeSAT, PromiseProblem.no_restrict, Set.mem_inter_iff,
     PromiseProblem.mem_no_gapMax_of_lt (c := fun _ => (1 : ℝ)) (s := fun _ => s) hs,
-    Set.mem_ofPred_eq]
-  exact ⟨fun ⟨h, h3⟩ => ⟨h3, by linarith⟩, fun ⟨h3, h⟩ => ⟨by linarith, h3⟩⟩
+    Set.mem_ofPred_eq, sub_le_comm, and_comm]
 
 /-- **MAX-2CSP reduces to MAX-3SAT**: for labels written in `k` bits along an equivalence `e`, the
 gap problem of MAX-2CSP with soundness `s < 1` reduces in polynomial time to that of MAX-3SAT with
@@ -310,12 +303,13 @@ clause from those in which every assignment satisfies at most the proportion
 over `128 = 2 ^ 7` symbols (`GapTwoCSP_npHard`), divided by `128 ^ 2 * 12 = 3 * 2 ^ 16` clauses per
 edge. -/
 theorem GapThreeSAT_npHard : PromiseProblem.NPHard encCNF (GapThreeSAT (1 - 1 / (3 * 2 ^ 77))) := by
-  have hred := polyTimeReducible_GapTwoCSP_GapThreeSAT (Fin.consEquiv fun _ : Fin 7 => Bool)
-    (by norm_num : (1 - 1 / 2 ^ 61 : ℝ) < 1)
-  rw [show Fintype.card (Bool × (Fin 6 → Bool)) = 128 by simp [Fintype.card_prod],
-    show 1 - (1 - (1 - 1 / 2 ^ 61 : ℝ)) / (128 ^ 2 * max 1 (2 * (6 + 1) - 2) : ℕ) =
-      1 - 1 / (3 * 2 ^ 77) by norm_num] at hred
-  exact fun _ enc A hA => (GapTwoCSP_npHard enc A hA).trans hred
+  have hsnd : 1 - (1 - (1 - 1 / 2 ^ 61 : ℝ)) /
+      (Fintype.card (Bool × (Fin 6 → Bool)) ^ 2 * max 1 (2 * (6 + 1) - 2) : ℕ) =
+      1 - 1 / (3 * 2 ^ 77) := by
+    simp only [Fintype.card_prod, Fintype.card_bool, Fintype.card_fun, Fintype.card_fin]
+    norm_num
+  exact fun _ enc A hA => (GapTwoCSP_npHard enc A hA).trans <| hsnd ▸
+    polyTimeReducible_GapTwoCSP_GapThreeSAT (Fin.consEquiv fun _ : Fin 7 => Bool) (by norm_num)
 
 /-- Unless `P = NP`, no polynomial-time algorithm distinguishes satisfiable 3CNF formulas from
 those in which every assignment satisfies at most the proportion `1 - 1 / (3 * 2 ^ 77)` of the

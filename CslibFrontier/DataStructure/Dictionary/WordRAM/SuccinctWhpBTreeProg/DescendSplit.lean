@@ -111,14 +111,9 @@ private theorem realizes_splitFullChildBody :
     | exact (by omega : c0 + 1 < w).trans Nat.lt_two_pow_self
     | exact (by omega : r0 + 1 < w).trans Nat.lt_two_pow_self
     | (refine ⟨c0, hr_le, (Nat.mul_le_mul_right _ (by omega)).trans_lt hkw_lt, ?_, hkw_cnt⟩
-       have hres := clientResult_splitNodeOpProg (U := U) (V := V) (w := w) hth ⟨cmW, ckW, cvW⟩ s
-       dsimp only at hres
-       rw [hres]
+       rw [clientResult_splitNodeOpProg (U := U) (V := V) (w := w) hth ⟨cmW, ckW, cvW⟩ s]
        unfold splitFullNode keyLaneBitsWhp
-       by_cases hlf : metaIsLeaf cmW = true <;>
-         (simp only [hlf, Bool.false_eq_true, ↓reduceIte]
-          rw [laneGet_eq_div_mod]
-          exact Nat.mod_lt _ (Nat.two_pow_pos _)))
+       cases metaIsLeaf cmW <;> simp [laneGet_eq_div_mod, Nat.mod_lt _ (Nat.two_pow_pos _)])
     | refine ⟨c0 + 1, Nat.succ_le_succ hr_le,
         (Nat.mul_le_mul_right _ (by omega)).trans_lt hvw_lt,
         (by omega : alloc < nSliceWhp n_max).trans hns_lt_v, hvw_cnt⟩
@@ -536,8 +531,7 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
             rw [clientResult_bind, clientState_wordInsertAtGenProg,
               clientResult_wordInsertAtGenProg, clientResult_bind, clientState_wordInsertAtGenProg,
               clientResult_wordInsertAtGenProg, clientResult_bind_pure_ite]
-            dsimp only [nextCur]
-            split_ifs <;> rfl
+            exact (apply_ite (Prod.mk (sl.alloc + 1)) _ _ _).symm
           · rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hcs_n, hmc_n, hres_n]
             simp only [hmod0, ↓reduceIte, hcnt_div]
             rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, clientState_swarRankGenProg,
@@ -552,11 +546,7 @@ theorem descendSplitLoopGenProg_spec {isRoot : Bool}
             rw [memoryCost_bind, clientState_wordInsertAtGenProg, memoryCost_wordInsertAtGenProg,
               clientResult_wordInsertAtGenProg, memoryCost_bind, clientState_wordInsertAtGenProg,
               memoryCost_wordInsertAtGenProg, clientResult_wordInsertAtGenProg, memoryCost_bind]
-            have hite_mc (s_end) : memoryCost
-                (if spPure.sep < q then pure (sl.alloc + 1, sl.alloc)
-                 else pure (sl.alloc + 1, (cs r_fin).rootIdx)) s_end = 0 := by
-              split_ifs <;> rfl
-            rw [hite_mc, Nat.add_zero, writeSplitFourOpProg_eq, ← hmP_eq]
+            rw [← apply_ite pure, memoryCost_pure, Nat.add_zero, writeSplitFourOpProg_eq, ← hmP_eq]
             dsimp only [w4prog, parentNd', keyLaneBitsWhp, childIdx] at hmc4 ⊢
             rw [hmc4]
           · rw [hcs_n, hres_n]; simp only [hmod0, ↓reduceIte, hcnt_div]

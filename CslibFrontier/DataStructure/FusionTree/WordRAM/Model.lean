@@ -157,13 +157,11 @@ end
 /-- Every serialized tree occupies exactly its claimed span. -/
 theorem encode_length (p : Parameters) (base : ℕ) (t : Tree) :
     (encode p base t).length = span t := by
-  revert base
   induction t using Tree.rec
       (motive_2 := fun cs => ∀ base,
-        (encodeForest p base cs).length = (cs.map span).sum) with
-  | leaf xs => intro base; simp [encode, span, headerWords]
+        (encodeForest p base cs).length = (cs.map span).sum) generalizing base with
+  | leaf xs => simp [encode, span, headerWords]
   | node m cs ih =>
-    intro base
     simp only [encode, header, span, List.length_append, List.length_cons, List.length_nil,
       List.length_ofFn, childTable, ih, headerWords]
     omega
@@ -450,20 +448,18 @@ private theorem encode_fits {w : ℕ} {p : Parameters} (t : Tree) :
   | node m cs ih =>
     intro base ha ht v hv
     simp only [ContentFits] at ht
-    have h1 : Fits w 1 := ha.of_le (by simp [span, headerWords]; omega)
-    have hn : Fits w cs.length := ha.of_le (by simp only [span]; omega)
-    simp only [encode, List.mem_append, header, List.mem_cons, List.not_mem_nil,
+    obtain ⟨hm, hp, hcs⟩ := ht
+    simp only [encode, List.mem_append, header, childTable, List.mem_cons, List.not_mem_nil,
       or_false, List.mem_ofFn] at hv
-    rcases hv with ((rfl | rfl | rfl) | ⟨j, rfl⟩) | hv | hv
-    · exact h1
-    · exact hn
-    · exact ht.1
-    · exact ht.2.1 j
-    · obtain ⟨j, rfl⟩ := List.mem_ofFn.mp hv
-      split
-      · exact (ht.2.2 _ (List.getElem_mem (by omega))).minimum
+    rcases hv with ((rfl | rfl | rfl) | ⟨j, rfl⟩) | ⟨j, rfl⟩ | hv
+    · exact ha.of_le (by simp [span, headerWords]; omega)
+    · exact ha.of_le (by simp only [span]; omega)
+    · exact hm
+    · exact hp j
+    · split
+      · exact (hcs _ (List.getElem_mem (by omega))).minimum
       · exact (ha.child ⟨j.val / 2, by omega⟩).of_le (Nat.le_add_right _ _)
-    · exact ih _ (by simpa only [ArenaFits, Nat.add_assoc, span] using ha) ht.2.2 v hv
+    · exact ih _ (by simpa only [ArenaFits, Nat.add_assoc, span] using ha) hcs v hv
   | nil => simp_all [encodeForest]
   | cons t ts iht ihs =>
     rename_i base ha ht v hv

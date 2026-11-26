@@ -327,15 +327,12 @@ private noncomputable def ackIter (r p : ℕ) : ℕ :=
 
 private theorem two_le_find_iterate {r p : ℕ} (hr : 1 ≤ r) (hrp : r < p) :
     2 ≤ Nat.find (exists_lt_iterate_ackermann hr hrp) := by
-  by_contra h
-  have hle : Nat.find (exists_lt_iterate_ackermann hr hrp) ≤ 1 := by omega
   have hspec := Nat.find_spec (exists_lt_iterate_ackermann hr hrp)
-  rcases Nat.le_one_iff_eq_zero_or_eq_one.mp hle with h0 | h1
-  · rw [h0, Function.iterate_zero_apply] at hspec
-    omega
-  · rw [h1, Function.iterate_one] at hspec
-    have hack := ackermann_ackLevel_le hr hrp
-    omega
+  rcases h : Nat.find (exists_lt_iterate_ackermann hr hrp) with _ | _ | _
+  · exact absurd (by simpa only [h, Function.iterate_zero_apply] using hspec) hrp.not_gt
+  · exact absurd (by simpa only [h, Nat.zero_add, Function.iterate_one] using hspec)
+      (ackermann_ackLevel_le hr hrp).not_gt
+  · omega
 
 private theorem one_le_ackIter {r p : ℕ} (hr : 1 ≤ r) (hrp : r < p) : 1 ≤ ackIter r p := by
   unfold ackIter
@@ -692,8 +689,7 @@ private theorem link_pot_core {uf : Batteries.UnionFind}
       by_cases hlt : uf.rank y.1 < uf.rank x.1
       · simp only [hlt, ↓reduceIte]
         have hcr : (uf.link x y hy).rank y.1 < (uf.link x y hy).rank x.1 := by
-          rw [rank_link, rank_link]
-          simp [Nat.ne_of_gt hlt, hlt]
+          simp [rank_link, Nat.ne_of_gt hlt, hlt]
         exact link_pot_aux hvalid' hd hbound hx hxy hsize
           (fun i => by rw [Batteries.UnionFind.parent_link hy]; simp [hxy, hlt])
           (fun i => by rw [rank_link]; simp [Nat.ne_of_lt hlt, Nat.ne_of_gt hlt])
@@ -701,26 +697,21 @@ private theorem link_pot_core {uf : Batteries.UnionFind}
       · simp only [hlt, ↓reduceIte]
         have hcr : (uf.link x y hy).rank x.1 < (uf.link x y hy).rank y.1 := by
           rw [rank_link, rank_link]
-          have hle : uf.rank x.1 ≤ uf.rank y.1 := Nat.not_lt.mp hlt
-          rcases Nat.eq_or_lt_of_le hle with heq | hlt_xy
-          · simp [hxy, Ne.symm hxy, heq]
-          · simp [hxy, Nat.ne_of_lt hlt_xy, hlt_xy]
+          split_ifs <;> omega
         exact link_pot_aux hvalid' hd hbound hy (Ne.symm hxy) hsize
           (fun i => by rw [Batteries.UnionFind.parent_link hy]; simp [hxy, hlt])
           (fun i => by rw [rank_link]; simp [hxy])
           hcr zs
     cases zs
-    · simp only [Bool.false_eq_true, ↓reduceIte]
-      simp only [nodePotential, hx, hy, ↓reduceIte, Bool.false_and, Bool.false_eq_true] at haux_res
+    · simp only [nodePotential, hx, hy, Bool.false_and, Bool.false_eq_true, ↓reduceIte]
+        at haux_res ⊢
       split_ifs at haux_res <;> omega
     · simp only [↓reduceIte]
-      have hnode_le : ∀ u : Fin uf.size, uf.parent u.1 = u.1 →
+      have hnode_le (u : Fin uf.size) (hu : uf.parent u.1 = u.1) :
           q * (uf.rank u.1 + d) ≤ nodePotential true q d uf u.1 + q * d := by
-        intro u hu
         simp only [nodePotential, hu, ↓reduceIte, Bool.true_and]
         split_ifs with hr0
-        · rw [of_decide_eq_true hr0, Nat.zero_add]
-          exact Nat.le_add_left _ _
+        · simp [of_decide_eq_true hr0]
         · exact Nat.le_add_right _ _
       have hx_le := hnode_le x hx
       have hy_le := hnode_le y hy

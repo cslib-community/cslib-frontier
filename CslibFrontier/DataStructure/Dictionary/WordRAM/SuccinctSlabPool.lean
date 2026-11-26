@@ -448,9 +448,8 @@ private theorem gmUnlinkTopSlab_bounds {U V w₀ n_max h_space : ℕ} {d : ℕ �
   have heqb : e_qb = gm (gmQIdx d.2) := clientResult_readGMProg s hq_idx_lt
   have hepdel : e_pdel = gm (gmSlabTopIdx d.2) := clientResult_readGMProg s htop_idx_lt
   have hp_del_cap := lt_of_lt_of_le (hslab.top_lt hb hq_pos) hslab.nslabs_le
-  refine ⟨hq_idx_lt, htop_idx_lt,
-    by rw [hepdel]; exact gmSlabBelowIdx_lt hb_pos hp_del_cap,
-    by rw [heqb]; exact hq_pos⟩
+  rw [hepdel, heqb]
+  exact ⟨hq_idx_lt, htop_idx_lt, gmSlabBelowIdx_lt hb_pos hp_del_cap, hq_pos⟩
 
 theorem realizes_gmUnlinkTopSlabGen :
     Realizes .exact gmUnlinkTopSlabGenProg
@@ -505,28 +504,23 @@ theorem gmRelinkMovedSlab_preserves_meta {n_max : ℕ} (gmA : ℕ → ℕ) {p_de
       gmA (gmQIdx (gmA (gmSlabOwnerBIdx n_max p_last))) ∧
     (∀ idx, gmSlabMetaBase n_max ≤ idx → gm₂ idx = gmA idx) := by
   dsimp only
-  unfold gmRelinkMovedSlab
-  generalize gmA (gmSlabOwnerBIdx n_max p_last) = b₀ at hb_last ⊢
-  generalize gmA (gmSlabOwnerSIdx n_max p_last) = s₀
-  have hdir : s₀ < dirSlabsPerBucket n_max →
-      b₀ * dirSlabsPerBucket n_max + s₀ < numBuckets n_max * dirSlabsPerBucket n_max := by
-    intro hs
-    have h1 := Nat.mul_le_mul_right (dirSlabsPerBucket n_max) hb_last
-    rw [Nat.add_one_mul] at h1; omega
-  unfold gmQIdx gmSlabTopIdx gmSlabDirIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase gmSlabDirBase
-  refine ⟨?_, ?_, ?_⟩
-  · split_ifs
-    all_goals repeat rw [Function.update_of_ne (by omega)]
-    rfl
-  · split_ifs
-    all_goals repeat rw [Function.update_of_ne (by omega)]
-    rfl
-  · intro idx hidx
-    split_ifs with h1 h2 h2
-    · rw [Function.update_of_ne (by omega), Function.update_of_ne (by have := hdir h2; omega)]
-    · rw [Function.update_of_ne (by omega)]
-    · rw [Function.update_of_ne (by have := hdir h2; omega)]
+  set b₀ := gmA (gmSlabOwnerBIdx n_max p_last)
+  set s₀ := gmA (gmSlabOwnerSIdx n_max p_last)
+  have hmul := Nat.mul_le_mul_right (dirSlabsPerBucket n_max) hb_last
+  rw [Nat.add_one_mul] at hmul
+  have hpres (idx : ℕ) (ht : idx ≠ gmSlabTopIdx b₀)
+      (hd : s₀ < dirSlabsPerBucket n_max → idx ≠ gmSlabDirIdx n_max b₀ s₀) :
+      gmRelinkMovedSlab n_max gmA p_del p_last idx = gmA idx := by
+    dsimp only [gmRelinkMovedSlab, b₀, s₀]
+    split_ifs with _ h2 h2
+    · exact (Function.update_of_ne ht p_del _).trans (Function.update_of_ne (hd h2) p_del gmA)
+    · exact Function.update_of_ne ht p_del gmA
+    · exact Function.update_of_ne (hd h2) p_del gmA
     · rfl
+  simp only [gmQIdx, gmSlabTopIdx, gmSlabDirIdx, gmSlabMetaBase, gmTailOwnerBase, gmTailPtrBase,
+    gmSlabDirBase] at hpres ⊢
+  exact ⟨hpres 0 (by omega) fun _ => by omega, hpres _ (by omega) fun _ => by omega,
+    fun idx hidx => hpres idx (by omega) fun _ => by omega⟩
 
 theorem gmCompactSlab_eq_parts {n_max : ℕ} (gmA : ℕ → ℕ) {p_del : ℕ}
     (hlt : p_del < gmA 0 - 1)

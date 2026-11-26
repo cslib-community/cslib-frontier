@@ -93,8 +93,7 @@ theorem expect_boole_apply_mem [Semifield 𝕜] [CharZero 𝕜] (hh : IsPairwise
 `#B / |Y|`. -/
 theorem dens_filter_apply_mem (hh : IsPairwiseIndependentHash h) (x : X) (B : Finset Y) :
     dens {i | h i x ∈ B} = #B / Fintype.card Y := by
-  have := hh.expect_boole_apply_mem (𝕜 := ℚ≥0) x B
-  rwa [Fintype.expect_boole, NNRat.cast_id] at this
+  simpa [Fintype.expect_boole] using hh.expect_boole_apply_mem (𝕜 := ℚ≥0) x B
 
 /-- **Pairwise independent retention**: two distinct points are retained by `B₁` and `B₂` with
 probability `#B₁ / |Y| * (#B₂ / |Y|)`. -/
@@ -116,16 +115,14 @@ probability `#B₁ / |Y| * (#B₂ / |Y|)`. -/
 theorem dens_filter_apply_mem_and_apply_mem (hh : IsPairwiseIndependentHash h) {x₁ x₂ : X}
     (hx : x₁ ≠ x₂) (B₁ B₂ : Finset Y) :
     dens {i | h i x₁ ∈ B₁ ∧ h i x₂ ∈ B₂} = #B₁ / Fintype.card Y * (#B₂ / Fintype.card Y) := by
-  have := hh.expect_boole_apply_mem_and_apply_mem (𝕜 := ℚ≥0) hx B₁ B₂
-  rwa [Fintype.expect_boole, NNRat.cast_id] at this
+  simpa [Fintype.expect_boole] using hh.expect_boole_apply_mem_and_apply_mem (𝕜 := ℚ≥0) hx B₁ B₂
 
 /-- **The mean number of retained points** of `S` is `#S * (#B / |Y|)`. -/
 theorem expect_card_filter_apply_mem [Semifield 𝕜] [CharZero 𝕜]
     (hh : IsPairwiseIndependentHash h) (S : Finset X) (B : Finset Y) :
     𝔼 i, (#{x ∈ S | h i x ∈ B} : 𝕜) = #S * (#B / Fintype.card Y) := by
-  simp only [card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
-  rw [expect_sum_comm]
-  simp only [hh.expect_boole_apply_mem, sum_const, nsmul_eq_mul]
+  simp only [card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero,
+    expect_sum_comm, hh.expect_boole_apply_mem, sum_const, nsmul_eq_mul]
 
 /-- **The second factorial moment of the number of retained points**: the number of ordered
 pairs of distinct retained points of `S` has expectation `#S (#S - 1) (#B / |Y|) ^ 2`. -/
@@ -177,12 +174,10 @@ theorem dens_le_abs_card_filter_apply_mem_sub_le [Field 𝕜] [LinearOrder 𝕜]
     {ε : 𝕜} (hε : 0 < ε) :
     (dens {i | ε ≤ |(#{x ∈ S | h i x ∈ B} : 𝕜) - #S * (#B / Fintype.card Y)|} : 𝕜) ≤
       #S * (#B / Fintype.card Y) / ε ^ 2 := by
-  refine (Fintype.dens_le_abs_le_expect_sq_div_sq
-    (fun i => (#{x ∈ S | h i x ∈ B} : 𝕜) - #S * (#B / Fintype.card Y)) hε).trans ?_
-  apply div_le_div_of_nonneg_right _ (sq_nonneg ε)
+  refine (Fintype.dens_le_abs_le_expect_sq_div_sq _ hε).trans
+    (div_le_div_of_nonneg_right ?_ (sq_nonneg ε))
   rw [hh.expect_card_filter_apply_mem_sub_sq]
-  have hp : (#B : 𝕜) / Fintype.card Y ≥ 0 := by positivity
-  exact mul_le_of_le_one_right (by positivity) (sub_le_self _ hp)
+  exact mul_le_of_le_one_right (by positivity) (sub_le_self _ (by positivity))
 
 /-- **Lower tail of the number of retained points**: fewer than half of the expected number
 `#S p`, with `p = #B / |Y|`, are retained with probability at most `4 / (#S p)`. -/
@@ -202,9 +197,7 @@ theorem dens_two_mul_card_filter_apply_mem_lt_le [Field 𝕜] [LinearOrder 𝕜]
       ≤ (dens {i | μ / 2 ≤ |(#{x ∈ S | h i x ∈ B} : 𝕜) - μ|} : 𝕜) := by
         exact_mod_cast dens_le_dens hsub
     _ ≤ μ / (μ / 2) ^ 2 := hh.dens_le_abs_card_filter_apply_mem_sub_le S B (by positivity)
-    _ = 4 / μ := by
-        field_simp
-        ring
+    _ = 4 / μ := by field_simp; ring
 
 /-- **Inclusion–exclusion for retention**: some point of `S` is retained with probability at
 least `#S p - #S (#S - 1) p ^ 2 / 2`, where `p = #B / |Y|`. -/
@@ -217,12 +210,10 @@ theorem sub_le_dens_filter_exists_apply_mem [Field 𝕜] [LinearOrder 𝕜] [IsS
           #{x ∈ S | h i x ∈ B} * (#{x ∈ S | h i x ∈ B} - 1) / 2) := by
         rw [expect_sub_distrib, ← expect_div, hh.expect_card_filter_apply_mem,
           hh.expect_card_filter_apply_mem_mul_sub_one]
-    _ ≤ 𝔼 i, (if ∃ x ∈ S, h i x ∈ B then 1 else 0 : 𝕜) := by
-        refine expect_le_expect fun i _ => ?_
-        have hpos : (∃ x ∈ S, h i x ∈ B) ↔ 0 < #{x ∈ S | h i x ∈ B} := by
-          rw [card_pos, filter_nonempty_iff]
-        simp only [hpos]
-        exact natCast_sub_mul_sub_one_div_two_le _
+    _ ≤ 𝔼 i, (if ∃ x ∈ S, h i x ∈ B then 1 else 0 : 𝕜) :=
+        expect_le_expect fun i _ => by
+          simp only [← filter_nonempty_iff, ← card_pos]
+          exact natCast_sub_mul_sub_one_div_two_le _
     _ = _ := Fintype.expect_boole _
 
 omit [Fintype ι] [DecidableEq Y] in
@@ -246,10 +237,8 @@ theorem min_mul_div_two_le_dens_filter_exists_apply_mem (hh : IsPairwiseIndepend
   set k := min #S ⌈1 / p⌉₊ with hk_def
   obtain ⟨S', hS'S, hS'⟩ := exists_subset_card_eq (min_le_left #S ⌈1 / p⌉₊)
   have hmono : dens {i | ∃ x ∈ S', h i x ∈ B} ≤ dens {i | ∃ x ∈ S, h i x ∈ B} :=
-    dens_le_dens fun i hi => by
-      simp only [mem_filter, mem_univ, true_and] at hi ⊢
-      obtain ⟨x, hx, hxB⟩ := hi
-      exact ⟨x, hS'S hx, hxB⟩
+    dens_le_dens fun _ hi =>
+      mem_filter.2 ⟨mem_univ _, (mem_filter.1 hi).2.imp fun _ ⟨hx, hxB⟩ => ⟨hS'S hx, hxB⟩⟩
   rw [← NNRat.cast_le (K := ℚ)]
   refine le_trans ?_ ((NNRat.cast_le.2 hmono).trans' (hh.sub_le_dens_filter_exists_apply_mem S' B))
   push_cast [cast_dens_eq B]

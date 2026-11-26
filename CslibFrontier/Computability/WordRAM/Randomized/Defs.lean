@@ -291,25 +291,20 @@ theorem stepRand_bounded {w : ℕ} {p : Program B r} {cfg cfg' : RandCfg r}
   | halted v d => exact hpure (stepRand_halted v d) hcfg
   | faulted => exact hpure stepRand_faulted trivial
   | running s =>
-    have hs : s.data.Bounded w := hcfg
-    cases hpc : p[s.pc]? with
-    | none => exact hpure (stepRand_none hpc) trivial
-    | some instr =>
-      cases instr with
-      | op o =>
-        cases ho : o.eval w s.data with
-        | none => exact hpure (stepRand_op_fault hpc ho) trivial
-        | some x => exact hpure (stepRand_op hpc ho) (hs.op ho)
-      | jump _ => exact hpure (stepRand_jump hpc) hs
-      | branch _ _ => exact hpure (stepRand_branch hpc) hs
-      | halt i => exact hpure (stepRand_halt hpc) ⟨hs.1 i, hs⟩
-      | rand dst src =>
-        by_cases hfit : Fits w (s.data.regs src)
-        · rw [stepRand_rand_of_fits hpc hfit] at hmem
-          obtain ⟨k, -, hk⟩ := OracleComp.mem_supportWith_bind_iff.mp hmem
-          cases OracleComp.eq_of_mem_supportWith_pure hk
-          exact hs.set (hfit.of_le (Nat.le_of_lt_succ k.isLt))
-        · exact hpure (stepRand_rand_of_not_fits hpc hfit) trivial
+    rcases hpc : p[s.pc]? with _ | (o | _ | _ | i | ⟨dst, src⟩)
+    · exact hpure (stepRand_none hpc) trivial
+    · cases ho : o.eval w s.data with
+      | none => exact hpure (stepRand_op_fault hpc ho) trivial
+      | some x => exact hpure (stepRand_op hpc ho) (hcfg.op ho)
+    · exact hpure (stepRand_jump hpc) hcfg
+    · exact hpure (stepRand_branch hpc) hcfg
+    · exact hpure (stepRand_halt hpc) ⟨hcfg.1 i, hcfg⟩
+    · by_cases hfit : Fits w (s.data.regs src)
+      · rw [stepRand_rand_of_fits hpc hfit] at hmem
+        obtain ⟨k, -, hk⟩ := OracleComp.mem_supportWith_bind_iff.mp hmem
+        cases OracleComp.eq_of_mem_supportWith_pure hk
+        exact hcfg.set (hfit.of_le (Nat.le_of_lt_succ k.isLt))
+      · exact hpure (stepRand_rand_of_not_fits hpc hfit) trivial
 
 /-- Clocked randomized execution preserves `RandCfg.Bounded w`. -/
 theorem runRand_bounded {w : ℕ} {p : Program B r} {T : ℕ} {cfg cfg' : RandCfg r}
@@ -391,13 +386,11 @@ theorem runRand_eq_pure_halted_iff_of_isRandFree {w T : ℕ} {p : Program B r}
       rw [runRand_succ, stepRand_eq_of_isRandFree hp s, pure_bind] at h
       cases hstep : step w p s with
       | next u =>
-        rw [hstep, RandCfg.ofOutcome] at h
-        obtain ⟨t, m, hmT, hrun, hhalt, hd⟩ := ih h
+        obtain ⟨t, m, hmT, hrun, hhalt, hd⟩ := ih (hstep ▸ h)
         exact ⟨t, m + 1, by omega, hrun.head s u t m hstep, hhalt, hd⟩
       | halt v' =>
-        rw [hstep, RandCfg.ofOutcome, runRand_halted] at h
-        cases pure_injective h
-        exact ⟨s, 0, by omega, .refl s, hstep, rfl⟩
+        cases pure_injective ((runRand_halted w p T v' s.data).symm.trans (hstep ▸ h))
+        exact ⟨s, 0, Nat.succ_pos _, .refl s, hstep, rfl⟩
       | fault =>
         rw [hstep, RandCfg.ofOutcome, runRand_faulted] at h
         cases pure_injective h
@@ -457,8 +450,7 @@ theorem RandHaltsWithin.mono {w T T' : ℕ} {p : Program B r} {s : State r}
 theorem RandHaltsWithin.randFaultFree {w T : ℕ} {p : Program B r} {s : State r}
     (h : RandHaltsWithin w p s T) :
     RandFaultFree w p s := fun t hmem => by
-  have h' : RandHaltsWithin w p s (t + T) := h.mono (Nat.le_add_left T t)
-  rcases h' .faulted (by
+  rcases h.mono (Nat.le_add_left T t) .faulted (by
     rw [runRand_add]
     exact OracleComp.mem_supportWith_bind_iff.mpr ⟨.faulted, hmem, by simp⟩) with ⟨_, _, ⟨⟩⟩
 

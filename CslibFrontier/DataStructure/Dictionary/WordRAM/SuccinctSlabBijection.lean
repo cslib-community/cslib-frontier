@@ -540,15 +540,14 @@ private theorem slabBijection_gmPopSlab_eq {n_max : ℕ} {gm : ℕ → ℕ} {b :
   obtain ⟨hact_s, hact_own, hact_top⟩ := gmUnlinkTopSlab_active hb hq_pos hslab
   have htop_lt : gm (gmSlabTopIdx b) < gm 0 := hslab.top_lt hb (by omega)
   have hlt' : ¬ gm (gmSlabTopIdx b) < gmUnlinkTopSlab n_max gm b 0 - 1 := by rwa [hu0]
+  have hpop {i} (hi : i ≠ 0) : gmPopSlab n_max gm b i = gmUnlinkTopSlab n_max gm b i := by
+    rw [gmPopSlab, gmCompactSlab, ite_eq_right hlt', Function.update_of_ne hi]
   have h0 : gmPopSlab n_max gm b 0 = gm 0 - 1 := by
-    update_simp [gmPopSlab, gmCompactSlab]; exact congrArg (· - 1) hu0
-  have hQ : ∀ b', gmPopSlab n_max gm b (gmQIdx b') = gmUnlinkTopSlab n_max gm b (gmQIdx b') :=
-    fun _ => by update_simp [gmPopSlab, gmCompactSlab]
-  have htop : ∀ b',
-      gmPopSlab n_max gm b (gmSlabTopIdx b') = gmUnlinkTopSlab n_max gm b (gmSlabTopIdx b') :=
-    fun _ => by update_simp [gmPopSlab, gmCompactSlab]
-  have hhi : ∀ idx, gmSlabDirBase n_max ≤ idx → gmPopSlab n_max gm b idx = gm idx :=
-    fun idx hidx => by update_simp [gmPopSlab, gmCompactSlab]; exact huGe idx hidx
+    rw [gmPopSlab, gmCompactSlab, ite_eq_right hlt', Function.update_self, hu0]
+  have hQ (b') := hpop (i := gmQIdx b') (by wram_omega)
+  have htop (b') := hpop (i := gmSlabTopIdx b') (by wram_omega)
+  have hhi (idx) (hidx : gmSlabDirBase n_max ≤ idx) :=
+    (hpop (by wram_omega)).trans (huGe idx hidx)
   obtain ⟨hptr, hbij⟩ := slabBijection_of_ptr (n_max := n_max) (gm := gmPopSlab n_max gm b)
     (fun b' s => slabPtrOf n_max gm b' s)
     (by rw [h0]; have := hslab.nslabs_le; omega)
@@ -598,24 +597,17 @@ private theorem slabBijection_gmPopSlab_lt {n_max : ℕ} {gm : ℕ → ℕ} {b :
     fun b' hb' s hs =>
       ⟨fun h => slabPtrOf_inj hslab hb' hs hb_last hs_last_old (h.trans hptr_last.symm),
        by rintro ⟨rfl, rfl⟩; exact hptr_last⟩
-  have hB : ∀ p, gmUnlinkTopSlab n_max gm b (gmSlabOwnerBIdx n_max p) =
-      gm (gmSlabOwnerBIdx n_max p) := fun _ => huGe _ (by wram_omega)
-  have hS : ∀ p, gmUnlinkTopSlab n_max gm b (gmSlabOwnerSIdx n_max p) =
-      gm (gmSlabOwnerSIdx n_max p) := fun _ => huGe _ (by wram_omega)
-  have hBel : ∀ p, gmUnlinkTopSlab n_max gm b (gmSlabBelowIdx n_max p) =
-      gm (gmSlabBelowIdx n_max p) := fun _ => huGe _ (by wram_omega)
-  have hAbv : ∀ p, gmUnlinkTopSlab n_max gm b (gmSlabAboveIdx n_max p) =
-      gm (gmSlabAboveIdx n_max p) := fun _ => huGe _ (by wram_omega)
-  have hDir : ∀ b' s, gmUnlinkTopSlab n_max gm b (gmSlabDirIdx n_max b' s) =
-      gm (gmSlabDirIdx n_max b' s) := fun _ _ => huGe _ (by wram_omega)
+  have hB (p) := huGe (gmSlabOwnerBIdx n_max p) (by wram_omega)
+  have hS (p) := huGe (gmSlabOwnerSIdx n_max p) (by wram_omega)
+  have hBel (p) := huGe (gmSlabBelowIdx n_max p) (by wram_omega)
+  have hAbv (p) := huGe (gmSlabAboveIdx n_max p) (by wram_omega)
+  have hDir (b' s) := huGe (gmSlabDirIdx n_max b' s) (by wram_omega)
   have hc := gmCompactSlab_fields_lt (n_max := n_max) (gmUnlinkTopSlab n_max gm b) (by rwa [hu0])
     (by simpa only [hu0, hB] using hb_last)
   dsimp only at hc
-  rw [hu0, hB, hS, hBel, hAbv] at hc
+  have hgm' : gmCompactSlab n_max (gmUnlinkTopSlab n_max gm b) p_del = gmPopSlab n_max gm b := rfl
+  rw [hu0, hB, hS, hBel, hAbv, hgm'] at hc
   rcases hc with ⟨hc0, -, -, hcQ, -, hcTop, hcDir, hcOwnB, hcOwnS, hcBel, hcAbv⟩
-  have hgm' : gmPopSlab n_max gm b =
-      gmCompactSlab n_max (gmUnlinkTopSlab n_max gm b) p_del := rfl
-  rw [← hgm'] at hc0 hcQ hcTop hcDir hcOwnB hcOwnS hcBel hcAbv
   refine slabBijection_of_ptr (n_max := n_max) (gm := gmPopSlab n_max gm b)
     (fun b' s => if slabPtrOf n_max gm b' s = p_last then p_del else slabPtrOf n_max gm b' s)
     (by rw [hc0]; have := hslab.nslabs_le; omega) ?_ ?_ ?_ ?_ ?_ ?_ ?_ ?_

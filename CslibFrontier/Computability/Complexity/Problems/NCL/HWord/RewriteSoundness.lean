@@ -109,19 +109,16 @@ private theorem first_neighborhood (hu : HWord.Legal (compatibility rules) u)
   obtain ⟨hk0, hkn⟩ := pair_interior k a b hpu hstart hfinish
   let previous : Fin (n + 3) := ⟨k.val - 1, by omega⟩
   have hprev : previous ≠ k := Fin.ne_of_val_ne (by dsimp only [previous]; omega)
-  have hu' := edge_view rules hu previous k (by change k.val - 1 + 1 = k.val; omega)
-  have hv' := edge_view rules hv previous k (by change k.val - 1 + 1 = k.val; omega)
+  have hu' := edge_view rules hu previous k (Nat.sub_add_cancel hk0)
+  have hv' := edge_view rules hv previous k (Nat.sub_add_cancel hk0)
   rw [hpu] at hu'
   rw [hpv, ← he previous hprev] at hv'
   obtain ⟨i, hm⟩ := first_change_marker rules hu' hv' hne
   have hk3 := first_marker_depth rules hu k hk0 i hm hstart
-  let earlier : Fin (n + 3) := ⟨k.val - 2, by omega⟩
-  have hbefore := edge_view rules hu earlier previous
-    (by change k.val - 2 + 1 = k.val - 1; omega)
-  rw [hm] at hbefore
+  have hbefore := hm ▸ edge_view rules hu ⟨k.val - 2, by omega⟩ previous
+    (by dsimp only [previous]; omega)
   obtain ⟨left, c, hc⟩ := before_marker rules i hbefore
-  rw [hc] at hbefore
-  exact ⟨⟨i, hk3, hkn, left, c, hc, hbefore, hm ▸ hu', hm ▸ hv'⟩⟩
+  exact ⟨⟨i, hk3, hkn, left, c, hc, hc ▸ hbefore, hm ▸ hu', hm ▸ hv'⟩⟩
 
 private theorem first_coordinate_rewrites (hu : HWord.Legal (compatibility rules) u)
     (hv : HWord.Legal (compatibility rules) v) (k : Fin (n + 3))
@@ -193,12 +190,9 @@ private theorem second_neighborhood (hu : HWord.Legal (compatibility rules) u)
   rw [hpv, ← he following hfollowing] at hv'
   obtain ⟨i, hm⟩ := second_change_marker rules hu' hv' hne
   have hk' := second_marker_depth rules hu k hkn i hm hfinish
-  let later : Fin (n + 3) := ⟨k.val + 2, by omega⟩
-  have hafter := edge_view rules hu following later rfl
-  rw [hm] at hafter
+  have hafter := hm ▸ edge_view rules hu following ⟨k.val + 2, by omega⟩ rfl
   obtain ⟨c, right, hc⟩ := after_marker rules i hafter
-  rw [hc] at hafter
-  exact ⟨⟨i, hk0, hk', right, c, hc, hafter, hm ▸ hu', hm ▸ hv'⟩⟩
+  exact ⟨⟨i, hk0, hk', right, c, hc, hc ▸ hafter, hm ▸ hu', hm ▸ hv'⟩⟩
 
 private theorem second_coordinate_rewrites (hu : HWord.Legal (compatibility rules) u)
     (hv : HWord.Legal (compatibility rules) v) (k : Fin (n + 3))

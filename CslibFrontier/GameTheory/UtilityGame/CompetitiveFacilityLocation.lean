@@ -119,15 +119,14 @@ private theorem monotone_fold_max {α : Type*} (b : ℝ) (g : α → ℝ) :
     fun x hx => (Finset.le_fold_max (g x)).2 (Or.inr ⟨x, hAB hx, le_rfl⟩)⟩
 
 private theorem fold_max_union {α : Type*} [DecidableEq α] (b : ℝ) (g : α → ℝ) (A B : Finset α) :
-    (A ∪ B).fold max b g = max (A.fold max b g) (B.fold max b g) := by
-  apply le_antisymm
-  · rw [Finset.fold_max_le]
-    refine ⟨le_max_of_le_left ((Finset.le_fold_max b).2 (Or.inl le_rfl)), fun x hx => ?_⟩
-    rcases Finset.mem_union.mp hx with hA | hB
-    · exact le_max_of_le_left ((Finset.le_fold_max (g x)).2 (Or.inr ⟨x, hA, le_rfl⟩))
-    · exact le_max_of_le_right ((Finset.le_fold_max (g x)).2 (Or.inr ⟨x, hB, le_rfl⟩))
-  · exact max_le (monotone_fold_max b g Finset.subset_union_left)
-      (monotone_fold_max b g Finset.subset_union_right)
+    (A ∪ B).fold max b g = max (A.fold max b g) (B.fold max b g) :=
+  le_antisymm ((Finset.fold_max_le _).2
+    ⟨le_max_of_le_left ((Finset.le_fold_max b).2 (.inl le_rfl)), fun x hx =>
+      (Finset.mem_union.mp hx).elim
+        (fun h => le_max_of_le_left ((Finset.le_fold_max _).2 (.inr ⟨x, h, le_rfl⟩)))
+        (fun h => le_max_of_le_right ((Finset.le_fold_max _).2 (.inr ⟨x, h, le_rfl⟩)))⟩)
+    (max_le (monotone_fold_max b g Finset.subset_union_left)
+      (monotone_fold_max b g Finset.subset_union_right))
 
 private theorem isSubmodular_fold_max {α : Type*} [DecidableEq α] (b : ℝ) (g : α → ℝ) :
     Submodular.IsSubmodular fun T : Finset α => T.fold max b g := fun A B => by
@@ -138,8 +137,7 @@ private theorem isSubmodular_fold_max {α : Type*} [DecidableEq α] (b : ℝ) (g
 private theorem fold_max_sub_eq_sub_fold_min {α : Type*} (v : ℝ) (c : α → ℝ) (u : Finset α) :
     u.fold max 0 (fun x => v - c x) = v - u.fold min v c := by
   induction u using Finset.cons_induction with
-  | empty =>
-      simp only [Finset.fold_empty, sub_self]
+  | empty => simp
   | cons x u' hx ih =>
       rw [Finset.fold_cons hx, Finset.fold_cons hx, ih]
       rcases le_total (c x) (u'.fold min v c) with h | h
@@ -328,7 +326,8 @@ private theorem sum_clientProfit_le_clientSurplus [Fintype ι] [DecidableEq ι] 
     (s : ∀ i, S i) :
     ∑ i : ι, G.clientProfit j s i ≤ G.clientSurplus j (profileSet s) := by
   have hsurp (T) : 0 ≤ G.clientSurplus j T := (Finset.le_fold_max 0).2 (.inl le_rfl)
-  by_cases hne : Nonempty ι
+  rcases isEmpty_or_nonempty ι with _ | _
+  · simpa only [Finset.univ_eq_empty, Finset.sum_empty] using hsurp (profileSet s)
   · obtain ⟨i₀, _, hi₀⟩ :=
       Finset.exists_min_image Finset.univ (fun i => G.serviceCost j i (s i)) Finset.univ_nonempty
     have hzero (i) (hi : i ∈ Finset.univ.erase i₀) : G.clientProfit j s i = 0 := by
@@ -340,8 +339,6 @@ private theorem sum_clientProfit_le_clientSurplus [Fintype ι] [DecidableEq ι] 
     rw [← Finset.add_sum_erase Finset.univ (fun i => G.clientProfit j s i) (Finset.mem_univ i₀),
       Finset.sum_eq_zero hzero, add_zero, clientProfit_eq_clientSurplus_sub]
     linarith [hsurp (profileWithout s i₀)]
-  · have := not_nonempty_iff.mp hne
-    simpa only [Finset.univ_eq_empty, Finset.sum_empty] using hsurp (profileSet s)
 
 /-- Social welfare in the competitive facility location game is monotone ([TardosWexler2007],
 Theorem 19.18, p. 505). -/
@@ -572,10 +569,9 @@ theorem isBasic_withOpeningCost [Fintype ι] [DecidableEq ι] [∀ i, DecidableE
     ext T
     simp [Submodular.modularSum, Finset.sum_neg_distrib, sub_eq_add_neg]
   sum_utility_le s := by
-    have h := G.isBasic_toUtilityGame.sum_utility_le s
-    simp only [toUtilityGame_utility, toUtilityGame_profileValue, withOpeningCost_utility,
-      withOpeningCost_profileValue, Finset.sum_sub_distrib] at h ⊢
-    linarith
+    simpa only [toUtilityGame_utility, toUtilityGame_profileValue, withOpeningCost_utility,
+      withOpeningCost_profileValue, Finset.sum_sub_distrib, sub_le_sub_iff_right] using
+      G.isBasic_toUtilityGame.sum_utility_le s
   utility_eq_marginal i s := by
     have h := G.isBasic_toUtilityGame.utility_eq_marginal i s
     simp only [toUtilityGame_utility, toUtilityGame_profileValue, toUtilityGame_socialValue,

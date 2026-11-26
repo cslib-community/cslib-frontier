@@ -154,39 +154,30 @@ private theorem HasBurnInBudget.step {c U V n_max : ℕ} (hnU : n_max ≤ U)
       obtain ⟨hth, hcsr0, hqv0⟩ := hv
       dsimp only [whpStepPure]
       obtain ⟨hcsr1, _, hqv1⟩ := csrStepOp_spec hnU θ.1 hcsr0 hqv0 hval
-      obtain ⟨fs', hsh, hcw'⟩ := trySelfHeal_clean hth hcsr1 hqv1 hgood_nxt
-      exact Or.inl ⟨fs', hsh, hcw'⟩
+      exact Or.inl (trySelfHeal_clean hth hcsr1 hqv1 hgood_nxt)
     | fast fs =>
       change qEpochWhp n_max - fs.epochClock ≤ b at hrem
       dsimp only [whpStepPure]
-      cases hf : fastStepPure c U n_max θ fs op with
-      | none =>
-        obtain ⟨hcsr0, hqv0⟩ := hv.fastToCsr_spec
+      rcases hf : fastStepPure c U n_max θ fs op with _ | ⟨fs', res⟩
+      · obtain ⟨hcsr0, hqv0⟩ := hv.fastToCsr_spec
         obtain ⟨hcsr1, _, hqv1⟩ := csrStepOp_spec hnU θ.1 hcsr0 hqv0 hval
-        obtain ⟨fs', hsh, hcw'⟩ := trySelfHeal_clean hv.hth hcsr1 hqv1 hgood_nxt
-        exact Or.inl ⟨fs', hsh, hcw'⟩
-      | some p =>
-        rcases p with ⟨fs', res⟩
-        dsimp only
+        exact Or.inl (trySelfHeal_clean hv.hth hcsr1 hqv1 hgood_nxt)
+      · dsimp only
         have hv' := (hv.fastStepPure_spec hnU hval hf).1
         have hor : CleanWindowFast c U V n_max θ W_keys BadIns fs' (Dynamic.step dict op).1 ∨
             (fs'.epochClock = fs.epochClock + 1 ∧ fs.epochClock + 1 < qEpochWhp n_max) := by
-          cases op with
-          | query u =>
-            dsimp only [fastStepPure] at hf
+          cases op <;> dsimp only [fastStepPure] at hf
+          case query u =>
             split at hf <;> cases hf
             exact epochTick_clean_or_clock hv.toCore hv' ‹_›
-          | delete u =>
-            dsimp only [fastStepPure] at hf
+          case delete u =>
             split at hf <;> cases hf
             exact (epochTick_clean_or_clock (hv.fastDelete_spec u).1 hv' ‹_›).imp_right
               fun h => by rwa [fastDelete_epochClock] at h
-          | insert u v =>
-            dsimp only [fastStepPure] at hf
-            cases hi : fastInsert c U n_max θ fs u v with
-            | none => rw [hi] at hf; cases hf
-            | some fs1 =>
-              rw [hi] at hf; dsimp only at hf
+          case insert u v =>
+            rcases hi : fastInsert c U n_max θ fs u v with _ | fs1
+            · simp [hi] at hf
+            · simp only [hi] at hf
               split at hf <;> cases hf
               exact (epochTick_clean_or_clock (hv.fastInsert_spec hnU hval hi).1 hv' ‹_›).imp_right
                 fun h => by rwa [fastInsert_epochClock hi] at h
@@ -263,9 +254,8 @@ theorem HasBurnInBudget.run {c U V n_max : ℕ} (hnU : n_max ≤ U)
         have hu := hins_sub (mem_insert_self u _)
         exact ⟨hu, mem_union_right _ hu⟩)
       (hg.goodSeedOnState_of_mem hnxt_mem) hg.1 (hg.2.1 _ hnxt_mem) hg.2.2.2.1 hbad_def hbad_lt
-    have hins_rest : opInsKeys rest ⊆ opInsKeys (windowSuffix U n_max ops) := by
-      refine Subset.trans ?_ hins_sub
-      cases o <;> simp [opInsKeys, subset_insert]
+    have hins_rest : opInsKeys rest ⊆ opInsKeys (windowSuffix U n_max ops) :=
+      Subset.trans (by cases o <;> simp [opInsKeys, subset_insert]) hins_sub
     rw [List.length_cons, Nat.add_comm, ← Nat.sub_sub]
     exact ih hstep hv_l.2 (fun s hs => hseq_sub s (List.mem_cons_of_mem dict hs)) hins_rest
 

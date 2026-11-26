@@ -89,34 +89,21 @@ theorem append_iff {stride base : ℕ} {rows₁ rows₂ : List (Fin stride → �
     refine ⟨fun i hi j => ?_, fun k hk j => ?_⟩
     · have hi' : i < (rows₁ ++ rows₂).length := by simp only [List.length_append]; omega
       simpa only [List.getElem_append_left hi] using h i hi' j
-    · have hk' : rows₁.length + k < (rows₁ ++ rows₂).length := by
+    · have hk' : k + rows₁.length < (rows₁ ++ rows₂).length := by
         simp only [List.length_append]; omega
-      have hcell := h (rows₁.length + k) hk' j
-      have hidx : base + stride * (rows₁.length + k) + j.val =
-          base + stride * rows₁.length + stride * k + j.val := by
-        simp only [Nat.mul_add, Nat.add_assoc]
-      have hget : (rows₁ ++ rows₂)[rows₁.length + k]'hk' = rows₂[k]'hk := by
-        rw [List.getElem_append_right (Nat.le_add_right _ _)]
-        simp
-      rw [hidx, hget] at hcell
-      exact hcell
+      simpa only [Nat.mul_add, Nat.add_assoc, Nat.add_left_comm (stride * k),
+        ← List.getElem_append_right' rows₁ hk] using h (k + rows₁.length) hk' j
   · rintro ⟨h₁, h₂⟩ i hi j
     by_cases hlt : i < rows₁.length
     · simpa only [List.getElem_append_left hlt] using h₁ i hlt j
     · have hge : rows₁.length ≤ i := Nat.le_of_not_lt hlt
       have hk : i - rows₁.length < rows₂.length := by
         simp only [List.length_append] at hi; omega
-      have hcell := h₂ (i - rows₁.length) hk j
       have hidx : base + stride * rows₁.length + stride * (i - rows₁.length) + j.val =
           base + stride * i + j.val := by
-        have hmul : stride * rows₁.length + stride * (i - rows₁.length) = stride * i := by
-          rw [← Nat.mul_add, Nat.add_sub_cancel' hge]
-        omega
-      have hget : (rows₁ ++ rows₂)[i]'hi = rows₂[i - rows₁.length]'hk :=
-        List.getElem_append_right hge
-      rw [hidx] at hcell
-      rw [hget]
-      exact hcell
+        rw [Nat.add_assoc base, ← Nat.mul_add, Nat.add_sub_cancel' hge]
+      rw [← hidx, List.getElem_append_right hge]
+      exact h₂ (i - rows₁.length) hk j
 
 /-- Non-overlapping `Memory.copy` transfers `HoldsRecords stride src rows` directly to
 `HoldsRecords stride dst rows` under `Memory.FramedTriple`. -/
@@ -207,9 +194,7 @@ private theorem framedTriple_preserve_below {α : Type} {w c bound : ℕ} {s : M
     (Set.disjoint_left.mpr fun a ha1 ha2 => by
       simp only [Set.mem_Ico, Set.mem_Iio] at ha1 ha2
       omega)
-    (fun a ha => by
-      simp only [Set.mem_Iio] at ha
-      omega)
+    (fun _ ha => lt_of_lt_of_le ha hlim)
 
 /-- Framed specification for `concatRecordsProg`: allocates a dirty `Block` of size
 `stride * (rowsA.length + rowsB.length + rowsC.length)` at `s.frontier`, preserves all cells
@@ -241,8 +226,6 @@ theorem concatRecordsProg_spec {w stride srcA srcB srcC : ℕ}
       stride * rowsA.length + stride * rowsB.length + stride * rowsC.length := by
     dsimp only [tot]
     rw [Nat.mul_add, Nat.mul_add]
-  have hfEnd_eq : dstC + stride * rowsC.length = fEnd := by
-    dsimp only [dstC, dstB, fEnd, outBase]; rw [hmul_tot]; omega
   let S := Set.Ico outBase fEnd
   have hsubA : Set.Ico outBase (outBase + stride * rowsA.length) ⊆ S := by
     intro x ⟨h1, h2⟩; refine ⟨h1, ?_⟩; dsimp only [fEnd]; rw [hmul_tot]; omega
@@ -312,10 +295,7 @@ theorem concatRecordsProg_spec {w stride srcA srcB srcC : ℕ}
     have hAB := HoldsRecords.append_iff.mpr ⟨hrowsA₃, hrowsB₃⟩
     exact HoldsRecords.append_iff.mpr ⟨hAB, by
       simpa only [List.length_append, Nat.mul_add, ← Nat.add_assoc] using hrowsC₃⟩
-  have hmul_cost : stride * (rowsA.length + rowsB.length + rowsC.length) =
-      stride * rowsA.length + stride * rowsB.length + stride * rowsC.length := by
-    simp only [Nat.mul_add]
-  exact (Memory.FramedTriple.mono hft (by rw [hmul_cost]; omega)
+  exact (Memory.FramedTriple.mono hft (by rw [hmul_tot]; omega)
     fun _ _ h => h).frame_empty_of_ge_frontier fun _ ha => ha.1
 
 /-- Uniform `Realizes .exact` certificate for `concatRecordsProg` with `work = 0`. -/
@@ -338,11 +318,7 @@ theorem realizes_concatRecordsProg :
       (fun _ _ => 0) := by
     realize [realizes_allocBlockDirty, realizes_copy]
     all_goals
-      have hfit := h.1
-      have htot := h.2.1
-      have h1 := h.2.2.1
-      have h2 := h.2.2.2.1
-      have h3 := h.2.2.2.2
+      obtain ⟨hfit, htot, h1, h2, h3⟩ := h
       have hmul : d.stride * (d.lenA + d.lenB + d.lenC) =
           d.stride * d.lenA + d.stride * d.lenB + d.stride * d.lenC := by
         rw [Nat.mul_add, Nat.mul_add]

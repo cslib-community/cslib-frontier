@@ -458,10 +458,8 @@ theorem CutsNode.cascading {n K : ℕ} {s : IndexedMinPQ.State n} {st st' : RawS
       rw [hcut.inHeap, hcut.mark_ne x hx]
     by_cases hm0 : st.mark cur = 0
     · rw [hm0, Nat.sub_zero]
-      refine (markedCount_congr fun x => ?_).symm
-      by_cases hx : x = cur
-      · subst hx; simp [hcut.mark_cur, hm0]
-      · exact hiff x hx
+      exact (markedCount_congr fun x =>
+        if hx : x = cur then by simp [hx, hcut.mark_cur, hm0] else hiff x hx).symm
     · have := markedCount_clear_one hin_cur hm0 hcut.mark_cur hiff
       omega
   · intro T hT hTv
@@ -839,11 +837,10 @@ theorem wp_setKey {K : ℕ} {s' : IndexedMinPQ.State n} {g : Cell → ℕ} {v m 
   by_cases hlt : IndexedMinPQ.RawPrioLT (↑v, k) (↑m, Function.update (view n g).key v k m)
   · simp only [hlt, ite_true, Record.wp_write, Cell.ok, true_and]
     refine ⟨hfit.of_le v.isLt, hQ _ _ (by omega) ?_ rfl rfl⟩
-    rcases hpost with hcut | ⟨-, hnlt⟩
-    · simp only [view_update_minRoot, view_update_key]
-      exact CutInv.to_fibRawInv hcut ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
-        (Or.inl ⟨by simpa [IndexedMinPQ.PrioLT] using hlt, rfl⟩)
-    · exact (hnlt hlt).elim
+    simp only [view_update_minRoot, view_update_key]
+    exact CutInv.to_fibRawInv (hpost.resolve_right fun h => h.2 hlt)
+      ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+      (Or.inl ⟨by simpa [IndexedMinPQ.PrioLT] using hlt, rfl⟩)
   · simp only [hlt, ite_false, Record.wp_pure]
     refine hQ _ _ (by omega) ?_ rfl rfl
     rcases hpost with hcut | ⟨hinv, -⟩
@@ -886,8 +883,7 @@ theorem wp_decreaseKey {K : ℕ} {g : Cell → ℕ} {v : Fin n} {k₀ k : ℕ} (
     refine ⟨p.isLt, ?_⟩
     by_cases hlt : IndexedMinPQ.RawPrioLT (↑v, k) (↑p, g (.key ↑p))
     · -- `v` now precedes its parent: cut it, cascade, and store the key.
-      simp only [hlt, ite_true]
-      rw [Record.wp_bind]
+      simp only [hlt, ite_true, Record.wp_bind]
       obtain ⟨rtail, hcirc, hperm⟩ := hc.roots
       obtain ⟨hdp, hdp2, hdp_le, hroots0, hnr, hnm⟩ := hc.cut_pre hperm hv_fn hpar
       refine wp_cut hdp hdp2 hdp_le hc.minRoot hcirc hroots0 hpar hfit hnr hnm
@@ -896,7 +892,6 @@ theorem wp_decreaseKey {K : ℕ} {g : Cell → ℕ} {v : Fin n} {k₀ k : ℕ} (
         hpv (e ▸ (hc.valid T hT).2.1)
       obtain ⟨ts₁, hc₁, hv₁, hpv₁, hp₁⟩ :=
         hcut.cascading hc hperm (Or.inl rfl) (Or.inl rfl) hv_ne hv_fn hpar
-      rw [Record.wp_bind]
       refine Record.wp_mono ?_ (wp_cascade hfit (n + 1) hc₁ hv₁ hpv₁ hp₁
         (by rw [hcut.numMarked]; omega))
       rintro _ g₂ t₂ ⟨ts₂, hc₂, hv₂, hcost₂⟩

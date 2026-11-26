@@ -108,9 +108,8 @@ theorem memoryCost_promoteStepProg (U V w n_max h_space : ℕ) (x : (ℕ × ℕ)
 
 theorem one_le_memoryCost_promoteStepGenProg (x : (DictParams × (ℕ × ℕ)) × ℕ) (s : Memory.State) :
     1 ≤ memoryCost (promoteStepGenProg x) s := by
-  unfold promoteStepGenProg readGMGenProg readPackedGenProg
-  dsimp only
-  rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_readPackedProg]
+  simp only [promoteStepGenProg, readGMGenProg, readPackedGenProg, ← PFunctor.FreeM.bind_eq_bind,
+    memoryCost_bind, memoryCost_readPackedProg]
   omega
 
 /-- Pure state invariant for step `k` (`k < slabSize n_max`) of `promoteStepProg`. -/
@@ -277,9 +276,6 @@ theorem promoteStepProg_effect {U V w n_max h_space base b k : ℕ}
   obtain ⟨_, hptr_u_lt, hptr_top_lt, h0_lt, _, _, hgu_lt, hgtop_lt, hgslab_lt, hr_pos, _⟩ :=
     promoteStep_index_bounds hb_pos hpre
   rcases hpre with ⟨hb, _, htail, _, _, _⟩
-  set t_u := gm (gmTailPtrIdx n_max b u)
-  set t_top := gm (gmTailPtrIdx n_max b r_top)
-  set p_new := gm 0
   set q_u := qA g_u
   set v_u := vA g_u
   set q_top := qA g_top
@@ -302,7 +298,7 @@ theorem promoteStepProg_effect {U V w n_max h_space base b k : ℕ}
     writeValProg_effect (base := base) (h_space := h_space) hw hgslab_lt (valAt_lt ..) s₄
   set s₅ := (Memory.spec 0).clientState s₄ (writeValProg U V w n_max h_space ((base, g_slab), v_u))
   obtain ⟨hres, hst⟩ :=
-    promoteStepProg_exec s s₁ s₂ s₃ s₄ s₅ t_u t_top p_new q_u v_u q_top v_top
+    promoteStepProg_exec s s₁ s₂ s₃ s₄ s₅ _ _ _ q_u v_u q_top v_top
       (clientResult_readGMProg s hptr_u_lt) (clientResult_readGMProg s hptr_top_lt)
       (clientResult_readGMProg s h0_lt) (clientResult_readQuotProg s hgu_lt)
       (clientResult_readValProg s hgu_lt) (clientResult_readQuotProg s hgtop_lt)
@@ -966,11 +962,10 @@ theorem promoteSlabProg_effect {U V w n_max h_space base b : ℕ}
     fun b' hb' j hj => by
       rw [hst, hq_push, hv_push]
       exact ⟨hpres_arr hloopK.quot_inv b' hb' j hj, hpres_arr hloopK.val_inv b' hb' j hj⟩, ?_⟩
-  simp only [promoteSlabProg, promoteSlabGenProg, p_slabSize_mk,
-    promoteLoopGenProg_mk, gmPushSlabGenProg_mk]
   have hpush_cost := memoryCost_gmPushSlabProg_le U V w n_max h_space (base, b) s₁
-  dsimp only [s₁, promoteLoopProg] at hpush_cost ⊢
-  rw [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hcost_loop]
+  simp only [s₁, promoteSlabProg, promoteSlabGenProg, p_slabSize_mk, promoteLoopGenProg_mk,
+    gmPushSlabGenProg_mk, promoteLoopProg, ← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
+    hcost_loop] at hpush_cost ⊢
   omega
 
 theorem realizes_promoteSlabGen :

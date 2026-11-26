@@ -394,12 +394,10 @@ private theorem CutStep.erase_child_valid {n : ℕ} {st st' : RawState n} {pendi
       omega
     rw [List.getElem_eraseIdx]
     by_cases hji : j < i
-    · rw [dite_eq_left hji]
-      have := hrank_k j (hji.trans hi) hji.ne
-      omega
-    · rw [dite_eq_right hji]
-      have := hrank_k (j + 1) (by omega) (by omega)
-      omega
+    · simpa only [dite_eq_left hji] using
+        Nat.le_add_right_of_le (hrank_k j (hji.trans hi) hji.ne)
+    · simpa only [dite_eq_right hji] using
+        Nat.le_of_succ_le (Nat.le_add_right_of_le (hrank_k (j + 1) (by omega) (by omega)))
   · intro _ hTc
     obtain ⟨j, hj, hji, rfl⟩ := List.mem_eraseIdx_iff_getElem.mp hTc
     have hjm := List.getElem_mem hj
@@ -863,12 +861,10 @@ theorem SlotInv.done_of_cleared {n sz maxDeg : ℕ} {st : RawState n} {slotTrees
 theorem ValidRoot.par_eq_zero_iff_root {n : ℕ} {st : RawState n} {pending : Option (Fin n)}
     {T : FHTree n} (hT : ValidRoot st pending T) {u : Fin n} (hu : u ∈ T.nodes) :
     st.par u = 0 ↔ u = T.root := by
-  refine ⟨fun hp0 => ?_, fun h => h ▸ hT.2.1⟩
-  rw [T.nodes_eq] at hu
-  rcases List.mem_cons.mp hu with rfl | hdesc
-  · rfl
-  · obtain ⟨q, _, hpq⟩ := hT.1.par_of_mem_children u hdesc
-    omega
+  refine ⟨fun hp0 => (List.mem_cons.mp (T.nodes_eq ▸ hu)).resolve_right fun hdesc => ?_,
+    fun h => h ▸ hT.2.1⟩
+  obtain ⟨q, _, hpq⟩ := hT.1.par_of_mem_children u hdesc
+  omega
 
 /-- In a valid subtree with `Nodup` nodes, no strict descendant `v` is its own parent. -/
 theorem ValidSubtree.par_ne_self {n : ℕ} {st : RawState n} {pending : Option (Fin n)}
@@ -877,14 +873,12 @@ theorem ValidSubtree.par_ne_self {n : ℕ} {st : RawState n} {pending : Option (
   match U, hU with
   | .node u cs, .mk _ _ _ _ hpar _ _ hsub => by
     intro hpv
-    have hu_not : u ∉ forestNodes cs := (List.nodup_cons.mp hnd).1
+    obtain ⟨hu_not, hnd_cs⟩ := List.nodup_cons.mp hnd
     obtain ⟨c, hc, hv_c⟩ := mem_forestNodes_iff.mp hv
     rw [c.nodes_eq] at hv_c
     rcases List.mem_cons.mp hv_c with rfl | hv_desc_c
-    · obtain rfl : u = c.root := Fin.ext (Nat.add_right_cancel ((hpar c hc).symm.trans hpv))
-      exact hu_not hv
-    · exact (hsub c hc).par_ne_self (forestNodes_nodup_tree (List.nodup_cons.mp hnd).2 hc)
-        hv_desc_c hpv
+    · exact hu_not (Fin.ext (Nat.add_right_cancel ((hpar c hc).symm.trans hpv)) ▸ hv)
+    · exact (hsub c hc).par_ne_self (forestNodes_nodup_tree hnd_cs hc) hv_desc_c hpv
 
 /-- Lowering `key[v]` to `k ≤ st.key v` preserves `ValidSubtree st' none T` whenever `v = T.root` or
 `v` has parent `p` (`st.par v = p.val + 1`) with `¬IndexedMinPQ.PrioLT (v, k) (p, st.key p)`. -/
