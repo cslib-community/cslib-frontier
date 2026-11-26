@@ -20,7 +20,7 @@ Checks that:
   every injective key function and is not `IsLookup`;
 * the strict-increase premise of `IsLookup` is needed, on an out-of-order tree;
 * the per-tree bound holds on the empty tree and on a sample tree, and the lower bound composes
-  with `lookupBinQ_upperBound_size`.
+  with `lookupBinQ_upperBound_size` and `lookupQ_upperBound_size`.
 -/
 
 public section
@@ -123,5 +123,11 @@ example {t : ℕ} (ht : 2 ≤ t) (n : ℕ) :
     Nat.clog 2 (n + 1) ≤ (Nat.clog 2 (2 * t) + 1) * (Nat.log t ((n + 1) / 2) + 1) :=
   ((lookupBinQ_isLookup (α := ℕ) (β := ℕ)).lowerBound_wfInput_infinite ht).le_upperBound
     lookupBinQ_upperBound_size n
+
+-- The same for linear in-node search.
+example {t : ℕ} (ht : 2 ≤ t) (n : ℕ) :
+    Nat.clog 2 (n + 1) ≤ 2 * t * (Nat.log t ((n + 1) / 2) + 1) :=
+  ((lookupQ_isLookup (α := ℕ) (β := ℕ)).lowerBound_wfInput_infinite ht).le_upperBound
+    lookupQ_upperBound_size n
 
 end CslibFrontierTests.BTreeLookupLowerBound

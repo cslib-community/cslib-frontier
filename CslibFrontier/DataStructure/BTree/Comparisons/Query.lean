@@ -35,7 +35,8 @@ per-node bound of `rest.length + 1` into `2 * t * height` on a tree whose root h
 `2 * t - 1` keys and whose children are occupied, which is every well-formed tree. The
 resulting bounds, `countQueries_lookupQ_le` and its siblings, hold for every oracle, since the
 shape of the tree does not depend on the answers; `lookupQ_upperBound` and its siblings restate
-them as `Cslib.Query.UpperBound` over well-formed inputs. The
+them as `Cslib.Query.UpperBound` over well-formed inputs; `lookupQ_upperBound_size` and
+`rankQ_upperBound_size` bound the cost in the number of entries instead. The
 minimum and maximum make no comparisons at all. `countQueries_slotM_le` bounds the within-node
 linear search by one comparison per key. The bound is the comparison analysis of B-TREE-SEARCH
 in [CLRS2009], Section 18.2.
@@ -49,6 +50,8 @@ in [CLRS2009], Section 18.2.
 
 * `countQueries_lookupQ_le`: the number of comparisons made by `lookupQ` is at most
   `2 * t * height`.
+* `lookupQ_upperBound_size`, `rankQ_upperBound_size`: the bound
+  `2 * t * (log_t ((n + 1) / 2) + 1)` in the number `n` of entries.
 * `eval_lookupQ`: the value of `lookupQ` evaluated at the order oracle matches
   `lookup`.
 * (and similarly for the other queries)
@@ -417,6 +420,24 @@ theorem rankQ_upperBound :
       (fun h => 2 * t * h) :=
   UpperBound.of_pointwise (fun _ _ h => Nat.mul_le_mul_left _ h)
     fun oracle p => countQueries_rankQ_le oracle p.property p.val.2
+
+/-- Lookup in a well-formed tree of at most `n` entries makes at most
+`2 * t * (log_t ((n + 1) / 2) + 1)` comparisons. -/
+theorem lookupQ_upperBound_size :
+    UpperBound (fun p : WFInput α β t => lookupQ p.val.2 p.val.1) (fun p => p.val.1.size)
+      (fun n => 2 * t * (Nat.log t ((n + 1) / 2) + 1)) :=
+  UpperBound.of_pointwise
+    (fun _ _ h => Nat.mul_le_mul_left _ (Nat.succ_le_succ (Nat.log_mono_right (by omega))))
+    fun oracle p => countQueries_lookupQ_le_log oracle p.property p.val.2
+
+/-- Rank in a well-formed tree of at most `n` entries makes at most
+`2 * t * (log_t ((n + 1) / 2) + 1)` comparisons. -/
+theorem rankQ_upperBound_size :
+    UpperBound (fun p : WFInput α β t => rankQ p.val.2 p.val.1) (fun p => p.val.1.size)
+      (fun n => 2 * t * (Nat.log t ((n + 1) / 2) + 1)) :=
+  UpperBound.of_pointwise
+    (fun _ _ h => Nat.mul_le_mul_left _ (Nat.succ_le_succ (Nat.log_mono_right (by omega))))
+    fun oracle p => countQueries_rankQ_le_log oracle p.property p.val.2
 
 end UpperBounds
 

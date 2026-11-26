@@ -14,7 +14,8 @@ public import CslibFrontier.DataStructure.BTree.Comparisons.LowerBound
 
 Checks that:
 * both `rankQ` (linear in-node scan) and `rankBinQ` (binary in-node search) satisfy `IsRank`;
-* `IsRank.lowerBound_wfInput_infinite` composes directly with `rankBinQ_upperBound_size` via
+* `IsRank.lowerBound_wfInput_infinite` composes directly with `rankBinQ_upperBound_size` and
+  `rankQ_upperBound_size` via
   `Cslib.Query.LowerBound.le_upperBound`;
 * on an unsorted tree, `rankQ` can disagree with the full-list filter count, witnessing that the
   strict key-sortedness premise of `IsRank` is essential.
@@ -73,6 +74,12 @@ example {t : ℕ} (ht : 2 ≤ t) (n : ℕ) :
     Nat.clog 2 (n + 1) ≤ Nat.clog 2 (2 * t) * (Nat.log t ((n + 1) / 2) + 1) :=
   ((rankBinQ_isRank (α := ℕ) (β := Unit)).lowerBound_wfInput_infinite ht).le_upperBound
     rankBinQ_upperBound_size n
+
+/-- The same for linear in-node scan, with `rankQ_upperBound_size`. -/
+example {t : ℕ} (ht : 2 ≤ t) (n : ℕ) :
+    Nat.clog 2 (n + 1) ≤ 2 * t * (Nat.log t ((n + 1) / 2) + 1) :=
+  ((rankQ_isRank (α := ℕ) (β := Unit)).lowerBound_wfInput_infinite ht).le_upperBound
+    rankQ_upperBound_size n
 
 /-- Without the sortedness hypothesis of `IsRank`, `rankQ` on an out-of-order B-tree misses a
 smaller key placed in the right subtree (`3 > 2 > 0`, with `0` hidden to the right of `2`). -/
