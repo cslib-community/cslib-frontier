@@ -206,9 +206,7 @@ private theorem μ_le_one {h : ℕ} (hhn : h ≤ n) (hnm : n < m) (ρ : Fin m ×
       simp [mem_excluded, hfalse]
     have hocc := card_occupied_le hρ
     by_cases hk : h ≤ #(matched ρ)
-    · refine (potential_le (U := ∅) (empty_subset _) ?_).trans_eq prod_empty
-      rw [card_empty]
-      omega
+    · exact (potential_le (empty_subset _) (by simp [Nat.sub_eq_zero_of_le hk])).trans_eq prod_empty
     · obtain ⟨U, hiU, hU, hcard⟩ := exists_subsuperset_card_eq
         (s := {i}) (t := (matched ρ)ᶜ) (n := h - #(matched ρ))
         (singleton_subset_iff.2 (mem_compl.2 hi)) (by rw [card_singleton]; omega)
@@ -216,9 +214,8 @@ private theorem μ_le_one {h : ℕ} (hhn : h ≤ n) (hnm : n < m) (ρ : Fin m ×
       have hzero : weight h ρ i = 0 := by
         rw [weight, hex, card_compl, Fintype.card_fin]
         omega
-      have := potential_le hU hcard
-      rw [prod_eq_zero (singleton_subset_iff.1 hiU) hzero] at this
-      omega
+      exact Nat.le_trans ((potential_le hU hcard).trans_eq
+        (prod_eq_zero (singleton_subset_iff.1 hiU) hzero)) (Nat.zero_le _)
   · -- a matching falsifies no hole clause
     have h₁ : ρ (i, j) = some true := hρc ((i, j), false) (by simp [holeClause])
     have h₂ : ρ (i', j) = some true := hρc ((i', j), false) (by simp [holeClause])
@@ -405,12 +402,9 @@ theorem pow_le_leafCount_pigeonhole (h : ℕ) (hnm : n < m) (d : (pigeonhole m n
     (n + 1 - h) ^ h ≤ d.toDecisionTree.leafCount := by
   by_cases hhn : h ≤ n
   swap
-  · rw [Nat.sub_eq_zero_of_le (by omega), zero_pow (by omega)]
-    exact Nat.zero_le _
-  have hroot : μ h (fun _ : Fin m × Fin n => none) = (n + 1 - h) ^ h := by
-    rw [μ_of_isMatching isMatching_none, potential_none (by omega)]
-  rw [← hroot]
-  exact potential_le_leafCount (μ h) (μ_split (by omega)) (μ_le_one hhn hnm) d
+  · simp [Nat.sub_eq_zero_of_le (not_le.1 hhn), zero_pow (Nat.ne_zero_of_lt (not_le.1 hhn))]
+  rw [← potential_none (hhn.trans hnm.le), ← μ_of_isMatching isMatching_none]
+  exact potential_le_leafCount (μ h) (μ_split (hhn.trans hnm.le)) (μ_le_one hhn hnm) d
     (Clause.falsifiedBy_nil _)
 
 /-- **Tree-like resolution lower bound for the pigeonhole principle.** For `m > n` and every `h`,
