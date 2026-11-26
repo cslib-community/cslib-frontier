@@ -147,11 +147,9 @@ theorem isMixedNash_iff (G : LoadBalancingGame ι M) (p : ι → M → ℝ) :
           G.expectedLoad p k + (1 - p i k) * (G.weight i / G.speed k) := by
   constructor
   · intro h
-    have hp1 : ∀ k, ∑ m, p k m = 1 := fun k => (h.1 k).sum_eq_one
     refine ⟨h.1, fun i j hj k => ?_⟩
-    rw [← G.deviationCost_toCostGame hp1 i j, ← G.deviationCost_toCostGame hp1 i k,
-      h.deviationCost_eq_of_pos i hj]
-    exact h.2 i k
+    simpa only [← h.deviationCost_eq_of_pos i hj,
+      G.deviationCost_toCostGame fun m => (h.1 m).sum_eq_one] using h.2 i k
   · rintro ⟨hp, hsup⟩
     have hp1 : ∀ k, ∑ m, p k m = 1 := fun k => (hp k).sum_eq_one
     refine ⟨hp, fun i k => ?_⟩
@@ -162,8 +160,7 @@ theorem isMixedNash_iff (G : LoadBalancingGame ι M) (p : ι → M → ℝ) :
           rcases ((hp i).nonneg j).eq_or_lt with h0 | hpos
           · rw [← h0, zero_mul, zero_mul]
           · refine mul_le_mul_of_nonneg_left ?_ hpos.le
-            rw [G.deviationCost_toCostGame hp1 i j, G.deviationCost_toCostGame hp1 i k]
-            exact hsup i j hpos k
+            simpa only [G.deviationCost_toCostGame hp1] using hsup i j hpos k
       _ = G.toCostGame.deviationCost p i k := by rw [← sum_mul, hp1 i, one_mul]
 
 section TotallyMixedUniqueness
@@ -275,8 +272,7 @@ theorem exists_isTotallyMixedNash_twoUnitRelated_iff {s : ℝ} (hs : 0 < s) :
   have hdev (i : Fin 2) :
       p 0 0 + p 1 0 + (1 - p i 0) = (p 0 1 + p 1 1) / s + (1 - p i 1) * (1 / s) := by
     have h := (G.toCostGame.isTotallyMixedNash_iff.mp hp).2.2 i 0 1
-    have hp1' : ∀ k, ∑ m, p k m = 1 := fun k => (hp.1.1 k).sum_eq_one
-    rw [G.deviationCost_toCostGame hp1' i 0, G.deviationCost_toCostGame hp1' i 1] at h
+    simp only [G.deviationCost_toCostGame fun k => (hp.1.1 k).sum_eq_one] at h
     simp only [expectedLoad, Fin.sum_univ_two, G, twoUnitRelated, Matrix.cons_val_zero,
       Matrix.cons_val_one, Matrix.cons_val_fin_one, div_one, mul_one] at h
     rw [h]; ring
@@ -404,12 +400,11 @@ theorem isMixedNash_kpTwoUnitUniform : kpTwoUnit.toCostGame.IsMixedNash kpTwoUni
 
 theorem optMakespan_kpTwoUnit : kpTwoUnit.optMakespan = 1 := by
   refine le_antisymm ((kpTwoUnit.optMakespan_le id).trans ((kpTwoUnit.makespan_le_iff id).mpr
-    fun j => le_of_eq <| by
-      rw [LoadBalancingGame.load_eq_sum_div, sum_filter, Fin.sum_univ_two]
-      fin_cases j <;> simp [kpTwoUnit, identical])) ?_
-  simpa [kpTwoUnit, identical] using
-    (isIdentical_identical (M := Fin 2) (fun _ : Fin 2 => (1 : ℝ))
-      (fun _ => zero_le_one)).weight_le_optMakespan (0 : Fin 2)
+    fun j => ?_)) ?_
+  · rw [LoadBalancingGame.load_eq_sum_div, sum_filter, Fin.sum_univ_two]
+    fin_cases j <;> simp [kpTwoUnit, identical]
+  · simpa [kpTwoUnit, identical] using
+      (isIdentical_identical (M := Fin 2) _ (fun _ => zero_le_one)).weight_le_optMakespan 0
 
 /-- The uniform mixed Nash equilibrium on two unit jobs and two identical machines achieves
 expected makespan `(3 / 2) * optMakespan` ([KoutsoupiasPapadimitriou1999]). -/

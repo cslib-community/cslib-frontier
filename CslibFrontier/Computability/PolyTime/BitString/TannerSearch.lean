@@ -250,19 +250,14 @@ theorem findSmallBiasShiftsCeil_computableInO :
             ((encSmallBiasCeilParams q).length + 1) ^ eT)
         (fun q => ((encSmallBiasCeilParams q).length + 1) ^ eS) := by
   obtain ⟨pT, pS, hpT, hpS, hcomp⟩ := findSmallBiasShifts_computableInO
-  let encH := encPair encUnary (encPair encUnary (encPair encNat encNat))
   let hId : ComputableInPolyTime (fun x : SmallBiasCeilParams => x)
       encSmallBiasCeilParams encSmallBiasCeilParams := of_eq fun _ => rfl
   have hr := encSmallBiasCeilParams_r_polyTime hId
   have hp := encSmallBiasCeilParams_p_polyTime hId
   have hq := encSmallBiasCeilParams_q_polyTime hId
-  have hd := smallBiasCeil_polyTime hr hp hq
-  have hg : ComputableInPolyTime
-      (fun x : SmallBiasCeilParams => (x.r, smallBiasCeil x.r x.p x.q, x.p, x.q))
-      encSmallBiasCeilParams encH :=
-    hr.prod (hd.prod ((unary_to_binary.comp hp).prod (unary_to_binary.comp hq)))
-  exact search_computableInO_preprocess hpT hpS
-    (a := fun q => q.2.1 * q.1) (b := fun q => q.1) hcomp hg
+  exact search_computableInO_preprocess hpT hpS (a := fun q => q.2.1 * q.1) (b := fun q => q.1)
+    hcomp (hr.prod ((smallBiasCeil_polyTime hr hp hq).prod
+      ((unary_to_binary.comp hp).prod (unary_to_binary.comp hq))))
 
 end SmallBias
 
@@ -457,14 +452,8 @@ theorem tannerParityTests_computableInO :
         hr_m (.const 0)
   have hsh_m := (fst (encList encBits) (encList encBits)).comp' (snd encTannerParityParams _)
   have hlo_m := (snd (encList encBits) (encList encBits)).comp' (snd encTannerParityParams _)
-  have hBuild : ComputableInPolyTime
-      (fun x : TannerParityParams × List (List Bool) × List (List Bool) =>
-        buildShortenedTannerRows x.1.m (effectiveCubeDim x.1.maxVerts x.1.r)
-          x.1.d x.1.c x.2.1 x.2.2)
-      encMid (encList encBits) :=
-    buildShortenedTannerRows_polyTime hm_m heff_m hd_m hc_m hMax_m hsh_m hlo_m
-      fun x => two_pow_effectiveCubeDim_le x.1.maxVerts x.1.r
-  exact (hcProd.comp_ofPolyTime hBuild).computableInO
+  exact (hcProd.comp_ofPolyTime (buildShortenedTannerRows_polyTime hm_m heff_m hd_m hc_m hMax_m
+    hsh_m hlo_m fun x => two_pow_effectiveCubeDim_le x.1.maxVerts x.1.r)).computableInO
 
 end EndToEnd
 

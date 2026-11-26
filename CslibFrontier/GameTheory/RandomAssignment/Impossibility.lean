@@ -205,7 +205,6 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
     List.ofFn_inj.mp hq ▸ inv_ba_swap hsp p i hi
   -- Helper strict ranking comparisons used repeatedly.
   have hlt_abcd_01 : prefABCD.symm 0 < prefABCD.symm 1 := by decide
-  have hlt_abcd_12 : prefABCD.symm 1 < prefABCD.symm 2 := by decide
   have hlt_bacd_10 : prefBACD.symm 1 < prefBACD.symm 0 := by decide
   have hlt_bacd_12 : prefBACD.symm 1 < prefBACD.symm 2 := by decide
   have hlt_acbd_01 : prefACBD.symm 0 < prefACBD.symm 1 := by decide
@@ -215,12 +214,17 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
     le_antisymm (not_lt.mp h) (hnn p i o)
   have hcol : ∀ p o, φ p 0 o + φ p 1 o + φ p 2 o + φ p 3 o = 1 := fun p =>
     col_sum_four (hfeas p)
-  have hclass {p : Profile 4} (i j : Fin 4) (hp : ∀ k ≠ j, p k = p i) (o : Fin 4) :
+  have col0 {p : Profile 4} (i a b : Fin 4) (hbound : φ p i a + φ p i b < 1)
+      (hi : (p i).symm b < (p i).symm a := by decide)
+      (ho : ∀ j : Fin 4, j ≠ i → (p j).symm a < (p j).symm b := by decide) : φ p i a = 0 :=
+    zero_of_noTwoCycle_col (hfeas p) (hntc p) i a b hbound hi ho
+  have hclass {p : Profile 4} (i j : Fin 4)
+      (hp : ∀ k ≠ j, List.ofFn (p k) = List.ofFn (p i) := by decide) (o : Fin 4) :
       3 * φ p i o + φ p j o = 1 := by
     have h := Finset.sum_erase_add Finset.univ (fun k => φ p k o) (Finset.mem_univ j)
     rw [(mem_doublyStochastic_iff_sum.mp (hfeas p)).2.2 o] at h
-    rw [Finset.sum_congr rfl (fun k hk => congrFun (hete p k i (hp k
-      (Finset.mem_erase.mp hk).1)) o), Finset.sum_const,
+    rw [Finset.sum_congr rfl (fun k hk => congrFun (hete p k i (DFunLike.coe_injective
+      (List.ofFn_inj.mp (hp k (Finset.mem_erase.mp hk).1)))) o), Finset.sum_const,
       Finset.card_erase_of_mem (Finset.mem_univ j), Finset.card_univ, Fintype.card_fin] at h
     simpa only [nsmul_eq_mul, Nat.reduceSub, Nat.cast_ofNat] using h
   -- 1. Profile pA = (abcd, abcd, abcd, abcd): all entries = 1/4.
@@ -229,24 +233,18 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
   -- 2. Profile pB = (abcd, abcd, bacd, abcd): row 2 = (0, 1/2, 1/4, 1/4).
   obtain ⟨hB2_c, -, hB2_ab⟩ := ab_step pA pB 2 rfl rfl
   simp only [hA] at hB2_c hB2_ab
-  have hB2_a0 : φ pB 2 0 = 0 :=
-    zero_of_noTwoCycle_col (hfeas pB) (hntc pB) 2 0 1 (by linarith only [hB2_ab])
-      hlt_bacd_10 fun j hj => by fin_cases j <;> first | exact absurd rfl hj | assumption
+  have hB2_a0 : φ pB 2 0 = 0 := col0 2 0 1 (by linarith only [hB2_ab])
   have hB2_b : φ pB 2 1 = 1 / 2 := by linarith only [hB2_ab, hB2_a0]
-  have hBcol := hclass (p := pB) 0 2 fun k hk => by
-    fin_cases k <;> first | exact absurd rfl hk | rfl
+  have hBcol := hclass (p := pB) 0 2
   have hB0_a : φ pB 0 0 = 1 / 3 := by linarith only [hBcol 0, hB2_a0]
   have hB0_b : φ pB 0 1 = 1 / 6 := by linarith only [hBcol 1, hB2_b]
   have hB0_c : φ pB 0 2 = 1 / 4 := by linarith only [hBcol 2, hB2_c]
   -- 3. Profile pC = (abcd, abcd, abcd, acbd): row 3 = (1/4, 0, 1/2, 1/4).
   obtain ⟨hC3_a, -, hC3_bc⟩ := bc_step pA pC 3 rfl rfl
   simp only [hA] at hC3_a hC3_bc
-  have hC3_b0 : φ pC 3 1 = 0 :=
-    zero_of_noTwoCycle_col (hfeas pC) (hntc pC) 3 1 2 (by linarith only [hC3_bc])
-      hlt_acbd_21 fun j hj => by fin_cases j <;> first | exact absurd rfl hj | assumption
+  have hC3_b0 : φ pC 3 1 = 0 := col0 3 1 2 (by linarith only [hC3_bc])
   have hC3_c : φ pC 3 2 = 1 / 2 := by linarith only [hC3_bc, hC3_b0]
-  have hCcol := hclass (p := pC) 2 3 fun k hk => by
-    fin_cases k <;> first | exact absurd rfl hk | rfl
+  have hCcol := hclass (p := pC) 2 3
   have hC2_a : φ pC 2 0 = 1 / 4 := by linarith only [hCcol 0, hC3_a]
   have hC2_b : φ pC 2 1 = 1 / 3 := by linarith only [hCcol 1, hC3_b0]
   have hC2_c : φ pC 2 2 = 1 / 6 := by linarith only [hCcol 2, hC3_c]
@@ -255,9 +253,7 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
   obtain ⟨hR2_c, -, hR2_ab⟩ := ab_step pC pR 2 rfl rfl
   simp only [hete pB 3 0 rfl, hB0_a, hB0_b, hB0_c] at hR3_a hR3_bc
   simp only [hC2_a, hC2_b, hC2_c] at hR2_ab hR2_c
-  have hR2_a0 : φ pR 2 0 = 0 :=
-    zero_of_noTwoCycle_col (hfeas pR) (hntc pR) 2 0 1 (by linarith only [hR2_ab])
-      hlt_bacd_10 fun j hj => by fin_cases j <;> first | exact absurd rfl hj | assumption
+  have hR2_a0 : φ pR 2 0 = 0 := col0 2 0 1 (by linarith only [hR2_ab])
   have hR2_b : φ pR 2 1 = 7 / 12 := by linarith only [hR2_ab, hR2_a0]
   have hR3_b0 : φ pR 3 1 = 0 := hz pR 3 1 fun h =>
     hntc pR 2 3 1 2 (by rw [hR2_c]; norm_num) hlt_bacd_12 h hlt_acbd_21
@@ -296,18 +292,13 @@ theorem bogomolnaiaMoulin_impossibility_four (φ : AssignmentRule 4)
   -- 8. Profile pB' = (bacd, bacd, bacd, abcd): row 3 = (1/2, 0, 1/4, 1/4).
   obtain ⟨hB'3_c, -, hB'3_ba⟩ := ba_step pA' pB' 3 rfl rfl
   have hB'3_b0 : φ pB' 3 1 = 0 :=
-    zero_of_noTwoCycle_col (hfeas pB') (hntc pB') 3 1 0
-      (by linarith only [hB'3_ba, hA' 3 1, hA' 3 0])
-      hlt_abcd_01 fun j hj => by fin_cases j <;> first | exact absurd rfl hj | assumption
+    col0 3 1 0 (by linarith only [hB'3_ba, hA' 3 1, hA' 3 0])
   -- 9. Profile pC' = (bacd, bacd, bacd, acbd): row 0 gets c = 1/4.
   have hC'3_bc : φ pC' 3 1 + φ pC' 3 2 = 1 / 4 := by
     linarith only [(bc_step pB' pC' 3 rfl rfl).2.2, hB'3_b0, hB'3_c, hA' 3 2]
-  have hC'3_b0 : φ pC' 3 1 = 0 :=
-    zero_of_noTwoCycle_col (hfeas pC') (hntc pC') 3 1 2 (by linarith only [hC'3_bc])
-      hlt_acbd_21 fun j hj => by fin_cases j <;> first | exact absurd rfl hj | assumption
+  have hC'3_b0 : φ pC' 3 1 = 0 := col0 3 1 2 (by linarith only [hC'3_bc])
   have hC'3_c : φ pC' 3 2 = 1 / 4 := by linarith only [hC'3_bc, hC'3_b0]
-  have hC'col := hclass (p := pC') 0 3 fun k hk => by
-    fin_cases k <;> first | exact absurd rfl hk | rfl
+  have hC'col := hclass (p := pC') 0 3
   have hC'0_c : φ pC' 0 2 = 1 / 4 := by linarith only [hC'col 2, hC'3_c]
   -- Final step: agent 0 swaps b ↔ a from pC' to pU, keeping φ · 0 2 unchanged: 1/3 = 1/4!
   linarith only [(ba_step pC' pU 0 rfl rfl).1, hC'0_c, hU0_c_third]
@@ -455,8 +446,7 @@ theorem bogomolnaiaMoulin_impossibility {n : ℕ} (hn : 4 ≤ n) (φ : Assignmen
       fun j _ hj => hzero j (not_lt.mp fun h =>
         hj (Finset.mem_map.mpr ⟨⟨j.val, h⟩, Finset.mem_univ _, rfl⟩)), Finset.sum_map]
     rfl
-  have hψ_feas : IsFeasible ψ := by
-    intro p
+  have hψ_feas : IsFeasible ψ := fun p => by
     rw [mem_doublyStochastic_iff_sum]
     have hM := mem_doublyStochastic_iff_sum.mp (hfeas (padProfile hn p))
     obtain ⟨hrow0, hcol0⟩ := dummy_block_zero hn p (heff (padProfile hn p))
@@ -481,20 +471,20 @@ theorem bogomolnaiaMoulin_impossibility {n : ℕ} (hn : 4 ≤ n) (φ : Assignmen
     intro p i π' k
     have hdom := hsp (padProfile hn p) ⟨i.val, by omega⟩ (padPerm hn π') ⟨k.val, by omega⟩
     rw [← padProfile_update hn p i π'] at hdom
-    have huc_eq : ∀ q : Profile 4,
+    have huc_eq (q : Profile 4) :
         upperContourSum (p i) (ψ q i) k =
           upperContourSum (padProfile hn p ⟨i.val, by omega⟩)
-            (φ (padProfile hn q) ⟨i.val, by omega⟩) ⟨k.val, by omega⟩ := by
-      intro q
-      unfold upperContourSum
-      refine Finset.sum_nbij (Fin.castLE hn) (fun r hr => ?_)
-        (fun _ _ _ _ h => Fin.castLE_injective hn h) (fun r hr => ?_) (fun r _ => ?_)
-      · simpa only [Finset.mem_Iic, Fin.le_def, Fin.val_castLE] using hr
-      · rw [Finset.mem_coe, Finset.mem_Iic] at hr
-        exact ⟨⟨r.val, (Fin.le_def.mp hr).trans_lt k.isLt⟩,
-          Finset.mem_coe.mpr (Finset.mem_Iic.mpr hr), rfl⟩
-      · simp only [ψ, Matrix.of_apply, padProfile, i.isLt, ↓reduceDIte, Fin.castLE,
-          padPerm_apply_lt]
+            (φ (padProfile hn q) ⟨i.val, by omega⟩) ⟨k.val, by omega⟩ :=
+      Finset.sum_nbij (Fin.castLE hn)
+        (fun r hr => by simpa only [Finset.mem_Iic, Fin.le_def, Fin.val_castLE] using hr)
+        (fun _ _ _ _ h => Fin.castLE_injective hn h)
+        (fun r hr => by
+          rw [Finset.mem_coe, Finset.mem_Iic] at hr
+          exact ⟨⟨r.val, (Fin.le_def.mp hr).trans_lt k.isLt⟩,
+            Finset.mem_coe.mpr (Finset.mem_Iic.mpr hr), rfl⟩)
+        fun r _ => by
+          simp only [ψ, Matrix.of_apply, padProfile, i.isLt, ↓reduceDIte, Fin.castLE,
+            padPerm_apply_lt]
     rwa [huc_eq (Function.update p i π'), huc_eq p]
   exact bogomolnaiaMoulin_impossibility_four ψ hψ_feas hψ_ntc hψ_ete hψ_sp
 

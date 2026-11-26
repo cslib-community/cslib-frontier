@@ -183,8 +183,7 @@ theorem fib_height_le_numNodes_add_one {t : AVLTree α}
   | node a h l r ihl ihr =>
     obtain ⟨rfl, hcl, hcr⟩ := hc
     obtain ⟨hlr, hrl, hbl, hbr⟩ := hb
-    have := fib_one_add_max_add_two_le hlr hrl
-    have := Nat.add_le_add (ihl hcl hbl) (ihr hcr hbr)
+    have := (fib_one_add_max_add_two_le hlr hrl).trans (Nat.add_le_add (ihl hcl hbl) (ihr hcr hbr))
     rw [numNodes_node, cachedHeight_node]
     omega
 
@@ -405,10 +404,9 @@ theorem card_elements {t : AVLTree α} (ht : Ordered t) :
 has height at most `2 * Nat.log 2 ((elements t).card + 1)` (in particular `0` when empty). -/
 theorem Valid.cachedHeight_le_two_mul_log {t : AVLTree α} (ht : Valid t) :
     t.cachedHeight ≤ 2 * Nat.log 2 ((elements t).card + 1) := by
-  have hlog : (t.cachedHeight + 1) / 2 ≤ Nat.log 2 ((elements t).card + 1) :=
-    Nat.le_log_of_pow_le (by decide) <|
-      (two_pow_half_succ_le_fib t.cachedHeight).trans
-        (card_elements ht.ordered ▸ fib_height_le_numNodes_add_one ht.heightConsistent ht.balanced)
+  have hlog := Nat.le_log_of_pow_le Nat.one_lt_two <|
+    (two_pow_half_succ_le_fib t.cachedHeight).trans
+      (card_elements ht.ordered ▸ fib_height_le_numNodes_add_one ht.heightConsistent ht.balanced)
   omega
 
 /-- Executable membership search on `AVLTree α` without allocating `toBinaryTree`. -/
@@ -494,11 +492,7 @@ theorem elements_balance (a : α) (l r : AVLTree α) :
     elements (balance a l r) = Insert.insert a (elements l ∪ elements r) := by
   unfold balance
   repeat' split
-  all_goals first
-    | rfl
-    | exact elements_rotateRight a _ r
-    | exact elements_rotateLeft a l _
-    | simp only [elements_rotateRight, elements_rotateLeft, elements_node]
+  all_goals simp only [elements_mkNode, elements_rotateRight, elements_rotateLeft, elements_node]
 
 /-- Single right rotation preserves strict BST ordering. -/
 theorem ordered_rotateRight {a : α} {h : ℕ} {l r : AVLTree α}
@@ -563,12 +557,11 @@ theorem valid_and_height_balance (a : α) {l r : AVLTree α} (hl : Valid l) (hr 
       max l.cachedHeight r.cachedHeight ≤ (balance a l r).cachedHeight ∧
       (balance a l r).cachedHeight ≤ 1 + max l.cachedHeight r.cachedHeight ∧
       (l.cachedHeight ≤ r.cachedHeight + 1 → r.cachedHeight ≤ l.cachedHeight + 1 →
-        (balance a l r).cachedHeight = 1 + max l.cachedHeight r.cachedHeight) := by
-  obtain ⟨hbal, hheight⟩ :=
-    balanced_and_height_balance a hl.heightConsistent hr.heightConsistent hl.balanced
-      hr.balanced hlr hrl
-  exact ⟨⟨ordered_balance (h := 0) ⟨hl.ordered, hr.ordered, hla, har⟩,
-    heightConsistent_balance hl.heightConsistent hr.heightConsistent, hbal⟩, hheight⟩
+        (balance a l r).cachedHeight = 1 + max l.cachedHeight r.cachedHeight) :=
+  (balanced_and_height_balance a hl.heightConsistent hr.heightConsistent hl.balanced
+    hr.balanced hlr hrl).imp_left fun hbal =>
+      ⟨ordered_balance (h := 0) ⟨hl.ordered, hr.ordered, hla, har⟩,
+        heightConsistent_balance hl.heightConsistent hr.heightConsistent, hbal⟩
 
 /-- Insert `x` into an AVL tree, rebalancing ancestors along the search path
 ([Cormen et al., Problem 13-3(c)][CLRS2009]). Duplicate insertion leaves the node unchanged. -/

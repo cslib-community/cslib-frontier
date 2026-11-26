@@ -297,12 +297,11 @@ theorem isGSPEquilibrium_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ : Fin 
     -- Shared upward-deviation bound: if `x` was not among the top `s + 1` slots (`σ 0, …, σ s`),
     -- then moving into slot `s` pays at least `b (σ s)` per click, so its utility is at most any
     -- nonnegative baseline `u` dominating slot `s - 1` (for `s > 0`).
-    have hclimb : ∀ (u : ℝ), 0 ≤ u → (∀ r : Fin k, r ≤ s → σ r ≠ x) →
-        v x ≤ v (σ ⟨0, Fin.pos s⟩) →
-        (∀ hpos : 0 < s.val,
-          μ ⟨s.val - 1, by omega⟩ * v x - p ⟨s.val - 1, by omega⟩ ≤ u) →
+    have hclimb (u : ℝ) (hu : 0 ≤ u) (hnot : ∀ r : Fin k, r ≤ s → σ r ≠ x)
+        (hv0 : v x ≤ v (σ ⟨0, Fin.pos s⟩))
+        (hprev : ∀ hpos : 0 < s.val,
+          μ ⟨s.val - 1, by omega⟩ * v x - p ⟨s.val - 1, by omega⟩ ≤ u) :
         μ s * (v x - gspPerClickPrice b' σ' s) ≤ u := by
-      intro u hu hnot hv0 hprev
       let T : Finset ι := (Finset.Iic s).map σ
       have hxT : x ∉ T :=
         mt Finset.mem_map.mp fun ⟨r, hr, hrx⟩ => hnot r (Finset.mem_Iic.mp hr) hrx
@@ -314,16 +313,13 @@ theorem isGSPEquilibrium_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ : Fin 
           exact hb_out.antitone (Finset.mem_Iic.mp hr)
       have hμs_pos : 0 < μ s := hμ_pos s
       rcases Nat.eq_zero_or_pos s.val with hs0 | hspos
-      · have hval : b (σ s) = v (σ ⟨0, Fin.pos s⟩) := by
-          rw [(Fin.ext hs0 : s = ⟨0, Fin.pos s⟩)]
-          exact minEnvyFreeBid_slot_zero μ v σ (Fin.pos s)
+      · have hval : b (σ s) = v (σ ⟨0, Fin.pos s⟩) :=
+          (congrArg (b ∘ σ) (Fin.ext hs0)).trans (minEnvyFreeBid_slot_zero μ v σ (Fin.pos s))
         nlinarith
       · let s' : Fin k := ⟨s.val - 1, by omega⟩
-        have hs_eq : s = ⟨s'.val + 1, by dsimp [s']; omega⟩ :=
-          Fin.ext (by dsimp [s']; omega)
-        have hval : b (σ s) = p s' / μ s' := by
-          conv_lhs => rw [hs_eq]
-          exact minEnvyFreeBid_slot_succ μ v σ s'.val (by dsimp [s']; omega)
+        have hval : b (σ s) = p s' / μ s' :=
+          (congrArg (b ∘ σ) (Fin.ext (Nat.sub_add_cancel hspos).symm)).trans
+            (minEnvyFreeBid_slot_succ μ v σ s'.val (by dsimp [s']; omega))
         have hμs'_pos : 0 < μ s' := hμ_pos s'
         have hμ_lt : μ s < μ s' := hμ (Nat.sub_lt hspos one_pos)
         calc μ s * (v x - gspPerClickPrice b' σ' s)
@@ -355,8 +351,7 @@ theorem isGSPEquilibrium_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ : Fin 
             have hTcard : s.val + 1 ≤ T.card := by
               rw [Finset.card_erase_of_mem htmem, Finset.card_map, Fin.card_Iic]
               dsimp [s1]; omega
-            have hTbid : ∀ y ∈ T, p s / μ s ≤ b' y := by
-              intro y hy
+            have hTbid (y : ι) (hy : y ∈ T) : p s / μ s ≤ b' y := by
               obtain ⟨r, hr, rfl⟩ := Finset.mem_map.mp (Finset.mem_of_mem_erase hy)
               dsimp only [b']
               rw [Function.update_of_ne (htx ▸ Finset.ne_of_mem_erase hy)]
@@ -385,8 +380,7 @@ theorem isGSPEquilibrium_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ : Fin 
                 omega
               have hxT : x ∉ T :=
                 htx ▸ mt Finset.mem_insert.mp (not_or.mpr ⟨hjt_ne.symm, Finset.notMem_erase _ _⟩)
-              have hTbid : ∀ y ∈ T, maxUnassignedValue v σ ≤ b' y := by
-                intro y hy
+              have hTbid (y : ι) (hy : y ∈ T) : maxUnassignedValue v σ ≤ b' y := by
                 rw [hmax_eq]
                 dsimp only [b']
                 rcases Finset.mem_insert.mp hy with rfl | hy'

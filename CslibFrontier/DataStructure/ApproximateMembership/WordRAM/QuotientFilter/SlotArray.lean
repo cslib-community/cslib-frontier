@@ -395,13 +395,12 @@ in `mem`. -/
 
 theorem extractFilterState_congr {base w w₀ n k : ℕ} {mem₁ mem₂ : ℕ → ℕ}
     (h : ∀ a, fullBase base w w₀ n ≤ a → a < base + space w w₀ n k → mem₁ a = mem₂ a) :
-    extractFilterState base w w₀ n k mem₁ = extractFilterState base w w₀ n k mem₂ := by
-  dsimp only [extractFilterState]
-  rw [FilterState.mk.injEq]
-  exact ⟨extractBit_congr fun a h₁ _ => h a h₁ (by wram_omega),
-    extractBit_congr fun a _ _ => h a (by wram_omega) (by wram_omega),
-    extractBit_congr fun a _ _ => h a (by wram_omega) (by wram_omega),
-    extractPacked_congr fun a _ _ => h a (by wram_omega) (by wram_omega)⟩
+    extractFilterState base w w₀ n k mem₁ = extractFilterState base w w₀ n k mem₂ :=
+  (FilterState.mk.injEq ..).mpr
+    ⟨extractBit_congr fun a h₁ _ => h a h₁ (by wram_omega),
+      extractBit_congr fun a _ _ => h a (by wram_omega) (by wram_omega),
+      extractBit_congr fun a _ _ => h a (by wram_omega) (by wram_omega),
+      extractPacked_congr fun a _ _ => h a (by wram_omega) (by wram_omega)⟩
 
 /-- Zeroed slot arrays `[fullBase, base + space)` represent `FilterState.empty`. -/
 theorem extractFilterState_of_zero {base w w₀ n k : ℕ} {mem : ℕ → ℕ}
@@ -419,52 +418,48 @@ theorem extractFilterState_writeFull (base w w₀ n k : ℕ) (mem : ℕ → ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (bval : Bool) :
     extractFilterState base w w₀ n k
       (writeBitMem (fullBase base w w₀ n) (quotBits w₀ n) w mem q bval) =
-      (extractFilterState base w w₀ n k mem).setFull q bval := by
-  dsimp only [extractFilterState, FilterState.setFull]
-  rw [FilterState.mk.injEq]
-  exact ⟨extractBit_writeBitMem _ _ _ _ _ _,
-    extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
-    extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
-    extractPacked_writePackedMem_of_disjoint _ _ _ (by wram_omega)⟩
+      (extractFilterState base w w₀ n k mem).setFull q bval :=
+  (FilterState.mk.injEq ..).mpr
+    ⟨extractBit_writeBitMem _ _ _ _ _ _,
+      extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+      extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+      extractPacked_writePackedMem_of_disjoint _ _ _ (by wram_omega)⟩
 
 @[simp]
 theorem extractFilterState_writeOcc (base w w₀ n k : ℕ) (mem : ℕ → ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (bval : Bool) :
     extractFilterState base w w₀ n k
       (writeBitMem (occBase base w w₀ n) (quotBits w₀ n) w mem q bval) =
-      (extractFilterState base w w₀ n k mem).setOcc q bval := by
-  dsimp only [extractFilterState, FilterState.setOcc]
-  rw [FilterState.mk.injEq]
-  exact ⟨extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
-    extractBit_writeBitMem _ _ _ _ _ _,
-    extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
-    extractPacked_writePackedMem_of_disjoint _ _ _ (by wram_omega)⟩
+      (extractFilterState base w w₀ n k mem).setOcc q bval :=
+  (FilterState.mk.injEq ..).mpr
+    ⟨extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+      extractBit_writeBitMem _ _ _ _ _ _,
+      extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+      extractPacked_writePackedMem_of_disjoint _ _ _ (by wram_omega)⟩
 
 @[simp]
 theorem extractFilterState_writeRunStart (base w w₀ n k : ℕ) (mem : ℕ → ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (bval : Bool) :
     extractFilterState base w w₀ n k
       (writeBitMem (runBase base w w₀ n) (quotBits w₀ n) w mem q bval) =
-      (extractFilterState base w w₀ n k mem).setRunStart q bval := by
-  dsimp only [extractFilterState, FilterState.setRunStart]
-  rw [FilterState.mk.injEq]
-  exact ⟨extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
-    extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
-    extractBit_writeBitMem _ _ _ _ _ _,
-    extractPacked_writePackedMem_of_disjoint _ _ _ (by wram_omega)⟩
+      (extractFilterState base w w₀ n k mem).setRunStart q bval :=
+  (FilterState.mk.injEq ..).mpr
+    ⟨extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+      extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+      extractBit_writeBitMem _ _ _ _ _ _,
+      extractPacked_writePackedMem_of_disjoint _ _ _ (by wram_omega)⟩
 
 @[simp]
 theorem extractFilterState_writeRem (base w w₀ n k : ℕ) (mem : ℕ → ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) :
     extractFilterState base w w₀ n k
       (writePackedMem (remBase base w w₀ n) (quotBits w₀ n) (remBits w₀ k) w mem q r.val) =
-      (extractFilterState base w w₀ n k mem).setRem q r := by
-  dsimp only [extractFilterState, FilterState.setRem]
-  rw [FilterState.mk.injEq]
-  exact ⟨extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
-    extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
-    extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
-    extractPacked_writePackedMem _ _ _ _ _ _ _⟩
+      (extractFilterState base w w₀ n k mem).setRem q r :=
+  (FilterState.mk.injEq ..).mpr
+    ⟨extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+      extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+      extractBit_writePackedMem_of_disjoint _ _ _ (by wram_omega),
+      extractPacked_writePackedMem _ _ _ _ _ _ _⟩
 
 /-! ## Section 3: Slot modular arithmetic and memory layout offsets -/
 

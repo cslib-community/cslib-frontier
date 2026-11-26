@@ -305,15 +305,13 @@ theorem IsPrefixFree.map {α β : Type*} {M : DescriptionMethod α} (hM : M.IsPr
 theorem parseCodeHeader_eq_some_iff {q : List Bool} {c : Code} {p : List Bool} :
     parseCodeHeader q = some (c, p) ↔ codeHeader c ++ p = q := by
   constructor
-  · simp only [parseCodeHeader]
-    rcases hd : decodeSelfDelimiting? q with _ | ⟨b, p'⟩
-    · simp
-    · dsimp only
-      split_ifs with hsz <;>
-        simp only [Option.some.injEq, Prod.mk.injEq, false_imp_iff]
-      rintro ⟨rfl, rfl⟩
-      rw [codeHeader, encode_ofNat, ← eq_bits_foldr_of_length_eq_size hsz,
-        decodeSelfDelimiting?_eq_some_iff.mp hd]
+  · intro h
+    rcases hd : decodeSelfDelimiting? q with _ | ⟨b, p'⟩ <;>
+      simp only [parseCodeHeader, hd, reduceCtorEq] at h
+    split_ifs at h with hsz
+    obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
+    rw [codeHeader, encode_ofNat, ← eq_bits_foldr_of_length_eq_size hsz,
+      decodeSelfDelimiting?_eq_some_iff.mp hd]
   · rintro rfl
     simp [parseCodeHeader, codeHeader, Nat.foldr_bit_bits, Nat.size_eq_bits_len]
 
@@ -704,14 +702,10 @@ theorem universalPrefix_exists_incomparable_prefix :
   have hne : c ≠ cLoop := fun h => by
     have hev := ofCode_produces_iff.mp (ofCode_produces_of_ofPrefixCode_produces hprod)
     simp [h, hcLoop] at hev
-  rw [parseCodeHeader_eq_some_iff] at hcp
-  subst hcp
-  have hinj : ∀ {c₁ c₂ p₁ p₂}, codeHeader c₁ ++ p₁ <+: codeHeader c₂ ++ p₂ → c₁ = c₂ :=
-    fun hp => codeHeader_injective
-      (Cslib.BitString.prefix_append_of_isPrefixFree isPrefixFree_range_codeHeader
-        ⟨_, rfl⟩ ⟨_, rfl⟩ hp).1
-  exact ⟨fun hp => hne (hinj (p₁ := []) (by simpa using hp)).symm,
-    fun hp => hne (hinj (p₂ := []) (by simpa using hp))⟩
+  have hloop_hdr := parseCodeHeader_codeHeader_append cLoop []
+  rw [List.append_nil] at hloop_hdr
+  exact ⟨fun hp => hne (prefix_of_parseCodeHeader_eq_some hloop_hdr hcp hp).1.symm,
+    fun hp => hne (prefix_of_parseCodeHeader_eq_some hcp hloop_hdr hp).1⟩
 
 /-! ### Prefix-free minorization and binary strings -/
 

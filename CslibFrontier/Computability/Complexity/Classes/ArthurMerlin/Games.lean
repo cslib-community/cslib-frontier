@@ -341,12 +341,8 @@ noncomputable def transcriptLengthPoly (G : List (AMMove × Polynomial ℕ)) : P
 
 theorem transcriptLength_evalShape (G : List (AMMove × Polynomial ℕ)) (n : ℕ) :
     transcriptLength (evalShape G n) = (transcriptLengthPoly G).eval n := by
-  induction G with
-  | nil => simp [transcriptLength, transcriptLengthPoly, evalShape]
-  | cons x G ih =>
-    simp only [transcriptLength, transcriptLengthPoly, evalShape, List.map_cons, List.sum_cons,
-      Polynomial.eval_add] at ih ⊢
-    rw [ih]
+  simpa [transcriptLength, transcriptLengthPoly, evalShape, Function.comp_def] using
+    (map_list_sum (Polynomial.evalRingHom n) (G.map Prod.snd)).symm
 
 end AMGame
 
@@ -496,18 +492,13 @@ theorem isAMGameVerifier_arthur_merlin_iff {enc : α ↪ List Bool} {p q : Polyn
     {V : α × List Bool → Bool} {A : Set α} :
     IsAMGameVerifier enc [(.arthur, p), (.merlin, q)] V A ↔ IsArthurMerlinVerifier enc p q V A := by
   refine forall_congr' fun a => ?_
-  have hc : count (evalShape [(.arthur, p), (.merlin, q)] (enc a).length)
-      (fun t => V (a, t)) = #{r : Fin (p.eval (enc a).length) → Bool |
-        ∃ y : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn r ++ List.ofFn y) = true} := by
-    simp only [evalShape, List.map_cons, List.map_nil, count_arthur, count_merlin,
-      count_nil, List.append_nil, sup_toNat_eq, sum_toNat_eq_card, decide_eq_true_eq]
   have hsum := card_filter_add_card_filter_not (s := (univ : Finset
     (Fin (p.eval (enc a).length) → Bool))) fun r =>
       ∃ y : Fin (q.eval (enc a).length) → Bool, V (a, List.ofFn r ++ List.ofFn y) = true
   simp only [card_univ, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, not_exists,
     Bool.not_eq_true] at hsum
-  rw [hc]
-  simp only [evalShape, List.map_cons, List.map_nil, arthurBits, add_zero]
+  simp only [evalShape, List.map_cons, List.map_nil, count_arthur, count_merlin, count_nil,
+    List.append_nil, sup_toNat_eq, sum_toNat_eq_card, decide_eq_true_eq, arthurBits, add_zero]
   exact and_congr_right fun _ => imp_congr_right fun _ => by omega
 
 theorem isAMGameVerifier_merlin_arthur_iff {enc : α ↪ List Bool} {q p : Polynomial ℕ}

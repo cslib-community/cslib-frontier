@@ -362,61 +362,49 @@ theorem exists_partial_iterateWhile {α β γ : Type}
       hl hne hnil true
     have hmain := (hi a).comp hloop true
     have hraw := hmain.comp (hf (step^[r] (init a))) true
-    have hpow {e x : ℕ} (he : e ≤ D) (hx : x + 1 ≤ l + (encIn a).length + 1) :
-        (x + 1) ^ e ≤ (l + (encIn a).length + 1) ^ D :=
+    set P := (l + (encIn a).length + 1) ^ D
+    have hpow {e x : ℕ} (he : e ≤ D) (hx : x + 1 ≤ l + (encIn a).length + 1) : (x + 1) ^ e ≤ P :=
       (Nat.pow_le_pow_left hx e).trans (Nat.pow_le_pow_right (by omega) he)
-    have h1 : ci * ((encIn a).length + 1) ^ di ≤ ci * (l + (encIn a).length + 1) ^ D :=
+    have h1 : ci * ((encIn a).length + 1) ^ di ≤ ci * P :=
       Nat.mul_le_mul_left ci (hpow (by omega) (by omega))
-    have h3 : cs * (l + 1) ^ ds ≤ cs * (l + (encIn a).length + 1) ^ D :=
+    have h3 : cs * (l + 1) ^ ds ≤ cs * P :=
       Nat.mul_le_mul_left cs (hpow (by omega) (by omega))
     have hlast := hl r le_rfl
-    have h5 : cf * ((encState (step^[r] (init a))).length + 1) ^ df ≤
-        cf * (l + (encIn a).length + 1) ^ D :=
+    have h5 : cf * ((encState (step^[r] (init a))).length + 1) ^ df ≤ cf * P :=
       Nat.mul_le_mul_left cf (hpow (by omega) (by omega))
-    have hlP : l + 1 ≤ (l + (encIn a).length + 1) ^ D := by
-      simpa only [pow_one] using hpow (show 1 ≤ D by omega) (x := l) (by omega)
-    have hfirst := hl 0 (Nat.zero_le r)
+    have hlP : l + 1 ≤ P := by
+      simpa only [pow_one] using hpow (e := 1) (x := l) (by omega) (by omega)
+    have hfirst : (encState (init a)).length ≤ l := hl 0 (Nat.zero_le r)
     have hmax : max ki (ks + 1 + 2) ≤ ki + ks + 3 := by omega
-    have hPpos : 1 ≤ (l + (encIn a).length + 1) ^ D := Nat.one_le_pow _ _ (by omega)
+    have hPpos : 1 ≤ P := Nat.one_le_pow _ _ (by omega)
     have ho2 : 5 * (encState (step^[r] (init a))).length +
         (6 * max (max ki (ks + 1 + 2) + 2) kf + 20) ≤
         c₀ * ((encState (step^[r] (init a))).length + 1) := by
       have hm := Nat.mul_le_mul_right (encState (step^[r] (init a))).length
-        (show 5 ≤ c₀ by dsimp only [c₀]; omega)
+        (by dsimp only [c₀]; omega : 5 ≤ c₀)
       dsimp only [c₀, kMain] at hm ⊢
       rw [Nat.mul_add, Nat.mul_one]
       omega
     refine (hraw.mono ?_ ?_).computesInTimeAndSpace
-    · set P := (l + (encIn a).length + 1) ^ D
-      have hloopT : cs * (l + 1) ^ ds + 10 * l + 24 ≤ (cs + 34) * P := by nlinarith
-      have hmid : (r + 1) * (cs * (l + 1) ^ ds + 10 * l + 24) ≤ (r + 1) * ((cs + 34) * P) :=
-        Nat.mul_le_mul_left (r + 1) hloopT
-      have hrest : ci * ((encIn a).length + 1) ^ di + (8 * l + 18) +
+    · set Q := (r + 1) * P
+      have hloopQ : (r + 1) * (cs * (l + 1) ^ ds + 10 * l + 24) ≤ (cs + 34) * Q := by
+        rw [mul_left_comm]
+        exact Nat.mul_le_mul_left (r + 1) (by nlinarith)
+      have hrestQ : ci * ((encIn a).length + 1) ^ di + (8 * l + 18) +
           4 * (encState (init a)).length + 9 +
           cf * ((encState (step^[r] (init a))).length + 1) ^ df +
-          4 * (encState (step^[r] (init a))).length + 9 ≤ (ci + cf + 52) * P := by
-        simp only [Function.iterate_zero, id_eq] at hfirst
-        nlinarith
-      have hrest' : (ci + cf + 52) * P ≤ (r + 1) * ((ci + cf + 52) * P) :=
-        Nat.le_mul_of_pos_left _ (Nat.succ_pos r)
-      have hsum : (r + 1) * ((cs + 34) * P) + (r + 1) * ((ci + cf + 52) * P) ≤
-          C * (r + 1) * P := by
-        rw [← Nat.mul_add, ← Nat.add_mul, ← mul_assoc (r + 1), mul_comm (r + 1)]
-        exact Nat.mul_le_mul_right P (Nat.mul_le_mul_right (r + 1) (by dsimp only [C]; omega))
-      simp only [Function.iterate_zero, id_eq] at hfirst ⊢
+          4 * (encState (step^[r] (init a))).length + 9 ≤ (ci + cf + 52) * Q :=
+        (by nlinarith : _ ≤ (ci + cf + 52) * P).trans
+          (Nat.mul_le_mul_left _ (Nat.le_mul_of_pos_left P (Nat.succ_pos r)))
+      have hCQ : (cs + 34) * Q + (ci + cf + 52) * Q ≤ C * (r + 1) * P := by
+        rw [← Nat.add_mul, mul_assoc C]
+        exact Nat.mul_le_mul_right Q (by dsimp only [C]; omega)
       omega
-    · set P := (l + (encIn a).length + 1) ^ D
-      have hY : cs * (l + 1) ^ ds + 10 * l + 6 * ks + 44 ≤ (cs + 6 * ks + 54) * P := by
-        have : 6 * ks + 44 ≤ (6 * ks + 44) * P := Nat.le_mul_of_pos_right _ hPpos
-        nlinarith
-      have hEY : E * (cs * (l + 1) ^ ds + 10 * l + 6 * ks + 44) ≤
-          E * ((cs + 6 * ks + 54) * P) := Nat.mul_le_mul_left E hY
-      have ho2' : 5 * (encState (step^[r] (init a))).length +
-          (6 * max (max ki (ks + 1 + 2) + 2) kf + 20) ≤ c₀ * P :=
-        ho2.trans (Nat.mul_le_mul_left c₀ (by omega))
-      have hconst : 6 * ki + 10 * ks + 94 ≤ (6 * ki + 10 * ks + 94) * P :=
-        Nat.le_mul_of_pos_right _ hPpos
-      simp only [Function.iterate_zero, id_eq] at hfirst
+    · have hEY : E * (cs * (l + 1) ^ ds + 10 * l + 6 * ks + 44) ≤
+          E * ((cs + 6 * ks + 54) * P) :=
+        Nat.mul_le_mul_left E (by nlinarith [Nat.le_mul_of_pos_right (6 * ks + 44) hPpos])
+      have ho2' := ho2.trans (Nat.mul_le_mul_left c₀ (by omega : _ ≤ P))
+      have hconst := Nat.le_mul_of_pos_right (6 * ki + 10 * ks + 94) hPpos
       dsimp only [C, E] at hEY ⊢
       nlinarith
   · intro a hne

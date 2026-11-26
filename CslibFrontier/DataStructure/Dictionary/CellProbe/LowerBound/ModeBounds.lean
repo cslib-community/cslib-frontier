@@ -61,24 +61,21 @@ theorem det_expectedSeqProbes_mode_ge_iterLog (withQueries : Bool)
   have hMrpow : 2 * (Nat.ceil (4 / γ) + 1) * (2 * (Nat.ceil (4 / γ) + 1) + 2) ≤ M_exp :=
     hM_exp ▸ (_root_.le_max_right _ _).trans (_root_.le_max_right 32 _)
   clear hM_exp
-  generalize hN₀ : 2 ^ M_exp = N₀
-  generalize hK_cap : max (2 * s_off + 6) (Nat.logStar N₀ + 1) = K_cap
+  generalize hK_cap : max (2 * s_off + 6) (Nat.logStar (2 ^ M_exp) + 1) = K_cap
   have hK_pos : 1 ≤ K_cap := by rw [← hK_cap]; exact le_trans (by omega) (_root_.le_max_left _ _)
   let c := min (1 / (2 * (K_cap : ℝ))) (γ / 1600)
   refine ⟨c, by positivity, ?_⟩
   intro U V n k cells w hn hU hV hk_lo hk_hi hspace D_det hcorr hnode
   have hc2 : c ≤ γ / 1600 := min_le_right _ _
   have hnU : n ≤ U := Nat.le_trans (Nat.le_mul_of_pos_left n (by decide)) hU
-  by_cases hbig : N₀ ≤ n ∧ 2 * s_off + 6 ≤ k
-  · obtain ⟨hn_N₀, hk_s⟩ := hbig
-    have hpow_N₀ : 2 ^ M_exp ≤ n := hN₀ ▸ hn_N₀
+  by_cases hbig : 2 ^ M_exp ≤ n ∧ 2 * s_off + 6 ≤ k
+  · obtain ⟨hpow_N₀, hk_s⟩ := hbig
     have hfls : 4 ≤ Nat.floorLogStar n :=
       (Nat.four_le_floorLogStar_two_pow (le_rfl : 32 ≤ 32)).trans
         (Nat.floorLogStar_mono ((Nat.pow_le_pow_right Nat.two_pos hM32).trans hpow_N₀))
     generalize hk' : min k (Nat.floorLogStar n - 1) = k'
     obtain ⟨hH_ge, hk_r, hH1_logU, hmax_le, hn_le_b1, hlevels⟩ :=
       iterLog_tree_bounds hγ hγ1 hcR hct8 hct_ceil hs_off.symm hn hnU hfls hk_s hk_hi hk'.symm
-    clear hs_off hK_cap hN₀
     set T := iterLogMetaTree n k' c_tree
     set H := k' - s_off
     set R := c_R * (n : ℝ) * (Nat.iterLog k' n : ℝ)
@@ -115,12 +112,11 @@ theorem det_expectedSeqProbes_mode_ge_iterLog (withQueries : Bool)
       _ ≤ ((H - 1 : ℕ) : ℝ) * (γ / 400) * (n : ℝ) := by gcongr
   · have hk_le_K : k ≤ K_cap := by
       rw [← hK_cap]
-      by_cases hn_lt : n < N₀
+      by_cases hn_lt : n < 2 ^ M_exp
       · exact (hk_hi.trans (Nat.logStar_mono hn_lt.le)).trans
           ((Nat.le_succ _).trans (_root_.le_max_right _ _))
       · exact (Nat.lt_of_not_ge fun hge => hbig ⟨Nat.not_lt.mp hn_lt, hge⟩).le.trans
           (_root_.le_max_left _ _)
-    clear hs_off hK_cap hN₀
     exact (mul_le_linear_of_le_half (Nat.cast_nonneg n) (Nat.cast_nonneg k) (min_le_left _ _)
       (by exact_mod_cast hK_pos) (by exact_mod_cast hk_le_K)).trans
       (det_expectedSeqProbes_ge_linear withQueries hU hV (D_det := D_det) hcorr)
@@ -154,15 +150,12 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
         c * (n : ℝ) * Real.logb 2 ((n : ℝ) / max R 1) ≤
           ∑' ops, (modeDist withQueries U V n hU hV ops).toReal * (D_det.seqProbes ops : ℝ) := by
   generalize hM_exp : max (Nat.ceil (2 * ((2 ^ 64 : ℕ) : ℝ) / γ)) (Nat.ceil (11 / γ)) = M_exp
-  have hM_fan : ((2 ^ 64 : ℕ) : ℝ) ≤ (γ / 2) * (M_exp : ℝ) := by
-    have h1 : 2 * ((2 ^ 64 : ℕ) : ℝ) ≤ (M_exp : ℝ) * γ :=
-      (div_le_iff₀ hγ).mp ((Nat.le_ceil _).trans
-        (Nat.cast_le.mpr (hM_exp ▸ _root_.le_max_left _ _)))
-    exact le_of_mul_le_mul_left (h1.trans_eq (by ring)) two_pos
+  have hM_fan : ((2 ^ 64 : ℕ) : ℝ) ≤ (γ / 2) * (M_exp : ℝ) :=
+    le_of_mul_le_mul_left (((div_le_iff₀ hγ).mp ((Nat.le_ceil _).trans
+      (Nat.cast_le.mpr (hM_exp ▸ _root_.le_max_left _ _)))).trans_eq (by ring)) two_pos
   have hM11 : 11 / γ ≤ (M_exp : ℝ) :=
     (Nat.le_ceil _).trans (by rw [← hM_exp]; exact_mod_cast _root_.le_max_right _ _)
   clear hM_exp
-  generalize hN₀ : 2 ^ M_exp = N₀
   generalize hK_log : max ((M_exp : ℝ) + 1) (268 / γ) = K_log
   have hK_pos : 0 < K_log :=
     (by positivity : 0 < 268 / γ).trans_le (hK_log ▸ _root_.le_max_right _ _)
@@ -225,15 +218,12 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
       exact (Real.logb_le_logb_of_le (by norm_num) (by positivity)
         (div_le_self hn_pos.le hR1_ge)).trans hlogn
   have hnU : n ≤ U := Nat.le_trans (Nat.le_mul_of_pos_left n (by decide)) hU
-  by_cases hbig : N₀ ≤ n ∧ 2 ≤ H
-  · obtain ⟨hn_N₀, hH_ge⟩ := hbig
-    have hpow_N₀ : 2 ^ M_exp ≤ n := hN₀ ▸ hn_N₀
-    clear hN₀
+  by_cases hbig : 2 ^ M_exp ≤ n ∧ 2 ≤ H
+  · obtain ⟨hpow_N₀, hH_ge⟩ := hbig
     have hM_logU : (M_exp : ℝ) ≤ Real.logb 2 U := real_le_logb_of_two_pow_le (hpow_N₀.trans hnU)
     have h11_logU : 11 / γ ≤ Real.logb 2 U := hM11.trans hM_logU
     have hfan_U : ((2 ^ 64 : ℕ) : ℝ) ≤ (γ / 2) * Real.logb 2 U :=
       hM_fan.trans (mul_le_mul_of_nonneg_left hM_logU (by positivity))
-    clear hM_fan
     have hH_logU : ((H - 1 : ℕ) : ℝ) ≤ Real.logb 2 U :=
       ((Nat.cast_le.mpr (Nat.sub_le H 1)).trans (height_geomMetaTree_le_logb hn m₁_half)).trans
         (Real.logb_le_logb_of_le (by norm_num) hn_pos (by exact_mod_cast hnU))
@@ -253,7 +243,7 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
         have hbℓ_ge : 2 * (m₁_half : ℝ) ≤ (T.blockSize ℓ : ℝ) :=
           hb1_ge.trans (by exact_mod_cast T.blockSize_strictMono.monotone hℓ_ge)
         have hm_lo : (n : ℝ) ^ (1 - γ / 2) ≤ (T.blockSize ℓ : ℝ) :=
-          hm₁_n.trans ((le_mul_of_one_le_left (Nat.cast_nonneg _) one_le_two).trans hbℓ_ge)
+          by linarith [Nat.cast_nonneg (α := ℝ) m₁_half]
         have hR_outer : 100 * R₁ ≤ (T.blockSize (ℓ + 1) : ℝ) * Real.logb 2 (T.fanout (ℓ + 1)) := by
           have hb1_next : 2 * R₁ ≤ (T.blockSize (ℓ + 1) : ℝ) :=
             (mul_le_mul_of_nonneg_left hm₁_R (by norm_num)).trans
@@ -282,18 +272,15 @@ theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
           mul_le_mul (mul_le_mul_of_nonneg_right (min_le_right _ _) hn_pos.le) hlog_H1
             hlog_div_nn (by positivity)
       _ = ((H - 1 : ℕ) : ℝ) * (γ / 400) * (n : ℝ) := by field_simp; ring
-  · clear hM_fan
-    have hlog_le_K : Real.logb 2 ((n : ℝ) / R₁) ≤ K_log := by
-      by_cases hn_lt : n < N₀
+  · have hlog_le_K : Real.logb 2 ((n : ℝ) / R₁) ≤ K_log := by
+      by_cases hn_lt : n < 2 ^ M_exp
       · exact (logb_le_real_of_le_two_pow (by positivity)
-          ((div_le_self hn_pos.le hR1_ge).trans
-            (by exact_mod_cast (hN₀ ▸ hn_lt.le : n ≤ 2 ^ M_exp)))).trans hK_M
+          ((div_le_self hn_pos.le hR1_ge).trans (by exact_mod_cast hn_lt.le))).trans hK_M
       · have hH_le1 : (H : ℝ) ≤ 1 := mod_cast Nat.lt_succ_iff.mp
           (Nat.lt_of_not_ge fun hge => hbig ⟨Nat.not_lt.mp hn_lt, hge⟩)
         exact hlog_H.trans
           ((mul_le_mul_of_nonneg_left (by linarith) (by positivity)).trans
             ((by ring : (2 / γ) * (3 + 64 * 1) = 134 / γ).symm ▸ hK_γ))
-    clear hN₀
     exact (mul_le_linear_of_le_half hn_pos.le hlog_div_nn (min_le_left _ _) hK_pos hlog_le_K).trans
       (det_expectedSeqProbes_ge_linear withQueries hU hV (D_det := D_det) hcorr)
 

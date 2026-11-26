@@ -352,8 +352,7 @@ theorem IsSubtreeVertexSet.exists_subtree_eq_interval (hT : W.graph.IsTree) {S :
     refine ⟨0, Finset.mem_filter.mpr ⟨Finset.mem_range.mpr (Nat.zero_lt_succ _),
       u₀, hu₀, u₀, hu₀, Walk.nil, Walk.IsPath.nil, rfl⟩⟩
   let L := lengths.max' hne_len
-  have hL_mem : L ∈ lengths := Finset.max'_mem lengths hne_len
-  obtain ⟨a, ha, b, hb, p, hp, hp_len⟩ := (Finset.mem_filter.mp hL_mem).2
+  obtain ⟨a, ha, b, hb, p, hp, hp_len⟩ := (Finset.mem_filter.mp (Finset.max'_mem lengths hne_len)).2
   have hp_in_S : ∀ w ∈ p.support, w ∈ S := fun w hw => hS.mem_of_mem_support ha hb hp hw
   -- A longest path cannot be extended at its start by a vertex of `S`.
   have hext : ∀ {a' b' : V} (q : W.graph.Walk a' b'), q.IsPath → q.length = L → b' ∈ S →
@@ -384,7 +383,7 @@ theorem IsSubtreeVertexSet.exists_subtree_eq_interval (hT : W.graph.IsTree) {S :
     rcases eq_or_ne v' a with rfl | hva
     · exact hext p hp hp_len hb hu'S hu'not hadj
     rcases eq_or_ne v' b with rfl | hvb
-    · exact hext p.reverse hp.reverse (by simp [hp_len]) ha hu'S
+    · exact hext p.reverse hp.reverse (p.length_reverse.trans hp_len) ha hu'S
         (by simpa [Walk.support_reverse] using hu'not) hadj
     have hv'_S : v' ∈ S := hp_in_S v' hv'p
     let p₁ := p.takeUntil v' hv'p
@@ -442,9 +441,8 @@ theorem exists_adj_mem_branch_of_mem_subtree (hT : W.graph.IsTree) {S : Finset V
     exists_mem_interval_dist_eq (vertex c) y ⟨hr_pos.le, hr_le_dy⟩
   obtain ⟨d, t, hd_fst, ht0, ht1, rfl, _⟩ :=
     dist_vertex_mem_step_dart hr_pos hp_dist hr_lt_w
-  have hp_S : edgePoint d t ∈ subtree W S :=
-    isConvex_subtree hT S (vertex_mem_subtree W hc) hy_S hp_mem
-  have hd_S := (edgePoint_mem_subtree_iff hT hS ht0 ht1).mp hp_S
+  have hd_S := (edgePoint_mem_subtree_iff hT hS ht0 ht1).mp
+    (isConvex_subtree hT S (vertex_mem_subtree W hc) hy_S hp_mem)
   have hadj : W.graph.Adj c d.snd := hd_fst ▸ d.adj
   have hp_br : edgePoint d t ∈ branch (vertex c) (vertex d.snd) := by
     have hd_eq : (⟨(c, d.snd), hadj⟩ : W.graph.Dart) = d := by ext <;> simp [hd_fst]
@@ -537,15 +535,10 @@ theorem subtree_removeBranch (hT : W.graph.IsTree) {S : Finset V}
           h.2 (mul_pos (sub_pos.mpr ht1) (W.dart_weight_pos _))
     · have hadj_del : (W.graph.deleteEdges {d.edge}).Adj d'.fst d'.snd :=
         ⟨d'.adj, fun h => he (Set.mem_singleton_iff.mp h.1)⟩
-      rw [edgeProj_edgePoint_of_edge_ne hT he, not_lt]
-      constructor
-      · rintro ⟨⟨hfS, hfr⟩, ⟨hsS, _⟩⟩
-        exact ⟨⟨hfS, hsS⟩, ((edgeProj_vertex_eq_zero_iff hT d d'.fst).mpr hfr).le⟩
-      · rintro ⟨⟨hfS, hsS⟩, hle⟩
-        have hfr : (W.graph.deleteEdges {s(c, w)}).Reachable d'.fst c :=
-          (edgeProj_vertex_eq_zero_iff hT d d'.fst).mp
-            (le_antisymm hle (edgeProj_nonneg hT d _))
-        exact ⟨⟨hfS, hfr⟩, ⟨hsS, hadj_del.symm.reachable.trans hfr⟩⟩
+      rw [edgeProj_edgePoint_of_edge_ne hT he, not_lt, (edgeProj_nonneg hT d _).ge_iff_eq',
+        edgeProj_vertex_eq_zero_iff hT d d'.fst]
+      exact ⟨fun ⟨⟨hfS, hfr⟩, hsS, _⟩ => ⟨⟨hfS, hsS⟩, hfr⟩,
+        fun ⟨⟨hfS, hsS⟩, hfr⟩ => ⟨⟨hfS, hfr⟩, hsS, hadj_del.symm.reachable.trans hfr⟩⟩
 
 /-- After removing the branch at `c` toward `w`, every point of that branch has gate `c`. -/
 theorem gate_subtree_removeBranch (hT : W.graph.IsTree) {S : Finset V}

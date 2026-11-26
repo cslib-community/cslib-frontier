@@ -253,13 +253,10 @@ theorem valueWeightedProgress_zero_sub_le [DecidableEq α]
             b p i * ‖querySlice i (runValue step U ψ₀ p.2 t)‖ ^ 2 := by
       simp only [valueWeightedProgress, ← sum_sub_distrib, ← sum_add_distrib]
       refine sum_le_sum fun p hp => ?_
-      have horacle := norm_inner_valueOracle_valueOracle_ge step p.1 p.2
-        (runValue step U ψ₀ p.1 t) (runValue step U ψ₀ p.2 t)
-      change γ p * ‖inner ℂ (runValue step U ψ₀ p.1 t) (runValue step U ψ₀ p.2 t)‖ -
-          γ p * ‖inner ℂ (U (t + 1) (valueOracle step p.1 (runValue step U ψ₀ p.1 t)))
-            (U (t + 1) (valueOracle step p.2 (runValue step U ψ₀ p.2 t)))‖ ≤ _
+      dsimp only [runValue]
       rw [LinearIsometry.inner_map_map]
-      have hmul := mul_le_mul_of_nonneg_left horacle (hγ p hp)
+      have hmul := mul_le_mul_of_nonneg_left (norm_inner_valueOracle_valueOracle_ge step p.1 p.2
+        (runValue step U ψ₀ p.1 t) (runValue step U ψ₀ p.2 t)) (hγ p hp)
       rw [mul_sub, ← mul_assoc, mul_comm (γ p) 2, mul_sum] at hmul
       refine (sub_le_comm.1 hmul).trans (sum_le_sum fun i hi => ?_)
       have hi' := (mem_filter.1 hi).2
@@ -355,10 +352,8 @@ theorem one_sub_mul_sqrt_le_two_mul_mul_sqrt_value [DecidableEq α]
             ≤ wXY * L := mul_le_mul_of_nonneg_left hll hwXY.le
         _ = wXY * (√L * √L) := by rw [Real.mul_self_sqrt (Nat.cast_nonneg L)]
         _ = (#Y : ℝ) * √L * ((#X : ℝ) * √L) := by dsimp only [wXY]; ring)
-    (fun z _ i => sum_le_of_eq_div_card (by positivity) fun p hp => by
-      simp only [(mem_filter.1 hp).2.2])
-    (fun z _ i => sum_le_of_eq_div_card (by positivity) fun p hp => by
-      simp only [(mem_filter.1 hp).2.2])
+    (fun z _ i => sum_le_of_eq_div_card (by positivity) fun p hp => (mem_filter.1 hp).2.2 ▸ rfl)
+    (fun z _ i => sum_le_of_eq_div_card (by positivity) fun p hp => (mem_filter.1 hp).2.2 ▸ rfl)
   simp only [sum_const, nsmul_eq_mul] at htel
   have hR' : √(m * m') * √wXY ≤ #R := by
     rw [← Real.sqrt_mul (by positivity)]

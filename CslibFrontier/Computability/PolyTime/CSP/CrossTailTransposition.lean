@@ -209,15 +209,14 @@ theorem recover_transposeTail (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   have hne3 (z : ℕ) : 2 * z ≠ 3 := by omega
   have he (z : ℕ) : ρ (2 * z) = σ z := by
     simp [ρ, σ, u0, u1, Function.comp_def, hne1 z, hne3 z]
-  have hsource := (eval_insert_iff g w I σ a).mpr ⟨ρ, hr, he, fun _ => rfl⟩
-  have ha := hsource.2
+  obtain ⟨hF, h5', h7'⟩ := (eval_insert_iff g w I σ a).mpr ⟨ρ, hr, he, fun _ => rfl⟩
   have h5 : τ 5 = τ (2 * y) := by
-    simpa [a, ρ, u0, u1, cross, Function.comp_def, hne3 y] using ha.1.symm
+    simpa [a, ρ, u0, u1, cross, Function.comp_def, hne3 y] using h5'.symm
   have h7 : τ 7 = τ (2 * x) := by
-    simpa [a, ρ, u0, u1, cross, Function.comp_def] using ha.2.symm
-  refine ⟨hsource.1, ?_⟩
-  rw [ports_transposeTail, List.map_append, List.map_map]
-  simp only [Function.comp_def, List.map_cons, List.map_nil, h5, h7]
+    simpa [a, ρ, u0, u1, cross, Function.comp_def] using h7'.symm
+  refine ⟨hF, ?_⟩
+  simp only [ports_transposeTail, List.map_append, List.map_map, Function.comp_def,
+    List.map_cons, List.map_nil, h5, h7]
 
 /-- Exact long-branch assignment extension: the output uses fresh tail names carrying
 `y,x`, while agreeing on EVERY doubled old name, including unused names. There is no
@@ -241,21 +240,17 @@ theorem eval_transposeTail_iff (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
     obtain ⟨τ, ht, he, hf⟩ := (eval_insert_iff g w I σ a).mp ⟨hσ, ha⟩
     have hsame : τ ∘ u1 ∘ u0 = τ := by
       funext z
-      by_cases h0 : z = 1
-      · subst z
-        simpa [u0, u1, a, Function.comp_def, hy3] using
-          (he y).trans (hf (0 : Fin 4)).symm
-      · by_cases h1 : z = 3
-        · subst z
-          simpa [u0, u1, a, Function.comp_def, h0] using
-            (he x).trans (hf (1 : Fin 4)).symm
+      rcases eq_or_ne z 1 with rfl | h0
+      · simpa [u0, u1, a, Function.comp_def, hy3] using (he y).trans (hf (0 : Fin 4)).symm
+      · rcases eq_or_ne z 3 with rfl | h1
+        · simpa [u0, u1, a, Function.comp_def, h0] using (he x).trans (hf (1 : Fin 4)).symm
         · simp [u0, u1, Function.comp_def, h0, h1]
     refine ⟨τ, (eval_long g w F L x y c τ).trans
       ((congrArg ((insert g w I).body.eval sem) hsame).trans ht), he, ?_⟩
-    rw [ports_transposeTail, List.map_append, List.map_map]
     have h5 : τ 5 = σ y := by simpa [a] using hf (2 : Fin 4)
     have h7 : τ 7 = σ x := by simpa [a] using hf (3 : Fin 4)
-    simp only [Function.comp_def, he, List.map_cons, List.map_nil, h5, h7]
+    simp only [ports_transposeTail, List.map_append, List.map_map, Function.comp_def, he,
+      List.map_cons, List.map_nil, h5, h7]
   · rintro ⟨τ, ht, he, _⟩
     simpa only [funext he] using (recover_transposeTail g w F L x y c τ ht).1
 
@@ -389,11 +384,10 @@ theorem name_width_transposeTail_le (F : CSP Rel ℕ) (L : List ℕ) (x y : ℕ)
   have hy := heven y (hW y (by simp))
   have hy3 : 2 * y ≠ 3 := by omega
   have hupdate (z : ℕ) (hz : z.size ≤ B) : (u1 (u0 z)).size ≤ B := by
-    by_cases h1 : z = 1
-    · subst z
-      simpa [u0, u1, hy3] using hy
-    · by_cases h3 : z = 3
-      · subst z; simpa [u0, u1] using hx
+    rcases eq_or_ne z 1 with rfl | h1
+    · simpa [u0, u1, hy3] using hy
+    · rcases eq_or_ne z 3 with rfl | h3
+      · simpa [u0, u1] using hx
       · simpa [u0, u1, h1, h3] using hz
   have hvars : (insert g w I).body.vars = F.vars.map (2 * ·) ++
       g.body.vars.map (fun v => 2 * (finSumFinEquiv v).val + 1) := by

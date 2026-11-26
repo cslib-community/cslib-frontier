@@ -177,8 +177,7 @@ theorem exists_mem_ZTIME_pow_of_mem_ZPP {A : Set α} (hA : A ∈ ZPP enc) :
         have hfn : List.ofFn (fun i => word.get (i.cast hwlen.symm)) = word := by
           apply List.ext_getElem <;> simp [hwlen]
         have hb := (hA a).1 (fun i => word.get (i.cast hwlen.symm)) b (hfn.symm ▸ hv)
-        refine Or.inr ?_
-        by_cases ha : a ∈ A <;> simp_all [ans, MultiTapeTM.indicator]
+        exact Or.inr (by by_cases ha : a ∈ A <;> simp_all [ans, MultiTapeTM.indicator])
     have hq : ∀ w ∈ ({w₀} : Set (List Bool)),
         (ProbComp.eval ((fun v => encode (a, v)) <$> sv a)).toOuterMeasure {w₀} ≤ 2⁻¹ := by
       rintro w -
@@ -225,10 +224,8 @@ theorem exists_mem_ZTIME_pow_of_mem_ZPP {A : Set α} (hA : A ∈ ZPP enc) :
           final.tapes.output = [MultiTapeTM.indicator A a]}) (fun c hc => hc.1)
         (good₁ := good₁) (fun r hr => ⟨hr.1, hr.2 ▸ (hlen a _).2⟩) (te a)
         (fun r hr final hfinal => ?_) s
-      have hspec : extM.ComputesTidily r.tapes.output (te a)
-          (pure [MultiTapeTM.indicator A a]) := by
-        rw [hr.2]
-        exact ((hextM (a, some _)).mono (Nat.mul_le_mul_left ce (Nat.pow_le_pow_left
+      have hspec : extM.ComputesTidily r.tapes.output (te a) (pure [MultiTapeTM.indicator A a]) :=
+        hr.2.symm ▸ ((hextM (a, some _)).mono (Nat.mul_le_mul_left ce (Nat.pow_le_pow_left
           (Nat.add_le_add_right (hlen a _).2 1) de))).congr fun _ _ _ => by simp [encBits]
       rw [eval_runClosedConfigFrom_of_computesTidily_pure hspec, PMF.mem_support_pure_iff] at hfinal
       exact hfinal ▸ ⟨rfl, rfl⟩
@@ -240,9 +237,7 @@ theorem exists_mem_ZTIME_pow_of_mem_ZPP {A : Set α} (hA : A ∈ ZPP enc) :
       (fun s => PMF.toOuterMeasure_le_one
         (ProbComp.eval (Z.runClosedConfigFrom s (Z.initialConfig (enc a)))) _) hZ
     refine hsumZ.trans ((add_le_add le_rfl (hsumMid.trans (add_le_add le_rfl hloop))).trans_eq ?_)
-    simp only [B, D]
-    push_cast
-    ring
+    push_cast [B, D]; ring
   -- the bound is polynomial
   have hB : PolyBounded (fun a => (enc a).length) B := by growth_poly
   obtain ⟨c, d, hc⟩ := hB.exists_le

@@ -230,11 +230,8 @@ theorem initCode_demonicExec {U V w base : ℕ} {x₀ : RData rResize}
   let x₂ := growZeroPost mK mRes mCur mIdx mZero mOne x₁
   have hs_gz : RDemonicExec w (base + 8) (growZeroCode mK mRes mCur mIdx mZero mOne) x₁ 46
       (· = x₂) :=
-    (growZeroCode_exec (w := w) (L_peak := base + 8)
-      (count := mK) (result := mRes) (cur := mCur) (idx := mIdx) (zero := mZero) (one := mOne)
-      hx₁b mGrow_nodup hfit1 (by rw [hx₁_fr, hx₁_k])
-      (by rwa [hx₁_fr, hx₁_k])).mono
-      (by rw [hx₁_k]) (fun _ h => h)
+    (growZeroCode_exec hx₁b mGrow_nodup hfit1 (by rw [hx₁_fr, hx₁_k])
+      (by rwa [hx₁_fr, hx₁_k])).mono (by rw [hx₁_k]) fun _ h => h
   have hx₂_fr : x₂.frontier = base + 8 := by simp [x₂, growZeroPost, hx₁_fr, hx₁_k]
   have hx₂_res : x₂.regs mRes = base := by
     simp only [x₂, growZeroPost, hx₁_k, hx₁_fr, Nat.succ_ne_zero, ↓reduceIte]
@@ -256,9 +253,8 @@ theorem initCode_demonicExec {U V w base : ℕ} {x₀ : RData rResize}
       ∃ y : RData rResize, RDemonicExec w (base + 8) (initStoreConstCode off val) x 4 (· = y) ∧
         y.Bounded w ∧ y.frontier = base + 8 ∧ y.regs mBase = base ∧ y.mem (base + off) = val ∧
         ∀ a, a ≠ base + off → y.mem a = x.mem a := by
-    obtain ⟨y, hs, hyb, hyfr, hybase, hym, hyne⟩ := initStoreConstCode_exec hxb hfr.le hbase
+    simpa only [hfr] using initStoreConstCode_exec hxb hfr.le hbase
       (hfit8_const.of_le hoff.le) hval (by omega)
-    exact ⟨y, hs, hyb, hyfr.trans hfr, hybase, hym, hyne⟩
   obtain ⟨x₄, hs_0, hx₄b, hx₄_fr, hx₄_base, hm₄_0, hm₄_ne⟩ :=
     storeStep 0 (U - 1) hx₃b hx₂_fr hx₃_base (by decide) (hU.of_le (Nat.sub_le U 1))
   obtain ⟨x₅, hs_1, hx₅b, hx₅_fr, hx₅_base, hm₅_1, hm₅_ne⟩ :=
@@ -623,15 +619,12 @@ theorem seq_expected_amortized {U V w base : ℕ} {x₀ : RData rResize}
         (initSteps : ℝ≥0∞) + ((ops.length * resizableCharge : ℕ) : ℝ≥0∞) := by
   intro C n_fin
   have hw_pos : 0 < w := Nat.pos_of_ne_zero fun h => absurd (h ▸ hw2) (by decide)
-  have hv_seq : ((Dynamic.spec U V U).toObliviousSequenceSpec (Dictionary.empty U)).ValidOpSeq
-      ops :=
-    ((Dynamic.spec U V U).validOpSeq_iff_validHistory (Dictionary.empty U) ops).mpr hvh
-  have hob_fit : ObliviousPeakFits w base C.peakSpaceBound [] ops :=
-    obliviousPeakFits_of_succinctWords hw_pos hU_pos hU hV_pos hvh hfit_ops
   have hfit₀' : Fits w (base + C.spaceBound []) := by
     simpa only [C, obliviousImpl, epochSpaceBound_nil] using hfit₀
   obtain ⟨ν₀, ν_final, T_ops, he_init, hcaller₀, hex, hfin, hcontract, hcost⟩ :=
-    C.seq_expected ops hx₀ hfr₀ (fun j => Fin.elim0 j) hfit₀' hv_seq hob_fit
+    C.seq_expected ops hx₀ hfr₀ (fun j => Fin.elim0 j) hfit₀'
+      (((Dynamic.spec U V U).validOpSeq_iff_validHistory _ _).mpr hvh)
+      (obliviousPeakFits_of_succinctWords hw_pos hU_pos hU hV_pos hvh hfit_ops)
   simp only [C, obliviousImpl, epochSpaceBound_nil] at he_init
   have htr_eq : ∀ t ∈ ν_final.support,
       t.transcript = ((Dynamic.spec U V U).run (Dictionary.empty U) ops).2 := by

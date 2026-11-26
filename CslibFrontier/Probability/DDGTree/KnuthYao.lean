@@ -221,9 +221,8 @@ theorem knuthYaoCost_eq_negMulLogb_iff (hx0 : 0 ≤ x) (hx1 : x ≤ 1) :
     have h3 : x * -Real.logb 2 x = x * m :=
       (le_antisymm (negMulLogb_le hx hm1) (h ▸ mul_le_knuthYaoCost hx hm2)).trans (mul_comm _ x)
     have hlog : Real.logb 2 x = -m := by linarith [mul_left_cancel₀ hx.ne' h3]
-    refine ⟨m, ?_⟩
-    rw [← Real.rpow_logb zero_lt_two (by norm_num) hx, hlog,
-      Real.rpow_neg zero_le_two, Real.rpow_natCast, inv_pow]
+    exact ⟨m, by rw [← Real.rpow_logb zero_lt_two one_lt_two.ne' hx, hlog,
+      Real.rpow_neg zero_le_two, Real.rpow_natCast, inv_pow]⟩
   · rintro (rfl | ⟨m, rfl⟩)
     · simp
     · rw [knuthYaoCost_inv_two_pow, inv_pow, Real.logb_inv, Real.logb_two_pow]
@@ -302,12 +301,9 @@ theorem expectedFlips_knuthYao (p : PMF α) :
     (knuthYao p).expectedFlips = ENNReal.ofReal (∑ a, knuthYaoCost (p a).toReal) := by
   have hs : ∀ a, Summable (truncErr (p a).toReal) := fun a =>
     summable_truncErr ENNReal.toReal_nonneg
-  rw [expectedFlips]
-  simp only [run_knuthYao_none]
-  rw [← ENNReal.ofReal_tsum_of_nonneg
+  simp only [expectedFlips, run_knuthYao_none, ← ENNReal.ofReal_tsum_of_nonneg
     (fun n => Finset.sum_nonneg fun a _ => truncErr_nonneg ENNReal.toReal_nonneg n)
-    (summable_sum fun a _ => hs a), Summable.tsum_finsetSum fun a _ => hs a]
-  rfl
+    (summable_sum fun a _ => hs a), Summable.tsum_finsetSum fun a _ => hs a, knuthYaoCost]
 
 theorem entropy_le_sum_knuthYaoCost (p : PMF α) :
     PMF.entropy p ≤ ∑ a, knuthYaoCost (p a).toReal := by
@@ -394,11 +390,10 @@ theorem expectedFlips_knuthYao_eq_entropy_iff (p : PMF α) :
   refine forall_congr' fun a => ?_
   rw [eq_comm, knuthYaoCost_eq_negMulLogb_iff ENNReal.toReal_nonneg (PMF.toReal_apply_le_one p a),
     PMF.mem_support_iff]
-  refine ⟨fun h hpa => ?_, fun h => (eq_or_ne (p a) 0).imp (fun h0 => by simp [h0]) fun hpa =>
-    (h hpa).imp fun m hm => by ennreal_to_real using hm⟩
-  rcases h with h | ⟨m, hm⟩
-  · exact absurd (by ennreal_to_real using h) hpa
-  · exact ⟨m, by ennreal_to_real using hm⟩
+  refine ⟨fun h hpa => (h.resolve_left fun h0 => hpa (by ennreal_to_real using h0)).imp
+      fun m hm => by ennreal_to_real using hm,
+    fun h => (eq_or_ne (p a) 0).imp (fun h0 => by simp [h0]) fun hpa =>
+      (h hpa).imp fun m hm => by ennreal_to_real using hm⟩
 
 /-- **Dyadic case** ([CoverThomas2006], Theorem 5.11.2 and its converse): some tree generating `p`
 reads exactly `H(p)` fair bits in expectation if and only if every positive probability `p a` is a

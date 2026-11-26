@@ -100,11 +100,10 @@ theorem prefixWidth_add_suffixWidth (hnd : num ≤ den) (n : ℕ) :
 /-- The suffix keeps at least a `X / (X + 1)` fraction of `(1 - γ) n` bits. -/
 theorem mul_le_suffixWidth (hnd : num ≤ den) (n : ℕ) :
     X * (den - num) * n ≤ (X + 1) * den * suffixWidth num den X n := by
-  have hp : (X + 1) * den * prefixWidth num den X n ≤ n * (den + num * X) := Nat.mul_div_le _ _
   obtain ⟨e, rfl⟩ : ∃ e, den = num + e := ⟨den - num, by omega⟩
-  rw [Nat.add_sub_cancel_left, suffixWidth, Nat.mul_sub]
-  have h1 : (X + 1) * (num + e) * n = n * (num + e + num * X) + X * e * n := by ring
-  omega
+  rw [Nat.add_sub_cancel_left, suffixWidth, prefixWidth, Nat.mul_sub]
+  exact le_tsub_of_add_le_right
+    (by nlinarith [Nat.mul_div_le (n * (num + e + num * X)) ((X + 1) * (num + e))])
 
 private theorem three_le_dimension : 3 ≤ dimension num den X := Nat.le_add_left 3 _
 
@@ -155,9 +154,8 @@ theorem eventually_add_depth_le (hnd : num < den) (c : ℕ) :
   have F1 : n * a < m * (p + 1) := Nat.lt_mul_div_succ _ hmpos
   have F2 : p < ℓ * F + ℓ * h + 3 * L := by
     have := Nat.lt_mul_div_succ (p - 3 * L) (Nat.mul_pos (by omega : 0 < ℓ) hhpos)
+    rw [mul_add, mul_one, mul_assoc] at this
     rw [hF, fieldWidth, blocks, ← hp, ← hL, ← hℓ, ← hh]
-    have e : ℓ * h * ((p - 3 * L) / (ℓ * h) + 1) =
-        ℓ * (h * ((p - 3 * L) / (ℓ * h))) + ℓ * h := by ring
     omega
   have F3 : den * D ≤ num * n + den := by
     dsimp only [D, depth]; nlinarith [Nat.mul_div_le (num * n) den]
@@ -187,10 +185,9 @@ theorem eventually_le_blocks (hden : 0 < den) (c : ℕ) :
       blockWidth_pos
   filter_upwards [Nat.eventually_add_mul_log_add_le ((X + 1) * (c * (dimension num den X *
       blockWidth num den X) + 1)) (3 * (X + 1)) 2 one_lt_two] with n hn
-  have hp := lt_mul_prefixWidth_add_one (X := X) (num := num) hden n
-  have := Nat.lt_of_mul_lt_mul_left (a := X + 1) (b := c * (dimension num den X *
-    blockWidth num den X) + 1 + 3 * Nat.log 2 (n + 2)) (c := prefixWidth num den X n + 1)
-    (by linarith)
+  have : c * (dimension num den X * blockWidth num den X) + 1 + 3 * Nat.log 2 (n + 2) <
+      prefixWidth num den X n + 1 := Nat.lt_of_mul_lt_mul_left (a := X + 1)
+    (by linarith [lt_mul_prefixWidth_add_one (X := X) (num := num) hden n])
   exact (Nat.le_div_iff_mul_le hℓh).mpr (by omega)
 
 /-- Eventually the suffix has at least `c` bits, when the slack is positive. -/
@@ -316,11 +313,10 @@ theorem eventually_overhead_le (hnd : num < den) (hX : 0 < X) (P A E : ℕ) :
   set p := prefixWidth num den X n
   set q := depth num den n + fieldWidth num den X n
   have hp : n / c + p ≤ n := by
-    have h1 := div_le_suffixWidth (X := X) hnd hX n
-    have h2 := prefixWidth_add_suffixWidth (X := X) hnd.le n
-    have : n / c ≤ n / ((X + 1) * den) := Nat.div_le_div_left
-      (Nat.le_mul_of_pos_right _ (by omega)) (Nat.mul_pos (by omega) (by omega))
-    omega
+    have : n / c ≤ suffixWidth num den X n := (Nat.div_le_div_left
+      (Nat.le_mul_of_pos_right _ (by omega)) (Nat.mul_pos (by omega) (by omega))).trans
+      (div_le_suffixWidth hnd hX n)
+    linarith [prefixWidth_add_suffixWidth (X := X) hnd.le n]
   have hq : n / c + q ≤ n + 1 := by
     have h1 := div_le_sub_depth_add_fieldWidth (X := X) hnd n
     have : n / c ≤ n / dimension num den X := Nat.div_le_div_left

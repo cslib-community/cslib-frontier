@@ -145,15 +145,14 @@ theorem prefixErrorBudget_add_le {ε : ℕ → ℝ} {m i : ℕ}
   apply le_trans (b := prefixErrorBudget ε (i + 1)) _ (prefixErrorBudget_mono hε hi)
   simp only [prefixErrorBudget, sum_range_succ, Nat.add_sub_cancel_left, pow_one]
   conv_rhs => rw [← add_assoc]
-  apply add_le_add
-  · apply add_le_add
-    · exact mul_le_mul_of_nonneg_right
-        (pow_le_pow_right₀ (by norm_num) (Nat.le_succ i)) (hε 0 (Nat.zero_le m))
-    · exact sum_le_sum fun k hk => mul_le_mul_of_nonneg_right
-        (pow_le_pow_right₀ (by norm_num) (Nat.sub_le_sub_right (Nat.le_succ i) k))
-        (add_nonneg (hε k ((mem_range.mp hk).le.trans hi.le))
-          (hε (k + 1) ((mem_range.mp hk).trans_le hi.le)))
-  · exact le_mul_of_one_le_left (add_nonneg (hε i hi.le) (hε (i + 1) hi)) (by norm_num)
+  refine add_le_add (add_le_add ?_ ?_)
+    (le_mul_of_one_le_left (add_nonneg (hε i hi.le) (hε (i + 1) hi)) (by norm_num))
+  · exact mul_le_mul_of_nonneg_right
+      (pow_le_pow_right₀ (by norm_num) (Nat.le_succ i)) (hε 0 (Nat.zero_le m))
+  · exact sum_le_sum fun k hk => mul_le_mul_of_nonneg_right
+      (pow_le_pow_right₀ (by norm_num) (Nat.sub_le_sub_right (Nat.le_succ i) k))
+      (add_nonneg (hε k ((mem_range.mp hk).le.trans hi.le))
+        (hε (k + 1) ((mem_range.mp hk).trans_le hi.le)))
 
 variable {ι : Type*}
 
@@ -321,9 +320,8 @@ theorem iterate_sentinelState_of_clippedError_le {s : Finset ι} {n : ℕ → �
   have hc0 : 0 ≤ c := (by norm_num : (0 : ℝ) ≤ 1).trans hc1
   have hL : 3 * R < L := by dsimp only [R, L]; linarith
   have hmarked : marked ⊆ s := filter_subset _ _
-  have hsmall' : c * prefixErrorBudget ε m ≤ 1 / 8 := hsmall
   have hE : prefixErrorBudget ε m ≤ 1 / 8 :=
-    (le_mul_of_one_le_left (prefixErrorBudget_nonneg hε) hc1).trans hsmall'
+    (le_mul_of_one_le_left (prefixErrorBudget_nonneg hε) hc1).trans hsmall
   have hεlt (i : ℕ) (hi : i ≤ m) : ε i < 1 := by linarith [(le_prefixErrorBudget hε hi).trans hE]
   have hreference := sentinel_reference_bounds hη hL₀ hK hzη hfirst hsecond hloss hcount
   obtain ⟨hΔbound, hstates⟩ := iterate_sentinelState_stability_of_clippedError_le
@@ -337,7 +335,7 @@ theorem iterate_sentinelState_of_clippedError_le {s : Finset ι} {n : ℕ → �
       (prefixErrorBudget_nonneg fun k hk => hε k (hk.trans hi.le))
       (add_nonneg (hε i hi.le) (hε (i + 1) hi)))
     have hD : D ≤ 1 / 8 :=
-      (mul_le_mul_of_nonneg_left (prefixErrorBudget_add_le hε hi) hc0).trans hsmall'
+      (mul_le_mul_of_nonneg_left (prefixErrorBudget_add_le hε hi) hc0).trans hsmall
     have hs := hstates i hi.le
     have hzD : |(modified i).defaultValue - (B i).defaultValue| ≤ D :=
       hs.1.trans (mul_le_mul_of_nonneg_left (le_add_of_nonneg_right
@@ -374,8 +372,6 @@ theorem iterate_sentinelState_of_clippedError_le {s : Finset ι} {n : ℕ → �
     have hraw₀ := (abs_sub_le_of_clippedError_le (hfirst y hys) (hεlt 0 (Nat.zero_le m))
       (herr 0 (Nat.zero_le m) y hys)).1
     simp only [uncompressedRow_zero] at hraw₀
-    have hlo := (abs_le.mp hraw₀).1
-    have hlosslo := (abs_le.mp (hloss y hys 0)).1
     have hs : ∑ i ∈ range m, |Δ i y 0| ≤
         (1 + truth y 0) * ∑ i ∈ range m, (ε i + ε (i + 1)) := by
       rw [mul_sum]
@@ -385,9 +381,8 @@ theorem iterate_sentinelState_of_clippedError_le {s : Finset ι} {n : ℕ → �
           (herr i (mem_range.mp hi).le y hys) (herr (i + 1) (mem_range.mp hi) y hys)).1
     have he := mul_le_mul_of_nonneg_left ((sum_add_le_prefixErrorBudget hε).trans hE)
       (by linarith [hfirst y hys] : 0 ≤ 1 + truth y 0)
-    change 3 * R + ∑ i ∈ range m, |Δ i y 0| < raw₀ y 0 + loss y 0
-    dsimp only [L, R] at hd ⊢
-    nlinarith
+    simp only [a, Pi.add_apply, L, R] at hd ⊢
+    nlinarith [(abs_le.mp hraw₀).1, (abs_le.mp (hloss y hys 0)).1]
   exact iterate_sentinelState_of_sum_abs_lt m hmarked hK hL hvar
     (fun i hi => (hceil i hi).1) (fun i hi => (hceil i hi).2)
 

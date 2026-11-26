@@ -748,10 +748,8 @@ theorem layoutBound_of_weightedKernel {d : ℕ} (hd : 3 ≤ d) {A : ℝ} (hA : 0
     (fun _ _ hz => unitWeightedKernelRow_eq_zero_of_lt hz)
     ρ hcorr
   refine ⟨σ, hσ.trans ?_⟩
-  have hedge_le : ∀ e : Q.external,
-      arccos (ρ e) / π ≤
-        A * (1 - 1 / (degH (H.src e) : ℝ) - 1 / (degH (H.tgt e) : ℝ)) + ξ := by
-    intro e
+  have hedge_le (e : Q.external) : arccos (ρ e) / π ≤
+      A * (1 - 1 / (degH (H.src e) : ℝ) - 1 / (degH (H.tgt e) : ℝ)) + ξ := by
     set d₁ := degH (H.src e)
     set d₂ := degH (H.tgt e)
     have hmem : (d₁, d₂) ∈ pairSet :=
@@ -765,15 +763,12 @@ theorem layoutBound_of_weightedKernel {d : ℕ} (hd : 3 ≤ d) {A : ℝ} (hA : 0
           pairCorrelation d₁ d₂ - 2 * (θ * q₀) / (1 + (θ * q₀) ^ 2) ≤ 2 * (1 - θ) :=
       sub_two_mul_div_bounds (pairWeight_nonneg d₁ d₂)
         (pairWeight_le_one (hlo (H.src e)) (hlo (H.tgt e))) hθ0 hθ1.le
-    have hρ_le : ρ e ≤ pairCorrelation d₁ d₂ := by
-      have hpos : 0 ≤ D / 2 * (θ ^ 2) ^ R := by positivity
+    have hρ_eq : ρ e = 2 * (θ * q₀) / (1 + (θ * q₀) ^ 2) - D / 2 * (θ ^ 2) ^ R := by
       dsimp only [ρ]
       rw [hq_eq]
-      linarith
-    have hρ_diff : pairCorrelation d₁ d₂ - ρ e < δ := by
-      dsimp only [ρ]
-      rw [hq_eq]
-      linarith [min_le_left δ 1]
+    have hpos : 0 ≤ D / 2 * (θ ^ 2) ^ R := by positivity
+    have hρ_le : ρ e ≤ pairCorrelation d₁ d₂ := by linarith
+    have hρ_diff : pairCorrelation d₁ d₂ - ρ e < δ := by linarith [min_le_left δ 1]
     have harc := hcont (d₁, d₂) hmem (ρ e)
       (by rw [Real.dist_eq, abs_sub_comm, abs_of_nonneg (by linarith)]; exact hρ_diff)
     rw [Real.dist_eq] at harc
@@ -1043,8 +1038,7 @@ have layouts of width `(fiveCoefficient + o(1)) β₁ + o(|V|)`, where
 theorem layoutBound_five_weighted : LayoutBound 5 WeightedKernel.fiveCoefficient := by
   refine layoutBound_of_weightedKernel (by norm_num) WeightedKernel.fiveCoefficient_pos.le
     fun d₁ d₂ h1 h12 h2 hsum => ?_
-  unfold WeightedKernel.fiveCoefficient
-  rw [div_mul_eq_mul_div]
+  rw [WeightedKernel.fiveCoefficient, div_mul_eq_mul_div]
   refine div_le_div_of_nonneg_right ?_ pi_pos.le
   have ha5 := WeightedKernel.le_arccos_four_fifths
   rcases (by omega : (d₁ = 4 ∧ d₂ = 4) ∨ (d₁ = 3 ∧ d₂ = 5) ∨ (d₁ = 4 ∧ d₂ = 5) ∨
@@ -1061,8 +1055,7 @@ have layouts of width `(sixCoefficient + o(1)) β₁ + o(|V|)`, where
 theorem layoutBound_six_weighted : LayoutBound 6 WeightedKernel.sixCoefficient := by
   refine layoutBound_of_weightedKernel (by norm_num) WeightedKernel.sixCoefficient_pos.le
     fun d₁ d₂ h1 h12 h2 hsum => ?_
-  unfold WeightedKernel.sixCoefficient
-  rw [div_mul_eq_mul_div]
+  rw [WeightedKernel.sixCoefficient, div_mul_eq_mul_div]
   refine div_le_div_of_nonneg_right ?_ pi_pos.le
   have ha6 := WeightedKernel.le_arccos_sqrt_five_div_three
   rcases (by omega : (d₁ = 4 ∧ d₂ = 5) ∨ (d₁ = 3 ∧ d₂ = 6) ∨ (d₁ = 4 ∧ d₂ = 6) ∨

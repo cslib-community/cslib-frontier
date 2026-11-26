@@ -418,8 +418,7 @@ theorem sum_card_filter_dpDecode_ne_le (C' : (Fin k → U) → Fin k → V) (f :
   have hexp : Real.exp (-(m * (n ^ (#P + 1) * θ / N))) ≤ ε / 8 := by
     have hk' : #P + w = k := (card_add_card_compl P).trans (Fintype.card_fin k)
     have hN : (N : ℝ) = k * n ^ k := by
-      simp only [N, n, Fintype.card_prod, Fintype.card_fun, Fintype.card_fin]; push_cast
-      ring
+      simp [N, n]
     have hk0 : (0 : ℝ) < k := by
       rw [← hk']; push_cast; linarith [(Nat.cast_nonneg #P : (0 : ℝ) ≤ _)]
     have hratio : δ / 16 ≤ n ^ (#P + 1) * θ / N := by
@@ -469,8 +468,7 @@ theorem sum_card_filter_dpDecode_ne_le (C' : (Fin k → U) → Fin k → V) (f :
       (#{v : Fin m → Trial U k | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) ≤ #L * N ^ m := by
     rw [filter_mem_eq_inter, univ_inter, ← nsmul_eq_mul]
     refine sum_le_card_nsmul _ _ _ fun x _ => ?_
-    exact_mod_cast (card_le_univ _).trans_eq
-      (by rw [Fintype.card_fun, Fintype.card_fin] : _ = N ^ m)
+    exact_mod_cast (card_le_univ _).trans_eq (by simp [N])
   have hrest : ∑ x ∈ univ.filter (· ∉ L),
       (#{v : Fin m → Trial U k | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) ≤
         (∑ x, (#(badPairs C' f P b₀ x) : ℝ)) * N ^ m / θ + n * (N ^ m * (ε / 8)) := by
@@ -486,14 +484,13 @@ theorem sum_card_filter_dpDecode_ne_le (C' : (Fin k → U) → Fin k → V) (f :
       _ = _ := by
           simp only [sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, div_eq_mul_inv,
             ← sum_mul, n]
+  have hNm : (0 : ℝ) ≤ N ^ m := by positivity
   have hbadθ : (∑ x, (#(badPairs C' f P b₀ x) : ℝ)) * N ^ m / θ ≤ ε * n / 4 * N ^ m := by
     rw [div_le_iff₀ hθ]
     have hkw : (k : ℝ) ≤ 2 * w := by exact_mod_cast hk
-    have hNm : (0 : ℝ) ≤ N ^ m := by positivity
     calc (∑ x, (#(badPairs C' f P b₀ x) : ℝ)) * N ^ m ≤ ε / 32 * k * #S * N ^ m := by gcongr
       _ ≤ ε / 32 * (2 * w) * #S * N ^ m := by gcongr
       _ = ε * n / 4 * N ^ m * θ := by simp only [θ]; field_simp; ring
-  have hNm : (0 : ℝ) ≤ N ^ m := by positivity
   nlinarith
 
 /-- **A good seed decodes well for half of the trial vectors.** Under the hypotheses of
@@ -519,16 +516,13 @@ theorem card_filter_dpDecode_err_le_ge (C' : (Fin k → U) → Fin k → V) (f :
   have hn : (0 : ℝ) < n := by exact_mod_cast Fintype.card_pos
   set bad := ({v : Fin m → Trial U k |
     ¬(#{x | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) ≤ ε * n} : Finset (Fin m → Trial U k))
-  have hdouble : ∑ v : Fin m → Trial U k, (#{x | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) =
-      ∑ x, (#{v : Fin m → Trial U k | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) := by
-    simp only [card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
-    exact sum_comm
   have hsum := sum_card_filter_dpDecode_ne_le C' f dflt P b₀ m hε hδ hε1 hδ1 hk hw hm hS hH
   have hmarkov : (#bad : ℝ) * (ε * n) ≤
       ∑ x, (#{v : Fin m → Trial U k | dpDecode C' dflt P b₀ v x ≠ f x} : ℝ) := by
-    rw [← hdouble]
-    exact card_filter_mul_le_sum univ _ _ (fun _ _ => Nat.cast_nonneg _)
-      fun _ _ hv => (not_le.1 hv).le
+    refine (card_filter_mul_le_sum univ _ _ (fun _ _ => Nat.cast_nonneg _)
+      fun _ _ hv => (not_le.1 hv).le).trans_eq ?_
+    simp only [card_filter, Nat.cast_sum, Nat.cast_ite, Nat.cast_one, Nat.cast_zero]
+    exact sum_comm
   have hbad : (#bad : ℝ) * 2 ≤ N ^ m :=
     le_of_mul_le_mul_right (by linarith [hmarkov.trans hsum]) (mul_pos hε hn)
   have hcast : ((#{v : Fin m → Trial U k |

@@ -288,19 +288,14 @@ theorem solvable_toPCP_iff (I : MInstance α) : Solvable (toPCP I) ↔ I.Solvabl
         exacts [by simp [stopPiece], head?_starAfter e.bottom]
       obtain ⟨d, ρ', rfl⟩ := List.exists_cons_of_ne_nil hne
       have hnil : tops (d :: ρ') = [] := by
-        cases h : tops (d :: ρ') with
-        | nil => rfl
-        | cons x w =>
-          exact absurd (htop x (congrArg List.head? h))
-            (hbot x (congrArg List.head? (heq.symm.trans h)))
-      have hdt : d.top = [] := (List.append_eq_nil_iff.mp hnil).1
-      have hdb : d.bottom = [] := (List.append_eq_nil_iff.mp (heq ▸ hnil)).1
+        rcases h : (tops (d :: ρ')).head? with _ | x
+        · exact List.head?_eq_none_iff.mp h
+        · exact absurd (htop x h) (hbot x (heq ▸ h))
       rcases hρ' d List.mem_cons_self with rfl | ⟨e, ⟨-, hpos⟩, rfl⟩
-      · simp [stopPiece] at hdt
-      · simp only [markPiece, starBefore, starAfter, List.flatMap_eq_nil_iff, List.cons_ne_nil,
-          imp_false] at hdt hdb
-        simp [List.eq_nil_iff_forall_not_mem.mpr hdt,
-          List.eq_nil_iff_forall_not_mem.mpr hdb] at hpos
+      · simp [stopPiece, tops_cons] at hnil
+      · rw [hnil] at heq
+        cases ht : e.top <;> cases hb : e.bottom <;>
+          simp [ht, hb, markPiece, tops_cons, bottoms_cons] at heq hnil hpos
   · rintro ⟨ds, hds, heq⟩
     obtain ⟨ht, hb⟩ := tops_filter ds
     refine ⟨startPiece I.start ::

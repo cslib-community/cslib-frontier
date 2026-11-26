@@ -216,40 +216,35 @@ theorem exists_balanced_inter_of_kkmCover {A : Type*} [Fintype A] [DecidableEq A
     have hi := congrFun hfz i
     dsimp only [step, denom] at hi
     linarith [(div_eq_iff (hdenom_pos z).ne').1 hi]
-  have hgt_gain (i : A) (hgi : 0 < gain z i) : μ < dir z i := by
-    by_contra! hle
-    linarith [max_eq_left (sub_nonpos.2 hle) ▸ hgi]
-  have hswap_μ : ∑ i, z i * dir z i = μ := Finset.sum_congr rfl fun _ _ => mul_comm _ _
-  have hex_pos : ∃ i₀, 0 < z i₀ := by
-    by_contra! h0
-    linarith [hzΔ.2, Finset.sum_nonpos fun i (_ : i ∈ Finset.univ) => h0 i]
-  have hsum_gain_zero : ∑ j, gain z j = 0 := by_contra fun hne0 => by
-    have hpos_sum : 0 < ∑ j, gain z j :=
-      lt_of_le_of_ne (Finset.sum_nonneg fun _ _ => le_max_left _ _) (Ne.symm hne0)
-    have hpos_gain {j : A} (hj : 0 < z j) : 0 < gain z j := hgain_eq j ▸ mul_pos hj hpos_sum
-    obtain ⟨i₀, hi₀⟩ := hex_pos
-    have hlt : ∑ i, z i * μ < ∑ i, z i * dir z i :=
-      Finset.sum_lt_sum (fun i _ => (hzΔ.1 i).lt_or_eq.elim
-        (fun hi => (mul_lt_mul_of_pos_left (hgt_gain i (hpos_gain hi)) hi).le)
-        (fun hi => by simp [← hi]))
-        ⟨i₀, Finset.mem_univ i₀, mul_lt_mul_of_pos_left (hgt_gain i₀ (hpos_gain hi₀)) hi₀⟩
-    rw [← Finset.sum_mul, hzΔ.2, one_mul, hswap_μ] at hlt
-    exact lt_irrefl _ hlt
-  have hdir_le (i : A) : dir z i ≤ μ :=
-    sub_nonpos.1 ((le_max_right (0 : ℝ) _).trans_eq
-      ((hgain_eq i).trans (hsum_gain_zero.symm ▸ mul_zero _)))
+  have hgain_sq : ∑ i, gain z i ^ 2 = 0 := by
+    have hterm (i : A) : gain z i ^ 2 = (dir z i - μ) * (z i * ∑ j, gain z j) := by
+      rw [← hgain_eq i]
+      dsimp only [gain, μ]
+      rw [max_def]
+      split_ifs
+      · exact sq _
+      · rw [zero_pow two_ne_zero, mul_zero]
+    simp only [hterm, ← mul_assoc, ← Finset.sum_mul, sub_mul, Finset.sum_sub_distrib,
+      ← Finset.mul_sum, hzΔ.2, mul_one, μ, sub_self]
+  have hdir_le (i : A) : dir z i ≤ μ := by
+    have h0 := sq_eq_zero_iff.1 <| (Finset.sum_eq_zero_iff_of_nonneg fun _ _ => sq_nonneg _).1
+      hgain_sq i (Finset.mem_univ i)
+    dsimp only [gain] at h0
+    linarith [le_max_right 0 (dir z i - μ), h0]
   have hμ_pos : 0 < μ := by
     have hsum_le : ∑ i, dir z i ≤ Fintype.card A * μ := by
-      simpa using (Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => hdir_le i)
-    nlinarith [hdir_pos z hzΔ, (Nat.cast_pos.2 Fintype.card_pos : (0 : ℝ) < Fintype.card A)]
-  have hdir_eq_of_pos (i : A) (hi : 0 < z i) : dir z i = μ := by_contra fun hne_i => by
-    have hlt : ∑ j, z j * dir z j < ∑ j, z j * μ :=
-      Finset.sum_lt_sum (fun j _ => mul_le_mul_of_nonneg_left (hdir_le j) (hzΔ.1 j))
-        ⟨i, Finset.mem_univ i, mul_lt_mul_of_pos_left (lt_of_le_of_ne (hdir_le i) hne_i) hi⟩
-    rw [← Finset.sum_mul, hzΔ.2, one_mul, hswap_μ] at hlt
-    exact lt_irrefl _ hlt
+      simpa using Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => hdir_le i
+    nlinarith only [hsum_le, hdir_pos z hzΔ, (Nat.cast_pos (α := ℝ)).2 (Fintype.card_pos (α := A))]
+  have hcomp : ∑ j, (μ - dir z j) * z j = 0 := by
+    simp only [sub_mul, Finset.sum_sub_distrib, ← Finset.mul_sum, hzΔ.2, mul_one, μ, sub_self]
+  have hdir_eq_of_pos (i : A) (hi : 0 < z i) : dir z i = μ :=
+    (sub_eq_zero.1 <| (mul_eq_zero.1 <| (Finset.sum_eq_zero_iff_of_nonneg fun j _ =>
+      mul_nonneg (sub_nonneg.2 (hdir_le j)) (hzΔ.1 j)).1 hcomp i
+      (Finset.mem_univ i)).resolve_right hi.ne').symm
+  obtain ⟨i₀, hi₀⟩ : ∃ i₀, 0 < z i₀ := by
+    by_contra! h0
+    linarith [hzΔ.2, Finset.sum_nonpos fun i (_ : i ∈ Finset.univ) => h0 i]
   let T : Finset A := Finset.univ.filter fun i => 0 < z i
-  obtain ⟨i₀, hi₀⟩ := hex_pos
   obtain ⟨S, hST, hSne, hzS⟩ := hcover T ⟨i₀, Finset.mem_filter.2 ⟨Finset.mem_univ _, hi₀⟩⟩ z
     hzΔ.1 hzΔ.2 fun i hi => le_antisymm (by simpa [T] using hi) (hzΔ.1 i)
   have hS_pos : 0 < ∑ i ∈ S, dir z i := by

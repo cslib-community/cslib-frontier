@@ -305,13 +305,10 @@ theorem conditionalChildCost_le_of_root_budgets
     by_cases hy : r.usage.retains channels σ y
     · have hy' : y ∈ ({y | r.usage.retains channels σ y} : Finset V) := by simpa using hy
       have hx' : x ∈ ({x | r.source.retains channels σ x} : Finset V) := by simpa using hx
-      exact (single_le_sum (f := fun w => |estimated i σ r x w - canonical i σ r x w| ^ 4)
-          (fun _ _ => by positivity) hy').trans
-        (le_trans (b := entry (i, r) σ)
-          (single_le_sum (f := fun v => ∑ w ∈ ({w | r.usage.retains channels σ w} : Finset V),
-              |estimated i σ r v w - canonical i σ r v w| ^ 4)
-            (fun _ _ => sum_nonneg fun _ _ => by positivity) hx')
-          (single_le_sum (fun a _ => he0 a σ) hr))
+      refine le_trans ?_ (single_le_sum (fun a _ => he0 a σ) hr)
+      refine le_trans ?_ (single_le_sum (fun _ _ => sum_nonneg fun _ _ => by positivity) hx')
+      exact single_le_sum (fun w _ =>
+        pow_nonneg (abs_nonneg (estimated i σ r x w - canonical i σ r x w)) 4) hy'
     · simpa [(hoff i r hr σ x y hy).1, (hoff i r hr σ x y hy).2] using hq σ
   have hmoment (a : ℕ × Request k Role Symbol) (ha : a ∈ calls) :
       (𝔼 σ, entry a σ) ≤ budget / (1 + #calls) := by
@@ -336,9 +333,8 @@ theorem conditionalChildCost_le_of_root_budgets
     apply (mul_le_mul_of_nonneg_left (hroot a.1 a.2 ha) (mul_nonneg hNu.le hc)).trans
     change (N * a.2.source.rate) * c *
       (budget / (1 + c * (N * a.2.source.rate)) / (1 + #calls)) ≤ _
-    have h1c : (0 : ℝ) ≤ 1 + #calls := by positivity
     simpa only [mul_div_assoc, mul_comm (N * a.2.source.rate) c] using
-      div_le_div_of_nonneg_right (mul_div_one_add_le (mul_nonneg hc hNu.le) hb) h1c
+      div_le_div_of_nonneg_right (mul_div_one_add_le (mul_nonneg hc hNu.le) hb) (by positivity)
   have hmean : (𝔼 σ, q σ) ≤ budget := by
     calc
       _ = ∑ a ∈ calls, 𝔼 σ, entry a σ := expect_sum_comm _ _ _
@@ -351,8 +347,6 @@ theorem conditionalChildCost_le_of_root_budgets
       (b i) CA CB (estimated i σ) (canonical i σ) x y) +
     negativeChildError channels l 0 .residual source midpoint terminal (b 0)
       (estimated 0 σ) (canonical 0 σ) x y
-  have hpoint := residualChildCost_fourth_le channels bins l source midpoint terminal b q
-    hCA hCB hq estimated canonical hoff hentry
   have hcoef : 0 ≤ residualCostCoefficient (k := k) channels bins l source midpoint terminal b
       CA CB := by unfold residualCostCoefficient; positivity
   apply (rowNormPow_sliceMean_fourth_le (mul_pos hN hu).le
@@ -362,7 +356,8 @@ theorem conditionalChildCost_le_of_root_budgets
     (fun σ x => source.retains channels σ x) (fun σ y => terminal.retains channels σ y)
     cost (fun σ => residualCostCoefficient (k := k) channels bins l source midpoint terminal b
       CA CB * q σ) (fun σ => mul_nonneg hcoef (hq σ))
-    (fun σ x y hx _ => hpoint σ x y hx)).trans
+    (fun σ x y hx _ => residualChildCost_fourth_le channels bins l source midpoint terminal b q
+      hCA hCB hq estimated canonical hoff hentry σ x y hx)).trans
   rw [← mul_expect, ← mul_assoc]
   change scale * (𝔼 σ, q σ) ≤ δ
   exact (mul_le_mul_of_nonneg_left hmean hs).trans (mul_div_one_add_le hs hδ)

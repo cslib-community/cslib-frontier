@@ -296,19 +296,9 @@ theorem andreevSharpScore_eq (x : BitString b → Bool) (s : Fin b → ℕ) :
   have hload : (andreevSharpLoad b m x s : ℝ) = 2 * (z + α * E) + σ := by
     simp [andreevSharpLoad, ← hsa, ha, hX, hσ]
   -- assemble
-  have hscore : 4 * andreevSharpScore b m x s = 4 * (2 * N) +
-      4 * ∑ S, (andreevRidge (andreevSharpKappa b m S)
-        (2 * andreevSharpW b m x S + ∑ i ∈ S, s i) : ℝ) +
-      4 * (N / 2 * ((2 * (z + α * E) + σ) ^ 2 + ∑ i, (s i : ℝ) ^ 2) + 4 * N * z -
-        2 * N * (α ^ 2 + 1) * E - 2 * α * N * σ +
-        2 * N * (1 + α) * ∑ i, X (Pi.single i true) * s i -
-        N * (andreevSharpRange b m + 4) * X 0 * I0) := by
-    rw [andreevSharpScore, ← hload]
-    simp only [hN, hα, hX, hz, hE, hσ, hI0, hp]
-    ring
-  rw [hridge] at hscore
-  have h4 : andreevSharpScore b m x s = (4 * andreevSharpScore b m x s) / 4 := by ring
-  rw [h4, hscore, hload, ha, ← hN, hI0]
+  rw [mul_comm] at hridge
+  rw [andreevSharpScore, eq_div_of_mul_eq four_ne_zero hridge, hload]
+  simp only [← hN, ← hα, ← hσ, ← hp, ha, hI0]
   split_ifs <;> ring
 
 /-- The load is at most the range: `w ≤ R`. -/

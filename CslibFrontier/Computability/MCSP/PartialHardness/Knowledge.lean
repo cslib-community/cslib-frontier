@@ -216,8 +216,7 @@ theorem card_cand_le (hk : Odd k) (hΔ : 0 < Δ) {δ₀ : ℝ} (hδ₀ : 0 ≤ �
         sum_le_sum fun a _ => hL a
     _ = _ := by
         rw [sum_const, card_univ, hcard, nsmul_eq_mul]
-        push_cast
-        ring
+        push_cast; ring
 
 /-! ### The knowledge set is heavy -/
 
@@ -304,32 +303,29 @@ theorem lt_weight_cand {g : ℝ} (hI : I ∈ (GapCMMSA Δ g 1).no) (P : ℕ) (f 
   have hD (z : ∀ τ : Fin T, BitString (k * varLength I lam (vs τ))) (b : Bool) :
       D (fun τ => (z τ, E τ (z τ) + b)) = b := by
     set w := fun τ => (z τ, E τ (z τ) + b) with hw
-    have hidx := hmk_idx w
     apply hh
     change entry f ((BitString.equivFin _).symm (BitString.equivFin _ (mk w).toInput)) = some b
     rw [Equiv.symm_apply_apply]
     have hlen : (I.formulas.getD j []).length = T := by
       simp [List.getD_eq_getElem?_getD, hj, hT, hφ]
-    refine entry_eq_some_of_forall_termParity (by rw [hidx]; exact hj)
-      ⟨⟨0, lt_of_lt_of_le hT0 hTΔ⟩, by rw [hidx, hlen]; exact hT0⟩ ?_
+    refine entry_eq_some_of_forall_termParity ((hmk_idx w).symm ▸ hj)
+      ⟨⟨0, lt_of_lt_of_le hT0 hTΔ⟩, (hmk_idx w).symm ▸ hlen.symm ▸ hT0⟩ ?_
     intro t ht
-    rw [hidx, hlen] at ht
+    rw [hmk_idx w, hlen] at ht
     obtain ⟨τ, rfl⟩ : ∃ τ : Fin T, (sl τ).1 = t := ⟨⟨t, ht⟩, Fin.ext rfl⟩
     have hterm : term I j (sl τ).1 = φ[(τ : ℕ)] := term_eq_getElem hj τ.isLt
     have hq₀ : ((sl τ).2 : ℕ) < (term I (formulaIndex (mk w).toInput) (sl τ).1).length := by
-      simpa only [hidx, hterm, sl] using hqs τ
+      simpa only [hmk_idx w, hterm, sl] using hqs τ
     have hvar : var I j (sl τ).1 (sl τ).2 = (vs τ : ℕ) := by
       simp [var, hterm, List.getD_eq_getElem?_getD, sl, vs, hqs τ]
     have hrest : (∑ q ∈ univ.erase (sl τ).2,
         if (q : ℕ) < (term I (formulaIndex (mk w).toInput) (sl τ).1).length then
           slotBit f (mk w).toInput (sl τ).1 q else 0) = R τ := by
-      rw [hidx]
-      refine sum_congr rfl fun q hq => ?_
-      split_ifs
-      · simp only [Parts.slotBit_toInput, ha, mk, hinv_none τ q (ne_of_mem_erase hq),
-          Option.elim_none]
-        exact zero_add _
-      · rfl
+      rw [hmk_idx w]
+      refine sum_congr rfl fun q hq => if_congr Iff.rfl ?_ rfl
+      simp only [Parts.slotBit_toInput, ha, mk, hinv_none τ q (ne_of_mem_erase hq),
+        Option.elim_none]
+      exact zero_add _
     rw [termParity_eq_add hq₀, hrest]
     simp only [Parts.slotBit_toInput, ha, hvar, mk, hinv_sl, Option.elim_some, hw,
       sum_evalVar_seedsOf, E]

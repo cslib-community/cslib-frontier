@@ -214,13 +214,10 @@ theorem giveGood_bundle_of_ne (A : BundleAllocation n m) {i j : Fin n} (g : Fin 
     (hg : g ∉ A.allocatedGoods) :
     (A.giveGood i g hg).allocatedGoods = insert g A.allocatedGoods := by
   ext x
-  simp only [mem_allocatedGoods, Finset.mem_insert, giveGood]
-  refine ⟨fun ⟨j, hj⟩ => ?_, ?_⟩
-  · split_ifs at hj with hji
-    exacts [(Finset.mem_insert.1 hj).imp_right (⟨i, ·⟩), Or.inr ⟨j, hj⟩]
-  · rintro (rfl | ⟨j, hj⟩)
-    · exact ⟨i, by simp⟩
-    · exact ⟨j, by split_ifs with hji <;> simp_all⟩
+  rcases eq_or_ne x g with rfl | hxg
+  · simpa [giveGood] using ⟨i, by simp⟩
+  · simp only [mem_allocatedGoods, Finset.mem_insert, hxg, false_or, giveGood]
+    exact exists_congr fun j => by split_ifs with hji <;> simp [hji, hxg]
 
 /-- Permutes bundles across agents via `σ : Equiv.Perm (Fin n)` (`i` receives `A.bundle (σ i)`). -/
 @[expose] def relabel (A : BundleAllocation n m) (σ : Equiv.Perm (Fin n)) :
@@ -307,11 +304,8 @@ theorem isComplete_transferGood {A : BundleAllocation n m} (j i : Fin n) (g : Fi
   · exact ⟨i, by simp⟩
   · obtain ⟨k, hkx⟩ := hA x
     refine ⟨k, ?_⟩
-    dsimp only [transferGood]
-    split_ifs with hki hkj
-    · exact Finset.mem_insert_of_mem (hki ▸ hkx)
-    · exact Finset.mem_sdiff.2 ⟨hkj ▸ hkx, Finset.notMem_singleton.2 hxg⟩
-    · exact hkx
+    simp only [transferGood]
+    split_ifs with hki hkj <;> simp_all
 
 end BundleAllocation
 

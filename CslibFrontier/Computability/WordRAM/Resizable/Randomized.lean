@@ -825,9 +825,8 @@ theorem rename {r' w L : ℕ} {f : Fin r → Fin r'} (hf : f.Injective)
   induction h generalizing x with
   | @op o _ y hb ho =>
     subst hx
-    have ho' : (o.rename f).eval w x = some (y.extend f x) := by rw [Op.eval_rename hf, ho]; rfl
-    simpa only [Code.rename, map_pure] using
-      ExecRandBounded.op ((boundedAccess_rename_iff o x).mpr hb) ho'
+    simpa only [Code.rename, map_pure] using ExecRandBounded.op
+      ((boundedAccess_rename_iff o x).mpr hb) (by simp [Op.eval_rename hf, ho])
   | @rand dst src _ hfit =>
     subst hx
     simpa only [Code.rename, Data.comap_regs, ← bind_pure_comp, bind_assoc, pure_bind,
@@ -852,8 +851,7 @@ theorem rename {r' w L : ℕ} {f : Fin r → Fin r'} (hf : f.Injective)
       ExecRandBounded.loop_exit (body := body.rename f) (fun h => hc ((Cond.holds_rename _ _).1 h))
   | @loop_iter cond body _ mb ml hc _ hl ihb ihl =>
     subst hx
-    obtain ⟨_, hcont, heq⟩ :=
-      rename_bind_step (extra := 2) hf x hl fun z₁ hz₁ {_} h => ihl z₁ hz₁ h
+    obtain ⟨_, hcont, heq⟩ := rename_bind_step (extra := 2) hf x hl ihl
     simpa only [Code.rename, ← heq] using
       ExecRandBounded.loop_iter ((Cond.holds_rename _ _).2 hc) (ihb rfl) hcont
 
@@ -919,10 +917,8 @@ theorem ExecRCodeDist.of_execRandBounded {w L_peak L : ℕ} {c : Code B r} {x : 
         ((m₂ u.toData).eval.map fun z => ⟨z.1.regs, z.1.mem, x.frontier⟩)
         (ProbComp.expect (m₂ u.toData) fun z => (z.2 : ℝ≥0∞)) L_peak)
       fun z₁ hz₁ => ih₂ z₁ hz₁ (x := ⟨z₁.1.regs, z₁.1.mem, x.frontier⟩) hL_peak hL rfl
-    simp only [Nat.add_zero] at hμ hT
-    simpa only [RCode.ofCode] using
-      (ExecRCodeDist.seq (ih₁ hL_peak hL rfl) hcont).congr_dist hμ
-        (le_of_eq (by simpa only [CharP.cast_eq_zero, add_zero] using hT))
+    simp only [CharP.cast_eq_zero, add_zero] at hμ hT
+    exact (ExecRCodeDist.seq (ih₁ hL_peak hL rfl) hcont).congr_dist hμ hT.le
   | @branch_pos cond pos neg _ m hc _ ih =>
     subst hx0
     exact (ExecRCodeDist.branch_pos hc (ih hL_peak hL rfl)).congr_dist
@@ -944,9 +940,8 @@ theorem ExecRCodeDist.of_execRandBounded {w L_peak L : ℕ} {c : Code B r} {x : 
         ((m₂ u.toData).eval.map fun z => ⟨z.1.regs, z.1.mem, x.frontier⟩)
         (ProbComp.expect (m₂ u.toData) fun z => (z.2 : ℝ≥0∞)) L_peak)
       fun z₁ hz₁ => ih₂ z₁ hz₁ (x := ⟨z₁.1.regs, z₁.1.mem, x.frontier⟩) hL_peak hL rfl
-    simp only [RCode.ofCode] at hcont ⊢
-    exact (ExecRCodeDist.loop_iter hc (ih₁ hL_peak hL rfl) hcont).congr_dist hμ
-      (le_of_eq (by simpa only [Nat.cast_ofNat] using hT))
+    simp only [RCode.ofCode, Nat.cast_ofNat] at hcont hT ⊢
+    exact (ExecRCodeDist.loop_iter hc (ih₁ hL_peak hL rfl) hcont).congr_dist hμ hT.le
 
 /-- Lift a frontier-bounded randomized execution `ExecRandBounded w L c (x.toData.comap f) m` along
 any injective register renaming `f : Fin r → Fin r'` directly into `ExecRCodeDist` on

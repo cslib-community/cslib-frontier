@@ -217,10 +217,9 @@ theorem DTIME_pow_ssubset_DTIME_mul_iterSqrtLog_pow {a : ℕ} (ha : 1 ≤ a) (p 
     | zero => exact Set.Subset.refl _
     | succ J ih => exact (hstep J).trans ih
   obtain ⟨k, hk⟩ := exists_DTIME_ssubset_DTIME_polylog
-  have hsep := hk (f := fun n => (n + 1) ^ a) (g := fun n => chain p (2 ^ p * (k + 1)) n ^ a)
+  exact (hk (f := fun n => (n + 1) ^ a) (g := fun n => chain p (2 ^ p * (k + 1)) n ^ a)
     (timeConstructible_succ_pow a) (fun n => (Nat.le_succ n).trans (Nat.le_self_pow (by omega) _))
-    (eventually_polylog_le_chain ha p k)
-  exact hsep.2 (hchain _)
+    (eventually_polylog_le_chain ha p k)).2 (hchain _)
 
 /-- `iterSqrtLog p n ^ a` is eventually at most `(log n) ^ ε` once `a / 2 ^ p < ε`. -/
 private theorem eventually_iterSqrtLog_pow_le (p : ℕ) {a : ℕ} {ε : ℝ}
@@ -274,9 +273,8 @@ theorem DTIME_pow_ssubset_DTIME_of_pow_mul_log_rpow_le {a : ℕ} (ha : 1 ≤ a) 
     suffices (((n * iterSqrtLog p n) ^ a : ℕ) : ℝ) ≤ g n from mod_cast this
     push_cast [mul_pow]
     exact (mul_le_mul_of_nonneg_left hr (by positivity)).trans hg
-  have hsep := DTIME_pow_ssubset_DTIME_mul_iterSqrtLog_pow ha p
-  exact ⟨hsep.1.trans (DTIME_mono_of_eventually_le hle),
-    fun h => hsep.2 ((DTIME_mono_of_eventually_le hle).trans h)⟩
+  exact (DTIME_pow_ssubset_DTIME_mul_iterSqrtLog_pow ha p).trans_subset
+    (DTIME_mono_of_eventually_le hle)
 
 /-! ### Exponential time -/
 
@@ -368,10 +366,9 @@ theorem DTIME_two_pow_ssubset_DTIME_two_pow_add_log_div {q : ℕ} (hq : 1 ≤ q)
       exact DTIME_mono_of_le_mul_add (C := 2) fun n => by rw [expChain, pow_succ]; omega
     | succ J ih => exact (hstep J).trans ih
   obtain ⟨k, hk⟩ := exists_DTIME_ssubset_DTIME_polylog
-  have hsep := hk (f := fun n => 2 ^ n) (g := fun n => 2 ^ expChain q (2 * q * k) n)
+  exact (hk (f := fun n => 2 ^ n) (g := fun n => 2 ^ expChain q (2 * q * k) n)
     timeConstructible_two_pow (fun n => Nat.lt_two_pow_self.le)
-    (eventually_polylog_le_expChain hq k)
-  exact hsep.2 (hchain _)
+    (eventually_polylog_le_expChain hq k)).2 (hchain _)
 
 /-- `2 ^ (⌊log₂ (n + 1)⌋ / q)` is eventually at most `n ^ ε` once `1 / q < ε`. -/
 private theorem eventually_two_pow_log_div_le {q : ℕ} (hq : 1 ≤ q) {ε : ℝ}
@@ -417,8 +414,7 @@ theorem DTIME_two_pow_ssubset_DTIME_of_two_pow_mul_rpow_le {ε : ℝ} (hε : 0 <
     suffices ((2 ^ (n + Nat.log 2 (n + 1) / q) : ℕ) : ℝ) ≤ g n from mod_cast this
     push_cast [pow_add] at hr ⊢
     exact (mul_le_mul_of_nonneg_left hr (by positivity)).trans hg
-  have hsep := DTIME_two_pow_ssubset_DTIME_two_pow_add_log_div hq1
-  exact ⟨hsep.1.trans (DTIME_mono_of_eventually_le hle),
-    fun h => hsep.2 ((DTIME_mono_of_eventually_le hle).trans h)⟩
+  exact (DTIME_two_pow_ssubset_DTIME_two_pow_add_log_div hq1).trans_subset
+    (DTIME_mono_of_eventually_le hle)
 
 end Cslib.Complexity
