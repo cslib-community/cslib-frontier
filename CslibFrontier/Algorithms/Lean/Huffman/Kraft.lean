@@ -140,13 +140,11 @@ private theorem dyadicStart_bounds_of_prefix {L : ℕ} {c₁ c₂ : List Bool}
     unfold dyadicStart
     rw [natOfBits_append, List.length_append, hsub, Nat.pow_add]
     ring
-  have hmul : (natOfBits t + 1) * 2 ^ (L - (c₁.length + t.length)) ≤ 2 ^ (L - c₁.length) := by
+  have hlt : natOfBits t * 2 ^ (L - (c₁.length + t.length)) < 2 ^ (L - c₁.length) := by
     rw [hsub, Nat.pow_add]
-    exact Nat.mul_le_mul_right _ (natOfBits_lt_two_pow t)
-  have hpos : 0 < 2 ^ (L - (c₁.length + t.length)) := Nat.two_pow_pos _
+    exact Nat.mul_lt_mul_of_pos_right (natOfBits_lt_two_pow t) (Nat.two_pow_pos _)
   rw [hexp]
-  rw [Nat.add_mul, Nat.one_mul] at hmul
-  exact ⟨Nat.le_add_right _ _, by omega⟩
+  exact ⟨Nat.le_add_right _ _, Nat.add_lt_add_left hlt _⟩
 
 /-! ## Constructive binary Kraft converse -/
 
@@ -292,18 +290,14 @@ theorem exists_isPrefixFree_iff_kraft_le_one {α : Type*} (s : Finset α) (ℓ :
     let L : ℕ := s.sup ℓ
     have hL : ∀ a ∈ s, ℓ a ≤ L := fun _ ha => Finset.le_sup ha
     have hnat : (∑ a ∈ s, 2 ^ (L - ℓ a)) ≤ 2 ^ L := by
-      have hcast_mul : ∀ t : Finset α, (∀ a ∈ t, ℓ a ≤ L) →
-          ((∑ a ∈ t, 2 ^ (L - ℓ a) : ℕ) : ℝ) = (2 : ℝ) ^ L * ∑ a ∈ t, (1 / 2 : ℝ) ^ ℓ a := by
-        intro t ht
-        induction t using Finset.induction_on with
-        | empty => simp
-        | insert a t ha ih =>
-          rw [Finset.sum_insert ha, Nat.cast_add, Finset.sum_insert ha,
-            ih fun x hx => ht x (Finset.mem_insert_of_mem hx), mul_add]
-          congr 1
-          rw [Nat.cast_pow, Nat.cast_ofNat, pow_sub₀ _ two_ne_zero
-            (ht a (Finset.mem_insert_self a t)), one_div_pow, one_div]
-      exact_mod_cast (hcast_mul s hL).trans_le (mul_le_of_le_one_right (by positivity) hkraft)
+      have hcast_mul : ((∑ a ∈ s, 2 ^ (L - ℓ a) : ℕ) : ℝ) =
+          (2 : ℝ) ^ L * ∑ a ∈ s, (1 / 2 : ℝ) ^ ℓ a := by
+        change (Nat.castAddMonoidHom ℝ) _ = (AddMonoidHom.mulLeft ((2 : ℝ) ^ L)) _
+        rw [map_sum, map_sum]
+        refine Finset.sum_congr rfl fun a ha => ?_
+        change ((2 ^ (L - ℓ a) : ℕ) : ℝ) = (2 : ℝ) ^ L * (1 / 2 : ℝ) ^ ℓ a
+        rw [Nat.cast_pow, Nat.cast_ofNat, pow_sub₀ _ two_ne_zero (hL a ha), one_div_pow, one_div]
+      exact_mod_cast hcast_mul.trans_le (mul_le_of_le_one_right (by positivity) hkraft)
     exact exists_isPrefixFree_of_kraft_nat s ℓ L hL hnat
 
 /-! ## Prefix-free codebook compaction to `CodeTree` and McMillan reduction -/
@@ -407,11 +401,9 @@ private theorem mem_filterMap_children_imp {α : Type*} {bit : Bool} {ps : List 
     (q.1, bit :: q.2) ∈ ps := by
   rcases List.mem_filterMap.mp hq with ⟨⟨a, _ | ⟨b, bs⟩⟩, hp, h⟩
   · simp at h
-  · by_cases hb : b = bit
-    · simp only [hb, beq_self_eq_true, ↓reduceIte, Option.some.injEq] at h
-      rcases h with ⟨rfl, rfl⟩
-      simpa [hb] using hp
-    · simp only [beq_false_of_ne hb, Bool.false_eq_true, ↓reduceIte, reduceCtorEq] at h
+  · simp only [Option.ite_none_right_eq_some, beq_iff_eq, Option.some.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact hp
 
 private theorem pairwise_filterMap_children {α : Type*} (bit : Bool) {ps : List (α × List Bool)}
     (hinc : (ps.map Prod.snd).Pairwise (fun c₁ c₂ => ¬ c₁ <+: c₂ ∧ ¬ c₂ <+: c₁)) :
@@ -495,8 +487,7 @@ theorem treeOfCodebook_spec {α β : Type*} [AddCommMonoid β] [PartialOrder β]
     rw [hL, hR, List.append_nil] at hperm
     refine ⟨tl, htl, hpermL.trans hperm, ?_⟩
     rw [hcost, hL, hR, List.map_nil, List.sum_nil, add_zero]
-    exact le_add_of_le_of_nonneg hwplL (List.sum_nonneg fun x hx => by
-      rcases List.mem_map.mp hx with ⟨p, hp, rfl⟩; exact hw p hp)
+    exact le_add_of_le_of_nonneg hwplL (List.sum_nonneg (List.forall_mem_map.mpr hw))
   | case5 p₁ p₂ rest r₁ rs hL hR _ ih => -- right children only
     obtain ⟨tr, htr, hpermR, hwplR⟩ := ih (List.cons_ne_nil _ _)
       (hR ▸ rightChildren_eq_filterMap _ ▸ pairwise_filterMap_children true hinc)
@@ -506,8 +497,7 @@ theorem treeOfCodebook_spec {α β : Type*} [AddCommMonoid β] [PartialOrder β]
     rw [hL, hR, List.nil_append] at hperm
     refine ⟨tr, htr, hpermR.trans hperm, ?_⟩
     rw [hcost, hL, hR, List.map_nil, List.sum_nil, zero_add]
-    exact le_add_of_le_of_nonneg hwplR (List.sum_nonneg fun x hx => by
-      rcases List.mem_map.mp hx with ⟨p, hp, rfl⟩; exact hw p hp)
+    exact le_add_of_le_of_nonneg hwplR (List.sum_nonneg (List.forall_mem_map.mpr hw))
   | case6 p₁ p₂ rest l₁ ls r₁ rs hL hR _ _ ihL ihR => -- children on both sides
     obtain ⟨tl, htl, hpermL, hwplL⟩ := ihL (List.cons_ne_nil _ _)
       (hL ▸ leftChildren_eq_filterMap _ ▸ pairwise_filterMap_children false hinc)

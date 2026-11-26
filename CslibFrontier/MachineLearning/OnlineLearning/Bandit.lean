@@ -250,9 +250,8 @@ theorem blockFullInfo_loss_eq (H : (ℕ → ι → ℝ) → ℕ → ι → ℝ) 
         exact sum_congr rfl fun i _ => by simp [blockFullInfo, blockIdx_div hm, mul_sum]
     _ = (m : ℝ) * ∑ i, H (blockAvgLoss m ℓ) τ i * blockAvgLoss m ℓ τ i := by
         rw [mul_sum]
-        exact sum_congr rfl fun i _ => by
-          simp only [blockAvgLoss]
-          field_simp
+        refine sum_congr rfl fun i _ => ?_
+        rw [blockAvgLoss, mul_left_comm, mul_div_cancel₀ _ hm_ne]
 
 /-- Full-information block regret bound [BlumMansour2007AGT, §4.6, p. 94]:
 if `H` achieves external regret at most `R` on `blockAvgLoss m ℓ` over `K` blocks, then
@@ -564,18 +563,10 @@ theorem mabPlay_apply_explore [DecidableEq ι] {m K : ℕ} {Ω : Type*} [Fintype
     (τ : Fin K) (i j : ι) :
     mabPlay hm sched H ω ℓ (τ.val * m + (sched.time (ω τ) i).val) j =
       if j = i then 1 else 0 := by
-  have hdiv := blockIdx_div hm τ.val (sched.time (ω τ) i)
-  have hmod : (τ.val * m + (sched.time (ω τ) i).val) % m = (sched.time (ω τ) i).val :=
-    Nat.mul_add_mod_of_lt (sched.time (ω τ) i).isLt
-  unfold mabPlay
-  have hτ : (τ.val * m + (sched.time (ω τ) i).val) / m < K := by rw [hdiv]; exact τ.isLt
-  have hex : ∃ i' : ι, sched.time (ω ⟨(τ.val * m + (sched.time (ω τ) i).val) / m, hτ⟩) i' =
-      ⟨(τ.val * m + (sched.time (ω τ) i).val) % m, Nat.mod_lt _ hm⟩ :=
-    ⟨i, Fin.ext (by simp only [hdiv, hmod])⟩
-  have huniq : hex.choose = i := (sched.time (ω τ)).injective <| Fin.ext <| by
-    have hfin : (⟨(τ.val * m + (sched.time (ω τ) i).val) / m, hτ⟩ : Fin K) = τ := Fin.ext hdiv
-    simpa only [congrArg ω hfin, hmod] using congrArg Fin.val hex.choose_spec
-  simp only [hτ, ↓reduceDIte, hex, huniq]
+  simp only [mabPlay, blockIdx_div hm, Nat.mul_add_mod_of_lt (sched.time (ω τ) i).isLt, τ.isLt,
+    ↓reduceDIte, Fin.eta]
+  have hex : ∃ i' : ι, sched.time (ω τ) i' = sched.time (ω τ) i := ⟨i, rfl⟩
+  simp only [hex, ↓reduceDIte, (sched.time (ω τ)).injective hex.choose_spec]
 
 /-- On any non-exploration offset `r` in block `τ`, `mabPlay` plays the base algorithm's
 distribution `H (exploredLoss sched ω ℓ) τ`. -/
@@ -584,16 +575,8 @@ theorem mabPlay_apply_exploit [DecidableEq ι] {m K : ℕ} {Ω : Type*} [Fintype
     (H : (ℕ → ι → ℝ) → ℕ → ι → ℝ) (ω : Fin K → Ω) (ℓ : ℕ → ι → ℝ)
     (τ : Fin K) {r : Fin m} (hr : ∀ i : ι, sched.time (ω τ) i ≠ r) (j : ι) :
     mabPlay hm sched H ω ℓ (τ.val * m + r.val) j = H (exploredLoss sched ω ℓ) τ.val j := by
-  have hdiv := blockIdx_div hm τ.val r
-  have hmod : (τ.val * m + r.val) % m = r.val := Nat.mul_add_mod_of_lt r.isLt
-  unfold mabPlay
-  have hτ : (τ.val * m + r.val) / m < K := by rw [hdiv]; exact τ.isLt
-  have hnot : ¬ ∃ i : ι, sched.time (ω ⟨(τ.val * m + r.val) / m, hτ⟩) i =
-      ⟨(τ.val * m + r.val) % m, Nat.mod_lt _ hm⟩ := fun ⟨i, hi⟩ => by
-    have hfin : (⟨(τ.val * m + r.val) / m, hτ⟩ : Fin K) = τ := Fin.ext hdiv
-    have hr' : (⟨(τ.val * m + r.val) % m, Nat.mod_lt _ hm⟩ : Fin m) = r := Fin.ext hmod
-    exact hr i (by rwa [hfin, hr'] at hi)
-  rw [dite_eq_left_of_eq_true (eq_true hτ), dite_eq_right_of_eq_false (eq_false hnot), hdiv]
+  simp only [mabPlay, blockIdx_div hm, Nat.mul_add_mod_of_lt r.isLt, τ.isLt, ↓reduceDIte,
+    Fin.eta, hr, exists_false]
 
 private theorem mabPlay_round_loss_le_one [DecidableEq ι] [Nonempty ι] {m K : ℕ} {Ω : Type*}
     [Fintype Ω] (hm : 0 < m) (sched : ExplorationSchedule ι m Ω)
@@ -647,10 +630,8 @@ private theorem mabPlay_block_loss_le [DecidableEq ι] [Nonempty ι] {m K : ℕ}
             sum_nonneg fun j _ => mul_nonneg (hH_nn j) (hℓ _ (blockIdx_lt τ.isLt r) j).1
       _ = (m : ℝ) * ∑ j, H (exploredLoss sched ω ℓ) τ.val j * blockAvgLoss m ℓ τ.val j := by
           rw [sum_comm, mul_sum]
-          exact sum_congr rfl fun j _ => by
-            rw [← mul_sum]
-            simp only [blockAvgLoss]
-            field_simp
+          refine sum_congr rfl fun j _ => ?_
+          rw [← mul_sum, blockAvgLoss, mul_left_comm, mul_div_cancel₀ _ hm_ne]
   calc ∑ r : Fin m, ∑ j, mabPlay hm sched H ω ℓ (τ.val * m + r.val) j * ℓ (τ.val * m + r.val) j
       = (∑ r ∈ univ \ E,
           ∑ j, mabPlay hm sched H ω ℓ (τ.val * m + r.val) j * ℓ (τ.val * m + r.val) j) +
@@ -982,11 +963,10 @@ theorem mabMW_expected_loss_le [DecidableEq ι] [Nonempty ι] {T : ℕ}
     prob (mwFactor (min √(log (Fintype.card ι) / K') (1 / 2)))
   have halg : ∀ K', IsOnlineAlgorithm (Hfam K') := fun K' =>
     isOnlineAlgorithm_prob fun x hx => by
+      have hmul := mul_le_mul (min_le_right √(log (Fintype.card ι) / K') (1 / 2))
+        hx.2 hx.1 (by positivity)
       rw [mwFactor_apply]
-      have hη_nn : 0 ≤ min √(log (Fintype.card ι) / K') (1 / 2) :=
-        le_min (sqrt_nonneg _) (by norm_num)
-      have hη_le : min √(log (Fintype.card ι) / K') (1 / 2) ≤ 1 / 2 := min_le_right _ _
-      nlinarith [hx.2]
+      linarith
   have hbound := mabPlay_expected_loss_le_two_thirds hT halg (by norm_num : (0 : ℝ) ≤ 2)
     (fun K' c hc k => mw_regret_le_sqrt_of_mem_Icc hc k) hℓ
   simpa only [Hfam, show (3 : ℝ) + 2 * 2 = 7 by norm_num] using hbound

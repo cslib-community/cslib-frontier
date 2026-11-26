@@ -178,10 +178,8 @@ theorem isFDAG (h : Partial sem f rs es e) (hF : EdgeInstance F)
   valid := hf
   supported := Log.toDAG_supported _ _
   unique _ ha _ hb := h.unique (List.mem_toFinset.mp ha) (List.mem_toFinset.mp hb)
-  indegree a ha b hb hai hbi he := by
-    have hn := h.children_nodup
-    rw [← Log.map_outgoing_arcs] at hn
-    exact List.inj_on_of_nodup_map hn
+  indegree a ha b hb hai hbi he :=
+    List.inj_on_of_nodup_map (Log.map_outgoing_arcs (e :: es) ▸ h.children_nodup)
       (List.mem_filter.mpr ⟨List.mem_toFinset.mp ha, by simp [hai]⟩)
       (List.mem_filter.mpr ⟨List.mem_toFinset.mp hb, by simp [hbi]⟩) he
   ordered := by
@@ -321,44 +319,39 @@ theorem Trace.pruned_isFDAG (h : Trace sem f m) (hF : EdgeInstance F)
   have ht := h.expansion.isFDAG hF hf
   have hp := (mem_partners sem f _ _).mp h.partner
   have hin : m.current.input ≠ m.output := fun he => hp.2.1 (congrArg Occurrence.var he)
-  have hcase {a} (ha : a ∈ m.prunedDAG.arcs) :
-      a ∈ m.older.arcs ∨ a = ⟨m.current.input, m.older.length, true⟩ ∨
-        a = ⟨m.output, m.older.length, true⟩ := by
-    rw [h.pruned_arcs] at ha
-    simpa only [Finset.mem_insert, List.mem_toFinset, or_comm, or_left_comm, or_assoc] using ha
-  have hfresh : ∀ a ∈ m.older.arcs, a.occurrence ≠ m.current.input ∧ a.occurrence ≠ m.output :=
-    fun a ha => ⟨fun he => h.expansion.unused (he ▸ (m.older.mem_arcs ha).1),
-      fun he => h.output_unused (he ▸ (m.older.mem_arcs ha).1)⟩
   have hic : (⟨m.current.input, m.older.length, true⟩ : Arc F) ∈ m.toDAG.arcs :=
     List.mem_toFinset.mpr List.mem_cons_self
+  have hcase {a} (ha : a ∈ m.prunedDAG.arcs) :
+      a = ⟨m.output, m.older.length, true⟩ ∨
+        (a = ⟨m.current.input, m.older.length, true⟩ ∨ a ∈ m.older.arcs) := by
+    simpa only [h.pruned_arcs, Finset.mem_insert, List.mem_toFinset] using ha
+  have hsub {a} (ha : a = ⟨m.current.input, m.older.length, true⟩ ∨ a ∈ m.older.arcs) :
+      a ∈ m.toDAG.arcs :=
+    ha.elim (fun he => he ▸ hic) fun ha =>
+      List.mem_toFinset.mpr (List.mem_cons_of_mem _ (List.mem_append_right _ ha))
+  have ho {a} (ha : a = ⟨m.current.input, m.older.length, true⟩ ∨ a ∈ m.older.arcs) :
+      a.occurrence ≠ m.output :=
+    ha.elim (fun he => he ▸ hin) fun ha he => h.output_unused (he ▸ (m.older.mem_arcs ha).1)
   have hnewtime {a} (ha : a ∈ m.prunedDAG.arcs) : a.time ≤ m.older.length := by
-    rcases hcase ha with ha | rfl | rfl
-    exacts [(m.older.mem_arcs ha).2.le, le_rfl, le_rfl]
-  refine ⟨hf, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · intro a ha
-    rcases hcase ha with ha | rfl | rfl
-    · exact ht.supported a
-        (List.mem_toFinset.mpr (List.mem_cons_of_mem _ (List.mem_append_right _ ha)))
-    · exact ht.supported _ hic
+    rcases hcase ha with rfl | rfl | ha
+    exacts [le_rfl, le_rfl, (m.older.mem_arcs ha).2.le]
+  refine ⟨hf, fun a ha => ?_, fun a ha b hb he => ?_, fun a ha b hb hai hbi he => ?_, ?_,
+    fun a ha b hb hai hc => ?_, fun a ha b hb hai hc hlt => ?_⟩
+  · rcases hcase ha with rfl | ha
     · exact ⟨Log.Visited.mem_vars (h.old_visited.imp_right (List.mem_append_right _)),
         show (m.output.1, m.older.length) ∈ m.toDAG.copies from hp.1 ▸ (ht.supported _ hic).2⟩
-  · intro a ha b hb he
-    rcases hcase ha with ha | rfl | rfl <;> rcases hcase hb with hb | rfl | rfl
-    exacts [h.expansion.grown.unique ha hb he, absurd he (hfresh a ha).1,
-      absurd he (hfresh a ha).2, absurd he.symm (hfresh b hb).1, rfl, absurd he hin,
-      absurd he.symm (hfresh b hb).2, absurd he.symm hin, rfl]
-  · intro a ha b hb hai hbi he
-    rcases hcase ha with ha | rfl | rfl <;> rcases hcase hb with hb | rfl | rfl
-    · exact h.expansion.grown.indegree ha hb hai hbi he
-    all_goals contradiction
+    · exact ht.supported a (hsub ha)
+  · rcases hcase ha with rfl | ha <;> rcases hcase hb with rfl | hb
+    exacts [rfl, absurd he.symm (ho hb), absurd he (ho ha), ht.unique a (hsub ha) b (hsub hb) he]
+  · rcases hcase ha with rfl | ha
+    · cases hai
+    · rcases hcase hb with rfl | hb
+      · cases hbi
+      · exact ht.indegree a (hsub ha) b (hsub hb) hai hbi he
   · refine ⟨ht.ordered.1, ⟨Sum.elim (Log.birth (m.current :: m.older))
       (fun c => 2 * c.2 + 1), ?_⟩⟩
     rintro x y (⟨a, ha, rfl, rfl⟩ | ⟨_, -, _, -, hcd, rfl, rfl⟩)
-    · rcases hcase ha with ha | rfl | rfl
-      · have hr := h.expansion.rank_arc (List.mem_cons_of_mem _ (List.mem_append_right _ ha))
-        cases hi : a.incoming <;> simpa [Arc.source, Arc.target, hi, Arc.copy] using hr
-      · simpa [Arc.source, Arc.target, Arc.copy] using h.expansion.rank_arc
-          (List.mem_cons_self (a := (⟨m.current.input, m.older.length, true⟩ : Arc F)))
+    · rcases hcase ha with rfl | ha
       · have hn : m.output.var ∉ m.current.outputs.map Occurrence.var := fun hv =>
           (List.mem_map.mp hv).elim fun o ⟨ho, he⟩ =>
             h.expansion.fresh o ho (he.symm ▸ h.old_visited)
@@ -366,22 +359,23 @@ theorem Trace.pruned_isFDAG (h : Trace sem f m) (hF : EdgeInstance F)
         simp only [Arc.source, Arc.target, Arc.copy, ↓reduceIte, Sum.elim_inl,
           Sum.elim_inr, Log.birth, hn]
         omega
+      · have hr := h.expansion.rank_arc (List.mem_toFinset.mp (hsub ha))
+        cases hi : a.incoming <;> simpa [Arc.source, Arc.target, hi, Arc.copy] using hr
     · dsimp only [Sum.elim]
       omega
-  · intro a ha b hb hai hc
-    rcases hcase ha with ha | rfl | rfl <;> rcases hcase hb with hb | rfl | rfl
-    exacts [h.expansion.grown.feasible hf ha hb hai hc, absurd hc (copy_ne_of_mem_arcs ha rfl),
-      absurd hc (copy_ne_of_mem_arcs ha rfl), absurd hc.symm (copy_ne_of_mem_arcs hb rfl),
-      by simpa using hf,
-      hp.2.2, absurd hc.symm (copy_ne_of_mem_arcs hb rfl), pairFlip_comm f _ _ ▸ hp.2.2,
-      by simpa using hf]
-  · intro a ha b hb hai hc hlt
-    rcases hcase ha with ha | rfl | rfl
-    · rcases hcase hb with hb | rfl | rfl
-      · exact h.expansion.grown.noShortcut hF ha hb hai hc hlt
-      · exact h.expansion.grown.not_partner_of_unused hF ha hai h.expansion.unused hc
+  · rcases hcase ha with rfl | ha <;> rcases hcase hb with rfl | hb
+    · simpa using hf
+    · rcases hb with rfl | hb
+      exacts [pairFlip_comm f _ _ ▸ hp.2.2, absurd hc.symm (copy_ne_of_mem_arcs hb rfl)]
+    · rcases ha with rfl | ha
+      exacts [hp.2.2, absurd hc (copy_ne_of_mem_arcs ha rfl)]
+    · exact ht.feasible a (hsub ha) b (hsub hb) hai hc
+  · rcases hcase ha with rfl | rfl | ha
+    · exact absurd hlt (hnewtime hb).not_gt
+    · exact absurd hlt (hnewtime hb).not_gt
+    · rcases hcase hb with rfl | hb
       · exact h.expansion.grown.not_partner_of_unused hF ha hai h.output_unused hc
-    all_goals exact absurd hlt (hnewtime hb).not_gt
+      · exact ht.noShortcut a (hsub (.inr ha)) b (hsub hb) hai hc hlt
 
 end Meeting
 

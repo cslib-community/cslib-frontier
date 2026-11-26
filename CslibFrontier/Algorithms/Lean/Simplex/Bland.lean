@@ -106,10 +106,7 @@ examples evaluate it with `decide +kernel`. -/
 
 theorem minOpt_eq_none_iff {ι : Type*} [LinearOrder ι] {s : Finset ι} :
     minOpt s = none ↔ s = ∅ := by
-  unfold minOpt
-  split_ifs with h
-  · simp [h.ne_empty]
-  · simp [Finset.not_nonempty_iff_eq_empty.1 h]
+  simp [minOpt]
 
 theorem minOpt_eq_some_iff {ι : Type*} [LinearOrder ι] {s : Finset ι} {a : ι} :
     minOpt s = some a ↔ a ∈ s ∧ ∀ b ∈ s, a ≤ b := by
@@ -295,25 +292,17 @@ theorem blandLeaving_eq_some_iff {s r : ι} : D.blandLeaving s = some r ↔
 
 omit [IsStrictOrderedRing K] in
 theorem blandStep_eq_optimal_iff : D.blandStep = .optimal ↔ D.blandEntering = none := by
-  rcases h1 : D.blandEntering with _ | s'
-  · simp only [blandStep, h1]
-  · rcases h2 : D.blandLeaving s' with _ | r' <;> simp only [blandStep, h1, h2, reduceCtorEq]
+  grind [blandStep]
 
 omit [IsStrictOrderedRing K] in
 theorem blandStep_eq_unbounded_iff {s : ι} :
     D.blandStep = .unbounded s ↔ D.blandEntering = some s ∧ D.blandLeaving s = none := by
-  unfold blandStep
-  rcases D.blandEntering with _ | s'
-  · simp
-  · rcases h2 : D.blandLeaving s' with _ | r' <;> grind
+  grind [blandStep]
 
 omit [IsStrictOrderedRing K] in
 theorem blandStep_eq_pivot_iff {r s : ι} :
     D.blandStep = .pivot r s ↔ D.blandEntering = some s ∧ D.blandLeaving s = some r := by
-  unfold blandStep
-  rcases D.blandEntering with _ | s'
-  · simp
-  · rcases h2 : D.blandLeaving s' with _ | r' <;> grind
+  grind [blandStep]
 
 /-- `D'` arises from `D` by one pivot of Bland's rule. -/
 def BlandPivot (D D' : Dictionary ι K) : Prop :=
