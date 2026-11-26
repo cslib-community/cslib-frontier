@@ -233,15 +233,11 @@ private theorem length_flatten_map_eight {α : Type} (xs : List α) (f : α → 
 
 @[simp] theorem tableBits_listRow (φ : CNF ℕ) (m : List Bool) :
     tableBits φ (BitString.listRow φ.vars.length 0 m) = tableBits φ m := by
-  have h : clauseTableRow φ (BitString.listRow φ.vars.length 0 m) = clauseTableRow φ m :=
-    funext (clauseTableRow_listRow φ m)
-  simp [tableBits, h]
+  simp [tableBits, funext (clauseTableRow_listRow φ m)]
 
 @[simp] theorem activeTableFlags_listRow (φ : CNF ℕ) (v : List Bool) :
     activeTableFlags φ (BitString.listRow φ.vars.length 0 v) = activeTableFlags φ v := by
-  have h : clauseActiveRow φ (BitString.listRow φ.vars.length 0 v) = clauseActiveRow φ v :=
-    funext (clauseActiveRow_listRow φ v)
-  simp [activeTableFlags, h]
+  simp [activeTableFlags, funext (clauseActiveRow_listRow φ v)]
 
 private theorem naorMaskBits_activeTableFlags {φ : CNF ℕ} {w m : List Bool}
     (hw : ThreeSAT.verifier (φ, w) = true) :
@@ -251,23 +247,20 @@ private theorem naorMaskBits_activeTableFlags {φ : CNF ℕ} {w m : List Bool}
   simp only [ThreeSAT.verifier, SAT.verifier, Bool.and_eq_true, List.all_eq_true,
     decide_eq_true_eq, ← eval_varBit_eq, CNF.eval_eq_true_iff] at hw
   rcases hw with ⟨hlen, heval⟩
-  unfold activeTableFlags tableBits
-  have hrec : ∀ cs : List (Clause ℕ),
-      (∀ c ∈ cs, c.length ≤ 3) → (∀ c ∈ cs, c.eval (varBit φ w) = true) →
+  suffices ∀ cs : List (Clause ℕ), (∀ c ∈ cs, c.length ≤ 3) →
+      (∀ c ∈ cs, c.eval (varBit φ w) = true) →
       naorMaskBits (cs.map (clauseActiveRow φ (BitString.listXor φ.vars.length [w, m]))).flatten
         (cs.map (clauseTableRow φ m)).flatten =
-        (cs.map (clauseActiveRow φ (BitString.listXor φ.vars.length [w, m]))).flatten := by
-    intro cs hcs_len hcs_eval
-    induction cs with
-    | nil => rfl
-    | cons c cs ih =>
-      simp only [List.map_cons, List.flatten_cons]
-      rw [naorMaskBits_append (by simp),
-        naorMaskBits_clauseActiveRow (hcs_len c List.mem_cons_self)
-          (hcs_eval c List.mem_cons_self),
-        ih (fun c' hc' => hcs_len c' (List.mem_cons_of_mem _ hc'))
-          (fun c' hc' => hcs_eval c' (List.mem_cons_of_mem _ hc'))]
-  exact hrec φ hlen heval
+        (cs.map (clauseActiveRow φ (BitString.listXor φ.vars.length [w, m]))).flatten from
+    this φ hlen heval
+  intro cs hcs_len hcs_eval
+  induction cs with
+  | nil => rfl
+  | cons c cs ih =>
+    rw [List.forall_mem_cons] at hcs_len hcs_eval
+    simp only [List.map_cons, List.flatten_cons]
+    rw [naorMaskBits_append (by simp), naorMaskBits_clauseActiveRow hcs_len.1 hcs_eval.1,
+      ih hcs_len.2 hcs_eval.2]
 
 /-! ### Single-copy and three-copy bit layouts -/
 
@@ -723,8 +716,7 @@ theorem run_gmwProver_fst {α : Type} (generator : List Bool → List Bool) (s m
       PMF.map_const _ _
     simp only [pmf_norm, Prover.run, hconst]
     rfl
-  rw [hlhs] at hmap
-  rw [hmap]
+  rw [← hlhs, hmap]
   simp only [pmf_norm, P, gmwProver, relate]
   congr 1 with coins : 1
   have hstate_fst := congrArg (PMF.map Prod.fst) <| ProbOracleComp.runWith_map_state

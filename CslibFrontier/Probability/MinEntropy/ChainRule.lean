@@ -83,9 +83,8 @@ theorem le_minEntropy_map_of_injOn (p : PMF α) {f : α → β} (hf : Set.InjOn 
   · obtain ⟨a, ha, rfl⟩ := hb
     have hmap : p.map f (f a) = p a := by
       rw [PMF.map_apply, tsum_eq_single a fun a' ha' => ?_, ite_eq_left rfl]
-      by_cases hsupp : a' ∈ p.support
-      · exact ite_eq_right fun heq => ha' (hf hsupp ha heq.symm)
-      · simp [(p.apply_eq_zero_iff a').mpr hsupp]
+      exact ite_eq_right_iff.mpr fun heq =>
+        (p.apply_eq_zero_iff a').mpr fun hsupp => ha' (hf hsupp ha heq.symm)
     exact hmap ▸ hk a
   · rw [(PMF.apply_eq_zero_iff _ _).mpr (by rwa [PMF.support_map]), ENNReal.toReal_zero]
     positivity
@@ -100,9 +99,8 @@ theorem minEntropy_map_conditionalSnd_ge_of_apply_ge [Fintype L] (J : PMF (L × 
     k - Real.logb 2 (Fintype.card L) - Real.logb 2 δ⁻¹ ≤
       minEntropy ((conditionalSnd J ℓ).map f) := by
   classical
-  have hL_pos : (0 : ℝ) < Fintype.card L := by
-    have : Nonempty L := ⟨ℓ⟩
-    exact_mod_cast Fintype.card_pos
+  have : Nonempty L := ⟨ℓ⟩
+  have hL_pos : (0 : ℝ) < Fintype.card L := by exact_mod_cast Fintype.card_pos
   have hmarg_pos : 0 < ((J.map Prod.fst) ℓ).toReal :=
     lt_of_lt_of_le (div_pos hδ hL_pos) hℓ
   rw [le_minEntropy_iff] at hk ⊢
@@ -191,8 +189,7 @@ theorem dist_bind_le_of_compl_le [Finite L] [Fintype β] (μ : PMF L) (p q : L �
   let _ := Fintype.ofFinite L
   have hmap (k : L → PMF β) : (μ.bind fun ℓ => (k ℓ).map (ℓ, ·)).map Prod.snd = μ.bind k := by
     rw [PMF.map_bind]
-    refine congrArg (μ.bind ·) (funext fun ℓ => ?_)
-    exact (PMF.map_comp _ _ _).trans (PMF.map_id _)
+    exact congrArg (μ.bind ·) (funext fun _ => (PMF.map_comp _ _ _).trans (PMF.map_id _))
   rw [← hmap p, ← hmap q]
   exact (dist_map_le _ _ Prod.snd).trans
     (dist_bind_pair_le_of_compl_le μ p q G hε hbad hgood)
@@ -228,8 +225,8 @@ theorem exists_dist_le_and_le_minEntropy_map_of_dist_uniform [Fintype α] [Finty
   have hw_le (a : α) : w a ≤ (A a).toReal := by
     dsimp only [w]
     split_ifs
-    · positivity
-    · exact mul_le_of_le_one_right ENNReal.toReal_nonneg (min_le_left _ _)
+    exacts [ENNReal.toReal_nonneg,
+      mul_le_of_le_one_right ENNReal.toReal_nonneg (min_le_left _ _)]
   have hfiber (y : β) :
       (∑ a, if y = f a then w a else 0) = min (((A.map f) y).toReal) u := by
     by_cases hy : ((A.map f) y).toReal = 0
@@ -241,8 +238,7 @@ theorem exists_dist_le_and_le_minEntropy_map_of_dist_uniform [Fintype α] [Finty
       have hterm (a : α) : (if y = f a then w a else 0) =
           (if y = f a then (A a).toReal else 0) * min 1 (u / ((A.map f) y).toReal) := by
         split_ifs with h
-        · subst h
-          simp only [w, hy, ↓reduceIte]
+        · simp only [w, ← h, hy, ↓reduceIte]
         · simp only [zero_mul]
       simp_rw [hterm]
       rw [← Finset.sum_mul, ← map_apply_toReal A f y, mul_min_of_nonneg _ _ hy_pos.le,

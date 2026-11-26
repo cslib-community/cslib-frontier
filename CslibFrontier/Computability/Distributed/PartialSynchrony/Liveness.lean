@@ -152,16 +152,8 @@ private theorem subround0_lock_in_certPairs {F : Finset P}
   obtain ⟨h₀, hh₀⟩ := Finset.card_pos.1 (lt_of_lt_of_le (by omega) hwit)
   refine ⟨⟨h₀, hprocs h₀, hW_mem h₀ hh₀⟩, ?_⟩
   rw [length_filter_dedup_eq_card hprocs]
-  have hle := Finset.card_le_card (s := (Finset.univ \ F).filter fun h =>
-      lk ∈ ((byzQuorumProtocol P V procs leader t).byzantineState
-        F deliver adv x (6 * vStar) h).votedViews)
-    (t := Finset.univ.filter fun j =>
-      decide (lk ∈ extractRawVotes
-        (byzIncoming procs leader t F deliver adv x (6 * vStar) i j)) = true)
-    (fun h hh => by
-      simp only [Finset.mem_filter, Finset.mem_univ, true_and, decide_eq_true_eq]
-      exact hW_mem h hh)
-  omega
+  refine le_trans (by omega) (hwit.trans (Finset.card_le_card fun h hh => ?_))
+  simpa only [Finset.mem_filter, Finset.mem_univ, true_and, decide_eq_true_eq] using hW_mem h hh
 
 /-- Subround 0 input-properness completeness: when round `6 * v*` delivers between all correct
 processes, either some value `w₀` appears in `properReport.freqVals` at every correct process, or
@@ -274,11 +266,9 @@ theorem byzQuorum_terminates_in_honest_view {F : Finset P}
     cases hpm : pickMaxLock lCerts with
     | some best =>
       refine ⟨⟨best.val, some best.view⟩, ?_, fun i hi => ?_⟩
-      · dsimp only [st]
+      · dsimp only [st, lCerts, allCandsL, m1] at hpm ⊢
         rw [byzQuorum_state_succ]
-        simp only [byzUpdate, hm1_mod, hm1_div]
-        dsimp only [lCerts, allCandsL, m1] at hpm
-        rw [hpm]
+        simp only [byzUpdate, hm1_mod, hm1_div, hpm]
       · -- `best ∈ lCerts` gives `≥ n - 2t ≥ t + 1` correct relays to every `i ∉ F`.
         have hbest_mem : best ∈ lCerts := pickMaxLock_mem hpm
         simp only [lCerts, List.mem_filter, decide_eq_true_eq] at hbest_mem
@@ -645,24 +635,20 @@ theorem not_partialSync_of_le_three_t {P V S M : Type*}
   classical
   obtain ⟨v₀, v₁, hne⟩ := exists_pair_ne V
   refine (π.toSyncProtocol v₀ v₁).not_solvesByzantineAgreement (t := t) (R := R) h2 h3 ?_
+  have hdec (F : Finset P) (adv) (b : P → Bool) (i : P) :
+      (π.toSyncProtocol v₀ v₁).decision F adv b R i =
+        decide (π.byzantineDecision F (fun _ _ _ => true) adv
+          (fun k => if b k then v₁ else v₀) R i = some v₁) := by
+    simp only [Cslib.Distributed.Byzantine.Protocol.decision,
+      ← π.byzantineState_always_eq_state v₀ v₁ F adv b R]
+    rfl
   refine ⟨fun F hF adv b i hi j hj => ?_, fun F hF adv b bit hbit i hi => ?_⟩
-  · simp only [Cslib.Distributed.Byzantine.Protocol.decision,
-      ← π.byzantineState_always_eq_state v₀ v₁ F adv b R]
-    let x := fun k => if b k then v₁ else v₀
-    obtain ⟨wi, hwi⟩ := Option.isSome_iff_exists.1 (hbdd F hF adv x i hi)
-    obtain ⟨wj, hwj⟩ := Option.isSome_iff_exists.1 (hbdd F hF adv x j hj)
-    have heq := hag F hF adv x i hi j hj wi wj hwi hwj
-    change decide (π.byzantineDecision F (fun _ _ _ => true) adv x R i = some v₁) =
-      decide (π.byzantineDecision F (fun _ _ _ => true) adv x R j = some v₁)
-    rw [hwi, hwj, heq]
-  · simp only [Cslib.Distributed.Byzantine.Protocol.decision,
-      ← π.byzantineState_always_eq_state v₀ v₁ F adv b R]
-    let x := fun k => if b k then v₁ else v₀
-    obtain ⟨wi, hwi⟩ := Option.isSome_iff_exists.1 (hbdd F hF adv x i hi)
-    have hval' := hval F hF adv x (if bit then v₁ else v₀)
-      (fun k hk => by simp only [x, hbit k hk]) i hi wi hwi
-    change decide (π.byzantineDecision F (fun _ _ _ => true) adv x R i = some v₁) = bit
-    rw [hwi, hval']
+  · obtain ⟨wi, hwi⟩ := Option.isSome_iff_exists.1 (hbdd F hF adv _ i hi)
+    obtain ⟨wj, hwj⟩ := Option.isSome_iff_exists.1 (hbdd F hF adv _ j hj)
+    rw [hdec, hdec, hwi, hwj, hag F hF adv _ i hi j hj wi wj hwi hwj]
+  · obtain ⟨wi, hwi⟩ := Option.isSome_iff_exists.1 (hbdd F hF adv _ i hi)
+    rw [hdec, hwi, hval F hF adv _ (if bit then v₁ else v₀)
+      (fun k hk => by simp only [hbit k hk]) i hi wi hwi]
     cases bit <;> simp [hne]
 
 /-- **Unbounded unauthenticated Byzantine impossibility (`not_solvesByzantinePartialSync`,
@@ -855,8 +841,7 @@ theorem not_omissionPartialSync_weakUnanimity {P V S M : Type*}
   have hbA : b ∉ A := by
     simp only [b, A, Finset.mem_filter, Finset.mem_univ, Equiv.apply_symm_apply, true_and]
     omega
-  have haB : a ∉ B := by
-    simp only [B, Finset.mem_sdiff, haA, not_true_eq_false, and_false, not_false_eq_true]
+  have haB : a ∉ B := fun h => (Finset.mem_sdiff.1 h).2 haA
   -- Partitioned schedule: deliver within `A` and within `Aᶜ`, drop across `A ↔ Aᶜ`.
   let partDeliver : ℕ → P → P → Bool := fun _ j i => decide (j ∈ A ↔ i ∈ A)
   let healAt (T : ℕ) : ℕ → P → P → Bool := fun r j i => if r < T then partDeliver r j i else true
@@ -877,15 +862,13 @@ theorem not_omissionPartialSync_weakUnanimity {P V S M : Type*}
   -- Scenario A (`B` faulty, all inputs `v₀`): `a ∈ A` decides at `R₀`; healing at `R₀` yields `v₀`.
   obtain ⟨R₀, hR₀⟩ := hterm B hB_le partDeliver 0 (fun _ => v₀) hgstB a haB
   obtain ⟨w₀, hw₀⟩ := Option.isSome_iff_exists.1 hR₀
-  have hw₀_eq : w₀ = v₀ := hwu (healAt R₀) (fun _ => v₀) v₀ ⟨R₀, hgst_heal R₀⟩ (fun _ => rfl) R₀
-    a w₀ ((hheal v₀ R₀ a).trans hw₀)
-  subst w₀
+  rw [hwu (healAt R₀) (fun _ => v₀) v₀ ⟨R₀, hgst_heal R₀⟩ (fun _ => rfl) R₀ a w₀
+    ((hheal v₀ R₀ a).trans hw₀)] at hw₀
   -- Scenario B (`A` faulty, all inputs `v₁`): `b ∉ A` decides at `R₁`; healing at `R₁` yields `v₁`.
   obtain ⟨R₁, hR₁⟩ := hterm A hA_le partDeliver 0 (fun _ => v₁) hgstA b hbA
   obtain ⟨w₁, hw₁⟩ := Option.isSome_iff_exists.1 hR₁
-  have hw₁_eq : w₁ = v₁ := hwu (healAt R₁) (fun _ => v₁) v₁ ⟨R₁, hgst_heal R₁⟩ (fun _ => rfl) R₁
-    b w₁ ((hheal v₁ R₁ b).trans hw₁)
-  subst w₁
+  rw [hwu (healAt R₁) (fun _ => v₁) v₁ ⟨R₁, hgst_heal R₁⟩ (fun _ => rfl) R₁ b w₁
+    ((hheal v₁ R₁ b).trans hw₁)] at hw₁
   -- Scenario C (`F = ∅`, mixed inputs `xMix`, healing at `G = max R₀ R₁`).
   let G := max R₀ R₁
   let xMix : P → V := fun i => if i ∈ A then v₀ else v₁
@@ -894,14 +877,14 @@ theorem not_omissionPartialSync_weakUnanimity {P V S M : Type*}
       (x₁ := xMix) (x₂ := fun _ => v₀) (S := fun i => i ∈ A)
       (fun i hi => by simp only [xMix, hi, ↓reduceIte])
       (fun r hr j i hi => ⟨by simp only [healAt, G, hr, ↓reduceIte], fun hp => by
-        simp only [partDeliver, hi, iff_true, decide_eq_true_eq] at hp; exact hp⟩)
+        simpa only [partDeliver, hi, iff_true, decide_eq_true_eq] using hp⟩)
       R₀ (le_max_left R₀ R₁) a haA)).trans hw₀
   have hdec_b : π.omissionDecision (healAt G) xMix R₁ b = some v₁ :=
     (congrArg (π.output b) (omissionState_eq_of_prefix π (d₁ := healAt G) (d₂ := partDeliver)
       (x₁ := xMix) (x₂ := fun _ => v₁) (S := fun i => i ∉ A)
       (fun i hi => by simp only [xMix, hi, ↓reduceIte])
       (fun r hr j i hi => ⟨by simp only [healAt, G, hr, ↓reduceIte], fun hp => by
-        simp only [partDeliver, hi, iff_false, decide_eq_true_eq] at hp; exact hp⟩)
+        simpa only [partDeliver, hi, iff_false, decide_eq_true_eq] using hp⟩)
       R₁ (le_max_right R₀ R₁) b hbA)).trans hw₁
   exact hne (hag (healAt G) xMix R₀ R₁ a b v₀ v₁ ⟨G, hgst_heal G⟩ hdec_a hdec_b)
 
@@ -933,19 +916,17 @@ theorem exists_solvesByzantinePartialSync_iff.{u, v} (P : Type u) (V : Type v)
     (∃ (S M : Type v) (π : PartialSyncProtocol P V S M), π.SolvesByzantinePartialSync t) ↔
       Fintype.card P ≤ 1 ∨ 3 * t < Fintype.card P := by
   classical
-  constructor
-  · rintro ⟨S, M, π, hsol⟩
-    by_contra! h
-    exact not_solvesByzantinePartialSync π (by omega) h.2 hsol
-  · rintro (h1 | h3t)
-    · have : Subsingleton P := Fintype.card_le_one_iff_subsingleton.1 h1
-      exact ⟨V, PUnit.{v + 1}, ownInputProtocol P V, solvesByzantinePartialSync_ownInput t⟩
-    · let e := Fintype.equivFin P
-      exact ⟨ByzViewState V, ByzViewMsg V,
-        byzQuorumProtocol P V (List.ofFn e.symm)
-          (rotatingCoordinator (List.ofFn e.symm) (e.symm ⟨0, by omega⟩)) t,
-        solvesByzantinePartialSync_byzQuorumProtocol
-          (fun p => List.mem_ofFn.2 ⟨e p, e.symm_apply_apply p⟩) _ h3t⟩
+  refine ⟨fun ⟨_, _, π, hsol⟩ => or_iff_not_imp_left.2 fun h1 =>
+    not_le.1 fun h3 => not_solvesByzantinePartialSync π (by omega) h3 hsol, ?_⟩
+  rintro (h1 | h3t)
+  · have : Subsingleton P := Fintype.card_le_one_iff_subsingleton.1 h1
+    exact ⟨V, PUnit.{v + 1}, ownInputProtocol P V, solvesByzantinePartialSync_ownInput t⟩
+  · let e := Fintype.equivFin P
+    exact ⟨ByzViewState V, ByzViewMsg V,
+      byzQuorumProtocol P V (List.ofFn e.symm)
+        (rotatingCoordinator (List.ofFn e.symm) (e.symm ⟨0, by omega⟩)) t,
+      solvesByzantinePartialSync_byzQuorumProtocol
+        (fun p => List.mem_ofFn.2 ⟨e p, e.symm_apply_apply p⟩) _ h3t⟩
 
 /-- **Sharp characterization of crash/omission consensus under partial synchrony
 (`exists_solvesOmissionPartialSync_iff`,
@@ -957,19 +938,17 @@ theorem exists_solvesOmissionPartialSync_iff.{u, v} (P : Type u) (V : Type v)
     (∃ (S M : Type v) (π : PartialSyncProtocol P V S M), π.SolvesOmissionPartialSync t) ↔
       Fintype.card P ≤ 1 ∨ 2 * t < Fintype.card P := by
   classical
-  constructor
-  · rintro ⟨S, M, π, hsol⟩
-    by_contra! h
-    exact not_solvesOmissionPartialSync π (by omega) h.2 hsol
-  · rintro (h1 | h2t)
-    · have : Subsingleton P := Fintype.card_le_one_iff_subsingleton.1 h1
-      exact ⟨V, PUnit.{v + 1}, ownInputProtocol P V,
-        (solvesByzantinePartialSync_ownInput t).toOmission⟩
-    · let e := Fintype.equivFin P
-      exact ⟨OmissionViewState V, OmissionViewMsg V,
-        omissionQuorumProtocol P V (List.ofFn e.symm)
-          (rotatingCoordinator (List.ofFn e.symm) (e.symm ⟨0, by omega⟩)) t,
-        solvesOmissionPartialSync_omissionQuorumProtocol
-          (fun p => List.mem_ofFn.2 ⟨e p, e.symm_apply_apply p⟩) _ h2t⟩
+  refine ⟨fun ⟨_, _, π, hsol⟩ => or_iff_not_imp_left.2 fun h1 =>
+    not_le.1 fun h2 => not_solvesOmissionPartialSync π (by omega) h2 hsol, ?_⟩
+  rintro (h1 | h2t)
+  · have : Subsingleton P := Fintype.card_le_one_iff_subsingleton.1 h1
+    exact ⟨V, PUnit.{v + 1}, ownInputProtocol P V,
+      (solvesByzantinePartialSync_ownInput t).toOmission⟩
+  · let e := Fintype.equivFin P
+    exact ⟨OmissionViewState V, OmissionViewMsg V,
+      omissionQuorumProtocol P V (List.ofFn e.symm)
+        (rotatingCoordinator (List.ofFn e.symm) (e.symm ⟨0, by omega⟩)) t,
+      solvesOmissionPartialSync_omissionQuorumProtocol
+        (fun p => List.mem_ofFn.2 ⟨e p, e.symm_apply_apply p⟩) _ h2t⟩
 
 end Cslib.Distributed.PartialSynchrony

@@ -142,11 +142,8 @@ theorem isTrajectoryOn_toEuclideanCLM_iff {A : Matrix n n ℝ} {x : ℝ → n �
       ∀ t ∈ s, HasDerivWithinAt x (A *ᵥ x t) s t := by
   refine forall₂_congr fun t _ => ?_
   rw [toEuclideanCLM_toLp]
-  refine ⟨fun h => ?_, fun h => ?_⟩
-  · have := (PiLp.hasFDerivAt_ofLp (𝕜 := ℝ) 2 (E := fun _ : n => ℝ) _).comp_hasDerivWithinAt t h
-    exact this
-  · have := (PiLp.hasFDerivAt_toLp (𝕜 := ℝ) 2 (E := fun _ : n => ℝ) _).comp_hasDerivWithinAt t h
-    exact this
+  exact ⟨(PiLp.hasFDerivAt_ofLp (𝕜 := ℝ) 2 (E := fun _ : n => ℝ) _).comp_hasDerivWithinAt t,
+    (PiLp.hasFDerivAt_toLp (𝕜 := ℝ) 2 (E := fun _ : n => ℝ) _).comp_hasDerivWithinAt t⟩
 
 /-- **Uniqueness in coordinates.** Every solution `x : ℝ → n → ℝ` of `x' = A *ᵥ x` on `[0, ∞)`,
 with a right derivative at `0`, is `exp (t • A) *ᵥ x 0` for `t ≥ 0`. -/
@@ -164,9 +161,7 @@ theorem exp_smul_mul_eq_of_hasDerivWithinAt {m : Type*} {A : Matrix n n ℝ} {X 
     (hX : ∀ j, ∀ t ∈ Ici (0 : ℝ), HasDerivWithinAt (fun τ => (X τ)ᵀ j) (A *ᵥ (X t)ᵀ j) (Ici 0) t)
     {t : ℝ} (ht : 0 ≤ t) : exp (t • A) * X 0 = X t := by
   ext i j
-  have h := congrFun (eq_exp_smul_mulVec_of_hasDerivWithinAt (hX j) ht) i
-  simp only [transpose_apply] at h
-  rw [h, Matrix.mul_apply, mulVec, dotProduct]
-  rfl
+  simpa only [transpose_apply, Matrix.mul_apply, mulVec, dotProduct] using
+    (congrFun (eq_exp_smul_mulVec_of_hasDerivWithinAt (hX j) ht) i).symm
 
 end Matrix

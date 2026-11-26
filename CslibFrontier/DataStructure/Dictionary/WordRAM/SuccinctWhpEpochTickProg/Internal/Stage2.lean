@@ -234,12 +234,31 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
   rw [hh.dirtyIdx] at hdi_res
   rw [hh.dirtyCount] at hdc_res
   dsimp only
-  unfold epochTickStage2GenProg; dsimp only
+  let ok (acc : ℕ) (p : Memory.Prog Unit) (fs' : FastState) : Prop :=
+    acc + memoryCost p s ≤ 32 * hashEvalCostWhp c + 43930 ∧
+    ValidProg w (base + largeSpaceWhp c U V w n_max) s p ∧
+    FastStateStep base c U V w n_max θ fs' s ((Memory.spec 0).clientState s p)
+  have step_read {α : Type} {acc cm : ℕ} {m : Memory.Prog α} {k : α → Memory.Prog Unit}
+      {v : α} {fs' : FastState}
+      (hst : (Memory.spec 0).clientState s m = s) (hres : (Memory.spec 0).clientResult s m = v)
+      (hmc : memoryCost m s = cm) (hvp : ValidProg w (base + largeSpaceWhp c U V w n_max) s m)
+      (hk : ok (acc + cm) (k v) fs') : ok acc (m >>= k) fs' := by
+    refine ⟨?_, validProg_bind hvp (by simpa only [hst, hres] using hk.2.1), ?_⟩
+    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, hst, hres, hmc]
+      have := hk.1
+      omega
+    · rw [clientState_bind, hst, hres]
+      exact hk.2.2
+  unfold epochTickStage2GenProg
+  dsimp only
   rw [show (mkWhpParams c U V w n_max).1 = cp from hwp1]
   simp only [pure_bind, hsmax_cp]
   dsimp only [epochTickStage2]
+  rw [← Nat.zero_add (memoryCost _ s)]
+  apply step_read hdi_st hdi_res hdi_mc hdi_vp
+  apply step_read hdc_st hdc_res hdc_mc hdc_vp
   by_cases hdi_lt : fs.dirtyIdx < fs.dirtyCount
-  · rw [ite_eq_left hdi_lt]
+  · simp only [ite_eq_left hdi_lt]
     dsimp only [ValidEpochStagePreTick] at hpre
     have hpre2 := hpre
     rw [ite_eq_right (by omega : ¬(fs.rebStage = 0)),
@@ -250,8 +269,10 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
       readDirtyBucketGenProg_spec henv hdi_lt hrep (s := s)
     obtain ⟨hcd_st, hcd_res, hcd_mc, hcd_vp⟩ := hdr hdrRebCandSalt (by decide)
     rw [hh.rebCandSalt] at hcd_res
+    apply step_read hrd_st hrd_res hrd_mc hrd_vp
+    apply step_read hcd_st hcd_res hcd_mc hcd_vp
     by_cases hcs_lt : fs.rebCandSalt < sMaxWhp c n_max
-    · rw [ite_eq_left hcs_lt]
+    · simp only [ite_eq_left hcs_lt]
       obtain ⟨_, hrIdx, hcnt_le, hq_all, hbp_v, hcoll_k, hrvS, hrIdxS, hcandS_lt,
         hinsS_le, hdiS, hnxtS⟩ :=
         stage2_rebScan16_facts henv hcore hpre hs2 hdi_lt hcs_lt
@@ -264,49 +285,21 @@ theorem epochTickStage2GenProg_fastStep {c U V w n_max base : ℕ}
         stage2PostScanGenProg_fastStep (fsScan := fsScan) henv hb hrvS
           hrIdxS hcandS_lt hinsS_le hdiS hnxtS
           hscan_step.2.1 hscan_step.2.2.1 (s := sScan)
-      refine ⟨?_, ?_, ?_⟩
+      refine ⟨?_, validProg_bind hscan_vp hps_vp, ?_⟩
       · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [hdi_st, hdi_res, hdi_mc, hdc_st, hdc_res, hdc_mc, ite_eq_left hdi_lt]
-        simp only [memoryCost_bind]
-        rw [hrd_st, hrd_res, hrd_mc, hcd_st, hcd_res, hcd_mc, ite_eq_left hcs_lt]
-        simp only [memoryCost_bind]
-        dsimp only [sScan, cp, b] at hscan_mc hps_mc ⊢; omega
-      · refine validProg_bind hdi_vp ?_; rw [hdi_st, hdi_res]
-        refine validProg_bind hdc_vp ?_; rw [hdc_st, hdc_res, ite_eq_left hdi_lt]
-        refine validProg_bind hrd_vp ?_; rw [hrd_st, hrd_res]
-        refine validProg_bind hcd_vp ?_; rw [hcd_st, hcd_res, ite_eq_left hcs_lt]
-        exact validProg_bind hscan_vp hps_vp
-      · rw [clientState_bind, hdi_st, hdi_res, clientState_bind, hdc_st, hdc_res,
-          ite_eq_left hdi_lt, clientState_bind, hrd_st, hrd_res,
-          clientState_bind, hcd_st, hcd_res, ite_eq_left hcs_lt, clientState_bind]
+        dsimp only [sScan, cp, b] at hscan_mc hps_mc ⊢
+        omega
+      · rw [clientState_bind]
         exact hscan_step.trans hps_step
-    · rw [ite_eq_right hcs_lt]
-      refine ⟨?_, ?_, ?_⟩
-      · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-        rw [hdi_st, hdi_res, hdi_mc, hdc_st, hdc_res, hdc_mc, ite_eq_left hdi_lt]
-        simp only [memoryCost_bind]
-        rw [hrd_st, hrd_res, hrd_mc, hcd_st, hcd_res, hcd_mc, ite_eq_right hcs_lt,
-          memoryCost_pure]; omega
-      · refine validProg_bind hdi_vp ?_; rw [hdi_st, hdi_res]
-        refine validProg_bind hdc_vp ?_; rw [hdc_st, hdc_res, ite_eq_left hdi_lt]
-        refine validProg_bind hrd_vp ?_; rw [hrd_st, hrd_res]
-        refine validProg_bind hcd_vp ?_; rw [hcd_st, hcd_res, ite_eq_right hcs_lt]
-        exact validProg_pure _
-      · rw [clientState_bind, hdi_st, hdi_res, clientState_bind, hdc_st, hdc_res,
-          ite_eq_left hdi_lt, clientState_bind, hrd_st, hrd_res,
-          clientState_bind, hcd_st, hcd_res, ite_eq_right hcs_lt, clientState_pure_whp]
+    · simp only [ite_eq_right hcs_lt]
+      refine ⟨?_, validProg_pure _, ?_⟩
+      · rw [memoryCost_pure]
+        omega
+      · rw [clientState_pure_whp]
         exact FastStateStep.refl hseed hrep
-  · rw [ite_eq_right hdi_lt]
+  · simp only [ite_eq_right hdi_lt]
     obtain ⟨ht3_mc, ht3_vp, ht3_step⟩ := tickToStage3Prog_fastStep henv hseed hrep (s := s)
-    refine ⟨?_, ?_, ?_⟩
-    · simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
-      rw [hdi_st, hdi_res, hdi_mc, hdc_st, hdc_res, hdc_mc, ite_eq_right hdi_lt]; omega
-    · refine validProg_bind hdi_vp ?_; rw [hdi_st, hdi_res]
-      refine validProg_bind hdc_vp ?_; rw [hdc_st, hdc_res, ite_eq_right hdi_lt]
-      exact ht3_vp
-    · rw [clientState_bind, hdi_st, hdi_res, clientState_bind, hdc_st, hdc_res,
-        ite_eq_right hdi_lt]
-      exact ht3_step
+    exact ⟨by omega, ht3_vp, ht3_step⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.EpochTickInternal
 

@@ -313,10 +313,7 @@ private lemma realCtx_split_at {V : Type*} {stay : V → V → Prop}
           (b' = b ∧ ∃ L : RealTree stay pushPop a a', L.size < C.size) ∨
           (a' = a ∧ ∃ R : RealTree stay pushPop b' b, R.size < C.size)) := by
   induction C with
-  | hole _ _ =>
-    intro K h1 hle
-    simp [RealCtx.size] at hle
-    omega
+  | hole _ _ => exact fun h1 hle => absurd (h1.trans hle) (Nat.not_succ_le_zero 0)
   | @pushPop u u' v' v x y h rest ih =>
     intro K h1 hle
     simp only [RealCtx.size] at hle ⊢
@@ -581,18 +578,12 @@ private lemma eval_or_andTrue_iff {g : BalancedGate V R} {P : Prop}
 
 private lemma eval_orP_zero_iff (u v : V) :
     (C start accept stay pushPop R).Eval (.orP ⟨0, Nat.succ_pos R⟩ u v) ↔ u = v ∨ stay u v :=
-  eval_or_andTrue_iff rfl
-    (fun c hch => by
-      cases c <;> simp only [C, balancedCircuit, BalancedGate.orChild] at hch; exact hch)
-    id
+  eval_or_andTrue_iff rfl (fun | .andTrue, hch => hch) id
 
 private lemma eval_orQ_zero_iff (u v x y : V) :
     (C start accept stay pushPop R).Eval (.orQ ⟨0, Nat.succ_pos R⟩ u v x y) ↔
       (u = x ∧ v = y) ∨ pushPop u x y v :=
-  eval_or_andTrue_iff rfl
-    (fun c hch => by
-      cases c <;> simp only [C, balancedCircuit, BalancedGate.orChild] at hch; exact hch)
-    id
+  eval_or_andTrue_iff rfl (fun | .andTrue, hch => hch) id
 
 private lemma eval_andBinary_castSucc {r : ℕ} (hr : r + 1 < R + 1) {r' : Fin R}
     (hr' : r'.val = r) {c : BalancedGate V R}
@@ -602,9 +593,8 @@ private lemma eval_andBinary_castSucc {r : ℕ} (hr : r + 1 < R + 1) {r' : Fin R
     (hev : (C start accept stay pushPop R).Eval c) :
     (C start accept stay pushPop R).Eval (g₁ ⟨r, by omega⟩) ∧
       (C start accept stay pushPop R).Eval (g₂ ⟨r, by omega⟩) := by
-  rw [(C start accept stay pushPop R).eval_andBinary hkind,
-    show r'.castSucc = ⟨r, by omega⟩ from Fin.ext hr'] at hev
-  exact hev
+  simpa only [(C start accept stay pushPop R).eval_andBinary hkind,
+    show r'.castSucc = ⟨r, by omega⟩ from Fin.ext hr'] using hev
 
 private lemma eval_or_of_andBinary {g c g₁ g₂ : BalancedGate V R}
     (hor : (C start accept stay pushPop R).kind g = .or)
@@ -715,12 +705,8 @@ private lemma eval_orP_orQ_sound :
       ihQ u v x y hq (ihP x y hp), fun u v x y h hT => ?_⟩
     rcases (eval_orQ_succ_iff hr u v x y).mp h with ⟨a, b, h1, h2⟩ | ⟨w, h1, h2⟩ | ⟨w, h1, h2⟩
     · exact ihQ u v a b h1 (ihQ a b x y h2 hT)
-    · exact let ⟨Tl⟩ := ihP u w h1
-      let ⟨Tr⟩ := ihQ w v x y h2 hT
-      ⟨.trans Tl Tr⟩
-    · exact let ⟨Tl⟩ := ihQ u w x y h1 hT
-      let ⟨Tr⟩ := ihP w v h2
-      ⟨.trans Tl Tr⟩
+    · exact (ihP u w h1).elim fun Tl => (ihQ w v x y h2 hT).elim fun Tr => ⟨.trans Tl Tr⟩
+    · exact (ihQ u w x y h1 hT).elim fun Tl => (ihP w v h2).elim fun Tr => ⟨.trans Tl Tr⟩
 
 /-- **Soundness of `balancedCircuit`**: if the output gate evaluates to `true` (at any round
 count `R`), there exists an accepting vertex `v` and a `RealTree` from `start` to `v`. -/

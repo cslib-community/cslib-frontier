@@ -167,24 +167,18 @@ theorem compDeleteWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items :
   set m_last := mOfSeed U N θ q_last
   have hm_last_lt : m_last < numMicroPerBucket N := mOfSeed_lt U N θ q_last
   have hprep_comp_res : (Memory.spec 0).clientResult s prog_prep = prep := by
-    change (Memory.spec 0).clientResult s
-      (compFeistelCoordsProg (mkCompParams U V w N, (u.val, h_q)) >>= fun c =>
-        compDeletePrepBodyGenProg (((mkCompParams U V w N, (metaBase, itemBase)), c.1), c.2)) = _
+    dsimp only [prog_prep, d_prep, compDeletePrepWithHashGenProg]
     rw [StateTransitionSpec.clientResult_bind, clientState_compFeistelCoordsProg, hc_res]
     exact (hres_dp.trans hfix_prep_eq.symm).trans hres_fix_prep
   have hprep_comp_st : (Memory.spec 0).clientState s prog_prep = s := by
-    change (Memory.spec 0).clientState s
-      (compFeistelCoordsProg (mkCompParams U V w N, (u.val, h_q)) >>= fun c =>
-        compDeletePrepBodyGenProg (((mkCompParams U V w N, (metaBase, itemBase)), c.1), c.2)) = s
+    dsimp only [prog_prep, d_prep, compDeletePrepWithHashGenProg]
     rw [StateTransitionSpec.clientState_bind, clientState_compFeistelCoordsProg, hc_res]
     exact hst_dp
   have hgm_eq : compGmAt metaBase U w N s.mem =
       gmAt 0 U V (ghostW w) N (hashSpace U (ghostW w) N) s_fix.mem := hcpl.gm_eq
   have hprep_comp_cost : memoryCost prog_prep s ≤
       42 + 12 * probeExcess N (qStage1 U N θ.1) (polyStage2 U N) θ.2 (Dictionary.dom s_abs) u := by
-    change memoryCost
-      (compFeistelCoordsProg (mkCompParams U V w N, (u.val, h_q)) >>= fun c =>
-        compDeletePrepBodyGenProg (((mkCompParams U V w N, (metaBase, itemBase)), c.1), c.2)) s ≤ _
+    dsimp only [prog_prep, d_prep, compDeletePrepWithHashGenProg]
     rw [memoryCost_bind_of_clientState_eq (clientState_compFeistelCoordsProg _ s) _,
       memoryCost_compFeistelCoordsProg, hc_res, zero_add]
     rw [hgm_eq] at hcost_dp
@@ -236,12 +230,10 @@ theorem compDeleteWithHashGenProg_dict_spec {metaBase itemBase U V w N m_items :
     rw [hb_eq, hm_eq, hm_last_eq]
     intro hf1
     obtain ⟨hj_lt, hphys_eq, hmem_del, hmem_last⟩ := hfound_slot hf1
+    dsimp only [gm₀] at hj_lt hphys_eq hmem_last
+    rw [← hgm_mid] at hj_lt hphys_eq hmem_last
     exact ⟨U, V, N, m_items, s_fix, L, rfl, henv_mid, hcpl_mid, hslot_mid, hm_items_mid,
-      hb_lt, hm_lt, hm_last_lt,
-      by rw [hgm_mid]; exact hj_lt,
-      by rw [hgm_mid]; exact hphys_eq,
-      hb_inv.hchains, hmem_del,
-      by rw [hgm_mid]; exact hmem_last⟩
+      hb_lt, hm_lt, hm_last_lt, hj_lt, hphys_eq, hb_inv.hchains, hmem_del, hmem_last⟩
   unfold deleteFinishWithHashProg deleteFinishWithHashGenProg at hinv_fix'
   simp only [p_bucketBits_mk, p_bucketMask_mk, deleteFinishGenProg_mk, pure_bind] at hinv_fix'
   rw [and_mask_xor_eq_feistelBucket (bucketBits N) u.val h_q] at hinv_fix'

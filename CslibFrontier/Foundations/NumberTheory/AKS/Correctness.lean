@@ -77,9 +77,7 @@ private theorem lt_minFac_of_gcd {n r : ℕ} (hn : 2 ≤ n) (hnp : ¬n.Prime)
 theorem prime_of_le_of_gcd {n r : ℕ} (hn : 2 ≤ n)
     (hgcd : ∀ a, 1 ≤ a → a ≤ r → a.gcd n = 1 ∨ a.gcd n = n) (hnr : n ≤ r) : n.Prime := by
   by_contra hnp
-  have := lt_minFac_of_gcd hn hnp hgcd
-  have := Nat.minFac_le (n := n) (by omega)
-  omega
+  linarith [lt_minFac_of_gcd hn hnp hgcd, Nat.minFac_le (Nat.zero_lt_of_lt hn)]
 
 /-- If `n` has positive multiplicative order modulo `r`, then `n` is coprime to `r`. -/
 theorem coprime_of_orderOf_pos {n r : ℕ} (h : 0 < orderOf (n : ZMod r)) : n.Coprime r :=
@@ -254,9 +252,8 @@ theorem prime_of_passes {n r : ℕ} (hn : 2 ≤ n)
   have htot_lt : r.totient < r := Nat.totient_lt r (by omega)
   -- The parameter `B = ⌊√t log₂ n⌋`.
   have ht0 : (0 : ℝ) < t := by exact_mod_cast hord_pos.trans_le hord_t
-  have hlogt : Real.logb 2 n < Real.sqrt t := by
-    rw [Real.lt_sqrt (by linarith)]
-    exact hr.trans_le (by exact_mod_cast hord_t)
+  have hlogt : Real.logb 2 n < Real.sqrt t :=
+    (Real.lt_sqrt (by linarith)).mpr (hr.trans_le (mod_cast hord_t))
   set B := ⌊Real.sqrt t * Real.logb 2 n⌋₊
   have hBreal : (B : ℝ) ≤ Real.sqrt t * Real.logb 2 n := Nat.floor_le (by positivity)
   have hBt : B < t := by
@@ -276,17 +273,14 @@ theorem prime_of_passes {n r : ℕ} (hn : 2 ≤ n)
   have hζ := IsCyclotomicExtension.zeta_spec r (ZMod p) K
   set ζ := IsCyclotomicExtension.zeta r (ZMod p) K
   -- Every `q^i p^j` is introspective for every product of the `X + a`, `a ≤ B`.
-  have hintro : ∀ i j : ℕ, ∀ s : Sym (Fin (B + 1)) B,
+  have hintro (i j : ℕ) (s : Sym (Fin (B + 1)) B) :
       Introspective K r (q ^ i * p ^ j) (linProd p s) := by
-    intro i j s
-    apply Introspective.multiset_prod
-    intro f hf
+    refine Introspective.multiset_prod fun f hf => ?_
     obtain ⟨a, -, rfl⟩ := Multiset.mem_map.mp hf
     have hn' : Introspective K r n (X + C ((a : ℕ) : ZMod p)) := by
       rcases Nat.eq_zero_or_pos (a : ℕ) with ha | ha
-      · rw [ha, Nat.cast_zero, C_0, add_zero]
-        exact introspective_X r n
-      · exact introspective_of_congruence hpn (hcong a ha (by have := a.isLt; omega))
+      · simpa [ha] using introspective_X (K := K) r n
+      · exact introspective_of_congruence hpn (hcong a ha (by omega))
     exact ((hn'.div_prime hpn).pow i).mul ((introspective_prime r _).pow j)
   -- The lower bound `C(2B, B)`.
   have hlow := card_image_aeval_linProd (K := K) hζ hBp (S := S) hBt fun x hx => by
@@ -302,13 +296,12 @@ theorem prime_of_passes {n r : ℕ} (hn : 2 ≤ n)
       (fun ij _ => mem_coe.mpr (mem_filter.mpr ⟨mem_univ _, ij.1, ij.2, rfl⟩))
   simp only [mem_product, mem_range] at hij hij'
   -- They are distinct as numbers, since `n` is not a power of `p`.
-  have hm_ne : q ^ i * p ^ j ≠ q ^ i' * p ^ j' := by
-    intro hm
+  have hm_ne : q ^ i * p ^ j ≠ q ^ i' * p ^ j' := fun hm => by
     obtain ⟨s, hs⟩ := exists_eq_pow_of_pow_mul_pow_eq hp hq0 hne hm
     have hns : n = p ^ (s + 1) := by rw [← hqp, hs, pow_succ]
     rcases s with _ | s
-    · exact hnp (by rw [hns, zero_add, pow_one]; exact hp)
-    · exact hpow ⟨p, s + 1 + 1, by omega, hns.symm⟩
+    · exact hnp (by simpa [hns] using hp)
+    · exact hpow ⟨p, s + 2, by omega, hns.symm⟩
   -- The upper bound `n^{⌊√t⌋}`.
   have hup := card_image_aeval_linProd_le (K := K) hζ hm_ne heq (hintro i j) (hintro i' j')
   have hmk : ∀ i j, i ≤ k → j ≤ k → q ^ i * p ^ j ≤ n ^ k := fun i j hi hj => by
@@ -330,9 +323,8 @@ theorem prime_of_passes {n r : ℕ} (hn : 2 ≤ n)
         Real.rpow_lt_rpow_of_exponent_lt one_lt_two <| (mul_comm _ _).trans_lt
           (by simpa using Nat.lt_floor_add_one (Real.sqrt t * Real.logb 2 n))
       _ = 2 ^ (B + 1) := Real.rpow_natCast _ _
-  have hnat : n ^ k < 2 ^ (B + 1) := by exact_mod_cast hreal
-  have := two_pow_succ_le_centralBinom hB3
-  omega
+  exact absurd (by exact_mod_cast hreal : n ^ k < 2 ^ (B + 1))
+    (not_lt.mpr ((two_pow_succ_le_centralBinom hB3).trans hcard))
 
 /-- **The AKS tests characterize the primes**: for `n ≥ 2` and `r` such that the multiplicative
 order of `n` modulo `r` exceeds `log₂² n`, `n` passes the tests of the AKS algorithm exactly when

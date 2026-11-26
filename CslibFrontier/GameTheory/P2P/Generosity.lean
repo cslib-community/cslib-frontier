@@ -109,15 +109,11 @@ theorem uniformTail_antitone {θ_m : ℝ} (hθ : 0 < θ_m) : Antitone (uniformTa
 
 theorem uniformTail_of_pos_le {θ_m t : ℝ} (ht0 : 0 < t) (htθ : t ≤ θ_m) :
     uniformTail θ_m t = 1 - t / θ_m := by
-  dsimp [uniformTail]
-  rw [ite_eq_right_iff.mpr (fun h => absurd h ht0.not_ge),
-    ite_eq_left_iff.mpr (fun h => absurd htθ h)]
+  simp [uniformTail, ht0.not_ge, htθ]
 
 theorem uniformTail_of_gt {θ_m t : ℝ} (ht0 : 0 < t) (htθ : θ_m < t) :
     uniformTail θ_m t = 0 := by
-  dsimp [uniformTail]
-  rw [ite_eq_right_iff.mpr (fun h => absurd h ht0.not_ge),
-    ite_eq_right_iff.mpr (fun h => absurd h htθ.not_ge)]
+  simp [uniformTail, ht0.not_ge, htθ.not_ge]
 
 /-- Upper positive equilibrium contribution root `(θ_m + √(θ_m (θ_m - 4))) / (2 θ_m)` of the
 uniform generosity model (NRTV Claim 23.1). -/
@@ -342,20 +338,13 @@ theorem mixtureTail_one (θ_m t : ℝ) : mixtureTail θ_m 1 t = uniformTail θ_m
 
 theorem mixtureTail_of_pos_le {θ_m φ t : ℝ} (ht₀ : 0 < t) (htθ : t ≤ θ_m) :
     mixtureTail θ_m φ t = (1 + φ) / 2 - φ * t / θ_m := by
-  dsimp [mixtureTail]
-  rw [uniformTail_of_pos_le ht₀ htθ,
-    ite_eq_right_iff.mpr fun h => absurd h ht₀.not_ge,
-    ite_eq_left_iff.mpr fun h => absurd htθ h]
+  simp only [mixtureTail, uniformTail_of_pos_le ht₀ htθ, ht₀.not_ge, htθ, ↓reduceIte]
   ring
 
 theorem mixtureTail_of_gt {θ_m φ t : ℝ} (hθ : 0 < θ_m) (ht : θ_m < t) :
     mixtureTail θ_m φ t = 0 := by
   have ht₀ : 0 < t := hθ.trans ht
-  dsimp [mixtureTail]
-  rw [uniformTail_of_gt ht₀ ht,
-    ite_eq_right_iff.mpr fun h => absurd h ht₀.not_ge,
-    ite_eq_right_iff.mpr fun h => absurd h ht.not_ge]
-  ring
+  simp [mixtureTail, uniformTail_of_gt ht₀ ht, ht₀.not_ge, ht.not_ge]
 
 /-- Lower root `(((1 + φ) / 2) θ_m - √((((1 + φ) / 2) θ_m)^2 - 4 θ_m φ)) / (2 θ_m)` of the
 interior quadratic fixed-point equation for `mixtureTail θ_m φ` (NRTV Exercise 23.1). -/

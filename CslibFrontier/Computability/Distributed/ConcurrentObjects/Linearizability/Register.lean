@@ -194,14 +194,14 @@ theorem exists_sequentiallyConsistent_not_linearizable :
         · obtain rfl : c₀ = ⟨false, (), .write true, .writeAck⟩ :=
             List.singleton_injective (flatMap_toEvents_injective (by
               have h := (heqS false).symm
-              rw [History.procSubhistory_flatMap_toEvents] at h
-              simp only [List.filter, hp₀, hp₁, decide_true, Bool.true_eq_false, decide_false] at h
+              simp only [History.procSubhistory_flatMap_toEvents, List.filter, hp₀, hp₁,
+                decide_true, Bool.true_eq_false, decide_false] at h
               exact h))
           obtain rfl : c₁ = ⟨true, (), .read, .readRet false⟩ :=
             List.singleton_injective (flatMap_toEvents_injective (by
               have h := (heqS true).symm
-              rw [History.procSubhistory_flatMap_toEvents] at h
-              simp only [List.filter, hp₁, Bool.false_eq_true, decide_false, decide_true] at h
+              simp only [History.procSubhistory_flatMap_toEvents, List.filter, hp₁,
+                Bool.false_eq_true, decide_false, decide_true] at h
               exact h))
           simp only [List.flatMap_cons, List.flatMap_nil, OpCall.toEvents, List.cons_append,
             List.nil_append, SeqSpec.evalMachine, registerStep] at hleg0
@@ -264,14 +264,12 @@ theorem exists_obj_sequentiallyConsistent_not_global :
       dsimp only [countProcCalls]; omega
     have hcF0 := hc_cnt false
     have hcT0 := hc_cnt true
-    obtain ⟨jF0, hjF0, hopF0⟩ := exists_opIdAt_of_lt_countProcCalls cs ⟨false, 0⟩
-      (by dsimp only; omega)
-    obtain ⟨jF1, hjF1, hopF1⟩ := exists_opIdAt_of_lt_countProcCalls cs ⟨false, 1⟩
-      (by dsimp only; omega)
-    obtain ⟨jT0, hjT0, hopT0⟩ := exists_opIdAt_of_lt_countProcCalls cs ⟨true, 0⟩
-      (by dsimp only; omega)
-    obtain ⟨jT1, hjT1, hopT1⟩ := exists_opIdAt_of_lt_countProcCalls cs ⟨true, 1⟩
-      (by dsimp only; omega)
+    have hop_ex (b : Bool) (i : ℕ) (hi : i < 2) :=
+      exists_opIdAt_of_lt_countProcCalls cs ⟨b, i⟩ (hc_cnt b ▸ hi)
+    obtain ⟨jF0, hjF0, hopF0⟩ := hop_ex false 0 (by decide)
+    obtain ⟨jF1, hjF1, hopF1⟩ := hop_ex false 1 (by decide)
+    obtain ⟨jT0, hjT0, hopT0⟩ := hop_ex true 0 (by decide)
+    obtain ⟨jT1, hjT1, hopT1⟩ := hop_ex true 1 (by decide)
     have hcs_F : cs.filter (fun c => decide (c.proc = false)) =
         [⟨false, false, .write true, .writeAck⟩, ⟨false, true, .read, .readRet false⟩] :=
       flatMap_toEvents_injective
@@ -301,14 +299,11 @@ theorem exists_obj_sequentiallyConsistent_not_global :
             (cs.filter fun c => decide (c.proc = b))[idx]'hlt = cs[j] := by
       intro j hj b idx hop
       have hpb : cs[j].proc = b := congrArg OpId.proc hop
-      have hidx : countProcCalls b (cs.take j) = idx := by
-        have := congrArg OpId.idx hop
-        simpa only [opIdAt, hpb] using this
-      obtain ⟨hlt, hget⟩ := List.filter_getElem_count_take (fun c => decide (c.proc = b)) cs j hj
-        (decide_eq_true hpb)
-      dsimp only [countProcCalls] at hidx
+      have hidx : ((cs.take j).filter fun c => decide (c.proc = b)).length = idx := by
+        simpa only [opIdAt, countProcCalls, hpb] using congrArg OpId.idx hop
       subst hidx
-      exact ⟨hlt, hget⟩
+      exact List.filter_getElem_count_take (fun c => decide (c.proc = b)) cs j hj
+        (decide_eq_true hpb)
     obtain ⟨_, hgetF0⟩ := hval_at jF0 hjF0 false 0 hopF0
     obtain ⟨_, hgetF1⟩ := hval_at jF1 hjF1 false 1 hopF1
     obtain ⟨_, hgetT0⟩ := hval_at jT0 hjT0 true 0 hopT0

@@ -181,11 +181,8 @@ theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
     obtain ⟨hs1, hd1, hl1, hi1, ht1, ht2⟩ := hnot
     have hnot3 : reg ∉ ([rIdx, rTmp1, rTmp2] : List (Fin 20)) := by simp [hi1, ht1, ht2]
     rw [hreg₄ reg hnot3]
-    dsimp only [x₃]
-    simp only [Data.set_regs_of_ne hd1 _, Data.set_regs_of_ne hs1 _]
-    rw [hreg₂ reg hnot3]
-    dsimp only [x₁]
-    simp only [Data.set_regs_of_ne hl1 _, Data.set_regs_of_ne hd1 _, Data.set_regs_of_ne hs1 _]
+    simp only [x₃, Data.set_regs_of_ne hd1 _, Data.set_regs_of_ne hs1 _, hreg₂ reg hnot3,
+      x₁, Data.set_regs_of_ne hl1 _]
   have hlf₄ : x₄.mem (nodeAddr base t c) = x.mem (nodeAddr base t c) := by
     rw [hmem₄]; simp only [x₃, Data.set_mem]
     rw [ArrayCopy.copyPrefix_outside (by omega), hmem₂]; simp only [x₁, Data.set_mem]
@@ -285,11 +282,9 @@ theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
   have hfull : ExecWithin w copyUpperCode x y (21 * t + 48) :=
     (he1.seq (hc1.seq (he2.seq (hc2.seq (he3.seq he4))))).mono (by omega)
   have hymem : y.mem = memCopyUpper base t c z x.mem := by
-    simp only [x₁, Data.set_mem] at hmem₂
-    simp only [x₃, Data.set_mem] at hmem₄
     dsimp only [y, memCopyUpper]
     wram_simp
-    simp only [hmem₅, hmem₄, hmem₂]
+    simp only [hmem₅, hmem₄, x₃, hmem₂, x₁, Data.set_mem]
   have hmod : Modifies (Block.mk base (arenaWords t capNodes)).footprint x.mem y.mem := by
     intro addr hnot
     rw [hymem]
@@ -298,12 +293,11 @@ theorem copyUpperCode_spec {w base capNodes t c z : ℕ} {x : Data 20}
     apply memCopyUpper_outside ht <;> by_contra h_in <;> apply hnot <;>
       simp only [Block.mem_footprint, Block.Owns, nodeStride] at h_in ⊢ <;> omega
   refine ⟨y, hfull, hfull.bounded hbdd, hymem, hmod, by wram_simp [y, hz₅], fun reg hnot => ?_⟩
-  have hnot' := hnot
-  simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hnot'
-  obtain ⟨hs1, hd1, hl1, _, ht1, ht2, _⟩ := hnot'
+  obtain ⟨hs1, hd1, hl1, _, ht1, ht2, _⟩ := by
+    simpa only [List.mem_cons, List.not_mem_nil, or_false, not_or] using hnot
   simp only [y, Data.write_regs, Data.set_regs_of_ne ht1 _, Data.set_regs_of_ne hl1 _,
-    Data.set_regs_of_ne hd1 _, Data.set_regs_of_ne ht2 _, Data.set_regs_of_ne hs1 _]
-  exact hkeep₅ reg hnot
+    Data.set_regs_of_ne hd1 _, Data.set_regs_of_ne ht2 _, Data.set_regs_of_ne hs1 _,
+    hkeep₅ reg hnot]
 
 /-- `memCopyUpper` leaves every key, value, and child cell (`2 ≤ o < 6 * t`) of `c` unchanged when
 `nodeAddr c + 6 * t ≤ nodeAddr cnt`. -/

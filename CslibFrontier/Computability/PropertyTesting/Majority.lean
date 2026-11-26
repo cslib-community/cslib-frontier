@@ -113,17 +113,10 @@ theorem majorityTester_passes_iff_sampleAccepts {n k : ℕ} [NeZero n] {δ : ℚ
   have hden : (0 : ℚ) < δ.den := by exact_mod_cast δ.den_pos
   have hk' : (0 : ℚ) < k := by exact_mod_cast hk
   have hM : (0 : ℚ) < (M : ℕ) := by dsimp [M]; positivity
-  have hδ' : δ = (δ.num.toNat : ℚ) / δ.den := by rw [hnum, Rat.num_div_den]
-  have hscale : (0 : ℚ) < 4 * δ.den * k * (M : ℕ) := by positivity
-  rw [sub_le_iff_le_add, ← mul_le_mul_iff_of_pos_right hscale]
-  have hleft : (b : ℚ) / (M : ℕ) * (4 * δ.den * k * (M : ℕ)) = 4 * δ.den * k * b := by
-    field_simp
-  have hright : ((s : ℚ) / k + δ / 4) * (4 * δ.den * k * (M : ℕ)) =
-      (M : ℚ) * (4 * δ.den * s + δ.num.toNat * k) := by
-    rw [show δ / 4 = ((δ.num.toNat : ℚ) / δ.den) / 4 by rw [← hδ']]
-    field_simp
-  rw [hleft, hright]
+  rw [sub_le_iff_le_add, show δ / 4 = (δ.num.toNat : ℚ) / δ.den / 4 by rw [hnum, Rat.num_div_den]]
+  field_simp
   norm_cast
+  simp only [mul_comm, mul_left_comm, mul_assoc, add_comm, left_distrib]
 
 private theorem exists_majority_close {n : ℕ} (hn : 0 < n) (x : BitString n) :
     ∃ y : BitString n, strictMajority n y = true ∧
@@ -191,13 +184,9 @@ private theorem majorityTester_error {n k : ℕ} [NeZero n] {δ : ℚ}
   have hpasses (r : Fin k → BitString w) :
       (majorityTester n k δ).Passes x r ↔
         ((n / 2 + 1 : ℕ) : ℝ) / M - (δ : ℝ) / 4 ≤ empiricalMass A r := by
-    rw [hemp]
-    let cutoff : ℚ := ((n / 2 + 1 : ℕ) : ℚ) / (M : ℕ) - δ / 4
-    let observed : ℚ :=
-      (weight (sampleAnswers r (fun i => x ((majorityTester n k δ).query r i))) : ℚ) / k
-    change (cutoff ≤ observed) ↔ _
-    simpa only [cutoff, observed, Rat.cast_div, Rat.cast_sub, Rat.cast_natCast, Rat.cast_ofNat]
-      using (Rat.cast_le (K := ℝ) (p := cutoff) (q := observed)).symm
+    change ((n / 2 + 1 : ℕ) : ℚ) / (M : ℕ) - δ / 4 ≤ _ ↔ _
+    simpa only [hemp, Rat.cast_div, Rat.cast_sub, Rat.cast_natCast, Rat.cast_ofNat] using
+      (Rat.cast_le (K := ℝ) (p := (n / 2 + 1 : ℕ) / (M : ℕ) - δ / 4) (q := (weight _ : ℚ) / k)).symm
   have hδR : 0 < (δ : ℝ) := by exact_mod_cast hδ
   have hquarter : 0 ≤ (δ : ℝ) / 4 := by positivity
   let μ := uniformOfFintype (Fin k → BitString w)

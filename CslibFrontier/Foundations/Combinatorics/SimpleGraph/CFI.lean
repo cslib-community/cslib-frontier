@@ -405,19 +405,16 @@ private theorem cfiFlipMap_adj {f g : Fin m → ZMod 2} {u w : Fin m} (huw : u �
     | gadget v α hα =>
       exact (cfiFlipMap_adj_gadget_edge huw hfg v α hα e₁ he₁ b₁ hadj.symm).symm
     | edge e₂ he₂ b₂ =>
-      rw [cfiGraph_adj_edge_edge] at hadj
-      obtain ⟨rfl, hne⟩ := hadj
+      obtain ⟨rfl, hne⟩ := (cfiGraph_adj_edge_edge _ _ _ _ _ _).1 hadj
       by_cases heq : e₁ = s(u, w) <;> simp [cfiFlipMap, heq, hne]
     | apex e₂ he₂ =>
-      rw [cfiGraph_adj_edge_apex] at hadj
-      obtain rfl : e₁ = e₂ := hadj
+      obtain rfl := (cfiGraph_adj_edge_apex _ _ _ _ _).1 hadj
       by_cases heq : e₁ = s(u, w) <;> simp [cfiFlipMap, heq]
   | apex e₁ he₁ =>
     cases y with
     | gadget _ _ _ => exact absurd hadj (not_cfiGraph_adj_apex_gadget _ _ _ _ _)
     | edge e₂ he₂ b₂ =>
-      rw [cfiGraph_adj_apex_edge] at hadj
-      obtain rfl : e₁ = e₂ := hadj
+      obtain rfl := (cfiGraph_adj_apex_edge _ _ _ _ _).1 hadj
       by_cases heq : e₁ = s(u, w) <;> simp [cfiFlipMap, heq]
     | apex _ _ => exact absurd hadj (not_cfiGraph_adj_apex_apex _ _ _ _)
 
@@ -677,12 +674,9 @@ private theorem isApexLike_cfiGraph_iff (hm : 3 ≤ m) {f : Fin m → ZMod 2}
       | .edge _ _ _ => False
       | .apex _ _ => True := by
   cases x with
-  | gadget v α hα =>
-    exact iff_of_false (fun h => not_inTriangle_gadget v α hα h.1) id
-  | edge e he b =>
-    exact iff_of_false (not_isApexLike_edge hm e he b) id
-  | apex e he =>
-    exact iff_of_true (isApexLike_apex e he) trivial
+  | gadget v α hα => exact iff_of_false (not_inTriangle_gadget v α hα ·.1) id
+  | edge e he b => exact iff_of_false (not_isApexLike_edge hm e he b) id
+  | apex e he => exact iff_of_true (isApexLike_apex e he) trivial
 
 private theorem nearApex_gadget_apex {f : Fin m → ZMod 2} (v : Fin m)
     (α : {w : Fin m // w ≠ v} → ZMod 2) (hα : ∑ w, α w = f v)
@@ -694,10 +688,8 @@ private theorem nearApex_gadget_apex {f : Fin m → ZMod 2} (v : Fin m)
     | gadget _ _ _ => exact absurd hxy (not_cfiGraph_adj_gadget_gadget _ _ _ _ _ _)
     | apex _ _ => exact absurd hxy (not_cfiGraph_adj_gadget_apex _ _ _ _ _)
     | edge e' he' b =>
-      rw [cfiGraph_adj_gadget_edge] at hxy
-      rw [cfiGraph_adj_edge_apex] at hya
-      obtain ⟨w, rfl, -⟩ := hxy
-      obtain rfl : s(v, w.val) = e := hya
+      obtain ⟨w, rfl, -⟩ := (cfiGraph_adj_gadget_edge _ _ _ _ _ _).1 hxy
+      obtain rfl := (cfiGraph_adj_edge_apex _ _ _ _ _).1 hya
       exact Sym2.mem_mk_left v w.val
   · intro hv
     obtain ⟨w, rfl⟩ := Sym2.mem_iff_exists.1 hv
@@ -792,12 +784,10 @@ private theorem iso_gadgetBase_eq (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
   have hx₂ : ¬ InTriangle (cfiGraph m g) (φ (defaultGadget hm f v)) :=
     φ.inTriangle_iff.not.2 (not_inTriangle_defaultGadget hm f v)
   refine gadgetBase_eq_of_nearApex hm hx₁ hx₂ fun a ha => ?_
-  have ha' : IsApexLike (cfiGraph m f) (φ.symm a) := φ.symm.isApexLike ha
-  obtain ⟨e, he, hea⟩ := exists_apex_eq_of_isApexLike hm ha'
-  have ha_eq : a = φ (.apex e he) := by
-    simpa only [RelIso.apply_symm_apply] using congrArg φ hea
-  rw [ha_eq, φ.nearApex_iff, φ.nearApex_iff, defaultGadget, nearApex_gadget_apex,
-    nearApex_gadget_apex]
+  obtain ⟨e, he, hea⟩ := exists_apex_eq_of_isApexLike hm (φ.symm.isApexLike ha)
+  obtain rfl : φ (.apex e he) = a := by
+    simpa only [RelIso.apply_symm_apply] using congrArg φ hea.symm
+  rw [φ.nearApex_iff, φ.nearApex_iff, defaultGadget, nearApex_gadget_apex, nearApex_gadget_apex]
 
 private theorem exists_iso_defaultGadget_eq (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
     (φ : cfiGraph m f ≃g cfiGraph m g) {v v' : Fin m}
@@ -910,10 +900,8 @@ private theorem sum_eq_of_iso (hm : 3 ≤ m) {f g : Fin m → ZMod 2}
           ⟨w, rfl, rfl⟩)
       rw [hv', iso_apply_edge hm φ s(v, w.val) he (α₀ w), cfiGraph_adj_gadget_edge] at hadj
       obtain ⟨z, hez, hbz⟩ := hadj
-      have hmap : (s(v, w.val) : Sym2 (Fin m)).map π = s(π v, π w.val) := rfl
-      rw [hmap] at hez
-      have hz_eq : z = eDir w := Subtype.ext (Sym2.congr_right.1 hez.symm)
-      rw [← hz_eq, ← hbz]
+      obtain rfl : z = eDir w := Subtype.ext (Sym2.congr_right.1 hez.symm)
+      exact hbz.symm
     have hsum_F : ∑ w : {w : Fin m // w ≠ v},
         σ ⟨s(v, w.val), Sym2.mk_isDiag_iff.not.2 w.property.symm⟩ = ∑ w : Fin m, F v w := by
       rw [← Fintype.sum_subtype_add_sum_subtype (fun w => w ≠ v) (F v),

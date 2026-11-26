@@ -169,8 +169,7 @@ theorem isOraclePPT_repeatToCPAAdversary {α : Type} {encOut : α ↪ List Bool}
       obtain ⟨rawCt, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hc
       cases OracleComp.eq_of_mem_supportWith_pure hresult
       refine ⟨trivial, (List.length_take_le _ _).trans (by omega), ?_⟩
-      have htake : (List.take (ctBound caller.1) rawCt).length ≤ ctBound caller.1 :=
-        List.length_take_le _ _
+      have := List.length_take_le (ctBound caller.1) rawCt
       simp only [EState, encList_cons, List.length_append, length_encPair, length_frame,
         encBits_apply, hrLen]
       omega
@@ -233,10 +232,9 @@ private theorem eval_cpaGame_repeatToCPAAdversary_true {α : Type} (E : Symmetri
   obtain ⟨p, hp, q, hq, hpq1, hpq2⟩ := hcol
   obtain ⟨hpLen, hpEnc⟩ := hinv p hp
   obtain ⟨hqLen, hqEnc⟩ := hinv q hq
-  have hdecP := E.decrypt_encrypt n k hk p.2 hpLen p.1 hpEnc
-  have hdecQ := E.decrypt_encrypt n k hk q.2 hqLen q.1 hqEnc
-  rw [hpq1, hdecQ] at hdecP
-  exact hpq2 (Option.some.inj hdecP).symm
+  exact hpq2 <| Option.some.inj <|
+    (E.decrypt_encrypt n k hk p.2 hpLen p.1 hpEnc).symm.trans
+      (hpq1 ▸ E.decrypt_encrypt n k hk q.2 hqLen q.1 hqEnc)
 
 /-- Pair each logged ciphertext in `cs` independently with a uniform `n`-bit string. -/
 private noncomputable def pairWithUniform (n : ℕ) :
@@ -251,9 +249,7 @@ private theorem map_fst_of_mem_support_pairWithUniform {n : ℕ} {cs : List (Lis
     {seen : List (List Bool × List Bool)} (h : seen ∈ (pairWithUniform n cs).support) :
     seen.map Prod.fst = cs := by
   induction cs generalizing seen with
-  | nil =>
-    simp only [pairWithUniform, PMF.mem_support_pure_iff] at h
-    simp [h]
+  | nil => simp_all [pairWithUniform]
   | cons c rest ih =>
     simp only [pairWithUniform, pmf_norm, PMF.mem_support_bind_iff,
       PMF.mem_support_pure_iff] at h
@@ -410,18 +406,13 @@ theorem succProbability_repeatCiphertextGame_le_two_mul_advantage {α : Type}
                 ((pairWithUniform n out.2).map hasDistinctCollision) true)) := by ring
     by_cases hnd : out.2.Nodup
     · simp [hnd]
-    · have hhalf := half_le_map_hasDistinctCollision_pairWithUniform hn hnd
-      have h1 : (!decide out.2.Nodup) = true := by simp [hnd]
-      rw [h1, PMF.pure_apply_self]
+    · simp only [hnd, decide_false, Bool.not_false, PMF.pure_apply_self]
       calc (1 : ℝ≥0∞) = 2 * (1 / 2) := by
             rw [ENNReal.mul_div_cancel (by norm_num) (by norm_num)]
         _ ≤ 2 * ((pairWithUniform n out.2).map hasDistinctCollision) true :=
-            mul_le_mul_right hhalf 2
-  have hneTop :
-      2 * (ProbComp.eval (E.cpaGame (repeatToCPAAdversary ctBound A) false n)) true ≠ ⊤ :=
-    ENNReal.mul_ne_top (by norm_num) (PMF.apply_ne_top _ _)
+            mul_le_mul_right (half_le_map_hasDistinctCollision_pairWithUniform hn hnd) 2
   simpa only [Game.succProbability, ENNReal.toNNReal_mul, ENNReal.toNNReal_ofNat] using
-    ENNReal.toNNReal_mono hneTop hle
+    ENNReal.toNNReal_mono (ENNReal.mul_ne_top (by norm_num) (PMF.apply_ne_top _ _)) hle
 
 /-- **CPA-secure symmetric ciphers have negligible ciphertext-collision probability**
 ([BonehShoup2023], Exercise 5.12, printed p. 211): if `E` satisfies `INDCPA`, then every uniform

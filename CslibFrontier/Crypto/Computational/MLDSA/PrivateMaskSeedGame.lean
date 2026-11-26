@@ -253,8 +253,7 @@ private theorem uniform_rows_transcript (C : QuantumSigningForger) (H : Xofs) (s
       Bool.false_eq_true, ↓reduceIte]
     exact uniform_row_reply H s keys.secretKey q
       fun sig => PMF.pure (sig, st.1, q.logReply sig st.2)
-  rw [PMF.iid_uniformOfFintype] at joint
-  simp_rw [convert] at joint
+  simp only [U, PMF.iid_uniformOfFintype, convert] at joint
   have eq := congrArg (PMF.map fun (out, st) => (out, st.2)) joint
   rw [← PMF.uniformOfFintype_map_equiv (Equiv.curry (Fin n) (BitString 512) (FixedBytes 64))] at eq
   simp only [rowTranscript, privateTranscript, signingTapeTranscript, sampledSigningTranscript,
@@ -350,13 +349,12 @@ private theorem fixed_rows_bound (C : QuantumSigningForger) (s : Level) (base : 
   have marg : joint.map Prod.snd = tapes.bind draw := by
     simp only [joint, PMF.map_bind, PMF.map_comp, Function.comp_def]
     exact congrArg tapes.bind (funext fun t => PMF.map_id (draw t))
-  have ref : joint.bind (fun z => right z.2.background) =
+  have eq (t) : (draw t).bind (fun p => right p.background) =
       (base.uniformPrefixes a b).bind right := by
-    have eq (t) : (draw t).bind (fun p => right p.background) =
-        (base.uniformPrefixes a b).bind right := by
-      rw [← base.background_sampleSigningMaskSeeds s seed t ha hb rows, PMF.bind_map]; rfl
-    simp only [joint, PMF.bind_bind, PMF.bind_map, Function.comp_def, eq, PMF.bind_const]
-  rw [ref, ← PMF.toOuterMeasure_map_apply, marg] at close
+    simpa only [PMF.bind_map, Function.comp_def] using
+      congrArg (PMF.bind · right) (base.background_sampleSigningMaskSeeds s seed t ha hb rows)
+  simp only [joint, PMF.bind_bind, PMF.bind_map, Function.comp_def, eq, PMF.bind_const,
+    ← PMF.toOuterMeasure_map_apply, marg] at close
   have adv := ENNReal.toReal_mono (PMF.toOuterMeasure_ne_top _ _)
     (Game.closeTo_iff_coe_advantage_le.mp close)
   simpa only [ENNReal.coe_toReal, joint, PMF.bind_bind, PMF.bind_map, Function.comp_def,
@@ -430,17 +428,14 @@ theorem randomPrefixGame_forgery_le_privateMaskSeedGame (C : QuantumSigningForge
   intro R trial view
   let fresh := trial.map (·.any SignedMatrixTrial.newDigestWin)
   let priv := C.privateMaskSeedGame s base a b
-  have birthday : dist fresh (view true) ≤ ((n * (n - 1) : ℕ) : ℝ) / 2 ^ 257 :=
-    C.dist_matrixTrial_sharedMaskSeedGame s base ha hb hn hsize _
-  have privateSeed : dist (view false) priv ≤ n / 2 ^ 256 :=
-    C.dist_maskSeedGame_privateMaskSeedGame s base ha _ hn hsize
   have loss : dist fresh priv ≤ ((n * (n - 1) : ℕ) : ℝ) / 2 ^ 257 +
       dist (view true) (view false) + n / 2 ^ 256 := by
     calc
       _ ≤ dist fresh (view false) + dist (view false) priv := dist_triangle ..
       _ ≤ (dist fresh (view true) + dist (view true) (view false)) + n / 2 ^ 256 :=
-        add_le_add (dist_triangle ..) privateSeed
-      _ ≤ _ := add_le_add (add_le_add birthday le_rfl) le_rfl
+        add_le_add (dist_triangle ..) (C.dist_maskSeedGame_privateMaskSeedGame s base ha _ hn hsize)
+      _ ≤ _ := add_le_add (add_le_add
+        (C.dist_matrixTrial_sharedMaskSeedGame s base ha hb hn hsize _) le_rfl) le_rfl
   rw [← coe_nndist, ← Game.advantage_eq_nndist] at loss
   have branch := NNReal.coe_le_coe.mpr
     (C.randomPrefixGame_forgery_le s base ((by decide : 272 ≤ 1024).trans ha) hb)

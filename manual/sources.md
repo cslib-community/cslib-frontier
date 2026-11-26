@@ -5465,6 +5465,14 @@ Christopher Patton and Tianyu Zhang.
 Checked firsthand on 2026-11-24: `src/keccak/segmented.hpp` (lines 1–35) instantiates the segmented Keccak-p[800, 12] constraint gadget at `d_zk = 9` (`max(2^3, 3^2) = 9`), `src/act/spend.hpp` specifies `SPEND_WITNESS_BYTES` offsets across lines 92–108 (`ℓ' = 6784`, `C' = 12283`) and invokes `ACT_SPEND_COMBINE_DST` (line 383), `src/dst.hpp` (line 44) defines `ACT_SPEND_COMBINE_DST = make_dst("rata", act::VERSION, 'l', '0')` (trailing ASCII byte `'0'` / `0x30`, also hashed inside the `Combination` constructor for batching `m_uov` constraints in `src/uov/circuit.hpp:63–64`; note `vole-mole`'s other 7-byte tags mostly share trailing `0x30` via distinct penultimate purpose bytes outside the single-trailing-byte model), `src/voleith.hpp` (line 126) extends the FAEST v3 domain-separator convention up to `domain_separator = 4` (`8 + 4 = 12`), and `src/act/issue.hpp:121`, `src/act/spend.hpp:289`, `src/ihat/circuit.hpp:33`, and `src/pomfrit/redeem.hpp:75` instantiate leaf hashing with `faest::leaf_hash::aes_ctr` (`EM128F::leaf_hash_v`).
 [HigherDegreeCheck.lean](../CslibFrontier/Crypto/Protocols/VOLE/HigherDegreeCheck.lean) cites the algebraic parameters and models only single-shot conditional Round-2+3 algebraic checks (it does not formalize full `vole-mole` `ZKHash`/`VOLEHash` or Fiat–Shamir soundness); [PRGLeafSeparation.lean](../CslibFrontier/Crypto/Protocols/VOLE/PRGLeafSeparation.lean) cites the `leaf_hash::aes_ctr` instantiation for why PRG-based leaf commitments do not yield a plain-ROM query-log extractor.
 
+<a id="volk26"></a>
+## volk26
+
+Ben Lee Volk.
+*A Lower Bound for Read-Once Parity Branching Programs* (`Volk2026`). arXiv:2607.05944v1, 2026. https://arxiv.org/abs/2607.05944v1 . Read in the arXiv HTML rendering of v1 on 2026-11-25 UTC: Section 1.1 with Definition 1.1 (a directed acyclic multigraph with a source and a target, edges labelled by `0`, `1`, `x_i` or `¬x_i`, acceptance when an odd number of source-to-target paths are consistent with the input, syntactic read-once on every source-to-target path, size the number of edges) and Section 2 with Claim 2.6 (replacing each `¬x_i` by `1 + x_i` turns a read-once parity program into a syntactically multilinear algebraic branching program over `F₂`).
+[ReadOnceParity.lean](../CslibFrontier/Computability/BranchingProgram/ReadOnceParity.lean) formalizes Definition 1.1 on the nondeterministic branching programs `NBP` with parity acceptance: rectifiers are the edges labelled `1`, contacts the literals, and edges labelled `0` are omitted since deleting them changes no path count and lowers the size; `NBP.wireCount` is the size and `NBP.IsReadOnce` the read-once condition.
+The cancellation of parallel edges in pairs (`NBP.reduce`, `NBP.wireCount_reduce_le`) is not from this paper; Claim 2.6 and the lower bound (Theorem 1.2) are not formalized.
+
 <a id="vonstengel07"></a>
 ## vonstengel07
 

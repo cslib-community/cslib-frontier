@@ -228,16 +228,12 @@ private theorem migrateLoadOldCode_exec {U V w N_old n n_init base L_peak : ℕ}
   obtain ⟨hex_fr, hx₇b⟩ := exec_add_bdd mFr mNewMeta mIwOld x.frontier hx₆b
     (hx₅f_eq.le.trans hL) (by simp [x₆, RData.set, hx₅_iw, hfr, hce_old]; omega) hfit_fr
   set x₇ := x₆.set mFr x.frontier
-  have hx₇m : x₇.mem = x.mem := hx₅m
-  have hx₇f : x₇.frontier = x.frontier := hx₅f_eq
   have hms₇ : memoryState mFr x₇.toData = ⟨x.mem, x.frontier⟩ :=
-    Memory.State.ext hx₇m (by dsimp [memoryState, x₇, RData.set, RData.toData]; simp)
+    Memory.State.ext hx₅m (by simp [memoryState, x₇, RData.set, RData.toData])
   have hx₇_base : x₇.regs mBase = base := by simp [x₇, x₆, RData.set, hx₅_base]
   have hx₇_cnt : x₇.regs mCnt = n := by
-    dsimp only [x₇, x₆, RData.set]
-    rw [Function.update_of_ne (mReg_ne (by decide) : mCnt ≠ mFr),
-      Function.update_of_ne (mReg_ne (by decide) : mCnt ≠ mNewMeta)]
-    exact (hx₅_keep mCnt (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))).trans hx₃_cnt
+    simpa [x₇, x₆, RData.set] using
+      (hx₅_keep mCnt (mReg_ne (by decide)) (mReg_lt_160 _) (mReg_ne (by decide))).trans hx₃_cnt
   have hin_tc : x₇.regs ∘ srcTargetCap = WordEncoding.encode (base, n) :=
     (regs_pairSrc (regs_reg1_eq mBase hx₇_base) (regs_reg1_eq mCnt hx₇_cnt)).eq
   obtain ⟨hpre_tc, hv_tc, hst_tc, hres_tc, hc_tc⟩ :=
@@ -245,11 +241,12 @@ private theorem migrateLoadOldCode_exec {U V w N_old n n_init base L_peak : ℕ}
       (by change base < x.frontier; rw [hfr, hce_old]; omega) hnU hfit1
   have hnoalloc_tc : ((Memory.spec 0).clientState (memoryState mFr x₇.toData)
       (computeTargetCapProg (base, n))).frontier ≤ x₇.frontier := by
-    rw [hms₇, hst_tc, hx₇f]
+    rw [hms₇, hst_tc]
+    exact hx₅f_eq.symm.le
   obtain ⟨y, hex_tc, hyb, hyf, hm_tc, hout_tc, hframe_tc⟩ :=
     execWitness wTargetCap factor_wTargetCap_le mFr srcTargetCap tmpTargetCap
       tmpTargetCap_inj srcTargetCap_ne_tmp tmpTargetCap_ne_mFr srcTargetCap_ne_mFr
-      (base, n) hx₇b (hx₇f.le.trans hL) hin_tc (hms₇ ▸ hpre_tc) (hms₇ ▸ hv_tc) hnoalloc_tc
+      (base, n) hx₇b (hx₅f_eq.le.trans hL) hin_tc (hms₇ ▸ hpre_tc) (hms₇ ▸ hv_tc) hnoalloc_tc
   rw [hms₇, hst_tc] at hm_tc
   rw [hms₇, hres_tc] at hout_tc
   have hym : y.mem = x.mem := congrArg Memory.State.mem hm_tc
@@ -274,7 +271,7 @@ private theorem migrateLoadOldCode_exec {U V w N_old n n_init base L_peak : ℕ}
       simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at h
       rw [hy_keep reg h.1 h160 h.2.1, ← hx₅_keep reg h.1 h160 h.2.2.2]
       exact (Function.update_of_ne h.1 _ _).trans (Function.update_of_ne h.2.2.1 _ _)
-  refine ⟨y, hex_all.mono (by omega) (fun _ h => h), hyb, hym, hyf.trans hx₇f, ⟨?_, ?_, ?_, ?_⟩,
+  refine ⟨y, hex_all.mono (by omega) (fun _ h => h), hyb, hym, hyf.trans hx₅f_eq, ⟨?_, ?_, ?_, ?_⟩,
     (hy_x _ (mReg_lt_160 _) (by simp)).trans hx₃_cnt,
     (hy_keep _ (by simp) (mReg_lt_160 _) (by simp)).trans (by simp [x₇, x₆, hx₅_iw]),
     (hy_keep _ (by simp) (mReg_lt_160 _) (by simp)).trans (by simp [x₇, x₆]), hy_fr_reg, hy_nnew,
@@ -308,68 +305,61 @@ private theorem migrateComputeArenaCode_exec {w L_peak newMeta offNew iwOld iwNe
       ∀ reg, reg ∉ ([mArenaWords, mCur, mArena, mPeakFront, mK, mOldItemDst] : List (Fin rResize)) →
         y.regs reg = x.regs reg := by
   intro arenaW arenaB peakF
-  have hex_max : ∃ x₁ : RData rResize,
-      RDemonicExec (B := .exact) w L_peak
-        (.branch (.lt mIwOld mIwNew) (.op (.copy mArenaWords mIwNew))
-          (.op (.copy mArenaWords mIwOld))) x 3 (· = x₁) ∧
-      x₁ = x.set mArenaWords (max iwOld iwNew) := by
+  set x₁ := x.set mArenaWords (max iwOld iwNew)
+  have hex₁ : RDemonicExec (B := .exact) w L_peak
+      (.branch (.lt mIwOld mIwNew) (.op (.copy mArenaWords mIwNew))
+        (.op (.copy mArenaWords mIwOld))) x 3 (· = x₁) := by
     by_cases hlt : iwOld < iwNew
-    · have hc : (Cond.lt mIwOld mIwNew).Holds x.toData := by
-        change x.regs mIwOld < x.regs mIwNew; omega
-      have hcp := RDemonicExec.copy (B := .exact) (w := w) (d := mArenaWords) (s := mIwNew)
+    · have hcp := RDemonicExec.copy (B := .exact) (w := w) (d := mArenaWords) (s := mIwNew)
         (x := x) hL
       rw [h_iwn, ← Nat.max_eq_right hlt.le] at hcp
-      exact ⟨_, (RDemonicExec.branch_pos hc hcp).mono (by omega) (fun _ h => h), rfl⟩
-    · have hnc : ¬(Cond.lt mIwOld mIwNew).Holds x.toData := by
-        change ¬x.regs mIwOld < x.regs mIwNew; omega
-      have hcp := RDemonicExec.copy (B := .exact) (w := w) (d := mArenaWords) (s := mIwOld)
+      exact (RDemonicExec.branch_pos (c := .lt mIwOld mIwNew)
+        (h_iwo.trans_lt (hlt.trans_eq h_iwn.symm)) hcp).mono (by omega) (fun _ h => h)
+    · have hcp := RDemonicExec.copy (B := .exact) (w := w) (d := mArenaWords) (s := mIwOld)
         (x := x) hL
       rw [h_iwo, ← Nat.max_eq_left (Nat.le_of_not_lt hlt)] at hcp
-      exact ⟨_, RDemonicExec.branch_neg hnc hcp, rfl⟩
-  obtain ⟨x₁, hex₁, hx₁_eq⟩ := hex_max
-  have hle_max : max iwOld iwNew ≤ newMeta + offNew + (max iwOld iwNew + 6) := by omega
-  have hx₁b : x₁.Bounded w := hx₁_eq ▸ hx.set (hfit_peak.of_le hle_max)
-  have hx₁f : x₁.frontier = x.frontier := by rw [hx₁_eq]; rfl
-  have hx₁m : x₁.mem = x.mem := by rw [hx₁_eq]; rfl
+      exact RDemonicExec.branch_neg (c := .lt mIwOld mIwNew)
+        (fun h : x.regs mIwOld < x.regs mIwNew => hlt (h_iwo.symm.trans_lt (h.trans_eq h_iwn))) hcp
+  have hx₁b : x₁.Bounded w := hx.set (hfit_peak.of_le (by omega))
   set x₂ := x₁.set mCur 6
-  have hex₂ := RDemonicExec.const (B := .exact) (d := mCur) (v := 6) (x := x₁) (hx₁f.le.trans hL)
+  have hex₂ := RDemonicExec.const (B := .exact) (d := mCur) (v := 6) (x := x₁) hL
     (hfit_peak.of_le (by omega))
   have hx₂b : x₂.Bounded w := hx₁b.set (hfit_peak.of_le (by omega))
-  obtain ⟨hex₃, hx₃b⟩ := exec_add_bdd mArenaWords mArenaWords mCur arenaW hx₂b
-    (hx₁f.le.trans hL) (by simp [x₂, hx₁_eq, RData.set]; rfl)
+  obtain ⟨hex₃, hx₃b⟩ := exec_add_bdd mArenaWords mArenaWords mCur arenaW hx₂b hL
+    (by simp [x₂, x₁, RData.set]; rfl)
     (hfit_peak.of_le (by dsimp only [arenaW]; omega))
   set x₃ := x₂.set mArenaWords arenaW
-  obtain ⟨hex₄, hx₄b⟩ := exec_add_bdd mArena mNewMeta mOffNew arenaB hx₃b
-    (hx₁f.le.trans hL) (by simp [x₃, x₂, hx₁_eq, RData.set, h_nm, h_on]; rfl)
+  obtain ⟨hex₄, hx₄b⟩ := exec_add_bdd mArena mNewMeta mOffNew arenaB hx₃b hL
+    (by simp [x₃, x₂, x₁, RData.set, h_nm, h_on]; rfl)
     (hfit_peak.of_le (by dsimp only [arenaB]; omega))
   set x₄ := x₃.set mArena arenaB
-  obtain ⟨hex₅, hx₅b⟩ := exec_add_bdd mPeakFront mArena mArenaWords peakF hx₄b
-    (hx₁f.le.trans hL) (by simp [x₄, x₃, RData.set]; rfl) hfit_peak
+  obtain ⟨hex₅, hx₅b⟩ := exec_add_bdd mPeakFront mArena mArenaWords peakF hx₄b hL
+    (by simp [x₄, x₃, RData.set]; rfl) hfit_peak
   set x₅ := x₄.set mPeakFront peakF
   have hiwo_le_aw : iwOld ≤ arenaW := (le_max_left _ _).trans (Nat.le_add_right _ 6)
   have hfr_le_peak : frOld ≤ peakF := by
     dsimp only [peakF, arenaB]
     omega
-  obtain ⟨hex₆, hx₆b⟩ := exec_sub_bdd mK mPeakFront mFr (peakF - frOld) hx₅b
-    (hx₁f.le.trans hL) (by simpa [x₅, x₄, x₃, x₂, hx₁_eq, RData.set, h_fr] using hfr_le_peak)
-    (by simp [x₅, x₄, x₃, x₂, hx₁_eq, RData.set, h_fr])
+  obtain ⟨hex₆, hx₆b⟩ := exec_sub_bdd mK mPeakFront mFr (peakF - frOld) hx₅b hL
+    (by simpa [x₅, x₄, x₃, x₂, x₁, RData.set, h_fr] using hfr_le_peak)
+    (by simp [x₅, x₄, x₃, x₂, x₁, RData.set, h_fr])
     (hfit_peak.of_le (Nat.sub_le _ _))
   set x₆ := x₅.set mK (peakF - frOld)
   obtain ⟨hex₇, hyb⟩ := exec_sub_bdd mOldItemDst mPeakFront mIwOld
-    (arenaB + (arenaW - iwOld)) hx₆b (hx₁f.le.trans hL)
-    (by simp [x₆, x₅, x₄, x₃, x₂, hx₁_eq, RData.set, h_iwo]; omega)
-    (by simp [x₆, x₅, x₄, x₃, x₂, hx₁_eq, RData.set, h_iwo]; omega)
+    (arenaB + (arenaW - iwOld)) hx₆b hL
+    (by simp [x₆, x₅, x₄, x₃, x₂, x₁, RData.set, h_iwo]; omega)
+    (by simp [x₆, x₅, x₄, x₃, x₂, x₁, RData.set, h_iwo]; omega)
     (hfit_peak.of_le (by omega))
   set y := x₆.set mOldItemDst (arenaB + (arenaW - iwOld))
   refine ⟨y,
     (hex₁.seq_eq (hex₂.seq_eq (hex₃.seq_eq (hex₄.seq_eq (hex₅.seq_eq
       (hex₆.seq_eq hex₇)))))).mono (by omega) (fun _ h => h),
-    hyb, hx₁m, hx₁f, by simp [y, x₆, x₅, x₄, x₃, RData.set],
+    hyb, rfl, rfl, by simp [y, x₆, x₅, x₄, x₃, RData.set],
     by simp [y, x₆, x₅, x₄, RData.set], by simp [y, x₆, x₅, RData.set],
     by simp [y, x₆, RData.set], by simp [y, RData.set], fun reg hreg => ?_⟩
   simp only [List.mem_cons, List.not_mem_nil, or_false, not_or] at hreg
   obtain ⟨h1, h2, h3, h4, h5, h6⟩ := hreg
-  simp [y, x₆, x₅, x₄, x₃, x₂, hx₁_eq, RData.set,
+  simp [y, x₆, x₅, x₄, x₃, x₂, x₁, RData.set,
     Function.update_of_ne h1, Function.update_of_ne h2, Function.update_of_ne h3,
     Function.update_of_ne h4, Function.update_of_ne h5, Function.update_of_ne h6]
 
@@ -621,10 +611,8 @@ theorem migrateSetupParamsCode_exec {U V w N_old n n_init base : ℕ}
       hs₈_s₁ _ (mReg_lt_160 _) (by simp) (by simp)⟩,
     fun addr haddr => (congrFun hs₈m_eq addr).trans
       (hs₄_out addr (Or.inl (by unfold offScratch; omega))),
-    by have hst : ({ mem := s₈.mem, frontier := s₈.frontier } : Memory.State) =
-           ⟨s₄.mem, s₄.frontier⟩ :=
-         Memory.State.ext hs₈m_eq (hs₈f_eq.trans hs₄f_eq.symm)
-       rwa [hst],
+    Memory.State.ext (x := ⟨s₈.mem, s₈.frontier⟩) (y := ⟨s₄.mem, s₄.frontier⟩)
+      hs₈m_eq (hs₈f_eq.trans hs₄f_eq.symm) ▸ hsplit₄,
     hs₈_base, (hs₈_s₁ _ (mReg_lt_160 _) (by simp) (by simp)).trans hs₁_cnt,
     (hs₈_s₁ _ (mReg_lt_160 _) (by simp) (by simp)).trans hs₁_nn,
     (hs₈_keep _ (by simp)).trans hs₇_nm, (hs₈_keep _ (by simp)).trans hs₇_off,

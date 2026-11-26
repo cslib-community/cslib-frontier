@@ -231,20 +231,17 @@ theorem totalMicroBits_le_of_le_pow {U w n : ℕ} (hnU : n ≤ U) (hU : U ≤ 2 
   (totalMicroBits_le_keyBits hnU).trans (Nat.clog_le_of_le_pow hU)
 
 /-- `numMicroPerBucket n` is always positive. -/
-theorem numMicroPerBucket_pos (n : ℕ) : 0 < numMicroPerBucket n := by
-  unfold numMicroPerBucket
-  positivity
+theorem numMicroPerBucket_pos (n : ℕ) : 0 < numMicroPerBucket n :=
+  Nat.two_pow_pos _
 
 /-- `totalMicroBuckets n` is always positive. -/
-theorem totalMicroBuckets_pos (n : ℕ) : 0 < totalMicroBuckets n := by
-  unfold totalMicroBuckets
-  positivity
+theorem totalMicroBuckets_pos (n : ℕ) : 0 < totalMicroBuckets n :=
+  Nat.two_pow_pos _
 
 /-- `totalMicroBuckets n` factors as `numBuckets n * numMicroPerBucket n`. -/
 theorem totalMicroBuckets_eq_mul (n : ℕ) :
-    totalMicroBuckets n = numBuckets n * numMicroPerBucket n := by
-  unfold totalMicroBuckets totalMicroBits numBuckets numMicroPerBucket
-  rw [Nat.pow_add]
+    totalMicroBuckets n = numBuckets n * numMicroPerBucket n :=
+  Nat.pow_add 2 _ _
 
 /-- For every `n : ℕ`, `totalMicroBuckets n ≤ max n 1`. -/
 theorem totalMicroBuckets_le (n : ℕ) : totalMicroBuckets n ≤ max n 1 := by
@@ -286,11 +283,10 @@ theorem effBucketCap_pos (n : ℕ) : 0 < effBucketCap n := by
 `effBucketCap n`). -/
 theorem lt_effBucketCap_of_bucketBits_eq_zero {n : ℕ} (hb : bucketBits n = 0) :
     n < effBucketCap n := by
-  have h1 : numBuckets n = 1 := by simp [numBuckets, hb]
   have h2 := le_two_mul_numMicro_mul_numBuckets n
-  rw [h1, mul_one] at h2
-  unfold effBucketCap
+  simp only [numBuckets, hb, pow_zero, mul_one] at h2
   have := numMicroPerBucket_pos n
+  unfold effBucketCap
   omega
 
 /-- When `0 < bucketBits n`, `microBits n = 3 * Dynamic.logLogFactor n` and
@@ -305,11 +301,8 @@ theorem effBucketCap_eq_four_mul_slabScale_cubed_of_pos {n : ℕ} (hb : 0 < buck
 /-- Every 1-based local slot pointer `0 .. min n (effBucketCap n)` fits strictly below
 `2 ^ effBucketPosBits n`. -/
 theorem min_effBucketCap_lt_two_pow_effBucketPosBits (n : ℕ) :
-    min n (effBucketCap n) < 2 ^ effBucketPosBits n := by
-  unfold effBucketPosBits
-  have hle : min n (effBucketCap n) + 1 ≤ 2 ^ Nat.clog 2 (min n (effBucketCap n) + 1) :=
-    Nat.le_pow_clog (by decide) (min n (effBucketCap n) + 1)
-  omega
+    min n (effBucketCap n) < 2 ^ effBucketPosBits n :=
+  Nat.le_pow_clog (by decide) (min n (effBucketCap n) + 1)
 
 /-- At capacity `0`, `effBucketPosBits 0 = 0`. -/
 @[simp]
@@ -347,9 +340,8 @@ theorem numBuckets_mul_effBucketCap_le_four_mul {n : ℕ} (hn : 1 ≤ n) :
   (numBuckets_mul_effBucketCap_le n).trans_eq (by rw [max_eq_left hn])
 
 /-- `slabSize n` is always at least `1`. -/
-theorem one_le_slabSize (n : ℕ) : 1 ≤ slabSize n := by
-  unfold slabSize
-  exact Nat.one_le_two_pow
+theorem one_le_slabSize (n : ℕ) : 1 ≤ slabSize n :=
+  Nat.one_le_two_pow
 
 /-- `slabSize n` is always positive. -/
 theorem slabSize_pos (n : ℕ) : 0 < slabSize n :=
@@ -375,10 +367,8 @@ theorem numBuckets_mul_slabScale_cubed_le {n : ℕ} (hb : 0 < bucketBits n) :
     exact Nat.pow_log_le_self 2 hn.ne'
 
 /-- `n` is strictly less than `2 ^ globalPtrBits n`. -/
-theorem lt_two_pow_globalPtrBits (n : ℕ) : n < 2 ^ globalPtrBits n := by
-  unfold globalPtrBits
-  have hle : n + 1 ≤ 2 ^ Nat.clog 2 (n + 1) := Nat.le_pow_clog (by decide) (n + 1)
-  omega
+theorem lt_two_pow_globalPtrBits (n : ℕ) : n < 2 ^ globalPtrBits n :=
+  Nat.le_pow_clog (by decide) (n + 1)
 
 /-- At capacity `0`, `globalPtrBits 0 = 0`. -/
 @[simp]
@@ -630,19 +620,12 @@ bits via `projLowBits` preserves `k`-wise independence. -/
 theorem isKWiseIndependentHash_projLowBits {k b m : ℕ} (hbm : b ≤ m)
     {H : ι → Q → Fin (2 ^ m)} (hh : IsKWiseIndependentHash k H) :
     IsKWiseIndependentHash k (fun i q => projLowBits hbm (H i q)) := by
-  have h1 := hh.map_equiv (BitString.equivFin m).symm
-  have h2 := h1.comp_surjective_addMonoidHom
+  have h3 := ((hh.map_equiv (BitString.equivFin m).symm).comp_surjective_addMonoidHom
     (BitString.restrictBitsAddHom hbm)
-    (BitString.restrictBitsAddHom_surjective hbm)
-  have h3 := h2.map_equiv (BitString.equivFin b)
-  have heq : (fun i q => projLowBits hbm (H i q)) =
-      fun i q => BitString.equivFin b
-        (BitString.restrictBitsAddHom hbm ((BitString.equivFin m).symm (H i q))) := by
-    funext i q
-    apply Fin.ext
-    rw [BitString.val_equivFin_restrictBitsAddHom hbm, Equiv.apply_symm_apply]
-    rfl
-  rwa [heq]
+    (BitString.restrictBitsAddHom_surjective hbm)).map_equiv (BitString.equivFin b)
+  convert h3 using 1
+  ext i q
+  simp [projLowBits, BitString.val_equivFin_restrictBitsAddHom hbm]
 
 omit [Fintype ι] in
 /-- Projecting `feistelXor b m hbm qOf H i u` onto its low `b` bits agrees with `feistelXor`
@@ -767,15 +750,11 @@ theorem expect_microCollCount_le_two_on {U n_max : ℕ}
         keyQuotient (bucketBits n_max) u₁.val = keyQuotient (bucketBits n_max) u₂.val) :
     𝔼 i, (microCollCount n_max qOf H i S u : ℚ) ≤ 2 := by
   classical
-  have hexp : 𝔼 i, (microCollCount n_max qOf H i S u : ℚ) ≤
-      (#(S.erase u) : ℚ) / (2 ^ totalMicroBits n_max : ℚ) := by
-    unfold microCollCount feistelMicroHash
-    rw [expect_card_feistelXor_eq_on (𝕜 := ℚ) (bucketBits_le_totalMicroBits n_max) hh S u hq]
-    exact div_le_div_of_nonneg_right (Nat.cast_le.mpr (card_filter_le _ _)) (by positivity)
-  have hle : (#(S.erase u) : ℚ) / (2 ^ totalMicroBits n_max : ℚ) ≤ 2 := by
-    rw [div_le_iff₀ (by positivity)]
-    exact_mod_cast hS.trans (le_two_mul_totalMicroBuckets n_max)
-  exact hexp.trans hle
+  unfold microCollCount feistelMicroHash
+  rw [expect_card_feistelXor_eq_on (𝕜 := ℚ) (bucketBits_le_totalMicroBits n_max) hh S u hq]
+  refine (div_le_div_of_nonneg_right (Nat.cast_le.mpr (card_filter_le _ _)) (by positivity)).trans
+    ((div_le_iff₀ (by positivity)).mpr ?_)
+  exact_mod_cast hS.trans (le_two_mul_totalMicroBuckets n_max)
 
 /-- **Expected bucket overflow bound:** under a 3-wise independent hash `H`, for any
 `S : Finset (Fin U)` with `#(S.erase u) ≤ n_max` such that `qOf` is quotient-injective on
@@ -1098,10 +1077,7 @@ theorem globalMetaLen_le_of_bucketBits_pos {n : ℕ} (hb : 0 < bucketBits n) :
   have hll3 : 3 ≤ Dynamic.logLogFactor n :=
     hll_of (k := 5) (by omega)
       (by decide)
-  have hS8 : 8 ≤ slabScale n := by
-    unfold slabScale
-    rw [show (8 : ℕ) = 2 ^ 3 by decide]
-    exact Nat.pow_le_pow_right (by decide) hll3
+  have hS8 : 8 ≤ slabScale n := Nat.pow_le_pow_right (by decide : 0 < 2) hll3
   have hB1 : 1 ≤ numBuckets n := numBuckets_pos n
   have hcube := numBuckets_mul_slabScale_cubed_le hb
   have hK : slabSize n = (slabScale n) ^ 2 := (slabSize_eq_sq_of_pos hb).1

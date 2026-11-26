@@ -49,12 +49,9 @@ private theorem query_change_event (H : Xofs) (s : Level) (A : PublicMatrix s)
   let mask := signingMaskLaw s.params (by cases s <;> decide)
   have mass := maskCommitmentAddress_mass_le s A m (Xofs.digestLookup s x)
   rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply] at mass
-  refine le_trans (mask.toOuterMeasure.mono ?_) mass
-  rintro y ⟨v, hv⟩
-  by_contra off
-  refine hv ?_
-  rw [queryTable_register, queryTable_register]
-  simp only [Function.update_of_ne (Ne.symm off)]
+  refine le_trans (mask.toOuterMeasure.mono fun y ⟨v, hv⟩ =>
+    Classical.byContradiction fun off => hv ?_) mass
+  simp only [queryTable_register, Function.update_of_ne (Ne.symm off)]
 
 private theorem mean_query_sqrt_le {ι κ σ α : Type} [Fintype ι] [Fintype κ] [DecidableEq κ]
     [Fintype α] {a b w : ℕ} (μ : PMF ι) (base : Xofs) (write : ι → Xofs)
@@ -234,16 +231,15 @@ private theorem scored_meanGap_le {C : QuantumSigningForger} {α V ι : Type} [Z
     · simp only [scored_eq_measured, measured_coin (C := C) (coin := coin) (k := k), isXofQuery,
         Bool.toNat_false, Nat.add_zero]
       simp only [← scored_eq_measured]
-      apply PMF.meanAbsDiffAt_bind_le μ (ProbComp.unifOracle coin) true
-      exact fun i => ih i (cont i) d log tape
+      exact PMF.meanAbsDiffAt_bind_le μ (ProbComp.unifOracle coin) true _ _
+        fun i => ih i (cont i) d log tape
     · simp only [scored_eq_measured, measured_device (C := C) (cmd := cmd) (k := k)]
       simp only [← scored_eq_measured]
       let left y r dev := scored (k r) (write y) (sign' y) (test' y) dev log tape
       let right y r dev := scored (k r) base sign (test y) dev log tape
       apply (device_meanGap_le μ base write cmd left right d (log, tape)
         (B := m * Q + n * S + T) (fun y r => scored_readout ..) (coherent d) ?_).trans_eq
-      · rw [Nat.cast_add]
-        ring
+      · rw [Nat.cast_add]; ring
       · intro r st
         simpa only [left, right, isSigningCall, Sum.elim_inr, Sum.elim_inl, Bool.toNat_false,
           Nat.sub_zero] using ih r (cont r) st log tape
@@ -376,10 +372,8 @@ theorem freshExpansionGame_eq_expansionContinuation (C : QuantumSigningForger) (
       C.expansionContinuation s H A keys (C.program keys.publicKey) C.initialDevice []
         (List.ofFn rows)) := by
   simp only [freshExpansionGame, PMF.monad_bind_eq_bind]
-  apply congrArg (PMF.bind (base.uniformPrefixes a b) ·)
-  funext H
-  apply congrArg (PMF.bind (PMF.uniformOfFintype (FixedBytes 32)) ·)
-  funext seed
+  refine congrArg (PMF.bind (base.uniformPrefixes a b)) (funext fun H =>
+    congrArg (PMF.bind (PMF.uniformOfFintype (FixedBytes 32))) (funext fun seed => ?_))
   simp only [scoreTranscript, withTrialSetup]
   cases key : H.keyGen s seed with
   | none => rfl

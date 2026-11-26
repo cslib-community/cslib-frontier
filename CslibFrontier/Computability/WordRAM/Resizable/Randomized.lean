@@ -409,14 +409,9 @@ theorem supExpectedStepsWithin_assemble (h : ExecRCodeDist w c x μ T L_peak) {p
     exact (hd.supExpectedStepsWithin_assemble hp).trans
       (add_le_add le_rfl (iSup₂_le fun z hz => hz ▸ le_rfl))
   | @rand _ dst src x _ hfit =>
-    have hle : supExpectedStepsWithin w p N (.running ⟨pc, x⟩) ≤
-        1 + (ProbComp.unifFin (x.regs src)).expect (fun k : Fin (x.regs src + 1) =>
-          supExpectedStepsWithin w p N (.running ⟨pc + 1, x.set dst k.val⟩)) :=
-      iSup_le fun adv => (expectedStepsWithinAdv_running_le w adv p N ⟨pc, x⟩).trans_eq <| by
-        rw [stepRandResizable_rand_of_fits (s := ⟨pc, x⟩) hp.head hfit, ProbComp.expect_bind]
-        simp only [ProbComp.expect_pure]
-    refine hle.trans_eq ?_
-    simp only [RCode.size]
+    refine iSup_le fun adv => (expectedStepsWithinAdv_running_le w adv p N ⟨pc, x⟩).trans_eq ?_
+    rw [stepRandResizable_rand_of_fits (s := ⟨pc, x⟩) hp.head hfit, ProbComp.expect_bind]
+    simp only [ProbComp.expect_pure, RCode.size]
     exact congrArg (1 + ·) (Cslib.Probability.PMF.tsum_map_mul
       (ProbComp.unifFin (x.regs src)).eval (fun k => x.set dst k.val)
       (fun y => supExpectedStepsWithin w p N (.running ⟨pc + 1, y⟩))).symm
@@ -793,15 +788,11 @@ theorem rand_seq_det {w L : ℕ} {dst src : Fin r} {a : ℕ} {c₂ : Code B r} {
       let k ← ProbComp.unifFin a
       pure (f k, 1 + n)) := by
   classical
-  have hr : ExecRandBounded (B := B) w L (.rand dst src) x (do
-      let k ← ProbComp.unifFin a
-      pure (x.set dst k.val, 1)) := by
-    have h0 := ExecRandBounded.rand (B := B) (L := L) (dst := dst) (src := src) (hs ▸ hfit)
-    rwa [hs] at h0
+  subst hs
   let m₂ : Data r → ProbComp (Data r × ℕ) := fun d =>
-    if h : d.regs dst < a + 1 then pure (f ⟨d.regs dst, h⟩, n) else pure (d, 0)
+    if h : d.regs dst < x.regs src + 1 then pure (f ⟨d.regs dst, h⟩, n) else pure (d, 0)
   simpa only [m₂, bind_assoc, pure_bind, Data.set_regs, Function.update_self, Fin.is_lt,
-    ↓reduceDIte] using ExecRandBounded.seq hr (m₂ := m₂) fun z hz => by
+    ↓reduceDIte] using ExecRandBounded.seq (.rand (dst := dst) hfit) (m₂ := m₂) fun z hz => by
       supp_cases hz with ⟨k, rfl⟩
       simp only [m₂, Data.set_regs, Function.update_self, k.isLt, ↓reduceDIte]
       exact of_execBoundedExact (h₂ k)
@@ -985,9 +976,8 @@ theorem ExecRCodeDist.of_execRandBounded_rename {r' w L_peak L : ℕ}
     ExecRCodeDist w (RCode.ofCode (c.rename f)) x
       (m.eval.map fun z => ⟨(z.1.extend f x.toData).regs, z.1.mem, x.frontier⟩)
       (ProbComp.expect m fun z => (z.2 : ℝ≥0∞)) L_peak := by
-  refine (of_execRandBounded hL_peak hL (h.rename hf)).congr_dist ?_ (le_of_eq ?_)
-  · rw [ProbComp.eval_map, PMF.map_comp]; rfl
-  · exact ProbComp.expect_map _ _ _
+  exact (of_execRandBounded hL_peak hL (h.rename hf)).congr_dist
+    (by rw [ProbComp.eval_map, PMF.map_comp]; rfl) (ProbComp.expect_map _ _ _).le
 
 /-- Worst-case step-bound specialization of `ExecRCodeDist.of_execRandBounded_rename`. -/
 theorem ExecRCodeDist.of_execRandBounded_rename_le {r' w L_peak L T : ℕ}

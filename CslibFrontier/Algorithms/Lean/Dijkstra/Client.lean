@@ -381,10 +381,8 @@ private theorem relaxEdge_runs (T : Finset (Fin n)) (dm : Dictionary.State n)
           (IndexedMinPQ.dom (syncQ T dm)).card := by
         rw [← syncQ_update hvT, IndexedMinPQ.dom_decreaseKey]
         exact IndexedMinPQ.mem_dom_iff.mpr ⟨dv, by simp [syncQ, hvT, hdm]⟩
+      have hmin : relaxOpt (du + c) (some dv) = some (du + c) := congrArg some (min_eq_left hlt.le)
       rw [syncQ_update hvT] at hrun
-      have hmin : relaxOpt (du + c) (some dv) = some (du + c) := by
-        simp only [relaxOpt, Option.some_inj]
-        omega
       rw [hmin]
       refine Runs.of_runClient rate hrun ?_ ?_
       · simp [StateTransitionSpec.validHistory_cons, AdjacencyList.valid, Dictionary.valid,
@@ -603,9 +601,8 @@ private theorem Good.visit {G : ListInstance} {T : Finset (Fin G.n)} {dm : Dicti
     obtain ⟨c', hc'⟩ := Option.ne_none_iff_exists'.mp
       fun h => G.lightest_eq_none_iff.mp h c hvc
     have hc'c : c' ≤ c := (G.lightest_eq_some_iff.mp hc').2 c hvc
-    have hv' : (dv : ℕ∞) = G.toInstance.dist G.source v := by
-      rw [← tentative_of_some hdv]
-      exact hgood.inv.eq_of_mem v hvT
+    have hv' : (dv : ℕ∞) = G.toInstance.dist G.source v :=
+      tentative_of_some hdv ▸ hgood.inv.eq_of_mem v hvT
     have hu' : G.toInstance.dist G.source u ≤ du := hDu ▸ hgood.inv.dist_le u
     have : (dv : ℕ∞) ≤ ((du + c : ℕ) : ℕ∞) :=
       calc (dv : ℕ∞) = G.toInstance.dist G.source v := hv'
@@ -619,11 +616,11 @@ private theorem Good.visit {G : ListInstance} {T : Finset (Fin G.n)} {dm : Dicti
   have hcard : T.card + 1 ≤ G.n := by
     have := Finset.card_le_univ (insert u T)
     rwa [Finset.card_insert_of_notMem huT, Fintype.card_fin] at this
-  have hduW : du ≤ T.card * G.maxWeight := by
-    have h : (du : ℕ∞) ≤ ((T.card * G.toInstance.maxWeight : ℕ) : ℕ∞) :=
-      hDu ▸ hgood.inv.bound u hfin
-    have h' : du ≤ T.card * G.toInstance.maxWeight := by exact_mod_cast h
-    exact h'.trans (Nat.mul_le_mul_left _ G.toInstance_maxWeight_le)
+  have hduW : du ≤ T.card * G.maxWeight :=
+    (by exact_mod_cast (hDu ▸ hgood.inv.bound u hfin :
+      (du : ℕ∞) ≤ ((T.card * G.toInstance.maxWeight : ℕ) : ℕ∞)) :
+      du ≤ T.card * G.toInstance.maxWeight).trans
+      (Nat.mul_le_mul_left _ G.toInstance_maxWeight_le)
   have hbound : ∀ v c, (v, c) ∈ G.adj u → du + c ≤ K ∧ du + c < V := by
     intro v c hvc
     have hc : c ≤ G.maxWeight := G.le_maxWeight hvc
@@ -634,19 +631,15 @@ private theorem Good.visit {G : ListInstance} {T : Finset (Fin G.n)} {dm : Dicti
     omega
   -- After the scan, the invariant holds with `u` visited.
   have hgood' : Good G (insert u T) (scanMap du (G.adj u) dm) := by
-    refine ⟨fun v hv => ?_, ?_⟩
-    · have hv0 : dm v ≠ none := by
-        rcases Finset.mem_insert.mp hv with rfl | hvT
-        · simp [hdu]
-        · exact hgood.reached v hvT
-      obtain ⟨dv, hdv⟩ := Option.ne_none_iff_exists'.mp hv0
-      rw [scanMap_of_le _ hdv fun c hvc => by
-        obtain ⟨dv', hdv', hle⟩ := hset v c hvc hv
-        rw [hdv, Option.some_inj] at hdv'
-        exact hdv' ▸ hle]
-      simp
-    · have h := Dijkstra.Instance.Inv.step _ hgood.inv huT hmin hfin
-      rwa [← tentative_scanMap G hdu] at h
+    refine ⟨fun v hv => ?_,
+      tentative_scanMap G hdu ▸ Dijkstra.Instance.Inv.step _ hgood.inv huT hmin hfin⟩
+    obtain ⟨dv, hdv⟩ := Option.ne_none_iff_exists'.mp
+      ((Finset.mem_insert.mp hv).elim (· ▸ by simp [hdu]) (hgood.reached v))
+    rw [scanMap_of_le _ hdv fun c hvc => by
+      obtain ⟨dv', hdv', hle⟩ := hset v c hvc hv
+      rw [hdv, Option.some_inj] at hdv'
+      exact hdv' ▸ hle]
+    simp
   exact ⟨huT, hset, hbound, hgood'⟩
 
 /-- **The main loop.** From a state satisfying the invariant with visited set `T`, enough rounds
@@ -796,10 +789,7 @@ theorem dijkstra_correct (G : ListInstance) (hK : G.n * G.maxWeight ≤ K)
     HasDistances G ((spec G.n K V).clientState (init G) (dijkstra G.source)) := by
   obtain ⟨dist, hdist, hv, hs, _⟩ := dijkstra_runs (fun _ => 0) (pU := 0) (pQ := 0) G hK hV
   refine ⟨hv, dist, hs, fun v d => ?_⟩
-  rw [← hdist v]
-  rcases h : dist v with _ | d'
-  · simp [tentative_of_none h]
-  · simp [tentative_of_some h]
+  rcases h : dist v with _ | d' <;> simp [← hdist v, tentative, h]
 
 /-! ### Operation counts -/
 

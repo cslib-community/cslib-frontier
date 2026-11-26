@@ -292,9 +292,7 @@ theorem GapExactThreeLin_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
       (Graph.encoding (encPi (encPi (encPair encBool (encPi encBool)))))
       (GapLabelCover β γ 1 η) := by
     refine (GapLabelCover_npHard_pow (by positivity : 0 < k)).mono (fun _ hg => hg) fun g hg => ?_
-    have hk : (k : ℝ) / 21 = n := by
-      push_cast [k]
-      ring
+    have hk : (k : ℝ) / 21 = n := by push_cast [k]; ring
     rw [GapLabelCover, PromiseProblem.mem_no_gapMax] at hg ⊢
     change 1 - (g.toGraph projectionEval).unsatVal ≤ baseLC ^ ((k : ℝ) / 21) ∧ _ at hg
     rw [hk, Real.rpow_natCast] at hg
@@ -338,17 +336,12 @@ theorem GapExactThreeLin_npHard {δ ε : ℝ} (hδ : 0 < δ) (hε : 0 < ε)
         ⟨fun _ => ((fun _ => ((false, fun _ => false), (false, fun _ => false))), y₀),
           fun i => absurd (i.isLt.trans_eq (congrArg List.length hnil)) (Nat.not_lt_zero _)⟩
       rw [(ConstraintGraph.unsatVal_eq_zero_iff _).2 hsat] at hg; linarith
-    have hunsat : 1 - (1 / 2 + ε) ≤ (reduce T g).unsatVal CSP.paritySem := by
-      refine (CSP.le_unsatVal_iff _ _).2 fun σ => ?_
-      have hprob := (hdich hedge).2 hg (decodeRight T σ) (decodeLeft T σ) (isOdd_decodeRight T σ)
-      have h1w : 0 < 1 - w := by linarith
-      have hsat_le :
-          ((reduce T g).countP (Constraint.eval CSP.paritySem σ) : ℝ) / (reduce T g).length ≤
-            1 / 2 + ε :=
-        (countSat_reduce_div_length_le hm2 hT hedge σ).trans <|
-          (div_le_div_of_nonneg_right hprob h1w.le).trans ((div_le_iff₀ h1w).2 (by nlinarith))
-      linarith [countSat_div_add_countUnsat_div (length_reduce_pos hm2 hT g) σ]
-    linarith
+    refine sub_le_comm.mp ((CSP.le_unsatVal_iff _ _).2 fun σ => ?_)
+    have hprob := (hdich hedge).2 hg (decodeRight T σ) (decodeLeft T σ) (isOdd_decodeRight T σ)
+    have h1w : 0 < 1 - w := by linarith
+    have hsat_le : _ ≤ 1 / 2 + ε := (countSat_reduce_div_length_le hm2 hT hedge σ).trans <|
+      (div_le_div_of_nonneg_right hprob h1w.le).trans ((div_le_iff₀ h1w).2 (by nlinarith))
+    linarith [countSat_div_add_countUnsat_div (length_reduce_pos hm2 hT g) σ]
 
 /-- **Goldreich Theorem 10.9 (`gapLin_{1 - δ, 1 / 2 + ε}` is NP-hard)** `[Goldreich2007DraftR5]`
 (r5.pdf PDF p. 80 / printed p. 462, in the corrected separated range `1 / 2 + ε < 1 - δ`;
@@ -388,10 +381,8 @@ private theorem exists_gap_params_of_gt {t ρ : ℝ} (ht0 : 0 ≤ t) (ht1 : t < 
   have hγ0 : 0 < γ := by dsimp only [γ]; linarith [lt_min hρ ht1]
   have hγ_le : γ ≤ 1 - t := by dsimp only [γ]; linarith [min_le_right ρ 1]
   refine ⟨γ / 4, γ / 4, by linarith, by linarith, by linarith, ?_⟩
-  exact (by nlinarith : t + γ / 4 < (t + γ) * (1 - γ / 4)).trans_le <|
-    mul_le_mul_of_nonneg_right
-      (by dsimp only [γ]; linarith [min_le_left ρ 1])
-      (by linarith)
+  dsimp only [γ]
+  nlinarith [min_le_left ρ 1]
 
 /-- Generic rational-threshold decider turning a polynomial-time `ρ`-approximation algorithm into a
 `PromiseP` decider for a restricted `gapMax (1 - uval)` problem when `0 ≤ s < c ≤ 1` and
@@ -455,13 +446,11 @@ theorem P_eq_NP_of_maxExactThreeLin_approx {A : CSP Bool ℕ → List ℕ} {ρ :
     {β : Type} (enc : β ↪ List Bool) : P enc = NP enc := by
   obtain ⟨δ, ε, hδ, hε, hgap, hsρc⟩ :=
     exists_gap_params_of_gt (by norm_num : (0 : ℝ) ≤ 1 / 2) (by norm_num) hρ
-  have hcnf : ComputableInPolyTime (CSP.toCNFBounded 3 CSP.paritySem)
-      (encCSP encBool encNat) encCNF :=
-    CSP.computableInPolyTime_toCNFBounded_parity encNat
   have hu : ComputableInPolyTime
       (fun F : CSP Bool ℕ => (F.toCNFBounded 3 CSP.paritySem).countUnsat fun v => decide (v ∈ A F))
       (encCSP encBool encNat) encNat :=
-    unary_to_binary.comp ((computableInPolyTime_countUnsat_mem encNat).comp (hcnf.prod hA))
+    unary_to_binary.comp ((computableInPolyTime_countUnsat_mem encNat).comp
+      ((CSP.computableInPolyTime_toCNFBounded_parity encNat).prod hA))
   have hmem : GapExactThreeLin (1 - δ) (1 / 2 + ε) ∈ PromiseP (encCSP encBool encNat) :=
     gapMax_restrict_mem_PromiseP_of_approx (by linarith) hgap (by linarith) hsρc
       (length_list_binary _) hu

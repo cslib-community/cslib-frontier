@@ -552,10 +552,9 @@ private theorem satisfies_regularPreprocess (g : Graph C)
     cases side <;>
       simpa only [preprocessRelation, hrot, Bool.false_eq_true, ↓reduceIte, Bool.not_false,
         Bool.not_true, ConstraintGraph.endpoint, toGraph, hedge, List.get_eq_getElem] using hsatv
-  · have hrot : R.graph.neighbor v (.inl (.inl (.inr d))) =
-        ((g.toGraph eval).cloudGraph (g.cloudFamily eval fallback family)).neighbor v d := rfl
-    rw [preprocessRelation, hrot, ConstraintGraph.endpoint_neighbor_cloudGraph]
-    exact decide_eq_true rfl
+  · rw [preprocessRelation]
+    exact decide_eq_true (congrArg σ
+      (ConstraintGraph.endpoint_neighbor_cloudGraph (g.cloudFamily eval fallback family) v d).symm)
   all_goals simp [preprocessRelation]
 
 /-- Satisfying vertex labels lift to satisfying walk-opinion labels on
@@ -592,14 +591,8 @@ theorem satisfies_powerPreprocessLabels [DecidableEq α] (g : Graph C)
       g R.graph (fun p => (p.1.val, p.2))
       (g.preprocessRotation_eq eval fallback family rotate hrotate) w.1.val v w.2]
     rcases hpair : ((R.graph.pow w.1.val).rot (v, w.2)).1 with ⟨idx, side⟩
-    have hedge : g.edgeAt fallback idx.val = g.edges[idx.val] := by
-      simp [edgeAt, List.getD_eq_getElem?_getD]
-    change labels.getD (if side then (g.edgeAt fallback idx.val).dst else
-        (g.edgeAt fallback idx.val).src) default =
-      R.truthful T σ_prep v w
-    rw [hedge]
     cases side <;> simp [RegularConstraintGraph.truthful, σ_prep, σ, ConstraintGraph.endpoint,
-      toGraph, RotationMap.neighbor, hpair]
+      toGraph, RotationMap.neighbor, edgeAt, List.getD_eq_getElem?_getD, hpair]
   change ((g.powerPreprocess eval fallback rotate T q walks).toGraph id).Satisfies
     (fun u => (powerPreprocessLabels fallback default rotate T g labels).getD u defaultPow) e
   rw [toGraph_powerPreprocess g eval fallback family rotate hrotate T q walks hwalks hmem]
@@ -952,10 +945,8 @@ theorem proofOfLabelList_eq_proofOfLabels {α : Type} {width : ℕ}
     proofOfLabelList encode labels =
       proofOfLabels width labels.length encode (fun v => labels.getD v default) := by
   rw [proofOfLabelList, proofOfLabels, BitString.ofFn_blocksEquiv_symm, List.flatMap_def]
-  congr 1
-  symm
-  refine List.ext_getElem (by simp) fun i hi₁ _ => ?_
-  simp [List.getD_eq_getElem?_getD]
+  exact congrArg List.flatten (List.ext_getElem (by simp)
+    fun _ _ _ => by simp [List.getD_eq_getElem?_getD]).symm
 
 /-- Bit-packing a list of labels from a fixed finite alphabet runs in polynomial time. -/
 theorem isPolyTime_proofOfLabelList {α Input : Type} [Finite α] {width : ℕ}

@@ -341,10 +341,8 @@ theorem numCuts_selfridgeConwayQ_eq_five_of_strict_max {v : Fin 3 → CakeValuat
   set c2 := (RWQuery.cutIn (0 : Fin 3) c1 1 (1 / 3)).eval oracle
   set u1 := (evalThree 1 (scInitialPieces c1 c2)).eval oracle
   set σ1 := Tuple.sortDesc u1
-  have hu1_eq : u1 = fun j => (v 1).pieceVal (scInitialPieces c1 c2 j) :=
-    eval_evalThree ho 1 (scInitialPieces c1 c2)
   have hlt (j : Fin 3) (hne : j ≠ k) : u1 j < u1 k := by
-    rw [hu1_eq]
+    simp only [u1, eval_evalThree ho 1]
     exact hstrict j hne
   have hp0_eq_k : σ1 0 = k :=
     by_contra fun hne => not_lt_of_ge (le_topChoice u1 k) (hlt (σ1 0) hne)
@@ -391,10 +389,7 @@ private theorem isValidPartition_scBuildTrimmed {c1 c2 : ℝ}
   set Y := scTrimmedPieces c1 c2 p0 t
   set T_sub := scTrimSubPieces t u_cut1 u_cut2 r
   set q1 : Fin 3 := if q2 = p0 then p1 else p0
-  have hq21 : q2 ≠ q1 := by
-    dsimp only [q1]
-    split_ifs with hq
-    exacts [hq ▸ hp01, hq]
+  have hq21 : q2 ≠ q1 := by by_cases hq : q2 = p0 <;> simp [q1, hq, hp01]
   set q0 := thirdFin3 q2 q1
   set s_pa := topChoice w_pa
   set s_0 := bestOther w_0 s_pa
@@ -426,12 +421,8 @@ private theorem isValidPartition_scBuildTrimmed {c1 c2 : ℝ}
   · dsimp only [scBuildTrimmed, Y, T_sub, r]
     clear hall_perm hY_perm hT_perm s2 s1 q0 hq21 q1 T_sub Y r ht_l hu2_r hp01
     fin_cases p0
-    · refine List.Perm.cons (⟨0, t⟩ : CakePiece) ?_
-      exact @List.perm_append_comm CakePiece [⟨c1, c2⟩, ⟨c2, 1⟩]
-        [⟨t, u_cut1⟩, ⟨u_cut1, u_cut2⟩, ⟨u_cut2, c1⟩]
-    · refine List.Perm.cons (⟨0, c1⟩ : CakePiece) (List.Perm.cons (⟨c1, t⟩ : CakePiece) ?_)
-      exact @List.perm_append_comm CakePiece [⟨c2, 1⟩]
-        [⟨t, u_cut1⟩, ⟨u_cut1, u_cut2⟩, ⟨u_cut2, c2⟩]
+    · exact List.Perm.cons _ (List.perm_append_comm ..)
+    · exact List.Perm.cons _ (List.Perm.cons _ (List.perm_append_comm ..))
     · exact List.Perm.refl _
 
 /-- `selfridgeConwayQ` produces a valid interval partition of `[0, 1]` against every oracle. -/
@@ -491,8 +482,7 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
   set c1 := (RWQuery.cutIn (0 : Fin 3) 0 1 (1 / 3)).eval oracle
   set c2 := (RWQuery.cutIn (0 : Fin 3) c1 1 (1 / 3)).eval oracle
   set X := scInitialPieces c1 c2
-  have hX_bounds : ∀ k : Fin 3, 0 ≤ (X k).left ∧ (X k).left ≤ (X k).right ∧ (X k).right ≤ 1 := by
-    intro k
+  have hX_bounds (k : Fin 3) : 0 ≤ (X k).left ∧ (X k).left ≤ (X k).right ∧ (X k).right ≤ 1 := by
     fin_cases k
     exacts [⟨le_rfl, hc1_0, hc2_c1.trans hc2_1⟩, ⟨hc1_0, hc2_c1, hc2_1⟩,
       ⟨hc1_0.trans hc2_c1, hc2_1, le_rfl⟩]
@@ -520,9 +510,7 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
     set q0 := thirdFin3 q2 q1
     have hu1_tie_eq : u1 p0 = u1 p1 := le_antisymm htie hu1_p1_le_p0
     have hq1_val : u1 q1 = u1 p0 := by
-      dsimp only [q1, bestOther]
-      split_ifs
-      exacts [rfl, hu1_tie_eq.symm]
+      by_cases hq : σ1 0 ≠ q2 <;> simp [q1, bestOther, σ1, p0, p1, hq, hu1_tie_eq]
     have h1_fav (k : Fin 3) : (v 1).pieceVal (X k) ≤ (v 1).pieceVal (X q1) := by
       simpa only [hu1_eq] using (hq1_val ▸ hu1_top k : u1 k ≤ u1 q1)
     have h2_fav (k : Fin 3) : (v 2).pieceVal (X k) ≤ (v 2).pieceVal (X q2) :=
@@ -566,19 +554,15 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
     have hv2_Y_le (k : Fin 3) : (v 2).pieceVal (Y k) ≤ (v 2).pieceVal (Y q2) :=
       (congrFun hu2_eq k).symm.le.trans ((le_topChoice u2 k).trans (congrFun hu2_eq q2).le)
     set q1 : Fin 3 := if q2 = p0 then p1 else p0
-    have hq21 : q2 ≠ q1 := by
-      dsimp only [q1]
-      split_ifs with hq
-      exacts [hq ▸ hp0_ne_p1, hq]
+    have hq21 : q2 ≠ q1 := by by_cases hq : q2 = p0 <;> simp [q1, hq, hp0_ne_p1]
     have hv1_Y_q1 : (v 1).pieceVal (Y q1) = u1 p1 := by
       by_cases hq : q2 = p0 <;> simp only [q1, hq, ↓reduceIte, hv1_Y_p1, hv1_Y_p0]
     set q0 := thirdFin3 q2 q1
     -- Player 0 always receives an untrimmed piece Y q0 = X q0 of value 1 / 3.
     have hq0_ne_p0 : q0 ≠ p0 := by
       by_cases hq : q2 = p0
-      · rw [← hq]; exact thirdFin3_ne_left hq21
-      · have hq1_eq : q1 = p0 := by simp only [q1, hq, ↓reduceIte]
-        rw [← hq1_eq]; exact thirdFin3_ne_right hq21
+      · exact hq ▸ thirdFin3_ne_left hq21
+      · exact (ite_eq_right hq : q1 = p0) ▸ thirdFin3_ne_right hq21
     have hv0_Y_q0 : (v 0).pieceVal (Y q0) = 1 / 3 := by
       simpa only [Y, scTrimmedPieces, hq0_ne_p0, ↓reduceIte] using hv0_X q0
     -- Phase 2: pd divides [t, r] into three equal pieces of value w_pd / 3.
@@ -593,12 +577,11 @@ theorem isEnvyFree_selfridgeConwayQ {v : Fin 3 → CakeValuation}
     set u_cut1 := (RWQuery.cutIn pd t r (w_pd / 3)).eval oracle
     set u_cut2 := (RWQuery.cutIn pd u_cut1 r (w_pd / 3)).eval oracle
     set T_sub := scTrimSubPieces t u_cut1 u_cut2 r
-    have hT_nonneg : ∀ (i : Fin 3) (m : Fin 3), 0 ≤ (v i).pieceVal (T_sub m) := by
-      intro i m
+    have hT_nonneg (i m : Fin 3) : 0 ≤ (v i).pieceVal (T_sub m) := by
       fin_cases m
-      · exact (v i).val_nonneg ht0 (hu1_r.trans hr1)
-      · exact (v i).val_nonneg (ht0.trans hu1_t) (hu2_r.trans hr1)
-      · exact (v i).val_nonneg ((ht0.trans hu1_t).trans hu2_u1) hr1
+      exacts [(v i).val_nonneg ht0 (hu1_r.trans hr1),
+        (v i).val_nonneg (ht0.trans hu1_t) (hu2_r.trans hr1),
+        (v i).val_nonneg ((ht0.trans hu1_t).trans hu2_u1) hr1]
     -- Phase 2 choices: pa chooses first (s_pa), Player 0 second (s_0), pd last (s_pd).
     have hw_pa_eq : (evalThree pa T_sub).eval oracle = fun m => (v pa).pieceVal (T_sub m) :=
       eval_evalThree ho pa T_sub

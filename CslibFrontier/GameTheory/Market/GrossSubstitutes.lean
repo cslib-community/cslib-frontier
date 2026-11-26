@@ -150,10 +150,8 @@ theorem SatisfiesWalrasLaw.isWalrasianEquilibrium_iff_eq_zero [Fintype G] {Z : (
 theorem IsHomogeneousDegZero.isWalrasianEquilibrium_smul {Z : (G → ℝ) → G → ℝ}
     (hH : IsHomogeneousDegZero Z) {p : G → ℝ} (heq : IsWalrasianEquilibrium Z p)
     {c : ℝ} (hc : 0 < c) :
-    IsWalrasianEquilibrium Z (c • p) := by
-  refine ⟨fun g => mul_pos hc (heq.1 g), fun g => ?_⟩
-  rw [hH hc heq.1]
-  exact heq.2 g
+    IsWalrasianEquilibrium Z (c • p) :=
+  ⟨fun g => mul_pos hc (heq.1 g), fun g => (hH hc heq.1).symm ▸ heq.2 g⟩
 
 /-- **Weak gross substitutability (WGS)** ([CodenottiVaradarajan2007], Section 6.1.4, p. 138):
 whenever prices move from `p > 0` to `p' ≥ p`, the excess demand of any good `g` whose price remains
@@ -247,9 +245,8 @@ theorem monotone_sortedPriceRatio (pHat p : G → ℝ) :
     Monotone
       (fun s => p (sortedPriceRatioEquiv pHat p s) / pHat (sortedPriceRatioEquiv pHat p s)) := by
   intro s₁ s₂ h
-  unfold sortedPriceRatioEquiv
-  let e := Fintype.equivFin G
-  exact Tuple.monotone_sort (fun s => p (e.symm s) / pHat (e.symm s)) h
+  exact Tuple.monotone_sort
+    (fun s => p ((Fintype.equivFin G).symm s) / pHat ((Fintype.equivFin G).symm s)) h
 
 /-- Componentwise minimum `min (α * pHat g) (p g)` used as the intermediate hybrid price vector
 `q^s` in [CodenottiVaradarajan2007], Lemma 6.7, p. 145. -/
@@ -262,21 +259,18 @@ omit [Fintype G] in
 
 omit [Fintype G] in
 theorem hybridPrice_pos {pHat p : G → ℝ} {α : ℝ} (hpHat : ∀ g, 0 < pHat g) (hp : ∀ g, 0 < p g)
-    (hα : 0 < α) (g : G) : 0 < hybridPrice pHat p α g := by
-  rw [hybridPrice_apply]
-  exact lt_min (mul_pos hα (hpHat g)) (hp g)
+    (hα : 0 < α) (g : G) : 0 < hybridPrice pHat p α g :=
+  lt_min (mul_pos hα (hpHat g)) (hp g)
 
 omit [Fintype G] in
 theorem hybridPrice_le_smul (pHat p : G → ℝ) (α : ℝ) (g : G) :
-    hybridPrice pHat p α g ≤ (α • pHat) g := by
-  rw [hybridPrice_apply]
-  exact min_le_left _ _
+    hybridPrice pHat p α g ≤ (α • pHat) g :=
+  min_le_left _ _
 
 omit [Fintype G] in
 theorem hybridPrice_mono (pHat p : G → ℝ) {α₁ α₂ : ℝ} (hα : α₁ ≤ α₂) (hpHat : ∀ g, 0 ≤ pHat g)
-    (g : G) : hybridPrice pHat p α₁ g ≤ hybridPrice pHat p α₂ g := by
-  rw [hybridPrice_apply, hybridPrice_apply]
-  exact min_le_min_right (p g) (mul_le_mul_of_nonneg_right hα (hpHat g))
+    (g : G) : hybridPrice pHat p α₁ g ≤ hybridPrice pHat p α₂ g :=
+  min_le_min_right (p g) (mul_le_mul_of_nonneg_right hα (hpHat g))
 
 theorem hybridPrice_sorted_of_le {pHat p : G → ℝ} (hpHat : ∀ g, 0 < pHat g)
     {s t : Fin (Fintype.card G)} (ht : t ≤ s) :
@@ -310,8 +304,7 @@ theorem hybridPrice_last_eq {pHat p : G → ℝ} (hpHat : ∀ g, 0 < pHat g)
   intro σ sLast
   funext g
   obtain ⟨t, rfl⟩ := σ.surjective g
-  have hle : t ≤ sLast := Nat.le_sub_one_of_lt t.isLt
-  exact hybridPrice_sorted_of_le hpHat hle
+  exact hybridPrice_sorted_of_le hpHat (Nat.le_sub_one_of_lt t.isLt)
 
 /-- At step `s`, WGS against `α_s • pHat` implies `Z q^s (σ t) ≤ 0` for all `t ≥ s`
 ([CodenottiVaradarajan2007], Lemma 6.7 proof, p. 145). -/
@@ -324,13 +317,9 @@ theorem excessDemand_hybridPrice_nonpos_of_ge {Z : (G → ℝ) → G → ℝ}
   intro σ
   set αs := p (σ s) / pHat (σ s)
   have hαs : 0 < αs := div_pos (hp (σ s)) (heq.1 (σ s))
-  have hq_pos : ∀ g, 0 < hybridPrice pHat p αs g := hybridPrice_pos heq.1 hp hαs
-  have hq_le : ∀ g, hybridPrice pHat p αs g ≤ (αs • pHat) g := hybridPrice_le_smul pHat p αs
-  have hq_eq : (αs • pHat) (σ t) = hybridPrice pHat p αs (σ t) :=
+  have hwgs := hWGS (hybridPrice_pos heq.1 hp hαs) (hybridPrice_le_smul pHat p αs) (σ t)
     (hybridPrice_sorted_of_ge heq.1 ht).symm
-  have hwgs := hWGS hq_pos hq_le (σ t) hq_eq
-  rw [hH hαs heq.1, hW.eq_zero_of_isWalrasianEquilibrium heq] at hwgs
-  exact hwgs
+  rwa [hH hαs heq.1, hW.eq_zero_of_isWalrasianEquilibrium heq] at hwgs
 
 /-- Between consecutive hybrid levels `s` and `s' = s + 1`, WGS implies that excess demand on the
 head `{t | t ≤ s}` is nondecreasing (`Z q^s (σ t) ≤ Z q^{s'} (σ t)`). -/
@@ -342,16 +331,11 @@ theorem excessDemand_hybridPrice_le_succ_of_le {Z : (G → ℝ) → G → ℝ}
     Z (hybridPrice pHat p (p (σ s) / pHat (σ s))) (σ t) ≤
       Z (hybridPrice pHat p (p (σ s') / pHat (σ s'))) (σ t) := by
   intro σ
-  set αs := p (σ s) / pHat (σ s)
-  set αs' := p (σ s') / pHat (σ s')
-  have hαs : 0 < αs := div_pos (hp (σ s)) (hpHat (σ s))
-  have hα_le : αs ≤ αs' := monotone_sortedPriceRatio pHat p hss'
-  have hq_pos : ∀ g, 0 < hybridPrice pHat p αs g := hybridPrice_pos hpHat hp hαs
-  have hq_le : ∀ g, hybridPrice pHat p αs g ≤ hybridPrice pHat p αs' g :=
-    hybridPrice_mono pHat p hα_le fun g => (hpHat g).le
-  have hq_eq : hybridPrice pHat p αs' (σ t) = hybridPrice pHat p αs (σ t) := by
-    rw [hybridPrice_sorted_of_le hpHat (ht.trans hss'), hybridPrice_sorted_of_le hpHat ht]
-  exact hWGS hq_pos hq_le (σ t) hq_eq
+  have hq_pos := hybridPrice_pos hpHat hp (div_pos (hp (σ s)) (hpHat (σ s)))
+  have hq_le :=
+    hybridPrice_mono pHat p (monotone_sortedPriceRatio pHat p hss') fun g => (hpHat g).le
+  refine hWGS hq_pos hq_le (σ t) ?_
+  rw [hybridPrice_sorted_of_le hpHat (ht.trans hss'), hybridPrice_sorted_of_le hpHat ht]
 
 /-- Exact algebraic identity underlying Equation `(6.5)` of [CodenottiVaradarajan2007], Lemma 6.7,
 p. 145: for consecutive sorted indices `s` and `s'` (`s'.val = s.val + 1`), Walras's law on `q^{s'}`
@@ -385,31 +369,28 @@ private theorem hybridPrice_step_identity {Z : (G → ℝ) → G → ℝ} (hW : 
   rw [hpHat_diff, mul_sum]
   have hpart : ∀ f : Fin (Fintype.card G) → ℝ,
       ∑ t : Fin (Fintype.card G), f t =
-        (∑ t ∈ univ.filter (· ≤ s), f t) + (∑ t ∈ univ.filter (s < ·), f t) := by
-    intro f
-    rw [← sum_filter_add_sum_filter_not univ (· ≤ s) f]
-    simp only [not_le]
+        (∑ t ∈ univ.filter (· ≤ s), f t) + (∑ t ∈ univ.filter (s < ·), f t) := fun f => by
+    simpa only [not_le] using (sum_filter_add_sum_filter_not univ (· ≤ s) f).symm
   rw [hpart] at hdiff0 ⊢
   have hhead : ∑ t ∈ univ.filter (· ≤ s),
       (q s' (σ t) * Z (q s') (σ t) - q s (σ t) * Z (q s) (σ t)) =
-      ∑ t ∈ univ.filter (· ≤ s), p (σ t) * (Z (q s') (σ t) - Z (q s) (σ t)) := by
-    refine sum_congr rfl fun t ht => ?_
-    have hts : t ≤ s := (mem_filter.1 ht).2
-    have hts' : t ≤ s' := le_trans hts (Nat.le_of_lt (by omega : s.val < s'.val))
-    have h1 : q s' (σ t) = p (σ t) := hybridPrice_sorted_of_le hpHat hts'
-    have h2 : q s (σ t) = p (σ t) := hybridPrice_sorted_of_le hpHat hts
-    rw [h1, h2]
-    ring
+      ∑ t ∈ univ.filter (· ≤ s), p (σ t) * (Z (q s') (σ t) - Z (q s) (σ t)) :=
+    sum_congr rfl fun t ht => by
+      have hts : t ≤ s := (mem_filter.1 ht).2
+      have hts' : t ≤ s' := hts.trans (Fin.le_def.2 (by omega))
+      dsimp only [q, α, σ]
+      rw [hybridPrice_sorted_of_le (p := p) hpHat hts',
+        hybridPrice_sorted_of_le (p := p) hpHat hts, mul_sub]
   have htail : ∑ t ∈ univ.filter (s < ·),
       (q s' (σ t) * Z (q s') (σ t) - q s (σ t) * Z (q s) (σ t)) =
       ∑ t ∈ univ.filter (s < ·),
-        (α s' * pHat (σ t) * Z (q s') (σ t) - α s * pHat (σ t) * Z (q s) (σ t)) := by
-    refine sum_congr rfl fun t ht => ?_
-    have hst : s < t := (mem_filter.1 ht).2
-    have hs't : s' ≤ t := Fin.le_def.2 (hsucc ▸ Nat.succ_le_of_lt hst)
-    have h1 : q s' (σ t) = α s' * pHat (σ t) := hybridPrice_sorted_of_ge hpHat hs't
-    have h2 : q s (σ t) = α s * pHat (σ t) := hybridPrice_sorted_of_ge hpHat hst.le
-    rw [h1, h2]
+        (α s' * pHat (σ t) * Z (q s') (σ t) - α s * pHat (σ t) * Z (q s) (σ t)) :=
+    sum_congr rfl fun t ht => by
+      have hst : s < t := (mem_filter.1 ht).2
+      have hs't : s' ≤ t := Fin.le_def.2 (hsucc ▸ Nat.succ_le_of_lt hst)
+      dsimp only [q, α, σ]
+      rw [hybridPrice_sorted_of_ge (p := p) hpHat hs't,
+        hybridPrice_sorted_of_ge (p := p) hpHat hst.le]
   rw [hhead, htail] at hdiff0
   have hhead_sub :
       (∑ t ∈ univ.filter (· ≤ s), α s' * (pHat (σ t) * (Z (q s') (σ t) - Z (q s) (σ t)))) -
@@ -417,14 +398,14 @@ private theorem hybridPrice_step_identity {Z : (G → ℝ) → G → ℝ} (hW : 
       ∑ t ∈ univ.filter (· ≤ s),
         (α s' * pHat (σ t) - p (σ t)) * (Z (q s') (σ t) - Z (q s) (σ t)) := by
     rw [← sum_sub_distrib]
-    exact sum_congr rfl fun t _ => by ring
+    exact sum_congr rfl fun _ _ => by ring
   have htail_sub :
       (∑ t ∈ univ.filter (s < ·), α s' * (pHat (σ t) * (Z (q s') (σ t) - Z (q s) (σ t)))) -
       (∑ t ∈ univ.filter (s < ·),
         (α s' * pHat (σ t) * Z (q s') (σ t) - α s * pHat (σ t) * Z (q s) (σ t))) =
       - (∑ t ∈ univ.filter (s < ·), (α s' - α s) * pHat (σ t) * Z (q s) (σ t)) := by
     rw [← sum_neg_distrib, ← sum_sub_distrib]
-    exact sum_congr rfl fun t _ => by ring
+    exact sum_congr rfl fun _ _ => by ring
   linarith
 
 /-- **Equation `(6.5)`** of [CodenottiVaradarajan2007], Lemma 6.7, p. 145: for consecutive sorted
@@ -448,13 +429,10 @@ theorem expenditure_hybridPrice_step_ge {Z : (G → ℝ) → G → ℝ}
   have hα_le : α s ≤ α s' := monotone_sortedPriceRatio pHat p hss'
   have hid := hybridPrice_step_identity hW heq.1 hp hsucc
   have htail_nonpos :
-      ∑ t ∈ univ.filter (s < ·), (α s' - α s) * pHat (σ t) * Z (q s) (σ t) ≤ 0 := by
-    refine sum_nonpos fun t ht => ?_
-    have hst : s < t := (mem_filter.1 ht).2
-    have h1 : 0 ≤ (α s' - α s) * pHat (σ t) :=
-      mul_nonneg (sub_nonneg.2 hα_le) (heq.1 (σ t)).le
-    have h2 : Z (q s) (σ t) ≤ 0 := excessDemand_hybridPrice_nonpos_of_ge hH hW hWGS heq hp hst.le
-    exact mul_nonpos_of_nonneg_of_nonpos h1 h2
+      ∑ t ∈ univ.filter (s < ·), (α s' - α s) * pHat (σ t) * Z (q s) (σ t) ≤ 0 :=
+    sum_nonpos fun t ht => mul_nonpos_of_nonneg_of_nonpos
+      (mul_nonneg (sub_nonneg.2 hα_le) (heq.1 (σ t)).le)
+      (excessDemand_hybridPrice_nonpos_of_ge hH hW hWGS heq hp (mem_filter.1 ht).2.le)
   have hhead_ge :
       (α s' - α s) *
           (∑ t ∈ univ.filter (· ≤ s), pHat (σ t) * (Z (q s') (σ t) - Z (q s) (σ t))) ≤
@@ -463,27 +441,19 @@ theorem expenditure_hybridPrice_step_ge {Z : (G → ℝ) → G → ℝ}
     rw [mul_sum]
     refine sum_le_sum fun t ht => ?_
     have hts : t ≤ s := (mem_filter.1 ht).2
-    have hdiff_nn : 0 ≤ Z (q s') (σ t) - Z (q s) (σ t) :=
-      sub_nonneg.2 (excessDemand_hybridPrice_le_succ_of_le hWGS heq.1 hp hss' hts)
-    have hαt_le : α t ≤ α s := monotone_sortedPriceRatio pHat p hts
-    have hp_eq : p (σ t) = α t * pHat (σ t) :=
-      (div_mul_cancel₀ (p (σ t)) (heq.1 (σ t)).ne').symm
     have hcoef : (α s' - α s) * pHat (σ t) ≤ α s' * pHat (σ t) - p (σ t) := by
-      rw [hp_eq]
-      nlinarith [heq.1 (σ t)]
-    have : ((α s' - α s) * pHat (σ t)) * (Z (q s') (σ t) - Z (q s) (σ t)) ≤
-        (α s' * pHat (σ t) - p (σ t)) * (Z (q s') (σ t) - Z (q s) (σ t)) :=
-      mul_le_mul_of_nonneg_right hcoef hdiff_nn
+      have hp_eq : p (σ t) = α t * pHat (σ t) :=
+        (div_mul_cancel₀ (p (σ t)) (heq.1 (σ t)).ne').symm
+      have hαt_le : α t ≤ α s := monotone_sortedPriceRatio pHat p hts
+      linarith [mul_le_mul_of_nonneg_right hαt_le (heq.1 (σ t)).le]
+    simpa only [mul_assoc] using mul_le_mul_of_nonneg_right hcoef
+      (sub_nonneg.2 (excessDemand_hybridPrice_le_succ_of_le hWGS heq.1 hp hss' hts))
+  have hdiv : ((α s' - α s) / α s') *
+      (∑ t ∈ univ.filter (· ≤ s), pHat (σ t) * (Z (q s') (σ t) - Z (q s) (σ t))) ≤
+      expenditure pHat (Z (q s')) - expenditure pHat (Z (q s)) := by
+    rw [div_mul_eq_mul_div, div_le_iff₀ hαs']
     linarith
-  have hmul :
-      (α s' - α s) *
-          (∑ t ∈ univ.filter (· ≤ s), pHat (σ t) * (Z (q s') (σ t) - Z (q s) (σ t))) ≤
-        (expenditure pHat (Z (q s')) - expenditure pHat (Z (q s))) * α s' := by
-    linarith
-  have hdiv := (div_le_iff₀ hαs').2 hmul
-  have hratio : (α s' - α s) / α s' = 1 - α s / α s' := by
-    rw [sub_div, div_self hαs'.ne']
-  simpa only [mul_div_right_comm, hratio] using hdiv
+  rwa [sub_div, div_self hαs'.ne'] at hdiv
 
 theorem expenditure_hybridPrice_step_nonneg {Z : (G → ℝ) → G → ℝ}
     (hH : IsHomogeneousDegZero Z) (hW : SatisfiesWalrasLaw Z) (hWGS : IsWeakGrossSubstitutes Z)
@@ -715,11 +685,8 @@ theorem cobbDouglasUtility_smul {α b : G → ℝ} (hα_sum : ∑ g : G, α g = 
     (hb : ∀ g, 0 ≤ b g) {c : ℝ} (hc : 0 < c) :
     cobbDouglasUtility α (c • b) = c * cobbDouglasUtility α b := by
   simp only [cobbDouglasUtility, Pi.smul_apply, smul_eq_mul]
-  have hmul : ∀ g : G, (c * b g) ^ α g = c ^ α g * (b g) ^ α g :=
-    fun g => Real.mul_rpow hc.le (hb g)
-  simp_rw [hmul, prod_mul_distrib]
-  congr 1
-  rw [← Real.rpow_sum_of_pos hc, hα_sum, Real.rpow_one]
+  simp_rw [fun g => Real.mul_rpow hc.le (hb g), prod_mul_distrib, ← Real.rpow_sum_of_pos hc,
+    hα_sum, Real.rpow_one]
 
 /-- Explicit **Cobb–Douglas Marshallian demand** `α g * m / p g` ([CodenottiVaradarajan2007],
 Section 6.1.5, p. 139; Exercise 6.1, p. 158): a Cobb–Douglas consumer spends fraction `α g` of
@@ -735,10 +702,8 @@ theorem expenditure_cobbDouglasDemand {α p : G → ℝ} (hα_sum : ∑ g : G, �
     (hp : ∀ g, 0 < p g) (m : ℝ) :
     expenditure p (cobbDouglasDemand α p m) = m := by
   rw [expenditure_eq_sum]
-  have hterm : ∀ g : G, p g * cobbDouglasDemand α p m g = α g * m := fun g => by
-    simp only [cobbDouglasDemand_apply]
-    exact mul_div_cancel₀ (α g * m) (hp g).ne'
-  simp_rw [hterm, ← sum_mul, hα_sum, one_mul]
+  simp_rw [cobbDouglasDemand_apply, fun g => mul_div_cancel₀ (α g * m) (hp g).ne',
+    ← sum_mul, hα_sum, one_mul]
 
 /-- At strictly positive prices, `0` is the unique bundle budget-feasible within income `0`. -/
 theorem IsBudgetFeasible.eq_zero_of_zero {p b : G → ℝ}

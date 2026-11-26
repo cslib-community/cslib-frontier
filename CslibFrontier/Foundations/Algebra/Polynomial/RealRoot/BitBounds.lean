@@ -251,19 +251,12 @@ theorem mignotteBisectionDepth_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : Ha
   by_cases hd : 2 ≤ (ofCoeffList cs).natDegree
   · have hbase := mignotteBisectionDepth_le cs hd
     have hcb := clog4_cauchyBoundNat_le_of_bitBound hB
-    have hsn := clog4_sqNormList_le_of_bitBound hB
     have hd_le_n : (ofCoeffList cs).natDegree ≤ cs.length :=
       (natDegree_ofCoeffList_le cs).trans (Nat.sub_le _ _)
-    have hclog_d : Nat.clog 4 (ofCoeffList cs).natDegree ≤ cs.length :=
-      Nat.clog_le_of_le_pow (hd_le_n.trans
-        (Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_left (by decide : 2 ≤ 4) cs.length)))
-    have h1 : ((ofCoeffList cs).natDegree + 2) * Nat.clog 4 (ofCoeffList cs).natDegree ≤
-        (cs.length + 2) * cs.length :=
-      Nat.mul_le_mul (Nat.add_le_add_right hd_le_n 2) hclog_d
-    have h2 : ((ofCoeffList cs).natDegree - 1) *
-          Nat.clog 4 (sqNormList (Prod.snd (clearDenomsList (CoeffList.trim cs)))) ≤
-        cs.length * (cs.length + (cs.length + 1) * B) :=
-      Nat.mul_le_mul ((Nat.sub_le _ _).trans hd_le_n) hsn
+    have h1 := Nat.mul_le_mul (Nat.add_le_add_right hd_le_n 2)
+      (Nat.clog_le_of_le_pow (b := 4) (hd_le_n.trans
+        (Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_left (by decide) cs.length))))
+    have h2 := Nat.mul_le_mul ((Nat.sub_le _ 1).trans hd_le_n) (clog4_sqNormList_le_of_bitBound hB)
     nlinarith
   · rw [mignotteBisectionDepth_eq_zero_of_natDegree_le_one (by omega)]
     exact Nat.zero_le _
@@ -375,8 +368,7 @@ theorem isolateIoc_dyadicBounded (t : List ℚ) (seq : List (List ℚ)) (depthBo
     dsimp only
     split_ifs with hc0 hc1
     · simp
-    · rintro I hI
-      obtain rfl := List.mem_singleton.mp hI
+    · simp only [List.mem_singleton, forall_eq]
       have href := refineLeftRoot_dyadicBounded t seq depthBound b e u v vu hu hv
       exact ⟨href.1.mono (by omega), href.2.mono (by omega)⟩
     · cases fuel with
@@ -384,11 +376,11 @@ theorem isolateIoc_dyadicBounded (t : List ℚ) (seq : List (List ℚ)) (depthBo
       | succ fuel' =>
         have hm : DyadicBounded b (e + 1) ((u + v) / 2) := hu.mid hv
         intro I hI
-        have heq : e + 1 + fuel' + depthBound = e + (fuel' + 1) + depthBound := by omega
+        rw [← Nat.add_assoc e fuel' 1, Nat.add_right_comm e fuel' 1]
         rcases List.mem_append.mp hI with hL | hR
-        · simpa only [heq] using isolateIoc_dyadicBounded t seq depthBound fuel' b (e + 1) u
+        · exact isolateIoc_dyadicBounded t seq depthBound fuel' b (e + 1) u
             ((u + v) / 2) vu _ (hu.mono (by omega)) hm I hL
-        · simpa only [heq] using isolateIoc_dyadicBounded t seq depthBound fuel' b (e + 1)
+        · exact isolateIoc_dyadicBounded t seq depthBound fuel' b (e + 1)
             ((u + v) / 2) v _ vv hm (hv.mono (by omega)) I hR
 
 /-- Unconditional dyadic endpoint bound: every interval in `isolateRoots cs` has endpoints of the

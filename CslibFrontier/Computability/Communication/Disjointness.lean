@@ -188,11 +188,9 @@ theorem card_parts (hU : Fintype.card U = 2 * m + 1) :
     #(parts U m) = #(powersetCard m (univ : Finset U)) * (m + 1) := by
   rw [card_eq_sum_ones, sum_parts hU]
   simp only [sum_const, smul_eq_mul, mul_one]
-  rw [sum_congr rfl fun Ty hTy => by
-    rw [card_compl, hU, (mem_powersetCard.mp hTy).2]]
-  rw [sum_const, smul_eq_mul]
-  congr 1
-  omega
+  rw [sum_congr rfl fun Ty hTy => by rw [card_compl, hU, (mem_powersetCard.mp hTy).2],
+    sum_const, smul_eq_mul]
+  exact congrArg (_ * ·) (by omega)
 
 /-- There is a partition. -/
 private theorem card_parts_pos (hU : Fintype.card U = 2 * m + 1) :
@@ -285,9 +283,7 @@ private theorem four_mul_sum_filter_le (hU : Fintype.card U = 2 * m + 1)
   rw [hconst, ← sum_add_distrib]
   refine sum_le_sum fun Ty hTy => ?_
   have hTy : #Ty = m := (mem_powersetCard.mp hTy).2
-  have hS : #Tyᶜ = m + 1 := by
-    simp only [card_compl, hU, hTy]
-    omega
+  have hS : #Tyᶜ = m + 1 := by simp only [card_compl, hU, hTy]; omega
   have hb : (low B Ty : ℝ) ≤ 2 ^ m := by exact_mod_cast hTy ▸ low_le_two_pow B Ty
   have hKL := four_mul_sum_card_filter_notMem_le A Tyᶜ (r := r) (j := 12 * r) (by omega)
   rw [hS] at hKL
@@ -295,10 +291,7 @@ private theorem four_mul_sum_filter_le (hU : Fintype.card U = 2 * m + 1)
   simp only [low_compl_insert, high]
   rw [← sum_filter, ← sum_mul, ← sum_mul]
   have hb0 : (0 : ℝ) ≤ low B Ty := Nat.cast_nonneg _
-  have h1 := mul_le_mul_of_nonneg_right hKL hb0
-  rw [add_mul] at h1
-  have h2 := two_pow_succ_mul_slack_mul_le hr hb0 hb
-  linarith
+  linarith [mul_le_mul_of_nonneg_right hKL hb0, two_pow_succ_mul_slack_mul_le hr hb0 hb]
 
 /-- **The corruption inequality over partitions.** Over the partitions `⟨i, Tx, Ty⟩` of `2 m + 1`
 points, the members of `A` inside `Tx` times the members of `B` inside `Ty` add up to at most `18`
@@ -336,10 +329,7 @@ private theorem sum_low_mul_low_le (hU : Fintype.card U = 2 * m + 1) (A B : Fins
       linarith
   have h := sum_le_sum hpt
   rw [sum_add_distrib, sum_add_distrib, ← mul_sum] at h
-  have hcomm : ∑ T ∈ parts U m, (low B T.right : ℝ) * low A T.left =
-      ∑ T ∈ parts U m, (low A T.left : ℝ) * low B T.right :=
-    sum_congr rfl fun _ _ => mul_comm _ _
-  rw [hcomm] at hY
+  rw [sum_congr rfl fun _ _ => mul_comm _ _] at hY
   linarith
 
 /-! ### The hard distribution -/
@@ -432,11 +422,8 @@ private theorem sum_sum_ite_hardWeight' (A B : Finset (Finset U)) :
     (fun T y => T.point ∈ y ∧ y ⊆ T.leftᶜ) _
 
 private theorem low_univ (s : Finset U) : low univ s = 2 ^ #s := by
-  unfold low
-  rw [← card_powerset]
-  congr 1
-  ext x
-  simp only [mem_filter, mem_univ, true_and, mem_powerset]
+  rw [low, ← card_powerset]
+  exact congrArg card (ext fun _ => by simp only [mem_filter, mem_univ, true_and, mem_powerset])
 
 private theorem high_univ {i : U} {s : Finset U} (hi : i ∉ s) :
     high univ i s = 2 ^ (#sᶜ - 1) := by
@@ -656,13 +643,10 @@ theorem PublicCoin.le_mul_ecomplexityFun_disjointness_add_of_le {ε : ℝ} (hε 
   | top => simp
   | coe c =>
     rw [h] at h2
-    have h3 : (((m + 1) / 48 : ℕ) : ℕ∞) ≤ ((5 * c + 29 : ℕ) : ℕ∞) := by
-      refine h1.trans ?_
-      push_cast
-      gcongr
-    have h4 : (m + 1) / 48 ≤ 5 * c + 29 := by exact_mod_cast h3
-    have : n ≤ 2 ^ 9 * c + 2 ^ 12 := by omega
-    exact_mod_cast this
+    have h3 : (m + 1) / 48 ≤ 5 * c + 29 :=
+      Nat.cast_le (α := ℕ∞).mp
+        (h1.trans (by simpa using add_le_add_left (mul_le_mul_right h2 5) 29))
+    exact_mod_cast (by omega : n ≤ 2 ^ 9 * c + 2 ^ 12)
 
 /-- **Disjointness needs `Ω(n)` bits with public coins** [Kalyanasundaram and
 Schnitger][KalyanasundaramSchnitger1992], [Razborov1992]: a public-coin protocol deciding whether

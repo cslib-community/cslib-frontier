@@ -264,12 +264,9 @@ private theorem testHandler_gCache_subset (S : Scheme PK SK M R CT K)
   rcases q with m | ⟨_ | _, m, c⟩ | c
   · exact simHashG_gCache_subset hx
   · obtain ⟨z, hz, heq⟩ := mem_support_testHashH S m c _ st x hx
-    rw [heq]
-    exact simHashG_gCache_subset hz
-  · intro e he
-    rwa [simHashHRaw_gCache_eq _ _ _ _ hx]
-  · intro e he
-    rwa [testHandler_decaps_gCache_eq S d cStar t c st x hx]
+    exact heq ▸ simHashG_gCache_subset hz
+  · exact fun e he => simHashHRaw_gCache_eq _ _ _ _ hx ▸ he
+  · exact fun e he => testHandler_decaps_gCache_eq S d cStar t c st x hx ▸ he
 
 private theorem testHandler_bad_le [Fintype M] [Nonempty M] (S : Scheme PK SK M R CT K)
     (d : List (M × R) → CT → Bool) (pk : PK)
@@ -325,7 +322,7 @@ private theorem testHandler_run_bad_le [Fintype M] [Nonempty M] (S : Scheme PK S
         (fun q st => ProbComp.eval (S.testHandler d cStar t q st)) prog).run st).toOuterMeasure
         {x | ¬GoodCache S.pke pk sk x.2} ≤
       k * ENNReal.ofReal (S.pke.keyPairMaxFailProb pk sk) := by
-  have h := OracleComp.toOuterMeasure_bad_le_two
+  simpa only [mul_zero, add_zero, Nat.cast_zero] using OracleComp.toOuterMeasure_bad_le_two
     (handler := fun q st => ProbComp.eval (S.testHandler d cStar t q st))
     (bad := fun st => ¬GoodCache S.pke pk sk st) ROQuery.ghCost (fun _ => 0)
     (fun _ => ENNReal.ofReal (S.pke.keyPairMaxFailProb pk sk)) 0 0 0
@@ -334,7 +331,6 @@ private theorem testHandler_run_bad_le [Fintype M] [Nonempty M] (S : Scheme PK S
         testHandler_bad_le S d pk sk cStar t q (of_not_not hs))
     (fun _ _ _ _ _ _ => by simp) hk
     (OracleComp.IsCostBounded.of_forall_cost_eq_zero (fun _ => rfl) prog) (not_not.mpr hs)
-  simpa only [mul_zero, add_zero, Nat.cast_zero] using h
 
 /-- **The coupled and keyless handlers agree until a cached coin fails to decrypt.** Run from a
 state whose cached coins all decrypt correctly, and post-processed by any `next`, a program making
@@ -443,20 +439,15 @@ theorem advantage_coupledFilterGame_simFilterGame_le [Fintype M] [Nonempty M]
       ((qG + qH : ℕ) : ℝ≥0∞) * p) fun rStar _ => ?_).mono ?_
   swap
   · simp only [mul_add, tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
-    have hfail : ∑' r, ProbComp.eval S.pke.sampleCoins r *
-        (if S.pke.dec sk (S.pke.encDet pk mStar r) = some mStar then 0 else 1) =
-        ENNReal.ofReal (S.pke.msgFailProb pk sk mStar) := by
-      rw [ExplicitCoinPKE.msgFailProb,
+    refine (add_le_add (le_of_eq_of_le ?_ (ENNReal.ofReal_le_ofReal
+      (S.pke.msgFailProb_le_keyPairMaxFailProb pk sk mStar))) le_rfl).trans_eq ?_
+    · rw [ExplicitCoinPKE.msgFailProb,
         ENNReal.ofReal_toReal (Probability.PMF.toOuterMeasure_ne_top _ _),
         PMF.toOuterMeasure_apply]
-      refine tsum_congr fun r => ?_
-      by_cases h : S.pke.dec sk (S.pke.encDet pk mStar r) = some mStar <;>
-        simp [h, Set.indicator]
-    rw [hfail]
-    refine (add_le_add (ENNReal.ofReal_le_ofReal
-      (S.pke.msgFailProb_le_keyPairMaxFailProb pk sk mStar)) le_rfl).trans_eq ?_
-    push_cast
-    ring
+      exact tsum_congr fun r => by
+        by_cases h : S.pke.dec sk (S.pke.encDet pk mStar r) = some mStar <;> simp [h, Set.indicator]
+    · push_cast
+      ring
   by_cases hr : S.pke.dec sk (S.pke.encDet pk mStar rStar) = some mStar
   · rw [ite_eq_left_of_eq_true _ _ (eq_true hr), zero_add,
       eval_coupledHashH_init S pk sk mStar rStar hr,

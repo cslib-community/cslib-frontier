@@ -391,24 +391,21 @@ private theorem terminal_gate_shape {f : BooleanFunction n} {S : State n} (hS : 
   set G := S.gates.min' hne with hG_def
   have hG : G ∈ S.gates := Finset.min'_mem _ _
   have hGs : G ∈ S.gates.sort (· ≤ ·) := (Finset.mem_sort _).2 hG
-  have hargs : ∃ t₁ t₂, (S.gate G).left = .node t₁ ∧ (S.gate G).right = .node t₂ ∧ t₁ ≠ t₂ := by
+  obtain ⟨t₁, t₂, hl, hr, h12⟩ :
+      ∃ t₁ t₂, (S.gate G).left = .node t₁ ∧ (S.gate G).right = .node t₂ ∧ t₁ ≠ t₂ := by
     have hdeg := List.find?_eq_none.1 h1 G hGs
     unfold isDegenerate at hdeg
     rcases hl : (S.gate G).left with b₁ | t₁ <;> rcases hr : (S.gate G).right with b₂ | t₂ <;>
       simp only [hl, hr, not_true_eq_false, decide_eq_true_eq] at hdeg
     exact ⟨t₁, t₂, rfl, rfl, hdeg⟩
-  obtain ⟨t₁, t₂, hl, hr, h12⟩ := hargs
   have hnotgate : ∀ t, (S.gate G).Reads t → t ∉ S.gates := fun t ht htg =>
     absurd (hS.wf.reads_lt G hG t htg ht) (not_lt.2 (Finset.min'_le _ _ htg))
-  have hparam : ∀ t, (S.gate G).Reads t → t ∉ S.aux → t ∈ S.params := fun t ht hta => by
-    have := hS.wf.reads_live G hG t ht
-    simp only [live, Finset.mem_union] at this
-    tauto
-  have hta : ∀ {t}, (S.gate G).Reads t → t ∉ S.aux := fun ht h => by
-    unfold State.auxIn State.auxArg at haux
-    rcases ht with ht | ht <;> rw [ht] at haux <;> simp [h] at haux
-  have ht₁p := hparam t₁ (Or.inl hl) (hta (Or.inl hl))
-  have ht₂p := hparam t₂ (Or.inr hr) (hta (Or.inr hr))
+  have hparam {t : ℕ} (ht : (S.gate G).Reads t) : t ∈ S.params := by
+    have hta : t ∉ S.aux := fun h => by
+      rcases ht with ht | ht <;> simp [State.auxIn, State.auxArg, ht, h] at haux
+    simpa [live, hnotgate t ht, hta] using hS.wf.reads_live G hG t ht
+  have ht₁p := hparam (Or.inl hl)
+  have ht₂p := hparam (Or.inr hr)
   have hnaff : ¬ IsAffineOp (S.gate G).op := by
     have := List.find?_eq_none.1 hm G hGs
     simpa [hl, hr, isGate, hnotgate t₁ (Or.inl hl), hnotgate t₂ (Or.inr hr)] using this
@@ -511,14 +508,10 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
         set L := ((freeParams S).filter (fun x => decide (x ≠ pr.snd))).take d
         obtain ⟨hLp, hLne⟩ := filter_ne_take_props hS hsndF ha
         have hL_not_pr : ∀ x ∈ L, x ≠ p ∧ x ≠ pr.partner p := fun x hx => by
-          have hxF := hLp.2.1 x hx
-          have hx_ne_fst : x ≠ pr.fst := (fst_ne_of_mem_freeParams hS hxF hprm).symm
-          have hx_ne_snd : x ≠ pr.snd := hLne x hx
-          have hp_or : p = pr.fst ∨ p = pr.snd := hprp.imp Eq.symm Eq.symm
-          have hr_or : pr.partner p = pr.fst ∨ pr.partner p = pr.snd :=
-            (pr.contains_partner hprp).imp Eq.symm Eq.symm
-          exact ⟨by rcases hp_or with h | h <;> rw [h] <;> assumption,
-            by rcases hr_or with h | h <;> rw [h] <;> assumption⟩
+          have hxf : x ≠ pr.fst := (fst_ne_of_mem_freeParams hS (hLp.2.1 x hx) hprm).symm
+          have hxs : x ≠ pr.snd := hLne x hx
+          exact ⟨hprp.elim (· ▸ hxf) (· ▸ hxs),
+            (pr.contains_partner hprp).elim (· ▸ hxf) (· ▸ hxs)⟩
         have hr_ne_p : pr.partner p ≠ p := pr.partner_ne hpr_ne hprp
         refine findSome_isSome_of_family C f hf hS
           (fun A y => if y = p then (fixArg (S.gate G) p).1
@@ -543,11 +536,9 @@ theorem findCounterexample_isSome {d : ℕ} (C : Circuit (fullSignature 2 Bool) 
           · subst hsame
             exact ZeroPair.holds_of_eq_partnerBias hprp (by simp [hr_ne_p])
           · have hdisj := hS.pairs_disjoint pr' hpr' pr hprm hsame
-            have h1 : pr'.fst ≠ p := by
-              rcases hprp with h | h <;> rw [← h] <;> [exact hdisj.1; exact hdisj.2.1]
-            have h2 : pr'.fst ≠ pr.partner p := by
-              rcases pr.contains_partner hprp with h | h <;> rw [← h] <;>
-                [exact hdisj.1; exact hdisj.2.1]
+            have h1 : pr'.fst ≠ p := hprp.elim (· ▸ hdisj.1) (· ▸ hdisj.2.1)
+            have h2 : pr'.fst ≠ pr.partner p :=
+              (pr.contains_partner hprp).elim (· ▸ hdisj.1) (· ▸ hdisj.2.1)
             refine ZeroPair.holds_of_eq_bias (x := pr'.fst) (Or.inl rfl) ?_
             rw [ite_eq_right h1, ite_eq_right h2, terminalVal_fst hS L A hpr']
             simp [ZeroPair.bias]

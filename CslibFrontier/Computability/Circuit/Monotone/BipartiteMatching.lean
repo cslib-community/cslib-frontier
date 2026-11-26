@@ -166,9 +166,7 @@ theorem not_hasPerfectMatching_bobGraph (i₀ : Fin m) (y : BitString m) :
     obtain ⟨i, hi, rfl⟩ := mem_map.mp hv
     have hhall : hallSet (e := e) i₀ y (b i) = true := by
       change hallSet i₀ y (.inl (.inl i)) = true
-      rcases mem_insert.mp hi with rfl | hi
-      · simp [hallSet]
-      · simp [hallSet, (mem_filter.mp hi).2.2]
+      rcases mem_insert.mp hi with rfl | hi <;> simp_all [B, hallSet]
     simp only [bobGraph, hhall, Bool.not_true, Bool.false_or] at hw
     rcases w with (j | j) | j <;> simp only [coverSet, Bool.false_eq_true] at hw
     simp only [Bool.and_eq_true, Bool.not_eq_true', decide_eq_false_iff_not] at hw
@@ -200,9 +198,8 @@ sets. -/
 private theorem bobAnswer_aliceMatching (i₀ i : Fin m) (x y : BitString m) :
     bobAnswer i₀ y (.inl (.inl i), aliceMatching (e := e) x (.inl (.inl i))) =
       (decide (i = i₀) && !(x i₀ && y i₀)) := by
-  by_cases h : i = i₀
-  · subst h
-    cases hx : x i <;> cases hy : y i <;> simp [bobAnswer, hx, hy]
+  rcases eq_or_ne i i₀ with rfl | h
+  · cases hx : x i <;> cases hy : y i <;> simp [bobAnswer, hx, hy]
   · simp [bobAnswer, h]
 
 /-- **The symmetry of the reduction.** Exchanging the edges of Alice's matching at `bᵢ₀` and `bℓ`
@@ -385,16 +382,11 @@ private theorem card_filter_repeatedRun_ne_mul_two_pow_le (hk : 0 < k) (x y : Bi
     (· ∈ repeatedRun p h i₀ ⁻¹' {q | ¬disjointness x y = q.run x y})
   by_cases hxy : disjointness x y = true
   · -- On disjoint sets the reduction never errs.
-    have hbad : bad = ∅ := filter_eq_empty_iff.mpr fun σs _ => by
-      simp [repeatedRun, run_oneRun_of_disjointness hp hxy, hxy]
-    simp [hbad]
+    simp [bad, repeatedRun, run_oneRun_of_disjointness hp hxy, hxy]
   by_cases h₀ : x i₀ = true ∧ y i₀ = true
   · -- If `i₀` is in both sets, it never errs either.
     have : Nonempty (Fin k) := ⟨⟨0, hk⟩⟩
-    rw [Bool.not_eq_true] at hxy
-    have hbad : bad = ∅ := filter_eq_empty_iff.mpr fun σs _ => by
-      simp [repeatedRun, run_oneRun_of_mem hp h₀.1 h₀.2, hxy]
-    simp [hbad]
+    simp [bad, repeatedRun, run_oneRun_of_mem hp h₀.1 h₀.2, Bool.eq_false_iff.mpr hxy]
   -- Otherwise it errs only when every run answers `true`.
   obtain ⟨ℓ, hxℓ, hyℓ⟩ : ∃ ℓ, x ℓ = true ∧ y ℓ = true := by
     simpa only [disjointness, decide_eq_true_eq, not_forall, Bool.and_eq_false_iff, not_or,

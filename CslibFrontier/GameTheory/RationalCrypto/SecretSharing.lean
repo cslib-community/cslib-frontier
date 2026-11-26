@@ -448,31 +448,23 @@ private theorem outcomeUtility_withhold_vs_broadcast {S : Finset ι} {i : ι} (h
         R.prefs.outcomeUtility (R.learnedSet S) i = R.prefs.uAll ∧
           R.prefs.outcomeUtility (R.learnedSet (insert i S)) i = R.prefs.uAll) := by
   have hcard : (insert i S).card = S.card + 1 := Finset.card_insert_of_notMem hi
-  refine ⟨fun hlt => ⟨?_, ?_⟩, fun heq => ⟨?_, ?_⟩, fun hge => ⟨?_, ?_⟩⟩
-  · refine R.prefs.outcomeUtility_of_not_mem ?_
-    rw [mem_learnedSet_iff, hcard]
-    omega
-  · rw [R.outcomeUtility_of_mem_broadcast (insert i S) (Finset.mem_insert_self i S), hcard]
-    split_ifs with h
-    · omega
-    · rfl
-  · have hpos : 0 < S.card := by linarith [R.two_le_threshold]
-    obtain ⟨j, hj⟩ := Finset.card_pos.mp hpos
-    have himem : i ∈ R.learnedSet S := by
-      rw [mem_learnedSet_iff, hcard]
-      omega
+  refine ⟨fun hlt => ⟨R.prefs.outcomeUtility_of_not_mem (by rw [mem_learnedSet_iff, hcard]; omega),
+      ?_⟩,
+    fun heq => ⟨?_, ?_⟩,
+    fun hge => ⟨by rw [R.learnedSet_eq_univ_of_threshold_le hge,
+        SecretSharingPrefs.outcomeUtility_univ],
+      by rw [R.learnedSet_eq_univ_of_threshold_le
+          (hge.trans (Finset.card_le_card (Finset.subset_insert i S))),
+        SecretSharingPrefs.outcomeUtility_univ]⟩⟩
+  · rw [R.outcomeUtility_of_mem_broadcast (insert i S) (Finset.mem_insert_self i S), hcard,
+      ite_eq_right (by omega)]
+  · obtain ⟨j, hj⟩ := Finset.card_pos.mp (by linarith [R.two_le_threshold] : 0 < S.card)
+    have himem : i ∈ R.learnedSet S := by rw [mem_learnedSet_iff, hcard]; omega
     have hjnot : j ∉ R.learnedSet S := by
-      rw [mem_learnedSet_iff, Finset.insert_eq_of_mem hj]
-      omega
-    have hne : R.learnedSet S ≠ Finset.univ := fun h => hjnot (h ▸ Finset.mem_univ j)
-    exact R.prefs.outcomeUtility_of_mem_of_ne_univ himem hne
-  · rw [R.outcomeUtility_of_mem_broadcast (insert i S) (Finset.mem_insert_self i S), hcard]
-    split_ifs with h
-    · rfl
-    · omega
-  · rw [R.learnedSet_eq_univ_of_threshold_le hge, SecretSharingPrefs.outcomeUtility_univ]
-  · rw [R.learnedSet_eq_univ_of_threshold_le (hge.trans (by omega : S.card ≤ (insert i S).card)),
-      SecretSharingPrefs.outcomeUtility_univ]
+      rw [mem_learnedSet_iff, Finset.insert_eq_of_mem hj]; omega
+    exact R.prefs.outcomeUtility_of_mem_of_ne_univ himem fun h => hjnot (h ▸ Finset.mem_univ j)
+  · rw [R.outcomeUtility_of_mem_broadcast (insert i S) (Finset.mem_insert_self i S), hcard,
+      ite_eq_left (by omega)]
 
 omit [DecidableEq ι] in
 /-- Existence of a pivotal opponent subset `S ⊆ univ.erase i` of cardinality `threshold - 1`. -/
@@ -534,10 +526,8 @@ theorem withhold_weaklyDominates_broadcast (i : ι) :
       ext j
       simp only [Finset.mem_erase, ne_eq, mem_broadcastSet_iff, decide_eq_true_eq]
       exact ⟨fun h => h.2, fun hj => ⟨fun hji => hiS (hji ▸ hj), hj⟩⟩
-    simp only [simultaneousGame, broadcastSet_update_false, broadcastSet_update_true, hBS]
-    obtain ⟨_, heq, _⟩ := R.outcomeUtility_withhold_vs_broadcast hiS
-    obtain ⟨h0, h1⟩ := heq hScard
-    rw [h0, h1]
+    obtain ⟨h0, h1⟩ := (R.outcomeUtility_withhold_vs_broadcast hiS).2.1 hScard
+    simp only [simultaneousGame, broadcastSet_update_false, broadcastSet_update_true, hBS, h0, h1]
     exact R.prefs.uAll_lt_uPlus
 
 /-- **Halpern–Teague single-round `IDoWDS` collapse**: in simultaneous `(t, n)` share broadcast,
@@ -646,23 +636,18 @@ private theorem rampPayoffFrom_congr_before (R : ReconstructionGame ι) {T : ℕ
     by_cases hT : r < T
     · have hact : roundActive s₁ r = roundActive s₂ r := hbefore r hrM
       by_cases hcard : R.threshold ≤ (roundActive s₁ r).card
-      · have hcard2 : R.threshold ≤ (roundActive s₂ r).card := hact ▸ hcard
-        have hstep1 := rampPayoffFrom_lt_pos R q s₁ i hT hcard
-        have hstep2 := rampPayoffFrom_lt_pos R q s₂ i hT hcard2
-        have hprev' : ∀ c < r + 1, R.threshold ≤ (roundActive s₁ c).card := by
-          intro c hc
-          rcases Nat.lt_succ_iff_lt_or_eq.mp hc with hlt | rfl
-          · exact hprev c hlt
-          · exact hcard
+      · have hstep1 := rampPayoffFrom_lt_pos R q s₁ i hT hcard
+        have hstep2 := rampPayoffFrom_lt_pos R q s₂ i hT (hact ▸ hcard)
+        have hprev' : ∀ c < r + 1, R.threshold ≤ (roundActive s₁ c).card := fun c hc =>
+          (Nat.lt_succ_iff_lt_or_eq.mp hc).elim (hprev c) (· ▸ hcard)
         rcases ih (r := r + 1) (by omega) (by omega) hprev' with heq | ⟨hall, he1, he2⟩
         · exact Or.inl (hstep1.trans (heq.trans hstep2.symm))
         · exact Or.inr ⟨hall, hstep1.trans he1, hstep2.trans he2⟩
-      · have hcard2 : ¬ R.threshold ≤ (roundActive s₂ r).card := hact ▸ hcard
-        refine Or.inl ?_
-        rw [rampPayoffFrom_lt_neg R q s₁ i hT hcard,
-          rampPayoffFrom_lt_neg R q s₂ i hT hcard2, hact]
-    · refine Or.inl ?_
-      rw [rampPayoffFrom_ge R q s₁ i hT, rampPayoffFrom_ge R q s₂ i hT]
+      · rw [rampPayoffFrom_lt_neg R q s₁ i hT hcard,
+          rampPayoffFrom_lt_neg R q s₂ i hT (hact ▸ hcard), hact]
+        exact Or.inl rfl
+    · rw [rampPayoffFrom_ge R q s₁ i hT, rampPayoffFrom_ge R q s₂ i hT]
+      exact Or.inl rfl
 
 private theorem rampPayoffFrom_zero_eq_at (R : ReconstructionGame ι) {T : ℕ} (q : Fin T → ℝ)
     (s : ι → Fin (T + 1)) (i : ι) {M : ℕ}
@@ -1692,30 +1677,19 @@ private theorem continueProb_bounds (d : PMF (ι → Bool)) :
 @[simp]
 theorem payoff_honestProfile (i : ι) :
     proto.toPayoffGame.payoff i honestProfile = proto.prefs.uAll := by
-  have hdist : ∀ r payload,
-      proto.roundBroadcastDist honestProfile r payload = PMF.pure (fun _ => true) := by
-    intro r payload
-    rw [roundBroadcastDist_eq_map]
-    exact PMF.map_const proto.source _
-  have hcont : ∀ r, 1 - proto.roundContinueProb honestProfile r = 0 := by
-    intro r
+  have hdist (r) (payload) :
+      proto.roundBroadcastDist honestProfile r payload = PMF.pure (fun _ => true) :=
+    PMF.map_const proto.source _
+  have hcont (r) : 1 - proto.roundContinueProb honestProfile r = 0 := by
     simp [roundContinueProb, hdist]
-  have hgen : ∀ r, proto.genuineStagePayoff honestProfile r i = proto.prefs.uAll := by
-    intro r
-    unfold genuineStagePayoff
-    rw [hdist, Fintype.sum_eq_single (fun _ : ι => true) fun b hbne => by
-      simp [PMF.pure_apply, hbne]]
+  have hgen (r) : proto.genuineStagePayoff honestProfile r i = proto.prefs.uAll := by
+    rw [genuineStagePayoff, hdist, Fintype.sum_eq_single (fun _ : ι => true)
+      fun b hbne => by simp [PMF.pure_apply, hbne]]
     simp
   rw [toPayoffGame_payoff]
-  simp only [hcont, hgen]
-  have hmatch : (∑' r : ℕ, reachProb proto.stopProb (fun _ => 0) r *
-      (proto.stopProb * proto.prefs.uAll +
-        (1 - proto.stopProb) * 0 * proto.prefs.uMinus)) =
-      geometricExpectedUtility proto.prefs proto.stopProb (fun _ => 0) := by
-    unfold geometricExpectedUtility
-    congr 1; funext r; ring
-  rw [hmatch]
-  exact geometricExpectedUtility_zero proto.prefs proto.stopProb_pos proto.stopProb_lt_one.le
+  simp only [hcont, hgen, mul_zero, zero_mul, add_zero]
+  simpa only [geometricExpectedUtility, sub_zero, one_mul, zero_mul, add_zero] using
+    geometricExpectedUtility_zero proto.prefs proto.stopProb_pos proto.stopProb_lt_one.le
 
 private theorem stage_le_of_eq (d : PMF (ι → Bool)) {L : (ι → Bool) → Finset ι}
     (hL : L (fun _ => true) = Finset.univ) (i : ι) :
@@ -1915,15 +1889,10 @@ private theorem geometricExpectedUtility_le_uAll
     proto.stopProb_lt_one.le hq0 hq1
   have hmargin : 0 ≤ proto.prefs.uAll -
       (proto.stopProb * proto.prefs.uPlus + (1 - proto.stopProb) * proto.prefs.uMinus) := by
-    have := proto.prefs.temptation_le_uAll_iff.mpr hp
-    linarith
-  have htsum_nonneg : 0 ≤ ∑' r : ℕ, reachProb proto.stopProb q r * q r :=
+    linarith [proto.prefs.temptation_le_uAll_iff.mpr hp]
+  have htsum_nn : 0 ≤ ∑' r : ℕ, reachProb proto.stopProb q r * q r :=
     tsum_nonneg fun r => mul_nonneg (reachProb_nonneg proto.stopProb_lt_one.le hq1 r) (hq0 r)
-  have hprod_nonneg : 0 ≤ proto.prefs.uAll -
-      geometricExpectedUtility proto.prefs proto.stopProb q := by
-    rw [hgap]
-    exact mul_nonneg hmargin htsum_nonneg
-  linarith
+  linarith [mul_nonneg hmargin htsum_nn]
 
 /-- **Cryptographic Geometric-Termination Coalition Resilience for Share-Pooling Coalitions**
 ([HalpernTeague2004]; [AbrahamDolevGonenHalpern2006]; [DodisRabin2007], Section 8.5.2(b) and
@@ -2026,21 +1995,16 @@ theorem coalitionPayoff_const_false {C : Finset ι} (hC_ne : C.Nonempty) (hC_uni
     proto.coalitionPayoff C (fun _ _ _ => false) i =
       proto.stopProb * proto.prefs.uPlus + (1 - proto.stopProb) * proto.prefs.uMinus := by
   let bC : ι → Bool := fun j => decide (j ∉ C)
-  have hdist : ∀ r payload,
+  have hdist (r) (payload) :
       proto.roundCoalitionBroadcastDist C (fun _ _ _ => false) r payload = PMF.pure bC := by
-    intro r payload
-    unfold roundCoalitionBroadcastDist
-    have hfn : (fun (v : (j : C) → Share j.1) (j : ι) =>
-        if hj : j ∈ C then false else true) = fun _ => bC := by
-      funext v j
-      by_cases hj : j ∈ C <;> simp [bC, hj]
-    rw [hfn]
+    have hfn : (fun (_ : (j : C) → Share j.1) (j : ι) =>
+        if hj : j ∈ C then false else true) = fun _ => bC :=
+      funext₂ fun _ j => by by_cases hj : j ∈ C <;> simp [bC, hj]
+    rw [roundCoalitionBroadcastDist, hfn]
     exact PMF.map_const _ bC
   have hbC_ne : bC ≠ (fun _ => true) := by
     obtain ⟨j₀, hj₀⟩ := hC_ne
-    intro h
-    have hj := congrFun h j₀
-    simp [bC, hj₀] at hj
+    exact fun h => by simpa [bC, hj₀] using congrFun h j₀
   have hcont : ∀ r, proto.coalitionContinueProb C (fun _ _ _ => false) r = 0 := fun r => by
     simp [coalitionContinueProb, hdist, PMF.pure_apply, hbC_ne.symm]
   have hB : ReconstructionGame.broadcastSet bC = Finset.univ \ C := by

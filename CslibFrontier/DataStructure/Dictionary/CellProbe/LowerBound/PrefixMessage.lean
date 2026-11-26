@@ -111,10 +111,7 @@ private theorem ite_mem_congr {α β : Type*} [DecidableEq α] {S₁ S₂ : Fins
     {f₁ f₂ : α → β} (z : β) (hS : S₁ = S₂) (hf : ∀ u ∈ S₁, f₁ u = f₂ u) :
     (fun u => if u ∈ S₁ then f₁ u else z) = fun u => if u ∈ S₂ then f₂ u else z := by
   subst hS
-  funext u
-  by_cases hu : u ∈ S₁
-  · simp [hu, hf u hu]
-  · simp [hu]
+  exact funext fun u => if_ctx_congr Iff.rfl (hf u) fun _ => rfl
 
 open Classical in
 theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cells w : ℕ}
@@ -238,11 +235,9 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
       (ctx.hdisj sb.1).mono_left (ctx.hA sb.1)
     have hdec_bef : decodeDict D_det step₀ (C_bef sb) =
         fun u => if u ∈ sb.1.activeKeys t₀ ht₀_n then some (sb.1.kv u).val else none := by
-      have hvh_b := sb.1.validHistory_take_modeOps withQueries ht₀_n
       have hlen_b := sb.1.length_take_modeOps withQueries ht₀_n
-      have hle_b : ((sb.1.modeOps withQueries).take step₀).length ≤ modeHorizon withQueries n := by
-        rw [hlen_b]; exact Nat.add_le_add_left (Nat.mul_le_mul_left _ ht₀_n) n
-      have hd := decodeDict_runSeq_eq hcorr hvh_b hle_b
+      have hd := decodeDict_runSeq_eq hcorr (sb.1.validHistory_take_modeOps withQueries ht₀_n)
+        (hlen_b.trans_le (Nat.add_le_add_left (Nat.mul_le_mul_left _ ht₀_n) n))
       rw [hlen_b] at hd
       exact hd.trans (run_take_modeOps_eq_ite withQueries sb.1 ht₀_n)
     have hdec_A : decodeDict D_det step_end (C_A sb) =
@@ -250,17 +245,13 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
             Finset.univ.image (segDeletedKeys sb.1.keys sb.1.delPerm t₀ m ht₀)) ∪
             sb.1.insertedSet t₀ m ht₀
           then some (sb.1.kv u).val else none := by
-      have hopsA_cand : ops_A sb = sb.1.modeCandidateOps withQueries t₀ m ht₀
-          (sb.1.insertedSet t₀ m ht₀) (card_insertedSet sb.1 ht₀) :=
-        sb.1.elemSlice_modeOps_eq_trueCandidate withQueries ht₀
-      dsimp only [C_A]; rw [hopsA_cand]
+      dsimp only [C_A, ops_A]
+      rw [sb.1.elemSlice_modeOps_eq_trueCandidate withQueries ht₀]
       exact decodeDict_modeCandidateOps_eq withQueries hcorr sb.1 ht₀ _ hdisj_A
     have hCB_mem : C_B sb ∈ stateFiber D_det step_end (dict_B sb) := by
-      have hopsB_eq : ops_B sb = sb.1.modeCandidateOps withQueries t₀ m ht₀ sb.2 hB_card :=
-        dite_eq_left hB_card
       refine Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩
-      dsimp only [C_B, dict_B]
-      rw [hopsB_eq, val_pairBOf_eq sb.1 ht₀ hB_card hdisj_B]
+      dsimp only [C_B, ops_B, dict_B]
+      rw [dite_eq_left hB_card, val_pairBOf_eq sb.1 ht₀ hB_card hdisj_B]
       exact decodeDict_modeCandidateOps_eq withQueries hcorr sb.1 ht₀ hB_card hdisj_B
     exact ⟨hB_card, hdisj_B, hdisj_A, hdec_bef, hdec_A, hCB_mem⟩
   -- Prefix-freeness and target8 injectivity on each obs8 fiber of p.support
@@ -350,13 +341,10 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
       by_cases hj : j ∈ S_B sb₁
       · exact (mixMem_of_mem hj : C_mix sb₁ j = C_bef sb₁ j).symm.trans
           ((congrFun hcm j).trans (mixMem_of_mem (hSB ▸ hj) : C_mix sb₂ j = C_bef sb₂ j))
-      · have hj₂ : j ∉ D_det.probedCellsInterval step₀ (C_bef sb₂) (ops_B sb₂) := by
-          rwa [show D_det.probedCellsInterval step₀ (C_bef sb₂) (ops_B sb₂) = S_B sb₂ from rfl,
-            ← hSB]
-        exact (D_det.nextMem_runInterval_eq_of_notMem_probedCellsInterval step₀ (C_bef sb₁)
+      · exact (D_det.nextMem_runInterval_eq_of_notMem_probedCellsInterval step₀ (C_bef sb₁)
           (ops_B sb₁) hj).symm.trans ((congrFun hCB j).trans
             (D_det.nextMem_runInterval_eq_of_notMem_probedCellsInterval step₀ (C_bef sb₂)
-              (ops_B sb₂) hj₂))
+              (ops_B sb₂) (hSB ▸ hj : j ∉ S_B sb₂)))
     have hdec_bef_eq := congrArg (decodeDict D_det step₀) hCbef
     rw [hdec_bef₁, hdec_bef₂] at hdec_bef_eq
     obtain ⟨hK_eq, hkv_K_val⟩ := dom_eq_of_ite_some_eq hdec_bef_eq
@@ -443,14 +431,12 @@ theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cel
       exact mul_le_mul_of_nonneg_right hΔ_cap (Nat.cast_nonneg w)
     have hm6 : ((m₆ sb).length : ℝ) ≤ R + 2 + γ * (m : ℝ) * Real.logb 2 U := by
       dsimp only [m₆]; rw [length_encodeMemFinset]
-      have hfib_pos : 1 ≤ (stateFiber D_det step_end (dict_B sb)).card :=
-        Finset.card_pos.mpr ⟨C_B sb, hCB_mem⟩
-      have hK_pos : 1 ≤ K_cap := hfib_pos.trans (Nat.le_floor hcap)
+      have hK_pos : 1 ≤ K_cap :=
+        (Finset.card_pos.mpr ⟨C_B sb, hCB_mem⟩).trans_le (Nat.le_floor hcap)
       have hclog := (clog_two_lt_logb_add_one hK_pos).le
-      have hK_le_M : (K_cap : ℝ) ≤ M_cap := Nat.floor_le (by dsimp only [M_cap]; positivity)
       have hlogK : Real.logb 2 (K_cap : ℝ) ≤ R + 1 + γ * (m : ℝ) * Real.logb 2 U := by
         refine (Real.logb_le_logb_of_le (by norm_num) (by exact_mod_cast hK_pos)
-          hK_le_M).trans_eq ?_
+          (Nat.floor_le (by dsimp only [M_cap]; positivity))).trans_eq ?_
         dsimp only [M_cap]
         rw [Real.logb_mul (by positivity) (by positivity),
           Real.logb_rpow (by norm_num) (by norm_num),

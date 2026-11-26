@@ -234,13 +234,10 @@ theorem tripleCutValue_le_tripleSdpValue_add {triples : ι → V × V × V} {c d
     (hopt : ∀ v' : V → F, (∀ i, ‖v' i‖ = 1) →
       tripleSdpValue triples c d v' ≤ tripleSdpValue triples c d v + ε)
     (side : V → Bool) : tripleCutValue triples c d side ≤ tripleSdpValue triples c d v + ε := by
-  cases isEmpty_or_nonempty ι with
-  | inl _ =>
-    simpa only [tripleCutValue, tripleSdpValue, Finset.univ_eq_empty, Finset.sum_empty] using
+  rcases isEmpty_or_nonempty ι with _ | ⟨⟨e⟩⟩
+  · simpa only [tripleCutValue, tripleSdpValue, Finset.univ_eq_empty, Finset.sum_empty] using
       hopt v hv
-  | inr h =>
-    obtain ⟨e⟩ := h
-    exact tripleSdpValue_signVector triples c d (hv (triples e).1) side ▸
+  · exact tripleSdpValue_signVector triples c d (hv (triples e).1) side ▸
       hopt _ (norm_signVector (hv (triples e).1) side)
 
 section TripleMeasurable
@@ -427,9 +424,8 @@ theorem goemansWilliamsonDicutConstant_mul_sub_le_integral (ends : ι → V × V
     (S : V → Bool) :
     goemansWilliamsonDicutConstant * (dicutValue ends w S - ε) ≤
       ∫ r, dicutValue ends w (dicutHyperplaneSet v r) ∂stdGaussian F := by
-  have h1 : dicutValue ends w S ≤ dicutSdpValue ends w v + ε := by
-    rw [← dicutSdpValue_liftDicutSet ends w (hv none) S]
-    exact hopt _ (norm_signVector (hv none) _)
+  have h1 : dicutValue ends w S ≤ dicutSdpValue ends w v + ε :=
+    dicutSdpValue_liftDicutSet ends w (hv none) S ▸ hopt _ (norm_signVector (hv none) _)
   exact (mul_le_mul_of_nonneg_left (by linarith) goemansWilliamsonDicutConstant_nonneg).trans
     (goemansWilliamsonDicutConstant_mul_dicutSdpValue_le_integral ends hw hv)
 
@@ -500,23 +496,16 @@ omit [NormedAddCommGroup F] [InnerProductSpace ℝ F] in
 theorem two_mul_dicutValue_eq_cutValue_of_isBalancedDigraph {ends : ι → V × V} {w : ι → ℝ}
     (hbal : IsBalancedDigraph ends w) (S : V → Bool) :
     2 * dicutValue ends w S = cutValue ends w S := by
-  have h0 : ∑ e, w e * (if S (ends e).1 then (1 : ℝ) else 0) =
-      ∑ e, w e * (if S (ends e).2 then (1 : ℝ) else 0) :=
-    hbal fun x => if S x then 1 else 0
-  have hid (e : ι) :
-      2 * (if S (ends e).1 = true ∧ S (ends e).2 = false then w e else 0) -
-        (if S (ends e).1 ≠ S (ends e).2 then w e else 0) =
-        w e * (if S (ends e).1 then (1 : ℝ) else 0) -
-          w e * (if S (ends e).2 then (1 : ℝ) else 0) := by
-    cases S (ends e).1 <;> cases S (ends e).2 <;> simp
-    ring
-  have hsum : 2 * dicutValue ends w S - cutValue ends w S =
-      (∑ e, w e * (if S (ends e).1 then (1 : ℝ) else 0)) -
-        ∑ e, w e * (if S (ends e).2 then (1 : ℝ) else 0) := by
-    unfold dicutValue cutValue
-    rw [Finset.mul_sum, ← Finset.sum_sub_distrib, ← Finset.sum_sub_distrib]
-    exact Finset.sum_congr rfl fun e _ => hid e
-  linarith
+  have h0 := hbal fun x => if S x then 1 else 0
+  unfold dicutValue cutValue
+  suffices 2 * ∑ e, (if S (ends e).1 = true ∧ S (ends e).2 = false then w e else 0) -
+      ∑ e, (if S (ends e).1 ≠ S (ends e).2 then w e else 0) =
+      (∑ e, w e * if S (ends e).1 then 1 else 0) - ∑ e, w e * if S (ends e).2 then 1 else 0 by
+    linarith
+  rw [Finset.mul_sum, ← Finset.sum_sub_distrib, ← Finset.sum_sub_distrib]
+  refine Finset.sum_congr rfl fun e _ => ?_
+  cases S (ends e).1 <;> cases S (ends e).2 <;> simp
+  ring
 
 /-- On a balanced digraph, `2 * dicutSdpValue ends w v` equals the MAX-CUT relaxation value of
 `v ∘ some`. -/
@@ -546,9 +535,8 @@ theorem goemansWilliamsonConstant_mul_sub_le_integral_of_isBalancedDigraph (ends
     (S : V → Bool) :
     goemansWilliamsonConstant * (dicutValue ends w S - ε) ≤
       ∫ r, dicutValue ends w (dicutHyperplaneSet v r) ∂stdGaussian F := by
-  have h1 : dicutValue ends w S ≤ dicutSdpValue ends w v + ε := by
-    rw [← dicutSdpValue_liftDicutSet ends w (hv none) S]
-    exact hopt _ (norm_signVector (hv none) _)
+  have h1 : dicutValue ends w S ≤ dicutSdpValue ends w v + ε :=
+    dicutSdpValue_liftDicutSet ends w (hv none) S ▸ hopt _ (norm_signVector (hv none) _)
   have hcut : (fun r : F => dicutValue ends w (dicutHyperplaneSet v r)) =
       fun r => cutValue ends w (hyperplaneSide (fun x => v (some x)) r) / 2 := by
     ext r

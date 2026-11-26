@@ -61,7 +61,6 @@ private theorem systematic_row (s : Level) (A : PublicMatrix s) (t : Fin s.param
       Fin.snoc (Fin.append (fun j => if j = i then (1 : Negacyclic (ZMod 8380417) 256).coeffs
         else 0) (A i)) (-t i) := by
   unfold systematic ModuleSIS.hermiteMatrix
-  change Fin.append _ (Fin.snoc (A i) (-t i)) = _
   exact Fin.append_snoc _ _ _
 
 /-- Integer lift of the three blocks of a self-target witness, with the challenge last. -/
@@ -293,8 +292,7 @@ abbrev GridPoint (s : Level) := BitString 512 × {v : Fin s.params.k → Poly //
 
 private theorem commitmentPoint_onGrid (s : Level) (bytes : List Byte) (A : PublicMatrix s)
     (f : Forgery) (o : Opening s) : OnCommitmentGrid s (commitmentPoint s bytes A f o).2 := by
-  unfold OnCommitmentGrid
-  rw [highBits_commitmentPoint]
+  rw [OnCommitmentGrid, highBits_commitmentPoint]
   exact fun _ _ => rfl
 
 /-- The byte verifier only queries canonical grid points with a 512-bit message prefix. -/
@@ -323,10 +321,8 @@ private theorem product_witness (s : Level) (rho : FixedBytes 32) (A : PublicMat
     let y := witness s ⟨A, t⟩ bytes f o
     (y.msg, moduleSISMap (systematic s A t) (fun i j => (liftWitness s y i j : ZMod 8380417))) =
       commitmentPoint s bytes A f o := by
-  dsimp only
-  rw [systematic_liftWitness]
-  simp only [witness, SelfTargetCandidate.ofCompressedForgery]
-  rw [selfTargetMap_compressedForgeryLowPart]
+  dsimp only [witness, SelfTargetCandidate.ofCompressedForgery]
+  rw [systematic_liftWitness, selfTargetMap_compressedForgeryLowPart]
   unfold commitmentPoint hintedCommitment compressedVerifierCommitment
   rw [decode_encodePublic, publicKey_matrix]; rfl
 
@@ -439,9 +435,8 @@ theorem accepts_extract_of_verify {s : Level} (rho : FixedBytes 32) (A : PublicM
       exact of_decide_eq_true accept
     simp only [extract, ho, ModuleSIS.SelfTarget.product, hp]
     refine ⟨⟨length_messageRepresentative .., ?_⟩, accepts_digest_of_opening _ _ ho he⟩
-    rw [show moduleSISMap (systematic s A t) _ =
-        (commitmentPoint s (encodePublic s rho.toList t) A f o).2 from congrArg Prod.snd hp]
-    exact commitmentPoint_onGrid s (encodePublic s rho.toList t) A f o
+    exact Eq.mpr (congrArg (OnCommitmentGrid s) (congrArg Prod.snd hp))
+      (commitmentPoint_onGrid s (encodePublic s rho.toList t) A f o)
 
 /-- Run the byte-key adversary on the original matrix seed and rounded bytes while it
 queries the same digest oracle as the final self-target check. -/
@@ -454,11 +449,9 @@ def solver {Coins : Type} (s : Level) (adv : Forger s Coins) :
 private theorem solver_bounded {Coins : Type} {s : Level} {adv : Forger s Coins} {Q : ℕ}
     (hQ : ∀ bytes r, (adv bytes r).IsQueryBounded Q) (M) (r) :
     (solver s adv M r).IsQueryBounded Q := by
-  apply (isCostBounded_map_iff _ _ _).mpr
-  apply (isCostBounded_map_iff _ _ _).mpr
+  refine (isCostBounded_map_iff _ _ _).mpr ((isCostBounded_map_iff _ _ _).mpr ?_)
   apply IsCostBounded.run_interpret _ (hQ _ _)
-  rintro q ⟨cache, tape⟩
-  rcases q with rho | p
+  rintro (rho | p) ⟨cache, tape⟩
   · apply (isCostBounded_map_iff _ _ _).mpr
     change IsCostBounded _ (memoize (fun _ => pure (tape.headD 0)) rho cache) 1
     cases he : cache.lookup rho with

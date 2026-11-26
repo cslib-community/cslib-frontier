@@ -150,9 +150,8 @@ private theorem joinFillProg_spec {w : ℕ} (counting : Bool) (a : JoinFillArgs)
   have hprod_eq : t.mem (a.lTblPtr + m) * t.mem (a.rTblPtr + mr) = entryVal := by
     rw [hm_lv, hm_rv]
     simp only [entryVal, targetTbl, dpInstTree, mr, List.getElem_ofFn]
-  have hentry_fit : Fits w entryVal := by
-    have hmem_e : entryVal ∈ targetTbl := List.getElem_mem _
-    exact hfit_cap.of_le (mem_dpInstTree_le counting hq cs vars (.join left right) _ hmem_e)
+  have hentry_fit : Fits w entryVal :=
+    hfit_cap.of_le (mem_dpInstTree_le counting hq cs vars (.join left right) _ (List.getElem_mem _))
   obtain ⟨hst_ev, hres_ev⟩ := joinFillStep_eval a m t
   dsimp only [mr] at hprod_eq
   have hv_step : (Memory.spec w).ValidHistory t
@@ -203,38 +202,30 @@ private theorem joinFillProg_realizes :
     (fun j m t ⟨hj_le, hm_eq, hl_t, hr_t⟩ => ?_)
     ⟨le_rfl, Nat.zero_add _, hl_h, hr_h⟩
   have hm_lt : m < d.tblLen := by omega
-  have hfit_m : Fits w m := hfit_tbl.of_le (by omega)
-  have hfit_m1 : Fits w (m + 1) := hfit_tbl.of_le (by omega)
-  let rpArgs : RadixProjArgs :=
-    ⟨d.q, d.lBagPtr, d.lBagLen, m, 0, 0, 0, d.rBagPtr, d.rBagLen⟩
-  have hmr_lt : (Memory.spec 0).clientResult t (radixProjProg rpArgs) < d.q ^ d.rBagLen :=
-    radixProjProg_result_lt (args := rpArgs) hq_pos t
-  have hfit_laddr : Fits w (d.lTblPtr + m) := hfit_lTbl.of_le (by omega)
-  have hfit_raddr :
-      Fits w (d.rTblPtr + (Memory.spec 0).clientResult t (radixProjProg rpArgs)) :=
-    hfit_rTbl.of_le (by omega)
-  have hfit_taddr : Fits w (d.tblPtr + m) := hfit_tbl.of_le (by omega)
+  have hmr_lt : (Memory.spec 0).clientResult t
+      (radixProjProg ⟨d.q, d.lBagPtr, d.lBagLen, m, 0, 0, 0, d.rBagPtr, d.rBagLen⟩) <
+        d.q ^ d.rBagLen :=
+    radixProjProg_result_lt hq_pos t
   have hlv_le : t.mem (d.lTblPtr + m) ≤ lCap := by
     rw [hl_t.get m (hl_len ▸ hm_lt)]
     exact hl_le _ (List.getElem_mem _)
-  have hrv_le :
-      t.mem (d.rTblPtr + (Memory.spec 0).clientResult t (radixProjProg rpArgs)) ≤ rCap := by
+  have hrv_le : t.mem (d.rTblPtr + (Memory.spec 0).clientResult t
+      (radixProjProg ⟨d.q, d.lBagPtr, d.lBagLen, m, 0, 0, 0, d.rBagPtr, d.rBagLen⟩)) ≤ rCap := by
     rw [hr_t.get _ (hr_len ▸ hmr_lt)]
     exact hr_le _ (List.getElem_mem _)
-  have hfit_mul :
-      Fits w (t.mem (d.lTblPtr + m) *
-        t.mem (d.rTblPtr + (Memory.spec 0).clientResult t (radixProjProg rpArgs))) :=
+  have hfit_mul : Fits w (t.mem (d.lTblPtr + m) * t.mem (d.rTblPtr +
+      (Memory.spec 0).clientResult t
+        (radixProjProg ⟨d.q, d.lBagPtr, d.lBagLen, m, 0, 0, 0, d.rBagPtr, d.rBagLen⟩))) :=
     hfit_prod.of_le (Nat.mul_le_mul hlv_le hrv_le)
-  have hrp_safe :
-      0 < d.q ∧ Fits w 1 ∧ Fits w d.q ∧ Fits w m ∧
-        Fits w (d.lBagPtr + d.lBagLen) ∧ Fits w (d.rBagPtr + d.rBagLen) ∧
-        Fits w (d.q ^ d.rBagLen) :=
-    ⟨hq_pos, h1, hfit_q, hfit_m, hfit_lBag, hfit_rBag, hfit_rPow⟩
   obtain ⟨hst_ev, hres_ev⟩ := joinFillStep_eval d m t
   refine ⟨?_, Nat.le_of_succ_le hj_le, ?_, ?_, ?_⟩
   · dsimp only [joinFillStep]
     rw [radixProjProg_state]
-    exact ⟨hfit_laddr, hrp_safe, hfit_raddr, ⟨hfit_taddr, hfit_mul⟩, hfit_m1⟩
+    exact ⟨hfit_lTbl.of_le (by omega),
+      ⟨hq_pos, h1, hfit_q, hfit_tbl.of_le (by omega), hfit_lBag, hfit_rBag, hfit_rPow⟩,
+      hfit_rTbl.of_le (by omega),
+      ⟨hfit_tbl.of_le (by omega), hfit_mul⟩,
+      hfit_tbl.of_le (by omega)⟩
   · rw [hres_ev]; omega
   · rw [hst_ev]
     exact holdsIn_write_outside hl_t (.inr (by rw [hl_len]; omega))

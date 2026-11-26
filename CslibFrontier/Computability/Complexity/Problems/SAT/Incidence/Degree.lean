@@ -69,9 +69,8 @@ private theorem count_clause_endpoints (φ : CNF V) (i : ℕ)
     have hi := List.idxOf_lt_length_of_mem
       (CNF.mem_distinctVars.mpr (hvalid o List.mem_cons_self))
     have hne : φ.distinctVars.idxOf o.lit.1 ≠ φ.distinctVars.length + i := by omega
-    have ht := ih fun a ha => hvalid a (List.mem_cons_of_mem _ ha)
     simp [List.flatMap_cons, List.count_cons, hne,
-      ht, beq_iff_eq]
+      ih fun a ha => hvalid a (List.mem_cons_of_mem _ ha), beq_iff_eq]
 
 /-- A clause vertex has one incidence for every literal position; an out-of-range clause has
 no incidences. -/
@@ -89,16 +88,12 @@ theorem incidenceGraph_degree_le {φ : CNF V} {k : ℕ}
     ∀ v, (incidenceGraph φ).incidenceVertices.count v ≤ k := by
   intro v
   by_cases hmem : v ∈ (incidenceGraph φ).incidenceVertices
-  · obtain ⟨e, he, hve⟩ := List.mem_flatMap.mp hmem
-    obtain ⟨o, ho, rfl⟩ := List.mem_map.mp he
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hve
-    rcases hve with rfl | rfl
-    · rw [count_incidenceGraph_variable]
-      · exact hv _
-      · exact variable_mem_of_mem_occurrences ho
-    · rw [count_incidenceGraph_clause]
-      obtain ⟨hi, _, _⟩ := Cslib.Logic.PL.mem_occurrences.mp ho
-      rw [List.getD_eq_getElem _ _ hi]
+  · simp only [Graph.incidenceVertices, incidenceGraph, List.flatMap_map, List.mem_flatMap,
+      List.mem_cons, List.not_mem_nil, or_false] at hmem
+    rcases hmem with ⟨o, ho, rfl | rfl⟩
+    · exact (count_incidenceGraph_variable φ (variable_mem_of_mem_occurrences ho)).le.trans (hv _)
+    · obtain ⟨hi, _, _⟩ := Cslib.Logic.PL.mem_occurrences.mp ho
+      rw [count_incidenceGraph_clause, List.getD_eq_getElem _ _ hi]
       exact hw _ (List.getElem_mem hi)
   · simp [List.count_eq_zero.mpr hmem]
 

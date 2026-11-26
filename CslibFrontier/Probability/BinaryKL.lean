@@ -81,13 +81,11 @@ theorem binaryKL_nonneg {q p : ℝ} (hq : q ∈ Icc (0 : ℝ) 1) (hp : p ∈ Icc
 
 @[simp]
 theorem binaryKL_self (p : ℝ) : binaryKL p p = 0 := by
-  rw [binaryKL_def]
   rcases eq_or_ne p 0 with rfl | hp
-  · simp [klFun_one]
+  · simp [binaryKL_def, klFun_one]
   rcases eq_or_ne p 1 with rfl | hp1
-  · simp [klFun_one]
-  rw [div_self hp, div_self (sub_ne_zero.2 (Ne.symm hp1)), klFun_one]
-  ring
+  · simp [binaryKL_def, klFun_one]
+  simp [binaryKL_def, div_self hp, div_self (sub_ne_zero.2 hp1.symm), klFun_one]
 
 /-- For fixed `p`, `binaryKL · p` is continuous. -/
 @[fun_prop]
@@ -98,10 +96,8 @@ theorem continuous_binaryKL_left (p : ℝ) : Continuous fun q => binaryKL q p :=
 /-- For `p ∈ (0, 1)`, `binaryKL q p = q log (q / p) + (1 - q) log ((1 - q) / (1 - p))`. -/
 theorem binaryKL_eq_mul_log {q p : ℝ} (hp0 : 0 < p) (hp1 : p < 1) :
     binaryKL q p = q * Real.log (q / p) + (1 - q) * Real.log ((1 - q) / (1 - p)) := by
-  have h1 : (1 - p) ≠ 0 := (sub_pos.2 hp1).ne'
+  have : 1 - p ≠ 0 := (sub_pos.2 hp1).ne'
   rw [binaryKL_def, klFun_apply, klFun_apply]
-  set L1 := Real.log (q / p)
-  set L2 := Real.log ((1 - q) / (1 - p))
   field_simp
   ring
 
@@ -381,14 +377,11 @@ theorem sub_sq_div_two_mul_le_binaryKL {q p : ℝ} (hq0 : 0 ≤ q) (hqp : q ≤ 
     intro t ht
     have ht0 : 0 < t := hqpos.trans ht.1
     have hd_kl := hasDerivAt_binaryKL_right (q := q) ht0 ht.2
-    have hnum : HasDerivAt (fun s : ℝ => (s - q) ^ 2) (2 * (t - q) ^ 1 * 1) t :=
-      ((hasDerivAt_id t).sub_const q).pow 2
-    have hden : HasDerivAt (fun s : ℝ => 2 * s) (2 * 1) t := (hasDerivAt_id t).const_mul 2
-    convert hd_kl.sub (hnum.div hden (by linarith : 2 * t ≠ 0)) using 1
-    have htn0 : t ≠ 0 := ht0.ne'
-    have h1t : 1 - t ≠ 0 := (sub_pos.mpr ht.2).ne'
-    field_simp
-    ring
+    refine (hd_kl.sub ((((hasDerivAt_id t).sub_const q).pow 2).div
+      ((hasDerivAt_id t).const_mul 2) (mul_ne_zero two_ne_zero ht0.ne'))).congr_deriv ?_
+    have : 0 < 1 - t := sub_pos.mpr ht.2
+    simp only [id_eq, Pi.pow_apply, Nat.cast_ofNat]
+    field_simp; ring
   have h := le_of_hasDerivAt_nonneg hqp
     (fun t ht => by
       have ht0 : 0 < t := hqpos.trans_le ht.1

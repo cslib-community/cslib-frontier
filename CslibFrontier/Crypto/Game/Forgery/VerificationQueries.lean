@@ -408,24 +408,14 @@ theorem isQueryBounded_vqToForgerOn {PK M Sig : Type} [Inhabited M] [Inhabited S
   refine ((ProbOracleComp.IsQueryBounded.sample index).bind fun j =>
     ((OracleComp.IsCostBounded.run_interpret ?_ h _).bind fun _ => .pure _ 0)).mono (by omega)
   rintro (k | (m | p)) s
-  · change ((ProbOracleComp.sample (ProbComp.unifFin k) >>= fun a => pure (a, s)) :
-      ProbOracleComp (fun _ : M => Sig) _).IsQueryBounded 0
-    exact ((ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin k)).bind
-      fun a => .pure (a, s) 0).mono (by omega)
-  · change ((vqToForgerHandler admit (Sum.inl m)).run s).IsQueryBounded 1
-    dsimp only [vqToForgerHandler, StateT.run]
-    cases s.planted.hasCaptured
-    · simp only [Bool.false_eq_true, ↓reduceIte]
-      split_ifs
-      · rw [map_eq_bind_pure_comp]
-        exact ((ProbOracleComp.IsQueryBounded.query m).bind fun _ => .pure _ 0).mono (by omega)
-      · exact .pure _ 1
+  · exact (ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin k)).bind fun a => .pure (a, s) 0
+  · dsimp only [OracleComp.sumHandler, vqToForgerHandler, StateT.run]
+    split_ifs
     · exact .pure _ 1
-  · change ((vqToForgerHandler admit (Sum.inr p)).run s).IsQueryBounded 0
-    dsimp only [vqToForgerHandler, StateT.run]
-    cases s.planted.hasCaptured <;> simp only [Bool.false_eq_true, ↓reduceIte]
-    · split_ifs <;> exact .pure _ 0
-    · exact .pure _ 0
+    · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (ProbOracleComp.IsQueryBounded.query m)
+    · exact .pure _ 1
+  · dsimp only [OracleComp.sumHandler, vqToForgerHandler, StateT.run]
+    split_ifs <;> exact .pure _ 0
 
 private abbrev ValidVqLog {PK SK M Sig : Type} (verify : PK → SK → M → Sig → Bool)
     (pk : PK) (sk : SK) :=
@@ -489,15 +479,11 @@ private theorem eval_vqOracle_good_eq_sim {PK SK M Sig : Type} [Inhabited Sig] [
   | inr p =>
     rcases p with ⟨m, σ⟩
     simp only [Sum.isRight_inr, Bool.true_and] at hgood
-    dsimp only [vqOracle, vqPlantedSim, StateT.run]
-    rw [ProbComp.eval_pure, PMF.pure_map, hgood, Bool.false_or]
-    have hreply : verify pk sk m σ = decide ((m, σ) ∈ s.val) := by
-      by_cases hmem : (m, σ) ∈ s.val
-      · simp [hmem, s.property (m, σ) hmem]
-      · have hfresh : freshPair m σ s.val = true := by simp [freshPair, hmem]
-        rw [hfresh, Bool.and_true] at hgood
-        simp [hmem, hgood]
-    rw [hreply]
+    simp only [vqOracle, vqPlantedSim, ProbComp.eval_pure, PMF.pure_map, hgood, Bool.false_or]
+    by_cases hmem : (m, σ) ∈ s.val
+    · simp [hmem, s.property (m, σ) hmem]
+    · simp only [freshPair, hmem, not_false_eq_true, decide_true, Bool.and_true] at hgood
+      simp [hmem, hgood]
 
 private theorem run_vqToForgerHandler_eq_plantedHandler {PK SK M Sig : Type} [Inhabited M]
     [Inhabited Sig] [DecidableEq M] [DecidableEq Sig]
@@ -737,14 +723,9 @@ theorem succProbability_vqForgeExperiment_le_mul {PK SK M Sig : Type} [Inhabited
     (fun j hj => by
       have hj_val : ProbComp.eval (Fin.val <$> ProbComp.unifFin m) j =
           ((m + 1 : ℕ) : ℝ≥0∞)⁻¹ := by
-        rw [ProbComp.eval_map, ProbComp.eval_unifFin, PMF.map_apply, tsum_fintype]
-        rw [Finset.sum_eq_single ⟨j, hj⟩]
-        · simp [PMF.uniformOfFintype_apply]
-        · intro k _ hk
-          have hne : j ≠ k.val := fun h => hk (Fin.ext h.symm)
-          simp [hne]
-        · intro hmem
-          exact absurd (Finset.mem_univ _) hmem
+        rw [ProbComp.eval_map, ProbComp.eval_unifFin]
+        simpa [PMF.uniformOfFintype_apply] using
+          PMF.map_apply_of_injective (PMF.uniformOfFintype (Fin (m + 1))) Fin.val_injective ⟨j, hj⟩
       rw [add_zero, hj_val, ENNReal.mul_inv_cancel (by simp) (ENNReal.natCast_ne_top _)])
     hA
   rw [add_zero] at hle
@@ -886,20 +867,12 @@ theorem isQueryBounded_vqMacToPrfAdversary {D R : Type} [DecidableEq D] [Decidab
     (IsQueryBounded.of_signing_and_verification hs hv) _).bind
     fun _ => .pure _ 0).mono (by omega)
   rintro (k | (m | ⟨m, σ⟩)) s
-  · change ((ProbOracleComp.sample (ProbComp.unifFin k) >>= fun a => pure (a, s)) :
-      ProbOracleComp (fun _ : D => R) _).IsQueryBounded 0
-    exact ((ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin k)).bind
-      fun a => .pure (a, s) 0).mono (by omega)
-  · change ((vqMacToPrfHandler (Sum.inl m)).run s).IsQueryBounded 1
-    dsimp only [vqMacToPrfHandler, StateT.run]
-    rw [map_eq_bind_pure_comp]
-    exact ((ProbOracleComp.IsQueryBounded.query m).bind fun _ => .pure _ 0).mono (by omega)
-  · change ((vqMacToPrfHandler (Sum.inr (m, σ))).run s).IsQueryBounded 1
-    dsimp only [vqMacToPrfHandler, StateT.run]
+  · exact (ProbOracleComp.IsQueryBounded.sample (ProbComp.unifFin k)).bind fun a => .pure (a, s) 0
+  · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (ProbOracleComp.IsQueryBounded.query m)
+  · dsimp only [OracleComp.sumHandler, vqMacToPrfHandler, StateT.run]
     split_ifs
     · exact .pure _ 1
-    · rw [map_eq_bind_pure_comp]
-      exact ((ProbOracleComp.IsQueryBounded.query m).bind fun _ => .pure _ 0).mono (by omega)
+    · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (ProbOracleComp.IsQueryBounded.query m)
 
 private abbrev ValidPrfVqState {D R : Type} (f : D → R) :=
   {st : VqOracleState D R // ∀ p ∈ st.log, f p.1 = p.2}
@@ -1146,12 +1119,8 @@ private theorem succProbability_forgeExperiment_uniformFunction_le {D R : Type} 
         exact hfresh (hinv m hsome)
       simp only [decide_eq_true hfresh, ↓reduceIte, ProbOracleComp.runWith_map,
         ProbOracleComp.runWith_query, memoize_of_none _ _ _ hnone, Prod.map_fst, pmf_norm]
-      rw [PMF.bind_apply, tsum_fintype, Finset.sum_eq_single σ]
-      · simp [PMF.uniformOfFintype_apply]
-      · intro r _ hr
-        simp [hr]
-      · intro hmem
-        exact absurd (Finset.mem_univ σ) hmem
+      rw [PMF.bind_apply, tsum_eq_single σ fun r hr => by simp [hr]]
+      simp [PMF.uniformOfFintype_apply]
     · simp [hfresh]
   simp only [Experiment.succProbability, Game.succProbability]
   rw [heq, htest_eq]

@@ -153,10 +153,7 @@ private theorem euclidConvergent_height_size (i : ℕ) (p : ℕ × ℕ) :
   | succ i ih =>
     have hquot := quotient_height_size p
     let q := euclidConvergent i (gcdStep p)
-    have hinv : (q⁻¹).height = q.height := by
-      by_cases hq : q = 0
-      · simp [hq]
-      · exact height_inv hq
+    have hinv : (q⁻¹).height = q.height := by by_cases hq : q = 0 <;> simp [hq, height_inv]
     have hq : q.height.size ≤ (i + 1) * ((max p.1 p.2).size + 3) :=
       (ih (gcdStep p)).trans
         (Nat.mul_le_mul_left (i + 1) (Nat.add_le_add_right
@@ -358,11 +355,8 @@ private theorem euclidConvergent_polyTime :
         have h : (encEuclidPair operands).length ≤ n :=
           length_le_encPair_left encEuclidPair encUnary x
         simp only [encEuclidPair, length_encPair, encNat_apply, Nat.size_eq_bits_len] at h
-        rcases le_total operands.1 operands.2 with hle | hle
-        · rw [max_eq_right hle]
-          omega
-        · rw [max_eq_left hle]
-          omega
+        rcases max_choice operands.1 operands.2 with hmax | hmax <;> rw [hmax]
+        all_goals omega
       let q := euclidConvergent j (gcdStep^[x.2 - j] x.1)
       have hq : q.height.size ≤ (n + 1) * (n + 3) :=
         (euclidConvergent_height_size j _).trans (Nat.mul_le_mul
@@ -377,10 +371,8 @@ private theorem euclidConvergent_polyTime :
       have := Nat.mul_le_mul_left 3 hq
       simp only [← Nat.mul_assoc] at this
       omega)
-  refine hloop.snd'.of_enc_eq fun x => ?_
-  dsimp only [init]
-  rw [convergentStep_iterate _ _ _ le_rfl, Nat.sub_self]
-  rfl
+  exact hloop.snd'.of_enc_eq fun x => by
+    simp only [init, convergentStep_iterate _ _ _ le_rfl, Nat.sub_self, Function.iterate_zero, id]
 
 private theorem midpointConvergents_polyTime :
     ComputableInPolyTime

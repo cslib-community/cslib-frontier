@@ -209,9 +209,7 @@ theorem isTester_collisionTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
   have hK0 : 0 < K :=
     pos_of_mul_pos_left (lt_of_lt_of_le (by linarith only [hq1] : 0 < 40 * q) hk) (sq_nonneg ε)
   have hk2 : 2 ≤ k := by exact_mod_cast (show (1 : ℝ) < k by linarith only [hK0, hK])
-  have hK1 : 1 ≤ K := by
-    have : (2 : ℝ) ≤ k := by exact_mod_cast hk2
-    linarith only [this, hK]
+  have hK1 : 1 ≤ K := by linarith only [(Nat.ofNat_le_cast (α := ℝ)).mpr hk2, hK]
   have hkK : (k : ℝ) = K + 1 := by rw [hK]; ring
   set N : ℝ := (k.choose 2 : ℝ) with hN
   have hNK : N = (K + 1) * K / 2 := by rw [hN, Nat.cast_choose_two, hkK]; ring
@@ -223,11 +221,8 @@ theorem isTester_collisionTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
       _ ≤ (K * ε ^ 2) ^ 2 := pow_le_pow_left₀ (by linarith only [hq1]) hk 2
   have hτ : collisionThreshold (Fintype.card α) k ε = N * (1 + 2 * ε ^ 2) / n := rfl
   constructor
-  · intro p hp
-    rw [Set.mem_singleton_iff] at hp
-    subst hp
-    have hcp : collisionProbability (uniformOfFintype α) = n⁻¹ := by
-      rw [hn]; exact collisionProbability_uniform
+  · rintro _ rfl
+    have hcp : collisionProbability (uniformOfFintype α) = n⁻¹ := hn ▸ collisionProbability_uniform
     have hcube : ∑ a, ((uniformOfFintype α) a).toReal ^ 3 = n⁻¹ ^ 2 := by
       simp only [uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
         sum_const, card_univ, nsmul_eq_mul, ← hn]
@@ -248,9 +243,8 @@ theorem isTester_collisionTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
       linarith only [hx, heq, hτ]
     · rw [← hN, hcp, hcube, sub_self, mul_zero, add_zero]
       have hle : 3 * (N * (n⁻¹ - n⁻¹ ^ 2)) ≤ 3 * N / n := by
-        have hsq : 0 ≤ N * n⁻¹ ^ 2 := mul_nonneg hN0.le (sq_nonneg _)
         rw [mul_sub, div_eq_mul_inv]
-        linarith only [hsq]
+        linarith only [mul_nonneg hN0.le (sq_nonneg n⁻¹)]
       refine hle.trans ?_
       rw [div_pow, mul_pow, mul_pow, div_le_div_iff₀ hn0 (by positivity)]
       have h4 : 3 * n ≤ 4 * N * ε ^ 4 := by
@@ -282,10 +276,9 @@ theorem isTester_collisionTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
     refine mass_le_one_third _
       (fun x => decide ((collisionCount x : ℝ) ≤ collisionThreshold (Fintype.card α) k ε)) _
       (N * (D - 2 * ε ^ 2 / n)) ?_ ?_ (sum_iid_mul_collisionCount_sub_sq _ k).le ?_
-    · have hlt : 2 * ε ^ 2 / n < D := by
-        rw [div_lt_iff₀ hn0, mul_comm]
-        linarith only [hnD, sq_pos_of_pos hε]
-      exact mul_pos hN0 (sub_pos.mpr hlt)
+    · refine mul_pos hN0 (sub_pos.mpr ?_)
+      rw [div_lt_iff₀ hn0, mul_comm]
+      linarith only [hnD, sq_pos_of_pos hε]
     · intro x hx
       simp only [decide_eq_true_eq] at hx
       have hτ' : collisionThreshold (Fintype.card α) k ε = N * s - N * (D - 2 * ε ^ 2 / n) := by

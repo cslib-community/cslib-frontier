@@ -337,35 +337,25 @@ theorem isDeterministicAttack_rows [DecidableEq ρ] (hcorrect : P.IsCorrect)
     (P.rows ρ).IsDeterministicAttack x s₀ (P.rowsFlipAttack x s₀ j₀)
       (fun ji => decide (ji.1 = j₀)) := by
   have hxor' := (P.hasXorReconstruct_iff).mp hxor
-  refine ((P.rows ρ).selectiveFailureModel x).isDeterministicAttack_of_slot
-    (fun ji => (P.rows ρ).query ji)
-    (fun ji rq => (P.rows ρ).reconstruct ji rq.1
-      (Function.update (fun s => (P.rows ρ).answer s x (rq.2 s)) s₀
-        (P.rowsFlipAttack x s₀ j₀ (rq.2 s₀))))
-    Prod.fst j₀ (s₀, P.rowsFlipAttack x s₀ j₀) (fun _ => rfl) ?_ ?_
-  · rintro ⟨j, i⟩ ⟨r, q⟩ hrq rfl
-    rw [query_rows] at hrq
-    have hproj :
-        (fun s => Function.update (fun s => (P.rows ρ).answer s x (q s)) s₀
-          (P.rowsFlipAttack x s₀ j (q s₀)) s j) =
-        Function.update (fun s => P.answer s (fun i' => x (j, i')) (q s)) s₀
-          (!(P.answer s₀ (fun i' => x (j, i')) (q s₀))) :=
-      funext fun s => by by_cases hs : s = s₀ <;> simp [hs, rowsFlipAttack, answer_rows]
-    dsimp only [selectiveFailureModel]
-    rw [reconstruct_rows, hproj, hxor', sum_update_bool,
-      ← hxor' i r (fun s => P.answer s (fun i' => x (j, i')) (q s)),
-      hcorrect.reconstruct_eq (fun i' => x (j, i')) i hrq]
-    cases P.answer s₀ (fun i' => x (j, i')) (q s₀) <;> cases x (j, i) <;> decide
-  · intro ⟨j, i⟩ ⟨r, q⟩ hrq hj
-    rw [query_rows] at hrq
-    have hproj :
-        (fun s => Function.update (fun s => (P.rows ρ).answer s x (q s)) s₀
-          (P.rowsFlipAttack x s₀ j₀ (q s₀)) s j) =
-        fun s => P.answer s (fun i' => x (j, i')) (q s) :=
-      funext fun s => by by_cases hs : s = s₀ <;> simp [hs, rowsFlipAttack, hj, answer_rows]
-    dsimp only [selectiveFailureModel]
-    rw [reconstruct_rows, hproj]
-    exact hcorrect.reconstruct_eq (fun i' => x (j, i')) i hrq
+  simp only [IsDeterministicAttack, SelectiveFailure.Model.isDeterministicAttack_iff,
+    selectiveFailureModel, eval_runWithServer]
+  rintro ⟨j, i⟩ _ hout
+  obtain ⟨⟨r, q⟩, hrq, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hout
+  rw [query_rows] at hrq
+  have hproj :
+      (fun s => Function.update (fun s => (P.rows ρ).answer s x (q s)) s₀
+        (P.rowsFlipAttack x s₀ j₀ (q s₀)) s j) =
+      Function.update (fun s => P.answer s (fun i' => x (j, i')) (q s)) s₀
+        (P.rowsFlipAttack x s₀ j₀ (q s₀) j) :=
+    funext fun s => by by_cases hs : s = s₀ <;> simp [hs, answer_rows]
+  rw [reconstruct_rows, hproj, hxor', sum_update_bool,
+    ← hxor' i r (fun s => P.answer s (fun i' => x (j, i')) (q s)),
+    hcorrect.reconstruct_eq (fun i' => x (j, i')) i hrq, decide_add_ne_self_bool]
+  rcases eq_or_ne j j₀ with rfl | hj
+  · simp only [rowsFlipAttack, Function.update_self, answer_rows, decide_true]
+    cases P.answer s₀ (fun i' => x (j, i')) (q s₀) <;> decide
+  · simp only [rowsFlipAttack, Function.update_of_ne hj, answer_rows, hj, decide_false]
+    cases P.answer s₀ (fun i' => x (j, i')) (q s₀) <;> decide
 
 /-- Flipping row `j₀` in `P.rows ρ` distinguishes any query `(j₀, i₀)` in row `j₀` from any query
 `(j₁, i₁)` in row `j₁ ≠ j₀` with selective-failure advantage `1`. -/
@@ -404,38 +394,27 @@ theorem isDeterministicAttack_toBlock_toBitScheme [DecidableEq κ] (hcorrect : P
     (P.toBlock κ).toBitScheme.IsDeterministicAttack x s₀ (P.toBlockBitFlipAttack x s₀ b₀)
       (fun ib => decide (ib.2 = b₀)) := by
   have hxor' := (P.hasXorReconstruct_iff).mp hxor
-  refine ((P.toBlock κ).toBitScheme.selectiveFailureModel x).isDeterministicAttack_of_slot
-    (fun ib => (P.toBlock κ).toBitScheme.query ib)
-    (fun ib rq => (P.toBlock κ).toBitScheme.reconstruct ib rq.1
-      (Function.update (fun s => (P.toBlock κ).toBitScheme.answer s x (rq.2 s)) s₀
-        (P.toBlockBitFlipAttack x s₀ b₀ (rq.2 s₀))))
-    Prod.snd b₀ (s₀, P.toBlockBitFlipAttack x s₀ b₀) (fun _ => rfl) ?_ ?_
-  · rintro ⟨i, b⟩ ⟨r, q⟩ hrq rfl
-    rw [query_toBitScheme, query_toBlock] at hrq
-    have hproj :
-        (fun s => Function.update (fun s => (P.toBlock κ).toBitScheme.answer s x (q s)) s₀
-          (P.toBlockBitFlipAttack x s₀ b (q s₀)) s b) =
-        Function.update (fun s => P.answer s (fun i' => x (i', b)) (q s)) s₀
-          (!(P.answer s₀ (fun i' => x (i', b)) (q s₀))) :=
-      funext fun s => by
-        by_cases hs : s = s₀ <;> simp [hs, toBlockBitFlipAttack, answer_toBitScheme, answer_toBlock]
-    dsimp only [selectiveFailureModel]
-    rw [reconstruct_toBitScheme, reconstruct_toBlock, hproj, hxor', sum_update_bool,
-      ← hxor' i r (fun s => P.answer s (fun i' => x (i', b)) (q s)),
-      hcorrect.reconstruct_eq (fun i' => x (i', b)) i hrq]
-    cases P.answer s₀ (fun i' => x (i', b)) (q s₀) <;> cases x (i, b) <;> decide
-  · intro ⟨i, b⟩ ⟨r, q⟩ hrq hb
-    rw [query_toBitScheme, query_toBlock] at hrq
-    have hproj :
-        (fun s => Function.update (fun s => (P.toBlock κ).toBitScheme.answer s x (q s)) s₀
-          (P.toBlockBitFlipAttack x s₀ b₀ (q s₀)) s b) =
-        fun s => P.answer s (fun i' => x (i', b)) (q s) :=
-      funext fun s => by
-        by_cases hs : s = s₀ <;>
-          simp [hs, toBlockBitFlipAttack, answer_toBitScheme, answer_toBlock, hb]
-    dsimp only [selectiveFailureModel]
-    rw [reconstruct_toBitScheme, reconstruct_toBlock, hproj]
-    exact hcorrect.reconstruct_eq (fun i' => x (i', b)) i hrq
+  simp only [IsDeterministicAttack, SelectiveFailure.Model.isDeterministicAttack_iff,
+    selectiveFailureModel, eval_runWithServer]
+  rintro ⟨i, b⟩ _ hout
+  obtain ⟨⟨r, q⟩, hrq, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hout
+  rw [query_toBitScheme, query_toBlock] at hrq
+  have hproj :
+      (fun s => Function.update (fun s => (P.toBlock κ).toBitScheme.answer s x (q s)) s₀
+        (P.toBlockBitFlipAttack x s₀ b₀ (q s₀)) s b) =
+      Function.update (fun s => P.answer s (fun i' => x (i', b)) (q s)) s₀
+        (P.toBlockBitFlipAttack x s₀ b₀ (q s₀) b) :=
+    funext fun s => by by_cases hs : s = s₀ <;> simp [hs, answer_toBitScheme, answer_toBlock]
+  rw [reconstruct_toBitScheme, reconstruct_toBlock, hproj, hxor', sum_update_bool,
+    ← hxor' i r (fun s => P.answer s (fun i' => x (i', b)) (q s)),
+    hcorrect.reconstruct_eq (fun i' => x (i', b)) i hrq, decide_add_ne_self_bool]
+  rcases eq_or_ne b b₀ with rfl | hb
+  · simp only [toBlockBitFlipAttack, Function.update_self, answer_toBitScheme, answer_toBlock,
+      decide_true]
+    cases P.answer s₀ (fun i' => x (i', b)) (q s₀) <;> decide
+  · simp only [toBlockBitFlipAttack, Function.update_of_ne hb, answer_toBitScheme, answer_toBlock,
+      hb, decide_false]
+    cases P.answer s₀ (fun i' => x (i', b)) (q s₀) <;> decide
 
 /-- Block-lifted bit retrieval `(P.toBlock κ).toBitScheme` is not selective-failure free whenever
 `S` and `ι` are nonempty and the block coordinate type `κ` has at least two coordinates. -/
@@ -550,7 +529,11 @@ theorem isDeterministicAttack_scheme (x : (D → ι) → Bool) {w₀ : D → Boo
     (hw₀ : K.cover w₀ = (s₀, some r₀)) (k₀ : ι) :
     (K.scheme ι).IsDeterministicAttack x s₀ (K.coverFlipAttack x s₀ r₀ k₀)
       (fun i => decide (i (K.dir s₀ r₀) = k₀)) := by
-  have hsum (i : D → ι) (r : Unit) (q : S → D → ι → Bool) :
+  simp only [Scheme.IsDeterministicAttack, SelectiveFailure.Model.isDeterministicAttack_iff,
+    Scheme.selectiveFailureModel, Scheme.eval_runWithServer]
+  intro i _ hout
+  obtain ⟨⟨r, q⟩, hrq, rfl⟩ := (PMF.mem_support_map_iff _ _ _).1 hout
+  have hsum :
       (K.scheme ι).reconstruct i r
         (Function.update (fun s => (K.scheme ι).answer s x (q s)) s₀
           (K.coverFlipAttack x s₀ r₀ k₀ (q s₀))) =
@@ -563,20 +546,7 @@ theorem isDeterministicAttack_scheme (x : (D → ι) → Bool) {w₀ : D → Boo
       Finset.sum_congr rfl fun w hw =>
         K.readAnswer_update_coverFlipAttack_of_ne x s₀ r₀ k₀ i q hw₀ (Finset.ne_of_mem_erase hw)]
     abel
-  refine ((K.scheme ι).selectiveFailureModel x).isDeterministicAttack_of_slot
-    (fun i => (K.scheme ι).query i)
-    (fun i rq => (K.scheme ι).reconstruct i rq.1
-      (Function.update (fun s => (K.scheme ι).answer s x (rq.2 s)) s₀
-        (K.coverFlipAttack x s₀ r₀ k₀ (rq.2 s₀))))
-    (fun i => i (K.dir s₀ r₀)) k₀ (s₀, K.coverFlipAttack x s₀ r₀ k₀) (fun _ => rfl) ?_ ?_
-  · intro i ⟨r, q⟩ hrq hik
-    dsimp only [Scheme.selectiveFailureModel]
-    rw [hsum, K.isCorrect_scheme.reconstruct_eq x i hrq, decide_eq_true hik]
-    cases x i <;> decide
-  · intro i ⟨r, q⟩ hrq hik
-    dsimp only [Scheme.selectiveFailureModel]
-    rw [hsum, decide_eq_false hik]
-    exact (add_zero _).trans (K.isCorrect_scheme.reconstruct_eq x i hrq)
+  rw [hsum, K.isCorrect_scheme.reconstruct_eq x i hrq, Scheme.decide_add_ne_self_bool]
 
 /-- Flipping entry `(r₀, k₀)` in `K.scheme ι` distinguishes any cube query `i₀` with
 `i₀ (K.dir s₀ r₀) = k₀` from any `i₁` with `i₁ (K.dir s₀ r₀) ≠ k₀` with advantage `1`. -/

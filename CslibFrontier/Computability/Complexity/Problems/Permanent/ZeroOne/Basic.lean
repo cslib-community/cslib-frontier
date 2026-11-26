@@ -176,10 +176,8 @@ theorem permanent_edgeMatrix_relay {K s t a b : ℕ} (E : List WeightedEdge) (hs
     congr 1
     split_ifs <;> omega
   · simpa [edgeMatrix] using hll
-  · intro j
-    simpa [edgeMatrix, Fin.ext_iff] using hrow j j.isLt
-  · intro i
-    simpa [edgeMatrix, Fin.ext_iff] using hcol i i.isLt
+  · exact fun j => by simpa [edgeMatrix, Fin.ext_iff] using hrow j j.isLt
+  · exact fun i => by simpa [edgeMatrix, Fin.ext_iff] using hcol i i.isLt
 
 /-! ### One chain -/
 
@@ -378,17 +376,14 @@ def gridEdges (n : ℕ) (g : ℕ → ℕ → ℕ) : List WeightedEdge :=
 theorem edgeWeight_gridEdges (n : ℕ) (g : ℕ → ℕ → ℕ) (i j : ℕ) :
     edgeWeight (gridEdges n g) i j = if i < n ∧ j < n then g i j else 0 := by
   rw [gridEdges, edgeWeight_flatMap]
-  have hinner : ∀ i', edgeWeight ((List.range n).map fun j' => ⟨i', j', g i' j'⟩) i j =
+  have hinner (i' : ℕ) : edgeWeight ((List.range n).map fun j' => ⟨i', j', g i' j'⟩) i j =
       if i' = i then (if j < n then g i j else 0) else 0 := by
-    intro i'
     simp only [edgeWeight, List.map_map, Function.comp_def]
     by_cases h : i' = i
     · subst h
-      simp only [true_and, ite_true]
-      exact sum_range_ite_eq (a := j) (fun j' => g i' j')
+      simpa only [true_and, ite_true] using sum_range_ite_eq (a := j) (g i')
     · simp [h]
-  simp only [hinner]
-  rw [sum_range_ite_eq (a := i) (fun _ => if j < n then g i j else 0)]
+  simp only [hinner, sum_range_ite_eq (a := i) (fun _ => if j < n then g i j else 0)]
   split_ifs <;> simp_all
 
 theorem mem_gridEdges {n : ℕ} {g : ℕ → ℕ → ℕ} {t : WeightedEdge} (ht : t ∈ gridEdges n g) :
@@ -508,14 +503,10 @@ theorem zeroOnePermanent_edgeTable {N : ℕ} {E : List WeightedEdge}
     (finCongr hl.symm)]
   refine congrArg Matrix.permanent ?_
   ext i j
-  have hij := h i i.isLt j j.isLt
-  simp only [Matrix.submatrix_apply, boolTableMatrix_apply, edgeMatrix, Matrix.of_apply]
-  simp only [finCongr_apply, Fin.getElem_fin, Fin.val_cast]
-  rw [getD_edgeTable _ j.isLt]
-  rcases Nat.le_one_iff_eq_zero_or_eq_one.mp hij with hw | hw
-  · have hfalse : (E.any fun e => e.src == (i : ℕ) && e.dst == (j : ℕ) && e.weight != 0) = false :=
-      Bool.eq_false_iff.mpr fun h => ((any_edgeTable_iff E i j).mp h) hw
-    simp [hw, hfalse]
+  simp only [Matrix.submatrix_apply, boolTableMatrix_apply, edgeMatrix, Matrix.of_apply,
+    finCongr_apply, Fin.getElem_fin, Fin.val_cast, getD_edgeTable _ j.isLt]
+  rcases Nat.le_one_iff_eq_zero_or_eq_one.mp (h i i.isLt j j.isLt) with hw | hw
+  · simp [hw, Bool.eq_false_iff.mpr fun h => (any_edgeTable_iff E i j).mp h hw]
   · simp [(any_edgeTable_iff E i j).mpr (by omega), hw]
 
 theorem natTableTriples_bounds {A : List (List ℕ)} {t : WeightedEdge} (ht : t ∈ natTableTriples A) :

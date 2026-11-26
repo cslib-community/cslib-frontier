@@ -64,20 +64,13 @@ private theorem toSmoothDomEquiv_val (params : FRIParams F) {i : ℕ} (hi : i �
 private theorem mem_rsCode_iff_toSmooth (params : FRIParams F) {i : ℕ} (hi : i ≤ params.m)
     (v : Fin (2 ^ (params.d - i)) → F) :
     v ∈ params.rsCode i ↔ (v ∘ (toSmoothDomEquiv params hi).symm) ∈ params.toSmooth.rsCode i := by
-  have heval (p : Polynomial F) :
-      (fun j => p.eval (params.eval i j)) = v ↔
-        (fun y => p.eval (params.toSmooth.eval i y)) = v ∘ (toSmoothDomEquiv params hi).symm := by
-    have hpt (j) : params.toSmooth.eval i (toSmoothDomEquiv params hi j) = params.eval i j := by
-      simp [FRISmoothParams.eval, FRIParams.eval, cosetEval, cosetPoint,
-        params.toSmooth_cumLog hi, toSmoothDomEquiv_val]
-    exact ⟨fun h => funext fun y => by
-        rw [Function.comp_apply, ← congrFun h ((toSmoothDomEquiv params hi).symm y), ← hpt,
-          Equiv.apply_symm_apply],
-      fun h => funext fun j => by
-        have := congrFun h (toSmoothDomEquiv params hi j)
-        simpa only [Function.comp_apply, Equiv.symm_apply_apply, hpt] using this⟩
+  have hpt (j) : params.toSmooth.eval i (toSmoothDomEquiv params hi j) = params.eval i j := by
+    simp [FRISmoothParams.eval, FRIParams.eval, cosetEval, cosetPoint,
+      params.toSmooth_cumLog hi, toSmoothDomEquiv_val]
   simp only [FRIParams.rsCode, FRISmoothParams.rsCode, mem_reedSolomon, params.toSmooth_dim hi,
-    heval]
+    funext_iff, Function.comp_apply]
+  refine exists_congr fun p => and_congr_right fun _ =>
+    (toSmoothDomEquiv params hi).forall_congr fun j => by simp [hpt]
 
 private theorem mem_rsCode_comp_toSmooth (params : FRIParams F) {i : ℕ} (hi : i ≤ params.m)
     (v : Fin (params.toSmooth.domainSize i) → F) :
@@ -684,12 +677,10 @@ theorem weightedLineGapPerRound_of_uniqueLineGap [DecidableEq F]
       (fun i => 2 ^ (params.d - (i.val + 1))) := by
   have huniq' : 2 * e + params.toSmooth.dim 0 ≤ 2 ^ params.toSmooth.d := by
     simpa only [params.toSmooth_dim (Nat.zero_le params.m)] using huniq
-  have hsm := weightedCurveGapPerRound_of_uniqueCurveGap params.toSmooth huniq'
-    (uniqueLineGapHypothesis_to_smooth params hgap)
   rw [weightedLineGapPerRound_iff_weightedCurveGapPerRound]
-  refine hsm.mono fun i => ?_
-  simp only [FRISmoothParams.arity, pow_one, Nat.reduceSub, one_mul,
-    params.toSmooth_domainSize i.isLt, le_rfl]
+  refine (weightedCurveGapPerRound_of_uniqueCurveGap params.toSmooth huniq'
+    (uniqueLineGapHypothesis_to_smooth params hgap)).mono fun i => ?_
+  simp [FRISmoothParams.arity, params.toSmooth_domainSize i.isLt]
 
 /-- **Conditional step (uniform binary unique-decoding weighted upgrade)**. -/
 theorem weightedLineGapBound_of_uniqueLineGap [DecidableEq F]

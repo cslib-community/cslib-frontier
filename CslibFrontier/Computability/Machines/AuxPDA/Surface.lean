@@ -641,13 +641,12 @@ theorem accepts_iff_exists_realizable_of_emptyStackHalt {M : AuxPDA k Bool Stack
   constructor
   · rintro ⟨p, hhalt, hout⟩
     have hstack : p.last.stack = [] := hempty p hhalt
-    have hsame : SameHeightRun p.toRunPath := by
-      refine ⟨by simp [hstack, p.head_eq], fun i => by simp [p.head_eq]⟩
     refine ⟨p.last.surface, p.length,
       (Cfg.isAccepting_surface_iff p.last).mpr ⟨hhalt, hout⟩,
-      by simp [Cfg.surface, hstack], ?_⟩
-    exact (realizable_iff_exists_sameHeightRun rfl).mpr
-      ⟨p.toRunPath, p.head_eq, rfl, rfl, hsame⟩
+      by simp [Cfg.surface, hstack],
+      (realizable_iff_exists_sameHeightRun rfl).mpr ⟨p.toRunPath, p.head_eq, rfl, rfl,
+        by simp [hstack, p.head_eq],
+        fun _ => by simp [p.head_eq]⟩⟩
   · rintro ⟨s_acc, d, hacc, -, hreal⟩
     obtain ⟨p, hhead, hsurf, -, -⟩ := (realizable_iff_exists_sameHeightRun rfl).mp hreal
     obtain ⟨hhalt, hout⟩ := (Cfg.isAccepting_surface_iff p.last).mp (hsurf ▸ hacc)
@@ -894,16 +893,13 @@ private theorem withEmptyStackHalt_project {Symbol : Type*} {input : List Symbol
           ¬(q'Path.toRunPath i).Halted := by
         intro i hi
         simp only [q'Path, RelSeries.snoc_length] at hi
+        have he : q'Path.toRunPath i = q.toRunPath ⟨i.val, hi⟩ :=
+          (congrArg (q.toRunPath.snoc (projectDrainCfg c) hstep') (Fin.ext rfl)).trans
+            (RelSeries.snoc_castSucc q.toRunPath (projectDrainCfg c) hstep' ⟨i.val, hi⟩)
         rcases lt_or_eq_of_le (Nat.lt_succ_iff.mp hi) with hlt | heq
-        · have hi' : i.val < q.length + 1 := by omega
-          have he : q'Path.toRunPath i = q.toRunPath ⟨i.val, hi'⟩ :=
-            (congrArg (q.toRunPath.snoc (projectDrainCfg c) hstep') (Fin.ext rfl)).trans
-              (RelSeries.snoc_castSucc q.toRunPath (projectDrainCfg c) hstep' ⟨i.val, hi'⟩)
-          exact he ▸ hnoPost ⟨i.val, hi'⟩ hlt
-        · have he : q'Path.toRunPath i = q.last :=
-            (congrArg (q.toRunPath.snoc (projectDrainCfg c) hstep') (Fin.ext heq)).trans
-              (RelSeries.snoc_castSucc q.toRunPath (projectDrainCfg c) hstep' (Fin.last _))
-          rw [he, ← hproj]
+        · exact he ▸ hnoPost ⟨i.val, hi⟩ hlt
+        · have hlast : q.toRunPath ⟨i.val, hi⟩ = q.last := congrArg q.toRunPath (Fin.ext heq)
+          rw [he, hlast, ← hproj]
           simp [projectDrainCfg, Cfg.Halted, Turing.Cfg.Halted, hrRun]
       have hvis' (i : Fin k) : RunPath.visitedByTapeHead q'Path.toRunPath i =
           RunPath.visitedByTapeHead (r.snoc c hc) i := by
@@ -925,10 +921,8 @@ theorem withEmptyStackHalt_runsInSpace {Symbol : Type*} {input : List Symbol} {s
     M.withEmptyStackHalt.RunsInSpace input s := by
   intro p
   obtain ⟨q, -, -, hvis, -, -, -⟩ := withEmptyStackHalt_project p.toRunPath p.head_eq
-  have hspace : p.space = q.space := by
-    simp only [ComputationPath.space, RunPath.space, RunPath.spaceUsedByTape]
-    exact Finset.sum_congr rfl fun i _ => congrArg Finset.card (hvis i).symm
-  exact hspace ▸ h q
+  exact (Finset.sum_congr (s₁ := Finset.univ) rfl fun i _ =>
+    congrArg Finset.card (hvis i).symm).trans_le (h q)
 
 /-- `withEmptyStackHalt` preserves all-branches time bounds with at most `2 * t + 1` steps. -/
 theorem withEmptyStackHalt_runsInTime {Symbol : Type*} {input : List Symbol} {t : ℕ}

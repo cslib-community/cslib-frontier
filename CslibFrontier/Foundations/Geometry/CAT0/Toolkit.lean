@@ -85,8 +85,7 @@ theorem exists_add_mul_dist_sq_le (C : Set Y) (hC : IsClosed C) (hne : C.Nonempt
     fun n => (hu n).le
   refine ⟨b, hbC, ?_⟩
   -- `Θ b + c (1 − 2⁻ᵏ) |yb|² ≤ Θ y`, by induction on `k` along the midpoints of `b` and `y`
-  have key : ∀ k : ℕ, ∀ y ∈ C, Θ b + c * (1 - (1 / 2) ^ k) * dist y b ^ 2 ≤ Θ y := by
-    intro k
+  have key (k : ℕ) : ∀ y ∈ C, Θ b + c * (1 - (1 / 2) ^ k) * dist y b ^ 2 ≤ Θ y := by
     induction k with
     | zero => intro y hy; simpa using hΘb.trans (hle y hy)
     | succ k ih =>
@@ -194,11 +193,8 @@ private theorem le_two_mul_of_forall {S a b : ℝ} (ha : 0 ≤ a) (hb : 0 ≤ b)
     have h1 := h ((a ^ 2 + 1) / ε) (by positivity)
     simp only [zero_pow two_ne_zero, mul_zero, zero_add, div_div_eq_mul_div] at h1
     exact (zero_add ε).symm ▸ h1.trans_lt ((div_lt_iff₀ (by positivity)).2 (by linarith))
-  · have h1 := h (a / b) (by positivity)
-    have h2 : a / b * b ^ 2 + a ^ 2 / (a / b) = 2 * a * b := by
-      field_simp
-      ring
-    linarith
+  · linarith [h (a / b) (by positivity),
+      show a / b * b ^ 2 + a ^ 2 / (a / b) = 2 * a * b by field_simp; ring]
 
 /-- The first step of part (b): for the point `q` at `s` on `[p, p']`, insert the inequality of
 part (a) twice into `t(1 − t)|xv|² ≤ (1 − t)|xq|² + t|qv|²`. -/
@@ -271,7 +267,6 @@ theorem IsBarycenter.sum_mul_dist_le {ι : Type*} [Fintype ι] {w : ι → ℝ} 
   · rw [← h0, mul_zero]
     exact Finset.sum_nonneg fun i _ => mul_nonneg (hw i) dist_nonneg
   have h1 := h b'
-  have h2 := h' b
   rw [dist_comm b' b] at h1
   have h3 : ∀ i, w i * dist b' (x i) ^ 2 + w i * dist b (x' i) ^ 2 ≤
       w i * dist b (x i) ^ 2 + w i * dist b' (x' i) ^ 2
@@ -281,8 +276,7 @@ theorem IsBarycenter.sum_mul_dist_le {ι : Type*} [Fintype ι] {w : ι → ℝ} 
     linarith
   have h5 := Finset.sum_le_sum fun i (_ : i ∈ Finset.univ) => h3 i
   simp only [Finset.sum_add_distrib, ← Finset.mul_sum] at h5
-  refine le_of_mul_le_mul_left (a := dist b b') ?_ h0
-  linarith
+  exact le_of_mul_le_mul_left (by linarith [h' b]) h0
 
 /-- **Part (c).** For `n ≥ 1` points, the barycenter with unit weights is the unique minimizer
 of `y ↦ ∑ |yxᵢ|²`. -/
@@ -314,10 +308,8 @@ theorem exists_proj (F : Set Y) (hF : IsClosed F) (hne : F.Nonempty)
     (fun x hx v hv => hconv x hx v hv _ (dist_mid_left x v) (dist_mid_right x v))
     (fun q => dist y q ^ 2) (by fun_prop) (fun _ => sq_nonneg _) one_pos
     (fun x _ v _ => by linarith [dist_mid_sq_le x v y])
-  have h' : ∀ q ∈ F, dist y P ^ 2 + dist P q ^ 2 ≤ dist y q ^ 2 := fun q hq => by
-    have := h q hq
-    rw [dist_comm q P] at this
-    linarith
+  have h' (q : Y) (hq : q ∈ F) : dist y P ^ 2 + dist P q ^ 2 ≤ dist y q ^ 2 := by
+    linarith [dist_comm q P ▸ h q hq]
   exact ⟨P, hP, fun q hq => (pow_le_pow_iff_left₀ dist_nonneg dist_nonneg two_ne_zero).1
     (by linarith [h' q hq, sq_nonneg (dist P q)]), h'⟩
 

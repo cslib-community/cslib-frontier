@@ -104,12 +104,8 @@ theorem rel_refl (p : Partition n) (x : Fin n) : p.rel x x = true :=
   p.refl x
 
 /-- Boolean symmetry of `p.rel`. -/
-theorem rel_comm (p : Partition n) (x y : Fin n) : p.rel x y = p.rel y x := by
-  cases hxy : p.rel x y <;> cases hyx : p.rel y x
-  · rfl
-  · simp [p.symm hyx] at hxy
-  · simp [p.symm hxy] at hyx
-  · rfl
+theorem rel_comm (p : Partition n) (x y : Fin n) : p.rel x y = p.rel y x :=
+  Bool.eq_iff_iff.mpr ⟨p.symm, p.symm⟩
 
 /-- View a `Partition n` as a `Setoid (Fin n)`. -/
 @[expose] def toSetoid (p : Partition n) : Setoid (Fin n) where
@@ -162,10 +158,9 @@ theorem classOf_eq_iff {p : Partition n} {x y : Fin n} :
 
 /-- Unrelated elements have disjoint equivalence classes. -/
 theorem disjoint_classOf_of_rel_eq_false {p : Partition n} {x y : Fin n}
-    (h : p.rel x y = false) : Disjoint (p.classOf x) (p.classOf y) := by
-  refine Finset.disjoint_left.mpr fun z hzx hzy => ?_
-  have hxy : p.rel x y = true := p.trans (mem_classOf.mp hzx) (p.symm (mem_classOf.mp hzy))
-  simp [h] at hxy
+    (h : p.rel x y = false) : Disjoint (p.classOf x) (p.classOf y) :=
+  Finset.disjoint_left.mpr fun _ hzx hzy =>
+    Bool.eq_false_iff.mp h (p.trans (mem_classOf.mp hzx) (p.symm (mem_classOf.mp hzy)))
 
 /-- The finite set of equivalence classes (connected components) of `p`. -/
 @[expose] def components (p : Partition n) : Finset (Finset (Fin n)) :=
@@ -258,21 +253,15 @@ theorem rel_merge_iff_eqvGen {p : Partition n} {x y a b : Fin n} :
 
 theorem merge_comm (p : Partition n) (x y : Fin n) : p.merge x y = p.merge y x := by
   ext a b
-  simp only [rel_merge]
-  cases p.rel a b <;> cases p.rel a x <;> cases p.rel y b <;>
-    cases p.rel a y <;> cases p.rel x b <;> rfl
+  simp only [rel_merge, Bool.or_assoc, Bool.or_comm (x := p.rel a x && p.rel y b)]
 
 /-- Merging two already-equivalent elements leaves the partition unchanged. -/
 theorem merge_of_rel {p : Partition n} {x y : Fin n} (h : p.rel x y = true) :
     p.merge x y = p := by
   ext a b
-  cases hab : p.rel a b
-  · simp only [rel_merge, hab, Bool.false_or, Bool.or_eq_false_iff, Bool.and_eq_false_imp]
-    refine ⟨fun hax => Bool.eq_false_iff.mpr fun hyb => ?_,
-      fun hay => Bool.eq_false_iff.mpr fun hxb => ?_⟩
-    · simp [p.trans (p.trans hax h) hyb] at hab
-    · simp [p.trans (p.trans hay (p.symm h)) hxb] at hab
-  · simp [rel_merge, hab]
+  refine Bool.eq_iff_iff.mpr ⟨fun hm => ?_, fun hab => rel_merge_eq_true.mpr (.inl hab)⟩
+  rcases rel_merge_eq_true.mp hm with hab | ⟨hax, hyb⟩ | ⟨hay, hxb⟩
+  exacts [hab, p.trans (p.trans hax h) hyb, p.trans (p.trans hay (p.symm h)) hxb]
 
 @[simp]
 theorem merge_self (p : Partition n) (x : Fin n) : p.merge x x = p :=
@@ -470,10 +459,9 @@ theorem spanningForestEdges_sublist {n : ℕ} {E : Type} (endpts : E → Fin n �
   | nil => simp
   | cons e es ih =>
     rw [eval_spanningForestEdges_cons]
-    dsimp only
     split
-    · exact List.Sublist.cons_cons e (ih (p.merge (endpts e).1 (endpts e).2))
-    · exact List.Sublist.cons e (ih (p.merge (endpts e).1 (endpts e).2))
+    · exact .cons_cons e (ih _)
+    · exact .cons e (ih _)
 
 /-- Exact conservation law: the final component count plus the number of accepted forest edges
 equals the initial component count. -/

@@ -152,9 +152,7 @@ private theorem step_buffer_before_end {width : ℕ} (hw : 0 < width)
   simp only [scan, bufferCfg, ite_eq_right (by omega : cursor.val + 1 ≠ width),
     MultiTapeNTM.ChoiceTable.apply_idle, advance, Cfg.mk.injEq, Option.some.injEq,
     ScanState.mk.injEq, and_true, true_and]
-  constructor
-  · fin_index
-  · fin_index
+  constructor <;> fin_index
 
 private theorem step_buffer_at_end {width : ℕ} (hw : 0 < width)
     (machine : MultiTapeCTM k Bool State) (cfg : Cfg k Bool State input) (state : State)
@@ -184,16 +182,13 @@ private theorem stepCoins_prefix {width : ℕ} (hw : 0 < width)
     rw [MultiTapePTM.stepCoins_nil, simCfg_of_running hw cfg state hs]
     rfl
   | append_singleton bits bit ih =>
-    have hpre : bits.length < width := by grind
-    have hcursor : bits.length + 1 < width := by
-      simpa only [List.length_append, List.length_singleton] using hlen
     have hvalue : 2 * BitString.binaryValue bits + bit.toNat < 2 ^ width := by
       rw [← BitString.binaryValue_snoc]
       exact (BitString.binaryValue_lt_two_pow _).trans_le
         (Nat.pow_le_pow_right (by norm_num) hlen.le)
-    rw [MultiTapePTM.stepCoins_append, ih hpre, MultiTapePTM.stepCoins_cons,
+    rw [MultiTapePTM.stepCoins_append, ih (by grind), MultiTapePTM.stepCoins_cons,
       MultiTapePTM.stepCoins_nil,
-      step_buffer_before_end hw machine cfg state _ _ bit hcursor hvalue]
+      step_buffer_before_end hw machine cfg state _ _ bit (by simpa using hlen) hvalue]
     simp only [List.length_append, List.length_singleton, BitString.binaryValue_snoc]
 
 private theorem stepCoins_block_of_valid {width : ℕ} (hw : 0 < width)
@@ -243,21 +238,16 @@ private theorem stepCoins_block_of_invalid {width : ℕ} (hw : 0 < width)
   induction bits using List.reverseRecOn with
   | nil => simp only [List.length_nil] at hlen; omega
   | append_singleton bits bit ih =>
-    have hcursor : bits.length + 1 = width := by
-      simpa only [List.length_append, List.length_singleton] using hlen
+    have hcursor : bits.length + 1 = width := by simpa using hlen
     rw [MultiTapePTM.stepCoins_append, MultiTapePTM.stepCoins_append,
       stepCoins_prefix hw machine cfg state hs bits (by omega), MultiTapePTM.stepCoins_cons,
       MultiTapePTM.stepCoins_nil, step_table hw machine rfl]
     have hact' : (localActions machine state cfg.inputSymbol cfg.workTapeSymbols)[
         2 * BitString.binaryValue bits + bit.toNat]? = none := by
       simpa only [localActions, actions, hs, BitString.binaryValue_snoc] using hact
-    simp only [scan, bufferCfg, hcursor, ↓reduceIte]
     change ((table hw machine).stepCoins rest
-      ((match (localActions machine state cfg.inputSymbol cfg.workTapeSymbols)[
-          2 * BitString.binaryValue bits + bit.toNat]? with
-        | none => reject
-        | some action => perform hw (OutputTrack.ofWord cfg.output) action).apply _)).output ≠ _
-    rw [hact']
+      ((scan hw machine _ cfg.inputSymbol cfg.workTapeSymbols bit).apply _)).output ≠ _
+    simp only [scan, bufferCfg, hcursor, ↓reduceIte, hact']
     exact reject_continuation hw machine _ rest
 
 private theorem stepCoins_padding {width : ℕ} (hw : 0 < width)
@@ -274,8 +264,7 @@ private theorem stepCoins_padding {width : ℕ} (hw : 0 < width)
     rw [MultiTapePTM.stepCoins_cons, step_table hw machine rfl]
     cases bit with
     | false =>
-      simp only [scan, simCfg, startState, hs, Bool.false_eq_true, ↓reduceIte]
-      simp only [simCfg, startState, hs] at ih
+      simp only [scan, simCfg, startState, hs, Bool.false_eq_true, ↓reduceIte] at ih ⊢
       rw [apply_idle, ih]
       simp only [List.length_cons, List.replicate_succ, List.cons.injEq, true_and]
     | true =>

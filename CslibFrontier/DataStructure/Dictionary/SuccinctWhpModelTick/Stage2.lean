@@ -83,11 +83,8 @@ private theorem rebScanSteps_spec {c U n_max b : ℕ} (hth : whpThreshold c ≤ 
   induction rem generalizing fs with
   | zero =>
     obtain ⟨rm, hvr, hrr⟩ := hreb0
-    right
-    refine ⟨fs.slices (fs.rebSliceIdx b), fs.rebInsCount, rm, ?_, le_rfl, ?_, hvr, ?_⟩
-    · dsimp only [rebScanSteps]; simp
-    · simpa using hinj0
-    · simpa using hrr
+    exact Or.inr ⟨fs.slices (fs.rebSliceIdx b), fs.rebInsCount, rm,
+      by simp [rebScanSteps], le_rfl, by simpa using hinj0, hvr, by simpa using hrr⟩
   | succ rem ih =>
     obtain ⟨rm0, hvr0, hrr0⟩ := hreb0
     dsimp only [rebScanSteps]
@@ -149,17 +146,14 @@ private theorem rebScanSteps_spec {c U n_max b : ℕ} (hth : whpThreshold c ≤ 
             by rw [hr1_idx]; dsimp only [fs1]; rw [Function.update_self]; exact hv1,
             by dsimp only [fs1]; rw [hfp1, hmin1]; exact hr1⟩ with
           ⟨sl', cur', ins', heq⟩ | ⟨sl', ins', rm', heq, hins', hinj', hv', hr'⟩
-        · left
-          refine ⟨sl', cur', ins', ?_⟩
-          rw [heq, hr1_idx]; dsimp only [fs1]; rw [Function.update_idem]
-        · right
-          dsimp only [fs1] at hins' hinj' hr'
-          rw [hfp1] at hinj' hr'
+        · exact Or.inl ⟨sl', cur', ins',
+            by simpa only [hr1_idx, fs1, Function.update_idem] using heq⟩
+        · dsimp only [fs1] at hins' hinj' hr'
           have hadd : cur + 1 + rem = cur + (rem + 1) := by omega
-          rw [hadd] at hinj' hr'
-          refine ⟨sl', ins', rm', ?_, by omega, hinj', hv', hr'⟩
-          rw [heq, hr1_idx]; dsimp only [fs1]
-          rw [Function.update_idem, hadd]
+          rw [hfp1, hadd] at hinj' hr'
+          exact Or.inr ⟨sl', ins', rm',
+            by simpa only [hr1_idx, fs1, Function.update_idem, hadd] using heq,
+            by omega, hinj', hv', hr'⟩
     · rw [ite_eq_right hact]
       set fs1 : FastState := { fs with rebScanCursor := cur + 1 }
       have hfp1 : fs1.fpAt c U n_max θ fs1.rebCandSalt b =
@@ -195,14 +189,13 @@ private theorem rebScanSteps_spec {c U n_max b : ℕ} (hth : whpThreshold c ≤ 
         (by dsimp only [fs1]; rw [hfp1]; exact hstep_min.1)
         ⟨rm0, hvr0, by dsimp only [fs1]; rw [hfp1]; exact hstep_min.2⟩ with
         ⟨sl', cur', ins', heq⟩ | ⟨sl', ins', rm', heq, hins', hinj', hv', hr'⟩
-      · left; rw [heq, hr1_idx]; exact ⟨sl', cur', ins', rfl⟩
-      · right
-        dsimp only [fs1] at hins' hinj' hr'
-        rw [hfp1] at hinj' hr'
+      · exact Or.inl ⟨sl', cur', ins', by simpa only [hr1_idx] using heq⟩
+      · dsimp only [fs1] at hins' hinj' hr'
         have hadd : cur + 1 + rem = cur + (rem + 1) := by omega
-        rw [hadd] at hinj' hr'
-        refine ⟨sl', ins', rm', ?_, by omega, hinj', hv', hr'⟩
-        rw [heq, hr1_idx]; dsimp only [fs1, cur, rIdx]; rw [hadd]
+        rw [hfp1, hadd] at hinj' hr'
+        exact Or.inr ⟨sl', ins', rm',
+          by simpa only [hr1_idx, fs1, cur, rIdx, hadd] using heq,
+          by omega, hinj', hv', hr'⟩
 
 
 /-- Slice indices `3 * b' + r'` and `3 * b + r` with roles `< 3` differ unless the buckets and the
@@ -272,26 +265,18 @@ theorem epochTickStage2_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       (fun b' hb' => Function.update_of_ne (hne_om b' hb') _ _)
       (fun _ _ _ _ => rfl) hc0.bufOld_valid ?_ hclk0
     dsimp only [ValidEpochStage]
-    have hs2_1 : s1.rebStage = 2 := hs2_0
-    simp only [hs2_1, Nat.reduceEqDiff, ↓reduceIte]
-    have hdc1 : s1.dirtyCount = fs.dirtyCount := hdc0
-    have hdb1 : s1.dirtyBuckets = fs.dirtyBuckets := hdb0
-    have hbkt1 : s1.bktCount = fs.bktCount := hbkt0
-    have hls1 : s1.locState = fs.locState := hls0
-    have hoe1 : s1.oldEp = fs.oldEp := hoe0
-    rw [hdc1, hdb1, hbkt1, hls1, hoe1]
-    refine ⟨hd1, hd2', hd3, hd4, hd5', hd6, fun _ => ⟨Or.inl ⟨rfl, rfl⟩,
-      fun _ hl => absurd (hl.trans_le (Nat.min_le_right _ _)) (Nat.not_lt_zero _),
-      fun _ => none, ?_, ?_⟩⟩
-    · rw [← hdb0]
-      change ValidWhpSlice n_max 0
-        (Function.update s0.slices (s0.rebSliceIdx (s0.dirtyBuckets dIdx1))
-          (resetBTreeSlice sl0) (s0.rebSliceIdx (s0.dirtyBuckets dIdx1))) _
-      rw [Function.update_self]
-      exact validWhpSlice_zero _ 0 _
-    · change SliceMapRel _ _ (min _ 0) _
-      rw [Nat.min_zero]
-      exact SliceMapRel.empty_of_not _ _ 0 fun _ h => absurd h (Nat.not_lt_zero _)
+    simp only [show s1.rebStage = 2 from hs2_0, Nat.reduceEqDiff, ↓reduceIte]
+    rw [show s1.dirtyCount = fs.dirtyCount from hdc0,
+      show s1.dirtyBuckets = fs.dirtyBuckets from hdb0,
+      show s1.bktCount = fs.bktCount from hbkt0,
+      show s1.locState = fs.locState from hls0,
+      show s1.oldEp = fs.oldEp from hoe0]
+    dsimp only [s1, FastState.rebSliceIdx, FastState.rebRole]
+    rw [hdb0, Function.update_self, Nat.min_zero]
+    exact ⟨hd1, hd2', hd3, hd4, hd5', hd6, fun _ => ⟨Or.inl ⟨rfl, rfl⟩,
+      fun _ hl => absurd hl (Nat.not_lt_zero _), fun _ => none,
+      validWhpSlice_zero _ 0 _,
+      SliceMapRel.empty_of_not _ _ 0 fun _ h => absurd h (Nat.not_lt_zero _)⟩⟩
   unfold epochTickStage2 epochTickStage2PostScan; dsimp only
   rw [ite_eq_left hd2]
   set b := fs.dirtyBuckets fs.dirtyIdx

@@ -275,8 +275,7 @@ private theorem RevStep.shift {d : ℕ} {C D : Finset ℕ} {m : Move ℕ}
       rw [e]
       exact .place (fun hm => hv (by rwa [mem_shiftDown, Nat.sub_add_cancel hdv] at hm))
         fun u hu => mem_shiftDown.2 (h _ (by rw [pathDigraph_adj] at hu ⊢; omega))
-    · refine .inl ?_
-      ext x
+    · refine .inl (Finset.ext fun x => ?_)
       simp only [mem_shiftDown, Finset.mem_insert, or_iff_right_iff_imp]
       omega
   | @remove v hv h =>
@@ -289,8 +288,7 @@ private theorem RevStep.shift {d : ℕ} {C D : Finset ℕ} {m : Move ℕ}
       rw [e]
       exact .remove (by rwa [mem_shiftDown, Nat.sub_add_cancel hdv])
         fun u hu => mem_shiftDown.2 (h _ (by rw [pathDigraph_adj] at hu ⊢; omega))
-    · refine .inl ?_
-      ext x
+    · refine .inl (Finset.ext fun x => ?_)
       simp only [mem_shiftDown, Finset.mem_erase, and_iff_right_iff_imp]
       omega
 
@@ -301,12 +299,10 @@ private theorem minBound_succ {k : ℕ}
     {ms : List (Move ℕ)} {C : Finset ℕ} (h : (reversiblePebbleGame pathDigraph (k + 1)).MTr ∅ ms C)
     (hne : C.Nonempty) : 2 * (C.min' hne + 1) ≤ 2 ^ (k + 1) := by
   rw [pow_succ]
-  obtain ⟨c, hc⟩ : ∃ c, C.min' hne = c := ⟨_, rfl⟩
-  rw [hc]
-  cases c with
-  | zero => have := Nat.two_pow_pos k; omega
-  | succ c =>
-    have hcC : c + 1 ∈ C := hc ▸ C.min'_mem hne
+  rcases hc : C.min' hne with _ | c
+  · have := Nat.two_pow_pos k
+    omega
+  · have hcC : c + 1 ∈ C := hc ▸ C.min'_mem hne
     -- Play the run backwards, from `C` to `∅`, restricted to the vertices below `c + 1`.
     have hrev := reversiblePebbleGame_mTr_reverse pathDigraph_irrefl h (by simp)
     have claim : ∀ E D ms', (reversiblePebbleGame pathDigraph (k + 1)).MTr E ms' D → D = ∅ →
@@ -364,16 +360,13 @@ private theorem maxBound_succ {k : ℕ}
       · exact ⟨ms₁, he ▸ h₁⟩
       · refine ⟨ms₁ ++ [m'], LTS.MTr.stepR _ h₁ ⟨hm', ?_⟩⟩
         refine (card_shiftDown_le _ _).trans ?_
-        by_cases hlow : ∃ y ∈ E₂, y < 2 ^ k
-        · obtain ⟨y, hy, hyk⟩ := hlow
+        obtain rfl | hne := E₂.eq_empty_or_nonempty
+        · simp
+        · have hmin := minBound_succ hmax h₀' hne
           have hlt : (E₂.filter (2 ^ k ≤ ·)).card < E₂.card :=
-            Finset.card_lt_card (Finset.filter_ssubset.2 ⟨y, hy, by omega⟩)
+            Finset.card_lt_card (Finset.filter_ssubset.2 ⟨_, E₂.min'_mem hne, by omega⟩)
           have := htr.2
           omega
-        · obtain rfl | hne := E₂.eq_empty_or_nonempty
-          · simp
-          · have hmin := minBound_succ hmax h₀' hne
-            exact absurd ⟨_, E₂.min'_mem hne, by omega⟩ hlow
   have e₀ : shiftDown (2 ^ k) (∅ : Finset ℕ) = ∅ := by simp [shiftDown]
   obtain ⟨ms₁, h₁⟩ := key ∅ ms C h ⟨[], .refl⟩ ⟨[], e₀ ▸ .refl⟩
   by_cases hxk : x < 2 ^ k

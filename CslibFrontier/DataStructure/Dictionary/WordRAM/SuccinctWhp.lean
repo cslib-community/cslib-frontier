@@ -1006,11 +1006,9 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
       (resampleStage_execRand hw hw0_le hfit_bkt_end hbase).seq (m₂ := m₂_of) fun _ hz₁ =>
         resampleStage_execRand hw hw0_le hfit_fp_end
           ((mem_support_resampleStage hw hw0_le hfit_bkt_end hx₁ hz₁).2.1.trans hbase)
-    have hz_in : ∀ a, base ≤ a → a < base + largeSpaceWhp c U V w n_max → x₁.mem a = 0 := by
-      intro a ha1 ha2
-      refine hz a ?_
-      simp only [Block.mem_footprint, Block.Owns, hsp]
-      exact ⟨ha1, ha2⟩
+    have hz_in (a : ℕ) (ha1 : base ≤ a) (ha2 : a < base + largeSpaceWhp c U V w n_max) :
+        x₁.mem a = 0 :=
+      hz a (by simp [Block.mem_footprint, Block.Owns, hsp, ha1, ha2])
     let hasInv (y₂ : Data rWhp) : Prop :=
       y₂.Bounded w ∧
       y₂.regs baseReg = base ∧
@@ -1085,24 +1083,17 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
       rw [ite_eq_right hsm]
       refine ExecRand.seq hex₁₂ (m₂ := m_tail) fun z₁₂ hz₁₂ => ?_
       have hi : hasInv z₁₂.1 := (hm₁₂_supp z₁₂ hz₁₂).1
-      have hspec := Classical.choose_spec (tailEx z₁₂.1 hi)
       have hd_eq : detOut z₁₂.1 = Classical.choose (tailEx z₁₂.1 hi) := dite_eq_left hi
       dsimp only [m_tail]
       rw [hd_eq]
-      exact hspec.2.1.execRand
+      exact (Classical.choose_spec (tailEx z₁₂.1 hi)).2.1.execRand
     have hqb : OracleComp.IsQueryBounded m₀ (initSetupRandCalls c w n_max) := by
       unfold initSetupRandCalls
       rw [ite_eq_right hsm]
       have hqb₁₂ : m₁₂.IsQueryBounded _ :=
         (isQueryBounded_resampleStage _).bind fun _ =>
           (isQueryBounded_resampleStage _).bind fun _ => .pure _ 0
-      have hqb_tail : ∀ z₁₂ : Data rWhp × ℕ,
-          (do let z_t ← m_tail z₁₂.1; pure (z_t.1, z₁₂.2 + z_t.2)).IsQueryBounded 0 := by
-        intro z₁₂
-        dsimp only [m_tail]
-        simp only [pure_bind]
-        exact .pure _ 0
-      simpa only [Nat.add_zero] using hqb₁₂.bind hqb_tail
+      simpa only [m₀, m_tail, pure_bind, Nat.add_zero] using hqb₁₂.bind fun _ => .pure _ 0
     have htime : ∀ z ∈ m₀.support, z.2 ≤ initSetupSteps c w n_max := by
       intro z hz_mem
       dsimp only [m₀] at hz_mem
@@ -1111,14 +1102,12 @@ private theorem setup_exec_whp {c U V w n_max base : ℕ}
       cases OracleComp.eq_of_mem_supportWith_pure hz_t
       cases OracleComp.eq_of_mem_supportWith_pure hp
       obtain ⟨hi, _, hst₁₂⟩ := hm₁₂_supp z₁₂ hz₁₂
-      have hspec := Classical.choose_spec (tailEx z₁₂.1 hi)
       have hd_eq : detOut z₁₂.1 = Classical.choose (tailEx z₁₂.1 hi) := dite_eq_left hi
       have hle_t : (detOut z₁₂.1).2 ≤
           68 + realizes_initFastGen.factor * (initFastCostWhp n_max + 1) := by
-        rw [hd_eq]; exact hspec.1
-      unfold initSetupSteps
-      rw [ite_eq_right hsm]
-      dsimp only
+        rw [hd_eq]
+        exact (Classical.choose_spec (tailEx z₁₂.1 hi)).1
+      simp only [initSetupSteps, hsm, ↓reduceIte]
       omega
     have hsnd : ν₀.map Prod.snd = (Prod.fst <$> m₀).eval := by
       have hm₀_eq : (Prod.fst <$> m₀) = (fun z₁₂ => (detOut z₁₂.1).1) <$> m₁₂ := by
@@ -1197,15 +1186,12 @@ private theorem whpRunPure_snoc (c U n_max : ℕ) (θ : SeedWhp c U n_max)
     (ops : List (Dynamic.Op U)) (o : Dynamic.Op U) :
     whpRunPure c U n_max θ (ops ++ [o]) =
       (whpStepPure c U n_max θ (whpRunPure c U n_max θ ops) o).1 := by
-  dsimp only [whpRunPure]
-  have haux : ∀ st (l : List (Dynamic.Op U)),
-      whpRunFrom c U n_max θ st (l ++ [o]) =
-        (whpStepPure c U n_max θ (whpRunFrom c U n_max θ st l) o).1 := by
-    intro st l
-    induction l generalizing st with
-    | nil => rfl
-    | cons hd tl ih => exact ih _
-  exact haux _ ops
+  suffices ∀ st l, whpRunFrom c U n_max θ st (l ++ [o]) =
+      (whpStepPure c U n_max θ (whpRunFrom c U n_max θ st l) o).1 from this _ ops
+  intro st l
+  induction l generalizing st with
+  | nil => rfl
+  | cons _ _ ih => exact ih _
 
 private theorem exec_opCode {c U V w n_max base : ℕ}
     (hc : 0 < c) (hw : 0 < w) (hnU : n_max ≤ U) (hU : Fits w U) (hV : Fits w V)
@@ -1292,15 +1278,10 @@ private theorem exec_opCode {c U V w n_max base : ℕ}
     exact congrFun hx₀_mem a
   have hvh_snoc : (Dynamic.spec U V n_max).ValidHistory (Dictionary.empty U) (ops ++ [o]) :=
     ((Dynamic.spec U V n_max).validHistory_append _ ops [o]).mpr ⟨hvh, hs_eq ▸ hval_op, trivial⟩
-  have hs_next_eq : ((Dynamic.spec U V n_max).stepFn s_abs o).1 =
-      ((Dynamic.spec U V n_max).run (Dictionary.empty U) (ops ++ [o])).1 := by
-    rw [run_fst_snoc, ← hs_eq]
-  have hgrep' : GhostRep c U V w n_max base (ops ++ [o]) θ
-      ((Dynamic.spec U V n_max).stepFn s_abs o).1 y := by
-    refine ⟨hy_bdd, hbase_y, hfr_y, ?_, ?_, hs_next_eq, hvh_snoc⟩
-    · rw [whpRunPure_snoc, hmem_y]; exact hrep'
-    · rw [whpRunPure_snoc]; exact hv_st'
-  refine ⟨(y, n₁ + n₂), he₁.seq he₂, hdec, hgrep', hmod, fun hhit => ?_⟩
+  refine ⟨(y, n₁ + n₂), he₁.seq he₂, hdec, ⟨hy_bdd, hbase_y, hfr_y, ?_, ?_,
+    by rw [run_fst_snoc, ← hs_eq], hvh_snoc⟩, hmod, fun hhit => ?_⟩
+  · rwa [whpRunPure_snoc, hmem_y]
+  · rwa [whpRunPure_snoc]
   have hmc_le := hfast_mc ops rfl hhit
   have hn₂_le : n₂ ≤ realizes_whpStepPureGen.factor * (whpFastBranchCost c + 1) := by
     have h1 : memoryCost (whpStepPureGenProg d_in) (memoryState frontierReg x₀) + 0 + 1 ≤
@@ -1644,10 +1625,8 @@ theorem poly_seq_whp {c c₀ U V w n_max base : ℕ}
   have hfail_poly : τ_final.toOuterMeasure {tr | worstCaseTimeWhp (c + c₀) < tr.maxSteps} ≤
       (max n_max 1 : ℝ≥0∞)⁻¹ ^ c := by
     have hcast : ((max n_max 1 : ℕ) : ℝ≥0∞) = max (n_max : ℝ≥0∞) 1 := by
-      rcases n_max with _ | n_max
-      · simp
-      · have h1 : (1 : ℝ≥0∞) ≤ ((n_max + 1 : ℕ) : ℝ≥0∞) := by norm_cast; omega
-        rw [Nat.max_eq_left (by omega), max_eq_left h1]
+      simpa only [Nat.cast_one] using
+        Monotone.map_max (fun _ _ => Nat.cast_le.2) (a := n_max) (b := 1)
     have hp := C.poly_seq_failureProb_le hlen (c := c) (by
       change (max (n_max : ℝ≥0∞) 1)⁻¹ ^ (c + c₀) ≤ _
       rw [hcast])

@@ -135,11 +135,9 @@ theorem Schedule.receivedWords_append {i : Fin m} {sc₂ : Schedule m spec} :
   | [], _, _, _, _ => rfl
   | .message _ receiver _ :: rest, e₁, e₂, r₁, r₂ => by
     have ih := Schedule.receivedWords_append (i := i) rest e₁.2 e₂ r₁.2 r₂
-    by_cases hi : i = receiver
-    · simp only [List.cons_append, Schedule.receivedWords, Schedule.MessageEncodings.append,
-        Schedule.Received.append, dite_eq_left hi, ih]
-    · simp only [List.cons_append, Schedule.receivedWords, Schedule.MessageEncodings.append,
-        Schedule.Received.append, dite_eq_right hi, ih]
+    by_cases hi : i = receiver <;>
+      simp [Schedule.receivedWords, Schedule.MessageEncodings.append, Schedule.Received.append,
+        hi, ih]
   | .oracle _ _ :: _, e₁, _, _, _ => Empty.elim e₁
 
 /-- **Lifting a schedule along a party embedding keeps the received words**: in
@@ -159,9 +157,8 @@ theorem Schedule.receivedWords_embed {k : ℕ} (parties : Fin k ↪ Fin m) (s : 
       refine (dite_eq_left rfl).trans ?_
       simp only [Schedule.receivedWords, dite_true]
       exact congrArg (_ :: ·) ih
-    · have hne : parties s ≠ parties receiver := fun h => hs (parties.injective h)
-      refine (dite_eq_right hne).trans (ih.trans ?_)
-      simp only [Schedule.receivedWords, dite_eq_right hs]
+    · exact (dite_eq_right fun h => hs (parties.injective h)).trans
+        (ih.trans (by simp only [Schedule.receivedWords, dite_eq_right hs]))
   | .oracle _ _ :: _, e, _ => Empty.elim e
 
 /-- A party that fills no slot of a party embedding receives no word along a lifted schedule. -/
@@ -172,10 +169,9 @@ theorem Schedule.receivedWords_embed_of_forall_ne {k : ℕ} (parties : Fin k ↪
       Schedule.receivedWords (sc.map (Round.embed parties))
         (Schedule.MessageEncodings.embed parties sc e) r = []
   | [], _, _ => rfl
-  | .message _ receiver _ :: rest, e, r => by
-    have ih := Schedule.receivedWords_embed_of_forall_ne parties hi rest e.2 r.2
-    have hne : i ≠ parties receiver := fun h => hi receiver h.symm
-    exact (dite_eq_right hne).trans ih
+  | .message _ receiver _ :: rest, e, r =>
+    (dite_eq_right fun h => hi receiver h.symm).trans
+      (Schedule.receivedWords_embed_of_forall_ne parties hi rest e.2 r.2)
   | .oracle _ _ :: _, e, _ => Empty.elim e
 
 /-! ### Words of the coins of a composed protocol -/

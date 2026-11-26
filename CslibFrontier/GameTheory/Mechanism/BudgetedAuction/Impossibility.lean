@@ -189,20 +189,17 @@ private theorem unconstrained_winner_payment_eq {M : BudgetedMechanism ι} {m : 
     linarith
   refine ⟨hall_m t BigB ht hBigB, le_antisymm ?_ ?_⟩
   · -- Upper bound `payment j ≤ (θ i).val * m` by taking `w₂ = (θ i).val + ε → (θ i).val`.
-    by_contra hgt
-    push Not at hgt
+    by_contra! hgt
     let p := (M.outcome (Function.update θ j ⟨t, BigB⟩)).payment j
     let w₂ := (θ i).val + (p - (θ i).val * m) / (2 * m)
-    have hw₂ : (θ i).val < w₂ := by
-      linarith [div_pos (sub_pos.mpr hgt) (by positivity : 0 < 2 * m)]
-    have hle_p := hpay_const t BigB w₂ (w₂ * m + 1) ht hBigB hw₂ (by linarith)
-    have hir₂ := hir_le w₂ (w₂ * m + 1) hw₂ (by linarith)
+    have hw₂ : (θ i).val < w₂ :=
+      lt_add_of_pos_right _ (div_pos (sub_pos.mpr hgt) (by positivity))
     have hw₂_mul : w₂ * m = (θ i).val * m + (p - (θ i).val * m) / 2 := by
       dsimp only [w₂]; field_simp [hm.ne']
-    linarith
+    linarith [hpay_const t BigB w₂ (w₂ * m + 1) ht hBigB hw₂ (lt_add_one _),
+      hir_le w₂ (w₂ * m + 1) hw₂ (lt_add_one _)]
   · -- Lower bound `(θ i).val * m ≤ payment j` via deviation from `s < (θ i).val`.
-    by_contra hlt
-    push Not at hlt
+    by_contra! hlt
     let p := (M.outcome (Function.update θ j ⟨t, BigB⟩)).payment j
     have hp_nn : 0 ≤ p := hnn _ (update_pos hθ j ⟨ht_pos, hBigB_pos⟩) j
     let s := max ((θ i).val / 2) ((θ i).val - ((θ i).val * m - p) / (2 * m))
@@ -222,10 +219,9 @@ private theorem unconstrained_winner_payment_eq {M : BudgetedMechanism ι} {m : 
       alloc_eq_zero_of_lt_unconstrained hbf hir hpo hθs (a := i)
         (by simpa only [Function.update_self, Function.update_of_ne hij] using hs_lt)
         (by simpa only [Function.update_of_ne hij] using hv_i_unc)
-    have hps0 : (M.outcome (Function.update θ j ⟨s, Bs⟩)).payment j = 0 := by
-      have h2 := payment_le_of_ir hir hθs j
-      simp only [Function.update_self, hxs0, mul_zero] at h2
-      linarith [hnn _ hθs j]
+    have hps0 : (M.outcome (Function.update θ j ⟨s, Bs⟩)).payment j = 0 :=
+      le_antisymm (by simpa only [Function.update_self, hxs0, mul_zero] using
+        payment_le_of_ir hir hθs j) (hnn _ hθs j)
     have hic_dev := hic _ hθs j ⟨t, BigB⟩ ⟨ht_pos, hBigB_pos⟩ (by
       simp only [Function.update_idem, Function.update_self]
       exact (by linarith : p ≤ p + 1).trans (le_max_left _ _))
@@ -276,8 +272,7 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
     have hpj_le : (M.outcome (Function.update θ j ⟨w, (θ j).budget⟩)).payment j ≤ (θ j).budget := by
       simpa only [Function.update_self] using hbf _ hθw j
     rw [le_div_iff₀ hv_i_pos]
-    by_contra hgt
-    push Not at hgt
+    by_contra! hgt
     let x := (M.outcome (Function.update θ j ⟨w, (θ j).budget⟩)).alloc j
     have hx_le : x ≤ m := alloc_le_of_po hpo hθw j
     let ε := (x * (θ i).val - (θ j).budget) / (2 * m)
@@ -339,22 +334,19 @@ theorem pinning_of_isPrivateBudgetDSIC_isParetoOptimal {M : BudgetedMechanism ι
         (le_of_mul_le_mul_left (by linarith : w * _ ≤ w * _) hw_pos)
     have hlow : (θ j).budget / (θ i).val ≤ (M.outcome θ).alloc j := by
       rw [div_le_iff₀ hv_i_pos]
-      by_contra hlt
-      push Not at hlt
+      by_contra! hlt
       let x := (M.outcome θ).alloc j
       have hx_pos : 0 < x := lt_of_le_of_ne (hfeas.1 j) fun h0 => by
         nlinarith [payment_le_of_ir hir hθ j]
       let w := (θ i).val + ((θ j).budget - x * (θ i).val) / (2 * x)
-      have hw : (θ i).val < w := by
-        linarith [div_pos (sub_pos.mpr hlt) (by positivity : 0 < 2 * x)]
+      have hw : (θ i).val < w := lt_add_of_pos_right _ (div_pos (sub_pos.mpr hlt) (by positivity))
       have hiru := payment_le_of_ir hir
         (update_pos hθ j (b := ⟨w, (θ j).budget⟩) ⟨hv_i_pos.trans hw, hB_j_pos⟩) j
       simp only [Function.update_self, hx_const w hw, hpay_bind w hw] at hiru
       have hwx : w * x = x * (θ i).val + ((θ j).budget - x * (θ i).val) / 2 := by
         dsimp only [w]; field_simp [hx_pos.ne']
       linarith
-    have hxj : (M.outcome θ).alloc j = (θ j).budget / (θ i).val := le_antisymm hup_self hlow
-    exact ⟨hxj, by linarith, hother0, fun _ => hp_s⟩
+    exact ⟨le_antisymm hup_self hlow, by linarith, hother0, fun _ => hp_s⟩
   · -- Boundary case `(θ j).budget = (θ i).val * m`: then `budget / v_i = m`.
     have hdiv_eq : (θ j).budget / (θ i).val = m := by
       rw [heq, mul_div_cancel_left₀ m hv_i_pos.ne']
@@ -501,9 +493,7 @@ theorem not_exists_privateBudgetDSIC_isParetoOptimal {m : ℝ} (hm : 0 < m)
     if k = i₀ ∨ k = i₁ then ⟨100 / m, 1⟩ else ⟨1 / (2 * m), 1⟩
   have hθ_pos (k : ι) : (θstar k).IsPos := by
     dsimp only [θstar]
-    split_ifs
-    · exact ⟨div_pos (by norm_num) hm, zero_lt_one⟩
-    · exact ⟨div_pos zero_lt_one (by positivity), zero_lt_one⟩
+    split_ifs <;> exact ⟨by positivity, zero_lt_one⟩
   have h0_eq : θstar i₀ = ⟨100 / m, 1⟩ := by simp [θstar]
   have h1_eq : θstar i₁ = ⟨100 / m, 1⟩ := by simp [θstar]
   have hrest_eq (k : ι) (h0 : k ≠ i₀) (h1 : k ≠ i₁) : θstar k = ⟨1 / (2 * m), 1⟩ := by
@@ -516,9 +506,7 @@ theorem not_exists_privateBudgetDSIC_isParetoOptimal {m : ℝ} (hm : 0 < m)
     ⟨div_pos (by norm_num) (by positivity), by norm_num⟩
   have hic0 := hic θstar hθ_pos i₀ ⟨5 / (2 * m), 10⟩ hdev_pos (by simpa [h0_eq] using hp0.le)
   have hic1 := hic θstar hθ_pos i₁ ⟨5 / (2 * m), 10⟩ hdev_pos (by simpa [h1_eq] using hp1.le)
-  dsimp only [Outcome.utility] at hic0 hic1
-  rw [h0_eq, hx0] at hic0
-  rw [h1_eq, hx1] at hic1
+  simp only [Outcome.utility, h0_eq, h1_eq, hx0, hx1] at hic0 hic1
   have h100_mul : (100 / m) * (3 / 5 * m) = 60 := by field_simp [hm.ne']; ring
   have halloc_sum : (M.outcome θstar).alloc i₀ + (M.outcome θstar).alloc i₁ ≤ m :=
     calc (M.outcome θstar).alloc i₀ + (M.outcome θstar).alloc i₁

@@ -405,12 +405,8 @@ theorem exec_extractCoords {w d coordsPtr : ℕ} (C : Finset (Fin d)) (x : Data 
       ∃ z, ExecWithin w extractStep s z 9 ∧ P (s.regs rGenIdx + 1) z ∧
         z.regs rGenIdx = s.regs rGenIdx + 1 := by
     generalize hb_eq : s.regs rGenIdx = b at hs hb ⊢
-    dsimp only [P] at hs
     obtain ⟨hsz, hso, hsd, hscp, hscl, hsrem, hsmem, hsframe⟩ := hs
-    let cur := curAt b
-    change s.regs rCoordsLen = cur.length at hscl
-    change ∀ j (hj : j < cur.length), s.mem (coordsPtr + j) = cur[j].val at hsmem
-    change ∀ a, a < coordsPtr ∨ coordsPtr + cur.length ≤ a → s.mem a = x.mem a at hsframe
+    set cur := curAt b
     have hcur_len_le : cur.length ≤ b := by
       calc cur.length ≤ ((List.finRange d).take b).length := List.length_filter_le _ _
         _ ≤ b := by simp
@@ -437,9 +433,7 @@ theorem exec_extractCoords {w d coordsPtr : ℕ} (C : Finset (Fin d)) (x : Data 
       have hf_addr : Fits w (coordsPtr + cur.length) := hfit_mem.of_le (by omega)
       have hf_cl1 : Fits w (cur.length + 1) := hfit_d.of_le (by omega)
       have hcur1 : curAt (b + 1) = cur ++ [ib] := by
-        dsimp only [curAt, cur]
-        rw [htake1, List.filter_append, List.filter_cons_of_pos (by simp [hmemC]),
-          List.filter_nil]
+        simp [curAt, cur, htake1, hmemC]
       unfold extractStep
       wram_exec [hsz, hso, hscp, hscl, hb_eq, hbit1]
       dsimp only [P]
@@ -453,9 +447,7 @@ theorem exec_extractCoords {w d coordsPtr : ℕ} (C : Finset (Fin d)) (x : Data 
       · wram_simp; exact hsframe a (by omega)
     · have hbit0 : s.regs rTrieRem &&& 1 = 0 := by simp [hbit_iff, hmemC]
       have hcur1 : curAt (b + 1) = cur := by
-        dsimp only [curAt, cur]
-        rw [htake1, List.filter_append, List.filter_cons_of_neg (by simp [hmemC]),
-          List.filter_nil, List.append_nil]
+        simp [curAt, cur, htake1, hmemC]
       unfold extractStep
       wram_exec [hsz, hso, hscl, hb_eq, hbit0]
       dsimp only [P]

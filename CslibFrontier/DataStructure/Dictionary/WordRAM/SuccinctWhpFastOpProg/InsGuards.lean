@@ -81,9 +81,7 @@ theorem realizes_insCheckCapPoolGen :
       (fun w ((cp, base), b) _ => WhpLargeEnvGen w cp base ∧ b < wpM cp)
       (fun _ _ => 0) := by
   unfold insCheckCapPoolGenProg
-  have hrb := realizes_readBktFieldGen
-  have hrh := realizes_readHdr
-  realize
+  realize [realizes_readBktFieldGen, realizes_readHdr]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, b⟩
     dsimp only at *
@@ -143,8 +141,7 @@ private theorem realizes_insBufIsSomeGen :
       BufReadGenPre
       (fun _ _ => 0) := by
   unfold insBufIsSomeGenProg
-  have hbl := realizes_bufLookupGen
-  realize
+  realize [realizes_bufLookupGen]
   exact h
 
 private theorem insBufIsSomeGenProg_spec {c U V w n_max base ep rKey : ℕ}
@@ -194,10 +191,7 @@ private theorem realizes_insOldBufSomeGen :
             ∃ oldMap, ValidBufTrie (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) oldMap))
       (fun _ _ => 0) := by
   unfold insOldBufSomeGenProg
-  have hrh := realizes_readHdr
-  have hro := realizes_readOldEp
-  have hib := realizes_insBufIsSomeGen
-  realize
+  realize [realizes_readHdr, realizes_readOldEp, realizes_insBufIsSomeGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, rKey⟩
     dsimp only at *
@@ -292,10 +286,7 @@ theorem realizes_insCheckRKeyGuardsGen :
             ∃ oldMap, ValidBufTrie (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) oldMap))
       (fun _ _ => 0) := by
   unfold insCheckRKeyGuardsGenProg
-  have hrh := realizes_readHdr
-  have hib := realizes_insBufIsSomeGen
-  have hob := realizes_insOldBufSomeGen
-  realize
+  realize [realizes_readHdr, realizes_insBufIsSomeGen, realizes_insOldBufSomeGen]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, rKey⟩
     dsimp only at *
@@ -377,16 +368,13 @@ private theorem realizes_insEvalLiveFpGen :
           fs.liveRole b < 3)
       (fun _ _ => 0) := by
   unfold insEvalLiveFpGenProg
-  have hrs := realizes_readLiveSaltIdxGen
-  have hmh := realizes_mkHashRtGen
-  have hfp := realizes_fpOfSaltOptRt
-  realize
+  realize [realizes_readLiveSaltIdxGen, realizes_mkHashRtGen, realizes_fpOfSaltOptRt]
   all_goals (
     rcases d with ⟨⟨wp, base⟩, ⟨b, u_val⟩⟩
     dsimp only at *
     try simp only [Prod.mk.eta] at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, heq_wp, hseed, hrep, hb, hlr⟩ := h
-    have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
+    obtain ⟨c, U, V, w₀, n_max, θ, fs, henv, rfl, hseed, hrep, hb, hlr⟩ := h
+    obtain rfl := henv.2.2.1
     have hth := henv.2.2.2.1
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       simp [mkWhpParams, Nat.not_lt.mpr hth]
@@ -395,8 +383,7 @@ private theorem realizes_insEvalLiveFpGen :
       (w := w) (n_max := n_max) (base := base) hth s
     obtain ⟨hfp_st, _, _, _⟩ :=
       fpOfSaltOptRtProg_spec (salt := fs.bktSalt b) (kv := u_val) henv hseed (s := s)
-    simp only [hcp_eq] at *
-    simp only [hrs_st, hrs_res, hmh_st, hmh_res, hfp_st] at *
+    simp only [hcp_eq, hrs_st, hrs_res, hmh_st, hmh_res, hfp_st] at *
     first
     | exact ⟨c, U, V, w, n_max, fs, henv, rfl, hrep, hb, hlr⟩
     | exact ⟨c, U, V, w, n_max, θ, henv, rfl, hseed⟩
@@ -453,16 +440,13 @@ theorem realizes_insReadFpLiveGen :
           ValidWhpSlice n_max (fs.liveInsCount b) (fs.slices (fs.liveSliceIdx b)) lm)
       (fun _ _ => 0) := by
   unfold insReadFpLiveGenProg
-  have hev := realizes_insEvalLiveFpGen
-  have hbt := realizes_btreeLookupGen
-  realize
+  realize [realizes_insEvalLiveFpGen, realizes_btreeLookupGen]
   all_goals (
     rcases d with ⟨⟨wp, base⟩, ⟨b, u_val⟩⟩
     dsimp only at *
     try simp only [Prod.mk.eta] at *
-    obtain ⟨c, U, V, w₀, n_max, θ, fs, lm, henv, heq_wp, hseed, hrep, hb, hlr, hins, hv_sl⟩ := h
+    obtain ⟨c, U, V, w₀, n_max, θ, fs, lm, henv, rfl, hseed, hrep, hb, hlr, hins, hv_sl⟩ := h
     obtain rfl := henv.2.2.1
-    subst heq_wp
     have hth := henv.2.2.2.1
     have hcp_eq : (mkWhpParams c U V w n_max).1 = mkWhpCoreParams c U V w n_max := by
       simp [mkWhpParams, Nat.not_lt.mpr hth]
@@ -472,8 +456,7 @@ theorem realizes_insReadFpLiveGen :
     have hfp_lt := fpOfSaltOpt_lt c U n_max (fs.bktSalt b) u_val θ.2
     obtain ⟨hbt_st, _, _, _⟩ :=
       btreeLookupGenProg_spec henv hlIdx hins (hrep.slice_rep hlIdx) hv_sl hfp_lt (s := s)
-    simp only [hcp_eq] at *
-    simp only [hev_step.clientState_eq, hev_step.clientResult_eq, hbt_st] at *
+    simp only [hcp_eq, hev_step.clientState_eq, hev_step.clientResult_eq, hbt_st] at *
     first
     | exact ⟨c, U, V, w, n_max, θ, fs, henv, rfl, hseed, hrep, hb, hlr⟩
     | exact ⟨c, U, V, w, n_max, fs.liveInsCount b, fs.slices (fs.liveSliceIdx b), lm,
@@ -539,8 +522,7 @@ private theorem realizes_insReadCurBufItemAlloc :
       (fun w base _ => 2 ≤ w ∧ Fits w (base + 32))
       (fun _ _ => 0) := by
   unfold insReadCurBufItemAllocProg
-  have hrh := realizes_readHdr
-  realize
+  realize [realizes_readHdr]
   all_goals (
     obtain ⟨_, hfit32⟩ := h
     exact hfit32.of_le (by dsimp [hdrCurEp, hdrBuf0ItemAlloc, hdrBuf1ItemAlloc]; omega)
@@ -609,10 +591,7 @@ private theorem realizes_insCheckFpCapActiveGen :
           ValidBufTrie (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) curMap)
       (fun _ _ => 0) := by
   unfold insCheckFpCapActiveGenProg
-  have hrh := realizes_readHdr
-  have hev := realizes_bufEverPresentGen
-  have hia := realizes_insReadCurBufItemAlloc
-  realize
+  realize [realizes_readHdr, realizes_bufEverPresentGen, realizes_insReadCurBufItemAlloc]
   all_goals (
     rcases d with ⟨⟨cp, base⟩, rKey⟩
     dsimp only at *
@@ -659,8 +638,7 @@ theorem realizes_insCheckFpCapOptGen :
           ValidBufTrie (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp) curMap)
       (fun _ _ => 0) := by
   unfold insCheckFpCapOptGenProg
-  have hca := realizes_insCheckFpCapActiveGen
-  realize
+  realize [realizes_insCheckFpCapActiveGen]
   all_goals (
     rcases d with ⟨⟨⟨cp, base⟩, hasCol⟩, rKey⟩
     dsimp only at *

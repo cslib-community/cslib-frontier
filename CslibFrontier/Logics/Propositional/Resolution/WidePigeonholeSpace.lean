@@ -228,15 +228,14 @@ private theorem Inv.exists_good {M : Finset (Clause (Fin m × Fin n))} (h : Inv 
   by_cases hi : ∃ x ∈ α', x.1 = i
   · obtain ⟨x, hx, rfl⟩ := hi
     refine ⟨α', hα'm, fun c hc => ?_⟩
-    by_cases hcx : c = CNF.pigeonClause n x.1
-    · exact hcx ▸ matchImplies_pigeonClause hx
-    · exact hα' c (mem_erase.2 ⟨hcx, hc⟩)
+    rcases eq_or_ne c (CNF.pigeonClause n x.1) with rfl | hcx
+    exacts [matchImplies_pigeonClause hx, hα' _ (mem_erase.2 ⟨hcx, hc⟩)]
   · push Not at hi
     obtain ⟨j, hj⟩ := exists_hole_free (α := α') (by omega)
     refine ⟨insert (i, j) α', hα'm.insert hi hj, fun c hc => ?_⟩
-    by_cases hci : c = CNF.pigeonClause n i
-    · exact hci ▸ matchImplies_pigeonClause (x := (i, j)) (mem_insert_self _ _)
-    · exact (hα' c (mem_erase.2 ⟨hci, hc⟩)).mono (subset_insert _ _)
+    rcases eq_or_ne c (CNF.pigeonClause n i) with rfl | hci
+    exacts [matchImplies_pigeonClause (x := (i, j)) (mem_insert_self _ _),
+      (hα' _ (mem_erase.2 ⟨hci, hc⟩)).mono (subset_insert _ _)]
 
 /-- A step of a refutation in clause space at most `n + 1` preserves the invariant. A step that
 adds a new clause starts from at most `n` clauses, which are implied by a matching; a new pigeon
@@ -366,12 +365,9 @@ private theorem finds_phpTree {σ : Fin m × Fin n → Bool} :
       intro _ hL
       rw [spine]
       refine ⟨CNF.mem_pigeonhole.2 (.inl ⟨i, rfl⟩), ?_⟩
-      simp only [DecisionTree.eval]
-      rw [Bool.eq_false_iff, ne_eq, CNF.eval_pigeonClause, not_exists]
+      simp only [DecisionTree.eval, Bool.eq_false_iff, ne_eq, CNF.eval_pigeonClause, not_exists]
       intro j hj
-      by_cases hjH : j ∈ H
-      · simp [hL j hjH List.not_mem_nil] at hj
-      · simp [hσ i List.mem_cons_self j hjH] at hj
+      by_cases hjH : j ∈ H <;> simp [hjH, hL, hσ] at hj
     | cons h L ih =>
       intro hLH hL
       rw [spine]
@@ -384,16 +380,14 @@ private theorem finds_phpTree {σ : Fin m × Fin n → Bool} :
           simp only [List.length_cons] at hlen
           omega
         · intro i' hi' j hj
-          by_cases hjh : j = h
-          · exact hjh ▸ hR i' hi'
-          · exact hσ i' (List.mem_cons_of_mem _ hi') j fun hjH =>
-              hj ((List.mem_erase_of_ne hjh).2 hjH)
+          rcases eq_or_ne j h with rfl | hjh
+          exacts [hR i' hi', hσ i' (List.mem_cons_of_mem _ hi') j fun hjH =>
+            hj ((List.mem_erase_of_ne hjh).2 hjH)]
       · rw [Bool.not_eq_true] at hih
         refine Finds.node_of_false hih
           (ih (fun h' h'' => hLH h' (List.mem_cons_of_mem _ h'')) fun j hj hjL => ?_)
-        by_cases hjh : j = h
-        · exact hjh ▸ hih
-        · exact hL j hj (by simp [hjh, hjL])
+        rcases eq_or_ne j h with rfl | hjh
+        exacts [hih, hL j hj (by simp [hjh, hjL])]
 
 private theorem rank_holeChain_le (i : Fin m) (h : Fin n)
     (t : DecisionTree (Fin m × Fin n) (Clause (Fin m × Fin n))) :

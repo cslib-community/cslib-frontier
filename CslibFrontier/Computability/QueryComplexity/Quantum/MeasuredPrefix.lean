@@ -160,8 +160,7 @@ private theorem sum_sq_triangle {J E : Type} [Fintype J] [NormedAddCommGroup E]
     ∑ j, ‖a j - c j‖ ^ 2 ≤ (d + e) ^ 2 := by
   let pack (x : J → E) : PiLp 2 (fun _ : J => E) := WithLp.toLp 2 x
   have sq (x y : J → E) : ‖pack x - pack y‖ ^ 2 = ∑ j, ‖x j - y j‖ ^ 2 := by
-    rw [PiLp.norm_sq_eq_of_L2]
-    rfl
+    simp [pack, PiLp.norm_sq_eq_of_L2]
   rw [← sq] at hab hbc ⊢
   exact pow_le_pow_left₀ (norm_nonneg _)
     ((norm_sub_le_norm_sub_add_norm_sub _ _ _).trans
@@ -201,15 +200,10 @@ private theorem sum_sq_service_change {R E : Type} [Fintype R] [DecidableEq R]
         if i ∈ reads then 2 * ‖u‖ ^ 2 else 0 := by
     by_cases hi : i ∈ reads
     · rw [ite_eq_left hi]
-      let a := evalPure (Function.update H i v) run
-      let b := evalPure H run
-      change (∑ r, ‖(if a = r then u else 0) - (if b = r then u else 0)‖ ^ 2) ≤ _
-      by_cases hab : a = b
+      rcases eq_or_ne (evalPure (Function.update H i v) run) (evalPure H run) with hab | hab
       · simp [hab]
-      · have per (r : R) : ‖(if a = r then u else 0) - (if b = r then u else 0)‖ ^ 2 =
-            (if a = r then ‖u‖ ^ 2 else 0) + (if b = r then ‖u‖ ^ 2 else 0) := by
-          by_cases ha : a = r <;> by_cases hb : b = r <;> simp_all
-        simp [per, sum_add_distrib, two_mul]
+      · rw [Fintype.sum_eq_add _ _ hab fun r ⟨ha, hb⟩ => by simp [ha.symm, hb.symm]]
+        simp [hab, hab.symm, two_mul]
     · simp [hi, stab i hi]
   calc
     _ ≤ ∑ i, if i ∈ reads then 2 * ‖u‖ ^ 2 else 0 := sum_le_sum fun i _ => row i
@@ -312,11 +306,10 @@ private theorem mean_change_unit {R O : Type} [Fintype O] (run : OracleComp (fun
     simpa only [U, outcomeIsometry, EuclideanSpace.norm_sq_eq, PiLp.sub_apply,
       Fintype.sum_prod_type, LinearIsometry.coe_mk, LinearMap.coe_mk, AddHom.coe_mk] using
       (next r).sum_sq_state_update_sub_le step u hu H v
-  have card : reads.card ≤ K :=
-    (List.toFinset_card_le (queriesWith H run)).trans (bound.length_queriesWith_le H)
   have squares : ∑ i, gap i ^ 2 ≤ K + (next r).updateCost ^ 2 := by
     refine (sum_le_sum fun i _ => each i).trans ?_
-    simpa [sum_add_distrib] using add_le_add (show (reads.card : ℝ) ≤ K by exact_mod_cast card) all
+    simpa [sum_add_distrib] using add_le_add
+      (Nat.cast_le.mpr ((List.toFinset_card_le _).trans (bound.length_queriesWith_le H))) all
   have jensen := Probability.PMF.sq_tsum_le_tsum_sq μ (g := gap) (fun _ => abs_nonneg _) one
   rw [tsum_fintype, tsum_fintype] at jensen
   apply Real.le_sqrt_of_sq_le
@@ -342,8 +335,7 @@ theorem mean_abs_serviceAcceptance_update_sub_le {R O : Type} [Fintype O]
   have normφ : ‖φ‖ = 1 := by simp [φ, norm_smul, hu]
   have scale (T) : serviceAcceptance step run next accept T u =
       ‖u‖ ^ 2 * serviceAcceptance step run next accept T φ := by
-    have heq : (‖u‖ : ℂ) • φ = u := smul_inv_smul₀ (by simpa using hu) u
-    conv_lhs => rw [← heq]
+    conv_lhs => rw [← show (‖u‖ : ℂ) • φ = u from smul_inv_smul₀ (by simpa using hu) u]
     simp only [serviceAcceptance, map_smul, measureProb_smul, Complex.norm_real,
       Real.norm_of_nonneg (norm_nonneg u)]
   simp_rw [scale, ← mul_sub, abs_mul, abs_of_nonneg (sq_nonneg ‖u‖),

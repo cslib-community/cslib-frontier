@@ -135,8 +135,7 @@ theorem toList_withRest (x : InsertResult α β) (rest : List (Triple α β)) :
   · split
     · rfl
     · next k v c right heq =>
-      have : rest = rest.take t ++ (k, v, c) :: right := by rw [← heq, List.take_append_drop]
-      conv_rhs => rw [this]
+      conv_rhs => rw [← List.take_append_drop t rest, heq]
       simp only [toList_split, toList_node, toListRest_append, toListRest_cons, List.append_assoc,
         List.cons_append]
 
@@ -205,9 +204,7 @@ theorem exists_good_split_ofNode {first : BTree α β} {rest : List (Triple α �
   unfold ofNode
   rw [ite_eq_right (by omega)]
   split
-  · next heq =>
-    have := List.drop_eq_nil_iff.mp heq
-    omega
+  · next heq => exact absurd (List.drop_eq_nil_iff.mp heq) (by omega)
   · next k v c right heq =>
     have hsub : (k, v, c) :: right ⊆ rest := heq ▸ List.drop_subset t rest
     have := congrArg List.length heq
@@ -613,18 +610,13 @@ theorem toList_insert (h : IsWF t tr) (k : α) (v : β) :
 theorem IsWF.insert (h : IsWF t tr) (k : α) (v : β) : IsWF t (insert t k v tr) := by
   have hf := fits_insertOrSplit (k := k) (v := v) h.balanced h.occupied_of_mem_children
     h.rootKeys_le
-  have hs : (BTree.insert t k v tr).toList.IsSortedAssoc := by
-    rw [toList_insert h]
-    exact SortedAssoc.isSortedAssoc_insert h.sorted
+  have hs : (BTree.insert t k v tr).toList.IsSortedAssoc :=
+    toList_insert h k v ▸ SortedAssoc.isSortedAssoc_insert h.sorted
   rw [insert_eq_toTree] at hs ⊢
-  cases hx : insertOrSplit t k v tr with
-  | tree c =>
-    rw [hx] at hf hs
-    obtain ⟨hne, hb, -, hco, hk₁, hk₂⟩ := hf
+  rcases hx : insertOrSplit t k v tr with c | ⟨l, k', v', r⟩ <;> rw [hx] at hf hs
+  · obtain ⟨hne, hb, -, hco, hk₁, hk₂⟩ := hf
     exact ⟨h.two_le, hk₂, fun _ => (h.rootKeys_pos hne).trans hk₁, hco, hb, hs⟩
-  | split l k' v' r =>
-    rw [hx] at hf hs
-    obtain ⟨hl, hr⟩ := hf
+  · obtain ⟨hl, hr⟩ := hf
     have := h.two_le
     exact ⟨h.two_le, by simp [InsertResult.toTree]; omega, fun _ => by simp [InsertResult.toTree],
       by simpa [InsertResult.toTree] using ⟨hl.occupied, hr.occupied⟩,

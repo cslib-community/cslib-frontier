@@ -45,9 +45,8 @@ private theorem mem_successor_block {α : Type} (f : Perm α) (L : List α)
   constructor
   · intro ha
     obtain ⟨i, hi, he⟩ := List.mem_iff_getElem.mp ha
-    by_cases hz : i = 0
-    · subst i
-      exact Or.inl (f.injective (he.symm.trans (f.apply_symm_apply _).symm))
+    rcases eq_or_ne i 0 with rfl | hz
+    · exact Or.inl (f.injective (he.symm.trans (f.apply_symm_apply _).symm))
     · have hp : i - 1 + 1 < L.length := by omega
       have heq : a = L[i - 1] := f.injective (by
         rw [hs (i - 1) hp]
@@ -60,10 +59,8 @@ private theorem mem_successor_block {α : Type} (f : Perm α) (L : List α)
     · rw [f.apply_symm_apply]
       exact List.getElem_mem hn
     · obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp ha
-      have hnext : i + 1 < L.length := by
-        by_contra h
-        have he : i = L.length - 1 := by omega
-        exact hlast (by subst i; rfl)
+      have hnext : i + 1 < L.length := lt_of_le_of_ne hi fun h =>
+        hlast (by simp only [← h, Nat.add_sub_cancel])
       rw [hs i hnext]
       exact List.getElem_mem hnext
 
@@ -79,10 +76,8 @@ private theorem block_boundary {α : Type} (f : Perm α) (L : List α)
     · intro ha
       by_contra hne
       obtain ⟨i, hi, he⟩ := List.mem_iff_getElem.mp ha
-      have hnext : i + 1 < L.length := by
-        by_contra h
-        have heq : i = L.length - 1 := by omega
-        exact hne (by rw [← he]; subst i; rfl)
+      have hnext : i + 1 < L.length := lt_of_le_of_ne hi fun h =>
+        hne (he.symm.trans (by simp only [← h, Nat.add_sub_cancel]))
       have hz : L[i + 1] = L[0] := (hs i hnext).symm.trans
         (congrArg f he |>.trans (f.apply_symm_apply _))
       have := hnd.getElem_inj_iff.mp hz
@@ -234,17 +229,9 @@ private theorem cutPermutation_old {α : Type} [DecidableEq α] (f : Perm α)
       if d = last then some none else
         if d = f.symm first then none else some (some (f d)) := by
   by_cases h : f.symm first = last
-  · by_cases hd : d = last
-    · subst d
-      simp [cutPermutation, swap_apply_def, h, insertAfter_other]
-    · simp [cutPermutation, swap_apply_def, h, hd, insertAfter_other]
-  · by_cases hd : d = last
-    · subst d
-      simp [cutPermutation, swap_apply_def, h, Ne.symm h, insertAfter_other]
-    · by_cases ha : d = f.symm first
-      · subst d
-        simp [cutPermutation, swap_apply_def, h]
-      · simp [cutPermutation, swap_apply_def, h, hd, ha, insertAfter_other]
+  · by_cases hd : d = last <;> simp_all [cutPermutation, swap_apply_def, insertAfter_other]
+  · by_cases hd : d = last <;> by_cases ha : d = f.symm first <;>
+      simp_all [cutPermutation, swap_apply_def, insertAfter_other, Ne.symm h]
 
 private theorem cutPermutation_orbits {α : Type} [DecidableEq α] [Finite α]
     (f : Perm α) (first last : α) (hs : f.SameCycle last first) :
@@ -271,10 +258,8 @@ private theorem remove_cutPermutation {α : Type} [DecidableEq α] (f : Perm α)
     removeNone_insertAfter, removeNone_insertAfter]
 
 private theorem declared_of_valid {I : FixedRotationInput} (hI : Valid I) :
-    ∀ w ∈ I.graph.incidenceVertices, w ∈ I.graph.vertices := by
-  intro w hw
-  rw [hI.1, List.mem_range]
-  exact hI.2.1 w hw
+    ∀ w ∈ I.graph.incidenceVertices, w ∈ I.graph.vertices :=
+  fun w hw => hI.1 ▸ List.mem_range.mpr (hI.2.1 w hw)
 
 private theorem dart_vertex_lt {I : FixedRotationInput} (hI : Valid I) (d : Dart I.graph) :
     d.vertex < I.graph.vertices.length := by
@@ -455,15 +440,11 @@ private theorem exists_contract_rotation {I : FixedRotationInput} (hI : Valid I)
     rw [show E = (lastEdgeDartEquiv H n v).trans
       (Dart.relabelEquiv H (Function.update id n v)).optionCongr.optionCongr from
         contractLastEdge_coordinates H n v]
-    apply Equiv.symm_bijective.injective
-    apply Equiv.ext
-    rintro (_ | (_ | d)) <;>
-      apply Prod.ext
-    all_goals first | rfl | exact Fin.ext hlen
+    refine Equiv.symm_bijective.injective (Equiv.ext fun z => ?_)
+    rcases z with _ | (_ | d) <;> apply Prod.ext <;> first | rfl | exact Fin.ext hlen
   have hcomp (f : Perm (Dart (lastEdgeGraph H n v))) :
       e.optionCongr.optionCongr.permCongr (E.permCongr f) =
-        (E.trans e.optionCongr.optionCongr).permCongr f := by
-    rfl
+        (E.trans e.optionCongr.optionCongr).permCongr f := rfl
   let dt : Dart (split I v block).graph := lastEdgeDart H n v true
   let df : Dart (split I v block).graph := lastEdgeDart H n v false
   have hswap : (splitCoordinates I v block).permCongr
@@ -655,16 +636,12 @@ private theorem cut_realizes {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
         rw [ite_eq_left (by simp; omega), List.getD_eq_getElem _ _ (by simp; omega)]
         simp [hlast]
       · have hi' : i + 1 < L.length := by omega
-        have hel : e ≠ last := by
-          change L[i] ≠ L[L.length - 1]
-          intro h
+        have hel : e ≠ last := fun h => by
           have := hL.getElem_inj_iff.mp h
           omega
-        have hea : e ≠ a := by
-          intro h
-          have hm : a ∈ L := h ▸ List.getElem_mem (by omega : i < L.length)
-          have hboundary := block_boundary r.rotate L hn hL (successive_blockDarts block hb r hc)
-          exact hel (h.trans (hboundary.1.mp hm))
+        have hea : e ≠ a := fun h =>
+          hel (h.trans ((block_boundary r.rotate L hn hL (successive_blockDarts block hb r hc)).1.mp
+            (Eq.mp (congrArg (· ∈ L) h) (List.getElem_mem (Nat.lt_of_succ_lt hi')))))
         rw [ite_eq_right hel, ite_eq_right hea]
         simp only [coordinateIndex]
         rw [successive_blockDarts block hb r hc i hi', get_blockDarts_index block hb (i + 1) hi']

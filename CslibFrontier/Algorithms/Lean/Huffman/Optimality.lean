@@ -152,14 +152,13 @@ private theorem zipCost_append {γ β : Type*} [AddCommMonoid β] (W : γ → β
     zipCost W (xs₁ ++ xs₂) (ds₁ ++ ds₂) = zipCost W xs₁ ds₁ + zipCost W xs₂ ds₂ := by
   induction xs₁ generalizing ds₁ with
   | nil =>
-    cases ds₁ with
-    | nil => simp [zipCost]
-    | cons _ _ => simp at hlen
+    rcases ds₁ with _ | ⟨_, _⟩
+    · simp [zipCost]
+    · simp at hlen
   | cons x xs₁ ih =>
-    cases ds₁ with
-    | nil => simp at hlen
-    | cons d ds₁ =>
-      simp only [List.length_cons, Nat.succ.injEq] at hlen
+    rcases ds₁ with _ | ⟨d, ds₁⟩
+    · simp at hlen
+    · simp only [List.length_cons, Nat.succ.injEq] at hlen
       simp only [List.cons_append, zipCost_cons, ih hlen]
       ac_rfl
 
@@ -174,17 +173,13 @@ private theorem split_at_length {α₁ α₂ : Type*} (p : List α₁) (z : α�
     ∃ d_p d_z d_q, es = d_p ++ d_z :: d_q ∧ p.length = d_p.length ∧ q.length = d_q.length := by
   induction p generalizing es with
   | nil =>
-    cases es with
-    | nil => simp at hlen
-    | cons d_z d_q =>
-      simp only [List.nil_append, List.length_cons, Nat.succ.injEq] at hlen
-      exact ⟨[], d_z, d_q, rfl, rfl, hlen⟩
+    rcases es with _ | ⟨d_z, d_q⟩
+    · simp at hlen
+    · exact ⟨[], d_z, d_q, rfl, rfl, Nat.succ.inj hlen⟩
   | cons a p ih =>
-    cases es with
-    | nil => simp at hlen
-    | cons e es =>
-      simp only [List.cons_append, List.length_cons, Nat.succ.injEq] at hlen
-      rcases ih hlen with ⟨d_p, d_z, d_q, rfl, hp, hq⟩
+    rcases es with _ | ⟨e, es⟩
+    · simp at hlen
+    · rcases ih (Nat.succ.inj hlen) with ⟨d_p, d_z, d_q, rfl, hp, hq⟩
       exact ⟨e :: d_p, d_z, d_q, rfl, congrArg Nat.succ hp, hq⟩
 
 private theorem zipCost_swap_head_tail {γ β : Type*} [AddCommMonoid β] [PartialOrder β]
@@ -543,19 +538,15 @@ theorem IsHuffmanBuild.weightedPathLength_le_join {α β : Type*}
     let W : CodeTree α → β := fun t => t.weight w
     rcases exists_cherry_weightedPathLength_le W S (hS.trans hmin.perm) hmin.weight_le with
       ⟨S', C', tail', hC', hS'_leaves, htail'_perm, hC'_leaves, hwpl_le⟩
-    have hS'_perm_S : S'.leaves.Perm S.leaves := by
-      rw [hS'_leaves]
-      exact (htail'_perm.cons t₂ |>.cons t₁).trans (hS.trans hmin.perm).symm
+    have hS'_perm_S : S'.leaves.Perm S.leaves :=
+      hS'_leaves ▸ ((htail'_perm.cons t₂).cons t₁).trans (hS.trans hmin.perm).symm
     have hjoin_le : S'.join.weightedPathLength w ≤ S.join.weightedPathLength w := by
       rw [CodeTree.weightedPathLength_join, CodeTree.weightedPathLength_join,
         (hS'_perm_S.map fun t => t.weightedPathLength w).sum_eq]
       exact add_le_add hwpl_le le_rfl
-    let S_c := C' (.branch t₁ t₂)
-    have hSc_perm : S_c.leaves.Perm (.branch t₁ t₂ :: F_rest) := by
-      rw [hC'_leaves]; exact htail'_perm.cons (.branch t₁ t₂)
-    have hih := ih S_c hSc_perm
-    rw [hC'.join_contract_eq] at hih
-    exact hih.trans hjoin_le
+    have hSc_perm : (C' (.branch t₁ t₂)).leaves.Perm (.branch t₁ t₂ :: F_rest) :=
+      hC'_leaves _ ▸ htail'_perm.cons (.branch t₁ t₂)
+    exact (hC'.join_contract_eq ▸ ih _ hSc_perm).trans hjoin_le
 
 /-- **Optimality of Huffman Coding over Full Binary Code Trees** ([Huffman1952]; [CLRS2009],
 Theorem 16.4): every tree `T` produced by `IsHuffmanBuild w (syms.map .leaf) T` minimizes

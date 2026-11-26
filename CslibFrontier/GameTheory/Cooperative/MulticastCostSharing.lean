@@ -697,10 +697,7 @@ theorem IsWelfareMaximizingSet.union [DecidableEq A] {M : MulticastInstance V A}
     (hR : M.IsWelfareMaximizingSet b R) (hS : M.IsWelfareMaximizingSet b S) :
     M.IsWelfareMaximizingSet b (R ∪ S) := by
   intro T
-  have hsup := M.netWelfare_supermodular b R S
-  have hint : M.netWelfare b (R ∩ S) ≤ M.netWelfare b S := hS (R ∩ S)
-  have hle : M.netWelfare b R ≤ M.netWelfare b (R ∪ S) := by linarith
-  exact (hR T).trans hle
+  exact (hR T).trans (by linarith [M.netWelfare_supermodular b R S, hS (R ∩ S)])
 
 /-- Local subtree net welfare of `R` inside `M.tree.subtreeNodes u` (charging `M.edgeCost u` when
 at least one receiver of `R` resides in `M.tree.subtreeNodes u`). -/
@@ -1067,14 +1064,13 @@ theorem nodeWelfare_root_eq_maxNetWelfare {b : A → ℝ} (hb : ∀ i, 0 ≤ b i
     M.nodeWelfare b M.tree.root = M.maxNetWelfare b := by
   classical
   refine le_antisymm ?_ ?_
-  · have heq := M.localNetWelfare_twoPassReceivers_eq_subtreeSurplus hb
-      M.tree.root (M.topDownActive_root b)
-    rw [M.localNetWelfare_root, M.subtreeSurplus_root] at heq
-    exact heq ▸ M.netWelfare_le_maxNetWelfare b (M.twoPassReceivers b)
+  · rw [← M.subtreeSurplus_root, ← M.localNetWelfare_twoPassReceivers_eq_subtreeSurplus hb
+      M.tree.root (M.topDownActive_root b), M.localNetWelfare_root]
+    exact M.netWelfare_le_maxNetWelfare b _
   · unfold maxNetWelfare
     refine Finset.sup'_le _ _ fun R _ => ?_
-    have hle := (M.localNetWelfare_le_subtreeSurplus_and_upMsg hb M.tree.root R).2
-    rwa [M.localNetWelfare_root, M.upMsg_root] at hle
+    simpa only [M.localNetWelfare_root, M.upMsg_root] using
+      (M.localNetWelfare_le_subtreeSurplus_and_upMsg hb M.tree.root R).2
 
 end FintypeAgentsOnly
 
@@ -1137,13 +1133,8 @@ theorem maxNetWelfareWithout_le_maxNetWelfare (b : A → ℝ) (i : A) :
 theorem maxNetWelfareWithout_update (b : A → ℝ) (i : A) (x : ℝ) :
     M.maxNetWelfareWithout (Function.update b i x) i = M.maxNetWelfareWithout b i := by
   unfold maxNetWelfareWithout
-  refine Finset.sup'_congr _ rfl fun R hR => ?_
-  have hiR : i ∉ R := (Finset.mem_filter.mp hR).2
-  simp only [netWelfare]
-  congr 1
-  refine Finset.sum_congr rfl fun j hj => Function.update_of_ne ?_ x b
-  rintro rfl
-  exact hiR hj
+  refine Finset.sup'_congr _ rfl fun R hR => congrArg (· - _) <| Finset.sum_congr rfl fun j hj =>
+    Function.update_of_ne (fun h : j = i => (Finset.mem_filter.mp hR).2 (h ▸ hj)) x b
 
 /-- The **Marginal Cost (`MC` / Clarke VCG) multicast mechanism**
 ([FeigenbaumPapadimitriouShenker2001]; [FeigenbaumSchapiraShenker2007]):
@@ -1223,20 +1214,16 @@ theorem cost_sub_erase_le_mcMechanism_payment {b : A → ℝ} {i : A} (hi : i �
         M.toCostSharingGame.cost ((M.mcReceivers b).erase i) ≤
       M.mcMechanism.payment b i := by
   rw [M.mcMechanism_payment_of_mem hi]
-  have her : M.netWelfare b ((M.mcReceivers b).erase i) ≤ M.maxNetWelfareWithout b i :=
-    M.netWelfare_le_maxNetWelfareWithout (Finset.notMem_erase i _)
-  have hsum : ∑ j ∈ M.mcReceivers b, b j =
-      (∑ j ∈ (M.mcReceivers b).erase i, b j) + b i :=
-    (Finset.sum_erase_add _ _ hi).symm
-  simp only [netWelfare] at her ⊢
+  have her :=
+    M.netWelfare_le_maxNetWelfareWithout (b := b) (Finset.notMem_erase i (M.mcReceivers b))
+  simp only [netWelfare, ← Finset.sum_erase_add _ b hi] at her ⊢
   linarith
 
 theorem mcMechanism_noPositiveTransfers : M.mcMechanism.NoPositiveTransfers := by
   intro b i
   by_cases hi : i ∈ M.mcReceivers b
-  · have hmono := M.toCostSharingGame_mono (Finset.erase_subset i (M.mcReceivers b))
-    have h := M.cost_sub_erase_le_mcMechanism_payment hi
-    linarith
+  · linarith [M.toCostSharingGame_mono (Finset.erase_subset i (M.mcReceivers b)),
+      M.cost_sub_erase_le_mcMechanism_payment hi]
   · rw [M.mcMechanism_payment_of_notMem hi]
 
 /-- **`mcMechanism` never runs a budget surplus** ([MoulinShenker2001];
@@ -1526,11 +1513,8 @@ theorem twoPassPayment_eq_mcMechanism_payment {b : A → ℝ} (hb : ∀ j, 0 ≤
       dsimp only
       rw [hclamp (b i) m (hb i), min_comm]
       ring
-  · have hfalse : M.topDownActive b (M.loc i) = false := Bool.eq_false_iff.mpr hact
-    have hi_not : i ∉ M.mcReceivers b := by
-      rw [← hserv]
-      simp [twoPassReceivers, hfalse]
-    simp [twoPassPayment, hfalse, M.mcMechanism_payment_of_notMem hi_not]
+  · have hi_not : i ∉ M.mcReceivers b := by simpa [← hserv] using hact
+    simp [twoPassPayment, hact, M.mcMechanism_payment_of_notMem hi_not]
 
 end FiniteAgents
 
@@ -1574,17 +1558,11 @@ theorem singleLinkMulticast_shShare {A : Type*} [DecidableEq A] (C : ℝ) (hC : 
     (singleLinkMulticast A C hC).shShare R i = if i ∈ R then C / (R.card : ℝ) else 0 := by
   rw [MulticastInstance.shShare_apply]
   by_cases hi : i ∈ R
-  · simp only [hi, ↓reduceIte]
-    rw [Finset.sum_filter, Fintype.sum_bool]
-    have hanc_true : (singleLinkMulticast A C hC).tree.IsAncestor true true := ⟨0, rfl⟩
-    have hall : (R.filter fun j : A =>
-        (singleLinkMulticast A C hC).tree.IsAncestor true
-          ((singleLinkMulticast A C hC).loc j)) = R :=
-      Finset.filter_true_of_mem fun _ _ => hanc_true
-    have he_true : (singleLinkMulticast A C hC).edgeCost true = C := rfl
-    have he_false : (singleLinkMulticast A C hC).edgeCost false = 0 := rfl
-    have hloc : (singleLinkMulticast A C hC).loc i = true := rfl
-    simp [hloc, hanc_true, hall, he_true, he_false]
+  · have hanc (j : A) : (singleLinkMulticast A C hC).tree.IsAncestor true
+        ((singleLinkMulticast A C hC).loc j) := ⟨0, rfl⟩
+    simp only [hi, ↓reduceIte, Finset.sum_filter, Fintype.sum_bool]
+    rw [ite_eq_left (hanc i), Finset.filter_true_of_mem fun j _ => hanc j]
+    simp [singleLinkMulticast]
   · simp [hi]
 
 private theorem sum_le_of_eq_zero_outside {α : Type*} {S T : Finset α}
@@ -2092,14 +2070,10 @@ private theorem pathRootedTree_iterate_parent (k m : ℕ) (w : Fin (k + 2)) :
 
 private theorem pathRootedTree_isAncestor_iff (k : ℕ) (u w : Fin (k + 2)) :
     (pathRootedTree k).IsAncestor u w ↔ u.1 ≤ w.1 := by
-  constructor
-  · rintro ⟨m, rfl⟩
-    rw [pathRootedTree_iterate_parent]
-    exact Nat.sub_le w.1 m
-  · intro hle
-    refine ⟨w.1 - u.1, ?_⟩
-    rw [pathRootedTree_iterate_parent]
-    ext; dsimp; omega
+  refine ⟨?_, fun hle => ⟨w.1 - u.1,
+    (pathRootedTree_iterate_parent k _ w).trans (Fin.ext (Nat.sub_sub_self hle))⟩⟩
+  rintro ⟨m, rfl⟩
+  simp [pathRootedTree_iterate_parent]
 
 /-- Fixed `(k + 2)`-node **path multicast instance** `pathMulticast k`:
 - `k` spine nodes `1 .. k` on Alice's side, with link cost `((k + 1)!) * ((k + 1)! + 1) ^ (v - 1)`

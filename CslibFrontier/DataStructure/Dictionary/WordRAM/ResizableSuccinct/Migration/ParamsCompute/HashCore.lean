@@ -302,16 +302,12 @@ theorem computeHashCore_arith {w U N dstMetaBase : ℕ}
   have hc_lt : 2 * c < w := ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space hc_le hfit_hash
   have hB_le : B ≤ 3 * Nat.log 2 N + 3 := by
     dsimp only [B, reducedTargetBits, epochHashB]
-    rw [totalMicroBits_eq_log]
-    have h1 : min (epochQBits U N) (3 * (Nat.log 2 N + 1)) ≤ 3 * Nat.log 2 N + 3 :=
-      (Nat.min_le_right _ _).trans (by omega)
-    exact max_le h1 (by omega)
+    rw [totalMicroBits_eq_log]; omega
   have hB2_fit : Fits w (B + 2) := (fits_three_mul_w_add_five h225).of_le (by omega)
   obtain ⟨hc_fit, hl0_fit, hp_fit⟩ := fits_hashShifts (t := t) hc_lt h225
   have h2c_le : 2 * c ≤ N + 8 := by
-    have hpow := two_pow_two_mul_reducedChunkBits_hash_le U N
-    change 2 ^ (2 * c) ≤ 8 + N at hpow
-    have hlt := @Nat.lt_two_pow_self (2 * c)
+    have hpow : 2 ^ (2 * c) ≤ 8 + N := two_pow_two_mul_reducedChunkBits_hash_le U N
+    have := @Nat.lt_two_pow_self (2 * c)
     omega
   exact ⟨hw8, hw0_le, hb'_le, hlogN_lt, hc_lt, hB_le, h2c_le, hB2_fit, hc_fit, hl0_fit, hp_fit⟩
 
@@ -341,10 +337,7 @@ private theorem computeHashTargetProg_exec {w hdrBase qBitsVal logN : ℕ} {s : 
     memoryCost (computeHashTargetProg d) s ≤ 3 * logN + 3 := by
   intro d w0 minW0 targB
   have h3w : Fits w (3 * w + 5) := fits_three_mul_w_add_five h225
-  have htarg_le : targB ≤ 3 * logN + 3 := by
-    dsimp only [targB, minW0]
-    have h1 : min w0 ((logN + 1) * 3) ≤ 3 * logN + 3 := (Nat.min_le_right _ _).trans (by omega)
-    exact max_le h1 (by omega)
+  have htarg_le : targB ≤ 3 * logN + 3 := by dsimp only [targB, minW0]; omega
   have hB2_fit : Fits w (targB + 2) := h3w.of_le (by omega)
   obtain ⟨_, hv_tr, hc_tr, hst_tr, hres_tr⟩ :=
     trinomProg_spec (B := max (min (max qBitsVal 1) ((logN + 1) * 3)) (max logN 1)) hhdr hB2_fit
@@ -388,10 +381,6 @@ private theorem realizesBounded_computeHashTarget :
     repeat rw [clientState_minNatProg]
     repeat rw [clientResult_minNatProg])
   all_goals (
-    have htarg_le : max (min (max qBitsVal 1) ((logN + 1) * 3)) (max logN 1) ≤ 3 * logN + 3 := by
-      have h1 : min (max qBitsVal 1) ((logN + 1) * 3) ≤ 3 * logN + 3 :=
-        (Nat.min_le_right _ _).trans (by omega)
-      exact max_le h1 (by omega)
     first
     | exact ⟨hhdr, h3w.of_le (by omega), h225.of_le (by decide)⟩
     | exact h3w.of_le (by omega))

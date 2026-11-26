@@ -198,14 +198,9 @@ theorem computableInO_midpointLeaf (ntm : MultiTapeNTM k Bool State) :
       _ = 96 * c ^ 2 * (M ^ 2 + 1) := by ring
   refine ((ComputableInO.or' (ComputableInO.eq' ha hb) (hedge.comp (ha.prod hb))).of_enc_eq
     (encC := encBool) fun _ => rfl).mono (96 * (ca + cb + 1) ^ 2) (fun p => ?_) fun p => ?_
-  · have hA := hca p
-    have hB := hcb p
-    simp only [length_encPair, encBits_apply, hN] at hA hB ⊢
-    exact hbd _ _ _ hA hB
-  · have hA := hca p
-    have hB := hcb p
-    simp only [length_encPair, encBits_apply, hN] at hA hB ⊢
-    have h := hbd _ _ _ hA hB
+  · simpa only [length_encPair, encBits_apply, hN] using hbd _ _ _ (hca p) (hcb p)
+  · have h := hbd _ _ _ (hca p) (hcb p)
+    simp only [length_encPair, encBits_apply, hN] at h ⊢
     generalize (p.2.2.1.getD (viewCode p.1 (ntm.initView p.2.1))).length = A at h ⊢
     generalize (p.2.2.2.getD (acceptCode p.1)).length = B at h ⊢
     have : 2 * A + 1 + B ≤ (A + 1) * (A + B + 1) := by nlinarith
@@ -226,11 +221,10 @@ private theorem length_encOption_lastMidpoint_le (w i : ℕ) (z : List Bool) (d 
   induction i generalizing z with
   | zero => simp [lastMidpoint]
   | succ i ih =>
-    have hi := ih (z.drop (2 * w + 2))
     simp only [lastMidpoint]
     rcases h : lastMidpoint w i (z.drop (2 * w + 2)) d with _ | m
     · split_ifs <;> simp [midpointMoves]
-    · simpa [h] using hi
+    · simpa [h] using ih (z.drop (2 * w + 2))
 
 /-- For a time-constructible `s` and a constant `K`, the number of moves of the midpoint game on
 codes of `2 * w + 2` bits, `w = K * (n + s n + 1)`, as in `exists_midpointGame_of_mem_NSPACE`, is
@@ -343,13 +337,8 @@ private theorem NSPACE_subset_ATIME_sq_of_midpointLeaf {s : ℕ → ℕ} (hs : T
     (computableInO_midpointMoveCount hs K) hV'
     (fun a => (hA a _ le_rfl).trans (Iff.of_eq (congrArg (Alternation true _)
       (funext fun z => by rw [midpointGame_eq_reach_lastMidpoint]; rfl))))
-    (fun a => by
-      have := hfin a
-      omega)
-    fun a z _ => by
-      have := hfin a
-      dsimp only
-      omega
+    (fun a => by linarith [hfin a])
+    fun a _ _ => by linarith [hfin a]
 
 /-- **Time-constructible step toward CKS Theorem 3.1 (`NSPACE s ⊆ ATIME ((n + s n) ^ 2)`)**: not
 the unrestricted [Chandra, Kozen and Stockmeyer, Theorem 3.1][ChandraKozenStockmeyer1981]

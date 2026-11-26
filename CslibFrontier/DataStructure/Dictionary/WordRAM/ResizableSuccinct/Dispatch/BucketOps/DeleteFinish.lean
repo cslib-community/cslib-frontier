@@ -289,8 +289,8 @@ private theorem compDeleteFoundGenProg_effect {metaBase itemBase U V w N m_cap b
     dsimp only [s₁, j_last, c_b] at hc2 ⊢
     omega
   by_cases hlt : j_del < j_last
-  · have hj_last_bc1 : j_last < bCount N (compGmAt metaBase U w N s₁.mem) b := by
-      rw [hgm1]; dsimp only [j_last, c_b]; omega
+  · have hj_last_bc1 : j_last < bCount N (compGmAt metaBase U w N s₁.mem) b :=
+      hgm1.symm ▸ Nat.sub_lt hbc_pos Nat.one_pos
     obtain ⟨hfr_sw, hcpl_sw⟩ := compDeleteSwapGenProg_effect
       henv1 hcpl1 hslot1 hm_cap1 hb hm_last hlt hj_last_bc1 hval₁ (hmem_last₁ hlt)
     have hphys_eq1 : slotOf N (compGmAt metaBase U w N s₁.mem) b j_del = phys_del := by rw [hgm1]
@@ -302,11 +302,9 @@ private theorem compDeleteFoundGenProg_effect {metaBase itemBase U V w N m_cap b
     set sf₂ := (Memory.spec 0).clientState sf₁
       (deleteSwapProg U V (ghostW w) N (epochHashSpace U (ghostW w) N)
         ((((0, b), j_del), phys_del), (m_last, j_last)))
-    have hgm2 : compGmAt metaBase U w N s₂.mem = compGmAt metaBase U w N s.mem := by
-      have hgm_step := compGmAt_compDeleteSwapGenProg
-        henv1 hcpl1 hslot1 hm_cap1 hb hm_last hlt hj_last_bc1 hval₁ (hmem_last₁ hlt)
-      rw [hphys_eq1] at hgm_step
-      exact hgm_step.trans hgm1
+    have hgm2 : compGmAt metaBase U w N s₂.mem = compGmAt metaBase U w N s.mem :=
+      (hphys_eq1 ▸ compGmAt_compDeleteSwapGenProg
+        henv1 hcpl1 hslot1 hm_cap1 hb hm_last hlt hj_last_bc1 hval₁ (hmem_last₁ hlt)).trans hgm1
     have henv2 := henv1.of_mem_eq (s' := s₂) (by rw [hfr_sw.frontier_eq])
     obtain ⟨hfr_pop, hcpl_pop, hcost_pop⟩ := compPopBackSlotGenProg_effect
       henv2 hcpl_sw (hgm2.symm ▸ hslot) hb (hgm2.symm ▸ hbc_pos) (hgm2.symm ▸ hm_cap)
@@ -348,11 +346,9 @@ private theorem realizesBounded_compDeleteFoundGen :
   · exact ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V,
       rfl, henv1.meta_le_frontier, hgm1.symm ▸ hslot, hb⟩
   · rw [clientState_readCompBucketCountGenProg, clientResult_readCompBucketCountGenProg hb]
-    refine ⟨U, V, N, m_cap, _, L₁, rfl, henv1, hcpl1,
+    exact ⟨U, V, N, m_cap, _, L₁, rfl, henv1, hcpl1,
       hgm1.symm ▸ hslot, hgm1.symm ▸ hm_cap, hb, hm_last, rfl, hgm1.symm ▸ hj_del_bc,
-      by rw [hgm1], hval₁, fun hlt hj_cap => ?_⟩
-    rw [hgm1] at hlt hj_cap ⊢
-    exact hmem_last₁ hlt hj_cap
+      by rw [hgm1], hval₁, hgm1.symm ▸ hmem_last₁⟩
 
 private theorem validProg_compDeleteFoundGen {w : ℕ}
     {d : (((CompParams × (ℕ × ℕ)) × (ℕ × ℕ)) × ℕ) × (ℕ × ℕ)} {s : Memory.State}
@@ -371,11 +367,10 @@ private theorem validProg_compDeleteFoundGen {w : ℕ}
   have hm_cap1 : totalSlots N (compGmAt metaBase U w N s₁.mem) ≤ m_cap := hgm1.symm ▸ hm_cap
   dsimp only [compDeleteFoundGenProg, compDeleteFoundTailProg]
   simp only [pure_bind]
-  refine validProg_bind (validProg_compUnlinkIfIndexedGen hpre_u) ?_
-  refine validProg_bind
-    (validProg_readCompBucketCountGen
+  refine validProg_bind (validProg_compUnlinkIfIndexedGen hpre_u)
+    (validProg_bind (validProg_readCompBucketCountGen
       ⟨U, V, N, henv.pos_w, henv.pos_N, henv.le_U, henv.lt_pow_U, henv.le_pow_V,
-        rfl, henv1.meta_le_frontier, hslot1, hb⟩) ?_
+        rfl, henv1.meta_le_frontier, hslot1, hb⟩) ?_)
   rw [clientState_readCompBucketCountGenProg, clientResult_readCompBucketCountGenProg hb, hgm1]
   refine validProg_ite (fun hlt => ?_) (fun _ =>
     validProg_compPopBackSlotGen

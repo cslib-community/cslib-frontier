@@ -171,14 +171,10 @@ private lemma span_finCons_eq_of_coeff_ne_zero {K : Type*} [Field K] {d h : ℕ}
       refine ⟨V.sub_mem hu (V.smul_mem c hfV), ?_⟩
       change (u - c • f).coeff d = 0
       simp [c, div_mul_cancel₀ _ hfc]
-    have hsub : V ⊓ LinearMap.ker (lcoeff K d) ≤ Submodule.span K (Set.range (Fin.cons f g)) := by
-      refine hgspan.ge.trans (Submodule.span_mono ?_)
-      rw [Fin.range_cons]
-      exact Set.subset_insert f _
-    have hfj : f ∈ Submodule.span K (Set.range (Fin.cons f g)) :=
-      Submodule.subset_span ⟨0, by simp⟩
-    simpa only [sub_add_cancel] using (Submodule.span K (Set.range (Fin.cons f g))).add_mem
-      (hsub hr) ((Submodule.span K (Set.range (Fin.cons f g))).smul_mem c hfj)
+    have hsub : V ⊓ LinearMap.ker (lcoeff K d) ≤ Submodule.span K (Set.range (Fin.cons f g)) :=
+      hgspan.ge.trans (Submodule.span_mono (Fin.range_cons f g ▸ Set.subset_insert f _))
+    rw [← sub_add_cancel u (c • f)]
+    exact add_mem (hsub hr) (Submodule.smul_mem _ c (Submodule.subset_span ⟨0, rfl⟩))
 
 /-- Polynomial row reduction, derived rather than assumed: every bounded-degree
 subspace has a basis with distinct largest degrees. -/
@@ -426,15 +422,9 @@ theorem wronskian_order_bound {K : Type*} [Field K] [CharZero K]
     nsmul_eq_mul]
   apply Nat.add_le_add_right
   let W := wronskianFamily (fun j => (b j : K[X]))
-  have hsum : (∑ i, W.rootMultiplicity (a i)) =
-      ∑ x ∈ Finset.univ.image a, W.rootMultiplicity x :=
-    (Finset.sum_image (f := fun x => W.rootMultiplicity x) fun i _ j _ hij => ha hij).symm
-  rw [hsum]
-  apply (sum_rootMultiplicity_le_natDegree W _).trans
-  apply natDegree_wronskian_le
-  intro j
-  have hh := hV (b j) (b j).property (fun hz => b.ne_zero j (Subtype.ext hz))
-  omega
+  rw [← Finset.sum_image (f := fun x => W.rootMultiplicity x) fun _ _ _ _ hij => ha hij]
+  refine (sum_rootMultiplicity_le_natDegree W _).trans (natDegree_wronskian_le _ _ fun j => ?_)
+  exact Nat.le_sub_one_of_lt (hV (b j) (b j).property fun hz => b.ne_zero j (Subtype.ext hz))
 
 /-- Every polynomial subspace `V` of degree below `d` has a basis whose members have pairwise
 distinct vanishing orders (`rootMultiplicity a`) at `a`. -/

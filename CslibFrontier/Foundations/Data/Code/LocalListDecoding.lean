@@ -202,10 +202,7 @@ theorem card_filter_lineAgree_le_mul_sq_le (A : Finset (Fin m → F)) {D : ℝ}
     (#{xu : (Fin m → F) × (Fin m → F) | xu.2 ≠ 0 ∧ (lineAgree A xu.1 xu.2 : ℝ) ≤ D} : ℝ) *
         (Fintype.card F * #A / Fintype.card F ^ m - D) ^ 2 ≤
       Fintype.card F * #A * (Fintype.card F ^ m - 1) := by
-  have hfilter : ({xu : (Fin m → F) × (Fin m → F) |
-      xu.2 ≠ 0 ∧ (lineAgree A xu.1 xu.2 : ℝ) ≤ D} : Finset _) =
-      {xu ∈ seeds m F | (lineAgree A xu.1 xu.2 : ℝ) ≤ D} := by rw [seeds, filter_filter]
-  rw [hfilter]
+  rw [← filter_filter (p := fun xu : (Fin m → F) × (Fin m → F) => xu.2 ≠ 0), ← seeds]
   refine (card_filter_mul_le_sum _ _ _ (fun _ _ => sq_nonneg _) fun xu _ hxu => ?_).trans
     (sum_lineAgree_sub_sq_le A)
   nlinarith [sq_nonneg ((lineAgree A xu.1 xu.2 : ℝ) - Fintype.card F * #A / Fintype.card F ^ m)]
@@ -251,13 +248,10 @@ private theorem card_hintDecode_line_ne_le {d D : ℕ} (hd : 1 ≤ d)
     #{τ | hintDecode id (fun t : F => g (x + t • v)) d D τ (p (x + τ • v)) ≠ p x} ≤ D - d := by
   obtain ⟨P, hP, hPeval⟩ := exists_natDegree_le_eval_eq_of_mem_reedMuller hp x v
   have hx : p x = P.eval 0 := by rw [hPeval, zero_smul, add_zero]
-  have hag : #{t : F | P.eval (id t) = g (x + t • v)} = lineAgree {y | g y = p y} x v := by
-    simp only [lineAgree]
-    congr 1
-    ext t
-    simp [hPeval, eq_comm]
+  have hag : #{t : F | P.eval (id t) = g (x + t • v)} = lineAgree {y | g y = p y} x v :=
+    congrArg card (Finset.ext fun t => by simp [hPeval, eq_comm])
   simpa only [← hPeval, hx] using card_hintDecode_ne_le (α := id)
-    (w := fun t : F => g (x + t • v)) Function.injective_id hd hn hDq hP (by rwa [hag])
+    (w := fun t : F => g (x + t • v)) Function.injective_id hd hn hDq hP (hag.symm ▸ hagree)
 
 /-- The normalized directions: those whose first nonzero entry is `1`. -/
 private def normDirs (m : ℕ) (F : Type*) [Field F] [Fintype F] [DecidableEq F] :

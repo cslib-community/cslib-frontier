@@ -163,22 +163,18 @@ theorem mem_submodule {S M : Type*} [Semiring S] [AddCommMonoid M] [Module S M]
 /-- Hamming distance decomposes by left vertices. -/
 theorem hammingDist_eq_sum_left [Fintype L] [Fintype D] [DecidableEq α] (x y : L × D → α) :
     hammingDist x y = ∑ u : L, hammingDist (leftWord x u) (leftWord y u) := by
-  rw [hammingDist, Finset.card_filter, Fintype.sum_prod_type]
-  refine Finset.sum_congr rfl fun u _ => by
-    rw [hammingDist, Finset.card_filter]
-    rfl
+  simp_rw [hammingDist, Finset.card_filter, Fintype.sum_prod_type]
+  rfl
 
 /-- Hamming distance decomposes by right vertices. -/
 theorem hammingDist_eq_sum_right [Fintype L] [Fintype R] [Fintype D] [DecidableEq α]
     (B : BipartiteRotationMap L R D) (x y : L × D → α) :
     hammingDist x y = ∑ v : R, hammingDist (rightWord B x v) (rightWord B y v) := by
-  rw [hammingDist, Finset.card_filter]
+  simp_rw [hammingDist, Finset.card_filter]
   rw [Fintype.sum_equiv B.toRight (fun p => if x p ≠ y p then (1 : ℕ) else 0)
     (fun q => if x (B.toRight.symm q) ≠ y (B.toRight.symm q) then 1 else 0)
     fun p => by simp only [Equiv.symm_apply_apply], Fintype.sum_prod_type]
-  refine Finset.sum_congr rfl fun v _ => by
-    rw [hammingDist, Finset.card_filter]
-    rfl
+  rfl
 
 /-- Hamming weight decomposes by left vertices. -/
 theorem hammingNorm_eq_sum_left [Fintype L] [Fintype D] [Zero α] [DecidableEq α]
@@ -329,9 +325,7 @@ theorem rate_submodule_ge [Fintype L] [Finite R] [Fintype D] [CommRing α] [Fint
           Nat.mul_le_mul_left _ hmul
       _ = Nat.card (submodule B CL CR) * ((Nat.card CL * Nat.card ((D → α) ⧸ CL)) *
           (Nat.card CR * Nat.card ((D → α) ⧸ CR))) ^ Fintype.card L := by ring
-      _ = _ := by
-        rw [hqL, hqR]
-        ring
+      _ = _ := by simp only [hqL, hqR]; ring
   have hα : (1 : ℝ) < Fintype.card α := by exact_mod_cast Fintype.one_lt_card
   have hCL_pos : (0 : ℝ) < Nat.card CL := Nat.cast_pos.2 Nat.card_pos
   have hCR_pos : (0 : ℝ) < Nat.card CR := Nat.cast_pos.2 Nat.card_pos
@@ -515,9 +509,8 @@ theorem le_minDist_of_relDist [Fintype L] [Fintype R] [Fintype D]
     (hlam : B.nontrivialSingularValue ≤ lam) {n : ℕ}
     (hn : (n : ℝ) ≤ δ * (δ - lam) * Fintype.card (L × D)) :
     (n : ℕ∞) ≤ Code.minDist (code B CL CR) := by
-  refine Code.le_minDist_iff.2 fun x hx y hy hxy => Nat.cast_le.2 ?_
-  have h := relDist_mul_sub_le_hammingDist B hδ hCL hCR hlam hx hy hxy
-  exact Nat.cast_le.1 (hn.trans h)
+  exact Code.le_minDist_iff.2 fun x hx y hy hxy => Nat.cast_le.2 <| Nat.cast_le.1 <|
+    hn.trans (relDist_mul_sub_le_hammingDist B hδ hCL hCR hlam hx hy hxy)
 
 /-- Minimum-weight bound `δ * (δ - lam) * |L × D| ≤ hammingNorm x` for nonzero words in a linear
 bipartite Tanner code `submodule B CL CR`. -/

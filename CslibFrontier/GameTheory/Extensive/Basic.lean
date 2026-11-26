@@ -229,9 +229,7 @@ theorem realizationProbMixed_nonneg {i : ι} [Fintype (H i)] [DecidableEq (H i)]
     0 ≤ realizationProbMixed μ σ := by
   classical
   refine sum_nonneg fun s _ => ?_
-  split_ifs
-  · exact hμ.nonneg s
-  · exact le_rfl
+  by_cases hs : MatchesSeq s σ <;> simp [hs, hμ.nonneg s]
 
 theorem realizationProbMixed_nil {i : ι} [Fintype (H i)] [DecidableEq (H i)]
     [∀ h, Fintype (Act i h)] {μ : PureStrategy H Act i → ℝ} (hμ : IsMixedStrategy μ) :
@@ -256,12 +254,9 @@ theorem realizationProbMixed_single_eq {i : ι} [Fintype (H i)] [DecidableEq (H 
     (s : PureStrategy H Act i) (σ : Seq H Act i) :
     realizationProbMixed (Pi.single s (1 : ℝ)) σ = if MatchesSeq s σ then 1 else 0 := by
   simp only [realizationProbMixed]
-  rw [sum_eq_single s]
-  · simp
-  · intro t _ ht
-    simp [Pi.single_eq_of_ne ht]
-  · intro hmem
-    exact absurd (mem_univ s) hmem
+  rw [sum_eq_single s (fun t _ ht => by simp [Pi.single_eq_of_ne ht])
+    (by simp)]
+  simp
 
 private theorem sum_pi_ite_eq {ι' : Type*} [Fintype ι'] [DecidableEq ι'] {α : ι' → Type*}
     [∀ k, Fintype (α k)] (f : ∀ k, α k → ℝ) (P : ∀ k, α k → Prop)
@@ -289,15 +284,9 @@ theorem realizationProbMixed_behaviorToMixed {i : ι} [Fintype (H i)] [Decidable
   classical
   have hmatch : ∀ s : PureStrategy H Act i,
       MatchesSeq s σ ↔ ∀ h : H i, ∀ p ∈ σ, p.1 = h → (⟨h, s h⟩ : Choice H Act i) = p := by
-    intro s
-    constructor
-    · intro hs h p hp heq
-      rcases p with ⟨h', a'⟩
-      dsimp only at heq
-      subst heq
-      exact congrArg (Sigma.mk h') (hs ⟨h', a'⟩ hp)
-    · intro hs p hp
-      exact eq_of_heq (Sigma.mk.inj_iff.1 (hs p.1 p hp rfl)).2
+    refine fun s => ⟨?_, fun hs p hp => eq_of_heq (Sigma.mk.inj_iff.1 (hs p.1 p hp rfl)).2⟩
+    rintro hs h ⟨h', a'⟩ hp rfl
+    exact congrArg (Sigma.mk _) (hs _ hp)
   simp only [realizationProbMixed, behaviorToMixed]
   calc ∑ s : PureStrategy H Act i, (if MatchesSeq s σ then ∏ h : H i, β h (s h) else 0)
       = ∑ s : PureStrategy H Act i,
@@ -321,8 +310,7 @@ theorem realizationProbMixed_behaviorToMixed {i : ι} [Fintype (H i)] [Decidable
           rw [List.map_cons, List.nodup_cons] at hnodup
           rw [List.map_cons, List.prod_cons, ← ih hnodup.2]
           dsimp only at hnodup ⊢
-          rw [← mul_prod_erase univ _ (mem_univ qh)]
-          rw [← mul_prod_erase univ _ (mem_univ qh)]
+          rw [← mul_prod_erase univ _ (mem_univ qh), ← mul_prod_erase univ _ (mem_univ qh)]
           have hq : ∀ p ∈ σ, qh ≠ p.1 := fun p hp heq =>
             hnodup.1 (List.mem_map.2 ⟨p, hp, heq.symm⟩)
           have hsum : (∑ a : Act i qh,
@@ -331,14 +319,11 @@ theorem realizationProbMixed_behaviorToMixed {i : ι} [Fintype (H i)] [Decidable
             have hiff : ∀ a : Act i qh,
                 (∀ p ∈ (⟨qh, qa⟩ :: σ), p.1 = qh → (⟨qh, a⟩ : Choice H Act i) = p) ↔
                   a = qa := by
-              intro a
-              constructor
-              · intro h
-                exact eq_of_heq (Sigma.mk.inj_iff.1 (h ⟨qh, qa⟩ List.mem_cons_self rfl)).2
-              · rintro rfl p hp hp1
-                rcases List.mem_cons.1 hp with rfl | hp
-                · rfl
-                · exact absurd hp1 (hq p hp).symm
+              refine fun a => ⟨fun h =>
+                eq_of_heq (Sigma.mk.inj_iff.1 (h ⟨qh, qa⟩ List.mem_cons_self rfl)).2, ?_⟩
+              rintro rfl p (_ | ⟨_, hp⟩)
+              · exact fun _ => rfl
+              · exact fun hp1 => absurd hp1 (hq p hp).symm
             calc (∑ a : Act i qh,
                     if ∀ p ∈ (⟨qh, qa⟩ :: σ), p.1 = qh → (⟨qh, a⟩ : Choice H Act i) = p
                     then β qh a else 0)
@@ -980,12 +965,9 @@ theorem RealizationEquivFactor.terminalProbMixed_eq [Fintype ι] [DecidableEq ι
       rw [sum_eq_single s₀ (fun s_i _ hs => by simp [hs]) (by simp)]
       simp
     rw [hi_one, one_mul]
-    refine prod_congr rfl fun j hj => ?_
-    have hne : j ≠ i := ne_of_mem_erase hj
-    simp [hne, realizationProbMixed]
+    exact prod_congr rfl fun j hj => by simp [ne_of_mem_erase hj, realizationProbMixed]
   rw [hprod r₁, hprod r₂]
-  refine sum_congr rfl fun s _ => ?_
-  rw [heq s z]
+  exact sum_congr rfl fun s _ => by rw [heq s z]
 
 private theorem terminalProbMixed_update_eq [Fintype ι] [DecidableEq ι]
     [∀ j, Fintype (H j)] [∀ j, DecidableEq (H j)] [∀ j h, Fintype (Act j h)]
@@ -1196,14 +1178,12 @@ theorem PerfectRecall.noRepeatedInfoSet [DecidableEq ι] :
   | .leaf _, _, _, .leaf => List.nodup_nil
   | @ExtensiveTree.chance _ _ _ _ _ _ _ _, _, hpr, .chance c sub =>
       PerfectRecall.noRepeatedInfoSet (fun h v₁ v₂ hv₁ hv₂ => by
-        have := hpr (v₁ := .chance c v₁) (v₂ := .chance c v₂) hv₁ hv₂
-        simpa using this) sub
+        simpa using hpr (v₁ := .chance c v₁) (v₂ := .chance c v₂) hv₁ hv₂) sub
   | .decision j h' next, i, hpr, .decision a sub => by
       have hsub : (next a).PerfectRecall i := fun h v₁ v₂ hv₁ hv₂ => by
         have := hpr (v₁ := .decision a v₁) (v₂ := .decision a v₂) hv₁ hv₂
-        by_cases hij : j = i
-        · subst hij
-          simpa using this
+        rcases eq_or_ne j i with rfl | hij
+        · simpa using this
         · simpa [hij] using this
       have hnodup := PerfectRecall.noRepeatedInfoSet hsub sub
       by_cases hij : j = i
@@ -1211,11 +1191,8 @@ theorem PerfectRecall.noRepeatedInfoSet [DecidableEq ι] :
         simp only [Terminal.seq_decision_self, List.map_cons, List.nodup_cons]
         refine ⟨fun hmem => ?_, hnodup⟩
         obtain ⟨v, hv⟩ := exists_node_of_mem_seq sub hmem
-        have heq := hpr (v₁ := .here) (v₂ := .decision a v) rfl hv
-        simp only [Node.playerSeq_here, Node.playerSeq_decision_self] at heq
-        exact absurd heq (List.cons_ne_nil _ _).symm
-      · simp only [Terminal.seq_decision_ne hij]
-        exact hnodup
+        simpa using hpr (v₁ := .here) (v₂ := .decision a v) rfl hv
+      · simpa [Terminal.seq_decision_ne hij] using hnodup
 
 end ExtensiveTree
 

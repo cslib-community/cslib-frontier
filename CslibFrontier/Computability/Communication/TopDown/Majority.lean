@@ -151,16 +151,11 @@ private theorem weightLayer_deficit {n r : ℕ} (hr : r ≤ n)
     (weightLayer n r).Nonempty ∧
       uniformDeficit (weightLayer n r) ≤ strictMajorityDeficitBound n := by
   have hne : (weightLayer n r).Nonempty := weightLayer_nonempty hr
-  refine ⟨hne, ?_⟩
-  have hd : uniformDeficit (weightLayer n r) ≤ Real.logb 2 (2 * ((n : ℝ) + 1)) := by
-    apply (uniformDeficit_le_iff hne).mpr
-    simp only [Fintype.card_fin, card_weightLayer]
-    rw [Real.rpow_sub (by norm_num), Real.rpow_natCast,
-      Real.rpow_logb (by norm_num) (by norm_num) (by positivity)]
-    apply (div_le_iff₀ (by positivity)).mpr
-    exact_mod_cast (by simpa only [mul_comm] using hcard : 2 ^ n ≤ n.choose r * (2 * (n + 1)))
-  unfold strictMajorityDeficitBound
-  linarith
+  refine ⟨hne, ((uniformDeficit_le_iff hne).mpr ?_).trans (le_add_of_nonneg_left (by norm_num))⟩
+  simp only [Fintype.card_fin, card_weightLayer]
+  rw [Real.rpow_sub (by norm_num), Real.rpow_natCast,
+    Real.rpow_logb (by norm_num) (by norm_num) (by positivity), div_le_iff₀ (by positivity)]
+  exact_mod_cast (mul_comm (2 * (n + 1)) _ ▸ hcard)
 
 private theorem majority_layers_deficit {n : ℕ} (hn : 2 ≤ n) :
     ((weightLayer n (n / 2)).Nonempty ∧
@@ -192,10 +187,9 @@ private theorem coordinateDensity_of_neighbor {n : ℕ} (X : Finset (Fin n → B
     (hx : Function.update x i (!x i) ∈ X) (hsmall : weight P ≤ 128) :
     (2 : ℝ) ^ (-(128 : ℝ)) ≤ coordinateDensity X P x := by
   have he : completePattern P x (fun j => Function.update x i (!x i) j) =
-      Function.update x i (!x i) := by
-    funext j
-    by_cases hj : j = i
-    · subst hj; simp [completePattern, hi]
+      Function.update x i (!x i) := funext fun j => by
+    rcases eq_or_ne j i with rfl | hj
+    · simp [completePattern, hi]
     · by_cases hP : P j = true <;> simp [completePattern, hP, Function.update_of_ne hj]
   have hne : (coordinateFiber X P x).Nonempty := ⟨_, mem_filter.mpr ⟨mem_univ _, by rwa [he]⟩⟩
   have hc : (1 : ℝ) ≤ (coordinateFiber X P x).card := by exact_mod_cast card_pos.mpr hne
@@ -229,16 +223,12 @@ private theorem isDensityLimit_of_many_neighbors {n : ℕ} (hn : 16 ≤ n)
         (1 / 128) * (weight P : ℝ) ≤
       if (2 : ℝ) ^ (-(128 : ℝ)) ≤ coordinateDensity X P x then 1 else 0 := by
     have hw : (0 : ℝ) ≤ weight P := Nat.cast_nonneg _
-    by_cases hhit : ∃ i, s i = true ∧ P i = true
-    · rw [ite_eq_left hhit]
-      by_cases hsmall : weight P ≤ 128
-      · obtain ⟨i, hi, hPi⟩ := hhit
-        rw [ite_eq_left (coordinateDensity_of_neighbor X P x i hPi (hneighbor i hi) hsmall)]
-        linarith
-      · have hlarge : (128 : ℝ) < weight P := by exact_mod_cast (Nat.lt_of_not_ge hsmall)
-        split_ifs <;> linarith
-    · rw [ite_eq_right hhit]
-      split_ifs <;> linarith
+    split_ifs with h1 h2 h2
+    any_goals linarith
+    obtain ⟨i, hi, hPi⟩ := h1
+    have hgt : 128 < weight P := not_le.mp fun hle =>
+      h2 (coordinateDensity_of_neighbor X P x i hPi (hneighbor i hi) hle)
+    linarith [show (128 : ℝ) < weight P by exact_mod_cast hgt]
   have hh := bernoulliAverage_mono hp hp' hpoint
   have hhits : bernoulliAverage p (fun P : Fin n → Bool =>
       if ∃ i, s i = true ∧ P i = true then (1 : ℝ) else 0) = 1 - (1 - p) ^ weight s := by

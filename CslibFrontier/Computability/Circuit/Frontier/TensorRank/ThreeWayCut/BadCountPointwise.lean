@@ -240,17 +240,13 @@ private theorem four_mul_badCount_le [Fintype F] {Q : Multigraph W F} {q : ℝ} 
           let wt (e : F) : ℝ :=
             (if e = u₀ then w₀' else 0) + (if e = u₁ then w₁' else 0) + (if e = u₂ then w₂' else 0)
           have hwt (e : F) : 0 ≤ wt e := by dsimp only [wt]; split_ifs <;> linarith
-          have hw0 : wt u₀ = w₀' := by simp [wt, hu01, hu20.symm]
-          have hw1 : wt u₁ = w₁' := by simp [wt, hu01.symm, hu12]
-          have hw2 : wt u₂ = w₂' := by simp [wt, hu20, hu12.symm]
           have hsum_s (g : F → ℝ) :
               wt e₀ * g e₀ + wt e₁ * g e₁ + wt e₂ * g e₂ =
                 w₀' * g u₀ + w₁' * g u₁ + w₂' * g u₂ := by
             have h1 : ∑ x ∈ s, wt x * g x = wt e₀ * g e₀ + (wt e₁ * g e₁ + wt e₂ * g e₂) := by
-              dsimp only [s]
               rw [Finset.sum_insert (by simp [h01, h02]), Finset.sum_pair h12]
-            rw [hs_u, Finset.sum_insert (by simp [hu01, hu20.symm]), Finset.sum_pair hu12, hw0, hw1,
-              hw2] at h1
+            rw [hs_u, Finset.sum_insert (by simp [hu01, hu20.symm]), Finset.sum_pair hu12] at h1
+            simp only [wt, ↓reduceIte, hu01, hu01.symm, hu12, hu12.symm, hu20, hu20.symm] at h1
             linarith
           refine ⟨wt e₀, wt e₁, wt e₂, hwt e₀, hwt e₁, hwt e₂, ?_, ?_, ?_⟩
           · linarith [hsum_s fun _ => 1]
@@ -281,12 +277,9 @@ private theorem sum_cutAny_le_sum_badCount [Fintype F] {Q : Multigraph W F}
     refine Finset.sum_le_sum fun e _ => ?_
     by_cases hcut : ω ∈ cutAnyEvent Q q R e
     · by_cases hs : inOpenSector (blockColor Q q R ω (Q.src e)) (edgeVec2 Q q R ω e)
-      · have ht : ¬inOpenSector (blockColor Q q R ω (Q.tgt e)) (edgeVec2 Q q R ω e) :=
-          fun ht => hcut (inOpenSector_unique hs ht)
-        simp [hcut, hs, ht]
+      · simp [hcut, hs, mt (inOpenSector_unique hs) hcut]
       · simp [hcut, hs]
-    · simp only [hcut, ↓reduceIte]
-      omega
+    · simp [hcut]
   refine h1.trans ?_
   have hbad_sum : (∑ B : W, badCount Q q R ω B) =
       ∑ B : W, ∑ e : F,

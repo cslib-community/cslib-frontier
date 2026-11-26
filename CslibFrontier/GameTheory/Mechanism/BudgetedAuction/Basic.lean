@@ -189,9 +189,8 @@ private theorem isClearedAndExhausted_of_isParetoOptimal
     let o' : Outcome ι := ⟨Function.update o.alloc j (o.alloc j + (m - ∑ i, o.alloc i)), o.payment⟩
     refine hnd o' ⟨⟨fun i => ?_, by simp only [o', sum_update_eq]; linarith⟩, hbf, fun i => ?_,
       le_rfl, Or.inl ⟨j, by simp only [utility, o', Function.update_self]; nlinarith⟩⟩
-    · rcases eq_or_ne i j with rfl | hi
-      · simp only [o', Function.update_self]; linarith [hnn i]
-      · simpa only [o', Function.update_of_ne hi] using hnn i
+    · simp only [o', Function.update_apply]
+      split_ifs <;> linarith [hnn i, hnn j]
     · rcases eq_or_ne i j with rfl | hi
       · simp only [utility, o', Function.update_self]; nlinarith
       · simp [utility, o', Function.update_of_ne hi]
@@ -203,11 +202,8 @@ private theorem isClearedAndExhausted_of_isParetoOptimal
     have hsum_eq := sum_update_transfer o.alloc hij (o.alloc i)
     refine hnd o' ⟨⟨fun k => ?_, by dsimp only [o']; linarith⟩, hbf, fun k => ?_, le_rfl,
       Or.inl ⟨j, by simp only [utility, o', Function.update_self]; nlinarith⟩⟩
-    · rcases eq_or_ne k j with rfl | hkj
-      · simp only [o', Function.update_self]; linarith [hnn k]
-      · rcases eq_or_ne k i with rfl | hki
-        · simp [o', hkj]
-        · simp [o', hkj, hki, hnn k]
+    · simp only [o', Function.update_apply]
+      split_ifs <;> linarith [hnn i, hnn j, hnn k]
     · rcases eq_or_ne k j with rfl | hkj
       · simp only [utility, o', Function.update_self]; nlinarith
       · rcases eq_or_ne k i with rfl | hki
@@ -241,11 +237,8 @@ private theorem isClearedAndExhausted_of_isParetoOptimal
       dsimp only [t, mid]; linarith
     refine hnd o' ⟨⟨fun k => ?_, by linarith⟩, fun k => ?_, fun k => ?_, hsum_pay.ge,
       Or.inl ⟨i, hutil_i⟩⟩
-    · rcases eq_or_ne k j with rfl | hkj
-      · simp only [o', Function.update_self]; linarith [hnn k]
-      · rcases eq_or_ne k i with rfl | hki
-        · simp only [o', Function.update_of_ne hkj, Function.update_self]; linarith
-        · simpa only [o', Function.update_of_ne hkj, Function.update_of_ne hki] using hnn k
+    · simp only [o', Function.update_apply]
+      split_ifs <;> linarith [hnn j, hnn k]
     · rcases eq_or_ne k j with rfl | hkj
       · simp only [o', Function.update_self, t]; linarith
       · rcases eq_or_ne k i with rfl | hki

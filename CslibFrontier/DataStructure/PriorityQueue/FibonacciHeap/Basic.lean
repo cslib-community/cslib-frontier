@@ -144,65 +144,47 @@ variable {n : ℕ} (g : Cell → ℕ) (x : ℕ)
 @[simp] theorem view_update_key (v : Fin n) :
     view n (Function.update g (.key v) x) =
       { view n g with key := Function.update (view n g).key v x } := by
-  simp only [view]
-  congr 1 with u : 1
-  simp [Function.update_apply, Fin.val_inj]
+  simp [view, funext_iff, Function.update_apply, Fin.val_inj]
 
 @[simp] theorem view_update_par (v : Fin n) :
     view n (Function.update g (.par v) x) =
       { view n g with par := Function.update (view n g).par v x } := by
-  simp only [view]
-  congr 1 with u : 1
-  simp [Function.update_apply, Fin.val_inj]
+  simp [view, funext_iff, Function.update_apply, Fin.val_inj]
 
 @[simp] theorem view_update_child (v : Fin n) :
     view n (Function.update g (.child v) x) =
       { view n g with child := Function.update (view n g).child v x } := by
-  simp only [view]
-  congr 1 with u : 1
-  simp [Function.update_apply, Fin.val_inj]
+  simp [view, funext_iff, Function.update_apply, Fin.val_inj]
 
 @[simp] theorem view_update_left (v : Fin n) :
     view n (Function.update g (.left v) x) =
       { view n g with left := Function.update (view n g).left v x } := by
-  simp only [view]
-  congr 1 with u : 1
-  simp [Function.update_apply, Fin.val_inj]
+  simp [view, funext_iff, Function.update_apply, Fin.val_inj]
 
 @[simp] theorem view_update_right (v : Fin n) :
     view n (Function.update g (.right v) x) =
       { view n g with right := Function.update (view n g).right v x } := by
-  simp only [view]
-  congr 1 with u : 1
-  simp [Function.update_apply, Fin.val_inj]
+  simp [view, funext_iff, Function.update_apply, Fin.val_inj]
 
 @[simp] theorem view_update_deg (v : Fin n) :
     view n (Function.update g (.deg v) x) =
       { view n g with deg := Function.update (view n g).deg v x } := by
-  simp only [view]
-  congr 1 with u : 1
-  simp [Function.update_apply, Fin.val_inj]
+  simp [view, funext_iff, Function.update_apply, Fin.val_inj]
 
 @[simp] theorem view_update_mark (v : Fin n) :
     view n (Function.update g (.mark v) x) =
       { view n g with mark := Function.update (view n g).mark v x } := by
-  simp only [view]
-  congr 1 with u : 1
-  simp [Function.update_apply, Fin.val_inj]
+  simp [view, funext_iff, Function.update_apply, Fin.val_inj]
 
 @[simp] theorem view_update_inHeap (v : Fin n) :
     view n (Function.update g (.inHeap v) x) =
       { view n g with inHeap := Function.update (view n g).inHeap v x } := by
-  simp only [view]
-  congr 1 with u : 1
-  simp [Function.update_apply, Fin.val_inj]
+  simp [view, funext_iff, Function.update_apply, Fin.val_inj]
 
 @[simp] theorem view_update_cons (d : ℕ) :
     view n (Function.update g (.cons d) x) =
       { view n g with cons := Function.update (view n g).cons d x } := by
-  simp only [view]
-  congr 1 with e : 1
-  simp [Function.update_apply]
+  simp [view, funext_iff, Function.update_apply]
 
 @[simp] theorem view_update_minRoot :
     view n (Function.update g .minRoot x) = { view n g with minRoot := x } := rfl
@@ -398,25 +380,18 @@ theorem FibRawInv.insert {n K : ℕ} {s : IndexedMinPQ.State n} {st st' : RawSta
     (fun _ _ => ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩) (fun _ _ => ⟨rfl, rfl⟩), hnd', fun x => ?_,
     fun x => ?_, fun x kx hx => ?_, ?_, by simp [newNode, hnr], ?_,
     fun d hd => hcons d hd, hrl'⟩
-  · by_cases hxv : x = v
-    · subst hxv; simp [forestNodes, FHTree.nodes]
-    · simp [forestNodes, FHTree.nodes, hxv, hdom x]
-  · by_cases hxv : x = v
-    · subst hxv; simp [newNode]
+  · rcases eq_or_ne x v with rfl | hxv <;> simp [forestNodes, FHTree.nodes, hdom x, *]
+  · rcases eq_or_ne x v with rfl | hxv
+    · simp [newNode]
     · simpa [newNode, hxv] using hin x
-  · by_cases hxv : x = v
-    · subst hxv
-      simp only [Function.update_self, Option.some.injEq] at hx
-      subst hx
+  · rcases eq_or_ne x v with rfl | hxv
+    · obtain rfl : k = kx := by simpa using hx
       simp [newNode, hk]
-    · rw [Function.update_of_ne hxv] at hx
-      simpa [newNode, hxv] using hkeys x kx hx
+    · simpa [newNode, hxv] using hkeys x kx (by simpa [hxv] using hx)
   · have hvd : v ∉ IndexedMinPQ.dom s := IndexedMinPQ.notMem_dom_iff.mpr hv
     simp [newNode, hsz, Finset.card_insert_of_notMem hvd]
   · refine hnm.trans (markedCount_congr fun x => ?_).symm
-    by_cases hxv : x = v
-    · subst hxv; simp [newNode, hin_v]
-    · simp [newNode, hxv]
+    rcases eq_or_ne x v with rfl | hxv <;> simp [newNode, *]
 
 /-! ## Programs -/
 

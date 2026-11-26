@@ -85,14 +85,10 @@ omit [DecidableEq α] in
 private theorem sameCycle_optionCongr (f : Perm α) (a b : α) :
     Perm.SameCycle f.optionCongr (some a) (some b) ↔ f.SameCycle a b := by
   have hm : Function.Semiconj some f f.optionCongr := fun _ => rfl
-  constructor
-  · intro h
-    obtain ⟨n, hn⟩ := h.exists_nat_pow_eq
-    refine ⟨(n : ℤ), ?_⟩
-    apply Option.some.inj
-    rw [zpow_natCast, ← Perm.iterate_eq_pow, hm.iterate_right n,
-      Perm.iterate_eq_pow, hn]
-  · exact fun h => h.map_of_semiconj hm
+  refine ⟨fun h => ?_, fun h => h.map_of_semiconj hm⟩
+  obtain ⟨n, hn⟩ := h.exists_nat_pow_eq
+  exact ⟨n, Option.some.inj (by
+    rwa [zpow_natCast, ← Perm.iterate_eq_pow, hm.iterate_right n, Perm.iterate_eq_pow])⟩
 
 /-- Adding a fixed permutation point adds one actual orbit, including when all old points
 are absent. The old nontrivial and singleton cycles are both retained. -/
@@ -217,8 +213,7 @@ theorem card_orbits_removeNone_balance (f : Perm (Option α)) (g : Perm α) :
   classical
   have h₁ := card_orbits_removeNone_add (f * g.optionCongr)
   have h₂ := card_orbits_removeNone_add f
-  have hn : (f * g.optionCongr) none = f none := rfl
-  rw [hn] at h₁
+  rw [show (f * g.optionCongr) none = f none from rfl] at h₁
   omega
 
 private theorem card_orbits_twoPoints (f : Perm α) (a b : α) (hab : a ≠ b)
@@ -337,21 +332,17 @@ theorem removeNone_splice (f : Perm α) (h k : α) :
   intro z
   rcases z with _ | (_ | a)
   · simp [splice, swap_apply_def]
-  · by_cases hk : h = k
-    · simp [splice, swap_apply_def, hk]
-    · simpa [splice, swap_apply_def, hk] using Ne.symm hk
-  · by_cases hah : f a = h
-    · by_cases hk : h = k <;> simp [splice, swap_apply_def, hah, hk]
-    · by_cases hak : f a = k
-      · have hkh : k ≠ h := by intro he; exact hah (hak.trans he)
-        simp [splice, swap_apply_def, hak, hkh, hkh.symm]
-      · simp [splice, swap_apply_def, hah, hak]
+  · by_cases hk : h = k <;> simp [splice, swap_apply_def, hk, Ne.symm]
+  · rcases eq_or_ne h k with rfl | hk
+    · by_cases hah : f a = h <;> simp [splice, swap_apply_def, hah]
+    · by_cases hah : f a = h
+      · simp [splice, swap_apply_def, hah, hk]
+      · by_cases hak : f a = k <;> simp [splice, swap_apply_def, hah, hak, hk, hk.symm]
 
 /-- The first inserted end is never a singleton face after deleting the second end. -/
 theorem removeNone_splice_none (f : Perm α) (h k : α) :
     removeNone (splice f h k) none = some k := by
-  rw [removeNone_splice]
-  simp
+  simp [removeNone_splice]
 
 /-- The second inserted end is a singleton face exactly for coincident corners. -/
 theorem splice_none_fixed_iff (f : Perm α) (h k : α) :

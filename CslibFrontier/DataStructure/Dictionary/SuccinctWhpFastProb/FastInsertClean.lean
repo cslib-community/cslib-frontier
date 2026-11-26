@@ -123,26 +123,21 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
       have hX'_eq : ∀ b' : Fin (numBucketsWhp n_max),
           X' b' = if b'.val = b then fs.bktCount b + 1 else fs.bktCount b'.val := by
         intro b'
-        dsimp only [X', h1]
+        dsimp only [X']
         rw [hdom', Finset.filter_insert]
         by_cases hbb : b = b'.val
-        · have heq : feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val = b'.val := hbb
-          rw [ite_eq_left heq, Finset.card_insert_of_notMem
+        · rw [ite_eq_left hbb, Finset.card_insert_of_notMem
             (fun hm => hu_ndom (mem_filter.mp hm).1), ite_eq_left hbb.symm, ← hbb,
             hc.bktCount_eq_card_filter hb]
-        · have hne : feistelBucket (bWhp n_max) (bktHash c U n_max θ.1) u.val ≠ b'.val := hbb
-          rw [ite_eq_right hne, ite_eq_right (Ne.symm hbb), hc.bktCount_eq_card_filter b'.isLt]
+        · rw [ite_eq_right hbb, ite_eq_right (Ne.symm hbb), hc.bktCount_eq_card_filter b'.isLt]
       have hsum_X' : ∑ b', X' b' = #(Dictionary.dom dict') := by
         have h1_sum : ∀ w ∈ Dictionary.dom dict', (1 : ℕ) =
             ∑ b' : Fin (numBucketsWhp n_max),
-              if feistelBucket (bWhp n_max) h1 w.val = b'.val then 1 else 0 := by
-          intro w _
-          let bw : Fin (numBucketsWhp n_max) :=
-            ⟨feistelBucket (bWhp n_max) h1 w.val, feistelBucket_lt (bWhp n_max) h1 w.val⟩
-          rw [Fintype.sum_eq_single bw]
-          · simp [bw]
-          · intro b' hb'; simp [show feistelBucket (bWhp n_max) h1 w.val ≠ b'.val from
-              fun h => hb' (Fin.ext h.symm)]
+              if feistelBucket (bWhp n_max) h1 w.val = b'.val then 1 else 0 := fun w _ => by
+          rw [Fintype.sum_eq_single ⟨_, feistelBucket_lt (bWhp n_max) h1 w.val⟩]
+          · simp
+          · intro b' hb'
+            exact ite_eq_right fun h => hb' (Fin.ext h.symm)
         calc ∑ b' : Fin (numBucketsWhp n_max), X' b'
             = ∑ b' : Fin (numBucketsWhp n_max), ∑ w ∈ Dictionary.dom dict',
                 if feistelBucket (bWhp n_max) h1 w.val = b'.val then 1 else 0 :=
@@ -275,13 +270,11 @@ theorem fastInsert_some_and_clean_props {c U V n_max : ℕ} {θ : SeedWhp c U n_
           exact hcw.buf_alloc.trans (Finset.card_le_card hsub_ev)
         · have hu_nin : u ∉ BadIns.filter (fun x =>
               bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp)
-                (fpReducedKey c U n_max θ.2 x)) := by
-            rw [mem_filter]; rintro ⟨_, ht⟩; exact hev ht
+                (fpReducedKey c U n_max θ.2 x)) := fun hm => hev (mem_filter.mp hm).2
           have hu_in' : u ∈ BadIns.filter (fun x =>
               bufEverPresent (cTabWhp c) (bCharWhp n_max) tr'
-                (fpReducedKey c U n_max θ.2 x)) := by
-            rw [mem_filter]; refine ⟨hu_bad, ?_⟩
-            rw [hins.2.2.2.2.1 _ hrk_lt, ite_eq_left rfl]
+                (fpReducedKey c U n_max θ.2 x)) :=
+            mem_filter.mpr ⟨hu_bad, by rw [hins.2.2.2.2.1 _ hrk_lt, ite_eq_left rfl]⟩
           have hins_sub : insert u (BadIns.filter (fun x =>
               bufEverPresent (cTabWhp c) (bCharWhp n_max) (fs.buf fs.curEp)
                 (fpReducedKey c U n_max θ.2 x))) ⊆

@@ -167,11 +167,9 @@ private theorem refresh_law {s : Level} {α : Type} (base : Xofs) {a b : ℕ}
       PMF.bind_map, Function.comp_def, R, independent_tables, scoreRefresh, gen, matrixSeed_bytes]
     rfl
   rw [avg, PMF.bind_comm R S]
-  refine congrArg (PMF.bind S ·) (funext fun xi => ?_)
-  rw [PMF.bind_comm R V]
-  refine congrArg (PMF.bind V ·) (funext fun rows => ?_)
-  exact refresh_fixed base (by lia)
-    (by lia) xi rows score
+  simp_rw [PMF.bind_comm R V]
+  simp only [R, S, V, refresh_fixed base ((by decide : 272 ≤ 528).trans ha)
+    ((by decide : 128 ≤ 481).trans hb)]
 
 private theorem independent_law {s : Level} {α : Type} (base : Xofs) {a b : ℕ}
     (ha : 528 ≤ a) (hb : 481 ≤ b) (score : SeedScore s α) :
@@ -243,10 +241,7 @@ theorem publicHashMatch_le (s : Level) (base : Xofs) {a b : ℕ} (ha : 528 ≤ a
     PMF.pure v.publicHashMatch) true ≤ _
   rw [PMF.bind_congr_on_support V _ _ (fun v hv => (keep v hv).symm),
     base.refreshKeySeed_independent ha hb test]
-  apply PMF.bind_apply_le_on_support
-  intro v _
-  apply PMF.bind_apply_le_on_support
-  intro H _
+  refine PMF.bind_apply_le_on_support _ fun v _ => PMF.bind_apply_le_on_support _ fun H _ => ?_
   simp only [test, PMF.bind_const]
   refine FixedBytes.uniform_test_le (n := 64) fun x hx y hy => ?_
   cases hp : v.pair with
@@ -316,18 +311,14 @@ theorem Xofs.refreshKeySeed_queryHit_le {s : Level} (base : Xofs) {a b : ℕ}
   change ((base.sampleSecretExpansionViews s ha hb).bind fun v => v.refreshKeySeed.bind fun H =>
     test H v.publicSeed v.pair v.keySeed v.secretSeed) true ≤ _
   rw [base.refreshKeySeed_independent ha hb test]
-  apply PMF.bind_apply_le_on_support
-  intro v _
-  apply PMF.bind_apply_le_on_support
-  intro H _
+  refine PMF.bind_apply_le_on_support _ fun v _ => PMF.bind_apply_le_on_support _ fun H _ => ?_
   cases h : v.pair with
   | none => simp [test]
   | some pk =>
     simp only [test, PMF.map]
     simp_rw [PMF.bind_comm (PMF.uniformOfFintype (FixedBytes 64)) (query H v.publicSeed pk)]
     rw [PMF.bind_comm (PMF.uniformOfFintype (FixedBytes 32)) (query H v.publicSeed pk)]
-    apply PMF.bind_apply_le_on_support
-    exact fun q _ => uniform_hit_le s q
+    exact PMF.bind_apply_le_on_support _ fun q _ => uniform_hit_le s q
 
 namespace QuantumSigningForger
 

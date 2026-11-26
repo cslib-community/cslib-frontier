@@ -152,14 +152,12 @@ private theorem liveGraphWeight_eq_zero_of_not_le {V : Type*} [Fintype V] {G : D
     (IC : IndependentCascadeModel G) {H : Digraph V} (hnot : ¬ H ≤ G) :
     liveGraphWeight IC H = 0 := by
   classical
-  have hex : ∃ e : V × V, H.Adj e.1 e.2 ∧ ¬ G.Adj e.1 e.2 := by
-    by_contra hall
-    push Not at hall
-    exact hnot fun u v huv => hall (u, v) huv
-  rcases hex with ⟨e, heH, heG⟩
   unfold liveGraphWeight
-  refine Finset.prod_eq_zero (Finset.mem_univ e) ?_
-  simp [heH, IC.edgeProb_eq_zero_of_not_adj e.1 e.2 heG]
+  by_contra hne
+  exact hnot fun u v huv => by
+    by_contra hno
+    exact hne (Finset.prod_eq_zero (Finset.mem_univ (u, v))
+      (by simp [huv, IC.edgeProb_eq_zero_of_not_adj u v hno]))
 
 /-- Sum of independent Bernoulli product weights over subsets `E ⊆ U` containing `inSet` and
 disjoint from `outSet`. -/
@@ -473,10 +471,9 @@ theorem activeSetProb_eq_sum_liveGraphWeight
             ∑ E₀ ∈ (Finset.univ \ F).powerset with P (toE.symm E₀),
               ∏ e ∈ Finset.univ \ F,
                 if e ∈ E₀ then IC.edgeProb e.1 e.2 else 1 - IC.edgeProb e.1 e.2 := by
-          have h := hfactor F ∅ ∅ P (Finset.empty_subset _) (Finset.empty_subset _)
-            (Finset.disjoint_empty_left _) hP
           simpa only [Finset.notMem_empty, IsEmpty.forall_iff, implies_true, and_true,
-            Finset.prod_empty, one_mul] using h
+            Finset.prod_empty, one_mul] using hfactor F ∅ ∅ P (Finset.empty_subset _)
+              (Finset.empty_subset _) (Finset.disjoint_empty_left _) hP
         rw [hlhs_eq, hfactor F {(u, v)} outV P
           (Finset.singleton_subset_iff.mpr (by simp [F]))
           (Finset.forall_mem_map.mpr fun _ _ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, rfl⟩)
@@ -502,9 +499,7 @@ theorem activeSetProb_eq_sum_liveGraphWeight
             · exact hno' w hw x (by simp [tried', Function.update_of_ne hwv, hx]), hr⟩,
             hno' v hv_inact u (by simp [tried'])⟩⟩)
   rw [h0]
-  refine Finset.sum_congr ?_ fun _ _ => rfl
-  ext H
-  simp
+  exact Finset.sum_congr (Finset.ext fun _ => by simp) fun _ _ => rfl
 
 /-- **Live-Edge Expectation Formula** ([KempeKleinbergTardos2003]; [Kleinberg2007], Section 24.4,
 p. 625): expected influence in the Independent Cascade Model equals the weighted sum of reachable
@@ -530,12 +525,10 @@ theorem monotone_influence : Monotone IC.influence :=
 ([KempeKleinbergTardos2003]; [Kleinberg2007], Theorem 24.5, pp. 625–626): for every instance of
 the Independent Cascade Model, the expected influence function `IC.influence` is submodular. -/
 theorem isSubmodular_influence : IsSubmodular IC.influence := by
-  have heq : IC.influence =
-      fun S => ∑ H : Digraph V,
-        weightedCoverage (liveReachableFrom H) (fun _ => liveGraphWeight IC H) S := by
-    ext S
-    rw [IC.influence_eq_sum_liveGraphWeight]
-    exact Finset.sum_congr rfl fun H _ => by simp [weightedCoverage, liveReachable, mul_comm]
+  have heq : IC.influence = fun S => ∑ H : Digraph V,
+      weightedCoverage (liveReachableFrom H) (fun _ => liveGraphWeight IC H) S :=
+    funext fun S => (IC.influence_eq_sum_liveGraphWeight S).trans
+      (Finset.sum_congr rfl fun H _ => by simp [weightedCoverage, liveReachable, mul_comm])
   rw [heq]
   exact isSubmodular_sum Finset.univ fun H _ =>
     isSubmodular_weightedCoverage (liveReachableFrom H) fun _ => liveGraphWeight_nonneg IC H
@@ -620,22 +613,16 @@ private theorem reflectMap_involutive (K : Finset V) :
     Function.Involutive (M.reflectMap K) := by
   intro U
   ext v
-  unfold reflectMap
-  by_cases hv : v ∈ K
-  · simp [hv]
-  · simp only [hv, ↓reduceIte]
-    exact reflectUnit_involutive (M.thresholdFn v K) (U v)
+  by_cases hv : v ∈ K <;> simp [reflectMap, hv, reflectUnit_involutive (M.thresholdFn v K) (U v)]
 
 private theorem measurePreserving_reflectMap (K : Finset V) :
     MeasurePreserving (M.reflectMap K) (thresholdMeasure V) (thresholdMeasure V) := by
   rw [thresholdMeasure_def V]
   exact measurePreserving_pi (fun _ : V => unitMeasure) (fun _ : V => unitMeasure)
     (f := fun v z => if v ∈ K then z else reflectUnit (M.thresholdFn v K) z) fun v => by
-    by_cases hv : v ∈ K
-    · simp only [hv, ↓reduceIte]
-      exact MeasurePreserving.id unitMeasure
-    · simp only [hv, ↓reduceIte]
-      exact measurePreserving_reflectUnit (M.thresholdFn_nonneg v K)
+    split_ifs with hv
+    · exact MeasurePreserving.id unitMeasure
+    · exact measurePreserving_reflectUnit (M.thresholdFn_nonneg v K)
 
 /-- Conditional reflection coupling from seed `X` to superset `Y`: runs `X` under `U` to obtain
 `K = M.thresholdFinal U X`, reflects surviving thresholds on `Kᶜ`, and continues from `K ∪ Y`. -/
@@ -650,14 +637,10 @@ private theorem integral_reflectCouple {X Y : Finset V} (hXY : X ⊆ Y) (φ : Fi
       ∫ U, φ (M.thresholdFinal U Y) ∂thresholdMeasure V := by
   let E : Finset V → Set (V → ℝ) := fun K =>
     {U : V → ℝ | M.thresholdFinal U X = K ∧ ∀ v : V, U v < 1}
-  have hmE : ∀ K : Finset V, MeasurableSet (E K) := by
-    intro K
-    have heqE : E K = {U | M.thresholdFinal U X = K} ∩
-        ⋂ v : V, (fun U : V → ℝ => U v) ⁻¹' Iio 1 := by
-      ext U
-      simp [E]
-    rw [heqE]
-    exact (M.measurableSet_thresholdFinal_eq X K).inter
+  have hmE : ∀ K : Finset V, MeasurableSet (E K) := fun K => by
+    have heqE : E K = {U | M.thresholdFinal U X = K} ∩ ⋂ v : V, (· v) ⁻¹' Iio 1 :=
+      Set.ext fun _ => by simp [E]
+    exact heqE ▸ (M.measurableSet_thresholdFinal_eq X K).inter
       (MeasurableSet.iInter fun v => measurableSet_Iio.preimage (measurable_pi_apply v))
   have hmem_reflect : ∀ (K : Finset V) (U : V → ℝ), U ∈ E K ↔ M.reflectMap K U ∈ E K := by
     suffices dir : ∀ (K : Finset V) (U : V → ℝ), U ∈ E K → M.reflectMap K U ∈ E K from
@@ -800,16 +783,10 @@ functions `M.thresholdFn v` are submodular, the global expected influence functi
 submodular. -/
 theorem isSubmodular_influence (hlocal : ∀ v, IsSubmodular (M.thresholdFn v)) :
     IsSubmodular M.influence := by
-  have heq : M.influence = fun S => ∫ θ, ((M.thresholdFinal θ S).card : ℝ) ∂thresholdMeasure V :=
-    funext M.influence_def
-  rw [heq]
-  have hcard_mono : Monotone (fun X : Finset V => (X.card : ℝ)) :=
-    fun _ _ h => Nat.cast_le.mpr (Finset.card_le_card h)
-  have hcard_sub : IsSubmodular (fun X : Finset V => (X.card : ℝ)) := by
-    intro A B
-    dsimp only
-    exact_mod_cast (Finset.card_union_add_card_inter A B).le
-  exact M.isSubmodular_integral_thresholdFinal hlocal hcard_mono hcard_sub
+  rw [funext M.influence_def]
+  exact M.isSubmodular_integral_thresholdFinal hlocal
+    (fun _ _ h => Nat.cast_le.mpr (Finset.card_le_card h)) fun A B => by
+      simpa only [← Nat.cast_add, Nat.cast_le] using (Finset.card_union_add_card_inter A B).le
 
 /-- Lifting a locally submodular `GeneralThresholdModel` to `timeLayeredDigraph G T` preserves
 submodularity of all local threshold functions. -/
@@ -882,11 +859,9 @@ variable {V : Type*} [DecidableEq V] [Fintype V] {G : Digraph V} [DecidableRel G
 ([Kleinberg2007], Section 24.4, p. 626). -/
 theorem isSubmodular_toGeneralThresholdModel_thresholdFn (v : V) :
     IsSubmodular (L.toGeneralThresholdModel.thresholdFn v) := by
-  have heq : L.toGeneralThresholdModel.thresholdFn v = modularSum (fun u => L.weight u v) := by
-    ext X
-    simp [modularSum]
-  rw [heq]
-  exact isSubmodular_modularSum _
+  have heq : L.toGeneralThresholdModel.thresholdFn v = modularSum (fun u => L.weight u v) :=
+    funext fun _ => by simp [modularSum]
+  exact heq ▸ isSubmodular_modularSum _
 
 /-- Expected influence in any `LinearThresholdModel` is submodular
 ([KempeKleinbergTardos2003]; [Kleinberg2007], Section 24.4, p. 626). -/
@@ -929,9 +904,7 @@ pp. 624, 626): for any instance of the Cascade Model whose incremental functions
 `HasDiminishingReturns`, the resulting expected influence function `C.influence` is submodular. -/
 theorem isSubmodular_influence_of_diminishingReturns (hdim : C.HasDiminishingReturns) :
     IsSubmodular C.influence := by
-  have heq : C.influence = C.toGeneralThresholdModel.influence :=
-    funext C.influence_eq_toGeneralThresholdModel
-  rw [heq]
+  rw [funext C.influence_eq_toGeneralThresholdModel]
   exact C.toGeneralThresholdModel.isSubmodular_influence
     (C.isSubmodular_toGeneralThresholdModel_thresholdFn hdim)
 

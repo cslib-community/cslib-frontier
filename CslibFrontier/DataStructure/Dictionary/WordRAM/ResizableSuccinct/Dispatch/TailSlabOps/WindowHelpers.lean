@@ -120,15 +120,10 @@ private theorem physByBase_tail_denseOfCirc {N b_win n_win : ℕ} {td dt : ℕ �
     let d := denseOfCirc (maxTailItems N) b_win (td t)
     b_win ≤ d ∧ d < b_win + n_win ∧ physByBase N b_win dt d = N - 1 - t := by
   intro d
-  have hb0 : bucketBits N ≠ 0 := hb_pos.ne'
-  have hM_pos : 0 < maxTailItems N := maxTailItems_pos_of_bucketBits_pos hb_pos
-  have hc_lt : td t < maxTailItems N := hw.td_lt t ht
-  have hge : b_win ≤ d := denseOfCirc_ge (maxTailItems N) b_win (td t)
-  have hlt : d < b_win + n_win := hw.dense_lt t ht
-  refine ⟨hge, hlt, ?_⟩
+  refine ⟨denseOfCirc_ge (maxTailItems N) b_win (td t), hw.dense_lt t ht, ?_⟩
   unfold physByBase
-  rw [ite_eq_right hb0, ite_eq_right (by omega : ¬d < b_win),
-    denseOfCirc_mod hM_pos hc_lt, hw.dt_td t ht]
+  rw [ite_eq_right hb_pos.ne', ite_eq_right (Nat.not_lt.mpr (denseOfCirc_ge _ _ _)),
+    denseOfCirc_mod (maxTailItems_pos_of_bucketBits_pos hb_pos) (hw.td_lt t ht), hw.dt_td t ht]
 
 private theorem physByBase_range_and_inj {N b_win n_win : ℕ} {td dt : ℕ → ℕ}
     (hb_pos : 0 < bucketBits N) (hbn : b_win + n_win ≤ N) (hM : n_win ≤ maxTailItems N)
@@ -401,19 +396,15 @@ private theorem windowCoupled_shrinkLeft_write {metaBase itemBase U V w N b_win 
   have htd_s3 := htd4.trans (htd3.trans htd2)
   have hdt_s3 := hdt4.trans (hdt3.trans hdt2)
   have hq_b_lt : compQuotAt itemBase U V w N (b_win + (n' + 1)) s.mem b_win <
-      2 ^ quotientBits U N := by
-    rw [hcpl.quot_eq _ hb_lt]; exact quotAt_lt _ _ _ _ _ _ _
-  have hv_b_lt : compValAt itemBase U V w N (b_win + (n' + 1)) s.mem b_win < 2 ^ valBits V := by
-    rw [hcpl.val_eq _ hb_lt]; exact valAt_lt _ _ _ _ _ _ _ _
+      2 ^ quotientBits U N :=
+    (hcpl.quot_eq _ hb_lt).trans_lt (quotAt_lt _ _ _ _ _ _ _)
+  have hv_b_lt : compValAt itemBase U V w N (b_win + (n' + 1)) s.mem b_win < 2 ^ valBits V :=
+    (hcpl.val_eq _ hb_lt).trans_lt (valAt_lt _ _ _ _ _ _ _ _)
   have hp_ne_bwin : ∀ d < (b_win + 1) + n', d ≠ b_win →
-      physByBase N (b_win + 1) (compDTAt metaBase U w N s₃.mem) d ≠ b_win := by
-    intro d hd hneb
+      physByBase N (b_win + 1) (compDTAt metaBase U w N s₃.mem) d ≠ b_win := fun d hd hneb => by
     rw [hdt_s3]
-    have hrng := (physByBase_range_and_inj hb_pos (by omega : (b_win + 1) + n' ≤ N)
-      (by omega : n' ≤ maxTailItems N) hspec.1).1 d hd
-    rcases hrng with ⟨hlt, hp_eq⟩ | ⟨hge, hlo, _⟩
-    · rw [hp_eq]; omega
-    · omega
+    rcases (physByBase_range_and_inj hb_pos (hm_eq.symm ▸ hbn) (Nat.le_of_succ_le hM) hspec.1).1
+      d hd with ⟨_, hp_eq⟩ | ⟨_, _, _⟩ <;> omega
   have hp_b : physByBase N b_win (compDTAt metaBase U w N s.mem) b_win =
       N - 1 - compDTAt metaBase U w N s.mem (b_win % maxTailItems N) := by
     unfold physByBase

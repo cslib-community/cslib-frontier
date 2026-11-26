@@ -44,9 +44,11 @@ of the VeriPB/CakePB documentation, 22 June 2026 edition.
   by the type of the constraint. `core range` (§5.1) becomes `core id`.
 * The debugging rules `e`, `eobj` and `is_deleted` (§5.11) are checked here and dropped;
   `eord_def`, `eord_loaded` and `epreserved` are kernel rules and are kept.
-* Relative references and labels (§5) are resolved; `pbc`, `proofgoal` and `UNSAT` without a
-  closing constraint get the most recent contradiction in scope, and a `proofgoal` without one a
-  hinted `rup` of the contradiction `0 ≥ 1` if propagation finds it.
+* Relative references and labels (§5) are resolved, the labels of the instance included, and
+  those inside `def_order` local to its specification, transitivity proof and reflexivity proof,
+  as in VeriPB 3.0.2; `pbc`, `proofgoal` and `UNSAT` without a closing constraint get the most
+  recent contradiction in scope, and a `proofgoal` without one a hinted `rup` of the
+  contradiction `0 ≥ 1` if propagation finds it.
 * A logged solution is extended by propagation and completed with the remaining variables of the
   database false (§5.8).
 
@@ -68,10 +70,10 @@ the core set is compared with a formula (an output section) or receives every co
 time (by private functions, `fadd`, …), with the results of the kernel's rules up to the
 order of terms.
 
-**Not elaborated**: `rup` without hints and labels inside `def_order` (the kernel checker accepts
-the former, as `Cslib.Logic.PL.VeriPB.Step.rupSearch`; CakePB does not), solutions with shrunk
-variables (`solx *x`), the unchecked assertion `a`, reified constraints in proofs, and output
-sections given as a file.
+**Not elaborated**: `rup` without hints inside `def_order` (the kernel checker accepts it, as
+`Cslib.Logic.PL.VeriPB.Step.rupSearch`; CakePB does not), solutions with shrunk variables
+(`solx *x`), the unchecked assertion `a`, reified constraints in proofs, and output sections
+given as a file.
 
 ## References
 
@@ -1504,10 +1506,12 @@ structure Result where
 
 /-- Run the elaborator. -/
 private def run {σ : Type} (F : List PBConstr) (obj : Option Objective) (pres : Option (List ℕ))
-    (pbp : String) (N : Text.Names) : EM σ Result := do
+    (pbp : String) (N : Text.Names) (labels : List (String × ℕ)) : EM σ Result := do
   let L ← (Lexer.new pbp N : ST σ (Lexer σ))
   let eng ← (Engine.new : ST σ (Engine σ))
-  let S : St σ := ⟨L, eng, ← ST.mkRef #[default], ← ST.mkRef (F.length + 1), ← ST.mkRef {},
+  -- The labels of the instance name its constraints, which keep their numbers `1, 2, …`.
+  let S : St σ := ⟨L, eng, ← ST.mkRef #[default], ← ST.mkRef (F.length + 1),
+    ← ST.mkRef (Std.HashMap.ofList labels),
     ← ST.mkRef {}, ← ST.mkRef {}, ← ST.mkRef none, ← ST.mkRef obj, ← ST.mkRef pres,
     ← ST.mkRef {}, ← ST.mkRef none, ← ST.mkRef false, ← ST.mkRef {}⟩
   let mut kid := 1
@@ -1550,11 +1554,14 @@ private def run {σ : Type} (F : List PBConstr) (obj : Option Objective) (pres :
 /-- **The elaborator**: the kernel proof of the augmented proof text `pbp` for the formula `F`,
 the objective `obj` and the preserved set `pres`, whose variables are named by `N` (for an OPB
 text, `Cslib.Logic.PL.VeriPB.Text.opbNames`; by default the standard names,
-`Cslib.Logic.PL.VeriPB.Text.stdNames`), or an error message. Untrusted: the result is meant to be
-checked by `Cslib.Logic.PL.VeriPB.checkRed`. -/
+`Cslib.Logic.PL.VeriPB.Text.stdNames`), or an error message. The proof may refer to the
+constraint `k` of `F`, numbered from `1`, by a label `l` with `(l, k)` in `labels`, a later pair
+taking precedence (the labels of an instance, `Cslib.Logic.PL.VeriPB.Text.parseOPBLabelled`).
+Untrusted: the result is meant to be checked by `Cslib.Logic.PL.VeriPB.checkRed`. -/
 def elaborate (F : List PBConstr) (obj : Option Objective) (pres : Option (List ℕ))
-    (pbp : String) (N : Text.Names := Text.stdNames ⟨F, obj, pres⟩) : Except String Result :=
-  runST fun _ => (run F obj pres pbp N).run
+    (pbp : String) (N : Text.Names := Text.stdNames ⟨F, obj, pres⟩)
+    (labels : List (String × ℕ) := []) : Except String Result :=
+  runST fun _ => (run F obj pres pbp N labels).run
 
 end Cslib.Logic.PL.VeriPB.Elab
 

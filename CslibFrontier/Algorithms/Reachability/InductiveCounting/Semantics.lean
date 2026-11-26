@@ -238,8 +238,7 @@ theorem scan_exhaustive (hc : RoundCorrect N edge source s)
 
 private theorem scanPrefix_start (s : State) :
     ScanPrefix N edge bad source { s with candidate := 0, selected := 0, hit := false } := by
-  refine ⟨∅, Finset.empty_subset _, ?_⟩
-  simp
+  exact ⟨∅, Finset.empty_subset _, by simp⟩
 
 private theorem scanPrefix_skip (h : ScanPrefix N edge bad source s) :
     ScanPrefix N edge bad source { s with candidate := s.candidate + 1 } := by
@@ -290,66 +289,50 @@ private theorem invariant_instruction (hsource : source < N)
     (h : Invariant N edge bad source s) (choice : Bool) :
     Invariant N edge bad source (instruction N width source s (answer edge bad s) choice) := by
   classical
-  cases hp : s.phase with
-  | round =>
-    simp only [Invariant, hp] at h
-    simp only [instruction, hp]
+  cases hp : s.phase <;> simp only [Invariant, hp] at h <;> simp only [instruction, hp]
+  case round =>
     split_ifs with hk
     · exact ⟨h, rfl, hk, Nat.zero_le _, by simp⟩
     · exact ⟨⟨h, (by have := h.1; omega : s.round + 1 = N)⟩,
         scanPrefix_start { s with finalScan := true }, Nat.zero_le _⟩
-  | target =>
-    simp only [Invariant, hp] at h
+  case target =>
     obtain ⟨hc, hf, hk, hv, hn⟩ := h
-    simp only [instruction, hp]
     split_ifs with ht
     · exact ⟨⟨hc, by simpa [hf] using And.intro hk (And.intro ht hn)⟩,
         scanPrefix_start _, Nat.zero_le _⟩
     · exact ⟨hk, by simpa only [(by omega : s.target = N), prefixCount_full] using hn⟩
-  | candidate =>
-    simp only [Invariant, hp] at h
+  case candidate =>
     obtain ⟨hc, hs, hu⟩ := h
-    simp only [instruction, hp]
     split_ifs with ht hb
     · exact ⟨hc, hs, ht, Nat.le_refl _, by simp [roundSet_zero hsource]⟩
     · exact ⟨hc, scanPrefix_skip hs, by dsimp; omega⟩
     · exact ⟨hc, hs, by dsimp; omega⟩
-  | walk =>
-    simp only [Invariant, hp] at h
+  case walk =>
     obtain ⟨hc, hs, hu, hr, hw⟩ := h
-    simp only [instruction, hp]
     split_ifs with hz he
     · exact ⟨hc, hs, hu, by simpa only [hz, Nat.sub_zero, he] using hw⟩
     · trivial
     · exact ⟨hc, hs, hu, Nat.pos_of_ne_zero hz, hr, hw⟩
-  | guess =>
-    simp only [Invariant, hp] at h
-    simp only [instruction, hp]
+  case guess =>
     split_ifs with hz hv
     · exact ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1, h.2.2.2.2.2, hv⟩
     · trivial
     · exact h
-  | edge =>
-    simp only [Invariant, hp] at h
+  case edge =>
     obtain ⟨hc, hs, hu, hr, hrk, hw, hv⟩ := h
-    simp only [instruction, hp]
     split_ifs with he
     · refine ⟨hc, hs, hu, by dsimp; omega, ?_⟩
       rw [(by omega : s.round - (s.remaining - 1) = s.round - s.remaining + 1),
         mem_roundSet_succ hsource hv]
       exact ⟨s.current, hw, by simpa [answer, query, hp] using he⟩
     · trivial
-  | observe =>
-    simp only [Invariant, hp] at h
+  case observe =>
     obtain ⟨hc, hs, hu, hw⟩ := h
-    simp only [instruction, hp]
     refine ⟨hc, ?_, by dsimp; omega⟩
     simpa only [instruction, hp] using
       scanPrefix_observe (width := width) (choice := choice) hs hw hp
-  | done =>
-    simp only [Invariant, hp] at h
+  case done =>
     obtain ⟨⟨hc, hm⟩, hs, hu⟩ := h
-    simp only [instruction, hp]
     split_ifs with he hf hh
     · trivial
     · exact scan_final_safe hsource hc hs he hf (by simpa [hf] using hm)
@@ -359,12 +342,12 @@ private theorem invariant_instruction (hsource : source < N)
       obtain ⟨hk, hv, hn⟩ := hm
       have hh' := scan_hit_succ hsource hc hs he hf' hv
       refine ⟨hc, hf', hk, by dsimp; omega, ?_⟩
-      dsimp only
+      dsimp only [Invariant]
       rw [prefixCount_succ]
       cases hb : s.hit <;> simp_all
     · trivial
-  | accept => simpa only [instruction, hp] using h
-  | reject => simp [instruction, hp, Invariant]
+  case accept => simpa only [Invariant, hp] using h
+  case reject => simp [Invariant, hp]
 
 /-- The checked controller preserves the semantic invariant on every branch. -/
 theorem invariant_advance (hsource : source < N) (h : Invariant N edge bad source s)

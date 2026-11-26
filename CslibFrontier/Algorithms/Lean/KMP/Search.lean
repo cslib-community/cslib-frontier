@@ -121,13 +121,8 @@ theorem toList_isSuffix_take_iff_isMatchAt {α : Type*} {p t : Array α} {i : �
     refine ⟨hlen_le, ⟨by omega, ?_⟩⟩
     rw [show i + 1 = i + 1 - p.size + p.size by omega, List.take_add] at hsuf
     obtain ⟨u, hu⟩ := hsuf
-    have hplen : u.length = (t.toList.take (i + 1 - p.size)).length := by
-      have h := congrArg List.length hu
-      simp only [List.length_append, Array.length_toList, List.length_take,
-         List.length_drop] at h ⊢
-      omega
     rw [List.prefix_iff_eq_take, Array.length_toList]
-    exact (List.append_inj hu hplen).2
+    exact (List.append_inj' hu (by simp [List.length_take, List.length_drop]; omega)).2
   · rintro ⟨hlen_le, _, hpref⟩
     have htake_eq : p.toList = (t.toList.drop (i + 1 - p.size)).take p.size := by
       simpa only [Array.length_toList] using List.prefix_iff_eq_take.mp hpref
@@ -208,10 +203,8 @@ private theorem computePrefixLoop_spec {α : Type*} [DecidableEq α]
         (Array.getElem_toList hqlt).symm, ← borderLen_succ hq1 hqlist]
     refine ih (by omega) (by omega) (by simp only [Array.size_push, hsize])
       ⟨by simp only [Array.size_push]; omega, fun j hj => ?_⟩ hadv_eq
-    simp only [Array.size_push] at hj
-    rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ (by omega : j < q + 1)) with hjlt | rfl
-    · rw [Array.getElem_push_lt (hsize ▸ hjlt)]
-      exact htab.2 j (hsize ▸ hjlt)
+    rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ (by simpa [hsize] using hj)) with hjlt | rfl
+    · exact Array.getElem_push_lt (hsize ▸ hjlt) ▸ htab.2 j (hsize ▸ hjlt)
     · subst j
       rwa [Array.getElem_push_eq]
 
@@ -343,11 +336,10 @@ private theorem kmpSearchLoop_spec {α : Type*} [DecidableEq α]
   | case2 i k hilt k' hnotfull ih =>
     have hadv_eq : k' = maxPrefixSuffixUpTo p.toList (t.toList.take (i + 1)) p.size :=
       advance_eq_maxPrefixSuffixUpTo_take_succ hp hp_pi htab hilt hk
-    have hk'_le : k' ≤ p.size := by
-      rw [hadv_eq, ← Array.length_toList (xs := p)]
-      exact maxPrefixSuffixUpTo_le_length _ _ _
     have hk'_lt : maxPrefixSuffixUpTo p.toList (t.toList.take (i + 1)) p.toList.length <
-        p.toList.length := by rw [Array.length_toList, ← hadv_eq]; omega
+        p.toList.length :=
+      lt_of_le_of_ne (maxPrefixSuffixUpTo_le_length _ _ _)
+        (by simpa only [Array.length_toList, hadv_eq] using hnotfull)
     have hk'_pred : k' = maxPrefixSuffixUpTo p.toList (t.toList.take (i + 1)) (p.size - 1) := by
       simpa only [Array.length_toList, ← hadv_eq] using
         (maxPrefixSuffixUpTo_pred_of_lt_length hk'_lt).symm

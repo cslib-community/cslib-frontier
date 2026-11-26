@@ -112,14 +112,13 @@ determinant of an `m × m` specialization matrix. -/
 theorem isProjection_det_iff_exists_isSubstMatrix {P : MvPolynomial σ K} {m : ℕ} :
     IsProjection P (genericMatrix K m).det ↔
       ∃ M : Matrix (Fin m) (Fin m) (MvPolynomial σ K), IsSubstMatrix M ∧ M.det = P := by
-  constructor
-  · rintro ⟨ρ, rfl⟩
-    exact ⟨Matrix.of fun i j => Sum.elim X (fun a => C a) (ρ (finProdFinEquiv (i, j))),
+  refine ⟨fun ⟨ρ, hρ⟩ =>
+    ⟨Matrix.of fun i j => Sum.elim X (fun a => C a) (ρ (finProdFinEquiv (i, j))),
       fun i j => ⟨ρ (finProdFinEquiv (i, j)), rfl⟩,
-      (projection_det_genericMatrix ρ).symm⟩
-  · rintro ⟨M, hM, rfl⟩
-    have h := hM.isProjection_det
-    rwa [Fintype.card_fin] at h
+      (projection_det_genericMatrix ρ).symm.trans hρ⟩, ?_⟩
+  rintro ⟨M, hM, rfl⟩
+  have h := hM.isProjection_det
+  rwa [Fintype.card_fin] at h
 
 /-- **Multiplicative closure of determinant projections**: if `P` is a projection of the `m × m`
 generic determinant and `Q` is a projection of the `k × k` generic determinant, then `P * Q` is a
@@ -243,9 +242,7 @@ private theorem pathSum_abpCombine {R : Type*} [CommRing R] {k₁ k₂ : ℕ}
   have hvm : (q ᵥ* abpCombine N₁ B N₂) (abpEquiv k₁ k₂ y) =
       (Sum.elim q₁ r ᵥ* Matrix.fromBlocks N₁ B 0 (N₂.submatrix Fin.succ Fin.succ)) y := by
     simp only [q, abpCombine, Matrix.vecMul, dotProduct, Matrix.submatrix_apply,
-      Equiv.symm_apply_apply, Function.comp_apply]
-    rw [← (abpEquiv k₁ k₂).sum_comp]
-    simp only [Equiv.symm_apply_apply]
+      Function.comp_apply, ← (abpEquiv k₁ k₂).sum_comp, Equiv.symm_apply_apply]
   simp only [Pi.add_apply, hvm, Matrix.vecMul_fromBlocks, Matrix.vecMul_zero, add_zero]
   rcases y with a | b
   · simp only [q, Function.comp_apply, Equiv.symm_apply_apply, Sum.elim_inl, Sum.elim_comp_inl,
@@ -282,11 +279,9 @@ theorem of_isSubstEntry {P : MvPolynomial σ K} (hP : IsSubstEntry P) :
   · simp only [Matrix.of_apply, ite_eq_right_iff, and_imp]
     rintro rfl rfl
     exact absurd hji (by decide)
-  · funext j
-    refine Fin.cases ?_ (fun i => ?_) j
-    · simp [Matrix.vecMul, dotProduct]
-    · rw [Subsingleton.elim i 0, Fin.cases_succ]
-      simp [Matrix.vecMul, dotProduct]
+  · refine funext (Fin.cases (by simp [Matrix.vecMul, dotProduct]) fun i => ?_)
+    rw [Subsingleton.elim i 0, Fin.cases_succ]
+    simp [Matrix.vecMul, dotProduct]
 
 /-- **Multiplicative closure** of specialization branching programs by series composition. -/
 theorem mul {k₁ k₂ : ℕ} {P Q : MvPolynomial σ K}
@@ -369,8 +364,7 @@ theorem exists_isSubstABP (f : MvPolynomial σ K) : ∃ k, IsSubstABP k f := by
   induction f using MvPolynomial.induction_on with
   | C a => exact ⟨0, .of_isSubstEntry (.C a)⟩
   | add p q hp hq =>
-    obtain ⟨k₁, h₁⟩ := hp
-    obtain ⟨k₂, h₂⟩ := hq
+    rcases hp, hq with ⟨⟨k₁, h₁⟩, ⟨k₂, h₂⟩⟩
     exact ⟨k₁ + k₂ + 1, h₁.add h₂⟩
   | mul_X p i hp =>
     obtain ⟨k₁, h₁⟩ := hp

@@ -401,11 +401,8 @@ theorem andreevVoteLevel_spec {b : ℕ} {ε : ℝ} (hε : 1 / Real.sqrt (2 ^ b) 
   have hε0 : 0 < ε := lt_of_lt_of_le (by positivity) hε
   have hεN : 1 ≤ ε ^ 2 * 2 ^ b := by
     have h := pow_le_pow_left₀ (by positivity) hε 2
-    rw [div_pow, Real.sq_sqrt hN.le, one_pow, div_le_iff₀ hN] at h
-    linarith only [h]
+    rwa [div_pow, Real.sq_sqrt hN.le, one_pow, div_le_iff₀ hN] at h
   have hε2 : ε ^ 2 ≤ 1 / 64 := (pow_le_pow_left₀ hε0.le hε8 2).trans_eq (by norm_num)
-  have hspec {k : ℕ} (h : 32 * ε ^ 2 * 2 ^ b ≤ (2 : ℝ) ^ k) : andreevVoteLevel b ε ≤ k :=
-    andreevVoteLevel_le h
   set r := andreevVoteLevel b ε
   -- `b ≥ 1`, as `N ≥ 64`.
   have hb : 1 ≤ b := Nat.one_le_iff_ne_zero.mpr fun hb0 => by
@@ -413,7 +410,7 @@ theorem andreevVoteLevel_spec {b : ℕ} {ε : ℝ} (hε : 1 / Real.sqrt (2 ^ b) 
     linarith only [hεN, hε2]
   constructor
   · -- `32 ε² N ≤ N / 2 = 2 ^ (b - 1)`.
-    have hle : r ≤ b - 1 := hspec (by
+    have hle : r ≤ b - 1 := andreevVoteLevel_le (by
       rw [show (2 : ℝ) ^ b = 2 * 2 ^ (b - 1) by
         rw [← pow_succ', Nat.sub_add_cancel hb]]
       linarith only [mul_le_mul_of_nonneg_right hε2 (by positivity : (0 : ℝ) ≤ 2 ^ (b - 1))])
@@ -422,7 +419,7 @@ theorem andreevVoteLevel_spec {b : ℕ} {ε : ℝ} (hε : 1 / Real.sqrt (2 ^ b) 
     · rw [hr0, pow_zero]
       linarith only [hεN]
     · have hlt : ¬ 32 * ε ^ 2 * 2 ^ b ≤ (2 : ℝ) ^ (r - 1) := fun h =>
-        absurd (hspec h) (by omega)
+        absurd (andreevVoteLevel_le h) (by omega)
       rw [show (2 : ℝ) ^ r = 2 * 2 ^ (r - 1) by rw [← pow_succ', Nat.sub_add_cancel hr0]]
       linarith only [lt_of_not_ge hlt]
 
@@ -448,8 +445,7 @@ theorem andreevTruncatedCircuit_part_two_of_balanced {b m : ℕ} (hbal : b * m =
   have hε0 : 0 < ε := lt_of_lt_of_le (by positivity) hε
   have hεN : 1 ≤ ε ^ 2 * N := by
     have h := pow_le_pow_left₀ (by positivity) hε 2
-    rw [div_pow, Real.sq_sqrt (by positivity), one_pow, div_le_iff₀ (by positivity)] at h
-    linarith only [h]
+    rwa [div_pow, Real.sq_sqrt (by positivity), one_pow, div_le_iff₀ (by positivity)] at h
   have hq32 : 32 * ε ^ 2 * N ≤ 2 ^ r := le_two_pow_andreevVoteLevel b ε
   set L := Real.log (1 / ε)
   have hl2 : (1 : ℝ) / 2 ≤ Real.log 2 := by linarith only [Real.log_two_gt_d9]
@@ -475,8 +471,6 @@ theorem andreevTruncatedCircuit_part_two_of_balanced {b m : ℕ} (hbal : b * m =
   have hX : 1 ≤ Real.sqrt (N * L) := Real.one_le_sqrt.2 hNL1
   have hn : N ≤ n := by simp only [N, n]; exact_mod_cast Nat.le_add_right _ _
   have hL0 : 0 ≤ L := by linarith only [hL1]
-  have hsqrt : Real.sqrt (N * L) ≤ Real.sqrt (n * L) :=
-    Real.sqrt_le_sqrt (mul_le_mul_of_nonneg_right hn hL0)
   -- Gates: `G + 1 ≤ 4 q (R + 1) + 1 ≤ 2600 ε² N √(N L)`.
   have hsize : (C.size : ℝ) ≤ 2600 * ε ^ 2 * N * Real.sqrt (N * L) := by
     refine (size_andreevTruncatedCircuit_real_le hrb.le m R).trans ?_
@@ -485,9 +479,8 @@ theorem andreevTruncatedCircuit_part_two_of_balanced {b m : ℕ} (hbal : b * m =
     have h1 : 1 ≤ ε ^ 2 * N * Real.sqrt (N * L) := one_le_mul_of_one_le_of_one_le hεN hX
     linarith only [hG, h1,
       mul_le_mul_of_nonneg_left hR' (by positivity : (0 : ℝ) ≤ 256 * ε ^ 2 * N)]
-  have hsize' : 2600 * ε ^ 2 * N * Real.sqrt (N * L) ≤
-      2600 * ε ^ 2 * n * Real.sqrt (n * L) := by gcongr
-  refine ⟨hsize.trans hsize', ?_⟩
+  have hsize' : (C.size : ℝ) ≤ 2600 * ε ^ 2 * n * Real.sqrt (n * L) := hsize.trans (by gcongr)
+  refine ⟨hsize', ?_⟩
   -- Wires: `(G + 1) n + G + 1 + n ≤ (G + 1) (n + 1) + n`.
   have hw' : (C.wireCount : ℝ) ≤ (C.size : ℝ) * n + C.size + n := by
     dsimp only [n]
@@ -495,8 +488,7 @@ theorem andreevTruncatedCircuit_part_two_of_balanced {b m : ℕ} (hbal : b * m =
       (by rw [size_andreevTruncatedCircuit hrb.le m R]; omega)
   have hn1 : 1 ≤ n := hN.trans hn
   have hεn : 1 ≤ ε ^ 2 * n := hεN.trans (by gcongr)
-  have hX' : 1 ≤ Real.sqrt (n * L) := hX.trans hsqrt
-  have hsz2 := hsize.trans hsize'
+  have hX' : 1 ≤ Real.sqrt (n * L) := hX.trans (by gcongr)
   have hterm1 : (C.size : ℝ) * n + C.size ≤ 5200 * (ε ^ 2 * n ^ 2 * Real.sqrt (n * L)) := by
     calc (C.size : ℝ) * n + C.size = (C.size : ℝ) * (n + 1) := by ring
       _ ≤ (C.size : ℝ) * (2 * n) :=

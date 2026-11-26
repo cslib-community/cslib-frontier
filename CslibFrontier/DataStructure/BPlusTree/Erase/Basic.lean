@@ -723,10 +723,9 @@ private theorem eraseFits_eraseSubtree (ht : 2 ≤ t) (k : α) (tr : BPlusTree �
             EraseFits t c (eraseSubtree t k c)) →
         Underfull t first.height (eraseSubtree t k c) := by
       intro c hc hg ih
-      have := (ih hg.balanced (fun _ hc' => hg.occupied.of_mem_children hc')
+      exact hg.height_eq ▸ (ih hg.balanced (fun _ hc' => hg.occupied.of_mem_children hc')
         (fun _ => by have := hg.occupied.le_width; omega)
         (hs.sublist (toList_sublist_of_mem_children hc))).underfull hg.occupied
-      rwa [hg.height_eq] at this
     have hpe := hchild first List.mem_cons_self hf ihf
     have hc : ∀ e ∈ rest, Good t first.height e.child ∧
         Underfull t first.height (eraseSubtree t k e.child) := fun e he =>
@@ -756,9 +755,7 @@ private theorem Linked.append {a c : BPlusTree α β} {l₁ l₂ : List (Branch 
     obtain ⟨s', c'⟩ := e
     obtain ⟨g₁, g₂, g₃⟩ := h₁
     refine ⟨g₁, g₂, ih g₃ fun p hp => hlt p ?_⟩
-    rw [toList_node] at hp ⊢
-    rw [List.flatMap_cons]
-    exact List.mem_append_right _ hp
+    simpa only [toList_node, List.flatMap_cons] using List.mem_append_right a.toList hp
 
 /-- Merging two separated siblings, with the keys of the left one below their separator and
 those of the right one at least it, gives a result with the separator convention, when the
@@ -815,8 +812,7 @@ private theorem linked_eraseRest (ht : 2 ≤ t) {h : ℕ} {rest : List (Branch �
     have hrs : ∀ e ∈ rest, Separated e.child := fun e he =>
       (hc e (List.mem_cons_of_mem _ he)).2.2.1
     simp only [List.flatMap_cons, Branch.child_mk] at hs ⊢
-    have hs' := hs
-    rw [List.isSortedAssoc_append_iff] at hs'
+    have hs' := List.isSortedAssoc_append_iff.1 hs
     obtain ⟨q, hq⟩ := List.exists_mem_of_ne_nil _
       (List.ne_nil_of_length_pos (gc.occupied.size_pos ht))
     rw [eraseRest_cons]
@@ -894,9 +890,9 @@ private theorem separated_eraseSubtree (k : α) (tr : BPlusTree α β)
         have := hg.occupied.le_width
         omega
       refine ⟨?_, ih hsc hg.balanced hcp, ?_⟩
-      · have hfit := eraseFits_eraseSubtree ht k c hg.balanced hsc.occupied hcp hsc.sorted
-        have := hfit.underfull hg.occupied
-        rwa [hg.height_eq] at this
+      · exact hg.height_eq ▸
+          (eraseFits_eraseSubtree ht k c hg.balanced hsc.occupied hcp hsc.sorted).underfull
+            hg.occupied
       · rw [toList_eraseSubtree_of k c hsc, SortedAssoc.erase_def]
         exact List.filter_sublist
     obtain ⟨uf, sf, subf⟩ := hchild first List.mem_cons_self hgf ihf
@@ -945,9 +941,7 @@ theorem height_erase (h : IsWF t tr) (k : α) :
   rw [erase_eq_collapse]
   generalize eraseSubtree t k tr = c at *
   rcases c with es | ⟨f, _ | ⟨e, r⟩⟩
-  · exact Or.inl hh
-  · exact Or.inr (by simp only [collapse]; rw [← hh, hb.height_node])
-  · exact Or.inl hh
+  exacts [Or.inl hh, Or.inr (hb.height_node.symm.trans hh), Or.inl hh]
 
 /-- Erasure removes one entry when the key is present and none otherwise. -/
 theorem size_erase (h : IsWF t tr) (k : α) :

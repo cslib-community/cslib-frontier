@@ -184,7 +184,6 @@ theorem passes_iff {w : Transcript α} :
   · rintro ⟨hin, hout⟩
     have hselected : selected w = round r s k := by
       ext v
-      rw [mem_selected]
       by_cases hv : v ∈ round r s k
       · obtain ⟨p, hp, _, _⟩ := hin v hv
         simp [hv, hp]
@@ -194,25 +193,19 @@ theorem passes_iff {w : Transcript α} :
       obtain ⟨q, hq, hchain, hlen⟩ := hin v (hselected ▸ mem_selected.mpr ⟨p, hp⟩)
       obtain rfl := Option.some.inj (hp.symm.trans hq)
       exact ⟨hchain, Nat.add_right_cancel ((guessedLength_spec hp hchain).symm.trans hlen)⟩
-    refine ⟨fun v p hp => ?_, by rw [hselected], ?_⟩
-    · obtain ⟨hc, hl⟩ := hspec v p hp
-      exact ⟨hc, hl.symm ▸ (distance_spec (mem_round.mp (hselected ▸ mem_selected.mpr ⟨p, hp⟩))).2⟩
-    · refine Finset.sum_congr hselected fun v hv => ?_
-      obtain ⟨p, hp, _, _⟩ := hin v hv
-      exact (hspec v p hp).2
+    refine ⟨fun v p hp => ⟨(hspec v p hp).1, (hspec v p hp).2.symm ▸
+        (distance_spec (mem_round.mp (hselected ▸ mem_selected.mpr ⟨p, hp⟩))).2⟩,
+      by rw [hselected],
+      Finset.sum_congr hselected fun v hv => (hspec v _ (hin v hv).choose_spec.1).2⟩
 
 /-- A successful scan returns true exactly for vertices in the breadth-first round. -/
 theorem isSome_iff {w : Transcript α} (hw : Passes r s k w) :
     (w v).isSome ↔ v ∈ reachableWithin r s k := by
   obtain ⟨hin, hout⟩ := passes_iff.mp hw
   rw [← mem_round]
-  constructor
-  · intro h
-    by_contra hnot
-    simp [hout v hnot] at h
-  · intro hv
-    obtain ⟨p, hp, _, _⟩ := hin v hv
-    simp [hp]
+  refine ⟨fun h => of_not_not fun hnot => by simp [hout v hnot] at h, fun hv => ?_⟩
+  obtain ⟨p, hp, _, _⟩ := hin v hv
+  simp [hp]
 
 /-- The correct count and sum always admit a successful scan, even when shortest walks tie. -/
 theorem exists_passes : ∃ w, Passes r s k w := by
@@ -324,12 +317,8 @@ theorem existsUnique_passes_reindex {α β : Type*} [Fintype α] [Fintype β] (i
     refine and_congr_left fun _ => ⟨chainMap index toIndex, fun h => ?_⟩
     simpa [List.map_map, Function.comp_def] using chainMap index.symm fromIndex h
   rw [existsUnique_passes_iff, existsUnique_passes_iff]
-  change (∀ v ∈ round r s k, _) ↔ ∀ v ∈ round r' (index s) k, _
-  constructor
-  · intro h v hv
-    have hm := (memRound (index.symm v)).mpr (by simpa using hv)
-    simpa using (shortest (index.symm v) hm).mp (h _ hm)
-  · intro h v hv
-    exact (shortest v hv).mpr (h _ ((memRound v).mp hv))
+  refine ⟨fun h v hv => ?_, fun h v hv => (shortest v hv).mpr (h _ ((memRound v).mp hv))⟩
+  have hm := (memRound (index.symm v)).mpr (by simpa using hv)
+  simpa using (shortest (index.symm v) hm).mp (h _ hm)
 
 end Cslib.DoubleCounting

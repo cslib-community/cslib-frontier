@@ -118,14 +118,6 @@ private theorem compDemoteStep_effect {metaBase itemBase U V w N m_cap b k : ℕ
   set vA := valAt 0 U V (ghostW w) N (epochHashSpace U (ghostW w) N) s_fix.mem
   have hcpl0 : WindowCoupled metaBase itemBase U V w N (g_last + 1) (gm 1) m s_fix s := by
     simpa only [hbwin_eq] using hcpl
-  have hq_del_eq : compQuotAt itemBase U V w N m s.mem g_del = qA g_del := by
-    rw [hcpl0.quot_eq g_del hg_del_m, physByBase_slab _ hg_del_lt_b]
-  have hv_del_eq : compValAt itemBase U V w N m s.mem g_del = vA g_del := by
-    rw [hcpl0.val_eq g_del hg_del_m, physByBase_slab _ hg_del_lt_b]
-  have hq_last_eq : compQuotAt itemBase U V w N m s.mem g_last = qA g_last := by
-    rw [hcpl0.quot_eq g_last hg_last_m, physByBase_slab _ hg_last_lt_b]
-  have hv_last_eq : compValAt itemBase U V w N m s.mem g_last = vA g_last := by
-    rw [hcpl0.val_eq g_last hg_last_m, physByBase_slab _ hg_last_lt_b]
   have hrd_st : (Memory.spec 0).clientState s
       (compDemoteReadItemsProg ((mkCompParams U V w N, itemBase), (g_del, g_last))) = s := by
     unfold StateTransitionSpec.clientState; simp [compDemoteReadItemsProg]
@@ -139,7 +131,10 @@ private theorem compDemoteStep_effect {metaBase itemBase U V w N m_cap b k : ℕ
       StateTransitionSpec.clientResult_bind, clientResult_readCompQuotGenProg hg_last_m,
       clientState_readCompQuotGenProg, StateTransitionSpec.clientResult_bind,
       clientResult_readCompValGenProg hg_last_m, clientState_readCompValGenProg,
-      StateTransitionSpec.clientResult_pure, hq_del_eq, hv_del_eq, hq_last_eq, hv_last_eq]
+      StateTransitionSpec.clientResult_pure, hcpl0.quot_eq g_del hg_del_m,
+      hcpl0.val_eq g_del hg_del_m, hcpl0.quot_eq g_last hg_last_m,
+      hcpl0.val_eq g_last hg_last_m, physByBase_slab _ hg_del_lt_b,
+      physByBase_slab _ hg_last_lt_b]
   set s₁ := (Memory.spec 0).clientState s
     (winGrowLeftGenProg ((mkCompParams U V w N, metaBase), (g_last, gm 1)))
   obtain ⟨hf_w1, htd_w1, hdt_w1, hlm_w1, hgm_w1, hq_w1, hv_w1, hout_w1⟩ :=
@@ -206,22 +201,17 @@ private theorem compDemoteStep_effect {metaBase itemBase U V w N m_cap b k : ℕ
   have f4 := writeCompVal_meta_frame (metaBase := metaBase) (U := U) (V := V) (N := N)
     (m_items := m) (v := vA g_del) henv.pos_w henv.meta_le_item hg_last_m m₃
   have hgm6 : compGmAt metaBase U w N s₆.mem = gmAppendTail N gm b := by
-    rw [hs6_mem]; exact f4.2.1.trans (f3.2.1.trans (f2.2.1.trans (f1.2.1.trans hgm2)))
+    rw [hs6_mem, f4.2.1, f3.2.1, f2.2.1, f1.2.1, hgm2]
   have hlm6 : compLmAt metaBase U w N s₆.mem = compLmAt metaBase U w N s.mem := by
-    rw [hs6_mem]
-    exact f4.1.trans (f3.1.trans (f2.1.trans (f1.1.trans (hfr2.lm_eq.trans hlm_w1))))
+    rw [hs6_mem, f4.1, f3.1, f2.1, f1.1, hfr2.lm_eq, hlm_w1]
   have htd6 : compTDAt metaBase U w N s₆.mem =
       (winGrowLeft (maxTailItems N) g_last (gm 1)
         (compTDAt metaBase U w N s.mem, compDTAt metaBase U w N s.mem)).1 := by
-    rw [hs6_mem]
-    exact f4.2.2.1.trans (f3.2.2.1.trans (f2.2.2.1.trans (f1.2.2.1.trans
-      (hfr2.td_eq.trans htd_w1))))
+    rw [hs6_mem, f4.2.2.1, f3.2.2.1, f2.2.2.1, f1.2.2.1, hfr2.td_eq, htd_w1]
   have hdt6 : compDTAt metaBase U w N s₆.mem =
       (winGrowLeft (maxTailItems N) g_last (gm 1)
         (compTDAt metaBase U w N s.mem, compDTAt metaBase U w N s.mem)).2 := by
-    rw [hs6_mem]
-    exact f4.2.2.2.trans (f3.2.2.2.trans (f2.2.2.2.trans (f1.2.2.2.trans
-      (hfr2.dt_eq.trans hdt_w1))))
+    rw [hs6_mem, f4.2.2.2, f3.2.2.2, f2.2.2.2, f1.2.2.2, hfr2.dt_eq, hdt_w1]
   have hpres := gmAppendTail_preserves_nonTail gm hb hr_cap ht_cap
   have hgm6_0 : compGmAt metaBase U w N s₆.mem 0 = gm 0 := by rw [hgm6, hpres.1]
   have hgm6_1 : compGmAt metaBase U w N s₆.mem 1 = gm 1 + 1 := by rw [hgm6, hpres.2.1]

@@ -81,21 +81,11 @@ private lemma leftQuotient_eq_of_crossingTag_eq (hdec : tm.DecidesByHeadInTime �
   obtain ⟨h2, -⟩ := hdec.absRun (u' ++ v')
   obtain ⟨h3, hy3⟩ := hdec.absRun (u' ++ v)
   simp only [List.map_append] at h1 h2 h3 hy1 hy3 hc hs
-  have hx : (tm.absInit (u'.map ι ++ v'.map ι)).crossings (u'.map ι).length
-      (T (u' ++ v').length) =
-      (tm.absInit (u.map ι ++ v.map ι)).crossings (u.map ι).length (T (u ++ v).length) := by
-    rw [List.length_map, List.length_map]
-    exact hc
-  have hne : u'.map ι = [] ↔ u.map ι = [] := by
-    simp only [List.map_eq_nil_iff]
-    exact ⟨fun h' => (hu' h').elim, fun h' => (hu h').elim⟩
-  obtain ⟨hC, -, -, hhead⟩ := cut_and_paste_run hne h2 h1 hx
+  have hne : u'.map ι = [] ↔ u.map ι = [] := by simp [hu, hu']
+  obtain ⟨hC, -, -, hhead⟩ := cut_and_paste_run hne h2 h1
+    (by simpa only [List.length_map] using hc)
   rw [AbsCfg.run_eq_of_halted _ hC h3] at hhead
-  have hscan : ((tm.absInit (u'.map ι ++ v.map ι)).run (T (u' ++ v).length)).scanned =
-      ((tm.absInit (u.map ι ++ v.map ι)).run (T (u ++ v).length)).scanned := by
-    rcases hhead with h' | h'
-    · rw [h', hs]
-    · exact h'
+  have hscan := hhead.elim (fun h' => h'.trans hs) id
   rw [← hy1, ← hy3, hscan]
 
 /-- **Bounded crossing sequences force regularity** (Hennie's cut-and-paste with

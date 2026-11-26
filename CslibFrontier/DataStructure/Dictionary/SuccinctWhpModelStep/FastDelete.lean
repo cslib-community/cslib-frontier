@@ -50,29 +50,21 @@ theorem ValidFastState.fastDelete_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_m
   cases hfind : fastFindLoc c U n_max θ fs u with
   | none =>
     rw [hfind] at hfl
-    have hdict_eq : Function.update dict u none = dict := by
-      funext x; by_cases hx : x = u <;> simp [hx, hfl]
-    rw [hdict_eq]
-    dsimp only
-    obtain ⟨hc', hom', _, hpre', _, hclk', _, _⟩ :=
-      overmarsStep_spec hv.toCore hb (fun b' hb' _ => hv.overmars_valid b' hb')
-        (OvermarsBucketInv.toPre (hv.overmars_valid b hb))
+    rw [Function.update_eq_self_iff.mpr hfl.symm]
+    obtain ⟨hc', hom', _, hpre', _, hclk', _, _⟩ := overmarsStep_spec hv.toCore hb
+      (fun b' hb' _ => hv.overmars_valid b' hb') (hv.overmars_valid b hb).toPre
     exact ⟨hc', hom', hpre' hv.stage_valid.toPreTick, hclk'⟩
   | some loc_del =>
     rw [hfind] at hfl
     dsimp only
     by_cases hlt : loc_del < fs.bktCount b - 1
     · rw [ite_eq_left hlt]
-      obtain ⟨hcA, homA_other, homA_b, hpreA⟩ :=
-        fastDelete_afterDel_reloc_spec hv u hfl.1 hfl.2 hlt
-      obtain ⟨hc', hom', _, hpre', _, hclk', _, _⟩ :=
-        overmarsStep_spec hcA hb homA_other homA_b
+      obtain ⟨hcA, homA, hpreB, hpreA⟩ := fastDelete_afterDel_reloc_spec hv u hfl.1 hfl.2 hlt
+      obtain ⟨hc', hom', _, hpre', _, hclk', _, _⟩ := overmarsStep_spec hcA hb homA hpreB
       exact ⟨hc', hom', hpre' hpreA, hclk'⟩
     · rw [ite_eq_right hlt]
-      obtain ⟨hcA, homA_other, homA_b, hpreA⟩ :=
-        fastDelete_afterDel_last_spec hv u hfl.1 hfl.2 hlt
-      obtain ⟨hc', hom', _, hpre', _, hclk', _, _⟩ :=
-        overmarsStep_spec hcA hb homA_other homA_b
+      obtain ⟨hcA, homA, hpreB, hpreA⟩ := fastDelete_afterDel_last_spec hv u hfl.1 hfl.2 hlt
+      obtain ⟨hc', hom', _, hpre', _, hclk', _, _⟩ := overmarsStep_spec hcA hb homA hpreB
       exact ⟨hc', hom', hpre' hpreA, hclk'⟩
 
 end Cslib.DataStructure.Dictionary.SuccinctWhp

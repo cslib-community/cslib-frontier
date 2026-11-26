@@ -134,27 +134,21 @@ theorem isPPTOn_keyGen : IsPPTOn encUnary (encPair encBits encBits) scheme.keyGe
 theorem isPPTOn_encrypt : IsPPTOn (encPair encUnary (encPair encBits encBool)) encBits
     (fun (n, pk, bit) => scheme.encrypt n pk bit) := by
   have hk := ComputableInPolyTime.fst encUnary (encPair encBits encBool)
-  change IsPPTOn _ _ (fun p : ℕ × List Bool × Bool =>
-    encryptSerialized (dimension p.1) (samples p.1) (width p.1) p.2.1 p.2.2)
-  apply isPPTOn_encryptSerialized
-  · exact Parameters.computableInPolyTime_dimension.comp hk
-  · exact computableInPolyTime_samples.comp hk
-  · exact computableInPolyTime_width.comp hk
-  · fun_prop
-  · fun_prop
+  exact isPPTOn_encryptSerialized (Parameters.computableInPolyTime_dimension.comp hk)
+    (computableInPolyTime_samples.comp hk) (computableInPolyTime_width.comp hk)
+    (by fun_prop)
+    (by fun_prop)
 
 /-- Decryption runs in native polynomial time on every raw secret and ciphertext word. -/
 theorem computableInPolyTime_decrypt :
     ComputableInPolyTime
       (fun ((n, sk, c) : ℕ × List Bool × List Bool) => scheme.decrypt n sk c)
       (encPair encUnary (encPair encBits encBits)) encBool := by
-  change ComputableInPolyTime (fun p : ℕ × List Bool × List Bool =>
-    decryptSerialized (dimension p.1) (width p.1) p.2.1 p.2.2) _ _
-  apply computableInPolyTime_decryptSerialized
-  · exact Parameters.computableInPolyTime_dimension.comp (.fst _ _)
-  · exact computableInPolyTime_width.comp (.fst _ _)
-  · fun_prop
-  · fun_prop
+  exact computableInPolyTime_decryptSerialized
+    (Parameters.computableInPolyTime_dimension.comp (.fst _ _))
+    (computableInPolyTime_width.comp (.fst _ _))
+    (by fun_prop)
+    (by fun_prop)
 
 /-- Evaluation is strict PPT on every security parameter, public word, circuit and input list;
 it samples no coins. -/
@@ -163,12 +157,11 @@ theorem isPPTOn_evaluate :
       encBits (fun (n, pk, C, cts) => scheme.evaluate n pk C cts) := by
   change IsPPTOn _ _ (fun p : ℕ × List Bool × (Σ k, Circuit signature k 1) × List (List Bool) =>
     pure (evaluateCircuit (dimension p.1) (width p.1) p.2.2.1 p.2.2.2))
-  apply ComputableInPolyTime.isPPTOn
-  apply computableInPolyTime_evaluateCircuit
-  · exact Parameters.computableInPolyTime_dimension.comp (.fst _ _)
-  · exact computableInPolyTime_width.comp (.fst _ _)
-  · fun_prop
-  · fun_prop
+  exact ComputableInPolyTime.isPPTOn (computableInPolyTime_evaluateCircuit
+    (Parameters.computableInPolyTime_dimension.comp (.fst _ _))
+    (computableInPolyTime_width.comp (.fst _ _))
+    (by fun_prop)
+    (by fun_prop))
 
 /-- The decryption circuits, with their unary input arity, have a native generator. -/
 theorem computableInPolyTime_decryptionCircuits :

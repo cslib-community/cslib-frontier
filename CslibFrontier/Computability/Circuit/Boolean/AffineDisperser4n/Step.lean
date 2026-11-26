@@ -83,8 +83,7 @@ variable {n : ℕ}
 theorem Valid.exists_gate_of_normal {S : State n} {f : BooleanFunction n} {d : ℕ}
     (hS : S.Valid f) (hf : IsAffineDisperser f d) (ha : d < S.a) (_hN : S.Normal) :
     S.gates.Nonempty := by
-  by_contra hne
-  rw [Finset.not_nonempty_iff_eq_empty] at hne
+  refine Finset.nonempty_iff_ne_empty.2 fun hne => ?_
   cases hout : S.out.arg with
   | const b =>
     refine Valid.out_not_affine hS hf ha (b ^^ S.out.neg) (Finset.empty_subset _) fun val _ _ => ?_
@@ -131,11 +130,8 @@ private theorem lit_subst_affineIn {S : State n} {G a b : ℕ} {c : Bool} {T : F
     · rcases Gate.reads_of_reads_subst (Gate.reads_of_lit_reads ht) with hr | ⟨_, harg⟩
       exacts [hr, by simp [Lit.const] at harg]
     · have hvac : val a = (Lit.const c).eval val := by
-        have := haff.2 val hval
-        rw [hTe, Finset.sum_empty] at this
-        cases c <;> simp [Lit.eval_const, this]
-      rw [← Gate.eval_subst hvac]
-      exact Gate.eval_lit hg'deg val
+        simp [haff.2 val hval, hTe, Lit.eval_const]
+      exact (Gate.eval_subst hvac).symm.trans (Gate.eval_lit hg'deg val)
   · simp only [ℓ, hTe, ↓reduceIte]
     have hT_eq : T = {b} := (Finset.subset_singleton_iff.1 hT).resolve_left hTe
     let ℓ_sub : Lit := ⟨.node b, c⟩
@@ -150,10 +146,8 @@ private theorem lit_subst_affineIn {S : State n} {G a b : ℕ} {c : Bool} {T : F
       exacts [hr, Arg.node.inj harg ▸ hGb]
     · have hvac : val a = ℓ_sub.eval val := by
         rw [haff.2 val hval, hT_eq, Finset.sum_singleton]
-        simp only [ℓ_sub, Lit.eval, Arg.eval_node]
-        exact Bool.xor_comm _ _
-      rw [← Gate.eval_subst hvac]
-      exact Gate.eval_lit hg'deg val
+        exact Bool.xor_comm c (val b)
+      exact (Gate.eval_subst hvac).symm.trans (Gate.eval_lit hg'deg val)
 
 /-- If a gate of a normal state reads distinct inputs `a ≠ b` with `a ∈ S.aux`, then `a`'s
 affine representation contains some unpaired parameter `y ≠ b` of degree at least `2`. -/
@@ -247,8 +241,7 @@ theorem Valid.preparation_swap_auxIn {S : State n} {f : BooleanFunction n} (hS :
   have hG : G ∈ S.gates := Finset.min'_mem S.gates hne
   obtain ⟨u, v, huv, hGu, hGv⟩ := hN.two_reads_of_gate hG
   have haux_or : u ∈ S.aux ∨ v ∈ S.aux := by
-    by_contra hno
-    push Not at hno
+    by_contra! hno
     dsimp only [auxIn] at hpos
     rcases Gate.args_of_reads huv hGu hGv with ⟨hl, hr⟩ | ⟨hl, hr⟩ <;> rw [hl, hr] at hpos <;>
       simp [auxArg, hno.1, hno.2] at hpos
@@ -348,8 +341,7 @@ theorem Valid.step_of_pairCreation {S : State n} {f : BooleanFunction n} {d : �
     simp only [Lit.eval, show S.out.arg = .node G from hread, Arg.eval_node, hcons.2 G hG,
       hG_eval, hv1, Bool.xor_self, Bool.false_and, Bool.false_xor]
   obtain ⟨K, hK, hKr⟩ : ∃ K ∈ S.gates, (S.gate K).Reads G := by
-    by_contra hno
-    push Not at hno
+    by_contra! hno
     exact hN.no_deletion (Or.inr (Or.inl ⟨G, hG, hno, houtG⟩))
   exact ⟨_, Valid.step_pairCreation_of hS hG htne hGt₁ hGt₂ ht₁unp ht₂unp hG_eval hK hKr⟩
 

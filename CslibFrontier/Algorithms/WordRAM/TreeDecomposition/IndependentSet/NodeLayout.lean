@@ -383,19 +383,14 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
           fun _ _ hi _ _ => absurd hi (Nat.not_lt_zero _)⟩
     unfold initNodesProg
     dsimp only
-    have ha_st : (Memory.spec 0).clientState s₀ (Memory.allocDirty (4 * count)) = s_d := rfl
-    have ha_res : (Memory.spec 0).clientResult s₀ (Memory.allocDirty (4 * count)) = descBase := rfl
-    refine ⟨validHistory_bind_step hv_d ?_, ?_, ?_, ?_, ?_⟩
-    · rw [ha_st, ha_res]
-      exact validHistory_bind_step hv_loop (validHistory_pure w _ _)
-    · rw [StateTransitionSpec.clientResult_bind, ha_st, ha_res,
-        StateTransitionSpec.clientResult_bind]
+    refine ⟨validHistory_bind_step hv_d (validHistory_bind_step hv_loop (validHistory_pure w _ _)),
+      ?_, ?_, ?_, ?_⟩
+    · rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind]
       rfl
-    · rw [StateTransitionSpec.clientState_bind, ha_st, ha_res,
-        StateTransitionSpec.clientState_bind]
+    · rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientState_bind]
       exact hfr_hi
     · rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-        ha_st, ha_res, StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind]
+        StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind]
       exact
         { wt_holds := hwt₀.mono_frontier hpres_end
           adj_holds := hadj₀.mono_frontier hpres_end
@@ -409,9 +404,9 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
             let ⟨_, _, _, _, htlo, ht⟩ := hnodes_end i i.isLt
             ⟨List.length_replicate, htlo, ht⟩
           tbl_disj := fun i j => hdisj_end i j i.isLt j.isLt }
-    · rw [memoryCost_bind', memoryCost_allocDirty, ha_st, ha_res,
-        memoryCost_bind', memoryCost_pure, Nat.add_zero]
-      dsimp only [count, stepCost, M, descBase, rawBagsPtr] at hc_loop ⊢; omega
+    · rw [memoryCost_bind', memoryCost_allocDirty, memoryCost_bind', memoryCost_pure, Nat.add_zero]
+      change 1 + memoryCost (iterate initNodeStep descBase count ⟨rawBagsPtr, 0⟩) s_d ≤ _
+      dsimp only [count, stepCost, M] at hc_loop ⊢; omega
   intro rem
   induction rem with
   | zero =>
@@ -492,8 +487,7 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
     have hp_writes : ∀ addr, (addr < dAddr ∨ dAddr + 4 ≤ addr) → st₁.mem addr = st_a.mem addr :=
       fun addr _ => by
         dsimp only [st₁, m4, m3, m2, m1]
-        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-          Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
+        repeat rw [Function.update_of_ne (by omega)]
     have hmem_lt : ∀ a < dAddr, st₁.mem a = st.mem a := fun a ha => by
       rw [hp_writes a (.inl ha), hp_a.2.2 a (by dsimp only [dAddr, descBase, count] at *; omega)]
     have hpres_step : PreservesBelow descBase st st₁ :=
@@ -509,17 +503,16 @@ theorem initNodesProg_spec {w : ℕ} (inst : MWISInstance) {s₀ : Memory.State}
         hp_writes a (.inr (by dsimp only [tblPtr, tblLen, dAddr, descBase, count] at *; omega))⟩
     have hm4_0 : st₁.mem dAddr = bagPtr := by
       dsimp only [st₁, m4, m3, m2, m1]
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-        Function.update_of_ne (by omega), Function.update_self]
+      repeat rw [Function.update_of_ne (by omega)]
+      rw [Function.update_self]
     have hm4_1 : st₁.mem (dAddr + 1) = bagLen := by
       dsimp only [st₁, m4, m3, m2, m1]
-      rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega), Function.update_self]
+      repeat rw [Function.update_of_ne (by omega)]
+      rw [Function.update_self]
     have hm4_2 : st₁.mem (dAddr + 2) = tblPtr := by
       dsimp only [st₁, m4, m3, m2, m1]
       rw [Function.update_of_ne (by omega), Function.update_self]
-    have hm4_3 : st₁.mem (dAddr + 3) = tblLen := by
-      dsimp only [st₁, m4]
-      rw [Function.update_self]
+    have hm4_3 : st₁.mem (dAddr + 3) = tblLen := Function.update_self ..
     have hinv₁ : NodeInv (k + 1) st₁ := by
       refine ⟨fun i hi => ?_, fun i j hi hj hij => ?_⟩
       · by_cases hik : i = kFin
@@ -616,9 +609,7 @@ theorem initNodesProg_realizes :
     rw [hdrop_cons, List.flatMap_cons, encodeBag, List.cons_append] at hrem_raw hrem_end
     obtain ⟨_, hmem_len, hafter_len⟩ := HoldsIn.cons_iff.mp hrem_raw
     obtain ⟨_, hrest_raw⟩ := HoldsIn.append_iff.mp hafter_len
-    have hblen_le : t.mem st.curRaw ≤ M := by
-      rw [hmem_len]
-      exact hbags_M _ (List.getElem_mem hk_lt)
+    have hblen_le : t.mem st.curRaw ≤ M := hmem_len ▸ hbags_M _ (List.getElem_mem hk_lt)
     have hpow_le : 2 ^ t.mem st.curRaw ≤ 2 ^ M := Nat.pow_le_pow_right (by decide) hblen_le
     have hfr_next : t.frontier + 2 ^ t.mem st.curRaw ≤
         descBase + 4 * d.count + (st.curIdx + 1) * 2 ^ M := by
@@ -626,11 +617,8 @@ theorem initNodesProg_realizes :
           ≤ (descBase + 4 * d.count + st.curIdx * 2 ^ M) + 2 ^ M := Nat.add_le_add hfr_hi hpow_le
         _ = descBase + 4 * d.count + (st.curIdx + 1) * 2 ^ M := by
           rw [Nat.add_assoc, ← Nat.succ_mul]
-    have hpeak_sub : descBase + 4 * d.count + (st.curIdx + 1) * 2 ^ M ≤
-        descBase + 4 * d.count + d.count * 2 ^ M := by
-      have hle_dc : st.curIdx + 1 ≤ d.count := by omega
-      have hmul : (st.curIdx + 1) * 2 ^ M ≤ d.count * 2 ^ M := Nat.mul_le_mul_right _ hle_dc
-      omega
+    have hmul : (st.curIdx + 1) * 2 ^ M ≤ d.count * 2 ^ M :=
+      Nat.mul_le_mul_right _ (by omega)
     have hpow_safe : Fits w 1 ∧ Fits w (2 ^ t.mem st.curRaw) :=
       ⟨h1, hfit_peak.of_le (by omega)⟩
     have hpow_res : (Memory.spec 0).clientResult t (powProg ⟨2, t.mem st.curRaw⟩) =
@@ -653,10 +641,7 @@ theorem initNodesProg_realizes :
       rw [hmem_len]
       refine ⟨hrest_raw.1.trans (Nat.le_add_right _ _), hrest_raw.2.frame fun a _ ha => ?_⟩
       dsimp only
-      rw [Function.update_of_ne (by dsimp only [descBase] at *; omega),
-        Function.update_of_ne (by dsimp only [descBase] at *; omega),
-        Function.update_of_ne (by dsimp only [descBase] at *; omega),
-        Function.update_of_ne (by dsimp only [descBase] at *; omega)]
+      repeat rw [Function.update_of_ne (by dsimp only [descBase] at *; omega)]
       exact clear_of_not_owns (by dsimp only [Block.Owns, descBase] at *; omega)
     · rw [hres_ev]
       change (st.curRaw + 1 + t.mem st.curRaw) + _ ≤ descBase

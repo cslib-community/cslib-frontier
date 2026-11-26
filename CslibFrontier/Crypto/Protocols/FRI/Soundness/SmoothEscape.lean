@@ -235,11 +235,8 @@ theorem friSmoothIOP_rbrSound [DecidableEq F] (params : FRISmoothParams F) (e : 
     · simp only [friSmoothDoomed, List.length_append, List.length_singleton]
       split_ifs <;> omega
   reject_of_doomed stmt oracles chals hdoomed := by
-    set pref := List.ofFn fun j : Fin (params.m + 1) => (oracles j, chals j)
-    have hlen : pref.length = params.m + 1 := List.length_ofFn
-    have hnotle : ¬ pref.length ≤ params.m := by omega
-    simp only [friSmoothDoomed, hnotle, ↓reduceDIte] at hdoomed
-    simp only [hlen, ↓reduceIte, pref, prefQueryIdxs_ofFn] at hdoomed
+    simp only [friSmoothDoomed, List.length_ofFn, Nat.not_succ_le_self, ↓reduceDIte, ↓reduceIte,
+      prefQueryIdxs_ofFn] at hdoomed
     obtain ⟨a, ha⟩ := hdoomed
     exact Bool.eq_false_iff.mpr fun hacc => ha <|
       (friSmoothTranscriptSingleAccepts_ofFn_iff params stmt oracles chals _).mpr
@@ -298,11 +295,9 @@ theorem friSmoothQueryRound_escape_le [Fintype F] [DecidableEq F] (params : FRIS
   have hbad_eq : {c : FRIChal F params.d params.q | ¬ friSmoothGoodStep params B stmt pref π c} =
       {c | ∀ a : Fin params.q, c.queryIdxs a ∈ goodS} := by
     ext c
-    have hlen' : (pref ++ [(π, c)]).length = params.m + 1 := by simp [hlen]
-    have hnotle' : ¬ (pref ++ [(π, c)]).length ≤ params.m := by omega
-    simp only [Set.mem_ofPred_eq, friSmoothGoodStep, hlen.le, ↓reduceIte, friSmoothDoomed,
-      hnotle', ↓reduceDIte]
-    simp only [hlen', ↓reduceIte, prefQueryIdxs_append_self pref hlen π c, not_exists, not_not,
+    simp only [Set.mem_ofPred_eq, friSmoothGoodStep, le_rfl, ↓reduceIte, friSmoothDoomed,
+      List.length_append, List.length_cons, List.length_nil, hlen, Nat.not_succ_le_self,
+      ↓reduceDIte, prefQueryIdxs_append_self pref hlen π c, not_exists, not_not,
       friSmoothTranscriptSingleAccepts_append_iff params stmt pref hlen π c,
       goodS, Finset.mem_filter, Finset.mem_univ, true_and]
   have hcard := card_filter_friSmoothFinalPasses_le_of_friSmoothDoomed params hlen π hdoomed

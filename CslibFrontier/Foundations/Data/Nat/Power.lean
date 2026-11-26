@@ -37,6 +37,7 @@ Elementary inequalities on powers and products of natural numbers: powers of pol
 * `Nat.add_le_two_pow_max_succ`: `l₀ ≤ 2 ^ d₀ → l₁ ≤ 2 ^ d₁ → l₀ + l₁ ≤ 2 ^ (max d₀ d₁ + 1)`.
 * `Nat.pow_mul_add_one_le_of_pow_le`: `b ≠ 0 → x ≤ y → y ^ (2 b E a) ≤ v ^ b → x ^ (2 E) ≤ v →
   x ^ (E (a + 1)) ≤ v`.
+* `Nat.mul_pow_le_pow_of_add_le`: `2 ≤ L → k + e ≤ C → k * L ^ e ≤ L ^ C`.
 
 ## References
 
@@ -44,7 +45,9 @@ Elementary inequalities on powers and products of natural numbers: powers of pol
   moments*, proof of Theorem 2.1][AlonMatiasSzegedy1999]
 * [Anthropic, *VP ≠ VNP over every field*, paper and Lean formalization][AnthropicVPVNP2026],
   proof of Theorem K.7, p. 59 (`Nat.pow_mul_add_one_le_of_pow_le`, with `x = lg v` and
-  `y = lg m`); module `Nc.End.PermThm` (`lg_pow_transport`)
+  `y = lg m`); module `Nc.End.PermThm` (`lg_pow_transport`); proof of Theorem H.2, p. 47
+  (`Nat.mul_pow_le_pow_of_add_le`, bounded factors absorbed in `Λ = (lg M) ^ C`); module
+  `Paper.Tree` (`const_mul_pow_le`)
 -/
 
 public section
@@ -206,5 +209,13 @@ theorem pow_mul_add_one_le_of_pow_le {x y v a b E : ℕ} (hb : b ≠ 0) (hxy : x
     _ ≤ v ^ b * v ^ b :=
       Nat.mul_le_mul ((Nat.pow_le_pow_left hxy _).trans hy) (Nat.pow_le_pow_left hx _)
     _ = v ^ (2 * b) := by ring
+
+/-- A number times a power of `L ≥ 2` is at most a power: `k L ^ e ≤ L ^ C` if `k + e ≤ C`. -/
+theorem mul_pow_le_pow_of_add_le {L k e C : ℕ} (hL : 2 ≤ L) (h : k + e ≤ C) :
+    k * L ^ e ≤ L ^ C :=
+  calc k * L ^ e ≤ L ^ k * L ^ e :=
+        Nat.mul_le_mul_right _ (Nat.lt_two_pow_self.le.trans (Nat.pow_le_pow_left hL k))
+    _ = L ^ (k + e) := (pow_add _ _ _).symm
+    _ ≤ L ^ C := Nat.pow_le_pow_right (by omega) h
 
 end Nat

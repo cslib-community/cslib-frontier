@@ -244,12 +244,8 @@ private theorem branchRight {α β : Type} {m l : ℕ}
       (fun w d s => if P d.2 then safePos w d s else safeNeg w d s)
       (fun _ _ => 0) := by
   refine ((Realizes.branch₀ cond hp hn).congr
-    fun d => if_ctx_congr (hc d) (fun _ => rfl) (fun _ => rfl)).consequence ?_
-    (fun _ _ => le_rfl)
-  intro w d s _ _ h
-  by_cases hcond : P d.2
-  · rw [ite_eq_left ((hc d).mpr hcond)]; simpa only [ite_eq_left hcond] using h
-  · rw [ite_eq_right (mt (hc d).mp hcond)]; simpa only [ite_eq_right hcond] using h
+    fun d => if_ctx_congr (hc d) (fun _ => rfl) (fun _ => rfl)).consequence
+    (fun _ d _ _ _ h => by simpa only [hc d] using h) (fun _ _ => le_rfl)
 
 private theorem branchRightEq {α β : Type} {m l : ℕ}
     {input : α ↪ (Fin m → ℕ)} {output : β ↪ (Fin l → ℕ)} (i j : Fin m)
@@ -304,15 +300,14 @@ private theorem whileRightLt {α : Type} {m : ℕ}
           w (d.1, d.2.1) (cutoff d.2) d.2.2 s)
       (fun _ _ => 0) := by
   let body' : (ε × α) × ℕ → Memory.Prog ℕ := fun x => body (x.1.1, (x.1.2, x.2))
-  let mapIdx (u : Fin (m + 1)) : Fin ((k + m) + 1) :=
-    Fin.addCases (fun r : Fin m => Fin.castAdd 1 (Fin.natAdd k r))
-      (fun r : Fin 1 => Fin.natAdd (k + m) r) u
-  have hmap (p : ε × α) (a : ℕ) (u : Fin (m + 1)) :
+  let mapIdx : Fin (m + 1) → Fin ((k + m) + 1) :=
+    Fin.addCases (fun r => Fin.castAdd 1 (Fin.natAdd k r)) (Fin.natAdd (k + m))
+  have hmap (p : ε × α) (a : ℕ) : ∀ u,
       appendWords (appendWords env input) wordWords (p, a) (mapIdx u) =
-        appendWords input wordWords (p.2, a) u := by
-    refine Fin.addCases (fun r => ?_) (fun r => ?_) u
-    · simp only [mapIdx, Fin.addCases_left, appendWords_castAdd, appendWords_natAdd]
-    · simp only [mapIdx, Fin.addCases_right, appendWords_natAdd]
+        appendWords input wordWords (p.2, a) u :=
+    Fin.addCases
+      (fun _ => by simp only [mapIdx, Fin.addCases_left, appendWords_castAdd, appendWords_natAdd])
+      (fun _ => by simp only [mapIdx, Fin.addCases_right, appendWords_natAdd])
   let cond : Cond ((k + m) + 1) := Cond.lt (mapIdx i) (mapIdx j)
   have hcond (p : ε × α) (a : ℕ) :
       test cond (appendWords (appendWords env input) wordWords (p, a)) ↔
@@ -336,11 +331,10 @@ private theorem whileRightLt {α : Type} {m : ℕ}
         (fun r => by simp only [Fin.addCases_right, Fin.addCases_left,
           appendWords_castAdd, appendWords_natAdd]))
       (fun r => by simp only [Fin.addCases_right, appendWords_natAdd]))
-  refine (hL'.congr fun d => boundedWhile_congr _ _ (hcond (d.1, d.2.1))
-    (fun _ => rfl) (cutoff d.2) d.2.2).consequence ?_ (fun _ _ => le_rfl)
-  intro w d s _ _ h
-  exact whileSafe_imp _ _ (fun a => (hcond (d.1, d.2.1) a).symm) (fun _ => rfl)
-    (fun _ _ _ hs => hs) h
+  exact (hL'.congr fun d => boundedWhile_congr _ _ (hcond (d.1, d.2.1))
+    (fun _ => rfl) (cutoff d.2) d.2.2).consequence
+    (fun _ d _ _ _ h => whileSafe_imp _ _ (fun a => (hcond (d.1, d.2.1) a).symm)
+      (fun _ => rfl) (fun _ _ _ hs => hs) h) (fun _ _ => le_rfl)
 
 end Combinators
 

@@ -208,15 +208,10 @@ private theorem card_topK (θ : ι → AgentType (Fin T)) (k : ℕ) (A : Finset 
   have himg : (topK θ k A).image (rankIn θ A) = Finset.range (min k A.card) := by
     ext n
     simp only [Finset.mem_image, topK, Finset.mem_filter, Finset.mem_range, lt_min_iff]
-    constructor
-    · rintro ⟨i, ⟨hi, hlt⟩, rfl⟩
-      exact ⟨hlt, rankIn_lt_card hi⟩
-    · rintro ⟨hnk, hna⟩
-      have hmem : n ∈ A.image (rankIn θ A) := by
-        rw [image_rankIn_eq_range]
-        exact Finset.mem_range.mpr hna
-      obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hmem
-      exact ⟨i, ⟨hi, hnk⟩, rfl⟩
+    refine ⟨fun ⟨i, ⟨hi, hlt⟩, hri⟩ => hri ▸ ⟨hlt, rankIn_lt_card hi⟩, fun ⟨hnk, hna⟩ => ?_⟩
+    have hmem : n ∈ A.image (rankIn θ A) := image_rankIn_eq_range θ A ▸ Finset.mem_range.mpr hna
+    obtain ⟨i, hi, rfl⟩ := Finset.mem_image.mp hmem
+    exact ⟨i, ⟨hi, hnk⟩, rfl⟩
   rw [← Finset.card_image_of_injOn hinj, himg, Finset.card_range]
 
 private theorem card_topK_le (θ : ι → AgentType (Fin T)) (k : ℕ) (A : Finset ι) :
@@ -403,12 +398,9 @@ theorem greedyPolicy_alloc_eq_some_iff_priority (cap : Fin T → ℕ)
   rw [greedyPolicy_alloc_eq_some_iff]
   have hprev : ∀ j : ι,
       j ∉ greedyAllocatedBefore cap θ t.val ↔
-        ∀ s : Fin T, s < t → (greedyPolicy cap).alloc θ j ≠ some s := by
-    intro j
-    rw [mem_greedyAllocatedBefore_iff]
-    push Not
-    refine forall_congr' fun s => ?_
-    simp only [Fin.lt_def, ne_eq, greedyPolicy_alloc_eq_some_iff]
+        ∀ s : Fin T, s < t → (greedyPolicy cap).alloc θ j ≠ some s := fun j => by
+    simp only [mem_greedyAllocatedBefore_iff, not_exists, not_and, Fin.lt_def, ne_eq,
+      greedyPolicy_alloc_eq_some_iff]
   have hfilt :
       ((Finset.univ.filter fun j : ι =>
           j ∉ greedyAllocatedBefore cap θ t.val ∧ (θ j).InWindow t).filter
@@ -427,12 +419,9 @@ theorem greedyPolicy_alloc_eq_some_iff_priority (cap : Fin T → ℕ)
 theorem greedyPolicy_isExpiringFeasible (cap : Fin T → ℕ) :
     (greedyPolicy (ι := ι) cap).IsExpiringFeasible cap := by
   refine fun θ => ⟨(greedyPolicy cap).alloc_in_window θ, fun t => ?_⟩
-  suffices Finset.univ.filter (fun i => (greedyPolicy cap).alloc θ i = some t) =
-      greedyWinnersAt cap θ t by
-    rw [this]
-    exact card_topK_le _ _ _
-  ext i
-  simp [greedyPolicy_alloc_eq_some_iff]
+  have h : (Finset.univ.filter fun i => (greedyPolicy cap).alloc θ i = some t) =
+      greedyWinnersAt cap θ t := Finset.ext fun _ => by simp [greedyPolicy_alloc_eq_some_iff]
+  exact h ▸ card_topK_le _ _ _
 
 private theorem greedyWinnersAt_eq_of_agree {ι : Type*} [Fintype ι] [LinearOrder ι] {T : ℕ}
     (cap : Fin T → ℕ) {θ θ' : ι → AgentType (Fin T)} (t : Fin T)
@@ -492,9 +481,7 @@ theorem greedyPolicy_isMonotone (cap : Fin T → ℕ) : (greedyPolicy (ι := ι)
   set θ'₂ := Function.update θ i θ₂
   by_contra hnotwin₂
   have hno₂ : ∀ t : Fin T, i ∉ greedyWinnersAt cap θ'₂ t := fun t ht =>
-    hnotwin₂ (by
-      rw [Option.isSome_iff_exists]
-      exact ⟨t, (greedyPolicy_alloc_eq_some_iff cap θ'₂ i t).mpr ht⟩)
+    hnotwin₂ (Option.isSome_iff_exists.mpr ⟨t, (greedyPolicy_alloc_eq_some_iff cap θ'₂ i t).mpr ht⟩)
   have hprev_eq :
       ∀ s : ℕ, s ≤ tstar.val →
         greedyAllocatedBefore cap θ'₁ s = greedyAllocatedBefore cap θ'₂ s := by
@@ -534,8 +521,7 @@ theorem greedyPolicy_isMonotone (cap : Fin T → ℕ) : (greedyPolicy (ι := ι)
   have hi_in_win₁ : θ₁.InWindow tstar := by
     simpa only [θ'₁, Function.update_self] using greedyWinnersAt_inWindow cap θ'₁ tstar htstar
   have hi_in_win₂ : (θ'₂ i).InWindow tstar := by
-    simp only [θ'₂, Function.update_self]
-    exact ⟨ha.trans hi_in_win₁.1, hi_in_win₁.2.trans hd⟩
+    simpa only [θ'₂, Function.update_self] using ⟨ha.trans hi_in_win₁.1, hi_in_win₁.2.trans hd⟩
   have hrank₁ :
       rankIn θ'₁
         (Finset.univ.filter fun j =>
@@ -970,10 +956,8 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
   let blockerAgent : Fin m → Fin (2 * m + 1) := fun k => ⟨m + k.val + 1, by omega⟩
   have hblocker_period : ∀ k : Fin m, periodOf (blockerAgent k) = ⟨k.val + 1, by omega⟩ := by
     intro k
-    have hnot : ¬ (m + k.val + 1 ≤ m) := by omega
-    simp only [periodOf, blockerAgent, hnot, ↓reduceDIte]
     ext
-    dsimp only
+    simp only [periodOf, blockerAgent, show ¬(m + k.val + 1 ≤ m) by omega, ↓reduceDIte]
     omega
   -- Main target profile θStar
   let θStar : Fin (2 * m + 1) → AgentType (Fin (m + 1)) := fun j =>
@@ -1002,10 +986,7 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
     intro k
     set i := mainAgent k
     set tk : Fin (m + 1) := ⟨k.val + 1, by omega⟩
-    have hi0 : i ≠ 0 := by
-      intro h
-      have := congrArg Fin.val h
-      simp [i, mainAgent] at this
+    have hi0 : i ≠ 0 := Fin.ne_of_val_ne (by simp [i, mainAgent])
     -- Agent `i` reporting the single period `t` can only win at `t`.
     have hpoint : ∀ (θ : Fin (2 * m + 1) → AgentType (Fin (m + 1))) (t : Fin (m + 1)) (v : ℝ)
         (hv : 0 ≤ v), M.policy.alloc (Function.update θ i (pointType t v hv)) i = none ∨
@@ -1021,13 +1002,11 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
         ∀ x, (Function.update θ i τ x).arrival ≤ 0 ∨ (Function.update θ' i τ x).arrival ≤ 0 →
           Function.update θ i τ x = Function.update θ' i τ x := by
       intro θ θ' τ h0 harr x hx
-      by_cases hxi : x = i
-      · subst hxi
-        simp only [Function.update_self]
+      rcases eq_or_ne x i with rfl | hxi
+      · simp only [Function.update_self]
       simp only [Function.update_of_ne hxi] at hx ⊢
-      by_cases hx0 : x = 0
-      · subst hx0
-        exact h0
+      rcases eq_or_ne x 0 with rfl | hx0
+      · exact h0
       rw [(harr x hx0 hxi).1, (harr x hx0 hxi).2, or_self] at hx
       exact absurd hx (not_le_of_gt (hperiod_pos x hx0))
     have hagreeSB : ∀ τ x, (Function.update θStar i τ x).arrival ≤ 0 ∨
@@ -1098,14 +1077,10 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
         intro j
         induction j with
         | zero =>
-          intro _
-          refine ⟨θ0, ?_, ?_, ?_, ?_⟩
+          refine fun _ => ⟨θ0, ?_, Function.update_self i _ _, fun x hx0 hxi => ?_, fun t ht => ?_⟩
           · simp only [θ0, Function.update_of_ne hi0.symm, hBase0]
-          · simp only [θ0, Function.update_self]
-          · intro x hx0 hxi
-            simp only [θ0, Function.update_of_ne hxi, hBase x hx0, pointType, and_self]
-          · intro t ht
-            rwa [show t = 0 from Fin.ext (Nat.le_zero.mp ht)]
+          · simp only [θ0, Function.update_of_ne hxi, hBase x hx0, pointType, and_self]
+          · rwa [show t = 0 from Fin.ext (Nat.le_zero.mp ht)]
         | succ r ih =>
           intro hr_le
           obtain ⟨θr, hθr0, hθri, hθr_rest, hθr_no⟩ := ih (Nat.le_of_succ_le hr_le)
@@ -1120,17 +1095,13 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
           set Bnext : ℝ := c' * Sval + 1
           have hBnext_nonneg : 0 ≤ Bnext := by positivity
           set θnext := Function.update θr br (pointType ⟨r + 1, by omega⟩ Bnext hBnext_nonneg)
-          refine ⟨θnext, ?_, ?_, ?_, ?_⟩
+          refine ⟨θnext, ?_, ?_, fun x hx0 hxi => ?_, fun t ht => ?_⟩
           · simp only [θnext, Function.update_of_ne hbr_ne0.symm, hθr0]
           · simp only [θnext, Function.update_of_ne hbr_nei.symm, hθri]
-          · intro x hx0 hxi
-            by_cases hxbr : x = br
-            · subst hxbr
-              simp only [θnext, Function.update_self, pointType, hbr_per, and_self]
-            · simp only [θnext, Function.update_of_ne hxbr]
-              exact hθr_rest x hx0 hxi
-          · intro t ht
-            rcases Nat.eq_or_lt_of_le ht with ht_eq | ht_lt
+          · rcases eq_or_ne x br with rfl | hxbr
+            · simp only [θnext, Function.update_self, pointType, hbr_per, and_self]
+            · simpa only [θnext, Function.update_of_ne hxbr] using hθr_rest x hx0 hxi
+          · rcases Nat.eq_or_lt_of_le ht with ht_eq | ht_lt
             · -- At period t = r + 1: if agent i wins, blocker br loses, contradicting c'-comp!
               intro hi_wins_t
               obtain rfl : t = ⟨r + 1, Nat.succ_lt_succ hr_lt_m⟩ := Fin.ext ht_eq
@@ -1201,12 +1172,10 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
           M.policy.alloc (Function.update θStar i τ) i = some 0 →
           M.utility i (pointType 0 Y hY_nonneg) (Function.update θStar i τ) =
             Y - (M.policy.criticalValue θStar i τ.arrival τ.departure
-              τ.arrival_le_departure).toReal := by
-        intro τ hτ
-        unfold Mechanism.utility
-        rw [hτ, AgentType.realizedValue_some_of_inWindow ⟨le_rfl, le_rfl⟩, hpay_eq]
-        unfold Policy.criticalPayment
-        simp only [hτ, Option.isSome_some, ↓reduceIte, Function.update_self,
+              τ.arrival_le_departure).toReal := fun τ hτ => by
+        rw [Mechanism.utility, hτ, AgentType.realizedValue_some_of_inWindow ⟨le_rfl, le_rfl⟩,
+          hpay_eq]
+        simp only [Policy.criticalPayment, hτ, Option.isSome_some, ↓reduceIte, Function.update_self,
           Policy.criticalValue_update]
       have hds := hdsic_nea i (Function.update θStar i (intervalType 0 tk h0tk Y hY_nonneg))
         (pointType 0 Y hY_nonneg) (by simp [AgentType.NoEarlyArrival])
@@ -1268,9 +1237,7 @@ theorem no_competitive_arbitrary_departure_expiring (c : ℝ) :
       have := congrArg Fin.val h; simp only [mainAgent] at this; omega)
     have h0_notin : (0 : Fin (2 * m + 1)) ∉ Finset.univ.image mainAgent := by
       simp only [Finset.mem_image, Finset.mem_univ, true_and, not_exists]
-      intro k h
-      have := congrArg Fin.val h
-      simp [mainAgent] at this
+      exact fun k h => by simpa [mainAgent] using congrArg Fin.val h
     -- The anchor and the main agents alone already realize `1 + m * vlow` under `fStar`.
     calc 1 + (m : ℝ) * vlow
         = ∑ j ∈ insert 0 (Finset.univ.image mainAgent), (θStar j).realizedValue (fStar j) := by

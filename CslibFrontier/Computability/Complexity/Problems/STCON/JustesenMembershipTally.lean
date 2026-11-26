@@ -228,25 +228,21 @@ theorem configurationJustesenMembershipTally_acceptCount_eq_one
         (R.machine.initCfg (enc a)) = 1 := by
   intro I size seed source target radius adjacent edge hrank hparams hpass
   apply (R.acceptCount_eq_one_iff a hclock).mpr
-  have hunique := configurationJustesenMembershipTally_existsUnique_firstHalting ntm c (enc a)
-    seed source target radius hpass
-  have hM := configurationJustesenMembershipTally_withInit ntm c w₀ (enc a)
-    rank₀ (rank a) params₀ (params a)
-  rw [hrank, hparams] at hM
   have haccept (s : MembershipTally.RetainedState JustesenSubdivisionContext
       JustesenSubdivisionState) :
       (configurationJustesenMembershipTally ntm c w₀ rank₀ params₀).accept s =
         (MembershipTally.retainedReply s).isSome :=
     MembershipTally.retainedMachine_accept _ _ _ _ _ _ _ _
   simp only [haccept, hrank, hparams]
-  let ctx := configurationJustesenSubdivisionContext ntm c (enc a) seed.val
   let entered := (configurationJustesenMembershipTally ntm c w₀ rank₀ params₀).withInit
-    (MembershipTally.retainedInitial ctx
+    (MembershipTally.retainedInitial
+      (configurationJustesenSubdivisionContext ntm c (enc a) seed.val)
       ⟨size.vertexCount, source.val, target.val, radius, expected edge source radius⟩)
   change ∃! bits, entered.FirstHalting (enc a) bits entered.init ∧
     (MembershipTally.retainedReply (entered.run (enc a) bits)).isSome
-  dsimp only [entered, ctx]
-  rwa [hM]
+  rw [show entered = _ from configurationJustesenMembershipTally_withInit _ _ _ _ _ _ _ _]
+  exact configurationJustesenMembershipTally_existsUnique_firstHalting ntm c (enc a) seed source
+    target radius hpass
 
 private theorem loopCaps_of_tightCaps {n : ℕ} {totals : Tally} (hn : 0 < n)
     (hc : totals.count ≤ n) (hs : totals.lengthSum ≤ n * n) :

@@ -117,15 +117,11 @@ private theorem exists_slotHit {idx : Q → ℕ} {f : X → X} {n d : ℕ} (hd :
       ¬ (m + 1 = d ∨ ∃ r ∈ log, idx r.1 / d = idx q / d ∧ idx r.1 % d = m + 1) :=
     fun _ => Nat.find_min hP
   generalize Nat.find hP = p at hp hmin
-  have hpd : p < d := by
-    rcases hp with hp | ⟨r, -, -, hr⟩
-    · omega
-    · have := Nat.mod_lt (idx r.1) hd
-      omega
-  have hbp : idx q % d ≤ p := by
+  have ⟨hpd, hbp⟩ : p < d ∧ idx q % d ≤ p := by
     rcases hp with hp | ⟨r, hr, hra, hrp⟩
     · omega
-    · have := (hcons' r hr hra).1
+    · have := Nat.mod_lt (idx r.1) hd
+      have := (hcons' r hr hra).1
       omega
   have hgd : (idx q / d * d + p) / d = idx q / d := by
     rw [Nat.add_comm, Nat.add_mul_div_right _ _ hd, Nat.div_eq_of_lt hpd, zero_add]
@@ -210,12 +206,10 @@ theorem succProbability_repeatedIterateExperiment_le_sum (idx : Q → ℕ) (samp
     rintro ⟨xs, z⟩ hw
     simp only [hD, PMF.mem_support_bind_iff, PMF.mem_support_map_iff, Prod.mk.injEq] at hw
     obtain ⟨xs', hxs', z', hz', rfl, rfl⟩ := hw
-    refine ⟨((ProbComp.mem_support_replicate_iff _ _ _).mp hxs').1, ?_⟩
     rw [← ProbOracleComp.runLogWith_some] at hz'
-    exact ProbOracleComp.forall_mem_runLogWith
-      (P := fun p => p.2 = chainSlot f d xs' (idx p.1)) (fun log q program hprog r hr => by
-        cases hprog
-        simpa using hr) _ hz'
+    exact ⟨((ProbComp.mem_support_replicate_iff _ _ _).mp hxs').1,
+      ProbOracleComp.forall_mem_runLogWith (P := fun p => p.2 = chainSlot f d xs' (idx p.1))
+        (fun _ _ _ hprog _ hr => by simpa [← Option.some.inj hprog] using hr) _ hz'⟩
   have hreal : ProbComp.eval (repeatedIterateExperiment idx sample f n d A) =
       D.map fun w => chainVerify f d (w.1.map f^[d]) (idx w.2.1.1) w.2.1.2 &&
         chainConsistent idx f d w.2.1.1 w.2.1.2 w.2.2 := by

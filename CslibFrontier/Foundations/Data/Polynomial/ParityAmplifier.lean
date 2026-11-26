@@ -194,10 +194,9 @@ theorem X_pow_dvd_one_sub_parityAmplifier {ℓ : ℕ} (hℓ : 1 ≤ ℓ) :
 private theorem parityAmplifier_eval_modEq_one_of_dvd_of_pos {ℓ : ℕ} (hℓ : 1 ≤ ℓ) {m y : ℤ}
     (hy : m ∣ y) : (parityAmplifier ℓ).eval y ≡ 1 [ZMOD m ^ ℓ] := by
   rw [Int.modEq_iff_dvd]
-  obtain ⟨q, hq⟩ := X_pow_dvd_one_sub_parityAmplifier hℓ
-  have heval : 1 - (parityAmplifier ℓ).eval y = y ^ ℓ * q.eval y := by
-    simpa only [eval_sub, eval_one, eval_mul, eval_pow, eval_X] using congr_arg (eval y) hq
-  exact heval ▸ dvd_mul_of_dvd_left (pow_dvd_pow_of_dvd hy ℓ) _
+  refine (pow_dvd_pow_of_dvd hy ℓ).trans ?_
+  simpa only [coe_evalRingHom, eval_sub, eval_one, eval_pow, eval_X] using
+    _root_.map_dvd (evalRingHom y) (X_pow_dvd_one_sub_parityAmplifier hℓ)
 
 /-- If `m ∣ y`, then `p_ℓ(y) ≡ 1 (mod m ^ ℓ)`. -/
 theorem parityAmplifier_eval_modEq_one_of_dvd (ℓ : ℕ) {m y : ℤ} (hy : m ∣ y) :
@@ -210,10 +209,9 @@ theorem parityAmplifier_eval_modEq_one_of_dvd (ℓ : ℕ) {m y : ℤ} (hy : m �
 theorem parityAmplifier_eval_modEq_zero_of_dvd_sub_one (ℓ : ℕ) {m y : ℤ} (hy : m ∣ y - 1) :
     (parityAmplifier ℓ).eval y ≡ 0 [ZMOD m ^ ℓ] := by
   rw [Int.modEq_iff_dvd, zero_sub, dvd_neg]
-  obtain ⟨q, hq⟩ := one_sub_X_pow_dvd_parityAmplifier ℓ
-  have heval : (parityAmplifier ℓ).eval y = (1 - y) ^ ℓ * q.eval y := by
-    simpa only [eval_mul, eval_pow, eval_sub, eval_one, eval_X] using congr_arg (eval y) hq
-  exact heval ▸ dvd_mul_of_dvd_left (pow_dvd_pow_of_dvd (neg_sub y 1 ▸ dvd_neg.2 hy) ℓ) _
+  refine (pow_dvd_pow_of_dvd (neg_sub y 1 ▸ dvd_neg.2 hy) ℓ).trans ?_
+  simpa only [coe_evalRingHom, eval_pow, eval_sub, eval_one, eval_X] using
+    _root_.map_dvd (evalRingHom y) (one_sub_X_pow_dvd_parityAmplifier ℓ)
 
 /-- At any even integer `y`, `parityAmplifier ℓ` (`ℓ ≥ 1`) evaluates to `1` modulo `2 ^ ℓ`. -/
 theorem parityAmplifier_eval_modEq_one_of_even {ℓ : ℕ} (hℓ : 1 ≤ ℓ) {y : ℤ} (hy : Even y) :
@@ -392,14 +390,9 @@ theorem parityAmplifier_eq_sum_baseDigit (ℓ : ℕ) :
 theorem evalInt_parityAmplifier_eq_sum {A : Type*} [CommRing A] (ℓ : ℕ) (y : A) :
     evalInt y (parityAmplifier ℓ) =
       ∑ j ∈ range ℓ, evalInt y (parityBaseDigit ℓ j) * (y ^ 2 - y) ^ j := by
-  unfold evalInt
-  rw [← coe_eval₂RingHom]
-  conv_lhs => rw [parityAmplifier_eq_sum_baseDigit ℓ]
-  rw [map_sum]
-  refine sum_congr rfl fun j _ => ?_
-  rw [map_mul, map_pow, coe_eval₂RingHom]
-  congr 2
-  exact evalInt_hPoly y
+  simpa only [evalInt, map_sum, map_mul, map_pow, coe_eval₂RingHom, hPoly, eval₂_sub,
+    eval₂_X_pow, eval₂_X] using
+    congr_arg (eval₂RingHom (Int.castRingHom A) y) (parityAmplifier_eq_sum_baseDigit ℓ)
 
 /-! ### 3. Coefficient and `ℓ₁`-norm bounds (Lemma B.1) -/
 
@@ -614,11 +607,8 @@ theorem two_pow_dvd_coeff_prod_parityFactor {ι : Type*} (I : Finset ι) (ℓ : 
   classical
   induction I using Finset.induction_on generalizing s with
   | empty =>
-    rw [prod_empty]
-    rcases s with _ | s
-    · simp only [pow_zero, AddMonoidAlgebra.coeff_one_zero, dvd_refl]
-    · rw [coeff_one, ite_eq_right (Nat.succ_ne_zero s)]
-      exact dvd_zero _
+    rw [prod_empty, coeff_one]
+    split_ifs with hs <;> simp [hs]
   | insert a I ha ih =>
     rw [prod_insert ha]
     exact two_pow_dvd_coeff_mul (two_pow_dvd_coeff_parityFactor ℓ (y a)) ih s
@@ -627,17 +617,11 @@ theorem two_pow_dvd_coeff_prod_parityFactor {ι : Type*} (I : Finset ι) (ℓ : 
 theorem sumCoeffsBelow_modEq_eval_one {P : ℤ[X]} {ℓ : ℕ}
     (hP : ∀ s, (2 : ℤ) ^ s ∣ P.coeff s) :
     sumCoeffsBelow ℓ P ≡ P.eval 1 [ZMOD (2 : ℤ) ^ ℓ] := by
-  have heval : P.eval 1 = ∑ s ∈ range (max ℓ (P.natDegree + 1)), P.coeff s := by
-    rw [eval_eq_sum_range' (Nat.lt_of_lt_of_le (Nat.lt_succ_self _) (le_max_right ℓ _))]
-    simp only [one_pow, mul_one]
-  have hsplit :
-      ∑ s ∈ range (max ℓ (P.natDegree + 1)), P.coeff s =
-        sumCoeffsBelow ℓ P + ∑ s ∈ Ico ℓ (max ℓ (P.natDegree + 1)), P.coeff s := by
-    rw [sumCoeffsBelow, sum_range_add_sum_Ico _ (le_max_left ℓ _)]
-  rw [heval, hsplit, Int.modEq_iff_dvd, add_sub_cancel_left]
-  refine dvd_sum fun s hs => ?_
-  rw [mem_Ico] at hs
-  exact (pow_dvd_pow (2 : ℤ) hs.1).trans (hP s)
+  rw [eval_eq_sum_range' (Nat.lt_of_lt_of_le (Nat.lt_succ_self _) (le_max_right ℓ _))]
+  simp only [one_pow, mul_one]
+  rw [← sum_range_add_sum_Ico _ (le_max_left ℓ _), sumCoeffsBelow, Int.modEq_iff_dvd,
+    add_sub_cancel_left]
+  exact dvd_sum fun s hs => (pow_dvd_pow 2 (mem_Ico.1 hs).1).trans (hP s)
 
 /-- **Lemma 5.2 (shared-`V` truncation congruence)**: for integers `y i`,
 `S_ℓ(∏ i ∈ I, B_i(V)) ≡ ∏ i ∈ I, (if Even (y i) then 1 else 0) (mod 2 ^ ℓ)`. At `ℓ = 0` the
@@ -712,19 +696,14 @@ theorem totalDegree_coeff_prod_parityFactor_le {ι σ R : Type*} [CommRing R] (I
   classical
   induction I using Finset.induction_on generalizing s with
   | empty =>
-    rw [prod_empty, card_empty, zero_add]
-    rcases s with _ | s
-    · simp only [AddMonoidAlgebra.coeff_one_zero, MvPolynomial.totalDegree_one, zero_le]
-    · rw [coeff_one, ite_eq_right (Nat.succ_ne_zero s), MvPolynomial.totalDegree_zero]
-      exact Nat.zero_le _
+    rw [prod_empty, coeff_one]
+    split_ifs <;> simp
   | insert a I ha ih =>
     rw [prod_insert ha, card_insert_of_notMem ha]
-    have hstep := totalDegree_coeff_mul_le (M₁ := d) (M₂ := d * #I) (d := d)
+    refine (totalDegree_coeff_mul_le (M₁ := d) (M₂ := d * #I) (d := d)
       (totalDegree_coeff_parityFactor_le ℓ (hy a (mem_insert_self a I)))
-      (fun k => (ih (fun i hi => hy i (mem_insert_of_mem hi)) k).trans
-        (le_of_eq (by ring)))
-      s
-    exact hstep.trans (le_of_eq (by ring))
+      (fun k => (ih (fun i hi => hy i (mem_insert_of_mem hi)) k).trans_eq (by ring))
+      s).trans_eq (by ring)
 
 /-- **Lemma 5.2 (retained coefficient total-degree bound)**: for `s < ℓ`, the `V ^ s`-coefficient
 of `∏ i ∈ I, parityFactor ℓ (y i)` has total degree at most `d * (#I + 2 * (ℓ - 1))`. -/

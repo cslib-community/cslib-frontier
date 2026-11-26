@@ -194,15 +194,11 @@ private theorem solveAuctionProg_spec {w maxMag : ℕ} (a : SolveArgs)
     auctionCoreProg_spec ws₀ hε hC_le s₃ hws₃ hC_filled hf1 hfit_ws hfit_core
   let s₄ := (Memory.spec 0).clientState s₃ (auctionCoreProg ws₀)
   have hws₄ : ValidWS ws₀ s₄ := hws₃.of_frontier_eq hfr_core
-  have hC_cast :
-      (fun e => (C_work e : ℤ)) =
-        fun e => (a.scale : ℤ) * cost e + (a.scale : ℤ) * (M : ℤ) := by
-    funext ⟨i, j⟩
-    have hsh : ((cost (i, j) + (M : ℤ)).toNat : ℤ) = cost (i, j) + (M : ℤ) := by
-      have := hM_ge i j; omega
+  have hC_cast : (fun e => (C_work e : ℤ)) =
+      fun e => (a.scale : ℤ) * cost e + (a.scale : ℤ) * (M : ℤ) := funext fun ⟨i, j⟩ => by
+    have := hM_ge i j
     dsimp only [C_work]
-    push_cast
-    rw [hsh]; ring
+    rw [Nat.cast_mul, Int.toNat_of_nonneg (by omega), mul_add]
   have hs_eq : auction (fun e => (C_work e : ℤ)) (a.eps : ℤ) =
       auction (fun e => (a.scale : ℤ) * cost e) (a.eps : ℤ) := by
     rw [hC_cast]
@@ -375,10 +371,8 @@ theorem scaledSolveProg_spec {w C : ℕ} (inst : Instance)
   rw [hsc_eq] at hmc_s hout_s
   have hbids_le : (scaledAuction inst.cost).bids ≤
       inst.n * ((inst.n + 1) * C + 1) + 1 := by
-    have hb_raw := bids_scaledAuction_le (c := inst.cost) hC
-    have hcast : (((inst.n : ℤ) + 1) * (C : ℤ) + 1).toNat = (inst.n + 1) * C + 1 := by
-      exact_mod_cast Int.toNat_natCast ((inst.n + 1) * C + 1)
-    rwa [hcast] at hb_raw
+    simpa only [← Nat.cast_one (R := ℤ), ← Nat.cast_add, ← Nat.cast_mul, Int.toNat_natCast] using
+      bids_scaledAuction_le (c := inst.cost) hC
   refine ⟨⟨hf1, hfn1, hf2, hsafe_s⟩, hv_s, ?_,
     hws_s, hws_n, hws_sc, hM_le, hM_ge, hC_s, hout_s, hfit_ws⟩
   unfold scaledSolveProg

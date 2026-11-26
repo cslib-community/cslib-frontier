@@ -334,7 +334,6 @@ private theorem realizes_probeLiveLookupGen :
       hb, hlr, hins, hv_sl⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq; subst heq_wp
     have hth := henv.2.2.2.1
-    have h3M := (large_index_bounds hth).2.2.2.2.1
     obtain ⟨hrs_st, hrs_res, _, _⟩ := readLiveSaltIdxGenProg_spec henv hb hrep (s := s)
     obtain ⟨hmh_st, hmh_res, _, _⟩ := mkHashRtGenProg_spec (c := c) (U := U) (V := V)
       (w := w) (n_max := n_max) (base := base) hth s
@@ -343,8 +342,7 @@ private theorem realizes_probeLiveLookupGen :
     have hlIdx : fs.liveSliceIdx b < 3 * numBucketsWhp n_max := by
       unfold FastState.liveSliceIdx; omega
     have hfp_lt := fpOfSaltOpt_lt c U n_max (fs.bktSalt b) u_val θ.2
-    simp only [mkWhpParams_fst] at *
-    simp only [hrs_st, hrs_res, hmh_st, hmh_res, hfp_st, hfp_res] at *
+    simp only [mkWhpParams_fst, hrs_st, hrs_res, hmh_st, hmh_res, hfp_st, hfp_res] at *
     first
     | exact ⟨c, U, V, w, n_max, fs, henv, rfl, hrep, hb, hlr⟩
     | exact ⟨c, U, V, w, n_max, θ, henv, rfl, hseed⟩
@@ -529,21 +527,19 @@ private theorem realizes_probeOldBufCandGen :
     obtain ⟨c, U, V, w₀, n_max, fs, henv, rfl, hrep, hce_or, hbo_fn, hb, hcnt_le, hbp_v⟩ := h
     have hw_eq := henv.2.2.1; subst hw_eq
     have hth := henv.2.2.2.1
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
-    have hw2 : 2 ≤ w :=
-      (by decide : 2 ≤ _).trans ((le_bMinWhp c).trans ((bMinWhp_le_log hth).trans henv.log_lt_w.le))
     obtain ⟨hst_st, hst_res, _, _⟩ := readHdrProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrRebStage) (s := s)
-      (by dsimp only [hdrRebStage]; omega)
+      (by dsimp only [largeSpaceWhp, hdrRebStage]; omega)
     rw [hrep.2.2.2.2.2.1] at hst_res
     obtain ⟨hro_st, hro_res, _, _⟩ := readOldEpProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max)
-      (by dsimp [hdrCurEp]; omega) hce_or hrep.2.2.2.1 (s := s)
+      (by dsimp [largeSpaceWhp, hdrCurEp]; omega) hce_or hrep.2.2.2.1 (s := s)
     simp only [hst_st, hst_res, hro_st, hro_res] at *
     first
     | exact henv.fits_const (by decide)
     | exact henv.fits_hdr_addr (by decide)
-    | exact hw2
+    | exact (by decide : 2 ≤ _).trans
+        ((le_bMinWhp c).trans ((bMinWhp_le_log hth).trans henv.log_lt_w.le))
     | (obtain ⟨oldMap, hv_old⟩ := hbo_fn (by omega)
        exact ⟨c, U, V, w, n_max, fs, oldMap, henv, rfl, hrep, fs.oldEp_or hce_or, hv_old,
          hb, hcnt_le, hbp_v⟩)
@@ -626,10 +622,9 @@ theorem realizes_fastFindLocBqGen :
       (w := w) (n_max := n_max) (base := base) hth s
     obtain ⟨hrk_st, _, _, _⟩ :=
       fpReducedKeyOptRtProg_spec (kv := u_val) henv hseed (s := s)
-    have h32_sp : 32 ≤ largeSpaceWhp c U V w n_max := by dsimp only [largeSpaceWhp]; omega
     obtain ⟨hce_st, hce_res, _, _⟩ := readHdrProg_spec (w := w)
       (F := base + largeSpaceWhp c U V w n_max) (base := base) (hdrOff := hdrCurEp) (s := s)
-      (by dsimp only [hdrCurEp]; omega)
+      (by dsimp only [largeSpaceWhp, hdrCurEp]; omega)
     obtain ⟨_, _, curMap, hv_cur, _⟩ := hv.bufCur_valid
     have hcnt_le := hv.bktCount_le b hb
     have hbp_v : ∀ k < fs.bktCount b - capFrontWhp n_max, fs.backPtr b k < poolSizeWhp n_max :=
@@ -638,15 +633,12 @@ theorem realizes_fastFindLocBqGen :
         ValidBufTrie (cTabWhp c) (bCharWhp n_max) (fs.buf fs.oldEp) oldMap := fun hle3 => by
       obtain ⟨_, _, oldMap, hv_old, _⟩ := ite_eq_left hle3 ▸ hv.bufOld_valid
       exact ⟨oldMap, hv_old⟩
-    set rk_res := (Memory.spec 0).clientResult s
-      (fpReducedKeyOptRtProg (mkHashRt c U w n_max base, u_val))
-    have hc1_st := (probeBufCandGenProg_spec henv hv.curEp_or hrep hv_cur hb hcnt_le
-      hbp_v (q_val := q_val) (rKey := rk_res) (s := s)).state
-    have hc2_st := (probeOldBufCandGenProg_spec henv hrep hv.curEp_or hbo_fn
-      hb hcnt_le hbp_v (q_val := q_val) (rKey := rk_res) (s := s)).state
-    dsimp only [rk_res] at hc1_st hc2_st
-    simp only [mkWhpParams_fst, hmh_st, hmh_res, hrk_st, hce_st, hce_res, hrep.2.2.2.1] at *
-    simp only [hc1_st, hc2_st] at *
+    have hc1_st (rKey : ℕ) := (probeBufCandGenProg_spec henv hv.curEp_or hrep hv_cur hb hcnt_le
+      hbp_v (q_val := q_val) (rKey := rKey) (s := s)).state
+    have hc2_st (rKey : ℕ) := (probeOldBufCandGenProg_spec henv hrep hv.curEp_or hbo_fn
+      hb hcnt_le hbp_v (q_val := q_val) (rKey := rKey) (s := s)).state
+    simp only [mkWhpParams_fst, hmh_st, hmh_res, hrk_st, hce_st, hce_res, hrep.2.2.2.1,
+      hc1_st, hc2_st] at *
     first
     | exact henv.fits_const (by decide)
     | exact henv.fits_hdr_addr (by decide)

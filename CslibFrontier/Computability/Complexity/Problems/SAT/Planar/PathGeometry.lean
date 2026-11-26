@@ -171,23 +171,18 @@ private theorem routePorts_nodup {r : Route} (hn : r.Nodup)
   · simp only [stepPorts, List.nodup_cons, List.not_mem_nil, List.nodup_nil,
       List.mem_singleton, not_false_eq_true, and_true]
     exact fun h => (axisAligned_of_length_eq_one (hu e he)).2 (congrArg Prod.fst h)
-  · have hi' : i + 1 < r.length := by
-      simp only [List.consecutivePairs, List.length_zip, List.length_tail] at hi
+  · have hlen {k} (hk : k < r.consecutivePairs.length) : k + 1 < r.length := by
+      simp only [List.consecutivePairs, List.length_zip, List.length_tail] at hk
       omega
-    have hj' : j + 1 < r.length := by
-      simp only [List.consecutivePairs, List.length_zip, List.length_tail] at hj
-      omega
+    have hi' := hlen hi
+    have hj' := hlen hj
     rcases stepPorts_inter (hu _ (List.getElem_mem hi)) (hu _ (List.getElem_mem hj)) hx hy
         with heq | heq
     · exact hij.ne (hn.eq_of_getElem_eq (by omega) (by omega)
-        (show r[i] = r[j] by
-          simpa only [List.consecutivePairs, List.getElem_zip, List.getElem_tail] using
-            congrArg Prod.fst heq))
-    · have := hn.eq_of_getElem_eq (by omega) hj'
-        (show r[i] = r[j + 1] by
-          simpa only [List.consecutivePairs, List.getElem_zip, List.getElem_tail] using
-            congrArg Prod.fst heq)
-      omega
+        (show r[i] = r[j] by simpa [List.consecutivePairs] using congrArg Prod.fst heq))
+    · exact absurd (hn.eq_of_getElem_eq (by omega) hj'
+        (show r[i] = r[j + 1] by simpa [List.consecutivePairs] using congrArg Prod.fst heq))
+        (by omega)
 
 private theorem paths_step_unit {φ : CNF ℕ} {i : ℕ} (hi : i < (paths φ).length)
     {e : Point × Point} (he : e ∈ ((paths φ)[i]).consecutivePairs) :
@@ -208,24 +203,19 @@ theorem pathPorts_nodup {φ : CNF ℕ}
   refine List.nodup_flatMap.mpr ⟨fun r hr => ?_,
     List.pairwise_iff_getElem.mpr fun i j hi hj hij x hx hy => ?_⟩
   · obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hr
-    have hn : ((paths φ)[i]).Nodup := by
-      have h := Graph.unitPath_nodup (SAT.incidenceGraph φ)
-        (fun _ => SAT.incidenceGraph_endpoints) (fun _ => SAT.incidenceGraph_loopless)
-        (by simpa only [paths_eq_unitPaths, Graph.unitPaths_length] using hi)
-      change ((paths φ).getD i []).Nodup at h
-      rwa [List.getD_eq_getElem _ _ hi] at h
-    exact routePorts_nodup hn fun _ => paths_step_unit hi
+    have hn : ((paths φ).getD i []).Nodup := Graph.unitPath_nodup (SAT.incidenceGraph φ)
+      (fun _ => SAT.incidenceGraph_endpoints) (fun _ => SAT.incidenceGraph_loopless)
+      (by simpa only [paths_eq_unitPaths, Graph.unitPaths_length] using hi)
+    exact routePorts_nodup (by rwa [List.getD_eq_getElem _ _ hi] at hn) fun _ => paths_step_unit hi
   · obtain ⟨e, he, hx⟩ := List.mem_flatMap.mp hx
     obtain ⟨f, hf, hy⟩ := List.mem_flatMap.mp hy
     have hi_step : e ∈ ((paths φ).getD i []).consecutivePairs := by
       rwa [List.getD_eq_getElem _ _ hi]
-    have hj_step : (e.1, e.2) ∈ ((paths φ).getD j []).consecutivePairs ∨
-        (e.2, e.1) ∈ ((paths φ).getD j []).consecutivePairs := by
-      rw [List.getD_eq_getElem _ _ hj]
-      rcases stepPorts_inter (paths_step_unit hi he) (paths_step_unit hj hf) hx hy with rfl | heq
-      · exact Or.inl hf
-      · exact Or.inr (by simpa only [heq] using hf)
-    exact hij.ne (paths_shared_step_index hw hv hi hj hi_step hj_step)
+    rcases stepPorts_inter (paths_step_unit hi he) (paths_step_unit hj hf) hx hy with rfl | heq
+    · exact hij.ne (paths_shared_step_index hw hv hi hj hi_step
+        (Or.inl (by rwa [List.getD_eq_getElem _ _ hj])))
+    · exact hij.ne (paths_shared_step_index hw hv hi hj hi_step
+        (Or.inr (by simpa only [List.getD_eq_getElem _ _ hj, heq] using hf)))
 
 /-- Equal boundary midpoints identify the same unordered unit grid edge. -/
 theorem cellPort_step_eq_cases {p q a b : Point}

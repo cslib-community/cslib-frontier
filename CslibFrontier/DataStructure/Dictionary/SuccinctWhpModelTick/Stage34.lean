@@ -50,14 +50,9 @@ private theorem bufDelete_self_checkSlot_none {cTab bChar id rKey : ℕ} {tr : B
   dsimp only
   split_ifs with hcond
   · dsimp only [bufCheckSlot]
-    split_ifs with hid hc2
-    · rcases hcond with h1 | h2 <;> omega
-    · rfl
-    · rfl
-  · dsimp only [bufCheckSlot]
-    by_cases hid : id < tr.itemAlloc
-    · simp [hid]
-    · exact ite_eq_right hid
+    split_ifs <;> first | rfl | omega
+  · simp only [bufCheckSlot, Function.update_self, ne_eq, not_true_eq_false, and_false,
+      ↓reduceIte, ite_self]
 
 private theorem BufMapRel.untag_one {M tag b₀ loc₀ : ℕ} {bktCnt : ℕ → ℕ}
     {locSt rKeyOf : ℕ → ℕ → ℕ} {m : ℕ → Option (ℕ × ℕ)}
@@ -70,25 +65,21 @@ private theorem BufMapRel.untag_one {M tag b₀ loc₀ : ℕ} {bktCnt : ℕ → 
       (Function.update locSt b₀ (Function.update (locSt b₀) loc₀ 1)) rKeyOf
       (Function.update m (rKeyOf b₀ loc₀) none) := by
   refine BufMapRel.of_some_iff fun rk b loc => ?_
-  by_cases hrk : rk = rKeyOf b₀ loc₀
-  · subst hrk
-    simp only [Function.update_self, reduceCtorEq, false_iff]
-    rintro ⟨hb, hloc, hst', heq⟩
-    by_cases hbl : b = b₀ ∧ loc = loc₀
-    · rcases hbl with ⟨rfl, rfl⟩
-      rw [Function.update_self, Function.update_self] at hst'
-      exact hne hst'
-    · rw [Function.update_update_apply_of_ne hbl] at hst'
-      exact hbl (hinj b hb loc hloc hst' heq)
-  · rw [Function.update_of_ne hrk, hrel.2 rk b loc]
-    refine ⟨fun ⟨hb, hloc, hst, heq⟩ => ⟨hb, hloc, ?_, heq⟩,
-      fun ⟨hb, hloc, hst', heq⟩ => ⟨hb, hloc, ?_, heq⟩⟩
-    · rwa [Function.update_update_apply_of_ne (fun ⟨hb', hl'⟩ => hrk (hb' ▸ hl' ▸ heq.symm))]
-    · by_cases hbl : b = b₀ ∧ loc = loc₀
-      · rcases hbl with ⟨rfl, rfl⟩
-        rw [Function.update_self, Function.update_self] at hst'
-        exact absurd hst' hne
-      · rwa [Function.update_update_apply_of_ne hbl] at hst'
+  by_cases hbl : b = b₀ ∧ loc = loc₀
+  · rcases hbl with ⟨rfl, rfl⟩
+    rw [Function.update_self, Function.update_self]
+    refine ⟨fun hm => ?_, fun h => absurd h.2.2.1 hne⟩
+    rcases eq_or_ne rk (rKeyOf b loc) with rfl | hrk
+    · rw [Function.update_self] at hm
+      cases hm
+    · rw [Function.update_of_ne hrk] at hm
+      exact absurd ((hrel.2 rk b loc).mp hm).2.2.2.symm hrk
+  · rw [Function.update_update_apply_of_ne hbl]
+    by_cases hrk : rk = rKeyOf b₀ loc₀
+    · subst hrk
+      simp only [Function.update_self, reduceCtorEq, false_iff]
+      exact fun ⟨hb, hloc, hst, heq⟩ => hbl (hinj b hb loc hloc hst heq)
+    · rw [Function.update_of_ne hrk, hrel.2 rk b loc]
 
 private def epochTickStage3Finish (s : FastState) : FastState :=
   if (s.buf s.oldEp).itemAlloc ≤ s.stageCursor then
@@ -349,11 +340,7 @@ theorem epochTickStage4_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       (fun _ _ _ _ => by simp [inLiveTree, hs4])
       (by
         simp only [Nat.reduceLeDiff, Nat.reduceEqDiff, ↓reduceIte]
-        change (∀ b < numBucketsWhp n_max, ∀ loc < fs.bktCount b, fs.locState b loc ≠ 2 + oldEp) ∧
-          ValidBufTrie (cTabWhp c) (bCharWhp n_max)
-            (Function.update fs.buf oldEp (bufClearSteps 8 oldTr) oldEp) (fun _ => none) ∧
-          (Function.update fs.buf oldEp (bufClearSteps 8 oldTr) oldEp).nodeAlloc = 1 ∧
-          (Function.update fs.buf oldEp (bufClearSteps 8 oldTr) oldEp).itemAlloc = 0
+        dsimp only [FastState.oldEp, oldEp]
         rw [Function.update_self]
         exact ⟨hno_old, hv_empty, hna1, hia0⟩)
       (by simp [ValidEpochStage]) rfl
@@ -369,10 +356,7 @@ theorem epochTickStage4_spec {c U V n_max : ℕ} {θ : SeedWhp c U n_max}
       (fun _ _ _ _ => by simp [inLiveTree, hs4])
       (by
         simp only [Nat.reduceLeDiff, ↓reduceIte]
-        change (∀ b < numBucketsWhp n_max, ∀ loc < fs.bktCount b, fs.locState b loc ≠ 2 + oldEp) ∧
-          ClearableBufTrie (Function.update fs.buf oldEp (bufClearSteps 8 oldTr) oldEp) ∧
-          (Function.update fs.buf oldEp (bufClearSteps 8 oldTr) oldEp).nodeAlloc ≤
-            1 + cTabWhp c * (2 * sMaxWhp c n_max)
+        dsimp only [FastState.oldEp, oldEp]
         rw [Function.update_self]
         exact ⟨hno_old, hclr', hna'.trans ((max_eq_right h1_le).trans_le hna_ub)⟩)
       (by simp [ValidEpochStage]) rfl

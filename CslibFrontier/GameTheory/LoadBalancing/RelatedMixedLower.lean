@@ -229,9 +229,7 @@ private theorem RelatedMixedLowerMachine.ext_val {k B : ℕ}
   cases m₁
   cases m₂
   cases ht
-  cases hc
-  cases Fin.ext hs
-  rfl
+  exact congrArg₂ _ (Fin.ext hs) hc
 
 private theorem relatedMixedLowerOpt_injective (k B : ℕ) :
     Function.Injective (relatedMixedLowerOpt k B) := by
@@ -411,14 +409,10 @@ theorem isMixedNash_relatedMixedLowerNE {k B : ℕ} [NeZero B] (hk : 1 ≤ k) :
     rw [expectedLoad_relatedMixedLowerNE hk j, expectedLoad_relatedMixedLowerNE hk j']
     cases i with
     | inl x =>
-      have hj_eq : j = relatedMixedDetTarget k B x := by
-        by_contra hne
-        simp [relatedMixedLowerNE_inl, hne] at hpos
-      subst hj_eq
-      have hnotlast : (relatedMixedDetTarget k B x).tier ≠ Fin.last k := by
-        intro h
-        have hv := congrArg Fin.val h
-        simp only [relatedMixedDetTarget, Fin.val_last] at hv; omega
+      obtain rfl : j = relatedMixedDetTarget k B x :=
+        not_ne_iff.mp fun hne => by simp [relatedMixedLowerNE_inl, hne] at hpos
+      have hnotlast : (relatedMixedDetTarget k B x).tier ≠ Fin.last k :=
+        Fin.ne_of_val_ne (by simp [relatedMixedDetTarget]; omega)
       rw [ite_eq_right hnotlast, relatedMixedLowerNE_inl, ite_eq_left rfl, sub_self, zero_mul,
         add_zero, relatedMixedLowerNE_inl]
       by_cases hj'_eq : j' = relatedMixedDetTarget k B x
@@ -445,9 +439,8 @@ theorem isMixedNash_relatedMixedLowerNE {k B : ℕ} [NeZero B] (hk : 1 ≤ k) :
           · have hge := add_two_pow_div_ge (a := x.tier.val) (b := j'.tier.val) (by omega)
             push_cast; linarith
     | inr r =>
-      have hj_last : j.tier = Fin.last k := by
-        by_contra hne
-        simp [relatedMixedLowerNE, hne] at hpos
+      have hj_last : j.tier = Fin.last k :=
+        not_ne_iff.mp fun hne => by simp [relatedMixedLowerNE, hne] at hpos
       rw [ite_eq_left hj_last]
       simp only [relatedMixedLowerNE, hj_last, ↓reduceIte, relatedMixedLower, Fin.val_last,
         two_pow_sub_one_div_two_pow hk]
@@ -763,24 +756,18 @@ private theorem equilibrium_cost_relatedMixedLowerNE_le_k {k B : ℕ} [NeZero B]
   rw [expectedLoad_relatedMixedLowerNE hk y]
   cases x with
   | inl t =>
-    have hxeq : y = relatedMixedDetTarget k B t := by
-      by_contra hne
-      simp [relatedMixedLowerNE_inl, hne] at hpos
-    subst hxeq
-    have hnotlast : (relatedMixedDetTarget k B t).tier ≠ Fin.last k := by
-      intro h
-      have hv := congrArg Fin.val h
-      simp only [relatedMixedDetTarget, Fin.val_last] at hv
-      omega
+    obtain rfl : y = relatedMixedDetTarget k B t :=
+      not_ne_iff.mp fun hne => by simp [relatedMixedLowerNE_inl, hne] at hpos
+    have hnotlast : (relatedMixedDetTarget k B t).tier ≠ Fin.last k :=
+      Fin.ne_of_val_ne (by simp [relatedMixedDetTarget]; omega)
     rw [ite_eq_right hnotlast, relatedMixedLowerNE_inl, ite_eq_left rfl, sub_self, zero_mul,
       add_zero]
     simp only [relatedMixedLower, relatedMixedDetTarget]
     exact ⟨Nat.cast_le.mpr ((Nat.succ_le_of_lt t.tier.isLt).trans (Nat.sub_le k 1)),
       one_le_pow₀ (by norm_num)⟩
   | inr r =>
-    have hlast : y.tier = Fin.last k := by
-      by_contra hne
-      simp [relatedMixedLowerNE, hne] at hpos
+    have hlast : y.tier = Fin.last k :=
+      not_ne_iff.mp fun hne => by simp [relatedMixedLowerNE, hne] at hpos
     rw [ite_eq_left hlast]
     simp only [relatedMixedLowerNE, hlast, ↓reduceIte, relatedMixedLower, Fin.val_last,
       two_pow_sub_one_div_two_pow hk]
@@ -886,13 +873,10 @@ theorem exists_relatedMixedNash_makespan_ge_log_div_log_log_log {m : ℕ} [NeZer
     obtain ⟨k, hk_mem, hk_max⟩ :=
       exists_max_image ((range (m + 1)).filter fun k => 16 ≤ k ∧ Mfn k ≤ m) id hS_ne
     obtain ⟨_, hk16, hMk_le⟩ := mem_filter.mp hk_mem
-    have hm_lt_next : m < Mfn (k + 1) := by
-      by_contra hle
-      push Not at hle
-      have := hk_max (k + 1) (mem_filter.mpr ⟨mem_range.mpr
-        (Nat.lt_succ_of_le ((le_card_relatedMixedLowerMachine_rep (by omega)).trans hle)),
-        by omega, hle⟩)
-      dsimp only [id_eq] at this; omega
+    have hm_lt_next : m < Mfn (k + 1) := not_le.mp fun hle =>
+      Nat.not_succ_le_self k <| hk_max (k + 1) <| mem_filter.mpr
+        ⟨mem_range.mpr (Nat.lt_succ_of_le
+          ((le_card_relatedMixedLowerMachine_rep (by omega)).trans hle)), by omega, hle⟩
     set B : ℕ := relatedMixedRep k
     have hB_eq : B = k ^ (18 * k) := relatedMixedRep_eq k
     have : NeZero B := ⟨by rw [hB_eq]; positivity⟩
@@ -953,9 +937,7 @@ theorem exists_relatedMixedNash_makespan_ge_log_div_log_log_log {m : ℕ} [NeZer
           sum_image (fun _ _ _ _ h => hembedM_inj h)]
         simp_rw [hp_embed]
         exact (hbase_NE.1 (eJ i)).sum_eq_one
-      · have hj_lt : j.val < Mfn k := by
-          by_contra h
-          simp [p, h] at hpos
+      · have hj_lt : j.val < Mfn k := not_le.mp fun h => by simp [p, not_lt_of_ge h] at hpos
         rw [hE_eq j, hE_eq j', dite_eq_left hj_lt]
         simp only [G, p, dite_eq_left hj_lt] at hpos ⊢
         by_cases hj'_lt : j'.val < Mfn k

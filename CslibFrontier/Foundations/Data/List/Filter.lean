@@ -27,6 +27,8 @@ They are generalized from the canonical incidence-path occupancy proofs.
   `C.toFinset \ H.toFinset`.
 * `List.countP_le_sum_map`: if `1 ≤ f x` whenever `p x = true` on `l`, then
   `l.countP p ≤ (l.map f).sum`.
+* `List.sum_map_filter`: a sum over a filtered list is a sum over the list with `0` in place of
+  the elements filtered out.
 * `List.any_id_le_of_forall₂`, `List.all_id_le_of_forall₂`: `List.any id` and `List.all id` are
   monotone with respect to `List.Forall₂ (· ≤ ·)`.
 -/
@@ -111,6 +113,14 @@ theorem countP_le_sum_map {α : Type*} {p : α → Bool} {f : α → ℕ} {l : L
     · have := h a List.mem_cons_self hp
       simp only [hp, ite_true]; omega
     · simp only [hp, Bool.false_eq_true, ite_false]; omega
+
+/-- Summing `f` over the elements of `l` that satisfy `p` is summing `f` over `l`, with `0` in
+place of the elements that do not. -/
+theorem sum_map_filter {α M : Type*} [AddMonoid M] (l : List α) (p : α → Bool) (f : α → M) :
+    ((l.filter p).map f).sum = (l.map fun x => if p x then f x else 0).sum := by
+  induction l with
+  | nil => rfl
+  | cons a l ih => cases hp : p a <;> simp [hp, ih]
 
 /-- `List.any id` is monotone with respect to `List.Forall₂ (· ≤ ·)`. -/
 theorem any_id_le_of_forall₂ {u v : List Bool} (h : List.Forall₂ (· ≤ ·) u v) :

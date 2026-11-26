@@ -104,10 +104,8 @@ private theorem exists_variation [DecidableEq A] (T : POVM A ι) (j : A) {P : Ma
     · simpa only [hB.posSemidef.isHermitian.eq] using
         (T.posSemidef a).mul_mul_conjTranspose_same B
     · split_ifs
-      · exact hrem.posSemidef
-      · exact PosSemidef.zero
-  · rw [sum_add_distrib, ← sum_mul, ← mul_sum, T.sum_effect, mul_one]
-    simp
+      exacts [hrem.posSemidef, PosSemidef.zero]
+  · simp [sum_add_distrib, ← sum_mul, ← mul_sum, T.sum_effect]
 
 /-- A maximum of the trace objective gives a dual majorant by varying the POVM. -/
 private theorem majorant_of_max (H : A → Matrix ι ι ℂ) (hH : ∀ a, (H a).IsHermitian)
@@ -121,9 +119,7 @@ private theorem majorant_of_max (H : A → Matrix ι ι ℂ) (hH : ∀ a, (H a).
     simp only [Z, star_smul, star_trivial, star_sum, star_add, star_mul,
       star_eq_conjTranspose, (T.posSemidef _).isHermitian.eq, (hH _).eq, add_comm]
   intro j
-  apply Matrix.le_iff.mpr
-  apply (posSemidef_iff_dotProduct_mulVec).mpr
-  refine ⟨hZ.sub (hH j), fun v => ?_⟩
+  refine Matrix.le_iff.mpr (posSemidef_iff_dotProduct_mulVec.mpr ⟨hZ.sub (hH j), fun v => ?_⟩)
   let P := vecMulVec v (star v)
   have hP : P.PosSemidef := posSemidef_vecMulVec_self_star v
   let δ : ℝ := (‖P‖ + 1)⁻¹
@@ -205,10 +201,9 @@ theorem exists_optimal_trace_certificate [Nonempty A] (H : A → Matrix ι ι �
     simp only [mul_sub, sum_sub_distrib, ← sum_mul, T.sum_effect, one_mul, trace_sub,
       htrace, trace_sum, sub_self, Complex.zero_re]
   have hcomp (a : A) : T.effect a * Z = T.effect a * H a := by
-    have hr := (sum_eq_zero_iff_of_nonneg fun b _ => (Complex.nonneg_iff.mp (hslack b)).1).mp
-      hsum a (mem_univ a)
-    have h0 : (T.effect a * (Z - H a)).trace = 0 :=
-      Complex.ext hr (Complex.nonneg_iff.mp (hslack a)).2.symm
+    have h0 : (T.effect a * (Z - H a)).trace = 0 := Complex.ext
+      ((sum_eq_zero_iff_of_nonneg fun b _ => (Complex.nonneg_iff.mp (hslack b)).1).mp
+        hsum a (mem_univ a)) (Complex.nonneg_iff.mp (hslack a)).2.symm
     exact sub_eq_zero.mp (mul_sub (T.effect a) Z (H a) ▸
       ((T.posSemidef a).trace_mul_eq_zero_iff (Matrix.le_iff.mp (hle a))).mp h0)
   let a₀ : A := Classical.choice inferInstance

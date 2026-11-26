@@ -278,16 +278,12 @@ theorem rectangleBias_of_isSumsetExtractor {n m k : ℕ} {ε : ℝ}
   let R := rectangle X A B
   let S : Set (BitString n) := {x | ext x j = val}
   let _ : Fintype R := Fintype.ofFinite R
-  have hcardA : Fintype.card A = A.ncard :=
-    Nat.card_eq_fintype_card.symm.trans (Nat.card_coe_set_eq A)
-  have hcardB : Fintype.card B = B.ncard :=
-    Nat.card_eq_fintype_card.symm.trans (Nat.card_coe_set_eq B)
-  have hcardR : Fintype.card R = R.ncard :=
-    Nat.card_eq_fintype_card.symm.trans (Nat.card_coe_set_eq R)
+  have hcard {α : Type} (T : Set α) [Fintype T] : Fintype.card T = T.ncard :=
+    Nat.card_eq_fintype_card.symm.trans (Nat.card_coe_set_eq T)
   have hA_pos : 0 < Fintype.card A :=
-    hcardA ▸ lt_of_lt_of_le (pow_pos Nat.zero_lt_two k) hA
+    hcard A ▸ lt_of_lt_of_le (pow_pos Nat.zero_lt_two k) hA
   have hB_pos : 0 < Fintype.card B :=
-    hcardB ▸ lt_of_lt_of_le (pow_pos Nat.zero_lt_two k) hB
+    hcard B ▸ lt_of_lt_of_le (pow_pos Nat.zero_lt_two k) hB
   let _ : Nonempty A := Fintype.card_pos_iff.mp hA_pos
   let _ : Nonempty B := Fintype.card_pos_iff.mp hB_pos
   let _ : Nonempty R := ⟨rectProdEquiv X A B (Classical.arbitrary _)⟩
@@ -295,10 +291,10 @@ theorem rectangleBias_of_isSumsetExtractor {n m k : ℕ} {ε : ℝ}
   let pB : PMF (BitString n) := (PMF.uniformOfFintype B).map (fun b => padRight X b.val)
   have hkA : (k : ℝ) ≤ PMF.minEntropy pA :=
     le_minEntropy_uniformOfFintype_map ((padLeft_injective X).comp Subtype.val_injective)
-      (hcardA ▸ hA)
+      (hcard A ▸ hA)
   have hkB : (k : ℝ) ≤ PMF.minEntropy pB :=
     le_minEntropy_uniformOfFintype_map ((padRight_injective X).comp Subtype.val_injective)
-      (hcardB ▸ hB)
+      (hcard B ▸ hB)
   have hsum : (pA.bind fun x => pB.map fun y => x + y) =
       (PMF.uniformOfFintype R).map Subtype.val := by
     simp only [pA, pB, PMF.bind_map, PMF.map_comp, Function.comp_def,
@@ -322,18 +318,13 @@ theorem rectangleBias_of_isSumsetExtractor {n m k : ℕ} {ε : ℝ}
     have hcard_fib :
         ({r : R | decide (ext r.val j = val) = true} : Finset R).card = (R ∩ S).ncard := by
       rw [← Fintype.card_coe, ← Nat.card_eq_fintype_card, ← Nat.card_coe_set_eq (R ∩ S)]
-      refine Nat.card_congr
-        { toFun := fun ⟨⟨x, hxR⟩, hxS⟩ =>
-            ⟨x, hxR, of_decide_eq_true (Finset.mem_filter.mp hxS).2⟩
-          invFun := fun ⟨x, hxR, hxS⟩ =>
-            ⟨⟨x, hxR⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, decide_eq_true hxS⟩⟩
-          left_inv := fun ⟨⟨_, _⟩, _⟩ => rfl
-          right_inv := fun ⟨_, _, _⟩ => rfl }
+      exact Nat.card_congr ((Equiv.subtypeEquivRight fun r : R => by simp [S]).trans
+        (Equiv.subtypeSubtypeEquivSubtypeInter (· ∈ R) (· ∈ S)))
     change (((PMF.uniformOfFintype R).map _) true).toReal = _
     rw [PMF.toReal_uniformOfFintype_map_apply_true, Finset.dens_eq_card_div_card, hcard_fib,
-      hcardR, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast]
+      hcard R, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast]
   rw [hpOut_true] at hdist
-  have hR_pos : (0 : ℝ) < R.ncard := by exact_mod_cast hcardR ▸ Fintype.card_pos (α := R)
+  have hR_pos : (0 : ℝ) < R.ncard := by exact_mod_cast hcard R ▸ Fintype.card_pos (α := R)
   have hmul := mul_le_mul_of_nonneg_right hdist hR_pos.le
   have h_abs : |((R ∩ S).ncard : ℝ) / R.ncard - 1 / 2| * R.ncard =
       |((R ∩ S).ncard : ℝ) - R.ncard / 2| := by

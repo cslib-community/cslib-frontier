@@ -242,15 +242,12 @@ private theorem findCycle_none {f : V → V} (h : findCycle r f = none) {x : V} 
 theorem reach_of_findCycle_none {f : V → V} (h : findCycle r f = none) (v : V) :
     ∃ n, f^[n] v = r := by
   obtain ⟨n, hn⟩ := Cslib.FunctionalGraph.exists_iterate_mem_periodicPts f v
-  refine ⟨n, ?_⟩
-  by_contra hy
+  refine ⟨n, by_contra fun hy => ?_⟩
   have hpos := Function.minimalPeriod_pos_of_mem_periodicPts hn
-  have hle : Function.minimalPeriod f (f^[n] v) ≤ FinEnum.card V := by
-    rw [FinEnum.card_eq_fintypeCard]
-    exact Function.minimalPeriod_le_card
-  apply findCycle_none r h hy (k := Function.minimalPeriod f (f^[n] v) - 1) (by omega)
-  rw [Nat.sub_add_cancel hpos]
-  exact Function.isPeriodicPt_minimalPeriod f _
+  have hle : Function.minimalPeriod f (f^[n] v) ≤ FinEnum.card V :=
+    FinEnum.card_eq_fintypeCard (α := V) ▸ Function.minimalPeriod_le_card
+  exact findCycle_none r h hy (k := Function.minimalPeriod f (f^[n] v) - 1) (by omega)
+    (Nat.sub_add_cancel hpos ▸ Function.isPeriodicPt_minimalPeriod f _)
 
 /-- The orbit of `x0` under `f`; the cycle through `x0` when `x0` is periodic. -/
 @[expose] def cycleOf (f : V → V) (x0 : V) : Finset V :=
@@ -613,9 +610,9 @@ theorem exists_contract_le [IsOrderedAddMonoid β]
     have h0 : ∑ v ∈ C.erase x0, contractCost a c f C x0 v (q v) = 0 :=
       Finset.sum_eq_zero fun v hv => by
         simp [contractCost, Finset.mem_of_mem_erase hv, Finset.ne_of_mem_erase hv]
-    rw [h0, add_zero]
     obtain ⟨xs, hbo, -, -, hxsmin⟩ :=
       bestExit_spec (c := c) (f := f) ⟨x, hxC, ht.adj x (hCr x hxC)⟩
+    rw [h0, add_zero]
     simp only [contractCost, ↓reduceIte, hx0, hbo]
     refine (hxsmin x hxC (ht.adj x (hCr x hxC))).trans ?_
     rw [exitCost, ← Finset.add_sum_erase C _ hxC]
@@ -718,9 +715,8 @@ private theorem edmondsAux_spec [IsOrderedAddMonoid β] (r : V) :
         have hfa : ∀ y ∈ C, a y (f y) = true ∧ f y ≠ y := fun y hy =>
           ⟨(hsel y (hCr y hy)).1, (hsel y (hCr y hy)).2.1⟩
         have hfmin := fun v (hv : v ≠ r) => (hsel v hv).2.2
-        have hlt : (liveVertices (contractAdj a C x0 r) r).card < n := by
-          have := Finset.card_lt_card (liveVertices_ssubset hfC hfa hx0C hrC)
-          omega
+        have hlt := Nat.lt_of_lt_of_le
+          (Finset.card_lt_card (liveVertices_ssubset hfC hfa hx0C hrC)) (Nat.lt_succ_iff.mp hn)
         obtain ⟨ih1, ih2⟩ :=
           edmondsAux_spec r n (contractAdj a C x0 r) (contractCost a c f C x0) hlt
         refine ⟨fun p hp => ?_, fun hp t ht => ?_⟩
@@ -737,9 +733,7 @@ private theorem edmondsAux_spec [IsOrderedAddMonoid β] (r : V) :
       refine ⟨fun p hp => absurd hp (by simp), fun _ t ht => ?_⟩
       push Not at hfeas
       obtain ⟨v, hvr, hv⟩ := hfeas
-      have hmem : t v ∈ candidates a v := (mem_candidates a).mpr ⟨ht.adj v hvr, ht.ne hvr⟩
-      rw [hv] at hmem
-      exact List.not_mem_nil hmem
+      exact List.not_mem_nil (hv ▸ (mem_candidates a).mpr ⟨ht.adj v hvr, ht.ne hvr⟩)
 
 /-- **The Chu–Liu/Edmonds algorithm**: a minimum-cost spanning in-arborescence of `G` rooted at
 `r`, as a parent function, or `none` if `G` has no spanning in-arborescence rooted at `r`. -/
@@ -789,12 +783,10 @@ theorem edmonds_optimal {p : V → V} (hp : edmonds G c r = some p) :
         arcCost (Digraph.parentDigraph r p) c ≤ arcCost T c := by
   obtain ⟨hpa, hmin⟩ := edmonds_spec.1 p hp
   obtain ⟨h1, h2⟩ := (isInArborescenceParent_iff hpa.root).mp hpa
-  refine ⟨h1, h2, fun T _ hT hTG => ?_⟩
+  refine ⟨h1, h2, fun T inst hT hTG => ?_⟩
   obtain ⟨t, htr, rfl⟩ := hT.exists_parentDigraph_eq
-  have := hmin t ((isInArborescenceParent_iff htr).mpr ⟨hT, hTG⟩)
-  rw [arcCost_parentDigraph]
-  convert this using 1
-  convert arcCost_parentDigraph r t c
+  rw [Subsingleton.elim inst _, arcCost_parentDigraph, arcCost_parentDigraph]
+  exact hmin t ((isInArborescenceParent_iff htr).mpr ⟨hT, hTG⟩)
 
 /-- **Correctness for out-arborescences.** If `edmondsOut G c r = some p`, then every vertex
 `v ≠ r` has an arc `p v → v` of `G`, iterating `p` reaches `r`, and the cost

@@ -144,10 +144,9 @@ theorem Formula.sq_card_hammingEdges_le (F : Formula signature n)
       · simp [hammingEdges]
       exact absurd ((hA a ha).symm.trans (hB b hb)) (by decide)
     | not =>
-      have := ih 0 (A := B) (B := A) (fun b hb => by simpa [interpretation] using hB b hb)
-        fun a ha => by simpa [interpretation] using hA a ha
       rw [card_hammingEdges_comm, Formula.leafSize_gate, Fin.sum_univ_one]
-      exact this.trans_eq (mul_right_comm _ _ _)
+      exact (ih 0 (fun b hb => by simpa [interpretation] using hB b hb)
+        fun a ha => by simpa [interpretation] using hA a ha).trans_eq (mul_right_comm _ _ _)
     | and =>
       have hA' : ∀ a ∈ A, (args 0).eval interpretation a = true ∧
           (args 1).eval interpretation a = true := fun a ha => by
@@ -192,8 +191,7 @@ theorem Formula.mul_le_leafSize (F : Formula signature n) {s₀ s₁ : ℕ}
     s₀ * s₁ ≤ F.leafSize := by
   rcases B.eq_empty_or_nonempty with rfl | hBne
   · obtain ⟨a, ha⟩ := hAne
-    have h0 : s₁ = 0 := by simpa using h₁ a ha
-    simp [h0]
+    simp [Nat.eq_zero_of_le_zero (by simpa using h₁ a ha)]
   have e₁ : #A * s₁ ≤ #(hammingEdges A B) := by
     simpa only [smul_eq_mul, card_hammingEdges_eq_sum_card_filter] using
       card_nsmul_le_sum A _ s₁ h₁
@@ -261,13 +259,9 @@ theorem mul_le_leafSize_of_computes_threshold {k : ℕ} {F : Formula signature n
     (B := BitString.weightLayer n (k - 1))
     (fun a ha => (hF a).trans (by simp [threshold_apply, BitString.mem_weightLayer.1 ha]))
     (fun b hb => (hF b).trans (by
-      simp only [threshold_apply, BitString.mem_weightLayer.1 hb, decide_eq_false_iff_not,
-        not_le]
-      omega))
-    (BitString.weightLayer_nonempty hkn) (fun a ha => le_card_neighbors_weight_pred ha)
-    fun b hb => ?_
-  have := le_card_neighbors_weight_succ hb
-  rwa [Nat.sub_add_cancel hk] at this
+      simp only [threshold_apply, BitString.mem_weightLayer.1 hb, decide_eq_false_iff_not]; omega))
+    (BitString.weightLayer_nonempty hkn) (fun _ => le_card_neighbors_weight_pred)
+    fun _ hb => by simpa only [Nat.sub_add_cancel hk] using le_card_neighbors_weight_succ hb
 
 /-- One half of `⌊m ^ 2 / 4⌋ = ⌊m / 2⌋ ⌈m / 2⌉`. -/
 private theorem sq_div_four_le (m : ℕ) : m ^ 2 / 4 ≤ m / 2 * (m - m / 2) := by
@@ -393,11 +387,8 @@ theorem exists_formula_parity_two_pow (k : ℕ) :
       F.leafSize = (2 ^ k) ^ 2 := by
   refine ⟨parityFormula k 0 (by simp), fun x => ?_, ?_⟩
   · rw [eval_parityFormula]
-    congr 1
-    ext i
-    simp
-  · rw [leafSize_parityFormula, ← pow_mul, mul_comm, pow_mul]
-    norm_num
+    exact congrArg (parityOn · x) (Finset.ext fun _ => by simp)
+  · rw [leafSize_parityFormula, ← pow_mul, mul_comm, pow_mul]; norm_num
 
 /-- The least leaf size of a De Morgan formula for the parity of `2 ^ k` bits is `(2 ^ k) ^ 2`. -/
 theorem isLeast_leafSize_parity_two_pow (k : ℕ) :

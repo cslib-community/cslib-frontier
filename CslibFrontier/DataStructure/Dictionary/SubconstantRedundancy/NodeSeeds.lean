@@ -190,18 +190,14 @@ theorem smallRouterDegree_le (hcr : P.ConcentrationReady) {ℓ : ℕ} (hℓ : �
   have hlt : P.nLow ℓ < FeistelPerm.childRouterThreshold P.epsInv P.alphaInv := not_le.mp hsmall
   have hnhi : P.nHigh ℓ ≤ 4 * FeistelPerm.childRouterThreshold P.epsInv P.alphaInv := by
     rcases Nat.eq_zero_or_pos ℓ with rfl | hpos
-    · have hcap : 2 ≤ P.cap := P.two_le_cap
+    · have := P.two_le_cap
       simp only [nLow, nHigh, ↓reduceIte] at hlt ⊢
       omega
-    · have h2d := hcr.two_mul_delta_le_nFloor ℓ hpos hℓ.le
-      dsimp only [nLow, nHigh] at hlt ⊢
-      rw [ite_eq_right hpos.ne'] at hlt ⊢
+    · have := hcr.two_mul_delta_le_nFloor ℓ hpos hℓ.le
+      simp only [nLow, nHigh, hpos.ne', ↓reduceIte] at hlt ⊢
       omega
-  dsimp only [smallRouterMaxDegree]
-  rw [FeistelPerm.childRouterHalfInd_eq, FeistelPerm.childRouterHalfInd_eq]
-  have hclog : Nat.clog 2 (max (P.nHigh ℓ) 2) ≤
-      Nat.clog 2 (max (4 * FeistelPerm.childRouterThreshold P.epsInv P.alphaInv) 2) :=
-    Nat.clog_mono_right 2 (max_le_max_right 2 hnhi)
+  have := Nat.clog_mono_right 2 (max_le_max_right 2 hnhi)
+  simp only [smallRouterMaxDegree, FeistelPerm.childRouterHalfInd_eq]
   omega
 
 /-- Zero-pad a small-node trinomial router seed from `2 * childRouterHalfInd (nHigh ℓ)`
@@ -245,26 +241,22 @@ theorem routerRound_trinomial_eq_padded (hcr : P.ConcentrationReady) {ℓ : ℕ}
         (trinomialStep (P.routerRightUniv ℓ) (P.branchBits ℓ))
         (smallRouterMaxDegree P.epsInv P.alphaInv)
         (P.routerRightUniv ℓ) (P.branchBits ℓ) (P.padSmallRouterSeed ℓ seed) x := by
-  have hkM : 2 * FeistelPerm.childRouterHalfInd (P.nHigh ℓ) ≤
-      smallRouterMaxDegree P.epsInv P.alphaInv := P.smallRouterDegree_le hcr hℓ hsmall
+  have hkM := P.smallRouterDegree_le hcr hℓ hsmall
   let t := trinomialStep (P.routerRightUniv ℓ) (P.branchBits ℓ)
   let k := 2 * FeistelPerm.childRouterHalfInd (P.nHigh ℓ)
   let M := smallRouterMaxDegree P.epsInv P.alphaInv
   apply Fin.ext
   dsimp only [routerRound, trinomialPolyHash, trinomialPolyEval, polynomialHash,
     SmallRouterSeed, trinomialDeg] at seed ⊢
-  apply congrArg (· % 2 ^ P.branchBits ℓ)
-  apply congrArg Fin.val
-  apply congrArg (TrinomialField.equivFin t)
+  refine congrArg (fun z => (TrinomialField.equivFin t z).val % 2 ^ P.branchBits ℓ) ?_
   rw [← Finset.sum_filter_add_sum_filter_not (s := (Finset.univ : Finset (Fin M)))
     (p := fun i : Fin M => i.val < k)]
   have htail : ∑ i ∈ Finset.univ.filter (fun i : Fin M => ¬ i.val < k),
       (TrinomialField.equivFin t).symm (P.padSmallRouterSeed ℓ seed i) *
         AdjoinRoot.mk (trinomial t) (polyOfCode x.val) ^ (i : ℕ) = 0 := by
     refine Finset.sum_eq_zero fun i hi => ?_
-    have hnot : ¬ i.val < 2 * FeistelPerm.childRouterHalfInd (P.nHigh ℓ) := (mem_filter.mp hi).2
     dsimp only [padSmallRouterSeed, trinomialDeg]
-    rw [dite_eq_right hnot, TrinomialField.equivFin_symm_eq_mk_polyOfCode]
+    rw [dite_eq_right (mem_filter.mp hi).2, TrinomialField.equivFin_symm_eq_mk_polyOfCode]
     simp
   rw [htail, add_zero]
   refine Finset.sum_bij (fun (j : Fin k) _ => (⟨j.val, j.isLt.trans_le hkM⟩ : Fin M))
@@ -272,8 +264,7 @@ theorem routerRound_trinomial_eq_padded (hcr : P.ConcentrationReady) {ℓ : ℕ}
     (fun _ _ _ _ h => Fin.ext (Fin.mk.inj h))
     (fun i hi => ⟨⟨i.val, (mem_filter.mp hi).2⟩, mem_univ _, rfl⟩)
     fun j _ => ?_
-  dsimp only [padSmallRouterSeed, trinomialDeg]
-  rw [dite_eq_left j.isLt]
+  simp only [padSmallRouterSeed, j.isLt, ↓reduceDIte]
 
 /-- Regime-switched child-router Feistel involution on
 `Fin (2 ^ branchBits ℓ) × Fin (routerRightUniv ℓ)`. -/
@@ -298,13 +289,12 @@ private theorem nFloor_le_two_mul_of_nLow_le (hcr : P.ConcentrationReady) {ℓ m
     (hℓ : ℓ ≤ P.depth) (hlo : P.nLow ℓ ≤ m) :
     P.nFloor ℓ ≤ 2 * m := by
   rcases Nat.eq_zero_or_pos ℓ with rfl | hpos
-  · have h6 := hcr.six_le_nFloor 0 (Nat.zero_le _)
-    have h0 := P.nFloor_zero
-    simp only [nLow, ↓reduceIte] at hlo
+  · simp only [nLow, ↓reduceIte] at hlo
+    have := hcr.six_le_nFloor 0 (Nat.zero_le _)
+    have := P.nFloor_zero
     omega
-  · have h2d := hcr.two_mul_delta_le_nFloor ℓ hpos hℓ
-    dsimp only [nLow] at hlo
-    rw [ite_eq_right hpos.ne'] at hlo
+  · simp only [nLow, hpos.ne', ↓reduceIte] at hlo
+    have := hcr.two_mul_delta_le_nFloor ℓ hpos hℓ
     omega
 
 open scoped Classical in
@@ -640,7 +630,8 @@ theorem card_isGoodNodeSeed_ge (hcr : P.ConcentrationReady) {ℓ : ℕ} (hℓ : 
       (P.nFloor ℓ) ^ 2 * Fintype.card (P.NodeSeed ℓ) := by
     rw [Nat.mul_comm _ ((P.nFloor ℓ) ^ 2), ← Nat.mul_add, card_filter_add_card_filter_not,
       card_univ]
-  rw [Nat.sub_mul]; omega
+  rw [Nat.sub_mul]
+  omega
 
 open scoped Classical in
 private theorem dens_not_isGoodNodeSeed_lt_half (hcr : P.ConcentrationReady) {ℓ : ℕ}

@@ -168,10 +168,9 @@ private theorem regroup_path (p : ℕ) (q : Quantifier) (qs : List Quantifier)
       (t ∘ compAssoc (head p q) (Chain.diagram (colors (p + 1)) qs)
         (Matrix.terminal (p + 1) qs ms)) := by
   rw [config_cons_attach]
-  apply reachableOn_compAssoc_allowsTop _ _ _ 0 h
-  apply (legal_compAssoc _ _ _ _).1
-  rw [← config_cons_attach]
-  exact (config p (q :: qs) ms true ls hl).legal
+  exact reachableOn_compAssoc_allowsTop _ _ _ 0 h
+    ((legal_compAssoc _ _ _ _).1 (config_cons_attach p q qs ms true ls hl ▸
+      (config p (q :: qs) ms true ls hl).legal))
 
 private theorem attach_legal (p : ℕ) (q : Quantifier) (qs : List Quantifier)
     (ms : List (List Bool)) (ls : List Bool) (hl : ls.length = 2 * p)
@@ -308,9 +307,8 @@ private theorem call_path (p : ℕ) (q : Quantifier) (qs : List Quantifier)
   have hp := reachableOn_glueResponse_allowsTop j fp hfp h (allowed := AllowsTop 0)
     (fun u hu => ?_) (call_allowed p q qs ms)
   · have hs : (config (p + 1) qs ms true ([value, !value] ++ ls)
-        (by simp [hl]; omega)).orient (.inl j) = true := by
-      rw [Realization.orient_top]
-      rfl
+        (by simp [hl]; omega)).orient (.inl j) = true :=
+      (Realization.orient_top _ _).trans rfl
     simp only [glueResponse, hs, show t (.inl j) = false from hsat] at hp
     exact hp
   · apply attach_legal p q qs ms ls hl (f (u (.inl j)))
@@ -336,16 +334,15 @@ private theorem regroup_success (p : ℕ) (q : Quantifier) (qs : List Quantifier
 
 private theorem succeeds_nil (p : ℕ) (ms : List (List Bool)) (ls : List Bool)
     (hl : ls.length = 2 * p) (h : ms.all (hits · ls) = true) : Succeeds p [] ms ls hl := by
-  have hp := reachableOn_idComp_allowsTop (Matrix.terminalBase p ms) 0
-    (Matrix.Evaluation.reachable_sat p ls hl ms h) (Matrix.Evaluation.legal_idle p ls hl ms)
   refine ⟨(Matrix.Evaluation.evalTerminalBase p ls hl ms false (fun _ => h)).orient ∘
-    idComp (Matrix.terminalBase p ms), ?_, ?_⟩
-  · rw [config_nil]
-    exact hp
-  · change (Matrix.Evaluation.evalTerminalBase p ls hl ms false (fun _ => h)).orient
-      (.inl ⟨0, by simp⟩) = false
-    rw [Realization.orient_top]
-    rfl
+    idComp (Matrix.terminalBase p ms), config_nil p ms ls hl ▸
+      reachableOn_idComp_allowsTop (Matrix.terminalBase p ms) 0
+        (Matrix.Evaluation.reachable_sat p ls hl ms h)
+        (Matrix.Evaluation.legal_idle p ls hl ms), ?_⟩
+  change (Matrix.Evaluation.evalTerminalBase p ls hl ms false (fun _ => h)).orient
+    (.inl ⟨0, by simp⟩) = false
+  rw [Realization.orient_top]
+  rfl
 
 private theorem succeeds_ex (p : ℕ) (qs : List Quantifier) (ms : List (List Bool))
     (ls : List Bool) (hl : ls.length = 2 * p) (value : Bool)
@@ -371,10 +368,9 @@ private theorem called_top (p : ℕ) (qs : List Quantifier) (ms : List (List Boo
       (config (p + 1) qs ms true ([value, !value] ++ ls) (by simp [hl]; omega)).orient t)
     (hsat : t (.inl ⟨0, by simp⟩) = false) :
     (circuit (p + 1) qs ms).topList t = [false, true, value, !value] ++ ls := by
-  have hh := topList_of_reachableOn h
-    (config (p + 1) qs ms true ([value, !value] ++ ls) (by simp [hl]; omega)).top_eq
-  rw [hsat] at hh
-  exact hh
+  exact (topList_of_reachableOn h
+    (config (p + 1) qs ms true ([value, !value] ++ ls) (by simp [hl]; omega)).top_eq).trans
+    (by rw [hsat]; rfl)
 
 private theorem false_phase (p : ℕ) (qs : List Quantifier) (ms : List (List Bool))
     (ls : List Bool) (hl : ls.length = 2 * p)

@@ -532,11 +532,10 @@ private theorem losLe_iff_eq_or_losLt {N M : Type*} [LinearOrder N] (b : N → S
 private theorem losLe_total {N M : Type*} [LinearOrder N] (b : N → SingleMindedBid M) :
     Std.Total (losLe b) :=
   ⟨fun i j => by
-    by_cases h : i = j
-    · subst h; exact Or.inl (Or.inr ⟨rfl, le_rfl⟩)
-    · rcases losLt_total b h with h1 | h2
-      · exact Or.inl ((losLe_iff_eq_or_losLt b i j).2 (Or.inr h1))
-      · exact Or.inr ((losLe_iff_eq_or_losLt b j i).2 (Or.inr h2))⟩
+    rcases eq_or_ne i j with rfl | hne
+    · exact Or.inl (Or.inr ⟨rfl, le_rfl⟩)
+    · exact (losLt_total b hne).imp (fun h => (losLe_iff_eq_or_losLt b i j).2 (Or.inr h))
+        fun h => (losLe_iff_eq_or_losLt b j i).2 (Or.inr h)⟩
 
 private theorem losLe_trans {N M : Type*} [LinearOrder N] (b : N → SingleMindedBid M) :
     IsTrans N (losLe b) :=
@@ -544,19 +543,15 @@ private theorem losLe_trans {N M : Type*} [LinearOrder N] (b : N → SingleMinde
     rw [losLe_iff_eq_or_losLt] at hij hjk ⊢
     rcases hij with rfl | h1
     · exact hjk
-    · rcases hjk with rfl | h2
-      · exact Or.inr h1
-      · exact Or.inr (losLt_trans b h1 h2)⟩
+    · exact hjk.elim (fun h => h ▸ Or.inr h1) fun h2 => Or.inr (losLt_trans b h1 h2)⟩
 
 private theorem losLe_antisymm {N M : Type*} [LinearOrder N] (b : N → SingleMindedBid M) :
     Std.Antisymm (losLe b) :=
   ⟨fun i j hij hji => by
-    rw [losLe_iff_eq_or_losLt] at hij hji
-    rcases hij with rfl | h1
+    rcases (losLe_iff_eq_or_losLt b i j).1 hij with rfl | h1
     · rfl
-    · rcases hji with rfl | h2
-      · rfl
-      · exact (losLt_asymm b h1 h2).elim⟩
+    · exact ((losLe_iff_eq_or_losLt b j i).1 hji).elim Eq.symm
+        fun h2 => (losLt_asymm b h1 h2).elim⟩
 
 private theorem list_eq_of_perm_of_pairwise_losLt {N M : Type*} [LinearOrder N]
     {b : N → SingleMindedBid M} {l₁ l₂ : List N}
@@ -623,12 +618,8 @@ private theorem foldl_greedyStep_subset_union {N M : Type*} [DecidableEq N] [Dec
 private theorem mem_foldl_greedyStep_of_not_mem {N M : Type*} [DecidableEq N] [DecidableEq M]
     (b : N → SingleMindedBid M) (l : List N) (W : Finset N) {x : N} (hxl : x ∉ l) :
     x ∈ l.foldl (greedyStep b) W ↔ x ∈ W := by
-  constructor
-  · intro hx
-    rcases foldl_greedyStep_subset_union b l W hx with h | h
-    · exact h
-    · exact (hxl h).elim
-  · exact fun hx => subset_foldl_greedyStep b l W hx
+  exact ⟨fun hx => (foldl_greedyStep_subset_union b l W hx).resolve_right hxl,
+    fun hx => subset_foldl_greedyStep b l W hx⟩
 
 private theorem mem_of_mem_greedySelect {N M : Type*} [DecidableEq N] [DecidableEq M]
     (b : N → SingleMindedBid M) {l : List N} {x : N} (hx : x ∈ greedySelect b l) : x ∈ l :=
@@ -807,14 +798,9 @@ private theorem losSort_split {N M : Type*} [LinearOrder N]
     fun k hk => (List.pairwise_cons.1 (List.pairwise_append.1 hp).2.1).1 k hk⟩
   rw [Finset.mem_erase, ← mem_losSort b s, heq]
   simp only [List.mem_append, List.mem_cons]
-  constructor
-  · rintro (h | h)
-    · exact ⟨fun hk => hi₁ (hk ▸ h), Or.inl h⟩
-    · exact ⟨fun hk => hi₂ (hk ▸ h), Or.inr (Or.inr h)⟩
-  · rintro ⟨hne, h | rfl | h⟩
-    · exact Or.inl h
-    · exact (hne rfl).elim
-    · exact Or.inr h
+  exact ⟨fun h => h.elim (fun h1 => ⟨fun hk => hi₁ (hk ▸ h1), Or.inl h1⟩)
+      fun h2 => ⟨fun hk => hi₂ (hk ▸ h2), Or.inr (Or.inr h2)⟩,
+    fun ⟨hne, h⟩ => h.imp_right fun h' => h'.resolve_left hne⟩
 
 /-- Key characterization of `losWinners`: bidder `i` wins if and only if its bundle is disjoint
 from every bidder in `losWinnersWithout b i` that precedes `i` in `losLt b`. -/
@@ -835,10 +821,8 @@ theorem mem_losWinners_iff {N M : Type*} [Fintype N] [LinearOrder N] [DecidableE
     rw [greedySelect, List.foldl_append] at hj
     exact h j ((mem_foldl_greedyStep_of_not_mem b l₂ _ (hdisj j hj_in_l1)).1 hj)
   · intro h j hj
-    have hj_w : j ∈ greedySelect b (l₁ ++ l₂) := by
-      rw [greedySelect, List.foldl_append]
-      exact subset_foldl_greedyStep b l₂ _ hj
-    exact h j hj_w (hbef j (mem_of_mem_greedySelect b hj))
+    refine h j ?_ (hbef j (mem_of_mem_greedySelect b hj))
+    simpa only [greedySelect, List.foldl_append] using subset_foldl_greedyStep b l₂ _ hj
 
 private theorem mem_greedySelect_losSort_iff {N M : Type*} [LinearOrder N] [DecidableEq M]
     (b : N → SingleMindedBid M) {s : Finset N} {k : N} (hk : k ∈ s) :
@@ -858,10 +842,8 @@ private theorem mem_greedySelect_losSort_iff {N M : Type*} [LinearOrder N] [Deci
     rw [greedySelect, List.foldl_append] at hj
     exact h j ((mem_foldl_greedyStep_of_not_mem b (k :: l₂) _ (hdisj j hj_l1)).1 hj)
   · intro h j hj
-    have hj_all : j ∈ greedySelect b (l₁ ++ k :: l₂) := by
-      rw [greedySelect, List.foldl_append]
-      exact subset_foldl_greedyStep b (k :: l₂) _ hj
-    exact h j hj_all (hbef j (mem_of_mem_greedySelect b hj))
+    refine h j ?_ (hbef j (mem_of_mem_greedySelect b hj))
+    simpa only [greedySelect, List.foldl_append] using subset_foldl_greedyStep b (k :: l₂) _ hj
 
 private theorem mem_losWinners_iff_earlier_winners {N M : Type*} [Fintype N] [LinearOrder N]
     [DecidableEq M] (b : N → SingleMindedBid M) (i : N) :
@@ -1066,12 +1048,9 @@ private theorem winners_agree_before_blocker {N M : Type*} [Fintype N] [LinearOr
         refine heq.2 fun t ht hti htr => ?_
         exact (mem_losWinners_iff_earlier_winners b r).1 hr t ht htr
     rw [mem_losWinnersWithout_iff_earlier b hki]
-    constructor
-    · intro h r hr hri hlt
-      exact h r ((h_agree r hri hlt).2 hr) hlt
-    · intro h r hr hlt
-      have hri : r ≠ i := losWinnersWithout_subset_ne b hr
-      exact h r ((h_agree r hri hlt).1 hr) hri hlt
+    exact ⟨fun h r hr hri hlt => h r ((h_agree r hri hlt).2 hr) hlt, fun h r hr hlt =>
+      h r ((h_agree r (losWinnersWithout_subset_ne b hr) hlt).1 hr)
+        (losWinnersWithout_subset_ne b hr) hlt⟩
 
 private theorem eq_div_sqrt_div {x a c : ℝ} (hc : 0 ≤ c) :
     (x / Real.sqrt c) * Real.sqrt a = x / Real.sqrt (c / a) := by

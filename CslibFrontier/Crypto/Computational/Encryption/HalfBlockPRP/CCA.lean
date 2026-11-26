@@ -463,12 +463,10 @@ private theorem toOuterMeasure_coupledHandler_flag_le (n : ℕ) (bit : Bool)
     refine Set.disjoint_left.mpr fun x hx hbad => hr ?_
     obtain ⟨z, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
     exact coupledStep_flag_imp n bit request s r z hbad
-  · rw [add_zero]
-    have hset : {r | r ∈ s.2.map (fun t => (List.ofFn t.1).take n)} =
-        ↑(s.2.map (fun t => (List.ofFn t.1).take n)).toFinset := by
-      ext r
-      simp
-    rw [hset]
+  · have hset : {r | r ∈ s.2.map (fun t => (List.ofFn t.1).take n)} =
+        ↑(s.2.map (fun t => (List.ofFn t.1).take n)).toFinset :=
+      Set.ext fun _ => List.mem_toFinset.symm
+    rw [add_zero, hset]
     refine (BitString.toOuterMeasure_uniformList_finset_le n _).trans ?_
     gcongr
     exact_mod_cast (List.toFinset_card_le _).trans (by simp)
@@ -637,22 +635,18 @@ private theorem coupledHandler_map_coupledCache (n : ℕ) (bit : Bool) (request 
         have hlookup := invLookup_coupledCache_eq bit hs hy
         have hW := strongBitStringCodec_wordOracle_of_length
           (forgetfulAnswer (α := BitString (2 * n))) true hlen
+        simp only [ccaToStrongPRPHandler, coupledStep, PMF.bind_const, h1, h2, h3,
+          Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_map,
+          ProbOracleComp.runWith_query, hW, PermQuery.ofBoolProd, stateT_map_apply]
         cases hinv : invLookup (coupledCache n false records)
             (BitString.ofList (2 * n) request.2) with
         | some x =>
-          rw [hinv] at hlookup
-          simp only [ccaToStrongPRPHandler, coupledStep, PMF.bind_const, h1, h2, h3, hinv,
-            Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_map,
-            ProbOracleComp.runWith_query, hW, PermQuery.ofBoolProd, stateT_map_apply,
-            forgetfulAnswer_inverse_of_some hlookup, PMF.pure_map, Prod.map_apply, id_eq, htake]
+          simp only [forgetfulAnswer_inverse_of_some (hlookup.trans hinv), PMF.pure_map,
+            Prod.map_apply, id_eq, htake]
           exact PMF.map_const _ _
         | none =>
-          rw [hinv] at hlookup
-          simp only [ccaToStrongPRPHandler, coupledStep, PMF.bind_const, h1, h2, h3, hinv,
-            Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_map,
-            ProbOracleComp.runWith_query, hW, PermQuery.ofBoolProd, stateT_map_apply,
-            forgetfulAnswer_inverse_of_none hlookup, PMF.map_comp, Function.comp_def,
-            Prod.map_apply, id_eq, htake, coupledCache_cons, ite_self]
+          simp only [forgetfulAnswer_inverse_of_none (hlookup.trans hinv), PMF.map_comp,
+            Function.comp_def, Prod.map_apply, id_eq, htake, coupledCache_cons, ite_self]
       · simp only [ccaToStrongPRPHandler, coupledStep, PMF.bind_const, h1, h2, h3,
           Bool.false_eq_true, ↓reduceIte, ProbOracleComp.runWith_pure, PMF.pure_map]
         exact PMF.map_const _ _

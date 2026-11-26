@@ -97,11 +97,9 @@ private theorem dotProduct_adjMatrix_eq_of_isClique [Fintype V] [CommRing K]
       (if G.Adj u v then x u * x v else 0) = x u * x v - if u = v then x u * x v else 0 := by
     by_cases huv : u = v
     · simp [huv]
-    by_cases hu : u ∈ S
-    · by_cases hv : v ∈ S
-      · simp [hS hu hv huv, huv]
-      · simp [hx v hv]
-    · simp [hx u hu]
+    · by_cases hmem : u ∈ S ∧ v ∈ S
+      · simp [hS hmem.1 hmem.2 huv, huv]
+      · rcases not_and_or.mp hmem with h | h <;> simp [hx _ h]
   rw [dotProduct_adjMatrix_eq_sum, Finset.sum_subset (Finset.subset_univ S) fun v _ hv => hx v hv,
     Finset.sum_subset (f := fun v => x v ^ 2) (Finset.subset_univ S) fun v _ hv => by
       simp [hx v hv]]
@@ -126,10 +124,8 @@ private theorem dotProduct_adjMatrix_add_smul [Fintype V] [DecidableEq V] [CommR
         Finset.sum_sub_distrib, mul_ite, mul_one, mul_zero, Finset.sum_ite_eq',
         Finset.mem_univ, ↓reduceIte]
     rw [hd, hrow u, hrow v]
-    have hadj' : ¬G.Adj v u := fun h => hadj h.symm
-    have huu : ¬G.Adj u u := G.loopless.irrefl u
-    have hvv : ¬G.Adj v v := G.loopless.irrefl v
-    simp only [A, adjMatrix_apply, huu, hvv, hadj, hadj', ↓reduceIte, sub_self]
+    simp only [A, adjMatrix_apply, G.loopless.irrefl, hadj, adj_comm (G := G) v u, ↓reduceIte,
+      sub_self]
   rw [Matrix.dotProduct_add_smul_symm G.transpose_adjMatrix x d t, hd, hdAd, mul_zero, add_zero]
 
 private theorem quadraticForm_adjMatrix_le_aux [Fintype V]
@@ -236,13 +232,10 @@ theorem exists_stdSimplex_quadraticForm_adjMatrix_eq_of_isNClique [Fintype V]
         rw [Finsupp.sum_fintype _ _ (fun _ => rfl)]
         simpa only [Finsupp.coe_equivFunOnFinite_symm] using hx1 }
   refine ⟨x, ?_⟩
-  rw [show (x.weights : V → K) = xVec from Finsupp.coe_equivFunOnFinite_symm xVec]
-  rw [dotProduct_adjMatrix_eq_of_isClique G hS.isClique hxout]
-  have hs2 : ∑ v ∈ S, xVec v ^ 2 = 1 / (k : K) := by
-    rw [Finset.sum_congr rfl fun v hv => congrArg (· ^ 2) (hval v hv), Finset.sum_const,
-      hS.card_eq, nsmul_eq_mul, sq, ← mul_assoc,
-      mul_one_div_cancel hk_ne, one_mul]
-  rw [hs1, hs2, one_pow]
+  rw [show (x.weights : V → K) = xVec from Finsupp.coe_equivFunOnFinite_symm xVec,
+    dotProduct_adjMatrix_eq_of_isClique G hS.isClique hxout, hs1, one_pow,
+    Finset.sum_congr rfl fun v hv => congrArg (· ^ 2) (hval v hv), Finset.sum_const,
+    hS.card_eq, nsmul_eq_mul, sq, ← mul_assoc, mul_one_div_cancel hk_ne, one_mul]
 
 /-- **The Motzkin–Straus theorem** (library generalization to arbitrary linearly ordered fields `K`;
 [MotzkinStraus1965] is cited at paper level without inspecting the published text): on a nonempty
@@ -309,10 +302,7 @@ theorem dotProduct_copositiveCliqueMatrix [Fintype V] [CommRing K]
     · refine Finset.sum_congr rfl fun u _ => Finset.sum_congr rfl fun v _ => ?_
       split_ifs <;> push_cast <;> ring
     · simp only [Finset.sum_sub_distrib, ← Finset.mul_sum]
-  have hprod : (∑ u : V, ∑ v : V, x u * x v) = ∑ v : V, x v * ∑ v' : V, x v' :=
-    Finset.sum_congr rfl fun u _ => (Finset.mul_sum _ _ _).symm
-  rw [lhs_eq, sq, Finset.sum_mul, hprod]
-  congr 1
+  rw [lhs_eq, sq, Finset.sum_mul]
   simp only [Finset.mul_sum]
 
 /-- For `k ≥ 2` on a nonempty finite graph, `copositiveCliqueMatrix G k` is non-copositive iff

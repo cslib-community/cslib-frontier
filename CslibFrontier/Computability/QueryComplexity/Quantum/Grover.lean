@@ -94,8 +94,7 @@ theorem norm_uniform (hN : 0 < N) : ‖uniform N‖ = 1 := by
       Complex.norm_real, Real.norm_eq_abs, sq_abs]
     rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, inv_pow,
       Real.sq_sqrt (Nat.cast_nonneg N)]
-    field_simp
-    ring
+    simp [hN.ne']
   nlinarith [norm_nonneg (uniform N)]
 
 /-- The **diffusion** `D = 2|s⟩⟨s| - I`: the reflection about the uniform superposition. -/
@@ -113,9 +112,8 @@ theorem diffusion_apply (hN : 0 < N) (ψ : State N Unit) (p : Fin N × Bool × U
   simp only [one_pow, PiLp.sub_apply, PiLp.smul_apply,
     EuclideanSpace.inner_eq_star_dotProduct, uniform, smul_eq_mul, nsmul_eq_mul]
   have hsq : ((Real.sqrt N : ℂ))⁻¹ * ((Real.sqrt N : ℂ))⁻¹ = (N : ℂ)⁻¹ := by
-    rw [← mul_inv, ← Complex.ofReal_mul, Real.mul_self_sqrt (Nat.cast_nonneg N)]
-    push_cast
-    ring
+    rw [← mul_inv, ← Complex.ofReal_mul, Real.mul_self_sqrt (Nat.cast_nonneg N),
+      Complex.ofReal_natCast]
   simp only [dotProduct, Pi.star_apply, RCLike.star_def, apply_ite, Complex.conj_ofReal, map_zero]
   push_cast
   rw [div_one]
@@ -139,12 +137,10 @@ noncomputable def grover (N : ℕ) : ℕ → State N Unit →ₗᵢ[ℂ] State N
 noncomputable def groverAngle (N : ℕ) : ℝ := Real.arcsin (Real.sqrt N)⁻¹
 
 /-- The sine of the Grover angle: `sin θ = 1 / √N` for `N ≥ 2`. -/
-private theorem sin_groverAngle (hN : 2 ≤ N) : Real.sin (groverAngle N) = (Real.sqrt N)⁻¹ := by
-  have hpos : (0 : ℝ) < Real.sqrt N := Real.sqrt_pos.mpr (by positivity)
-  have hle : (Real.sqrt N)⁻¹ ≤ 1 := by
-    rw [inv_le_one₀ hpos, Real.one_le_sqrt]
-    exact_mod_cast (by omega : 1 ≤ N)
-  exact Real.sin_arcsin (by linarith [inv_nonneg.mpr hpos.le]) hle
+private theorem sin_groverAngle (hN : 2 ≤ N) : Real.sin (groverAngle N) = (Real.sqrt N)⁻¹ :=
+  Real.sin_arcsin (by linarith [inv_nonneg.mpr (Real.sqrt_nonneg N)])
+    ((inv_le_one₀ (Real.sqrt_pos.mpr (by positivity))).mpr
+      (Real.one_le_sqrt.mpr (by exact_mod_cast (by omega : 1 ≤ N))))
 
 /-- The angle `θ ∈ [0, π / 2]` with `sin² θ = t / N`. -/
 noncomputable def searchAngle (N t : ℕ) : ℝ := Real.arcsin (Real.sqrt (t / N))
@@ -198,11 +194,9 @@ theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fi
   -- A marked item exists only if `t ≠ 0`, and an unmarked one only if `t ≠ N`.
   have hmarked : ∀ i, x i = true → st ≠ 0 := fun i hi =>
     (Real.sqrt_pos.mpr (Nat.cast_pos.mpr (card_pos.mpr ⟨i, by simp [hi]⟩ : 0 < t))).ne'
-  have hunmarked : ∀ i, x i = false → su ≠ 0 := by
-    intro i hi
+  have hunmarked : ∀ i, x i = false → su ≠ 0 := fun i hi => by
     have h1 : 0 < #{j | x j = false} := card_pos.mpr ⟨i, by simp [hi]⟩
-    have h2 := card_filter_eq_false_eq_card_sub_weight x
-    rw [Fintype.card_fin] at h2
+    have h2 := Fintype.card_fin N ▸ card_filter_eq_false_eq_card_sub_weight x
     exact (Real.sqrt_pos.mpr (sub_pos.mpr (by exact_mod_cast (by omega : t < N)))).ne'
   induction k generalizing p with
   | zero =>
@@ -211,8 +205,6 @@ theorem run_grover_of_weight (hN : 0 < N) (x : Fin N → Bool) (k : ℕ) (p : Fi
       Nat.cast_zero, mul_zero, zero_add, one_mul]
     cases c
     · rfl
-    simp only [ite_true]
-    congr 1
     cases hi : x i
     · simp [hc, div_div_cancel_left₀ (hunmarked i hi), sN]
     · simp [hs, div_div_cancel_left₀ (hmarked i hi), sN]

@@ -85,17 +85,14 @@ theorem justesenSourceLoop_parts_inSpace (ntm : MultiTapeNTM k Bool State) (c : 
       ComputableInSpace SourceRoundLoop.reply E (encOption SourceRoundLoop.encVerdict)
         (fun s => (E s).length) := by
   intro E encStep M
-  let encRound := encJustesenRetainedSourceRoundState
-  let encMember := MembershipTally.encRetainedState encJustesenSubdivisionContext
-    encJustesenSubdivisionState
   let initial := SourceRoundLoop.start context limit
-  let round := justesenRetainedSourceRound ntm c initial
-  let member := justesenSourceMembershipMachine ntm c
   obtain ⟨hrq, hrn, hrh, hrr⟩ := justesenRetainedSourceRound_parts_inSpace ntm c initial
   obtain ⟨hq, hn, hh, hr⟩ := justesenSourceMembershipMachine_parts_inSpace ntm c
-  exact SourceRoundLoop.parts_inSpace encJustesenSourceContext encRound encMember
-    initial round justesenRetainedSourceRoundEntry justesenRetainedSourceRoundReply
-    member justesenSourceMembershipStart MembershipTally.retainedReply
+  exact SourceRoundLoop.parts_inSpace encJustesenSourceContext encJustesenRetainedSourceRoundState
+    (MembershipTally.encRetainedState encJustesenSubdivisionContext encJustesenSubdivisionState)
+    initial (justesenRetainedSourceRound ntm c initial) justesenRetainedSourceRoundEntry
+    justesenRetainedSourceRoundReply (justesenSourceMembershipMachine ntm c)
+    justesenSourceMembershipStart MembershipTally.retainedReply
     justesenRetainedSourceRoundEntry_inSpace justesenSourceMembershipStart_inSpace
     hrr hr hrq hq hrh hh hrn hn
 
@@ -158,21 +155,20 @@ theorem configurationJustesenSourceLoop_haltsWithin_clock
   obtain ⟨_, hround⟩ := configurationJustesenRetainedSourceRound_bounds ntm c
   obtain ⟨_, hmember⟩ := justesenSourceMembership_bounds ntm c
   let initial := SourceRoundLoop.start context limit
-  let round := justesenRetainedSourceRound ntm c initial
-  let member := justesenSourceMembershipMachine ntm c
-  let roundClock := configurationJustesenRetainedSourceRoundClock ntm c w
-  let memberClock := configurationJustesenMembershipTallyClock ntm c w
-  have hclosed := justesenSourceLoop_closed ntm c context limit w
-  have hrun := SourceRoundLoop.haltsWithin initial round justesenRetainedSourceRoundEntry
-    justesenRetainedSourceRoundReply member justesenSourceMembershipStart
+  have hrun := SourceRoundLoop.haltsWithin initial (justesenRetainedSourceRound ntm c initial)
+    justesenRetainedSourceRoundEntry justesenRetainedSourceRoundReply
+    (justesenSourceMembershipMachine ntm c) justesenSourceMembershipStart
     MembershipTally.retainedReply w _
-    (SourceRoundLoop.start_admissible context context.size limit) hclosed roundClock memberClock
+    (SourceRoundLoop.start_admissible context context.size limit)
+    (justesenSourceLoop_closed ntm c context limit w)
+    (configurationJustesenRetainedSourceRoundClock ntm c w)
+    (configurationJustesenMembershipTallyClock ntm c w)
     (fun r hr => by
       rw [justesenRetainedSourceRound_withInit]
       exact (hround w seed source target limit hlimit r hr).1)
     (fun r hr => (hmember w seed source target limit hlimit r hr).1)
   exact HaltsWithin.mono (justesenSourceLoop ntm c context limit) w hrun <| Nat.add_le_add_right
-    (Nat.add_le_add_right (Nat.mul_le_mul_right (roundClock + 1) hlimit) memberClock) 1
+    (Nat.add_le_add_right (Nat.mul_le_mul_right _ hlimit) _) 1
 
 /-- At valid initialized entries, every prefix of the concrete source loop has logarithmic
 encoded length. The bound includes the retained registers and either suspended call. -/
@@ -477,8 +473,6 @@ theorem configurationJustesenSourceLoop_acceptCount_eq_one
     entered.accept (entered.run w bits) = true) ↔ _
   dsimp only [entered]
   rw [justesenSourceLoop_withInit, hcontext, hlimit]
-  let context : JustesenSourceContext :=
-    ⟨configurationJustesenSubdivisionContext ntm c w seed.val, source.val, target.val⟩
-  exact justesenSourceLoop_firstHalting_reply_iff ntm c context n w bits
+  exact justesenSourceLoop_firstHalting_reply_iff ntm c _ n w bits
 
 end Cslib.Complexity.STCON

@@ -529,12 +529,9 @@ theorem twoHopSurvivors_card_halving {n : ℕ} [NeZero n] {U : Type*} [LinearOrd
     -- contradicting `h1.2 : tidMap r₁ < tidMap (prevActive A r₁)`!
     rw [hprev_eq] at h2
     exact lt_asymm h1.2 h2.1
-  have hP_card : P.card = S.card := by
-    refine Finset.card_image_of_injOn fun r₁ hr₁ r₂ hr₂ heq => ?_
-    have hA₁ : r₁ ∈ A := (Finset.mem_filter.mp hr₁).1
-    have hA₂ : r₂ ∈ A := (Finset.mem_filter.mp hr₂).1
-    have h := congrArg (nextActive A) heq
-    rwa [nextActive_prevActive hA₁, nextActive_prevActive hA₂] at h
+  have hP_card : P.card = S.card := Finset.card_image_of_injOn fun r₁ hr₁ r₂ hr₂ heq => by
+    simpa [nextActive_prevActive (Finset.mem_filter.mp hr₁).1,
+      nextActive_prevActive (Finset.mem_filter.mp hr₂).1] using congrArg (nextActive A) heq
   have hle := Finset.card_le_card hSP_sub
   rw [Finset.card_union_of_disjoint hSP_disj, hP_card] at hle
   dsimp only [S] at hle
@@ -1033,16 +1030,7 @@ private theorem mtr_elimination_phase {n : ℕ} [NeZero n] {U : Type*} [LinearOr
       else ⟨.relay, []⟩ := by
     intro r hr
     rw [hnode₁ r, ite_eq_left hr, hpass1_out r hr]
-    simp only [twoHopRecv]
-    by_cases hrS : r ∈ st'.active
-    · have hpeak := (Finset.mem_filter.mp hrS).2
-      simp only [hrS, hpeak, and_self, ↓reduceIte, st']
-    · have hnot_peak :
-          ¬ (st.tidMap (prevActive st.active (prevActive st.active r)) <
-              st.tidMap (prevActive st.active r) ∧
-            st.tidMap r < st.tidMap (prevActive st.active r)) :=
-        fun hp => hrS (Finset.mem_filter.mpr ⟨hr, hp⟩)
-      simp only [hrS, hnot_peak, ↓reduceIte]
+    simp only [twoHopRecv, st', twoHopSurvivors, Finset.mem_filter, hr, true_and]
   have hmsgs₂_eq : twoHopEmittedMsgs cfg₁ w₂ = (n - st.active.card) + st'.active.card := by
     rw [hmsgs₂, Finset.sum_congr rfl fun r hr =>
       (congrArg (fun o : TwoHopLocalOut U => o.sent.length) (hpass2_out r hr)).trans

@@ -114,9 +114,8 @@ private theorem sum_norm_sub_sq_pow_le (f : α → ℂ) (σ : Equiv.Perm α) (m 
     ∑ v, ‖f ((σ ^ m) v) - f v‖ ^ 2 ≤ m ^ 2 * ∑ v, ‖f (σ v) - f v‖ ^ 2 := by
   have htel (v : α) : f ((σ ^ m) v) - f v =
       ∑ j ∈ range m, (f (σ ((σ ^ j) v)) - f ((σ ^ j) v)) := by
-    have := Finset.sum_range_sub (fun j ↦ f ((σ ^ j) v)) m
-    simp only [pow_succ', Equiv.Perm.mul_apply, pow_zero, Equiv.Perm.one_apply] at this
-    exact this.symm
+    simpa only [pow_succ', Equiv.Perm.mul_apply, pow_zero, Equiv.Perm.one_apply] using
+      (Finset.sum_range_sub (fun j ↦ f ((σ ^ j) v)) m).symm
   calc ∑ v, ‖f ((σ ^ m) v) - f v‖ ^ 2
       ≤ ∑ v, m * ∑ j ∈ range m, ‖f (σ ((σ ^ j) v)) - f ((σ ^ j) v)‖ ^ 2 := by
         refine sum_le_sum fun v _ ↦ ?_
@@ -195,10 +194,8 @@ private theorem sum_comp_add_sum_comp_le (F : α → ℂ) (g₁ g₂ : Equiv.Per
     (hd : ∀ z ∈ E, ∀ w ∈ E, g₁ z ≠ g₂ w) :
     ∑ z ∈ E, ‖F (g₁ z)‖ ^ 2 + ∑ z ∈ E, ‖F (g₂ z)‖ ^ 2 ≤ ∑ z ∈ T, ‖F z‖ ^ 2 := by
   classical
-  have hmap (g : Equiv.Perm α) : ∑ z ∈ E, ‖F (g z)‖ ^ 2 =
-      ∑ z ∈ E.map g.toEmbedding, ‖F z‖ ^ 2 := by
-    rw [sum_map]
-    rfl
+  have hmap (g : Equiv.Perm α) : ∑ z ∈ E, ‖F (g z)‖ ^ 2 = ∑ z ∈ E.map g.toEmbedding, ‖F z‖ ^ 2 :=
+    (sum_map E g.toEmbedding fun z ↦ ‖F z‖ ^ 2).symm
   rw [hmap, hmap, ← sum_union]
   · refine sum_le_sum_of_subset_of_nonneg (fun w hw ↦ ?_) fun _ _ _ ↦ by positivity
     rcases mem_union.1 hw with hw | hw <;> obtain ⟨z, hz, rfl⟩ := mem_map.1 hw
@@ -235,22 +232,17 @@ private theorem valMinAbs_add_mul {a b : ZMod n} {k : ℤ} (hk : |k| ≤ 4)
 `q ≠ 0` to one whose first coordinate is larger than the second. -/
 private theorem abs_lt_abs_add_mul {p q k : ℤ} (hk : |k| = 4) (hpq : |p| ≤ |q|) (hq : q ≠ 0) :
     |q| < |p + k * q| := by
-  have h : |k * q| ≤ |p + k * q| + |p| := by
-    have := abs_sub (p + k * q) p
-    rwa [add_sub_cancel_left] at this
-  rw [abs_mul, hk] at h
-  have := abs_pos.2 hq
-  linarith
+  have h := abs_sub (p + k * q) p
+  rw [add_sub_cancel_left, abs_mul, hk] at h
+  linarith [abs_pos.2 hq]
 
 /-- The images of a frequency `(p, q)` with `|p| ≤ |q|` under the shears by `4` and `-4` differ. -/
 private theorem add_four_mul_ne {p p' q : ℤ} (hp : |p| ≤ |q|) (hp' : |p'| ≤ |q|) (hq : q ≠ 0) :
     p + 4 * q ≠ p' + -4 * q := by
   intro h
-  have h' : p' - p = 8 * q := by linarith
-  have h₁ : |p' - p| ≤ |p'| + |p| := abs_sub _ _
-  rw [h', abs_mul, show |(8 : ℤ)| = 8 by norm_num] at h₁
-  have := abs_pos.2 hq
-  linarith
+  have h₁ := abs_sub p' p
+  rw [show p' - p = 8 * q by linarith, abs_mul, show |(8 : ℤ)| = 8 by norm_num] at h₁
+  linarith [abs_pos.2 hq]
 
 /-- A frequency outside the small box is moved far by one of the unit translations: the
 corresponding root of unity is at distance at least `1 / sqrt 8` from `1`. -/
@@ -465,9 +457,8 @@ theorem secondEigenvalue_shearTranslation_le (n : ℕ) [NeZero n] :
 at most `1 - 1 / 8192`. -/
 theorem spectralExpansion_lazy_shearTranslation_le (n : ℕ) [NeZero n] :
     (shearTranslation n).lazy.spectralExpansion ≤ 1 - 1 / 8192 := by
-  have := (shearTranslation n).spectralExpansion_lazy_le_one_add_secondEigenvalue_div_two
-  have := secondEigenvalue_shearTranslation_le n
-  linarith
+  linarith [(shearTranslation n).spectralExpansion_lazy_le_one_add_secondEigenvalue_div_two,
+    secondEigenvalue_shearTranslation_le n]
 
 end Gap
 

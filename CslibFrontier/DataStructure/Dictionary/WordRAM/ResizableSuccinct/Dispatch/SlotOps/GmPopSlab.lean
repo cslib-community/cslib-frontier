@@ -90,18 +90,12 @@ private theorem memoryCost_compGmCompactSlabGenProg_le
     memoryCost_writeCompGMGenProg]
   split_ifs
   · simp only [Realization.memoryCost_bind']
-    have h1 := memoryCost_compGmRelinkMovedSlabGenProg_le
-      (((cp, metaBase), p_del),
-        (Memory.spec 0).clientResult s (readCompGMGenProg ((cp, metaBase), 0)) - 1)
-      ((Memory.spec 0).clientState s (readCompGMGenProg ((cp, metaBase), 0)))
-    have h2 := memoryCost_compGmLinkMovedNeighborsGenProg_le
-      (((cp, metaBase), p_del),
-        (Memory.spec 0).clientResult s (readCompGMGenProg ((cp, metaBase), 0)) - 1)
-      ((Memory.spec 0).clientState
-        ((Memory.spec 0).clientState s (readCompGMGenProg ((cp, metaBase), 0)))
-        (compGmRelinkMovedSlabGenProg
-          (((cp, metaBase), p_del),
-            (Memory.spec 0).clientResult s (readCompGMGenProg ((cp, metaBase), 0)) - 1)))
+    set d' := (((cp, metaBase), p_del),
+      (Memory.spec 0).clientResult s (readCompGMGenProg ((cp, metaBase), 0)) - 1)
+    set s1 := (Memory.spec 0).clientState s (readCompGMGenProg ((cp, metaBase), 0))
+    have h1 := memoryCost_compGmRelinkMovedSlabGenProg_le d' s1
+    have h2 := memoryCost_compGmLinkMovedNeighborsGenProg_le d'
+      ((Memory.spec 0).clientState s1 (compGmRelinkMovedSlabGenProg d'))
     omega
   · simp
 
@@ -456,8 +450,7 @@ private theorem validProg_compGmCompactSlab {w : ℕ} {d : (CompParams × ℕ) �
     (validProg_readCompGMGen ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, h0_lt⟩)
     (clientResult_readCompGMGenProg (U := U) (V := V) (w := w) (metaBase := metaBase) h0_lt s)
     fun s1 hs1 => ?_
-  have hs1_eq : s1 = s := hs1.trans (clientState_readCompGMGenProg _ s)
-  subst hs1_eq
+  rcases hs1.trans (clientState_readCompGMGenProg _ s) with rfl
   exact validProg_compGmCompactSlabStep ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hb_pos, hcond⟩
 
 theorem validProg_compGmPopSlabGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {s : Memory.State}

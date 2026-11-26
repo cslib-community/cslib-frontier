@@ -261,13 +261,10 @@ theorem length_eq (σ : State N) (os : List (Op V)) :
   | cons o os ih =>
     rw [numRelabels_cons, numSatPushes_cons, numNonsatPushes_cons, List.length_cons,
       ih (σ.apply o)]
-    cases o with
-    | relabel u =>
-      simp [Op.IsRelabel, Op.IsPush, IsSatPush]; omega
-    | push u v =>
-      by_cases hs : σ.IsSatPush (.push u v)
-      · simp [Op.IsRelabel, Op.IsPush, hs]; omega
-      · simp [Op.IsRelabel, Op.IsPush, hs]; omega
+    by_cases h : σ.IsSatPush o <;> cases o <;>
+      simp only [Op.IsRelabel, Op.IsPush, h, not_true_eq_false, not_false_eq_true, true_and,
+        false_and, ↓reduceIte] <;>
+      first | omega | cases h
 
 /-! ### Invariants -/
 
@@ -285,12 +282,9 @@ theorem Inv.apply {σ : State N} (hσ : σ.Inv) {o : Op V} (ho : σ.Admissible o
   | relabel u =>
     have hv := hσ.valid.relabel ho
     refine ⟨hv, fun x => ?_⟩
-    by_cases hx : x = u
-    · subst hx
-      exact hv.le_of_excess_pos ho.active.2.2
-    · change σ.flow.relabel σ.height u x ≤ _
-      rw [relabel_of_ne _ _ hx]
-      exact hσ.height_le x
+    rcases eq_or_ne x u with rfl | hx
+    · exact hv.le_of_excess_pos ho.active.2.2
+    · simpa only [apply_relabel_height, relabel_of_ne _ _ hx] using hσ.height_le x
 
 theorem Inv.run {σ : State N} (hσ : σ.Inv) {os : List (Op V)} (hos : σ.IsRun os) :
     (σ.run os).Inv := by
@@ -388,10 +382,7 @@ theorem PairInv.apply {a b : V} {σ : State N} {c : ℕ} (hc : σ.PairInv a b c)
       · have hsat' : σ.flow.pushAmount u v ≠ σ.flow.resCap u v := hsat
         rw [ite_eq_right fun h => hsat h.2, Nat.add_zero]
         exact ⟨fun _ => by omega, fun _ => hc2⟩
-    · have hne : ¬ (Op.push u v = .push a b ∧ σ.IsSatPush (.push u v)) := fun h => by
-        cases h.1
-        exact hab ⟨rfl, rfl⟩
-      rw [ite_eq_right hne, Nat.add_zero]
+    · rw [ite_eq_right (fun ⟨h, _⟩ => hab (Op.push.inj h)), Nat.add_zero]
       by_cases hba : u = b ∧ v = a
       · obtain ⟨rfl, rfl⟩ := hba
         have hr := σ.flow.resCap_push_swap huv

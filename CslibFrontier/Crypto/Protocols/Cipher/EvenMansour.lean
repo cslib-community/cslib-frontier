@@ -1659,17 +1659,13 @@ private theorem evenMansourIdealGame_le_realLazy_add_bad
           isBadEvenMansourKey res.2.1 res.2.2 k == b) b := by
   simp only [evenMansourIdealGame_eq_lazy, ← PMF.toOuterMeasure_apply_singleton,
     PMF.toOuterMeasure_map_apply, preimage_beq_bool_singleton]
-  have hsub : Prod.fst ⁻¹' ({b} : Set Bool) ⊆
-      {(r, c_e', c_π') : Bool × Cache G × Cache G |
-        r = b ∧ isBadEvenMansourKey c_e' c_π' k = false} ∪
-      {res : Bool × (Cache G × Cache G) | isBadEvenMansourKey res.2.1 res.2.2 k = true} := by
-    rintro ⟨r, c_e', c_π'⟩ (hr : r = b)
-    cases hbad : isBadEvenMansourKey c_e' c_π' k
-    · exact Or.inl ⟨hr, hbad⟩
-    · exact Or.inr hbad
-  exact ((MeasureTheory.measure_mono hsub).trans (MeasureTheory.measure_union_le _ _)).trans
-    (add_le_add (run_idealLazyHandler_good_le_realLazyHandler program (· = b) k (cacheRel_nil k))
-      le_rfl)
+  refine ((MeasureTheory.measure_mono fun ⟨r, c_e', c_π'⟩ hr => ?_).trans
+    (MeasureTheory.measure_union_le _ _)).trans
+      (add_le_add (run_idealLazyHandler_good_le_realLazyHandler program (· = b) k (cacheRel_nil k))
+        le_rfl)
+  cases hbad : isBadEvenMansourKey c_e' c_π' k
+  · exact Or.inl ⟨hr, hbad⟩
+  · exact Or.inr hbad
 
 private theorem idealGame_apply_le_realGame_add_of_keyDist (keyDist : PMF (G × G))
     {program : OracleComp (EvenMansourSpec G) Bool} {Q_e Q_π : ℕ}
@@ -1689,14 +1685,10 @@ private theorem idealGame_apply_le_realGame_add_of_keyDist (keyDist : PMF (G × 
     simp_rw [← realGameForKey_eq_lazy]
   have hbad : (keyDist.bind fun k =>
       M_ideal.map fun res => isBadEvenMansourKey res.2.1 res.2.2 k == b) b ≤ ε := by
-    have hcomm : (keyDist.bind fun k =>
-        M_ideal.map fun res => isBadEvenMansourKey res.2.1 res.2.2 k == b) =
-      (M_ideal.bind fun res =>
-        keyDist.map fun k => isBadEvenMansourKey res.2.1 res.2.2 k == b) := by
-      simp only [PMF.map]
-      pmf_swap
-    rw [hcomm]
+    simp only [PMF.map, Function.comp_def]
+    rw [PMF.bind_comm]
     refine Probability.PMF.bind_apply_le_on_support M_ideal fun res hmem => ?_
+    change (keyDist.map fun k => isBadEvenMansourKey res.2.1 res.2.2 k == b) b ≤ ε
     rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
       preimage_beq_bool_singleton]
     exact hbad_le res.2.1 res.2.2
@@ -1770,15 +1762,11 @@ theorem advantage_singleKeyEvenMansourRealGame_evenMansourIdealGame_le
     (hcall : IsCallBounded program Q_e Q_π) :
     (Game.advantage (singleKeyEvenMansourRealGame program) (evenMansourIdealGame program) : ℝ) ≤
       2 * (Q_e : ℝ) * (Q_π : ℝ) / (Fintype.card G : ℝ) := by
-  let keyDist : PMF (G × G) := (PMF.uniformOfFintype G).map fun k => (k, k)
-  have hgame : ((PMF.uniformOfFintype (Equiv.Perm G)).bind fun π =>
-      keyDist.bind fun k => PMF.pure (evalEvenMansour π k.1 k.2 program)) =
-      singleKeyEvenMansourRealGame program := by
-    simp only [pmf_norm, keyDist, singleKeyEvenMansourRealGame]
-  rw [← hgame]
-  exact advantage_keyDist_evenMansourIdealGame_le keyDist hcall fun c_e c_π => by
-    rw [PMF.toOuterMeasure_map_apply]
-    exact toOuterMeasure_isBadSingleKeyEvenMansour_le c_e c_π
+  simpa only [pmf_norm, singleKeyEvenMansourRealGame] using
+    advantage_keyDist_evenMansourIdealGame_le ((PMF.uniformOfFintype G).map fun k => (k, k)) hcall
+      fun c_e c_π => by
+        rw [PMF.toOuterMeasure_map_apply]
+        exact toOuterMeasure_isBadSingleKeyEvenMansour_le c_e c_π
 
 end Coupling
 

@@ -112,15 +112,12 @@ theorem Valid.size_eq {α : Type*} [AddCommMonoid α] {t : FenwickTree α} {s : 
 /-- Canonical representation uniqueness: `Valid t s` uniquely determines `t`. -/
 theorem Valid.unique {α : Type*} [AddCommMonoid α]
     {t₁ t₂ : FenwickTree α} {s : List α} (h₁ : Valid t₁ s) (h₂ : Valid t₂ s) : t₁ = t₂ := by
-  cases t₁ with
-  | mk a₁ =>
-    cases t₂ with
-    | mk a₂ =>
-      congr 1
-      refine Array.ext (h₁.1.trans h₂.1.symm) fun i hi₁ hi₂ => ?_
-      have hval₁ := h₁.2 (i + 1) (by omega) (Nat.succ_le_of_lt hi₁)
-      have hval₂ := h₂.2 (i + 1) (by omega) (Nat.succ_le_of_lt hi₂)
-      simpa only [Nat.add_sub_cancel] using hval₁.trans hval₂.symm
+  rcases t₁, t₂ with ⟨⟨a₁⟩, ⟨a₂⟩⟩
+  congr 1
+  refine Array.ext (h₁.1.trans h₂.1.symm) fun i hi₁ hi₂ => ?_
+  simpa only [Nat.add_sub_cancel] using
+    (h₁.2 (i + 1) (by omega) (Nat.succ_le_of_lt hi₁)).trans
+      (h₂.2 (i + 1) (by omega) (Nat.succ_le_of_lt hi₂)).symm
 
 /-- On a natural-number Fenwick tree valid for `s`, every stored cell is at most `s.sum`. -/
 theorem Valid.getElem_le_sum {t : FenwickTree ℕ} {s : List ℕ} (hv : Valid t s)
@@ -351,9 +348,7 @@ theorem size_add {α : Type*} [AddCommMonoid α]
     (t : FenwickTree α) (pos : ℕ) (δ : α) :
     (add t pos δ).size = t.size := by
   unfold add size
-  split_ifs with hpos
-  · simp only [addLoop_size]
-  · rfl
+  split_ifs <;> simp
 
 theorem add_of_size_le {α : Type*} [AddCommMonoid α]
     (t : FenwickTree α) {pos : ℕ} (δ : α) (h : t.size ≤ pos) :
@@ -649,9 +644,7 @@ theorem size_set {α : Type*} [AddCommGroup α]
     (t : FenwickTree α) (pos : ℕ) (v : α) :
     (set t pos v).size = t.size := by
   unfold set
-  split_ifs with hpos
-  · exact size_add _ _ _
-  · rfl
+  split_ifs <;> simp
 
 theorem set_of_size_le {α : Type*} [AddCommGroup α]
     (t : FenwickTree α) {pos : ℕ} (v : α) (h : t.size ≤ pos) :

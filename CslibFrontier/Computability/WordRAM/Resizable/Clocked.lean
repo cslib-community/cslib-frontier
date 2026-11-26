@@ -107,12 +107,9 @@ def advGrowMem (w : ℕ) (init : ℕ → ℕ) (L k : ℕ) (mem : ℕ → ℕ) : 
 theorem demonicGrow_advGrowMem (w : ℕ) (init : ℕ → ℕ) (L k : ℕ) (mem : ℕ → ℕ) :
     DemonicGrow w L k mem (advGrowMem w init L k mem) := by
   refine ⟨fun a ha => by simp [advGrowMem, ha], fun a hlo hhi => ?_, fun a ha => ?_⟩
-  · have hnot : ¬a < L := by omega
-    simp only [advGrowMem, hnot, ↓reduceIte, hhi]
-    exact Nat.mod_lt _ (Nat.two_pow_pos w)
-  · have h1 : ¬a < L := by omega
-    have h2 : ¬a < L + k := by omega
-    simp [advGrowMem, h1, h2]
+  · simpa only [Fits, advGrowMem, Nat.not_lt.mpr hlo, ↓reduceIte, hhi] using
+      Nat.mod_lt _ (Nat.two_pow_pos w)
+  · simp [advGrowMem, show ¬a < L by omega, show ¬a < L + k by omega]
 
 /-- Single step of randomized execution of `p : RProgram B r` at word width `w` under single-step
 growth initializer `advStep : RState r → ℕ → ℕ`. Halted and faulted configurations are absorbing. -/
@@ -285,11 +282,9 @@ theorem evalRandDemonic_halted_mono (w : ℕ) (adv : RAdv r) (p : RProgram B r) 
     simp only [evalRandDemonic, runRandResizable_add w adv p t 1, ProbComp.eval_bind,
       runRandResizable_succ, runRandResizable_zero, bind_pure]
   rw [hstep, PMF.bind_apply]
-  have heq : evalRandDemonic w adv p t s (.halted v d) *
-      (stepRandResizable w ((adv.shift t) 0) p (.halted v d)).eval (.halted v d) =
-      evalRandDemonic w adv p t s (.halted v d) := by simp [stepRandResizable_halted]
-  exact heq ▸ le_tsum (f := fun cfg => evalRandDemonic w adv p t s cfg *
-    (stepRandResizable w ((adv.shift t) 0) p cfg).eval (.halted v d)) (.halted v d)
+  refine le_of_eq_of_le ?_ (le_tsum (f := fun cfg => evalRandDemonic w adv p t s cfg *
+    (stepRandResizable w ((adv.shift t) 0) p cfg).eval (.halted v d)) (.halted v d))
+  simp [stepRandResizable_halted]
 
 /-- Any deterministic transition `stepRandResizable w (adv 0) p (.running s) = pure (.running s')`
 transports supremum halting probabilities from `(adv.shift 1, s')` to `(adv, s)`. -/
@@ -346,9 +341,8 @@ def PeakFrontierLe (w L_peak : ℕ) (p : RProgram B r) (s : RState r) : Prop :=
 theorem PeakFrontierLe.mono {w L₁ L₂ : ℕ} {p : RProgram B r} {s : RState r}
     (hL : L₁ ≤ L₂) (h : PeakFrontierLe w L₁ p s) : PeakFrontierLe w L₂ p s := by
   intro adv t cfg hcfg
-  have h1 := h adv t cfg hcfg
   cases cfg with
-  | running _ | halted _ _ => exact h1.trans hL
+  | running _ | halted _ _ => exact (h adv t _ hcfg).trans hL
   | faulted => trivial
 
 /-- Almost-sure halting across all adaptive adversaries `adv : RAdv r`. -/
@@ -477,12 +471,10 @@ private theorem indicator_haltedSet_evalRandDemonic_mono (w : ℕ) (adv : RAdv r
     (p : RProgram B r) (s : RState r) (cfg : RCfg r) :
     Monotone fun t => Set.indicator (RCfg.haltedSet r) (evalRandDemonic w adv p t s) cfg := by
   intro t₁ t₂ ht
-  dsimp only
   by_cases hmem : cfg ∈ RCfg.haltedSet r
-  · have hmem' := hmem
-    obtain ⟨v, d, rfl⟩ := hmem
-    rw [Set.indicator_of_mem hmem', Set.indicator_of_mem hmem']
-    exact evalRandDemonic_halted_mono w adv p s v d ht
+  · obtain ⟨v, d, rfl⟩ := hmem
+    simpa [Set.indicator_of_mem (RCfg.mem_haltedSet_iff.mpr ⟨v, d, rfl⟩)] using
+      evalRandDemonic_halted_mono w adv p s v d ht
   · simp [Set.indicator_of_notMem hmem]
 
 /-- The sum of limiting halting probabilities over states is bounded by the total halted mass. -/
@@ -668,8 +660,7 @@ theorem haltedReach_le_of_pure {w v : ℕ} {p : RProgram B r} {d : RData r}
     {s : RState r} {s' : (RState r → ℕ → ℕ) → RState r}
     (hstep : ∀ f, stepRandResizable w f p (.running s) = pure (.running (s' f))) :
     (⨅ f, haltedReach w p v d (s' f).pc (s' f).data) ≤ haltedReach w p v d s.pc s.data := by
-  refine le_iInf fun adv => ?_
-  refine (iInf_le _ (adv 0)).trans ((iInf_le _ (adv.shift 1)).trans ?_)
+  refine le_iInf fun adv => (iInf_le _ (adv 0)).trans ((iInf_le _ (adv.shift 1)).trans ?_)
   exact iSup_evalRandDemonic_halted_le_of_step (hstep (adv 0)) v d
 
 theorem haltedReach_le_of_const {w v : ℕ} {p : RProgram B r} {d : RData r}

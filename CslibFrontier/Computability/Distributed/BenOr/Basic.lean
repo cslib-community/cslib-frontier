@@ -622,10 +622,7 @@ theorem CrashSchedule.Valid.valid_toSchedule {P : Type*} [Fintype P] [DecidableE
   have hsdiff : Fintype.card P - t ≤ (Finset.univ \ cs.crashed2 r).card := by
     finset_card [hv.card_crashed2 r]
   refine ⟨fun p => ?_, fun p => ?_⟩ <;> simp only [toSchedule] <;> split_ifs with hp
-  · exact hsdiff
-  · exact hv.card_q1 r p hp
-  · exact hsdiff
-  · exact hv.card_q2 r p hp
+  exacts [hsdiff, hv.card_q1 r p hp, hsdiff, hv.card_q2 r p hp]
 
 private lemma crashStep_eq_phaseStep_toSchedule {P : Type*} [Fintype P] [DecidableEq P]
     {t : ℕ} {cs : CrashSchedule P} {r : ℕ} {coins : P → Bool}
@@ -661,8 +658,8 @@ theorem crashRun_eq_run {P : Type*} [Fintype P] [DecidableEq P] {t : ℕ} {cs : 
   refine ⟨fun _ => rfl, fun r => ?_⟩
   induction r with
   | zero =>
-    intro p hp2
-    exact crashStep_eq_phaseStep_toSchedule hp2 (hv.disjoint_q2 0 p hp2) rfl (fun _ _ _ _ => rfl)
+    exact fun p hp2 =>
+      crashStep_eq_phaseStep_toSchedule hp2 (hv.disjoint_q2 0 p hp2) rfl (fun _ _ _ _ => rfl)
   | succ r ih =>
     intro p hp2
     have hpPrev : p ∉ cs.crashed2 r :=
@@ -682,9 +679,7 @@ private lemma crashRun_decided_origin {P : Type*} [Fintype P] [DecidableEq P] {t
     · simp only [crashRun, crashStep, hp, ↓reduceIte] at hd
       obtain ⟨r₀, hr₀, hnp, hrun⟩ := ih hd
       exact ⟨r₀, Nat.lt_succ_of_lt hr₀, hnp, hrun⟩
-    · refine ⟨r, Nat.lt_succ_self r, hp, ?_⟩
-      rw [← (crashRun_eq_run hv coins inp).2 r p hp]
-      exact hd
+    · exact ⟨r, Nat.lt_succ_self r, hp, (crashRun_eq_run hv coins inp).2 r p hp ▸ hd⟩
 
 /-- **Uniform agreement under dynamic crashes:** even if a process decides in some phase and
 immediately crashes afterward, its decision agrees with the decision of every other process across
@@ -735,11 +730,8 @@ private lemma phaseStep_fin3SplitSchedule_fixed (fallback : Fin 3 → Bool) :
     phaseStep 1 fin3SplitSchedule fallback (initState (fin3SplitInput (fallback 0))) =
       initState (fin3SplitInput (fallback 0)) := by
   have hfb : fallback = fun i : Fin 3 =>
-      if i = 0 then fallback 0 else if i = 1 then fallback 1 else fallback 2 := by
-    funext ⟨k, hk⟩
-    match k with
-    | 0 | 1 | 2 => rfl
-    | n + 3 => omega
+      if i = 0 then fallback 0 else if i = 1 then fallback 1 else fallback 2 :=
+    funext fun ⟨k, hk⟩ => by rcases k with _ | _ | _ | k <;> first | rfl | omega
   funext p
   conv_lhs => rw [hfb]
   exact phaseStep_fin3SplitSchedule_three (fallback 0) (fallback 1) (fallback 2) p

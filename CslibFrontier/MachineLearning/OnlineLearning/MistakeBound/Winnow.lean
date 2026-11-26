@@ -156,8 +156,7 @@ theorem winnowPredict_of_eq {θ : ℝ} (tie : Bool) {w : Fin n → ℝ} {x : Fin
 
 theorem winnowPredict_of_lt {θ : ℝ} (tie : Bool) {w : Fin n → ℝ} {x : Fin n → Bool}
     (h : winnowScore w x < θ) : winnowPredict θ tie w x = false := by
-  rw [winnowPredict, ite_eq_right h.ne, decide_eq_false_iff_not, not_lt]
-  exact h.le
+  simp [winnowPredict, h.ne, h.not_gt]
 
 theorem winnowPredict_of_gt {θ : ℝ} (tie : Bool) {w : Fin n → ℝ} {x : Fin n → Bool}
     (h : θ < winnowScore w x) : winnowPredict θ tie w x = true := by
@@ -194,12 +193,10 @@ theorem winnowStep_cases (α θ : ℝ) (tie : Bool) (w : Fin n → ℝ) (x : Fin
       y = false ∧ winnowPredict θ tie w x = true ∧
         winnowStep α θ tie w (x, y) = winnowEliminate w x := by
   by_cases hc : winnowPredict θ tie w x = y
-  · exact Or.inl ⟨hc, winnowStep_of_eq hc⟩
-  · cases y
-    · have hpred : winnowPredict θ tie w x = true := by simpa using hc
-      exact Or.inr (Or.inr ⟨rfl, hpred, winnowStep_eliminate hpred⟩)
-    · have hpred : winnowPredict θ tie w x = false := by simpa using hc
-      exact Or.inr (Or.inl ⟨rfl, hpred, winnowStep_promote hpred⟩)
+  · exact .inl ⟨hc, winnowStep_of_eq hc⟩
+  · cases y <;> simp only [Bool.not_eq_false, Bool.not_eq_true] at hc
+    exacts [.inr (.inr ⟨rfl, hc, winnowStep_eliminate hc⟩),
+      .inr (.inl ⟨rfl, hc, winnowStep_promote hc⟩)]
 
 theorem winnow_apply (α θ : ℝ) (tie : Bool) (h : List ((Fin n → Bool) × Bool))
     (x : Fin n → Bool) : winnow α θ tie h x = winnowPredict θ tie (winnowWeight α θ tie h) x := by
@@ -247,16 +244,14 @@ theorem sum_winnowEliminate (w : Fin n → ℝ) (x : Fin n → Bool) :
 theorem winnowPromote_nonneg {α : ℝ} (hα : 0 ≤ α) {w : Fin n → ℝ} (hw : ∀ i, 0 ≤ w i)
     (x : Fin n → Bool) (i : Fin n) : 0 ≤ winnowPromote α w x i := by
   unfold winnowPromote
-  split
-  · exact mul_nonneg hα (hw i)
-  · exact hw i
+  split_ifs
+  exacts [mul_nonneg hα (hw i), hw i]
 
 theorem winnowEliminate_nonneg {w : Fin n → ℝ} (hw : ∀ i, 0 ≤ w i) (x : Fin n → Bool)
     (i : Fin n) : 0 ≤ winnowEliminate w x i := by
   unfold winnowEliminate
-  split
-  · exact le_rfl
-  · exact hw i
+  split_ifs
+  exacts [le_rfl, hw i]
 
 @[simp] theorem winnowWeight_nil (α θ : ℝ) (tie : Bool) :
     winnowWeight α θ tie ([] : List ((Fin n → Bool) × Bool)) = fun _ => 1 := by
@@ -271,9 +266,7 @@ theorem winnowStep_nonneg {α θ : ℝ} (hα : 0 ≤ α) {tie : Bool} {w : Fin n
     (hw : ∀ i, 0 ≤ w i) (p : (Fin n → Bool) × Bool) (i : Fin n) :
     0 ≤ winnowStep α θ tie w p i := by
   rcases winnowStep_cases α θ tie w p.1 p.2 with ⟨-, hs⟩ | ⟨-, -, hs⟩ | ⟨-, -, hs⟩ <;> rw [hs]
-  · exact hw i
-  · exact winnowPromote_nonneg hα hw _ i
-  · exact winnowEliminate_nonneg hw _ i
+  exacts [hw i, winnowPromote_nonneg hα hw _ i, winnowEliminate_nonneg hw _ i]
 
 /-- WINNOW1's weights stay nonnegative. -/
 theorem winnowWeight_nonneg {α θ : ℝ} (hα : 0 ≤ α) (tie : Bool)
@@ -423,11 +416,9 @@ theorem mistakes_winnow_le_div {α : ℝ} (hα : 1 < α) (hn : 1 ≤ n) (tie : B
     (hS : ∀ p ∈ S, monotoneDisjunction R p.1 = p.2) :
     (mistakes (winnow α (n / α) tie) S : ℝ) ≤ α * R.card * Real.logb α n + α := by
   have hα0 : 0 < α := zero_lt_one.trans hα
-  have hn0 : (0 : ℝ) < n := by exact_mod_cast hn
-  have hθ : 1 ≤ α * (n / α) := by
-    rw [mul_div_cancel₀ _ hα0.ne']
-    exact_mod_cast hn
-  have h := mistakes_winnow_le hα hθ tie R S hS
+  have hn0 : (0 : ℝ) < n := mod_cast hn
+  have h := mistakes_winnow_le hα ((mul_div_cancel₀ (n : ℝ) hα0.ne').symm ▸ Nat.one_le_cast.mpr hn)
+    tie R S hS
   rwa [Real.logb_div hn0.ne' hα0.ne', Real.logb_self_eq_one hα, sub_add_cancel,
     div_div_cancel₀ hn0.ne'] at h
 

@@ -319,9 +319,7 @@ theorem dom_empty (n : ℕ) : dom (empty n) = ∅ := by
 theorem dom_insert {n : ℕ} (s : State n) (v : Fin n) (k : ℕ) :
     dom (Function.update s v (some k)) = insert v (dom s) := by
   ext u
-  by_cases huv : u = v
-  · subst huv; simp [dom]
-  · simp [dom, huv]
+  by_cases huv : u = v <;> simp [dom, huv]
 
 /-- Lowering the key of a handle already in `dom s` preserves `dom s`. -/
 theorem dom_decreaseKey {n : ℕ} {s : State n} {v : Fin n} (hv : v ∈ dom s) (k : ℕ) :
@@ -333,9 +331,7 @@ theorem dom_decreaseKey {n : ℕ} {s : State n} {v : Fin n} (hv : v ∈ dom s) (
 theorem dom_erase_update {n : ℕ} (s : State n) (u : Fin n) :
     dom (Function.update s u none) = (dom s).erase u := by
   ext v
-  by_cases hvu : v = u
-  · subst hvu; simp [dom]
-  · simp [dom, hvu]
+  by_cases hvu : v = u <;> simp [dom, hvu]
 
 private theorem mem_entries_iff {n : ℕ} {s : State n} {uk : Fin n × ℕ} :
     uk ∈ ((List.finRange n).filterMap fun v => (s v).map (v, ·)) ↔ s uk.1 = some uk.2 := by
@@ -733,7 +729,7 @@ theorem allocHandle_spec {n_max : ℕ} {s : AllocState n_max}
       allocHandle s = some (h, freeList', fresh') ∧
       s.entries h = none ∧
       (AllocState.mk (Function.update s.entries h (some (u, v))) freeList' fresh').WellFormed := by
-  obtain ⟨hfr_le, hnd, hfree, hbump, hsum⟩ := hwf
+  obtain ⟨hfr_le, hnd, hfree, hbump, hsum⟩ := id hwf
   rcases hfl : s.freeList with _ | ⟨h, tl⟩
   · have hfr_lt : s.fresh < n_max := by grind
     let hfin : Fin n_max := ⟨s.fresh, hfr_lt⟩
@@ -743,9 +739,7 @@ theorem allocHandle_spec {n_max : ℕ} {s : AllocState n_max}
     dsimp only [AllocState.WellFormed]
     refine ⟨by omega, List.nodup_nil, fun _ hm => absurd hm List.not_mem_nil,
       bump_update_of_lt _ (Nat.lt_succ_self _) (fun x hx => hbump x (Nat.le_of_succ_le hx)), ?_⟩
-    rw [size_update_some_of_none hh_none, List.length_nil, Nat.add_zero]
-    rw [hfl, List.length_nil, Nat.add_zero] at hsum
-    omega
+    simpa [hfl, size_update_some_of_none hh_none] using hsum
   · have hh_mem : h ∈ s.freeList := hfl ▸ List.mem_cons_self
     obtain ⟨hh_lt, hh_none⟩ := hfree h hh_mem
     obtain ⟨hh_not_tl, htl_nd⟩ := List.nodup_cons.mp (hfl ▸ hnd)
@@ -766,6 +760,10 @@ theorem stepAlloc_refines_spec {n_max U V : ℕ} {s : AllocState n_max} (hwf : s
     (o : Op n_max) (hv : (minPQSpec n_max U V).valid s.entries o) :
     (minPQSpec n_max U V).step s.entries o (stepAlloc s o).1.entries (stepAlloc s o).2 ∧
       (stepAlloc s o).1.WellFormed := by
+  obtain ⟨hfr_le, hnd, hfree, hbump, hsum⟩ := id hwf
+  have hact {h u v} (hsh : s.entries h = some (u, v)) : h ∉ s.freeList ∧ h.val < s.fresh :=
+    ⟨(fun hm => nomatch hsh.symm.trans (hfree h hm).2),
+      Nat.lt_of_not_ge fun hge => nomatch hsh.symm.trans (hbump h hge)⟩
   cases o with
   | isEmpty | get _ => exact ⟨⟨rfl, rfl⟩, hwf⟩
   | insert u v =>
@@ -774,27 +772,20 @@ theorem stepAlloc_refines_spec {n_max U V : ℕ} {s : AllocState n_max} (hwf : s
     exact ⟨⟨h, hh_none, rfl, rfl⟩, hwf'⟩
   | decreaseKey h u' =>
     obtain ⟨u, v, hsh, _⟩ := hv
-    obtain ⟨hfr_le, hnd, hfree, hbump, hsum⟩ := hwf
-    have hh_not_free : h ∉ s.freeList := fun hm => nomatch hsh.symm.trans (hfree h hm).2
-    have hh_lt : h.val < s.fresh :=
-      Nat.lt_of_not_ge fun hge => nomatch hsh.symm.trans (hbump h hge)
+    obtain ⟨hh_not_free, hh_lt⟩ := hact hsh
     simp only [stepAlloc, hsh]
-    dsimp only [AllocState.WellFormed]
     exact ⟨⟨u, v, hsh, rfl, rfl⟩, hfr_le, hnd, free_update_of_notMem _ hh_not_free hfree,
       bump_update_of_lt _ hh_lt hbump, by simpa only [size_update_some_of_some hsh] using hsum⟩
   | extractMin =>
-    obtain ⟨hfr_le, hnd, hfree, hbump, hsum⟩ := hwf
     rcases hfm : IndexedMinPQ.findMin (toIndexed s.entries) with _ | ⟨h, u⟩
     · have hemp : dom s.entries = ∅ := by simpa using hfm
       simp only [stepAlloc, findMin_eq_none_iff.mpr hemp]
-      exact ⟨Or.inl ⟨hemp, rfl, rfl⟩, hfr_le, hnd, hfree, hbump, hsum⟩
+      exact ⟨Or.inl ⟨hemp, rfl, rfl⟩, hwf⟩
     · obtain ⟨v, hsh, hfm', hmin⟩ := findMin_eq_some_of_indexed hfm
-      simp only [stepAlloc, hfm']
-      have hh_not_free : h ∉ s.freeList := fun hm => nomatch hsh.symm.trans (hfree h hm).2
-      have hh_lt : h.val < s.fresh :=
-        Nat.lt_of_not_ge fun hge => nomatch hsh.symm.trans (hbump h hge)
+      obtain ⟨hh_not_free, hh_lt⟩ := hact hsh
       have hsz_pos : 1 ≤ size s.entries :=
         Finset.card_pos.mpr ⟨h, mem_dom_iff.mpr ⟨u, v, hsh⟩⟩
+      simp only [stepAlloc, hfm']
       dsimp only [AllocState.WellFormed]
       refine ⟨Or.inr ⟨h, u, v, hmin, rfl, rfl⟩,
         hfr_le, List.nodup_cons.mpr ⟨hh_not_free, hnd⟩,

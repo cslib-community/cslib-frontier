@@ -103,10 +103,9 @@ private theorem toRegs_subBank_expected (E : Gate d b → (Fin d → Fin r → Z
   unfold Ary.Iter.updateAt
   cases hread : read (Ary.Iter.path st) with
   | none | leaf _ =>
-    have hzero : (fun i : Fin r => S t i - c * (values.getD i 0 : ZMod p)) = S t := by
-      funext i
-      simp only [hvalues i, expectedGate, hread, Pi.zero_apply, mul_zero, sub_zero]
-    rw [hzero, Function.update_eq_self]
+    convert Function.update_eq_self t S using 2
+    ext i
+    simp only [hvalues i, expectedGate, hread, Pi.zero_apply, mul_zero, sub_zero]
   | gate f =>
     simp only [Ary.gateUpdateWith]
     congr 1 with i : 1
@@ -159,7 +158,6 @@ theorem toCfg_step_ofCfg (hd : 0 < d)
     | gate f =>
       have htag : reply.1 = 2 := by simpa only [ReplyCorrect, hread] using hreply
       have hp1 : p - 1 ≠ 0 := by have := (Fact.out : p.Prime).two_le; omega
-      have hnonempty : units p ≠ [] := by simpa [units] using hp1
       change toCfg p d r hd
         (step p d r reply (ofRegs S, st.map ofFrame, some (c.val, t.val))) = _
       simp only [step, hvalid, ↓reduceIte, stepCore, htag,
@@ -167,7 +165,7 @@ theorem toCfg_step_ofCfg (hd : 0 < d)
       rw [toCfg_beginRound hd (units p) 0 c t (ofRegs S) (length_ofRegs S) st
         (unitAt_units (by omega)), toRegs_ofRegs]
       cases hus : units p with
-      | nil => exact False.elim (hnonempty hus)
+      | nil => exact absurd hus (by simpa [units] using hp1)
       | cons u us => simp [Ary.Iter.step, hread]
   | ret =>
     cases st with
@@ -250,13 +248,10 @@ private theorem canonical_cell (v : ℕ) (hv : p ≤ v) (hv2 : v < 2 * p) :
 
 private theorem canonicalBank_ofRegs (S : Ary.State (ZMod p) d r) :
     CanonicalBank p d r (ofRegs S) := by
-  refine ⟨length_ofRegs S, ?_⟩
-  intro v hv
+  refine ⟨length_ofRegs S, fun _ hv => ?_⟩
   obtain ⟨k, rfl⟩ := List.mem_ofFn.mp hv
-  have hval := ZMod.val_lt (S (finProdFinEquiv.symm k).1 (finProdFinEquiv.symm k).2)
-  change p ≤ p + (S (finProdFinEquiv.symm k).1 (finProdFinEquiv.symm k).2).val ∧
-    p + (S (finProdFinEquiv.symm k).1 (finProdFinEquiv.symm k).2).val < 2 * p
-  exact ⟨Nat.le_add_right _ _, by omega⟩
+  have := ZMod.val_lt (S (finProdFinEquiv.symm k).1 (finProdFinEquiv.symm k).2)
+  exact ⟨Nat.le_add_right _ _, by dsimp only; omega⟩
 
 private theorem canonicalBank_valid {bank : List ℕ} (hbank : CanonicalBank p d r bank) :
     validBank p d r bank = true :=
@@ -291,13 +286,10 @@ omit [Fact p.Prime] in
 private theorem ofMode_toMode (mode : Option (ℕ × ℕ))
     (hmode : ∀ c t, mode = some (c, t) → c < p ∧ t < d + 1) :
     ofMode (toMode p d mode) = mode := by
-  cases mode with
-  | none => rfl
-  | some ct =>
-    rcases ct with ⟨c, t⟩
-    obtain ⟨hc, ht⟩ := hmode c t rfl
-    simp only [ofMode, toMode, ZMod.val_natCast, Nat.mod_eq_of_lt hc,
-      Nat.mod_eq_of_lt ht]
+  rcases mode with _ | ⟨c, t⟩
+  · rfl
+  · obtain ⟨hc, ht⟩ := hmode c t rfl
+    simp only [ofMode, toMode, ZMod.val_natCast, Nat.mod_eq_of_lt hc, Nat.mod_eq_of_lt ht]
 
 /-- Canonical raw states are exactly represented by the existing typed configurations. -/
 theorem ofCfg_toCfg (hd : 0 < d) (q : State) (hq : Canonical p d r q) :
@@ -345,9 +337,9 @@ omit [Fact p.Prime] in
 private theorem canonical_call {bank : List ℕ} {st : List Frame} {c t : ℕ}
     (hbank : CanonicalBank p d r bank) (hst : ∀ fr ∈ st, CanonicalFrame p d fr)
     (hc : c < p) (ht : t < d + 1) : Canonical p d r (bank, st, some (c, t)) :=
-  ⟨hbank, hst, by
-    rintro _ _ ⟨rfl, rfl⟩
-    exact ⟨hc, ht⟩⟩
+  ⟨hbank, hst, fun _ _ h =>
+    let p := Prod.mk.inj (Option.some.inj h)
+    ⟨p.1 ▸ hc, p.2 ▸ ht⟩⟩
 
 private theorem canonical_beginRound (hd : 0 < d) {bank : List ℕ} {st : List Frame}
     (hbank : CanonicalBank p d r bank) (hst : ∀ fr ∈ st, CanonicalFrame p d fr)
@@ -364,20 +356,8 @@ theorem canonical_step (hd : 0 < d) (reply : Reply) (q : State)
   rcases hq with ⟨hbank, hstack, hmode⟩
   have hvalid := canonicalBank_valid hbank
   simp only [step, hvalid, ↓reduceIte]
-  cases mode with
-  | some ct =>
-    rcases ct with ⟨c, t⟩
-    obtain ⟨hc, ht⟩ := hmode c t rfl
-    simp only [stepCore]
-    split_ifs with hleaf hgate hempty
-    · exact canonical_ret (canonicalBank_addBank hbank t c reply.2) hstack
-    · have := (Fact.out : p.Prime).two_le
-      omega
-    · exact canonical_beginRound hd hbank hstack (by have := (Fact.out : p.Prime).two_le; omega)
-        hc ht
-    · exact canonical_ret hbank hstack
-  | none =>
-    cases stack with
+  rcases mode with _ | ⟨c, t⟩
+  · cases stack with
     | nil => exact ⟨hbank, hstack, hmode⟩
     | cons fr st =>
       rcases fr with ⟨round, child, undo, coeff, target⟩
@@ -402,6 +382,14 @@ theorem canonical_step (hd : 0 < d) (reply : Reply) (q : State)
             (hreg _)
         · exact canonical_call (canonicalBank_subBank hbank target coeff reply.2)
             (List.forall_mem_cons.2 ⟨⟨hr, hd, hc, ht⟩, hst⟩) hneg (hreg _)
+  · obtain ⟨hc, ht⟩ := hmode c t rfl
+    have hp2 := (Fact.out : p.Prime).two_le
+    simp only [stepCore]
+    split_ifs with hleaf hgate hempty
+    · exact canonical_ret (canonicalBank_addBank hbank t c reply.2) hstack
+    · omega
+    · exact canonical_beginRound hd hbank hstack (by omega) hc ht
+    · exact canonical_ret hbank hstack
 
 private theorem canonical_ofCfg (q : Ary.Iter.Cfg (ZMod p) d r)
     (hround : ∀ fr ∈ q.stack, fr.round < p - 1) : Canonical p d r (ofCfg q) := by

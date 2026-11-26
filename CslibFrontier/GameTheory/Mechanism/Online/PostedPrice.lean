@@ -194,11 +194,9 @@ theorem arrivalMechanism_isDSICNoEarlyArrival (q : PriceSchedule ι T)
         Option.isSome_none, Bool.false_eq_true, ↓reduceIte, sub_self, le_rfl, true_and]
       linarith
   by_cases hrep_win : q.price i (θ i).arrival θ ≤ (θ i).value
-  · have hutil_rep : q.arrivalMechanism.utility i θ_true θ =
-        θ_true.realizedValue (some (θ i).arrival) - q.price i (θ i).arrival θ := by
+  · conv_lhs =>
       simp only [Mechanism.utility, arrivalMechanism, halloc_eq θ i hrep_win, Option.isSome_some,
         ↓reduceIte]
-    rw [hutil_rep]
     linarith [θ_true.realizedValue_le_value (some (θ i).arrival),
       hinc i θ θ_true.arrival (θ i).arrival ha, htrue.2]
   · have hrep_none : q.policy.alloc θ i = none :=
@@ -325,11 +323,9 @@ theorem thresholdSingleItemMechanism_isDSICNoEarlyArrival {p : ℝ} (hp : 0 ≤ 
       thresholdSingleItemMechanism_isIR (ι := ι) (T := T) p i θ_t
   by_cases hw_rep : ThresholdWins p θ i
   · by_cases hin : θ_true.InWindow (θ i).arrival
-    · have hutil_rep :
-          (thresholdSingleItemMechanism p).utility i θ_true θ = θ_true.value - p := by
+    · conv_lhs =>
         simp only [Mechanism.utility, thresholdSingleItemMechanism, thresholdSingleItemPolicy,
           hw_rep, ↓reduceIte, AgentType.realizedValue_some_of_inWindow hin, Option.isSome_some]
-      rw [hutil_rep]
       by_cases hv : p ≤ θ_true.value
       · have hw_true : ThresholdWins p θ_t i := by
           refine ⟨by simpa only [θ_t, Function.update_self] using hv, fun j hj hba => ?_⟩
@@ -348,11 +344,10 @@ theorem thresholdSingleItemMechanism_isDSICNoEarlyArrival {p : ℝ} (hp : 0 ≤ 
             (show θ_true.InWindow θ_true.arrival from ⟨le_rfl, θ_true.arrival_le_departure⟩),
           le_refl]
       · linarith
-    · have hutil_rep : (thresholdSingleItemMechanism p).utility i θ_true θ = -p := by
+    · conv_lhs =>
         simp only [Mechanism.utility, thresholdSingleItemMechanism, thresholdSingleItemPolicy,
           hw_rep, ↓reduceIte, AgentType.realizedValue_some_of_not_inWindow hin, Option.isSome_some,
           zero_sub]
-      rw [hutil_rep]
       linarith
   · have hnone : (thresholdSingleItemPolicy p).alloc θ i = none := ite_eq_right hw_rep
     rwa [Mechanism.utility_of_alloc_none _ hnone,
@@ -373,9 +368,7 @@ theorem exists_thresholdWins [Finite ι] {p : ℝ} {θ : ι → AgentType (Fin T
   have hQmin_ne : Qmin.Nonempty :=
     ⟨t_min, Finset.mem_filter.mpr ⟨ht_mem, rfl⟩⟩
   set w := Qmin.min' hQmin_ne
-  have hw_mem : w ∈ Qmin := Finset.min'_mem Qmin hQmin_ne
-  have hwQ : w ∈ Q := (Finset.mem_filter.mp hw_mem).1
-  have hw_arr : (θ w).arrival = (θ t_min).arrival := (Finset.mem_filter.mp hw_mem).2
+  obtain ⟨hwQ, hw_arr⟩ := Finset.mem_filter.mp (Finset.min'_mem Qmin hQmin_ne)
   refine ⟨w, (Finset.mem_filter.mp hwQ).2, fun j hj hba => ?_⟩
   have hjQ : j ∈ Q := Finset.mem_filter.mpr ⟨Finset.mem_univ j, hj⟩
   have hmin_le : (θ t_min).arrival ≤ (θ j).arrival := ht_min j hjQ
@@ -439,13 +432,8 @@ private theorem geometricThreshold_expected_bound {L v : ℝ} (hL : 0 < L) {m : 
   have hsum_ge : L * (2 : ℝ) ^ kstar.val ≤ ∑ k : Fin m, f (L * (2 : ℝ) ^ k.val) :=
     (hf_ge _ (hp_nonneg kstar) hkle).trans (Finset.single_le_sum
       (fun k _ => hf_nonneg _ (hp_nonneg k)) (Finset.mem_univ kstar))
-  have hm_ne : (m : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (Nat.pos_iff_ne_zero.mp hm)
   have hpow : L * (2 : ℝ) ^ (kstar.val + 1) = 2 * (L * (2 : ℝ) ^ kstar.val) := by ring
-  have hmul :
-      (2 * (m : ℝ)) * ((∑ k : Fin m, f (L * (2 : ℝ) ^ k.val)) / (m : ℝ)) =
-        2 * ∑ k : Fin m, f (L * (2 : ℝ) ^ k.val) := by
-    field_simp [hm_ne]
-  rw [hmul]
+  rw [mul_assoc, mul_div_cancel₀ _ (Nat.cast_ne_zero.mpr hm.ne')]
   linarith
 
 /-- Uniform geometric threshold single-item online auction: choosing threshold `p_k = L · 2^k`

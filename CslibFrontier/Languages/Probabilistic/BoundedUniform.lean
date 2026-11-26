@@ -267,8 +267,7 @@ theorem le_eval_sampleUniformInterval_some {bound : ℕ} (hbound : 0 < bound) (a
       ProbComp.eval (sampleUniformInterval bound attempts) (some value) := by
   rw [ENNReal.ofReal_le_iff_le_toReal (PMF.apply_ne_top _ _),
     eval_sampleUniformInterval_some_toReal hbound, ite_eq_left hvalue]
-  have hhalf : (intervalFailure bound : ℝ) ≤ 1 / 2 := by
-    exact_mod_cast intervalFailure_le_half hbound
+  have hhalf : (intervalFailure bound : ℝ) ≤ 1 / 2 := mod_cast intervalFailure_le_half hbound
   gcongr
 
 /-! ### Early stopping -/
@@ -385,8 +384,7 @@ theorem sampleUniformInterval_conditional {bound attempts value : ℕ}
     (ProbComp.eval (sampleUniformInterval bound attempts) (some value)).toReal /
       (((ProbComp.eval (sampleUniformInterval bound attempts)).map Option.isSome) true).toReal =
         (1 : ℝ) / bound := by
-  have hp : (intervalFailure bound : ℝ) ≤ 1 / 2 := by
-    exact_mod_cast intervalFailure_le_half hbound
+  have hp : (intervalFailure bound : ℝ) ≤ 1 / 2 := mod_cast intervalFailure_le_half hbound
   have hpow : (intervalFailure bound : ℝ) ^ attempts < 1 :=
     pow_lt_one₀ (NNReal.coe_nonneg _) (by linarith) hattempts.ne'
   have hden : 1 - (intervalFailure bound : ℝ) ^ attempts ≠ 0 := by linarith
@@ -578,17 +576,12 @@ than discarded by conditioning. -/
 theorem eval_sampleIntegerBox_none (radius dimension attempts : ℕ) :
     (ProbComp.eval (sampleIntegerBox radius dimension attempts) none).toReal =
       1 - (1 - (intervalFailure (2 * radius + 1) : ℝ) ^ attempts) ^ dimension := by
-  let μ := ProbComp.eval (sampleIntegerBox radius dimension attempts)
-  have h := μ.tsum_coe
+  have h := (ProbComp.eval (sampleIntegerBox radius dimension attempts)).tsum_coe
   rw [tsum_option_eq] at h
-  simp_rw [show ∀ out, μ (some out) =
-      (intervalSuccess (2 * radius + 1) attempts : ℝ≥0∞) ^ dimension *
-        integerBoxLaw radius dimension out from
-          eval_sampleIntegerBox_some radius dimension attempts]
-    at h
+  simp_rw [eval_sampleIntegerBox_some] at h
   rw [ENNReal.tsum_mul_left, (integerBoxLaw radius dimension).tsum_coe, mul_one] at h
   have hreal := congrArg ENNReal.toReal h
-  rw [ENNReal.toReal_add (μ.apply_ne_top _) (ENNReal.pow_ne_top ENNReal.coe_ne_top),
+  rw [ENNReal.toReal_add (PMF.apply_ne_top _ _) (ENNReal.pow_ne_top ENNReal.coe_ne_top),
     ENNReal.toReal_one, ENNReal.toReal_pow, ENNReal.coe_toReal, intervalSuccess_coe] at hreal
   linarith
 
@@ -600,9 +593,8 @@ theorem eval_sampleIntegerBox_none_le (radius dimension attempts : ℕ) :
   rw [eval_sampleIntegerBox_none]
   have hp0 : (0 : ℝ) ≤ (intervalFailure (2 * radius + 1) : ℝ) ^ attempts :=
     pow_nonneg (NNReal.coe_nonneg _) _
-  have hp1 : (intervalFailure (2 * radius + 1) : ℝ) ^ attempts ≤ 1 := by
-    apply pow_le_one₀ (NNReal.coe_nonneg _)
-    exact_mod_cast intervalFailure_le_one (2 * radius + 1)
+  have hp1 : (intervalFailure (2 * radius + 1) : ℝ) ^ attempts ≤ 1 :=
+    pow_le_one₀ (NNReal.coe_nonneg _) (mod_cast intervalFailure_le_one (2 * radius + 1))
   have hbern := one_add_mul_le_pow (show (-2 : ℝ) ≤
     -(intervalFailure (2 * radius + 1) : ℝ) ^ attempts by linarith) dimension
   calc
@@ -621,8 +613,8 @@ theorem sampleIntegerBox_conditional (radius dimension attempts : ℕ) (hattempt
     (ProbComp.eval (sampleIntegerBox radius dimension attempts) (some out)).toReal /
       (((ProbComp.eval (sampleIntegerBox radius dimension attempts)).map Option.isSome)
         true).toReal = (integerBoxLaw radius dimension out).toReal := by
-  have hp : (intervalFailure (2 * radius + 1) : ℝ) ≤ 1 / 2 := by
-    exact_mod_cast intervalFailure_le_half (by omega : 0 < 2 * radius + 1)
+  have hp : (intervalFailure (2 * radius + 1) : ℝ) ≤ 1 / 2 :=
+    mod_cast intervalFailure_le_half (Nat.succ_pos _)
   have hpow := pow_lt_one₀ (NNReal.coe_nonneg _) (by linarith : _ < (1 : ℝ)) hattempts.ne'
   have hpositive : 0 < (intervalSuccess (2 * radius + 1) attempts : ℝ) := by
     rw [intervalSuccess_coe]

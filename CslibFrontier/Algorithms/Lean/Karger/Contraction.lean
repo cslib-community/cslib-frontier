@@ -268,9 +268,7 @@ noncomputable abbrev trackedSpec (n : ℕ) : StateTransitionSpec :=
 theorem trackedStep_toGraph {n : ℕ} (G : TrackedGraph n) (o : Op) :
     ((trackedStep G o).1.toGraph, (trackedStep G o).2) = step G.toGraph o := by
   cases o with
-  | size => rfl
-  | total => rfl
-  | pairAt r => rfl
+  | size | total | pairAt _ => rfl
   | contract u v => exact Prod.ext (toGraph_contractTracked G u v) rfl
 
 /-! ## The algorithm -/
@@ -413,10 +411,8 @@ theorem trackedSurvives_contractTimes {n t : ℕ} (ht : 2 ≤ t) {W₀ : Fin n �
     change _ ≤ ((trackedSpec n).toRandomized.withCoins.run
       (contractStep >>= fun _ => contractTimes s)
       ⟨t + s + 1, W, fun i => pullbackCut part {i}⟩).toOuterMeasure _
-    rw [run_tracked_contractStep_bind (m := t + s) _ W _ hS.ne',
-      show (t + (s + 1)) * (t + (s + 1) - 1) = (t + s + 1) * (t + s) by
-        rw [show t + (s + 1) - 1 = t + s by omega]; rfl,
-      ← telescope_survival_step ht (show t ≤ t + s by omega)]
+    rw [run_tracked_contractStep_bind (m := t + s) _ W _ hS.ne']
+    erw [← telescope_survival_step ht (Nat.le_add_right t s)]
     let castFin : Fin (totalDoubledWeight W - 1 + 1) ≃ Fin (totalDoubledWeight W) :=
       finCongr (by omega)
     have hdeg : (t + s + 1) * cutWeight W B ≤ totalDoubledWeight W := by
@@ -888,8 +884,7 @@ theorem demonicValid_contractTimes {t : ℕ} (ht : 1 ≤ t) (s : ℕ)
       refine StateTransitionSpec.demonicValid_withCoins_query_bind
         (show 0 < t + s + 1 ∧ t + s + 1 - 1 < t + s + 1 ∧ 0 ≠ t + s + 1 - 1 by omega) ?_
       dsimp only [StateTransitionSpec.stepFn, step]
-      rw [show t + s + 1 - 1 = ((Fin.last (t + s) : Fin (t + s + 1)) : ℕ) from rfl,
-        show (0 : ℕ) = ((0 : Fin (t + s + 1)) : ℕ) from rfl, contractGraph_fin]
+      erw [contractGraph_fin W 0 (Fin.last (t + s))]
       exact ih (isMultigraph_contractMatrix hW _ _)
     · simp only [hS, ite_false, bind_assoc]
       refine RandomizedSpec.demonicValid_sample_bind fun r => ?_

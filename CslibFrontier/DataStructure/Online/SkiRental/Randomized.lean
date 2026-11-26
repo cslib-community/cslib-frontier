@@ -134,13 +134,10 @@ theorem randomizedRatio_le {B : ℕ} (hB : 1 ≤ B) :
 theorem tendsto_randomizedRatio :
     Tendsto randomizedRatio atTop (𝓝 (Real.exp 1 / (Real.exp 1 - 1))) := by
   have h : Tendsto (fun B : ℕ => (1 - 1 / (B : ℝ)) ^ B) atTop (𝓝 (Real.exp (-1))) := by
-    have := Real.tendsto_one_add_div_pow_exp (-1)
-    simpa only [neg_div, ← sub_eq_add_neg] using this
-  have hne : 1 - Real.exp (-1) ≠ 0 := by
-    have : Real.exp (-1) < 1 := Real.exp_lt_one_iff.mpr (by norm_num)
-    linarith
+    simpa only [neg_div, ← sub_eq_add_neg] using Real.tendsto_one_add_div_pow_exp (-1)
   rw [← one_div_one_sub_exp_neg_one]
-  exact tendsto_const_nhds.div (tendsto_const_nhds.sub h) hne
+  exact tendsto_const_nhds.div (tendsto_const_nhds.sub h)
+    (sub_ne_zero.mpr (Real.exp_lt_one_iff.mpr (by norm_num)).ne')
 
 /-- For `B ≥ 2` randomization helps: `randomizedRatio B < 2 - 1/B`, the optimal deterministic
 ratio (`SkiRental.breakEven_mul_cost_le`, `SkiRental.exists_ratio_violation_of_lt`). -/
@@ -149,12 +146,11 @@ theorem randomizedRatio_lt_two_sub {B : ℕ} (hB : 2 ≤ B) :
   rcases hB.eq_or_lt with rfl | hB3
   · rw [randomizedRatio_eq (by norm_num)]
     norm_num
-  · have he := Real.exp_one_gt_d9
-    have h53 : Real.exp 1 / (Real.exp 1 - 1) < 5 / 3 := by
-      rw [div_lt_iff₀ (by linarith)]
-      linarith
-    have hB' : (3 : ℝ) ≤ B := by exact_mod_cast hB3
-    have h13 : 1 / (B : ℝ) ≤ 1 / 3 := one_div_le_one_div_of_le (by norm_num) hB'
+  · have h53 : Real.exp 1 / (Real.exp 1 - 1) < 5 / 3 := by
+      rw [div_lt_iff₀ (by linarith [Real.exp_one_gt_d9])]
+      linarith [Real.exp_one_gt_d9]
+    have h13 : 1 / (B : ℝ) ≤ 1 / 3 :=
+      one_div_le_one_div_of_le (by norm_num) (by exact_mod_cast hB3)
     linarith [randomizedRatio_le (B := B) (by omega)]
 
 /-! ### Arithmetic of the two distributions
@@ -485,14 +481,10 @@ theorem exists_randomized_witness (B : ℕ) (μ : RandStrategy (problem B)) :
     (fun A => by
       simp only [adversary_apply]
       rw [tsum_natCast_div_mul, tsum_natCast_div_mul, ← mul_div_assoc, ← Nat.cast_mul]
-      have h1 : ∑ o, advWeight B o * (B ^ B * min (advDays B o) B) =
-          B ^ B * (B ^ B - (B - 1) ^ B) := by
-        rw [← sum_advWeight_mul_min B, Finset.mul_sum]
-        exact Finset.sum_congr rfl fun o _ => by ring
       have key : ∑ o, advWeight B o * (B ^ B * min (advDays B o) B) ≤
           (B ^ B - (B - 1) ^ B) *
             ∑ o, advWeight B o * A.cost false (List.replicate (advDays B o) ()) := by
-        rw [h1, mul_comm]
+        simp_rw [mul_left_comm _ (B ^ B), ← Finset.mul_sum, sum_advWeight_mul_min, mul_comm (B ^ B)]
         exact Nat.mul_le_mul_left _ (le_sum_advWeight_mul_cost B A)
       exact ENNReal.div_le_div_right (by exact_mod_cast key) _)
     μ

@@ -379,10 +379,9 @@ private theorem bagList_map {U W : Type*} [DecidableEq U] [DecidableEq W]
     | nil => rfl
     | cons u rest ihr =>
       simp only [List.map_cons, List.erase_cons]
-      by_cases huv : u = v
-      · subst huv; simp
-      · have hne : f u ≠ f v := fun h => huv (hf h)
-        simp [beq_eq_false_iff_ne.2 huv, beq_eq_false_iff_ne.2 hne, ihr]
+      obtain rfl | huv := eq_or_ne u v
+      · simp
+      · simp [beq_eq_false_iff_ne.2 huv, beq_eq_false_iff_ne.2 (hf.ne huv), ihr]
   | join left _ ihl _ => simp [NiceTree.map, bagList, ihl]
 
 private theorem ofRadix_map_inj {U W : Type*} [DecidableEq U] [DecidableEq W]
@@ -392,10 +391,9 @@ private theorem ofRadix_map_inj {U W : Type*} [DecidableEq U] [DecidableEq W]
   | nil => rfl
   | cons v rest ih =>
     simp only [List.map_cons, ofRadix]
-    by_cases huv : u = v
-    · subst huv; simp
-    · have hne : f u ≠ f v := fun h => huv (hf h)
-      simp [huv, hne, ih]
+    obtain rfl | huv := eq_or_ne u v
+    · simp
+    · simp [huv, hf.ne huv, ih]
 
 private theorem dpAlgFold_bool_toNat (k : ℕ) (g : ℕ → Bool) :
     (if dpAlgFold false (· || ·) k g then 1 else 0) =
@@ -453,13 +451,8 @@ private theorem all_ofConstraint_introduce {Rel V : Type*} [DecidableEq V] {q m 
         ((e v).val :: bagList (child.map fun u => (e u).val)).toFinset) =
       decide (c.scope.toFinset ⊆ (v :: bagList child).toFinset) := by
     rw [hcons_map]
-    refine decide_eq_decide.2 ?_
-    simp only [ConstraintTable.ofConstraint, Finset.subset_iff, List.mem_toFinset, List.mem_map]
-    refine ⟨fun hs x hx => ?_, fun hs => ?_⟩
-    · obtain ⟨y, hy, heq⟩ := hs ⟨x, hx, rfl⟩
-      exact hinj heq ▸ hy
-    · rintro _ ⟨x, hx, rfl⟩
-      exact ⟨x, hs hx, rfl⟩
+    exact decide_eq_decide.2 (by
+      simp [ConstraintTable.ofConstraint, Finset.subset_iff, hinj.eq_iff])
   have hmem :
       decide ((e v).val ∈ (ConstraintTable.ofConstraint hq e sem c).scope) =
       decide (v ∈ c.scope) :=
@@ -467,9 +460,7 @@ private theorem all_ofConstraint_introduce {Rel V : Type*} [DecidableEq V] {q m 
   have hev := ConstraintTable.eval_ofConstraint hq e sem c
     (ofRadixFin q hq (v :: bagList child) idx)
     (ofRadix q ((e v).val :: bagList (child.map fun u => (e u).val)) idx)
-    (fun u _ => by
-      rw [hcons_map]
-      exact ofRadix_map_inj hinj q (v :: bagList child) idx u)
+    (fun u _ => hcons_map ▸ ofRadix_map_inj hinj q (v :: bagList child) idx u)
   rw [hsub, hmem, hev]
 
 private theorem toRadix_forget_map {V : Type*} [DecidableEq V] {q m : ℕ} (e : V ≃ Fin m)
@@ -486,10 +477,9 @@ private theorem toRadix_forget_map {V : Type*} [DecidableEq V] {q m : ℕ} (e : 
   simp only [NiceTree.map, bagList] at herase
   rw [herase, hbl, toRadix_map]
   refine toRadix_congr fun u _ => ?_
-  by_cases huv : u = v
-  · subst huv; simp
-  · have hne : (e u).val ≠ (e v).val := fun h => huv (hinj h)
-    simp [huv, hne, ofRadix_map_inj hinj]
+  obtain rfl | huv := eq_or_ne u v
+  · simp
+  · simp [huv, hinj.ne huv, ofRadix_map_inj hinj]
 
 private theorem toRadix_join_map {V : Type*} [DecidableEq V] {q m : ℕ} (e : V ≃ Fin m)
     (left right : NiceTree V) (idx : ℕ) :

@@ -189,14 +189,12 @@ private theorem level {N M a a' A c c' : ℕ} {P P' : ℝ} (hN : 0 < N) (hM : 16
   have hle' : (c' : ℝ) / N ≤ c / N := by gcongr
   obtain ⟨hπ, h1, h2⟩ := choose_real hsum hd hd' hle' hγ
   rw [show 4 * (2 / (M : ℝ)) = 8 / M by ring] at h1 h2
-  have ha : 0 < a := Nat.pos_of_ne_zero fun h => by
-    rw [h, Nat.cast_zero, zero_div] at hπ; norm_num at hπ
+  have ha : 0 < a := Nat.pos_of_ne_zero fun h => by norm_num [h] at hπ
   have hcpos : 0 < c := Nat.pos_of_ne_zero fun h => by
-    rw [h, Nat.cast_zero, zero_div] at h1
     have : (0 : ℝ) < (1 - 8 / M) * (a / A) :=
       mul_pos (by rw [sub_pos, div_lt_one (by linarith only [hMR])]; linarith only [hMR])
         (by positivity)
-    linarith only [h1, this]
+    linarith only [show (1 - 8 / (M : ℝ)) * (a / A) ≤ 0 by simpa [h] using h1, this]
   refine ⟨ha, hcpos, ?_, ?_⟩
   · simpa only [show (1 - 8 / (M : ℝ)) * (a / A) * (N * A) = (1 - 8 / M) * N * a by field_simp,
       show (c : ℝ) / N * (N * A) = c * A by field_simp] using
@@ -405,12 +403,10 @@ theorem estimate_eq_zero (S : α → ℕ → ProbComp (Option (List Bool))) {x :
       obtain ⟨hl, hW, hden⟩ := hs
       obtain ⟨c₀, c₁, -, -, rfl⟩ := R.mem_support_step hs'
       have hlen : 0 < R.len s.1 := by omega
-      refine ⟨?_, R.card_child_eq_zero hlen hW _, Nat.mul_pos hden (by omega)⟩
-      rw [next, R.len_child s.1 hlen]
-      omega) s hs
+      exact ⟨by rw [next, R.len_child s.1 hlen]; omega,
+        R.card_child_eq_zero hlen hW _, Nat.mul_pos hden (by omega)⟩) s hs
   obtain ⟨-, hW, hden⟩ := hinv
-  have hnil : [] ∉ W s.1 := fun h => by simp [Finset.card_eq_zero.mp hW] at h
-  exact ⟨by simp [hnil], hden⟩
+  exact ⟨by simp [Finset.card_eq_zero.mp hW], hden⟩
 
 /-- **Accuracy of the sampling-to-counting estimator**: if `S x q` is within total-variation
 distance `2 ^ (-q)` of uniform on `W x` for every `x` and `q`, then for `p > 0` the estimate is
@@ -436,14 +432,12 @@ theorem approxWithin_estimate {S : α → ℕ → ProbComp (Option (List Bool))}
     (R.Good x p) ⟨by simp, Nat.one_pos, hx, by simp, by simp⟩ (by positivity)
     (fun i hi s hs => R.step_failure hi hs (hS' s.1))
   have hℓ : (ℓ : ℝ) * (2 * (1 / 2 : ℝ) ^ (t + ℓ + 1)) ≤ (1 / 2 : ℝ) ^ t := by
-    have h2 : (ℓ : ℝ) ≤ 2 ^ ℓ := by exact_mod_cast (Nat.lt_two_pow_self).le
-    have : (ℓ : ℝ) * (2 * (1 / 2 : ℝ) ^ (t + ℓ + 1)) = (1 / 2 : ℝ) ^ t * (ℓ * (1 / 2) ^ ℓ) := by
-      rw [pow_add, pow_add]
-      ring
-    rw [this]
-    calc (1 / 2 : ℝ) ^ t * (ℓ * (1 / 2) ^ ℓ) ≤ (1 / 2 : ℝ) ^ t * 1 := by
-          gcongr
-          rwa [one_div_pow, mul_one_div, div_le_one (by positivity)]
+    have h2 : (ℓ : ℝ) * (1 / 2 : ℝ) ^ ℓ ≤ 1 := by
+      rw [one_div_pow, mul_one_div, div_le_one (by positivity)]
+      exact_mod_cast Nat.lt_two_pow_self.le
+    calc (ℓ : ℝ) * (2 * (1 / 2 : ℝ) ^ (t + ℓ + 1))
+        = (1 / 2 : ℝ) ^ t * (ℓ * (1 / 2) ^ ℓ) := by rw [pow_add, pow_add]; ring
+      _ ≤ (1 / 2 : ℝ) ^ t * 1 := by gcongr
       _ = (1 / 2 : ℝ) ^ t := mul_one _
   rw [estimate, ProbComp.eval_map, PMF.toOuterMeasure_map_apply]
   set μ := ProbComp.eval (OracleComp.iterate ℓ (R.step S ℓ p t) (x, 1, 1))

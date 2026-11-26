@@ -137,9 +137,7 @@ theorem ground_ne_nil_of_mem_no {S : SetSystem} {k : ℕ} (hno : (S, k) ∈ (Gap
     S.ground ≠ [] := by
   obtain ⟨-, hopt, hk⟩ := mem_no_iff.mp hno
   intro hS
-  have hnil : S.IsCover ∅ := fun u hu => by simp [hS] at hu
-  have h0 := SetSystem.optCoverSize_le hnil
-  simp only [card_empty] at h0
+  have : S.optCoverSize ≤ 0 := SetSystem.optCoverSize_le (C := ∅) fun _ hu => by simp [hS] at hu
   omega
 
 /-! ### Positions and parameters -/
@@ -267,10 +265,8 @@ theorem reduce_positive (x : (SetSystem × ℕ) × List Bool) : (reduce x).Posit
     refine mem_nonInputComponents.mpr ⟨⟨_, rfl⟩, fun i h => ?_⟩
     have := congrFun h fun _ => false
     simp [Window.template_equivFin] at this
-  have hpos := card_pos.mpr ⟨_, hmem⟩
-  refine ⟨(eighteen_le_arity S).trans_lt' (by norm_num), Nat.succ_pos _, ?_⟩
-  change 0 < _ + _
-  omega
+  exact ⟨(eighteen_le_arity S).trans_lt' (by norm_num), Nat.succ_pos _,
+    Nat.add_pos_left (card_pos.mpr ⟨_, hmem⟩) _⟩
 
 /-! ### Correctness -/
 
@@ -284,8 +280,7 @@ theorem reduce_mem_of_yes {S : SetSystem} {k : ℕ} (hyes : (S, k) ∈ (GapSetCo
   obtain ⟨hcov, hopt⟩ := mem_yes_iff.mp hyes
   by_cases hS : S.ground = []
   · rw [reduce_of_ground_eq_nil hS, fallback, ofFunction_mem_iff]
-    have h := ecomplexity_wiring (I := I) (fun _ : Fin 1 => (0 : Fin 1))
-    exact h.le.trans zero_le
+    exact (ecomplexity_wiring (I := I) fun _ : Fin 1 => (0 : Fin 1)).le.trans zero_le
   rw [reduce_of_ground_ne_nil hS, ofTable_mem_iff]
   obtain ⟨C, hC, hcard⟩ := SetSystem.exists_isCover_optCoverSize hcov
   have hCt : #C ≤ S.sets.length := (card_le_univ C).trans_eq (Fintype.card_fin _)
@@ -373,17 +368,13 @@ theorem three_mul_card_reduce_mem_le {S : SetSystem} {k : ℕ} (hno : (S, k) ∈
   have hcard : #{r : Fin q → Bool | reduce ((S, k), List.ofFn r) ∈ MultiMCSP I} =
       2 ^ (q - 2 ^ arity S) * #{T : Fin (2 ^ arity S) → Bool | ofTable S k T ∈ MultiMCSP I} := by
     refine Eq.trans ?_ ((BitString.card_filter_take hq g).trans (congrArg _ ?_))
-    · congr 1
-      ext r
-      simp only [mem_filter, mem_univ, true_and, g, reduce_of_ground_ne_nil hS,
-        List.getD_eq_getElem?_getD,
-        show ∀ y : Fin (2 ^ arity S), ((List.ofFn r).take (2 ^ arity S))[y.1]? = (List.ofFn r)[y.1]?
-          from fun y => List.getElem?_take_of_lt y.isLt]
-    · congr 1
-      ext T
-      have hT : (fun y : Fin (2 ^ arity S) => (List.ofFn T).getD y false) = T :=
-        funext fun y => by rw [List.getD_eq_getElem _ _ (by simp), List.getElem_ofFn]
-      simp only [mem_filter, mem_univ, true_and, g, hT]
+    · exact congrArg card (Finset.ext fun r => by
+        simp only [mem_filter, mem_univ, true_and, g, reduce_of_ground_ne_nil hS,
+          List.getD_eq_getElem?_getD,
+          fun y : Fin (2 ^ arity S) => List.getElem?_take_of_lt (l := List.ofFn r) y.isLt])
+    · exact congrArg card (Finset.ext fun T => by
+        simp only [mem_filter, mem_univ, true_and, g, List.getD_eq_getElem?_getD,
+          List.getElem?_ofFn, Fin.is_lt, ↓reduceDIte, Option.getD_some])
   rw [hcard]
   calc 3 * (2 ^ (q - 2 ^ arity S) * #{T : Fin (2 ^ arity S) → Bool | ofTable S k T ∈ MultiMCSP I})
       = 2 ^ (q - 2 ^ arity S) * (3 * #{T : Fin (2 ^ arity S) → Bool |

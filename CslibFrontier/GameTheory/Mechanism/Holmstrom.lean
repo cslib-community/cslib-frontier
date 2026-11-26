@@ -117,9 +117,7 @@ private theorem dsic_utility_sandwich [DecidableEq ι] {M : Mechanism ι Ω} {V 
     (v (M.outcome (Function.update b i w)) - w (M.outcome (Function.update b i w))) ≤
       M.utility i v (Function.update b i v) - M.utility i w (Function.update b i w) := by
   have hb' : ∀ j, Function.update b i w j ∈ V j := fun j => by
-    rcases eq_or_ne j i with rfl | hj
-    · rw [Function.update_self]; exact hw
-    · rw [Function.update_of_ne hj]; exact hb j
+    rcases eq_or_ne j i with rfl | hj <;> simp [*]
   have h := hM i (Function.update b i w) v hb' hv
   simp only [Function.update_idem, utility] at h ⊢
   linarith
@@ -223,9 +221,7 @@ theorem payment_sub_eq_of_convex [DecidableEq ι] {M₁ M₂ : Mechanism ι Ω}
           v₀ (M₁.outcome (Function.update b i (γ t))))
         (Icc 0 1) := fun t ht s hs => by
     have hbs : ∀ j, Function.update b i (γ s) j ∈ V j := fun j => by
-      rcases eq_or_ne j i with rfl | hj
-      · simpa only [Function.update_self] using hγV s hs
-      · simpa only [Function.update_of_ne hj] using hb j
+      rcases eq_or_ne j i with rfl | hj <;> simp [*, hγV s hs]
     have h := hM i (Function.update b i (γ s)) (γ t) hbs (hγV t ht)
     simp only [utility, Function.update_idem, γ, Pi.add_apply, Pi.smul_apply, smul_eq_mul,
       houtM] at h
@@ -253,24 +249,17 @@ private theorem exists_groves_of_payment_sub_const [Fintype ι] [DecidableEq ι]
   let h : ι → (ι → Ω → ℝ) → ℝ := fun i b =>
     M.payment (Function.update b i (v₀ i)) i +
       ∑ j ∈ Finset.univ.erase i, b j (M.outcome (Function.update b i (v₀ i)))
-  refine ⟨h, ?_, ?_⟩
-  · intro i b v
-    simp only [h, Function.update_idem]
-    congr 1
-    exact Finset.sum_congr rfl fun j hj => by rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)]
-  · intro b hb i
-    have hne : (V i).Nonempty := ⟨b i, hb i⟩
-    have hv₀ : v₀ i ∈ V i := by
-      simp only [v₀, hne, ↓reduceDIte]
-      exact hne.some_mem
-    have key := hconst i b hb (v₀ i) hv₀ (b i) (hb i)
-    have hsum : ∑ j ∈ Finset.univ.erase i, Function.update b i (v₀ i) j
-        (M.outcome (Function.update b i (v₀ i))) =
-      ∑ j ∈ Finset.univ.erase i, b j (M.outcome (Function.update b i (v₀ i))) :=
-      Finset.sum_congr rfl fun j hj => by rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)]
-    simp only [Function.update_eq_self, groves, zero_sub, sub_neg_eq_add, hsum] at key
-    simp only [groves, h]
-    linarith
+  have hsum (b : ι → Ω → ℝ) (i : ι) (v : Ω → ℝ) (ω : Ω) :
+      ∑ j ∈ Finset.univ.erase i, Function.update b i v j ω =
+        ∑ j ∈ Finset.univ.erase i, b j ω :=
+    Finset.sum_congr rfl fun j hj => by rw [Function.update_of_ne (Finset.ne_of_mem_erase hj)]
+  refine ⟨h, fun i b v => by simp only [h, Function.update_idem, hsum], fun b hb i => ?_⟩
+  have hne : (V i).Nonempty := ⟨b i, hb i⟩
+  have hv₀ : v₀ i ∈ V i := by simpa only [v₀, hne, ↓reduceDIte] using hne.some_mem
+  have key := hconst i b hb (v₀ i) hv₀ (b i) (hb i)
+  simp only [Function.update_eq_self, groves, zero_sub, sub_neg_eq_add, hsum] at key
+  simp only [groves, h]
+  linarith
 
 /-- **Holmström's theorem on smoothly connected domains** ([Holmstrom1979]; locator not
 re-verified against primary PDF): if every agent's valuation domain `V i` is smoothly connected,

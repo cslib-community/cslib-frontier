@@ -250,22 +250,24 @@ private theorem exists_decidableInTimeO {f : α × ℕ → β} {ν : α → ℕ}
       (fun _ => by positivity)⟩
   -- The polynomial overheads, the number of rounds and the leaves, bounded separately.
   have hP := hCp a
-  have hA : ((encA a).length + 1) ^ dn + ((encA a).length + 1) ^ di +
+  have hbr₁ : (1 : ℝ) ≤ 2 ^ branchExponent a :=
+    Real.one_le_rpow (by norm_num) ((Nat.cast_nonneg _).trans (hbranch a))
+  have hA : (((encA a).length : ℝ) + 1) ^ dn + ((encA a).length + 1) ^ di +
       ((encState encA ((step f g)^[rounds ν a] (init a))).length + 1) ^ da ≤
       Cp * ((encA a).length + 1) ^ E := by
     have := Nat.pow_le_pow_left (Nat.add_le_add_right (hstate g a (rounds ν a) le_rfl) 1) da
-    omega
-  have hB : (st a + 1) ^ d + st a + ((encNat (rounds ν a)).length + 1) ^ 2 ≤
+    exact_mod_cast (by omega : ((encA a).length + 1) ^ dn + ((encA a).length + 1) ^ di +
+      ((encState encA ((step f g)^[rounds ν a] (init a))).length + 1) ^ da ≤
+      Cp * ((encA a).length + 1) ^ E)
+  have hB : ((st a : ℝ) + 1) ^ d + st a + ((encNat (rounds ν a)).length + 1) ^ 2 ≤
       Cp * ((encA a).length + 1) ^ E := by
     have := Nat.pow_le_pow_left (Nat.add_le_add_right (hrounds_len a) 1) 2
-    omega
-  have hR : ((rounds ν a + 1 : ℕ) : ℝ) ≤ 2 * (2 : ℝ) ^ branchExponent a := by
+    exact_mod_cast (by omega : (st a + 1) ^ d + st a + ((encNat (rounds ν a)).length + 1) ^ 2 ≤
+      Cp * ((encA a).length + 1) ^ E)
+  have hR : (rounds ν a : ℝ) + 1 ≤ 2 * (2 : ℝ) ^ branchExponent a := by
     have h₁ : (rounds ν a : ℝ) ≤ 2 ^ branchExponent a := by
       rw [rounds, Nat.cast_pow, Nat.cast_ofNat, ← Real.rpow_natCast]
       exact Real.rpow_le_rpow_of_exponent_le (by norm_num) (hbranch a)
-    have h₂ : (1 : ℝ) ≤ (rounds ν a : ℝ) := by
-      exact_mod_cast (show 1 ≤ rounds ν a from Nat.one_le_two_pow)
-    rw [Nat.cast_succ]
     linarith
   have hleaf : (leafTime nd queryExponent k e a : ℝ) ≤
       k * Cp * 2 ^ queryExponent a * ((encA a).length + 1) ^ E + (k + 1) := by
@@ -277,12 +279,8 @@ private theorem exists_decidableInTimeO {f : α × ℕ → β} {ν : α → ℕ}
       (by positivity : (0 : ℝ) ≤ k * 2 ^ queryExponent a)
     unfold leafTime
     linarith
-  have hA' := Nat.cast_le (α := ℝ) |>.mpr hA
-  have hB' := Nat.cast_le (α := ℝ) |>.mpr hB
-  push_cast at hA' hB' hR
-  have key := add_mul_add_le hA' hB' hR hleaf (by positivity) (by positivity) (by positivity)
-    (by positivity) (Real.one_le_rpow (by norm_num) ((Nat.cast_nonneg _).trans (hbranch a)))
-    (Real.one_le_rpow (by norm_num) (hquery₀ a))
+  have key := add_mul_add_le hA hB hR hleaf (by positivity) (by positivity) (by positivity)
+    (by positivity) hbr₁ (Real.one_le_rpow (by norm_num) (hquery₀ a))
     (one_le_pow₀ (le_add_of_nonneg_left (Nat.cast_nonneg _)))
   rw [Real.rpow_add (by norm_num : (0 : ℝ) < 2)]
   push_cast
@@ -308,8 +306,7 @@ theorem DecidableInExpTime.of_exhaustiveSearch {f : α × ℕ → β} {ν : α �
   obtain ⟨e, h⟩ := h
   have hbranch (a : α) : (ν a : ℝ) ≤ (1 / M : ℝ) * μA a + K := by
     rw [one_div_mul_eq_div]
-    have hcast : (ν a : ℝ) ≤ ((μA a / M : ℕ) : ℝ) + K := by exact_mod_cast hνM a
-    exact hcast.trans (add_le_add Nat.cast_div_le le_rfl)
+    exact (mod_cast hνM a : (ν a : ℝ) ≤ ↑(μA a / M) + K).trans (add_le_add Nat.cast_div_le le_rfl)
   have hquery (a : α) (r : ℕ) : δ * μB (f (a, r)) ≤ c * δ * μA a + c * δ := by
     have hbound : (μB (f (a, r)) : ℝ) ≤ c * μA a + c := by exact_mod_cast hμ a r
     calc
@@ -388,9 +385,8 @@ theorem DecidableInSubexpTime.of_exhaustiveSearch {f : α × ℕ → β} {ν : �
   obtain ⟨M, hM⟩ := exists_nat_gt (2 / ε)
   have hMpos : (0 : ℝ) < M := lt_trans (by positivity) hM
   obtain ⟨K, hK⟩ := hνM M (Nat.cast_pos.mp hMpos)
-  have hMε : 1 / (M : ℝ) < ε / 2 := by
-    rw [div_lt_iff₀ hMpos]
-    linarith [(div_lt_iff₀ hε).mp hM]
+  have hMε : 1 / (M : ℝ) < ε / 2 :=
+    (one_div_lt hMpos (half_pos hε)).mpr (by simpa only [one_div_div] using hM)
   set δ : ℝ := ε / (2 * (c + 1))
   have hδ : 0 < δ := by positivity
   refine ((h δ hδ).of_exhaustiveSearch hf hν hfA hμ hK hδ.le).mono ?_

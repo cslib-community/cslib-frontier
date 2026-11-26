@@ -187,9 +187,7 @@ theorem payoff_congr {i : ι} {s₁ s₂ : ∀ k, S k}
     (h : ∀ j, (j = i ∨ M.graph.Adj i j) → s₁ j = s₂ j) :
     M.payoff i s₁ = M.payoff i s₂ := by
   simp only [payoff_eq_localPayoff]
-  congr 1
-  ext j
-  exact h j.1 j.2
+  exact congrArg (M.localPayoff i) (funext fun j => h j.1 j.2)
 
 /-- Changing the action of a non-neighbor `k` (`k ≠ i` and `¬ M.graph.Adj i k`) leaves player `i`'s
 payoff unchanged. -/
@@ -208,9 +206,7 @@ def toCostGame : CostGame ι S where
   rw [toCostGame]
 
 theorem toCostGame_isGraphicalOn : M.toCostGame.IsGraphicalOn M.graph :=
-  fun i _ _ h => by
-    rw [toCostGame_cost, toCostGame_cost]
-    exact congrArg Neg.neg (M.payoff_congr h)
+  fun _ _ _ h => congrArg Neg.neg (M.payoff_congr h)
 
 /-- Represent any normal-form `CostGame` as a graphical game on the complete graph `⊤`
 ([Kearns2007], §7.2 Remarks, p. 162). -/
@@ -227,10 +223,8 @@ def ofCostGameComplete (C : CostGame ι S) : GraphicalGame ι S where
 
 @[simp] theorem toCostGame_ofCostGameComplete (C : CostGame ι S) :
     (ofCostGameComplete C).toCostGame = C := by
-  cases C with
-  | mk cost =>
-    refine congrArg CostGame.mk (funext fun i => funext fun s => ?_)
-    simp [ofCostGameComplete, payoff, restrictNeighborhood]
+  cases C
+  exact congrArg CostGame.mk (funext fun _ => funext fun _ => neg_neg _)
 
 end Basic
 
@@ -328,8 +322,7 @@ theorem tableEntries_lt_normalFormEntries (M : GraphicalGame ι S) [DecidableRel
     M.tableEntries < CostGame.normalFormEntries ι S := by
   rw [M.tableEntries_eq_sum_prod, CostGame.normalFormEntries_eq]
   obtain ⟨i₀, k₀, hne, hnadj⟩ : ∃ i k : ι, i ≠ k ∧ ¬ M.graph.Adj i k := by
-    by_contra hall
-    push Not at hall
+    by_contra! hall
     apply hntop
     ext i k
     simpa only [SimpleGraph.top_adj] using ⟨M.graph.ne_of_adj, hall i k⟩
@@ -505,9 +498,7 @@ theorem deviationPayoff_congr_neighbors {p q : ∀ k, S k → ℝ} {i : ι}
     M.deviationPayoff p i a = M.deviationPayoff q i a := by
   rw [M.deviationPayoff_eq_localDeviationPayoff hp a,
     M.deviationPayoff_eq_localDeviationPayoff hq a]
-  congr 1
-  ext j b
-  exact congrFun (h_eq j.1 j.2) b
+  exact congrArg (M.localDeviationPayoff i a) (funext fun j => h_eq j.1 j.2)
 
 /-- Two mixed strategy profiles agreeing on `ClosedNeighborhood M.graph i` give player `i` the same
 expected payoff ([Kearns2007], §7.2 & Definition 7.8 / Lemma 7.9 product case). -/
@@ -679,8 +670,7 @@ theorem exists_graphicalGame_not_expectedPayoffEquiv {G : SimpleGraph ι}
     {σ τ : Convexity.StdSimplex ℝ (∀ i, S i)} (h : ¬ LocalNeighborhoodEquiv G σ τ) :
     ∃ M : GraphicalGame ι S, M.graph = G ∧ ¬ M.ExpectedPayoffEquiv σ τ := by
   classical
-  unfold LocalNeighborhoodEquiv at h
-  push Not at h
+  simp only [LocalNeighborhoodEquiv, not_forall] at h
   obtain ⟨i₀, u₀, hne⟩ := h
   refine ⟨{
     graph := G
@@ -724,9 +714,8 @@ theorem LocalNeighborhoodEquiv.isCorrelatedEquilibrium_iff [DecidableEq ι]
     {M : GraphicalGame ι S} {σ τ : Convexity.StdSimplex ℝ (∀ i, S i)}
     (h : LocalNeighborhoodEquiv M.graph σ τ) :
     M.toCostGame.IsCorrelatedEquilibrium σ ↔ M.toCostGame.IsCorrelatedEquilibrium τ := by
-  rw [← CostGame.isApproxCorrelatedEquilibrium_zero_iff,
-    ← CostGame.isApproxCorrelatedEquilibrium_zero_iff]
-  exact h.isApproxCorrelatedEquilibrium_iff
+  simpa only [CostGame.isApproxCorrelatedEquilibrium_zero_iff] using
+    h.isApproxCorrelatedEquilibrium_iff (ε := 0)
 
 end CorrelatedEquivalence
 

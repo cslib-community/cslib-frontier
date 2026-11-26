@@ -383,8 +383,7 @@ private lemma dummy_fixed_of_isSDEfficient {n : ℕ} (hn : 4 ≤ n) (p : Profile
   have hMds := mem_doublyStochastic_iff_sum.mp heff.1
   have hacyc := ((isSDEfficient_iff_isAcyclicTrade _ M).mp heff).2
   by_contra hneq
-  have hle1 : M k k ≤ 1 := le_one_of_mem_doublyStochastic heff.1
-  have hlt1 : M k k < 1 := lt_of_le_of_ne hle1 hneq
+  have hlt1 : M k k < 1 := lt_of_le_of_ne (le_one_of_mem_doublyStochastic heff.1) hneq
   classical
   let S : Finset (Fin n) := Finset.univ.filter fun x =>
     (x.val < 4 ∧ ∃ j : Fin n, 4 ≤ j.val ∧ 0 < M j x) ∨ (4 ≤ x.val ∧ M x x < 1)
@@ -415,12 +414,10 @@ private lemma dummy_fixed_of_isSDEfficient {n : ℕ} (hn : 4 ≤ n) (p : Profile
   rcases (Finset.mem_filter.mp hvS).2 with ⟨hv4, j, hj4, hpos⟩ | ⟨hv4, hltv⟩
   · exact hdummy_src j hj4 (fun h => by subst h; omega) hpos
   · -- Since `M v v < 1` and column sum `v` is `1`, some `j ≠ v` satisfies `0 < M j v`.
-    have hex_j : ∃ j : Fin n, j ≠ v ∧ 0 < M j v := by
+    obtain ⟨j, hjne, hpos⟩ : ∃ j : Fin n, j ≠ v ∧ 0 < M j v := by
       by_contra! hle0
-      have hcol : ∑ j : Fin n, M j v = M v v :=
-        Fintype.sum_eq_single v fun j hj => le_antisymm (hle0 j hj) (hMds.1 j v)
-      linarith [hMds.2.2 v]
-    obtain ⟨j, hjne, hpos⟩ := hex_j
+      linarith [hMds.2.2 v,
+        Fintype.sum_eq_single v fun j hj => le_antisymm (hle0 j hj) (hMds.1 j v)]
     by_cases hj4 : 4 ≤ j.val
     · exact hdummy_src j hj4 hjne hpos
     · -- `j.val < 4` gets positive mass of `v ≥ 4`; balance of block `{0..3}` implies some
@@ -439,14 +436,11 @@ private lemma dummy_fixed_of_isSDEfficient {n : ℕ} (hn : 4 ≤ n) (p : Profile
       have hsplit_c := hsplit M.transpose hMds.2.2
       simp only [Matrix.transpose_apply] at hsplit_c
       rw [Finset.sum_comm (s := lo) (t := hi), Finset.sum_comm (s := lo) (t := lo)] at hsplit_c
-      have hpos_lo_hi : 0 < ∑ a ∈ lo, ∑ o ∈ hi, M a o := by
-        have hjlo : j ∈ lo := Finset.mem_filter.mpr ⟨Finset.mem_univ _, by omega⟩
-        have hvhi : v ∈ hi := Finset.mem_filter.mpr ⟨Finset.mem_univ _, by omega⟩
-        have h1 : M j v ≤ ∑ o ∈ hi, M j o :=
-          Finset.single_le_sum (fun o _ => hMds.1 j o) hvhi
-        have h2 : ∑ o ∈ hi, M j o ≤ ∑ a ∈ lo, ∑ o ∈ hi, M a o :=
-          Finset.single_le_sum (fun a _ => Finset.sum_nonneg fun o _ => hMds.1 a o) hjlo
-        linarith
+      have hpos_lo_hi : 0 < ∑ a ∈ lo, ∑ o ∈ hi, M a o :=
+        hpos.trans_le <| (Finset.single_le_sum (fun o _ => hMds.1 j o)
+          (Finset.mem_filter.mpr ⟨Finset.mem_univ _, not_lt.mpr hv4⟩)).trans <|
+          Finset.single_le_sum (fun a _ => Finset.sum_nonneg fun o _ => hMds.1 a o)
+            (Finset.mem_filter.mpr ⟨Finset.mem_univ _, not_le.mp hj4⟩)
       have hpos_hi_lo : 0 < ∑ a ∈ hi, ∑ o ∈ lo, M a o := by linarith
       obtain ⟨a, ha_hi, hrow_pos⟩ :=
         (Finset.sum_pos_iff_of_nonneg fun a _ => Finset.sum_nonneg fun o _ => hMds.1 a o).mp
@@ -456,17 +450,10 @@ private lemma dummy_fixed_of_isSDEfficient {n : ℕ} (hn : 4 ≤ n) (p : Profile
       have ho4 : o.val < 4 := (Finset.mem_filter.mp ho_lo).2
       have hoS : o ∈ S := Finset.mem_filter.mpr ⟨Finset.mem_univ _, Or.inl ⟨ho4, a, ha4, hMao⟩⟩
       have hjpref : (padProfile hn p j).symm o < (padProfile hn p j).symm v := by
-        have hpj : padProfile hn p j = padPerm hn (p ⟨j.val, by omega⟩) := by
-          simp [padProfile, show j.val < 4 by omega]
-        rw [hpj]
-        have ho_rk := padPerm_symm_lt hn (p ⟨j.val, by omega⟩) ⟨o.val, ho4⟩
-        have hv_rk := padPerm_symm_ge hn (p ⟨j.val, by omega⟩) v hv4
-        change ((padPerm hn (p ⟨j.val, by omega⟩)).symm o).val <
-          ((padPerm hn (p ⟨j.val, by omega⟩)).symm v).val
-        have hfin : (⟨o.val, by omega⟩ : Fin n) = o := rfl
-        rw [hfin] at ho_rk
-        rw [ho_rk, hv_rk]
-        exact lt_of_lt_of_le ((p ⟨j.val, by omega⟩).symm ⟨o.val, ho4⟩).isLt hv4
+        simp only [padProfile, not_le.mp hj4, ↓reduceDIte, Fin.lt_def]
+        rw [show o = ⟨(⟨o.val, ho4⟩ : Fin 4).val, ho4.trans_le hn⟩ from rfl,
+          padPerm_symm_lt hn _ ⟨o.val, ho4⟩, padPerm_symm_ge hn _ v hv4]
+        exact ((p _).symm ⟨o.val, ho4⟩).isLt.trans_le hv4
       exact hsrc o hoS ⟨j, hpos, hjpref⟩
 
 private lemma dummy_block_zero {n : ℕ} (hn : 4 ≤ n) (p : Profile 4)
@@ -478,8 +465,7 @@ private lemma dummy_block_zero {n : ℕ} (hn : 4 ≤ n) (p : Profile 4)
       (∀ y, 0 ≤ f y) → ∑ y : Fin n, f y = 1 → f k = 1 → x ≠ k → f x = 0 := by
     intro f k x hnn hsum hfk hne
     have hrest : ∑ y ∈ Finset.univ.erase k, f y = 0 := by
-      have hadd := Finset.add_sum_erase Finset.univ f (Finset.mem_univ k)
-      linarith
+      linarith [Finset.add_sum_erase Finset.univ f (Finset.mem_univ k)]
     exact (Finset.sum_eq_zero_iff_of_nonneg fun y _ => hnn y).mp hrest x
       (Finset.mem_erase.mpr ⟨hne, Finset.mem_univ x⟩)
   exact ⟨fun i k hi hk =>

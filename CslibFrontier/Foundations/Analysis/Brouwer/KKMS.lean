@@ -214,13 +214,10 @@ theorem exists_balanced_inter_of_kkmCover {A : Type*} [Fintype A] [DecidableEq A
     ⟨fun i => div_nonneg (add_nonneg (hz.1 i) (le_max_left _ _)) (hdenom_pos z).le, by
       simp only [step, ← Finset.sum_div, Finset.sum_add_distrib, hz.2]
       exact div_self (hdenom_pos z).ne'⟩
-  let f : (Unit → A → ℝ) → (Unit → A → ℝ) := fun p _ => step (p ())
   obtain ⟨p, hp, hfix⟩ := Cslib.Brouwer.exists_isFixedPt_pi_simplex
-    (f := f) (fun p hp _ => hstep_maps (hp ()))
+    (f := fun (p : Unit → A → ℝ) _ => step (p ())) (fun p hp _ => hstep_maps (hp ()))
     (continuous_pi fun _ => hstep_cont.comp (continuous_apply ())).continuousOn
-  set z : A → ℝ := p ()
-  have hzΔ : z ∈ Δ := hp ()
-  have hfz : step z = z := congrFun hfix ()
+  obtain ⟨z, hzΔ, hfz⟩ : ∃ z ∈ Δ, step z = z := ⟨p (), hp (), congrFun hfix ()⟩
   let μ : ℝ := ∑ j, dir z j * z j
   have hgain_eq (i : A) : gain z i = z i * ∑ j, gain z j := by
     have hi := congrFun hfz i
@@ -300,18 +297,15 @@ theorem exists_mem_iInter_of_kkmCover {A : Type*} [Fintype A] [Nonempty A]
       exact ⟨{i}, Finset.singleton_subset_iff.2 hiT, Finset.singleton_nonempty i,
         hG_single i ▸ hqi⟩
   refine ⟨q, hq, fun i => hG_single i ▸ hqG {i} ?_⟩
-  have hsingle : w {i} = 1 := by
-    rw [← hw_bal i, Finset.sum_eq_single {i}]
-    · intro S hS hSne
-      by_contra hnw
-      have hqS := hqG S (lt_of_le_of_ne (hw0 S) (Ne.symm hnw))
-      dsimp only [G] at hqS
-      split_ifs at hqS with hex
-      · obtain ⟨j, rfl⟩ := hex
-        exact hSne (congrArg singleton (Finset.mem_singleton.1 (Finset.mem_filter.1 hS).2).symm)
-      · exact hqS
-    · exact fun hnot =>
-        (hnot (Finset.mem_filter.2 ⟨Finset.mem_univ _, Finset.mem_singleton_self i⟩)).elim
-  linarith
+  suffices w {i} = 1 by linarith
+  rw [← hw_bal i, Finset.sum_eq_single {i}]
+  · intro S hS hSne
+    refine le_antisymm (not_lt.1 fun hwS => ?_) (hw0 S)
+    have hqS := hqG S hwS
+    by_cases hex : ∃ j, S = {j}
+    · obtain ⟨j, rfl⟩ := hex
+      exact hSne (congrArg singleton (Finset.mem_singleton.1 (Finset.mem_filter.1 hS).2).symm)
+    · simp [G, hex] at hqS
+  · simp
 
 end Cslib.Brouwer

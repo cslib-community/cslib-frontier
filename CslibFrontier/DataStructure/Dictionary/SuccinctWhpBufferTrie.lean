@@ -390,9 +390,7 @@ private theorem bufWalk_le_leaf {bChar : ℕ} {child : ℕ → ℕ → ℕ}
     split at hw
     · cases hw
     · rename_i h0
-      have hlt := hinc _ _ h0
-      have hle := ih (off + 1) _ leaf k hw
-      omega
+      exact (hinc _ _ h0).le.trans (ih (off + 1) _ leaf k hw)
 
 /-- If `bufWalk` fails in `child₁` (`= none`) and succeeds in an extension `child₂` (`= some leaf`)
 where every newly added edge points to a node `≥ bound` and `child₂` strictly increases node
@@ -414,12 +412,9 @@ private theorem bufWalk_ge_of_none {bChar bound : ℕ} {child₁ child₂ : ℕ 
     · cases hw₂
     · rename_i h0₂
       by_cases heq : child₂ cur (laneGet bChar k off) = child₁ cur (laneGet bChar k off)
-      · have h0₁ : child₁ cur (laneGet bChar k off) ≠ 0 := by omega
-        simp only [h0₁, ↓reduceIte] at hw₁
+      · simp only [heq ▸ h0₂, ↓reduceIte] at hw₁
         exact ih (off + 1) _ leaf k (heq ▸ hw₁) hw₂
-      · have hb := hnew cur _ heq
-        have hle := bufWalk_le_leaf hinc rem (off + 1) _ leaf k hw₂
-        omega
+      · exact (hnew cur _ heq).trans (bufWalk_le_leaf hinc rem (off + 1) _ leaf k hw₂)
 
 /-- Exact specification of `bufDelete`: preserves `ValidBufTrie` for
 `Function.update mapFn rKey none`, leaves `nodeAlloc`, `itemAlloc`, and `bufEverPresent` unchanged,
@@ -636,16 +631,13 @@ private theorem bufEnsurePath_props {cTab bChar rKey : ℕ} :
           rcases hvc with ⟨rfl, rfl⟩; simp [tr_step]
       · exact Or.inr ⟨by simp [bufWalk, ch, nxt, h0],
           bufWalk_le_leaf hinv1.child_lt rem (off + 1) u _ rKey hw_rem⟩
-      · dsimp only [bufWalk]
-        rw [hmono1 cur ch (by dsimp [tr_step]; simp; have := hinv.alloc; omega),
-          show tr_step.trieChild cur ch = u by simp [tr_step]]
-        simp only [show u ≠ 0 by have := hinv.alloc; omega, ↓reduceIte]
-        exact hw_rem
+      · have hu0 : u ≠ 0 := by have := hinv.alloc; omega
+        have htr_ch : tr_step.trieChild cur ch = u := by simp [tr_step]
+        simpa only [bufWalk, ch, hmono1 cur ch (htr_ch ▸ hu0), htr_ch, hu0, ↓reduceIte] using hw_rem
     · simp only [h0, ↓reduceIte]
       obtain ⟨h1_ge, h1_lt, hp1, _⟩ := (hinv.iff cur ch).mp h0
-      have hd_nxt : depth nxt = off + 1 := by
-        rw [(hinv.edge nxt h1_ge h1_lt).2.2.1, hp1, hdep]
-      rcases ih (off + 1) tr nxt depth (by omega) hinv h1_lt hd_nxt with
+      rcases ih (off + 1) tr nxt depth (by omega) hinv h1_lt
+          (by rw [(hinv.edge nxt h1_ge h1_lt).2.2.1, hp1, hdep]) with
         ⟨ha_le, ha_ub, hia, hil, hib, hiloc, hact, hpres1, hz_ge1,
          hmono1, hnew1, hwalk_or, hleaf_lt, hw_rem, depth1, hinv1, hd1_leaf⟩
       refine ⟨ha_le, by omega, hia, hil, hib, hiloc, hact, hpres1, hz_ge1, hmono1, hnew1, ?_,
@@ -653,9 +645,7 @@ private theorem bufEnsurePath_props {cTab bChar rKey : ℕ} :
       · rcases hwalk_or with ⟨hw_ok, htr_eq⟩ | ⟨hw_none, hge_leaf⟩
         · exact Or.inl ⟨by simp [bufWalk, ch, nxt, h0, hw_ok], htr_eq⟩
         · exact Or.inr ⟨by simp [bufWalk, ch, nxt, h0, hw_none], hge_leaf⟩
-      · dsimp only [bufWalk]
-        rw [hmono1 cur ch h0, ite_eq_right h0]
-        exact hw_rem
+      · simpa only [bufWalk, ch, nxt, hmono1 cur ch h0, h0, ↓reduceIte] using hw_rem
 
 /-- Exact specification of `bufInsert`:
 * Preserves `ValidBufTrie` for `Function.update mapFn rKey (some (b, loc))`;
@@ -986,12 +976,11 @@ theorem ClearableBufTrie.clearSteps_spec (cTab bChar : ℕ) :
     dsimp only [bufClearSteps]
     by_cases ha1 : tr.nodeAlloc = 1
     · obtain ⟨hv1, ha1', hi0'⟩ := hc.clearOne_of_one cTab bChar ha1
-      cases k with
-      | zero => exact ⟨hv1, ha1', hi0'⟩
-      | succ => exact ih hv1.toClearable (by omega)
+      rcases k with _ | k
+      · exact ⟨hv1, ha1', hi0'⟩
+      · exact ih hv1.toClearable (by omega)
     · obtain ⟨hc1, ha_nxt⟩ := hc.clearOne_step
-      have hgt1 := hc.1
-      exact ih hc1 (by omega)
+      exact ih hc1 (by have := hc.1; omega)
 
 /-- `bufInsert` preserves the linear bound `nodeAlloc ≤ 1 + cTab * itemAlloc` across all
 insertions, overwrites, and reactivations. -/

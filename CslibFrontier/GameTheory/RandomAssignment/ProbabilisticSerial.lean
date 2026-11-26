@@ -239,12 +239,8 @@ private lemma eatingInv_step {n : ℕ} (p : Profile n) {s : EatingState n} (hinv
   · rwa [show eatingStep p s = s from dite_eq_right h]
   set dt := eatingDuration p s.rem h
   have hdt_pos : 0 < dt := eatingDuration_pos p s.rem h
-  have hrem_eq (o : Fin n) :
-      (eatingStep p s).rem o = s.rem o - (eatingDemand p s.rem h o : ℝ) * dt :=
-    eatingStep_pos_rem p s h o
-  have halloc_eq (i o : Fin n) :
-      (eatingStep p s).alloc i o = s.alloc i o + if favObject p s.rem h i = o then dt else 0 :=
-    eatingStep_pos_alloc p s h i o
+  have hrem_eq := eatingStep_pos_rem p s h
+  have halloc_eq := eatingStep_pos_alloc p s h
   have hel_eq := eatingStep_pos_elapsed p s h
   have hexh_eq := eatingStep_pos_exhaust p s h
   have hrem_zero_of_zero : ∀ o : Fin n, s.rem o = 0 → (eatingStep p s).rem o = 0 := by
@@ -261,12 +257,10 @@ private lemma eatingInv_step {n : ℕ} (p : Profile n) {s : EatingState n} (hinv
   have hexh_new : ∀ x : Fin n, 0 < s.rem x → (eatingStep p s).rem x = 0 →
       (eatingStep p s).exhaustTime x = s.elapsed + dt := fun x hx hx0 =>
     (hexh_eq x).trans (ite_eq_left ⟨hx, (hrem_eq x).symm.trans hx0⟩)
-  have hcard_sum : ∀ o : Fin n,
+  have hcard_sum (o : Fin n) :
       (∑ i : Fin n, if favObject p s.rem h i = o then dt else 0) =
         (eatingDemand p s.rem h o : ℝ) * dt := by
-    intro o
-    rw [← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul]
-    rfl
+    simp [← Finset.sum_filter, eatingDemand]
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · intro o
     rw [hrem_eq o]
@@ -277,17 +271,16 @@ private lemma eatingInv_step {n : ℕ} (p : Profile n) {s : EatingState n} (hinv
     rw [halloc_eq i o]
     exact add_nonneg (hinv.alloc_nonneg i o) (ite_nonneg hdt_pos.le le_rfl)
   · intro i
-    simp [halloc_eq i, Finset.sum_add_distrib, hinv.row_sum i, hel_eq, dt]
+    simp [halloc_eq i, Finset.sum_add_distrib, hinv.row_sum i, hel_eq]
   · intro o
-    simp_rw [hrem_eq o, halloc_eq _ o, Finset.sum_add_distrib, hcard_sum o]
+    simp_rw [hrem_eq o, fun i => halloc_eq i o]
+    rw [Finset.sum_add_distrib, hcard_sum o]
     linarith [hinv.col_sum o]
   · rw [hel_eq]; linarith [hinv.elapsed_nonneg]
   · intro i j
     have hrow (a : Fin n) : (eatingStep p s).alloc a =
-        s.alloc a + fun o => if o = favObject p s.rem h a then dt else 0 := by
-      funext o
-      rw [halloc_eq a o]
-      simp [eq_comm]
+        s.alloc a + fun o => if o = favObject p s.rem h a then dt else 0 :=
+      funext fun o => by simp [halloc_eq, eq_comm, dt]
     rw [hrow i, hrow j]
     exact (hinv.envyFree i j).add <| (sdDominates_single_iff (p i) _ _ hdt_pos).mpr <|
       favObject_rank_le p s.rem h i _ (favObject_rem_pos p s.rem h j)
@@ -297,24 +290,20 @@ private lemma eatingInv_step {n : ℕ} (p : Profile n) {s : EatingState n} (hinv
     · rw [hexh_old o (hz o hpos), hel_eq]
       linarith [hinv.exhaust_le o (hz o hpos)]
   · intro i a b hpos' hlt
-    rw [halloc_eq i b] at hpos'
-    rcases (hinv.alloc_nonneg i b).eq_or_lt with hzero | hold
-    · have hfav : favObject p s.rem h i = b := by
-        by_contra hne
-        simp [← hzero, hne] at hpos'
-      have ha0 : s.rem a = 0 := le_antisymm
-        (favObject_lt_le_zero p s.rem h i a (by rwa [hfav])) (hinv.rem_nonneg a)
-      refine ⟨hrem_zero_of_zero a ha0, fun hb0' => ?_⟩
-      rw [hexh_old a ha0, hexh_new b (hfav ▸ favObject_rem_pos p s.rem h i) hb0']
+    obtain ⟨ha0, horder⟩ : s.rem a = 0 ∧ (s.rem b = 0 → s.exhaustTime a < s.exhaustTime b) := by
+      rcases (hinv.alloc_nonneg i b).eq_or_lt with hzero | hold
+      · have hfav : favObject p s.rem h i = b := by
+          by_contra hne
+          simp [halloc_eq, ← hzero, hne] at hpos'
+        exact ⟨le_antisymm (favObject_lt_le_zero p s.rem h i a (hfav ▸ hlt)) (hinv.rem_nonneg a),
+          fun hb0 => absurd hb0 (hfav ▸ favObject_rem_pos p s.rem h i).ne'⟩
+      · exact hinv.trade_order i a b hold hlt
+    refine ⟨hrem_zero_of_zero a ha0, fun hb0' => ?_⟩
+    rw [hexh_old a ha0]
+    by_cases hb_pos : 0 < s.rem b
+    · rw [hexh_new b hb_pos hb0']
       linarith [hinv.exhaust_le a ha0]
-    · obtain ⟨ha0, horder⟩ := hinv.trade_order i a b hold hlt
-      refine ⟨hrem_zero_of_zero a ha0, fun hb0' => ?_⟩
-      rw [hexh_old a ha0]
-      by_cases hb_pos : 0 < s.rem b
-      · rw [hexh_new b hb_pos hb0']
-        linarith [hinv.exhaust_le a ha0]
-      · rw [hexh_old b (hz b hb_pos)]
-        exact horder (hz b hb_pos)
+    · exact hexh_old b (hz b hb_pos) ▸ horder (hz b hb_pos)
 
 private noncomputable def activeObjs {n : ℕ} (s : EatingState n) : Finset (Fin n) :=
   @Finset.filter (Fin n) (fun o => 0 < s.rem o) (Classical.decPred _) Finset.univ

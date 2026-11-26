@@ -216,13 +216,10 @@ theorem l1Ball_convex (n : ℕ) (r : ℝ) : Convex ℝ (l1Ball n r) := by
         (mul_le_mul_of_nonneg_left hy hb)
     _ = r := by rw [← add_mul, hab, one_mul]
 
-theorem l1Ball_isComplete (n : ℕ) (r : ℝ) : IsComplete (l1Ball n r) := by
-  have hclosed : IsClosed (l1Ball n r) :=
-    isClosed_le (by
-      have hterm : ∀ k : Fin n, Continuous (fun x : EuclideanSpace ℝ (Fin n) => |x k|) :=
-        fun k => (EuclideanSpace.proj k).continuous.abs
-      fun_prop) continuous_const
-  exact hclosed.isComplete
+theorem l1Ball_isComplete (n : ℕ) (r : ℝ) : IsComplete (l1Ball n r) :=
+  have hterm (k : Fin n) : Continuous fun x : EuclideanSpace ℝ (Fin n) => |x k| :=
+    (EuclideanSpace.proj k).continuous.abs
+  (isClosed_le (by fun_prop) continuous_const).isComplete
 
 /-- Elementary `ℓ₁`–`ℓ₂` Cauchy–Schwarz inequality on `EuclideanSpace ℝ (Fin n)`. -/
 private theorem sum_abs_le_sqrt_mul_norm {n : ℕ} (x : EuclideanSpace ℝ (Fin n)) :
@@ -307,18 +304,13 @@ pair `(i.castSucc, i.succ)` with `w i.castSucc > 0` and `w i.succ ≤ 0`. -/
 private theorem exists_adjacent_sign_change {K : ℕ} (w : Fin (K + 1) → ℝ)
     (h0 : 0 < w 0) (hlast : w (Fin.last K) < 0) :
     ∃ i : Fin K, 0 < w i.castSucc ∧ w i.succ ≤ 0 := by
-  by_contra hnone
-  push Not at hnone
-  have hpos : ∀ j : ℕ, (hj : j < K + 1) → 0 < w ⟨j, hj⟩ := by
-    intro j hj
+  by_contra! hnone
+  have hpos (j : ℕ) : ∀ hj : j < K + 1, 0 < w ⟨j, hj⟩ := by
     induction j with
-    | zero => exact h0
+    | zero => exact fun _ => h0
     | succ q ih =>
-      have hq : q < K := Nat.lt_of_succ_lt_succ hj
-      have ih' : 0 < w ⟨q, Nat.lt_trans hq (Nat.lt_succ_self K)⟩ := ih _
-      exact hnone ⟨q, hq⟩ ih'
-  have := hpos K (Nat.lt_succ_self K)
-  exact absurd this (not_lt_of_ge hlast.le)
+      exact fun hj => hnone ⟨q, Nat.lt_of_succ_lt_succ hj⟩ (ih (Nat.lt_of_succ_lt hj))
+  exact (hpos K (Nat.lt_succ_self K)).not_ge hlast.le
 
 /-- Explicit 2-point-supported distribution on `Fin (K + 1)` forcing the `l1Ball` supporting
 halfspace of `w : EuclideanSpace ℝ (Fin (K + 1))` against both binary outcomes `true, false`
@@ -415,9 +407,8 @@ theorem fosterVohraDist_inner_le {K : ℕ} (hK : 0 < K)
       have hc : 0 ≤ c := neg_nonneg.mpr hex.choose_spec.2
       have hac : 0 < a + c := by linarith
       have hne : i.castSucc ≠ i.succ := i.castSucc_lt_succ.ne
-      have hp_eq : ∀ k, fosterVohraDist K w k =
+      have hp_eq (k : Fin (K + 1)) : fosterVohraDist K w k =
           if k = i.castSucc then c / (a + c) else if k = i.succ then a / (a + c) else 0 := by
-        intro k
         simp only [fosterVohraDist, dite_eq_right h0, dite_eq_right hlast]
         rfl
       have hinner_eq :

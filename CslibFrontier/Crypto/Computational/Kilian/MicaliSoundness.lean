@@ -700,12 +700,10 @@ private theorem allOpeningsQueriedInTrace_of_mem_support_kilianVerifyProg
     AllOpeningsQueriedInTrace (fun _ => h) [] V tr' x ρs response := by
   supp_cases hmem [kilianVerifyProg, run_interpret_bind, run_interpret_pure]
     with ⟨⟨checks, tr₁⟩, hchecks, rfl, rfl⟩
-  have hall := allOpenings_of_mem_support_mapM_kilianCheckProg dist V x root
-    (ρs.zip response) hnodup hsupp hchecks hcons
   rintro ⟨a, opening⟩ ho
-  simp only [kilianOpenings, List.mem_flatMap] at ho
-  obtain ⟨p, hp, ho⟩ := ho
-  exact hall p hp (a, opening) ho
+  obtain ⟨p, hp, ho⟩ := List.mem_flatMap.mp ho
+  exact allOpenings_of_mem_support_mapM_kilianCheckProg dist V x root (ρs.zip response)
+    hnodup hsupp hchecks hcons p hp (a, opening) ho
 
 /-- Any outcome `(true, st')` in the support of `micaliSoundnessProg V L P` under `micaliMemoize`
 must violate `MicaliGoodState V L st'`. -/
@@ -780,11 +778,9 @@ theorem micaliSoundness_bound [DecidableEq α] (V : PCPVerifier α) (L : Set α)
   set run := (OracleComp.interpret (micaliMemoize V σ m) (micaliSoundnessProg V L P)).run ([], [])
   rw [← PMF.toOuterMeasure_apply_inter_support]
   calc run.toOuterMeasure ((Prod.fst ⁻¹' {true}) ∩ run.support)
-      ≤ run.toOuterMeasure {out | ¬ MicaliGoodState V L out.2} := by
-        refine run.toOuterMeasure.mono fun ⟨res, st'⟩ ⟨hres, hmem⟩ => ?_
-        simp only [Set.mem_preimage, Set.mem_singleton_iff] at hres
-        subst hres
-        exact not_micaliGoodState_of_mem_support_micaliSoundnessProg V L σ m P hmem
+      ≤ run.toOuterMeasure {out | ¬ MicaliGoodState V L out.2} :=
+        run.toOuterMeasure.mono fun ⟨_, _⟩ ⟨hres, hmem⟩ =>
+          not_micaliGoodState_of_mem_support_micaliSoundnessProg V L σ m P (hres ▸ hmem)
     _ ≤ ((t_FS + 1 : ℕ) : ℝ≥0∞) * (1 / 2) ^ m +
           (Q_MT : ℝ≥0∞) * (((3 * Q_MT + (t_FS + 1) : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)) :=
         toOuterMeasure_run_micaliMemoize_not_goodState_le V L σ m hsound hMT
@@ -834,8 +830,7 @@ theorem micaliProofBits_micaliProvePure_le {hTree : List Bool → List Bool}
   set H : List Bool → List Bool → List Bool := fun k y =>
     if k.length = σ then hTree y else List.replicate k.length false
   set k₀ : List Bool := List.replicate σ false
-  have hk₀ : k₀.length = σ := List.length_replicate
-  have hH_eq : H k₀ = hTree := funext fun y => by simp [H, hk₀]
+  have hH_eq : H k₀ = hTree := funext fun y => by simp [H, k₀]
   have hlenH : ∀ k y, (H k y).length = k.length := fun k y => by
     by_cases hk : k.length = σ <;> simp [H, hk, hlen y]
   have hstep_eq : merklePathStep (fun _ => hTree) [] = merklePathStep H k₀ :=
@@ -849,12 +844,10 @@ theorem micaliProofBits_micaliProvePure_le {hTree : List Bool → List Bool}
   have hdepth : (hFS (x, kilianCommit (fun _ => hTree) V [] x table)).length *
       (q * (1 + kilianDepth V x * k₀.length)) ≤
       m * (q * (1 + (V.coins x + Nat.clog 2 q) * σ)) := by
-    rw [hm, hk₀]
+    rw [hm, List.length_replicate]
     gcongr
     exact kilianDepth_le hq
-  unfold micaliProofBits micaliProvePure
-  dsimp only
-  rw [hrespond]
+  simp only [micaliProofBits, micaliProvePure, hrespond]
   omega
 
 /-- **Polylogarithmic Micali proof size**: for a verifier with at most `c * (log₂ |enc x| + 1)`

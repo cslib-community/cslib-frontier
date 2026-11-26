@@ -43,10 +43,7 @@ private theorem flatten_toChunks_go (n : ℕ) (l : List α) (acc₁ : Array α)
 
 /-- The chunks flatten back to the list. -/
 @[simp] theorem flatten_toChunks (n : ℕ) (l : List α) : (l.toChunks n).flatten = l := by
-  match n, l with
-  | _, [] => simp [toChunks]
-  | 0, x :: xs => simp [toChunks]
-  | k + 1, x :: xs => simp [toChunks, flatten_toChunks_go]
+  rcases n with _ | k <;> cases l <;> simp [toChunks, flatten_toChunks_go]
 
 private theorem length_of_mem_toChunks_go {n : ℕ} (hn : 0 < n) (l : List α) (acc₁ : Array α)
     (acc₂ : Array (List α)) (h₁ : 0 < acc₁.size ∧ acc₁.size ≤ n)
@@ -60,17 +57,14 @@ private theorem length_of_mem_toChunks_go {n : ℕ} (hn : 0 < n) (l : List α) (
     · simpa using h₁
   | cons x xs ih =>
     rw [toChunks.go]
-    split
+    split_ifs with heq
     · refine ih _ _ (by simp; omega) fun c hc => ?_
       simp only [Array.toList_push, mem_append, mem_singleton] at hc
       rcases hc with hc | rfl
       · exact h₂ c hc
       · simpa using h₁
-    · rename_i hne
-      refine ih _ _ ?_ h₂
-      simp only [beq_iff_eq] at hne
-      simp only [Array.size_push]
-      omega
+    · refine ih _ _ ?_ h₂
+      simp [beq_iff_eq] at heq ⊢; omega
 
 /-- For `0 < n`, every chunk has between `1` and `n` elements. -/
 theorem length_pos_and_le_of_mem_toChunks {n : ℕ} (hn : 0 < n) {l c : List α}

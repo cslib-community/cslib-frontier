@@ -696,27 +696,19 @@ private theorem symIdx_symOf {m : ℕ} (hm : m < 3) : symIdx (symOf m) = m := by
 theorem ScanQ.idx_ofIdx {m : ℕ} (hm : m < 3 + 3 * k) :
     (ScanQ.ofIdx m : ScanQ k).idx = m := by
   rw [ScanQ.ofIdx]
-  split_ifs with h₁ h₂
+  split_ifs with h₁
   · exact symIdx_symOf h₁
-  · simp only [ScanQ.idx]
-    rw [symIdx_symOf (Nat.mod_lt _ (by norm_num))]
+  · simp only [ScanQ.idx, symIdx_symOf (Nat.mod_lt _ (by norm_num))]
     omega
-  · exact absurd (by omega) h₂
+  · omega
 
 /-- Encoding `ScanLoc.ofIdx m` for `m < scanWidth k` recovers `m`. -/
 theorem ScanLoc.idx_ofIdx {m : ℕ} (hm : m < scanWidth k) :
     (ScanLoc.ofIdx m : ScanLoc k).idx = m := by
   simp only [scanWidth] at hm
+  have hq : (m - (k + 1)) / 2 < 3 + 3 * k := by omega
   rw [ScanLoc.ofIdx]
-  split_ifs with h₁ h₂ h₃
-  · rfl
-  · simp only [ScanLoc.idx]; omega
-  · simp only [ScanLoc.idx]
-    rw [ScanQ.idx_ofIdx (by omega)]
-    omega
-  · simp only [ScanLoc.idx]
-    rw [ScanQ.idx_ofIdx (by omega)]
-    omega
+  split_ifs <;> simp only [ScanLoc.idx, ScanQ.idx_ofIdx hq] <;> omega
 
 /-- Encoding `GlobLoc.ofIdx m` for `m < globWidth k State` recovers `m`. -/
 theorem GlobLoc.idx_ofIdx {m : ℕ} (hm : m < globWidth k State) :
@@ -747,13 +739,7 @@ theorem GFeat.idx_ofIdx {m : ℕ} (hm : m < Fintype.card (Option State) + 4) :
 theorem ColFeat.idx_ofIdx {m : ℕ} (hm : m < 1 + 4 * k) :
     (ColFeat.ofIdx m : ColFeat k).idx = m := by
   rw [ColFeat.ofIdx]
-  split_ifs with h₁ h₂ h₃
-  · simp only [ColFeat.idx]; omega
-  · simp only [ColFeat.idx]; omega
-  · simp only [ColFeat.idx]
-    rw [symIdx_symOf (Nat.mod_lt _ (by norm_num))]
-    omega
-  · exact absurd (by omega) h₃
+  split_ifs <;> simp only [ColFeat.idx, symIdx_symOf (Nat.mod_lt _ (by norm_num))] <;> omega
 
 private theorem gadgetIdx_decode (m : ℕ) : gadgetIdx (m / 16) (gadgetB m) (gadgetJ m) = m := by
   simp only [gadgetIdx, gadgetB, gadgetJ]

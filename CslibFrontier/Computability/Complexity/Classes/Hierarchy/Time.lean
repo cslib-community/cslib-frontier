@@ -163,11 +163,9 @@ private theorem clockedBounds_aux (cA cD cO C₂ : ℕ) : ∃ K, ∀ {n A D N J 
   have hY2 : (J + 1) ^ 2 ≤ W := by grind
   -- the pieces
   have hU' : 100000 * (P * (n + 1)) ^ 4 * (J + 1) ^ 2 ≤ 100000 * P ^ 5 * W := by
-    have hmono := Nat.mul_le_mul
-      (Nat.pow_le_pow_right hPX1 (show 4 ≤ 5 by omega))
-      (Nat.pow_le_pow_right hY1 (show 2 ≤ 3 by omega))
-    have hscaled := Nat.mul_le_mul_left 100000 hmono
-    simpa only [hW, mul_pow, Nat.mul_assoc] using hscaled
+    simpa only [hW, mul_pow, Nat.mul_assoc] using Nat.mul_le_mul_left 100000
+      (Nat.mul_le_mul (Nat.pow_le_pow_right hPX1 (by decide))
+        (Nat.pow_le_pow_right hY1 (by decide)))
   have hrunZ : runBound D N J ≤ 200 * P ^ 2 * Z := by
     have : 200 * (P * (n + 1)) ^ 2 * (J + 1) = 200 * P ^ 2 * Z := by
       simp only [hZ, mul_pow, Nat.mul_assoc]
@@ -256,9 +254,8 @@ theorem computableInO_timeDiagonal {J : ℕ → ℕ} (hJ : TimeConstructible J) 
   have hu : ComputableInO unframe encBits encBits (fun x => x.length) fun x => x.length :=
     ComputableInO.of_linear (.of_unframe fun _ => rfl)
   have hdesc := hdec.inO.comp hu
-  have hsym := Universal.computableInO_map_eBit
-  have hclock := hJ.computableInO
-  have hU := computableInO_universal.comp (hdesc.prod (hsym.prod hclock))
+  have hU := computableInO_universal.comp
+    (hdesc.prod (Universal.computableInO_map_eBit.prod hJ.computableInO))
   have h := computableInO_shortDesc.ite (computableInO_verdict.comp hU)
     (ComputableInO.const (encMid := encBool) false)
   obtain ⟨cD, hcD⟩ := hdesc.length_le
@@ -283,21 +280,18 @@ theorem computableInO_timeDiagonal {J : ℕ → ℕ} (hJ : TimeConstructible J) 
       (Nat.le_mul_of_pos_right _ (Nat.pow_pos (by omega)))
   have e (W : ℕ) : (K + 2) * (W + 1) = K * W + 2 * W + K + 2 := by ring
   refine h.mono (K + 2) (fun x => ?_) fun x => ?_
-  · have := e ((x.length + 1) ^ 5 * (J x.length + 1) ^ 3)
+  all_goals
+    have := e ((x.length + 1) ^ 5 * (J x.length + 1) ^ 3)
     have := hW x
     have := hW2 x
     dsimp only [Function.comp_apply, encBits_apply]
     split_ifs with hs
-    · have := (hbounds x hs).1
-      omega
-    · omega
-  · have := e ((x.length + 1) ^ 5 * (J x.length + 1) ^ 3)
-    have := hW x
-    dsimp only [Function.comp_apply, encBits_apply]
-    split_ifs with hs
-    · have := (hbounds x hs).2
-      omega
-    · omega
+  · have := (hbounds x hs).1
+    omega
+  · omega
+  · have := (hbounds x hs).2
+    omega
+  · omega
 
 /-- **Diagonalization at arbitrarily large favorable lengths.** The clock need only dominate
 each linear bound infinitely often. A description can be padded to every sufficiently large

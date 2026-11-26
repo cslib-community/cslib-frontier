@@ -295,14 +295,11 @@ theorem realizes_btreeLocateHitGen :
     · obtain ⟨ht3, _, hkey_lt, _⟩ := (btree_slice_param_bounds hth).1
       have hhi : 2 ^ fpBitsWhp n_max - 1 < 2 ^ fpBitsWhp n_max :=
         Nat.sub_lt (Nat.two_pow_pos _) one_pos
-      obtain ⟨hdl_st, hdl_res, _, _, _⟩ := descendLoopGenProg_spec henv hsIdx hrep hrt
+      obtain ⟨_, hdl_res, _, _, _⟩ := descendLoopGenProg_spec henv hsIdx hrep hrt
         (Nat.zero_le q) (by omega) hhi hT (fuel := hMaxBTree)
-      dsimp only at hdl_st hdl_res
-      rw [hdl_res]
       obtain ⟨_, _, _, _, hv_leaf⟩ :=
         descendToLeaf_leaf (by omega) hkey_lt hT hhi (Nat.zero_le q) (by omega) hht_lt.le
-      rw [hrt] at hv_leaf
-      exact hv_leaf.1.trans_le hrep.1
+      exact hdl_res.symm ▸ (hrt ▸ hv_leaf).1.trans_le hrep.1
   · decide
   · exact henv.fits_const (by decide)
   · obtain ⟨_, ⟨ha0, _⟩ | ⟨_, T, hrt, hht_lt, _, _, hT⟩⟩ := hv.alloc_and_height_lt hth hins
@@ -323,11 +320,11 @@ theorem realizes_btreeLocateHitGen :
         readBTreeNodeGenProg_spec hth henv.2.1 hsIdx hleaf_lt hrep (s := s)
       dsimp only at hnd_st hnd_res
       rw [hdl_st, hdl_res, hnd_res]
-      refine ⟨⟨base, c, U, V, w, n_max, henv, rfl⟩, ?_, ?_, ?_, ?_⟩
-      · simp only [wp_large_capLanes hth]; change metaCount _ < _; omega
-      · simp only [wp_large_powFp hth]; exact hq
-      · simp only [wp_large_wKey hth]; exact hkw_cnt
-      · simp only [wp_large_wKey hth, wp_large_powFp hth]; exact hlanes
+      refine ⟨⟨base, c, U, V, w, n_max, henv, rfl⟩, ?_,
+        (wp_large_powFp hth).symm ▸ hq, (wp_large_wKey hth).symm ▸ hkw_cnt, ?_⟩
+      · simp only [wp_large_capLanes hth]
+        exact Nat.lt_of_le_of_lt hcnt_le (by omega)
+      · rwa [wp_large_wKey hth, wp_large_powFp hth]
   · exact (Nat.le_mul_of_pos_left _ (by have := eight_le_tMinWhp hth; omega)).trans_lt
       henv.keysWordBits_lt_w
   · obtain ⟨_, ⟨ha0, _⟩ | ⟨_, T, hrt, hht_lt, _, _, hT⟩⟩ := hv.alloc_and_height_lt hth hins
@@ -353,12 +350,8 @@ theorem realizes_btreeLocateHitGen :
       have hrc : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max)
           ((sl.nodes leafIdx).metaWord / 2) q (sl.nodes leafIdx).keysWord <
           (sl.nodes leafIdx).metaWord / 2 := by assumption
-      have hsh : swarRank (fpBitsWhp n_max) (2 * tMinWhp n_max)
-          ((sl.nodes leafIdx).metaWord / 2) q (sl.nodes leafIdx).keysWord * keyLaneBitsWhp n_max <
-          w :=
-        (Nat.mul_le_mul_right _ (hrc.le.trans (by change metaCount _ ≤ _; omega))).trans_lt
-          henv.keysWordBits_lt_w
-      exact hsh.trans Nat.lt_two_pow_self
+      exact ((Nat.mul_le_mul_right _ (hrc.le.trans (hcnt_le.trans (Nat.sub_le _ _)))).trans_lt
+        henv.keysWordBits_lt_w).trans Nat.lt_two_pow_self
   · exact henv.fits_const (by decide)
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp

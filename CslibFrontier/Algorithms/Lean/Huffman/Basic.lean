@@ -352,8 +352,7 @@ theorem isPrefixFree_codewordSet (T : CodeTree α) :
 theorem nil_notMem_codewordSet_branch (l r : CodeTree α) :
     [] ∉ (branch l r).codewordSet := by
   rintro ⟨a, ha⟩
-  simp only [codewords, List.mem_append, List.mem_map] at ha
-  rcases ha with ⟨p, _, hp⟩ | ⟨p, _, hp⟩ <;> simp at hp
+  simp [codewords] at ha
 
 /-- Every non-leaf `CodeTree` codebook satisfies Mathlib's
 `InformationTheory.IsUniquelyDecodable`. -/
@@ -499,11 +498,7 @@ theorem decode_encode [DecidableEq α] (l r : CodeTree α) {msg : List α} {bits
     · have hd1 : decodeOne (branch l r) (b :: (bs ++ rest)) = some (a, rest) :=
         decodeOne_append_of_mem_codewords (mem_codewords_of_encodeSym hc) rest
       rw [List.cons_append, decode]
-      split
-      · next hnone => simp [hd1] at hnone
-      · next a' rem hsome =>
-        obtain ⟨rfl, rfl⟩ : a = a' ∧ rest = rem := by simpa [hd1] using hsome
-        simp [ih hrest]
+      split <;> simp_all
 
 private theorem sum_codewords_count_cons [DecidableEq α] {L : List (α × List Bool)}
     (hnodup : (L.map Prod.fst).Nodup) {a : α} {c : List Bool}
@@ -535,9 +530,7 @@ theorem length_encode_eq_weightedPathLength_count [DecidableEq α] {T : CodeTree
     (henc : T.encode msg = some bits) :
     bits.length = T.weightedPathLength (fun a => msg.count a) := by
   induction msg generalizing bits with
-  | nil =>
-    obtain rfl : [] = bits := by simpa [encode] using henc
-    simp [weightedPathLength_eq_sum_codewords]
+  | nil => simp_all [encode, weightedPathLength_eq_sum_codewords]
   | cons a msg ih =>
     simp only [encode, bind, Option.bind_eq_some_iff, pure, Option.some.injEq] at henc
     rcases henc with ⟨c, hc, rest, hrest, rfl⟩

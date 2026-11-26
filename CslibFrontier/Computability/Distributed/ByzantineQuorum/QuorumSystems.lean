@@ -210,9 +210,8 @@ theorem IsThresholdMaskingQuorumSystem.toDissemination
 /-- Every `b`-threshold dissemination quorum system has at least one quorum. -/
 theorem IsThresholdDisseminationQuorumSystem.quorums_nonempty
     (h : qs.IsThresholdDisseminationQuorumSystem b) :
-    qs.quorums.Nonempty := by
-  obtain ⟨Q, hQ, _⟩ := h.1 ∅ (Nat.zero_le b)
-  exact ⟨Q, hQ⟩
+    qs.quorums.Nonempty :=
+  (h.1 ∅ (Nat.zero_le b)).imp fun _ h => h.1
 
 /-- Any two quorums in a `b`-threshold dissemination quorum system intersect. -/
 theorem IsThresholdDisseminationQuorumSystem.inter_nonempty
@@ -472,10 +471,7 @@ private lemma applyWrites_mem_or_eq {T V : Type*} [LinearOrder T]
   | cons w ws ih =>
     refine (ih (init.updateIfNewer w)).elim (fun h => ?_) (Or.inr ∘ List.mem_cons_of_mem w)
     rw [applyWrites, List.foldl_cons, ← applyWrites, h]
-    unfold TimestampedVal.updateIfNewer
-    split_ifs
-    · exact Or.inr List.mem_cons_self
-    · exact Or.inl rfl
+    by_cases hlt : init.ts < w.ts <;> simp [TimestampedVal.updateIfNewer, hlt]
 
 private lemma ts_le_applyWrites {T V : Type*} [LinearOrder T]
     (init : TimestampedVal T V) (delivered : List (TimestampedVal T V)) :
@@ -538,10 +534,9 @@ private lemma applyWrites_eq_latest {T V : Type*} [LinearOrder T]
     (applyWrites init delivered).ts ≤ latest.ts ∧
       ((applyWrites init delivered).ts = latest.ts → applyWrites init delivered = latest) := by
   rcases (applyWrites_mem_or_eq init delivered).imp_right (hbound _) with heq | heq | hlt
-  · rw [heq]
-    exact ⟨hinit.le, fun hts => absurd hts hinit.ne⟩
-  · rw [heq]
-    exact ⟨le_rfl, fun _ => rfl⟩
+  · exact ⟨(congrArg TimestampedVal.ts heq).trans_le hinit.le,
+      fun hts => absurd ((congrArg TimestampedVal.ts heq).symm.trans hts) hinit.ne⟩
+  · exact ⟨(congrArg TimestampedVal.ts heq).le, fun _ => heq⟩
   · exact ⟨hlt.le, fun hts => absurd hts hlt.ne⟩
 
 /-- Unauthenticated `b`-threshold single-latest-write masking-register step toward `#7506` (after
@@ -577,10 +572,9 @@ theorem threshold_masking_register_max_ts_eq {P T V : Type*} [DecidableEq P] [Li
     refine Finset.mem_filter.mpr ⟨hu.1.2, (hresp u hu.2).trans (heq (le_antisymm hle ?_))⟩
     exact (ts_le_applyWrites init (delivered u)).2 latest (hcompleted u hu.1.1 hu.2)
   refine ⟨hlatest_mem, fun e he hmax => ?_⟩
-  obtain ⟨u, _, huF, hru⟩ := maskingCandidates_sound hF he
+  obtain ⟨u, _, huF, rfl⟩ := maskingCandidates_sound hF he
   obtain ⟨hle, heq⟩ := applyWrites_eq_latest hinit (hbound u huF)
-  have he_eq : applyWrites init (delivered u) = e := (hresp u huF).symm.trans hru
-  rw [he_eq] at hle heq
+  rw [← hresp u huF] at hle heq
   exact heq (le_antisymm hle (hmax latest hlatest_mem))
 
 /-- Computable `b`-threshold single-latest-write masking-read step toward `#7506` (after
@@ -606,12 +600,11 @@ theorem threshold_maskingRead_eq_some_latest_write {P T V : Type*} [DecidableEq 
     refine ⟨fun ⟨he, hm⟩ => huniq e he hm, fun h => h ▸ ⟨hmem, fun e' he' => ?_⟩⟩
     obtain ⟨u, _, huF, rfl⟩ := maskingCandidates_sound hF he'
     exact hresp u huF ▸ (applyWrites_eq_latest hinit (hbound u huF)).1
-  unfold maskingRead
-  dsimp only
+  simp only [maskingRead]
   split_ifs with hcard'
   · generalize_proofs hp
-    exact congrArg some (congrArg TimestampedVal.val
-      (Finset.mem_singleton.mp (htop_eq ▸ (Finset.choose_spec (fun _ => True) _ hp).1)))
+    exact congrArg (some ∘ TimestampedVal.val)
+      (Finset.mem_singleton.mp (htop_eq ▸ (Finset.choose_spec (fun _ => True) _ hp).1))
   · exact absurd (htop_eq ▸ Finset.card_singleton latest) hcard'
 
 end Cslib.Distributed.ByzantineQuorum

@@ -125,8 +125,7 @@ private theorem mul_eq_mul_of_modEq_of_le {M N D : ℕ} {a b c d : ℤ}
   refine sub_eq_zero.mp (Int.eq_zero_of_dvd_of_natAbs_lt_natAbs hmod.symm.dvd ?_)
   have := Int.natAbs_sub_le (a * b) (c * d)
   rw [Int.natAbs_mul, Int.natAbs_mul] at this
-  rw [Int.natAbs_natCast]
-  linarith
+  rw [Int.natAbs_natCast]; linarith
 
 /-- Uniqueness of modular rational recovery: if `a₁ * b₂ ≡ a₂ * b₁ [ZMOD M]` with
 `|aᵢ| ≤ N`, `0 < bᵢ ≤ D`, and `2 * N * D < M`, then `(a₁ : ℚ) / b₁ = (a₂ : ℚ) / b₂`. -/
@@ -267,19 +266,15 @@ theorem reconstruct_eq_some {M N D : ℕ} {u : ℤ} {q : ℚ}
     (hq : reconstruct M u N D = some q) :
     0 < M ∧ q.num.natAbs ≤ N ∧ q.den ≤ D ∧ Nat.Coprime q.den M ∧
       q.num ≡ u * (q.den : ℤ) [ZMOD M] := by
-  rw [reconstruct] at hq
-  by_cases hM : M = 0
-  · simp [hM] at hq
+  unfold reconstruct at hq
+  dsimp only at hq
+  split_ifs at hq with hM hcond
   have hMpos : 0 < M := Nat.pos_of_ne_zero hM
-  simp only [hM, ↓reduceIte] at hq
-  let st := reconstructLoop N (M : ℤ) 0 (u % (M : ℤ)) 1
-  change (if decide (st.t1.natAbs ≤ D ∧ Nat.Coprime st.t1.natAbs M) then
-    some (Rat.divInt st.r1 st.t1) else none) = some q at hq
-  split_ifs at hq with hcond
+  have hspec := reconstructLoop_spec (N := N) (initial_stepInv hMpos u)
+  dsimp only at hspec
+  set st := reconstructLoop N (M : ℤ) 0 (u % (M : ℤ)) 1
   rcases of_decide_eq_true hcond with ⟨htD, htM⟩
   have hqr : Rat.divInt st.r1 st.t1 = q := Option.some.inj hq
-  have hspec := reconstructLoop_spec (N := N) (initial_stepInv hMpos u)
-  change StepInv M u st.r0 st.t0 st.r1 st.t1 ∧ st.r1 ≤ (N : ℤ) ∧ _ at hspec
   obtain ⟨hinv, hrN, -⟩ := hspec
   have hden : q.den ∣ st.t1.natAbs := Int.natCast_dvd.mp (hqr ▸ Rat.den_dvd st.r1 st.t1)
   -- Cancel the unit `t1` from `q.num * t1 = r1 * q.den ≡ t1 * u * q.den`.
@@ -302,15 +297,11 @@ theorem reconstruct_of_eq {M N D : ℕ} {u : ℤ} {q : ℚ}
     reconstruct M u N D = some q := by
   have hMpos : 0 < M := Nat.zero_lt_of_lt hM
   have hM0 : (M : ℤ) ≠ 0 := Int.natCast_ne_zero.mpr hMpos.ne'
-  rw [reconstruct]
+  unfold reconstruct
   simp only [hMpos.ne', ↓reduceIte]
-  let st := reconstructLoop N (M : ℤ) 0 (u % (M : ℤ)) 1
-  change (if decide (st.t1.natAbs ≤ D ∧ Nat.Coprime st.t1.natAbs M) then
-    some (Rat.divInt st.r1 st.t1) else none) = some q
   have hspec := reconstructLoop_spec (N := N) (initial_stepInv hMpos u)
-  change StepInv M u st.r0 st.t0 st.r1 st.t1 ∧ st.r1 ≤ (N : ℤ) ∧
-    ((st.r0 = (M : ℤ) ∧ st.t0 = 0 ∧ st.r1 = u % (M : ℤ) ∧ st.t1 = 1) ∨
-      ((N : ℤ) < st.r0 ∧ st.t0 * st.t1 < 0)) at hspec
+  dsimp only at hspec
+  set st := reconstructLoop N (M : ℤ) 0 (u % (M : ℤ)) 1
   rcases hspec with ⟨hinv, hrN, hcase⟩
   have hmod_rt : q.num * st.t1 ≡ (q.den : ℤ) * st.r1 [ZMOD M] :=
     calc q.num * st.t1 ≡ u * q.den * st.t1 [ZMOD M] := hmod.mul_right _

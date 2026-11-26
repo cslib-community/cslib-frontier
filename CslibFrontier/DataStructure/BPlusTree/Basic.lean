@@ -514,9 +514,8 @@ variable {fst : BPlusTree α β} {rest : List (Branch α β)} {entries : List (�
 
 /-- The children among the branches of a balanced node have the height of the first child. -/
 theorem Balanced.height_of_mem_rest (h : Balanced (.node fst rest)) {e : Branch α β}
-    (he : e ∈ rest) : e.child.height = fst.height := by
-  cases h with
-  | node _ _ h₃ => exact h₃ e he
+    (he : e ∈ rest) : e.child.height = fst.height :=
+  match h with | .node _ _ h₃ => h₃ e he
 
 /-- A balanced node is one higher than its first child. -/
 theorem Balanced.height_node (h : Balanced (.node fst rest)) :
@@ -525,15 +524,13 @@ theorem Balanced.height_node (h : Balanced (.node fst rest)) :
   exact max_eq_left (heightRest_le_iff.2 fun e he => by rw [h.height_of_mem_rest he])
 
 /-- The first child of a balanced node is balanced. -/
-theorem Balanced.first (h : Balanced (.node fst rest)) : Balanced fst := by
-  cases h with
-  | node h₁ _ _ => exact h₁
+theorem Balanced.first (h : Balanced (.node fst rest)) : Balanced fst :=
+  match h with | .node h₁ _ _ => h₁
 
 /-- The children among the branches of a balanced node are balanced. -/
 theorem Balanced.of_mem_rest (h : Balanced (.node fst rest)) {e : Branch α β}
-    (he : e ∈ rest) : Balanced e.child := by
-  cases h with
-  | node _ h₂ _ => exact h₂ e he
+    (he : e ∈ rest) : Balanced e.child :=
+  match h with | .node _ h₂ _ => h₂ e he
 
 /-- A child of a balanced tree is exactly one lower. -/
 theorem Balanced.height_of_mem_children {c : BPlusTree α β} (h : Balanced tr)
@@ -551,27 +548,21 @@ theorem Balanced.of_mem_children {c : BPlusTree α β} (h : Balanced tr) (hc : c
     fun _ _ _ htr he hc => hc ▸ (htr ▸ h).of_mem_rest he
 
 /-- An occupied tree has at most `2 * t - 1` entries or separators at its root. -/
-theorem Occupied.width_le {c : BPlusTree α β} (h : Occupied t c) : c.width ≤ 2 * t - 1 := by
-  cases h with
-  | leaf _ h₂ => exact h₂
-  | node _ h₂ _ _ => exact h₂
+theorem Occupied.width_le {c : BPlusTree α β} (h : Occupied t c) : c.width ≤ 2 * t - 1 :=
+  match h with | .leaf _ h₂ | .node _ h₂ _ _ => h₂
 
 /-- An occupied tree has at least `t - 1` entries or separators at its root. -/
-theorem Occupied.le_width {c : BPlusTree α β} (h : Occupied t c) : t - 1 ≤ c.width := by
-  cases h with
-  | leaf h₁ _ => exact h₁
-  | node h₁ _ _ _ => exact h₁
+theorem Occupied.le_width {c : BPlusTree α β} (h : Occupied t c) : t - 1 ≤ c.width :=
+  match h with | .leaf h₁ _ | .node h₁ _ _ _ => h₁
 
 /-- The first child of an occupied node is occupied. -/
-theorem Occupied.first (h : Occupied t (.node fst rest)) : Occupied t fst := by
-  cases h with
-  | node _ _ h₃ _ => exact h₃
+theorem Occupied.first (h : Occupied t (.node fst rest)) : Occupied t fst :=
+  match h with | .node _ _ h₃ _ => h₃
 
 /-- The children among the branches of an occupied node are occupied. -/
 theorem Occupied.of_mem_rest (h : Occupied t (.node fst rest)) {e : Branch α β}
-    (he : e ∈ rest) : Occupied t e.child := by
-  cases h with
-  | node _ _ _ h₄ => exact h₄ e he
+    (he : e ∈ rest) : Occupied t e.child :=
+  match h with | .node _ _ _ h₄ => h₄ e he
 
 /-- A child of an occupied tree is occupied. -/
 theorem Occupied.of_mem_children {c : BPlusTree α β} (h : Occupied t tr)
@@ -586,33 +577,28 @@ section LinearOrder
 variable [LinearOrder α] {t : ℕ} {c fst : BPlusTree α β} {rest : List (Branch α β)}
 
 /-- The first child of a separated node is separated. -/
-theorem Separated.first (h : Separated (.node fst rest)) : Separated fst := by
-  cases h with
-  | node h₁ _ _ _ _ => exact h₁
+theorem Separated.first (h : Separated (.node fst rest)) : Separated fst :=
+  match h with | .node h₁ _ _ _ _ => h₁
 
 /-- The children among the branches of a separated node are separated. -/
 theorem Separated.of_mem_rest (h : Separated (.node fst rest)) {e : Branch α β}
-    (he : e ∈ rest) : Separated e.child := by
-  cases h with
-  | node _ h₂ _ _ _ => exact h₂ e he
+    (he : e ∈ rest) : Separated e.child :=
+  match h with | .node _ h₂ _ _ _ => h₂ e he
 
 /-- A separator is at most every key of the child it introduces. -/
 theorem Separated.le_of_mem (h : Separated (.node fst rest)) {e : Branch α β} (he : e ∈ rest)
-    {p : α × β} (hp : p ∈ e.child.toList) : e.1 ≤ p.1 := by
-  cases h with
-  | node _ _ h₃ _ _ => exact h₃ e he p hp
+    {p : α × β} (hp : p ∈ e.child.toList) : e.1 ≤ p.1 :=
+  match h with | .node _ _ h₃ _ _ => h₃ e he p hp
 
 /-- The keys of each child among the branches are below every later separator. -/
 theorem Separated.pairwise (h : Separated (.node fst rest)) :
-    rest.Pairwise fun a b => ∀ p ∈ a.child.toList, p.1 < b.1 := by
-  cases h with
-  | node _ _ _ h₄ _ => exact h₄
+    rest.Pairwise fun a b => ∀ p ∈ a.child.toList, p.1 < b.1 :=
+  match h with | .node _ _ _ h₄ _ => h₄
 
 /-- The keys of the first child are below every separator. -/
 theorem Separated.lt_of_mem_first (h : Separated (.node fst rest)) {e : Branch α β}
-    (he : e ∈ rest) {p : α × β} (hp : p ∈ fst.toList) : p.1 < e.1 := by
-  cases h with
-  | node _ _ _ _ h₅ => exact h₅ e he p hp
+    (he : e ∈ rest) {p : α × β} (hp : p ∈ fst.toList) : p.1 < e.1 :=
+  match h with | .node _ _ _ _ h₅ => h₅ e he p hp
 
 /-- The separator convention between two positions of a node: the keys of the child at an
 earlier position are below the separator at a later one. -/
@@ -735,17 +721,15 @@ theorem belowLater_iff :
 @[simp] theorem isWF_iff : isWF t tr = true ↔ IsWF t tr := by
   simp only [isWF, Bool.and_eq_true, Bool.or_eq_true, decide_eq_true_eq, List.all_eq_true,
     occupied_iff, balanced_iff, separated_iff]
-  constructor
-  · rintro ⟨⟨⟨⟨⟨⟨h₁, h₂⟩, h₃⟩, h₄⟩, h₅⟩, h₆⟩, h₇⟩
-    refine ⟨h₁, h₂, fun hne => ?_, h₄, h₅, h₆, h₇⟩
-    cases tr with
+  refine ⟨fun ⟨⟨⟨⟨⟨⟨h₁, h₂⟩, h₃⟩, h₄⟩, h₅⟩, h₆⟩, h₇⟩ =>
+    ⟨h₁, h₂, fun hne => ?_, h₄, h₅, h₆, h₇⟩, fun h =>
+    ⟨⟨⟨⟨⟨⟨h.two_le, h.width_le⟩, ?_⟩, h.occupied_of_mem_children⟩, h.balanced⟩, h.separated⟩,
+      h.sorted⟩⟩
+  · cases tr with
     | leaf entries => exact absurd rfl (hne entries)
     | node => simpa using h₃
-  · intro h
-    refine ⟨⟨⟨⟨⟨⟨h.two_le, h.width_le⟩, ?_⟩, h.occupied_of_mem_children⟩, h.balanced⟩,
-      h.separated⟩, h.sorted⟩
-    cases tr with
-    | leaf entries => simp
+  · cases tr with
+    | leaf => simp
     | node => exact Or.inr (h.width_pos nofun)
 
 end Decidability

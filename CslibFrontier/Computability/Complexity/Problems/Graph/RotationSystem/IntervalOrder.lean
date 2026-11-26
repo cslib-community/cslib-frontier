@@ -127,11 +127,10 @@ theorem mem_rotationInterval_iff_ranks (o a b c : Dart G)
   have hneab : ra ≠ rb := fun h => hab ((r.rotationDistance_eq_iff_eq o a b hoa hob).mp h)
   have hnebc : rb ≠ rc := fun h => hbc ((r.rotationDistance_eq_iff_eq o b c hob hoc).mp h)
   have hneac : ra ≠ rc := fun h => hac ((r.rotationDistance_eq_iff_eq o a c hoa hoc).mp h)
-  have hdist : ra + dist = rc ∨ ra + dist = rc + n := by
-    apply (add_mod_eq_iff ha hd hc).mp
-    have h := r.rotationDistance_pow_from o a hoa dist
-    rw [r.pow_rotationDistance a c (hoa.symm.trans hoc)] at h
-    exact h.symm
+  have hdist : ra + dist = rc ∨ ra + dist = rc + n :=
+    (add_mod_eq_iff ha hd hc).mp <| by
+      simpa only [ra, rc, n, dist, r.pow_rotationDistance a c (hoa.symm.trans hoc)] using
+        (r.rotationDistance_pow_from o a hoa dist).symm
   have pow_iff (k : ℕ) : (r.rotate ^ k) a = b ↔ (ra + k) % n = rb := by
     have hv : o.vertex = ((r.rotate ^ k) a).vertex :=
       hoa.trans ((r.sameCycle_iff _ _).mp
@@ -148,17 +147,12 @@ theorem mem_rotationInterval_iff_ranks (o a b c : Dart G)
   · intro horder
     change (ra < rb ∧ rb < rc) ∨ (rb < rc ∧ rc < ra) ∨ (rc < ra ∧ ra < rb) at horder
     let m := if ra < rb then rb - ra else rb + n - ra
-    have hm_pos : 0 < m := by
-      dsimp [m]
-      split_ifs <;> omega
-    have hm_le : m ≤ dist := by
-      dsimp [m]
+    have hm : 0 < m ∧ m ≤ dist ∧ (ra + m = rb ∨ ra + m = rb + n) := by
+      dsimp only [m]
       split_ifs <;> omega
     refine Finset.mem_image.mpr ⟨m - 1, Finset.mem_range.mpr (by omega), (pow_iff _).mpr ?_⟩
-    rw [Nat.sub_add_cancel hm_pos]
-    refine (add_mod_eq_iff ha (by omega) hb).mpr ?_
-    dsimp [m]
-    split_ifs <;> omega
+    rw [Nat.sub_add_cancel hm.1]
+    exact (add_mod_eq_iff ha (by omega) hb).mpr hm.2.2
 
 private noncomputable def vertexDart (v : ℕ) (h : ∃ d : Dart G, d.vertex = v) : Dart G :=
   Classical.choose h
@@ -272,10 +266,8 @@ theorem exists_consecutive_class_of_no_alternates {ι : Type*} (color : Dart G �
   omega
 
 /-- A vertex cycle first reaches its starting dart at exponent zero. -/
-@[simp] theorem rotationDistance_self (a : Dart G) : r.rotationDistance a a = 0 := by
-  apply r.rotationDistance_eq a a rfl 0 rfl
-  intro k hk
-  omega
+@[simp] theorem rotationDistance_self (a : Dart G) : r.rotationDistance a a = 0 :=
+  r.rotationDistance_eq a a rfl 0 rfl fun _ hk => (Nat.not_lt_zero _ hk).elim
 
 /-- A different dart in the same source cycle has positive first-hit rank. -/
 theorem rotationDistance_pos_of_ne {G : Graph} (r : RotationSystem G)
@@ -302,14 +294,11 @@ theorem rotationDistance_rotate_of_ne {G : Graph} (r : RotationSystem G)
 theorem rotationDistance_of_rotate_eq {G : Graph} (r : RotationSystem G)
     (o a : Dart G) (hoa : o.vertex = a.vertex) (heq : r.rotate a = o) :
     r.rotationDistance o a = Function.minimalPeriod r.rotate o - 1 := by
-  let k := r.rotationDistance o a
-  have hperiod : Function.IsPeriodicPt r.rotate (k + 1) o := by
-    change (r.rotate : Dart G → Dart G)^[k + 1] o = o
-    rw [r.rotate.iterate_eq_pow, pow_succ', Equiv.Perm.mul_apply,
-      r.pow_rotationDistance o a hoa, heq]
-  have hle := hperiod.minimalPeriod_le (Nat.succ_pos k)
+  have hperiod : Function.IsPeriodicPt r.rotate (r.rotationDistance o a + 1) o := by
+    rw [Function.IsPeriodicPt, Function.IsFixedPt, r.rotate.iterate_eq_pow, pow_succ',
+      Equiv.Perm.mul_apply, r.pow_rotationDistance o a hoa, heq]
+  have hle := hperiod.minimalPeriod_le (Nat.succ_pos _)
   have hlt := r.rotationDistance_lt_period hoa
-  change k = _
   omega
 
 /-- The source vertex cycle after omitting its specified dart, in the original forward

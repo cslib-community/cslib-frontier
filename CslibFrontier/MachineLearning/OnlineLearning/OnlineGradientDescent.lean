@@ -198,11 +198,8 @@ theorem ogd_sum_inner_le (hP : IsPythagoreanProjection K proj) (hx₀ : x₀ ∈
     | zero =>
       have h := ogd_two_mul_inner_le (x₀ := x₀) (grad := grad) hP hu 0 (hη 0)
       simp only [zero_add, range_one, sum_singleton]
-      have : (‖ogd proj η grad x₀ 0 - u‖ ^ 2 - ‖ogd proj η grad x₀ 1 - u‖ ^ 2) / η 0 ≤
-          D ^ 2 / η 0 - ‖ogd proj η grad x₀ 1 - u‖ ^ 2 / η 0 := by
-        rw [← sub_div]
-        exact div_le_div_of_nonneg_right (by linarith [hd 0]) (hη 0).le
-      linarith
+      rw [sub_div] at h
+      linarith [div_le_div_of_nonneg_right (hd 0) (hη 0).le]
     | succ T ih =>
       have h := ogd_two_mul_inner_le (x₀ := x₀) (grad := grad) hP hu (T + 1) (hη (T + 1))
       have hmono := div_le_div_of_nonneg_left (sub_nonneg.2 (hd (T + 1))) (hη (T + 1))
@@ -291,10 +288,9 @@ theorem ogd_sum_inner_le_sqrt (hP : IsPythagoreanProjection K proj) (hx₀ : x�
     have hg2 : ‖grad t (ogd proj η grad x₀ t)‖ ^ 2 ≤ G ^ 2 :=
       pow_le_pow_left₀ (norm_nonneg _) (hG t _ (ogd_mem hP hx₀ t)) 2
     exact (mul_le_mul_of_nonneg_left hg2 (hη t).le).trans_eq (by simp only [hηdef]; ring)
-  have h3 := sum_range_one_div_sqrt_succ_le T
-  have hcG : 0 ≤ c * G ^ 2 := by positivity
   rw [h1] at h
-  nlinarith [mul_le_mul_of_nonneg_left h3 hcG]
+  nlinarith [mul_le_mul_of_nonneg_left (sum_range_one_div_sqrt_succ_le T)
+    (by positivity : 0 ≤ c * G ^ 2)]
 
 /-- **Regret of online gradient descent** [Hazan2022, Theorem 3.1]: for losses satisfying the
 subgradient inequality with subgradients of norm at most `G` on a set of diameter at most `D`, the
@@ -390,15 +386,13 @@ theorem norm_sub_le_of_strongConvex {f : E → ℝ} {g : E → E} {G α : ℝ} (
     {x y : E} (hx : x ∈ K) (hy : y ∈ K) : ‖x - y‖ ≤ 2 * G / α := by
   have h1 := hsc x hx y hy
   have h2 := hsc y hy x hx
-  rw [norm_sub_rev y x] at h1
   -- `α ‖x - y‖ ^ 2 ≤ -⟪g x, y - x⟫ - ⟪g y, x - y⟫ ≤ 2 G ‖x - y‖`
   have hlow : ∀ z ∈ K, ∀ w : E, -(G * ‖w‖) ≤ ⟪g z, w⟫ := fun z hz w =>
     (neg_le_neg (mul_le_mul_of_nonneg_right (hG z hz) (norm_nonneg w))).trans
       (abs_le.mp (abs_real_inner_le_norm (g z) w)).1
   have hcx := hlow x hx (y - x)
-  have hcy := hlow y hy (x - y)
-  rw [norm_sub_rev y x] at hcx
-  have hsq : α * ‖x - y‖ ^ 2 ≤ 2 * G * ‖x - y‖ := by linarith
+  rw [norm_sub_rev y x] at h1 hcx
+  have hsq : α * ‖x - y‖ ^ 2 ≤ 2 * G * ‖x - y‖ := by linarith [hlow y hy (x - y)]
   rw [le_div_iff₀ hα]
   rcases (norm_nonneg (x - y)).eq_or_lt with h0 | hpos
   · rw [← h0, zero_mul]
@@ -447,9 +441,8 @@ theorem ogd_regret_le_log {f : ℕ → E → ℝ} (hP : IsPythagoreanProjection 
       linarith
   have hH : ∑ t ∈ range T, 1 / ((t : ℝ) + 1) ≤ 1 + log T := by
     simpa [harmonic] using harmonic_le_one_add_log T
-  have hnn : 0 ≤ α * T * ‖x T - u‖ ^ 2 := by positivity
-  have hGα : 0 ≤ G ^ 2 / α := by positivity
   rw [show G ^ 2 / (2 * α) * (1 + log T) = G ^ 2 / α * (1 + log T) / 2 by ring]
-  linarith [tele T, mul_le_mul_of_nonneg_left hH hGα]
+  linarith [tele T, (by positivity : 0 ≤ α * T * ‖x T - u‖ ^ 2),
+    mul_le_mul_of_nonneg_left hH (by positivity : 0 ≤ G ^ 2 / α)]
 
 end Cslib.MachineLearning.OnlineLearning.OCO

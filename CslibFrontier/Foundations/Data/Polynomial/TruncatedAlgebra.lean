@@ -137,13 +137,9 @@ theorem coeff_eq_zero_of_le {i : ℕ} (hi : r ≤ i) (x : Truncated R r) : coeff
 
 @[ext]
 theorem ext {x y : Truncated R r} (h : ∀ i < r, coeff i x = coeff i y) : x = y := by
-  induction x using induction_on with
-  | hp p =>
-    induction y using induction_on with
-    | hp q =>
-      rw [mk_eq_mk_iff]
-      intro i hi
-      simpa only [coeff_mk, hi, ↓reduceIte] using h i hi
+  revert h
+  exact induction_on x fun _ => induction_on y fun _ h =>
+    mk_eq_mk_iff.mpr fun i hi => by simpa only [coeff_mk, hi, ↓reduceIte] using h i hi
 
 @[simp]
 theorem coeff_zero (i : ℕ) : coeff i (0 : Truncated R r) = 0 := by
@@ -178,13 +174,10 @@ theorem coeff_var_pow (k i : ℕ) :
 
 @[simp]
 theorem coeff_add (i : ℕ) (x y : Truncated R r) :
-    coeff i (x + y) = coeff i x + coeff i y := by
-  induction x using induction_on with
-  | hp p =>
-    induction y using induction_on with
-    | hp q =>
-      rw [← map_add, coeff_mk, coeff_mk, coeff_mk, Polynomial.coeff_add]
-      split_ifs <;> simp
+    coeff i (x + y) = coeff i x + coeff i y :=
+  induction_on x fun p => induction_on y fun q => by
+    rw [← map_add, coeff_mk, coeff_mk, coeff_mk, Polynomial.coeff_add]
+    split_ifs <;> simp
 
 @[simp]
 theorem coeff_neg (i : ℕ) (x : Truncated R r) : coeff i (-x) = -coeff i x := by
@@ -402,10 +395,9 @@ theorem mul_unitInv {x : Truncated R r} {u : Rˣ} (hu : coeff 0 x = u) :
     exact @Subsingleton.elim _ (Ideal.Quotient.subsingleton_iff.mpr (by simp)) _ _
   · have hrpos : 0 < r := Nat.pos_of_ne_zero hr
     let y : Truncated R r := 1 - algebraMap R (Truncated R r) (u⁻¹ : Rˣ) * x
-    have hy0 : coeff 0 y = 0 := by
-      simp [y, coeff_mul_range hrpos, coeff_algebraMap, hrpos, hu]
-    have hinv := one_sub_mul_geomInv hy0
-    rw [show 1 - y = algebraMap R (Truncated R r) (u⁻¹ : Rˣ) * x from sub_sub_cancel 1 _] at hinv
+    have hinv := one_sub_mul_geomInv (y := y)
+      (by simp [y, coeff_mul_range hrpos, coeff_algebraMap, hrpos, hu])
+    rw [sub_sub_cancel] at hinv
     change x * (algebraMap R (Truncated R r) (u⁻¹ : Rˣ) * geomInv y) = 1
     linear_combination hinv
 
@@ -549,26 +541,20 @@ theorem mk_trunc_subst_eq_subst (f g : R⟦X⟧) (hg0 : PowerSeries.constantCoef
   ext i hi
   have h0r : 0 < r := Nat.zero_lt_of_lt hi
   have hg_trunc0 : coeff 0 (mk r (PowerSeries.trunc r g)) = 0 := by
-    rw [coeff_mk_of_lt h0r, PowerSeries.coeff_trunc]
-    simp only [h0r, ↓reduceIte, PowerSeries.coeff_zero_eq_constantCoeff, hg0]
-  rw [coeff_mk_of_lt hi, PowerSeries.coeff_trunc]
-  simp only [hi, ↓reduceIte]
-  rw [PowerSeries.coeff_subst' (PowerSeries.HasSubst.of_constantCoeff_zero hg0),
-    coeff_subst_of_coeff_zero hg_trunc0 hi]
-  rw [finsum_eq_sum_of_support_subset _ (s := Finset.range (i + 1))]
+    simp [coeff_mk_of_lt h0r, PowerSeries.coeff_trunc, h0r, hg0]
+  rw [coeff_mk_of_lt hi, PowerSeries.coeff_trunc, ite_eq_left hi,
+    PowerSeries.coeff_subst' (PowerSeries.HasSubst.of_constantCoeff_zero hg0),
+    coeff_subst_of_coeff_zero hg_trunc0 hi,
+    finsum_eq_sum_of_support_subset _ (s := Finset.range (i + 1))]
   · refine Finset.sum_congr rfl fun d hd => ?_
     have hdr : d < r := lt_of_lt_of_le (Finset.mem_range.mp hd) hi
-    rw [Algebra.algebraMap_self, RingHom.id_apply, coeff_mk_of_lt hdr, PowerSeries.coeff_trunc]
-    simp only [hdr, ↓reduceIte]
-    rw [← map_pow, mk_trunc_pow, coeff_mk_of_lt hi, PowerSeries.coeff_trunc]
-    simp only [hi, ↓reduceIte, smul_eq_mul]
+    simp only [Algebra.algebraMap_self, RingHom.id_apply, coeff_mk_of_lt hdr,
+      PowerSeries.coeff_trunc, hdr, ↓reduceIte, ← map_pow, mk_trunc_pow, coeff_mk_of_lt hi, hi,
+      smul_eq_mul]
   · intro d hd
-    rw [Function.mem_support, ne_eq] at hd
     by_contra hid
-    have hlt : i < d := by
-      simp only [Finset.mem_coe, Finset.mem_range, not_lt] at hid
-      omega
-    exact hd (by rw [coeff_pow_eq_zero_of_constantCoeff_zero hg0 hlt, smul_zero])
+    have hlt : i < d := not_lt.mp (mt Finset.mem_range.mpr hid)
+    exact hd (by simp [coeff_pow_eq_zero_of_constantCoeff_zero hg0 hlt])
 
 end Substitution
 

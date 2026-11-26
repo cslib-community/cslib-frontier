@@ -179,7 +179,6 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
     cases hsb : secondBest cZ st.price i₀ j₀ with
     | none =>
       rw [hsb] at hsec_spec
-      have hhs0 : sec.hasSecond = 0 := hsec_spec
       have hpj_mem : s₀.mem (ws.bPrice + j₀.val) = (st.price j₀).toNat := ham.hPrice j₀
       have hnp_eq : s₀.mem (ws.bPrice + j₀.val) + ws.eps = newPZ.toNat := by
         rw [hpj_mem]; have := hp_nn j₀
@@ -187,8 +186,8 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
       have hnp_fit : Fits w (s₀.mem (ws.bPrice + j₀.val) + ws.eps) := by
         rw [hpj_mem]; have := hp_nn j₀; have := hp_le j₀
         exact hfit_p.of_le (by omega)
-      refine ⟨fun _ => hnp_fit, fun hne => absurd hhs0 hne, ?_⟩
-      simp only [pBranch, computeNewP, hhs0, ↓reduceIte]
+      refine ⟨fun _ => hnp_fit, fun hne => absurd hsec_spec hne, ?_⟩
+      simp only [pBranch, computeNewP, hsec_spec, ↓reduceIte]
       exact ⟨validHistory_read_bind (by omega) (validHistory_pure w _ _),
         memoryCost_read_bind_le fun _ _ => Nat.le_refl 0, rfl, hnp_eq, hnp_eq ▸ hnp_fit⟩
     | some wVal =>
@@ -198,9 +197,7 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
       have hcj_mem : s₀.mem (rowBase + j₀.val) = C (i₀, j₀) := by
         dsimp only [rowBase]; rw [Nat.add_assoc]; exact ham.hC i₀ j₀
       have hw_ge_rc : redCost cZ st.price i₀ j₀ ≤ wVal := by
-        rw [secondBest, List.min?_eq_some_iff] at hsb
-        obtain ⟨hmem_w, _⟩ := hsb
-        obtain ⟨k_w, _, rfl⟩ := List.mem_map.mp hmem_w
+        obtain ⟨k_w, _, rfl⟩ := List.mem_map.mp (List.min?_eq_some_iff.mp hsb).1
         exact hj₀_min k_w
       have hcj_le : s₀.mem (rowBase + j₀.val) ≤ sec.secondVal := by
         rw [hcj_mem]; have := hp_nn j₀
@@ -275,11 +272,10 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
     rw [hs_b, hbj]
     refine validHistory_bind_step hv_s ?_
     rw [hs_s]
-    change (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ (pBranch >>= _))
     refine validHistory_bind_step hv_p ?_
     rw [hs_p, hres_p]
-    refine validHistory_write_bind (by omega) hfit_np ?_
-    refine validHistory_read_bind (by dsimp only; omega) ?_
+    refine validHistory_write_bind (by omega) hfit_np
+      (validHistory_read_bind (by dsimp only; omega) ?_)
     dsimp only
     simp only [hold_s_mid]
     refine validHistory_write_bind (by dsimp only; omega) (hfit_ws.of_le (by omega)) ?_
@@ -324,9 +320,8 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
     have hbeforeStack {address : ℕ} (h : address < ws.bStack) :
         afterBid.mem address = s_mid.mem address := by
       unfold afterBid
-      cases st.owner j₀ with
-      | none => rfl
-      | some _ => exact Function.update_of_ne (by omega) _ _
+      cases st.owner j₀ <;>
+        simp [Function.update_of_ne (by omega : address ≠ ws.bStack + rest.length)]
     refine ⟨fun i j => ?_, fun j => ?_, fun j => ?_, fun k hk => ?_⟩
     · have hlt_ij : i.val * ws.n + j.val < ws.n * ws.n := Cslib.Matrix.pairIndex_lt (i, j)
       rw [hbeforeStack (show ws.bC + (i.val * ws.n + j.val) < ws.bStack by omega)]
@@ -338,9 +333,8 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
       dsimp only [s_mid]
       rcases eq_or_ne j j₀ with rfl | hj
       · simp
-      · have hne := Fin.val_ne_of_ne hj
-        rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-          Function.update_of_ne hj]
+      · rw [Function.update_of_ne (by have := Fin.val_ne_of_ne hj; omega),
+          Function.update_of_ne (by omega), Function.update_of_ne hj]
         exact ham.hOwner j
     · have hj_lt := j.isLt
       rw [hbeforeStack (show ws.bPrice + j.val < ws.bStack by omega)]
@@ -348,8 +342,8 @@ theorem bidStepProg_spec {w W : ℕ} (ws : AuctionWS) {C : Fin ws.n × Fin ws.n 
       rw [Function.update_of_ne (by omega)]
       rcases eq_or_ne j j₀ with rfl | hj
       · simp
-      · have hne := Fin.val_ne_of_ne hj
-        rw [Function.update_of_ne (by omega), Function.update_of_ne hj]
+      · rw [Function.update_of_ne (by have := Fin.val_ne_of_ne hj; omega),
+          Function.update_of_ne hj]
         exact ham.hPrice j
     · unfold afterBid
       revert hk

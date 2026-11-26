@@ -57,9 +57,7 @@ theorem logb_le_real_of_le_two_pow {x : ℝ} {k : ℕ} (hx : 0 < x) (h : x ≤ (
 theorem probeThresh_le_gamma_logb {γ U : ℝ} {H : ℕ} (hγ : 0 ≤ γ)
     (hH : ((H - 1 : ℕ) : ℝ) ≤ Real.logb 2 U) :
     6 * (((H - 1 : ℕ) : ℝ) * (4 * γ / 25)) ≤ γ * Real.logb 2 U := by
-  have hnn : 0 ≤ γ * ((H - 1 : ℕ) : ℝ) := mul_nonneg hγ (Nat.cast_nonneg _)
-  exact (by linarith : 6 * (((H - 1 : ℕ) : ℝ) * (4 * γ / 25)) ≤ γ * ((H - 1 : ℕ) : ℝ)).trans
-    (mul_le_mul_of_nonneg_left hH hγ)
+  linarith [mul_le_mul_of_nonneg_left hH hγ, mul_nonneg hγ (Nat.cast_nonneg (H - 1))]
 
 /-- Single-node `OuterLemma` hypothesis shared by the `iterLog` and geometric meta-tree bounds. -/
 @[expose] def NodeOuterHyp (withQueries : Bool) {U V n cells w : ℕ}
@@ -128,17 +126,16 @@ theorem logb_le_rpow_of_ge_pow {γ : ℝ} (hγ : 0 < γ) {n : ℕ}
   have hpow_le_n : ((2 : ℝ) ^ (2 * M * q : ℕ)) ≤ (n : ℝ) := by
     exact_mod_cast ((Nat.pow_le_pow_right Nat.two_pos (Nat.mul_div_le L (2 * M))).trans
       (Nat.pow_log_le_self 2 (by omega)))
+  have hM_pos' : (0 : ℝ) < M := by exact_mod_cast hM_pos
   have hrpow1 : (2 : ℝ) ^ (2 * q : ℕ) ≤ (n : ℝ) ^ (1 / (M : ℝ)) := by
-    have hM_ne : (M : ℝ) ≠ 0 := by exact_mod_cast (show M ≠ 0 by omega)
-    have h := Real.rpow_le_rpow (by positivity) hpow_le_n (show 0 ≤ 1 / (M : ℝ) by positivity)
-    rw [← Real.rpow_natCast (2 : ℝ) (2 * M * q), ← Real.rpow_mul (by norm_num : (0 : ℝ) ≤ 2)] at h
+    have h := Real.rpow_le_rpow (by positivity) hpow_le_n (one_div_nonneg.mpr hM_pos'.le)
     have hexp_eq : ((2 * M * q : ℕ) : ℝ) * (1 / (M : ℝ)) = ((2 * q : ℕ) : ℝ) := by
       push_cast; field_simp
-    rwa [hexp_eq, Real.rpow_natCast] at h
-  have hrpow2 : (n : ℝ) ^ (1 / (M : ℝ)) ≤ (n : ℝ) ^ (γ / 2) := by
-    refine Real.rpow_le_rpow_of_exponent_le (by exact_mod_cast hn1) ?_
-    rw [div_le_iff₀ (by exact_mod_cast hM_pos)]
-    linarith only [(div_le_iff₀ hγ).mp hc]
+    rwa [← Real.rpow_natCast (2 : ℝ) (2 * M * q), ← Real.rpow_mul zero_le_two, hexp_eq,
+      Real.rpow_natCast] at h
+  have hrpow2 : (n : ℝ) ^ (1 / (M : ℝ)) ≤ (n : ℝ) ^ (γ / 2) :=
+    Real.rpow_le_rpow_of_exponent_le (Nat.one_le_cast.mpr hn1)
+      ((div_le_iff₀ hM_pos').mpr (by linarith only [(div_le_iff₀ hγ).mp hc]))
   exact hlog_lt.trans
     ((Nat.cast_le (α := ℝ).mpr hL1_pow).trans (by push_cast; exact hrpow1.trans hrpow2))
 
@@ -312,17 +309,12 @@ theorem iterLog_tree_bounds {γ c_R : ℝ} (hγ : 0 < γ) (hγ1 : γ ≤ 1) (hcR
 theorem outer_budget_time_le {γ t U m : ℝ} (hγ : 0 < γ) (hm : 0 ≤ m)
     (h11 : 11 / γ ≤ Real.logb 2 U) (ht : 6 * t ≤ γ * Real.logb 2 U) :
     7 * m + 2 * m * t ≤ 2 * γ * m * Real.logb 2 U := by
-  have h11_mul : 11 ≤ γ * Real.logb 2 U := by have := (div_le_iff₀ hγ).mp h11; linarith
-  have := mul_le_mul_of_nonneg_right (by linarith : 7 + 2 * t ≤ 2 * (γ * Real.logb 2 U)) hm
-  linarith
+  nlinarith [(div_le_iff₀ hγ).mp h11]
 
 theorem exists_gamma_query {α c_w : ℝ} (hα : 0 < α) (hcw : 0 ≤ c_w) :
     ∃ γ : ℝ, 0 < γ ∧ γ ≤ 1 ∧ (20 + 24 * c_w) * γ = α / (1 + α) := by
   refine ⟨α / ((20 + 24 * c_w) * (1 + α)), by positivity, ?_, ?_⟩
-  · have h1 : α / ((20 + 24 * c_w) * (1 + α)) ≤ (1 + α) / (1 * (1 + α)) :=
-      div_le_div₀ (by positivity) (by linarith) (by positivity)
-        (mul_le_mul_of_nonneg_right (by linarith) (by positivity))
-    exact h1.trans_eq (by field_simp)
+  · exact (div_le_one (by positivity)).mpr (by nlinarith)
   · field_simp
 
 theorem exists_gamma_update {α_V c_w : ℝ} (hα_V : 0 < α_V) (hcw : 0 ≤ c_w) :
