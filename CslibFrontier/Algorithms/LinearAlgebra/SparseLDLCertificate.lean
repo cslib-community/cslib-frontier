@@ -184,8 +184,7 @@ theorem ofSparse_apply [Add α] [Zero α] (m n : ℕ) (rows : List (List (ℕ ×
 
 theorem length_of_isSparseShape {m n : ℕ} {rows : List (List (ℕ × α))}
     (h : isSparseShape m n rows = true) : rows.length = m := by
-  simp only [isSparseShape, Bool.and_eq_true, beq_iff_eq] at h
-  exact h.1
+  exact beq_iff_eq.1 (Bool.and_eq_true_iff.1 h).1
 
 /-- The sparse form of a dense row, starting at column `k`. -/
 @[expose] def toSparseFrom : ℕ → List α → List (ℕ × α)
@@ -319,17 +318,16 @@ theorem ofSparse_sparseMul [NonUnitalNonAssocSemiring α] {l m n : ℕ}
   ext i j
   rw [ofSparse_apply, sparseMul, getD_mulGo C B 0 [] C (zget_nil C) i, Matrix.mul_apply]
   simp only [ofSparse_apply]
-  have hflat : ∀ r : List (ℕ × α), sparseGet (r.flatMap fun e => sparseScale e.2 (C.getD e.1 []))
-      j = (r.map fun e => e.2 * sparseGet (C.getD e.1 []) j).sum := by
-    intro r
+  have hflat (r : List (ℕ × α)) :
+      sparseGet (r.flatMap fun e => sparseScale e.2 (C.getD e.1 [])) j =
+        (r.map fun e => e.2 * sparseGet (C.getD e.1 []) j).sum := by
     induction r with
     | nil => simp
     | cons e r ih =>
       simp only [List.flatMap_cons, sparseGet_append, sparseGet_sparseScale, List.map_cons,
         List.sum_cons, ih]
   rw [hflat, sum_map_eq_sum_fin (m := m) _ (fun k => sparseGet (C.getD k []) j)]
-  intro k hk
-  rw [List.getD_eq_default _ _ (by omega), sparseGet_nil]
+  exact fun k hk => by simp only [List.getD_eq_default _ _ (hC.trans hk), sparseGet_nil]
 
 /-! #### Transposes -/
 
@@ -465,9 +463,10 @@ theorem map_ofSparse_scaleSparse {m n s : ℕ} {rows : List (List (ℕ × ℚ))}
     (ofSparse m n (rows.map (scaleSparse s))).map ((↑) : ℤ → ℚ) = (s : ℚ) • ofSparse m n rows := by
   ext i j
   simp only [map_apply, Matrix.smul_apply, smul_eq_mul, ofSparse_apply]
-  rw [show (rows.map (scaleSparse s)).getD i [] = scaleSparse s (rows.getD i []) from
-    List.getD_map _ [] _,
-    cast_sparseGet_scaleSparse fun e he => hs e (mem_flatten_of_mem_getD he)]
+  have hrow : (rows.map (scaleSparse s)).getD i [] = scaleSparse s (rows.getD i []) :=
+    List.getD_map _ [] _
+  rw [hrow]
+  exact cast_sparseGet_scaleSparse (fun e he => hs e (mem_flatten_of_mem_getD he)) j
 
 theorem den_dvd_sparseDenLcm {rows : List (List (ℕ × ℚ))} :
     ∀ e ∈ rows.flatten, e.2.den ∣ sparseDenLcm rows :=
@@ -515,8 +514,7 @@ private theorem rowDot_replicate_append_both (f : ℕ) (u a : List ℤ) :
 
 theorem alignDot_eq (f : ℕ) (u : List ℤ) (g : ℕ) (a : List ℤ) :
     alignDot f u g a = rowDot (envRow (f, u)) (envRow (g, a)) := by
-  unfold alignDot envRow
-  dsimp only
+  dsimp only [alignDot, envRow]
   split_ifs with h
   · obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_le h
     rw [List.replicate_add, List.append_assoc, rowDot_replicate_append_both,
@@ -563,8 +561,7 @@ theorem sparseGet_subRows :
       sparseGet_sparseMap neg_zero (fun a b => neg_add a b)]
     ring
   | r :: rs, s :: ss, i + 1, j, h => by
-    simp only [subRows, List.getD_cons_succ]
-    exact sparseGet_subRows rs ss i j (by simpa using h)
+    simpa only [subRows, List.getD_cons_succ] using sparseGet_subRows rs ss i j (by simpa using h)
 
 theorem length_subRows :
     ∀ (rows rem : List (List (ℕ × ℚ))), (subRows rows rem).length = rows.length
@@ -641,9 +638,7 @@ theorem diagDominant_of_ddGo {n : ℕ} {rows : List (List (ℕ × ℚ))} (h : dd
   simp only [ofSparse_apply, ← Fin.val_inj]
   rcases Nat.lt_or_ge i rows.length with hi | hi
   · have := ddGo_spec rows 0 h i hi
-    rw [zero_add, List.getElem!_eq_getElem?_getD, List.getElem?_eq_getElem hi,
-      Option.getD_some] at this
-    rw [List.getD_eq_getElem _ _ hi]
+    rw [zero_add, List.getElem!_eq_getElem?_getD, ← List.getD_eq_getElem?_getD] at this
     exact (sum_abs_le_offAbs _ _).trans this
   · simp [List.getElem?_eq_none hi]
 
@@ -849,25 +844,23 @@ theorem eq_of_factorsLower {rows : List (List (ℕ × ℚ))}
   obtain ⟨-, hmlen, hrow⟩ := checkGo_spec [] c.lower c.diag rows hgo
   set D := List.zipWith rowData c.lower c.diag with hD
   have hDlen : D.length = n := by simp [hD, hlen, hdlen]
-  have hDget : ∀ k (hk : k < D.length),
+  have hDget (k : ℕ) (hk : k < D.length) :
       D[k] = rowData (c.lower.getD k (0, [])) (c.diag.getD k 0) := by
-    intro k hk
     simp only [hD, List.getElem_zipWith]
     rw [List.getD_eq_getElem _ _ (by omega), List.getD_eq_getElem _ _ (by omega)]
   set M := c.toLDLCert.L n * diagonal (c.toLDLCert.d n) * (c.toLDLCert.L n)ᵀ with hM
-  have hMapply : ∀ i j : Fin n, M i j =
+  have hMapply (i j : Fin n) : M i j =
       ∑ k : Fin n, (envRow (c.lower.getD i (0, []))).getD k 0 * c.diag.getD k 0 *
         (envRow (c.lower.getD j (0, []))).getD k 0 := by
-    intro i j
     rw [hM, Matrix.mul_apply]
     refine Finset.sum_congr rfl fun k _ => ?_
     rw [mul_diagonal, transpose_apply, c.L_apply' i k, c.L_apply' j k]
     simp [toLDLCert, LDLCert.d, ofList_apply]
-  have hshape' : ∀ k < n, (c.lower.getD k (0, [])).1 + (c.lower.getD k (0, [])).2.length =
-      k + 1 ∧ (c.lower.getD k (0, [])).2 ≠ [] := by
-    intro k hk
-    rw [List.getD_eq_getElem _ _ (by omega)]
-    simpa using envShape_spec hshape k (by omega)
+  have hshape' (k : ℕ) (hk : k < n) :
+      (c.lower.getD k (0, [])).1 + (c.lower.getD k (0, [])).2.length = k + 1 ∧
+        (c.lower.getD k (0, [])).2 ≠ [] := by
+    have hk' : k < c.lower.length := hlen.symm ▸ hk
+    simpa only [List.getD_eq_getElem _ _ hk', zero_add] using envShape_spec hshape k hk'
   -- the entries on and below the diagonal
   have hlow : ∀ i j : Fin n, j ≤ i → ofSparse n n rows i j = M i j := by
     intro i j hji
@@ -892,25 +885,20 @@ theorem eq_of_factorsLower {rows : List (List (ℕ × ℚ))}
       rw [hv, hMapply]
       refine (Finset.sum_eq_zero fun k _ => ?_).symm
       obtain ⟨hfj, -⟩ := hshape' j j.is_lt
-      have hL : (envRow (c.lower.getD j (0, []))).getD k 0 = 0 ∨ (envRow fr).getD k 0 = 0 := by
-        by_cases hk : fr.1 ≤ (k : ℕ)
-        · left
+      by_cases hk : fr.1 ≤ (k : ℕ)
+      · have h0 : (envRow (c.lower.getD j (0, []))).getD k 0 = 0 := by
           rw [getD_envRow]
           split_ifs
           · exact List.getD_eq_default _ _ (by omega)
           · rfl
-        · right
-          rw [getD_envRow]
-          exact ite_eq_right hk
-      rcases hL with h | h <;> rw [h] <;> ring
+        simp only [h0, mul_zero]
+      · rw [← hfr, getD_envRow, ite_eq_right hk, zero_mul, zero_mul]
     · -- on the envelope, the entry check
       set W := (D.take (i + 1)).drop fr.1 with hW
       have hWlen : W.length = fr.2.length := by simp [hW, hDlen]; omega
-      have hWget : ∀ q (hq : q < W.length), W[q] = rowData (c.lower.getD (fr.1 + q) (0, []))
+      have hWget (q : ℕ) (hq : q < W.length) : W[q] = rowData (c.lower.getD (fr.1 + q) (0, []))
           (c.diag.getD (fr.1 + q) 0) := by
-        intro q hq
-        simp only [hW, List.getElem_drop, List.getElem_take]
-        exact hDget _ _
+        simpa only [hW, List.getElem_drop, List.getElem_take] using hDget _ _
       set p := (j : ℕ) - fr.1 with hp
       have hpl : p < fr.2.length := by omega
       have hmem : (sparseGet (rows.getD i []) (fr.1 + p), W[p]'(by omega)) ∈
@@ -931,19 +919,15 @@ theorem eq_of_factorsLower {rows : List (List (ℕ × ℚ))}
           rfl)] at hq
       rw [ofSparse_apply, hMapply]
       have hS : ((denLcm (List.zipWith (· * ·) fr.2 (W.map (·.pivot))) *
-          denLcm (c.lower.getD j (0, [])).2 : ℕ) : ℚ) ≠ 0 := by
-        have := Nat.mul_pos (denLcm_pos (List.zipWith (· * ·) fr.2 (W.map (·.pivot))))
-          (denLcm_pos (c.lower.getD j (0, [])).2)
-        exact_mod_cast this.ne'
-      apply mul_right_cancel₀ hS
-      rw [hq, mul_comm]
+          denLcm (c.lower.getD j (0, [])).2 : ℕ) : ℚ) ≠ 0 :=
+        Nat.cast_ne_zero.2 (Nat.mul_pos (denLcm_pos _) (denLcm_pos _)).ne'
+      exact mul_right_cancel₀ hS (hq.trans (mul_comm _ _))
   ext i j
   rcases le_total j i with hji | hij
   · exact hlow i j hji
-  · have h₁ := congrFun (congrFun hsymm i) j
-    have h₂ := congrFun (congrFun c.toLDLCert.transpose_LDLt i) j
-    rw [transpose_apply] at h₁ h₂
-    exact h₁.symm.trans ((hlow j i hij).trans (hM ▸ h₂))
+  · have h₁ : ofSparse n n rows j i = ofSparse n n rows i j := congrFun (congrFun hsymm i) j
+    have h₂ : M j i = M i j := congrFun (congrFun c.toLDLCert.transpose_LDLt i) j
+    exact h₁.symm.trans ((hlow j i hij).trans h₂)
 
 /-- The shape facts recorded by an accepted `factorsWith`. -/
 private theorem shape_of_factorsWith {rows : List (List (ℕ × ℚ))}
@@ -966,9 +950,8 @@ theorem eq_add_of_factorsWith {rows : List (List (ℕ × ℚ))} (hlen : rows.len
       sparseGet_subRows rows c.rem i j (by omega)]
   have hRs : (ofSparse n n c.rem)ᵀ = ofSparse n n c.rem :=
     (ofSparse_eq_transpose_of_isTransposeOf hR).symm
-  have := c.eq_of_factorsLower (by rw [hsub, transpose_sub, hsymm, hRs]) hf
-  rw [hsub] at this
-  exact sub_eq_iff_eq_add.1 this
+  exact sub_eq_iff_eq_add.1
+    (hsub ▸ c.eq_of_factorsLower (by rw [hsub, transpose_sub, hsymm, hRs]) hf)
 
 /-- The remainder of an accepted `factorsWith` is positive semidefinite over `ℝ`. -/
 theorem posSemidef_rem {rows : List (List (ℕ × ℚ))} (h : c.factorsWith n rows = true) :
@@ -1063,14 +1046,14 @@ theorem ofSparse_sparseResidual {n : ℕ} {A At P : List (List (ℕ × ℚ))} (h
     (hAtl : At.length = n) (hPl : P.length = n) (hT : isTransposeOf A At = true) :
     ofSparse n n (sparseResidual A At P) =
       -((ofSparse n n A)ᵀ * ofSparse n n P + ofSparse n n P * ofSparse n n A) := by
-  have hσ : ((sparseLyapunovScale A At P : ℕ) : ℚ) ≠ 0 := by
-    have := Nat.mul_pos (denLcm_pos ((A ++ At).flatten.map (·.2)))
-      (denLcm_pos (P.flatten.map (·.2)))
-    exact_mod_cast this.ne'
+  have hσ : ((sparseLyapunovScale A At P : ℕ) : ℚ) ≠ 0 :=
+    Nat.cast_ne_zero.2 (Nat.mul_pos (denLcm_pos _) (denLcm_pos _)).ne'
   ext i j
-  rw [ofSparse_apply, sparseResidual, show ∀ f : ℤ → ℚ, ((sparseScaledResidual A At P).map
-    (sparseMap f)).getD i [] = sparseMap f ((sparseScaledResidual A At P).getD i []) from
-    fun _ => List.getD_map _ [] _,
+  have hrow : ((sparseScaledResidual A At P).map
+      (sparseMap fun z : ℤ => (z : ℚ) / sparseLyapunovScale A At P)).getD i [] =
+      sparseMap (fun z : ℤ => (z : ℚ) / sparseLyapunovScale A At P)
+        ((sparseScaledResidual A At P).getD i []) := List.getD_map _ [] _
+  rw [ofSparse_apply, sparseResidual, hrow,
     sparseGet_sparseMap (by simp) (fun a b => by push_cast; ring), sparseScaledResidual]
   set sA := sparseDenLcm (A ++ At)
   set sP := sparseDenLcm P
@@ -1084,9 +1067,9 @@ theorem ofSparse_sparseResidual {n : ℕ} {A At P : List (List (ℕ × ℚ))} (h
     sparseGet_append, ← List.getD_eq_getElem _ [] (by omega),
     ← List.getD_eq_getElem _ [] (by omega)]
   have hdA : ∀ e ∈ A.flatten, e.2.den ∣ sA := fun e he =>
-    den_dvd_sparseDenLcm e (by simp only [List.flatten_append, List.mem_append]; exact .inl he)
+    den_dvd_sparseDenLcm e (List.flatten_append.symm ▸ List.mem_append_left _ he)
   have hdAt : ∀ e ∈ At.flatten, e.2.den ∣ sA := fun e he =>
-    den_dvd_sparseDenLcm e (by simp only [List.flatten_append, List.mem_append]; exact .inr he)
+    den_dvd_sparseDenLcm e (List.flatten_append.symm ▸ List.mem_append_right _ he)
   have hX := Matrix.map_mul_intCast (α := ℚ) (ofSparse n n hAt) (ofSparse n n hP)
   have hY := Matrix.map_mul_intCast (α := ℚ) (ofSparse n n hP) (ofSparse n n hA)
   rw [← ofSparse_sparseMul _ _ (by simp [hP, hPl]), map_ofSparse_scaleSparse hdAt,

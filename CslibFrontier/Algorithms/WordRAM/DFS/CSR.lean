@@ -127,26 +127,22 @@ theorem csrOffset_zero {N : ℕ} (adj : Fin N → List (Fin N)) :
 
 theorem csrOffset_succ {N : ℕ} (adj : Fin N → List (Fin N)) {u : ℕ} (hu : u < N) :
     csrOffset adj (u + 1) = csrOffset adj u + (adj ⟨u, hu⟩).length := by
-  unfold csrOffset
-  have hlen : u < (List.finRange N).length := by simpa using hu
-  rw [List.take_add_one, List.getElem?_eq_getElem hlen]
-  simp
+  rw [csrOffset, List.take_add_one, List.getElem?_eq_getElem (by simpa using hu)]
+  simp [csrOffset]
 
 theorem csrOffset_mono {N : ℕ} (adj : Fin N → List (Fin N)) {a b : ℕ} (hab : a ≤ b) :
     csrOffset adj a ≤ csrOffset adj b := by
   obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hab
-  clear hab
   induction d with
   | zero => simp
   | succ d ih =>
     by_cases hlt : a + d < N
     · rw [Nat.add_succ, csrOffset_succ adj hlt]
-      exact ih.trans (Nat.le_add_right _ _)
-    · have heq : csrOffset adj (a + (d + 1)) = csrOffset adj (a + d) := by
-        unfold csrOffset
-        rw [List.take_of_length_le (by simp only [List.length_finRange]; omega),
-          List.take_of_length_le (by simp only [List.length_finRange]; omega)]
-      exact heq ▸ ih
+      exact (ih (Nat.le_add_right a d)).trans (Nat.le_add_right _ _)
+    · have hge : (List.finRange N).length ≤ a + d := by simp only [List.length_finRange]; omega
+      simpa only [csrOffset, Nat.add_succ, List.take_of_length_le hge,
+        List.take_of_length_le (hge.trans (Nat.le_succ _))] using
+        ih (Nat.le_add_right a d)
 
 theorem csrOffset_eq_outDegreeSum {N : ℕ} (adj : Fin N → List (Fin N)) :
     csrOffset adj N = outDegreeSum adj (List.finRange N) := by
@@ -223,11 +219,12 @@ theorem zeroBlockCode_spec {w : ℕ} (baseReg : Fin 28) (hbr : baseReg.val < 18)
     (x := x₁) (by decide) (by decide) (by decide) (by wram_simp [x₁, hc0]) (by wram_simp [x₁, hc1])
     (by rw [hx₁_addr, hx₁_stop]; omega) (by rw [hx₁_stop]; exact hfit)
   rw [hx₁_addr, hx₁_stop, Nat.add_sub_cancel_left] at hzf
-  refine ⟨_, (hprep.seq hzf.within).mono (by omega), fun i hi => ?_, fun a ha => ?_, fun r hr => ?_⟩
-  · exact clear_of_owns ⟨Nat.le_add_right B i, Nat.add_lt_add_left hi B⟩
-  · exact clear_of_not_owns ha
-  · simp only [Function.update_of_ne (show r ≠ addr by rintro rfl; exact absurd hr (by decide))]
-    wram_simp [x₁]
+  refine ⟨_, (hprep.seq hzf.within).mono (by omega),
+    fun i hi => clear_of_owns ⟨Nat.le_add_right B i, Nat.add_lt_add_left hi B⟩,
+    fun a ha => clear_of_not_owns ha, fun r hr => ?_⟩
+  have hne : r ≠ addr := fun h => absurd (h ▸ hr) (by decide)
+  simp only [Function.update_of_ne hne]
+  wram_simp [x₁]
 
 /-- `zeroBlockCode baseReg` does not read the word width. -/
 theorem not_readsWidth_zeroBlockCode (baseReg : Fin 28) :
@@ -328,11 +325,9 @@ theorem prefixSumCode_spec {N w : ℕ} (targetAdj : Fin N → List (Fin N))
     intro y ⟨hy_fr, hy_p, hy_off, hy_deg, hy_out⟩ hlt
     have hdeg_k : y.mem (degBase + y.regs iReg) = (targetAdj ⟨y.regs iReg, hlt⟩).length := by
       simpa using hy_deg ⟨y.regs iReg, hlt⟩
-    have hoff_succ : csrOffset targetAdj (y.regs iReg + 1) =
-        csrOffset targetAdj (y.regs iReg) + (targetAdj ⟨y.regs iReg, hlt⟩).length :=
-      csrOffset_succ targetAdj hlt
+    have hoff_succ := csrOffset_succ targetAdj hlt
     have hoff_le : csrOffset targetAdj (y.regs iReg + 1) ≤ Mc :=
-      (csrOffset_mono targetAdj (by omega : y.regs iReg + 1 ≤ N)).trans hmc
+      (csrOffset_mono targetAdj hlt).trans hmc
     unfold prefixSumBody
     wram_exec [hy_fr, hc1, hdegB, hoffB, hy_p, hdeg_k]
     dsimp only [P]
@@ -350,7 +345,7 @@ theorem prefixSumCode_spec {N w : ℕ} (targetAdj : Fin N → List (Fin N))
       · rw [huk, Function.update_self]
         simp [hoff_succ]
       · rw [Function.update_of_ne (by omega), hy_deg u]
-        simp only [show u.val < y.regs iReg + 1 ↔ u.val < y.regs iReg by omega]
+        simp only [Nat.lt_succ_iff, le_iff_lt_or_eq, huk, or_false]
     · mem_upd
       rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
       exact hy_out a (by omega)
@@ -476,7 +471,7 @@ theorem backfillStepCode_spec {N w : ℕ}
   have hcur_eq := hp.2.1 src
   have hoff_src : csrOffset targetAdj (src.val + 1) =
       csrOffset targetAdj src.val + (targetAdj src).length := csrOffset_succ targetAdj hsrc_lt
-  have hoff_le_N := csrOffset_mono targetAdj (by omega : src.val + 1 ≤ N)
+  have hoff_le_N := csrOffset_mono targetAdj hsrc_lt
   set c := x.mem (curBase + src.val) - 1
   have hc_pos : 1 ≤ x.mem (curBase + src.val) := by omega
   have hc_lt_N : c < csrOffset targetAdj N :=
