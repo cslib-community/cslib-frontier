@@ -90,9 +90,7 @@ theorem le_augmentByBottleneck_of_slackNet (hanti : ∀ u v, 0 < L.cap u v → L
   unfold augmentFun
   split_ifs with huv hvu
   · omega
-  · have hslack := hp.pos_resCap hvu
-    rw [resCap_zero_slackNet] at hslack
-    have hslack' : 0 < L.cap v u - g v u := hslack
+  · have hslack : 0 < L.cap v u - g v u := resCap_zero_slackNet (g := g) v u ▸ hp.pos_resCap hvu
     have hcap : L.cap u v = 0 := hanti v u (by omega)
     have hle := g.le_cap u v
     omega
@@ -146,22 +144,14 @@ theorem card_unsatArcs_zero_levelNet_le (f : N.Flow) (d : V → ℕ) :
     refine ⟨fun h => ?_, by omega⟩
     rw [h] at hd
     omega
-  have hA : A ⊆ N.symArcs := fun e he => by
-    simp only [symArcs, Finset.mem_filter, Finset.mem_univ, true_and]
-    exact hsym e he
-  have hB : A.image Prod.swap ⊆ N.symArcs := fun e he => by
-    obtain ⟨x, hx, rfl⟩ := Finset.mem_image.mp he
-    obtain ⟨hne, hpos⟩ := hsym x hx
-    simp only [symArcs, Finset.mem_filter, Finset.mem_univ, true_and, Prod.fst_swap,
-      Prod.snd_swap]
-    exact ⟨hne.symm, by omega⟩
-  have hdisj : Disjoint A (A.image Prod.swap) := by
-    rw [Finset.disjoint_left]
-    intro e he he'
+  have hA : A ⊆ N.symArcs := fun e he => Finset.mem_filter.mpr ⟨Finset.mem_univ _, hsym e he⟩
+  have hB : A.image Prod.swap ⊆ N.symArcs := Finset.image_subset_iff.mpr fun x hx =>
+    let ⟨hne, hpos⟩ := hsym x hx
+    Finset.mem_filter.mpr ⟨Finset.mem_univ _, hne.symm, Nat.add_comm _ _ ▸ hpos⟩
+  have hdisj : Disjoint A (A.image Prod.swap) := Finset.disjoint_left.mpr fun _ he he' => by
     obtain ⟨x, hx, rfl⟩ := Finset.mem_image.mp he'
     have h₁ := ((hmem x).mp hx).1
-    have h₂ := ((hmem x.swap).mp he).1
-    simp only [Prod.fst_swap, Prod.snd_swap] at h₂
+    have h₂ : d x.1 = d x.2 + 1 := ((hmem x.swap).mp he).1
     omega
   have hcard := Finset.card_le_card (Finset.union_subset hA hB)
   rw [Finset.card_union_of_disjoint hdisj,
@@ -320,16 +310,11 @@ private theorem dinitzLoop_spec {n : ℕ} {N : Network (Fin n)} {adj : Fin n →
   | fuel + 1, M, ph, k, flows, hfuel, hrun, hph, hk => by
     simp only [dinitzLoop]
     split_ifs with hge
-    · refine ⟨fun hreach => ?_, filter_bfsDistVec_eq_reachableCut _, ⟨flows, hrun, rfl, hph⟩, hk⟩
-      have hlt := (M.toFlow.resDist_lt_card_iff_resReachable N.t).mpr hreach
-      rw [vget_bfsDistVec] at hge
-      rw [Fintype.card_fin] at hlt
-      omega
-    · rw [vget_bfsDistVec] at hge
-      have hreach : M.toFlow.ResReachable N.s N.t := by
-        rw [← M.toFlow.resDist_lt_card_iff_resReachable, Fintype.card_fin]
-        omega
-      have hd : ∀ v, vget (bfsDistVec M.toFlow) v = M.toFlow.resDist v := vget_bfsDistVec _
+    · exact ⟨mt (M.toFlow.resDist_lt_card_iff_resReachable N.t).mpr
+        (by simpa [Fintype.card_fin] using hge),
+        filter_bfsDistVec_eq_reachableCut _, ⟨flows, hrun, rfl, hph⟩, hk⟩
+    · have hreach : M.toFlow.ResReachable N.s N.t :=
+        (M.toFlow.resDist_lt_card_iff_resReachable N.t).mp (by simpa [Fintype.card_fin] using hge)
       have hadjL : AdjValid (M.toFlow.levelNet (vget (bfsDistVec M.toFlow))) adj :=
         fun u v huv hpos => hadj u v huv (by
           have h₁ := M.toFlow.levelNet_cap_le_resCap (vget (bfsDistVec M.toFlow)) u v
@@ -340,12 +325,10 @@ private theorem dinitzLoop_spec {n : ℕ} {N : Network (Fin n)} {adj : Fin n →
       have hcardL := Flow.card_unsatArcs_zero_levelNet_le M.toFlow (vget (bfsDistVec M.toFlow))
       have hfuelL : (FlowMatrix.ofFlow
           (Flow.zero (M.toFlow.levelNet (vget (bfsDistVec M.toFlow))))).toFlow.unsatArcs.card <
-          n * n + 1 := by
-        rw [FlowMatrix.toFlow_ofFlow]
-        have := Finset.card_le_univ
-          (Flow.zero (M.toFlow.levelNet (vget (bfsDistVec M.toFlow)))).unsatArcs
-        simp only [Fintype.card_prod, Fintype.card_fin] at this
-        omega
+          n * n + 1 :=
+        Nat.lt_succ_of_le (by
+          simpa [Fintype.card_fin] using Finset.card_le_univ
+            (Flow.zero (M.toFlow.levelNet (vget (bfsDistVec M.toFlow)))).unsatArcs)
       obtain ⟨hblk, hpush⟩ := greedyBlockingFlow_spec hadjL
         (fun u v h => M.toFlow.levelNet_cap_eq_zero_of_pos _ h) hst (n * n + 1)
         (FlowMatrix.ofFlow (Flow.zero _)) 0 hfuelL
@@ -353,7 +336,7 @@ private theorem dinitzLoop_spec {n : ℕ} {N : Network (Fin n)} {adj : Fin n →
       set B := greedyBlockingFlow (M.toFlow.levelNet (vget (bfsDistVec M.toFlow))) adj (n * n + 1)
         (FlowMatrix.ofFlow (Flow.zero _)) 0 with hB
       have hstep : N.IsDinitzStep M.toFlow (M.toFlow.augmentLevel B.flow.toFlow) :=
-        isDinitzStep_of_isBlocking hd hreach B.flow.toFlow hblk
+        isDinitzStep_of_isBlocking (vget_bfsDistVec _) hreach B.flow.toFlow hblk
       let flows' : ℕ → N.Flow := fun i =>
         if i ≤ ph then flows i else M.toFlow.augmentLevel B.flow.toFlow
       have hrun' : N.IsDinitzRun (ph + 1) flows' := by

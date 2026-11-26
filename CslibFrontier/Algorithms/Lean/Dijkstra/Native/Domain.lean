@@ -123,14 +123,10 @@ theorem loopStepWord_result_le (extract : Memory.Prog (Option (ℕ × ℕ)))
     (Memory.spec 0).clientResult s (loopStepWord extract ins dec T A n x) ≤ x.2 - 1 := by
   unfold loopStepWord
   rw [StateTransitionSpec.clientResult_bind]
-  cases (Memory.spec 0).clientResult s extract with
-  | none => exact Nat.zero_le _
-  | some e =>
-    rcases e with ⟨u, du⟩
-    by_cases hu : u < n
-    · simp only [ite_eq_left hu, StateTransitionSpec.clientResult_bind]; rfl
-    · simp only [ite_eq_right hu]
-      exact Nat.zero_le _
+  rcases (Memory.spec 0).clientResult s extract with _ | ⟨u, du⟩
+  · exact Nat.zero_le _
+  · dsimp only
+    split_ifs <;> simp only [client_simps, le_rfl, Nat.zero_le]
 
 /-- One original abstract extraction and scan, with its early-exit round counter. -/
 @[expose] def abstractLoopStep {n K V : ℕ} (a : ℕ) : (spec n K V).Client ℕ := do
@@ -148,30 +144,25 @@ theorem loop_eq_step {n K V : ℕ} (a : ℕ) (ha : a ≠ 0) :
   unfold abstractLoopStep
   simp only [bind_assoc]
   congr 1 with e : 1
-  cases e with
-  | none => rfl
-  | some e =>
-    rcases e with ⟨u, du⟩
-    simp only [bind_assoc, pure_bind, Nat.succ_sub_one]
+  rcases e with _ | ⟨u, du⟩
+  · rfl
+  · simp only [bind_assoc, pure_bind, Nat.succ_sub_one]
 
 /-- The word-free round view is exactly the original linked abstract round. -/
 theorem loopStep_eq_link {n K V w : ℕ}
     (M : Methods (spec n K V) (Memory.spec w)) (a : ℕ) :
     loopStep M ((), a) = link M (abstractLoopStep (K := K) (V := V) a) := by
   symm
-  unfold abstractLoopStep link
+  unfold loopStep abstractLoopStep link
   refine (PFunctor.FreeM.liftM_bind M (queue .extractMin) _).trans ?_
   have hq : (queue (n := n) (K := K) (V := V) .extractMin).liftM M = M (.inl .extractMin) :=
     PFunctor.FreeM.liftM_lift (P := (spec n K V).signature) M (.inl .extractMin)
   rw [hq]
-  unfold loopStep
   congr 1 with e : 1
   change Option (Fin n × ℕ) at e
-  cases e with
-  | none => rfl
-  | some e =>
-    rcases e with ⟨u, du⟩
-    dsimp only
+  rcases e with _ | ⟨u, du⟩
+  · rfl
+  · dsimp only
     rw [PFunctor.FreeM.liftM_bind, scanView_eq]
     rfl
 
@@ -189,11 +180,9 @@ theorem indexed_step_keys {n K : ℕ} (s : IndexedMinPQ.State n) (o : IndexedMin
       exact hk ▸ hv.2
     · exact hb v k (by simpa only [IndexedMinPQ.step, Function.update_of_ne h] using hk)
   | extractMin =>
-    cases hf : IndexedMinPQ.findMin s with
-    | none => simpa only [IndexedMinPQ.step, hf] using hb
-    | some e =>
-      rcases e with ⟨u, d⟩
-      intro v k hk
+    rcases hf : IndexedMinPQ.findMin s with _ | ⟨u, d⟩
+    · simpa only [IndexedMinPQ.step, hf] using hb
+    · intro v k hk
       rcases eq_or_ne v u with rfl | h
       · simp [IndexedMinPQ.step, hf] at hk
       · exact hb v k (by simpa only [IndexedMinPQ.step, hf, Function.update_of_ne h] using hk)
@@ -222,9 +211,7 @@ theorem client_keys {n K V : ℕ} {α : Type} (s : (spec n K V).State)
     (hv : (spec n K V).ValidHistory s ((spec n K V).clientHistory s p))
     (hb : ∀ v k, s.1 v = some k → k ≤ K) :
     ∀ v k, ((spec n K V).clientState s p).1 v = some k → k ≤ K := by
-  have h := history_keys s _ hv hb
-  exact (congrArg (fun t : (spec n K V).State => ∀ v k, t.1 v = some k → k ≤ K)
-    ((spec n K V).run_runClient p s)).mp h
+  exact (spec n K V).run_runClient p s ▸ history_keys s _ hv hb
 
 /-- A refinement and the original remaining scan justify every reached native step domain.
 The proof excludes truncation by the actual increasing index, not by assuming a loop result. -/
@@ -333,12 +320,8 @@ theorem abstractLoopStep_extract {n K V w a : ℕ}
   obtain ⟨_, hres, hstate, hinv⟩ := M.simulates_client (queue .extractMin) hf hv.1
   have hql : link M.methods (queue (n := n) (K := K) (V := V) .extractMin) = q :=
     PFunctor.FreeM.liftM_lift (P := (spec n K V).signature) M.methods (.inl .extractMin)
-  rw [hql] at hres hstate hinv
-  change (Memory.spec w).clientResult s q = _ at hres
-  change M.abs ((Memory.spec w).clientState s q) = _ at hstate
-  change M.inv ((Memory.spec w).clientState s q) at hinv
-  rw [clientResult_width] at hres
-  rw [clientState_width] at hstate hinv
+  rw [hql, clientResult_width] at hres
+  rw [hql, clientState_width] at hstate hinv
   have hrmap : (Memory.spec 0).clientResult s extract =
       Option.map (fun p => (p.1.val, p.2))
         ((spec n K V).clientResult (M.abs s) (queue .extractMin)) := by
@@ -346,24 +329,20 @@ theorem abstractLoopStep_extract {n K V w a : ℕ}
     simp only [client_simps, hres]
   have hsmap : (Memory.spec 0).clientState s extract = (Memory.spec 0).clientState s q := by
     simp only [hex, StateTransitionSpec.clientState, client_simps]
-  cases hq : (spec n K V).clientResult (M.abs s) (queue .extractMin) with
-  | none => exact Or.inl (by simp only [hrmap, hq, Option.map_none])
-  | some uk =>
-    rcases uk with ⟨u, du⟩
-    have hfind : IndexedMinPQ.findMin (M.abs s).1 = some (u, du) := by
-      have he : (spec n K V).clientResult (M.abs s) (queue .extractMin) =
-          IndexedMinPQ.findMin (M.abs s).1 := by
-        change (IndexedMinPQ.step (M.abs s).1 .extractMin).2 = _
-        cases h : IndexedMinPQ.findMin (M.abs s).1 <;> simp only [IndexedMinPQ.step, h]
-      exact he ▸ hq
+  rcases hq : (spec n K V).clientResult (M.abs s) (queue .extractMin) with _ | ⟨u, du⟩
+  · exact Or.inl (by simp only [hrmap, hq, Option.map_none])
+  · have hfind : IndexedMinPQ.findMin (M.abs s).1 = some (u, du) := by
+      change (IndexedMinPQ.step (M.abs s).1 .extractMin).2 = some (u, du) at hq
+      rcases h : IndexedMinPQ.findMin (M.abs s).1 with _ | ⟨v, dv⟩
+      · simp only [IndexedMinPQ.step, h, reduceCtorEq] at hq
+      · simpa only [IndexedMinPQ.step, h] using hq
     refine Or.inr ⟨u, du, by simp only [hrmap, hq, Option.map_some],
       hb u du (IndexedMinPQ.findMin_eq_some_state hfind), hsmap ▸ hinv, ?_⟩
-    rw [hsmap, hstate]
     have htail := hv.2
     rw [hq] at htail
     dsimp only at htail
     rw [StateTransitionSpec.clientHistory_bind, StateTransitionSpec.validHistory_append] at htail
-    exact htail.1
+    exact hsmap ▸ hstate ▸ htail.1
 
 /-- Installing the source distance word at `f + G.source.val` and executing the queue insertion
 `ins0` leaves an admissible main loop with queued keys bounded by `K`. -/
@@ -398,20 +377,16 @@ theorem initial_loop_safe_insert {K V w f : ℕ}
       (PFunctor.FreeM.liftM_lift (P := (spec G.n K V).signature) M.methods
         (.inr (.inl (.insert G.source 0)))).trans hset
     rw [hset']
-    congr 1
-    funext _
-    exact (PFunctor.FreeM.liftM_lift (P := (spec G.n K V).signature) M.methods
-      (.inl (.insert G.source 0))).trans hins
+    exact congrArg _ (funext fun _ =>
+      (PFunctor.FreeM.liftM_lift (P := (spec G.n K V).signature) M.methods
+        (.inl (.insert G.source 0))).trans hins)
   have hs : (Memory.spec w).clientState s (link M.methods p) =
       (Memory.spec 0).clientState
         ⟨Function.update s.mem (f + G.source.val) 1, s.frontier⟩ ins0 := by
     rw [hpeq, StateTransitionSpec.clientState_bind]
     exact clientState_width _ _ _
   rw [hs] at hstate hinv
-  refine ⟨hinv, ?_, hstate ▸ hv.2⟩
-  rw [hstate]
-  refine client_keys (M.abs s) p hv.1 fun v k hk => ?_
-  rw [habs] at hk
-  cases hk
+  refine ⟨hinv, hstate ▸ client_keys (M.abs s) p hv.1 fun v k hk => ?_, hstate ▸ hv.2⟩
+  cases habs ▸ hk
 
 end Cslib.Algorithms.Lean.Dijkstra.Native
