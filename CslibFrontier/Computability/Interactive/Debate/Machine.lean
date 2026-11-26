@@ -233,14 +233,10 @@ theorem lipschitzAt_stepLaw_of_lipschitzAt_run {enc : List Bool → Query}
       rw [stepLaw_prefixMachine, Classical.choose_spec hq] at hclose
       simpa only [O', hq, ↓reduceDIte] using hclose
     · simpa only [O', hq, ↓reduceDIte] using (Probability.CloseTo.refl (O query)).mono zero_le
-  have hstep : (prefixMachine enc).stepLaw O' = law' := by
-    funext bits
+  have hstep : (prefixMachine enc).stepLaw O' = law' := funext fun bits => by
     have hq : ∃ bits', enc bits' = enc bits := ⟨bits, rfl⟩
-    rw [stepLaw_prefixMachine]
-    simp only [O', hq, ↓reduceDIte]
-    rw [henc (Classical.choose_spec hq)]
-  have hrun := h O' ε hO'
-  rwa [← Machine.evalWith_output_stepLaw, ← Machine.evalWith_output_stepLaw, hstep] at hrun
+    exact (dite_eq_left hq).trans (congrArg law' (henc (Classical.choose_spec hq)))
+  simpa only [← Machine.evalWith_output_stepLaw, hstep] using h O' ε hO'
 
 /-- **Soundness under Definition 6.1 for machines that query the whole transcript.** A step
 toward [BrownCohenIrvingPiliouras2024, Theorem 6.2], not that theorem; the full statement is

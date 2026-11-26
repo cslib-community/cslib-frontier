@@ -205,11 +205,9 @@ theorem Computes.reindexVertices {C : RectifierCircuit α β V} {A : Matrix α �
     (hC : C.Computes A) (e : V ≃ V') : (C.reindexVertices e).Computes A := by
   intro i j
   rw [hC i j]
-  refine ⟨fun ⟨p⟩ => ⟨p.mapEquiv e⟩, fun ⟨q⟩ => ?_⟩
-  have hq := q.unmapEquiv e
-  simp only [RectifierCircuit.reindexVertices, Embedding.trans_apply, Equiv.coe_toEmbedding,
-    Equiv.symm_apply_apply] at hq
-  exact ⟨hq⟩
+  refine ⟨fun ⟨p⟩ => ⟨p.mapEquiv e⟩, fun ⟨q⟩ => ⟨?_⟩⟩
+  simpa only [RectifierCircuit.reindexVertices, Embedding.trans_apply, Equiv.coe_toEmbedding,
+    Equiv.symm_apply_apply] using q.unmapEquiv e
 
 theorem HasDepthLE.reindexVertices {C : RectifierCircuit α β V} {d : ℕ}
     (hC : C.HasDepthLE d) (e : V ≃ V') : (C.reindexVertices e).HasDepthLE d :=
@@ -354,9 +352,7 @@ theorem Computes.boolMatrixWeight_le_sq_pred_mul_size [Fintype α] [Fintype β]
         ∃ e ∈ C.edges, (i, j) ∈ smallOut e.2 ×ˢ smallIn e.1 := by
     intro u z q
     induction q with
-    | nil _ =>
-      intro _ hne
-      exact False.elim (hne rfl)
+    | nil _ => exact fun _ hne => False.elim (hne rfl)
     | @cons u v z he q' ih =>
       intro hz _ hju huK
       have hjin : j ∈ smallIn u := by simpa only [smallIn, huK, ↓reduceIte] using hju
@@ -383,9 +379,7 @@ theorem Computes.boolMatrixWeight_le_sq_pred_mul_size [Fintype α] [Fintype β]
     · exact hwalk_charge p rfl (C.inp_ne_out j i)
         (mem_filter.mpr ⟨mem_univ _, ⟨.nil _⟩⟩) hjK
     · obtain ⟨v, he, ⟨q'⟩⟩ := p.uncons (C.inp_ne_out j i)
-      have hv_in : K ≤ #(inSet v) :=
-        (by omega : K ≤ #(inSet (C.inp j))).trans (card_le_card (hin_mono he))
-      have hout_v : #(outSet v) < K := hrect_vertex v hv_in
+      have hout_v := hrect_vertex v ((Nat.not_lt.mp hjK).trans (card_le_card (hin_mono he)))
       refine ⟨(C.inp j, v), he, mem_product.mpr ⟨?_, ?_⟩⟩
       · simpa only [smallOut, outSet, hout_v, ↓reduceIte, mem_filter, mem_univ, true_and] using ⟨q'⟩
       · simp only [smallIn, hjK, ↓reduceIte, mem_filter, mem_univ, and_self]

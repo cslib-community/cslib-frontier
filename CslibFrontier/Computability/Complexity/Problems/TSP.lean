@@ -132,13 +132,11 @@ theorem tourLength_eq_sum (D : List (List ℕ)) (p : List ℕ) :
     List.getD_append _ _ _ _ hk, List.getD_eq_getElem _ _ hk]
   congr 1
   by_cases h : k + 1 < p.length
-  · rw [List.getD_append _ _ _ _ h, List.getD_eq_getElem _ _ h]
-    simp only [Nat.mod_eq_of_lt h]
+  · simp only [List.getD_append _ _ _ _ h, List.getD_eq_getElem _ _ h, Nat.mod_eq_of_lt h]
   · have hk1 : k + 1 = p.length := by omega
-    simp only [hk1, Nat.mod_self, List.getD_append_right _ _ _ _ (le_refl _), Nat.sub_self]
     cases p with
     | nil => simp at hk
-    | cons a l => rfl
+    | cons a l => simp [hk1]
 
 /-! ### Membership in `NP` -/
 
@@ -301,8 +299,7 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
   split_ifs with hn
   · refine ⟨fun ⟨p, hp, hlen⟩ => ?_, fun ⟨q, hq, hcov, h3, _⟩ =>
       absurd (hlenV q hq hcov) (by omega)⟩
-    rw [show p = [0] by simpa using hp] at hlen
-    simp [TSP.tourLength, TSP.dist] at hlen
+    simp [List.perm_singleton.1 hp, TSP.tourLength, TSP.dist] at hlen
   · push Not at hn
     simp only [TSP, Set.mem_ofPred_eq, List.length_map]
     constructor
@@ -324,8 +321,7 @@ theorem toTSP_mem_iff (G : Graph) : toTSP G ∈ TSP ↔ G ∈ HamCycle := by
           (by rw [List.length_map, List.length_range]; exact hlen.trans hplen.ge) _
           (List.mem_map.2 ⟨k, List.mem_range.2 (hplen ▸ hk), rfl⟩)
         · rw [dist_map (hget k) (hget (k + 1))] at h
-          split_ifs at h with hadj
-          exacts [hadj, by omega]
+          exact of_not_not fun hna => absurd ((ite_eq_right hna).symm.trans h) (by decide)
         · intro a ha
           obtain ⟨j, -, rfl⟩ := List.mem_map.1 ha
           rw [dist_map (hget j) (hget (j + 1))]

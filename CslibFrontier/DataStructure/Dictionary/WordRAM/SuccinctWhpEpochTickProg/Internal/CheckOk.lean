@@ -75,18 +75,14 @@ theorem epochTickWillSucceed_fastInsert {c U V n_max : ℕ} {θ : SeedWhp c U n_
     epochTickWillSucceed n_max fs1 = epochTickWillSucceed n_max fs := by
   unfold fastInsert fastInsertAlloc fastInsertFresh at hins
   dsimp only at hins
-  cases hfl : fastFindLoc c U n_max θ fs u with
-  | some loc =>
-    rw [hfl] at hins
-    exact Option.some.inj hins ▸ overmarsStep_epochTickWillSucceed θ _
-  | none =>
-    rw [hfl] at hins
-    have hne : 1 - fs.curEp ≠ fs.curEp := by
+  cases hfl : fastFindLoc c U n_max θ fs u <;> rw [hfl] at hins
+  · have hne : 1 - fs.curEp ≠ fs.curEp := by
       rcases hv.curEp_or with h01 | h01 <;> simp [h01]
     split_ifs at hins <;> obtain ⟨rfl⟩ := hins <;>
       exact (overmarsStep_epochTickWillSucceed θ _).trans
         (epochTickWillSucceed_eq_of_fields rfl rfl rfl
           (by first | exact Function.update_of_ne hne _ _ | rfl))
+  · exact Option.some.inj hins ▸ overmarsStep_epochTickWillSucceed θ _
 
 private theorem buf_oldEp_ite_locState {α : Type*} {fs : FastState}
     (hce_or : fs.curEp = 0 ∨ fs.curEp = 1) {s : ℕ}
@@ -145,11 +141,8 @@ theorem epochTickWillSucceed_fastDelete {c U V n_max : ℕ} {θ : SeedWhp c U n_
         · exact hrem_buf
       have hce2 : (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).curEp = fs.curEp := by
         dsimp only [fastDeleteShrink, fs2, fs1]; split_ifs <;> rfl
-      have hold2 : (fastDeleteShrink n_max b (fs.bktCount b - 1) fs2).oldEp = fs.oldEp :=
-        congrArg (1 - ·) hce2
       refine epochTickWillSucceed_eq_of_fields hclk2 hstg2 hce2 ?_
-      rw [hold2]
-      exact hmv_buf
+      rwa [FastState.oldEp, hce2]
     · simp [epochTickWillSucceed, hclk2, hstg2, hs4]
 
 /-- Read-only `O(1)` check returning `1` iff `epochTickWillSucceed n_max fs = true`
@@ -302,11 +295,9 @@ theorem checkEpochTickOkGenProg_spec {c U V w n_max base : ℕ}
         by_cases h8 : (fs.buf fs.oldEp).nodeAlloc ≤ 8
         · rw [decide_eq_true (Or.inr (Or.inr ⟨hs4, h8⟩)), ite_eq_left h8]
           exact hpure 0 1
-        · rw [decide_eq_false (fun h => by rcases h with h1 | h2 | ⟨_, h3⟩ <;> omega),
-            ite_eq_right h8]
+        · rw [decide_eq_false (by omega), ite_eq_right h8]
           exact hpure 0 0
-      · rw [decide_eq_false (fun h => by rcases h with h1 | h2 | ⟨h3, _⟩ <;> omega),
-          ite_eq_right hs4]
+      · rw [decide_eq_false (by omega), ite_eq_right hs4]
         exact hpure 3 0
 
 end Cslib.DataStructure.Dictionary.WordRAM.SuccinctWhp.EpochTickInternal

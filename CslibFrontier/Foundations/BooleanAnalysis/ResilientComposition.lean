@@ -74,9 +74,8 @@ block takes bits at indices `finProdFinEquiv (j, i)`. -/
 
 /-- Block composition preserves monotonicity. -/
 theorem monotone_composeBlocks {m w : ℕ} {g : BitString m → Bool} {h : Fin m → BitString w → Bool}
-    (hg : Monotone g) (hh : ∀ j, Monotone (h j)) : Monotone (composeBlocks g h) := by
-  intro x y hxy
-  exact hg fun j => hh j fun i => hxy (finProdFinEquiv (j, i))
+    (hg : Monotone g) (hh : ∀ j, Monotone (h j)) : Monotone (composeBlocks g h) :=
+  fun _ _ hxy => hg fun j => hh j fun i => hxy (finProdFinEquiv (j, i))
 
 /-- Block composition preserves self-duality (`f (fun i => !x i) = !f x`). -/
 theorem composeBlocks_not_of_selfDual {m w : ℕ} {g : BitString m → Bool}
@@ -102,11 +101,10 @@ theorem isUndetermined_composeBlocks_iff {m w : ℕ} (g : BitString m → Bool)
           IsUndetermined (tribePart Q j) (h j) fun i => x (finProdFinEquiv (j, i))) :
         h j (fun i => u (finProdFinEquiv (j, i))) =
           h j (fun i => x (finProdFinEquiv (j, i))) := by
-      rw [mem_filter] at hj
       by_contra hdiff
-      exact hj ⟨mem_univ j,
+      exact hj (mem_filter.mpr ⟨mem_univ j,
         fun i => u (finProdFinEquiv (j, i)), fun i => x (finProdFinEquiv (j, i)),
-        fun i hi => hu _ (by simpa [mem_tribePart] using hi), fun _ _ => rfl, hdiff⟩
+        fun i hi => hu _ (by simpa [mem_tribePart] using hi), fun _ _ => rfl, hdiff⟩)
     exact ⟨fun j => h j fun i => y (finProdFinEquiv (j, i)),
       fun j => h j fun i => z (finProdFinEquiv (j, i)),
       agree y hy, agree z hz, hne⟩
@@ -129,8 +127,8 @@ theorem isUndetermined_composeBlocks_iff {m w : ℕ} (g : BitString m → Bool)
       refine ⟨fun k => v (finProdFinEquiv.symm k).1 (finProdFinEquiv.symm k).2, fun k hk => ?_,
         fun j => by simp only [Equiv.symm_apply_apply, hv_val]⟩
       obtain ⟨⟨j, i⟩, rfl⟩ := finProdFinEquiv.surjective k
-      simp only [Equiv.symm_apply_apply]
-      exact hv_agree j i (by simpa [mem_tribePart] using hk)
+      simpa only [Equiv.symm_apply_apply] using
+        hv_agree j i (by simpa [mem_tribePart] using hk)
     obtain ⟨y, hyQ, hy_val⟩ := pick a fun j hj => ha j (by simp [hj])
     obtain ⟨z, hzQ, hz_val⟩ := pick b fun j hj => hb j (by simp [hj])
     exact ⟨y, z, hyQ, hzQ, by simpa only [composeBlocks, hy_val, hz_val] using hne⟩
@@ -149,9 +147,7 @@ private theorem isUndetermined_compl (Q : Finset ι) {f : (ι → Bool) → Bool
     rintro x ⟨y, z, hy, hz, hne⟩
     refine ⟨fun i => !y i, fun i => !z i,
       fun i hi => congrArg (!·) (hy i hi),
-      fun i hi => congrArg (!·) (hz i hi), ?_⟩
-    rw [hf, hf]
-    exact fun h => hne (Bool.not_inj h)
+      fun i hi => congrArg (!·) (hz i hi), by simpa only [hf] using mt Bool.not_inj hne⟩
   exact ⟨fun h => by simpa only [Bool.not_not] using hstep _ h, hstep x⟩
 
 private theorem expect_not_isUndetermined_symm {f : (ι → Bool) → Bool}
@@ -345,10 +341,9 @@ theorem coalitionInfluence_iterMaj3_le (d : ℕ) (Q : Finset (Fin (3 ^ d))) :
   | succ d ih =>
     let Q' : Finset (Fin (3 * 3 ^ d)) :=
       Q.map (Fin.castOrderIso (@Nat.pow_succ' 3 d)).toEquiv.toEmbedding
-    have hre := coalitionInfluence_comp_finCast (@Nat.pow_succ' 3 d)
-      (composeBlocks (majority 3) (fun _ => iterMaj3 d)) Q
     dsimp only [iterMaj3]
-    rw [hre, coalitionInfluence_composeBlocks_maj3 _ (fun _ => iterMaj3_not d) Q']
+    rw [coalitionInfluence_comp_finCast (@Nat.pow_succ' 3 d) _ Q,
+      coalitionInfluence_composeBlocks_maj3 _ (fun _ => iterMaj3_not d) Q']
     dsimp only
     let p (j : Fin 3) :=
       coalitionInfluence (PMF.uniformOfFintype (BitString (3 ^ d))) (tribePart Q' j) (iterMaj3 d)

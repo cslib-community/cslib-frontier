@@ -166,10 +166,9 @@ theorem exists_mem_interleavedLinear_hammingDist_le_iff {κ ι R M : Type*} [Fin
   classical
   constructor
   · rintro ⟨V, hV, hdist⟩
-    refine ⟨Finset.univ.filter fun i => W i = V i, ?_, fun r i => V i r, hV,
-      fun i hi r => congrFun (Finset.mem_filter.1 hi).2 r⟩
-    have := card_filter_eq_add_hammingDist W V
-    omega
+    exact ⟨Finset.univ.filter fun i => W i = V i,
+      by have := card_filter_eq_add_hammingDist W V; omega,
+      fun r i => V i r, hV, fun i hi r => congrFun (Finset.mem_filter.1 hi).2 r⟩
   · rintro ⟨D', hD', v, hv, hag⟩
     refine ⟨fun i r => v r i, hv, ?_⟩
     have hcard : D'.card ≤ (Finset.univ.filter fun i => W i = fun r => v r i).card :=
@@ -258,9 +257,8 @@ theorem exists_correlatedAgreement_of_three_mul_lt_minDist {F ι : Type*} [Field
     omega
   have hroot_le (i : ι) (hi : i ∈ B) :
       (S.filter fun z => η₀ i + z * η₁ i = 0).card ≤ 1 :=
-    Finset.card_le_one.2 fun za hza zb hzb => by
-      by_contra hne
-      exact hnot_mem hne (Finset.mem_filter.1 hza).2 (Finset.mem_filter.1 hzb).2 hi
+    Finset.card_le_one.2 fun za hza zb hzb => of_not_not fun hne =>
+      hnot_mem hne (Finset.mem_filter.1 hza).2 (Finset.mem_filter.1 hzb).2 hi
   have hsum_bound : S.card * (B.card - e) ≤ B.card := by
     have h1 := Finset.card_nsmul_le_sum S _ _ hzero_ge
     have h2 := Finset.sum_le_card_nsmul B _ 1 hroot_le
@@ -287,9 +285,8 @@ private lemma exists_correlatedAgreement_affine_of_three_mul_lt_minDist
   have htwo : 2 * (e : ℕ∞) < minDist (C : Set (ι → F)) :=
     lt_of_le_of_lt (by gcongr; norm_num) hmin
   have hagree (x c : ι → F) : ∑ i ∈ Finset.univ.filter (fun i => x i = c i), (1 : ℕ) +
-      hammingDist x c = Fintype.card ι := by
-    rw [← Finset.card_eq_sum_ones]
-    exact card_filter_eq_add_hammingDist x c
+      hammingDist x c = Fintype.card ι :=
+    Finset.card_eq_sum_ones _ ▸ card_filter_eq_add_hammingDist x c
   have hlist (u : ι → F) : ∃ Lset : Finset (ι → F), Lset.card ≤ 1 ∧
       ∀ c ∈ C, Fintype.card ι - e ≤
         ∑ i ∈ Finset.univ.filter (fun i => u i = c i), (1 : ℕ) → c ∈ Lset := by
@@ -322,9 +319,7 @@ private lemma exists_correlatedAgreement_affine_of_three_mul_lt_minDist
       (fun _ => Fintype.one_lt_card) 0 (fun r i => W i r) T hT fun z hz => by
         obtain ⟨c, hc, hd⟩ := hclose z hz
         have := hagree (fun i => ∑ r : Fin m, z r • W i r) c
-        refine ⟨c, hc, ?_⟩
-        simp only [zero_add, Finset.sum_apply, Pi.smul_apply]
-        omega
+        exact ⟨c, hc, by simp only [zero_add, Finset.sum_apply, Pi.smul_apply]; omega⟩
   exact exists_mem_interleavedLinear_hammingDist_le_iff.2
     ⟨D', by simpa only [← Finset.card_eq_sum_ones] using hD'_sum, v, hv,
       fun i hi r => (hag i hi).2 r⟩

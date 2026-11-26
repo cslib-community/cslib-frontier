@@ -171,9 +171,7 @@ theorem card_oneIn_piece_le (hk : 0 < k) (hn : ∀ a, ∑ c, ((n a c : ℕ) + n 
       rcases Sym2.eq_iff.1 he with ⟨e1, e2⟩ | ⟨e1, e2⟩ <;> rw [e1, e2] at hone
       exacts [hone hiff, hone hiff.symm]
     refine mem_union_left _ (mem_filter.2 ⟨hS, ?_⟩)
-    have : x ∈ s(UnitId.holder TT.moves.channelParty u false,
-        UnitId.holder TT.moves.channelParty u true) := he ▸ (by rcases hb with rfl | rfl <;> simp)
-    rcases Sym2.mem_iff.1 this with e | e
+    rcases Sym2.mem_iff.1 (he.symm ▸ Sym2.mem_iff.2 (hb.imp Eq.symm Eq.symm)) with e | e
     exacts [⟨false, e.symm⟩, ⟨true, e.symm⟩]
   refine (Nat.mul_le_mul_right w ((card_le_card hsub).trans (card_union_le _ _))).trans ?_
   rw [add_mul]
@@ -236,7 +234,7 @@ theorem cellCount_add_roleUnitCount_le (hk : 0 < k) (hkK : k ≤ 4 * (K + K)) (h
       _ ≤ _ := Nat.mul_le_mul_right _ (TT.mul_sum_baseWeight_le hk hkK hM g)
   · -- the dead units
     refine Nat.mul_le_mul_right k ?_
-    rw [← mul_sum, show 2 * C * M ^ C = C * (2 * M ^ C) by ring]
+    rw [← mul_sum, Nat.mul_comm 2 C, Nat.mul_assoc]
     exact Nat.mul_le_mul_left C (((sum_le_sum_of_subset (subset_univ P)).trans
       (sum_card_filter_holds_le h (TT.dead o))).trans (Nat.mul_le_mul_left 2 (TT.card_dead_le o)))
 
@@ -268,10 +266,8 @@ theorem exists_slpTab (hk : 0 < k) {Y : ℕ} (hY : 6 ≤ Y) (hMN : (M * N) ^ C �
       · exact (Nat.lt_succ_iff.1 (x.1 q.1 q.2).2).trans_lt (hN.trans_lt hY4)
       · exact (x.2 ν).2.trans_le ((TT.U1_le.trans hMN).trans hY4.le)⟩
   -- the program of the thin trees, on these inputs
-  have hlt (f) (hf : f ∈ TT.program.computed) (x) : f x < (M * N) ^ C := by
-    obtain ⟨P, hP⟩ := TT.program.slpN
-    obtain ⟨j, hj⟩ := hP f hf
-    exact hj x ▸ Fin.isLt _
+  have hlt (f) (hf : f ∈ TT.program.computed) (x) : f x < (M * N) ^ C :=
+    TT.program.slpN.elim fun _ hP => (hP f hf).elim fun _ hj => hj x ▸ Fin.isLt _
   have hσ (i : Fin TT.program.numInputs) : ∃ j, ∀ x, inp j x =
       ⟨TT.program.input i x, (TT.program.input i x).2.trans_le (hMN.trans hY4.le)⟩ := by
     rcases TT.program.input_eq i with ⟨a, c, h⟩ | ⟨ν, h⟩
@@ -302,10 +298,9 @@ theorem exists_slpTab (hk : 0 < k) {Y : ℕ} (hY : 6 ≤ Y) (hMN : (M * N) ^ C �
           simp only [Play.mem_cutUnits, ne_eq, Fin.ext_iff]; rfl)) (by norm_num)
   -- the check of the numbers of units
   have hpair (x : (Fin (K + K) → Fin (K + K) → Fin (N + 1)) × (TT.moves.Channel → Fin TT.U1))
-      (p a : Fin (K + K)) : (x.1 p a : ℕ) + x.1 a p ≤ 2 * Y := by
-    have := Nat.lt_succ_iff.1 (x.1 p a).2
-    have := Nat.lt_succ_iff.1 (x.1 a p).2
-    omega
+      (p a : Fin (K + K)) : (x.1 p a : ℕ) + x.1 a p ≤ 2 * Y :=
+    (Nat.add_le_add (Nat.lt_succ_iff.1 (x.1 p a).2) (Nat.lt_succ_iff.1 (x.1 a p).2)).trans
+      (by omega)
   have hY3 : 2 * Y ≤ 2 * Y ^ 3 := Nat.mul_le_mul_left 2 (Nat.le_self_pow (by norm_num) Y)
   obtain ⟨H3, s3, u3, f3⟩ := hB.stage (a := 6) s2
     (fun _ : Unit => {x | ∀ p, ∑ a, ((x.1 p a : ℕ) + x.1 a p) ≤ N}.indicator 1) (e := 0)
@@ -325,9 +320,9 @@ theorem exists_slpTab (hk : 0 < k) {Y : ℕ} (hY : 6 ≤ Y) (hMN : (M * N) ^ C �
     simpa using hin
   have h1 : 2 * Y ≤ Y ^ 13 := (Nat.mul_le_mul_right Y (by omega : 2 ≤ Y)).trans
     (by rw [← pow_two]; exact Nat.pow_le_pow_right (by omega) (by norm_num))
-  have h2 : 4 * Y ^ 13 ≤ Y ^ 15 := by
-    rw [show Y ^ 15 = Y ^ 2 * Y ^ 13 by ring]
-    exact Nat.mul_le_mul_right _ (by nlinarith)
+  have h2 : 4 * Y ^ 13 ≤ Y ^ 15 :=
+    (Nat.mul_le_mul_right _ (Nat.pow_le_pow_left (by omega : 2 ≤ Y) 2)).trans_eq
+      (pow_add Y 2 13).symm
   have h3 : (0 + 2 * TT.depth + 4 + 1 + 1) * Y ^ 12 ≤ 3 * Y ^ 13 :=
     calc _ ≤ (3 * Y) * Y ^ 12 := Nat.mul_le_mul_right _ (by omega)
       _ = 3 * Y ^ 13 := by ring

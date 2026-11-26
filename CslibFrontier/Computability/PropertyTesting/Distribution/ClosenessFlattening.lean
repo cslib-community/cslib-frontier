@@ -234,9 +234,7 @@ private theorem le_acceptProb₂_split {m k : ℕ} {ε δ b : ℝ} (hδ : 0 < δ
   · have h1 := le_acceptProb₂_closenessTester hδ h h hk
       (by simp only [sub_self, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
         sum_const_zero]; positivity)
-    have h2 : 0 ≤ (collisionProbability (split p (occurrenceCount x)) +
-        collisionProbability (split p (occurrenceCount y))) / b := by positivity
-    linarith
+    linarith [div_nonneg (add_nonneg hx0.le hy0.le) hb.le]
   · have h1 : 1 < (collisionProbability (split p (occurrenceCount x)) +
         collisionProbability (split p (occurrenceCount y))) / b := by
       rw [lt_div_iff₀ hb]
@@ -306,18 +304,13 @@ theorem isClosenessTester_closenessFlatteningTester {m k : ℕ} {ε : ℝ} (hε 
   have hk' (p : PMF α) : 36 * Real.sqrt (16 / (m + 1)) ≤
       (k - 1) * flatteningProximity α m ε ^ 2 * (5 / 24) := by
     have : Nonempty α := ⟨p.support_nonempty.some⟩
-    have hN : (0 : ℝ) < Fintype.card α + 2 * m := by
-      have := Fintype.card_pos (α := α)
-      positivity
+    have hcard := Fintype.card_pos (α := α)
+    have hN : (0 : ℝ) < Fintype.card α + 2 * m := by positivity
     have hs : 0 < Real.sqrt (m + 1) := Real.sqrt_pos.mpr hm
-    rw [flatteningProximity_eq, div_pow, Real.sq_sqrt hN.le, Real.sqrt_div' _ hm.le,
-      show (16 : ℝ) = 4 ^ 2 by norm_num, Real.sqrt_sq (by norm_num),
-      show (36 : ℝ) * (4 / Real.sqrt (m + 1)) = 144 / Real.sqrt (m + 1) by ring, div_le_iff₀ hs,
-      show ((k : ℝ) - 1) * ((2 * ε) ^ 2 / (Fintype.card α + 2 * m)) * (5 / 24) *
-        Real.sqrt (m + 1) =
-          5 * (k - 1) * ε ^ 2 * Real.sqrt (m + 1) / (6 * (Fintype.card α + 2 * m)) by
-        field_simp; ring,
-      le_div_iff₀ (by positivity)]
+    have h4 : (4 : ℝ) ^ 2 = 16 := by norm_num
+    rw [flatteningProximity_eq, div_pow, Real.sq_sqrt hN.le, Real.sqrt_div' _ hm.le, ← h4,
+      Real.sqrt_sq (by norm_num)]
+    field_simp
     linarith
   constructor
   · intro p

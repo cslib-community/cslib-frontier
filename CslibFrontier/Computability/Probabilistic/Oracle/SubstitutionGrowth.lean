@@ -170,8 +170,8 @@ private theorem runWith_cappedHandler_eq {β : Type}
         OracleComp.interpret
           (OracleComp.sumHandler
             (fun n => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin n)))
-            (budgetHandler handler cap a)) program := by
-    exact OracleComp.QueriesSatisfy.interpret_congr hsat fun
+            (budgetHandler handler cap a)) program :=
+    OracleComp.QueriesSatisfy.interpret_congr hsat fun
       | .inl _, _ => rfl
       | .inr _, hq => cappedHandler_eq_budgetHandler handler cap a hq
   rw [ProbOracleComp.runWith_map, hinterp, ProbOracleComp.runWith_run_interpret,
@@ -207,11 +207,8 @@ private theorem runWith_cappedHandler_eq {β : Type}
   simp only [PMF.pure_bind, rep] at hsim
   have hmap := congrArg (PMF.map fun ⟨_, res, s', ext'⟩ => ((res, s'), ext')) hsim
   simp only [PMF.map_bind, PMF.pure_map, PMF.map_comp, Function.comp_def, h₁, h₂] at hmap
-  have hcomp : (fun x : β × (State × ℕ) × ExtState => PMF.pure ((x.1, x.2.1.1), x.2.2)) =
-      PMF.pure ∘ fun x : β × (State × ℕ) × ExtState => ((x.1, x.2.1.1), x.2.2) := rfl
-  rw [hcomp, PMF.bind_pure_comp] at hmap
   simp only [PMF.map_comp, Function.comp_def, Prod.map, id_eq]
-  exact hmap
+  exact (PMF.bind_pure_comp _ _).symm.trans hmap
 
 end Helpers
 
@@ -300,9 +297,8 @@ theorem IsOraclePPTOn.run_interpret_preprocess_open_of_bounded_growth
         have hresLen := hr_bound (a, request, s) ExtState oracle ext ext' res hmem
         have hop := hopMax request.1
         have hrepBound : res.1.length ≤ R a := by
-          refine le_trans ?_ (hresLen.trans (Nat.mul_le_mul_left rC (Nat.pow_le_pow_left ?_ rD)))
-          all_goals simp only [encHandlerCall, length_encPair, encBits_apply]
-          all_goals omega
+          refine (le_trans ?_ hresLen).trans (Nat.mul_le_mul_left rC (Nat.pow_le_pow_left ?_ _)) <;>
+          · simp only [encHandlerCall, length_encPair, encBits_apply]; omega
         have hstateEnc :
             (encPair stateEncoding encUnary (res.2, k + 1)).length ≤
               (encPair stateEncoding encUnary (s, k)).length + resources' a request.2 := by

@@ -204,13 +204,11 @@ private theorem mem_vertexSet {G : Graph} {x : BitString (toCircuit G).1} {v : �
       x ⟨G.distinctVertices.idxOf v,
         List.idxOf_lt_length_iff.2 (Graph.mem_distinctVertices.2 h)⟩ = true := by
   simp only [vertexSet, Finset.mem_map, Finset.mem_filter, Finset.mem_univ, true_and]
-  constructor
-  · rintro ⟨i, hi, rfl⟩
-    refine ⟨Graph.mem_distinctVertices.1 (List.getElem_mem _), ?_⟩
-    convert hi using 2
-    exact Fin.ext (G.nodup_distinctVertices.idxOf_getElem _ _)
-  · rintro ⟨hv, hx⟩
-    exact ⟨_, hx, List.getElem_idxOf _⟩
+  refine ⟨?_, fun ⟨_, hx⟩ => ⟨_, hx, List.getElem_idxOf _⟩⟩
+  rintro ⟨i, hi, rfl⟩
+  refine ⟨Graph.mem_distinctVertices.1 (List.getElem_mem _), ?_⟩
+  convert hi using 2
+  exact Fin.ext (G.nodup_distinctVertices.idxOf_getElem _ _)
 
 private theorem edgeIndices_iff (G : Graph) (x : BitString (toCircuit G).1) :
     (∀ e ∈ edgeIndices G, ¬((List.ofFn x).getD e.1 false = true ∧
@@ -228,8 +226,7 @@ private theorem edgeIndices_iff (G : Graph) (x : BitString (toCircuit G).1) :
   · intro h u hu v hv huv hadj
     obtain ⟨hu₁, hu₂⟩ := mem_vertexSet.1 (Finset.mem_coe.1 hu)
     obtain ⟨hv₁, hv₂⟩ := mem_vertexSet.1 (Finset.mem_coe.1 hv)
-    obtain ⟨-, hadj⟩ := Graph.toSimpleGraph_adj.1 hadj
-    rcases hadj with he | he
+    rcases (Graph.toSimpleGraph_adj.1 hadj).2 with he | he
     · exact h _ (List.mem_map.2 ⟨(u, v), List.mem_filter.2 ⟨he, decide_eq_true ⟨hu₁, hv₁, huv⟩⟩,
         rfl⟩) ⟨(hget u hu₁).trans hu₂, (hget v hv₁).trans hv₂⟩
     · exact h _ (List.mem_map.2 ⟨(v, u),
@@ -248,20 +245,17 @@ when `G` has an independent set of `k` declared vertices. -/
 theorem toCircuit_satisfiableWithWeight_iff (G : Graph) (k : ℕ) :
     (toCircuit G).2.SatisfiableWithWeight Unbounded.interpretation k ↔
       (⟨G, k⟩ : IndependentSetInstance) ∈ IndependentSet := by
-  rw [mem_IndependentSet_iff_mk]
-  constructor
-  · rintro ⟨x, hk, hx⟩
-    rw [eval_toCircuit, decide_eq_true_eq, edgeIndices_iff] at hx
-    exact ⟨vertexSet G x, fun v hv => (mem_vertexSet.1 hv).1, hx, (Finset.card_map _).trans hk⟩
-  · rintro ⟨S, hS, hind, hk⟩
-    let x : BitString (toCircuit G).1 := fun i =>
-      decide (G.distinctVertices[i.val]'(i.isLt.trans_eq (toCircuit_fst G)) ∈ S)
-    have hvS : vertexSet G x = S := by
-      ext v
-      simp only [mem_vertexSet, x, decide_eq_true_eq, List.getElem_idxOf, exists_prop]
-      exact ⟨And.right, fun hv => ⟨hS v hv, hv⟩⟩
-    exact ⟨x, (Finset.card_map _).symm.trans ((congrArg Finset.card hvS).trans hk), by
-      rwa [eval_toCircuit, decide_eq_true_eq, edgeIndices_iff, hvS]⟩
+  simp only [Circuit.SatisfiableWithWeight, eval_toCircuit, decide_eq_true_eq, edgeIndices_iff,
+    mem_IndependentSet_iff_mk]
+  refine ⟨fun ⟨x, hk, hx⟩ =>
+    ⟨vertexSet G x, fun _ hv => (mem_vertexSet.1 hv).1, hx, (Finset.card_map _).trans hk⟩, ?_⟩
+  rintro ⟨S, hS, hind, hk⟩
+  let x : BitString (toCircuit G).1 := fun i =>
+    decide (G.distinctVertices[i.val]'(i.isLt.trans_eq (toCircuit_fst G)) ∈ S)
+  have hvS : vertexSet G x = S := Finset.ext fun v => by
+    simp only [mem_vertexSet, x, decide_eq_true_eq, List.getElem_idxOf, exists_prop]
+    exact ⟨And.right, fun hv => ⟨hS v hv, hv⟩⟩
+  exact ⟨x, (Finset.card_map _).symm.trans ((congrArg Finset.card hvS).trans hk), hvS.symm ▸ hind⟩
 
 /-- The values that the circuit computes in the depth interpretation, from zero inputs, are at most
 the sum of bounds on the costs of its three layers. -/

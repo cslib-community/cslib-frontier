@@ -130,9 +130,7 @@ private theorem le_gspPerClickPrice_of_card_le [Fintype ι] [DecidableEq ι]
     {c : ℝ} (hbid : ∀ y ∈ T, c ≤ b' y) :
     c ≤ gspPerClickPrice b' σ' s := by
   let U : Finset ι := (Finset.Iio s).map σ'
-  have hU_card : U.card < T.card := by
-    rw [Finset.card_map, Fin.card_Iio]
-    omega
+  have hU_card : U.card < T.card := by rw [Finset.card_map, Fin.card_Iio]; omega
   obtain ⟨y, hyT, hyU⟩ : ∃ y ∈ T, y ∉ U :=
     Finset.not_subset.mp fun hsub => hU_card.not_ge (Finset.card_le_card hsub)
   have hyx : y ≠ x := fun h => hxT (h ▸ hyT)
@@ -205,8 +203,7 @@ theorem minEnvyFreeBid_slot_succ [Fintype ι] [DecidableEq ι] (μ : Fin k → �
 theorem minEnvyFreeBid_of_not_mem_range [Fintype ι] [DecidableEq ι] (μ : Fin k → ℝ) (v : ι → ℝ)
     (σ : Fin k ↪ ι) {j : ι} (hj : j ∉ Set.range σ) :
     minEnvyFreeBid μ v σ j = v j := by
-  have h : ¬∃ i : Fin k, σ i = j := fun ⟨i, hi⟩ => hj ⟨i, hi⟩
-  simp only [minEnvyFreeBid, h, ↓reduceDIte]
+  exact dite_eq_right fun ⟨i, hi⟩ => hj ⟨i, hi⟩
 
 /-- On the bid profile `minEnvyFreeBid μ v σ`, the GSP per-click price at slot `i` is
 `minEnvyFreePrice μ v σ i / μ i`. -/
@@ -345,9 +342,8 @@ theorem isGSPEquilibrium_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ : Fin 
     by_cases hx : x ∈ Set.range σ
     · obtain ⟨t, htx⟩ := hx
       have hutil_old : gspUtility μ v b σ x = μ t * v (σ t) - p t := by
-        rw [← htx, gspUtility_apply_slot, gspPerClickPrice_minEnvyFreeBid hμ_pos t]
-        dsimp only [p]
-        field_simp [(hμ_pos t).ne']
+        rw [← htx, gspUtility_apply_slot, gspPerClickPrice_minEnvyFreeBid hμ_pos t, mul_sub,
+          mul_div_cancel₀ _ (hμ_pos t).ne']
       rw [hutil_old]
       rcases lt_or_ge s t with hst | hts
       · refine hclimb (μ t * v (σ t) - p t) (hlef.utility_nonneg hμ hμ_pos t)
@@ -385,8 +381,7 @@ theorem isGSPEquilibrium_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ : Fin 
             · obtain ⟨jstar, hjmem, hjval⟩ := Finset.exists_mem_eq_sup' hne v
               have hj_not_map : jstar ∉ Finset.univ.map σ := (Finset.mem_sdiff.mp hjmem).2
               have hjrange : jstar ∉ Set.range σ := by simpa using hj_not_map
-              have hmax_eq : maxUnassignedValue v σ = v jstar := by
-                simp only [maxUnassignedValue, hne, ↓reduceDIte, hjval]
+              have hmax_eq : maxUnassignedValue v σ = v jstar := (dite_eq_left hne).trans hjval
               let T : Finset ι := insert jstar ((Finset.univ.map σ).erase (σ t))
               have hjt_ne : jstar ≠ σ t := fun h => hjrange ⟨t, h.symm⟩
               have hjnot : jstar ∉ (Finset.univ.map σ).erase (σ t) :=
@@ -414,7 +409,7 @@ theorem isGSPEquilibrium_minEnvyFreeBid [Fintype ι] [DecidableEq ι] {μ : Fin 
             · simp only [maxUnassignedValue, hne, ↓reduceDIte]
               exact gspPerClickPrice_nonneg hb'_nonneg σ' s
         have hmul : p s ≤ μ s * gspPerClickPrice b' σ' s := (div_le_iff₀' (hμ_pos s)).mp hppc
-        linarith [show μ s * v (σ t) - p s ≤ μ t * v (σ t) - p t from hlef.noEnvy hμ hμ_pos t s]
+        linarith [hlef.noEnvy hμ hμ_pos t s]
     · -- `x` was unassigned (`x ∉ Set.range σ`), moves into slot `s`.
       rw [gspUtility_of_not_mem_range μ v b σ hx]
       exact hclimb 0 le_rfl (fun r _ heq => hx ⟨r, heq⟩)

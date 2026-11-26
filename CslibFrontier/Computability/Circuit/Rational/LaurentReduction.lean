@@ -230,16 +230,9 @@ any Laurent-series subspace. The coordinate functionals guarantee saturation. -/
 theorem exists_integralFrame {ι : Type*} [Finite ι]
     (U : Submodule (F K) (ι → F K)) : Nonempty (IntegralFrame U) := by
   classical
-  by_cases hU : U = ⊥
-  · subst U
-    exact ⟨{ length := 0
-             vector := Fin.elim0
-             coordinate := Fin.elim0
-             span_eq := by simp
-             vector_integral := fun j => Fin.elim0 j
-             coordinate_integral := fun j => Fin.elim0 j
-             pairing := fun i => Fin.elim0 i
-             reduced_independent := linearIndependent_empty_type }⟩
+  rcases eq_or_ne U ⊥ with rfl | hU
+  · exact ⟨⟨0, Fin.elim0, Fin.elim0, by simp, fun j => j.elim0, fun j => j.elim0,
+      fun i => i.elim0, linearIndependent_empty_type⟩⟩
   obtain ⟨v, hvU, hv⟩ := Submodule.exists_mem_ne_zero_of_ne_bot hU
   obtain ⟨c, u, _, hxint, hxc⟩ := normalize_vector v hv
   let x : ι → F K := u • v
@@ -323,20 +316,18 @@ lemma reducedSet_eq_span {ι : Type*} {U : Submodule (F K) (ι → F K)}
     reducedSet U = (Submodule.span K (Set.range (fun j => reduce (b.vector j))) : Set (ι → K)) := by
   classical
   ext y
-  constructor
+  refine ⟨?_, fun hy => ?_⟩
   · rintro ⟨x, hxU, hxI, rfl⟩
     rw [← b.sum_coordinates x hxU, reduce_sum]
     simp_rw [reduce_smul (b.integral_coordinates x hxI _) (b.vector_integral _)]
     exact Submodule.sum_mem _ fun j _ => Submodule.smul_mem _ _ (Submodule.subset_span ⟨j, rfl⟩)
-  · intro hy
-    obtain ⟨c, rfl⟩ := (Submodule.mem_span_range_iff_exists_fun K).mp hy
-    refine ⟨∑ j, (HahnSeries.C (c j) : F K) • b.vector j, ?_, ?_, ?_⟩
-    · exact U.sum_mem fun j _ => U.smul_mem _ (b.vector_mem j)
-    · exact fun i => by
-        simpa only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] using
-          Finset.sum_induction _ Integral (fun _ _ => Integral.add) integral_zero
-            fun j _ => (integral_C _).mul (b.vector_integral j i)
-    · simp only [reduce_sum, reduce_C_smul]
+  · obtain ⟨c, rfl⟩ := (Submodule.mem_span_range_iff_exists_fun K).mp hy
+    refine ⟨∑ j, (HahnSeries.C (c j) : F K) • b.vector j,
+      U.sum_mem fun j _ => U.smul_mem _ (b.vector_mem j), fun i => ?_,
+      by simp only [reduce_sum, reduce_C_smul]⟩
+    simpa only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] using
+      Finset.sum_induction _ Integral (fun _ _ => Integral.add) integral_zero
+        fun j _ => (integral_C _).mul (b.vector_integral j i)
 
 /-- For any integral frame `b` of `U`, `reducedSubspace U` is the `K`-span of the reduced frame
 vectors. -/

@@ -206,12 +206,9 @@ lemma time_le (c cI cF cQ K TI TF t l N P li le : ℕ) (hP : 1 ≤ P) (hli : li 
           · exact Nat.le_mul_of_pos_left _ hG
           · exact round_le cQ K t l
       _ = G * W := by ring
-  have h₁ : cI * (TI + (li + li) + 1) ≤ cI * TI + 2 * cI * W := by nlinarith
-  have h₂ : cF * (le + TF + 1) ≤ cF * TF + cF * (2 * cQ + 3) * W := by
-    rw [show cF * (le + TF + 1) = cF * TF + cF * (le + 1) by ring, Nat.mul_assoc]
-    exact Nat.add_le_add_left (Nat.mul_le_mul_left cF (by nlinarith)) _
+  have hleW : le + 1 ≤ (2 * cQ + 3) * W := by nlinarith
   refine le_trans (Nat.mul_le_mul_left c ?_) (le_of_eq (Nat.mul_assoc _ _ _).symm)
-  calc _ ≤ cI * TI + 2 * cI * W + (cF * TF + cF * (2 * cQ + 3) * W) + G * W := by linarith
+  calc _ ≤ cI * TI + 2 * cI * W + (cF * TF + cF * ((2 * cQ + 3) * W)) + G * W := by nlinarith
     _ ≤ _ := by ring_nf; omega
 
 /-- The space of the fold on bits. -/
@@ -220,13 +217,10 @@ lemma space_le (c cI cF cQ K SI SF s l li le : ℕ) (hli : li ≤ l) (hle : le �
       (4 * cQ + 4 * l + 6) + 1) ≤
     c * (3 * cI + cF * (2 * cQ + 3) + (2 * K + 1) * (4 * cQ + 7) + 1) * (SI + SF + s + l + 1) := by
   have hR := round_le cQ K s l
-  have h₁ : cI * (SI + (li + li) + 1) ≤ cI * SI + 2 * cI * (s + l + 1) := by nlinarith
-  have h₂ : cF * (le + SF + 1) ≤ cF * SF + cF * (2 * cQ + 3) * (s + l + 1) := by
-    rw [show cF * (le + SF + 1) = cF * SF + cF * (le + 1) by ring, Nat.mul_assoc]
-    exact Nat.add_le_add_left (Nat.mul_le_mul_left cF (by nlinarith)) _
+  have hleS : le + 1 ≤ (2 * cQ + 3) * (s + l + 1) := by nlinarith
   refine le_trans (Nat.mul_le_mul_left c ?_) (le_of_eq (Nat.mul_assoc _ _ _).symm)
-  calc _ ≤ cI * SI + 2 * cI * (s + l + 1) + (cF * SF + cF * (2 * cQ + 3) * (s + l + 1)) +
-        (2 * K + 1) * (4 * cQ + 7) * (s + l + 1) := by linarith
+  calc _ ≤ cI * SI + 2 * cI * (s + l + 1) + (cF * SF + cF * ((2 * cQ + 3) * (s + l + 1))) +
+        (2 * K + 1) * (4 * cQ + 7) * (s + l + 1) := by nlinarith
     _ ≤ _ := by ring_nf; omega
 
 /-- Reads one bit and emits it. -/

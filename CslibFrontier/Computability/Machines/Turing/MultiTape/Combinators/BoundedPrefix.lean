@@ -211,8 +211,7 @@ private lemma transformsWordsAt_appendPrefixTM (u₀ raw : List Bool) (N : ℕ) 
           fun _ => ((u₀ ++ raw.take N).length : ℤ), out⟩ :=
       Cfg.ext rfl rfl (funext fun _ => rfl)
         (funext fun _ => by simp [oneTapeCfg, cfg₂, hlenOut]) rfl
-    rw [runFrom_tapeEmb,
-      show u₀.length + min N raw.length + 2 = (u₀ ++ raw.take N).length + 2 by omega, h1,
+    rw [runFrom_tapeEmb, ← hlenOut, h1,
       runFrom_rewindWork_none pEnd (tapeOfList (u₀ ++ raw.take N)) out rfl le_rfl, embed_tapeEmb]
     refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;> fin_cases i <;>
       simp [cfg₂, cfg₃, Cfg.withState]
@@ -636,9 +635,8 @@ theorem computableInTimeAndSpace_boundedPrefix
         fin_cases j
         · simpa [embCopy, ws₄, ws₃, tCap, tV, Function.update_apply, encUnary_apply] using hj
         · simpa [embCopy, ws₄, tV, Function.update_apply] using hj
-      · rw [hx l hl]
-        have hneV : l ≠ tV := fun h => hl ⟨1, by simp [embCopy, h, tV]⟩
-        simp [ws₄, Function.update_of_ne hneV]
+      · have hneV : l ≠ tV := fun h => hl ⟨1, by simp [embCopy, h, tV]⟩
+        simp [ws₄, Function.update_of_ne hneV, hx l hl]
     have hspec5 : TransformsWordsAt m5 inp p₂ p₂ ws₄ ws₄
         (encB (f (a, raw.take N)))
         (cV * ((frame u ++ raw.take N).length + 1) ^ dV + 4)
@@ -663,16 +661,14 @@ theorem computableInTimeAndSpace_boundedPrefix
     have hmin : min N raw.length ≤ capBound L := (min_le_left _ _).trans hNle
     have hW : (frame u ++ raw.take N).length ≤ wBound L := by
       simp only [List.length_append, hlenFrame, List.length_take, wBound]; omega
-    have hpow : cV * ((frame u ++ raw.take N).length + 1) ^ dV ≤ cV * (wBound L + 1) ^ dV := by
-      gcongr
+    have hpow := Nat.mul_le_mul_left cV (Nat.pow_le_pow_left (Nat.add_le_add_right hW 1) dV)
     have ht_le : (2 * (frame u).length + 4) +
         ((cU * ((frame u).length + 1) ^ dU + L + 6) +
         ((cC * (L + 1) ^ dC + (encUnary N).length + 6) +
         ((((frame u).length + 1) + (min N raw.length + 1) +
           (((frame u).length + min N raw.length + 2) + (min N raw.length + 2))) +
         (cV * ((frame u ++ raw.take N).length + 1) ^ dV + 4)))) ≤ tPoly L := by
-      dsimp only [tPoly, wBound, capBound] at hlen1 hmin hW hpow ⊢
-      rw [hlenFrame]; omega
+      simp only [tPoly, wBound, capBound, hlenFrame] at hlen1 hmin hW hpow ⊢; omega
     have hs_le : ((frame u).length + 2 + (K - 1)) +
         ((cU * ((frame u).length + 1) ^ dU + 2 * (frame u).length + 2 * L + 3 * kU + 18 +
           (K - (kU + 1 + 2))) +
@@ -683,8 +679,7 @@ theorem computableInTimeAndSpace_boundedPrefix
             (2 * (min N raw.length + 2 + 1))) + (K - 2)) +
         (cV * ((frame u ++ raw.take N).length + 1) ^ dV +
           2 * ((frame u ++ raw.take N).length + 2) + 2 * kV + 8 + (K - (kV + 2)))))) ≤ sPoly L := by
-      dsimp only [sPoly, wBound, capBound] at hlen1 hmin hW hpow ⊢
-      rw [hlenFrame]; omega
+      simp only [sPoly, wBound, capBound, hlenFrame] at hlen1 hmin hW hpow ⊢; omega
     obtain ⟨p', ws', _, hrun, ⟨_, _, _, rfl⟩, hspace⟩ :=
       (hcomp.mono ht_le hs_le) inp 1 ws₀ [] ⟨rfl, rfl, rfl⟩
     obtain ⟨rp, hrpHead, hrpLast, hrpLen, hrpSpace⟩ := (exists_runPath_iff_runFrom rfl).mpr

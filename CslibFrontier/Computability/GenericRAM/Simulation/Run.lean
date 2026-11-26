@@ -494,16 +494,12 @@ theorem init_inO (enc : M.Encoding) :
       (initEncoding (r := r) enc) (encoding enc)
       (fun q => 4 * (initEncoding (r := r) enc q).length)
       (fun q => 4 * (initEncoding (r := r) enc q).length) := by
-  let idInit : NativeCertificate
-      (id : (Fin r → M.Value) × M.Value × SparseMemory M.Address M.Value →
-        (Fin r → M.Value) × M.Value × SparseMemory M.Address M.Value)
-      (initEncoding (r := r) enc) (initEncoding (r := r) enc) :=
-    linear (ComputableInO.of_eq (f := fun x => x) fun _ => rfl)
-  have h := (initCertificate enc (fst idInit) (fst (snd idInit)) (snd (snd idInit))).computes
-  exact h.mono_le (T' := fun q => 4 * (initEncoding (r := r) enc q).length)
-    (S' := fun q => 4 * (initEncoding (r := r) enc q).length)
-    (fun _ => by simp [idInit, initCertificate_time]; omega)
-    (fun _ => by simp [idInit, initCertificate_space]; omega)
+  let idInit : NativeCertificate id (initEncoding (r := r) enc) (initEncoding (r := r) enc) :=
+    linear (ComputableInO.of_eq fun _ => rfl)
+  refine (initCertificate enc (fst idInit) (fst (snd idInit))
+    (snd (snd idInit))).computes.mono_le ?_ ?_ <;> intro
+  · simp [idInit, initCertificate_time]; omega
+  · simp [idInit, initCertificate_space]; omega
 
 /-! ### Outcome projection certificates -/
 
@@ -692,15 +688,9 @@ theorem le_runTime_of_run_eq_inl (enc : M.Encoding) (N : M.NativePrimitives enc)
   have h1 := le_roundCertificate_time_inl enc N p k t
   have h2 := le_maxRoundTime (roundCertificate enc N p) hj (k, Option.some (.inl s))
   rw [iterate_round_inl, hrun] at h2
-  have h4 : maxRoundTime (roundCertificate enc N p) n (k, Option.some (.inl s)) ≤
-      (n + 1) * (maxRoundTime (roundCertificate enc N p) n (k, Option.some (.inl s)) +
-        maxStateLength (encPair enc.config (resultEncoding enc))
-          (round p) n (k, Option.some (.inl s)) +
-        ((encNat n).length + 1) ^ 2) :=
-    le_trans (Nat.le_add_right _ _)
-      (le_trans (Nat.le_add_right _ _) (Nat.le_mul_of_pos_left _ (Nat.succ_pos n)))
   simp only [runTime, runCertificate, congr_time, snd_time, iterate_time]
-  omega
+  exact h1.trans <| h2.trans <| ((Nat.le_add_right _ _).trans (Nat.le_add_right _ _)).trans <|
+    (Nat.le_mul_of_pos_left _ (Nat.succ_pos _)).trans (Nat.le_add_left _ _)
 
 /-- Every continuing state reached within `j ≤ n` steps has its single-step space bound retained
 in `runSpace`. -/
@@ -1015,12 +1005,8 @@ theorem initCertificate_isPolynomial (enc : M.Encoding)
 
 theorem constRegsCertificate_isPolynomial (enc : M.Encoding) {initRegFn : α → M.Value}
     (initReg : NativeCertificate initRegFn ei enc.value) (hreg : initReg.IsPolynomial) :
-    (constRegsCertificate (r := r) enc initReg).IsPolynomial := by
-  refine ⟨.add .self ?_, .add .self ?_⟩
-  · simpa [Finset.sum_const, Finset.card_univ, Fintype.card_fin] using
-      (PolyBounded.const r).mul hreg.1
-  · simpa [Finset.sum_const, Finset.card_univ, Fintype.card_fin] using
-      (PolyBounded.const r).mul hreg.2
+    (constRegsCertificate (r := r) enc initReg).IsPolynomial :=
+  ⟨.add .self (.sum _ fun _ _ => hreg.1), .add .self (.sum _ fun _ _ => hreg.2)⟩
 
 theorem initConstCertificate_isPolynomial (enc : M.Encoding)
     {initRegFn defaultFn : α → M.Value}

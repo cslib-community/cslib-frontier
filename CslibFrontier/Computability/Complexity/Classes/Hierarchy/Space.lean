@@ -183,10 +183,8 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
     (encOut := eInS) (g := universalInput G) fun x => by
     simp only [universalInput, eInS, encPair_apply, encBits_apply, List.append_assoc]; rfl
   -- the budgeted universal run and the verdict
-  obtain ⟨cV, hV, -⟩ := computableInO_verdict.comp
-    computableInO_budgetedUniversal
-  obtain ⟨cU, hU⟩ := ComputableInTimeAndSpace.comp_space
-    (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hF) hV
+  obtain ⟨cV, hV, -⟩ := computableInO_verdict.comp computableInO_budgetedUniversal
+  obtain ⟨cU, hU⟩ := hF.computableInTimeAndSpace.comp_space hV
   obtain ⟨dU, hU⟩ := hU.exists_computableTidilyInTimeAndSpace
   -- the test and the case distinction
   obtain ⟨tc, cc, hc⟩ := computableInLogSpace_tinyDesc
@@ -239,8 +237,7 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
     nlinarith [hcD x, length_encNat_le_self (2 * (eDesc (decodeDesc (tinyCut x))).length +
       3 * G x.length + 12), length_encNat_le_log2_add_two (j := x.length + 1) le_rfl,
       Nat.zero_le (cD * G x.length)]
-  obtain ⟨K, hK⟩ := exists_space_of_bigOLe
-    (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h)
+  obtain ⟨K, hK⟩ := exists_space_of_bigOLe h.computableInTimeAndSpace
     (V := fun x : List Bool => G x.length + Nat.log2 x.length) (by
       simp only [encBits_apply]
       bigO)
@@ -272,10 +269,9 @@ theorem spaceDiagonal_desc {k : ℕ} {State : Type} [Fintype State] (eS : State 
     (hout : (tm.runFrom (tm.initCfg (frame (eDesc (desc eS eBit tm)) ++ pad))
       (2 ^ G (frame (eDesc (desc eS eBit tm)) ++ pad).length)).output = [b]) :
     spaceDiagonal G (frame (eDesc (desc eS eBit tm)) ++ pad) = !b := by
-  simp only [spaceDiagonal, htiny, ↓reduceIte]
-  rw [decodeDesc_unframe_frame_append, budgetedUniversal_desc eS eBit tm _ _ _ hbudget]
-  simp only [Cfg.Halted] at hhalt
-  rw [hhalt, hout]
+  rw [Cfg.Halted] at hhalt
+  simp only [spaceDiagonal, htiny, ↓reduceIte, decodeDesc_unframe_frame_append,
+    budgetedUniversal_desc eS eBit tm _ _ _ hbudget, hhalt, hout]
   cases b <;> rfl
 
 open Diagonal in
@@ -358,15 +354,13 @@ machine, and the diagonal reads its input in place, so both the gap `f = o(g)` a
 theorem DSPACE_ssubset_DSPACE {f g : ℕ → ℕ} (hg : SpaceConstructible g)
     (hlog : ∀ n, Nat.log2 n ≤ g n) (hfg : ∀ c, ∀ᶠ n in atTop, c * f n + c ≤ g n) :
     DSPACE encBits f ⊂ DSPACE encBits g := by
-  have hsub : DSPACE encBits f ⊆ DSPACE encBits g := DSPACE_mono_of_eventually_le <| by
-    filter_upwards [hfg 1] with n h
-    omega
+  have hsub : DSPACE encBits f ⊆ DSPACE encBits g :=
+    DSPACE_mono_of_eventually_le ((hfg 1).mono fun _ => by omega)
   refine (Set.ssubset_iff_of_subset hsub).mpr ⟨_, DSPACE_mono_of_le_mul_add (C := 4)
     (fun n => Nat.le_add_right _ _) (setOf_spaceDiagonal_mem_DSPACE (hg.const_mul 4)
       fun n => (hlog n).trans (Nat.le_mul_of_pos_left _ (by norm_num))),
-    setOf_spaceDiagonal_notMem_DSPACE (fun n => Nat.mul_le_mul_left 4 (hlog n)) fun c => ?_⟩
-  filter_upwards [hfg c] with n h
-  omega
+    setOf_spaceDiagonal_notMem_DSPACE (fun n => Nat.mul_le_mul_left 4 (hlog n)) fun c =>
+      (hfg c).mono fun _ => by omega⟩
 
 /-- `⌊log₂ n⌋ ^ (k + 1)` eventually dominates every `c * ⌊log₂ n⌋ ^ k + c`. -/
 theorem eventually_mul_log2_pow_add_le (k c : ℕ) :

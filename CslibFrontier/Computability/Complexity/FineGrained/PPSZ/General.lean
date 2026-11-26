@@ -162,9 +162,7 @@ theorem cost_le (hp : 0 ≤ p)
             rwa [restrict_compl_free hα.1]
           · rw [assignProb_eq_zero hα, zero_mul, zero_mul]
       _ = p := by rw [← sum_mul, sum_assignProb hτ, one_mul]
-  · by_cases hx : τ x = none
-    · rw [cost_of_not_frozen hfr hx]
-    · rwa [cost_of_ne_none hx]
+  · by_cases hx : τ x = none <;> simp [cost, hfr, hx, hp]
 
 /-! ### The cost decrease -/
 
@@ -288,8 +286,7 @@ theorem sum_guessBit_add_totalCost_le (hp : 0 ≤ p)
         (2 - 2 * p) * (#((satLits φ τ).filter (·.1 = x)) - if τ x = none then 1 else 0) := by
     by_cases hxn : τ x = none
     · by_cases hfr : Frozen φ τ x
-      · have hfib : (satLits φ τ).filter (·.1 = x) = {(x, σ x)} := by
-          ext ⟨y, b⟩
+      · have hfib : (satLits φ τ).filter (·.1 = x) = {(x, σ x)} := Finset.ext fun ⟨y, b⟩ => by
           simp only [mem_filter, mem_satLits, mem_singleton, Prod.mk.injEq]
           exact ⟨fun ⟨hl, hy⟩ => ⟨hy, (satLit_iff_of_frozen hσ hfr).1 (hy ▸ hl)⟩,
             fun ⟨hy, hb⟩ => ⟨hy.symm ▸ ⟨hxn, σ, hσ, hb.symm⟩, hy⟩⟩
@@ -299,9 +296,8 @@ theorem sum_guessBit_add_totalCost_le (hp : 0 ≤ p)
       · obtain ⟨σ₁, σ₂, h₁, h₂, h12⟩ := exists_ne_of_not_frozen hxn hfr
         have hall (b : Bool) : SatLit φ τ x b :=
           if hb : σ₁ x = b then ⟨hxn, σ₁, h₁, hb⟩ else ⟨hxn, σ₂, h₂, by cases b <;> simp_all⟩
-        have hfib : (satLits φ τ).filter (·.1 = x) = {(x, true), (x, false)} := by
-          ext ⟨y, b⟩
-          cases b <;> simp +contextual [mem_satLits, hall]
+        have hfib : (satLits φ τ).filter (·.1 = x) = {(x, true), (x, false)} :=
+          Finset.ext fun ⟨_, b⟩ => by cases b <;> simp +contextual [mem_satLits, hall]
         have hcard : #((satLits φ τ).filter (·.1 = x)) = 2 := hfib ▸ card_pair (by simp)
         have hgb : guessBit φ w τ x = 1 :=
           ite_eq_left ((implied_eq_none_iff h₁.2 h₁.1).2 fun hI => h12 (hI.eq h₂.2 h₂.1).symm)
@@ -345,9 +341,7 @@ theorem sum_guessBit_add_totalCost_le (hp : 0 ≤ p)
     _ ≤ ∑ x, (((satLits φ τ).card : ℝ) * cost φ w p τ x +
           (2 - 2 * p) * (#((satLits φ τ).filter (·.1 = x)) - if τ x = none then 1 else 0)) :=
         sum_le_sum fun x _ => hx x
-    _ = _ := by
-        rw [sum_add_distrib, ← mul_sum, ← mul_sum, sum_sub_distrib, h1, h2]
-        rfl
+    _ = _ := by rw [sum_add_distrib, ← mul_sum, ← mul_sum, sum_sub_distrib, h1, h2]; rfl
 
 /-! ### The success recursion -/
 

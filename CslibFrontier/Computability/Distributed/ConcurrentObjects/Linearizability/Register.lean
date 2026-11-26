@@ -132,13 +132,11 @@ private theorem dekker_write_not_lt_stale_read
     simp only [List.getElem_cons_zero, List.getElem_cons_succ] at h0 h1 h2 h3
     rcases h6 with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩ <;>
       simp_all [List.filter]
-  rw [History.objSubhistory_flatMap_toEvents, hfil] at hleg
-  unfold registerSeqSpec at hleg
-  rw [SeqSpec.mem_ofMachine_allowed] at hleg
+  rw [History.objSubhistory_flatMap_toEvents, hfil, registerSeqSpec,
+    SeqSpec.mem_ofMachine_allowed] at hleg
   simp only [List.flatMap_cons, List.flatMap_nil, OpCall.toEvents, List.cons_append,
     List.nil_append, SeqSpec.evalMachine, registerStep] at hleg
-  obtain ⟨_, _, _, _, _, _, _, hbad, _⟩ := hleg
-  nomatch hbad
+  rcases hleg with ⟨_, _, _, _, _, _, _, ⟨⟩, _⟩
 
 /-- Original explicit 2-process, 1-register history that is **sequentially consistent** (`B`'s
 `read false` can be ordered before `A`'s `write true`) yet **not linearizable** (`A`'s `write true`
@@ -180,9 +178,9 @@ theorem exists_sequentiallyConsistent_not_linearizable :
     match cs, hlen_cs with
     | [c₀, c₁], _ =>
       have hleg0 := hlegS ()
-      rw [History.objSubhistory_eq_self_of_forall_obj (fun _ _ => rfl)] at hleg0
       unfold registerSeqSpec at hleg0
-      rw [SeqSpec.mem_ofMachine_allowed] at hleg0
+      rw [History.objSubhistory_eq_self_of_forall_obj (fun _ _ => rfl),
+        SeqSpec.mem_ofMachine_allowed] at hleg0
       cases hp₀ : c₀.proc
       · cases hp₁ : c₁.proc
         · have ht := heqS true
@@ -190,21 +188,16 @@ theorem exists_sequentiallyConsistent_not_linearizable :
             Bool.false_eq_true, decide_false, List.flatMap_nil] at ht
           nomatch ht
         · obtain rfl : c₀ = ⟨false, (), .write true, .writeAck⟩ :=
-            List.singleton_injective (flatMap_toEvents_injective (by
-              have h := (heqS false).symm
+            List.singleton_injective <| flatMap_toEvents_injective <| ((heqS false).trans (by
               simp only [History.procSubhistory_flatMap_toEvents, List.filter, hp₀, hp₁,
-                decide_true, Bool.true_eq_false, decide_false] at h
-              exact h))
+                decide_true, Bool.true_eq_false, decide_false])).symm
           obtain rfl : c₁ = ⟨true, (), .read, .readRet false⟩ :=
-            List.singleton_injective (flatMap_toEvents_injective (by
-              have h := (heqS true).symm
+            List.singleton_injective <| flatMap_toEvents_injective <| ((heqS true).trans (by
               simp only [History.procSubhistory_flatMap_toEvents, List.filter, hp₁,
-                Bool.false_eq_true, decide_false, decide_true] at h
-              exact h))
+                Bool.false_eq_true, decide_false, decide_true])).symm
           simp only [List.flatMap_cons, List.flatMap_nil, OpCall.toEvents, List.cons_append,
             List.nil_append, SeqSpec.evalMachine, registerStep] at hleg0
-          obtain ⟨_, _, _, _, _, _, _, hbad, _⟩ := hleg0
-          nomatch hbad
+          rcases hleg0 with ⟨_, _, _, _, _, _, _, ⟨⟩, _⟩
       · cases hp₁ : c₁.proc
         · obtain ⟨r, i, hr, hi, hlt⟩ := hpr_S
           simp only [History.respPos, History.invPos, List.flatMap_cons, List.flatMap_nil,

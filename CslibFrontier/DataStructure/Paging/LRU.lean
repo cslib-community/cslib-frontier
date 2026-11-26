@@ -161,8 +161,7 @@ private theorem lruNext_of_notMem {k : Nat} (hk : 0 < k) {q : List α} {p : α} 
 theorem mem_lruNext {k : Nat} (hk : 0 < k) (q : List α) (p : α) :
     p ∈ lruNext k q p := by
   obtain ⟨k, rfl⟩ := Nat.exists_eq_succ_of_ne_zero hk.ne'
-  unfold lruNext
-  split_ifs <;> simp
+  by_cases hp : p ∈ q <;> simp [lruNext, hp]
 
 /-- Every page in `lruNext k q p` comes from `insert p q.toFinset`. -/
 theorem toFinset_lruNext_subset {k : Nat} (q : List α) (p : α) :
@@ -315,9 +314,7 @@ private theorem maxWeightFrom_erase_finset_of_notMem {s : Finset α} {x : α} {q
   induction q generalizing w with
   | nil => rfl
   | cons y ys ih =>
-    have hyx : y ≠ x := fun h => hx (h ▸ List.mem_cons_self)
-    have hmem : (y ∈ s.erase x) ↔ (y ∈ s) := Finset.mem_erase.trans (and_iff_right hyx)
-    simp only [maxWeightFrom_cons, hmem,
+    simp [maxWeightFrom_cons, ne_of_mem_of_not_mem List.mem_cons_self hx,
       ih (fun h => hx (List.mem_cons_of_mem y h)) (w - 1)]
 
 /-- Structural bound when a full LRU list `init ++ [last]` evicts a page `last ∈ s` on a miss
@@ -343,9 +340,9 @@ private theorem one_add_sdiff_le_maxWeightFrom_snoc :
     split
     · next hxs =>
       have hlx : last ≠ x := fun h => hxnot (by simp [h])
-      have ih := one_add_sdiff_le_maxWeightFrom_snoc xs hnodup' (by finset_card)
-        (Finset.mem_erase.mpr ⟨hpx, hps⟩) hpnot' (Finset.mem_erase.mpr ⟨hlx, hlast⟩)
-      rw [maxWeightFrom_erase_finset_of_notMem hxnot] at ih
+      have ih := maxWeightFrom_erase_finset_of_notMem hxnot _ ▸
+        one_add_sdiff_le_maxWeightFrom_snoc xs hnodup' (by finset_card)
+          (Finset.mem_erase.mpr ⟨hpx, hps⟩) hpnot' (Finset.mem_erase.mpr ⟨hlx, hlast⟩)
       rw [Nat.add_sub_cancel]
       finset_card [List.toFinset_cons]
     · finset_card [List.toFinset_cons]
@@ -353,8 +350,7 @@ private theorem one_add_sdiff_le_maxWeightFrom_snoc :
 /-- `lruPotential k s q` never exceeds `k` when `s.card ≤ k`. -/
 theorem lruPotential_le {k : Nat} {s : Finset α} (hs : s.card ≤ k) (q : List α) :
     lruPotential k s q ≤ k := by
-  apply max_le (maxWeightFrom_le k s q)
-  exact (Finset.card_le_card Finset.sdiff_subset).trans hs
+  exact max_le (maxWeightFrom_le k s q) ((Finset.card_le_card Finset.sdiff_subset).trans hs)
 
 /-- `lruPotential k s q` vanishes whenever `q` represents the exact same page set as `s`. -/
 theorem lruPotential_eq_zero_of_toFinset_eq (k : Nat) {s : Finset α} {q : List α}
@@ -394,9 +390,7 @@ theorem lruPotential_step {k : Nat} (hk : 0 < k) {s s' : Finset α} {q : List α
             finset_card [List.toFinset_cons]).trans (le_max_right _ _)
         · obtain ⟨init, last, rfl⟩ : ∃ init last, q = init ++ [last] :=
             ⟨q.dropLast, q.getLast (by grind), (List.dropLast_append_getLast _).symm⟩
-          obtain rfl : k = init.length + 1 := by
-            simp only [List.length_append, List.length_singleton] at hlen hfull
-            omega
+          obtain rfl : k = init.length + 1 := by simp at hlen hfull; omega
           rw [Nat.add_sub_cancel, List.take_left]
           by_cases hlast : last ∈ s
           · exact (one_add_sdiff_le_maxWeightFrom_snoc init hnodup hs_card hps hpq hlast).trans

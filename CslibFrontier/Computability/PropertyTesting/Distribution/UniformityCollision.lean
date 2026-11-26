@@ -114,17 +114,15 @@ private theorem sum_cube_sub_sq_le [Nonempty α] (p : PMF α) :
     linarith
   obtain ⟨D, hD⟩ : ∃ D, D = ∑ a, d a ^ 2 := ⟨_, rfl⟩
   have hs : collisionProbability p = n⁻¹ + D := by
-    rw [collisionProbability_eq_sum, hD]
-    have h (a : α) : (p a).toReal ^ 2 = n⁻¹ * n⁻¹ + 2 * n⁻¹ * d a + d a ^ 2 := by
-      rw [hd]; ring
-    simp only [h, sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, ← hn, ← mul_sum, hsum,
-      mul_zero, add_zero, ← mul_assoc, mul_inv_cancel₀ hn0, one_mul]
+    have h (a : α) : (p a).toReal ^ 2 = n⁻¹ * n⁻¹ + 2 * n⁻¹ * d a + d a ^ 2 := by rw [hd]; ring
+    simp only [collisionProbability_eq_sum, hD, h, sum_add_distrib, sum_const, card_univ,
+      nsmul_eq_mul, ← hn, ← mul_sum, hsum, mul_zero, add_zero, ← mul_assoc, mul_inv_cancel₀ hn0,
+      one_mul]
   have ht : ∑ a, (p a).toReal ^ 3 = n⁻¹ * n⁻¹ + 3 * n⁻¹ * D + ∑ a, d a ^ 3 := by
-    rw [hD]
     have h (a : α) : (p a).toReal ^ 3 =
         n⁻¹ * (n⁻¹ * n⁻¹) + 3 * (n⁻¹ * n⁻¹) * d a + 3 * n⁻¹ * d a ^ 2 + d a ^ 3 := by
       rw [hd]; ring
-    simp only [h, sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, ← hn, ← mul_sum, hsum,
+    simp only [hD, h, sum_add_distrib, sum_const, card_univ, nsmul_eq_mul, ← hn, ← mul_sum, hsum,
       mul_zero, add_zero, ← mul_assoc, mul_inv_cancel₀ hn0, one_mul]
   have hcube : ∑ a, d a ^ 3 ≤ Real.sqrt D * D := by
     calc ∑ a, d a ^ 3 ≤ ∑ a, Real.sqrt D * d a ^ 2 := by
@@ -264,17 +262,15 @@ theorem isTester_collisionTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
     have hr0 : 0 ≤ r := Real.sqrt_nonneg _
     have hrD : r ^ 2 = D := Real.sq_sqrt hD0.le
     have hw2 : 4 * ε ^ 2 ≤ (q * r) ^ 2 := by rwa [mul_pow, hqn, hrD]
-    have hw : 2 * ε ≤ q * r := by
-      refine (pow_le_pow_iff_left₀ (by positivity) (by positivity) two_ne_zero).mp ?_
-      linarith only [hw2, show (2 * ε) ^ 2 = 4 * ε ^ 2 by ring]
+    have hw : 2 * ε ≤ q * r := (abs_le_of_sq_le_sq'
+      (by rw [mul_pow]; linarith only [hw2]) (mul_nonneg (zero_le_one.trans hq1) hr0)).2
     unfold collisionTester
     rw [acceptProb_pure]
     refine mass_le_one_third _
       (fun x => decide ((collisionCount x : ℝ) ≤ collisionThreshold (Fintype.card α) k ε)) _
       (N * (D - 2 * ε ^ 2 / n)) ?_ ?_ (sum_iid_mul_collisionCount_sub_sq _ k).le ?_
-    · refine mul_pos hN0 (sub_pos.mpr ?_)
-      rw [div_lt_iff₀ hn0, mul_comm]
-      linarith only [hnD, sq_pos_of_pos hε]
+    · exact mul_pos hN0 (sub_pos.mpr
+        ((div_lt_iff₀ hn0).mpr (by linarith only [hnD, sq_pos_of_pos hε])))
     · intro x hx
       have hτ' : collisionThreshold (Fintype.card α) k ε = N * s - N * (D - 2 * ε ^ 2 / n) := by
         rw [hτ, hD]; field_simp; ring
@@ -292,8 +288,7 @@ theorem isTester_collisionTester {k : ℕ} {ε : ℝ} (hε : 0 < ε)
               zero_le_three
         _ = 3 * ((K + 1) * K / 2 * (1 / q ^ 2 + r ^ 2) +
             (K + 1) * K * (K - 1) * (r ^ 2 * (1 / q ^ 2) + r * r ^ 2)) := by
-            have hsD : s = n⁻¹ + D := by rw [hD]; ring
-            rw [hNK, hqn, hrD, hsD]
+            rw [hNK, hqn, hrD, eq_add_of_sub_eq' hD.symm]
             ring
         _ ≤ ((K + 1) * K / 2 * (r ^ 2 - 2 * ε ^ 2 / q ^ 2)) ^ 2 :=
             far_variance_le hq1 hε hε1 hr0 hw hw2 hk hK0

@@ -65,14 +65,12 @@ variable {E F : Type*} [NormedAddCommGroup E] [NormedSpace ℝ E]
     Set.EqOn f (fun x => ∑ i, a i x * b i x) S
 
 theorem IsQuadraticOn.congr {f f' : E → ℝ} {S : Set E} (hf : IsQuadraticOn f S)
-    (heq : Set.EqOn f' f S) : IsQuadraticOn f' S := by
-  rcases hf with ⟨n, a, b, h⟩
-  exact ⟨n, a, b, heq.trans h⟩
+    (heq : Set.EqOn f' f S) : IsQuadraticOn f' S :=
+  match hf with | ⟨n, a, b, h⟩ => ⟨n, a, b, heq.trans h⟩
 
 theorem IsQuadraticOn.mono {f : E → ℝ} {S T : Set E} (hf : IsQuadraticOn f S)
-    (hTS : T ⊆ S) : IsQuadraticOn f T := by
-  rcases hf with ⟨n, a, b, h⟩
-  exact ⟨n, a, b, h.mono hTS⟩
+    (hTS : T ⊆ S) : IsQuadraticOn f T :=
+  match hf with | ⟨n, a, b, h⟩ => ⟨n, a, b, h.mono hTS⟩
 
 theorem IsQuadraticOn.of_isAffineOn {f : E → ℝ} {S : Set E} (hf : IsAffineOn f S) :
     IsQuadraticOn f S :=
@@ -86,16 +84,15 @@ theorem IsQuadraticOn.const (S : Set E) (c : ℝ) : IsQuadraticOn (fun _ => c) S
 
 theorem IsQuadraticOn.add {f g : E → ℝ} {S : Set E}
     (hf : IsQuadraticOn f S) (hg : IsQuadraticOn g S) :
-    IsQuadraticOn (fun x => f x + g x) S := by
-  rcases hf with ⟨n₁, a₁, b₁, hf'⟩
-  rcases hg with ⟨n₂, a₂, b₂, hg'⟩
-  exact ⟨n₁ + n₂, Fin.addCases a₁ a₂, Fin.addCases b₁ b₂, fun x hx => by
+    IsQuadraticOn (fun x => f x + g x) S :=
+  let ⟨n₁, a₁, b₁, hf'⟩ := hf
+  let ⟨n₂, a₂, b₂, hg'⟩ := hg
+  ⟨n₁ + n₂, Fin.addCases a₁ a₂, Fin.addCases b₁ b₂, fun x hx => by
     simp [hf' hx, hg' hx, Fin.sum_univ_add]⟩
 
 theorem IsQuadraticOn.neg {f : E → ℝ} {S : Set E} (hf : IsQuadraticOn f S) :
-    IsQuadraticOn (fun x => -f x) S := by
-  rcases hf with ⟨n, a, b, hf'⟩
-  exact ⟨n, fun i => -(a i), b, fun x hx => by simp [hf' hx]⟩
+    IsQuadraticOn (fun x => -f x) S :=
+  match hf with | ⟨n, a, b, hf'⟩ => ⟨n, fun i => -(a i), b, fun x hx => by simp [hf' hx]⟩
 
 theorem IsQuadraticOn.sub {f g : E → ℝ} {S : Set E}
     (hf : IsQuadraticOn f S) (hg : IsQuadraticOn g S) :
@@ -103,9 +100,9 @@ theorem IsQuadraticOn.sub {f g : E → ℝ} {S : Set E}
   (hf.add hg.neg).congr fun _ _ => sub_eq_add_neg _ _
 
 theorem IsQuadraticOn.smul (c : ℝ) {f : E → ℝ} {S : Set E} (hf : IsQuadraticOn f S) :
-    IsQuadraticOn (fun x => c * f x) S := by
-  rcases hf with ⟨n, a, b, hf'⟩
-  exact ⟨n, fun i => c • a i, b, fun x hx => by simp [hf' hx, mul_assoc, Finset.mul_sum]⟩
+    IsQuadraticOn (fun x => c * f x) S :=
+  let ⟨n, a, b, hf'⟩ := hf
+  ⟨n, fun i => c • a i, b, fun x hx => by simp [hf' hx, mul_assoc, Finset.mul_sum]⟩
 
 theorem IsQuadraticOn.sum {ι : Type*} (s : Finset ι) {f : ι → E → ℝ} {S : Set E}
     (hf : ∀ i ∈ s, IsQuadraticOn (f i) S) :
@@ -120,15 +117,16 @@ theorem IsQuadraticOn.sum {ι : Type*} (s : Finset ι) {f : ι → E → ℝ} {S
 
 theorem IsQuadraticOn.mul_of_isAffineOn {f g : E → ℝ} {S : Set E}
     (hf : IsAffineOn f S) (hg : IsAffineOn g S) :
-    IsQuadraticOn (fun x => f x * g x) S := by
-  rcases hf, hg with ⟨⟨af, haf⟩, ⟨ag, hag⟩⟩
-  exact ⟨1, fun _ => af, fun _ => ag, fun x hx => by simp [haf hx, hag hx]⟩
+    IsQuadraticOn (fun x => f x * g x) S :=
+  let ⟨af, haf⟩ := hf
+  let ⟨ag, hag⟩ := hg
+  ⟨1, fun _ => af, fun _ => ag, fun x hx => by simp [haf hx, hag hx]⟩
 
 theorem IsQuadraticOn.comp_affineMap {g : F → ℝ} {T : Set F}
     (hg : IsQuadraticOn g T) (a : E →ᵃ[ℝ] F) {S : Set E} (hmaps : MapsTo a S T) :
-    IsQuadraticOn (g ∘ a) S := by
-  rcases hg with ⟨n, u, v, hu⟩
-  exact ⟨n, fun i => (u i).comp a, fun i => (v i).comp a, fun _ hx => hu (hmaps hx)⟩
+    IsQuadraticOn (g ∘ a) S :=
+  let ⟨n, u, v, hu⟩ := hg
+  ⟨n, fun i => (u i).comp a, fun i => (v i).comp a, fun _ hx => hu (hmaps hx)⟩
 
 end BasicQuadratic
 
@@ -244,8 +242,8 @@ theorem isQuadraticOn_iff_mvPolynomial_basis {ι : Type*} [Finite ι]
     choose pa hpa hpa_eq using fun i => affineMap_eq_mvPolynomial_basis e (a i)
     choose pb hpb hpb_eq using fun i => affineMap_eq_mvPolynomial_basis e (b i)
     refine ⟨∑ i : Fin n, pa i * pb i, ?_, fun x hx => ?_⟩
-    · refine MvPolynomial.totalDegree_finsetSum_le fun i _ => ?_
-      exact (MvPolynomial.totalDegree_mul _ _).trans (Nat.add_le_add (hpa i) (hpb i))
+    · exact MvPolynomial.totalDegree_finsetSum_le fun i _ =>
+        (MvPolynomial.totalDegree_mul _ _).trans (Nat.add_le_add (hpa i) (hpb i))
     · simp only [hf hx, map_sum, map_mul, hpa_eq, hpb_eq]
   · rintro ⟨p, hp, hpf⟩
     refine IsQuadraticOn.congr (IsQuadraticOn.sum p.support
@@ -335,9 +333,9 @@ theorem IsPQOn.const {P : Set E} (hP : IsPolyhedron P) (c : ℝ) : IsPQOn P (fun
   IsPQOn.of_isPLOn (IsPLOn.const hP c)
 
 theorem IsPQOn.quadraticMap {P : Set E} (hP : IsPolyhedron P) (Q : QuadraticMap ℝ E ℝ) :
-    IsPQOn P Q := by
-  obtain ⟨C, hC⟩ := isPolyhedron_iff_exists_polytopalComplex.1 hP
-  exact ⟨C, hC, fun R _ => isQuadraticOn_of_quadraticMap Q R⟩
+    IsPQOn P Q :=
+  (isPolyhedron_iff_exists_polytopalComplex.1 hP).imp fun _ hC =>
+    ⟨hC, fun R _ => isQuadraticOn_of_quadraticMap Q R⟩
 
 theorem IsPQOn.continuousOn {P : Set E} {f : E → ℝ} (hf : IsPQOn P f) : ContinuousOn f P :=
   isPiecewiseOn_continuousOn (fun h => h.continuousOn) hf
@@ -365,9 +363,9 @@ theorem IsPQOn.exists_common_complex {P : Set E} {f g : E → ℝ}
     (fun hsub hv => hv.mono hsub) hf hg
 
 theorem IsPQOn.add {P : Set E} {f g : E → ℝ} (hf : IsPQOn P f) (hg : IsPQOn P g) :
-    IsPQOn P (fun x => f x + g x) := by
-  obtain ⟨C, hC, hqf, hqg⟩ := hf.exists_common_complex hg
-  exact ⟨C, hC, fun Q hQ => (hqf Q hQ).add (hqg Q hQ)⟩
+    IsPQOn P (fun x => f x + g x) :=
+  (hf.exists_common_complex hg).imp fun _ ⟨hC, hqf, hqg⟩ =>
+    ⟨hC, fun Q hQ => (hqf Q hQ).add (hqg Q hQ)⟩
 
 theorem IsPQOn.sub {P : Set E} {f g : E → ℝ} (hf : IsPQOn P f) (hg : IsPQOn P g) :
     IsPQOn P (fun x => f x - g x) :=
@@ -386,10 +384,9 @@ theorem IsPQOn.sum {ι : Type*} (s : Finset ι) {P : Set E} (hP : IsPolyhedron P
 /-- The pointwise product of two real-valued PL functions on `P` is PQ on `P` (cited in issue #4325
 notes as `STOC 1056 Lemma 3.1`, unverified against the primary manuscript). -/
 theorem IsPQOn.mul_of_isPLOn {P : Set E} {f g : E → ℝ}
-    (hf : IsPLOn P f) (hg : IsPLOn P g) : IsPQOn P (fun x => f x * g x) := by
-  obtain ⟨C, hC, haff_f, haff_g⟩ := hf.exists_common_complex hg
-  exact ⟨C, hC, fun Q hQ =>
-    IsQuadraticOn.mul_of_isAffineOn (haff_f Q hQ) (haff_g Q hQ)⟩
+    (hf : IsPLOn P f) (hg : IsPLOn P g) : IsPQOn P (fun x => f x * g x) :=
+  (hf.exists_common_complex hg).imp fun _ ⟨hC, hf', hg'⟩ =>
+    ⟨hC, fun Q hQ => IsQuadraticOn.mul_of_isAffineOn (hf' Q hQ) (hg' Q hQ)⟩
 
 /-- Any finite sum of pairwise products of real-valued PL functions on `P` is PQ on `P`. -/
 theorem IsPQOn.sum_mul_of_isPLOn {ι : Type*} (s : Finset ι) {P : Set E} (hP : IsPolyhedron P)
@@ -448,8 +445,7 @@ theorem IsPQOn.exists_cell_list_mvPolynomial_basis {ι : Type*} [Finite ι]
   · rintro _ _ hSq
     rcases List.mem_map.1 hSq with ⟨s, hs, ⟨⟩⟩
     exact ⟨isPolytope_convexHull s.finite_toSet, hp s (by simpa using hs)⟩
-  · ext x
-    simp [← hsp, Geometry.SimplicialComplex.space]
+  · exact Set.ext fun _ => by simp [← hsp, Geometry.SimplicialComplex.space]
 
 /-- Specialization of `IsPQOn.exists_cell_list_mvPolynomial_basis` to `Module.finBasis ℝ E`. -/
 theorem IsPQOn.exists_cell_list_mvPolynomial {P : Set E} {f : E → ℝ} (hf : IsPQOn P f) :

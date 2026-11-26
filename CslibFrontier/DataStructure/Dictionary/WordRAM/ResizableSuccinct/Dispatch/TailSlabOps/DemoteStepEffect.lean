@@ -100,11 +100,9 @@ private theorem compDemoteStep_effect {metaBase itemBase U V w N m_cap b k : ℕ
   set m := ((gm 0 - 1) * slabSize N + (slabSize N - k)) + gm 1
   have hbwin_eq : (gm 0 - 1) * slabSize N + (slabSize N - k) = g_last + 1 := by
     dsimp only [g_last, u]; omega
-  have hp_del_lt : gm (gmSlabTopIdx b) < gm 0 := hslab.top_lt hb (by omega)
-  have hg_del_le_last : g_del ≤ g_last :=
-    Nat.add_le_add_right (Nat.mul_le_mul_right _ (Nat.le_sub_one_of_lt hp_del_lt)) u
-  have hg_del_lt_b : g_del < g_last + 1 := by omega
-  have hg_last_lt_b : g_last < g_last + 1 := Nat.lt_succ_self g_last
+  have hg_del_lt_b : g_del < g_last + 1 :=
+    Nat.lt_succ_of_le (Nat.add_le_add_right
+      (Nat.mul_le_mul_right _ (Nat.le_sub_one_of_lt (hslab.top_lt hb (by omega)))) u)
   have hg_del_m : g_del < m := by dsimp only [m]; omega
   have hg_last_m : g_last < m := by dsimp only [m]; omega
   have hg_del_cap : g_del < m_cap := lt_of_lt_of_le hg_del_m hm_cap
@@ -132,7 +130,7 @@ private theorem compDemoteStep_effect {metaBase itemBase U V w N m_cap b k : ℕ
       StateTransitionSpec.clientResult_pure, hcpl0.quot_eq g_del hg_del_m,
       hcpl0.val_eq g_del hg_del_m, hcpl0.quot_eq g_last hg_last_m,
       hcpl0.val_eq g_last hg_last_m, physByBase_slab _ hg_del_lt_b,
-      physByBase_slab _ hg_last_lt_b]
+      physByBase_slab _ (Nat.lt_succ_self g_last)]
   set s₁ := (Memory.spec 0).clientState s
     (winGrowLeftGenProg ((mkCompParams U V w N, metaBase), (g_last, gm 1)))
   obtain ⟨hf_w1, htd_w1, hdt_w1, hlm_w1, hgm_w1, hq_w1, hv_w1, hout_w1⟩ :=
@@ -214,13 +212,11 @@ private theorem compDemoteStep_effect {metaBase itemBase U V w N m_cap b k : ℕ
     rw [hgm6_0]; dsimp only [g_last, u]; omega
   have hm6_eq : g_last + (gm 1 + 1) = m := by dsimp only [m]; rw [hbwin_eq]; omega
   have hwspec := winGrowLeft_spec hcpl0.win_inv (by omega : gm 1 + 1 ≤ maxTailItems N)
-    (fun i => by rw [← hmax_eq]; exact hcpl0.td_lt i)
-    (fun i => by rw [← hmax_eq]; exact hcpl0.dt_lt i)
+    (fun i => hmax_eq ▸ hcpl0.td_lt i) (fun i => hmax_eq ▸ hcpl0.dt_lt i)
   have hp_gl := physByBase_winGrowLeft (N := N) (b := g_last) (n := gm 1)
     (td := compTDAt metaBase U w N s.mem) (dt := compDTAt metaBase U w N s.mem)
     hb_pos (by omega)
-  have htot_g : g_last + 1 + gm 1 ≤ N := by rw [← hbwin_eq]; exact htot_N
-  have hp_rng := physByBase_range_and_inj hb_pos htot_g ht_cap.le hcpl0.win_inv
+  have hp_rng := physByBase_range_and_inj hb_pos (hbwin_eq ▸ htot_N) ht_cap.le hcpl0.win_inv
   have hp_ne_tail {idx : ℕ} (hidx : idx < m) (heq_last : idx ≠ g_last) :
       physByBase N (g_last + 1) (compDTAt metaBase U w N s.mem) idx ≠ N - 1 - gm 1 := by
     have hidx_g : idx < g_last + 1 + gm 1 := by dsimp only [m] at hidx; omega
@@ -258,8 +254,7 @@ private theorem compDemoteStep_effect {metaBase itemBase U V w N m_cap b k : ℕ
             physByBase_slab _ hg_del_lt_b, Function.update_self]
         · rw [compQuotAt_writeCompQuot_of_ne henv.pos_w s₂.mem heq_del,
             congrFun hfr2.quot_eq idx, congrFun hq_w1 idx,
-            Function.update_of_ne (hp_ne_del hidx heq_del)]
-          exact hcpl0.quot_eq idx hidx
+            Function.update_of_ne (hp_ne_del hidx heq_del), hcpl0.quot_eq idx hidx]
     · rw [hbwin6_eq, hgm6_1, hm6_eq] at hidx ⊢
       rw [hdt6, hs6_mem, hv_ds, hgm_fix_eq]
       unfold winGrowLeft; dsimp only
@@ -278,8 +273,7 @@ private theorem compDemoteStep_effect {metaBase itemBase U V w N m_cap b k : ℕ
         · rw [compValAt_writeCompVal_of_ne henv.pos_w _ heq_del,
             compValAt_writeCompQuot henv.pos_w s₂.mem,
             congrFun hfr2.val_eq idx, congrFun hv_w1 idx,
-            Function.update_of_ne (hp_ne_del hidx heq_del)]
-          exact hcpl0.val_eq idx hidx
+            Function.update_of_ne (hp_ne_del hidx heq_del), hcpl0.val_eq idx hidx]
   · rw [hst_all, hbwin6_eq, hgm6_1, hm6_eq]; exact hm_cap
 
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct

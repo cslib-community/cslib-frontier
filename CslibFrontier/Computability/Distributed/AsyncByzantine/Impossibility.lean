@@ -165,8 +165,8 @@ theorem replay_subset_mTr {A H F_src : Finset P} (hAH : Disjoint A H)
       · -- Delivery to `e.dest ∉ H`: skip in the `A`-faulty replay; `H` is untouched.
         exact ih hrest_hon hsrc'
           (fun p hp => by
-            simpa only [recvHonest, recvCore,
-              ite_eq_right (fun h : p = e.dest => hdestH (h ▸ hp))] using hproc₀ p hp)
+            simpa only [recvHonest, recvCore, ite_eq_right fun h : p = e.dest => hdestH (h ▸ hp)]
+              using hproc₀ p hp)
           fun m hs hd => by
             simp only [recvHonest, recvCore, Multiset.count_add,
               count_map_tagSender_eq_zero (p := e.dest) (e := m) fun h => hdestH (h ▸ hs), add_zero]
@@ -203,15 +203,14 @@ private lemma replay_from_start {A H F_src : Finset P}
       (∀ p ∈ H, u'.proc p = s₁.proc p) ∧
       (∀ p ∉ H, u'.proc p = u.proc p) ∧
       (∀ e : Envelope P M, e.src ∉ H → u'.msgs.count e = u.msgs.count e) := by
+  have hne {q : P} (hq : q ∈ H) : q ≠ dealer := fun h => hdH (h ▸ hq)
   refine π.replay_subset_mTr hAH hmtr hhon
     (fun e he => hcover e.src (π.start_msgs_src_notMem F_src inp_s he))
-    hcover (fun p hp => by
-      rw [hu_proc p hp]
-      simp [start, initState, show p ≠ dealer from fun h => hdH (h ▸ hp)])
+    hcover (fun p hp => by simp [hu_proc p hp, start, initState, hne hp])
     fun e heH _ => ?_
   rw [hu_msg e heH, π.start_msgs_count_of_notMem F_src inp_s (Finset.disjoint_left.mp hHF heH),
     π.start_msgs_count_of_notMem A inp_u (Finset.disjoint_right.mp hAH heH)]
-  simp [initSend, show e.src ≠ dealer from fun h => hdH (h ▸ heH)]
+  simp [initSend, hne heH]
 
 /-- **Split-brain impossibility for consistent broadcast**
 ([BrachaToueg1985]; [Bracha1987]). If the processes can be partitioned into three pairwise
@@ -253,12 +252,11 @@ theorem not_consistentBroadcast_of_partition {t : ℕ}
     (inp_u := none)
     (fun p hp => hu₁_out p (Finset.disjoint_right.mp hBC hp))
     (fun e he => hu₁_msg e (Finset.disjoint_right.mp hBC he)) hmtr₁ hhon₁
-  have hreach : π.Reachable A none u₂ := ⟨yl₀ ++ yl₁, LTS.MTr.comp (π.lts A) hyl₀ hyl₁⟩
   have hb_dec : u₂.ProcDecided b₀ v₀ :=
     (congrArg ProcState.out ((hu₂_out b₀ hb₀_not_C).trans (hu₁_B b₀ hb₀))).trans hk₀
   have hc_dec : u₂.ProcDecided c₀ v₁ := (congrArg ProcState.out (hu₂_C c₀ hc₀)).trans hk₁
-  exact hne (hcon A hA none u₂ hreach b₀ (Finset.disjoint_right.mp hAB hb₀)
-    c₀ (Finset.disjoint_right.mp hAC hc₀) v₀ v₁ hb_dec hc_dec)
+  exact hne (hcon A hA none u₂ ⟨yl₀ ++ yl₁, LTS.MTr.comp (π.lts A) hyl₀ hyl₁⟩ b₀
+    (Finset.disjoint_right.mp hAB hb₀) c₀ (Finset.disjoint_right.mp hAC hc₀) v₀ v₁ hb_dec hc_dec)
 
 /-- **Single-value impossibility for full reliable broadcast** (even for a singleton domain such
 as `V = Unit`). Under any `3`-partition `A, B, C` of sizes at most `t` with `dealer ∈ A`,
@@ -299,22 +297,19 @@ theorem not_reliableBroadcast_of_partition {t : ℕ}
   obtain ⟨ss, xs, k₀, ha, hsk₀, hhon_suf⟩ := hreach_u₁.exists_admissibleRun
   obtain ⟨k₁, hk₁⟩ := htot A hA none ss xs ha b₀ (Finset.disjoint_right.mp hAB hb₀) k₀ v₀
     (hsk₀.symm ▸ hb_dec) c₀ (Finset.disjoint_right.mp hAC hc₀)
-  let k₂ := max k₀ k₁
-  have hm_suf : (π.lts A).MTr u₁ (xs.extract k₀ k₂) (ss k₂) :=
-    hsk₀ ▸ ha.2.1.extract_mTr (le_max_left k₀ k₁)
-  have hc_dec₂ : (ss k₂).ProcDecided c₀ v₀ :=
+  have hc_dec₂ : (ss (max k₀ k₁)).ProcDecided c₀ v₀ :=
     π.omega_procDecided_stable ha.2.1 (le_max_right k₀ k₁) hk₁
   -- Step 4 (`B` faulty, `none`): replay `C`'s steps of the honest suffix onto `π.start B none`.
-  have hproc_C : ∀ p ∈ C, (π.start B none).proc p = u₁.proc p := fun p hp => by
+  have hproc_C (p : P) (hp : p ∈ C) : (π.start B none).proc p = u₁.proc p := by
     have hne : p ≠ dealer := fun h => hd_not_C (h ▸ hp)
-    rw [hu₁_out p (Finset.disjoint_right.mp hBC hp)]
-    simp [start, initState, hne]
+    simp [hu₁_out p (Finset.disjoint_right.mp hBC hp), start, initState, hne]
   have hmsg_C (e : Envelope P M) (heC : e.src ∈ C) (_ : e.dest ∈ C) :
       u₁.msgs.count e ≤ (π.start B none).msgs.count e := by
     have hnotB : e.src ∉ B := Finset.disjoint_right.mp hBC heC
     rw [hu₁_msg e hnotB, π.start_msgs_count_of_notMem A none (Finset.disjoint_right.mp hAC heC),
       π.start_msgs_count_of_notMem B none hnotB]
-  obtain ⟨yl₁, w₁, hyl₁, hw₁_C, _, _⟩ := π.replay_subset_mTr hBC hm_suf
+  obtain ⟨yl₁, w₁, hyl₁, hw₁_C, _, _⟩ := π.replay_subset_mTr hBC
+    (hsk₀ ▸ ha.2.1.extract_mTr (le_max_left k₀ k₁))
     (extract_isHonest xs hhon_suf) (fun e he => hcoverA e.src (hreach_u₁.msgs_src_notMem he))
     hcoverA hproc_C hmsg_C
   exact nomatch hnoSp B hB hd_not_B none w₁ ⟨yl₁, hyl₁⟩ c₀

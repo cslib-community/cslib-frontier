@@ -303,12 +303,8 @@ theorem memCopyUpper_at_c {base t c cnt : ℕ}
     memCopyUpper base t c cnt mem (nodeAddr base t c + o) = mem (nodeAddr base t c + o) := by
   dsimp only [memCopyUpper]
   generalize nodeAddr base t c = ac, nodeAddr base t cnt = az at hsep ⊢
-  rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-    Function.update_of_ne (by omega)]
-  split_ifs
-  · rw [ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega),
-      ArrayCopy.copyPrefix_outside (by omega)]
-  · rw [ArrayCopy.copyPrefix_outside (by omega), ArrayCopy.copyPrefix_outside (by omega)]
+  iterate 3 rw [Function.update_of_ne (by omega)]
+  split_ifs <;> repeat rw [ArrayCopy.copyPrefix_outside (by omega)]
 
 theorem not_readsWidth_copyUpperCode : ¬copyUpperCode.ReadsWidth := by
   simp [copyUpperCode, copyUpperPre1, copyUpperPre2, copyUpperBranch, copyUpperPost,

@@ -134,7 +134,6 @@ private theorem lit_subst_affineIn {S : State n} {G a b : ℕ} {c : Bool} {T : F
     let ℓ_sub : Lit := ⟨.node b, c⟩
     let g' := (S.gate G).subst a ℓ_sub
     have hg'deg : g'.Degenerate := by
-      unfold Gate.Degenerate
       refine Or.inr (Or.inr ?_)
       rcases Gate.args_of_reads hab hGa hGb with ⟨hl, hr⟩ | ⟨hl, hr⟩ <;>
         dsimp only [g', Gate.subst] <;> rw [hl, hr] <;> simp [Arg.substArg, ℓ_sub, hab.symm]
@@ -224,9 +223,8 @@ theorem Valid.preparation_swap_auxIn_of {S : State n} {f : BooleanFunction n} (h
   have hle_l := hauxArg_le _ fun z hz => hne_y_read z (Or.inl hz)
   have hle_r := hauxArg_le _ fun z hz => hne_y_read z (Or.inr hz)
   change auxArg S' (S.gate G).left + auxArg S' (S.gate G).right < _
-  rcases hGa with hla | hra
-  · rw [hla] at *; omega
-  · rw [hra] at *; omega
+  cases hGa with
+  | inl h | inr h => rw [h] at *; omega
 
 /-- Swapping an auxiliary input of the minimal gate with a suitable parameter preserves validity,
 keeps `gates` and potential non-increasing, and strictly lowers `auxIn G`. -/
@@ -306,10 +304,8 @@ theorem Valid.step_pairCreation_of {S : State n} {f : BooleanFunction n} (hS : S
   have hq₃ : S₃.q = S.q + 1 := by
     simpa [S₁, pairsMeeting_empty, addPair_q hpc] using
       (congrArg (· + (S₁.pairsMeeting ∅).card) hred₃.q_add).trans hred₂.q_add
-  have ha₃ : S₃.a + 1 = S.a := by
-    have := hred₃.valid.q_le_m
-    unfold a at *
-    omega
+  have := hred₃.valid.q_le_m
+  have ha₃ : S₃.a + 1 = S.a := by simp only [a] at *; omega
   exact ⟨hred₃.valid, by omega, by omega, by omega, by rw [config_ca]; omega⟩
 
 /-- When the minimal gate `G` is non-affine and reads two distinct parameters `t₁, t₂`, pair
@@ -335,9 +331,9 @@ theorem Valid.step_of_pairCreation {S : State n} {f : BooleanFunction n} {d : �
         have hout_eq : S.out.arg = .node G := hread
         have hv1 : val t₁ = α := by simpa using hfix
         simp [Lit.eval, hout_eq, Arg.eval_node, hcons.2 G hG, hG_eval, hv1]
-  obtain ⟨K, hK, hKr⟩ : ∃ K ∈ S.gates, (S.gate K).Reads G := by
-    by_contra! hno
-    exact hN.no_deletion (Or.inr (Or.inl ⟨G, hG, hno, houtG⟩))
+  obtain ⟨K, hK, hKr⟩ : ∃ K ∈ S.gates, (S.gate K).Reads G :=
+    by_contra fun hno =>
+      hN.no_deletion (Or.inr (Or.inl ⟨G, hG, fun K hK hr => hno ⟨K, hK, hr⟩, houtG⟩))
   exact ⟨_, Valid.step_pairCreation_of hS hG htne hGt₁ hGt₂ ht₁unp ht₂unp hG_eval hK hKr⟩
 
 /-! ### Lemma 4.2: Every valid state with `d < S.a` admits a step -/

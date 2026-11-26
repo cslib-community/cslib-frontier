@@ -114,14 +114,13 @@ private theorem iterate_compPromoteStep_spec {metaBase itemBase U V w N m_cap b 
     have henv1 := henv.of_mem_eq (s' := s₁) (by rw [hfr1.frontier_eq])
     obtain ⟨hfr_m, hcpl_m, hcost_m, hsafe_m⟩ :=
       ih (k + 1) s_fix₁ s₁ (by omega) henv1 hloop' hcpl1 hm_cap1
-    have hkm_eq : (k + 1) + m = k + (m + 1) := by omega
     refine ⟨?_, ?_, ?_, ?_⟩
     · unfold iterate; rw [StateTransitionSpec.clientState_bind, hres_s]
       exact hfr1.trans hfr_m
     · unfold iterate
       rw [StateTransitionSpec.clientState_bind, hres_s,
-        StateTransitionSpec.clientState_bind, hres_fix, ← hkm_eq]
-      exact hcpl_m
+        StateTransitionSpec.clientState_bind, hres_fix]
+      simpa only [Nat.add_assoc, Nat.add_comm 1 m] using hcpl_m
     · dsimp only [s₁] at hcost_m
       simp only [iterate, Realization.memoryCost_bind', memoryCost_compPromoteStepGenProg,
         hres_s, hcost_m]
@@ -239,15 +238,9 @@ private theorem compPromoteSlab_effect {metaBase itemBase U V w N m_cap b : ℕ}
       exact hcpl_loop.quot_eq idx (htot_eq' ▸ hidx)
     · rw [htot_eq', congrFun hfr_push.val_eq idx, hgm0', hbwin_eq, hfr_push.dt_eq, hv_fpush]
       exact hcpl_loop.val_eq idx (htot_eq' ▸ hidx)
-  · dsimp only [d, compPromoteSlabGenProg]
+  · have hpush := memoryCost_compGmPushSlabGenProg_le ((mkCompParams U V w N, metaBase), b) s₁
+    dsimp only [s₁, d, compPromoteSlabGenProg, compPromoteLoopGenProg] at hpush hcost_loop ⊢
     simp only [pure_bind, cpSlabSize_mk, Realization.memoryCost_bind']
-    change memoryCost (iterate compPromoteStepGenProg
-        ((mkCompParams U V w N, (metaBase, itemBase)), b) (slabSize N) 0) s +
-      memoryCost (compGmPushSlabGenProg ((mkCompParams U V w N, metaBase), b)) s₁ ≤
-      98 * slabSize N + 38
-    rw [hcost_loop]
-    have hpush_cost := memoryCost_compGmPushSlabGenProg_le
-      ((mkCompParams U V w N, metaBase), b) s₁
     omega
 
 private theorem compPromoteSlab_subgoals {w : ℕ} {d : (CompParams × (ℕ × ℕ)) × ℕ}

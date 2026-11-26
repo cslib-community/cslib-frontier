@@ -259,12 +259,10 @@ theorem configurationJustesenSourceLoop_exists_routines
       justesenRetainedSourceRoundEntry_inSpace justesenSourceMembershipStart_inSpace hrr hmr
       hrq hmq hrh hmh hrn hmn ⟨C, hstates⟩
   refine ⟨R, R.exists_logSpace_polyClock
-    (time := fun a => configurationJustesenSourceLoopClock ntm c (enc a)) ?_⟩
-  intro a
+    (time := fun a => configurationJustesenSourceLoopClock ntm c (enc a)) fun a => ?_⟩
   obtain ⟨seed, source, target, hctx, hlimit⟩ := hvalid a
   rw [justesenSourceLoop_withInit, hctx]
-  exact configurationJustesenSourceLoop_haltsWithin_clock ntm c (enc a)
-    seed source target (limitOf a) hlimit
+  exact configurationJustesenSourceLoop_haltsWithin_clock ntm c (enc a) seed source target _ hlimit
 
 /-- For each selector list, an accepting native occurrence is unique exactly when the
 re-entered source loop first halts on that list and returns a verdict. A negative verdict
@@ -413,9 +411,8 @@ theorem configurationJustesenSourceLoop_exists_firstHalting
         ⟨configurationJustesenSubdivisionContext ntm c w seed.val, source.val, target.val⟩
       let M := justesenSourceLoop ntm c context n
       ∃ bits verdict, M.FirstHalting w bits M.init ∧ M.run w bits = .inr (some verdict) := by
-  intro I n seed source target
-  exact (configurationJustesenSourceLoop_existsUnique_firstHalting
-    ntm c w seed source target).exists
+  exact fun seed source target =>
+    (configurationJustesenSourceLoop_existsUnique_firstHalting ntm c w seed source target).exists
 
 /-- A first-halting run returns a reply exactly when its terminal state carries a verdict. -/
 theorem justesenSourceLoop_firstHalting_reply_iff
@@ -454,11 +451,10 @@ theorem configurationJustesenSourceLoop_acceptCount_eq_one
   rw [R.acceptCount_eq_one_iff a hclock]
   refine (existsUnique_congr fun bits => ?_).mpr
     (configurationJustesenSourceLoop_existsUnique_firstHalting ntm c w seed source target)
-  let entered := (justesenSourceLoop ntm c baseline fuel).withInit
+  let e := (justesenSourceLoop ntm c baseline fuel).withInit
     (justesenSourceLoop ntm c (contextOf a) (limitOf a)).init
-  change (entered.FirstHalting w bits entered.init ∧
-    entered.accept (entered.run w bits) = true) ↔ _
-  dsimp only [entered]
+  change (e.FirstHalting w bits e.init ∧ e.accept (e.run w bits) = true) ↔ _
+  dsimp only [e]
   rw [justesenSourceLoop_withInit, hcontext, hlimit]
   exact justesenSourceLoop_firstHalting_reply_iff ntm c _ n w bits
 

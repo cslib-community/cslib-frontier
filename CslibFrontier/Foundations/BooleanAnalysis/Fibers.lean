@@ -152,8 +152,8 @@ when the subset is nonempty. -/
 theorem uniformDeficit_le_iff {ι : Type*} [Fintype ι] {X : Finset (ι → Bool)}
     (hX : X.Nonempty) {k : ℝ} : uniformDeficit X ≤ k ↔
       (2 : ℝ) ^ ((Fintype.card ι : ℝ) - k) ≤ X.card := by
-  rw [card_eq_rpow_sub_uniformDeficit hX, Real.rpow_le_rpow_left_iff (by norm_num)]
-  exact ⟨fun _ => by linarith, fun _ => by linarith⟩
+  simp only [card_eq_rpow_sub_uniformDeficit hX, Real.rpow_le_rpow_left_iff one_lt_two,
+    sub_le_sub_iff_left]
 
 /-- A uniform deficit bound implies the light-patterns lemma's pointwise
 probability-mass hypothesis. -/
@@ -190,9 +190,7 @@ theorem uniformDensity_eq_deficit {ι : Type*} [Fintype ι] {X : Finset (ι → 
 /-- Normalization of the density of a nonempty finite cube subset. -/
 theorem expect_uniformDensity {ι : Type*} [Fintype ι] [DecidableEq ι] {X : Finset (ι → Bool)}
     (hX : X.Nonempty) : (𝔼 x, uniformDensity X x) = 1 := by
-  simp_rw [uniformDensity]
-  rw [Fintype.expect_eq_sum_div_card, ← mul_sum, sum_uniformMass hX]
-  simp
+  simp [uniformDensity, Fintype.expect_eq_sum_div_card, ← mul_sum, sum_uniformMass hX]
 
 /-- **Pigeonhole for deficits**: some fiber of a map from a nonempty set `X` to a type of at most
 `2 ^ m` elements is nonempty, of deficit at most the deficit of `X` plus `m`. -/
@@ -215,9 +213,8 @@ theorem exists_uniformDeficit_fiber_le {ι M : Type*} [Fintype ι] [Fintype M] [
   have hne : (X.filter fun x => send x = a).Nonempty :=
     card_pos.mp (by exact_mod_cast (show 0 < b by dsimp [b]; positivity).trans_le ha)
   refine ⟨a, hne, (uniformDeficit_le_iff hne).mpr ?_⟩
-  dsimp only [b] at ha
-  rw [card_eq_rpow_sub_uniformDeficit ⟨x, hx⟩, ← Real.rpow_sub (by norm_num)] at ha
-  rwa [sub_add_eq_sub_sub]
+  simpa +zetaDelta only [card_eq_rpow_sub_uniformDeficit ⟨x, hx⟩, ← Real.rpow_sub two_pos,
+    sub_add_eq_sub_sub] using ha
 
 /-! ### Gluing points along a set of coordinates -/
 
@@ -387,8 +384,8 @@ theorem coordinateMarginal_eq_expect_completePattern (f : (ι → Bool) → ℝ)
 /-- The projection of `f` at `x` is its marginal at the selected coordinates of `x`. -/
 theorem projectionAverage_eq_coordinateMarginal (f : (ι → Bool) → ℝ) (selected x : ι → Bool) :
     projectionAverage f selected x = coordinateMarginal f selected (fun i => x i) := by
-  rw [coordinateMarginal_eq_expect_completePattern, projectionAverage]
-  simp_rw [resample_eq_completePattern]
+  simp_rw [coordinateMarginal_eq_expect_completePattern, projectionAverage,
+    resample_eq_completePattern]
 
 /-- Marginalization preserves the uniform mean, hence also density normalization. -/
 theorem expect_coordinateMarginal (f : (ι → Bool) → ℝ) (selected : ι → Bool) :
@@ -434,8 +431,7 @@ the indicator of `X` to the coordinates outside `s`. -/
 theorem coordinateDensity_eq_projectionAverage (X : Finset (ι → Bool)) (s x : ι → Bool) :
     coordinateDensity X s x =
       projectionAverage (fun y => if y ∈ X then 1 else 0) (fun i => !s i) x := by
-  rw [coordinateDensity_eq_expect, projectionAverage]
-  simp_rw [resample_not]
+  simp_rw [coordinateDensity_eq_expect, projectionAverage, resample_not]
 
 /-- Projecting the restriction of `f` to the fiber over `x`, a function of the patterns on `s`, to
 the coordinates `R` is projecting `f` to `R` together with the coordinates outside `s`. -/
